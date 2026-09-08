@@ -197,18 +197,16 @@ int map_continent_id_at(const ColonizeWorldMap* map, int x, int y);
 bool map_tile_is_lake(const ColonizeWorldMap* map, int x, int y);
 int map_tile_tribe_or_presence(const ColonizeWorldMap* map, int x, int y);
 uint8_t map_terrain_overlay(uint8_t terrain_byte);
-int map_terrain_base_sprite(uint8_t terrain_byte);
 int map_terrain_sprite_at(const ColonizeWorldMap* map, int x, int y);
 int map_phys0_forest_sprite_at(const ColonizeWorldMap* map, int x, int y);
 /* PHYS0 149 when tile is plowed (runtime improve); -1 otherwise. */
 int map_phys0_plow_sprite_at(const ColonizeWorldMap* map, int x, int y);
 /*
  * Road overlays (FUN_6ba1_0938): isolated PHYS0 80, else multi-blit 81+d per
- * connected 8-neighbor (N..NW). Prefer layer count/sprite; sprite_at = layer 0.
+ * connected 8-neighbor (N..NW). Use the layer count/sprite pair.
  */
 int map_phys0_road_layer_count(const ColonizeWorldMap* map, int x, int y);
 int map_phys0_road_layer_sprite_at(const ColonizeWorldMap* map, int x, int y, int index);
-int map_phys0_road_sprite_at(const ColonizeWorldMap* map, int x, int y);
 /* MAPEDIT coast layer count (0 if open ocean / land). */
 int map_phys0_coast_layer_count(const ColonizeWorldMap* map, int x, int y);
 /*
@@ -248,11 +246,6 @@ void map_phys0_overlay_offset_at(
   int* out_ox,
   int* out_oy
 );
-int map_phys0_overlay_sprite(const ColonizeWorldMap* map, int x, int y);
-int map_phys0_forest_sprite(const ColonizeWorldMap* map, int x, int y);
-int map_phys0_feature_sprite(const ColonizeWorldMap* map, int x, int y);
-int map_terrain_sprite(uint8_t terrain_byte);
-
 bool map_tile_is_water(const ColonizeWorldMap* map, int x, int y);
 bool map_tile_is_land(const ColonizeWorldMap* map, int x, int y);
 /* Land tile with at least one adjacent (8-neighbor) water tile — docks eligible. */

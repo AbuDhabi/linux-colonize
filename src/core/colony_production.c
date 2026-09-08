@@ -37,18 +37,6 @@ ColonyProdTier colony_prod_building_tier(const char* building_name) {
   return COLONY_PROD_TIER_HOUSE;
 }
 
-int colony_prod_tier_free_output(ColonyProdTier tier) {
-  switch (tier) {
-  case COLONY_PROD_TIER_SHOP:
-    return 6;
-  case COLONY_PROD_TIER_FACTORY:
-    return 9;
-  case COLONY_PROD_TIER_HOUSE:
-  default:
-    return 3;
-  }
-}
-
 int colony_prod_tier_input_for_output(ColonyProdTier tier, int output) {
   if (output <= 0) {
     return 0;
@@ -195,10 +183,6 @@ int colony_prod_manufacturing_input(
   }
   const ColonyProdTier tier = colony_prod_building_tier(building_name);
   return colony_prod_tier_input_for_output(tier, out);
-}
-
-bool colony_prod_field_skill_matches(int profession, int field_job) {
-  return profession >= 0 && profession == field_job;
 }
 
 int colony_prod_sol_percent(const ColonizeCol1Save* col1, const ColonizeColony* colony) {
@@ -606,10 +590,6 @@ int colony_prod_colony_crosses_ff(
   return crosses;
 }
 
-int colony_prod_colony_crosses(const ColonizeColonyPool* pool, const ColonizeColony* colony) {
-  return colony_prod_colony_crosses_ff(pool, colony, false, 0);
-}
-
 int colony_prod_colony_bells_ff(
   const ColonizeColonyPool* pool,
   const ColonizeColony* colony,
@@ -719,10 +699,6 @@ int colony_prod_colony_bells_ff(
   return bells;
 }
 
-int colony_prod_colony_bells(const ColonizeColonyPool* pool, const ColonizeColony* colony) {
-  return colony_prod_colony_bells_ff(pool, colony, 0, 0, false, 0);
-}
-
 int colony_prod_colony_hammers(
   const ColonizeColonyPool* pool,
   const ColonizeColony* colony,
@@ -791,47 +767,6 @@ ColonyProdHorseBreed colony_prod_horse_breed(
   return r;
 }
 
-const char* colony_prod_highest_manufacturing_tier_name(
-  const ColonizeColonyPool* pool,
-  const ColonizeColony* colony,
-  const char* base_name
-) {
-  if (!base_name) {
-    return NULL;
-  }
-  if (colony_prod_name_has(base_name, "Weaver") || colony_prod_name_has(base_name, "Textile")) {
-    if (colony_prod_building_built(pool, colony, "Textile Mill")) return "Textile Mill";
-    if (colony_prod_building_built(pool, colony, "Weaver's Shop")) return "Weaver's Shop";
-    return "Weaver's House";
-  }
-  if (colony_prod_name_has(base_name, "Rum Distill")) {
-    if (colony_prod_building_built(pool, colony, "Rum Factory")) return "Rum Factory";
-    if (colony_prod_building_built(pool, colony, "Rum Distillery")) return "Rum Distillery";
-    return "Rum Distiller's House";
-  }
-  if (colony_prod_name_has(base_name, "Tobacconist") || colony_prod_name_has(base_name, "Cigar")) {
-    if (colony_prod_building_built(pool, colony, "Cigar Factory")) return "Cigar Factory";
-    if (colony_prod_building_built(pool, colony, "Tobacconist's Shop")) return "Tobacconist's Shop";
-    return "Tobacconist's House";
-  }
-  if (colony_prod_name_has(base_name, "Fur Trad") || colony_prod_name_has(base_name, "Fur Fact")) {
-    if (colony_prod_building_built(pool, colony, "Fur Factory")) return "Fur Factory";
-    if (colony_prod_building_built(pool, colony, "Fur Trading Post")) return "Fur Trading Post";
-    return "Fur Trader's House";
-  }
-  if (colony_prod_name_has(base_name, "Blacksmith") || colony_prod_name_has(base_name, "Iron Works")) {
-    if (colony_prod_building_built(pool, colony, "Iron Works")) return "Iron Works";
-    if (colony_prod_building_built(pool, colony, "Blacksmith's Shop")) return "Blacksmith's Shop";
-    return "Blacksmith's House";
-  }
-  if (colony_prod_name_has(base_name, "Armory") || colony_prod_name_has(base_name, "Magazine") || colony_prod_name_has(base_name, "Arsenal")) {
-    if (colony_prod_building_built(pool, colony, "Arsenal")) return "Arsenal";
-    if (colony_prod_building_built(pool, colony, "Magazine")) return "Magazine";
-    return "Armory";
-  }
-  return base_name;
-}
-
 int colony_prod_worker_building_output_ctx(
   const ColonizeColonyPool* pool,
   const ColonizeColony* colony,
@@ -888,23 +823,6 @@ int colony_prod_worker_building_output_ctx(
   return 0;
 }
 
-int colony_prod_worker_building_output_sol(
-  const ColonizeColonyPool* pool,
-  int building_type,
-  int profession,
-  int sol_bonus
-) {
-  return colony_prod_worker_building_output_ctx(pool, NULL, NULL, building_type, profession, sol_bonus);
-}
-
-int colony_prod_worker_building_output(
-  const ColonizeColonyPool* pool,
-  int building_type,
-  int profession
-) {
-  return colony_prod_worker_building_output_ctx(pool, NULL, NULL, building_type, profession, 0);
-}
-
 int colony_prod_building_display_output_sol(
   const ColonizeColonyPool* pool,
   const ColonizeColony* colony,
@@ -939,12 +857,4 @@ int colony_prod_building_display_output_sol(
       pool, colony, col1, building_type, c->profession, sol_bonus);
   }
   return amount;
-}
-
-int colony_prod_building_display_output(
-  const ColonizeColonyPool* pool,
-  const ColonizeColony* colony,
-  int building_type
-) {
-  return colony_prod_building_display_output_sol(pool, colony, NULL, building_type, 0);
 }

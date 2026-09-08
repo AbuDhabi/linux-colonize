@@ -6636,15 +6636,21 @@ static AiRaidKind ai_contact_pick_raid_kind(
   ColonizeColony* c,
   int target_euro,
   int max_alarm,
-  ColonizeDosRng* rng
+  ColonizeDosRng* rng,
+  int forced
 ) {
   /*
    * Banded picker mirroring @RAID* message outcomes (not DOS bit-identity).
    * Gate kinds on colony stock / gold actually present so empty warehouses
    * do not fake STORES/WREAK/muskets loot (5fef_0f14-shaped). No Indian-nation
    * treasury fiction — GOLD drains Euro gold only when present.
+   *
+   * `forced` = DOS `FUN_5fef_0f14` param_4 (the 1b0e repelled-at-a-colony
+   * handoff): it bypasses the walls check below. DOS has no alarm band at
+   * this head at all — that gate is a Linux-only stand-in for the raid
+   * pulse's own targeting, so `forced` bypasses it too.
    */
-  if (max_alarm < 45) {
+  if (max_alarm < 45 && !forced) {
     return AI_RAID_NOTHING;
   }
   /*
@@ -6655,7 +6661,7 @@ static AiRaidKind ai_contact_pick_raid_kind(
    * (@RAIDNOTHING "raiding party wiped out"). Bare colony: 1/13; Stockade
    * 4/13; Fort 7/13; Fortress 10/13 before the difficulty shift.
    */
-  if (c && ctx && ctx->colonies && rng) {
+  if (c && ctx && ctx->colonies && rng && !forced) {
     int walls = 0;
     static const char* k_chain[3] = {"Stockade", "Fort", "Fortress"};
     for (int i = 0; i < 3; ++i) {
@@ -7159,6 +7165,91 @@ static void ai_contact_apply_raid_loot(
 }
 
 /*
+ * Self-register the 1b0e handoff with units.c at load time (units.h
+ * ColonizeUnitsRaidRepelledFn). Keeps units.c free of a link-time
+ * dependency on this module: binaries that don't link ai_contact.c fall
+ * back to the plain pre-port death.
+ */
+__attribute__((constructor)) static void ai_contact_register_raid_repelled(void) {
+  units_set_colony_raid_repelled(ai_contact_colony_raid_repelled);
+}
+
+int ai_contact_colony_raid_repelled(
+  ColonizeCol1Save* col1,
+  ColonizeColonyPool* colonies,
+  ColonizeUnitPool* units,
+  ColonizeWorldMap* map,
+  ColonizeDosRng* rng,
+  int indian_nation,
+  int euro_nation,
+  int colony_id,
+  int home_tribe_id,
+  int forced
+) {
+  if (!col1 || !colonies || indian_nation < 4 || indian_nation > 11 || euro_nation < 0 ||
+      euro_nation > 3) {
+    return AI_RAID_NOTHING;
+  }
+  ColonizeColony* c = colonies_get_mut(colonies, colony_id);
+  if (!c || !c->active || c->nation_id != euro_nation) {
+    return AI_RAID_NOTHING;
+  }
+  /*
+   * DOS reaches 0f14 here through the shared globals the combat resolver
+   * already bound (FUN_281f_0a42 nation / FUN_281f_09e6 colony), so the only
+   * context 0f14 itself needs is the colony, the pools and the LCG. Build the
+   * same shape the raid pulse hands the loot core; `turn_number` stays NULL
+   * (its only reader, the early-game demote grace, guards on it).
+   */
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.units = units;
+  ctx.colonies = colonies;
+  ctx.map = map;
+  ctx.col1 = col1;
+  ctx.col1_ok = true;
+  ctx.rng = rng;
+  ctx.human_nation = -1;
+
+  /* Same alarm scalar the pulse's own gate hands the picker, for this Euro. */
+  int max_alarm = (int)col1->indian[indian_nation - 4].alarm_by_player[euro_nation];
+  if (col1->tribe) {
+    for (uint16_t ti = 0; ti < col1->head.tribe_count; ++ti) {
+      const ColonizeCol1Tribe* t = &col1->tribe[ti];
+      if ((int)t->nation_id == indian_nation && (int)t->alarm[euro_nation].friction > max_alarm) {
+        max_alarm = (int)t->alarm[euro_nation].friction;
+      }
+    }
+  }
+
+  const AiRaidKind kind = ai_contact_raid_kind_demote(
+    &ctx, c, ai_contact_pick_raid_kind(&ctx, c, euro_nation, max_alarm, rng, forced)
+  );
+  ai_contact_apply_raid_loot(&ctx, c, euro_nation, kind, max_alarm);
+
+  /*
+   * FUN_5fef_0f14's tail (raw 100034) — the unconditional DS:0x54f6 discharge
+   * that 1b0e's own site 1 deliberately skips on this limb (docs/indians.md).
+   * Fires for every kind, "Nothing" included.
+   */
+  if (col1->indian_tension && home_tribe_id >= 0 &&
+      (uint16_t)home_tribe_id < col1->head.tribe_count) {
+    col1->indian_tension
+      [(size_t)home_tribe_id * COLONIZE_COL1_NATION_COUNT + (size_t)euro_nation] = 0;
+  }
+  /*
+   * NOT wired here: 0f14's own alarm tail
+   * (`FUN_281f_0d6c(nation, euro, delta, 0)` behind the `FUN_15b3_0004 & 2`
+   * war gate, delta −4 goods / −12 building / −16 ship / −8 gold). The raid
+   * pulse above applies a POSITIVE fandom bump for the same kinds instead
+   * (`kind_delta` 4/12/16/8), so wiring DOS's negatives on this limb alone
+   * would leave the two entries into the same resolver disagreeing about the
+   * sign. Recorded in docs/indians.md for a dedicated pass.
+   */
+  return (int)kind;
+}
+
+/*
  * FUN_4d56_359c thin displace: nudge Scout onto free land 1–2 tiles from
  * current tile, preferring greater Chebyshev distance from (away_x,away_y)
  * (Brave / tribe contact). Sets AI_MOVE goto at the flee tile. Returns 1 if
@@ -7582,7 +7673,7 @@ void ai_contact_indian_raids(ColonizeTurnContext* ctx, int nation_id) {
         }
         if (brave->x == c->x && brave->y == c->y) {
           const AiRaidKind kind = ai_contact_raid_kind_demote(
-            ctx, c, ai_contact_pick_raid_kind(ctx, c, target_euro, max_alarm, rng)
+            ctx, c, ai_contact_pick_raid_kind(ctx, c, target_euro, max_alarm, rng, 0)
           );
           ai_contact_apply_raid_loot(ctx, c, target_euro, kind, max_alarm);
           /*

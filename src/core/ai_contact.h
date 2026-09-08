@@ -313,6 +313,33 @@ void ai_contact_indian_capital_surrender(
 /* FUN_4d56_4528 / 5fef_0f14 raid outcomes + 359c scout stub. */
 void ai_contact_indian_raids(ColonizeTurnContext* ctx, int nation_id);
 
+/*
+ * FUN_5fef_1b0e's colony-raid handoff (raw viceroy_unpacked.c:101142,
+ * `thunk_FUN_2a1f_06c8` → `FUN_5fef_0f14`). A native attacker that LOSES a
+ * fight while the defender stands on a European colony tile does not simply
+ * die in DOS: 1b0e's alarm/tension block is skipped entirely and the WHOLE
+ * raid resolver runs instead — loot roll, its own alarm delta and its own
+ * DS:0x54f6 tension clear (raw 100034). Nothing of 0f14 is skipped on this
+ * limb; only its entry arguments differ from the raid pulse's.
+ *
+ * `forced` is DOS's `param_4` (1b0e's `local_ca`), which bypasses the walls
+ * check at the head of 0f14 so the repelled party still loots.
+ * `home_tribe_id` is the raider's `+0x314a` origin (the DS:0x54f6 row key).
+ * Returns the AiRaidKind applied (AI_RAID_NOTHING = 0 when nothing happened).
+ */
+int ai_contact_colony_raid_repelled(
+  ColonizeCol1Save* col1,
+  ColonizeColonyPool* colonies,
+  ColonizeUnitPool* units,
+  ColonizeWorldMap* map,
+  ColonizeDosRng* rng,
+  int indian_nation,
+  int euro_nation,
+  int colony_id,
+  int home_tribe_id,
+  int forced
+);
+
 /* Apply human choice from map AI popup (welcome / meet / teach / gift|demand). */
 void ai_contact_apply_popup_result(ColonizeTurnContext* ctx, const AiPopupState* popup);
 

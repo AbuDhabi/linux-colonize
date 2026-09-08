@@ -5049,6 +5049,48 @@ static int ai_euro_hauler_free_holds(const ColonizeUnitPool* units, const Coloni
 }
 
 /*
+ * Hull budget for one berth act — DOS `iStack_d2 = 0x5237[type] − +0x3150`
+ * (raw 3012-3016), corrected for this port's passenger substitution.
+ *
+ * DOS's `+0x3150` counts GOODS holds only: it is the length of the packed
+ * hold arrays (`+0x3151` type nibbles, `+0x3154` amounts), bumped by
+ * `FUN_15eb_30b8` on a load (decomp 13325-13333, gated on
+ * `+0x3150 < 0x5237[type]`) and decremented by `FUN_15eb_317c` on an unload
+ * (13352-13360). A passenger is not a hold entry at all — it is a unit parked
+ * at (−2,−2) on the shared tile lists (see
+ * `ai_euro_20e6_transport_assemble`).
+ *
+ * Passengers nonetheless cost hull in DOS, because DOS re-derives the whole
+ * transport chain on every berth act: the arrival block's stale-mark clear
+ * (raw 2991-2997) strips `act_state == 1` from everything standing on the
+ * berth tile — the previous act's passengers included, since `FUN_1427_040c`
+ * flushed the (−2,−2) chain back onto that tile — and the raw 3024-3051 scan
+ * then RE-marks them and RE-debits `iStack_d2` by their `0x5238` size. The
+ * goods matrix therefore only ever sees `capacity − goods − passengers`, and
+ * `0a60`'s own "hull full" test is literally `0x5237[type] == +0x3150` after
+ * that round trip (decomp 87511-87514).
+ *
+ * This port keeps passengers in `cargo_ids`/`aboard_ship_id` instead, so the
+ * mark scan's `aboard_ship_id >= 0` skip never re-marks them and the
+ * reservation DOS renews each act has to be charged here. Without it a 2-slot
+ * Caravel ends its turn carrying 2 passengers AND a goods hold.
+ */
+static int ai_euro_20e6_ship_hold_budget(
+  const ColonizeUnitPool* units, const ColonizeUnit* ship
+) {
+  if (!units || !ship) {
+    return 0;
+  }
+  int free_holds = ai_euro_hauler_free_holds(units, ship);
+  for (int i = 0; i < ship->cargo_count && i < COLONIZE_UNIT_CARGO_MAX; ++i) {
+    const ColonizeUnit* p = units_get_const(units, ship->cargo_ids[i]);
+    const ColonizeUnitType* pt = p ? units_type(units, p->type_index) : NULL;
+    free_holds -= pt ? pt->space : 1; /* 0x5238[type] */
+  }
+  return free_holds > 0 ? free_holds : 0;
+}
+
+/*
  * FUN_521d_4393 — pick a work-queue haul target, then run DOS's own
  * queue-decrement tail on the slot that won.
  *
@@ -8645,7 +8687,8 @@ static void ai_euro_0a60_unit_housekeeping(ColonizeTurnContext* ctx, int nation_
         }
         int side = 0;
         if (ai_goals_probe_adjacent_contact_claim(
-              ctx->map, ctx->colonies, ctx->units, ux, uy, nation_id, 1, &side
+              ctx->map, ctx->colonies, ctx->units, ctx->col1_ok ? ctx->col1 : NULL, ux, uy,
+              nation_id, 1, &side
             ) >= 0) {
           st->act_state = 10; /* on-site at a contact claim: no new goal */
         }
@@ -11133,7 +11176,7 @@ static int ai_euro_20e6_stack_combat_0b(ColonizeTurnContext* ctx, int x, int y) 
 static int ai_euro_20e6_probe_adjacent(const ColonizeTurnContext* ctx, int x, int y, int nation) {
   int side = -1;
   return ai_goals_probe_adjacent_contact_claim(
-    ctx->map, ctx->colonies, ctx->units, x, y, nation, 0, &side
+    ctx->map, ctx->colonies, ctx->units, ctx->col1_ok ? ctx->col1 : NULL, x, y, nation, 0, &side
   );
 }
 
@@ -13567,9 +13610,35 @@ static int ai_euro_20e6_wagon_village_errand(
  * survive a save/load in an observable way and needs no save round-trip.
  *
  * The two force-board arms are ported 2026-09-07f — see the board-predicate
- * comment in the loop below. The recursive `FUN_1427_101c` pre-pass
- * (`+0x314c == 2` ship re-berth) stays out of band: 20e6 never marks
- * act_state 2, and `s_0a60_pilot_state` only ever carries 0/1 here.
+ * comment in the loop below.
+ *
+ * The recursive `FUN_1427_101c` pre-pass (raw 8628-8645) is CLOSED as
+ * unreachable from here, 2026-09-08:
+ *
+ *   - The ONLY writer of `+0x314c = 2` in the whole decomp is
+ *     `FUN_2b5a_1e66` (:42863), the human "assign trade route" order:
+ *     it bails on `DS:0x53a0 == 0` (trade_route_count) with popup 0xa2d,
+ *     picks a route with `FUN_291f_02dc` (= `FUN_647e_0796`, the route
+ *     picker) and finishes in `FUN_291f_02b2` (= `FUN_479b_0bd0`, the
+ *     goto-colony/route body). `FUN_1427_12c6` (stamp act_state on a whole
+ *     stack) is the only indirect writer and its one caller (:75718, through
+ *     thunk `FUN_281f_08f8`) passes 1.
+ *   - No AI path assigns trade routes, and `ai_euro_0a60_unit_housekeeping`
+ *     clears act_state 1/2/3 → 0 for every on-map unit at the nation-turn top
+ *     (DOS :87558-87562) — so even a captured or loaded unit reaches 20e6
+ *     with act_state 0.
+ *   - What it does, for the record: 101c reorders the tile stack (`04d6`),
+ *     then repeatedly 10be's each ship still on the tile (each call parks that
+ *     ship plus its members at (−2,−2)) until none is left, and finally
+ *     `FUN_1427_040c` flushes the whole (−2,−2) chain back to the tile. It is
+ *     a tile-stack chain rebuild; its return value is the leftover non-ship
+ *     head, and 10be uses only that: a trade-route ship at sea (`03e4`
+ *     tile_tribe_owner < 0, not in its own Europe slot) gets `free = 0` unless
+ *     loose units remain after every other transport on the tile has claimed
+ *     its own. Nothing here has a port counterpart — the port has no tile-stack
+ *     chain, passengers live in `cargo_ids`.
+ *
+ * So `s_0a60_pilot_state` only ever carries 0/1 in this sweep.
  *
  * Linux tile substitution: DOS ships berth ON the colony tile, so 10be's own
  * tile stack already holds the marked land units. This port berths ships on
@@ -13938,9 +14007,12 @@ static int ai_euro_20e6_ship_berth_arrival(
   }
 
   /* raw 3012-3016 + 3052-3131: free = capacity − holds_occupied, then the
-   * DOS LOAD matrix one cargo per free hold. */
+   * DOS LOAD matrix one cargo per free hold. Passengers already aboard are
+   * charged here (ai_euro_20e6_ship_hold_budget) because the port's cargo_ids
+   * substitution stops the scan below from re-reserving them the way DOS's
+   * clear+re-mark round trip does. */
   int loaded = 0;
-  int free_holds = ai_euro_hauler_free_holds(ctx->units, ship);
+  int free_holds = ai_euro_20e6_ship_hold_budget(ctx->units, ship);
 
   /*
    * Raw 3024-3051 passenger-board MARK scan (2026-09-07; reworked to the
@@ -14237,8 +14309,10 @@ static int ai_euro_try_ship_trade_haul(
         continue;
       }
       int loaded = 0;
-      /* iStack_d2 = hold capacity − holds_occupied (raw 3020-3023). */
-      int free_holds = ai_euro_hauler_free_holds(ctx->units, ship);
+      /* iStack_d2 = hold capacity − holds_occupied (raw 3020-3023), less the
+       * hull the port's persistent passengers hold (see
+       * ai_euro_20e6_ship_hold_budget). */
+      int free_holds = ai_euro_20e6_ship_hold_budget(ctx->units, ship);
       while (free_holds > 0) {
         const int g = ai_euro_20e6_load_pick(ctx, c, nation_id, 1);
         if (g < 0) {
@@ -15671,21 +15745,10 @@ static int ai_euro_land_try_adjacent_colony_seize(ColonizeTurnContext* ctx, Colo
       units_seize_noncombat_at(
         ctx->units, u->id, nx, ny, ctx->col1_ok ? ctx->col1 : NULL
       );
-      /* Warships in the fallen port: the 5fef_0000 domain gate (raw
-       * 99190-99196) keeps a land assault from ever engaging them, so an
-       * armed ship would otherwise hold the town forever. Sunk with the
-       * port (0512 seizure texture; exact DOS 1b0e ship fate unverified —
-       * PARK: FUN_5fef_1b0e port-ship handling). */
-      for (int si = 0; si < COLONIZE_UNITS_MAX; ++si) {
-        ColonizeUnit* sv = &ctx->units->units[si];
-        if (units_is_on_map(sv) && sv->x == nx && sv->y == ny &&
-            sv->nation_id != u->nation_id && units_is_sea(ctx->units, sv->id)) {
-          (void)units_despawn(ctx->units, sv->id);
-        }
-      }
-      if (units_id_at(ctx->units, nx, ny) >= 0) {
-        continue; /* something survived the sweep — not enterable */
-      }
+      /* Berthed foreign warships are left alone: FUN_5fef_1b0e sinks and
+       * seizes nothing on capture, and the 5fef_0000 domain gate (raw
+       * 99190-99196, units_domain_blocker_at) means a hull neither defends
+       * nor blocks a land walk-in — units_try_move applies that gate. */
     }
     int plunder = 0;
     for (int i = 0; i < COLONIZE_CARGO_COUNT; ++i) {

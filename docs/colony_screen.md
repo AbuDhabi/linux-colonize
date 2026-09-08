@@ -38,7 +38,7 @@ golden existed. Golden proves both wrong: every badge is off by exactly the
 SoL bonus. Both paths now fold `colony_prod_sol_bonus_field` +
 `colony_flags` in; manufacturing/Town Hall/Church/Carpenter badges read
 `view->preview.craft_gross[]` / FF-folded crosses/bells totals, not
-`colony_prod_building_display_output`'s smaller local estimate. All field
+`colony_prod_building_display_output_sol`'s smaller local estimate. All field
 numbers on both goldens match exactly. **Lesson:** a doc claim "matches
 golden" written before that golden existed is unverified.
 `colony_screen_blit_buildings()` also simply had no `font` param (passed

@@ -239,11 +239,66 @@ saves this table either). Distinct from both alarm layers above; DOS's own
 write site is `FUN_4cc6_00f2` (relation-delta, `ai_diplo_indian_relation_delta`
 in `ai_diplo.c`): on a negative relation delta that crosses a 5-point tier
 boundary, clamp every tribe-of-that-Indian-nation's tension slot down to
-`0x20` (new relation <50) or `0x60` (≥50). No Linux reader yet — DOS's own
-read sites (`FUN_521d_0896` hostility gate in Euro AI goal-scoring; a
-`>>5` 4-tier relations-report icon) are outside Indian/contact domain, left
-for whoever owns `ai_euro.c`/reports. See `docs/archive/mysteries_catalog.md`'s
-"0x54f6" entry for the full formula trace.
+`0x20` (new relation <50) or `0x60` (≥50). See
+`docs/archive/mysteries_catalog.md`'s "0x54f6" entry for the full formula
+trace.
+
+**Read side wired 2026-09-08 — `FUN_521d_0896`, the hostility gate**
+(`ai_goals.c`, `ai_goals_filter_profession_by_distance_wealth`; the catalog
+name is an inferred mislabel kept for SYMBOL_MAP continuity). Raw body,
+`viceroy_unpacked.c:87319-87340`:
+
+```
+if (3 < param_2) {                       /* owner id: 0..3 Euro, >=4 Indian */
+  if (param_3 == 0) return -1;
+  iVar2 = FUN_281f_030c(0x521d, param_2 + -4, param_1);   /* DS:0x5b1c alarm */
+  bVar1 = 0x4a < iVar2;
+  if ((-1 < param_4) &&
+     (0x7f < *(int *)((*(char *)(param_4 * 0x1c + 0x314a) * 9 + param_1)
+                      * 2 + 0x54f6))) bVar1 = true;       /* DS:0x54f6 tension */
+  if (!bVar1) return -1;
+}
+return param_2;
+```
+
+Ghidra prepends the far-call segment word, so at the two `FUN_521d_0906`
+call sites (`thunk_FUN_2a1f_056c(0x281f, param_3, iVar5, param_4, local_10)`)
+the real order is `param_1` = acting Euro nation, `param_2` = the adjacent
+tile's owner id, `param_3` = 0906's own flag, `param_4` = the unit index on
+that tile (`-1` for Euro owners and for the settlement probe). The tension
+row key is the *tile unit's* `+0x06` home settlement id (`DS:0x314a`,
+`ColonizeUnit.home_tribe_id`), not the Indian nation — same key
+`ai_contact_indian_raids` and `units.c` write with. DOS strides the table by
+9; the port keeps its packed `*4` layout (only euro 0..3 is ever touched).
+
+Meaning: **an adjacent native raises a Euro-AI contact claim only when that
+Indian nation is already hostile (alarm > 74) or that specific village
+carries a grudge (tension > 127).** `param_3 == 0` rejects outright — that is
+the `20e6` explorer-flag probe (`ai_euro_20e6_probe_adjacent`), so only the
+`0a60` tile-housekeeping probe (`ai_euro.c`, flag 1, sets `act_state = 10`)
+can ever see a native claim. Both reads were parked at 0 before this pass.
+
+Two further DOS reads of DS:0x54f6 are **recorded, not ported**:
+
+* `FUN_112b_0790` (village map/settlement chrome, `viceroy_unpacked.c:2411-2425`)
+  — `iVar6 = (tribe * 9 + nation) * 2; iVar7 = *(int*)(iVar6 + 0x54f6); if
+  (iVar7 < 0) iVar7 = 0; *(int*)(iVar6+0x54f6) = iVar7;` (a clamping RMW),
+  then `tier = min(iVar7 >> 5, 3)`, forced to 3 when
+  `FUN_15dc_00e0(indian, nation) > 0x4a`. Tier picks glyph 10/11/14/12. The
+  Linux port (`map_panel.c`, `map_panel_draw_tribe_chrome`) already draws
+  exactly this shape but sources the tier from
+  `tribe.alarm[nation].{friction,attacks}` instead of the tension table —
+  a stand-in, not the DOS read. Left alone deliberately: swapping it would
+  change every rendered map/settlement golden (tension starts at 0, so every
+  village would drop to tier 0), and `map_panel.c` is neither
+  `reports*.c` nor this batch's file. There is also a debug-only branch
+  (`DS:0x894 & 1`) that prints the raw word via `FUN_1d1d_08fa`.
+* `FUN_5952_035e`'s colony threat accumulator (`viceroy_unpacked.c:94967`):
+  for an adjacent Indian-professioned unit, `FUN_281f_030c < 0x19` zeroes the
+  unit's threat contribution, and so does `tension < 0x80`. That whole
+  `threat>>3` seed is PARKED in `ai_euro.c` (see its "Full threat>>3
+  FUN_5952_035e seed PARKED" note), so there is nothing to hang the read on
+  yet.
 
 **Second write site wired 2026-08-24 — raid discharges tension.**
 `FUN_5fef_0f14` (colony raid loot) unconditionally zeroes the raiding
@@ -251,9 +306,82 @@ tribe's tension slot toward the raided Euro nation right before it
 returns, for every loot kind (including "Nothing"). Wired in
 `ai_contact_indian_raids` (`ai_contact.c`): clears
 `indian_tension[brave->home_tribe_id * 4 + target_euro]` after
-`ai_contact_apply_raid_loot`. `FUN_5fef_1b0e` (empty-tile Attack) has the
-same clear on two more paths but lives in `units.c`, outside this domain —
-left open.
+`ai_contact_apply_raid_loot`.
+
+**Third and fourth write sites wired 2026-09-08 — `FUN_5fef_1b0e`, both
+ported in `units.c`** (closes the "left open" note; raw =
+`viceroy_unpacked.c`):
+
+| Site | Raw | DOS gate | Index cleared | Linux |
+|------|-----|----------|---------------|-------|
+| combat discharge | 101039-101041 | attacker nation ≥ 4 **and** defender nation < 4, **and** (`local_10 < 0` ∥ `DS:0x8db8 != 0` ∥ attacker won). `local_10` = `FUN_281f_0614(x, y, -1, -1)` nearest-colony scan on the **defender's** tile, `0x8db8` = that scan's distance output, so the two leading terms together read "the fight was not on a colony tile". The `else` limb is DOS's handoff to `FUN_5fef_0f14`, which carries its own clear. | `[attacker.+0x314a * 4 + defender_nation]` | `units_indian_attack_tension_clear`, called from both arms of `units_resolve_land_combat_ff` |
+| capital razed | 101289-101298 | `local_c != 0` (dwelling destroyed) **and** `local_ce != 0` (record +3 bit 2, capital). Same block first clamps alarm **down** to 15 when above (`FUN_281f_030c` → `FUN_281f_0d6c(-(alarm-15))`) and then draws `@INDIANDEAD` (0x1cd7). | walks the whole DS:0x539a settlement array, zeroing every record whose `+2` type byte (= owner nation − 4, `settlement_record_8d4a.md`) equals the bound nation index at DS:0x8d52 — nation-wide, not just the razed settlement. In the port's index space: `[tribe * 4 + attacker_nation]` for every tribe of that nation | the `rich_capital` arm of `units.c`'s village-destroy path, beside `ai_diplo_indian_capital_surrender` (which models the alarm half) |
+
+Net rule for the combat site: **every** resolved native-vs-European land
+fight discharges the raiding tribe's tension toward that European, except a
+native attack that *loses at a colony* — DOS routes that limb to
+`FUN_5fef_0f14` instead, whose own tail clear then fires.
+
+Same pass fixed a table-alignment defect: `col1_destroy_tribe_at` compacted
+the tribe array (and `home_tribe_id`) without shifting `indian_tension`
+alongside it, so the first razed village silently rotated every surviving
+row. DOS never has this problem — its tension words live *inside* the tribe
+record (`0x54f6 == 0x54ee + 8`, same stride `0x12`). `ai.c`'s whole-nation
+kill already remapped correctly; the single-village path now does too.
+
+**Colony-raid handoff — wired 2026-09-08.** DOS's `else` limb (raw 101142):
+a native attacker that *loses* while the defender stands on a European colony
+tile does not simply die. 1b0e skips its whole alarm/tension block and calls
+`thunk_FUN_2a1f_06c8(indian_nation, colony, home_tribe, local_ca,
+attacker_type)` = **`FUN_5fef_0f14` in full** — nothing of the raid resolver
+is skipped on this limb, only its entry arguments differ from the raid
+pulse's, and `local_a6` stays 0 so there is no vent here either. Ported as
+`ai_contact_colony_raid_repelled` (`ai_contact.c`, called from
+`units_resolve_land_combat_ff`'s attacker-loses arm). `local_ca` = 0f14's
+`param_4`, which bypasses the walls check at 0f14's head; see
+[combat.md](combat.md) for the Brave-vs-Artillery auto-loss that sets it in
+DOS and is deliberately not ported.
+
+**Still open on that handoff:** 0f14's own alarm tail —
+`FUN_281f_0d6c(nation, euro, delta, 0)` behind the same `FUN_15b3_0004 & 2`
+war gate, with delta **−4** goods (`local_6 == 1`), **−12** building
+(`== 2`), **−16** ship (`== 3`), **−8** gold (`== 4`), nothing for kind 0.
+The raid pulse applies a *positive* fandom bump for the same kinds
+(`kind_delta` 4/12/16/8, and it maps DOS's 16 to SCALP rather than SHIP), so
+wiring DOS's negatives on the new limb alone would leave the two entries into
+one resolver disagreeing about the sign. Both sides want fixing in one pass.
+
+**`local_a6` alarm vent — ported 2026-09-08** (raw 101043-101196), applied as
+`FUN_281f_0d6c(nation, euro, local_a6, 0)`. All values are **negative** —
+attacking vents alarm, matching the tension clear in the same block:
+
+| Situation | `local_a6` | Port |
+|-----------|-----------|------|
+| natives raze the Euro colony (`bVar28 && local_c`) | −50 flat | `units_try_capture_foreign_colony` Indian arm, burn limb |
+| natives beat an undefended colony, dwelling survives | `difficulty − 10` (the `difficulty` term only when the Euro side is human) | same arm, colonist-kill limb |
+| natives win an ordinary field fight (`!bVar28 && bVar8`) | `difficulty/2 − 5` (same human-only term) | `units_resolve_land_combat_ff` attacker-wins arm |
+| natives lose a field fight | 0 — no delta | nothing to apply |
+
+Note the polarity of the human term: a **higher** difficulty gives back
+*less* alarm relief.
+
+The gate is `FUN_281f_0a38(DS:0x8d50, euro) & 2` == 0.
+`FUN_281f_0a38` = `FUN_15b3_0004(a, b)`, which for `a >= 4` reads
+`a * 0x4e + 23000 + b` — the Indian record's relation byte toward that
+European, i.e. the port's `indian[].euro_diplo[euro]`, whose bit 1 is the WAR
+bit. So the vent applies **only while the tribe is not already at war with
+that European** (`units_indian_attack_alarm_vent`, `units.c`); it is not a
+treaty check. `FUN_281f_0d6c` is `FUN_4cc6_00f2` = `ai_diplo_indian_alarm_delta`.
+
+**Model note.** DOS runs 1b0e once per attack and picks exactly ONE row; the
+port splits the same beat, resolving the fight and then walking the winner
+into the colony, where the Indian arm plays the `bVar28` rows. Two statics in
+`units.c` keep that one-row-per-attack property: `g_units_colony_autodefender`
+(DOS `bVar28`, raised by `units_revere_defend_colony_tile` around its resolve
+call, so an auto-spawned colony defender does not take the field-fight row)
+and `g_units_indian_combat_vent_done` (cleared at the top of every
+`units_try_move`, so a native that beats a real garrison and steps in does not
+also take the undefended-colony row).
 
 ### Gameplay bands
 

@@ -505,7 +505,7 @@ int main(void) {
       map_free(&map);
       return 1;
     }
-    if (map_phys0_road_sprite_at(&plow_map, 0, 0) != -1) {
+    if (map_phys0_road_layer_sprite_at(&plow_map, 0, 0, 0) != -1) {
       fprintf(stderr, "road overlay expected -1 before set\n");
       map_free(&plow_map);
       map_free(&map);

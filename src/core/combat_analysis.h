@@ -36,6 +36,25 @@
 #define COMBAT_ANALYSIS_VALUE_LEN 12
 
 /*
+ * ColonizeCombatSideFlags.flags bit 0x400 (DOS 0x8d00 / 0x8d02 word, high
+ * byte bit 2 — asm `OR byte ptr [0x8d03],0x4` at 5fef:1d5b): the colony's
+ * auto-spawned defender took up stockpiled Muskets under Paul Revere
+ * (Founding Father 12) with >= 50 Muskets in store, worth +1 base combat.
+ * Declared here rather than in combat_strength.h because only the 636c
+ * analysis row consumes it so far — nothing in the port's Revere path (which
+ * ejects a real Soldier instead) sets it yet.
+ */
+#define COMBAT_FLAG_MUSKETS 0x0400u
+
+/*
+ * ICONS.SS sprite for that row. DOS's asm loads the literal AX = 0x26 before
+ * FUN_281f_0254; that index is DOS's 1-based icon space (the @UNIT icon byte
+ * the Bombard row passes is converted 1-based → 0-based on load), so the port
+ * blits 37 — @CARGO 15 Muskets, since ICONS.SS #22-37 are @CARGO0-15.
+ */
+#define COMBAT_ANALYSIS_MUSKETS_ICON 37
+
+/*
  * Row chrome (FUN_636c_0000): four of the flag rows blit a picture at the
  * column's left edge and push their own label right by the sprite's width.
  * DOS indents, from the asm `ADD word ptr [BP + local_76], N` right after each

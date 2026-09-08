@@ -3121,5 +3121,209 @@ int main(void) {
     }
   }
 
+  /*
+   * FUN_5bfb_153e worthy cascade, raw :97954-97982 (ported 2026-09-08):
+   *   worthy && at_peace && score >= 0x65 -> @PROVOKE + war   (was the only leg)
+   *   worthy && score == 999              -> @WARMANLY + war  (post-@TRIBUTE)
+   *   worthy                              -> @RID, no war     (ultimatum)
+   * Both new legs are driven here off one fixture, twice:
+   *   run 1, human gold 0  -> @TRIBUTE skipped, score stays != 999 -> @RID
+   *   run 2, human rich    -> @TRIBUTE shown, refused (score latches 999)
+   *                           -> @WARMANLY, and no PEACE is ever signed.
+   * ctx->messages is NULL here, so the popup bodies are the code fallbacks.
+   */
+  {
+    ColonizeWorldMap rmap;
+    memset(&rmap, 0, sizeof(rmap));
+    rmap.width = 16;
+    rmap.height = 16;
+    rmap.tile_count = 256;
+    rmap.terrain = calloc(256, 1);
+    rmap.layer2 = calloc(256, 1);
+    rmap.layer3 = calloc(256, 1);
+    if (!rmap.terrain || !rmap.layer2 || !rmap.layer3) {
+      return fail("153e rid alloc map");
+    }
+    for (int i = 0; i < 256; ++i) {
+      rmap.terrain[i] = 1;
+      rmap.layer3[i] = 1;
+    }
+    static ColonizeUnitPool runits;
+    units_reset(&runits);
+    units_set_occupancy_map(NULL);
+    runits.type_count = 1;
+    snprintf(runits.types[0].name, sizeof(runits.types[0].name), "Dragoons");
+    runits.types[0].movement = 4;
+    runits.types[0].attack = 3;
+    runits.types[0].defense = 3;
+    runits.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+    const int raiu = units_spawn(&runits, 0, 5, 6); /* AI unit beside the human colony */
+    ColonizeUnit* rai = units_get(&runits, raiu);
+    if (!rai) {
+      return fail("153e rid spawn");
+    }
+    rai->nation_id = 1;
+    static ColonizeColonyPool rcol;
+    colonies_init(&rcol);
+    colonies_set_occupancy_map(NULL);
+    ColonizeColony* rhc = &rcol.colonies[0];
+    rhc->id = 0;
+    rhc->active = true;
+    rhc->nation_id = 0;
+    rhc->x = 5;
+    rhc->y = 5;
+    rhc->population = 2;
+    rhc->colonist_count = 2;
+    rhc->building_in_production = -1;
+    rhc->stock[COLONIZE_CARGO_MUSKETS] = 60;
+    ColonizeColony* rac = &rcol.colonies[1];
+    rac->id = 1;
+    rac->active = true;
+    rac->nation_id = 1;
+    rac->x = 8;
+    rac->y = 8;
+    rac->population = 2;
+    rac->colonist_count = 2;
+    rac->building_in_production = -1;
+    rcol.colony_count = 2;
+    rcol.next_id = 2;
+    ColonizeCol1Save r;
+    col1_save_init(&r);
+    memset(r.nation, 0, sizeof(r.nation));
+    memset(r.head.nation_relation, 0, sizeof(r.head.nation_relation));
+    r.head.turn = 100;
+    r.head.difficulty = 1;
+    r.head.human_player = 0;
+    r.nation[0].gold = 0; /* run 1: cannot afford tribute -> score stays != 999 */
+    r.stuff.colony_counts[0] = 1;
+    r.stuff.colony_counts[1] = 1;
+    r.stuff.field_combat_totals[1] = 10;
+    r.stuff.colony_pop_totals[1] = 8;
+    r.stuff.census_pop_proxy[0] = 8;
+    r.nation[1].trade.euro_price[COLONIZE_CARGO_MUSKETS] = 200;
+    snprintf(r.player[0].country_name, sizeof(r.player[0].country_name), "England");
+    snprintf(r.player[1].country_name, sizeof(r.player[1].country_name), "France");
+    AiPopupState rpop;
+    ai_popup_init(&rpop);
+    ColonizeDosRng rrng;
+    dos_rng_seed(&rrng, 7);
+    ColonizeTurnContext rctx;
+    memset(&rctx, 0, sizeof(rctx));
+    rctx.col1 = &r;
+    rctx.col1_ok = true;
+    rctx.map = &rmap;
+    rctx.units = &runits;
+    rctx.colonies = &rcol;
+    rctx.human_nation = 0;
+    rctx.ai_popups = &rpop;
+    rctx.rng = &rrng;
+
+    int saw_rid = 0;
+    int saw_warmanly_run1 = 0;
+    if (!ai_diplo_153e_encounter(&rctx, 0, 1, rai->id)) {
+      free(rmap.terrain);
+      free(rmap.layer2);
+      free(rmap.layer3);
+      return fail("153e rid: the encounter must open");
+    }
+    for (int guard = 0; guard < 16 && rpop.queue_count > 0; ++guard) {
+      AiPopupRequest front = rpop.queue[0];
+      memmove(&rpop.queue[0], &rpop.queue[1], sizeof(rpop.queue[0]) * (size_t)(rpop.queue_count - 1));
+      rpop.queue_count--;
+      if (strstr(front.body, "drive you into the sea")) {
+        saw_rid = 1;
+      }
+      if (strstr(front.body, "wipe you from the face")) {
+        saw_warmanly_run1 = 1;
+      }
+      if (front.kind != AI_POPUP_KIND_CHOICE) {
+        continue;
+      }
+      rpop.has_result = true;
+      rpop.result_cancelled = false;
+      rpop.result_tag = AI_POPUP_TAG_DIPLO_TALK;
+      rpop.result_choice_id = 1; /* refuse every demand: `worthy` stays armed */
+      rpop.result_nation_a = 0;
+      rpop.result_nation_b = 1;
+      rpop.result_payload = front.payload;
+      ai_diplo_apply_popup_result(&rctx, &rpop);
+      rpop.has_result = false;
+    }
+    if (!saw_rid) {
+      free(rmap.terrain);
+      free(rmap.layer2);
+      free(rmap.layer3);
+      return fail("153e worthy cascade: a worthy AI with no tribute dialog must issue @RID");
+    }
+    if (saw_warmanly_run1) {
+      free(rmap.terrain);
+      free(rmap.layer2);
+      free(rmap.layer3);
+      return fail("153e worthy cascade: @WARMANLY must not fire without the 999 tribute latch");
+    }
+    if ((r.nation[0].euro_relation[1] & AI_DIPLO_PEACE) != 0) {
+      free(rmap.terrain);
+      free(rmap.layer2);
+      free(rmap.layer3);
+      return fail("153e worthy cascade: the @RID ultimatum leg must not sign peace");
+    }
+
+    /* Run 2: rich human -> @TRIBUTE runs, refusal latches score = 999. */
+    ai_popup_init(&rpop);
+    r.head.turn = 140; /* past the DS:0x53c8 + 16 re-talk cooldown */
+    r.nation[0].gold = 100000;
+    int saw_tribute = 0;
+    int saw_warmanly = 0;
+    int saw_rid_run2 = 0;
+    if (!ai_diplo_153e_encounter(&rctx, 0, 1, rai->id)) {
+      free(rmap.terrain);
+      free(rmap.layer2);
+      free(rmap.layer3);
+      return fail("153e warmanly: the second encounter must open on a later turn");
+    }
+    for (int guard = 0; guard < 16 && rpop.queue_count > 0; ++guard) {
+      AiPopupRequest front = rpop.queue[0];
+      memmove(&rpop.queue[0], &rpop.queue[1], sizeof(rpop.queue[0]) * (size_t)(rpop.queue_count - 1));
+      rpop.queue_count--;
+      if (strstr(front.body, "donation of")) {
+        saw_tribute = 1;
+      }
+      if (strstr(front.body, "wipe you from the face")) {
+        saw_warmanly = 1;
+      }
+      if (strstr(front.body, "drive you into the sea")) {
+        saw_rid_run2 = 1;
+      }
+      if (front.kind != AI_POPUP_KIND_CHOICE) {
+        continue;
+      }
+      rpop.has_result = true;
+      rpop.result_cancelled = false;
+      rpop.result_tag = AI_POPUP_TAG_DIPLO_TALK;
+      rpop.result_choice_id = 1; /* refuse the tribute: score latches 999 anyway */
+      rpop.result_nation_a = 0;
+      rpop.result_nation_b = 1;
+      rpop.result_payload = front.payload;
+      ai_diplo_apply_popup_result(&rctx, &rpop);
+      rpop.has_result = false;
+    }
+    free(rmap.terrain);
+    free(rmap.layer2);
+    free(rmap.layer3);
+    if (!saw_tribute) {
+      return fail("153e warmanly: an affordable tribute demand must be shown first");
+    }
+    if (!saw_warmanly) {
+      return fail("153e worthy cascade: score==999 after @TRIBUTE must declare war (@WARMANLY)");
+    }
+    if (saw_rid_run2) {
+      return fail("153e worthy cascade: the 999 leg must win over @RID");
+    }
+    if ((r.nation[0].euro_relation[1] & AI_DIPLO_PEACE) != 0 ||
+        (r.nation[1].euro_relation[0] & AI_DIPLO_PEACE) != 0) {
+      return fail("153e worthy cascade: @WARMANLY clears PEACE (0a10 mask 0x40), never signs it");
+    }
+  }
+
   return 0;
 }

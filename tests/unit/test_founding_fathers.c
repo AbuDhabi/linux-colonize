@@ -1456,7 +1456,7 @@ int main(void) {
     pool.colony_count = 1;
 
     /* Expert statesman in Town Hall: base 3×2=6; +Town Hall passive 1 → 7. */
-    const int bells_base = colony_prod_colony_bells(&pool, col);
+    const int bells_base = colony_prod_colony_bells_ff(&pool, col, 0, 0, false, 0);
     if (bells_base != 7) {
       return fail("prod baseline bells (statesman+hall) unexpected");
     }
@@ -1492,7 +1492,7 @@ int main(void) {
     /* Base crosses: 1 colony + Church passive 1 (DOS FUN_15eb_1f72: Church and
      * Cathedral are worth the same +1, not manual-sourced +2/+3 — see
      * manufacturing_worker_calc_1d4c.md) + preacher×2 on church 3→6 = 8. */
-    const int crosses_base = colony_prod_colony_crosses(&pool, col);
+    const int crosses_base = colony_prod_colony_crosses_ff(&pool, col, false, 0);
     if (crosses_base != 8) {
       return fail("prod baseline crosses unexpected");
     }
@@ -1508,18 +1508,18 @@ int main(void) {
     }
 
     /* Settlement badges: passive + workers; empty buildings still show free output. */
-    if (colony_prod_building_display_output(&pool, col, 0) != 7) {
+    if (colony_prod_building_display_output_sol(&pool, col, NULL, 0, 0) != 7) {
       return fail("Town Hall display should be passive1 + statesman6");
     }
-    if (colony_prod_building_display_output(&pool, col, 1) != 7) {
+    if (colony_prod_building_display_output_sol(&pool, col, NULL, 1, 0) != 7) {
       return fail("Church display should be passive1 + preacher6");
     }
     col->colonists[0].active = false;
     col->colonists[1].active = false;
-    if (colony_prod_building_display_output(&pool, col, 0) != 1) {
+    if (colony_prod_building_display_output_sol(&pool, col, NULL, 0, 0) != 1) {
       return fail("empty Town Hall should still show passive bell");
     }
-    if (colony_prod_building_display_output(&pool, col, 1) != 1) {
+    if (colony_prod_building_display_output_sol(&pool, col, NULL, 1, 0) != 1) {
       return fail("empty Church should still show passive crosses");
     }
     col->colonists[0].active = true;

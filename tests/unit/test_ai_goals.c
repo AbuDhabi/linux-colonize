@@ -1,6 +1,9 @@
 /* Smoke: ai_goals upsert/promote/work-16 match annotated euro_goals semantics. */
 #include "core/ai_goals.h"
 
+#include "core/col1_save.h"
+#include "core/units.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -207,6 +210,77 @@ int main(void) {
       return fail("goal fold: zero expansion urgency must take the demote arm");
     }
     ai_goals_reset();
+  }
+
+  /*
+   * FUN_521d_0896 — the Indian hostility gate (viceroy_unpacked.c
+   * 87319-87340), wired 2026-09-08. Euro owners pass straight through;
+   * natives need `has_context`, then either alarm > 0x4a (FUN_281f_030c =
+   * DS:0x5b1c) or the tile unit's DS:0x54f6 grudge slot > 0x7f. Both reads
+   * were parked at 0 before, so no native could ever raise a claim.
+   */
+  {
+    ColonizeCol1Save gt;
+    col1_save_init(&gt);
+    gt.head.tribe_count = 2;
+    int16_t tension[2 * 4];
+    memset(tension, 0, sizeof(tension));
+    gt.indian_tension = tension;
+    gt.owned = false; /* stack fixture; nothing to free */
+
+    ColonizeUnitPool pool;
+    memset(&pool, 0, sizeof(pool));
+    pool.units[0].active = true;
+    pool.units[0].id = 0;
+    pool.units[0].home_tribe_id = 1; /* village 1 of the tribe array */
+
+    const int me = 2;    /* acting Euro nation */
+    const int them = 5;  /* Indian nation id 5 -> col1->indian[1] */
+
+    /* Euro owner id (<= 3): the >3 gate never fires, value passes through. */
+    if (ai_goals_filter_profession_by_distance_wealth(&gt, &pool, me, 3, 0, -1) != 3) {
+      return fail("0896: Euro owner id must pass through untouched");
+    }
+    /* has_context 0 (the 20e6 explorer probe) rejects every native. */
+    if (ai_goals_filter_profession_by_distance_wealth(&gt, &pool, me, them, 0, 0) != -1) {
+      return fail("0896: has_context 0 must reject a native outright");
+    }
+    /* Cool nation, zero tension -> no claim. */
+    if (ai_goals_filter_profession_by_distance_wealth(&gt, &pool, me, them, 1, 0) != -1) {
+      return fail("0896: cool nation with zero tension must not claim");
+    }
+    /* Alarm arm: DOS compares `0x4a < alarm`, so 74 is still cool. */
+    gt.indian[1].alarm_by_player[me] = 74;
+    if (ai_goals_filter_profession_by_distance_wealth(&gt, &pool, me, them, 1, 0) != -1) {
+      return fail("0896: alarm 0x4a must not open the gate (strict >)");
+    }
+    gt.indian[1].alarm_by_player[me] = 75;
+    if (ai_goals_filter_profession_by_distance_wealth(&gt, &pool, me, them, 1, -1) != them) {
+      return fail("0896: alarm 75 must open the gate with no unit on the tile");
+    }
+
+    /* Tension arm, alarm back to cool: DOS compares `0x7f < tension`. */
+    gt.indian[1].alarm_by_player[me] = 0;
+    tension[1 * 4 + me] = 0x7f;
+    if (ai_goals_filter_profession_by_distance_wealth(&gt, &pool, me, them, 1, 0) != -1) {
+      return fail("0896: tension 0x7f must not open the gate (strict >)");
+    }
+    tension[1 * 4 + me] = 0x80;
+    if (ai_goals_filter_profession_by_distance_wealth(&gt, &pool, me, them, 1, 0) != them) {
+      return fail("0896: tension 0x80 must open the gate");
+    }
+    /* Keyed by the tile unit's home village — no unit index, no read. */
+    if (ai_goals_filter_profession_by_distance_wealth(&gt, &pool, me, them, 1, -1) != -1) {
+      return fail("0896: tension is only read through the tile unit (unit_index >= 0)");
+    }
+    /* ...and by the acting nation: another Euro's column stays shut. */
+    if (ai_goals_filter_profession_by_distance_wealth(&gt, &pool, 1, them, 1, 0) != -1) {
+      return fail("0896: tension slot is per acting Euro nation");
+    }
+    /* No col1 = the pre-2026-09-08 parked behaviour (both reads answer 0). */
+    if (ai_goals_filter_profession_by_distance_wealth(NULL, &pool, me, them, 1, 0) != -1) {
+      return fail("0896: NULL col1 must fall back to the parked identity");
+    }
   }
 
   printf("unit_ai_goals: ok\n");

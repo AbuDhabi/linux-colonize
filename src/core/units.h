@@ -223,9 +223,6 @@ bool units_try_native_settlement_fallout(
   ColonizeDosRng* rng
 );
 
-/* Reset the two FUN_65dd_0004 session counters (DS:0x1dc6 rumours explored,
- * DS:0x1dc7 Cibola finds) — never saved in DOS either; tests only. */
-void units_lcr_reset_session_counters(void);
 /*
  * FUN_65dd_0004 thin transcription: Scout on rumour tile clears it via
  * map_clear_rumour, then rolls one of the manual-documented outcomes
@@ -751,6 +748,28 @@ typedef void (*ColonizeUnitsDissolveFn)(void* user, int phase);
 void units_set_combat_dissolve(ColonizeUnitsDissolveFn fn, void* user);
 
 /*
+ * FUN_5fef_1b0e colony-raid handoff (raw 101142): a native attacker beaten
+ * at a European colony runs the full FUN_5fef_0f14 raid resolver instead of
+ * just dying. The resolver lives in ai_contact.c, which the small unit-test
+ * binaries do not link; ai_contact.c self-registers this hook at load time
+ * (constructor), so the handoff is live in every binary that links it and a
+ * plain death (the pre-port behavior) everywhere else.
+ */
+typedef int (*ColonizeUnitsRaidRepelledFn)(
+  ColonizeCol1Save* col1,
+  ColonizeColonyPool* colonies,
+  ColonizeUnitPool* units,
+  ColonizeWorldMap* map,
+  ColonizeDosRng* rng,
+  int indian_nation,
+  int euro_nation,
+  int colony_id,
+  int home_tribe_id,
+  int forced
+);
+void units_set_colony_raid_repelled(ColonizeUnitsRaidRepelledFn fn);
+
+/*
  * bugs.md: combat popups are presented per-combat, not hoarded until the AI
  * slice ends. The hook runs a nested modal loop draining the ai_popup queue
  * after each combat resolution; headless callers leave it unset.
@@ -1008,18 +1027,6 @@ bool units_advance_goto(
   const ColonizeColonyPool* colonies,
   ColonizeDosRng* rng
 );
-/* One step for every Go-To unit that can move; returns how many stepped. */
-int units_advance_all_goto_one_step(
-  ColonizeUnitPool* pool,
-  const ColonizeWorldMap* map,
-  const ColonizeColonyPool* colonies
-);
-/* Advance every unit with Go-To until stuck; returns how many took at least one step. */
-int units_advance_all_goto(
-  ColonizeUnitPool* pool,
-  const ColonizeWorldMap* map,
-  const ColonizeColonyPool* colonies
-);
 
 bool units_is_pioneer(const ColonizeUnitPool* pool, int unit_id);
 /*
@@ -1271,7 +1278,6 @@ int units_spawn_ship_with_cargo(
   const int* hold_goods_amount
 );
 
-void units_end_turn(ColonizeUnitPool* pool);
 
 /* NAMES.TXT @JOB indices used for unit skills (COL1 profession byte). */
 #define UNITS_JOB_COLONIST 19 /* Free Colonists */

@@ -2765,30 +2765,6 @@ void turn_run_european_ai_stubs(ColonizeTurnContext* ctx) {
   }
 }
 
-void turn_run_indian_stub(ColonizeTurnContext* ctx) {
-  if (!ctx || !ctx->units) {
-    return;
-  }
-  const bool show =
-    ctx->col1_ok && ctx->col1 && ctx->col1->head.game_options.show_indian_moves != 0;
-  (void)show; /* animation TBD */
-  ai_indian_midpass_clear_tables(ctx); /* FUN_4d56_1b3a phase 1 */
-  for (int n = 4; n <= 11; ++n) {
-    turn_set_active_nation(ctx, n);
-    turn_refresh_moves_for_nation(
-      ctx->units,
-      n,
-      ctx->col1_ok ? ctx->col1 : NULL,
-      ctx->map,
-      ctx->colonies,
-      ctx->ai_popups,
-      ctx->messages
-    );
-    ai_indian_nation_turn(ctx, n);
-  }
-  ai_indian_midpass_claim_worked_tiles(ctx); /* FUN_4d56_1b3a phase 3 */
-}
-
 void turn_run_king_stub(ColonizeTurnContext* ctx) {
   ai_king_nation_turn(ctx);
 }

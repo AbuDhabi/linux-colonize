@@ -2274,10 +2274,10 @@ int main(void) {
     pool.colony_count = 1;
 
     col->has_building[0] = true; /* Church */
-    const int church_crosses = colony_prod_colony_crosses(&pool, col);
+    const int church_crosses = colony_prod_colony_crosses_ff(&pool, col, false, 0);
     col->has_building[0] = false;
     col->has_building[1] = true; /* Cathedral */
-    const int cathedral_crosses = colony_prod_colony_crosses(&pool, col);
+    const int cathedral_crosses = colony_prod_colony_crosses_ff(&pool, col, false, 0);
     if (church_crosses != 2 || cathedral_crosses != 2) {
       fprintf(
         stderr,
@@ -2900,7 +2900,7 @@ int main(void) {
     }
 
     /* Town Hall +1 + Statesman 6 = 7 bells. */
-    const int expect_bells = colony_prod_colony_bells(&pool, c);
+    const int expect_bells = colony_prod_colony_bells_ff(&pool, c, 0, 0, false, 0);
     if (expect_bells != 7) {
       fprintf(stderr, "Phase C setup bells want 7 got %d\n", expect_bells);
       return 1;
@@ -2909,7 +2909,7 @@ int main(void) {
     /*
      * Production tab preview must match the EOT tick's FF-adjusted, per-worker
      * SoL bells (turn_count_bells_and_crosses_for_nation in turn.c), not the
-     * plain colony_prod_colony_bells() used above only to sanity-check the
+     * plain (no-FF) colony_prod_colony_bells_ff() used above only to sanity-check the
      * base rate. rebel_dividend/divisor above (50/100 <<6) give sol 50% ->
      * sol_bonus +1. sol_bonus now folds into colony_prod_bells_worker
      * *before* the skill-match doubling (matches FUN_15eb_1d4c's Statesman

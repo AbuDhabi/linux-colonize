@@ -439,6 +439,22 @@ bool reports_id_from_fkey(int fkey_number, ColonizeReportId* out_id) {
   return true;
 }
 
+/*
+ * F8 Foreign Affairs is withdrawn once the War of Independence has begun —
+ * FUN_3f41_2548 raw :70792, `*(byte *)0x5382 & 1` = head.game_options.woi.
+ * See reports.h for the citation; no other F-key report carries a gate.
+ */
+bool reports_is_available(ColonizeReportId id, const ColonizeCol1Save* col1) {
+  if (id == COLONIZE_REPORT_FOREIGN && col1 && col1->head.game_options.woi) {
+    return false;
+  }
+  return true;
+}
+
+const char* reports_unavailable_tag(ColonizeReportId id) {
+  return id == COLONIZE_REPORT_FOREIGN ? "FOREIGNNOTAVAIL" : NULL;
+}
+
 static void reports_draw_line(
   const ColonizeFont* font,
   ColonizeFramebuffer8* fb,
@@ -4506,6 +4522,16 @@ void reports_render(
   }
   if (id < 0 || id >= COLONIZE_REPORT_COUNT) {
     id = COLONIZE_REPORT_RELIGIOUS;
+  }
+
+  /*
+   * DOS FUN_3f41_2548 returns before loading its plate when the WoI bit is
+   * set, so nothing of F8 is drawn after independence (the caller pops
+   * @FOREIGNNOTAVAIL instead — see reports_is_available). Kept here too so a
+   * stale report_id can never render the withdrawn screen.
+   */
+  if (!reports_is_available(id, col1)) {
+    return;
   }
 
   const int human = reports_clamp_nation(human_nation);

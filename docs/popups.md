@@ -431,7 +431,7 @@ fragment. Related sections are listed in the first column.
 |---------------------|------|--------|------|
 | War / Peace / Alliance / Break | Rival offers | Done | `DIPLO_WAR` / `PEACE` / `ALLIANCE` / `BREAK` Accept/Refuse |
 | Boycott | War embargo / Tools lift | Partial | `DIPLO_BOYCOTT` OK |
-| FA `@HELLO*` / `@PEACE*` / `@TRIBUTE*` … | Foreign Affairs script | Partial | Thin `DIPLO_FA` OK; full `3f41` PARKED |
+| FA `@HELLO*` / `@PEACE*` / `@TRIBUTE*` … | Euro encounter negotiation | Done | `FUN_5bfb_153e` talk machine (`ai_diplo.c`, tag `DIPLO_TALK`); `3f41` is the F2-F9 adviser-report overlay, not diplomacy. `…USA` variants are the one delta |
 
 ### 8. King / REF / independence / FF
 
@@ -679,7 +679,7 @@ work.
 | `@SIGNTREATY` | Done | DIPLO_* CHOICE structural; peace-concluded OK popup body now the real GAME.TXT line via `popup_msg_fill` (Tools-embargo-lift chrome may override) |
 | `@DECLAREWAR` | Done | DIPLO_* CHOICE structural; war-declared OK popup body now the real GAME.TXT line via `popup_msg_fill` (boycott/hostility chrome may override); also `13b0` treaty-cancel-without-peace notice (2026-08-27) |
 | `@CANCELTREATY` | n/a — DOS shows nothing | `FUN_5bfb_13b0` cancel branch pushes tag `0x1898` = `CANCELTREATY`, but **no `.TXT` in `COLONIZE/` has that section**. `FUN_7314_001a` (open resource; scan for `@TAG`) hits EOF → returns 1 → `FUN_6f74_32a4` skips the whole parse and returns a NULL box → `FUN_6f74_36ca` returns 0 without ever opening a dialog. So real DOS cancels the treaty **silently** (bits + timers only). Fixed 2026-09-03: the port's invented "The X cancel their treaty with the Y." notice is gone; the effects stay, and the popup only fires if some GAME.TXT ever ships the section |
-| `@HAVETREATY` | Partial | FA / diplo lines — thin DIPLO_FA or status; full 3f41 PARKED |
+| `@HAVETREATY` | Done | euro-attack confirm gate in `ai_contact.c` (real GAME.TXT body via `popup_msg_fill`, 2026-09-01) |
 | `@WHACKINDIANS` | Done (structural) | `FUN_465b_0000` → `ai_contact_try_whack_confirm` (2026-08-27): Yes/No before the first attack on a calm tribe, asked once (bit 0x04); real GAME.TXT body via `popup_msg_fill` |
 | `@VILLAGEHAPPY` | Partial | contact/raid/mission — structural OK/status; deep/VGA PARKED |
 | `@VILLAGESAVAGE` | Partial | contact/raid/mission — structural OK/status; deep/VGA PARKED |
@@ -867,12 +867,12 @@ work.
 | `@KINGWAR` | Partial | king/REF — structural ai_popup OK/CHOICE or thin; VGA PARKED |
 | `@KINGNAVACT` | Partial | king/REF — structural ai_popup OK/CHOICE or thin; VGA PARKED |
 | `@KINGSTAMPACT` | Partial | king/REF — structural ai_popup OK/CHOICE or thin; VGA PARKED |
-| `@COUNTRIES` | Partial | FA / diplo lines — thin DIPLO_FA or status; full 3f41 PARKED |
-| `@ORDINAL` | Partial | FA / diplo lines — thin DIPLO_FA or status; full 3f41 PARKED |
+| `@COUNTRIES` | Partial | FA / diplo lines — thin `DIPLO_FA` or status (`3f41` is the F2-F9 adviser-report overlay, not diplomacy) |
+| `@ORDINAL` | Partial | FA / diplo lines — thin `DIPLO_FA` or status (`3f41` is the F2-F9 adviser-report overlay, not diplomacy) |
 | `@NEEDTOOLS` | Done thin | EOT Phase K tools short but >0 construction ai_popup OK |
 | `@NEEDTOOLS0` | Done thin | EOT Phase K tools-short construction ai_popup OK |
 | `@ALREADYHAVE` | Done thin | construction set refused when already owned → ai_popup OK |
-| `@LOBOTOMIZE` | Partial | FA / diplo lines — thin DIPLO_FA or status; full 3f41 PARKED |
+| `@LOBOTOMIZE` | Partial | FA / diplo lines — thin `DIPLO_FA` or status (`3f41` is the F2-F9 adviser-report overlay, not diplomacy) |
 | `@NATION0A` | Done | nation lore pages |
 | `@NATION0B` | Done | nation lore pages |
 | `@NATION1A` | Done | nation lore pages |
@@ -890,51 +890,51 @@ work.
 | `@LOSTOURSCOUTS` | Partial | scout messages thin/missing modal |
 | `@LOSTTHEIRSCOUTS` | Partial | scout messages thin/missing modal |
 | `@HELLOFIRST` | Done | Euro first-contact land (`ai_diplo_153e_encounter`) |
-| `@HELLOUSA` | Not wired | USA variant not modeled |
+| `@HELLOUSA` | Not wired | USA text variant — deliberate delta (`iStack_9c`); 153e bails on `woi`, so it is unreachable |
 | `@HELLOAHOY` | Done | Euro first-contact sea |
 | `@HELLOMEEK` | Done | Euro subsequent meek greeting |
 | `@HELLOMANLY` | Done | Euro subsequent manly greeting |
-| `@GREATKINGS` | Partial | FA / diplo lines — thin DIPLO_FA or status; full 3f41 PARKED |
-| `@GREATDEEDS` | Partial | FA / diplo lines — thin DIPLO_FA or status; full 3f41 PARKED |
-| `@GREATLEADER` | Partial | FA / diplo lines — thin DIPLO_FA or status; full 3f41 PARKED |
-| `@GREATLEADER2` | Partial | FA / diplo lines — thin DIPLO_FA or status; full 3f41 PARKED |
-| `@MYLEADER` | Partial | FA / diplo lines — thin DIPLO_FA or status; full 3f41 PARKED |
-| `@PIRACY` | Not wired | same, see `euro_diplo.md` "FA negotiation screen" |
-| `@PIRACYUSA` | Not wired | same, see `euro_diplo.md` "FA negotiation screen" |
-| `@SIEGES` | Not wired | same, see `euro_diplo.md` "FA negotiation screen" |
-| `@SIEGESUSA` | Not wired | same, see `euro_diplo.md` "FA negotiation screen" |
-| `@MEEKNESS` | Partial | FA / diplo lines — thin DIPLO_FA or status; full 3f41 PARKED |
-| `@HEATHEN` | Not wired | same, see `euro_diplo.md` "FA negotiation screen" |
-| `@HEATHENUSA` | Not wired | same, see `euro_diplo.md` "FA negotiation screen" |
-| `@APOSTATES` | Not wired | same, see `euro_diplo.md` "FA negotiation screen" |
-| `@APOSTATESUSA` | Not wired | same, see `euro_diplo.md` "FA negotiation screen" |
-| `@TRIBUTE` | Partial | FA / diplo lines — thin DIPLO_FA or status; full 3f41 PARKED |
-| `@TRIBUTEUSA` | Partial | FA / diplo lines — thin DIPLO_FA or status; full 3f41 PARKED |
-| `@WANTSTUFF` | Not wired | same, see `euro_diplo.md` "FA negotiation screen" |
-| `@WANTSTUFFUSA` | Not wired | same, see `euro_diplo.md` "FA negotiation screen" |
-| `@RID` | Not wired | same, see `euro_diplo.md` "FA negotiation screen" |
-| `@RIDUSA` | Not wired | same, see `euro_diplo.md` "FA negotiation screen" |
-| `@WORTHY` | Not wired | same, see `euro_diplo.md` "FA negotiation screen" |
-| `@GIVECASH` | Partial | FA / diplo lines — thin DIPLO_FA or status; full 3f41 PARKED |
-| `@PEACEMANLY` | Not wired | FA negotiation screen — mechanic confirmed via user testimony 2026-08-14, DOS function not yet found (needs `3f41` recovery), see `euro_diplo.md` "FA negotiation screen" |
-| `@PEACEMEEK` | Not wired | same, see `euro_diplo.md` |
-| `@OLDPEACEMEEK` | Not wired | same, see `euro_diplo.md` |
-| `@OLDPEACEMANLY` | Not wired | same, see `euro_diplo.md` |
-| `@PEACEUSA` | Not wired | same, see `euro_diplo.md` |
-| `@NOTWITHDRAW` | Not wired | same, see `euro_diplo.md` |
-| `@WITHDRAW` | Not wired | same, see `euro_diplo.md` |
-| `@NOTHINGWITHDRAW` | Not wired | same, see `euro_diplo.md` |
-| `@MAYBEWITHDRAW` | Not wired | same, see `euro_diplo.md` |
-| `@PROVOKE` | Not wired | same, see `euro_diplo.md` |
-| `@WARMEEK` | Not wired | same, see `euro_diplo.md` |
-| `@WARMANLY` | Not wired | same, see `euro_diplo.md` |
-| `@THREATS` | Partial | FA / diplo lines — thin DIPLO_FA or status; full 3f41 PARKED |
-| `@GIFTS` | Partial | FA / diplo lines — thin DIPLO_FA or status; full 3f41 PARKED |
-| `@MILITARY` | Partial | FA / diplo lines — thin DIPLO_FA or status; full 3f41 PARKED |
-| `@NOCONTACT` | Partial | FA / diplo lines — thin DIPLO_FA or status; full 3f41 PARKED |
-| `@ALREADYSMITE` | Partial | FA / diplo lines — thin DIPLO_FA or status; full 3f41 PARKED |
-| `@SMITEINDIANS` | Partial | FA / diplo lines — thin DIPLO_FA or status; full 3f41 PARKED |
-| `@SMITEEUROPE` | Partial | FA / diplo lines — thin DIPLO_FA or status; full 3f41 PARKED |
+| `@GREATKINGS` | Not wired | `FUN_2a1f_0618(2,"KINGS")` name-prep table (%STRING2 of the @HELLO* greetings), not a popup; folded to the nation name in the port |
+| `@GREATDEEDS` | Not wired | `FUN_2a1f_0618(3,"DEEDS")` name-prep table (%STRING3 of the @HELLO* greetings), not a popup; folded in the port |
+| `@GREATLEADER` | Not wired | `0618(…,"LEADER")` name-prep table, not a popup; no 153e site reads it |
+| `@GREATLEADER2` | Done | `0618(0,"LEADER2")` name-prep table = %STRING0 of @RID / @WARMANLY / @WAR+tone; read by `ai_talk_great_line` (2026-09-08) |
+| `@MYLEADER` | Not wired | leader-title name table, not a popup and not a `3f41` tag |
+| `@PIRACY` | Done | `FUN_5bfb_153e` encounter dialog — live in the `ai_diplo.c` talk machine (2026-09-06) |
+| `@PIRACYUSA` | Not wired | USA text variant — deliberate delta (`iStack_9c`); 153e bails on `woi`, so it is unreachable |
+| `@SIEGES` | Done | `FUN_5bfb_153e` encounter dialog — live in the `ai_diplo.c` talk machine (2026-09-06) |
+| `@SIEGESUSA` | Not wired | USA text variant — deliberate delta (`iStack_9c`); 153e bails on `woi`, so it is unreachable |
+| `@MEEKNESS` | Done | %STRING3 "demand"/"request" word, supplied by the 153e talk tokens |
+| `@HEATHEN` | Done | `FUN_5bfb_153e` encounter dialog — live in the `ai_diplo.c` talk machine (2026-09-06) |
+| `@HEATHENUSA` | Not wired | USA text variant — deliberate delta (`iStack_9c`); 153e bails on `woi`, so it is unreachable |
+| `@APOSTATES` | Done | `FUN_5bfb_153e` encounter dialog — live in the `ai_diplo.c` talk machine (2026-09-06) |
+| `@APOSTATESUSA` | Not wired | USA text variant — deliberate delta (`iStack_9c`); 153e bails on `woi`, so it is unreachable |
+| `@TRIBUTE` | Done | `FUN_5bfb_153e` encounter dialog — live in the `ai_diplo.c` talk machine (2026-09-06) |
+| `@TRIBUTEUSA` | Not wired | USA text variant — deliberate delta (`iStack_9c`); 153e bails on `woi`, so it is unreachable |
+| `@WANTSTUFF` | Done | 153e demand phase incl. the byte-verified DOS Furs stale-index bug (2026-09-06) |
+| `@WANTSTUFFUSA` | Not wired | USA text variant — deliberate delta (`iStack_9c`); 153e bails on `woi`, so it is unreachable |
+| `@RID` | Done | 153e worthy cascade, 3rd leg (raw :97966): ultimatum OK popup, no war, %STRING1 = target `player.country_name` — ported 2026-09-08 |
+| `@RIDUSA` | Not wired | USA text variant — deliberate delta (`iStack_9c`); 153e bails on `woi`, so it is unreachable |
+| `@WORTHY` | Done | `FUN_5bfb_153e` encounter dialog — live in the `ai_diplo.c` talk machine (2026-09-06) |
+| `@GIVECASH` | Done | `FUN_5bfb_153e` encounter dialog — live in the `ai_diplo.c` talk machine (2026-09-06) |
+| `@PEACEMANLY` | Done | `FUN_5bfb_153e` encounter dialog — live in the `ai_diplo.c` talk machine (2026-09-06) |
+| `@PEACEMEEK` | Done | `FUN_5bfb_153e` encounter dialog — live in the `ai_diplo.c` talk machine (2026-09-06) |
+| `@OLDPEACEMEEK` | Done | `FUN_5bfb_153e` encounter dialog — live in the `ai_diplo.c` talk machine (2026-09-06) |
+| `@OLDPEACEMANLY` | Done | `FUN_5bfb_153e` encounter dialog — live in the `ai_diplo.c` talk machine (2026-09-06) |
+| `@PEACEUSA` | Not wired | USA text variant — deliberate delta (`iStack_9c`); 153e bails on `woi`, so it is unreachable |
+| `@NOTWITHDRAW` | Done | `FUN_5bfb_153e` encounter dialog — live in the `ai_diplo.c` talk machine (2026-09-06) |
+| `@WITHDRAW` | Done | `FUN_5bfb_153e` encounter dialog — live in the `ai_diplo.c` talk machine (2026-09-06) (teleport-vs-walk delta documented) |
+| `@NOTHINGWITHDRAW` | Done | `FUN_5bfb_153e` encounter dialog — live in the `ai_diplo.c` talk machine (2026-09-06) |
+| `@MAYBEWITHDRAW` | Done | `FUN_5bfb_153e` encounter dialog — live in the `ai_diplo.c` talk machine (2026-09-06) |
+| `@PROVOKE` | Done | 153e worthy cascade, 1st leg (`worthy && at_peace && score >= 0x65`) → war; also the PEACEMENU threat arm |
+| `@WARMEEK` | Done | 153e WAR+tone tail; showing @GIVECASH forces the MEEK tone (raw :98017, 2026-09-08) |
+| `@WARMANLY` | Done | 153e WAR+tone tail **and** the post-tribute war declaration (raw :97960, `score == 999`) — 2nd leg ported 2026-09-08 |
+| `@THREATS` | Done | `FUN_5bfb_153e` encounter dialog — live in the `ai_diplo.c` talk machine (2026-09-06) |
+| `@GIFTS` | Done | `FUN_5bfb_153e` encounter dialog — live in the `ai_diplo.c` talk machine (2026-09-06) |
+| `@MILITARY` | Partial | FA / diplo lines — thin `DIPLO_FA` or status (`3f41` is the F2-F9 adviser-report overlay, not diplomacy) |
+| `@NOCONTACT` | Done | `FUN_5bfb_153e` encounter dialog — live in the `ai_diplo.c` talk machine (2026-09-06) |
+| `@ALREADYSMITE` | Done | `FUN_5bfb_153e` encounter dialog — live in the `ai_diplo.c` talk machine (2026-09-06) |
+| `@SMITEINDIANS` | Done | `FUN_5bfb_153e` encounter dialog — live in the `ai_diplo.c` talk machine (2026-09-06) |
+| `@SMITEEUROPE` | Done | `FUN_5bfb_153e` encounter dialog — live in the `ai_diplo.c` talk machine (2026-09-06) |
 | `@UNFORTUNATE` | Partial | king/REF — structural ai_popup OK/CHOICE or thin; VGA PARKED |
 | `@MERCENARY` | Partial | king/REF — structural ai_popup OK/CHOICE or thin; VGA PARKED |
 | `@SUCCESSION` | Partial | king/REF — structural ai_popup OK/CHOICE or thin; VGA PARKED |
@@ -971,11 +971,11 @@ work.
 | `@CANTMOBILIZE` | Partial | king/REF — structural ai_popup OK/CHOICE or thin; VGA PARKED |
 | `@KINGMOBILIZE` | Partial | king/REF — structural ai_popup OK/CHOICE or thin; VGA PARKED |
 | `@EUROPENOTAVAIL` | Partial | Europe sail/market — partial status or auto |
-| `@FOREIGNNOTAVAIL` | Partial | Europe sail/market — partial status or auto |
+| `@FOREIGNNOTAVAIL` | Done | F8 Foreign Affairs is withdrawn once the WoI has begun — `FUN_3f41_2548` raw :70792 (`0x5382 & 1`); `reports_is_available` + the `game_open_report` popup, 2026-09-08 |
 | `@EUROPENOTLEAVE` | Partial | Europe sail/market — partial status or auto |
-| `@NOWARSDURINGREV` | Partial | FA / diplo lines — thin DIPLO_FA or status; full 3f41 PARKED |
-| `@NOCOLONIESEITHER` | Partial | FA / diplo lines — thin DIPLO_FA or status; full 3f41 PARKED |
-| `@NOMAYORSDURINGREV` | Partial | FA / diplo lines — thin DIPLO_FA or status; full 3f41 PARKED |
+| `@NOWARSDURINGREV` | Partial | FA / diplo lines — thin `DIPLO_FA` or status (`3f41` is the F2-F9 adviser-report overlay, not diplomacy) |
+| `@NOCOLONIESEITHER` | Partial | FA / diplo lines — thin `DIPLO_FA` or status (`3f41` is the F2-F9 adviser-report overlay, not diplomacy) |
+| `@NOMAYORSDURINGREV` | Partial | FA / diplo lines — thin `DIPLO_FA` or status (`3f41` is the F2-F9 adviser-report overlay, not diplomacy) |
 | `@HOWMUCH1` | Done | howmuch colony load |
 | `@HOWMUCH2` | Partial | unload still whole-hold |
 | `@HOWMUCH3` | Partial | move path thin |
@@ -1105,7 +1105,7 @@ sections have no response lines). **Kind CHOICE** lists authentic labels.
 | `DIPLO_ALLIANCE` | CHOICE | Alliance | Done |
 | `DIPLO_BREAK` | CHOICE | Break alliance | Done |
 | `DIPLO_BOYCOTT` | OK | Embargo / Tools lift | Partial |
-| `DIPLO_FA` | OK | Thin FA `3f41` | Partial |
+| `DIPLO_FA` | OK | Thin FA leftovers (the 153e negotiation uses `DIPLO_TALK`) | Partial |
 | `LANDFALL` | CHOICE | `@LANDFALL` | Done |
 | `MAP_CONFIRM` | CHOICE | Disband / overboard / quit / retire / trade-delete | Done |
 | `COLONY_EVENT` | CHOICE | Colony EOT messages / `364b_0000`: "Continue turn." / "Zoom to colony." (LABELS `@MISC` 34/35); optionless once zoom elected, colony screen opens after the batch | Done |

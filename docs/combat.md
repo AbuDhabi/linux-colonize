@@ -346,6 +346,57 @@ DOS. Indian capturer: `colonies_abandon` + `@BURNED` on raid burn paths. Also AI
 euro / king REF / raid paths (all through `colonies_capture`, same effects when
 `colonies_set_col1_context` has a save).
 
+**Ships berthed in a fallen port — refutation, 2026-09-08.** The long-standing
+PARK ("does the euro seize arm sink foreign warships in a fallen port?")
+resolves to **nothing happens to them**. `FUN_5fef_1b0e` is the only resolver
+on that path and its capture arm (raw `viceroy_unpacked.c:100905-101034`)
+never touches the unit array except for the WoI crown neighbour re-home
+(`100949-100963`). The hull is invisible to the assault at every earlier
+stage too: `FUN_5fef_0000`'s domain gate (raw `99190-99196`) skips any
+candidate whose ship-ness (type `0x0d..0x12`) differs from the attacker's
+tile water test, so it never defends, and DOS has no "tile clear of
+foreigners" test to fail. The town changes hands with the loser's ship still
+sitting in it, under its old flag. Nothing is sunk and nothing is seized —
+the `0512` destroy texture belongs to `FUN_43f7_0512` (the crown REF landing
+seizure, `ai_king.c`), not here.
+
+The port could not express that: `units_foreign_at` counted the hull, and an
+armed hull (attack > 0) also survives `units_seize_noncombat_at`, so a berthed
+Frigate held the tile "contested" forever and no land force could take the
+port. Both post-win gates now use `units_domain_blocker_at` (`units.c`), which
+applies `FUN_5fef_0000`'s own domain rule — the walk-in gate in
+`units_try_move` and the contested test in `units_try_capture_foreign_colony`.
+`ai_euro.c`'s adjacent-walk-in arm carries a Linux-only "sink every foreign
+hull in the port" loop written against the old PARK; it is now unnecessary
+and DOS-contradicting (owner's call to remove).
+
+**Capture-arm audit, 2026-09-08** (raw = `viceroy_unpacked.c`). Everything the
+`bVar12` arm mutates is accounted for: colony/pop tallies, owner byte, rebel
+dividend ×2/3, treasury share, `nation_relation` zeroing, WAR bit and the WoI
+`0x5382|0x40` are all in `colonies_capture_col1_effects`; `@HOWTOWIN`
+(`0x5386` bit 0) and the crown neighbour re-home are in
+`units_try_capture_foreign_colony`. The two residue rows **closed
+2026-09-08**, both in that same function:
+
+| Raw | DOS | Port |
+|-----|-----|------|
+| `100937-100948` | 8-neighbour loop over the DS:0xb4/0xbe dir8 tables: `if (FUN_281f_06d2(x,y) < 0) FUN_281f_0704(x,y,new_owner)`. `06d2` = `FUN_137f_0428` = `03e4` (layer2 settlement bit `0x02` → its owner nibble) falling back to `0314` (layer2 unit bit `0x01`), i.e. "nothing stands here"; `0704` = `FUN_137f_0228`, the owner-nibble stamp. Not a fog reveal — the ring of **territory** the prize brings with it | `units_capture_claim_ring`. Same idiom `ai.c`'s `ai_indian_midpass_claim_worked_tiles` already carries. Not gated on DOS's `param_4`, so AI captures stamp it too. The centre tile's own stamp (raw `100901`) is not repeated: the captor's step onto the colony square already ran it through `units_occupancy_refresh_tile` → `units_claim_tile_owner_from_stack`. `0228`'s `@SEIZURE` arm can't fire (it needs a native settlement, which the `06d2` gate excluded) |
+| `101032-101034` | `FUN_281f_0608(colony)` (far thunk → `FUN_2f2b_6cd4`, colony screen) fires when the captor is a **human-controlled European** — DOS drops you straight into the town you just took, *after* the blocking `@CAPTURED` dialog at `101030` | `units_combat_pump_popups()` (drains `@CAPTURED` / `@HOWTOWIN` first, DOS's order) then `ai_popup_colony_zoom_elect`. No `game_loop.c` edit was needed: the elected zoom is drained by the existing `ai_popup_take_colony_zoom` → `game_enter_colony` pair, which is how DOS's **other** `FUN_281f_0608` caller (`FUN_364b_0688`'s colony-event tail) is already wired. Headless callers install neither pump nor popup state, so both calls are inert |
+
+**Unported neighbour found in the same read (2026-09-08), recorded not
+ported.** Raw `100573-100577`, just after the roll: when the attacker is a
+native (`3 < uVar16`), the defender a **human-controlled** European
+(`uVar15 < 4 && control == 0`), the attacker type `0x13` (Brave) and the
+defender type `0xb` (Artillery), DOS forces `bVar8 = false` — the Brave
+**always** loses — and sets `local_ca = 1`, which is the flag it then hands
+`FUN_5fef_0f14` to bypass that resolver's walls check. The port has the
+Artillery ×2-vs-natives strength term (`units_best_defender_at`,
+`COMBAT_FLAG_ARTY_COLONY`) but not the outright auto-loss, so the pairing is
+only *usually* fatal. Left alone: it changes combat outcomes and is outside
+the 1b0e residue batch. `units_resolve_land_combat_ff` reads the flag off the
+pairing that actually resolved instead, so the raid handoff below still gets
+DOS's `param_4` whenever the pairing does occur.
+
 ---
 
 ## Combat Analysis
@@ -374,8 +425,9 @@ dual column. Shown **before** the combat roll (strengths known; no outcome yet).
      `-0x72fa` — not the post-×8 roll weight)
   3. Modifier rows per side: label left, `±N%` value right-aligned at the
      column edge (DOS 013c label / 0150 value split)
-- Flag rows (LABELS-shaped, DOS check order): Veteran, Cargo, **Attack
-  Bonus** (land ×3/2), Expeditionary Force, Tories/Rebels (WoI support %),
+- Flag rows (LABELS-shaped, DOS check order): **Muskets** (`0x400`, first row —
+  see below), Veteran, Cargo, **Attack
+  Bonus** (land ×3/2), Bombard, Tory Unrest / Rebel Unrest (WoI support %),
   Ambush (attacker terrain, DOS `0x2e56`) / Terrain (defender `0x2e58`),
   the **fort-tier** row — label = the topmost built fortification's own name
   (`FUN_281f_0bdc` = `FUN_15eb_0434(0)` walking the `DS:0x8f82+4` chain), or
@@ -405,13 +457,42 @@ dual column. Shown **before** the combat roll (strengths known; no outcome yet).
 
   `DS:0x83e` is ICONS.SS (loaded from the `'icons'` name at `DS:0x23d6`), and
   the `@UNIT` icon byte lives at `+2` of the stride-`0xe` unit table `DS:0x5230`.
-- Not ported from DOS 636c: the 0x400 sprite row (ICONS.SS #38 at indent `8`,
-  label `0x97de`, still unidentified) and the cheat-mode (`0x5383&0x20`)
-  final-weight footer rows.
-- **Label mismatch, unfixed:** DOS's WoI support rows read `0x2ec2` / `0x2ec4`
-  = LABELS lines 147/148 "Tory Unrest" / "Rebel Unrest" (the id→line mapping is
-  `id = LABELS line + 312`, anchored on `0x192`=`COMBAT ANALYSIS` line 90,
-  `0x1c8`=`Artillery Vs. Raid` line 144). The port prints "Tories"/"Rebels"
+- **0x400 = the Paul Revere Muskets row** (identified + render side ported
+  2026-09-08). It is the **first** modifier row, ahead of Veteran (asm
+  `636c:01d4`-`0288`). `DS:0x97de` is not a LABELS slot at all — it is the
+  runtime pointer the Indian Adviser (`FUN_3f41_010a`, asm `3f41:...ff36de97`)
+  prints its Muskets tally with, i.e. NAMES.TXT **@CARGO 15 "Muskets"**. The
+  blit pushes the literal `AX = 0x26`, DOS's 1-based icon space, so the port
+  blits ICONS.SS **37** (`@CARGO0–15` = #22–37 ⇒ 15 = Muskets); indent `8`.
+  The value is `0146` (sign) + `0182` (1) with **no** `010a`, so DOS prints a
+  bare **"+1"** — an additive point of base combat, not a percentage.
+  **Trigger** (`FUN_5fef_1b0e`, asm `5fef:1d2f`-`1d5f`): on the auto-spawned
+  defender of an undefended colony, if the colony's nation has Founding Father
+  **12 = Paul Revere** (`FUN_281f_07b4` → `FUN_15eb_3960(nation, 0xc)`) and the
+  colony's Muskets stock (colony record `+0xb8` = `stock[15]`) is `>= 0x32`
+  (50), DOS swaps the defender graphic to `0x4b`, `INC`s the base combat byte
+  and sets `0x8d03 |= 4` (= flags `0x400`).
+  **Trigger wired 2026-09-08.** `units_revere_defend_colony_tile` sets a
+  one-shot latch (`g_units_revere_muskets_latch`, `units.c` — DOS writes a
+  global for the same reason: the arm runs while the defender is being built,
+  before the panel is drawn) whenever `founding_fathers_revere_auto_arm`
+  actually fires; `units_resolve_land_combat_ff` consumes it into
+  `eng.def_flags.flags |= COMBAT_FLAG_MUSKETS` right after
+  `combat_land_engage`, i.e. before the analysis is presented. The port's gate
+  is byte-identical to DOS's (`founding_fathers_revere_should_auto_arm`: FF 12
+  owned, no standing soldier, `stock[15] >= UNITS_EQUIP_MUSKETS` = 50 =
+  `> 0x31`). **Model still divergent, deliberately:** DOS spawns a +1 phantom
+  colonist, the port ejects a real Soldier, so the strength half of the arm
+  rides on that unit rather than on an `INC` of a phantom's base combat.
+  Realigning the phantom-vs-real model is a `units.c` / `combat_strength.c`
+  structural change and stays parked.
+- Still not ported from DOS 636c: the cheat-mode (`0x5383&0x20`) final-weight
+  footer rows.
+- **WoI support row labels — fixed 2026-09-08.** DOS's rows read `0x2ec2` /
+  `0x2ec4` = LABELS lines 147/148 **"Tory Unrest" / "Rebel Unrest"**. Address →
+  line is `addr = 0x2d9c + 2*line` (anchors: `0x2e52` = line 91 "Fatigue",
+  `0x2e8a` = line 119 "Bombard" per bugs.md 248, `0x2e3c` = line 80 "Veteran",
+  `0x2e54` = line 92 "Attack Bonus"). The port printed "Tories"/"Rebels"
   (LABELS lines 101/102, which 636c never reads).
 - Roll still uses post-modifier odds weights (`atk` / `def` in
   `roll 1..(atk+def)`); those values are not printed in the header.

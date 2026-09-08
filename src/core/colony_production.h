@@ -37,9 +37,6 @@ typedef enum ColonyProdTier {
 
 ColonyProdTier colony_prod_building_tier(const char* building_name);
 
-/* Free-colonist manufacturing output at tier (3 / 6 / 9). */
-int colony_prod_tier_free_output(ColonyProdTier tier);
-
 /* Cargo input consumed to produce `output` units at tier (factory: 6 in per 9 out). */
 int colony_prod_tier_input_for_output(ColonyProdTier tier, int output);
 
@@ -80,8 +77,6 @@ int colony_prod_manufacturing_input(
   int craft_profession,
   int sol_bonus
 );
-
-bool colony_prod_field_skill_matches(int profession, int field_job);
 
 /* colony_yield_for_worker moved to colony_yield.h/.c 2026-08-15 — it needs
  * static helpers private to that file (road/river/resource pipeline
@@ -180,12 +175,9 @@ int colony_prod_church_passive_crosses(const char* building_name);
 
 #define COLONY_PROD_COLONY_BASE_CROSSES 1
 
-/* Crosses / bells for one colony (assigned workers + building passives + colony base). */
-int colony_prod_colony_crosses(const ColonizeColonyPool* pool, const ColonizeColony* colony);
-int colony_prod_colony_bells(const ColonizeColonyPool* pool, const ColonizeColony* colony);
-
 /*
- * FF-aware variants (fandom_col1994 / Colonization.pdf):
+ * Crosses / bells for one colony (assigned workers + building passives +
+ * colony base), FF-aware (fandom_col1994 / Colonization.pdf):
  *   statesmen_bonus_pct — Jefferson: +50% on Town Hall (statesmen) worker bells
  *   all_bells_bonus_pct  — Paine: +current tax rate % on colony bells (after press/newspaper)
  *
@@ -298,19 +290,6 @@ ColonyProdHorseBreed colony_prod_horse_breed(
   bool colony_has_stable
 );
 
-/* Primary goods output for a colonist in a workplace (for settlement badges). */
-const char* colony_prod_highest_manufacturing_tier_name(
-  const ColonizeColonyPool* pool,
-  const ColonizeColony* colony,
-  const char* base_name
-);
-
-int colony_prod_worker_building_output_sol(
-  const ColonizeColonyPool* pool,
-  int building_type,
-  int profession,
-  int sol_bonus
-);
 /* Full-context worker output: folds in the colony's upgrade multipliers
  * (Lumber Mill x2, Cathedral x2) and Penn (x1.5 crosses) — what the turn
  * tick actually pays (bugs.md: badge read 7 where DOS shows 14). */
@@ -322,29 +301,19 @@ int colony_prod_worker_building_output_ctx(
   int profession,
   int sol_bonus
 );
-int colony_prod_worker_building_output(
-  const ColonizeColonyPool* pool,
-  int building_type,
-  int profession
-);
 
 /*
  * Settlement-view building strip: Town Hall / Church / Cathedral free output
  * plus assigned workers. Colony-wide base +1 cross is people-meter only.
  */
 /* bugs.md: the settlement badge shows POTENTIAL (unclamped) output and must
- * include the colony's SoL bonus — the plain variant passes bonus 0. */
+ * include the colony's SoL bonus. */
 int colony_prod_building_display_output_sol(
   const ColonizeColonyPool* pool,
   const ColonizeColony* colony,
   const ColonizeCol1Save* col1,
   int building_type,
   int sol_bonus
-);
-int colony_prod_building_display_output(
-  const ColonizeColonyPool* pool,
-  const ColonizeColony* colony,
-  int building_type
 );
 
 #endif

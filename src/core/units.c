@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "core/ai_contact.h"
 #include "core/ai_diplo.h"
 #include "core/col1_save.h"
 #include "core/combat_analysis.h"
@@ -1563,6 +1564,13 @@ void units_set_combat_dissolve(ColonizeUnitsDissolveFn fn, void* user) {
   g_units_dissolve_user = user;
 }
 
+/* 1b0e raid handoff — registered by ai_contact.c's constructor (units.h). */
+static ColonizeUnitsRaidRepelledFn g_units_raid_repelled = NULL;
+
+void units_set_colony_raid_repelled(ColonizeUnitsRaidRepelledFn fn) {
+  g_units_raid_repelled = fn;
+}
+
 static void units_dissolve_notify(int phase) {
   if (g_units_dissolve) {
     g_units_dissolve(g_units_dissolve_user, phase);
@@ -1613,6 +1621,16 @@ void units_set_combat_popups(AiPopupState* popups, const ColonizeMsgCatalog* gam
   g_units_combat_popups = popups;
   g_units_combat_game_txt = game_txt;
 }
+
+/*
+ * DOS DS:0x8d03 bit 2, set by FUN_5fef_1b0e's Revere arm (asm 5fef:1d2f-1d5f)
+ * on the auto-spawned colony defender and read back by the 636c Combat
+ * Analysis panel as the "Muskets" row. DOS writes a global there because the
+ * arm runs while the defender is being built, before the analysis is drawn;
+ * the port mirrors that with a one-shot latch consumed by the next
+ * engagement (units_revere_defend_colony_tile → units_resolve_land_combat_ff).
+ */
+static int g_units_revere_muskets_latch = 0;
 
 /* See units.h: ai_contact owns the richer ambush chrome for its own calls. */
 static int g_units_native_chrome_owned = 0;
@@ -1850,6 +1868,53 @@ int units_foreign_unit_at(
   int except_nation_id
 ) {
   return units_foreign_at(pool, x, y, except_unit_id, except_nation_id);
+}
+
+/*
+ * "Is this tile still contested for `mover`?" under DOS's own definition.
+ *
+ * FUN_5fef_1b0e has no unit-at-tile test at all: the only notion of a
+ * contested tile it carries is whether FUN_5fef_0000 handed it a defender
+ * (`bVar28`), and that picker is domain-gated (raw 99190-99196) — a
+ * candidate whose ship-ness (type 0x0d..0x12) differs from the attacker's
+ * tile water test is skipped outright. So a foreign hull sitting in a port
+ * is invisible to a land assault at every stage: it never defends, it never
+ * blocks the walk-in, and the capture arm (raw 100905-101034) never touches
+ * it — no sink, no seizure, no owner flip. It simply stays where it is,
+ * under its old flag, inside the town that just changed hands.
+ *
+ * The port's plain units_foreign_at could not express that: an armed hull
+ * (attack > 0, so units_seize_noncombat_at leaves it) held the tile
+ * "contested" forever and no land force could ever take the port.
+ */
+static int units_domain_blocker_at(
+  const ColonizeUnitPool* pool,
+  int x,
+  int y,
+  int mover_id,
+  int mover_nation
+) {
+  if (!pool) {
+    return -1;
+  }
+  const int mover_sea = units_is_sea(pool, mover_id);
+  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    const ColonizeUnit* u = &pool->units[i];
+    if (!units_is_on_map(u) || u->x != x || u->y != y) {
+      continue;
+    }
+    if (u->id == mover_id) {
+      continue;
+    }
+    if (mover_nation >= 0 && u->nation_id == mover_nation) {
+      continue;
+    }
+    if (units_is_sea(pool, u->id) != mover_sea) {
+      continue; /* other domain — FUN_5fef_0000 never sees it */
+    }
+    return u->id;
+  }
+  return -1;
 }
 
 /*
@@ -3309,6 +3374,131 @@ static void units_sweep_naval_stack_after_loss(
   }
 }
 
+/*
+ * DS:0x54f6 grudge/tension slot writer (ColonizeCol1Save.indian_tension,
+ * keyed [tribe * 4 + euro] exactly as DOS keys `(origin*9 + euro)*2 +
+ * 0x54f6` — stride 9 words, only euro 0..3 ever touched).
+ */
+static void units_indian_tension_clear(
+  const ColonizeCol1Save* col1, int tribe_index, int euro_nation
+) {
+  if (!col1 || !col1->indian_tension || euro_nation < 0 ||
+      euro_nation >= (int)COLONIZE_COL1_NATION_COUNT) {
+    return;
+  }
+  if (tribe_index < 0 || (uint16_t)tribe_index >= col1->head.tribe_count) {
+    return;
+  }
+  ColonizeCol1Save* mut = (ColonizeCol1Save*)col1;
+  mut->indian_tension
+    [(size_t)tribe_index * (size_t)COLONIZE_COL1_NATION_COUNT + (size_t)euro_nation] = 0;
+}
+
+/*
+ * FUN_5fef_1b0e's own DS:0x54f6 discharge, the first of its two sites
+ * (viceroy_unpacked.c:101039-101041) — the same clear FUN_5fef_0f14 does on
+ * the raid path (ai_contact_indian_raids, docs/indians.md).
+ *
+ * DOS arm: `if (3 < attacker_nation && defender_nation < 4)` — a native
+ * attacker against a European defender — then
+ * `if (local_10 < 0 || DS:0x8db8 != 0 || attacker_won)`. `local_10` is the
+ * nearest-colony scan FUN_281f_0614(x, y, -1, -1) over the DEFENDER'S tile
+ * and DS:0x8db8 is that scan's distance output, so the two leading terms
+ * together read "the fight was not on a colony tile". The `else` limb is
+ * DOS's colony-raid handoff to FUN_5fef_0f14, which carries its own clear.
+ * Net rule: every resolved native-vs-European land fight discharges the
+ * raiding tribe's tension toward that European, EXCEPT a native attack that
+ * loses at a colony (which discharges it through the raid path instead).
+ *
+ * Index is the ATTACKER's +0x314a home tribe (home_tribe_id) against the
+ * DEFENDER's nation nibble — same index space as the raid-path clear.
+ */
+static void units_indian_attack_tension_clear(
+  const ColonizeCol1Save* col1,
+  const ColonizeColonyPool* colonies,
+  int atk_nation,
+  int atk_home_tribe,
+  int def_nation,
+  int def_x,
+  int def_y,
+  int atk_wins
+) {
+  if (atk_nation < 4 || atk_nation > 11 || def_nation < 0 || def_nation > 3) {
+    return;
+  }
+  if (!atk_wins && colonies && colonies_id_at(colonies, def_x, def_y) >= 0) {
+    return; /* DOS routes this to FUN_5fef_0f14's clear, not this one */
+  }
+  units_indian_tension_clear(col1, atk_home_tribe, def_nation);
+}
+
+/*
+ * FUN_5fef_1b0e's `local_a6` alarm delta (raw 101043-101196), the write that
+ * sits beside the tension clear above. Every value in the table is NEGATIVE —
+ * a native attack VENTS the tribe's alarm toward that European, the same way
+ * the discharge empties its tension row:
+ *
+ *   natives raze the colony (bVar28 && local_c)        −50 flat
+ *   natives beat an undefended colony, colony survives  difficulty − 10
+ *   natives win an ordinary field fight (!bVar28)       difficulty/2 − 5
+ *   natives lose a field fight                          0 (no delta)
+ *
+ * The `difficulty` term is added only when the European side is
+ * human-controlled (`*(char *)(nation * 0x34 + 0x543f) == '\0'`), so a HIGHER
+ * difficulty gives back LESS alarm relief.
+ *
+ * Gate (raw 101129-101136): `FUN_281f_0a38(DS:0x8d50, euro) & 2` == 0 —
+ * `FUN_15b3_0004(indian_nation, euro)` is the Indian record's relation byte
+ * toward that European (`indian[].euro_diplo[]` here) and bit 1 is the WAR
+ * bit, so the vent applies only while the tribe is NOT already at war with
+ * that European. Delta itself goes through FUN_281f_0d6c = FUN_4cc6_00f2 =
+ * ai_diplo_indian_alarm_delta.
+ */
+static int units_indian_attack_alarm_vent_amount(
+  const ColonizeCol1Save* col1, int def_nation, int base, int difficulty_shift
+) {
+  int amount = 0;
+  if (col1 && def_nation >= 0 && def_nation <= 3 && col1->player[def_nation].control == 0) {
+    amount = (int)col1->head.difficulty >> difficulty_shift;
+  }
+  return amount - base;
+}
+
+/*
+ * DOS `bVar28`: the defender 1b0e is resolving was auto-spawned for an
+ * undefended settlement, not a unit standing on the map. The port spawns the
+ * same stand-in from units_revere_defend_colony_tile, which raises this while
+ * its units_resolve_land_combat_ff call runs.
+ */
+static bool g_units_colony_autodefender = false;
+
+/*
+ * One-shot latch, cleared at the top of every units_try_move. DOS runs the
+ * whole of 1b0e once per attack and picks exactly ONE `local_a6` row, but the
+ * port splits the same beat in two: the resolver fights the defender and then
+ * units_try_move walks the winner into the colony, where the Indian arm plays
+ * DOS's `bVar28` (undefended colony) rows. Without the latch a native that
+ * beats a real garrison and steps in would vent both the field-fight row and
+ * the undefended-colony row for one attack.
+ */
+static bool g_units_indian_combat_vent_done = false;
+
+static void units_indian_attack_alarm_vent(
+  const ColonizeCol1Save* col1, int atk_nation, int def_nation, int delta
+) {
+  if (!col1 || atk_nation < 4 || atk_nation > 11 || def_nation < 0 || def_nation > 3) {
+    return;
+  }
+  if (delta == 0) {
+    return; /* DOS: `if (local_a6 != 0)` */
+  }
+  /* FUN_15b3_0004(indian_nation, euro) & 2 — already at war, no relief. */
+  if ((col1->indian[atk_nation - 4].euro_diplo[def_nation] & COL1_INDIAN_WAR_BIT) != 0) {
+    return;
+  }
+  ai_diplo_indian_alarm_delta((ColonizeCol1Save*)col1, atk_nation, def_nation, delta);
+}
+
 /* win/lose are PRE-LOSS snapshots: bugs.md 246 — DOS 1b0e applies the 0352
  * loss outcome (demote/damage/capture popups) first and fills @EUROPEWIN /
  * @EUROPELOSE after, so this runs after the loser may already be despawned. */
@@ -3525,6 +3715,22 @@ int col1_destroy_tribe_at(
     );
   }
   col1->head.tribe_count = (uint16_t)(old_count - 1u);
+
+  /*
+   * DS:0x54f6 grudge/tension rides the tribe record itself in DOS (0x54f6 =
+   * 0x54ee + 8, same stride 0x12), so a compaction of the tribe array has to
+   * take it along or every surviving row points at the wrong tribe. ai.c's
+   * whole-nation kill already does this with its remap table; the
+   * single-village destroy did not, which silently rotated the table on the
+   * first razed village. Same shift as home_tribe_id above.
+   */
+  if (col1->indian_tension && found + 1 < (int)old_count) {
+    memmove(
+      &col1->indian_tension[(size_t)found * COLONIZE_COL1_NATION_COUNT],
+      &col1->indian_tension[((size_t)found + 1u) * COLONIZE_COL1_NATION_COUNT],
+      ((size_t)old_count - (size_t)found - 1u) * COLONIZE_COL1_NATION_COUNT * sizeof(int16_t)
+    );
+  }
 
   /* FUN_4d56_00e0 (raw 81310-81319): units bound to the destroyed village
    * are DESTROYED with it (any Indian-owned unit whose +0x314a home-village
@@ -3799,8 +4005,29 @@ bool units_try_native_settlement_fallout(
       /*
        * Fandom Capital destroy: hostile tribe surrenders once — hostility
        * reset + peace; no new capital (destroyed). Cite: docs/fandom_col1994.md.
+       *
+       * DS:0x54f6 discharge, DOS 1b0e site 2 (LAB_5fef_362a,
+       * viceroy_unpacked.c:101289-101298): gated on `local_c != 0 &&
+       * local_ce != 0` = dwelling destroyed AND it carried the capital bit
+       * (record +3 bit 2). DOS then walks the whole DS:0x539a settlement
+       * array and zeroes `(i*9 + euro)*2 + 0x54f6` for every record whose
+       * `+2` type byte (= owner nation - 4, settlement_record_8d4a.md)
+       * equals the bound Indian nation index at DS:0x8d52 — the NATION-WIDE
+       * grudge against the conqueror is spent when its capital falls, not
+       * just the razed settlement's. Translated into the port's index space
+       * (indian_tension is keyed by village, docs/indians.md) that is every
+       * tribe of the razed capital's nation. The alarm side of the same block
+       * (FUN_281f_030c/0d6c: clamp alarm DOWN to 15 when above) is what
+       * ai_diplo_indian_capital_surrender models.
        */
       ai_diplo_indian_capital_surrender(col1, tribe_nation, attacker_nation_id);
+      if (col1->indian_tension && col1->tribe) {
+        for (uint16_t ti = 0; ti < col1->head.tribe_count; ++ti) {
+          if ((int)col1->tribe[ti].nation_id == tribe_nation) {
+            units_indian_tension_clear(col1, (int)ti, attacker_nation_id);
+          }
+        }
+      }
     } else {
       ai_diplo_indian_relation_delta(col1, tribe_nation, attacker_nation_id, -5);
       ai_diplo_indian_hostility_sync(col1, attacker_nation_id);
@@ -3885,14 +4112,14 @@ typedef enum ColonizeLcrOutcome {
  * explored this process (any nation) and total Cibola finds this process.
  * FUN_65dd_0004 is their only reader/writer. Case 1 (Fountain of Youth)
  * needs >= 4 rumours explored; case 2 (Cibola) is capped at 7 per session.
+ *
+ * There is deliberately no reset: DOS never clears them, not even across a
+ * New Game in the same process, so they run for the lifetime of the process.
+ * A reset helper existed here unused and was deleted 2026-09-08 — wiring one
+ * would diverge from DOS.
  */
 static uint8_t s_lcr_explored_total = 0;
 static uint8_t s_lcr_cibola_total = 0;
-
-void units_lcr_reset_session_counters(void) {
-  s_lcr_explored_total = 0;
-  s_lcr_cibola_total = 0;
-}
 
 /* FUN_4cc6_0356-shaped nearest-tribe scan; -1 if none. out_dist (optional)
  * receives the winning tile-distance (manhattan, matching the rest of this
@@ -4592,6 +4819,24 @@ bool units_resolve_land_combat_ff(
   eng.def_strength = er.def_strength;
   eng.atk_flags = er.atk_flags;
   eng.def_flags = er.def_flags;
+  /*
+   * DOS 1b0e undefended-colony arm (viceroy_unpacked.c:100418-100431, asm
+   * 5fef:1d2f-1d5f): the token defender is built with `OR [0x8d03],2`, and
+   * when the colony's owner holds Founding Father 12 (Paul Revere,
+   * FUN_281f_07b4(owner, 0xc)) AND the colony record's Muskets word (+0xb8)
+   * is > 0x31, DOS swaps the defender graphic to 0x4b, adds +1 to its base
+   * combat level, and sets `OR [0x8d03],4` — bit 0x400 of the DEFENDER
+   * analysis word 0x8d02, i.e. COMBAT_FLAG_MUSKETS, the panel's Muskets row.
+   * The port models the arm with a real ejected Soldier rather than DOS's
+   * phantom colonist (units_revere_defend_colony_tile /
+   * founding_fathers_revere_auto_arm), so the strength half already rides on
+   * that unit; only the analysis bit was unset. Model realignment (phantom
+   * vs real Soldier) deliberately left alone.
+   */
+  if (g_units_revere_muskets_latch) {
+    eng.def_flags.flags |= COMBAT_FLAG_MUSKETS;
+  }
+  g_units_revere_muskets_latch = 0;
 
   /* Combat Analysis before roll — strengths known, outcome not yet decided. */
   units_combat_maybe_present_analysis(col1, &eng, atk->nation_id, def->nation_id);
@@ -4723,6 +4968,32 @@ bool units_resolve_land_combat_ff(
     if (atk) {
       (void)units_promote_on_win(pool, atk, col1, eng.atk_strength, eng.def_strength, rng);
     }
+    /* DS:0x54f6 discharge, DOS 1b0e site 1 (raw 101039-101041). */
+    units_indian_attack_tension_clear(
+      col1,
+      g_units_combat_colonies,
+      atk_nation,
+      atk ? atk->home_tribe_id : -1,
+      def_nation,
+      def_x,
+      def_y,
+      1
+    );
+    /*
+     * `local_a6` = difficulty/2 − 5, DOS's "!bVar28 && bVar8" row: a native
+     * that wins an ordinary field fight against a European. When the defender
+     * was the auto-spawned stand-in for an undefended colony (DOS bVar28) the
+     * row is a different one — difficulty − 10, or −50 if the town fell — and
+     * belongs to the walk-in that follows, in
+     * units_try_capture_foreign_colony's Indian arm.
+     */
+    if (atk_nation >= 4 && atk_nation <= 11 && def_nation >= 0 && def_nation <= 3 &&
+        !g_units_colony_autodefender) {
+      units_indian_attack_alarm_vent(
+        col1, atk_nation, def_nation, units_indian_attack_alarm_vent_amount(col1, def_nation, 5, 1)
+      );
+      g_units_indian_combat_vent_done = true;
+    }
     /*
      * Village destroy / pop drain is NOT "no Brave left on tile". DOS only
      * drains dwelling population when the empty-village temp Brave arm wins
@@ -4748,6 +5019,61 @@ bool units_resolve_land_combat_ff(
       pool, &win_snap, &lose_snap, 0, atk_nation, def_nation, 0, ambush, col1
     );
     units_sweep_stack_after_loss(pool, atk_x, atk_y, atk_nation, defender_id, attacker_id, col1);
+    /* DS:0x54f6 discharge, DOS 1b0e site 1 (raw 101039-101041). A native
+     * attacker that LOSES at a colony is DOS's raid handoff and is skipped
+     * here — the tension clear rides FUN_5fef_0f14 on that limb. */
+    units_indian_attack_tension_clear(
+      col1,
+      g_units_combat_colonies,
+      atk_nation,
+      lose_snap.home_tribe_id,
+      def_nation,
+      win_snap.x,
+      win_snap.y,
+      0
+    );
+    /*
+     * DOS's colony-raid handoff (raw 101142). The `else` limb of the
+     * alarm/tension block: a native attacker (nation >= 4) beaten by a
+     * European (nation < 4) whose tile carries a colony is NOT simply dead —
+     * 1b0e skips its whole alarm/tension block and calls
+     * `thunk_FUN_2a1f_06c8(indian_nation, colony, home_tribe, local_ca,
+     * attacker_type)` = FUN_5fef_0f14, the full raid resolver, which brings
+     * its own loot roll and its own DS:0x54f6 clear. `local_a6` stays 0 on
+     * this limb, so there is no alarm vent here either.
+     *
+     * `local_ca` (0f14's param_4, bypasses the walls check) is DOS's
+     * Brave-versus-Artillery pairing, raw 100573-100577. DOS ALSO forces the
+     * loss outright there (`bVar8 = false`) whenever a Brave attacks a HUMAN
+     * European's Artillery; that auto-loss itself is not ported — recorded in
+     * docs/combat.md — so the flag is read off the pairing that actually
+     * resolved instead.
+     */
+    if (atk_nation >= 4 && atk_nation <= 11 && def_nation >= 0 && def_nation <= 3 &&
+        g_units_combat_colonies) {
+      const int raid_cid = colonies_id_at(g_units_combat_colonies, win_snap.x, win_snap.y);
+      if (raid_cid >= 0) {
+        const ColonizeUnitType* at = units_type(pool, lose_snap.type_index);
+        const ColonizeUnitType* dt = units_type(pool, win_snap.type_index);
+        const int forced = at && dt && strstr(at->name, "Brave") != NULL &&
+          strstr(dt->name, "Artillery") != NULL && col1 &&
+          col1->player[def_nation].control == 0;
+        if (g_units_raid_repelled) {
+          (void)g_units_raid_repelled(
+            (ColonizeCol1Save*)col1,
+            (ColonizeColonyPool*)g_units_combat_colonies,
+            pool,
+            g_units_occupancy_map ? g_units_occupancy_map : g_units_fallout_map,
+            rng,
+            atk_nation,
+            def_nation,
+            raid_cid,
+            lose_snap.home_tribe_id,
+            forced
+          );
+        }
+      }
+    }
   }
   def = units_get(pool, defender_id);
   if (def) {
@@ -5412,6 +5738,48 @@ static int units_colony_plunder_stock_sum(const ColonizeColony* col) {
   return sum;
 }
 
+/*
+ * FUN_5fef_1b0e capture arm, raw viceroy_unpacked.c:100937-100948 — the ring
+ * the prize brings with it. For each of the 8 neighbours (DS:0xb4 / DS:0xbe
+ * dir8 tables):
+ *
+ *   if (FUN_281f_06d2(x, y) < 0) FUN_281f_0704(x, y, new_owner);
+ *
+ * `06d2` = `FUN_137f_0428` = `03e4` (layer2 settlement bit 0x02 → its owner
+ * nibble) falling back to `0314` (layer2 unit bit 0x01 → its owner nibble),
+ * so the test reads "no settlement and no unit stands here"; `0704` =
+ * `FUN_137f_0228` is the owner-nibble stamp (units_map_set_owner_nibble).
+ * Same idiom ai.c already carries for FUN_4d56_4528's worked-tile claim.
+ *
+ * `0228`'s own @SEIZURE arm cannot fire from here: it needs a native
+ * settlement on the tile (`FUN_137f_0392`), which the `06d2` gate has already
+ * excluded. The centre tile's own stamp (raw 100901) is not repeated — the
+ * captor's step onto the colony square already ran it through
+ * units_occupancy_refresh_tile → units_claim_tile_owner_from_stack.
+ *
+ * NOT gated on DOS's `param_4` (the animate/interactive flag): this is map
+ * state, and an AI capture stamps the ring exactly the same way.
+ */
+static void units_capture_claim_ring(ColonizeWorldMap* map, int x, int y, int new_owner) {
+  static const int k_dx[8] = {0, 1, 1, 1, 0, -1, -1, -1};
+  static const int k_dy[8] = {-1, -1, 0, 1, 1, 1, 0, -1};
+  if (!map || !map->layer2 || !map->layer3) {
+    return;
+  }
+  for (int d = 0; d < 8; ++d) {
+    const int tx = x + k_dx[d];
+    const int ty = y + k_dy[d];
+    if (tx < 0 || ty < 0 || tx >= map->width || ty >= map->height) {
+      continue;
+    }
+    const uint8_t l2 = map->layer2[(size_t)ty * (size_t)map->width + (size_t)tx];
+    if ((l2 & (MAP_OCCUPANCY_HAS_UNIT | MAP_OCCUPANCY_HAS_CITY)) != 0) {
+      continue; /* FUN_137f_0428 returned an owner — DOS leaves the tile alone */
+    }
+    units_map_set_owner_nibble(map, tx, ty, new_owner);
+  }
+}
+
 static void units_try_capture_foreign_colony(
   ColonizeUnitPool* pool,
   ColonizeColonyPool* colonies,
@@ -5429,8 +5797,15 @@ static void units_try_capture_foreign_colony(
   if (col->nation_id < 0 || col->nation_id > 3 || col->nation_id == u->nation_id) {
     return;
   }
-  /* Still contested if a foreign unit remains on the tile. */
-  if (units_foreign_at(pool, u->x, u->y, unit_id, u->nation_id) >= 0) {
+  /*
+   * Still contested if a foreign unit of the CAPTOR'S OWN DOMAIN remains on
+   * the tile (units_domain_blocker_at — DOS's FUN_5fef_0000 gate). A foreign
+   * ship berthed in the port is not a blocker and is not touched by the
+   * capture: raw 100905-101034 flips the colony, moves the counts and the
+   * treasury share, and never looks at the unit array except for the WoI
+   * neighbour re-home below.
+   */
+  if (units_domain_blocker_at(pool, u->x, u->y, unit_id, u->nation_id) >= 0) {
     return;
   }
   /*
@@ -5487,6 +5862,21 @@ static void units_try_capture_foreign_colony(
           );
         }
       }
+      /*
+       * DOS 1b0e reaches this as its `bVar28` limb — the colony had no
+       * defender, so 1b0e spawned one, the native won and `local_c == 0`
+       * (colony survived). Raw 101040 clears the raider's DS:0x54f6 row and
+       * raw 101059-101064 vents `difficulty − 10` of alarm.
+       */
+      units_indian_tension_clear(g_units_ff_col1, u->home_tribe_id, snap.nation_id);
+      if (!g_units_indian_combat_vent_done) {
+        units_indian_attack_alarm_vent(
+          g_units_ff_col1,
+          u->nation_id,
+          snap.nation_id,
+          units_indian_attack_alarm_vent_amount(g_units_ff_col1, snap.nation_id, 10, 0)
+        );
+      }
       return;
     }
     (void)colonies_abandon(colonies, cid);
@@ -5509,6 +5899,12 @@ static void units_try_capture_foreign_colony(
         g_units_ff_col1, snap.name, snap.nation_id, burner
       );
     }
+    /* Same limb with `local_c != 0` (the colony is gone): raw 101086 sets
+     * `local_a6 = 0xffce` — a flat −50, with no difficulty term. */
+    units_indian_tension_clear(g_units_ff_col1, u->home_tribe_id, snap.nation_id);
+    if (!g_units_indian_combat_vent_done) {
+      units_indian_attack_alarm_vent(g_units_ff_col1, u->nation_id, snap.nation_id, -50);
+    }
     return;
   }
   int plunder = units_colony_plunder_stock_sum(col);
@@ -5525,6 +5921,8 @@ static void units_try_capture_foreign_colony(
     plunder = share;
   }
   units_combat_notify_colony_captured(g_units_ff_col1, &snap, u->nation_id, plunder);
+  /* Raw 100937-100948: the prize claims the ring around it for its new owner. */
+  units_capture_claim_ring(g_units_occupancy_map, u->x, u->y, u->nation_id);
   /*
    * Raw 100949-100963 (FUN_5fef_1b0e capture tail): WoI + crown winner —
    * every crown unit standing on the 8 neighbouring tiles is re-homed to
@@ -5565,6 +5963,27 @@ static void units_try_capture_foreign_colony(
       "independence, we must recapture all of our colonies from the King, and "
       "we must destroy most of his ground forces in the New World."
     );
+  }
+  /*
+   * Raw 101032-101034, the last thing 1b0e's capture arm does: DOS drops a
+   * HUMAN captor straight into the town it just took —
+   * `if (attacker < 4 && player[attacker].control == 0)
+   *      FUN_281f_0608(colony)` (far thunk → FUN_2f2b_6cd4, the colony
+   * screen). It sits AFTER the blocking @CAPTURED dialog (raw 101030), so
+   * the popup is answered first and the screen comes up behind it.
+   *
+   * The port already owns that beat: an elected colony zoom is drained by
+   * game_loop's `ai_popup_take_colony_zoom` → `game_enter_colony`, which is
+   * how DOS's other FUN_281f_0608 caller (FUN_364b_0688's colony-event tail)
+   * is wired. Pump the queue first so @CAPTURED / @HOWTOWIN keep DOS's
+   * order — headless callers install no pump and no popup state, so both
+   * calls are inert there.
+   */
+  if (g_units_combat_popups && u->nation_id >= 0 && u->nation_id <= 3 && cid >= 0 &&
+      ((g_units_ff_col1 && g_units_ff_col1->player[u->nation_id].control == 0) ||
+       (g_units_combat_human_nation >= 0 && u->nation_id == g_units_combat_human_nation))) {
+    units_combat_pump_popups();
+    ai_popup_colony_zoom_elect(g_units_combat_popups, cid);
   }
 }
 
@@ -5632,7 +6051,41 @@ ColonizeEnterReason units_enter_probe(
   const bool water = map_tile_is_water(map, x, y);
   const bool land = map_tile_is_land(map, x, y);
 
-  const int foe = units_foreign_at(pool, x, y, mover_id, mover_nation);
+  /*
+   * FUN_5fef_0000 domain gate (raw 99190-99196): a candidate defender's
+   * ship-ness must match the destination tile's water test, so a berthed
+   * foreign hull neither defends a port nor blocks the assault. Prefer a
+   * domain-matching foe; when only mismatched foreigners stand on a colony
+   * tile, ignore them and fall through to the colony entry rules below
+   * (the walk-in capture gate re-applies the same test). Open ground keeps
+   * the old first-found semantics.
+   */
+  int foe = -1;
+  {
+    int foe_mismatch = -1;
+    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+      const ColonizeUnit* u = &pool->units[i];
+      if (!units_is_on_map(u) || u->x != x || u->y != y || u->id == mover_id) {
+        continue;
+      }
+      if (mover_nation >= 0 && u->nation_id == mover_nation) {
+        continue;
+      }
+      if (units_is_sea(pool, u->id) == water) {
+        foe = u->id;
+        break;
+      }
+      if (foe_mismatch < 0) {
+        foe_mismatch = u->id;
+      }
+    }
+    if (foe < 0 && foe_mismatch >= 0) {
+      const int dom_cid = colonies ? colonies_id_at(colonies, x, y) : -1;
+      if (dom_cid < 0) {
+        foe = foe_mismatch;
+      }
+    }
+  }
   if (foe >= 0) {
     const bool foe_sea = units_is_sea(pool, foe);
     if (sea && foe_sea) {
@@ -5987,6 +6440,12 @@ static bool units_revere_defend_colony_tile(
         g_units_ff_col1, col->nation_id, has_soldier, col->stock[COLONIZE_CARGO_MUSKETS]
       )) {
     def_id = founding_fathers_revere_auto_arm(colonies, pool, cid);
+    if (def_id >= 0) {
+      /* DOS `OR byte ptr [0x8d03],4` (asm 5fef:1d5b) — Combat Analysis
+       * Muskets row on the defender side. Gate is identical: FF 12 owned +
+       * colony Muskets word > 0x31 (UNITS_EQUIP_MUSKETS). */
+      g_units_revere_muskets_latch = 1;
+    }
   }
   bool def_is_temp = false;
   if (def_id < 0) {
@@ -5996,7 +6455,11 @@ static bool units_revere_defend_colony_tile(
   if (def_id < 0) {
     return true; /* nobody home at all (pop 0) — nothing to defend with */
   }
+  /* DOS bVar28: this defender did not exist before the attack — 1b0e picks a
+   * different `local_a6` row for it (see units_indian_attack_alarm_vent). */
+  g_units_colony_autodefender = true;
   const bool won = units_resolve_land_combat_ff(pool, attacker_id, def_id, rng, g_units_ff_col1);
+  g_units_colony_autodefender = false;
   if (won && units_combat_is_visible(pool, attacker_id, def_id)) {
     units_play_event_sound(UNITS_SFX_COMBAT_WON);
   }
@@ -6056,6 +6519,7 @@ bool units_try_move(
 
   /* Fortification defense uses defender's colony tile (set before combat). */
   units_set_combat_colonies(colonies);
+  g_units_indian_combat_vent_done = false;
 
   /*
    * Village Attack empty tile (FUN_5fef_1b0e): spawn a temporary Brave from
@@ -6306,8 +6770,11 @@ bool units_try_move(
       g_units_last_enter_reason = COLONIZE_ENTER_OK;
       return true;
     }
-    /* After win, dest must be clear of foreigners for enter. */
-    if (units_foreign_at(pool, dest_x, dest_y, unit_id, unit->nation_id) >= 0) {
+    /* After win, dest must be clear of foreigners for enter — of the mover's
+     * own domain only (units_domain_blocker_at). DOS's walk-in is gated on
+     * FUN_5fef_0000 having run out of defenders, and that picker never sees
+     * the other domain, so a hull in a fallen port does not bar the town. */
+    if (units_domain_blocker_at(pool, dest_x, dest_y, unit_id, unit->nation_id) >= 0) {
       return false;
     }
     /*
@@ -8226,48 +8693,6 @@ bool units_advance_goto(
     moved = true;
   }
   return moved;
-}
-
-int units_advance_all_goto_one_step(
-  ColonizeUnitPool* pool,
-  const ColonizeWorldMap* map,
-  const ColonizeColonyPool* colonies
-) {
-  if (!pool || !map) {
-    return 0;
-  }
-  int n = 0;
-  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-    const ColonizeUnit* u = &pool->units[i];
-    if (!u->active || !units_orders_follow_goto(u->orders) || !units_is_on_map(u)) {
-      continue;
-    }
-    if (units_advance_goto_one_step(pool, u->id, map, colonies, NULL)) {
-      n++;
-    }
-  }
-  return n;
-}
-
-int units_advance_all_goto(
-  ColonizeUnitPool* pool,
-  const ColonizeWorldMap* map,
-  const ColonizeColonyPool* colonies
-) {
-  if (!pool || !map) {
-    return 0;
-  }
-  int n = 0;
-  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-    const ColonizeUnit* u = &pool->units[i];
-    if (!u->active || !units_orders_follow_goto(u->orders) || !units_is_on_map(u)) {
-      continue;
-    }
-    if (units_advance_goto(pool, u->id, map, colonies, NULL)) {
-      n++;
-    }
-  }
-  return n;
 }
 
 bool units_is_pioneer(const ColonizeUnitPool* pool, int unit_id) {
@@ -10239,21 +10664,6 @@ int units_spawn_euro_starter_fleet(
     soldier_job
   );
   return ship_id;
-}
-
-void units_end_turn(ColonizeUnitPool* pool) {
-  if (!pool) {
-    return;
-  }
-  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-    ColonizeUnit* u = &pool->units[i];
-    if (!u->active) {
-      continue;
-    }
-    if (units_type(pool, u->type_index)) {
-      u->moves_left = units_max_mp(pool, u->id);
-    }
-  }
 }
 
 bool units_find_water_tile(
