@@ -90,6 +90,16 @@ typedef struct ColonizeCombatEngageResult {
 void combat_side_flags_clear(ColonizeCombatSideFlags* f);
 
 /*
+ * DOS `bVar28`: the engagement about to be resolved has a defender 1b0e
+ * auto-spawned for an undefended settlement (colony militia / Paul Revere
+ * phantom, or the empty-dwelling Brave), not a unit that stood on the map.
+ * units.c raises this around the phantom's engage call; the 1b0e peels read
+ * it for the Discoverer beginner shield (raw 100544).
+ */
+void combat_set_auto_defender(bool on);
+bool combat_auto_defender(void);
+
+/*
  * FUN_157e_004a: mode 0 → type.defense (5235); mode 1 → type.attack (5236).
  * Returns scaled strength (combat×8 + vet/Drake/holds). out_flags optional.
  */

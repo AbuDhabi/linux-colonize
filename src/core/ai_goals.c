@@ -1173,13 +1173,11 @@ int ai_goals_stack_settler_pick(
  *   FUN_281f_030c -> FUN_15dc_00e0 = DS:0x5b1c[indian][euro], the Indian
  *     nation's alarm toward that Euro (ai_diplo_indian_alarm, HIGH =
  *     HOSTILE). `0x4a < alarm` — strictly greater than 74.
- *   DS:0x54f6 = the grudge/tension table (ColonizeCol1Save.indian_tension,
- *     docs/indians.md "third layer"), keyed by the *tile unit's* home
- *     settlement id (DOS unit +0x06 / DS:0x314a = ColonizeUnit
- *     .home_tribe_id) x the acting Euro nation. DOS strides that table by
- *     9; the port stores it packed x4 (only euro 0..3 has a confirmed
- *     touch site — col1_save.h) and every other port site keys it the same
- *     way, so reuse that indexing here. `0x7f < tension` — over 127.
+ *   DS:0x54f6 = the settlement record's own attitude[euro] word
+ *     (ColonizeCol1Tribe.alarm[euro], col1_tribe_attitude — docs/indians.md
+ *     "third layer"), keyed by the *tile unit's* home settlement id (DOS
+ *     unit +0x06 / DS:0x314a = ColonizeUnit.home_tribe_id) x the acting Euro
+ *     nation. `0x7f < attitude` — over 127, signed.
  *
  * So: an adjacent native only raises a contact claim when the nation is
  * already hostile OR that particular village carries a grudge. `has_context`
@@ -1203,7 +1201,7 @@ int ai_goals_filter_profession_by_distance_wealth(
       ? ai_diplo_indian_alarm(col1, profession, nation_id)
       : 0;
     int gate = alarm > 0x4a;
-    if (!gate && unit_index >= 0 && units && col1 && col1->indian_tension &&
+    if (!gate && unit_index >= 0 && units && col1 && col1->tribe &&
         nation_id >= 0 && nation_id < 4) {
       const ColonizeUnit* tu = units_get_const(units, unit_index);
       const int home = tu ? tu->home_tribe_id : -1;
@@ -1211,19 +1209,15 @@ int ai_goals_filter_profession_by_distance_wealth(
         /*
          * Decomp 87333:
          *   0x7f < *(int *)((*(char *)(param_4*0x1c + 0x314a) * 9 + param_1) * 2 + 0x54f6)
-         * i.e. DS base **0x54f6**, int16 cells, row stride **9** —
-         * `[home_settlement * 9 + euro_nation]` (the 9-column layout in
-         * docs/archive/mysteries_catalog.md). The port's table is packed to
-         * stride COLONIZE_COL1_NATION_COUNT (= 4) instead, and deliberately
-         * stays that way: `indian_tension` is runtime-only (col1_save.h — it
-         * is not in DOS's save chunk, so no DOS memory image ever feeds it),
-         * it is allocated `tribe_count * 4` in col1_save.c, and every writer
-         * (ai_diplo.c:3645, ai_contact.c:7248/7705, units.c:3393/3729) uses
-         * stride 4. Re-striding only this reader would read the wrong cell
-         * and run past the allocation for home >= tribe_count * 4 / 9.
+         * The "row stride 9 words" IS the settlement record stride 0x12:
+         * `(tribe*9 + nation)*2 + 0x54f6` == `tribe*0x12 + 0x54ec + 10 +
+         * nation*2`, i.e. the record's own attitude[nation] word. Read it
+         * through col1_tribe_attitude (signed int16, low byte friction /
+         * high byte attacks) — the old parallel `indian_tension` array this
+         * used to read was a misdecode and always held zeros (retired
+         * 2026-09-08).
          */
-        const int tension =
-          (int)col1->indian_tension[(size_t)home * COLONIZE_COL1_NATION_COUNT + (size_t)nation_id];
+        const int tension = col1_tribe_attitude(&col1->tribe[home], nation_id);
         if (tension > 0x7f) {
           gate = 1;
         }

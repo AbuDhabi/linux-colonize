@@ -722,6 +722,46 @@ typedef struct ColonizeCol1Tribe {
   ColonizeCol1TribeAlarm alarm[4];
 } ColonizeCol1Tribe;
 
+/*
+ * DS:0x54f6 "grudge/tension table" — resolved 2026-09-08: it is NOT a table
+ * of its own. The settlement record lives at DS:0x54ec with stride 0x12, and
+ * `(tribe * 9 + nation) * 2 + 0x54f6` is bit-for-bit
+ * `tribe * 0x12 + 0x54ec + 10 + nation * 2` — i.e. field +10 of the record,
+ * `int16_t attitude[4]`, one signed word per European nation. (The apparent
+ * "stride 9 words" IS the record stride: 9 * 2 == 0x12.) That word is
+ * `ColonizeCol1Tribe.alarm[nation]` = {low byte friction, high byte attacks},
+ * so it is saved, loaded and compacted with the tribe record for free — the
+ * old parallel `ColonizeCol1Save.indian_tension` array was a misreading and
+ * was retired 2026-09-08 (it was calloc'd to zero on every load and never
+ * serialized, so every reader saw dead zeros).
+ *
+ * DOS reads and compares the word as a SIGNED int16 at every site
+ * (FUN_521d_0896 `0x7f < w`, FUN_5952_035e `w < 0x80`, FUN_4cc6_00f2
+ * `cap < w`, FUN_112b_0790 `if (w < 0) w = 0` before `>> 5`), so the getter
+ * sign-extends; the setter clamps into 0..0xffff before splitting the bytes.
+ */
+static inline int col1_tribe_attitude(const ColonizeCol1Tribe* t, int euro_nation) {
+  if (!t || euro_nation < 0 || euro_nation > 3) {
+    return 0;
+  }
+  return (int)(int16_t)((uint16_t)t->alarm[euro_nation].friction |
+                        (uint16_t)((uint16_t)t->alarm[euro_nation].attacks << 8));
+}
+
+static inline void col1_tribe_attitude_set(ColonizeCol1Tribe* t, int euro_nation, int word) {
+  if (!t || euro_nation < 0 || euro_nation > 3) {
+    return;
+  }
+  if (word < 0) {
+    word = 0;
+  }
+  if (word > 0xffff) {
+    word = 0xffff;
+  }
+  t->alarm[euro_nation].friction = (uint8_t)(word & 0xff);
+  t->alarm[euro_nation].attacks = (uint8_t)((word >> 8) & 0xff);
+}
+
 typedef struct ColonizeCol1Indian {
   uint8_t capitol_x;
   uint8_t capitol_y;
@@ -1005,24 +1045,12 @@ typedef struct ColonizeCol1Save {
   ColonizeCol1Nation nation[COLONIZE_COL1_NATION_COUNT];
   ColonizeCol1Tribe* tribe;
   /*
-   * DS:0x54f6 Indian grudge/tension table, `[tribe_index * 4 + euro_nation]`,
-   * int16 per slot (DOS stride is 9 but only euro_nation 0..3 has any
-   * confirmed touch site — docs/archive/mysteries_catalog.md's "0x54f6" entry).
-   * Runtime-only: DOS's own "stuff@727 bytes / 33 discrete DS writes"
-   * save-chunk inventory (see header comment above) does not include this
-   * table, so it is not part of the persisted col1 record either — reset to
-   * 0 on load/new game like the table itself is in DOS. Heap-owned/freed
-   * alongside `tribe` (same `owned` flag), sized `head.tribe_count * 4`.
-   * Write formula: ai_diplo.c's ai_diplo_indian_relation_delta (FUN_4cc6_00f2
-   * tier-crossing clamp); ai_contact.c's ai_contact_indian_raids also clears
-   * a slot to 0 on every raid resolution (FUN_5fef_0f14 tail,
-   * viceroy_unpacked.c:100034 — unconditional, all loot kinds incl.
-   * "Nothing"); units.c clears on empty-tile combat + capital raze
-   * (FUN_5fef_1b0e). Read live 2026-09-08: FUN_521d_0896 hostility gate
-   * (viceroy_unpacked.c:87333) in ai_goals.c contact-claim scoring; the
-   * map-chrome tier read (FUN_112b_0790) stays a stand-in — docs/indians.md.
+   * The old `int16_t* indian_tension` parallel array lived here until
+   * 2026-09-08. DS:0x54f6 is field +10 of the settlement record itself
+   * (`ColonizeCol1Tribe.alarm[euro]`, see col1_tribe_attitude above), which
+   * IS part of the saved tribe blob — the separate array was a misreading,
+   * was never serialized and always read back as zeros.
    */
-  int16_t* indian_tension;
   ColonizeCol1Indian indian[COLONIZE_COL1_INDIAN_COUNT];
   ColonizeCol1Stuff stuff;
   ColonizeCol1Map map;

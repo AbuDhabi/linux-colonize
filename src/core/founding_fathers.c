@@ -393,31 +393,18 @@ bool founding_fathers_revere_should_auto_arm(
   return muskets_stock >= UNITS_EQUIP_MUSKETS;
 }
 
-int founding_fathers_revere_auto_arm(
-  ColonizeColonyPool* colonies,
-  ColonizeUnitPool* units,
-  int colony_id
-) {
-  ColonizeColony* col = colonies_get_mut(colonies, colony_id);
-  if (!col || !col->active || !units) {
-    return -1;
-  }
-  if (col->colonist_count <= 0 || col->stock[COLONIZE_CARGO_MUSKETS] < UNITS_EQUIP_MUSKETS) {
-    return -1;
-  }
-  /* First active colonist takes up muskets (PEDIA auto-arm). */
-  int idx = -1;
-  for (int i = 0; i < col->colonist_count; ++i) {
-    if (col->colonists[i].active) {
-      idx = i;
-      break;
-    }
-  }
-  if (idx < 0) {
-    return -1;
-  }
-  return colonies_eject_colonist(colonies, colony_id, idx, units, COLONIZE_EJECT_SOLDIER);
-}
+/*
+ * There is deliberately no `founding_fathers_revere_auto_arm` any more.
+ * DOS never ejects a real Soldier for Revere: FUN_5fef_1b0e's undefended-
+ * colony arm (viceroy_unpacked.c 100417-100432) spawns the SAME phantom
+ * defender it spawns without Revere, and the Father only overrides that
+ * phantom's graphic (0x4b) and base combat (+1). The colonist stays at work,
+ * the warehouse muskets are never debited (1b0e reads colony +0xb8 twice and
+ * writes it never), and the phantom is deleted after the roll by
+ * FUN_291f_0a06. See units_spawn_colony_temp_defender /
+ * units_revere_defend_colony_tile in src/core/units.c — the gate above is
+ * still the only piece of Revere that lives here.
+ */
 
 /*
  * Franklin elect: clear Euro×Euro WAR with all New World peers (make_peace).
@@ -1269,9 +1256,11 @@ static void apply_effect(
       break;
     case FF_PAUL_REVERE:
       /* PEDIA/wiki: colony with no soldiers auto-arms from musket stock when
-       * attacked. Ownership bit; gate + eject via founding_fathers_revere_*;
-       * combat spawn wired in units_try_move when FF col1 context is set
-       * (turn_refresh_moves_for_nation → units_set_ff_col1). */
+       * attacked. Ownership bit only; the gate is
+       * founding_fathers_revere_should_auto_arm and it merely upgrades the
+       * phantom militia defender units_try_move already spawns when FF col1
+       * context is set (turn_refresh_moves_for_nation → units_set_ff_col1).
+       * The stock is a threshold, not a cost — DOS never spends it. */
       break;
     case FF_FRANCIS_DRAKE:
       /* PEDIA/wiki: Privateer combat strength +50%.

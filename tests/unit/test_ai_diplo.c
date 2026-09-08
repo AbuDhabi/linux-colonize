@@ -2709,13 +2709,11 @@ int main(void) {
     tribes[0].nation_id = 4; /* Indian nation 0 */
     tribes[1].nation_id = 5; /* Indian nation 1 — must stay untouched below */
     gt.tribe = tribes;
-    int16_t tension[2 * 4];
-    memset(tension, 0, sizeof(tension));
-    tension[0 * 4 + 0] = 0x70; /* tribe0/euro0: above both caps */
-    tension[0 * 4 + 1] = 0x70; /* tribe0/euro1: untouched control */
-    tension[1 * 4 + 0] = 0x70; /* tribe1/euro0: untouched control */
-    tension[1 * 4 + 1] = 0x70; /* tribe1/euro1: above both caps */
-    gt.indian_tension = tension;
+    /* DS:0x54f6 slot = the record's own attitude[euro] word, tribe.alarm[]. */
+    col1_tribe_attitude_set(&tribes[0], 0, 0x70); /* tribe0/euro0: above both caps */
+    col1_tribe_attitude_set(&tribes[0], 1, 0x70); /* tribe0/euro1: untouched control */
+    col1_tribe_attitude_set(&tribes[1], 0, 0x70); /* tribe1/euro0: untouched control */
+    col1_tribe_attitude_set(&tribes[1], 1, 0x70); /* tribe1/euro1: above both caps */
     gt.owned = false; /* stack-owned fixture, nothing to free */
 
     /* FUN_4cc6_00f2 gates on a NEGATIVE ALARM delta (tribe cooling). High-alarm
@@ -2726,13 +2724,13 @@ int main(void) {
     if (ai_diplo_indian_alarm(&gt, 4, 0) != 52) {
       return fail("54f6: alarm delta itself must still apply");
     }
-    if (tension[0 * 4 + 0] != 0x60) {
+    if (col1_tribe_attitude(&tribes[0], 0) != 0x60) {
       return fail("54f6: tribe0/euro0 should clamp to 0x60 (new relation >=50)");
     }
-    if (tension[0 * 4 + 1] != 0x70) {
+    if (col1_tribe_attitude(&tribes[0], 1) != 0x70) {
       return fail("54f6: tribe0/euro1 must be untouched (different euro nation)");
     }
-    if (tension[1 * 4 + 0] != 0x70) {
+    if (col1_tribe_attitude(&tribes[1], 0) != 0x70) {
       return fail("54f6: tribe1/euro0 must be untouched (different Indian nation)");
     }
 
@@ -2740,17 +2738,28 @@ int main(void) {
     gt.indian[1].alarm_by_player[1] = 30; /* indian_nation 5, euro 1 */
     gt.indian[1].euro_diplo[1] |= COL1_INDIAN_MET_BIT;
     ai_diplo_indian_alarm_delta(&gt, 5, 1, -20); /* 30 -> 10, crosses tier */
-    if (tension[1 * 4 + 1] != 0x20) {
+    if (col1_tribe_attitude(&tribes[1], 1) != 0x20) {
       return fail("54f6: tribe1/euro1 should clamp to 0x20 (new relation <50)");
     }
 
+    /* The clamp writes the WHOLE word, so a recorded attack count (high byte)
+     * is clamped away with the friction byte. */
+    tribes[1].alarm[1].friction = 0x10;
+    tribes[1].alarm[1].attacks = 2; /* word 0x210, above cap 0x20 */
+    gt.indian[1].alarm_by_player[1] = 30;
+    gt.indian[1].euro_diplo[1] |= COL1_INDIAN_MET_BIT;
+    ai_diplo_indian_alarm_delta(&gt, 5, 1, -20); /* 30 -> 10, crosses tier */
+    if (col1_tribe_attitude(&tribes[1], 1) != 0x20 || tribes[1].alarm[1].attacks != 0) {
+      return fail("54f6: clamp must rewrite both bytes of the attitude word");
+    }
+
     /* Positive alarm delta never triggers the clamp (DOS gates on delta<0). */
-    tension[1 * 4 + 1] = 0x70;
+    col1_tribe_attitude_set(&tribes[1], 1, 0x70);
     gt.indian[1].alarm_by_player[1] = 10;
     gt.indian[1].euro_diplo[1] |= COL1_INDIAN_MET_BIT;
     ai_diplo_indian_alarm_delta(&gt, 5, 1, 40); /* 10 -> 50, crosses tier */
-    if (tension[1 * 4 + 1] != 0x70) {
-      return fail("54f6: positive delta must not touch the tension table");
+    if (col1_tribe_attitude(&tribes[1], 1) != 0x70) {
+      return fail("54f6: positive delta must not touch the attitude word");
     }
   }
 

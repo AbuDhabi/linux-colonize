@@ -223,9 +223,13 @@ int main(void) {
     ColonizeCol1Save gt;
     col1_save_init(&gt);
     gt.head.tribe_count = 2;
-    int16_t tension[2 * 4];
-    memset(tension, 0, sizeof(tension));
-    gt.indian_tension = tension;
+    /* DS:0x54f6 = the settlement record's own attitude[euro] word
+     * (tribe.alarm[euro] = {friction, attacks}) — no parallel array. */
+    ColonizeCol1Tribe tribes[2];
+    memset(tribes, 0, sizeof(tribes));
+    tribes[0].nation_id = 5;
+    tribes[1].nation_id = 5;
+    gt.tribe = tribes;
     gt.owned = false; /* stack fixture; nothing to free */
 
     ColonizeUnitPool pool;
@@ -261,14 +265,22 @@ int main(void) {
 
     /* Tension arm, alarm back to cool: DOS compares `0x7f < tension`. */
     gt.indian[1].alarm_by_player[me] = 0;
-    tension[1 * 4 + me] = 0x7f;
+    col1_tribe_attitude_set(&tribes[1], me, 0x7f); /* friction 0x7f, 0 attacks */
     if (ai_goals_filter_profession_by_distance_wealth(&gt, &pool, me, them, 1, 0) != -1) {
       return fail("0896: tension 0x7f must not open the gate (strict >)");
     }
-    tension[1 * 4 + me] = 0x80;
+    col1_tribe_attitude_set(&tribes[1], me, 0x80);
     if (ai_goals_filter_profession_by_distance_wealth(&gt, &pool, me, them, 1, 0) != them) {
       return fail("0896: tension 0x80 must open the gate");
     }
+    /* One recorded trespass (attacks = 1, friction 0) is the same word 0x100
+     * and opens the gate on its own — the high byte counts. */
+    tribes[1].alarm[me].friction = 0;
+    tribes[1].alarm[me].attacks = 1;
+    if (ai_goals_filter_profession_by_distance_wealth(&gt, &pool, me, them, 1, 0) != them) {
+      return fail("0896: one attack (word 0x100) must open the gate");
+    }
+    col1_tribe_attitude_set(&tribes[1], me, 0x80);
     /* Keyed by the tile unit's home village — no unit index, no read. */
     if (ai_goals_filter_profession_by_distance_wealth(&gt, &pool, me, them, 1, -1) != -1) {
       return fail("0896: tension is only read through the tile unit (unit_index >= 0)");

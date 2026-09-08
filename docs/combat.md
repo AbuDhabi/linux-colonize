@@ -145,12 +145,37 @@ mapping below is working from trustworthy source.
 | WoI REF +50% | WoI, Euro attacker, **on colony**, and (attacker is **crown** **or** `ref_present`) | +50% (`0x8d01\|0x80`) |
 | WoI support % | WoI, Euro attacker, **on colony** | Crown: +`(100−SoL)%` (Tories); else +`SoL%` (Rebels) |
 | Discoverer damper | diff==0, human atk vs AI Euro | −25% |
+| **Discoverer beginner shield** (raw 100536-100545, ported 2026-09-08) | `difficulty == 0`, defender is a **human-controlled** European (`uVar15 < 4 && 0x543f[uVar15] == 0`), a **colony** on the attacked tile (`-1 < iVar18`), turn `DS:0x538e < 0x50`, no WoI (or attacker is a hull, types 0xd-0x12), and the defender is the **auto-spawned** stand-in (`bVar28` — militia/Revere phantom) | attacker `= 0` → the roll `RNG(1, def+0) <= 0` always loses. A human player's undefended town cannot be taken on Discoverer in the first 80 turns |
 | Scout vs Artillery | Land | `force_defender_wins` |
 
 Crown nation = DS:`0x53d2` (Linux: peer of human Euro slot, same as
 `ai_king_crown_nation`). WoI / `ref_present` read the real `game_options`
 bits (the old `unknown46[0]/[1]` stand-ins were retired 2026-08-28 — that
 array is DOS `price_group_state`, see king_ref.md).
+
+**`bVar28` and the difficulty-handicap group (2026-09-08).** `bVar28` is
+1b0e's "I built this defender myself" flag, set by **both** auto-spawn arms of
+the `local_c8 < 0` branch: the empty-dwelling Brave (raw 100405-100416) and
+the colony militia / Paul Revere phantom (raw 100417-100432). The port raises
+the same latch on both (`combat_set_auto_defender`, called from
+`units_revere_defend_colony_tile` and from the village-temp arm of
+`units_try_move`), but only the colony arm can reach the shield above — the
+village arm runs with `iVar18 < 0` and an Indian defender, which the gate
+excludes. `local_92` is the **attacker**: it is built from `param_1`
+(`FUN_281f_09c8(param_1, 1)`, the ×3/2 attack scale) and it is the value the
+roll compares against — `iVar23 = FUN_281f_04d4(1, local_a8 + local_92);
+bVar8 = iVar23 <= local_92`. Note the whole handicap group sits **after** the
+`param_5 == 0` early return (raw 100523), so Combat Analysis odds are computed
+*without* it — the preview can show a winnable fight the resolver then zeroes.
+
+Three siblings from the same raw lines are **still unported** (owner's call —
+they change every Discoverer/Explorer fight, not just the phantom one):
+`local_92 -= local_92>>2` (diff 0) / `local_92 >>= 1` (diff 1) and a second
+`local_92 >>= 1` for *any* attacker of a human European inside that window,
+and the `0x53a6 == 0 && attacker human` **doubling** at raw 100549. The
+"Discoverer damper" row above is the mirror image of the first of those: it
+dampens a human ATTACKER against an AI defender, where the bytes dampen the
+attacker OF a human defender.
 
 `combat_unit_toughness` = always `015e` (AI scoring).
 
@@ -383,19 +408,30 @@ dividend ×2/3, treasury share, `nation_relation` zeroing, WAR bit and the WoI
 | `100937-100948` | 8-neighbour loop over the DS:0xb4/0xbe dir8 tables: `if (FUN_281f_06d2(x,y) < 0) FUN_281f_0704(x,y,new_owner)`. `06d2` = `FUN_137f_0428` = `03e4` (layer2 settlement bit `0x02` → its owner nibble) falling back to `0314` (layer2 unit bit `0x01`), i.e. "nothing stands here"; `0704` = `FUN_137f_0228`, the owner-nibble stamp. Not a fog reveal — the ring of **territory** the prize brings with it | `units_capture_claim_ring`. Same idiom `ai.c`'s `ai_indian_midpass_claim_worked_tiles` already carries. Not gated on DOS's `param_4`, so AI captures stamp it too. The centre tile's own stamp (raw `100901`) is not repeated: the captor's step onto the colony square already ran it through `units_occupancy_refresh_tile` → `units_claim_tile_owner_from_stack`. `0228`'s `@SEIZURE` arm can't fire (it needs a native settlement, which the `06d2` gate excluded) |
 | `101032-101034` | `FUN_281f_0608(colony)` (far thunk → `FUN_2f2b_6cd4`, colony screen) fires when the captor is a **human-controlled European** — DOS drops you straight into the town you just took, *after* the blocking `@CAPTURED` dialog at `101030` | `units_combat_pump_popups()` (drains `@CAPTURED` / `@HOWTOWIN` first, DOS's order) then `ai_popup_colony_zoom_elect`. No `game_loop.c` edit was needed: the elected zoom is drained by the existing `ai_popup_take_colony_zoom` → `game_enter_colony` pair, which is how DOS's **other** `FUN_281f_0608` caller (`FUN_364b_0688`'s colony-event tail) is already wired. Headless callers install neither pump nor popup state, so both calls are inert |
 
-**Unported neighbour found in the same read (2026-09-08), recorded not
-ported.** Raw `100573-100577`, just after the roll: when the attacker is a
-native (`3 < uVar16`), the defender a **human-controlled** European
-(`uVar15 < 4 && control == 0`), the attacker type `0x13` (Brave) and the
-defender type `0xb` (Artillery), DOS forces `bVar8 = false` — the Brave
-**always** loses — and sets `local_ca = 1`, which is the flag it then hands
-`FUN_5fef_0f14` to bypass that resolver's walls check. The port has the
-Artillery ×2-vs-natives strength term (`units_best_defender_at`,
-`COMBAT_FLAG_ARTY_COLONY`) but not the outright auto-loss, so the pairing is
-only *usually* fatal. Left alone: it changes combat outcomes and is outside
-the 1b0e residue batch. `units_resolve_land_combat_ff` reads the flag off the
-pairing that actually resolved instead, so the raid handoff below still gets
-DOS's `param_4` whenever the pairing does occur.
+**Brave vs human Artillery auto-loss — ported 2026-09-08.** Raw
+`100573-100577`, immediately after the roll: when the attacker is a native
+(`3 < uVar16`), the defender a **human-controlled** European
+(`uVar15 < 4 && *(char *)(uVar15 * 0x34 + 0x543f) == 0`), the attacker type
+`0x13` (a plain Brave — **not** Armed 0x14 / Mtd. 0x15 / Mtd. Warriors 0x16)
+and the defender type `0xb` (Artillery), DOS forces `bVar8 = false` — the
+Brave **always** loses, whatever the roll said — and sets `local_ca = 1`,
+which is the flag it then hands `FUN_5fef_0f14` to bypass that resolver's
+walls check. Port: `units_combat_brave_vs_human_arty` (`units.c`), evaluated
+in `units_resolve_land_combat_ff` right after the roll block, so the RNG draw
+still happens and `eng.roll` keeps the value DOS's `iVar23` keeps; only
+`eng.atk_wins` is cleared. The predicate is DOS's *only* write of `local_ca`
+(`100336` zeroes it, `100576` sets it, `101142` reads it), so the same local
+is reused as the raid handoff's `forced`/`param_4` argument to
+`ai_contact_colony_raid_repelled` — that argument used to be re-derived from
+unit *names*, which also matched Armed/Mtd. Braves and so was wider than DOS.
+Type ids are `type_index` = NAMES.TXT `@UNIT` line order (Artillery 11,
+Braves 19), the identity the typed attack-fire sound already relies on. This
+is on top of, not instead of, the Artillery ×2-vs-natives strength term
+(`combat_strength.c`, `COMBAT_FLAG_ARTY_COLONY`), which only made the pairing
+*usually* fatal. Test: `unit_brave_vs_human_artillery_autoloss`
+(`tests/unit/test_units.c`) — 40 seeds never win against a human European's
+Artillery, while the same seeds against an **AI** European (control != 0), and
+Armed Braves against the human one, still win sometimes.
 
 ---
 
@@ -475,17 +511,41 @@ dual column. Shown **before** the combat roll (strengths known; no outcome yet).
   **Trigger wired 2026-09-08.** `units_revere_defend_colony_tile` sets a
   one-shot latch (`g_units_revere_muskets_latch`, `units.c` — DOS writes a
   global for the same reason: the arm runs while the defender is being built,
-  before the panel is drawn) whenever `founding_fathers_revere_auto_arm`
-  actually fires; `units_resolve_land_combat_ff` consumes it into
+  before the panel is drawn) whenever the gate fires;
+  `units_resolve_land_combat_ff` consumes it into
   `eng.def_flags.flags |= COMBAT_FLAG_MUSKETS` right after
   `combat_land_engage`, i.e. before the analysis is presented. The port's gate
   is byte-identical to DOS's (`founding_fathers_revere_should_auto_arm`: FF 12
   owned, no standing soldier, `stock[15] >= UNITS_EQUIP_MUSKETS` = 50 =
-  `> 0x31`). **Model still divergent, deliberately:** DOS spawns a +1 phantom
-  colonist, the port ejects a real Soldier, so the strength half of the arm
-  rides on that unit rather than on an `INC` of a phantom's base combat.
-  Realigning the phantom-vs-real model is a `units.c` / `combat_strength.c`
-  structural change and stays parked.
+  `> 0x31`).
+  **Model realigned 2026-09-08 (phantom, not a real Soldier).** Revere is not
+  a separate defender in DOS — it only *overrides* the militia phantom 1b0e
+  spawns anyway. The scratch defender is `FUN_291f_0a20` = `FUN_478c_002c`
+  (raw 76545-76564): it stamps unit type **`0x17`** and calls `FUN_478c_0002`
+  (raw 76530-76543), which writes the stride-`0xe` `@UNIT` table row `0x17`
+  (`0x5230 + 0x17*0xe` = `0x5372`) on the fly — graphic at `+2`, and **both**
+  combat columns (`+5` defense, `+6` attack) from the passed base combat.
+  Undo is `FUN_291f_0a06` = `FUN_478c_00d0` (raw 76594-76601): *"if the last
+  unit's type byte is `0x17`, delete it"* — the phantom always evaporates.
+  Base combat is `local_de = *(byte*)0x5235` = `@UNIT` row 0 (Colonists)
+  **defense** = 1; Revere makes it 2 and the graphic `0x4b` (= port sprite 74,
+  `UNITS_ICON_SOLDIER`). Those are exactly the port's `Soldiers` row
+  (`NAMES.TXT`: attack 2 / defense 2), so `units_spawn_colony_temp_defender`
+  now takes a `revere_armed` flag and picks `Soldiers` instead of `Colonists`;
+  the colonist stays at work and the phantom is despawned unconditionally.
+  The +1 also decides DOS's halving peel `*(byte*)(def_type*0xe+0x5235) < 2`
+  (`combat_strength.c` `dt->defense < 2`), which the Revere phantom escapes —
+  same here.
+  **Muskets are never spent.** 1b0e reads colony `+0xb8` exactly twice — raw
+  100425 as this gate, raw 100708 as the "tribe loots muskets" test on a
+  burned town — and writes it on no outcome. The old eject model debited 50.
+  **Loss consequence** is DOS's walk-in, raw 100680-100713 inside
+  `if (bVar8) { … if (bVar28) { … } }`: Euro attacker → colony **captured**,
+  no colonist dies; native attacker with pop > 1 → `FUN_281f_0a9c(local_b0)`
+  = `FUN_15eb_0d04` shifts the colonist arrays down and does `colony+0x1f -=
+  1`; native attacker with pop == 1 → colony destroyed (`FUN_291f_0254`),
+  tribe gains horses/muskets if the town held any. All three already live in
+  `units_try_capture_foreign_colony`.
 - Still not ported from DOS 636c: the cheat-mode (`0x5383&0x20`) final-weight
   footer rows.
 - **WoI support row labels — fixed 2026-09-08.** DOS's rows read `0x2ec2` /
@@ -556,7 +616,7 @@ spawn + fort VGA chrome.
 | Coastal fort fire | Done | Miss→MP drain; close hit→bit7; Drydock repair + `@REFIT` Done thin; temp unit/VGA PARKED |
 | Outcome popups `@EUROPE*` / `@SHIP*` / `@LOOT*` / `@CAPTURED*` / `@BURNED*` | Done | Playable matrix; Europe `@LOOTCASH` separate — [popups.md](popups.md) |
 | Village settlement battle `4528` | Done thin | Human `@ACTIONS` menu (P8.8) incl. Attack Village; empty-tile temp Brave from adjacent (stay put) + pop drain / destroy; fallout `@LOOT`/`@LOOT2`; deep mid-body/VGA PARKED. 2026-08-24: `1b0e`'s "no live defender" arm re-verified field-for-field (tribe struct `+7` muskets / `+10` horse_breeding → `units_spawn_village_temp_defender`) — confirmed already correct, not a stub. Sibling arm (undefended **Euro** colony, not a village) spawns a *different* temp defender — see next row, closed 2026-08-26 |
-| Undefended Euro colony token-militia | Done | `units_spawn_colony_temp_defender` (`units.c`) — phantom civilian defender fielded whenever a Euro colony has colonists but no live defender and Paul Revere's armed-soldier override doesn't apply; was previously a free capture. See [port_plan.md](port_plan.md) P5.4 (was W1.8) for the full DOS trace |
+| Undefended Euro colony token-militia | Done | `units_spawn_colony_temp_defender` (`units.c`) — phantom defender fielded whenever a Euro colony has colonists but no live defender; was previously a free capture. 2026-09-08: **Paul Revere is the same phantom**, not a separate ejected Soldier — the FF only swaps its graphic to `0x4b` and its base combat 1 → 2 (port: `Soldiers` type instead of `Colonists`), never touches population and never spends the warehouse muskets. DOS shape: spawn `FUN_478c_002c` (type `0x17` + on-the-fly `@UNIT` row write `FUN_478c_0002`), undo `FUN_478c_00d0`. See [port_plan.md](port_plan.md) P5.4 (was W1.8) for the full DOS trace |
 | Euro mid combat scoring `20e6` | Done thin | Settlement/siege peels + adjacent toughness; deep −0x6790 matrix PARKED |
 | VGA-identical combat chrome | PARKED | — |
 
@@ -569,7 +629,7 @@ spawn + fort VGA chrome.
 | Fort land defense | Manual / wiki Fort **+150%** as a distinct `015e` tier | Decomp: Fort shares Stockade `local_1a=4` (×2). Wiki +150% ≈ fortified Stockade path (`local_1a=6` → ×2.5). Fortress `local_1a=8` (×3) |
 | `colonies_fortification_defense_bonus_percent` | Live land combat | Helper returns 100/150/200 for AI/UI; **live land combat uses `combat_colony_local_1a`** |
 | Fandom “Port: combat Missing” | Stale Units row | Land/naval Partial — this hub + [manual_gap.md](manual_gap.md) |
-| Difficulty “combat unaffected” | Old [difficulty.md](difficulty.md) note | Human Euro `str -= (difficulty-4)` + Discoverer −25% in `1b0e` |
+| Difficulty “combat unaffected” | Old [difficulty.md](difficulty.md) note | Human Euro `str -= (difficulty-4)` + Discoverer −25% in `1b0e`, plus the Discoverer beginner shield (attacker zeroed vs a human's undefended town, raw 100544) |
 | SoL popular support | Manual SoL/Tory share by side | **Done**: crown `+(100−SoL)%` (Tories), rebel `+SoL%` (Rebels) on colony — [sons_of_liberty.md](sons_of_liberty.md) |
 
 ---

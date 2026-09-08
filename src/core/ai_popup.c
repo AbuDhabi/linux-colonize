@@ -470,6 +470,8 @@ const char* ai_popup_tag_name(AiPopupTag tag) {
       return "WAR_SCORED";
     case AI_POPUP_TAG_COMBAT_HALF:
       return "COMBAT_HALF";
+    case AI_POPUP_TAG_CONTACT_REPARATIONS:
+      return "CONTACT_REPARATIONS";
   }
   return "UNKNOWN";
 }
