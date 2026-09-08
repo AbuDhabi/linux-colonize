@@ -109,8 +109,39 @@ missions slow hostility.
 | `FUN_4d56_2154` | `2a1f_0434` | From **`5bfb_022e`** meet path — fills `0x9e*` gift/demand tables | **Done** scorer [`indian_meet_scoring_2154.md`](indian_meet_scoring_2154.md); not raid |
 | `FUN_4d56_2820` | `2a1f_044c` | Heavy decision + nested trade `2aac…311e`; also ~86766 | **Mapped** [`indian_trade_2820.md`](indian_trade_2820.md); port PARKED |
 | `FUN_4d56_4528` | `2a1f_016c` | Settlement enter/raid; from **move foreign** / contact (`move_spent` §3) | **Mapped** head [`indian_settlement_4528.md`](indian_settlement_4528.md); mid-body PARKED (decomp soup) |
-| `FUN_5bfb_022e` | `2a1f_066c` | Indian unit meet/contact (~96565); also ~98793 | First-contact WELCOME **Done** (land only; ends at PEACE/COME); village Meet CHOICE **Done** thin; already-met adjacency deep body (`96677-97101`) — its one bounded, sign-resolved piece (`96751-96827`, `@INDIANBEGFOOD`) **Done** 2026-08-14 (`ai_contact_try_village_beg_food`, see `settlement_record_8d4a.md`); the surrounding gift/trade-selection scope (`2820`/`4528`-adjacent) stays PARKED, see 2026-08-14 notes below |
+| `FUN_5bfb_022e` | `2a1f_066c` | Indian unit meet/contact (~96565); also ~98793 | First-contact WELCOME **Done** (land only; ends at PEACE/COME); village Meet CHOICE **Done** thin; already-met adjacency deep body (`96677-97101`) — its one bounded, sign-resolved piece (`96751-96827`, `@INDIANBEGFOOD`) **Done** 2026-08-14 (`ai_contact_try_village_beg_food`, see `settlement_record_8d4a.md`); the generous half `LAB_5bfb_096c` (`@INDIANGIVEFOOD`/`@INDIANGIVESTUFF`) **Done** 2026-09-04 (`ai_contact_try_village_gifts`); the demand half `LAB_5bfb_0def` — `@INDIANCITY` `0x1866` + `@INDIANWAGONS` `0x1871`, incl. the shared `LAB_5bfb_0ff2` **`word += 0x80`** refuse limb — **Done** 2026-09-08 (`ai_contact_try_village_reparations`, see the 2026-09-08 note below); the surrounding gift/trade-selection scope (`2820`/`4528`-adjacent) stays PARKED, see 2026-08-14 notes below |
 | `FUN_4cc6_00f2` / `0000` | `0d6c` / `0398` | Relation delta / mission clear | Already ported thin as `ai_diplo_indian_relation_delta` |
+
+**2026-09-08: the accept/decline polarity blocker below is LIFTED, and
+LAB_5bfb_0def's two reparations sites are PORTED.** The 2026-08-14 note
+called the branch meaning "unrecoverable because it depends on popup message
+text (`0x1866` etc.)". That text *is* recoverable — the popup ids are DS tag
+addresses and `docs/popup_tag_ids.md` resolves them to GAME.TXT sections:
+`0x1866` = `@INDIANCITY`, `0x1871` = `@INDIANWAGONS`, `0x181c` =
+`@INDIANBEGFOOD`, `0x1858` = `@INDIANCOMMENT`. Reading the sections settles
+everything, including why the two demand sites test `local_c` with opposite
+polarity — their choice rows are printed in opposite order:
+
+| Tag | Section | Row 1 | Row 2 | DOS accept test |
+|---|---|---|---|---|
+| `0x1866` | `@INDIANCITY` (colony stores) | "Man the stockade." | "Hand them over." | `local_c == 2` |
+| `0x1871` | `@INDIANWAGONS` (Wagon Train hold 0) | "Hand them over." | "Circle the wagons." | `local_c == 1` |
+
+Ported as `ai_contact_try_village_reparations` / `ai_contact_apply_reparations`
+(`ai_contact.c`), hung off `ai_contact_try_village_beg_food`'s tail because
+DOS reaches LAB_5bfb_0def only when the `@INDIANBEGFOOD` block above it did
+not resolve the visit. Accept: attitude word → 0, `FUN_281f_0d6c` with a
+negative `price*qty*4/-100` delta (walked down in 5s while `alarm + d >= 0x47`
+at the `@INDIANCITY` site), goods leave, plus the Muskets/Horses arming tail
+(raw 96906-96928). Refuse (LAB_5bfb_0ff2, raw 96973): attitude word `+= 0x80`,
+nothing changes hands — the last unported raiser of that word, see
+[`../../docs/indians.md`](../../docs/indians.md). AI Euro targets keep DOS's
+`else` limb (auto-accept; `@INDIANCITY` refuses when the good demanded is
+Muskets). **Not modelled:** DOS's second AI-refusal roll at raw 96888-96892
+(`FUN_281f_07e0(10)` → `FUN_281f_08bc`, neither thunk resolved) — inventing a
+draw there would move every downstream RNG value. Like the gift arm, the
+whole arm declines without a popup queue, so the headless golden fixtures are
+untouched.
 
 **2026-08-14: `022e`'s already-met adjacency body — real gap, but
 correctly PARKED, not a quick port (two-part finding, see
@@ -406,6 +437,11 @@ remain **PARKED**. Player meet/trade/gift/teach **status chrome thinned**; **wid
 - **Done (thin sea/wagon trade):** auto-trade drains ship or Wagon Train
   TRADE_GOODS hold within French-5 / else-4 reach; sets `last_sold` outdoor cargo.
 - **Done (thin `@INDIANWAGONS`):** mid demand tools from wagon hold when colony short.
+  (Separate from the DOS-literal `@INDIANWAGONS`/`@INDIANCITY` reparations demand
+  ported 2026-09-08 as `ai_contact_try_village_reparations` — that one is
+  `LAB_5bfb_0def` with the real Hand-them-over / refuse CHOICE and the
+  `word += 0x80` decline; this row remains the Linux friction-band stand-in
+  reached from `ai_contact_gift_or_demand`.)
 - **Done (thin `@INDIANSCONVERT` / `@INDIANBURN`):** convert names colony; mission
   burn names tribe. (`@INDIANCOMMENT` retired with the encroachment bumps.)
 - **Done (thin `@INDIANWIN0`/`LOSE` / raid tribe names):** adjacent ambush chrome;

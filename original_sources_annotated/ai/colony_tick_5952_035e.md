@@ -1,5 +1,29 @@
 # Colony per-turn tick (`FUN_5952_035e`) — clean recovery
 
+**Port status (2026-09-08): the threat accumulator → `garrison_quota` (+0x1e)
+seed is LIVE.** Raw body lines 254-324 below are transcribed DOS-literally as
+`ai_euro_colony_threat_seed_5952` in `src/core/ai_euro.c`, called at the top of
+each own-colony body in `ai_euro_colony_goals` (DOS order: the +0x1e write
+precedes the `+0x1b` ai_flags writes). Resolved call targets, via
+`FUN_1000_X = FUN_281f_(X − 0x81f0)`:
+
+| Raw | Canonical | Meaning | Linux |
+|-----|-----------|---------|-------|
+| `FUN_1000_84f2` | `FUN_281f_0302` | `map_tile_in_bounds` | width/height test |
+| `FUN_1000_89d0` / `84d4` | `281f_07e0` / `02e4` | tile stack head / next | `units_id_at` + pool scan |
+| `func_0x00018bb8` | `FUN_281f_09c8` → `157e_004a` | combat value ×8, mode 1 | `combat_unit_base_x8(.., 1, NULL)` |
+| `FUN_1000_84fc` | `FUN_281f_030c` → `15dc_00e0` | Indian alarm (DS:0x5b1c) | `ai_diplo_indian_alarm` |
+| `0x54f6[origin*9+nation]` | — | settlement attitude word (record +10) | `col1_tribe_attitude(&col1->tribe[home_tribe_id], euro)` (phantom `indian_tension` array retired 2026-09-08c) |
+| `0x543f[nation*0x34]` | — | player control byte (0 = human) | `col1->player[n].control` / `ctx->human_nation` |
+| `FUN_1000_88ae` | `FUN_281f_06be` → `137f_03e4` | settlement owner at tile | `colonies_id_at` ∥ `ai_euro_village_nation_at` |
+| `FUN_1000_8560` | `FUN_281f_0370` → `124c_0040` | `dos_dist(dx, dy)` | `ai_euro_dos_dist` |
+| `FUN_1000_8ca0(0)` | `FUN_281f_0ab0` → `15eb_039e` | owned buildings along parent chain | Stockade/Fort/Fortress count |
+
+Still unported from the same loop (deliberate, separate scope): the
+`iStack_22` ring-1 counter and the `iStack_76` `labor_shortage` (+0x8e)
+formula it feeds — the port keeps its own thin labor latch. Test:
+`tests/unit/test_ai_euro_war.c:unit_garrison_quota_threat_seed`.
+
 `FUN_5952_035e` is the **colony production/buildings/AI-hint tick**, cited as
 the source of truth in `save_format_map.md` and `colony.h` for 8 already-
 `mapped` fields: `garrison_quota` (+0x1e), `specialty_cargo` (+0x8d),

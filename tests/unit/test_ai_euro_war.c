@@ -7579,6 +7579,13 @@ static int unit_unload_continental_cavalry_threatened(void) {
 /*
  * Col1 +0x1e garrison_quota: with quota=1, only one of two idle Soldiers
  * fortifies (other stays idle). Cite: save_format_map.md; FUN_5952_035e DEC.
+ *
+ * 2026-09-08: the quota is no longer preset by the fixture — presetting it is
+ * futile now that the colony tick recomputes +0x1e from the real
+ * FUN_5952_035e threat accumulator every pass. It is produced instead by a
+ * lone foreign (nation 2, AI-controlled so no ×1.5 human bump) Soldier
+ * standing 4 tiles east: v = attack(2) × 8 = 16, dist = dos_dist(4,0) = 4,
+ * contribution = (8 − 4) × 16 >> 3 = 8, no walls → quota = 8 >> 3 = 1.
  */
 static int unit_garrison_quota_one_fortify(void) {
   const int nation = 1;
@@ -7623,7 +7630,7 @@ static int unit_garrison_quota_one_fortify(void) {
   c->stock[COLONIZE_CARGO_FOOD] = 40;
   c->stock[COLONIZE_CARGO_TOOLS] = 40;
   c->building_in_production = -1;
-  c->garrison_quota = 1; /* only one fortify slot */
+  c->garrison_quota = 0; /* seeded by the FUN_5952_035e threat accumulator */
   colonies.colony_count = 1;
   colonies.next_id = 1;
 
@@ -7643,6 +7650,19 @@ static int unit_garrison_quota_one_fortify(void) {
   s1->nation_id = nation;
   s1->moves_left = 1 * UNITS_MP_PER_TILE;
   s1->orders = 0;
+
+  /* Threat source for the FUN_5952_035e seed: foreign Soldier 4 tiles east. */
+  const int uid2 = units_spawn_allow_stack(&units, 0, 9, 5);
+  ColonizeUnit* foe = units_get(&units, uid2);
+  if (!foe) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("garrison-quota foe spawn");
+  }
+  foe->nation_id = 2;
+  foe->moves_left = 0;
+  foe->orders = 0;
 
   ai_goals_reset();
 
@@ -7668,6 +7688,7 @@ static int unit_garrison_quota_one_fortify(void) {
   ctx.map = &map;
   ctx.col1 = &col1;
   ctx.col1_ok = true;
+  ctx.human_nation = 0; /* nation 2 is AI → no DS:0x543f ×1.5 human bump */
   ctx.rng_seed = 42;
 
   ai_euro_dispatcher_turn(&ctx, nation);
@@ -7714,6 +7735,182 @@ static int unit_garrison_quota_one_fortify(void) {
   free(map.layer3);
   fprintf(stderr, "unit_ai_euro_war: garrison_quota one fortify ok\n");
   return 0;
+}
+
+/*
+ * FUN_5952_035e colony threat accumulator → garrison_quota (+0x1e), ported
+ * 2026-09-08 (ai_euro_colony_threat_seed_5952; clean recovery
+ * original_sources_annotated/ai/colony_tick_5952_035e.md raw 254-324).
+ *
+ * Colony (nation 1) at (5,5); two hostile Braves at (8,5) and (8,6), both
+ * homed to tribe 0. Per Brave: v = attack(2) × 8 = 16; dos_dist(3,0) and
+ * dos_dist(3,1) are both 3, so each contributes (8 − 3) × 16 >> 3 = 10.
+ * threat = 20, floor = min(20, 0x10) = 0x10, no walls → 20 / 1 = 20 ≥ floor
+ * → garrison_quota = 20 >> 3 = 2 (a value the retired "idle Soldier on the
+ * tile → 1" latch could never produce).
+ *
+ * Then the two DOS zeroing gates, each re-run from the same fixture:
+ *   - DS:0x54f6 attitude (tribe[home_tribe_id].alarm[euro] word) < 0x80 → 0
+ *   - FUN_281f_030c alarm (alarm_by_player) < 0x19 → 0
+ */
+static int unit_garrison_quota_threat_seed(void) {
+  const int nation = 1;
+  const int indian = 4;
+
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  map.width = 16;
+  map.height = 16;
+  map.tile_count = 256;
+  map.terrain = calloc(256, 1);
+  map.layer2 = calloc(256, 1);
+  map.layer3 = calloc(256, 1);
+  if (!map.terrain || !map.layer2 || !map.layer3) {
+    return fail("threat-seed alloc map");
+  }
+  for (int i = 0; i < 256; ++i) {
+    map.terrain[i] = 1;
+  }
+
+  ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
+  units_reset(&units);
+  units_set_occupancy_map(NULL);
+  units.type_count = 1;
+  snprintf(units.types[0].name, sizeof(units.types[0].name), "Brave");
+  units.types[0].movement = 1;
+  units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  units.types[0].attack = 2;
+  units.types[0].defense = 1;
+
+  ColonizeColonyPool colonies;
+  colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
+  ColonizeColony* c = &colonies.colonies[0];
+  c->id = 0;
+  c->active = true;
+  c->nation_id = nation;
+  c->x = 5;
+  c->y = 5;
+  c->population = 3;
+  c->colonist_count = 3;
+  c->stock[COLONIZE_CARGO_FOOD] = 40;
+  c->stock[COLONIZE_CARGO_TOOLS] = 40;
+  c->building_in_production = -1;
+  c->garrison_quota = 0;
+  colonies.colony_count = 1;
+  colonies.next_id = 1;
+
+  const int bid0 = units_spawn_allow_stack(&units, 0, 8, 5);
+  const int bid1 = units_spawn_allow_stack(&units, 0, 8, 6);
+  ColonizeUnit* b0 = units_get(&units, bid0);
+  ColonizeUnit* b1 = units_get(&units, bid1);
+  if (!b0 || !b1) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("threat-seed brave spawn");
+  }
+  b0->nation_id = indian;
+  b0->home_tribe_id = 0;
+  b0->moves_left = 0;
+  b1->nation_id = indian;
+  b1->home_tribe_id = 0;
+  b1->moves_left = 0;
+
+  ColonizeCol1Save col1;
+  col1_save_init(&col1);
+  memset(col1.nation, 0, sizeof(col1.nation));
+  memset(col1.head.nation_relation, 0, sizeof(col1.head.nation_relation));
+  for (int i = 0; i < 4; ++i) {
+    col1.player[i].control = 0;
+    col1.player[i].diplomacy = 0;
+  }
+  col1.nation[nation].gold = 100;
+  col1.stuff.ship_counts[nation] = 1;
+
+  ColonizeCol1Tribe tribes[1];
+  memset(tribes, 0, sizeof(tribes));
+  tribes[0].x = 12;
+  tribes[0].y = 12;
+  tribes[0].nation_id = (uint8_t)indian;
+  col1.tribe = tribes;
+  col1.head.tribe_count = 1;
+
+  uint32_t turn = 55;
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.turn_number = &turn;
+  ctx.units = &units;
+  ctx.colonies = &colonies;
+  ctx.map = &map;
+  ctx.col1 = &col1;
+  ctx.col1_ok = true;
+  ctx.human_nation = 0;
+  ctx.rng_seed = 42;
+
+  int rc = 0;
+
+  /* 1. Both gates satisfied → threat 20 → quota 2. */
+  col1.indian[indian - 4].alarm_by_player[nation] = 40; /* >= 0x19 */
+  /* DS:0x54f6 = the record's attitude[euro] word (friction | attacks<<8).
+   * One recorded trespass (attacks = 1) is word 0x100, comfortably over the
+   * 0x80 gate without loading the friction byte other gates read. */
+  col1_tribe_attitude_set(&tribes[0], nation, 0x100);
+  colonies.colonies[0].garrison_quota = 0;
+  ai_goals_reset();
+  ai_euro_dispatcher_turn(&ctx, nation);
+  if (colonies.colonies[0].garrison_quota != 2) {
+    fprintf(
+      stderr,
+      "unit_ai_euro_war: threat seed quota=%u (want 2)\n",
+      (unsigned)colonies.colonies[0].garrison_quota
+    );
+    rc = fail("FUN_5952_035e threat>>3 seed: expected quota 2");
+  }
+
+  /* 2. DS:0x54f6 tension below 0x80 zeroes each contribution → quota 0. */
+  if (rc == 0) {
+    col1.indian[indian - 4].alarm_by_player[nation] = 40;
+    col1_tribe_attitude_set(&tribes[0], nation, 0x7f);
+    colonies.colonies[0].garrison_quota = 0;
+    ai_goals_reset();
+    ai_euro_dispatcher_turn(&ctx, nation);
+    if (colonies.colonies[0].garrison_quota != 0) {
+      fprintf(
+        stderr,
+        "unit_ai_euro_war: tension 0x7f quota=%u (want 0)\n",
+        (unsigned)colonies.colonies[0].garrison_quota
+      );
+      rc = fail("tension < 0x80 must zero the Indian threat contribution");
+    }
+  }
+
+  /* 3. FUN_281f_030c alarm below 0x19 zeroes it too → quota 0. */
+  if (rc == 0) {
+    col1.indian[indian - 4].alarm_by_player[nation] = 0x18;
+    col1_tribe_attitude_set(&tribes[0], nation, 0x100); /* one recorded attack */
+    colonies.colonies[0].garrison_quota = 0;
+    ai_goals_reset();
+    ai_euro_dispatcher_turn(&ctx, nation);
+    if (colonies.colonies[0].garrison_quota != 0) {
+      fprintf(
+        stderr,
+        "unit_ai_euro_war: alarm 0x18 quota=%u (want 0)\n",
+        (unsigned)colonies.colonies[0].garrison_quota
+      );
+      rc = fail("alarm < 0x19 must zero the Indian threat contribution");
+    }
+  }
+
+  col1.tribe = NULL;
+  free(map.terrain);
+  free(map.layer2);
+  free(map.layer3);
+  if (rc == 0) {
+    fprintf(stderr, "unit_ai_euro_war: FUN_5952_035e threat seed ok\n");
+  }
+  return rc;
 }
 
 static int unit_peace_soldier_fortify_colony(void) {
@@ -7773,6 +7970,25 @@ static int unit_peace_soldier_fortify_colony(void) {
   sol->nation_id = nation;
   sol->moves_left = 1 * UNITS_MP_PER_TILE;
   sol->orders = 0;
+
+  /*
+   * Threat source for the live FUN_5952_035e seed: foreign Soldier 4 tiles
+   * east keeps garrison_quota at 1 so the fortify path (not the quota-0
+   * admit-as-colonist path) is what this test exercises — the retired thin
+   * latch used to grant quota 1 to any quiet colony with an idle soldier.
+   * MD 4 > 2 so the fortify-wake probe stays out of the picture.
+   */
+  const int foe_id = units_spawn_allow_stack(&units, 0, 9, 5);
+  ColonizeUnit* foe = units_get(&units, foe_id);
+  if (!foe) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("peace-fortify foe spawn");
+  }
+  foe->nation_id = 2;
+  foe->moves_left = 0;
+  foe->orders = 0;
 
   ai_goals_reset();
   ai_goals_upsert_primary(nation, 12, 12, AI_GOAL_FOUND, 5);
@@ -7894,6 +8110,21 @@ static int unit_peace_dragoon_fortify_colony(void) {
   drag->moves_left = 4 * UNITS_MP_PER_TILE;
   drag->orders = 0;
 
+  /* Threat source keeping garrison_quota at 1 under the live FUN_5952_035e
+   * seed (the retired thin latch granted quota 1 to any quiet colony);
+   * MD 4 > 2 keeps the fortify-wake probe out of the picture. */
+  const int foe_id = units_spawn_allow_stack(&units, 0, 9, 5);
+  ColonizeUnit* foe = units_get(&units, foe_id);
+  if (!foe) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("peace-dragoon-fortify foe spawn");
+  }
+  foe->nation_id = 2;
+  foe->moves_left = 0;
+  foe->orders = 0;
+
   ai_goals_reset();
   ai_goals_upsert_primary(nation, 12, 12, AI_GOAL_FOUND, 5);
 
@@ -8012,6 +8243,22 @@ static int unit_peace_regular_fortify_colony(void) {
   reg->nation_id = nation;
   reg->moves_left = 3 * UNITS_MP_PER_TILE;
   reg->orders = 0;
+
+  /* Threat source: quota 1 under the live FUN_5952_035e seed (see the
+   * soldier variant's note). */
+  {
+    const int foe_id = units_spawn_allow_stack(&units, 0, 9, 5);
+    ColonizeUnit* foe = units_get(&units, foe_id);
+    if (!foe) {
+      free(map.terrain);
+      free(map.layer2);
+      free(map.layer3);
+      return fail("peace-regular-fortify foe spawn");
+    }
+    foe->nation_id = 2;
+    foe->moves_left = 0;
+    foe->orders = 0;
+  }
 
   ai_goals_reset();
   ai_goals_upsert_primary(nation, 12, 12, AI_GOAL_FOUND, 5);
@@ -8132,6 +8379,22 @@ static int unit_peace_continental_fortify_colony(void) {
   army->moves_left = 3 * UNITS_MP_PER_TILE;
   army->orders = 0;
 
+  /* Threat source: quota 1 under the live FUN_5952_035e seed (see the
+   * soldier variant's note). */
+  {
+    const int foe_id = units_spawn_allow_stack(&units, 0, 9, 5);
+    ColonizeUnit* foe = units_get(&units, foe_id);
+    if (!foe) {
+      free(map.terrain);
+      free(map.layer2);
+      free(map.layer3);
+      return fail("peace-cont-fortify foe spawn");
+    }
+    foe->nation_id = 2;
+    foe->moves_left = 0;
+    foe->orders = 0;
+  }
+
   ai_goals_reset();
   ai_goals_upsert_primary(nation, 12, 12, AI_GOAL_FOUND, 5);
 
@@ -8250,6 +8513,22 @@ static int unit_peace_continental_cavalry_fortify_colony(void) {
   cav->nation_id = nation;
   cav->moves_left = 4 * UNITS_MP_PER_TILE;
   cav->orders = 0;
+
+  /* Threat source: quota 1 under the live FUN_5952_035e seed (see the
+   * soldier variant's note). */
+  {
+    const int foe_id = units_spawn_allow_stack(&units, 0, 9, 5);
+    ColonizeUnit* foe = units_get(&units, foe_id);
+    if (!foe) {
+      free(map.terrain);
+      free(map.layer2);
+      free(map.layer3);
+      return fail("peace-cont-cav-fortify foe spawn");
+    }
+    foe->nation_id = 2;
+    foe->moves_left = 0;
+    foe->orders = 0;
+  }
 
   ai_goals_reset();
   ai_goals_upsert_primary(nation, 12, 12, AI_GOAL_FOUND, 5);
@@ -8370,6 +8649,22 @@ static int unit_peace_artillery_fortify_colony(void) {
   art->moves_left = 1 * UNITS_MP_PER_TILE;
   art->orders = 0;
 
+  /* Threat source: quota 1 under the live FUN_5952_035e seed (see the
+   * soldier variant's note). */
+  {
+    const int foe_id = units_spawn_allow_stack(&units, 0, 9, 5);
+    ColonizeUnit* foe = units_get(&units, foe_id);
+    if (!foe) {
+      free(map.terrain);
+      free(map.layer2);
+      free(map.layer3);
+      return fail("peace-art-fortify foe spawn");
+    }
+    foe->nation_id = 2;
+    foe->moves_left = 0;
+    foe->orders = 0;
+  }
+
   ai_goals_reset();
   ai_goals_upsert_primary(nation, 12, 12, AI_GOAL_FOUND, 5);
 
@@ -8488,6 +8783,22 @@ static int unit_peace_cannon_fortify_colony(void) {
   art->nation_id = nation;
   art->moves_left = 1 * UNITS_MP_PER_TILE;
   art->orders = 0;
+
+  /* Threat source: quota 1 under the live FUN_5952_035e seed (see the
+   * soldier variant's note). */
+  {
+    const int foe_id = units_spawn_allow_stack(&units, 0, 9, 5);
+    ColonizeUnit* foe = units_get(&units, foe_id);
+    if (!foe) {
+      free(map.terrain);
+      free(map.layer2);
+      free(map.layer3);
+      return fail("peace-cannon-fortify foe spawn");
+    }
+    foe->nation_id = 2;
+    foe->moves_left = 0;
+    foe->orders = 0;
+  }
 
   ai_goals_reset();
   ai_goals_upsert_primary(nation, 12, 12, AI_GOAL_FOUND, 5);
@@ -8608,6 +8919,22 @@ static int unit_artillery_fortify_colony(void) {
   art->nation_id = nation;
   art->moves_left = 1 * UNITS_MP_PER_TILE;
   art->orders = 0;
+
+  /* Threat source: quota 1 under the live FUN_5952_035e seed (see the
+   * soldier variant's note). */
+  {
+    const int foe_id = units_spawn_allow_stack(&units, 0, 9, 5);
+    ColonizeUnit* foe = units_get(&units, foe_id);
+    if (!foe) {
+      free(map.terrain);
+      free(map.layer2);
+      free(map.layer3);
+      return fail("art-fortify foe spawn");
+    }
+    foe->nation_id = 2;
+    foe->moves_left = 0;
+    foe->orders = 0;
+  }
 
   ai_goals_reset();
   ai_goals_upsert_primary(nation, 12, 12, AI_GOAL_FOUND, 5);
@@ -9587,6 +9914,9 @@ int main(void) {
     return 1;
   }
   if (unit_fortify_wake_hunt() != 0) {
+    return 1;
+  }
+  if (unit_garrison_quota_threat_seed() != 0) {
     return 1;
   }
   if (unit_garrison_quota_one_fortify() != 0) {

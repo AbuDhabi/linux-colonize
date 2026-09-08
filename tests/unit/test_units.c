@@ -2146,14 +2146,12 @@ static int unit_capture_ring_and_alarm_vent(void) {
     col1.head.tribe_count = 0;
     col1.player[0].control = 0; /* human victim → the difficulty term applies */
     col1.indian[0].alarm_by_player[0] = 40;
-    static int16_t tension[4];
-    memset(tension, 0, sizeof(tension));
-    tension[0] = 200;
-    col1.indian_tension = tension;
     col1.head.tribe_count = 1;
     static ColonizeCol1Tribe tribe;
     memset(&tribe, 0, sizeof(tribe));
     tribe.nation_id = 4;
+    /* DS:0x54f6 = this record's attitude[euro 0] word (friction | attacks<<8). */
+    col1_tribe_attitude_set(&tribe, 0, 200);
     col1.tribe = &tribe;
     units_set_ff_col1(&col1);
     units_set_combat_human_nation(0);
@@ -2178,8 +2176,10 @@ static int unit_capture_ring_and_alarm_vent(void) {
       );
       rc = 1;
     }
-    if (tension[0] != 0) {
-      fprintf(stderr, "alarm_vent: tension %u want 0\n", (unsigned)tension[0]);
+    if (col1_tribe_attitude(&tribe, 0) != 0) {
+      fprintf(
+        stderr, "alarm_vent: attitude %d want 0\n", col1_tribe_attitude(&tribe, 0)
+      );
       rc = 1;
     }
 
@@ -2206,7 +2206,6 @@ static int unit_capture_ring_and_alarm_vent(void) {
     units_set_ff_col1(NULL);
     units_set_combat_human_nation(-1);
     col1.tribe = NULL;
-    col1.indian_tension = NULL;
   }
 
 done:
@@ -2218,6 +2217,150 @@ done:
   free(map.layer3);
   if (rc == 0) {
     fprintf(stderr, "unit_units: capture ring + 1b0e alarm vent ok\n");
+  }
+  return rc;
+}
+
+/*
+ * FUN_5fef_1b0e raw 100573-100577: a plain Brave (@UNIT type 0x13) attacking
+ * the Artillery (@UNIT type 0xb) of a HUMAN-controlled European never wins,
+ * whatever the roll — DOS forces `bVar8 = false` and latches `local_ca`. An
+ * AI-controlled European (control != 0) is NOT covered by the gate.
+ */
+static int unit_brave_vs_human_artillery_autoloss(void) {
+  ColonizeMsgCatalog names;
+  assets_msg_init(&names);
+  char names_path[512];
+  if (!dos_compat_normalize_asset_path("COLONIZE", "NAMES.TXT", names_path, sizeof(names_path)) ||
+      !assets_msg_load_file(&names, names_path)) {
+    fprintf(stderr, "brave_arty: NAMES.TXT load failed\n");
+    return 1;
+  }
+  ColonizeUnitPool pool;
+  memset(&pool, 0, sizeof(pool));
+  if (!units_load_types(&pool, &names)) {
+    fprintf(stderr, "brave_arty: units_load_types failed\n");
+    assets_msg_free(&names);
+    return 1;
+  }
+  const int brave = units_find_type(&pool, "Braves");
+  const int arty = units_find_type(&pool, "Artillery");
+  assets_msg_free(&names);
+  if (brave != 0x13 || arty != 0x0b) {
+    fprintf(stderr, "brave_arty: @UNIT ids Braves=%d Artillery=%d (want 19/11)\n", brave, arty);
+    return 1;
+  }
+
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  map.width = 8;
+  map.height = 8;
+  map.tile_count = 64;
+  map.terrain = calloc(64, 1);
+  map.layer2 = calloc(64, 1);
+  map.layer3 = calloc(64, 1);
+  if (!map.terrain || !map.layer2 || !map.layer3) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return 1;
+  }
+  for (int i = 0; i < 64; ++i) {
+    map.terrain[i] = 2; /* plains */
+  }
+  units_set_occupancy_map(&map);
+
+  ColonizeCol1Save col1;
+  memset(&col1, 0, sizeof(col1));
+  memset(col1.head.founding_father, 0xff, sizeof(col1.head.founding_father));
+  col1.head.difficulty = 2;
+  col1.player[0].control = 0; /* human */
+  col1.player[1].control = 1; /* AI */
+  units_set_ff_col1(&col1);
+  units_set_combat_human_nation(0);
+
+  int rc = 0;
+  int ai_def_wins = 0;
+  for (int seed = 1; seed <= 40 && rc == 0; ++seed) {
+    /* Human-controlled European Artillery: the Brave must ALWAYS lose. */
+    {
+      const int aid = units_spawn_allow_stack(&pool, brave, 4, 5);
+      const int did = units_spawn_allow_stack(&pool, arty, 5, 5);
+      if (aid < 0 || did < 0) {
+        fprintf(stderr, "brave_arty: spawn failed\n");
+        rc = 1;
+        break;
+      }
+      units_get(&pool, aid)->nation_id = 4;
+      units_get(&pool, did)->nation_id = 0;
+      ColonizeDosRng rng;
+      dos_rng_seed(&rng, seed);
+      if (units_resolve_land_combat_ff(&pool, aid, did, &rng, &col1)) {
+        fprintf(stderr, "brave_arty: seed %d — Brave beat HUMAN Artillery\n", seed);
+        rc = 1;
+      }
+      units_despawn(&pool, aid);
+      units_despawn(&pool, did);
+    }
+    /* AI-controlled European Artillery: no auto-loss, the roll decides. */
+    if (rc == 0) {
+      const int aid = units_spawn_allow_stack(&pool, brave, 4, 6);
+      const int did = units_spawn_allow_stack(&pool, arty, 5, 6);
+      if (aid < 0 || did < 0) {
+        fprintf(stderr, "brave_arty: spawn failed\n");
+        rc = 1;
+        break;
+      }
+      units_get(&pool, aid)->nation_id = 4;
+      units_get(&pool, did)->nation_id = 1;
+      ColonizeDosRng rng;
+      dos_rng_seed(&rng, seed);
+      if (units_resolve_land_combat_ff(&pool, aid, did, &rng, &col1)) {
+        ++ai_def_wins;
+      }
+      units_despawn(&pool, aid);
+      units_despawn(&pool, did);
+    }
+  }
+  if (rc == 0 && ai_def_wins == 0) {
+    fprintf(stderr, "brave_arty: AI-Euro Artillery never lost in 40 rolls "
+                    "(gate must not cover control != 0)\n");
+    rc = 1;
+  }
+  /* Armed Braves (type 0x14) are outside the DOS gate — the roll decides. */
+  if (rc == 0) {
+    const int armed = units_find_type(&pool, "Armed Braves");
+    int armed_wins = 0;
+    for (int seed = 1; seed <= 40 && armed >= 0; ++seed) {
+      const int aid = units_spawn_allow_stack(&pool, armed, 4, 7);
+      const int did = units_spawn_allow_stack(&pool, arty, 5, 7);
+      if (aid < 0 || did < 0) {
+        break;
+      }
+      units_get(&pool, aid)->nation_id = 4;
+      units_get(&pool, did)->nation_id = 0;
+      ColonizeDosRng rng;
+      dos_rng_seed(&rng, seed);
+      if (units_resolve_land_combat_ff(&pool, aid, did, &rng, &col1)) {
+        ++armed_wins;
+      }
+      units_despawn(&pool, aid);
+      units_despawn(&pool, did);
+    }
+    if (armed >= 0 && armed_wins == 0) {
+      fprintf(stderr, "brave_arty: Armed Braves never won — gate is too wide\n");
+      rc = 1;
+    }
+  }
+
+  units_set_combat_human_nation(-1);
+  units_set_ff_col1(NULL);
+  units_set_occupancy_map(NULL);
+  free(map.terrain);
+  free(map.layer2);
+  free(map.layer3);
+  if (rc == 0) {
+    fprintf(stderr, "unit_units: Brave vs human Artillery auto-loss (1b0e) ok\n");
   }
   return rc;
 }
@@ -2277,6 +2420,10 @@ int main(void) {
     return 1;
   }
   if (unit_capture_ring_and_alarm_vent() != 0) {
+    diag_shutdown();
+    return 1;
+  }
+  if (unit_brave_vs_human_artillery_autoloss() != 0) {
     diag_shutdown();
     return 1;
   }
@@ -6917,6 +7064,155 @@ int main(void) {
     }
 
     /*
+     * Discoverer beginner shield — FUN_5fef_1b0e raw 100536-100545.
+     * `if ((bVar28) && (*(char *)0x53a6 == '\0')) local_92 = 0;` inside
+     * `0x53a6 < 2` / defender-is-a-human-European / turn < 0x50 / colony on
+     * the tile. local_92 is the ATTACKER (it is what the roll compares
+     * against), so on Discoverer an attack on a human player's UNDEFENDED
+     * town — the militia phantom, bVar28 — can never be won, however strong
+     * the attacker. Above difficulty 0 the same fixture must still fall.
+     */
+    {
+      const int soldier3 = units_find_type(&pool, "Soldiers");
+      if (soldier3 < 0) {
+        fprintf(stderr, "beginner-shield soldier type missing\n");
+        return 1;
+      }
+      int sx = -1, sy = -1;
+      for (int y = (int)map.height - 4; y > 2 && sx < 0; --y) {
+        for (int x = (int)map.width - 4; x > 2 && sx < 0; --x) {
+          if (map_tile_is_land(&map, x, y) && map_tile_is_land(&map, x - 1, y) &&
+              units_id_at(&pool, x, y) < 0 && units_id_at(&pool, x - 1, y) < 0) {
+            sx = x;
+            sy = y;
+          }
+        }
+      }
+      if (sx < 0) {
+        fprintf(stderr, "beginner-shield no land pair\n");
+        return 1;
+      }
+      /* Shared pool: earlier sub-tests park survivors around. Purge the two
+       * tiles this block asserts on. */
+      for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+        const ColonizeUnit* u = &pool.units[i];
+        if (u->active && u->y == sy && (u->x == sx || u->x == sx - 1)) {
+          (void)units_despawn(&pool, u->id);
+        }
+      }
+
+      ColonizeColonyPool scol;
+      colonies_init(&scol);
+      colonies_set_occupancy_map(NULL);
+      if (!colonies_load_names(&scol, "COLONIZE/COLONY.TXT") ||
+          !colonies_load_buildings(&scol, &names)) {
+        fprintf(stderr, "beginner-shield colonies init failed\n");
+        return 1;
+      }
+      const int scid = colonies_found(&scol, &map, sx, sy, 1, -1, UNITS_JOB_NONE, 0, 0, 0);
+      ColonizeColony* scolony = scid >= 0 ? colonies_get_mut(&scol, scid) : NULL;
+      if (!scolony) {
+        fprintf(stderr, "beginner-shield found colony failed\n");
+        return 1;
+      }
+      scolony->nation_id = 1;
+      scolony->population = 1;
+      scolony->colonist_count = 1;
+      scolony->colonists[0].active = true;
+
+      ColonizeCol1Save sc1;
+      memset(&sc1, 0, sizeof(sc1));
+      sc1.player[0].control = 1; /* AI raider */
+      sc1.player[1].control = 0; /* the human's town — DOS 0x543f == 0 */
+      sc1.head.difficulty = 0; /* Discoverer */
+      sc1.head.turn = 10; /* inside the DS:0x538e < 0x50 window */
+
+      pool.types[soldier3].attack = 8;
+      pool.types[soldier3].defense = 1;
+      units_set_ff_col1(&sc1);
+      units_set_combat_human_nation(1);
+      units_set_occupancy_map(&map);
+
+      const int shield_atk = units_spawn(&pool, soldier3, sx - 1, sy);
+      ColonizeUnit* sa = units_get(&pool, shield_atk);
+      if (!sa) {
+        fprintf(stderr, "beginner-shield attacker spawn failed\n");
+        return 1;
+      }
+      sa->nation_id = 0;
+      sa->moves_left = 5 * UNITS_MP_PER_TILE;
+      if (units_try_move(&pool, shield_atk, &map, sx, sy, &scol, NULL)) {
+        fprintf(stderr, "beginner-shield: Discoverer attacker must not take the town\n");
+        units_set_ff_col1(NULL);
+        return 1;
+      }
+      scolony = colonies_get_mut(&scol, scid);
+      if (!scolony || scolony->nation_id != 1) {
+        fprintf(stderr, "beginner-shield: colony must stay with its owner\n");
+        units_set_ff_col1(NULL);
+        return 1;
+      }
+      {
+        /* The loser may be demoted rather than destroyed — what matters is
+         * that it never set foot in the town, and that the phantom (which
+         * always evaporates) left nothing behind. */
+        const ColonizeUnit* loser = units_get(&pool, shield_atk);
+        if (loser && loser->x == sx && loser->y == sy) {
+          fprintf(stderr, "beginner-shield: beaten attacker must not enter the colony\n");
+          units_set_ff_col1(NULL);
+          return 1;
+        }
+      }
+      for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+        const ColonizeUnit* u = &pool.units[i];
+        if (u->active && u->x == sx && u->y == sy) {
+          fprintf(stderr, "beginner-shield: phantom must not remain on the tile\n");
+          units_set_ff_col1(NULL);
+          return 1;
+        }
+      }
+
+      /* Same fixture at difficulty 2: outside DOS's `0x53a6 < 2` gate, so the
+       * shield is off and the identical attack carries the town. */
+      sc1.head.difficulty = 2;
+      for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+        const ColonizeUnit* u = &pool.units[i];
+        if (u->active && u->x == sx - 1 && u->y == sy) {
+          (void)units_despawn(&pool, u->id);
+        }
+      }
+      const int hard_atk = units_spawn(&pool, soldier3, sx - 1, sy);
+      ColonizeUnit* ha = units_get(&pool, hard_atk);
+      if (!ha) {
+        fprintf(stderr, "beginner-shield hard attacker spawn failed\n");
+        return 1;
+      }
+      ha->nation_id = 0;
+      ha->moves_left = 5 * UNITS_MP_PER_TILE;
+      if (!units_try_move(&pool, hard_atk, &map, sx, sy, &scol, NULL)) {
+        fprintf(
+          stderr,
+          "beginner-shield: above Discoverer the same attack should win (enter=%d combat=%d)\n",
+          (int)units_last_enter_reason(),
+          units_last_combat_outcome()
+        );
+        units_set_ff_col1(NULL);
+        return 1;
+      }
+      scolony = colonies_get_mut(&scol, scid);
+      if (!scolony || scolony->nation_id != 0) {
+        fprintf(stderr, "beginner-shield: difficulty 2 attacker should capture the colony\n");
+        units_set_ff_col1(NULL);
+        return 1;
+      }
+
+      (void)units_despawn(&pool, hard_atk);
+      units_set_ff_col1(NULL);
+      units_set_combat_human_nation(-1);
+      fprintf(stderr, "unit_units: Discoverer undefended-town shield ok\n");
+    }
+
+    /*
      * FUN_5fef_1b0e port-ship fate + DS:0x54f6 discharge (2026-09-08).
      *
      * (1) A foreign hull berthed in a colony is invisible to a land assault:
@@ -6925,7 +7221,8 @@ int main(void) {
      *     unit array. So the town falls with the ship still in it, still
      *     flying the loser's flag — not sunk, not seized.
      * (2) FUN_5fef_1b0e site 1 (raw 101039-101041): a native attacker that
-     *     resolves against a European clears indian_tension[tribe][euro],
+     *     resolves against a European clears tribe[t].alarm[euro] (the whole
+     *     DS:0x54f6 attitude word),
      *     unless it LOST at a colony (DOS routes that to FUN_5fef_0f14).
      */
     {
@@ -7033,20 +7330,20 @@ int main(void) {
       units_despawn(&pool, ship);
       (void)units_despawn(&pool, aid);
 
-      /* --- DS:0x54f6 discharge, site 1 --- */
-      int16_t tension[2 * 4];
+      /* --- DS:0x54f6 discharge, site 1 --- the slot is the settlement
+       * record's own attitude[euro] word (tribe.alarm[euro]). */
       ColonizeCol1Tribe tribes[2];
-      memset(tension, 0, sizeof(tension));
       memset(tribes, 0, sizeof(tribes));
       tribes[0].nation_id = 4;
       tribes[1].nation_id = 4;
       c1.tribe = tribes;
       c1.head.tribe_count = 2;
-      c1.indian_tension = tension;
 
-      /* Open ground: native attacker wins → tension[tribe 0][euro 1] = 0. */
+      /* Open ground: native attacker wins → tribe 0's word toward euro 1 = 0
+       * (BOTH bytes, friction and attacks). */
       units_set_combat_colonies(&colonies);
-      tension[0 * 4 + 1] = 96;
+      tribes[0].alarm[1].friction = 96;
+      tribes[0].alarm[1].attacks = 3;
       {
         const int bx = cx - 3;
         const int by = cy;
@@ -7069,11 +7366,11 @@ int main(void) {
           units_set_ff_col1(NULL);
           return 1;
         }
-        if (tension[0 * 4 + 1] != 0) {
+        if (col1_tribe_attitude(&tribes[0], 1) != 0) {
           fprintf(
             stderr,
             "1b0e-tension open-ground win must clear the slot, got %d\n",
-            (int)tension[0 * 4 + 1]
+            col1_tribe_attitude(&tribes[0], 1)
           );
           units_set_ff_col1(NULL);
           return 1;
@@ -7083,7 +7380,7 @@ int main(void) {
 
       /* Colony tile + native attacker LOSES: DOS hands the clear to
        * FUN_5fef_0f14's raid path, so this site leaves the slot alone. */
-      tension[1 * 4 + 1] = 77;
+      col1_tribe_attitude_set(&tribes[1], 1, 77);
       {
         const int bid = units_spawn_allow_stack(&pool, brave3, cx, cy);
         const int vid = units_spawn_allow_stack(&pool, soldier3, cx, cy);
@@ -7104,11 +7401,11 @@ int main(void) {
           units_set_ff_col1(NULL);
           return 1;
         }
-        if (tension[1 * 4 + 1] != 77) {
+        if (col1_tribe_attitude(&tribes[1], 1) != 77) {
           fprintf(
             stderr,
             "1b0e-tension colony loss must NOT clear the slot, got %d\n",
-            (int)tension[1 * 4 + 1]
+            col1_tribe_attitude(&tribes[1], 1)
           );
           units_set_ff_col1(NULL);
           return 1;
@@ -7117,7 +7414,6 @@ int main(void) {
       }
 
       c1.tribe = NULL;
-      c1.indian_tension = NULL;
       c1.head.tribe_count = 0;
       units_set_combat_colonies(NULL);
       units_set_ff_col1(NULL);

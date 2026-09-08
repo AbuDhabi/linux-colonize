@@ -210,7 +210,7 @@ Export often **zeros** unnamed colony bytes on rebuild ([savegame.md](savegame.m
 | `x` / `y` / `nation_id` / `state` / `population` / `mission` | — | `mapped` | `unused09` pad |
 | `growth_accum` | 1 | `mapped` | +=pop; clear when >19 (`FUN_4d56_152e`); smcol `growth_counter` |
 | `sticky_trade_good` | 1 | `mapped` | Was `unknown28_pad`; resolved 2026-08-19: mid-haggle cargo good index, `FUN_4d56_2820`; 0xff idle, 0xfe last-refused |
-| `last_bought` / `last_sold` / `alarm[4]` | — | `mapped` | `alarm.attacks`: smcol — rises on dwelling attacks, falls when brave attacks / drifts; may act as retaliation budget |
+| `last_bought` / `last_sold` / `alarm[4]` | — | `mapped` | `alarm.attacks`: smcol — rises on dwelling attacks, falls when brave attacks / drifts; may act as retaliation budget. **`alarm[n]` (record +10+n*2) is DOS's `int16_t attitude[4]`** — the whole "DS:0x54f6 grudge/tension table" is this field: `(tribe*9+n)*2 + 0x54f6 == tribe*0x12 + 0x54ec + 10 + n*2` (corrected 2026-09-08; the phantom `ColonizeCol1Save.indian_tension` array is retired). Read/write it as one signed word via `col1_tribe_attitude`/`_set`; DOS's clears and clamps rewrite **both** bytes. See docs/indians.md |
 
 ### Indian (78 × 8)
 

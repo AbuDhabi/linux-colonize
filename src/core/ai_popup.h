@@ -119,12 +119,22 @@ typedef enum AiPopupTag {
                                      * nation_a = colonist slot, nation_b = eject role. */
   AI_POPUP_TAG_WAR_SCORED = 56, /* post-HoF @SCORED CHOICE after a WoI win:
                                  * 1 = "That's all." (title menu), 2 = "Keep playing anyway." */
-  AI_POPUP_TAG_COMBAT_HALF = 60 /* @HALF (FUN_5fef_1b0e, viceroy_unpacked.c ~100365): the
+  AI_POPUP_TAG_COMBAT_HALF = 60, /* @HALF (FUN_5fef_1b0e, viceroy_unpacked.c ~100365): the
                                  * attacker has less than one whole movement point left, so it
                                  * would fight at remaining/3 strength. 1 = "Charge!",
                                  * 2 / Esc = "Then let them rest."
                                  * nation_a = attacker unit id, nation_b = remaining thirds,
                                  * payload = dest x | dest y << 8. */
+  AI_POPUP_TAG_CONTACT_REPARATIONS = 61 /* FUN_5bfb_022e LAB_5bfb_0def demand half:
+                                 * @INDIANCITY (0x1866, colony stores) / @INDIANWAGONS
+                                 * (0x1871, a Wagon Train's hold) reparations demand.
+                                 * nation_a = Euro nation, nation_b = Indian nation,
+                                 * payload = 0 for @INDIANCITY, 1 for @INDIANWAGONS.
+                                 * The choice ids are DOS's own 1-based row numbers, so
+                                 * the accepting row differs per flavor: @INDIANCITY
+                                 * accepts on 2 ("Hand them over."), @INDIANWAGONS on 1
+                                 * (its rows are printed the other way round). A refusal
+                                 * runs LAB_5bfb_0ff2 (village attitude word += 0x80). */
 } AiPopupTag;
 
 typedef struct AiPopupRequest {

@@ -1214,6 +1214,9 @@ static int ai_euro_type_is_man_o_war_name(const char* name) {
  */
 static int ai_euro_20e6_dos_type(const ColonizeUnitPool* units, const ColonizeUnit* u);
 static int ai_euro_20e6_type_combat(int dos_type);
+/* Native village on this tile (col1 tribe table), else -1 — defined below;
+ * forward-declared for the FUN_5952_035e threat seed's settlement halving. */
+static int ai_euro_village_nation_at(const ColonizeCol1Save* col1, int x, int y);
 
 typedef struct AiEuroShipPressure {
   uint8_t frigate_colonies; /* DS:0xa89b */
@@ -2829,7 +2832,9 @@ static int ai_euro_is_colony_garrison_name(const char* name) {
 
 /*
  * Col1 +0x1e: fortify only while garrison_quota > 0, then DEC.
- * Cite: save_format_map.md; FUN_5952_035e seed PARKED (thin planning latch).
+ * Cite: save_format_map.md. The quota this consumes is the real
+ * FUN_5952_035e threat>>3 seed (ai_euro_colony_threat_seed_5952, ported
+ * 2026-09-08) — no longer a thin planning latch.
  */
 static int ai_euro_fortify_with_quota(
   ColonizeTurnContext* ctx,
@@ -9248,6 +9253,183 @@ static void ai_euro_0a60_settlement_goal_producers(ColonizeTurnContext* ctx, int
   }
 }
 
+/* --- FUN_5952_035e colony threat accumulator ---------------------------- */
+
+/*
+ * DS:0x543f stride-0x34 control byte == 0 → that Euro nation is human-driven.
+ * Same table/idiom as nation_crosses_bells_1f72 / europe_nation_eot.md.
+ */
+static int ai_euro_nation_is_human(const ColonizeTurnContext* ctx, int nation) {
+  if (!ctx || nation < 0 || nation > 3) {
+    return 0;
+  }
+  if (ctx->human_nation >= 0 && ctx->human_nation <= 3) {
+    return nation == ctx->human_nation;
+  }
+  if (ctx->col1_ok && ctx->col1) {
+    return ctx->col1->player[nation].control == 0;
+  }
+  return 0;
+}
+
+/*
+ * Colony threat accumulator → garrison_quota (+0x1e). Ported DOS-literally
+ * 2026-09-08 from the CLEAN RECOVERY in
+ * `original_sources_annotated/ai/colony_tick_5952_035e.md` (raw body lines
+ * 233-324 there); the canonical Ghidra export of FUN_5952_035e is corrupted
+ * (decomp_inventory.md), but `viceroy_unpacked.c:94940-94975` carries the same
+ * accumulator body under argless far calls and corroborates it operand for
+ * operand. This REPLACES the old "idle unfortified Soldier/Dragoon on the
+ * colony tile and quota == 0 → quota = 1" thin latch.
+ *
+ *   threat = 0
+ *   for dy in -5..5, dx in -5..5:                        (11x11 box)
+ *     t = (colony.x + dx, colony.y + dy)
+ *     if !map_tile_in_bounds(t): continue                 FUN_1000_84f2/281f_0302
+ *     head = first unit on t                              FUN_1000_89d0/281f_07e0
+ *     if head < 0 or (head.nation & 0xf) == colony.nation: continue
+ *     for every unit u on t (whole stack, FUN_1000_84d4/281f_02e4):
+ *       if 0x0d <= u.type <= 0x12: skip                   (ships never count)
+ *       v = combat value x8, mode 1                       FUN_1000_8bb8/281f_09c8
+ *       if (u.nation & 0xf) < 4:                          European owner
+ *         if v < 2: v = 0
+ *         if DS:0x543f[u.nation] == 0: v += v >> 1        (human units count 1.5x)
+ *       else:                                             Indian owner
+ *         if alarm(u.nation - 4, colony.nation) < 0x19: v = 0   FUN_281f_030c
+ *         if DS:0x54f6[u.+0x314a * 9 + colony.nation] < 0x80: v = 0
+ *       if settlement_owner(t) >= 0: v >>= 1              FUN_1000_88ae/281f_06be
+ *       v = -(dos_dist(dx, dy) - 8) * v >> 3              FUN_1000_8560/281f_0370
+ *       threat += v
+ *   floor  = min(threat, 0x10)
+ *   walls  = owned buildings along the Stockade→Fort→Fortress parent chain
+ *                                                        FUN_1000_8ca0(0)/281f_0ab0
+ *   threat = max(threat / (walls + 1), floor)
+ *   colony.garrison_quota = (uint8_t)(threat >> 3)        (DOS `(char)` truncation)
+ *
+ * The divide only bites above the 0x10 floor, so walls never drag the quota
+ * below 2 — they only cap a very large threat.
+ *
+ * DS:0x54f6 read site (this closes the 5952_035e half of the "two parked
+ * tension readers" punch-list row, docs/indians.md): the row key is the
+ * ADJACENT unit's own home settlement id — DOS unit +0x06 / DS:0x314a =
+ * `ColonizeUnit.home_tribe_id` — not the tribe owning the nearest village.
+ * The apparent "stride 9 words" is the settlement record stride 0x12, so
+ * the cell is that record's attitude[nation] word = tribe.alarm[nation]
+ * (col1_tribe_attitude, signed; raw 94967 `w < 0x80`). Repointed off the
+ * phantom `indian_tension` array 2026-09-08.
+ *
+ * NOT ported here (deliberately, and out of this pass's scope): the same loop's
+ * `iStack_22` ring-1 counter and the `iStack_76` labor_shortage (+0x8e)
+ * formula that consumes it — the port keeps its own thin labor latch below.
+ */
+static void ai_euro_colony_threat_seed_5952(
+  ColonizeTurnContext* ctx,
+  int nation_id,
+  ColonizeColony* c
+) {
+  if (!ctx || !ctx->units || !ctx->map || !c) {
+    return;
+  }
+  ColonizeCombatStrengthCtx sctx;
+  sctx.units = ctx->units;
+  sctx.map = ctx->map;
+  sctx.colonies = ctx->colonies;
+  sctx.col1 = ctx->col1;
+
+  const ColonizeCol1Save* col1 = (ctx->col1_ok && ctx->col1) ? ctx->col1 : NULL;
+  const int mw = (int)ctx->map->width;
+  const int mh = (int)ctx->map->height;
+  int threat = 0;
+
+  for (int dy = -5; dy <= 5; ++dy) {
+    for (int dx = -5; dx <= 5; ++dx) {
+      const int tx = c->x + dx;
+      const int ty = c->y + dy;
+      if (tx < 0 || ty < 0 || tx >= mw || ty >= mh) {
+        continue; /* FUN_281f_0302 map_tile_in_bounds */
+      }
+      const int head = units_id_at(ctx->units, tx, ty);
+      if (head < 0) {
+        continue;
+      }
+      {
+        const ColonizeUnit* hu = units_get_const(ctx->units, head);
+        if (!hu || (hu->nation_id & 0xf) == nation_id) {
+          continue; /* DOS tests the STACK HEAD's nation only */
+        }
+      }
+      /* Settlement on the scanned tile (colony or village): FUN_281f_06be is
+       * the layer2 bit-2 owner, set for both. */
+      const int on_settlement =
+        (ctx->colonies && colonies_id_at(ctx->colonies, tx, ty) >= 0) ||
+        (ai_euro_village_nation_at(col1, tx, ty) >= 0);
+      const int dist = ai_euro_dos_dist(dx, dy); /* FUN_124c_0040 */
+
+      /* DOS walks the whole tile stack once the head qualified — including
+       * any own-nation unit stacked behind a foreign one. */
+      for (int ui = 0; ui < COLONIZE_UNITS_MAX; ++ui) {
+        const ColonizeUnit* u = units_get_const(ctx->units, ui);
+        if (!u || !units_is_on_map(u) || u->x != tx || u->y != ty) {
+          continue;
+        }
+        const int dtype = ai_euro_20e6_dos_type(ctx->units, u);
+        if (dtype >= 0x0d && dtype <= 0x12) {
+          continue; /* raw: `type < 0xd || 0x12 < type` — ships excluded */
+        }
+        int v = combat_unit_base_x8(&sctx, u->id, 1, NULL);
+        const int owner = u->nation_id & 0xf;
+        if (owner < 4) {
+          if (v < 2) {
+            v = 0;
+          }
+          if (ai_euro_nation_is_human(ctx, owner)) {
+            v = v + (v >> 1);
+          }
+        } else {
+          if (ai_diplo_indian_alarm(col1, owner, nation_id) < 0x19) {
+            v = 0;
+          }
+          {
+            int tension = 0;
+            if (col1 && col1->tribe && u->home_tribe_id >= 0 &&
+                u->home_tribe_id < (int)col1->head.tribe_count) {
+              tension = col1_tribe_attitude(&col1->tribe[u->home_tribe_id], nation_id);
+            }
+            if (tension < 0x80) {
+              v = 0;
+            }
+          }
+        }
+        if (on_settlement) {
+          v >>= 1;
+        }
+        v = (-(dist - 8) * v) >> 3;
+        threat += v;
+      }
+    }
+  }
+
+  int floor_v = threat;
+  if (floor_v > 0x10) {
+    floor_v = 0x10;
+  }
+  int walls = 0; /* FUN_281f_0ab0(0): Stockade→Fort→Fortress chain count */
+  if (ctx->colonies) {
+    static const char* k_wall_chain[3] = {"Stockade", "Fort", "Fortress"};
+    for (int i = 0; i < 3; ++i) {
+      const int b = colonies_find_building(ctx->colonies, k_wall_chain[i]);
+      if (b >= 0 && b < COLONIZE_BUILDING_TYPES_MAX && c->has_building[b]) {
+        walls++;
+      }
+    }
+  }
+  threat = threat / (walls + 1);
+  if (threat < floor_v) {
+    threat = floor_v;
+  }
+  c->garrison_quota = (uint8_t)(threat >> 3); /* DOS `(char)` truncation */
+}
+
 /* --- 0a60 colony goals ------------------------------------------------- */
 
 static void ai_euro_colony_goals(ColonizeTurnContext* ctx, int nation_id) {
@@ -9327,6 +9509,12 @@ static void ai_euro_colony_goals(ColonizeTurnContext* ctx, int nation_id) {
       if (!c->active || c->nation_id != nation_id) {
         continue;
       }
+      /*
+       * FUN_5952_035e threat accumulator → garrison_quota (+0x1e). DOS order:
+       * the quota write happens BEFORE the tick's ai_flags bit writes, so the
+       * refresh below reads this turn's quota (it used to read last turn's).
+       */
+      ai_euro_colony_threat_seed_5952(ctx, nation_id, c);
       ai_euro_refresh_colony_ai_flags(ctx, nation_id, c);
       int labor = (c->population < 3) || (c->labor_shortage > 0) ||
                   ai_euro_colony_food_short(c);
@@ -9381,32 +9569,16 @@ static void ai_euro_colony_goals(ColonizeTurnContext* ctx, int nation_id) {
         );
       }
       /*
-       * Thin garrison_quota latch: idle unfortified Soldier/Dragoon/… on tile
-       * and quota==0 → 1. Skip while NEEDS_COLONISTS / LABOR so early towns
-       * admit the beachhead soldier (Isabella TURN4→5) instead of fortifying.
-       * Full threat>>3 FUN_5952_035e seed PARKED.
+       * garrison_quota (+0x1e) is now the real FUN_5952_035e threat>>3 seed —
+       * see ai_euro_colony_threat_seed_5952 above, called at the top of this
+       * colony body in DOS order. The thin latch that used to live here
+       * ("idle unfortified Soldier/Dragoon on the colony tile and quota == 0
+       * → 1, skipped while NEEDS_COLONISTS / LABOR so early towns admit the
+       * beachhead soldier") is retired: it had no DOS basis, and its
+       * deliberate labor-gate carve-out is not something DOS does — the real
+       * seed is unconditional per colony tick and keys on nearby hostiles,
+       * not on who happens to be standing in the town.
        */
-      if (c->garrison_quota == 0 && !labor && ctx->units) {
-        for (int ui = 0; ui < COLONIZE_UNITS_MAX; ++ui) {
-          const ColonizeUnit* gu = &ctx->units->units[ui];
-          if (!gu->active || gu->nation_id != nation_id || gu->x != c->x ||
-              gu->y != c->y) {
-            continue;
-          }
-          if (units_is_sea(ctx->units, gu->id)) {
-            continue;
-          }
-          const char* gn = units_display_name(ctx->units, gu);
-          if (!ai_euro_is_colony_garrison_name(gn) && !ai_euro_is_artillery_name(gn)) {
-            continue;
-          }
-          if (gu->orders == UNITS_ORDER_FORTIFY || gu->orders == UNITS_ORDER_FORTIFIED) {
-            continue;
-          }
-          c->garrison_quota = 1;
-          break;
-        }
-      }
       /*
        * NO expand-FOUND seed here — REFUTED 2026-09-08. The old "FOUND via
        * 06ae around colony" row (and the ring-2..4 rescan that made it
@@ -11290,10 +11462,7 @@ static int ai_euro_20e6_patrol_arm(ColonizeTurnContext* ctx, ColonizeUnit* u, co
  * nation bits below stand in for that one writer.
  */
 static int ai_euro_20e6_village_attitude(const ColonizeCol1Tribe* t, int nation) {
-  if (!t || nation < 0 || nation > 3) {
-    return 0;
-  }
-  return (int)t->alarm[nation].friction | ((int)t->alarm[nation].attacks << 8);
+  return col1_tribe_attitude(t, nation);
 }
 #define AI_20E6_VILLAGE_MAX 128
 static uint8_t s_20e6_village_visited[AI_20E6_VILLAGE_MAX];

@@ -181,7 +181,9 @@ int main(void) {
   brave->moves_left = 3;
 
   const int food0 = c->stock[COLONIZE_CARGO_FOOD];
-  const uint8_t rel_pre_raid = ai_diplo_indian_relation(&col1, 4 + (0), 0);
+  /* War bit clear → FUN_5fef_0f14's alarm tail is not gated out (see below). */
+  ind->euro_diplo[0] = (uint8_t)(ind->euro_diplo[0] & ~COL1_INDIAN_WAR_BIT);
+  int alarm_pre_raid = (int)ind->alarm_by_player[0];
   ai_contact_indian_raids(&ctx, 4);
   const int kind = ai_contact_last_raid_kind();
   if (kind < AI_RAID_NOTHING || kind > AI_RAID_GOLD) {
@@ -194,6 +196,7 @@ int main(void) {
     ind->alarm_by_player[0] = 65;
     col1.tribe[0].alarm[0].friction = 65;
     brave->moves_left = 3;
+    alarm_pre_raid = (int)ind->alarm_by_player[0];
     ai_contact_indian_raids(&ctx, 4);
   }
   if (ai_contact_last_raid_kind() == AI_RAID_NOTHING && c->stock[COLONIZE_CARGO_FOOD] == food0) {
@@ -208,10 +211,100 @@ int main(void) {
              ai_contact_last_raid_kind() != AI_RAID_NOTHING) {
     return fail("expected colony stock/pop change for raid kind");
   }
-  /* High-friction successful raid → Indian×Euro hostility via relation_delta. */
-  if (ai_contact_last_raid_kind() != AI_RAID_NOTHING &&
-      ai_diplo_indian_relation(&col1, 4 + (0), 0) >= rel_pre_raid) {
-    return fail("high-friction raid should escalate Indian×Euro hostility");
+  /*
+   * FUN_5fef_0f14's alarm tail (raw viceroy_unpacked.c:100033):
+   * `FUN_281f_0d6c(indian_nation, euro, delta, 0)` with delta 0xfffc (−4)
+   * goods / 0xfff4 (−12) building / 0xfff0 (−16) unit / 0xfff8 (−8) gold,
+   * and no call at all for kind 0. Every value is NEGATIVE — a successful
+   * raid DISCHARGES the tribe's alarm toward that European, matching the
+   * unconditional DS:0x54f6 tension clear on the next line. Until
+   * 2026-09-08 the port applied a fandom-derived POSITIVE bump of the same
+   * magnitudes here (and mapped DOS's −16 to SCALP instead of the ship
+   * kind); DOS grows Indian alarm only through the 4d56_152e accumulator.
+   */
+  {
+    const int kind_after = ai_contact_last_raid_kind();
+    int expect_delta = 0;
+    if (kind_after == AI_RAID_STORES) {
+      expect_delta = -4;
+    } else if (kind_after == AI_RAID_BURN || kind_after == AI_RAID_WREAK) {
+      expect_delta = -12;
+    } else if (kind_after == AI_RAID_SHIP || kind_after == AI_RAID_SCALP) {
+      expect_delta = -16;
+    } else if (kind_after == AI_RAID_GOLD) {
+      expect_delta = -8;
+    }
+    int expect_alarm = alarm_pre_raid + expect_delta;
+    if (expect_alarm < 0) {
+      expect_alarm = 0;
+    }
+    if ((int)ind->alarm_by_player[0] != expect_alarm) {
+      return fail("raid alarm tail must vent DOS's negative per-kind delta");
+    }
+    if (kind_after != AI_RAID_NOTHING &&
+        ai_diplo_indian_relation(&col1, 4 + (0), 0) <=
+          (uint8_t)(100 - alarm_pre_raid)) {
+      return fail("successful raid should vent alarm, not escalate it");
+    }
+  }
+  /* War gate (`FUN_281f_0a38(...) & 2`, raw 99993): once the tribe is already
+   * at war with that European the 0d6c call is jumped over — no relief. */
+  {
+    ind->alarm_by_player[0] = 70;
+    col1.tribe[0].alarm[0].friction = 70;
+    ind->euro_diplo[0] = (uint8_t)(ind->euro_diplo[0] | COL1_INDIAN_WAR_BIT);
+    brave->x = 5;
+    brave->y = 5;
+    brave->moves_left = 3;
+    const int alarm_war_pre = (int)ind->alarm_by_player[0];
+    ai_contact_indian_raids(&ctx, 4);
+    if ((int)ind->alarm_by_player[0] != alarm_war_pre) {
+      return fail("raid alarm tail must be skipped while at war (15b3 bit 1)");
+    }
+    ind->euro_diplo[0] = (uint8_t)(ind->euro_diplo[0] & ~COL1_INDIAN_WAR_BIT);
+  }
+  /*
+   * 1b0e's repelled-at-a-colony handoff (thunk_FUN_2a1f_06c8 → the whole of
+   * FUN_5fef_0f14) is the second entry into the same resolver, so it applies
+   * the same tail — both entries agreed 2026-09-08.
+   */
+  {
+    ColonizeDosRng raid_rng;
+    dos_rng_seed(&raid_rng, 4242u);
+    ind->alarm_by_player[0] = 60;
+    col1.tribe[0].alarm[0].friction = 60;
+    c->active = true;
+    c->nation_id = 0;
+    c->population = 3;
+    c->colonist_count = 3;
+    c->stock[COLONIZE_CARGO_FOOD] = 20;
+    /* DS:0x54f6 = tribe 0's own attitude[euro 0] word (friction | attacks<<8);
+     * 0f14 clears the WHOLE word, both bytes. */
+    col1.tribe[0].alarm[0].attacks = 2;
+    const int alarm_rep_pre = (int)ind->alarm_by_player[0];
+    const int kind_rep = ai_contact_colony_raid_repelled(
+      &col1, &colonies, &units, &map, &raid_rng, 4, 0, c->id, 0, 1
+    );
+    int expect_rep = 0;
+    if (kind_rep == AI_RAID_STORES) {
+      expect_rep = -4;
+    } else if (kind_rep == AI_RAID_BURN || kind_rep == AI_RAID_WREAK) {
+      expect_rep = -12;
+    } else if (kind_rep == AI_RAID_SHIP || kind_rep == AI_RAID_SCALP) {
+      expect_rep = -16;
+    } else if (kind_rep == AI_RAID_GOLD) {
+      expect_rep = -8;
+    }
+    int expect_rep_alarm = alarm_rep_pre + expect_rep;
+    if (expect_rep_alarm < 0) {
+      expect_rep_alarm = 0;
+    }
+    if ((int)ind->alarm_by_player[0] != expect_rep_alarm) {
+      return fail("repelled-raid limb must apply the same 0f14 alarm tail");
+    }
+    if (col1_tribe_attitude(&col1.tribe[0], 0) != 0) {
+      return fail("repelled-raid limb must keep 0f14's unconditional attitude clear");
+    }
   }
 
   /*
@@ -243,11 +336,17 @@ int main(void) {
     brave->x = 8;
     brave->y = 5;
     brave->moves_left = 3;
+    /* Raid marker: 0f14's tail zeroes the home village's attitude word for
+     * every kind incl. "Nothing" — but only with a valid home_tribe_id. */
+    brave->home_tribe_id = 0;
     const int food_sp = csp->stock[COLONIZE_CARGO_FOOD];
     ai_contact_indian_raids(&ctx, 4);
     if (ai_contact_last_raid_kind() == AI_RAID_NOTHING &&
         csp->stock[COLONIZE_CARGO_FOOD] == food_sp &&
-        col1.tribe[0].alarm[2].attacks == 0) {
+        col1_tribe_attitude(&col1.tribe[0], 2) == 35) {
+      /* Any raid — "Nothing" included — zeroes the attitude word via 0f14's
+       * tail, so an untouched word means the gate never opened (the old
+       * third clause read the retired pulse attacks++ marker). */
       return fail("Spain gate ≥35 should allow raid when EN below 40");
     }
     /* Cleanup SP colony so later arms stay on EN fixtures. */
@@ -1192,6 +1291,10 @@ int main(void) {
     brave->nation_id = 4;
     ind->alarm_by_player[0] = 76; /* at war (DOS band: alarm > 0x4a), below the 80 burn band */
     col1.tribe[0].alarm[0].friction = 50;
+    /* Not the first attack — the live 0f14 word-zero now clears attacks
+     * after every raid, so the accumulation earlier sub-tests used to leave
+     * behind is gone; keep the @INDIANSURPRISE deniable branch out. */
+    col1.tribe[0].alarm[0].attacks = 1;
     col1.tribe[0].mission = 0xff;
     col1.nation[0].gold = 0; /* no GOLD arm */
     col1.indian[0].euro_diplo[0] |= COL1_INDIAN_MET_BIT;
@@ -1617,6 +1720,7 @@ int main(void) {
     brave->x = 5;
     brave->y = 5;
     brave->moves_left = 3;
+    brave->home_tribe_id = 0; /* raid-mark: 0f14 tail zeroes home attitude */
     ind->alarm_by_player[0] = 45; /* raid gate >=40, below thin at-war (alarm > 50) */
     col1.tribe[0].alarm[0].friction = 65;
     col1.indian[0].euro_diplo[0] |= COL1_INDIAN_MET_BIT; /* not at-war */
@@ -1632,9 +1736,11 @@ int main(void) {
     c->stock[COLONIZE_CARGO_FOOD] = 20;
     ai_contact_indian_raids(&ctx, 4);
     if (ai_contact_last_raid_kind() == AI_RAID_NOTHING) {
-      /* retry with more food/alarm already set — accept if attacks recorded */
-      if (col1.tribe[0].alarm[0].attacks == 0) {
-        return fail("surprise raid should loot or record attacks");
+      /* "Nothing" is a legal 0f14 roll; the raid still marks itself by
+       * zeroing the home village's attitude word (the retired attacks++
+       * marker no longer exists). */
+      if (col1_tribe_attitude(&col1.tribe[0], 0) != 0) {
+        return fail("surprise raid should loot or leave the 0f14 attitude clear");
       }
     } else if ((strstr(st_sur, "surprise") == NULL && strstr(st_sur, "denies") == NULL) ||
                strstr(st_sur, "Roanoke") == NULL) {
@@ -2536,9 +2642,12 @@ int main(void) {
     col1.tribe[0].nation_id = 4;
     col1.tribe[0].mission = 0xff;
     col1.tribe[0].alarm[0].friction = 65;
-    col1.tribe[0].alarm[0].attacks = 0;
 /* alarm pinned above (was relation write) */
-    col1.indian[0].euro_diplo[0] |= COL1_INDIAN_MET_BIT;
+    /* At war: the @INDIANSURPRISE deniable branch fires only while NOT at
+     * war (alarm ≤ 0x4a and no WAR bit) — this fixture is below the band,
+     * so pin the bit to exercise the @RAIDBURN chrome under test (it used
+     * to lean on a war bit leaked by earlier sub-tests). */
+    col1.indian[0].euro_diplo[0] |= COL1_INDIAN_MET_BIT | COL1_INDIAN_WAR_BIT;
     col1.nation[0].gold = 0; /* no GOLD */
     col1.head.founding_father[FF_POCAHONTAS] = -1;
     ColonizeColony* c_burn = &colonies.colonies[0];
@@ -3017,7 +3126,11 @@ int main(void) {
     col1.tribe[0].alarm[0].friction = 50;
     col1.tribe[0].alarm[0].attacks = 0;
 /* alarm pinned above (was relation write) */
-    col1.indian[0].euro_diplo[0] |= COL1_INDIAN_MET_BIT;
+    /* Peace: clear the WAR bit pinned by the BURN chrome fixture above so
+     * the 0f14 discharge gate is open for this block and the Pocahontas one. */
+    col1.indian[0].euro_diplo[0] = (uint8_t)(
+      (col1.indian[0].euro_diplo[0] | COL1_INDIAN_MET_BIT) & ~COL1_INDIAN_WAR_BIT
+    );
     col1.head.founding_father[FF_POCAHONTAS] = -1;
     ColonizeColony* c_fr = &colonies.colonies[0];
     c_fr->active = true;
@@ -3035,36 +3148,44 @@ int main(void) {
     if (raid_kind == AI_RAID_NOTHING) {
       return fail("raid friction escalate needs successful loot kind");
     }
-    int want_bump = 4;
+    /*
+     * DOS 0f14 alarm tail (ported 2026-09-08): a raid DISCHARGES alarm by the
+     * per-kind delta (goods −4, building −12, unit/ship −16, gold −8) behind
+     * the NOT-at-war gate; the old positive "friction bump" here asserted the
+     * retired fandom stand-in. Village friction has no writer on this path.
+     */
+    int want_delta = 0;
     if (raid_kind == AI_RAID_BURN || raid_kind == AI_RAID_WREAK) {
-      want_bump = 12;
-    } else if (raid_kind == AI_RAID_SCALP) {
-      want_bump = 16;
-    } else if (raid_kind == AI_RAID_GOLD || raid_kind == AI_RAID_SHIP) {
-      want_bump = 8;
+      want_delta = -12;
+    } else if (raid_kind == AI_RAID_SHIP || raid_kind == AI_RAID_SCALP) {
+      want_delta = -16;
+    } else if (raid_kind == AI_RAID_GOLD) {
+      want_delta = -8;
     } else if (raid_kind == AI_RAID_STORES) {
-      want_bump = 4;
+      want_delta = -4;
     }
-    const unsigned want_fr = (unsigned)(50 + want_bump);
-    if (col1.tribe[0].alarm[0].friction != want_fr) {
+    int want_alarm = 50 + want_delta;
+    if (want_alarm < 0) {
+      want_alarm = 0;
+    }
+    if ((int)ind->alarm_by_player[0] != want_alarm) {
       fprintf(
         stderr,
-        "unit_ai_contact: raid friction=%u (want %u kind=%d)\n",
-        (unsigned)col1.tribe[0].alarm[0].friction,
-        want_fr,
-        raid_kind
-      );
-      return fail("successful raid should bump tribe friction by kind delta");
-    }
-    if (ind->alarm_by_player[0] != want_fr) {
-      fprintf(
-        stderr,
-        "unit_ai_contact: raid alarm=%u (want %u kind=%d)\n",
+        "unit_ai_contact: raid alarm=%u (want %d kind=%d)\n",
         (unsigned)ind->alarm_by_player[0],
-        want_fr,
+        want_alarm,
         raid_kind
       );
-      return fail("successful raid should bump alarm_by_player by kind delta");
+      return fail("raid at peace should discharge alarm_by_player by DOS kind delta");
+    }
+    if (col1_tribe_attitude(&col1.tribe[0], 0) != 0) {
+      fprintf(
+        stderr,
+        "unit_ai_contact: raid attitude=%d (want 0 kind=%d)\n",
+        col1_tribe_attitude(&col1.tribe[0], 0),
+        raid_kind
+      );
+      return fail("raid must zero the home village attitude word (0f14 tail)");
     }
 
     /*
@@ -3103,7 +3224,13 @@ int main(void) {
       col1.head.difficulty = 2;
     }
 
-    /* Same path with Pocahontas → half kind bump. */
+    /*
+     * Same path with Pocahontas. The DOS 0f14 alarm tail's delta is NEGATIVE
+     * and the 00f2 halving (France / Pocahontas) applies to positive deltas
+     * only — so Pocahontas changes nothing here: the discharge lands in
+     * full, and village friction still has no writer on this path. (The old
+     * assertion halved the retired positive fandom bump.)
+     */
     col1.head.founding_father[FF_POCAHONTAS] = 0;
     ind->alarm_by_player[0] = 50;
     col1.tribe[0].alarm[0].friction = 50;
@@ -3119,36 +3246,38 @@ int main(void) {
     if (poca_kind == AI_RAID_NOTHING) {
       return fail("Pocahontas raid escalate needs successful loot kind");
     }
-    int poca_full = 4;
+    int poca_delta = 0;
     if (poca_kind == AI_RAID_BURN || poca_kind == AI_RAID_WREAK) {
-      poca_full = 12;
-    } else if (poca_kind == AI_RAID_SCALP) {
-      poca_full = 16;
-    } else if (poca_kind == AI_RAID_GOLD || poca_kind == AI_RAID_SHIP) {
-      poca_full = 8;
+      poca_delta = -12;
+    } else if (poca_kind == AI_RAID_SHIP || poca_kind == AI_RAID_SCALP) {
+      poca_delta = -16;
+    } else if (poca_kind == AI_RAID_GOLD) {
+      poca_delta = -8;
     } else if (poca_kind == AI_RAID_STORES) {
-      poca_full = 4;
+      poca_delta = -4;
     }
-    const unsigned want_poca = (unsigned)(50 + poca_full / 2);
-    if (col1.tribe[0].alarm[0].friction != want_poca) {
+    int want_poca = 50 + poca_delta;
+    if (want_poca < 0) {
+      want_poca = 0;
+    }
+    if ((int)ind->alarm_by_player[0] != want_poca) {
       fprintf(
         stderr,
-        "unit_ai_contact: poca raid friction=%u (want %u kind=%d)\n",
-        (unsigned)col1.tribe[0].alarm[0].friction,
-        want_poca,
-        poca_kind
-      );
-      return fail("Pocahontas should halve raid friction kind bump");
-    }
-    if (ind->alarm_by_player[0] != want_poca) {
-      fprintf(
-        stderr,
-        "unit_ai_contact: poca raid alarm=%u (want %u kind=%d)\n",
+        "unit_ai_contact: poca raid alarm=%u (want %d kind=%d)\n",
         (unsigned)ind->alarm_by_player[0],
         want_poca,
         poca_kind
       );
-      return fail("Pocahontas should halve raid alarm kind bump");
+      return fail("Pocahontas must not halve the negative 0f14 discharge");
+    }
+    if (col1_tribe_attitude(&col1.tribe[0], 0) != 0) {
+      fprintf(
+        stderr,
+        "unit_ai_contact: poca raid attitude=%d (want 0 kind=%d)\n",
+        col1_tribe_attitude(&col1.tribe[0], 0),
+        poca_kind
+      );
+      return fail("raid must zero the home village attitude word (0f14 tail)");
     }
     col1.head.founding_father[FF_POCAHONTAS] = -1;
   }
@@ -5295,6 +5424,281 @@ int main(void) {
       }
     }
     ctx.ai_popups = NULL;
+  }
+
+  /*
+   * @INDIANCITY / @INDIANWAGONS reparations — FUN_5bfb_022e LAB_5bfb_0def,
+   * the demand half's other two sites (viceroy_unpacked.c 96856-96979).
+   * The refuse limb LAB_5bfb_0ff2 (`attitude word += 0x80`) was the last
+   * unported raiser of the settlement attitude word; the accept limbs zero
+   * that word, apply a NEGATIVE `price*qty*4/-100` alarm delta and move the
+   * goods. The two GAME.TXT sections print their rows in opposite order, so
+   * the accepting row id is per-flavor (@INDIANCITY 2, @INDIANWAGONS 1) —
+   * both polarities are covered here.
+   */
+  {
+    AiPopupState rp;
+    ai_popup_init(&rp);
+    ctx.ai_popups = &rp;
+    ctx.human_nation = 0;
+    col1.player[0].control = 0; /* human → DOS's CHOICE limb, not `else` */
+    const uint16_t saved_turn = col1.head.turn;
+    col1.head.turn = 0; /* turn 0 → the once-per-8-turns latch never blocks */
+
+    colonies.colonies[0].active = true;
+    colonies.colonies[0].nation_id = 0;
+    snprintf(colonies.colonies[0].name, sizeof(colonies.colonies[0].name), "Jamestown");
+    for (int cg = 0; cg < COLONIZE_CARGO_COUNT; ++cg) {
+      colonies.colonies[0].stock[cg] = 0;
+    }
+    /*
+     * Food ≤ 0x4a so @INDIANBEGFOOD cannot fire — the visit then falls
+     * through to LAB_5bfb_0def exactly as DOS orders the two blocks. Tools
+     * are the only stocked good, so the cargo scan is deterministic (it
+     * draws RNG only for the Muskets row) and Tools' DS:0x84BC weight of 1
+     * makes the accept delta a clean −1.
+     */
+    colonies.colonies[0].stock[COLONIZE_CARGO_FOOD] = 10;
+    colonies.colonies[0].stock[COLONIZE_CARGO_TOOLS] = 40;
+    col1.tribe[0].nation_id = 4;
+    col1.tribe[0].state.capital = 0;
+    col1.tribe[0].alarm[0].friction = 20;
+    col1.tribe[0].alarm[0].attacks = 0;
+    col1.indian[0].alarm_by_player[0] = 50; /* ≤ 0x4a, away from the clamps */
+    col1.indian[0].euro_diplo[0] |= COL1_INDIAN_MET_BIT;
+    col1.indian[0].contact_state[0] = 0;
+    col1.indian[0].muskets = 0;
+    col1.indian[0].horse_herds = 0;
+
+    const int rep_brave = units_spawn_allow_stack(
+      &units, 0, colonies.colonies[0].x + 1, colonies.colonies[0].y + 1);
+    if (rep_brave < 0) {
+      return fail("spawn reparations-visit Brave");
+    }
+    units_get(&units, rep_brave)->nation_id = 4;
+    units_get(&units, rep_brave)->home_tribe_id = 0;
+    /* Same DOS move-tail trigger the gift / beg arms use. */
+    ai_native_note_brave_turn_origin(
+      rep_brave, colonies.colonies[0].x + 3, colonies.colonies[0].y + 3);
+
+    ColonizeDosRng rep_rng;
+    ColonizeDosRng* saved_rng = ctx.rng;
+    dos_rng_seed(&rep_rng, 7u);
+    ctx.rng = &rep_rng;
+
+    /* --- @INDIANCITY refuse: +0x80 on the word, not a grain moved. --- */
+    ai_popup_clear(&rp);
+    ai_contact_try_village_beg_food(&ctx, 4);
+    int rq = -1;
+    for (int i = 0; i < rp.queue_count; ++i) {
+      if (rp.queue[i].tag == AI_POPUP_TAG_CONTACT_REPARATIONS &&
+          rp.queue[i].kind == AI_POPUP_KIND_CHOICE) {
+        rq = i;
+        break;
+      }
+    }
+    if (rq < 0) {
+      ctx.rng = saved_rng;
+      return fail("reparations demand should fire beside a met colony with stores");
+    }
+    if (rp.queue[rq].payload != 0) {
+      ctx.rng = saved_rng;
+      return fail("a colony encounter is the @INDIANCITY flavor (payload 0)");
+    }
+    if (rp.queue[rq].choice_count != 2) {
+      ctx.rng = saved_rng;
+      return fail("@INDIANCITY should offer both DOS rows");
+    }
+    const int stock_before_refuse = colonies.colonies[0].stock[COLONIZE_CARGO_TOOLS];
+    ai_popup_clear(&rp);
+    rp.has_result = true;
+    rp.result_cancelled = false;
+    rp.result_tag = AI_POPUP_TAG_CONTACT_REPARATIONS;
+    rp.result_nation_a = 0;
+    rp.result_nation_b = 4;
+    rp.result_payload = 0; /* @INDIANCITY */
+    rp.result_choice_id = 1; /* row 1 = "Man the stockade." = refuse */
+    ai_contact_apply_popup_result(&ctx, &rp);
+    if (colonies.colonies[0].stock[COLONIZE_CARGO_TOOLS] != stock_before_refuse) {
+      ctx.rng = saved_rng;
+      return fail("@INDIANCITY refuse must not move the colony stores");
+    }
+    if (col1_tribe_attitude(&col1.tribe[0], 0) != 20 + 0x80) {
+      fprintf(
+        stderr, "unit_ai_contact: attitude word %d\n",
+        col1_tribe_attitude(&col1.tribe[0], 0)
+      );
+      ctx.rng = saved_rng;
+      return fail("LAB_5bfb_0ff2: a refused demand adds 0x80 to the attitude word");
+    }
+
+    /* --- @INDIANCITY accept: word zeroed, alarm eased, goods handed over. --- */
+    col1.tribe[0].alarm[0].friction = 20;
+    col1.tribe[0].alarm[0].attacks = 0;
+    col1.indian[0].contact_state[0] = 0;
+    ai_popup_clear(&rp);
+    dos_rng_seed(&rep_rng, 7u);
+    ai_contact_try_village_beg_food(&ctx, 4);
+    rq = -1;
+    for (int i = 0; i < rp.queue_count; ++i) {
+      if (rp.queue[i].tag == AI_POPUP_TAG_CONTACT_REPARATIONS &&
+          rp.queue[i].kind == AI_POPUP_KIND_CHOICE) {
+        rq = i;
+        break;
+      }
+    }
+    if (rq < 0) {
+      ctx.rng = saved_rng;
+      return fail("reparations demand should re-offer after a refusal");
+    }
+    const int stock_before_accept = colonies.colonies[0].stock[COLONIZE_CARGO_TOOLS];
+    const uint8_t rel_before_accept_rep = ai_diplo_indian_relation(&col1, 4 + (0), 0);
+    ai_popup_clear(&rp);
+    rp.has_result = true;
+    rp.result_cancelled = false;
+    rp.result_tag = AI_POPUP_TAG_CONTACT_REPARATIONS;
+    rp.result_nation_a = 0;
+    rp.result_nation_b = 4;
+    rp.result_payload = 0;
+    rp.result_choice_id = 2; /* row 2 = "Hand them over." = accept */
+    ai_contact_apply_popup_result(&ctx, &rp);
+    if (col1_tribe_attitude(&col1.tribe[0], 0) != 0) {
+      ctx.rng = saved_rng;
+      return fail("@INDIANCITY accept should zero the village attitude word");
+    }
+    if (colonies.colonies[0].stock[COLONIZE_CARGO_TOOLS] >= stock_before_accept) {
+      ctx.rng = saved_rng;
+      return fail("@INDIANCITY accept should hand the demanded goods over");
+    }
+    if (ai_diplo_indian_relation(&col1, 4 + (0), 0) <= rel_before_accept_rep) {
+      ctx.rng = saved_rng;
+      return fail("@INDIANCITY accept applies a NEGATIVE alarm delta");
+    }
+
+    /* --- @INDIANWAGONS: no colony in the encounter, accept is row 1. --- */
+    bool saved_colony_active[COLONIZE_COLONIES_MAX];
+    for (int ci = 0; ci < COLONIZE_COLONIES_MAX; ++ci) {
+      saved_colony_active[ci] = colonies.colonies[ci].active;
+      colonies.colonies[ci].active = false;
+    }
+    int wag_ti = units_find_type(&units, "Wagon Train");
+    if (wag_ti < 0) {
+      if (units.type_count < 4) {
+        units.type_count = 4;
+      }
+      wag_ti = 3;
+      snprintf(units.types[wag_ti].name, sizeof(units.types[wag_ti].name), "Wagon Train");
+      units.types[wag_ti].domain = COLONIZE_UNIT_DOMAIN_LAND;
+      units.types[wag_ti].movement = 3;
+      units.types[wag_ti].cargo = 2;
+    }
+    const int rep_wag = units_spawn_allow_stack(
+      &units, wag_ti, colonies.colonies[0].x, colonies.colonies[0].y);
+    ColonizeUnit* rep_wag_u = rep_wag >= 0 ? units_get(&units, rep_wag) : NULL;
+    if (!rep_wag_u) {
+      for (int ci = 0; ci < COLONIZE_COLONIES_MAX; ++ci) {
+        colonies.colonies[ci].active = saved_colony_active[ci];
+      }
+      ctx.rng = saved_rng;
+      return fail("spawn reparations Wagon Train");
+    }
+    rep_wag_u->nation_id = 0;
+    rep_wag_u->hold_goods_type[0] = COLONIZE_CARGO_TOOLS;
+    rep_wag_u->hold_goods_amount[0] = 30;
+    col1.tribe[0].alarm[0].friction = 20;
+    col1.tribe[0].alarm[0].attacks = 0;
+    col1.indian[0].contact_state[0] = 0;
+    col1.indian[0].alarm_by_player[0] = 50;
+    ai_popup_clear(&rp);
+    dos_rng_seed(&rep_rng, 7u);
+    ai_contact_try_village_beg_food(&ctx, 4);
+    rq = -1;
+    for (int i = 0; i < rp.queue_count; ++i) {
+      if (rp.queue[i].tag == AI_POPUP_TAG_CONTACT_REPARATIONS &&
+          rp.queue[i].kind == AI_POPUP_KIND_CHOICE) {
+        rq = i;
+        break;
+      }
+    }
+    if (rq < 0 || rp.queue[rq].payload != 1) {
+      for (int ci = 0; ci < COLONIZE_COLONIES_MAX; ++ci) {
+        colonies.colonies[ci].active = saved_colony_active[ci];
+      }
+      units_despawn(&units, rep_wag);
+      ctx.rng = saved_rng;
+      return fail("a wagon encounter with no colony is the @INDIANWAGONS flavor");
+    }
+    const uint8_t rel_before_wagons = ai_diplo_indian_relation(&col1, 4 + (0), 0);
+    ai_popup_clear(&rp);
+    rp.has_result = true;
+    rp.result_cancelled = false;
+    rp.result_tag = AI_POPUP_TAG_CONTACT_REPARATIONS;
+    rp.result_nation_a = 0;
+    rp.result_nation_b = 4;
+    rp.result_payload = 1; /* @INDIANWAGONS */
+    rp.result_choice_id = 1; /* row 1 = "Hand them over." = accept HERE */
+    ai_contact_apply_popup_result(&ctx, &rp);
+    if (rep_wag_u->hold_goods_amount[0] != 0) {
+      for (int ci = 0; ci < COLONIZE_COLONIES_MAX; ++ci) {
+        colonies.colonies[ci].active = saved_colony_active[ci];
+      }
+      units_despawn(&units, rep_wag);
+      ctx.rng = saved_rng;
+      return fail("@INDIANWAGONS accept should strip the wagon's hold");
+    }
+    if (col1_tribe_attitude(&col1.tribe[0], 0) != 0 ||
+        ai_diplo_indian_relation(&col1, 4 + (0), 0) <= rel_before_wagons) {
+      for (int ci = 0; ci < COLONIZE_COLONIES_MAX; ++ci) {
+        colonies.colonies[ci].active = saved_colony_active[ci];
+      }
+      units_despawn(&units, rep_wag);
+      ctx.rng = saved_rng;
+      return fail("@INDIANWAGONS accept should zero the word and ease alarm");
+    }
+
+    /* --- @INDIANWAGONS refuse: row 2 here, same +0x80 shared limb. --- */
+    rep_wag_u->hold_goods_type[0] = COLONIZE_CARGO_TOOLS;
+    rep_wag_u->hold_goods_amount[0] = 30;
+    col1.tribe[0].alarm[0].friction = 20;
+    col1.tribe[0].alarm[0].attacks = 0;
+    col1.indian[0].contact_state[0] = 0;
+    ai_popup_clear(&rp);
+    dos_rng_seed(&rep_rng, 7u);
+    ai_contact_try_village_beg_food(&ctx, 4);
+    ai_popup_clear(&rp);
+    rp.has_result = true;
+    rp.result_cancelled = false;
+    rp.result_tag = AI_POPUP_TAG_CONTACT_REPARATIONS;
+    rp.result_nation_a = 0;
+    rp.result_nation_b = 4;
+    rp.result_payload = 1;
+    rp.result_choice_id = 2; /* row 2 = "Circle the wagons." = refuse */
+    ai_contact_apply_popup_result(&ctx, &rp);
+    const int wagons_refuse_ok =
+      rep_wag_u->hold_goods_amount[0] == 30 &&
+      col1_tribe_attitude(&col1.tribe[0], 0) == 20 + 0x80;
+
+    /* Leave the fixture exactly as the next sub-test expects to find it. */
+    for (int ci = 0; ci < COLONIZE_COLONIES_MAX; ++ci) {
+      colonies.colonies[ci].active = saved_colony_active[ci];
+    }
+    units_despawn(&units, rep_wag);
+    units_despawn(&units, rep_brave);
+    for (int cg = 0; cg < COLONIZE_CARGO_COUNT; ++cg) {
+      colonies.colonies[0].stock[cg] = 0;
+    }
+    colonies.colonies[0].stock[COLONIZE_CARGO_FOOD] = 100;
+    col1.tribe[0].alarm[0].friction = 0;
+    col1.tribe[0].alarm[0].attacks = 0;
+    col1.indian[0].contact_state[0] = 0;
+    col1.indian[0].alarm_by_player[0] = 50;
+    col1.head.turn = saved_turn;
+    ctx.rng = saved_rng;
+    ctx.ai_popups = NULL;
+    if (!wagons_refuse_ok) {
+      return fail("@INDIANWAGONS refuse keeps the hold and adds 0x80 to the word");
+    }
+    fprintf(stderr, "unit_ai_contact: reparations accept/refuse ok\n");
   }
 
   /*

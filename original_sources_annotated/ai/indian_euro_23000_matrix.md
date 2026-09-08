@@ -202,11 +202,14 @@ pieces:
    ("hard reset to 0 if the gap is ≥2 tiers") is **dead code**: quartile
    output is bounded 0..3, so `(iVar3>>1)-(iVar6>>1)` is always in
    `{-1,0,1}`, never `>=2` — the guarding `if` is always true, so only
-   the clamp-down arm can ever execute. **Now ported** (2026-08-24):
-   storage (`ColonizeCol1Save.indian_tension`, runtime-only, not part of
-   the persisted col1 record — see `col1_save.h`'s field doc) + the
-   write formula, both in `ai_diplo.c`'s `ai_diplo_indian_relation_delta`
-   / `ai_diplo_indian_tension_tier_update`. **Reader wired 2026-09-08**:
+   the clamp-down arm can ever execute. **Now ported** (2026-08-24;
+   storage corrected 2026-09-08c: the 2026-08-24 `indian_tension` array was
+   a phantom duplicate — DS:0x54f6 is the settlement record's `attitude[4]`
+   word at +10 = `ColonizeCol1Tribe.alarm[]`, save-persisted inside the
+   tribe record; accessors `col1_tribe_attitude[_set]`, see
+   docs/indians.md) + the write formula, both in `ai_diplo.c`'s
+   `ai_diplo_indian_relation_delta` /
+   `ai_diplo_indian_tension_tier_update`. **Reader wired 2026-09-08**:
    `FUN_521d_0896` (the Euro-AI hostility gate,
    `viceroy_unpacked.c:87319-87340`) is ported in `ai_goals.c` as
    `ai_goals_filter_profession_by_distance_wealth` — an adjacent native

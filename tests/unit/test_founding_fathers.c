@@ -1275,7 +1275,15 @@ int main(void) {
       }
     }
 
-    /* Revere: step onto empty foreign colony → auto-arm + combat. */
+    /*
+     * Revere: step onto empty foreign colony → phantom militia + combat.
+     * DOS FUN_5fef_1b0e 100417-100432 spawns a TEMPORARY defender (scratch
+     * @UNIT row 0x17, graphic 0x4b, base combat = Colonists' defense + 1) and
+     * deletes it again after the roll (FUN_291f_0a06). The colonist never
+     * leaves the colony and the warehouse muskets are never debited — 1b0e
+     * reads colony +0xb8 only as the gate and as the "tribe loots muskets"
+     * test on a burned town, and writes it on no outcome.
+     */
     {
       char err[64];
       ColonizeWorldMap rmap;
@@ -1303,7 +1311,28 @@ int main(void) {
       colony->stock[COLONIZE_CARGO_MUSKETS] = 50;
       rcol.colony_count = 1;
 
-      /* Ensure Soldiers type exists for eject. */
+      /*
+       * DOS 1b0e raw 100536-100545: on Discoverer (difficulty 0, which
+       * col1_save_init leaves zeroed) an attack on a HUMAN-controlled
+       * European's undefended town zeroes the attacker outright while the
+       * turn counter is under 0x50 — the beginner shield. ccol1's colony
+       * owner (nation 0) is human-controlled, so stamp the turn past that
+       * window; this block is about Revere's phantom, not the shield (which
+       * has its own test in test_units.c).
+       */
+      ccol1.head.turn = 100;
+
+      /* Shared upool: earlier Washington sub-tests leave demoted defenders
+       * parked on (6,6); clear the tile so the no-survivor scans below see
+       * only what this block created. */
+      for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+        if (upool.units[i].active && upool.units[i].x == 6 && upool.units[i].y == 6) {
+          (void)units_despawn(&upool, upool.units[i].id);
+        }
+      }
+
+      /* Ensure the Soldiers type exists — the Revere phantom takes it (DOS
+       * writes row 0x17 with attack 2 / defense 2, the same numbers). */
       if (upool.type_count < 7) {
         snprintf(upool.types[6].name, sizeof(upool.types[6].name), "Soldiers");
         upool.types[6].attack = 2;
@@ -1338,16 +1367,16 @@ int main(void) {
         map_free(&rmap);
         return fail("Revere attacker should occupy colony tile after win");
       }
-      if (colony->stock[COLONIZE_CARGO_MUSKETS] != 0) {
+      if (colony->stock[COLONIZE_CARGO_MUSKETS] != 50) {
         map_free(&rmap);
-        return fail("Revere should spend warehouse muskets");
+        return fail("Revere must not spend warehouse muskets (DOS never writes +0xb8)");
       }
-      /* bugs.md 217: the beaten armed colonist DEMOTES (sheds muskets, keeps
-       * status) and is readmitted to the colony rather than dying — and stays
-       * put through the capture (captured colonists stay in the colony). */
-      if (colony->colonist_count != 1) {
+      /* Phantom model: the picked colonist stayed at work, so a EURO
+       * attacker's win costs the town nothing but its flag (raw 100680-100692
+       * kills a colonist only for a NATIVE attacker). */
+      if (colony->colonist_count != 1 || colony->population != 1) {
         map_free(&rmap);
-        return fail("Revere loser should demote back into the colony, not die");
+        return fail("Revere phantom must not touch the colony's population");
       }
       if (colony->nation_id != 1) {
         map_free(&rmap);
@@ -1356,6 +1385,65 @@ int main(void) {
       if (units_last_combat_outcome() != 1) {
         map_free(&rmap);
         return fail("Revere combat outcome should be attacker win");
+      }
+      for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+        const ColonizeUnit* p = &upool.units[i];
+        if (p->active && p->id != atk && p->x == 6 && p->y == 6) {
+          fprintf(
+            stderr,
+            "unit_founding_fathers: stray unit id=%d type=%d nation=%d name=%s\n",
+            p->id, p->type_index, p->nation_id,
+            units_display_name(&upool, p)
+          );
+          map_free(&rmap);
+          return fail("Revere phantom must not survive the fight as a real unit");
+        }
+      }
+
+      /* Attacker LOSES: the phantom still evaporates and the colony is
+       * untouched — no pop loss, no muskets spent, no defender left behind. */
+      {
+        (void)units_despawn(&upool, atk); /* clear the tile the winner took */
+        colony->nation_id = 0;
+        colony->population = 2;
+        colony->colonist_count = 2;
+        colony->colonists[0].active = true;
+        colony->colonists[1].active = true;
+        colony->stock[COLONIZE_CARGO_MUSKETS] = 50;
+        /* Weak attacker: 1×8 = 8 < phantom ((2+4)*16)>>2 = 24 → defender wins. */
+        upool.types[0].attack = 1;
+        const int atk3 = units_spawn_allow_stack(&upool, 0, 5, 6);
+        if (atk3 < 0) {
+          map_free(&rmap);
+          return fail("Revere loser-attacker spawn");
+        }
+        ColonizeUnit* ra3 = units_get(&upool, atk3);
+        ra3->nation_id = 1;
+        ra3->moves_left = 3 * UNITS_MP_PER_TILE;
+        units_set_ff_col1(&ccol1);
+        const bool moved = units_try_move(&upool, atk3, &rmap, 6, 6, &rcol, NULL);
+        units_set_ff_col1(NULL);
+        if (moved) {
+          map_free(&rmap);
+          return fail("Revere: beaten attacker must not enter the colony");
+        }
+        if (colony->nation_id != 0 || colony->population != 2 ||
+            colony->colonist_count != 2) {
+          map_free(&rmap);
+          return fail("Revere phantom win must leave the colony exactly as it was");
+        }
+        if (colony->stock[COLONIZE_CARGO_MUSKETS] != 50) {
+          map_free(&rmap);
+          return fail("Revere phantom win must not spend muskets");
+        }
+        for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+          const ColonizeUnit* p = &upool.units[i];
+          if (p->active && p->x == 6 && p->y == 6) {
+            map_free(&rmap);
+            return fail("Revere phantom must be despawned after winning too");
+          }
+        }
+        upool.types[0].attack = 4;
       }
 
       /* Without FF context: no auto-arm, walk onto colony with muskets intact. */

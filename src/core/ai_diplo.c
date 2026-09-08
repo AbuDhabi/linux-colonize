@@ -3635,7 +3635,7 @@ static void ai_diplo_indian_tension_tier_update(
   int delta
 ) {
   /* Operands are DOS alarm values (0..100), not the Linux relation view. */
-  if (!col1 || !col1->indian_tension || !col1->tribe || delta >= 0) {
+  if (!col1 || !col1->tribe || delta >= 0 || euro_nation < 0 || euro_nation > 3) {
     return;
   }
   int old99 = old_relation > 99 ? 99 : (old_relation < 0 ? 0 : old_relation);
@@ -3648,9 +3648,17 @@ static void ai_diplo_indian_tension_tier_update(
     if ((int)col1->tribe[ti].nation_id != indian_nation) {
       continue;
     }
-    int16_t* slot = &col1->indian_tension[(size_t)ti * 4 + (size_t)euro_nation];
-    if (*slot > cap) {
-      *slot = (int16_t)cap;
+    /*
+     * The slot is the settlement record's own attitude[euro] word
+     * (`(ti*9 + euro)*2 + 0x54f6` == `ti*0x12 + 0x54ec + 10 + euro*2`) =
+     * ColonizeCol1Tribe.alarm[euro] {friction, attacks}. Repointed
+     * 2026-09-08 off the phantom `indian_tension` array, which was never
+     * saved and never non-zero, so this clamp was a no-op until now.
+     * DOS compares signed (`if (cap < w) w = cap;`).
+     */
+    ColonizeCol1Tribe* t = &col1->tribe[ti];
+    if (col1_tribe_attitude(t, euro_nation) > cap) {
+      col1_tribe_attitude_set(t, euro_nation, cap);
     }
   }
 }

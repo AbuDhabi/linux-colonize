@@ -156,7 +156,7 @@ Difficulty / year / building-present gates can demote 2/3/4 → 1 or 0.
 
 ### Apply + tension
 
-| Kind | Effect | Tension delta arg to `0d6c` |
+| Kind | Effect | **Alarm** delta arg to `0d6c` |
 |------|--------|------------------------------|
 | 1 | Halve-ish stock (clamp 1..10 roll); horses/tools side effects on tribe | `0xfffc` (−4) |
 | 2 | Remove building; reassign jobs if needed | `0xfff4` (−12) |
@@ -164,13 +164,23 @@ Difficulty / year / building-present gates can demote 2/3/4 → 1 or 0.
 | 4 | Subtract rolled gold from nation ledger | `0xfff8` (−8) |
 | 0 | Scare dialog only | skip `0d6c` |
 
-Then clear war/chrome word at `(param_3*9 + euro)*2 + 0x54f6` — confirmed
-2026-08-24 to be the DS:0x54f6 grudge/tension table itself (same table as
-`docs/mysteries_catalog.md`'s entry / `ColonizeCol1Save.indian_tension`);
-`param_3` is the raiding unit's home-tribe/settlement index (same index
-space as `unit+6` / Linux `ColonizeUnit.home_tribe_id`, which is already
-kept in the same array-index space as `indian_tension` — see `ai.c`'s
-tribe-compaction remap). The clear sits at the function's single `return`
+`0d6c`'s real (non-segment) argument list is
+`0d6c(indian_nation, euro, delta, 0)` = `FUN_4cc6_00f2` = the **alarm**
+writer, not a tension one — and each arm reaches it only past
+`if ((FUN_281f_0a38(0x281f,*(undefined2 *)0x8d50,uVar5) & 2) != 0) goto
+LAB_5fef_16d2;` (raw 99993 and repeats), i.e. `FUN_15b3_0004(indian_nation,
+euro) & 2` = the WAR bit, with the branch **skipping** the call. So a
+successful raid *discharges* the tribe's alarm toward that European, and
+only while the two are not already at war.
+
+Then clear the word at `(param_3*9 + euro)*2 + 0x54f6` — **corrected
+2026-09-08**: that address is not a table of its own but field **+10** of the
+stride-`0x12` settlement record at `DS:0x54ec`
+(`(t*9+e)*2 + 0x54f6 == t*0x12 + 0x54ec + 10 + e*2`), i.e. `int16_t
+attitude[4]` = Linux `ColonizeCol1Tribe.alarm[e]` `{friction, attacks}`. DOS
+zeroes the **whole word**, so both bytes go. `param_3` is the raiding unit's
+home-tribe/settlement index (same index space as `unit+6` / Linux
+`ColonizeUnit.home_tribe_id`). The clear sits at the function's single `return`
 and fires unconditionally for every roll of `local_6` (kind 0..4 —
 including "Nothing"/raiding-party-wiped-out): the act of raiding itself
 discharges the raiding tribe's accumulated tension toward that Euro
@@ -179,13 +189,28 @@ nation, win or lose loot-wise.
 Human: sounds + side-art strings `0x1b8a`…`0x1bba` by kind.
 
 **Linux:** `@RAID*` kind picker in `ai_contact_indian_raids` — structural.
-STORES half-stock clamp **Done** thin; GOLD drain peel **Done** thin. Kind-scaled
-friction/alarm escalate (Series J: STORES +4, BURN/WREAK +12, SCALP +16, GOLD/SHIP
-+8; Pocahontas/France half) **Done** thin. Full `0f14` RNG ladders still **PARKED**.
-**Tension discharge wired 2026-08-24**: `ai_contact_indian_raids` clears
-`indian_tension[brave->home_tribe_id * 4 + target_euro]` to 0 right after
-`ai_contact_apply_raid_loot`, for every raid kind including Nothing — see
-`ai_contact.c`'s colony-approach block. `FUN_5fef_1b0e` (empty-tile Attack)
-has two more clear sites on the same table (lines ~101041/101297) not
-wired here — that path lives in `units.c`, outside this pass's file
-domain (Indian/contact), left for whoever owns combat/units.
+STORES half-stock clamp **Done** thin; GOLD drain peel **Done** thin.
+**Alarm tail Done 2026-09-08** (`ai_contact_raid_alarm_tail`, `ai_contact.c`):
+the DOS-literal NEGATIVE deltas above behind the `FUN_15b3_0004 & 2` war
+gate, via `ai_contact_alarm_delta_00f2` → `ai_diplo_indian_alarm_delta`, and
+wired into **both** entries to this resolver — the raid pulse in
+`ai_contact_indian_raids` and the 1b0e repelled-at-a-colony handoff
+`ai_contact_colony_raid_repelled` — each immediately before its own DS:0x54f6
+clear, matching DOS's order. AiRaidKind→DOS kind: `STORES`=1, `BURN`/`WREAK`=2,
+`SHIP`/`SCALP`=3 (kind 3 walks ship types `0xd..0x12`; the port's colonist-kill
+band has no DOS kind and shares the row), `GOLD`=4. This **retires** the
+former Series-J POSITIVE escalate (STORES +4, BURN/WREAK +12, SCALP +16,
+GOLD/SHIP +8 via `ai_contact_alarm_bump_amount`), which had both the sign and
+the kind-3 assignment wrong — same retirement rule as the three fandom alarm
+drips (bugs.md 295): DOS grows Indian alarm only through `FUN_4d56_152e`.
+Full `0f14` RNG ladders still **PARKED**.
+**Tension discharge wired 2026-08-24, repointed at real storage 2026-09-08**:
+both entries clear the raiding village's attitude word with
+`col1_tribe_attitude_set(&col1->tribe[home_tribe_id], target_euro, 0)` right
+after `ai_contact_apply_raid_loot`, for every raid kind including Nothing.
+Until the repoint this wrote into `ColonizeCol1Save.indian_tension`, a
+never-saved, never-raised parallel array (now deleted), so the discharge was a
+no-op; it now really empties that village's `friction` and `attacks` toward the
+raided European, which is what DOS raw 100034 does. `FUN_5fef_1b0e`
+(empty-tile Attack) has two more clear sites on the same word
+(lines ~101041/101297), wired in `units.c` (`units_indian_tension_clear`).

@@ -149,8 +149,8 @@ static void combat_analysis_fill_mods(
    * the colony's Muskets stock (colony record +0xb8 = stock[15]) is >= 0x32
    * (50), DOS swaps the defender graphic to 0x4b, does INC on the base combat
    * byte and sets 0x8d03 bit 2 = flags bit 0x400. The port models Revere by
-   * ejecting a real Soldier instead (founding_fathers_revere_auto_arm), so
-   * nothing sets this bit yet — see docs/combat.md, trigger left open.
+   * arming the phantom temp defender (units_spawn_colony_temp_defender), and
+   * the g_units_revere_muskets_latch feeds this flag — see docs/combat.md.
    */
   if (flags->flags & COMBAT_FLAG_MUSKETS) {
     combat_analysis_push_row_icon(

@@ -4,6 +4,28 @@
 
 #include "core/founding_fathers.h"
 
+/*
+ * DOS `bVar28` (FUN_5fef_1b0e, raw 100387): the defender this engagement is
+ * resolving was auto-spawned by 1b0e itself because no live unit stood on the
+ * attacked settlement — the colony militia / Paul Revere stand-in (raw
+ * 100417-100432) or the empty-dwelling Brave (raw 100405-100416). Both arms
+ * set it. The port builds the same two phantoms in units.c, which raises this
+ * latch around its combat_land_engage call; nothing else may set it.
+ *
+ * It lives here, not in ColonizeCombatStrengthCtx, because ~20 sites across
+ * ai_*.c build that struct field-by-field — a new field would read
+ * uninitialized there.
+ */
+static bool g_combat_auto_defender = false;
+
+void combat_set_auto_defender(bool on) {
+  g_combat_auto_defender = on;
+}
+
+bool combat_auto_defender(void) {
+  return g_combat_auto_defender;
+}
+
 void combat_side_flags_clear(ColonizeCombatSideFlags* f) {
   if (!f) {
     return;
@@ -592,7 +614,7 @@ void combat_apply_1b0e_peels(
 
   /*
    * DOS 1b0e 1f0b (unported until 2026-09-03): land vs land, attacker type
-   * attack (5236) > 1 and defender type defense (5235) < 2 → defender
+   * attack (5236, the +6 column) > 1 and defender type defense (5235, +5) < 2 → defender
    * strength halved. No 8d00 flag — DOS 636c has no row for it.
    */
   if (land && at->attack > 1 && dt->defense < 2) {
@@ -695,6 +717,56 @@ void combat_apply_1b0e_peels(
       !combat_nation_is_ai(ctx->col1, atk_nat) && def_nat >= 0 && def_nat <= 3 &&
       combat_nation_is_ai(ctx->col1, def_nat)) {
     io->atk_strength -= io->atk_strength >> 2;
+  }
+
+  /*
+   * Discoverer beginner shield — ported 2026-09-08. DOS 1b0e raw 100536-100545
+   * (asm block guarded by `*(byte *)0x53a6 < 2`), the last statement of the
+   * difficulty-handicap group:
+   *
+   *   if ((*(byte *)0x53a6 < 2) &&
+   *       (((*(byte *)0x5382 & 1) == 0 || iVar18 < 0) || (0xc < uVar19 && uVar19 < 0x13))) {
+   *     if (((uVar15 < 4 && *(char *)(uVar15 * 0x34 + 0x543f) == '\0') &&
+   *          *(int *)0x538e < 0x50) && (-1 < iVar18)) {
+   *       if (*(char *)0x53a6 == '\0') local_92 = local_92 - (local_92 >> 2);
+   *       else                         local_92 = local_92 >> 1;
+   *       if ((bVar28) && (*(char *)0x53a6 == '\0')) local_92 = 0;
+   *     }
+   *     ...
+   *
+   * `local_92` is the ATTACKER (built from param_1 via FUN_281f_09c8(param_1,1)
+   * and read by the roll `iVar23 = FUN_281f_04d4(1, local_a8 + local_92);
+   * bVar8 = iVar23 <= local_92`), so this ZEROES the attacker: a raid on an
+   * undefended town owned by a human on Discoverer can never be won, however
+   * strong the attacker — the roll still runs (1..def) and always loses.
+   *
+   * Gate terms, all of them:
+   *   0x53a6 == 0            difficulty Discoverer exactly (the enclosing
+   *                          `< 2` block halves the attacker at Explorer, but
+   *                          only difficulty 0 reaches the zero)
+   *   uVar15 < 4 && 0x543f   the DEFENDER is a human-controlled European
+   *   0x538e < 0x50          turn counter under 80 — the shield expires
+   *   -1 < iVar18            a COLONY stands on the attacked tile. This is why
+   *                          only the militia/Revere arm of bVar28 can reach
+   *                          it: the empty-village Brave arm runs with
+   *                          iVar18 < 0 (and an Indian defender), so it is
+   *                          excluded here even though it sets bVar28 too
+   *   0x5382&1 / ship        outer term: no WoI, or the attacker is a hull
+   *                          (types 0xd..0x12). With a colony required above,
+   *                          "iVar18 < 0" cannot help, so it reduces to this
+   *   bVar28                 the defender was auto-spawned (combat_auto_defender)
+   *
+   * NOT ported (owner's call, same raw lines): the sibling
+   * `local_92 -= local_92>>2` / `>>= 1` and `local_92 >>= 1` handicaps that
+   * fire for ANY attacker of a human European, and the `0x53a6 == 0 &&
+   * attacker human` doubling at raw 100549. The port's "Discoverer damper"
+   * above keys on a human ATTACKER vs an AI defender, which is the mirror
+   * image of what these bytes say. See docs/combat.md.
+   */
+  if (ctx->col1 && g_combat_auto_defender && (int)ctx->col1->head.difficulty == 0 &&
+      def_nat >= 0 && def_nat <= 3 && !combat_nation_is_ai(ctx->col1, def_nat) && on_colony &&
+      (int)ctx->col1->head.turn < 0x50 && (!combat_woi_active(ctx->col1) || atk_ship)) {
+    io->atk_strength = 0;
   }
 
   /* Scout vs Artillery: force defender win (Indian scout / human arty thin). */

@@ -132,6 +132,28 @@ enum {
 };
 
 /*
+ * Reparations CHOICE (CONTACT_REPARATIONS; FUN_5bfb_022e LAB_5bfb_0def).
+ * DOS's `local_c` is FUN_291f_019c's 1-based row number, and the two
+ * GAME.TXT sections print their rows in OPPOSITE order, so the accepting
+ * row id is per-flavor — DOS reads `local_c != 2 -> refuse` at the
+ * @INDIANCITY site (raw 96895) and `local_c == 1 -> accept` at the
+ * @INDIANWAGONS site (raw 96962):
+ *
+ *   @INDIANCITY   row 1 "Man the stockade."   row 2 "Hand them over."
+ *   @INDIANWAGONS row 1 "Hand them over."     row 2 "Circle the wagons."
+ */
+enum {
+  AI_CONTACT_REPARATIONS_ROW1 = 1,
+  AI_CONTACT_REPARATIONS_ROW2 = 2
+};
+
+/* Which of the two demand sites is on offer (CONTACT_REPARATIONS payload). */
+enum {
+  AI_CONTACT_REPARATIONS_CITY = 0,  /* 0x1866 @INDIANCITY — colony stores */
+  AI_CONTACT_REPARATIONS_WAGONS = 1 /* 0x1871 @INDIANWAGONS — a wagon's hold */
+};
+
+/*
  * Trade buy-offer CHOICE ids (CONTACT_TRADE_OFFER; FUN_4d56_2820 LAB_002e92
  * human `iStack_8 != 0` branch — Accept/Decline a locked price instead of
  * the AI's silent auto-accept). Cite: indian_trade_2820.md.
@@ -1789,17 +1811,9 @@ static void ai_contact_bump_u8_cap100(uint8_t* v, int amount) {
   *v = (uint8_t)n;
 }
 
-/* Bump uint16 alarm toward cap 100. */
-static void ai_contact_bump_u16_cap100(uint16_t* v, int amount) {
-  if (!v || amount <= 0) {
-    return;
-  }
-  int n = (int)(*v) + amount;
-  if (n > 100) {
-    n = 100;
-  }
-  *v = (uint16_t)n;
-}
+/* (ai_contact_bump_u16_cap100 removed 2026-09-08: its last caller was the
+ * raid pulse's fandom positive kind bump, retired for DOS 0f14's negative
+ * alarm tail — see ai_contact_raid_alarm_tail.) */
 
 /*
  * Peaceful teach-skill stub (5bfb / meet checklist): Free Colonist or Scout
@@ -3481,20 +3495,14 @@ static int ai_contact_beg_food_gift(const ColonizeColony* c) {
   return gift;
 }
 
-/* Village alarm toward `e` as DOS's int16 at tribe+10+e*2 (0x54f6 family). */
+/* Village attitude toward `e` = DOS's signed int16 at tribe+10+e*2, i.e. the
+ * whole "DS:0x54f6" cell (col1_tribe_attitude, col1_save.h). */
 static int ai_contact_tribe_alarm_word(const ColonizeCol1Tribe* t, int e) {
-  return (int)t->alarm[e].friction | ((int)t->alarm[e].attacks << 8);
+  return col1_tribe_attitude(t, e);
 }
 
 static void ai_contact_tribe_alarm_word_set(ColonizeCol1Tribe* t, int e, int w) {
-  if (w < 0) {
-    w = 0;
-  }
-  if (w > 0xffff) {
-    w = 0xffff;
-  }
-  t->alarm[e].friction = (uint8_t)(w & 0xff);
-  t->alarm[e].attacks = (uint8_t)((w >> 8) & 0xff);
+  col1_tribe_attitude_set(t, e, w);
 }
 
 static void ai_contact_apply_beg_food(
@@ -3633,6 +3641,15 @@ static int ai_contact_beg_food_pending(const AiPopupState* st) {
   }
   return st->open && st->current.tag == AI_POPUP_TAG_CONTACT_BEGFOOD;
 }
+
+/*
+ * LAB_5bfb_0def, the demand half's OTHER two sites — defined after the
+ * −0x7b44 price row it needs (see ai_contact_try_village_reparations).
+ * DOS runs @INDIANBEGFOOD (0x181c) first and only falls into LAB_5bfb_0def
+ * when that block did not resolve the visit, which is why the port hangs
+ * it off this function's tail rather than off a new ai.c call site.
+ */
+static void ai_contact_try_village_reparations(ColonizeTurnContext* ctx, int nation_id);
 
 /*
  * Trigger side of the above — once per Indian nation's §9 (post-pulse,
@@ -3820,6 +3837,11 @@ void ai_contact_try_village_beg_food(ColonizeTurnContext* ctx, int nation_id) {
     }
     return; /* one beg-for-food event per Indian nation per turn */
   }
+  /*
+   * Nothing begged this visit → LAB_5bfb_0def, the demand half's remaining
+   * two sites (@INDIANCITY / @INDIANWAGONS reparations).
+   */
+  ai_contact_try_village_reparations(ctx, nation_id);
 }
 
 /*
@@ -5336,6 +5358,577 @@ int ai_contact_try_village_gifts(ColonizeTurnContext* ctx, int nation_id) {
     return 1; /* one gift-bearing visit per Indian nation per turn */
   }
   return 0;
+}
+
+/*
+ * ===========================================================================
+ * FUN_5bfb_022e LAB_5bfb_0def — the demand half's reparations sites.
+ * viceroy_unpacked.c 96856-96979; the shared refuse limb is LAB_5bfb_0ff2
+ * at raw 96973 and the block ends at LAB_5bfb_1000.
+ *
+ * Two flavors, picked exactly as DOS picks them (`if (-1 < local_4c)` first,
+ * else `local_42`):
+ *
+ *   @INDIANCITY   (tag 0x1866, raw 96882) — the visit landed beside a Euro
+ *       COLONY: the village names the good it wants most out of the colony
+ *       stores. DOS scores every cargo `price[g] * min(stock[g],100)` off the
+ *       per-nation DS:0x84BC (= −0x7b44) byte row, with two adjustments:
+ *         g == 8 (Horses):  want = 10 − (horse_herds − want)
+ *         g == 15 (Muskets): want += (rng(1,4) − tech) + difficulty + 4
+ *       then `contact_state[e] = 1`, and `rng(0, difficulty+1) == 0` halves
+ *       the quantity asked. Accept is row 2 ("Hand them over.").
+ *
+ *   @INDIANWAGONS (tag 0x1871, raw 96959) — no colony, but the Euro side of
+ *       the encounter is a WAGON TRAIN (DOS unit type 0x0c, `local_42`): the
+ *       village demands the whole of hold 0. Accept is row 1 ("Hand them
+ *       over."), and accepting strips the hold outright (FUN_281f_0aec).
+ *
+ * ACCEPT effects (both flavors):
+ *   village attitude word toward this European -> 0   (*(0x8d4a + e*2 + 10))
+ *   FUN_281f_0d6c(nation, e, delta, 0) with a NEGATIVE delta:
+ *     @INDIANCITY   delta = (best_score * 4) / -100, then walked down in
+ *                   steps of 5 while `alarm + delta >= 0x47` (the same
+ *                   "reconciled" loop @INDIANBEGFOOD's accept row uses)
+ *     @INDIANWAGONS delta = (price[cargo] * qty * 4) / -100  (no walk-down)
+ *   the goods leave (colony stock -= qty / the wagon's hold 0 is emptied)
+ *   @INDIANCITY only, the arming tail: Muskets arm the visiting Brave
+ *   (type +1) or bank `ind->muskets`; Horses mount it (type +2) or bank
+ *   `ind->horse_breeding += 0x32`, and always `ind->horse_herds += 1`.
+ *
+ * REFUSE effect (LAB_5bfb_0ff2, both flavors — THE point of this port):
+ *   village attitude word += 0x80, and nothing changes hands. That single
+ *   `piVar2 = ...; *piVar2 = *piVar2 + 0x80;` was the last unported raiser
+ *   of the settlement attitude word (docs/indians.md); every other writer
+ *   (465b trespass, 152e encroachment, the beg-refused ×1.5, the raid /
+ *   combat discharges) was already live. +0x80 lands the word in the
+ *   `0x7f <` hostile band that `local_10` at the top of 022e reads, so one
+ *   refusal switches this village off the gift arm and onto the demand arm
+ *   for good — which is why it matters.
+ *
+ * AI Euro targets take DOS's `else` limb: @INDIANWAGONS auto-accepts
+ * (`local_c = 1`), @INDIANCITY auto-accepts unless the good demanded is
+ * Muskets (`local_40 == 0xf -> local_c = 1`). DOS also has a second AI
+ * refusal roll there (`FUN_281f_07e0(10)` -> `FUN_281f_08bc`, raw 96888-96892);
+ * neither thunk is resolved, and inventing a draw would move every
+ * downstream RNG value, so it is deliberately NOT modelled.
+ *
+ * TRIGGER: the same reconstruction @INDIANBEGFOOD and the gift arm use — a
+ * unit of this nation that WALKED UP to the target this turn
+ * (ai_contact_brave_walked_up_to), one event per Indian nation per 8 turns.
+ * Like the gift arm, the whole arm declines without a popup queue: a caller
+ * with no presentation context (the DOS colony-production golden fixtures
+ * drive turn_end directly) is replaying production math, and this arm both
+ * draws RNG and moves colony stores.
+ * ===========================================================================
+ */
+typedef struct AiContactReparations {
+  int active;
+  int nation_id; /* Indian nation 4..11 */
+  int flavor;    /* AI_CONTACT_REPARATIONS_CITY / _WAGONS */
+  int tribe_index;
+  int brave_id;
+  int colony_id; /* CITY: the colony asked; WAGONS: -1 */
+  int unit_id;   /* WAGONS: the wagon; CITY: -1 */
+  int hold;      /* WAGONS: hold slot (DOS always 0) */
+  int cargo;
+  int qty;
+  int score; /* CITY: DOS local_46, the winning price*stock product */
+} AiContactReparations;
+
+static AiContactReparations s_reparations[4];
+
+/*
+ * DOS's demand price row. `-0x7b44 + nation*0x10 + good` wraps to the fixed
+ * DS:0x84BC table; the port carries the captured row as k_2820_throttle and
+ * uses it nation-invariantly, exactly as ai_contact_try_village_gifts does.
+ */
+static int ai_contact_reparations_price(int cargo) {
+  if (cargo < 0 || cargo >= COLONIZE_CARGO_COUNT) {
+    return 0;
+  }
+  return (int)k_2820_throttle[cargo];
+}
+
+/*
+ * The DOS Brave type ladder (0x13 Brave, 0x14 Armed Brave, 0x15 Mtd. Brave,
+ * 0x16 Mtd. Warrior): +1 arms, +2 mounts, exactly the arithmetic 022e's
+ * accept tail does on the unit's `+0x3146` type byte. Same names
+ * units_new_village_temp_defender picks from, so a missing entry is a safe
+ * no-op rather than a wrong unit.
+ */
+static const char* const k_reparations_brave_ladder[4] = {
+  "Braves", "Armed Braves", "Mtd. Braves", "Mtd. Warriors"
+};
+
+static int ai_contact_brave_ladder_rank(const ColonizeUnitPool* pool, const ColonizeUnit* u) {
+  if (!pool || !u) {
+    return -1;
+  }
+  const ColonizeUnitType* ty = units_type((ColonizeUnitPool*)pool, u->type_index);
+  if (!ty) {
+    return -1;
+  }
+  for (int i = 0; i < 4; ++i) {
+    if (strcmp(ty->name, k_reparations_brave_ladder[i]) == 0) {
+      return i;
+    }
+  }
+  return -1;
+}
+
+/* FUN_281f_0902 / 08d0 stand-ins: is the visitor already armed / mounted? */
+static void ai_contact_brave_ladder_add(
+  ColonizeUnitPool* pool, ColonizeUnit* u, int step
+) {
+  const int rank = ai_contact_brave_ladder_rank(pool, u);
+  if (rank < 0) {
+    return;
+  }
+  int next = rank | step; /* +1 = muskets bit, +2 = horses bit */
+  if (next > 3) {
+    next = 3;
+  }
+  if (next == rank) {
+    return;
+  }
+  const int ti = units_find_type(pool, k_reparations_brave_ladder[next]);
+  if (ti >= 0) {
+    u->type_index = ti;
+  }
+}
+
+/*
+ * LAB_5bfb_0ff2 / the two accept limbs. `accept` is already resolved against
+ * the flavor's own row numbering by the caller.
+ */
+static void ai_contact_apply_reparations(
+  ColonizeTurnContext* ctx,
+  ColonizeCol1Indian* ind,
+  int nation_id,
+  int e,
+  int flavor,
+  int accept
+) {
+  if (!ctx || !ctx->col1_ok || !ctx->col1 || !ind || e < 0 || e > 3) {
+    return;
+  }
+  if (nation_id < 4 || nation_id > 11) {
+    return;
+  }
+  AiContactReparations* s = &s_reparations[e];
+  if (!s->active || s->nation_id != nation_id || s->flavor != flavor) {
+    return; /* stale / never offered — never move goods on a guess */
+  }
+  s->active = 0;
+  ColonizeCol1Tribe* t = NULL;
+  if (ctx->col1->tribe && s->tribe_index >= 0 &&
+      s->tribe_index < (int)ctx->col1->head.tribe_count) {
+    t = &ctx->col1->tribe[s->tribe_index];
+  }
+  ai_contact_bind_names(ctx);
+
+  if (!accept) {
+    /*
+     * LAB_5bfb_0ff2 — the refuse limb. No goods move; the village's own
+     * attitude word toward this European gains 0x80. DOS writes the whole
+     * signed word, so the carry lands in `attacks` (the high byte) once
+     * `friction` is already past 0x80, exactly as col1_tribe_attitude_set
+     * re-splits it.
+     */
+    if (t) {
+      const int w = ai_contact_tribe_alarm_word(t, e);
+      ai_contact_tribe_alarm_word_set(t, e, w + 0x80);
+    }
+    if (ctx->status && ctx->status_size) {
+      snprintf(
+        ctx->status, ctx->status_size, "We refuse the %s their reparations.",
+        ai_contact_tribe_name(nation_id)
+      );
+    }
+    return;
+  }
+
+  /* Accept: the attitude word is discharged outright (both flavors). */
+  if (t) {
+    ai_contact_tribe_alarm_word_set(t, e, 0);
+  }
+
+  int delta = 0;
+  if (flavor == AI_CONTACT_REPARATIONS_CITY) {
+    delta = (s->score * 4) / -100;
+    /*
+     * `while (alarm + delta >= 0x47) delta -= 5;` — the same reconciliation
+     * loop the @INDIANBEGFOOD accept row runs. Bounded: delta only falls and
+     * alarm is a 0..100 byte.
+     */
+    const int alarm = ai_diplo_indian_alarm(ctx->col1, nation_id, e);
+    for (int guard = 0; guard < 32 && alarm + delta >= 0x47; ++guard) {
+      delta -= 5;
+    }
+  } else {
+    delta = (ai_contact_reparations_price(s->cargo) * s->qty * 4) / -100;
+  }
+  if (delta != 0) {
+    ai_contact_alarm_delta_00f2(ctx, nation_id, e, delta);
+  }
+
+  if (flavor == AI_CONTACT_REPARATIONS_CITY) {
+    ColonizeColony* c = NULL;
+    if (ctx->colonies && s->colony_id >= 0 && s->colony_id < COLONIZE_COLONIES_MAX) {
+      c = &ctx->colonies->colonies[s->colony_id];
+    }
+    if (c && c->active && c->nation_id == e && s->cargo >= 0 &&
+        s->cargo < COLONIZE_CARGO_COUNT) {
+      c->stock[s->cargo] -= s->qty;
+      if (c->stock[s->cargo] < 0) {
+        c->stock[s->cargo] = 0;
+      }
+    }
+    /* Arming tail (raw 96906-96928) — Muskets arm, Horses mount. */
+    ColonizeUnit* brave =
+      (ctx->units && s->brave_id >= 0) ? units_get(ctx->units, s->brave_id) : NULL;
+    if (s->cargo == COLONIZE_CARGO_MUSKETS) {
+      const int rank = ai_contact_brave_ladder_rank(ctx->units, brave);
+      if (brave && rank >= 0 && (rank & 1) == 0) {
+        ai_contact_brave_ladder_add(ctx->units, brave, 1);
+      } else if (ind->muskets < 0xff) {
+        ind->muskets = (uint8_t)(ind->muskets + 1);
+      }
+    } else if (s->cargo == COLONIZE_CARGO_HORSES) {
+      const int rank = ai_contact_brave_ladder_rank(ctx->units, brave);
+      if (brave && rank >= 0 && (rank & 2) == 0) {
+        ai_contact_brave_ladder_add(ctx->units, brave, 2);
+      } else {
+        ind->horse_breeding = (uint16_t)(ind->horse_breeding + 0x32);
+      }
+      if (ind->horse_herds < 0xff) {
+        ind->horse_herds = (uint8_t)(ind->horse_herds + 1);
+      }
+    }
+    if (ctx->status && ctx->status_size) {
+      snprintf(
+        ctx->status, ctx->status_size, "We hand the %s %d %s in reparations.",
+        ai_contact_tribe_name(nation_id), s->qty, ai_contact_cargo_name(s->cargo)
+      );
+    }
+    return;
+  }
+
+  /* @INDIANWAGONS accept: FUN_281f_0aec strips the whole hold. */
+  ColonizeUnit* wag =
+    (ctx->units && s->unit_id >= 0) ? units_get(ctx->units, s->unit_id) : NULL;
+  if (wag && wag->active && wag->nation_id == e && s->hold >= 0 &&
+      s->hold < COLONIZE_UNIT_CARGO_MAX) {
+    wag->hold_goods_amount[s->hold] = 0;
+    wag->hold_goods_type[s->hold] = 0;
+  }
+  if (ctx->status && ctx->status_size) {
+    snprintf(
+      ctx->status, ctx->status_size, "We hand the %s the %d %s in our wagons.",
+      ai_contact_tribe_name(nation_id), s->qty, ai_contact_cargo_name(s->cargo)
+    );
+  }
+}
+
+/* A unit of `nation_id` that walked up to (x,y) this turn, or NULL. */
+static ColonizeUnit* ai_contact_reparations_visitor(
+  ColonizeTurnContext* ctx, int nation_id, int x, int y
+) {
+  if (!ctx || !ctx->units) {
+    return NULL;
+  }
+  for (int ui = 0; ui < COLONIZE_UNITS_MAX; ++ui) {
+    ColonizeUnit* bu = units_get(ctx->units, ui);
+    if (!bu || !bu->active || bu->nation_id != nation_id || !units_is_on_map(bu)) {
+      continue;
+    }
+    if (abs(bu->x - x) > 1 || abs(bu->y - y) > 1) {
+      continue;
+    }
+    if (!ai_contact_brave_walked_up_to(bu, x, y)) {
+      continue;
+    }
+    return bu;
+  }
+  return NULL;
+}
+
+/* The visiting unit's own village record (DOS FUN_281f_0a4c bind). */
+static int ai_contact_reparations_home_tribe(
+  const ColonizeTurnContext* ctx, int nation_id, const ColonizeUnit* brave
+) {
+  if (!ctx || !ctx->col1 || !ctx->col1->tribe) {
+    return -1;
+  }
+  if (brave && brave->home_tribe_id >= 0 &&
+      brave->home_tribe_id < (int)ctx->col1->head.tribe_count &&
+      (int)ctx->col1->tribe[brave->home_tribe_id].nation_id == nation_id) {
+    return brave->home_tribe_id;
+  }
+  for (uint16_t ti = 0; ti < ctx->col1->head.tribe_count; ++ti) {
+    if ((int)ctx->col1->tribe[ti].nation_id == nation_id) {
+      return (int)ti;
+    }
+  }
+  return -1;
+}
+
+/* Enqueue the human CHOICE, or run DOS's `else` limb for an AI Euro. */
+static void ai_contact_reparations_present(
+  ColonizeTurnContext* ctx,
+  ColonizeCol1Indian* ind,
+  int nation_id,
+  int e,
+  int flavor,
+  const char* section,
+  const PopupMsgTokens* tok,
+  const char* fallback,
+  int ai_accept
+) {
+  if (!ai_contact_euro_is_human(ctx, e)) {
+    /* DOS `else` limb — no dialog, the AI's own answer applies at once. */
+    ai_contact_apply_reparations(ctx, ind, nation_id, e, flavor, ai_accept);
+    return;
+  }
+  char body[AI_POPUP_BODY_LEN];
+  popup_msg_fill(ctx->messages, section, tok, fallback, body, sizeof(body));
+  char choice_buf[AI_POPUP_CHOICE_MAX][AI_POPUP_CHOICE_LEN];
+  const ColonizeMsgSection* sec =
+    ctx->messages ? assets_msg_find(ctx->messages, section) : NULL;
+  const int nch = popup_msg_choices(sec, choice_buf, AI_POPUP_CHOICE_MAX);
+  char label_buf[2][AI_POPUP_CHOICE_LEN];
+  const char* labels[2];
+  if (nch >= 2) {
+    for (int li = 0; li < 2; ++li) {
+      popup_msg_apply_tokens(label_buf[li], sizeof(label_buf[li]), choice_buf[li], tok);
+      labels[li] = label_buf[li];
+    }
+  } else if (flavor == AI_CONTACT_REPARATIONS_CITY) {
+    snprintf(label_buf[0], sizeof(label_buf[0]), "Man the stockade.");
+    snprintf(label_buf[1], sizeof(label_buf[1]), "Hand them over.");
+    labels[0] = label_buf[0];
+    labels[1] = label_buf[1];
+  } else {
+    snprintf(label_buf[0], sizeof(label_buf[0]), "Hand them over.");
+    snprintf(label_buf[1], sizeof(label_buf[1]), "Circle the wagons.");
+    labels[0] = label_buf[0];
+    labels[1] = label_buf[1];
+  }
+  /* DOS row numbers: FUN_291f_019c returns 1 for the first printed row. */
+  const int ids[2] = {AI_CONTACT_REPARATIONS_ROW1, AI_CONTACT_REPARATIONS_ROW2};
+  if (!ai_popup_enqueue_choice_ctx(
+        ctx->ai_popups, AI_POPUP_TAG_CONTACT_REPARATIONS, e, nation_id, flavor, NULL,
+        body, labels, ids, 2
+      )) {
+    s_reparations[e].active = 0;
+    return;
+  }
+  if (ctx->status && ctx->status_size) {
+    snprintf(
+      ctx->status, ctx->status_size, "The %s demand reparations.",
+      ai_contact_tribe_name(nation_id)
+    );
+  }
+}
+
+static void ai_contact_try_village_reparations(ColonizeTurnContext* ctx, int nation_id) {
+  if (!ctx || !ctx->col1_ok || !ctx->col1 || !ctx->colonies || !ctx->col1->tribe ||
+      !ctx->rng || !ctx->units) {
+    return;
+  }
+  if (nation_id < 4 || nation_id > 11) {
+    return;
+  }
+  if (!ctx->ai_popups) {
+    return; /* no presentation context — see the header's TRIGGER note */
+  }
+  ColonizeCol1Indian* ind = &ctx->col1->indian[nation_id - 4];
+  static uint16_t s_repar_cooldown_until[8];
+  const uint16_t now_turn = ctx->col1->head.turn;
+  if (now_turn && s_repar_cooldown_until[nation_id - 4] > now_turn) {
+    return;
+  }
+  for (int e = 0; e < 4; ++e) {
+    if (!ind->euro_diplo[e]) {
+      continue; /* unmet — first contact runs its own arm */
+    }
+    if (s_reparations[e].active) {
+      continue; /* an offer of ours is still on the queue */
+    }
+    /* 022e's own ceiling on the whole visit (`if (0x4a < iVar9) return;`). */
+    if (ai_diplo_indian_alarm(ctx->col1, nation_id, e) > 0x4a) {
+      continue;
+    }
+    /* LAB_5bfb_0def's gate: a resolved generous visit latches this off. */
+    if (ind->contact_state[e] == 2) {
+      continue;
+    }
+
+    /* `if (-1 < local_4c)` — a colony the visitor walked up to wins. */
+    int city_ci = -1;
+    ColonizeUnit* brave = NULL;
+    for (int ci = 0; ci < COLONIZE_COLONIES_MAX && city_ci < 0; ++ci) {
+      const ColonizeColony* c = &ctx->colonies->colonies[ci];
+      if (!c->active || c->nation_id != e) {
+        continue;
+      }
+      ColonizeUnit* v = ai_contact_reparations_visitor(ctx, nation_id, c->x, c->y);
+      if (!v) {
+        continue;
+      }
+      city_ci = ci;
+      brave = v;
+    }
+
+    if (city_ci >= 0) {
+      ColonizeColony* c = &ctx->colonies->colonies[city_ci];
+      const int tribe_index = ai_contact_reparations_home_tribe(ctx, nation_id, brave);
+      if (tribe_index < 0) {
+        continue;
+      }
+      /* The cargo scan (raw 96843-96874). */
+      int best_cargo = -1;
+      int best_qty = 0;
+      int best_score = 0;
+      for (int g = 0; g < COLONIZE_CARGO_COUNT; ++g) {
+        int stock = c->stock[g];
+        if (stock > 100) {
+          stock = 100;
+        }
+        if (stock <= 0) {
+          continue;
+        }
+        int want = ai_contact_reparations_price(g);
+        if (g == COLONIZE_CARGO_HORSES) {
+          /* DOS reads +8 (horse_herds) as a SIGNED char here, as the
+           * §6c breeding tick in ai_contact_indian_nation_tick does. */
+          want = 10 - ((int)(int8_t)ind->horse_herds - want);
+        } else if (g == COLONIZE_CARGO_MUSKETS) {
+          want += (dos_rng_range(ctx->rng, 1, 4) - (int)ind->tech) +
+                  (int)ctx->col1->head.difficulty + 4;
+        }
+        const int score = want * stock;
+        if (score > best_score) {
+          best_cargo = g;
+          best_qty = stock;
+          best_score = score;
+        }
+      }
+      if (best_cargo < 0) {
+        continue; /* DOS `if (local_40 < 0) goto LAB_5bfb_0dea;` */
+      }
+      ind->contact_state[e] = 1;
+      if (dos_rng_range(ctx->rng, 0, (int)ctx->col1->head.difficulty + 1) == 0) {
+        best_qty >>= 1;
+      }
+      if (best_qty <= 0) {
+        continue;
+      }
+      s_repar_cooldown_until[nation_id - 4] = (uint16_t)(now_turn + 8);
+      AiContactReparations* s = &s_reparations[e];
+      s->active = 1;
+      s->nation_id = nation_id;
+      s->flavor = AI_CONTACT_REPARATIONS_CITY;
+      s->tribe_index = tribe_index;
+      s->brave_id = brave ? brave->id : -1;
+      s->colony_id = city_ci;
+      s->unit_id = -1;
+      s->hold = -1;
+      s->cargo = best_cargo;
+      s->qty = best_qty;
+      s->score = best_score;
+      ai_contact_bind_names(ctx);
+      if (brave && ai_contact_euro_is_human(ctx, e)) {
+        units_combat_watch_notify(ctx->units, brave->id, c->x, c->y);
+      }
+      PopupMsgTokens tok;
+      memset(&tok, 0, sizeof(tok));
+      tok.string0 = ai_contact_euro_name(e);
+      tok.string1 = ai_contact_tribe_name(nation_id);
+      tok.string2 = ai_contact_cargo_name(best_cargo);
+      tok.string3 = c->name;
+      tok.number0 = best_qty;
+      tok.has_number0 = true;
+      /*
+       * AI Euro (`local_c = 2` unless the good is Muskets): auto-accept.
+       * The second DOS refusal roll is not modelled — see the header.
+       */
+      const int ai_accept = (best_cargo != COLONIZE_CARGO_MUSKETS);
+      ai_contact_reparations_present(
+        ctx, ind, nation_id, e, AI_CONTACT_REPARATIONS_CITY, "INDIANCITY", &tok,
+        "\"The settlers have committed intolerable acts of destruction against "
+        "our lands and our people. We therefore demand reparations from the "
+        "colony stores.\"",
+        ai_accept
+      );
+      return; /* one reparations demand per Indian nation per turn */
+    }
+
+    /* `local_42` — no colony, but a Wagon Train (DOS type 0x0c) with cargo. */
+    ColonizeUnit* wag = NULL;
+    int hold = -1;
+    for (int ui = 0; ui < COLONIZE_UNITS_MAX && !wag; ++ui) {
+      ColonizeUnit* u = units_get(ctx->units, ui);
+      if (!u || !u->active || u->nation_id != e || !units_is_on_map(u)) {
+        continue;
+      }
+      const ColonizeUnitType* ty = units_type(ctx->units, u->type_index);
+      if (!ty || !strstr(ty->name, "Wagon")) {
+        continue;
+      }
+      /* DOS reads hold 0 only (FUN_281f_0be6/0c68 with slot 0). */
+      if (u->hold_goods_amount[0] <= 0) {
+        continue;
+      }
+      if (!ai_contact_reparations_visitor(ctx, nation_id, u->x, u->y)) {
+        continue;
+      }
+      wag = u;
+      hold = 0;
+    }
+    if (!wag) {
+      continue;
+    }
+    brave = ai_contact_reparations_visitor(ctx, nation_id, wag->x, wag->y);
+    const int tribe_index = ai_contact_reparations_home_tribe(ctx, nation_id, brave);
+    if (tribe_index < 0) {
+      continue;
+    }
+    ind->contact_state[e] = 1;
+    s_repar_cooldown_until[nation_id - 4] = (uint16_t)(now_turn + 8);
+    AiContactReparations* s = &s_reparations[e];
+    s->active = 1;
+    s->nation_id = nation_id;
+    s->flavor = AI_CONTACT_REPARATIONS_WAGONS;
+    s->tribe_index = tribe_index;
+    s->brave_id = brave ? brave->id : -1;
+    s->colony_id = -1;
+    s->unit_id = wag->id;
+    s->hold = hold;
+    s->cargo = wag->hold_goods_type[hold];
+    s->qty = wag->hold_goods_amount[hold];
+    s->score = 0;
+    ai_contact_bind_names(ctx);
+    if (brave && ai_contact_euro_is_human(ctx, e)) {
+      units_combat_watch_notify(ctx->units, brave->id, wag->x, wag->y);
+    }
+    PopupMsgTokens tok;
+    memset(&tok, 0, sizeof(tok));
+    tok.string0 = ai_contact_euro_name(e);
+    tok.string1 = ai_contact_tribe_name(nation_id);
+    tok.string2 = ai_contact_cargo_name(s->cargo);
+    tok.number0 = s->qty;
+    tok.has_number0 = true;
+    /* DOS `else { local_c = 1; }` — an AI Euro always hands the wagon over. */
+    ai_contact_reparations_present(
+      ctx, ind, nation_id, e, AI_CONTACT_REPARATIONS_WAGONS, "INDIANWAGONS", &tok,
+      "\"The settlers have committed intolerable acts of destruction against "
+      "our lands and our people. We therefore demand all of the goods in "
+      "these wagons as reparations.\"",
+      1
+    );
+    return; /* one reparations demand per Indian nation per turn */
+  }
 }
 
 /*
@@ -7174,6 +7767,98 @@ static void ai_contact_apply_raid_loot(
 }
 
 /*
+ * FUN_5fef_0f14's alarm tail (raw viceroy_unpacked.c:99944-100033) — ported
+ * 2026-09-08, replacing the fandom-derived POSITIVE "raids raise tension"
+ * bump the raid pulse used to apply here (same retirement as the three
+ * fandom alarm drips, bugs.md 295: DOS grows Indian alarm only through the
+ * FUN_4d56_152e accumulator).
+ *
+ * Each of 0f14's four loot arms ends with the SAME two lines — a war gate
+ * and one `uVar6` constant — and then falls into the shared call at 100033:
+ *
+ *     uVar10 = FUN_281f_0a38(0x281f, *(undefined2 *)0x8d50, uVar5);
+ *     if ((uVar10 & 2) != 0) goto LAB_5fef_16d2;
+ *     uVar6 = 0xfffc;                                  <- per-kind constant
+ *   ...
+ *   FUN_281f_0d6c(0x281f, param_1 + -4, uVar5, uVar6, 0);
+ *   LAB_5fef_16d2:
+ *     *(undefined2 *)((param_3 * 9 + uVar5) * 2 + 0x54f6) = 0;
+ *
+ * so the real (non-segment) argument list is `0d6c(indian_nation, euro,
+ * delta, 0)`, and every delta is NEGATIVE:
+ *
+ *   local_6 == 1  goods stolen      0xfffc = −4    (raw 99961)
+ *   local_6 == 2  building razed    0xfff4 = −12   (raw 99992)
+ *   local_6 == 3  unit killed       0xfff0 = −16   (raw 100006)
+ *   local_6 == 4  gold plundered    0xfff8 = −8    (raw 100031)
+ *   local_6 == 0  nothing looted    no call at all — the kind-0 arm jumps
+ *                                   straight to LAB_5fef_16d2 (raw 100013)
+ *
+ * A successful raid therefore DISCHARGES the tribe's alarm toward that
+ * European, exactly like the DS:0x54f6 tension word the next line zeroes
+ * unconditionally, and like 1b0e's `local_a6` vent
+ * (`units_indian_attack_alarm_vent`, units.c) which uses the same writer
+ * and the same gate.
+ *
+ * Gate: `FUN_281f_0a38` = `FUN_15b3_0004(indian_nation, euro)` = the Indian
+ * record's relation byte toward that European (`indian[].euro_diplo[euro]`),
+ * whose bit 1 is the WAR bit — and the branch SKIPS the 0d6c call, so the
+ * discharge only happens while the tribe is NOT already at war. No relief
+ * once war is declared.
+ *
+ * DOS kind space vs. the port's AiRaidKind:
+ *   1 goods     -> AI_RAID_STORES (warehouse cargo drain)
+ *   2 building  -> AI_RAID_BURN and AI_RAID_WREAK (a building razed /
+ *                  construction wrecked — 0f14's kind 2 picks a building
+ *                  index 0..0x29 and destroys it)
+ *   3 unit      -> AI_RAID_SHIP and AI_RAID_SCALP. 0f14's kind-3 walk only
+ *                  accepts unit types 0xd..0x12, which are the SHIPS
+ *                  (docs/indians.md:449, same band 4cc6_03f8's threat ring
+ *                  skips) — so SHIP is the literal match. The port's
+ *                  colonist-kill band has no DOS kind of its own and is the
+ *                  same "a unit at the colony dies" outcome, so it takes the
+ *                  same row. (Until this pass the port had these swapped:
+ *                  SCALP got the 16 and SHIP was lumped with gold's 8.)
+ *   4 gold      -> AI_RAID_GOLD (treasury drain)
+ */
+static int ai_contact_raid_alarm_delta(AiRaidKind kind) {
+  switch (kind) {
+    case AI_RAID_STORES:
+      return -4;
+    case AI_RAID_BURN:
+    case AI_RAID_WREAK:
+      return -12;
+    case AI_RAID_SHIP:
+    case AI_RAID_SCALP:
+      return -16;
+    case AI_RAID_GOLD:
+      return -8;
+    default:
+      return 0; /* AI_RAID_NOTHING: DOS makes no 0d6c call at all. */
+  }
+}
+
+static void ai_contact_raid_alarm_tail(
+  ColonizeTurnContext* ctx, int indian_nation, int euro, AiRaidKind kind
+) {
+  if (!ctx || !ctx->col1 || indian_nation < 4 || indian_nation > 11 || euro < 0 || euro > 3) {
+    return;
+  }
+  const int delta = ai_contact_raid_alarm_delta(kind);
+  if (delta == 0) {
+    return;
+  }
+  /* FUN_281f_0a38(DS:0x8d50, euro) & 2 — already at war, no discharge. */
+  if ((ctx->col1->indian[indian_nation - 4].euro_diplo[euro] & COL1_INDIAN_WAR_BIT) != 0) {
+    return;
+  }
+  /* FUN_281f_0d6c = FUN_4cc6_00f2 = ai_diplo_indian_alarm_delta (+ escalation
+   * tail, which a negative delta can never reach). Halving (France /
+   * Pocahontas) is positive-delta-only and lives inside that writer. */
+  ai_contact_alarm_delta_00f2(ctx, indian_nation, euro, delta);
+}
+
+/*
  * Self-register the 1b0e handoff with units.c at load time (units.h
  * ColonizeUnitsRaidRepelledFn). Keeps units.c free of a link-time
  * dependency on this module: binaries that don't link ai_contact.c fall
@@ -7237,24 +7922,23 @@ int ai_contact_colony_raid_repelled(
   ai_contact_apply_raid_loot(&ctx, c, euro_nation, kind, max_alarm);
 
   /*
+   * FUN_5fef_0f14's alarm tail (raw 100033), wired 2026-09-08 — negative
+   * per-kind delta behind the war gate, identical to the raid pulse's entry
+   * into the same resolver. DOS runs it just BEFORE the DS:0x54f6 clear
+   * below, so keep this ordering.
+   */
+  ai_contact_raid_alarm_tail(&ctx, indian_nation, euro_nation, kind);
+
+  /*
    * FUN_5fef_0f14's tail (raw 100034) — the unconditional DS:0x54f6 discharge
    * that 1b0e's own site 1 deliberately skips on this limb (docs/indians.md).
    * Fires for every kind, "Nothing" included.
    */
-  if (col1->indian_tension && home_tribe_id >= 0 &&
+  if (col1->tribe && home_tribe_id >= 0 &&
       (uint16_t)home_tribe_id < col1->head.tribe_count) {
-    col1->indian_tension
-      [(size_t)home_tribe_id * COLONIZE_COL1_NATION_COUNT + (size_t)euro_nation] = 0;
+    /* DOS zeroes the WHOLE word, i.e. both friction and attacks. */
+    col1_tribe_attitude_set(&col1->tribe[home_tribe_id], euro_nation, 0);
   }
-  /*
-   * NOT wired here: 0f14's own alarm tail
-   * (`FUN_281f_0d6c(nation, euro, delta, 0)` behind the `FUN_15b3_0004 & 2`
-   * war gate, delta −4 goods / −12 building / −16 ship / −8 gold). The raid
-   * pulse above applies a POSITIVE fandom bump for the same kinds instead
-   * (`kind_delta` 4/12/16/8), so wiring DOS's negatives on this limb alone
-   * would leave the two entries into the same resolver disagreeing about the
-   * sign. Recorded in docs/indians.md for a dedicated pass.
-   */
   return (int)kind;
 }
 
@@ -7685,25 +8369,11 @@ void ai_contact_indian_raids(ColonizeTurnContext* ctx, int nation_id) {
             ctx, c, ai_contact_pick_raid_kind(ctx, c, target_euro, max_alarm, rng, 0)
           );
           ai_contact_apply_raid_loot(ctx, c, target_euro, kind, max_alarm);
-          /*
-           * DS:0x54f6 grudge/tension discharge: FUN_5fef_0f14's tail
-           * (viceroy_unpacked.c:100034) unconditionally clears
-           * `(origin*9 + euro)*2 + 0x54f6` to 0 right before returning, for
-           * EVERY kind including "Nothing" (raiding party wiped out) — the
-           * act of raiding itself discharges accumulated tension, win or
-           * lose. `origin` is the raiding unit's home-tribe id (unit+6,
-           * `home_tribe_id` here — same index space `indian_tension` is
-           * already keyed by, see col1_save.h). Read side (FUN_521d_0896
-           * hostility gate) stays out of domain; this only wires the write.
-           */
-          if (
-            ctx->col1->indian_tension && brave->home_tribe_id >= 0 &&
-            (uint16_t)brave->home_tribe_id < ctx->col1->head.tribe_count
-          ) {
-            ctx->col1->indian_tension
-              [(size_t)brave->home_tribe_id * COLONIZE_COL1_NATION_COUNT + (size_t)target_euro] =
-              0;
-          }
+          /* 0f14's alarm tail + DS:0x54f6 word-zero run at the resolver's
+           * very END in DOS (raw 100033-100034) — after all the popup/side-art
+           * chrome — so they sit below the status block here, not at this
+           * spot (moving them up made the attacks snapshot read an
+           * already-cleared word once the phantom array was retired). */
           /*
            * bugs.md 287: the raid pulse never takes or destroys a colony —
            * DOS FUN_5fef_0f14 only loots. Colony destruction lives on the
@@ -7715,46 +8385,23 @@ void ai_contact_indian_raids(ColonizeTurnContext* ctx, int nation_id) {
           const int abandoned = 0;
           char abandoned_name[40];
           abandoned_name[0] = '\0';
-          /* bugs.md: only the FIRST attack against this Euro is "deniable" —
-           * snapshot before the counters bump. */
-          int prior_attacks = 0;
-          for (uint16_t ti = 0; ti < ctx->col1->head.tribe_count; ++ti) {
-            ColonizeCol1Tribe* t = &ctx->col1->tribe[ti];
-            if ((int)t->nation_id == nation_id) {
-              prior_attacks += (int)t->alarm[target_euro].attacks;
-              t->alarm[target_euro].attacks++;
-            }
-          }
+          /* (Retired 2026-09-08.) A Linux-only per-tribe attacks++ counter
+           * sat here backing the "only the FIRST attack is deniable" chrome
+           * (bugs.md). DOS has no such counter on this path: the attacks
+           * byte is the attitude-word high byte, bumped only by the 465b
+           * trespass arm and zeroed by 0f14's own tail every raid — so it
+           * can never carry "raided before" across raids. The DOS
+           * discriminator is the at-war state alone (indian_raid_outcomes.md
+           * §8: plain raid line when already at war, @INDIANSURPRISE when
+           * not; at-war = 153e's alarm > 0x4a, or the diplo WAR bit). */
           /*
-           * Successful raid friction/alarm escalate (fandom Alarm — raids raise
-           * tension). Thin 5fef_0f14 / 0d6c-shaped kind deltas (stores −4 → +4,
-           * burn −12 → +12, scalp −16 → +16, gold −8 → +8). Pocahontas / France
-           * half via alarm_bump_amount. Cite: indian_raid_loot.md; Series J.
-           * Full 4528/2820 dialog PARKED; thin widgets Done (ai_popup).
+           * (Retired 2026-09-08.) A fandom-derived POSITIVE kind bump used to
+           * sit here — "raids raise tension", deltas +4/+12/+16/+8 with DOS's
+           * signs flipped and DOS's kind 3 mis-assigned to SCALP. DOS 0f14
+           * does the exact opposite: see ai_contact_raid_alarm_tail above,
+           * now called right after the loot. Same retirement rule as the
+           * three fandom alarm drips (bugs.md 295).
            */
-          if (kind != AI_RAID_NOTHING) {
-            int kind_delta = 4; /* STORES / default goods */
-            if (kind == AI_RAID_BURN || kind == AI_RAID_WREAK) {
-              kind_delta = 12;
-            } else if (kind == AI_RAID_SCALP) {
-              kind_delta = 16;
-            } else if (kind == AI_RAID_GOLD || kind == AI_RAID_SHIP) {
-              kind_delta = 8;
-            } else if (kind == AI_RAID_STORES) {
-              kind_delta = 4;
-            }
-            const int fr_bump =
-              ai_contact_alarm_bump_amount(ctx->col1, target_euro, kind_delta);
-            if (fr_bump > 0) {
-              ai_contact_bump_u16_cap100(&ind->alarm_by_player[target_euro], fr_bump);
-              for (uint16_t ti = 0; ti < ctx->col1->head.tribe_count; ++ti) {
-                ColonizeCol1Tribe* t = &ctx->col1->tribe[ti];
-                if ((int)t->nation_id == nation_id) {
-                  ai_contact_bump_u8_cap100(&t->alarm[target_euro].friction, fr_bump);
-                }
-              }
-            }
-          }
           /*
            * High-friction successful raid → escalate Indian×Euro hostility
            * (4cc6_00f2 via ai_diplo). If treaty/peace still held → clear peace
@@ -7764,10 +8411,16 @@ void ai_contact_indian_raids(ColonizeTurnContext* ctx, int nation_id) {
             ai_contact_indian_has_peace(ctx->col1, nation_id, target_euro);
           const int was_at_war =
             ai_diplo_indian_at_war(ctx->col1, target_euro, nation_id - 4);
+          /* DOS 153e at-war band: alarm > 0x4a counts as war for the raid
+           * chrome even when the WAR bit / relation view lag behind (test
+           * fixtures and fresh saves often carry alarm only). */
+          const int eff_at_war = was_at_war || max_alarm > 0x4a;
           if (kind != AI_RAID_NOTHING && max_alarm >= 55) {
-            /* Hostility already lands on alarm_by_player via the kind bump above
-             * (single store since 2026-08-27); the former extra −3/−5 relation
-             * push would double-count. */
+            /* No alarm push here: DOS 0f14's only alarm write is the tail
+             * above, and it is negative. The peace-bit clear / hostility sync
+             * are Linux chrome for the @INDIANWAR line below and must not add
+             * a second alarm store (the old −3/−5 relation push, and the
+             * fandom kind bump that replaced it, both did). */
             if (had_peace) {
               ai_contact_clear_peace(ctx->col1, nation_id, target_euro);
             }
@@ -7843,10 +8496,12 @@ void ai_contact_indian_raids(ColonizeTurnContext* ctx, int nation_id) {
                 tribe
               );
               raid_body = raid_line;
-            } else if (!was_at_war && prior_attacks == 0) {
-              /* GAME.TXT @INDIANSURPRISE thin — only the tribe's FIRST attack
-               * on this Euro is deniable; later raids use the plain @RAID*
-               * chrome below (bugs.md). */
+            } else if (!eff_at_war) {
+              /* GAME.TXT @INDIANSURPRISE thin — a raid while NOT at war is
+               * deniable; once at war (alarm past 0x4a, or the WAR bit) the
+               * plain @RAID* chrome below is used (indian_raid_outcomes.md
+               * §8; bugs.md's "first attack" observation is this rule seen
+               * from play — the first raid predates the war band). */
               if (c->name[0]) {
                 snprintf(
                   raid_line,
@@ -8024,6 +8679,25 @@ void ai_contact_indian_raids(ColonizeTurnContext* ctx, int nation_id) {
              */
             units_combat_notify_colony_burned_foreign(
               ctx->col1, abandoned_name, target_euro, ai_contact_tribe_name(nation_id)
+            );
+          }
+          /*
+           * FUN_5fef_0f14's tail, in DOS order (after every chrome draw):
+           * raw 100033 — NEGATIVE per-kind alarm delta behind the
+           * NOT-at-war gate (`15b3_0004 & 2` set skips the call), see
+           * ai_contact_raid_alarm_tail; then raw 100034 — the unconditional
+           * DS:0x54f6 word-zero: `(origin*9 + euro)*2 + 0x54f6` = the home
+           * settlement record's attitude[euro] word = tribe.alarm[euro],
+           * BOTH bytes, for EVERY kind including "Nothing" — the act of
+           * raiding itself discharges the village's accumulated grudge.
+           */
+          ai_contact_raid_alarm_tail(ctx, nation_id, target_euro, kind);
+          if (
+            ctx->col1->tribe && brave->home_tribe_id >= 0 &&
+            (uint16_t)brave->home_tribe_id < ctx->col1->head.tribe_count
+          ) {
+            col1_tribe_attitude_set(
+              &ctx->col1->tribe[brave->home_tribe_id], target_euro, 0
             );
           }
         } else if (max_alarm >= 70) {
@@ -9284,6 +9958,33 @@ void ai_contact_apply_popup_result(ColonizeTurnContext* ctx, const AiPopupState*
     } else if (popup->result_choice_id == AI_CONTACT_WELCOME_YES) {
       ai_contact_apply_welcome_accept(ctx, ind, nation_id, e);
     }
+    return;
+  }
+
+  /*
+   * @INDIANCITY / @INDIANWAGONS reparations (FUN_5bfb_022e LAB_5bfb_0def).
+   * result_payload is the flavor, and the accepting row id differs per
+   * flavor because the two GAME.TXT sections print their rows in opposite
+   * order (DOS reads `local_c != 2` at 0x1866 and `local_c == 1` at 0x1871).
+   * Refusing runs LAB_5bfb_0ff2: village attitude word += 0x80, no goods.
+   * A dismissal (Esc) is neither — it drops the offer without moving goods
+   * and without the 0x80, so an accidental Esc cannot latch a village
+   * hostile; it only clears the pending record.
+   */
+  if (popup->result_tag == AI_POPUP_TAG_CONTACT_REPARATIONS) {
+    const int flavor = popup->result_payload;
+    if (popup->result_cancelled) {
+      if (e >= 0 && e <= 3) {
+        s_reparations[e].active = 0;
+      }
+      return;
+    }
+    const int accept_row = (flavor == AI_CONTACT_REPARATIONS_WAGONS)
+                             ? AI_CONTACT_REPARATIONS_ROW1
+                             : AI_CONTACT_REPARATIONS_ROW2;
+    ai_contact_apply_reparations(
+      ctx, ind, nation_id, e, flavor, popup->result_choice_id == accept_row
+    );
     return;
   }
 

@@ -3375,23 +3375,22 @@ static void units_sweep_naval_stack_after_loss(
 }
 
 /*
- * DS:0x54f6 grudge/tension slot writer (ColonizeCol1Save.indian_tension,
- * keyed [tribe * 4 + euro] exactly as DOS keys `(origin*9 + euro)*2 +
- * 0x54f6` — stride 9 words, only euro 0..3 ever touched).
+ * DS:0x54f6 attitude writer. `(origin*9 + euro)*2 + 0x54f6` is field +10 of
+ * the stride-0x12 settlement record, i.e. ColonizeCol1Tribe.alarm[euro]
+ * {friction, attacks} — DOS stores 0 into the whole word, so both bytes go.
+ * Repointed 2026-09-08 off the phantom `indian_tension` parallel array.
  */
 static void units_indian_tension_clear(
   const ColonizeCol1Save* col1, int tribe_index, int euro_nation
 ) {
-  if (!col1 || !col1->indian_tension || euro_nation < 0 ||
-      euro_nation >= (int)COLONIZE_COL1_NATION_COUNT) {
+  if (!col1 || !col1->tribe || euro_nation < 0 || euro_nation > 3) {
     return;
   }
   if (tribe_index < 0 || (uint16_t)tribe_index >= col1->head.tribe_count) {
     return;
   }
   ColonizeCol1Save* mut = (ColonizeCol1Save*)col1;
-  mut->indian_tension
-    [(size_t)tribe_index * (size_t)COLONIZE_COL1_NATION_COUNT + (size_t)euro_nation] = 0;
+  col1_tribe_attitude_set(&mut->tribe[tribe_index], euro_nation, 0);
 }
 
 /*
@@ -3717,20 +3716,11 @@ int col1_destroy_tribe_at(
   col1->head.tribe_count = (uint16_t)(old_count - 1u);
 
   /*
-   * DS:0x54f6 grudge/tension rides the tribe record itself in DOS (0x54f6 =
-   * 0x54ee + 8, same stride 0x12), so a compaction of the tribe array has to
-   * take it along or every surviving row points at the wrong tribe. ai.c's
-   * whole-nation kill already does this with its remap table; the
-   * single-village destroy did not, which silently rotated the table on the
-   * first razed village. Same shift as home_tribe_id above.
+   * DS:0x54f6 attitude[euro] IS field +10 of the settlement record (stride
+   * 0x12 = the "9 words" of the 0x54f6 indexing), so the memmove above
+   * already carried it — no parallel array to shift since the phantom
+   * `indian_tension` was retired 2026-09-08.
    */
-  if (col1->indian_tension && found + 1 < (int)old_count) {
-    memmove(
-      &col1->indian_tension[(size_t)found * COLONIZE_COL1_NATION_COUNT],
-      &col1->indian_tension[((size_t)found + 1u) * COLONIZE_COL1_NATION_COUNT],
-      ((size_t)old_count - (size_t)found - 1u) * COLONIZE_COL1_NATION_COUNT * sizeof(int16_t)
-    );
-  }
 
   /* FUN_4d56_00e0 (raw 81310-81319): units bound to the destroyed village
    * are DESTROYED with it (any Indian-owned unit whose +0x314a home-village
@@ -4015,13 +4005,13 @@ bool units_try_native_settlement_fallout(
        * equals the bound Indian nation index at DS:0x8d52 — the NATION-WIDE
        * grudge against the conqueror is spent when its capital falls, not
        * just the razed settlement's. Translated into the port's index space
-       * (indian_tension is keyed by village, docs/indians.md) that is every
+       * (the attitude word is keyed by village, docs/indians.md) that is every
        * tribe of the razed capital's nation. The alarm side of the same block
        * (FUN_281f_030c/0d6c: clamp alarm DOWN to 15 when above) is what
        * ai_diplo_indian_capital_surrender models.
        */
       ai_diplo_indian_capital_surrender(col1, tribe_nation, attacker_nation_id);
-      if (col1->indian_tension && col1->tribe) {
+      if (col1->tribe) {
         for (uint16_t ti = 0; ti < col1->head.tribe_count; ++ti) {
           if ((int)col1->tribe[ti].nation_id == tribe_nation) {
             units_indian_tension_clear(col1, (int)ti, attacker_nation_id);
@@ -4761,6 +4751,43 @@ static void units_mounted_attack_spend_all(ColonizeUnitPool* pool, int attacker_
   }
 }
 
+/*
+ * DOS 1b0e's `local_ca` (viceroy_unpacked.c 100573-100577, immediately after
+ * the FUN_281f_04d4 roll):
+ *
+ *   bVar8 = iVar23 <= local_92;
+ *   if (3 < uVar16 && uVar15 < 4 && *(char *)(uVar15 * 0x34 + 0x543f) == 0 &&
+ *       uVar19 == 0x13 && uVar20 == 0xb) { bVar8 = false; local_ca = 1; }
+ *
+ * A **plain Brave** (@UNIT type 0x13 — not Armed Braves 0x14 / Mtd. 0x15 /
+ * Mtd. Warriors 0x16) attacking the Artillery (@UNIT type 0xb) of a
+ * HUMAN-controlled European (nation < 4, DS:0x543f + nation*0x34 control byte
+ * == 0) never wins, whatever the roll said. The same predicate is DOS's
+ * one and only write of `local_ca`, which it later hands FUN_5fef_0f14 as
+ * param_4 (the raid resolver's walls-check bypass) at raw 101142 — so the
+ * auto-loss and the raid flag are the same latch, computed once.
+ *
+ * @UNIT type ids are the NAMES.TXT @UNIT line order the port loads into
+ * `type_index` (Colonists 0 … Artillery 0xb … Braves 0x13), the same identity
+ * the typed attack-fire sound below relies on.
+ */
+static int units_combat_brave_vs_human_arty(
+  const ColonizeCol1Save* col1,
+  const ColonizeUnit* atk,
+  const ColonizeUnit* def
+) {
+  if (!col1 || !atk || !def) {
+    return 0;
+  }
+  if (atk->nation_id <= 3 || def->nation_id < 0 || def->nation_id > 3) {
+    return 0;
+  }
+  if (col1->player[def->nation_id].control != 0) {
+    return 0;
+  }
+  return atk->type_index == 0x13 && def->type_index == 0x0b;
+}
+
 bool units_resolve_land_combat_ff(
   ColonizeUnitPool* pool,
   int attacker_id,
@@ -4827,11 +4854,11 @@ bool units_resolve_land_combat_ff(
    * is > 0x31, DOS swaps the defender graphic to 0x4b, adds +1 to its base
    * combat level, and sets `OR [0x8d03],4` — bit 0x400 of the DEFENDER
    * analysis word 0x8d02, i.e. COMBAT_FLAG_MUSKETS, the panel's Muskets row.
-   * The port models the arm with a real ejected Soldier rather than DOS's
-   * phantom colonist (units_revere_defend_colony_tile /
-   * founding_fathers_revere_auto_arm), so the strength half already rides on
-   * that unit; only the analysis bit was unset. Model realignment (phantom
-   * vs real Soldier) deliberately left alone.
+   * The strength half of that override rides on the phantom's unit type,
+   * which units_spawn_colony_temp_defender picks as "Soldiers" (2/2) instead
+   * of "Colonists" (defense 1) for the Revere arm — DOS's scratch row 0x17 is
+   * written with the same 2/2 and graphic 0x4b = sprite 74
+   * (UNITS_ICON_SOLDIER). Only the analysis bit needs this latch.
    */
   if (g_units_revere_muskets_latch) {
     eng.def_flags.flags |= COMBAT_FLAG_MUSKETS;
@@ -4859,6 +4886,17 @@ bool units_resolve_land_combat_ff(
   } else {
     eng.roll = dos_rng_range(rng, 1, total);
     eng.atk_wins = eng.roll <= eng.atk_strength;
+  }
+  /*
+   * DOS 1b0e raw 100573-100577, kept in DOS's own place: the roll is drawn
+   * first (RNG stream unchanged), then a plain Brave attacking a
+   * human-controlled European's Artillery has `bVar8` forced false and
+   * `local_ca` latched. DOS leaves `iVar23` (eng.roll) alone here, so the
+   * analysis log keeps the roll that was actually drawn.
+   */
+  const int brave_vs_human_arty = units_combat_brave_vs_human_arty(col1, atk, def);
+  if (brave_vs_human_arty) {
+    eng.atk_wins = false;
   }
   combat_analysis_log_engagement(pool, &eng, true);
 
@@ -5042,22 +5080,16 @@ bool units_resolve_land_combat_ff(
      * its own loot roll and its own DS:0x54f6 clear. `local_a6` stays 0 on
      * this limb, so there is no alarm vent here either.
      *
-     * `local_ca` (0f14's param_4, bypasses the walls check) is DOS's
-     * Brave-versus-Artillery pairing, raw 100573-100577. DOS ALSO forces the
-     * loss outright there (`bVar8 = false`) whenever a Brave attacks a HUMAN
-     * European's Artillery; that auto-loss itself is not ported — recorded in
-     * docs/combat.md — so the flag is read off the pairing that actually
-     * resolved instead.
+     * `local_ca` (0f14's param_4, bypasses the walls check) is the
+     * Brave-versus-human-Artillery latch set at the roll above (raw
+     * 100573-100577) — the same predicate that forced this loss, computed
+     * once as DOS does.
      */
     if (atk_nation >= 4 && atk_nation <= 11 && def_nation >= 0 && def_nation <= 3 &&
         g_units_combat_colonies) {
       const int raid_cid = colonies_id_at(g_units_combat_colonies, win_snap.x, win_snap.y);
       if (raid_cid >= 0) {
-        const ColonizeUnitType* at = units_type(pool, lose_snap.type_index);
-        const ColonizeUnitType* dt = units_type(pool, win_snap.type_index);
-        const int forced = at && dt && strstr(at->name, "Brave") != NULL &&
-          strstr(dt->name, "Artillery") != NULL && col1 &&
-          col1->player[def_nation].control == 0;
+        const int forced = brave_vs_human_arty;
         if (g_units_raid_repelled) {
           (void)g_units_raid_repelled(
             (ColonizeCol1Save*)col1,
@@ -6372,18 +6404,57 @@ static bool units_colony_has_soldier_on_tile(
 /*
  * W1.8 / P5.4: undefended-Euro-colony token militia. DOS FUN_5fef_1b0e's
  * "no live defender found" branch, colony_at_xy>=0 half (viceroy_unpacked.c
- * ~100417-100432): picks a random colonist (FUN_281f_04d4 RNG(0,+0x1f-1),
+ * 100417-100432): picks a random colonist (FUN_281f_04d4 RNG(0,+0x1f-1),
  * +0x1f already named colonist_count elsewhere), reads their job
- * (FUN_281f_0c54) and maps profession→ICONS.SS index (FUN_281f_02c6) for a
- * weak civilian stand-in — a phantom, not a real colonist, so it never
- * touches the colony's actual population. Mirrors the already-ported
- * village empty-dwelling Brave arm (units_spawn_village_temp_defender).
+ * (FUN_281f_0c54 → FUN_15eb_0e52, colony +0x40+idx) and maps
+ * profession→ICONS.SS index (FUN_281f_02c6) for a weak civilian stand-in — a
+ * phantom, not a real colonist, so it never touches the colony's actual
+ * population. Mirrors the already-ported village empty-dwelling Brave arm
+ * (units_spawn_village_temp_defender).
+ *
+ * The phantom is a scratch @UNIT row in DOS, not a real type: FUN_291f_0a20
+ * (= FUN_478c_002c, raw 76545-76564) stamps unit type 0x17 on the new unit
+ * and FUN_478c_0002 (raw 76530-76543) writes that type's table row 0x17
+ * (0x5230 + 0x17*0xe = 0x5372) from the two arguments — graphic at +2, and
+ * BOTH combat columns (+5 defense, +6 attack) from the passed base combat.
+ * Undoing it is FUN_291f_0a06 = FUN_478c_00d0 (raw 76594-76601): "if the last
+ * unit's type byte is 0x17, delete it", i.e. the phantom always evaporates.
+ *
+ *   local_de = *(byte*)0x5235      → @UNIT row 0 (Colonists) DEFENSE = 1
+ *   Revere arm (raw 100424-100429):
+ *     if (FUN_281f_07b4(owner, 0xc) && colony.Muskets(+0xb8) > 0x31) {
+ *       local_94 = 0x4b; local_de += 1; *(byte*)0x8d03 |= 4;
+ *     }
+ *
+ * So the Revere phantom is graphic 0x4b (= this port's sprite 74,
+ * UNITS_ICON_SOLDIER — the plain armed-colonist map pose) with attack 2 /
+ * defense 2. That is byte-for-byte the port's "Soldiers" @UNIT row (NAMES.TXT
+ * `Soldiers, 103, 1, 2, 2, …`), so the Revere phantom simply spawns as that
+ * type; the plain militia phantom keeps Colonists (defense 1). The defense
+ * value also feeds DOS's halving peel `*(byte*)(def_type*0xe+0x5235) < 2`
+ * (combat_strength.c `dt->defense < 2`), which the Revere phantom escapes and
+ * the plain one does not — same as here.
+ *
+ * NOT ported because DOS does not do it: no muskets are spent. 1b0e reads
+ * colony +0xb8 exactly twice (raw 100425 as this gate, raw 100708 as the
+ * "tribe gains muskets" test when a burned colony had any) and never writes
+ * it, on any outcome.
  */
-static int units_spawn_colony_temp_defender(ColonizeUnitPool* pool, const ColonizeColony* col) {
+static int units_spawn_colony_temp_defender(
+  ColonizeUnitPool* pool,
+  const ColonizeColony* col,
+  bool revere_armed
+) {
   if (!pool || !col || !col->active || col->colonist_count <= 0) {
     return -1;
   }
-  int ti = units_find_type(pool, "Free Colonist");
+  int ti = -1;
+  if (revere_armed) {
+    ti = units_find_type(pool, "Soldiers");
+  }
+  if (ti < 0) {
+    ti = units_find_type(pool, "Free Colonist");
+  }
   if (ti < 0) {
     ti = units_find_type(pool, "Colonists");
   }
@@ -6401,14 +6472,26 @@ static int units_spawn_colony_temp_defender(ColonizeUnitPool* pool, const Coloni
 
 /*
  * PEDIA Paul Revere: when stepping onto a foreign colony with no map unit and
- * no standing soldiers, auto-arm a colonist from warehouse muskets and fight.
- * When Revere doesn't apply (not owned, or muskets short — same
- * `FUN_281f_07b4`/`+0xb8` gate the decomp itself uses to *override* the
- * defender type, not to skip defense), DOS still fields a weak civilian
- * militia stand-in rather than granting a free capture — see
- * units_spawn_colony_temp_defender. Returns true if move may continue (no
- * fight, or attacker won). False if attacker lost / despawned. Requires
- * g_units_ff_col1.
+ * no standing soldiers, the town's militia turns out and fights. Revere is
+ * NOT a separate mechanism in DOS — 1b0e always builds the same phantom
+ * defender (units_spawn_colony_temp_defender) and Revere only *overrides* its
+ * graphic (0x4b) and base combat (+1), exactly the `FUN_281f_07b4`/`+0xb8`
+ * gate at raw 100424-100429. The colonist never leaves the colony, the
+ * warehouse muskets are never spent, and the phantom always evaporates after
+ * the roll (FUN_291f_0a06).
+ *
+ * Loss consequence lives where DOS puts it — the walk-in that follows, raw
+ * 100680-100713 inside `if (bVar8) { … if (bVar28) { … } }`:
+ *   • Euro attacker  → colony is CAPTURED (`bVar12`), no colonist dies.
+ *   • Native attacker, colony pop > 1 → FUN_281f_0a9c(local_b0)
+ *     (= FUN_15eb_0d04: shift the colonist arrays down, colony +0x1f -= 1).
+ *   • Native attacker, colony pop == 1 → colony destroyed (FUN_291f_0254),
+ *     tribe gains horses/muskets if the town held any.
+ * All three are already ported in units_try_capture_foreign_colony, which
+ * runs on the attacker's entry step right after this returns true.
+ *
+ * Returns true if the move may continue (no fight, or attacker won). False if
+ * the attacker lost / despawned. Requires g_units_ff_col1.
  */
 static bool units_revere_defend_colony_tile(
   ColonizeUnitPool* pool,
@@ -6435,49 +6518,38 @@ static bool units_revere_defend_colony_tile(
   }
   const bool has_soldier =
     units_colony_has_soldier_on_tile(pool, dest_x, dest_y, col->nation_id);
-  int def_id = -1;
-  if (founding_fathers_revere_should_auto_arm(
-        g_units_ff_col1, col->nation_id, has_soldier, col->stock[COLONIZE_CARGO_MUSKETS]
-      )) {
-    def_id = founding_fathers_revere_auto_arm(colonies, pool, cid);
-    if (def_id >= 0) {
-      /* DOS `OR byte ptr [0x8d03],4` (asm 5fef:1d5b) — Combat Analysis
-       * Muskets row on the defender side. Gate is identical: FF 12 owned +
-       * colony Muskets word > 0x31 (UNITS_EQUIP_MUSKETS). */
-      g_units_revere_muskets_latch = 1;
-    }
-  }
-  bool def_is_temp = false;
-  if (def_id < 0) {
-    def_id = units_spawn_colony_temp_defender(pool, col);
-    def_is_temp = def_id >= 0;
-  }
+  const bool revere_armed = founding_fathers_revere_should_auto_arm(
+    g_units_ff_col1, col->nation_id, has_soldier, col->stock[COLONIZE_CARGO_MUSKETS]
+  );
+  const int def_id = units_spawn_colony_temp_defender(pool, col, revere_armed);
   if (def_id < 0) {
     return true; /* nobody home at all (pop 0) — nothing to defend with */
   }
+  if (revere_armed) {
+    /* DOS `OR byte ptr [0x8d03],4` (asm 5fef:1d5b) — Combat Analysis
+     * Muskets row on the defender side. Gate is identical: FF 12 owned +
+     * colony Muskets word > 0x31 (UNITS_EQUIP_MUSKETS). */
+    g_units_revere_muskets_latch = 1;
+  }
   /* DOS bVar28: this defender did not exist before the attack — 1b0e picks a
-   * different `local_a6` row for it (see units_indian_attack_alarm_vent). */
+   * different `local_a6` row for it (see units_indian_attack_alarm_vent), and
+   * the strength peels read it for the Discoverer beginner shield (raw
+   * 100544: `if (bVar28 && difficulty == 0) local_92 = 0`). */
   g_units_colony_autodefender = true;
+  combat_set_auto_defender(true);
   const bool won = units_resolve_land_combat_ff(pool, attacker_id, def_id, rng, g_units_ff_col1);
+  combat_set_auto_defender(false);
   g_units_colony_autodefender = false;
   if (won && units_combat_is_visible(pool, attacker_id, def_id)) {
     units_play_event_sound(UNITS_SFX_COMBAT_WON);
   }
-  /* Phantom defender always vanishes after the fight, win or lose — a real
-   * Revere-armed colonist (def_is_temp false) stays if it won. */
-  if (def_is_temp) {
+  /* FUN_291f_0a06 / FUN_478c_00d0: the phantom always vanishes after the
+   * roll, win or lose (it may have been demoted or flipped by the shared
+   * outcome path first — DOS's own 0x17-typed row never survives either). */
+  {
     ColonizeUnit* d = units_get(pool, def_id);
     if (d && d->active) {
       units_despawn(pool, def_id);
-    }
-  } else if (won) {
-    /* bugs.md 217: a beaten Revere-armed colonist demotes (sheds muskets)
-     * instead of dying — put the survivor back to work in the colony so the
-     * town isn't "defended" by a unit standing on its own tile blocking the
-     * capture the attacker just won. */
-    ColonizeUnit* d = units_get(pool, def_id);
-    if (d && d->active) {
-      (void)colonies_admit_unit(colonies, cid, pool, def_id, g_units_ff_col1);
     }
   }
   if (!won) {
@@ -6676,10 +6748,22 @@ bool units_try_move(
       }
     }
     bool won = false;
+    /* DOS bVar28 is set by BOTH auto-spawn arms of 1b0e — the colony militia
+     * (units_revere_defend_colony_tile) and this empty-dwelling Brave. The
+     * beginner-shield peel that reads it also demands a colony and a European
+     * defender, so a village fight can never trip it; the latch is raised here
+     * anyway because that is what the byte means. */
+    const bool phantom_defender = (village_temp >= 0 && foe == village_temp);
+    if (phantom_defender) {
+      combat_set_auto_defender(true);
+    }
     if (reason == COLONIZE_ENTER_COMBAT_NAVAL) {
       won = units_resolve_naval_combat_ff(pool, unit_id, foe, rng, g_units_ff_col1);
     } else {
       won = units_resolve_land_combat_ff(pool, unit_id, foe, rng, g_units_ff_col1);
+    }
+    if (phantom_defender) {
+      combat_set_auto_defender(false);
     }
     if (won && units_combat_is_visible(pool, unit_id, foe)) {
       units_play_event_sound(village_temp >= 0 ? 0x4b : UNITS_SFX_COMBAT_WON);

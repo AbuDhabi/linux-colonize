@@ -248,28 +248,23 @@ bool founding_fathers_cortes_free_king_galleon(const ColonizeCol1Save* col1, int
 
 /*
  * Paul Revere gate (PEDIA / wiki): colony with no standing soldiers is attacked
- * and has stockpiled muskets → auto-arm a colonist defender.
+ * and has stockpiled muskets → the militia phantom turns out armed.
  * Returns true when the nation owns Revere, has no soldier defender, and
- * muskets_stock >= equip step (UNITS_EQUIP_MUSKETS = 50).
- * Wired from units_try_move when FF col1 context is set (turn_refresh) and the
- * attacker steps onto an empty foreign colony tile — see units.c.
+ * muskets_stock >= equip step (UNITS_EQUIP_MUSKETS = 50). This is DOS's
+ * `FUN_281f_07b4(owner, 0xc) && colony.Muskets(+0xb8) > 0x31` at
+ * viceroy_unpacked.c 100424, byte-identical.
+ *
+ * There is no apply half: Revere only *overrides* the phantom defender DOS
+ * spawns anyway (graphic 0x4b, base combat +1) — it never ejects a real
+ * Soldier and never spends the muskets. Wired from units_try_move when FF
+ * col1 context is set (turn_refresh) and the attacker steps onto an empty
+ * foreign colony tile — see units_revere_defend_colony_tile in units.c.
  */
 bool founding_fathers_revere_should_auto_arm(
   const ColonizeCol1Save* col1,
   int nation,
   bool colony_has_soldier_defender,
   int muskets_stock
-);
-
-/*
- * Paul Revere apply (PEDIA / wiki): eject one colonist as Soldier from colony
- * warehouse muskets. Caller must have passed founding_fathers_revere_should_auto_arm.
- * Returns new defender unit id, or -1 if eject/spawn failed.
- */
-int founding_fathers_revere_auto_arm(
-  ColonizeColonyPool* colonies,
-  ColonizeUnitPool* units,
-  int colony_id
 );
 
 /* Elect at most one FF per eligible nation when the bells threshold is met. */

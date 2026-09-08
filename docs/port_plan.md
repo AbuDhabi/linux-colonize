@@ -472,16 +472,37 @@ list, not from the inventory.
 
 ### Residual punch list (all that is genuinely open AI-side, 2026-09-08)
 
-- [ ] **Brave vs human-Artillery auto-loss** — raw 100573-100577,
-  recorded 2026-09-08 (ai-leads wave), not ported.
-- [ ] **`0f14` negative-alarm tail** disagrees with the raid-pulse
-  positive bump — recorded 2026-09-08, unresolved which is right.
-- [ ] **Revere phantom-vs-real-Soldier model** — recorded 2026-09-08.
-- [ ] **Two parked `0896` tension readers** — `112b_0790` map-chrome tier
-  (swap would break render goldens), `5952_035e` threat seed.
-- [ ] **D3 determinism debt** — retire the 3 `k_mid_peels` rows + the
-  brave-wander `home_dist` golden-fit term by deepening the real scorer;
-  model the NULL-rng partial-MP gamble (`units.c` ~6327).
+- [x] **Brave vs human-Artillery auto-loss** — ported 2026-09-08c
+  (`units_combat_brave_vs_human_arty`, units.c; the raid-handoff `param_4`
+  latch replaced an over-broad name match). See combat.md.
+- [x] **`0f14` negative-alarm tail** — resolved 2026-09-08c: DOS is
+  negative (−4/−12/−16/−8), gate SKIPS the call when at war, kind 3 is the
+  SHIP band; positive fandom bump retired; both resolver entries share
+  `ai_contact_raid_alarm_tail`, run at DOS's tail position (after chrome).
+  The @INDIANSURPRISE denial chrome now keys off the at-war state (alarm
+  > 0x4a / WAR bit), not a Linux attacks counter DOS's own tail zeroes.
+- [x] **Revere phantom-vs-real-Soldier model** — realigned 2026-09-08c:
+  phantom temp defender (scratch @UNIT row 0x17; Revere = Soldiers 2/2 +
+  graphic 0x4b), always evaporates, no muskets ever spent; ejector deleted.
+- [x] **Two parked `0896` tension readers** — closed 2026-09-08c:
+  `5952_035e` threat>>3 seed ported live (thin garrison latch retired);
+  `112b_0790` DISSOLVED — `ColonizeCol1Save.indian_tension` was a phantom
+  duplicate (DS:0x54f6 = the settlement record's `attitude[4]` word =
+  `tribe.alarm[]`, already live); array retired, all consumers repointed
+  (see indians.md).
+- [ ] **D3 determinism debt** — retire the `k_mid_peels` rows (~115 by now,
+  ai.c ~3930) + the brave-wander `home_dist` golden-fit term by deepening
+  the real scorer; model the NULL-rng partial-MP gamble (`units.c` ~6327).
+- [ ] **Human-colony `5952_035e` tick** — the ported threat seed runs only
+  in the Euro-AI colony pass; DOS runs the colony tick for every nation.
+  Recorded 2026-09-08c (threat-seed port report).
+- [ ] **1b0e beginner-handicap siblings** — recorded 2026-09-08c beside the
+  ported Discoverer undefended-town shield (raw 100536-100549, combat.md):
+  the `local_92 >>= 1` / `−25%` damper on any attacker of a human European
+  (colony not required), the `difficulty==0 && human Euro attacker →
+  local_92 <<= 1` doubling, and the port's pre-existing "Discoverer damper"
+  which mirrors the wrong side (tests the DEFENDER nation in DOS). All
+  change every Discoverer fight — port together in one measured pass.
 - Deliberate documented divergences (decision needed before "work"):
   king_ref.md short list, 5d04 past-the-end read kept 0 + musket-scratch
   collision as price×100, `@HELLOUSA` not modeled, per-act (vs DOS
