@@ -443,8 +443,9 @@ Partial rows are mostly contact/order-gate/FA-thin/save-load titles.
 | D5 | Fully faithful music (SC-55 timbre parity, per-driver quirks) | [assets.md](assets.md) | P3 "passable" bar |
 | ~~D6~~ | ~~Present-but-unused digital SFX (`COLDIG.BIN`)~~ | [assets.md](assets.md) | **Undeferred and closed 2026-08-29** — P3.2 / P3.7 both `[x]`. Playback + every reachable push site wired; ids `0x4c`/`0x50`/`0x51`/`0x55`/`0x5c` have no DOS push site. Retire coin-tier stays PARK (difficulty.md) |
 
-Also parked with these: MAPEDIT catalog track (old W5.4), `VR_B465X` hang
-dump (T4.6, by policy). (`unknown13_pad`/old W4.4 closed 2026-08-27 — static.)
+Also parked with these: MAPEDIT catalog track (old W5.4).
+(`unknown13_pad`/old W4.4 closed 2026-08-27 — static; `VR_B465X`/T4.6 closed
+2026-09-08 — static, see T4.6 below.)
 
 ---
 
@@ -590,8 +591,22 @@ regression bisect only.
   CMakeLists.txt; full `ctest` now 57/57 with both gates green. Harness:
   `AI_TURNS_ALL=1` runs past a failing step, `AI_TURNS_ONLY=t` runs one
   step.
-- [ ] **T4.6 — `VR_B465X` hang dump.** Parked **by policy** — a deliberate
-  stop, not a stall. Do not resume without a new, stated reason.
+- [x] **T4.6 — `VR_B465X` hang dump.** Closed **2026-09-08 statically — no
+  hang capture needed**. The "unlabeled writer after the 465b ADD" is
+  `FUN_5bfb_022e`'s exhaust tail (`LAB_5bfb_1005`): `465b`'s own commit tail
+  runs `0984` (adjacent-foreign probe) → `2a1f_0192` → `FUN_5bfb_3180` →
+  `2a1f_066c` → `022e`; a FIRST contact (met bit 0x20 clear) runs the meet
+  ceremony and exhausts the **mover** when it is Indian (`0934`→`1427_155e`,
+  spent := max MP = 3 for a Brave). So at 465b RETF Sioux spent is already 3
+  — the hang question is answered. Corroboration: TURN3's only two vis-bit
+  Braves are exactly the two spent-3 holdouts; unmet French/Spanish land
+  units sat adjacent to both dest tiles; the Euro phase runs BEFORE the
+  Indian phase (dump_1816 / vr_2a02_v3 show Euro units at TURN3 positions
+  while Braves still hold TURN2 positions, spent reset 0). Ported in
+  `ai_contact_indian_meet_trade`'s first-meet arm (Brave `moves_left :=
+  units_max_mp`); `k_quiet_brave_t2` overlay retired; 60/60 + goldens green.
+  Trap: `move_spent.c`'s Section-6 post-ADD table listed only the `1427_*`
+  chrome and skipped the `0984`/`0192` far-call pair at decomp 75794-75797.
 - [ ] **T5.1 — VGA-identical dialog chrome** (meet/diplo/king wood frames,
   FA `3f41` full widget body). = D4. **Chief portrait closed 2026-09-07e**
   — and the symbol in this row was wrong: `FUN_281f_04ac` is a far thunk to

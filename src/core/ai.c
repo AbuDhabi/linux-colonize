@@ -4203,21 +4203,16 @@ static const AiSeed100BraveSnap k_emp_brave_t6[] = {
 };
 static const int k_emp_brave_t6_count = (int)(sizeof(k_emp_brave_t6) / sizeof(k_emp_brave_t6[0]));
 
-/* --- Quiet mid-turn residuals (spent-only; call-graph annotation parked) ---
- * Both rows: XY already matches pulse; Linux spent 6/9 vs golden 3.
- * Re-parse: dump_b465r3 Sioux ADD AL=9; dump_b465f3 force-max not entered;
- * dump_vrb465x2 Sioux spent=9 without XY ⇒ writer after ADD / after 465b.
- * Post-ADD chrome (0916→12f6, 0948→040c, …) does not write 0x3149; in-465b
- * 0934 paths ruled out for lone Brave. No T1-safe port rule — keep overlays.
- * Hang target: VR_B465X / dump_b465x3 (spent at 465b RETF?). See
- * original_sources_annotated/ai/brave_spent_callgraph.md.
- */
-static const AiSeed100BraveSnap k_quiet_brave_t2[] = {
-  {7, 45, 52, 46, 53, 3, 1}, /* Apache spent-only */
-  {10, 49, 40, 49, 39, 3, 1}, /* Sioux spent-only */
-};
-static const int k_quiet_brave_t2_count =
-  (int)(sizeof(k_quiet_brave_t2) / sizeof(k_quiet_brave_t2[0]));
+/* --- Quiet mid-turn residuals: RESOLVED 2026-09-08 (T4.6 closed statically).
+ * The "writer after ADD" was FUN_5bfb_022e's exhaust tail (LAB_5bfb_1005):
+ * 465b's commit tail runs 0984 (adjacent-foreign probe) → 2a1f_0192 →
+ * FUN_5bfb_3180 → 2a1f_066c → FUN_5bfb_022e; on a FIRST contact (met bit
+ * 0x20 clear) the ceremony runs and the tail exhausts the MOVER when it is
+ * Indian (0934 → 1427_155e, spent := max MP = 3 for a Brave). Both TURN2→3
+ * rows had an unmet Euro land unit adjacent to the dest tile (France soldier
+ * at (50,38); Spain units at (47,53)/(47,54)) — Euro phase runs BEFORE the
+ * Indian phase (dump_1816 / vr_2a02_v3). Ported in
+ * ai_contact_indian_meet_trade's first-meet arm; overlay rows retired. */
 
 static const AiSeed100BraveSnap* ai_seed100_brave_table(int turn_after_advance, int* out_count) {
   *out_count = 0;
@@ -4228,8 +4223,7 @@ static const AiSeed100BraveSnap* ai_seed100_brave_table(int turn_after_advance, 
       return NULL;
     case 2:
       if (quiet) {
-        *out_count = k_quiet_brave_t2_count;
-        return k_quiet_brave_t2;
+        return NULL; /* spent-3 rows = 022e first-contact exhaust (T4.6) */
       }
       *out_count = k_emp_brave_t2_count;
       return k_emp_brave_t2;
