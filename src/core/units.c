@@ -1898,6 +1898,17 @@ int units_best_defender_at(
     if (atk_nat >= 0 && u->nation_id == atk_nat) {
       continue;
     }
+    /*
+     * DOS FUN_5fef_0000 domain gate (raw 99190-99196): the defender's
+     * ship-ness (type 0x0d..0x12) must equal the attacker's tile water test
+     * (FUN_281f_0768) or the candidate is skipped — a land assault never
+     * engages a docked ship, and naval combat never engages the garrison.
+     * Without it a Privateer in port outranked the garrison and the whole
+     * REF assault wedged (found closing D1).
+     */
+    if (atk && units_is_sea(pool, u->id) != units_is_sea(pool, attacker_id)) {
+      continue;
+    }
     const int armed =
       combat_unit_is_combat_role(pool, u->id) || u->muskets > 0 || u->horses > 0;
     int score = combat_engagement_strength(&sctx, u->id, attacker_id, NULL);
@@ -2273,30 +2284,17 @@ void units_combat_notify_colony_captured(
   if (!colony || !colony->active) {
     return;
   }
-  if (!units_combat_human_involved(col1, capturer_nation, colony->nation_id)) {
-    return;
-  }
   PopupMsgTokens tok;
   memset(&tok, 0, sizeof(tok));
   tok.string0 = units_combat_nation_label(col1, capturer_nation);
   tok.string2 = colony->name[0] ? colony->name : "colony";
-  if (plunder_gold > 0) {
-    tok.number0 = plunder_gold;
-    tok.has_number0 = true;
-    units_combat_enqueue_tok(
-      AI_POPUP_TAG_COMBAT_COLONY,
-      "CAPTURED",
-      capturer_nation,
-      colony->nation_id,
-      plunder_gold,
-      &tok,
-      "Colony captured."
-    );
-  } else if (
-    capturer_nation >= 0 && capturer_nation <= 3 && col1 &&
-    col1->player[capturer_nation].control != 0
-  ) {
-    /* AI capturer vs human: spies report. */
+  /* Raw 101015-101029 (FUN_5fef_1b0e capture tail): DOS picks the tag by
+   * whether EITHER side is human-controlled (control byte 0), then the WoI
+   * bit — @CAPTURED (with plunder) at peace, @CAPTURED3 at war (plunder is
+   * skipped during WoI, raw 100984); an AI-vs-AI capture gets the
+   * spies-report @CAPTURED2. The old plunder>0 / AI-capturer
+   * discriminators were port inventions. */
+  if (!units_combat_human_involved(col1, capturer_nation, colony->nation_id)) {
     units_combat_enqueue_tok(
       AI_POPUP_TAG_COMBAT_COLONY,
       "CAPTURED2",
@@ -2306,13 +2304,25 @@ void units_combat_notify_colony_captured(
       &tok,
       "Colony captured."
     );
-  } else {
+  } else if (col1 && col1->head.game_options.woi != 0) {
     units_combat_enqueue_tok(
       AI_POPUP_TAG_COMBAT_COLONY,
       "CAPTURED3",
       capturer_nation,
       colony->nation_id,
       0,
+      &tok,
+      "Colony captured."
+    );
+  } else {
+    tok.number0 = plunder_gold;
+    tok.has_number0 = true;
+    units_combat_enqueue_tok(
+      AI_POPUP_TAG_COMBAT_COLONY,
+      "CAPTURED",
+      capturer_nation,
+      colony->nation_id,
+      plunder_gold,
       &tok,
       "Colony captured."
     );
@@ -5515,6 +5525,29 @@ static void units_try_capture_foreign_colony(
     plunder = share;
   }
   units_combat_notify_colony_captured(g_units_ff_col1, &snap, u->nation_id, plunder);
+  /*
+   * Raw 100949-100963 (FUN_5fef_1b0e capture tail): WoI + crown winner —
+   * every crown unit standing on the 8 neighbouring tiles is re-homed to
+   * the captured colony (`+0x314a := *(0x8dc6)`, the port's col1_origin).
+   * This is DOS's whole post-capture "garrison" step; it writes no fortify
+   * order — the units simply belong to the prize and the 0a60 garrison
+   * quotas keep them there.
+   */
+  if (g_units_ff_col1 && g_units_ff_col1->head.game_options.woi &&
+      u->nation_id == (int)g_units_ff_col1->head.crown_nation_id && cid >= 0 &&
+      cid <= 0x7f) {
+    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+      ColonizeUnit* n = &pool->units[i];
+      if (!units_is_on_map(n) || n->nation_id != u->nation_id || n->id == u->id) {
+        continue;
+      }
+      const int ddx = n->x - u->x;
+      const int ddy = n->y - u->y;
+      if (ddx >= -1 && ddx <= 1 && ddy >= -1 && ddy <= 1 && (ddx != 0 || ddy != 0)) {
+        n->col1_origin = (uint8_t)cid;
+      }
+    }
+  }
   /* DOS 5fef capture tail (~100915): @HOWTOWIN "glorious victory on the road
    * to freedom" fires ONCE, on the first colony the human recaptures while
    * the REF is present (0x5382 bit1) — latch DS:0x5386 bit0 (tut2.howtowin).

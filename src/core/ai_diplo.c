@@ -2959,43 +2959,33 @@ void ai_diplo_treaty_timers(ColonizeTurnContext* ctx, int nation_id) {
   if (!ctx || !ctx->col1_ok || !ctx->col1 || nation_id < 0 || nation_id >= 4) {
     return;
   }
-  /* 6d8e step 4: decrement per-rival treaty timer bytes before planning. */
+  /*
+   * 6d8e prelude, raw 93173-93188 (verified against the decomp 2026-09-07g;
+   * the old expiry arm here was backwards). Per rival slot, DOS does two
+   * things, in this order:
+   *   1. flags bit 0x08 set AND timer byte already 0 AND RNG(0,3)==0 →
+   *      clear 0x08|0x40 (PEACE) and set 0x01 (WAR_INTENT) — on the acting
+   *      nation's OWN direction byte only. Treaty expiry breeds war intent;
+   *      it never makes peace (peace only happens in the 3180→153e→13b0
+   *      encounter chain, which 6d8e cannot reach).
+   *   2. timer byte nonzero → decrement.
+   * DOS's loop includes the self slot; the port skips it (the self byte is
+   * the virtual ALLY pair and carries neither bit 0x08 nor a timer).
+   */
   for (int other = 0; other < 4; ++other) {
     if (other == nation_id) {
       continue;
     }
     uint8_t* t = ai_diplo_timer_byte(ctx->col1, nation_id, other);
-    if (!t) {
+    uint8_t* f = ai_diplo_flag_byte(ctx->col1, nation_id, other);
+    if (!t || !f) {
       continue;
+    }
+    if ((*f & 0x08) != 0 && *t == 0 && ctx->rng && dos_rng_range(ctx->rng, 0, 3) == 0) {
+      *f = (uint8_t)((*f & 0xb7) | AI_DIPLO_WAR_INTENT);
     }
     if (*t > 0) {
       (*t)--;
-    }
-    if (*t != 0) {
-      continue;
-    }
-    /* Expiry: thin peace/met tweak (the Linux-only break-alliance arm was
-     * retired with the Euro×Euro alliance machinery, T2.4 2026-09-06).
-     * Use stored flags (not ai_diplo_read virtual PEACE|MET for unmet 0) so
-     * early turns do not stamp euro_relation in seed-100 goldens. */
-    uint8_t* f = ai_diplo_flag_byte(ctx->col1, nation_id, other);
-    if (!f) {
-      continue;
-    }
-    const uint8_t stored = *f;
-    /*
-     * bugs.md 388: this used to assign `*f = PEACE|MET` — a raw overwrite of
-     * ONE direction's byte. That both wiped every other flag in it (0x80
-     * treasure alert, 0x10 crown-armed, 0x08) and left the pair in a state
-     * DOS's own writers never produce here: the peer at peace with us while
-     * we are still at war with them. The Foreign Affairs report reads the
-     * viewer's own byte and the attack gate read the OR of both, so the two
-     * screens disagreed. Route it through the normal peace path instead,
-     * which clears WAR and ORs PEACE|MET on both bytes.
-     */
-    if (ctx->rng && (stored & AI_DIPLO_MET) && dos_rng_range(ctx->rng, 1, 8) == 1) {
-      ai_diplo_make_peace(ctx->col1, nation_id, other);
-      ai_diplo_mirror_relation_summary(ctx->col1, nation_id);
     }
   }
   /* Peaceful Indian relation drift (thin; full Indian×Euro 15b3 PORT DEBT). */

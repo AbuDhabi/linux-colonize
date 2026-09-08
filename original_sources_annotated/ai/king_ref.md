@@ -908,19 +908,59 @@ which carries `2424`, on `control != 2`; raw 6407 then calls the `6d8e`
 thunk on `control == 1`). So in DOS the REF's units are moved by the
 ordinary Euro unit act (`5b66` → `20e6` land arms) — that is what
 "`4d56` land scoring" in `port_plan.md` was pointing at — while `2022`
-only spawns the wave. The port writes control 1 too (bugs.md 234) but
-`turn_euro_nation_is_ref` (turn.c) still skips `ai_euro_nation_turn` for the
-crown and substitutes `ai_king_war_act`'s own hunt; the two stale comments
-there ("crown slot is withdrawn (control 2)", item 2 of the headless-run
-list above) are wrong about DOS. Closing that divergence = routing crown
-units through the ported `20e6` land arms, i.e. a WoI battle-path rewrite
-with `golden_woi_ref01` re-baselining — a tracked item, not a thin spot.
+only spawns the wave.
+
+**D1 CLOSED 2026-09-07g.** The port now mirrors the DOS per-slot order: at
+the crown slot's EURO step, `ai_king_ref_pre_euro_beat` (new public in
+ai_king.h = ref_wave + war bookkeeping: ref_present scan, intervention,
+merc roll, 1eca mobilization — verified against the decomp, the whole
+`43f7` overlay contains zero orders/goto/act-state writes, so the DOS king
+beat is a pure spawner) runs first, then `ai_euro_nation_turn` moves the
+REF units through the ordinary euro arms. `ai_king_war_act`'s ~490-line
+substitute hunt (hunt-target pick, greedy march, try_capture_at, fortify
+helpers, MoW unload arms) is DELETED (−1141 lines with its helpers);
+`ai_king_nation_turn`'s WoI branch keeps only the @SOONRETIRING1 chrome +
+`ai_king_check_revolution_end`. `ai_king_mow_sail_home_20e6` moved to its
+real DOS position — called from the euro ship band (ai_euro_unit_act) for
+the crown MoW. Wave/uprising spawns are now order-free (DOS creator
+`1427_06b4` default `+0x314b = 0x58`; the old AI_MOVE+goto=self stamp
+froze the wave once the hunt was gone). Fidelity fixes forced out by the
+handoff, each decomp-cited at its code site:
+- `units_best_defender_at` gained the DOS `5fef_0000` domain gate (raw
+  99190-99196): defender ship-ness must match the attacker's tile domain —
+  a docked Privateer used to outrank the garrison and wedge the assault.
+- `ai_euro_land_best_adjacent_foe` / the colony-seize arm now use the
+  best-defender pick instead of top-of-occupancy `units_id_at`.
+- Capture tag pick (`units_combat_notify_colony_captured`) is now the DOS
+  rule (raw 101015-101029): either-side-human → WoI? @CAPTURED3 :
+  @CAPTURED(+plunder); neither → @CAPTURED2. Was plunder>0/AI-capturer.
+- WoI+crown post-capture "garrison" = DOS's neighbor re-home (raw
+  100949-100963, `+0x314a := colony` → col1_origin) in
+  units_try_capture_foreign_colony; the invented cap-2 fortify is gone.
+- `ai_euro_5d04_woi_seize_manowar` scoped to the Europe-dock tile (asm
+  OVL14:005dd9 — `unit_index_on_tile(236+n,236+n)`), so 5d04 on the crown
+  can never eat the REF fleet (map-wide scan was a port bug).
+- `ai_diplo_treaty_timers` expiry arm corrected to DOS (raw 93173-93188):
+  bit 0x08 + timer 0 + RNG(0,3)==0 → clear 0x08|PEACE, set WAR_INTENT, own
+  byte only. The old 1-in-8 make_peace roll was backwards (and would have
+  ended the WoI when run on the crown slot).
+- `ai_euro_is_military_name`/`is_colony_garrison_name` now match
+  "Cavalry"/"Cont." (NAMES.TXT @UNIT spellings) — REF Cavalry no longer
+  falls into the explorer bands.
+- Crown-slot euro guards: `ai_diplo_euro_balance` skipped (Linux-only
+  content, no DOS 6d8e counterpart — 0342 is goal-promote only, verified),
+  first-colony founding blocked for the WoI crown.
+- Warships in a fallen port are sunk by the euro seize arm (0512 texture;
+  exact `5fef_1b0e` port-ship fate unverified — PARKED there).
+`golden_woi_ref01` passes with its ORIGINAL thresholds (first capture t6
+vs the ≤t12 bar, all 7 colonies fall by t16 vs t24 under the old hunt) —
+the euro-driven REF is stronger, no re-baseline was needed.
 
 ## Linux `ai_king_nation_turn` checklist
 
 1. SoL (`0004`)
 2. If !WoI: tax (`1d42`) → SoL 40–49 chrome (+ optional high-tax mention) → declare gate (`2564`/`1a26`; seeds REF + thin `backup_force` + thin `160a` rename + `unknown46[5]` congress)
-3. If WoI: wave (`0982` …) → war act (…) → revolution end check (`@WARN1`/`@WARN2`/`@WARN3` / `@LOSING2`/`@LOSING1`/`@LOSING3` / `@WINNING` / `@RETIRING2`; `unknown46[4]`; warns use `unknown46[6]`/`[7]`/`[10]`)
+3. If WoI: revolution end check only (`@WARN1`/`@WARN2`/`@WARN3` / `@LOSING2`/`@LOSING1`/`@LOSING3` / `@WINNING` / `@RETIRING2`; `unknown46[4]`; warns use `unknown46[6]`/`[7]`/`[10]`). Wave (`0982`) + war bookkeeping (intervene/merc/1eca) run earlier, from `ai_king_ref_pre_euro_beat` at the crown slot's EURO step (D1 2026-09-07g).
 
 ## PORT DEBT
 

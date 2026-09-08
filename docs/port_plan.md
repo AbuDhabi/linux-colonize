@@ -692,11 +692,20 @@ divergences live in king_ref.md (1d42 `nation+0xe` bump skipped, declare
 crown-diplo bitmask 0x22/0x40 vs WAR|MET, 1528 colony-name pick).
 2026-09-07: crown **MoW return-home** is the real `20e6` ship-band tail
 (`ai_king_mow_sail_home_20e6`, raw 89717-89720 + `48d3_015e`); the
-turns_worked despawn stand-in is retired. Biggest open REF divergence, newly
-pinned: DOS's crown slot is `control = 1` (raw 74833) and therefore runs the
-whole Euro nation turn `6d8e` — its land units move through `5b66`/`20e6`,
-not through a REF-specific hunt; `turn_euro_nation_is_ref` substitutes
-`ai_king_war_act` for that (D1, re-baselines `golden_woi_ref01`).
+turns_worked despawn stand-in is retired. **D1 REF divergence CLOSED
+2026-09-07g:** the crown slot (`control = 1`, raw 74833) now runs the full
+euro nation turn — `ai_king_ref_pre_euro_beat` (wave + war bookkeeping;
+the DOS `43f7` king beat is a pure spawner, zero orders/goto writes) then
+`ai_euro_nation_turn` at the crown's EURO step, per raw 6394/6407. The
+war_act substitute hunt is deleted (−1141 lines); MoW sail-home lives in
+the euro ship band. Forced side fixes (decomp-cited at their sites):
+`5fef_0000` defender domain gate, best-defender picks in the euro attack/
+seize arms, DOS @CAPTURED tag rule, WoI crown neighbor re-home
+(col1_origin), 5d04 MoW seizure scoped to the Europe dock, DOS treaty-
+timer expiry (WAR_INTENT, not peace), Cavalry/Cont. name predicates,
+crown-slot guards (euro_balance skip, no founding). `golden_woi_ref01`
+green on its ORIGINAL thresholds (all colonies fall t16 vs t24 before) —
+no re-baseline needed. Full write-up: king_ref.md "D1 CLOSED".
 
 **Shared helpers:** `465b_0000` terrain MP → `ai_dos_move_spent`;
 `281f_04ca`/`04d4` reseed/range → `dos_rng`; `124c_0040` generic distance
