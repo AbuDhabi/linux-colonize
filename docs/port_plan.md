@@ -209,6 +209,11 @@ goldens all in (2026-09-03). Remaining mismatches go through
 - [x] P4.10 [auto] 2026-08-28 — `golden_colony_preview01`: preview vs tick
   delta equality over both real fixtures; found AI `food += difficulty>>1`
   and Spring-only hammers gates missing from `colony_preview.c` — mirrored.
+  (2026-09-08 correction: the hammers gate keys on the POST-advance season —
+  EOT advances the calendar before production, so an Autumn save's tick runs
+  as Spring and banks (dutch2-t0→t1: New Amsterdam 32→48). Preview now
+  predicts that next tick incl. the lumber debit; test flips the season
+  before its direct production call.)
 
 ### P5 — War of Independence: declarable, fightable, winnable
 

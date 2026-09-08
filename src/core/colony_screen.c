@@ -607,12 +607,16 @@ void colony_screen_open_dock_orders(
 }
 
 void colony_screen_minimap_origin(int* out_x, int* out_y) {
+  /* Golden-measured grid origin (223,31): both margins use the section
+   * height (the 120-wide section keeps the same 23px margin as vertically,
+   * leaving the extra width on the right). */
   const int grid_px = COLONY_MINIMAP_GRID * COLONY_MINIMAP_TILE;
+  const int margin = (COLONY_MINIMAP_SECTION_H - grid_px) / 2;
   if (out_x) {
-    *out_x = COLONY_MINIMAP_SECTION_X + (COLONY_MINIMAP_SECTION_W - grid_px) / 2;
+    *out_x = COLONY_MINIMAP_SECTION_X + margin;
   }
   if (out_y) {
-    *out_y = COLONY_MINIMAP_SECTION_Y + (COLONY_MINIMAP_SECTION_H - grid_px) / 2;
+    *out_y = COLONY_MINIMAP_SECTION_Y + margin;
   }
 }
 
@@ -844,17 +848,76 @@ static void colony_screen_fill_parch(const ColonyScreenView* view, ColonizeFrame
   );
 }
 
+/* Wood grain tiling with the pattern anchored to screen (0,0), not the rect
+ * origin — golden-measured: the top bar and the minimap wood section share
+ * one continuous grain phase (top-bar rows repeat at y+24, columns at x+32),
+ * i.e. DOS tiles WOODTILE across the whole screen and the panels just clip
+ * windows out of it. */
+static void colony_screen_tile_rect_screen_phase(
+  const ColonizeSpriteSheet* sheet,
+  int origin_x,
+  int origin_y,
+  int rect_w,
+  int rect_h,
+  ColonizeFramebuffer8* framebuffer
+) {
+  if (!sheet || sheet->sprite_count < 1 || !framebuffer || rect_w <= 0 || rect_h <= 0) {
+    return;
+  }
+  const ColonizeSprite* tile = &sheet->sprites[0];
+  if (!tile->pixels || tile->width <= 0 || tile->height <= 0) {
+    return;
+  }
+  int x1 = origin_x + rect_w;
+  int y1 = origin_y + rect_h;
+  if (origin_x < 0) {
+    origin_x = 0;
+  }
+  if (origin_y < 0) {
+    origin_y = 0;
+  }
+  if (x1 > framebuffer->width) {
+    x1 = framebuffer->width;
+  }
+  if (y1 > framebuffer->height) {
+    y1 = framebuffer->height;
+  }
+  for (int dy = origin_y; dy < y1; ++dy) {
+    for (int dx = origin_x; dx < x1; ++dx) {
+      const uint8_t px = tile->pixels[(dy % tile->height) * tile->width + dx % tile->width];
+      if (px == COLONIZE_SS_TRANSPARENT) {
+        continue;
+      }
+      framebuffer->pixels[dy * framebuffer->width + dx] = px;
+    }
+  }
+}
+
 static void colony_screen_fill_wood_tile(const ColonyScreenView* view, ColonizeFramebuffer8* framebuffer) {
   if (!view || !view->wood_tile_ok) {
     return;
   }
-  colony_screen_tile_rect(
+  colony_screen_tile_rect_screen_phase(
     &view->wood_tile,
     COLONY_MINIMAP_SECTION_X,
     COLONY_MINIMAP_SECTION_Y,
     COLONY_MINIMAP_SECTION_W,
     COLONY_MINIMAP_SECTION_H,
     framebuffer
+  );
+}
+
+/* Golden: the top bar is the same full-screen WOODTILE grain, not
+ * WOODPANL.PIK (whose art carries a dark 2px right edge the golden lacks). */
+static void colony_screen_fill_top_bar_wood(
+  const ColonyScreenView* view,
+  ColonizeFramebuffer8* framebuffer
+) {
+  if (!view || !view->wood_tile_ok) {
+    return;
+  }
+  colony_screen_tile_rect_screen_phase(
+    &view->wood_tile, 0, 0, COLONY_SCREEN_WIDTH, COLONY_TOP_BAR_H, framebuffer
   );
 }
 
@@ -2387,9 +2450,11 @@ static void colony_screen_blit_buildings(
   int slot_x[32];
   int slot_y[32];
   colony_screen_assign_slot_positions(pool, colony, slot_x, slot_y);
+  /* Pass 1: every building sprite first. Badges/worker strips/production
+   * counters go in a second pass so an overlapping neighbour's sprite can
+   * never blit over another slot's counters (player-reported: resource
+   * counters rendered under buildings). */
   for (int i = 0; i < k_building_slot_count; ++i) {
-    const ColonyBuildingSlot* slot = &k_building_slots[i];
-    const int built = colony_screen_category_built(pool, colony, i);
     const int drawn_sprite = colony_screen_category_sprite(pool, colony, i);
     if (drawn_sprite < 0) {
       continue;
@@ -2399,6 +2464,14 @@ static void colony_screen_blit_buildings(
       colony_screen_debug_building_rect(
         view, framebuffer, drawn_sprite, slot_ox + slot_x[i], slot_oy + slot_y[i]
       );
+    }
+  }
+  for (int i = 0; i < k_building_slot_count; ++i) {
+    const ColonyBuildingSlot* slot = &k_building_slots[i];
+    const int built = colony_screen_category_built(pool, colony, i);
+    const int drawn_sprite = colony_screen_category_sprite(pool, colony, i);
+    if (drawn_sprite < 0) {
+      continue;
     }
 
     /*
@@ -3173,7 +3246,8 @@ static void colony_screen_draw_multifunction(
         (c == COLONIZE_CARGO_HORSES) ? p->goods[c] : (p->field_gross[c] + p->craft_gross[c]);
       const int short_amt = p->shortfall[c];
 
-      if (c == COLONIZE_CARGO_LUMBER && short_amt <= 0 && p->hammers_capacity > produced) {
+      if (c == COLONIZE_CARGO_LUMBER && short_amt <= 0 && !p->hammers_frozen &&
+          p->hammers_capacity > produced) {
         /* Player-reported (bugs.md): a carpenter demanding more lumber than
          * this tick *produces* is a lumber shortage — even when warehouse
          * stock is still feeding him (production 0, stock > 0), and doubly
@@ -3270,17 +3344,30 @@ static void colony_screen_draw_multifunction(
        * the same one-cell pairing the cargo shortfalls use. */
       ColonyProdSlot* s = &slots[slot_count++];
       const int short_h = p->hammers_capacity - p->hammers;
-      s->icon0 = p->hammers > 0 ? COLONY_ICON_HAMMER : -1;
-      s->amount0 = p->hammers;
-      s->color0 = 15;
-      if (short_h > 0) {
-        s->icon1 = COLONY_ICON_HAMMER;
-        s->amount1 = short_h;
-        s->color1 = 12;
-      } else {
+      if (p->hammers_frozen) {
+        /* The coming tick runs as Autumn (calendar advances before
+         * production) and banks nothing — show the carpenter's plain white
+         * potential, not a red shortfall (the missing hammers aren't a
+         * lumber problem). */
+        s->icon0 = COLONY_ICON_HAMMER;
+        s->amount0 = p->hammers_capacity;
+        s->color0 = 15;
         s->icon1 = -1;
         s->amount1 = 0;
         s->color1 = 0;
+      } else {
+        s->icon0 = p->hammers > 0 ? COLONY_ICON_HAMMER : -1;
+        s->amount0 = p->hammers;
+        s->color0 = 15;
+        if (short_h > 0) {
+          s->icon1 = COLONY_ICON_HAMMER;
+          s->amount1 = short_h;
+          s->color1 = 12;
+        } else {
+          s->icon1 = -1;
+          s->amount1 = 0;
+          s->color1 = 0;
+        }
       }
     }
     if (slot_count > 0 && pane_w > 0 && pane_h > 0) {
@@ -4674,6 +4761,7 @@ void colony_screen_render(
     colony_screen_refresh_preview(view, pool, colony, map, col1);
   }
 
+  colony_screen_fill_top_bar_wood(view, framebuffer);
   colony_screen_draw_top_bar(colony, game_year, game_autumn, gold, font, framebuffer);
 
   colony_screen_fill_parch(view, framebuffer);
@@ -4692,9 +4780,10 @@ void colony_screen_render(
 
   colony_screen_draw_hline(framebuffer, COLONY_TOP_SEPARATOR_Y, 0);
   colony_screen_draw_hline(framebuffer, COLONY_BOTTOM_SEPARATOR_Y, 0);
+  /* Golden: divider column sits at x=199, directly left of the wood section. */
   colony_screen_draw_vline(
     framebuffer,
-    COLONY_VIEWPORT_X + COLONY_VIEWPORT_W - 1,
+    COLONY_MINIMAP_SECTION_X - 1,
     COLONY_MIDDLE_Y,
     COLONY_BOTTOM_SEPARATOR_Y - 1,
     0
