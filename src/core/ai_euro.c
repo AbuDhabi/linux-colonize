@@ -12155,7 +12155,9 @@ static int ai_euro_20e6_wander_step(ColonizeTurnContext* ctx, ColonizeUnit* u, A
             !map_tile_is_water(ctx->map, ax, ay)) {
           score += 2;
         }
-        if (map_tile_tribe_or_presence(ctx->map, ax, ay) >= 0) {
+        /* DOS 521d:57c2 calls FUN_281f_0682 (unit-presence bit only) here,
+         * not 06d2 — a settlement tile without a unit does not −2. */
+        if (map_tile_owner_or_presence(ctx->map, ax, ay) >= 0) {
           score -= 2;
         }
         if (s->explorer) {

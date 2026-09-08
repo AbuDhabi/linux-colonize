@@ -196,6 +196,8 @@ int map_continent_id_at(const ColonizeWorldMap* map, int x, int y);
  */
 bool map_tile_is_lake(const ColonizeWorldMap* map, int x, int y);
 int map_tile_tribe_or_presence(const ColonizeWorldMap* map, int x, int y);
+/* DOS FUN_281f_0682: unit-presence bit only (layer2 bit0) → owner nibble. */
+int map_tile_owner_or_presence(const ColonizeWorldMap* map, int x, int y);
 uint8_t map_terrain_overlay(uint8_t terrain_byte);
 int map_terrain_sprite_at(const ColonizeWorldMap* map, int x, int y);
 int map_phys0_forest_sprite_at(const ColonizeWorldMap* map, int x, int y);

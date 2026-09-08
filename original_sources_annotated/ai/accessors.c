@@ -246,10 +246,20 @@ int diplomacy_flags(int self_nation, int other_nation) {
   return 0;
 }
 
-/* Ghidra: type table DS:0x5236 | unit_type_combat_byte — Brave type 19 → 0. */
+/*
+ * Ghidra: type table DS:0x5236 | unit_type_combat_byte (@UNIT attack column).
+ * CORRECTION 2026-09-08: Brave type 19 → 1, NOT 0 (dosbox-x dump decode of
+ * the stride-0xe table, cross-checked vs NAMES.TXT @UNIT attack; see
+ * quiet_brave_scoring.c colony_pull notes). The old stub returned 0 and
+ * that drift propagated into the bVar20 "starts true" claim — in the real
+ * code a Brave FAILS the combat==0 rescue clause of the local_ec fog gate
+ * and SKIPS the military -10 loop.
+ */
 int unit_type_combat_byte(int unit_type) {
-  (void)unit_type;
-  return 0; /* quiet Brave path */
+  /* Annotated-only stub: the real table is NAMES.TXT @UNIT's attack column
+   * (== ColonizeUnitType.attack, units.c). Braves/Armed/Mounted (19-22) are
+   * all nonzero; only unarmed civilian types are 0. */
+  return (unit_type >= 19 && unit_type <= 22) ? 1 : 0;
 }
 
 /* Ghidra: FUN_281f_078c | terrain_class_at — decode_terrain_class(terrain_byte). */

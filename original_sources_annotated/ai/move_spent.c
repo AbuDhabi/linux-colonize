@@ -264,6 +264,11 @@ int move_spent_ocean_force_max(
  *     roll = rng_range(1, local_40)   // FUN_281f_04d4
  *     if roll <= remaining: commit (LAB_465b_0673)
  *     else: fail — set failed flag, leave unit in place (LAB_465b_0bd1 path)
+ *   NOTE (2026-09-08): when the first two clauses fail, FUN_281f_04ca fires
+ *   BEFORE the foreign test (asm 119359-119361) — it is Borland randomize():
+ *   srand(BIOS 0040:006C tick), so even a foreign-tile step reseeds the LCG
+ *   from the wall clock. Deliberately NOT ported (would break seeded
+ *   determinism); this is the "NULL-rng" in old port-plan notes.
  *
  * AI Brave pulse in Linux always commits (no gamble); human pathfinder uses
  * the range(1,cost) rule in units.c. 097a loop allows spent to exceed max

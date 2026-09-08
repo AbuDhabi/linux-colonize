@@ -1155,6 +1155,19 @@ bool map_tile_is_lake(const ColonizeWorldMap* map, int x, int y) {
   return (int)(map_get_layer3(map, x, y) & 0x0fu) != 1;
 }
 
+/* DOS FUN_281f_0682: unit-presence bit only (layer2 bit0) → owner nibble. */
+int map_tile_owner_or_presence(const ColonizeWorldMap* map, int x, int y) {
+  if (!map || !map->layer2 || x < 0 || y < 0 || x >= map->width || y >= map->height) {
+    return -1;
+  }
+  const uint8_t l2 = map->layer2[(size_t)y * (size_t)map->width + (size_t)x];
+  if ((l2 & MAP_OCCUPANCY_HAS_UNIT) == 0) {
+    return -1;
+  }
+  const int hi = (int)((map_get_layer3(map, x, y) >> 4) & 0x0fu);
+  return hi == 0x0f ? -1 : hi;
+}
+
 int map_tile_tribe_or_presence(const ColonizeWorldMap* map, int x, int y) {
   if (!map || !map->layer2 || x < 0 || y < 0 || x >= map->width || y >= map->height) {
     return -1;

@@ -160,6 +160,11 @@ int quiet_lab_54f5_gate(int dest_x, int dest_y, int nation_id) {
  * score += -diff * diff * 2
  */
 int quiet_score_facing(int score, int dir, int last_dir) {
+  /* 2026-09-08 asm 153137-153148: the input is the persisted unit byte
+   * +0x314f (COL1 facing, unit+0x0b) read RAW; guard is signed 0 <= v < 8.
+   * 521d:5899 writes 8 on every stay (and when < 3 thirds remain), so 8 is
+   * a real "no facing bias" value, NOT direction 0. Only 3 writers exist:
+   * 521d:589e (this commit), 5bfb:36ab, 6662:1592. */
   if (last_dir < 0 || last_dir > 7) {
     return score;
   }
@@ -214,8 +219,17 @@ int quiet_score_military_minus10(
 /*
  * Ghidra: bVar20 block after facing/−10 | quiet_score_fog_explore
  *
- * bVar20 init (Brave type 19): starts true (type != wagon 0x12); may clear
- * later for some Euro paths. NEW WORLD Indian quiet: treat as enabled.
+ * CORRECTION 2026-09-08 (raw asm 521d:4d46 + 521d:56ce): the enable is
+ * local_ec, computed ONCE PER ACT before the dir loop:
+ *   local_ec = 0;
+ *   if (probe_adjacent_contact_claim(x, y, nation, 1) < 0) local_ec = 1;   // FUN_2a1f_047c
+ *   else if (non-ship && combat_byte(type) == 0)          local_ec = 1;
+ *   if (ship 0x0d..0x12 && (DS:0x5382 & 1))               local_ec = 0;   // WoI
+ * When local_ec == 0, 56ce jumps STRAIGHT to the keep-max — the +8 far
+ * probe, ship +4, AND the -2 ring are all skipped. Braves' combat byte is
+ * 1 (see accessors.c correction), so the rescue clause never fires: a
+ * Brave adjacent to any foreign claim gets NO fog terms at all. The old
+ * "starts true" claim below came from the wrong combat==0 stub.
  *
  * Far probe = unit + 4×dir.
  *   +8 if explore-index byte==0 (y>>2)+(x>>2)*18 && !ocean(far) && inset(far)
@@ -534,6 +548,13 @@ int quiet_score_colony_pull(int score, int colony_count) {
  * Dir loop 0..7 (stay handled by caller for LCG). Reject ocean/HS / foreign.
  * Score = base + terrain; then if LAB_521d_54f5 gate: facing + −10 + fog;
  * else colony_pull (no-op early). Keep max.
+  * Verified 2026-09-08 from raw asm: keep-max is strict JG (first dir wins
+ * ties), loop ascending 0..7; the -2 ring accessor is FUN_281f_0682
+ * (owner-or-presence, unit bit only — not 06d2/06dc); the ring walks the
+ * neighbours of the FAR tile; coarse index = (far_y>>2)+(far_x>>2)*0x12 at
+ * 0x9faa, read BEFORE the water/bounds checks (short-circuit order:
+ * coarse byte -> 0768 water -> 0302 bounds, all on the FAR tile). The
+ * attack arm (52aa) falls INTO the 54f5 facing/fog band via 521d:551f.
  */
 int quiet_brave_pick_dir_asm(
   int x,
