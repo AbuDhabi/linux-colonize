@@ -2699,21 +2699,17 @@ static void turn_route_damaged_ships(ColonizeTurnContext* ctx, int nation) {
 }
 
 /*
- * FUN_43f7_2424 war dispatch: once independence is declared the crown slot
- * is the REF, driven by ai_king_nation_turn's 2022 branch (wave + war_act),
- * not the ordinary Euro unit AI. Running ai_euro_nation_turn on it first
- * spent every landed Regular's moves before war_act ever saw them (found
- * 2026-08-28 by a headless WoI run: 40 turns, zero attacks).
- *
- * Known divergence, pinned 2026-09-07: DOS does BOTH. `1a26` sets the crown
- * slot's control byte to 1 (viceroy_unpacked.c:74833 — control 2 is `0108`'s
- * eliminated powers), and the turn loop runs `3844_00f2` (which carries
- * `2424`) for every control != 2 slot (raw 6394) and then the full Euro
- * nation turn `FUN_521d_6d8e` for every control == 1 slot (raw 6407). So in
- * DOS the REF's units are moved by the ordinary Euro unit act (`5b66` →
- * `20e6` land arms) after the king beat spawns the wave; war_act's hunt is
- * the port's substitute for that. Closing it re-baselines golden_woi_ref01 —
- * tracked as D1 in port_plan.md / king_ref.md.
+ * D1 closed 2026-09-07g: DOS does BOTH beats for the crown slot. `1a26`
+ * sets the crown slot's control byte to 1 (viceroy_unpacked.c:74833 —
+ * control 2 is `0108`'s eliminated powers), and the turn loop runs
+ * `3844_00f2` (which carries `2424` → `2022`, a pure spawner/bookkeeper —
+ * the 43f7 overlay holds zero orders/goto writes) for every control != 2
+ * slot (raw 6394) and then the full Euro nation turn `FUN_521d_6d8e` for
+ * every control == 1 slot (raw 6407). The port mirrors that per-slot order:
+ * ai_king_ref_pre_euro_beat (wave + bookkeeping) then ai_euro_nation_turn,
+ * both inside the crown slot's EURO step. Running the euro pass without the
+ * preceding king beat re-creates the 2026-08-28 bug (moves spent before the
+ * wave lands: 40 turns, zero attacks).
  */
 static bool turn_euro_nation_is_ref(const ColonizeTurnContext* ctx, int n) {
   return ctx && ctx->col1_ok && ctx->col1 && ai_king_independence_declared(ctx->col1) &&
@@ -2763,7 +2759,7 @@ void turn_run_european_ai_stubs(ColonizeTurnContext* ctx) {
     );
     turn_route_damaged_ships(ctx, n);
     if (turn_euro_nation_is_ref(ctx, n)) {
-      continue; /* REF: ai_king_nation_turn (war_act) moves these units. */
+      ai_king_ref_pre_euro_beat(ctx); /* DOS 00f2→2424 before 6d8e. */
     }
     ai_euro_nation_turn(ctx, n);
   }
@@ -3203,7 +3199,7 @@ static bool turn_euro_ai_should_run(const ColonizeTurnContext* ctx, int nation_i
     return false;
   }
   if (turn_euro_nation_is_ref(ctx, nation_id)) {
-    return true; /* REF slot: its units still need a moves refresh (DOS crown control = 1) */
+    return true; /* REF slot: full euro turn + pre-euro king beat (DOS crown control = 1) */
   }
   uint8_t control = 1;
   if (ctx->col1_ok && ctx->col1) {
@@ -3469,9 +3465,14 @@ bool turn_processor_advance(ColonizeTurnProcessor* proc, ColonizeTurnContext* ct
           }
         }
       }
-      if (!turn_euro_nation_is_ref(ctx, n)) {
-        ai_euro_nation_turn(ctx, n);
+      if (turn_euro_nation_is_ref(ctx, n)) {
+        /* DOS per-slot order (raw 6394/6407): king beat (00f2→2424→2022,
+         * wave spawn + bookkeeping) first, then the full euro turn moves
+         * the REF units through the ordinary 5b66/20e6 arms. D1 closed
+         * 2026-09-07g. */
+        ai_king_ref_pre_euro_beat(ctx);
       }
+      ai_euro_nation_turn(ctx, n);
       {
         const int h = turn_human_slot(ctx);
         if (h >= 0 && n > h) {

@@ -1,30 +1,55 @@
 /* Smoke: King/REF SoL, tax→REF, boycott audience + Fugger sync, tax SoL≥30 gate
- * (+ SoL-low hike assert), SoL chrome, declare+160a/1528/congress, MoW cargo×6
- * (units_ship_capacity / cargo_ids board + multi-unload ≤moves/capacity)
- * Regular+Dragoon mix + second MoW@diff≥2, 10f0 (dual + third@diff≥2 + ≤2@diff<2
- * Regular+Dragoon mix + nation pick), REF land hunt/capture+owner-change+status
- * +fortify one/two (Regular else Dragoon/Cont.Cav cap-2), REF stack extras hunt,
- * fortify extras hunt, after-capture next colony hunt, idle Regular/Dragoon/
- * Cont.Cav fortify on crown/captured capital, Artillery
- * after capture / idle on crown colony FORTIFY (Euro pattern; already-FORTIFIED
- * stay), Artillery siege
- * bias (+ competing Regular pool / unfortified Regular prefer; adjacent
- * unfortified must not override fortified), Dragoon/Cont. Cav
- * open-land bias (+ Cont. Army stays nearest negative), MoW+cargo AI_SAIL→coast
- * + unload-at-colony (Regular else Dragoon seize; multi ≤moves; fortify after
- * multi-unload; full unload + moves → next human coast; after next-coast sail
- * prefer unload if already adjacent), idle empty MoW coastal patrol, 0982 MoW
- * on water adjacent, 2244 merc hire (Soldier type) or cannot-afford once
- * (+ refuse→later gold still blocked via unknown46[3]), 1eca colony-SoL bias +
- * Cont. Army/Cont. Cav capital-rally (+ hold on capital + capital fortify cap-2
- * + capital MD slack) +
- * SoL=50 mid-band edge + Cont. Army abbrev skip, REF capital MD hunt
- * bias (+ Artillery siege capital when fortified MD slack), congress
- * unknown46[5] on declare, WoI unknown46[0] only when SoL≥50,
- * Refuse→dump CHOICE→@TEAPARTY OK (thin 3dc8 stock dump), 2244 Decline
- * follow-up OK, second MoW only @diff≥2. 160a letter cinematic Done
- * (declaration.c). PARK: dump-goods CHOICE prompt invent English
- * (picker + Europe bid>0 Done). */
+ * (+ SoL-low hike assert), SoL chrome, declare+160a/1528/congress,
+ * 0982 wave composition (MoW-per-beat / pool caps / Regular-heavy),
+ * 10f0 intervention (dual + small pools + nation pick), 2244 merc hire /
+ * Decline, 1eca Continental mobilization (colony-SoL bias, SoL=50 band edge,
+ * Cont. Army abbrev skip, Veteran/own-tile gates), congress unknown46[5] on
+ * declare, WoI unknown46[0] only when SoL≥50, Refuse→@TEAPARTY OK (thin 3dc8
+ * stock dump), revolution end ladder (@LOSING1/2/3, @WARN1/2/3, @WINNING,
+ * @RETIRING2, @SCORED, @SOONRETIRING0/1), 20e6 MoW sail-home, 0a22 bell-pool
+ * spend. 160a letter cinematic Done (declaration.c). PARK: dump-goods CHOICE
+ * prompt invent English (picker + Europe bid>0 Done).
+ */
+/*
+ * 2026-09-07g (D1) — the King/REF MOVEMENT scenarios in this file are RETIRED.
+ * ai_king_war_act lost its per-unit loop: DOS's 43f7 king beat never writes
+ * orders/goto/act-state, so the crown slot now runs the ordinary Euro turn
+ * (turn.c calls the new ai_king_ref_pre_euro_beat at the crown slot's EURO
+ * step, then ai_euro_nation_turn) and every REF hunt / march / capture /
+ * fortify / MoW unload is euro-side code. Replacement owner: REF movement now
+ * flows through ai_euro_nation_turn (D1 2026-09-07g); movement behavior is
+ * covered by golden_woi_ref01. Per docs/port_plan.md "Method notes", a
+ * fidelity fix invalidates the test that encoded the old behaviour — the same
+ * treatment test_ai_euro_expand.c's 31 retired 5d04 scenarios got.
+ *
+ * Deleted with the code they tested:
+ *   - "REF land hunt + colony capture + fortify Regular" (hunt goto/step,
+ *     colonies_capture from ai_king, capture status chrome, fortify cap-1/cap-2,
+ *     REF stack extras hunt, after-capture next-colony hunt);
+ *   - "REF idle fortify" (crown-colony garrison, cap-2 extras, third hunts,
+ *     captured-capital garrison, already-FORTIFIED stays);
+ *   - "Dragoon / Cont. Cav garrison fallback" (cavalry fortify cap-2);
+ *   - "Artillery after capture / idle on crown colony FORTIFY";
+ *   - "Artillery hunt prefer fortified" + the adjacent-unfortified tighten
+ *     (split out of the 0982 Artillery-pool block, whose wave/pool asserts stay);
+ *   - "Dragoon open-land bias" and "Cont. Cav open-land bias" (+ the Cont. Army
+ *     stays-nearest negative);
+ *   - the whole MoW band: cargo AI_SAIL→coast, coastal unload (adjacent-first),
+ *     multi-unload ≤moves, full-unload→next-coast sail, post-sail unload,
+ *     Dragoon-only unload seize, idle empty MoW coastal patrol;
+ *   - "REF Cavalry should be a land hunter" (the NAMES.TXT `Cavalry` spelling
+ *     probe — ai_king_is_ref_land_hunter itself is gone);
+ *   - "REF capital MD hunt bias" and "Artillery siege capital MD slack".
+ *
+ * Kept and retargeted: every WAVE / SPAWN / POOL / MOBILIZATION / MERC /
+ * INTERVENTION / REVOLUTION-END / LATCH / popup block. Where a block used to
+ * reach the wave or the 2022 bookkeeping through ai_king_nation_turn it now
+ * calls ai_king_ref_pre_euro_beat first (the pipeline's own per-slot order),
+ * followed by ai_king_nation_turn where the block also reads the king slice's
+ * chrome or end check. The 20e6 sail-home beat survives as a direct
+ * ai_king_mow_sail_home_20e6 call — that function stayed public and is driven
+ * from the euro ship band.
+ */
 #include "core/ai_king.h"
 #include "core/ai_diplo.h"
 #include "core/assets.h"
@@ -280,6 +305,7 @@ static int test_king_noncombat_never_attacks(void) {
   ctx.status_size = sizeof(status);
 
   for (int t = 0; t < 4; ++t) {
+    ai_king_ref_pre_euro_beat(&ctx);
     ai_king_nation_turn(&ctx);
     ColonizeUnit* w = units_get(&units, wagon);
     ColonizeUnit* r = units_get(&units, rebel);
@@ -1102,6 +1128,19 @@ int main(void) {
   if (count_nation(&units, 1) >= 1) {
     return fail("declare turn must not land the wave (one-turn wait)");
   }
+  /*
+   * D1 2026-09-07g: the wave beat moved out of ai_king_nation_turn into
+   * ai_king_ref_pre_euro_beat, which the crown slot runs at its EURO step. The
+   * declaration itself still happens in the king slice, so the wait latch is
+   * consumed by the FIRST pre-euro beat after it — that beat lands nothing
+   * either; the wave follows on the next one.
+   */
+  ai_king_ref_pre_euro_beat(&ctx);
+  ai_king_nation_turn(&ctx);
+  if (count_nation(&units, 1) >= 1) {
+    return fail("wait beat after the declaration must not land the wave");
+  }
+  ai_king_ref_pre_euro_beat(&ctx);
   ai_king_nation_turn(&ctx);
   /* Seed then drain: residual +1 regular may leave pools non-zero; require spawn. */
   if (count_nation(&units, 1) < 1) {
@@ -1221,6 +1260,7 @@ int main(void) {
     for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
       was_active[i] = units.units[i].active;
     }
+    ai_king_ref_pre_euro_beat(&ctx);
     ai_king_nation_turn(&ctx);
     const int human_spawned = count_nation(&units, 0) - human_before;
     if (human_spawned != 7) {
@@ -1291,6 +1331,7 @@ int main(void) {
   col1.head.backup_force[3] = 0;
   {
     const int human_before = count_nation(&units, 0);
+    ai_king_ref_pre_euro_beat(&ctx);
     ai_king_nation_turn(&ctx);
     const int human_spawned = count_nation(&units, 0) - human_before;
     if (human_spawned != 2 || col1.head.backup_force[0] != 0) {
@@ -1310,1144 +1351,6 @@ int main(void) {
         u->x >= 4 && u->x <= 6 && u->y >= 4 && u->y <= 6) {
       u->active = false;
     }
-  }
-
-  /*
-   * REF land hunt + colony capture + fortify Regular (fandom REF AI / conquest):
-   * Idle crown Regular with moves → AI_MOVE toward nearest human land unit;
-   * REF on human colony tile → colonies_capture (even with 0 moves) then
-   * UNITS_ORDER_FORTIFY on the capturing Regular.
-   */
-  {
-    colonies.colonies[0].nation_id = 0;
-    memset(col1.head.expeditionary_force, 0, sizeof(col1.head.expeditionary_force));
-    col1.head.backup_force[0] = 0;
-    col1.head.backup_force[1] = 0;
-    col1.head.backup_force[2] = 0;
-    col1.head.backup_force[3] = 0;
-    /* A second, inland human colony keeps the war alive after Jamestown
-     * falls (otherwise the same turn ends in @LOSING2 and overwrites the
-     * capture status this block asserts). Deactivated again below. */
-    ColonizeColony* inland = &colonies.colonies[1];
-    inland->id = 1;
-    inland->active = true;
-    inland->nation_id = 0;
-    inland->x = 14;
-    inland->y = 14;
-    for (int y = 14; y >= 1; --y) {
-      bool free_tile = false;
-      for (int x = 14; x >= 8 && !free_tile; --x) {
-        if (!map_tile_is_land(&map, x, y)) {
-          continue;
-        }
-        free_tile = true;
-        for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-          const ColonizeUnit* u = &units.units[i];
-          if (u->active && u->x == x && u->y == y) {
-            free_tile = false;
-            break;
-          }
-        }
-        if (free_tile) {
-          inland->x = x;
-          inland->y = y;
-        }
-      }
-      if (free_tile) {
-        break;
-      }
-    }
-    inland->population = 10; /* > Jamestown: 06a6 irregulars pick the weakest colony */
-    inland->colonist_count = 10;
-    snprintf(inland->name, sizeof(inland->name), "Inland");
-    if (colonies.colony_count < 2) {
-      colonies.colony_count = 2;
-    }
-    /* …coastal (a port must survive Jamestown's fall or @LOSING1 fires)… */
-    map.terrain[inland->y * 16 + inland->x - 1] = 25;
-    /* …with a fortified human Soldier, so the crown wave that lands on the
-     * weakest colony each turn can't take it undefended. */
-    const int inland_guard = units_spawn_allow_stack(&units, ty_soldier, inland->x, inland->y);
-    if (inland_guard < 0) {
-      return fail("capture setup should spawn inland guard");
-    }
-    {
-      ColonizeUnit* g = units_get(&units, inland_guard);
-      g->nation_id = 0;
-      g->moves_left = 0;
-      g->orders = UNITS_ORDER_FORTIFY;
-    }
-    /* Park existing crown movers so hunt/capture probes are stable. */
-    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-      ColonizeUnit* u = &units.units[i];
-      if (u->active && u->nation_id == 1) {
-        u->moves_left = 0;
-      }
-    }
-    /* Capture: REF Regular already on human colony, no moves. */
-    const int cap_id = units_spawn_allow_stack(&units, ty_regular, 5, 5);
-    if (cap_id < 0) {
-      return fail("capture setup should spawn crown Regular on colony");
-    }
-    {
-      ColonizeUnit* cu = units_get(&units, cap_id);
-      if (!cu) {
-        return fail("capture setup unit lookup");
-      }
-      cu->nation_id = 1;
-      cu->moves_left = 0;
-      cu->orders = UNITS_ORDER_NONE;
-      cu->goto_x = -1;
-      cu->goto_y = -1;
-    }
-    /* Hunt: human Soldier at (12,5); idle crown Regular at (10,5) with moves. */
-    const int prey_id = units_spawn_allow_stack(&units, ty_soldier, 12, 5);
-    const int hunter_id = units_spawn_allow_stack(&units, ty_regular, 10, 5);
-    if (prey_id < 0 || hunter_id < 0) {
-      return fail("land-hunt setup should spawn human Soldier + crown Regular");
-    }
-    {
-      ColonizeUnit* prey = units_get(&units, prey_id);
-      ColonizeUnit* hunter = units_get(&units, hunter_id);
-      if (!prey || !hunter) {
-        return fail("land-hunt setup unit lookup");
-      }
-      prey->nation_id = 0;
-      prey->moves_left = 0;
-      hunter->nation_id = 1;
-      hunter->moves_left = 1 * UNITS_MP_PER_TILE;
-      hunter->orders = UNITS_ORDER_NONE;
-      hunter->goto_x = -1;
-      hunter->goto_y = -1;
-    }
-    ai_king_nation_turn(&ctx);
-    /* REF capture clears human ownership (conquest — colonies_capture). */
-    if (colonies.colonies[0].nation_id != 1) {
-      return fail("REF on human colony should colonies_capture (owner → crown)");
-    }
-    if (colonies.colonies[0].nation_id == 0) {
-      return fail("REF capture must clear human colony ownership");
-    }
-    inland->active = false; /* don't perturb later weakest-port / hunt picks */
-    units.units[inland_guard].active = false;
-    /* Thin conquest status (full chrome PARKED): exact phrase + colony name. */
-    if (!strstr(status, "The King's forces have captured") || !strstr(status, "Jamestown")) {
-      fprintf(stderr, "unit_ai_king: capture status: '%s'\n", status);
-      return fail("REF capture should set 'The King's forces have captured %s!' status");
-    }
-    {
-      /* Any crown Regular on the colony may capture first (wave leftovers); one
-       * must end FORTIFY after capture. */
-      int fortified = 0;
-      for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-        const ColonizeUnit* u = &units.units[i];
-        if (!u->active || u->nation_id != 1 || u->x != 5 || u->y != 5) {
-          continue;
-        }
-        if (u->type_index == ty_regular && u->orders == UNITS_ORDER_FORTIFY) {
-          fortified = 1;
-          break;
-        }
-      }
-      if (!fortified) {
-        const ColonizeUnit* cu = units_get_const(&units, cap_id);
-        fprintf(stderr, "unit_ai_king: post-capture cap orders=%d (want a FORTIFY Regular)\n",
-                cu ? cu->orders : -1);
-        return fail("capture should fortify one Regular on colony tile");
-      }
-    }
-    /*
-     * Capture cap-2: two Regulars on human colony tile → both FORTIFY when
-     * second has moves (Colonization.pdf Defending a Colony; king_ref thin).
-     */
-    {
-      colonies.colonies[0].nation_id = 0;
-      memset(col1.head.expeditionary_force, 0, sizeof(col1.head.expeditionary_force));
-      for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-        ColonizeUnit* u = &units.units[i];
-        if (u->active && u->nation_id == 1) {
-          u->moves_left = 0;
-          if (u->x == 5 && u->y == 5) {
-            u->x = 1;
-            u->y = 1;
-            u->orders = UNITS_ORDER_NONE;
-          }
-        }
-      }
-      const int cap_a = units_spawn_allow_stack(&units, ty_regular, 5, 5);
-      const int cap_b = units_spawn_allow_stack(&units, ty_regular, 5, 5);
-      if (cap_a < 0 || cap_b < 0) {
-        return fail("capture cap-2 setup should spawn two crown Regulars");
-      }
-      {
-        ColonizeUnit* a = units_get(&units, cap_a);
-        ColonizeUnit* b = units_get(&units, cap_b);
-        if (!a || !b) {
-          return fail("capture cap-2 unit lookup");
-        }
-        a->nation_id = 1;
-        a->moves_left = 0;
-        a->orders = UNITS_ORDER_NONE;
-        b->nation_id = 1;
-        b->moves_left = 1 * UNITS_MP_PER_TILE;
-        b->orders = UNITS_ORDER_NONE;
-      }
-      ai_king_nation_turn(&ctx);
-      if (colonies.colonies[0].nation_id != 1) {
-        return fail("capture cap-2 should colonies_capture");
-      }
-      int fortified = 0;
-      for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-        const ColonizeUnit* u = &units.units[i];
-        if (!u->active || u->nation_id != 1 || u->x != 5 || u->y != 5) {
-          continue;
-        }
-        if (u->type_index == ty_regular &&
-            (u->orders == UNITS_ORDER_FORTIFY || u->orders == UNITS_ORDER_FORTIFIED)) {
-          fortified++;
-        }
-      }
-      if (fortified != 2) {
-        fprintf(stderr, "unit_ai_king: capture cap-2 fortified=%d (want 2)\n", fortified);
-        return fail("capture with two Regulars should fortify both when second has moves");
-      }
-    }
-    {
-      const ColonizeUnit* hunter = units_get_const(&units, hunter_id);
-      if (!hunter || !hunter->active) {
-        return fail("land-hunt Regular should remain active");
-      }
-      if (hunter->orders != UNITS_ORDER_AI_MOVE || hunter->goto_x != 12 ||
-          hunter->goto_y != 5) {
-        fprintf(stderr, "unit_ai_king: hunt goto=(%d,%d) orders=%d (want AI_MOVE→12,5)\n",
-                hunter->goto_x, hunter->goto_y, hunter->orders);
-        return fail("REF Regular should AI_MOVE toward nearest human land unit");
-      }
-      /* One step east toward prey (10,5) → (11,5). */
-      if (hunter->x != 11 || hunter->y != 5) {
-        fprintf(stderr, "unit_ai_king: hunt pos=(%d,%d) (want 11,5)\n", hunter->x,
-                hunter->y);
-        return fail("REF land hunt should step toward human land unit");
-      }
-    }
-    /*
-     * REF stack cap-2 (Colonization.pdf Defending a Colony; king_ref thin
-     * multi-garrison): second Regular with moves on captured colony fortifies
-     * when only one garrison slot is taken; third hunts.
-     */
-    {
-      /* Clear the colony tile: only one garrison Regular may remain. */
-      for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-        ColonizeUnit* u = &units.units[i];
-        if (!u->active || u->nation_id != 1) {
-          continue;
-        }
-        u->moves_left = 0;
-        if (u->x == 5 && u->y == 5) {
-          u->x = 1;
-          u->y = 1;
-          u->orders = UNITS_ORDER_NONE;
-        }
-      }
-      /* Sole fortified garrison on crown colony. */
-      {
-        ColonizeUnit* cu = units_get(&units, cap_id);
-        if (!cu || !cu->active) {
-          return fail("REF stack needs capture Regular as garrison");
-        }
-        cu->x = 5;
-        cu->y = 5;
-        cu->nation_id = 1;
-        cu->orders = UNITS_ORDER_FORTIFY;
-        cu->moves_left = 0;
-      }
-      colonies.colonies[0].nation_id = 1;
-      memset(col1.head.expeditionary_force, 0, sizeof(col1.head.expeditionary_force));
-      col1.head.backup_force[0] = 0;
-      col1.head.backup_force[1] = 0;
-      col1.head.backup_force[2] = 0;
-      col1.head.backup_force[3] = 0;
-      const int extra_id = units_spawn_allow_stack(&units, ty_regular, 5, 5);
-      const int stack_prey = units_spawn_allow_stack(&units, ty_soldier, 12, 8);
-      if (extra_id < 0 || stack_prey < 0) {
-        return fail("REF stack setup should spawn extra Regular + human prey");
-      }
-      {
-        ColonizeUnit* ex = units_get(&units, extra_id);
-        ColonizeUnit* prey = units_get(&units, stack_prey);
-        if (!ex || !prey) {
-          return fail("REF stack unit lookup");
-        }
-        ex->nation_id = 1;
-        ex->moves_left = 1 * UNITS_MP_PER_TILE;
-        ex->orders = UNITS_ORDER_NONE;
-        ex->goto_x = -1;
-        ex->goto_y = -1;
-        prey->nation_id = 0;
-        prey->moves_left = 0;
-      }
-      ai_king_nation_turn(&ctx);
-      int fortified = 0;
-      for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-        const ColonizeUnit* u = &units.units[i];
-        if (!u->active || u->nation_id != 1 || u->type_index != ty_regular) {
-          continue;
-        }
-        if ((u->x == 5 && u->y == 5) &&
-            (u->orders == UNITS_ORDER_FORTIFY || u->orders == UNITS_ORDER_FORTIFIED)) {
-          fortified++;
-        }
-      }
-      {
-        const ColonizeUnit* ex = units_get_const(&units, extra_id);
-        if (!ex || !ex->active) {
-          return fail("REF stack extra Regular should remain active");
-        }
-        if (ex->orders != UNITS_ORDER_FORTIFY && ex->orders != UNITS_ORDER_FORTIFIED) {
-          fprintf(stderr, "unit_ai_king: stack extra orders=%d (want FORTIFY cap-2)\n",
-                  ex->orders);
-          return fail("REF stack: second Regular with moves should fortify (cap 2)");
-        }
-      }
-      if (fortified != 2) {
-        fprintf(stderr, "unit_ai_king: fortified Regulars on colony=%d (want exactly 2)\n",
-                fortified);
-        return fail("REF stack should fortify two Regulars on colony when second has moves");
-      }
-      /* Third extra with moves must hunt when cap-2 stack is full. */
-      const int third_id = units_spawn_allow_stack(&units, ty_regular, 5, 5);
-      const int third_prey = units_spawn_allow_stack(&units, ty_soldier, 12, 9);
-      if (third_id < 0 || third_prey < 0) {
-        return fail("REF stack third setup should spawn Regular + prey");
-      }
-      {
-        ColonizeUnit* th = units_get(&units, third_id);
-        ColonizeUnit* prey = units_get(&units, third_prey);
-        if (!th || !prey) {
-          return fail("REF stack third unit lookup");
-        }
-        th->nation_id = 1;
-        th->moves_left = 1 * UNITS_MP_PER_TILE;
-        th->orders = UNITS_ORDER_NONE;
-        th->goto_x = -1;
-        th->goto_y = -1;
-        prey->nation_id = 0;
-        prey->moves_left = 0;
-      }
-      ai_king_nation_turn(&ctx);
-      {
-        const ColonizeUnit* th = units_get_const(&units, third_id);
-        if (!th || !th->active) {
-          return fail("REF stack third Regular should remain active");
-        }
-        if (th->orders == UNITS_ORDER_FORTIFY || th->orders == UNITS_ORDER_FORTIFIED) {
-          return fail("REF stack: third Regular must hunt when two already fortified");
-        }
-        if (th->orders != UNITS_ORDER_AI_MOVE) {
-          fprintf(stderr, "unit_ai_king: stack third orders=%d (want AI_MOVE hunt)\n",
-                  th->orders);
-          return fail("REF stack third Regular should hunt, not fortify");
-        }
-      }
-    }
-    /*
-     * After-capture next colony (fandom REF uncaptured-port pressure):
-     * founding capital captured + two fortify slots taken → idle third Regular
-     * must prefer next nearest remaining human colony over a closer human land
-     * unit. Capital MD slack must not apply (founding capital is no longer human).
-     */
-    {
-      ColonizeColony* next_col = &colonies.colonies[2];
-      next_col->id = 2;
-      next_col->active = true;
-      next_col->nation_id = 0;
-      next_col->x = 12;
-      next_col->y = 5;
-      next_col->population = 2;
-      next_col->colonist_count = 2;
-      next_col->has_building[0] = false;
-      snprintf(next_col->name, sizeof(next_col->name), "Plymouth");
-      if (colonies.colony_count < 3) {
-        colonies.colony_count = 3;
-      }
-      colonies.colonies[0].nation_id = 1; /* captured capital */
-      memset(col1.head.expeditionary_force, 0, sizeof(col1.head.expeditionary_force));
-      memset(col1.head.backup_force, 0, sizeof(col1.head.backup_force));
-      for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-        ColonizeUnit* u = &units.units[i];
-        if (!u->active) {
-          continue;
-        }
-        if (u->nation_id == 1) {
-          u->moves_left = 0;
-          if (u->x == 5 && u->y == 5) {
-            u->x = 1;
-            u->y = 1;
-            u->orders = UNITS_ORDER_NONE;
-          }
-        } else if (u->nation_id == 0 && !units_is_sea(&units, u->id)) {
-          u->x = 1;
-          u->y = 14;
-          u->moves_left = 0;
-        }
-      }
-      /* Two fortified garrisons on captured capital (cap-2 stack full). */
-      {
-        ColonizeUnit* cu = units_get(&units, cap_id);
-        if (!cu || !cu->active) {
-          return fail("after-capture next-colony needs capture Regular as garrison");
-        }
-        cu->x = 5;
-        cu->y = 5;
-        cu->nation_id = 1;
-        cu->orders = UNITS_ORDER_FORTIFY;
-        cu->moves_left = 0;
-      }
-      const int garrison2 = units_spawn_allow_stack(&units, ty_regular, 5, 5);
-      if (garrison2 < 0) {
-        return fail("after-capture next-colony needs second fortified Regular");
-      }
-      {
-        ColonizeUnit* g2 = units_get(&units, garrison2);
-        if (!g2) {
-          return fail("after-capture next-colony garrison2 lookup");
-        }
-        g2->nation_id = 1;
-        g2->orders = UNITS_ORDER_FORTIFY;
-        g2->moves_left = 0;
-      }
-      /* Closer human Soldier decoy (MD=2) vs next colony at (12,5) (MD=7). */
-      const int decoy_id = units_spawn_allow_stack(&units, ty_soldier, 7, 5);
-      const int next_hunter = units_spawn_allow_stack(&units, ty_regular, 5, 5);
-      if (decoy_id < 0 || next_hunter < 0) {
-        return fail("after-capture next-colony setup spawn");
-      }
-      {
-        ColonizeUnit* decoy = units_get(&units, decoy_id);
-        ColonizeUnit* h = units_get(&units, next_hunter);
-        if (!decoy || !h) {
-          return fail("after-capture next-colony unit lookup");
-        }
-        decoy->nation_id = 0;
-        decoy->moves_left = 0;
-        h->nation_id = 1;
-        h->moves_left = 1 * UNITS_MP_PER_TILE;
-        h->orders = UNITS_ORDER_NONE;
-        h->goto_x = -1;
-        h->goto_y = -1;
-      }
-      ai_king_nation_turn(&ctx);
-      {
-        const ColonizeUnit* h = units_get_const(&units, next_hunter);
-        if (!h || !h->active) {
-          return fail("after-capture next-colony hunter should remain active");
-        }
-        if (h->orders == UNITS_ORDER_FORTIFY || h->orders == UNITS_ORDER_FORTIFIED) {
-          return fail("after-capture extra must not join capital fortify stack");
-        }
-        if (h->orders != UNITS_ORDER_AI_MOVE || h->goto_x != 12 || h->goto_y != 5) {
-          fprintf(stderr,
-                  "unit_ai_king: after-capture next goto=(%d,%d) orders=%d "
-                  "(want next colony 12,5 not decoy 7,5)\n",
-                  h->goto_x, h->goto_y, h->orders);
-          return fail("after-capture idle extra should hunt next nearest human colony");
-        }
-      }
-      next_col->active = false;
-    }
-    /* Restore human port for later promote / merc checks. */
-    colonies.colonies[0].nation_id = 0;
-  }
-
-  /*
-   * REF idle fortify (heal stand-in): Regular on own (crown) colony with moves
-   * and no adjacent human foe/colony → UNITS_ORDER_FORTIFY (not hunt away).
-   * Also: idle Regular on captured human capital prefers FORTIFY when stack
-   * allows; already-FORTIFIED capital garrison stays put.
-   */
-  {
-    colonies.colonies[0].nation_id = 0;
-    /* Isolated crown colony at (8,8) — far from human (5,5). */
-    ColonizeColony* crown_col = &colonies.colonies[3];
-    crown_col->id = 3;
-    crown_col->active = true;
-    crown_col->nation_id = 1;
-    crown_col->x = 8;
-    crown_col->y = 8;
-    crown_col->population = 2;
-    crown_col->colonist_count = 1;
-    if (colonies.colony_count < 4) {
-      colonies.colony_count = 4;
-    }
-    map.terrain[8 * 16 + 8] = 1; /* land */
-    memset(col1.head.expeditionary_force, 0, sizeof(col1.head.expeditionary_force));
-    col1.head.backup_force[0] = 0;
-    col1.head.backup_force[1] = 0;
-    col1.head.backup_force[2] = 0;
-    col1.head.backup_force[3] = 0;
-    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-      ColonizeUnit* u = &units.units[i];
-      if (u->active && u->nation_id == 1) {
-        u->moves_left = 0;
-      }
-    }
-    /* Park human land units so none are adjacent to (8,8). */
-    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-      ColonizeUnit* u = &units.units[i];
-      if (u->active && u->nation_id == 0 && !units_is_sea(&units, u->id)) {
-        if (abs(u->x - 8) <= 1 && abs(u->y - 8) <= 1) {
-          u->x = 1;
-          u->y = 1;
-        }
-      }
-    }
-    const int idle_id = units_spawn_allow_stack(&units, ty_regular, 8, 8);
-    if (idle_id < 0) {
-      return fail("idle fortify setup should spawn crown Regular on crown colony");
-    }
-    {
-      ColonizeUnit* idle = units_get(&units, idle_id);
-      if (!idle) {
-        return fail("idle fortify unit lookup");
-      }
-      idle->nation_id = 1;
-      idle->moves_left = 2 * UNITS_MP_PER_TILE;
-      idle->orders = UNITS_ORDER_NONE;
-      idle->goto_x = -1;
-      idle->goto_y = -1;
-    }
-    ai_king_nation_turn(&ctx);
-    {
-      const ColonizeUnit* idle = units_get_const(&units, idle_id);
-      if (!idle || !idle->active) {
-        return fail("idle fortify Regular should remain active");
-      }
-      if (idle->orders != UNITS_ORDER_FORTIFY) {
-        fprintf(stderr, "unit_ai_king: idle fortify orders=%d (want FORTIFY)\n",
-                idle->orders);
-        return fail("Regular on crown colony with no adjacent foe should fortify");
-      }
-      if (idle->x != 8 || idle->y != 8) {
-        return fail("idle fortify Regular should stay on crown colony");
-      }
-    }
-    /*
-     * Idle fortify cap-2: second Regular with moves fortifies; third hunts
-     * (fandom REF garrison; same stack rule as post-capture).
-     */
-    {
-      memset(col1.head.expeditionary_force, 0, sizeof(col1.head.expeditionary_force));
-      memset(col1.head.backup_force, 0, sizeof(col1.head.backup_force));
-      for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-        ColonizeUnit* u = &units.units[i];
-        if (u->active && u->nation_id == 1 && u->id != idle_id) {
-          u->moves_left = 0;
-        }
-      }
-      /* Keep the fortified garrison; spawn extra with moves + distant prey. */
-      {
-        ColonizeUnit* idle = units_get(&units, idle_id);
-        if (!idle || !idle->active) {
-          return fail("idle fortify extras needs fortified Regular");
-        }
-        idle->orders = UNITS_ORDER_FORTIFY;
-        idle->moves_left = 0;
-      }
-      const int extra_id = units_spawn_allow_stack(&units, ty_regular, 8, 8);
-      const int prey_id = units_spawn_allow_stack(&units, ty_soldier, 14, 8);
-      if (extra_id < 0 || prey_id < 0) {
-        return fail("idle fortify extras setup should spawn Regular + prey");
-      }
-      {
-        ColonizeUnit* ex = units_get(&units, extra_id);
-        ColonizeUnit* prey = units_get(&units, prey_id);
-        if (!ex || !prey) {
-          return fail("idle fortify extras unit lookup");
-        }
-        ex->nation_id = 1;
-        ex->moves_left = 1 * UNITS_MP_PER_TILE;
-        ex->orders = UNITS_ORDER_NONE;
-        ex->goto_x = -1;
-        ex->goto_y = -1;
-        prey->nation_id = 0;
-        prey->moves_left = 0;
-      }
-      ai_king_nation_turn(&ctx);
-      {
-        const ColonizeUnit* idle = units_get_const(&units, idle_id);
-        const ColonizeUnit* ex = units_get_const(&units, extra_id);
-        if (!idle || !idle->active ||
-            (idle->orders != UNITS_ORDER_FORTIFY && idle->orders != UNITS_ORDER_FORTIFIED)) {
-          return fail("idle fortify extras: garrison Regular must stay FORTIFY");
-        }
-        if (!ex || !ex->active) {
-          return fail("idle fortify extras: extra Regular should remain active");
-        }
-        if (ex->orders != UNITS_ORDER_FORTIFY && ex->orders != UNITS_ORDER_FORTIFIED) {
-          fprintf(stderr, "unit_ai_king: idle extras orders=%d (want FORTIFY cap-2)\n",
-                  ex->orders);
-          return fail("idle fortify extras: second Regular with moves should fortify");
-        }
-      }
-      {
-        int fortified = 0;
-        for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-          const ColonizeUnit* u = &units.units[i];
-          if (!u->active || u->nation_id != 1 || u->type_index != ty_regular) {
-            continue;
-          }
-          if ((u->x == 8 && u->y == 8) &&
-              (u->orders == UNITS_ORDER_FORTIFY || u->orders == UNITS_ORDER_FORTIFIED)) {
-            fortified++;
-          }
-        }
-        if (fortified != 2) {
-          fprintf(stderr, "unit_ai_king: idle extras fortified=%d (want 2)\n", fortified);
-          return fail("idle fortify extras should fortify two Regulars when second has moves");
-        }
-      }
-      /* Third with moves hunts when cap-2 full. */
-      const int third_id = units_spawn_allow_stack(&units, ty_regular, 8, 8);
-      const int third_prey = units_spawn_allow_stack(&units, ty_soldier, 14, 9);
-      if (third_id < 0 || third_prey < 0) {
-        return fail("idle fortify third setup should spawn Regular + prey");
-      }
-      {
-        ColonizeUnit* th = units_get(&units, third_id);
-        ColonizeUnit* prey = units_get(&units, third_prey);
-        if (!th || !prey) {
-          return fail("idle fortify third unit lookup");
-        }
-        th->nation_id = 1;
-        th->moves_left = 1 * UNITS_MP_PER_TILE;
-        th->orders = UNITS_ORDER_NONE;
-        th->goto_x = -1;
-        th->goto_y = -1;
-        prey->nation_id = 0;
-        prey->moves_left = 0;
-      }
-      ai_king_nation_turn(&ctx);
-      {
-        const ColonizeUnit* th = units_get_const(&units, third_id);
-        if (!th || !th->active) {
-          return fail("idle fortify third Regular should remain active");
-        }
-        if (th->orders == UNITS_ORDER_FORTIFY || th->orders == UNITS_ORDER_FORTIFIED) {
-          return fail("idle fortify third Regular must hunt when two already fortified");
-        }
-        if (th->orders != UNITS_ORDER_AI_MOVE) {
-          fprintf(stderr, "unit_ai_king: idle third orders=%d (want AI_MOVE hunt)\n",
-                  th->orders);
-          return fail("idle fortify third Regular should hunt");
-        }
-      }
-    }
-    crown_col->active = false;
-
-    /*
-     * Captured human capital garrison: idle Regular on Jamestown (5,5) after
-     * crown capture → FORTIFY when stack empty; already-FORTIFIED stays.
-     */
-    {
-      colonies.colonies[0].nation_id = 1; /* captured capital */
-      memset(col1.head.expeditionary_force, 0, sizeof(col1.head.expeditionary_force));
-      col1.head.backup_force[0] = 0;
-      col1.head.backup_force[1] = 0;
-      col1.head.backup_force[2] = 0;
-      col1.head.backup_force[3] = 0;
-      for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-        ColonizeUnit* u = &units.units[i];
-        if (!u->active) {
-          continue;
-        }
-        if (u->nation_id == 1) {
-          u->moves_left = 0;
-          if (u->x == 5 && u->y == 5) {
-            u->x = 1;
-            u->y = 1;
-            u->orders = UNITS_ORDER_NONE;
-          }
-        } else if (u->nation_id == 0 && !units_is_sea(&units, u->id)) {
-          /* Keep human land clear of capital adjacency. */
-          if (abs(u->x - 5) <= 1 && abs(u->y - 5) <= 1) {
-            u->x = 1;
-            u->y = 14;
-          }
-        }
-      }
-      const int cap_garrison = units_spawn_allow_stack(&units, ty_regular, 5, 5);
-      if (cap_garrison < 0) {
-        return fail("capital garrison setup should spawn Regular on Jamestown");
-      }
-      {
-        ColonizeUnit* g = units_get(&units, cap_garrison);
-        if (!g) {
-          return fail("capital garrison unit lookup");
-        }
-        g->nation_id = 1;
-        g->moves_left = 2 * UNITS_MP_PER_TILE;
-        g->orders = UNITS_ORDER_NONE;
-        g->goto_x = -1;
-        g->goto_y = -1;
-      }
-      ai_king_nation_turn(&ctx);
-      {
-        const ColonizeUnit* g = units_get_const(&units, cap_garrison);
-        if (!g || !g->active) {
-          return fail("capital garrison Regular should remain active");
-        }
-        if (g->orders != UNITS_ORDER_FORTIFY) {
-          fprintf(stderr, "unit_ai_king: capital garrison orders=%d (want FORTIFY)\n",
-                  g->orders);
-          return fail("idle Regular on captured human capital should fortify");
-        }
-        if (g->x != 5 || g->y != 5) {
-          return fail("capital garrison Regular should stay on Jamestown");
-        }
-      }
-      /* Already fortified with moves restored → stay, do not hunt away. */
-      {
-        ColonizeUnit* g = units_get(&units, cap_garrison);
-        if (!g) {
-          return fail("capital stay setup");
-        }
-        g->orders = UNITS_ORDER_FORTIFIED;
-        g->moves_left = 2 * UNITS_MP_PER_TILE;
-        g->goto_x = -1;
-        g->goto_y = -1;
-        /* Distant human prey that would otherwise attract a hunter. */
-        const int bait = units_spawn_allow_stack(&units, ty_soldier, 12, 5);
-        if (bait < 0) {
-          return fail("capital stay bait spawn");
-        }
-        {
-          ColonizeUnit* b = units_get(&units, bait);
-          if (b) {
-            b->nation_id = 0;
-            b->moves_left = 0;
-          }
-        }
-        ai_king_nation_turn(&ctx);
-        g = units_get(&units, cap_garrison);
-        if (!g || !g->active) {
-          return fail("fortified capital garrison should remain active");
-        }
-        if (g->orders != UNITS_ORDER_FORTIFIED) {
-          fprintf(stderr, "unit_ai_king: capital stay orders=%d (want FORTIFIED)\n",
-                  g->orders);
-          return fail("already-FORTIFIED Regular on capital must stay garrisoned");
-        }
-        if (g->x != 5 || g->y != 5) {
-          return fail("already-FORTIFIED capital Regular must not leave tile");
-        }
-      }
-      colonies.colonies[0].nation_id = 0;
-    }
-  }
-
-  /*
-   * Dragoon / Cont. Cav garrison fallback (Colonization.pdf Defending a Colony;
-   * king_ref thin multi-garrison cap 2): when no Regular is available, fortify
-   * one Dragoon or Cont. Cav after capture / idle on crown colony; second cavalry
-   * with moves may join. Cont. Army is not a cavalry fallback.
-   */
-  {
-    colonies.colonies[0].nation_id = 0;
-    memset(col1.head.expeditionary_force, 0, sizeof(col1.head.expeditionary_force));
-    memset(col1.head.backup_force, 0, sizeof(col1.head.backup_force));
-    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-      ColonizeUnit* u = &units.units[i];
-      if (!u->active) {
-        continue;
-      }
-      if (u->nation_id == 1) {
-        u->moves_left = 0;
-        if (u->x == 5 && u->y == 5) {
-          u->x = 1;
-          u->y = 1;
-          u->orders = UNITS_ORDER_NONE;
-        }
-      } else if (u->nation_id == 0 && !units_is_sea(&units, u->id)) {
-        if (abs(u->x - 5) <= 1 && abs(u->y - 5) <= 1) {
-          u->x = 1;
-          u->y = 14;
-        }
-      }
-    }
-    /* Capture: crown Dragoon alone on human colony (no Regular). */
-    const int drag_cap = units_spawn_allow_stack(&units, ty_dragoon, 5, 5);
-    if (drag_cap < 0) {
-      return fail("Dragoon capture garrison setup should spawn Dragoon");
-    }
-    {
-      ColonizeUnit* d = units_get(&units, drag_cap);
-      if (!d) {
-        return fail("Dragoon capture garrison unit lookup");
-      }
-      d->nation_id = 1;
-      d->moves_left = 0;
-      d->orders = UNITS_ORDER_NONE;
-      d->goto_x = -1;
-      d->goto_y = -1;
-    }
-    ai_king_nation_turn(&ctx);
-    if (colonies.colonies[0].nation_id != 1) {
-      return fail("Dragoon on human colony should colonies_capture");
-    }
-    {
-      const ColonizeUnit* d = units_get_const(&units, drag_cap);
-      if (!d || !d->active) {
-        return fail("Dragoon capturer should remain active");
-      }
-      if (d->orders != UNITS_ORDER_FORTIFY) {
-        fprintf(stderr, "unit_ai_king: Dragoon capture orders=%d (want FORTIFY)\n",
-                d->orders);
-        return fail("capture with no Regular should fortify one Dragoon");
-      }
-      if (d->x != 5 || d->y != 5) {
-        return fail("fortified Dragoon should stay on captured colony");
-      }
-    }
-    /* Idle Cont. Cav on crown colony (no Regular) → fortify one. */
-    {
-      ColonizeColony* crown_col = &colonies.colonies[3];
-      crown_col->id = 3;
-      crown_col->active = true;
-      crown_col->nation_id = 1;
-      crown_col->x = 8;
-      crown_col->y = 8;
-      crown_col->population = 2;
-      crown_col->colonist_count = 1;
-      if (colonies.colony_count < 4) {
-        colonies.colony_count = 4;
-      }
-      map.terrain[8 * 16 + 8] = 1;
-      memset(col1.head.expeditionary_force, 0, sizeof(col1.head.expeditionary_force));
-      memset(col1.head.backup_force, 0, sizeof(col1.head.backup_force));
-      for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-        ColonizeUnit* u = &units.units[i];
-        if (u->active && u->nation_id == 1) {
-          u->moves_left = 0;
-          if (u->x == 8 && u->y == 8) {
-            u->x = 1;
-            u->y = 1;
-            u->orders = UNITS_ORDER_NONE;
-          }
-        }
-        if (u->active && u->nation_id == 0 && !units_is_sea(&units, u->id)) {
-          if (abs(u->x - 8) <= 1 && abs(u->y - 8) <= 1) {
-            u->x = 1;
-            u->y = 1;
-          }
-        }
-      }
-      const int cav_id = units_spawn_allow_stack(&units, ty_cont_cav, 8, 8);
-      if (cav_id < 0) {
-        return fail("Cont. Cav idle garrison setup should spawn Cont. Cav");
-      }
-      {
-        ColonizeUnit* cav = units_get(&units, cav_id);
-        if (!cav) {
-          return fail("Cont. Cav idle garrison unit lookup");
-        }
-        cav->nation_id = 1;
-        cav->moves_left = 2 * UNITS_MP_PER_TILE;
-        cav->orders = UNITS_ORDER_NONE;
-        cav->goto_x = -1;
-        cav->goto_y = -1;
-      }
-      ai_king_nation_turn(&ctx);
-      {
-        const ColonizeUnit* cav = units_get_const(&units, cav_id);
-        if (!cav || !cav->active) {
-          return fail("idle Cont. Cav garrison should remain active");
-        }
-        if (cav->orders != UNITS_ORDER_FORTIFY) {
-          fprintf(stderr, "unit_ai_king: Cont. Cav idle orders=%d (want FORTIFY)\n",
-                  cav->orders);
-          return fail("idle Cont. Cav on crown colony with no Regular should fortify");
-        }
-        if (cav->x != 8 || cav->y != 8) {
-          return fail("idle Cont. Cav garrison should stay on crown colony");
-        }
-      }
-      /* Cap-2: extra Dragoon with moves fortifies when Cont. Cav holds slot 1. */
-      {
-        ColonizeUnit* cav = units_get(&units, cav_id);
-        if (!cav) {
-          return fail("cav stack setup");
-        }
-        cav->orders = UNITS_ORDER_FORTIFY;
-        cav->moves_left = 0;
-        const int extra_d = units_spawn_allow_stack(&units, ty_dragoon, 8, 8);
-        const int prey = units_spawn_allow_stack(&units, ty_soldier, 14, 8);
-        if (extra_d < 0 || prey < 0) {
-          return fail("cav stack extras setup spawn");
-        }
-        {
-          ColonizeUnit* ex = units_get(&units, extra_d);
-          ColonizeUnit* p = units_get(&units, prey);
-          if (!ex || !p) {
-            return fail("cav stack extras unit lookup");
-          }
-          ex->nation_id = 1;
-          ex->moves_left = 1 * UNITS_MP_PER_TILE;
-          ex->orders = UNITS_ORDER_NONE;
-          ex->goto_x = -1;
-          ex->goto_y = -1;
-          p->nation_id = 0;
-          p->moves_left = 0;
-        }
-        memset(col1.head.expeditionary_force, 0, sizeof(col1.head.expeditionary_force));
-        memset(col1.head.backup_force, 0, sizeof(col1.head.backup_force));
-        ai_king_nation_turn(&ctx);
-        {
-          const ColonizeUnit* cav2 = units_get_const(&units, cav_id);
-          const ColonizeUnit* ex = units_get_const(&units, extra_d);
-          if (!cav2 ||
-              (cav2->orders != UNITS_ORDER_FORTIFY &&
-               cav2->orders != UNITS_ORDER_FORTIFIED)) {
-            return fail("cav stack: Cont. Cav garrison must stay FORTIFY");
-          }
-          if (!ex || !ex->active) {
-            return fail("cav stack: extra Dragoon should remain active");
-          }
-          if (ex->orders != UNITS_ORDER_FORTIFY && ex->orders != UNITS_ORDER_FORTIFIED) {
-            fprintf(stderr, "unit_ai_king: cav stack extra orders=%d (want FORTIFY cap-2)\n",
-                    ex->orders);
-            return fail("cav stack: second Dragoon with moves should fortify (cap 2)");
-          }
-        }
-        int fortified = 0;
-        for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-          const ColonizeUnit* u = &units.units[i];
-          if (!u->active || u->nation_id != 1 || u->x != 8 || u->y != 8) {
-            continue;
-          }
-          if ((u->orders == UNITS_ORDER_FORTIFY || u->orders == UNITS_ORDER_FORTIFIED) &&
-              (u->type_index == ty_dragoon || u->type_index == ty_cont_cav)) {
-            fortified++;
-          }
-        }
-        if (fortified != 2) {
-          fprintf(stderr, "unit_ai_king: cav stack fortified=%d (want 2)\n", fortified);
-          return fail("cav stack should fortify two cavalry when second has moves");
-        }
-      }
-      crown_col->active = false;
-    }
-    /* Prefer Regular over Dragoon for first slot; cap-2 allows second with moves. */
-    {
-      ColonizeColony* crown_col = &colonies.colonies[3];
-      crown_col->active = true;
-      crown_col->nation_id = 1;
-      crown_col->x = 8;
-      crown_col->y = 8;
-      memset(col1.head.expeditionary_force, 0, sizeof(col1.head.expeditionary_force));
-      memset(col1.head.backup_force, 0, sizeof(col1.head.backup_force));
-      for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-        ColonizeUnit* u = &units.units[i];
-        if (!u->active) {
-          continue;
-        }
-        if (u->nation_id == 1) {
-          u->moves_left = 0;
-          if (u->x == 8 && u->y == 8) {
-            u->x = 1;
-            u->y = 1;
-            u->orders = UNITS_ORDER_NONE;
-          }
-        } else if (u->nation_id == 0 && !units_is_sea(&units, u->id)) {
-          if (abs(u->x - 8) <= 1 && abs(u->y - 8) <= 1) {
-            u->x = 1;
-            u->y = 14;
-          }
-        }
-      }
-      const int reg_id = units_spawn_allow_stack(&units, ty_regular, 8, 8);
-      const int drag_id = units_spawn_allow_stack(&units, ty_dragoon, 8, 8);
-      if (reg_id < 0 || drag_id < 0) {
-        return fail("Regular-prefer garrison setup spawn");
-      }
-      {
-        ColonizeUnit* r = units_get(&units, reg_id);
-        ColonizeUnit* d = units_get(&units, drag_id);
-        if (!r || !d) {
-          return fail("Regular-prefer garrison unit lookup");
-        }
-        r->nation_id = 1;
-        r->moves_left = 2 * UNITS_MP_PER_TILE;
-        r->orders = UNITS_ORDER_NONE;
-        r->goto_x = -1;
-        r->goto_y = -1;
-        d->nation_id = 1;
-        d->moves_left = 2 * UNITS_MP_PER_TILE;
-        d->orders = UNITS_ORDER_NONE;
-        d->goto_x = -1;
-        d->goto_y = -1;
-      }
-      ai_king_nation_turn(&ctx);
-      {
-        const ColonizeUnit* r = units_get_const(&units, reg_id);
-        const ColonizeUnit* d = units_get_const(&units, drag_id);
-        if (!r || r->orders != UNITS_ORDER_FORTIFY) {
-          return fail("when Regular present, prefer Regular for garrison fortify");
-        }
-        if (!d || (d->orders != UNITS_ORDER_FORTIFY && d->orders != UNITS_ORDER_FORTIFIED)) {
-          return fail("cap-2: Dragoon with moves should fortify as second garrison");
-        }
-      }
-      crown_col->active = false;
-    }
-    colonies.colonies[0].nation_id = 0;
-  }
-
-  /*
-   * Artillery after capture (Euro pattern): crown Artillery on human colony →
-   * colonies_capture then UNITS_ORDER_FORTIFY on that Artillery (Colonization.pdf
-   * fortify defense / euro_unit_act Artillery fortify after siege). Idle
-   * Artillery on crown colony with no adjacent foe also FORTIFY.
-   */
-  {
-    colonies.colonies[0].nation_id = 0;
-    memset(col1.head.expeditionary_force, 0, sizeof(col1.head.expeditionary_force));
-    memset(col1.head.backup_force, 0, sizeof(col1.head.backup_force));
-    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-      ColonizeUnit* u = &units.units[i];
-      if (!u->active) {
-        continue;
-      }
-      if (u->nation_id == 1) {
-        u->moves_left = 0;
-        if (u->x == 5 && u->y == 5) {
-          u->x = 1;
-          u->y = 1;
-          u->orders = UNITS_ORDER_NONE;
-        }
-      } else if (u->nation_id == 0 && !units_is_sea(&units, u->id)) {
-        if (abs(u->x - 5) <= 1 && abs(u->y - 5) <= 1) {
-          u->x = 1;
-          u->y = 14;
-        }
-      }
-    }
-    const int art_cap = units_spawn_allow_stack(&units, ty_artillery, 5, 5);
-    if (art_cap < 0) {
-      return fail("Artillery after-capture setup should spawn Artillery on colony");
-    }
-    {
-      ColonizeUnit* art = units_get(&units, art_cap);
-      if (!art) {
-        return fail("Artillery after-capture unit lookup");
-      }
-      art->nation_id = 1;
-      art->moves_left = 0;
-      art->orders = UNITS_ORDER_NONE;
-      art->goto_x = -1;
-      art->goto_y = -1;
-    }
-    status[0] = '\0';
-    ai_king_nation_turn(&ctx);
-    if (colonies.colonies[0].nation_id != 1) {
-      return fail("Artillery on human colony should colonies_capture");
-    }
-    {
-      const ColonizeUnit* art = units_get_const(&units, art_cap);
-      if (!art || !art->active) {
-        return fail("Artillery capturer should remain active");
-      }
-      if (art->orders != UNITS_ORDER_FORTIFY) {
-        fprintf(stderr, "unit_ai_king: Artillery after-capture orders=%d (want FORTIFY)\n",
-                art->orders);
-        return fail("Artillery on newly captured colony should FORTIFY (Euro pattern)");
-      }
-      if (art->x != 5 || art->y != 5) {
-        return fail("Artillery after-capture should stay on colony tile");
-      }
-    }
-    /* Idle Artillery on crown colony (moves>0, no adjacent foe) → FORTIFY.
-     * Also: already-FORTIFIED Artillery on own colony stays put (Euro pattern;
-     * same stay gate as Regular garrison). */
-    {
-      for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-        ColonizeUnit* u = &units.units[i];
-        if (u->active && u->nation_id == 1 && u->id != art_cap) {
-          u->moves_left = 0;
-        }
-      }
-      ColonizeUnit* art = units_get(&units, art_cap);
-      if (!art) {
-        return fail("Artillery idle fortify setup");
-      }
-      art->orders = UNITS_ORDER_NONE;
-      art->moves_left = 2 * UNITS_MP_PER_TILE;
-      art->goto_x = -1;
-      art->goto_y = -1;
-      colonies.colonies[0].nation_id = 1;
-      memset(col1.head.expeditionary_force, 0, sizeof(col1.head.expeditionary_force));
-      ai_king_nation_turn(&ctx);
-      art = units_get(&units, art_cap);
-      if (!art || !art->active) {
-        return fail("idle Artillery on crown colony should remain active");
-      }
-      if (art->orders != UNITS_ORDER_FORTIFY) {
-        fprintf(stderr, "unit_ai_king: idle Artillery orders=%d (want FORTIFY)\n",
-                art->orders);
-        return fail("idle Artillery on crown colony should FORTIFY (Euro pattern)");
-      }
-      if (art->x != 5 || art->y != 5) {
-        return fail("idle Artillery should stay on crown colony");
-      }
-      /* Already FORTIFIED: stay on crown colony (do not wake to hunt). */
-      art = units_get(&units, art_cap);
-      if (!art) {
-        return fail("Artillery fortified-stay setup");
-      }
-      art->orders = UNITS_ORDER_FORTIFIED;
-      art->moves_left = 2 * UNITS_MP_PER_TILE;
-      art->goto_x = -1;
-      art->goto_y = -1;
-      /* Bait: distant fortified human colony so hunt would otherwise leave. */
-      colonies.building_type_count = 1;
-      snprintf(colonies.building_types[0].name, sizeof(colonies.building_types[0].name),
-               "Stockade");
-      ColonizeColony* bait = &colonies.colonies[2];
-      bait->id = 2;
-      bait->active = true;
-      bait->nation_id = 0;
-      bait->x = 14;
-      bait->y = 5;
-      bait->population = 2;
-      bait->colonist_count = 2;
-      bait->has_building[0] = true;
-      snprintf(bait->name, sizeof(bait->name), "FortBait");
-      if (colonies.colony_count < 3) {
-        colonies.colony_count = 3;
-      }
-      memset(col1.head.expeditionary_force, 0, sizeof(col1.head.expeditionary_force));
-      for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-        ColonizeUnit* u = &units.units[i];
-        if (u->active && u->nation_id == 1 && u->id != art_cap) {
-          u->moves_left = 0;
-        }
-      }
-      ai_king_nation_turn(&ctx);
-      art = units_get(&units, art_cap);
-      if (!art || !art->active) {
-        return fail("fortified Artillery stay should remain active");
-      }
-      if (art->orders != UNITS_ORDER_FORTIFIED) {
-        fprintf(stderr, "unit_ai_king: Artillery stay orders=%d (want FORTIFIED)\n",
-                art->orders);
-        return fail("already-FORTIFIED Artillery on crown colony must stay");
-      }
-      if (art->x != 5 || art->y != 5) {
-        return fail("already-FORTIFIED Artillery must not leave crown colony");
-      }
-      bait->active = false;
-      bait->has_building[0] = false;
-    }
-    colonies.colonies[0].nation_id = 0;
   }
 
   /*
@@ -2482,7 +1385,7 @@ int main(void) {
     }
     {
       const int art_before = count_nation_land(&units, 1);
-      ai_king_nation_turn(&ctx);
+      ai_king_ref_pre_euro_beat(&ctx);
       if (col1.head.expeditionary_force[2] != 1 || col1.head.expeditionary_force[3] != 2) {
         fprintf(stderr, "unit_ai_king: pools after MoW-empty beat %u/%u/%u/%u\n",
                 (unsigned)col1.head.expeditionary_force[0], (unsigned)col1.head.expeditionary_force[1],
@@ -2509,7 +1412,7 @@ int main(void) {
           units.units[i].moves_left = 0;
         }
       }
-      ai_king_nation_turn(&ctx);
+      ai_king_ref_pre_euro_beat(&ctx);
       int art_units_after = 0;
       for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
         const ColonizeUnit* u = &units.units[i];
@@ -2535,1022 +1438,66 @@ int main(void) {
         u->active = false;
       }
     }
-    /* Artillery hunt prefer fortified: closer unfortified unit vs fortified colony. */
-    colonies.colonies[0].nation_id = 0;
-    colonies.building_type_count = 1;
-    snprintf(colonies.building_types[0].name, sizeof(colonies.building_types[0].name),
-             "Stockade");
-    colonies.colonies[0].has_building[0] = true;
-    if (!colonies_has_fortification(&colonies, &colonies.colonies[0])) {
-      return fail("Artillery hunt setup requires fortified human colony");
-    }
-    memset(col1.head.expeditionary_force, 0, sizeof(col1.head.expeditionary_force));
-    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-      ColonizeUnit* u = &units.units[i];
-      if (u->active && u->nation_id == 1) {
-        u->moves_left = 0;
-        /* Move prior crown stacks off the fortified colony so hunt is clean. */
-        if (u->x == 5 && u->y == 5) {
-          u->x = 1;
-          u->y = 1;
-        }
-      }
-    }
-    const int decoy_id = units_spawn_allow_stack(&units, ty_soldier, 7, 5);
-    const int art_id = units_spawn_allow_stack(&units, ty_artillery, 9, 5);
-    if (decoy_id < 0 || art_id < 0) {
-      return fail("Artillery hunt setup should spawn decoy + Artillery");
-    }
-    {
-      ColonizeUnit* decoy = units_get(&units, decoy_id);
-      ColonizeUnit* art = units_get(&units, art_id);
-      if (!decoy || !art) {
-        return fail("Artillery hunt unit lookup");
-      }
-      decoy->nation_id = 0;
-      decoy->moves_left = 0;
-      art->nation_id = 1;
-      art->moves_left = 1 * UNITS_MP_PER_TILE;
-      art->orders = UNITS_ORDER_NONE;
-      art->goto_x = -1;
-      art->goto_y = -1;
-    }
-    ai_king_nation_turn(&ctx);
-    {
-      const ColonizeUnit* art = units_get_const(&units, art_id);
-      if (!art || !art->active) {
-        return fail("Artillery hunter should remain active");
-      }
-      if (art->orders != UNITS_ORDER_AI_MOVE || art->goto_x != 5 || art->goto_y != 5) {
-        fprintf(stderr, "unit_ai_king: Artillery goto=(%d,%d) orders=%d (want fortified 5,5)\n",
-                art->goto_x, art->goto_y, art->orders);
-        return fail("Artillery should prefer fortified human colony over nearer unit");
-      }
-    }
-    /*
-     * Artillery siege tighten: adjacent unfortified human colony must not
-     * override a farther fortified hunt target.
-     */
-    {
-      ColonizeColony* soft = &colonies.colonies[3];
-      soft->id = 3;
-      soft->active = true;
-      soft->nation_id = 0;
-      soft->x = 10;
-      soft->y = 5; /* adjacent east of Artillery at (9,5) */
-      soft->population = 2;
-      soft->colonist_count = 2;
-      soft->has_building[0] = false;
-      if (colonies.colony_count < 4) {
-        colonies.colony_count = 4;
-      }
-      colonies.colonies[0].nation_id = 0;
-      colonies.colonies[0].has_building[0] = true;
-      if (!colonies_has_fortification(&colonies, &colonies.colonies[0])) {
-        return fail("Artillery adj-fort tighten requires fortified Jamestown");
-      }
-      memset(col1.head.expeditionary_force, 0, sizeof(col1.head.expeditionary_force));
-      for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-        ColonizeUnit* u = &units.units[i];
-        if (u->active && u->nation_id == 1) {
-          u->moves_left = 0;
-          if ((u->x == 5 && u->y == 5) || (u->x == 10 && u->y == 5)) {
-            u->x = 1;
-            u->y = 1;
-          }
-        }
-      }
-      {
-        ColonizeUnit* art = units_get(&units, art_id);
-        if (!art || !art->active) {
-          return fail("Artillery adj-fort setup needs live Artillery");
-        }
-        art->x = 9;
-        art->y = 5;
-        art->moves_left = 1 * UNITS_MP_PER_TILE;
-        art->orders = UNITS_ORDER_NONE;
-        art->goto_x = -1;
-        art->goto_y = -1;
-      }
-      ai_king_nation_turn(&ctx);
-      {
-        const ColonizeUnit* art = units_get_const(&units, art_id);
-        if (!art || !art->active) {
-          return fail("Artillery adj-fort hunter should remain active");
-        }
-        if (art->orders != UNITS_ORDER_AI_MOVE || art->goto_x != 5 || art->goto_y != 5) {
-          fprintf(stderr,
-                  "unit_ai_king: Artillery adj-fort goto=(%d,%d) orders=%d "
-                  "(want fortified 5,5 not soft 10,5)\n",
-                  art->goto_x, art->goto_y, art->orders);
-          return fail("Artillery must not let adjacent unfortified override fortified hunt");
-        }
-      }
-      soft->active = false;
-    }
     colonies.colonies[0].has_building[0] = false; /* clear fort for later */
   }
 
   /*
-   * Dragoon open-land bias: when Artillery type exists, prefer farther open
-   * human land unit over nearer fortified colony (Artillery owns siege).
-   * Deep role-split scoring PARKED.
+   * D1 2026-09-07g: the MoW cargo-sail / coastal-unload / multi-unload / empty
+   * patrol scenarios that used to run here are RETIRED (see the file header) —
+   * ai_king_war_act no longer sails or unloads anything. What survives is the
+   * one crown-owned arm: the FUN_521d_20e6 ship-band tail
+   * (viceroy_unpacked.c:89717-89720). With the MoW pool spent (force[2]==0),
+   * land pools still stocked, the hull empty and alone on its tile, the crown
+   * Man-O-War sails for the High Seas (FUN_48d3_015e) and leaves the map — and
+   * NO pool is credited on the way out (0982's own refill gate is what puts the
+   * next hull in the water). ai_king_mow_sail_home_20e6 stayed public and is
+   * called from the euro ship band now, so this block drives it directly.
    */
   {
     colonies.colonies[0].nation_id = 0;
-    colonies.building_type_count = 1;
-    snprintf(colonies.building_types[0].name, sizeof(colonies.building_types[0].name),
-             "Stockade");
-    colonies.colonies[0].has_building[0] = true;
-    if (!colonies_has_fortification(&colonies, &colonies.colonies[0])) {
-      return fail("Dragoon open-land setup requires fortified human colony");
-    }
-    memset(col1.head.expeditionary_force, 0, sizeof(col1.head.expeditionary_force));
-    col1.head.backup_force[0] = 0;
-    col1.head.backup_force[1] = 0;
-    col1.head.backup_force[2] = 0;
-    col1.head.backup_force[3] = 0;
-    /* Park crown; sweep human land units off the probe corridor. */
-    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-      ColonizeUnit* u = &units.units[i];
-      if (!u->active) {
-        continue;
-      }
-      if (u->nation_id == 1) {
-        u->moves_left = 0;
-        if (u->x == 5 && u->y == 5) {
-          u->x = 1;
-          u->y = 1;
-        }
-      } else if (u->nation_id == 0 && !units_is_sea(&units, u->id)) {
-        /* Keep map clear so Dragoon does not bump into leftovers. */
-        u->x = 1;
-        u->y = 14;
-        u->moves_left = 0;
-      }
-    }
-    /* Nearer fortified colony (5,5); farther open Soldier (14,5); Dragoon at (8,5). */
-    const int open_id = units_spawn_allow_stack(&units, ty_soldier, 14, 5);
-    const int drg_id = units_spawn_allow_stack(&units, ty_dragoon, 8, 5);
-    if (open_id < 0 || drg_id < 0) {
-      return fail("Dragoon open-land setup should spawn open Soldier + Dragoon");
-    }
-    {
-      ColonizeUnit* openu = units_get(&units, open_id);
-      ColonizeUnit* drg = units_get(&units, drg_id);
-      if (!openu || !drg) {
-        return fail("Dragoon open-land unit lookup");
-      }
-      openu->nation_id = 0;
-      openu->moves_left = 0;
-      drg->nation_id = 1;
-      drg->moves_left = 1 * UNITS_MP_PER_TILE;
-      drg->orders = UNITS_ORDER_NONE;
-      drg->goto_x = -1;
-      drg->goto_y = -1;
-    }
-    ai_king_nation_turn(&ctx);
-    {
-      const ColonizeUnit* drg = units_get_const(&units, drg_id);
-      if (!drg || !drg->active) {
-        return fail("Dragoon hunter should remain active");
-      }
-      if (drg->orders != UNITS_ORDER_AI_MOVE || drg->goto_x != 14 || drg->goto_y != 5) {
-        fprintf(stderr,
-                "unit_ai_king: Dragoon goto=(%d,%d) orders=%d (want open unit 14,5 not fort 5,5)\n",
-                drg->goto_x, drg->goto_y, drg->orders);
-        return fail("Dragoon should prefer open land unit over nearer fortified colony");
-      }
-    }
-    colonies.colonies[0].has_building[0] = false;
-  }
-
-  /*
-   * Cont. Cav open-land bias (same Dragoon role when Artillery exists):
-   * prefer farther open human land unit over nearer fortified colony.
-   * Cont. Army stays nearest — Cont. Cav only. Deep role-split PARKED.
-   */
-  {
-    colonies.colonies[0].nation_id = 0;
-    colonies.building_type_count = 1;
-    snprintf(colonies.building_types[0].name, sizeof(colonies.building_types[0].name),
-             "Stockade");
-    colonies.colonies[0].has_building[0] = true;
-    if (!colonies_has_fortification(&colonies, &colonies.colonies[0])) {
-      return fail("Cont. Cav open-land setup requires fortified human colony");
-    }
-    memset(col1.head.expeditionary_force, 0, sizeof(col1.head.expeditionary_force));
-    col1.head.backup_force[0] = 0;
-    col1.head.backup_force[1] = 0;
-    col1.head.backup_force[2] = 0;
-    col1.head.backup_force[3] = 0;
-    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-      ColonizeUnit* u = &units.units[i];
-      if (!u->active) {
-        continue;
-      }
-      if (u->nation_id == 1) {
-        u->moves_left = 0;
-        if (u->x == 5 && u->y == 5) {
-          u->x = 1;
-          u->y = 1;
-        }
-      } else if (u->nation_id == 0 && !units_is_sea(&units, u->id)) {
-        u->x = 1;
-        u->y = 14;
-        u->moves_left = 0;
-      }
-    }
-    const int open_id = units_spawn_allow_stack(&units, ty_soldier, 14, 5);
-    const int cav_id = units_spawn_allow_stack(&units, ty_cont_cav, 8, 5);
-    if (open_id < 0 || cav_id < 0) {
-      return fail("Cont. Cav open-land setup should spawn open Soldier + Cont. Cav");
-    }
-    {
-      ColonizeUnit* openu = units_get(&units, open_id);
-      ColonizeUnit* cav = units_get(&units, cav_id);
-      if (!openu || !cav) {
-        return fail("Cont. Cav open-land unit lookup");
-      }
-      openu->nation_id = 0;
-      openu->moves_left = 0;
-      cav->nation_id = 1; /* crown Cont. Cav hunter */
-      cav->moves_left = 1 * UNITS_MP_PER_TILE;
-      cav->orders = UNITS_ORDER_NONE;
-      cav->goto_x = -1;
-      cav->goto_y = -1;
-    }
-    ai_king_nation_turn(&ctx);
-    {
-      const ColonizeUnit* cav = units_get_const(&units, cav_id);
-      if (!cav || !cav->active) {
-        return fail("Cont. Cav hunter should remain active");
-      }
-      if (cav->orders != UNITS_ORDER_AI_MOVE || cav->goto_x != 14 || cav->goto_y != 5) {
-        fprintf(stderr,
-                "unit_ai_king: Cont. Cav goto=(%d,%d) orders=%d (want open 14,5 not fort 5,5)\n",
-                cav->goto_x, cav->goto_y, cav->orders);
-        return fail("Cont. Cav should prefer open land unit over nearer fortified colony");
-      }
-    }
-    /*
-     * Cont. Army stays nearest (no open-land bias): same geometry → fortified
-     * colony (5,5), not open Soldier (14,5). Cont. Cav only above.
-     * Restore human ownership — prior Cont. Cav beat may have captured via a
-     * leftover crown stack on the tile (capture runs at 0 moves).
-     */
-    {
-      colonies.colonies[0].nation_id = 0;
-      colonies.colonies[0].has_building[0] = true;
-      if (!colonies_has_fortification(&colonies, &colonies.colonies[0])) {
-        return fail("Cont. Army open-land negative requires fortified human colony");
-      }
-      for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-        ColonizeUnit* u = &units.units[i];
-        if (!u->active) {
-          continue;
-        }
-        if (u->nation_id == 1) {
-          u->moves_left = 0;
-          if (u->x == 5 && u->y == 5) {
-            u->x = 1;
-            u->y = 1;
-          }
-        } else if (u->nation_id == 0 && !units_is_sea(&units, u->id)) {
-          u->x = 1;
-          u->y = 14;
-          u->moves_left = 0;
-        }
-      }
-      const int open_id2 = units_spawn_allow_stack(&units, ty_soldier, 14, 5);
-      const int army_id = units_spawn_allow_stack(&units, ty_cont_army, 8, 5);
-      if (open_id2 < 0 || army_id < 0) {
-        return fail("Cont. Army open-land negative setup should spawn open Soldier + Cont. Army");
-      }
-      {
-        ColonizeUnit* openu = units_get(&units, open_id2);
-        ColonizeUnit* army = units_get(&units, army_id);
-        if (!openu || !army) {
-          return fail("Cont. Army open-land negative unit lookup");
-        }
-        openu->nation_id = 0;
-        openu->moves_left = 0;
-        army->nation_id = 1;
-        army->moves_left = 1 * UNITS_MP_PER_TILE;
-        army->orders = UNITS_ORDER_NONE;
-        army->goto_x = -1;
-        army->goto_y = -1;
-      }
-      ai_king_nation_turn(&ctx);
-      {
-        const ColonizeUnit* army = units_get_const(&units, army_id);
-        if (!army || !army->active) {
-          return fail("Cont. Army hunter should remain active");
-        }
-        if (army->orders != UNITS_ORDER_AI_MOVE || army->goto_x != 5 || army->goto_y != 5) {
-          fprintf(stderr,
-                  "unit_ai_king: Cont. Army goto=(%d,%d) orders=%d (want fort 5,5 not open 14,5)\n",
-                  army->goto_x, army->goto_y, army->orders);
-          return fail("Cont. Army should stay nearest (fort colony), not open-land bias");
-        }
-      }
-    }
-    colonies.colonies[0].has_building[0] = false;
-  }
-
-  /*
-   * Wartime MoW with cargo → AI_SAIL toward water adjacent to human colony.
-   * Ship at (2,5); coast water west of colony is (4,5); step east toward coast.
-   * Decoy weak port draws 06a6 irregulars so the coastal colony stays human.
-   */
-  {
-    colonies.colonies[0].nation_id = 0;
-    colonies.colonies[0].population = 8; /* stronger — not 06a6 pick */
-    ColonizeColony* decoy_port = &colonies.colonies[2];
-    decoy_port->id = 2;
-    decoy_port->active = true;
-    decoy_port->nation_id = 0;
-    decoy_port->x = 14;
-    decoy_port->y = 14;
-    decoy_port->population = 1;
-    decoy_port->colonist_count = 1;
-    if (colonies.colony_count < 3) {
-      colonies.colony_count = 3;
-    }
-    memset(col1.head.expeditionary_force, 0, sizeof(col1.head.expeditionary_force));
-    col1.head.backup_force[0] = 0;
-    col1.head.backup_force[1] = 0;
-    col1.head.backup_force[2] = 0;
-    col1.head.backup_force[3] = 0;
-    /* Ocean corridor (2,5)-(4,5) for MoW sail. */
+    /* Ocean corridor (1,5)-(4,5); (1,5) is the High Seas crossing. */
     map.terrain[5 * 16 + 2] = 25;
     map.terrain[5 * 16 + 3] = 25;
+    map.terrain[5 * 16 + 1] = 26;
+    memset(col1.head.expeditionary_force, 0, sizeof(col1.head.expeditionary_force));
+    memset(col1.head.backup_force, 0, sizeof(col1.head.backup_force));
+    col1.head.expeditionary_force[0] = 3; /* land pools stocked, MoW pool spent */
+    const int mow_id = units_spawn_allow_stack(&units, ty_mow, 2, 5);
+    if (mow_id < 0) {
+      return fail("MoW sail-home setup should spawn Man-O-War");
+    }
+    ColonizeUnit* mow = units_get(&units, mow_id);
+    if (!mow) {
+      return fail("MoW sail-home unit lookup");
+    }
+    mow->nation_id = 1;
+    mow->cargo_count = 0;
+    mow->moves_left = 4 * UNITS_MP_PER_TILE;
+    mow->orders = UNITS_ORDER_NONE;
+    mow->goto_x = -1;
+    mow->goto_y = -1;
+    /* The 8aac term: the hull must be alone on its tile. */
     for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
       ColonizeUnit* u = &units.units[i];
-      if (u->active && u->nation_id == 1) {
-        u->moves_left = 0;
-        /* Off human colonies — 0-move capture would clear MoW coast targets. */
-        if ((u->x == 5 && u->y == 5) || (u->x == 14 && u->y == 14)) {
-          u->x = 1;
-          u->y = 1;
-        }
+      if (u->active && u->id != mow_id && u->aboard_ship_id < 0 && u->x == mow->x &&
+          u->y == mow->y) {
+        u->x = 1;
+        u->y = 1;
       }
     }
-    const int mow_id = units_spawn_allow_stack(&units, ty_mow, 2, 5);
-    const int pax_id = units_spawn_allow_stack(&units, ty_regular, 2, 5);
-    if (mow_id < 0 || pax_id < 0) {
-      return fail("MoW sail setup should spawn Man-O-War + Regular");
+    if (!ai_king_mow_sail_home_20e6(&ctx, mow, 1)) {
+      return fail("empty crown MoW should take the 20e6 sail-home arm");
     }
-    {
-      ColonizeUnit* mow = units_get(&units, mow_id);
-      ColonizeUnit* pax = units_get(&units, pax_id);
-      if (!mow || !pax) {
-        return fail("MoW sail unit lookup");
-      }
-      mow->nation_id = 1;
-      mow->moves_left = 4 * UNITS_MP_PER_TILE;
-      mow->orders = UNITS_ORDER_NONE;
-      mow->goto_x = -1;
-      mow->goto_y = -1;
-      pax->nation_id = 1;
-      if (!units_board_stacked(&units, pax_id, mow_id)) {
-        return fail("MoW sail should board Regular as cargo");
-      }
+    mow = units_get(&units, mow_id);
+    if (mow && mow->active) {
+      fprintf(stderr, "unit_ai_king: MoW still on map at (%d,%d) orders=%d\n", mow->x,
+              mow->y, mow->orders);
+      return fail("empty crown MoW should sail home once force[2] is spent");
     }
-    ai_king_nation_turn(&ctx);
-    {
-      const ColonizeUnit* mow = units_get_const(&units, mow_id);
-      if (!mow || !mow->active) {
-        return fail("MoW with cargo should remain active");
-      }
-      if (mow->orders != UNITS_ORDER_AI_SAIL || mow->goto_x != 4 || mow->goto_y != 5) {
-        fprintf(stderr, "unit_ai_king: MoW goto=(%d,%d) orders=%d (want AI_SAIL→4,5)\n",
-                mow->goto_x, mow->goto_y, mow->orders);
-        return fail("MoW with cargo should AI_SAIL toward water adjacent to human colony");
-      }
-      if (mow->x < 3) {
-        fprintf(stderr, "unit_ai_king: MoW pos=(%d,%d) (want step toward coast)\n", mow->x,
-                mow->y);
-        return fail("MoW with cargo should step toward human coast water");
-      }
+    if (col1.head.expeditionary_force[2] != 0) {
+      return fail("MoW sailing home must not credit expeditionary_force[2]");
     }
-    /* Place MoW on coast water adjacent to human colony → unload onto adjacent
-     * foundable/coastal land (colony tile is last-resort fallback only —
-     * king_ref 2026-08-24 adjacent-first). Single passenger + moves≥1 → unload
-     * that one (multi-unload capped by cargo). */
-    {
-      ColonizeUnit* mow = units_get(&units, mow_id);
-      if (!mow || !mow->active || mow->cargo_count <= 0) {
-        return fail("MoW unload setup needs MoW still carrying cargo");
-      }
-      mow->x = 4;
-      mow->y = 5;
-      mow->moves_left = 2 * UNITS_MP_PER_TILE;
-      mow->orders = UNITS_ORDER_NONE;
-      /* Ensure colony tile is free of blocking foreign units for unload. */
-      for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-        ColonizeUnit* u = &units.units[i];
-        if (u->active && u->x == 5 && u->y == 5 && u->id != mow_id &&
-            u->nation_id != 1) {
-          u->x = 1;
-          u->y = 1;
-        }
-      }
-      /* Soft coastal land (4,4)/(4,6) must win over colony tile (5,5). */
-      map.terrain[4 * 16 + 4] = 1;
-      map.terrain[6 * 16 + 4] = 1;
-      const int cargo_before = mow->cargo_count;
-      const int expect_unload =
-          cargo_before < mow->moves_left ? cargo_before : mow->moves_left;
-      int ashore_before = 0;
-      for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-        const ColonizeUnit* u = &units.units[i];
-        if (u->active && u->nation_id == 1 && !units_is_sea(&units, u->id) &&
-            u->aboard_ship_id < 0) {
-          ashore_before++;
-        }
-      }
-      colonies.colonies[0].nation_id = 0;
-      ai_king_nation_turn(&ctx);
-      mow = units_get(&units, mow_id);
-      if (!mow || !mow->active) {
-        return fail("MoW should remain after coastal unload");
-      }
-      if (mow->cargo_count != cargo_before - expect_unload) {
-        fprintf(stderr, "unit_ai_king: MoW cargo after unload %d (want %d)\n",
-                mow->cargo_count, cargo_before - expect_unload);
-        return fail("MoW adjacent to human colony coast should unload ≤moves cargo");
-      }
-      {
-        int ashore_after = 0;
-        for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-          const ColonizeUnit* u = &units.units[i];
-          if (u->active && u->nation_id == 1 && !units_is_sea(&units, u->id) &&
-              u->aboard_ship_id < 0) {
-            ashore_after++;
-          }
-        }
-        if (ashore_after < ashore_before + expect_unload) {
-          return fail("MoW coastal unload should place crown land ashore");
-        }
-      }
-      /* Adjacent-first: passenger lands on soft coast, not the colony tile. */
-      {
-        int on_adj = 0;
-        int on_colony = 0;
-        for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-          const ColonizeUnit* u = &units.units[i];
-          if (!u->active || u->nation_id != 1 || units_is_sea(&units, u->id)) {
-            continue;
-          }
-          if (u->type_index != ty_regular || u->aboard_ship_id >= 0) {
-            continue;
-          }
-          if (u->x == 5 && u->y == 5) {
-            on_colony = 1;
-          } else if ((u->x == 4 && u->y == 4) || (u->x == 4 && u->y == 6) ||
-                     (u->x == 5 && u->y == 4) || (u->x == 5 && u->y == 6)) {
-            on_adj = 1;
-          }
-        }
-        if (!on_adj) {
-          return fail("MoW unload should prefer adjacent coastal land over colony tile");
-        }
-        (void)on_colony; /* 06a6 hunt may still walk onto colony same beat */
-      }
-    }
-    /*
-     * Multi-unload deepen (MoW×6 seize): board 3 Regulars, moves_left=2 * UNITS_MP_PER_TILE →
-     * unload exactly 2 this beat (cap by moves; leftover 1 stays aboard).
-     * Cite: fandom man-o-war×6 / units_unload_passenger; no invent.
-     */
-    {
-      ColonizeUnit* mow = units_get(&units, mow_id);
-      if (!mow || !mow->active) {
-        return fail("multi-unload setup needs live Man-O-War");
-      }
-      while (mow->cargo_count > 0) {
-        const int cid = mow->cargo_ids[0];
-        ColonizeUnit* p = units_get(&units, cid);
-        if (p) {
-          p->aboard_ship_id = -1;
-          p->active = false;
-        }
-        mow->cargo_count = 0;
-      }
-      for (int k = 0; k < 3; ++k) {
-        const int pid = units_spawn_allow_stack(&units, ty_regular, 4, 5);
-        if (pid < 0) {
-          return fail("multi-unload setup should spawn Regular cargo");
-        }
-        ColonizeUnit* p = units_get(&units, pid);
-        if (!p) {
-          return fail("multi-unload Regular lookup");
-        }
-        p->nation_id = 1;
-        if (!units_board_stacked(&units, pid, mow_id)) {
-          return fail("multi-unload should board Regular");
-        }
-      }
-      mow = units_get(&units, mow_id);
-      if (!mow || mow->cargo_count != 3) {
-        return fail("multi-unload setup wants cargo_count 3");
-      }
-      mow->x = 4;
-      mow->y = 5;
-      mow->moves_left = 2 * UNITS_MP_PER_TILE;
-      mow->orders = UNITS_ORDER_NONE;
-      map.terrain[4 * 16 + 4] = 1;
-      map.terrain[6 * 16 + 4] = 1;
-      for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-        ColonizeUnit* u = &units.units[i];
-        if (!u->active || u->id == mow_id) {
-          continue;
-        }
-        if (u->nation_id == 1 && u->aboard_ship_id < 0) {
-          u->moves_left = 0;
-          if (u->x == 5 && u->y == 5) {
-            u->x = 1;
-            u->y = 1;
-          }
-        } else if (u->nation_id == 0 && !units_is_sea(&units, u->id)) {
-          u->x = 1;
-          u->y = 14;
-          u->moves_left = 0;
-        }
-      }
-      colonies.colonies[0].nation_id = 0;
-      memset(col1.head.expeditionary_force, 0, sizeof(col1.head.expeditionary_force));
-      memset(col1.head.backup_force, 0, sizeof(col1.head.backup_force));
-      int ashore_before = 0;
-      for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-        const ColonizeUnit* u = &units.units[i];
-        if (u->active && u->nation_id == 1 && !units_is_sea(&units, u->id) &&
-            u->aboard_ship_id < 0) {
-          ashore_before++;
-        }
-      }
-      ai_king_nation_turn(&ctx);
-      mow = units_get(&units, mow_id);
-      if (!mow || !mow->active) {
-        return fail("MoW should remain after multi-unload");
-      }
-      if (mow->cargo_count != 1) {
-        fprintf(stderr, "unit_ai_king: multi-unload cargo=%d (want 1 leftover)\n",
-                mow->cargo_count);
-        return fail("MoW multi-unload should dump 2 of 3 when moves_left=2 * UNITS_MP_PER_TILE");
-      }
-      int ashore_after = 0;
-      for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-        const ColonizeUnit* u = &units.units[i];
-        if (u->active && u->nation_id == 1 && !units_is_sea(&units, u->id) &&
-            u->aboard_ship_id < 0) {
-          ashore_after++;
-        }
-      }
-      if (ashore_after < ashore_before + 2) {
-        fprintf(stderr, "unit_ai_king: multi-unload ashore %d→%d (want +2)\n",
-                ashore_before, ashore_after);
-        return fail("MoW multi-unload should place 2 crown land ashore");
-      }
-      /* bugs.md 406: NO same-beat seize — DOS lands adjacent and walks in
-       * only on a later activation with moves restored. */
-      if (colonies.colonies[0].nation_id != 0) {
-        return fail("MoW multi-unload must NOT seize the colony on the landing beat");
-      }
-      /* Next crown activation: refresh the landed Regulars' moves and run the
-       * king again — the war-act walk now enters the undefended colony and
-       * captures it (the DOS later-activation capture). */
-      for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-        ColonizeUnit* u = &units.units[i];
-        if (u->active && u->nation_id == 1 && !units_is_sea(&units, u->id) &&
-            u->aboard_ship_id < 0) {
-          u->moves_left = UNITS_MP_PER_TILE;
-        }
-      }
-      ai_king_nation_turn(&ctx);
-      if (colonies.colonies[0].nation_id != 1) {
-        return fail("MoW landing should capture the colony on the NEXT activation");
-      }
-      {
-        /* bugs.md 406: the capture now lands on the next activation via the
-         * war-act walk, so the garrison on the tile may be whichever crown
-         * land unit walked in first — assert a fortified crown garrison,
-         * not specifically the freshly landed Regulars. */
-        int fortified = 0;
-        int crown_on = 0;
-        for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-          const ColonizeUnit* u = &units.units[i];
-          if (!u->active || u->nation_id != 1 || units_is_sea(&units, u->id)) {
-            continue;
-          }
-          if (u->x != 5 || u->y != 5 || u->aboard_ship_id >= 0) {
-            continue;
-          }
-          crown_on++;
-          if (u->orders == UNITS_ORDER_FORTIFY || u->orders == UNITS_ORDER_FORTIFIED) {
-            fortified++;
-          }
-        }
-        if (crown_on < 1) {
-          return fail("capture should leave a crown garrison on the colony tile");
-        }
-        if (fortified < 1) {
-          return fail("capture should fortify at least one garrison unit");
-        }
-      }
-    }
-    /*
-     * Full unload + moves left → AI_SAIL toward *next* human coast (skip the
-     * port just served). Ship at (4,5) next to Jamestown; second human port
-     * with water at (13,14); cargo=1 moves=3 → unload then sail toward 13,14.
-     */
-    {
-      ColonizeUnit* mow = units_get(&units, mow_id);
-      if (!mow || !mow->active) {
-        return fail("full-unload sail setup needs live Man-O-War");
-      }
-      while (mow->cargo_count > 0) {
-        const int cid = mow->cargo_ids[0];
-        ColonizeUnit* p = units_get(&units, cid);
-        if (p) {
-          p->aboard_ship_id = -1;
-          p->active = false;
-        }
-        mow->cargo_count = 0;
-      }
-      /* Water west of decoy port (14,14) — next human coast target. */
-      map.terrain[14 * 16 + 13] = 25;
-      decoy_port->active = true;
-      decoy_port->nation_id = 0;
-      decoy_port->population = 1;
-      colonies.colonies[0].nation_id = 0;
-      colonies.colonies[0].population = 8;
-      const int pax2 = units_spawn_allow_stack(&units, ty_regular, 4, 5);
-      if (pax2 < 0) {
-        return fail("full-unload sail setup should spawn Regular cargo");
-      }
-      {
-        ColonizeUnit* p = units_get(&units, pax2);
-        if (!p) {
-          return fail("full-unload sail Regular lookup");
-        }
-        p->nation_id = 1;
-        if (!units_board_stacked(&units, pax2, mow_id)) {
-          return fail("full-unload sail should board Regular");
-        }
-      }
-      mow = units_get(&units, mow_id);
-      mow->x = 4;
-      mow->y = 5;
-      mow->moves_left = 3 * UNITS_MP_PER_TILE;
-      mow->orders = UNITS_ORDER_NONE;
-      mow->goto_x = -1;
-      mow->goto_y = -1;
-      map.terrain[4 * 16 + 4] = 1;
-      map.terrain[6 * 16 + 4] = 1;
-      for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-        ColonizeUnit* u = &units.units[i];
-        if (!u->active || u->id == mow_id || u->id == pax2) {
-          continue;
-        }
-        if (u->nation_id == 1 && u->aboard_ship_id < 0) {
-          u->moves_left = 0;
-          if (u->x == 5 && u->y == 5) {
-            u->x = 1;
-            u->y = 1;
-          }
-        } else if (u->nation_id == 0 && !units_is_sea(&units, u->id)) {
-          u->x = 1;
-          u->y = 14;
-          u->moves_left = 0;
-        }
-      }
-      memset(col1.head.expeditionary_force, 0, sizeof(col1.head.expeditionary_force));
-      memset(col1.head.backup_force, 0, sizeof(col1.head.backup_force));
-      ai_king_nation_turn(&ctx);
-      mow = units_get(&units, mow_id);
-      if (!mow || !mow->active) {
-        return fail("MoW should remain after full unload + sail");
-      }
-      if (mow->cargo_count != 0) {
-        return fail("full unload should empty MoW hold before sail");
-      }
-      if (mow->orders != UNITS_ORDER_AI_SAIL || mow->goto_x != 13 || mow->goto_y != 14) {
-        fprintf(stderr,
-                "unit_ai_king: post-full-unload MoW goto=(%d,%d) orders=%d "
-                "(want AI_SAIL→13,14 next coast)\n",
-                mow->goto_x, mow->goto_y, mow->orders);
-        return fail("after full unload with moves left MoW should AI_SAIL to next human coast");
-      }
-    }
-    /*
-     * Coast-adjacent unload prefers soft coastal/foundable land over the human
-     * colony tile (king_ref 2026-08-24 adjacent-first; colony is fallback only).
-     * Ship already on coast water (4,5) next to colony (5,5); soft land at
-     * (4,4)/(4,6) must win. Sail-toward-coast from further out is covered by
-     * the MoW AI_SAIL case above.
-     */
-    {
-      ColonizeUnit* mow = units_get(&units, mow_id);
-      if (!mow || !mow->active) {
-        return fail("post-sail unload setup needs live Man-O-War");
-      }
-      while (mow->cargo_count > 0) {
-        const int cid = mow->cargo_ids[0];
-        ColonizeUnit* p = units_get(&units, cid);
-        if (p) {
-          p->aboard_ship_id = -1;
-          p->active = false;
-        }
-        mow->cargo_count = 0;
-      }
-      decoy_port->active = false;
-      colonies.colonies[0].nation_id = 0;
-      colonies.colonies[0].population = 8;
-      map.terrain[5 * 16 + 3] = 25;
-      map.terrain[5 * 16 + 4] = 25;
-      map.terrain[4 * 16 + 4] = 1;
-      map.terrain[6 * 16 + 4] = 1;
-      mow = units_get(&units, mow_id);
-      mow->x = 4;
-      mow->y = 5;
-      mow->moves_left = 3 * UNITS_MP_PER_TILE;
-      mow->orders = UNITS_ORDER_NONE;
-      mow->goto_x = UNITS_GOTO_NONE;
-      mow->goto_y = UNITS_GOTO_NONE;
-      const int pax_sail = units_spawn_allow_stack(&units, ty_regular, 4, 5);
-      if (pax_sail < 0) {
-        return fail("post-sail unload setup should spawn Regular cargo");
-      }
-      {
-        ColonizeUnit* p = units_get(&units, pax_sail);
-        if (!p) {
-          return fail("post-sail unload Regular lookup");
-        }
-        p->nation_id = 1;
-        if (!units_board_stacked(&units, pax_sail, mow_id)) {
-          return fail("post-sail unload should board Regular");
-        }
-      }
-      for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-        ColonizeUnit* u = &units.units[i];
-        if (!u->active || u->id == mow_id || u->id == pax_sail) {
-          continue;
-        }
-        if (u->nation_id == 1 && u->aboard_ship_id < 0) {
-          u->moves_left = 0;
-          if (u->x == 5 && u->y == 5) {
-            u->x = 1;
-            u->y = 1;
-          }
-        } else if (u->nation_id == 0 && !units_is_sea(&units, u->id)) {
-          u->x = 1;
-          u->y = 14;
-          u->moves_left = 0;
-        }
-      }
-      memset(col1.head.expeditionary_force, 0, sizeof(col1.head.expeditionary_force));
-      memset(col1.head.backup_force, 0, sizeof(col1.head.backup_force));
-      ai_king_nation_turn(&ctx);
-      mow = units_get(&units, mow_id);
-      if (!mow || !mow->active) {
-        return fail("MoW should remain after post-sail unload");
-      }
-      if (mow->cargo_count != 0) {
-        fprintf(stderr, "unit_ai_king: post-sail MoW cargo=%d (want 0 after adjacent unload)\n",
-                mow->cargo_count);
-        return fail("after coast sail step MoW should unload when already adjacent");
-      }
-      {
-        const ColonizeUnit* pax = units_get_const(&units, pax_sail);
-        if (!pax || !pax->active || pax->aboard_ship_id >= 0) {
-          return fail("post-sail unload should put Regular ashore");
-        }
-        if (pax->x == 5 && pax->y == 5) {
-          fprintf(stderr, "unit_ai_king: post-sail pax at colony (%d,%d) "
-                          "(want adjacent coastal land)\n",
-                  pax->x, pax->y);
-          return fail("post-sail unload should prefer adjacent coastal land over colony");
-        }
-        {
-          const int adx = pax->x - 4;
-          const int ady = pax->y - 5;
-          const int adj =
-              adx >= -1 && adx <= 1 && ady >= -1 && ady <= 1 && (adx != 0 || ady != 0);
-          if (!adj || !map_tile_is_land(&map, pax->x, pax->y)) {
-            fprintf(stderr,
-                    "unit_ai_king: post-sail pax at (%d,%d) (want land adj to ship 4,5)\n",
-                    pax->x, pax->y);
-            return fail("post-sail unload should land on adjacent coastal land");
-          }
-        }
-      }
-      /* Same-beat seize is via 06a6 hunt (or later beat), not unload dest. */
-    }
-    /*
-     * Dragoon coastal unload when cargo allows (no Regular in hold):
-     * prefer Regular otherwise; here only Dragoon → unload Dragoon.
-     * Prefer colony tile: make (5,5) the only adjacent land so soft coast
-     * cannot win. Same-beat hunt may move the Dragoon after seize — assert
-     * cargo drop + not-aboard + human colony captured (owner → crown).
-     */
-    {
-      ColonizeUnit* mow = units_get(&units, mow_id);
-      if (!mow || !mow->active) {
-        return fail("Dragoon unload setup needs live Man-O-War");
-      }
-      /* Clear remaining cargo so we can board a Dragoon alone. */
-      while (mow->cargo_count > 0) {
-        const int cid = mow->cargo_ids[0];
-        ColonizeUnit* p = units_get(&units, cid);
-        if (p) {
-          p->aboard_ship_id = -1;
-          p->active = false;
-        }
-        mow->cargo_count = 0;
-      }
-      const int drg_pax = units_spawn_allow_stack(&units, ty_dragoon, 4, 5);
-      if (drg_pax < 0) {
-        return fail("Dragoon unload setup should spawn Dragoon");
-      }
-      {
-        ColonizeUnit* drg = units_get(&units, drg_pax);
-        if (!drg) {
-          return fail("Dragoon unload unit lookup");
-        }
-        drg->nation_id = 1;
-        if (!units_board_stacked(&units, drg_pax, mow_id)) {
-          return fail("Dragoon unload should board Dragoon as cargo");
-        }
-      }
-      mow->x = 4;
-      mow->y = 5;
-      mow->moves_left = 2 * UNITS_MP_PER_TILE;
-      mow->orders = UNITS_ORDER_NONE;
-      /* Only colony tile (5,5) enterable from ship — soft coast → water. */
-      map.terrain[4 * 16 + 4] = 25;
-      map.terrain[6 * 16 + 4] = 25;
-      map.terrain[4 * 16 + 5] = 25; /* (5,4) */
-      map.terrain[6 * 16 + 5] = 25; /* (5,6) */
-      map.terrain[4 * 16 + 3] = 25;
-      map.terrain[5 * 16 + 3] = 25;
-      map.terrain[6 * 16 + 3] = 25;
-      for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-        ColonizeUnit* u = &units.units[i];
-        if (!u->active || u->id == mow_id || u->id == drg_pax) {
-          continue;
-        }
-        if (u->nation_id == 1) {
-          u->moves_left = 0;
-          if (u->x == 5 && u->y == 5) {
-            u->x = 1;
-            u->y = 1;
-            u->orders = UNITS_ORDER_NONE;
-          }
-        } else if (u->nation_id == 0 && !units_is_sea(&units, u->id)) {
-          u->x = 1;
-          u->y = 14;
-          u->moves_left = 0;
-        }
-      }
-      const int cargo_before = mow->cargo_count;
-      colonies.colonies[0].nation_id = 0;
-      memset(col1.head.expeditionary_force, 0, sizeof(col1.head.expeditionary_force));
-      memset(col1.head.backup_force, 0, sizeof(col1.head.backup_force));
-      ai_king_nation_turn(&ctx);
-      mow = units_get(&units, mow_id);
-      if (!mow || !mow->active) {
-        return fail("MoW should remain after Dragoon coastal unload");
-      }
-      if (mow->cargo_count != cargo_before - 1) {
-        fprintf(stderr, "unit_ai_king: MoW cargo after Dragoon unload %d (want %d)\n",
-                mow->cargo_count, cargo_before - 1);
-        return fail("MoW with Dragoon-only cargo should unload one Dragoon");
-      }
-      {
-        const ColonizeUnit* drg = units_get_const(&units, drg_pax);
-        if (!drg || !drg->active || drg->aboard_ship_id >= 0) {
-          return fail("Dragoon should be ashore after MoW unload");
-        }
-      }
-      if (colonies.colonies[0].nation_id != 1) {
-        return fail("Dragoon unload onto colony tile should seize (owner → crown)");
-      }
-      /* Restore corridor land for later empty-MoW patrol. */
-      map.terrain[4 * 16 + 4] = 1;
-      map.terrain[6 * 16 + 4] = 1;
-      map.terrain[4 * 16 + 5] = 1;
-      map.terrain[6 * 16 + 5] = 1;
-    }
-    /*
-     * Idle empty MoW coastal patrol (fandom REF man-o-war → ports):
-     * cargo_count==0 → AI_SAIL toward water adjacent to human colony; step
-     * toward coast. Redirects existing ship only — no invent spawn.
-     * Hold fill = ship capacity (cargo_ids); 160a letter cinematic Done.
-     */
-    {
-      ColonizeUnit* mow = units_get(&units, mow_id);
-      if (!mow || !mow->active) {
-        return fail("empty MoW patrol setup needs live Man-O-War");
-      }
-      /* Drain any remaining cargo so ship is idle-empty. */
-      while (mow->cargo_count > 0) {
-        const int cid = mow->cargo_ids[0];
-        ColonizeUnit* p = units_get(&units, cid);
-        if (p) {
-          p->aboard_ship_id = -1;
-          p->active = false;
-        }
-        mow->cargo_count = 0;
-        break;
-      }
-      mow->x = 2;
-      mow->y = 5;
-      mow->moves_left = 4 * UNITS_MP_PER_TILE;
-      mow->orders = UNITS_ORDER_NONE;
-      mow->goto_x = -1;
-      mow->goto_y = -1;
-      colonies.colonies[0].nation_id = 0;
-      colonies.colonies[0].population = 8;
-      decoy_port->active = true;
-      decoy_port->nation_id = 0;
-      memset(col1.head.expeditionary_force, 0, sizeof(col1.head.expeditionary_force));
-      for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-        ColonizeUnit* u = &units.units[i];
-        if (u->active && u->nation_id == 1 && u->id != mow_id) {
-          u->moves_left = 0;
-          if ((u->x == 5 && u->y == 5) || (u->x == 14 && u->y == 14)) {
-            u->x = 1;
-            u->y = 1;
-          }
-        }
-      }
-      ai_king_nation_turn(&ctx);
-      mow = units_get(&units, mow_id);
-      if (!mow || !mow->active) {
-        return fail("idle empty MoW should remain active");
-      }
-      if (mow->orders != UNITS_ORDER_AI_SAIL || mow->goto_x != 4 || mow->goto_y != 5) {
-        fprintf(stderr,
-                "unit_ai_king: empty MoW goto=(%d,%d) orders=%d (want AI_SAIL→4,5)\n",
-                mow->goto_x, mow->goto_y, mow->orders);
-        return fail("idle empty MoW should AI_SAIL toward human coast water");
-      }
-      if (mow->x < 3) {
-        fprintf(stderr, "unit_ai_king: empty MoW pos=(%d,%d) (want step toward coast)\n",
-                mow->x, mow->y);
-        return fail("idle empty MoW should step toward human coast water");
-      }
-    }
-    /*
-     * FUN_521d_20e6 ship-band tail (viceroy_unpacked.c:89717-89720): with the
-     * MoW pool spent (force[2]==0), land pools still stocked, the hull empty
-     * and alone on its tile, the crown Man-O-War sails for the High Seas
-     * (FUN_48d3_015e) and leaves the map — and NO pool is credited on the way
-     * out (0982's own refill gate is what puts the next hull in the water).
-     * Replaces the old "despawn at wave start once turns_worked > 0" stand-in.
-     */
-    {
-      ColonizeUnit* mow = units_get(&units, mow_id);
-      if (!mow || !mow->active) {
-        return fail("MoW sail-home setup needs live Man-O-War");
-      }
-      map.terrain[5 * 16 + 1] = 26; /* High Seas west of the ocean corridor */
-      mow->x = 2;
-      mow->y = 5;
-      mow->cargo_count = 0;
-      mow->moves_left = 4 * UNITS_MP_PER_TILE;
-      mow->orders = UNITS_ORDER_NONE;
-      mow->goto_x = -1;
-      mow->goto_y = -1;
-      /* Land pools stocked, MoW pool spent — the DOS gate's own shape. */
-      memset(col1.head.expeditionary_force, 0, sizeof(col1.head.expeditionary_force));
-      col1.head.expeditionary_force[0] = 3;
-      for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-        ColonizeUnit* u = &units.units[i];
-        if (u->active && u->nation_id == 1 && u->id != mow_id) {
-          u->moves_left = 0;
-          if (u->x == mow->x && u->y == mow->y) {
-            u->x = 1;
-            u->y = 1;
-          }
-        }
-      }
-      ai_king_nation_turn(&ctx);
-      mow = units_get(&units, mow_id);
-      if (mow && mow->active) {
-        fprintf(stderr, "unit_ai_king: MoW still on map at (%d,%d) orders=%d\n", mow->x,
-                mow->y, mow->orders);
-        return fail("empty crown MoW should sail home once force[2] is spent");
-      }
-      if (col1.head.expeditionary_force[2] != 0) {
-        return fail("MoW sailing home must not credit expeditionary_force[2]");
-      }
-      map.terrain[5 * 16 + 1] = 25;
-    }
-    decoy_port->active = false;
-    colonies.colonies[0].population = 4;
+    map.terrain[5 * 16 + 1] = 25;
   }
 
   /*
@@ -3644,6 +1591,7 @@ int main(void) {
    * 0x08 (already consumed by the first war turn above) — re-arm it so this
    * subtest exercises the mobilization body itself. */
   col1.nation[0].nation_flags = (uint8_t)(col1.nation[0].nation_flags & ~0x08u);
+  ai_king_ref_pre_euro_beat(&ctx);
   ai_king_nation_turn(&ctx);
   {
     const ColonizeUnit* su = units_get_const(&units, sid);
@@ -3720,6 +1668,7 @@ int main(void) {
     su->nation_id = 0;
     su->orders = UNITS_ORDER_FORTIFIED;
   }
+  ai_king_ref_pre_euro_beat(&ctx);
   ai_king_nation_turn(&ctx);
   {
     const ColonizeUnit* su = units_get_const(&units, sid2);
@@ -3811,6 +1760,7 @@ int main(void) {
     }
     /* bugs.md 256: re-arm the once-only mobilization for this subtest. */
     col1.nation[0].nation_flags = (uint8_t)(col1.nation[0].nation_flags & ~0x08u);
+    ai_king_ref_pre_euro_beat(&ctx);
     ai_king_nation_turn(&ctx);
     {
       const ColonizeUnit* su = units_get_const(&units, sid50);
@@ -3915,6 +1865,7 @@ int main(void) {
   }
   /* bugs.md 256: re-arm the once-only mobilization for this subtest. */
   col1.nation[0].nation_flags = (uint8_t)(col1.nation[0].nation_flags & ~0x08u);
+  ai_king_ref_pre_euro_beat(&ctx);
   ai_king_nation_turn(&ctx);
   {
     const ColonizeUnit* hi = units_get_const(&units, sid_hi);
@@ -3983,6 +1934,7 @@ int main(void) {
       fort->goto_y = -1;
     }
     status[0] = '\0';
+    ai_king_ref_pre_euro_beat(&ctx);
     ai_king_nation_turn(&ctx);
     {
       const ColonizeUnit* ca = units_get_const(&units, ca_id);
@@ -4020,6 +1972,7 @@ int main(void) {
       ca->goto_x = 14;
       ca->goto_y = 14;
       ca->moves_left = 2 * UNITS_MP_PER_TILE;
+      ai_king_ref_pre_euro_beat(&ctx);
       ai_king_nation_turn(&ctx);
       ca = units_get(&units, ca_id);
       if (!ca || !ca->active) {
@@ -4042,242 +1995,6 @@ int main(void) {
         fort->active = false;
       }
     }
-  }
-
-  /*
-   * bugs.md: the crown's mounted arm is spelled `Cavalry` in NAMES.TXT @UNIT,
-   * not `Dragoons` (that is the colonial type). ai_king_is_ref_land_hunter used
-   * to test the literal "Dragoon" only, so every REF Cavalry landed, kept the
-   * beachhead goto the wave gave it (its own tile), and then sat there with a
-   * full move allowance for the rest of the war. A hunter must get a target
-   * that is not the tile it is standing on, and must spend moves reaching it.
-   */
-  {
-    colonies.colonies[0].nation_id = 0;
-    colonies.colonies[0].has_building[0] = false;
-    colonies.colonies[0].x = 5;
-    colonies.colonies[0].y = 5;
-    memset(col1.head.expeditionary_force, 0, sizeof(col1.head.expeditionary_force));
-    memset(col1.head.backup_force, 0, sizeof(col1.head.backup_force));
-    col1.head.expeditionary_force[0] = 1; /* non-empty pools: no 06a6 irregulars */
-    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-      ColonizeUnit* u = &units.units[i];
-      if (!u->active) {
-        continue;
-      }
-      if (u->nation_id == 1) {
-        u->active = false; /* only the probe Cavalry acts this beat */
-      } else if (u->nation_id == 0 && !units_is_sea(&units, u->id)) {
-        u->x = 1;
-        u->y = 14;
-        u->moves_left = 0;
-      }
-    }
-    const int cav_id = units_spawn_allow_stack(&units, ty_cavalry, 10, 5);
-    if (cav_id < 0) {
-      return fail("REF Cavalry hunt setup spawn");
-    }
-    {
-      ColonizeUnit* cav = units_get(&units, cav_id);
-      if (!cav) {
-        return fail("REF Cavalry hunt unit lookup");
-      }
-      cav->nation_id = 1;
-      cav->moves_left = 2 * UNITS_MP_PER_TILE;
-      /* Exactly what ai_king_ref_wave hands a fresh landing: AI_MOVE with the
-       * goto pointing at the tile it stands on. */
-      cav->orders = UNITS_ORDER_AI_MOVE;
-      cav->goto_x = 10;
-      cav->goto_y = 5;
-    }
-    ai_king_nation_turn(&ctx);
-    {
-      const ColonizeUnit* cav = units_get_const(&units, cav_id);
-      if (!cav || !cav->active) {
-        return fail("REF Cavalry should remain active");
-      }
-      if (cav->orders != UNITS_ORDER_AI_MOVE) {
-        fprintf(stderr, "unit_ai_king: REF Cavalry orders=%d (want AI_MOVE)\n", cav->orders);
-        return fail("REF Cavalry should be a land hunter");
-      }
-      if (cav->goto_x == 10 && cav->goto_y == 5) {
-        return fail("REF Cavalry kept its own tile as goto (no hunt target)");
-      }
-      if (cav->x == 10 && cav->y == 5) {
-        fprintf(stderr, "unit_ai_king: REF Cavalry parked at (%d,%d) goto=(%d,%d) mv=%d\n",
-                cav->x, cav->y, cav->goto_x, cav->goto_y, cav->moves_left);
-        return fail("REF Cavalry should march toward its hunt target");
-      }
-    }
-    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-      ColonizeUnit* u = &units.units[i];
-      if (u->active && u->nation_id == 1) {
-        u->active = false;
-      }
-    }
-    colonies.colonies[0].nation_id = 0;
-  }
-
-  /*
-   * REF capital MD hunt bias (fandom REF main-port pressure):
-   * founding capital id0 at (5,5); nearer distant colony at (11,5); Regular at
-   * (9,5) → MD capital=4, MD distant=2; slack=2 → prefer capital over distant.
-   * Clear human land units so colony bias is observable. 160a letter
-   * cinematic Done. PARK: extra boycott cargos beyond Sugar.
-   */
-  {
-    colonies.colonies[0].nation_id = 0;
-    colonies.colonies[0].x = 5;
-    colonies.colonies[0].y = 5;
-    colonies.colonies[0].has_building[0] = false;
-    ColonizeColony* distant = &colonies.colonies[2];
-    distant->id = 2;
-    distant->active = true;
-    distant->nation_id = 0;
-    distant->x = 11;
-    distant->y = 5;
-    distant->population = 2;
-    distant->colonist_count = 2;
-    distant->has_building[0] = false;
-    snprintf(distant->name, sizeof(distant->name), "Outpost");
-    if (colonies.colony_count < 3) {
-      colonies.colony_count = 3;
-    }
-    memset(col1.head.expeditionary_force, 0, sizeof(col1.head.expeditionary_force));
-    memset(col1.head.backup_force, 0, sizeof(col1.head.backup_force));
-    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-      ColonizeUnit* u = &units.units[i];
-      if (!u->active) {
-        continue;
-      }
-      if (u->nation_id == 1) {
-        u->moves_left = 0;
-        if ((u->x == 5 && u->y == 5) || (u->x == 11 && u->y == 5) ||
-            (u->x == 9 && u->y == 5)) {
-          u->x = 1;
-          u->y = 1;
-        }
-      } else if (u->nation_id == 0 && !units_is_sea(&units, u->id)) {
-        /* Sweep human land so hunt compares colonies only. */
-        u->x = 1;
-        u->y = 14;
-        u->moves_left = 0;
-      }
-    }
-    const int cap_hunter = units_spawn_allow_stack(&units, ty_regular, 9, 5);
-    if (cap_hunter < 0) {
-      return fail("capital MD bias setup should spawn crown Regular");
-    }
-    {
-      ColonizeUnit* h = units_get(&units, cap_hunter);
-      if (!h) {
-        return fail("capital MD bias unit lookup");
-      }
-      h->nation_id = 1;
-      h->moves_left = 1 * UNITS_MP_PER_TILE;
-      h->orders = UNITS_ORDER_NONE;
-      h->goto_x = -1;
-      h->goto_y = -1;
-    }
-    ai_king_nation_turn(&ctx);
-    {
-      const ColonizeUnit* h = units_get_const(&units, cap_hunter);
-      if (!h || !h->active) {
-        return fail("capital MD bias Regular should remain active");
-      }
-      if (h->orders != UNITS_ORDER_AI_MOVE || h->goto_x != 5 || h->goto_y != 5) {
-        fprintf(stderr,
-                "unit_ai_king: capital MD bias goto=(%d,%d) orders=%d "
-                "(want capital 5,5 not distant 11,5)\n",
-                h->goto_x, h->goto_y, h->orders);
-        return fail("REF idle hunter should prefer capital when MD comparable");
-      }
-    }
-    distant->active = false;
-  }
-
-  /*
-   * Artillery siege capital MD slack (like idle hunters): both capital and
-   * distant fortified; Artillery at (9,5) → MD capital=4, MD distant=2;
-   * slack=2 → prefer fortified founding capital over nearer fortified outpost.
-   * Source: fandom REF main-port pressure; deep multi-step siege PARKED.
-   */
-  {
-    colonies.building_type_count = 1;
-    snprintf(colonies.building_types[0].name, sizeof(colonies.building_types[0].name),
-             "Stockade");
-    colonies.colonies[0].nation_id = 0;
-    colonies.colonies[0].x = 5;
-    colonies.colonies[0].y = 5;
-    colonies.colonies[0].has_building[0] = true;
-    ColonizeColony* distant = &colonies.colonies[2];
-    distant->id = 2;
-    distant->active = true;
-    distant->nation_id = 0;
-    distant->x = 11;
-    distant->y = 5;
-    distant->population = 2;
-    distant->colonist_count = 2;
-    distant->has_building[0] = true;
-    snprintf(distant->name, sizeof(distant->name), "Outpost");
-    if (colonies.colony_count < 3) {
-      colonies.colony_count = 3;
-    }
-    if (!colonies_has_fortification(&colonies, &colonies.colonies[0]) ||
-        !colonies_has_fortification(&colonies, distant)) {
-      return fail("Artillery capital MD setup needs both colonies fortified");
-    }
-    memset(col1.head.expeditionary_force, 0, sizeof(col1.head.expeditionary_force));
-    memset(col1.head.backup_force, 0, sizeof(col1.head.backup_force));
-    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-      ColonizeUnit* u = &units.units[i];
-      if (!u->active) {
-        continue;
-      }
-      if (u->nation_id == 1) {
-        u->moves_left = 0;
-        if ((u->x == 5 && u->y == 5) || (u->x == 11 && u->y == 5) ||
-            (u->x == 9 && u->y == 5)) {
-          u->x = 1;
-          u->y = 1;
-        }
-      } else if (u->nation_id == 0 && !units_is_sea(&units, u->id)) {
-        u->x = 1;
-        u->y = 14;
-        u->moves_left = 0;
-      }
-    }
-    const int art_cap = units_spawn_allow_stack(&units, ty_artillery, 9, 5);
-    if (art_cap < 0) {
-      return fail("Artillery capital MD setup should spawn Artillery");
-    }
-    {
-      ColonizeUnit* art = units_get(&units, art_cap);
-      if (!art) {
-        return fail("Artillery capital MD unit lookup");
-      }
-      art->nation_id = 1;
-      art->moves_left = 1 * UNITS_MP_PER_TILE;
-      art->orders = UNITS_ORDER_NONE;
-      art->goto_x = -1;
-      art->goto_y = -1;
-    }
-    ai_king_nation_turn(&ctx);
-    {
-      const ColonizeUnit* art = units_get_const(&units, art_cap);
-      if (!art || !art->active) {
-        return fail("Artillery capital MD hunter should remain active");
-      }
-      if (art->orders != UNITS_ORDER_AI_MOVE || art->goto_x != 5 || art->goto_y != 5) {
-        fprintf(stderr,
-                "unit_ai_king: Artillery capital MD goto=(%d,%d) orders=%d "
-                "(want fortified capital 5,5 not distant 11,5)\n",
-                art->goto_x, art->goto_y, art->orders);
-        return fail("Artillery siege should prefer fortified capital when MD slack");
-      }
-    }
-    distant->active = false;
-    colonies.colonies[0].has_building[0] = false;
   }
 
   /*
@@ -4308,7 +2025,7 @@ int main(void) {
       const int sea_before = count_nation_sea(&units, 1);
       const int land_before = count_nation_land(&units, 1);
       status[0] = '\0';
-      ai_king_nation_turn(&ctx);
+      ai_king_ref_pre_euro_beat(&ctx);
       const int sea_spawned = count_nation_sea(&units, 1) - sea_before;
       const int landed = count_nation_land(&units, 1) - land_before;
       if (sea_spawned != 1 || col1.head.expeditionary_force[2] != 1) {
@@ -4365,7 +2082,7 @@ int main(void) {
         drg_before++; /* pool[1] fields the crown's Cavalry (Dragoons is the fallback) */
       }
     }
-    ai_king_nation_turn(&ctx);
+    ai_king_ref_pre_euro_beat(&ctx);
     if (count_nation_sea(&units, 1) != 1) {
       return fail("0982 mix beat should spawn the Man-O-War");
     }
@@ -4424,7 +2141,7 @@ int main(void) {
       }
     }
     const int land_before = count_nation_land(&units, 1);
-    ai_king_nation_turn(&ctx);
+    ai_king_ref_pre_euro_beat(&ctx);
     const int landed = count_nation_land(&units, 1) - land_before;
     const int drg_used = 2 - (int)col1.head.expeditionary_force[1];
     const int reg_used = 4 - (int)col1.head.expeditionary_force[0];
@@ -4774,6 +2491,7 @@ int main(void) {
       snprintf(colonies.colonies[0].name, sizeof(colonies.colonies[0].name), "Jamestown");
       status[0] = '\0';
       ai_popup_clear(&pop);
+      ai_king_ref_pre_euro_beat(&ctx);
       ai_king_nation_turn(&ctx);
       int found_invasion = 0;
       for (int i = 0; i < pop.queue_count; ++i) {
@@ -4841,6 +2559,7 @@ int main(void) {
     col1.nation[0].nation_flags |= 0x08u;
     const int merc_units_before = count_nation(&units, 0);
     const uint32_t merc_gold_before = col1.nation[0].gold;
+    ai_king_ref_pre_euro_beat(&ctx);
     ai_king_nation_turn(&ctx);
     if (col1.nation[0].gold != merc_gold_before) {
       return fail("ai_popups merc must defer spend until Hire apply");
@@ -4923,6 +2642,7 @@ int main(void) {
       status[0] = '\0';
       ai_popup_clear(&pop);
       const uint32_t decline_gold_before = col1.nation[0].gold;
+      ai_king_ref_pre_euro_beat(&ctx);
       ai_king_nation_turn(&ctx);
       /* Counted after the turn: 10f0 may land the human's own intervention
        * troops during it; only the Decline apply must add nothing. */

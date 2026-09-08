@@ -3,6 +3,7 @@
 #include "core/ai.h"
 #include "core/ai_contact.h"
 #include "core/ai_diplo.h"
+#include "core/ai_king.h"
 #include "core/ai_goals.h"
 #include "core/colony.h"
 #include "core/colony_yield.h"
@@ -2785,8 +2786,13 @@ static int ai_euro_is_military_name(const char* name) {
   if (!name) {
     return 0;
   }
+  /* NAMES.TXT @UNIT ships "Cavalry" (crown mounted tier) and abbreviates
+   * "Cont. Army" / "Cont. Cav." — "Continental" alone matched neither, and
+   * "Cavalry" matched nothing, so REF Cavalry fell into the explorer bands
+   * (same defect class as the fixed ai_king "Cavalry ≠ Dragoon" bug). */
   return strstr(name, "Soldier") != NULL || strstr(name, "Dragoon") != NULL ||
-         strstr(name, "Regular") != NULL || strstr(name, "Continental") != NULL;
+         strstr(name, "Regular") != NULL || strstr(name, "Cont") != NULL ||
+         strstr(name, "Cavalry") != NULL;
 }
 
 /* Soldier / Dragoon / Scout / Regular / Continental — land war hunt; not founders. */
@@ -2812,11 +2818,12 @@ static int ai_euro_is_colony_garrison_name(const char* name) {
     return 0;
   }
   if (strstr(name, "Soldier") != NULL || strstr(name, "Dragoon") != NULL ||
-      strstr(name, "Regular") != NULL) {
+      strstr(name, "Regular") != NULL || strstr(name, "Cavalry") != NULL) {
     return 1;
   }
-  /* Continental Army / Continental Cavalry */
-  if (strstr(name, "Continental") != NULL) {
+  /* "Cont. Army" / "Cont. Cav." (NAMES.TXT abbreviations) and the spelled-out
+   * Continental fixtures. */
+  if (strstr(name, "Cont") != NULL) {
     return 1;
   }
   return 0;
@@ -6640,14 +6647,21 @@ static int ai_euro_5d04_colony_has_college(
  * name predates that confirmation), and 0x53de = head.expeditionary_force
  * [2] (man-o-wars): on Declare Independence the crown seizes the AI
  * nation's MoW into the REF pool — the increment is genuine reuse, not a
- * Ghidra misattribution. */
+ * Ghidra misattribution.
+ *
+ * 2026-09-07g (asm OVL14:005dd9): the scan is NOT map-wide. FUN_281f_07e0
+ * is unit_index_on_tile(236+n, 236+n) — the nation's Europe-dock
+ * pseudo-tile — so the King seizes only a Man-O-War standing in a European
+ * port. The wave MoW (0982) spawns on real map water and is never
+ * touchable, which is why DOS can run 5d04 on the crown slot itself
+ * during WoI without eating the REF fleet. */
 static void ai_euro_5d04_woi_seize_manowar(ColonizeTurnContext* ctx, int nation_id) {
   if (!ctx->units) {
     return;
   }
   for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
     ColonizeUnit* u = &ctx->units->units[i];
-    if (!u->active || u->nation_id != nation_id) {
+    if (!u->active || u->nation_id != nation_id || !ai_euro_in_europe(u->x, u->y)) {
       continue;
     }
     if (ai_euro_20e6_dos_type(ctx->units, u) == 0x12) {
@@ -15542,7 +15556,19 @@ static int ai_euro_land_best_adjacent_foe(ColonizeTurnContext* ctx, const Coloni
   for (int d = 0; d < 8; ++d) {
     const int nx = u->x + dx[d];
     const int ny = u->y + dy[d];
-    const int foe = units_id_at(ctx->units, nx, ny);
+    /*
+     * DOS engages the tile's BEST DEFENDER (FUN_5fef_0000), not whichever
+     * unit tops the occupancy list — a docked ship on a colony tile used to
+     * hide the land garrison behind the `is_sea` skip and freeze the REF
+     * assault (found closing D1). Fall back to the raw top-of-stack for
+     * defenderless tiles (lone Treasure / civilians).
+     */
+    int foe = units_best_defender_at(
+      ctx->units, ctx->col1_ok ? ctx->col1 : NULL, nx, ny, u->id, u->id
+    );
+    if (foe < 0) {
+      foe = units_id_at(ctx->units, nx, ny);
+    }
     if (foe < 0 || units_is_sea(ctx->units, foe)) {
       continue;
     }
@@ -15633,8 +15659,33 @@ static int ai_euro_land_try_adjacent_colony_seize(ColonizeTurnContext* ctx, Colo
     if (ctx->col1_ok && ctx->col1 && !ai_diplo_at_war(ctx->col1, u->nation_id, c->nation_id)) {
       continue;
     }
-    if (units_id_at(ctx->units, nx, ny) >= 0) {
+    if (units_best_defender_at(
+          ctx->units, ctx->col1_ok ? ctx->col1 : NULL, nx, ny, u->id, u->id
+        ) >= 0) {
       continue; /* defended — leave to ai_euro_land_try_adjacent_attack */
+    }
+    if (units_id_at(ctx->units, nx, ny) >= 0) {
+      /* Undefended but occupied (docked ships, civilians): DOS entry
+       * seizure — the tile is swept with the town (0512 semantics,
+       * units_seize_noncombat_at), then the walk-in proceeds. */
+      units_seize_noncombat_at(
+        ctx->units, u->id, nx, ny, ctx->col1_ok ? ctx->col1 : NULL
+      );
+      /* Warships in the fallen port: the 5fef_0000 domain gate (raw
+       * 99190-99196) keeps a land assault from ever engaging them, so an
+       * armed ship would otherwise hold the town forever. Sunk with the
+       * port (0512 seizure texture; exact DOS 1b0e ship fate unverified —
+       * PARK: FUN_5fef_1b0e port-ship handling). */
+      for (int si = 0; si < COLONIZE_UNITS_MAX; ++si) {
+        ColonizeUnit* sv = &ctx->units->units[si];
+        if (units_is_on_map(sv) && sv->x == nx && sv->y == ny &&
+            sv->nation_id != u->nation_id && units_is_sea(ctx->units, sv->id)) {
+          (void)units_despawn(ctx->units, sv->id);
+        }
+      }
+      if (units_id_at(ctx->units, nx, ny) >= 0) {
+        continue; /* something survived the sweep — not enterable */
+      }
     }
     int plunder = 0;
     for (int i = 0; i < COLONIZE_CARGO_COUNT; ++i) {
@@ -16998,6 +17049,13 @@ static int ai_euro_try_first_colony_land(ColonizeTurnContext* ctx, ColonizeUnit*
   if (ai_euro_colony_count(ctx->colonies, nation_id) != 0) {
     return 0;
   }
+  /* The WoI crown slot always has 0 own colonies but must never found one —
+   * real REF names (Regulars/Cavalry) fail the name gate below anyway, but
+   * synthetic pools fall back to "Soldiers" for the wave and would leak in. */
+  if (ctx->col1_ok && ctx->col1 && ctx->col1->head.game_options.woi &&
+      nation_id == (int)ctx->col1->head.crown_nation_id) {
+    return 0;
+  }
   const char* uname = units_display_name(ctx->units, u);
   if (!ai_euro_name_is_pioneer(uname) && !ai_euro_name_is_soldier(uname)) {
     return 0;
@@ -17489,6 +17547,20 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
       (ai_euro_at_war_any_peer(ctx->col1, nation_id) ||
        ai_diplo_indian_hostility_sticky(ctx->col1, nation_id) >= 2)) {
     (void)ai_euro_try_unload_military_threatened(ctx, nation_id, u);
+  }
+
+  /*
+   * FUN_521d_20e6 ship-band tail (raw 89717-89720): during WoI an empty,
+   * untasked crown Man-O-War standing alone sails for the High Seas once
+   * the MoW pool is spent and land pools remain. D1 (2026-09-07g): the
+   * crown ship acts through this band now, so the beat runs here; the
+   * full DOS skip-test lives in ai_king_mow_sail_home_20e6.
+   */
+  if (is_ship && ctx->col1_ok && ctx->col1 && ctx->col1->head.game_options.woi &&
+      nation_id == (int)ctx->col1->head.crown_nation_id && u->cargo_count == 0 &&
+      ai_euro_20e6_dos_type(ctx->units, u) == 0x12 &&
+      ai_king_mow_sail_home_20e6(ctx, u, nation_id)) {
+    return;
   }
 
   /*
@@ -19559,8 +19631,15 @@ void ai_euro_dispatcher_turn(ColonizeTurnContext* ctx, int nation_id) {
    * ai_euro_unit_act below. See the function's header comment for scope. */
   ai_euro_0a60_goal_orders_structural(ctx, nation_id);
 
-  /* Opportunistic balance after plan (separate from timer slot). */
-  ai_diplo_euro_balance(ctx, nation_id);
+  /* Opportunistic balance after plan (separate from timer slot). Not for
+   * the WoI crown slot: this pass is Linux-shaped (war-fatigue peace roll,
+   * upkeep drain, privateer spawn, Indian matrix — no DOS counterpart in
+   * the 6d8e nation turn, verified 2026-09-07g), and its peace arm would
+   * silently end the War of Independence. */
+  if (!(ctx->col1_ok && ctx->col1 && ctx->col1->head.game_options.woi &&
+        nation_id == (int)ctx->col1->head.crown_nation_id)) {
+    ai_diplo_euro_balance(ctx, nation_id);
+  }
 
   /* Treasure → Europe gold: Expected→Harbor due ships + live Europe/HS units
    * (moves_left may be 0 on Europe dock ships). Cortes coastal king-galleon

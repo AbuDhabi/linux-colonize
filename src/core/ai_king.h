@@ -153,6 +153,24 @@ static inline void ai_king_latch_clear(ColonizeCol1Save* col1) {
 void ai_king_nation_turn(ColonizeTurnContext* ctx);
 
 /*
+ * D1: the crown slot's DOS king beat (FUN_43f7_2424 → 2022 — wave spawn,
+ * mobilization, intervention, merc roll, ref_present upkeep; no unit
+ * movement). Run it from the crown slot's EURO step before
+ * ai_euro_nation_turn, mirroring DOS's per-slot 00f2-then-6d8e order.
+ * No-op until independence is declared.
+ */
+void ai_king_ref_pre_euro_beat(ColonizeTurnContext* ctx);
+
+/*
+ * FUN_521d_20e6 ship-band tail (raw 89717-89720 + FUN_48d3_015e): during
+ * WoI an empty, untasked, alone-on-tile crown Man-O-War sails for the High
+ * Seas once the MoW pool is spent and land pools remain. Called from the
+ * euro ship band for crown ships; returns nonzero when it consumed the act.
+ */
+struct ColonizeUnit;
+int ai_king_mow_sail_home_20e6(ColonizeTurnContext* ctx, struct ColonizeUnit* u, int crown);
+
+/*
  * FUN_43f7_2244 — peacetime AI-nation-only self/ally-funded troop gift.
  * Called once per AI-controlled Euro nation's own turn (never the human —
  * see ai_king.c's header comment on the function body for the full
