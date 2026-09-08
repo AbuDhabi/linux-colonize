@@ -1,8 +1,10 @@
 # Mechanics smell audit — 2026-09-08
 
-Eight-subsystem sweep for bug-smells (counter-intuitive logic, doc/DOS contradictions, invented mechanics, asymmetries). Findings pending user review; nothing fixed yet. Confidence: H/M/L. Items marked DOC are documentation-only.
+Eight-subsystem sweep for bug-smells (counter-intuitive logic, doc/DOS contradictions, invented mechanics, asymmetries). Findings pending user review; items marked FIXED are done, rest open. Confidence: H/M/L. Items marked DOC are documentation-only.
 
-## Cross-cutting: native moves_left semantics inversion (H)
+**FIXED 2026-09-08 (batch 1):** cross-cutting inversion, combat #1, #2, #7, Europe #51, FF #82. Details per item below. ctest 60/60 + goldens green after.
+
+## Cross-cutting: native moves_left semantics inversion (H) — FIXED: `units_mp_charge`/`units_mp_exhaust` spent-aware writers in units.c; all listed sites converted to `units_remaining_mp`/helpers (try_move gate+charge+shore, village-raid branch, win/loss drains, mounted spend-all, afford gate, goto gates, ai_contact raid+escort gates). ~40 test fixtures in test_ai_contact.c + 2 in test_units.c flipped to spent semantics (they were written against the inverted gates).
 
 For native nations `moves_left` holds the DOS **spent** byte (turn.c:179 refreshes natives to 0 = unspent; `units_remaining_mp` units.c:6292 is the safe accessor). Multiple sites read/write it as "remaining":
 
@@ -15,13 +17,13 @@ For native nations `moves_left` holds the DOS **spent** byte (turn.c:179 refresh
 
 ## Combat
 
-1. combat_strength.c:817-819 — two DOS colony-tile resolve peels unported (raw 100557-100564): (a) last-colony shield — native attacker strength zeroed vs a European's only colony; (b) human defender +`(4−difficulty)*4` when attacked colony holds ≥ half nation's colony population. Largest live combat gap. H
-2. combat_strength.c:184 — veteran +50% gated on JOB_SOLDIER only; **Veteran Dragoons fight at plain Dragoon strength**. Rest of port treats 0x15 and 0x17 as veteran. H
+1. combat_strength.c:817-819 — two DOS colony-tile resolve peels unported (raw 100557-100564): (a) last-colony shield — native attacker strength zeroed vs a European's only colony; (b) human defender +`(4−difficulty)*4` when attacked colony holds ≥ half nation's colony population. Largest live combat gap. H — FIXED: both clauses at combat_apply_1b0e_resolve_handicaps tail; counts from `stuff.colony_counts`/`colony_pop_totals` (DS:0x9298/0x940c mirrors, DOS per-turn staleness kept).
+2. combat_strength.c:184 — veteran +50% gated on JOB_SOLDIER only; **Veteran Dragoons fight at plain Dragoon strength**. Rest of port treats 0x15 and 0x17 as veteran. H — FIXED: accepts UNITS_JOB_SOLDIER or UNITS_JOB_DRAGOON.
 3. combat_strength.c:58-59 — name match includes "Cont. Army" but not "Cont. Cav." (asymmetric); DOS gates on type 1/4 only, so whole Continental arm uncited. M-H
 4. combat_strength.c:170 — damaged −2 peel applied to Privateers too; DOS applies to Artillery (type 0x0b) only. docs/combat.md:82 documents the wrong form. M-H
 5. combat_strength.c:415, 388 — Fortify(5) accepted for the +2 defense and terrain-denial; DOS `FUN_157e_015e` requires Fortified(6) only. Digging-in unit gets bonus a turn early. Sibling 1b0e clauses correctly accept 5 or 6. M-H
 6. combat_strength.c:723-726 — Scout-vs-Artillery force-defender-wins invented; DOS's only auto-loss is Brave vs human-controlled Artillery (ported separately 2026-09-08 at units.c:4774). Also units.c:4885 fakes roll without consuming RNG. Stale stand-in to retire. M-H
-7. combat_strength.h:38-39 — `COMBAT_FLAG_FATIGUE_66` and `COMBAT_FLAG_VILLAGE_CAPITAL` both 0x0008; attacking a capital village prints phantom "Fatigue −66%" row (combat_analysis.c:184). H
+7. combat_strength.h:38-39 — `COMBAT_FLAG_FATIGUE_66` and `COMBAT_FLAG_VILLAGE_CAPITAL` both 0x0008; attacking a capital village prints phantom "Fatigue −66%" row (combat_analysis.c:184). H — FIXED: VILLAGE_CAPITAL relocated to flags2 0x0010 (runtime-only, nothing serializes flags2).
 8. combat_strength.c:41-52 vs units.c:3114-3126 — occupied holds computed two ways (goods-only vs goods+passengers); troop-laden ship gets evasion penalty but no strength penalty. M
 9. combat_strength.c:287-294 — colony fortification multiplier requires owner match + nation ≤3; DOS colony probe has no owner test. Internally inconsistent with `combat_unit_on_colony` (255-263). M-L
 10. combat_strength.c:363-390 — "village on either tile → defender gets terrain" invented; DOS's clause is colony-probe on attacker's tile. Port also adds a `combat_woi_active` guard DOS lacks. M
@@ -77,7 +79,7 @@ For native nations `moves_left` holds the DOS **spent** byte (turn.c:179 refresh
 ## Europe / market / trade routes
 
 50. europe.c:2478-2482 — human harbor buys/sells pass `col1=NULL`: nation `trade.tons/tons2/gold` ledger never written, so player's own trading is invisible to the long-run price pool (Custom House + AI sales do count). H
-51. europe.c:3042-3058 — sell credits gold but never credits tax to `royal_money` (DOS `nation+0x22 += tax`); all Europe tax revenue vanishes, REF systematically underfunded. Custom House arm does credit it. H
+51. europe.c:3042-3058 — sell credits gold but never credits tax to `royal_money` (DOS `nation+0x22 += tax`); all Europe tax revenue vanishes, REF systematically underfunded. Custom House arm does credit it. H — FIXED: europe_credit_sale_tax helper; europe_sell_hold + europe_sell_unit_hold credit gross−net to seller nation royal_money (trade-route auto-unload fixed for free; #52/#53 direct paths still leak, see below).
 52. game_loop.c:2861-2874 — shift+drag partial sell: no boycott check, no price movement. Boycott exploit + zero-market-impact channel. H
 53. game_loop.c:13429-13435 — `-` key single-unit sell: same two omissions; 99 presses liquidate a hold with zero price movement. H
 54. game_loop.c:9418, 13337, 13399 — all three @HOWMUCH4 purchase prompts quote `europe_sell_price()` (bid) instead of ask; off by burden+1 (Food quoted 0 not 8). H
@@ -114,7 +116,7 @@ For native nations `moves_left` holds the DOS **spent** byte (turn.c:179 refresh
 
 ## Founding Fathers / SoL / scoring / save
 
-82. founding_fathers.c:1352 — `elect_commit` writes `head.founding_father[idx]` unconditionally; DOS writes only when still unclaimed (write-once, verified against dutch-reports.SAV). Turns first-claimer record into last-claimer; corrupts the reports fallback. H
+82. founding_fathers.c:1352 — `elect_commit` writes `head.founding_father[idx]` unconditionally; DOS writes only when still unclaimed (write-once, verified against dutch-reports.SAV). Turns first-claimer record into last-claimer; corrupts the reports fallback. H — FIXED: head write guarded on `< 0` (matches FUN_4345_0342).
 83. founding_fathers.c:289 — `nation_has` reads head equality, contradicting reports.c:717 and inconsistent with `ff_available_to` (bitmask-only); head/bitmask desync (zero-filled heads existed per bugs 288) grants false effects AND leaves father electable again → double `apply_effect` (Jones second Frigate, Magellan re-bump, Coronado re-reveal). M
 84. founding_fathers.c:171 — pool sync only adopts stash when `> 0`; legit zero pool (right after election) never round-trips — reload refunds a large `total−spent` estimate, can fund instant second election. M
 85. col1_save.c:685/769 + col1_bridge.c:1457-1458 — pool stash permanently destroys real `liberty_bells_last_turn` for all 4 nations and leaks the FF pool into the Europe screen's "bells last turn". M

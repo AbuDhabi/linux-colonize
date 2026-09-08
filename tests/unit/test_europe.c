@@ -221,13 +221,29 @@ int main(void) {
     return 1;
   }
 
-  /* Sell sugar at tax 0: (euro_price − 1)*100 (FUN_38fd_0040). */
+  /*
+   * Sell sugar at tax 0: (euro_price − 1)*100 (FUN_38fd_0040).
+   * `sell_col1` rides along on every harbor sell below so the Crown's cut can
+   * be checked: DOS writes `nation+0x22 += tax` (royal_money) on each sale,
+   * the REF budget FUN_43f7_1d42 spends. Smell audit #51.
+   */
+  ColonizeCol1Save sell_col1;
+  memset(&sell_col1, 0, sizeof(sell_col1));
   eu.selected_harbor = 0;
   eu.tax_percent = 0;
   const int sugar_bid = eu.cargo[COLONIZE_CARGO_SUGAR].bid;
   const int gold_pre_sell = eu.gold;
-  const int gained = europe_sell_hold(&eu, 0, 0);
+  const int gained = europe_sell_hold(&eu, &sell_col1, 0, 0, 0);
   const int expect_gain = (sugar_bid - 1) * 100;
+  if (sell_col1.nation[0].royal_money != 0) {
+    fprintf(
+      stderr,
+      "untaxed sell must not touch royal_money, got %d\n",
+      (int)sell_col1.nation[0].royal_money
+    );
+    europe_free(&eu);
+    return 1;
+  }
   if (gained != expect_gain || eu.gold != gold_pre_sell + expect_gain ||
       eu.harbor[0].hold_goods_amount[0] != 0) {
     fprintf(
@@ -276,11 +292,36 @@ int main(void) {
     return 1;
   }
   const int gold_pre_tax_sell = eu.gold;
-  const int sold_tax = europe_sell_hold(&eu, 0, 1);
+  const int sold_tax = europe_sell_hold(&eu, &sell_col1, 0, 0, 1);
   if (sold_tax != taxed || eu.gold != gold_pre_tax_sell + taxed) {
     fprintf(stderr, "taxed sell failed sold=%d expect=%d\n", sold_tax, taxed);
     europe_free(&eu);
     return 1;
+  }
+  /* Smell audit #51: the withheld half is the Crown's — gross − net lands on
+   * nation[0].royal_money (DOS nation+0x22), not nowhere. */
+  {
+    const int want_tax = (sugar_bid - 1) * 40 - taxed;
+    if (want_tax <= 0) {
+      fprintf(stderr, "test setup: taxed sell withheld nothing (%d)\n", want_tax);
+      europe_free(&eu);
+      return 1;
+    }
+    if ((int)sell_col1.nation[0].royal_money != want_tax) {
+      fprintf(
+        stderr,
+        "taxed sell royal_money expected %d got %d\n",
+        want_tax,
+        (int)sell_col1.nation[0].royal_money
+      );
+      europe_free(&eu);
+      return 1;
+    }
+    if (sell_col1.nation[1].royal_money != 0) {
+      fprintf(stderr, "tax credited the wrong nation record\n");
+      europe_free(&eu);
+      return 1;
+    }
   }
 
   const int best = europe_best_sell_hold(&eu, 0);
@@ -313,7 +354,7 @@ int main(void) {
       return 1;
     }
     const int gold_before = eu.gold;
-    const int blocked_sell = europe_sell_hold(&eu, 0, 2);
+    const int blocked_sell = europe_sell_hold(&eu, &sell_col1, 0, 0, 2);
     if (blocked_sell != 0 || eu.gold != gold_before ||
         eu.harbor[0].hold_goods_amount[2] != 30) {
       fprintf(stderr, "boycotted sell should be refused, got %d\n", blocked_sell);
@@ -328,7 +369,7 @@ int main(void) {
     }
     /* Lift the boycott; the same trade must now succeed. */
     eu.boycott_bitmap = 0;
-    const int unblocked_sell = europe_sell_hold(&eu, 0, 2);
+    const int unblocked_sell = europe_sell_hold(&eu, &sell_col1, 0, 0, 2);
     if (unblocked_sell <= 0 || eu.harbor[0].hold_goods_amount[2] != 0) {
       fprintf(stderr, "sell should succeed once boycott lifted, got %d\n", unblocked_sell);
       europe_free(&eu);
@@ -948,7 +989,7 @@ int main(void) {
     const int sugar_bid = eu.cargo[COLONIZE_CARGO_SUGAR].bid;
     const int expect = europe_net_after_tax((sugar_bid - 1) * 50, 50);
     const int gold0 = eu.gold;
-    const int gained = europe_sell_unit_hold(&eu, &units, sid, 0);
+    const int gained = europe_sell_unit_hold(&eu, NULL, &units, sid, 0);
     if (gained != expect || eu.gold != gold0 + expect ||
         ship->hold_goods_amount[0] != 0 || ship->hold_goods_type[0] != 0) {
       fprintf(
@@ -965,8 +1006,8 @@ int main(void) {
       europe_free(&eu);
       return 1;
     }
-    if (europe_sell_unit_hold(&eu, &units, sid, 0) != 0 ||
-        europe_sell_unit_hold(NULL, &units, sid, 0) != 0) {
+    if (europe_sell_unit_hold(&eu, NULL, &units, sid, 0) != 0 ||
+        europe_sell_unit_hold(NULL, NULL, &units, sid, 0) != 0) {
       fprintf(stderr, "sell_unit_hold should no-op on empty/null\n");
       assets_msg_free(&names);
       europe_free(&eu);

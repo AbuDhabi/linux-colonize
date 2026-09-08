@@ -2960,6 +2960,34 @@ int europe_sell_proceeds(const EuropeScreen* eu, int cargo_type, int amount) {
   return europe_net_after_tax(price * amount, eu->tax_percent);
 }
 
+/*
+ * Crown cut of a Europe sale.
+ *
+ * DOS keeps the withheld tax: every sale arm writes `nation+0x22 += tax` —
+ * the same 32-bit purse col1_save.h documents as royal_money (the REF budget
+ * FUN_43f7_1d42 spends). Verified arms in this file: FUN_364b_0688 Custom
+ * House (europe_custom_house_autosell_ex) and FUN_38fd_2dfe boycott buy-back
+ * (europe_buyback_boycott). The harbor/transport sell paths credited the
+ * player's gold but dropped the Crown's share, so all Europe tax revenue
+ * vanished and the REF was systematically underfunded (smell audit #51).
+ *
+ * `gross` is the pre-tax sale value, `net` what europe_sell_proceeds paid out;
+ * the difference is exactly what was withheld (same rounding, no second
+ * division). No-op without a save record or on an untaxed (net == gross) sale.
+ */
+static void europe_credit_sale_tax(
+  struct ColonizeCol1Save* col1, int nation, int gross, int net
+) {
+  if (!col1 || nation < 0 || nation >= (int)COLONIZE_COL1_NATION_COUNT) {
+    return;
+  }
+  const int tax_paid = gross - net;
+  if (tax_paid <= 0) {
+    return;
+  }
+  col1->nation[nation].royal_money += tax_paid;
+}
+
 void europe_set_labels(EuropeScreen* eu, const struct ColonizeMsgCatalog* labels) {
   if (eu) {
     eu->labels = labels;
@@ -3018,7 +3046,13 @@ void europe_push_sale_status(EuropeScreen* eu, int cargo_type, int amount, int n
   eu->bar_event_count++;
 }
 
-int europe_sell_hold(EuropeScreen* eu, int harbor_index, int hold_index) {
+int europe_sell_hold(
+  EuropeScreen* eu,
+  struct ColonizeCol1Save* col1,
+  int seller_nation,
+  int harbor_index,
+  int hold_index
+) {
   if (!eu || harbor_index < 0 || harbor_index >= eu->harbor_ships) {
     return 0;
   }
@@ -3041,6 +3075,9 @@ int europe_sell_hold(EuropeScreen* eu, int harbor_index, int hold_index) {
   }
   const int gained = europe_sell_proceeds(eu, ctype, amt);
   eu->gold += gained;
+  /* DOS `nation+0x22 += tax` on every sale — see europe_credit_sale_tax
+   * (smell audit #51). */
+  europe_credit_sale_tax(col1, seller_nation, europe_sell_price(eu, ctype) * amt, gained);
   ship->hold_goods_amount[hold_index] = 0;
   ship->hold_goods_type[hold_index] = 0;
   /* Status line before the volume move, so the printed gross is the bid the
@@ -3352,6 +3389,7 @@ int europe_ai_colony_dump_sell(
 
 int europe_sell_unit_hold(
   EuropeScreen* eu,
+  struct ColonizeCol1Save* col1,
   ColonizeUnitPool* units,
   int unit_id,
   int hold_index
@@ -3387,6 +3425,11 @@ int europe_sell_unit_hold(
   }
   const int gained = europe_sell_proceeds(eu, ctype, amt);
   eu->gold += gained;
+  /* DOS `nation+0x22 += tax`; the seller is the hold's owner, which keeps the
+   * AI borrow path (ai_euro_try_transport_europe_sell swaps eu->gold/tax for
+   * the AI nation) crediting the right purse. See europe_credit_sale_tax
+   * (smell audit #51). */
+  europe_credit_sale_tax(col1, u->nation_id, europe_sell_price(eu, ctype) * amt, gained);
   u->hold_goods_amount[hold_index] = 0;
   u->hold_goods_type[hold_index] = 0;
   europe_apply_volume_price(eu, ctype, amt, 0);

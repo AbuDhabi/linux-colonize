@@ -121,7 +121,7 @@ int main(void) {
     return fail("spawn");
   }
   brave->nation_id = 4;
-  brave->moves_left = 3;
+  brave->moves_left = 0; /* natives store the DOS SPENT byte: 0 = fresh, 3 = spent */
   euro->nation_id = 0;
 
   /* Meet needs adjacency — temporarily place euro next to brave. */
@@ -178,7 +178,7 @@ int main(void) {
 
   brave->x = 5;
   brave->y = 5;
-  brave->moves_left = 3;
+  brave->moves_left = 0;
 
   const int food0 = c->stock[COLONIZE_CARGO_FOOD];
   /* War bit clear → FUN_5fef_0f14's alarm tail is not gated out (see below). */
@@ -195,7 +195,7 @@ int main(void) {
     /* NOTHING is valid at low-mid band; force STORES by bumping alarm. */
     ind->alarm_by_player[0] = 65;
     col1.tribe[0].alarm[0].friction = 65;
-    brave->moves_left = 3;
+    brave->moves_left = 0;
     alarm_pre_raid = (int)ind->alarm_by_player[0];
     ai_contact_indian_raids(&ctx, 4);
   }
@@ -255,7 +255,7 @@ int main(void) {
     ind->euro_diplo[0] = (uint8_t)(ind->euro_diplo[0] | COL1_INDIAN_WAR_BIT);
     brave->x = 5;
     brave->y = 5;
-    brave->moves_left = 3;
+    brave->moves_left = 0;
     const int alarm_war_pre = (int)ind->alarm_by_player[0];
     ai_contact_indian_raids(&ctx, 4);
     if ((int)ind->alarm_by_player[0] != alarm_war_pre) {
@@ -335,7 +335,7 @@ int main(void) {
     col1.tribe[0].mission = 0xff;
     brave->x = 8;
     brave->y = 5;
-    brave->moves_left = 3;
+    brave->moves_left = 0;
     /* Raid marker: 0f14's tail zeroes the home village's attitude word for
      * every kind incl. "Nothing" — but only with a valid home_tribe_id. */
     brave->home_tribe_id = 0;
@@ -429,7 +429,7 @@ int main(void) {
     sol->horses = 0;
     brave->x = 5;
     brave->y = 5;
-    brave->moves_left = 3;
+    brave->moves_left = 0;
     brave->muskets = 0;
     brave->horses = 0;
     c->active = false; /* avoid colony loot pre-empt — combat is adjacent */
@@ -463,7 +463,7 @@ int main(void) {
     sol->horses = 50;
     brave->x = 5;
     brave->y = 5;
-    brave->moves_left = 3;
+    brave->moves_left = 0;
     brave->muskets = 0;
     brave->horses = 0;
     ai_contact_indian_raids(&ctx, 4);
@@ -1217,7 +1217,7 @@ int main(void) {
   euro->y = 10;
   brave->x = 5;
   brave->y = 5;
-  brave->moves_left = 3;
+  brave->moves_left = 0;
   brave->nation_id = 4;
   ind->alarm_by_player[0] = 80;
   col1.tribe[0].alarm[0].friction = 80;
@@ -1287,7 +1287,7 @@ int main(void) {
     euro->y = 10;
     brave->x = 5;
     brave->y = 5;
-    brave->moves_left = 3;
+    brave->moves_left = 0;
     brave->nation_id = 4;
     ind->alarm_by_player[0] = 76; /* at war (DOS band: alarm > 0x4a), below the 80 burn band */
     col1.tribe[0].alarm[0].friction = 50;
@@ -1339,7 +1339,7 @@ int main(void) {
     euro->y = 10;
     brave->x = 5;
     brave->y = 5;
-    brave->moves_left = 3;
+    brave->moves_left = 0;
     brave->nation_id = 4;
     ind->alarm_by_player[0] = 76; /* at war (DOS band), below burn 80 */
     col1.tribe[0].alarm[0].friction = 50;
@@ -1389,7 +1389,7 @@ int main(void) {
     euro->y = 10;
     brave->x = 5;
     brave->y = 5;
-    brave->moves_left = 3;
+    brave->moves_left = 0;
     brave->nation_id = 4;
     ind->alarm_by_player[0] = 50;
     col1.tribe[0].alarm[0].friction = 50;
@@ -1423,7 +1423,8 @@ int main(void) {
 
   /*
    * FUN_4d56_359c: high alarm + Scout adjacent → prefer displace (still active,
-   * moved 1–2 tiles). Brave moves_left=0 so combat arm skips before 359c.
+   * moved 1–2 tiles). The Brave is exhausted (native SPENT byte at max 3) so
+   * the combat arm skips before 359c; arm 6 has no MP gate and still runs.
    */
   units.type_count = 4;
   snprintf(units.types[3].name, sizeof(units.types[3].name), "Scout");
@@ -1442,7 +1443,7 @@ int main(void) {
   euro->y = 10;
   brave->x = 5;
   brave->y = 5;
-  brave->moves_left = 0;
+  brave->moves_left = 3; /* spent byte at max = exhausted (combat arm skips) */
   ind->alarm_by_player[0] = 90;
   col1.tribe[0].alarm[0].friction = 90;
   status[0] = '\0';
@@ -1489,7 +1490,7 @@ int main(void) {
       scout->horses = 50;
       brave->x = 5;
       brave->y = 5;
-      brave->moves_left = 0;
+      brave->moves_left = 3; /* spent byte at max = exhausted (combat arm skips) */
       euro->x = 10;
       euro->y = 10;
       ind->alarm_by_player[0] = 95;
@@ -1593,7 +1594,7 @@ int main(void) {
   scout->active = true;
   brave->x = 5;
   brave->y = 5;
-  brave->moves_left = 0;
+  brave->moves_left = 3; /* spent byte at max = exhausted (combat arm skips) */
   euro->x = 10; /* clear scout tile */
   euro->y = 10;
   ind->alarm_by_player[0] = 90; /* 359c gate */
@@ -1674,7 +1675,7 @@ int main(void) {
     euro->y = 10;
     brave->x = 5;
     brave->y = 5;
-    brave->moves_left = 3;
+    brave->moves_left = 0;
     brave->nation_id = 4;
     ind->alarm_by_player[0] = 65;
     col1.tribe[0].alarm[0].friction = 65;
@@ -1719,7 +1720,7 @@ int main(void) {
     ctx.human_nation = 0;
     brave->x = 5;
     brave->y = 5;
-    brave->moves_left = 3;
+    brave->moves_left = 0;
     brave->home_tribe_id = 0; /* raid-mark: 0f14 tail zeroes home attitude */
     ind->alarm_by_player[0] = 45; /* raid gate >=40, below thin at-war (alarm > 50) */
     col1.tribe[0].alarm[0].friction = 65;
@@ -1749,7 +1750,7 @@ int main(void) {
     }
 
     st_sur[0] = '\0';
-    brave->moves_left = 3;
+    brave->moves_left = 0;
     brave->x = 5;
     brave->y = 5;
     ind->euro_diplo[0] |= COL1_INDIAN_PEACE_BIT;
@@ -1764,7 +1765,7 @@ int main(void) {
      * few pulses so the assertion tests the raid arm, not that roll.
      */
     for (int attempt = 0; attempt < 12; ++attempt) {
-      brave->moves_left = 3;
+      brave->moves_left = 0;
       brave->x = 5;
       brave->y = 5;
       ai_contact_indian_raids(&ctx, 4);
@@ -2138,7 +2139,7 @@ int main(void) {
     euro->y = 12;
     brave->x = 8;
     brave->y = 8;
-    brave->moves_left = 3;
+    brave->moves_left = 0;
     brave->nation_id = 4;
     /* Equal tribe friction; nation-level alarm breaks the tie (single store). */
     ind->alarm_by_player[0] = 10; /* less hostile (relation 90) */
@@ -2197,7 +2198,7 @@ int main(void) {
     euro->y = 12;
     brave->x = 8;
     brave->y = 8;
-    brave->moves_left = 3;
+    brave->moves_left = 0;
     brave->nation_id = 4;
     /* Single store: at-war (thin) = nation alarm > 50; tribe friction is separate. */
     ind->alarm_by_player[0] = 45; /* not at war, higher friction */
@@ -2255,7 +2256,7 @@ int main(void) {
     euro->y = 12;
     brave->x = 8;
     brave->y = 8;
-    brave->moves_left = 3;
+    brave->moves_left = 0;
     brave->nation_id = 4;
     ind->alarm_by_player[0] = 65;
     col1.tribe[0].alarm[0].friction = 65;
@@ -2314,7 +2315,7 @@ int main(void) {
     euro->y = 12;
     brave->x = 5;
     brave->y = 5;
-    brave->moves_left = 3;
+    brave->moves_left = 0;
     brave->nation_id = 4;
     ind->alarm_by_player[0] = 10; /* below raid gate alone */
     col1.tribe[0].nation_id = 4;
@@ -2341,7 +2342,7 @@ int main(void) {
     }
     /* Burn band (≥80) from mission tribe still raises the gate. */
     col1.tribe[0].alarm[0].friction = 85;
-    brave->moves_left = 3;
+    brave->moves_left = 0;
     ai_contact_indian_raids(&ctx, 4);
     if (c_ms->stock[COLONIZE_CARGO_FOOD] >= food_ms &&
         col1.tribe[0].alarm[0].attacks == 0) {
@@ -2430,7 +2431,7 @@ int main(void) {
     euro->y = 12;
     brave->x = 8;
     brave->y = 8;
-    brave->moves_left = 3;
+    brave->moves_left = 0;
     brave->nation_id = 4;
     brave->active = true;
     ind->alarm_by_player[0] = 65;
@@ -2491,7 +2492,7 @@ int main(void) {
     euro->y = 12;
     brave->x = 8;
     brave->y = 8;
-    brave->moves_left = 3;
+    brave->moves_left = 0;
     brave->nation_id = 4;
     brave->active = true;
     ind->alarm_by_player[0] = 65;
@@ -2552,7 +2553,7 @@ int main(void) {
     euro->y = 12;
     brave->x = 8;
     brave->y = 8;
-    brave->moves_left = 3;
+    brave->moves_left = 0;
     brave->nation_id = 4;
     brave->active = true;
     ind->alarm_by_player[0] = 55;
@@ -2603,7 +2604,7 @@ int main(void) {
     c_silver->stock[COLONIZE_CARGO_SILVER] = 8;
     c_silver->stock[COLONIZE_CARGO_FOOD] = 20;
     col1.tribe[0].alarm[0].attacks = 0;
-    brave->moves_left = 3;
+    brave->moves_left = 0;
     brave->orders = UNITS_ORDER_NONE;
     ind->alarm_by_player[0] = 80;
     col1.tribe[0].alarm[0].friction = 80;
@@ -2635,7 +2636,7 @@ int main(void) {
     euro->active = true;
     brave->x = 5;
     brave->y = 5;
-    brave->moves_left = 3;
+    brave->moves_left = 0;
     brave->nation_id = 4;
     brave->active = true;
     ind->alarm_by_player[0] = 65;
@@ -2699,7 +2700,7 @@ int main(void) {
     euro->active = true;
     brave->x = 5;
     brave->y = 5;
-    brave->moves_left = 3;
+    brave->moves_left = 0;
     brave->nation_id = 4;
     brave->active = true;
     col1.tribe[0].nation_id = 4;
@@ -2790,7 +2791,7 @@ int main(void) {
     euro->active = true;
     brave->x = 5;
     brave->y = 5;
-    brave->moves_left = 3;
+    brave->moves_left = 0;
     brave->nation_id = 4;
     brave->active = true;
     ind->alarm_by_player[0] = 65;
@@ -2845,7 +2846,7 @@ int main(void) {
       c_bd->has_building[1] = true;
       c_bd->population = 1;
       c_bd->active = true;
-      brave->moves_left = 3;
+      brave->moves_left = 0;
       brave->x = 5;
       brave->y = 5;
       ai_contact_indian_raids(&ctx, 4);
@@ -2885,7 +2886,7 @@ int main(void) {
       return fail("escort lead spawn");
     }
     lead->nation_id = 4;
-    lead->moves_left = 0; /* lead does not consume escort turn */
+    lead->moves_left = 3; /* exhausted: the lead must not act on its own */
     lead->orders = UNITS_ORDER_AI_MOVE;
     lead->goto_x = 12;
     lead->goto_y = 5;
@@ -2893,7 +2894,7 @@ int main(void) {
     brave->y = 5;
     brave->nation_id = 4;
     brave->active = true;
-    brave->moves_left = 3;
+    brave->moves_left = 0;
     brave->orders = UNITS_ORDER_NONE;
     brave->follow_unit_id = -1;
     const int bx0 = brave->x;
@@ -2945,7 +2946,7 @@ int main(void) {
     brave->y = 5;
     brave->nation_id = 4;
     brave->active = true;
-    brave->moves_left = 3;
+    brave->moves_left = 0;
     brave->orders = UNITS_ORDER_NONE;
     brave->follow_unit_id = -1;
     const int near_id = units_spawn_allow_stack(&units, 0, 6, 5);
@@ -2956,12 +2957,12 @@ int main(void) {
       return fail("escort deepen lead spawn");
     }
     near_lead->nation_id = 4;
-    near_lead->moves_left = 0;
+    near_lead->moves_left = 3; /* exhausted: the lead must not act on its own */
     near_lead->orders = UNITS_ORDER_AI_MOVE;
     near_lead->goto_x = 4;
     near_lead->goto_y = 5; /* away from colony at (12,5) */
     far_lead->nation_id = 4;
-    far_lead->moves_left = 0;
+    far_lead->moves_left = 3; /* exhausted: the lead must not act on its own */
     far_lead->orders = UNITS_ORDER_AI_MOVE;
     far_lead->goto_x = 12;
     far_lead->goto_y = 5; /* toward raid-gate Euro colony */
@@ -2984,7 +2985,7 @@ int main(void) {
     colonies.colony_count = 0;
     brave->x = 5;
     brave->y = 5;
-    brave->moves_left = 3; /* the deepen case spent this turn's 3 thirds */
+    brave->moves_left = 0; /* refresh: the deepen case above spent this brave's thirds */
     const int near2 = units_spawn_allow_stack(&units, 0, 6, 5);
     const int far2 = units_spawn_allow_stack(&units, 0, 5, 7);
     near_lead = units_get(&units, near2);
@@ -2993,12 +2994,12 @@ int main(void) {
       return fail("escort fallback lead spawn");
     }
     near_lead->nation_id = 4;
-    near_lead->moves_left = 0;
+    near_lead->moves_left = 3; /* exhausted: the lead must not act on its own */
     near_lead->orders = UNITS_ORDER_AI_MOVE;
     near_lead->goto_x = 4;
     near_lead->goto_y = 5;
     far_lead->nation_id = 4;
-    far_lead->moves_left = 0;
+    far_lead->moves_left = 3; /* exhausted: the lead must not act on its own */
     far_lead->orders = UNITS_ORDER_AI_MOVE;
     far_lead->goto_x = 12;
     far_lead->goto_y = 5;
@@ -3029,7 +3030,7 @@ int main(void) {
     colonies.colony_count = 1;
     brave->x = 5;
     brave->y = 5;
-    brave->moves_left = 3;
+    brave->moves_left = 0;
     brave->orders = UNITS_ORDER_NONE;
     const int md4 = units_spawn_allow_stack(&units, 0, 9, 5); /* MD=4 from (5,5) */
     ColonizeUnit* md4_lead = units_get(&units, md4);
@@ -3037,7 +3038,7 @@ int main(void) {
       return fail("alarmed escort MD4 lead spawn");
     }
     md4_lead->nation_id = 4;
-    md4_lead->moves_left = 0;
+    md4_lead->moves_left = 3; /* exhausted: the lead must not act on its own */
     md4_lead->orders = UNITS_ORDER_AI_MOVE;
     md4_lead->goto_x = 12;
     md4_lead->goto_y = 5;
@@ -3066,7 +3067,7 @@ int main(void) {
     colonies.colony_count = 1;
     brave->x = 5;
     brave->y = 5;
-    brave->moves_left = 3;
+    brave->moves_left = 0;
     brave->orders = UNITS_ORDER_NONE;
     const int md5 = units_spawn_allow_stack(&units, 0, 10, 5); /* MD=5 from (5,5) */
     ColonizeUnit* md5_lead = units_get(&units, md5);
@@ -3074,7 +3075,7 @@ int main(void) {
       return fail("hot escort MD5 lead spawn");
     }
     md5_lead->nation_id = 4;
-    md5_lead->moves_left = 0;
+    md5_lead->moves_left = 3; /* exhausted: the lead must not act on its own */
     md5_lead->orders = UNITS_ORDER_AI_MOVE;
     md5_lead->goto_x = 12;
     md5_lead->goto_y = 5;
@@ -3117,7 +3118,7 @@ int main(void) {
     euro->active = true;
     brave->x = 5;
     brave->y = 5;
-    brave->moves_left = 3;
+    brave->moves_left = 0;
     brave->nation_id = 4;
     brave->active = true;
     ind->alarm_by_player[0] = 50;
@@ -3238,7 +3239,7 @@ int main(void) {
     c_fr->stock[COLONIZE_CARGO_FOOD] = 20;
     c_fr->population = 3;
     c_fr->colonist_count = 3;
-    brave->moves_left = 3;
+    brave->moves_left = 0;
     brave->x = 5;
     brave->y = 5;
     ai_contact_indian_raids(&ctx, 4);

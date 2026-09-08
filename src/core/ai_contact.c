@@ -8063,7 +8063,11 @@ void ai_contact_indian_raids(ColonizeTurnContext* ctx, int nation_id) {
    */
   for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
     ColonizeUnit* brave = &ctx->units->units[i];
-    if (!brave->active || brave->nation_id != nation_id || brave->moves_left <= 0) {
+    /* Natives keep the DOS SPENT byte in moves_left — gate on remaining MP
+     * via the accessor, not the raw byte (audit: raw read skipped FRESH
+     * braves and admitted exhausted ones). */
+    if (!brave->active || brave->nation_id != nation_id ||
+        units_remaining_mp(ctx->units, brave->id) <= 0) {
       continue;
     }
     if (units_is_sea(ctx->units, brave->id)) {
@@ -8083,7 +8087,8 @@ void ai_contact_indian_raids(ColonizeTurnContext* ctx, int nation_id) {
      * Quiet seed-100 pulse unchanged. Cite: units_follow_unit;
      * indian_raid_outcomes.md §1.
      */
-    if (brave->orders == UNITS_ORDER_NONE && brave->moves_left > 0) {
+    if (brave->orders == UNITS_ORDER_NONE &&
+        units_remaining_mp(ctx->units, brave->id) > 0) {
       const int lead =
         ai_contact_escort_pick_lead(ctx, ind, nation_id, brave->id, brave);
       if (lead >= 0 && units_follow_unit(ctx->units, brave->id, lead)) {

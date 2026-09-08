@@ -9453,7 +9453,7 @@ static bool game_europe_drag_drop(ColonizeGameState* game, int mx, int my, bool 
           howmuch_open(&game->howmuch, HOWMUCH_KIND_SELL, prompt, max_amt, max_amt, ctype, hold);
         }
       } else if (eu->selected_harbor >= 0) {
-        europe_sell_hold(eu, eu->selected_harbor, drag->index);
+        europe_sell_hold(eu, &game->col1, game->human_nation, eu->selected_harbor, drag->index);
         game_europe_drain_price_events(game);
       }
     }
@@ -10628,7 +10628,7 @@ static void game_trade_route_service_stop(ColonizeGameState* game, ColonizeUnit*
             }
           }
           if (found < 0 ||
-              europe_sell_unit_hold(&game->europe, &game->units, u->id, found) <= 0) {
+              europe_sell_unit_hold(&game->europe, &game->col1, &game->units, u->id, found) <= 0) {
             break;
           }
         }
@@ -10781,7 +10781,7 @@ static void game_europe_service_trade_harbor(ColonizeGameState* game) {
       for (int h = 0; h < EUROPE_SHIP_CARGO_MAX; ++h) {
         if (ship->hold_goods_amount[h] > 0 && ship->hold_goods_amount[h] < 255 &&
             ship->hold_goods_type[h] == want) {
-          (void)europe_sell_hold(eu, i, h);
+          (void)europe_sell_hold(eu, &game->col1, game->human_nation, i, h);
         }
       }
     }
@@ -13358,7 +13358,7 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
           if (hold < 0) {
             break;
           }
-          europe_sell_hold(eu, eu->selected_harbor, hold);
+          europe_sell_hold(eu, &game->col1, game->human_nation, eu->selected_harbor, hold);
           sold++;
         }
         game_europe_drain_price_events(game);
@@ -13434,7 +13434,7 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
           ship->hold_goods_amount[hold]--;
           snprintf(eu->status, sizeof(eu->status), "Sold 1 for %d$.", gained);
         } else {
-          europe_sell_hold(eu, eu->selected_harbor, hold);
+          europe_sell_hold(eu, &game->col1, game->human_nation, eu->selected_harbor, hold);
         }
         game_europe_drain_price_events(game);
         return true;

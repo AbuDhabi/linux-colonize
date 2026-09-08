@@ -974,6 +974,54 @@ int main(void) {
     }
   }
 
+  /*
+   * head.founding_father[] is WRITE-ONCE (smell audit #82): DOS FUN_4345_0342
+   * does `if (entry < 0) entry = nation`, so it records the FIRST claimer and
+   * never the last. Two nations electing the same Father must both own him via
+   * their own bitmask while head keeps nation 1.
+   */
+  {
+    ColonizeCol1Save wcol1;
+    col1_save_init(&wcol1);
+    seed_unclaimed(&wcol1);
+    ff_test_calendar(&wcol1);
+    wcol1.player[1].control = 1;
+    wcol1.player[3].control = 1;
+
+    ColonizeCol1Nation* first = &wcol1.nation[1];
+    ColonizeCol1Nation* second = &wcol1.nation[3];
+    memset(&wcol1.nation[0], 0, sizeof(wcol1.nation[0]));
+    memset(first, 0, sizeof(*first));
+    memset(second, 0, sizeof(*second));
+
+    ColonizeTurnContext wctx;
+    memset(&wctx, 0, sizeof(wctx));
+    wctx.human_nation = 0;
+    wctx.col1 = &wcol1;
+    wctx.col1_ok = true;
+
+    /* Nation 1 claims Peter Minuit (#2) first: AI 1st elect = 48 bells. */
+    first->liberty_bells_total = 48;
+    first->next_founding_father = 2;
+    ff_tick(&wctx);
+    if (wcol1.head.founding_father[2] != 1 || first->founding_father_count != 1) {
+      return fail("write-once: nation 1 did not claim Minuit");
+    }
+
+    /* Nation 3 elects the same Father afterwards. */
+    second->liberty_bells_total = 48;
+    second->next_founding_father = 2;
+    ff_tick(&wctx);
+    if (second->founding_father_count != 1 ||
+        !founding_fathers_nation_has(&wcol1, 3, 2)) {
+      return fail("write-once: nation 3 must still be able to elect Minuit");
+    }
+    if (wcol1.head.founding_father[2] != 1) {
+      return fail("write-once: head.founding_father must keep the FIRST claimer");
+    }
+    fprintf(stderr, "unit_founding_fathers: head first-claimer write-once ok\n");
+  }
+
   /* --- Combat hooks: Washington promote-on-win, Drake +50%, Revere helper. --- */
   {
     ColonizeCol1Save ccol1;

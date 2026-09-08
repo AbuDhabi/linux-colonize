@@ -6402,7 +6402,7 @@ static int ai_euro_try_transport_europe_sell(
     if (ctype < 16 && (nat->boycott_bitmap & (uint16_t)(1u << ctype)) != 0) {
       continue;
     }
-    const int g = europe_sell_unit_hold(eu, ctx->units, transport->id, h);
+    const int g = europe_sell_unit_hold(eu, ctx->col1, ctx->units, transport->id, h);
     if (g > 0) {
       sold += g;
     }

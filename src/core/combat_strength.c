@@ -180,8 +180,14 @@ int combat_unit_base_x8(
 
   int local_4 = local_8 * 8;
 
-  /* Veteran Soldier/Dragoon: profession 0x15 → +50%. */
-  if (combat_type_is_soldier_or_dragoon(t) && u->profession == UNITS_JOB_SOLDIER) {
+  /*
+   * Veteran Soldier/Dragoon: veteran profession → +50%. DOS grants the peel
+   * to both veteran professions — 0x15 Veteran Soldiers and 0x17 Veteran
+   * Dragoons (a Veteran Dragoon carries profession 0x17, never 0x15), so the
+   * old 0x15-only test silently dropped the bonus for every veteran dragoon.
+   */
+  if (combat_type_is_soldier_or_dragoon(t) &&
+      (u->profession == UNITS_JOB_SOLDIER || u->profession == UNITS_JOB_DRAGOON)) {
     local_4 = local_4 + (local_4 >> 1);
     if (out_flags) {
       out_flags->flags |= COMBAT_FLAG_VETERAN;
@@ -773,6 +779,32 @@ void combat_apply_1b0e_peels(
  * and unconditionally: diff 0 + human Euro ATTACKER → attacker DOUBLED.
  * (The port's old "Discoverer damper" −25% on a human attacker was the
  * mirror image of these bytes and is deleted.)
+ *
+ * The colony-tile tail that follows it in DOS — raw 100557-100564, verbatim:
+ *
+ *   if (-1 < iVar18) {
+ *     if ((3 < uVar16) && (*(char *)(uVar15 + 0x9298) == '\x01')) {
+ *       local_92 = 0;
+ *     }
+ *     if (((uVar15 < 4) && (*(char *)(uVar15 * 0x34 + 0x543f) == '\0')) &&
+ *        ((int)(uint)(*(byte *)(uVar15 + 0x940c) >> 1) <=
+ *         (int)*(char *)(iVar18 * 0xca + 0x5d65))) {
+ *       local_a8 = local_a8 + (*(byte *)0x53a6 - 4) * -4;
+ *     }
+ *   }
+ *
+ * Same variable reading, plus: 0x9298 + n = that nation's colony COUNT byte,
+ * 0x940c + n = its Σ colony population, 0x5d65 + idx*0xca = the population of
+ * the colony standing on the defended tile, local_a8 = defender strength.
+ * Both DS bytes are the FUN_4962_0018 census window the port mirrors as
+ * col1->stuff.colony_counts / colony_pop_totals. Note this pair runs for EVERY
+ * difficulty (it sits outside the `0x53a6 < 2` gate above):
+ *   (a) last-colony shield — a NATIVE attacker (nation > 3) against a colony
+ *       tile whose owner is down to its final colony is ZEROED outright;
+ *   (b) half-the-nation bonus — a human Euro defender whose colony on this
+ *       tile holds at least half the nation's total colonists gets
+ *       (4 − difficulty) × 4 added to defence (×8 scale: +16 at Discoverer
+ *       down to +0 at Viceroy).
  */
 void combat_apply_1b0e_resolve_handicaps(
   const ColonizeCombatStrengthCtx* ctx,
@@ -792,7 +824,10 @@ void combat_apply_1b0e_resolve_handicaps(
   const int def_nat = def->nation_id;
   const int diff = (int)ctx->col1->head.difficulty;
   const int turn = (int)ctx->col1->head.turn;
-  const int on_colony = combat_unit_on_colony(ctx, def);
+  /* iVar18: colony sitting on the defended tile (-1 = none). */
+  const int def_colony_id =
+    ctx->colonies ? colonies_id_at(ctx->colonies, def->x, def->y) : -1;
+  const int on_colony = (def_colony_id >= 0);
   const int atk_ship = combat_type_is_ship(ctx->units, attacker_id);
   const bool atk_euro = (atk_nat >= 0 && atk_nat <= 3);
   const bool def_human_euro =
@@ -816,6 +851,41 @@ void combat_apply_1b0e_resolve_handicaps(
   }
   if (diff == 0 && atk_human_euro) {
     io->atk_strength <<= 1;
+  }
+
+  /* raw 100557-100564 — colony-tile tail, every difficulty. */
+  if (def_colony_id >= 0) {
+    const int def_euro = (def_nat >= 0 && def_nat <= 3);
+    /*
+     * (a) `(3 < uVar16) && 0x9298[uVar15] == 1` — native attacker vs the
+     * defender nation's last colony: attacker zeroed. DOS indexes 0x9298 by
+     * the defender nation with no <4 guard; a colony tile implies a European
+     * defender, so the port guards it like the sibling clauses do.
+     */
+    if (atk_nat > 3 && def_euro && ctx->col1->stuff.colony_counts[def_nat] == 1) {
+      io->atk_strength = 0;
+    }
+    /*
+     * (b) `0x940c[uVar15] >> 1 <= 0x5d65[iVar18]` — human Euro defender whose
+     * colony on this tile holds half or more of the nation's colonists:
+     * defence += (4 − difficulty) * 4. The population read is the tile's
+     * colony record (DOS never re-checks its owner), so read it literally.
+     */
+    if (def_human_euro) {
+      const ColonizeColony* c = colonies_get(ctx->colonies, def_colony_id);
+      const int col_pop = c ? c->population : 0;
+      const int half_nation = (int)(ctx->col1->stuff.colony_pop_totals[def_nat] >> 1);
+      if (half_nation <= col_pop) {
+        io->def_strength += (4 - diff) * 4;
+      }
+    }
+  }
+
+  if (io->atk_strength < 0) {
+    io->atk_strength = 0;
+  }
+  if (io->def_strength < 0) {
+    io->def_strength = 0;
   }
 }
 
