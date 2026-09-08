@@ -2857,21 +2857,10 @@ static void game_apply_howmuch_result(ColonizeGameState* game) {
     if (hold < 0) {
       return;
     }
-    EuropeHarborShip* ship = &eu->harbor[eu->selected_harbor];
-    int left = amt;
-    while (left > 0 && ship->hold_goods_amount[hold] > 0) {
-      const int ctype = ship->hold_goods_type[hold];
-      const int take = ship->hold_goods_amount[hold] < left ? ship->hold_goods_amount[hold] : left;
-      const int gained = europe_sell_proceeds(eu, ctype, take);
-      eu->gold += gained;
-      europe_push_sale_status(eu, ctype, take, gained);
-      ship->hold_goods_amount[hold] = (uint8_t)(ship->hold_goods_amount[hold] - take);
-      if (ship->hold_goods_amount[hold] == 0) {
-        ship->hold_goods_type[hold] = 255;
-      }
-      left -= take;
-      snprintf(eu->status, sizeof(eu->status), "Sold %d for %d$.", amt - left, gained);
-    }
+    europe_sell_hold_partial(
+      eu, &game->col1, game->human_nation, eu->selected_harbor, hold, amt
+    );
+    game_europe_drain_price_events(game);
   } else if (kind == HOWMUCH_KIND_SOUND_TEST) {
     sound_play(amt);
     char line[32];
@@ -9415,7 +9404,7 @@ static bool game_europe_drag_drop(ColonizeGameState* game, int mx, int my, bool 
         tok.string1 = "ship";
         tok.number0 = max_amt;
         tok.has_number0 = true;
-        tok.number1 = europe_sell_price(eu, cargo);
+        tok.number1 = europe_buy_price(eu, cargo);
         tok.has_number1 = true;
         popup_msg_fill(
           &game->messages, "HOWMUCH4", &tok, "How much to purchase?", prompt, sizeof(prompt)
@@ -13334,7 +13323,7 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
         tok.string1 = "ship";
         tok.number0 = max_amt;
         tok.has_number0 = true;
-        tok.number1 = europe_sell_price(eu, cargo);
+        tok.number1 = europe_buy_price(eu, cargo);
         tok.has_number1 = true;
         popup_msg_fill(
           &game->messages, "HOWMUCH4", &tok, "How much to purchase?", prompt, sizeof(prompt)
@@ -13396,7 +13385,7 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
         tok.string1 = "ship";
         tok.number0 = max_amt;
         tok.has_number0 = true;
-        tok.number1 = europe_sell_price(eu, cargo);
+        tok.number1 = europe_buy_price(eu, cargo);
         tok.has_number1 = true;
         popup_msg_fill(
           &game->messages, "HOWMUCH4", &tok, "How much to purchase?", prompt, sizeof(prompt)
@@ -13427,12 +13416,9 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
         if (hold < 0) {
           snprintf(eu->status, sizeof(eu->status), "%s", "Nothing to sell.");
         } else if (ship->hold_goods_amount[hold] > 1) {
-          const int ctype = ship->hold_goods_type[hold];
-          const int gained = europe_sell_proceeds(eu, ctype, 1);
-          eu->gold += gained;
-          europe_push_sale_status(eu, ctype, 1, gained);
-          ship->hold_goods_amount[hold]--;
-          snprintf(eu->status, sizeof(eu->status), "Sold 1 for %d$.", gained);
+          europe_sell_hold_partial(
+            eu, &game->col1, game->human_nation, eu->selected_harbor, hold, 1
+          );
         } else {
           europe_sell_hold(eu, &game->col1, game->human_nation, eu->selected_harbor, hold);
         }

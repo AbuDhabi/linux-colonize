@@ -4,6 +4,8 @@ Eight-subsystem sweep for bug-smells (counter-intuitive logic, doc/DOS contradic
 
 **FIXED 2026-09-08 (batch 1):** cross-cutting inversion, combat #1, #2, #7, Europe #51, FF #82. Details per item below. ctest 60/60 + goldens green after.
 
+**FIXED 2026-09-08 (batch 2):** #16, #17, #52, #53, #54. Details per item below. ctest 60/60 after.
+
 ## Cross-cutting: native moves_left semantics inversion (H) — FIXED: `units_mp_charge`/`units_mp_exhaust` spent-aware writers in units.c; all listed sites converted to `units_remaining_mp`/helpers (try_move gate+charge+shore, village-raid branch, win/loss drains, mounted spend-all, afford gate, goto gates, ai_contact raid+escort gates). ~40 test fixtures in test_ai_contact.c + 2 in test_units.c flipped to spent semantics (they were written against the inverted gates).
 
 For native nations `moves_left` holds the DOS **spent** byte (turn.c:179 refreshes natives to 0 = unspent; `units_remaining_mp` units.c:6292 is the safe accessor). Multiple sites read/write it as "remaining":
@@ -35,8 +37,8 @@ For native nations `moves_left` holds the DOS **spent** byte (turn.c:179 refresh
 
 ## Colony economy
 
-16. colony_yield.c:23 — Prairie Farmer base **3**, NAMES.TXT and terrain_yields.md say **2**; lone outlier in otherwise cell-exact tables; pedia (reads NAMES) disagrees with production in-game. H
-17. turn.c:629 — EOT Fisherman gate short-circuits `has_docks` with "coastal ⇒ true" before checking Docks building; docs say Docks required; the 4 sibling sites (colony_preview.c:91, colony_screen.c:1589/3853, game_loop.c:9025) have no shortcut, so UI shows 0 fish while tick banks it. H
+16. colony_yield.c:23 — Prairie Farmer base **3**, NAMES.TXT and terrain_yields.md say **2**; lone outlier in otherwise cell-exact tables; pedia (reads NAMES) disagrees with production in-game. H — FIXED: base 2; user-confirmed DOS bare-prairie unskilled farmer = 3 (2 + unconditional farmer +1) and bare hills = 2 (1 + 1). golden_colony_prod01's Guadeloupe/New Holland/Bahia prairie-farmer tiles were fixture re-picks calibrated to base 3, not independent evidence — re-picked to Prairie+Plowed (same real-capture totals and horse surplus parity).
+17. turn.c:629 — EOT Fisherman gate short-circuits `has_docks` with "coastal ⇒ true" before checking Docks building; docs say Docks required; the 4 sibling sites (colony_preview.c:91, colony_screen.c:1589/3853, game_loop.c:9025) have no shortcut, so UI shows 0 fish while tick banks it. H — FIXED: coastal shortcut removed, building-scan only, matching siblings (FUN_15eb_18ec ~11925-11939).
 18. colony_production.c:299-305 — SoL production bonus adds `max(latch, live%)`; docs (both) say latch-bits-only; live term is an invented "stand-in" that defeats the one-step latch ramp; town-commons sibling correctly latch-only. M-H
 19. colony_production.c:657-662 — unworked Town Hall still emits raw `sol_bonus` bells; the sibling crosses path deleted exactly this as invented (584-589). Unworked Town Hall at 100% SoL yields 3 bells not 1. M-H
 20. colony_yield.c:356-357, 427 — Silver Miner special-resource deferred to `post_resource`, added after expert multiplier without expert doubling; doc rule doubles additive bonus for matching expert. Surviving uncited curve-fit from commit 3a9f688. M
@@ -79,10 +81,10 @@ For native nations `moves_left` holds the DOS **spent** byte (turn.c:179 refresh
 ## Europe / market / trade routes
 
 50. europe.c:2478-2482 — human harbor buys/sells pass `col1=NULL`: nation `trade.tons/tons2/gold` ledger never written, so player's own trading is invisible to the long-run price pool (Custom House + AI sales do count). H
-51. europe.c:3042-3058 — sell credits gold but never credits tax to `royal_money` (DOS `nation+0x22 += tax`); all Europe tax revenue vanishes, REF systematically underfunded. Custom House arm does credit it. H — FIXED: europe_credit_sale_tax helper; europe_sell_hold + europe_sell_unit_hold credit gross−net to seller nation royal_money (trade-route auto-unload fixed for free; #52/#53 direct paths still leak, see below).
-52. game_loop.c:2861-2874 — shift+drag partial sell: no boycott check, no price movement. Boycott exploit + zero-market-impact channel. H
-53. game_loop.c:13429-13435 — `-` key single-unit sell: same two omissions; 99 presses liquidate a hold with zero price movement. H
-54. game_loop.c:9418, 13337, 13399 — all three @HOWMUCH4 purchase prompts quote `europe_sell_price()` (bid) instead of ask; off by burden+1 (Food quoted 0 not 8). H
+51. europe.c:3042-3058 — sell credits gold but never credits tax to `royal_money` (DOS `nation+0x22 += tax`); all Europe tax revenue vanishes, REF systematically underfunded. Custom House arm does credit it. H — FIXED: europe_credit_sale_tax helper; europe_sell_hold + europe_sell_unit_hold credit gross−net to seller nation royal_money (trade-route auto-unload fixed for free; #52/#53 direct paths closed in batch 2).
+52. game_loop.c:2861-2874 — shift+drag partial sell: no boycott check, no price movement. Boycott exploit + zero-market-impact channel. H — FIXED: new `europe_sell_hold_partial` (full path: boycott gate, tax credit, sale status, volume price move); both game_loop sites rewired. Also closes the #51 residual tax leak on these paths.
+53. game_loop.c:13429-13435 — `-` key single-unit sell: same two omissions; 99 presses liquidate a hold with zero price movement. H — FIXED: same helper (amount 1).
+54. game_loop.c:9418, 13337, 13399 — all three @HOWMUCH4 purchase prompts quote `europe_sell_price()` (bid) instead of ask; off by burden+1 (Food quoted 0 not 8). H — FIXED: all three quote `europe_buy_price` (ask).
 55. europe.c:725/729 — @CARGO `start_hi` discarded; DOS rolls RNG(lo..hi) per cargo per campaign; every game opens at bottom of every price band. H
 56. europe.c:589-631 — missing DOS Spain override: nation 2 recruit-pool slot 0 forced to Jesuit Missionaries after seeding. M
 57. europe.c:2392-2394 — Dutch (term*2)/3 damping keyed on `human_nation == 3` which the caller can never satisfy (passes −1), and applied to buys too (DOS: sells only). Dutch player gets no damping on own harbor trades. M

@@ -576,20 +576,18 @@ static int run_pair(const char* path_in, const char* path_exp, const char* label
       for (int ti = 0; ti < 8; ++ti) {
         gd->tiles[ti] = -1;
       }
-      /* Expert Farmers -> 10 food each. 2026-09-03 re-pick: Prairie, bare
-       * (3 base + sol 2 + expert 2 + sol re-add 2 + farmer 1 = 10) — was
-       * Plains + one plow, calibrated before the skill-blind farmer/plow
-       * improvement stack was ported (Plains now lands on 11/12). The
-       * improve byte is cleared too: the real map underneath had a plow on
-       * tiles[0] that the old expert path ignored (experts skipped the
-       * crop block entirely), invisible until the DOS-literal stack made
-       * plow count for experts. */
+      /* Expert Farmers -> 10 food each. 2026-09-08 re-pick: Prairie +
+       * Plowed (2 base + sol 2 + expert 2 + sol re-add 2 + farmer 1 +
+       * plow 1 = 10) — the 2026-09-03 pick was bare Prairie under the
+       * then-current base 3, which was the audit-#16 outlier vs
+       * NAMES.TXT's 2 (and user-observed DOS bare-prairie unskilled
+       * farmer = 3 = 2 + farmer 1). */
       gd->tiles[0] = 0;
       if (map.terrain) map.terrain[(gd->y + k_fdy[0]) * map.width + (gd->x + k_fdx[0])] = 3;
-      if (map.improve) map.improve[(gd->y + k_fdy[0]) * map.width + (gd->x + k_fdx[0])] = 0;
+      if (map.improve) map.improve[(gd->y + k_fdy[0]) * map.width + (gd->x + k_fdx[0])] = MAP_IMPROVE_PLOWED;
       gd->tiles[1] = 1;
       if (map.terrain) map.terrain[(gd->y + k_fdy[1]) * map.width + (gd->x + k_fdx[1])] = 3;
-      if (map.improve) map.improve[(gd->y + k_fdy[1]) * map.width + (gd->x + k_fdx[1])] = 0;
+      if (map.improve) map.improve[(gd->y + k_fdy[1]) * map.width + (gd->x + k_fdx[1])] = MAP_IMPROVE_PLOWED;
       /* Cotton Planter on Plains */
       gd->tiles[2] = 2;
       if (map.terrain) map.terrain[(gd->y + k_fdy[2]) * map.width + (gd->x + k_fdx[2])] = 2;
@@ -738,24 +736,19 @@ static int run_pair(const char* path_in, const char* path_exp, const char* label
         if (map.layer2) map.layer2[ty * map.width + tx] = 0;
       }
       /*
-       * Farmer on Prairie (river dropped) -> 6 food. Final food (39)
-       * already matched the real-DOS-captured value with the river in
-       * place, but horses came out 1 high — the river's +1 nudged this
-       * turn's gross surplus from 4 to 5, which doesn't change floor(s/2)
-       * (net food, still 2) but does change ceil(s/2) (horses bred, 3
-       * instead of 2). Dropping the river brings the surplus's *parity*
-       * back in line without touching the food total at all.
+       * Farmer on Prairie + Plowed -> 6 food (2 base + sol 2 + farmer 1 +
+       * plow 1). River stays dropped: its earlier +1 nudged this turn's
+       * gross surplus from 4 to 5, which doesn't change floor(s/2) (net
+       * food, still 2) but does change ceil(s/2) (horses bred, 3 instead
+       * of 2). 2026-09-08: plow re-added to supply the +1 the audit-#16
+       * Prairie base fix (3 -> NAMES.TXT's 2) removed — lands back on the
+       * same 6 the real capture pins, same surplus parity.
        */
       nh->tiles[0] = 0;
       nh->colonists[0].field_job = COLONIZE_JOB_FARMER;
       nh->colonists[0].profession = 28;
       if (map.terrain) map.terrain[(nh->y + k_fdy[0]) * map.width + (nh->x + k_fdx[0])] = col1_tile_to_mp_terrain(0x03u); /* Prairie */
-      /*
-       * Not plowed: plow now stacks with the unconditional +1 for real
-       * (2026-08-18 fix), so the old MAP_IMPROVE_PLOWED here would add a
-       * genuine +1, reintroducing the same horse-breeding surplus-parity
-       * bump the river drop above already fixed once.
-       */
+      if (map.improve) map.improve[(nh->y + k_fdy[0]) * map.width + (nh->x + k_fdx[0])] |= MAP_IMPROVE_PLOWED;
       break;
     }
   }
@@ -974,16 +967,19 @@ static int run_pair(const char* path_in, const char* path_exp, const char* label
       if (map.improve) {
         map.improve[(bh->y + k_fdy[2]) * map.width + (bh->x + k_fdx[2])] |= MAP_IMPROVE_ROAD;
       }
-      /* Expert Farmer on Prairie -> 6 food (3 base + expert 2 + farmer 1,
-       * no SoL — Bahia flags 0x40). 2026-09-03 re-pick from Plains+Plowed:
-       * the skill-blind improvement stack now pays experts the farmer +1
-       * AND the plow, landing Plains+Plowed on 8; Prairie bare is the 6
-       * the real capture needs. */
+      /* Expert Farmer on Prairie + Plowed -> 6 food (2 base + expert 2 +
+       * farmer 1 + plow 1, no SoL — Bahia flags 0x40). 2026-09-08 re-pick:
+       * bare Prairie under the audit-#16 outlier base 3 gave the same 6;
+       * NAMES.TXT base 2 needs the plow back to hold the real capture's
+       * total (and its horse-breeding surplus parity). */
       bh->tiles[0] = 0;
       bh->colonists[0].field_job = COLONIZE_JOB_FARMER;
       bh->colonists[0].profession = 0;
       if (map.terrain) {
         map.terrain[(bh->y + k_fdy[0]) * map.width + (bh->x + k_fdx[0])] = col1_tile_to_mp_terrain(0x03u); /* Prairie */
+      }
+      if (map.improve) {
+        map.improve[(bh->y + k_fdy[0]) * map.width + (bh->x + k_fdx[0])] |= MAP_IMPROVE_PLOWED;
       }
       /* Convert Fisherman on Ocean -> 6 food */
       bh->tiles[3] = 3;
