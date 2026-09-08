@@ -145,7 +145,7 @@ as peels land.
 | Field | Size | Status | Notes |
 |-------|------|--------|-------|
 | `x` / `y` / `name` / `nation_id` / `population` | — | `mapped` | |
-| `ai_flags` (`ColonizeCol1ColonyAiFlags`) | 1 | `mapped` | +0x1b; ship/AI planner bits — Linux field + MoW/armed ship scan + COLONY 5|8; thin needs_colonists/garrison |
+| `ai_flags` (`ColonizeCol1ColonyAiFlags`) | 1 | `mapped` | +0x1b; bits 0/1 = 4962_0018 blockade pair (bit1 = Frigate 0x11 ONLY, bit0 = other armed ship incl. MoW — `nearby_man_o_war` JSON key is a frozen misnomer), refreshed for EVERY nation each turn (human wired 2026-09-08d, turn.c FINISH); bits 2..7 = 5952_035e planner (AI-only) + COLONY 5|8; thin needs_colonists/garrison |
 | `flags` (`ColonizeCol1ColonyFlags`) | 1 | `mapped` | +0x1c; Linux `colony_flags` — bit3 inefficient-gov latch + sol_50/100 + wagon/coastal/small (`FUN_364b_0688`) |
 | `build_ai_flags` | 1 | `mapped` | +0x1d; bit7 `wants_construction` (0x80) — Linux field + LABOR latch + clear on queue done; other bits reserved |
 | `garrison_quota` | 1 | `mapped` | +0x1e; `threat>>3` (`FUN_5952_035e`, clean recovery 2026-08-14 confirms exact match — [`colony_tick_5952_035e.md`](../original_sources_annotated/ai/colony_tick_5952_035e.md)); Linux `ColonizeColony.garrison_quota` + fortify DEC + thin latch |

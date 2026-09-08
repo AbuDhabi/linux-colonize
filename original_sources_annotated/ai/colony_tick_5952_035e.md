@@ -24,6 +24,31 @@ Still unported from the same loop (deliberate, separate scope): the
 formula it feeds — the port keeps its own thin labor latch. Test:
 `tests/unit/test_ai_euro_war.c:unit_garrison_quota_threat_seed`.
 
+**Callers / nation gating (resolved 2026-09-08d — AI nations ONLY).** The
+tick has exactly one call site in the EXE: `FUN_521d_6d8e`'s own-colony loop
+(`viceroy_unpacked.c:93119-93121`, `owner byte 0x5d60[i*0xca] == param_1`),
+the first substantive phase of an AI nation's turn (before the 5d04/goal
+phases; its `+0x8d`/`+0x1b` side effects are consumed immediately at
+`:93122-93141`). `6d8e` itself is reached only from the year loop
+`FUN_130d_0290`'s `control == 1` branch (`:6397`, via `FUN_281f_0638`); the
+human `control == 0` branch (`:6409`) goes to `43f7_2244` + interactive Move
+Pieces and never reaches the tick. Thunk chain byte-verified in
+`viceroy_unpacked.asm`: `thunk_FUN_2a1f_0530` (:63842) → `FUN_521d_5cf6`
+(:153968) → `FUN_2a1f_05a8` (:63933) → `JMPF FUN_5952_035e`; the function
+has no other entry (only :63936/:156758 mention it). The body has no
+owner-side self-gate — both `0x543f` reads (raw :294, :842) test *other*
+parties (nearby unit's nation +50% threat; human-settlement neighbour veto
+on the pioneer tile). One arg (colony index, `ADD SP,2`); nation comes from
+the bound record's +0x1a. Empirical: across DOS pair
+`COLONY00-dutch2-t0.SAV` → `COLONY01-dutch2-t1.SAV` every human colony's
+`garrison_quota`/`improve_timer`/`cargo_idle_turns`/`ai_flags` stays
+byte-identical (Guadeloupe keeps stale capture residue `gq=10 it=2 cit=4`)
+while every AI colony's moves. Only exception path: the attract/demo mode
+(`FUN_75c2_2778`, :121925) flips all four slots to control 1. This closes
+port_plan's "Human-colony 5952_035e tick" item as refuted — the port's
+AI-only wiring (`ai_euro_colony_goals` / `ai_euro_colony_inventory`)
+matches DOS.
+
 `FUN_5952_035e` is the **colony production/buildings/AI-hint tick**, cited as
 the source of truth in `save_format_map.md` and `colony.h` for 8 already-
 `mapped` fields: `garrison_quota` (+0x1e), `specialty_cargo` (+0x8d),

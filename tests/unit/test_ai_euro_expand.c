@@ -3750,6 +3750,141 @@ static int unit_colony_ai_flags_mow_colony_alt(void) {
   return 0;
 }
 
+/*
+ * FUN_4962_0018 for the HUMAN nation (ai_euro_census_ship_pressure_refresh,
+ * wired into TURN_PROC_FINISH 2026-09-08d). Before that split only the AI
+ * nations ran the probe, so a human colony's blockade pair +0x1b bits
+ * 0x01/0x02 stayed frozen at whatever the save import left there. Asserts
+ * both directions: a foreign Frigate in range sets bit 0x02, and once the
+ * ship is gone the next refresh CLEARS the stale pair (the regression) while
+ * leaving the unrelated +0x1b bits alone.
+ */
+static int unit_human_census_ship_pressure_refresh(void) {
+  const int human = 0;
+  const int foe = 2;
+
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  map.width = 16;
+  map.height = 16;
+  map.tile_count = 256;
+  map.terrain = calloc(256, 1);
+  map.layer2 = calloc(256, 1);
+  map.layer3 = calloc(256, 1);
+  if (!map.terrain || !map.layer2 || !map.layer3) {
+    return fail("human census alloc map");
+  }
+  for (int i = 0; i < 256; ++i) {
+    map.terrain[i] = (i % 16 < 2) ? 25 : 1; /* west strip real ocean (0x19) */
+  }
+
+  ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
+  units_reset(&units);
+  units_set_occupancy_map(NULL);
+  units.type_count = 1;
+  snprintf(units.types[0].name, sizeof(units.types[0].name), "Frigate");
+  units.types[0].movement = 4;
+  units.types[0].domain = COLONIZE_UNIT_DOMAIN_SEA;
+  units.types[0].attack = 8;
+  units.types[0].cargo = 6;
+
+  ColonizeColonyPool colonies;
+  colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
+  ColonizeColony* c = &colonies.colonies[0];
+  c->id = 0;
+  c->active = true;
+  c->nation_id = human;
+  c->x = 2; /* coastal: the FUN_6662_0906 sea-flood gate needs a route */
+  c->y = 4;
+  c->population = 4;
+  c->colonist_count = 4;
+  c->stock[COLONIZE_CARGO_FOOD] = 80;
+  c->building_in_production = -1;
+  c->ai_flags = 0;
+  colonies.colony_count = 1;
+  colonies.next_id = 1;
+
+  /* Foreign Frigate on water inside the 11x11 box, short sea route. */
+  const int sid = units_spawn(&units, 0, 1, 6);
+  ColonizeUnit* ship = units_get(&units, sid);
+  if (!ship) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("human census spawn Frigate");
+  }
+  ship->nation_id = foe;
+  ship->moves_left = 4 * UNITS_MP_PER_TILE;
+
+  ColonizeCol1Save col1;
+  col1_save_init(&col1);
+  memset(col1.nation, 0, sizeof(col1.nation));
+  memset(col1.head.nation_relation, 0, sizeof(col1.head.nation_relation));
+  for (int i = 0; i < 4; ++i) {
+    col1.player[i].control = 0;
+    col1.player[i].diplomacy = 0;
+  }
+
+  uint32_t turn = 64;
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.turn_number = &turn;
+  ctx.units = &units;
+  ctx.colonies = &colonies;
+  ctx.map = &map;
+  ctx.col1 = &col1;
+  ctx.col1_ok = true;
+  ctx.rng_seed = 42;
+
+  /* (a) Frigate present: the probe raises bit 0x02 for the human nation. */
+  ai_euro_census_ship_pressure_refresh(&ctx, human);
+  c = &colonies.colonies[0];
+  if ((c->ai_flags & COLONIZE_COLONY_AI_NEARBY_FRIGATE) == 0) {
+    fprintf(stderr, "unit_ai_euro_expand: human ai_flags=0x%02x (want frigate bit)\n",
+            (unsigned)c->ai_flags);
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("expected human nearby_frigate ai_flags bit");
+  }
+
+  /* (b) Ship gone: the next refresh must clear BOTH blockade bits. Seed the
+   * armed-ship bit as well so the clear is the thing under test, not the
+   * scan simply never having set it. */
+  ship = units_get(&units, sid);
+  if (ship) {
+    ship->active = false;
+  }
+  c->ai_flags = (uint8_t)(c->ai_flags | COLONIZE_COLONY_AI_NEARBY_ARMED_SHIP |
+                          COLONIZE_COLONY_AI_NEEDS_COLONISTS);
+  ai_euro_census_ship_pressure_refresh(&ctx, human);
+  c = &colonies.colonies[0];
+  if ((c->ai_flags & (COLONIZE_COLONY_AI_NEARBY_ARMED_SHIP |
+                      COLONIZE_COLONY_AI_NEARBY_FRIGATE)) != 0) {
+    fprintf(stderr, "unit_ai_euro_expand: human ai_flags=0x%02x (want blockade pair clear)\n",
+            (unsigned)c->ai_flags);
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("expected stale human blockade bits cleared");
+  }
+  /* Raw 78259 clears +0x1b &= 0xfc only — the rest of the byte survives. */
+  if ((c->ai_flags & COLONIZE_COLONY_AI_NEEDS_COLONISTS) == 0) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("census probe clobbered unrelated ai_flags bits");
+  }
+
+  free(map.terrain);
+  free(map.layer2);
+  free(map.layer3);
+  fprintf(stderr, "unit_ai_euro_expand: human census ship pressure refresh ok\n");
+  return 0;
+}
+
 static int unit_build_ai_flags_wants_construction(void) {
   const int nation = 1;
 
@@ -17141,6 +17276,9 @@ int main(void) {
     return 1;
   }
   if (unit_colony_ai_flags_mow_colony_alt() != 0) {
+    return 1;
+  }
+  if (unit_human_census_ship_pressure_refresh() != 0) {
     return 1;
   }
   if (unit_build_ai_flags_wants_construction() != 0) {
