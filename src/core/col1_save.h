@@ -371,10 +371,14 @@ typedef struct ColonizeCol1CustomHouse {
   uint16_t muskets : 1;
 } ColonizeCol1CustomHouse;
 
-/* Colony +0x1b — FUN_4962_0018 ship probe + FUN_5952_035e AI planner. */
+/* Colony +0x1b — FUN_4962_0018 ship probe (bits 0/1, EVERY nation each turn
+ * via nation EOT 3844_00f2; human Custom House blockade gate reads & 3) +
+ * FUN_5952_035e AI planner (bits 2..7, AI nations only; its `&= 7` preserves
+ * bits 0/1). Field names are frozen JSON keys (col1_json.c / fixtures);
+ * `nearby_man_o_war` is a misnomer — see the bit comments. */
 typedef struct ColonizeCol1ColonyAiFlags {
-  uint8_t nearby_armed_ship : 1; /* 0x01 — non-MoW armed ship nearby */
-  uint8_t nearby_man_o_war : 1; /* 0x02 — MoW / cargo-ship pressure */
+  uint8_t nearby_armed_ship : 1; /* 0x01 — any foreign armed ship 0x0d..0x12 EXCEPT Frigate (MoW included), raw 78276-78282 */
+  uint8_t nearby_man_o_war : 1; /* 0x02 — Frigate (type 0x11 literal) ONLY; name is historical */
   uint8_t needs_military : 1; /* 0x04 */
   uint8_t defense_surplus : 1; /* 0x08 */
   uint8_t needs_colonists : 1; /* 0x10 */

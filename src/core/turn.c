@@ -8,6 +8,7 @@
 
 #include "core/ai.h"
 #include "core/ai_diplo.h"
+#include "core/ai_euro.h"
 #include "core/ai_king.h"
 #include "core/col1_stuff_census.h"
 #include "core/colony_craft.h"
@@ -3546,6 +3547,14 @@ bool turn_processor_advance(ColonizeTurnProcessor* proc, ColonizeTurnContext* ct
       turn_set_birth_units_pool(NULL);
       turn_run_colony_unit_construction(ctx);
       turn_run_colony_building_completion(ctx);
+      /*
+       * FUN_3844_00f2 census AFTER the colony-EOT loop (viceroy_unpacked.c
+       * :58390 → FUN_291f_0a74 → FUN_4962_0018): refresh the human colonies'
+       * blockade pair (+0x1b bits 0x01/0x02) so next turn's Custom House
+       * autosell gate (europe.c, ai_flags & 3) reads live state, not the
+       * save-import value. AI nations get the same probe in their own pass.
+       */
+      ai_euro_census_ship_pressure_refresh(ctx, ctx->human_nation);
       s_prod_only_nation = -1;
       proc->show_indicator = false;
       /* bugs.md 400/404/407: yield here so the production popups queued

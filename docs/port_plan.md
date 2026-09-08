@@ -534,9 +534,36 @@ list, not from the inventory.
   LCG; per-row single-term toggles are ambiguous/overfit — next real step
   is DOS-side evidence (DOSBox trace of 20e6 score terms), not more
   static fitting.
-- [ ] **Human-colony `5952_035e` tick** — the ported threat seed runs only
-  in the Euro-AI colony pass; DOS runs the colony tick for every nation.
-  Recorded 2026-09-08c (threat-seed port report).
+- [x] **Human-colony `5952_035e` tick** — **REFUTED 2026-09-08d, no work.**
+  The "DOS runs the colony tick for every nation" premise was wrong. The
+  tick has exactly ONE call site in the whole EXE: inside the AI nation
+  dispatcher `FUN_521d_6d8e` (`viceroy_unpacked.c:93119`, own-colony loop),
+  reached only from the year loop's `control == 1` branch
+  (`FUN_130d_0290`, `:6397`; human `control == 0` branch `:6409` goes to
+  interactive Move Pieces instead). Thunk chain byte-verified in
+  `viceroy_unpacked.asm` (2a1f_0530 → 521d_5cf6 → 2a1f_05a8 → 5952_035e;
+  `FUN_5952_035e` has no other entry). Empirical corroboration: across the
+  real DOS turn pair `COLONY00-dutch2-t0.SAV` → `COLONY01-dutch2-t1.SAV`
+  every AI colony's `garrison_quota`/`improve_timer`/`cargo_idle_turns`/
+  `ai_flags` moves, every HUMAN colony's stays byte-identical (incl. stale
+  capture residue DOS never clears). Port's AI-only wiring matches DOS.
+  Side fixes from the audit: `test_colony_prod02.c` `improve_timer`
+  mismatch now fails the gate (printed but didn't set `ok=false`);
+  human Custom House `ai_flags & 0x03` gate audited separately (next row).
+- [x] **Human blockade bits (`+0x1b & 3`) frozen — FIXED 2026-09-08d.**
+  Found by the 5952 audit: DOS refreshes the colony blockade pair via the
+  4962_0018 census run from the nation EOT `FUN_3844_00f2` for every
+  `control != 2` slot — human included (`viceroy_unpacked.c:58390`, census
+  AFTER the colony-EOT/autosell loop; plus the explicit human call in
+  `3844_0442:58463`). The port ran the probe only in the AI planner, so a
+  human colony's Custom House gate (`europe.c`, `ai_flags & 3`) read the
+  save-import value forever. Fix: probe split out of
+  `ai_euro_refresh_colony_ai_flags` into `ai_euro_colony_ship_probe_4962` +
+  `ai_euro_census_ship_pressure_refresh(ctx, human)` called in
+  `TURN_PROC_FINISH` after building completion (DOS position). Bit meanings
+  corrected in `col1_save.h`/`save_format_map.md`: bit 0x02 = Frigate (0x11
+  literal) ONLY, bit 0x01 = any other armed ship incl. Man-O-War
+  (`nearby_man_o_war` stays as a frozen fixture JSON key). 60/60 green.
 - [x] **1b0e beginner-handicap siblings** — closed 2026-09-08. All three
   siblings plus the diff-0 human-attacker doubling ported as
   `combat_apply_1b0e_resolve_handicaps` (raw 100534-100556); resolve-only

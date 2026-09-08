@@ -3529,15 +3529,18 @@ static void ai_king_merc_offer(ColonizeTurnContext* ctx) {
  * auto-accept. Yes → a Frigate spawns sailing from Europe to the nation's
  * landfall (unit flag 0x40, FUN_291f_0aee voyage roll) and, human only,
  * FUN_38fd_3dc8(KINGTAX, 10) — the ordinary +10% hike with its tea-party
- * choice. Threat radius is approximated as Chebyshev ≤ 5 (the 11x11 box);
- * the extra FUN_2a1f_027e path-distance < 6 refinement is not replicated.
+ * choice. 2026-09-08d: reads the real census blockade bits (colony +0x1b
+ * & 3, incl. the FUN_2a1f_027e/6662_0906 flood-cost < 6 refinement) now
+ * that the 4962_0018 probe runs for the human at TURN_PROC_FINISH — DOS
+ * reads DS:0xa89b/0xa89a right after the same census in 00f2. The old
+ * Chebyshev-only rescan here is retired.
  */
 static int ai_king_frigate_threat_counts(
   const ColonizeTurnContext* ctx, int nation, int* out_frigate, int* out_other
 ) {
   int frig = 0;
   int other = 0;
-  if (!ctx || !ctx->units || !ctx->colonies) {
+  if (!ctx || !ctx->colonies) {
     return 0;
   }
   for (int ci = 0; ci < COLONIZE_COLONIES_MAX; ++ci) {
@@ -3545,25 +3548,10 @@ static int ai_king_frigate_threat_counts(
     if (!c->active || c->nation_id != nation) {
       continue;
     }
-    int bits = 0;
-    for (int ui = 0; ui < ctx->units->unit_count; ++ui) {
-      const ColonizeUnit* u = &ctx->units->units[ui];
-      if (!u->active || !units_is_on_map(u) || u->nation_id == nation) {
-        continue;
-      }
-      const ColonizeUnitType* t = units_type(ctx->units, u->type_index);
-      if (!t || t->domain != COLONIZE_UNIT_DOMAIN_SEA || t->attack <= 0) {
-        continue;
-      }
-      if (abs(u->x - c->x) > 5 || abs(u->y - c->y) > 5) {
-        continue;
-      }
-      bits |= (t->name[0] && strcmp(t->name, "Frigate") == 0) ? 2 : 1;
-    }
-    if (bits & 2) {
+    if ((c->ai_flags & COLONIZE_COLONY_AI_NEARBY_FRIGATE) != 0) {
       frig++;
     }
-    if (bits & 1) {
+    if ((c->ai_flags & COLONIZE_COLONY_AI_NEARBY_ARMED_SHIP) != 0) {
       other++;
     }
   }

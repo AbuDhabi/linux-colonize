@@ -1247,7 +1247,19 @@ static int ai_euro_colony_food_short(const ColonizeColony* c) {
   return c->stock[COLONIZE_CARGO_FOOD] < pop * 2;
 }
 
-static void ai_euro_refresh_colony_ai_flags(
+/*
+ * FUN_4962_0018 ship probe for ONE colony (raw 78259-78299): clear the
+ * blockade pair +0x1b bits 0x01/0x02, rescan the 11×11 box, fold into the
+ * nation ship-pressure tallies. Split out of ai_euro_refresh_colony_ai_flags
+ * 2026-09-08d because DOS runs this half for EVERY nation (human included)
+ * via the nation EOT FUN_3844_00f2 → FUN_291f_0a74 (viceroy_unpacked.c:58390,
+ * census AFTER the colony-EOT loop) + the explicit human call in
+ * FUN_3844_0442 (:58463) — while the 5952_035e-side bits stay AI-only.
+ * The human's Custom House blockade gate (europe.c, colony +0x1b & 3) reads
+ * these bits; before this split they were frozen at their save-import value
+ * for the human nation.
+ */
+void ai_euro_colony_ship_probe_4962(
   ColonizeTurnContext* ctx,
   int nation_id,
   ColonizeColony* c
@@ -1255,38 +1267,9 @@ static void ai_euro_refresh_colony_ai_flags(
   if (!ctx || !c || !c->active) {
     return;
   }
+  /* Raw 78259: +0x1b &= 0xfc — only the blockade pair is cleared here. */
   c->ai_flags = (uint8_t)(c->ai_flags & (uint8_t)~(COLONIZE_COLONY_AI_NEARBY_ARMED_SHIP |
-                                                    COLONIZE_COLONY_AI_NEARBY_FRIGATE |
-                                                    COLONIZE_COLONY_AI_WANTS_PIONEER_WORK));
-  /*
-   * DOS +0x1b bit 0x80 (FUN_5952_035e surround scan, colony_tick doc ~415/423):
-   * over the WORKED ring slots, iStack_6e counts tiles with (fa_flags & 0x0a)
-   * == 0 (no road) and iStack_140 counts land tiles of terrain class < 8
-   * without plow 0x40; either non-zero sets the bit.
-   */
-  if (ctx->map) {
-    for (int ti = 0; ti < COLONIZE_COLONY_FIELD_TILES; ++ti) {
-      if (c->tiles[ti] < 0) {
-        continue; /* DOS: colony+0x70+slot < 0 — unworked */
-      }
-      int dx = 0;
-      int dy = 0;
-      if (!colonies_field_tile_delta(ti, &dx, &dy)) {
-        continue;
-      }
-      const int tx = c->x + dx;
-      const int ty = c->y + dy;
-      if (!map_tile_has_road(ctx->map, tx, ty)) {
-        c->ai_flags |= COLONIZE_COLONY_AI_WANTS_PIONEER_WORK;
-        break;
-      }
-      const int cls = map_dos_terr_class_at(ctx->map, tx, ty);
-      if (cls >= 0 && cls < 8 && !map_tile_is_plowed(ctx->map, tx, ty)) {
-        c->ai_flags |= COLONIZE_COLONY_AI_WANTS_PIONEER_WORK;
-        break;
-      }
-    }
-  }
+                                                    COLONIZE_COLONY_AI_NEARBY_FRIGATE));
   if (ctx->units) {
     for (int ui = 0; ui < COLONIZE_UNITS_MAX; ++ui) {
       const ColonizeUnit* u = &ctx->units->units[ui];
@@ -1334,6 +1317,67 @@ static void ai_euro_refresh_colony_ai_flags(
         sp->other_colonies++;
       }
       sp->other_pop += pop;
+    }
+  }
+}
+
+/*
+ * FUN_4962_0018 for one nation's colonies (reset raw 78239-78242 + the
+ * per-colony probe above). The human nation's per-turn entry — DOS runs it
+ * from the nation EOT (FUN_3844_00f2, control != 2, so human included); the
+ * AI nations get the identical probe inside ai_euro_colony_goals.
+ */
+void ai_euro_census_ship_pressure_refresh(ColonizeTurnContext* ctx, int nation_id) {
+  if (!ctx || !ctx->colonies) {
+    return;
+  }
+  ai_euro_ship_pressure_reset(nation_id);
+  for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+    ColonizeColony* c = &ctx->colonies->colonies[i];
+    if (!c->active || c->nation_id != nation_id) {
+      continue;
+    }
+    ai_euro_colony_ship_probe_4962(ctx, nation_id, c);
+  }
+}
+
+static void ai_euro_refresh_colony_ai_flags(
+  ColonizeTurnContext* ctx,
+  int nation_id,
+  ColonizeColony* c
+) {
+  if (!ctx || !c || !c->active) {
+    return;
+  }
+  ai_euro_colony_ship_probe_4962(ctx, nation_id, c);
+  c->ai_flags = (uint8_t)(c->ai_flags & (uint8_t)~COLONIZE_COLONY_AI_WANTS_PIONEER_WORK);
+  /*
+   * DOS +0x1b bit 0x80 (FUN_5952_035e surround scan, colony_tick doc ~415/423):
+   * over the WORKED ring slots, iStack_6e counts tiles with (fa_flags & 0x0a)
+   * == 0 (no road) and iStack_140 counts land tiles of terrain class < 8
+   * without plow 0x40; either non-zero sets the bit.
+   */
+  if (ctx->map) {
+    for (int ti = 0; ti < COLONIZE_COLONY_FIELD_TILES; ++ti) {
+      if (c->tiles[ti] < 0) {
+        continue; /* DOS: colony+0x70+slot < 0 — unworked */
+      }
+      int dx = 0;
+      int dy = 0;
+      if (!colonies_field_tile_delta(ti, &dx, &dy)) {
+        continue;
+      }
+      const int tx = c->x + dx;
+      const int ty = c->y + dy;
+      if (!map_tile_has_road(ctx->map, tx, ty)) {
+        c->ai_flags |= COLONIZE_COLONY_AI_WANTS_PIONEER_WORK;
+        break;
+      }
+      const int cls = map_dos_terr_class_at(ctx->map, tx, ty);
+      if (cls >= 0 && cls < 8 && !map_tile_is_plowed(ctx->map, tx, ty)) {
+        c->ai_flags |= COLONIZE_COLONY_AI_WANTS_PIONEER_WORK;
+        break;
+      }
     }
   }
   if (c->population < 3) {

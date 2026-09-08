@@ -14,6 +14,20 @@ void ai_euro_dispatcher_turn(ColonizeTurnContext* ctx, int nation_id);
 int ai_euro_use_full_dispatch(const ColonizeTurnContext* ctx);
 
 /*
+ * FUN_4962_0018 ship probe (raw 78239-78299): reset the nation's
+ * ship-pressure tallies, then per own colony clear + rescan the blockade
+ * pair (+0x1b bits 0x01/0x02) and refold the tallies. DOS runs this for
+ * EVERY nation each turn via the nation EOT FUN_3844_00f2 (control != 2,
+ * human included) — the human entry point is turn.c's TURN_PROC_FINISH;
+ * AI nations get the identical probe inside ai_euro_colony_goals. The
+ * human Custom House blockade gate (europe.c, ai_flags & 3) reads it.
+ */
+void ai_euro_census_ship_pressure_refresh(ColonizeTurnContext* ctx, int nation_id);
+void ai_euro_colony_ship_probe_4962(
+  ColonizeTurnContext* ctx, int nation_id, ColonizeColony* c
+);
+
+/*
  * FUN_15eb_28c8 — colonist work-plot job scoring, structural reference port
  * (docs/port_plan.md T1.17 / docs/port_plan.md W1.7). See ai_euro.c's own
  * header comment above the definition, and

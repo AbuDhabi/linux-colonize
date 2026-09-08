@@ -202,6 +202,7 @@ static bool compare_colony_production(
       "%s %s improve_timer got %u expected %u\n",
       step_label, e->name, g->improve_timer, e->improve_timer
     );
+    ok = false;
   }
   for (unsigned c = 0; c < COLONIZE_COL1_CARGO_TYPES; ++c) {
     if (g->stock[c] != e->stock[c]) {
