@@ -21,6 +21,14 @@
 #define AI_GOAL_LABOR 3
 #define AI_GOAL_MILITARY 4
 #define AI_GOAL_COLONY 5
+/*
+ * FUN_521d_20e6's explore memory (LAB_521d_2912). Only two DOS sites touch
+ * code 6: the `0116` read at raw 89078 and the `001c` radius-0 invalidation at
+ * raw 89081. The matching `0214` *writer* at raw 89278 is dead code — see the
+ * comment at ai_euro_land_explore_scan_target's tail — so in DOS this table
+ * never actually holds a code-6 slot and the read is a constant 0.
+ */
+#define AI_GOAL_EXPLORE 6
 #define AI_GOAL_MIL_EXPAND 7
 #define AI_GOAL_COLONY_ALT 8
 
@@ -344,8 +352,8 @@ int ai_goals_colony_balance_flags(
  * score_extras: DOS param_4 (neighbor continent/explore extras).
  * wagon_filter: DOS param_5 (1 when unit type is wagon 0x0b).
  * col1: optional (tally_b target); NULL → 0492 returns 0.
- * coastal_bonus: Linux second+ colony port bias (0 = DOS-faithful).
- * Returns 1 and writes out_x/out_y, or 0 if none.
+ * Returns 1 and writes out_x/out_y, or 0 if none (DOS returns dir 8 = stay;
+ * see the body for why the port keeps a failure signal).
  */
 struct ColonizeUnitPool;
 int ai_goals_pick_founding_tile_ex(
@@ -358,7 +366,6 @@ int ai_goals_pick_founding_tile_ex(
   int y,
   int score_extras,
   int wagon_filter,
-  int coastal_bonus,
   int* out_x,
   int* out_y
 );

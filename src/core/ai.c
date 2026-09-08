@@ -4333,6 +4333,50 @@ static void ai_native_post_first_brave_burns(AiRng* rng, int nation_id) {
 /*
  * FUN_4d56_1816 unit-action core (one pulse): reseed caller-side via 04ca,
  * then while MP remain, one 14fe-style action per step (FUN_465b spent add).
+ *
+ * 2026-09-08 — 1816 §7/§8 + FUN_4d56_14fe re-read off the raw asm (Ghidra
+ * mis-resolves every `PUSH CS; CALL` in this overlay into CODE_112, so the
+ * decompile's callee names are wrong; the real map is the 15-entry JMPF stub
+ * table at 4d56:4c22..4c6c, turn/mid_pass_indian_rank.md).
+ *
+ *   §7  4d56:1a6c..1a8a  for u in 0..DS:0x539c: if (u+0x3147 & 0xf) ==
+ *       DS:0x5394 -> u+0x315a = 0.  (+0x315a = COL1 unit +0x16 =
+ *       `turns_worked`, the per-unit act counter.)
+ *   §8  4d56:1a8c..1b1a
+ *         do { ui_pump(281f:0470); acted = 0;
+ *              for (i = 0; !acted && i < DS:0x539c; ) {
+ *                while (FUN_281f_097a(i)) {      // AX-register arg
+ *                  ++u[i]+0x315a;
+ *                  if (u[i]+0x315a <= 0x14) { 14fe(i); acted = 1; }
+ *                  else { FUN_281f_0934(i); u[i]+0x315a = 0; }
+ *                }
+ *                ++i;
+ *              }
+ *         } while (acted);
+ *       FUN_281f_097a -> FUN_1427_13b0 (:8766) gates on: 0 <= i < unit count,
+ *       (int8)u+0x3144 >= 0, (u+0x3147 & 0xf) == DS:0x5394, (u+0x3148 & 0x80)
+ *       == 0 || type == 0x0b, and u+0x3149 (spent) < the unit's max MP.
+ *       The `acted` restart re-scans from index 0, but a unit that just acted
+ *       still has MP, so DOS drains one unit fully before moving on — the same
+ *       order this per-unit loop uses.
+ *   14fe (4d56:14fe..152c) is only three branches:
+ *         dir = FUN_4d56_021a(unit)             // near CALL 4c31 -> stub 4c3b
+ *         if (dir != 8) FUN_2a1f_0150(unit, dir)  // -> FUN_465b_0c1e step
+ *         else if (dir >= 0) FUN_281f_0934(unit)  // exhaust MP; test is dead,
+ *                                                 // dir is 8 on that arm
+ *       FUN_4d56_021a already exhausts on its own dir == 8 exit (021a:14e6),
+ *       so the single `moves_left = max_mp` below covers both writes.
+ *
+ * The four 021a/§8 deltas above the pulse loop (per-attempt act counter +
+ * 0x14 cap, full-byte facing write incl. stay=8, homeless despawn, in-field
+ * arm/mount on stay) were WIRED 2026-09-08 — see the inline citations in
+ * ai_native_nation_pulse. Two deliberate port guards, documented inline:
+ * the stay/move orders latch only touches NONE/FORTIFY/FORTIFIED (DOS
+ * escorts leave 021a via the raid dispatch, never the wander tail, so the
+ * Linux FOLLOW/GOTO machinery must survive the latch), and a Brave upgraded
+ * to a mounted type keeps this pulse's max_mp=3 until the next turn refresh
+ * (DOS re-reads 090c per act; the port's spent-byte semantics make the
+ * difference invisible outside the upgrade turn itself).
  */
 /* Pre-pulse Brave tiles for this turn — see ai_native_brave_turn_origin. */
 static int16_t s_brave_origin_x[COLONIZE_UNITS_MAX];
@@ -4451,6 +4495,28 @@ static void ai_native_nation_pulse(
       if (spent >= max_mp) {
         break;
       }
+      /*
+       * 1816 §8 (4d56:1af3..1b1a): the act counter bumps once per ATTEMPT,
+       * before 021a runs — a Brave that only stays still ends its turn at 1.
+       * Past 0x14 the unit is exhausted and the counter zeroed, no act.
+       */
+      u->turns_worked++;
+      if (u->turns_worked > 0x14) {
+        u->moves_left = max_mp;
+        u->turns_worked = 0;
+        break;
+      }
+      /*
+       * 021a:0337..0365 — a unit whose home village slot is out of range
+       * (u+0x314a < 0 or >= DS:0x539a) is destroyed (FUN_281f_0808), not
+       * re-homed; 021a returns -1 and 14fe's "step" lands on the freed slot.
+       */
+      if (col1 &&
+          (u->home_tribe_id < 0 ||
+           u->home_tribe_id >= (int)col1->head.tribe_count)) {
+        units_despawn(units, u->id);
+        break;
+      }
       if (ai_lcg_audit_enabled() && seed100_init_burns) {
         fprintf(
           stderr,
@@ -4469,6 +4535,50 @@ static void ai_native_nation_pulse(
         rng, map, units, u->x, u->y, nation_id, hx, hy, last_dir, tech
       );
       if (dir < 0 || dir > 7) {
+        /*
+         * Stay (dir == 8). 021a:11b9 writes the picked dir into the facing
+         * byte (COL1 +0x0b) unconditionally — 8 lands as facing 0 (low 3
+         * bits) + pad bit0.
+         */
+        u->last_dir = 0;
+        u->col1_facing_pad = 1;
+        /*
+         * 021a:11cd orders latch: stay -> 5 (FORTIFY), repeat stay -> 6
+         * (FORTIFIED) — the DOS byte values equal the port enum. DOS stomps
+         * any orders byte; the port latches only over NONE/FORTIFY/FORTIFIED
+         * so the Linux-side FOLLOW/GOTO escort machinery survives (DOS
+         * escorts exit 021a through the raid dispatch, never this tail).
+         */
+        if (u->orders == UNITS_ORDER_NONE || u->orders == UNITS_ORDER_FORTIFY ||
+            u->orders == UNITS_ORDER_FORTIFIED) {
+          u->orders = (u->orders == UNITS_ORDER_NONE) ? UNITS_ORDER_FORTIFY
+                                                      : UNITS_ORDER_FORTIFIED;
+        }
+        /*
+         * 021a:11ef..126c in-field arm/mount, gated on standing on a
+         * settlement tile owned by this nation (FUN_281f_06be
+         * tile_tribe_owner == nation): type 0x13/0x15 with tribe muskets > 0
+         * (signed byte) -> ++type, musket spent on rng(0, difficulty) == 0;
+         * then horse_breeding >= 0x19 with max MP <= 3 (FUN_281f_090c, read
+         * AFTER the musket arm) -> type += 2, horse_breeding -= 0x19.
+         * (Field-upgrade path; the 152e spawn path uses 0x31/0x32.)
+         */
+        if (col1 && nation_id >= 4 && nation_id <= 11 &&
+            map_tile_has_city(map, u->x, u->y) &&
+            ai_owner_nibble(map, u->x, u->y) == nation_id) {
+          ColonizeCol1Indian* ind = &col1->indian[nation_id - 4];
+          if ((int8_t)ind->muskets > 0 &&
+              (u->type_index == 0x13 || u->type_index == 0x15)) {
+            u->type_index++;
+            if (ai_rng_range(rng, 0, (int)col1->head.difficulty) == 0) {
+              ind->muskets--;
+            }
+          }
+          if (ind->horse_breeding >= 0x19 && units_max_mp(units, u->id) <= 3) {
+            u->type_index += 2;
+            ind->horse_breeding -= 0x19;
+          }
+        }
         u->moves_left = max_mp;
         break;
       }
@@ -4521,8 +4631,13 @@ static void ai_native_nation_pulse(
           u->moves_left = max_mp;
         }
       }
+      /* 021a:11b9 full-byte facing write (pad cleared on a real dir), and
+       * 021a:126e — any move resets the stay latch (guarded as above). */
       u->last_dir = dir;
-      u->turns_worked++;
+      u->col1_facing_pad = 0;
+      if (u->orders == UNITS_ORDER_FORTIFY || u->orders == UNITS_ORDER_FORTIFIED) {
+        u->orders = UNITS_ORDER_NONE;
+      }
       ai_set_owner_nibble(map, nx, ny, nation_id);
       if (ai_lcg_audit_enabled() && seed100_init_burns) {
         fprintf(
@@ -4542,7 +4657,12 @@ static void ai_native_nation_pulse(
       if (seed100_init_burns && brave_index == 0 && steps == 1) {
         ai_native_post_first_brave_burns(rng, nation_id);
       }
-      if (cost <= 0 || steps > 16) {
+      /*
+       * The DOS 0x14 act cap now trips on `turns_worked` at the attempt top
+       * (4d56:1af7). `cost <= 0` stays as a Linux-only belt (DOS has no such
+       * break — it keeps acting until the counter or MP gate trips).
+       */
+      if (cost <= 0) {
         break;
       }
     }
@@ -4785,6 +4905,24 @@ void ai_indian_nation_turn(ColonizeTurnContext* ctx, int nation_id) {
   ai_contact_indian_raids(ctx, nation_id);
 }
 
+/*
+ * Linux-only whole-nation wipe. The DOS analogue is FUN_4d56_01e2 (raw
+ * :81352, asm 4d56:01e2..0219): nation = param_1 + 4, then walk the tribe
+ * array DOWNWARD (i = DS:0x539a - 1 .. 0, stride 0x12 at DS:0x54ec) and call
+ * FUN_4d56_00e0(i) — i.e. col1_destroy_tribe_at — for every row whose +2
+ * nation byte matches; descending order is what keeps 00e0's array compaction
+ * from skipping rows.
+ *
+ * 2026-09-08: 01e2 is DEAD CODE in the shipped VICEROY.EXE. It is not one of
+ * the 15 entries in overlay 0x0C's export stub table (4d56:4c22..4c6c), no
+ * near CALL/JMP anywhere in segment 4d56 targets 0x01e2, and no overlay bank
+ * record JMPFs to it. So this helper is a Linux invention, not a port of it,
+ * and it deliberately does more than an 01e2 loop would: it despawns *every*
+ * unit of the nation (00e0 only despawns units whose +0x314a names the village
+ * being razed), paints owner nibble 0x0f, and resets the indian[] slot, while
+ * skipping 00e0's per-village horse fold / village-count decrement / @EXTINCT
+ * popup (those live in col1_destroy_tribe_at).
+ */
 int col1_kill_indian_nation(
   ColonizeCol1Save* col1,
   ColonizeUnitPool* units,

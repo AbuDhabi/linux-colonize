@@ -273,6 +273,75 @@ static int unit_ring_hop_commits_far_goto(void) {
 }
 
 /*
+ * LAB_521d_2912 entry, raw 89081 (asm viceroy_overlays.asm:135013-135020):
+ * an explorer reaching a tile calls `001c(nation, code 6, x, y, radius 0)` —
+ * the secondary explore goal standing on that exact tile is dropped, and
+ * nothing else is. Same landlocked-plains explorer as the ring-hop scenario
+ * (its `s.explorer` is what gates the call).
+ *
+ * Read back through `0342` promote + `0116`, which is the DOS loop's own
+ * consumer path (there is no direct secondary-slot accessor). The control
+ * rows cover both halves of 001c's filter: a matching code 10 tiles away
+ * (radius 0 must not reach it) and a different code on the very same tile.
+ */
+static int unit_explorer_clears_explore_goal_on_its_tile(void) {
+  const int nation = 1;
+  Fixture f;
+  if (fixture_init(&f, nation) != 0) {
+    return 1;
+  }
+  /* Rebuild as 32x32 all-plains, exactly as the ring-hop scenario. */
+  fixture_free(&f);
+  f.map.width = 32;
+  f.map.height = 32;
+  f.map.tile_count = 32 * 32;
+  f.map.terrain = calloc(32 * 32, 1);
+  f.map.layer2 = calloc(32 * 32, 1);
+  f.map.layer3 = calloc(32 * 32, 1);
+  f.map.seen = calloc(32 * 32, 1);
+  if (!f.map.terrain || !f.map.layer2 || !f.map.layer3 || !f.map.seen) {
+    return fail("alloc big map (explore goal)");
+  }
+  for (int i = 0; i < 32 * 32; ++i) {
+    f.map.terrain[i] = 2; /* plains */
+  }
+  const int sid = units_spawn(&f.units, 1, 16, 16);
+  ColonizeUnit* s = units_get(&f.units, sid);
+  if (!s) {
+    fixture_free(&f);
+    return fail("spawn explorer");
+  }
+  s->nation_id = nation;
+  s->moves_left = 1 * UNITS_MP_PER_TILE;
+  s->orders = 0;
+
+  ai_goals_reset();
+  ai_goals_upsert_secondary(nation, 16, 16, AI_GOAL_EXPLORE, 2);
+  ai_goals_upsert_secondary(nation, 16, 26, AI_GOAL_EXPLORE, 2);
+  /* Not FOUND/MIL_EXPAND on purpose: those two codes steer the land act down
+   * ai_goals_best_found_tile_near and would never reach the explore arm. */
+  ai_goals_upsert_secondary(nation, 16, 16, AI_GOAL_LABOR, 2);
+
+  ai_euro_dispatcher_turn(&f.ctx, nation);
+
+  ai_goals_promote_secondary_to_primary(nation);
+  if (ai_goals_max_primary_prio(nation, 16, 16, AI_GOAL_EXPLORE) != 0) {
+    fixture_free(&f);
+    return fail("001c left the explore goal on the explorer's own tile");
+  }
+  if (ai_goals_max_primary_prio(nation, 16, 26, AI_GOAL_EXPLORE) != 2) {
+    fixture_free(&f);
+    return fail("radius-0 001c reached a distant explore goal");
+  }
+  if (ai_goals_max_primary_prio(nation, 16, 16, AI_GOAL_LABOR) != 2) {
+    fixture_free(&f);
+    return fail("001c cleared a goal whose code does not match");
+  }
+  fixture_free(&f);
+  return 0;
+}
+
+/*
  * LAB_3558 colony-sail matrix (raw 1933-2031): a Caravel at sea carrying a
  * plain colonist plus a Scout, no land tile adjacent (empty unload mask),
  * one own coastal colony flagged NEEDS_COLONISTS — the peace score commits
@@ -1589,6 +1658,9 @@ int main(void) {
     return 1;
   }
   if (unit_ring_hop_commits_far_goto() != 0) {
+    return 1;
+  }
+  if (unit_explorer_clears_explore_goal_on_its_tile() != 0) {
     return 1;
   }
   if (unit_colony_sail_targets_needy_colony() != 0) {

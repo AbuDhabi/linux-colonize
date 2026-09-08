@@ -319,28 +319,26 @@ int ai_contact_indian_has_peace(
   return (col1->indian[idx].euro_diplo[euro_nation] & COL1_INDIAN_PEACE_BIT) != 0;
 }
 
+/*
+ * 2026-09-08: both routed through the dual-mode 15b3 pair ops. DOS keeps
+ * Euro↔Indian peace SYMMETRIC: the peace-break is FUN_4cc6_0092's
+ * `281f_0a10(tribe+4, euro, 0x40)` = FUN_15b3_00d0 clear-both (decomp
+ * 80819), and every DOS save shows nation[].relation_by_indian carrying
+ * PEACE (0x60) post-contact, so the set side is symmetric too. The old
+ * helpers wrote only the Indian-side euro_diplo byte.
+ */
 static void ai_contact_set_peace(ColonizeCol1Save* col1, int indian_nation, int euro_nation) {
-  if (!col1 || euro_nation < 0 || euro_nation > 3) {
+  if (euro_nation < 0 || euro_nation > 3 || indian_nation < 4 || indian_nation > 11) {
     return;
   }
-  const int idx = indian_nation - 4;
-  if (idx < 0 || idx >= 8) {
-    return;
-  }
-  col1->indian[idx].euro_diplo[euro_nation] =
-    (uint8_t)(col1->indian[idx].euro_diplo[euro_nation] | COL1_INDIAN_PEACE_BIT);
+  ai_diplo_or_both(col1, indian_nation, euro_nation, COL1_INDIAN_PEACE_BIT);
 }
 
 static void ai_contact_clear_peace(ColonizeCol1Save* col1, int indian_nation, int euro_nation) {
-  if (!col1 || euro_nation < 0 || euro_nation > 3) {
+  if (euro_nation < 0 || euro_nation > 3 || indian_nation < 4 || indian_nation > 11) {
     return;
   }
-  const int idx = indian_nation - 4;
-  if (idx < 0 || idx >= 8) {
-    return;
-  }
-  col1->indian[idx].euro_diplo[euro_nation] =
-    (uint8_t)(col1->indian[idx].euro_diplo[euro_nation] & (uint8_t)~COL1_INDIAN_PEACE_BIT);
+  ai_diplo_clear_both(col1, indian_nation, euro_nation, COL1_INDIAN_PEACE_BIT);
 }
 
 void ai_contact_indian_capital_surrender(
@@ -6955,7 +6953,9 @@ static void ai_contact_unit_goto_xy(const ColonizeUnit* u, int* out_x, int* out_
  * Alarmed / mid-raid Brave escort lead pick (outside quiet 14fe).
  * Same-nation AI_MOVE/GOTO within MD≤3 (≤4 when alarm≥55; ≤5 when ≥80). When
  * raid gate Euro is known, prefer lead whose goto is closer to that Euro's
- * colony; weight 2× at ≥55, 3× at ≥80. Deep dir picker inside 14fe still PARKED.
+ * colony; weight 2× at ≥55, 3× at ≥80. Deep dir picker is FUN_4d56_021a (the
+ * routine 14fe dispatches to, 4d56:021a..14fd — Ghidra never decompiled it);
+ * still PARKED, see ai.c's ai_native_nation_pulse header for the decoded map.
  * Cite: units_follow_unit; indian_raid_outcomes.md §1; Series N.
  */
 static int ai_contact_escort_pick_lead(
@@ -7395,7 +7395,7 @@ void ai_contact_indian_raids(ColonizeTurnContext* ctx, int nation_id) {
      * Alarmed unit-act escort (outside quiet 14fe): idle Brave may
      * units_follow_unit a same-nation lead already AI_MOVE/GOTO. Lead pick
      * prefers goto toward raid-gate Euro colony; when max alarm≥55 the same
-     * peel is the alarmed branch (deep dir picker inside 14fe still PARKED).
+     * peel is the alarmed branch (deep dir picker FUN_4d56_021a still PARKED).
      * Quiet seed-100 pulse unchanged. Cite: units_follow_unit;
      * indian_raid_outcomes.md §1.
      */

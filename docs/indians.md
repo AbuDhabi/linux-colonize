@@ -67,6 +67,49 @@ upgrades (Col1; see save atlas). Quiet Brave AI: `FUN_4d56_14fe` → Linux
 `ai_native_nation_pulse` (history: port_plan.md T1.23). Brave MP uses
 terrain table ×3 (same scale note as unit orders).
 
+**2026-09-08 — `01e2`/`14fe` audit closed.** Both re-read off the raw asm
+(Ghidra mis-resolves every `PUSH CS; CALL` in overlay `0x0C` into `CODE_112`;
+the truth is the 15-entry JMPF stub table at `4d56:4c22..4c6c`,
+`turn/mid_pass_indian_rank.md`).
+
+- `FUN_4d56_01e2` (`4d56:01e2..0219`) is **not** act plumbing: it is the
+  tribe-wipe helper — `nation = arg + 4`, descending walk of the tribe array
+  (`DS:0x54ec`, stride `0x12`, count `DS:0x539a`), `FUN_4d56_00e0(i)` for every
+  row whose `+2` nation byte matches. It is **dead code** in the shipped EXE
+  (absent from the export stub table, no near CALL/JMP in segment `4d56`, no
+  bank record targets it), so there is nothing to port. `col1_kill_indian_nation`
+  (`ai.c`) is a Linux invention with a wider blast radius; `col1_destroy_tribe_at`
+  (`units.c`) is the real `00e0` port.
+- `FUN_4d56_14fe` (`4d56:14fe..152c`) is **faithful** and is three branches
+  only: `dir = FUN_4d56_021a(unit)`; `dir != 8` → `FUN_2a1f_0150` (→ `465b`
+  step); else `FUN_281f_0934` (exhaust MP — the guarding `dir >= 0` test is
+  dead). `021a` already exhausts on its own `dir == 8` exit (`021a:14e6`), so
+  the Linux `moves_left = max_mp` covers both writes.
+- The residue behind the old "partial (T2 quiet)" label is the **callee**:
+  `FUN_4d56_021a` (`4d56:021a..14fd`, 4836 bytes, one function) — the Indian
+  unit decision routine Ghidra emitted as raw `??` bytes, reached from `14fe`
+  via stub `4c3b`. It calls the `521d` move scorer through thunk `291f:012c`
+  (`021a:1182`), so the ported quiet formula sits one level *below* it. Newly
+  decoded there and **unported**: homeless-unit despawn (`021a:0337`, bad
+  `+0x314a` → `FUN_281f_0808` + return −1); unconditional `facing` write
+  including the stay value 8 (`021a:11b9` → `+0x314f`); the `orders` cower
+  latch 5→6 on stay, 0 on move (`021a:11cd`/`126e`); and the **in-field
+  arm/mount upgrade** (`021a:11cd..126c`) — a Brave that stays on its own
+  tribe's tile gets type `0x13`/`0x15` → +1 when `indian+7` muskets > 0 (musket
+  spent on `rng_range(0, difficulty) == 0`) and += 2 when `indian+0x0a`
+  horse_breeding ≥ `0x19` and max MP ≤ 3 (`-= 0x19`). This is separate from the
+  spawn-time arming already ported in `ai_indian_152e_village_growth`
+  (thresholds `0x31`/`0x32` there) and is the DOS source for the "nation stocks
+  feed equipment upgrades" line above.
+- Caller-side (`1816` §7/§8) deltas, report-only because
+  `tests/golden/test_ai_turns.c:195` compares Brave `moves`/`turns_worked`: DOS
+  increments the act counter `+0x315a` (= `turns_worked`) once per **attempt**
+  before calling `14fe` (`4d56:1af3`), caps at `0x14` then exhausts and zeroes
+  it; the Linux pulse bumps `turns_worked` only after a committed step. Gate is
+  `FUN_281f_097a` → `FUN_1427_13b0` (AX-register arg): index in range, `+0x3144`
+  ≥ 0, nation nibble == `DS:0x5394`, `(+0x3148 & 0x80) == 0 || type == 0x0b`,
+  and `+0x3149` spent < max MP.
+
 Related catalogs:
 
 | Catalog | Indian-relevant entries |

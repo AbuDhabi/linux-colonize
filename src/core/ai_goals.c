@@ -527,11 +527,48 @@ int ai_goals_colony_balance_flags(
   return flags;
 }
 
+/* Defined with the 0906 probes below; DOS FUN_281f_0682 / 06be. */
+static int ai_goals_tile_layer2_owner(const ColonizeWorldMap* map, int x, int y, unsigned bit);
+
+/*
+ * FUN_281f_074a → FUN_137f_02f8: the DS:0x168 seen plane byte. Its LOW nibble
+ * is the map-gen colony-site score (0..15); the per-nation seen bits live in
+ * the HIGH nibble (0x10 << nation). Mirrors ai_euro_20e6_site_nibble
+ * (ai_euro.c:11084) including its generated-map fallback: Linux map_gen writes
+ * no nibble at all, and an all-zero nibble field would silently zero the whole
+ * extras term, so when no tile in the plane carries a low nibble the old
+ * per-nation unseen→4 stand-in is used instead.
+ */
+static int ai_goals_site_nibble_074a(const ColonizeWorldMap* map, int x, int y, int nation) {
+  if (!map || !map->seen || x < 0 || y < 0 || x >= (int)map->width || y >= (int)map->height) {
+    return 0;
+  }
+  static const uint8_t* s_nib_plane = NULL;
+  static int s_nib_count = -1;
+  static int s_nib_present = 0;
+  const int count = (int)map->width * (int)map->height;
+  if (map->seen != s_nib_plane || count != s_nib_count) {
+    s_nib_plane = map->seen;
+    s_nib_count = count;
+    s_nib_present = 0;
+    for (int i = 0; i < count; ++i) {
+      if (map->seen[i] & 0x0f) {
+        s_nib_present = 1;
+        break;
+      }
+    }
+  }
+  if (s_nib_present) {
+    return (int)(map->seen[(size_t)y * (size_t)map->width + (size_t)x] & 0x0f);
+  }
+  return !map_tile_seen_by(map, x, y, nation) ? 4 : 0;
+}
+
 /*
  * FUN_521d_06ae — pick_best_adjacent_founding_tile.
  * Decomp viceroy_unpacked.c ~87237. Base score = DS:0x2f77[class]; when
- * score_extras, add 0492(candidate continent)*0x10 + (explore & 0xf) per empty
- * land neighbor. Cite: euro_goals.c; move_scoring.md.
+ * score_extras, add 0492(candidate continent)*0x10 + (074a & 0xf) per land
+ * neighbour with no unit on it. Cite: euro_goals.c; move_scoring.md.
  */
 int ai_goals_pick_founding_tile_ex(
   const ColonizeWorldMap* map,
@@ -543,7 +580,6 @@ int ai_goals_pick_founding_tile_ex(
   int y,
   int score_extras,
   int wagon_filter,
-  int coastal_bonus,
   int* out_x,
   int* out_y
 ) {
@@ -558,8 +594,7 @@ int ai_goals_pick_founding_tile_ex(
    * and multiplying by 0x10 per empty neighbour a tile really can land
    * below that, and the port's INT_MIN seed accepted those. Matching the
    * -1 floor also means an all-negative ring falls through to DOS's own
-   * default (`local_10 = 8`, i.e. stay) — here, to the ring-2..4 fallback
-   * below, which is a port addition (DOS just returns dir 8).
+   * default (`local_10 = 8`, i.e. stay) — here, to the `!any` return below.
    */
   int best_score = -1;
   int any = 0;
@@ -573,10 +608,12 @@ int ai_goals_pick_founding_tile_ex(
     if (map_tile_is_water(map, nx, ny) || map_tile_is_high_seas(map, nx, ny)) {
       continue;
     }
-    /* Arctic never foundable. */
-    if (map_pedia_terrain_index_at(map, nx, ny) == 24) {
-      continue;
-    }
+    /*
+     * No Arctic exclusion: DOS 06ae (decomp 87282-87285) gates the candidate
+     * on 0302 (inset) && !0768 (not ocean/high-seas) only. Arctic's DS:0x2f77
+     * founding byte is 0, so it can only ever win when nothing else scores —
+     * the explicit `terrain_index == 24 -> continue` here was Linux-only.
+     */
     /*
      * Never the village tile itself (DOS: "Illegal entry into village").
      * colonies_can_found only knows the layer2 has-city bit, which a
@@ -598,21 +635,18 @@ int ai_goals_pick_founding_tile_ex(
       }
     }
     /*
-     * Tribe/owner gate (06d2/06be): empty or foundable. Stay (dir 8) may keep
-     * a non-foundable tile in DOS; Linux still requires can_found when pool set.
+     * colonies_can_found is a PORT belt, not a DOS 06ae gate: DOS validates
+     * the site only at found time (5b66 case 7) and tolerates picks its
+     * found routine later refuses. The port's callers treat a pick as a
+     * committed destination (walk there / unload there), so an unfoundable
+     * candidate must be filtered here — for every dir INCLUDING 8. (DOS's
+     * `(local_c == 8 || bVar1)` bypass at decomp 87283-87284 covers only the
+     * 06d2/08bc OCCUPANT gate below, which the port likewise skips at 8;
+     * 2026-09-08 briefly extended the bypass to this belt too, which let an
+     * expand scan seeded on a colony tile return that colony tile itself and
+     * park the founder there forever.)
      */
-    int ok = 1;
-    if (colonies) {
-      if (dir == 8) {
-        ok = colonies_can_found(colonies, map, nx, ny) ? 1 : 0;
-      } else if (!colonies_can_found(colonies, map, nx, ny)) {
-        ok = 0;
-      }
-    }
-    if (!(dir == 8 || ok)) {
-      continue;
-    }
-    if (!ok && dir == 8) {
+    if (colonies && !colonies_can_found(colonies, map, nx, ny)) {
       continue;
     }
     /*
@@ -646,15 +680,14 @@ int ai_goals_pick_founding_tile_ex(
       }
     }
 
-    /* Base: terrain-class founding byte @ DS:0x2f77. */
+    /*
+     * Base: terrain-class founding byte @ DS:0x2f77 (decomp 87286-87287).
+     * That byte plus `bal * 0x10` plus the seen-plane nibble is DOS's *whole*
+     * term set — the Linux `coastal_bonus` (+10 every colony, +40 the first)
+     * and its `x - nx` west bias were removed 2026-09-08: a flat +10 on every
+     * coastal candidate dominates a 0..6 terrain byte outright.
+     */
     int score = map_dos_terr_found_score_byte(map_dos_terr_class_at(map, nx, ny));
-    if (coastal_bonus > 0 && map_tile_is_coastal(map, nx, ny)) {
-      score += coastal_bonus;
-    }
-    /* First-colony (coastal≥40): west-of-origin bias toward Atlantic towns. */
-    if (coastal_bonus >= 40) {
-      score += (x - nx);
-    }
 
     if (score_extras) {
       /* Decomp: 0492(nation, continent_of_candidate) once per empty neighbor. */
@@ -669,8 +702,15 @@ int ai_goals_pick_founding_tile_ex(
         if (map_tile_is_water(map, hx, hy) || map_tile_is_high_seas(map, hx, hy)) {
           continue;
         }
-        /* Neighbor empty of colony (0682 owner < 0 stand-in). */
-        if (colonies && colonies_id_at(colonies, hx, hy) >= 0) {
+        /*
+         * DOS 87289: `iVar4 = FUN_281f_0682(0x281f,iVar3,iVar9); iVar4 < 0` —
+         * 0682 → FUN_137f_0314 is the **unit-presence** probe (layer2 bit 0 +
+         * owner nibble), so the neighbour only contributes when *no unit*
+         * stands on it. The port was testing the colony pool instead, i.e.
+         * asking the 06be settlement question; same 0682/06be swap already
+         * fixed inside 0906 (see ai_goals_tile_layer2_owner below).
+         */
+        if (ai_goals_tile_layer2_owner(map, hx, hy, MAP_OCCUPANCY_HAS_UNIT) >= 0) {
           continue;
         }
         /*
@@ -711,14 +751,16 @@ int ai_goals_pick_founding_tile_ex(
           }
         }
         /*
-         * DOS: 0492(nation, continent_id)*0x10 + (explore_mask & 0xf).
-         * Explore: thin seen→1 (074a plane low nibble PARKED).
+         * DOS 87302: `uVar5 = FUN_281f_074a(0x281f,iVar3,iVar9);
+         *            local_a = local_a + iVar4 * 0x10 + (uVar5 & 0xf);`
+         * 074a → FUN_137f_02f8 reads the DS:0x168 seen plane; its LOW nibble
+         * is the map-gen colony-site score 0..15 (the seen bits are the high
+         * nibble, 0x10 << nation). The old `seen ? 1 : 0` stand-in capped the
+         * per-neighbour term at 1 instead of 15 — a whole ring is worth up to
+         * +120 in DOS, +8 before. DOS multiplier `* 0x10` kept verbatim.
          * Score must stay signed — bal can be −1.
          */
-        int explore = 0;
-        if (map_tile_seen_by(map, hx, hy, nation_id)) {
-          explore = 1;
-        }
+        const int explore = ai_goals_site_nibble_074a(map, hx, hy, nation_id);
         score += bal * 0x10 + (explore & 0xf);
       }
     }
@@ -730,45 +772,15 @@ int ai_goals_pick_founding_tile_ex(
     }
   }
   if (!any) {
-    int best_rx = -1, best_ry = -1;
-    for (int r = 2; r <= 4 && !any; ++r) {
-      for (int dy = -r; dy <= r; ++dy) {
-        for (int dx = -r; dx <= r; ++dx) {
-          if (abs(dx) != r && abs(dy) != r) {
-            continue;
-          }
-          const int nx = x + dx;
-          const int ny = y + dy;
-          if (!map_coords_inset(map, nx, ny)) {
-            continue;
-          }
-          if (map_tile_is_water(map, nx, ny) || map_tile_is_high_seas(map, nx, ny)) {
-            continue;
-          }
-          if (map_pedia_terrain_index_at(map, nx, ny) == 24) {
-            continue;
-          }
-          if (colonies && !colonies_can_found(colonies, map, nx, ny)) {
-            continue;
-          }
-          int score = map_dos_terr_found_score_byte(map_dos_terr_class_at(map, nx, ny));
-          if (coastal_bonus > 0 && map_tile_is_coastal(map, nx, ny)) {
-            score += coastal_bonus;
-          }
-          if (score > best_score) {
-            best_score = score;
-            best_rx = nx;
-            best_ry = ny;
-            any = 1;
-          }
-        }
-      }
-    }
-    if (any) {
-      *out_x = best_rx;
-      *out_y = best_ry;
-      return 1;
-    }
+    /*
+     * DOS has no fallback: `local_10` is seeded 8 and 06ae returns it, i.e.
+     * "stay". The Linux ring-2..4 rescan that used to sit here invented sites
+     * two to four tiles away that DOS never scores, so it is gone (2026-09-08).
+     * The port keeps a 0 = "no site" return rather than DOS's unconditional
+     * dir 8 because ~9 call sites branch on it (ai_euro.c:16928 hands the
+     * result straight to units_unload_passenger), and returning the caller's
+     * own tile when that tile is open water would land a passenger at sea.
+     */
     return 0;
   }
   *out_x = x + k_dir8_dx[best_dir];
@@ -796,7 +808,6 @@ int ai_goals_pick_founding_tile(
     y,
     /*score_extras=*/1,
     /*wagon_filter=*/0,
-    /*coastal_bonus=*/0,
     out_x,
     out_y
   );
@@ -1197,6 +1208,20 @@ int ai_goals_filter_profession_by_distance_wealth(
       const ColonizeUnit* tu = units_get_const(units, unit_index);
       const int home = tu ? tu->home_tribe_id : -1;
       if (home >= 0 && home < (int)col1->head.tribe_count) {
+        /*
+         * Decomp 87333:
+         *   0x7f < *(int *)((*(char *)(param_4*0x1c + 0x314a) * 9 + param_1) * 2 + 0x54f6)
+         * i.e. DS base **0x54f6**, int16 cells, row stride **9** —
+         * `[home_settlement * 9 + euro_nation]` (the 9-column layout in
+         * docs/archive/mysteries_catalog.md). The port's table is packed to
+         * stride COLONIZE_COL1_NATION_COUNT (= 4) instead, and deliberately
+         * stays that way: `indian_tension` is runtime-only (col1_save.h — it
+         * is not in DOS's save chunk, so no DOS memory image ever feeds it),
+         * it is allocated `tribe_count * 4` in col1_save.c, and every writer
+         * (ai_diplo.c:3645, ai_contact.c:7248/7705, units.c:3393/3729) uses
+         * stride 4. Re-striding only this reader would read the wrong cell
+         * and run past the allocation for home >= tribe_count * 4 / 9.
+         */
         const int tension =
           (int)col1->indian_tension[(size_t)home * COLONIZE_COL1_NATION_COUNT + (size_t)nation_id];
         if (tension > 0x7f) {

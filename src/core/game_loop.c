@@ -3119,9 +3119,12 @@ static void game_apply_ai_popup_result(ColonizeGameState* game) {
         game->col1_ok && indian_nation >= 4 && indian_nation <= 11) {
       ColonizeUnit* u = units_get(&game->units, unit_id);
       if (u && u->nation_id >= 0 && u->nation_id <= 3) {
-        /* switchD_2000:da9f::caseD_10(attacker, tribe, 4): asked once. */
-        game->col1.indian[indian_nation - 4].euro_diplo[u->nation_id] |=
-          COL1_INDIAN_ATTACK_CONFIRMED_BIT;
+        /* switchD_2000:da9f::caseD_10(attacker, tribe, 4) = 15b3_0066
+         * or-BOTH (decomp 75611) — asked once, latched on both rows
+         * (single-side euro_diplo write before 2026-09-08). */
+        ai_diplo_or_both(
+          &game->col1, u->nation_id, indian_nation, COL1_INDIAN_ATTACK_CONFIRMED_BIT
+        );
         game->units.selected_id = unit_id;
         ai_popup_consume_result(&game->ai_popups);
         (void)game_try_unit_move(game, dest_x, dest_y);
