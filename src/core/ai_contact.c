@@ -6410,6 +6410,15 @@ void ai_contact_indian_meet_trade(ColonizeTurnContext* ctx, int nation_id) {
             break;
           }
         }
+        /*
+         * FUN_5bfb_022e tail (LAB_5bfb_1005): a first-contact ceremony ends
+         * the Indian-side unit's turn — spent := max MP (0934 → 1427_155e;
+         * natives keep the DOS spent byte in moves_left). This is the writer
+         * behind the seed-100 TURN2→3 "spent 9/6 → 3" Brave rows: DOS runs
+         * this chain from 465b's own commit tail (0984 → 0192 → 3180 → 022e)
+         * when the Brave's step lands adjacent to an unmet Euro land unit.
+         */
+        brave->moves_left = units_max_mp(ctx->units, brave->id);
         continue; /* DOS first-contact arm ends; no gift/trade this pulse */
       }
 

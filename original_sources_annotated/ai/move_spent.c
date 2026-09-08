@@ -45,7 +45,11 @@
  *
  * Dump-free predicates (ocean-adj dest, capital dist≤1) break T1 spent=9.
  * `465b:01ce` early 0934 is foreign-tile only — not these holdouts.
- * Keep Linux k_quiet_brave_t2 overlays. Hang VR_B465X parked (policy).
+ * RESOLVED 2026-09-08: the 9→3 / 6→3 writer is FUN_5bfb_022e's exhaust
+ * tail, reached from 465b's OWN commit tail via 0984 → 2a1f_0192 → 3180 →
+ * 066c → 022e on FIRST Euro contact (mover Indian → 0934, spent := max=3).
+ * See brave_spent_callgraph.md. k_quiet_brave_t2 overlays retired; ported in
+ * ai_contact_indian_meet_trade.
  */
 
 #include <stdint.h>
@@ -359,10 +363,12 @@ void move_spent_add(int unit_index, int to_x, int to_y) {
  * | exit  | FUN_281f_0934   | FUN_1427_155e  | act>0x13 at LAB_465b_0bd1 | WRITE|
  * |       |                 |                | quiet first act: **no**   |      |
  *
- * Money question: none of the post-ADD chrome helpers write 0x3149 except
- * conditional 0934→155e, which does not fire for lone Brave type 19 on these
- * T2 holdouts. Writer that turns ADD 9→3 / 6→3 is **after 465b return**
- * (dump_vrb465x2) — hang VR_B465X target. See ai/brave_spent_callgraph.md.
+ * Money question RESOLVED 2026-09-08: this table missed two commit-tail far
+ * calls at decomp 75794-75797 — FUN_281f_0984 (adjacent-foreign probe) and
+ * FUN_2a1f_0192 → FUN_5bfb_3180 → 022e; on first Euro contact the mover
+ * Brave is exhausted (spent := max = 3) BEFORE 465b's RETF. dump_vrb465x2's
+ * spent=9-without-XY was captured before stack_set_xy, i.e. before this
+ * chain. See ai/brave_spent_callgraph.md.
  */
 void move_spent_post_add_commit(
   int unit_index,

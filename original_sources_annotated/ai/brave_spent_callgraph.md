@@ -50,18 +50,29 @@ ocean force; in-465b cargo exhaust; stay / act-spin exhaust; inventing
 `spent = max` when cost>max; **`465b:01ce` early exhaust** (requires
 `foreign_tile` / `bVar4` — quiet holdouts are friendly land).
 
-**Open:** writer that leaves ADD=9 (or head=6) then ends golden spent=3 **after**
-ADD / after `465b` returns. Hang target (parked by policy this pass):
+**RESOLVED 2026-09-08 (static, no hang needed).** The writer is
+`FUN_5bfb_022e`'s exhaust tail (`LAB_5bfb_1005`, decomp ~97094): 465b's own
+commit tail calls `FUN_281f_0984` (adjacent-foreign probe, decomp 75794) →
+`FUN_2a1f_0192` → `FUN_5bfb_3180` (encounter resolver) → `2a1f_066c` →
+`FUN_5bfb_022e`. On FIRST contact (met bit 0x20 clear) the ceremony runs and
+the tail does `if (local_1a && mover nation > 3) 0934(mover)` — spent :=
+max MP (= 3, Brave row of DS:0x5234). Answer to the hang question: at 465b
+RETF Sioux spent is ALREADY 3.
 
-- Recipe: [`tools/brave_dump/midturn_465b.md`](../../tools/brave_dump/midturn_465b.md) **VR_B465X**
-- Question: at `465b` RETF, is Sioux spent already 3 or still 9?
-- If still 9 → next CALL after return (likely conditional `0934`/`155e`).
-- If already 3 → unlabeled write inside late chrome missed by static table.
+Evidence: TURN3's only two vis-bit Braves are exactly the two spent-3
+holdouts; unmet French (50,38) / Spanish (47,53),(47,54) land units adjacent
+to the dest tiles; Euro phase runs BEFORE the Indian phase (dump_1816 /
+vr_2a02_v3: Euro units at TURN3 positions while Braves hold TURN2 positions
+with spent reset to 0). TURN5's fresh-vis Brave keeps spent=9 because the
+pair was already met (0x20 set → already-met arm early-outs, no exhaust).
 
-Dump-free + static xref (2026-08-12): no new T1-safe rule. Keep overlays.
+**Trap:** the Section-6 post-ADD table below only walked the `1427_*` chrome
+thunks and missed the `0984`/`0192` far-call pair — the write hides two
+overlay hops away, inside 465b, before RETF.
 
 ## Port status
 
-No T1-safe spent rule from dump-free contrast or static xref (2026-08-12:
-`01ce` foreign-only). Linux keeps `k_quiet_brave_t2` overlays in `src/core/ai.c`.
-Do not drop until hang X (or a proven predicate) closes the two residuals.
+Ported 2026-09-08: `ai_contact_indian_meet_trade` first-meet arm sets
+`brave->moves_left = units_max_mp(...)` (natives keep the DOS spent byte in
+`moves_left`). `k_quiet_brave_t2` overlay retired from `src/core/ai.c`;
+`golden_ai_turns`/`golden_ai_joint` + full ctest 60/60 green.
