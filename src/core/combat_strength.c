@@ -712,62 +712,12 @@ void combat_apply_1b0e_peels(
     }
   }
 
-  /* Discoverer damper: human attacker vs AI Euro, difficulty 0 → −25%. */
-  if (ctx->col1 && ctx->col1->head.difficulty == 0 && atk_nat >= 0 && atk_nat <= 3 &&
-      !combat_nation_is_ai(ctx->col1, atk_nat) && def_nat >= 0 && def_nat <= 3 &&
-      combat_nation_is_ai(ctx->col1, def_nat)) {
-    io->atk_strength -= io->atk_strength >> 2;
-  }
-
   /*
-   * Discoverer beginner shield — ported 2026-09-08. DOS 1b0e raw 100536-100545
-   * (asm block guarded by `*(byte *)0x53a6 < 2`), the last statement of the
-   * difficulty-handicap group:
-   *
-   *   if ((*(byte *)0x53a6 < 2) &&
-   *       (((*(byte *)0x5382 & 1) == 0 || iVar18 < 0) || (0xc < uVar19 && uVar19 < 0x13))) {
-   *     if (((uVar15 < 4 && *(char *)(uVar15 * 0x34 + 0x543f) == '\0') &&
-   *          *(int *)0x538e < 0x50) && (-1 < iVar18)) {
-   *       if (*(char *)0x53a6 == '\0') local_92 = local_92 - (local_92 >> 2);
-   *       else                         local_92 = local_92 >> 1;
-   *       if ((bVar28) && (*(char *)0x53a6 == '\0')) local_92 = 0;
-   *     }
-   *     ...
-   *
-   * `local_92` is the ATTACKER (built from param_1 via FUN_281f_09c8(param_1,1)
-   * and read by the roll `iVar23 = FUN_281f_04d4(1, local_a8 + local_92);
-   * bVar8 = iVar23 <= local_92`), so this ZEROES the attacker: a raid on an
-   * undefended town owned by a human on Discoverer can never be won, however
-   * strong the attacker — the roll still runs (1..def) and always loses.
-   *
-   * Gate terms, all of them:
-   *   0x53a6 == 0            difficulty Discoverer exactly (the enclosing
-   *                          `< 2` block halves the attacker at Explorer, but
-   *                          only difficulty 0 reaches the zero)
-   *   uVar15 < 4 && 0x543f   the DEFENDER is a human-controlled European
-   *   0x538e < 0x50          turn counter under 80 — the shield expires
-   *   -1 < iVar18            a COLONY stands on the attacked tile. This is why
-   *                          only the militia/Revere arm of bVar28 can reach
-   *                          it: the empty-village Brave arm runs with
-   *                          iVar18 < 0 (and an Indian defender), so it is
-   *                          excluded here even though it sets bVar28 too
-   *   0x5382&1 / ship        outer term: no WoI, or the attacker is a hull
-   *                          (types 0xd..0x12). With a colony required above,
-   *                          "iVar18 < 0" cannot help, so it reduces to this
-   *   bVar28                 the defender was auto-spawned (combat_auto_defender)
-   *
-   * NOT ported (owner's call, same raw lines): the sibling
-   * `local_92 -= local_92>>2` / `>>= 1` and `local_92 >>= 1` handicaps that
-   * fire for ANY attacker of a human European, and the `0x53a6 == 0 &&
-   * attacker human` doubling at raw 100549. The port's "Discoverer damper"
-   * above keys on a human ATTACKER vs an AI defender, which is the mirror
-   * image of what these bytes say. See docs/combat.md.
+   * The DOS difficulty-handicap group (incl. the Discoverer beginner shield)
+   * sits AFTER 1b0e's `param_5 == 0` early return — Combat Analysis odds and
+   * AI scoring never see it. It lives in
+   * combat_apply_1b0e_resolve_handicaps(), applied by the resolvers only.
    */
-  if (ctx->col1 && g_combat_auto_defender && (int)ctx->col1->head.difficulty == 0 &&
-      def_nat >= 0 && def_nat <= 3 && !combat_nation_is_ai(ctx->col1, def_nat) && on_colony &&
-      (int)ctx->col1->head.turn < 0x50 && (!combat_woi_active(ctx->col1) || atk_ship)) {
-    io->atk_strength = 0;
-  }
 
   /* Scout vs Artillery: force defender win (Indian scout / human arty thin). */
   if (land && combat_type_is_scout_name(at->name) &&
@@ -780,6 +730,92 @@ void combat_apply_1b0e_peels(
   }
   if (io->def_strength < 0) {
     io->def_strength = 0;
+  }
+}
+
+/*
+ * FUN_5fef_1b0e difficulty-handicap group — raw 100534-100556. The whole
+ * block sits AFTER the `param_5 == 0` early return (raw 100529-100533), so
+ * Combat Analysis odds and every AI-scoring call compute WITHOUT it; only
+ * the real resolution roll sees it. Decomp, verbatim:
+ *
+ *   if ((*(byte *)0x53a6 < 2) &&
+ *      ((((*(byte *)0x5382 & 1) == 0 || (iVar18 < 0)) ||
+ *        ((0xc < uVar19 && (uVar19 < 0x13)))))) {
+ *     if ((((uVar15 < 4) && (*(char *)(uVar15 * 0x34 + 0x543f) == '\0')) &&
+ *          (*(int *)0x538e < 0x50)) && (-1 < iVar18)) {
+ *       if (*(char *)0x53a6 == '\0') local_92 = local_92 - (local_92 >> 2);
+ *       else                         local_92 = local_92 >> 1;
+ *       if ((bVar28) && (*(char *)0x53a6 == '\0')) local_92 = 0;
+ *     }
+ *     if (((uVar15 < 4) && (*(char *)(uVar15 * 0x34 + 0x543f) == '\0')) &&
+ *        ((uVar16 < 4 || (*(int *)0x538e < 0x50)))) {
+ *       local_92 = local_92 >> 1;
+ *     }
+ *   }
+ *   if (((*(char *)0x53a6 == '\0') && (uVar16 < 4)) &&
+ *       (*(char *)(uVar16 * 0x34 + 0x543f) == '\0')) {
+ *     local_92 = local_92 << 1;
+ *   }
+ *
+ * Reading: uVar15 = DEFENDER nation, uVar16 = ATTACKER nation, local_92 =
+ * attacker strength (the roll compares against it), iVar18 = colony index on
+ * the defended tile, 0x53a6 = difficulty, 0x538e = turn, 0x543f + n*0x34 =
+ * control byte (0 = human), 0x5382&1 = WoI, uVar19 0xd..0x12 = attacker is
+ * a hull, bVar28 = auto-spawned defender (combat_set_auto_defender).
+ *
+ * So on Discoverer/Explorer, outside WoI colony land fights:
+ *   - attacker of a human Euro COLONY in the first 80 turns: −25% (diff 0)
+ *     or −50% (diff 1); if the defender is the auto-spawned militia/Revere
+ *     phantom and diff 0, the attacker is ZEROED (beginner shield);
+ *   - attacker of a human Euro (no colony needed): a further −50%, always
+ *     for Euro attackers, first 80 turns only for natives;
+ * and unconditionally: diff 0 + human Euro ATTACKER → attacker DOUBLED.
+ * (The port's old "Discoverer damper" −25% on a human attacker was the
+ * mirror image of these bytes and is deleted.)
+ */
+void combat_apply_1b0e_resolve_handicaps(
+  const ColonizeCombatStrengthCtx* ctx,
+  int attacker_id,
+  int defender_id,
+  ColonizeCombatEngageResult* io
+) {
+  if (!ctx || !ctx->units || !ctx->col1 || !io) {
+    return;
+  }
+  const ColonizeUnit* atk = units_get_const(ctx->units, attacker_id);
+  const ColonizeUnit* def = units_get_const(ctx->units, defender_id);
+  if (!atk || !def) {
+    return;
+  }
+  const int atk_nat = atk->nation_id;
+  const int def_nat = def->nation_id;
+  const int diff = (int)ctx->col1->head.difficulty;
+  const int turn = (int)ctx->col1->head.turn;
+  const int on_colony = combat_unit_on_colony(ctx, def);
+  const int atk_ship = combat_type_is_ship(ctx->units, attacker_id);
+  const bool atk_euro = (atk_nat >= 0 && atk_nat <= 3);
+  const bool def_human_euro =
+    def_nat >= 0 && def_nat <= 3 && !combat_nation_is_ai(ctx->col1, def_nat);
+  const bool atk_human_euro = atk_euro && !combat_nation_is_ai(ctx->col1, atk_nat);
+
+  if (diff < 2 && (!combat_woi_active(ctx->col1) || !on_colony || atk_ship)) {
+    if (def_human_euro && turn < 0x50 && on_colony) {
+      if (diff == 0) {
+        io->atk_strength -= io->atk_strength >> 2;
+      } else {
+        io->atk_strength >>= 1;
+      }
+      if (g_combat_auto_defender && diff == 0) {
+        io->atk_strength = 0;
+      }
+    }
+    if (def_human_euro && (atk_euro || turn < 0x50)) {
+      io->atk_strength >>= 1;
+    }
+  }
+  if (diff == 0 && atk_human_euro) {
+    io->atk_strength <<= 1;
   }
 }
 

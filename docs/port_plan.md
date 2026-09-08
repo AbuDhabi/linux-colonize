@@ -537,13 +537,13 @@ list, not from the inventory.
 - [ ] **Human-colony `5952_035e` tick** — the ported threat seed runs only
   in the Euro-AI colony pass; DOS runs the colony tick for every nation.
   Recorded 2026-09-08c (threat-seed port report).
-- [ ] **1b0e beginner-handicap siblings** — recorded 2026-09-08c beside the
-  ported Discoverer undefended-town shield (raw 100536-100549, combat.md):
-  the `local_92 >>= 1` / `−25%` damper on any attacker of a human European
-  (colony not required), the `difficulty==0 && human Euro attacker →
-  local_92 <<= 1` doubling, and the port's pre-existing "Discoverer damper"
-  which mirrors the wrong side (tests the DEFENDER nation in DOS). All
-  change every Discoverer fight — port together in one measured pass.
+- [x] **1b0e beginner-handicap siblings** — closed 2026-09-08. All three
+  siblings plus the diff-0 human-attacker doubling ported as
+  `combat_apply_1b0e_resolve_handicaps` (raw 100534-100556); resolve-only
+  placement modeled (DOS puts the group after the `param_5 == 0` return, so
+  Combat Analysis and AI scoring never see it) — called from the land and
+  naval resolvers after the analysis popup, before the roll. The port's
+  wrong-side "Discoverer damper" deleted. 60/60 green.
 - Deliberate documented divergences (decision needed before "work"):
   king_ref.md short list, 5d04 past-the-end read kept 0 + musket-scratch
   collision as price×100, `@HELLOUSA` not modeled, per-act (vs DOS

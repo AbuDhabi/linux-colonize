@@ -4873,6 +4873,12 @@ bool units_resolve_land_combat_ff(
     g_units_combat_watch(g_units_combat_watch_user, pool, attacker_id, def->x, def->y);
   }
 
+  /* DOS 1b0e difficulty-handicap group (raw 100534-100556) runs after the
+   * param_5==0 early return: the analysis above showed the raw odds, the
+   * roll below uses the handicapped attacker. */
+  combat_apply_1b0e_resolve_handicaps(&sctx, attacker_id, defender_id, &er);
+  eng.atk_strength = er.atk_strength;
+
   const int total = eng.atk_strength + eng.def_strength;
   if (er.force_defender_wins) {
     eng.atk_wins = false;
@@ -5221,6 +5227,10 @@ bool units_resolve_naval_combat_ff(
   if (g_units_combat_watch) {
     g_units_combat_watch(g_units_combat_watch_user, pool, attacker_id, def->x, def->y);
   }
+
+  /* Same 1b0e handicap group as land — DOS's single resolver covers naval. */
+  combat_apply_1b0e_resolve_handicaps(&sctx, attacker_id, defender_id, &er);
+  eng.atk_strength = er.atk_strength;
 
   const int total = eng.atk_strength + eng.def_strength;
   if (total <= 0) {

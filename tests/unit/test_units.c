@@ -2365,6 +2365,218 @@ static int unit_brave_vs_human_artillery_autoloss(void) {
   return rc;
 }
 
+/* One handicap application on a fresh result blob; returns the peeled attacker. */
+static int handicap_atk(
+  const ColonizeCombatStrengthCtx* ctx,
+  int attacker_id,
+  int defender_id,
+  int atk_in
+) {
+  ColonizeCombatEngageResult er;
+  memset(&er, 0, sizeof(er));
+  combat_side_flags_clear(&er.atk_flags);
+  combat_side_flags_clear(&er.def_flags);
+  er.atk_strength = atk_in;
+  er.def_strength = 64;
+  combat_apply_1b0e_resolve_handicaps(ctx, attacker_id, defender_id, &er);
+  return er.atk_strength;
+}
+
+/*
+ * FUN_5fef_1b0e difficulty-handicap group (raw 100534-100556), called directly:
+ * combat_apply_1b0e_resolve_handicaps(). Table-driven cover of the three DOS
+ * blocks and their gates —
+ *   gate: 0x53a6 < 2 && (!WoI || no colony under the defender || attacker hull)
+ *   A:    human-Euro defender + turn < 0x50 + colony → −25% (diff 0) / −50%
+ *         (diff 1), then ZERO when the defender is the 1b0e auto-spawned
+ *         phantom (bVar28) on diff 0;
+ *   B:    human-Euro defender + (Euro attacker || turn < 0x50) → a further >>1;
+ *   C:    unconditional (outside the gate): diff 0 + human-Euro ATTACKER → <<1.
+ * The integration side of block A lives in the beginner-shield sub-test below.
+ */
+static int unit_1b0e_resolve_handicaps(void) {
+  ColonizeMsgCatalog names;
+  assets_msg_init(&names);
+  char names_path[512];
+  if (!dos_compat_normalize_asset_path("COLONIZE", "NAMES.TXT", names_path, sizeof(names_path)) ||
+      !assets_msg_load_file(&names, names_path)) {
+    fprintf(stderr, "1b0e-handicap: NAMES.TXT load failed\n");
+    return 1;
+  }
+  ColonizeUnitPool pool;
+  memset(&pool, 0, sizeof(pool));
+  if (!units_load_types(&pool, &names)) {
+    fprintf(stderr, "1b0e-handicap: units_load_types failed\n");
+    assets_msg_free(&names);
+    return 1;
+  }
+  assets_msg_free(&names);
+  const int soldier = units_find_type(&pool, "Soldiers");
+  const int brave = units_find_type(&pool, "Braves");
+  const int frigate = units_find_type(&pool, "Frigate");
+  if (soldier < 0 || brave < 0 || frigate < 0) {
+    fprintf(stderr, "1b0e-handicap: types missing (%d/%d/%d)\n", soldier, brave, frigate);
+    return 1;
+  }
+
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  map.width = 8;
+  map.height = 8;
+  map.tile_count = 64;
+  map.terrain = calloc(64, 1);
+  map.layer2 = calloc(64, 1);
+  map.layer3 = calloc(64, 1);
+  if (!map.terrain || !map.layer2 || !map.layer3) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return 1;
+  }
+  for (int i = 0; i < 64; ++i) {
+    map.terrain[i] = 2; /* plains */
+  }
+  units_set_occupancy_map(&map);
+
+  /* One colony at (5,5); the off-colony defenders sit elsewhere. */
+  ColonizeColonyPool cols;
+  colonies_init(&cols);
+  colonies_set_occupancy_map(NULL);
+  ColonizeColony* col = &cols.colonies[0];
+  col->id = 0;
+  col->active = true;
+  col->nation_id = 0;
+  col->x = 5;
+  col->y = 5;
+  cols.colony_count = 1;
+
+  /*
+   * Control bytes explicitly for every Euro slot: a zeroed ColonizeCol1Save
+   * reads as control 0 = HUMAN on all four, which would make every nation
+   * "human European" and quietly satisfy blocks A/B/C at once.
+   */
+  ColonizeCol1Save c1;
+  memset(&c1, 0, sizeof(c1));
+  memset(c1.head.founding_father, 0xff, sizeof(c1.head.founding_father));
+  c1.player[0].control = 0; /* human */
+  c1.player[1].control = 1; /* AI */
+  c1.player[2].control = 1; /* AI */
+  c1.player[3].control = 1; /* AI */
+  c1.head.difficulty = 0;
+  c1.head.turn = 10;
+  c1.head.game_options.woi = 0;
+
+  ColonizeCombatStrengthCtx ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.units = &pool;
+  ctx.map = &map;
+  ctx.colonies = &cols;
+  ctx.col1 = &c1;
+
+  const int a_ai = units_spawn_allow_stack(&pool, soldier, 1, 1); /* AI Euro attacker */
+  const int a_human = units_spawn_allow_stack(&pool, soldier, 2, 2); /* human Euro attacker */
+  const int a_native = units_spawn_allow_stack(&pool, brave, 3, 3); /* native attacker */
+  const int a_ship = units_spawn_allow_stack(&pool, frigate, 4, 4); /* AI Euro hull */
+  const int d_human_on = units_spawn_allow_stack(&pool, soldier, 5, 5); /* human, on colony */
+  const int d_human_off = units_spawn_allow_stack(&pool, soldier, 6, 6); /* human, open field */
+  const int d_ai_off = units_spawn_allow_stack(&pool, soldier, 7, 7); /* AI Euro, open field */
+  if (a_ai < 0 || a_human < 0 || a_native < 0 || a_ship < 0 || d_human_on < 0 ||
+      d_human_off < 0 || d_ai_off < 0) {
+    fprintf(stderr, "1b0e-handicap: spawn failed\n");
+    units_set_occupancy_map(NULL);
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return 1;
+  }
+  units_get(&pool, a_ai)->nation_id = 1;
+  units_get(&pool, a_human)->nation_id = 0;
+  units_get(&pool, a_native)->nation_id = 4;
+  units_get(&pool, a_ship)->nation_id = 1;
+  units_get(&pool, d_human_on)->nation_id = 0;
+  units_get(&pool, d_human_off)->nation_id = 0;
+  units_get(&pool, d_ai_off)->nation_id = 1;
+
+  int rc = 0;
+  struct {
+    const char* label;
+    uint8_t difficulty;
+    int turn;
+    int woi;
+    int auto_defender;
+    int attacker;
+    int defender;
+    int want;
+  } cases[] = {
+    /* 1: diff 0, AI attacker on a human colony inside the 0x50 window: A then B. */
+    {"diff0 colony A+B", 0, 10, 0, 0, a_ai, d_human_on, ((100 - (100 >> 2)) >> 1)},
+    /* 2: diff 1 takes A's >>1 arm, then B. */
+    {"diff1 colony A+B", 1, 10, 0, 0, a_ai, d_human_on, ((100 >> 1) >> 1)},
+    /* 3: block C only — human Euro attacker vs an AI defender in the open. */
+    {"diff0 human attacker doubles", 0, 10, 0, 0, a_human, d_ai_off, 200},
+    /* 4: past turn 0x50 a native attacker satisfies neither A (no colony) nor
+     *    B (not Euro, turn too late) nor C (not a human European). */
+    {"late native vs human, no colony", 0, 0x50, 0, 0, a_native, d_human_off, 100},
+    /* 5: B alone — a Euro attacker keeps the >>1 forever, colony or not. */
+    {"late AI Euro vs human, B only", 0, 0x50, 0, 0, a_ai, d_human_off, 50},
+    /* 6: bVar28 beginner shield zeroes the attacker on Discoverer. */
+    {"diff0 auto-defender shield", 0, 10, 0, 1, a_ai, d_human_on, 0},
+    /* 7: WoI + colony + land attacker closes the gate: no A, no B, C still on. */
+    {"WoI colony land: gate shut", 0, 10, 1, 0, a_human, d_human_on, 200},
+    /* 7b: a hull re-opens the very same gate (uVar19 0xd..0x12). */
+    {"WoI colony ship: gate open", 0, 10, 1, 0, a_ship, d_human_on, ((100 - (100 >> 2)) >> 1)},
+    /* 8: Conquistador and up: outside `0x53a6 < 2`, and C wants diff 0. */
+    {"diff2 no dampers no doubling", 2, 10, 0, 0, a_human, d_human_on, 100},
+  };
+
+  for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]) && rc == 0; ++i) {
+    c1.head.difficulty = cases[i].difficulty;
+    c1.head.turn = (uint16_t)cases[i].turn;
+    c1.head.game_options.woi = (uint8_t)(cases[i].woi ? 1 : 0);
+    combat_set_auto_defender(cases[i].auto_defender != 0);
+    const int got = handicap_atk(&ctx, cases[i].attacker, cases[i].defender, 100);
+    combat_set_auto_defender(false);
+    if (got != cases[i].want) {
+      fprintf(
+        stderr,
+        "1b0e-handicap [%s]: atk 100 -> %d, want %d\n",
+        cases[i].label,
+        got,
+        cases[i].want
+      );
+      rc = 1;
+    }
+  }
+
+  /* The latch must not leak into the next engagement (DOS clears bVar28 per roll). */
+  if (rc == 0) {
+    c1.head.difficulty = 0;
+    c1.head.turn = 10;
+    c1.head.game_options.woi = 0;
+    combat_set_auto_defender(true);
+    (void)handicap_atk(&ctx, a_ai, d_human_on, 100);
+    combat_set_auto_defender(false);
+    const int after = handicap_atk(&ctx, a_ai, d_human_on, 100);
+    if (after != ((100 - (100 >> 2)) >> 1)) {
+      fprintf(stderr, "1b0e-handicap: auto-defender latch leaked (got %d)\n", after);
+      rc = 1;
+    }
+    if (combat_auto_defender()) {
+      fprintf(stderr, "1b0e-handicap: combat_auto_defender() stuck on\n");
+      rc = 1;
+    }
+  }
+
+  units_set_occupancy_map(NULL);
+  free(map.terrain);
+  free(map.layer2);
+  free(map.layer3);
+  if (rc == 0) {
+    fprintf(stderr, "unit_units: 1b0e resolve handicaps ok\n");
+  }
+  return rc;
+}
+
 int main(void) {
   diag_init(0, NULL);
 
@@ -2424,6 +2636,10 @@ int main(void) {
     return 1;
   }
   if (unit_brave_vs_human_artillery_autoloss() != 0) {
+    diag_shutdown();
+    return 1;
+  }
+  if (unit_1b0e_resolve_handicaps() != 0) {
     diag_shutdown();
     return 1;
   }

@@ -134,6 +134,20 @@ void combat_apply_1b0e_peels(
 );
 
 /*
+ * FUN_5fef_1b0e difficulty-handicap group (raw 100534-100556): Discoverer/
+ * Explorer attacker dampers vs a human European (+ the beginner shield via
+ * combat_set_auto_defender) and the diff-0 human-attacker doubling. Sits
+ * after DOS's `param_5 == 0` early return, so it must be applied only by the
+ * real resolvers, AFTER Combat Analysis is presented — never by AI scoring.
+ */
+void combat_apply_1b0e_resolve_handicaps(
+  const ColonizeCombatStrengthCtx* ctx,
+  int attacker_id,
+  int defender_id,
+  ColonizeCombatEngageResult* io
+);
+
+/*
  * Full land engage: 004a(atk) scaled by ((8d04+4)*atk>>2)*3>>1 (always +50%
  * attack factor; 8d04 = terrain stash from 015e), 015e(def), then 1b0e peels.
  * Terrain stash (Indian vs Euro / human vs AI-Euro under WoI): defender gets

@@ -144,8 +144,10 @@ mapping below is working from trustworthy source.
 | WoI crown open-field | WoI, **crown** attacker, land tile (not ocean) | `+= difficulty * atk / 20` |
 | WoI REF +50% | WoI, Euro attacker, **on colony**, and (attacker is **crown** **or** `ref_present`) | +50% (`0x8d01\|0x80`) |
 | WoI support % | WoI, Euro attacker, **on colony** | Crown: +`(100−SoL)%` (Tories); else +`SoL%` (Rebels) |
-| Discoverer damper | diff==0, human atk vs AI Euro | −25% |
-| **Discoverer beginner shield** (raw 100536-100545, ported 2026-09-08) | `difficulty == 0`, defender is a **human-controlled** European (`uVar15 < 4 && 0x543f[uVar15] == 0`), a **colony** on the attacked tile (`-1 < iVar18`), turn `DS:0x538e < 0x50`, no WoI (or attacker is a hull, types 0xd-0x12), and the defender is the **auto-spawned** stand-in (`bVar28` — militia/Revere phantom) | attacker `= 0` → the roll `RNG(1, def+0) <= 0` always loses. A human player's undefended town cannot be taken on Discoverer in the first 80 turns |
+| Human-colony damper (raw 100536-100543) — **resolve-only** | `difficulty < 2`, no WoI (or no colony on the defended tile, or attacker is a hull 0xd-0x12); defender a **human-controlled** European (`uVar15 < 4 && 0x543f[uVar15] == 0`), **colony** on the attacked tile (`-1 < iVar18`), turn `DS:0x538e < 0x50` | attacker −25% (diff 0) / `>>1` (diff 1) |
+| **Discoverer beginner shield** (raw 100544-100545, ported 2026-09-08) — **resolve-only** | as the row above, plus `difficulty == 0` and the defender is the **auto-spawned** stand-in (`bVar28` — militia/Revere phantom) | attacker `= 0` → the roll `RNG(1, def+0) <= 0` always loses. A human player's undefended town cannot be taken on Discoverer in the first 80 turns |
+| Any-attacker-of-human damper (raw 100546-100548) — **resolve-only** | same `difficulty < 2` / WoI gate; defender human-controlled European (**no colony needed**) and (attacker is Euro **or** turn `< 0x50`) | attacker `>>1`, stacks on the colony damper above |
+| Discoverer human-attacker doubling (raw 100549) — **resolve-only** | `difficulty == 0` and the **ATTACKER** is a human-controlled European; no other gate (runs even under WoI) | attacker `<<1` |
 | Scout vs Artillery | Land | `force_defender_wins` |
 
 Crown nation = DS:`0x53d2` (Linux: peer of human Euro slot, same as
@@ -168,14 +170,15 @@ bVar8 = iVar23 <= local_92`. Note the whole handicap group sits **after** the
 `param_5 == 0` early return (raw 100523), so Combat Analysis odds are computed
 *without* it — the preview can show a winnable fight the resolver then zeroes.
 
-Three siblings from the same raw lines are **still unported** (owner's call —
-they change every Discoverer/Explorer fight, not just the phantom one):
-`local_92 -= local_92>>2` (diff 0) / `local_92 >>= 1` (diff 1) and a second
-`local_92 >>= 1` for *any* attacker of a human European inside that window,
-and the `0x53a6 == 0 && attacker human` **doubling** at raw 100549. The
-"Discoverer damper" row above is the mirror image of the first of those: it
-dampens a human ATTACKER against an AI defender, where the bytes dampen the
-attacker OF a human defender.
+The three siblings from the same raw lines are **ported** (2026-09-08), with
+the shield, into `combat_apply_1b0e_resolve_handicaps`
+(`combat_strength.c`; the decomp is quoted verbatim above it). Placement is
+modeled too: the resolvers (`combat_land_engage` / naval, from `units.c`)
+call it **after** Combat Analysis is presented and before the roll, so the
+peels function — which is also what AI scoring calls — carries none of the
+group. The port's old "Discoverer damper" (−25% on a human ATTACKER vs an AI
+Euro) tested the wrong side and is **deleted**: DOS dampens the attacker OF a
+human defender, and at diff 0 *doubles* a human attacker.
 
 `combat_unit_toughness` = always `015e` (AI scoring).
 
@@ -629,7 +632,7 @@ spawn + fort VGA chrome.
 | Fort land defense | Manual / wiki Fort **+150%** as a distinct `015e` tier | Decomp: Fort shares Stockade `local_1a=4` (×2). Wiki +150% ≈ fortified Stockade path (`local_1a=6` → ×2.5). Fortress `local_1a=8` (×3) |
 | `colonies_fortification_defense_bonus_percent` | Live land combat | Helper returns 100/150/200 for AI/UI; **live land combat uses `combat_colony_local_1a`** |
 | Fandom “Port: combat Missing” | Stale Units row | Land/naval Partial — this hub + [manual_gap.md](manual_gap.md) |
-| Difficulty “combat unaffected” | Old [difficulty.md](difficulty.md) note | Human Euro `str -= (difficulty-4)` + Discoverer −25% in `1b0e`, plus the Discoverer beginner shield (attacker zeroed vs a human's undefended town, raw 100544) |
+| Difficulty “combat unaffected” | Old [difficulty.md](difficulty.md) note | Human Euro `str -= (difficulty-4)` in `1b0e` peels, plus the resolve-only handicap group (`combat_apply_1b0e_resolve_handicaps`, raw 100534-100556): attacker of a human Euro damped/halved, beginner shield zeroes it, diff-0 human attacker doubled |
 | SoL popular support | Manual SoL/Tory share by side | **Done**: crown `+(100−SoL)%` (Tories), rebel `+SoL%` (Rebels) on colony — [sons_of_liberty.md](sons_of_liberty.md) |
 
 ---
