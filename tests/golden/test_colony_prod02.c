@@ -394,6 +394,8 @@ static int run_pair(const char* path_in, const char* path_exp, const char* label
         br.human_nation,
         br.cursor_x,
         br.cursor_y,
+        br.view_x,
+        br.view_y,
         units.selected_id,
         err,
         sizeof(err)

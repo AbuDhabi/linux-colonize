@@ -229,6 +229,8 @@ static int run_mid01_to_mid02(void) {
         br.human_nation,
         br.cursor_x,
         br.cursor_y,
+        br.view_x,
+        br.view_y,
         units.selected_id,
         err,
         sizeof(err)

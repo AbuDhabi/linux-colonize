@@ -76,6 +76,121 @@ static int unit_hammers_purchased_buy(void) {
 }
 
 /* Col1 +0x95/+0x96: warehouse_level drives 100*(1+level); capitol INC on complete. */
+/*
+ * Smell audit #70: Col1 colony +0x1c bit 0x80. FUN_364b_0114 ORs it in when a
+ * project completes (~56925 / ~56935); FUN_5952_0214 / _02f4 clear it again
+ * when a project is assigned or the queue is cleared (~93714 / ~93754).
+ */
+static int unit_build_complete_latch(void) {
+  ColonizeColonyPool pool;
+  colonies_init(&pool);
+  colonies_set_occupancy_map(NULL);
+  snprintf(pool.building_types[0].name, sizeof(pool.building_types[0].name), "Docks");
+  pool.building_types[0].hammers = 10;
+  pool.building_types[0].tools_cost = 0;
+  snprintf(pool.building_types[1].name, sizeof(pool.building_types[1].name), "Stable");
+  pool.building_types[1].hammers = 10;
+  pool.building_types[1].tools_cost = 0;
+  pool.building_type_count = 2;
+  ColonizeColony* c = &pool.colonies[0];
+  memset(c, 0, sizeof(*c));
+  c->id = 0;
+  c->active = true;
+  c->population = 1;
+  c->colonist_count = 1;
+  c->building_in_production = -1;
+  pool.colony_count = 1;
+
+  if ((c->colony_flags & COLONIZE_COLONY_FLAG_BUILD_COMPLETE) != 0) {
+    fprintf(stderr, "build-complete latch set on a fresh colony\n");
+    return 1;
+  }
+  if (!colonies_set_construction(&pool, 0, 0)) {
+    fprintf(stderr, "build-complete latch: set_construction(Docks) failed\n");
+    return 1;
+  }
+  c->hammers = 10;
+  if (!colonies_try_complete_building(&pool, 0)) {
+    fprintf(stderr, "build-complete latch: Docks did not complete\n");
+    return 1;
+  }
+  if ((c->colony_flags & COLONIZE_COLONY_FLAG_BUILD_COMPLETE) == 0) {
+    fprintf(stderr, "build-complete latch not set after completion\n");
+    return 1;
+  }
+  /* Assigning the next project spends the latch (FUN_5952_0214). */
+  if (!colonies_set_construction(&pool, 0, 1)) {
+    fprintf(stderr, "build-complete latch: set_construction(Stable) failed\n");
+    return 1;
+  }
+  if ((c->colony_flags & COLONIZE_COLONY_FLAG_BUILD_COMPLETE) != 0) {
+    fprintf(stderr, "build-complete latch survived a new assignment\n");
+    return 1;
+  }
+  /* So does clearing the queue (FUN_5952_02f4). */
+  c->colony_flags |= COLONIZE_COLONY_FLAG_BUILD_COMPLETE;
+  if (!colonies_clear_construction(&pool, 0) ||
+      (c->colony_flags & COLONIZE_COLONY_FLAG_BUILD_COMPLETE) != 0) {
+    fprintf(stderr, "build-complete latch survived clear_construction\n");
+    return 1;
+  }
+  return 0;
+}
+
+/*
+ * Smell audit #71: colony_craft_preview must clamp the scratch stock exactly
+ * like the live tick's colony_craft_clamp, or a near-full warehouse previews
+ * a figure the tick never produces.
+ */
+static int unit_craft_preview_clamps(void) {
+  ColonizeColonyPool pool;
+  colonies_init(&pool);
+  colonies_set_occupancy_map(NULL);
+  snprintf(pool.building_types[0].name, sizeof(pool.building_types[0].name), "Rum Distillery");
+  pool.building_types[0].hammers = 0;
+  pool.building_type_count = 1;
+  ColonizeColony* c = &pool.colonies[0];
+  memset(c, 0, sizeof(*c));
+  c->id = 0;
+  c->active = true;
+  c->population = 1;
+  c->colonist_count = 1;
+  c->building_in_production = -1;
+  c->colonists[0].active = true;
+  c->colonists[0].field_job = -1;
+  c->colonists[0].building_type = 0;
+  c->colonists[0].profession = COLONIZE_PROF_DISTILLER;
+  c->stock[COLONIZE_CARGO_SUGAR] = 100;
+  c->stock[COLONIZE_CARGO_RUM] = 65530;
+  pool.colony_count = 1;
+
+  ColonizeColony scratch = *c;
+  int shortfall[COLONIZE_CARGO_COUNT];
+  ColonizeColonyProdDelta delta;
+  memset(&delta, 0, sizeof(delta));
+  colony_craft_preview(&pool, &scratch, shortfall, &delta, 0, NULL, NULL);
+  if (scratch.stock[COLONIZE_CARGO_RUM] > 65535) {
+    fprintf(
+      stderr, "craft preview stock unclamped: rum=%d\n", scratch.stock[COLONIZE_CARGO_RUM]
+    );
+    return 1;
+  }
+  /* And it agrees with the live tick on the same colony. */
+  ColonizeColonyProdDelta live_delta;
+  memset(&live_delta, 0, sizeof(live_delta));
+  colony_craft_one_colony(&pool, c, &live_delta, 0);
+  if (c->stock[COLONIZE_CARGO_RUM] != scratch.stock[COLONIZE_CARGO_RUM]) {
+    fprintf(
+      stderr,
+      "craft preview/tick disagree on clamped rum: preview=%d tick=%d\n",
+      scratch.stock[COLONIZE_CARGO_RUM],
+      c->stock[COLONIZE_CARGO_RUM]
+    );
+    return 1;
+  }
+  return 0;
+}
+
 static int unit_warehouse_capitol_levels(void) {
   ColonizeColonyPool pool;
   colonies_init(&pool);
@@ -1749,6 +1864,12 @@ int main(void) {
       return 1;
     }
     if (unit_warehouse_capitol_levels() != 0) {
+      return 1;
+    }
+    if (unit_build_complete_latch() != 0) {
+      return 1;
+    }
+    if (unit_craft_preview_clamps() != 0) {
       return 1;
     }
     return 0;

@@ -139,29 +139,30 @@ bool savegame_probe_col1_slot(
   if (n < sizeof(buf)) {
     return true;
   }
-  if (memcmp(buf, COLONIZE_COL1_SIG, 8) != 0) {
-    return true;
-  }
 
   ColonizeCol1Head head;
   ColonizeCol1Player players[COLONIZE_COL1_NATION_COUNT];
   memcpy(&head, buf, sizeof(head));
   memcpy(players, buf + sizeof(head), sizeof(players));
 
-  /* Same precedence as col1_save_human_nation: a stale double-zero control
-   * table must not read a non-English campaign's slot as England's. */
-  int human = 0;
-  const int hp = (int)head.human_player;
-  if (hp >= 0 && hp < (int)COLONIZE_COL1_NATION_COUNT && players[hp].control == 0) {
-    human = hp;
-  } else {
-    for (int i = 0; i < (int)COLONIZE_COL1_NATION_COUNT; ++i) {
-      if (players[i].control == 0) {
-        human = i;
-        break;
-      }
-    }
+  /*
+   * DOS's own slot lister calls the full load-time header check, not a bare
+   * signature compare: FUN_7562_0052 (the @SAVEGAME/@LOADGAME row builder)
+   * probes each slot through FUN_2a1f_0d04 -> FUN_75c2_0840, which validates
+   * "COLONIZE"+0x1A, the version word against DS:0x81a, and (when a live map
+   * exists) the map size, and only renders a row when that returns 0 —
+   * anything else falls through to "(EMPTY)" (DS:0x20ee). Matching that here
+   * stops the port listing an unloadable file as a selectable slot (smell
+   * audit #82). Map size is deliberately not checked (DS:0x180/0x182 == 0 in
+   * the DOS probe path: accept any).
+   */
+  if (!col1_save_validate_head(&head, -1, -1, NULL, 0)) {
+    return true; /* not occupied */
   }
+
+  /* One implementation, shared with col1_save_human_nation, so the failure
+   * path cannot drift (smell audit #76). */
+  const int human = col1_save_human_nation_from(&head, players);
 
   out->occupied = true;
   memcpy(out->leader_name, players[human].name, sizeof(out->leader_name));

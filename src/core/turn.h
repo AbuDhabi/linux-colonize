@@ -104,7 +104,8 @@ typedef enum ColonizeTurnProcStep {
   TURN_PROC_SETUP,  /* calendar + production + nation ticks (no indicator) */
   TURN_PROC_EURO,   /* one European AI nation per advance; slots above the human run before INDIAN, slots below after (DOS 130d order) */
   TURN_PROC_INDIAN, /* one native nation per advance (4d56_1b3a mid-pass → 1816) */
-  TURN_PROC_FINISH, /* human colony production (no indicator) */
+  TURN_PROC_FINISH, /* human colony production (indicator on — DOS paints the
+                     * turn-owner box at the head of the human's own 00f2) */
   /*
    * bugs.md 400/404/407: king (REF) + year-end + market + human refresh moved
    * out of FINISH into their own slice, so every colony popup FINISH queued is
@@ -248,6 +249,18 @@ void turn_refresh_moves_for_nation(
 
 /* Select next human unit with moves_left > 0; centers not done here. */
 bool turn_select_next_unit(ColonizeUnitPool* pool, int human_nation);
+
+/*
+ * turn_select_next_unit plus the standing-order skip every hand-off site
+ * needs: a Fortified/Sentried unit (units_orders_skip_turn) must never end up
+ * as the live selection — DOS's control cycle only ever offers units that
+ * actually await orders, and parking on one flashes it into control for a
+ * frame before the next tick skips past it. Bounded: each turn_select_next_unit
+ * call moves strictly forward and never revisits a unit within one sweep.
+ * game_loop.c keeps a ColonizeGameState-shaped twin of this
+ * (game_select_next_unit_awaiting_orders) that should fold into this one.
+ */
+bool turn_select_next_unit_awaiting_orders(ColonizeUnitPool* pool, int human_nation);
 
 /* True when no on-map human unit still has movement. */
 bool turn_human_units_exhausted(const ColonizeUnitPool* pool, int human_nation);

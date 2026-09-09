@@ -179,6 +179,39 @@ static bool run(void) {
   if (game_save_dialog_open(g_game)) return fail("save dialog still open");
   if (strstr(game_status_text(g_game), "Saved COLONY") == NULL) return fail("save status");
   render("map after save");
+
+  /*
+   * smell_audit_2026-09-09 #15: Esc → title → NEW WORLD reopens the wizard
+   * with this campaign still loaded, and the wizard owns the display — the
+   * game underneath must not keep simulating (popup-blocking invariant). It
+   * is serviced ahead of every campaign service in game_update, so it must
+   * keep the frame and nothing (colony/Europe screen, modal, queued popup,
+   * turn advance) may surface behind it.
+   */
+  while (game_modal_open(g_game) || game_ai_popup_pending(g_game)) {
+    if (!dismiss_modal()) return fail("pre-wizard modal");
+  }
+  {
+    const uint32_t turn_before = game_turn_number(g_game);
+    if (!frame(COLONIZE_KEY_ESCAPE)) return fail("Esc to title");
+    if (!game_in_menu(g_game)) return fail("Esc from map did not reach the title menu");
+    if (!frame(COLONIZE_KEY_ENTER)) return fail("title NEW WORLD");
+    if (!game_in_new_game(g_game)) return fail("wizard did not reopen over the campaign");
+    for (int i = 0; i < 60; ++i) {
+      if (!frame(COLONIZE_KEY_NONE)) return fail("wizard idle frame");
+      if (!game_in_new_game(g_game)) return fail("wizard lost the display while idle");
+      if (game_in_colony_screen(g_game) || game_in_europe_screen(g_game) ||
+          game_modal_open(g_game) || game_ai_popup_pending(g_game)) {
+        return fail("campaign chrome opened under the new-game wizard");
+      }
+    }
+    if (game_turn_number(g_game) != turn_before) {
+      return fail("turn advanced under the new-game wizard");
+    }
+    render("new-game wizard over a live campaign");
+    if (!frame(COLONIZE_KEY_ESCAPE)) return fail("Esc out of the wizard");
+    if (!game_in_menu(g_game)) return fail("Esc from the wizard did not reach the title menu");
+  }
   return true;
 }
 

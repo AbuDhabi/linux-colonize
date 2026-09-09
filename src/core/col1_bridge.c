@@ -276,9 +276,14 @@ static void col1_apply_colony_buildings(
   col1_apply_building_bits(pool, colony, k_fort, 3, b->fortification);
   col1_apply_building_bits(pool, colony, k_armory, 3, b->armory);
   col1_apply_building_bits(pool, colony, k_docks, 3, b->docks);
-  if (b->town_hall) {
+  {
+    /* Bit 0 of the 3-bit town_hall group, tested like every other chain —
+     * this used to be an "any bit set" test while the encoder wrote bit 0
+     * only, the same lossy shape as the retired popcount-tiers bug. All 916
+     * colonies in original_saves read exactly 1 here, and the encoder now
+     * carries bits 1-2 through untouched (smell audit #81). */
     static const char* k_hall[] = {"Town Hall"};
-    col1_apply_building_bits(pool, colony, k_hall, 1, 1);
+    col1_apply_building_bits(pool, colony, k_hall, 1, b->town_hall);
   }
   col1_apply_building_bits(pool, colony, k_school, 3, b->schoolhouse);
   /*
@@ -352,14 +357,24 @@ static void col1_encode_colony_buildings(
   if (!out) {
     return;
   }
+  /*
+   * Read-modify-write: the export path hands us the matching record out of
+   * the loaded save, so bits this port does not model must survive rather
+   * than be zeroed (smell audit #80/#81).
+   */
+  const ColonizeCol1Buildings prev = *out;
   memset(out, 0, sizeof(*out));
   if (!pool || !colony) {
+    *out = prev;
     return;
   }
   out->fortification = col1_encode_building_bits(pool, colony, k_fort, 3);
   out->armory = col1_encode_building_bits(pool, colony, k_armory, 3);
   out->docks = col1_encode_building_bits(pool, colony, k_docks, 3);
-  out->town_hall = col1_encode_building_bits(pool, colony, k_hall, 1);
+  /* Bit 0 from the live building, bits 1-2 straight back out of the save. */
+  out->town_hall = (uint32_t)(
+    (col1_encode_building_bits(pool, colony, k_hall, 1) ? 1u : 0u) | (prev.town_hall & 0x6u)
+  );
   out->schoolhouse = col1_encode_building_bits(pool, colony, k_school, 3);
   /* Tier 1 lives in warehouse_level, never in the bitfield — see the decode. */
   out->warehouse = col1_encode_building_bits(pool, colony, k_warehouse, 1);
@@ -373,7 +388,17 @@ static void col1_encode_colony_buildings(
   out->carpenters_shop = col1_encode_building_bits(pool, colony, k_carpenter, 2);
   out->church = col1_encode_building_bits(pool, colony, k_church, 2);
   out->blacksmiths_house = col1_encode_building_bits(pool, colony, k_smith, 3);
-  out->capitol = 0; /* unbuildable in DOS, and 0 in every real save */
+  /*
+   * Capitol: unbuildable in DOS and 0 in all 916 original-save colonies, and
+   * DOS carries both its tiers in the +0x96 level counter (FUN_364b_0114 INCs
+   * it for build ids 0x1e/0x1f), which the export writes separately — so the
+   * mask is never *derived* here. But the decoder honours both bits, so carry
+   * whatever the record held rather than hard-zeroing it and losing an
+   * out-of-spec save's state on a read-modify-write (smell audit #80). Same
+   * for the 6 pad bits past building 41, which the memset had been dropping.
+   */
+  out->capitol = prev.capitol;
+  out->unused05 = prev.unused05;
 }
 
 static int col1_unit_type_to_runtime(const ColonizeUnitPool* units, uint8_t col1_type) {
@@ -691,8 +716,19 @@ bool col1_bridge_apply(
   local.autumn = save->head.autumn;
   local.turn_number = save->head.turn;
   local.human_nation = col1_find_human_nation(save);
-  local.cursor_x = save->stuff.viewport_x ? (int)save->stuff.viewport_x : (int)save->stuff.x;
-  local.cursor_y = save->stuff.viewport_y ? (int)save->stuff.viewport_y : (int)save->stuff.y;
+  /*
+   * Two separate DS word pairs, imported to their own runtime fields:
+   * stuff.x/y (DS:0x8540/0x853e) is the focus tile the map cursor sits on,
+   * stuff.viewport_x/y (DS:0x17c/0x17e) is the camera centre. They genuinely
+   * differ in real DOS saves (see the capture side's survey), so the old
+   * "prefer viewport, fall back to focus" read for the cursor put the cursor
+   * wherever the camera happened to be (smell audit #79). A blank template
+   * carries 0/0 for the camera: fall back to the focus tile there.
+   */
+  local.cursor_x = (int)save->stuff.x;
+  local.cursor_y = (int)save->stuff.y;
+  local.view_x = save->stuff.viewport_x ? (int)save->stuff.viewport_x : local.cursor_x;
+  local.view_y = save->stuff.viewport_y ? (int)save->stuff.viewport_y : local.cursor_y;
 
   if (!map_alloc(
         map,
@@ -720,12 +756,15 @@ bool col1_bridge_apply(
     if (map->improve && save->map.mask) {
       const uint8_t m = save->map.mask[i];
       uint8_t flags = 0;
-      /* Road in mask is 0x08 only — 0x04 is village/capital occupancy (see
-       * the layer2 derivation right below, which already gets this right).
-       * Checking 0x0c (0x04|0x08) here falsely flagged any tile with the
-       * occupancy bit set — including plain ocean tiles — as having a
-       * road. Player-reported: (47,31)/(53,32)/(55,34)/(55,37) in
-       * dutch-reports.SAV, all mask=0x04, all ocean, all wrongly roaded. */
+      /* Road in mask is 0x08 only — 0x04 is the prime-SUPPRESS bit
+       * (ColonizeCol1Mask.suppress, MAP_LAYER2_SUPPRESS; village/capital
+       * occupancy is 0x02, has_city). Checking 0x0c (0x04|0x08) here falsely
+       * flagged any tile with the suppress bit set — including plain ocean
+       * tiles — as having a road. Player-reported: (47,31)/(53,32)/(55,34)/
+       * (55,37) in dutch-reports.SAV, all mask=0x04, all ocean, all wrongly
+       * roaded. (This comment said "village/capital occupancy" until
+       * 2026-09-09, smell audit #77 — prose only; the code below has always
+       * mapped 0x04 to MAP_LAYER2_SUPPRESS.) */
       if ((m & 0x08u) != 0) {
         flags = (uint8_t)(flags | MAP_IMPROVE_ROAD);
       }
@@ -734,10 +773,11 @@ bool col1_bridge_apply(
       }
       map->improve[i] = flags;
       /*
-       * Col1 mask low bits carry village/capital occupancy (same as runtime
-       * layer2 & 3). Road is mask 0x08 (kept in improve[], since layer2
-       * 0x08 is the runtime rumour-cleared stand-in); plowed is mask 0x40
-       * and stays at its real bit.
+       * Col1 mask bits 0x01/0x02 are unit/village-capital occupancy (same as
+       * runtime layer2 & 3) and 0x04 is prime-suppress (MAP_LAYER2_SUPPRESS,
+       * same value both sides). Road is mask 0x08 (kept in improve[], since
+       * layer2 0x08 is the runtime rumour-cleared stand-in); plowed is mask
+       * 0x40 and stays at its real bit.
        */
       if (map->layer2) {
         map->layer2[i] = (uint8_t)(m & (uint8_t)(0x03u | 0x04u | MAP_LAYER2_PURCHASED |
@@ -1181,7 +1221,13 @@ bool col1_bridge_apply(
             src->cargo_item_4,
             src->cargo_item_5
           };
-          for (int h = 0; h < EUROPE_SHIP_CARGO_MAX; ++h) {
+          /* Only the first `holds_occupied` slots are real; the rest carry
+           * stale bytes from goods unloaded earlier (savegame.md "Ship
+           * holds_occupied = goods only"). Same gate as the Bound/Expected
+           * path above and the map-unit path below — without it a docked
+           * ship shows phantom cargo. */
+          for (int h = 0; h < EUROPE_SHIP_CARGO_MAX && h < 6 && h < (int)src->holds_occupied;
+               ++h) {
             const int amt = src->cargo_hold[h];
             if (amt > 0 && amt < 255) {
               hold_types[h] = (int)items[h];
@@ -1313,9 +1359,14 @@ bool col1_bridge_apply(
       if (u->orders == UNITS_ORDER_TRADE_ROUTE) {
         const int route = (int)(src->profession & 0x0fu);
         const int stop = (int)((src->profession >> 4) & 0x0fu);
-        const bool route_sea = save->trade_route[route].sea != 0;
+        /* The nibble spans 0..15 but only 12 routes exist: a byte that never
+         * held a cursor (the capture side writes UNITS_JOB_NONE = 0x1c, low
+         * nibble 12, for a route unit whose slot went stale) must not index
+         * past trade_route[] — see the Europe-lane decoder above. */
+        const bool route_valid = route < (int)COLONIZE_COL1_TRADE_ROUTE_COUNT;
+        const bool route_sea = route_valid && save->trade_route[route].sea != 0;
         const bool unit_sea = ut && ut->domain == COLONIZE_UNIT_DOMAIN_SEA;
-        if (save->trade_route[route].dest_count > 0 && route_sea == unit_sea) {
+        if (route_valid && save->trade_route[route].dest_count > 0 && route_sea == unit_sea) {
           u->follow_unit_id = route;
           u->turns_worked = stop < (int)save->trade_route[route].dest_count ? stop : 0;
           u->profession = UNITS_JOB_NONE;
@@ -1580,6 +1631,12 @@ bool col1_bridge_apply(
   if (local.cursor_y < 0 || local.cursor_y >= map->height) {
     local.cursor_y = map->height / 2;
   }
+  if (local.view_x < 0 || local.view_x >= map->width) {
+    local.view_x = local.cursor_x;
+  }
+  if (local.view_y < 0 || local.view_y >= map->height) {
+    local.view_y = local.cursor_y;
+  }
 
   /* Align live layer2 occupancy with imported pools (tribes from save). */
   col1_bridge_sync_map_occupancy(NULL, map, units, colonies, save);
@@ -1766,6 +1823,8 @@ bool col1_bridge_capture(
   int human_nation,
   int cursor_x,
   int cursor_y,
+  int view_x,
+  int view_y,
   int active_unit_id,
   char* err,
   size_t err_size
@@ -1796,10 +1855,19 @@ bool col1_bridge_capture(
   save->head.year = year;
   save->head.autumn = autumn;
   save->head.turn = (uint16_t)(turn_number > 0xffffu ? 0xffffu : turn_number);
+  /*
+   * DS:0x8540/0x853e (focus tile = the map cursor) and DS:0x17c/0x17e (camera
+   * centre) are two independent DOS words, and real DOS saves prove it: of the
+   * 11 in-game saves under original_saves/, 5 carry a cursor and a viewport
+   * that differ (dutch-campaign COLONY01 43,65 vs 45,66; 02 40,64 vs 43,67;
+   * 03 42,64 vs 40,70; 04 44,52 vs 50,49; 05/06 likewise). Capture used to
+   * write the cursor into both pairs, so the camera position was discarded on
+   * every save (smell audit #79).
+   */
   save->stuff.x = (uint16_t)cursor_x;
   save->stuff.y = (uint16_t)cursor_y;
-  save->stuff.viewport_x = (uint16_t)cursor_x;
-  save->stuff.viewport_y = (uint16_t)cursor_y;
+  save->stuff.viewport_x = (uint16_t)view_x;
+  save->stuff.viewport_y = (uint16_t)view_y;
   save->player[human_nation].control = 0;
   /* DOS 0x543f polarity: 0 = human. A stale save (pre-fix template) can carry
    * a second control==0 on nation 0 — DOS then runs England's turn as a HUMAN
@@ -2297,11 +2365,29 @@ bool col1_bridge_capture(
             /* Station-keep tip (TURN5 FR 52,43): COL1 moves spent = 0. */
             spent = 0;
           } else if (src->moves_left <= 0) {
-            /* DOS clears a nation's spent bytes when its day ends (the TURN
-             * goldens show 0 on every exhausted land unit); ships on a goto
-             * keep their spent byte (savegame.md). Exhausted land units
-             * therefore export 0 (= full on reload, as before). */
-            spent = transport ? max_mp : 0;
+            /*
+             * Exhausted: the whole allotment is gone, so the spent byte is
+             * the allotment. DOS clears spent only at the TOP of a calendar
+             * tick (year_loop mid-pass, DS:0x3149 loop) — NOT when a nation's
+             * day ends: every human-side original save carries live spent
+             * bytes for the AI nations that already acted this tick
+             * (valid-lategame COLONY02 nation 1: 11 Dragoons at 12 thirds =
+             * their full 4-tile allotment; dutch2-t0 nations 0/1 likewise,
+             * with 13..19 where DOS's overspend ADD ran past max). Exporting
+             * 0 here refunded a full turn of movement to every exhausted land
+             * unit on save+reload (smell #75).
+             *
+             * The one zero that is a PARK, not a spend: Sentry/Fortified held
+             * from a previous night. turn.c zeroes moves_left as its "skip
+             * this unit" flag while DOS's spent byte stays 0, and units_wake
+             * hands those their allotment back (park_nights > 0). Same-turn
+             * Fortify / the Fortified promotion night DO spend (viceroy
+             * 77146-77153), so they export the allotment like anything else.
+             */
+            const bool overnight_park =
+              (src->orders == UNITS_ORDER_SENTRY || src->orders == UNITS_ORDER_FORTIFIED) &&
+              src->park_nights > 0;
+            spent = overnight_park ? 0 : max_mp;
           } else if (src->moves_left < max_mp) {
             spent = max_mp - src->moves_left;
           }
@@ -2744,7 +2830,22 @@ bool col1_bridge_capture(
     free(save->unit);
     save->unit = neu;
     save->head.unit_count = (uint16_t)written;
-    save->head.active_unit = active_col1 >= 0 ? (uint16_t)active_col1 : 0xffffu;
+    /*
+     * DS:0x5392 active unit, and the two idle-state words that DOS keeps in
+     * step with it. FUN_2b5a (viceroy_unpacked.c 42308-42317, and its twin at
+     * 45449-45458) is the only writer pair: `if (0x5392 < 0) { 0x53c6 = 1; }
+     * else { 0x5390 = 0; 0x53c6 = 0; }` — a live unit forces Move Pieces and
+     * clears no_unit_selected. The port stamped only active_unit, leaving
+     * map_mode / no_unit_selected at whatever the loaded template held, so a
+     * save could claim View Pieces with a unit selected (smell audit #78).
+     * Survey of the 11 in-game saves under original_saves/: all 7 with a real
+     * active unit carry map_mode 0 + no_unit_selected 0, and all 4 with
+     * active_unit 0xffff carry map_mode 1 (View Pieces).
+     */
+    const bool has_active_unit = active_col1 >= 0;
+    save->head.active_unit = has_active_unit ? (uint16_t)active_col1 : 0xffffu;
+    save->head.map_mode = has_active_unit ? 0u : 1u;
+    save->head.no_unit_selected = has_active_unit ? 0u : 1u;
     free(runtime_to_col1);
   }
 
@@ -2758,7 +2859,7 @@ bool col1_bridge_capture(
 
   /* Blank-template census only — never freshen mid-campaign lag. */
   if (col1_stuff_census_window_is_blank(&save->stuff)) {
-    col1_stuff_census_fill_blank(&save->stuff, units, colonies);
+    col1_stuff_census_fill_blank(&save->stuff, units, colonies, save);
   }
 
   /* Mid-campaign: do not leave discovery unset for DOS woodcut re-fire. */

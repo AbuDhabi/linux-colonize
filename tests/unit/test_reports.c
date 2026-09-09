@@ -544,7 +544,126 @@ int main(void) {
     }
   }
 
+  /*
+   * Smell audit #86 — Congress points and the FF name grid must be the SAME
+   * test. DOS FUN_41f2_0092 (viceroy_unpacked.c 71217-71233) runs one loop
+   * over 25 slots where `FUN_281f_07b4(nation, i)` decides both `+5` and
+   * whether the name is drawn, and that predicate (FUN_15eb_3960, 13832) is
+   * purely the per-nation bitmask. So neither nation.founding_father_count
+   * nor head.founding_father[] (the first-claimer array) may move the score.
+   */
+  {
+    ColonizeCol1Save c;
+    memset(&c, 0, sizeof(c));
+    c.head.year = 1600;
+    c.head.difficulty = 2;
+    /* Bitmask: FF 0, 9 and 17 elected = 3 fathers = 15 points. */
+    c.nation[0].founding_fathers[0] = 0x01;
+    c.nation[0].founding_fathers[1] = 0x02;
+    c.nation[0].founding_fathers[2] = 0x02;
+    /* Decoys that the removed fallbacks would have read instead. */
+    c.nation[0].founding_father_count = 11;
+    memset(c.head.founding_father, 0xff, sizeof(c.head.founding_father));
+    for (int i = 0; i < 7; ++i) {
+      c.head.founding_father[i] = 0; /* nation 0 is first claimer of 7 */
+    }
+    ColonizeScoreBreakdown sc;
+    reports_compute_score(&sc, &c, 0, NULL, NULL);
+    if (sc.congress != 15) {
+      fprintf(stderr, "congress should be 5 x bitmask popcount, got %d\n", sc.congress);
+      col1_save_free(&col1);
+      reports_free(&view);
+      return 1;
+    }
+    /* Empty bitmask scores zero however loud the decoys are. */
+    memset(c.nation[0].founding_fathers, 0, sizeof(c.nation[0].founding_fathers));
+    reports_compute_score(&sc, &c, 0, NULL, NULL);
+    if (sc.congress != 0) {
+      fprintf(
+        stderr, "empty FF bitmask must score 0 congress, got %d\n", sc.congress
+      );
+      col1_save_free(&col1);
+      reports_free(&view);
+      return 1;
+    }
+  }
+
   col1_save_free(&col1);
+
+  /*
+   * Indian Adviser (F9) row gate — DOS FUN_3f41_010a:
+   *   ((FUN_281f_0a38(human, tribe) & 0x20) != 0) || (([0x8d4e+3] & 0x80) != 0)
+   * met OR extinct, never "euro_diplo != 0" (smell audit #85). euro_diplo also
+   * carries 0x02 war / 0x04 attack-confirmed / 0x40 peace, and DOS can leave
+   * those set on a tribe the viewing nation has never met.
+   */
+  {
+    ColonizeCol1Save c;
+    memset(&c, 0, sizeof(c));
+    const int human = 0;
+
+    /* tribe 0: met (0x20) → listed. */
+    c.indian[0].euro_diplo[human] = COL1_INDIAN_MET_BIT;
+    /* tribe 1: met + at peace → listed. */
+    c.indian[1].euro_diplo[human] = (uint8_t)(COL1_INDIAN_MET_BIT | COL1_INDIAN_PEACE_BIT);
+    /* tribe 2: stray war bit only, never met → NOT listed. */
+    c.indian[2].euro_diplo[human] = COL1_INDIAN_WAR_BIT;
+    /* tribe 3: stray war + attack-confirmed, never met → NOT listed. */
+    c.indian[3].euro_diplo[human] =
+      (uint8_t)(COL1_INDIAN_WAR_BIT | COL1_INDIAN_ATTACK_CONFIRMED_BIT);
+    /* tribe 4: extinct with a fully zero euro_diplo → listed anyway. */
+    c.indian[4].extinct = 1;
+    /* tribe 5: extinct AND met → listed. */
+    c.indian[5].extinct = 1;
+    c.indian[5].euro_diplo[human] = COL1_INDIAN_MET_BIT;
+    /* tribe 6: untouched (all zero) → NOT listed. */
+    /* tribe 7: met by a DIFFERENT nation only → NOT listed for `human`. */
+    c.indian[7].euro_diplo[1] = COL1_INDIAN_MET_BIT;
+
+    static const int want[COLONIZE_COL1_INDIAN_COUNT] = {1, 1, 0, 0, 1, 1, 0, 0};
+    for (int t = 0; t < (int)COLONIZE_COL1_INDIAN_COUNT; ++t) {
+      const int got = reports_indian_tribe_listed(&c, t, human) ? 1 : 0;
+      if (got != want[t]) {
+        fprintf(
+          stderr,
+          "indian gate tribe %d: got %d want %d (euro_diplo=0x%02x extinct=%d)\n",
+          t,
+          got,
+          want[t],
+          (unsigned)c.indian[t].euro_diplo[human],
+          (int)c.indian[t].extinct
+        );
+        reports_free(&view);
+        return 1;
+      }
+      /* Tribe 7 is met by nation 1, so that viewer must see it. */
+      if (t == 7 && !reports_indian_tribe_listed(&c, t, 1)) {
+        fprintf(stderr, "indian gate tribe 7 should list for nation 1\n");
+        reports_free(&view);
+        return 1;
+      }
+    }
+    /* Out-of-range guards. */
+    if (reports_indian_tribe_listed(NULL, 0, 0) ||
+        reports_indian_tribe_listed(&c, -1, 0) ||
+        reports_indian_tribe_listed(&c, (int)COLONIZE_COL1_INDIAN_COUNT, 0) ||
+        reports_indian_tribe_listed(&c, 0, -1) ||
+        reports_indian_tribe_listed(&c, 0, (int)COLONIZE_COL1_NATION_COUNT)) {
+      fprintf(stderr, "indian gate should reject out-of-range args\n");
+      reports_free(&view);
+      return 1;
+    }
+    /* @MISC #130 is the "Extinct" word DOS appends (DS:0x2ebe). */
+    if (strcmp(reports_misc_display_word(130, "Extinct"), "Extinct") != 0) {
+      fprintf(
+        stderr,
+        "misc word 130 want 'Extinct' got '%s'\n",
+        reports_misc_display_word(130, "Extinct")
+      );
+      reports_free(&view);
+      return 1;
+    }
+  }
 
   /* Foreign Affairs report (F8) golden: dutch-reports.SAV / foreign.png —
    * locks in the census-based Rebels/Tories formula and the euro_relation

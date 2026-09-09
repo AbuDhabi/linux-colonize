@@ -7913,6 +7913,390 @@ static int unit_garrison_quota_threat_seed(void) {
   return rc;
 }
 
+/*
+ * FUN_5952_035e labor_shortage (+0x8e) and the +0x1b flag byte, ported
+ * 2026-09-09 (smell audit #38/#41; raw 94029-94071 and 94141-94199).
+ *
+ * Colony nation 1 at (5,5), population 3, nothing hostile anywhere:
+ *   threat = 0 → garrison_quota = 0
+ *   n = 3 + 0 outside → want = max((3-1)/2, 0) = 1, clamped to n/2 = 1
+ *   labor_shortage = 1; no military on the tile → want stays 1
+ *   → +0x1b bit 0x40 (NEEDS_GARRISON) SET at zero threat, which the retired
+ *     `garrison_quota > 0` substitution could never do.
+ * Then the same fixture with a Soldier standing in the town: the on-tile
+ * walk decrements want to 0 → the bit is clear, while +0x8e still records
+ * the pre-decrement 1 (DOS stamps it before the walk).
+ * Finally: an imported +0x1b with every bit set is cleared to `& 7` by the
+ * tick, so 0x08/0x10/0x20/0x80 cannot survive frozen from a DOS save while
+ * 0x01/0x02/0x04 do.
+ */
+static int unit_labor_shortage_and_ai_flags_5952(void) {
+  const int nation = 1;
+
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  map.width = 16;
+  map.height = 16;
+  map.tile_count = 256;
+  map.terrain = calloc(256, 1);
+  map.layer2 = calloc(256, 1);
+  map.layer3 = calloc(256, 1);
+  if (!map.terrain || !map.layer2 || !map.layer3) {
+    return fail("labor-shortage alloc map");
+  }
+  for (int i = 0; i < 256; ++i) {
+    map.terrain[i] = 1;
+  }
+
+  ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
+  units_reset(&units);
+  units_set_occupancy_map(NULL);
+  units.type_count = 1;
+  snprintf(units.types[0].name, sizeof(units.types[0].name), "Soldiers");
+  units.types[0].movement = 1;
+  units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  units.types[0].attack = 2;
+  units.types[0].defense = 2;
+
+  ColonizeColonyPool colonies;
+  colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
+  ColonizeColony* c = &colonies.colonies[0];
+  c->id = 0;
+  c->active = true;
+  c->nation_id = nation;
+  c->x = 5;
+  c->y = 5;
+  c->population = 3;
+  c->colonist_count = 3;
+  c->stock[COLONIZE_CARGO_FOOD] = 40;
+  c->stock[COLONIZE_CARGO_TOOLS] = 40;
+  c->building_in_production = -1;
+  colonies.colony_count = 1;
+  colonies.next_id = 1;
+
+  ColonizeCol1Save col1;
+  col1_save_init(&col1);
+  memset(col1.nation, 0, sizeof(col1.nation));
+  memset(col1.head.nation_relation, 0, sizeof(col1.head.nation_relation));
+  for (int i = 0; i < 4; ++i) {
+    col1.player[i].control = 0;
+    col1.player[i].diplomacy = 0;
+  }
+  col1.head.tribe_count = 0;
+  col1.tribe = NULL;
+
+  uint32_t turn = 20;
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.turn_number = &turn;
+  ctx.units = &units;
+  ctx.colonies = &colonies;
+  ctx.map = &map;
+  ctx.col1 = &col1;
+  ctx.col1_ok = true;
+  ctx.human_nation = 0;
+  ctx.rng_seed = 42;
+
+  int rc = 0;
+
+  /* 1. Empty town, zero threat → labor_shortage 1, NEEDS_GARRISON set. */
+  c->labor_shortage = 0;
+  c->ai_flags = 0;
+  ai_goals_reset();
+  ai_euro_dispatcher_turn(&ctx, nation);
+  if (colonies.colonies[0].labor_shortage != 1 ||
+      (colonies.colonies[0].ai_flags & COLONIZE_COLONY_AI_NEEDS_GARRISON) == 0) {
+    fprintf(
+      stderr,
+      "unit_ai_euro_war: labor_shortage=%u ai_flags=0x%02x (want 1 / bit 0x40)\n",
+      (unsigned)colonies.colonies[0].labor_shortage,
+      (unsigned)colonies.colonies[0].ai_flags
+    );
+    rc = fail("FUN_5952_035e labor_shortage seed: expected 1 + NEEDS_GARRISON");
+  }
+
+  /* 2. A Soldier standing in the town consumes the shortage → bit clear. */
+  if (rc == 0) {
+    const int sid = units_spawn_allow_stack(&units, 0, 5, 5);
+    ColonizeUnit* s = units_get(&units, sid);
+    if (!s) {
+      rc = fail("labor-shortage soldier spawn");
+    } else {
+      s->nation_id = nation;
+      s->moves_left = 0;
+      colonies.colonies[0].labor_shortage = 0;
+      colonies.colonies[0].ai_flags = 0;
+      ai_goals_reset();
+      ai_euro_dispatcher_turn(&ctx, nation);
+      if ((colonies.colonies[0].ai_flags & COLONIZE_COLONY_AI_NEEDS_GARRISON) != 0) {
+        fprintf(
+          stderr,
+          "unit_ai_euro_war: garrisoned ai_flags=0x%02x (want bit 0x40 clear)\n",
+          (unsigned)colonies.colonies[0].ai_flags
+        );
+        rc = fail("on-tile military must consume the labor_shortage garrison bit");
+      }
+      units_despawn(&units, sid);
+    }
+  }
+
+  /* 3. raw 94142 `+0x1b &= 7`: an imported byte keeps 0x01/0x02/0x04 only. */
+  if (rc == 0) {
+    colonies.colonies[0].ai_flags = 0xffu;
+    ai_goals_reset();
+    ai_euro_dispatcher_turn(&ctx, nation);
+    const unsigned af = (unsigned)colonies.colonies[0].ai_flags;
+    /* 0x20 has no writer in the port, so `& 7` must leave it clear; 0x04 is
+     * inside the preserved mask and survives (DOS spends it at its consumers,
+     * not here); 0x08/0x40 are whatever this tick recomputed. */
+    if ((af & 0x20u) != 0 || (af & 0x04u) == 0) {
+      fprintf(stderr, "unit_ai_euro_war: post-clear ai_flags=0x%02x\n", af);
+      rc = fail("+0x1b clear must be `& 7`: 0x20 dropped, 0x04 preserved");
+    }
+  }
+
+  free(map.terrain);
+  free(map.layer2);
+  free(map.layer3);
+  if (rc == 0) {
+    fprintf(stderr, "unit_ai_euro_war: FUN_5952_035e labor_shortage + flag byte ok\n");
+  }
+  return rc;
+}
+
+/*
+ * No conjured TOOLS (smell audit #39). An AI Pioneer standing in its own
+ * tools-short colony used to hand it +10 stock[TOOLS] out of nothing on every
+ * dispatcher pass, cited to "5b66 case 7" — which is Found Colony and touches
+ * no stock at all. DOS's real answers (Pioneer absorption banking the unit's
+ * own tools byte; the colony tick's gold-funded +20 Europe purchase) are
+ * conserved or paid for, and neither is this. With no wagon on the tile the
+ * warehouse must not move.
+ */
+static int unit_pioneer_conjures_no_tools(void) {
+  const int nation = 1;
+
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  map.width = 16;
+  map.height = 16;
+  map.tile_count = 256;
+  map.terrain = calloc(256, 1);
+  map.layer2 = calloc(256, 1);
+  map.layer3 = calloc(256, 1);
+  if (!map.terrain || !map.layer2 || !map.layer3) {
+    return fail("no-conjure alloc map");
+  }
+  for (int i = 0; i < 256; ++i) {
+    map.terrain[i] = 1;
+  }
+
+  ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
+  units_reset(&units);
+  units_set_occupancy_map(NULL);
+  units.type_count = 1;
+  snprintf(units.types[0].name, sizeof(units.types[0].name), "Pioneer");
+  units.types[0].movement = 1;
+  units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+
+  ColonizeColonyPool colonies;
+  colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
+  ColonizeColony* c = &colonies.colonies[0];
+  c->id = 0;
+  c->active = true;
+  c->nation_id = nation;
+  c->x = 5;
+  c->y = 5;
+  c->population = 3;
+  c->colonist_count = 3;
+  c->stock[COLONIZE_CARGO_FOOD] = 40;
+  c->stock[COLONIZE_CARGO_TOOLS] = 0; /* tools_short, and no carrier in sight */
+  c->stock[COLONIZE_CARGO_MUSKETS] = 0;
+  c->building_in_production = -1;
+  colonies.colony_count = 1;
+  colonies.next_id = 1;
+
+  const int pid = units_spawn(&units, 0, 5, 5);
+  ColonizeUnit* p = units_get(&units, pid);
+  if (!p) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("no-conjure spawn");
+  }
+  p->nation_id = nation;
+  p->moves_left = UNITS_MP_PER_TILE;
+  p->orders = 0;
+  p->tools = 0;
+
+  ColonizeCol1Save col1;
+  col1_save_init(&col1);
+  memset(col1.nation, 0, sizeof(col1.nation));
+  memset(col1.head.nation_relation, 0, sizeof(col1.head.nation_relation));
+  for (int i = 0; i < 4; ++i) {
+    col1.player[i].control = 0;
+    col1.player[i].diplomacy = 0;
+  }
+  col1.head.tribe_count = 0;
+  col1.tribe = NULL;
+
+  uint32_t turn = 20;
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.turn_number = &turn;
+  ctx.units = &units;
+  ctx.colonies = &colonies;
+  ctx.map = &map;
+  ctx.col1 = &col1;
+  ctx.col1_ok = true;
+  ctx.human_nation = 0;
+  ctx.rng_seed = 42;
+
+  ai_goals_reset();
+  ai_euro_dispatcher_turn(&ctx, nation);
+
+  int rc = 0;
+  if (colonies.colonies[0].stock[COLONIZE_CARGO_TOOLS] != 0) {
+    fprintf(
+      stderr, "unit_ai_euro_war: conjured tools=%d\n",
+      colonies.colonies[0].stock[COLONIZE_CARGO_TOOLS]
+    );
+    rc = fail("Pioneer on own colony must not create TOOLS out of nothing");
+  }
+
+  free(map.terrain);
+  free(map.layer2);
+  free(map.layer3);
+  if (rc == 0) {
+    fprintf(stderr, "unit_ai_euro_war: no conjured tools ok\n");
+  }
+  return rc;
+}
+
+/*
+ * Sticky CONTACT re-hunt gates (smell audit #37). Nation 1's Soldier stands
+ * next to a nation 0 Free Colonist, both at PEACE and with no signed treaty
+ * (relation 0) — exactly the state smell #106 made the foe picker admit, so
+ * `ai_euro_land_best_adjacent_foe` returns the neighbour. The act-tail
+ * re-hunt used to run for any land unit with moves left, which turned that
+ * into a @SNEAK war opening; it now carries the same
+ * `at_war_land && is_land_hunter && !fortified` gates as the sibling block
+ * above it, so at peace nothing happens.
+ */
+static int unit_peace_tail_does_not_open_war(void) {
+  const int nation = 1;
+  const int foe_nation = 0;
+
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  map.width = 16;
+  map.height = 16;
+  map.tile_count = 256;
+  map.terrain = calloc(256, 1);
+  map.layer2 = calloc(256, 1);
+  map.layer3 = calloc(256, 1);
+  if (!map.terrain || !map.layer2 || !map.layer3) {
+    return fail("peace-tail alloc map");
+  }
+  for (int i = 0; i < 256; ++i) {
+    map.terrain[i] = 1;
+  }
+
+  ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
+  units_reset(&units);
+  units_set_occupancy_map(NULL);
+  units.type_count = 1;
+  snprintf(units.types[0].name, sizeof(units.types[0].name), "Soldiers");
+  units.types[0].movement = 1;
+  units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  units.types[0].attack = 2;
+  units.types[0].defense = 2;
+
+  ColonizeColonyPool colonies;
+  colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
+  ColonizeColony* c = &colonies.colonies[0];
+  c->id = 0;
+  c->active = true;
+  c->nation_id = nation;
+  c->x = 5;
+  c->y = 5;
+  c->population = 3;
+  c->colonist_count = 3;
+  c->stock[COLONIZE_CARGO_FOOD] = 40;
+  c->stock[COLONIZE_CARGO_TOOLS] = 40;
+  c->building_in_production = -1;
+  colonies.colony_count = 1;
+  colonies.next_id = 1;
+
+  const int mine = units_spawn(&units, 0, 8, 8);
+  const int theirs = units_spawn(&units, 0, 9, 8);
+  ColonizeUnit* m = units_get(&units, mine);
+  ColonizeUnit* t = units_get(&units, theirs);
+  if (!m || !t) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("peace-tail spawn");
+  }
+  m->nation_id = nation;
+  m->moves_left = UNITS_MP_PER_TILE;
+  m->orders = 0;
+  t->nation_id = foe_nation;
+  t->moves_left = 0;
+  t->orders = 0;
+
+  ColonizeCol1Save col1;
+  col1_save_init(&col1);
+  memset(col1.nation, 0, sizeof(col1.nation));
+  /* relation 0 on both sides: met, no signed treaty, NOT at war. */
+  memset(col1.head.nation_relation, 0, sizeof(col1.head.nation_relation));
+  for (int i = 0; i < 4; ++i) {
+    col1.player[i].control = 0;
+    col1.player[i].diplomacy = 0;
+  }
+  col1.head.tribe_count = 0;
+  col1.tribe = NULL;
+
+  uint32_t turn = 20;
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.turn_number = &turn;
+  ctx.units = &units;
+  ctx.colonies = &colonies;
+  ctx.map = &map;
+  ctx.col1 = &col1;
+  ctx.col1_ok = true;
+  ctx.human_nation = 0;
+  ctx.rng_seed = 42;
+
+  ai_goals_reset();
+  ai_euro_dispatcher_turn(&ctx, nation);
+
+  int rc = 0;
+  if (ai_diplo_at_war(&col1, nation, foe_nation)) {
+    rc = fail("peace act tail must not open a war on an adjacent Euro");
+  } else {
+    const ColonizeUnit* survivor = units_get_const(&units, theirs);
+    if (!survivor || !survivor->active) {
+      rc = fail("peace act tail must not attack an adjacent Euro");
+    }
+  }
+
+  free(map.terrain);
+  free(map.layer2);
+  free(map.layer3);
+  if (rc == 0) {
+    fprintf(stderr, "unit_ai_euro_war: peace act-tail re-hunt gated ok\n");
+  }
+  return rc;
+}
+
 static int unit_peace_soldier_fortify_colony(void) {
   const int nation = 1;
 
@@ -9920,6 +10304,15 @@ int main(void) {
     return 1;
   }
   if (unit_garrison_quota_one_fortify() != 0) {
+    return 1;
+  }
+  if (unit_labor_shortage_and_ai_flags_5952() != 0) {
+    return 1;
+  }
+  if (unit_pioneer_conjures_no_tools() != 0) {
+    return 1;
+  }
+  if (unit_peace_tail_does_not_open_war() != 0) {
     return 1;
   }
   if (unit_peace_soldier_fortify_colony() != 0) {

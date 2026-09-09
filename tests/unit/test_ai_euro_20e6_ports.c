@@ -273,6 +273,61 @@ static int assemble_boards_whole_reserved_hull(void) {
 }
 
 /*
+ * Case 1a2 — the 255 empty-hold sentinel is not an occupant (smell audit #36).
+ * Same berth as case 1a, colony stripped of loadable goods, but the Caravel
+ * arrives carrying the COL1 sentinel in hold 0 (col1_bridge.c:2485 writes it
+ * on Euro hulls with no cargo, and an imported DOS save carries it in).
+ * `ai_euro_hauler_free_holds` used to test `amount > 0` alone, so the sentinel
+ * ate a slot and the mark scan reserved hull for only ONE of the two Pioneers.
+ * Both must board.
+ */
+static int assemble_ignores_empty_hold_sentinel(void) {
+  const int nation = 1;
+  Fixture f;
+  if (fixture_init(&f, nation) != 0) {
+    return 1;
+  }
+  (void)fixture_coastal_colony(&f, nation); /* no loadable stock */
+
+  const int ship_id = units_spawn(&f.units, 2, 12, 4);
+  const int p1 = units_spawn(&f.units, 4, 11, 4);
+  const int p2 = units_spawn_allow_stack(&f.units, 4, 11, 4);
+  ColonizeUnit* ship = units_get(&f.units, ship_id);
+  ColonizeUnit* a = units_get(&f.units, p1);
+  ColonizeUnit* b = units_get(&f.units, p2);
+  if (!ship || !a || !b) {
+    fixture_free(&f);
+    return fail("spawn sentinel-hull units");
+  }
+  ship->nation_id = nation;
+  ship->moves_left = 4 * UNITS_MP_PER_TILE;
+  ship->orders = 0;
+  ship->hold_goods_type[0] = 0;
+  ship->hold_goods_amount[0] = 255; /* COL1 empty-hold sentinel */
+  a->nation_id = nation;
+  a->moves_left = 0;
+  a->orders = 0;
+  b->nation_id = nation;
+  b->moves_left = 0;
+  b->orders = 0;
+
+  ai_euro_dispatcher_turn(&f.ctx, nation);
+
+  a = units_get(&f.units, p1);
+  b = units_get(&f.units, p2);
+  if (!a || !b || a->aboard_ship_id != ship_id || b->aboard_ship_id != ship_id) {
+    fprintf(
+      stderr, "sentinel hull aboard=(%d,%d) want (%d,%d)\n", a ? a->aboard_ship_id : -1,
+      b ? b->aboard_ship_id : -1, ship_id, ship_id
+    );
+    fixture_free(&f);
+    return fail("255 empty-hold sentinel must not consume a berth slot");
+  }
+  fixture_free(&f);
+  return 0;
+}
+
+/*
  * Case 1b — the size gate. Same berth, ONE Pioneer, but the @UNIT size column
  * (0x5238, ColonizeUnitType.space) says the unit needs 3 ship slots and the
  * Caravel has 2. Both the mark scan (`space > free_holds`) and 10be's own
@@ -783,6 +838,9 @@ static int sell_tail_falls_through_to_work_queue(void) {
 
 int main(void) {
   if (assemble_boards_whole_reserved_hull() != 0) {
+    return 1;
+  }
+  if (assemble_ignores_empty_hold_sentinel() != 0) {
     return 1;
   }
   if (assemble_refuses_oversize_passenger() != 0) {

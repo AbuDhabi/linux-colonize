@@ -17,6 +17,7 @@
 #include "core/dos_rng.h"
 #include "core/europe.h"
 #include "core/founding_fathers.h"
+#include "core/reports.h"
 #include "core/unit_chrome.h"
 #include "core/woodcut.h"
 #include "platform/diagnostics.h"
@@ -123,14 +124,13 @@ void turn_refresh_moves_for_nation(
   units_set_occupancy_map(map);
   colonies_set_occupancy_map(map);
   if (col1) {
-    int human = -1;
-    for (int i = 0; i < 4; ++i) {
-      if (col1->player[i].control == 0) {
-        human = i;
-        break;
-      }
-    }
-    units_set_combat_human_nation(human);
+    /* bugs.md 288: the first-`control == 0` scan reads a stale save that
+     * carries TWO zeroed control slots as England. col1_save_human_nation is
+     * the one place that resolution lives (head.human_player preferred when
+     * it agrees with the control table); turn_processor_advance's own
+     * units_set_combat_human_nation(ctx->human_nation) is authoritative and
+     * this must not contradict it. */
+    units_set_combat_human_nation(col1_save_human_nation(col1));
   }
   /* Native settlement fallout (FUN_5fef_31ea-shaped). Gold amount unknown. */
   units_set_native_fallout_context(
@@ -244,6 +244,27 @@ bool turn_select_next_unit(ColonizeUnitPool* pool, int human_nation) {
   return true;
 }
 
+bool turn_select_next_unit_awaiting_orders(ColonizeUnitPool* pool, int human_nation) {
+  if (!pool) {
+    return false;
+  }
+  bool found = turn_select_next_unit(pool, human_nation);
+  for (int guard = 0; found && guard < COLONIZE_UNITS_MAX; ++guard) {
+    const ColonizeUnit* next = units_get_const(pool, pool->selected_id);
+    if (!next || !units_orders_skip_turn(next)) {
+      break;
+    }
+    found = turn_select_next_unit(pool, human_nation);
+  }
+  if (found) {
+    const ColonizeUnit* next = units_get_const(pool, pool->selected_id);
+    if (!next || units_orders_skip_turn(next)) {
+      return false; /* guard ran out on a run of standing-order units */
+    }
+  }
+  return found;
+}
+
 bool turn_option_end_of_turn(const ColonizeCol1Save* col1, bool col1_ok) {
   return col1_ok && col1 && col1->head.game_options.end_of_turn != 0;
 }
@@ -325,6 +346,19 @@ static int turn_report_ok_inefficient(const ColonizeCol1Save* col1) {
  * again after the reload (bugs.md). DOS sets and clears the bit whether or
  * not the report option lets the message through, so the latch update stays
  * outside turn_report_ok_inefficient.
+ *
+ * Coverage (viceroy_unpacked.c 57470-57485): 0688 runs for every colony of the
+ * ticked nation and the bit3 OR/AND-clear pair sits in the open function body.
+ * Only the two dialogs are human-gated, and by DS:0xa897 — FUN_15eb_002c
+ * (viceroy 9325-9331) sets that byte from "colony owner == 0x5396 AND that
+ * slot's control == 0", i.e. exactly `nation_id == human_nation`. So the latch
+ * is maintained for AI colonies too; only the chrome is skipped.
+ *
+ * Threshold: raw 57470 `local_8a = -(*(byte *)0x53a6 - 10)` = 10 − difficulty,
+ * unconditional. The port used to compute that only when the colony owner's
+ * control was 0, a re-test that could never fail behind the human-only early
+ * return above; with AI colonies now in scope the test would have been wrong,
+ * so it is gone.
  */
 static void turn_emit_inefficient_gov_chrome(
   ColonizeColony* colony,
@@ -335,9 +369,11 @@ static void turn_emit_inefficient_gov_chrome(
   AiPopupState* ai_popups,
   const ColonizeMsgCatalog* messages
 ) {
-  if (!colony || colony->nation_id != human_nation || !europe || !col1) {
+  if (!colony || !col1) {
     return;
   }
+  /* DS:0xa897 — dialogs only for the human's own colonies. */
+  const bool chrome = (colony->nation_id == human_nation) && europe != NULL;
   /* colonist_count-first fallback, port-wide (see colony_prod_sol_bonus). */
   int pop = colony->colonist_count > 0 ? colony->colonist_count : colony->population;
   if (pop < 0) {
@@ -352,18 +388,15 @@ static void turn_emit_inefficient_gov_chrome(
   }
   /* Decomp local_82: trunc tories (not half-up used in colony_prod_sol_bonus). */
   const int tories = (pop * (100 - sol)) / 100;
-  int thresh = 10;
-  if (colony->nation_id >= 0 && colony->nation_id < (int)COLONIZE_COL1_NATION_COUNT &&
-      col1->player[colony->nation_id].control == 0) {
-    int diff = (int)col1->head.difficulty;
-    if (diff < 0) {
-      diff = 0;
-    }
-    if (diff > 4) {
-      diff = 4;
-    }
-    thresh = 10 - diff;
+  /* raw 57470: 10 − difficulty, for every colony (no control test). */
+  int diff = (int)col1->head.difficulty;
+  if (diff < 0) {
+    diff = 0;
   }
+  if (diff > 4) {
+    diff = 4;
+  }
+  int thresh = 10 - diff;
   if (thresh < 1) {
     thresh = 1;
   }
@@ -377,7 +410,7 @@ static void turn_emit_inefficient_gov_chrome(
     if ((colony->colony_flags & COLONIZE_COLONY_FLAG_INEFFICIENT_GOV) != 0) {
       colony->colony_flags =
         (uint8_t)(colony->colony_flags & (uint8_t)~COLONIZE_COLONY_FLAG_INEFFICIENT_GOV);
-      if (turn_report_ok_inefficient(col1)) {
+      if (chrome && turn_report_ok_inefficient(col1)) {
         section = "EFFICIENT";
         snprintf(
           status_buf,
@@ -390,7 +423,7 @@ static void turn_emit_inefficient_gov_chrome(
   } else {
     if ((colony->colony_flags & COLONIZE_COLONY_FLAG_INEFFICIENT_GOV) == 0) {
       colony->colony_flags |= COLONIZE_COLONY_FLAG_INEFFICIENT_GOV;
-      if (turn_report_ok_inefficient(col1)) {
+      if (chrome && turn_report_ok_inefficient(col1)) {
         section = "INEFFICIENT";
         snprintf(
           status_buf,
@@ -403,7 +436,7 @@ static void turn_emit_inefficient_gov_chrome(
     }
   }
 
-  if (!status_buf[0]) {
+  if (!chrome || !status_buf[0]) {
     return;
   }
   snprintf(europe->status, sizeof(europe->status), "%s", status_buf);
@@ -545,6 +578,53 @@ static const char* turn_label(const char* section, int idx, const char* fallback
   return fallback;
 }
 
+/*
+ * One colony's bells + crosses for a given SoL bonus — DOS composes both in
+ * FUN_364b_0688's Phase A prologue (`15eb_1f72`'s per-colonist `1d4c` loop,
+ * viceroy 12602-12609) and feeds the same words to the nation tally and the
+ * rebel dividend. Shared here by the Phase A snapshot and by
+ * turn_count_bells_and_crosses_for_nation's live fallback so the two can
+ * never drift apart. Cite: turn/nation_ticks_bells_ff.md;
+ * manufacturing_worker_calc_1d4c.md.
+ */
+static void turn_compose_colony_bells_crosses(
+  const ColonizeColonyPool* pool,
+  const ColonizeColony* colony,
+  const ColonizeCol1Save* col1,
+  int sol_bonus,
+  int* out_bells,
+  int* out_crosses
+) {
+  int bells = 0;
+  int crosses = 0;
+  if (pool && colony && colony->active) {
+    const int nation_id = colony->nation_id;
+    /* Jefferson / Paine / Penn — fandom_col1994.md Political / Religious FF. */
+    const int statesmen_pct =
+      (col1 && founding_fathers_nation_has(col1, nation_id, FF_THOMAS_JEFFERSON)) ? 50 : 0;
+    const int paine_tax_pct =
+      (col1 && founding_fathers_nation_has(col1, nation_id, FF_THOMAS_PAINE) && nation_id >= 0 &&
+       nation_id < (int)COLONIZE_COL1_NATION_COUNT)
+        ? (int)col1->nation[nation_id].tax_rate
+        : 0;
+    const bool nation_has_penn =
+      col1 && founding_fathers_nation_has(col1, nation_id, FF_WILLIAM_PENN);
+    const bool nation_is_ai = col1 && nation_id >= 0 &&
+                              nation_id < (int)COLONIZE_COL1_NATION_COUNT &&
+                              col1->player[nation_id].control != 0;
+    bells = colony_prod_colony_bells_ff(
+      pool, colony, statesmen_pct, paine_tax_pct, nation_is_ai, sol_bonus
+    );
+    crosses = colony_prod_colony_crosses_ff(pool, colony, nation_has_penn, sol_bonus);
+  }
+  if (out_bells) {
+    *out_bells = bells;
+  }
+  if (out_crosses) {
+    *out_crosses = crosses;
+  }
+}
+
 static void turn_produce_one_colony(
   ColonizeColonyPool* pool,
   ColonizeColony* colony,
@@ -603,11 +683,12 @@ static void turn_produce_one_colony(
   memset(field_prod, 0, sizeof(field_prod));
 
   /* Town commons (center tile) + area-view field workers. */
+  const bool has_hudson =
+    col1 && founding_fathers_nation_has(col1, colony->nation_id, FF_HENRY_HUDSON);
   if (map) {
-    const int sol_b_field = colony_prod_sol_bonus_field(col1, colony);
     ColonizeTownCommonsYield tc;
     colony_yield_town_commons(
-      map, colony->x, colony->y, sol_b_field, colony->colony_flags,
+      map, colony->x, colony->y, colony->colony_flags,
       col1 ? (int)col1->head.difficulty : 4, &tc
     );
     if (tc.food > 0) {
@@ -679,6 +760,10 @@ static void turn_produce_one_colony(
        * comment); a negative mod (Tory penalty) still lands at the very
        * end, same net position as this function's old external add. */
       const int sol_b_field = colony_prod_sol_bonus_field(col1, colony);
+      /* Henry Hudson (@FF 8) doubles Fur Trapper output INSIDE the pipeline,
+       * at DOS's own spot (FUN_15eb_18ec 11970-11973) — see colony_yield.c.
+       * It used to be a `*= 2` here, after Convert +1 and after the Tory
+       * subtraction, which is a different number (smell audit #60). */
       const int yld = colony_yield_for_worker(
         map,
         colony->x + dx,
@@ -687,24 +772,13 @@ static void turn_produce_one_colony(
         c->profession,
         has_docks,
         sol_b_field,
-        colony->colony_flags
+        colony->colony_flags,
+        has_hudson
       );
       if (yld <= 0) {
         continue;
       }
       int add = yld;
-      /* Henry Hudson: fur trapper output +100% (fandom_col1994 / manual).
-       * Still applied post-hoc here, same as before the SoL-fold change —
-       * DOS applies Hudson inside FUN_15eb_18ec too, but exactly where
-       * relative to the SoL mod isn't pinned down (see terrain_yields.md
-       * point 10); this now doubles an already-sol-adjusted yield rather
-       * than adding sol after doubling, a narrow behavior change only for
-       * Fur Trapper+Hudson+nonzero sol_bonus, not independently verified
-       * either way. */
-      if (c->field_job == COLONIZE_JOB_FUR_TRAPPER && col1 &&
-          founding_fathers_nation_has(col1, colony->nation_id, FF_HENRY_HUDSON)) {
-        add *= 2;
-      }
       const int cargo = colony_yield_job_cargo(c->field_job);
       if (cargo < 0 || cargo >= COLONIZE_CARGO_COUNT) {
         continue;
@@ -748,6 +822,64 @@ static void turn_produce_one_colony(
         }
       }
     }
+  }
+
+  /*
+   * ---- Phase A composition boundary (smell audit #62 / #63) ----
+   *
+   * DOS composes EVERY cargo — field yields, settlement manufacturing,
+   * hammers, bells, crosses — exactly once, in FUN_364b_0688's prologue
+   * (`FUN_281f_0c22` → `15eb_3956` → `15eb_1f72`, viceroy_unpacked.c 57228
+   * and 12581-12610: clear the 20-word gross scratch at −0x7238, then the
+   * 5x5 `FUN_15eb_18ec` field loop and the per-colonist `FUN_15eb_1d4c`
+   * manufacturing loop both accumulate INTO it). Every later phase only
+   * *reads* that scratch back through `FUN_281f_0b50`: Phase B applies
+   * cargos 0..15 (57238), Phase L banks hammers `0b50(0x10)` (57731), Phase
+   * A itself feeds bells `0b50(0x12)` to the nation (57230).
+   *
+   * So the SoL number (`FUN_15eb_0274` + the +0x1c latch bits), the
+   * colonist professions and the population that compose the yields are all
+   * read BEFORE Phase C/D update the SoL accumulators and latch bits
+   * (57349-57485), before F/G/H education rewrites professions
+   * (57502-57614), and before I/J birth and starve-kill change the roster
+   * (57615-57695).
+   *
+   * The port used to call `colony_craft_one_colony` and
+   * `colony_prod_colony_hammers` down at the Phase L position with a
+   * freshly-read `colony_prod_sol_bonus()` and the already-mutated colonist
+   * array: one tick composed field yields from one snapshot and craft/
+   * hammers from another (a graduate produced at his new rate the same tick
+   * he graduated; a starved Blacksmith's tools vanished retroactively), and
+   * the Production preview — which reads everything pre-update — could not
+   * structurally match the tick on a latch-crossing turn. Composing here,
+   * at the DOS phase point, restores the "one number, two consumers"
+   * invariant colony_production.c:419-433 already asserts for bells.
+   *
+   * Application stays where it was: craft output lands in Phase B (same
+   * place DOS applies it), the composed hammer count is banked at Phase L
+   * below.
+   */
+  const int sol_b_phase_a = colony_prod_sol_bonus(col1, colony);
+  colony_craft_one_colony(pool, colony, delta, sol_b_phase_a);
+  /* Composed here (Phase A), banked at Phase L — DOS `0b50(0x10)`. The
+   * Spring-only gate is a property of the tick, not of the roster, so it
+   * can be read either side; keep it here so the compose is skipped
+   * entirely on an Autumn tick, exactly as the old call site did. */
+  const int hammers_phase_a = (!col1 || col1->head.autumn == 0)
+                                ? colony_prod_colony_hammers(pool, colony, sol_b_phase_a, NULL)
+                                : 0;
+  /* Bells + crosses composed here too (DOS `0b50(0x12)` / Phase M), stamped
+   * for turn_run_nation_ticks — which for AI nations runs after this tick
+   * and would otherwise re-tally them off the already-updated SoL latch and
+   * the already-educated/starved roster. See ColonizeColony's
+   * prod_compose_stamp comment. */
+  colony->prod_compose_stamp = 0;
+  if (col1) {
+    turn_compose_colony_bells_crosses(
+      pool, colony, col1, sol_b_phase_a, &colony->prod_bells_phase_a,
+      &colony->prod_crosses_phase_a
+    );
+    colony->prod_compose_stamp = (uint32_t)col1->head.turn + 1u;
   }
 
   /*
@@ -1317,8 +1449,10 @@ static void turn_produce_one_colony(
     }
   }
 
-  /* Settlement manufacturing (raw → goods) before hammers consume lumber. */
-  colony_craft_one_colony(pool, colony, delta, colony_prod_sol_bonus(col1, colony));
+  /* Settlement manufacturing already ran at the Phase A composition
+   * boundary above (raw → goods, before hammers consume lumber); this only
+   * re-syncs the delta's summary fields, which the food/consumption block
+   * overwrote from the field-only totals in between. */
   if (delta) {
     delta->lumber = delta->goods[COLONIZE_CARGO_LUMBER];
     delta->ore = delta->goods[COLONIZE_CARGO_ORE];
@@ -1361,8 +1495,9 @@ static void turn_produce_one_colony(
    * mirrors this next-tick reading.
    */
   if (!col1 || col1->head.autumn == 0) {
-    const int sol_b = colony_prod_sol_bonus(col1, colony);
-    int hammers_add = colony_prod_colony_hammers(pool, colony, sol_b, NULL);
+    /* Composed in Phase A (see the composition-boundary comment above);
+     * DOS Phase L only reads the scratch word back with `0b50(0x10)`. */
+    int hammers_add = hammers_phase_a;
     if (hammers_add > 0) {
       /*
        * Hammers cost lumber 1:1, capped by lumber actually on hand (this
@@ -2170,31 +2305,34 @@ static int turn_count_bells_and_crosses_for_nation(
     }
     return 0;
   }
-  /* Jefferson / Paine / Penn — fandom_col1994.md Political / Religious FF table. */
-  const int statesmen_pct =
-    (col1 && founding_fathers_nation_has(col1, nation_id, FF_THOMAS_JEFFERSON)) ? 50 : 0;
-  const int paine_tax_pct =
-    (col1 && founding_fathers_nation_has(col1, nation_id, FF_THOMAS_PAINE) &&
-     nation_id >= 0 && nation_id < (int)COLONIZE_COL1_NATION_COUNT)
-      ? (int)col1->nation[nation_id].tax_rate
-      : 0;
-  const bool nation_has_penn =
-    col1 && founding_fathers_nation_has(col1, nation_id, FF_WILLIAM_PENN);
-  const bool nation_is_ai =
-    col1 && nation_id >= 0 && nation_id < (int)COLONIZE_COL1_NATION_COUNT &&
-    col1->player[nation_id].control != 0;
+  /* Stamp of a compose that happened on THIS turn (see ColonizeColony's
+   * prod_compose_stamp). 0 disables the snapshot path entirely. */
+  const uint32_t this_turn_stamp = col1 ? ((uint32_t)col1->head.turn + 1u) : 0u;
   for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
     const ColonizeColony* c = &pool->colonies[i];
     if (!c->active || c->nation_id != nation_id) {
       continue;
     }
-    const int sol_b = colony_prod_sol_bonus(col1, c);
-    /* Bells/crosses: sol_b folds into each Statesman/Preacher worker
-     * individually, inside colony_prod_colony_bells_ff/_crosses_ff (matches
-     * FUN_15eb_1d4c's Statesman/Preacher bodies — see
-     * manufacturing_worker_calc_1d4c.md). */
-    int b = colony_prod_colony_bells_ff(pool, c, statesmen_pct, paine_tax_pct, nation_is_ai, sol_b);
-    int x = colony_prod_colony_crosses_ff(pool, c, nation_has_penn, sol_b);
+    int b = 0;
+    int x = 0;
+    if (this_turn_stamp != 0u && c->prod_compose_stamp == this_turn_stamp) {
+      /* DOS "one number, two consumers": reuse exactly what this colony's
+       * own Phase A composed (smell audit #62) instead of re-tallying after
+       * its Phase C/D SoL update and its F/G/H/J roster edits. */
+      b = c->prod_bells_phase_a;
+      x = c->prod_crosses_phase_a;
+    } else {
+      /* No compose this turn (human colonies tick later, in
+       * TURN_PROC_FINISH; direct callers may have no col1) — a live read
+       * here IS the pre-tick state, same as DOS's Phase A would see.
+       * sol_b folds into each Statesman/Preacher worker individually,
+       * inside colony_prod_colony_bells_ff/_crosses_ff (matches
+       * FUN_15eb_1d4c's Statesman/Preacher bodies — see
+       * manufacturing_worker_calc_1d4c.md). */
+      turn_compose_colony_bells_crosses(
+        pool, c, col1, colony_prod_sol_bonus(col1, c), &b, &x
+      );
+    }
     bells += b;
     crosses += x;
   }
@@ -2711,7 +2849,19 @@ static void turn_route_damaged_ships(ColonizeTurnContext* ctx, int nation) {
       continue;
     }
     if (nation == ctx->human_nation && !woi && ctx->europe && u->cargo_count == 0) {
-      const int turns = europe_voyage_turns_roll(ctx->rng, false, 1);
+      /*
+       * FUN_48d3_0002 gates the 2-turn crossing on DS:0x9418[nation] (the
+       * FUN_4962_0018 hull tally, mirrored here as stuff.ship_counts) and on
+       * Magellan (FF 5). Hardcoding count 1 / no-Magellan burned the RNG draw
+       * but could never take either branch, so a damaged ship's voyage home
+       * was always 1 turn regardless of fleet size.
+       */
+      const bool magellan =
+        ctx->col1_ok && ctx->col1 &&
+        founding_fathers_nation_has(ctx->col1, nation, FF_FERDINAND_MAGELLAN);
+      const int fleet =
+        (ctx->col1_ok && ctx->col1) ? (int)ctx->col1->stuff.ship_counts[nation] : 1;
+      const int turns = europe_voyage_turns_roll(ctx->rng, magellan, fleet);
       /* Same edge rule as the manual sail-to-Europe path so the ship comes
        * back on the side it left from. */
       const bool east = ctx->map ? (u->x >= (int)ctx->map->width / 2) : true;
@@ -2754,53 +2904,80 @@ void turn_run_king_stub(ColonizeTurnContext* ctx) {
   ai_king_nation_turn(ctx);
 }
 
-static bool turn_year_end_valid_rival(const ColonizeCol1Save* col1, int human, int n) {
-  if (!col1 || n < 0 || n >= 4 || n == human) {
-    return false;
+/*
+ * FUN_3844_0442 §D support.
+ *
+ * iVar5 = nation[rival]+0x19 × (rival − 0x6bf0) / 100, capped 100.
+ *   nation+0x19            = rebel_sentiment
+ *   DS (rival − 0x6bf0)    = DS:0x9410 = stuff.census_pop_proxy[rival]
+ * The "−0x6bf0 is an unrecoverable continent-weight table" note this file
+ * used to carry was a misread: @OTHERMIGHT prints the very same byte as
+ * `%NUMBER1` in "{%NUMBER0} (out of %NUMBER1) of the %STRING1 colonists",
+ * i.e. it is the nation's colonist head count (already saved, already
+ * written by col1_stuff_census — see docs/save_format_map.md row 244).
+ */
+static int turn_year_end_rival_rebels(const ColonizeCol1Save* col1, int rival) {
+  if (!col1 || rival < 0 || rival >= (int)COLONIZE_COL1_NATION_COUNT) {
+    return 0;
   }
-  return col1->player[n].control != 2;
+  int v = (int)col1->nation[rival].rebel_sentiment *
+          (int)col1->stuff.census_pop_proxy[rival] / 100;
+  return v > 100 ? 100 : v;
 }
 
 /*
- * FUN_3844_0442 §D: iVar5 = europe[nation][0x19] * table[nation − 0x6bf0] / 100.
- * nation+0x19 = rebel_sentiment; continent-weight table at −0x6bf0 is a live
- * DOS segment table (not a single Col1 field). Use rebel_sentiment when set,
- * else colony SoL stand-in via ai_king_sol_percent.
+ * NAMES.TXT @INDEPENDENT (row = nation): the republic name DOS strcpy's over
+ * the nation's country_name (DS nation*0x34+0x5426 = player[n].country_name)
+ * when its King grants independence — raw 58598-58603.
  */
-static int turn_year_end_rival_sol_percent(const ColonizeTurnContext* ctx, int rival) {
-  if (!ctx || !ctx->col1_ok || !ctx->col1 || rival < 0 || rival >= 4) {
-    return 0;
-  }
-  const uint8_t rs = ctx->col1->nation[rival].rebel_sentiment;
-  if (rs > 0) {
-    return rs > 100 ? 100 : (int)rs;
-  }
-  return ai_king_sol_percent(ctx, rival);
+static const char* turn_year_end_independent_name(int nation) {
+  static const char* k[COLONIZE_COL1_NATION_COUNT] = {
+    "United States of America",
+    "Republic of Quebec",
+    "Republic of Mexico",
+    "Republic of Surinam"
+  };
+  return (nation >= 0 && nation < (int)COLONIZE_COL1_NATION_COUNT) ? k[nation] : "";
 }
 
-static void turn_year_end_ensure_rival_slots(ColonizeCol1Save* col1, int human) {
-  if (!col1 || human < 0 || human >= 4) {
+/* player[n].country_name (DS 0x5426) with the shipped default as fallback. */
+static const char* turn_year_end_country_name(const ColonizeCol1Save* col1, int nation) {
+  static const char* k[COLONIZE_COL1_NATION_COUNT] = {
+    "England", "France", "Spain", "Holland"
+  };
+  if (nation < 0 || nation >= (int)COLONIZE_COL1_NATION_COUNT) {
+    return "";
+  }
+  if (col1 && col1->player[nation].country_name[0]) {
+    return col1->player[nation].country_name;
+  }
+  return k[nation];
+}
+
+/* player[n].name (DS 0x540e) with the nationality adjective as fallback. */
+static const char* turn_year_end_leader_name(const ColonizeCol1Save* col1, int nation) {
+  if (nation < 0 || nation >= (int)COLONIZE_COL1_NATION_COUNT) {
+    return "";
+  }
+  if (col1 && col1->player[nation].name[0]) {
+    return col1->player[nation].name;
+  }
+  return reports_nation_adjective_display_name(nation);
+}
+
+/* §D popup: fill `tag` from GAME.TXT with DOS's substitutions, enqueue OK. */
+static void turn_year_end_rival_popup(
+  ColonizeTurnContext* ctx,
+  const char* tag,
+  const PopupMsgTokens* tok,
+  const char* fallback
+) {
+  if (!ctx || !ctx->ai_popups) {
     return;
   }
-  if (turn_year_end_valid_rival(col1, human, (int)col1->head.rival_nation_slot_1) &&
-      turn_year_end_valid_rival(col1, human, (int)col1->head.rival_nation_slot_2)) {
-    return;
-  }
-  const int crown = ai_king_crown_nation_col1(col1, human);
-  col1->head.rival_nation_slot_1 = -1;
-  col1->head.rival_nation_slot_2 = -1;
-  int w = 0;
-  for (int n = 0; n < 4 && w < 2; ++n) {
-    if (n == human || n == crown || col1->player[n].control == 2) {
-      continue;
-    }
-    if (w == 0) {
-      col1->head.rival_nation_slot_1 = (int16_t)n;
-    } else {
-      col1->head.rival_nation_slot_2 = (int16_t)n;
-    }
-    w++;
-  }
+  char body[AI_POPUP_BODY_LEN];
+  popup_msg_fill(ctx->messages, tag, tok, fallback, body, sizeof(body));
+  ai_popup_enqueue_ok(ctx->ai_popups, AI_POPUP_TAG_INFO, NULL, body);
 }
 
 void turn_run_year_end_chrome(ColonizeTurnContext* ctx, ColonizeTurnResult* out) {
@@ -3026,15 +3203,27 @@ void turn_run_year_end_chrome(ColonizeTurnContext* ctx, ColonizeTurnResult* out)
     /*
      * Section C2: WoI crown vs human SoL ratio (FUN year-end C2).
      * Was bells proxy; now pop-weighted colony SoL via ai_king_sol_percent.
+     *
+     * NOT gated on crown colonies. raw 58493 opens the C1 arm with
+     * `(crown_colony_count == 0) || (0x5382 & 0x20)`; the C2 body (58507
+     * onward — rebel-colony tally, SoL ratio, 0xf29/0xf39) sits after that
+     * arm's closing brace, still inside `(0x5382&1) && !(0x5382&8)`. The port
+     * used to require `crown_colonies > 0`, so a King wiped out on land but
+     * still strong at sea (C1's fleet/REF gates unmet) emitted no chrome at
+     * all. Still thin: DOS also raises the same two bands off the rebel-
+     * colony tally (`colony flags +0x1c & 0x40` < 3 / == 0) and the human
+     * colony count (< 3 / == 0), which the port does not carry.
      */
-    if (crown_colonies > 0 && ctx->status && ctx->status_size > 0 && ctx->col1_ok &&
-        ctx->col1) {
+    if (ctx->status && ctx->status_size > 0 && ctx->col1_ok && ctx->col1) {
       const int human = ctx->human_nation;
       const int human_sol =
         (human >= 0 && human < 4) ? ai_king_sol_percent(ctx, human) : 0;
       const int crown_sol = ai_king_sol_percent(ctx, crown);
+      /* raw 58522 verbatim: `((crown + 1) * 100) / (human + 1 + crown + 1)`.
+       * Both operands carry their own +1 guard; the port dropped one of them,
+       * which read a 50/50 board as 100 instead of 50. */
       const unsigned sol = ((unsigned)crown_sol + 1u) * 100u /
-                           ((unsigned)human_sol + (unsigned)crown_sol + 1u);
+                           ((unsigned)human_sol + 1u + (unsigned)crown_sol + 1u);
       if (sol > 89u) {
         snprintf(ctx->status, ctx->status_size, "Crown peace offer.");
       } else if (sol > 79u) {
@@ -3044,40 +3233,129 @@ void turn_run_year_end_chrome(ColonizeTurnContext* ctx, ColonizeTurnResult* out)
   }
 
   /*
-   * Section D: peacetime rival SoL pressure (year_end_chrome D).
-   * Threshold (8−difficulty)×10; auto-declare when rival SoL ≥ threshold.
-   * Rising/falling dedup via rebellion_pct_last_notified (+0x1a).
-   * Rival pick: head.rival_nation_slot_1/_2 (lazy-filled). SoL via
-   * rebel_sentiment when non-zero; else ai_king_sol_percent. Continent-weight
-   * table at DOS −0x6bf0 remains PARK (see turn_year_end_rival_sol_percent).
+   * Section D — rival European nations winning their OWN independence
+   * (viceroy_unpacked.c 58558-58617, inside thunked FUN_3844_0442).
+   *
+   * NOT a war declaration. The three DOS message ids resolve through the
+   * VICEROY.EXE DS string table (EXE offset 121248+addr, the popup_tag_ids.md
+   * method) to GAME.TXT tags: 0xf5e = @OTHERMIGHT (rising), 0xf69 =
+   * @OTHERLESS (falling), and for the at/over-threshold branch 0xf51 =
+   * @OTHERGRANTED — "The King of {%STRING0} grants {independence} to
+   * %STRING1! %STRING2 elected first President of the new republic. %STRING3
+   * makes peace with all european nations." Its four %STRING slots match the
+   * four substitutions raw 58597-58603 loads there one for one, and the
+   * closing line is exactly what the relation writes below do. The port used
+   * to fire ai_diplo_declare_war + "Rival declares war." here: inverted.
+   *
+   * Loop: all four player slots, gated on DS `nation*0x34 + 0x543f` =
+   * player+0x31 = `control != 0` (every non-human slot, withdrawn included) —
+   * not the two head.rival_nation_slot_* cells, which are the King/WoI cache
+   * (DS:0x53d4/0x53d6) and are never read or written by this section.
+   *
+   * Once-only latch: raw 58563 skips a nation whose nation_flags bit 0x04
+   * ("has achieved independence from its King") is already up, so the branch
+   * fires at most once per nation per game. Raw 58605 sets it.
+   *
+   * Hysteresis: below threshold, the rising band needs BOTH `v >= thresh−20`
+   * (raw 58572 `local_6 + -0x14 <= iVar5`) and `v > cached` (58573); the
+   * falling band needs `v < cached − 5` (58584). Both write the cache
+   * (nation+0x1a = rebellion_pct_last_notified) back — without the bands a
+   * one-point wobble re-fired a popup every single year.
    */
-  if (!woi && ctx->col1_ok && ctx->col1 && ctx->status && ctx->status_size > 0 &&
-      !out->year_end_defeat && !out->year_end_victory) {
-    const int human = ctx->human_nation;
-    const int thresh = (8 - (int)ctx->col1->head.difficulty) * 10;
-    turn_year_end_ensure_rival_slots(ctx->col1, human);
-    for (int pi = 0; pi < 2; ++pi) {
-      const int rival = pi == 0 ? (int)ctx->col1->head.rival_nation_slot_1
-                                : (int)ctx->col1->head.rival_nation_slot_2;
-      if (!turn_year_end_valid_rival(ctx->col1, human, rival)) {
-        continue;
+  if (!woi && ctx->col1_ok && ctx->col1 && !out->year_end_defeat &&
+      !out->year_end_victory) {
+    ColonizeCol1Save* dcol1 = ctx->col1;
+    const int thresh = (8 - (int)dcol1->head.difficulty) * 10;
+    for (int rival = 0; rival < (int)COLONIZE_COL1_NATION_COUNT; ++rival) {
+      if (dcol1->player[rival].control == 0) {
+        continue; /* DS 0x543f gate: human-controlled slot */
       }
-      const int rival_sol = turn_year_end_rival_sol_percent(ctx, rival);
-      if (thresh > 0 && rival_sol >= thresh) {
-        ai_diplo_declare_war(ctx->col1, rival, human);
-        snprintf(ctx->status, ctx->status_size, "Rival declares war.");
-        break;
+      if ((dcol1->nation[rival].nation_flags & 0x04u) != 0) {
+        continue; /* raw 58563 once-only latch */
       }
-      const uint8_t last = ctx->col1->nation[rival].rebellion_pct_last_notified;
-      if (rival_sol > last) {
-        snprintf(ctx->status, ctx->status_size, "Rival SoL rising.");
-        ctx->col1->nation[rival].rebellion_pct_last_notified = (uint8_t)rival_sol;
-        break;
-      }
-      if (rival_sol < last) {
-        snprintf(ctx->status, ctx->status_size, "Rival SoL easing.");
-        ctx->col1->nation[rival].rebellion_pct_last_notified = (uint8_t)rival_sol;
-        break;
+      const int v = turn_year_end_rival_rebels(dcol1, rival);
+      const char* country = turn_year_end_country_name(dcol1, rival);
+      const char* adj = reports_nation_adjective_display_name(rival);
+      if (v < thresh) {
+        PopupMsgTokens tok;
+        memset(&tok, 0, sizeof(tok));
+        tok.string0 = country;
+        tok.string1 = adj;
+        tok.number0 = v;
+        tok.number1 = (int)dcol1->stuff.census_pop_proxy[rival];
+        tok.number2 = thresh;
+        tok.has_number0 = true;
+        tok.has_number1 = true;
+        tok.has_number2 = true;
+        /* raw 58572: rising band — inside the top 20 points AND above cache. */
+        if (v >= thresh - 20 &&
+            v > (int)dcol1->nation[rival].rebellion_pct_last_notified) {
+          if (ctx->status && ctx->status_size > 0) {
+            snprintf(
+              ctx->status,
+              ctx->status_size,
+              "The King of %s considers granting independence.",
+              country
+            );
+          }
+          turn_year_end_rival_popup(ctx, "OTHERMIGHT", &tok, ctx->status);
+          dcol1->nation[rival].rebellion_pct_last_notified = (uint8_t)v;
+        }
+        /* raw 58584: falling band, re-reading the (possibly just written)
+         * cache exactly as DOS does. */
+        if (v < (int)dcol1->nation[rival].rebellion_pct_last_notified - 5) {
+          if (ctx->status && ctx->status_size > 0) {
+            snprintf(
+              ctx->status,
+              ctx->status_size,
+              "Support for independence in %s is easing.",
+              country
+            );
+          }
+          turn_year_end_rival_popup(ctx, "OTHERLESS", &tok, ctx->status);
+          dcol1->nation[rival].rebellion_pct_last_notified = (uint8_t)v;
+        }
+      } else {
+        /* raw 58596-58611: @OTHERGRANTED. */
+        char old_country[sizeof(dcol1->player[rival].country_name) + 1];
+        snprintf(old_country, sizeof(old_country), "%s", country);
+        const char* newname = turn_year_end_independent_name(rival);
+        char leader[sizeof(dcol1->player[rival].name) + 1];
+        snprintf(leader, sizeof(leader), "%s", turn_year_end_leader_name(dcol1, rival));
+        /* raw 58602 strcpy: the nation is renamed to its republic name. */
+        snprintf(
+          dcol1->player[rival].country_name,
+          sizeof(dcol1->player[rival].country_name),
+          "%s",
+          newname
+        );
+        dcol1->nation[rival].nation_flags |= 0x04u; /* raw 58605 */
+        /* raw 58606-58611: peace with, and a cleared slate toward, every
+         * other European nation — or-both 0x40 (PEACE), clear-both 0xbb
+         * (WAR_INTENT|WAR|ALLY|AMICABLE|CROWN_ARMED|MET|TREASURE_ALERT). */
+        for (int other = 0; other < (int)COLONIZE_COL1_NATION_COUNT; ++other) {
+          if (other == rival) {
+            continue;
+          }
+          ai_diplo_or_both(dcol1, rival, other, AI_DIPLO_PEACE);
+          ai_diplo_clear_both(dcol1, rival, other, 0xbb);
+        }
+        if (ctx->status && ctx->status_size > 0) {
+          snprintf(
+            ctx->status,
+            ctx->status_size,
+            "The King of %s grants independence to %s.",
+            old_country,
+            old_country
+          );
+        }
+        PopupMsgTokens gtok;
+        memset(&gtok, 0, sizeof(gtok));
+        gtok.string0 = old_country;
+        gtok.string1 = old_country;
+        gtok.string2 = leader;
+        gtok.string3 = newname;
+        turn_year_end_rival_popup(ctx, "OTHERGRANTED", &gtok, ctx->status);
       }
     }
   }
@@ -3373,7 +3651,8 @@ bool turn_processor_advance(ColonizeTurnProcessor* proc, ColonizeTurnContext* ct
         col1_stuff_census_refresh_colony_counts(
           &ctx->col1->stuff,
           ctx->colonies,
-          ctx->units
+          ctx->units,
+          ctx->col1
         );
       }
       /*
@@ -3424,7 +3703,9 @@ bool turn_processor_advance(ColonizeTurnProcessor* proc, ColonizeTurnContext* ct
             ctx->status,
             ctx->status_size
           );
-          int want_eu = 0;
+          /* No want_europe_open sink: turn_euro_ai_should_run rejects
+           * n == ctx->human_nation, so this slice never runs for the human and
+           * the "auto-open Europe" request can never be for them. */
           (void)units_tick_ship_build_ready(
             ctx->units,
             ctx->colonies,
@@ -3432,7 +3713,7 @@ bool turn_processor_advance(ColonizeTurnProcessor* proc, ColonizeTurnContext* ct
             ctx->human_nation,
             ctx->status,
             ctx->status_size,
-            &want_eu
+            NULL
           );
           (void)units_tick_drydock_repair(
             ctx->units,
@@ -3445,9 +3726,6 @@ bool turn_processor_advance(ColonizeTurnProcessor* proc, ColonizeTurnContext* ct
             ctx->messages
           );
           turn_route_damaged_ships(ctx, n);
-          if (want_eu && n == ctx->human_nation) {
-            proc->result.request_europe_open = true;
-          }
         }
       }
       if (turn_euro_nation_is_ref(ctx, n)) {
@@ -3544,7 +3822,16 @@ bool turn_processor_advance(ColonizeTurnProcessor* proc, ColonizeTurnContext* ct
       break;
     }
     case TURN_PROC_FINISH: {
-      proc->show_indicator = false;
+      /*
+       * Indicator ON for this slice. FUN_3844_00f2's very first act (raw
+       * 58323) is FUN_281f_0590(nation_color[DS:0x5394]) → FUN_1984_00aa, and
+       * 00f2 runs for every slot the year loop walks, the human's included
+       * (viceroy 6390 FUN_281f_0644, gated only on control != 2). So the
+       * turn-owner box carries the human's own color through their production
+       * pass. The old `false` here was overwritten two lines down and cleared
+       * again before the slice returned, so it never reached the renderer —
+       * turn_processor_show_indicator is only read between advance() calls.
+       */
       /*
        * The human nation's own colony EOT — DOS FUN_3844_00f2 runs it right
        * before that nation's Move Pieces, so a construction project finishes
@@ -3581,7 +3868,6 @@ bool turn_processor_advance(ColonizeTurnProcessor* proc, ColonizeTurnContext* ct
       ai_euro_census_ship_pressure_refresh(ctx, ctx->human_nation);
       s_prod_only_nation = -1;
       s_prod_only_set = false;
-      proc->show_indicator = false;
       /* bugs.md 400/404/407: yield here so the production popups queued
        * above are answered (and an elected colony zoom taken) before the
        * king's REF beats run in TURN_PROC_KING — see turn.h. */
@@ -3690,8 +3976,11 @@ bool turn_processor_advance(ColonizeTurnProcessor* proc, ColonizeTurnContext* ct
           );
         }
       }
-      /* Go-To resumes at 10 steps/sec in game_update so the player can watch. */
-      turn_select_next_unit(ctx->units, ctx->human_nation);
+      /* Go-To resumes at 10 steps/sec in game_update so the player can watch.
+       * The skip-aware form: a bare turn_select_next_unit hands control back
+       * parked on a Fortified/Sentried unit (prior audit #34), which then
+       * flashes into control for a frame. */
+      turn_select_next_unit_awaiting_orders(ctx->units, ctx->human_nation);
       if (turn_option_autosave(ctx->col1, ctx->col1_ok)) {
         /* FUN_130d_0172: exactly one slot — decade Spring (year%10==0,
          * autumn==0, turn>2) goes to slot 8, every other autosave to 9. */

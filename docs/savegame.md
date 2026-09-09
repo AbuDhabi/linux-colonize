@@ -133,9 +133,9 @@ The directory is created empty on startup if missing. Override with `--save-dir`
 
 Manual Save/Load (map menu, title **LOAD**, **S**/**L**) opens a wood slot popup:
 - **Save** lists slots **0–7** (`COLONY00`–`COLONY07`); confirming overwrites the chosen slot.
-- **Load** lists slots **0–9**; empty slots are not selectable; **8**/**9** are labeled as decade/turn autosaves when present.
+- **Load** lists slots **0–9**; empty slots are not selectable. Slots 8/9 get **no autosave label** — DOS's own row builder (`FUN_7562_0052`) formats every occupied slot the same way and has no notion of an autosave slot (this line claimed otherwise until 2026-09-09, smell audit #82; nothing ever implemented it).
 
-Slot rows show `N. Empty` or `N. <leader>  <year>` from a prefix-only probe (`savegame_probe_col1_slot`).
+Slot rows show `N. Empty` or `N. <leader>  <year>` from a prefix-only probe (`savegame_probe_col1_slot`). That probe runs the same header check DOS's lister does — `FUN_7562_0052` → `FUN_2a1f_0d04` → `FUN_75c2_0840`, i.e. `col1_save_validate_head`: signature, `0x1A` EOF marker and save version (map size skipped, as in the DOS probe path). A file that fails it lists as `(EMPTY)` rather than as a selectable slot (smell audit #82).
 If the chosen Load file is missing under the save dir, Load falls back to `original_saves/COLONY##.SAV` (repo samples).
 
 Export is read-modify-write against the last loaded Col1 snapshot when present
@@ -184,8 +184,14 @@ Full opaque-field inventory and RE phases: **[save_format_map.md](save_format_ma
   peel the caravel out of `transport_chain` (sidebar unloaded, land units left
   behind). 2026-08-29: `moves` is DOS spent thirds for every Euro unit —
   import `moves_left = max_mp − moves`, export `max_mp − moves_left`, with
-  exhausted land units exporting 0 (DOS clears spent at the end of the
-  nation's day; the TURN goldens show 0 there). Natives still round-trip the
+  exhausted land units exporting their full allotment (DOS clears the
+  `DS:0x3149` spent bytes once at the top of a calendar tick — year_loop.c:140 —
+  never at a nation's day end; DOS mid-turn saves like COLONY02.SAV show acted
+  AI land units at full-or-overspent thirds. The earlier "export 0" rule came
+  from AI-turn goldens captured after the day ended and refunded MP on reload,
+  2026-09-09. Overnight Sentry/Fortified parks with `park_nights>0` still
+  export 0 — their zeroed `moves_left` is a port-only skip flag, not DOS
+  spent). Natives still round-trip the
   literal byte (the Brave engine keeps DOS spent in `moves_left`, max 3).
   Euro unit tiles stamp `map.path` / layer3 **owner** high nibble (`FUN_1427_02ca`
   / `FUN_137f_0228`) on spawn/move and capture — unowned ocean under a human

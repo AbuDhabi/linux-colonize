@@ -2065,6 +2065,8 @@ bool colonies_set_construction(ColonizeColonyPool* pool, int colony_id, int buil
       return false;
     }
     col->building_in_production = building_type;
+    col->colony_flags =
+      (uint8_t)(col->colony_flags & (uint8_t)~COLONIZE_COLONY_FLAG_BUILD_COMPLETE);
     diag_info("COLONY %s: building Artillery", col->name[0] ? col->name : "colony");
     return true;
   }
@@ -2074,6 +2076,8 @@ bool colonies_set_construction(ColonizeColonyPool* pool, int colony_id, int buil
       return false;
     }
     col->building_in_production = building_type;
+    col->colony_flags =
+      (uint8_t)(col->colony_flags & (uint8_t)~COLONIZE_COLONY_FLAG_BUILD_COMPLETE);
     diag_info("COLONY %s: building Wagon Train", col->name[0] ? col->name : "colony");
     return true;
   }
@@ -2091,6 +2095,10 @@ bool colonies_set_construction(ColonizeColonyPool* pool, int colony_id, int buil
     return false;
   }
   col->building_in_production = building_type;
+  /* DOS FUN_5952_0214 (~93714) clears +0x1c bit 0x80 whenever a project is
+   * successfully assigned — the "finished, pick something new" latch is spent. */
+  col->colony_flags =
+    (uint8_t)(col->colony_flags & (uint8_t)~COLONIZE_COLONY_FLAG_BUILD_COMPLETE);
   diag_info(
     "COLONY %s: building %s (hammers %d, pop %d)",
     col->name[0] ? col->name : "colony", bt->name, col->hammers, col->population
@@ -2104,6 +2112,9 @@ bool colonies_clear_construction(ColonizeColonyPool* pool, int colony_id) {
     return false;
   }
   col->building_in_production = -1;
+  /* DOS FUN_5952_02f4 (~93754) clears the build-complete latch here too. */
+  col->colony_flags =
+    (uint8_t)(col->colony_flags & (uint8_t)~COLONIZE_COLONY_FLAG_BUILD_COMPLETE);
   /* FUN_5952 ~95710: drop wants_construction with queue clear. */
   col->build_ai_flags =
     (uint8_t)(col->build_ai_flags & (uint8_t)~COLONIZE_BUILD_AI_WANTS_CONSTRUCTION);
@@ -2302,6 +2313,20 @@ bool colonies_try_complete_building(ColonizeColonyPool* pool, int colony_id) {
       }
     }
   }
+  /*
+   * Col1 colony +0x1c bit 0x80 (COLONIZE_COLONY_FLAG_BUILD_COMPLETE):
+   * FUN_364b_0114 ORs it in on every construction-completed arm — the
+   * Warehouse-Expansion special case (build id 0x10, ~56925) and the generic
+   * `FUN_281f_0bbe(item, 1)` grant right below it (~56935). It means "this
+   * colony finished its project and has not been given a new one"; DOS clears
+   * it again the moment a project is assigned (FUN_5952_0214 / 5952_02f4,
+   * ~93714 / ~93754), and reads it as the colony-screen construction-pane
+   * chrome (FUN_2f2b_2d1c ~49333, gated on pane DS:0x337 == 2). The port never
+   * wrote it, so an export lost the state DOS would have carried (smell audit
+   * #70). Set here; cleared in colonies_set_construction /
+   * colonies_clear_construction, exactly like DOS's two clear sites.
+   */
+  col->colony_flags = (uint8_t)(col->colony_flags | COLONIZE_COLONY_FLAG_BUILD_COMPLETE);
   /* Player-confirmed 2026-08-17 (colony_prod02 golden, a real single DOS
    * turn): building_in_production stays pointed at the just-completed
    * project — DOS never clears it on completion, only has_building[] and

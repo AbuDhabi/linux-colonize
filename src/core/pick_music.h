@@ -60,6 +60,18 @@ typedef struct PickMusicDialog {
 void pick_music_init(PickMusicDialog* dlg);
 void pick_music_close(PickMusicDialog* dlg);
 
+/*
+ * Font this list is drawn (and hit-tested) in: GAME.TXT @smallfont swaps the
+ * dialog to FONTTINY, otherwise it stays on the generic dialog font FONTINTR
+ * — the same rule game_loop's @BEGINMENU renderer applies. Either argument
+ * may be NULL; the other one is then used as the fallback.
+ */
+const ColonizeFont* pick_music_font(
+  const PickMusicDialog* dlg,
+  const ColonizeFont* tiny_font,  /* FONTTINY */
+  const ColonizeFont* dialog_font /* FONTINTR */
+);
+
 /* Load @PICKMUSIC (main list). Returns false if GAME.TXT section missing. */
 bool pick_music_open(PickMusicDialog* dlg, const ColonizeMsgCatalog* game_txt);
 

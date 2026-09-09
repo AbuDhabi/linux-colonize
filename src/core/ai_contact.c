@@ -28,6 +28,17 @@ static char s_last_stores_cargo[48];
 static char s_last_ship_type[48];
 static int s_last_gold_drained;
 
+/*
+ * Per-Indian-nation event cooldowns, keyed by absolute turn number. Hoisted
+ * out of their functions 2026-09-09 (smell #58) so ai_contact_reset can clear
+ * them: an absolute turn stamp left over from a previous campaign suppresses
+ * the arm for the whole early game of the next one.
+ */
+static uint16_t s_beg_cooldown_until[8];
+static uint16_t s_gift_cooldown_until[8];
+static uint16_t s_repar_cooldown_until[8];
+
+
 int ai_contact_last_raid_kind(void) {
   return s_last_raid_kind;
 }
@@ -625,9 +636,11 @@ static void ai_contact_apply_welcome_reject(
   }
   ai_contact_clear_peace(ctx->col1, nation_id, e);
   /*
-   * DOS +100 hostility → Linux at-war band (0 < relation < 50). Write a
-   * hostile floor (1), not unmet 0 — seed-100 early goldens keep r==0/sticky
-   * clear until first contact. Cite: FUN_4cc6_00f2; indian_contact.md.
+   * DOS +100 hostility → Linux at-war band (0 < relation < 26, i.e. alarm
+   * > 0x4a; the band constant is AI_DIPLO_INDIAN_AT_WAR_REL, not the 50 this
+   * comment claimed until 2026-09-09, smell #57). Write a hostile floor (1),
+   * not unmet 0 — seed-100 early goldens keep r==0/sticky clear until first
+   * contact. Cite: FUN_4cc6_00f2; indian_contact.md.
    */
   ai_contact_alarm_delta_00f2(ctx, nation_id, e, 100); /* DOS +100 hostility */
   if (ctx->col1->tribe) {
@@ -1244,13 +1257,20 @@ void ai_contact_village_open_hostilities(
       euro_nation < 0 || euro_nation > 3) {
     return;
   }
-  ColonizeCol1Indian* ind = &ctx->col1->indian[indian_nation - 4];
-  /* Same at-war floor as welcome reject (FUN_4cc6_00f2 thin). */
+  /*
+   * Same at-war floor as welcome reject (FUN_4cc6_00f2 thin) — the tribe
+   * FRICTION floor below, which is what that sibling actually writes.
+   *
+   * 2026-09-09 (smell #50): a second floor sat here, forcing
+   * alarm_by_player >= 80 right after the +100 delta. FUN_4cc6_00f2 halves a
+   * positive delta for France (euro 1) and again for Pocahontas (raw
+   * 80844-80850, ported in ai_diplo_indian_alarm_delta), so +100 lands as
+   * +50 / +25 for those players — and the floor stomped exactly that,
+   * handing France and a Pocahontas owner the same alarm as everyone else.
+   * The sibling this line claimed to copy floors t->alarm[].friction only.
+   */
   ai_contact_clear_peace(ctx->col1, indian_nation, euro_nation);
   ai_contact_alarm_delta_00f2(ctx, indian_nation, euro_nation, 100); /* DOS +100 hostility */
-  if (ind->alarm_by_player[euro_nation] < 80u) {
-    ind->alarm_by_player[euro_nation] = 80u;
-  }
   if (ctx->col1->tribe) {
     for (uint16_t ti = 0; ti < ctx->col1->head.tribe_count; ++ti) {
       ColonizeCol1Tribe* t = &ctx->col1->tribe[ti];
@@ -1716,9 +1736,17 @@ static void ai_contact_clamp_alarms(ColonizeCol1Indian* ind) {
      * Linux-only guard: keep the uint16 alarm mirror in band. NOT DOS 1816
      * §4 — that clamp is on `muskets`, see below (mis-mapped until
      * 2026-09-06d).
+     *
+     * 2026-09-09 (smell #53): the band was 200, while FUN_4cc6_00f2 clamps
+     * 0..100 on every write (ai_diplo_indian_alarm_delta) and
+     * ai_diplo_indian_alarm clamps 0..100 on every read. That left a 101..200
+     * window in which the raw readers in this file — ai_contact_pair_friction
+     * and the raid-target gate — saw a different number than every accessor
+     * path, so two band tests in the same file disagreed about one pair.
+     * 100 is the only value consistent with both.
      */
-    if (ind->alarm_by_player[e] > 200) {
-      ind->alarm_by_player[e] = 200;
+    if (ind->alarm_by_player[e] > 100) {
+      ind->alarm_by_player[e] = 100;
     }
   }
   /*
@@ -2143,8 +2171,14 @@ static void ai_contact_apply_gift_gold(
   if (!ind->euro_diplo[e]) {
     return;
   }
+  /*
+   * ai_contact_pair_friction seeds from alarm_by_player[e] and then only
+   * grows, so `friction >= alarm_by_player[e]` always holds: the
+   * `alarm_by_player[e] >= 55` disjunct could never decide anything, and
+   * `>= 55 || >= 40` is just `>= 40`. Reduced 2026-09-09 (smell #54).
+   */
   const int friction = ai_contact_pair_friction(ind, ctx->col1, nation_id, e);
-  if (friction >= 55 || ind->alarm_by_player[e] >= 55 || friction >= 40) {
+  if (friction >= 40) {
     char refuse_fb[AI_POPUP_BODY_LEN];
     snprintf(
       refuse_fb,
@@ -2747,8 +2781,10 @@ static int ai_contact_apply_demand_tools(
   if (!ind->euro_diplo[e]) {
     return 0;
   }
+  /* Same reduction as the gift gate (smell #54): pair_friction dominates
+   * alarm_by_player[e], so that disjunct is dead. Band kept verbatim. */
   const int friction = ai_contact_pair_friction(ind, ctx->col1, nation_id, e);
-  if (friction >= 55 || ind->alarm_by_player[e] >= 55 || friction < 40) {
+  if (friction >= 55 || friction < 40) {
     char refuse_fb[AI_POPUP_BODY_LEN];
     snprintf(
       refuse_fb,
@@ -2820,8 +2856,10 @@ static int ai_contact_apply_demand_gold(
   if (!ind->euro_diplo[e]) {
     return 0;
   }
+  /* Same reduction as the gift gate (smell #54): pair_friction dominates
+   * alarm_by_player[e], so that disjunct is dead. Band kept verbatim. */
   const int friction = ai_contact_pair_friction(ind, ctx->col1, nation_id, e);
-  if (friction >= 55 || ind->alarm_by_player[e] >= 55 || friction < 40) {
+  if (friction >= 55 || friction < 40) {
     char refuse_fb[AI_POPUP_BODY_LEN];
     snprintf(
       refuse_fb,
@@ -3671,7 +3709,6 @@ void ai_contact_try_village_beg_food(ColonizeTurnContext* ctx, int nation_id) {
    * turn. A colony qualifies only with one of this tribe's units standing
    * adjacent, and each tribe asks at most once per 8 turns.
    */
-  static uint16_t s_beg_cooldown_until[8];
   const uint16_t now_turn = ctx->col1->head.turn;
   if (now_turn && s_beg_cooldown_until[nation_id - 4] > now_turn) {
     return;
@@ -4341,43 +4378,21 @@ static void ai_contact_missionary_flee(ColonizeTurnContext* ctx, int nation_id) 
 }
 
 /*
- * Meet-pulse mission pacify deepen: mission owner present and mid-range
- * friction/alarm (40..80, below FUN_4cc6_0000 clear) → −2 tribe friction and
- * matching alarm_by_player (floor 0). Once per tribe per call.
- * Magnitude stays near prelude low-band −1; no free crosses.
- * Source: fandom Alarm — missions slow hostility / pacify.
+ * ai_contact_mission_pacify_meet lived here: a meet-pulse "mission pacify
+ * deepen" that took −2 off tribe friction and alarm_by_player in the 40..80
+ * band, cited "Source: fandom Alarm". Retired 2026-09-09 (smell #48) as the
+ * last straggler of the fandom alarm-drip class whose siblings went in the
+ * 2026-09-03 encroachment sweep (see the note in ai_contact_indian_prelude).
+ *
+ * Evidence of absence: DOS's mission goodwill is already modelled, once, in
+ * FUN_4d56_152e (viceroy 81387+) — the mission nation's euro_relation_accum
+ * takes the (de las Casas ×2 / de Sepulveda ÷2) mission term and every −8
+ * crossing spends one alarm −1 through FUN_4cc6_00f2; the same term also
+ * moves the DS:0x54f6 attitude word by local_8 * −3, and `friction` IS that
+ * word's low byte (col1_save.h:753). So this helper double-counted the DOS
+ * mission term, and it did so with raw byte/word writes that skipped
+ * ai_diplo_indian_alarm_delta's war-clear and attitude-tier update.
  */
-static void ai_contact_mission_pacify_meet(ColonizeTurnContext* ctx, int nation_id) {
-  if (!ctx || !ctx->col1_ok || !ctx->col1 || !ctx->col1->tribe) {
-    return;
-  }
-  if (nation_id < 4 || nation_id > 11) {
-    return;
-  }
-  ColonizeCol1Indian* ind = &ctx->col1->indian[nation_id - 4];
-  for (uint16_t ti = 0; ti < ctx->col1->head.tribe_count; ++ti) {
-    ColonizeCol1Tribe* t = &ctx->col1->tribe[ti];
-    if ((int)t->nation_id != nation_id || t->mission == COL1_TRIBE_MISSION_NONE) {
-      continue;
-    }
-    const int euro = (int)(t->mission & COL1_TRIBE_MISSION_NATION_MASK);
-    if (euro < 0 || euro > 3) {
-      continue;
-    }
-    const int fr = (int)t->alarm[euro].friction;
-    const int al = (int)ind->alarm_by_player[euro];
-    /* Mid-range only; low-band stays prelude −1; ≥80 → mission burn/clear. */
-    if ((fr < 40 || fr >= 80) && (al < 40 || al >= 80)) {
-      continue;
-    }
-    if (fr >= 40 && fr < 80) {
-      t->alarm[euro].friction = (uint8_t)(fr >= 2 ? fr - 2 : 0);
-    }
-    if (al >= 40 && al < 80) {
-      ind->alarm_by_player[euro] = (uint16_t)(al >= 2 ? al - 2 : 0);
-    }
-  }
-}
 
 /*
  * FUN_4d56_1816 item 2 (War of Independence tribe defection) — thin port.
@@ -4571,35 +4586,33 @@ void ai_contact_indian_prelude(ColonizeTurnContext* ctx, int nation_id) {
    */
 
   /*
-   * Mission pacifies: tribe with mission + low friction toward mission Euro →
-   * extra −1 friction (and matching alarm_by_player if also low). Dialog PARKED.
+   * Retired 2026-09-09 (smell #48), same class and same sweep as the
+   * encroachment bumps above: a per-village "mission pacifies" −1 on tribe
+   * friction and alarm_by_player, every Indian turn, whenever the value sat
+   * in 1..39. It had no DOS counterpart — FUN_4d56_152e already carries the
+   * one mission goodwill term DOS has (euro_relation_accum + the ×2/÷2
+   * de las Casas / de Sepulveda scaling, spent as alarm −1 per −8 crossing
+   * through FUN_4cc6_00f2, plus attitude += local_8 * −3 on the DS:0x54f6
+   * word whose low byte is `friction`), so this was a second, raw-write copy
+   * of it that also skipped ai_diplo_indian_alarm_delta's war-clear and
+   * attitude-tier update. Its meet-pulse twin (the −2 "pacify deepen") went
+   * with it.
    */
-  for (uint16_t i = 0; i < ctx->col1->head.tribe_count; ++i) {
-    ColonizeCol1Tribe* t = &ctx->col1->tribe[i];
-    if ((int)t->nation_id != nation_id) {
-      continue;
-    }
-    if (t->mission == COL1_TRIBE_MISSION_NONE) {
-      continue;
-    }
-    const int euro = (int)(t->mission & COL1_TRIBE_MISSION_NATION_MASK);
-    if (euro < 0 || euro > 3) {
-      continue;
-    }
-    if (t->alarm[euro].friction < 40 && t->alarm[euro].friction > 0) {
-      t->alarm[euro].friction--;
-    }
-    if (ind->alarm_by_player[euro] < 40 && ind->alarm_by_player[euro] > 0) {
-      ind->alarm_by_player[euro]--;
-    }
-  }
 
   /*
    * Mission burn: the old Linux "alarm/friction ≥80 each tick" stand-in was
    * retired 2026-09-07d. DOS burns missions only from FUN_4cc6_00f2's
    * escalation tail — alarm delta lands the pair at 100 while at PEACE,
-   * difficulty-gated RNG roll — now ported as ai_contact_alarm_delta_00f2
-   * (every ctx-bearing alarm-delta call site routes through it).
+   * difficulty-gated RNG roll — now ported as ai_contact_alarm_delta_00f2.
+   *
+   * 2026-09-09 (smell #46): that "every ctx-bearing call site routes through
+   * it" claim was false when written — the 152e accumulator (ai.c, DOS's
+   * sole alarm-growth channel) and three ai_contact sites (tribute bump,
+   * heresy pair, mission founding) still called the bare first half, so the
+   * burn could never fire from them. Fixed. The remaining bare
+   * ai_diplo_indian_alarm_delta callers (units.c, game_loop.c) genuinely
+   * have no turn context in hand; DOS has no bare writer at all — 0x5b1c is
+   * written only inside 00f2 — so those are still port debt.
    */
 }
 
@@ -5053,7 +5066,6 @@ int ai_contact_try_village_gifts(ColonizeTurnContext* ctx, int nation_id) {
     return 0;
   }
   ColonizeCol1Indian* ind = &ctx->col1->indian[nation_id - 4];
-  static uint16_t s_gift_cooldown_until[8];
   const uint16_t now_turn = ctx->col1->head.turn;
   if (now_turn && s_gift_cooldown_until[nation_id - 4] > now_turn) {
     return 0;
@@ -5385,6 +5397,20 @@ typedef struct AiContactReparations {
 static AiContactReparations s_reparations[4];
 
 /*
+ * New-game / load hook (sibling of ai_goals_reset, called from
+ * ai_init_new_game). s_reparations holds a pending Indian reparations offer
+ * with a colony_id / unit_id / tribe_index into the CURRENT game; without
+ * this, an offer outstanding when the player starts or loads another game
+ * resolves against col1->tribe[] of a different world (smell #58).
+ */
+void ai_contact_reset(void) {
+  memset(s_reparations, 0, sizeof(s_reparations));
+  memset(s_beg_cooldown_until, 0, sizeof(s_beg_cooldown_until));
+  memset(s_gift_cooldown_until, 0, sizeof(s_gift_cooldown_until));
+  memset(s_repar_cooldown_until, 0, sizeof(s_repar_cooldown_until));
+}
+
+/*
  * DOS's demand price row. `-0x7b44 + nation*0x10 + good` wraps to the fixed
  * DS:0x84BC table; the port carries the captured row as k_2820_throttle and
  * uses it nation-invariantly, exactly as ai_contact_try_village_gifts does.
@@ -5690,7 +5716,6 @@ static void ai_contact_try_village_reparations(ColonizeTurnContext* ctx, int nat
     return; /* no presentation context — see the header's TRIGGER note */
   }
   ColonizeCol1Indian* ind = &ctx->col1->indian[nation_id - 4];
-  static uint16_t s_repar_cooldown_until[8];
   const uint16_t now_turn = ctx->col1->head.turn;
   if (now_turn && s_repar_cooldown_until[nation_id - 4] > now_turn) {
     return;
@@ -7002,11 +7027,9 @@ void ai_contact_indian_meet_trade(ColonizeTurnContext* ctx, int nation_id) {
   ai_contact_missionary_flee(ctx, nation_id);
 
   /*
-   * 2b2. Mission pacify deepen (meet pulse): mid-range alarm/friction toward
-   * mission Euro → −2 once (prelude keeps low-band −1). Cite: fandom Alarm —
-   * missions slow hostility. No free crosses. Burn/clear at ≥80 stays in prelude.
+   * 2b2. (Retired 2026-09-09, smell #48.) The "mission pacify deepen" −2
+   * pulse used to sit here. DOS pacifies through the 152e mission term only.
    */
-  ai_contact_mission_pacify_meet(ctx, nation_id);
 
   /*
    * bugs.md 2026-09-04: the passive teach pulse is retired from the Indian
@@ -8967,7 +8990,33 @@ static int ai_contact_nearest_own_colony(
  * -0x6be4 (Euro land combat total), -0x6e34 (Brave combat on a continent),
  * -0x6e7c (Brave combat total). Byte tables in DOS — capped at 255; the
  * nation total is a word. combat value = FUN_157e_004a(unit, mode 1).
+ * `exposed_only` reproduces DOS's 0x942c/0x95b2 gate — see the loop body.
  */
+/*
+ * FUN_281f_06be â FUN_137f_03e4 (viceroy_unpacked.c:6838-6860): owner byte of
+ * ANY settlement standing on the tile â Euro colony (0..3) or Indian village
+ * (>= 4) â and â1 for an empty or off-map tile. Twin of
+ * col1_stuff_census_settlement_at (static there; a 20-line pure helper is
+ * cheaper to repeat than to export across link units).
+ */
+static int ai_contact_settlement_owner_at(const ColonizeTurnContext* ctx, int x, int y) {
+  if (ctx->colonies) {
+    const int cid = colonies_id_at(ctx->colonies, x, y);
+    const ColonizeColony* c = colonies_get(ctx->colonies, cid);
+    if (c && c->active) {
+      return c->nation_id >= 0 ? c->nation_id : 0;
+    }
+  }
+  if (ctx->col1_ok && ctx->col1 && ctx->col1->tribe) {
+    for (uint16_t i = 0; i < ctx->col1->head.tribe_count; ++i) {
+      if ((int)ctx->col1->tribe[i].x == x && (int)ctx->col1->tribe[i].y == y) {
+        return 4 + (int)ctx->col1->tribe[i].nation_id;
+      }
+    }
+  }
+  return -1;
+}
+
 static int ai_contact_land_combat_sum(
   const ColonizeTurnContext* ctx,
   int nation,
@@ -8983,23 +9032,43 @@ static int ai_contact_land_combat_sum(
   sctx.map = ctx->map;
   sctx.colonies = ctx->colonies;
   sctx.col1 = ctx->col1;
+  /* DOS `3 < param_1 || control[param_1] != 0` â a human nation's units never
+   * reach the exposed row while standing on a settlement. Tribes (>= 4) have
+   * no control byte and always pass. */
+  const int human_slot = exposed_only && ctx->col1_ok && ctx->col1 && nation >= 0 &&
+                         nation < (int)COLONIZE_COL1_NATION_COUNT &&
+                         ctx->col1->player[nation].control == 0;
   int sum = 0;
   for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
     const ColonizeUnit* u = units_get_const(ctx->units, i);
-    if (!u || !u->active || u->nation_id != nation || u->aboard_ship_id >= 0 ||
-        units_is_sea(ctx->units, i)) {
+    if (!u || !u->active || u->nation_id != nation || units_is_sea(ctx->units, i)) {
       continue;
     }
-    if (exposed_only) {
-      if (u->orders == UNITS_ORDER_FORTIFY || u->orders == UNITS_ORDER_FORTIFIED) {
-        continue;
-      }
-      if (ctx->colonies && colonies_id_at(ctx->colonies, u->x, u->y) >= 0) {
-        continue;
-      }
+    /* DOS parks a ship's passengers off-map at (â2,â2), where FUN_281f_081c
+     * reports no continent: they reach the nation-wide word (-0x6be4) but no
+     * per-continent row. The port rides passengers at the ship's own tile, so
+     * the exclusion has to be explicit â and only for continent rows. */
+    if (u->aboard_ship_id >= 0 && continent >= 0) {
+      continue;
     }
     if (continent >= 0 && ctx->map && map_continent_id_at(ctx->map, u->x, u->y) != continent) {
       continue;
+    }
+    if (exposed_only) {
+      /*
+       * DOS gate, verbatim (4962:022f-026e): a unit only drops out of the
+       * exposed row when it stands on a settlement AND (its nation is
+       * human-controlled OR its ai_plan is 'A'/'G'). +0x314b is `ai_plan`,
+       * the FUN_521d_0a60 garrison-assignment letter â not the orders byte
+       * at +0x314c. Fixed 2026-09-09 (audit follow-up B): this arm tested
+       * orders FORTIFY/FORTIFIED and excluded every in-colony unit outright.
+       */
+      const int settlement =
+        u->aboard_ship_id >= 0 ? -1 : ai_contact_settlement_owner_at(ctx, u->x, u->y);
+      if (settlement >= 0 &&
+          (human_slot || u->col1_ai_plan == 0x41u || u->col1_ai_plan == 0x47u)) {
+        continue;
+      }
     }
     sum += combat_unit_base_x8(&sctx, i, 1, NULL);
     if (sum >= cap) {
@@ -9007,6 +9076,154 @@ static int ai_contact_land_combat_sum(
     }
   }
   return sum;
+}
+
+/*
+ * FUN_5952_035e's Indian war-declare block — the AI colony tick's one and only
+ * production writer of COL1_INDIAN_WAR_BIT (viceroy_unpacked.c:94170-94190;
+ * clean OVL15 body in original_sources_annotated/ai/colony_tick_5952_035e.md
+ * lines 513-538, where it reads `FUN_1000_8bf6(nation, DS:0x8d50, 2)`).
+ *
+ * Ghidra dropped every argument of the far call in the canonical export, so
+ * the call was recovered from the raw listing (viceroy_unpacked.asm, label
+ * LAB_5952_0ac6):
+ *
+ *   6a02        PUSH 0x2                  ; mask = WAR (0x02)
+ *   ff36508d    PUSH word [0x8d50]        ; the tribe's nation id (tribe + 4)
+ *   ffb652fe    PUSH word [BP+local_1b0]  ; this colony's Euro nation
+ *   9a060a1f28  CALLF switchD_2000:da9f::caseD_10   ; = FUN_15b3_0066 or_both
+ *
+ * i.e. `or_both(nation, tribe + 4, 2)`, which sets the bit on BOTH sides of
+ * the 12x12 matrix: nation[nation].relation_by_indian[tribe] and
+ * indian[tribe].euro_diplo[nation]. Static sweep 2026-09-09: this and
+ * FUN_5bfb_13b0's paid "smite" arm (raw 98378, ported in ai_diplo.c's
+ * AI_TALK_ST_ALLY_PAY) are the only two sites in the whole game that ever OR
+ * bit 2 into an Indian row — FUN_15b3_0032 has no thunk of its own, so
+ * or_both/clear_both are the sole mutation channel, and FUN_4cc6_00f2's
+ * cool-below-75 clear is the only other toucher.
+ *
+ * DOS body, verbatim (`presence` = DS:0x95f2[cont], FUN_4962_0018 raw
+ * 78149-78312; the array is zeroed at the top of every per-nation call, so it
+ * always describes the nation currently being censused):
+ *
+ *   if ((presence & 1) == 0)  -> nothing (no natives on this continent)
+ *   if ((presence & 6) != 0 && nation != 2) -> else-arm: only caps the
+ *                                              expansion appetite, no war
+ *   if (exposed[nation][cont] <= 1) -> nothing
+ *   lim_a = land_combat_strength[nation] << (nation == 2 ? 2 : 1)
+ *   lim_b = exposed[nation][cont]        << (nation == 2 ? 3 : 2)
+ *   if (brave_total[tribe] > lim_a) -> nothing
+ *   if (brave_on_cont[tribe][cont] >= lim_b) -> nothing
+ *   if (alarm(tribe, nation) <= 0x19 && nation != 2) -> nothing
+ *   or_both(nation, tribe + 4, 2)
+ *
+ * `tribe` is DS:0x8d52, left behind by the tick's earlier
+ * `FUN_281f_0d84(colony x, y, -1, cont)` = `FUN_4cc6_0356` nearest-village
+ * scan (raw 93998-94006) — the tribe owning the village nearest THIS colony
+ * on its own continent, ties going to the later record (DOS `<=`).
+ *
+ * Spain (nation 2) doubles both strength allowances and skips both the
+ * foreign-presence gate and the alarm floor, the same `nation == 2`
+ * special-casing the surrounding block carries.
+ *
+ * The four census tables (-0x6a4e / -0x6be4 / -0x6e34 / -0x6e7c) are
+ * recomputed live through ai_contact_land_combat_sum, exactly as the
+ * Demand-Tribute roll below does: the port never refreshes the DS:0x95b2 /
+ * 0x91cc mirrors for a Linux-started game.
+ */
+void ai_contact_colony_tick_war_5952(ColonizeTurnContext* ctx, int nation_id, int cx, int cy) {
+  if (!ctx || !ctx->col1_ok || !ctx->col1 || !ctx->map || nation_id < 0 || nation_id > 3) {
+    return;
+  }
+  ColonizeCol1Save* col1 = ctx->col1;
+  const int cont = map_continent_id_at(ctx->map, cx, cy);
+  if (cont < 0 || cont >= 16) {
+    return;
+  }
+  /* DS:0x95f2[cont] bit 1 — raw 78312: every settlement record, no filter. */
+  int presence = 0;
+  if (col1->tribe) {
+    for (uint16_t ti = 0; ti < col1->head.tribe_count; ++ti) {
+      const ColonizeCol1Tribe* t = &col1->tribe[ti];
+      if (map_continent_id_at(ctx->map, (int)t->x, (int)t->y) == cont) {
+        presence |= 1;
+        break;
+      }
+    }
+  }
+  if ((presence & 1) == 0) {
+    return;
+  }
+  if (nation_id != 2) {
+    /* bit 2 — raw 78235: a land unit of another Euro nation on this continent. */
+    if (ctx->units) {
+      for (int i = 0; i < COLONIZE_UNITS_MAX && (presence & 2) == 0; ++i) {
+        const ColonizeUnit* u = units_get_const(ctx->units, i);
+        if (!u || !u->active || u->nation_id < 0 || u->nation_id > 3 ||
+            u->nation_id == nation_id) {
+          continue;
+        }
+        if (map_continent_id_at(ctx->map, u->x, u->y) == cont) {
+          presence |= 2;
+        }
+      }
+    }
+    /* bit 4 — raw 78302: a colony of another Euro nation on this continent. */
+    if (ctx->colonies) {
+      for (int i = 0; i < COLONIZE_COLONIES_MAX && (presence & 4) == 0; ++i) {
+        const ColonizeColony* c = &ctx->colonies->colonies[i];
+        if (!c->active || c->nation_id < 0 || c->nation_id > 3 || c->nation_id == nation_id) {
+          continue;
+        }
+        if (map_continent_id_at(ctx->map, c->x, c->y) == cont) {
+          presence |= 4;
+        }
+      }
+    }
+    if ((presence & 6) != 0) {
+      return;
+    }
+  }
+  const int exposed = ai_contact_land_combat_sum(ctx, nation_id, cont, 1, 255);
+  if (exposed <= 1) {
+    return;
+  }
+  const int total = ai_contact_land_combat_sum(ctx, nation_id, -1, 0, 0xffff);
+  const int lim_a = nation_id == 2 ? (total << 2) : (total << 1);
+  const int lim_b = nation_id == 2 ? (exposed << 3) : (exposed << 2);
+  /* FUN_4cc6_0356(cx, cy, -1, cont): nearest village on the colony's own
+   * continent; DOS's `iVar1 <= local_4` makes a tie pick the later record. */
+  int tribe_nation = -1;
+  if (col1->tribe) {
+    int best = 9999;
+    for (uint16_t ti = 0; ti < col1->head.tribe_count; ++ti) {
+      const ColonizeCol1Tribe* t = &col1->tribe[ti];
+      const int tc = map_continent_id_at(ctx->map, (int)t->x, (int)t->y);
+      if (tc >= 0 && tc != cont) {
+        continue;
+      }
+      const int dx = abs(cx - (int)t->x);
+      const int dy = abs(cy - (int)t->y);
+      const int d = dy < dx ? ((dy >> 1) + dx) : ((dx >> 1) + dy);
+      if (d <= best) {
+        best = d;
+        tribe_nation = (int)t->nation_id;
+      }
+    }
+  }
+  if (tribe_nation < 4 || tribe_nation > 11) {
+    return;
+  }
+  if (ai_contact_land_combat_sum(ctx, tribe_nation, -1, 0, 255) > lim_a) {
+    return;
+  }
+  if (ai_contact_land_combat_sum(ctx, tribe_nation, cont, 0, 255) >= lim_b) {
+    return;
+  }
+  if (nation_id != 2 && ai_diplo_indian_alarm(col1, tribe_nation, nation_id) <= 0x19) {
+    return;
+  }
+  ai_diplo_or_both(col1, nation_id, tribe_nation, COL1_INDIAN_WAR_BIT);
 }
 
 /* DS:0xc8 / DS:0xde — the 20-tile colony work ring (5x5 minus centre and corners). */
@@ -9542,7 +9759,7 @@ static void ai_contact_demand_tribute(
     ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_DEMAND, nation_id, "Tribute", body);
   }
   if (bump != 0) {
-    ai_diplo_indian_alarm_delta(col1, nation_id, e, bump);
+    ai_contact_alarm_delta_00f2(ctx, nation_id, e, bump); /* full 4cc6_00f2 */
   }
 }
 
@@ -9789,8 +10006,9 @@ static void ai_contact_denounce_heresy(
     d_me = -d_me;
   }
   units_despawn(ctx->units, u->id);
-  ai_diplo_indian_alarm_delta(col1, nation_id, foreign, d_them);
-  ai_diplo_indian_alarm_delta(col1, nation_id, e, d_me);
+  /* DOS routes both through FUN_281f_0d6c = the whole of FUN_4cc6_00f2. */
+  ai_contact_alarm_delta_00f2(ctx, nation_id, foreign, d_them);
+  ai_contact_alarm_delta_00f2(ctx, nation_id, e, d_me);
 }
 
 /*
@@ -9873,7 +10091,7 @@ static void ai_contact_establish_mission(
     t->mission = (uint8_t)(t->mission | COL1_TRIBE_MISSION_JESUIT_BIT);
   }
   units_despawn(ctx->units, u->id);
-  ai_diplo_indian_alarm_delta(col1, nation_id, e, base);
+  ai_contact_alarm_delta_00f2(ctx, nation_id, e, base); /* full 4cc6_00f2 */
 }
 
 /*

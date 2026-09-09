@@ -161,6 +161,14 @@ int reports_naval_page_count(
 );
 
 /*
+ * Indian Adviser (F9) per-tribe row gate — DOS FUN_3f41_010a:
+ *   ((FUN_281f_0a38(human, tribe) & 0x20) != 0) || (([0x8d4e+3] & 0x80) != 0)
+ * i.e. met (COL1_INDIAN_MET_BIT) OR extinct. Exported so the row gate can be
+ * asserted directly; `tribe` is the 0-based indian[] index (nation id - 4).
+ */
+bool reports_indian_tribe_listed(const ColonizeCol1Save* col1, int tribe, int human);
+
+/*
  * Colonization Score — byte-faithful port of DOS FUN_41f2_0092 (score
  * composer, F10 + Retire) and FUN_41f2_0b70 (Colonization Rating / exploits
  * tier). Every component and its gate mirrors the DOS block order:

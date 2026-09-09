@@ -79,10 +79,4 @@ void colony_preview_compute(
   ColonizeColonyPreview* out
 );
 
-/* Best field job for an unworked tile (max yield); -1 if none. */
-int colony_preview_best_job(const ColonizeWorldMap* map, int x, int y);
-
-/* Second-best job (distinct cargo from first); -1 if none. */
-int colony_preview_second_job(const ColonizeWorldMap* map, int x, int y, int first_job);
-
 #endif

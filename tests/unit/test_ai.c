@@ -1054,6 +1054,217 @@ static int run_village_threat_alarm(void) {
   return 0;
 }
 
+/*
+ * Shared fixture for the two FUN_4d56_152e regression tests below: an empty
+ * plains map, no units, one Indian settlement of nation 4 at (10,10).
+ * Everything is memset to zero first and `founding_father[]` filled with -1
+ * (unclaimed) — a memset-0 head hands nation 0 all 25 Fathers and silently
+ * halves/doubles the arms under test.
+ */
+typedef struct Ai152eFixture {
+  ColonizeMsgCatalog names;
+  ColonizeWorldMap map;
+  ColonizeUnitPool units;
+  ColonizeColonyPool colonies;
+  ColonizeCol1Save col1;
+  ColonizeCol1Tribe tribes[1];
+  ColonizeDosRng rng;
+  ColonizeTurnContext ctx;
+  uint16_t year;
+  uint16_t autumn;
+  uint32_t turn;
+  char status[128];
+} Ai152eFixture;
+
+static int ai_152e_fixture_init(Ai152eFixture* f, const char* label, uint32_t seed) {
+  memset(f, 0, sizeof(*f));
+  assets_msg_init(&f->names);
+  if (!assets_msg_load_file(&f->names, "COLONIZE/NAMES.TXT")) {
+    fprintf(stderr, "%s: NAMES.TXT load failed\n", label);
+    return 1;
+  }
+  char maperr[128];
+  if (!map_alloc(&f->map, 32, 32, maperr, sizeof(maperr))) {
+    fprintf(stderr, "%s: map_alloc failed: %s\n", label, maperr);
+    return 1;
+  }
+  for (int i = 0; i < 32 * 32; ++i) {
+    f->map.terrain[i] = 2; /* plains */
+  }
+  units_reset(&f->units);
+  units_set_occupancy_map(NULL);
+  units_load_types(&f->units, &f->names);
+  colonies_init(&f->colonies);
+  colonies_set_occupancy_map(NULL);
+
+  for (size_t i = 0; i < sizeof(f->col1.head.founding_father); ++i) {
+    f->col1.head.founding_father[i] = -1;
+  }
+  f->col1.head.difficulty = 2;
+  f->col1.tribe = f->tribes;
+  f->col1.head.tribe_count = 1;
+  f->tribes[0].nation_id = 4;
+  f->tribes[0].x = 10;
+  f->tribes[0].y = 10;
+  f->tribes[0].population = 5;
+  f->tribes[0].mission = COL1_TRIBE_MISSION_NONE;
+  f->col1.indian[0].tech = 1;
+
+  dos_rng_seed(&f->rng, seed);
+  f->year = 1600;
+  f->autumn = 0;
+  f->turn = 20;
+  f->status[0] = '\0';
+  f->ctx.col1 = &f->col1;
+  f->ctx.col1_ok = true;
+  f->ctx.map = &f->map;
+  f->ctx.units = &f->units;
+  f->ctx.colonies = &f->colonies;
+  f->ctx.rng = &f->rng;
+  f->ctx.human_nation = 0;
+  f->ctx.status = f->status;
+  f->ctx.status_size = sizeof(f->status);
+  f->ctx.game_year = &f->year;
+  f->ctx.game_autumn = &f->autumn;
+  f->ctx.turn_number = &f->turn;
+  return 0;
+}
+
+static void ai_152e_fixture_free(Ai152eFixture* f) {
+  map_free(&f->map);
+  assets_msg_free(&f->names);
+}
+
+/*
+ * smell #45 — FUN_4d56_152e's mission arm keeps settlement+0xa+e*2 as a whole
+ * signed int16, exactly like the threat arm beside it: raw 81490-81496 reads
+ * the word, adds local_8 * -3, clamps at 0 and writes the word back. The port
+ * used to touch only the low `friction` byte, so once the word passed 255 the
+ * mission relief became a permanent no-op (friction bottomed at 0 while the
+ * `attacks` high byte held the value up).
+ *
+ * No colony on the map ⇒ no threat nation ⇒ the mission arm is the only writer
+ * of the word this tick. local_8 = 4 (Jesuit) << 1 (capital) << 1 (FF 0x18)
+ * = 16, so the delta is -48 — enough to borrow out of the low byte. The
+ * starting word 296 keeps `friction` at 40; that also used to keep
+ * ai_contact's separate mission-pacify drip (friction < 40) out of the
+ * arithmetic, and since 2026-09-09 (smell #48) that drip is gone entirely —
+ * this 152e term is now DOS's only mission relief.
+ */
+static int run_152e_mission_attitude_word(void) {
+  Ai152eFixture f;
+  if (ai_152e_fixture_init(&f, "152e-mission-word", 4242u) != 0) {
+    return 1;
+  }
+  f.tribes[0].mission = (uint8_t)COL1_TRIBE_MISSION_JESUIT_BIT; /* Jesuit, English */
+  f.tribes[0].state.capital = 1;
+  f.col1.nation[0].founding_fathers[24 / 8] |= (uint8_t)(1u << (24 % 8)); /* FF 0x18 */
+  /* Word 296 = friction 40 | attacks 1 — a value only reachable above 255. */
+  col1_tribe_attitude_set(&f.tribes[0], 0, 296);
+
+  ai_indian_nation_turn(&f.ctx, 4);
+  const int after1 = col1_tribe_attitude(&f.tribes[0], 0);
+  if (after1 != 248) {
+    fprintf(stderr,
+            "152e-mission-word: word 296 - 48 should be 248, got %d "
+            "(friction=%u attacks=%u) — the mission arm is still editing the "
+            "low byte only\n",
+            after1, (unsigned)f.tribes[0].alarm[0].friction,
+            (unsigned)f.tribes[0].alarm[0].attacks);
+    ai_152e_fixture_free(&f);
+    return 1;
+  }
+  ai_indian_nation_turn(&f.ctx, 4);
+  const int after2 = col1_tribe_attitude(&f.tribes[0], 0);
+  if (after2 != 200) {
+    fprintf(stderr, "152e-mission-word: second tick should reach 200, got %d\n", after2);
+    ai_152e_fixture_free(&f);
+    return 1;
+  }
+  /* Floor is 0 on the whole word, not on the low byte (raw 81494-81496). */
+  col1_tribe_attitude_set(&f.tribes[0], 0, 40);
+  ai_indian_nation_turn(&f.ctx, 4);
+  const int floored = col1_tribe_attitude(&f.tribes[0], 0);
+  if (floored != 0) {
+    fprintf(stderr, "152e-mission-word: 40 - 48 should clamp to 0, got %d\n", floored);
+    ai_152e_fixture_free(&f);
+    return 1;
+  }
+  ai_152e_fixture_free(&f);
+  fprintf(stderr, "152e mission attitude word ok (296->%d->%d, floor %d)\n",
+          after1, after2, floored);
+  return 0;
+}
+
+/*
+ * smell #46 — the 152e accumulator spends its crossings through
+ * FUN_281f_0d6c (raw 80240/80247/80255), a bare thunk to the WHOLE of
+ * FUN_4cc6_00f2 including its escalation tail. The port used to call the
+ * first half only (ai_diplo_indian_alarm_delta), so DOS's sole alarm-growth
+ * channel could push a pair to alarm 100 and still never burn the missions.
+ *
+ * Fixture: a fat English colony two tiles from the settlement so the threat
+ * arm has a nation to spend on, the accumulator re-loaded deeply negative
+ * each tick (the crossing loop lives inside `if (threat_nation >= 0)`), alarm
+ * 99 at PEACE, English human-controlled so the tail's roll cap is the
+ * difficulty. The first crossing lands alarm on 100; the rest hit the tail,
+ * which is RNG-gated (rng(0,10) <= difficulty+1), so a wired tail fires
+ * within a couple of ticks and an unwired one never does.
+ */
+static int run_152e_alarm_escalation(void) {
+  Ai152eFixture f;
+  if (ai_152e_fixture_init(&f, "152e-escalate", 90909u) != 0) {
+    return 1;
+  }
+  f.col1.head.difficulty = 4;
+  f.tribes[0].mission = 0; /* English mission, the thing the tail burns */
+  f.col1.indian[0].euro_diplo[0] = (uint8_t)(COL1_INDIAN_MET_BIT | COL1_INDIAN_PEACE_BIT);
+  f.col1.indian[0].alarm_by_player[0] = 99;
+  f.col1.player[0].control = 0; /* human ⇒ tail cap = difficulty */
+
+  const int cid = colonies_found(&f.colonies, &f.map, 12, 10, 0, 0, 0, 0, 0, 0);
+  if (cid < 0) {
+    fprintf(stderr, "152e-escalate: colony found failed\n");
+    ai_152e_fixture_free(&f);
+    return 1;
+  }
+  ColonizeColony* col = colonies_get_mut(&f.colonies, cid);
+  col->colonist_count = 8;
+  col->population = 8;
+
+  int cleared_on = -1;
+  for (int t = 0; t < 4 && cleared_on < 0; ++t) {
+    /*
+     * The two arms adjust the accumulator before the crossing loop reads it,
+     * so seed it well past -8: one settlement scores only a few points of
+     * threat per tick and the mission arm pays some of that back.
+     */
+    f.col1.indian[0].euro_relation_accum[0] = -100;
+    ai_indian_nation_turn(&f.ctx, 4);
+    if (f.tribes[0].mission == COL1_TRIBE_MISSION_NONE) {
+      cleared_on = t;
+    }
+  }
+  const int alarm = (int)f.col1.indian[0].alarm_by_player[0];
+  if (alarm < 100) {
+    fprintf(stderr, "152e-escalate: accumulator never reached alarm 100 (%d)\n", alarm);
+    ai_152e_fixture_free(&f);
+    return 1;
+  }
+  if (cleared_on < 0) {
+    fprintf(stderr,
+            "152e-escalate: alarm hit %d at peace but the mission survived — "
+            "the accumulator is calling the bare writer, not 4cc6_00f2\n",
+            alarm);
+    ai_152e_fixture_free(&f);
+    return 1;
+  }
+  ai_152e_fixture_free(&f);
+  fprintf(stderr, "152e alarm escalation ok (alarm=%d, missions burned on tick %d)\n",
+          alarm, cleared_on);
+  return 0;
+}
+
 int main(void) {
   diag_init(0, NULL);
   const char* data = "COLONIZE";
@@ -1064,6 +1275,12 @@ int main(void) {
     return 1;
   }
   if (run_village_threat_alarm() != 0) {
+    return 1;
+  }
+  if (run_152e_mission_attitude_word() != 0) {
+    return 1;
+  }
+  if (run_152e_alarm_escalation() != 0) {
     return 1;
   }
   return 0;

@@ -25,14 +25,18 @@
  * Do NOT use unknown26[4..7] for flags — those save bytes are unrelated and
  * false-triggered WAR (Privateer spam on seed-100 TURN1→2).
  * Remaining unknown26 Linux stand-ins (timers / sticky / privateer mask):
- *   [0..3] treaty timers  [8] Indian sticky  [9] Privateer spawn mask
+ *   [0..3] treaty timers  [9] Privateer spawn mask  [11] Indian sticky
+ * ([8] carried the sticky until 2026-09-09 (smell #52); that byte is DOS's
+ * FUN_4d56_4528 grace/waiver counter — [11] is the block's one dead byte.)
  * Indian×Euro full 15b3 matrix still PORT DEBT (thin feeler / war-hit / sticky).
  * Phase 1 deepen (T3 roadmap): unmet euro_relation==0 no longer stamped;
  * relation==0 is unmet not war; peaceful meet floor 96 (seed-100 TURN3+).
  */
 
 #define AI_DIPLO_FLAG_BASE 4
-#define AI_DIPLO_INDIAN_HOSTILE_STICKY 8
+/* unknown26 index of the sticky stand-in (nation record +0x4b). Unused —
+ * every site names the struct member; kept as the block's index legend. */
+#define AI_DIPLO_INDIAN_HOSTILE_STICKY 11
 #define AI_DIPLO_PRIVATEER_SPAWN_SLOT 9
 /* Off-map Europe tile (turn / ai_euro Europe gate x|y >= 200). */
 #define AI_DIPLO_EUROPE_X 236
@@ -40,20 +44,36 @@
 /* Same gate as ai_euro_in_europe — naval war hunt skips Europe until HS. */
 #define AI_DIPLO_IN_EUROPE(x, y) ((x) >= 200 || (y) >= 200)
 
-/* Thin FUN_5bfb_153e stand-in: treasury + tax friction on war declare;
- * unpark #5 deepens military score + colony-gap trade sting + Tools embargo.
+/* FUN_5bfb_153e declare-war side effects. The whole "friction" stand-in layer
+ * this block once carried — −100 gold + 1 tax on both sides (smell #47), a
+ * colony-gap −25 trade sting (follow-up A), a Tools embargo — is retired:
+ * DOS charges nothing on a declare. What remains is the relation/PEACE/WAR
+ * bit work and the treaty-timer seed.
  * FA 3f41 full body/UI PARKED. Linux-only alliance machinery (ally-aid,
  * FA gift, break trust) retired T2.4 2026-09-06.
  * Euro×Euro war does NOT boycott Europe cargos (DOS tea-party / king refuse
  * only). An invented wartime all-16-bit embargo was removed after
  * all_boycotted.SAV (1516, tax 0, boycott_bitmap 0xFFFF). Peace still
  * lifts leftover wartime bits on poisoned saves. The full per-rival 153e
- * audience is LIVE (ai_diplo_153e_encounter below, 2026-09-06 close-out);
- * this sting remains the declare-war side-effect layer. */
+ * audience is LIVE (ai_diplo_153e_encounter below, 2026-09-06 close-out). */
 
-#define AI_DIPLO_WAR_GOLD_STING 100u
-#define AI_DIPLO_WAR_TAX_BUMP 1u
-#define AI_DIPLO_WAR_TAX_CAP 75u
+/*
+ * AI_DIPLO_WAR_GOLD_STING (100) / AI_DIPLO_WAR_TAX_BUMP (1) /
+ * AI_DIPLO_WAR_TAX_CAP (75) lived here. Retired 2026-09-09 (smell #47): DOS
+ * charges neither on a war declare. Evidence of absence:
+ *   - tax_rate is nation record +5 (DS `*(int *)0x84fc + 5`, see
+ *     FUN_38fd_44a4 viceroy 64481/64502). The ONLY DOS site that increments
+ *     it is FUN_38fd_44a4 itself, the @TAXRAISE king event; the nation-record
+ *     form `n * 0x13c + -0x77f3` never appears in any decompile. No declare
+ *     path (5fef_1b0e viceroy 101005-101014, 684c_08c0, 6cb2_24b8, or
+ *     5bfb_153e) touches it.
+ *   - Gold is nation record +0x2a/+0x2c (`n * 0x13c + -0x77ce`). Every gold
+ *     move next to a war-bit write is a TRANSFER, never a symmetric drain:
+ *     153e's paid-@SMITE moves the payer's gold to the hired nation
+ *     (viceroy 98387-98397), and 5fef_1b0e's combat plunder moves the loser's
+ *     to the winner (viceroy 100995-101002). Neither side loses 100 flat, and
+ *     the human is never charged for a war it did not buy.
+ */
 #define AI_DIPLO_WAR_UPKEEP_GOLD 5u
 /* PARKED accuracy debt: null-units treasury stand-in only; do not change rate. */
 #define AI_DIPLO_PRIVATEER_PRIZE_GOLD 8u
@@ -73,8 +93,39 @@
 #define AI_DIPLO_WAR_TRADE_GOODS_EMBARGO_BIT (1u << COLONIZE_CARGO_TRADE_GOODS)
 #define AI_DIPLO_WAR_TOOLS_EMBARGO_BIT (1u << COLONIZE_CARGO_TOOLS)
 #define AI_DIPLO_WAR_MUSKETS_EMBARGO_BIT (1u << COLONIZE_CARGO_MUSKETS)
-#define AI_DIPLO_WAR_TRADE_STING 25u
-#define AI_DIPLO_WAR_COLONY_GAP 2
+/*
+ * AI_DIPLO_WAR_TRADE_STING (25) / AI_DIPLO_WAR_COLONY_GAP (2) lived here.
+ * Retired 2026-09-09 (audit follow-up A) for the same reason as the −100
+ * declare sting above, and on the same evidence: a static sweep of every
+ * gold write in the three decompiles (`n * 0x13c + -0x77ce`, 103 hits) finds
+ * NO constant-valued treasury decrement anywhere in the game. Every
+ * `*puVar = *puVar - X` on the gold word takes a variable X — a price, a
+ * wage, a hire fee or a plunder amount — and each one has a matching credit
+ * on the other side. The 153e gold movement this sting claimed as pedigree
+ * is the paid-@SMITE TRANSFER (viceroy 98387-98397), not a drain.
+ */
+/*
+ * Linux war/peace pressure bands for ai_diplo_military_score, named 2026-09-09
+ * (smell #51) when the score became the DS:0x941c mirror. DOS has no bands of
+ * this shape at all — its own war-worthiness test is FUN_5bfb_10ec, ported
+ * whole in ai_euro.c and reached through ai_diplo_13b0_treaty_tick. These four
+ * gate only the Linux war-fatigue peace roll and the opportunistic declare
+ * pressure, and each gates an RNG draw, so they sit in the shared DOS RNG
+ * stream.
+ *
+ * The numbers are unchanged. Rescaling them ×8 to match the mirror's scale
+ * (80/120/160/240) was tried and reverted: it silences both arms on the early
+ * golden turns, drops their RNG draws and shifts everything downstream —
+ * golden_ai_turns TURN6→7 diverges (Quebec pop 2 vs 1, a Brave and a colonist
+ * lost). The bands were invented against the old Σ(attack+defense) blend and
+ * the goldens have been recorded through them ever since; with no DOS
+ * constant to appeal to, the recorded stream is the only evidence there is,
+ * so they stay put.
+ */
+#define AI_DIPLO_STRENGTH_MIN 10
+#define AI_DIPLO_STRENGTH_PARITY 15
+#define AI_DIPLO_STRENGTH_EDGE 20
+#define AI_DIPLO_STRENGTH_WAR_MIN 30
 /* First declare: seed peer treaty timer so near-parity peace waits for
  * timer==0 (war aged / fatigue). Reuses unknown26[0..3]; live timers kept. */
 #define AI_DIPLO_WAR_FATIGUE_TIMER 8u
@@ -86,7 +137,13 @@
 #define AI_DIPLO_INDIAN_AT_WAR_REL 26 /* alarm > 0x4a (FUN_5bfb_153e hostile tier) */
 /* Very-low deepen: relation < 16, i.e. DOS alarm >= 85. */
 #define AI_DIPLO_INDIAN_VERY_LOW_REL 16 /* alarm >= 85: sticky deepen band (Linux) */
-#define AI_DIPLO_INDIAN_HARASS_GOLD 2u
+/* AI_DIPLO_INDIAN_HARASS_GOLD (2) lived here — an invented −2g/turn
+ * "harassment" drain on any Euro at war with any tribe, the human included.
+ * Retired 2026-09-09 (smell #49) on the same evidence-of-absence sweep as the
+ * declare stings: DOS has no constant gold decrement at all, and no native
+ * machinery (FUN_4d56_152e, FUN_4cc6_00f2, FUN_5952_035e, FUN_465b_0000)
+ * touches a Euro treasury. Native war costs the player units and stores, not
+ * a per-turn tax. */
 /* Peace feeler / first-meet content floor. Seed-100 TURN3+ write 96 on meet
  * (not 100). Heal mid-band up to this ceiling; drift still climbs to 160.
  * Source: fandom Indians — peace → gifts / improve relations (no large gold). */
@@ -116,86 +173,22 @@ static void ai_diplo_popup_ok(
   const char* body
 );
 
-static void ai_diplo_war_treasury_sting(ColonizeCol1Save* col1, int nation_a, int nation_b) {
-  if (!col1) {
-    return;
-  }
-  for (int i = 0; i < 2; ++i) {
-    const int n = (i == 0) ? nation_a : nation_b;
-    if (n < 0 || n >= 4) {
-      continue;
-    }
-    ColonizeCol1Nation* nat = &col1->nation[n];
-    if (nat->gold > AI_DIPLO_WAR_GOLD_STING) {
-      nat->gold -= AI_DIPLO_WAR_GOLD_STING;
-    } else {
-      nat->gold = 0;
-    }
-  }
-}
-
-/* Thin 153e side effect: +1 tax_rate both sides, cap 75 (king tax path). */
-static void ai_diplo_war_tax_bump(ColonizeCol1Save* col1, int nation_a, int nation_b) {
-  if (!col1) {
-    return;
-  }
-  for (int i = 0; i < 2; ++i) {
-    const int n = (i == 0) ? nation_a : nation_b;
-    if (n < 0 || n >= 4) {
-      continue;
-    }
-    ColonizeCol1Nation* nat = &col1->nation[n];
-    if (nat->tax_rate >= AI_DIPLO_WAR_TAX_CAP) {
-      continue;
-    }
-    uint8_t next = (uint8_t)(nat->tax_rate + AI_DIPLO_WAR_TAX_BUMP);
-    if (next > AI_DIPLO_WAR_TAX_CAP) {
-      next = (uint8_t)AI_DIPLO_WAR_TAX_CAP;
-    }
-    nat->tax_rate = next;
-  }
-}
-
-static int ai_diplo_col1_colony_count(const ColonizeCol1Save* col1, int nation_id) {
-  if (!col1 || !col1->colony || nation_id < 0 || nation_id >= 4) {
-    return 0;
-  }
-  int n = 0;
-  for (uint16_t i = 0; i < col1->head.colony_count; ++i) {
-    if ((int)col1->colony[i].nation_id == nation_id) {
-      n++;
-    }
-  }
-  return n;
-}
+/*
+ * ai_diplo_war_treasury_sting (−100 gold both sides) and
+ * ai_diplo_war_tax_bump (+1 tax_rate both sides, cap 75) lived here.
+ * Both retired 2026-09-09 (smell #47) as fandom inventions — see the
+ * evidence-of-absence note on the constants block above. The tax bump was
+ * additionally writing nation.tax_rate raw, bypassing
+ * ai_king_audience_apply_delta and its europe->tax_percent mirror, so the
+ * Europe screen went stale until the next audience.
+ */
 
 /*
- * Unpark #5 153e trade deepen: if |colony_count_a − colony_count_b| ≥ 2,
- * drain AI_DIPLO_WAR_TRADE_STING from the richer treasury (floor 0). Gap
- * deepen is gold-only — Euro war does not boycott Europe cargos.
+ * ai_diplo_col1_colony_count + ai_diplo_war_trade_score_sting (colony-gap ≥ 2
+ * → −25 gold off the richer treasury on first declare) lived here. Retired
+ * 2026-09-09 (audit follow-up A) — see the constants note above for the
+ * evidence of absence.
  */
-static void ai_diplo_war_trade_score_sting(ColonizeCol1Save* col1, int nation_a, int nation_b) {
-  if (!col1 || nation_a < 0 || nation_a >= 4 || nation_b < 0 || nation_b >= 4) {
-    return;
-  }
-  const int ca = ai_diplo_col1_colony_count(col1, nation_a);
-  const int cb = ai_diplo_col1_colony_count(col1, nation_b);
-  int gap = ca - cb;
-  if (gap < 0) {
-    gap = -gap;
-  }
-  if (gap < AI_DIPLO_WAR_COLONY_GAP) {
-    return;
-  }
-  ColonizeCol1Nation* a = &col1->nation[nation_a];
-  ColonizeCol1Nation* b = &col1->nation[nation_b];
-  ColonizeCol1Nation* rich = (a->gold >= b->gold) ? a : b;
-  if (rich->gold > AI_DIPLO_WAR_TRADE_STING) {
-    rich->gold -= AI_DIPLO_WAR_TRADE_STING;
-  } else {
-    rich->gold = 0;
-  }
-}
 
 /*
  * Lift leftover wartime @CARGO embargo bits when a nation has no remaining
@@ -568,7 +561,8 @@ uint8_t ai_diplo_indian_hostility_sticky(const ColonizeCol1Save* col1, int euro_
 }
 
 /*
- * Sync unknown26[8] from the Indian alarm matrix (via ai_diplo_indian_read).
+ * Sync the sticky stand-in (nation record +0x4b, unknown26[11]) from the
+ * Indian alarm matrix (via ai_diplo_indian_read).
  *  0 — no Indian at-war slots (all unmet r==0, or relation ≥
  *      AI_DIPLO_INDIAN_AT_WAR_REL = 26)
  *  1 — any contacted slot at war (0 < relation < 26)
@@ -680,7 +674,7 @@ void ai_diplo_indian_capital_surrender(
 }
 
 /*
- * euro_balance Indian matrix arm: peace feeler → sticky sync → harassment.
+ * euro_balance Indian matrix arm: peace feeler → sticky sync.
  * Sticky→pressure: sticky==2 skips feeler + human "Natives remain hostile."
  * Human status chrome on rise/clear/deep (102a/1092 widgets PARKED);
  * feeler heal while sticky stays clear → "Native relations improve."
@@ -697,7 +691,7 @@ static void ai_diplo_indian_matrix_tick(ColonizeTurnContext* ctx, int nation_id)
    * Sticky→pressure (unpark #5): when sticky==2 (very-low deepen), block the
    * peace feeler this tick — deep hostility refuses the improve-relations path.
    * Source: fandom Indians — alarmed/hostile may refuse trade/gifts; contact
-   * friction <40 band inverted. No invented gold drain (harassment owns −2g).
+   * friction <40 band inverted. No invented gold drain of any kind.
    */
   if (prev_sticky != AI_DIPLO_STICKY_DEEP) {
     /* Peace feeler before sync so content-floor heals can clear sticky. */
@@ -735,21 +729,12 @@ static void ai_diplo_indian_matrix_tick(ColonizeTurnContext* ctx, int nation_id)
     );
   }
 
-  if (ai_diplo_indian_any_at_war(col1, nation_id)) {
-    ColonizeCol1Nation* nat = &col1->nation[nation_id];
-    /*
-     * Harassment −2g once per balance tick; floor at 0. Skip when already 0
-     * so a second invent-below-zero does not fire in the same path.
-     * Source: thin Indian hostility drain; no multi-slot gold fiction.
-     */
-    if (nat->gold == 0) {
-      /* already floored this tick path */
-    } else if (nat->gold > AI_DIPLO_INDIAN_HARASS_GOLD) {
-      nat->gold -= AI_DIPLO_INDIAN_HARASS_GOLD;
-    } else {
-      nat->gold = 0;
-    }
-  }
+  /*
+   * The −2g/turn "harassment" drain that closed this function was retired
+   * 2026-09-09 (smell #49). It charged every Euro at war with any tribe, the
+   * human included, and had no DOS counterpart at all — see the
+   * AI_DIPLO_INDIAN_HARASS_GOLD note on the constants block.
+   */
 }
 
 static uint8_t* ai_diplo_timer_byte(ColonizeCol1Save* col1, int nation, int peer) {
@@ -973,14 +958,13 @@ void ai_diplo_declare_war(ColonizeCol1Save* col1, int nation_a, int nation_b) {
   }
   ai_diplo_clear_both(col1, nation_a, nation_b, AI_DIPLO_PEACE);
   ai_diplo_or_both(col1, nation_a, nation_b, (uint8_t)(AI_DIPLO_WAR | AI_DIPLO_MET));
-  /* Thin 153e-shaped sting: gold drain + tax bump both sides (relation via mirror). */
+  /* First-declare side effects. The −100 gold / +1 tax pair (smell #47) and
+   * the colony-gap −25 trade sting (follow-up A) that used to lead this block
+   * were retired 2026-09-09 — no DOS declare path charges any of them; see
+   * the evidence-of-absence notes on the constants block at the top. */
   if (!already) {
-    ai_diplo_war_treasury_sting(col1, nation_a, nation_b);
-    ai_diplo_war_tax_bump(col1, nation_a, nation_b);
     /* Indians dislike Euro×Euro war (scalar stand-in; full 15b3 PARKED). */
     ai_diplo_war_indian_relation_hit(col1, nation_a, nation_b);
-    /* Unpark #5: colony-gap rich-side trade sting. */
-    ai_diplo_war_trade_score_sting(col1, nation_a, nation_b);
     /* War fatigue: seed treaty timer if 0 so near-parity peace waits for age. */
     ai_diplo_war_fatigue_timer_seed(col1, nation_a, nation_b);
   }
@@ -1569,15 +1553,70 @@ int ai_diplo_00f8_top_ranked_nation(const ColonizeCol1Save* col1) {
   return idx[3];
 }
 
-/* -0x6a4e field_combat_strength_by_continent: Σ 004a(u,1) over land units on
- * cid that are not fortified and not inside a colony (save_format_map row 300).
- * Byte table in DOS — capped at 255. */
+/*
+ * FUN_281f_06be → FUN_137f_03e4 (viceroy_unpacked.c:6838-6860): owner byte of
+ * ANY settlement on the tile — Euro colony (0..3) or Indian village (>= 4) —
+ * and −1 both for an empty tile and for an off-map one. Same body as
+ * col1_stuff_census_settlement_at (that file's copy is static; this is a
+ * 20-line pure helper, duplicated rather than exported to keep ai_diplo's
+ * link unit independent of col1_stuff_census).
+ */
+static int ai_diplo_settlement_owner_at(const ColonizeTurnContext* ctx, int x, int y) {
+  if (ctx->colonies) {
+    const int cid = colonies_id_at(ctx->colonies, x, y);
+    const ColonizeColony* c = colonies_get(ctx->colonies, cid);
+    if (c && c->active) {
+      return c->nation_id >= 0 ? c->nation_id : 0;
+    }
+  }
+  if (ctx->col1_ok && ctx->col1 && ctx->col1->tribe) {
+    for (uint16_t i = 0; i < ctx->col1->head.tribe_count; ++i) {
+      if ((int)ctx->col1->tribe[i].x == x && (int)ctx->col1->tribe[i].y == y) {
+        return 4 + (int)ctx->col1->tribe[i].nation_id;
+      }
+    }
+  }
+  return -1;
+}
+
+/*
+ * -0x6a4e field_combat_strength_by_continent (DS:0x95b2): the per-continent
+ * half of the FUN_4962_0018 arm that also fills the per-nation
+ * `stuff.field_combat_totals` byte (0x942c). Σ FUN_281f_09c8(u,1) over the
+ * nation's land units on `cid`, under DOS's own gate, verbatim
+ * (4962:022f-026e, decompile viceroy_unpacked.c:78222-78231):
+ *
+ *   settlement = FUN_281f_06be(u.x, u.y)
+ *   if (settlement >= 0) {
+ *     if (nation < 4 && control[nation] == 0) skip;   // human never counts
+ *     if (ai_plan == 'A' || ai_plan == 'G') skip;     // garrison assignment
+ *   }
+ *   accumulate
+ *
+ * 2026-09-09 (audit follow-up B): this used to test
+ * `orders == FORTIFY/FORTIFIED` and then drop every unit standing in a
+ * colony. Both halves were wrong. The gate byte is +0x314b = `ai_plan`, the
+ * goal letter FUN_521d_0a60 stamps 'A' on a garrison assignment and ages to
+ * 'G' — NOT the orders byte, which is +0x314c (the same DOS function reads
+ * 5/6 there, for the separate 0x9456 fortified tally). And a unit inside a
+ * settlement is excluded only when it is a garrison or belongs to the human;
+ * an AI field unit resting in its own colony still counts. See
+ * col1_stuff_census.c for the per-nation twin of this gate.
+ *
+ * Embarked units stay excluded: DOS parks passengers off-map at (−2,−2),
+ * where FUN_281f_081c reports no continent, so they reach no per-continent
+ * row (they do reach the per-nation byte, which is why the census twin counts
+ * them). Byte table in DOS — capped at 255.
+ */
 static int ai_diplo_153e_exposed_combat_at(const ColonizeTurnContext* ctx, int nation, int cid) {
   ColonizeCombatStrengthCtx sctx;
   sctx.units = ctx->units;
   sctx.map = ctx->map;
   sctx.colonies = ctx->colonies;
   sctx.col1 = ctx->col1;
+  const int human_slot = ctx->col1_ok && ctx->col1 && nation >= 0 &&
+                         nation < (int)COLONIZE_COL1_NATION_COUNT &&
+                         ctx->col1->player[nation].control == 0;
   int sum = 0;
   for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
     const ColonizeUnit* u = units_get_const(ctx->units, i);
@@ -1585,13 +1624,11 @@ static int ai_diplo_153e_exposed_combat_at(const ColonizeTurnContext* ctx, int n
         units_is_sea(ctx->units, i)) {
       continue;
     }
-    if (u->orders == UNITS_ORDER_FORTIFY || u->orders == UNITS_ORDER_FORTIFIED) {
-      continue;
-    }
-    if (ctx->colonies && colonies_id_at(ctx->colonies, u->x, u->y) >= 0) {
-      continue;
-    }
     if (map_continent_id_at(ctx->map, u->x, u->y) != cid) {
+      continue;
+    }
+    if (ai_diplo_settlement_owner_at(ctx, u->x, u->y) >= 0 &&
+        (human_slot || u->col1_ai_plan == 0x41u || u->col1_ai_plan == 0x47u)) {
       continue;
     }
     sum += combat_unit_base_x8(&sctx, i, 1, NULL);
@@ -1701,8 +1738,13 @@ static int ai_diplo_153e_skilled_units_at(const ColonizeTurnContext* ctx, int na
  *   -0x6d68  per-nation "tension" byte (raw 441, 556, 590)
  *   -0x6a4e  per-continent EXPOSED combat value (raw 442+) - distinct
  *            from the already-resolved -0x6e74/-0x6a8e sums this file's
- *            G-table exposes; the "exposed" filter (not fortified,
- *            orders != A/G, plus the 0x543f class gate) isn't wired
+ *            G-table exposes. WIRED 2026-09-09 (audit follow-up B):
+ *            ai_diplo_153e_exposed_combat_at now carries DOS's real gate
+ *            from FUN_4962_0018 (4962:022f-026e) — a unit leaves the row
+ *            only when it stands on a settlement AND (ai_plan is 'A'/'G'
+ *            OR its nation is human-controlled, the 0x543f class gate).
+ *            The earlier reading of "not fortified" as an ORDERS test was
+ *            wrong: the byte is +0x314b (ai_plan), not +0x314c (orders).
  *   -0x6ada  per-continent skilled-unit count (raw 454)
  *   0x53c8[] per-nation declare-war cooldown timer (raw 421-424, 436-437)
  *   0xa153   single unresolved byte (raw 509) - no match anywhere else
@@ -3233,50 +3275,33 @@ void ai_diplo_treaty_timers(ColonizeTurnContext* ctx, int nation_id) {
   ai_diplo_indian_peaceful_drift(ctx->col1, nation_id);
 }
 
+/*
+ * Military strength of a Euro nation = the DS:0x941c census mirror
+ * `stuff.land_combat_strength[]`, i.e. Σ FUN_281f_09c8(u, 1) over the
+ * nation's land units (combat byte ×8 plus the veteran / Drake /
+ * damaged-artillery peels), maintained by FUN_4962_0018 and ported in
+ * col1_stuff_census.c.
+ *
+ * 2026-09-09 (smell #51): this used to be an invented blend —
+ * Σ(attack+defense), +3 per ship, +2 per colonist of population, +5 per
+ * fortification, gold/50, and +(3−rank)*2 off ctx->euro_power_rank. Every
+ * other strength comparison in the port already reads the mirror: the
+ * FUN_5952_035e war-decision block (:3109/:3124/:3127), the king
+ * intervention math (ai_king.c:3887), FUN_5bfb_10ec (ai_euro.c:11369), the
+ * unit-level foe test (ai_euro.c:3357) and the Foreign Affairs "Military
+ * Power" row (reports.c:3142, the same word >> 3). The rank term was also a
+ * double count: FUN_5bfb_00f8's rank table is itself built from
+ * land_combat_strength (see ai_diplo_00f8_top_ranked_nation above), so the
+ * blend added the same quantity twice on two different scales.
+ *
+ * The mirror is a word, ×8 the DOS combat byte. The AI_DIPLO_STRENGTH_* bands
+ * that read this score are unchanged Linux constants — see their own note.
+ */
 int ai_diplo_military_score(const ColonizeTurnContext* ctx, int nation_id) {
-  if (!ctx || nation_id < 0 || nation_id >= 4) {
+  if (!ctx || !ctx->col1_ok || !ctx->col1 || nation_id < 0 || nation_id >= 4) {
     return 0;
   }
-  int score = 0;
-  if (ctx->units) {
-    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-      const ColonizeUnit* u = &ctx->units->units[i];
-      if (!u->active || u->nation_id != nation_id) {
-        continue;
-      }
-      const ColonizeUnitType* t = units_type(ctx->units, u->type_index);
-      if (t) {
-        score += t->attack + t->defense;
-        if (t->domain == COLONIZE_UNIT_DOMAIN_SEA) {
-          score += 3; /* thin naval weight (5bfb_00f8-ish) */
-        }
-      }
-    }
-  }
-  if (ctx->colonies) {
-    for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
-      const ColonizeColony* c = &ctx->colonies->colonies[i];
-      if (!c->active || c->nation_id != nation_id) {
-        continue;
-      }
-      score += c->population * 2;
-      if (colonies_has_fortification(ctx->colonies, c)) {
-        score += 5;
-      }
-    }
-  }
-  /* Treasury / trade capacity stand-in (153e military+trade blend). */
-  if (ctx->col1_ok && ctx->col1) {
-    score += (int)(ctx->col1->nation[nation_id].gold / 50u);
-  }
-  /* FUN_5bfb_00f8 place: stronger (rank 0) → +6, weakest → 0. */
-  if (ctx->euro_power_rank_ok) {
-    const int place = (int)ctx->euro_power_rank[nation_id];
-    if (place >= 0 && place < 4) {
-      score += (3 - place) * 2;
-    }
-  }
-  return score;
+  return (int)ctx->col1->stuff.land_combat_strength[nation_id];
 }
 
 
@@ -3437,9 +3462,10 @@ void ai_diplo_euro_balance(ColonizeTurnContext* ctx, int nation_id) {
    *  4 13b0 treaty sign/cancel (ai_diplo_13b0_treaty_tick; the Linux-only
    *    alliance form/break + ally aid / FA gift / longevity arms were retired
    *    T2.4 2026-09-06 — DOS has no Euro×Euro alliances)
-   *  5 declare_war_ctx → thin 153e gold+tax + human status (102a/1092 chrome)
+   *  5 declare_war_ctx → human status (102a/1092 chrome); the 153e gold/tax
+   *    stings it used to carry are all retired (smells #47/#49, follow-up A)
    *  + Indian matrix: feeler (skip sticky2 / any Euro war) + sticky sync/pressure
-   *    + harassment; sticky2 also refuses new treaties
+   *    sticky2 also refuses new treaties
    *  + Franklin (fandom): NW pair with FF → always offer/conclude peace; skip
    *    10ec declare pressure (king Euro wars must not poison NW peers)
    */
@@ -3479,7 +3505,10 @@ void ai_diplo_euro_balance(ColonizeTurnContext* ctx, int nation_id) {
         continue;
       }
       /* Thin ongoing 153e friction: 5 gold/turn while gold>0 (per war peer). */
-      const uint16_t gold_before_upkeep = ctx->col1->nation[nation_id].gold;
+      /* uint32: the nation gold word is 32-bit (col1_save.h +0x2a/+0x2c). A
+       * uint16 here read 0 at exactly 65536/131072/… and silently swallowed
+       * the status line at those treasuries (smell #56). */
+      const uint32_t gold_before_upkeep = ctx->col1->nation[nation_id].gold;
       ai_diplo_war_upkeep_drain(&ctx->col1->nation[nation_id]);
       /*
        * Thin war-upkeep human chrome once per euro_balance tick (not per peer).
@@ -3523,7 +3552,8 @@ void ai_diplo_euro_balance(ColonizeTurnContext* ctx, int nation_id) {
        * Full 153e / FA 3f41 peace dialog UI PARKED; no gold cost.
        * Source: extend existing near-parity path; timer==0 + WAR = fatigue.
        */
-      if (self > 10 && other > 10 && abs(self - other) < 15) {
+      if (self > AI_DIPLO_STRENGTH_MIN && other > AI_DIPLO_STRENGTH_MIN &&
+          abs(self - other) < AI_DIPLO_STRENGTH_PARITY) {
         uint8_t* t = ai_diplo_timer_byte(ctx->col1, nation_id, peer);
         if (t && *t == 0 && ctx->rng && dos_rng_range(ctx->rng, 1, 30) == 1) {
           /* Same as the Franklin arm above (bugs.md): no invented peace
@@ -3541,7 +3571,7 @@ void ai_diplo_euro_balance(ColonizeTurnContext* ctx, int nation_id) {
      * treaty sign/cancel only. */
 
     /* 10ec war eligibility. */
-    if (self > other * 2 + 20 && self > 30) {
+    if (self > other * 2 + AI_DIPLO_STRENGTH_EDGE && self > AI_DIPLO_STRENGTH_WAR_MIN) {
       /*
        * Franklin: skip declare-war pressure against NW Euro peers (fandom —
        * king's European wars / opportunistic war must not poison NW relations).

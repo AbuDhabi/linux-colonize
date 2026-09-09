@@ -364,18 +364,33 @@ void colony_prod_refresh_sol_flags(ColonizeColony* colony, const ColonizeCol1Sav
 }
 
 /*
- * Crown / REF peer of human Euro slot (0↔1). Match ai_king / combat_strength.
+ * Crown / REF nation slot = DOS DS:0x53d2 = head.crown_nation_id, the slot the
+ * War-of-the-Spanish-Succession merger vacated (FUN_43f7_0218). Real saves
+ * carry 0..3 there — dutch-reports.SAV has 2 — so the old "peer of the human
+ * Euro slot (0↔1)" re-derivation could only ever answer 0 or 1 and pointed the
+ * WoI bells negation below at the wrong nation's colonies whenever the crown
+ * sat in slot 2 or 3. ai_king_crown_nation_col1 is the canonical resolver
+ * (save value when set and not the human, else that 0↔1 fallback).
  */
 static int colony_prod_crown_nation(const ColonizeCol1Save* col1) {
   if (!col1) {
     return 1;
   }
+  int human = -1;
   for (int i = 0; i < (int)COLONIZE_COL1_NATION_COUNT; ++i) {
     if (col1->player[i].control == 0) {
-      return (i == 0) ? 1 : 0;
+      human = i;
+      break;
     }
   }
-  return 1;
+  const int crown = (int)col1->head.crown_nation_id;
+  if (crown >= 0 && crown < (int)COLONIZE_COL1_NATION_COUNT && crown != human) {
+    return crown;
+  }
+  if (human < 0) {
+    return 1; /* no human slot at all — prior fallback */
+  }
+  return (human == 0) ? 1 : 0;
 }
 
 void colony_prod_tick_rebel_accumulators(

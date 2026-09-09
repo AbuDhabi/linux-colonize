@@ -32,6 +32,8 @@ static void units_occupancy_refresh_tile(ColonizeUnitPool* pool, int x, int y, i
 static void units_map_set_owner_nibble(ColonizeWorldMap* map, int x, int y, int nation_or_ff);
 static void units_mp_charge(const ColonizeUnitPool* pool, ColonizeUnit* u, int cost);
 static void units_mp_exhaust(const ColonizeUnitPool* pool, ColonizeUnit* u);
+static void units_mp_restore(const ColonizeUnitPool* pool, ColonizeUnit* u);
+static bool units_is_combat_role(const ColonizeUnitPool* pool, const ColonizeUnit* u);
 static ColonizeWorldMap* g_units_occupancy_map = NULL;
 
 static void units_trim(char* s) {
@@ -1636,6 +1638,38 @@ void units_set_combat_popups(AiPopupState* popups, const ColonizeMsgCatalog* gam
  */
 static int g_units_revere_muskets_latch = 0;
 
+/*
+ * DOS scratch @UNIT row 0x17 — the unit id of the phantom defender
+ * FUN_5fef_1b0e auto-spawns (DOS `bVar28`) for an undefended colony
+ * (units_spawn_colony_temp_defender) or an empty dwelling
+ * (units_spawn_village_temp_defender). BOTH arms build it through
+ * FUN_291f_0a20 (= FUN_478c_002c, raw 76545-76564), which stamps unit type
+ * byte 0x17, and 1b0e deletes it with FUN_291f_0a06 (raw 100636-100639)
+ * *before* the win/lose branch:
+ *
+ *     uVar25 = 0x281f;
+ *     if (bVar28) { uVar25 = 0x291f; FUN_291f_0a06(0x281f); }
+ *     if (bVar8) { ... if (bVar28) { colony/village consequences } else { 0352 } }
+ *
+ * Two consequences the port has to honour:
+ *   • FUN_5fef_0352 (units_apply_land_loss_outcome) is reached only on the
+ *     `else` limb, i.e. never for the phantom — no @COLONISTCAPTURE, no
+ *     @DEMOTE, no nation flip. The town's real consequence is the walk-in
+ *     that follows (units_try_capture_foreign_colony / the village drain).
+ *   • FUN_5fef_172c (units_promote_on_win) opens with
+ *     `if (type byte == 1 || type byte == 4)`; a 0x17 row fails it and
+ *     returns before FUN_281f_04d4 — so a phantom that WINS draws no
+ *     promotion RNG. Keeping the draw here would also desync the stream.
+ *
+ * `bVar28` itself is already carried by combat_set_auto_defender /
+ * combat_auto_defender (combat_strength.c reads it for the beginner shield),
+ * raised by exactly the two auto-spawn arms and lowered the moment the
+ * engagement returns — so that is the predicate both gates below use.
+ */
+static bool units_defender_is_dos_scratch_row(void) {
+  return combat_auto_defender();
+}
+
 /* See units.h: ai_contact owns the richer ambush chrome for its own calls. */
 static int g_units_native_chrome_owned = 0;
 void units_set_native_combat_chrome_owned(int owned) {
@@ -1956,6 +1990,53 @@ int units_best_defender_at(
   int best_score = -1;
   int best_soft_id = -1;
   int best_soft_score = -1;
+  /*
+   * DOS FUN_5fef_0000 domain gate, verbatim (viceroy_unpacked.c 99137-99147
+   * + 99190-99196):
+   *
+   *   if (-1 < param_2) {
+   *     uVar1 = unit[param_2].x; uVar6 = unit[param_2].y;
+   *     local_6 = (FUN_281f_0696(uVar1,uVar6) >= 0);        // colony there?
+   *     if (FUN_281f_0302(uVar1,uVar6))                     // tile in bounds
+   *       { local_c = FUN_281f_0768(uVar1,uVar6); bVar2 = true; }
+   *   }
+   *   ...
+   *   if (bVar2) { local_16 = (0xd <= cand.type && cand.type <= 0x12);
+   *                if (local_c != local_16) skip; }
+   *
+   * `param_2` is NOT the attacker — the attacker is `param_3` (the artillery
+   * arm reads its nation nibble, and FUN_281f_09dc scores each candidate
+   * against it). `param_2` comes from the caller as
+   * `uVar17 = FUN_281f_07e0(...); FUN_5fef_0000(uVar17, ...)` at raw
+   * 100353-100354: the first unit standing on the TARGET tile. That is the
+   * same tile `local_6` reads for the artillery colony bonus below, which
+   * this port already resolves as `colonies_id_at(colonies, x, y)`.
+   *
+   * So the gate is `FUN_281f_0768(x, y)` = ocean_or_high_seas of the SCANNED
+   * TILE (SYMBOL_MAP.md): a water tile is defended by ships only, a land tile
+   * by land units only. A hull moored in a harbour therefore never defends
+   * the town (the D1 REF wedge), and a garrison never answers a naval fight.
+   *
+   * The port tested the ATTACKER's own ship-ness instead (smell audit
+   * 2026-09-09 #13). That agrees with DOS whenever the attacker's domain
+   * matches its tile — i.e. almost always — but diverged for a warship
+   * attacking out of a colony berth: it is a sea unit standing on a land
+   * tile, so the port let it engage only ships while DOS engages whatever
+   * matches the TARGET tile.
+   *
+   * When no map is wired (headless fixtures) fall back to the old
+   * attacker-ship-ness proxy — DOS's `bVar2` is false only for an absent
+   * `param_2`, never for an absent world.
+   */
+  int tile_domain = -1;
+  if (atk) {
+    if (sctx.map) {
+      tile_domain =
+        (map_tile_is_water(sctx.map, x, y) || map_tile_is_high_seas(sctx.map, x, y)) ? 1 : 0;
+    } else {
+      tile_domain = units_is_sea(pool, attacker_id) ? 1 : 0;
+    }
+  }
   for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
     const ColonizeUnit* u = &pool->units[i];
     if (!units_is_on_map(u) || u->x != x || u->y != y) {
@@ -1967,19 +2048,18 @@ int units_best_defender_at(
     if (atk_nat >= 0 && u->nation_id == atk_nat) {
       continue;
     }
-    /*
-     * DOS FUN_5fef_0000 domain gate (raw 99190-99196): the defender's
-     * ship-ness (type 0x0d..0x12) must equal the attacker's tile water test
-     * (FUN_281f_0768) or the candidate is skipped — a land assault never
-     * engages a docked ship, and naval combat never engages the garrison.
-     * Without it a Privateer in port outranked the garrison and the whole
-     * REF assault wedged (found closing D1).
-     */
-    if (atk && units_is_sea(pool, u->id) != units_is_sea(pool, attacker_id)) {
+    /* Domain gate — see the tile_domain derivation above. */
+    if (tile_domain >= 0 && (units_is_sea(pool, u->id) ? 1 : 0) != tile_domain) {
       continue;
     }
-    const int armed =
-      combat_unit_is_combat_role(pool, u->id) || u->muskets > 0 || u->horses > 0;
+    /*
+     * "Armed" = the DOS combat-role question in this port's body/kit model:
+     * `units_is_combat_role` (type attack byte > 0 OR carried muskets/horses).
+     * This used to be open-coded as `combat_unit_is_combat_role(...) ||
+     * muskets || horses`, a third spelling of the same predicate (smell audit
+     * 2026-09-09 #12); the two are identical, so fold to the named one.
+     */
+    const int armed = units_is_combat_role(pool, u) ? 1 : 0;
     int score = combat_engagement_strength(&sctx, u->id, attacker_id, NULL);
     const ColonizeUnitType* t = units_type(pool, u->type_index);
     /*
@@ -2095,7 +2175,10 @@ int units_spawn_village_temp_defender(
   }
   u->nation_id = indian_nation;
   u->home_tribe_id = tribe_index;
-  u->moves_left = 0;
+  /* The nation_id just written is native, so moves_left is the DOS SPENT byte
+   * here: a raw 0 would mean "full allotment", not "cannot act". The phantom
+   * must never be able to move (smell audit 2026-09-09 #7). */
+  units_mp_exhaust(pool, u);
   return id;
 }
 
@@ -3017,8 +3100,30 @@ static void units_sweep_stack_after_loss(
     if (u->nation_id != loser_nation || u->id == winner_id || u->id == primary_loser_id) {
       continue;
     }
+    /*
+     * Smell audit 2026-09-09 #4, verified against DOS and kept as-is except
+     * for the hull skip:
+     *
+     *  - DOS FUN_5fef_0ec0 (raw 99708-99730) carries NO per-unit predicate at
+     *    all: it walks the tile list and hands every entry to 0352. The
+     *    `attack == 0` narrowing here is the port's own safety rail (a won
+     *    attack must not capture a whole defended stack), so tightening it
+     *    further to units_is_combat_role would move AWAY from DOS, not
+     *    toward it — an armed colonist body is DOS's type 1 "Soldiers", and
+     *    0ec0 does sweep it.
+     *  - It is also not "seized without a fight": units_apply_land_loss_outcome
+     *    only nation-flips a Colonists body with `muskets <= 0 && horses <= 0`
+     *    (see is_colonist below), so an armed body falls to
+     *    units_demote_combat_type and sheds its kit — exactly DOS's
+     *    Soldiers → Colonists demote row.
+     *  - Hulls do need excluding: a berthed Caravel/Merchantman/Galleon is
+     *    attack 0 and has no capture/demote row, so it was being despawned
+     *    outright by the LAND sweep. Naval stackmates have their own resolver
+     *    (units_sweep_naval_stack_after_loss).
+     */
     const ColonizeUnitType* t = units_type(pool, u->type_index);
-    if (t && t->attack == 0 && u->nation_id >= 0 && u->nation_id <= 3) {
+    if (t && t->attack == 0 && !units_is_sea(pool, u->id) && u->nation_id >= 0 &&
+        u->nation_id <= 3) {
       (void)units_apply_land_loss_outcome(pool, u->id, winner_id, col1, 0);
     }
   }
@@ -4923,11 +5028,29 @@ static void units_mounted_attack_spend_all(ColonizeUnitPool* pool, int attacker_
  * param_4 (the raid resolver's walls-check bypass) at raw 101142 — so the
  * auto-loss and the raid flag are the same latch, computed once.
  *
- * @UNIT type ids are the NAMES.TXT @UNIT line order the port loads into
- * `type_index` (Colonists 0 … Artillery 0xb … Braves 0x13), the same identity
- * the typed attack-fire sound below relies on.
+ * @UNIT type ids are the NAMES.TXT @UNIT line order (Colonists 0 … Artillery
+ * 0xb … Braves 0x13), but a Linux POOL INDEX is not a DOS @UNIT id — synthetic
+ * fixtures and modded rosters place types at arbitrary slots, and the raw
+ * `type_index == 0x13/0x0b` test silently no-opped there (smell audit
+ * 2026-09-09 #8). Match by type-name family, the rule combat_strength.c
+ * already states for the veteran gate (`combat_type_is_soldier_or_dragoon`,
+ * combat_strength.c:78-81): plain "Braves" only — NOT Armed Braves 0x14 /
+ * Mtd. Braves 0x15 / Mtd. Warriors 0x16 — versus the artillery family.
+ * On the stock roster the two spellings are identical.
  */
+static int units_combat_type_is_plain_brave(const ColonizeUnitType* t) {
+  if (!t || !t->name[0]) {
+    return 0;
+  }
+  if (strstr(t->name, "Brave") == NULL) {
+    return 0;
+  }
+  return strstr(t->name, "Armed") == NULL && strstr(t->name, "Mtd") == NULL &&
+         strstr(t->name, "Mounted") == NULL;
+}
+
 static int units_combat_brave_vs_human_arty(
+  const ColonizeUnitPool* pool,
   const ColonizeCol1Save* col1,
   const ColonizeUnit* atk,
   const ColonizeUnit* def
@@ -4941,7 +5064,15 @@ static int units_combat_brave_vs_human_arty(
   if (col1->player[def->nation_id].control != 0) {
     return 0;
   }
-  return atk->type_index == 0x13 && def->type_index == 0x0b;
+  const ColonizeUnitType* at = units_type(pool, atk->type_index);
+  const ColonizeUnitType* dt = units_type(pool, def->type_index);
+  /* A Braves body that picked up muskets/horses in the port's kit model is
+   * the DOS Armed/Mtd. type, not the plain 0x13 the latch demands. */
+  if (atk->muskets > 0 || atk->horses > 0) {
+    return 0;
+  }
+  return units_combat_type_is_plain_brave(at) && dt &&
+         combat_type_is_artillery_name(dt->name);
 }
 
 bool units_resolve_land_combat_ff(
@@ -5031,9 +5162,15 @@ bool units_resolve_land_combat_ff(
 
   /* DOS 1b0e difficulty-handicap group (raw 100534-100556) runs after the
    * param_5==0 early return: the analysis above showed the raw odds, the
-   * roll below uses the handicapped attacker. */
+   * roll below uses the handicapped attacker. The colony-tile tail that
+   * follows (raw 100557-100564) also moves the DEFENDER — `local_a8 =
+   * local_a8 + (0x53a6 - 4) * -4` — and raw 100571 rolls
+   * FUN_281f_04d4(1, local_a8 + local_92) off the bumped value, so both
+   * sides come back. (local_a8 stays bumped for the promotion calls at raw
+   * 100728 / 100758 too.) */
   combat_apply_1b0e_resolve_handicaps(&sctx, attacker_id, defender_id, &er);
   eng.atk_strength = er.atk_strength;
+  eng.def_strength = er.def_strength;
 
   const int total = eng.atk_strength + eng.def_strength;
   if (total <= 0) {
@@ -5053,7 +5190,7 @@ bool units_resolve_land_combat_ff(
    * `local_ca` latched. DOS leaves `iVar23` (eng.roll) alone here, so the
    * analysis log keeps the roll that was actually drawn.
    */
-  const int brave_vs_human_arty = units_combat_brave_vs_human_arty(col1, atk, def);
+  const int brave_vs_human_arty = units_combat_brave_vs_human_arty(pool, col1, atk, def);
   if (brave_vs_human_arty) {
     eng.atk_wins = false;
   }
@@ -5134,7 +5271,17 @@ bool units_resolve_land_combat_ff(
     {
       const ColonizeUnit win_snap = *atk;
       const ColonizeUnit lose_snap = *def;
-      (void)units_apply_land_loss_outcome(pool, defender_id, attacker_id, col1, 1);
+      /*
+       * DOS raw 100636-100639 deletes the bVar28 phantom before the outcome
+       * branch, and the `if (bVar28)` win limb runs the colony/village
+       * consequences instead of FUN_5fef_0352 — so the scratch 0x17 row is
+       * never captured, never demoted, and shows neither popup. The caller
+       * (units_revere_defend_colony_tile / units_finish_village_temp_defender)
+       * still evaporates it, exactly as FUN_291f_0a06 does.
+       */
+      if (!units_defender_is_dos_scratch_row()) {
+        (void)units_apply_land_loss_outcome(pool, defender_id, attacker_id, col1, 1);
+      }
       units_combat_outcome_popups(
         pool, &win_snap, &lose_snap, 1, atk_nation, def_nation, 0, ambush, col1
       );
@@ -5267,7 +5414,13 @@ bool units_resolve_land_combat_ff(
     }
   }
   def = units_get(pool, defender_id);
-  if (def) {
+  /*
+   * FUN_5fef_172c's first gate is `unit type byte == 1 || == 4`; the phantom
+   * carries the scratch type 0x17 (and DOS has already deleted its row by
+   * this point anyway), so it returns before the FUN_281f_04d4 promotion
+   * roll — no promote, and no RNG draw to shift the stream.
+   */
+  if (def && !units_defender_is_dos_scratch_row()) {
     (void)units_promote_on_win(pool, def, col1, eng.def_strength, eng.atk_strength, rng);
   }
   units_mounted_attack_spend_all(pool, attacker_id);
@@ -5381,9 +5534,11 @@ bool units_resolve_naval_combat_ff(
     g_units_combat_watch(g_units_combat_watch_user, pool, attacker_id, def->x, def->y);
   }
 
-  /* Same 1b0e handicap group as land — DOS's single resolver covers naval. */
+  /* Same 1b0e handicap group as land — DOS's single resolver covers naval,
+   * defender bump included (raw 100563 feeds the 100571 roll total). */
   combat_apply_1b0e_resolve_handicaps(&sctx, attacker_id, defender_id, &er);
   eng.atk_strength = er.atk_strength;
+  eng.def_strength = er.def_strength;
 
   const int total = eng.atk_strength + eng.def_strength;
   if (total <= 0) {
@@ -5827,7 +5982,25 @@ int units_coastal_fort_fire_pulse(
 }
 
 /*
- * DOS DS:0x5236 combat role stand-in: attack > 0 or carried muskets/horses.
+ * TWO combat-role predicates, two different questions (smell audit
+ * 2026-09-09 #12 — they were being picked by name similarity):
+ *
+ *   combat_strength.c `combat_unit_is_combat_role(pool, id)` — "does this
+ *     unit's @UNIT TYPE row carry the combat flag?", i.e. the literal
+ *     DS:0x5236 column read (`type[*0xe + 0x5236] != 0`, spelled
+ *     `type->attack > 0` here). That is the byte FUN_5fef_0000 skips on and
+ *     the byte FUN_5fef_0352 requires of a WINNER before it may capture
+ *     (viceroy_unpacked.c 99380). Use it whenever DOS reads the type table.
+ *
+ *   units.c `units_is_combat_role(pool, u)` (this one) — "can this BODY
+ *     fight?", the same question asked of a port unit. DOS stores a
+ *     colony-armed colonist as @UNIT type 1 "Soldiers" (attack 2); this port
+ *     keeps the Colonists body and hangs muskets/horses on it, so its type
+ *     byte is 0 and the type-table read alone answers NO for a unit DOS
+ *     would have called a soldier. Carried kit therefore counts. Use it for
+ *     "is this unit a combatant" gameplay gates (move bounce, defender
+ *     ranking); the two agree on every stock typed military unit.
+ *
  * Non-combat movers bounce off foreign stacks instead of fighting.
  */
 static bool units_is_combat_role(const ColonizeUnitPool* pool, const ColonizeUnit* u) {
@@ -6215,10 +6388,34 @@ void units_seize_noncombat_at(
     if (u->id == winner_id || u->nation_id == win_nat) {
       continue;
     }
-    const ColonizeUnitType* t = units_type(pool, u->type_index);
-    if (t && t->attack == 0) {
-      (void)units_apply_land_loss_outcome(pool, u->id, winner_id, col1, 1);
+    /*
+     * Smell audit 2026-09-09 #4. The gate used to be a bare `type->attack ==
+     * 0`, which split the tile the wrong way twice over:
+     *
+     *  - Berthed HULLS. Caravel / Merchantman / Galleon carry attack 0, so
+     *    they were swept into units_apply_land_loss_outcome — which has no
+     *    capture or demote row for a ship and therefore silently DESPAWNED
+     *    them — while Privateer / Frigate / Man-O-War (attack > 0) were left
+     *    alone. That accidental split contradicts this file's own domain rule
+     *    (units_domain_blocker_at, FUN_5fef_0000 raw 99190-99196) and the
+     *    ai_euro caller's comment: a land walk-in neither sees nor touches a
+     *    hull in the harbour. Skip every ship, not just the armed ones.
+     *    (DOS's own 0ec0 does hand hulls to 0352's damage/repair-port arm,
+     *    raw 99521-99560; that arm is unported here — it is a residue, not a
+     *    licence to sink them.)
+     *
+     *  - Armed colonist BODIES. `attack == 0` is true for a Colonists-type
+     *    unit carrying muskets (bugs.md: how a colony-armed soldier is stored
+     *    here), which is DOS type 1 "Soldiers", attack 2. Ask the body
+     *    question instead. In practice this is belt-and-braces: all three
+     *    callers reach this only after units_best_defender_at returned < 0,
+     *    and that picker ranks muskets/horses carriers in its ARMED tier —
+     *    an armed body on the tile would have been fought, not seized.
+     */
+    if (units_is_sea(pool, u->id) || units_is_combat_role(pool, u)) {
+      continue;
     }
+    (void)units_apply_land_loss_outcome(pool, u->id, winner_id, col1, 1);
   }
 }
 
@@ -6490,6 +6687,20 @@ static void units_mp_exhaust(const ColonizeUnitPool* pool, ColonizeUnit* u) {
     return;
   }
   u->moves_left = (u->nation_id >= 4) ? units_max_mp(pool, u->id) : 0;
+}
+
+/*
+ * Restore side of the same inversion (smell audit 2026-09-09 #6): "this unit
+ * has its whole allotment again" is moves_left = max for a Euro unit but
+ * moves_left = 0 (nothing SPENT) for a native one. A raw `= units_max_mp()`
+ * therefore reads as *fully spent* on a Brave. Every park/refund site goes
+ * through this so the trap cannot come back by copy-paste.
+ */
+static void units_mp_restore(const ColonizeUnitPool* pool, ColonizeUnit* u) {
+  if (!u) {
+    return;
+  }
+  u->moves_left = (u->nation_id >= 4) ? 0 : units_max_mp(pool, u->id);
 }
 
 int units_max_mp(const ColonizeUnitPool* pool, int unit_id) {
@@ -7038,16 +7249,17 @@ bool units_try_move(
      * FUN_4d56_4528 contact). Charge MP as if the step were spent; do not enter.
      */
     if (village_nation >= 4 && unit->nation_id >= 0 && unit->nation_id <= 3) {
+      /*
+       * No overspend gamble here (smell audit 2026-09-09 #5). The DOS gate is
+       * FUN_465b ~75643: `(cost <= left) || (spent == 0) || (04ca(seed),
+       * bVar4)` — the third clause IS the attack flag, so an attack is never
+       * denied by the MP roll; the sibling site below (the shared step-cost
+       * gate) already spells that out and cites it. Rolling it here was doubly
+       * wrong: the raid had already resolved and drained the dwelling, so the
+       * denial refused an entry whose effects were permanent, and the draw
+       * itself shifted the RNG stream for every later native raid.
+       */
       const int cost = units_move_cost(pool, unit_id, map, dest_x, dest_y);
-      const int remaining = units_remaining_mp(pool, unit_id);
-      const int max_mp = units_max_mp(pool, unit_id);
-      if (cost > remaining && remaining < max_mp && rng) {
-        const int roll = dos_rng_range(rng, 1, cost > 0 ? cost : 1);
-        if (roll > remaining) {
-          units_mp_exhaust(pool, unit);
-          return false;
-        }
-      }
       units_mp_charge(pool, unit, cost);
       if (unit->orders == UNITS_ORDER_SENTRY || unit->orders == UNITS_ORDER_FORTIFY ||
           unit->orders == UNITS_ORDER_FORTIFIED) {
@@ -7419,7 +7631,9 @@ bool units_set_orders(ColonizeUnitPool* pool, int unit_id, int orders) {
   u->orders = orders;
   if (orders == UNITS_ORDER_SENTRY || orders == UNITS_ORDER_FORTIFY ||
       orders == UNITS_ORDER_FORTIFIED) {
-    u->moves_left = 0;
+    /* Park = "no moves left this turn": spent-aware, since moves_left holds
+     * REMAINING for Euros and SPENT for natives (audit #6). */
+    units_mp_exhaust(pool, u);
     /* Fresh park: no overnight yet, so a same-turn wake refunds nothing. */
     u->park_nights = 0;
   }
@@ -7663,7 +7877,7 @@ bool units_wake(ColonizeUnitPool* pool, int unit_id) {
     ((prev == UNITS_ORDER_FORTIFIED || prev == UNITS_ORDER_SENTRY) &&
      u->park_nights > 0);
   if (parked && units_type(pool, u->type_index)) {
-    u->moves_left = units_max_mp(pool, unit_id);
+    units_mp_restore(pool, u);
   }
   if (prev == UNITS_ORDER_SENTRY || prev == UNITS_ORDER_FORTIFY ||
       prev == UNITS_ORDER_FORTIFIED) {
@@ -10325,8 +10539,8 @@ int units_disembark_all(ColonizeUnitPool* pool, int ship_id, int x, int y) {
        * remaining that turn"). units_unload_passenger already restores it
        * the same way for its own move charge.
        */
-      if (pax->moves_left <= 0 && units_type(pool, pax->type_index)) {
-        pax->moves_left = units_max_mp(pool, pax->id);
+      if (units_remaining_mp(pool, pax_id) <= 0 && units_type(pool, pax->type_index)) {
+        units_mp_restore(pool, pax);
       }
       n++;
     }

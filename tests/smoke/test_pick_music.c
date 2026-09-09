@@ -35,6 +35,35 @@ int main(void) {
     assets_msg_free(&game_txt);
     return 1;
   }
+  /*
+   * @smallfont has to reach the renderer, not just the struct: FONTTINY when
+   * the section carries it, the generic dialog font (FONTINTR) otherwise —
+   * the same rule game_loop's @BEGINMENU renderer applies.
+   */
+  {
+    ColonizeFont tiny;
+    ColonizeFont dialog;
+    memset(&tiny, 0, sizeof(tiny));
+    memset(&dialog, 0, sizeof(dialog));
+    if (pick_music_font(&dlg, &tiny, &dialog) != &tiny) {
+      pick_music_close(&dlg);
+      assets_msg_free(&game_txt);
+      return fail("@smallfont list should draw in FONTTINY");
+    }
+    dlg.smallfont = false;
+    if (pick_music_font(&dlg, &tiny, &dialog) != &dialog) {
+      pick_music_close(&dlg);
+      assets_msg_free(&game_txt);
+      return fail("without @smallfont the list should stay on the dialog font");
+    }
+    if (pick_music_font(&dlg, &tiny, NULL) != &tiny) {
+      pick_music_close(&dlg);
+      assets_msg_free(&game_txt);
+      return fail("missing dialog font should fall back to the tiny font");
+    }
+    dlg.smallfont = true;
+  }
+
   /* 12 songs + 3 submenu rows. */
   if (dlg.option_count != 15) {
     fprintf(stderr, "PICKMUSIC expected 15 options, got %d\n", dlg.option_count);

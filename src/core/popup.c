@@ -283,6 +283,9 @@ void popup_draw_text_shadowed(
   font_draw_text_unbold(font, framebuffer, x, y, text, color);
 }
 
+/* Strips {}. LINE/CENTER marks are NOT stripped here — callers measuring
+ * marked-up bodies must strip those first (ai_popup does); passing a raw
+ * marked line over-measures (audit 2026-09-09 #105). */
 int popup_markup_text_width(const ColonizeFont* font, const char* text) {
   if (!text) {
     return 0;
@@ -332,28 +335,30 @@ int popup_draw_text_markup(
     while (*p && *p != '{' && *p != '}') {
       ++p;
     }
-    char run[256];
-    size_t n = (size_t)(p - start);
-    if (n >= sizeof(run)) {
-      n = sizeof(run) - 1;
-    }
-    memcpy(run, start, n);
-    run[n] = '\0';
     const uint8_t ink = hi ? hilite_color : base_color;
-    if (framebuffer) {
-      if (unbold) {
-        if (shadow) {
-          font_draw_text_unbold(font, framebuffer, cx + 1, y + 1, run, 0);
+    size_t left = (size_t)(p - start);
+    while (left > 0) { /* slice runs longer than the scratch buffer */
+      char run[256];
+      size_t n = left < sizeof(run) - 1 ? left : sizeof(run) - 1;
+      memcpy(run, start, n);
+      run[n] = '\0';
+      if (framebuffer) {
+        if (unbold) {
+          if (shadow) {
+            font_draw_text_unbold(font, framebuffer, cx + 1, y + 1, run, 0);
+          }
+          font_draw_text_unbold(font, framebuffer, cx, y, run, ink);
+        } else {
+          if (shadow) {
+            font_draw_text(font, framebuffer, cx + 1, y + 1, run, 0);
+          }
+          font_draw_text(font, framebuffer, cx, y, run, ink);
         }
-        font_draw_text_unbold(font, framebuffer, cx, y, run, ink);
-      } else {
-        if (shadow) {
-          font_draw_text(font, framebuffer, cx + 1, y + 1, run, 0);
-        }
-        font_draw_text(font, framebuffer, cx, y, run, ink);
       }
+      cx += font_text_width(font, run);
+      start += n;
+      left -= n;
     }
-    cx += font_text_width(font, run);
   }
   if (inout_hilite) {
     *inout_hilite = hi;

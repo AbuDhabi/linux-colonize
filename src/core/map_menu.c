@@ -990,8 +990,15 @@ static void map_menu_refresh_orders_dos(
   const int pedia =
     ctx->map ? map_pedia_terrain_index_at(ctx->map, ux, uy) : -1;
   const bool forest = pedia >= 8 && pedia <= 23;
-  /* DOS 0x1b/0x1c hill classes; also arctic/mountains via pedia 24/27. */
-  const bool hills = (pedia == 0x1b || pedia == 0x1c || pedia == 24 || pedia == 27);
+  /*
+   * FUN_2b5a_0b34 (viceroy_unpacked.c 42219-42225): after the forest test
+   * picks which of Clear (0x312) / Plow (0x313) to hide, the only extra
+   * hide-both clause is `local_6 == 0x1b || local_6 == 0x1c` — mountains and
+   * hills, on the FUN_281f_078c class scale that map_pedia_terrain_index_at
+   * mirrors (27 / 28). There is no arctic arm, and `27` was just `0x1b`
+   * written twice (smell_audit_2026-09-09 #101).
+   */
+  const bool hills = (pedia == 0x1b || pedia == 0x1c);
   /*
    * DOS local_c via FUN_281f_0b78: unit appears in profession/founder table.
    * Approximate: land non-transport (colonists / military / pioneers).

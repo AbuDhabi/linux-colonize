@@ -924,8 +924,10 @@ int europe_custom_house_autosell_ex(
 
 /*
  * FUN_364b_0688 phase O — AI / non-human Euro dump-sell before spoilage.
- * For cargo 1..15 with stock > warehouse cap: credit gold for surplus via
- * bid×amount×(100−tax)/100 (nation tax_rate; no WoI skip — matches 1dfa),
+ * For cargo 1..15 with stock > warehouse cap: credit the nation treasury the
+ * full UNTAXED gross `euro_price[nation][cargo] × amount` (the raw DS:0x84BC
+ * byte, no `−1`; no tax split and no royal_money write — viceroy 57834-57846,
+ * unlike the Custom House arm at 57277-57302 which taxes),
  * apply volume price, leave stock for spoilage clamp. Horses: DOS transfers
  * surplus to Europe horses word (no gold); muskets in 50-batches then sell
  * remainder. Cite: colony_eot_production.md O.
@@ -958,11 +960,27 @@ int europe_cargo_export_eligible(int cargo_type);
  */
 bool europe_custom_house_cargo_enabled(uint16_t custom_house_bits, int cargo_type);
 
+/*
+ * Tons of room for `cargo_type` in a harbor ship — DOS FUN_15eb_3208 via the
+ * FUN_281f_0b96 thunk, the check FUN_38fd_1fa2 runs before charging a buy.
+ * free = @UNIT cargo capacity − goods holds used − passengers; room =
+ * free*100, plus the part-full matching holds ONLY when free == 0. A NULL
+ * `units` falls back to the six-slot maximum. 0 = the "no room" arm.
+ */
+int europe_harbor_cargo_room(
+  const EuropeScreen* eu,
+  const ColonizeUnitPool* units,
+  int harbor_index,
+  int cargo_type
+);
+
 /* Harbor buy; col1+buyer_nation feed the 1d80 nation trade ledger (smell
- * audit #50) — NULL col1 keeps the price move but skips the ledger. */
+ * audit #50) — NULL col1 keeps the price move but skips the ledger. `units`
+ * resolves the ship's hold capacity (smell audit #83); NULL = six holds. */
 int europe_buy_cargo(
   EuropeScreen* eu,
   struct ColonizeCol1Save* col1,
+  const ColonizeUnitPool* units,
   int buyer_nation,
   int harbor_index,
   int cargo_type,

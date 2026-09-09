@@ -558,6 +558,182 @@ static int pioneer_training_skipped_past_turn_99(void) {
   return 0;
 }
 
+/*
+ * Case 4 — the hire chain's @UNIT table. `ai_euro_5d04_dos_type_of` is the
+ * DOS-side view of a Linux unit type, and its rows have to be NAMES.TXT
+ * @UNIT file order (COLONIZE/NAMES.TXT:301-323): 0 Colonists .. 5 Scouts,
+ * then the four WoI rows 6 Regulars / 7 Cont. Cav. / 8 Cavalry / 9 Cont.
+ * Army, then 10 Treasure / 11 Artillery / 12 Wagon Train. Until 2026-09-09
+ * the table tested "Cav" before "Cont", which folded Cont. Cav. onto 8 and
+ * Cont. Army onto 7 — disagreeing with the sibling table
+ * `ai_euro_20e6_dos_type` in the same file.
+ *
+ * The pool below is deliberately NOT in NAMES order, so a mapper that fell
+ * back on the pool index would fail every row.
+ *
+ * Sea rows stay coarse by design (this mapper only separates Privateer 0x10
+ * from "some other ship" 0x0d, which is all the 5d04 chain looks at), so the
+ * two ship rows assert that contract rather than the file index.
+ */
+static int dos_type_table_is_names_txt_unit_order(void) {
+  static const struct {
+    const char* name;
+    int domain;
+    int dos;
+  } k_rows[] = {
+    {"Cont. Cav.", COLONIZE_UNIT_DOMAIN_LAND, 7},
+    {"Cavalry", COLONIZE_UNIT_DOMAIN_LAND, 8},
+    {"Cont. Army", COLONIZE_UNIT_DOMAIN_LAND, 9},
+    {"Regulars", COLONIZE_UNIT_DOMAIN_LAND, 6},
+    {"Free Colonist", COLONIZE_UNIT_DOMAIN_LAND, 0},
+    {"Soldier", COLONIZE_UNIT_DOMAIN_LAND, 1},
+    {"Pioneer", COLONIZE_UNIT_DOMAIN_LAND, 2},
+    {"Missionary", COLONIZE_UNIT_DOMAIN_LAND, 3},
+    {"Dragoon", COLONIZE_UNIT_DOMAIN_LAND, 4},
+    {"Scout", COLONIZE_UNIT_DOMAIN_LAND, 5},
+    {"Treasure", COLONIZE_UNIT_DOMAIN_LAND, 0xa},
+    {"Artillery", COLONIZE_UNIT_DOMAIN_LAND, 0xb},
+    {"Wagon Train", COLONIZE_UNIT_DOMAIN_LAND, 0xc},
+    {"Privateer", COLONIZE_UNIT_DOMAIN_SEA, 0x10},
+    {"Galleon", COLONIZE_UNIT_DOMAIN_SEA, 0xd},
+  };
+  const int rows = (int)(sizeof(k_rows) / sizeof(k_rows[0]));
+
+  ColonizeUnitPool units;
+  units_reset(&units);
+  units.type_count = rows;
+  for (int i = 0; i < rows; ++i) {
+    snprintf(units.types[i].name, sizeof(units.types[i].name), "%s", k_rows[i].name);
+    units.types[i].domain = k_rows[i].domain;
+    units.types[i].movement = 1;
+    units.types[i].space = 1;
+  }
+  for (int i = 0; i < rows; ++i) {
+    const int got = ai_euro_5d04_dos_type_code(&units, i);
+    if (got != k_rows[i].dos) {
+      fprintf(stderr, "unit_ai_euro_5d04_hire: %s -> @UNIT %d (want %d)\n", k_rows[i].name, got,
+              k_rows[i].dos);
+      return fail("@UNIT code table disagrees with NAMES.TXT order");
+    }
+  }
+  printf("unit_ai_euro_5d04_hire: @UNIT code table matches NAMES.TXT order (%d rows)\n", rows);
+  return 0;
+}
+
+/*
+ * Case 5 — DS:0x5238[type], the hull-space column the recruit-buy loop
+ * subtracts from `local_42` (raw 92656). The loop holds a DOS @UNIT code (it
+ * has just written one with `set_unit_dispatch_byte`), and DS:0x5238 is a
+ * DOS-indexed table, so the code must be translated back to a Linux pool type
+ * before the row is read. Until 2026-09-09 the code went straight into
+ * `units_type()` as a pool index, which only happened to agree when the pool
+ * was loaded from NAMES.TXT in file order.
+ *
+ * The pool below puts a `space` 9 row exactly at pool index 4 (the @UNIT code
+ * for Dragoons) and the real Dragoons row at index 1 with `space` 1, so the
+ * translated read and the raw-index read cannot be confused.
+ */
+static int hull_budget_space_uses_translated_type(void) {
+  ColonizeUnitPool units;
+  units_reset(&units);
+  units.type_count = 6;
+  static const char* const k_names[6] = {"Free Colonist", "Dragoon", "Soldier",
+                                         "Pioneer",       "Scout",   "Missionary"};
+  static const int k_space[6] = {1, 1, 1, 1, 9, 1};
+  for (int i = 0; i < 6; ++i) {
+    snprintf(units.types[i].name, sizeof(units.types[i].name), "%s", k_names[i]);
+    units.types[i].domain = COLONIZE_UNIT_DOMAIN_LAND;
+    units.types[i].movement = 1;
+    units.types[i].space = k_space[i];
+  }
+  const int space = ai_euro_5d04_dos_type_space(&units, 4); /* 4 = @UNIT Dragoons */
+  if (space != 1) {
+    fprintf(stderr, "unit_ai_euro_5d04_hire: DS:0x5238[4] = %d (want 1, the Dragoon row)\n", space);
+    return fail("hull-space read used the DOS code as a pool index");
+  }
+  /* Scouts (@UNIT 5) is the row that actually sits at pool index 4 — proof
+   * the fixture would have caught the old behaviour. */
+  if (ai_euro_5d04_dos_type_space(&units, 5) != 9) {
+    return fail("fixture wrong: Scouts row should carry space 9");
+  }
+  printf("unit_ai_euro_5d04_hire: DS:0x5238 read translates the @UNIT code\n");
+  return 0;
+}
+
+/*
+ * Case 6 — the colony `+0x1b` bit 0x10 (NEEDS_COLONISTS) latch, FUN_5952_035e
+ * raw 555-563. It was an uncited `population < 3` until 2026-09-09; DOS is
+ *
+ *   pop < 0x20 && pop < wanted + 2*tier && pop - 2*tier < ring - blocked
+ *
+ * with `wanted` = FUN_15eb_0484 (8/12/32) and `tier` = FUN_15eb_0470 (2..4).
+ * On an unfortified colony that is tier 2 / wanted 8, so the first clause is
+ * `pop < 12` and the second `pop - 4 < 8 - blocked`, `blocked` counting
+ * off-map / Ocean / High Seas field tiles unless the colony owns Docks.
+ */
+static int needs_colonists_latch_matches_5952(void) {
+  Fixture f;
+  if (fixture_init(&f, 1, 5, 7) != 0) {
+    return 1;
+  }
+  /* Building table with a single Docks row, so the Docks override is live. */
+  f.colonies.building_type_count = 1;
+  snprintf(f.colonies.building_types[0].name, sizeof(f.colonies.building_types[0].name), "Docks");
+
+  ColonizeColony* c = &f.colonies.colonies[0];
+  c->active = true;
+  c->nation_id = 1;
+  c->x = 4; /* all-land ring: blocked = 0 */
+  c->y = 4;
+
+  /* Inland: `pop < 12` is the binding clause (pop − 4 < 8 is the same bar). */
+  static const struct {
+    int pop;
+    int want;
+  } k_inland[] = {{1, 1}, {3, 1}, {11, 1}, {12, 0}, {20, 0}};
+  for (int i = 0; i < (int)(sizeof(k_inland) / sizeof(k_inland[0])); ++i) {
+    c->population = k_inland[i].pop;
+    const int got = ai_euro_colony_needs_colonists_5952(&f.colonies, &f.map, c) ? 1 : 0;
+    if (got != k_inland[i].want) {
+      fprintf(stderr, "inland pop=%d -> %d (want %d)\n", k_inland[i].pop, got, k_inland[i].want);
+      fixture_free(&f);
+      return fail("inland NEEDS_COLONISTS threshold");
+    }
+  }
+
+  /* Coastal: x = 11 puts the whole x = 12 column (Ocean) in the ring, so
+   * blocked = 3 and the second clause tightens to `pop < 9`. */
+  c->x = 11;
+  c->population = 8;
+  if (!ai_euro_colony_needs_colonists_5952(&f.colonies, &f.map, c)) {
+    fixture_free(&f);
+    return fail("coastal pop 8 should still want colonists (blocked = 3)");
+  }
+  c->population = 9;
+  if (ai_euro_colony_needs_colonists_5952(&f.colonies, &f.map, c)) {
+    fixture_free(&f);
+    return fail("water field tiles should tighten the latch to pop < 9");
+  }
+  /* Docks (@BUILDING index 6) zeroes `iStack_142`, restoring the pop < 12 bar. */
+  c->has_building[0] = true;
+  if (!ai_euro_colony_needs_colonists_5952(&f.colonies, &f.map, c)) {
+    fixture_free(&f);
+    return fail("Docks should discount the water field tiles");
+  }
+
+  /* A Stockade lifts the colony to tier 3 / wanted 12 → `pop < 18`. */
+  c->has_building[0] = false;
+  c->x = 4;
+  c->population = 14;
+  if (ai_euro_colony_needs_colonists_5952(&f.colonies, &f.map, c)) {
+    fixture_free(&f);
+    return fail("unfortified pop 14 must not want colonists");
+  }
+  fixture_free(&f);
+  printf("unit_ai_euro_5d04_hire: NEEDS_COLONISTS latch follows the 5952 capacity test\n");
+  return 0;
+}
+
 int main(void) {
   if (departing_ship_buys_wanted_cargo() != 0) {
     return 1;
@@ -572,6 +748,15 @@ int main(void) {
     return 1;
   }
   if (pioneer_training_skipped_past_turn_99() != 0) {
+    return 1;
+  }
+  if (dos_type_table_is_names_txt_unit_order() != 0) {
+    return 1;
+  }
+  if (hull_budget_space_uses_translated_type() != 0) {
+    return 1;
+  }
+  if (needs_colonists_latch_matches_5952() != 0) {
     return 1;
   }
   printf("unit_ai_euro_5d04_hire: OK\n");

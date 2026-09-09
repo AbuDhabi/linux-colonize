@@ -122,7 +122,18 @@ static int declaration_clamp_frames(const DeclarationCinematic* d, int sheet, in
   return frames < available ? frames : (available > 0 ? available : 0);
 }
 
-static void declaration_build_run(DeclarationCinematic* d, const char* data_dir) {
+/*
+ * Returns false when a needed DEC-*.SS is missing, i.e. the whole cinematic
+ * is aborted. That is DOS's own rule: FUN_43f7_160a (viceroy_unpacked.c
+ * 74586-74614) pre-loads a sheet for every letter the signature uses and
+ * every one of those loads is `if (lVar6 == 0) goto LAB_43f7_19f2;` — the
+ * teardown label at 74688 — with the flourish guarded the same way
+ * (`if (local_140 != 0) { ...entire draw loop... }`). So a missing sheet
+ * yields no signature at all; it never yields a signature with a hole in it.
+ * The port used to `continue` past the failed glyph WITHOUT advancing x/y,
+ * which closed the gap up and silently mis-spelled the name.
+ */
+static bool declaration_build_run(DeclarationCinematic* d, const char* data_dir) {
   int x = DECLARATION_START_X;
   int y = DECLARATION_START_Y;
   d->glyph_count = 0;
@@ -161,8 +172,9 @@ static void declaration_build_run(DeclarationCinematic* d, const char* data_dir)
 
     if (sheet >= 0) {
       if (!declaration_load_sheet(d, data_dir, sheet)) {
-        /* DOS aborts the whole animation on a failed load; skip the glyph. */
-        continue;
+        /* DOS's `goto LAB_43f7_19f2`: abandon the run entirely. */
+        d->glyph_count = 0;
+        return false;
       }
       frames = declaration_clamp_frames(d, sheet, frames);
       advance = declaration_sheet_advance(d, sheet);
@@ -174,6 +186,7 @@ static void declaration_build_run(DeclarationCinematic* d, const char* data_dir)
       break;
     }
   }
+  return true;
 }
 
 bool declaration_open(
@@ -209,7 +222,11 @@ bool declaration_open(
 
   snprintf(d->name, sizeof(d->name), "%s", country_name ? country_name : "");
   declaration_title_case(d->name);
-  declaration_build_run(d, data_dir);
+  if (!declaration_build_run(d, data_dir)) {
+    /* DOS LAB_43f7_19f2: tear the run down and present nothing. */
+    declaration_close(d);
+    return false;
+  }
 
   d->open = true;
   d->finished = (d->glyph_count == 0);

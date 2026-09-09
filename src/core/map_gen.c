@@ -1910,6 +1910,20 @@ void map_gen_assign_continents(ColonizeWorldMap* map) {
   }
 }
 
+/*
+ * Landfall-only coastal test, and deliberately NOT map.c's
+ * map_tile_is_coastal(): that one is the game rule (8-neighbour water, the
+ * Docks/harbour predicate), this one is a 4-neighbour cardinal test used only
+ * to bias map_gen_pick_start's own scoring heuristic toward tiles a ship can
+ * actually reach head-on. The two answer different questions, so they are not
+ * unified — and no DOS citation applies to either the latitude bands or the
+ * "prefer eastern coasts" score below.
+ *
+ * Reachability of this whole path: ai.c:481 and game_loop.c:7450 both try
+ * map_gen_euro_landfall (FUN_684c HS-rim landfalls, the real DOS placement)
+ * first and only fall back here when the map carries none — a generated map
+ * with no stored landfalls, or a test fixture (smell_audit_2026-09-09 #104).
+ */
 static bool is_coastal_land(const ColonizeWorldMap* map, int x, int y) {
   if (!map_tile_is_land(map, x, y)) {
     return false;

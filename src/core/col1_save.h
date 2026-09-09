@@ -613,8 +613,14 @@ typedef struct ColonizeCol1Nation {
      peer 4..11. `relation_by_indian[t]` IS `FUN_1000_8c28(self, t+4)` —
      hence the 0x60, same MET/PEACE encoding as euro_relation, and DOS also
      reads bit 0x02 (WAR) here (viceroy_overlays.c:55515; 153e's
-     `FUN_1000_8c28(self,tribe+4) & 2`). Linux never sets that WAR bit yet
-     — see euro_diplo.md's "Left thin" item. */
+     `FUN_1000_8c28(self,tribe+4) & 2`). WAR-bit writers live 2026-09-09 (the
+     "Linux never sets it" note here was stale): DOS has exactly two, both
+     `or_both` so both sides of the matrix move together —
+     FUN_5bfb_13b0's paid "smite" arm (raw 98378, ai_diplo.c
+     AI_TALK_ST_ALLY_PAY) and FUN_5952_035e's colony-tick declare (raw
+     94170-94190, ai_contact_colony_tick_war_5952). FUN_15b3_0032 has no
+     thunk of its own, so or_both/clear_both are the only mutation channel;
+     FUN_4cc6_00f2's cool-below-75 clear is the only other toucher. */
   /*
    * Linux diplo stand-ins (exact DS PARKED, deliberately NOT touched this
    * pass — this union is live, load-bearing gameplay code across
@@ -631,7 +637,7 @@ typedef struct ColonizeCol1Nation {
    *     profession (FUN_38fd_46d4, called via thunk_FUN_291f_0afc from the
    *     per-nation EOT recruit-spawn path — europe_nation_eot.md's "roll
    *     profession 0afc→46d4", byte-level detail not previously captured).
-   *   +0x48/+0x49/+0x4a ("indian_hostility_sticky"/"privateer_spawn_mask"/
+   *   +0x48/+0x49/+0x4a ("king_grace_counter"/"privateer_spawn_mask"/
    *     "unknown26_pad"): already independently identified (not this pass)
    *     as a genuine carry-normalize accumulator — see ai_euro.c's
    *     Ai5d04HireScratch comment ("crosses/hammers-pool carry mechanic"):
@@ -656,7 +662,10 @@ typedef struct ColonizeCol1Nation {
    *     unit desirability score FUN_521d_052c (`+= (turn-stamp)>>4` when
    *     founding urgency is nonzero). Linux diplo_flag[2..3] overlay it;
    *     DOS value unused by Linux. Resolved 2026-08-27.
-   *   +0x4b: confirmed dead 2026-08-27 (no literal touch anywhere).
+   *   +0x4b: confirmed dead 2026-08-27 (no literal touch anywhere) — which is
+   *     why the Linux `indian_hostility_sticky` stand-in was moved onto it
+   *     2026-09-09 (smell #52), off the +0x48 grace counter it had been
+   *     overwriting every turn.
    * All 12 bytes now have a DOS meaning; see docs/archive/mysteries_catalog.md
    * Meta-mystery section.
    */
@@ -665,9 +674,22 @@ typedef struct ColonizeCol1Nation {
     struct {
       uint8_t treaty_timer[4];
       uint8_t diplo_flag[4];
-      uint8_t indian_hostility_sticky;
+      /* +0x48 — DOS: the FUN_4d56_4528 decrementing grace/waiver counter (see
+       * the note above). Read-only for the port; nothing here may write it.
+       * The Linux "indian hostility sticky" stand-in used to live on this byte
+       * and stomped it every turn, so on a DOS-authored save the first read of
+       * either quantity was the other one (smell #52, 2026-09-09). The
+       * stand-in moved to +0x4b, the one byte of the twelve DOS never
+       * touches. */
+      uint8_t king_grace_counter;
       uint8_t privateer_spawn_mask;
-      uint8_t unknown26_pad[2];
+      uint8_t unknown26_pad; /* +0x4a — DOS carry accumulator raw banked total. */
+      /* +0x4b — confirmed dead in DOS (2026-08-27: no literal touch anywhere),
+       * so this is the port's own byte. Home of the Linux Indian-hostility
+       * sticky stand-in (0 clear / 1 at-war / 2 very-low deepen); it still
+       * round-trips through the save file, it just no longer collides with a
+       * real DOS quantity. */
+      uint8_t indian_hostility_sticky;
     };
   };
   ColonizeCol1NationTrade trade;
@@ -879,10 +901,12 @@ typedef struct ColonizeCol1Stuff {
   uint8_t free_colonist_counts[4]; /* DS:0x9408 — units with type==0 */
   uint8_t colony_pop_totals[4]; /* DS:0x940c — Σ colony population */
   uint8_t census_pop_proxy[4]; /* DS:0x9410 — +1 skilled unit + Σ colony pop */
-  uint8_t land_combat_totals[4]; /* DS:0x9180 — Σ land combat (mode 0) */
+  uint8_t land_combat_totals[4]; /* DS:0x9180 — Σ FUN_281f_09c8(u,0) combat VALUE
+     (base×8 + peels) over every non-hull unit; FUN_4962_0006 saturating byte add */
   uint8_t ship_cargo_totals[4]; /* DS:0x9414 — Σ ship cargo capacity */
   uint8_t ship_counts[4]; /* DS:0x9418 — ship unit count */
-  uint16_t land_combat_strength[4]; /* DS:0x941c — Σ land combat mode 1 (word) */
+  uint16_t land_combat_strength[4]; /* DS:0x941c — Σ FUN_281f_09c8(u,1) combat VALUE
+     (word, plain 16-bit ADD — wraps, does not clamp) */
   uint8_t armed_ship_counts[4]; /* DS:0x9424 — ships with combat table≠0 */
   /*
    * DS:0x9428 — AI RNG ≤ byte → profession 0x15 (Veteran Soldier).
@@ -890,7 +914,10 @@ typedef struct ColonizeCol1Stuff {
    * (skipped by FUN_4962_0018). RMW-preserved.
    */
   uint8_t veteran_teach_threshold[4];
-  uint8_t field_combat_totals[4]; /* DS:0x942c — land combat not in colony / not A|G */
+  uint8_t field_combat_totals[4]; /* DS:0x942c — Σ FUN_281f_09c8(u,1) VALUE (not a
+     count) over non-hull units NOT excluded by the 4962:022f gate: on a settlement
+     tile, a human-controlled nation's unit never counts and an ai_plan 'A'/'G'
+     (unit +0x314b, garrison) unit never counts. Saturating byte add */
   uint8_t unit_type_counts[4][19]; /* DS:0x924c — nation × unit-type (FUN_4962_0018) */
   /* File 140..716 — was unknown36[577]; DS-named save chunks (FUN_75c2_0288).
    * The 8 fields below were renamed off generic unknown_ds_XXXX names
@@ -1097,8 +1124,18 @@ void col1_save_stamp_head(ColonizeCol1Head* head);
 void col1_save_reset_nation_slots(ColonizeCol1Head* head);
 
 /* Human nation = the control==0 player slot (authoritative). Falls back to
- * head.human_player (DS:0x5398) — older port saves left that field stale 0. */
+ * head.human_player (DS:0x5398) — older port saves left that field stale 0.
+ * Always returns 0..COLONIZE_COL1_NATION_COUNT-1: every caller indexes
+ * nation[] / player[] with it. */
 int col1_save_human_nation(const ColonizeCol1Save* save);
+
+/* Same probe over a raw head + player table, for the slot probe that reads
+ * only the file prefix (savegame_probe_col1_slot). One implementation so the
+ * two cannot drift on the failure path (smell audit #76). */
+int col1_save_human_nation_from(
+  const ColonizeCol1Head* head,
+  const ColonizeCol1Player* players
+);
 
 size_t col1_save_expected_size(const ColonizeCol1Save* save);
 size_t col1_save_expected_size_counts(

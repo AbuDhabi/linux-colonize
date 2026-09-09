@@ -581,33 +581,54 @@ static void map_panel_draw_tribe_chrome(
   int tile_py,
   const ColonizePalette* active_palette
 ) {
-  if (!col1 || !framebuffer || !framebuffer->pixels || fog_nation < 0 || fog_nation > 3) {
+  if (!col1 || !framebuffer || !framebuffer->pixels) {
     return;
   }
   if (t->nation_id < 4 || t->nation_id >= 12) {
     return;
   }
 
+  /*
+   * DOS 112b:09a1 keys the alarm marks off DS:0x5396 (head.curr_nation_map_view)
+   * — a real nation 0..3 at all times. "Complete Map" is a separate flag
+   * (head.show_entire_map / DS:0x5382), not a −1 view nation, and the mission
+   * cross below sits outside the DS:0x5396 branch entirely. The port's
+   * game_fog_nation() hands out −1 for Complete Map, so keying the chrome off
+   * it made village alarm bars and mission crosses vanish while the villages
+   * still drew (smell_audit_2026-09-09 #100). Resolve the sentinel back to the
+   * save's own map-view nation, then head.human_player (DS:0x5398).
+   */
+  int mark_nation = fog_nation;
+  if (mark_nation < 0 || mark_nation > 3) {
+    mark_nation = (int)col1->head.curr_nation_map_view;
+  }
+  if (mark_nation < 0 || mark_nation > 3) {
+    mark_nation = (int)col1->head.human_player;
+  }
+  if (mark_nation < 0 || mark_nation > 3) {
+    mark_nation = 0;
+  }
+
   int x = tile_px + 6; /* local_4 = local_66 + 6 */
 
   int score = 0;
   const int threat =
-    ai_indian_village_threat(col1, map, units, colonies, fog_nation, tribe_index, &score);
+    ai_indian_village_threat(col1, map, units, colonies, mark_nation, tribe_index, &score);
   if (threat >= 0) {
     uint8_t color;
     uint8_t surround;
     int n;
-    if (threat == fog_nation) {
+    if (threat == mark_nation) {
       const ColonizeCol1Indian* ind = &col1->indian[t->nation_id - 4];
-      int tier = ((int)t->alarm[fog_nation].friction |
-                  ((int)t->alarm[fog_nation].attacks << 8)) >> 5;
+      int tier = ((int)t->alarm[mark_nation].friction |
+                  ((int)t->alarm[mark_nation].attacks << 8)) >> 5;
       if (tier < 0) {
         tier = 0;
       }
       if (tier > 3) {
         tier = 3;
       }
-      if ((int)ind->alarm_by_player[fog_nation] >= 0x4b) {
+      if ((int)ind->alarm_by_player[mark_nation] >= 0x4b) {
         tier = 3;
       }
       static const uint8_t k_tier_color[4] = {0x0au, 0x0bu, 0x0eu, 0x0cu};
@@ -623,7 +644,7 @@ static void map_panel_draw_tribe_chrome(
     /* DOS dims the last mark by 8 (the @COUNTRY table's own dark twin);
      * with the nation shades palette-adapted that pairing is the
      * bright/dark pair unit_chrome hands back, so pick it up front. */
-    const uint8_t dim_color = (threat == fog_nation)
+    const uint8_t dim_color = (threat == mark_nation)
       ? (color >= 8u ? (uint8_t)(color - 8u) : color)
       : map_panel_nation_shade(threat, active_palette, true);
     const int y = tile_py + 4; /* local_6 = local_64 + 4 */

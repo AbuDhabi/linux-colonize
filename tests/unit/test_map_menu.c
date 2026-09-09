@@ -4,8 +4,10 @@
 #include "core/assets.h"
 #include "core/ff.h"
 #include "core/font.h"
+#include "core/colony.h"
 #include "core/map_menu.h"
 #include "core/map_panel.h"
+#include "core/units.h"
 #include "platform/diagnostics.h"
 
 static int find_section(const MapMenuBar* bar, const char* section) {
@@ -474,6 +476,122 @@ int main(void) {
     return 1;
   }
   (void)action;
+
+  /*
+   * ORDERS Clear/Plow terrain gating — FUN_2b5a_0b34 (viceroy_unpacked.c
+   * 42219-42225). Non-forest hides Clear, forest hides Plow, and ONLY class
+   * 0x1b/0x1c (mountains/hills) hides both. Arctic keeps Plow visible: the
+   * arctic arm the port used to carry was invented (smell_audit #101).
+   */
+  {
+    ColonizeMsgCatalog names;
+    assets_msg_init(&names);
+    if (!assets_msg_load_file(&names, "COLONIZE/NAMES.TXT")) {
+      fprintf(stderr, "orders gating: NAMES.TXT load failed\n");
+      if (font_ok) {
+        ff_free(&font);
+      }
+      map_menu_free(&bar);
+      assets_msg_free(&menu_txt);
+      return 1;
+    }
+    ColonizeUnitPool pool;
+    memset(&pool, 0, sizeof(pool));
+    if (!units_load_types(&pool, &names)) {
+      fprintf(stderr, "orders gating: units_load_types failed\n");
+      assets_msg_free(&names);
+      if (font_ok) {
+        ff_free(&font);
+      }
+      map_menu_free(&bar);
+      assets_msg_free(&menu_txt);
+      return 1;
+    }
+    const int pioneer = units_find_type(&pool, "Pioneers");
+    ColonizeWorldMap omap;
+    memset(&omap, 0, sizeof(omap)); /* map_alloc frees the old buffers first */
+    char oerr[128];
+    if (pioneer < 0 || !map_alloc(&omap, 8, 8, oerr, sizeof(oerr))) {
+      fprintf(stderr, "orders gating: setup failed\n");
+      assets_msg_free(&names);
+      if (font_ok) {
+        ff_free(&font);
+      }
+      map_menu_free(&bar);
+      assets_msg_free(&menu_txt);
+      return 1;
+    }
+    for (int i = 0; i < 8 * 8; ++i) {
+      omap.terrain[i] = 2; /* plains */
+    }
+    ColonizeColonyPool ocol;
+    colonies_init(&ocol);
+    colonies_set_occupancy_map(NULL);
+
+    const int opid = units_spawn(&pool, pioneer, 3, 3);
+    ColonizeUnit* ou = units_get(&pool, opid);
+    ou->nation_id = 0;
+    ou->tools = 100;
+
+    MapMenuOrdersContext octx;
+    memset(&octx, 0, sizeof(octx));
+    octx.units = &pool;
+    octx.map = &omap;
+    octx.colonies = &ocol;
+    octx.selected_id = opid;
+    octx.cursor_x = 3;
+    octx.cursor_y = 3;
+    octx.human_nation = 0;
+
+    const int orders_i = find_section(&bar, "ORDERS");
+    struct {
+      uint8_t terrain;
+      const char* name;
+      bool want_clear;
+      bool want_plow;
+    } cases[] = {
+      {2, "plains", false, true},        /* not forest → Clear hidden */
+      {10, "mixed forest", true, false}, /* forest → Plow hidden */
+      {24, "arctic", false, true},       /* DOS has no arctic arm */
+      {2 | 0xa0u, "mountains", false, false}, /* class 0x1b → both hidden */
+      {2 | 0x20u, "hills", false, false},     /* class 0x1c → both hidden */
+    };
+    int gating_ok = orders_i >= 0;
+    for (size_t ci = 0; gating_ok && ci < sizeof(cases) / sizeof(cases[0]); ++ci) {
+      omap.terrain[3 * omap.width + 3] = cases[ci].terrain;
+      map_menu_refresh(&bar, &octx);
+      bool clear_vis = false;
+      bool plow_vis = false;
+      for (int i = 0; i < bar.menus[orders_i].item_count; ++i) {
+        const MapMenuItem* it = &bar.menus[orders_i].items[i];
+        if (it->action == MAP_MENU_ACTION_CLEAR_FOREST) {
+          clear_vis = it->visible;
+        }
+        if (it->action == MAP_MENU_ACTION_PLOW_FIELDS) {
+          plow_vis = it->visible;
+        }
+      }
+      if (clear_vis != cases[ci].want_clear || plow_vis != cases[ci].want_plow) {
+        fprintf(
+          stderr,
+          "orders gating on %s: Clear=%d Plow=%d, expected %d/%d\n",
+          cases[ci].name, (int)clear_vis, (int)plow_vis,
+          (int)cases[ci].want_clear, (int)cases[ci].want_plow
+        );
+        gating_ok = 0;
+      }
+    }
+    map_free(&omap);
+    assets_msg_free(&names);
+    if (!gating_ok) {
+      if (font_ok) {
+        ff_free(&font);
+      }
+      map_menu_free(&bar);
+      assets_msg_free(&menu_txt);
+      return 1;
+    }
+  }
 
   if (font_ok) {
     ff_free(&font);

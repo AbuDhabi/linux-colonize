@@ -93,7 +93,7 @@ when the king runs (bugs.md 400/404/407).
 | Europe market | `europe_tick_market_prices` + one `@PRICEUP`/`@PRICEDOWN` OK dialog per cargo that crossed | `FUN_38fd_0058` (sibling of nation EOT `38fd_5e52`), phase 4 |
 | Human fog + MP refresh | `turn_reveal_fog_for_nation` + `turn_refresh_moves_for_nation` | Human refresh at act entry |
 | Human ticks | `units_tick_treasure_outside_colony`, `units_tick_ship_build_ready` (`@CARGOREADY0`), `units_tick_drydock_repair`, `turn_route_damaged_ships`, King's Galleon offer | Human treasure inside that nation’s `00f2`; `FUN_465b_0000` → `FUN_5fef_1908` for the Galleon |
-| Select next unit | `turn_select_next_unit` | Return to Move Pieces / focus |
+| Select next unit | `turn_select_next_unit_awaiting_orders` (plain `turn_select_next_unit` + the Fortified/Sentry skip) | Return to Move Pieces / focus |
 | Autosave flags | decade Spring → slot 8 else 9 | `FUN_130d_0172` |
 
 ### After processor idle — `game_finish_end_turn`
@@ -106,7 +106,11 @@ Status line: “Continue turn.” when a unit with moves is selected.
 
 Turn-owner box (`FUN_1984_00aa`, 5×3 at 315,197) only while the EURO/INDIAN
 steps and FINISH's human production run run (`turn_processor_show_indicator`);
-it is off for SETUP and KING.
+it is off for SETUP and KING. FINISH is included on purpose: `FUN_3844_00f2`
+opens with `FUN_281f_0590(nation_color[DS:0x5394])` → `FUN_1984_00aa`
+(viceroy_unpacked.c:58323) and the year loop runs `00f2` for every slot the
+human's included (`FUN_281f_0644`, :6390, gated only on `control != 2`), so the
+box carries the player's own color through their production pass.
 
 ---
 

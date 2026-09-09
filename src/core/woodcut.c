@@ -102,7 +102,9 @@ static void woodcut_play_event(int id) {
 
 static void woodcut_play_tune(int id) {
   switch (id) {
-    case WOODCUT_A_NEW_WORLD:
+    /* WOODCUT_A_NEW_WORLD (0) never reaches here: woodcut_fire rejects
+     * id <= 0 (the once-only bitfield is 1-based), so DOS case 0 is
+     * unreachable in the port and deliberately not listed. */
     case WOODCUT_DISCOVERY_OF_THE_NEW_WORLD:
     case WOODCUT_BUILDING_A_COLONY:
     case WOODCUT_CARGO_FROM_THE_NEW_WORLD:

@@ -1217,22 +1217,33 @@ static void reports_render_congress_page1(
    * Fathers" — composed with the golden's punctuation/spacing. */
   char w1[48], w2[48], w3[48];
   const int woi = col1->head.game_options.woi != 0;
-  int ally = (int)col1->head.rival_nation_slot_1;
-  {
-    const int crown = (col1->head.crown_nation_id >= 0 && col1->head.crown_nation_id < 4)
-                        ? (int)col1->head.crown_nation_id
-                        : ((human == 0) ? 1 : 0);
-    if (ally < 0 || ally > 3 || ally == human || ally == crown) {
-      ally = -1;
-      for (int n = 0; n < 4; ++n) {
-        if (n != human && n != crown) {
-          ally = n;
-          break;
-        }
-      }
-    }
-  }
-  if (woi) {
+  const int ref_arrived = col1->head.game_options.ref_present != 0;
+  /* DOS reads DS:0x53d4 raw and hands it straight to the nationality-string
+   * sub (FUN_281f_09a4), both here and at the intervention lineup below
+   * (viceroy_unpacked.c 69686 / 69777). No crown/self exclusion, no "pick
+   * another slot" search — the slot is written once by the King module when
+   * independence is declared (ai_king_write_rival_nation_slots). An unset
+   * slot (-1) simply yields an empty adjective. */
+  const int ally = (int)col1->head.rival_nation_slot_1;
+  /*
+   * DOS FUN_3f41_06d0 (viceroy_unpacked.c 69670-69695) builds ONE header
+   * string with three outcomes:
+   *   0x5382&1 clear                -> "Next Continental Congress Session:"
+   *                                    (+ " (name)" when head+0x12 >= 0)
+   *   0x5382&1 set, 0x5382&2 clear  -> "<0x53d4 adjective> Intervention:"
+   *   both set (REF has arrived)    -> the buffer stays empty; nothing drawn.
+   * The port used to draw the Intervention header for the whole war.
+   */
+  line[0] = '\0';
+  if (!woi) {
+    snprintf(
+      line,
+      line_sz,
+      "%s:  (%s)",
+      reports_misc_word(112, "Next Continental Congress Session", w1, sizeof(w1)),
+      nat->next_founding_father >= 0 ? reports_ff_name(nat->next_founding_father) : "none"
+    );
+  } else if (!ref_arrived) {
     /* bugs.md 235/257: after declaring, FF elections are over — the bell bar
      * counts toward the foreign intervention instead. DOS's top header is
      * just "<nation> Intervention:" (@MISC 113); "Intervention Force" (@MISC
@@ -1241,19 +1252,13 @@ static void reports_render_congress_page1(
       line,
       line_sz,
       "%s %s:",
-      ally >= 0 ? reports_nation_adjective(ally) : "Foreign",
+      reports_nation_adjective(ally),
       reports_misc_word(113, "Intervention", w1, sizeof(w1))
     );
-  } else {
-    snprintf(
-      line,
-      line_sz,
-      "%s:  (%s)",
-      reports_misc_word(112, "Next Continental Congress Session", w1, sizeof(w1)),
-      nat->next_founding_father >= 0 ? reports_ff_name(nat->next_founding_father) : "none"
-    );
   }
-  reports_draw_line(font, fb, 8, REPORTS_CONGRESS_TEXT1_Y, line, 15);
+  if (line[0]) {
+    reports_draw_line(font, fb, 8, REPORTS_CONGRESS_TEXT1_Y, line, 15);
+  }
 
   {
     const unsigned pool = founding_fathers_bells_since_last_elect(human);
@@ -1427,7 +1432,7 @@ static void reports_render_congress_page1(
       const int row_h = REPORTS_CONGRESS_FORCE_H;
       snprintf(
         line, line_sz, "%s %s:",
-        ally >= 0 ? reports_nation_adjective(ally) : "Foreign",
+        reports_nation_adjective(ally), /* DOS: FUN_281f_09a4(DS:0x53d4), raw */
         reports_misc_word(111, "Intervention Force", w1, sizeof(w1))
       );
       reports_draw_line(font, fb, 8, interv_row_y, line, 15);
@@ -1639,9 +1644,18 @@ static void reports_labor_job_counts(
       if (u->type > 5) {
         continue;
       }
-      int job = u->profession;
-      if (job < 0 || job >= 64) {
-        job = u->type < 64 ? u->type : 0;
+      /* DOS FUN_3f41_10d8 (viceroy_unpacked.c 70113) files a map unit under
+       * the RAW profession byte — `local_c6[*(char *)(i*0x1c + 0x315b)]++` —
+       * and the detail view FUN_3f41_0d3e (69967) matches on that same raw
+       * byte. There is no unit-type fallback anywhere in the chain, and there
+       * could not be: `u->type` is a NAMES.TXT @UNIT id (5 = Scout) while this
+       * table is indexed by @JOB (5 = Expert Lumberjacks), so the old fallback
+       * filed units under an unrelated profession. A byte outside the job
+       * space is skipped, the rule the Score citizen collector already uses
+       * (reports_score_collect_citizen_jobs). */
+      int job = (int)u->profession;
+      if (job != UNITS_JOB_NONE && (job < 0 || job >= k_job_count)) {
+        continue;
       }
       /* A Soldier/Pioneer/Missionary/Dragoon/Scout unit with no expert skill
        * still counts — as its base type, Free Colonists — same as a plain
@@ -1855,9 +1869,11 @@ static void reports_render_labor_detail(
       if (u->type > 5) {
         continue;
       }
-      int uj = u->profession;
-      if (uj < 0 || uj >= 64) {
-        uj = u->type < 64 ? u->type : 0;
+      /* Raw profession byte, no @UNIT-id fallback — see the grid collector
+       * (reports_labor_job_counts) for the DOS citation. */
+      const int uj = (int)u->profession;
+      if (uj != UNITS_JOB_NONE && (uj < 0 || uj >= k_job_count)) {
+        continue;
       }
       if (reports_labor_normalize_job(uj) == job) {
         n++;
@@ -2748,7 +2764,11 @@ static int reports_naval_build_rows(
       for (int h = 0; h < COLONIZE_UNIT_CARGO_MAX && r->goods_count < COLONIZE_UNIT_CARGO_MAX; ++h) {
         const int amt = u->hold_goods_amount[h];
         const int gtype = u->hold_goods_type[h];
-        if (amt > 0 && gtype >= 0 && gtype < (int)COLONIZE_CARGO_COUNT) {
+        /* 255 is the DOS empty-hold sentinel, not a quantity — same guard as
+         * every europe.c hold consumer (europe_goods_slots_used :141,
+         * europe_sell_cargo :3238, col1_bridge import :1103/:1393). Without
+         * it a sentinel hold paints a phantom cargo icon on this row. */
+        if (amt > 0 && amt < 255 && gtype >= 0 && gtype < (int)COLONIZE_CARGO_COUNT) {
           r->goods_icon[r->goods_count++] = reports_naval_goods_icon(gtype, amt);
         }
       }
@@ -2810,7 +2830,8 @@ static int reports_naval_build_rows(
         for (int h = 0; h < EUROPE_SHIP_CARGO_MAX && r->goods_count < COLONIZE_UNIT_CARGO_MAX; ++h) {
           const int amt = s->hold_goods_amount[h];
           const int gtype = s->hold_goods_type[h];
-          if (amt > 0 && gtype >= 0 && gtype < (int)COLONIZE_CARGO_COUNT) {
+          /* 255 = empty-hold sentinel; see the mapboard loop above. */
+          if (amt > 0 && amt < 255 && gtype >= 0 && gtype < (int)COLONIZE_CARGO_COUNT) {
             r->goods_icon[r->goods_count++] = reports_naval_goods_icon(gtype, amt);
           }
         }
@@ -3333,8 +3354,25 @@ static void reports_render_foreign(
 
 /*
  * Indian Adviser report (F9) — golden: indian.png. One two-line block per
- * contacted tribe (indian.euro_diplo[human] != 0 — bit 0x20 met/0x40 peace;
- * DOS: FUN_3f41_010a's `(uVar1 & 0x20) != 0` gate, viceroy_unpacked.c:69480):
+ * listed tribe. DOS's row gate (FUN_3f41_010a, viceroy_unpacked.c:69480 /
+ * asm `3f41:...` after the per-tribe `FUN_281f_0a38`) is
+ *
+ *     if (((uVar1 & 0x20) != 0) || ((*(byte *)(*(int *)0x8d4e + 3) & 0x80) != 0))
+ *
+ * i.e. **met** (euro_diplo[human] bit 0x20, COL1_INDIAN_MET_BIT) OR **extinct**
+ * (record +3 bit 0x80, ColonizeCol1Indian.extinct) — not "euro_diplo != 0".
+ * The distinction is live: euro_diplo carries other bits (0x02 war,
+ * 0x04 attack-confirmed, 0x40 peace) that DOS itself can set without the met
+ * bit, so a `!= 0` test listed never-met tribes; and it dropped extinct tribes
+ * that DOS lists unconditionally (2026-09-09, smell audit #85).
+ *
+ * Extinct rows are a different shape, straight from the same function: the
+ * name line gets DS:0x2ebe (@MISC #130 "Extinct") appended after the colon,
+ * and the `TEST [0x8d4e+3],0x80 / JMP LAB_3f41_04e7` right after that line is
+ * drawn skips BOTH the right-aligned tech level and the whole stats line
+ * (villages/missions/muskets/horse herds) before advancing y by 0x15.
+ *
+ * Non-extinct rows:
  *
  *   line 1: headband portrait icon + "<PluralTribeName>:" (NAMES.TXT
  *     @TRIBES column 0), colored per tribe (k_indian_tribe_colors below —
@@ -3420,7 +3458,20 @@ typedef struct IndianRow {
   int muskets;
   int horse_herds;
   int icon_sprite; /* 114 + alarm quartile — chief flair (see build_rows) */
+  int extinct;     /* record +3 bit 0x80 — name line only, "Extinct" suffix */
 } IndianRow;
+
+bool reports_indian_tribe_listed(const ColonizeCol1Save* col1, int tribe, int human) {
+  if (!col1 || tribe < 0 || tribe >= (int)COLONIZE_COL1_INDIAN_COUNT || human < 0 ||
+      human >= (int)COLONIZE_COL1_NATION_COUNT) {
+    return false;
+  }
+  const ColonizeCol1Indian* ind = &col1->indian[tribe];
+  /* DOS: `(FUN_281f_0a38(...) & 0x20) || ([0x8d4e+3] & 0x80)` — met OR
+   * extinct. Never "euro_diplo != 0": the war (0x02) / attack-confirmed
+   * (0x04) bits can stand alone on an unmet tribe. */
+  return (ind->euro_diplo[human] & COL1_INDIAN_MET_BIT) != 0 || ind->extinct != 0;
+}
 
 /* Builds the flat contacted-tribe row list — shared shape with
  * reports_naval_build_rows even though this report has no pagination. */
@@ -3437,7 +3488,7 @@ static int reports_indian_build_rows(
   }
   for (int t = 0; t < (int)COLONIZE_COL1_INDIAN_COUNT && n < max_rows; ++t) {
     const ColonizeCol1Indian* ind = &col1->indian[t];
-    if (ind->euro_diplo[human] == 0) {
+    if (!reports_indian_tribe_listed(col1, t, human)) {
       continue;
     }
     const int nation_id = t + 4;
@@ -3505,6 +3556,7 @@ static int reports_indian_build_rows(
       }
       r->icon_sprite = REPORTS_INDIAN_ICON_SPRITE + q;
     }
+    r->extinct = ind->extinct ? 1 : 0;
   }
   return n;
 }
@@ -3546,6 +3598,15 @@ static void reports_render_indian(
     }
 
     char name_buf[40];
+    if (r->extinct) {
+      /* DOS appends DS:0x2ebe (@MISC #130 "Extinct") into the same name
+       * buffer right after FUN_281f_01be's colon, then the
+       * `TEST [0x8d4e+3],0x80 / JMP LAB_3f41_04e7` skips level + stats. */
+      const char* extinct_w = reports_labels_field("MISC", 130);
+      snprintf(name_buf, sizeof(name_buf), "%s: %s", r->name, extinct_w ? extinct_w : "Extinct");
+      reports_draw_line_shadowed(name_font, fb, REPORTS_INDIAN_NAME_X, name_y, name_buf, r->color);
+      continue;
+    }
     snprintf(name_buf, sizeof(name_buf), "%s:", r->name);
     reports_draw_line_shadowed(name_font, fb, REPORTS_INDIAN_NAME_X, name_y, name_buf, r->color);
     reports_draw_right_shadowed(
@@ -3647,28 +3708,20 @@ static int reports_count_ff_for_nation(const ColonizeCol1Save* col1, int human) 
   if (!col1) {
     return 0;
   }
-  /* nation.founding_fathers[4] (per-nation bitmask) is authoritative — see
-   * reports_ff_owned_by_nation. head.founding_father[i] (elsewhere read as
-   * "owning nation") is NOT nation-exclusive membership: confirmed against
-   * dutch-reports.SAV, it undercounts (misses FFs it also credits to another
-   * nation), so it's a last-resort fallback only, not tried first. */
+  /* DOS FUN_41f2_0092 (viceroy_unpacked.c 71217-71233) runs one 25-iteration
+   * loop: `FUN_281f_07b4(nation, i)` decides both `local_5a += 5` and whether
+   * the name is drawn, so the plate's number and its grid can never disagree.
+   * FUN_281f_07b4 -> FUN_15eb_3960 (13832-13844) is exactly the per-nation
+   * bitmask read `nation[n].founding_fathers[i >> 3] & (1 << (i & 7))` that
+   * reports_ff_owned_by_nation ports. There is no count field and no
+   * head.founding_father[] reading anywhere in the chain: the old
+   * founding_father_count / head-equality fallbacks (the reading audit #83
+   * removed elsewhere — head.founding_father[] holds the FIRST CLAIMER, not
+   * per-nation membership) are gone. Same predicate as the page-1 name grid
+   * (:1462), page-2 portraits (:1524) and the Score FF strip (:4229). */
   int ff = 0;
-  for (int b = 0; b < 4; ++b) {
-    uint8_t bits = col1->nation[human].founding_fathers[b];
-    while (bits) {
-      ff += bits & 1u;
-      bits >>= 1;
-    }
-  }
-  if (ff > 0) {
-    return ff > (int)COLONIZE_COL1_FF_COUNT ? (int)COLONIZE_COL1_FF_COUNT : ff;
-  }
-  const uint16_t counted = col1->nation[human].founding_father_count;
-  if (counted > 0 && counted <= COLONIZE_COL1_FF_COUNT) {
-    return (int)counted;
-  }
   for (int i = 0; i < (int)COLONIZE_COL1_FF_COUNT; ++i) {
-    if (col1->head.founding_father[i] == (int8_t)human) {
+    if (reports_ff_owned_by_nation(&col1->nation[human], i)) {
       ff++;
     }
   }

@@ -263,7 +263,7 @@ int main(void) {
   eu.tax_percent = 50;
   const int trade_ask = eu.cargo[COLONIZE_CARGO_TRADE_GOODS].ask;
   const int gold_pre_buy = eu.gold;
-  const int bought = europe_buy_cargo(&eu, NULL, -1, 0, COLONIZE_CARGO_TRADE_GOODS, 100);
+  const int bought = europe_buy_cargo(&eu, NULL, NULL, -1, 0, COLONIZE_CARGO_TRADE_GOODS, 100);
   if (bought != 100 || eu.gold != gold_pre_buy - 100 * trade_ask ||
       eu.harbor[0].hold_goods_amount[0] != 100 ||
       eu.harbor[0].hold_goods_type[0] != COLONIZE_CARGO_TRADE_GOODS) {
@@ -332,6 +332,50 @@ int main(void) {
   }
 
   /*
+   * Smell audit #88: the ranking table inside europe_best_sell_hold scores
+   * Lumber/Horses/Tools/Muskets at 0, and it used to REFUSE such a hold, so
+   * "U" (unload the whole cargo — game_loop.c loops on this picker) stopped
+   * dead on a musket run and "-" answered "Nothing to sell." A loaded hold is
+   * always sellable now; only the ORDER is a heuristic.
+   */
+  {
+    const EuropeHarborShip saved = eu.harbor[0];
+    memset(eu.harbor[0].hold_goods_type, 0, sizeof(eu.harbor[0].hold_goods_type));
+    memset(eu.harbor[0].hold_goods_amount, 0, sizeof(eu.harbor[0].hold_goods_amount));
+    eu.harbor[0].hold_goods_type[2] = COLONIZE_CARGO_MUSKETS;
+    eu.harbor[0].hold_goods_amount[2] = 50;
+    eu.harbor[0].hold_goods_type[4] = COLONIZE_CARGO_TOOLS;
+    eu.harbor[0].hold_goods_amount[4] = 20;
+    const int zero_value = europe_best_sell_hold(&eu, 0);
+    if (zero_value != 2) {
+      fprintf(stderr, "zero-value cargo should still be sellable, got hold %d\n", zero_value);
+      eu.harbor[0] = saved;
+      europe_free(&eu);
+      return 1;
+    }
+    /* With a ranked hold present the heuristic still wins. */
+    eu.harbor[0].hold_goods_type[5] = COLONIZE_CARGO_SILVER;
+    eu.harbor[0].hold_goods_amount[5] = 10;
+    if (europe_best_sell_hold(&eu, 0) != 5) {
+      fprintf(stderr, "ranked hold should outrank the zero-value fallback\n");
+      eu.harbor[0] = saved;
+      europe_free(&eu);
+      return 1;
+    }
+    /* Empty ship still reports nothing to sell. */
+    memset(eu.harbor[0].hold_goods_type, 0, sizeof(eu.harbor[0].hold_goods_type));
+    memset(eu.harbor[0].hold_goods_amount, 0, sizeof(eu.harbor[0].hold_goods_amount));
+    eu.harbor[0].hold_goods_amount[0] = 255; /* empty-hold sentinel */
+    if (europe_best_sell_hold(&eu, 0) != -1) {
+      fprintf(stderr, "empty ship should have no sellable hold\n");
+      eu.harbor[0] = saved;
+      europe_free(&eu);
+      return 1;
+    }
+    eu.harbor[0] = saved;
+  }
+
+  /*
    * Boycott gating (fandom Boycott (Col): "goods blocked in Europe until
    * penalty paid or Fugger"). Boycott Furs, confirm buy/sell both refuse it
    * and leave state untouched, then lift and confirm trade works again.
@@ -361,7 +405,7 @@ int main(void) {
       europe_free(&eu);
       return 1;
     }
-    const int blocked_buy = europe_buy_cargo(&eu, NULL, -1, 0, COLONIZE_CARGO_FURS, 50);
+    const int blocked_buy = europe_buy_cargo(&eu, NULL, NULL, -1, 0, COLONIZE_CARGO_FURS, 50);
     if (blocked_buy != 0 || eu.gold != gold_before) {
       fprintf(stderr, "boycotted buy should be refused, got %d\n", blocked_buy);
       europe_free(&eu);
@@ -1016,6 +1060,211 @@ int main(void) {
     assets_msg_free(&names);
   }
 
+  /*
+   * Smell audit #83: the harbor buy must respect the ship's hold count.
+   * DOS FUN_38fd_1fa2 asks FUN_281f_0b96 -> FUN_15eb_3208 for free room
+   * (@UNIT cargo column minus holds_occupied) and bails to the no-room
+   * popup at 0; the port used to fill all six EUROPE_SHIP_CARGO_MAX slots,
+   * so a 2-hold Caravel took 600 tons.
+   */
+  {
+    ColonizeMsgCatalog cap_names;
+    ColonizeUnitPool cap_units;
+    EuropeScreen cap;
+    char cerr[128];
+    memset(&cap_units, 0, sizeof(cap_units));
+    memset(&cap_names, 0, sizeof(cap_names));
+    memset(&cap, 0, sizeof(cap));
+    units_reset(&cap_units);
+    units_set_occupancy_map(NULL);
+    if (!assets_msg_load_file(&cap_names, "COLONIZE/NAMES.TXT") ||
+        !units_load_types(&cap_units, &cap_names)) {
+      fprintf(stderr, "hold cap: load NAMES/units failed\n");
+      assets_msg_free(&cap_names);
+      europe_free(&eu);
+      return 1;
+    }
+    if (!europe_load(&cap, "COLONIZE", cerr, sizeof(cerr))) {
+      fprintf(stderr, "hold cap: europe_load failed: %s\n", cerr);
+      assets_msg_free(&cap_names);
+      europe_free(&eu);
+      return 1;
+    }
+    const int caravel_ti = units_find_type(&cap_units, "Caravel");
+    const ColonizeUnitType* caravel_ut = units_type(&cap_units, caravel_ti);
+    if (caravel_ti < 0 || !caravel_ut || caravel_ut->cargo != 2) {
+      fprintf(
+        stderr,
+        "hold cap: Caravel expected 2 holds, ti=%d cargo=%d\n",
+        caravel_ti,
+        caravel_ut ? caravel_ut->cargo : -1
+      );
+      assets_msg_free(&cap_names);
+      europe_free(&cap);
+      europe_free(&eu);
+      return 1;
+    }
+    europe_cheat_add_gold(&cap, 100000);
+    cap.tax_percent = 0;
+    cap.boycott_bitmap = 0;
+    int cap_hold_types[EUROPE_SHIP_CARGO_MAX];
+    int cap_hold_amts[EUROPE_SHIP_CARGO_MAX];
+    memset(cap_hold_types, 0, sizeof(cap_hold_types));
+    memset(cap_hold_amts, 0, sizeof(cap_hold_amts));
+    if (!europe_harbor_push(
+          &cap, caravel_ti, "Caravel", NULL, 0, cap_hold_types, cap_hold_amts
+        )) {
+      fprintf(stderr, "hold cap: harbor_push failed\n");
+      assets_msg_free(&cap_names);
+      europe_free(&cap);
+      europe_free(&eu);
+      return 1;
+    }
+
+    /* Empty 2-hold ship: 200 tons of room, and 600 without a pool (the
+     * documented NULL fallback). */
+    if (europe_harbor_cargo_room(&cap, &cap_units, 0, COLONIZE_CARGO_TOOLS) != 200 ||
+        europe_harbor_cargo_room(&cap, NULL, 0, COLONIZE_CARGO_TOOLS) != 600) {
+      fprintf(
+        stderr,
+        "hold cap: empty Caravel room want 200/600 got %d/%d\n",
+        europe_harbor_cargo_room(&cap, &cap_units, 0, COLONIZE_CARGO_TOOLS),
+        europe_harbor_cargo_room(&cap, NULL, 0, COLONIZE_CARGO_TOOLS)
+      );
+      assets_msg_free(&cap_names);
+      europe_free(&cap);
+      europe_free(&eu);
+      return 1;
+    }
+
+    const int tools_ask = cap.cargo[COLONIZE_CARGO_TOOLS].ask;
+    const int ore_ask = cap.cargo[COLONIZE_CARGO_ORE].ask;
+    const int cloth_ask = cap.cargo[COLONIZE_CARGO_CLOTH].ask;
+    (void)cloth_ask;
+    const int b1 =
+      europe_buy_cargo(&cap, NULL, &cap_units, -1, 0, COLONIZE_CARGO_TOOLS, 100);
+    const int b2 = europe_buy_cargo(&cap, NULL, &cap_units, -1, 0, COLONIZE_CARGO_ORE, 100);
+    if (b1 != 100 || b2 != 100 || cap.harbor[0].hold_goods_amount[0] != 100 ||
+        cap.harbor[0].hold_goods_amount[1] != 100) {
+      fprintf(
+        stderr,
+        "hold cap: first two holds should fill, got %d/%d holds %d/%d\n",
+        b1,
+        b2,
+        cap.harbor[0].hold_goods_amount[0],
+        cap.harbor[0].hold_goods_amount[1]
+      );
+      assets_msg_free(&cap_names);
+      europe_free(&cap);
+      europe_free(&eu);
+      return 1;
+    }
+
+    /* Third cargo has nowhere to go: refused outright, no gold spent, no
+     * slot 2 written. */
+    const int gold_full = cap.gold;
+    if (europe_harbor_cargo_room(&cap, &cap_units, 0, COLONIZE_CARGO_CLOTH) != 0) {
+      fprintf(stderr, "hold cap: full Caravel should report 0 room for a new cargo\n");
+      assets_msg_free(&cap_names);
+      europe_free(&cap);
+      europe_free(&eu);
+      return 1;
+    }
+    const int b3 = europe_buy_cargo(&cap, NULL, &cap_units, -1, 0, COLONIZE_CARGO_CLOTH, 100);
+    if (b3 != 0 || cap.gold != gold_full || cap.harbor[0].hold_goods_amount[2] != 0) {
+      fprintf(
+        stderr,
+        "hold cap: 3rd cargo onto a Caravel should be refused, got %d gold %d→%d hold2=%d\n",
+        b3,
+        gold_full,
+        cap.gold,
+        cap.harbor[0].hold_goods_amount[2]
+      );
+      assets_msg_free(&cap_names);
+      europe_free(&cap);
+      europe_free(&eu);
+      return 1;
+    }
+
+    /*
+     * Part-full matching hold: with no free slot left DOS counts (100 − amt)
+     * of the matching holds, so a 100-ton order is capped to that and only
+     * that many tons are charged.
+     */
+    cap.harbor[0].hold_goods_amount[1] = 40; /* Ore 40 */
+    if (europe_harbor_cargo_room(&cap, &cap_units, 0, COLONIZE_CARGO_ORE) != 60) {
+      fprintf(
+        stderr,
+        "hold cap: part-full Ore hold room want 60 got %d\n",
+        europe_harbor_cargo_room(&cap, &cap_units, 0, COLONIZE_CARGO_ORE)
+      );
+      assets_msg_free(&cap_names);
+      europe_free(&cap);
+      europe_free(&eu);
+      return 1;
+    }
+    const int gold_pre_topup = cap.gold;
+    const int b4 = europe_buy_cargo(&cap, NULL, &cap_units, -1, 0, COLONIZE_CARGO_ORE, 100);
+    if (b4 != 60 || cap.harbor[0].hold_goods_amount[1] != 100 ||
+        cap.gold != gold_pre_topup - 60 * ore_ask) {
+      fprintf(
+        stderr,
+        "hold cap: top-up want 60 got %d hold=%d gold %d→%d ask=%d\n",
+        b4,
+        cap.harbor[0].hold_goods_amount[1],
+        gold_pre_topup,
+        cap.gold,
+        ore_ask
+      );
+      assets_msg_free(&cap_names);
+      europe_free(&cap);
+      europe_free(&eu);
+      return 1;
+    }
+
+    /*
+     * Passengers ride the same slots (europe_board_sentry_dockers): a Caravel
+     * carrying one immigrant plus one goods hold has no room for a second
+     * cargo.
+     */
+    int pax[1] = {0};
+    memset(cap_hold_types, 0, sizeof(cap_hold_types));
+    memset(cap_hold_amts, 0, sizeof(cap_hold_amts));
+    cap_hold_types[0] = COLONIZE_CARGO_TOOLS;
+    cap_hold_amts[0] = 100;
+    if (!europe_harbor_push(
+          &cap, caravel_ti, "Caravel", pax, 1, cap_hold_types, cap_hold_amts
+        )) {
+      fprintf(stderr, "hold cap: second harbor_push failed\n");
+      assets_msg_free(&cap_names);
+      europe_free(&cap);
+      europe_free(&eu);
+      return 1;
+    }
+    const int pax_idx = cap.harbor_ships - 1;
+    const int gold_pax = cap.gold;
+    if (europe_harbor_cargo_room(&cap, &cap_units, pax_idx, COLONIZE_CARGO_CLOTH) != 0 ||
+        europe_buy_cargo(&cap, NULL, &cap_units, -1, pax_idx, COLONIZE_CARGO_CLOTH, 100) != 0 ||
+        cap.gold != gold_pax || cap.harbor[pax_idx].hold_goods_amount[1] != 0) {
+      fprintf(
+        stderr,
+        "hold cap: passenger must occupy a Caravel hold, room=%d gold %d→%d hold1=%d\n",
+        europe_harbor_cargo_room(&cap, &cap_units, pax_idx, COLONIZE_CARGO_CLOTH),
+        gold_pax,
+        cap.gold,
+        cap.harbor[pax_idx].hold_goods_amount[1]
+      );
+      assets_msg_free(&cap_names);
+      europe_free(&cap);
+      europe_free(&eu);
+      return 1;
+    }
+    (void)tools_ask;
+
+    assets_msg_free(&cap_names);
+    europe_free(&cap);
+  }
+
   fprintf(
     stderr,
     "europe tests ok (cargo=%d train=%d purchase=%d gold=%d dock=%d)\n",
@@ -1528,6 +1777,125 @@ int main(void) {
       return 1;
     }
     assets_msg_free(&names);
+  }
+
+  /*
+   * FUN_364b_0688 phase O (viceroy_unpacked.c 57806-57848): the non-human
+   * dump-sell credits `euro_price[nation][cargo] × amount` STRAIGHT into the
+   * nation treasury (+0x2a). There is no FUN_1d1d_0ec6 tax call and no
+   * royal_money (+0x22) write in this arm — only the Custom House arm
+   * (57277-57302) taxes — and the price is the raw DS:0x84BC byte, not the
+   * harbor sell price (`euro_price − 1`).
+   */
+  {
+    ColonizeColonyPool pool;
+    colonies_init(&pool);
+    colonies_set_occupancy_map(NULL);
+
+    ColonizeColony* ai = &pool.colonies[0];
+    memset(ai, 0, sizeof(*ai));
+    ai->active = true;
+    ai->id = 1;
+    ai->nation_id = 1; /* AI French; human = 0 */
+    ai->building_in_production = -1;
+    ai->warehouse_level = 0; /* cap 100 */
+    ai->stock[COLONIZE_CARGO_TOBACCO] = 180;
+    ai->stock[COLONIZE_CARGO_FOOD] = 50;
+    ai->colonists[0].active = true;
+    ai->colonist_count = 1;
+    ai->population = 1;
+    pool.colony_count = 1;
+
+    EuropeScreen dseu;
+    memset(&dseu, 0, sizeof(dseu));
+    dseu.cargo_count = COLONIZE_CARGO_COUNT;
+    for (int i = 0; i < COLONIZE_CARGO_COUNT; ++i) {
+      dseu.cargo[i].bid = 3; /* deliberately NOT the AI nation's own byte */
+      dseu.cargo[i].low = 1;
+      dseu.cargo[i].high = 20;
+    }
+    dseu.tax_percent = 75;
+
+    ColonizeCol1Save dscol1;
+    memset(&dscol1, 0, sizeof(dscol1));
+    dscol1.nation[1].tax_rate = 50; /* must be ignored entirely */
+    dscol1.nation[1].gold = 1000u;
+    dscol1.nation[1].royal_money = 7;
+    for (int i = 0; i < (int)COLONIZE_COL1_CARGO_TYPES; ++i) {
+      dscol1.nation[1].trade.euro_price[i] = 12;
+    }
+
+    /* surplus 80 × euro_price 12 = 960 gross, all of it to gold. */
+    const int gained = europe_ai_colony_dump_sell(&dseu, &pool, ai, &dscol1, 0);
+    if (gained != 960) {
+      fprintf(stderr, "dump-sell untaxed gross want 960 got %d\n", gained);
+      europe_free(&eu);
+      return 1;
+    }
+    if (dscol1.nation[1].gold != 1960u) {
+      fprintf(
+        stderr,
+        "dump-sell gold want 1960 got %u\n",
+        (unsigned)dscol1.nation[1].gold
+      );
+      europe_free(&eu);
+      return 1;
+    }
+    if (dscol1.nation[1].royal_money != 7) {
+      fprintf(
+        stderr,
+        "dump-sell must not touch royal_money, got %d\n",
+        (int)dscol1.nation[1].royal_money
+      );
+      europe_free(&eu);
+      return 1;
+    }
+    if (ai->stock[COLONIZE_CARGO_TOBACCO] != 180) {
+      fprintf(
+        stderr,
+        "dump-sell must leave stock for spoilage, got %d\n",
+        ai->stock[COLONIZE_CARGO_TOBACCO]
+      );
+      europe_free(&eu);
+      return 1;
+    }
+    /*
+     * Ledger double-book (asm 364b:17b0-17e6): 1dfa already added the taxed
+     * (bid−1)·80·(100−50)/100 = 80 and tons += 80; the arm then adds the
+     * untaxed 960 to trade.gold and — verbatim — the CARGO INDEX to tons.
+     */
+    if (dscol1.nation[1].trade.gold[COLONIZE_CARGO_TOBACCO] != 1040 ||
+        dscol1.nation[1].trade.tons[COLONIZE_CARGO_TOBACCO] !=
+          80 + COLONIZE_CARGO_TOBACCO) {
+      fprintf(
+        stderr,
+        "dump-sell ledger gold=%d tons=%d (want 1040/%d)\n",
+        (int)dscol1.nation[1].trade.gold[COLONIZE_CARGO_TOBACCO],
+        (int)dscol1.nation[1].trade.tons[COLONIZE_CARGO_TOBACCO],
+        80 + COLONIZE_CARGO_TOBACCO
+      );
+      europe_free(&eu);
+      return 1;
+    }
+    /* Unseeded nation byte (new game, never round-tripped) → the one Linux
+     * market's raw bid, still untaxed: 80 × 3 = 240. */
+    dscol1.nation[1].gold = 0;
+    for (int i = 0; i < (int)COLONIZE_COL1_CARGO_TYPES; ++i) {
+      dscol1.nation[1].trade.euro_price[i] = 0;
+    }
+    ai->stock[COLONIZE_CARGO_TOBACCO] = 180;
+    dseu.cargo[COLONIZE_CARGO_TOBACCO].bid = 3;
+    if (europe_ai_colony_dump_sell(&dseu, &pool, ai, &dscol1, 0) != 240 ||
+        dscol1.nation[1].gold != 240u) {
+      fprintf(
+        stderr,
+        "dump-sell unseeded fallback gold=%u (want 240)\n",
+        (unsigned)dscol1.nation[1].gold
+      );
+      europe_free(&eu);
+      return 1;
+    }
+    fprintf(stderr, "AI dump-sell untaxed at raw euro_price ok\n");
   }
 
   europe_free(&eu);

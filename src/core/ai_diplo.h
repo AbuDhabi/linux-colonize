@@ -198,7 +198,10 @@ void ai_diplo_declare_war_ctx(ColonizeTurnContext* ctx, int nation_a, int nation
 const char* ai_diplo_rival_name(const ColonizeCol1Save* col1, int nation);
 void ai_diplo_make_peace_ctx(ColonizeTurnContext* ctx, int nation_a, int nation_b);
 
-/* FUN_5bfb_0000/00f8/312e-shaped military score (unpark #5 deepen). */
+/* Military strength = the DS:0x941c census mirror stuff.land_combat_strength[]
+ * (Σ FUN_281f_09c8(u,1) over land units; combat byte ×8). Same quantity every
+ * other strength comparison in the port reads. The invented attack+defense /
+ * pop / gold / rank blend it used to compute was retired 2026-09-09 (#51). */
 int ai_diplo_military_score(const ColonizeTurnContext* ctx, int nation_id);
 
 /* 6d8e step 4: decrement per-rival treaty timer bytes (before planning);
@@ -253,13 +256,20 @@ uint8_t ai_diplo_indian_relation(
 /* Relation (100-alarm) for a met slot, 0 when unmet (euro_diplo MET bit clear). */
 uint8_t ai_diplo_indian_read(const ColonizeCol1Save* col1, int euro_nation, int indian_idx);
 
-/* Thin stand-in: at war with Indian nation when met and relation < 50 (alarm > 50). */
+/* At war with an Indian nation when met and either the euro_diplo WAR bit is
+ * set or relation < AI_DIPLO_INDIAN_AT_WAR_REL (26), i.e. DOS alarm > 0x4a —
+ * the FUN_5bfb_153e hostile tier. (Comment said 50 until 2026-09-09, smell
+ * #57; the live constant has been 26 since the 153e band was ported.) */
 int ai_diplo_indian_at_war(const ColonizeCol1Save* col1, int euro_nation, int indian_idx);
 
-/* True if any of 8 Indian slots is at war (relation < 50). Contact/diplo helper. */
+/* True if any of 8 Indian slots is at war (see ai_diplo_indian_at_war: WAR bit
+ * or relation < 26). Contact/diplo helper. */
 int ai_diplo_indian_any_at_war(const ColonizeCol1Save* col1, int euro_nation);
 
-/* Read unknown26[8] Indian hostility sticky: 0 clear, 1 at-war, 2 very-low deepen.
+/* Read the Linux Indian-hostility sticky (nation record +0x4b, unknown26[11],
+ * the one byte of that block DOS never touches): 0 clear, 1 at-war, 2 very-low
+ * deepen. Moved off +0x48 2026-09-09 (smell #52) — that byte is the DOS
+ * FUN_4d56_4528 grace/waiver counter.
  * sticky==2 → peace feeler self-gates off (matrix + make_peace) + refuses new
  * treaties this balance + human "Natives remain hostile." status. */
 uint8_t ai_diplo_indian_hostility_sticky(const ColonizeCol1Save* col1, int euro_nation);

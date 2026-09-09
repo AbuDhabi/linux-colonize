@@ -2,6 +2,7 @@
 
 #include <string.h>
 
+#include "core/combat_strength.h"
 #include "core/units.h"
 
 bool col1_stuff_census_window_is_blank(const ColonizeCol1Stuff* stuff) {
@@ -24,9 +25,40 @@ bool col1_stuff_census_window_is_blank(const ColonizeCol1Stuff* stuff) {
   return true;
 }
 
+/*
+ * FUN_281f_06be → FUN_137f_03e4 (viceroy_unpacked.c 6838-6860): owner byte of
+ * ANY settlement standing on the tile — Euro colony (0..3) or Indian village
+ * (>= 4) — and −1 both when the tile carries no settlement and when the tile
+ * is off the map (the FUN_137f_000a bounds gate).
+ */
+static int col1_stuff_census_settlement_at(
+  const ColonizeColonyPool* colonies,
+  const ColonizeCol1Save* col1,
+  int x,
+  int y
+) {
+  if (colonies) {
+    const int cid = colonies_id_at(colonies, x, y);
+    const ColonizeColony* c = colonies_get(colonies, cid);
+    if (c && c->active) {
+      return c->nation_id >= 0 ? c->nation_id : 0;
+    }
+  }
+  if (col1 && col1->tribe) {
+    for (uint16_t i = 0; i < col1->head.tribe_count; ++i) {
+      if ((int)col1->tribe[i].x == x && (int)col1->tribe[i].y == y) {
+        return 4 + (int)col1->tribe[i].nation_id;
+      }
+    }
+  }
+  return -1;
+}
+
 static void col1_stuff_census_tally_units(
   ColonizeCol1Stuff* stuff,
-  const ColonizeUnitPool* units
+  const ColonizeUnitPool* units,
+  const ColonizeColonyPool* colonies,
+  const ColonizeCol1Save* col1
 ) {
   memset(stuff->all_unit_counts, 0, sizeof(stuff->all_unit_counts));
   memset(stuff->free_colonist_counts, 0, sizeof(stuff->free_colonist_counts));
@@ -90,19 +122,78 @@ static void col1_stuff_census_tally_units(
         stuff->armed_ship_counts[n]++;
       }
     } else if (ut && ut->domain == COLONIZE_UNIT_DOMAIN_LAND) {
-      if (ut->attack > 0 || ut->defense > 0) {
-        if (stuff->land_combat_totals[n] < 255u) {
-          stuff->land_combat_totals[n]++;
+      /*
+       * FUN_4962_0018 non-hull arm (viceroy_unpacked.asm 4962:01b8-0294;
+       * decompile 78213-78231). DOS takes the FUN_281f_09c8 → FUN_157e_004a
+       * combat VALUE — combat_unit_base_x8: type combat byte ×8 plus the
+       * veteran / Drake / damaged-artillery peels — and files it three ways:
+       *
+       *   0x9180 land_combat_totals   += 09c8(u, 0)   FUN_4962_0006
+       *   0x941c land_combat_strength += 09c8(u, 1)   ADD word ptr, plain
+       *   0x942c field_combat_totals  += 09c8(u, 1)   FUN_4962_0006, gated
+       *
+       * FUN_4962_0006 (4962:0006) is a SATURATING byte add — CL=[BX],
+       * AX+=CX, `CMP AX,0xff / JLE / MOV AX,0xff`, `MOV [BX],AL` — so the
+       * two byte rows clamp at 255 while the word row wraps at 16 bits.
+       *
+       * All three were invented before: a unit count, a Σ(attack+defense),
+       * and a second count. The ×8 scale is live in ai_king's REF /
+       * intervention math (`14L * land_combat_strength`, ai_king.c) and in
+       * ai_diplo_00f8_top_ranked_nation.
+       */
+      ColonizeCombatStrengthCtx sctx;
+      memset(&sctx, 0, sizeof(sctx));
+      sctx.units = units;
+      sctx.colonies = colonies;
+      sctx.col1 = col1;
+      /* combat_unit_base_x8 takes a unit ID, and this loop walks pool SLOTS
+       * (ids are 1-based and do not track the slot index). */
+      const int v0 = combat_unit_base_x8(&sctx, u->id, 0, NULL);
+      const int v1 = combat_unit_base_x8(&sctx, u->id, 1, NULL);
+      unsigned tot = (unsigned)stuff->land_combat_totals[n] + (unsigned)(v0 > 0 ? v0 : 0);
+      if (tot > 255u) {
+        tot = 255u;
+      }
+      stuff->land_combat_totals[n] = (uint8_t)tot;
+      stuff->land_combat_strength[n] =
+        (uint16_t)((unsigned)stuff->land_combat_strength[n] + (unsigned)(v1 > 0 ? v1 : 0));
+      /*
+       * 0x942c gate, verbatim (4962:022f-026e):
+       *
+       *   settlement = FUN_281f_06be(u.x, u.y)
+       *   if (settlement >= 0) {
+       *     if (nation < 4 && control[nation] == 0) skip;  // human never counts
+       *     if (ai_plan == 'A' || ai_plan == 'G') skip;
+       *   }
+       *   accumulate 09c8(u, 1)
+       *
+       * +0x314b is unit byte 7 — `ai_plan` (col1_ai_plan), the AI goal letter
+       * FUN_521d_0a60 stamps 'A' on a garrison assignment and ages to 'G' at
+       * the top of its next pass. It is NOT the orders byte, which lives at
+       * +0x314c (the same function reads 5/6 there for fortify/fortified).
+       *
+       * DOS parks a ship's passengers off-map at (−2,−2), where FUN_137f_000a
+       * fails the bounds test and 06be returns −1, so an embarked unit always
+       * counts; the port rides passengers at the ship's own tile, hence the
+       * explicit aboard short-circuit.
+       */
+      int counts_as_field = 1;
+      const int settlement =
+        u->aboard_ship_id >= 0 ? -1
+                               : col1_stuff_census_settlement_at(colonies, col1, u->x, u->y);
+      if (settlement >= 0) {
+        const int human_slot =
+          col1 && n < (int)COLONIZE_COL1_NATION_COUNT && col1->player[n].control == 0;
+        if (human_slot || u->col1_ai_plan == 0x41u || u->col1_ai_plan == 0x47u) {
+          counts_as_field = 0;
         }
-        unsigned str = (unsigned)stuff->land_combat_strength[n] + (unsigned)ut->attack +
-                       (unsigned)ut->defense;
-        if (str > 0xffffu) {
-          str = 0xffffu;
+      }
+      if (counts_as_field) {
+        unsigned fc = (unsigned)stuff->field_combat_totals[n] + (unsigned)(v1 > 0 ? v1 : 0);
+        if (fc > 255u) {
+          fc = 255u;
         }
-        stuff->land_combat_strength[n] = (uint16_t)str;
-        if (u->aboard_ship_id < 0 && stuff->field_combat_totals[n] < 255u) {
-          stuff->field_combat_totals[n]++;
-        }
+        stuff->field_combat_totals[n] = (uint8_t)fc;
       }
     }
   }
@@ -160,12 +251,13 @@ static void col1_stuff_census_write_mean_pop(ColonizeCol1Stuff* stuff) {
 void col1_stuff_census_fill_blank(
   ColonizeCol1Stuff* stuff,
   const ColonizeUnitPool* units,
-  const ColonizeColonyPool* colonies
+  const ColonizeColonyPool* colonies,
+  const ColonizeCol1Save* col1
 ) {
   if (!stuff) {
     return;
   }
-  col1_stuff_census_tally_units(stuff, units);
+  col1_stuff_census_tally_units(stuff, units, colonies, col1);
   col1_stuff_census_tally_colonies(stuff, colonies, 1);
   col1_stuff_census_write_mean_pop(stuff);
 }
@@ -173,13 +265,14 @@ void col1_stuff_census_fill_blank(
 void col1_stuff_census_refresh_colony_counts(
   ColonizeCol1Stuff* stuff,
   const ColonizeColonyPool* colonies,
-  const ColonizeUnitPool* units
+  const ColonizeUnitPool* units,
+  const ColonizeCol1Save* col1
 ) {
   if (!stuff) {
     return;
   }
   if (units) {
-    col1_stuff_census_tally_units(stuff, units);
+    col1_stuff_census_tally_units(stuff, units, colonies, col1);
   }
   /* With units: also fold colony pop into census_pop_proxy (fill_blank shape). */
   col1_stuff_census_tally_colonies(stuff, colonies, units != NULL);

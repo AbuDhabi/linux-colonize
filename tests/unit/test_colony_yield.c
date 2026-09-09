@@ -46,7 +46,7 @@ static int check_commons(
   const char* label
 ) {
   ColonizeTownCommonsYield tc;
-  colony_yield_town_commons(map, x, y, 0, 0, 2, &tc);
+  colony_yield_town_commons(map, x, y, 0, 2, &tc);
   if (tc.food != expect_food || tc.secondary_cargo != expect_cargo ||
       tc.secondary_amount != expect_amt) {
     fprintf(
@@ -77,7 +77,7 @@ static int check_commons_sol(
   const char* label
 ) {
   ColonizeTownCommonsYield tc;
-  colony_yield_town_commons(map, x, y, 0, colony_flags, 2, &tc);
+  colony_yield_town_commons(map, x, y, colony_flags, 2, &tc);
   if (tc.secondary_cargo != expect_cargo || tc.secondary_amount != expect_amt) {
     fprintf(
       stderr,
@@ -318,7 +318,8 @@ int main(void) {
     map.terrain[hy * map.width + hx] = (uint8_t)(0x20u); /* Hills, no forest/river */
     map_tile_set_road(&map, hx, hy, true);
     const int free_ore = colony_yield_for_worker(
-      &map, hx, hy, COLONIZE_JOB_ORE_MINER, COLONIZE_PROF_FREE_COLONIST, /*has_docks=*/true, 1, 0
+      &map, hx, hy, COLONIZE_JOB_ORE_MINER, COLONIZE_PROF_FREE_COLONIST, /*has_docks=*/true, 1, 0,
+      false
     );
     if (free_ore != 6) {
       fprintf(stderr, "free colonist ore+road+sol want 6 got %d\n", free_ore);
@@ -326,7 +327,8 @@ int main(void) {
       return 1;
     }
     const int expert_ore = colony_yield_for_worker(
-      &map, hx, hy, COLONIZE_JOB_ORE_MINER, COLONIZE_JOB_ORE_MINER, /*has_docks=*/true, 1, 0
+      &map, hx, hy, COLONIZE_JOB_ORE_MINER, COLONIZE_JOB_ORE_MINER, /*has_docks=*/true, 1, 0,
+      false
     );
     if (expert_ore != 12) {
       fprintf(stderr, "expert ore miner+road+sol want 12 got %d\n", expert_ore);
@@ -342,14 +344,12 @@ int main(void) {
    * Ruled out a special resource explaining the gap (player-confirmed
    * none present); solved instead to fur/lumber's road bonus needing the
    * same base-2 magnitude bucket river already has (was flat 1 for every
-   * road job). This checks that piece alone, via colony_yield_for_worker
-   * (job-only pipeline, no Hudson — Hudson's x2 is an external post-hoc
-   * step in turn.c/colony_preview.c, not part of colony_yield_pipeline):
+   * road job). This checks that piece alone, via colony_yield_for_worker:
    *   free:   base(3) +sol(2)=5,                +road(u=1,base=2)=7
    *   expert: base(3) +sol(2)=5, <<=1(expert)=10, +road(u=2,base=2)=14
-   * (x Hudson's external x2 separately gives the full 14/28 the player
-   * observed — not re-tested here, that multiply is already covered by
-   * the existing "Henry Hudson" tests in test_turn.c.)
+   * Hudson's x2 is now the pipeline's own `has_hudson` step (DOS
+   * FUN_15eb_18ec 11970-11973, smell audit #60), so the 14/28 the player
+   * observed comes straight out of these same calls — asserted below.
    */
   {
     /* Resources are procedurally derived from (terrain, x, y), not stored
@@ -376,7 +376,8 @@ int main(void) {
     }
     map_tile_set_road(&map, mx, my, true);
     const int free_fur = colony_yield_for_worker(
-      &map, mx, my, COLONIZE_JOB_FUR_TRAPPER, COLONIZE_PROF_FREE_COLONIST, /*has_docks=*/true, 2, 0
+      &map, mx, my, COLONIZE_JOB_FUR_TRAPPER, COLONIZE_PROF_FREE_COLONIST, /*has_docks=*/true, 2, 0,
+      false
     );
     if (free_fur != 7) {
       fprintf(stderr, "free colonist fur+road+sol want 7 got %d\n", free_fur);
@@ -384,10 +385,87 @@ int main(void) {
       return 1;
     }
     const int expert_fur = colony_yield_for_worker(
-      &map, mx, my, COLONIZE_JOB_FUR_TRAPPER, COLONIZE_JOB_FUR_TRAPPER, /*has_docks=*/true, 2, 0
+      &map, mx, my, COLONIZE_JOB_FUR_TRAPPER, COLONIZE_JOB_FUR_TRAPPER, /*has_docks=*/true, 2, 0,
+      false
     );
     if (expert_fur != 14) {
       fprintf(stderr, "expert fur trapper+road+sol want 14 got %d\n", expert_fur);
+      map_free(&map);
+      return 1;
+    }
+
+    /*
+     * Henry Hudson (smell audit #60) — DOS doubles the Fur Trapper yield
+     * INSIDE FUN_15eb_18ec (11970-11973), between the improvement stack and
+     * both the Convert +1 and the negative-SoL subtraction. The port used to
+     * apply it at four call sites *after* the whole pipeline, giving
+     * `2·(base+1)` / `2·(base−2)` where DOS gives `2·base + 1` /
+     * `2·base − 2`.
+     *   plain:   7 → 14 and 14 → 28 (the 2026-08-15 player capture)
+     *   convert: base 3 +fur-road 1 +stack road 1 = 5, ×2 = 10, +1 = 11
+     *            (old post-hoc order: (5+1)×2 = 12)
+     *   tory:    same 5, ×2 = 10, sol −2 = 8
+     *            (old post-hoc order: (5−2)×2 = 6)
+     */
+    const int free_fur_hudson = colony_yield_for_worker(
+      &map, mx, my, COLONIZE_JOB_FUR_TRAPPER, COLONIZE_PROF_FREE_COLONIST, /*has_docks=*/true, 2, 0,
+      true
+    );
+    const int expert_fur_hudson = colony_yield_for_worker(
+      &map, mx, my, COLONIZE_JOB_FUR_TRAPPER, COLONIZE_JOB_FUR_TRAPPER, /*has_docks=*/true, 2, 0,
+      true
+    );
+    if (free_fur_hudson != 14 || expert_fur_hudson != 28) {
+      fprintf(
+        stderr,
+        "Hudson fur+road+sol want 14/28 got %d/%d\n",
+        free_fur_hudson,
+        expert_fur_hudson
+      );
+      map_free(&map);
+      return 1;
+    }
+    const int convert_fur_hudson = colony_yield_for_worker(
+      &map, mx, my, COLONIZE_JOB_FUR_TRAPPER, COLONIZE_PROF_CONVERT, /*has_docks=*/true, 0, 0, true
+    );
+    if (convert_fur_hudson != 11) {
+      fprintf(
+        stderr,
+        "Hudson+Convert fur want 11 (2*base+1) got %d\n",
+        convert_fur_hudson
+      );
+      map_free(&map);
+      return 1;
+    }
+    const int tory_fur_hudson = colony_yield_for_worker(
+      &map, mx, my, COLONIZE_JOB_FUR_TRAPPER, COLONIZE_PROF_FREE_COLONIST, /*has_docks=*/true, -2, 0,
+      true
+    );
+    if (tory_fur_hudson != 8) {
+      fprintf(
+        stderr,
+        "Hudson+negative SoL fur want 8 (2*base-2) got %d\n",
+        tory_fur_hudson
+      );
+      map_free(&map);
+      return 1;
+    }
+    /* Non-fur jobs must be untouched by the flag. */
+    const int hudson_lumber = colony_yield_for_worker(
+      &map, mx, my, COLONIZE_JOB_LUMBERJACK, COLONIZE_PROF_FREE_COLONIST, /*has_docks=*/true, 0, 0,
+      true
+    );
+    const int plain_lumber = colony_yield_for_worker(
+      &map, mx, my, COLONIZE_JOB_LUMBERJACK, COLONIZE_PROF_FREE_COLONIST, /*has_docks=*/true, 0, 0,
+      false
+    );
+    if (hudson_lumber != plain_lumber) {
+      fprintf(
+        stderr,
+        "Hudson must not touch Lumberjack: %d vs %d\n",
+        hudson_lumber,
+        plain_lumber
+      );
       map_free(&map);
       return 1;
     }
@@ -414,7 +492,8 @@ int main(void) {
       return 1;
     }
     const int free_game = colony_yield_for_worker(
-      &map, gx, gy, COLONIZE_JOB_FARMER, COLONIZE_PROF_FREE_COLONIST, /*has_docks=*/true, 0, 0
+      &map, gx, gy, COLONIZE_JOB_FARMER, COLONIZE_PROF_FREE_COLONIST, /*has_docks=*/true, 0, 0,
+      false
     );
     if (free_game != 4) {
       fprintf(stderr, "free colonist farmer+Game want 4 got %d\n", free_game);
@@ -422,7 +501,8 @@ int main(void) {
       return 1;
     }
     const int expert_game = colony_yield_for_worker(
-      &map, gx, gy, COLONIZE_JOB_FARMER, COLONIZE_JOB_FARMER, /*has_docks=*/true, 0, 0
+      &map, gx, gy, COLONIZE_JOB_FARMER, COLONIZE_JOB_FARMER, /*has_docks=*/true, 0, 0,
+      false
     );
     if (expert_game != 8) {
       fprintf(stderr, "expert farmer+Game want 8 got %d\n", expert_game);
@@ -476,10 +556,12 @@ int main(void) {
       return 1;
     }
     const int free_hill = colony_yield_for_worker(
-      &map, hx, hy, COLONIZE_JOB_FARMER, COLONIZE_PROF_FREE_COLONIST, true, 0, 0
+      &map, hx, hy, COLONIZE_JOB_FARMER, COLONIZE_PROF_FREE_COLONIST, true, 0, 0,
+      false
     );
     const int expert_hill = colony_yield_for_worker(
-      &map, hx, hy, COLONIZE_JOB_FARMER, COLONIZE_JOB_FARMER, true, 0, 0
+      &map, hx, hy, COLONIZE_JOB_FARMER, COLONIZE_JOB_FARMER, true, 0, 0,
+      false
     );
     if (free_hill != 2 || expert_hill != 4) {
       fprintf(stderr, "hills farmer want free=2 expert=4 got %d/%d\n", free_hill, expert_hill);
@@ -507,13 +589,225 @@ int main(void) {
     }
     const int expert_farmer_sol = colony_yield_for_worker(
       &map, tx, ty, COLONIZE_JOB_FARMER, COLONIZE_JOB_FARMER, /*has_docks=*/true, /*sol_bonus=*/3,
-      /*colony_flags=*/0
+      /*colony_flags=*/0,
+      false
     );
     if (expert_farmer_sol != 11) {
       fprintf(
         stderr,
         "expert farmer, sol_bonus=3 colony_flags=0 want 11 got %d\n",
         expert_farmer_sol
+      );
+      map_free(&map);
+      return 1;
+    }
+  }
+
+  /*
+   * Silver Miner collapse on a deposit-less tile — FUN_15eb_18ec's job==7
+   * block (viceroy_unpacked.c 11925-11941, smell audit #61). No resource
+   * AND runtime mask 0x04 (MAP_LAYER2_SUPPRESS) CLEAR ⇒ a nonzero yield
+   * becomes 1 when the tile has road/settlement or the worker is a
+   * matching expert, else 0, and the whole improvement stack is skipped.
+   * Suppress set (a mined-out mountain) leaves the branch entirely and the
+   * ordinary base + expert + road stack applies.
+   */
+  {
+    int mx = -1;
+    int my = -1;
+    for (int y = 0; y < (int)map.height && mx < 0; ++y) {
+      for (int x = 0; x < (int)map.width && mx < 0; ++x) {
+        map.terrain[y * map.width + x] = 0xa0u; /* Mountains (pedia 27) */
+        map.improve[y * map.width + x] = 0;
+        map.layer2[y * map.width + x] = 0;
+        if (map_resource_type_for_yield(&map, x, y) < 0) {
+          mx = x;
+          my = y;
+        }
+      }
+    }
+    if (mx < 0) {
+      fprintf(stderr, "no resource-free Mountains tile found on 32x32\n");
+      map_free(&map);
+      return 1;
+    }
+    if (map_pedia_terrain_index_at(&map, mx, my) != 27) {
+      fprintf(
+        stderr, "mountain pedia expected 27 got %d\n", map_pedia_terrain_index_at(&map, mx, my)
+      );
+      map_free(&map);
+      return 1;
+    }
+
+    /* Bare rock, no road: free colonist 0, expert 1 (base 1 would have paid
+     * 1 and 2 respectively, plus the stack, before the collapse was ported). */
+    const int bare_free = colony_yield_for_worker(
+      &map, mx, my, COLONIZE_JOB_SILVER_MINER, COLONIZE_PROF_FREE_COLONIST, true, 0, 0,
+      false
+    );
+    const int bare_expert = colony_yield_for_worker(
+      &map, mx, my, COLONIZE_JOB_SILVER_MINER, COLONIZE_JOB_SILVER_MINER, true, 0, 0,
+      false
+    );
+    if (bare_free != 0 || bare_expert != 1) {
+      fprintf(
+        stderr, "bare mountain silver want free=0 expert=1 got %d/%d\n", bare_free, bare_expert
+      );
+      map_free(&map);
+      return 1;
+    }
+    /* A positive SoL bonus cannot escape the collapse either — DOS folds it
+     * in before this branch, which then overwrites the total outright. */
+    if (colony_yield_for_worker(
+          &map, mx, my, COLONIZE_JOB_SILVER_MINER, COLONIZE_JOB_SILVER_MINER, true, 3, 0,
+          false
+        ) != 1) {
+      fprintf(stderr, "bare mountain silver, expert + sol 3, want 1\n");
+      map_free(&map);
+      return 1;
+    }
+
+    /* Road: collapse target is 1 for anyone, and the road's own stack add
+     * is suppressed with the rest of the stack (so the expert stays 1). */
+    map.improve[my * map.width + mx] |= MAP_IMPROVE_ROAD;
+    const int road_free = colony_yield_for_worker(
+      &map, mx, my, COLONIZE_JOB_SILVER_MINER, COLONIZE_PROF_FREE_COLONIST, true, 0, 0,
+      false
+    );
+    const int road_expert = colony_yield_for_worker(
+      &map, mx, my, COLONIZE_JOB_SILVER_MINER, COLONIZE_JOB_SILVER_MINER, true, 0, 0,
+      false
+    );
+    if (road_free != 1 || road_expert != 1) {
+      fprintf(
+        stderr, "roaded bare mountain silver want free=1 expert=1 got %d/%d\n",
+        road_free, road_expert
+      );
+      map_free(&map);
+      return 1;
+    }
+
+    /* Suppress bit set (mined-out mountain): branch not entered, full
+     * pipeline — free 1 + road 1 = 2, expert (1 x2) + road u2 = 4. This is
+     * the shape golden_colony_prod01's Vlissingen silver tile needs
+     * (with sol_bonus 2: (1+2)x2 + 2 = 8). */
+    map.layer2[my * map.width + mx] |= MAP_LAYER2_SUPPRESS;
+    const int depl_free = colony_yield_for_worker(
+      &map, mx, my, COLONIZE_JOB_SILVER_MINER, COLONIZE_PROF_FREE_COLONIST, true, 0, 0,
+      false
+    );
+    const int depl_expert = colony_yield_for_worker(
+      &map, mx, my, COLONIZE_JOB_SILVER_MINER, COLONIZE_JOB_SILVER_MINER, true, 0, 0,
+      false
+    );
+    const int depl_expert_sol = colony_yield_for_worker(
+      &map, mx, my, COLONIZE_JOB_SILVER_MINER, COLONIZE_JOB_SILVER_MINER, true, 2, 0,
+      false
+    );
+    if (depl_free != 2 || depl_expert != 4 || depl_expert_sol != 8) {
+      fprintf(
+        stderr,
+        "suppressed mountain silver want free=2 expert=4 expert+sol2=8 got %d/%d/%d\n",
+        depl_free, depl_expert, depl_expert_sol
+      );
+      map_free(&map);
+      return 1;
+    }
+    map.layer2[my * map.width + mx] = 0;
+    map.improve[my * map.width + mx] = 0;
+
+    /* A real Silver Deposit (resource 12) also keeps the branch out — the
+     * tile has a resource, so the ordinary base + effect + expert math runs:
+     * free 1 + 2 = 3, expert (1 x2) + (2 x2) = 6. */
+    int sx = -1;
+    int sy = -1;
+    if (!find_resource_tile(&map, 0xa0u, 12, &sx, &sy)) {
+      fprintf(stderr, "no Mountains tile with a Silver Deposit found on 32x32\n");
+      map_free(&map);
+      return 1;
+    }
+    map.improve[sy * map.width + sx] = 0;
+    map.layer2[sy * map.width + sx] = 0;
+    const int dep_free = colony_yield_for_worker(
+      &map, sx, sy, COLONIZE_JOB_SILVER_MINER, COLONIZE_PROF_FREE_COLONIST, true, 0, 0,
+      false
+    );
+    const int dep_expert = colony_yield_for_worker(
+      &map, sx, sy, COLONIZE_JOB_SILVER_MINER, COLONIZE_JOB_SILVER_MINER, true, 0, 0,
+      false
+    );
+    if (dep_free != 3 || dep_expert != 6) {
+      fprintf(
+        stderr, "silver deposit mountain want free=3 expert=6 got %d/%d\n", dep_free, dep_expert
+      );
+      map_free(&map);
+      return 1;
+    }
+
+    /* Other mined goods are untouched: the DOS branch tests job == 7 only,
+     * so an Ore Miner on the same bare rock keeps base 4 (+expert, +road). */
+    map.terrain[my * map.width + mx] = 0xa0u;
+    const int ore_free = colony_yield_for_worker(
+      &map, mx, my, COLONIZE_JOB_ORE_MINER, COLONIZE_PROF_FREE_COLONIST, true, 0, 0,
+      false
+    );
+    const int ore_expert = colony_yield_for_worker(
+      &map, mx, my, COLONIZE_JOB_ORE_MINER, COLONIZE_JOB_ORE_MINER, true, 0, 0,
+      false
+    );
+    if (ore_free != 4 || ore_expert != 8) {
+      fprintf(
+        stderr, "bare mountain ore want free=4 expert=8 got %d/%d\n", ore_free, ore_expert
+      );
+      map_free(&map);
+      return 1;
+    }
+  }
+
+  /*
+   * Smell audit #66: the town-commons plow term is unconditional in DOS
+   * (FUN_15eb_1f72, viceroy_unpacked.c 12525-12529 — `FUN_137f_0142(x,y) &
+   * 0x40` then `+1`, no terrain test). The port carried an invented
+   * `pedia >= 0 && pedia <= 7` cleared-land gate, so a plowed forest/hills
+   * commons silently lost the +1. Pin the DOS behaviour on a forest tile.
+   */
+  {
+    int fx = -1;
+    int fy = -1;
+    for (int b = 0; b < 256 && fx < 0; ++b) {
+      for (int y = 0; y < (int)map.height && fx < 0; ++y) {
+        for (int x = 0; x < (int)map.width && fx < 0; ++x) {
+          map.terrain[y * map.width + x] = (uint8_t)b;
+          map.improve[y * map.width + x] = 0;
+          map.layer2[y * map.width + x] = 0;
+          const int pedia = map_pedia_terrain_index_at(&map, x, y);
+          if (pedia >= 8 && pedia <= 23 && map_resource_type_for_yield(&map, x, y) < 0) {
+            fx = x;
+            fy = y;
+          }
+        }
+      }
+    }
+    if (fx < 0) {
+      fprintf(stderr, "no resource-free forest tile found for the commons plow check\n");
+      map_free(&map);
+      return 1;
+    }
+    ColonizeTownCommonsYield dry;
+    colony_yield_town_commons(&map, fx, fy, 0, 2, &dry);
+    map.improve[fy * map.width + fx] |= MAP_IMPROVE_PLOWED;
+    ColonizeTownCommonsYield wet;
+    colony_yield_town_commons(&map, fx, fy, 0, 2, &wet);
+    map.improve[fy * map.width + fx] = 0;
+    if (dry.food != 2 || wet.food != dry.food + 1) {
+      fprintf(
+        stderr,
+        "forest commons plow: expected food %d then %d, got %d then %d (pedia %d)\n",
+        2,
+        3,
+        dry.food,
+        wet.food,
+        map_pedia_terrain_index_at(&map, fx, fy)
       );
       map_free(&map);
       return 1;
