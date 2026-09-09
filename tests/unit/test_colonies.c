@@ -1382,11 +1382,12 @@ int main(void) {
       col1c.rebel_dividend = 50;
       col1c.rebel_divisor = 100;
       CHECK(colony_prod_sol_percent(&col1, c) == 50, "SoL from rebel 50/100");
-      CHECK(colony_prod_sol_bonus(&col1, c) == 1, "SoL bonus +1 at 50%");
       c->colony_flags = 0;
       colony_prod_refresh_sol_flags(c, &col1);
       CHECK((c->colony_flags & COLONIZE_COLONY_FLAG_SOL_50) != 0, "sol_50 latch at 50%");
       CHECK((c->colony_flags & COLONIZE_COLONY_FLAG_SOL_100) == 0, "sol_100 clear at 50%");
+      /* Bonus reads the LATCH bits only (18ec 11881-11886), never live SoL. */
+      CHECK(colony_prod_sol_bonus(&col1, c) == 1, "SoL bonus +1 at 50%");
       col1c.rebel_dividend = 0;
       col1c.rebel_divisor = 0;
       col1.nation[c->nation_id].liberty_bells_total = 400;
@@ -1398,10 +1399,10 @@ int main(void) {
       col1c.rebel_dividend = 100;
       col1c.rebel_divisor = 100;
       CHECK(colony_prod_sol_percent(&col1, c) == 100, "SoL 100 from the pair");
-      CHECK(colony_prod_sol_bonus(&col1, c) == 2, "SoL bonus +2 at 100%");
       colony_prod_refresh_sol_flags(c, &col1);
       CHECK((c->colony_flags & COLONIZE_COLONY_FLAG_SOL_100) != 0, "sol_100 latch at 100%");
       CHECK((c->colony_flags & COLONIZE_COLONY_FLAG_SOL_50) != 0, "sol_50 stays at 100%");
+      CHECK(colony_prod_sol_bonus(&col1, c) == 2, "SoL bonus +2 at 100%");
       /* DOS hysteresis: sol_100 stays while SoL in 95..99. */
       col1c.rebel_dividend = 97;
       col1c.rebel_divisor = 100;

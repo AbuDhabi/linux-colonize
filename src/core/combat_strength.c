@@ -182,11 +182,11 @@ int combat_unit_base_x8(
     local_8 = 0;
   }
   /*
-   * FUN_157e_004a: type 0x0b + damaged bit7 → −2. DOS type 0x0b is
-   * Artillery (bugs.md: Damaged Artillery is the weaker unit) — the old
-   * Privateer-only peel missed it; keep Privateer for naval-resolve parity.
+   * FUN_157e_004a 8936-8938: type 0x0b + damaged bit7 → −2. DOS tests
+   * exactly type 0x0b (Artillery); no ship takes this peel — the old
+   * Privateer arm was invented (smell #4).
    */
-  if ((combat_type_is_privateer(t) || combat_type_is_artillery_name(t->name)) &&
+  if (combat_type_is_artillery_name(t->name) &&
       (u->col1_unknown15 & 0x80u) != 0) {
     local_8 -= 2;
     if (local_8 < 0) {
@@ -410,7 +410,9 @@ int combat_engagement_strength(
           skip_stash = 1;
         }
       }
-    } else if (u->orders == UNITS_ORDER_FORTIFIED || u->orders == UNITS_ORDER_FORTIFY) {
+    } else if (u->orders == UNITS_ORDER_FORTIFIED) {
+      /* FUN_157e_015e 9035: orders byte == 6 only — Fortify(5, still digging
+       * in) does not deny terrain (smell #5). */
       skip_stash = 1;
     }
 
@@ -436,8 +438,9 @@ int combat_engagement_strength(
   }
 
 fortify:
-  /* D. Fortify: orders==6, land unit, local_1a < 5 → +2. */
-  if ((u->orders == UNITS_ORDER_FORTIFIED || u->orders == UNITS_ORDER_FORTIFY) &&
+  /* D. Fortify: orders==6 ONLY (FUN_157e_015e 9045 — Fortify(5) gets nothing
+   * until it flips to Fortified), land unit, local_1a < 5 → +2. */
+  if (u->orders == UNITS_ORDER_FORTIFIED &&
       !combat_type_is_ship(ctx->units, unit_id) && local_1a < 5) {
     local_1a += 2;
     if (out_flags) {
@@ -743,12 +746,6 @@ void combat_apply_1b0e_peels(
    * AI scoring never see it. It lives in
    * combat_apply_1b0e_resolve_handicaps(), applied by the resolvers only.
    */
-
-  /* Scout vs Artillery: force defender win (Indian scout / human arty thin). */
-  if (land && combat_type_is_scout_name(at->name) &&
-      combat_type_is_artillery_name(dt->name)) {
-    io->force_defender_wins = true;
-  }
 
   if (io->atk_strength < 0) {
     io->atk_strength = 0;

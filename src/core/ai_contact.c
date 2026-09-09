@@ -4469,11 +4469,11 @@ static void ai_contact_mission_pacify_meet(ColonizeTurnContext* ctx, int nation_
  * FUN_4d56_1816 item 2 (War of Independence tribe defection) — thin port.
  * See indian_woi_defect_1816.md for the full raw-decomp derivation. Once
  * per Indian nation per turn while WoI is declared, a not-yet-resolved
- * tribe may defect to the rebel (human) side: relation vs. the human jumps
- * by +100, relation vs. the crown drops by -100 (DOS's own literal deltas
- * on ai_diplo_indian_relation_delta-shaped storage, not a hard "set to
- * max/min"), plus a one-time musket/horse windfall, then the tribe is
- * latched (woi_defect_resolved) so it isn't re-rolled every turn.
+ * tribe may side with the CROWN (Tory natives): ALARM toward the rebel
+ * (human) nation jumps by +100 and alarm toward the crown drops by -100
+ * (DOS's own literal deltas, not a hard "set to max/min"), plus a one-time
+ * musket/horse windfall, then the tribe is latched (woi_defect_resolved)
+ * so it isn't re-rolled every turn.
  *
  * Approximated: DOS derives the musket/horse windfall's tech cap from a
  * `DS:0x8d52`-selected "tribe" tech-lookup table whose value at this call
@@ -4588,18 +4588,20 @@ void ai_contact_indian_woi_defect(ColonizeTurnContext* ctx, int nation_id) {
 
   if (ctx->status && ctx->status_size > 0) {
     ai_contact_bind_names(ctx);
+    /* Smell #68: the mechanic is a TORY flip (+100 alarm vs. rebels, -100
+     * vs. Crown) — the old line said "declares for the rebel cause". */
     if (missions_cleared) {
       snprintf(
         ctx->status,
         ctx->status_size,
-        "The %s tribe declares for the rebel cause! Our missions among them are cleared.",
+        "The %s tribe declares for the Crown! Our missions among them are cleared.",
         ai_contact_tribe_name(nation_id)
       );
     } else {
       snprintf(
         ctx->status,
         ctx->status_size,
-        "The %s tribe declares for the rebel cause!",
+        "The %s tribe declares for the Crown!",
         ai_contact_tribe_name(nation_id)
       );
     }
