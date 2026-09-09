@@ -63,7 +63,10 @@ both: combat_apply_1b0e_peels()
 roll: dos_rng_range(1, atk+def); attacker wins if roll <= atk
 ```
 
-Special: `force_defender_wins` if Scout attacks Artillery (no roll favor to atk).
+Special: a plain Brave (@UNIT 0x13) attacking a human-controlled European's
+Artillery never wins — the roll is still drawn, then `atk_wins` is forced false
+(DOS `local_ca`, raw 100573-100577). The old Scout-vs-Artillery
+`force_defender_wins` was invented and is retired (smell #6).
 No rng → attacker wins if `atk >= def`. `units_last_combat_outcome`: `1` / `-1` / `0`.
 
 ### Naval (`combat_naval_engage`)
@@ -78,7 +81,8 @@ No `015e` colony / village / terrain / fortify for ships.
 ### Base ×8 (`FUN_157e_004a` / `combat_unit_base_x8`)
 
 1. `type.defense` (mode 0) or `type.attack` (mode 1)
-2. Privateer + `col1_unknown15` bit7 (damaged) → −2
+2. Artillery (@UNIT type 0x0b) + `col1_unknown15` bit7 (damaged) → −2 —
+   Artillery only (viceroy 8936-8938); ships never take this peel
 3. ×8
 4. Veteran Soldier/Dragoon → +50%. DOS gate (viceroy 8942-8944): @UNIT **type
    1 (Soldiers) or 4 (Dragoons)** *and* veteran profession. Promoted tiers
@@ -108,9 +112,11 @@ No `015e` colony / village / terrain / fortify for ships.
        (not WoI **or** foe is AI)
      - **Stash to attacker** (`8d04` / `8d00|0x80`): Euro defender vs **native**
        attacker, or vs **human** Euro under WoI (player attacking REF) — unless
-       either tile is a village (then apply to defender) or defender is Fortified
+       either tile is a village (then apply to defender) or defender is
+       Fortified — orders 6 only, Fortify(5) does not deny (viceroy 9035)
        (then neither side gets terrain)
-3. Fortify / Fortified, land, `local_1a < 5` → `+2`
+3. Fortified (orders 6 ONLY — viceroy 9045; Fortify(5) still digging in gets
+   nothing), land, `local_1a < 5` → `+2`
 4. Result: `((local_1a + 4) * base) >> 2`
 
 Land attacker strength (after `004a`, before peels) is always
@@ -153,7 +159,7 @@ mapping below is working from trustworthy source.
 | **Discoverer beginner shield** (raw 100544-100545, ported 2026-09-08) — **resolve-only** | as the row above, plus `difficulty == 0` and the defender is the **auto-spawned** stand-in (`bVar28` — militia/Revere phantom) | attacker `= 0` → the roll `RNG(1, def+0) <= 0` always loses. A human player's undefended town cannot be taken on Discoverer in the first 80 turns |
 | Any-attacker-of-human damper (raw 100546-100548) — **resolve-only** | same `difficulty < 2` / WoI gate; defender human-controlled European (**no colony needed**) and (attacker is Euro **or** turn `< 0x50`) | attacker `>>1`, stacks on the colony damper above |
 | Discoverer human-attacker doubling (raw 100549) — **resolve-only** | `difficulty == 0` and the **ATTACKER** is a human-controlled European; no other gate (runs even under WoI) | attacker `<<1` |
-| Scout vs Artillery | Land | `force_defender_wins` |
+| Brave vs human Artillery (raw 100573-100577) — **resolve-only** | plain Brave (@UNIT 0x13) attacks human-controlled Euro Artillery (@UNIT 0xb) | roll drawn, then `atk_wins` forced false (`local_ca` latch, also FUN_5fef_0f14 param_4) |
 
 Crown nation = DS:`0x53d2` (Linux: peer of human Euro slot, same as
 `ai_king_crown_nation`). WoI / `ref_present` read the real `game_options`

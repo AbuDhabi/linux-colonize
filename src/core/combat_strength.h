@@ -90,7 +90,6 @@ typedef struct ColonizeCombatStrengthCtx {
 typedef struct ColonizeCombatEngageResult {
   int atk_strength;
   int def_strength;
-  bool force_defender_wins; /* Scout vs Artillery */
   ColonizeCombatSideFlags atk_flags;
   ColonizeCombatSideFlags def_flags;
 } ColonizeCombatEngageResult;

@@ -2912,8 +2912,9 @@ int main(void) {
      * Production tab preview must match the EOT tick's FF-adjusted, per-worker
      * SoL bells (turn_count_bells_and_crosses_for_nation in turn.c), not the
      * plain (no-FF) colony_prod_colony_bells_ff() used above only to sanity-check the
-     * base rate. rebel_dividend/divisor above (50/100 <<6) give sol 50% ->
-     * sol_bonus +1. sol_bonus now folds into colony_prod_bells_worker
+     * base rate. rebel_dividend/divisor above (50/100 <<6) give sol 50%,
+     * latched below into SOL_50 (bonus reads latch bits only, 18ec
+     * 11881-11886) -> sol_bonus +1. sol_bonus now folds into colony_prod_bells_worker
      * *before* the skill-match doubling (matches FUN_15eb_1d4c's Statesman
      * body — manufacturing_worker_calc_1d4c.md): tag(3)+sol_bonus(1)=4,
      * doubled (skilled Statesman) = 8. Jefferson +50%: 8*1.5=12. Town Hall
@@ -2922,6 +2923,7 @@ int main(void) {
     col1.head.founding_father[FF_THOMAS_JEFFERSON] = 0; /* nation 0 owns it */
     col1.nation[0].founding_fathers[FF_THOMAS_JEFFERSON / 8] |=
       (uint8_t)(1u << (FF_THOMAS_JEFFERSON % 8));
+    colony_prod_refresh_sol_flags(c, &col1); /* latch SOL_50 from the 50% pair */
     ColonizeColonyPreview prev;
     colony_preview_compute(&pool, c, NULL, &col1, &prev);
     if (prev.bells != 13) {

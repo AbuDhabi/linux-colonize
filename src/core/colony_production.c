@@ -286,23 +286,18 @@ int colony_prod_sol_bonus(const ColonizeCol1Save* col1, const ColonizeColony* co
    */
   int mod = -(tories / thresh);
 
-  /* Latch bits (hysteresis) or live SoL stand-in; take the larger so a
-   * stale sol_50-only flag cannot under-count after SoL rises to 100, while
-   * sol_100 hysteresis (95..99) still beats live. */
-  int from_latch = 0;
+  /*
+   * Latch bits ONLY (FUN_15eb_18ec 11881-11886: colony +0x1c bit4 → +1,
+   * bit2 → +1; no live-SoL term). The old `max(latch, live%)` stand-in
+   * defeated the one-step latch ramp; town-commons sibling was already
+   * latch-only.
+   */
   if ((colony->colony_flags & COLONIZE_COLONY_FLAG_SOL_50) != 0) {
-    from_latch += 1;
+    mod += 1;
   }
   if ((colony->colony_flags & COLONIZE_COLONY_FLAG_SOL_100) != 0) {
-    from_latch += 1;
+    mod += 1;
   }
-  int from_live = 0;
-  if (sol >= 100) {
-    from_live = 2;
-  } else if (sol >= 50) {
-    from_live = 1;
-  }
-  mod += (from_latch > from_live) ? from_latch : from_live;
   return mod;
 }
 

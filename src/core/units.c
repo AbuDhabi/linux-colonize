@@ -4883,10 +4883,7 @@ bool units_resolve_land_combat_ff(
   eng.atk_strength = er.atk_strength;
 
   const int total = eng.atk_strength + eng.def_strength;
-  if (er.force_defender_wins) {
-    eng.atk_wins = false;
-    eng.roll = eng.atk_strength + 1;
-  } else if (total <= 0) {
+  if (total <= 0) {
     eng.atk_wins = true;
     eng.roll = 0;
   } else if (!rng) {
