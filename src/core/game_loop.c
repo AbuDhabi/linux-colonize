@@ -10135,9 +10135,21 @@ static void game_finish_end_turn(ColonizeGameState* game, const ColonizeTurnResu
    * turn_select_next_unit already picked the first unit needing orders,
    * or left none) — rearms the per-frame activation queue below. */
   game->view_pieces_mode = false;
-  game_apply_turn_autosave(game, result);
   game_europe_service_trade_harbor(game);
   game_europe_deliver_bound_ships(game);
+  /*
+   * Autosave AFTER the Europe lane has been emptied, not before. DOS main
+   * loop (viceroy_unpacked.c:6393-6420): the per-nation EOT FUN_3844_00f2
+   * (via FUN_281f_0644, :6394) runs first, and it ends in FUN_291f_0a82
+   * (:58377) → FUN_48d3_06ba, whose head ticks all four Europe sentinel
+   * lanes (thunk_FUN_2a1f_0246 → FUN_48d3_03d0, :77965-77980) and whose tail
+   * lands every arrived ship on the map (thunk_FUN_2a1f_0238 →
+   * FUN_48d3_064e → FUN_48d3_048e). Only then does FUN_130d_0172 fire
+   * (:6404 for the AI-run branch, :6416 for the human), picking slot 8 or 9.
+   * Saving ahead of the arrivals would park every finished voyage in the
+   * lane again, so reloading COLONY09.SAV delayed each ship a turn.
+   */
+  game_apply_turn_autosave(game, result);
   if (result && result->request_europe_open && game->europe_ok) {
     game->europe.open_on_dock = true;
   }

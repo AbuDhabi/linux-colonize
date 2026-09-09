@@ -149,13 +149,18 @@ void turn_refresh_moves_for_nation(
       u->moves_left = 0;
       continue;
     }
-    /* Pioneer clear/plow/road: overnight work-tick (FUN_479b_01a6 / 0526). */
+    /* Pioneer clear/plow/road: overnight work-tick (FUN_479b_01a6 / 0526).
+     * DOS clears moves_spent for EVERY unit at the day top (viceroy 6357);
+     * only the work body's FUN_281f_0934 spends it (76761 / 76889). An
+     * aborted order (bad tile / already improved / no tools, viceroy
+     * 76753 / 76886) returns BEFORE that spend, so the pioneer keeps its
+     * full allotment. */
     if (map &&
         (u->orders == UNITS_ORDER_CLEAR_PLOW || u->orders == UNITS_ORDER_BUILD_ROAD)) {
+      u->moves_left = units_max_mp(pool, u->id);
       (void)units_pioneer_work_tick(
         pool, u->id, map, NULL, 0, colonies, ai_popups, messages
       );
-      u->moves_left = 0;
       continue;
     }
     if (units_orders_skip_turn(u)) {
