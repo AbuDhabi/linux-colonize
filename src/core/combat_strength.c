@@ -51,12 +51,31 @@ static int combat_ship_holds_occupied(const ColonizeUnit* u) {
   return n;
 }
 
+/*
+ * FUN_157e_004a veteran gate (viceroy_unpacked.c 8942-8944), verbatim:
+ *
+ *   if (((*(char *)(param_1 * 0x1c + 0x3146) == '\x01') ||
+ *       (*(char *)(param_1 * 0x1c + 0x3146) == '\x04')) &&
+ *      (*(char *)(param_1 * 0x1c + 0x315b) == '\x15')) { ... +50% ... }
+ *
+ * +0x3146 is the raw @UNIT type id, and NAMES.TXT @UNIT order makes 1 =
+ * Soldiers, 4 = Dragoons. The promoted tiers — 6 Regulars, 7 Cont. Cav.,
+ * 8 Cavalry, 9 Cont. Army — are deliberately NOT in the gate: their @UNIT
+ * rows already carry the promoted attack/defense (Cont. Army 4, Cont. Cav.
+ * 5), so DOS never layers the veteran +50% on top. The old test also matched
+ * "Continental"/"Cont. Army" (paying the bonus twice for the Continental
+ * Army) while missing "Cont. Cav." entirely — the asymmetry this closes.
+ *
+ * Matched by name, not by pool index, because a Linux pool index is not a DOS
+ * @UNIT id (synthetic test fixtures place Soldier/Dragoon at arbitrary slots);
+ * that is the same mapping idiom as ai_euro.c's ai_euro_5d04_dos_type_of.
+ * On the stock roster "Soldier"/"Dragoon" hit exactly types 1 and 4.
+ */
 static int combat_type_is_soldier_or_dragoon(const ColonizeUnitType* t) {
   if (!t || !t->name[0]) {
     return 0;
   }
-  return strstr(t->name, "Soldier") != NULL || strstr(t->name, "Dragoon") != NULL ||
-         strstr(t->name, "Continental") != NULL || strstr(t->name, "Cont. Army") != NULL;
+  return strstr(t->name, "Soldier") != NULL || strstr(t->name, "Dragoon") != NULL;
 }
 
 static int combat_type_is_privateer(const ColonizeUnitType* t) {

@@ -8438,13 +8438,10 @@ static bool game_nation_has_ff(const ColonizeGameState* game, int nation, int ff
       ff_index < 0 || ff_index >= (int)COLONIZE_COL1_FF_COUNT) {
     return false;
   }
-  const int8_t owner = game->col1.head.founding_father[ff_index];
-  /* DOS: -1 = not in congress; 0..3 = European nation that elected them. */
-  if (owner >= 0 && owner == (int8_t)nation) {
-    return true;
-  }
-  const uint8_t byte = game->col1.nation[nation].founding_fathers[ff_index / 8];
-  return (byte & (uint8_t)(1u << (ff_index % 8))) != 0;
+  /* Bitmask only, same as founding_fathers_nation_has: head.founding_father[]
+   * is DOS's write-once first-claimer record, never an ownership test
+   * (FUN_15eb_3960; smell audit #83). */
+  return founding_fathers_nation_has(&game->col1, nation, ff_index);
 }
 
 static ColoniesBuildableOpts game_colony_buildable_opts(const ColonizeGameState* game) {

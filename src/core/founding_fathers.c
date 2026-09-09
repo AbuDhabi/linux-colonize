@@ -279,15 +279,30 @@ int founding_fathers_bolivar_sol_bonus(const ColonizeCol1Save* col1, int nation)
   return FF_BOLIVAR_SOL_BONUS;
 }
 
+/*
+ * DOS ownership test = FUN_15eb_3960 (reached as FUN_281f_07b4):
+ *
+ *   if (idx < 0) return 1;
+ *   if (nation > 3) return 0;
+ *   return *(byte *)((idx >> 3) + nation * 0x13c + -0x77f1) & (1 << (idx & 7));
+ *
+ * i.e. the per-nation bitmask and nothing else — the exact inverse of
+ * ff_available_to, and the gate behind all ~90 effect call sites. The
+ * head.founding_father[] array (DS:0x53a9) is written once by FUN_4345_0342
+ * (`if (entry < 0) entry = nation`), filled with -1 at init, and never read
+ * back anywhere in the binary. Smell audit #83: reading head equality here
+ * granted effects to a nation that only happened to be the first claimer
+ * (and, with zero-filled heads from bugs 288, to nation 0 wholesale) while
+ * ff_available_to still listed the father as electable — a second election
+ * re-ran apply_effect (Jones's Frigate twice, Magellan re-bump, Coronado
+ * re-reveal). reports.c:717 reached the same conclusion from dutch-reports.SAV.
+ */
 bool founding_fathers_nation_has(const ColonizeCol1Save* col1, int nation, int ff_index) {
   if (!col1 || nation < 0 || nation >= (int)COLONIZE_COL1_NATION_COUNT) {
     return false;
   }
   if (ff_index < 0 || ff_index >= (int)COLONIZE_COL1_FF_COUNT) {
     return false;
-  }
-  if (col1->head.founding_father[ff_index] == (int8_t)nation) {
-    return true;
   }
   const uint8_t byte = col1->nation[nation].founding_fathers[ff_index / 8];
   return (byte & (uint8_t)(1u << (ff_index % 8))) != 0;
@@ -296,8 +311,7 @@ bool founding_fathers_nation_has(const ColonizeCol1Save* col1, int nation, int f
 bool founding_fathers_franklin_keeps_nw_peace(const ColonizeCol1Save* col1, int nation) {
   /*
    * docs/fandom_col1994.md Benjamin Franklin — NW peer peace gate.
-   * Ownership via founding_fathers_nation_has (head owner or nation bitmask).
-   * Requires head.founding_father[i]==-1 when unclaimed (col1_save_init).
+   * Ownership via founding_fathers_nation_has (per-nation bitmask).
    */
   return founding_fathers_nation_has(col1, nation, FF_BENJAMIN_FRANKLIN);
 }
@@ -308,7 +322,7 @@ bool founding_fathers_brebeuf_missionaries_are_experts(
 ) {
   /*
    * docs/fandom_col1994.md Father Jean de Brebeuf — all missionaries function
-   * as experts. Ownership via founding_fathers_nation_has (head or bitmask).
+   * as experts. Ownership via founding_fathers_nation_has (nation bitmask).
    * No elect crosses; ai_contact Jesuit-grade mid convert consumes the gate.
    */
   return founding_fathers_nation_has(col1, nation, FF_JEAN_DE_BREBEUF);

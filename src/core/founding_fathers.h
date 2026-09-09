@@ -156,7 +156,11 @@ void founding_fathers_restore_col1_last_turn(
   const uint8_t restore_pad21[COLONIZE_COL1_NATION_COUNT]
 );
 
-/* True if nation owns FF index (head owner or nation bitmask). */
+/*
+ * True if nation owns FF index. Per-nation bitmask ONLY (DOS FUN_15eb_3960);
+ * head.founding_father[] is a write-once first-claimer record the DOS binary
+ * never reads back — see the definition's comment (smell audit #83).
+ */
 bool founding_fathers_nation_has(const ColonizeCol1Save* col1, int nation, int ff_index);
 
 /*
@@ -169,8 +173,7 @@ int founding_fathers_bolivar_sol_bonus(const ColonizeCol1Save* col1, int nation)
  * Benjamin Franklin gate (docs/fandom_col1994.md / PEDIA):
  * King's European wars no longer affect New World relations; Europeans in the
  * New World always offer peace in negotiations.
- * Ownership: founding_fathers_nation_has (head owner or nation bitmask;
- * head.founding_father[i]==-1 when unclaimed). Wired from ai_diplo
+ * Ownership: founding_fathers_nation_has (per-nation bitmask). Wired from ai_diplo
  * euro_balance / declare_war (war-hit side effects).
  */
 bool founding_fathers_franklin_keeps_nw_peace(const ColonizeCol1Save* col1, int nation);

@@ -224,7 +224,20 @@ typedef struct ColonizeColony {
  */
 #define COLONIZE_COLONY_AI_NEARBY_ARMED_SHIP 0x01u
 #define COLONIZE_COLONY_AI_NEARBY_FRIGATE 0x02u
+/*
+ * DOS colony +0x1b bits 0x04 / 0x08 — the defender-count pair, both written by
+ * FUN_5952_035e (viceroy_unpacked.c 94195-94199) from the same comparison:
+ *   local_74 = wanted defenders, local_82 = defenders present
+ *   local_82 < local_74                            -> set 0x08 (short of want)
+ *   local_74 + (local_74 > 1) < local_82           -> set 0x04 (surplus)
+ * So 0x08 is the "needs military" side and 0x04 the "has spare military" side;
+ * the 0x04 name below is historical and semantically inverted, but it is kept
+ * because its one read site (ai_euro.c ~12103, DOS 88756) really does test
+ * bit 4. Neither bit has a writer in the port yet — they arrive from the DOS
+ * save's +0x1b byte, so read sites must test the same raw bit DOS does.
+ */
 #define COLONIZE_COLONY_AI_NEEDS_MILITARY 0x04u
+#define COLONIZE_COLONY_AI_SHORT_DEFENDERS 0x08u
 #define COLONIZE_COLONY_AI_NEEDS_COLONISTS 0x10u
 #define COLONIZE_COLONY_AI_NEEDS_GARRISON 0x40u
 /*
