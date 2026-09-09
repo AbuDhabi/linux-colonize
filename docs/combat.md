@@ -547,7 +547,7 @@ dual column. Shown **before** the combat roll (strengths known; no outcome yet).
   | Bombard (`0x8000`) | `FUN_281f_0254` → `1c36_000a` | ICONS.SS: Man-O-War (`DS:0x532e` = `@UNIT` 18 icon) when the colony's `+0x1c` bit `0x40` (coastal) is set or there is no colony, else Artillery (`DS:0x52cc` = `@UNIT` 11) | `0x10` |
   | Ambush / Terrain (`0x80`) | `FUN_281f_033a` → `1baa_0006` | TERRAIN.SS engagement tile (both columns show the same tile) | `0x11` |
   | Fort tier (`0x40`) | `FUN_281f_02a8` → `112b_0c64` @100 | ICONS.SS #0–3 + owner flag (`colonies_blit_settlement_icon`) | `0x14` |
-  | Village (`0x8`) | `FUN_281f_02b2` → `112b_0790` @100 | ICONS.SS #10–13 by tribe tech (`112b_0790` reads the `DS:0x84c` per-tech table) | `0x14` |
+  | Village (`0x8`) | `FUN_281f_02b2` → `112b_0790` @100 | ICONS.SS #10–13 by tribe tech (`112b_0790` reads `indian[tribe].tech` from `DS:0x5ad8` stride `0x4e`, clamps it to 3 and blits `11 + tech` 1-based; `DS:0x84c` is indexed by *tribe* and only supplies the relation-bar colour), plus the capital starburst ICONS.SS #17 when the settlement's `+3` bit `0x04` is set | `0x14` |
 
   `DS:0x83e` is ICONS.SS (loaded from the `'icons'` name at `DS:0x23d6`), and
   the `@UNIT` icon byte lives at `+2` of the stride-`0xe` unit table `DS:0x5230`.

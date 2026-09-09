@@ -2219,6 +2219,10 @@ static void turn_notify_dock_immigrant(
     out->immigrants_arrived++;
     /* DOS: @UNREST dialog — do not auto-dump into Europe screen (DS:0x14c is optional). */
   }
+  diag_info(
+    "EUROPE immigrant on the docks: %s (crosses)",
+    immigrant_name && immigrant_name[0] ? immigrant_name : "Colonist"
+  );
   if (ctx->status && ctx->status_size > 0) {
     snprintf(
       ctx->status,

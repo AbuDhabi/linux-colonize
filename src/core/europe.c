@@ -14,7 +14,6 @@
 #include "core/ss.h"
 #include "core/strutil.h"
 #include "core/units.h"
-#include "platform/diagnostics.h"
 
 /* Sound hook (unit tests build europe.c without sound.c — same shape as
  * units_set_combat_music_hooks). */
@@ -1772,6 +1771,25 @@ void europe_build_dock_menu(
   }
 }
 
+/* @ARMOPTIONS row id -> readable name, for the debug log only. */
+static const char* europe_arm_row_name(int row) {
+  switch (row) {
+    case EUROPE_ARM_ROW_NO_BOARD: return "no board";
+    case EUROPE_ARM_ROW_BOARD: return "board";
+    case EUROPE_ARM_ROW_TO_FRONT: return "to front";
+    case EUROPE_ARM_ROW_BUY_MUSKETS: return "buy muskets";
+    case EUROPE_ARM_ROW_SELL_MUSKETS: return "sell muskets";
+    case EUROPE_ARM_ROW_BUY_TOOLS: return "buy tools";
+    case EUROPE_ARM_ROW_SELL_TOOLS: return "sell tools";
+    case EUROPE_ARM_ROW_BUY_HORSES: return "buy horses";
+    case EUROPE_ARM_ROW_SELL_HORSES: return "sell horses";
+    case EUROPE_ARM_ROW_BLESS: return "bless";
+    case EUROPE_ARM_ROW_UNBLESS: return "unbless";
+    case EUROPE_ARM_ROW_NO_CHANGES: return "no changes";
+    default: return "row";
+  }
+}
+
 bool europe_apply_dock_menu_row(
   EuropeScreen* eu,
   ColonizeUnitPool* units,
@@ -1894,6 +1912,11 @@ bool europe_apply_dock_menu_row(
       eu, NULL, bound, bound, ledger_cargo, ledger_qty, ledger_is_buy, 0
     );
   }
+  diag_info(
+    "EUROPE dock %s: %s (%d) type %d -> %d, gold %+d (gold=%d)",
+    d->name[0] ? d->name : "immigrant",
+    europe_arm_row_name(row), row, from, to, gold_delta, eu->gold
+  );
   if (units) {
     europe_retype_dock_mirror_unit(units, nation_id, d->profession, from, to);
   }
@@ -2422,6 +2445,10 @@ int europe_cash_treasure(EuropeScreen* eu, int treasure_value) {
     tax,
     credited,
     nation
+  );
+  diag_info(
+    "EUROPE treasure cashed %d$: crown %d%% share, credited %d$ (gold=%d)",
+    treasure_value, tax, credited, eu->gold
   );
   if (g_europe_sound_play) {
     g_europe_sound_play(0x24); /* FUN_48d3_06ba 48d3:0b8f: Fiddler's Dance queued on the cash-in */
@@ -2971,7 +2998,7 @@ int europe_tick_immigration_pressure(
     cur = 65535;
   }
   eu->current_crosses = (uint16_t)cur;
-  eu->immigration_pressure = (int16_t)(cur > 32767u ? 32767 : (int)cur);
+  eu->immigration_pressure = (int16_t)(cur > 32767 ? 32767 : (int)cur);
   europe_refresh_recruit_passage(eu);
 
   /* Phase 5: needed < current → dock immigrant; clear current. */
@@ -3071,6 +3098,9 @@ int europe_buyback_boycott(
   const char* cname = eu->cargo[cargo_type].name[0] ? eu->cargo[cargo_type].name : "That cargo";
   snprintf(
     eu->status, sizeof(eu->status), "Paid %d$ in back taxes -- boycott on %s lifted.", cost, cname
+  );
+  diag_info(
+    "EUROPE paid %d$ back taxes on %s: boycott lifted (gold=%d)", cost, cname, eu->gold
   );
   return cost;
 }
@@ -3460,8 +3490,26 @@ int europe_custom_house_autosell_ex(
     if (is_human) {
       eu->gold += gained;
     }
+    diag_info(
+      "EUROPE customs %s sold %d %s: bid=%d tax=%d%% paid=%d proceeds=%d (nation=%d%s)",
+      colony->name[0] ? colony->name : "colony",
+      amount,
+      (c < eu->cargo_count && eu->cargo[c].name[0]) ? eu->cargo[c].name : "cargo",
+      price,
+      tax,
+      tax_paid,
+      gained,
+      nation,
+      is_human ? " human" : ""
+    );
     /* FUN_291f_0a2e → FUN_38fd_1dfa; no FUN_38fd_0058 step here. */
     europe_apply_trade_volume(eu, col1, nation, human_nation, c, amount, 0, 0);
+  }
+  if (total > 0) {
+    diag_info(
+      "EUROPE customs %s total %d$ (nation=%d, gold=%d)",
+      colony->name[0] ? colony->name : "colony", total, nation, eu->gold
+    );
   }
   if (total > 0 && nation == human_nation) {
     if (colony->name[0]) {
@@ -3573,6 +3621,10 @@ int europe_ai_colony_dump_sell(
     europe_apply_trade_volume(eu, col1, nation, human_nation, c, amount, 0, 0);
   }
   if (total > 0) {
+    diag_info(
+      "EUROPE dump-sell %s total %d$ (nation=%d tax=%d%%)",
+      colony->name[0] ? colony->name : "colony", total, nation, tax
+    );
     snprintf(eu->status, sizeof(eu->status), "AI warehouse dump-sold for %d$.", total);
   }
   return total;
@@ -4055,12 +4107,24 @@ EuropeHitResult europe_hit_test_ex(
   return hit;
 }
 
+/* Europe list-dialog name, for the debug log only. */
+static const char* europe_menu_name(EuropeMenu menu) {
+  switch (menu) {
+    case EUROPE_MENU_RECRUIT: return "RECRUIT";
+    case EUROPE_MENU_TRAIN: return "TRAIN";
+    case EUROPE_MENU_PURCHASE: return "PURCHASE";
+    case EUROPE_MENU_DOCK: return "DOCK";
+    default: return "NONE";
+  }
+}
+
 void europe_menu_open(EuropeScreen* eu, EuropeMenu menu) {
   if (!eu) {
     return;
   }
   eu->menu = menu;
   eu->menu_selection = 0;
+  eu->menu_answered = false;
   if (menu == EUROPE_MENU_RECRUIT) {
     europe_pool_ensure_filled(eu);
     snprintf(
@@ -4076,12 +4140,69 @@ void europe_menu_open(EuropeScreen* eu, EuropeMenu menu) {
   } else if (menu == EUROPE_MENU_DOCK) {
     europe_set_status(eu, "Dock orders. Esc cancels.");
   }
+  if (diag_info_enabled()) {
+    char rows[512];
+    size_t at = 0;
+    rows[0] = '\0';
+    if (menu == EUROPE_MENU_RECRUIT) {
+      for (int i = 0; i < EUROPE_POOL_SIZE; ++i) {
+        const int n = snprintf(
+          rows + at, sizeof(rows) - at, "%s[%d]%s", i ? " " : "", i + 1, eu->pool[i].name
+        );
+        if (n <= 0 || (size_t)n >= sizeof(rows) - at) {
+          break;
+        }
+        at += (size_t)n;
+      }
+    } else if (menu == EUROPE_MENU_TRAIN) {
+      for (int i = 0; i < eu->train_count; ++i) {
+        const int n = snprintf(
+          rows + at, sizeof(rows) - at, "%s[%d]%s %d$", i ? " " : "", i + 1,
+          eu->train[i].expert_name, eu->train[i].cost
+        );
+        if (n <= 0 || (size_t)n >= sizeof(rows) - at) {
+          break;
+        }
+        at += (size_t)n;
+      }
+    } else if (menu == EUROPE_MENU_PURCHASE) {
+      for (int i = 0; i < eu->purchase_count; ++i) {
+        const int n = snprintf(
+          rows + at, sizeof(rows) - at, "%s[%d]%s %d$", i ? " " : "", i + 1,
+          eu->purchase[i].name, europe_purchase_cost(eu, i)
+        );
+        if (n <= 0 || (size_t)n >= sizeof(rows) - at) {
+          break;
+        }
+        at += (size_t)n;
+      }
+    } else if (menu == EUROPE_MENU_DOCK) {
+      for (int i = 0; i < eu->dock_menu_count; ++i) {
+        const int n = snprintf(
+          rows + at, sizeof(rows) - at, "%s[%d]%s", i ? " " : "",
+          (int)eu->dock_menu_row[i], europe_arm_row_name((int)eu->dock_menu_row[i])
+        );
+        if (n <= 0 || (size_t)n >= sizeof(rows) - at) {
+          break;
+        }
+        at += (size_t)n;
+      }
+    }
+    diag_info(
+      "POPUP show tag=EUROPE_%s kind=choice gold=%d choices=%s",
+      europe_menu_name(menu), eu->gold, rows
+    );
+  }
 }
 
 void europe_menu_close(EuropeScreen* eu) {
   if (!eu) {
     return;
   }
+  if (eu->menu != EUROPE_MENU_NONE && !eu->menu_answered) {
+    diag_info("POPUP answered tag=EUROPE_%s cancelled", europe_menu_name(eu->menu));
+  }
+  eu->menu_answered = false;
   eu->menu = EUROPE_MENU_NONE;
   eu->menu_selection = 0;
   eu->menu_dock_index = -1;
@@ -4108,6 +4229,7 @@ bool europe_dock_menu_apply_selection(
     europe_set_status(eu, "The treasury cannot afford that.");
     return false;
   }
+  eu->menu_answered = true;
   return europe_apply_dock_menu_row(
     eu, units, nation_id, eu->menu_dock_index, (int)eu->dock_menu_row[sel]
   );
@@ -4119,6 +4241,13 @@ bool europe_menu_confirm(EuropeScreen* eu) {
   }
   const EuropeMenu m = eu->menu;
   const int sel = eu->menu_selection;
+  if (m != EUROPE_MENU_DOCK) {
+    diag_info(
+      "POPUP answered tag=EUROPE_%s %s row=%d", europe_menu_name(m),
+      sel == 0 ? "cancelled" : "picked", sel
+    );
+    eu->menu_answered = true;
+  }
   if (m == EUROPE_MENU_DOCK) {
     /* Units-less path (no pool to keep the mirror unit in step); game_loop
      * calls europe_dock_menu_apply_selection with the pool so equipment,

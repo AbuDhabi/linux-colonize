@@ -330,6 +330,9 @@ typedef struct EuropeScreen {
   EuropeMenu menu;
   int menu_selection; /* 0 = None / cancel for list menus */
   int menu_dock_index;
+  /* Debug log only: set by the confirm paths so europe_menu_close can tell a
+   * cancel (Esc / click-away) from the close that follows a pick. */
+  bool menu_answered;
   /*
    * GAME.TXT @ARMOPTIONS rows for the clicked dock immigrant, built by
    * europe_build_dock_menu. DOS omits a row it has disabled rather than

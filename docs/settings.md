@@ -99,13 +99,13 @@ Lines are tagged by kind:
 | `PROD` | `turn.c` | per colony per turn: pop, SoL, food, hammers, project, then net stock change per cargo |
 | `COLONY` | `colony.c`, `game_loop.c` | screen open summary, worker assignments, construction picked / bought |
 | `CARGO` | `colony.c` | colony ↔ unit goods transfers |
-| `EUROPE` | `europe.c`, `game_loop.c` | screen open (gold/tax/harbor/docks), buy, sell, train, purchase, recruit, sail |
+| `EUROPE` | `europe.c`, `turn.c`, `game_loop.c` | screen open (gold/tax/harbor/docks), buy, sell, train, purchase, recruit, sail, dock @ARMOPTIONS arm/equip rows, treasure cash-in, Custom House auto-sell (`EUROPE customs`, per cargo + colony total), AI warehouse dump-sell, crosses immigrant arriving on the docks |
 | `ORDER` | `units.c` | orders given (fortify, sentry, goto, follow, plow/road, wake, disband) |
 | `MOVE` | `units.c` | every completed unit step, with MP left |
 | `COMBAT` | `combat_analysis.c` | both sides' names, baseline and final strength, every Combat Analysis modifier row, odds, roll, winner — logged for AI-vs-AI fights too, not only when the dialog shows |
 | `LCR` | `units.c` | lost city rumour outcome, gold, explorer skill |
 | `FF` | `founding_fathers.c` | founding father elected |
-| `POPUP` | `ai_popup.c` | queued / shown / answered, with tag name, kind, the fully interpolated body, the choice list and the picked option |
+| `POPUP` | `ai_popup.c`, `europe.c`, `howmuch_dialog.c` | queued / shown / answered, with tag name, kind, the fully interpolated body, the choice list and the picked option. The Europe RECRUIT / TRAIN / PURCHASE / DOCK list dialogs log the same show/answered pair under `tag=EUROPE_<menu>`, and the @HOWMUCHn amount dialog under `tag=HOWMUCH_<kind>` |
 
 `ai_popup_tag_name` and `map_menu_action_name` keep those lines readable —
 add a case to both when a tag or menu action is added.

@@ -6,6 +6,20 @@
 
 #include "core/map_menu.h"
 #include "core/strutil.h"
+#include "platform/diagnostics.h"
+
+/* @HOWMUCHn kind -> readable name, for the debug log only. */
+static const char* howmuch_kind_name(HowmuchKind kind) {
+  switch (kind) {
+    case HOWMUCH_KIND_LOAD: return "LOAD";
+    case HOWMUCH_KIND_UNLOAD: return "UNLOAD";
+    case HOWMUCH_KIND_MOVE: return "MOVE";
+    case HOWMUCH_KIND_BUY: return "BUY";
+    case HOWMUCH_KIND_SELL: return "SELL";
+    case HOWMUCH_KIND_SOUND_TEST: return "SOUND_TEST";
+    default: return "NONE";
+  }
+}
 
 void howmuch_init(HowmuchDialog* dlg) {
   if (!dlg) {
@@ -51,6 +65,11 @@ static void howmuch_finish(HowmuchDialog* dlg, bool cancelled) {
   dlg->result_amount = cancelled ? 0 : dlg->amount;
   dlg->result_kind = dlg->kind;
   dlg->open = false;
+  diag_info(
+    "POPUP answered tag=HOWMUCH_%s %s amount=%d/%d cargo=%d",
+    howmuch_kind_name(dlg->result_kind), cancelled ? "cancelled" : "picked",
+    dlg->result_amount, dlg->max_amount, dlg->result_cargo
+  );
 }
 
 bool howmuch_open(
@@ -78,6 +97,10 @@ bool howmuch_open(
   );
   howmuch_sync_field(dlg);
   dlg->open = true;
+  diag_info(
+    "POPUP show tag=HOWMUCH_%s kind=amount max=%d start=%d cargo=%d prompt=\"%s\"",
+    howmuch_kind_name(dlg->kind), dlg->max_amount, dlg->amount, dlg->result_cargo, dlg->prompt
+  );
   return true;
 }
 
