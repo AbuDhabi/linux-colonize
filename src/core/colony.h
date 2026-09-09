@@ -329,6 +329,17 @@ void colonies_reveal_founded(
   const ColonizeCol1Save* col1,
   int colony_id
 );
+/*
+ * Coronado's elect-time sweep: FUN_4345_0342 case `param_2 == 6`
+ * (viceroy_unpacked.c 73155-73159) walks every colony index 0..colony_count
+ * with no owner test and runs FUN_13f1_00a6 (the ±5 square + pop_on_map=1
+ * seeding) for the electing nation — foreign colonies included.
+ */
+void colonies_reveal_all_for_nation(
+  ColonizeWorldMap* map,
+  ColonizeColonyPool* pool,
+  int nation_id
+);
 /* FUN_364b_1b4c: nation's fog snapshot of colony := live population / fort tier. */
 void colonies_fog_snapshot(ColonizeColonyPool* pool, int colony_id, int nation_id);
 /* Stockade→Fort→Fortress tier 0..3 (FUN_15eb_03d6 chain count). */
@@ -734,7 +745,13 @@ int colonies_try_complete_unit_construction(
  */
 bool colonies_buy_construction(ColonizeColonyPool* pool, int colony_id, int difficulty, int* gold);
 
-/* Warehouse capacity per cargo type (100 base; +100 Warehouse; +100 Expansion). Food 199. */
+/*
+ * Warehouse capacity (100 base; +100 Warehouse; +100 Expansion).
+ * FUN_15eb_0a50 takes no cargo argument — one capacity for all sixteen goods,
+ * Food included. Food's exemptions live at the three sites that consume the
+ * cap (EOT spoilage, @WAREHOUSEFULL unload confirm, colony-screen alert ink),
+ * not here; cargo_type is kept for those callers' readability.
+ */
 int colonies_warehouse_capacity(
   const ColonizeColonyPool* pool,
   const ColonizeColony* colony,

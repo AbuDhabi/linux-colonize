@@ -95,6 +95,29 @@ static void colonies_reveal_ring5(
   }
 }
 
+void colonies_reveal_all_for_nation(
+  ColonizeWorldMap* map,
+  ColonizeColonyPool* pool,
+  int nation_id
+) {
+  if (!map || !pool || nation_id < 0 || nation_id > 3) {
+    return;
+  }
+  /*
+   * DOS FUN_4345_0342 (viceroy_unpacked.c 73155-73159), the FF-apply case
+   * `param_2 == 6` (Coronado): `for i in 0..colony_count: FUN_281f_09e6(i);
+   * FUN_281f_07aa(i, nation)` — the loop has NO owner test, so every colony
+   * on the board (any nation's) gets the FUN_13f1_00a6 ±5 sweep.
+   */
+  for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+    const ColonizeColony* c = &pool->colonies[i];
+    if (!c->active) {
+      continue;
+    }
+    colonies_reveal_ring5(map, pool, c, nation_id);
+  }
+}
+
 void colonies_reveal_founded(
   ColonizeWorldMap* map,
   ColonizeColonyPool* pool,
@@ -905,6 +928,40 @@ static void colonies_mark_settlement_tile(int x, int y, bool on) {
   map_occupancy_set_layer2(g_colonies_occupancy_map, x, y, MAP_OCCUPANCY_HAS_CITY, on);
 }
 
+static ColonizeCol1Save* g_colonies_col1 = NULL;
+
+/*
+ * Founding on a tile whose previous colony is gone: DOS deletes the colony
+ * record when a colony is destroyed/abandoned, so FUN_364b_1ba8 always mints
+ * a fresh one. The port keeps the COL1 array as a mirror that is only rebuilt
+ * on the next export, and every reader pairs runtime colony <-> record by
+ * tile alone (colony_prod_sol_percent, reports_pool_colony_for, the
+ * col1_bridge capture pairing). A colony re-founded on the same tile before
+ * that export therefore inherited the dead colony's SoL history (and, through
+ * the capture pairing, its buildings/stock). Wipe the orphan record in place
+ * instead: keep the slot (COL1 colony indices are referenced elsewhere), keep
+ * the tile, and reseed it like a founding — rebel_divisor = 100, dividend 0
+ * (FUN_364b_1ba8, mirrored in col1_bridge's unmatched-colony branch).
+ */
+static void colonies_col1_forget_record_at(ColonizeCol1Save* col1, int x, int y, int nation_id) {
+  if (!col1 || !col1->colony) {
+    return;
+  }
+  for (uint16_t i = 0; i < col1->head.colony_count; ++i) {
+    ColonizeCol1Colony* c = &col1->colony[i];
+    if ((int)c->x != x || (int)c->y != y) {
+      continue;
+    }
+    memset(c, 0, sizeof(*c));
+    c->x = (uint8_t)x;
+    c->y = (uint8_t)y;
+    c->nation_id = (uint8_t)(nation_id >= 0 && nation_id <= 3 ? nation_id : 0);
+    c->rebel_divisor = 100;
+    c->building_in_production = 0xFF;
+    break;
+  }
+}
+
 int colonies_found(
   ColonizeColonyPool* pool,
   const ColonizeWorldMap* map,
@@ -948,6 +1005,10 @@ int colonies_found(
     slot->tiles[t] = -1;
   }
   memset(slot->col1_outer_tiles, 0xff, sizeof(slot->col1_outer_tiles));
+  /* Drop any orphan COL1 record left on this tile by a destroyed colony —
+   * every runtime<->COL1 pairing is by tile, so its SoL/buildings would be
+   * inherited by this brand-new colony (see colonies_col1_forget_record_at). */
+  colonies_col1_forget_record_at(g_colonies_col1, x, y, nation_id);
   snprintf(slot->name, sizeof(slot->name), "%s", colonies_next_name(pool, nation_id));
   colonies_grant_starters(pool, slot);
   colonies_mark_settlement_tile(x, y, true);
@@ -1846,8 +1907,6 @@ bool colonies_abandon(ColonizeColonyPool* pool, int colony_id) {
   return true;
 }
 
-static ColonizeCol1Save* g_colonies_col1 = NULL;
-
 void colonies_set_col1_context(ColonizeCol1Save* col1) {
   g_colonies_col1 = col1;
 }
@@ -2604,10 +2663,24 @@ int colonies_warehouse_capacity(
   if (!colony) {
     return 0;
   }
-  if (cargo_type == COLONIZE_CARGO_FOOD) {
-    return 199;
-  }
-  /* FUN_15eb_0a50: 100*(1+warehouse_level); buildings raise the level. */
+  /*
+   * FUN_15eb_0a50 (viceroy_unpacked.c 10043-10053): 100*(1+warehouse_level);
+   * buildings raise the level. The DOS routine takes NO cargo argument — one
+   * capacity for all sixteen goods, Food included.
+   *
+   * Smell audit #25: this used to answer 199 for Food, uncited and blind to the
+   * warehouse level. DOS's Food exemption is not a *different* cap, it is the
+   * absence of the three per-cargo rules, each of which skips index 0 outright:
+   *   - EOT overflow/spoilage: FUN_364b_0688's `if (local_b6 != 0)` guard and
+   *     the paired `if (local_b6 == 0) aiStack_e4[0] = 0` (viceroy 57806-57872,
+   *     57332-57336) — food is never clamped to capacity, which is what lets a
+   *     colony bank past 200 toward the new-colonist threshold;
+   *   - the unload @WAREHOUSEFULL confirm: FUN_479b_0f60's
+   *     `(cap < stock + amount) && (local_18 != 0)` (viceroy 77396-77404);
+   *   - the colony-screen alert colour: FUN_2f2b_28d6's `if (local_80 != 0)`
+   *     (viceroy 49118-49123).
+   * Those three sites carry the exemption; this accessor must not.
+   */
   int level = (int)colony->warehouse_level;
   if (pool) {
     int derived = 0;
@@ -2644,6 +2717,12 @@ void colonies_emit_warehouse_full_chrome(
     return;
   }
   if (cargo_type < 0 || cargo_type >= COLONIZE_CARGO_COUNT) {
+    return;
+  }
+  /* FUN_479b_0f60 (viceroy_unpacked.c 77396): the @WAREHOUSEFULL confirm is
+   * gated `(cap < stock + amount) && (local_18 != 0)` — Food never warns,
+   * because food over capacity is the new-colonist rule, not spoilage. */
+  if (cargo_type == COLONIZE_CARGO_FOOD) {
     return;
   }
   const int cap = colonies_warehouse_capacity(pool, colony, cargo_type);
@@ -2914,7 +2993,10 @@ int colonies_transfer_from_unit(
       unit_id, col->name[0] ? col->name : "colony", ctype, move, col->stock[ctype], cap
     );
   }
-  if (out_warehouse_full && cap > 0 && col->stock[ctype] > cap) {
+  /* FUN_479b_0f60 (viceroy 77396) gates the full-warehouse confirm on
+   * `local_18 != 0` — cargo 0 (Food) never raises it. */
+  if (out_warehouse_full && ctype != COLONIZE_CARGO_FOOD && cap > 0 &&
+      col->stock[ctype] > cap) {
     *out_warehouse_full = true;
   }
   return move;
@@ -2960,7 +3042,10 @@ int colonies_transfer_from_unit_amount(
   const int cap = colonies_warehouse_capacity(pool, col, ctype);
   col->stock[ctype] += amount;
   col->cargo_idle_turns = 0;
-  if (out_warehouse_full && cap > 0 && col->stock[ctype] > cap) {
+  /* FUN_479b_0f60 (viceroy 77396) gates the full-warehouse confirm on
+   * `local_18 != 0` — cargo 0 (Food) never raises it. */
+  if (out_warehouse_full && ctype != COLONIZE_CARGO_FOOD && cap > 0 &&
+      col->stock[ctype] > cap) {
     *out_warehouse_full = true;
   }
   return amount;

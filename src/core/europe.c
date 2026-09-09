@@ -1569,6 +1569,34 @@ static int europe_arm_buy_cost(const EuropeScreen* eu, int cargo, int qty) {
   return europe_buy_price(eu, cargo) * qty;
 }
 
+/*
+ * Disarm/de-equip proceeds are UNTAXED — smell audit #62, REFUTED: DOS credits
+ * the raw gross.
+ *
+ * The three sell rows of the @ARMOPTIONS switch (FUN_38fd_3746's jump table at
+ * 38fd:3c5a; Ghidra leaves the case bodies as raw bytes, so read them in
+ * original_sources_decompiled/viceroy_ndisasm.asm at file offsets 0x3402E.. —
+ * segment base 38fd = 0x30550) each do exactly two things:
+ *
+ *   38fd:3b4a  Sell Muskets  add [bx+0x2a],[bp-0x5e]   ; treasury += sell·50
+ *                            call 291f_0a2e(0x0f, 0x32)
+ *   38fd:3ba0  Sell Tools    add [bx+0x2a],[bp-0x5c]   ; treasury += sell·100
+ *                            call 291f_0a2e(0x0e, 0x64)
+ *   38fd:3bfc  Sell Horses   add [bx+0x2a],[bp-0x5a]   ; treasury += sell·50
+ *                            call 291f_0a2e(0x08, 0x32)
+ *
+ * where [bp-0x5e/0x5c/0x5a] are the prologue's sell_price(cargo)·qty (38fd:3ce4
+ * ..3d0e, via the 291f_09ea accessor) and 291f_0a2e is the sell ledger
+ * FUN_38fd_1dfa (viceroy_unpacked.c 60247-60299).
+ *
+ * The harbor cargo sale is the contrast: FUN_38fd_23c4 (viceroy 60557-60575)
+ * takes 1f0c's gross, computes tax = tax_rate·gross/100, credits only
+ * gross − tax to the treasury and books tax into nation +0x22 (royal_money)
+ * and the net into +0x26. None of that appears at the arm rows — no tax split,
+ * no royal_money, no +0x26 — so the disarm gross lands whole in the treasury.
+ * The Crown's cut is still reflected in the per-cargo revenue ledger, which is
+ * FUN_38fd_1dfa's own (100−tax) term, applied below by the ledger call.
+ */
 static int europe_arm_sell_gain(const EuropeScreen* eu, int cargo, int qty) {
   return europe_sell_price(eu, cargo) * qty;
 }
@@ -1832,7 +1860,20 @@ bool europe_apply_dock_menu_row(
   eu->gold += gold_delta;
   d->dos_type = to;
   if (ledger_cargo >= 0) {
-    europe_apply_volume_price(eu, ledger_cargo, ledger_qty, ledger_is_buy);
+    /*
+     * Ledger only — no rise/fall step. The arm rows call the volume routines
+     * bare (291f_0c14 = FUN_38fd_1d80 on a buy, 291f_0a2e = FUN_38fd_1dfa on a
+     * sell) and nothing else; the 0058 threshold pass is what the *harbor*
+     * handlers add at their tail (thunk_FUN_291f_0cbc(0, cargo) —
+     * viceroy_unpacked.c 60500 for the buy FUN_38fd_1fa2, 60644 for the sell
+     * FUN_38fd_23c4). Arming an immigrant therefore never moves the bid, so it
+     * never raises @PRICEUP/@PRICEDOWN either. europe_apply_volume_price would
+     * have run 0058, so call the full form with immediate_threshold = 0.
+     */
+    const int bound = (int)eu->bound_nation;
+    europe_apply_trade_volume(
+      eu, NULL, bound, bound, ledger_cargo, ledger_qty, ledger_is_buy, 0
+    );
   }
   if (units) {
     europe_retype_dock_mirror_unit(units, nation_id, d->profession, from, to);

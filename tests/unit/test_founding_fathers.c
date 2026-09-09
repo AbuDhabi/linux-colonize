@@ -588,10 +588,16 @@ int main(void) {
       map_free(&map);
       return fail("deep Coronado reveal missing");
     }
-    if (map_tile_seen_by(&map, 8, 5, 0)) {
+    /* DOS FUN_4345_0342 case 6 → FUN_13f1_00a6: the sweep is ±5, not ±2. */
+    if (!map_tile_seen_by(&map, 10, 5, 0)) {
       free(deep_col1.colony);
       map_free(&map);
-      return fail("deep Coronado revealed beyond radius 2");
+      return fail("deep Coronado ±5 sweep short of radius 5");
+    }
+    if (map_tile_seen_by(&map, 11, 5, 0)) {
+      free(deep_col1.colony);
+      map_free(&map);
+      return fail("deep Coronado revealed beyond radius 5");
     }
 
     /* Magellan: +1 moves_left now; refresh keeps permanent +1. */
@@ -649,7 +655,15 @@ int main(void) {
       return fail("deep Hudson nation_has false");
     }
 
-    /* de Soto: land reveal; no crosses fallback. */
+    /* de Soto: NO elect-time reveal (FUN_4345_0342 has no case 7); his sight
+     * bonus is ongoing via units_sight_radius. No crosses fallback either. */
+    const int far_id = units_spawn_allow_stack(&units, 0, 13, 13);
+    if (far_id < 0) {
+      free(deep_col1.colony);
+      map_free(&map);
+      return fail("deep de Soto far land spawn");
+    }
+    units_get(&units, far_id)->nation_id = 0;
     dnat->liberty_bells_total = 321;
     dnat->next_founding_father = 7;
     const uint16_t crosses_pre = dnat->current_crosses;
@@ -659,10 +673,18 @@ int main(void) {
       map_free(&map);
       return fail("deep de Soto not elected");
     }
-    if (!map_tile_seen_by(&map, 8, 8, 0) || !map_tile_seen_by(&map, 9, 8, 0)) {
+    if (map_tile_seen_by(&map, 13, 13, 0)) {
       free(deep_col1.colony);
       map_free(&map);
-      return fail("deep de Soto land reveal missing");
+      return fail("deep de Soto must not reveal at elect time");
+    }
+    {
+      ColonizeUnit* far_u = units_get(&units, far_id);
+      if (units_sight_radius(&units, far_u, &deep_col1) != 2) {
+        free(deep_col1.colony);
+        map_free(&map);
+        return fail("deep de Soto ongoing sight radius 2 missing");
+      }
     }
     if (dnat->current_crosses != crosses_pre) {
       free(deep_col1.colony);
@@ -1258,8 +1280,19 @@ int main(void) {
       if (!units_resolve_naval_combat_ff(&upool, atk1, def1, NULL, &ccol1)) {
         return fail("equal Privateers with attack bonus: deterministic tie goes to attacker");
       }
-      if (units_get(&upool, def1) || !units_get(&upool, atk1)) {
-        return fail("tie-goes-to-attacker: defender despawned, attacker survives");
+      /*
+       * Outcome tie goes to the attacker; the damage-vs-sink roll that follows
+       * is DOS's own coin flip here (@UNIT Privateer has guns == hull, so
+       * `roll(1, guns+hull) <= hull` is exactly 50/50 — FUN_5fef_0352,
+       * viceroy_unpacked.c 99527-99530). With no RNG the port's single
+       * units_ship_damage_vs_sink helper damages ties, so the loser survives
+       * with the damaged bit rather than despawning.
+       */
+      {
+        const ColonizeUnit* d_after = units_get(&upool, def1);
+        if (!d_after || (d_after->col1_unknown15 & 0x80u) == 0 || !units_get(&upool, atk1)) {
+          return fail("tie-goes-to-attacker: defender damaged, attacker survives");
+        }
       }
 
       const int atk2 = units_spawn_allow_stack(&upool, 4, 11, 1);
@@ -1275,8 +1308,13 @@ int main(void) {
       if (!units_resolve_naval_combat_ff(&upool, atk2, def2, NULL, NULL)) {
         return fail("without Drake bonus equal Privateers: attacker should win");
       }
-      if (!units_get(&upool, atk2) || units_get(&upool, def2)) {
-        return fail("NULL-col1 naval: attacker survives, defender gone");
+      {
+        /* Same guns == hull coin flip as above: no-RNG ties damage. */
+        const ColonizeUnit* d2_after = units_get(&upool, def2);
+        if (!units_get(&upool, atk2) || !d2_after ||
+            (d2_after->col1_unknown15 & 0x80u) == 0) {
+          return fail("NULL-col1 naval: attacker survives, defender damaged");
+        }
       }
 
       /* Attacker Privateer with Drake vs equal foe without: atk 12 >= 8 → win. */
@@ -1318,8 +1356,10 @@ int main(void) {
         return fail("Drake wrapper: deterministic tie goes to attacker");
       }
       units_set_ff_col1(NULL);
-      if (units_get(&upool, def) || !units_get(&upool, atk)) {
-        return fail("Drake wrapper tie: defender despawned, attacker survives");
+      /* Same guns == hull coin flip as spawn A: no-RNG ties damage. */
+      const ColonizeUnit* d_after = units_get(&upool, def);
+      if (!d_after || (d_after->col1_unknown15 & 0x80u) == 0 || !units_get(&upool, atk)) {
+        return fail("Drake wrapper tie: defender damaged, attacker survives");
       }
     }
 

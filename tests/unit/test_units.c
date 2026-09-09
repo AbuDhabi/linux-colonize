@@ -5435,9 +5435,23 @@ int main(void) {
           fprintf(stderr, "naval combat_analysis_open failed\n");
           return 1;
         }
-        for (int i = 0; i < dlg.atk_line_count; ++i) {
-          if (strstr(dlg.atk_rows[i].label, "Attack Bonus")) {
-            fprintf(stderr, "naval analysis must not list land Attack Bonus\n");
+        /*
+         * Naval attackers DO get the ×3/2 attack factor and DOS prints its
+         * row: FUN_5fef_1b0e applies the scale unconditionally
+         * (viceroy_unpacked.c 100457-100458 — 1b0e is the one resolver for
+         * both domains) and FUN_636c_0000 walks DS:0x8d00 bit 0
+         * (viceroy_unpacked.c 101874-101891), which FUN_157e_004a sets on
+         * every mode-1 evaluation (8926-8928). No domain test anywhere.
+         */
+        {
+          int naval_atk_bonus = 0;
+          for (int i = 0; i < dlg.atk_line_count; ++i) {
+            if (strstr(dlg.atk_rows[i].label, "Attack Bonus")) {
+              naval_atk_bonus = 1;
+            }
+          }
+          if (!naval_atk_bonus) {
+            fprintf(stderr, "naval analysis must list Attack Bonus (DOS 636c bit 0)\n");
             return 1;
           }
         }
@@ -7892,6 +7906,16 @@ int main(void) {
        * real NAMES.TXT); a warship loser is damage-or-sink only. */
       pool.types[car].attack = 0;
       pool.types[car].defense = 2;
+      /*
+       * The seizure arm needs the damage-vs-sink roll to land on "sunk", so
+       * keep the winner's guns clear of the loser's hull: DOS rolls
+       * 1..(guns+hull) and damages on <= hull (FUN_5fef_0352,
+       * viceroy_unpacked.c 99527-99530), so guns == hull is a coin flip that
+       * the port's no-RNG path resolves to "damaged". Stock NAMES.TXT has
+       * Privateer guns 4 / Caravel hull 4 — exactly that tie.
+       */
+      pool.types[priv].guns = 12;
+      pool.types[car].hull = 4;
       const int aid = units_spawn_allow_stack(&pool, priv, 4, 4);
       const int did = units_spawn_allow_stack(&pool, car, 5, 4);
       ColonizeUnit* a = units_get(&pool, aid);
@@ -8006,7 +8030,11 @@ int main(void) {
       ship->moves_left = 4 * UNITS_MP_PER_TILE;
       ship->col1_unknown15 = 0;
       ship->turns_worked = 0;
-      pool.types[car].defense = 3; /* fort atk 4 wins; 3*2 > 4 → damage-not-sink */
+      pool.types[car].defense = 3; /* fort atk 4 wins the fight */
+      /* Damage-vs-sink uses the loser's @UNIT hull against the fort's strength
+       * (4): keep hull clear of it so this asserts the damaged path and not
+       * the guns == hull coin flip. See units_ship_damage_vs_sink. */
+      pool.types[car].hull = 8;
       (void)units_coastal_fort_fire_pulse(
         &pool, &colonies, &map, &c1, NULL, -1, st, sizeof(st)
       );

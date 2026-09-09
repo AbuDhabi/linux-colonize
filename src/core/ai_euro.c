@@ -245,7 +245,7 @@ static void ai_euro_refresh_continent_stance(ColonizeTurnContext* ctx, int natio
       if (other < 4) {
         const uint8_t dg = ai_diplo_read(ctx->col1, nation_id, other);
         if ((dg & (AI_DIPLO_MET | AI_DIPLO_PEACE)) != AI_DIPLO_MET &&
-            (dg & (AI_DIPLO_PEACE | 0x08)) == AI_DIPLO_PEACE) {
+            (dg & (AI_DIPLO_PEACE | AI_DIPLO_AMICABLE)) == AI_DIPLO_PEACE) {
           continue;
         }
       } else {
@@ -3208,8 +3208,19 @@ static int ai_euro_is_treasure_name(const char* name) {
 }
 
 /*
- * FUN_4720_049e Treasure Train tension bump (thin — 2026-08-15 find, bit
- * semantics confirmed same day via a `153e` cross-check, see `ai_diplo.h`).
+ * Treasure Train tension bump (thin — 2026-08-15 find, bit semantics
+ * confirmed same day via a `153e` cross-check, see `ai_diplo.h`).
+ *
+ * Writer citation corrected 2026-09-09 (smell #99): the DOS site is
+ * `FUN_465b_0000` (viceroy_unpacked.c:75527-75545), not `FUN_4720_049e`.
+ * `uVar11` there is the acting unit's owner nibble (`+0x3147 & 0xf`) and
+ * `local_4` the nation on the target tile, so the byte written is
+ * `nation[target].euro_relation[actor]` — the index order this port uses.
+ * Both follow-up bits are DOS literals: `2` when the target's
+ * `land_combat_strength` (`-0x6be4`) is lower, `8` otherwise. Bit 8 is
+ * NOT a Linux invention (see ai_diplo.h) — it is the same
+ * amicable-negotiation latch the 153e tail sets, one latch, one consumer.
+ *
  * DOS: when a Treasure Train's own move ends adjacent to a foreign unit,
  * sets `nation[foreign].euro_relation[mover] |= 0x80` (the *other*
  * nation's opinion of the treasure-carrying nation — "hauling a fortune
@@ -3219,8 +3230,8 @@ static int ai_euro_is_treasure_name(const char* name) {
  * `AI_DIPLO_PEACE` (confirmed real DOS bit 2, not a Linux stand-in —
  * "a weaker power responds to a wealthy/strong rival by seeking peace",
  * mirrors this port's own "unmet defaults to PEACE|MET" convention),
- * stronger rival → `AI_DIPLO_TREASURE_STRONGER` (DOS's real bit 8, still
- * unconfirmed meaning beyond "not peace"). `-0x6be4` (the DOS table the
+ * stronger rival → `AI_DIPLO_AMICABLE` (DOS's real bit 8; meaning resolved
+ * 2026-08-27 as the amicable-negotiation latch). `-0x6be4` (the DOS table the
  * RNG branch reads) resolved to `land_combat_strength[4]`, already live
  * in `col1_stuff_census.c` — no invented data.
  *
@@ -3258,7 +3269,7 @@ static void ai_euro_treasure_tension_bump(ColonizeTurnContext* ctx, ColonizeUnit
       const int their_strength = ctx->col1->stuff.land_combat_strength[f->nation_id];
       const int our_strength = ctx->col1->stuff.land_combat_strength[u->nation_id];
       const uint8_t follow =
-        (their_strength < our_strength) ? AI_DIPLO_PEACE : AI_DIPLO_TREASURE_STRONGER;
+        (their_strength < our_strength) ? AI_DIPLO_PEACE : AI_DIPLO_AMICABLE;
       const uint8_t cur = ai_diplo_read(ctx->col1, f->nation_id, u->nation_id);
       ai_diplo_write(ctx->col1, f->nation_id, u->nation_id, (uint8_t)(cur | follow));
     }
@@ -9758,10 +9769,10 @@ static void ai_euro_colony_goals(ColonizeTurnContext* ctx, int nation_id) {
          * (`save_format_map.md`/`FUNCTION_CATALOG.md`: 100×(1+
          * warehouse_level)) — already live in Linux as
          * `colonies_warehouse_capacity`. DOS calls this once per colony
-         * (no cargo_type arg), same as here; pass a non-FOOD cargo type
-         * since that function's only cargo-dependent branch is FOOD's
-         * separate 199 cap (irrelevant here — FOOD is already skipped by
-         * this loop).
+         * (no cargo_type arg), same as here — and since smell audit #25
+         * removed the port's uncited FOOD-199 branch, the accessor is now
+         * cargo-independent like DOS's, so the cargo passed here is only a
+         * readability choice (FOOD is skipped by this loop anyway).
          */
         const int target =
           colonies_warehouse_capacity(ctx->colonies, c, COLONIZE_CARGO_TOOLS);
@@ -13423,9 +13434,10 @@ static int ai_euro_20e6_quartile(int v) {
  *
  * Substitutions: the coastal bit is OR'd with a live map_tile_is_coastal probe
  * because Linux only latches +0x1c bit 0x40 from the AI colony tick (same
- * belt-and-braces as ai_euro.c:3651); colonies_warehouse_capacity is asked for
- * a non-FOOD cargo so its FOOD 199 special case (absent from DOS 8f2a) cannot
- * leak in — FOOD is never a delivery cargo here anyway. Nothing invented.
+ * belt-and-braces as ai_euro.c:3651); colonies_warehouse_capacity is now
+ * cargo-independent like DOS 8f2a (the port's uncited FOOD-199 branch went
+ * with smell audit #25), so the cargo argument below is cosmetic — FOOD is
+ * never a delivery cargo here anyway. Nothing invented.
  */
 static int ai_euro_20e6_delivery_colony_pick(
   ColonizeTurnContext* ctx,
@@ -13685,9 +13697,9 @@ static int ai_euro_20e6_load_pick(
   if (!ctx || !ctx->colonies || !c || nation < 0 || nation > 3) {
     return -1;
   }
-  /* iStack_a4 = FUN_1000_8f2a() warehouse capacity (asked for a non-FOOD
-   * cargo so the port's FOOD-199 special case, absent from DOS 8f2a, cannot
-   * leak into the shared per-cargo term). */
+  /* iStack_a4 = FUN_1000_8f2a() warehouse capacity — cargo-independent, as
+   * in DOS: the port's FOOD-199 branch was removed by smell audit #25, so the
+   * cargo argument here no longer changes the shared per-cargo term. */
   const int cap = colonies_warehouse_capacity(ctx->colonies, c, COLONIZE_CARGO_TOOLS);
   int best = -1;
   int pick = -1;
@@ -19950,11 +19962,17 @@ void ai_euro_dispatcher_turn(ColonizeTurnContext* ctx, int nation_id) {
    * read by FUN_521d_20e6's explorer cap (s_20e6_explorers). */
   memset(s_20e6_explorers, 0, sizeof(s_20e6_explorers));
   /* Village-errand latch hygiene: DOS's +0x3158 dies with its unit record;
-   * the session latch must not survive a despawn into a reused unit id. */
+   * the session latch must not survive a despawn into a reused unit id.
+   * Same argument for the 20e6 ring-hop wander latch (DOS unit+0x3155 /
+   * +0x3156, raw 1600-1611 / 2416-2458): those bytes are part of the unit
+   * record too, so a reused id must not inherit a foreign hop commitment. */
   for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-    if (s_20e6_wagon_errand[i] && units_get_const(ctx->units, i) == NULL) {
-      s_20e6_wagon_errand[i] = 0;
+    if (units_get_const(ctx->units, i) != NULL) {
+      continue;
     }
+    s_20e6_wagon_errand[i] = 0;
+    s_20e6_hop_slot[i] = 0;  /* slot+1 encoding: 0 == unset (DOS 0xff) */
+    s_20e6_hop_steps[i] = 0;
   }
 
   /* 1–3. Colony + unit inventory */

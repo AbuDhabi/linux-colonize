@@ -613,10 +613,29 @@ void ai_diplo_indian_capital_surrender(
     return;
   }
   ColonizeCol1Indian* ind = &col1->indian[idx];
-  /* FUN_5fef_1b0e capital-razed arm (raw 101289-101298): alarm is clamped
-   * DOWN to 15 when above (FUN_281f_0d6c(-(alarm-15))), not zeroed. */
-  if (ind->alarm_by_player[euro_nation] > 15u) {
-    ind->alarm_by_player[euro_nation] = 15u;
+  /*
+   * FUN_5fef_1b0e capital-razed arm (viceroy_unpacked.c:101289-101298; Ghidra
+   * re-emits the same block at :101508-101533): alarm is clamped DOWN to 15
+   * when above, not zeroed, and DOS applies that clamp as a NEGATIVE DELTA via
+   * FUN_281f_0d6c(indian, euro, -(alarm-15), 0) — never as a direct store.
+   *
+   * The routing is load-bearing, and it is where "razing the capital forces
+   * peace" actually comes from. FUN_281f_0d6c is a thunk straight to
+   * FUN_4cc6_00f2 (viceroy_unpacked.c:33910-33913), whose negative-delta arm
+   * (viceroy_unpacked.c:80856-80866) runs
+   *     FUN_281f_0a10(indian+4, euro, 4);                       // clear-both 0x04
+   *     if (new_alarm < 0x4b) FUN_281f_0a10(indian+4, euro, 2); // clear-both WAR
+   * (0a10 = FUN_15b3_00d0 clear-BOTH-directions). The clamp lands alarm at
+   * exactly 15, which is < 0x4b, so a razed capital ALWAYS clears the
+   * Indian<->Euro WAR bit both ways. DOS writes no peace bit at this site — it
+   * simply drops alarm far enough that 4cc6_00f2's own war-clear fires.
+   *
+   * So: route the clamp through ai_diplo_indian_alarm_delta (which already
+   * ports that 4cc6_00f2 arm), do not re-store the value here.
+   */
+  const int alarm_now = (int)ind->alarm_by_player[euro_nation];
+  if (alarm_now > 15) {
+    ai_diplo_indian_alarm_delta(col1, indian_nation, euro_nation, 15 - alarm_now);
   }
   if (col1->tribe) {
     for (uint16_t ti = 0; ti < col1->head.tribe_count; ++ti) {
@@ -630,13 +649,30 @@ void ai_diplo_indian_capital_surrender(
       t->state.capital = 0;
     }
   }
+  /*
+   * The peace half of the DOS post-condition, in the port's own encoding.
+   * DOS's alarm-delta above has already cleared WAR (0x02) both directions;
+   * it never sets PEACE (0x40) at this site. Linux reads Indian<->Euro peace
+   * off COL1_INDIAN_PEACE_BIT (ai.c at_peace; the mission / trade / raid
+   * gates) rather than off the war bit, so the port states the same
+   * post-condition on the bit it actually consumes. The clear-war + set-0x60
+   * pairing is DOS's own surrender idiom: FUN_43f7_0108
+   * (viceroy_unpacked.c:73555-73557) clears the 0xb war bits and or-boths
+   * 0x60 (MET|PEACE) when a nation surrenders.
+   *
+   * relation_by_indian is the DOS 0x60 MET|PEACE flag byte, not a scalar
+   * (col1_save.h): it is already 0x60 for any met tribe — and a capital
+   * cannot be razed unmet — while 4cc6_00f2's clear-both of 0x04/0x02 is a
+   * no-op on it, so restating 0x60 reproduces DOS's post-condition exactly.
+   *
+   * The old `alarm > 20 -> 20` line that sat here (FUN_5bfb first-contact
+   * clamp, :96624) was dead: the 5fef_1b0e clamp above always leaves alarm at
+   * <= 15. Removed 2026-09-09 (smell #77) — it belongs to first contact, not
+   * to capital razing.
+   */
   ind->euro_diplo[euro_nation] =
     (uint8_t)(ind->euro_diplo[euro_nation] | COL1_INDIAN_PEACE_BIT);
-  /* relation_by_indian is the DOS 0x60 MET|PEACE flag byte, not a scalar. */
   col1->nation[euro_nation].relation_by_indian[idx] = (uint8_t)AI_DIPLO_INDIAN_PEACE_MEET;
-  if (ind->alarm_by_player[euro_nation] > 20u) {
-    ind->alarm_by_player[euro_nation] = 20u; /* FUN_5bfb first-contact clamp (:96624) */
-  }
   ai_diplo_indian_hostility_sync(col1, euro_nation);
 }
 

@@ -135,10 +135,16 @@ lane tile was refused too (bugs.md: "I can't move a ship onto a sea lane
 either way").
 
 Arrival behaviour: a **Go To** whose destination is a lane tile sails the
-ship to Europe the moment it lands there (`game_ship_sail_to_europe`, the
-same tail the `H` command uses — passengers, holds and treasure ride
-along). Plain arrow-key steps onto the lane do not: DOS's own sail intent
-is exactly the order byte the reason-5 gate reads.
+ship to Europe when it reaches **that destination tile**
+(`game_ship_sail_to_europe`, the same tail the `H` command uses —
+passengers, holds and treasure ride along). Lane tiles merely crossed on
+the way do not sail it: the reason-5 gate is suppressed outright while the
+order byte is 3 (Go To) or 2 (Trade Route), so a DOS ship under orders
+sails through the lane, and DOS's only order-3 Europe departure is the goto
+menu's own "Europe" entry (destination 999 → `FUN_2b5a_1dfc`,
+viceroy_unpacked.c 42798-42819), which leaves immediately from wherever the
+ship stands. Plain arrow-key steps onto the lane do not sail either: DOS's
+own sail intent is exactly the order byte the reason-5 gate reads.
 
 Reason 5 is not a hard deny (2026-09-03): the UI handler (`FUN_4720_049e`
 case 4, `viceroy_ndisasm.asm` 0x3FEA6) asks **@SAILHOME** — Yes sails for

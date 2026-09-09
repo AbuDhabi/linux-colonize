@@ -73,10 +73,29 @@ No rng → attacker wins if `atk >= def`. `units_last_combat_outcome`: `1` / `-1
 
 ```
 both: combat_unit_base_x8(atk mode=1, def mode=0)
+atk = atk * 3 >> 1                                   // same 1b0e attack factor
       combat_apply_1b0e_peels()   // land-only peels skipped by domain checks
 ```
 
 No `015e` colony / village / terrain / fortify for ships.
+
+**The ×3/2 attack factor applies at sea too.** `FUN_5fef_1b0e` is the single
+resolver for both domains and its scale line is unconditional
+(`viceroy_unpacked.c` 100457-100458):
+
+```
+iVar24 = FUN_281f_09c8(0x281f,param_1,1);          // → FUN_157e_004a mode 1
+local_92 = ((*(int *)0x8d04 + 4) * iVar24 >> 2) * 3 >> 1;
+```
+
+The is-ship flags `bVar9` / `bVar10` (100347, 100451) gate later clauses, never
+this one. Combat Analysis prints the matching **Attack Bonus +50%** row for
+naval attackers as well — `FUN_636c_0000` walks `DS:0x8d00` bit 0
+(`viceroy_unpacked.c` 101874-101891) and `FUN_157e_004a` sets exactly that bit
+on every mode-1 evaluation (`*puVar1 = *puVar1 | (param_2 != 0)`, 8926-8928).
+There is no domain test on either side. (The port used to apply the factor but
+suppress the row at sea, so the displayed rows stopped summing to the shown
+strengths — fixed 2026-09-09, smell audit #11.)
 
 ### Base ×8 (`FUN_157e_004a` / `combat_unit_base_x8`)
 
@@ -99,8 +118,15 @@ No `015e` colony / village / terrain / fortify for ships.
 
 1. Base = `004a(mode=0)`
 2. Site multiplier `local_1a`:
-   - **A.** Own Euro colony: `(FUN_157e_0008 + 1) * 2` → **2 / 4 / 6 / 8** for
-     none / Stockade / Fort / Fortress (viceroy 9009–9011).
+   - **A.** Euro colony on the defender's tile: `(FUN_157e_0008 + 1) * 2` →
+     **2 / 4 / 6 / 8** for none / Stockade / Fort / Fortress (viceroy 9009–9011).
+     The probe is `FUN_137f_0358(x, y)` = `euro_settlement_owner` (viceroy
+     6793–6810) taken on `-1 < iVar6`, so the arm's only conditions are "a
+     settlement stands here" and "its owner is European (< 4)". **Corrected
+     2026-09-09** (smell audit #9): DOS never compares that owner to the
+     defending unit's nation and never tests the unit's own nation — the port's
+     `col->nation_id == u->nation_id` / `u->nation_id <= 3` guards were invented
+     and disagreed with `combat_unit_on_colony`, which is a bare tile probe.
      **Open question closed 2026-09-07:** `0008`'s three `038e(0..2)` probes *are* the
      fortification chain — the building table at `DS:0x8f82` (stride `0xc`) links each record
      to its next tier at `+4`, and records 0/1/2 chain `0→1→2→-1` with name ids
@@ -315,7 +341,13 @@ Combat loss remaps **unit type** (not merely profession). Cite:
   (bit7, `@SHIPDAMAGE`, teleport to the nearest own Drydock/Shipyard colony);
   otherwise despawn (`@SHIPSUNK`). A gunless victor (guns 0: all transports)
   can only drive off damaged, never sink. No "already damaged" special: a
-  re-loss re-rolls, as in DOS.
+  re-loss re-rolls, as in DOS. Both call sites (naval loss and coastal-fort
+  fire, where the fort's strength stands in for "guns") go through the single
+  `units_ship_damage_vs_sink` helper; its `rng == NULL` branch is port-only and
+  damages ties, matching the `atk_wins = attack_str >= defense` convention the
+  same file uses for the other DOS `roll(1, X+Y) <= X` decision. `guns == hull`
+  is a genuine coin flip in DOS, so no fixture should sit on it (smell audit
+  #12: the two copies used to break the tie in opposite directions).
 - **No repair port → Europe** (2026-09-04, bugs.md): DOS's colony scan tests
   feature bit 7 only, and when it finds nothing substitutes the nation's
   home-port name (`DS -0x7c74`, crown slot borrowing the human's) into
@@ -488,7 +520,8 @@ dual column. Shown **before** the combat roll (strengths known; no outcome yet).
      column edge (DOS 013c label / 0150 value split)
 - Flag rows (LABELS-shaped, DOS check order): **Muskets** (`0x400`, first row —
   see below), Veteran, Cargo, **Attack
-  Bonus** (land ×3/2), Bombard, Tory Unrest / Rebel Unrest (WoI support %),
+  Bonus** (the ×3/2 attack factor, `DS:0x8d00` bit 0 — **land and naval**,
+  see "Naval" under Strength pipeline), Bombard, Tory Unrest / Rebel Unrest (WoI support %),
   Ambush (attacker terrain, DOS `0x2e56`) / Terrain (defender `0x2e58`),
   the **fort-tier** row — label = the topmost built fortification's own name
   (`FUN_281f_0bdc` = `FUN_15eb_0434(0)` walking the `DS:0x8f82+4` chain), or

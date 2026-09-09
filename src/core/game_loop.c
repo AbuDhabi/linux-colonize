@@ -7672,6 +7672,7 @@ static void game_do_end_turn(ColonizeGameState* game);
 static void game_center_on_selected_unit(ColonizeGameState* game);
 static void game_after_unit_action(ColonizeGameState* game);
 static bool game_units_pending_orders(const ColonizeGameState* game);
+static bool game_select_next_unit_awaiting_orders(ColonizeGameState* game);
 
 /* Tile-select mode: clear unit selection, place blinking cursor, center view. */
 static void game_select_tile(ColonizeGameState* game, int x, int y) {
@@ -8366,7 +8367,10 @@ static void game_after_unit_action(ColonizeGameState* game) {
   }
   const int exhausted_x = u->x;
   const int exhausted_y = u->y;
-  if (turn_select_next_unit(&game->units, game->human_nation)) {
+  /* Skip-loop hand-off, same as every other site (game_wait_next_unit, ~Move
+   * Pieces, the per-frame activation cycle): a bare turn_select_next_unit
+   * here could park the selection on a Fortified/Sentried unit for a frame. */
+  if (game_select_next_unit_awaiting_orders(game)) {
     game->view_pieces_mode = false;
     game_center_on_selected_unit(game);
     const ColonizeUnit* next = units_get_const(&game->units, game->units.selected_id);
@@ -10306,6 +10310,38 @@ static bool game_units_pending_orders(const ColonizeGameState* game) {
 }
 
 /*
+ * turn_select_next_unit + the standing-order skip loop every hand-off site
+ * needs. A Fortified/Sentried unit (units_orders_skip_turn — the same
+ * discriminator the per-frame activation queue in game_update uses) must
+ * never end up as the live selection: DOS's control cycle only ever offers
+ * units that actually await orders, and stopping the cycle on one here
+ * flashes it into control for a frame before the next tick skips past it.
+ * Bounded — each turn_select_next_unit call moves strictly forward and never
+ * revisits a unit within one sweep. Returns true with pool->selected_id
+ * parked on a unit that genuinely awaits orders.
+ */
+static bool game_select_next_unit_awaiting_orders(ColonizeGameState* game) {
+  if (!game || !game->units_ok) {
+    return false;
+  }
+  bool found = turn_select_next_unit(&game->units, game->human_nation);
+  for (int guard = 0; found && guard < COLONIZE_UNITS_MAX; ++guard) {
+    const ColonizeUnit* next = units_get_const(&game->units, game->units.selected_id);
+    if (!next || !units_orders_skip_turn(next)) {
+      break;
+    }
+    found = turn_select_next_unit(&game->units, game->human_nation);
+  }
+  if (found) {
+    const ColonizeUnit* next = units_get_const(&game->units, game->units.selected_id);
+    if (!next || units_orders_skip_turn(next)) {
+      return false; /* guard ran out on a run of standing-order units */
+    }
+  }
+  return found;
+}
+
+/*
  * Player-requested: flashing "End Turn" sidebar prompt + click-to-confirm.
  * True once turn_select_next_unit has already come up empty this turn
  * (view_pieces_mode) and no unit needs orders — the state game_wait_next_unit
@@ -10328,19 +10364,9 @@ static void game_wait_next_unit(ColonizeGameState* game) {
   if (game_defer_turn_flow(game)) {
     return;
   }
-  bool found = turn_select_next_unit(&game->units, game->human_nation);
-  /* Skip past standing-order units (Fortified/Sentry/etc. — units_orders_
-   * skip_turn, same discriminator the per-frame activation queue in
-   * game_update uses) rather than stopping the cycle on one; they don't
-   * need player attention. Bounded — each call moves strictly forward and
-   * never revisits a unit within one sweep. */
-  for (int guard = 0; found && guard < COLONIZE_UNITS_MAX; ++guard) {
-    const ColonizeUnit* next = units_get_const(&game->units, game->units.selected_id);
-    if (!next || !units_orders_skip_turn(next)) {
-      break;
-    }
-    found = turn_select_next_unit(&game->units, game->human_nation);
-  }
+  /* Skips past standing-order units (Fortified/Sentry/etc.) rather than
+   * stopping the cycle on one; they don't need player attention. */
+  const bool found = game_select_next_unit_awaiting_orders(game);
   if (!found) {
     game_select_tile(game, game->map_cursor_x, game->map_cursor_y);
     if (turn_option_end_of_turn(game->col1_ok ? &game->col1 : NULL, game->col1_ok)) {
@@ -10999,14 +11025,7 @@ static bool game_apply_map_menu_action(ColonizeGameState* game, MapMenuAction ac
         game_center_on_selected_unit(game);
         return true;
       }
-      bool found = game->units_ok && turn_select_next_unit(&game->units, game->human_nation);
-      for (int guard = 0; found && guard < COLONIZE_UNITS_MAX; ++guard) {
-        const ColonizeUnit* next = units_get_const(&game->units, game->units.selected_id);
-        if (!next || !units_orders_skip_turn(next)) {
-          break;
-        }
-        found = turn_select_next_unit(&game->units, game->human_nation);
-      }
+      const bool found = game_select_next_unit_awaiting_orders(game);
       if (!found) {
         set_status(game, "No units awaiting orders", NULL);
         return true;
@@ -12126,20 +12145,33 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
           }
         }
         /* Sea-lane destination: a ship whose Go To ends on a high-seas tile
-         * sails for Europe the moment it lands there (bugs.md). Manual
+         * sails for Europe when it reaches THAT tile (bugs.md). Manual
          * arrow-key steps onto the lane deliberately do NOT — only a queued
-         * order does, same as DOS's `0x314c == 2/3` sail intent. */
+         * order does, same as DOS's `0x314c == 2/3` sail intent.
+         *
+         * Only the ordered destination counts, not the first lane tile the
+         * path happens to cross: DOS's reason-5 sail prompt (FUN_4720_015c,
+         * viceroy_unpacked.c 76047-76052) is suppressed outright while the
+         * order byte +0x314c is 3 (Go To) or 2 (Trade Route), so a DOS ship
+         * under orders crosses high-seas tiles without sailing; its only
+         * order-3 Europe departure is the goto menu's own "Europe" entry
+         * (destination 999 → FUN_2b5a_1dfc, viceroy_unpacked.c 42798-42819),
+         * which sails immediately from wherever the ship stands. Arbitrary
+         * map-tile Go To is a port extension, so the port convention is the
+         * closest analogue: the destination tile is the sail intent. */
+        const int goto_dest_x = (int)active->goto_x;
+        const int goto_dest_y = (int)active->goto_y;
         const bool goto_ship_to_lane = active->orders == UNITS_ORDER_GOTO &&
           units_is_sea(&game->units, active_id) && game->europe_ok &&
           active->goto_x < UNITS_GOTO_NONE && active->goto_y < UNITS_GOTO_NONE &&
-          map_tile_is_high_seas(&game->world_map, active->goto_x, active->goto_y);
+          map_tile_is_high_seas(&game->world_map, goto_dest_x, goto_dest_y);
         const bool stepped = units_advance_goto_one_step(
           &game->units, active_id, &game->world_map, &game->colonies, &game->move_rng
         );
         ColonizeUnit* again = units_get(&game->units, active_id);
         const bool sailed_for_europe =
           goto_ship_to_lane && again && again->active && units_is_on_map(again) &&
-          map_tile_is_high_seas(&game->world_map, again->x, again->y);
+          again->x == goto_dest_x && again->y == goto_dest_y;
         if (sailed_for_europe) {
           game_ship_sail_to_europe(game, active_id);
           if (turn_select_next_unit(&game->units, game->human_nation)) {
@@ -12230,26 +12262,15 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
       }
     } else if (!active_awaiting_player && !game->view_pieces_mode) {
       /* No unit is currently both selected and idle-awaiting the player —
-       * advance the cycle to find the next one that does. Loops (bounded
-       * — each call moves strictly forward and never revisits a unit
-       * within one sweep) rather than a single call so a run of several
-       * standing-order units in a row doesn't each need their own frame
-       * to skip past. Gated on !view_pieces_mode: once the player has
+       * advance the cycle to find the next one that does
+       * (game_select_next_unit_awaiting_orders loops internally, so a run of
+       * several standing-order units in a row doesn't need one frame each to
+       * skip past). Gated on !view_pieces_mode: once the player has
        * explicitly deselected to browse (V / right-click / VIEW ~View
        * Pieces), this must not silently grab control back next frame just
        * because no unit is currently selected — that's the whole point of
        * View Pieces (manual_gap / this file's Move-View spec). */
-      bool found_awaiting = false;
-      for (int guard = 0; guard < COLONIZE_UNITS_MAX; ++guard) {
-        if (!turn_select_next_unit(&game->units, game->human_nation)) {
-          break;
-        }
-        const ColonizeUnit* next = units_get_const(&game->units, game->units.selected_id);
-        if (!next || !units_orders_skip_turn(next)) {
-          found_awaiting = next != NULL;
-          break;
-        }
-      }
+      const bool found_awaiting = game_select_next_unit_awaiting_orders(game);
       if (found_awaiting) {
         game->view_pieces_mode = false;
         const ColonizeUnit* next = units_get_const(&game->units, game->units.selected_id);

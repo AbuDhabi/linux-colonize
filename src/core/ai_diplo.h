@@ -24,7 +24,8 @@
  * Indian pairs as "attack-village confirmed"; the Linux-only alliance
  * machinery that set it was retired T2.4 2026-09-06). Readers left: the
  * self-pair virtual in ai_diplo_read, and ai_king 2244's byte-faithful
- * eligibility check (reduces to self-only, as in DOS). TREASURE_* Linux.
+ * eligibility check (reduces to self-only, as in DOS). 0x08 AMICABLE and
+ * 0x80 TREASURE_ALERT are DOS bits too — see the block below.
  */
 #define AI_DIPLO_WAR 0x02
 #define AI_DIPLO_PEACE 0x40
@@ -33,10 +34,11 @@
 #define AI_DIPLO_WAR_INTENT 0x01
 #define AI_DIPLO_CROWN_ARMED 0x10 /* FUN_38fd_5930 @KINGNEWWAR: Crown cancelled our peace with this peer */
 /*
- * FUN_4720_049e Treasure Train tension bump (euro_unit_act.md). DOS sets
- * the real bit 0x80 here (confirmed transient alert, set/cleared
- * elsewhere in FUN_15b3_153e) plus a weaker/stronger follow-up bit, DOS
- * literal "2"/"8".
+ * Treasure Train tension bump (euro_unit_act.md). Writer corrected
+ * 2026-09-09 to FUN_465b_0000 (viceroy_unpacked.c:75527-75545); the old
+ * FUN_4720_049e citation was wrong. DOS sets the real bit 0x80 there
+ * (confirmed transient alert, set/cleared elsewhere in FUN_15b3_153e)
+ * plus a weaker/stronger follow-up bit, DOS literal "2"/"8".
  *
  * 2026-08-15, `153e` bit-semantics pass: bit 2 confirmed to genuinely BE
  * `AI_DIPLO_PEACE` after all — the earlier "grudge/pressure, don't reuse"
@@ -56,28 +58,33 @@
  * Thematically fits the treasure mechanic too: a weaker rival responds to
  * a wealthy/strong nation by seeking peace. **Now uses the real DOS bit.**
  *
- * Bit 8: found one Euro-Euro site (`153e` line ~1361, `*pbVar3 |= 8`),
- * gated on a local (`iStack_b0`) that gets set when the pair is already
- * MET *and* (already peaceful *or* the other nation is weaker) — reads
- * as "negotiation concluded / other party already amenable", not a
- * clean parallel to bit 2's plain peace-seeking. Doesn't cleanly match
- * this mechanic's "stronger rival" branch (the opposite condition) —
- * kept as a Linux-only stand-in (`AI_DIPLO_TREASURE_STRONGER`) rather
- * than reuse a bit whose real DOS role points the other way; fully
- * mapping it would need `153e`'s own `iStack_a8`/negotiation-flow depth,
- * out of scope for this specific bit-semantics pass.
- *
  * 2026-08-27 static close: DOS bit 0x08 = "amicable-negotiation latch".
- * Set only at 153e's common tail (viceroy_unpacked.c:98415) when the pair
- * is already MET and (peace kept or target weaker). Consumed by
+ * Set at 153e's common tail (viceroy_unpacked.c:98415) when the pair is
+ * already MET and (peace kept or target weaker). Consumed by
  * FUN_521d_6d8e: when the pair's cooldown (unknown26 +0x40..) reads 0 and
  * the latch is set, 1-in-3 per turn → `rel = (rel & 0xb7) | WAR` (clears
  * 0x08|0x40, declares war) — a random relapse after a truce cools off.
- * Also listed by the foreign-affairs report (string 0x42). Linux still
- * uses 0x08 as the TREASURE_STRONGER stand-in; not reconciled here.
+ * Also read by the 0a60 continent-stance gate (ai_euro.c) and cleared by
+ * FUN_43f7_0108's 0x0b mask. Also listed by the foreign-affairs report
+ * (string 0x42).
+ *
+ * 2026-09-09 collision reconciled (smell #99). The Treasure-Train
+ * "stronger rival" follow-up was carried as a Linux-only stand-in named
+ * `AI_DIPLO_TREASURE_STRONGER`, and the name implied a second, invented
+ * owner of the same bit. **REFUTED — the write is DOS's own.** The real
+ * writer is not `FUN_4720_049e` (the old citation, chased down and found
+ * wrong) but `FUN_465b_0000` (viceroy_unpacked.c:75527-75545): with the
+ * acting unit a Treasure (`+0x3146 == 0x10`) it does
+ * `nation[target].euro_relation[actor] |= 0x80`, then on
+ * `rng(0,100) < difficulty+1` compares `land_combat_strength` (`-0x6be4`)
+ * and ORs **`2` when the target is weaker, `8` when it is not** — the same
+ * literal 0x08 the 153e tail sets. So DOS itself writes this bit from two
+ * sites into one latch with one consumer; there is no double-booking to
+ * split. Renamed `AI_DIPLO_AMICABLE` to stop the name asserting otherwise.
  */
 #define AI_DIPLO_TREASURE_ALERT 0x80
-#define AI_DIPLO_TREASURE_STRONGER 0x08
+/* DOS bit 0x08: amicable-negotiation latch (153e tail + 465b treasure arm). */
+#define AI_DIPLO_AMICABLE 0x08
 
 
 /*

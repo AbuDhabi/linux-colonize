@@ -2746,9 +2746,13 @@ static void colony_screen_draw_cargo_strip(
       const int tw = colony_screen_text_width(font, amount);
       const int tx = slot_x + (COLONY_CARGO_SLOT_W - tw) / 2;
       /* bugs.md: stock past warehouse capacity draws in the alert colour —
-       * the excess spoils next turn (over-capacity unloads are allowed). */
+       * the excess spoils next turn (over-capacity unloads are allowed).
+       * FUN_2f2b_28d6 (viceroy_unpacked.c 49118-49123) wraps that test in
+       * `if (local_80 != 0)`: Food is never drawn as over-capacity, because
+       * food over capacity is the new-colonist bank, not spoilage. */
       const int wcap = colonies_warehouse_capacity(pool, colony, i);
-      const bool over = wcap > 0 && colony->stock[i] > wcap;
+      const bool over =
+        i != COLONIZE_CARGO_FOOD && wcap > 0 && colony->stock[i] > wcap;
       const uint8_t base_col = over
         ? 12
         : (europe_custom_house_cargo_enabled(colony->custom_house_bits, i) ? 10 : 61);

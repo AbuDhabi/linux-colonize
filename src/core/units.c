@@ -3161,6 +3161,47 @@ static void units_ship_lose_holds(ColonizeUnitPool* pool, int ship_id) {
   }
 }
 
+/*
+ * Damage vs sink — DOS FUN_5fef_0352 (viceroy_unpacked.c 99518-99530):
+ *
+ *   bVar11 = true;                                     // 99523, ship loser
+ *   if (winner_type*0xe + 0x523b != 0) {               // @UNIT guns column
+ *     uVar16 = loser_type*0xe + 0x523c;                // @UNIT hull column
+ *     iVar18 = FUN_281f_04d4(1, guns + uVar16);
+ *     bVar11 = iVar18 <= (int)uVar16;                  // <= hull → damaged
+ *   }
+ *
+ * i.e. a gunless victor can only drive the loser off damaged, never sink it.
+ * Both call sites (naval loss, coastal-fort fire — the fort's strength stands
+ * in for "guns", bugs.md/DOS 0352 doubling the repair bill for a non-ship
+ * winner) go through this one helper so the port cannot break ties two ways.
+ *
+ * The rng == NULL path is port-only (headless tests / deterministic replays).
+ * It applies the same mechanical transform this file already uses for the
+ * other DOS `roll(1, X+Y) <= X` decision — `atk_wins = attack_str >= defense`
+ * in units_fort_vs_ship — to `roll(1, guns+hull) <= hull`, i.e. `hull >= guns`
+ * → damaged. hull == guns is an exact coin flip in DOS (@UNIT Privateer and
+ * Caravel both have guns == hull), so the tie direction is a port convention,
+ * not a DOS fact; the two call sites used to break it in OPPOSITE directions
+ * and are now one function so they cannot diverge again.
+ */
+static int units_ship_damage_vs_sink(
+  ColonizeDosRng* rng,
+  int winner_guns,
+  int loser_hull
+) {
+  if (winner_guns <= 0) {
+    return 1;
+  }
+  if (loser_hull < 0) {
+    loser_hull = 0;
+  }
+  if (!rng) {
+    return loser_hull >= winner_guns;
+  }
+  return dos_rng_range(rng, 1, winner_guns + loser_hull) <= loser_hull;
+}
+
 static int units_apply_naval_loss_outcome(
   ColonizeUnitPool* pool,
   int loser_id,
@@ -3210,14 +3251,7 @@ static int units_apply_naval_loss_outcome(
    */
   const int wguns = wt ? wt->guns : 0;
   const int lhull = lt ? lt->hull : 0;
-  int damaged;
-  if (wguns <= 0) {
-    damaged = 1;
-  } else if (rng) {
-    damaged = dos_rng_range(rng, 1, wguns + lhull) <= lhull;
-  } else {
-    damaged = lhull > wguns; /* deterministic no-RNG fallback: tie sinks */
-  }
+  int damaged = units_ship_damage_vs_sink(rng, wguns, lhull);
   /*
    * bugs.md 260 / DOS 0352 damage tail (overlays.c 85117-85186): repair is a
    * TIMER, not a drydock flash — bit7 + turns_worked preset so the normal
@@ -5635,14 +5669,9 @@ static bool units_fort_vs_ship(
     const int human = units_combat_human_involved(col1, def->nation_id, fort_nation);
     units_ship_lose_holds(pool, defender_id);
     const int lhull = dt->hull > 0 ? dt->hull : 0;
-    int damaged;
-    if (attack_str <= 0) {
-      damaged = 1;
-    } else if (rng) {
-      damaged = dos_rng_range(rng, 1, attack_str + lhull) <= lhull;
-    } else {
-      damaged = lhull >= attack_str; /* deterministic fallback: tie damages */
-    }
+    /* Same DOS 0352 roll as the naval path — fort strength stands in for the
+     * winner's @UNIT guns column. See units_ship_damage_vs_sink. */
+    int damaged = units_ship_damage_vs_sink(rng, attack_str, lhull);
     const ColonizeColony* home = NULL;
     if (damaged) {
       home = units_nearest_own_drydock_colony(

@@ -317,11 +317,26 @@ int combat_engagement_strength(
   const int base = combat_unit_base_x8(ctx, unit_id, 0, out_flags);
   int local_1a = 0;
 
-  /* A. Own-nation Euro colony on unit tile. */
-  if (ctx->colonies && u->nation_id >= 0 && u->nation_id <= 3) {
+  /*
+   * A. Euro colony on the unit's tile — DOS FUN_157e_015e (viceroy_unpacked.c
+   * 9004-9012):
+   *
+   *   iVar6 = FUN_137f_0358(uVar1,uVar2);      // uVar1/uVar2 = THIS unit's x/y
+   *   if (-1 < iVar6) { ...bind colony...; local_1a = (FUN_157e_0008()+1)*2; }
+   *
+   * FUN_137f_0358 = euro_settlement_owner (viceroy_unpacked.c 6793-6810,
+   * SYMBOL_MAP.md): layer2 bit 2 on the tile → owner byte, and −1 when that
+   * owner is ≥ 4. So the arm's only conditions are "a settlement stands here"
+   * and "its owner is a European nation". DOS never compares the owner to the
+   * unit's nation and never tests the unit's own nation — the port's
+   * `col->nation_id == u->nation_id` and `u->nation_id <= 3` guards were both
+   * invented, and they also disagreed with combat_unit_on_colony above, which
+   * is (correctly) a bare tile probe.
+   */
+  if (ctx->colonies) {
     const int cid = colonies_id_at(ctx->colonies, u->x, u->y);
     const ColonizeColony* col = colonies_get(ctx->colonies, cid);
-    if (col && col->active && col->nation_id == u->nation_id) {
+    if (col && col->active && col->nation_id >= 0 && col->nation_id <= 3) {
       local_1a = combat_colony_local_1a(ctx->colonies, col, out_flags);
       goto fortify;
     }
@@ -975,8 +990,17 @@ void combat_naval_engage(
   combat_side_flags_clear(&out->def_flags);
   out->atk_strength = combat_unit_base_x8(ctx, attacker_id, 1, &out->atk_flags);
   out->def_strength = combat_unit_base_x8(ctx, defender_id, 0, &out->def_flags);
-  /* bugs.md: attacking ships get the same +50% attack factor land attackers
-   * do (the land formula's ×3/2 tail was never applied at sea). */
+  /*
+   * Attacking ships get the same ×3/2 attack factor land attackers do.
+   * FUN_5fef_1b0e is the SINGLE resolver for both domains and its scale line
+   * (viceroy_unpacked.c 100457-100458) is unconditional:
+   *   iVar24 = FUN_281f_09c8(0x281f,param_1,1);     // → FUN_157e_004a mode 1
+   *   local_92 = ((*(int *)0x8d04 + 4) * iVar24 >> 2) * 3 >> 1;
+   * The is-ship flags bVar9 / bVar10 (100347, 100451) gate later clauses, not
+   * this one. Combat Analysis shows the matching "Attack Bonus +50%" row for
+   * ships as well (FUN_636c_0000 viceroy_unpacked.c 101874-101891, walking
+   * DS:0x8d00 bit 0, which FUN_157e_004a sets on every mode-1 evaluation).
+   */
   out->atk_strength += out->atk_strength >> 1;
   if (out->atk_strength < 0) {
     out->atk_strength = 0;

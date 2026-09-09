@@ -40,8 +40,10 @@ Save field: `ColonizeCol1Head.difficulty` (`uint8_t`, clamp 0..4). Runtime:
 | Human starting gold | Discoverer **1000**, Explorer **300**, Conquistador+ **0** | **Wired** 2026-08-28 (`ai_starting_gold`, `ai.c`) |
 | Starter skills | Easy → Veteran Soldier; French Hardy always; Spanish Veteran always | Wired |
 | FF liberty-bell thresholds | Harder → higher human need, lower AI need; WoI `diff*1500+2000` | Wired |
-| King tax cadence | First year `1536-diff`; interval `22-2*diff` | Wired |
-| REF seed / waves | Larger pools; 2nd MoW + 3rd intervene landing at `diff≥2` | Wired |
+| King tax cadence | Audience interval `band − 2*(diff−2)`, band 18/15/12/9 by year; turn ≥ 30 | Wired |
+| REF seed / growth | New-game pools `8*diff+15` / `5*(diff+1)` / `3*diff+2` / `6*diff+2`; purse `diff*8+10` per peacetime turn | Wired |
+| Tory uprising | Fires on `rng(0,diff+1)!=0`; colony score `+diff+1` | Wired |
+| Intervention pools | `1a26` census seed uses `−diff` / `(4−diff)/2`; landing size fixed | Wired |
 | Euro AI gold / hire | Harder → less free gold, higher hire gate | Wired |
 | AI immigration pressure | `((8-diff)*score)>>3` | Wired (AI only) |
 | Indian alarm prelude | Harder → escalate more often / larger bumps | Wired |
@@ -125,45 +127,188 @@ WoI:   need = diff*1500 + 2000
 
 ---
 
-## King tax
+## King tax (royal audience)
 
-[`ai_king_tax_event`](../src/core/ai_king.c):
+The tax event has **no first year and no season**. It is a turn-counter gate,
+ported from `FUN_38fd_5be8` (`viceroy_unpacked.c:68420`, caller `FUN_38fd_5e52`
+at `:68539`) in [`ai_king_audience_roll`](../src/core/ai_king.c); the delta is
+applied by `FUN_38fd_3dc8` (`ai_king_audience_apply_delta` /
+`ai_king_tax_commit`). Called every peacetime turn from `ai_king_nation_turn`
+(`FUN_43f7_2424` peacetime arm) for the human slot only; `1d42` is a full no-op
+once the WoI is declared, and so is the audience with it.
+
+Gate, in order:
 
 ```
-first_year = 1536 - diff
-interval   = 22 - diff*2   (min floor not hit in 0..4)
+turn counter (DS:0x538e) >= 30                      // no audience before turn 30
+interval_base = 18 ; year>1600 → 15 ; year>1700 → −3 ; year>1750 → −3
+interval      = interval_base − 2*(difficulty − 2)  // DOS "audience nation is human" arm
+fire only when turn % interval == 0
+skip when tax_rate > 85
 ```
 
-| Diff | First year | Interval |
-|-----:|-----------:|---------:|
-| 0 Discoverer | 1536 | 22 |
-| 1 Explorer | 1535 | 20 |
-| 2 Conquistador | 1534 | 18 |
-| 3 Governor | 1533 | 16 |
-| 4 Viceroy | **1532** | 14 |
+Difficulty shortens the cadence by 2 turns per level above Conquistador and
+lengthens it by 2 per level below — it never moves a "first year".
 
-Fandom “Viceroy 1534” is wrong; decomp/port use `1536-diff`.
+| Diff | ≤1600 | 1601–1700 | 1701–1750 | ≥1751 |
+|-----:|------:|----------:|----------:|------:|
+| 0 Discoverer | 22 | 19 | 16 | 13 |
+| 1 Explorer | 20 | 17 | 14 | 11 |
+| 2 Conquistador | 18 | 15 | 12 | 9 |
+| 3 Governor | 16 | 13 | 10 | 7 |
+| 4 Viceroy | 14 | 11 | 8 | 5 |
+
+(The old doc's `22 − 2*diff` happens to be the ≤1600 column; it missed the year
+bands, the turn-30 gate and the 85% skip, and the `1536 − diff` "first year" was
+never in the code at all.)
+
+Once the gate passes, difficulty drops out — the delta comes from a favor score
+(`viceroy_unpacked.c:68460-68467`):
+
+```
+score = RNG(1,1000)
+      + (rebel_sentiment_report*2 − tax_rate)*5
+      + gold/100
+      + census_pop_proxy[human]      // DS:nation−0x6bf0, the FUN_4962_0018 census
+      + turn/30
+```
+
+Ladder → signed delta:
+
+| Score | Delta |
+|-------|-------|
+| < 100 | cut `−min(RNG(2,5), tax_rate)`; **no event at all** if the cut would be 0 |
+| 100–649 and `king_audience_streak < 30` | `+1`, streak++ |
+| 650–949 (and the streak≥30 fallback out of the +1 band) | `+2` (plus a narrative-line reroll, no numeric effect) |
+| 950–1099 | `RNG(3,4)` |
+| ≥ 1100 | `RNG(5,8)` |
+
+Apply is unconditional and clamped to **0..75%** (`ai_king_audience_apply_delta`;
+excess is trimmed back out of the applied delta). Only a genuine positive
+applied delta reaches the village-goods dialog, whose choice is keep-the-raise
+vs. tea party (which *reverts* the raise and boycotts one roulette-picked
+cargo) — it never gates whether the raise happens.
 
 ---
 
-## REF seed and intervention
+## REF seed, growth and intervention
 
-On declare ([`ai_king_do_declare`](../src/core/ai_king.c)):
+### Expeditionary Force seed — at **new game**, not at declare
 
-| Pool | Formula | Diff 0→4 |
-|------|---------|----------|
-| Regulars | `8+diff*4` | 8, 12, 16, 20, 24 |
-| Dragoons | `4+diff*2` | 4, 6, 8, 10, 12 |
-| Men-O-War | `2+diff` | 2, 3, 4, 5, 6 |
-| Artillery | `2+diff` | 2, 3, 4, 5, 6 |
-| backup Regulars | `2+diff` | 2..6 |
-| backup Dragoons | `1+(diff>0)` | 1, 2, 2, 2, 2 |
-| backup MoW | `diff>1 ? 1 : 0` | 0, 0, 1, 1, 1 |
-| backup Artillery | `1` | always 1 |
+The REF exists from turn 1 and nothing drains it before the declaration
+(`75c2:360b..3643`, `viceroy_unpacked_2.c:112436-112443`). Port:
+[`ai.c`](../src/core/ai.c) `ai_new_game` (wizard path),
+[`game_loop.c`](../src/core/game_loop.c) (save template + a load-time backfill to
+this floor for pre-WoI saves from older builds). `ai_king_do_declare` re-seeds
+**only** when all four pools are still zero — re-seeding at declare would shrink
+an accumulated force.
 
-Also when `diff ≥ 2`: second Man-O-War wave same beat; foreign intervention up to
-**3** landings (else 2). See [port_plan.md](port_plan.md) /
-[`king_ref.md`](../original_sources_annotated/ai/king_ref.md).
+| Pool | DS | Formula | 0 | 1 | 2 | 3 | 4 |
+|------|----|---------|--:|--:|--:|--:|--:|
+| Regulars | `0x53da` | `8*diff + 15` | 15 | 23 | 31 | 39 | 47 |
+| Dragoons / Cavalry | `0x53dc` | `5*(diff + 1)` | 5 | 10 | 15 | 20 | 25 |
+| Man-O-War | `0x53de` | `3*diff + 2` | 2 | 5 | 8 | 11 | 14 |
+| Artillery | `0x53e0` | `6*diff + 2` | 2 | 8 | 14 | 20 | 26 |
+
+(`head.expeditionary_force[0..3]` in save order regulars / dragoons / MoW /
+artillery. The old `8+diff*4` … `2+diff` table matched nothing in the code.)
+
+### Per-turn growth — the royal purse, not the tax event
+
+`FUN_43f7_1d42` (`viceroy_unpacked.c:74846-74907`, OVL07 asm at file offset
+`0x2c62`), ported as `ai_king_1d42_royal_purse`. Runs once per **peacetime** turn
+for the human slot; the asm's first test (`TEST [0x5382],1 → RETF`) makes it a
+full no-op after the declaration.
+
+```
+growth = difficulty*8 + 10 ;  doubled at year>=1600, >=1700, >=1750
+nation.royal_money += growth
+if royal_money >= 1800:
+    k = 0                                                  // Regulars
+    if (reg + 2)/3 > cavalry:              k = 1           // Cavalry
+    if reg/4        > artillery:           k = 3           // Artillery
+    if (reg+cav+art+5)/10 > man_o_war:     k = 2           // MoW (last write wins)
+    expeditionary_force[k]++ ; @KINGBUY ; royal_money -= 1800
+```
+
+| Diff | growth ≤1599 | 1600–1699 | 1700–1749 | ≥1750 |
+|-----:|-------------:|----------:|----------:|------:|
+| 0 | 10 | 20 | 40 | 80 |
+| 1 | 18 | 36 | 72 | 144 |
+| 2 | 26 | 52 | 104 | 208 |
+| 3 | 34 | 68 | 136 | 272 |
+| 4 | 42 | 84 | 168 | 336 |
+
+So Viceroy buys a REF unit roughly every 43 peacetime turns in the 1500s and
+every 5–6 turns after 1750; Discoverer, 180 and 22. Growing pools on tax
+audiences was an invented stand-in and is gone (2026-09-06).
+
+### Wave and Tory-uprising difficulty terms
+
+`ai_king_ref_wave` (`FUN_43f7_0982` / `FUN_43f7_2022` gate at
+`viceroy_unpacked.c:74994`) runs the invasion while
+`regulars + (cavalry>0) + (artillery>0) != 0` — the MoW pool alone does not
+sustain it. When the land pools are empty the crown falls back to the
+`FUN_43f7_06a6` Tory uprising (`:73829-73932`), which is the only
+difficulty-sensitive part of the wave:
+
+```
+fire at all:  rng(0, difficulty+1) != 0        // (diff+1)/(diff+2): 1/2 … 5/6
+colony score: pop*(100−SoL)*2/100 + difficulty + 1 − attack of units on the tile
+```
+
+Veteran and Dragoon promotion of the spawned irregulars roll on the same
+`rng(0, difficulty+1) != 0`. `AI_KING_SECOND_MOW_DIFF` (the old "second MoW wave
+at `diff ≥ 2`") is a leftover constant with no call site — that shape was a
+stand-in.
+
+### Foreign intervention
+
+Two independent things, neither of which is a difficulty band:
+
+1. **Pool seed at declare** — `FUN_43f7_1a26` (`viceroy_unpacked.c:74765-74795`,
+   type lookup `:74424`) writes `backup_force[0..3]` (DS `0x53e2`/`e4`/`e6`/`e8` =
+   Regulars / Dragoons / **Man-O-War** / Artillery) from the *ally's* live census
+   (`ai_king_seed_backup_force_1a26`; the ally is the weaker of the two remaining
+   Euro powers, `rival_nation_slot_1`). Difficulty enters twice, as `−diff` and as
+   `iVar7 = (4−diff)/2`:
+
+   ```
+   iVar7 = (4 − diff) / 2
+   pool0 = ((census_pop_proxy[ally]/10 − diff + 8) + 9) / 2         // Regulars
+   pool1 = (((field_combat_totals[ally]+1)>>4) + iVar7 + 1 + 2) / 2 // Dragoons
+   pool3 = ((iVar7 + ((land_combat_strength[ally]+1)>>5) + 3) + 4)/2// Artillery
+   pool2 = ((iVar7 + privateers[ally] + frigates[ally] + 3) + 4)/2  // Man-O-War
+   then: pool1, pool3 ≤ 2*pool2 ;  pool0 ≤ 6*pool2 − pool1 − pool3
+   ```
+
+   Harder levels shrink every pool by 1–2 (and the census term dominates), so the
+   table of fixed `2+diff` / `1+(diff>0)` backup values in the old text is wrong
+   in both shape and source.
+
+2. **Trigger and landings** — the announce is bought by the WoI liberty-bell pool
+   at `diff*1500 + 2000` bells (`founding_fathers_bells_needed`, see the FF table
+   above), spent through `ai_king_spend_woi_bell_pool` (`FUN_4345_0a22` →
+   `:74462` @INTERVENTION, which sets the `0x5382` bit2 **intervention-once**
+   latch at `:74493`). After that latch, the per-turn free drain
+   (`FUN_43f7_2022`, `:75007`) keeps landing forces every turn while
+   `backup_force[2]` (the MoW pool) is nonzero. Each landing
+   (`FUN_43f7_10f0`, `:74378-74449`, `ai_king_foreign_intervene_ex`) is spawned
+   for the **human's** nation — the intervention force is player-controlled — and
+   is fixed at six land units plus a hull, with no difficulty term:
+
+   ```
+   1 Man-O-War (type 0x12) on the best water tile beside the colony  (pool 2 −1)
+   Cont. Cavalry  = min(pool1, 2)
+   Artillery      = min(pool3, 2)
+   Cont. Army     = 6 − (cavalry + artillery), capped by pool0
+   all Veteran (profession 0x15), 5×5 reveal around the colony
+   ```
+
+   "Up to 2 landings, 3 at `diff ≥ 2`" was a stand-in; `AI_KING_INTERVENE_DIFF_THIRD`
+   no longer exists.
+
+See [`king_ref.md`](../original_sources_annotated/ai/king_ref.md).
 
 ---
 
@@ -332,7 +477,9 @@ Combat odds **are** difficulty-sensitive for human Euro sides
 
 | Topic | Rejected claim | Authoritative |
 |-------|----------------|---------------|
-| Viceroy first tax year | Fandom **1534** | `1536-diff` → **1532** |
+| First tax year | Fandom **1534**; port doc's old `1536-diff` | Neither: `FUN_38fd_5be8` has no year gate at all — turn ≥ 30 + a turn-modulo interval |
+| REF pool seed | Old doc `8+diff*4` / `4+diff*2` / `2+diff` at declare | `75c2:360b` at **new game**: `8*diff+15` / `5*(diff+1)` / `3*diff+2` / `6*diff+2` |
+| REF pool growth | "grows on each tax event" | `FUN_43f7_1d42` royal purse, per peacetime turn |
 | Easy starters | Both Hardy + Veteran for all ([assets.md](assets.md) old prose) | Hardy **French-only**; easy grants Veteran broadly |
 | Tory caps 10…6 | — | Decomp `10-diff` + manual (fandom matched) |
 | Starting gold | Port always **1000** (fixed 2026-08-28) | `FUN_38fd_6024`: **1000 / 300 / 0** |
