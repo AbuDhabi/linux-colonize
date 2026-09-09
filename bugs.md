@@ -427,3 +427,6 @@ Resolutions compressed to their lead sentence 2026-09-05; full original text: [d
 | Newly bought Merchantman sent to the New World spawned in an unexplored sea lane tile, and did not even insta-reveal the fog. I had to move it to reveal. | |
 | Trade/haggle dialog is missing the tribe chief flair.  | |
 | A unit with spent moves should not be land-fall-able. It should stay on the ship. | |
+| Popups about rival monarchs considering granting their colonies independence show up way too early. Like in 1530. This is far earlier than I've seen them in DOS. | |
+| The sales lines in the top bar, both for custom house and European Status, should be sped up. 3x as fast, please. | |
+| "The <nation> settlers in <colony> have committed intolerable acts" popup needs tribe chief flair. | |
