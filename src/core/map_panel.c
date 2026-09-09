@@ -1636,14 +1636,19 @@ void map_panel_render(
       if (tribe && text_y + MAP_PANEL_ROW_H <= y_limit) {
         const char* tshort = map_panel_tribe_short(names, tribe->nation_id);
         const char* settlement = "Camp";
-        int tech = 0;
+        /* `col1 && col1->indian[..].tech` was a logical AND — every tribe with
+         * a tech above 0 collapsed to 1, so Aztec (2) and Inca (3) drew the
+         * Village icon and read the Village @LEVELS row. bugs.md. */
+        int tech = (col1 && tribe->nation_id >= 4 && tribe->nation_id < 12)
+                     ? (int)col1->indian[tribe->nation_id - 4].tech
+                     : 0;
         if (names) {
           const ColonizeMsgSection* levels = assets_msg_find(names, "LEVELS");
-          tech = (tribe->nation_id >= 4 && tribe->nation_id < 12)
-                   ? (col1 && col1->indian[tribe->nation_id - 4].tech)
-                   : 0;
-          if (levels && tech >= 0 && tech < levels->line_count) {
-            const char* lp = strchr(levels->lines[tech], ',');
+          /* DOS 49dd:115b: a capital forces the @LEVELS row to 4 ("Capital"),
+           * whatever the tribe's tech level is. */
+          const int level_row = tribe->state.capital ? 4 : tech;
+          if (levels && level_row >= 0 && level_row < levels->line_count) {
+            const char* lp = strchr(levels->lines[level_row], ',');
             if (lp) {
               ++lp;
               while (*lp == ' ') {
@@ -1673,6 +1678,11 @@ void map_panel_render(
         const int tribe_icon = MAP_PANEL_TRIBE_ICON_BASE + tech;
         if (icons && icons->sprite_count > tribe_icon) {
           ss_blit_sprite(icons, tribe_icon, framebuffer, text_x, text_y);
+          /* DOS 112b:09a1 falls through to the capital starburst on every
+           * scale, the sidebar's 100 included — same x/y as the village. */
+          if (tribe->state.capital && 17 < icons->sprite_count) {
+            ss_blit_sprite(icons, 17, framebuffer, text_x, text_y);
+          }
         }
         char line[72];
         snprintf(line, sizeof(line), "%s %s", tshort, settlement);
