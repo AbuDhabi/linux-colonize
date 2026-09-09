@@ -433,4 +433,4 @@ Resolutions compressed to their lead sentence 2026-09-05; full original text: [d
 | Contact popups with the Tupi got interrupted by contact popups with the Spanish. These should not mix. Player has to deal with one event chain, then the other one can start. | |
 | On the Indian report, tribe names and tribe advancement use the wrong font. Those should be FONTTINY. | |
 | Playing on the original Americas map, the western edge is apparently cut off one tile too soon. That's where the sea lanes are for the west coast. | |
-| In a recent save, Montreal seems to lack a carpenter's house. Clicking it says "build it first". That's incorrect. It's one of the buildings all colonies have at start. | |
+| In a recent save, Montreal seems to lack a carpenter's house. Clicking it says "build it first". That's incorrect. It's one of the buildings all colonies have at start. See: missing_carpenters.SAV | |
