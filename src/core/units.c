@@ -7664,7 +7664,19 @@ static int units_flood_edge(
       (cx == nx || cy == ny)) {
     return 1;
   }
-  const int edge = low_move ? 3 : map_dos_terr_cost_byte(map_dos_terr_class_at(map, nx, ny)) * 3;
+  int edge = low_move ? 3 : map_dos_terr_cost_byte(map_dos_terr_class_at(map, nx, ny)) * 3;
+  /*
+   * Out-of-table guard, not DOS: the terrain-class records only run 0..28, so
+   * DOS never indexes the 255 bytes sitting at 29..31 and its flood applies no
+   * clamp. The port's class comes from terrain_byte & 0x1f, which can reach
+   * 30/31 on a corrupt or hand-edited map, and both map.c cost helpers already
+   * fold that sentinel to 1 (map_move_spent_thirds, map_move_cost_step). Same
+   * fold here so the flood cannot price a tile at 765 thirds that the real move
+   * charges 1 for. No effect on any class a valid map produces.
+   */
+  if (edge > 100) {
+    edge = 1;
+  }
   return edge > 0 ? edge : 1;
 }
 
@@ -7836,6 +7848,13 @@ static bool units_flood_next_step(
 
   int best_x = -1;
   int best_y = -1;
+  /*
+   * Both bounds are the DOS literals, not a port cap: the neighbour-pick tail
+   * opens with `uStack_30 = 99; uStack_e = 99;` (viceroy_overlays.c:86761-86762,
+   * FUN_OVL20_L0000__0015bc). Costs are thirds, so a path priced above 99
+   * inside the 15x15 window genuinely takes no candidate and the flood reports
+   * failure — DOS behaves the same and the caller falls back to the greedy tier.
+   */
   int best_score = 99;
   int best_tie = 99;
   for (int dy = -1; dy <= 1; ++dy) {
@@ -9675,8 +9694,18 @@ int units_find_boardable_ship(
         continue;
       }
     }
-    const int cap = units_ship_capacity(pool, ship->id);
-    if (cap > 0 && ship->cargo_count < cap) {
+    /*
+     * Room test must be the one units_board applies, not the passenger count
+     * alone: goods share the hold array with passengers, so a hull whose holds
+     * are full of cargo has no berth even at cargo_count 0. DOS agrees — 10be
+     * seeds its board budget with capacity minus occupied holds and 0a60's
+     * hull-full test is the same arithmetic (FUN_15eb_3208 free room =
+     * 0x5237[type] - unit+0x3150; see original_sources_annotated/ai/
+     * move_scoring_20e6_full.md, 2026-09-08 section). Counting passengers only
+     * made units_enter_probe answer BOARD where units_board then refused, and
+     * the move surfaced as a bogus domain block.
+     */
+    if (units_ship_free_passenger_slots(pool, ship->id) > 0) {
       return ship->id;
     }
   }

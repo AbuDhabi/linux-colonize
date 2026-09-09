@@ -901,6 +901,10 @@ void europe_set_nation(EuropeScreen* eu, int nation, const ColonizeMsgCatalog* n
     str_copy_trunc(eu->colony_region, sizeof(eu->colony_region), k_regions[nation]);
   }
   str_copy_trunc(eu->nation_name, sizeof(eu->nation_name), k_nations[nation]);
+  /* FUN_38fd_0000(nation): DS:0x9e12 = nation, DS:0x84fc = its record
+   * (viceroy_unpacked.c 58696-58702). The trade-volume term reads 0x9e12 for
+   * the human test and the Dutch slot-3 damping. */
+  eu->bound_nation = (uint8_t)nation;
 }
 
 int europe_voyage_turns_roll(ColonizeDosRng* rng, bool magellan, int ship_count) {
@@ -2381,9 +2385,13 @@ int europe_net_after_tax(int gross, int tax_percent) {
 }
 
 static int europe_1d44_term(int amount, int seller_is_human, int difficulty) {
-  /* FUN_38fd_1d44: ((human ? difficulty − 2 : −2) · 16 · amount) / 100,
-   * C division (truncates toward zero — the AI −384/100 → −3 case is what
-   * the dutch2 pair needs). */
+  /* FUN_38fd_1d44 (viceroy_unpacked.c 60186-60201):
+   *   k = (0x9e12 < 4 && 0x543f[0x9e12*0x34] == 0) ? DS:0x53a6 − 2 : −2
+   * i.e. the BOUND nation (the one whose record 0x84fc the ledger credits =
+   * the trading nation) being human-controlled picks the difficulty arm; an
+   * AI (or a crown/indian slot ≥ 4) always gets −2. Then
+   * (k · 16 · amount) / 100, C division (truncates toward zero — the AI
+   * −384/100 → −3 case is what the dutch2 pair needs). */
   const int k = seller_is_human ? (difficulty - 2) : -2;
   return (k * 16 * amount) / 100;
 }
@@ -2414,12 +2422,19 @@ void europe_apply_trade_volume(
   if (col1) {
     difficulty = (int)col1->head.difficulty;
   }
-  const int seller_is_human = (seller_nation == human_nation);
+  /* 1d44's `0x9e12 < 4` guard: a crown/indian slot (or an unknown seller)
+   * never takes the human arm. */
+  const int seller_is_human =
+    (seller_nation >= 0 && seller_nation < 4 && seller_nation == human_nation);
   int term = (amount << shift) + europe_1d44_term(amount, seller_is_human, difficulty);
-  /* Only the human's record is live here; DOS also adds it to the other
-   * three nation records (their nr is not ticked on this side). Nation 3
-   * (the Dutch) takes (term·2)/3 regardless of who sold. */
-  if (human_nation == 3) {
+  /* Only the human's record is live here (col1_bridge binds eu->trade_nr to
+   * head.human_player's nation.trade.nr); DOS walks all four records. The
+   * Dutch record (slot 3) takes (term·2)/3 regardless of who sold — SELL
+   * side only: FUN_38fd_1dfa's `if (local_a == 3) iVar5 = (iVar3*2)/3`
+   * (viceroy 60263-60268) has no counterpart in the buy routine
+   * FUN_38fd_1d80, which subtracts the undamped term from all four records
+   * (viceroy 60216-60221). */
+  if (!is_buy && human_nation == 3) {
     term = (term * 2) / 3;
   }
   int nr = (int)eu->trade_nr[cargo_type];
@@ -2506,10 +2521,16 @@ void europe_apply_trade_volume(
 }
 
 void europe_apply_volume_price(EuropeScreen* eu, int cargo_type, int amount, int is_buy) {
-  /* Harbor buy/sell: human seller (nation unknown here → 1d44 uses
-   * eu->difficulty, Dutch rule off), then FUN_38fd_0058(0, cargo). Callers
-   * with a col1 should use europe_apply_trade_volume directly. */
-  europe_apply_trade_volume(eu, NULL, -1, -1, cargo_type, amount, is_buy, 1);
+  /* Harbor buy/sell with no col1 at hand: DOS keys both the 1d44 human test
+   * and the 1dfa Dutch damping off the BOUND nation (DS:0x9e12), which every
+   * port caller of europe_set_nation sets to the human — so pass it as both
+   * seller and human instead of the old (−1, −1) pair, which read as "human
+   * seller" by accident and could never trigger the Dutch arm (smell audit
+   * #57/#58). Difficulty falls back to eu->difficulty (the 0x53a6 mirror).
+   * Then FUN_38fd_0058(0, cargo). Callers holding a col1 should use
+   * europe_apply_trade_volume directly. */
+  const int bound = eu ? (int)eu->bound_nation : 0;
+  europe_apply_trade_volume(eu, NULL, bound, bound, cargo_type, amount, is_buy, 1);
 }
 
 void europe_tick_market_prices(

@@ -4104,8 +4104,10 @@ int main(void) {
       if (ind->alarm_by_player[0] < 80 || col1.tribe[0].alarm[0].friction < 80) {
         return fail("WELCOME No should raise alarm/friction to burn band");
       }
-      if (col1.tribe[0].alarm[0].attacks < 1) {
-        return fail("WELCOME No should increment tribe attacks");
+      /* smell #66: DOS's only attacks-writer is the 465b per-settlement
+       * trespass bump; the reject limb must leave the word alone. */
+      if (col1.tribe[0].alarm[0].attacks != 0) {
+        return fail("WELCOME No must not touch tribe attacks");
       }
       if (strstr(st_pop, "WAR") == NULL && strstr(st_pop, "War") == NULL) {
         fprintf(stderr, "unit_ai_contact: reject status '%s'\n", st_pop);
@@ -4818,13 +4820,17 @@ int main(void) {
       col1.tribe[0].nation_id = 4;
       col1.tribe[0].x = 5;
       col1.tribe[0].y = 7;
+      /* Word must sit below the 0x80 hostile latch or the visit arm skips;
+       * attacks are cleared to 0 (smell #66: only the trespass bump writes
+       * them, and the discharge assertion below covers friction). */
       col1.tribe[0].alarm[0].friction = 10;
-      col1.tribe[0].alarm[0].attacks = 3;
+      col1.tribe[0].alarm[0].attacks = 0;
       col1.tribe[0].mission = 0; /* our mission, plain */
       col1.tribe[0].state.learned = 1;
       ind->euro_diplo[0] = 1;
       ind->alarm_by_player[0] = 10;
       ind->tech = 3;
+      ind->contact_state[0] = 0; /* earlier WELCOME-No arm latched hostile 1 */
       col1.indian[0].euro_diplo[0] |= COL1_INDIAN_MET_BIT;
       c->active = true;
       c->nation_id = 0;
@@ -4849,13 +4855,25 @@ int main(void) {
       bravem->nation_id = 4;
       bravem->home_tribe_id = 0;
 
+      /*
+       * smell #75: the standing-adjacency convert pulse is retired — the
+       * visit fires only off a Brave's move tail (022e). Re-arm the walk-up
+       * latch and reroll the visit each pulse until the rng(0,0xf) convert
+       * draw hits (need = tech 3 + 2 = 5).
+       */
       ColonizeDosRng cv_rng;
-      dos_rng_seed(&cv_rng, 7u);
-      ctx.rng = &cv_rng;
+      const uint16_t cv_saved_turn = col1.head.turn;
+      col1.head.turn = 0; /* once-per-8-turns gift cooldown never blocks */
       st_pop[0] = '\0';
       int converts = 0;
-      for (int pulse = 0; pulse < 32 && converts == 0; ++pulse) {
-        ai_contact_indian_meet_trade(&ctx, 4);
+      for (int pulse = 0; pulse < 64 && converts == 0; ++pulse) {
+        ai_popup_clear(&pop);
+        /* Small consecutive seeds all give tiny first LCG outputs (mood roll
+         * 1-3, auto-fail vs word 10); spread them. */
+        dos_rng_seed(&cv_rng, (uint32_t)((pulse + 1) * 12345u));
+        ctx.rng = &cv_rng;
+        ai_native_note_brave_turn_origin(bm, 9, 9);
+        (void)ai_contact_try_village_gifts(&ctx, 4);
         for (int ui = 0; ui < COLONIZE_UNITS_MAX; ++ui) {
           const ColonizeUnit* u = &units.units[ui];
           if (u->active && u->nation_id == 0 && u->profession == COLONIZE_PROF_CONVERT &&
@@ -4865,6 +4883,7 @@ int main(void) {
         }
       }
       ctx.rng = NULL;
+      col1.head.turn = cv_saved_turn;
       if (converts == 0) {
         return fail("mission settlement visit should spawn an Indian Convert in the colony");
       }
@@ -4890,11 +4909,14 @@ int main(void) {
           units_despawn(&units, u->id);
         }
       }
-      dos_rng_seed(&cv_rng, 7u);
-      ctx.rng = &cv_rng;
+      col1.head.turn = 0;
       for (int pulse = 0; pulse < 32; ++pulse) {
-        ai_contact_indian_meet_trade(&ctx, 4);
+        dos_rng_seed(&cv_rng, (uint32_t)((pulse + 1) * 12345u));
+        ctx.rng = &cv_rng;
+        ai_native_note_brave_turn_origin(bm, 9, 9);
+        (void)ai_contact_try_village_gifts(&ctx, 4);
       }
+      col1.head.turn = cv_saved_turn;
       ctx.rng = NULL;
       for (int ui = 0; ui < COLONIZE_UNITS_MAX; ++ui) {
         const ColonizeUnit* u = &units.units[ui];
@@ -5737,7 +5759,9 @@ int main(void) {
     ctx.human_nation = 0;
     col1.player[0].control = 0;
     const uint16_t saved_turn = col1.head.turn;
-    col1.head.turn = 5; /* non-zero so the once-per-8-turns cooldown is live */
+    /* Non-zero so the once-per-8-turns cooldown is live; past turn 8 because
+     * the convert-visit fixture above stamped the static cooldown at 0+8. */
+    col1.head.turn = 9;
     colonies.colonies[0].active = true;
     colonies.colonies[0].nation_id = 0;
     snprintf(colonies.colonies[0].name, sizeof(colonies.colonies[0].name), "Jamestown");

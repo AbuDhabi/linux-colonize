@@ -639,7 +639,11 @@ static void ai_contact_apply_welcome_reject(
       if (t->alarm[e].friction < 80u) {
         t->alarm[e].friction = 80u;
       }
-      t->alarm[e].attacks++;
+      /* (Retired 2026-09-08, smell #66.) An `attacks++` across every tribe of
+       * the nation sat here. The attacks byte is the attitude word's high half
+       * (col1_tribe_attitude); DOS's only writer is the per-settlement 465b
+       * trespass bump (units.c ~6781), and 022e's @INDIANSHUN reject limb
+       * touches nothing but the +100 hostility (FUN_4cc6_00f2). */
     }
   }
   ai_diplo_indian_hostility_sync(ctx->col1, e);
@@ -1256,7 +1260,9 @@ void ai_contact_village_open_hostilities(
       if (t->alarm[euro_nation].friction < 80u) {
         t->alarm[euro_nation].friction = 80u;
       }
-      t->alarm[euro_nation].attacks++;
+      /* (Retired 2026-09-08, smell #66.) Same all-tribes `attacks++` as the
+       * @INDIANSHUN reject limb above — the attacks byte belongs to the 465b
+       * per-settlement trespass bump alone (units.c ~6781). */
     }
   }
   ai_diplo_indian_hostility_sync(ctx->col1, euro_nation);
@@ -3505,12 +3511,22 @@ static void ai_contact_tribe_alarm_word_set(ColonizeCol1Tribe* t, int e, int w) 
   col1_tribe_attitude_set(t, e, w);
 }
 
+/*
+ * `home_tribe` is the VISITING Brave's own settlement — DOS binds it with
+ * FUN_281f_0a4c(unit+0x314a) before the encounter body runs (viceroy 96706),
+ * and every settlement-scoped effect below (the attitude-word zero / ×1.5,
+ * the capital doubling) reads that record. smell #74: this used to re-scan
+ * for the FIRST tribe of the nation, so a visit by a satellite village
+ * zeroed the capital's word and charged the capital's doubled refuse cost.
+ * -1 keeps the old first-tribe fallback for a caller with no visit record.
+ */
 static void ai_contact_apply_beg_food(
   ColonizeTurnContext* ctx,
   ColonizeCol1Indian* ind,
   int nation_id,
   int e,
   int colony_id,
+  int home_tribe,
   int accept
 ) {
   (void)ind;
@@ -3527,12 +3543,18 @@ static void ai_contact_apply_beg_food(
   int capital = 0;
   ColonizeCol1Tribe* target_tribe = NULL;
   if (ctx->col1->tribe) {
-    for (uint16_t ti = 0; ti < ctx->col1->head.tribe_count; ++ti) {
-      ColonizeCol1Tribe* t = &ctx->col1->tribe[ti];
-      if ((int)t->nation_id == nation_id) {
-        target_tribe = t;
-        capital = t->state.capital != 0;
-        break;
+    if (home_tribe >= 0 && home_tribe < (int)ctx->col1->head.tribe_count &&
+        (int)ctx->col1->tribe[home_tribe].nation_id == nation_id) {
+      target_tribe = &ctx->col1->tribe[home_tribe];
+      capital = target_tribe->state.capital != 0;
+    } else {
+      for (uint16_t ti = 0; ti < ctx->col1->head.tribe_count; ++ti) {
+        ColonizeCol1Tribe* t = &ctx->col1->tribe[ti];
+        if ((int)t->nation_id == nation_id) {
+          target_tribe = t;
+          capital = t->state.capital != 0;
+          break;
+        }
       }
     }
   }
@@ -3683,7 +3705,18 @@ void ai_contact_try_village_beg_food(ColonizeTurnContext* ctx, int nation_id) {
     return;
   }
   for (int e = 0; e < 4; ++e) {
-    if (!ind->euro_diplo[e] || ind->alarm_by_player[e] >= 55) {
+    if (!ind->euro_diplo[e]) {
+      continue;
+    }
+    /*
+     * smell #73: ONE gate for the whole 022e encounter, not two. DOS reads
+     * the alarm once at entry (`iVar9 = FUN_281f_030c(...)`, viceroy 96615)
+     * and bails the entire visit — gift half and demand/beg half alike — at
+     * `if (0x4a < iVar9) goto LAB_5bfb_1005;` (viceroy 96716). The port had
+     * `>= 55` here against the gift arm's `> 0x4a`, so alarm 55..74 produced
+     * no visit at all where DOS still runs the demand half.
+     */
+    if (ai_diplo_indian_alarm(ctx->col1, nation_id, e) > 0x4a) {
       continue;
     }
     /*
@@ -3743,13 +3776,16 @@ void ai_contact_try_village_beg_food(ColonizeTurnContext* ctx, int nation_id) {
      * `bid[0] > ask[0]` food surplus.
      */
     const ColonizeCol1Tribe* home = NULL;
+    int home_index = -1;
     if (visit_home_tribe >= 0 && visit_home_tribe < (int)ctx->col1->head.tribe_count &&
         (int)ctx->col1->tribe[visit_home_tribe].nation_id == nation_id) {
       home = &ctx->col1->tribe[visit_home_tribe];
+      home_index = visit_home_tribe;
     } else {
       for (uint16_t ti = 0; ti < ctx->col1->head.tribe_count; ++ti) {
         if ((int)ctx->col1->tribe[ti].nation_id == nation_id) {
           home = &ctx->col1->tribe[ti];
+          home_index = (int)ti;
           break;
         }
       }
@@ -3820,8 +3856,12 @@ void ai_contact_try_village_beg_food(ColonizeTurnContext* ctx, int nation_id) {
         labels[1] = label_buf[1];
       }
       const int ids[2] = {1, 2}; /* 1=decline (label[0]), 2=accept (label[1]) */
+      /* Payload = colony id | (home settlement index + 1) << 16 — the outcome
+       * binds to the VISITING Brave's own village (smell #74), so the visit
+       * record has to survive the popup round-trip. */
+      const int payload = (best_ci & 0xffff) | ((home_index + 1) << 16);
       if (ai_popup_enqueue_choice_ctx(
-            ctx->ai_popups, AI_POPUP_TAG_CONTACT_BEGFOOD, e, nation_id, best_ci, NULL, body,
+            ctx->ai_popups, AI_POPUP_TAG_CONTACT_BEGFOOD, e, nation_id, payload, NULL, body,
             labels, ids, 2
           )) {
         if (ctx->status && ctx->status_size) {
@@ -3833,7 +3873,7 @@ void ai_contact_try_village_beg_food(ColonizeTurnContext* ctx, int nation_id) {
       }
     } else {
       /* AI Euro: auto-accept, handing over the same half a human would. */
-      ai_contact_apply_beg_food(ctx, ind, nation_id, e, best_ci, 1);
+      ai_contact_apply_beg_food(ctx, ind, nation_id, e, best_ci, home_index, 1);
     }
     return; /* one beg-for-food event per Indian nation per turn */
   }
@@ -3946,117 +3986,13 @@ int ai_contact_ai_incite_human(
 }
 
 /*
- * FUN_5bfb_022e's @INDIANSCONVERT arm (viceroy_unpacked.c:96989-97012), the
- * real way a player gets Indian Converts: a Brave from a settlement that holds
- * *your* mission walks up to one of your colonies, and
- *
- *     chance = indian.tech + 2      (doubled when the mission is Jesuit-grade)
- *     fires when rng(0,15) < chance
- *
- * On success DOS clears that settlement's alarm word for the nation, shows
- * GAME.TXT @INDIANSCONVERT with %STRING0 = the colony name, and spawns a unit
- * of type 0 (Colonists) at the colony owned by that nation with profession
- * 0x1b (Indian Convert). Establishing the mission in the first place is the
- * @ACTIONS menu's own action, not this.
+ * (Retired 2026-09-08, smell #75.) ai_contact_mission_convert_visit lived
+ * here: a second, standing-adjacency @INDIANSCONVERT pulse with its own
+ * rng(0,0xf) draw. DOS has no such pulse --- the convert roll is one draw
+ * inside the 022e visit itself (viceroy 96996-97010), between the attitude
+ * word zero and LAB_5bfb_096c's gift arms, reached only off FUN_465b's move
+ * tail. It now lives at that site, in ai_contact_try_village_gifts.
  */
-static void ai_contact_mission_convert_visit(ColonizeTurnContext* ctx, int nation_id) {
-  if (!ctx || !ctx->units || !ctx->colonies || !ctx->col1_ok || !ctx->col1 ||
-      !ctx->col1->tribe) {
-    return;
-  }
-  if (nation_id < 4 || nation_id > 11) {
-    return;
-  }
-  ColonizeCol1Indian* ind = &ctx->col1->indian[nation_id - 4];
-  ColonizeDosRng local;
-  ai_contact_local_rng(ctx, nation_id, &local);
-  ColonizeDosRng* rng = ctx->rng ? ctx->rng : &local;
-  const int convert_type = units_find_type(ctx->units, "Colonists");
-  if (convert_type < 0) {
-    return;
-  }
-  static const int dx[8] = {0, 1, 1, 1, 0, -1, -1, -1};
-  static const int dy[8] = {-1, -1, 0, 1, 1, 1, 0, -1};
-
-  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-    ColonizeUnit* brave = &ctx->units->units[i];
-    if (!brave->active || brave->nation_id != nation_id || !units_is_on_map(brave)) {
-      continue;
-    }
-    if (brave->home_tribe_id < 0 ||
-        (uint16_t)brave->home_tribe_id >= ctx->col1->head.tribe_count) {
-      continue;
-    }
-    ColonizeCol1Tribe* home = &ctx->col1->tribe[brave->home_tribe_id];
-    if ((int)(int8_t)home->mission < 0) {
-      continue; /* no mission in the Brave's own settlement */
-    }
-    const int e = (int)(home->mission & COL1_TRIBE_MISSION_NATION_MASK);
-    if (e < 0 || e > 3) {
-      continue;
-    }
-    if (ind->alarm_by_player[e] > 0x4a) {
-      continue; /* DOS reaches this arm only below the war band */
-    }
-    /* The colony the Brave has walked up to. */
-    ColonizeColony* target = NULL;
-    for (int d = 0; d < 8 && !target; ++d) {
-      const int cid = colonies_id_at(ctx->colonies, brave->x + dx[d], brave->y + dy[d]);
-      ColonizeColony* c = colonies_get_mut(ctx->colonies, cid);
-      if (c && c->active && c->nation_id == e) {
-        target = c;
-      }
-    }
-    if (!target) {
-      continue;
-    }
-    int chance = (int)ind->tech + 2;
-    if ((home->mission & COL1_TRIBE_MISSION_JESUIT_BIT) != 0) {
-      chance *= 2;
-    }
-    /*
-     * DOS rolls this inside the visit itself — FUN_5bfb_022e runs when a Brave
-     * *moves* next to the colony, so a Brave already parked there does not
-     * re-roll. This pulse only sees standing positions, so cap it at one roll
-     * per Indian nation per turn (return either way) rather than one roll per
-     * adjacent Brave per turn, which turned a single loitering Brave into a
-     * convert factory.
-     */
-    if (dos_rng_range(rng, 0, 15) >= chance) {
-      return;
-    }
-
-    const int cid = units_spawn_allow_stack(ctx->units, convert_type, target->x, target->y);
-    ColonizeUnit* convert = cid >= 0 ? units_get(ctx->units, cid) : NULL;
-    if (!convert) {
-      return;
-    }
-    convert->nation_id = (uint8_t)e;
-    convert->profession = COLONIZE_PROF_CONVERT;
-    home->alarm[e].friction = 0;
-    home->alarm[e].attacks = 0;
-
-    if (ai_contact_euro_is_human(ctx, e)) {
-      PopupMsgTokens tok;
-      memset(&tok, 0, sizeof(tok));
-      tok.string0 = target->name[0] ? target->name : "our colony";
-      char fb[AI_POPUP_BODY_LEN];
-      snprintf(
-        fb,
-        sizeof(fb),
-        "\"The wisdom of your missionaries has convinced some of us to join "
-        "your colony at %s and live among you as converts.\"",
-        tok.string0
-      );
-      char body[AI_POPUP_BODY_LEN];
-      popup_msg_fill(ctx->messages, "INDIANSCONVERT", &tok, fb, body, sizeof(body));
-      ai_contact_human_chrome(
-        ctx, e, AI_POPUP_TAG_CONTACT_CONVERT, nation_id, "Mission", body
-      );
-    }
-    return; /* one convert per tribe per pulse */
-  }
-}
 
 static void ai_contact_missionary_convert(ColonizeTurnContext* ctx, int nation_id) {
   if (!ctx || !ctx->units || !ctx->col1_ok || !ctx->col1 || !ctx->col1->tribe) {
@@ -4097,7 +4033,7 @@ static void ai_contact_missionary_convert(ColonizeTurnContext* ctx, int nation_i
        * AI_CONTACT_CHOICE_MISSION / _HERESY) — never by merely standing next
        * to a village, and never with a popup announcing it. Converts reaching
        * the player's colonies are a separate event
-       * (ai_contact_mission_convert_visit, FUN_5bfb_022e's @INDIANSCONVERT arm).
+       * (FUN_5bfb_022e's @INDIANSCONVERT arm, in ai_contact_try_village_gifts).
        */
       if (ai_contact_euro_is_human(ctx, e)) {
         continue;
@@ -5105,8 +5041,8 @@ static const uint8_t k_2820_throttle[16] = {0x00, 0x05, 0x02, 0x03, 0x04, 0x01, 
  * after the FUN_281f_09e6 colony bind) — a gift-bearing visit discharges that
  * village's friction/attacks pair.
  * Mission-owned-by-e villages roll for @INDIANSCONVERT first (`tech + 2`,
- * doubled for a Jesuit mission, vs rng(0,0xf) — hit sends a convert instead,
- * ported separately as ai_contact_mission_convert_visit); a missed roll falls
+ * doubled for a Jesuit mission, vs rng(0,0xf) — a hit sends a convert instead
+ * and resolves the visit, in the convert arm below); a missed roll falls
  * through to the gift arms exactly as DOS does at LAB_5bfb_096c.
  *
  * Branch pick (LAB_5bfb_096c): 2154 bid[0] > ask[0] (village food surplus)
@@ -5237,9 +5173,18 @@ int ai_contact_try_village_gifts(ColonizeTurnContext* ctx, int nation_id) {
     ind->contact_state[e] = 2;
     ai_contact_tribe_alarm_word_set(t, e, 0);
     /*
-     * Mission owned by e → roll for @INDIANSCONVERT (`tech + 2`, ×2 Jesuit,
-     * vs rng(0,0xf)); a hit is the convert visit (ported separately), a miss
-     * falls through to the gift arms below just as DOS does.
+     * @INDIANSCONVERT (viceroy 96996-97010): mission owned by e → `tech + 2`,
+     * ×2 for a Jesuit mission, vs rng(0,0xf); a hit sends an Indian Convert
+     * INSTEAD of a gift and resolves the visit (DOS falls straight through to
+     * LAB_5bfb_1000, `local_1a = 1`), a miss falls into the gift arms at
+     * LAB_5bfb_096c below.
+     *
+     * smell #75: this used to roll and then `continue` without sending, while
+     * a second, invented standing-adjacency pulse
+     * (ai_contact_mission_convert_visit) rolled again and did the sending —
+     * two draws per Indian nation-turn where DOS draws once, and a convert
+     * factory out of a Brave parked next to a colony. The send now lives at
+     * the DOS site, on the DOS draw.
      */
     if (t->mission != COL1_TRIBE_MISSION_NONE && (int)(t->mission & 0x0f) == e) {
       int need = (int)ind->tech + 2;
@@ -5247,7 +5192,47 @@ int ai_contact_try_village_gifts(ColonizeTurnContext* ctx, int nation_id) {
         need *= 2;
       }
       if (need > dos_rng_range(ctx->rng, 0, 0xf)) {
-        continue; /* convert sent instead of a gift */
+        /* DOS shows the popup first (FUN_281f_0416 STRING0 = colony name,
+         * then @INDIANSCONVERT / tag 0x182a), then spawns unit type 0 at the
+         * colony owned by `colony[0x1a]` and stamps profession 0x1b. */
+        ai_contact_bind_names(ctx);
+        const int human_convert = ai_contact_euro_is_human(ctx, e);
+        if (human_convert) {
+          units_combat_watch_notify(ctx->units, brave->id, c->x, c->y);
+          PopupMsgTokens tok;
+          memset(&tok, 0, sizeof(tok));
+          tok.string0 = c->name[0] ? c->name : "our colony";
+          char fb[AI_POPUP_BODY_LEN];
+          snprintf(
+            fb,
+            sizeof(fb),
+            "\"The wisdom of your missionaries has convinced some of us to join "
+            "your colony at %s and live among you as converts.\"",
+            tok.string0
+          );
+          char body[AI_POPUP_BODY_LEN];
+          popup_msg_fill(ctx->messages, "INDIANSCONVERT", &tok, fb, body, sizeof(body));
+          ai_contact_human_chrome(
+            ctx, e, AI_POPUP_TAG_CONTACT_CONVERT, nation_id, "Mission", body
+          );
+        }
+        const int convert_type = units_find_type(ctx->units, "Colonists");
+        if (convert_type >= 0) {
+          const int cid = units_spawn_allow_stack(ctx->units, convert_type, c->x, c->y);
+          ColonizeUnit* convert = cid >= 0 ? units_get(ctx->units, cid) : NULL;
+          if (convert) {
+            convert->nation_id = (uint8_t)e;
+            convert->profession = COLONIZE_PROF_CONVERT;
+          }
+        }
+        if (ctx->status && ctx->status_size && !human_convert) {
+          snprintf(
+            ctx->status, ctx->status_size, "The %s send a convert to %s.",
+            ai_contact_tribe_name(nation_id), c->name
+          );
+        }
+        s_gift_cooldown_until[nation_id - 4] = (uint16_t)(now_turn + 8);
+        return 1; /* DOS: goto LAB_5bfb_1000 — the visit is resolved */
       }
     }
     AiContactMeetEcon2154 econ;
@@ -7049,9 +7034,9 @@ void ai_contact_indian_meet_trade(ColonizeTurnContext* ctx, int nation_id) {
   /* 2b. AI missionary adjacent to tribe → mission owner + crosses. */
   ai_contact_missionary_convert(ctx, nation_id);
 
-  /* 2c. Brave from a mission settlement visits that nation's colony →
-   * @INDIANSCONVERT + an Indian Convert in the colony (FUN_5bfb_022e). */
-  ai_contact_mission_convert_visit(ctx, nation_id);
+  /* 2c. (Retired 2026-09-08, smell #75.) The @INDIANSCONVERT pulse used to
+   * sit here. DOS sends converts only from inside the 022e visit --- see
+   * ai_contact_try_village_gifts' convert arm. */
 
   /* 2b1. Alarmed tribe + Missionary not converting → flee 1 tile (AI_MOVE). */
   ai_contact_missionary_flee(ctx, nation_id);
@@ -10061,14 +10046,16 @@ void ai_contact_apply_popup_result(ColonizeTurnContext* ctx, const AiPopupState*
   /*
    * @INDIANBEGFOOD Give/Refuse (FUN_5bfb_022e already-met adjacency —
    * see ai_contact_try_village_beg_food's own header comment). Payload
-   * carries the offer-time colony id (captured at offer time, same
-   * discipline as ai_king_merc's landing tile — the colony could
+   * carries the offer-time colony id in the low word and the VISITING
+   * Brave's home settlement index + 1 in the high word (captured at offer
+   * time, same discipline as ai_king_merc's landing tile — the colony could
    * theoretically change hands between offer and apply). choice_id 2 =
    * accept/give (label[1]), 1 = decline/refuse (label[0]).
    */
   if (popup->result_tag == AI_POPUP_TAG_CONTACT_BEGFOOD) {
     ai_contact_apply_beg_food(
-      ctx, ind, nation_id, e, popup->result_payload, popup->result_choice_id == 2
+      ctx, ind, nation_id, e, popup->result_payload & 0xffff,
+      ((popup->result_payload >> 16) & 0xffff) - 1, popup->result_choice_id == 2
     );
     return;
   }

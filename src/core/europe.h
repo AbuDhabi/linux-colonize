@@ -316,6 +316,13 @@ typedef struct EuropeScreen {
    * tick so europe_recruit_from_pool can recompute passage without a col1
    * pointer. */
   uint8_t difficulty;
+  /* DS:0x9e12 — the nation this Europe module is bound to (FUN_38fd_0000
+   * sets 0x9e12 = nation and 0x84fc = its record). Every port caller of
+   * europe_set_nation binds the human nation, so the live `trade_nr`/quote
+   * record is that nation's, and the 1d44 human test / the 1dfa Dutch
+   * (slot 3) damping key off this index. Cite: viceroy_unpacked.c
+   * 60186-60201 (1d44 reads 0x9e12), 58696-58702 (FUN_38fd_0000). */
+  uint8_t bound_nation;
   EuropeTrainOption train[EUROPE_TRAIN_MAX];
   int train_count;
   EuropePurchaseOption purchase[EUROPE_PURCHASE_MAX];
@@ -771,8 +778,9 @@ int europe_sell_hold_partial(
  *   term = (amount << volatility) + 1d44(amount)
  *   1d44 = (difficulty − 2)·16·amount/100 when the seller is human,
  *          −32·amount/100 for an AI seller (C truncation toward zero);
- *   every nation's nr[cargo] += term (buy: −=), the Dutch record (slot 3)
- *   gets (term·2)/3; seller's tons/tons2 += amount (buy: −=), and gold[cargo]
+ *   every nation's nr[cargo] += term (buy: −=), and on the SELL side only the
+ *   Dutch record (slot 3) gets (term·2)/3 — 1d80 (buy) has no such case;
+ *   seller's tons/tons2 += amount (buy: −=), and gold[cargo]
  *   += price·amount·(100−tax)/100.
  * Only the human's record is live in `eu->trade_nr`; `col1` (optional) gets
  * the seller's tons/tons2/gold ledgers. Verified 2026-08-28 against the
@@ -792,7 +800,10 @@ void europe_apply_trade_volume(
   int is_buy,
   int immediate_threshold
 );
-/* Harbor buy/sell wrapper: human seller, immediate FUN_38fd_0058 step. */
+/* Harbor buy/sell wrapper: the bound nation (`eu->bound_nation`, DS:0x9e12 —
+ * always the human in this port) trades with itself, so the 1d44 term takes
+ * the human arm and a Dutch human gets the 1dfa (term·2)/3 damping.
+ * Immediate FUN_38fd_0058 step. Smell audit #57/#58. */
 void europe_apply_volume_price(EuropeScreen* eu, int cargo_type, int amount, int is_buy);
 /*
  * FUN_38fd_0058 EOT peel (param_2 < 0): optional col1/colonies apply colony
