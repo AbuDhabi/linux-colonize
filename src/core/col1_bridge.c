@@ -1455,7 +1455,14 @@ bool col1_bridge_apply(
     europe->needed_crosses =
       nat->needed_crosses > 0 ? nat->needed_crosses : TURN_DEFAULT_NEEDED_CROSSES;
     europe->liberty_bells_total = nat->liberty_bells_total;
-    europe->liberty_bells_last_turn = nat->liberty_bells_last_turn;
+    /* Smell #85: a save written by this engine carries the FF pool stashed
+     * over liberty_bells_last_turn (founding_fathers_stash_pools_into_col1);
+     * the genuine EOT value is gone from the file. Don't leak the pool into
+     * the Europe screen — start at 0 and let the next EOT tally rewrite it. */
+    europe->liberty_bells_last_turn =
+      founding_fathers_col1_last_turn_is_stash(save, local.human_nation)
+        ? 0
+        : nat->liberty_bells_last_turn;
     /* The dialog price is derived state; recompute it now that count,
      * difficulty and crosses are all restored (the EOT tick would otherwise
      * be the first thing to correct it). */

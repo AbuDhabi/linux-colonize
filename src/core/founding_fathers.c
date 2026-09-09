@@ -112,6 +112,13 @@ void founding_fathers_restore_col1_last_turn(
   }
 }
 
+bool founding_fathers_col1_last_turn_is_stash(const ColonizeCol1Save* col1, int nation_id) {
+  if (!col1 || nation_id < 0 || nation_id >= (int)COLONIZE_COL1_NATION_COUNT) {
+    return false;
+  }
+  return col1->nation[nation_id].unknown21_pad == FF_POOL_STASH_MARKER;
+}
+
 void founding_fathers_sync_from_col1(const ColonizeCol1Save* col1) {
   if (!col1) {
     founding_fathers_reset();
@@ -168,7 +175,11 @@ void founding_fathers_sync_from_col1_after_load(const ColonizeCol1Save* col1) {
     }
     const unsigned need = founding_fathers_bells_needed(col1, n);
     const unsigned last = (unsigned)nat->liberty_bells_last_turn;
-    if (last > 0u && last <= need) {
+    /* Adopt a stashed 0 too (smell #84): right after an election the pool is
+     * legitimately zero; the old `last > 0` guard rejected it and kept the
+     * total-minus-thresholds estimate, refunding a large phantom pool on
+     * reload (enough to fund an instant second election). */
+    if (last <= need) {
       s_ff_bells_since_elect[n] = (uint16_t)last;
     }
   }

@@ -5756,7 +5756,7 @@ static bool units_village_squat_illegal(
     return false;
   }
   const char* n = type->name;
-  const int missionary = n && strstr(n, "Missionary") != NULL;
+  const int missionary = n && strstr(n, "Missionar") != NULL;
   const int combatish =
     (mover && (mover->muskets > 0 || mover->horses > 0)) ||
     (n &&

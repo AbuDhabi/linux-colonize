@@ -157,6 +157,14 @@ void founding_fathers_restore_col1_last_turn(
 );
 
 /*
+ * True when this save's liberty_bells_last_turn was overwritten by our own
+ * pool stash (unknown21_pad carries FF_POOL_STASH_MARKER) — i.e. the field
+ * holds the FF pool, NOT genuine EOT bell production. Consumers wanting real
+ * "bells last turn" must not read it in that case.
+ */
+bool founding_fathers_col1_last_turn_is_stash(const ColonizeCol1Save* col1, int nation_id);
+
+/*
  * True if nation owns FF index. Per-nation bitmask ONLY (DOS FUN_15eb_3960);
  * head.founding_father[] is a write-once first-claimer record the DOS binary
  * never reads back — see the definition's comment (smell audit #83).
