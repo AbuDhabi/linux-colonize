@@ -3709,10 +3709,13 @@ bool turn_processor_advance(ColonizeTurnProcessor* proc, ColonizeTurnContext* ct
       /* Go-To resumes at 10 steps/sec in game_update so the player can watch. */
       turn_select_next_unit(ctx->units, ctx->human_nation);
       if (turn_option_autosave(ctx->col1, ctx->col1_ok)) {
-        proc->result.request_autosave_turn = true;
-        if (*ctx->game_year != proc->year_before && (*ctx->game_year % 10u) == 0u &&
-            *ctx->game_autumn == 0) {
+        /* FUN_130d_0172: exactly one slot — decade Spring (year%10==0,
+         * autumn==0, turn>2) goes to slot 8, every other autosave to 9. */
+        if ((*ctx->game_year % 10u) == 0u && *ctx->game_autumn == 0 &&
+            *ctx->turn_number > 2u) {
           proc->result.request_autosave_decade = true;
+        } else {
+          proc->result.request_autosave_turn = true;
         }
       }
       turn_finish_status(ctx, &proc->result);

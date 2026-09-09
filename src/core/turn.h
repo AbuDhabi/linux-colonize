@@ -76,8 +76,8 @@ typedef struct ColonizeTurnContext {
 
 typedef struct ColonizeTurnResult {
   bool advanced;
-  bool request_autosave_turn;   /* slot 9 when autosave option set */
-  bool request_autosave_decade; /* slot 8 when year % 10 == 0 */
+  bool request_autosave_turn;   /* slot 9 (autosave option; mutually exclusive with decade) */
+  bool request_autosave_decade; /* slot 8: decade Spring, turn > 2 (FUN_130d_0172) */
   bool year_end_defeat; /* FUN_3844_0442 B: year≥1600, no human colonies, peacetime */
   bool year_end_victory; /* FUN_3844_0442 C1 thin: WoI + no crown colonies */
   bool request_europe_open; /* ship-build ready off-colony (DS:0x14c stand-in) */

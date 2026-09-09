@@ -1586,8 +1586,15 @@ static void ai_euro_prefer_peace_construction(ColonizeTurnContext* ctx, int nati
 }
 
 /*
- * Pop≥2 without Stockade: clear any prefer_* queue so hammers bank with bip
- * 0xFF (TURN5→6 Dutch). Cite: turn.c hammer bank; test-saves-ai/TURN6.
+ * Pop < 3 without Stockade: clear any prefer_* queue so hammers bank with
+ * bip 0xFF (TURN5→6 Dutch; golden TURN4→5 New Amsterdam pop2 bip=255).
+ * Yes, this wipes what prefer_young just queued this same dispatcher call —
+ * deliberately: in the DOS saves a young colony carries a Docks project ONLY
+ * on its founding turn (New Amsterdam TURN4 / Quebec TURN5 / Isabella TURN6,
+ * all size 1, founded that turn — the colonies_found Docks default lands in
+ * the unit-act phase AFTER this clear), and shows bip 0xFF every turn after
+ * until Stockade-capable. Smell audit #98 proposed keeping pop-1 picks; the
+ * TURN4→5 golden refuted that. Cite: turn.c hammer bank; test-saves-ai/TURN6.
  */
 static void ai_euro_clear_pre_stockade_build_queue(ColonizeTurnContext* ctx, int nation_id) {
   if (!ctx || !ctx->colonies || nation_id < 0 || nation_id >= 4) {

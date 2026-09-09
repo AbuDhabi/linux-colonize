@@ -647,14 +647,14 @@ int colony_prod_colony_bells_ff(
      * below — see the comment there. */
     bells += colony_prod_bells_worker(bn, c->profession, sol_bonus);
   }
-  /* No bell workers to fold sol_bonus into individually — apply it to the
-   * Town Hall passive directly instead (nothing else it could attach to). */
-  if (bell_workers == 0 && has_town_hall && sol_bonus != 0) {
-    bells += sol_bonus;
-    if (bells < 0) {
-      bells = 0;
-    }
-  }
+  /* bugs.md smell #19 (user-confirmed vs DOS): the SoL bonus folds in
+   * per-WORKER only (FUN_15eb_1d4c Statesman body) — the base/passive
+   * composer (FUN_15eb_1f72) never sees it, so an unworked Town Hall
+   * earns the base bell (plus Press/Newspaper/Jefferson multipliers
+   * below) but no SoL bonus. The old "attach it to the passive when
+   * nobody works" fallback was invented; the crosses sibling above
+   * deleted exactly the same thing. */
+  (void)bell_workers;
   /*
    * Jefferson → Paine → Press/Newspaper, applied once to the *combined*
    * passive+worker total, in that order — matches
