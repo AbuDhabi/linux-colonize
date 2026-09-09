@@ -2295,7 +2295,9 @@ static int unit_brave_vs_human_artillery_autoloss(void) {
       units_get(&pool, aid)->nation_id = 4;
       units_get(&pool, did)->nation_id = 0;
       ColonizeDosRng rng;
-      dos_rng_seed(&rng, seed);
+      /* Small seeds draw small first values (the "tiny-seed RNG fixture" trap
+       * in bugs.md); spread them so the 14-vs-240 roll can actually land. */
+      dos_rng_seed(&rng, (unsigned)(seed * 9973 + 4271));
       if (units_resolve_land_combat_ff(&pool, aid, did, &rng, &col1)) {
         fprintf(stderr, "brave_arty: seed %d — Brave beat HUMAN Artillery\n", seed);
         rc = 1;
@@ -2315,7 +2317,9 @@ static int unit_brave_vs_human_artillery_autoloss(void) {
       units_get(&pool, aid)->nation_id = 4;
       units_get(&pool, did)->nation_id = 1;
       ColonizeDosRng rng;
-      dos_rng_seed(&rng, seed);
+      /* Small seeds draw small first values (the "tiny-seed RNG fixture" trap
+       * in bugs.md); spread them so the 14-vs-240 roll can actually land. */
+      dos_rng_seed(&rng, (unsigned)(seed * 9973 + 4271));
       if (units_resolve_land_combat_ff(&pool, aid, did, &rng, &col1)) {
         ++ai_def_wins;
       }
@@ -2341,7 +2345,9 @@ static int unit_brave_vs_human_artillery_autoloss(void) {
       units_get(&pool, aid)->nation_id = 4;
       units_get(&pool, did)->nation_id = 0;
       ColonizeDosRng rng;
-      dos_rng_seed(&rng, seed);
+      /* Small seeds draw small first values (the "tiny-seed RNG fixture" trap
+       * in bugs.md); spread them so the 14-vs-240 roll can actually land. */
+      dos_rng_seed(&rng, (unsigned)(seed * 9973 + 4271));
       if (units_resolve_land_combat_ff(&pool, aid, did, &rng, &col1)) {
         ++armed_wins;
       }
@@ -2814,7 +2820,9 @@ static int unit_1b0e_defender_bonus_live(void) {
         units_get(&pool, aid)->nation_id = 1;
         units_get(&pool, did)->nation_id = 0;
         ColonizeDosRng rng;
-        dos_rng_seed(&rng, seed);
+        /* Small seeds draw small first values (the "tiny-seed RNG fixture" trap
+       * in bugs.md); spread them so the 14-vs-240 roll can actually land. */
+      dos_rng_seed(&rng, (unsigned)(seed * 9973 + 4271));
         won[i] = is_naval ? units_resolve_naval_combat_ff(&pool, aid, did, &rng, &c1)
                           : units_resolve_land_combat_ff(&pool, aid, did, &rng, &c1);
         wins[i] += won[i] ? 1 : 0;
@@ -2928,7 +2936,9 @@ static int unit_smell_audit_2026_09_09(void) {
       units_get(&pool, aid)->nation_id = 4;
       units_get(&pool, did)->nation_id = 0;
       ColonizeDosRng rng;
-      dos_rng_seed(&rng, seed);
+      /* Small seeds draw small first values (the "tiny-seed RNG fixture" trap
+       * in bugs.md); spread them so the 14-vs-240 roll can actually land. */
+      dos_rng_seed(&rng, (unsigned)(seed * 9973 + 4271));
       if (units_resolve_land_combat_ff(&pool, aid, did, &rng, &col1)) {
         fprintf(stderr,
                 "audit#8: seed %d — plain Brave beat HUMAN Artillery on a shuffled roster\n",
@@ -3051,6 +3061,83 @@ static int unit_smell_audit_2026_09_09(void) {
     }
     units_despawn(&pool, win);
     units_despawn(&pool, civ);
+    units_despawn(&pool, hull);
+  }
+
+  /*
+   * Parked lead (2026-09-09): FUN_5fef_0352's hull arm, raw 99518-99649.
+   * FUN_5fef_0ec0 (raw 99719-99730) hands EVERY unit on the swept stack to
+   * 0352 with no predicate, and 0352 tests the LOSER's type byte first —
+   * `if ((0xc < type) && (type < 0x13))` — so a berthed hull caught by a LAND
+   * loss takes the damage/repair-port arm, not a despawn and not a skip.
+   * Because the roll at raw 99527 is guarded by `winner_type*0xe + 0x523b != 0`
+   * (the @UNIT guns column, zero for every land type), a land winner never
+   * draws: the hull is ALWAYS damaged. Assert the whole shape — survives,
+   * keeps its flag, carries bit7 and the repair timer, and loses its cargo.
+   */
+  if (rc == 0) {
+    ColonizeUnitPool pool;
+    memset(&pool, 0, sizeof(pool));
+    audit_type(&pool.types[0], "Soldiers", 1, 1, 1, COLONIZE_UNIT_DOMAIN_LAND);
+    audit_type(&pool.types[1], "Regulars", 1, 30, 30, COLONIZE_UNIT_DOMAIN_LAND);
+    audit_type(&pool.types[2], "Caravel", 4, 0, 2, COLONIZE_UNIT_DOMAIN_SEA);
+    pool.types[2].guns = 0;
+    pool.types[2].hull = 4;
+    pool.type_count = 3;
+
+    /* Attacker sallies out of its own port and loses; the hull is berthed on
+     * the attacker's tile, which is the stack 0ec0 sweeps (raw 100758-100760
+     * passes the attacker's own x/y). */
+    const int hull = units_spawn_allow_stack(&pool, 2, 4, 4);
+    units_set_nation(units_get(&pool, hull), 0);
+    units_get(&pool, hull)->hold_goods_type[0] = 3;
+    units_get(&pool, hull)->hold_goods_amount[0] = 100;
+
+    int lost = 0;
+    for (int seed = 1; seed <= 40 && !lost && rc == 0; ++seed) {
+      const int atk = units_spawn_allow_stack(&pool, 0, 4, 4);
+      const int def = units_spawn_allow_stack(&pool, 1, 5, 4);
+      if (atk < 0 || def < 0) {
+        rc = 1;
+        break;
+      }
+      units_set_nation(units_get(&pool, atk), 0);
+      units_set_nation(units_get(&pool, def), 1);
+      ColonizeDosRng rng;
+      /* Small seeds draw small first values (the "tiny-seed RNG fixture" trap
+       * in bugs.md); spread them so the 14-vs-240 roll can actually land. */
+      dos_rng_seed(&rng, (unsigned)(seed * 9973 + 4271));
+      if (!units_resolve_land_combat_ff(&pool, atk, def, &rng, &col1)) {
+        lost = 1;
+      }
+      if (units_get(&pool, atk) && units_get(&pool, atk)->active) {
+        units_despawn(&pool, atk);
+      }
+      if (units_get(&pool, def) && units_get(&pool, def)->active) {
+        units_despawn(&pool, def);
+      }
+    }
+    if (rc == 0 && !lost) {
+      fprintf(stderr, "0352-hull: attack-1 vs defense-30 never lost in 40 seeds\n");
+      rc = 1;
+    }
+    const ColonizeUnit* h = rc == 0 ? units_get(&pool, hull) : NULL;
+    if (rc == 0 && (!h || !h->active)) {
+      fprintf(stderr, "0352-hull: berthed Caravel was destroyed by the land sweep\n");
+      rc = 1;
+    } else if (rc == 0 && (h->col1_unknown15 & 0x80u) == 0) {
+      fprintf(stderr, "0352-hull: damaged bit7 (+0x3148|0x80) not set\n");
+      rc = 1;
+    } else if (rc == 0 && h->repair_pending == 0) {
+      fprintf(stderr, "0352-hull: repair timer not armed\n");
+      rc = 1;
+    } else if (rc == 0 && h->hold_goods_amount[0] != 0) {
+      fprintf(stderr, "0352-hull: damage tail must zero the holds (+0x3150)\n");
+      rc = 1;
+    }
+    if (rc == 0) {
+      fprintf(stderr, "unit_units: 0352 hull arm damages berthed ships in a land sweep ok\n");
+    }
     units_despawn(&pool, hull);
   }
 

@@ -269,14 +269,52 @@ typedef struct ColonizeColony {
  *
  * The DOS per-tick clear is `+0x1b &= 7` (raw 94142) — it keeps 0x01/0x02
  * (the census's own disjoint mask) AND 0x04. 0x04 is therefore sticky by
- * design: only its consumers clear it, at raw 85332 (FUN_4d56_4528), 90168
- * (FUN_521d_20e6's settlement-step arm) and 94247 (the join-colonist loop).
- * Those three clears are still UNPORTED, so a port 0x04 stays set once
- * raised where DOS would spend it.
+ * design: only its consumers clear it.
+ *
+ * CONSUMER AUDIT, 2026-09-09 (all three read sites, viceroy_unpacked.c):
+ *   - raw 85332 and raw 90168 are the SAME arm, emitted twice by the
+ *     decompiler (both `goto LAB_521d_27f5`): FUN_521d_20e6's land-unit act.
+ *     A non-ship unit with attack > 1 and a bound home colony (+0x314a >= 0)
+ *     binds that colony; if it has 0x04 set, and (garrison_quota != 0 ||
+ *     unit type != 4), and the colony is on the unit's own continent
+ *     (FUN_281f_0722 == uStack_38), DOS clears 0x04, decrements
+ *     garrison_quota (+0x1e) and commits the walk home. PORTED 2026-09-09 as
+ *     ai_euro_20e6_surplus_recall_arm — one surplus unit recalled per tick,
+ *     which is what the single-shot clear buys.
+ *   - raw 94247: FUN_5952_035e's join-colonist loop (units standing on the
+ *     colony tile fold into the population). 0x04 is one of three disjuncts
+ *     that admit a Soldier/Dragoon; the arm then clears it. That whole loop
+ *     is UNPORTED — the port has no 5952 stack-absorption pass at all — so
+ *     this clear is documented debt, not a port defect. Wiring it needs the
+ *     loop (DS:0x8d72 stack count, local_42/local_3e expert budgets,
+ *     labor_shortage sign) first.
  */
 #define COLONIZE_COLONY_AI_NEEDS_MILITARY 0x04u
 #define COLONIZE_COLONY_AI_SHORT_DEFENDERS 0x08u
 #define COLONIZE_COLONY_AI_NEEDS_COLONISTS 0x10u
+/*
+ * DOS colony +0x1b bit 0x20 — "send a Pioneer to CLEAR this colony's ring",
+ * distinct from 0x80's road/plow errand. FUN_5952_035e writes the PAIR
+ * `|= 0xa0` (0x80|0x20) at raw 94200-94206, from its full-ring scan
+ * (raw 94082-94117), in two cases:
+ *   1. `ring_tiles - 1 <= unproductive` && `forest_tiles > 1` — the ring is
+ *      essentially all forest/water/poor ground;
+ *   2. `good_food_tiles < (pop + 3) >> 2` && `clearable_forest != 0` &&
+ *      `forest_tiles > 1` — too few open food tiles for the head count, with
+ *      at least one forest worth clearing.
+ * "unproductive" (local_144) = off-map + water + forest + cleared ground
+ * whose DS:0x2f7b food byte is < 2; "good_food" (local_e) = water +
+ * cleared ground with food >= 3; "clearable" (local_c) = forest whose
+ * CLEARED counterpart (class & 7) has food > 2.
+ *
+ * The writer is ported (ai_euro_refresh_colony_ai_flags). DOS's own readers
+ * are all inside FUN_5952_035e's later building/expert passes (raw 94422,
+ * 94454, 94499, 94751), none of which the port has — so the bit is currently
+ * WRITE-ONLY here. It is still worth carrying: it is save-visible state a
+ * DOS-authored save round-trips, and it is the hook a future Pioneer-errand
+ * arm reads instead of re-deriving the ring scan.
+ */
+#define COLONIZE_COLONY_AI_WANTS_PIONEER_CLEAR 0x20u
 #define COLONIZE_COLONY_AI_NEEDS_GARRISON 0x40u
 /*
  * DOS colony +0x1b bit 0x80 — "worked surround tiles want Pioneer work":

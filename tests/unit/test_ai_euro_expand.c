@@ -3643,6 +3643,268 @@ static int unit_colony_flags_starvation_labor(void) {
   return 0;
 }
 
+/*
+ * FUN_5952_035e `+0x1b |= 0xa0` (raw 94200-94206) — the "send a Pioneer to
+ * CLEAR" pair. Forest-locked ring (8 Conifer Forest tiles: every ring tile is
+ * unproductive, forests > 1) must raise both COLONIZE_COLONY_AI_WANTS_PIONEER_
+ * CLEAR (0x20) and COLONIZE_COLONY_AI_WANTS_PIONEER_WORK (0x80); an open
+ * Plains ring (food 4 everywhere, no forest, no worked tiles) must raise
+ * neither.
+ */
+static int unit_colony_ai_flags_pioneer_clear(void) {
+  const int nation = 1;
+
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  map.width = 16;
+  map.height = 16;
+  map.tile_count = 256;
+  map.terrain = calloc(256, 1);
+  map.layer2 = calloc(256, 1);
+  map.layer3 = calloc(256, 1);
+  if (!map.terrain || !map.layer2 || !map.layer3) {
+    return fail("pioneer-clear alloc map");
+  }
+  /* Plains (pedia 2, Farmer food 4) everywhere — the control ring. */
+  for (int i = 0; i < 256; ++i) {
+    map.terrain[i] = 2;
+  }
+  /* Colony A at (4,4): ring all Conifer Forest (pedia 13; clears to Savannah,
+   * Farmer food 3 > 2, so it also counts as "clearable"). */
+  for (int dy = -1; dy <= 1; ++dy) {
+    for (int dx = -1; dx <= 1; ++dx) {
+      map.terrain[(4 + dy) * 16 + (4 + dx)] = 13;
+    }
+  }
+
+  ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
+  units_reset(&units);
+  units_set_occupancy_map(NULL);
+  units.type_count = 1;
+  snprintf(units.types[0].name, sizeof(units.types[0].name), "Free Colonist");
+  units.types[0].movement = 1;
+  units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+
+  ColonizeColonyPool colonies;
+  colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
+  ColonizeColony* forest = &colonies.colonies[0];
+  forest->id = 0;
+  forest->active = true;
+  forest->nation_id = nation;
+  forest->x = 4;
+  forest->y = 4;
+  forest->population = 2;
+  forest->colonist_count = 2;
+  forest->colonists[0].active = true;
+  forest->colonists[0].field_job = -1;
+  forest->colonists[0].building_type = -1;
+  forest->colonists[1].active = true;
+  forest->colonists[1].field_job = -1;
+  forest->colonists[1].building_type = -1;
+  forest->stock[COLONIZE_CARGO_FOOD] = 40;
+  forest->building_in_production = -1;
+  forest->ai_flags = 0;
+
+  ColonizeColony* open = &colonies.colonies[1];
+  open->id = 1;
+  open->active = true;
+  open->nation_id = nation;
+  open->x = 11;
+  open->y = 11;
+  open->population = 2;
+  open->colonist_count = 2;
+  open->colonists[0].active = true;
+  open->colonists[0].field_job = -1;
+  open->colonists[0].building_type = -1;
+  open->colonists[1].active = true;
+  open->colonists[1].field_job = -1;
+  open->colonists[1].building_type = -1;
+  open->stock[COLONIZE_CARGO_FOOD] = 40;
+  open->building_in_production = -1;
+  open->ai_flags = 0;
+  colonies.colony_count = 2;
+  colonies.next_id = 2;
+
+  ai_goals_reset();
+  ColonizeCol1Save col1;
+  col1_save_init(&col1);
+  memset(col1.nation, 0, sizeof(col1.nation));
+  memset(col1.head.nation_relation, 0, sizeof(col1.head.nation_relation));
+  for (int i = 0; i < 4; ++i) {
+    col1.player[i].control = 1;
+    col1.player[i].diplomacy = 0;
+  }
+  col1.nation[nation].gold = 200;
+  col1.stuff.ship_counts[nation] = 1;
+
+  uint32_t turn = 30;
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.turn_number = &turn;
+  ctx.units = &units;
+  ctx.colonies = &colonies;
+  ctx.map = &map;
+  ctx.col1 = &col1;
+  ctx.col1_ok = true;
+  ctx.rng_seed = 7;
+
+  ai_euro_dispatcher_turn(&ctx, nation);
+
+  forest = &colonies.colonies[0];
+  open = &colonies.colonies[1];
+  const unsigned want = COLONIZE_COLONY_AI_WANTS_PIONEER_CLEAR |
+                        COLONIZE_COLONY_AI_WANTS_PIONEER_WORK;
+  int rc = 0;
+  if (((unsigned)forest->ai_flags & want) != want) {
+    fprintf(stderr, "unit_ai_euro_expand: forest colony ai_flags=0x%02x (want 0xa0 set)\n",
+            (unsigned)forest->ai_flags);
+    rc = 1;
+  }
+  if (((unsigned)open->ai_flags & want) != 0) {
+    fprintf(stderr, "unit_ai_euro_expand: open colony ai_flags=0x%02x (want 0xa0 clear)\n",
+            (unsigned)open->ai_flags);
+    rc = 1;
+  }
+
+  free(map.terrain);
+  free(map.layer2);
+  free(map.layer3);
+  if (rc != 0) {
+    return fail("expected +0x1b 0xa0 pair only on the forest-locked colony");
+  }
+  fprintf(stderr, "unit_ai_euro_expand: +0x1b 0xa0 pioneer-clear pair ok\n");
+  return 0;
+}
+
+/*
+ * FUN_521d_0a60 work-queue "+1500 exposed combat unit" arm (raw :87626-87635):
+ * DOS also requires the unit's `+0x314b` ai_plan letter to be neither 'G' nor
+ * 'A' (raw :87631) — a unit already assigned/garrisoned is not "exposed". Same
+ * colony, same Soldier, only the ai_plan byte differs: default (0) must arm the
+ * arm (work row with military == 1), 'G' must not.
+ */
+static int unit_0a60_work_military_ai_plan_gate(void) {
+  const int nation = 1;
+  int rc = 0;
+
+  for (int pass = 0; pass < 2 && rc == 0; ++pass) {
+    const uint8_t plan = pass == 0 ? 0u : 0x47u; /* default vs 'G' */
+
+    ColonizeWorldMap map;
+    memset(&map, 0, sizeof(map));
+    map.width = 16;
+    map.height = 16;
+    map.tile_count = 256;
+    map.terrain = calloc(256, 1);
+    map.layer2 = calloc(256, 1);
+    map.layer3 = calloc(256, 1);
+    if (!map.terrain || !map.layer2 || !map.layer3) {
+      return fail("0a60 ai_plan alloc map");
+    }
+    for (int i = 0; i < 256; ++i) {
+      map.terrain[i] = (i % 16 < 2) ? 25 : 2; /* west strip ocean, rest Plains */
+    }
+
+    ColonizeUnitPool units;
+    memset(&units, 0, sizeof(units));
+    units_reset(&units);
+    units_set_occupancy_map(NULL);
+    units.type_count = 1;
+    snprintf(units.types[0].name, sizeof(units.types[0].name), "Soldier");
+    units.types[0].movement = 1;
+    units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+    units.types[0].attack = 2;
+
+    ColonizeColonyPool colonies;
+    colonies_init(&colonies);
+    colonies_set_occupancy_map(NULL);
+    ColonizeColony* c = &colonies.colonies[0];
+    c->id = 0;
+    c->active = true;
+    c->nation_id = nation;
+    c->x = 2;
+    c->y = 6;
+    c->population = 2;
+    c->colonist_count = 2;
+    c->colonists[0].active = true;
+    c->colonists[0].field_job = -1;
+    c->colonists[0].building_type = -1;
+    c->colonists[1].active = true;
+    c->colonists[1].field_job = -1;
+    c->colonists[1].building_type = -1;
+    c->stock[COLONIZE_CARGO_FOOD] = 40;
+    c->building_in_production = -1;
+    colonies.colony_count = 1;
+    colonies.next_id = 1;
+
+    const int sid = units_spawn(&units, 0, 2, 6);
+    ColonizeUnit* sol = units_get(&units, sid);
+    if (!sol) {
+      free(map.terrain);
+      free(map.layer2);
+      free(map.layer3);
+      return fail("0a60 ai_plan spawn Soldier");
+    }
+    sol->nation_id = nation;
+    sol->moves_left = UNITS_MP_PER_TILE;
+    sol->col1_ai_plan = plan;
+
+    ai_goals_reset();
+    ColonizeCol1Save col1;
+    col1_save_init(&col1);
+    memset(col1.nation, 0, sizeof(col1.nation));
+    memset(col1.head.nation_relation, 0, sizeof(col1.head.nation_relation));
+    for (int i = 0; i < 4; ++i) {
+      col1.player[i].control = 1;
+      col1.player[i].diplomacy = 0;
+    }
+    col1.nation[nation].gold = 200;
+    col1.stuff.ship_counts[nation] = 1;
+
+    uint32_t turn = 30;
+    ColonizeTurnContext ctx;
+    memset(&ctx, 0, sizeof(ctx));
+    ctx.turn_number = &turn;
+    ctx.units = &units;
+    ctx.colonies = &colonies;
+    ctx.map = &map;
+    ctx.col1 = &col1;
+    ctx.col1_ok = true;
+    ctx.rng_seed = 11;
+
+    ai_euro_dispatcher_turn(&ctx, nation);
+
+    int military = 0;
+    for (int i = 0; i < AI_WORK_SLOTS; ++i) {
+      const AiWorkSlot* w = ai_goals_work(i);
+      if (w && w->id == 0 && w->military) {
+        military = 1;
+        break;
+      }
+    }
+    if (pass == 0 && !military) {
+      fprintf(stderr, "unit_ai_euro_expand: default ai_plan did not arm the +1500 arm\n");
+      rc = 1;
+    }
+    if (pass == 1 && military) {
+      fprintf(stderr, "unit_ai_euro_expand: ai_plan 'G' still armed the +1500 arm\n");
+      rc = 1;
+    }
+
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+  }
+
+  if (rc != 0) {
+    return fail("0a60 +1500 arm must respect the +0x314b 'G'/'A' gate");
+  }
+  fprintf(stderr, "unit_ai_euro_expand: 0a60 +1500 ai_plan G/A gate ok\n");
+  return 0;
+}
+
 static int unit_colony_ai_flags_mow_colony_alt(void) {
   const int nation = 1;
   const int foe = 2;
@@ -17304,6 +17566,12 @@ int main(void) {
     return 1;
   }
   if (unit_colony_ai_flags_mow_colony_alt() != 0) {
+    return 1;
+  }
+  if (unit_colony_ai_flags_pioneer_clear() != 0) {
+    return 1;
+  }
+  if (unit_0a60_work_military_ai_plan_gate() != 0) {
     return 1;
   }
   if (unit_human_census_ship_pressure_refresh() != 0) {

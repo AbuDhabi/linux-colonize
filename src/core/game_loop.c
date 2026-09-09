@@ -4703,6 +4703,22 @@ static bool game_apply_col1_save(ColonizeGameState* game, ColonizeCol1Save* load
   europe_reset_campaign(&game->europe);
   game->europe.harbor_ships = 0;
   game->europe.dock_count = 0;
+  /*
+   * Load replaces the world, so the port-side module statics that index the
+   * OUTGOING game's pools have to go with it — new game does exactly this
+   * trio in ai_init_new_game, load did none of it, so a pending reparations
+   * offer / AI goal slate / FF debate slate survived a Load and resolved
+   * against col1->tribe[], colony ids and unit ids of a different world.
+   * All three are safe here because everything the save owns is rebuilt
+   * immediately below: col1_bridge_apply ends with
+   * founding_fathers_sync_from_col1_after_load (FF bell pools, and the FF
+   * bitmasks live in the save itself), AI goals are re-planned each nation
+   * turn, and the contact cooldowns are turn-number stamps that only mean
+   * anything inside one campaign.
+   */
+  ai_goals_reset();
+  founding_fathers_reset();
+  ai_contact_reset();
   if (!col1_bridge_apply(
         loaded,
         &game->world_map,

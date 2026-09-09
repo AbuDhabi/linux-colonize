@@ -3075,6 +3075,19 @@ static int units_apply_land_loss_outcome(
   return 0;
 }
 
+/* Defined below with the rest of the naval tail; the 0ec0 sweep needs it for
+ * FUN_5fef_0352's hull arm (raw 99518-99649). */
+static int units_apply_naval_loss_outcome(
+  ColonizeUnitPool* pool,
+  int loser_id,
+  int winner_id,
+  int loser_str,
+  int winner_str,
+  int show_popups,
+  const ColonizeCol1Save* col1,
+  ColonizeDosRng* rng
+);
+
 /* Thin FUN_5fef_0ec0: after combat loss, capture leftover non-combat same-nation stack. */
 static void units_sweep_stack_after_loss(
   ColonizeUnitPool* pool,
@@ -3116,14 +3129,46 @@ static void units_sweep_stack_after_loss(
      *    (see is_colonist below), so an armed body falls to
      *    units_demote_combat_type and sheds its kit — exactly DOS's
      *    Soldiers → Colonists demote row.
-     *  - Hulls do need excluding: a berthed Caravel/Merchantman/Galleon is
-     *    attack 0 and has no capture/demote row, so it was being despawned
-     *    outright by the LAND sweep. Naval stackmates have their own resolver
-     *    (units_sweep_naval_stack_after_loss).
+     *  - Hulls must NOT be despawned: a berthed Caravel/Merchantman/Galleon is
+     *    attack 0 and has no capture/demote row, so units_apply_land_loss_outcome
+     *    dropped it outright. They must not be skipped either — see below.
+     *
+     * FUN_5fef_0352's hull arm (raw 99518-99649), ported 2026-09-09. 0352 tests
+     * the LOSER's type byte first — `if ((0xc < type) && (type < 0x13))`, i.e.
+     * any hull, whatever domain the fight was — long before any of its land
+     * rows, and none of those rows can match a ship anyway (the capture set at
+     * raw 99345 is types 0/0xa/0xc, the demote set at raw 99437-99451 is
+     * 4/1/9/7/8, and the artillery row is 0xb). Inside that arm:
+     *
+     *   bVar11 = true;                                   // raw 99523
+     *   if (winner_type*0xe + 0x523b != 0) { ...roll... } // raw 99527-99530
+     *
+     * 0x523b is the @UNIT guns column, and EVERY land type in NAMES.TXT carries
+     * guns 0 (only Merchantman..Man-O-War are non-zero). So a land winner never
+     * even reaches the damage-vs-sink roll: the hull is ALWAYS damaged — no RNG
+     * draw, exactly as DOS skips the draw. It then takes the ordinary damage
+     * tail (raw 99582-99649): holds and passengers lost, bit7, repair timer,
+     * relocation to the nearest own Drydock colony (or the Europe lane), and
+     * @SHIPDAMAGE. The one escape is 0352's shared WoI human-with-no-port sink
+     * (raw 99604-99607), which units_apply_naval_loss_outcome already applies.
+     *
+     * The `attack == 0` rail above is deliberately NOT applied to hulls: DOS
+     * keys this arm on the type range alone, so an armed Privateer/Frigate
+     * berthed alongside takes the same damage as a Caravel. The rail exists so
+     * a won attack cannot capture a defended LAND stack; a hull is never a land
+     * defender in this port (units_best_defender_at's domain gate), so there is
+     * nothing for it to guard here.
      */
+    if (units_is_sea(pool, u->id)) {
+      /* rng NULL is safe and DOS-exact: the guns==0 short-circuit in
+       * units_ship_damage_vs_sink returns "damaged" without drawing, and a
+       * land winner is the only winner this sweep can have (the naval paths
+       * use units_sweep_naval_stack_after_loss). */
+      (void)units_apply_naval_loss_outcome(pool, u->id, winner_id, 0, 0, 1, col1, NULL);
+      continue;
+    }
     const ColonizeUnitType* t = units_type(pool, u->type_index);
-    if (t && t->attack == 0 && !units_is_sea(pool, u->id) && u->nation_id >= 0 &&
-        u->nation_id <= 3) {
+    if (t && t->attack == 0 && u->nation_id >= 0 && u->nation_id <= 3) {
       (void)units_apply_land_loss_outcome(pool, u->id, winner_id, col1, 0);
     }
   }
@@ -6401,8 +6446,12 @@ void units_seize_noncombat_at(
      *    ai_euro caller's comment: a land walk-in neither sees nor touches a
      *    hull in the harbour. Skip every ship, not just the armed ones.
      *    (DOS's own 0ec0 does hand hulls to 0352's damage/repair-port arm,
-     *    raw 99521-99560; that arm is unported here — it is a residue, not a
-     *    licence to sink them.)
+     *    raw 99518-99649 — ported 2026-09-09 in units_sweep_stack_after_loss.
+     *    It is NOT wired here: this helper stands in for the colony walk-in,
+     *    and DOS's own colony-fall purge FUN_43f7_0512 destroys hulls outright
+     *    with @SEIZURESEA (ai_king.c ai_king_0982_purge_tile) rather than
+     *    routing them to a repair port. Neither DOS path says "damage them
+     *    here", so the skip stands.)
      *
      *  - Armed colonist BODIES. `attack == 0` is true for a Colonists-type
      *    unit carrying muskets (bugs.md: how a colony-armed soldier is stored

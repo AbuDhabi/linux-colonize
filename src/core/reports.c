@@ -3410,13 +3410,11 @@ static void reports_render_foreign(
  * with 8 tribes at 21px/row from y=28 the list can in principle run under
  * the OK button exactly like DOS's own screen would.
  *
- * Icon: ICONS.SS #113, one of five near-identical headband portraits
- * (#113-117, 16x16) DOS appears to pick between via an alarm-derived 0-4
- * index (an unidentified `0x281f`-segment helper, not the unrelated
- * `FUN_521d_0a60` euro-goal function of similar name) — indian.png's only
- * two examples (alarm 0 vs 34-48 toward the viewing nation) both render
- * pixel-identical #113, so this port always uses #113 pending a golden
- * that actually shows a different variant.
+ * Icon: ICONS.SS #113 + alarm quartile — one expression ramp over five
+ * near-identical headband portraits (#113-117, 16x16), of which this call
+ * site can reach #113 (calm) .. #116 (hostile). Resolved 2026-09-07 (T5.3)
+ * from `3f41:0522`..`3f41:05d2`; see the decode note in
+ * reports_indian_build_rows and docs/reports.md "Chief portrait".
  */
 #define REPORTS_INDIAN_ROW0_Y 28 /* first tribe name line (golden: indian.png text-color scan) */
 #define REPORTS_INDIAN_ROW_STEP 21
@@ -3425,8 +3423,8 @@ static void reports_render_foreign(
  * (x=11 scores 120+), i.e. icon top = name_y - 3. */
 #define REPORTS_INDIAN_ICON_X 10
 #define REPORTS_INDIAN_ICON_DY (-3) /* icon top = name_y + this */
-/* Calm face; +quartile picks #114..#116 as alarm rises (see the ramp note in
- * reports_collect_indian_rows). */
+/* Calm face (quartile 0); +quartile picks #114..#116 as alarm rises (see the
+ * ramp note in reports_indian_build_rows). */
 #define REPORTS_INDIAN_ICON_SPRITE 113
 #define REPORTS_INDIAN_NAME_X 30
 #define REPORTS_INDIAN_STATS_DY 9 /* stats line y = name_y + this (FONTINTR name row is 9px) */
@@ -3457,7 +3455,7 @@ typedef struct IndianRow {
   int missions;
   int muskets;
   int horse_herds;
-  int icon_sprite; /* 114 + alarm quartile — chief flair (see build_rows) */
+  int icon_sprite; /* 113 + alarm quartile — chief expression ramp (see build_rows) */
   int extinct;     /* record +3 bit 0x80 — name line only, "Extinct" suffix */
 } IndianRow;
 
@@ -3588,13 +3586,20 @@ static void reports_render_indian(
     const int stats_y = name_y + REPORTS_INDIAN_STATS_DY;
 
     if (view && view->icons_ok) {
+      /* The base sprite is #113 (quartile 0), so the floor is
+       * REPORTS_INDIAN_ICON_SPRITE, not 114 — the old `>= 114` test sent
+       * every calm tribe down the fallback branch, which skipped the
+       * sprite_count bound the guard exists to apply. */
       const int icon =
-        (r->icon_sprite >= 114 && r->icon_sprite < view->icons.sprite_count)
+        (r->icon_sprite >= REPORTS_INDIAN_ICON_SPRITE &&
+         r->icon_sprite < view->icons.sprite_count)
           ? r->icon_sprite
           : REPORTS_INDIAN_ICON_SPRITE;
-      ss_blit_sprite(
-        &view->icons, icon, fb, REPORTS_INDIAN_ICON_X, name_y + REPORTS_INDIAN_ICON_DY
-      );
+      if (icon < view->icons.sprite_count) {
+        ss_blit_sprite(
+          &view->icons, icon, fb, REPORTS_INDIAN_ICON_X, name_y + REPORTS_INDIAN_ICON_DY
+        );
+      }
     }
 
     char name_buf[40];
