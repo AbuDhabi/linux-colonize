@@ -2851,9 +2851,14 @@ void turn_run_year_end_chrome(ColonizeTurnContext* ctx, ColonizeTurnResult* out)
     (ctx->col1->head.game_options.calendar_latch ||
      ai_king_latch_get(ctx->col1, AI_KING_ENDGAME_BYTE) != AI_KING_ENDGAME_NONE);
 
-  /* Section E anniversary (0x6fe=1790, 0x730=1840) — status only; gate 5382|0x10. */
+  /* Section E anniversary (0x6fe=1790, 0x730=1840) — status only; gate 5382|0x10.
+   * Spring-only and peacetime-only: DOS gates on autumn==0 and !woi, so the
+   * blurb fires once per anniversary year and never during the War of
+   * Independence. */
   if (!splash_done && (year == 0x6feu || year == 0x730u) && ctx->status &&
-      ctx->status_size > 0 && !out->year_end_defeat && !out->year_end_victory) {
+      ctx->status_size > 0 && !out->year_end_defeat && !out->year_end_victory &&
+      !(ctx->game_autumn && *ctx->game_autumn != 0) &&
+      !(ctx->col1_ok && ctx->col1 && ctx->col1->head.game_options.woi)) {
     static const char* k_diff[] = {
       "Discoverer", "Explorer", "Conquistador", "Governor", "Viceroy"
     };

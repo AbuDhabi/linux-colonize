@@ -630,6 +630,33 @@ void europe_seed_pool(EuropeScreen* eu, int difficulty, bool human) {
   }
 }
 
+void europe_seed_campaign_prices(EuropeScreen* eu, ColonizeDosRng* rng) {
+  /*
+   * FUN_38fd_6024 price seed (viceroy_unpacked.c 68645-68654): new campaign
+   * only — bid = FUN_281f_04d4(0, start_hi−start_lo) + start_lo per cargo,
+   * inclusive both ends, broadcast to all four nations. Fixed 16 iterations
+   * in cargo order; hi==lo still consumes a draw, so the LCG stream matches
+   * DOS. No clamp to [low, high]. Smell audit #55.
+   */
+  if (!eu || !rng) {
+    return;
+  }
+  for (int i = 0; i < EUROPE_CARGO_MAX; ++i) {
+    EuropeCargoQuote* q = &eu->cargo[i];
+    const int lo = q->start_lo;
+    const int hi = q->start_hi >= lo ? q->start_hi : lo;
+    int bid = dos_rng_range(rng, lo, hi);
+    if (i >= eu->cargo_count) {
+      continue; /* draw consumed (DOS loops all 16 slots), table row absent */
+    }
+    if (bid < 0) {
+      bid = 0;
+    }
+    q->bid = bid;
+    q->ask = q->bid + q->burden;
+  }
+}
+
 static void europe_init_pool(EuropeScreen* eu) {
   /* Reset time: the real difficulty is not cached yet (europe_reset_campaign
    * zeroes it and the first EOT tick fills it in), so this is the Discoverer
@@ -722,10 +749,13 @@ static bool europe_load_tables(EuropeScreen* eu, const ColonizeMsgCatalog* names
           !europe_parse_int_field(&p, &volatility)) {
         continue;
       }
-      (void)start_hi;
-
       EuropeCargoQuote* q = &eu->cargo[eu->cargo_count++];
       str_copy_trunc(q->name, sizeof(q->name), line);
+      q->start_lo = start_lo;
+      q->start_hi = start_hi;
+      /* Table load leaves bid at the band floor; a new campaign then rolls
+       * bid within [start_lo, start_hi] (europe_seed_campaign_prices) and a
+       * loaded save overwrites it with euro_price. */
       q->bid = start_lo;
       if (q->bid < 0) {
         q->bid = 0;
@@ -3083,7 +3113,12 @@ int europe_sell_hold(
   /* Status line before the volume move, so the printed gross is the bid the
    * sale actually went through at (bugs.md 382). */
   europe_push_sale_status(eu, ctype, amt, gained);
-  europe_apply_volume_price(eu, ctype, amt, 0);
+  /* Smell audit #50: route through the ledger (1dfa tons/tons2/gold) so the
+   * human's own trading feeds the long-run price pool. */
+  europe_apply_trade_volume(
+    eu, col1, seller_nation, col1 ? (int)col1->head.human_player : seller_nation,
+    ctype, amt, 0, 1
+  );
   const char* cname =
     (ctype >= 0 && ctype < eu->cargo_count) ? eu->cargo[ctype].name : "cargo";
   snprintf(eu->status, sizeof(eu->status), "Sold %d %s for %d$.", amt, cname, gained);
@@ -3132,7 +3167,11 @@ int europe_sell_hold_partial(
     ship->hold_goods_type[hold_index] = 255;
   }
   europe_push_sale_status(eu, ctype, amt, gained);
-  europe_apply_volume_price(eu, ctype, amt, 0);
+  /* Smell audit #50: ledger + price move (see europe_sell_hold). */
+  europe_apply_trade_volume(
+    eu, col1, seller_nation, col1 ? (int)col1->head.human_player : seller_nation,
+    ctype, amt, 0, 1
+  );
   const char* cname =
     (ctype >= 0 && ctype < eu->cargo_count) ? eu->cargo[ctype].name : "cargo";
   snprintf(eu->status, sizeof(eu->status), "Sold %d %s for %d$.", amt, cname, gained);
@@ -3481,7 +3520,12 @@ int europe_sell_unit_hold(
   europe_credit_sale_tax(col1, u->nation_id, europe_sell_price(eu, ctype) * amt, gained);
   u->hold_goods_amount[hold_index] = 0;
   u->hold_goods_type[hold_index] = 0;
-  europe_apply_volume_price(eu, ctype, amt, 0);
+  /* Smell audit #50: ledger + price move; seller = hold owner (AI borrow
+   * path keeps crediting the right nation record). */
+  europe_apply_trade_volume(
+    eu, col1, (int)u->nation_id, col1 ? (int)col1->head.human_player : (int)u->nation_id,
+    ctype, amt, 0, 1
+  );
   const char* cname =
     (ctype >= 0 && ctype < eu->cargo_count) ? eu->cargo[ctype].name : "cargo";
   snprintf(eu->status, sizeof(eu->status), "Sold %d %s for %d$.", amt, cname, gained);
@@ -3494,6 +3538,7 @@ int europe_sell_unit_hold(
 
 int europe_buy_unit_cargo(
   EuropeScreen* eu,
+  struct ColonizeCol1Save* col1,
   ColonizeUnitPool* units,
   int unit_id,
   int cargo_type,
@@ -3531,7 +3576,11 @@ int europe_buy_unit_cargo(
     return 0;
   }
   eu->gold -= loaded * ask;
-  europe_apply_volume_price(eu, cargo_type, loaded, 1);
+  /* Smell audit #50: ledger (1d80 gold −= ask·amt) + price move. */
+  europe_apply_trade_volume(
+    eu, col1, (int)u->nation_id, col1 ? (int)col1->head.human_player : (int)u->nation_id,
+    cargo_type, loaded, 1, 1
+  );
   diag_info(
     "EUROPE bought %d %s onto unit %d: ask=%d cost=%d gold=%d",
     loaded, eu->cargo[cargo_type].name, unit_id, ask, loaded * ask, eu->gold
@@ -3539,7 +3588,14 @@ int europe_buy_unit_cargo(
   return loaded;
 }
 
-int europe_buy_cargo(EuropeScreen* eu, int harbor_index, int cargo_type, int amount) {
+int europe_buy_cargo(
+  EuropeScreen* eu,
+  struct ColonizeCol1Save* col1,
+  int buyer_nation,
+  int harbor_index,
+  int cargo_type,
+  int amount
+) {
   if (!eu || harbor_index < 0 || harbor_index >= eu->harbor_ships) {
     return 0;
   }
@@ -3620,7 +3676,11 @@ int europe_buy_cargo(EuropeScreen* eu, int harbor_index, int cargo_type, int amo
   const int bought = buy - remaining;
   eu->gold -= bought * ask;
   if (bought > 0) {
-    europe_apply_volume_price(eu, cargo_type, bought, 1);
+    /* Smell audit #50: ledger (1d80 gold −= ask·amt) + price move. */
+    europe_apply_trade_volume(
+      eu, col1, buyer_nation, col1 ? (int)col1->head.human_player : buyer_nation,
+      cargo_type, bought, 1, 1
+    );
   }
   snprintf(
     eu->status,

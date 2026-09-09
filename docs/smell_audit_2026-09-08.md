@@ -6,6 +6,8 @@ Eight-subsystem sweep for bug-smells (counter-intuitive logic, doc/DOS contradic
 
 **FIXED 2026-09-08 (batch 2):** #16, #17, #52, #53, #54. Details per item below. ctest 60/60 after.
 
+**FIXED 2026-09-08 (batch 3):** #28, #50, #55, #65, #95. Details per item below. ctest 60/60 after.
+
 ## Cross-cutting: native moves_left semantics inversion (H) — FIXED: `units_mp_charge`/`units_mp_exhaust` spent-aware writers in units.c; all listed sites converted to `units_remaining_mp`/helpers (try_move gate+charge+shore, village-raid branch, win/loss drains, mounted spend-all, afford gate, goto gates, ai_contact raid+escort gates). ~40 test fixtures in test_ai_contact.c + 2 in test_units.c flipped to spent semantics (they were written against the inverted gates).
 
 For native nations `moves_left` holds the DOS **spent** byte (turn.c:179 refreshes natives to 0 = unspent; `units_remaining_mp` units.c:6292 is the safe accessor). Multiple sites read/write it as "remaining":
@@ -52,7 +54,7 @@ For native nations `moves_left` holds the DOS **spent** byte (turn.c:179 refresh
 
 ## Turn flow
 
-28. turn.c:2854 — 1790/1840 anniversary chrome missing DOS gates `autumn==0` and `!at_war`: @WARN1 fires **twice in 1790** (Spring+Autumn) and during WoI. Sibling @SOONRETIRING0 (ai_king.c:4950) has the gates. H
+28. turn.c:2854 — 1790/1840 anniversary chrome missing DOS gates `autumn==0` and `!at_war`: @WARN1 fires **twice in 1790** (Spring+Autumn) and during WoI. Sibling @SOONRETIRING0 (ai_king.c:4950) has the gates. H — FIXED: both gates added to the Section E condition (`!(game_autumn && *game_autumn)` + `!game_options.woi`).
 29. turn.c:2892 + :2949 — 1800 game-over year missing `!at_war`, then sets `calendar_latch` unconditionally; a WoI win on/after 1800 latches WON but never runs win sequence (game_loop.c:11880 gate). Also Section E runs before woi computed. M
 30. turn.c:3670-3676 + game_loop.c:9702-9715 — decade autosave writes slots 8 **and** 9 (DOS: exactly one) and omits `turn > 2` guard. M-H
 31. turn.c:3484-3520 — INDIAN phase runs all 8 slots; DOS skips extinct tribes (bit 7 of tribe stance, transcribed at ai.c:4786 but never tested). Extinct tribe keeps rolling, drifts RNG stream. M-H
@@ -80,12 +82,12 @@ For native nations `moves_left` holds the DOS **spent** byte (turn.c:179 refresh
 
 ## Europe / market / trade routes
 
-50. europe.c:2478-2482 — human harbor buys/sells pass `col1=NULL`: nation `trade.tons/tons2/gold` ledger never written, so player's own trading is invisible to the long-run price pool (Custom House + AI sales do count). H
+50. europe.c:2478-2482 — human harbor buys/sells pass `col1=NULL`: nation `trade.tons/tons2/gold` ledger never written, so player's own trading is invisible to the long-run price pool (Custom House + AI sales do count). H — FIXED: all five direct channels (sell_hold, sell_hold_partial, sell_unit_hold, buy_cargo, buy_unit_cargo) route through europe_apply_trade_volume with col1 + real nations; buy entry points grew col1/nation params (game_loop callers rewired). human_nation from head.human_player, so AI transport dump-sells now take the non-human 1d44 term (part of #58's 6405 leg). Residual on the wrapper: arm rows (europe.c dock menu, no DOS arm located — #62) and ai_euro 5d04 (#61).
 51. europe.c:3042-3058 — sell credits gold but never credits tax to `royal_money` (DOS `nation+0x22 += tax`); all Europe tax revenue vanishes, REF systematically underfunded. Custom House arm does credit it. H — FIXED: europe_credit_sale_tax helper; europe_sell_hold + europe_sell_unit_hold credit gross−net to seller nation royal_money (trade-route auto-unload fixed for free; #52/#53 direct paths closed in batch 2).
 52. game_loop.c:2861-2874 — shift+drag partial sell: no boycott check, no price movement. Boycott exploit + zero-market-impact channel. H — FIXED: new `europe_sell_hold_partial` (full path: boycott gate, tax credit, sale status, volume price move); both game_loop sites rewired. Also closes the #51 residual tax leak on these paths.
 53. game_loop.c:13429-13435 — `-` key single-unit sell: same two omissions; 99 presses liquidate a hold with zero price movement. H — FIXED: same helper (amount 1).
 54. game_loop.c:9418, 13337, 13399 — all three @HOWMUCH4 purchase prompts quote `europe_sell_price()` (bid) instead of ask; off by burden+1 (Food quoted 0 not 8). H — FIXED: all three quote `europe_buy_price` (ask).
-55. europe.c:725/729 — @CARGO `start_hi` discarded; DOS rolls RNG(lo..hi) per cargo per campaign; every game opens at bottom of every price band. H
+55. europe.c:725/729 — @CARGO `start_hi` discarded; DOS rolls RNG(lo..hi) per cargo per campaign; every game opens at bottom of every price band. H — FIXED: europe_seed_campaign_prices = FUN_38fd_6024 seed (viceroy_unpacked.c 68645-68654): bid = RNG(start_lo..start_hi) inclusive, fixed 16 draws in cargo order (hi==lo still draws), one roll shared by all nations, no [low,high] clamp; called from the new-campaign block after move_rng is established. Load path untouched (save euro_price wins; DOS load skips the seed at 75c2:121921).
 56. europe.c:589-631 — missing DOS Spain override: nation 2 recruit-pool slot 0 forced to Jesuit Missionaries after seeding. M
 57. europe.c:2392-2394 — Dutch (term*2)/3 damping keyed on `human_nation == 3` which the caller can never satisfy (passes −1), and applied to buys too (DOS: sells only). Dutch player gets no damping on own harbor trades. M
 58. europe.c:2387/3392 + ai_euro.c:6405 — `seller_is_human` hardcoded true for AI dump-sells; at difficulty >2 volume-term sign flips, AI sales push market wrong direction. M
@@ -98,7 +100,7 @@ For native nations `moves_left` holds the DOS **spent** byte (turn.c:179 refresh
 
 ## Indian / King AI / diplomacy
 
-65. ai_contact.c:8292-8305 — post-ambush raid pulse adds +2 alarm and `attacks++` on **every** tribe of nation, immediately after DOS's negative vent + attitude zero in `units_resolve_land_combat`; last surviving retired-drip-class caller (`ai_contact_alarm_bump_amount`); attacks word now live state (hostility gate + tier-3 map alarm). H
+65. ai_contact.c:8292-8305 — post-ambush raid pulse adds +2 alarm and `attacks++` on **every** tribe of nation, immediately after DOS's negative vent + attitude zero in `units_resolve_land_combat`; last surviving retired-drip-class caller (`ai_contact_alarm_bump_amount`); attacks word now live state (hostility gate + tier-3 map alarm). H — FIXED: both blocks deleted (bump + all-tribes attacks++); helper's remaining caller is the 4657 prelude (#72).
 66. ai_contact.c:642, 1259 — @INDIANSHUN reject and open-hostilities also `attacks++` across all tribes; DOS's only attacks-writer is the per-settlement trespass bump. M
 67. ai_contact.c:7718-7748 — SHIP raid kind: −16 alarm charged for zeroing MP + dumping 1 ton; DOS row is "unit at the colony killed". Raider pays alarm for nothing. M
 68. ai_contact.c:4595-4604 — WoI defection status line says tribe "declares for the rebel cause" while the mechanic (per its own comment) makes it Tory (+100 rebel alarm, −100 Crown). H
@@ -134,7 +136,7 @@ For native nations `moves_left` holds the DOS **spent** byte (turn.c:179 refresh
 
 ## European AI
 
-95. ai_euro.c:16728 — 20e6 sail-pick "doesn't need colonists" arm `−0x25` (−37); DOS SBB idiom gives −25 (`-0x19`). Hex/decimal slip; ferries over-avoid staffed colonies. H
+95. ai_euro.c:16728 — 20e6 sail-pick "doesn't need colonists" arm `−0x25` (−37); DOS SBB idiom gives −25 (`-0x19`). Hex/decimal slip; ferries over-avoid staffed colonies. H — FIXED: `-0x19`.
 96. ai_euro.c:16744 — reads ai_flags bit 0x04 (`NEEDS_MILITARY`, which has **no writer** in the port) where DOS raw tests bit 0x08; war-cargo destination score always takes the −0xf arm on DOS-loaded games. M-H
 97. ai_euro.c:16749 — missing `(int8_t)` cast on `cargo_idle_turns`; sibling at 13452 casts; DOS reads signed. M
 98. ai_euro.c:1592 vs 1546 — `clear_pre_stockade_build_queue` runs last in dispatcher and wipes exactly the young-colony Docks/Warehouse picks `prefer_young` just made (and the `colonies_found` Docks default). Comment/code disagree (Pop≥2 vs `< 3`). M
