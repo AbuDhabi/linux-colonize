@@ -232,8 +232,6 @@ static void founding_fathers_reset_bells_pool(int nation_id) {
   s_ff_bells_since_elect[nation_id] = 0;
 }
 
-#define FF_CORONADO_REVEAL_RADIUS 2
-#define FF_DESOTO_REVEAL_RADIUS 1
 #define FF_BOLIVAR_SOL_BONUS 20
 #define FF_LA_SALLE_STOCKADE_POP 3
 
@@ -882,51 +880,23 @@ static void ensure_next_candidate(ColonizeTurnContext* ctx, int nation_id) {
   }
 }
 
-/* Coronado: reveal radius around each owned colony. Returns colonies touched. */
-static int effect_coronado_reveal(
+/*
+ * Coronado: DOS FUN_4345_0342 case `param_2 == 6` (viceroy_unpacked.c
+ * 73155-73159) sweeps EVERY colony on the board — the loop runs over
+ * 0..colony_count (DS:0x539e) with no owner test — and calls FUN_13f1_00a6
+ * (viceroy_unpacked.c 7096), the ±5 square reveal that also seeds
+ * pop_on_map=1 / fort_on_map=0 on colonies inside it. Delegated to
+ * colonies_reveal_all_for_nation so both call sites share the one sweep.
+ */
+static void effect_coronado_reveal(
   ColonizeWorldMap* map,
   ColonizeColonyPool* colonies,
   int nation_id
 ) {
   if (!map || !map->seen || !colonies) {
-    return 0;
+    return;
   }
-  int touched = 0;
-  /* Pool bound (colonies_abandon leaves holes and shrinks colony_count). */
-  for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
-    ColonizeColony* col = &colonies->colonies[i];
-    if (!col->active || col->nation_id != nation_id) {
-      continue;
-    }
-    map_reveal_radius(map, col->x, col->y, nation_id, FF_CORONADO_REVEAL_RADIUS);
-    touched++;
-  }
-  return touched;
-}
-
-/* de Soto partial: extended sight stand-in via land-unit reveal.
- * LCR always-positive: wired via units_resolve_lcr_rumour (reveal radius). */
-static int effect_desoto_reveal(
-  ColonizeWorldMap* map,
-  ColonizeUnitPool* units,
-  int nation_id
-) {
-  if (!map || !map->seen || !units) {
-    return 0;
-  }
-  int touched = 0;
-  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-    ColonizeUnit* u = &units->units[i];
-    if (!u->active || u->nation_id != nation_id || !units_is_on_map(u)) {
-      continue;
-    }
-    if (units_is_sea(units, u->id)) {
-      continue;
-    }
-    map_reveal_radius(map, u->x, u->y, nation_id, FF_DESOTO_REVEAL_RADIUS);
-    touched++;
-  }
-  return touched;
+  colonies_reveal_all_for_nation(map, colonies, nation_id);
 }
 
 /*
@@ -1248,16 +1218,21 @@ static void apply_effect(
       (void)effect_magellan_sea_moves(units, nation_id);
       break;
     case FF_FRANCISCO_CORONADO:
-      /* Manual/wiki: reveal owned colonies and surroundings. */
-      (void)effect_coronado_reveal(map, colonies, nation_id);
+      /* Manual/wiki: "all existing colonies and the area around them become
+       * visible" — DOS FUN_4345_0342 case 6 (viceroy_unpacked.c 73155-73159):
+       * ±5 sweep (FUN_13f1_00a6) around EVERY colony, foreign ones included. */
+      effect_coronado_reveal(map, colonies, nation_id);
       break;
     case FF_HERNANDO_DE_SOTO:
-      /* PEDIA @FATHER7: LCR always positive + extended sight. Ongoing sight:
-       * FUN_13f1_02f8 (units_sight_radius) makes every non-ship unit radius 2
-       * while owned; this elect-time sweep just applies it once immediately.
-       * LCR: units_resolve_lcr_rumour ← FUN_65dd_0004 (full port, reroll loop
-       * at 65dd:00a6 on FF bit 7). */
-      (void)effect_desoto_reveal(map, units, nation_id);
+      /* PEDIA @FATHER7: LCR always positive + extended sight. Both halves are
+       * ONGOING, not elect-time: FUN_4345_0342 (viceroy_unpacked.c
+       * 73044-73160) has no `param_2 == 7` case at all, so electing de Soto
+       * reveals nothing by itself.
+       *   Sight: FUN_13f1_02f8 (viceroy_unpacked.c, units_sight_radius) gives
+       *   every non-ship unit radius 2 while owned — each subsequent unit
+       *   reveal picks it up (13f1:0321).
+       *   LCR: units_resolve_lcr_rumour ← FUN_65dd_0004 (full port, reroll
+       *   loop at 65dd:00a6 on FF bit 7). */
       break;
     case FF_HENRY_HUDSON:
       /* Manual/wiki: fur trapper output +100% — applied in turn harvest
@@ -1448,7 +1423,16 @@ static bool try_elect_nation(ColonizeTurnContext* ctx, int nation_id) {
    * and next >= 0. Wiki: choice after first bells, then accumulate to join.
    */
   const unsigned pool = founding_fathers_bells_since_last_elect(nation_id);
-  if (pool == 0u && nat->liberty_bells_last_turn == 0) {
+  /* liberty_bells_last_turn is only genuine EOT bell production while the
+   * save is NOT carrying our own pool stash in it (smell audit #85/#94):
+   * founding_fathers_stash_pools_into_col1 overwrites the field with the FF
+   * pool and marks it via unknown21_pad. Reading the stash back here would
+   * let a save-time artefact stand in for "this nation has produced bells". */
+  const unsigned last_turn_bells =
+    founding_fathers_col1_last_turn_is_stash(col1, nation_id)
+      ? 0u
+      : (unsigned)nat->liberty_bells_last_turn;
+  if (pool == 0u && last_turn_bells == 0u) {
     return false;
   }
 

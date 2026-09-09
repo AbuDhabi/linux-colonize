@@ -184,7 +184,16 @@ static void combat_analysis_fill_mods(
   if (flags->flags2 & COMBAT_FLAG_FATIGUE_66) {
     combat_analysis_push_row(rows, count, "Fatigue", -66);
   }
-  /* LABELS "Attack Bonus" — land ×3/2 (FUN_5fef_1b0e / FUN_636c bit0 walk). */
+  /*
+   * LABELS line 92 "Attack Bonus" (DS:0x2e54), value +50%. DOS FUN_636c_0000
+   * (viceroy_unpacked.c 101874-101891) walks `local_78 & 1` = bit 0 of the
+   * attacker's flag word DS:0x8d00, and FUN_157e_004a sets exactly that bit on
+   * every mode != 0 (attack) evaluation: `*puVar1 = *puVar1 | (param_2 != 0)`
+   * with puVar1 = 0x8d00 (viceroy_unpacked.c 8926-8928). No domain test — see
+   * the ×3/2 itself at FUN_5fef_1b0e viceroy_unpacked.c 100457-100458, which
+   * 1b0e applies to naval attackers too (1b0e is the single resolver for both
+   * domains; its is-ship flags bVar9/bVar10 gate other clauses, not this one).
+   */
   if (land_attack_bonus) {
     combat_analysis_push_row(rows, count, "Attack Bonus", 50);
   }
@@ -349,7 +358,7 @@ void combat_analysis_log_engagement(
   CombatAnalysisRow def_rows[COMBAT_ANALYSIS_LINES_MAX];
   int atk_count = 0;
   int def_count = 0;
-  const int atk_bonus = !eng->is_naval && (eng->atk_flags.flags & COMBAT_FLAG_MODE_ATK);
+  const int atk_bonus = (eng->atk_flags.flags & COMBAT_FLAG_MODE_ATK) != 0;
   combat_analysis_fill_mods(atk_rows, &atk_count, &eng->atk_flags, atk_bonus, true);
   combat_analysis_fill_mods(def_rows, &def_count, &eng->def_flags, 0, false);
   char atk_mods[256];
@@ -447,8 +456,13 @@ bool combat_analysis_open(
     snprintf(dlg->def_name, sizeof(dlg->def_name), "%s", units_display_name(pool, def_u));
   }
 
-  /* Land attacker always gets ×3/2 standing attack factor — list as Attack Bonus. */
-  const int atk_bonus = !eng->is_naval && (eng->atk_flags.flags & COMBAT_FLAG_MODE_ATK);
+  /*
+   * Every attacker — land or naval — carries the ×3/2 standing attack factor
+   * (FUN_5fef_1b0e 100458) and DOS 636c prints its Attack Bonus row off the
+   * same DS:0x8d00 bit 0 for both domains. Suppressing it at sea made the
+   * displayed rows stop summing to the shown strengths.
+   */
+  const int atk_bonus = (eng->atk_flags.flags & COMBAT_FLAG_MODE_ATK) != 0;
   combat_analysis_fill_mods(
     dlg->atk_rows, &dlg->atk_line_count, &eng->atk_flags, atk_bonus, true
   );

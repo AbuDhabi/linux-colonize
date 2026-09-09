@@ -69,8 +69,25 @@ static const char* k_misc_bodies[PEDIA_MISC_COUNT] = {
   "Pioneers build roads with the R key. Roads speed movement and increase "
   "fur, lumber, ore, and silver production in the square.",
 
-  "Sentry puts a unit on standby. Units on sentry board the next available "
-  "ship, and wake when enemies approach or you activate them.",
+  /*
+   * Wake-on-enemy-approach was invented here (smell #47) and is now gone.
+   * DOS has no such mechanic: every write of the order byte DS:+0x314c was
+   * enumerated (viceroy_unpacked.c 7729 unit-create, 8297/8674/8714 europe,
+   * 11272/13616 colony cargo, 42417/42511/42602/42808/42863/43962/45657/46078
+   * explicit order set, 42494/42585/42717/42781/41438/44422 activate, 49942+/
+   * 52100+/52413+ trade route, 60742/60777/64889/65803/73097/75709 misc) and
+   * not one is an adjacency scan for hostiles; the day-top unit refresh
+   * (viceroy_unpacked.c:6355-6357) clears only moves-spent +0x3149 and never
+   * touches +0x314c. Nor does DOS claim it in text: PEDIA.TXT has no @MISC
+   * bodies at all (DOS misc pages are title-only, docs/assets.md), and
+   * GAME.TXT's only Sentry strings are the menu labels @UNITOPTIONS
+   * "Sentry / Board ship." (:1774) and @SHIPOPTIONS "Sentry." (:1781).
+   * The boarding half IS real — units_board_sentries_from_tile, DOS
+   * FUN_4720_0006/015c embark probe — so only the wake clause was cut.
+   */
+  "Sentry puts a unit on standby: it is skipped in the turn cycle until you "
+  "activate it. A sentried land unit boards a ship leaving its tile, up to "
+  "the ship's capacity. Hence the order's name: Sentry / Board ship.",
 
   "Automate a ship or wagon along a saved route of colony and Europe "
   "stops with load/unload orders. Edit routes from the Trade menu.",

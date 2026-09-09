@@ -641,6 +641,28 @@ void col1_bridge_sync_map_density(ColonizeCol1Save* save, const ColonizeWorldMap
   }
 }
 
+/*
+ * Max MP for the col1 +0x05 moves_spent conversion, both directions.
+ *
+ * FUN_1427_065a: a ship gets +3 thirds when the owner's capability bit 5
+ * (Magellan) is set. units_max_mp() answers the same question but reads it
+ * off the units module's bound FF save (g_units_ff_col1), which tools and
+ * unit tests never bind — export then used the un-bumped max while import
+ * (which reads the save in hand) added the +3, so every capture/apply cycle
+ * handed Magellan ships 3 free thirds. Both sides now derive it from the
+ * save being written/read, so the round trip is lossless either way.
+ */
+static int col1_bridge_unit_max_mp(
+  const ColonizeUnitType* ut, int nation_id, const ColonizeCol1Save* save
+) {
+  int total = units_type_max_mp(ut);
+  if (ut && ut->domain == COLONIZE_UNIT_DOMAIN_SEA && save && nation_id >= 0 && nation_id <= 3 &&
+      founding_fathers_nation_has(save, nation_id, FF_FERDINAND_MAGELLAN)) {
+    total += UNITS_MP_PER_TILE;
+  }
+  return total;
+}
+
 bool col1_bridge_apply(
   const ColonizeCol1Save* save,
   ColonizeWorldMap* map,
@@ -1257,11 +1279,7 @@ bool col1_bridge_apply(
        */
       const ColonizeUnitType* ut = units_type(units, ti);
       if (src->nation_id <= 3) {
-        int total = units_type_max_mp(ut);
-        if (ut && ut->domain == COLONIZE_UNIT_DOMAIN_SEA &&
-            founding_fathers_nation_has(save, src->nation_id, FF_FERDINAND_MAGELLAN)) {
-          total += UNITS_MP_PER_TILE;
-        }
+        const int total = col1_bridge_unit_max_mp(ut, (int)src->nation_id, save);
         const int spent = (int)src->moves;
         u->moves_left = total > spent ? total - spent : 0;
       } else {
@@ -1808,7 +1826,15 @@ bool col1_bridge_capture(
    * (bugs.md 288, still_foggy.SAV). 0xffff = no override, as every DOS save
    * carries; heals stale campaigns on re-save. */
   save->head.fixed_nation_map_view = 0xffffu;
-  save->head.show_entire_map = 0;
+  /* DS:0x53a2 show_entire_map: the Complete Map cheat / post-win reveal.
+   * It is live state, not a template field — game_apply_setview stamps it on
+   * SETVIEW, turn.c LAB_0b4a stamps it on victory, and it is read back as the
+   * fog bypass (game_loop 550, colonies_known_to) and as the Foreign Affairs
+   * "all colonies" gate (reports.c 3160: DOS `FUN_281f_07b4(viewer,4) ||
+   * DS:0x53a2`). `save` IS the live head here, so zeroing it dropped the
+   * reveal on every save; keep what the runtime holds, normalized to DOS's
+   * 0/1 (DOS only ever writes those two values). */
+  save->head.show_entire_map = (uint16_t)(save->head.show_entire_map != 0 ? 1 : 0);
   /*
    * bugs.md interop (port_saves/interop pair): DOS's own in-game saves carry
    * DS:0x53c2 turn_loop_running = 1 and DS:0x53c4 map_modal_active = 1. The
@@ -2254,7 +2280,9 @@ bool col1_bridge_capture(
         const ColonizeUnitType* ut = units_type(units, src->type_index);
         const bool transport = ut && ut->cargo > 0;
         if (src->nation_id >= 0 && src->nation_id <= 3) {
-          const int max_mp = units_max_mp(units, src->id);
+          /* Symmetric with the import above (col1_bridge_unit_max_mp): read
+           * Magellan off `save`, not the units module's optional FF global. */
+          const int max_mp = col1_bridge_unit_max_mp(ut, src->nation_id, save);
           int spent = 0;
           if (src->aboard_ship_id >= 0 ||
               (transport && (src->orders == UNITS_ORDER_SENTRY ||

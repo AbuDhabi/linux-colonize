@@ -1717,11 +1717,14 @@ static void ai_king_do_declare(ColonizeTurnContext* ctx, int human) {
        * "unmapped" any more. The port had it inverted for PEACE: it CLEARED
        * 0x40 where DOS SETS it, so a withdrawn Euro power came out of the
        * declare fold not-at-peace with both the rebel and the crown.
-       * (0x08 is AI_DIPLO_TREASURE_STRONGER, this port's stand-in on the DOS
-       * amicable-negotiation latch -- clearing it is the DOS write.)
+       * (0x08 is AI_DIPLO_AMICABLE, the DOS amicable-negotiation latch --
+       * clearing it is the DOS write. Renamed 2026-09-09, smell #99: it was
+       * called AI_DIPLO_TREASURE_STRONGER, which wrongly implied a
+       * Linux-invented second owner of the bit; DOS writes 0x08 both here,
+       * at 153e's tail, and in FUN_465b_0000's treasure arm.)
        */
       const uint8_t k_0108_clear =
-        (uint8_t)(AI_DIPLO_WAR_INTENT | AI_DIPLO_WAR | AI_DIPLO_TREASURE_STRONGER);
+        (uint8_t)(AI_DIPLO_WAR_INTENT | AI_DIPLO_WAR | AI_DIPLO_AMICABLE);
       const uint8_t k_0108_set = (uint8_t)(AI_DIPLO_MET | AI_DIPLO_PEACE);
       ai_diplo_clear_both(ctx->col1, n, human, k_0108_clear);
       ai_diplo_or_both(ctx->col1, n, human, k_0108_set);

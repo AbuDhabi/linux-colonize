@@ -12,17 +12,57 @@ typedef struct ColonyCraftRecipe {
   int craft_profession;
 } ColonyCraftRecipe;
 
+/*
+ * Recipe table order = the DOS conversion-ledger emission order.
+ *
+ * DOS FUN_15eb_1f72 (viceroy 12682-12689; asm 15eb:2385-15eb:23e8) closes the
+ * per-colony EOT production pass with exactly eight ledger rows, in this order:
+ *
+ *     FUN_15eb_0b96(0,    food_needed)   Food      (pop*2 + horses)
+ *     FUN_15eb_0b96(5,    prod[16])      Lumber    <- hammers (see turn.c)
+ *     FUN_15eb_0bd4(6,    0xe)           Ore       -> Tools
+ *     FUN_15eb_0bd4(2,    0xa)           Tobacco   -> Cigars
+ *     FUN_15eb_0bd4(3,    0xb)           Cotton    -> Cloth
+ *     FUN_15eb_0bd4(4,    0xc)           Furs      -> Coats
+ *     FUN_15eb_0bd4(1,    9)             Sugar     -> Rum
+ *     FUN_15eb_0b96(0xe,  prod[15])      Tools     <- Muskets
+ *
+ * (The four DS scratch arrays those helpers index are DS-relative: -0x7238 =
+ * DS:0x8dc8 gross production, -0x71f6 = DS:0x8e0a demand, -0x71ce = DS:0x8e32
+ * production shortfall, -0x71a6 = DS:0x8e5a unmet-after-stock. Each holds 20
+ * entries -- the 16 cargos plus hammers(16)/crosses(17)/bells(18), which is why
+ * FUN_15eb_1f72's crosses/bells accumulators land on DS:0x8dea/0x8dec and the
+ * two literal operands above resolve to prod[muskets]=DS:0x8de6 and
+ * prod[hammers]=DS:0x8de8.)
+ *
+ * Ore->Tools FIRST and Tools->Muskets LAST is load-bearing, not cosmetic:
+ * FUN_15eb_0bd4 (viceroy 10159-10182) rescales the raw good's unmet word by 3/2
+ * when the factory tier discount applied, and FUN_15eb_0b96 (viceroy 10143-
+ * 10156) then does `if (cargo == 0xe && unmet[ore] != 0) tools_prod -=
+ * unmet[ore]` -- i.e. the ore shortfall computed by the (6,0xe) row is
+ * propagated into the tools supply seen by the (0xe, muskets) row. The three
+ * rows between them touch disjoint cargo pairs and are order-free.
+ *
+ * REFUTED (smell #22): DOS does NOT hold muskets back to last turn's tools.
+ * FUN_15eb_0b52 (viceroy 10122-10141) records the tools row as
+ * `stock[0xe] + prod[0xe] < demand[0xe]`, with param_4 = colony +0x9a +
+ * 0xe*2 (the stored tools) and param_2 = this tick's gross tools production
+ * (less the ore shortfall above). Freshly smelted tools ARE spendable by the
+ * gunsmith in the same tick, so the ore -> tools -> muskets cascade below is
+ * DOS-correct. Same conclusion as the Lumberjack+Carpenter same-turn lumber
+ * finding in turn.c's hammers block.
+ */
 static const ColonyCraftRecipe k_recipes[] = {
-  {"Rum Distill", COLONIZE_CARGO_SUGAR, COLONIZE_CARGO_RUM, COLONIZE_PROF_DISTILLER},
-  {"Rum Factory", COLONIZE_CARGO_SUGAR, COLONIZE_CARGO_RUM, COLONIZE_PROF_DISTILLER},
+  {"Blacksmith", COLONIZE_CARGO_ORE, COLONIZE_CARGO_TOOLS, COLONIZE_PROF_BLACKSMITH},
+  {"Iron Works", COLONIZE_CARGO_ORE, COLONIZE_CARGO_TOOLS, COLONIZE_PROF_BLACKSMITH},
   {"Tobacconist", COLONIZE_CARGO_TOBACCO, COLONIZE_CARGO_CIGARS, COLONIZE_PROF_TOBACCONIST},
   {"Cigar Factory", COLONIZE_CARGO_TOBACCO, COLONIZE_CARGO_CIGARS, COLONIZE_PROF_TOBACCONIST},
   {"Weaver", COLONIZE_CARGO_COTTON, COLONIZE_CARGO_CLOTH, COLONIZE_PROF_WEAVER},
   {"Textile", COLONIZE_CARGO_COTTON, COLONIZE_CARGO_CLOTH, COLONIZE_PROF_WEAVER},
   {"Fur Trad", COLONIZE_CARGO_FURS, COLONIZE_CARGO_COATS, COLONIZE_PROF_FUR_TRADER},
   {"Fur Fact", COLONIZE_CARGO_FURS, COLONIZE_CARGO_COATS, COLONIZE_PROF_FUR_TRADER},
-  {"Blacksmith", COLONIZE_CARGO_ORE, COLONIZE_CARGO_TOOLS, COLONIZE_PROF_BLACKSMITH},
-  {"Iron Works", COLONIZE_CARGO_ORE, COLONIZE_CARGO_TOOLS, COLONIZE_PROF_BLACKSMITH},
+  {"Rum Distill", COLONIZE_CARGO_SUGAR, COLONIZE_CARGO_RUM, COLONIZE_PROF_DISTILLER},
+  {"Rum Factory", COLONIZE_CARGO_SUGAR, COLONIZE_CARGO_RUM, COLONIZE_PROF_DISTILLER},
   {"Armory", COLONIZE_CARGO_TOOLS, COLONIZE_CARGO_MUSKETS, COLONIZE_PROF_GUNSMITH},
   {"Magazine", COLONIZE_CARGO_TOOLS, COLONIZE_CARGO_MUSKETS, COLONIZE_PROF_GUNSMITH},
   {"Arsenal", COLONIZE_CARGO_TOOLS, COLONIZE_CARGO_MUSKETS, COLONIZE_PROF_GUNSMITH},

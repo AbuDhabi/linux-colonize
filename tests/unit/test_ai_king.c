@@ -1104,13 +1104,13 @@ int main(void) {
   /*
    * FUN_43f7_0108 diplo-clear/set (viceroy_unpacked.c:73554-73557), masks
    * re-decoded 2026-09-06d against ai_diplo.h's T1.19 bit map: the eliminated
-   * nation 2 loses 0x0b (WAR_INTENT|WAR|TREASURE_STRONGER) and GAINS 0x60
+   * nation 2 loses 0x0b (WAR_INTENT|WAR|AMICABLE) and GAINS 0x60
    * (MET|PEACE) vs both the declaring human (0) and the crown fold (1), in
    * both directions. Previous expectation ("clear WAR/PEACE, set MET") had
    * PEACE inverted — DOS ORs it in, it does not clear it.
    */
   {
-    const uint8_t k_clr = (uint8_t)(AI_DIPLO_WAR_INTENT | AI_DIPLO_WAR | AI_DIPLO_TREASURE_STRONGER);
+    const uint8_t k_clr = (uint8_t)(AI_DIPLO_WAR_INTENT | AI_DIPLO_WAR | AI_DIPLO_AMICABLE);
     const uint8_t k_set = (uint8_t)(AI_DIPLO_MET | AI_DIPLO_PEACE);
     const int pairs[4][2] = {{2, 0}, {0, 2}, {2, 1}, {1, 2}};
     for (int p = 0; p < 4; ++p) {

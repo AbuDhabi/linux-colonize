@@ -1962,17 +1962,29 @@ static void turn_log_colony_production(
  * the human's in TURN_PROC_FINISH, right before control returns.
  *
  * Threaded as slice-scoped statics for the same reason as s_turn_labels: the
- * public entry points' signatures are pinned by the test call sites. Both -1
- * (the default, and what those entry points restore) means "every colony".
+ * public entry points' signatures are pinned by the test call sites. Both
+ * filters unset (the default, and what the processor restores after each
+ * slice) means "every colony".
+ *
+ * The armed/disarmed state is its own flag, NOT `nation >= 0`: a headless
+ * run (tools, tests, any driver with no human slot) passes human_nation < 0,
+ * and reading the sentinel as "no filter" made SETUP skip nothing and FINISH
+ * filter nothing — every colony produced in BOTH phases, i.e. twice per turn.
+ * With the flags, human_nation < 0 means SETUP's skip matches no colony (all
+ * nations are AI, which is exactly what DOS's per-nation FUN_3844_00f2 does
+ * for them) and FINISH's only-filter matches none, so production happens
+ * exactly once, in the AI-owned phase.
  */
 static int s_prod_only_nation = -1;
+static bool s_prod_only_set = false;
 static int s_prod_skip_nation = -1;
+static bool s_prod_skip_set = false;
 
 static bool turn_prod_nation_in_scope(int nation_id) {
-  if (s_prod_only_nation >= 0 && nation_id != s_prod_only_nation) {
+  if (s_prod_only_set && nation_id != s_prod_only_nation) {
     return false;
   }
-  if (s_prod_skip_nation >= 0 && nation_id == s_prod_skip_nation) {
+  if (s_prod_skip_set && nation_id == s_prod_skip_nation) {
     return false;
   }
   return true;
@@ -3343,6 +3355,7 @@ bool turn_processor_advance(ColonizeTurnProcessor* proc, ColonizeTurnContext* ct
        * TURN_PROC_FINISH instead, which is where DOS puts it (see the
        * s_prod_only_nation comment). */
       s_prod_skip_nation = ctx->human_nation;
+      s_prod_skip_set = true;
       turn_run_colony_production(
         ctx->colonies,
         ctx->map,
@@ -3364,6 +3377,7 @@ bool turn_processor_advance(ColonizeTurnProcessor* proc, ColonizeTurnContext* ct
        * inline complete check only fires on a tick that adds new hammers. */
       turn_run_colony_building_completion(ctx);
       s_prod_skip_nation = -1;
+      s_prod_skip_set = false;
       /* FUN_364b_03f6 coastal Fort/Fortress fire after production. */
       (void)turn_run_coastal_fort_fire(ctx);
       turn_run_nation_ticks(ctx, &proc->result);
@@ -3580,6 +3594,7 @@ bool turn_processor_advance(ColonizeTurnProcessor* proc, ColonizeTurnContext* ct
       turn_set_active_nation(ctx, ctx->human_nation);
       proc->show_indicator = true;
       s_prod_only_nation = ctx->human_nation;
+      s_prod_only_set = true;
       turn_set_birth_units_pool(ctx->units);
       turn_run_colony_production(
         ctx->colonies,
@@ -3604,6 +3619,7 @@ bool turn_processor_advance(ColonizeTurnProcessor* proc, ColonizeTurnContext* ct
        */
       ai_euro_census_ship_pressure_refresh(ctx, ctx->human_nation);
       s_prod_only_nation = -1;
+      s_prod_only_set = false;
       proc->show_indicator = false;
       /* bugs.md 400/404/407: yield here so the production popups queued
        * above are answered (and an elected colony zoom taken) before the

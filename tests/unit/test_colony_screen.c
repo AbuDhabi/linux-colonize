@@ -1665,9 +1665,12 @@ int main(void) {
       colony_screen_free(&view);
       return 1;
     }
+    /* Smell audit #25: FUN_15eb_0a50 takes no cargo argument, so Food shares
+     * the one warehouse capacity. Food's exemption is at the consumers (EOT
+     * spoilage, @WAREHOUSEFULL, alert ink), not in the accessor. */
     const int food_cap = colonies_warehouse_capacity(&pool, col, COLONIZE_CARGO_FOOD);
-    if (food_cap != 199) {
-      fprintf(stderr, "expected food capacity 199 got %d\n", food_cap);
+    if (food_cap != cap0) {
+      fprintf(stderr, "expected food capacity %d got %d\n", cap0, food_cap);
       if (font_ok) {
         ff_free(&font);
       }
