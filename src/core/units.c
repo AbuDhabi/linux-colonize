@@ -351,6 +351,7 @@ int units_spawn_allow_stack(ColonizeUnitPool* pool, int type_index, int x, int y
   slot->horses = 0;
   slot->home_tribe_id = -1;
   slot->turns_worked = 0;
+  slot->park_nights = 0;
   slot->last_dir = 0;
   /* COL1 +0x06 origin: DOS leaves it unbound at create; 0xff is the "no
    * home colony / tribe" sentinel every DOS reader tests as < 0. */
@@ -1220,6 +1221,7 @@ static void units_clear_slot(ColonizeUnit* unit) {
   unit->horses = 0;
   unit->home_tribe_id = -1;
   unit->turns_worked = 0;
+  unit->park_nights = 0;
   unit->last_dir = 0;
   unit->col1_origin = 0xff;
   unit->col1_unknown15 = 0;
@@ -3309,6 +3311,114 @@ static int units_apply_naval_loss_outcome(
   }
   units_despawn(pool, loser_id);
   return 0;
+}
+
+/*
+ * FUN_5fef_0f14 kind 3 (raw 99989-100004): the Indian colony raid's "unit"
+ * outcome picks a SHIP lying in the colony's port — `FUN_281f_07e0`
+ * (unit_index_on_tile of the colony tile), abort unless `FUN_281f_088a`
+ * (stack_has_ship), then walk the stack down with `FUN_281f_02e4` until the
+ * type byte is 0xd..0x12 — and hands it to the combat resolver as a loser
+ * with NO winner:
+ *
+ *     thunk_FUN_2a1f_06e0(0x281f, unit, 0xffff, 1, unit.x, unit.y)
+ *       = FUN_5fef_0352(loser, -1, visible, x, y)
+ *
+ * With `param_2 < 0` FUN_5fef_0352 skips its entire winner block (no plunder,
+ * no capture, no demote; `local_4 = 0x10`) and raw 99567 forces `bVar11 =
+ * true`, so the ship ALWAYS survives DAMAGED — exactly what GAME.TXT
+ * `@RAIDSHIP` says: "{ship} damaged.  Colonists appalled!". The tail is the
+ * ordinary damage tail: holds zeroed (+0x3150 — cargo AND passengers go),
+ * damaged bit7 (+0x3148 | 0x80), orders/MP cleared, repair timer preset,
+ * ship relocated to the nearest own repair port. The repair bill's "winner
+ * strength" is the no-winner stand-in type `local_4 = 0x10` (Privateer's
+ * 0x5235 column). DOS's `local_6 <<= 1` non-ship doubling reads the type byte
+ * of unit −1 here (an out-of-bounds read below the unit array), so it is not
+ * reproduced. The only escape from `bVar11` is 0352's shared WoI
+ * human-with-no-repair-port sink (raw 99607).
+ *
+ * Returns 1 if the ship limped off damaged, 0 if it went down.
+ */
+int units_raid_damage_ship(ColonizeUnitPool* pool, int ship_id, const ColonizeCol1Save* col1) {
+  ColonizeUnit* lose = units_get(pool, ship_id);
+  if (!lose || !lose->active || !units_is_sea(pool, ship_id)) {
+    return 0;
+  }
+  const ColonizeUnitType* lt = units_type(pool, lose->type_index);
+  const int human = units_combat_human_involved(col1, lose->nation_id, -1);
+
+  units_ship_lose_holds(pool, ship_id);
+
+  int damaged = 1; /* raw 99567: param_2 < 0 → bVar11 = true */
+  const ColonizeColony* home = units_nearest_own_drydock_colony(
+    g_units_combat_colonies, lose->nation_id, lose->x, lose->y
+  );
+  if (!home && col1 && col1->head.game_options.woi &&
+      lose->nation_id == (int)col1->head.human_player) {
+    damaged = 0; /* DOS 85139 / raw 99607: no friendly port at all */
+  }
+  if (!damaged) {
+    if (human && g_units_combat_popups) {
+      /* GAME.TXT @SHIPSUNK names the sinker (%STRING2 %STRING3); this arm has
+       * no winner unit at all, so enqueue the plain line rather than the
+       * section with two empty tokens. */
+      char body[AI_POPUP_BODY_LEN];
+      snprintf(
+        body, sizeof(body), "%s %s sunk!", units_combat_nation_label(col1, lose->nation_id),
+        lt ? lt->name : "Ship"
+      );
+      (void)ai_popup_enqueue_ok_ctx(
+        g_units_combat_popups, AI_POPUP_TAG_COMBAT_SHIP, -1, lose->nation_id, 0, NULL, body
+      );
+      units_play_event_sound(0x57);
+    }
+    units_despawn(pool, ship_id);
+    return 0;
+  }
+
+  lose->col1_unknown15 |= 0x80u;
+  lose->moves_left = 0;
+  lose->orders = 0;
+  lose->repair_pending = 2;
+  {
+    const int thresh = lt && lt->defense > 0 ? lt->defense : 4;
+    const int pi = units_find_type(pool, "Privateer");
+    const ColonizeUnitType* pt = pi >= 0 ? units_type(pool, pi) : NULL;
+    const int wstr = pt ? pt->defense : 0;
+    int worked = (wstr < thresh) ? thresh - wstr : 0;
+    if (lt && strcmp(lt->name, "Frigate") == 0 && worked < 4) {
+      worked = 4;
+    }
+    if (lt && strcmp(lt->name, "Man-O-War") == 0 && worked < 8) {
+      worked = 8;
+    }
+    lose->turns_worked = (uint8_t)worked;
+  }
+  if (home && (home->x != lose->x || home->y != lose->y)) {
+    const int old_x = lose->x;
+    const int old_y = lose->y;
+    lose->x = home->x;
+    lose->y = home->y;
+    units_occupancy_refresh_tile(pool, old_x, old_y, -1);
+    units_occupancy_refresh_tile(pool, home->x, home->y, -1);
+  }
+  if (human) {
+    PopupMsgTokens tok;
+    memset(&tok, 0, sizeof(tok));
+    tok.string0 = units_combat_nation_label(col1, lose->nation_id);
+    tok.string1 = lt ? lt->name : "Ship";
+    tok.string2 =
+      (home && home->name[0]) ? home->name : units_home_port_name(col1, lose->nation_id);
+    char fb[AI_POPUP_BODY_LEN];
+    snprintf(
+      fb, sizeof(fb), "%s %s damaged! Ship returns to %s for repairs.", tok.string0, tok.string1,
+      tok.string2
+    );
+    units_combat_enqueue_tok(
+      AI_POPUP_TAG_COMBAT_SHIP, "SHIPDAMAGE", lose->nation_id, -1, 0, &tok, fb
+    );
+  }
+  return 1;
 }
 
 /*
@@ -5724,7 +5834,23 @@ static bool units_at_war_for_move_target(int a, int b, const ColonizeUnit* targe
   if (!g_units_ff_col1) {
     return true; /* tests / no diplo: allow combat */
   }
-  return ai_diplo_at_war(g_units_ff_col1, a, b);
+  /*
+   * Smell #106: DOS FUN_465b_0000 has NO war-state test on the Euro×Euro
+   * attack path — the only relation gate anywhere is the human-only
+   * @HAVETREATY prompt on the signed-treaty bit 0x40 (viceroy 75545-75551),
+   * and war is declared as a side effect of the attack (75567-75593). The
+   * port's at-war requirement made AI nations essentially unable to open a
+   * Euro war (@SNEAK near-dead). AI movers now fight unless a signed treaty
+   * stands; the human mover keeps the at-war test because game_loop's
+   * confirm chain (declare-then-move) runs before the probe.
+   */
+  if (ai_diplo_at_war(g_units_ff_col1, a, b)) {
+    return true;
+  }
+  if (a == g_units_combat_human_nation) {
+    return false;
+  }
+  return (ai_diplo_read(g_units_ff_col1, a, b) & AI_DIPLO_PEACE) == 0;
 }
 
 static bool units_at_war_for_move(int a, int b) {
@@ -7257,6 +7383,8 @@ bool units_set_orders(ColonizeUnitPool* pool, int unit_id, int orders) {
   if (orders == UNITS_ORDER_SENTRY || orders == UNITS_ORDER_FORTIFY ||
       orders == UNITS_ORDER_FORTIFIED) {
     u->moves_left = 0;
+    /* Fresh park: no overnight yet, so a same-turn wake refunds nothing. */
+    u->park_nights = 0;
   }
   if (diag_info_enabled() && prev != orders) {
     char who[96];
@@ -7484,20 +7612,25 @@ bool units_wake(ColonizeUnitPool* pool, int unit_id) {
   /*
    * bugs.md (player-clarified): the order byte itself separates the cases.
    * FORTIFY (5) was given THIS turn — those moves are spent, no refund.
-   * FORTIFIED (6) only exists after an overnight promotion, so waking one
-   * always restores the full allotment, however long ago it dug in.
-   * SENTRY uses the nights counter (turns_worked, bumped by the turn
-   * refresh): overnight sentries wake with full moves, same-turn ones keep
-   * what they had. Hold passengers restore as before.
+   * SENTRY/FORTIFIED use park_nights (bumped by the turn refresh):
+   * overnight parks wake with full moves, same-turn ones keep what they
+   * had. FORTIFIED with park_nights 0 is the overnight-promotion turn —
+   * DOS FUN_479b_0b6c spends the allotment on promotion (viceroy
+   * 77146-77153), so no refund that turn either. Hold passengers restore
+   * as before. DOS's activate handler writes the order byte only (viceroy
+   * 42717/42781), so turns_worked (the shared +0x16 repair-timer /
+   * treasure-clock / route-stop counter) is left alone here.
    */
-  const bool parked = u->aboard_ship_id >= 0 || prev == UNITS_ORDER_FORTIFIED ||
-                      (prev == UNITS_ORDER_SENTRY && u->turns_worked > 0);
+  const bool parked =
+    u->aboard_ship_id >= 0 ||
+    ((prev == UNITS_ORDER_FORTIFIED || prev == UNITS_ORDER_SENTRY) &&
+     u->park_nights > 0);
   if (parked && units_type(pool, u->type_index)) {
     u->moves_left = units_max_mp(pool, unit_id);
   }
   if (prev == UNITS_ORDER_SENTRY || prev == UNITS_ORDER_FORTIFY ||
       prev == UNITS_ORDER_FORTIFIED) {
-    u->turns_worked = 0;
+    u->park_nights = 0;
   }
   if (diag_info_enabled() && prev != UNITS_ORDER_NONE) {
     char who[96];
@@ -8770,6 +8903,17 @@ bool units_advance_goto_one_step(
     const ColonizeUnit* of = occ >= 0 ? units_get_const(pool, occ) : NULL;
     const int village = units_tribe_nation_at(g_units_ff_col1, nx, ny);
     const int step_is_dest = (nx == gx && ny == gy);
+    /* Smell #105: an EMPTY foreign colony tile is an attack too (DOS 465b
+     * sets the attack flag from the settlement owner alone, viceroy
+     * 75467-75482) — without this the pacer walked through/onto one and
+     * units_try_move captured it silently, skipping every confirm. Treat
+     * it exactly like a foreign occupant below. */
+    int foreign_colony = 0;
+    if (!of && colonies) {
+      const int ccid = colonies_id_at(colonies, nx, ny);
+      const ColonizeColony* ccol = ccid >= 0 ? colonies_get(colonies, ccid) : NULL;
+      foreign_colony = ccol && ccol->active && ccol->nation_id != u->nation_id;
+    }
     /*
      * bugs.md: a goto must NEVER open combat en route — a scout pathing
      * past a Brave was auto-attacking it. Any foreign occupant (or native
@@ -8778,7 +8922,7 @@ bool units_advance_goto_one_step(
      * can fight (@UNIT attack 0: Pioneers, Colonists, Wagon Trains,
      * unarmed transports stop even at the destination).
      */
-    if ((of && of->nation_id != u->nation_id) ||
+    if ((of && of->nation_id != u->nation_id) || foreign_colony ||
         (village >= 4 && u->nation_id >= 0 && u->nation_id <= 3)) {
       if (!step_is_dest) {
         return false;
@@ -10235,6 +10379,7 @@ static int units_spawn_aboard(ColonizeUnitPool* pool, int type_index, ColonizeUn
   slot->horses = 0;
   slot->home_tribe_id = -1;
   slot->turns_worked = 0;
+  slot->park_nights = 0;
   slot->last_dir = 0;
   /* COL1 +0x06 origin: DOS leaves it unbound at create; 0xff is the "no
    * home colony / tribe" sentinel every DOS reader tests as < 0. */

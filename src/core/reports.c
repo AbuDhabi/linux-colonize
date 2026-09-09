@@ -2249,9 +2249,34 @@ static uint8_t reports_colony_pop_color(int sol_pct) {
   return REPORTS_COLONY_DIGIT_WHITE;
 }
 
+/*
+ * Pool colony matching a col1 colony record. Keyed on (x,y), the same key
+ * col1_bridge_export uses to carry Col1-only fields across a save/load
+ * ("preserve Col1-only fields by xy", col1_bridge.c) — a map tile holds at
+ * most one settlement, so it is unique, and unlike the name it survives a
+ * capture. Index-pairing (what this used to do) only holds on a freshly
+ * imported save: colonies_abandon zeroes a pool slot in place and shrinks
+ * colony_count, so after any abandon/raze the arrays slide out of step and
+ * SoL/bells get attributed to the wrong colony.
+ */
+static const ColonizeColony* reports_pool_colony_for(
+  const ColonizeColonyPool* colonies, const ColonizeCol1Colony* c
+) {
+  if (!colonies || !c) {
+    return NULL;
+  }
+  for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+    const ColonizeColony* col = &colonies->colonies[i];
+    if (col->active && col->x == (int)c->x && col->y == (int)c->y) {
+      return col;
+    }
+  }
+  return NULL;
+}
+
 /* Shared icon+digit+name sidebar cell, identical on both Colony pages.
- * `colony` is the pool-matched colony for `c` (same index i as col1's
- * colony array — see reports_render_colony_sol's comment), or NULL when
+ * `colony` is the pool colony matching `c` (paired by tile —
+ * reports_pool_colony_for), or NULL when
  * unavailable; passing it gets the Bolivar +20% SoL bonus folded in via
  * colony_prod_sol_percent (colony_prod_sol_percent is authoritative —
  * colony_screen.c's own SoL display uses it), matching golden exactly
@@ -2331,8 +2356,7 @@ static void reports_render_colony_garrisons(
       break;
     }
     const int row_top = REPORTS_COLONY_ROW0_Y + row * REPORTS_COLONY_ROW_STEP;
-    const ColonizeColony* colony =
-      (colonies && i < COLONIZE_COLONIES_MAX && i < colonies->colony_count) ? &colonies->colonies[i] : NULL;
+    const ColonizeColony* colony = reports_pool_colony_for(colonies, c);
     reports_render_colony_sidebar(view, col1, c, colony, font, fb, row_top, line, line_sz);
 
     /* Units on this colony's own tile, drawn exactly as on the map
@@ -2490,13 +2514,10 @@ static void reports_render_colony_sol(
       break;
     }
     const int row_top = REPORTS_COLONY_ROW0_Y + row * REPORTS_COLONY_ROW_STEP;
-    /* Pool-based colony matched 1:1 by import order (col1_bridge_apply
-     * appends colonies in save order, no skipping under
-     * COLONIZE_COLONIES_MAX) — needed for both the Bolivar-aware SoL% and
-     * the bell-production formula below, same formula turn.c's EOT bells
-     * tally uses. */
-    const ColonizeColony* colony =
-      (colonies && i < COLONIZE_COLONIES_MAX && i < colonies->colony_count) ? &colonies->colonies[i] : NULL;
+    /* Pool colony paired by tile (reports_pool_colony_for) — needed for both
+     * the Bolivar-aware SoL% and the bell-production formula below, same
+     * formula turn.c's EOT bells tally uses. */
+    const ColonizeColony* colony = reports_pool_colony_for(colonies, c);
     reports_render_colony_sidebar(view, col1, c, colony, font, fb, row_top, line, line_sz);
 
     const int sol_pct = colony ? colony_prod_sol_percent(col1, colony) : reports_colony_rebel_pct(c);
@@ -2615,7 +2636,8 @@ static void reports_naval_location(
   const ColonizeColonyPool* colonies, int x, int y, char* out, size_t out_sz
 ) {
   if (colonies) {
-    for (int i = 0; i < colonies->colony_count && i < COLONIZE_COLONIES_MAX; ++i) {
+    /* Pool bound (colonies_abandon leaves holes and shrinks colony_count). */
+    for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
       const ColonizeColony* c = &colonies->colonies[i];
       if (c->active && c->x == x && c->y == y) {
         snprintf(out, out_sz, "%s", c->name);

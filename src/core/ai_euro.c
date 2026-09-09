@@ -7325,17 +7325,19 @@ static int ai_euro_5d04_cb_dock_peek_type(int x) {
   (void)x;
   return s_5d04_ctx ? dos_rng_range(s_5d04_ctx->rng, 0, 0x1b) : 0x13;
 }
-/* Europe market quotes: the EuropeScreen (the one Linux market) when present,
- * else the nation's col1 euro_price byte (+1 spread). */
-static int ai_euro_5d04_cb_bid(int cargo) {
+/* Europe SELL quote: FUN_291f_09ea → FUN_38fd_0040 = euro_price − 1 (the same
+ * value europe_sell_price returns), from the EuropeScreen (the one Linux
+ * market) when present, else from the nation's col1 euro_price byte. */
+static int ai_euro_5d04_cb_sell_price(int cargo) {
   ColonizeTurnContext* ctx = s_5d04_ctx;
   if (!ctx || !ctx->col1 || cargo < 0 || cargo >= (int)COLONIZE_COL1_CARGO_TYPES) {
     return 0;
   }
   if (ctx->europe && cargo < ctx->europe->cargo_count && ctx->europe->cargo[cargo].bid > 0) {
-    return ctx->europe->cargo[cargo].bid;
+    return europe_sell_price(ctx->europe, cargo);
   }
-  return (int)ctx->col1->nation[s_5d04_nation].trade.euro_price[cargo];
+  const int p = (int)ctx->col1->nation[s_5d04_nation].trade.euro_price[cargo] - 1;
+  return p < 0 ? 0 : p;
 }
 static int ai_euro_5d04_cb_price(int cargo) {
   ColonizeTurnContext* ctx = s_5d04_ctx;
@@ -7395,7 +7397,32 @@ static void ai_euro_5d04_cb_reward_ack(int idx) {
     (void)units_unload_goods_hold(s_5d04_ctx->units, u->id, 0, NULL, NULL);
   }
 }
-/* FUN_291f_0dc6(unit, 0, 100) + FUN_281f_0aba: sell hold 0, credit the nation. */
+/*
+ * FUN_291f_0dc6(unit, 0, 100) + FUN_281f_0aba: sell hold 0, credit the nation.
+ *
+ * What the DOS leg actually writes (viceroy_unpacked.c:91089-91090, twin at
+ * 93015-93016):
+ *   iVar16 = FUN_291f_0dc6(unit, 0, 100);            // → FUN_38fd_1f0c
+ *   FUN_281f_0aba(DS:0x9e12, iVar16, iVar16 >> 15);  // → FUN_15eb_0556
+ *
+ * FUN_38fd_1f0c (viceroy 60320-60337): FUN_281f_0aec empties hold 0 (qty into
+ * DS:0x8dc4, excess above 100 handed back by FUN_281f_0d58), price =
+ * thunk_FUN_291f_09ea = FUN_38fd_0040 = euro_price−1, then
+ * thunk_FUN_291f_0a2e → FUN_38fd_1dfa (viceroy 60247-60293) = the whole ledger:
+ * the four market pools (record 3 damped ·2/3), nation+0xbc trade.tons += qty,
+ * nation+0xfc trade.tons2 += qty, nation+0x7c trade.gold += (price·qty·
+ * (100−tax))/100.  1f0c then RETURNS price·qty — the UNTAXED gross — and 0aba
+ * adds exactly that to the treasury.
+ *
+ * So, against smell audit #61: tons2 was genuinely missing (fixed — 1dfa is
+ * already ported as europe_apply_trade_volume(..., is_buy=0,
+ * immediate_threshold=0); threshold 0 because 1f0c never calls FUN_38fd_0058),
+ * the trade.gold ledger is tax-adjusted but the TREASURY credit is not, and
+ * royal_money is NOT written here — the nation+0x22/+0x26 pair belongs to the
+ * HUMAN harbor sale (viceroy 60557-60575), which applies the tax itself outside
+ * 1f0c. The AI leg pays no Crown cut, like the 20e6 dump-sell tail; #61's
+ * royal_money half is refuted, not fixed.
+ */
 static int ai_euro_5d04_cb_sell_hold0(int idx) {
   ColonizeTurnContext* ctx = s_5d04_ctx;
   const ColonizeUnit* u = ai_euro_5d04_cb_unit(idx);
@@ -7420,17 +7447,21 @@ static int ai_euro_5d04_cb_sell_hold0(int idx) {
     return 0;
   }
   ColonizeCol1Nation* nat = &ctx->col1->nation[s_5d04_nation];
-  const int tax = nat->tax_rate;
-  const int gained = (ai_euro_5d04_cb_bid(cargo) * amount * (100 - tax)) / 100;
+  /* 0a2e → 1dfa: pools + trade.tons + trade.tons2 + tax-adjusted trade.gold.
+   * Needs the shared EuropeScreen; headless (no eu) the ledger is skipped, the
+   * treasury half below is col1-only and always applies (same shape as
+   * ai_euro_20e6_delivery_sell_tail). */
+  if (ctx->europe) {
+    europe_apply_trade_volume(
+      ctx->europe, ctx->col1, s_5d04_nation, ctx->human_nation, cargo, amount, 0, 0
+    );
+  }
+  /* 1f0c's return → 0aba: the UNTAXED gross, price = euro_price−1. */
+  const int gained = ai_euro_5d04_cb_sell_price(cargo) * amount;
   if (gained > 0) {
     nat->gold += (uint32_t)gained;
-    if ((unsigned)cargo < COLONIZE_COL1_CARGO_TYPES) {
-      nat->trade.tons[cargo] += amount;
-      nat->trade.gold[cargo] += gained;
-    }
     ai_euro_5d04_cb_sync_gold();
   }
-  ai_euro_5d04_cb_market_volume(cargo, amount, 0);
   return 1;
 }
 /* FUN_291f_0ec2: the ship departs — waiting dock units board first. */
@@ -15903,7 +15934,12 @@ static int ai_euro_land_best_adjacent_foe(ColonizeTurnContext* ctx, const Coloni
     }
     if (ctx->col1_ok && ctx->col1) {
       if (f->nation_id >= 0 && f->nation_id < 4) {
-        if (!ai_diplo_at_war(ctx->col1, u->nation_id, f->nation_id)) {
+        /* Smell #106: DOS gates a Euro target only on the signed-treaty bit
+         * 0x40 (465b clears it both ways when the attack lands, viceroy
+         * 75567-75593) — requiring at-war here made the @SNEAK opening
+         * below unreachable. */
+        if (!ai_diplo_at_war(ctx->col1, u->nation_id, f->nation_id) &&
+            (ai_diplo_read(ctx->col1, u->nation_id, f->nation_id) & AI_DIPLO_PEACE) != 0) {
           continue;
         }
       } else if (f->nation_id >= 4 && f->nation_id <= 11) {
@@ -15981,9 +16017,11 @@ static int ai_euro_land_try_adjacent_colony_seize(ColonizeTurnContext* ctx, Colo
         c->nation_id > 3) {
       continue;
     }
-    if (ctx->col1_ok && ctx->col1 && !ai_diplo_at_war(ctx->col1, u->nation_id, c->nation_id)) {
-      continue;
-    }
+    /* Smell #106: the DOS 0x46 stamp has NO relation check — 20e6 scans the
+     * 8 neighbors for any foreign non-crown settlement owner and stamps the
+     * seize outright; 465b then declares the war as a side effect of the
+     * entry (viceroy 75567-75593). The at-war gate here is what kept AI
+     * nations from ever opening a Euro war on their own. */
     if (units_best_defender_at(
           ctx->units, ctx->col1_ok ? ctx->col1 : NULL, nx, ny, u->id, u->id
         ) >= 0) {
@@ -16013,6 +16051,12 @@ static int ai_euro_land_try_adjacent_colony_seize(ColonizeTurnContext* ctx, Colo
     }
     if (u->active && u->x == nx && u->y == ny &&
         colonies_capture(ctx->colonies, cid, u->nation_id)) {
+      /* 465b side-effect war: attack under peace/treaty opens hostilities
+       * and clears 0x40 both ways (viceroy 75567-75593). */
+      if (ctx->col1_ok && ctx->col1 && snap.nation_id >= 0 && snap.nation_id <= 3 &&
+          !ai_diplo_at_war(ctx->col1, u->nation_id, snap.nation_id)) {
+        ai_diplo_declare_war_ctx(ctx, u->nation_id, snap.nation_id);
+      }
       units_combat_notify_colony_captured(
         ctx->col1_ok ? ctx->col1 : NULL, &snap, u->nation_id, plunder
       );

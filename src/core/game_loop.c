@@ -561,7 +561,8 @@ static bool game_move_is_near_human(
       return true;
     }
   }
-  for (int i = 0; i < colonies->colony_count; ++i) {
+  /* Pool bound (colonies_abandon leaves holes and shrinks colony_count). */
+  for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
     const ColonizeColony* colony = &colonies->colonies[i];
     if (colony->active && colony->nation_id == game->human_nation &&
         abs(colony->x - x) <= 1 && abs(colony->y - y) <= 1) {
@@ -1662,7 +1663,8 @@ static bool game_try_found_colony_at_cursor(ColonizeGameState* game) {
     set_status(game, "Cannot found colony here", NULL);
     return false;
   }
-  for (int i = 0; i < game->colonies.colony_count; ++i) {
+  /* Pool bound (colonies_abandon leaves holes and shrinks colony_count). */
+  for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
     const ColonizeColony* col = &game->colonies.colonies[i];
     if (col->active && abs(col->x - cx) <= 1 && abs(col->y - cy) <= 1) {
       char body[AI_POPUP_BODY_LEN];
@@ -3120,6 +3122,12 @@ static void game_apply_ai_popup_result(ColonizeGameState* game) {
         return;
       }
     } else {
+      /* Smell #105: a goto-delegated confirm must not re-fire next frame —
+       * cancelling the attack cancels the Go To aimed at it. */
+      ColonizeUnit* u = units_get(&game->units, unit_id);
+      if (u && u->active && units_orders_follow_goto(u->orders)) {
+        units_clear_orders(&game->units, unit_id);
+      }
       set_status(game, "Attack called off", NULL);
     }
     ai_popup_consume_result(&game->ai_popups);
@@ -3144,6 +3152,11 @@ static void game_apply_ai_popup_result(ColonizeGameState* game) {
         return;
       }
     } else {
+      /* Smell #105: see the WHACK cancel above. */
+      ColonizeUnit* u = units_get(&game->units, unit_id);
+      if (u && u->active && units_orders_follow_goto(u->orders)) {
+        units_clear_orders(&game->units, unit_id);
+      }
       set_status(game, "Attack called off", NULL);
     }
     ai_popup_consume_result(&game->ai_popups);
@@ -6273,7 +6286,11 @@ static void render_europe_screen(const ColonizeGameState* game, ColonizeFramebuf
      * always rendered at least once before the player can act on it). */
     if (game->col1_ok && game->human_nation >= 0 &&
         game->human_nation < (int)COLONIZE_COL1_NATION_COUNT) {
-      eu_mut->boycott_bitmap = game->col1.nation[game->human_nation].boycott_bitmap;
+      /* Keep the import's 0xFFFF heal (col1_bridge_apply): a nation word that
+       * still carries the removed all-cargo-embargo fingerprint must not be
+       * mirrored back over the healed UI copy on the first frame. */
+      const uint16_t nat_boycott = game->col1.nation[game->human_nation].boycott_bitmap;
+      eu_mut->boycott_bitmap = (nat_boycott == 0xFFFFu) ? 0u : nat_boycott;
       /* bugs.md: Brewster bans criminals/servants from the pool the moment
        * he is owned — reroll stale slots so Recruit and dock agree with the
        * Brewster pick dialog. */
@@ -12030,6 +12047,50 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
         set_status(game, "Village ahead — awaiting orders", NULL);
         return true;
       }
+      /*
+       * Smell #105: DOS routes every goto step through FUN_465b_0000, so a
+       * Go To ENDING on a Euro peer's tile — a defending unit or an even
+       * empty foreign colony — gets the same @WHACKINDIANS / @HAVETREATY /
+       * @HALF confirms as an arrow-key move (prompt at viceroy 75545).
+       * When the next step is the destination and it is hostile, hand the
+       * step to the manual-move handler instead of the silent pacer.
+       */
+      if (active->orders == UNITS_ORDER_GOTO && active->goto_x < UNITS_GOTO_NONE &&
+          active->goto_y < UNITS_GOTO_NONE &&
+          abs(active->x - active->goto_x) <= 1 && abs(active->y - active->goto_y) <= 1 &&
+          !(active->x == active->goto_x && active->y == active->goto_y) &&
+          active->moves_left > 0) {
+        const int gx = active->goto_x;
+        const int gy = active->goto_y;
+        const int foe_id = units_id_at(&game->units, gx, gy);
+        const ColonizeUnit* foe =
+          foe_id >= 0 ? units_get_const(&game->units, foe_id) : NULL;
+        bool hostile = foe && foe->nation_id != active->nation_id;
+        if (!hostile && !units_is_sea(&game->units, active->id)) {
+          const int cid = colonies_id_at(&game->colonies, gx, gy);
+          const ColonizeColony* col = colonies_get(&game->colonies, cid);
+          hostile = col && col->active && col->nation_id != active->nation_id;
+        }
+        if (hostile) {
+          const int aid = active->id;
+          game->units.selected_id = aid;
+          (void)game_try_unit_move(game, gx, gy);
+          ColonizeUnit* after = units_get(&game->units, aid);
+          if (after && after->active && units_orders_follow_goto(after->orders) &&
+              !game->ai_popups.open && game->ai_popups.queue_count == 0) {
+            if (after->x == gx && after->y == gy) {
+              /* Arrived (capture / entry went through): plain arrival. */
+              units_clear_orders(&game->units, aid);
+            } else {
+              /* Refused without a prompt (cost, domain…): park like a
+               * blocked step (bugs.md 369) so the pacer doesn't spin. */
+              after->moves_left = 0;
+              units_clear_orders(&game->units, aid);
+            }
+          }
+          return true;
+        }
+      }
       game->goto_step_accum_ms += dt_ms;
       const uint32_t goto_step_ms =
         (game->col1_ok && game->col1.head.game_options.fast_piece_slide) ? 80u : 100u;
@@ -16097,21 +16158,31 @@ int game_colony_count(const ColonizeGameState* game) {
   return (game && game->colonies_ok) ? game->colonies.colony_count : 0;
 }
 
+/* `index` counts LIVE colonies (the same population game_colony_count reports).
+ * colonies_abandon zeroes its slot in place and recounts, so the pool holds
+ * holes and a raw slot index would both skip dead slots and miss a live tail. */
 bool game_colony_pos(const ColonizeGameState* game, int index, int* x, int* y) {
-  if (!game || !game->colonies_ok || index < 0 || index >= game->colonies.colony_count) {
+  if (!game || !game->colonies_ok || index < 0) {
     return false;
   }
-  const ColonizeColony* col = &game->colonies.colonies[index];
-  if (!col->active) {
-    return false;
+  int seen = 0;
+  for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+    const ColonizeColony* col = &game->colonies.colonies[i];
+    if (!col->active) {
+      continue;
+    }
+    if (seen++ != index) {
+      continue;
+    }
+    if (x) {
+      *x = col->x;
+    }
+    if (y) {
+      *y = col->y;
+    }
+    return true;
   }
-  if (x) {
-    *x = col->x;
-  }
-  if (y) {
-    *y = col->y;
-  }
-  return true;
+  return false;
 }
 
 int game_selected_unit(const ColonizeGameState* game) {

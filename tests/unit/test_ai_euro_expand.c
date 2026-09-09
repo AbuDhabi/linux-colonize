@@ -1828,15 +1828,17 @@ static int unit_treasury_skip_hire(void) {
 }
 
 /*
- * Ship TRADE_GOODS at Europe → europe_sell_unit_hold via AI act (no harbor UI).
- * Cite: europe_sell_unit_hold; Colonization.pdf Europe sell + tax.
+ * Ship TRADE_GOODS at Europe → the 5d04 hold-0 sell leg (no harbor UI).
+ * Cite: FUN_38fd_1f0c returns euro_price−1 · qty UNTAXED and FUN_281f_0aba
+ * credits exactly that to the treasury (viceroy_unpacked.c 60320-60337 /
+ * 91089-91090); the tax only bends the trade.gold ledger inside FUN_38fd_1dfa.
  */
 static int unit_transport_europe_sell_trade_goods(void) {
   const int nation = 1;
   const int amt = 50;
   const int bid = 4;
   const int tax = 20;
-  const int expect = (bid * amt * (100 - tax)) / 100;
+  const int expect = (bid - 1) * amt;
 
   ColonizeWorldMap map;
   memset(&map, 0, sizeof(map));
@@ -1953,7 +1955,7 @@ static int unit_transport_europe_sell_trade_goods(void) {
     free(map.terrain);
     free(map.layer2);
     free(map.layer3);
-    return fail("eu-sell should credit tax-adjusted TRADE_GOODS proceeds");
+    return fail("eu-sell should credit untaxed TRADE_GOODS proceeds");
   }
 
   if (europe.tax_percent != human_tax || europe.gold != human_gold) {
@@ -1973,16 +1975,16 @@ static int unit_transport_europe_sell_trade_goods(void) {
 }
 
 /*
- * Privateer SILVER at Europe → europe_sell_unit_hold via AI act (commerce-raid
- * dump-sell). Cite: units_is_transport Privateer holds; Colonization.pdf Europe
- * sell; euro_unit_act Privateer / dump-sell.
+ * Privateer SILVER at Europe → the 5d04 hold-0 sell leg (commerce-raid
+ * dump-sell). Cite: units_is_transport Privateer holds; FUN_38fd_1f0c /
+ * FUN_281f_0aba credit euro_price−1 · qty untaxed (see the TRADE_GOODS case).
  */
 static int unit_privateer_europe_sell_silver(void) {
   const int nation = 1;
   const int amt = 40;
   const int bid = 10;
   const int tax = 15;
-  const int expect = (bid * amt * (100 - tax)) / 100;
+  const int expect = (bid - 1) * amt;
 
   ColonizeWorldMap map;
   memset(&map, 0, sizeof(map));

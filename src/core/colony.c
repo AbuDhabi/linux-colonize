@@ -455,7 +455,9 @@ bool colonies_can_found(
    * loop) -- this confirms the already-shipped dx<=1&&dy<=1 formula, it
    * was not an invented threshold.
    */
-  for (int i = 0; i < pool->colony_count; ++i) {
+  /* Pool bound, not colony_count: colonies_abandon zeroes a slot in place and
+   * recounts, so live colonies can sit past colony_count. */
+  for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
     const ColonizeColony* c = &pool->colonies[i];
     if (c->active) {
       const int dx = abs(c->x - x);

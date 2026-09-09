@@ -102,6 +102,35 @@ static bool col1_coord_is_europe(uint8_t x, uint8_t y) {
   return x >= 200 || y >= 200;
 }
 
+/*
+ * Trade-route cursor of a ship sitting in one of the Europe lanes (see the
+ * capture side): DOS keeps orders 2 across the crossing — FUN_48d3_015e and
+ * FUN_48d3_007a rewrite the orders byte only `if (unit+0x08 != 2)` — and with
+ * it the packed cursor in the profession byte (+0x17 / DS:0x315b: low nibble
+ * = trade_route[] slot per FUN_1427_0f64, high nibble = stop per
+ * FUN_1427_0f8e), which FUN_479b_0bd0 reads to service the Europe stop
+ * (dest 999). A slot pointing at an emptied or land route — what saves
+ * written before the lanes carried the cursor decode to — drops the
+ * automation instead of parking the ship on a dead route.
+ */
+static void col1_bridge_europe_ship_route_load(
+  const ColonizeCol1Save* save,
+  const ColonizeCol1Unit* src,
+  EuropeHarborShip* slot
+) {
+  if (!save || !src || !slot || src->orders != UNITS_ORDER_TRADE_ROUTE) {
+    return;
+  }
+  const int route = (int)(src->profession & 0x0fu);
+  const int stop = (int)((src->profession >> 4) & 0x0fu);
+  if (route >= (int)COLONIZE_COL1_TRADE_ROUTE_COUNT ||
+      save->trade_route[route].dest_count == 0 || save->trade_route[route].sea == 0) {
+    return;
+  }
+  slot->trade_route_plus1 = route + 1;
+  slot->trade_stop = stop < (int)save->trade_route[route].dest_count ? stop : 0;
+}
+
 /* Display name for a save-loaded Europe-dock colonist: eu->train[]'s @JOB
  * expert_name for that profession if trainable, else the generic name (a
  * plain Free Colonist / unspecialized unit has no @JOB training entry). */
@@ -1099,6 +1128,7 @@ bool col1_bridge_apply(
       for (int c = 0; c < pax_n; ++c) {
         slot->cargo_treasure_gold[c] = pax_gold[c];
       }
+      col1_bridge_europe_ship_route_load(save, src, slot);
       consumed[i] = true;
       local.skipped_europe_units++;
     }
@@ -1136,9 +1166,16 @@ bool col1_bridge_apply(
               hold_amts[h] = amt;
             }
           }
-          europe_harbor_push(
-            europe, ti, ut ? ut->name : "Ship", NULL, 0, hold_types, hold_amts
-          );
+          if (europe_harbor_push(
+                europe, ti, ut ? ut->name : "Ship", NULL, 0, hold_types, hold_amts
+              ) &&
+              europe->harbor_ships > 0) {
+            /* A docked route ship keeps its cursor too — the Europe stop is
+             * serviced from the harbor (game_europe_service_trade_harbor). */
+            col1_bridge_europe_ship_route_load(
+              save, src, &europe->harbor[europe->harbor_ships - 1]
+            );
+          }
         }
         continue;
       }
@@ -1832,6 +1869,18 @@ bool col1_bridge_capture(
     nat->artillery_count =
       (uint16_t)(europe->artillery_bought < 0 ? 0 : europe->artillery_bought);
     nat->recruit_count = europe->recruit_count > 180 ? 180 : europe->recruit_count;
+    /*
+     * Same 0xFFFF heal the import does (see the apply side): the nation copy
+     * is the authoritative one — europe->boycott_bitmap is only its mirror —
+     * so heal it here too, or a snapshot that never went through the load
+     * path's repair writes the removed all-cargo-embargo fingerprint straight
+     * back out to the file (bugs.md all_boycotted.SAV). Never copy the mirror
+     * over nation: ai_king tea-party / ai_diplo embargo write the nation word
+     * directly and the Europe screen may not have rendered since.
+     */
+    if (nat->boycott_bitmap == 0xFFFFu) {
+      nat->boycott_bitmap = 0;
+    }
     /*
      * nation+2..+4 — the three recruit-pool slots (DOS reads them as job
      * bytes in FUN_38fd_4884 / 46d4; the port's AI already keeps its own
@@ -2541,6 +2590,27 @@ bool col1_bridge_capture(
           const uint8_t gx = (uint8_t)(in_port ? 0 : ship->exit_x);
           const uint8_t gy = (uint8_t)(in_port ? 0 : ship->exit_y);
           const uint8_t turns = (uint8_t)(in_port ? 0 : (ship->turns_left < 0 ? 0 : ship->turns_left));
+          /*
+           * Trade-route cursor across the Atlantic. DOS keeps a route-running
+           * ship on its route while it is in a Europe lane: FUN_48d3_015e
+           * (heading out to the sea lane) and FUN_48d3_007a (landfall) both
+           * rewrite the orders byte only `if (unit+0x08 != 2)`, so orders 2
+           * survives the crossing, and with it the route cursor DOS packs in
+           * the profession byte (+0x17 / DS:0x315b — FUN_1427_0f64 low nibble
+           * = trade_route[] slot, FUN_1427_0f8e high nibble = stop) that
+           * FUN_479b_0bd0 reads to service the Europe stop (dest 999). The
+           * map-unit export does the same packing; without it here, saving
+           * while the ship was mid-Atlantic (or docked in the harbor) dropped
+           * the automation on reload.
+           */
+          const int route_slot = ship->trade_route_plus1 - 1;
+          int route_stop = ship->trade_stop;
+          if (route_stop < 0 || route_stop >= (int)COLONIZE_COL1_TRADE_ROUTE_STOPS) {
+            route_stop = 0;
+          }
+          const bool on_route = route_slot >= 0 &&
+                                route_slot < (int)COLONIZE_COL1_TRADE_ROUTE_COUNT &&
+                                save->trade_route[route_slot].dest_count > 0;
           int last = -1;
           for (int c = 0; c < ship->cargo_count && c < EUROPE_SHIP_CARGO_MAX; ++c) {
             int pti = ship->cargo_types[c];
@@ -2591,7 +2661,10 @@ bool col1_bridge_capture(
           dst->vis_mask = 0; /* Europe sentinel units carry vis 0 in DOS saves */
           dst->ai_plan = COL1_UNIT_UNKNOWN16_HI_DEFAULT;
           dst->origin = 0xff; /* home-colony byte can't survive the Europe screen */
-          dst->orders = 0;
+          dst->orders = on_route ? (uint8_t)UNITS_ORDER_TRADE_ROUTE : 0;
+          if (on_route) {
+            dst->profession = (uint8_t)(((route_stop & 0xf) << 4) | (route_slot & 0xf));
+          }
           dst->goto_x = gx;
           dst->goto_y = gy;
           dst->turns_worked = turns;
@@ -2738,9 +2811,19 @@ bool col1_contact_adjacent_tribe(
     if (dx < -1 || dx > 1 || dy < -1 || dy > 1) {
       continue;
     }
-    if (tr->alarm[european_nation].friction < 11) {
-      tr->alarm[european_nation].friction++;
-    }
+    /*
+     * No alarm here. This was the fourth per-step drip of the fandom class
+     * bugs.md 295/297 retired: DOS grows Indian alarm only through the
+     * FUN_4d56_152e threat accumulator (plus the discrete bumps — working
+     * claimed land, raids, trade, first contact). The DOS move tail that
+     * actually runs on this step, FUN_5bfb_3180 (ported as
+     * ai_contact_encounter_scan, called right after this helper), scans the
+     * eight neighbours and opens contact / the 153e encounter — it never
+     * touches a tribe's attitude word or indian[].alarm_by_player.
+     * The bumps also wrote nonsense: alarm[].friction is the LOW BYTE of the
+     * signed int16 attitude word (col1_tribe_attitude), so a `< 11` test on
+     * that byte alone is incoherent once the word passes 255.
+     */
     const int indian = (int)tr->nation_id - 4;
     if (indian >= 0 && indian < 8) {
       if (save->indian[indian].euro_diplo[european_nation] == 0) {
@@ -2750,9 +2833,6 @@ bool col1_contact_adjacent_tribe(
             *out_first_indian_nation = 4 + indian;
           }
         }
-      }
-      if (save->indian[indian].alarm_by_player[european_nation] < 11) {
-        save->indian[indian].alarm_by_player[european_nation]++;
       }
     }
     any = true;

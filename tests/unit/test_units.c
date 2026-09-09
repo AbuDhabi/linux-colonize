@@ -4257,12 +4257,13 @@ int main(void) {
       return 1;
     }
     /* Overnight promotion (same as turn_refresh_moves_for_nation) — the
-     * refresh also counts the night in turns_worked, which is what lets
+     * refresh also counts the night in park_nights, which is what lets
      * the wake refund the allotment (bugs.md: fortified on a PREVIOUS turn
-     * moves on activation; same-turn dig-ins do not get refunds). */
+     * moves on activation; same-turn dig-ins do not get refunds). Smell
+     * #39: turns_worked is the shared DOS +0x16 clock, no longer used. */
     su->orders = UNITS_ORDER_FORTIFIED;
     su->moves_left = 0;
-    su->turns_worked = 1;
+    su->park_nights = 1;
     if (su->orders != UNITS_ORDER_FORTIFIED || su->moves_left != 0) {
       fprintf(stderr, "fortify overnight failed orders=%d mp=%d\n", su->orders, su->moves_left);
       ss_free(&icons);

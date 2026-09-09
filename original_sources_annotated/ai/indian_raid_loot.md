@@ -160,7 +160,7 @@ Difficulty / year / building-present gates can demote 2/3/4 → 1 or 0.
 |------|--------|------------------------------|
 | 1 | Halve-ish stock (clamp 1..10 roll); horses/tools side effects on tribe | `0xfffc` (−4) |
 | 2 | Remove building; reassign jobs if needed | `0xfff4` (−12) |
-| 3 | Combat apply `2a1f_06e0`→`5fef_0352` vs unit | `0xfff0` (−16) |
+| 3 | Combat apply `2a1f_06e0`→`5fef_0352` on the picked port ship, **no winner** (`param_2 = 0xffff`) → raw 99567 forces the damage arm: holds/passengers lost, bit7, repair timer, sent to the repair port | `0xfff0` (−16) |
 | 4 | Subtract rolled gold from nation ledger | `0xfff8` (−8) |
 | 0 | Scare dialog only | skip `0d6c` |
 
@@ -190,6 +190,10 @@ Human: sounds + side-art strings `0x1b8a`…`0x1bba` by kind.
 
 **Linux:** `@RAID*` kind picker in `ai_contact_indian_raids` — structural.
 STORES half-stock clamp **Done** thin; GOLD drain peel **Done** thin.
+**Kind 3 (ship) Done 2026-09-09** — victim = a ship on the colony tile
+(`ai_contact_raid_port_ship`), always damaged via `units_raid_damage_ship`
+(`units.c`, the `param_2 < 0` arm of 0352); shipless port demotes the kind to
+NOTHING, so the −16 vent is never paid for a no-op raid.
 **Alarm tail Done 2026-09-08** (`ai_contact_raid_alarm_tail`, `ai_contact.c`):
 the DOS-literal NEGATIVE deltas above behind the `FUN_15b3_0004 & 2` war
 gate, via `ai_contact_alarm_delta_00f2` → `ai_diplo_indian_alarm_delta`, and
