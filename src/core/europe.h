@@ -741,6 +741,12 @@ void europe_set_bgm_hook(void (*set_bgm_fn)(int pool));
 void europe_notify_immigrant_sound(EuropeScreen* eu);
 int europe_sell_price(const EuropeScreen* eu, int cargo_type);
 int europe_buy_price(const EuropeScreen* eu, int cargo_type);
+/*
+ * @CARGO burden column for `cargo_type`, cached from the last NAMES.TXT load
+ * (0 when no table has been loaded). For callers that must reproduce the ask
+ * price `euro_price + burden` without an EuropeScreen in hand.
+ */
+int europe_cargo_burden(int cargo_type);
 /* gross − gross·tax/100 (FUN_364b_0688 Custom House arm; same rounding as
  * the harbor sale). Returns the net treasury credit. */
 int europe_net_after_tax(int gross, int tax_percent);

@@ -219,9 +219,6 @@ void turn_tally_professions(
   uint8_t out_hist[32]
 );
 
-/* EN→FR→SP→DU AI nations (skip human); calls ai_euro_nation_turn. */
-void turn_run_european_ai_stubs(ColonizeTurnContext* ctx);
-
 /* King phase (tax/REF). The native pass is the TURN_PROC_INDIAN slice
  * (FUN_4d56_1b3a phases 1-3) inside turn_process_step, not a helper. */
 void turn_run_king_stub(ColonizeTurnContext* ctx);

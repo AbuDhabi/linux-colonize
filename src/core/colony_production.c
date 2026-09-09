@@ -235,7 +235,14 @@ int colony_prod_sol_bonus(const ColonizeCol1Save* col1, const ColonizeColony* co
     return 0;
   }
   const int sol = colony_prod_sol_percent(col1, colony);
-  int pop = colony->population > 0 ? colony->population : colony->colonist_count;
+  /* colonist_count first, population as the fallback: the colonists[] array is
+   * the live source of truth (turn.c's birth/starvation paths grow/shrink it
+   * and then mirror `population = colonist_count`; col1_bridge re-derives
+   * `population` from it on both import and export). `population` is only a
+   * mirror, and is the field that goes stale in synthetic/partial records.
+   * Same precedence at every pop-fallback site in the port (colony_preview.c,
+   * colony_screen.c, europe.c, ai.c, ai_euro.c, turn.c). */
+  int pop = colony->colonist_count > 0 ? colony->colonist_count : colony->population;
   if (pop < 0) {
     pop = 0;
   }
@@ -391,7 +398,8 @@ void colony_prod_tick_rebel_accumulators(
     return;
   }
 
-  int pop = colony->population > 0 ? colony->population : colony->colonist_count;
+  /* Same colonist_count-first precedence as colony_prod_sol_bonus. */
+  int pop = colony->colonist_count > 0 ? colony->colonist_count : colony->population;
   if (pop < 0) {
     pop = 0;
   }
@@ -408,9 +416,25 @@ void colony_prod_tick_rebel_accumulators(
       : 0;
   const bool nation_is_ai = nation_id >= 0 && nation_id < (int)COLONIZE_COL1_NATION_COUNT &&
                              col1->player[nation_id].control != 0;
-  /* sol_bonus=0: the rebel-accumulator tick must not feed SoL back into itself. */
-  int bells =
-    colony_prod_colony_bells_ff(pool, colony, statesmen_pct, paine_tax_pct, nation_is_ai, 0);
+  /*
+   * Real SoL bonus, NOT 0. DOS FUN_364b_0688 computes this colony's bells
+   * exactly once (`local_ba = FUN_281f_0b50(0x12, 0)` — the net bells entry of
+   * the production scratch table the colony tick just filled, so the per-worker
+   * SoL bonus is already inside it, viceroy_unpacked.c:57230) and feeds that
+   * same word to BOTH the nation/congress tally (`FUN_291f_09f8`, :57231) and
+   * the rebel dividend (:57392). One number, two consumers.
+   *
+   * The old `0` here (rationale "must not feed SoL back into itself") was
+   * invented: it made "bells this turn" mean one thing in the accumulator and
+   * another in turn_count_bells_and_crosses_for_nation's EOT tally. There is no
+   * runaway to guard against — the SoL% folded into the bells is the *pre-tick*
+   * ratio (the dividend/divisor update happens below, after this read), the
+   * same one-turn-lagged feedback DOS has.
+   */
+  const int sol_b = colony_prod_sol_bonus(col1, colony);
+  int bells = colony_prod_colony_bells_ff(
+    pool, colony, statesmen_pct, paine_tax_pct, nation_is_ai, sol_b
+  );
 
   /* WoI + crown-occupied: bells feed Tory (negative half). */
   const int woi = col1->head.game_options.woi != 0;
@@ -707,7 +731,12 @@ int colony_prod_colony_hammers(
     return 0;
   }
   const bool colony_has_lumber_mill = colony_prod_building_built(pool, colony, "Lumber Mill");
-  int lumber_total = 0; /* sol_bonus=0: lumber consumption tracks the un-modified base rate. */
+  /* sol_bonus=0 base-rate tally — a staffed-carpenter DEMAND probe for
+   * turn.c's "Need lumber." crumb, not the tick's lumber debit. The live
+   * debit is 1:1 with the sol-adjusted hammer count returned below (turn.c;
+   * bugs.md 169, hammers_lumber.SAV: 28 hammers ate 28 lumber). See the
+   * out_lumber_use note in colony_production.h before changing either. */
+  int lumber_total = 0;
   int hammers_total = 0;
   for (int p = 0; p < colony->colonist_count; ++p) {
     const ColonizeColonist* c = &colony->colonists[p];

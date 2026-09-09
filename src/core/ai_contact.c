@@ -3693,11 +3693,17 @@ void ai_contact_try_village_beg_food(ColonizeTurnContext* ctx, int nation_id) {
     }
     /*
      * DOS's demand half is latched off once this pair has resolved a generous
-     * visit: `if (contact_state != 2 && (colony || wagon))` guards
-     * LAB_5bfb_0def. contact_state is a persisted per-(tribe nation, Euro)
-     * byte, so a tribe that has ever brought gifts to a nation never begs
-     * from it again — and, symmetrically, state 1 (a past demand) is what
-     * permanently disables the gift arm (`local_10`).
+     * visit *this year*: `if (contact_state != 2 && (colony || wagon))` guards
+     * LAB_5bfb_0def, and state 1 (a past demand) symmetrically disables the
+     * gift arm (`local_10`).
+     *
+     * The latch is per-year, NOT permanent: the Indian mid-pass zeroes all 32
+     * contact_state entries at the top of every year (DOS
+     * `word[(i*0x27 + j)*2 + 0x5b04] = 0`, ported as
+     * ai_indian_midpass_clear_tables() in ai.c). So each tribe/Euro pair
+     * resolves at most one gift-or-beg visit per turn, then is eligible again
+     * next turn — which is why DOS villages keep visiting instead of going
+     * permanently quiet.
      */
     if (ind->contact_state[e] == 2) {
       continue;
@@ -4380,8 +4386,10 @@ static void ai_contact_mission_pacify_meet(ColonizeTurnContext* ctx, int nation_
  * tribe may side with the CROWN (Tory natives): ALARM toward the rebel
  * (human) nation jumps by +100 and alarm toward the crown drops by -100
  * (DOS's own literal deltas, not a hard "set to max/min"), plus a one-time
- * musket/horse windfall, then the tribe is latched (woi_defect_resolved)
- * so it isn't re-rolled every turn.
+ * musket/horse windfall, then the tribe is latched (woi_defect_resolved).
+ * The latch is set only on a defection that actually fires — a tribe that
+ * fails the alarm/RNG eligibility gate or the difficulty roll stays
+ * unlatched and is re-rolled next turn, as in DOS.
  *
  * Approximated: DOS derives the musket/horse windfall's tech cap from a
  * `DS:0x8d52`-selected "tribe" tech-lookup table whose value at this call

@@ -82,9 +82,9 @@
 /* AI_DIPLO_WAR_INDIAN_HIT (5) lived here; its only consumer was the Linux-only
  * Euro-alliance relation hit, retired with T2.4 (2026-09-06). Removed
  * 2026-09-07. */
-/* At-war gate: relation < 50 (same band as contact alarm≥50 mission block). */
+/* At-war gate: relation < 26, i.e. DOS alarm > 0x4a. */
 #define AI_DIPLO_INDIAN_AT_WAR_REL 26 /* alarm > 0x4a (FUN_5bfb_153e hostile tier) */
-/* Very-low deepen: relation < 40 (contact peaceful-gift friction < 40 inverted). */
+/* Very-low deepen: relation < 16, i.e. DOS alarm >= 85. */
 #define AI_DIPLO_INDIAN_VERY_LOW_REL 16 /* alarm >= 85: sticky deepen band (Linux) */
 #define AI_DIPLO_INDIAN_HARASS_GOLD 2u
 /* Peace feeler / first-meet content floor. Seed-100 TURN3+ write 96 on meet
@@ -569,11 +569,14 @@ uint8_t ai_diplo_indian_hostility_sticky(const ColonizeCol1Save* col1, int euro_
 
 /*
  * Sync unknown26[8] from the Indian alarm matrix (via ai_diplo_indian_read).
- *  0 — no Indian at-war slots (all unmet r==0 or relation ≥ 50)
- *  1 — any contacted indian_at_war (0 < relation < 50)
- *  2 — deepen when already hostile and any slot very low (0 < relation < 40)
- * Unmet r==0 is not war (seed-100 early TURN goldens). Source: 15b3 Indian
- * hostility stand-in; contact alarm/friction <40 / ≥50 gates.
+ *  0 — no Indian at-war slots (all unmet r==0, or relation ≥
+ *      AI_DIPLO_INDIAN_AT_WAR_REL = 26)
+ *  1 — any contacted slot at war (0 < relation < 26)
+ *  2 — deepen when already hostile and any slot very low
+ *      (0 < relation < AI_DIPLO_INDIAN_VERY_LOW_REL = 16)
+ * Relation is the inverse of DOS alarm, so the bands are DOS alarm > 0x4a
+ * (FUN_5bfb_153e hostile tier) and alarm ≥ 85 respectively. Unmet r==0 is
+ * not war (seed-100 early TURN goldens).
  */
 void ai_diplo_indian_hostility_sync(ColonizeCol1Save* col1, int euro_nation) {
   if (!col1 || euro_nation < 0 || euro_nation >= 4) {
@@ -1413,7 +1416,7 @@ static const Ai153eSelectorSite ai_diplo_153e_selector_table[] = {
    * an unrecoverable zero-arg register call when `param_2` is invalid or
    * IS the human nation (DOS `param_2*0x34+0x543f != 0`, the same
    * control-status byte `ai_king.c`'s FUN_43f7_2244 header already cites
-   * as identical to `turn_run_european_ai_stubs`'s human-skip gate). */
+   * as identical to the TURN_PROC_EURO slice's human-skip gate). */
   {7, "3bee", "FUN_5bfb_13b0", "ai_diplo_13b0_treaty_tick sign/cancel (Done)"},
   /* idx4, offset 3bdf — raw line 485, the ONLY selector call inside the
    * worthiness-score phase itself: the per-colony border probe inside the

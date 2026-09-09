@@ -1680,7 +1680,7 @@ int map_phys0_plow_sprite_at(const ColonizeWorldMap* map, int x, int y) {
  * It is the same predicate the movement rule already uses (map_move_spent_
  * thirds' road/colony pair), so the drawing and the pathing agree. bugs.md.
  */
-static bool map_tile_road_art(const ColonizeWorldMap* map, int x, int y) {
+static bool map_tile_has_road_art(const ColonizeWorldMap* map, int x, int y) {
   return map_tile_has_road(map, x, y) || map_tile_has_city(map, x, y);
 }
 
@@ -1696,7 +1696,7 @@ static uint8_t map_road_neigh8_mask(const ColonizeWorldMap* map, int x, int y) {
   for (int d = 0; d < 8; ++d) {
     const int nx = x + mapedit_neigh8_dx[d];
     const int ny = y + mapedit_neigh8_dy[d];
-    if (map_tile_road_art(map, nx, ny)) {
+    if (map_tile_has_road_art(map, nx, ny)) {
       m = (uint8_t)(m | (uint8_t)(1u << d));
     }
   }
@@ -1710,7 +1710,7 @@ static uint8_t map_road_neigh8_mask(const ColonizeWorldMap* map, int x, int y) {
  * Cite: docs/assets.md roads; viceroy ASM MOV AX,0x51 / ADD AX,0x52.
  */
 int map_phys0_road_layer_count(const ColonizeWorldMap* map, int x, int y) {
-  if (!map_tile_road_art(map, x, y)) {
+  if (!map_tile_has_road_art(map, x, y)) {
     return 0;
   }
   const uint8_t m = map_road_neigh8_mask(map, x, y);
@@ -1727,7 +1727,7 @@ int map_phys0_road_layer_count(const ColonizeWorldMap* map, int x, int y) {
 }
 
 int map_phys0_road_layer_sprite_at(const ColonizeWorldMap* map, int x, int y, int index) {
-  if (!map_tile_road_art(map, x, y) || index < 0) {
+  if (!map_tile_has_road_art(map, x, y) || index < 0) {
     return -1;
   }
   const uint8_t m = map_road_neigh8_mask(map, x, y);
@@ -1918,8 +1918,8 @@ int map_move_spent_thirds(
   }
   const int cost_byte = map_dos_terr_cost_byte(map_dos_terr_class_at(map, to_x, to_y));
   int spent = cost_byte * 3;
-  const bool fa_from = map_tile_has_road(map, from_x, from_y) || map_tile_has_city(map, from_x, from_y);
-  const bool fa_to = map_tile_has_road(map, to_x, to_y) || map_tile_has_city(map, to_x, to_y);
+  const bool fa_from = map_tile_has_road_art(map, from_x, from_y);
+  const bool fa_to = map_tile_has_road_art(map, to_x, to_y);
   if (fa_from && fa_to) {
     spent = 1;
   }
@@ -1948,7 +1948,10 @@ int map_move_cost_step(
   if (!map || !map_tile_is_land(map, to_x, to_y)) {
     return 1;
   }
-  if (map_tile_has_road(map, from_x, from_y) && map_tile_has_road(map, to_x, to_y)) {
+  /* Same DOS FA pair rule as map_move_spent_thirds: mask 0x0a = road bit OR
+   * settlement bit, so a colony/village tile pairs like a road tile
+   * (bugs.md 352). Keeping road-only here made the two helpers disagree. */
+  if (map_tile_has_road_art(map, from_x, from_y) && map_tile_has_road_art(map, to_x, to_y)) {
     return 1;
   }
   if (map_tile_has_river(map, from_x, from_y) && map_tile_has_river(map, to_x, to_y) &&

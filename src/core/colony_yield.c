@@ -457,7 +457,13 @@ static int colony_yield_pipeline(
    *     Farmer, Broadleaf+Game = 8 (1 + expert 2 + Game 2×2 + farmer 1),
    *     and the same expert on a bare Hill = 4 (1 + 2 + 1), which pins
    *     Hills farmer base back to NAMES's 1.
-   *   - road (runtime mask 0x0a) on non-crop jobs (>3): +u.
+   *   - road on non-crop jobs (>3): +u. DOS tests the runtime FA mask 0x0a
+   *     here (`FUN_137f_0142(x,y) & 10` — road bit OR settlement bit, the
+   *     same predicate map.c's road art and movement pair rule use), but
+   *     widening this test to road-or-settlement gives St. Louis +1 food and
+   *     breaks golden_colony_prod01, so the port keeps the road bit alone
+   *     until that colony's settlement-bit worked tile is explained. Smell
+   *     audit #26.
    *   - plow (runtime bit 0x40) on crop jobs (<4): +u.
    *   - river (terrain bit 0x40): +u; major river (terrain 0x80) adds +u
    *     once more ONLY if the stack so far is exactly u — i.e. river was
@@ -529,32 +535,25 @@ int colony_yield_for_worker(
 }
 
 /*
- * Town-commons food before specials/river/plow: flat +2 regardless of
- * terrain. A per-terrain "cleared-parent Farmer + 2" formula was tried
- * (matching an older doc fixture note) but regressed colony_prod01 — a
- * real single DOS turn across 14 Dutch colonies — nearly every colony's
- * food came out 1-4 too high. Flat +2 matches that golden exactly, so it
- * is the confirmed rule; the terrain_yields.md fixture table predates this
- * check and needs re-verifying against real DOS, not the other way around.
- *
- * 2026-08-18: FUN_15eb_1f72 (~12506-12518, the same composer secondary
- * already uses) shows a real 4-way class split by pedia instead — class 2
- * (most forest + Hills/Mountains) happens to equal flat +2, which is why
- * this passed golden_colony_prod01/02 for the large majority of colonies
- * (their town centers mostly sit on forest); class 3 (most cleared land,
- * e.g. Savannah) is +1 higher, and class 1 (Desert/Scrub) is -1 lower.
- * Player-confirmed via colony_prod02's Recife (Savannah, class 3 → real
- * food 3, not flat +2's 2) — but tried twice now (once combined with an
- * incorrect stacking version of the Farmer +1 fix, once alone after that
- * fix's real "replaces plow" shape was confirmed) and both times it
- * overshoots real, un-synthesized colonies with cleared-land town centers
- * (Montreal, Fort Orange, Guadeloupe, New Holland, Vlissingen — all real
- * captures, not free to re-derive) by the same +1 class 3 predicts. Since
- * those are real data too and flat +2 already matches them exactly,
- * class 3 is apparently *not* generally right for cleared land — Recife's
- * Savannah is the outlier needing an explanation of its own, not
- * everyone else being wrong. Left as flat +2; Recife's food gap (-1,
- * golden_colony_prod02) stays open pending that explanation.
+ * Town-commons food before specials/river/plow: DOS's 4-way class split by
+ * pedia terrain index, per FUN_15eb_1f72 (viceroy_unpacked.c ~12506-12518 —
+ * the same composer the secondary pick uses). Classes:
+ *   - 0 food: Arctic (pedia 24).
+ *   - 1 food: the Desert/Scrub class (pedia 1, 9, 17).
+ *   - 2 food: the forest class plus Hills/Mountains (pedia 8-23, and
+ *     27/28), which is what the port's older "flat +2 regardless of
+ *     terrain" rule happened to reproduce — most town centers in
+ *     golden_colony_prod01/02 sit on forest, so flat +2 passed them.
+ *   - 3 food: the remaining cleared land (pedia 0 and 2-7), e.g. Savannah.
+ * The cleared-land class is the one flat +2 got wrong; player-confirmed via
+ * golden_colony_prod02's Recife (Savannah town center, real food 3, where
+ * flat +2 said 2). Earlier attempts at this split overshot real captured
+ * colonies with cleared-land centers by +1 and were reverted; the split
+ * only stuck once the improvement stack above was ported literally from
+ * FUN_15eb_18ec (unconditional Farmer +u, runtime 0x40 = plow) and the
+ * commons river term was dropped — river feeds the secondary only.
+ * Note this is the FOOD base only; specials/plow are applied by the
+ * caller.
  */
 static int colony_yield_town_commons_food_base(int pedia) {
   if (pedia == 24) {

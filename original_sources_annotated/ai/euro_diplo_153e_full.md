@@ -302,7 +302,7 @@ ported as `ai_diplo_wake_border_garrisons`) fired symmetrically once the
 "phase 1" description) end to end: the human-nation/invalid-nation entry
 gate (real — DOS `param_2*0x34+0x543f`, the same control-status byte
 `ai_king.c`'s `FUN_43f7_2244` header already ties to
-`turn_run_european_ai_stubs`'s human-skip check), the 14-continent
+the `TURN_PROC_EURO` slice's human-skip check), the 14-continent
 dominance/delta-accumulator loop (real for the already-resolved colony
 (`-0x6b1a`) and land-unit (`-0x6b5a`) counts, recomputed locally the cheap
 way `ai_euro_refresh_continent_stance` already does), the per-unit

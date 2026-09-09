@@ -33,10 +33,18 @@ flowchart TD
   euro[TURN_PROC_EURO]
   indian[TURN_PROC_INDIAN]
   finish[TURN_PROC_FINISH]
+  king[TURN_PROC_KING]
   after[game_finish_end_turn]
   nextHuman[Continue turn / next unit]
-  humanEOT --> setup --> euro --> indian --> finish --> after --> nextHuman
+  humanEOT --> setup --> euro --> indian --> finish --> king --> after --> nextHuman
+  indian --> euro
 ```
+
+EURO is entered twice: SETUP hands off to the Euro AI slots **above** the
+human, INDIAN then runs slots 4..11, and the Euro AI slots **below** the human
+follow before FINISH (DOS `130d` order — see
+[`mid_pass_indian_rank.md`](../original_sources_annotated/turn/mid_pass_indian_rank.md)).
+Either EURO leg falls straight through to the next step when no slot qualifies.
 
 ### `TURN_PROC_SETUP` (no turn-owner indicator)
 
@@ -63,14 +71,28 @@ Order EN→FR→SP→DU; skip `human_nation` and withdrawn (`player.control==2`)
 |------|-------|-----|
 | Nation turn | `ai_indian_nation_turn` (`1816`-shaped) | Mid-pass `1b3a` in `130d` calls `1816(slot)` for each Indian slot (tribe flag bit7 clear) **before** the Euro loop ([`mid_pass_indian_rank.md`](../original_sources_annotated/turn/mid_pass_indian_rank.md)) |
 
-### `TURN_PROC_FINISH` (no indicator)
+### `TURN_PROC_FINISH` (human colony EOT; indicator on for the production run)
 
 | Step | Linux | DOS |
 |------|-------|-----|
-| **Human colony production** | `turn_run_colony_production` (`s_prod_only_nation` = human) + unit construction + building completion | `FUN_364b_0688` inside the human's own `3844_00f2`, which `130d` runs **immediately before** that nation's Move Pieces |
-| King / REF | `ai_king_nation_turn` | `FUN_43f7_2424` via `291f_0a66` **inside** `3844_00f2` |
-| Europe market | `europe_tick_market_prices` | `FUN_38fd_0058` (sibling of nation EOT `38fd_5e52`) |
-| Human MP + treasure + Cortes | refresh + `units_tick_treasure_*` + `units_cortes_*` | Human treasure inside that nation’s `00f2`; Cortes elsewhere |
+| **Human colony production** | `turn_run_colony_production` (`s_prod_only_nation` = human) + `turn_run_colony_unit_construction` + `turn_run_colony_building_completion` | `FUN_364b_0688` inside the human's own `3844_00f2`, which `130d` runs **immediately before** that nation's Move Pieces |
+| Census / blockade probe | `ai_euro_census_ship_pressure_refresh(human)` | `FUN_291f_0a74` → `FUN_4962_0018` after the colony-EOT loop (`:58390`) |
+
+FINISH then **yields** (returns to the frame loop) so every production popup it
+queued is presented and answered — and an elected colony zoom taken — before
+the king moves. That yield is the whole reason for the split; DOS's `3844_00f2`
+dialogs are blocking calls, so its production chrome can never still be pending
+when the king runs (bugs.md 400/404/407).
+
+### `TURN_PROC_KING` (no indicator)
+
+| Step | Linux | DOS |
+|------|-------|-----|
+| King / REF | `turn_run_king_stub` → `ai_king_nation_turn` | `FUN_43f7_2424` via `291f_0a66` **inside** `3844_00f2` |
+| Year-end chrome | `turn_run_year_end_chrome` | `FUN_3844_0442` section B (thin) |
+| Europe market | `europe_tick_market_prices` + one `@PRICEUP`/`@PRICEDOWN` OK dialog per cargo that crossed | `FUN_38fd_0058` (sibling of nation EOT `38fd_5e52`), phase 4 |
+| Human fog + MP refresh | `turn_reveal_fog_for_nation` + `turn_refresh_moves_for_nation` | Human refresh at act entry |
+| Human ticks | `units_tick_treasure_outside_colony`, `units_tick_ship_build_ready` (`@CARGOREADY0`), `units_tick_drydock_repair`, `turn_route_damaged_ships`, King's Galleon offer | Human treasure inside that nation’s `00f2`; `FUN_465b_0000` → `FUN_5fef_1908` for the Galleon |
 | Select next unit | `turn_select_next_unit` | Return to Move Pieces / focus |
 | Autosave flags | decade Spring → slot 8 else 9 | `FUN_130d_0172` |
 
@@ -82,8 +104,9 @@ Order EN→FR→SP→DU; skip `human_nation` and withdrawn (`player.control==2`)
 
 Status line: “Continue turn.” when a unit with moves is selected.
 
-Turn-owner box (`FUN_1984_00aa`, 5×3 at 315,197) only while EURO/INDIAN steps run
-(`turn_processor_show_indicator`).
+Turn-owner box (`FUN_1984_00aa`, 5×3 at 315,197) only while the EURO/INDIAN
+steps and FINISH's human production run run (`turn_processor_show_indicator`);
+it is off for SETUP and KING.
 
 ---
 
@@ -141,13 +164,13 @@ Major thunks (catalog):
 | EURO treasure | `3844_0004` | `units_tick_treasure_outside_colony` | **Partial** |
 | EURO ship-build ready | `00f2` unit walk | `units_tick_ship_build_ready` | **Partial** — progress/clear construction bit7 + threshold=`defense`/`0x5235` **Done** thin; dialog chrome PARKED |
 | EURO Drydock repair | colony EOT | `units_tick_drydock_repair` | **Done** — clears combat-damage bit7 on finished ships at own Drydock; `@REFIT` chrome Done thin; after ship-build tick |
-| EURO fog reveal | `281f_07a0` in `00f2` | `turn_reveal_fog_for_nation` | **Done** — every Euro nation's unit walk (human at FINISH, AI at its EURO step), full `13f1_0158` side effects via `units_reveal_sight`; colony radius-2 invention removed (DOS reveals ±5 only at founding) |
+| EURO fog reveal | `281f_07a0` in `00f2` | `turn_reveal_fog_for_nation` | **Done** — every Euro nation's unit walk (human at KING, AI at its EURO step), full `13f1_0158` side effects via `units_reveal_sight`; colony radius-2 invention removed (DOS reveals ±5 only at founding) |
 | EURO AI | `521d_6d8e` after `00f2` | `ai_euro_nation_turn` | **Partial structural** (T2 early; deep `20e6` mapped/PARKED) |
 | INDIAN | `4d56_1b3a` mid-pass → `1816(slot)` ×8 | `ai_indian_nation_turn` | **Partial structural** — [`mid_pass_indian_rank.md`](../original_sources_annotated/turn/mid_pass_indian_rank.md); Euro rank `5bfb_00f8` **Done** thin |
-| FINISH king | `43f7_2424` in `00f2` | `ai_king_nation_turn` | **Partial structural** |
-| FINISH market | `38fd_0058` / `5e52` family | `europe_tick_market_prices` | **Partial** — attrition + colony→`price_group` half + phases 2–3 pressure **Done** thin |
-| FINISH human refresh | return to Move Pieces | MP + select next | **Done** |
-| FINISH autosave | `130d_0172` | autosave flags | **Done** |
+| KING king | `43f7_2424` in `00f2` | `ai_king_nation_turn` | **Partial structural** |
+| KING market | `38fd_0058` / `5e52` family | `europe_tick_market_prices` | **Partial** — attrition + colony→`price_group` half + phases 2–3 pressure **Done** thin |
+| KING human refresh | return to Move Pieces | MP + select next | **Done** |
+| KING autosave | `130d_0172` | autosave flags | **Done** |
 | Year-end chrome | `3844_0442` | `turn_run_year_end_chrome` | **Partial** — B/C1(+fleet+REF+map+latch)/C2/D(+auto-declare)/E(+richest) **Done** thin; HoF **PARKED** |
 | Demo autoplay | `130d` `0x828` tail | — | **PARKED** |
 
@@ -157,9 +180,9 @@ Major thunks (catalog):
 |---------|-----|-------|
 | Human slot | Inside nation loop | Pipeline is **post-human only** |
 | Calendar | After nations | **First** in SETUP |
-| King | Per-nation inside `00f2` | Once in **FINISH** |
+| King | Per-nation inside `00f2` | Once in its own **TURN_PROC_KING** slice, after FINISH's popups are answered |
 | Indians | Mid-pass `1b3a` → `1816` ×8, **before** the EN..DU loop — but the human's Move Pieces sits *inside* that loop | Pipeline starts after the human: **EURO** slots above the human → **INDIAN** → EURO slots below (2026-08-28; no human slot → Indians first) |
-| `00f2` | Atomic per Euro | Split across SETUP / EURO / FINISH |
+| `00f2` | Atomic per Euro | Split across SETUP / EURO / FINISH / KING |
 
 Manual “natives first” order is **not** what either DOS `130d` (as resolved) or
 Linux runs. Relative to the human's end of turn the DOS order is: Euro slots

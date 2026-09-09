@@ -1119,10 +1119,12 @@ int main(void) {
       fprintf(stderr, "setup should leave processor active\n");
       return 1;
     }
-    /* DOS turn_owner_chrome runs at the head of every nation's EOT, the
-     * human's included, so setup paints the box in the human colour. */
-    if (!turn_processor_show_indicator(&proc) || active != 0) {
-      fprintf(stderr, "setup should show the human turn-owner box\n");
+    /* SETUP owns no nation's EOT (human production moved to TURN_PROC_FINISH),
+     * so the turn-owner box stays dark here — turn.h + turn_between_players.md
+     * ("only while EURO/INDIAN steps run"). Active nation is still stamped to
+     * the human for the slice's own bookkeeping. */
+    if (turn_processor_show_indicator(&proc) || active != 0) {
+      fprintf(stderr, "setup should not show the turn-owner box\n");
       return 1;
     }
     /*
@@ -1898,7 +1900,12 @@ int main(void) {
     /* Tory penalty must reduce the Production tab's field-yield preview too —
      * colony_preview.c's field loop had the same `sol_b > 0` guard bug as
      * bells/hammers, dropping every Tory penalty instead of applying it. */
-    col->population = 15; /* tories=15, thresh=10 (col1 NULL) -> mod=-1 */
+    /* tories=15, thresh=10 (col1 NULL) -> mod=-1. Both fields: the pop
+     * fallback is colonist_count-first port-wide (see colony_prod_sol_bonus);
+     * setting `population` alone encoded the old population-first order.
+     * Slots 1..14 stay inactive, so no worker/production loop sees them. */
+    col->population = 15;
+    col->colonist_count = 15;
     const int base_yield =
       colony_yield_for_worker(&map, fx, fy, COLONIZE_JOB_LUMBERJACK, col->colonists[0].profession, true, 0, 0);
     ColonizeColonyPreview prev;
@@ -2128,8 +2135,12 @@ int main(void) {
     for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES; ++t) {
       col->tiles[t] = -1;
     }
-    col->colonist_count = 1;
-    col->population = 15; /* tories=15, thresh=10 (col1 NULL -> default) -> mod=-1 */
+    /* tories=15, thresh=10 (col1 NULL -> default) -> mod=-1. Both fields:
+     * the pop fallback is colonist_count-first port-wide (colony_prod_sol_
+     * bonus); `population` alone encoded the old population-first order.
+     * Only slot 0 is active, so the carpenter stays the lone worker. */
+    col->colonist_count = 15;
+    col->population = 15;
     pool.colony_count = 1;
 
     ColonizeColonyPreview prev;
@@ -2937,18 +2948,28 @@ int main(void) {
     ColonizeTurnResult prod;
     memset(&prod, 0, sizeof(prod));
     turn_run_colony_production(&pool, NULL, &col1, NULL, 0, &prod, NULL, NULL, NULL);
-    /* -= >>6 → 3150/6300; divisor+=2 → 6302; dividend+=7 → 3157. */
-    if (col1c.rebel_dividend != 3157u || col1c.rebel_divisor != 6302u) {
+    /*
+     * -= >>6 → 3150/6300; divisor+=2 → 6302; dividend += bells → 3159.
+     * Bells here are the SoL-ADJUSTED 9, not the sol-free 7: DOS
+     * FUN_364b_0688 reads this colony's bells once (`local_ba`,
+     * viceroy_unpacked.c:57230) and feeds the same word to the congress
+     * tally and to the rebel dividend, and that word carries the per-worker
+     * SoL term. The SOL_50 latch above gives sol_bonus +1, so the Statesman
+     * is (3+1)*2 = 8 plus the Town Hall passive 1 = 9. (Was 3157 while the
+     * accumulator recomputed bells with sol_bonus=0 — smell #89.)
+     */
+    if (col1c.rebel_dividend != 3159u || col1c.rebel_divisor != 6302u) {
       fprintf(
         stderr,
-        "Phase C human tick want 3157/6302 got %u/%u\n",
+        "Phase C human tick want 3159/6302 got %u/%u\n",
         (unsigned)col1c.rebel_dividend,
         (unsigned)col1c.rebel_divisor
       );
       return 1;
     }
 
-    /* WoI + crown-occupied: bells = -(7>>1) = -3 → dividend 3150-3=3147. */
+    /* WoI + crown-occupied: bells = -(9>>1) = -4 → dividend 3150-4=3146
+     * (9 = same SoL-adjusted bells as above; was -(7>>1) pre-#89). */
     col1c.rebel_dividend = 50u << 6;
     col1c.rebel_divisor = 100u << 6;
     c->nation_id = 1; /* crown peer of human 0 */
@@ -2957,10 +2978,10 @@ int main(void) {
     c->stock[COLONIZE_CARGO_FOOD] = 50;
     memset(&prod, 0, sizeof(prod));
     turn_run_colony_production(&pool, NULL, &col1, NULL, 0, &prod, NULL, NULL, NULL);
-    if (col1c.rebel_dividend != 3147u || col1c.rebel_divisor != 6302u) {
+    if (col1c.rebel_dividend != 3146u || col1c.rebel_divisor != 6302u) {
       fprintf(
         stderr,
-        "Phase C WoI crown tick want 47/102 got %u/%u\n",
+        "Phase C WoI crown tick want 3146/6302 got %u/%u\n",
         (unsigned)col1c.rebel_dividend,
         (unsigned)col1c.rebel_divisor
       );
@@ -4015,8 +4036,13 @@ int main(void) {
     ai->colonists[0].active = true;
     ai->colonists[0].building_type = 0;
     ai->colonists[0].profession = COLONIZE_PROF_STATESMAN;
-    ai->colonist_count = 1;
-    ai->population = 15; /* tories=(15*100+50)/100=15; thresh=10 (AI, fixed); mod=-1 */
+    /* tories=(15*100+50)/100=15; thresh=10 (AI, fixed); mod=-1. Both fields
+     * carry 15: the pop fallback is colonist_count-first port-wide
+     * (colony_prod_sol_bonus), and DOS has one population byte, so a fixture
+     * that set only `population` had two different pops inside one bells
+     * composer. Slots 1..14 stay inactive — one Statesman still works. */
+    ai->colonist_count = 15;
+    ai->population = 15;
     pool.colony_count = 1;
 
     ColonizeCol1Save col1;
@@ -4040,11 +4066,15 @@ int main(void) {
      * tag(3)+sol_b(-1)=2, doubled (skilled Statesman) = 4. Town Hall
      * passive +1 = 5 — not 7 (bug would leave it there un-penalized), and
      * not 6 either (that was this fix's own first pass, which only moved
-     * the sign-drop bug and still added sol_b post-doubling). */
-    if (col1.nation[1].liberty_bells_total != 5) {
+     * the sign-drop bug and still added sol_b post-doubling). Plus the
+     * AI-only pop term in colony_prod_colony_bells_ff, (pop+3)/5 = 3 at
+     * pop 15, for 8 total: it reads the same colonist_count the Tory term
+     * does, and only looked like 0 while this fixture left colonist_count
+     * at 1 and put the 15 in `population` alone. */
+    if (col1.nation[1].liberty_bells_total != 8) {
       fprintf(
         stderr,
-        "Tory-penalty bells want 5 got %u\n",
+        "Tory-penalty bells want 8 got %u\n",
         (unsigned)col1.nation[1].liberty_bells_total
       );
       return 1;

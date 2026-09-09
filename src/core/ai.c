@@ -2458,7 +2458,7 @@ void ai_euro_nation_turn(ColonizeTurnContext* ctx, int nation_id) {
    * which dispatch path (full vs early-fixture) is active — see
    * ai_king_ai_peacetime_gift's own header comment for the full formula
    * derivation. No-op post-WoI or for the human (this function is never
-   * called for ctx->human_nation — see turn_run_european_ai_stubs).
+   * called for ctx->human_nation — see turn.c's TURN_PROC_EURO slice).
    */
   ai_king_ai_peacetime_gift(ctx, nation_id);
   /* FUN_3844_00f2 tail: @KINGFRIGATE auto-accept for AI nations. */

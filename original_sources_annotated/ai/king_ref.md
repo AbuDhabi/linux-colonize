@@ -472,7 +472,7 @@ old invented SoL/300-gold stand-in) removed.
 `ai_euro_nation_turn` — the DOS caller, `FUN_281f_0668` at
 `viceroy_unpacked.c:6409-6421`, sits in the SAME generic per-Euro-nation
 turn loop gated on the identical human-controlled flag byte Linux's
-`turn_run_european_ai_stubs` already uses to skip the human, confirming
+the `TURN_PROC_EURO` slice already uses to skip the human, confirming
 this is genuinely unreachable for a human turn). Gate: WoI not declared,
 1-in-21 roll. Picks a random Euro nation 0-3 as beneficiary; eligible only
 if that's the acting nation itself or an ally (`AI_DIPLO_ALLY`).

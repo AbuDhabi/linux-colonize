@@ -2035,8 +2035,15 @@ static void reports_render_economic_trade(
       bid = europe_sell_price(europe, c);
       ask = europe_buy_price(europe, c);
     } else if (nat) {
+      /* Same DOS pair as europe_sell_price/europe_buy_price: bid =
+       * max(euro_price − 1, 0), ask = max(euro_price + burden, 0). The ask
+       * was missing its @CARGO burden term (smell audit #63) — that is the
+       * whole Food 0/8 and Lumber 1/6 spread on the real Europe screen. */
       bid = nat->trade.euro_price[c] > 0 ? nat->trade.euro_price[c] - 1 : 0;
-      ask = nat->trade.euro_price[c];
+      ask = (int)nat->trade.euro_price[c] + europe_cargo_burden(c);
+      if (ask < 0) {
+        ask = 0;
+      }
     } else {
       bid = 0;
       ask = 0;

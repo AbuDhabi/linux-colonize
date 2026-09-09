@@ -48,7 +48,7 @@ So: the CHOICE-building `if` block = human; the `else`
 which is exactly the "does the AI get an equivalent" mechanic T1.7
 was looking for. `ai_king.c`'s `FUN_43f7_2244` header and
 `ai_diplo.c:1544`'s comment carry the same inverted wording; Linux code
-itself (`turn_run_european_ai_stubs`, `control==0` = human) is right.
+itself (turn.c's `TURN_PROC_EURO` slice, `control==0` = human) is right.
 
 **2. The tail `switch(uStack_56)` cases call 8 different OVL13 functions,
 not one shared OVL11 utility.** The "all resolve to segment 11 offset 0"

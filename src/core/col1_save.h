@@ -776,8 +776,10 @@ typedef struct ColonizeCol1Indian {
      bits below); masks 0x01/0x02/0x04/0x08/0x10 never appear anywhere. See
      docs/archive/mysteries_catalog.md. */
   /* bit 0x20 (bit5): WoI tribe-defection one-shot latch — FUN_4d56_1816,
-   * indian_woi_defect_1816.md. Set once the roll resolves (hit or miss)
-   * so the tribe is not re-checked every turn for the rest of the war. */
+   * indian_woi_defect_1816.md. Set only when the defection actually FIRES
+   * (both the eligibility gate and the difficulty roll pass), matching DOS:
+   * a tribe that fails either roll stays unlatched and is re-rolled every
+   * turn for the rest of the war. Once set, the tribe is skipped. */
   uint8_t woi_defect_resolved : 1;
   /* bit 0x40 (bit6): WoI guaranteed-defect override — FUN_4d56_1816. When
    * set, skips the relation/RNG eligibility gate and always rolls the

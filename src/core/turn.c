@@ -338,7 +338,8 @@ static void turn_emit_inefficient_gov_chrome(
   if (!colony || colony->nation_id != human_nation || !europe || !col1) {
     return;
   }
-  int pop = colony->population > 0 ? colony->population : colony->colonist_count;
+  /* colonist_count-first fallback, port-wide (see colony_prod_sol_bonus). */
+  int pop = colony->colonist_count > 0 ? colony->colonist_count : colony->population;
   if (pop < 0) {
     pop = 0;
   }
@@ -2514,7 +2515,7 @@ int turn_rank_euro_nations(
           continue;
         }
         colonies_n++;
-        pop += c->population > 0 ? c->population : c->colonist_count;
+        pop += c->colonist_count > 0 ? c->colonist_count : c->population;
       }
     }
     int gold100 = 0;
@@ -2743,55 +2744,6 @@ static void turn_route_damaged_ships(ColonizeTurnContext* ctx, int nation) {
 static bool turn_euro_nation_is_ref(const ColonizeTurnContext* ctx, int n) {
   return ctx && ctx->col1_ok && ctx->col1 && ai_king_independence_declared(ctx->col1) &&
          n == ai_king_crown_nation_col1(ctx->col1_ok ? ctx->col1 : NULL, ctx->human_nation);
-}
-
-void turn_run_european_ai_stubs(ColonizeTurnContext* ctx) {
-  if (!ctx || !ctx->units) {
-    return;
-  }
-  for (int n = 0; n < 4; ++n) {
-    if (n == ctx->human_nation) {
-      continue;
-    }
-    uint8_t control = 1; /* default AI */
-    if (ctx->col1_ok && ctx->col1) {
-      control = ctx->col1->player[n].control;
-    }
-    if (control == 2 && !turn_euro_nation_is_ref(ctx, n)) {
-      continue; /* withdrawn */
-    }
-    turn_set_active_nation(ctx, n);
-    turn_refresh_moves_for_nation(
-      ctx->units,
-      n,
-      ctx->col1_ok ? ctx->col1 : NULL,
-      ctx->map,
-      ctx->colonies,
-      ctx->ai_popups,
-      ctx->messages
-    );
-    (void)units_tick_treasure_outside_colony(
-      ctx->units, ctx->colonies, n, ctx->status, ctx->status_size
-    );
-    (void)units_tick_ship_build_ready(
-      ctx->units, ctx->colonies, n, ctx->human_nation, ctx->status, ctx->status_size, NULL
-    );
-    (void)units_tick_drydock_repair(
-      ctx->units,
-      ctx->colonies,
-      n,
-      ctx->human_nation,
-      ctx->status,
-      ctx->status_size,
-      ctx->ai_popups,
-      ctx->messages
-    );
-    turn_route_damaged_ships(ctx, n);
-    if (turn_euro_nation_is_ref(ctx, n)) {
-      ai_king_ref_pre_euro_beat(ctx); /* DOS 00f2→2424 before 6d8e. */
-    }
-    ai_euro_nation_turn(ctx, n);
-  }
 }
 
 void turn_run_king_stub(ColonizeTurnContext* ctx) {
@@ -3338,9 +3290,14 @@ bool turn_processor_advance(ColonizeTurnProcessor* proc, ColonizeTurnContext* ct
       );
       /* DOS FUN_3844_00f2 opens every nation's EOT with turn_owner_chrome
        * (281f_0590 → 1984_00aa); the human's own colony EOT now runs in
-       * TURN_PROC_FINISH, which re-arms the same chrome there. */
+       * TURN_PROC_FINISH, which re-arms the same chrome there. SETUP itself
+       * owns no nation's EOT any more (calendar + AI-only production +
+       * nation ticks), so the box stays dark for this slice — turn.h's
+       * TURN_PROC_SETUP contract and turn_between_players.md ("only while
+       * EURO/INDIAN steps run"). The `true` here was the leftover of the
+       * pre-FINISH layout, when human production still ran in SETUP. */
       turn_set_active_nation(ctx, ctx->human_nation);
-      proc->show_indicator = true;
+      proc->show_indicator = false;
       proc->year_before = *ctx->game_year;
       turn_advance_calendar(ctx->game_year, ctx->game_autumn, ctx->turn_number);
       proc->result.advanced = true;

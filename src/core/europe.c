@@ -726,6 +726,21 @@ static void europe_sort_train_by_cost(EuropeTrainOption* a, int n) {
   }
 }
 
+/*
+ * @CARGO burden column, cached from the last table load so screens that hold
+ * no EuropeScreen (the Economic report's fallback row) can still compute the
+ * DOS ask price `euro_price + burden` (FUN_38fd_0016). Smell audit #63.
+ */
+static int g_europe_cargo_burden[EUROPE_CARGO_MAX];
+static int g_europe_cargo_burden_count;
+
+int europe_cargo_burden(int cargo_type) {
+  if (cargo_type < 0 || cargo_type >= g_europe_cargo_burden_count) {
+    return 0;
+  }
+  return g_europe_cargo_burden[cargo_type];
+}
+
 static bool europe_load_tables(EuropeScreen* eu, const ColonizeMsgCatalog* names) {
   eu->cargo_count = 0;
   eu->class_count = 0;
@@ -791,6 +806,10 @@ static bool europe_load_tables(EuropeScreen* eu, const ColonizeMsgCatalog* names
         q->volatility = 15;
       }
       q->ask = q->bid + q->burden;
+      g_europe_cargo_burden[eu->cargo_count - 1] = q->burden;
+      if (eu->cargo_count > g_europe_cargo_burden_count) {
+        g_europe_cargo_burden_count = eu->cargo_count;
+      }
     }
   }
   memset(eu->trade_nr, 0, sizeof(eu->trade_nr));
@@ -3243,7 +3262,12 @@ int europe_sell_hold_partial(
   europe_credit_sale_tax(col1, seller_nation, europe_sell_price(eu, ctype) * amt, gained);
   ship->hold_goods_amount[hold_index] = (uint8_t)(held - amt);
   if (ship->hold_goods_amount[hold_index] == 0) {
-    ship->hold_goods_type[hold_index] = 255;
+    /* Empty-hold sentinel is amount 0 / type 0 everywhere else in the port
+     * (europe_sell_hold, europe_sell_unit_hold, the AI dump paths, the COL1
+     * import); 255 here was the odd one out. Smell audit #64. Every reader
+     * gates on the amount, so the type value is inert either way — but the
+     * drag/peek paths do read hold_goods_type raw. */
+    ship->hold_goods_type[hold_index] = 0;
   }
   europe_push_sale_status(eu, ctype, amt, gained);
   /* Smell audit #50: ledger + price move (see europe_sell_hold). */
