@@ -429,4 +429,8 @@ Resolutions compressed to their lead sentence 2026-09-05; full original text: [d
 | A unit with spent moves should not be land-fall-able. It should stay on the ship. | |
 | Popups about rival monarchs considering granting their colonies independence show up way too early. Like in 1530. This is far earlier than I've seen them in DOS. | |
 | The sales lines in the top bar, both for custom house and European Status, should be sped up. 3x as fast, please. | |
-| "The <nation> settlers in <colony> have committed intolerable acts" popup needs tribe chief flair. | |
+| "The <nation> settlers in <colony> have committed intolerable acts" popup needs tribe chief flair. They also appear to ask for half the colony cargo, rather than all of it like in DOS. | |
+| Contact popups with the Tupi got interrupted by contact popups with the Spanish. These should not mix. Player has to deal with one event chain, then the other one can start. | |
+| On the Indian report, tribe names and tribe advancement use the wrong font. Those should be FONTTINY. | |
+| Playing on the original Americas map, the western edge is apparently cut off one tile too soon. That's where the sea lanes are for the west coast. | |
+| In a recent save, Montreal seems to lack a carpenter's house. Clicking it says "build it first". That's incorrect. It's one of the buildings all colonies have at start. | |
