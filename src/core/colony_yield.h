@@ -58,6 +58,22 @@ int colony_yield_for_worker(
   bool has_hudson
 );
 
+/*
+ * Raw DOS `DS:0x2f7b + job` base-yield byte for a terrain CLASS — the
+ * stride-16 terrain record's `+5..+13` columns, which are exactly the
+ * NAMES.TXT @UNFORESTED/@FORESTED/@OTHER field-yield grid (see
+ * docs/terrain_yields.md "DS:0x2f76 terrain-class record"). Class numbering is
+ * map_dos_terr_class_at / map_pedia_terrain_index_at (0-7 cleared, 8-23
+ * forested via &7, 24-28 arctic/ocean/sea lane/mountains/hills).
+ *
+ * NO tile context: no resource, plow, road, river, SoL or expert folding.
+ * Anything scoring a real tile wants colony_yield_for_tile /
+ * colony_yield_for_worker instead. This exists for the DOS AI arms that
+ * literally index the table by class — FUN_5952_035e's colony ring scan
+ * (`*(byte*)(class*0x10 + 0x2f7b)`, raw 94090-94113). 0 out of range.
+ */
+int colony_yield_terrain_class_base(int terr_class, int field_job);
+
 /* Display name for field @JOB (static string). */
 const char* colony_yield_job_name(int field_job);
 

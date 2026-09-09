@@ -775,11 +775,23 @@ void combat_apply_1b0e_peels(
   }
 
   /*
-   * WoI popular-support peels (FUN_5fef_1b0e ~100494–100527).
-   * Gate: WoI + Euro attacker. Colony tile vs open-field branches differ.
-   * Cite: viceroy_unpacked.c; king_ref.md (0x53d2 = crown).
+   * WoI popular-support peels (FUN_5fef_1b0e raw 100494–100528).
+   * Gate, verbatim: `if (((*(byte *)0x5382 & 1) != 0) && (uVar16 < 4))` —
+   * WoI active AND Euro ATTACKER, and NOTHING else. There is no is-ship test
+   * on either side (bVar9 / bVar10 gate the halving clause at raw 100468 and
+   * the 0xd..0x12 range checks elsewhere, never this block), so the port's old
+   * `&& land` was invented: it silently denied a WoI crown/REF SHIP the +50%
+   * bombardment bonus and the Tory/Rebel SoL peel when it attacked a hull
+   * berthed in a rebel colony (a colony tile IS the defended tile then, so
+   * DOS's iVar18 = FUN_281f_07be is >= 0 and the colony arm runs). Removed
+   * 2026-09-09.
+   *
+   * The open-field arm keeps its own domain test — DOS's
+   * `FUN_281f_0768(x,y) == 0` (ocean_or_high_seas) — so a fight in open water
+   * still collects nothing; that is the only place DOS looks at the domain.
+   * Cite: viceroy_unpacked.c 100494-100528; king_ref.md (0x53d2 = crown).
    */
-  if (ctx->col1 && combat_woi_active(ctx->col1) && atk_nat >= 0 && atk_nat <= 3 && land) {
+  if (ctx->col1 && combat_woi_active(ctx->col1) && atk_nat >= 0 && atk_nat <= 3) {
     const int crown = combat_crown_nation(ctx->col1);
     const int atk_is_crown = (atk_nat == crown);
     if (!on_colony) {

@@ -187,9 +187,22 @@ mapping below is working from trustworthy source.
 | Artillery open-field | Land, defender tile has **no settlement** (`06be` layer2&2 — Euro colony AND village tiles both count, NOT the `07be` colony lookup); arty; skip only when defender is fortified Euro (asm reads the DEFENDER's orders for BOTH clauses) | `>>=2` (−75%) — so arty attacking a village is NOT "in the open" |
 | Arty vs natives on settlement | Defender arty, attacker native, settlement tile | `<<=1` |
 | Spanish ambush | Attacker nation 2, defender native, settlement tile (villages) | +50% |
-| WoI crown open-field | WoI, **crown** attacker, land tile (not ocean) | `+= difficulty * atk / 20` |
+| WoI crown open-field | WoI, **crown** attacker, land tile (not ocean — `FUN_281f_0768 == 0`) | `+= difficulty * atk / 20` |
 | WoI REF +50% | WoI, Euro attacker, **on colony**, and (attacker is **crown** **or** `ref_present`) | +50% (`0x8d01\|0x80`) |
 | WoI support % | WoI, Euro attacker, **on colony** | Crown: +`(100−SoL)%` (Tories); else +`SoL%` (Rebels) |
+
+**The three WoI rows have NO domain gate (corrected 2026-09-09).** The block's
+only gate is raw 100494, verbatim `if (((*(byte *)0x5382 & 1) != 0) && (uVar16
+< 4))` — WoI active and a **Euro attacker**, nothing more; the is-ship flags
+`bVar9`/`bVar10` gate the weak-defender row at raw 100468, never this one. The
+port carried an invented `&& land`, which cost a crown/REF **ship** both the
++50% bombardment bonus and the Tory share when it attacked a hull berthed in a
+rebel colony (a berthed defender puts the fight on a colony tile, so DOS's
+`iVar18 = FUN_281f_07be` is `>= 0` and the colony arm runs exactly as it does
+on land). The only domain test in the block is the open-field row's own
+`FUN_281f_0768(x,y) == 0`, so an engagement in open water still collects
+nothing. Pinned by `tests/unit/test_combat_strength.c`
+`test_woi_crown_ship_bombards_colony`.
 | Human-colony damper (raw 100536-100543) — **resolve-only** | `difficulty < 2`, no WoI (or no colony on the defended tile, or attacker is a hull 0xd-0x12); defender a **human-controlled** European (`uVar15 < 4 && 0x543f[uVar15] == 0`), **colony** on the attacked tile (`-1 < iVar18`), turn `DS:0x538e < 0x50` | attacker −25% (diff 0) / `>>1` (diff 1) |
 | **Discoverer beginner shield** (raw 100544-100545, ported 2026-09-08) — **resolve-only** | as the row above, plus `difficulty == 0` and the defender is the **auto-spawned** stand-in (`bVar28` — militia/Revere phantom) | attacker `= 0` → the roll `RNG(1, def+0) <= 0` always loses. A human player's undefended town cannot be taken on Discoverer in the first 80 turns |
 | Any-attacker-of-human damper (raw 100546-100548) — **resolve-only** | same `difficulty < 2` / WoI gate; defender human-controlled European (**no colony needed**) and (attacker is Euro **or** turn `< 0x50`) | attacker `>>1`, stacks on the colony damper above |
@@ -304,6 +317,26 @@ dwelling. Human `4528` `@ACTIONS` arm **Done** (P8.8). Deep `4528` mid-body / VG
   **Gated on a defender loss** (DOS 5fef ~0x2532): runs only when the
   attacker's type attack byte is 0 or a ship (type 0xd..0x12) is party — never
   for a normal land attack. On an ATTACKER loss it runs unconditionally.
+  **A berthed hull swept here is DAMAGED, not destroyed and not skipped**
+  (ported 2026-09-09): 0ec0 (raw 99719-99730) carries no per-unit predicate,
+  and `FUN_5fef_0352` tests the LOSER's type byte first — `if ((0xc < type) &&
+  (type < 0x13))`, raw 99520 — so any hull takes the naval damage arm whatever
+  domain the fight was. None of 0352's land rows could match a ship anyway
+  (capture set 0/0xa/0xc at raw 99345, demote set 4/1/9/7/8 at raw 99437-99451,
+  artillery row 0xb). The damage-vs-sink roll at raw 99527 is guarded by
+  `winner_type*0xe + 0x523b != 0` — the @UNIT **guns** column, which is 0 for
+  every land type in NAMES.TXT — so **a land winner never draws and the hull is
+  always damaged** (no RNG-stream shift). It then takes the ordinary tail: holds
+  and passengers lost, bit7, repair timer, relocation to the nearest own Drydock
+  colony or the Europe lane, `@SHIPDAMAGE`. The port routes it to
+  `units_apply_naval_loss_outcome`; the `attack == 0` rail on the land arm is
+  deliberately not applied to hulls (DOS keys on the type range alone, so an
+  armed Privateer moored alongside is damaged exactly like a Caravel).
+  `units_seize_noncombat_at` still skips hulls: it stands in for the colony
+  walk-in, and DOS's own colony-fall purge `FUN_43f7_0512` destroys hulls
+  outright with `@SEIZURESEA` rather than repairing them. Pinned by
+  `tests/unit/test_units.c` (`0352 hull arm damages berthed ships in a land
+  sweep`).
 - Winner: Washington always-promote; else chance promote (`FUN_5fef_172c`)
 - Native def: settlement fallout (`FUN_5fef_31ea`) + `@LOOT` (treasure, DOS tag
   `0x1ccc`) / `@LOOT2` (burn, no treasure, `0x1cd1`). The treasure peel is **not

@@ -253,6 +253,105 @@ static int test_fatigue_applies_at_sea(void) {
   return 0;
 }
 
+/*
+ * Parked lead (2026-09-09): FUN_5fef_1b0e's WoI gate is
+ * `if (((*(byte *)0x5382 & 1) != 0) && (uVar16 < 4))` (raw 100494) — WoI plus a
+ * Euro ATTACKER, no is-ship test on either side. The port had bolted `&& land`
+ * onto it, so a crown Man-O-War shelling a hull berthed in a rebel colony lost
+ * both the +50% crown/REF bombardment bonus (raw 100504-100507) and the Tory
+ * share of the colony's SoL (raw 100508-100523). The colony arm is selected by
+ * iVar18 = FUN_281f_07be(defended tile) >= 0, which a berthed defender
+ * satisfies exactly as a landed one does.
+ */
+static int test_woi_crown_ship_bombards_colony(void) {
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  char err[256];
+  if (!map_alloc(&map, 8, 8, err, sizeof(err))) {
+    return fail("woi naval map_alloc");
+  }
+  for (size_t i = 0; i < map.tile_count; ++i) {
+    map.terrain[i] = 1;
+  }
+
+  ColonizeUnitPool pool;
+  memset(&pool, 0, sizeof(pool));
+  units_reset(&pool);
+  units_set_occupancy_map(NULL);
+  seed_types(&pool);
+
+  /* Type 1 = Frigate on both sides; the defender lies in the rebel port. */
+  const int def = units_spawn_allow_stack(&pool, 1, 4, 4);
+  const int atk = units_spawn_allow_stack(&pool, 1, 3, 4);
+  if (def < 0 || atk < 0) {
+    map_free(&map);
+    return fail("woi naval spawn");
+  }
+  units_get(&pool, def)->nation_id = 0; /* rebel human */
+  units_get(&pool, atk)->nation_id = 1; /* crown */
+
+  ColonizeColonyPool colonies;
+  colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
+  ColonizeColony* c = &colonies.colonies[0];
+  c->id = 0;
+  c->active = true;
+  c->nation_id = 0;
+  c->x = 4;
+  c->y = 4;
+  c->population = 3;
+  colonies.colony_count = 1;
+
+  ColonizeCol1Colony rec;
+  memset(&rec, 0, sizeof(rec));
+  rec.x = 4;
+  rec.y = 4;
+  rec.rebel_dividend = 1;
+  rec.rebel_divisor = 4; /* 25% SoL → 75% Tory share for the crown */
+
+  static ColonizeCol1Save col1;
+  memset(&col1, 0, sizeof(col1));
+  col1.head.crown_nation_id = 1;
+  col1.player[0].control = 0; /* human rebel */
+  col1.player[1].control = 1; /* crown is AI */
+  col1.colony = &rec;
+  col1.head.colony_count = 1;
+
+  ColonizeCombatStrengthCtx ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.units = &pool;
+  ctx.map = &map;
+  ctx.colonies = &colonies;
+  ctx.col1 = &col1;
+
+  ColonizeCombatEngageResult peace;
+  col1.head.game_options.woi = 0;
+  combat_naval_engage(&ctx, atk, def, &peace);
+
+  ColonizeCombatEngageResult war;
+  col1.head.game_options.woi = 1;
+  combat_naval_engage(&ctx, atk, def, &war);
+
+  col1.colony = NULL;
+  col1.head.colony_count = 0;
+  map_free(&map);
+
+  if ((war.atk_flags.flags & COMBAT_FLAG_REF) == 0) {
+    return fail("WoI crown ship must raise the 0x8d01|0x80 bombardment row");
+  }
+  if (war.atk_flags.sol_percent != 75) {
+    fprintf(stderr, "naval sol_percent %d want 75\n", war.atk_flags.sol_percent);
+    return fail("WoI crown ship must collect the Tory share (100 - SoL)");
+  }
+  /* +50% crown, then +75% of that — the same two DOS lines the land arm runs. */
+  const int want = peace.atk_strength + (peace.atk_strength >> 1);
+  if (war.atk_strength != want + (75 * want) / 100) {
+    fprintf(stderr, "naval woi atk %d want %d\n", war.atk_strength, want + (75 * want) / 100);
+    return fail("WoI naval crown bonus + Tory peel arithmetic");
+  }
+  return 0;
+}
+
 int main(void) {
   if (test_missing_foe_keeps_terrain() != 0) {
     return 1;
@@ -261,6 +360,9 @@ int main(void) {
     return 1;
   }
   if (test_fatigue_applies_at_sea() != 0) {
+    return 1;
+  }
+  if (test_woi_crown_ship_bombards_colony() != 0) {
     return 1;
   }
   printf("unit_combat_strength: OK\n");

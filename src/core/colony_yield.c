@@ -112,6 +112,10 @@ static int colony_yield_base_for_pedia(int pedia, int field_job) {
   return 0;
 }
 
+int colony_yield_terrain_class_base(int terr_class, int field_job) {
+  return colony_yield_base_for_pedia(terr_class, field_job);
+}
+
 /*
  * (resource, field_job) -> effect, byte-exact from FUN_15eb_17fa (a flat
  * if-chain over hardcoded pairs, not a resource->job map — a resource can

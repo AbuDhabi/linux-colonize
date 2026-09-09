@@ -1241,35 +1241,72 @@ static int ai_euro_colony_food_short(const ColonizeColony* c) {
 
 /*
  * FUN_15eb_0470 (`FUN_1000_8e4e` / `FUN_281f_0c5e`): the colony's work-radius
- * TIER, `min(FUN_15eb_039e(10), 2) + 2` → 2..4
- * (viceroy_unpacked_2.c:8332-8344). The port reads the chain count off
- * colonies_fortification_tier (0 none / 1 Stockade / 2 Fort / 3 Fortress), as
- * the two pre-existing 8/12/32 call sites already did; DOS's own `min(.., 2)`
- * folds Fortress onto Fort.
+ * TIER, `min(FUN_15eb_039e(10), 2) + 2` → nominally 2..4
+ * (viceroy_unpacked.c:9636-9648 = viceroy_unpacked_2.c:8332-8344).
+ *
+ * RESOLVED 2026-09-09 — the tier is a CONSTANT 2 in real play, and the
+ * "read the count off colonies_fortification_tier" stand-in this used to
+ * carry was an invention. The chain the counter walks:
+ *   - FUN_15eb_039e(p) (viceroy_unpacked.c:9561-9578) counts, over the chain
+ *     starting at @BUILDING index `p`, how many rows this colony owns, then
+ *     follows the signed link byte at `DS:(idx*0xc - 0x707a)` until it goes
+ *     negative. Ownership is the colony has_building bitmap (FUN_15eb_035e
+ *     `DS:0x5dca + colony*0xca`, bit `p`) — nothing to do with fortification;
+ *     the fortification chain is counted separately and explicitly (rows
+ *     0/1/2) by FUN_157e_0008 (:8890-8905).
+ *   - The link byte's only writer is FUN_75c2_13dc (:120735-120753), fed by
+ *     the fixed 42-call table in FUN_75c2_144c (:120773-120826) — one call
+ *     per @BUILDING row, `(group, link)`. Its group-3 block is
+ *     `(-1, 0xb, -1, 0x1f, -1)` and NO call anywhere in the table passes a
+ *     link of 9, 0xa or 0x1e. So row 0xa is a chain HEAD, and the chain
+ *     reachable from it can only ever visit rows {0xa, 0xb, 0x1e, 0x1f} —
+ *     never row 9, the real Town Hall.
+ *   - All four of those are unbuildable: FUN_15eb_3650 hard-zeroes 0x0a,
+ *     0x0b (the cut Town Hall upgrades) and 0x1e (Capitol), and 0x1f sits
+ *     behind the Capitol as its prerequisite (docs/building_production.md
+ *     "Cut rows", 259-266; the port mirrors that block in
+ *     colonies_building_is_buildable). Starter colonies grant row 9, not 0xa.
+ * ⇒ FUN_15eb_039e(10) == 0 always ⇒ tier == 2 always.
+ *
+ * Cross-check: the tier's own consumer indexes `DS:0x329[tier]` = 8/12/20
+ * ring tiles (FUN_15eb_04c0, :9683-9700 — the "is (x,y) worked by this
+ * colony" test the human colony screen uses too). Every Colonization colony
+ * works exactly 8 field tiles, which is only true at tier 2. That is why
+ * COLONIZE_COLONY_FIELD_TILES == 8 has always matched DOS byte-for-byte.
+ *
+ * Kept as a function (four call sites, and it names the DOS quantity), but it
+ * no longer reads colony state. `pool`/`c` stay in the signature so a future
+ * scenario that really does grant one of the cut rows has somewhere to go.
  */
 static int ai_euro_colony_ring_tier(
   const ColonizeColonyPool* pool,
   const ColonizeColony* c
 ) {
-  int chain = colonies_fortification_tier(pool, c);
-  if (chain > 2) {
-    chain = 2;
-  }
-  return chain + 2;
+  (void)pool;
+  (void)c;
+  return 2;
 }
 
 /*
  * FUN_15eb_0484 (`FUN_1000_8e6c`): the AI's "wanted size" for a colony —
- * tier 2 → 8, tier 3 → 0xc, else 0x20 (viceroy_unpacked_2.c:8346-8360).
+ * tier 1 → 4, tier 2 → 8, tier 3 → 0xc, else 0x20
+ * (viceroy_unpacked.c:9650-9664 = viceroy_unpacked_2.c:8346-8360).
  * Factored 2026-09-09 out of the two open-coded copies (the 20e6 labor arm
  * and the 20e6 colony-sail matrix) so the 5952 +0x1b bit 0x10 latch below
- * uses the same table.
+ * uses the same table. Since ai_euro_colony_ring_tier is a constant 2 (see
+ * its comment: the Town-Hall-chain counter it keys off can only ever walk
+ * cut, unbuildable @BUILDING rows), the live answer is always 8 — the
+ * 0xc/0x20 rows are dead in DOS too. The switch is kept verbatim rather than
+ * folded to `return 8` so the DOS table stays readable next to its citation.
  */
 static int ai_euro_colony_wanted_size(
   const ColonizeColonyPool* pool,
   const ColonizeColony* c
 ) {
   const int tier = ai_euro_colony_ring_tier(pool, c);
+  if (tier == 1) {
+    return 4;
+  }
   return tier == 2 ? 8 : (tier == 3 ? 0xc : 0x20);
 }
 
@@ -1427,7 +1464,83 @@ static void ai_euro_refresh_colony_ai_flags(
     return;
   }
   ai_euro_colony_ship_probe_4962(ctx, nation_id, c);
-  c->ai_flags = (uint8_t)(c->ai_flags & (uint8_t)~COLONIZE_COLONY_AI_WANTS_PIONEER_WORK);
+  c->ai_flags = (uint8_t)(
+    c->ai_flags & (uint8_t)~(COLONIZE_COLONY_AI_WANTS_PIONEER_WORK |
+                             COLONIZE_COLONY_AI_WANTS_PIONEER_CLEAR)
+  );
+  /*
+   * DOS +0x1b bit 0x20, the "send a Pioneer to CLEAR" half of the `|= 0xa0`
+   * pair at raw 94200-94206 (see COLONIZE_COLONY_AI_WANTS_PIONEER_CLEAR in
+   * colony.h for the decode). It is fed by the FULL ring scan at raw
+   * 94082-94117 — every ring slot, not just the worked ones the 0x80 block
+   * below walks — so it gets its own loop here. DOS runs both writers before
+   * the 0x80 writer at raw 94207-94209 and after the 0x08/0x04 pair in
+   * ai_euro_colony_threat_seed_5952, which is exactly this position; the
+   * per-tick clear is that function's `+0x1b &= 7`, mirrored above.
+   *
+   * Verbatim counter shapes (local names from the raw dump):
+   *   off-map (FUN_281f_0302 == 0)      -> local_142++, local_144++
+   *   class 0x19/0x1a (Ocean/Sea Lane)  -> local_144++, local_142++, local_e++
+   *   class outside 8..0x17 (not forest, and note DOS re-tests water here
+   *     too — the two ifs are sequential, not else-if):
+   *        food < 2 -> local_144++;  food >= 3 -> local_e++
+   *   class 8..0x17 (forest)            -> local_134++, local_144++,
+   *        and food[class & 7] > 2     -> local_c++
+   * `food` is the raw DS:0x2f7b table byte (colony_yield_terrain_class_base,
+   * job 0), NOT a tile yield: no resource/plow/river/SoL folding.
+   * local_142 is the Docks-cleared water count the 0x10 latch uses; it plays
+   * no part in the 0x20 writers, so it is not recomputed here.
+   */
+  if (ctx->map) {
+    int unproductive = 0; /* local_144 */
+    int good_food = 0;    /* local_e   */
+    int forests = 0;      /* local_134 */
+    int clearable = 0;    /* local_c   */
+    for (int ti = 0; ti < COLONIZE_COLONY_FIELD_TILES; ++ti) {
+      int dx = 0;
+      int dy = 0;
+      if (!colonies_field_tile_delta(ti, &dx, &dy)) {
+        continue;
+      }
+      const int tx = c->x + dx;
+      const int ty = c->y + dy;
+      if (tx < 0 || ty < 0 || tx >= (int)ctx->map->width || ty >= (int)ctx->map->height) {
+        ++unproductive; /* raw 94086-94088: off-map counts as blocked */
+        continue;
+      }
+      const int cls = map_dos_terr_class_at(ctx->map, tx, ty);
+      if (cls == 0x19 || cls == 0x1a) {
+        ++unproductive;
+        ++good_food; /* DOS counts open water as a food tile (Docks) */
+      }
+      if ((cls < 8 || cls > 0x0f) && (cls < 0x10 || cls > 0x17)) {
+        const int food = colony_yield_terrain_class_base(cls, COLONIZE_JOB_FARMER);
+        if (food < 3) {
+          if (food < 2) {
+            ++unproductive;
+          }
+        } else {
+          ++good_food;
+        }
+      } else {
+        ++forests;
+        ++unproductive;
+        if (colony_yield_terrain_class_base(cls & 7, COLONIZE_JOB_FARMER) > 2) {
+          ++clearable;
+        }
+      }
+    }
+    /* raw 94200-94202 */
+    if (COLONIZE_COLONY_FIELD_TILES - 1 <= unproductive && forests > 1) {
+      c->ai_flags |= (uint8_t)(COLONIZE_COLONY_AI_WANTS_PIONEER_WORK |
+                               COLONIZE_COLONY_AI_WANTS_PIONEER_CLEAR);
+    }
+    /* raw 94203-94206 */
+    if (good_food < (((int)c->population + 3) >> 2) && clearable != 0 && forests > 1) {
+      c->ai_flags |= (uint8_t)(COLONIZE_COLONY_AI_WANTS_PIONEER_WORK |
+                               COLONIZE_COLONY_AI_WANTS_PIONEER_CLEAR);
+    }
+  }
   /*
    * DOS +0x1b bit 0x80 (FUN_5952_035e surround scan, colony_tick doc ~415/423):
    * over the WORKED ring slots, iStack_6e counts tiles with (fa_flags & 0x0a)
@@ -3107,7 +3220,8 @@ static int ai_euro_nearest_military_goal(
  * (from_x,from_y) → land tile in Manhattan ring 2..4 around tribe.
  * FoW deepen: when map.seen exists, prefer tiles NOT seen by this nation
  * (map_tile_seen_by / Col1 fog bit) — explore CONTACT, not combat bonus.
- * Sticky deepen: ai_diplo_indian_hostility_sticky ≥ 2 (unknown26[8] very-low)
+ * Sticky deepen: ai_diplo_indian_hostility_sticky ≥ 2 (nation +0x4b =
+ * unknown26[11], the "very-low" step; moved off +0x48 by smell audit #52)
  * → prefer closer rings when fog absent. Sticky + FoW: prefer deeper unseen
  * ring (md=4) to push fog outward. Cite: euro_diplo.md / ai_diplo.h; manual fog.
  * Fall back to toward-scout / tighter-ring scoring when fog absent or all seen.
@@ -4007,11 +4121,33 @@ int ai_euro_28c8_colonist_job_score_structural(
  * colony each turn DOS clears every work plot (`colony+0x70..0x83 = 0xff`)
  * and re-places colonists through 28c8: a food pass first (slots whose
  * previous job was Farmer, or Fisherman on a fishable colony) until the
- * food target holds, then two general passes; a winner whose raw yield
- * (DS:0x8dbe) is < 3 ends the pass. Building workers keep their
+ * food target holds, then two general passes. Building workers keep their
  * workplaces here — DOS's later statesman/carpenter passes in the same
  * function are the existing expert-workplace heuristics' territory.
  * Food target: Linux population×2 consumption vs town commons + placed food.
+ *
+ * STOP CONDITION (both halves fixed 2026-09-09):
+ *   - It is a `goto LAB_5952_178f` (raw 94596 in the food pass, raw 94614 in
+ *     the general passes), and LAB_5952_178f sits OUTSIDE both loops, just
+ *     ahead of the leftovers arm at LAB_5952_17a9. So a bad winner ends the
+ *     WHOLE placement section, not the current pass: after the food pass
+ *     trips it, DOS never runs the two general passes at all. The port used
+ *     `break`, which only left the innermost loop.
+ *   - The general passes' condition is
+ *     `(yield < 3) || (local_84 && yield < 5)` (raw 94613-94614), where
+ *     `local_84 = (DS:0x8e32 * 0x10 < colony+0x9a)` is recomputed per slot
+ *     (raw 94608): DS:0x8e32 is the colony's food shortfall for the turn
+ *     (consumption − field food, 0 when production covers it — turn.c:1095-
+ *     1102) and colony+0x9a is the food stock. So a colony sitting on more
+ *     than 16 turns' worth of deficit — in practice any well-fed colony —
+ *     demands yield >= 5 from a general-pass winner and otherwise stops.
+ *     The `< 5` half was unported.
+ * STILL NOT PORTED here, deliberately (all DOS-side detail with no Linux
+ * counterpart yet): the loop-entry guards `local_7e`/`local_80`/`local_1e`
+ * (pop vs ring size, horses stock, gross production vs demand) and
+ * `local_84`'s SECOND use at raw 94609-94611, where it also flips the
+ * per-slot eligibility test between FUN_281f_0c9a (expert) and profession
+ * 0x1b (Indian Convert).
  */
 static void ai_euro_colony_tick_28c8_reassign(ColonizeTurnContext* ctx, int nation_id) {
   if (!ctx || !ctx->colonies || !ctx->map || nation_id == ctx->human_nation) {
@@ -4054,6 +4190,10 @@ static void ai_euro_colony_tick_28c8_reassign(ColonizeTurnContext* ctx, int nati
       food_have = tc.food > 0 ? tc.food : 0;
     }
     const int food_need = col->population * 2;
+    /* colony+0x9a — the food stock the DS:0x8e32 comparison is made against. */
+    const int food_stock = col->stock[COLONIZE_CARGO_FOOD];
+    /* DOS `goto LAB_5952_178f`: ends the whole placement section, not a pass. */
+    bool section_done = false;
 
     /* Pass 1 — food, from the slots that were feeding the colony. */
     for (int s = 0; s < n && food_have < food_need; ++s) {
@@ -4070,6 +4210,7 @@ static void ai_euro_colony_tick_28c8_reassign(ColonizeTurnContext* ctx, int nati
       const int ok = ai_euro_28c8_score(ctx, col, s, col->colonists[s].profession, &best);
       col->colonists[s].field_job = -1;
       if (!ok || best.yield < 3) {
+        section_done = true; /* raw 94596 */
         break;
       }
       if (colonies_assign_field(ctx->colonies, col->id, s, best.tile, best.job)) {
@@ -4080,21 +4221,33 @@ static void ai_euro_colony_tick_28c8_reassign(ColonizeTurnContext* ctx, int nati
       }
     }
 
-    /* Pass 2 ×2 — everyone else, best job wins, yield < 3 ends the pass. */
-    for (int pass = 0; pass < 2; ++pass) {
+    /* Pass 2 ×2 — everyone else, best job wins; raw 94613-94614 stop. */
+    for (int pass = 0; !section_done && pass < 2; ++pass) {
       for (int s = 0; s < n; ++s) {
         if (placed[s]) {
           continue;
         }
+        /*
+         * local_84, recomputed per slot (raw 94608). DS:0x8e32 is the
+         * shortfall of this turn's food production against consumption, so it
+         * shrinks as this section places farmers — hence the running
+         * food_have, which pass 1 already maintains and pass 2 now keeps up.
+         */
+        const int shortfall = food_need > food_have ? food_need - food_have : 0;
+        const bool plenty = (shortfall * 0x10) < food_stock;
         AiEuro28c8JobCandidate best;
         col->colonists[s].field_job = prev_job[s];
         const int ok = ai_euro_28c8_score(ctx, col, s, col->colonists[s].profession, &best);
         col->colonists[s].field_job = -1;
-        if (!ok || best.yield < 3) {
+        if (!ok || best.yield < 3 || (plenty && best.yield < 5)) {
+          section_done = true; /* raw 94614 */
           break;
         }
         if (colonies_assign_field(ctx->colonies, col->id, s, best.tile, best.job)) {
           placed[s] = true;
+          if (best.job == COLONIZE_JOB_FARMER || best.job == COLONIZE_JOB_FISHERMAN) {
+            food_have += best.yield;
+          }
         }
       }
     }
@@ -4128,9 +4281,20 @@ static void ai_euro_colony_tick_28c8_reassign(ColonizeTurnContext* ctx, int nati
      *     force-filled 1-yield tiles.
      * Still not modelled: the single-winner election, the DS:0x8dc0
      * priority key and the raw 94629-94631 population/capacity gate.
+     *
+     * 2026-09-09: the arm no longer skips slots whose previous job was −1.
+     * DOS's own election has no such filter (raw 94635 gates on "unplaced"
+     * alone; a matching prior job is worth +2 on the DS:0x8dc0 key, it is not
+     * an entry requirement), and the filter only stopped mattering while the
+     * `yield < 3` stop was a per-pass `break`. Now that the stop is DOS's
+     * whole-section `goto` and carries the `local_84 && yield < 5` half, a
+     * colonist who arrived this turn (prev_job −1) routinely reaches this arm
+     * — and in DOS he would be picked up by the BUILDING pass at raw 94784+,
+     * which is exactly what this stand-in is here to cover. Keeping the
+     * filter left freshly admitted colonists idle for good.
      */
     for (int s = 0; s < n; ++s) {
-      if (placed[s] || prev_job[s] < 0) {
+      if (placed[s]) {
         continue;
       }
       AiEuro28c8JobCandidate best;
@@ -7845,11 +8009,17 @@ static void ai_euro_5d04_cb_cargo_demand(int nation_id, int8_t out[16]) {
  * (a crosses/hammers-pool carry mechanic — genuine arithmetic, see the
  * normalization loop below) and the two Europe-dock "training slot"
  * counters at `DS:0xa0da`/`0xa0db`. NOT reused from the real
- * `ColonizeCol1Nation` struct: `nation+0x48/0x49/0x4a` DOS-collides with
- * `col1_save.h`'s already-wired "Linux diplo stand-ins" union
- * (`indian_hostility_sticky`/`privateer_spawn_mask`/`unknown26_pad`) at
- * the same offset — same reasoning as the `0x53de` correction earlier
- * this session: don't reuse a live field on an unconfirmed reading.
+ * `ColonizeCol1Nation` struct, for two separate reasons (both re-checked
+ * 2026-09-09, after smell audit #52 moved the Indian-hostility sticky
+ * stand-in off `+0x48` and onto the one dead byte `+0x4b`/`unknown26[11]`):
+ *   - `+0x48` is `col1_save.h`'s `king_grace_counter`, a REAL DOS quantity
+ *     (FUN_4d56_4528's decrementing grace/waiver counter) that the port may
+ *     read but must never write — so it cannot host scratch either;
+ *   - `+0x49` is the one remaining Linux stand-in collision here
+ *     (`privateer_spawn_mask`), and `+0x4a` (`unknown26_pad`) is DOS's raw
+ *     banked carry total.
+ * Same reasoning as the `0x53de` correction: don't reuse a live field on an
+ * unconfirmed reading.
  */
 typedef struct Ai5d04HireScratch {
   int8_t delay_48;              /* DS nation+0x48 */
@@ -10200,13 +10370,21 @@ static void ai_euro_colony_goals(ColonizeTurnContext* ctx, int nation_id) {
          * (WANTS_PIONEER_WORK, live since 2026-09-07) is clear.
          * +1500 per exposed combat-capable land unit (attack>1,
          * not a ship) when this continent has no G-table stance assigned
-         * (`ai_euro_continent_stance_at()==0`) and the unit isn't
-         * garrisoned/admitted — that last check is against this port's
-         * own 0a60 shadow state (`s_0a60_pilot_state`), which is always
-         * fresh-zeroed at this point in the turn (`ai_euro_colony_goals`
-         * runs before `ai_euro_0a60_goal_orders_structural` populates
-         * it), so it's always satisfied here — correct given execution
-         * order, not a shortcut.
+         * (`ai_euro_continent_stance_at()==0`) and the unit's AI plan
+         * letter is neither 'G' nor 'A' (raw :87631 —
+         * `+0x314b != 'G' && +0x314b != 'A'`).
+         *
+         * 2026-09-09: that last gate is now the REAL one. It used to be
+         * argued away against this port's own 0a60 shadow state
+         * (`s_0a60_pilot_state`, always fresh-zeroed here), but the DOS byte
+         * is +0x314b = `ai_plan`, not the +0x314c act-state the shadow
+         * mirrors — the same mislabel already corrected for the 4962 census
+         * gate (col1_stuff_census.c:166-187, ai_diplo.c:1592-1631,
+         * ai_contact.c:9061-9069, all reading `col1_ai_plan` ∈ {'A','G'}).
+         * 'A'/'G' are the garrison/assigned plans: a unit already spoken for
+         * is not "exposed", so it must not raise this colony's work-queue
+         * score. `col1_ai_plan` is save-backed and survives across turns,
+         * so unlike the shadow it is a live, non-vacuous test.
          *
          * ONE-TURN-STALE STANCE READ IS DOS-FAITHFUL (smell audit #34,
          * REFUTED 2026-09-09 — do not "fix" by hoisting the refresh):
@@ -10244,7 +10422,8 @@ static void ai_euro_colony_goals(ColonizeTurnContext* ctx, int nation_id) {
               wbvar5 = 1; /* raw :87622 */
             }
             if (ai_euro_continent_stance_at(nation_id, cid) == 0 &&
-                !units_is_sea(ctx->units, ui)) {
+                !units_is_sea(ctx->units, ui) && u->col1_ai_plan != 0x47u /* 'G' */ &&
+                u->col1_ai_plan != 0x41u /* 'A' */) {
               const ColonizeUnitType* ty = units_type(ctx->units, u->type_index);
               if (ty && ty->attack > 1) {
                 wscore += 1500;
@@ -11956,6 +12135,64 @@ static int ai_euro_20e6_patrol_arm(ColonizeTurnContext* ctx, ColonizeUnit* u, co
 }
 
 /*
+ * FUN_521d_20e6 surplus-garrison recall arm (raw 85313-85337; the decompiler
+ * emits the same body a second time at raw 90149-90177 — both end in
+ * `goto LAB_521d_27f5`, the "commit the walk to the bound colony" tail).
+ *
+ * DOS: a non-ship unit (type outside 0x0d..0x12) whose DS:0x5236 combat byte
+ * is > 1 and whose `+0x314a` origin is bound loads that home colony
+ * (FUN_281f_09e6), and if
+ *   colony +0x1b bit 0x04 is set (surplus defenders — see colony.h)
+ *   && (colony +0x1e garrison_quota != 0 || DOS unit type != 4, a Dragoon)
+ *   && the colony sits on this unit's own continent (FUN_281f_0722 ==
+ *      uStack_38)
+ * it CLEARS 0x04, decrements garrison_quota and walks the unit home.
+ *
+ * The single-shot clear is the whole mechanism: 0x04 survives
+ * FUN_5952_035e's per-tick `+0x1b &= 7`, so nothing but its consumers takes
+ * it down, and this arm therefore recalls exactly ONE surplus unit per colony
+ * per tick before the flag goes quiet until the next 5952 recompute raises it
+ * again. Ported 2026-09-09 with the bit-0x04 consumer audit (the third
+ * consumer, FUN_5952_035e's join-colonist loop at raw 94247, belongs to an
+ * unported pass — documented in colony.h).
+ *
+ * Returns 1 when it handled the unit.
+ */
+static int ai_euro_20e6_surplus_recall_arm(
+  ColonizeTurnContext* ctx, ColonizeUnit* u, const Ai20e6Unit* s
+) {
+  if (s->is_ship || s->combat <= 1 || !ctx->colonies || !ctx->map) {
+    return 0;
+  }
+  const int home = ai_euro_20e6_origin_get(u); /* +0x314a, −1 unbound */
+  if (home < 0 || home >= COLONIZE_COLONIES_MAX) {
+    return 0;
+  }
+  ColonizeColony* hc = &ctx->colonies->colonies[home];
+  if (!hc->active || hc->nation_id != s->nation) {
+    return 0;
+  }
+  if ((hc->ai_flags & COLONIZE_COLONY_AI_NEEDS_MILITARY) == 0) {
+    return 0;
+  }
+  if (hc->garrison_quota == 0 && ai_euro_20e6_dos_type(ctx->units, u) == 4) {
+    return 0; /* a Dragoon is only recalled while there is quota to spend */
+  }
+  if (map_continent_id_at(ctx->map, hc->x, hc->y) != s->cid) {
+    return 0;
+  }
+  hc->ai_flags = (uint8_t)(hc->ai_flags & (uint8_t)~COLONIZE_COLONY_AI_NEEDS_MILITARY);
+  if (hc->garrison_quota != 0) {
+    hc->garrison_quota--;
+  }
+  if (u->x == hc->x && u->y == hc->y) {
+    return 1; /* already home — 20c6 has nothing to walk */
+  }
+  ai_euro_set_goto(u, UNITS_ORDER_AI_MOVE, hc->x, hc->y);
+  return 1;
+}
+
+/*
  * DOS 8d4a village attitude[nation] — UNPARKED 2026-09-06. The record's
  * +10+nation*2 int16 maps exactly onto ColonizeCol1Tribe.alarm[nation]
  * (= {uint8_t friction; uint8_t attacks;} at byte offset +10, low byte
@@ -12030,7 +12267,9 @@ static int ai_euro_20e6_village_arm(ColonizeTurnContext* ctx, ColonizeUnit* u, c
  * is not exploring walks to (or joins) the min-score same-continent own
  * colony that wants colonists (+0x1b bit 0x10, i.e.
  * COLONIZE_COLONY_AI_NEEDS_COLONISTS; Indian Converts join regardless).
- * Wanted size = fortification capacity 8/12/32 (FUN_15eb_0484) clamped ≤16;
+ * Wanted size = FUN_15eb_0484 clamped ≤16 (a constant 8 in real play — see
+ * ai_euro_colony_ring_tier; the old "fortification capacity 8/12/32" reading
+ * of this table was an invention, corrected 2026-09-09);
  * candidate only while stack-military + population < wanted + 2.
  * Score = dist>>1, ×need when under-filled, ×2 when full (min-pick,
  * verbatim DOS arithmetic). No candidate:
@@ -13422,6 +13661,11 @@ static int ai_euro_move_scoring_gate(ColonizeTurnContext* ctx, ColonizeUnit* u, 
       } else {
         s_20e6_hop_slot[u->id] = 0; /* raw 1602: +0x3156 = 0xff */
       }
+    }
+    /* Raw 85313-85337, DOS position: after the hop block, before the
+     * settlement-step scorer below. */
+    if (ai_euro_20e6_surplus_recall_arm(ctx, u, &s)) {
+      return 0;
     }
     if (s.explorer && hop_scan &&
         ai_euro_land_explore_scan_target(ctx, u, nation_id, s.explorer, &fx, &fy)) {
