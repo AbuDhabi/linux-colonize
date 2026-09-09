@@ -166,10 +166,12 @@ void turn_refresh_moves_for_nation(
     if (units_orders_skip_turn(u)) {
       /* bugs.md: count the nights parked — a unit fortified/sentried on a
        * PREVIOUS turn wakes with its full allotment (units_wake checks
-       * turns_worked > 0); one dug in this turn does not get its spent
-       * moves back. */
-      if (u->turns_worked < 255) {
-        u->turns_worked++;
+       * park_nights > 0); one dug in this turn does not get its spent
+       * moves back. park_nights is port-only: bumping turns_worked here
+       * double-counted the DOS +0x16 clocks (treasure despawned in ~4
+       * turns not 8, anchored ships repaired ~2x fast — smell #39). */
+      if (u->park_nights < 255) {
+        u->park_nights++;
       }
       u->moves_left = 0;
       continue;

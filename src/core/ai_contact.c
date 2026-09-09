@@ -7218,6 +7218,32 @@ static int ai_contact_colony_has_non_lumber_stores(const ColonizeColony* c) {
   return 0;
 }
 
+/*
+ * FUN_5fef_0f14 kind 3's victim pick (raw 99989-99997): `FUN_281f_07e0`
+ * (unit_index_on_tile) on the raided colony's own tile, abort unless
+ * `FUN_281f_088a` (stack_has_ship) says a ship is in that stack, then walk
+ * down with `FUN_281f_02e4` until the unit's type byte is 0xd..0x12 (the six
+ * ship types, docs/indians.md:449). DOS filters on type only — any hull in
+ * the port is fair game. Returns the unit id, or −1 when the port is empty
+ * (DOS's `goto LAB_5fef_123a`, which collapses the raid to kind 0).
+ */
+static int ai_contact_raid_port_ship(ColonizeTurnContext* ctx, const ColonizeColony* c) {
+  if (!ctx || !ctx->units || !c) {
+    return -1;
+  }
+  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    ColonizeUnit* u = &ctx->units->units[i];
+    if (!units_is_on_map(u) || u->x != c->x || u->y != c->y) {
+      continue;
+    }
+    if (!units_is_sea(ctx->units, u->id)) {
+      continue;
+    }
+    return u->id;
+  }
+  return -1;
+}
+
 static AiRaidKind ai_contact_pick_raid_kind(
   ColonizeTurnContext* ctx,
   ColonizeColony* c,
@@ -7337,6 +7363,16 @@ static AiRaidKind ai_contact_raid_kind_demote(
 ) {
   if (kind == AI_RAID_NOTHING || kind == AI_RAID_STORES) {
     return kind;
+  }
+  /*
+   * FUN_5fef_0f14 kind 3 (raw 99991-99992): no ship in the colony's port
+   * (`FUN_281f_088a` fails) → `goto LAB_5fef_123a`, i.e. `local_6 = 0` — the
+   * raid collapses to NOTHING outright, NOT to the goods kind, so no loot and
+   * no alarm vent. Without this the port could pay 0f14's −16 vent for a
+   * harbor raid that damaged nothing.
+   */
+  if (kind == AI_RAID_SHIP && ai_contact_raid_port_ship(ctx, c) < 0) {
+    return AI_RAID_NOTHING;
   }
   int difficulty = 0;
   int year = 1492;
@@ -7702,37 +7738,31 @@ static void ai_contact_apply_raid_loot(
       }
     }
     break;
-  case AI_RAID_SHIP:
-    if (ctx && ctx->units) {
-      for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-        ColonizeUnit* u = &ctx->units->units[i];
-        if (!u->active || u->nation_id != target_euro) {
-          continue;
-        }
-        if (!units_is_sea(ctx->units, u->id)) {
-          continue;
-        }
-        if (ai_contact_dist(u->x, u->y, c->x, c->y) > 2) {
-          continue;
-        }
-        snprintf(s_last_ship_type, sizeof(s_last_ship_type), "%s", units_display_name(ctx->units, u));
-        if (u->moves_left > 0) {
-          u->moves_left = 0;
-        }
-        /* Thin harbor damage: dump one hold cargo ton if present. */
-        for (int h = 0; h < 6; ++h) {
-          if (u->hold_goods_amount[h] > 0) {
-            u->hold_goods_amount[h]--;
-            if (u->hold_goods_amount[h] == 0) {
-              u->hold_goods_type[h] = 0;
-            }
-            break;
-          }
-        }
-        break;
+  case AI_RAID_SHIP: {
+    /*
+     * FUN_5fef_0f14 kind 3 (raw 99989-100004): the victim is a ship standing
+     * ON the colony tile — `FUN_281f_07e0` (unit_index_on_tile of the colony)
+     * then the `FUN_281f_02e4` stack walk to the first type byte in 0xd..0x12
+     * (the six ship types); no nation filter, so a visiting foreign hull can
+     * take it. It is handed to FUN_5fef_0352 with `param_2 = 0xffff` (no
+     * winner), which always damages it: holds and passengers lost, damaged
+     * bit7, repair timer, relocation to the nearest own repair port
+     * (`units_raid_damage_ship`). The port used to only zero the ship's MP
+     * and dump one cargo ton for a ship anywhere within 2 tiles — nearly no
+     * damage for 0f14's largest (−16) alarm vent.
+     */
+    const int ship_id = ai_contact_raid_port_ship(ctx, c);
+    if (ship_id >= 0) {
+      ColonizeUnit* u = units_get(ctx->units, ship_id);
+      if (u) {
+        snprintf(
+          s_last_ship_type, sizeof(s_last_ship_type), "%s", units_display_name(ctx->units, u)
+        );
       }
+      (void)units_raid_damage_ship(ctx->units, ship_id, ctx->col1_ok ? ctx->col1 : NULL);
     }
     break;
+  }
   case AI_RAID_WREAK:
     if (c->stock[COLONIZE_CARGO_FOOD] > 0) {
       c->stock[COLONIZE_CARGO_FOOD]--;

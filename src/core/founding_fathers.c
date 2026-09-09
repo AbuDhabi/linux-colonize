@@ -892,7 +892,8 @@ static int effect_coronado_reveal(
     return 0;
   }
   int touched = 0;
-  for (int i = 0; i < colonies->colony_count; ++i) {
+  /* Pool bound (colonies_abandon leaves holes and shrinks colony_count). */
+  for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
     ColonizeColony* col = &colonies->colonies[i];
     if (!col->active || col->nation_id != nation_id) {
       continue;
@@ -967,7 +968,8 @@ static int effect_la_salle_stockades(ColonizeColonyPool* colonies, int nation_id
     return 0;
   }
   int touched = 0;
-  for (int i = 0; i < colonies->colony_count; ++i) {
+  /* Pool bound (colonies_abandon leaves holes and shrinks colony_count). */
+  for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
     ColonizeColony* col = &colonies->colonies[i];
     if (!col->active || col->nation_id != nation_id) {
       continue;
@@ -1121,7 +1123,8 @@ static bool ff_find_coastal_water(
   }
 
   if (colonies) {
-    for (int i = 0; i < colonies->colony_count; ++i) {
+    /* Pool bound (colonies_abandon leaves holes and shrinks colony_count). */
+    for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
       const ColonizeColony* col = &colonies->colonies[i];
       if (!col->active || col->nation_id != nation_id) {
         continue;

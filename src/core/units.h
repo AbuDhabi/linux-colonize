@@ -290,6 +290,14 @@ typedef struct ColonizeUnit {
   int horses; /* 0 or 50 when mounted */
   int home_tribe_id; /* DOS unit+0x06 / DS:314a; -1 = none */
   int turns_worked; /* COL1 unit+0x16; Brave pulse / labor counter */
+  /*
+   * Port-only nights-parked counter for the units_wake MP refund (DOS derives
+   * wake MP from the spent byte alone; +0x16 is the shared treasure-clock /
+   * repair-timer / route-stop / cower counter and must not be borrowed for
+   * this). Not serialized: a freshly loaded parked unit imports its real
+   * moves_left, so no refund is needed before the first turn refresh.
+   */
+  uint8_t park_nights;
   int last_dir; /* DOS unit facing / Col1 facing; 0..7 for AI scoring */
   uint8_t col1_unknown15; /* round-trip; bit7 = ship damaged */
   /*
@@ -794,6 +802,16 @@ void units_seize_noncombat_at(
   int y,
   const ColonizeCol1Save* col1
 );
+
+/*
+ * FUN_5fef_0f14 kind 3 (Indian colony raid, "unit" outcome): the ship picked
+ * out of the colony's port goes through FUN_5fef_0352 as a loser with NO
+ * winner (`param_2 = 0xffff`), which forces the damage arm — holds and
+ * passengers lost, damaged bit7, repair timer, relocation to the nearest own
+ * repair port (GAME.TXT @RAIDSHIP: "{ship} damaged."). Returns 1 if the ship
+ * survived damaged, 0 if it went down (0352's WoI no-port sink).
+ */
+int units_raid_damage_ship(ColonizeUnitPool* pool, int ship_id, const ColonizeCol1Save* col1);
 
 /*
  * Land combat (FUN_157e / FUN_5fef_1b0e peel): attacker base×8 (004a mode 1);
