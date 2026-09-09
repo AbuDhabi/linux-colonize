@@ -2380,6 +2380,8 @@ int main(void) {
     ind->unknown31_flags = (uint8_t)(ind->unknown31_flags & (uint8_t)~0x20);
     ind->alarm_by_player[0] = 10;
     col1.head.founding_father[FF_POCAHONTAS] = -1;
+    col1.nation[0].founding_fathers[FF_POCAHONTAS / 8] &=
+      (uint8_t)~(1u << (FF_POCAHONTAS % 8));
     col1.head.difficulty = 2;
     turn = 1;
     ctx.rng_seed = 42;
@@ -2405,6 +2407,8 @@ int main(void) {
     ind->alarm_by_player[0] = 10;
     col1.tribe[0].alarm[0].friction = 0;
     col1.head.founding_father[FF_POCAHONTAS] = 0;
+    col1.nation[0].founding_fathers[FF_POCAHONTAS / 8] |=
+      (uint8_t)(1u << (FF_POCAHONTAS % 8));
     ai_contact_indian_prelude(&ctx, 4);
     if (ind->alarm_by_player[0] != 13) { /* 10 + 3 */
       fprintf(
@@ -2415,6 +2419,8 @@ int main(void) {
       return fail("Pocahontas should halve prelude escalate bump to +3");
     }
     col1.head.founding_father[FF_POCAHONTAS] = -1;
+    col1.nation[0].founding_fathers[FF_POCAHONTAS / 8] &=
+      (uint8_t)~(1u << (FF_POCAHONTAS % 8));
     c->x = 5;
     c->y = 5;
   }
@@ -2651,6 +2657,8 @@ int main(void) {
     col1.indian[0].euro_diplo[0] |= COL1_INDIAN_MET_BIT | COL1_INDIAN_WAR_BIT;
     col1.nation[0].gold = 0; /* no GOLD */
     col1.head.founding_father[FF_POCAHONTAS] = -1;
+    col1.nation[0].founding_fathers[FF_POCAHONTAS / 8] &=
+      (uint8_t)~(1u << (FF_POCAHONTAS % 8));
     ColonizeColony* c_burn = &colonies.colonies[0];
     c_burn->active = true;
     c_burn->nation_id = 0;
@@ -2716,6 +2724,8 @@ int main(void) {
     col1.tribe[0].alarm[1].friction = 75;
     col1.indian[0].euro_diplo[1] |= COL1_INDIAN_MET_BIT; /* met (was relation 40; alarm pinned above) */
     col1.head.founding_father[FF_POCAHONTAS] = -1;
+    col1.nation[0].founding_fathers[FF_POCAHONTAS / 8] &=
+      (uint8_t)~(1u << (FF_POCAHONTAS % 8));
     ColonizeColony* c_fbrn = &colonies.colonies[0];
     memset(c_fbrn, 0, sizeof(*c_fbrn));
     c_fbrn->active = true;
@@ -2803,6 +2813,8 @@ int main(void) {
     col1.indian[0].euro_diplo[0] |= COL1_INDIAN_MET_BIT;
     col1.nation[0].gold = 0;
     col1.head.founding_father[FF_POCAHONTAS] = -1;
+    col1.nation[0].founding_fathers[FF_POCAHONTAS / 8] &=
+      (uint8_t)~(1u << (FF_POCAHONTAS % 8));
     colonies.building_type_count = 2;
     snprintf(colonies.building_types[0].name, sizeof(colonies.building_types[0].name),
              "Town Hall");
@@ -3133,6 +3145,8 @@ int main(void) {
       (col1.indian[0].euro_diplo[0] | COL1_INDIAN_MET_BIT) & ~COL1_INDIAN_WAR_BIT
     );
     col1.head.founding_father[FF_POCAHONTAS] = -1;
+    col1.nation[0].founding_fathers[FF_POCAHONTAS / 8] &=
+      (uint8_t)~(1u << (FF_POCAHONTAS % 8));
     ColonizeColony* c_fr = &colonies.colonies[0];
     c_fr->active = true;
     c_fr->nation_id = 0;
@@ -3233,6 +3247,8 @@ int main(void) {
      * assertion halved the retired positive fandom bump.)
      */
     col1.head.founding_father[FF_POCAHONTAS] = 0;
+    col1.nation[0].founding_fathers[FF_POCAHONTAS / 8] |=
+      (uint8_t)(1u << (FF_POCAHONTAS % 8));
     ind->alarm_by_player[0] = 50;
     col1.tribe[0].alarm[0].friction = 50;
     col1.tribe[0].alarm[0].attacks = 0;
@@ -3281,6 +3297,8 @@ int main(void) {
       return fail("raid must zero the home village attitude word (0f14 tail)");
     }
     col1.head.founding_father[FF_POCAHONTAS] = -1;
+    col1.nation[0].founding_fathers[FF_POCAHONTAS / 8] &=
+      (uint8_t)~(1u << (FF_POCAHONTAS % 8));
   }
 
   /*
@@ -4284,6 +4302,8 @@ int main(void) {
        */
       ai_popup_clear(&pop);
       col1.head.founding_father[FF_POCAHONTAS] = 0;
+      col1.nation[0].founding_fathers[FF_POCAHONTAS / 8] |=
+        (uint8_t)(1u << (FF_POCAHONTAS % 8));
       col1.nation[0].gold = 30;
       ind->alarm_by_player[0] = 12;
       col1.tribe[0].alarm[0].friction = 12;
@@ -4304,6 +4324,8 @@ int main(void) {
         return fail("Pocahontas should not halve gift alarm decay");
       }
       col1.head.founding_father[FF_POCAHONTAS] = -1;
+      col1.nation[0].founding_fathers[FF_POCAHONTAS / 8] &=
+        (uint8_t)~(1u << (FF_POCAHONTAS % 8));
     }
 
     /*

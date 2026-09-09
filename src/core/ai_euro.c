@@ -16741,7 +16741,8 @@ static int ai_euro_20e6_colony_sail_pick(
       if (c->ai_flags & COLONIZE_COLONY_AI_NEEDS_GARRISON) {
         score += 0x3c;
       } else if (open_cont < 2 || urgency > 0x13) {
-        score += (c->ai_flags & COLONIZE_COLONY_AI_NEEDS_MILITARY) ? 0x2d : -0xf;
+        /* Raw 89663: DOS tests +0x1b & 8 here (short-of-defenders), not & 4. */
+        score += (c->ai_flags & COLONIZE_COLONY_AI_SHORT_DEFENDERS) ? 0x2d : -0xf;
       } else {
         score -= 0x2d;
       }

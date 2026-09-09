@@ -632,8 +632,9 @@ static int unit_pioneer_case8_tail(void) {
 
   col1.head.tribe_count = 1;
   col1.head.difficulty = 0;
-  /* col1_save_init: unclaimed FFs are -1; a zeroed head hands nation 0 all of
-   * them (founding_fathers_nation_has), Peter Minuit included. */
+  /* col1_save_init: unclaimed FFs are -1. Ownership is the per-nation bitmask
+   * (smell audit #83), so a zeroed head no longer grants anything; keep the
+   * -1 fill so the first-claimer record matches a real save. */
   for (int i = 0; i < (int)COLONIZE_COL1_FF_COUNT; ++i) {
     col1.head.founding_father[i] = -1;
   }

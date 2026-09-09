@@ -2851,14 +2851,20 @@ void turn_run_year_end_chrome(ColonizeTurnContext* ctx, ColonizeTurnResult* out)
     (ctx->col1->head.game_options.calendar_latch ||
      ai_king_latch_get(ctx->col1, AI_KING_ENDGAME_BYTE) != AI_KING_ENDGAME_NONE);
 
+  /* DOS 0x5382 bit0 = the WoI latch. raw :58620/:58630 gate the *early*
+   * calendar pair (1790 warning / 1800 era end) on `(0x5382 & 1) == 0`: once
+   * independence is declared the war extends the game to the late pair
+   * (1840/1850), which carries no war gate. */
+  const int woi_latched =
+    ctx->col1_ok && ctx->col1 && ctx->col1->head.game_options.woi != 0;
+
   /* Section E anniversary (0x6fe=1790, 0x730=1840) — status only; gate 5382|0x10.
-   * Spring-only and peacetime-only: DOS gates on autumn==0 and !woi, so the
-   * blurb fires once per anniversary year and never during the War of
-   * Independence. */
-  if (!splash_done && (year == 0x6feu || year == 0x730u) && ctx->status &&
-      ctx->status_size > 0 && !out->year_end_defeat && !out->year_end_victory &&
-      !(ctx->game_autumn && *ctx->game_autumn != 0) &&
-      !(ctx->col1_ok && ctx->col1 && ctx->col1->head.game_options.woi)) {
+   * Spring-only: DOS wraps the block in `*(int *)0x538c == 0` (raw :58619).
+   * `((year==0x6fe && !woi) || year==0x730)` is raw :58620 verbatim. */
+  if (!splash_done && ((year == 0x6feu && !woi_latched) || year == 0x730u) &&
+      ctx->status && ctx->status_size > 0 && !out->year_end_defeat &&
+      !out->year_end_victory &&
+      !(ctx->game_autumn && *ctx->game_autumn != 0)) {
     static const char* k_diff[] = {
       "Discoverer", "Explorer", "Conquistador", "Governor", "Viceroy"
     };
@@ -2894,9 +2900,15 @@ void turn_run_year_end_chrome(ColonizeTurnContext* ctx, ColonizeTurnResult* out)
       ai_popup_enqueue_ok(ctx->ai_popups, AI_POPUP_TAG_INFO, NULL, body);
     }
   }
-  /* Section E game-over years (0x708=1800, 0x73a=1850) — status; HoF PARKED. */
-  if (!splash_done && (year == 0x708u || year == 0x73au) && ctx->status &&
-      ctx->status_size > 0 && !out->year_end_defeat && !out->year_end_victory) {
+  /* Section E game-over years (0x708=1800, 0x73a=1850) — status; HoF PARKED.
+   * raw :58630 `((0x538a == 0x708) && ((0x5382 & 1) == 0)) || (0x538a == 0x73a)`:
+   * 1800 does NOT end a game in which independence has been declared, so the
+   * era-end status and the calendar_latch below must not fire mid-war — that
+   * latch is what game_loop.c's `WON && !calendar_latch` gate reads to decide
+   * whether the win sequence still owes the player its closing chain. */
+  if (!splash_done && ((year == 0x708u && !woi_latched) || year == 0x73au) &&
+      ctx->status && ctx->status_size > 0 && !out->year_end_defeat &&
+      !out->year_end_victory) {
     static const char* k_diff[] = {
       "Discoverer", "Explorer", "Conquistador", "Governor", "Viceroy"
     };
@@ -2957,7 +2969,7 @@ void turn_run_year_end_chrome(ColonizeTurnContext* ctx, ColonizeTurnResult* out)
     }
   }
 
-  const int woi = ctx->col1_ok && ctx->col1 && ctx->col1->head.game_options.woi != 0;
+  const int woi = woi_latched;
   /* Endgame latch WON = independence achieved (reports); also skip re-fire. */
   const int already_won =
     ctx->col1_ok && ctx->col1 &&
@@ -3510,7 +3522,30 @@ bool turn_processor_advance(ColonizeTurnProcessor* proc, ColonizeTurnContext* ct
           ctx->messages
         );
       }
-      ai_indian_nation_turn(ctx, n);
+      /*
+       * FUN_4d56_1b3a phase 2 (raw viceroy_unpacked.c:81709-81715):
+       *
+       *   local_12 = 0;
+       *   do {
+       *     if ((*(byte *)(local_12 * 0x4e + 0x5ad9) & 0x80) == 0) {
+       *       FUN_41f2_0266(0x4d56,local_12);   // = the 1816 slice
+       *     }
+       *     local_12 = local_12 + 1;
+       *   } while (local_12 < 8);
+       *
+       * DS:0x5ad9 + 0x4e*slot is `ColonizeCol1Indian` +3, and bit 0x80 there
+       * is `extinct` (col1_save.h:787). An extinct tribe is skipped: only the
+       * AI slice is gated — phases 1 and 3 bracket the loop unconditionally,
+       * and DOS refreshes native movement outside 1b3a, so the surviving
+       * braves of a wiped-out tribe still get their MP. Skipping matters for
+       * RNG-stream fidelity: a dead tribe that still "acts" burns draws.
+       */
+      const int extinct =
+        ctx->col1_ok && ctx->col1 && n >= 4 && n <= 11 &&
+        ctx->col1->indian[n - 4].extinct != 0;
+      if (!extinct) {
+        ai_indian_nation_turn(ctx, n);
+      }
       if (n < 11) {
         proc->nation_cursor = n + 1;
       } else {

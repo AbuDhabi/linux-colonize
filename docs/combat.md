@@ -80,7 +80,12 @@ No `015e` colony / village / terrain / fortify for ships.
 1. `type.defense` (mode 0) or `type.attack` (mode 1)
 2. Privateer + `col1_unknown15` bit7 (damaged) → −2
 3. ×8
-4. Veteran Soldier/Dragoon (`profession == UNITS_JOB_SOLDIER`) → +50%
+4. Veteran Soldier/Dragoon → +50%. DOS gate (viceroy 8942-8944): @UNIT **type
+   1 (Soldiers) or 4 (Dragoons)** *and* veteran profession. Promoted tiers
+   (Regulars 6, Cont. Cav. 7, Cavalry 8, Cont. Army 9) are excluded — their
+   @UNIT rows already carry the promoted attack/defense. Port: type matched by
+   name ("Soldier"/"Dragoon"), profession `UNITS_JOB_SOLDIER` or
+   `UNITS_JOB_DRAGOON` (0x15 / 0x17).
 5. Drake Privateer FF → +50%
 6. Ship: −`holds_occupied` (nonempty cargo slots)
 

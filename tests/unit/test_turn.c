@@ -2009,6 +2009,8 @@ int main(void) {
     /* Grant Hudson, redo the same tick from a clean stock, expect exactly 2x. */
     col->stock[COLONIZE_CARGO_FURS] = 0;
     col1.head.founding_father[FF_HENRY_HUDSON] = 0; /* nation 0 owns it */
+    col1.nation[0].founding_fathers[FF_HENRY_HUDSON / 8] |=
+      (uint8_t)(1u << (FF_HENRY_HUDSON % 8));
     ColonizeColonyPreview prev;
     colony_preview_compute(&pool, col, &map, &col1, &prev);
     memset(&prod, 0, sizeof(prod));
@@ -2918,6 +2920,8 @@ int main(void) {
      * passive +1 = 13.
      */
     col1.head.founding_father[FF_THOMAS_JEFFERSON] = 0; /* nation 0 owns it */
+    col1.nation[0].founding_fathers[FF_THOMAS_JEFFERSON / 8] |=
+      (uint8_t)(1u << (FF_THOMAS_JEFFERSON % 8));
     ColonizeColonyPreview prev;
     colony_preview_compute(&pool, c, NULL, &col1, &prev);
     if (prev.bells != 13) {
@@ -2925,6 +2929,8 @@ int main(void) {
       return 1;
     }
     col1.head.founding_father[FF_THOMAS_JEFFERSON] = -1;
+    col1.nation[0].founding_fathers[FF_THOMAS_JEFFERSON / 8] &=
+      (uint8_t)~(1u << (FF_THOMAS_JEFFERSON % 8));
 
     ColonizeTurnResult prod;
     memset(&prod, 0, sizeof(prod));
@@ -4367,6 +4373,8 @@ int main(void) {
         bcol.head.founding_father[i] = -1;
       }
       bcol.head.founding_father[FF_WILLIAM_BREWSTER] = 0;
+      bcol.nation[0].founding_fathers[FF_WILLIAM_BREWSTER / 8] |=
+        (uint8_t)(1u << (FF_WILLIAM_BREWSTER % 8));
       col->nation_id = 0;
       eu.dock_count = 0;
       eu.brewster_no_criminals = false;

@@ -1431,7 +1431,12 @@ int main(void) {
         col1c.rebel_dividend = 40;
         col1c.rebel_divisor = 100;
         CHECK(colony_prod_sol_percent(&col1, c) == 40, "SoL 40 without Bolivar");
+        /* Ownership is the per-nation bitmask (smell audit #83); the head
+         * first-claimer byte is set alongside only because DOS's elect
+         * commit writes it once, not because anything gates on it. */
         col1.head.founding_father[FF_SIMON_BOLIVAR] = (int8_t)c->nation_id;
+        col1.nation[c->nation_id].founding_fathers[FF_SIMON_BOLIVAR / 8] |=
+          (uint8_t)(1u << (FF_SIMON_BOLIVAR % 8));
         CHECK(colony_prod_sol_percent(&col1, c) == 60, "SoL Bolivar human 40+20");
         col1c.rebel_dividend = 90;
         CHECK(colony_prod_sol_percent(&col1, c) == 100, "SoL Bolivar caps at 100");
@@ -1439,6 +1444,8 @@ int main(void) {
         col1.player[c->nation_id].control = 1; /* AI */
         CHECK(colony_prod_sol_percent(&col1, c) == 40, "SoL Bolivar skipped for AI");
         col1.head.founding_father[FF_SIMON_BOLIVAR] = -1;
+        col1.nation[c->nation_id].founding_fathers[FF_SIMON_BOLIVAR / 8] &=
+          (uint8_t)~(1u << (FF_SIMON_BOLIVAR % 8));
         col1.player[c->nation_id].control = 0;
         col1c.rebel_dividend = 50;
         col1c.rebel_divisor = 100;
