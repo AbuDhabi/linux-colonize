@@ -629,7 +629,9 @@ even when the live multiplier comes from `local_1a` arithmetic above.
 | Strength | `units_coastal_fort_attack_strength` = `4 * tier * (1 + arty)`; Fort tier1, Fortress tier2 |
 | Pulse | `units_coastal_fort_fire_pulse` — all Fort/Fortress colonies, 8 ocean dirs |
 | Hostile | at war (Euro/Indian) **or** Privateer |
-| Resolve | `units_fort_vs_ship`: fort atk vs ship defense (Drake on Privateer); close win→`col1_unknown15` bit7 + MP drain; else win→sink (no plunder); miss→`moves_left=0` |
+| Resolve | `units_fort_vs_ship`: fort atk vs ship defense (Drake scales Privateer); Combat Analysis is presented first when a human is involved (bugs.md 267), then `roll(1, atk+def) <= atk` |
+| Fort wins | bugs.md 255 — the same outcomes as a naval fight: holds lost, then the DOS `0352` damage-vs-sink roll with the fort's strength standing in for the winner's guns column. Damaged → `col1_unknown15` bit7, `moves_left=0`, `repair_pending=2`, relocate to the nearest own Drydock colony with the DOS repair timer doubled (non-ship winner), `@SHIPDAMAGE`; a WoI human with no repair port sinks instead. Undamaged → sink, `@SHIPSUNK`, no plunder |
+| Fort loses | bugs.md 255 — **nothing happens**: DOS undoes the temp attacker and the ship sails on. The old `moves_left=0` ship-slow was invented |
 | Repair | `units_tick_drydock_repair` clears combat bit7 for finished ships on own Drydock colony (EOT after ship-build tick); human `@REFIT` ai_popup OK |
 | Turn | `turn_run_coastal_fort_fire` after colony production |
 | AI | `ai_euro_tile_under_enemy_fort_fire` / flee |

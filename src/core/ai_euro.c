@@ -12049,9 +12049,21 @@ static int ai_euro_20e6_attack_term(
   if (odds > 999 || odds < 0) {
     odds = 1000;
   }
-  if (odds < 0xc) {
+  /*
+   * LAB_OVL14_L0000__0054b5 (viceroy_overlays.asm 0x0054b5, decomp
+   * viceroy_unpacked_2.c:85550-85563): the −999 penalty is gated on the mover
+   * being a NON-ship (`CMP [BX+0x3146],0xd / JC` … `CMP [BX+0x3146],0x12 /
+   * JBE`, i.e. type ∉ [0xd,0x12]); a ship with poor odds falls into the else
+   * arm instead, where DOS clamps `odds < 1` up to 1 before the ×4 bonus.
+   * Both were dropped by the first pass; restored verbatim.
+   */
+  const int dos_ship = (s->dos_type >= 0xd && s->dos_type <= 0x12);
+  if (odds < 0xc && !dos_ship) {
     *score -= 999;
   } else {
+    if (odds < 1) {
+      odds = 1;
+    }
     *score += odds * 4;
   }
   return 1;
@@ -12139,13 +12151,28 @@ static int ai_euro_20e6_wander_step(ColonizeTurnContext* ctx, ColonizeUnit* u, A
     if (terr == 0x1a) {
       score -= 0x10;
     }
-    /* Combat land unit stepping onto a settlement tile. */
+    /*
+     * Combat land unit stepping onto a settlement tile —
+     * LAB_OVL14_L0000__00507a..0050fc (viceroy_overlays.asm 0x00507a, decomp
+     * viceroy_unpacked_2.c:85338-85376):
+     *   if (type ∉ [0xd,0x12] && DS:0x5236[type] > 1)
+     *     if (FUN_1000_8886(dest) >= 0)              // Euro colony on the tile
+     *       if ([BP-0xe] == [BP+0xff1c])             // TILE owner nibble == mover nation
+     *         FUN_1000_8bd6([BP-0x60]);              // bind the MOVER's nearest own
+     *                                                // colony (FUN_1000_8804(ux,uy,nation,-1),
+     *                                                // stored in the prologue at 0x0021f2)
+     *         flags = *(DS:0x8542)+0x1b: 0x40 → +10, 0x04 → +6, 0x10 → +3
+     *       else score += 0x10;
+     * The first pass read the destination tile's colony record and widened the
+     * single owner gate to `owner == nation || col_owner == nation`; both are
+     * back to the DOS form (s->home_colony = the same 8804 search).
+     */
     if (!s->is_ship && s->combat > 1) {
       const int col_owner = ai_euro_20e6_colony_owner_at(ctx, nx, ny);
       if (col_owner >= 0) {
-        if (owner == nation || col_owner == nation) {
-          const int cid = colonies_id_at(ctx->colonies, nx, ny);
-          const ColonizeColony* c = cid >= 0 ? colonies_get(ctx->colonies, cid) : NULL;
+        if (owner == nation) {
+          const ColonizeColony* c =
+            s->home_colony >= 0 ? colonies_get(ctx->colonies, s->home_colony) : NULL;
           const int af = c ? (int)c->ai_flags : 0;
           if (af & COLONIZE_COLONY_AI_NEEDS_GARRISON) {
             score += 10;

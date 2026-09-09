@@ -41,7 +41,7 @@ Aligns with [`colony_eot_production.md`](../original_sources_annotated/turn/colo
 1. **Harvest** — town-commons auto-yield + assigned field workers → warehouse.
 2. **Food** — each colonist eats **2** food; surplus toward growth (**200** → new free colonist). Starvation latch + loss on later turns.
 3. **Manufacturing** — processing buildings convert **input → output** from warehouse (including same-turn harvest). Unmet input → **shortfalls**.
-4. **Hammers** — carpenters consume **lumber** toward `building_in_production`.
+4. **Hammers** — carpenters consume **lumber** toward `building_in_production`, **1:1 with the SoL-adjusted hammer count** (a high-SoL carpenter banking 14 hammers eats 14 lumber, not his sol-free base) — user-verified on `hammers_lumber.SAV`, bugs.md 169. `colony_prod_colony_hammers`'s `out_lumber_use` out-param is a *sol-free demand probe* for the "Need lumber." crumb only, never the debit; the 2026-08-15/2026-08-24 changelog rows below call it "lumber consumption", which is stale wording for the same probe.
 5. **Crosses / liberty bells** — immigration / independence counters (not warehouse cargo).
 
 Manufacturing before hammers so ore→tools and cotton→cloth see same-turn field intake.

@@ -342,7 +342,11 @@ int map_move_spent_thirds(
   int to_x,
   int to_y
 );
-/* DOS 465b-shaped step cost from→to (road both / river both+cardinal → 1). */
+/*
+ * DOS 465b-shaped step cost from→to at NAMES scale (road-art both — mask
+ * 0x0a, same predicate as map_move_spent_thirds — or river both + cardinal
+ * → 1).
+ */
 int map_move_cost_step(
   const ColonizeWorldMap* map,
   int from_x,

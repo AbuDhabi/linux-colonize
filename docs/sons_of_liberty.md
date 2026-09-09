@@ -62,14 +62,14 @@ Each colony end-of-turn (DOS):
 
 1. Shrink dividend and divisor pairs ≈ ÷64
 2. `divisor += population * 2`
-3. `dividend += liberty_bells` produced this turn
+3. `dividend += liberty_bells` produced this turn — the **same word** the nation/congress tally gets, SoL bonus and all (`local_ba = FUN_281f_0b50(0x12,0)` at viceroy_unpacked.c:57230 is read once and passed both to `FUN_291f_09f8` and to the dividend add). Not a sol-free recompute: the port did that until smell #89, giving two different "bells this turn" for one colony. The feedback is one turn lagged, since the bells are composed from the *pre-tick* dividend/divisor ratio.
 4. Clamp `dividend ≤ divisor`
 5. Under War of Independence + crown-occupied colony: bells feed Tory
    (`bells = -(bells >> 1)` before the add)
 
 **Port:** [`colony_prod_tick_rebel_accumulators`](../src/core/colony_production.c)
 **Wired** — called from `turn_produce_one_colony` before sol flag refresh.
-Jefferson/Paine FF applied to bells; WoI via `head.game_options.woi`; crown =
+Jefferson/Paine FF **and the colony's own `colony_prod_sol_bonus`** applied to bells (step 3 above); WoI via `head.game_options.woi`; crown =
 human peer (0↔1).
 
 **Founding seed (fixed 2026-08-24):** DOS `FUN_364b_1ba8` (colony founding)

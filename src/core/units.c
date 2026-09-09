@@ -5648,11 +5648,10 @@ static bool units_fort_vs_ship(
     );
     units_combat_maybe_present_analysis(col1, &eng, fort_nation, def->nation_id);
   }
+  /* attack_str >= 1 (gated above) and defense >= 0, so total >= 1 always. */
   const int total = attack_str + defense;
   bool atk_wins = false;
-  if (total <= 0) {
-    atk_wins = true;
-  } else if (!rng) {
+  if (!rng) {
     atk_wins = attack_str >= defense;
   } else {
     const int roll = dos_rng_range(rng, 1, total);

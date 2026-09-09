@@ -175,8 +175,18 @@ TRIBE.TXT path. Full trace: `col1_save.h`'s `hill_silver_bid_bonus` comment
 and `ai.c`'s `ai_place_tribes_procedural`/`ai_decoded_type`.
 
 Initial village population = **`3 + 2*tech`**. Growth `FUN_4d56_152e` /
-`ai_grow_villages`: accumulates on **capitals only**; threshold accum **> 19**;
-pop cap **15**. Empty-tile Attack (`FUN_5fef_1b0e`): temp Brave fight from the
+`ai_grow_villages`: accumulates on **capitals only** — satellite villages never
+grow (real DOS TURN1/TURN2 seed-100 show their `growth_accum` frozen at 0);
+`growth_accum += population` each turn, and it spends at accum **> 19**.
+
+There is **no flat pop cap of 15**. The ceiling is `FUN_4d56_0000` /
+`ai_indian_152e_worth_cap`, a per-tribe "worth" from the tribe's tech tier:
+**`2*tech + 3`** for a regular village, **`3*tech + 4`** for a capital
+(`worth = tech*2+3; if (capital) worth = tech + worth + 1`), truncated
+through a byte before the compare as DOS does. Growth fires while
+`population < worth`. Since only capitals grow, the capital arm is the one
+that is ever exercised — and `3*tech+4 > 2*tech+3 = ` the founding pop, so a
+fresh capital always has room to grow. Empty-tile Attack (`FUN_5fef_1b0e`): temp Brave fight from the
 **adjacent** tile (attacker stays put), then **`population--`**, or **destroy**
 when `population < 2` (so a pop-3 camp survives two successful raids). Map Braves
 that patrol nearby are separate — killing one does not burn the dwelling.

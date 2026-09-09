@@ -65,7 +65,8 @@
  * Revolution end: lose if 0 colonies (@LOSING2) or 0 coastal ports (@LOSING1);
  *   win if year≥1850 + no crown units; @RETIRING2 if year≥1850 + crown remains.
  * SoL restless chrome (40..49): status only (no invented wood OK).
- * backup_force: DOS 0x53e2… foreign pools — 10f0 stand-in (seeded on declare).
+ * backup_force: DOS 0x53e2…0x53e8 foreign-intervention pools, seeded on
+ *   declare by the ported FUN_43f7_1a26 body and drained by 10f0.
  * Crown nation_id: non-human Euro slot (1 if human==0 else 0).
  */
 
@@ -1594,7 +1595,8 @@ static void ai_king_succession(ColonizeTurnContext* ctx) {
 
 /*
  * FUN_43f7_1a26 declare body (after 2564 confirm / auto).
- * Seeds REF by difficulty; thin backup_force as 10f0 foreign-pool stand-in;
+ * Fallback-seeds REF by difficulty only when it is still all zero; seeds the
+ * 10f0 foreign-intervention pools via ai_king_seed_backup_force_1a26;
  * withdraws other Euros; thin 160a rename; unknown46[5] congress.
  */
 static void ai_king_do_declare(ColonizeTurnContext* ctx, int human) {
@@ -2372,9 +2374,13 @@ static int ai_king_0982_spawn_pool_unit(ColonizeTurnContext* ctx, int crown, int
  *     land tiles (Chebyshev 1 from the colony, same continent, no village),
  *     seizing whatever stands there — Dragoons first up to the cap (2 max
  *     when Regulars > 1), then Artillery, then Regulars.
- * Thin: 08bc stack strength = Σ defense×8>>4; the 4d56 crown ship act that
- * takes an emptied MoW home is stood in for by despawning idle empty crown
- * MoWs at wave start while land pools remain (so the MoW pool can regrow).
+ * Thin: 08bc stack strength = Σ defense×8>>4.
+ * The emptied-Man-O-War return home is no longer stood in for here: the real
+ * DOS beat is the FUN_521d_20e6 ship-band tail, ported as
+ * ai_king_mow_sail_home_20e6 and run from the MoW's own act in war_act. The
+ * MoW pool regrows through this function's own opening gate below
+ * (force[2] == 0 && no crown MoW on the map → force[2]++), exactly as DOS
+ * does at raw 73990-73993.
  */
 static void ai_king_ref_wave(ColonizeTurnContext* ctx) {
   if (!ctx || !ctx->col1_ok || !ctx->col1 || !ctx->units || !ctx->map) {
@@ -3012,12 +3018,30 @@ static const char* ai_king_1528_announce_colony(const ColonizeTurnContext* ctx, 
 }
 
 /*
- * FUN_43f7_10f0-shaped: foreign-intervention landing when REF empty and
- * backup_force (DOS 0x53e2… stand-in) still has pools. Up to two landings
- * per call; third when difficulty ≥ AI_KING_INTERVENE_DIFF_THIRD (REF
- * pressure). Prefer Regular + Dragoon when both pools > 0. Intervene nation:
- * Euro with most colonies (tie-break land-unit force). Thin arrival OK once
- * when landings>0 + ai_popups (1528-shaped; deep economy / merc chrome PARKED).
+ * FUN_43f7_10f0 foreign-intervention landing. `backup_force` is the real
+ * mapped DOS pool array (0x53e2/0x53e4/0x53e6/0x53e8), seeded on the
+ * declaration by ai_king_seed_backup_force_1a26 — not a stand-in.
+ *
+ * Gate (no REF-empty condition; see the bugs.md note in the body): the
+ * bells-threshold announce path (from_bells) runs unconditionally, while the
+ * per-turn free drain (FUN_43f7_2022) needs the intervention-once latch
+ * AI_KING_INTERVENE_ANNOUNCED_BYTE set AND the MoW pool backup_force[2]
+ * nonzero.
+ *
+ * Landing (74378-74449): every unit is spawned for the HUMAN nation, so the
+ * force is player-controlled. One Man-O-War (pool [2] −1) on the best water
+ * tile beside the target colony, then land troops capped as DOS does —
+ * Cont. Cav. ≤ 2 (pool [1]), Artillery ≤ 2 (pool [3]), Cont. Army = 6 minus
+ * those (pool [0]) — each further capped by its pool, unloaded at the colony,
+ * with a 5×5 reveal.
+ *
+ * Intervene nation: the saved rival slot (rival_nation_slot_1) when valid,
+ * else the Euro with most colonies (tie-break land-unit force).
+ *
+ * Popups are the full 1528 pair: the "<country> declares war on <country>"
+ * announcement fires once per game behind the same latch (with the @FRIEND
+ * general and the human's largest coastal colony), the arrival line every
+ * landing. Deep economy / mercenary chrome remains unported.
  */
 static void ai_king_foreign_intervene_ex(ColonizeTurnContext* ctx, int from_bells) {
   if (!ctx || !ctx->col1_ok || !ctx->col1 || !ctx->units) {
@@ -3687,7 +3711,7 @@ void ai_king_frigate_offer(ColonizeTurnContext* ctx, int nation) {
  * implemented 2026-08-14 (see king_ref.md "2244/2022 — corrected").
  * Reached via FUN_281f_0668 from the generic per-Euro-nation turn loop
  * (viceroy_unpacked.c:6409-6421), gated on the SAME human-controlled flag
- * byte (`nation*0x34+0x543f==0`) Linux's turn_run_european_ai_stubs
+ * byte (`nation*0x34+0x543f==0`) Linux's TURN_PROC_EURO slice (turn.c)
  * already uses to skip the human nation entirely — confirmed AI-only,
  * never reachable for a human turn.
  *
