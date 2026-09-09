@@ -34,13 +34,15 @@ approach / `@RAID*` loot via `5fef`-shaped helpers).
 
 ## Linux phase arms (`ai_contact_indian_raids`)
 
-1. **Gate** — among Euros with max(`alarm_by_player`, tribe friction) ≥ ~40
-   (**Spain ≥35** — fandom conquest bias),
+1. **Gate** — among Euros with max(`alarm_by_player`, tribe friction) ≥ 40
+   (**uniform; no per-nation term** — the old "Spain ≥35" was invented and
+   backwards, retired 2026-09-09 smell #76: DOS's euro-2 specials are all
+   Euro-aggressor multipliers, e.g. `FUN_5952_035e` viceroy 94172-94186),
    prefer Indian×Euro **at-war** (`ai_diplo_indian_at_war` / relation `<50`);
    then highest friction; tie-break lower `ai_diplo_indian_relation`
    (very-low hostility). Mid friction: prefer **non-mission** villages —
    mission tribes only raise the gate in the burn band (**≥80**). Cite: fandom
-   Alarm — missions slow hostility; nation bias (Spanish conquest). **Done (thin):** post-pulse Brave escort via
+   Alarm — missions slow hostility. **Done (thin):** post-pulse Brave escort via
    `units_follow_unit` — same-nation AI_MOVE/GOTO within MD≤3; lead pick prefers
    goto toward raid-gate Euro colony when known, else nearest-lead. Deep escort
    inside quiet `14fe` still **PARKED**.

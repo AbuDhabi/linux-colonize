@@ -338,13 +338,29 @@ static int colony_yield_pipeline(
    * expert, the real asm applies this *after* the flat-+2 expert step
    * below and doubles just this term (not the whole accumulated yield
    * again) — deferred here to match. Every other job keeps the original
-   * placement (before the multiplier), which is independently validated
-   * elsewhere and untouched; Farmer/Fisherman never have a DOUBLE-type
-   * resource in this table (only Cotton/Tobacco/Sugar planters do), so
-   * deferring never interacts with that path.
+   * placement (before the multiplier), which is algebraically identical to
+   * DOS's post-expert `effect << 1` for a matching expert
+   * ((base + effect) << 1 == (base << 1) + (effect << 1)) and to a plain
+   * add otherwise; Farmer/Fisherman never have a DOUBLE-type resource in
+   * this table (only Cotton/Tobacco/Sugar planters do), so deferring never
+   * interacts with that path.
+   *
+   * The asm tail (viceroy_unpacked.c ~11900-11914) is job-agnostic:
+   *   local_12 = FUN_15eb_17fa(resource, job);
+   *   if (local_12 < 0) { local_26 <<= 1; }
+   *   else { if (local_18 != 0) local_12 <<= 1;   // local_18 = matching expert
+   *          local_26 += local_12; }
+   * — no per-job carve-out, so Silver Miner is doubled exactly like Ore
+   * Miner. 2026-09-09: a Silver-Miner-only `post_resource` bucket (added
+   * after all multipliers, undoubled) survived here from commit 3a9f688's
+   * uncited curve-fit batch — the same batch's sibling hack ("Fishery on
+   * ocean gives an expert Fisherman +4") has since been replaced by the
+   * asm-literal deferral above. It cost an expert Silver Miner half his
+   * resource bonus (Mountains + Silver Deposit: 1 base, expert ×2 = 2,
+   * + 2×2 = 6 in DOS; the bucket paid 4). Non-experts were unaffected,
+   * which is why it survived every non-expert anchor.
    */
   bool resource_double = false;
-  int post_resource = 0;
   int deferred_resource = 0;
   const int res = map_resource_type_for_yield(map, x, y);
   if (res >= 0) {
@@ -353,8 +369,6 @@ static int colony_yield_pipeline(
       deferred_resource = effect;
     } else if (effect == COLONY_YIELD_RESOURCE_DOUBLE) {
       resource_double = true;
-    } else if (field_job == COLONIZE_JOB_SILVER_MINER) {
-      post_resource = effect;
     } else {
       yield += effect;
     }
@@ -424,7 +438,6 @@ static int colony_yield_pipeline(
   if (field_job == COLONIZE_JOB_LUMBERJACK) {
     yield <<= 1;
   }
-  yield += post_resource;
   if (deferred_resource != 0) {
     yield += expert ? deferred_resource * 2 : deferred_resource;
   }

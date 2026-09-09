@@ -38,6 +38,15 @@ void combat_side_flags_clear(ColonizeCombatSideFlags* f) {
   f->bombard_icon = -1;
 }
 
+/*
+ * DOS unit +0x3150, read raw by the FUN_157e_004a cargo peel (viceroy
+ * 8957-8959: `0xc < type < 0x13` → `local_4 -= +0x3150`). That byte is the
+ * GOODS hold count only — written just by FUN_15eb_30b8 / FUN_15eb_317c
+ * (viceroy 13301/13339); boarding parks passengers off-map (FUN_1427_10be)
+ * and never bumps it. So goods slots only here: a troop-laden ship takes no
+ * strength penalty in DOS, and the naval-evasion peel in units.c
+ * (FUN_5bfb_312e, viceroy 98448) reads the same byte the same way.
+ */
 static int combat_ship_holds_occupied(const ColonizeUnit* u) {
   if (!u) {
     return 0;
@@ -380,28 +389,34 @@ int combat_engagement_strength(
 
     /*
      * Else: Euro defender vs native, or vs human Euro under WoI.
-     * Village on either tile → still apply to defender. Fortified → deny both
-     * (no stash). Otherwise stash into 0x8d04 for attacker formula (ambush).
+     *
+     * FUN_157e_015e 9023-9037, verbatim shape:
+     *
+     *   bVar3 = true;
+     *   if ((uVar4 < 4) && (*(char *)(uVar4 * 0x34 + 0x543f) == '\0')) {
+     *     iVar8 = FUN_137f_0358(uVar1,uVar2);            // colony on defender tile
+     *     if (iVar8 < 0) {
+     *       iVar8 = FUN_137f_0358(param_2 x, param_2 y); // colony on ATTACKER tile
+     *       if (iVar8 < 0) goto LAB_157e_0304;           // → stash (ambush)
+     *     }
+     *     bVar3 = false; local_1a = terrain; 8d02 |= 0x80;
+     *   }
+     *   else if (*(char *)(param_1 * 0x1c + 0x314c) == '\x06') { bVar3 = false; }
+     *
+     * FUN_137f_0358 is euro_settlement_owner (SYMBOL_MAP.md; owner < 4), i.e.
+     * a COLONY probe on either tile — not a village probe: FUN_137f_0392, the
+     * Indian-settlement probe, already claimed the defender tile at 8988 and
+     * a village on the attacker's tile is never consulted. The old
+     * "village on either tile" test here was invented.
+     *
+     * No WoI guard either: reaching this arm with a human Euro attacker
+     * already implies the 9017 `0x5382 & 1` latch was set (otherwise the
+     * 9015 gate applied terrain outright), so DOS re-tests nothing.
      */
     int apply_now = 0;
     int skip_stash = 0;
     if (foe_nat < 4 && !combat_nation_is_ai(ctx->col1, foe_nat)) {
-      const int village_here = ctx->col1 && combat_tribe_at(ctx->col1, u->x, u->y) != NULL;
-      const int village_foe =
-        foe && ctx->col1 && combat_tribe_at(ctx->col1, foe->x, foe->y) != NULL;
-      if (village_here || village_foe) {
-        apply_now = 1;
-        skip_stash = 1;
-      }
-      /*
-       * bugs.md: the Rebels-vs-Tories ambush terrain (stash → attacker
-       * ×(stash+4)/4) applies ONLY when BOTH units stand outside colonies —
-       * attacking from a non-colony tile into a non-colony tile. With a
-       * colony on either tile the defender keeps its terrain normally and
-       * the attacker gets no ambush (DOS 1b0e gates the WoI tail on the
-       * colony lookup, iVar18 < 0).
-       */
-      if (combat_woi_active(ctx->col1) && ctx->colonies) {
+      if (ctx->colonies) {
         const int colony_here = colonies_id_at(ctx->colonies, u->x, u->y) >= 0;
         const int colony_foe =
           foe && colonies_id_at(ctx->colonies, foe->x, foe->y) >= 0;

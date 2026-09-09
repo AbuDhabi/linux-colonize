@@ -1780,42 +1780,14 @@ static int ai_contact_is_jesuit_grade(
 }
 
 /*
- * Alarm growth dampers (wiki/fandom Alarm):
- * - Pocahontas: Indian alarm generated half as fast for that Euro.
- * - French (nation 1): national bonus slows hostility (same half-rate).
- * Stack when both apply (quarter). Floor; +1 bumps may become 0.
- * Cite: docs/fandom_col1994.md Indians / Pocahontas; Colonization.pdf FF table.
+ * (ai_contact_alarm_bump_amount removed 2026-09-09, smell #72: its last two
+ * callers were the ambush raid pulse (retired, smell #65) and the prelude
+ * flag-body escalate (retired, smell #72). The Pocahontas/French halving it
+ * applied pre-call is DOS-real but belongs INSIDE the alarm delta —
+ * FUN_4cc6_00f2, viceroy 80844-80850 — where ai_diplo_indian_alarm_delta
+ * already does it; the helper only ever double-counted it.
+ * ai_contact_bump_u8_cap100 removed with it — same sole caller.)
  */
-static int ai_contact_alarm_bump_amount(
-  const ColonizeCol1Save* col1,
-  int euro,
-  int amount
-) {
-  if (amount <= 0) {
-    return 0;
-  }
-  int n = amount;
-  if (col1 && euro >= 0 && euro <= 3 &&
-      founding_fathers_nation_has(col1, euro, FF_POCAHONTAS)) {
-    n /= 2;
-  }
-  if (euro == 1) { /* France */
-    n /= 2;
-  }
-  return n;
-}
-
-/* Bump uint8 friction toward cap 100. */
-static void ai_contact_bump_u8_cap100(uint8_t* v, int amount) {
-  if (!v || amount <= 0) {
-    return;
-  }
-  int n = (int)(*v) + amount;
-  if (n > 100) {
-    n = 100;
-  }
-  *v = (uint8_t)n;
-}
 
 /* (ai_contact_bump_u16_cap100 removed 2026-09-08: its last caller was the
  * raid pulse's fandom positive kind bump, retired for DOS 0f14's negative
@@ -4553,46 +4525,26 @@ void ai_contact_indian_prelude(ColonizeTurnContext* ctx, int nation_id) {
   ai_contact_clamp_alarms(ind);
 
   /*
-   * Alarm prelude escalate (PARKED dialog chrome).
-   * DOS: when state+3 bit 0x20 clear, difficulty-scaled RNG may set war/alarm.
-   * Linux: unknown31_flags bit 0x20 = prelude-fired; isolated RNG only.
-   * Pocahontas still halves the escalate bump (wiki/fandom half-rate).
+   * Smell #72 — "flag-body alarm escalate" RETIRED 2026-09-09. It had no DOS
+   * counterpart at all. The 1816 §2 block it claimed to be (viceroy 81558-81599)
+   * is the WoI tribe defection, already ported separately as
+   * ai_contact_indian_woi_defect: `0x5382 & 1` (war declared) plus
+   * `(indian_rec + 3) & 0x20` (woi_defect_resolved) gate a relation/RNG
+   * eligibility test and a difficulty roll whose only effects are the ±100
+   * relation flip (viceroy 81576-81578), the mission clear (81580), and the
+   * musket/horse windfall (81581-81592) — it never touches alarm_by_player or
+   * tribe friction, and the `0x20` it latches is at indian record +3, not +6.
+   *
+   * Linux's escalate ran on `unknown31_flags` = indian record **+6**, a byte
+   * no DOS export reads or writes (offset tally over all three decompiled
+   * exports: only +0/+2/+3/+5/+7/+8/+10 are ever touched) — so both the
+   * once-per-nation latch and the `alarm < 30` band were invented, and the
+   * latch additionally aliased nothing real. Precedent: the encroachment
+   * drips retired 2026-09-03 below; DOS's sole alarm grower is FUN_4d56_152e's
+   * threat accumulator, and the Pocahontas/French halving already lives
+   * inside ai_diplo_indian_alarm_delta (FUN_4cc6_00f2, viceroy 80844-80850).
+   * Isolated-RNG-only block, so no shared dos_rng draws change.
    */
-  uint8_t* flag = &ind->unknown31_flags;
-  if ((*flag & 0x20) == 0) {
-    ColonizeDosRng local;
-    ai_contact_local_rng(ctx, nation_id, &local);
-    const int diff = ctx->col1->head.difficulty;
-    /* Harder → more often escalate. */
-    const int chance = 2 + (4 - diff);
-    if (dos_rng_range(&local, 1, 8) <= chance) {
-      for (int e = 0; e < 4; ++e) {
-        if (ctx->col1->player[e].control == 2) {
-          continue;
-        }
-        if (ind->euro_diplo[e] && ind->alarm_by_player[e] < 30) {
-          /* Pocahontas/French: half-rate alarm growth (wiki/fandom). */
-          const int bump = ai_contact_alarm_bump_amount(
-            ctx->col1, e, 5 + (4 - diff)
-          );
-          if (bump > 0) {
-            ind->alarm_by_player[e] =
-              (uint16_t)(ind->alarm_by_player[e] + (uint16_t)bump);
-            if (ctx->col1->tribe) {
-              for (uint16_t ti = 0; ti < ctx->col1->head.tribe_count; ++ti) {
-                ColonizeCol1Tribe* t = &ctx->col1->tribe[ti];
-                if ((int)t->nation_id == nation_id) {
-                  ai_contact_bump_u8_cap100(&t->alarm[e].friction, bump);
-                }
-              }
-            }
-          }
-        }
-      }
-      /* War-ish sticky: mark bit so prelude does not re-roll forever. */
-      *flag = (uint8_t)(*flag | 0x20);
-    }
-  }
 
   if (!ctx->col1->tribe) {
     return;
@@ -7458,9 +7410,9 @@ static void ai_contact_raid_secondary_loot(
 }
 
 /*
- * Raid gate Euro: highest friction among met candidates (≥40; Spain ≥35
- * conquest bias), prefer at-war, tie-break lower relation. Cite:
- * indian_raid_outcomes.md §1 gate; docs/fandom_col1994.md nation bias.
+ * Raid gate Euro: highest friction among met candidates (uniform ≥40),
+ * prefer at-war, tie-break lower relation. Cite: indian_raid_outcomes.md §1
+ * gate. No per-nation term — see the band comment below (smell #76).
  */
 static int ai_contact_raid_gate_target(
   ColonizeTurnContext* ctx,
@@ -7502,11 +7454,22 @@ static int ai_contact_raid_gate_target(
         alarm = (int)t->alarm[e].friction;
       }
     }
+    /*
+     * Uniform gate, no per-nation term. Smell #76 (2026-09-09): the old
+     * "Spain (2) gates at 35" special was invented AND backwards. DOS's only
+     * euro-nation-2 specials in the native-hostility machinery all sit on the
+     * *Euro aggressor* side, never on native targeting: the Demand-Tribute
+     * contest scales the Euro's own strength for Spanish (indian_actions_menu.md
+     * thunk_FUN_1000_a5f4, `e == 2: x1.5`), and FUN_5952_035e's war-decision
+     * block doubles Spain's own attack weights (viceroy 94172-94186:
+     * `local_1b0 == 2` turns `<<1`/`<<2` into `<<2`/`<<3` and waives the
+     * relation >= 0x19 check). docs/fandom_col1994.md's "Spanish pushed toward
+     * conquest" is that same Euro-side bias — nothing makes natives raid Spain
+     * sooner. Gate band stays 40, matching every other friction band in
+     * indian_contact.md (peaceful < 40, capture >= 70, burn >= 80).
+     */
     if (alarm < 40) {
-      /* Spain (2): fandom conquest bias — slightly earlier raid gate (35). */
-      if (!(e == 2 && alarm >= 35)) {
-        continue;
-      }
+      continue;
     }
     const int at_war = ai_diplo_indian_at_war(ctx->col1, e, indian_idx);
     const int rel = (int)ai_diplo_indian_relation(ctx->col1, nation_id, e);

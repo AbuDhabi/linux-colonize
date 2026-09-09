@@ -16798,7 +16798,7 @@ static int ai_euro_20e6_colony_sail_pick(
         score -= 0x2d;
       }
     }
-    score += (int)c->cargo_idle_turns; /* +0x8f */
+    score += (int)(int8_t)c->cargo_idle_turns; /* +0x8f, DOS reads signed byte */
     if (c->ai_flags & COLONIZE_COLONY_AI_NEARBY_FRIGATE) {
       if (ship_type != 0x11) {
         score -= 0x32;

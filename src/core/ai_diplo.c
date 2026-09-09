@@ -3697,7 +3697,8 @@ void ai_diplo_indian_alarm_delta(
    * DOS does it INSIDE 00f2 (raw 80844-80850): France (euro 1) halves, then
    * Founding Father 0x10 = Pocahontas halves again (quarter when both).
    * Callers must pass the RAW delta (ai_contact_alarm_bump_amount pre-halving
-   * at alarm_delta call sites was retired the same pass).
+   * at alarm_delta call sites was retired the same pass; the helper itself was
+   * deleted 2026-09-09 with its last caller, smell #72).
    */
   const int idx = ai_diplo_indian_slot(col1, indian_nation, euro_nation);
   if (idx < 0) {

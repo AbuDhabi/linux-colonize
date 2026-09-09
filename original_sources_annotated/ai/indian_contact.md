@@ -55,7 +55,7 @@ Annotated shell (quiet path only for act):
 |---|-------------|-------|
 | 1 | Reseed LCG (`04ca`); set active nation = indian+4 | `ai_nation_reseed` |
 | 2 | Select indian context + chrome | (no-op / turn cursor) |
-| 3 | Alarm prelude (NEW WORLD) | `ai_contact_indian_prelude` — flag body thin (dialog PARKED); mission pacify (encroachment drift retired 2026-09-03); LCG burns stay in pulse |
+| 3 | Alarm prelude (NEW WORLD) | `ai_contact_indian_prelude` — mission pacify only (flag-body escalate retired 2026-09-09 smell #72, encroachment drift retired 2026-09-03); LCG burns stay in pulse |
 | 4 | Clamp alarm byte ≥ 0 | prelude clamp |
 | 5 | Tribe growth loop (`41f2_0280` / `152e`) | `ai_grow_villages` |
 | 6 | Relation / goods tick (`2a1f_0270` → `4962_06b6`) | `ai_contact_indian_relation_tick` — no-op since 2026-09-03 (fandom ±1 friction drift retired; DOS has no per-turn drift; census body PARKED) |
@@ -75,8 +75,15 @@ when the Euro is human.
 
 ### Prelude deepen (Linux `ai_contact_indian_prelude`)
 
-1. Clamp `alarm_by_player` band; thin NEW WORLD flag body (isolated RNG; dialog PARKED).
-   Escalate also bumps tribe friction (same amount as alarm).
+1. Clamp `alarm_by_player` band. **Flag-body escalate RETIRED 2026-09-09**
+   (smell #72): it had no DOS counterpart. 1816 §2 (viceroy 81558-81599) is the
+   WoI defection (`ai_contact_indian_woi_defect`) — ±100 relation, mission clear,
+   musket/horse windfall, latch at indian record **+3** bit 0x20
+   (`woi_defect_resolved`); it never touches `alarm_by_player` or friction.
+   Linux's escalate latched `unknown31_flags` = record **+6**, a byte no DOS
+   export reads (offset tally over all three exports: +0/+2/+3/+5/+7/+8/+10
+   only), so both the once-per-nation latch and the `alarm < 30` band were
+   invented.
 2. **Encroachment — RETIRED 2026-09-03** (bugs.md "alarm rises incredibly
    fast"): the +2/turn unit×tribe and colony×tribe bumps were fandom-invented,
    not DOS. DOS grows alarm only through `FUN_4d56_152e`'s threat-score
@@ -84,8 +91,10 @@ when the Euro is human.
    `euro_relation_accum`; every −8 crossing = alarm +1) — a 1-colonist colony
    scores ~0, matching decades of DOS quiet. The `@INDIANCOMMENT` chrome fired
    only off those bumps and retired with them (DOS's own trigger unlocated).
-   Flag-body escalate bump (difficulty-scaled, sticky `unknown31_flags` bit
-   0x20) survives and still uses the Pocahontas/French half-rate helper.
+   The flag-body escalate bump that survived that pass is gone too as of
+   2026-09-09 (smell #72), and with it `ai_contact_alarm_bump_amount` — the
+   Pocahontas/French halving is DOS-real but lives inside the delta
+   (`ai_diplo_indian_alarm_delta` = FUN_4cc6_00f2, viceroy 80844-80850).
 3. **Mission pacifies:** tribe with mission set to Euro `e`, and friction/alarm
    toward `e` low (`< 40`) → extra **−1** on tribe friction (and on
    `alarm_by_player` if also low). Floor 0.

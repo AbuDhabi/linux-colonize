@@ -308,8 +308,10 @@ int main(void) {
   }
 
   /*
-   * Spain conquest bias: raid gate opens at friction/alarm ≥35 (others ≥40).
-   * EN at 30 must not gate; SP at 35 must. Cite: fandom nation bias.
+   * Raid gate is uniform ≥40 for every Euro nation. The old "Spain ≥35
+   * conquest bias" was invented (and backwards — DOS's nation-2 specials are
+   * all Euro-aggressor-side: 5952_035e war shifts, tribute ×1.5). SP at 35
+   * must NOT gate; SP at 40 must.
    */
   {
     ColonizeColony* csp = &colonies.colonies[1];
@@ -339,15 +341,18 @@ int main(void) {
     /* Raid marker: 0f14's tail zeroes the home village's attitude word for
      * every kind incl. "Nothing" — but only with a valid home_tribe_id. */
     brave->home_tribe_id = 0;
-    const int food_sp = csp->stock[COLONIZE_CARGO_FOOD];
     ai_contact_indian_raids(&ctx, 4);
-    if (ai_contact_last_raid_kind() == AI_RAID_NOTHING &&
-        csp->stock[COLONIZE_CARGO_FOOD] == food_sp &&
-        col1_tribe_attitude(&col1.tribe[0], 2) == 35) {
-      /* Any raid — "Nothing" included — zeroes the attitude word via 0f14's
-       * tail, so an untouched word means the gate never opened (the old
-       * third clause read the retired pulse attacks++ marker). */
-      return fail("Spain gate ≥35 should allow raid when EN below 40");
+    /* Any raid — "Nothing" included — zeroes the attitude word via 0f14's
+     * tail; an untouched word means the gate never opened. */
+    if (col1_tribe_attitude(&col1.tribe[0], 2) != 35) {
+      return fail("SP at 35 must not open the uniform ≥40 raid gate");
+    }
+    ind->alarm_by_player[2] = 40;
+    col1.tribe[0].alarm[2].friction = 40;
+    brave->moves_left = 0;
+    ai_contact_indian_raids(&ctx, 4);
+    if (col1_tribe_attitude(&col1.tribe[0], 2) == 40) {
+      return fail("SP at 40 should open the raid gate (attitude word zeroed)");
     }
     /* Cleanup SP colony so later arms stay on EN fixtures. */
     csp->active = false;
@@ -2352,13 +2357,14 @@ int main(void) {
   }
 
   /*
-   * Prelude escalate + Pocahontas: flag body (unknown31_flags bit 0x20 clear) with
-   * met + alarm<30 → difficulty bump; Pocahontas halves (wiki/fandom).
-   * Seed/turn: rng_seed=42 + turn=1 fires escalate at diff=2 (bump 7 → 3).
-   * Cite: docs/fandom_col1994.md Pocahontas; indian_contact.md prelude.
+   * Prelude is clamp + mission-pacify only: the old escalate arm (once-per-
+   * nation unknown31_flags 0x20 latch, alarm<30 gate, difficulty bump) was
+   * invented — no DOS counterpart (4d56_1816 §2 is the WoI defection; the
+   * sole DOS alarm grower is the 152e accumulator). Prelude must not touch
+   * alarm, friction, or unknown31_flags.
    */
   {
-    /* Despawn any encroacher so only escalate arm bumps alarm. */
+    /* Despawn any encroacher so nothing else bumps alarm. */
     for (int ui = 0; ui < COLONIZE_UNITS_MAX; ++ui) {
       ColonizeUnit* u = &units.units[ui];
       if (!u->active || u->nation_id < 0 || u->nation_id > 3) {
@@ -2373,54 +2379,30 @@ int main(void) {
     euro->y = 12;
     euro->active = true;
     c->x = 14;
-    c->y = 14; /* park — escalate arm alone */
+    c->y = 14; /* park */
     col1.tribe[0].mission = 0xff;
     col1.tribe[0].alarm[0].friction = 0;
     ind->euro_diplo[0] = 1;
     ind->unknown31_flags = (uint8_t)(ind->unknown31_flags & (uint8_t)~0x20);
     ind->alarm_by_player[0] = 10;
-    col1.head.founding_father[FF_POCAHONTAS] = -1;
-    col1.nation[0].founding_fathers[FF_POCAHONTAS / 8] &=
-      (uint8_t)~(1u << (FF_POCAHONTAS % 8));
     col1.head.difficulty = 2;
     turn = 1;
     ctx.rng_seed = 42;
     ai_contact_indian_prelude(&ctx, 4);
-    if ((ind->unknown31_flags & 0x20) == 0) {
-      return fail("prelude escalate should sticky-set flag bit 0x20");
+    if ((ind->unknown31_flags & 0x20) != 0) {
+      return fail("prelude must not write unknown31_flags (DOS never reads +6)");
     }
-    if (ind->alarm_by_player[0] != 17) { /* 10 + 7 */
+    if (ind->alarm_by_player[0] != 10) {
       fprintf(
         stderr,
-        "unit_ai_contact: escalate alarm=%u (want 17)\n",
+        "unit_ai_contact: prelude alarm=%u (want 10 unchanged)\n",
         (unsigned)ind->alarm_by_player[0]
       );
-      return fail("prelude escalate should bump alarm by 7 at difficulty 2");
+      return fail("prelude must not bump alarm (escalate arm retired)");
     }
-    if (col1.tribe[0].alarm[0].friction != 7) {
-      return fail("prelude escalate should bump tribe friction by 7");
+    if (col1.tribe[0].alarm[0].friction != 0) {
+      return fail("prelude must not bump tribe friction (escalate arm retired)");
     }
-    /* colony stays parked for Pocahontas escalate arm below */
-
-    /* Same seed path with Pocahontas → half bump (+7 → +3). */
-    ind->unknown31_flags = (uint8_t)(ind->unknown31_flags & (uint8_t)~0x20);
-    ind->alarm_by_player[0] = 10;
-    col1.tribe[0].alarm[0].friction = 0;
-    col1.head.founding_father[FF_POCAHONTAS] = 0;
-    col1.nation[0].founding_fathers[FF_POCAHONTAS / 8] |=
-      (uint8_t)(1u << (FF_POCAHONTAS % 8));
-    ai_contact_indian_prelude(&ctx, 4);
-    if (ind->alarm_by_player[0] != 13) { /* 10 + 3 */
-      fprintf(
-        stderr,
-        "unit_ai_contact: poca escalate alarm=%u (want 13)\n",
-        (unsigned)ind->alarm_by_player[0]
-      );
-      return fail("Pocahontas should halve prelude escalate bump to +3");
-    }
-    col1.head.founding_father[FF_POCAHONTAS] = -1;
-    col1.nation[0].founding_fathers[FF_POCAHONTAS / 8] &=
-      (uint8_t)~(1u << (FF_POCAHONTAS % 8));
     c->x = 5;
     c->y = 5;
   }

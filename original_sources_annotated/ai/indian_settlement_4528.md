@@ -629,7 +629,7 @@ functions and `4528`'s call sites, not this dispatch tail.
 
 | DOS head idea | Linux `ai_contact_indian_raids` |
 |---------------|----------------------------------|
-| Relation / friction gates | Alarm/friction ≥40 (Spain ≥35); war prefer |
+| Relation / friction gates | Alarm/friction ≥40 (uniform; the Spain ≥35 special was retired 2026-09-09, smell #76); war prefer |
 | Human warn CHOICE | `ai_contact_try_village_raid_warn` Attack/Leave; apply opens hostilities + deferred move |
 | Ship abort | `ai_contact_try_ship_village` (`@DONTKNOWSHIPS` / `@MADATSHIPS`; mid-band 50..74 wary + Meet, Series T) |
 | Post-head combat / loot | Adjacent combat + `@RAID*` kinds + fallout `@LOOT`/`@LOOT2` |

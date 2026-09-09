@@ -584,7 +584,8 @@ const char* europe_pool_label(const EuropeScreen* eu, int slot) {
  * 1 forced to the expert half below Conquistador and slot 2 always. The
  * human player then gets a hand-picked easy opener: at Discoverer the whole
  * pool is overwritten with Master Carpenters / Expert Farmers / Seasoned
- * Scouts, at Conquistador only slots 1 and 2 are.
+ * Scouts, at Conquistador only slots 1 and 2 are. Spain then forces slot 0
+ * to Jesuit Missionaries on top of all of that (LAB_38fd_6161).
  */
 void europe_seed_pool(EuropeScreen* eu, int difficulty, bool human) {
   if (!eu) {
@@ -623,6 +624,22 @@ void europe_seed_pool(EuropeScreen* eu, int difficulty, bool human) {
       eu->pool[i].profession = k_easy[i];
       eu->pool[i].filled = true;
     }
+  }
+  /*
+   * LAB_38fd_6161 (viceroy_unpacked.c 68731-68733): `if (DS:0x9e12 == 2)
+   * *(byte*)(DS:0x84fc + 2) = 0x18;` — the bound nation being Spain forces
+   * recruit slot 0 (record +2) to job 0x18, Jesuit Missionaries. It sits
+   * after the human easy-opener block and is not gated on difficulty or on
+   * human control, so it overwrites the Discoverer 0x0d pick too. Seed-time
+   * only: 0x9e12 == 2 appears nowhere else in the image, so the pool refill
+   * (FUN_38fd_4884) has no Spanish case and a re-rolled slot 0 is ordinary.
+   * Smell audit #56.
+   */
+  if (EUROPE_POOL_SIZE > 0 && eu->bound_nation == 2) {
+    const int job = 0x18; /* NAMES @JOB 24 = "Jesuit Missionaries" */
+    snprintf(eu->pool[0].name, sizeof(eu->pool[0].name), "%s", europe_pool_job_name(job));
+    eu->pool[0].profession = job;
+    eu->pool[0].filled = true;
   }
   eu->difficulty = saved_difficulty;
   if (eu->brewster_no_criminals) {

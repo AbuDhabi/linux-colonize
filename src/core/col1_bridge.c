@@ -1517,12 +1517,16 @@ bool col1_bridge_apply(
         break;
       }
     }
+    /* Bind the nation first: the legacy re-seed below reads eu->bound_nation
+     * for the DOS Spain slot-0 override (europe_seed_pool / LAB_38fd_6161). */
+    europe_set_nation(europe, local.human_nation, NULL);
     /*
      * Restore the recruit pool from nation+2..+4 rather than leaving the
      * fresh-campaign seed europe_reset_campaign laid down (which, being run
      * before the difficulty is known, is always the Discoverer opener).
      * A save whose three bytes are all job NONE / out of range predates the
      * pool being written, so re-seed it at the save's real difficulty.
+     * DOS load never re-seeds at all — the save's bytes win (have_pool).
      */
     {
       bool have_pool = false;
@@ -1539,7 +1543,6 @@ bool col1_bridge_apply(
         europe_seed_pool(europe, (int)europe->difficulty, true);
       }
     }
-    europe_set_nation(europe, local.human_nation, NULL);
     for (int i = 0; i < europe->cargo_count && i < (int)COLONIZE_COL1_CARGO_TYPES; ++i) {
       europe->cargo[i].bid = nat->trade.euro_price[i];
       europe->trade_nr[i] = nat->trade.nr[i];
