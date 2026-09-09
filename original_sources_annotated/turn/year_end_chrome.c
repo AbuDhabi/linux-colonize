@@ -41,7 +41,7 @@ extern void euro_select_nation_context(int n);            /* 281f_0582 → 38fd_
 /*
  * DS used here:
  *   0x5382 game flags — bit0 war; bit3 victory done; bit4 splash done;
- *                       bit5 force-victory; bit6 strict fleet cap
+ *                       bit5 force-victory; bit6 looser land-force cap
  *   0x538a year   0x538c autumn   0x5398 human/focus
  *   0x53d2 crown   0x53d4 crown name helper   0x53da.. REF pools
  *   0x53c2 game-running (cleared → exit year loop)
@@ -106,11 +106,12 @@ void year_end_chrome(void) {
   if (at_war && (flags & 8) == 0) {
     int crown_colonies = /* crown −0x6d68 */ 0;
     if (crown_colonies == 0 || (flags & 0x20) != 0) {
-      /* C1: count crown types 6/8/0xb; REF pools 53da/dc/e0 */
-      int fleet_cap = ((flags & 0x40) == 0) ? 8 : 1;
-      int warships = 0;
+      /* C1: count crown LAND types 6/8/0xb (Regulars/Cavalry/Artillery,
+       * not ships); REF pools 53da/dc/e0 */
+      int fleet_cap = ((flags & 0x40) == 0) ? 1 : 8;  /* bit6 set = looser bar */
+      int land_force = 0;
       int ref_thin = /* (2-(53dc==0)-(53e0==0)+53da) < 4 */ 1;
-      if ((warships < fleet_cap || (flags & 0x20)) && (ref_thin || (flags & 0x20))) {
+      if ((land_force < fleet_cap || (flags & 0x20)) && (ref_thin || (flags & 0x20))) {
         dialog_prefetch_string(0, /* human 0x540e */ 0);
         dialog_prefetch_string(1, /* human 0x5426 */ 0);
         set_bgm_track(3);

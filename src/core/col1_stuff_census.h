@@ -16,7 +16,8 @@ bool col1_stuff_census_window_is_blank(const ColonizeCol1Stuff* stuff);
 void col1_stuff_census_fill_blank(
   ColonizeCol1Stuff* stuff,
   const ColonizeUnitPool* units,
-  const ColonizeColonyPool* colonies
+  const ColonizeColonyPool* colonies,
+  const ColonizeCol1Save* col1
 );
 /*
  * FUN_4962_0018 thin live peel: colony_counts + pop/mean, and when units!=NULL
@@ -25,7 +26,8 @@ void col1_stuff_census_fill_blank(
 void col1_stuff_census_refresh_colony_counts(
   ColonizeCol1Stuff* stuff,
   const ColonizeColonyPool* colonies,
-  const ColonizeUnitPool* units
+  const ColonizeUnitPool* units,
+  const ColonizeCol1Save* col1
 );
 
 #endif

@@ -3173,7 +3173,18 @@ static int unit_labor_shortage_join(void) {
   c->stock[COLONIZE_CARGO_FOOD] = 80;
   c->stock[COLONIZE_CARGO_TOOLS] = 40;
   c->building_in_production = -1;
-  c->labor_shortage = 2;
+  /*
+   * `labor_shortage = 2` used to be seeded here and asserted to survive the
+   * tick as 2→1. It cannot any more: since 2026-09-09 (smell audit #38) the
+   * colony tick stamps +0x8e unconditionally from the real FUN_5952_035e
+   * formula (raw 94029-94045) before anything consumes it, so a hand-seeded
+   * value is overwritten. For this fixture — pop 3, one colonist standing on
+   * the tile (DS:0x8d72 = 1), zero threat — DOS computes
+   * n = 4, want = max((4-1)/2, quota 0) = 1, clamped to n/2 = 2, no WoI, no
+   * ring-1 enemy, and the on-tile walk decrements nothing (a Free Colonist's
+   * 0x5236 combat byte is not > 1). So the tick stamps 1 and the join
+   * consumes it to 0, which is what is asserted below.
+   */
   colonies.colony_count = 1;
   colonies.next_id = 1;
 
@@ -3222,7 +3233,7 @@ static int unit_labor_shortage_join(void) {
   col = units_get(&units, uid);
   c = &colonies.colonies[0];
   const int joined = (col == NULL || !col->active) && c->population == pop_before + 1;
-  if (!joined || c->labor_shortage != 1) {
+  if (!joined || c->labor_shortage != 0) {
     fprintf(
       stderr,
       "unit_ai_euro_expand: labor_shortage joined=%d pop %d→%d shortage=%u\n",
@@ -3234,7 +3245,7 @@ static int unit_labor_shortage_join(void) {
     free(map.terrain);
     free(map.layer2);
     free(map.layer3);
-    return fail("expected join decrementing labor_shortage 2→1");
+    return fail("expected join consuming the tick-stamped labor_shortage 1→0");
   }
 
   free(map.terrain);
@@ -4619,7 +4630,8 @@ static int unit_stockade_threat_labor(void) {
 /*
  * Sticky≥2 CONTACT rings: prefer closer MD (weight) around tribe.
  * Scout placed so md=4 is nearer scout than md=2 without sticky weight.
- * Cite: ai_diplo_indian_hostility_sticky / euro_diplo.md unknown26[8].
+ * Cite: ai_diplo_indian_hostility_sticky / euro_diplo.md (nation record
+ * +0x4b = unknown26[11] since smell #52).
  */
 static int unit_scout_sticky_closer_ring(void) {
   const int nation = 1;
@@ -4688,7 +4700,10 @@ static int unit_scout_sticky_closer_ring(void) {
     col1.player[i].diplomacy = 0;
   }
   col1.head.difficulty = 0;
-  col1.nation[nation].unknown26[8] = 2; /* sticky very-low deepen */
+  /* Named member, never a raw unknown26 index: the sticky stand-in moved to
+   * the nation record's +0x4b (unknown26[11]) 2026-09-09, off the DOS grace
+   * counter that sits at +0x48. */
+  col1.nation[nation].indian_hostility_sticky = 2; /* sticky very-low deepen */
   if (ai_diplo_indian_hostility_sticky(&col1, nation) < 2) {
     free(map.terrain);
     free(map.layer2);
@@ -4879,8 +4894,17 @@ static int unit_scout_fog_explore_no_contact(void) {
     scout && scout->active && scout->orders == UNITS_ORDER_AI_MOVE &&
     scout->goto_x >= 0 && scout->goto_y >= 0 &&
     !map_tile_seen_by(&map, scout->goto_x, scout->goto_y, nation) &&
-    (abs(scout->goto_x - 5) + abs(scout->goto_y - 5)) <= 8 &&
-    (abs(scout->goto_x - 5) + abs(scout->goto_y - 5)) >= 1;
+    /*
+     * Measure from where the scout ENDED the dispatcher turn, not from its
+     * spawn (5,5): ai_euro_scout_fog_explore_target hard-bounds md 1..8 from
+     * the unit's position at pick time, and the pick happens after the unit
+     * has already stepped. Pinning the band to the spawn tile made this a
+     * snapshot of the rumour lattice — it broke when map_procedural_rumour_at
+     * dropped its unverified +1 coordinate bias on 2026-09-09
+     * (smell_audit #98) and every seed-100 rumour moved one tile SE.
+     */
+    (abs(scout->goto_x - scout->x) + abs(scout->goto_y - scout->y)) <= 8 &&
+    (abs(scout->goto_x - scout->x) + abs(scout->goto_y - scout->y)) >= 1;
 
   if (has_contact || !toward_unseen) {
     fprintf(
@@ -5054,9 +5078,11 @@ static int unit_seasoned_scout_deeper_fog(void) {
 
 /*
  * Scout fog explore prefers map_tile_has_rumour over nearer plain unseen
- * within MD≤8. Fixture: (5,8) MD=3 plain + (3,10) MD=7 rumour (seed-100
- * procedural). Cite: Colonization.pdf Lost City Rumours / Seasoned Scout;
- * Pass5 LCR scaffold — resolve still on stand only.
+ * within MD≤8. Fixture: (5,8) MD=3 plain + (4,11) MD=7 rumour (seed-100
+ * procedural — was (3,10) until map_procedural_rumour_at dropped its
+ * unverified +1 coordinate bias on 2026-09-09, smell_audit #98, moving every
+ * seed-100 rumour one tile SE). Cite: Colonization.pdf Lost City Rumours /
+ * Seasoned Scout; Pass5 LCR scaffold — resolve still on stand only.
  */
 static int unit_scout_fog_prefer_rumour(void) {
   const int nation = 1;
@@ -5064,8 +5090,8 @@ static int unit_scout_fog_prefer_rumour(void) {
   const int scout_y = 5;
   const int plain_x = 5;
   const int plain_y = 8; /* MD=3, no rumour */
-  const int rum_x = 3;
-  const int rum_y = 10; /* MD=7, procedural rumour */
+  const int rum_x = 4;
+  const int rum_y = 11; /* MD=7, procedural rumour */
 
   ColonizeWorldMap map;
   memset(&map, 0, sizeof(map));
@@ -5087,7 +5113,7 @@ static int unit_scout_fog_prefer_rumour(void) {
     free(map.layer2);
     free(map.layer3);
     free(map.seen);
-    return fail("rumour-fog fixture (3,10) should have rumour");
+    return fail("rumour-fog fixture (4,11) should have rumour");
   }
   if (map_tile_has_rumour(&map, plain_x, plain_y)) {
     free(map.terrain);
@@ -6853,7 +6879,7 @@ static int unit_scout_sticky_fog_deeper_unseen(void) {
     col1.player[i].diplomacy = 0;
   }
   col1.head.difficulty = 0;
-  col1.nation[nation].unknown26[8] = 2; /* sticky very-low */
+  col1.nation[nation].indian_hostility_sticky = 2; /* sticky very-low */
   col1.head.tribe_count = 1;
   col1.tribe = calloc(1, sizeof(ColonizeCol1Tribe));
   if (!col1.tribe) {
@@ -17082,7 +17108,7 @@ static int unit_seasoned_sticky_fog_deepen(void) {
   col1.head.tribe_count = 0;
   col1.tribe = NULL;
   /*
-   * Sticky deepen (unknown26[8]==2) only survives euro_balance hostility_sync
+   * Sticky deepen (indian_hostility_sticky==2) only survives euro_balance hostility_sync
    * when a contacted Indian slot is very-low (0 < relation < 40). Unmet r==0
    * is cleared to sticky=0.
    */

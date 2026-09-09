@@ -190,6 +190,12 @@ int combat_unit_toughness(
 /* Type helpers used by best-defender / outcome. */
 int combat_type_is_artillery_name(const char* name);
 int combat_type_is_scout_name(const char* name);
+/*
+ * @UNIT TYPE row combat flag only: the DS:0x5236 column (`t->attack > 0`),
+ * the byte FUN_5fef_0000 picks defenders on and FUN_5fef_0352 gates capture
+ * on. Carried muskets/horses do NOT count — for "can this body fight?" use
+ * units.c `units_is_combat_role`. See the definition's comment (audit #12).
+ */
 int combat_unit_is_combat_role(const ColonizeUnitPool* pool, int unit_id);
 
 #endif

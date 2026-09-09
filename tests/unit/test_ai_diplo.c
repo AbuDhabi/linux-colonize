@@ -1,4 +1,5 @@
-/* Smoke: bilateral 15b3 diplo bytes, war gold/tax sting,
+/* Smoke: bilateral 15b3 diplo bytes, declare-war leaves gold/tax alone
+ * (the −100/+1 "sting" was retired 2026-09-09, smell #47),
  * Euro war does not boycott Europe cargos, war-fatigue
  * peace + status, make_peace + full wartime mask lift + peace feeler restore
  * (sticky==1; sticky==2 refuses treaties), upkeep + human upkeep status,
@@ -77,7 +78,10 @@ int main(void) {
   }
 
   /* Pair independence: war(0,1) must not force war(0,2).
-   * Thin 153e: first declare drains 100 gold + bumps tax_rate both sides.
+   * 2026-09-09 (smell #47): the "thin 153e" −100 gold / +1 tax_rate pair was
+   * retired as a fandom invention — no DOS declare path writes either (tax
+   * only from FUN_38fd_44a4's @TAXRAISE; declare-adjacent gold moves are
+   * transfers, not symmetric drains). The probes below now pin the absence.
    * Indians dislike war: −5 on relation_by_indian[0..7] both sides.
    * Euro war does not boycott Europe cargos (DOS king tea-party only).
    * War fatigue: seed peer treaty timer to 8 when was 0. */
@@ -108,20 +112,14 @@ int main(void) {
   if (ai_diplo_read(&col1, 0, 1) & AI_DIPLO_PEACE) {
     return fail("at-war pair should not keep PEACE");
   }
-  if (col1.nation[0].gold != 150) {
-    return fail("declare_war should drain 100 gold from nation 0");
-  }
-  if (col1.nation[1].gold != 0) {
-    return fail("declare_war gold sting should floor at 0");
+  if (col1.nation[0].gold != 250 || col1.nation[1].gold != 80) {
+    return fail("declare_war must not drain gold (smell #47: no DOS gold sting)");
   }
   if (col1.nation[2].gold != 500) {
     return fail("war(0,1) must not drain gold of nation 2");
   }
-  if (col1.nation[0].tax_rate != 11) {
-    return fail("declare_war should bump tax_rate +1 on nation 0");
-  }
-  if (col1.nation[1].tax_rate != 75) {
-    return fail("declare_war tax bump should cap at 75");
+  if (col1.nation[0].tax_rate != 10 || col1.nation[1].tax_rate != 74) {
+    return fail("declare_war must not bump tax_rate (smell #47: DOS bumps tax only in 38fd_44a4)");
   }
   if (col1.nation[2].tax_rate != 20) {
     return fail("war(0,1) must not bump tax of nation 2");
@@ -166,13 +164,13 @@ int main(void) {
   if (ai_diplo_indian_at_war(&col1, 2, 0)) {
     return fail("indian_at_war: nation 2 slot0 should be peaceful (rel=100)");
   }
-  /* Re-declare: no second sting / tax bump / Indian hit; still no Europe boycott. */
+  /* Re-declare: no Indian hit; still no Europe boycott, still no gold/tax. */
   ai_diplo_declare_war(&col1, 0, 1);
-  if (col1.nation[0].gold != 150) {
-    return fail("re-declare_war should not re-sting gold");
+  if (col1.nation[0].gold != 250) {
+    return fail("re-declare_war should not touch gold");
   }
-  if (col1.nation[0].tax_rate != 11) {
-    return fail("re-declare_war should not re-bump tax");
+  if (col1.nation[0].tax_rate != 10) {
+    return fail("re-declare_war should not touch tax");
   }
   if (ai_diplo_indian_relation(&col1, 4 + (0), 0) != 50) {
     return fail("re-declare_war should not re-hit Indian relations");
@@ -274,10 +272,32 @@ int main(void) {
     if (col1.nation[2].gold != 500) {
       return fail("euro_balance upkeep must not drain peaceful peer treasury");
     }
+    /*
+     * Smell #56: the pre-drain snapshot was a uint16 over a uint32 gold word,
+     * so a treasury of exactly 65536 (or 131072, …) read 0 and swallowed the
+     * status line even though the drain went through.
+     */
+    ctx_up.human_nation = 0;
+    col1.nation[0].gold = 65536u;
+    col1.nation[1].gold = 65531u; /* equal after the drain → no privateer */
+    status_up[0] = '\0';
+    ai_diplo_euro_balance(&ctx_up, 0);
+    if (col1.nation[0].gold != 65531u) {
+      return fail("euro_balance upkeep should drain 5 from a 65536 treasury");
+    }
+    if (strcmp(status_up, "War upkeep costs gold.") != 0) {
+      fprintf(stderr, "unit_ai_diplo: 65536 upkeep status '%s'\n", status_up);
+      return fail("war upkeep status must survive a 16-bit-boundary treasury");
+    }
+    col1.nation[0].gold = 0;
+    col1.nation[1].gold = 0;
   }
 
-  /* Thin Indian harassment: relation<50 → −2 gold once per euro_balance tick.
-   * Sticky sync: set 1 at-war, deepen 2 when very-low (<40), clear when none. */
+  /* Smell #49: at war with a tribe must cost NO gold (the invented −2/turn
+   * "harassment" drain is retired). Sticky sync still runs: set 1 at-war,
+   * deepen 2 when very-low, clear when none — and it must land on the port's
+   * own byte (+0x4b / unknown26[11]), never on the DOS grace counter at
+   * +0x48 / unknown26[8] (smell #52). */
   {
     ColonizeDosRng rng_h;
     dos_rng_seed(&rng_h, 2);
@@ -294,26 +314,36 @@ int main(void) {
       col1.indian[i].alarm_by_player[0] = 80; /* DOS bands: relation 40 */ /* at war vs Indians, not very-low */
       col1.indian[i].euro_diplo[0] |= COL1_INDIAN_MET_BIT;
     }
-    col1.nation[0].unknown26[8] = 0;
+    col1.nation[0].unknown26[11] = 0;
+    col1.nation[0].unknown26[8] = 7; /* DOS grace/waiver counter — sacred */
     col1.nation[0].gold = 20;
     ai_diplo_euro_balance(&ctx_h, 0);
-    if (col1.nation[0].gold != 18) {
-      return fail("euro_balance Indian harassment should drain 2 gold");
+    if (col1.nation[0].gold != 20) {
+      fprintf(stderr, "unit_ai_diplo: native-war gold %u (want 20)\n",
+              (unsigned)col1.nation[0].gold);
+      return fail("war with a tribe must not drain the treasury (#49)");
     }
-    /* Cap: gold already 0 → no invent-below-zero; gold 1 → one floor to 0. */
-    col1.nation[0].gold = 0;
+    /* Repeated ticks stay free too — the drain used to compound every turn. */
     ai_diplo_euro_balance(&ctx_h, 0);
-    if (col1.nation[0].gold != 0) {
-      return fail("Indian harassment must not invent gold below 0 when already 0");
-    }
-    col1.nation[0].gold = 1;
     ai_diplo_euro_balance(&ctx_h, 0);
-    if (col1.nation[0].gold != 0) {
-      return fail("Indian harassment should floor once to 0 when gold < 2");
+    if (col1.nation[0].gold != 20) {
+      return fail("native-war gold must not compound across balance ticks (#49)");
     }
     col1.nation[0].gold = 18; /* restore for sticky asserts below */
     if (ai_diplo_indian_hostility_sticky(&col1, 0) != 1) {
-      return fail("indian_at_war should set unknown26[8] hostility sticky once");
+      return fail("indian_at_war should set the hostility sticky once");
+    }
+    if (col1.nation[0].unknown26[8] != 7) {
+      fprintf(stderr, "unit_ai_diplo: +0x48 grace counter clobbered (%u)\n",
+              (unsigned)col1.nation[0].unknown26[8]);
+      return fail("sticky must not write the DOS grace counter at +0x48 (#52)");
+    }
+    if (col1.nation[0].unknown26[11] != 1) {
+      return fail("sticky belongs on the port's own byte +0x4b / unknown26[11] (#52)");
+    }
+    if (&col1.nation[0].indian_hostility_sticky != &col1.nation[0].unknown26[11] ||
+        &col1.nation[0].king_grace_counter != &col1.nation[0].unknown26[8]) {
+      return fail("unknown26 union layout: sticky at [11], grace counter at [8]");
     }
     if (!ai_diplo_indian_any_at_war(&col1, 0) || !ai_diplo_indian_at_war(&col1, 0, 0)) {
       return fail("indian_at_war/any_at_war should remain true at rel 40");
@@ -402,7 +432,7 @@ int main(void) {
         col1.indian[i].alarm_by_player[1] = 0; /* relation 100 */
         col1.indian[i].euro_diplo[1] |= COL1_INDIAN_MET_BIT;
       }
-      col1.nation[1].unknown26[8] = 0;
+      col1.nation[1].indian_hostility_sticky = 0;
       ai_diplo_euro_balance(&ctx_pr, 1);
       if (strcmp(status_pr, "Privateer prize from England") != 0) {
         fprintf(stderr, "unit_ai_diplo: privateer status '%s'\n", status_pr);
@@ -520,8 +550,8 @@ int main(void) {
     col1.indian[1].euro_diplo[3] |= COL1_INDIAN_MET_BIT;
     col1.indian[2].alarm_by_player[3] = 4; /* relation 96 */ /* already at floor */
     col1.indian[2].euro_diplo[3] |= COL1_INDIAN_MET_BIT;
-    col1.nation[3].unknown26[8] = 1;
-    col1.nation[3].gold = 50; /* harassment will −2 (slot0 at war) */
+    col1.nation[3].indian_hostility_sticky = 1;
+    col1.nation[3].gold = 50; /* native war must cost nothing (#49) */
     ai_diplo_euro_balance(&ctx_f, 3);
     if (ai_diplo_indian_relation(&col1, 4 + (0), 3) != 20) {
       return fail("peace feeler must not heal indian_at_war slots");
@@ -539,8 +569,8 @@ int main(void) {
     if (ai_diplo_indian_hostility_sticky(&col1, 3) != 1) {
       return fail("feeler tick should keep sticky while slot0 still at war");
     }
-    if (col1.nation[3].gold != 48) {
-      return fail("feeler tick with at-war Indian should still harass −2g");
+    if (col1.nation[3].gold != 50) {
+      return fail("feeler tick with an at-war tribe must not drain gold (#49)");
     }
     /* Clear last hostile slot → sticky clears; no further harassment. */
     col1.indian[0].alarm_by_player[3] = 20; /* relation 80 */
@@ -554,7 +584,7 @@ int main(void) {
       return fail("sticky should clear after feeler when no at-war slots");
     }
     if (col1.nation[3].gold != 50) {
-      return fail("no Indian harassment when sticky cleared / no at-war");
+      return fail("no treasury movement when sticky clears either (#49)");
     }
     /* Euro×Euro war: feeler skipped (relations unchanged). */
     col1.nation[2].gold = 200;
@@ -613,14 +643,14 @@ int main(void) {
       col1.indian[i].alarm_by_player[3] = 10; /* relation 90 */
       col1.indian[i].euro_diplo[3] |= COL1_INDIAN_MET_BIT;
     }
-    col1.nation[3].unknown26[8] = 0;
+    col1.nation[3].indian_hostility_sticky = 0;
     ai_diplo_declare_war(&col1, 2, 3);
     /* All mid after −5 → sticky clear; force sticky clear + mid 80. */
     for (int i = 0; i < 8; ++i) {
       col1.indian[i].alarm_by_player[3] = 20; /* relation 80 */
       col1.indian[i].euro_diplo[3] |= COL1_INDIAN_MET_BIT;
     }
-    col1.nation[3].unknown26[8] = 0;
+    col1.nation[3].indian_hostility_sticky = 0;
     ai_diplo_make_peace(&col1, 2, 3);
     if (ai_diplo_indian_relation(&col1, 4 + (3), 3) != 80) {
       return fail("make_peace must not feeler-nudge when sticky was clear");
@@ -677,7 +707,7 @@ int main(void) {
       st.indian[i].alarm_by_player[0] = 80; /* DOS bands: relation 40 */
       st.indian[i].euro_diplo[0] |= COL1_INDIAN_MET_BIT;
     }
-    st.nation[0].unknown26[8] = 0;
+    st.nation[0].indian_hostility_sticky = 0;
     st.nation[0].gold = 30;
     ai_diplo_euro_balance(&ctx_st, 0);
     if (strcmp(status, "Natives grow hostile.") != 0) {
@@ -701,14 +731,15 @@ int main(void) {
       st.indian[i].alarm_by_player[1] = 90; /* DOS bands: relation 30 */
       st.indian[i].euro_diplo[1] |= COL1_INDIAN_MET_BIT;
     }
-    st.nation[1].unknown26[8] = 0;
+    st.nation[1].indian_hostility_sticky = 0;
     ai_diplo_euro_balance(&ctx_st, 1);
     if (strcmp(status, "keep") != 0) {
       return fail("indian sticky status must only write for human nation");
     }
   }
 
-  /* tax_rate already at cap stays put on first declare; embargo set again. */
+  /* A second, unrelated pair: declare still leaves tax_rate and gold alone
+   * (smell #47 retirement; this used to be the +1-bump "cap at 75" probe). */
   col1.nation[2].gold = 200;
   col1.nation[3].gold = 200;
   col1.nation[2].tax_rate = 75;
@@ -717,7 +748,10 @@ int main(void) {
   col1.nation[3].boycott_bitmap = 0;
   ai_diplo_declare_war(&col1, 2, 3);
   if (col1.nation[2].tax_rate != 75 || col1.nation[3].tax_rate != 75) {
-    return fail("declare_war must not raise tax_rate above 75");
+    return fail("declare_war must not raise tax_rate");
+  }
+  if (col1.nation[2].gold != 200 || col1.nation[3].gold != 200) {
+    return fail("declare_war(2,3) must not drain gold");
   }
   if ((col1.nation[2].boycott_bitmap & AI_DIPLO_SMOKE_WARTIME_MASK) != 0 ||
       (col1.nation[3].boycott_bitmap & AI_DIPLO_SMOKE_WARTIME_MASK) != 0) {
@@ -797,16 +831,18 @@ int main(void) {
       free(tw.colony);
       return fail("colony-gap declare must not boycott Europe cargos");
     }
-    /* 400 − 100 sting − 25 trade = 275 */
-    if (tw.nation[0].gold != 275) {
-      fprintf(stderr, "unit_ai_diplo: rich gold after trade war %u (want 275)\n",
+    /* No treasury moves on a declare at all: the flat -100 sting went
+     * 2026-09-09 (#47) and the colony-gap -25 trade sting with it (audit
+     * follow-up A). DOS has no constant gold decrement anywhere. */
+    if (tw.nation[0].gold != 400) {
+      fprintf(stderr, "unit_ai_diplo: rich gold after trade war %u (want 400)\n",
               (unsigned)tw.nation[0].gold);
       free(tw.colony);
-      return fail("colony-gap declare should drain extra 25 from richer");
+      return fail("colony-gap declare must not drain the richer treasury");
     }
-    if (tw.nation[1].gold != 0) {
+    if (tw.nation[1].gold != 50) {
       free(tw.colony);
-      return fail("poorer still floored by 100 sting");
+      return fail("colony-gap declare must leave the poorer side's gold alone");
     }
     ai_diplo_make_peace(&tw, 0, 1);
     if ((tw.nation[0].boycott_bitmap & (1u << COLONIZE_CARGO_TOOLS)) != 0 ||
@@ -846,19 +882,51 @@ int main(void) {
     colonies.colony_count = 1;
     ColonizeCol1Save sc;
     col1_save_init(&sc);
-    sc.nation[0].gold = 100; /* +2 from gold/50 */
+    sc.nation[0].gold = 100; /* must NOT reach the score any more */
     ColonizeTurnContext ctx;
     memset(&ctx, 0, sizeof(ctx));
     ctx.units = &units;
     ctx.colonies = &colonies;
     ctx.col1 = &sc;
     ctx.col1_ok = true;
-    /* soldier 2+2=4, ship 1+1+3=5, pop 4*2=8, gold 100/50=2 → 19 */
-    const int score = ai_diplo_military_score(&ctx, 0);
-    if (score != 19) {
-      fprintf(stderr, "unit_ai_diplo: military_score %d (want 19)\n", score);
-      return fail("unpark #5 military_score weights");
+    /*
+     * 2026-09-09 (#51): the score IS the DS:0x941c mirror
+     * stuff.land_combat_strength[], nothing else. Ships, colony population,
+     * fortifications, treasury and the 00f8 rank must not contribute — the
+     * invented blend that mixed them is retired.
+     */
+    sc.stuff.land_combat_strength[0] = 137;
+    sc.stuff.land_combat_strength[1] = 40;
+    ctx.euro_power_rank_ok = true;
+    ctx.euro_power_rank[0] = 0;
+    ctx.euro_power_rank[1] = 3;
+    int score = ai_diplo_military_score(&ctx, 0);
+    if (score != 137) {
+      fprintf(stderr, "unit_ai_diplo: military_score %d (want 137)\n", score);
+      return fail("military_score must be the land_combat_strength mirror");
     }
+    if (ai_diplo_military_score(&ctx, 1) != 40) {
+      return fail("military_score peer must read the mirror too");
+    }
+    /* Rank must not double-count: the 00f8 rank table is itself built from
+     * land_combat_strength, so flipping rank alone changes nothing. */
+    ctx.euro_power_rank[0] = 3;
+    if (ai_diplo_military_score(&ctx, 0) != 137) {
+      return fail("military_score must not add a rank term");
+    }
+    /* Treasury must not leak in either. */
+    sc.nation[0].gold = 100000;
+    score = ai_diplo_military_score(&ctx, 0);
+    if (score != 137) {
+      fprintf(stderr, "unit_ai_diplo: military_score with gold %d (want 137)\n", score);
+      return fail("military_score must not blend treasury");
+    }
+    /* No col1 → no mirror → 0 (was a units-only sum before). */
+    ctx.col1_ok = false;
+    if (ai_diplo_military_score(&ctx, 0) != 0) {
+      return fail("military_score without col1 must be 0");
+    }
+    ctx.col1_ok = true;
   }
 
   /*
@@ -920,7 +988,7 @@ int main(void) {
       st.indian[i].alarm_by_player[0] = 0; /* relation 100 */
       st.indian[i].euro_diplo[0] |= COL1_INDIAN_MET_BIT;
     }
-    st.nation[0].unknown26[8] = 0;
+    st.nation[0].indian_hostility_sticky = 0;
     st.nation[0].boycott_bitmap =
       (uint16_t)(AI_DIPLO_SMOKE_SUGAR_BIT | AI_DIPLO_SMOKE_TOBACCO_BIT |
                  AI_DIPLO_SMOKE_TOOLS_BIT);
@@ -942,7 +1010,7 @@ int main(void) {
       st.indian[i].alarm_by_player[0] = 0; /* relation 100 */
       st.indian[i].euro_diplo[0] |= COL1_INDIAN_MET_BIT;
     }
-    st.nation[0].unknown26[8] = 0;
+    st.nation[0].indian_hostility_sticky = 0;
     st.nation[0].boycott_bitmap = (uint16_t)AI_DIPLO_SMOKE_WARTIME_MASK;
     status[0] = '\0';
     ai_diplo_declare_war_ctx(&ctx_st, 0, 2);
@@ -961,7 +1029,7 @@ int main(void) {
       st.indian[i].alarm_by_player[0] = 0; /* relation 100 */
       st.indian[i].euro_diplo[0] |= COL1_INDIAN_MET_BIT;
     }
-    st.nation[0].unknown26[8] = 0;
+    st.nation[0].indian_hostility_sticky = 0;
     st.nation[0].boycott_bitmap = (uint16_t)AI_DIPLO_SMOKE_WARTIME_MASK;
     snprintf(st.player[0].country_name, sizeof(st.player[0].country_name), "Spain");
     snprintf(st.player[2].country_name, sizeof(st.player[2].country_name), "Holland");
@@ -1032,7 +1100,7 @@ int main(void) {
       st.indian[i].alarm_by_player[0] = 70; /* relation 30 */
       st.indian[i].euro_diplo[0] |= COL1_INDIAN_MET_BIT;
     }
-    st.nation[0].unknown26[8] = 0;
+    st.nation[0].indian_hostility_sticky = 0;
     st.nation[0].boycott_bitmap = (uint16_t)AI_DIPLO_SMOKE_WARTIME_MASK;
     st.nation[0].gold = 200;
     st.nation[2].gold = 200;
@@ -1096,7 +1164,7 @@ int main(void) {
       sp.indian[i].alarm_by_player[0] = 20; /* relation 80 */
       sp.indian[i].euro_diplo[0] |= COL1_INDIAN_MET_BIT;
     }
-    sp.nation[0].unknown26[8] = 2;
+    sp.nation[0].indian_hostility_sticky = 2;
     sp.nation[0].gold = 40;
     ai_diplo_euro_balance(&ctx_sp, 0);
     if (ai_diplo_indian_relation(&sp, 4 + (1), 0) != 80) {
@@ -1109,8 +1177,8 @@ int main(void) {
       fprintf(stderr, "unit_ai_diplo: remain status '%s'\n", status);
       return fail("sticky==2 should status Natives remain hostile");
     }
-    if (sp.nation[0].gold != 38) {
-      return fail("sticky==2 tick should still apply Indian harassment −2g");
+    if (sp.nation[0].gold != 40) {
+      return fail("sticky==2 tick must not drain gold either (#49)");
     }
 
     /* indian_relation getter mirrors relation_by_indian / delta indexing. */
@@ -1168,7 +1236,13 @@ int main(void) {
       wf.player[i].country_name[0] = '\0';
     }
     snprintf(wf.player[1].country_name, sizeof(wf.player[1].country_name), "England");
-    /* Near-parity military via gold/50 only: score 12 each (|diff|<15, both >10). */
+    /*
+     * Near-parity military strength. Since smell #51 the score IS the
+     * DS:0x941c census mirror, so parity is stated there instead of being
+     * conjured out of the treasury: 12 each (|diff| < 15, both > 10).
+     */
+    wf.stuff.land_combat_strength[0] = 12;
+    wf.stuff.land_combat_strength[1] = 12;
     wf.nation[0].gold = 700;
     wf.nation[1].gold = 700;
     for (int i = 0; i < 8; ++i) {
@@ -1178,7 +1252,8 @@ int main(void) {
       wf.indian[i].euro_diplo[1] |= COL1_INDIAN_MET_BIT;
     }
     ai_diplo_declare_war(&wf, 0, 1);
-    /* After sting: 600/600 → score 12; fatigue timer seeded to 8. */
+    /* Declares no longer move gold at all (#47 / follow-up A); the fatigue
+     * timer seed of 8 is the whole first-declare side effect that matters. */
     if (wf.nation[0].unknown26[1] != 8) {
       return fail("war-fatigue setup: timer should be 8 after declare");
     }
@@ -1256,6 +1331,9 @@ int main(void) {
       }
       snprintf(wf2.player[0].country_name, sizeof(wf2.player[0].country_name), "England");
       snprintf(wf2.player[1].country_name, sizeof(wf2.player[1].country_name), "France");
+      /* Near-parity strength off the DS:0x941c mirror (smell #51). */
+      wf2.stuff.land_combat_strength[0] = 12;
+      wf2.stuff.land_combat_strength[1] = 12;
       wf2.nation[0].gold = 700;
       wf2.nation[1].gold = 700;
       for (int i = 0; i < 8; ++i) {
@@ -1415,7 +1493,7 @@ int main(void) {
     /* Deep sticky: very-low slot keeps sticky==2 across matrix tick. */
     r3.indian[0].alarm_by_player[0] = 90; /* DOS bands: relation 30 */
     r3.indian[0].euro_diplo[0] |= COL1_INDIAN_MET_BIT;
-    r3.nation[0].unknown26[8] = 2;
+    r3.nation[0].indian_hostility_sticky = 2;
     char status[128];
     status[0] = '\0';
     ColonizeDosRng rng_r3;
@@ -1468,7 +1546,7 @@ int main(void) {
       r3.indian[i].alarm_by_player[0] = 0; /* relation 100 */
       r3.indian[i].euro_diplo[0] |= COL1_INDIAN_MET_BIT;
     }
-    r3.nation[0].unknown26[8] = 0;
+    r3.nation[0].indian_hostility_sticky = 0;
     /* FUN_5bfb_13b0 (2026-08-27): not war-worthy (turn <= 39) and no PEACE →
      * @SIGNTREATY sets PEACE both ways within the (a+turn+b)%3 cadence. */
     int treaty = 0;
@@ -1680,7 +1758,7 @@ int main(void) {
       }
       fl.indian[1].alarm_by_player[0] = 20; /* relation 80 */ /* mid-band feeler-eligible */
       fl.indian[1].euro_diplo[0] |= COL1_INDIAN_MET_BIT;
-      fl.nation[0].unknown26[8] = 0;
+      fl.nation[0].indian_hostility_sticky = 0;
       fl.nation[0].gold = 40;
       char status_fl[128];
       status_fl[0] = '\0';
@@ -1874,7 +1952,7 @@ int main(void) {
         w2.indian[i].alarm_by_player[1] = 0; /* relation 100 */
         w2.indian[i].euro_diplo[1] |= COL1_INDIAN_MET_BIT;
       }
-      w2.nation[0].unknown26[8] = 0;
+      w2.nation[0].indian_hostility_sticky = 0;
       /* human-as-b */
       ai_diplo_declare_war_ctx(&ctx_w2, 1, 0);
       if (pop_w2.queue_count != 1) {
@@ -2344,8 +2422,8 @@ int main(void) {
       w3.indian[i].alarm_by_player[1] = 0; /* relation 100 */
       w3.indian[i].euro_diplo[1] |= COL1_INDIAN_MET_BIT;
     }
-    w3.nation[0].unknown26[8] = 0;
-    w3.nation[1].unknown26[8] = 0;
+    w3.nation[0].indian_hostility_sticky = 0;
+    w3.nation[1].indian_hostility_sticky = 0;
     {
       const char* labels[] = {"Accept", "Refuse"};
       const int ids[] = {1, 2};
@@ -2406,7 +2484,11 @@ int main(void) {
     }
     snprintf(cp.player[0].country_name, sizeof(cp.player[0].country_name), "England");
     snprintf(cp.player[1].country_name, sizeof(cp.player[1].country_name), "France");
-    cp.nation[1].gold = 2000; /* self score ≫ human's 0 → 10ec eligible */
+    /* self ≫ other on the DS:0x941c mirror (smell #51: the score no longer
+     * blends treasury, so state the strength gap where it actually lives). */
+    cp.stuff.land_combat_strength[1] = 100;
+    cp.stuff.land_combat_strength[0] = 0;
+    cp.nation[1].gold = 2000;
     for (int i = 0; i < 8; ++i) {
       cp.indian[i].alarm_by_player[0] = 0; /* relation 100 */
       cp.indian[i].euro_diplo[0] |= COL1_INDIAN_MET_BIT;
@@ -2474,7 +2556,7 @@ int main(void) {
       ns.indian[i].alarm_by_player[0] = 20; /* relation 80 */
       ns.indian[i].euro_diplo[0] |= COL1_INDIAN_MET_BIT;
     }
-    ns.nation[0].unknown26[8] = 1; /* at-war sticky → deepen to 2 on sync */
+    ns.nation[0].indian_hostility_sticky = 1; /* at-war sticky → deepen to 2 on sync */
     ns.nation[0].gold = 40;
     char status_ns[128];
     status_ns[0] = '\0';

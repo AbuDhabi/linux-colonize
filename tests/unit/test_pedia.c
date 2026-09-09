@@ -177,6 +177,70 @@ int main(void) {
     return 1;
   }
 
+  /*
+   * Caret prefixes follow DOS FUN_6f74_0c32: "^^" = flag 1 (centred own line),
+   * a single "^" = flag 2 (own line, LEFT-aligned) — the brace that follows a
+   * heading caret says nothing about alignment.
+   */
+  {
+    const char* rest = NULL;
+    struct {
+      const char* line;
+      int flags;
+      const char* rest;
+    } cases[] = {
+      {"^{Adam Smith (1723-1790)}", PEDIA_CARET_OWN_LINE, "{Adam Smith (1723-1790)}"},
+      {"^", PEDIA_CARET_OWN_LINE, ""},
+      {"^^Centred", PEDIA_CARET_CENTER, "Centred"},
+      {"^^{Centred heading}", PEDIA_CARET_CENTER, "{Centred heading}"},
+      {"Ordinary prose.", 0, "Ordinary prose."},
+      {"{brace} but no caret", 0, "{brace} but no caret"},
+    };
+    for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); ++i) {
+      const int got = pedia_caret_flags(cases[i].line, &rest);
+      if (got != cases[i].flags || strcmp(rest, cases[i].rest) != 0) {
+        fprintf(
+          stderr,
+          "caret '%s' expected flags=%d rest='%s' got flags=%d rest='%s'\n",
+          cases[i].line,
+          cases[i].flags,
+          cases[i].rest,
+          got,
+          rest
+        );
+        assets_msg_free(&catalog);
+        assets_msg_free(&names);
+        return 1;
+      }
+    }
+    /* Shipped PEDIA.TXT carries only single carets, so no heading centres. */
+    int caret_rows = 0;
+    int centred_rows = 0;
+    for (int s = 0; s < catalog.section_count; ++s) {
+      const ColonizeMsgSection* sec = &catalog.sections[s];
+      for (int i = 0; i < sec->line_count; ++i) {
+        const int f = pedia_caret_flags(sec->lines[i], NULL);
+        if (f != 0) {
+          caret_rows++;
+        }
+        if (f == PEDIA_CARET_CENTER) {
+          centred_rows++;
+        }
+      }
+    }
+    if (caret_rows == 0 || centred_rows != 0) {
+      fprintf(
+        stderr,
+        "PEDIA.TXT caret rows=%d centred=%d (expected many, none centred)\n",
+        caret_rows,
+        centred_rows
+      );
+      assets_msg_free(&catalog);
+      assets_msg_free(&names);
+      return 1;
+    }
+  }
+
   char title[PEDIA_TITLE_LEN];
   if (!pedia_entry_title(&catalog, &names, PEDIA_CAT_CARGO, 0, title, sizeof(title)) ||
       strstr(title, "FOOD") == NULL) {

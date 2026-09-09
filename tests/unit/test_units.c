@@ -2688,8 +2688,460 @@ static int unit_1b0e_resolve_handicaps(void) {
   return rc;
 }
 
+/*
+ * LIVE path for the colony-tile tail's defender arm (raw 100557-100564).
+ * DOS rolls `iVar23 = FUN_281f_04d4(1, local_a8 + local_92)` (raw 100571)
+ * AFTER the tail bumped local_a8, so the +(4 − difficulty) * 4 must reach the
+ * resolvers' own `total`, not just the helper's blob — the port used to copy
+ * back `er.atk_strength` alone and the defence bonus died in the callee.
+ *
+ * Driven at Conquistador (difficulty 2), where blocks A/B/C are all silent
+ * and only the tail can move a number, with rng == NULL so the outcome is the
+ * plain `atk >= def` comparison: the attacker's type attack byte is tuned
+ * until its final strength straddles the tail's +8, then the identical fight
+ * is resolved with the bonus armed (defender must win) and disarmed (attacker
+ * must win). Land and naval, since DOS's single resolver covers both.
+ */
+static int unit_1b0e_defender_bonus_live(void) {
+  ColonizeMsgCatalog names;
+  assets_msg_init(&names);
+  char names_path[512];
+  if (!dos_compat_normalize_asset_path("COLONIZE", "NAMES.TXT", names_path, sizeof(names_path)) ||
+      !assets_msg_load_file(&names, names_path)) {
+    fprintf(stderr, "1b0e-def-live: NAMES.TXT load failed\n");
+    return 1;
+  }
+  ColonizeUnitPool pool;
+  memset(&pool, 0, sizeof(pool));
+  if (!units_load_types(&pool, &names)) {
+    fprintf(stderr, "1b0e-def-live: units_load_types failed\n");
+    assets_msg_free(&names);
+    return 1;
+  }
+  assets_msg_free(&names);
+  const int soldier = units_find_type(&pool, "Soldiers");
+  const int frigate = units_find_type(&pool, "Frigate");
+  if (soldier < 0 || frigate < 0) {
+    fprintf(stderr, "1b0e-def-live: types missing (%d/%d)\n", soldier, frigate);
+    return 1;
+  }
+
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  map.width = 8;
+  map.height = 8;
+  map.tile_count = 64;
+  map.terrain = calloc(64, 1);
+  map.layer2 = calloc(64, 1);
+  map.layer3 = calloc(64, 1);
+  if (!map.terrain || !map.layer2 || !map.layer3) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return 1;
+  }
+  for (int i = 0; i < 64; ++i) {
+    map.terrain[i] = 2; /* plains */
+  }
+  units_set_occupancy_map(&map);
+
+  /* Defended tile (5,5) carries the colony; DOS reads the record, not the map. */
+  ColonizeColonyPool cols;
+  colonies_init(&cols);
+  colonies_set_occupancy_map(NULL);
+  ColonizeColony* col = &cols.colonies[0];
+  col->id = 0;
+  col->active = true;
+  col->nation_id = 0;
+  col->x = 5;
+  col->y = 5;
+  col->population = 3;
+  col->colonist_count = 3;
+  cols.colony_count = 1;
+  units_set_combat_colonies(&cols);
+
+  /* Zeroed control bytes read as human on all four Euro slots — spell them. */
+  ColonizeCol1Save c1;
+  memset(&c1, 0, sizeof(c1));
+  memset(c1.head.founding_father, 0xff, sizeof(c1.head.founding_father));
+  c1.player[0].control = 0; /* human — the defender's nation */
+  c1.player[1].control = 1; /* AI attacker */
+  c1.player[2].control = 1;
+  c1.player[3].control = 1;
+  c1.head.difficulty = 2; /* outside `0x53a6 < 2`: only the tail is live */
+  c1.head.turn = 10;
+  c1.head.game_options.woi = 0;
+  c1.stuff.colony_counts[0] = 2; /* keep tail(a)'s last-colony shield out */
+  units_set_ff_col1(&c1);
+  units_set_combat_human_nation(-1);
+
+  ColonizeCombatStrengthCtx ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.units = &pool;
+  ctx.map = &map;
+  ctx.colonies = &cols;
+  ctx.col1 = &c1;
+
+  int rc = 0;
+  for (int is_naval = 0; is_naval <= 1 && rc == 0; ++is_naval) {
+    const int type = is_naval ? frigate : soldier;
+    const char* label = is_naval ? "naval" : "land";
+
+    /*
+     * Same fixture, same seeds, twice: colony_pop_totals 6 (>> 1 = 3 <= the
+     * colony's 3 colonists, so the tail pays +(4 - 2) * 4 = +8) and 100
+     * (50 > 3, silent). The bump widens the roll's `local_a8 + local_92`
+     * range and moves the win line, so the two runs MUST disagree on at
+     * least one seed and the armed run must not win more often. With the
+     * bonus stranded in the callee both runs are bit-identical.
+     */
+    int wins[2] = {0, 0};
+    int differed = 0;
+    for (int s = 0; s < 256 && rc == 0; ++s) {
+      /* Spread the seeds: tiny seeds leave the DOS LCG degenerate for its
+       * first draws and every fight would come out the same way. */
+      const int seed = 12345 + s * 7919;
+      bool won[2] = {false, false};
+      for (int i = 0; i < 2 && rc == 0; ++i) {
+        c1.stuff.colony_pop_totals[0] = (uint8_t)(i == 0 ? 6 : 100);
+        const int aid = units_spawn_allow_stack(&pool, type, 4, 5);
+        const int did = units_spawn_allow_stack(&pool, type, 5, 5);
+        if (aid < 0 || did < 0) {
+          fprintf(stderr, "1b0e-def-live [%s]: spawn failed\n", label);
+          rc = 1;
+          break;
+        }
+        units_get(&pool, aid)->nation_id = 1;
+        units_get(&pool, did)->nation_id = 0;
+        ColonizeDosRng rng;
+        dos_rng_seed(&rng, seed);
+        won[i] = is_naval ? units_resolve_naval_combat_ff(&pool, aid, did, &rng, &c1)
+                          : units_resolve_land_combat_ff(&pool, aid, did, &rng, &c1);
+        wins[i] += won[i] ? 1 : 0;
+        units_despawn(&pool, aid);
+        units_despawn(&pool, did);
+      }
+      if (rc == 0 && won[0] != won[1]) {
+        ++differed;
+      }
+    }
+    if (rc == 0 && differed == 0) {
+      fprintf(
+        stderr,
+        "1b0e-def-live [%s]: +8 defence never changed an outcome over 256 seeds — "
+        "the colony-tail bump is not reaching the resolver's roll\n",
+        label
+      );
+      rc = 1;
+    }
+    if (rc == 0 && wins[0] > wins[1]) {
+      fprintf(
+        stderr,
+        "1b0e-def-live [%s]: armed bonus won MORE attacks (%d) than the disarmed "
+        "run (%d) — sign of the bump is wrong\n",
+        label,
+        wins[0],
+        wins[1]
+      );
+      rc = 1;
+    }
+  }
+
+  c1.stuff.colony_pop_totals[0] = 0;
+  c1.stuff.colony_counts[0] = 0;
+  units_set_ff_col1(NULL);
+  units_set_combat_colonies(NULL);
+  units_set_occupancy_map(NULL);
+  free(map.terrain);
+  free(map.layer2);
+  free(map.layer3);
+  if (rc == 0) {
+    fprintf(stderr, "unit_units: 1b0e colony-tail defence bonus reaches the roll ok\n");
+  }
+  return rc;
+}
+
+/*
+ * Smell audit 2026-09-09, units/combat batch (#4, #6, #7, #8, #12, #13).
+ * Everything here runs on synthetic rosters/pools on purpose — the point of
+ * several of these fixes is that a Linux pool index is NOT a DOS @UNIT id.
+ */
+static void audit_type(
+  ColonizeUnitType* t, const char* name, int mv, int atk, int def, ColonizeUnitDomain dom
+) {
+  memset(t, 0, sizeof(*t));
+  snprintf(t->name, sizeof(t->name), "%s", name);
+  t->movement = mv;
+  t->attack = atk;
+  t->defense = def;
+  t->domain = dom;
+}
+
+static int unit_smell_audit_2026_09_09(void) {
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  map.width = 8;
+  map.height = 8;
+  map.tile_count = 64;
+  map.terrain = calloc(64, 1);
+  map.layer2 = calloc(64, 1);
+  map.layer3 = calloc(64, 1);
+  if (!map.terrain || !map.layer2 || !map.layer3) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return 1;
+  }
+  for (int i = 0; i < 64; ++i) {
+    map.terrain[i] = 2; /* plains — every tile is land */
+  }
+  units_set_occupancy_map(&map);
+
+  ColonizeCol1Save col1;
+  memset(&col1, 0, sizeof(col1));
+  memset(col1.head.founding_father, 0xff, sizeof(col1.head.founding_father));
+  col1.head.difficulty = 2;
+  col1.player[0].control = 0; /* human */
+  col1.player[1].control = 1; /* AI */
+  units_set_ff_col1(&col1);
+  units_set_combat_human_nation(0);
+
+  int rc = 0;
+
+  /*
+   * #8 — the Brave-vs-human-Artillery auto-loss must key on the @UNIT NAME
+   * family, not on a raw pool index. Here Braves sits at 0 and Artillery at 1,
+   * so the old `type_index == 0x13 && == 0x0b` test could never fire.
+   */
+  {
+    ColonizeUnitPool pool;
+    memset(&pool, 0, sizeof(pool));
+    audit_type(&pool.types[0], "Braves", 1, 1, 1, COLONIZE_UNIT_DOMAIN_LAND);
+    audit_type(&pool.types[1], "Artillery", 1, 7, 5, COLONIZE_UNIT_DOMAIN_LAND);
+    audit_type(&pool.types[2], "Armed Braves", 1, 2, 2, COLONIZE_UNIT_DOMAIN_LAND);
+    pool.type_count = 3;
+
+    int armed_wins = 0;
+    for (int seed = 1; seed <= 40 && rc == 0; ++seed) {
+      const int aid = units_spawn_allow_stack(&pool, 0, 4, 5);
+      const int did = units_spawn_allow_stack(&pool, 1, 5, 5);
+      units_get(&pool, aid)->nation_id = 4;
+      units_get(&pool, did)->nation_id = 0;
+      ColonizeDosRng rng;
+      dos_rng_seed(&rng, seed);
+      if (units_resolve_land_combat_ff(&pool, aid, did, &rng, &col1)) {
+        fprintf(stderr,
+                "audit#8: seed %d — plain Brave beat HUMAN Artillery on a shuffled roster\n",
+                seed);
+        rc = 1;
+      }
+      units_despawn(&pool, aid);
+      units_despawn(&pool, did);
+
+      if (rc == 0) {
+        /* Armed Braves (DOS 0x14) is outside the latch: the roll must decide. */
+        const int aid2 = units_spawn_allow_stack(&pool, 2, 4, 6);
+        const int did2 = units_spawn_allow_stack(&pool, 1, 5, 6);
+        units_get(&pool, aid2)->nation_id = 4;
+        units_get(&pool, did2)->nation_id = 0;
+        ColonizeDosRng rng2;
+        dos_rng_seed(&rng2, seed);
+        if (units_resolve_land_combat_ff(&pool, aid2, did2, &rng2, &col1)) {
+          ++armed_wins;
+        }
+        units_despawn(&pool, aid2);
+        units_despawn(&pool, did2);
+      }
+    }
+    if (rc == 0 && armed_wins == 0) {
+      fprintf(stderr, "audit#8: Armed Braves never won in 40 rolls — latch is too wide\n");
+      rc = 1;
+    }
+    if (rc == 0) {
+      fprintf(stderr, "unit_units: audit#8 brave/artillery auto-loss is name-matched ok\n");
+    }
+  }
+
+  /*
+   * #13 — FUN_5fef_0000's domain gate reads the SCANNED TILE's
+   * ocean_or_high_seas bit (its `param_2` is the first unit standing on the
+   * target tile, raw 100353-100354), not the attacker's own ship-ness. A land
+   * tile is defended by land units even against a warship attacking out of a
+   * harbour berth; a water tile is defended by ships only.
+   * #12 rides along: the armed tier ranks a musket-carrying colonist BODY.
+   */
+  if (rc == 0) {
+    ColonizeUnitPool pool;
+    memset(&pool, 0, sizeof(pool));
+    audit_type(&pool.types[0], "Privateer", 8, 8, 4, COLONIZE_UNIT_DOMAIN_SEA);
+    audit_type(&pool.types[1], "Caravel", 4, 0, 2, COLONIZE_UNIT_DOMAIN_SEA);
+    audit_type(&pool.types[2], "Colonists", 1, 0, 1, COLONIZE_UNIT_DOMAIN_LAND);
+    pool.type_count = 3;
+
+    const int atk = units_spawn_allow_stack(&pool, 0, 3, 4); /* berthed: land tile */
+    const int hull = units_spawn_allow_stack(&pool, 1, 4, 4);
+    const int body = units_spawn_allow_stack(&pool, 2, 4, 4);
+    units_get(&pool, atk)->nation_id = 0;
+    units_get(&pool, hull)->nation_id = 1;
+    units_get(&pool, body)->nation_id = 1;
+    units_get(&pool, body)->muskets = 50; /* colony-armed colonist body */
+
+    /* Target tile is LAND: the armed body defends, the moored hull is out of
+     * domain — even though the attacker is a ship. */
+    const int pick = units_best_defender_at(&pool, &col1, 4, 4, atk, atk);
+    if (pick != body) {
+      fprintf(stderr,
+              "audit#13: land target tile picked %d, want the armed body %d "
+              "(hull %d must be out of domain)\n",
+              pick, body, hull);
+      rc = 1;
+    }
+    if (rc == 0) {
+      /* Same stack on a WATER tile: now only the hull is in domain. */
+      map.terrain[4 * 8 + 4] = 25; /* ocean class on the target tile */
+      const int sea_pick = units_best_defender_at(&pool, &col1, 4, 4, atk, atk);
+      map.terrain[4 * 8 + 4] = 2;
+      if (sea_pick != hull) {
+        fprintf(stderr, "audit#13: water target tile picked %d, want hull %d\n", sea_pick, hull);
+        rc = 1;
+      }
+    }
+    if (rc == 0) {
+      fprintf(stderr, "unit_units: audit#13 defender domain gate reads the target tile ok\n");
+    }
+    units_despawn(&pool, atk);
+    units_despawn(&pool, hull);
+    units_despawn(&pool, body);
+  }
+
+  /*
+   * #4 — entry seizure takes the non-combat LAND bystanders only. A berthed
+   * foreign Caravel (attack 0, no capture/demote row) used to be despawned
+   * outright while an armed hull was left alone.
+   */
+  if (rc == 0) {
+    ColonizeUnitPool pool;
+    memset(&pool, 0, sizeof(pool));
+    audit_type(&pool.types[0], "Soldiers", 1, 2, 2, COLONIZE_UNIT_DOMAIN_LAND);
+    audit_type(&pool.types[1], "Colonists", 1, 0, 1, COLONIZE_UNIT_DOMAIN_LAND);
+    audit_type(&pool.types[2], "Caravel", 4, 0, 2, COLONIZE_UNIT_DOMAIN_SEA);
+    pool.type_count = 3;
+
+    const int win = units_spawn_allow_stack(&pool, 0, 4, 4);
+    const int civ = units_spawn_allow_stack(&pool, 1, 4, 4);
+    const int hull = units_spawn_allow_stack(&pool, 2, 4, 4);
+    units_set_nation(units_get(&pool, win), 0);
+    units_set_nation(units_get(&pool, civ), 1);
+    units_set_nation(units_get(&pool, hull), 1);
+
+    units_seize_noncombat_at(&pool, win, 4, 4, &col1);
+
+    const ColonizeUnit* h = units_get(&pool, hull);
+    const ColonizeUnit* c = units_get(&pool, civ);
+    if (!h || !h->active || h->nation_id != 1) {
+      fprintf(stderr, "audit#4: berthed Caravel must survive a colony capture untouched\n");
+      rc = 1;
+    } else if (!c || !c->active || c->nation_id != 0) {
+      fprintf(stderr, "audit#4: civilian bystander should have been seized (nation=%d)\n",
+              c && c->active ? c->nation_id : -1);
+      rc = 1;
+    }
+    if (rc == 0) {
+      fprintf(stderr, "unit_units: audit#4 entry seizure spares hulls, takes civilians ok\n");
+    }
+    units_despawn(&pool, win);
+    units_despawn(&pool, civ);
+    units_despawn(&pool, hull);
+  }
+
+  /*
+   * #6 / #7 — moves_left holds REMAINING for Euro units but the DOS SPENT
+   * byte for natives, so park/restore must go through the spent-aware
+   * helpers. A raw `= 0` park hands a Brave a FULL allotment.
+   */
+  if (rc == 0) {
+    ColonizeUnitPool pool;
+    memset(&pool, 0, sizeof(pool));
+    audit_type(&pool.types[0], "Braves", 1, 1, 1, COLONIZE_UNIT_DOMAIN_LAND);
+    pool.type_count = 1;
+
+    const int bid = units_spawn_allow_stack(&pool, 0, 4, 4);
+    ColonizeUnit* b = units_get(&pool, bid);
+    b->nation_id = 4;
+    b->moves_left = 0; /* native: nothing spent = full allotment */
+    const int full = units_remaining_mp(&pool, bid);
+    if (full <= 0) {
+      fprintf(stderr, "audit#6: fresh Brave should read a full allotment, got %d\n", full);
+      rc = 1;
+    }
+    if (rc == 0 && !units_set_orders(&pool, bid, UNITS_ORDER_SENTRY)) {
+      fprintf(stderr, "audit#6: Sentry refused\n");
+      rc = 1;
+    }
+    if (rc == 0 && units_remaining_mp(&pool, bid) != 0) {
+      fprintf(stderr, "audit#6: parked Brave still has %d MP (raw moves_left=%d)\n",
+              units_remaining_mp(&pool, bid), units_get(&pool, bid)->moves_left);
+      rc = 1;
+    }
+    if (rc == 0) {
+      units_get(&pool, bid)->park_nights = 1; /* stood there overnight */
+      (void)units_wake(&pool, bid);
+      if (units_remaining_mp(&pool, bid) != full) {
+        fprintf(stderr, "audit#6: woken Brave has %d MP, want %d\n",
+                units_remaining_mp(&pool, bid), full);
+        rc = 1;
+      }
+    }
+    if (rc == 0) {
+      /* #7: the village phantom is spawned native and must not be able to
+       * act — under spent semantics that is moves_left = max, not 0. */
+      ColonizeCol1Tribe tribe;
+      memset(&tribe, 0, sizeof(tribe));
+      tribe.x = 6;
+      tribe.y = 6;
+      tribe.nation_id = 4;
+      ColonizeCol1Save vcol1;
+      memset(&vcol1, 0, sizeof(vcol1));
+      memset(vcol1.head.founding_father, 0xff, sizeof(vcol1.head.founding_father));
+      vcol1.head.tribe_count = 1;
+      vcol1.tribe = &tribe;
+      const int atk = units_spawn_allow_stack(&pool, 0, 5, 6);
+      units_get(&pool, atk)->nation_id = 0;
+      const int ph = units_spawn_village_temp_defender(&pool, &vcol1, 6, 6, 4, atk);
+      if (ph < 0) {
+        fprintf(stderr, "audit#7: village temp defender not spawned\n");
+        rc = 1;
+      } else if (units_remaining_mp(&pool, ph) != 0) {
+        fprintf(stderr, "audit#7: phantom has %d MP left (raw moves_left=%d)\n",
+                units_remaining_mp(&pool, ph), units_get(&pool, ph)->moves_left);
+        rc = 1;
+      }
+      if (ph >= 0) {
+        units_despawn(&pool, ph);
+      }
+      units_despawn(&pool, atk);
+      units_set_ff_col1(&col1);
+    }
+    if (rc == 0) {
+      fprintf(stderr, "unit_units: audit#6/#7 native park/restore are spent-aware ok\n");
+    }
+    units_despawn(&pool, bid);
+  }
+
+  units_set_occupancy_map(NULL);
+  units_set_ff_col1(NULL);
+  free(map.terrain);
+  free(map.layer2);
+  free(map.layer3);
+  return rc;
+}
+
 int main(void) {
   diag_init(0, NULL);
+
+  if (unit_smell_audit_2026_09_09() != 0) {
+    return 1;
+  }
 
   if (unit_flood_river_pair_step() != 0) {
     return 1;
@@ -2751,6 +3203,10 @@ int main(void) {
     return 1;
   }
   if (unit_1b0e_resolve_handicaps() != 0) {
+    diag_shutdown();
+    return 1;
+  }
+  if (unit_1b0e_defender_bonus_live() != 0) {
     diag_shutdown();
     return 1;
   }
@@ -3744,8 +4200,10 @@ int main(void) {
       assets_msg_free(&names);
       return 1;
     }
-    if (map_move_cost_at(&tmap, fx, fy) != 1) {
-      fprintf(stderr, "roaded forest cost expected 1 got %d\n", map_move_cost_at(&tmap, fx, fy));
+    /* Single-tile query has no `from` tile, so the FA road pair cannot apply:
+     * DOS 465b's cost head never discounts on the destination alone. */
+    if (map_move_cost_at(&tmap, fx, fy) != 2) {
+      fprintf(stderr, "roaded forest cost expected 2 got %d\n", map_move_cost_at(&tmap, fx, fy));
       map_free(&tmap);
       map_free(&map);
       assets_msg_free(&names);
@@ -3957,7 +4415,7 @@ int main(void) {
     /* Town commons: plains → food + cotton; forest → food + furs (not lumber). */
     {
       ColonizeTownCommonsYield tc;
-      colony_yield_town_commons(&tmap, px, py, 0, 0, 2, &tc);
+      colony_yield_town_commons(&tmap, px, py, 0, 2, &tc);
       if (tc.food <= 0 || tc.secondary_cargo != COLONIZE_CARGO_COTTON) {
         fprintf(
           stderr,
@@ -3971,7 +4429,7 @@ int main(void) {
         assets_msg_free(&names);
         return 1;
       }
-      colony_yield_town_commons(&tmap, fx, fy, 0, 0, 2, &tc);
+      colony_yield_town_commons(&tmap, fx, fy, 0, 2, &tc);
       if (tc.food <= 0 || tc.secondary_cargo != COLONIZE_CARGO_FURS) {
         fprintf(
           stderr,
@@ -5708,10 +6166,13 @@ int main(void) {
     fprintf(stderr, "unit_units: coastal fort naval fire ok\n");
   }
 
-  /* LCR rumour: clear + de Soto reveal path. */
+  /* LCR rumour: clear + de Soto reveal path. AMER2's rumour nearest the
+   * old (8,14) fixture moved to (9,15) on 2026-09-09 when
+   * map_procedural_rumour_at dropped the unverified +1 coordinate bias its
+   * resource-hash sibling had already lost (smell_audit #98). */
   {
-    if (!map_tile_has_rumour(&map, 8, 14)) {
-      fprintf(stderr, "AMER2 (8,14) expected procedural rumour\n");
+    if (!map_tile_has_rumour(&map, 9, 15)) {
+      fprintf(stderr, "AMER2 (9,15) expected procedural rumour\n");
       return 1;
     }
     ColonizeCol1Save lcol1;
@@ -5721,7 +6182,7 @@ int main(void) {
       fprintf(stderr, "Scout type missing for LCR smoke\n");
       return 1;
     }
-    const int scid = units_spawn_allow_stack(&pool, scout_ti, 8, 14);
+    const int scid = units_spawn_allow_stack(&pool, scout_ti, 9, 15);
     ColonizeUnit* scout = units_get(&pool, scid);
     if (!scout) {
       fprintf(stderr, "LCR scout spawn failed\n");
@@ -5732,7 +6193,7 @@ int main(void) {
       fprintf(stderr, "LCR resolve without de Soto failed\n");
       return 1;
     }
-    if (map_tile_has_rumour(&map, 8, 14)) {
+    if (map_tile_has_rumour(&map, 9, 15)) {
       fprintf(stderr, "LCR rumour should be cleared\n");
       return 1;
     }
@@ -5757,12 +6218,12 @@ int main(void) {
       return 1;
     }
     memcpy(lmap.terrain, map.terrain, n);
-    if (!map_tile_has_rumour(&lmap, 8, 14)) {
-      fprintf(stderr, "LCR fresh map (8,14) expected rumour\n");
+    if (!map_tile_has_rumour(&lmap, 9, 15)) {
+      fprintf(stderr, "LCR fresh map (9,15) expected rumour\n");
       map_free(&lmap);
       return 1;
     }
-    const int scid2 = units_spawn_allow_stack(&pool, scout_ti, 8, 14);
+    const int scid2 = units_spawn_allow_stack(&pool, scout_ti, 9, 15);
     scout = units_get(&pool, scid2);
     scout->nation_id = 0;
     if (!units_resolve_lcr_rumour(&pool, scid2, &lmap, &lcol1, NULL, NULL, -1)) {
@@ -5770,12 +6231,12 @@ int main(void) {
       fprintf(stderr, "LCR resolve with de Soto failed\n");
       return 1;
     }
-    if (map_tile_has_rumour(&lmap, 8, 14)) {
+    if (map_tile_has_rumour(&lmap, 9, 15)) {
       map_free(&lmap);
       fprintf(stderr, "de Soto LCR rumour not cleared\n");
       return 1;
     }
-    if (!map_tile_seen_by(&lmap, 8, 14, 0)) {
+    if (!map_tile_seen_by(&lmap, 9, 15, 0)) {
       map_free(&lmap);
       fprintf(stderr, "de Soto LCR should reveal scout tile\n");
       return 1;
@@ -7436,6 +7897,258 @@ int main(void) {
       units_set_ff_col1(NULL);
       units_set_combat_human_nation(-1);
       fprintf(stderr, "unit_units: undefended colony token militia ok\n");
+    }
+
+    /*
+     * smell_audit 2026-09-09 #2 — the militia / Paul Revere phantom is DOS's
+     * scratch @UNIT row 0x17 (built by FUN_291f_0a20 = FUN_478c_002c, raw
+     * 76545-76564) and FUN_5fef_1b0e deletes it with FUN_291f_0a06 at raw
+     * 100636-100639, BEFORE the win/lose branch:
+     *
+     *   if (bVar28) { FUN_291f_0a06(0x281f); }
+     *   if (bVar8) { ... if (bVar28) { town consequences } else { 0352 } }
+     *
+     * So the phantom never reaches FUN_5fef_0352 — no @COLONISTCAPTURE, no
+     * @DEMOTE, no nation flip — and never reaches FUN_5fef_172c, whose
+     * opening `type byte == 1 || type byte == 4` gate a 0x17 row fails
+     * before FUN_281f_04d4, so a phantom that WINS draws no promotion RNG.
+     */
+    {
+      const int mil_sol = units_find_type(&pool, "Soldiers");
+      const int mil_atk_ty = units_find_type(&pool, "Dragoons");
+      /*
+       * Half 2's attacker must lose without any 0352 chrome of its OWN, or
+       * the popup assertion cannot tell the attacker's legitimate @DEMOTE
+       * from a phantom one: Artillery takes the damaged bit and @ARTILLERY
+       * (tag COMBAT_SHIP), never CAPTURE/DEMOTE.
+       */
+      const int mil_loser_ty = units_find_type(&pool, "Artillery");
+      if (mil_sol < 0 || mil_atk_ty < 0 || mil_loser_ty < 0) {
+        fprintf(stderr, "militia-phantom types missing\n");
+        return 1;
+      }
+      ColonizeColonyPool mcols;
+      colonies_init(&mcols);
+      colonies_set_occupancy_map(NULL);
+      if (!colonies_load_names(&mcols, "COLONIZE/COLONY.TXT") ||
+          !colonies_load_buildings(&mcols, &names)) {
+        fprintf(stderr, "militia-phantom colonies init failed\n");
+        return 1;
+      }
+      int mx = -1, my = -1, mcid = -1;
+      for (int y = (int)map.height / 2; y < (int)map.height - 4 && mcid < 0; ++y) {
+        for (int x = 3; x < (int)map.width - 4 && mcid < 0; ++x) {
+          if (!map_tile_is_land(&map, x, y) || !map_tile_is_land(&map, x + 1, y)) {
+            continue;
+          }
+          const int cand =
+            colonies_found(&mcols, &map, x + 1, y, 1, -1, UNITS_JOB_NONE, 0, 0, 0);
+          if (cand >= 0) {
+            mx = x + 1;
+            my = y;
+            mcid = cand;
+          }
+        }
+      }
+      ColonizeColony* mcol = mcid >= 0 ? colonies_get_mut(&mcols, mcid) : NULL;
+      if (!mcol) {
+        fprintf(stderr, "militia-phantom found colony failed\n");
+        return 1;
+      }
+      /* Shared pool: purge survivors parked on the two tiles under test. */
+      for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+        const ColonizeUnit* u = &pool.units[i];
+        if (u->active && u->y == my && (u->x == mx || u->x == mx - 1)) {
+          (void)units_despawn(&pool, u->id);
+        }
+      }
+      mcol->nation_id = 1;
+      mcol->population = 2;
+      mcol->colonist_count = 2;
+      mcol->colonists[0].active = true;
+      mcol->colonists[1].active = true;
+
+      ColonizeCol1Save mc1;
+      memset(&mc1, 0, sizeof(mc1));
+      for (int i = 0; i < (int)COLONIZE_COL1_FF_COUNT; ++i) {
+        mc1.head.founding_father[i] = -1; /* zeroed = "nation 0 owns them all" */
+      }
+      mc1.player[0].control = 0; /* human attacker */
+      mc1.player[1].control = 1;
+      mc1.head.difficulty = 3; /* off the Discoverer beginner shield */
+      mc1.head.turn = 200;
+
+      units_set_ff_col1(&mc1);
+      units_set_combat_human_nation(0);
+      units_set_occupancy_map(&map);
+      units_set_combat_popups(&pops, NULL);
+
+      /*
+       * Half 1 — attacker WINS: the phantom must not be captured or demoted,
+       * and neither popup may be enqueued. NULL rng makes the roll
+       * deterministic (strength compare) and keeps every promotion path shut,
+       * so a COMBAT_CAPTURE / COMBAT_DEMOTE entry could only come from the
+       * phantom's own 0352 tail.
+       */
+      pool.types[mil_atk_ty].attack = 8;
+      pool.types[mil_atk_ty].defense = 1;
+      pool.types[mil_sol].attack = 2;
+      pool.types[mil_sol].defense = 2;
+      ai_popup_clear(&pops);
+      const int mil_aid = units_spawn(&pool, mil_atk_ty, mx - 1, my);
+      ColonizeUnit* mil_a = units_get(&pool, mil_aid);
+      if (!mil_a) {
+        fprintf(stderr, "militia-phantom attacker spawn failed\n");
+        return 1;
+      }
+      mil_a->nation_id = 0;
+      mil_a->moves_left = 5 * UNITS_MP_PER_TILE;
+      (void)units_try_move(&pool, mil_aid, &map, mx, my, &mcols, NULL);
+      if (units_last_combat_outcome() <= 0) {
+        fprintf(
+          stderr,
+          "militia-phantom attacker should beat the token militia (enter=%d combat=%d)\n",
+          (int)units_last_enter_reason(),
+          units_last_combat_outcome()
+        );
+        units_set_ff_col1(NULL);
+        return 1;
+      }
+      for (int i = 0; i < pops.queue_count; ++i) {
+        if (pops.queue[i].tag == AI_POPUP_TAG_COMBAT_CAPTURE ||
+            pops.queue[i].tag == AI_POPUP_TAG_COMBAT_DEMOTE) {
+          fprintf(
+            stderr,
+            "militia-phantom: 0352 popup on the scratch 0x17 row (tag=%d body=[%s])\n",
+            (int)pops.queue[i].tag,
+            pops.queue[i].body
+          );
+          units_set_ff_col1(NULL);
+          return 1;
+        }
+      }
+      (void)units_despawn(&pool, mil_aid);
+
+      /*
+       * Half 2 — the PHANTOM wins. Arm it through Revere (FF 12 + muskets >
+       * 0x31) so it spawns as the Soldiers body whose profession/kit would
+       * otherwise satisfy units_promote_on_win; DOS's 172c type-byte gate
+       * rejects it before FUN_281f_04d4, so the engagement must consume
+       * exactly ONE draw — the combat roll itself.
+       */
+      mcol = colonies_get_mut(&mcols, mcid);
+      mcol->nation_id = 1; /* half 1 flipped it — hand the town back */
+      mcol->population = 2;
+      mcol->colonist_count = 2;
+      mcol->colonists[0].active = true;
+      mcol->colonists[1].active = true;
+      mcol->stock[COLONIZE_CARGO_MUSKETS] = 100;
+      mc1.nation[1].founding_fathers[FF_PAUL_REVERE / 8] |=
+        (uint8_t)(1u << (FF_PAUL_REVERE % 8));
+      pool.types[mil_loser_ty].attack = 1;
+      pool.types[mil_loser_ty].defense = 1;
+      /* The phantom's own row: 2/2 in DOS, floored up here so the roll lands
+       * on the defender for most seeds — the branch under test is the tail,
+       * not the odds. */
+      pool.types[mil_sol].defense = 60;
+
+      int mil_seed = -1;
+      int mil_draws = -1;
+      for (uint32_t seed = 1; seed <= 400 && mil_seed < 0; ++seed) {
+        for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+          const ColonizeUnit* u = &pool.units[i];
+          if (u->active && u->y == my && (u->x == mx || u->x == mx - 1)) {
+            (void)units_despawn(&pool, u->id);
+          }
+        }
+        /* A previous iteration may have taken the town — hand it back. */
+        mcol = colonies_get_mut(&mcols, mcid);
+        mcol->nation_id = 1;
+        mcol->population = 2;
+        mcol->colonist_count = 2;
+        mcol->colonists[0].active = true;
+        mcol->colonists[1].active = true;
+        mcol->stock[COLONIZE_CARGO_MUSKETS] = 100;
+        const int lid = units_spawn(&pool, mil_loser_ty, mx - 1, my);
+        ColonizeUnit* la = units_get(&pool, lid);
+        if (!la) {
+          fprintf(stderr, "militia-phantom loser spawn failed\n");
+          return 1;
+        }
+        la->nation_id = 0;
+        la->moves_left = 5 * UNITS_MP_PER_TILE;
+        ai_popup_clear(&pops);
+        ColonizeDosRng mrng;
+        dos_rng_seed(&mrng, seed);
+        const uint32_t start_state = mrng.state;
+        (void)units_try_move(&pool, lid, &map, mx, my, &mcols, &mrng);
+        if (units_last_combat_outcome() >= 0) {
+          if (units_get(&pool, lid)) {
+            (void)units_despawn(&pool, lid);
+          }
+          continue; /* attacker survived/won — not the case under test */
+        }
+        /* Count LCG advances: the stream is a pure state machine. */
+        ColonizeDosRng replay;
+        replay.state = start_state;
+        int steps = -1;
+        for (int k = 0; k <= 32; ++k) {
+          if (replay.state == mrng.state) {
+            steps = k;
+            break;
+          }
+          (void)dos_rng_next(&replay);
+        }
+        mil_seed = (int)seed;
+        mil_draws = steps;
+        if (units_get(&pool, lid)) {
+          (void)units_despawn(&pool, lid);
+        }
+      }
+      if (mil_seed < 0) {
+        fprintf(stderr, "militia-phantom: no seed made the phantom win\n");
+        units_set_ff_col1(NULL);
+        return 1;
+      }
+      if (mil_draws != 1) {
+        fprintf(
+          stderr,
+          "militia-phantom: seed %d consumed %d RNG draws, expected 1 "
+          "(combat roll only — 172c must not roll for a 0x17 row)\n",
+          mil_seed,
+          mil_draws
+        );
+        units_set_ff_col1(NULL);
+        return 1;
+      }
+      for (int i = 0; i < pops.queue_count; ++i) {
+        if (pops.queue[i].tag == AI_POPUP_TAG_COMBAT_CAPTURE ||
+            pops.queue[i].tag == AI_POPUP_TAG_COMBAT_DEMOTE) {
+          fprintf(
+            stderr,
+            "militia-phantom: winning phantom produced a 0352/172c popup (tag=%d body=[%s])\n",
+            (int)pops.queue[i].tag,
+            pops.queue[i].body
+          );
+          units_set_ff_col1(NULL);
+          return 1;
+        }
+      }
+      for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+        const ColonizeUnit* u = &pool.units[i];
+        if (u->active && u->x == mx && u->y == my) {
+          fprintf(stderr, "militia-phantom: phantom must not survive the roll\n");
+          units_set_ff_col1(NULL);
+          return 1;
+        }
+      }
+
+      ai_popup_clear(&pops);
+      units_set_ff_col1(NULL);
+      units_set_combat_human_nation(-1);
+      fprintf(
+        stderr, "unit_units: militia phantom bypasses 0352/172c ok (seed %d)\n", mil_seed
+      );
     }
 
     /*

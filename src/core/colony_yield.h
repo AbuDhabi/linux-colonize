@@ -37,8 +37,12 @@ int colony_yield_for_tile(const ColonizeWorldMap* map, int x, int y, int field_j
  * DOS. `sol_bonus`: colony_prod_sol_bonus_field (signed; 0 to skip).
  * `colony_flags`: the colony's ColonizeColony.colony_flags (SOL_50/
  * SOL_100 latch bits; 0 if not a matching Farmer/Fisherman expert, or if
- * the caller has no colony context — colony_yield_for_tile passes 0). See
- * colony_yield_pipeline's comment in colony_yield.c and
+ * the caller has no colony context — colony_yield_for_tile passes 0).
+ * `has_hudson`: whether the colony's OWNER nation has Henry Hudson (@FF 8);
+ * doubles a Fur Trapper yield at DOS's own position (after the improvement
+ * stack, BEFORE Convert +1 and before the Tory subtraction — 11970-11973),
+ * which is why it is a pipeline argument and not a caller-side `*= 2` (smell
+ * audit #60). See colony_yield_pipeline's comment in colony_yield.c and
  * docs/terrain_yields.md for the full step order and its player-data
  * derivation.
  */
@@ -50,7 +54,8 @@ int colony_yield_for_worker(
   int profession,
   bool has_docks,
   int sol_bonus,
-  uint8_t colony_flags
+  uint8_t colony_flags,
+  bool has_hudson
 );
 
 /* Display name for field @JOB (static string). */
@@ -58,10 +63,11 @@ const char* colony_yield_job_name(int field_job);
 
 /*
  * Town commons (colony center): always food + one other commodity.
- * Food base = flat +2 regardless of terrain, folds `sol_bonus` directly
- * (signed, floor 0). Secondary = terrain base, no flat road add, folds
- * `colony_flags`' SoL *latch* bits only (+1 SOL_50, +1 SOL_100 — up to
- * +2), not the general signed sol_bonus. Both asm-confirmed 2026-08-18
+ * Food = the FUN_15eb_1f72 class split + difficulty handout + plow + special
+ * + the SoL *latch* bits. Secondary = terrain base, no flat road add, folds
+ * the same `colony_flags` SoL latch bits only (+1 SOL_50, +1 SOL_100 — up to
+ * +2). Neither side reads the general signed sol_bonus (it was a dead
+ * parameter here until 2026-09-09, smell audit #69). Both asm-confirmed 2026-08-18
  * against FUN_15eb_1f72 (viceroy_unpacked.c ~12474, the real town-commons
  * composer, previously undiscovered — "peel pending" in terrain_yields.md):
  * secondary is `table_lookup(pedia,job) + resource_effect + river(0/1/2,
@@ -88,7 +94,6 @@ void colony_yield_town_commons(
   const ColonizeWorldMap* map,
   int x,
   int y,
-  int sol_bonus,
   uint8_t colony_flags,
   int difficulty,
   ColonizeTownCommonsYield* out

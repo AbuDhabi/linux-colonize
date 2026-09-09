@@ -1,3 +1,4 @@
+#include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -11,6 +12,7 @@
 #include "core/europe.h"
 #include "core/founding_fathers.h"
 #include "core/map.h"
+#include "core/savegame.h"
 #include "core/units.h"
 #include "platform/diagnostics.h"
 
@@ -818,7 +820,7 @@ int main(void) {
         return 1;
       }
       if (!col1_bridge_capture(&cap, &map, &units, &colonies, &europe, br.year, br.autumn,
-                               br.turn_number, br.human_nation, br.cursor_x, br.cursor_y,
+                               br.turn_number, br.human_nation, br.cursor_x, br.cursor_y, br.view_x, br.view_y,
                                units.selected_id, err, sizeof(err))) {
         fprintf(stderr, "recapture failed %s: %s\n", fix->path, err);
         return 1;
@@ -912,7 +914,7 @@ int main(void) {
           return 1;
         }
         if (!col1_bridge_capture(&cap, &map, &units, &colonies, &europe, br.year, br.autumn,
-                                 br.turn_number, br.human_nation, br.cursor_x, br.cursor_y,
+                                 br.turn_number, br.human_nation, br.cursor_x, br.cursor_y, br.view_x, br.view_y,
                                  units.selected_id, err, sizeof(err))) {
           fprintf(stderr, "COLONY06 bound capture failed: %s\n", err);
           return 1;
@@ -1051,7 +1053,7 @@ int main(void) {
     memset(&europe, 0, sizeof(europe));
     europe.cargo_count = 16;
     if (!col1_bridge_capture(
-          &save, &map, &units, &colonies, &europe, 1492, 0, 1, 0, fx, fy, -1, err, sizeof(err)
+          &save, &map, &units, &colonies, &europe, 1492, 0, 1, 0, fx, fy, fx, fy, -1, err, sizeof(err)
         )) {
       fprintf(stderr, "building roundtrip: capture: %s\n", err);
       col1_save_free(&save);
@@ -1246,6 +1248,8 @@ int main(void) {
           br.human_nation,
           br.cursor_x,
           br.cursor_y,
+          br.view_x,
+          br.view_y,
           units.selected_id,
           err,
           sizeof(err)
@@ -1367,7 +1371,7 @@ int main(void) {
     memset(&europe, 0, sizeof(europe));
     europe.cargo_count = 16;
     if (!col1_bridge_capture(
-          &save, &map, &units, &colonies, &europe, 1492, 0, 1, 0, 10, 12, uid, err, sizeof(err)
+          &save, &map, &units, &colonies, &europe, 1492, 0, 1, 0, 10, 12, 10, 12, uid, err, sizeof(err)
         )) {
       fprintf(stderr, "newgame export: capture: %s\n", err);
       units_set_occupancy_map(NULL);
@@ -1543,7 +1547,7 @@ int main(void) {
         }
       }
       if (!col1_bridge_capture(
-            &save, &map, &units, &colonies, &europe, 1492, 0, 1, 0, 40, 30, ship_id, err,
+            &save, &map, &units, &colonies, &europe, 1492, 0, 1, 0, 40, 30, 40, 30, ship_id, err,
             sizeof(err)
           )) {
         fprintf(stderr, "fleet export: capture: %s\n", err);
@@ -1824,7 +1828,7 @@ int main(void) {
     memset(&europe, 0, sizeof(europe));
     europe.cargo_count = 16;
     if (!col1_bridge_capture(
-          &save, &map, &units, &colonies, &europe, 1492, 0, 1, 0, 20, 20, ship_id, err,
+          &save, &map, &units, &colonies, &europe, 1492, 0, 1, 0, 20, 20, 20, 20, ship_id, err,
           sizeof(err)
         )) {
       fprintf(stderr, "dock-garrison: capture: %s\n", err);
@@ -2240,7 +2244,7 @@ int main(void) {
     europe.recruit_count = 9;
     if (!col1_bridge_capture(
           &save, &map, &units, &colonies, &europe, br.year, br.autumn, br.turn_number,
-          br.human_nation, br.cursor_x, br.cursor_y, -1, err, sizeof(err)
+          br.human_nation, br.cursor_x, br.cursor_y, br.view_x, br.view_y, -1, err, sizeof(err)
         )) {
       fprintf(stderr, "recruit_count roundtrip: capture: %s\n", err);
       col1_save_free(&save);
@@ -2347,7 +2351,7 @@ int main(void) {
     memset(&europe, 0, sizeof(europe));
     europe.cargo_count = 16;
     if (!col1_bridge_capture(
-          &save, &map, &units, &colonies, &europe, 1492, 0, 1, 0, 20, 20, wagon, err, sizeof(err)
+          &save, &map, &units, &colonies, &europe, 1492, 0, 1, 0, 20, 20, 20, 20, wagon, err, sizeof(err)
         )) {
       fprintf(stderr, "trade-route cursor: capture: %s\n", err);
       units_set_occupancy_map(NULL);
@@ -2450,6 +2454,269 @@ int main(void) {
   }
 
   /*
+   * Two file-driven decoder bounds, both on raw bytes an untrusted save can
+   * carry (smell audit #72/#73):
+   *
+   *  - the trade-route cursor's low nibble spans 0..15 but only 12 routes
+   *    exist, and the capture side writes UNITS_JOB_NONE (0x1c, low nibble
+   *    12) into the profession byte of a route unit whose slot went stale —
+   *    so nibbles 12..15 must decode to "no route", never index
+   *    trade_route[] past its end;
+   *  - a human ship docked in Europe must honor holds_occupied like every
+   *    other hold decoder (savegame.md "Ship holds_occupied = goods only");
+   *    the slots past it keep stale bytes from goods unloaded earlier and
+   *    used to surface as phantom cargo in the harbor UI.
+   */
+  {
+    ColonizeMsgCatalog names;
+    assets_msg_init(&names);
+    if (!assets_msg_load_file(&names, "COLONIZE/NAMES.TXT")) {
+      fprintf(stderr, "decoder bounds: NAMES.TXT load failed\n");
+      return 1;
+    }
+    ColonizeWorldMap map;
+    memset(&map, 0, sizeof(map));
+    if (!map_alloc(&map, COLONIZE_COL1_MAP_W_STD, COLONIZE_COL1_MAP_H_STD, err, sizeof(err))) {
+      fprintf(stderr, "decoder bounds: map_alloc: %s\n", err);
+      assets_msg_free(&names);
+      return 1;
+    }
+    for (size_t i = 0; i < map.tile_count; ++i) {
+      map.terrain[i] = 1; /* land */
+    }
+    ColonizeCol1Save save;
+    if (!col1_bridge_init_template(&save, map.width, map.height, err, sizeof(err))) {
+      fprintf(stderr, "decoder bounds: template: %s\n", err);
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    /* Slot 0 is a live land route so a valid cursor still decodes; the
+     * nibbles under test (12..15) point past trade_route[] entirely. */
+    save.head.trade_route_count = 1;
+    snprintf(save.trade_route[0].name, sizeof(save.trade_route[0].name), "%s", "Loop");
+    save.trade_route[0].sea = 0;
+    save.trade_route[0].dest_count = 2;
+    save.trade_route[0].stop[0].colony_index = 0;
+    save.trade_route[0].stop[1].colony_index = 1;
+
+    ColonizeUnitPool units;
+    memset(&units, 0, sizeof(units));
+    units_reset(&units);
+    units_set_occupancy_map(NULL);
+    if (!units_load_types(&units, &names)) {
+      fprintf(stderr, "decoder bounds: unit types failed\n");
+      col1_save_free(&save);
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    units_set_occupancy_map(&map);
+    const int wagon_t = units_find_type(&units, "Wagon Train");
+    const int galleon_t = units_find_type(&units, "Galleon");
+    if (wagon_t != 0x0c || galleon_t != 0x0f) {
+      fprintf(stderr, "decoder bounds: pool types wagon=%d galleon=%d (want 12/15)\n",
+              wagon_t, galleon_t);
+      units_set_occupancy_map(NULL);
+      col1_save_free(&save);
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    /* Capture allocates the record array; the raw bytes under test are then
+     * written straight into it (a hand-edited or older save's contents). */
+    const int stray_x[4] = {20, 22, 24, 26};
+    const int stray_y = 20;
+    for (int k = 0; k < 4; ++k) {
+      const int id = units_spawn(&units, wagon_t, stray_x[k], stray_y);
+      ColonizeUnit* u = units_get(&units, id);
+      if (!u) {
+        fprintf(stderr, "decoder bounds: wagon spawn %d failed\n", k);
+        units_set_occupancy_map(NULL);
+        col1_save_free(&save);
+        map_free(&map);
+        assets_msg_free(&names);
+        return 1;
+      }
+      u->nation_id = 0;
+      u->orders = UNITS_ORDER_NONE;
+    }
+    const int ship_id = units_spawn(&units, galleon_t, 30, 20);
+    ColonizeUnit* shu = units_get(&units, ship_id);
+    if (!shu) {
+      fprintf(stderr, "decoder bounds: ship spawn failed\n");
+      units_set_occupancy_map(NULL);
+      col1_save_free(&save);
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    shu->nation_id = 0;
+
+    ColonizeColonyPool colonies;
+    colonies_init(&colonies);
+    colonies_set_occupancy_map(NULL);
+    EuropeScreen europe;
+    memset(&europe, 0, sizeof(europe));
+    europe.cargo_count = 16;
+    if (!col1_bridge_capture(
+          &save, &map, &units, &colonies, &europe, 1492, 0, 1, 0, 20, 20, 20, 20, -1, err, sizeof(err)
+        )) {
+      fprintf(stderr, "decoder bounds: capture: %s\n", err);
+      units_set_occupancy_map(NULL);
+      col1_save_free(&save);
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    if (save.head.unit_count < 5) {
+      fprintf(stderr, "decoder bounds: unit_count %u (want >= 5)\n",
+              (unsigned)save.head.unit_count);
+      units_set_occupancy_map(NULL);
+      col1_save_free(&save);
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    /* Stamp the raw records: four land units on trade-route orders whose
+     * cursor nibble is out of range, and the Galleon parked in the Europe
+     * dock lane (228 + human nation; 232/244 + n are the Bound/Expected
+     * sentinels) with one real hold and five stale ones. */
+    int stamped = 0;
+    bool ship_stamped = false;
+    for (uint16_t i = 0; i < save.head.unit_count; ++i) {
+      ColonizeCol1Unit* r = &save.unit[i];
+      if (r->y != (uint8_t)stray_y) {
+        continue;
+      }
+      for (int k = 0; k < 4; ++k) {
+        if (r->x == (uint8_t)stray_x[k]) {
+          r->orders = (uint8_t)UNITS_ORDER_TRADE_ROUTE;
+          r->profession = (uint8_t)(((k & 0x0f) << 4) | (12 + k)); /* nibble 12..15 */
+          stamped++;
+        }
+      }
+      if (r->x == 30) {
+        r->type = 15; /* Galleon: the 13..18 ship band the lane decoder wants */
+        r->nation_id = 0;
+        r->x = 228; /* dock lane */
+        r->y = 0;
+        r->orders = 0;
+        r->profession = 0;
+        r->holds_occupied = 1;
+        r->cargo_item_0 = 4;
+        r->cargo_item_1 = 5;
+        r->cargo_item_2 = 6;
+        r->cargo_item_3 = 7;
+        r->cargo_item_4 = 8;
+        r->cargo_item_5 = 9;
+        r->cargo_hold[0] = 60;
+        r->cargo_hold[1] = 11; /* stale bytes past holds_occupied */
+        r->cargo_hold[2] = 22;
+        r->cargo_hold[3] = 33;
+        r->cargo_hold[4] = 44;
+        r->cargo_hold[5] = 55;
+        ship_stamped = true;
+      }
+    }
+    if (stamped != 4 || !ship_stamped) {
+      fprintf(stderr, "decoder bounds: stamped %d wagons ship=%d\n", stamped, (int)ship_stamped);
+      units_set_occupancy_map(NULL);
+      col1_save_free(&save);
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+
+    ColonizeUnitPool units2;
+    memset(&units2, 0, sizeof(units2));
+    units_reset(&units2);
+    units_set_occupancy_map(NULL);
+    if (!units_load_types(&units2, &names)) {
+      fprintf(stderr, "decoder bounds: unit types (2) failed\n");
+      col1_save_free(&save);
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    ColonizeColonyPool colonies2;
+    colonies_init(&colonies2);
+    colonies_set_occupancy_map(NULL);
+    EuropeScreen europe2;
+    memset(&europe2, 0, sizeof(europe2));
+    europe2.cargo_count = 16;
+    ColonizeWorldMap map2;
+    memset(&map2, 0, sizeof(map2));
+    ColonizeCol1BridgeResult br2;
+    if (!col1_bridge_apply(&save, &map2, &units2, &colonies2, &europe2, &br2, err, sizeof(err))) {
+      fprintf(stderr, "decoder bounds: apply: %s\n", err);
+      units_set_occupancy_map(NULL);
+      col1_save_free(&save);
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    int rc = 0;
+    int seen = 0;
+    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+      const ColonizeUnit* u = units_get_const(&units2, i);
+      if (!u || !u->active || u->y != stray_y) {
+        continue;
+      }
+      bool is_stray = false;
+      for (int k = 0; k < 4; ++k) {
+        if (u->x == stray_x[k]) {
+          is_stray = true;
+        }
+      }
+      if (!is_stray) {
+        continue;
+      }
+      seen++;
+      if (u->orders != UNITS_ORDER_NONE || u->follow_unit_id != -1) {
+        fprintf(stderr,
+                "decoder bounds: out-of-range route nibble kept the order at x=%d "
+                "(orders=%d route=%d)\n",
+                u->x, u->orders, u->follow_unit_id);
+        rc = 1;
+      }
+    }
+    if (seen != 4) {
+      fprintf(stderr, "decoder bounds: %d of 4 stray wagons came back\n", seen);
+      rc = 1;
+    }
+    if (europe2.harbor_ships != 1) {
+      fprintf(stderr, "decoder bounds: harbor_ships %d (want 1)\n", europe2.harbor_ships);
+      rc = 1;
+    } else {
+      const EuropeHarborShip* hs = &europe2.harbor[0];
+      if (hs->hold_goods_amount[0] != 60 || hs->hold_goods_type[0] != 4) {
+        fprintf(stderr, "decoder bounds: docked hold 0 = %d x type %d (want 60 x 4)\n",
+                hs->hold_goods_amount[0], hs->hold_goods_type[0]);
+        rc = 1;
+      }
+      for (int h = 1; h < EUROPE_SHIP_CARGO_MAX; ++h) {
+        if (hs->hold_goods_amount[h] != 0 || hs->hold_goods_type[h] != 0) {
+          fprintf(stderr,
+                  "decoder bounds: docked ship imported stale hold %d (%d x type %d) past "
+                  "holds_occupied=1\n",
+                  h, hs->hold_goods_amount[h], hs->hold_goods_type[h]);
+          rc = 1;
+        }
+      }
+    }
+    units_set_occupancy_map(NULL);
+    map_free(&map2);
+    map_free(&map);
+    col1_save_free(&save);
+    assets_msg_free(&names);
+    if (rc != 0) {
+      return 1;
+    }
+    fprintf(stderr, "col1 decoder bounds (route nibble / docked holds) ok\n");
+  }
+
+  /*
    * Wagon village-errand latch (DOS +0x3158 = unit_index*0x1c + 0x3158, unit
    * array base DS:0x3144 → COL1 record +0x14 = ColonizeCol1Unit.cargo_hold[4])
    * must round-trip: a wagon the 20e6 load matrix put on a village errand
@@ -2539,7 +2806,7 @@ int main(void) {
     memset(&europe, 0, sizeof(europe));
     europe.cargo_count = 16;
     if (!col1_bridge_capture(
-          &save, &map, &units, &colonies, &europe, 1492, 0, 1, 0, 20, 20, -1, err, sizeof(err)
+          &save, &map, &units, &colonies, &europe, 1492, 0, 1, 0, 20, 20, 20, 20, -1, err, sizeof(err)
         )) {
       fprintf(stderr, "wagon errand latch: capture: %s\n", err);
       col1_save_free(&save);
@@ -2660,6 +2927,554 @@ int main(void) {
       return 1;
     }
     fprintf(stderr, "wagon village-errand latch survives the col1 bridge both ways ok\n");
+  }
+
+  /*
+   * moves_spent (+0x05) for exhausted Euro LAND units — smell #75.
+   *
+   * DOS clears DS:0x3149 only at the top of a calendar tick (year_loop
+   * mid-pass), never when a nation's day ends, so a save taken while the
+   * human is in Move Pieces carries live spent bytes: valid-lategame
+   * COLONY02 (human = Dutch, nation 3) has AI nation 1 holding 11 Dragoons
+   * at 12 thirds and 7 Soldiers at 3 — each unit's full allotment — while
+   * the human's own unmoved units sit at 0. Exporting 0 for an exhausted
+   * land unit refunded a whole turn of movement on save+reload.
+   *
+   * Sentry/Fortified held from a previous night are the one legitimate 0:
+   * turn.c zeroes moves_left as a "skip this unit" flag, and units_wake
+   * hands the allotment back (park_nights > 0).
+   */
+  {
+    ColonizeMsgCatalog names;
+    assets_msg_init(&names);
+    if (!assets_msg_load_file(&names, "COLONIZE/NAMES.TXT")) {
+      fprintf(stderr, "moves_spent export: NAMES.TXT load failed\n");
+      return 1;
+    }
+    ColonizeWorldMap map;
+    memset(&map, 0, sizeof(map));
+    if (!map_alloc(&map, COLONIZE_COL1_MAP_W_STD, COLONIZE_COL1_MAP_H_STD, err, sizeof(err))) {
+      fprintf(stderr, "moves_spent export: map_alloc: %s\n", err);
+      assets_msg_free(&names);
+      return 1;
+    }
+    for (size_t i = 0; i < map.tile_count; ++i) {
+      map.terrain[i] = 1; /* land */
+    }
+    ColonizeCol1Save save;
+    if (!col1_bridge_init_template(&save, map.width, map.height, err, sizeof(err))) {
+      fprintf(stderr, "moves_spent export: template: %s\n", err);
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+
+    ColonizeUnitPool units;
+    memset(&units, 0, sizeof(units));
+    units_reset(&units);
+    units_set_occupancy_map(NULL);
+    if (!units_load_types(&units, &names)) {
+      fprintf(stderr, "moves_spent export: unit types failed\n");
+      col1_save_free(&save);
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    const int colonist_t = units_find_type(&units, "Colonists");
+    const int dragoon_t = units_find_type(&units, "Dragoons");
+    if (colonist_t != 0 || dragoon_t != 4) {
+      fprintf(
+        stderr, "moves_spent export: pool types colonist=%d dragoon=%d (want 0/4)\n",
+        colonist_t, dragoon_t
+      );
+      col1_save_free(&save);
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    const int colonist_mp = units_type_max_mp(units_type(&units, colonist_t));
+    const int dragoon_mp = units_type_max_mp(units_type(&units, dragoon_t));
+    if (colonist_mp != 3 || dragoon_mp != 12) {
+      fprintf(
+        stderr, "moves_spent export: max mp colonist=%d dragoon=%d (want 3/12 thirds)\n",
+        colonist_mp, dragoon_mp
+      );
+      col1_save_free(&save);
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+
+    /* x is the case id; every unit is nation 0 on its own tile. */
+    struct {
+      int x;
+      int type;
+      int orders;
+      int moves_left;
+      uint8_t park_nights;
+      int want_spent;
+      const char* what;
+    } cases[] = {
+      /* Mid-Move-Pieces exhausted: the whole allotment is gone. */
+      {30, 0, UNITS_ORDER_NONE, 0, 0, 3, "exhausted colonist"},
+      {31, 4, UNITS_ORDER_NONE, 0, 0, 12, "exhausted dragoon"},
+      /* Untouched and partly moved keep working as before. */
+      {32, 4, UNITS_ORDER_NONE, 12, 0, 0, "fresh dragoon"},
+      {33, 4, UNITS_ORDER_NONE, 5, 0, 7, "partly moved dragoon"},
+      /* Parks: overnight = 0 (DOS never spent it), same-turn = spent. */
+      {34, 0, UNITS_ORDER_FORTIFIED, 0, 2, 0, "overnight fortified colonist"},
+      {35, 0, UNITS_ORDER_SENTRY, 0, 1, 0, "overnight sentried colonist"},
+      {36, 0, UNITS_ORDER_FORTIFY, 0, 0, 3, "same-turn fortify colonist"},
+      {37, 0, UNITS_ORDER_FORTIFIED, 0, 0, 3, "promotion-night fortified colonist"},
+    };
+    const int case_count = (int)(sizeof(cases) / sizeof(cases[0]));
+    for (int c = 0; c < case_count; ++c) {
+      const int id = units_spawn(&units, cases[c].type, cases[c].x, 20);
+      ColonizeUnit* u = units_get(&units, id);
+      if (!u) {
+        fprintf(stderr, "moves_spent export: spawn failed for %s\n", cases[c].what);
+        col1_save_free(&save);
+        map_free(&map);
+        assets_msg_free(&names);
+        return 1;
+      }
+      u->nation_id = 0;
+      u->orders = cases[c].orders;
+      u->moves_left = cases[c].moves_left;
+      u->park_nights = cases[c].park_nights;
+    }
+
+    ColonizeColonyPool colonies;
+    colonies_init(&colonies);
+    colonies_set_occupancy_map(NULL);
+    EuropeScreen europe;
+    memset(&europe, 0, sizeof(europe));
+    europe.cargo_count = 16;
+    if (!col1_bridge_capture(
+          &save, &map, &units, &colonies, &europe, 1492, 0, 1, 0, 30, 20, 30, 20, -1, err, sizeof(err)
+        )) {
+      fprintf(stderr, "moves_spent export: capture: %s\n", err);
+      col1_save_free(&save);
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+
+    int rc = 0;
+    for (int c = 0; c < case_count; ++c) {
+      const ColonizeCol1Unit* cu = NULL;
+      for (uint16_t i = 0; i < save.head.unit_count; ++i) {
+        if (save.unit[i].x == (uint8_t)cases[c].x && save.unit[i].y == 20) {
+          cu = &save.unit[i];
+          break;
+        }
+      }
+      if (!cu) {
+        fprintf(stderr, "moves_spent export: %s missing from the save\n", cases[c].what);
+        rc = 1;
+        continue;
+      }
+      if ((int)cu->moves != cases[c].want_spent) {
+        fprintf(
+          stderr, "moves_spent export: %s wrote moves=%u want %d\n",
+          cases[c].what, (unsigned)cu->moves, cases[c].want_spent
+        );
+        rc = 1;
+      }
+    }
+    if (rc != 0) {
+      col1_save_free(&save);
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+
+    /* Reload: the exhausted units must come back exhausted, not refunded. */
+    ColonizeUnitPool units2;
+    memset(&units2, 0, sizeof(units2));
+    units_reset(&units2);
+    units_set_occupancy_map(NULL);
+    if (!units_load_types(&units2, &names)) {
+      fprintf(stderr, "moves_spent export: unit types (2) failed\n");
+      col1_save_free(&save);
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    ColonizeColonyPool colonies2;
+    colonies_init(&colonies2);
+    colonies_set_occupancy_map(NULL);
+    EuropeScreen europe2;
+    memset(&europe2, 0, sizeof(europe2));
+    europe2.cargo_count = 16;
+    ColonizeWorldMap map2;
+    memset(&map2, 0, sizeof(map2));
+    ColonizeCol1BridgeResult br2;
+    if (!col1_bridge_apply(&save, &map2, &units2, &colonies2, &europe2, &br2, err, sizeof(err))) {
+      fprintf(stderr, "moves_spent export: apply: %s\n", err);
+      col1_save_free(&save);
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    for (int c = 0; c < case_count; ++c) {
+      const int max_mp = cases[c].type == 4 ? dragoon_mp : colonist_mp;
+      const int want_left = max_mp - cases[c].want_spent;
+      const ColonizeUnit* u = NULL;
+      for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+        const ColonizeUnit* cand = units_get_const(&units2, i);
+        if (cand && cand->active && cand->x == cases[c].x && cand->y == 20) {
+          u = cand;
+          break;
+        }
+      }
+      if (!u) {
+        fprintf(stderr, "moves_spent export: %s lost by apply\n", cases[c].what);
+        rc = 1;
+        continue;
+      }
+      if (u->moves_left != want_left) {
+        fprintf(
+          stderr, "moves_spent export: %s reloaded with moves_left=%d want %d\n",
+          cases[c].what, u->moves_left, want_left
+        );
+        rc = 1;
+      }
+    }
+    units_set_occupancy_map(NULL);
+    map_free(&map2);
+    map_free(&map);
+    col1_save_free(&save);
+    assets_msg_free(&names);
+    if (rc != 0) {
+      return 1;
+    }
+    fprintf(stderr, "exhausted Euro land units export their spent allotment ok\n");
+  }
+
+  /*
+   * Smell audit #76: col1_save_human_nation's failure path used to hand back
+   * head.human_player raw (a uint16 straight out of the file), and
+   * col1_bridge_apply indexes nation[] with it.
+   */
+  {
+    ColonizeCol1Save probe;
+    col1_save_init(&probe);
+    for (int n = 0; n < (int)COLONIZE_COL1_NATION_COUNT; ++n) {
+      probe.player[n].control = 1; /* nobody is the human */
+    }
+    probe.head.human_player = 60000u;
+    const int hn = col1_save_human_nation(&probe);
+    if (hn < 0 || hn >= (int)COLONIZE_COL1_NATION_COUNT) {
+      fprintf(stderr, "human-nation clamp: got %d for human_player=60000\n", hn);
+      return 1;
+    }
+    /* A real slot still wins even without a control==0 row. */
+    probe.head.human_player = 2u;
+    if (col1_save_human_nation(&probe) != 2) {
+      fprintf(stderr, "human-nation: in-range stale field should survive\n");
+      return 1;
+    }
+    /* The control table still outranks a disagreeing head field. */
+    probe.player[3].control = 0;
+    probe.head.human_player = 1u;
+    if (col1_save_human_nation(&probe) != 3) {
+      fprintf(stderr, "human-nation: control table should win\n");
+      return 1;
+    }
+    fprintf(stderr, "human-nation probe clamps out-of-range head.human_player ok\n");
+  }
+
+  /*
+   * Smell audit #78/#79/#80/#81/#70: head idle-state stamps, the cursor vs
+   * camera word pairs, and the building bits a read-modify-write must carry.
+   */
+  {
+    ColonizeMsgCatalog names;
+    assets_msg_init(&names);
+    if (!assets_msg_load_file(&names, "COLONIZE/NAMES.TXT")) {
+      fprintf(stderr, "head-stamp: NAMES.TXT load failed\n");
+      return 1;
+    }
+    ColonizeCol1Save save;
+    col1_save_init(&save);
+    /* A real DOS save whose focus tile and camera centre genuinely differ
+     * (cursor 40,64 vs viewport 43,67) — see the survey in col1_bridge.c. */
+    if (!col1_save_read_file(
+          "original_saves/valid-lategame-saves/COLONY02.SAV", &save, err, sizeof(err)
+        )) {
+      fprintf(stderr, "head-stamp: fixture read: %s\n", err);
+      assets_msg_free(&names);
+      return 1;
+    }
+    if (save.head.colony_count == 0 || !save.colony ||
+        save.stuff.x == save.stuff.viewport_x) {
+      fprintf(stderr, "head-stamp: fixture lacks colonies or a distinct camera\n");
+      col1_save_free(&save);
+      assets_msg_free(&names);
+      return 1;
+    }
+    /* Bits DOS never sets but the decoder honours, plus the unmodelled pad. */
+    const uint8_t probe_cx = save.colony[0].x;
+    const uint8_t probe_cy = save.colony[0].y;
+    save.colony[0].buildings.capitol = 2u;
+    save.colony[0].buildings.town_hall = 5u; /* bit0 set + an upper bit */
+    save.colony[0].buildings.unused05 = 0x2au;
+    save.colony[0].flags.build_complete = 1u;
+
+    ColonizeWorldMap map;
+    memset(&map, 0, sizeof(map));
+    ColonizeUnitPool units;
+    memset(&units, 0, sizeof(units));
+    units_reset(&units);
+    units_set_occupancy_map(NULL);
+    if (!units_load_types(&units, &names)) {
+      fprintf(stderr, "head-stamp: unit types failed\n");
+      col1_save_free(&save);
+      assets_msg_free(&names);
+      return 1;
+    }
+    ColonizeColonyPool colonies;
+    colonies_init(&colonies);
+    if (!colonies_load_buildings(&colonies, &names) ||
+        !colonies_load_names(&colonies, "COLONIZE/COLONY.TXT")) {
+      fprintf(stderr, "head-stamp: colony types failed\n");
+      col1_save_free(&save);
+      assets_msg_free(&names);
+      return 1;
+    }
+    EuropeScreen europe;
+    memset(&europe, 0, sizeof(europe));
+    europe.cargo_count = 16;
+    ColonizeCol1BridgeResult br;
+    memset(&br, 0, sizeof(br));
+    if (!col1_bridge_apply(&save, &map, &units, &colonies, &europe, &br, err, sizeof(err))) {
+      fprintf(stderr, "head-stamp: apply: %s\n", err);
+      col1_save_free(&save);
+      assets_msg_free(&names);
+      return 1;
+    }
+    /* #79: the two DS word pairs import to their own fields. */
+    if (br.cursor_x != (int)save.stuff.x || br.cursor_y != (int)save.stuff.y ||
+        br.view_x != (int)save.stuff.viewport_x || br.view_y != (int)save.stuff.viewport_y) {
+      fprintf(
+        stderr,
+        "cursor/camera import: cursor (%d,%d) view (%d,%d) vs save (%u,%u)/(%u,%u)\n",
+        br.cursor_x, br.cursor_y, br.view_x, br.view_y,
+        (unsigned)save.stuff.x, (unsigned)save.stuff.y,
+        (unsigned)save.stuff.viewport_x, (unsigned)save.stuff.viewport_y
+      );
+      goto head_stamp_fail;
+    }
+    /* #70: the build-complete latch survives import. */
+    if ((colonies.colonies[0].colony_flags & COLONIZE_COLONY_FLAG_BUILD_COMPLETE) == 0) {
+      fprintf(stderr, "build-complete latch lost on import\n");
+      goto head_stamp_fail;
+    }
+    /* Capture with a deliberately different camera and no active unit. */
+    if (!col1_bridge_capture(
+          &save, &map, &units, &colonies, &europe, br.year, br.autumn, br.turn_number,
+          br.human_nation, 11, 12, 40, 41, -1, err, sizeof(err)
+        )) {
+      fprintf(stderr, "head-stamp: capture: %s\n", err);
+      goto head_stamp_fail;
+    }
+    if (save.stuff.x != 11u || save.stuff.y != 12u ||
+        save.stuff.viewport_x != 40u || save.stuff.viewport_y != 41u) {
+      fprintf(
+        stderr,
+        "cursor/camera export conflated: (%u,%u)/(%u,%u)\n",
+        (unsigned)save.stuff.x, (unsigned)save.stuff.y,
+        (unsigned)save.stuff.viewport_x, (unsigned)save.stuff.viewport_y
+      );
+      goto head_stamp_fail;
+    }
+    /* #78: DS:0x5392 < 0 ⇒ View Pieces + no_unit_selected. */
+    if (save.head.active_unit != 0xffffu || save.head.map_mode != 1u ||
+        save.head.no_unit_selected != 1u) {
+      fprintf(
+        stderr,
+        "idle stamp (no active unit): au=%u mode=%u nus=%u\n",
+        (unsigned)save.head.active_unit, (unsigned)save.head.map_mode,
+        (unsigned)save.head.no_unit_selected
+      );
+      goto head_stamp_fail;
+    }
+    /* #80/#81/#70: unmodelled building bits and the latch survive the RMW. */
+    const ColonizeCol1Colony* back = NULL;
+    for (uint16_t ci = 0; ci < save.head.colony_count; ++ci) {
+      if (save.colony[ci].x == probe_cx && save.colony[ci].y == probe_cy) {
+        back = &save.colony[ci];
+        break;
+      }
+    }
+    if (!back) {
+      fprintf(stderr, "buildings RMW: probe colony not re-exported\n");
+      goto head_stamp_fail;
+    }
+    if (back->buildings.capitol != 2u ||
+        (back->buildings.town_hall & 0x6u) != 0x4u ||
+        (back->buildings.town_hall & 0x1u) != 0x1u ||
+        back->buildings.unused05 != 0x2au) {
+      fprintf(
+        stderr,
+        "buildings RMW lost bits: capitol=%u hall=%u unused05=%u\n",
+        (unsigned)back->buildings.capitol,
+        (unsigned)back->buildings.town_hall,
+        (unsigned)back->buildings.unused05
+      );
+      goto head_stamp_fail;
+    }
+    if (back->flags.build_complete != 1u) {
+      fprintf(stderr, "build-complete latch lost on export\n");
+      goto head_stamp_fail;
+    }
+    /* Now with a live active unit: DOS forces Move Pieces and clears the flag. */
+    {
+      int uid = -1;
+      for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+        if (units.units[i].active && units_is_on_map(&units.units[i])) {
+          uid = units.units[i].id;
+          break;
+        }
+      }
+      if (uid < 0) {
+        fprintf(stderr, "head-stamp: no on-map unit in fixture\n");
+        goto head_stamp_fail;
+      }
+      if (!col1_bridge_capture(
+            &save, &map, &units, &colonies, &europe, br.year, br.autumn, br.turn_number,
+            br.human_nation, 11, 12, 40, 41, uid, err, sizeof(err)
+          )) {
+        fprintf(stderr, "head-stamp: capture2: %s\n", err);
+        goto head_stamp_fail;
+      }
+      if (save.head.active_unit == 0xffffu || save.head.map_mode != 0u ||
+          save.head.no_unit_selected != 0u) {
+        fprintf(
+          stderr,
+          "idle stamp (active unit): au=%u mode=%u nus=%u\n",
+          (unsigned)save.head.active_unit, (unsigned)save.head.map_mode,
+          (unsigned)save.head.no_unit_selected
+        );
+        goto head_stamp_fail;
+      }
+    }
+    units_set_occupancy_map(NULL);
+    colonies_set_occupancy_map(NULL);
+    map_free(&map);
+    col1_save_free(&save);
+    assets_msg_free(&names);
+    fprintf(stderr, "head idle stamps + cursor/camera split + buildings RMW ok\n");
+    if (0) {
+head_stamp_fail:
+      units_set_occupancy_map(NULL);
+      colonies_set_occupancy_map(NULL);
+      map_free(&map);
+      col1_save_free(&save);
+      assets_msg_free(&names);
+      return 1;
+    }
+  }
+
+  /*
+   * Smell audit #82: the slot probe must run DOS's own load-time header check
+   * (FUN_7562_0052 -> FUN_2a1f_0d04 -> FUN_75c2_0840), not just the 8-byte
+   * signature — an unloadable file must list as "(EMPTY)", not as a
+   * selectable slot.
+   */
+  {
+    const char* dir = "build/test_slot_probe";
+    ColonizeCol1Save good;
+    col1_save_init(&good);
+    if (!col1_save_read_file("original_saves/COLONY00.SAV", &good, err, sizeof(err))) {
+      fprintf(stderr, "slot probe: fixture read: %s\n", err);
+      return 1;
+    }
+    char path0[512];
+    char path1[512];
+    char path2[512];
+    snprintf(path0, sizeof(path0), "%s/COLONY00.SAV", dir);
+    snprintf(path1, sizeof(path1), "%s/COLONY01.SAV", dir);
+    snprintf(path2, sizeof(path2), "%s/COLONY02.SAV", dir);
+    /* savegame_write_col1 creates the directory; the two corrupted copies go
+     * straight through col1_save_write_file, which stamps nothing. */
+    if (!savegame_write_col1(dir, 0, &good, err, sizeof(err))) {
+      fprintf(stderr, "slot probe: write good: %s\n", err);
+      col1_save_free(&good);
+      return 1;
+    }
+    col1_save_free(&good);
+    /*
+     * The writer always re-stamps a valid head (emit_to_stream ->
+     * col1_save_stamp_head), so the two rejects are byte-patched copies:
+     * one with the version word bumped past DS:0x81a (@LOADOLD/@LOADNOT) and
+     * one with the 0x1A EOF marker cleared.
+     */
+    {
+      FILE* src = fopen(path0, "rb");
+      if (!src) {
+        fprintf(stderr, "slot probe: reopen %s failed\n", path0);
+        return 1;
+      }
+      fseek(src, 0, SEEK_END);
+      const long sz = ftell(src);
+      fseek(src, 0, SEEK_SET);
+      uint8_t* blob = (uint8_t*)malloc((size_t)sz);
+      if (!blob || fread(blob, 1, (size_t)sz, src) != (size_t)sz) {
+        fprintf(stderr, "slot probe: read back %s failed\n", path0);
+        free(blob);
+        fclose(src);
+        return 1;
+      }
+      fclose(src);
+      const size_t ver_off = offsetof(ColonizeCol1Head, save_version);
+      const size_t eof_off = offsetof(ColonizeCol1Head, sig_eof);
+      const uint16_t bad_ver = (uint16_t)(COLONIZE_COL1_SAVE_VERSION + 1u);
+      memcpy(blob + ver_off, &bad_ver, sizeof(bad_ver));
+      FILE* d1 = fopen(path1, "wb");
+      if (!d1 || fwrite(blob, 1, (size_t)sz, d1) != (size_t)sz) {
+        fprintf(stderr, "slot probe: write bad-version failed\n");
+        if (d1) {
+          fclose(d1);
+        }
+        free(blob);
+        return 1;
+      }
+      fclose(d1);
+      const uint16_t good_ver = (uint16_t)COLONIZE_COL1_SAVE_VERSION;
+      memcpy(blob + ver_off, &good_ver, sizeof(good_ver));
+      blob[eof_off] = 0u;
+      FILE* d2 = fopen(path2, "wb");
+      if (!d2 || fwrite(blob, 1, (size_t)sz, d2) != (size_t)sz) {
+        fprintf(stderr, "slot probe: write bad-eof failed\n");
+        if (d2) {
+          fclose(d2);
+        }
+        free(blob);
+        return 1;
+      }
+      fclose(d2);
+      free(blob);
+    }
+
+    ColonizeSaveSlotInfo info;
+    if (!savegame_probe_col1_slot(dir, 0, &info) || !info.occupied) {
+      fprintf(stderr, "slot probe: valid save should be occupied\n");
+      return 1;
+    }
+    if (!savegame_probe_col1_slot(dir, 1, &info) || info.occupied) {
+      fprintf(stderr, "slot probe: bad save_version should list as empty\n");
+      return 1;
+    }
+    if (!savegame_probe_col1_slot(dir, 2, &info) || info.occupied) {
+      fprintf(stderr, "slot probe: missing 0x1A EOF should list as empty\n");
+      return 1;
+    }
+    remove(path0);
+    remove(path1);
+    remove(path2);
+    fprintf(stderr, "slot probe matches FUN_75c2_0840 (sig + EOF + version) ok\n");
   }
 
   diag_shutdown();

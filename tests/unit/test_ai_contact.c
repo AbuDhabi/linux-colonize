@@ -58,7 +58,315 @@ static int apply_trade_offer_choice(
   return price;
 }
 
+/*
+ * FUN_5952_035e war-declare block (ai_contact_colony_tick_war_5952) — the AI
+ * colony tick's `or_both(nation, tribe + 4, 2)` (raw viceroy_unpacked.c:94170-
+ * 94190, far-call args recovered from viceroy_unpacked.asm LAB_5952_0ac6).
+ * Own fixtures, fully memset: the shared main() ones are mutated in place by
+ * the raid/menu blocks and cannot be reused for a strength comparison.
+ */
+static int test_colony_tick_war_5952(void) {
+  ColonizeCol1Save col1;
+  col1_save_init(&col1);
+  col1.head.difficulty = 2;
+  for (int ffi = 0; ffi < (int)COLONIZE_COL1_FF_COUNT; ++ffi) {
+    col1.head.founding_father[ffi] = -1;
+  }
+  col1.head.tribe_count = 1;
+  col1.tribe = calloc(1, sizeof(ColonizeCol1Tribe));
+  if (!col1.tribe) {
+    return fail("5952 war: alloc tribe");
+  }
+  col1.tribe[0].x = 5;
+  col1.tribe[0].y = 5;
+  col1.tribe[0].nation_id = 4;
+  col1.tribe[0].mission = 0xff;
+  col1.tribe[0].population = 4;
+  memset(&col1.indian[0], 0, sizeof(col1.indian[0]));
+  col1.indian[0].euro_diplo[0] = COL1_INDIAN_MET_BIT;
+  col1.indian[0].alarm_by_player[0] = 40; /* > 0x19 alarm floor */
+
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  map.width = 16;
+  map.height = 16;
+  map.tile_count = 256;
+  map.terrain = calloc(256, 1);
+  map.layer2 = calloc(256, 1);
+  map.layer3 = calloc(256, 1);
+  if (!map.terrain || !map.layer2 || !map.layer3) {
+    return fail("5952 war: alloc map");
+  }
+  for (int i = 0; i < 256; ++i) {
+    map.terrain[i] = 1; /* one all-land continent */
+  }
+
+  ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
+  units_reset(&units);
+  units_set_occupancy_map(NULL);
+  units.type_count = 2;
+  snprintf(units.types[0].name, sizeof(units.types[0].name), "Brave");
+  units.types[0].movement = 1;
+  units.types[0].attack = 2; /* combat_unit_base_x8(mode 1) = 16 */
+  units.types[0].defense = 1;
+  snprintf(units.types[1].name, sizeof(units.types[1].name), "Soldier");
+  units.types[1].movement = 1;
+  units.types[1].attack = 2; /* 16 each */
+  units.types[1].defense = 2;
+
+  ColonizeColonyPool colonies;
+  colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
+  ColonizeColony* c = &colonies.colonies[0];
+  c->id = 0;
+  c->active = true;
+  c->nation_id = 0;
+  c->x = 10;
+  c->y = 10;
+  c->population = 3;
+  c->colonist_count = 3;
+  c->building_in_production = -1;
+  colonies.colony_count = 1;
+  colonies.next_id = 1;
+
+  const int brave_id = units_spawn_allow_stack(&units, 0, 5, 5);
+  const int sol_a = units_spawn_allow_stack(&units, 1, 12, 12);
+  const int sol_b = units_spawn_allow_stack(&units, 1, 13, 12);
+  ColonizeUnit* brave = units_get(&units, brave_id);
+  ColonizeUnit* ua = units_get(&units, sol_a);
+  ColonizeUnit* ub = units_get(&units, sol_b);
+  if (!brave || !ua || !ub) {
+    return fail("5952 war: spawn");
+  }
+  brave->nation_id = 4;
+  ua->nation_id = 0;
+  ub->nation_id = 0;
+
+  uint32_t turn = 1;
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.turn_number = &turn;
+  ctx.units = &units;
+  ctx.colonies = &colonies;
+  ctx.map = &map;
+  ctx.col1 = &col1;
+  ctx.col1_ok = true;
+  ctx.rng_seed = 42;
+
+  /* exposed = 32 (two soldiers outside the colony), total = 32 →
+   * lim_a = 64, lim_b = 128; the tribe's single Brave is 16 on both counts,
+   * alarm 40 > 0x19 → DOS declares. */
+  ai_contact_colony_tick_war_5952(&ctx, 0, c->x, c->y);
+  if ((col1.indian[0].euro_diplo[0] & COL1_INDIAN_WAR_BIT) == 0) {
+    return fail("5952 war: or_both must set indian[].euro_diplo WAR bit");
+  }
+  if ((col1.nation[0].relation_by_indian[0] & COL1_INDIAN_WAR_BIT) == 0) {
+    return fail("5952 war: or_both must set the Euro-side relation_by_indian bit too");
+  }
+  if (!ai_diplo_indian_at_war(&col1, 0, 0)) {
+    return fail("5952 war: FUN_5bfb_153e at-war reader should see the bit");
+  }
+
+  /* Alarm floor: <= 0x19 and not Spain → no declaration. */
+  col1.indian[0].euro_diplo[0] = COL1_INDIAN_MET_BIT;
+  col1.nation[0].relation_by_indian[0] = COL1_INDIAN_MET_BIT;
+  col1.indian[0].alarm_by_player[0] = 0x19;
+  ai_contact_colony_tick_war_5952(&ctx, 0, c->x, c->y);
+  if ((col1.indian[0].euro_diplo[0] & COL1_INDIAN_WAR_BIT) != 0) {
+    return fail("5952 war: alarm <= 0x19 must not declare (non-Spain)");
+  }
+  /* Spain (nation 2) skips the alarm floor. Its own colony/units, so the
+   * foreign-presence gate is skipped for it too by DOS. */
+  {
+    c->nation_id = 2;
+    ua->nation_id = 2;
+    ub->nation_id = 2;
+    col1.indian[0].euro_diplo[2] = COL1_INDIAN_MET_BIT;
+    col1.indian[0].alarm_by_player[2] = 0;
+    ai_contact_colony_tick_war_5952(&ctx, 2, c->x, c->y);
+    if ((col1.indian[0].euro_diplo[2] & COL1_INDIAN_WAR_BIT) == 0) {
+      return fail("5952 war: Spain declares with no alarm floor");
+    }
+    c->nation_id = 0;
+    ua->nation_id = 0;
+    ub->nation_id = 0;
+  }
+
+  /* Stronger tribe: 4 more Braves → brave total 80 > lim_a 64 → no war. */
+  col1.indian[0].euro_diplo[0] = COL1_INDIAN_MET_BIT;
+  col1.nation[0].relation_by_indian[0] = COL1_INDIAN_MET_BIT;
+  col1.indian[0].alarm_by_player[0] = 40;
+  int extra[4];
+  for (int i = 0; i < 4; ++i) {
+    extra[i] = units_spawn_allow_stack(&units, 0, 5 + i, 6);
+    ColonizeUnit* b = units_get(&units, extra[i]);
+    if (!b) {
+      return fail("5952 war: spawn extra brave");
+    }
+    b->nation_id = 4;
+  }
+  ai_contact_colony_tick_war_5952(&ctx, 0, c->x, c->y);
+  if ((col1.indian[0].euro_diplo[0] & COL1_INDIAN_WAR_BIT) != 0) {
+    return fail("5952 war: brave total > land_combat_strength<<1 must not declare");
+  }
+  for (int i = 0; i < 4; ++i) {
+    units_despawn(&units, extra[i]);
+  }
+
+  /* Foreign-presence gate (DS:0x95f2 bit 2): a rival's land unit on this
+   * continent sends DOS down the else-arm — appetite cap only, no war. */
+  {
+    const int rival = units_spawn_allow_stack(&units, 1, 2, 2);
+    ColonizeUnit* r = units_get(&units, rival);
+    if (!r) {
+      return fail("5952 war: spawn rival");
+    }
+    r->nation_id = 1;
+    ai_contact_colony_tick_war_5952(&ctx, 0, c->x, c->y);
+    if ((col1.indian[0].euro_diplo[0] & COL1_INDIAN_WAR_BIT) != 0) {
+      return fail("5952 war: foreign Euro unit on the continent must block the declare");
+    }
+    units_despawn(&units, rival);
+  }
+
+  /* Sanity: with the rival gone the same call declares again. */
+  ai_contact_colony_tick_war_5952(&ctx, 0, c->x, c->y);
+  if ((col1.indian[0].euro_diplo[0] & COL1_INDIAN_WAR_BIT) == 0) {
+    return fail("5952 war: declare should resume once the continent is clear");
+  }
+
+  /*
+   * Audit follow-up B — the -0x6a4e exposed row (DS:0x95b2) uses DOS's own
+   * gate (FUN_4962_0018, 4962:022f-026e): a unit only drops out when it
+   * stands on a settlement AND (its nation is human-controlled OR its
+   * ai_plan is 'A'/'G'). The port used to test the ORDERS byte for
+   * FORTIFY/FORTIFIED and to exclude every in-colony unit outright; +0x314b
+   * is ai_plan, +0x314c is orders.
+   */
+  {
+    col1.player[0].control = 1; /* AI-controlled nation 0 */
+
+    /* (a) Fortified in the open still counts. Under the old orders gate both
+     * soldiers dropped out, exposed fell to 0 and the `exposed <= 1` guard
+     * killed the declare outright. */
+    col1.indian[0].euro_diplo[0] = COL1_INDIAN_MET_BIT;
+    col1.nation[0].relation_by_indian[0] = COL1_INDIAN_MET_BIT;
+    col1.indian[0].alarm_by_player[0] = 40;
+    ua->orders = UNITS_ORDER_FORTIFIED;
+    ub->orders = UNITS_ORDER_FORTIFY;
+    ua->col1_ai_plan = 0;
+    ub->col1_ai_plan = 0;
+    ai_contact_colony_tick_war_5952(&ctx, 0, c->x, c->y);
+    if ((col1.indian[0].euro_diplo[0] & COL1_INDIAN_WAR_BIT) == 0) {
+      return fail("5952 war: fortify ORDERS must not empty the exposed row");
+    }
+    ua->orders = UNITS_ORDER_NONE;
+    ub->orders = UNITS_ORDER_NONE;
+
+    /* (b) AI field units standing in their own colony still count. */
+    col1.indian[0].euro_diplo[0] = COL1_INDIAN_MET_BIT;
+    col1.nation[0].relation_by_indian[0] = COL1_INDIAN_MET_BIT;
+    col1.indian[0].alarm_by_player[0] = 40;
+    ua->x = c->x;
+    ua->y = c->y;
+    ub->x = c->x;
+    ub->y = c->y;
+    ai_contact_colony_tick_war_5952(&ctx, 0, c->x, c->y);
+    if ((col1.indian[0].euro_diplo[0] & COL1_INDIAN_WAR_BIT) == 0) {
+      return fail("5952 war: an AI unit inside a colony is still exposed in DOS");
+    }
+
+    /* (c) ai_plan 'A' / 'G' on a settlement tile is the real exclusion. */
+    col1.indian[0].euro_diplo[0] = COL1_INDIAN_MET_BIT;
+    col1.nation[0].relation_by_indian[0] = COL1_INDIAN_MET_BIT;
+    col1.indian[0].alarm_by_player[0] = 40;
+    ua->col1_ai_plan = 0x41u; /* 'A' */
+    ub->col1_ai_plan = 0x47u; /* 'G' */
+    ai_contact_colony_tick_war_5952(&ctx, 0, c->x, c->y);
+    if ((col1.indian[0].euro_diplo[0] & COL1_INDIAN_WAR_BIT) != 0) {
+      return fail("5952 war: garrison ai_plan 'A'/'G' must leave the exposed row");
+    }
+
+    /* (d) Human-controlled nation: never counted on a settlement tile. */
+    ua->col1_ai_plan = 0;
+    ub->col1_ai_plan = 0;
+    col1.player[0].control = 0;
+    col1.indian[0].euro_diplo[0] = COL1_INDIAN_MET_BIT;
+    col1.nation[0].relation_by_indian[0] = COL1_INDIAN_MET_BIT;
+    col1.indian[0].alarm_by_player[0] = 40;
+    ai_contact_colony_tick_war_5952(&ctx, 0, c->x, c->y);
+    if ((col1.indian[0].euro_diplo[0] & COL1_INDIAN_WAR_BIT) != 0) {
+      return fail("5952 war: a human nation's in-colony units never count as exposed");
+    }
+
+    col1.player[0].control = 1;
+    ua->x = 12;
+    ua->y = 12;
+    ub->x = 13;
+    ub->y = 12;
+  }
+
+  free(map.terrain);
+  free(map.layer2);
+  free(map.layer3);
+  free(col1.tribe);
+  col1.tribe = NULL;
+  col1_save_free(&col1);
+  return 0;
+}
+
+/*
+ * Smell #53 — ai_contact_clamp_alarms (reached from
+ * ai_contact_indian_prelude) bands the alarm mirror. It used to allow
+ * 0..200 while FUN_4cc6_00f2 clamps 0..100 on every write and
+ * ai_diplo_indian_alarm clamps 0..100 on every read, so a DOS-authored or
+ * poisoned value in 101..200 was visible to this file's raw readers
+ * (pair_friction, the raid gate) but not to the accessors.
+ */
+static int test_prelude_alarm_band(void) {
+  ColonizeCol1Save col1;
+  col1_save_init(&col1);
+  col1.head.tribe_count = 0;
+  col1.tribe = NULL;
+  memset(&col1.indian[0], 0, sizeof(col1.indian[0]));
+  col1.indian[0].euro_diplo[0] = COL1_INDIAN_MET_BIT;
+  col1.indian[0].alarm_by_player[0] = 150; /* out of band on load */
+  col1.indian[0].alarm_by_player[1] = 90;  /* in band, must not move */
+
+  uint32_t turn = 3;
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.turn_number = &turn;
+  ctx.col1 = &col1;
+  ctx.col1_ok = true;
+
+  ai_contact_indian_prelude(&ctx, 4);
+
+  if (col1.indian[0].alarm_by_player[0] != 100u) {
+    fprintf(
+      stderr,
+      "unit_ai_contact: prelude alarm band %u (want 100)\n",
+      (unsigned)col1.indian[0].alarm_by_player[0]
+    );
+    col1_save_free(&col1);
+    return fail("clamp_alarms must band the mirror at the DOS 0..100 range");
+  }
+  if (col1.indian[0].alarm_by_player[1] != 90u) {
+    col1_save_free(&col1);
+    return fail("clamp_alarms must leave in-band values alone");
+  }
+  col1_save_free(&col1);
+  return 0;
+}
+
 int main(void) {
+  if (test_colony_tick_war_5952() != 0) {
+    return 1;
+  }
+  if (test_prelude_alarm_band() != 0) {
+    return 1;
+  }
   ColonizeCol1Save col1;
   col1_save_init(&col1);
   col1.head.difficulty = 2;
@@ -531,17 +839,20 @@ int main(void) {
   c->x = 5;
   c->y = 5;
 
-  /* Mission pacifies: mission present + low friction → extra −1. */
+  /* Mission present must NOT drip friction/alarm: retired 2026-09-09
+   * (smell #48). DOS's only mission goodwill term is inside FUN_4d56_152e
+   * (euro_relation_accum → 4cc6_00f2 alarm −1 per −8 crossing, attitude
+   * += local_8 * −3); the per-turn −1 here was a second, raw-write copy. */
   col1.tribe[0].mission = 0;
   col1.tribe[0].alarm[0].friction = 12;
   ind->alarm_by_player[0] = 12;
   units_despawn(&units, soldier_id);
   ai_contact_indian_prelude(&ctx, 4);
-  if (col1.tribe[0].alarm[0].friction != 11) {
-    return fail("prelude mission pacify should decay friction by 1");
+  if (col1.tribe[0].alarm[0].friction != 12) {
+    return fail("prelude must not drip mission friction (smell #48)");
   }
-  if (ind->alarm_by_player[0] != 11) {
-    return fail("prelude mission pacify should decay alarm_by_player by 1");
+  if (ind->alarm_by_player[0] != 12) {
+    return fail("prelude must not drip mission alarm_by_player (smell #48)");
   }
 
   /* Relation tick: retired to a no-op — DOS has no per-turn friction drift. */
@@ -811,7 +1122,8 @@ int main(void) {
     miss->y = 5;
     miss->active = true;
     col1.tribe[0].mission = 0xff;
-    /* Floor of mid band: convert −2 → 38; pacify meet skips (<40). */
+    /* Floor of mid band: convert −2 → 38 (the pacify-meet drip that also
+     * used to fire here was retired 2026-09-09, smell #48). */
     col1.tribe[0].alarm[0].friction = 40;
     ind->alarm_by_player[0] = 40;
     col1.indian[0].euro_diplo[0] |= COL1_INDIAN_MET_BIT; /* met (was relation 80; alarm pinned above) */
@@ -1651,8 +1963,9 @@ int main(void) {
   }
 
   /*
-   * Mission pacify deepen (meet pulse): mission owner + mid friction (40..80)
-   * → −2 tribe friction / alarm (prelude low-band −1 unchanged).
+   * The meet-pulse "mission pacify deepen" (−2 in the 40..80 band) was
+   * retired 2026-09-09 (smell #48) together with its prelude −1 twin: DOS
+   * pacifies only through the 152e mission term. Pin the absence.
    */
   {
     col1.tribe[0].mission = 0;
@@ -1662,11 +1975,11 @@ int main(void) {
     euro->x = 10;
     euro->y = 10; /* no adjacent meet/gift side effects */
     ai_contact_indian_meet_trade(&ctx, 4);
-    if (col1.tribe[0].alarm[0].friction != 48) {
-      return fail("meet mission pacify should decay mid friction by 2");
+    if (col1.tribe[0].alarm[0].friction != 50) {
+      return fail("meet pulse must not drip mid friction (smell #48)");
     }
-    if (ind->alarm_by_player[0] != 48) {
-      return fail("meet mission pacify should decay mid alarm_by_player by 2");
+    if (ind->alarm_by_player[0] != 50) {
+      return fail("meet pulse must not drip mid alarm_by_player (smell #48)");
     }
   }
 
@@ -2357,7 +2670,8 @@ int main(void) {
   }
 
   /*
-   * Prelude is clamp + mission-pacify only: the old escalate arm (once-per-
+   * Prelude is clamp-only since the mission-pacify drip went (smell #48):
+   * the old escalate arm (once-per-
    * nation unknown31_flags 0x20 latch, alarm<30 gate, difficulty bump) was
    * invented — no DOS counterpart (4d56_1816 §2 is the WoI defection; the
    * sole DOS alarm grower is the 152e accumulator). Prelude must not touch
@@ -5053,6 +5367,30 @@ int main(void) {
     if (ind->alarm_by_player[0] < 80u) {
       return fail("Attack hostilities should raise alarm to burn band");
     }
+    /*
+     * Smell #50: a raw `alarm_by_player = max(alarm, 80)` floor used to sit
+     * after the +100 delta and stomped FUN_4cc6_00f2's own halving (raw
+     * 80844-80850: France halves, Pocahontas halves again). France starting
+     * at 10 must land on 60, not 80 — the sibling this floor claimed to copy
+     * (ai_contact_apply_welcome_reject) floors tribe FRICTION, not this word.
+     */
+    {
+      col1.indian[0].euro_diplo[1] = (uint8_t)(COL1_INDIAN_MET_BIT | COL1_INDIAN_PEACE_BIT);
+      col1.indian[0].alarm_by_player[1] = 10;
+      ai_contact_village_open_hostilities(&ctx, 4, 1);
+      if (col1.indian[0].alarm_by_player[1] != 60u) {
+        fprintf(
+          stderr,
+          "unit_ai_contact: France hostilities alarm %u (want 60)\n",
+          (unsigned)col1.indian[0].alarm_by_player[1]
+        );
+        return fail("open hostilities must keep the French +100 halving");
+      }
+      /* The tribe-friction floor of 80 is the DOS-sibling write and stays. */
+      if (col1.tribe[0].alarm[1].friction < 80u) {
+        return fail("open hostilities should still floor tribe friction at 80");
+      }
+    }
     fprintf(stderr, "unit_ai_contact: village 4528 raid warn ok\n");
     ctx.ai_popups = NULL;
     ctx.status = NULL;
@@ -5813,6 +6151,22 @@ int main(void) {
     ctx.rng = saved_rng;
     if (again) {
       return fail("gift visit should not repeat while its cooldown stands");
+    }
+    /*
+     * Smell #58: the module's cross-game statics (pending reparations offer +
+     * these absolute-turn cooldown stamps) had no reset hook, so they carried
+     * into the next new game. ai_contact_reset is now called from
+     * ai_init_new_game beside ai_goals_reset; after it the same visit is
+     * eligible again.
+     */
+    ai_contact_reset();
+    dos_rng_seed(&gift_rng, 7u);
+    ctx.rng = &gift_rng;
+    col1.indian[0].contact_state[0] = 0;
+    const int after_reset = ai_contact_try_village_gifts(&ctx, 4);
+    ctx.rng = saved_rng;
+    if (!after_reset) {
+      return fail("ai_contact_reset should clear the gift cooldown for a new game");
     }
     units_despawn(&units, gift_brave);
     for (int cg = 0; cg < COLONIZE_CARGO_COUNT; ++cg) {

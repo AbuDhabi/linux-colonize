@@ -1219,6 +1219,7 @@ bool ai_init_new_game(const AiNewGameParams* params, char* err, size_t err_size)
 
   ai_goals_reset();
   founding_fathers_reset();
+  ai_contact_reset(); /* pending reparations offer + per-tribe cooldowns (#58) */
 
   if (!ai_setup_col1_template(params, err, err_size)) {
     return false;
@@ -2670,7 +2671,16 @@ static int ai_indian_152e_spawn_brave(
   }
   u->nation_id = (int)t->nation_id;
   u->home_tribe_id = tribe_index; /* DOS +0x314a, stamped by 152e itself. */
-  u->moves_left = 0; /* DOS +0x3149 = 0: created spent, acts next turn. */
+  /*
+   * DOS +0x3149 = 0. Careful: for a native unit `moves_left` carries DOS
+   * SPENT-thirds semantics (turn.c:186 sets natives to 0 at every refresh,
+   * decomp ~6357), so 0 means "nothing spent" — the fresh Brave is free to
+   * act on the turn it is born, which is what DOS does. The old comment here
+   * read it with European remaining-MP polarity and claimed the opposite
+   * ("created spent, acts next turn"); the code was right, the comment was a
+   * trap (smell #55, 2026-09-09).
+   */
+  u->moves_left = 0;
   u->turns_worked = 0;
   return id;
 }
@@ -3112,11 +3122,19 @@ static void ai_indian_152e_village_growth(
       }
       ind->euro_relation_accum[mission_nation] =
         (int8_t)(ind->euro_relation_accum[mission_nation] + local_8);
-      int atti = (int)t->alarm[mission_nation].friction + local_8 * -3;
+      /*
+       * DOS reads/writes settlement+0xa+e*2 as a whole signed int16 here too
+       * (raw 81490-81496: `*piVar1 = *piVar1 + local_8 * -3;` then clamp at
+       * 0) — same word the threat arm below maintains. Touching only the low
+       * `friction` byte made the mission relief a no-op once the word passed
+       * 255: friction bottomed at 0 while the attacks high byte held the
+       * value up. Fixed 2026-09-09 (smell #45).
+       */
+      int atti = col1_tribe_attitude(t, mission_nation) + local_8 * -3;
       if (atti < 0) {
         atti = 0;
       }
-      t->alarm[mission_nation].friction = (uint8_t)atti;
+      col1_tribe_attitude_set(t, mission_nation, atti);
     }
     if (threat_nation >= 0) {
       int local_c = threat_score << (capital_mult ? 1 : 0);
@@ -3137,16 +3155,27 @@ static void ai_indian_152e_village_growth(
       t->alarm[threat_nation].friction = (uint8_t)(w & 0xff);
       t->alarm[threat_nation].attacks = (uint8_t)((w >> 8) & 0xff);
     }
+    /*
+     * DOS spends the accumulator through FUN_281f_0d6c (raw 80240/80247/
+     * 80255), and 0d6c is a bare thunk to FUN_4cc6_00f2 — the WHOLE of it,
+     * escalation tail included. 0x5b1c is written nowhere else in any
+     * decompiled export, so there is no "bare writer" in DOS: the Linux
+     * split into ai_diplo_indian_alarm_delta (first half) and
+     * ai_contact_alarm_delta_00f2 (+ tail) is a port artifact, and this —
+     * DOS's sole alarm-growth channel — must take the full function or the
+     * alarm-100 mission burn can never fire from it. Fixed 2026-09-09
+     * (smell #46).
+     */
     if (mission_nation >= 0) {
       while (ind->euro_relation_accum[mission_nation] > 7) {
         ind->euro_relation_accum[mission_nation] -= 8;
-        ai_diplo_indian_alarm_delta(col1, nation_id, mission_nation, -1); /* 4cc6_00f2 */
+        ai_contact_alarm_delta_00f2(ctx, nation_id, mission_nation, -1); /* 4cc6_00f2 */
       }
     }
     if (threat_nation >= 0) {
       while (ind->euro_relation_accum[threat_nation] < -7) {
         ind->euro_relation_accum[threat_nation] += 8;
-        ai_diplo_indian_alarm_delta(col1, nation_id, threat_nation, 1);
+        ai_contact_alarm_delta_00f2(ctx, nation_id, threat_nation, 1);
       }
     }
   }
@@ -3154,7 +3183,7 @@ static void ai_indian_152e_village_growth(
   for (int e = 0; e < 4; ++e) {
     while (ind->euro_relation_accum[e] > 7) {
       ind->euro_relation_accum[e] -= 8;
-      ai_diplo_indian_alarm_delta(col1, nation_id, e, -1);
+      ai_contact_alarm_delta_00f2(ctx, nation_id, e, -1);
     }
   }
 }

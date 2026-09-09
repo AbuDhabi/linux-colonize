@@ -238,8 +238,12 @@ full body, ~11771-11992):
 8. **Lumberjack:** `<<= 1`.
 9. **Plow/road/river** stack (below).
 10. Fish without Docks → 0. **Henry Hudson** (FF 8) doubles Fur Trapper
-    inside this same function (port applies it post-hoc in
-    `turn.c`/`colony_preview.c` — same result with one worker/tile).
+    inside this same function (viceroy 11970-11973), i.e. *between* the
+    improvement stack and both step 11 and step 12. Ported here as
+    `colony_yield_for_worker`'s `has_hudson` argument (2026-09-09, smell
+    audit #60); the old post-hoc `*= 2` at four call sites gave
+    `2·(base+1)` / `2·(base−2)` where DOS gives `2·base + 1` /
+    `2·base − 2`, and left the AI work-plot scorer with no Hudson at all.
 11. **Convert** +1 on allowed jobs.
 12. If SoL/Tory mod < 0: `yield += mod`, floor 0.
 

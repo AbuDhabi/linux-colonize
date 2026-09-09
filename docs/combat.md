@@ -265,7 +265,7 @@ Also stored: `base_combat`, `local_1a`, `terrain_byte`, `village_n`,
 | Engage | `combat_land_engage` | `combat_naval_engage` | Same land engage; village is **defender site** in `015e` |
 | Atk strength | `004a` attack | `004a` attack | same |
 | Def strength | `015e` full | `004a` defense only | Village `local_1a` + fortify |
-| `1b0e` | Full land peels | Difficulty (+ Discoverer); no arty/ambush/SoL | Ambush if Spanish on colony |
+| `1b0e` | Full land peels | Difficulty (+ Discoverer) **and attacker fatigue**; no arty/ambush/SoL | Ambush if Spanish on colony |
 | Trigger | move-enter / AI adjacent | move-enter / AI / king | Fight units on tile |
 | Empty village | — | `ENTER_VILLAGE_SHIP` abort | Temp Brave from dwelling (`1b0e`); fight from adjacent (no enter); pop drain |
 
@@ -405,6 +405,18 @@ moves_spent` **before** charging the attack's 3 thirds. When `rem < 3`:
 - the attacker's strength is scaled `atk = atk * rem / 3`, immediately after
   the difficulty peel and before the weak-defender / artillery / ambush
   clauses (`combat_apply_1b0e_peels`).
+
+**Fatigue has no domain gate — it applies at sea too** (smell audit
+2026-09-09 #11; the "Land vs naval" table used to imply otherwise). DOS:
+
+```
+if (local_98 != 0) { local_92 = (int)(local_92 * local_98) / 3; }   /* 100459 */
+```
+
+`local_98` is set from `rem` at 100388-100393 with no is-ship test, and the
+is-ship flags `bVar9` / `bVar10` (100347, 100451) gate only the later
+artillery clauses. `combat_naval_engage` calls the same
+`combat_apply_1b0e_peels`, so the port already matches; nothing to gate.
 
 Linux: `ai_contact_try_tired_attack_confirm` + `AI_POPUP_TAG_COMBAT_HALF`
 (the last of `game_try_unit_move`'s pre-move confirms, matching 1b0e's own

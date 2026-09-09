@@ -328,7 +328,12 @@ void colony_craft_preview(
       shortfall[rec->in_cargo] += total_in - actual_in;
     }
     scratch->stock[rec->in_cargo] -= actual_in;
-    scratch->stock[rec->out_cargo] += actual_out;
+    /* Same clamp the live tick applies (colony_craft_one_colony above): the
+     * preview must not run the scratch stock past the u16 the save format
+     * holds, or a near-full warehouse previews a different figure than the
+     * tick produces (smell audit #71). */
+    scratch->stock[rec->out_cargo] =
+      colony_craft_clamp(scratch->stock[rec->out_cargo] + actual_out);
     if (delta) {
       delta->goods[rec->in_cargo] -= actual_in;
       delta->goods[rec->out_cargo] += actual_out;

@@ -1184,15 +1184,7 @@ static int ai_euro_try_post_found_coast_cruise(
   return 1;
 }
 
-/*
- * True when colony has Stockade, Warehouse, Lumber Mill, Drydock, Shipyard, or
- * Custom House in the build queue — carpenter hammers need on-site labor. Cite:
- * docs/building_production.md chart (Stockade 64h / Warehouse 80h / Lumber Mill
- * 52h / Drydock 80h ship repair / Shipyard 240h ship construction / Custom House
- * 160h Stuyvesant); fandom Naval Docks→Drydock→Shipyard; fandom Peter Stuyvesant
- * Custom House unlock. Structural stay/LABOR only — no invented hammer/gold /
- * auto-sell rates.
- */
+/* @UNIT name match for the King's Man-O-War (DOS type 0x12). */
 static int ai_euro_type_is_man_o_war_name(const char* name) {
   if (!name) {
     return 0;
@@ -1245,6 +1237,91 @@ static int ai_euro_colony_food_short(const ColonizeColony* c) {
   }
   const int pop = c->colonist_count > 0 ? c->colonist_count : c->population;
   return c->stock[COLONIZE_CARGO_FOOD] < pop * 2;
+}
+
+/*
+ * FUN_15eb_0470 (`FUN_1000_8e4e` / `FUN_281f_0c5e`): the colony's work-radius
+ * TIER, `min(FUN_15eb_039e(10), 2) + 2` → 2..4
+ * (viceroy_unpacked_2.c:8332-8344). The port reads the chain count off
+ * colonies_fortification_tier (0 none / 1 Stockade / 2 Fort / 3 Fortress), as
+ * the two pre-existing 8/12/32 call sites already did; DOS's own `min(.., 2)`
+ * folds Fortress onto Fort.
+ */
+static int ai_euro_colony_ring_tier(
+  const ColonizeColonyPool* pool,
+  const ColonizeColony* c
+) {
+  int chain = colonies_fortification_tier(pool, c);
+  if (chain > 2) {
+    chain = 2;
+  }
+  return chain + 2;
+}
+
+/*
+ * FUN_15eb_0484 (`FUN_1000_8e6c`): the AI's "wanted size" for a colony —
+ * tier 2 → 8, tier 3 → 0xc, else 0x20 (viceroy_unpacked_2.c:8346-8360).
+ * Factored 2026-09-09 out of the two open-coded copies (the 20e6 labor arm
+ * and the 20e6 colony-sail matrix) so the 5952 +0x1b bit 0x10 latch below
+ * uses the same table.
+ */
+static int ai_euro_colony_wanted_size(
+  const ColonizeColonyPool* pool,
+  const ColonizeColony* c
+) {
+  const int tier = ai_euro_colony_ring_tier(pool, c);
+  return tier == 2 ? 8 : (tier == 3 ? 0xc : 0x20);
+}
+
+/*
+ * FUN_5952_035e raw 555-563 — `+0x1b` bit 0x10 (NEEDS_COLONISTS):
+ *   pop < 0x20
+ *   && pop < FUN_15eb_0484 (wanted size) + 2 * FUN_15eb_0470 (ring tier)
+ *   && pop - 2 * tier < (ring tiles - iStack_142)
+ * `iStack_142` (raw 426-483) counts field tiles that are off-map or terrain
+ * class 0x19/0x1a (Ocean / High Seas — `map_tile_is_water`, which also
+ * reports off-map as water), and is forced to 0 when the colony owns
+ * `FUN_1000_8bec(0x181f, 6)` = @BUILDING index 6 = Docks (NAMES.TXT
+ * @BUILDING row 7). Ring tiles = `DS:0x329[tier]` = 8/12/20; the port's ring
+ * is the immediate 8 (COLONIZE_COLONY_FIELD_TILES, the P4.2 decision noted in
+ * docs/indians.md and colonist_work_plot_28c8.md), so both the total and the
+ * blocked count are taken over those 8 tiles.
+ *
+ * Replaced an uncited `population < 3` on 2026-09-09.
+ */
+int ai_euro_colony_needs_colonists_5952(
+  const ColonizeColonyPool* pool,
+  const ColonizeWorldMap* map,
+  const ColonizeColony* c
+) {
+  if (!pool || !c) {
+    return 0;
+  }
+  const int pop = (int)c->population;
+  if (pop >= 0x20) {
+    return 0;
+  }
+  const int tier = ai_euro_colony_ring_tier(pool, c);
+  if (pop >= ai_euro_colony_wanted_size(pool, c) + tier * 2) {
+    return 0;
+  }
+  int blocked = 0;
+  const int docks = colonies_find_building(pool, "Docks");
+  const bool has_docks =
+    docks >= 0 && docks < COLONIZE_BUILDING_TYPES_MAX && c->has_building[docks];
+  if (map && !has_docks) {
+    for (int ti = 0; ti < COLONIZE_COLONY_FIELD_TILES; ++ti) {
+      int dx = 0;
+      int dy = 0;
+      if (!colonies_field_tile_delta(ti, &dx, &dy)) {
+        continue;
+      }
+      if (map_tile_is_water(map, c->x + dx, c->y + dy)) {
+        ++blocked; /* off-map or Ocean / High Seas */
+      }
+    }
+  }
+  return pop - tier * 2 < COLONIZE_COLONY_FIELD_TILES - blocked;
 }
 
 /*
@@ -1380,18 +1457,24 @@ static void ai_euro_refresh_colony_ai_flags(
       }
     }
   }
-  if (c->population < 3) {
+  /* +0x1b bit 0x10, raw 555-563 (see ai_euro_colony_needs_colonists_5952).
+   * DOS clears the bit up front (`+0x1b &= 7`, raw 485) and re-ORs it, which
+   * is this set/else-clear pair. */
+  if (ai_euro_colony_needs_colonists_5952(ctx->colonies, ctx->map, c)) {
     c->ai_flags |= COLONIZE_COLONY_AI_NEEDS_COLONISTS;
   } else {
     c->ai_flags =
       (uint8_t)(c->ai_flags & (uint8_t)~COLONIZE_COLONY_AI_NEEDS_COLONISTS);
   }
-  if (c->garrison_quota > 0) {
-    c->ai_flags |= COLONIZE_COLONY_AI_NEEDS_GARRISON;
-  } else {
-    c->ai_flags =
-      (uint8_t)(c->ai_flags & (uint8_t)~COLONIZE_COLONY_AI_NEEDS_GARRISON);
-  }
+  /*
+   * +0x1b bit 0x40 (NEEDS_GARRISON) is NOT set here. DOS raises it from the
+   * labor_shortage quantity `local_76 > 0` (raw 94147-94149), which is built
+   * and consumed inside ai_euro_colony_threat_seed_5952 — the same DOS body,
+   * and the call that runs immediately before this one. The
+   * `garrison_quota > 0` substitution that used to live here only fired at
+   * threat >= 8 (smell audit #38), and the flag byte's DOS-order clear
+   * (`&= 7`) now lives with the writer too.
+   */
   /*
    * +0x1c thin: wagon / coastal / small-colony. Bit3 is NOT touched here: it
    * is DOS's inefficient-government latch (FUN_364b_0688 phase D), which the
@@ -1448,6 +1531,15 @@ static void ai_euro_refresh_colony_ai_flags(
   }
 }
 
+/*
+ * True when colony has Stockade, Warehouse, Lumber Mill, Drydock, Shipyard, or
+ * Custom House in the build queue — carpenter hammers need on-site labor. Cite:
+ * docs/building_production.md chart (Stockade 64h / Warehouse 80h / Lumber Mill
+ * 52h / Drydock 80h ship repair / Shipyard 240h ship construction / Custom House
+ * 160h Stuyvesant); fandom Naval Docks→Drydock→Shipyard; fandom Peter Stuyvesant
+ * Custom House unlock. Structural stay/LABOR only — no invented hammer/gold /
+ * auto-sell rates.
+ */
 static int ai_euro_colony_wants_construction_labor(
   const ColonizeColonyPool* pool,
   const ColonizeColony* c
@@ -3813,12 +3905,21 @@ static int ai_euro_28c8_score(
     return 0;
   }
   const int current_job = self->field_job; /* -1 if not currently field-working */
-  const int pop_cap = col->warehouse_level == 0 ? 100 : ((int)col->warehouse_level + 1) * 100;
+  /* colony[0x9a+job*2] headroom cap = (warehouse_level + 1) * 100. The old
+   * `warehouse_level == 0 ? 100 : …` special case computed the identical
+   * value and only implied an exception DOS does not have (smell audit #43). */
+  const int pop_cap = ((int)col->warehouse_level + 1) * 100;
   const int is_ai = col->nation_id != ctx->human_nation;
   const bool has_docks =
     profession >= 0 ? ai_euro_colony_has_docks(ctx->colonies, ctx->map, col) : true;
   const int sol_b_field =
     profession >= 0 ? colony_prod_sol_bonus_field(ctx->col1_ok ? ctx->col1 : NULL, col) : 0;
+  /* DOS 1068/28c8 score through the same FUN_15eb_18ec the tick uses, so
+   * Henry Hudson's Fur Trapper doubling is inside the scored yield too. The
+   * port used to miss it entirely because the doubling lived at four UI/tick
+   * call sites instead of the shared pipeline (smell audit #60). */
+  const bool has_hudson = profession >= 0 && ctx->col1_ok && ctx->col1 &&
+                          founding_fathers_nation_has(ctx->col1, col->nation_id, FF_HENRY_HUDSON);
 
   out_best->job = -1;
   out_best->tile = -1;
@@ -3842,7 +3943,7 @@ static int ai_euro_28c8_score(
       int yld = profession >= 0
                   ? colony_yield_for_worker(
                       ctx->map, tx, ty, job, profession, has_docks, sol_b_field,
-                      col->colony_flags
+                      col->colony_flags, has_hudson
                     )
                   : colony_yield_for_tile(ctx->map, tx, ty, job);
       if (yld <= 0) {
@@ -3947,8 +4048,7 @@ static void ai_euro_colony_tick_28c8_reassign(ColonizeTurnContext* ctx, int nati
     {
       ColonizeTownCommonsYield tc;
       colony_yield_town_commons(
-        ctx->map, col->x, col->y,
-        colony_prod_sol_bonus_field(ctx->col1_ok ? ctx->col1 : NULL, col), col->colony_flags,
+        ctx->map, col->x, col->y, col->colony_flags,
         ctx->col1_ok && ctx->col1 ? (int)ctx->col1->head.difficulty : 4, &tc
       );
       food_have = tc.food > 0 ? tc.food : 0;
@@ -3999,7 +4099,36 @@ static void ai_euro_colony_tick_28c8_reassign(ColonizeTurnContext* ctx, int nati
       }
     }
 
-    /* Leftovers: DOS hands them to its building passes; keep what they had. */
+    /*
+     * Leftovers — DELIBERATE, DOCUMENTED DEVIATION (smell audit #42).
+     *
+     * The DOS arm is raw 94627-94658 (LAB_5952_17a9), and it is dead code:
+     *   - it is a single-winner election, not a per-slot assignment: it probes
+     *     every unplaced slot, keeps one best by the DS:0x8dc0 key
+     *     (score<<2, +1 expert-gate, +2 prior job == DS:0x8dc2) and commits
+     *     only that one (raw 94650);
+     *   - every probe is `FUN_1000_8d5e(..., slot, 0xfffe)` — mode −2 — and
+     *     28c8's tail (viceroy_unpacked.c 13144-13146, asm 15eb:2e4a)
+     *     restores the prior job and stores yield 0 into DS:0x8dbe whenever
+     *     `param_2 < -1`. The arm's own threshold is `1 < DS:0x8dbe`
+     *     (asm 158989 `CMP [0x8dbe],0x2`), so it can never hold and the
+     *     commit is unreachable. DOS's leftovers end the section with NO
+     *     field plot (the whole 0x70..0x83 array was memset 0xff at raw
+     *     94561) and are picked up by the BUILDING pass at raw 94784+.
+     *
+     * That building pass is not ported, so deleting this arm outright would
+     * leave those colonists idle — strictly worse than DOS, which employs
+     * them indoors. The arm therefore stays as the port's stand-in for the
+     * building pass, with the two defects the audit named fixed:
+     *   - it no longer claims to "keep what they had" while assigning a
+     *     freshly scored tile (it does score-and-assign, and says so);
+     *   - it now carries the DOS arm's OWN yield floor, `yield >= 2` — the
+     *     two real passes above stop at `< 3` (raw 94596 / 94613), this arm
+     *     compares against 2. It used to assign on any positive yield, which
+     *     force-filled 1-yield tiles.
+     * Still not modelled: the single-winner election, the DS:0x8dc0
+     * priority key and the raw 94629-94631 population/capacity gate.
+     */
     for (int s = 0; s < n; ++s) {
       if (placed[s] || prev_job[s] < 0) {
         continue;
@@ -4008,7 +4137,7 @@ static void ai_euro_colony_tick_28c8_reassign(ColonizeTurnContext* ctx, int nati
       col->colonists[s].field_job = prev_job[s];
       const int ok = ai_euro_28c8_score(ctx, col, s, col->colonists[s].profession, &best);
       col->colonists[s].field_job = -1;
-      if (ok) {
+      if (ok && best.yield >= 2) {
         (void)colonies_assign_field(ctx->colonies, col->id, s, best.tile, best.job);
       }
     }
@@ -5104,7 +5233,10 @@ static int ai_euro_hauler_free_holds(const ColonizeUnitPool* units, const Coloni
   const int cap = units_goods_hold_count(units, u->id);
   int used = 0;
   for (int i = 0; i < cap && i < COLONIZE_UNIT_CARGO_MAX; ++i) {
-    if (u->hold_goods_amount[i] > 0) {
+    /* 255 is the COL1 empty-hold sentinel (col1_bridge.c:2485) — an imported
+     * DOS save carries it on Euro hulls and it is NOT an occupied hold.
+     * Matching units.c:9821/9840 and the eight sibling scans here. */
+    if (u->hold_goods_amount[i] > 0 && u->hold_goods_amount[i] < 255) {
       ++used;
     }
   }
@@ -6311,22 +6443,18 @@ static void ai_euro_colony_inventory(ColonizeTurnContext* ctx, int nation_id) {
   }
 }
 
-static void ai_euro_unit_inventory(ColonizeTurnContext* ctx, int nation_id) {
-  AiEuroInventory* inv = ai_goals_inventory(nation_id);
-  if (!inv || !ctx || !ctx->units) {
-    return;
-  }
-  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-    ColonizeUnit* u = &ctx->units->units[i];
-    if (!u->active || u->nation_id != nation_id) {
-      continue;
-    }
-    const char* name = units_display_name(ctx->units, u);
-    if (name && strstr(name, "Pioneer") && inv->muskets_short > 0) {
-      inv->muskets_short--;
-    }
-  }
-}
+/*
+ * The "unit inventory" step (FUN_521d_6d8e's own per-unit prelude, raw
+ * 93147-93172) used to live here as a per-Pioneer `inv->muskets_short--`.
+ * That was a mis-aimed double-port: the DOS prelude's per-unit arm decrements
+ * the TOOLS demand counter DS:0xa0da (raw 93168-93170, "the Pioneers already
+ * in the field cancel the tools demand"), never the Muskets counter 0xa0db,
+ * and that arm is already ported faithfully in `ai_euro_5d04_cb_colony_needs`
+ * (the 0xa0da/0xa0db writer the 5d04 hire matrix actually reads). Deleted
+ * 2026-09-09 (smell audit #35): nothing here is unported, so no replacement
+ * step is needed and `inv->muskets_short` now means exactly what
+ * `ai_euro_colony_inventory` tallies.
+ */
 
 /* --- 5d04 planning / hire ---------------------------------------------- */
 
@@ -6553,12 +6681,30 @@ static int ai_euro_try_wagon_tools_delivery(
 }
 
 /*
- * Thin 5b66 case 7 economy stand-in: Pioneer/Hardy on own colony with tools
- * shortage. Prefer structural wagon TOOLS unload when a hired Wagon Train is
- * on the colony tile (5d04 hire-once deepen); else +10 stock[TOOLS] stand-in
- * (cap 100) once per act; trims tools_short / urgency.
- * Deeper hire / treasury matrix remainders OPEN (unpark #4); wagon hire-once
- * cargo ladder (tools/lumber/ore/muskets/horses/food) Done.
+ * Pioneer/Hardy on own colony with a tools shortage: structural wagon TOOLS
+ * unload when a hired Wagon Train is on the colony tile (5d04 hire-once
+ * deepen). Conserved transfer only — nothing is created here.
+ *
+ * The old "+10 stock[TOOLS] (cap 100) once per act" arm was deleted
+ * 2026-09-09 (smell audit #39): it conjured goods every dispatcher pass and
+ * its "5b66 case 7" citation was wrong twice over — 5b66's case 7 is Found
+ * Colony (thunk FUN_291f_01fa → FUN_479b_076e, viceroy_unpacked.c
+ * 76961-77048), which touches no stock at all. DOS's real answers to "AI
+ * colony is short of tools", all in the colony tick FUN_5952_035e and all
+ * still UNPORTED:
+ *   raw 94256-94261  a Pioneer standing on the tile is ABSORBED into the
+ *                    workforce (job 0x12); FUN_15eb_1068's refund arm
+ *                    (viceroy_unpacked.c 11233-11249) banks the unit's own
+ *                    +0x3159 tools byte into stock[TOOLS] and the unit is
+ *                    consumed. Conserved, not conjured.
+ *   raw 94371-94387  when (ai_flags & 0x80) or turn % 10 == 0 and
+ *                    stock[TOOLS] < 20, the colony BUYS 20 tools from Europe
+ *                    with treasury gold at DS:0x84ca[nation*0x10], bumping
+ *                    the market (FUN_291f_0c14 / cargo 0x0e qty 0x14).
+ *   raw 57748-57768  (FUN_364b_0688) an AI colony finishing a tool-costing
+ *                    building has stock[TOOLS] SET to the requirement out of
+ *                    nothing and immediately spends it; humans get the
+ *                    "not enough tools" popup instead.
  */
 static int ai_euro_try_pioneer_tools_delivery(
   ColonizeTurnContext* ctx,
@@ -6589,26 +6735,7 @@ static int ai_euro_try_pioneer_tools_delivery(
       }
     }
   }
-  int stock = c->stock[COLONIZE_CARGO_TOOLS];
-  if (stock >= 100) {
-    return 0;
-  }
-  stock += 10;
-  if (stock > 100) {
-    stock = 100;
-  }
-  c->stock[COLONIZE_CARGO_TOOLS] = stock;
-  if (inv) {
-    if (inv->tools_short > 10) {
-      inv->tools_short -= 10;
-    } else {
-      inv->tools_short = 0;
-    }
-    if (inv->tools_short == 0 && inv->urgency > 0) {
-      inv->urgency--;
-    }
-  }
-  return 1;
+  return 0;
 }
 
 /*
@@ -7203,9 +7330,15 @@ static int ai_euro_5d04_dos_type_of(const ColonizeUnitPool* pool, int type_index
   if (strstr(n, "Missionar")) return 3;
   if (strstr(n, "Soldier")) return 1;
   if (strstr(n, "Colonist")) return 0;
+  /* NAMES.TXT @UNIT rows 6-9 are Regulars / Cont. Cav. / Cavalry / Cont.
+   * Army in that order (COLONIZE/NAMES.TXT:307-310), which is what the
+   * sibling table ai_euro_20e6_dos_type encodes. Testing "Cav" before "Cont"
+   * used to fold Cont. Cav. onto 8 and Cont. Army onto 7 (fixed 2026-09-09);
+   * the WoI rows must be matched most-specific first. */
   if (strstr(n, "Regular")) return 6;
+  if (strstr(n, "Cont. Cav") || strstr(n, "Continental Cav")) return 7;
+  if (strstr(n, "Cont. Army") || strstr(n, "Continental Army")) return 9;
   if (strstr(n, "Cav")) return 8;
-  if (strstr(n, "Cont") || strstr(n, "Continental")) return 7;
   if (strstr(n, "Brave") || strstr(n, "Warrior")) return 19;
   return 0xff;
 }
@@ -7232,6 +7365,19 @@ static int ai_euro_5d04_linux_type_for(const ColonizeUnitPool* pool, int dos_cod
     }
   }
   return -1;
+}
+/*
+ * DS:0x5238[type] — the @UNIT hull-space column for a DOS @UNIT code. The
+ * table is DOS-indexed, so the code has to be translated back to a Linux pool
+ * type first; 1 when the pool has no such row (DOS's own land-unit default).
+ */
+int ai_euro_5d04_dos_type_space(const ColonizeUnitPool* pool, int dos_code) {
+  const int lt = ai_euro_5d04_linux_type_for(pool, dos_code);
+  const ColonizeUnitType* t = lt >= 0 ? units_type(pool, lt) : NULL;
+  return t ? t->space : 1;
+}
+int ai_euro_5d04_dos_type_code(const ColonizeUnitPool* pool, int type_index) {
+  return ai_euro_5d04_dos_type_of(pool, type_index);
 }
 static int ai_euro_5d04_cb_unit_dispatch_byte(int idx) {
   const ColonizeUnit* u = ai_euro_5d04_cb_unit(idx);
@@ -8114,11 +8260,12 @@ static void ai_euro_5d04_hire_ladder_tail(
         nat->recruit[slot] = (uint8_t)ai_euro_5d04_cb_dock_peek_type(0);
         bVar9 = 1;
         bVar8_2 = 1;
-        {
-          const ColonizeUnitType* ct =
-            units_type(ctx->units, ai_euro_5d04_cb_unit_dispatch_byte(cand));
-          local_42 -= ct ? ct->space : 1; /* DS:0x5238[type] */
-        }
+        /* DS:0x5238[type] is indexed by the DOS @UNIT code, not by a Linux
+         * pool index — translate as every other consumer of the dispatch
+         * byte does (fixed 2026-09-09; the raw index only happened to agree
+         * on a NAMES-ordered pool). */
+        local_42 -= ai_euro_5d04_dos_type_space(ctx->units,
+                                                ai_euro_5d04_cb_unit_dispatch_byte(cand));
       }
       if (!bVar8_2 || local_42 < 1) {
         break;
@@ -8651,11 +8798,18 @@ static void ai_euro_0a60_stack_counts(
   }
 }
 
-/* DOS unit+0x3150 holds_occupied: passengers + occupied goods holds. */
-static int ai_euro_0a60_holds_occupied(const ColonizeUnit* u) {
+/*
+ * DOS unit+0x3150 holds_occupied: passengers + occupied goods holds (DOS's
+ * own count is goods-only, but its passengers re-debit the same budget every
+ * berth act — see ai_euro_20e6_ship_hold_budget for the full derivation).
+ * Goods holds are scanned over `units_goods_hold_count`, not the array bound,
+ * and the 255 empty-hold sentinel (col1_bridge.c:2485) is not an occupant.
+ */
+static int ai_euro_0a60_holds_occupied(const ColonizeUnitPool* units, const ColonizeUnit* u) {
   int n = u->cargo_count;
-  for (int i = 0; i < COLONIZE_UNIT_CARGO_MAX; ++i) {
-    if (u->hold_goods_amount[i] > 0) {
+  const int cap = units_goods_hold_count(units, u->id);
+  for (int i = 0; i < cap && i < COLONIZE_UNIT_CARGO_MAX; ++i) {
+    if (u->hold_goods_amount[i] > 0 && u->hold_goods_amount[i] < 255) {
       n++;
     }
   }
@@ -8665,7 +8819,7 @@ static int ai_euro_0a60_holds_occupied(const ColonizeUnit* u) {
 /* Raw: type_table_5237[unit.type] == unit+0x3150 — "hold completely full". */
 static int ai_euro_0a60_ship_full(const ColonizeUnitPool* units, const ColonizeUnit* u) {
   const int cap = units_ship_capacity(units, u->id);
-  return cap > 0 && ai_euro_0a60_holds_occupied(u) >= cap;
+  return cap > 0 && ai_euro_0a60_holds_occupied(units, u) >= cap;
 }
 
 static void ai_euro_0a60_unit_housekeeping(ColonizeTurnContext* ctx, int nation_id) {
@@ -9411,10 +9565,70 @@ static int ai_euro_nation_is_human(const ColonizeTurnContext* ctx, int nation) {
  * (col1_tribe_attitude, signed; raw 94967 `w < 0x80`). Repointed off the
  * phantom `indian_tension` array 2026-09-08.
  *
- * NOT ported here (deliberately, and out of this pass's scope): the same loop's
- * `iStack_22` ring-1 counter and the `iStack_76` labor_shortage (+0x8e)
- * formula that consumes it — the port keeps its own thin labor latch below.
+ * The same loop's `iStack_22` ring-1 counter and the `iStack_76`
+ * labor_shortage (+0x8e) formula that consumes it were parked when this was
+ * first ported; both are live since 2026-09-09 (smell audit #38/#41) and are
+ * documented at their site in the tail of this function, together with the
+ * +0x1b `& 7` clear and the 0x40 / 0x08 / 0x04 flag writers.
  */
+/*
+ * DS:0x95f2[cont] `continent_presence_flags` — writer FUN_4962_0018
+ * (docs/save_format_map.md row 156): bit 1 = any Indian settlement on the
+ * continent (no nation filter); bit 2 = a foreign Euro unit is present;
+ * bit 4 = a foreign colony is present. The port keeps no mirror of the byte
+ * (DOS accumulates it across every nation's census pass without clearing),
+ * so the three bits are recomputed here from live state; bit 8 (own combat
+ * unit caught in the open with a pending-orders state) has no reader in the
+ * 5952 arm below and is not modelled.
+ */
+static int ai_euro_5952_continent_presence(
+  const ColonizeTurnContext* ctx, int nation_id, int cont
+) {
+  if (!ctx || !ctx->map || cont < 0 || cont >= 16) {
+    return 0;
+  }
+  int flags = 0;
+  const ColonizeCol1Save* col1 = (ctx->col1_ok && ctx->col1) ? ctx->col1 : NULL;
+  if (col1 && col1->tribe) {
+    for (uint16_t ti = 0; ti < col1->head.tribe_count; ++ti) {
+      const ColonizeCol1Tribe* t = &col1->tribe[ti];
+      if (map_continent_id_at(ctx->map, (int)t->x, (int)t->y) == cont) {
+        flags |= 1;
+        break;
+      }
+    }
+  }
+  if (ctx->units) {
+    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+      const ColonizeUnit* u = units_get_const(ctx->units, i);
+      if (!u || !u->active || !units_is_on_map(u) || u->aboard_ship_id >= 0) {
+        continue;
+      }
+      const int owner = u->nation_id & 0xf;
+      if (owner >= 4 || owner == nation_id) {
+        continue;
+      }
+      if (map_continent_id_at(ctx->map, u->x, u->y) == cont) {
+        flags |= 2;
+        break;
+      }
+    }
+  }
+  if (ctx->colonies) {
+    for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+      const ColonizeColony* o = &ctx->colonies->colonies[i];
+      if (!o->active || o->nation_id == nation_id) {
+        continue;
+      }
+      if (map_continent_id_at(ctx->map, o->x, o->y) == cont) {
+        flags |= 4;
+        break;
+      }
+    }
+  }
+  return flags;
+}
+
 static void ai_euro_colony_threat_seed_5952(
   ColonizeTurnContext* ctx,
   int nation_id,
@@ -9433,6 +9647,7 @@ static void ai_euro_colony_threat_seed_5952(
   const int mw = (int)ctx->map->width;
   const int mh = (int)ctx->map->height;
   int threat = 0;
+  int ring1 = 0; /* iStack_22 — raw 94097-94134 */
 
   for (int dy = -5; dy <= 5; ++dy) {
     for (int dx = -5; dx <= 5; ++dx) {
@@ -9478,6 +9693,19 @@ static void ai_euro_colony_threat_seed_5952(
           if (ai_euro_nation_is_human(ctx, owner)) {
             v = v + (v >> 1);
           }
+          /*
+           * iStack_22 (raw 94120-94133): a EUROPEAN foe with a non-zero
+           * scored value inside ring 1 (|dx| < 2 && |dy| < 2). Counted here,
+           * i.e. before the settlement halving and the distance scaling, and
+           * never for Indian owners. Feeds the labor_shortage floor below.
+           */
+          if (v != 0) {
+            const int adx = dx < 0 ? -dx : dx;
+            const int ady = dy < 0 ? -dy : dy;
+            if (adx < 2 && ady < 2) {
+              ring1++;
+            }
+          }
         } else {
           if (ai_diplo_indian_alarm(col1, owner, nation_id) < 0x19) {
             v = 0;
@@ -9520,7 +9748,163 @@ static void ai_euro_colony_threat_seed_5952(
   if (threat < floor_v) {
     threat = floor_v;
   }
-  c->garrison_quota = (uint8_t)(threat >> 3); /* DOS `(char)` truncation */
+  const int quota = threat >> 3;
+  c->garrison_quota = (uint8_t)quota; /* DOS `(char)` truncation */
+
+  /*
+   * ---- labor_shortage (+0x8e) and the +0x1b flag byte -------------------
+   * Ported 2026-09-09 (smell audit #38/#41) from raw 94029-94071 and
+   * 94141-94199, the continuation of the same DOS body. Previously the port
+   * stopped at the quota above and substituted (a) a thin
+   * `labor_shortage = 1` demand latch in ai_euro_colony_goals and (b)
+   * `NEEDS_GARRISON = garrison_quota > 0`, which only fires at threat >= 8
+   * where DOS raises the bit on any pop>=3 town with no soldier standing in
+   * it.
+   *
+   *   n     = colony.population(+0x1f) + DS:0x8d72 (units on the colony tile
+   *           with a profession slot, DS:0x30e[type] >= 0, capped at 0x32)
+   *   want  = clamp(max((n - 1) / 2, quota), <= n / 2)
+   *   want += 1                      when DS:0x5382 bit0 (WoI declared)
+   *   want  = 1                      when ring1 != 0 && n > 1 && want < 1
+   *   colony.labor_shortage = want   (unconditional, every tick)
+   *   for each non-ship unit on the colony tile, in order:
+   *       if combat_byte(0x5236[type]) > 1 && want != 0: want--
+   *   ai_flags |= 0x40               iff want > 0
+   */
+  const int pop = (int)c->population;
+  int outside = 0; /* DS:0x8d72 — FUN_15eb_09c0 raw 10014-10034 */
+  if (ctx->units) {
+    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+      const ColonizeUnit* u = units_get_const(ctx->units, i);
+      if (!u || !u->active || u->aboard_ship_id >= 0 || u->x != c->x || u->y != c->y) {
+        continue;
+      }
+      if (units_type_has_profession_slot(ai_euro_20e6_dos_type(ctx->units, u))) {
+        outside++;
+      }
+    }
+  }
+  if (outside > 0x32) {
+    outside = 0x32; /* raw 10031-10033 */
+  }
+  const int n = pop + outside;
+  int want = (n - 1) / 2;
+  if (want < quota) {
+    want = quota;
+  }
+  if (n / 2 < want) {
+    want = n / 2;
+  }
+  if (col1 && col1->head.game_options.woi != 0) {
+    want++; /* DS:0x5382 bit0 — War of Independence declared */
+  }
+  if (ring1 != 0 && n > 1 && want < 1) {
+    want = 1;
+  }
+  c->labor_shortage = (uint8_t)(want < 0 ? 0 : (want > 255 ? 255 : want));
+  const int want_pre = want;
+  if (ctx->units) {
+    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+      const ColonizeUnit* u = units_get_const(ctx->units, i);
+      if (!u || !u->active || u->aboard_ship_id >= 0 || u->x != c->x || u->y != c->y) {
+        continue;
+      }
+      const int dtype = ai_euro_20e6_dos_type(ctx->units, u);
+      if (dtype >= 0x0d && dtype <= 0x12) {
+        continue; /* ships never garrison */
+      }
+      if (ai_euro_20e6_type_combat(dtype) > 1 && want != 0) {
+        want--;
+      }
+    }
+  }
+
+  /*
+   * local_82 (raw 94063-94071): this nation's LAND military homed to this
+   * colony (+0x314a origin == colony), minus the ones the tile walk above
+   * already counted as garrison. So it is the OFF-STATION surplus, not the
+   * raw defender count — the reading in colony.h's bit-pair note is the
+   * simplification; this is the literal DOS quantity.
+   */
+  int homed_mil = 0;
+  if (ctx->units) {
+    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+      const ColonizeUnit* u = units_get_const(ctx->units, i);
+      if (!u || !u->active || (u->nation_id & 0xf) != nation_id) {
+        continue;
+      }
+      if ((int)u->col1_origin != c->id) {
+        continue;
+      }
+      const int dtype = ai_euro_20e6_dos_type(ctx->units, u);
+      if (dtype >= 0x0d && dtype <= 0x12) {
+        continue;
+      }
+      if (ai_euro_20e6_type_combat(dtype) > 1) {
+        homed_mil++;
+      }
+    }
+  }
+  homed_mil -= (want_pre - want);
+
+  /*
+   * Wanted defenders, local_74 (raw 94150-94193):
+   *   lt2  = @LEADERNAME column 2 (DS:0x9568, signed, stride 3 per nation)
+   *   base = (n * 3 >> 1) - lt2 - (turn >> 7)
+   *   div  = lt2 + 5, or lt2 + 6 when want != 0; −1 more when stance == 4
+   *   base += 2 when stance == 0; += 1 when stance == 3
+   *   wanted = base / div
+   *   wanted = 0                 when presence[cont] == 0 && stance != 0
+   *   wanted = min(wanted, 1)    when presence[cont] bit0 set AND
+   *                              (presence & 6) != 0 AND nation != 2
+   *     (the other half of that branch is the Indian war-declare block,
+   *      already ported as ai_contact_colony_tick_war_5952)
+   * Substitution: DS:0x95f2 is DOS's per-continent presence bitmask, which
+   * FUN_4962_0018 accumulates across ALL nations without clearing; the port
+   * has no stored mirror, so bit0/1/2 are recomputed here from live state
+   * for this nation's point of view (docs/save_format_map.md row 156).
+   */
+  const int cont = map_continent_id_at(ctx->map, c->x, c->y);
+  const int stance = ai_euro_continent_stance_at(nation_id, cont);
+  const int lt2 = ai_diplo_leader_trait(ctx, nation_id, 2);
+  const uint32_t turn = ctx->turn_number ? *ctx->turn_number : 0u;
+  int base = ((n * 3) >> 1) - lt2 - (int)(turn >> 7);
+  int div = lt2 + (want != 0 ? 6 : 5);
+  if (stance == 4) {
+    div -= 1;
+  }
+  if (stance == 0) {
+    base += 2;
+  } else if (stance == 3) {
+    base += 1;
+  }
+  int wanted = div != 0 ? base / div : 0;
+  const int presence = ai_euro_5952_continent_presence(ctx, nation_id, cont);
+  if (presence == 0 && stance != 0) {
+    wanted = 0;
+  }
+  if ((presence & 1) != 0 && ((presence & 6) != 0 && nation_id != 2) && wanted > 1) {
+    wanted = 1;
+  }
+
+  /*
+   * raw 94142: DOS clears the whole flag byte down to `& 7` before the
+   * recompute — bits 0x01/0x02 (census, FUN_4962_0018's own disjoint mask)
+   * and 0x04 survive; 0x08/0x10/0x20/0x40/0x80 are rebuilt every tick.
+   * 0x04 is deliberately sticky in DOS: only its consumers clear it
+   * (raw 85332 FUN_4d56_4528, 90168 FUN_521d_20e6, 94247 the join loop) —
+   * those clears are NOT ported yet, see the note in colony.h.
+   */
+  c->ai_flags = (uint8_t)(c->ai_flags & 0x07u);
+  if (want > 0) {
+    c->ai_flags |= COLONIZE_COLONY_AI_NEEDS_GARRISON; /* raw 94147-94149 */
+  }
+  if (homed_mil < wanted) {
+    c->ai_flags |= COLONIZE_COLONY_AI_SHORT_DEFENDERS; /* raw 94194-94196 */
+  }
+  if (wanted + (wanted > 1 ? 1 : 0) < homed_mil) {
+    c->ai_flags |= COLONIZE_COLONY_AI_NEEDS_MILITARY; /* raw 94197-94199 */
+  }
 }
 
 /* --- 0a60 colony goals ------------------------------------------------- */
@@ -9608,9 +9992,26 @@ static void ai_euro_colony_goals(ColonizeTurnContext* ctx, int nation_id) {
        * refresh below reads this turn's quota (it used to read last turn's).
        */
       ai_euro_colony_threat_seed_5952(ctx, nation_id, c);
+      /* FUN_5952_035e raw 94170-94190 — the tick's Indian war-declare block
+       * (or_both(nation, tribe+4, 2)); lives in ai_contact.c. DOS runs it in
+       * the same per-colony body, between the expansion-appetite math and the
+       * +0x1b flag writes; it draws no RNG, so its position inside the tick
+       * cannot shift a stream. */
+      ai_contact_colony_tick_war_5952(ctx, nation_id, c->x, c->y);
       ai_euro_refresh_colony_ai_flags(ctx, nation_id, c);
-      int labor = (c->population < 3) || (c->labor_shortage > 0) ||
-                  ai_euro_colony_food_short(c);
+      /*
+       * `|| c->labor_shortage > 0` used to be a third disjunct here. It was
+       * calibrated against the retired thin latch (0 unless something set
+       * it); since #38 +0x8e carries the real FUN_5952_035e number and is
+       * >= 1 for essentially every colony of pop >= 3, so the disjunct made
+       * this arm unconditional — it swallowed the DOS-gated ship-pressure
+       * `else` below and pulled every idle unit into the nearest town.
+       * DOS never uses +0x8e as a boolean "wants labor": its consumer is the
+       * garrison-quota distribution loop further down, which registers its
+       * own LABOR goal at prio `shortage − garrisoned + 2` and decrements the
+       * counter per admission. Dropped 2026-09-09.
+       */
+      int labor = (c->population < 3) || ai_euro_colony_food_short(c);
       if (inv && inv->tools_short > 0 && c->stock[COLONIZE_CARGO_TOOLS] < 20) {
         labor = 1;
       }
@@ -9626,12 +10027,12 @@ static void ai_euro_colony_goals(ColonizeTurnContext* ctx, int nation_id) {
         }
       }
       if (labor) {
-        int labor_prio = construction ? 6 : (4 + urgency / 4);
-        /* Thin demand latch when Linux detects LABOR need; full FUN_5952_035e
-         * seed (local_76 / 0x8d72) PARKED — do not invent tallies. */
-        if (c->labor_shortage == 0) {
-          c->labor_shortage = 1;
-        }
+        const int labor_prio = construction ? 6 : (4 + urgency / 4);
+        /* The thin `labor_shortage = 1` demand latch that used to sit here is
+         * retired 2026-09-09: +0x8e is now stamped unconditionally from the
+         * real FUN_5952_035e formula (local_76 / DS:0x8d72) in
+         * ai_euro_colony_threat_seed_5952, called at the top of this same
+         * colony body, and the latch could only overwrite a legitimate 0. */
         ai_goals_upsert_primary(nation_id, c->x, c->y, AI_GOAL_LABOR, labor_prio);
       } else if (c->ai_flags & (COLONIZE_COLONY_AI_NEARBY_ARMED_SHIP |
                                  COLONIZE_COLONY_AI_NEARBY_FRIGATE)) {
@@ -9806,6 +10207,19 @@ static void ai_euro_colony_goals(ColonizeTurnContext* ctx, int nation_id) {
          * runs before `ai_euro_0a60_goal_orders_structural` populates
          * it), so it's always satisfied here — correct given execution
          * order, not a shortcut.
+         *
+         * ONE-TURN-STALE STANCE READ IS DOS-FAITHFUL (smell audit #34,
+         * REFUTED 2026-09-09 — do not "fix" by hoisting the refresh):
+         * in `FUN_521d_0a60` the colony loop that owns this arm is
+         * viceroy_unpacked.c:87595-87991 (the read at :87627), while the
+         * only writer of the −0x6790 G-table is the continent loop at
+         * :88054-88151 — later in the *same* call, and no other DOS
+         * function writes −0x6790. So DOS's arm also sees the table left
+         * by the previous turn's 0a60 call for this nation, all-zero on
+         * the first call. `s_euro_continent_stance` is file-static and
+         * likewise persists across turns, and
+         * `ai_euro_refresh_continent_stance` below (the port of the
+         * :88054 loop) is the only writer — same semantics.
          */
         /* DOS iStack_40 / uStack_44 / bVar5 — see AiWorkSlot in ai_goals.h. */
         int wloads = 0;
@@ -11644,8 +12058,7 @@ static int ai_euro_20e6_labor_arm(ColonizeTurnContext* ctx, ColonizeUnit* u, Ai2
     if (!(c->ai_flags & COLONIZE_COLONY_AI_NEEDS_COLONISTS) && u->profession != 27) {
       continue; /* 27 = Indian Convert (DOS profession 0x1b) */
     }
-    const int tier = colonies_fortification_tier(ctx->colonies, c);
-    int wanted = tier <= 0 ? 8 : (tier == 1 ? 12 : 32); /* FUN_15eb_0484 */
+    int wanted = ai_euro_colony_wanted_size(ctx->colonies, c); /* FUN_15eb_0484 */
     if (wanted > 0x10) {
       wanted = 0x10;
     }
@@ -16752,8 +17165,10 @@ static int ai_euro_20e6_unit_col5(int dos_type) {
  * 1946). Peace score (no military cargo):
  *   rng(0,8) + ((17 − min(pop,16))² + 2)*4 − (pop − wanted)*2
  *   +0x14 when the human holds colonies on that continent
- *   +0x19 when the colony wants colonists (+0x1b bit 0x10 =
- *     COLONIZE_COLONY_AI_NEEDS_COLONISTS) else −0x25
+ *   ±0x19 on the colony-wants-colonists bit (+0x1b bit 0x10 =
+ *     COLONIZE_COLONY_AI_NEEDS_COLONISTS): +0x19 set, −0x19 clear. (The
+ *     "else −0x25" this header used to claim was a hex/decimal slip in the
+ *     SBB idiom; corrected in code and here — prior smell audit #95.)
  * War-cargo score (military cargo aboard): G-stance 0 → skip colony;
  *   − difficulty × mil × 8 when mil > 1 (DS:0xa89c)
  *   +0x32 when the human holds colonies on the continent
@@ -16799,8 +17214,7 @@ static int ai_euro_20e6_colony_sail_pick(
     if (!map_tile_is_coastal(ctx->map, c->x, c->y)) {
       continue; /* 8804(...,0xfffe) reachability substitution */
     }
-    const int tier = colonies_fortification_tier(ctx->colonies, c);
-    int wanted = tier <= 0 ? 8 : (tier == 1 ? 12 : 32); /* FUN_1000_8e6c */
+    int wanted = ai_euro_colony_wanted_size(ctx->colonies, c); /* FUN_1000_8e6c */
     if (wanted > 0xc) {
       wanted = 0x10; /* raw 1949-1951 clamp */
     }
@@ -18065,21 +18479,73 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
         return;
       }
       /*
-       * On town tile: deposit tools, take warehouse muskets → Soldiers type
-       * (TURN6→7 Quebec; stock tools 0→100, muskets 50→0). Do not LABOR-admit.
-       * Cite: test-saves-ai/TURN6–7; colonies_eject_colonist SOLDIER equip.
+       * On town tile: deposit tools, take warehouse muskets → Soldiers /
+       * Dragoons (TURN6→7 Quebec; stock tools 0→100, muskets 50→0).
+       *
+       * This single step stands in for a DOS PAIR that produces exactly that
+       * observable, both arms of the colony tick FUN_5952_035e and neither of
+       * them yet ported as such (smell audit #40, decoded 2026-09-09):
+       *   raw 94256-94261  the on-tile Pioneer is absorbed into the workforce
+       *                    (job 0x12) and FUN_15eb_1068's refund arm
+       *                    (viceroy_unpacked.c 11233-11249) banks its +0x3159
+       *                    tools byte into stock[TOOLS];
+       *   raw 94289-94352  the colony's equip arm then re-types a COLONIST
+       *                    (a slot < population, scored: Criminal +2, Servant
+       *                    +1, never an Indian Convert, an expert −99 unless
+       *                    ai_flags & 0x40) through the same FUN_15eb_1068,
+       *                    which writes the unit type byte, zeroes the orders
+       *                    byte (+0x314c) and charges stock[MUSKETS] -= 50.
+       * Net over the pair: colony population unchanged, tools banked, 50
+       * muskets spent, a soldier standing on the tile — what the port does
+       * here in one move on the arriving Pioneer itself.
+       *
+       * The gates below are DOS's, from the equip arm (raw 94289-94311):
+       * population > 1; demand = (ai_flags & 0x48) or the "big settled town"
+       * path (population > 10 and NOT wanting colonists); muskets > 0x31;
+       * horses > 0x33 upgrades the target to Dragoon. They used to be absent
+       * entirely — every AI Pioneer entering any colony with 50 muskets was
+       * re-typed (smell audit #40).
+       *
+       * DOS's `population > 1` is read AFTER the absorption arm has already
+       * added the Pioneer, so the compressed step here tests the same number
+       * as `population + 1 > 1`, i.e. `population > 0`. Verified against
+       * golden TURN6→7 Quebec (pop 1, one arriving Pioneer, 50 muskets →
+       * pop 1 + a Soldier on the tile): the honest `> 1` on the pre-absorption
+       * population suppresses the golden's Soldier, `> 0` reproduces it.
+       * The demand gate is satisfied there by the +0x1b writers this pass
+       * made live (#38/#41).
+       *
+       * UNPORTED remainder of the pair: the candidate scoring (Criminal +2 /
+       * Servant +1 / expert −99), the expert strip (FUN_1000_8e9e → 0x1c),
+       * and the population bookkeeping (absorb +1 / arm −1) that DOS does
+       * explicitly and this step nets out.
        */
-      if (u->x == c->x && u->y == c->y &&
-          c->stock[COLONIZE_CARGO_MUSKETS] >= UNITS_EQUIP_MUSKETS) {
-        const int soldier_ty = units_find_type(ctx->units, "Soldiers");
-        if (soldier_ty >= 0) {
+      const int equip_pop = (int)c->population;
+      const int equip_demand =
+        (c->ai_flags &
+         (COLONIZE_COLONY_AI_NEEDS_GARRISON | COLONIZE_COLONY_AI_SHORT_DEFENDERS)) != 0 ||
+        (equip_pop > 10 && (c->ai_flags & COLONIZE_COLONY_AI_NEEDS_COLONISTS) == 0);
+      if (u->x == c->x && u->y == c->y && equip_pop > 0 && equip_demand &&
+          c->stock[COLONIZE_CARGO_MUSKETS] > 0x31) {
+        const int mounted = c->stock[COLONIZE_CARGO_HORSES] > 0x33;
+        int arm_ty = mounted ? units_find_type(ctx->units, "Dragoons") : -1;
+        if (arm_ty < 0) {
+          arm_ty = units_find_type(ctx->units, "Soldiers");
+        }
+        if (arm_ty >= 0) {
           if (u->tools > 0) {
             c->stock[COLONIZE_CARGO_TOOLS] += u->tools;
             u->tools = 0;
           }
           c->stock[COLONIZE_CARGO_MUSKETS] -= UNITS_EQUIP_MUSKETS;
           u->muskets = UNITS_EQUIP_MUSKETS;
-          u->type_index = soldier_ty;
+          if (mounted && arm_ty != units_find_type(ctx->units, "Soldiers")) {
+            c->stock[COLONIZE_CARGO_HORSES] -= UNITS_EQUIP_MUSKETS;
+            u->horses = UNITS_EQUIP_MUSKETS;
+          }
+          u->type_index = arm_ty;
+          /* raw 11270: FUN_15eb_1068 zeroes +0x314c (the orders/act-state
+           * byte). The (0,0) goto is this port's spelling of "no goto". */
           ai_euro_set_goto(u, UNITS_ORDER_NONE, 0, 0);
           u->moves_left = 0;
           return;
@@ -19915,9 +20381,17 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
    * Sticky CONTACT re-hunt: if moves remain and an adjacent foreign Euro is
    * at war, chain try_attack while MP lasts (mirror land_try_adjacent_attack
    * multi-step; dispatcher sticky waves still apply). Deep 20e6 scoring PARKED.
+   *
+   * Gates match the sibling block above (`at_war_land && is_land_hunter &&
+   * !fortified`) — smell audit #37. They used to be missing, which the
+   * comment's own "is at war" claim never covered: since smell #106 made
+   * `ai_euro_land_best_adjacent_foe` peace-permissive (DOS gates a Euro
+   * target on the signed-treaty bit alone, viceroy 75567-75593), an ungated
+   * tail let ANY land unit — a Pioneer, a Treasure escort, a fortified
+   * garrison — open a @SNEAK war at the end of its act.
    */
-  if (u->active && u->moves_left > 0 && ctx->col1_ok && ctx->col1 &&
-      !units_is_sea(ctx->units, u->id)) {
+  if (u->active && u->moves_left > 0 && ctx->col1_ok && ctx->col1 && at_war_land &&
+      is_land_hunter && !ai_euro_land_is_fortified(u) && !units_is_sea(ctx->units, u->id)) {
     for (int step = 0; step < 8 && u->active && u->moves_left > 0; ++step) {
       const int foe = ai_euro_land_best_adjacent_foe(ctx, u);
       if (foe < 0) {
@@ -20002,9 +20476,9 @@ void ai_euro_dispatcher_turn(ColonizeTurnContext* ctx, int nation_id) {
     s_20e6_hop_steps[i] = 0;
   }
 
-  /* 1–3. Colony + unit inventory */
+  /* 1–3. Colony inventory (the per-unit prelude arm lives in
+   * ai_euro_5d04_cb_colony_needs — see the note at ai_euro_colony_inventory). */
   ai_euro_colony_inventory(ctx, nation_id);
-  ai_euro_unit_inventory(ctx, nation_id);
 
   /* 4. Treaty timers BEFORE plan (not war RNG). */
   ai_diplo_treaty_timers(ctx, nation_id);

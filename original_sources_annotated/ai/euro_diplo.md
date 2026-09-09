@@ -414,21 +414,21 @@ and 11 went with them. The rest of the list is current.
 
 1. `ai_diplo_read` / `write` / `or_both` / `clear_both` — peer-correct bytes
 2. `ai_diplo_treaty_timers` — decrement; on expiry break ally (trust −20g) or peace tweak; peaceful Indian drift
-3. `ai_diplo_euro_balance` — `10ec`/`13b0`-shaped; ally aid + FA gift / longevity (timer==1); `declare_war_ctx` → thin `153e` + status; at-war → Franklin peace (skip upkeep/privateer) else upkeep + Privateer spawn-only / PARK 8g prize + war-fatigue (`timer==0`) near-parity `make_peace_ctx`; Indian feeler + sticky→pressure + harassment
+3. `ai_diplo_euro_balance` — `10ec`/`13b0`-shaped; ally aid + FA gift / longevity (timer==1); `declare_war_ctx` → thin `153e` + status; at-war → Franklin peace (skip upkeep/privateer) else upkeep + Privateer spawn-only / PARK 8g prize + war-fatigue (`timer==0`) near-parity `make_peace_ctx`; Indian feeler + sticky→pressure (the −2g/turn harassment drain was retired 2026-09-09, smell #49 — no DOS counterpart)
 4. `ai_diplo_make_peace` / `_ctx` — clear WAR, set PEACE|MET, lift Furs+Tobacco+Sugar+Rum+Cigars+Tools if no Euro wars; no gold cost; `_ctx` thin status (+ Tools lift chrome)
 5. `ai_diplo_declare_war` / `_ctx` — Franklin pair → no-op (no sting); else thin `"War declared with …"` / boycott chrome when human involved
 6. `ai_diplo_form_alliance` / `_ctx` — ALLY flags + 25 gold each + treaty timer ≥8 if 0; lift Horses+Muskets+…+Tools if no Euro wars remain; `_ctx` statuses `"Alliance formed with %s"` on first form; prefer `"Alliance with %s costs gold."` when human treasury drains
 7. `ai_diplo_break_alliance` — clear ALLY + −20 gold trust penalty + Indian −5/sticky sync if was allied
 8. `ai_diplo_fa_gift` — 15g + timer +2 when donor ≥100 and peer < donor×2 (FA UI still PARKED); else longevity +1; sticky2 skips gift
 9. `ai_diplo_indian_alarm_delta` / `ai_diplo_indian_alarm` — `4cc6_00f2` / `15dc_00e0` on `indian.alarm_by_player` (2026-08-27; `ai_diplo_indian_relation*` = 100−alarm view)
-10. First `declare_war` — gold sting + tax bump + Indian −5; **no** Europe boycott bits; colony-gap ≥2 → extra 25g rich sting; fatigue timer seed 8 if 0
-11. Indian matrix helpers — read / relation / at_war / any_at_war / sticky sync (0/1/2) + feeler skip on sticky2 (self-gated) + sticky2 refuse new alliances + sticky2 skip FA gift + human status + harassment gold floor + war −5 relation floor 0
+10. First `declare_war` — **no** treasury or tax effects at all (the −100 gold sting + tax bump went 2026-09-09 with smell #47, the colony-gap ≥2 −25g trade sting with audit follow-up A; DOS has no constant gold decrement anywhere) and **no** Europe boycott bits; fatigue timer seed 8 if 0
+11. Indian matrix helpers — read / relation / at_war / any_at_war / sticky sync (0/1/2, on the port's own save byte +0x4b since smell #52) + feeler skip on sticky2 (self-gated) + sticky2 refuse new alliances + sticky2 skip FA gift + human status
 12. `ai_diplo_at_war_with` / `ai_diplo_at_war_with_any` — war-turn helpers (pair alias + any-Euro gate for feeler/drift/lift)
 
 ## PORT DEBT
 
 - **Done (structural unpark #5):** thin Indian×Euro `15b3` matrix helpers
-  (read/at_war/drift/feeler/war-hit/harassment/sticky) + `ai_popup` war/peace/
+  (read/at_war/drift/feeler/sticky) + `ai_popup` war/peace/
   alliance widgets + Privateer spawn. Deeper matrix / VGA widgets remain PARKED
   (see leftovers below).
 - **Done this pass:** sticky→pressure + ally longevity + Tools lift parity + `indian_relation` getter
@@ -662,7 +662,7 @@ and live in `ai_diplo.c`:
     invent another gold rate)
   - Full `102a`/`1092` dialog **widgets** (thin `ctx->status` + AI OK/CHOICE Done)
   - Full Indian×Euro bilateral `15b3` matrix beyond thin read/at_war/drift/
-    feeler/war-hit/harassment/sticky
+    feeler/sticky
   - Exact save-field rename for DS `−0x77c4`
   - Quiet Brave `diplomacy_flags` −10 goldens
   - Order clear `12d0` deep; Jakob Fugger / FF boycott-forgive full lift chrome

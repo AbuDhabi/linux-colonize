@@ -18,6 +18,25 @@ Orchestration: [`between_turns.md`](between_turns.md) ·
 K / P msgs **mapped**; port **Done** thin (was stale here — see Deep K /
 Linux correspondence below; 2026-08-24 demand-gate fix).
 
+**Phase A compose boundary (2026-09-09, smell audit #62/#63).** `281f_0c22`
+→ `15eb_3956` → `15eb_1f72` fills the 20-word gross scratch at `−0x7238`
+ONCE in the prologue: commons, the 5×5 `15eb_18ec` field loop, the
+per-colonist `15eb_1d4c` manufacturing loop (hammers 0x10, crosses 0x11,
+bells 0x12), horses (12581–12610). Every later phase only *reads* it back
+via `0b50`: B applies cargos 0..15 (57238), L banks hammers `0b50(0x10)`
+(57731), A itself feeds bells `0b50(0x12)` to `291f_09f8` (57230). So the
+SoL number, the professions and the population behind **all** yields are the
+pre-C/D, pre-F/G/H, pre-I/J ones. `turn_produce_one_colony` now calls
+`colony_craft_one_colony` + `colony_prod_colony_hammers` at that boundary
+(application unchanged: craft in B, hammers in L) and snapshots the colony's
+bells/crosses into `ColonizeColony.prod_bells_phase_a` /
+`prod_crosses_phase_a` / `prod_compose_stamp` for
+`turn_run_nation_ticks` — which for AI nations runs after their colonies
+tick. **Trap:** the port used to re-read `colony_prod_sol_bonus()` at the
+Phase L site, so a latch-crossing turn made the Production preview
+structurally unable to match the tick, and a starved/graduated colonist
+changed his own tick's craft output.
+
 ## Sibling — `FUN_364b_03f6` (coastal fort fire)
 
 Full map: [`coastal_fort_fire.md`](coastal_fort_fire.md). Nested here at

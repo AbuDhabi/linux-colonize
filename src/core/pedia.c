@@ -261,6 +261,30 @@ void pedia_terrain_preview(int terrain_index, PediaTerrainPreview* out) {
   }
 }
 
+/*
+ * DOS FUN_6f74_0c32: "^^" stores flag 1 and eats both carets, a single "^"
+ * ORs flag 2 and eats one. Anything further (a third caret, braces, spaces)
+ * is body text. FUN_6f74_1198 gives (flags & 3) its own unwrapped line and
+ * centres only flag 1, so "^" is left-aligned.
+ */
+int pedia_caret_flags(const char* line, const char** out_rest) {
+  int flags = 0;
+  const char* rest = line ? line : "";
+  if (rest[0] == '^') {
+    if (rest[1] == '^') {
+      flags = PEDIA_CARET_CENTER;
+      rest += 2;
+    } else {
+      flags = PEDIA_CARET_OWN_LINE;
+      rest += 1;
+    }
+  }
+  if (out_rest) {
+    *out_rest = rest;
+  }
+  return flags;
+}
+
 static void pedia_strip_markup(char* text) {
   char* dst = text;
   for (char* src = text; *src; ++src) {
@@ -1013,8 +1037,10 @@ static void pedia_blit(
 /*
  * DOS renders the article body through the popup text engine at DS:0x1f5a
  * with no box (flag 0x20): section text wrapped to @width (default 300),
- * prose lines flow left-aligned, a '^' source line is drawn centered on its
- * own (blank if empty), '{...}' = hilite color, "%%" = '%'.
+ * prose lines flow left-aligned, a caret-led source line is drawn on a line of
+ * its own and NOT wrapped (blank if empty) — left-aligned for '^', centred
+ * only for '^^' (FUN_6f74_0c32 flags 2 / 1; FUN_6f74_1198 measures the row
+ * for centring under flag 1 only). '{...}' = hilite color, "%%" = '%'.
  */
 typedef struct PediaBodySeg {
   int start; /* into word buffer */
@@ -1153,10 +1179,10 @@ static void pedia_body_flow_text(PediaBodyCtx* c, const char* text) {
 }
 
 /*
- * A '^' source line: flush the paragraph, draw this line on its own.
- * `{...}` headings are centered; plain '^' lines (e.g. the schoolhouse
- * teachable-skill lists, whose CP437 bullet bytes are dropped above) stay
- * left-aligned with a small indent like DOS.
+ * A caret-led source line: flush the paragraph, draw this line on its own.
+ * Alignment comes from the caret count, not from the text: '^' rows (every
+ * caret row in PEDIA.TXT, headings included) start at the prose margin like
+ * any other row DOS pushes through FUN_6f74_116c; only '^^' rows are centred.
  */
 static void pedia_body_own_line(PediaBodyCtx* c, const char* text, bool centered) {
   pedia_body_flush_flow(c);
@@ -1196,7 +1222,7 @@ static void pedia_body_own_line(PediaBodyCtx* c, const char* text, bool centered
     c->y += c->line_h; /* bare ^ = blank separator line */
     return;
   }
-  int x = centered ? c->x0 + (c->width - line_w) / 2 : c->x0 + 6;
+  int x = centered ? c->x0 + (c->width - line_w) / 2 : c->x0;
   for (int i = 0; i < n; ++i) {
     font_draw_text(c->font, c->fb, x, c->y, buf + segs[i].start, segs[i].color);
     x += segs[i].width;
@@ -1252,16 +1278,10 @@ static void pedia_body_render_section(
     if (line[0] == '@') {
       continue;
     }
-    if (line[0] == '^') {
-      const char* p = line;
-      while (*p == '^') {
-        p++;
-      }
-      const char* q = p;
-      while (*q == ' ' || *q == '\t') {
-        q++;
-      }
-      pedia_body_own_line(&c, p, *q == '{');
+    const char* rest = NULL;
+    const int caret = pedia_caret_flags(line, &rest);
+    if (caret != 0) {
+      pedia_body_own_line(&c, rest, caret == PEDIA_CARET_CENTER);
       continue;
     }
     pedia_body_flow_text(&c, line);

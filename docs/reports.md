@@ -192,6 +192,14 @@ independently golden-confirmed.
 - Scroll/paging: 2 pages; any dismiss on page 1 advances to page 2 instead
   of leaving the report; page 2 closes on any click.
 - Click targets: none inside a page; page-advance only.
+- Header line (three-way, `06d0` @ 69679-69695; smell audit #87): with
+  DS:0x5382 bit 0 clear it is "Next Continental Congress Session:" plus
+  " (name)" when `head+0x12 >= 0`; with bit 0 set and bit 1 (REF arrived)
+  clear it is "<DS:0x53d4 adjective> Intervention:"; once the REF has
+  arrived the string buffer stays empty and **no header is drawn**. The
+  ally adjective is `FUN_281f_09a4(DS:0x53d4)` read raw — no crown/self
+  exclusion and no fallback search (same raw read for the "<Ally>
+  Intervention Force:" lineup header at 69777).
 - Strings: title "CONTINENTAL CONGRESS ACTIVITIES" resolves live
   (`reports_title`); "Next Continental Congress Session" (#112),
   "Rebel"/"Tory"/"Sentiment" (#69/#70/#71), "Expeditionary Force" (#85)
@@ -216,7 +224,11 @@ independently golden-confirmed.
   population slots ("In Colonies"), map units of colonist-derived types
   0-5 (Colonists/Soldiers/Pioneers/Missionaries/Dragoons/Scouts) not on
   Europe/own-colony tiles ("On Mapboard"), same types on a Europe-side tile
-  ("Off Mapboard/Europe").
+  ("Off Mapboard/Europe"). The map-unit bucket is filed under the **raw**
+  profession byte — DOS `local_c6[*(char *)(i*0x1c + 0x315b)]++` at 70113,
+  and the detail view compares the same raw byte at 69967. There is no
+  unit-type fallback in either (smell audit #90: `u->type` is an @UNIT id,
+  a different id space from @JOB); a byte outside the job table is skipped.
 - Columns/layout: 9-row x 3-column fixed table, not a straight 0..27 job-id
   scan — `k_labor_layout[3][9]` skips job 18 (Expert Teacher) and 23
   (Veteran Dragoon), and job 19 (Free Colonist) is out-of-order at the

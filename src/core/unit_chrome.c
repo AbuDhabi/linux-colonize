@@ -46,7 +46,10 @@ void unit_chrome_set_rebel_nation(int nation_id) {
   g_chrome_rebel_nation = nation_id;
 }
 
-static int g_chrome_crown_nation;
+/* bugs.md: after the Declaration the Royal Expeditionary Force renders
+ * WHITE — it is the Crown's army, not the peer nation whose slot it
+ * borrows (an English player's REF was showing French blue). */
+static int g_chrome_crown_nation = -1;
 
 static int unit_chrome_nearest_palette_index(const ColonizePalette* pal, const uint8_t rgb[3]) {
   int best = 0;
@@ -232,10 +235,6 @@ void unit_chrome_load_orders(const ColonizeMsgCatalog* names) {
   }
 }
 
-/* bugs.md: after the Declaration the Royal Expeditionary Force renders
- * WHITE — it is the Crown's army, not the peer nation whose slot it
- * borrows (an English player's REF was showing French blue). */
-static int g_chrome_crown_nation = -1;
 void unit_chrome_set_crown_nation(int nation_id) {
   g_chrome_crown_nation = nation_id;
   if (nation_id < 0) {
@@ -311,7 +310,10 @@ uint8_t unit_chrome_letter_color(int nation_id, int orders_index) {
   if (nation_id > 3) {
     orders_index = 0;
   }
-  /* Sentry (1) and Fortified (6): euro → NAMES color-8, native → 8. */
+  /* Sentry (1) and Fortified (6): euro → NAMES color-8, native → 8.
+   * For the crown slot NAMES color is 15 (white) so this yields 7 — a
+   * derived value with no DOS citation for the REF shade specifically
+   * (audit 2026-09-09 #14); kept until a DOS trace pins it. */
   if (orders_index == 1 || orders_index == 6) {
     if (nation_id >= 0 && nation_id < 4) {
       return (uint8_t)(unit_chrome_names_color(nation_id) - 8);

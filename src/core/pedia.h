@@ -106,6 +106,18 @@ int pedia_category_count(PediaCategory category);
 const char* pedia_category_label(PediaCategory category);
 const char* pedia_category_section_prefix(PediaCategory category);
 
+/*
+ * Leading caret run on a PEDIA.TXT body line, as DOS FUN_6f74_0c32 parses it:
+ * "^^" sets flag 1, a single "^" ORs flag 2, and the FUN_6f74_1198 wrap loop
+ * treats either (flags & 3) as "draw this line on its own, unwrapped" — but
+ * only flag 1 takes the extra centring measure, so "^" is LEFT-aligned.
+ * Returns that flag byte (0 = ordinary flowing prose) and, when out_rest is
+ * given, the text after the caret run.
+ */
+#define PEDIA_CARET_CENTER 1   /* "^^" — own line, centred */
+#define PEDIA_CARET_OWN_LINE 2 /* "^"  — own line, left-aligned */
+int pedia_caret_flags(const char* line, const char** out_rest);
+
 void pedia_terrain_preview(int terrain_index, PediaTerrainPreview* out);
 
 /* Short title for encyclopedia list rows (no body). */

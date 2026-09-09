@@ -2266,7 +2266,10 @@ int main(void) {
       map_free(&lmap);
       return fail("de Soto LCR map alloc");
     }
-    lmap.terrain[14 * 20 + 8] = 0x08; /* scrub — matches AMER2 rumour fixture class */
+    /* (9,15), not (8,14): map_procedural_rumour_at dropped its unverified +1
+     * coordinate bias on 2026-09-09 (smell_audit #98), moving every seed-100
+     * rumour one tile SE. Scrub keeps the AMER2 fixture's terrain class. */
+    lmap.terrain[15 * 20 + 9] = 0x08;
     ColonizeUnitPool upool;
     memset(&upool, 0, sizeof(upool));
     units_reset(&upool);
@@ -2274,14 +2277,14 @@ int main(void) {
     upool.type_count = 1;
     snprintf(upool.types[0].name, sizeof(upool.types[0].name), "Scout");
     upool.types[0].movement = 3;
-    const int uid = units_spawn_allow_stack(&upool, 0, 8, 14);
+    const int uid = units_spawn_allow_stack(&upool, 0, 9, 15);
     ColonizeUnit* su = units_get(&upool, uid);
     if (!su) {
       map_free(&lmap);
       return fail("de Soto scout spawn");
     }
     su->nation_id = 0;
-    if (!map_tile_has_rumour(&lmap, 8, 14)) {
+    if (!map_tile_has_rumour(&lmap, 9, 15)) {
       map_free(&lmap);
       return fail("de Soto LCR fixture tile should have rumour");
     }
@@ -2289,11 +2292,11 @@ int main(void) {
       map_free(&lmap);
       return fail("units_resolve_lcr_rumour de Soto path");
     }
-    if (map_tile_has_rumour(&lmap, 8, 14)) {
+    if (map_tile_has_rumour(&lmap, 9, 15)) {
       map_free(&lmap);
       return fail("de Soto LCR must clear rumour");
     }
-    if (!map_tile_seen_by(&lmap, 8, 14, 0)) {
+    if (!map_tile_seen_by(&lmap, 9, 15, 0)) {
       map_free(&lmap);
       return fail("de Soto LCR must reveal tile");
     }

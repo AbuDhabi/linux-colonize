@@ -18,8 +18,8 @@ Decomp: `viceroy_unpacked.c` **58430–58680**. Thunk `281f_061e`.
 |-----|------|----------|
 | A | always | Census human (`291f_0a74`→`4962_0018`); if war also census crown `0x53d2`; recount human colonies → scratch `nation−0x6d68` |
 | B | year≥`0x640` (1600) && human colonies==0 && !war | Defeat dialog `0xf09` → **LAB_3844_04ec** (HoF if bit4 clear; clear `0x53c2`) |
-| C1 | war && !(flags&8) && (crown colonies==0 \|\| flags&0x20) | Count crown warships types 6/8/0xb; if fleets thin **and** REF pools thin → victory `0xf20`; OR flags bit3; set `0x104`; → **LAB_3844_0b4a** |
-| C2 | war && !(flags&8) else | Count rebel colonies (`0x1c&0x40`); SoL ratio; peace-offer or pressure |
+| C1 | war && !(flags&8) && (crown colonies==0 \|\| flags&0x20) | Count crown **land** units types 6/8/0xb (Regulars/Cavalry/Artillery — no ship type is counted); if that force is thin **and** REF pools thin → victory `0xf20`; OR flags bit3; set `0x104`; → **LAB_3844_0b4a** |
+| C2 | war && !(flags&8) — **not** under C1's crown-colony guard | Count rebel colonies (`0x1c&0x40`); SoL ratio; peace-offer or pressure |
 | D | !war | Rival loop EN..DU: SoL pressure `0xf5e`/`0xf69` or auto-declare |
 | E | !(flags&0x10) | Anniversary / game-over years |
 | F | **LAB_3844_0b4a** | If `0x53c2==0`: optional continue dialog; OR flags bit4 |
@@ -70,18 +70,26 @@ Decomp: `viceroy_unpacked.c` **58430–58680**. Thunk `281f_061e`.
 
 ## Thresholds
 
-### Victory fleet / REF (C1)
+### Victory land force / REF (C1)
 
-- Count crown units type ∈ {`0x06`,`0x08`,`0x0b`} → `local_5a`
-- Cap: if flags bit6 clear → need `local_5a < 8`; if bit6 set → `< 1` (expr: `(−(bit6==0)&0xfff9)+8`)
+- Count crown units type ∈ {`0x06`,`0x08`,`0x0b`} → `local_5a`. These are the
+  **land** @UNIT rows (Regulars / Cavalry / Artillery); the crown's ships are
+  never counted, so a King wiped out ashore qualifies however big his fleet.
+- Cap: expr `(int)((−(uint)(bit6==0) & 0xfff9) + 8)`. bit6 **clear** →
+  `0xfff9 + 8` = `−7 + 8` = **1**, so the King must be down to zero land units;
+  bit6 **set** → `0 + 8` = **8**, the looser bar (`ref_unit_threshold`, set once
+  the crown has taken a colony this war). Linux `turn.c` has this right.
 - REF pool thin: `(2 − (0x53dc==0) − (0x53e0==0) + 0x53da) < 4` **or** flags bit5
 - On fire: OR `0x5382` bit3; set `DS:0x104=1`
 
 ### SoL peace / pressure (C2)
 
 ```
-sol = (crown_sol_byte_adj + 1) * 100 / (human_sol_byte_adj + crown_sol_byte_adj + 1)
-  where byte at nation + (−0x6bf4); zero byte → treat as 1 via ~x+1
+sol = (crown_sol_byte + 1) * 100 / (human_sol_byte + 1 + crown_sol_byte + 1)
+  raw 58522 verbatim — BOTH operands carry their own +1 (denominator is
+  human + crown + 2, not + 1). Bytes at nation + (−0x6bf4); the `~x+1` arm
+  taken when the byte is 0 evaluates to 0 as well, so it is a no-op (a
+  sign-extension artifact), not a "treat as 1".
 ```
 
 | Condition | Effect |
@@ -132,7 +140,7 @@ Anniversary requires `autumn==0` for 1790 path; both require flags bit4 clear.
 | 3 | Victory handled (`\|8` on C1) |
 | 4 | Splash / year-end done (`\|0x10` in epilogue) |
 | 5 | Force victory path (`0x20`) |
-| 6 | Stricter fleet cap (`0x40`) |
+| 6 | **Looser** land-force cap: set = give up at `< 8` units, clear = `< 1` (`0x40`, `ref_unit_threshold`) |
 
 ## Linux
 

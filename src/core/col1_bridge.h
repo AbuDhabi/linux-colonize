@@ -26,8 +26,10 @@ typedef struct ColonizeCol1BridgeResult {
   uint16_t autumn;
   uint32_t turn_number;
   int human_nation; /* 0..3 */
-  int cursor_x;
+  int cursor_x; /* DS:0x8540/0x853e focus tile (map cursor) */
   int cursor_y;
+  int view_x; /* DS:0x17c/0x17e camera centre — a different DOS word pair */
+  int view_y;
   int imported_units;
   int imported_colonies;
   int skipped_europe_units;
@@ -58,8 +60,10 @@ bool col1_bridge_capture(
   uint16_t autumn,
   uint32_t turn_number,
   int human_nation,
-  int cursor_x,
+  int cursor_x, /* DS:0x8540/0x853e focus tile (map cursor) */
   int cursor_y,
+  int view_x, /* DS:0x17c/0x17e camera centre */
+  int view_y,
   int active_unit_id,
   char* err,
   size_t err_size

@@ -95,4 +95,25 @@ void ai_euro_wagon_errand_clear_all(void);
  */
 int ai_euro_0a60_work_registered(int nation_id);
 
+/*
+ * FUN_5952_035e raw 555-563 — the colony `+0x1b` bit 0x10 (NEEDS_COLONISTS)
+ * latch, exposed so tests/unit/test_ai_euro_5d04_hire.c can pin the
+ * threshold without driving a whole nation turn. See the definition in
+ * ai_euro.c for the full citation.
+ */
+int ai_euro_colony_needs_colonists_5952(
+  const ColonizeColonyPool* pool,
+  const ColonizeWorldMap* map,
+  const ColonizeColony* c
+);
+
+/*
+ * The 5d04 hire chain's DOS @UNIT view of a Linux unit type (NAMES.TXT
+ * @UNIT file order; 0xff = unknown), and the DS:0x5238 hull-space column for
+ * a DOS @UNIT code. Exposed for tests — both are name-based, because the
+ * chain runs on fixture pools whose indices are not DOS indices.
+ */
+int ai_euro_5d04_dos_type_code(const ColonizeUnitPool* pool, int type_index);
+int ai_euro_5d04_dos_type_space(const ColonizeUnitPool* pool, int dos_code);
+
 #endif

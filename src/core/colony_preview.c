@@ -9,40 +9,6 @@
 #include "core/founding_fathers.h"
 #include "core/turn.h"
 
-int colony_preview_best_job(const ColonizeWorldMap* map, int x, int y) {
-  int best_job = -1;
-  int best_yld = 0;
-  for (int j = 0; j < COLONIZE_FIELD_JOB_COUNT; ++j) {
-    const int yld = colony_yield_for_tile(map, x, y, j);
-    if (yld > best_yld) {
-      best_yld = yld;
-      best_job = j;
-    }
-  }
-  return best_job;
-}
-
-int colony_preview_second_job(const ColonizeWorldMap* map, int x, int y, int first_job) {
-  const int first_cargo = colony_yield_job_cargo(first_job);
-  int best_job = -1;
-  int best_yld = 0;
-  for (int j = 0; j < COLONIZE_FIELD_JOB_COUNT; ++j) {
-    if (j == first_job) {
-      continue;
-    }
-    const int cargo = colony_yield_job_cargo(j);
-    if (cargo == first_cargo) {
-      continue;
-    }
-    const int yld = colony_yield_for_tile(map, x, y, j);
-    if (yld > best_yld) {
-      best_yld = yld;
-      best_job = j;
-    }
-  }
-  return best_job;
-}
-
 void colony_preview_compute(
   const ColonizeColonyPool* pool,
   const ColonizeColony* colony,
@@ -68,7 +34,7 @@ void colony_preview_compute(
   if (map) {
     ColonizeTownCommonsYield tc;
     colony_yield_town_commons(
-      map, colony->x, colony->y, sol_b_field, colony->colony_flags,
+      map, colony->x, colony->y, colony->colony_flags,
       col1 ? (int)col1->head.difficulty : 4, &tc
     );
     if (tc.food > 0) {
@@ -124,6 +90,8 @@ void colony_preview_compute(
        * (2026-08-15, player-confirmed order) — must match turn.c's
        * turn_produce_one_colony exactly, including the same Hudson-after-
        * SoL-fold ordering note there. */
+      /* Henry Hudson folds into the pipeline itself now (turn.c
+       * turn_produce_one_colony / colony_yield.c, smell audit #60). */
       int yld = colony_yield_for_worker(
         map,
         colony->x + dx,
@@ -132,13 +100,9 @@ void colony_preview_compute(
         c->profession,
         has_docks,
         sol_b_field,
-        colony->colony_flags
+        colony->colony_flags,
+        col1 && founding_fathers_nation_has(col1, colony->nation_id, FF_HENRY_HUDSON)
       );
-      /* Henry Hudson: fur trapper output +100% (turn.c turn_produce_one_colony). */
-      if (yld > 0 && c->field_job == COLONIZE_JOB_FUR_TRAPPER && col1 &&
-          founding_fathers_nation_has(col1, colony->nation_id, FF_HENRY_HUDSON)) {
-        yld *= 2;
-      }
       const int cargo = colony_yield_job_cargo(c->field_job);
       if (yld > 0 && cargo >= 0 && cargo < COLONIZE_CARGO_COUNT) {
         out->goods[cargo] += yld;

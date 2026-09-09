@@ -56,8 +56,11 @@ void col1_save_reset_nation_slots(ColonizeCol1Head* head) {
   head->fixed_nation_map_view = 0xffffu;
 }
 
-int col1_save_human_nation(const ColonizeCol1Save* save) {
-  if (!save) {
+int col1_save_human_nation_from(
+  const ColonizeCol1Head* head,
+  const ColonizeCol1Player* players
+) {
+  if (!head || !players) {
     return 0;
   }
   /* Prefer DS:0x5398 when it agrees with the control table — a stale save can
@@ -65,16 +68,34 @@ int col1_save_human_nation(const ColonizeCol1Save* save) {
    * first-zero scan then read a Dutch campaign as England (bugs.md 288).
    * head.human_player alone is not trusted either: older port saves carry a
    * stale 0 there with a correct control table. */
-  const int hp = (int)save->head.human_player;
-  if (hp >= 0 && hp < (int)COLONIZE_COL1_NATION_COUNT && save->player[hp].control == 0) {
+  const int hp = (int)head->human_player;
+  if (hp >= 0 && hp < (int)COLONIZE_COL1_NATION_COUNT && players[hp].control == 0) {
     return hp;
   }
   for (int i = 0; i < (int)COLONIZE_COL1_NATION_COUNT; ++i) {
-    if (save->player[i].control == 0) {
+    if (players[i].control == 0) {
       return i;
     }
   }
-  return hp;
+  /*
+   * Neither probe found a human slot. head.human_player is a raw uint16 read
+   * straight out of the file (0..65535) and every caller indexes nation[] /
+   * player[] with the result — col1_bridge_apply's
+   * `save->nation[local.human_nation]` read out of bounds on a corrupt or
+   * hand-edited save. Hand back the stale field only when it is a real slot;
+   * otherwise 0 (smell audit #76).
+   */
+  if (hp >= 0 && hp < (int)COLONIZE_COL1_NATION_COUNT) {
+    return hp;
+  }
+  return 0;
+}
+
+int col1_save_human_nation(const ColonizeCol1Save* save) {
+  if (!save) {
+    return 0;
+  }
+  return col1_save_human_nation_from(&save->head, save->player);
 }
 
 void col1_save_free(ColonizeCol1Save* save) {

@@ -174,7 +174,10 @@ static void unit_stack_activate_row(UnitStackPopup* dlg, ColonizeUnitPool* pool,
     (void)units_wake(pool, uid);
     return;
   }
-  if (u->moves_left <= 0) {
+  /* Spent-aware: moves_left holds REMAINING for Euro units but the DOS SPENT
+   * byte for natives, so a raw `<= 0` reads a fresh Brave as exhausted
+   * (smell audit 2026-09-09 #6). */
+  if (units_remaining_mp(pool, uid) <= 0) {
     return; /* canceled but spent — nothing to activate this turn */
   }
   *out_select_id = uid;

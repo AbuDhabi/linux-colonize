@@ -1547,7 +1547,7 @@ static void colony_screen_draw_area_overlays(
     }
     ColonizeTownCommonsYield tc;
     colony_yield_town_commons(
-      map, colony->x, colony->y, sol_b_field, colony->colony_flags,
+      map, colony->x, colony->y, colony->colony_flags,
       col1 ? (int)col1->head.difficulty : 4, &tc
     );
     int row = 0;
@@ -1601,10 +1601,20 @@ static void colony_screen_draw_area_overlays(
     }
   }
 
+  /* Same one-badge-per-colonist dedupe turn_produce_one_colony (turn.c) and
+   * colony_preview_compute apply to the production loops: a colonist index
+   * appearing in two tiles[] slots is worked (and drawn) once, at the first
+   * slot. Without it a stale second slot drew a second badge + figure for a
+   * colonist the tick itself never paid twice (smell audit #65). */
+  bool worked_colonist[32];
+  memset(worked_colonist, 0, sizeof(worked_colonist));
   for (int ti = 0; ti < COLONIZE_COLONY_FIELD_TILES; ++ti) {
     const int who = (int)colony->tiles[ti];
-    if (who < 0 || who >= colony->colonist_count) {
+    if (who < 0 || who >= colony->colonist_count || (who < 32 && worked_colonist[who])) {
       continue;
+    }
+    if (who < 32) {
+      worked_colonist[who] = true;
     }
     const ColonizeColonist* c = &colony->colonists[who];
     if (!c->active || c->field_job < 0) {
@@ -1618,6 +1628,9 @@ static void colony_screen_draw_area_overlays(
     const int tile_x = origin_x + (dx + half) * tile;
     const int tile_y = origin_y + (dy + half) * tile;
     const int cargo = colony_yield_job_cargo(c->field_job);
+    /* Henry Hudson's Fur Trapper doubling lives inside the pipeline now
+     * (colony_yield.c, DOS FUN_15eb_18ec 11970-11973; smell audit #60) —
+     * matches turn.c/colony_preview.c. */
     int yld = colony_yield_for_worker(
       map,
       colony->x + dx,
@@ -1626,15 +1639,9 @@ static void colony_screen_draw_area_overlays(
       c->profession,
       has_docks,
       sol_b_field,
-      colony->colony_flags
+      colony->colony_flags,
+      col1 && founding_fathers_nation_has(col1, colony->nation_id, FF_HENRY_HUDSON)
     );
-    /* Henry Hudson: fur trapper output +100% — matches turn.c/colony_preview.c
-     * (2026-08-15: badges previously missed this, a known gap — see
-     * building_production.md "UI: settlement badges vs Production tab"). */
-    if (yld > 0 && c->field_job == COLONIZE_JOB_FUR_TRAPPER && col1 &&
-        founding_fathers_nation_has(col1, colony->nation_id, FF_HENRY_HUDSON)) {
-      yld *= 2;
-    }
     if (cargo >= 0 && yld > 0) {
       const int icon = (c->field_job == COLONIZE_JOB_FISHERMAN)
                          ? COLONY_ICON_FISH
@@ -3889,18 +3896,15 @@ static void colony_screen_draw_jobs_popup(
      * and could disagree with what the assignment then produced (bugs.md:
      * "verify the popup has the proper amounts"). */
     const int sol_b_field = colony_prod_sol_bonus_field(col1, colony);
-    int yld = (map && colony)
+    /* Henry Hudson folds into the pipeline (smell audit #60) — same
+     * gap/fix as colony_screen_draw_area_overlays above. */
+    const int yld = (map && colony)
                 ? colony_yield_for_worker(
                     map, tx, ty, job, profession, has_docks, sol_b_field,
-                    colony ? colony->colony_flags : 0
+                    colony ? colony->colony_flags : 0,
+                    col1 && founding_fathers_nation_has(col1, colony->nation_id, FF_HENRY_HUDSON)
                   )
                 : 0;
-    /* Henry Hudson: fur trapper output +100% — same gap/fix as
-     * colony_screen_draw_area_overlays above. */
-    if (yld > 0 && job == COLONIZE_JOB_FUR_TRAPPER && colony && col1 &&
-        founding_fathers_nation_has(col1, colony->nation_id, FF_HENRY_HUDSON)) {
-      yld *= 2;
-    }
     snprintf(label, sizeof(label), "%s (%d)", colony_yield_job_name(job), yld);
     if (font) {
       font_draw_text(font, framebuffer, inner_x + pad, row_y + 1, label, 15);

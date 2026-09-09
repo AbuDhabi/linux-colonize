@@ -271,19 +271,33 @@ static int combat_ref_present(const ColonizeCol1Save* col1) {
 }
 
 /*
- * Crown / REF nation id (DOS DS:0x53d2). Match ai_king_crown_nation: peer of
- * the human Euro slot (0↔1). Cite: king_ref.md; FUN_43f7_0218.
+ * Crown / REF nation id = DOS DS:0x53d2 = head.crown_nation_id (the slot the
+ * succession merger vacated, FUN_43f7_0218 — king_ref.md). Real saves carry
+ * 0..3 there (dutch-reports.SAV = 2); the old "peer of the human Euro slot
+ * (0↔1)" re-derivation could only answer 0 or 1, so the crown open-field peel
+ * below graded the wrong nation's units on any save with the crown in slot
+ * 2/3. ai_king_crown_nation_col1 keeps the 0↔1 formula as the no-save
+ * fallback.
  */
 static int combat_crown_nation(const ColonizeCol1Save* col1) {
   if (!col1) {
     return 1;
   }
+  int human = -1;
   for (int i = 0; i < 4; ++i) {
     if (col1->player[i].control == 0) {
-      return (i == 0) ? 1 : 0;
+      human = i;
+      break;
     }
   }
-  return 1;
+  const int crown = (int)col1->head.crown_nation_id;
+  if (crown >= 0 && crown < 4 && crown != human) {
+    return crown;
+  }
+  if (human < 0) {
+    return 1; /* no human slot at all — prior fallback */
+  }
+  return (human == 0) ? 1 : 0;
 }
 
 static int combat_unit_on_colony(
@@ -381,15 +395,30 @@ int combat_engagement_strength(
     const int terr_class = map_dos_terr_class_at(ctx->map, u->x, u->y);
     const int terr_byte = map_dos_terr_found_score_byte(terr_class);
     const int unit_nat = u->nation_id & 0xf;
-    const int foe_nat = foe ? (foe->nation_id & 0xf) : 0xf;
+    /*
+     * No foe (foe_id < 0) is a PORT-ONLY case: DOS FUN_157e_015e is reached
+     * only through FUN_281f_09dc, whose two xrefs are 5fef:00dc
+     * (FUN_5fef_0000 defender pick) and 5fef:1e5b (FUN_5fef_1b0e), and both
+     * always hand it a live attacker slot — `param_2 * 0x1c + 0x3147` is read
+     * unconditionally at viceroy_unpacked.c 8982. Only the AI's own
+     * "how tough is this unit" probes (ai_euro_land_foe_toughness) pass -1.
+     *
+     * The old default `foe_nat = 0xf` made a missing foe read as a NATIVE
+     * attacker, which is the ONE reading that denies a European defender its
+     * terrain bonus outright (the 9015 gate needs `uVar4 < 4`), so AI scoring
+     * rated every Euro unit as if it stood on Desert. Default instead to the
+     * arm DOS takes for every ordinary engagement — an AI European foe — so
+     * the probe returns the same number the real fight will.
+     */
+    const int foe_nat = foe ? (foe->nation_id & 0xf) : 0;
+    const int foe_is_ai = foe ? combat_nation_is_ai(ctx->col1, foe_nat) : 1;
     const int woi = combat_woi_active(ctx->col1);
 
     /*
      * Immediate apply (8d02|0x80): native defender, or Euro foe that is AI /
      * pre-WoI (so normal defender terrain). Cite: viceroy 9015–9021.
      */
-    if (unit_nat > 3 ||
-        (foe_nat < 4 && (!woi || combat_nation_is_ai(ctx->col1, foe_nat)))) {
+    if (unit_nat > 3 || (foe_nat < 4 && (!woi || foe_is_ai))) {
       local_1a = terr_byte;
       /* DOS 1b0e: `if (local_1a == 0) 8d02 &= 0x7f` — a 0-value terrain
        * never shows a "+0%" analysis row (bugs.md 405). */
@@ -430,7 +459,7 @@ int combat_engagement_strength(
      */
     int apply_now = 0;
     int skip_stash = 0;
-    if (foe_nat < 4 && !combat_nation_is_ai(ctx->col1, foe_nat)) {
+    if (foe_nat < 4 && !foe_is_ai) {
       if (ctx->colonies) {
         const int colony_here = colonies_id_at(ctx->colonies, u->x, u->y) >= 0;
         const int colony_foe =
@@ -503,6 +532,25 @@ int combat_type_is_scout_name(const char* name) {
   return name && name[0] && strstr(name, "Scout") != NULL;
 }
 
+/*
+ * "Does this unit's @UNIT TYPE row carry the combat flag?" — the literal
+ * DS:0x5236 column read (`type[type_index * 0xe + 0x5236] != 0`, spelled
+ * `t->attack > 0` here), nothing else. This is the ONE question DOS asks of
+ * the type table:
+ *
+ *   FUN_5fef_0000 (viceroy_unpacked.c 99190):
+ *     if (*(char *)(unit[i].type * 0xe + 0x5236) != '\0') break;   // pick it
+ *   FUN_5fef_0352 capture gate (99380): a WINNER may flip a Colonist/Wagon
+ *     only when its own 0x5236 byte is non-zero.
+ *
+ * NOT the same question as units.c `units_is_combat_role(pool, u)` — "can
+ * this BODY fight?" — which also counts carried muskets/horses because this
+ * port stores a colony-armed colonist as a Colonists-type unit with kit,
+ * where DOS stores it as @UNIT type 1 "Soldiers". The two agree on every
+ * stock typed military unit and diverge only on armed colonists. Use THIS
+ * one wherever DOS reads the type table; use the units.c one for gameplay
+ * "is this a combatant" gates. Smell audit 2026-09-09 #12.
+ */
 int combat_unit_is_combat_role(const ColonizeUnitPool* pool, int unit_id) {
   if (!pool) {
     return 0;
@@ -548,21 +596,42 @@ static int combat_bombard_row_icon(const ColonizeCombatStrengthCtx* ctx, int x, 
   return ctx->units->types[type_index].icon_sprite;
 }
 
+/*
+ * SoL % of the colony record on (x,y), or -1 when no record exists.
+ *
+ * DOS: FUN_5fef_1b0e reaches this only inside `if (-1 < iVar18)` — iVar18 is
+ * FUN_281f_07be, the colony INDEX on the defended tile — and then binds it
+ * (FUN_281f_09e6) before calling FUN_281f_0c86 → FUN_15eb_0274
+ * (viceroy_unpacked.c 9471-9500), which reads only the BOUND colony record:
+ *
+ *   local_c = 0;
+ *   if ((-1 < divisor.hi) && ((0 < divisor.hi) || (divisor.lo != 0)))
+ *     local_c = dividend * 100 / divisor;          // 32-bit
+ *   local_8 = local_c + (Bolivar && owner < 4 && control == 0 ? 0x14 : 0);
+ *   if (100 < local_8) local_8 = 100;
+ *
+ * So a zero divisor yields 0, not a fallback, and "no colony record" cannot
+ * happen at all — 07be already proved one exists. The old
+ * `liberty_bells_total / 4` arm here was invented (that divisor appears
+ * nowhere in the SoL machinery); -1 now means "port-side desync between the
+ * colony pool and the col1 record array" and the caller skips the peel
+ * instead of inventing a support number.
+ */
 static int combat_colony_sol_at(
   const ColonizeCombatStrengthCtx* ctx,
   int x,
   int y
 ) {
   if (!ctx || !ctx->colonies || !ctx->col1) {
-    return 0;
+    return -1;
   }
   const int cid = colonies_id_at(ctx->colonies, x, y);
   if (cid < 0) {
-    return 0;
+    return -1;
   }
   const ColonizeColony* c = colonies_get(ctx->colonies, cid);
   if (!c) {
-    return 0;
+    return -1;
   }
   /* Inline colony_prod_sol_percent to avoid linking colony_production into smokes. */
   if (ctx->col1->colony) {
@@ -571,10 +640,11 @@ static int combat_colony_sol_at(
       if ((int)cc->x != c->x || (int)cc->y != c->y) {
         continue;
       }
-      if (cc->rebel_divisor == 0) {
-        break;
+      /* FUN_15eb_0274 guard: divisor <= 0 leaves local_c at 0. */
+      int sol = 0;
+      if (cc->rebel_divisor != 0) {
+        sol = (int)((cc->rebel_dividend * 100u) / cc->rebel_divisor);
       }
-      int sol = (int)((cc->rebel_dividend * 100u) / cc->rebel_divisor);
       if (sol < 0) {
         sol = 0;
       }
@@ -585,18 +655,7 @@ static int combat_colony_sol_at(
       return sol;
     }
   }
-  if (c->nation_id >= 0 && c->nation_id < 4) {
-    int sol = (int)ctx->col1->nation[c->nation_id].liberty_bells_total / 4;
-    sol += founding_fathers_bolivar_sol_bonus(ctx->col1, c->nation_id);
-    if (sol > 100) {
-      sol = 100;
-    }
-    if (sol < 0) {
-      sol = 0;
-    }
-    return sol;
-  }
-  return 0;
+  return -1;
 }
 
 /*
@@ -746,26 +805,29 @@ void combat_apply_1b0e_peels(
          */
         io->atk_flags.bombard_icon = combat_bombard_row_icon(ctx, def->x, def->y);
       }
-      int sol = combat_colony_sol_at(ctx, def->x, def->y);
-      if (sol < 0) {
-        sol = 0;
-      }
-      if (sol > 100) {
-        sol = 100;
-      }
-      int support = sol;
-      if (atk_is_crown) {
-        support = 100 - sol; /* Tory share for crown/REF */
-        if (support > 0) {
-          io->atk_flags.flags2 |= COMBAT_FLAG_TORIES;
+      /*
+       * DOS binds the colony record 07be already proved exists, so the peel
+       * always has a real SoL. -1 = no col1 record for this tile (port-side
+       * desync only): skip rather than invent a support number — with
+       * `sol = 0` a crown attacker would silently collect the full +100%
+       * Tory bonus. Cite: FUN_5fef_1b0e `if (-1 < iVar18)` / FUN_15eb_0274.
+       */
+      const int sol = combat_colony_sol_at(ctx, def->x, def->y);
+      if (sol >= 0) {
+        int support = sol > 100 ? 100 : sol;
+        if (atk_is_crown) {
+          support = 100 - support; /* Tory share for crown/REF */
+          if (support > 0) {
+            io->atk_flags.flags2 |= COMBAT_FLAG_TORIES;
+          }
+        } else if (support > 0) {
+          io->atk_flags.flags2 |= COMBAT_FLAG_REBELS;
         }
-      } else if (support > 0) {
-        io->atk_flags.flags2 |= COMBAT_FLAG_REBELS;
-      }
-      if (support > 0) {
-        const int add = (support * io->atk_strength) / 100;
-        io->atk_strength += add;
-        io->atk_flags.sol_percent = support;
+        if (support > 0) {
+          const int add = (support * io->atk_strength) / 100;
+          io->atk_strength += add;
+          io->atk_flags.sol_percent = support;
+        }
       }
     }
   }

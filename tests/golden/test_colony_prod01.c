@@ -545,10 +545,10 @@ static int run_pair(const char* path_in, const char* path_exp, const char* label
       if (map.terrain) {
         map.terrain[54 * map.width + 42] = col1_tile_to_mp_terrain(0x0cu);
       }
-      int y_farm = colony_yield_for_worker(&map, 42, 56, 0, fo->colonists[0].profession, true, 2, fo->colony_flags);
-      int y_fish = colony_yield_for_worker(&map, 41, 55, 8, fo->colonists[2].profession, true, 2, fo->colony_flags);
+      int y_farm = colony_yield_for_worker(&map, 42, 56, 0, fo->colonists[0].profession, true, 2, fo->colony_flags, false);
+      int y_fish = colony_yield_for_worker(&map, 41, 55, 8, fo->colonists[2].profession, true, 2, fo->colony_flags, false);
       ColonizeTownCommonsYield tc;
-      colony_yield_town_commons(&map, 42, 55, 2, fo->colony_flags, 2, &tc);
+      colony_yield_town_commons(&map, 42, 55, fo->colony_flags, 2, &tc);
       fprintf(stderr, "DEBUG Fort Orange: y_farm=%d, y_fish=%d, center=%d, prof0=%d, prof2=%d, flags=0x%02x\n",
               y_farm, y_fish, tc.food, fo->colonists[0].profession, fo->colonists[2].profession, fo->colony_flags);
       break;
@@ -824,6 +824,20 @@ static int run_pair(const char* path_in, const char* path_exp, const char* label
        * so any river added to an already-Mountain tile reads back as
        * *major* regardless of the river bit actually set. Road avoids the
        * clash (a separate map.improve flag) and lands on 8 exactly.
+       *
+       * 2026-09-09: plus MAP_LAYER2_SUPPRESS (Col1 mask 0x04, a mined-out
+       * silver mountain). Not cosmetic — FUN_15eb_18ec's job==7 block
+       * (viceroy_unpacked.c 11925-11941, ported into colony_yield_pipeline
+       * this pass, smell audit #61) collapses a Silver Miner on a tile with
+       * NO resource and the suppress bit CLEAR to 1 (road/settlement or
+       * matching expert) or 0, and suppresses the improvement stack with
+       * it. The bare "Mountain + road, nothing else" re-pick above was only
+       * reachable while the port paid full base + expert x2 + road on bare
+       * rock; DOS never does. With the bit set the tile leaves that branch
+       * (a depleted deposit is exactly the case DOS lets through) and the
+       * arithmetic is unchanged: (base 1 + sol 2) x2 expert + road u2 = 8,
+       * the same real-DOS-captured 8 this fixture has always targeted, and
+       * still no depletion unit (turn.c counts only res 6/12).
        */
       vl->tiles[4] = 4;
       if (map.terrain) {
@@ -831,6 +845,9 @@ static int run_pair(const char* path_in, const char* path_exp, const char* label
       }
       if (map.improve) {
         map.improve[(vl->y + k_fdy[4]) * map.width + (vl->x + k_fdx[4])] |= MAP_IMPROVE_ROAD;
+      }
+      if (map.layer2) {
+        map.layer2[(vl->y + k_fdy[4]) * map.width + (vl->x + k_fdx[4])] |= MAP_LAYER2_SUPPRESS;
       }
       /* Master Fisherman on Ocean -> 10 food */
       vl->tiles[5] = 5;
@@ -841,11 +858,11 @@ static int run_pair(const char* path_in, const char* path_exp, const char* label
       vl->colonists[6].profession = 28;
       if (map.terrain) map.terrain[(vl->y + k_fdy[6]) * map.width + (vl->x + k_fdx[6])] = 25;
       {
-        int y0 = colony_yield_for_worker(&map, vl->x + k_fdx[0], vl->y + k_fdy[0], 0, vl->colonists[0].profession, true, 2, vl->colony_flags);
-        int y5 = colony_yield_for_worker(&map, vl->x + k_fdx[5], vl->y + k_fdy[5], 8, vl->colonists[5].profession, true, 2, vl->colony_flags);
-        int y6 = colony_yield_for_worker(&map, vl->x + k_fdx[6], vl->y + k_fdy[6], 8, vl->colonists[6].profession, true, 2, vl->colony_flags);
+        int y0 = colony_yield_for_worker(&map, vl->x + k_fdx[0], vl->y + k_fdy[0], 0, vl->colonists[0].profession, true, 2, vl->colony_flags, false);
+        int y5 = colony_yield_for_worker(&map, vl->x + k_fdx[5], vl->y + k_fdy[5], 8, vl->colonists[5].profession, true, 2, vl->colony_flags, false);
+        int y6 = colony_yield_for_worker(&map, vl->x + k_fdx[6], vl->y + k_fdy[6], 8, vl->colonists[6].profession, true, 2, vl->colony_flags, false);
         ColonizeTownCommonsYield vtc;
-        colony_yield_town_commons(&map, vl->x, vl->y, 2, vl->colony_flags, 2, &vtc);
+        colony_yield_town_commons(&map, vl->x, vl->y, vl->colony_flags, 2, &vtc);
         fprintf(stderr, "DEBUG Vlissingen: y0=%d y5=%d y6=%d center=%d flags=0x%02x pop=%d\n",
                 y0, y5, y6, vtc.food, vl->colony_flags, vl->colonist_count);
       }
@@ -1081,6 +1098,8 @@ static int run_pair(const char* path_in, const char* path_exp, const char* label
         br.human_nation,
         br.cursor_x,
         br.cursor_y,
+        br.view_x,
+        br.view_y,
         units.selected_id,
         err,
         sizeof(err)

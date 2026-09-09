@@ -162,6 +162,21 @@ static int europe_ship_cargo_cap(const EuropeHarborShip* ship, const ColonizeUni
   return EUROPE_SHIP_CARGO_MAX;
 }
 
+/*
+ * Free goods slots in a harbor ship, DOS FUN_15eb_3208's first term:
+ * `@UNIT cargo column (type*0xe+0x5237) − holds_occupied`. Passengers ride
+ * the same slot array in DOS, and the port's boarding path already spends
+ * them that way (europe_board_sentry_dockers), so they count here too.
+ */
+static int europe_ship_free_slots(const EuropeHarborShip* ship, const ColonizeUnitPool* units) {
+  if (!ship) {
+    return 0;
+  }
+  const int free_slots =
+    europe_ship_cargo_cap(ship, units) - europe_goods_slots_used(ship) - ship->cargo_count;
+  return free_slots > 0 ? free_slots : 0;
+}
+
 /* Insert at dock front (index 0). Returns false if docks are full. */
 static bool europe_dock_push_front(
   EuropeScreen* eu,
@@ -577,14 +592,17 @@ const char* europe_pool_label(const EuropeScreen* eu, int slot) {
 }
 
 /*
- * Game-start recruit pool — DOS `FUN_38fd_6024` (viceroy_unpacked.c:68706-
- * 68729). Slot 0 is a fixed bottom-tier class (Indentured Servants below
- * Viceroy, Petty Criminals at Viceroy); slots 1 and 2 are 46d4 rolls, slot
- * 1 forced to the expert half below Conquistador and slot 2 always. The
- * human player then gets a hand-picked easy opener: at Discoverer the whole
- * pool is overwritten with Master Carpenters / Expert Farmers / Seasoned
- * Scouts, at Conquistador only slots 1 and 2 are. Spain then forces slot 0
- * to Jesuit Missionaries on top of all of that (LAB_38fd_6161).
+ * Game-start recruit pool — DOS `FUN_38fd_6024` (viceroy_unpacked.c:68707-
+ * 68729). Difficulty is DS:0x53a6, 0 Discoverer … 4 Viceroy (difficulty.md).
+ * Slot 0 is a fixed bottom-tier class (`0x53a6 < 4` -> Indentured Servants,
+ * i.e. below Viceroy; Petty Criminals at Viceroy); slots 1 and 2 are 46d4
+ * rolls, slot 1 forced to the expert half on `0x53a6 < 3` — below GOVERNOR,
+ * so Discoverer/Explorer/Conquistador — and slot 2 always. The human player
+ * then gets a hand-picked easy opener, gated `0x53a6 == 0` / `== 1`: at
+ * Discoverer all three slots become Master Carpenters / Expert Farmers /
+ * Seasoned Scouts, at EXPLORER only slots 1 and 2 do, and Conquistador and
+ * above get nothing. Spain then forces slot 0 to Jesuit Missionaries on top
+ * of all of that (LAB_38fd_6161).
  */
 void europe_seed_pool(EuropeScreen* eu, int difficulty, bool human) {
   if (!eu) {
@@ -3550,6 +3568,15 @@ int europe_ai_colony_dump_sell(
    * FUN_364b_0688 phase O: non-human Euro (nation≤3, control≠0) sells warehouse
    * surplus for gold before spoilage. Stock is not reduced here — spoilage clamps.
    * Cite: viceroy_unpacked.c ~57806–57848; 291f_0a2e → 38fd_1dfa.
+   *
+   * UNTAXED, and NOT at the harbor sell price. DOS (viceroy 57834-57846):
+   *   local_66 = (uint)*(byte *)(cargo + nation*0x10 + -0x7b44) * amount;
+   *   *(nation_rec + cargo*4 + 0x7c) += local_66;   // per-cargo ledger
+   *   *(nation_rec + 0x2a)          += local_66;    // 32-bit treasury
+   * — the raw DS:0x84BC `euro_price[nation][cargo]` byte (col1 nation
+   * trade.euro_price), no `−1` and no tax split: there is no FUN_1d1d_0ec6
+   * tax call and no `+0x22` royal_money write anywhere in this arm, unlike
+   * the Custom House arm 500 lines earlier (57277-57302) which does both.
    */
   if (!eu || !colony || !colony->active) {
     return 0;
@@ -3558,17 +3585,8 @@ int europe_ai_colony_dump_sell(
   if (nation < 0 || nation > 3 || nation == human_nation) {
     return 0;
   }
-
-  int tax = eu->tax_percent;
-  if (col1 && nation < (int)COLONIZE_COL1_NATION_COUNT) {
-    tax = (int)col1->nation[nation].tax_rate;
-  }
-  if (tax < 0) {
-    tax = 0;
-  }
-  if (tax > 100) {
-    tax = 100;
-  }
+  ColonizeCol1Nation* nat =
+    (col1 && nation < (int)COLONIZE_COL1_NATION_COUNT) ? &col1->nation[nation] : NULL;
 
   int total = 0;
   for (int c = 1; c < COLONIZE_CARGO_COUNT; ++c) {
@@ -3589,16 +3607,10 @@ int europe_ai_colony_dump_sell(
       eu->nation_horses[nation] = (uint16_t)h;
       continue;
     }
-    if (c >= eu->cargo_count) {
-      continue;
-    }
-    const int bid = europe_sell_price(eu, c);
-    if (bid <= 0) {
-      continue;
-    }
     /*
      * Muskets: DOS while surplus>49: Europe musket counter++, amount−50; then
-     * sell remainder for gold.
+     * sell remainder for gold. DOS runs this batching before any price read,
+     * so a zero price must not skip it.
      */
     int amount = surplus;
     if (c == COLONIZE_CARGO_MUSKETS) {
@@ -3612,18 +3624,46 @@ int europe_ai_colony_dump_sell(
         continue;
       }
     }
-    const int gained = europe_net_after_tax(bid * amount, tax);
-    total += gained;
-    if (col1 && nation < (int)COLONIZE_COL1_NATION_COUNT) {
-      col1->nation[nation].gold += (uint32_t)gained;
+    if (c >= eu->cargo_count) {
+      continue;
     }
-    /* 291f_0a2e → 38fd_1dfa: ledgers + volume, no 0058 step. */
+    /* 291f_0a2e → 38fd_1dfa: ledgers + volume, no 0058 step. DOS runs this
+     * BEFORE it reads the price byte (asm 364b:1795 vs 17d0). */
     europe_apply_trade_volume(eu, col1, nation, human_nation, c, amount, 0, 0);
+    /*
+     * DS:0x84BC byte for THIS colony's nation — not eu->cargo[].bid−1
+     * (asm 364b:17d0 `MOV AL,[BX+SI+0x84bc]`, SI = nation<<4, BX = cargo).
+     * Substitution: a game that never came from a DOS save has the AI
+     * nations' byte still 0 (only the bound nation's is stamped, see
+     * col1_bridge), so fall back to the one Linux market's raw bid — the
+     * same live-market-else-col1 pairing ai_euro_5d04_cb_sell_price uses.
+     */
+    int price = (nat && c < (int)COLONIZE_COL1_CARGO_TYPES) ? (int)nat->trade.euro_price[c] : 0;
+    if (price <= 0) {
+      price = eu->cargo[c].bid;
+    }
+    /* No price gate: DOS calls 291f_0a2e (volume) at 57827, before it reads
+     * the price byte at 57834 — a zero price still moves the goods. */
+    const int gained = price > 0 ? price * amount : 0; /* untaxed: DOS credits gross */
+    total += gained;
+    if (nat) {
+      /*
+       * Same double-book as the 20e6 delivery tail (ai_euro_20e6_delivery_
+       * sell_tail): the 1dfa call just above already moved the taxed
+       * proceeds into trade.gold[]/tons[]/tons2[]; DOS then adds the gross to
+       * trade.gold[] and — verbatim, asm 364b:17bd `ADD [BX+0xbc],AX` with
+       * AX = the loop's CARGO INDEX, not the amount — the index to
+       * trade.tons[]. Both decompiles and the listing agree.
+       */
+      nat->trade.tons[c] += (int32_t)c;
+      nat->trade.gold[c] += (int32_t)gained;
+      nat->gold += (uint32_t)gained;
+    }
   }
   if (total > 0) {
     diag_info(
-      "EUROPE dump-sell %s total %d$ (nation=%d tax=%d%%)",
-      colony->name[0] ? colony->name : "colony", total, nation, tax
+      "EUROPE dump-sell %s total %d$ (nation=%d, untaxed)",
+      colony->name[0] ? colony->name : "colony", total, nation
     );
     snprintf(eu->status, sizeof(eu->status), "AI warehouse dump-sold for %d$.", total);
   }
@@ -3743,9 +3783,38 @@ int europe_buy_unit_cargo(
   return loaded;
 }
 
+int europe_harbor_cargo_room(
+  const EuropeScreen* eu,
+  const ColonizeUnitPool* units,
+  int harbor_index,
+  int cargo_type
+) {
+  if (!eu || harbor_index < 0 || harbor_index >= eu->harbor_ships) {
+    return 0;
+  }
+  const EuropeHarborShip* ship = &eu->harbor[harbor_index];
+  const int free_slots = europe_ship_free_slots(ship, units);
+  int room = free_slots * 100;
+  /*
+   * DOS FUN_15eb_3208 only tallies the part-full matching holds when there is
+   * no free slot left at all — with a free slot the room is already a whole
+   * hold, and FUN_38fd_1fa2 clamps the buy to 100 either way.
+   */
+  if (free_slots == 0) {
+    for (int i = 0; i < EUROPE_SHIP_CARGO_MAX; ++i) {
+      const int amt = ship->hold_goods_amount[i];
+      if (amt > 0 && amt < 100 && ship->hold_goods_type[i] == cargo_type) {
+        room += 100 - amt;
+      }
+    }
+  }
+  return room;
+}
+
 int europe_buy_cargo(
   EuropeScreen* eu,
   struct ColonizeCol1Save* col1,
+  const ColonizeUnitPool* units,
   int buyer_nation,
   int harbor_index,
   int cargo_type,
@@ -3770,17 +3839,18 @@ int europe_buy_cargo(
     return 0;
   }
   EuropeHarborShip* ship = &eu->harbor[harbor_index];
-  int room_total = 0;
-  for (int i = 0; i < EUROPE_SHIP_CARGO_MAX; ++i) {
-    const int amt = ship->hold_goods_amount[i];
-    if (amt > 0 && amt < 255) {
-      if (ship->hold_goods_type[i] == cargo_type) {
-        room_total += 100 - amt;
-      }
-    } else {
-      room_total += 100;
-    }
-  }
+  /*
+   * Hold capacity (smell audit #83). DOS FUN_38fd_1fa2 asks FUN_281f_0b96 →
+   * FUN_15eb_3208 for this ship's free room BEFORE charging anything and
+   * bails to the "no room" popup when it comes back 0; the port used to walk
+   * all six EUROPE_SHIP_CARGO_MAX slots unconditionally, so a Caravel (2
+   * holds) loaded 600 tons. Capacity is the @UNIT cargo column, minus goods
+   * slots already used, minus passengers (same slots — see
+   * europe_board_sentry_dockers). A NULL pool still falls back to the
+   * six-slot maximum, as europe_ship_cargo_cap always has.
+   */
+  const int free_slots = europe_ship_free_slots(ship, units);
+  const int room_total = europe_harbor_cargo_room(eu, units, harbor_index, cargo_type);
   if (room_total <= 0) {
     europe_set_status(eu, "No empty hold.");
     return 0;
@@ -3818,7 +3888,10 @@ int europe_buy_cargo(
     ship->hold_goods_amount[i] += add;
     remaining -= add;
   }
-  for (int i = 0; i < EUROPE_SHIP_CARGO_MAX && remaining > 0; ++i) {
+  /* Appends are bounded by the free-slot budget: DOS FUN_15eb_30b8 only
+   * appends while `holds_occupied < cargo_cap`. */
+  int new_slots = free_slots;
+  for (int i = 0; i < EUROPE_SHIP_CARGO_MAX && remaining > 0 && new_slots > 0; ++i) {
     const int amt = ship->hold_goods_amount[i];
     if (amt > 0 && amt < 255) {
       continue;
@@ -3827,6 +3900,7 @@ int europe_buy_cargo(
     ship->hold_goods_type[i] = cargo_type;
     ship->hold_goods_amount[i] = add;
     remaining -= add;
+    new_slots--;
   }
   const int bought = buy - remaining;
   eu->gold -= bought * ask;
@@ -3861,6 +3935,19 @@ int europe_best_sell_hold(const EuropeScreen* eu, int harbor_index) {
   int best = -1;
   int best_v = 0;
   int best_amt = 0;
+  int first_loaded = -1;
+  /*
+   * Ordering heuristic only — a rough "which hold is worth the most" ranking,
+   * with no DOS counterpart (DOS's own whole-cargo sweep, FUN_479b_0bd0 as
+   * ported in game_europe_service_trade_harbor, just walks slots 0..5 in
+   * index order). Its four zeroes (Lumber 5, Horses 8, Tools 14, Muskets 15)
+   * used to make this function REFUSE such a hold outright, which broke both
+   * its callers: European Status "U" loops on this picker to unload the whole
+   * cargo and stopped at the first zero-value hold, and "-" fell back to it
+   * and answered "Nothing to sell." on a ship full of muskets. The ranking
+   * still decides the ORDER; it no longer decides whether a loaded hold is
+   * sellable at all (smell audit #88).
+   */
   static const int k_value[COLONIZE_CARGO_COUNT] = {
     1, 5, 4, 3, 5, 0, 4, 20, 0, 8, 8, 7, 7, 2, 0, 0
   };
@@ -3869,6 +3956,9 @@ int europe_best_sell_hold(const EuropeScreen* eu, int harbor_index) {
     const int ctype = ship->hold_goods_type[i];
     if (amt <= 0 || amt >= 255) {
       continue;
+    }
+    if (first_loaded < 0) {
+      first_loaded = i;
     }
     const int v =
       (ctype >= 0 && ctype < COLONIZE_CARGO_COUNT) ? k_value[ctype] : 0;
@@ -3881,7 +3971,7 @@ int europe_best_sell_hold(const EuropeScreen* eu, int harbor_index) {
       best = i;
     }
   }
-  return best;
+  return best >= 0 ? best : first_loaded;
 }
 
 static bool europe_in_rect(int mx, int my, int x, int y, int w, int h) {

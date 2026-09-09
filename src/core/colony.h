@@ -117,13 +117,19 @@ typedef struct ColonizeColony {
   uint16_t custom_house_bits;
   /*
    * Col1 +0x8e LABOR demand counter. Unload/join decrements (FUN_521d_5b66
-   * ~91589). Cite: save_format_map.md; euro_unit_act case 0x0b.
+   * ~91589). Stamped unconditionally by every AI colony tick from the real
+   * FUN_5952_035e formula since 2026-09-09 (raw 94029-94045, ported in
+   * ai_euro_colony_threat_seed_5952): it is a target headcount
+   * `clamp(max((pop + on_tile_colonists - 1) / 2, garrison_quota), <= n / 2)`
+   * (+1 under WoI, floored at 1 by an adjacent enemy), NOT a boolean
+   * "this colony wants labor" — a hand-seeded value does not survive a tick.
+   * Cite: save_format_map.md; euro_unit_act case 0x0b.
    */
   uint8_t labor_shortage;
   /*
    * Col1 +0x1e garrison fortify quota. DEC on fortify/'A' assign; seeded by
-   * threat>>3 (FUN_5952_035e) — Linux thin-latches 1 when idle garrison needs
-   * fortify. Cite: save_format_map.md; euro_unit_act §2d3.
+   * threat>>3 (FUN_5952_035e, ai_euro_colony_threat_seed_5952).
+   * Cite: save_format_map.md; euro_unit_act §2d3.
    */
   uint8_t garrison_quota;
   /*
@@ -211,6 +217,25 @@ typedef struct ColonizeColony {
    * bridged: it carries no state DOS keeps.
    */
   uint8_t food_shortfall_latch;
+  /*
+   * Port-only Phase A compose snapshot (smell audit #62). DOS composes this
+   * colony's bells and crosses inside FUN_364b_0688's own prologue
+   * (`FUN_281f_0c22` → `15eb_1f72`) and hands the SAME word to both
+   * consumers — the nation/Congress tally (`FUN_291f_09f8`, viceroy 57231)
+   * and the rebel dividend (57392). The port instead re-tallies bells and
+   * crosses for the whole nation in `turn_run_nation_ticks`, which for AI
+   * nations runs AFTER their colonies have ticked, i.e. after Phase C/D
+   * moved the SoL accumulators and latch bits and after F/G/H/J rewrote the
+   * roster — a systematically one-step-ahead number. `turn_produce_one_colony`
+   * stamps what it composed at the Phase A boundary here; the nation tally
+   * prefers it when `prod_compose_stamp` matches this turn, and otherwise
+   * (human colonies, whose EOT runs later in TURN_PROC_FINISH; direct
+   * callers with no col1) falls back to a live read, which for them already
+   * IS the pre-tick state. Not bridged: DOS keeps no such field.
+   */
+  int prod_bells_phase_a;
+  int prod_crosses_phase_a;
+  uint32_t prod_compose_stamp; /* head.turn + 1; 0 = never composed */
 } ColonizeColony;
 
 #define COLONIZE_BUILD_AI_WANTS_CONSTRUCTION 0x80u
@@ -233,8 +258,21 @@ typedef struct ColonizeColony {
  * So 0x08 is the "needs military" side and 0x04 the "has spare military" side;
  * the 0x04 name below is historical and semantically inverted, but it is kept
  * because its one read site (ai_euro.c ~12103, DOS 88756) really does test
- * bit 4. Neither bit has a writer in the port yet — they arrive from the DOS
- * save's +0x1b byte, so read sites must test the same raw bit DOS does.
+ * bit 4.
+ *
+ * Both writers ARE ported since 2026-09-09 (smell audit #41), in
+ * ai_euro_colony_threat_seed_5952 — the same DOS body that already produced
+ * garrison_quota. `local_74` (wanted defenders) is raw 94150-94193;
+ * `local_82` is NOT a raw defender count but this nation's LAND military
+ * homed to the colony (+0x314a origin) minus the ones the on-tile walk
+ * already counted as garrison, i.e. the OFF-STATION surplus (raw 94063-94071).
+ *
+ * The DOS per-tick clear is `+0x1b &= 7` (raw 94142) — it keeps 0x01/0x02
+ * (the census's own disjoint mask) AND 0x04. 0x04 is therefore sticky by
+ * design: only its consumers clear it, at raw 85332 (FUN_4d56_4528), 90168
+ * (FUN_521d_20e6's settlement-step arm) and 94247 (the join-colonist loop).
+ * Those three clears are still UNPORTED, so a port 0x04 stays set once
+ * raised where DOS would spend it.
  */
 #define COLONIZE_COLONY_AI_NEEDS_MILITARY 0x04u
 #define COLONIZE_COLONY_AI_SHORT_DEFENDERS 0x08u

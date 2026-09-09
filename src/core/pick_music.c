@@ -31,6 +31,15 @@ void pick_music_init(PickMusicDialog* dlg) {
   dlg->smallfont = true;
 }
 
+const ColonizeFont* pick_music_font(
+  const PickMusicDialog* dlg, const ColonizeFont* tiny_font, const ColonizeFont* dialog_font
+) {
+  if (dlg && dlg->smallfont && tiny_font) {
+    return tiny_font;
+  }
+  return dialog_font ? dialog_font : tiny_font;
+}
+
 void pick_music_close(PickMusicDialog* dlg) {
   if (!dlg) {
     return;

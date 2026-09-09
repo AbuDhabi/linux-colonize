@@ -32,6 +32,14 @@
  * layer_b_combat_raid / layer_b_2a1f_midlo / layer_b_ai_diplo.
  */
 
+/*
+ * New-game / load hook (sibling of ai_goals_reset / founding_fathers_reset).
+ * Clears the module's cross-game statics: a pending Indian reparations offer
+ * (colony/unit/tribe indices into the previous game) and the per-tribe event
+ * cooldowns, which are absolute turn stamps. Added 2026-09-09 (smell #58).
+ */
+void ai_contact_reset(void);
+
 /* @RAID* kind stand-ins (COLONIZE/GAME.TXT tags). */
 typedef enum AiRaidKind {
   AI_RAID_NOTHING = 0,
@@ -60,6 +68,14 @@ void ai_contact_indian_prelude(ColonizeTurnContext* ctx, int nation_id);
 
 /* FUN_4d56_1816 §6 / FUN_4cc6_00f2-shaped relation tick vs each Euro. */
 void ai_contact_indian_relation_tick(ColonizeTurnContext* ctx, int nation_id);
+
+/*
+ * FUN_5952_035e war-declare block (raw 94170-94190): the AI colony tick's sole
+ * production writer of COL1_INDIAN_WAR_BIT. Called once per own colony from
+ * the Euro colony tick with that colony's tile; see the body in ai_contact.c
+ * for the recovered `or_both(nation, tribe + 4, 2)` far call.
+ */
+void ai_contact_colony_tick_war_5952(ColonizeTurnContext* ctx, int nation_id, int cx, int cy);
 
 /* FUN_5bfb_022e meet / auto-trade (status + AI popup CHOICE/OK when queued). */
 void ai_contact_indian_meet_trade(ColonizeTurnContext* ctx, int nation_id);

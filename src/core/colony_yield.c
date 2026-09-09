@@ -202,6 +202,17 @@ static int colony_yield_ocean_neighbor_count(const ColonizeWorldMap* map, int x,
   return count;
 }
 
+/*
+ * DOS `FUN_137f_0142(x,y) & 4` — the mask/layer2 prime-suppress bit, read
+ * straight off the plane the same way map.c's resource lookup does.
+ */
+static bool colony_yield_tile_prime_suppressed(const ColonizeWorldMap* map, int x, int y) {
+  if (!map || !map->layer2 || x < 0 || y < 0 || x >= map->width || y >= map->height) {
+    return false;
+  }
+  return (map->layer2[(size_t)y * (size_t)map->width + (size_t)x] & MAP_LAYER2_SUPPRESS) != 0;
+}
+
 static int colony_yield_fisherman_distance_mod(const ColonizeWorldMap* map, int x, int y) {
   const int count = colony_yield_ocean_neighbor_count(map, x, y);
   if (count >= 8) {
@@ -246,8 +257,9 @@ static int colony_yield_fisherman_distance_mod(const ColonizeWorldMap* map, int 
  *   6. plow +1 on crops
  *   7. road/river, big_unit (u=2) for a matching non-food/fish expert or
  *      any Lumberjack
- *   8. Convert +1 (whitelist)
- *   9. negative sol_bonus folds in here, at the very end, floor at 0 — DOS
+ *   8. Henry Hudson (FF 8): Fur Trapper yield <<= 1
+ *   9. Convert +1 (whitelist)
+ *  10. negative sol_bonus folds in here, at the very end, floor at 0 — DOS
  *      does *not* let the expert doubling amplify a Tory penalty
  */
 static int colony_yield_pipeline(
@@ -258,7 +270,8 @@ static int colony_yield_pipeline(
   int profession,
   int sol_bonus,
   bool has_docks,
-  uint8_t colony_flags
+  uint8_t colony_flags,
+  bool has_hudson
 ) {
   /* Field-job expert-fish/farmer re-add now goes through `sol_bonus`
    * itself (see the is_expert_food_fish block below) rather than
@@ -435,6 +448,43 @@ static int colony_yield_pipeline(
       yield <<= 1;
     }
   }
+
+  /*
+   * Silver Miner without a deposit — FUN_15eb_18ec's own `job == 7` block
+   * (viceroy_unpacked.c 11925-11941), sitting between the resource add and
+   * the Lumberjack double. When the job is Silver Miner AND the tile has no
+   * resource at all (`local_1a == -1`) AND the runtime mask bit 0x04
+   * (MAP_LAYER2_SUPPRESS) is CLEAR, DOS:
+   *   - sets `local_2a`, which suppresses the whole improvement stack below
+   *     (`if ((0 < local_26) && (local_2a == 0))`), unconditionally — even
+   *     when the yield is already 0; and
+   *   - collapses a nonzero yield to exactly 1 if the tile carries the
+   *     road/settlement mask (`& 10`) or the worker is a matching expert,
+   *     and to 0 otherwise.
+   * So bare rock pays nothing: virgin Mountains with no Silver Deposit give
+   * a free colonist 0 silver and an Expert Silver Miner 1 — not the base 1
+   * + expert x2 + road/river stack this port paid before 2026-09-09 (smell
+   * audit #61).
+   *
+   * The suppress bit reads inverted only until you follow FUN_137f_04b0
+   * (ported as map_resource_type_for_yield, map.c): a *depleted* silver
+   * deposit reports resource 0, not -1, so it never enters this branch and
+   * keeps its ordinary base yield; only a mountain that never had a deposit
+   * arrives here with resource -1 and the bit clear.
+   *
+   * The `& 10` test is spelled road-only, matching the identical narrowing
+   * the improvement stack below already applies (DOS tests road|settlement;
+   * see the stack's note and smell audit #26).
+   */
+  bool suppress_improvements = false;
+  if (field_job == COLONIZE_JOB_SILVER_MINER && res < 0 &&
+      !colony_yield_tile_prime_suppressed(map, x, y)) {
+    suppress_improvements = true;
+    if (yield != 0) {
+      yield = (map_tile_has_road(map, x, y) || expert) ? 1 : 0;
+    }
+  }
+
   if (field_job == COLONIZE_JOB_LUMBERJACK) {
     yield <<= 1;
   }
@@ -477,7 +527,7 @@ static int colony_yield_pipeline(
    * their totals coincide with this stack on those tiles (checked
    * per-anchor: ore/fur/lumber road & river cases decompose identically).
    */
-  if (yield > 0) {
+  if (yield > 0 && !suppress_improvements) {
     const int u =
       ((expert && field_job != COLONIZE_JOB_FARMER && field_job != COLONIZE_JOB_FISHERMAN) ||
        field_job == COLONIZE_JOB_LUMBERJACK)
@@ -502,6 +552,24 @@ static int colony_yield_pipeline(
     yield += add;
   }
 
+  /*
+   * Henry Hudson (@FF 8) — FUN_15eb_18ec's own `local_14 == 4` block
+   * (viceroy_unpacked.c 11970-11973: `if ((local_14 == 4) &&
+   * (FUN_15eb_3960(colony[+0x1a], 8) != 0)) local_26 <<= 1;`), sitting
+   * between the improvement stack and BOTH the Convert +1 and the negative
+   * (Tory) SoL fold. Ported here 2026-09-09 (smell audit #60): the port used
+   * to double at four separate call sites (turn.c, colony_preview.c,
+   * colony_screen.c x2) *after* the whole pipeline had returned, i.e. after
+   * Convert +1 and after the Tory subtraction — `2·(base+1)` / `2·(base−2)`
+   * where DOS has `2·base + 1` / `2·base − 2`. The AI work-plot scorer
+   * (ai_euro.c's 28c8 body) had no copy at all, so it scored fur plots as if
+   * Hudson didn't exist; putting the doubling in the shared pipeline fixes
+   * both at once.
+   */
+  if (has_hudson && field_job == COLONIZE_JOB_FUR_TRAPPER) {
+    yield <<= 1;
+  }
+
   /* Convert +1 on DOS whitelist (FUN_15eb_18ec) */
   if (yield > 0 && profession == COLONIZE_PROF_CONVERT && field_job != COLONIZE_JOB_LUMBERJACK &&
       field_job != COLONIZE_JOB_ORE_MINER && field_job != COLONIZE_JOB_SILVER_MINER) {
@@ -518,7 +586,7 @@ static int colony_yield_pipeline(
 }
 
 int colony_yield_for_tile(const ColonizeWorldMap* map, int x, int y, int field_job) {
-  return colony_yield_pipeline(map, x, y, field_job, -1, 0, true, 0);
+  return colony_yield_pipeline(map, x, y, field_job, -1, 0, true, 0, false);
 }
 
 int colony_yield_for_worker(
@@ -529,9 +597,12 @@ int colony_yield_for_worker(
   int profession,
   bool has_docks,
   int sol_bonus,
-  uint8_t colony_flags
+  uint8_t colony_flags,
+  bool has_hudson
 ) {
-  return colony_yield_pipeline(map, x, y, field_job, profession, sol_bonus, has_docks, colony_flags);
+  return colony_yield_pipeline(
+    map, x, y, field_job, profession, sol_bonus, has_docks, colony_flags, has_hudson
+  );
 }
 
 /*
@@ -617,7 +688,6 @@ void colony_yield_town_commons(
   const ColonizeWorldMap* map,
   int x,
   int y,
-  int sol_bonus,
   uint8_t colony_flags,
   int difficulty,
   ColonizeTownCommonsYield* out
@@ -636,7 +706,6 @@ void colony_yield_town_commons(
    * FUN_137f_04b0 read in FUN_15eb_1f72 has no settlement gate. Caught
    * 2026-09-03 by the farming saves' Minerals commons (5 ore/turn). */
   const int res = map_resource_type_for_yield(map, x, y);
-  const bool timber = (res == 10 || res == 11);
 
   int food = colony_yield_town_commons_food_base(pedia);
   /*
@@ -664,8 +733,15 @@ void colony_yield_town_commons(
    * term was wrongly concluded not to stack — see the crop-improvements
    * comment in colony_yield_pipeline); fixing both together reconciles
    * Fort Orange (and New Amsterdam) exactly again.
+   *
+   * 2026-09-09 (smell audit #66): the extra `pedia >= 0 && pedia <= 7`
+   * cleared-land gate this carried was a local invention — FUN_15eb_1f72
+   * (viceroy_unpacked.c 12525-12529) reads `FUN_137f_0142(x,y) & 0x40` and
+   * adds 1 with no terrain test at all. Unreachable in practice (DOS only
+   * ever sets the plow bit on cleared land) but removed to keep the port
+   * literal.
    */
-  if (map_tile_is_plowed(map, x, y) && pedia >= 0 && pedia <= 7) {
+  if (map_tile_is_plowed(map, x, y)) {
     food += 1;
   }
   /*
@@ -680,17 +756,22 @@ void colony_yield_town_commons(
    * colony aggregate matched with both errors in place. farming/case3
    * broke the tie by pinning the farmer +1 on riverless tiles.
    */
-  /* Oasis / Wheat / Game: +2 food on commons (not absolute @RESOURCE). Skip timber. */
-  if (!timber && res >= 0) {
-    if (res == 1 || res == 2 || res == 9) {
-      food += 2;
-    }
+  /*
+   * Oasis / Wheat / Game: +2 food on commons (not absolute @RESOURCE) —
+   * FUN_15eb_1f72 ~12539: `if (res == 1 || res == 9 || res == 2) food += 2`.
+   * The old `!timber` guard (res 10/11) was invented and dead: neither value
+   * can satisfy the inner test. Removed 2026-09-09 (smell audit #67).
+   */
+  if (res == 1 || res == 2 || res == 9) {
+    food += 2;
   }
   /*
    * SoL adds via the colony's latch bits here, not the general (live,
-   * Tory-adjusted) sol_bonus this function still takes as a parameter for
-   * callers that haven't been re-threaded — see FUN_15eb_1f72's food
-   * block. Player-confirmed 2026-08-18 across four real, direct
+   * Tory-adjusted) sol_bonus — see FUN_15eb_1f72's food block. That general
+   * value used to be a parameter of this function and was never read; it is
+   * gone since 2026-09-09 (smell audit #69), because a live-looking-but-dead
+   * parameter is exactly what invited prior-audit #18's bug back.
+   * Player-confirmed 2026-08-18 across four real, direct
    * town-commons-food values (colony_prod02's Curacao 4/Recife 3/New
    * Holland 5, plus Fort Orange after subtracting its own confirmed
    * plow+river): Curacao (Broadleaf, class 2, full latch) and Recife
@@ -705,7 +786,6 @@ void colony_yield_town_commons(
   if ((colony_flags & COLONIZE_COLONY_FLAG_SOL_100) != 0) {
     food += 1;
   }
-  (void)sol_bonus;
   out->food = food > 0 ? food : 0;
 
   /*
@@ -723,7 +803,6 @@ void colony_yield_town_commons(
    * 2 sugar). Difficulty term stays unexercised by the goldens
    * (prod01 is difficulty 2, prod02/03 are 4); asm-read only.
    */
-  (void)timber;
   int sec_job = -1;
   int sec = colony_yield_town_commons_secondary_pick(pedia, res, &sec_job);
   if (sec_job < 0) {

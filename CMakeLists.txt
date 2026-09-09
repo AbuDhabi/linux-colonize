@@ -737,6 +737,46 @@ target_include_directories(unit_units PRIVATE
 
 add_test(NAME unit_units COMMAND unit_units WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 
+add_executable(unit_combat_strength
+  tests/unit/test_combat_strength.c
+  src/core/units.c
+  src/core/unit_stack.c
+  src/core/reports.c
+  src/core/colony_production.c
+  src/core/woodcut.c
+  src/core/combat_strength.c
+  src/core/combat_analysis.c
+  src/core/unit_chrome.c
+  src/core/colony.c
+  src/core/colony_yield.c
+  src/core/founding_fathers.c
+  src/core/ai_diplo.c
+  src/core/ai_popup.c
+  src/core/popup.c
+  src/core/popup_msg.c
+  src/core/map_menu.c
+  src/core/europe.c
+  src/core/pik.c
+  src/core/map.c
+  src/core/dos_rng.c
+  src/core/strutil.c
+  src/core/assets.c
+  src/core/font.c
+  src/core/ff.c
+  src/core/ss.c
+  src/core/madspack.c
+  src/data/viceroy_tables.c
+  src/platform/diagnostics.c
+  src/platform/dos_compat/dos_compat.c
+)
+
+target_include_directories(unit_combat_strength PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+
+add_test(NAME unit_combat_strength COMMAND unit_combat_strength
+  WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+
 add_executable(unit_colony_yield
   tests/unit/test_colony_yield.c
   src/core/colony_yield.c

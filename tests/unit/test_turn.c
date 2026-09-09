@@ -1064,6 +1064,40 @@ int main(void) {
     return 1;
   }
 
+  /*
+   * smell #24: the hand-off form must skip standing orders. DOS's control
+   * cycle only offers units that actually await orders; parking the selection
+   * on a Fortified unit flashes it into control for a frame.
+   */
+  {
+    const int uid3 = units_spawn_allow_stack(&units, 0, 7, 7);
+    ColonizeUnit* u3 = units_get(&units, uid3);
+    u3->nation_id = 0;
+    u3->moves_left = 2 * UNITS_MP_PER_TILE;
+    /* uid2 fortified, uid3 free: the skip must land on uid3, not uid2. */
+    u2->orders = UNITS_ORDER_FORTIFIED;
+    units.selected_id = uid;
+    if (turn_select_next_unit(&units, 0) != true || units.selected_id != uid2) {
+      fprintf(stderr, "bare select should stop on the Fortified unit\n");
+      return 1;
+    }
+    units.selected_id = uid;
+    if (!turn_select_next_unit_awaiting_orders(&units, 0) || units.selected_id != uid3) {
+      fprintf(stderr, "awaiting-orders select skipped wrong: %d\n", units.selected_id);
+      return 1;
+    }
+    /* Nothing awaiting orders at all → false, not a parked standing order. */
+    u3->orders = UNITS_ORDER_SENTRY;
+    units.selected_id = uid;
+    if (turn_select_next_unit_awaiting_orders(&units, 0)) {
+      fprintf(stderr, "awaiting-orders select must report empty on all-parked\n");
+      return 1;
+    }
+    u2->orders = UNITS_ORDER_NONE;
+    u3->orders = UNITS_ORDER_NONE;
+    units_despawn(&units, uid3);
+  }
+
   /* Turn-owner colors: NAMES.TXT @COUNTRY; England fill uses saturated red 112. */
   if (turn_nation_color(0) != 112 || turn_nation_color(1) != 9 || turn_nation_color(2) != 14 ||
       turn_nation_color(3) != 13) {
@@ -1444,7 +1478,7 @@ int main(void) {
      * excluded — no +1 here, unlike Farmer/Sugar/Tobacco/Cotton/Fur
      * Trapper/Fisherman below. */
     const int convert_yld =
-      colony_yield_for_worker(&map, fx, fy, COLONIZE_JOB_LUMBERJACK, COLONIZE_PROF_CONVERT, true, 0, 0);
+      colony_yield_for_worker(&map, fx, fy, COLONIZE_JOB_LUMBERJACK, COLONIZE_PROF_CONVERT, true, 0, 0, false);
     if (convert_yld != base) {
       fprintf(
         stderr,
@@ -1472,7 +1506,7 @@ int main(void) {
       }
       const int farmer_base = colony_yield_for_tile(&map, ffx, ffy, COLONIZE_JOB_FARMER);
       const int farmer_convert =
-        colony_yield_for_worker(&map, ffx, ffy, COLONIZE_JOB_FARMER, COLONIZE_PROF_CONVERT, true, 0, 0);
+        colony_yield_for_worker(&map, ffx, ffy, COLONIZE_JOB_FARMER, COLONIZE_PROF_CONVERT, true, 0, 0, false);
       if (farmer_convert != farmer_base + 1) {
         fprintf(
           stderr,
@@ -1530,7 +1564,7 @@ int main(void) {
       }
     }
     const int wrong_expert =
-      colony_yield_for_worker(&map, fx, fy, COLONIZE_JOB_LUMBERJACK, COLONIZE_PROF_FREE_COLONIST, true, 0, 0);
+      colony_yield_for_worker(&map, fx, fy, COLONIZE_JOB_LUMBERJACK, COLONIZE_PROF_FREE_COLONIST, true, 0, 0, false);
     if (wrong_expert != base) {
       fprintf(
         stderr,
@@ -1877,7 +1911,7 @@ int main(void) {
     col->stock[COLONIZE_CARGO_FOOD] = 100;
     const int before = col->stock[COLONIZE_CARGO_LUMBER];
     const int expect =
-      colony_yield_for_worker(&map, fx, fy, COLONIZE_JOB_LUMBERJACK, col->colonists[0].profession, true, 0, 0);
+      colony_yield_for_worker(&map, fx, fy, COLONIZE_JOB_LUMBERJACK, col->colonists[0].profession, true, 0, 0, false);
     ColonizeTurnResult prod;
     ColonizeColonyProdDelta delta;
     memset(&prod, 0, sizeof(prod));
@@ -1907,7 +1941,7 @@ int main(void) {
     col->population = 15;
     col->colonist_count = 15;
     const int base_yield =
-      colony_yield_for_worker(&map, fx, fy, COLONIZE_JOB_LUMBERJACK, col->colonists[0].profession, true, 0, 0);
+      colony_yield_for_worker(&map, fx, fy, COLONIZE_JOB_LUMBERJACK, col->colonists[0].profession, true, 0, 0, false);
     ColonizeColonyPreview prev;
     colony_preview_compute(&pool, col, &map, NULL, &prev);
     if (prev.goods[COLONIZE_CARGO_LUMBER] != base_yield - 1) {
@@ -2168,6 +2202,162 @@ int main(void) {
   }
 
   /*
+   * Smell audit #62 — latch-crossing turn: the Production preview and the
+   * real tick must compose from the SAME SoL number. DOS composes every
+   * cargo (field, craft, hammers, bells, crosses) once in FUN_364b_0688's
+   * Phase A prologue (`281f_0c22` -> `15eb_1f72`, viceroy 57228) and only
+   * reads that scratch back later, so Phase C/D's SoL accumulator + latch
+   * update (57349-57485) cannot reach this tick's production. The port used
+   * to call colony_prod_sol_bonus() again down at the Phase L hammers site,
+   * i.e. *after* the latch flipped, so on the one turn a colony crosses 50%
+   * SoL the preview promised 3 hammers and the tick banked 4.
+   *
+   * Fixture: pop 1, 60% SoL, no latch bit yet. tories = (1*40+50)/100 = 0,
+   * so the pre-tick bonus is exactly 0 and the post-latch bonus exactly +1
+   * — the whole difference is the bit Phase D sets during this same tick.
+   */
+  {
+    ColonizeColonyPool pool;
+    colonies_init(&pool);
+    colonies_set_occupancy_map(NULL);
+    snprintf(pool.building_types[0].name, sizeof(pool.building_types[0].name), "Carpenter's Shop");
+    pool.building_type_count = 1;
+
+    ColonizeColony* col = &pool.colonies[0];
+    memset(col, 0, sizeof(*col));
+    col->active = true;
+    col->id = 1;
+    col->nation_id = 0;
+    col->x = 5;
+    col->y = 7;
+    col->building_in_production = -1;
+    col->stock[COLONIZE_CARGO_FOOD] = 100;
+    col->stock[COLONIZE_CARGO_LUMBER] = 100;
+    col->colonists[0].active = true;
+    col->colonists[0].building_type = 0;
+    col->colonists[0].profession = COLONIZE_PROF_FREE_COLONIST;
+    col->colonists[0].field_job = -1;
+    for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES; ++t) {
+      col->tiles[t] = -1;
+    }
+    col->colonist_count = 1;
+    col->population = 1;
+    col->colony_flags = 0; /* neither SoL latch bit set yet */
+    pool.colony_count = 1;
+
+    ColonizeCol1Save col1;
+    memset(&col1, 0, sizeof(col1));
+    ColonizeCol1Colony c1rec;
+    memset(&c1rec, 0, sizeof(c1rec));
+    c1rec.x = 5;
+    c1rec.y = 7;
+    c1rec.rebel_dividend = 60;
+    c1rec.rebel_divisor = 100; /* 60% -> Phase D sets SOL_50 this tick */
+    col1.colony = &c1rec;
+    col1.head.colony_count = 1;
+    col1.player[0].control = 0;
+    /* memset(0) would read as "nation 0 owns every founding father" — the
+     * fixture trap that has bitten this project before. */
+    for (int i = 0; i < (int)COLONIZE_COL1_FF_COUNT; ++i) {
+      col1.head.founding_father[i] = -1;
+    }
+
+    ColonizeColonyPreview prev;
+    colony_preview_compute(&pool, col, NULL, &col1, &prev);
+
+    ColonizeTurnResult prod;
+    memset(&prod, 0, sizeof(prod));
+    turn_run_colony_production(&pool, NULL, &col1, NULL, -1, &prod, NULL, NULL, NULL);
+
+    if ((col->colony_flags & COLONIZE_COLONY_FLAG_SOL_50) == 0) {
+      fprintf(
+        stderr,
+        "latch-crossing fixture never crossed (flags=%u) — test is vacuous\n",
+        (unsigned)col->colony_flags
+      );
+      return 1;
+    }
+    if (prev.hammers != 3 || col->hammers != 3) {
+      fprintf(
+        stderr,
+        "latch-crossing preview/tick disagree: preview %d, tick %d (want 3/3)\n",
+        prev.hammers,
+        col->hammers
+      );
+      return 1;
+    }
+    fprintf(stderr, "latch-crossing preview == tick ok\n");
+  }
+
+  /*
+   * Smell audit #63 — Phase A composes before Phase J. DOS's per-colonist
+   * manufacturing loop (`15eb_1d4c` inside `15eb_1f72`, viceroy 12602-12609)
+   * runs in the prologue, so the roster it reads is the one that started the
+   * turn; the starve-kill at 57623-57695 comes much later and cannot retract
+   * work already composed. The port used to call colony_craft_one_colony at
+   * the Phase L position, *after* the kill, so a Blacksmith who starved this
+   * tick had his tools vanish retroactively.
+   *
+   * Fixture: pop 2, no food and no food production (map NULL -> no commons),
+   * so Phase J kills the last colonist — who is the Blacksmith.
+   */
+  {
+    ColonizeColonyPool pool;
+    colonies_init(&pool);
+    colonies_set_occupancy_map(NULL);
+    snprintf(
+      pool.building_types[0].name, sizeof(pool.building_types[0].name), "Blacksmith's House"
+    );
+    pool.building_type_count = 1;
+
+    ColonizeColony* col = &pool.colonies[0];
+    memset(col, 0, sizeof(*col));
+    col->active = true;
+    col->id = 1;
+    col->nation_id = 0;
+    col->building_in_production = -1;
+    col->stock[COLONIZE_CARGO_FOOD] = 0; /* Phase J needs food 0 at entry */
+    col->stock[COLONIZE_CARGO_ORE] = 50;
+    for (int i = 0; i < 2; ++i) {
+      col->colonists[i].active = true;
+      col->colonists[i].building_type = (i == 1) ? 0 : -1;
+      col->colonists[i].profession = COLONIZE_PROF_FREE_COLONIST;
+      col->colonists[i].field_job = -1;
+    }
+    for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES; ++t) {
+      col->tiles[t] = -1;
+    }
+    col->colonist_count = 2;
+    col->population = 2;
+    pool.colony_count = 1;
+
+    ColonizeTurnResult prod;
+    ColonizeColonyProdDelta delta;
+    memset(&prod, 0, sizeof(prod));
+    memset(&delta, 0, sizeof(delta));
+    turn_colony_free_production(&pool, col, NULL, &prod, &delta);
+
+    if (col->colonist_count != 1) {
+      fprintf(
+        stderr,
+        "starve fixture did not kill exactly one colonist (count=%d) — test is vacuous\n",
+        col->colonist_count
+      );
+      return 1;
+    }
+    if (col->stock[COLONIZE_CARGO_TOOLS] <= 0 || col->stock[COLONIZE_CARGO_ORE] >= 50) {
+      fprintf(
+        stderr,
+        "starved Blacksmith's Phase A tools were retracted: tools=%d ore=%d\n",
+        col->stock[COLONIZE_CARGO_TOOLS],
+        col->stock[COLONIZE_CARGO_ORE]
+      );
+      return 1;
+    }
+    fprintf(stderr, "Phase A craft survives Phase J starve-kill ok\n");
+  }
+
+  /*
    * Fisherman needs Docks (FUN_15eb_18ec ~11925-11939): yields 0 without it,
    * regardless of what the tile table says. colony_yield_for_worker's
    * has_docks parameter must actually gate this, not just default to
@@ -2238,7 +2428,8 @@ int main(void) {
     }
     col->has_building[docks] = false;
     const int no_docks_yld = colony_yield_for_worker(
-      &map, fx, fy, COLONIZE_JOB_FISHERMAN, col->colonists[0].profession, false, 0, 0
+      &map, fx, fy, COLONIZE_JOB_FISHERMAN, col->colonists[0].profession, false, 0, 0,
+      false
     );
     if (no_docks_yld != 0) {
       fprintf(stderr, "fisherman without Docks want 0 got %d\n", no_docks_yld);
@@ -2247,7 +2438,8 @@ int main(void) {
       return 1;
     }
     const int with_docks_yld = colony_yield_for_worker(
-      &map, fx, fy, COLONIZE_JOB_FISHERMAN, col->colonists[0].profession, true, 0, 0
+      &map, fx, fy, COLONIZE_JOB_FISHERMAN, col->colonists[0].profession, true, 0, 0,
+      false
     );
     if (with_docks_yld <= 0) {
       fprintf(stderr, "fisherman with Docks want >0 got %d\n", with_docks_yld);
@@ -2347,7 +2539,7 @@ int main(void) {
     }
     const int base = colony_yield_for_tile(&map, fx, fy, COLONIZE_JOB_FARMER);
     const int expert_yld =
-      colony_yield_for_worker(&map, fx, fy, COLONIZE_JOB_FARMER, COLONIZE_JOB_FARMER, true, 0, 0);
+      colony_yield_for_worker(&map, fx, fy, COLONIZE_JOB_FARMER, COLONIZE_JOB_FARMER, true, 0, 0, false);
     /* 2026-09-03: the improvement stack (farmer +1, plow, river) applies to
      * expert and non-expert alike (asm 15eb:1c32-1c9c is skill-blind except
      * for u sizing, and u=1 for food jobs), so the expert delta over the
@@ -3272,6 +3464,60 @@ int main(void) {
       return 1;
     }
 
+    /*
+     * smell #29: DOS FUN_364b_0688 keeps the bit3 latch for EVERY colony of
+     * the ticked nation (viceroy 57470-57485 — the OR/AND-clear pair sits in
+     * the open function body); only the two dialogs are human-gated, and by
+     * DS:0xa897, which FUN_15eb_002c sets from "colony owner == view nation
+     * AND that slot's control == 0". Retarget the colony to an AI nation:
+     * latch must still move, chrome must stay silent.
+     */
+    c->nation_id = 1;
+    col1c.nation_id = 1;
+    col1.player[1].control = 1;
+    col1.head.colony_report_options.report_inefficient_government = 0;
+    c->colony_flags = 0;
+    c->stock[COLONIZE_CARGO_FOOD] = 200;
+    col1c.rebel_dividend = 0u << 6;
+    col1c.rebel_divisor = 100u << 6;
+    eu.status[0] = '\0';
+    ai_popup_clear(&pops);
+    memset(&prod, 0, sizeof(prod));
+    turn_run_colony_production(&pool, NULL, &col1, &eu, 0, &prod, &pops, &game_txt, NULL);
+    if ((c->colony_flags & COLONIZE_COLONY_FLAG_INEFFICIENT_GOV) == 0) {
+      fprintf(stderr, "INEFFICIENT AI: latch not set on an AI colony\n");
+      assets_msg_free(&game_txt);
+      return 1;
+    }
+    if (pops.queue_count != 0 || eu.status[0] != '\0') {
+      fprintf(
+        stderr,
+        "INEFFICIENT AI: want no chrome got q=%d '%s'\n",
+        pops.queue_count,
+        eu.status
+      );
+      assets_msg_free(&game_txt);
+      return 1;
+    }
+    /* And the clear side, still silent. */
+    col1c.rebel_dividend = 100u << 6;
+    col1c.rebel_divisor = 100u << 6;
+    c->stock[COLONIZE_CARGO_FOOD] = 200;
+    eu.status[0] = '\0';
+    ai_popup_clear(&pops);
+    memset(&prod, 0, sizeof(prod));
+    turn_run_colony_production(&pool, NULL, &col1, &eu, 0, &prod, &pops, &game_txt, NULL);
+    if ((c->colony_flags & COLONIZE_COLONY_FLAG_INEFFICIENT_GOV) != 0) {
+      fprintf(stderr, "INEFFICIENT AI: latch not cleared on an AI colony\n");
+      assets_msg_free(&game_txt);
+      return 1;
+    }
+    if (pops.queue_count != 0 || eu.status[0] != '\0') {
+      fprintf(stderr, "EFFICIENT AI: want no chrome got q=%d '%s'\n", pops.queue_count, eu.status);
+      assets_msg_free(&game_txt);
+      return 1;
+    }
+
     assets_msg_free(&game_txt);
     fprintf(stderr, "inefficient government chrome ok\n");
   }
@@ -3887,15 +4133,29 @@ int main(void) {
     ColonizeCol1Save col1;
     memset(&col1, 0, sizeof(col1));
     col1.nation[1].tax_rate = 20;
+    for (int i = 0; i < (int)COLONIZE_COL1_CARGO_TYPES; ++i) {
+      col1.nation[1].trade.euro_price[i] = 10;
+    }
 
-    /* Direct API at euro_price−1 = 9, tax 20: tobacco 50→450−90=360 + muskets rem 10→90−18=72; horses→word; muskets 1 batch. */
+    /*
+     * DOS (viceroy 57834-57846) pays the raw euro_price byte (10), UNTAXED:
+     * tobacco 50→500 + muskets remainder 10→100; horses→word; muskets 1 batch.
+     */
     const int gained = europe_ai_colony_dump_sell(&eu, &pool, ai, &col1, 0);
-    if (gained != 432 || col1.nation[1].gold != 432u) {
+    if (gained != 600 || col1.nation[1].gold != 600u) {
       fprintf(
         stderr,
-        "dump-sell gained=%d gold=%u (want 432)\n",
+        "dump-sell gained=%d gold=%u (want 600)\n",
         gained,
         (unsigned)col1.nation[1].gold
+      );
+      return 1;
+    }
+    if (col1.nation[1].royal_money != 0) {
+      fprintf(
+        stderr,
+        "dump-sell must not tax: royal_money=%d\n",
+        (int)col1.nation[1].royal_money
       );
       return 1;
     }
@@ -3934,8 +4194,8 @@ int main(void) {
       );
       return 1;
     }
-    if (col1.nation[1].gold != 432u) {
-      fprintf(stderr, "produce+dump gold=%u (want 432)\n", (unsigned)col1.nation[1].gold);
+    if (col1.nation[1].gold != 600u) {
+      fprintf(stderr, "produce+dump gold=%u (want 600)\n", (unsigned)col1.nation[1].gold);
       return 1;
     }
     if (human->stock[COLONIZE_CARGO_TOBACCO] != 100 || col1.nation[0].gold != 0u) {
@@ -4829,140 +5089,254 @@ int main(void) {
     ctx.col1_ok = false;
     fprintf(stderr, "year-end C2 peace ok\n");
 
-    /* Section D: rival_nation_slot + threshold + rebellion_pct dedup. */
+    /*
+     * smell #21: C2 is NOT under C1's crown-colony guard. raw 58493 opens the
+     * C1 arm with `(crown_colony_count == 0) || (0x5382 & 0x20)`; the C2 body
+     * at 58507 sits after that arm closes, still inside
+     * `(0x5382 & 1) && !(0x5382 & 8)`. Crown with ZERO colonies but a REF pool
+     * too fat for C1 to fire must still raise the peace-offer band.
+     */
+    year = 1700;
+    status[0] = '\0';
+    memset(&out, 0, sizeof(out));
+    ColonizeCol1Save c2b;
+    col1_save_init(&c2b);
+    c2b.head.game_options.woi = 1;
+    c2b.head.colony_count = 1;
+    c2b.colony = calloc(1, sizeof(ColonizeCol1Colony));
+    if (!c2b.colony) {
+      return 1;
+    }
+    c2b.colony[0].nation_id = 0; /* human colony only — crown owns none */
+    c2b.colony[0].population = 1;
+    c2b.colony[0].rebel_dividend = 0;
+    c2b.colony[0].rebel_divisor = 100;
+    /* No colony for the crown ⇒ ai_king_sol_percent falls back to bells/4. */
+    c2b.nation[1].liberty_bells_total = 400;
+    /* REF pool fat: ref_score = ef[0] + 2 - (ef[1]==0) - (ef[3]==0) = 5 ⇒
+     * !ref_thin ⇒ C1 cannot fire even with the crown wiped off the map. */
+    c2b.head.expeditionary_force[0] = 5;
+    for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+      pool.colonies[i].active = false;
+    }
+    ColonizeColony* human_c2b = &pool.colonies[0];
+    memset(human_c2b, 0, sizeof(*human_c2b));
+    human_c2b->active = true;
+    human_c2b->nation_id = 0;
+    human_c2b->building_in_production = -1;
+    pool.colony_count = 1;
+    ctx.col1 = &c2b;
+    ctx.col1_ok = true;
+    ctx.colonies = &pool;
+    ctx.units = NULL;
+    turn_run_year_end_chrome(&ctx, &out);
+    if (out.year_end_victory || strstr(status, "peace") == NULL) {
+      fprintf(
+        stderr,
+        "year-end C2 crownless want peace status got victory=%d '%s'\n",
+        out.year_end_victory,
+        status
+      );
+      free(c2b.colony);
+      return 1;
+    }
+    free(c2b.colony);
+    ctx.col1 = NULL;
+    ctx.col1_ok = false;
+    fprintf(stderr, "year-end C2 runs with no crown colonies ok\n");
+
+    /*
+     * Section D — a rival's OWN independence (raw 58558-58617), not a war
+     * declaration. v = rebel_sentiment × census_pop_proxy / 100 (capped 100)
+     * against threshold (8−difficulty)×10; @OTHERGRANTED at/over it,
+     * @OTHERMIGHT / @OTHERLESS under it behind the two hysteresis bands.
+     */
     year = 1700;
     status[0] = '\0';
     memset(&out, 0, sizeof(out));
     ColonizeCol1Save dcol;
     col1_save_init(&dcol);
-    dcol.head.difficulty = 3;
+    dcol.head.difficulty = 4; /* thresh = (8-4)*10 = 40 */
     dcol.player[0].control = 0;
     dcol.player[1].control = 1;
     dcol.player[2].control = 1;
-    dcol.head.rival_nation_slot_1 = 2;
-    dcol.head.colony_count = 1;
-    dcol.colony = calloc(1, sizeof(ColonizeCol1Colony));
-    if (!dcol.colony) {
-      return 1;
-    }
-    dcol.colony[0].nation_id = 2;
-    dcol.colony[0].population = 8;
-    dcol.colony[0].rebel_dividend = 50;
-    dcol.colony[0].rebel_divisor = 100;
-    dcol.nation[2].rebel_sentiment = 55;
+    dcol.player[3].control = 2;
+    /* v = 25*100/100 = 25; band = [20,40); cache 10 → rising fires. */
+    dcol.nation[2].rebel_sentiment = 25;
+    dcol.stuff.census_pop_proxy[2] = 100;
+    dcol.nation[2].rebellion_pct_last_notified = 10;
     ctx.col1 = &dcol;
     ctx.col1_ok = true;
     turn_run_year_end_chrome(&ctx, &out);
-    if (strstr(status, "declares war") == NULL) {
-      fprintf(stderr, "year-end D want auto-declare at SoL>=50 got '%s'\n", status);
-      free(dcol.colony);
-      return 1;
-    }
-    dcol.head.difficulty = 4;
-    dcol.colony[0].rebel_dividend = 25;
-    dcol.nation[2].rebel_sentiment = 25;
-    dcol.nation[2].rebellion_pct_last_notified = 10;
-    status[0] = '\0';
-    memset(&out, 0, sizeof(out));
-    turn_run_year_end_chrome(&ctx, &out);
-    if (strstr(status, "Rival SoL rising") == NULL) {
-      fprintf(stderr, "year-end D want rising got '%s'\n", status);
-      free(dcol.colony);
+    if (strstr(status, "considers granting independence") == NULL) {
+      fprintf(stderr, "year-end D want @OTHERMIGHT rising got '%s'\n", status);
       return 1;
     }
     if (dcol.nation[2].rebellion_pct_last_notified != 25) {
       fprintf(
         stderr,
-        "year-end D latch want 25 got %u\n",
+        "year-end D cache want 25 got %u\n",
         (unsigned)dcol.nation[2].rebellion_pct_last_notified
       );
-      free(dcol.colony);
       return 1;
     }
-    free(dcol.colony);
+    /* Re-run unchanged: DOS's `cached < v` band must keep it quiet — the
+     * pre-fix port re-fired every year on a 1-point wobble. */
+    status[0] = '\0';
+    memset(&out, 0, sizeof(out));
+    turn_run_year_end_chrome(&ctx, &out);
+    if (status[0] != '\0') {
+      fprintf(stderr, "year-end D want silence on repeat got '%s'\n", status);
+      return 1;
+    }
+    /* Rising band's other half (raw 58572 `thresh-0x14 <= v`): below
+     * thresh−20 it stays quiet even though v is well above the cache. */
+    dcol.nation[2].rebel_sentiment = 19; /* v = 19 < 40-20 */
+    dcol.nation[2].rebellion_pct_last_notified = 5;
+    status[0] = '\0';
+    memset(&out, 0, sizeof(out));
+    turn_run_year_end_chrome(&ctx, &out);
+    if (status[0] != '\0') {
+      fprintf(stderr, "year-end D want silence under thresh-20 got '%s'\n", status);
+      return 1;
+    }
+    if (dcol.nation[2].rebellion_pct_last_notified != 5) {
+      fprintf(stderr, "year-end D quiet band must not write the cache\n");
+      return 1;
+    }
+    /* Falling band: v must be more than 5 UNDER the cache. */
+    dcol.nation[2].rebellion_pct_last_notified = 24; /* 19 < 24-5? no (19==19) */
+    status[0] = '\0';
+    memset(&out, 0, sizeof(out));
+    turn_run_year_end_chrome(&ctx, &out);
+    if (status[0] != '\0') {
+      fprintf(stderr, "year-end D falling needs >5 drop, got '%s'\n", status);
+      return 1;
+    }
+    dcol.nation[2].rebellion_pct_last_notified = 26; /* 19 < 21 → fires */
+    status[0] = '\0';
+    memset(&out, 0, sizeof(out));
+    turn_run_year_end_chrome(&ctx, &out);
+    if (strstr(status, "easing") == NULL) {
+      fprintf(stderr, "year-end D want @OTHERLESS got '%s'\n", status);
+      return 1;
+    }
+    if (dcol.nation[2].rebellion_pct_last_notified != 19) {
+      fprintf(
+        stderr,
+        "year-end D falling cache want 19 got %u\n",
+        (unsigned)dcol.nation[2].rebellion_pct_last_notified
+      );
+      return 1;
+    }
     ctx.col1 = NULL;
     ctx.col1_ok = false;
-    fprintf(stderr, "year-end rival SoL ok\n");
+    fprintf(stderr, "year-end D hysteresis bands ok\n");
 
-    /* D auto-declare via rival slot + colony SoL (not crown nation 1). */
+    /*
+     * At/over threshold → @OTHERGRANTED: nation_flags bit 0x04 latch, the
+     * NAMES.TXT @INDEPENDENT rename, and peace (never war) with every other
+     * European nation. Then the latch makes it once-only.
+     */
     year = 1700;
     status[0] = '\0';
     memset(&out, 0, sizeof(out));
     ColonizeCol1Save dw;
     col1_save_init(&dw);
-    dw.head.difficulty = 3;
+    dw.head.difficulty = 3; /* thresh = 50 */
     dw.player[0].control = 0;
     dw.player[1].control = 1;
     dw.player[2].control = 1;
-    dw.head.rival_nation_slot_1 = 2;
-    dw.head.colony_count = 1;
-    dw.colony = calloc(1, sizeof(ColonizeCol1Colony));
-    if (!dw.colony) {
-      return 1;
-    }
-    dw.colony[0].nation_id = 2;
-    dw.colony[0].population = 5;
-    dw.colony[0].rebel_dividend = 55;
-    dw.colony[0].rebel_divisor = 100;
+    dw.player[3].control = 1;
+    snprintf(dw.player[2].country_name, sizeof(dw.player[2].country_name), "Spain");
+    dw.nation[2].rebel_sentiment = 55;
+    dw.stuff.census_pop_proxy[2] = 100; /* v = 55 >= 50 */
+    /* Start at war with everyone so the peace writes are visible. */
+    ai_diplo_declare_war(&dw, 2, 0);
+    ai_diplo_declare_war(&dw, 2, 1);
+    ai_diplo_declare_war(&dw, 2, 3);
     ctx.col1 = &dw;
     ctx.col1_ok = true;
     turn_run_year_end_chrome(&ctx, &out);
-    if (strstr(status, "declares war") == NULL || !ai_diplo_at_war(&dw, 2, 0)) {
-      fprintf(
-        stderr,
-        "year-end D auto-declare want war status got '%s' at_war=%d\n",
-        status,
-        ai_diplo_at_war(&dw, 2, 0)
-      );
-      free(dw.colony);
+    if ((dw.nation[2].nation_flags & 0x04u) == 0) {
+      fprintf(stderr, "year-end D want nation_flags 0x04 latch set\n");
       return 1;
     }
-    free(dw.colony);
+    if (strcmp(dw.player[2].country_name, "Republic of Mexico") != 0) {
+      fprintf(
+        stderr,
+        "year-end D want @INDEPENDENT rename got '%s'\n",
+        dw.player[2].country_name
+      );
+      return 1;
+    }
+    for (int other = 0; other < 4; ++other) {
+      if (other == 2) {
+        continue;
+      }
+      if (ai_diplo_at_war(&dw, 2, other)) {
+        fprintf(stderr, "year-end D independence must make peace with %d\n", other);
+        return 1;
+      }
+    }
+    if (strstr(status, "grants independence") == NULL) {
+      fprintf(stderr, "year-end D want @OTHERGRANTED status got '%s'\n", status);
+      return 1;
+    }
+    /* Once-only: the latch must keep it from re-firing (and re-renaming). */
+    status[0] = '\0';
+    memset(&out, 0, sizeof(out));
+    turn_run_year_end_chrome(&ctx, &out);
+    if (status[0] != '\0') {
+      fprintf(stderr, "year-end D latch must be once-only, got '%s'\n", status);
+      return 1;
+    }
     ctx.col1 = NULL;
     ctx.col1_ok = false;
-    fprintf(stderr, "year-end D auto-declare ok\n");
+    fprintf(stderr, "year-end D independence grant ok\n");
 
     /*
-     * D rival slots: slot_1 stays valid and quiet (no war/rising/falling),
-     * so the loop must fall through to slot_2 — and if slot_2's nation was
-     * defeated meanwhile, ensure_rival_slots must refresh it rather than
-     * leaving the stale eliminated nation id in place forever.
+     * The loop visits all four slots, gated on DS 0x543f = player+0x31
+     * (`control != 0`), not on two cached rival_nation_slot cells: nation 3
+     * alone is over threshold and must still be found.
      */
     year = 1700;
     status[0] = '\0';
     memset(&out, 0, sizeof(out));
     ColonizeCol1Save ds;
     col1_save_init(&ds);
-    ds.head.difficulty = 3; /* thresh = (8-3)*10 = 50 */
+    ds.head.difficulty = 3; /* thresh = 50 */
     ds.player[0].control = 0;
     ds.player[1].control = 1;
     ds.player[2].control = 1;
-    ds.player[3].control = 2; /* already defeated */
-    ds.head.rival_nation_slot_1 = 2;
-    ds.head.rival_nation_slot_2 = 3; /* stale: nation 3 is gone */
-    ds.nation[2].rebel_sentiment = 30;
-    ds.nation[2].rebellion_pct_last_notified = 30; /* == SoL: no message */
+    ds.player[3].control = 1;
+    ds.head.rival_nation_slot_1 = 1;
+    ds.head.rival_nation_slot_2 = 2; /* both cached slots are quiet */
+    ds.nation[3].rebel_sentiment = 60;
+    ds.stuff.census_pop_proxy[3] = 100;
+    /* Human slot well over threshold: the control==0 gate must still skip it
+     * (the human's own independence is the War of Independence, section C). */
+    ds.nation[0].rebel_sentiment = 90;
+    ds.stuff.census_pop_proxy[0] = 100;
     ctx.col1 = &ds;
     ctx.col1_ok = true;
     turn_run_year_end_chrome(&ctx, &out);
-    if (ds.head.rival_nation_slot_2 == 3) {
-      fprintf(
-        stderr,
-        "year-end D want slot_2 refreshed off defeated nation 3, still 3\n"
-      );
+    if ((ds.nation[3].nation_flags & 0x04u) == 0) {
+      fprintf(stderr, "year-end D must visit slot 3, not just the two caches\n");
       return 1;
     }
-    if (ds.head.rival_nation_slot_1 != 2) {
-      fprintf(
-        stderr,
-        "year-end D refresh should not disturb still-valid slot_1, got %d\n",
-        (int)ds.head.rival_nation_slot_1
-      );
+    if (ds.head.rival_nation_slot_1 != 1 || ds.head.rival_nation_slot_2 != 2) {
+      fprintf(stderr, "year-end D must not touch the King/WoI rival caches\n");
+      return 1;
+    }
+    /* The human slot (control 0) is never a candidate. */
+    if ((ds.nation[0].nation_flags & 0x04u) != 0) {
+      fprintf(stderr, "year-end D must skip the human-controlled slot\n");
       return 1;
     }
     ctx.col1 = NULL;
     ctx.col1_ok = false;
-    fprintf(stderr, "year-end D stale slot_2 refresh ok\n");
+    fprintf(stderr, "year-end D all-four-slots loop ok\n");
   }
 
   /*
@@ -5047,7 +5421,7 @@ int main(void) {
       units_set_nation(su, 0);
     }
 
-    col1_stuff_census_refresh_colony_counts(&col1.stuff, &pool, &units);
+    col1_stuff_census_refresh_colony_counts(&col1.stuff, &pool, &units, &col1);
     if (col1.stuff.colony_counts[0] != 1 || col1.stuff.colony_pop_totals[0] != 3) {
       fprintf(
         stderr,
@@ -5057,13 +5431,23 @@ int main(void) {
       );
       return 1;
     }
-    if (col1.stuff.all_unit_counts[0] != 1 || col1.stuff.land_combat_strength[0] != 4 ||
+    /*
+     * smell_audit 2026-09-09 #74: 0x9180 / 0x941c / 0x942c are FUN_281f_09c8
+     * combat VALUES (base x8 + peels), not counts or attack+defense sums.
+     * The lone Soldier (attack 2 / defense 2, no veteran profession) is
+     * mode-0 = 2*8 = 16 and mode-1 = 2*8 = 16; it stands off the colony tile,
+     * so it also counts toward field_combat_totals.
+     */
+    if (col1.stuff.all_unit_counts[0] != 1 || col1.stuff.land_combat_strength[0] != 16 ||
+        col1.stuff.land_combat_totals[0] != 16 || col1.stuff.field_combat_totals[0] != 16 ||
         col1.stuff.unit_type_counts[0][1] != 1) {
       fprintf(
         stderr,
-        "census unit tallies units=%u str=%u type1=%u want 1/4/1\n",
+        "census unit tallies units=%u m0=%u m1=%u field=%u type1=%u want 1/16/16/16/1\n",
         (unsigned)col1.stuff.all_unit_counts[0],
+        (unsigned)col1.stuff.land_combat_totals[0],
         (unsigned)col1.stuff.land_combat_strength[0],
+        (unsigned)col1.stuff.field_combat_totals[0],
         (unsigned)col1.stuff.unit_type_counts[0][1]
       );
       return 1;

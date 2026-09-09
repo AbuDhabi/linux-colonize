@@ -103,6 +103,16 @@ static int trade_icon_width(const ColonizeSpriteSheet* icons, int cargo) {
  * Which icon slot a cargo-column click lands on (FUN_647e_0f2c): walk the
  * list summing icon widths (+2 gap) from the column x. Returns the slot hit,
  * or -1 for "past the end" (append).
+ *
+ * Smell audit #92 (REFUTED, 2026-09-09): the strip x is inset from the column
+ * boundary — the unload column is mx 115..197 (FUN_647e_1064: `0x72 < mx`,
+ * `0xc5 < mx`) while its icons start at 125, and the load column is mx >= 198
+ * with icons from 208 — so a click in that 10px gap left of the first icon
+ * reports slot 0. That is DOS's own behaviour, not a port defect:
+ * FUN_647e_0f2c (viceroy_unpacked.c 102995-103003) seeds the running edge
+ * with exactly those strip x values (`(-(param_1 == 0) & 0xffad) + 0xd0` =
+ * 0x7d / 0xd0) and then only ever tests `mouse_x < edge`, with no
+ * lower-bound guard of its own. Do not "fix" it.
  */
 static int trade_cargo_hit_slot(
   const ColonizeCol1TradeStop* st,

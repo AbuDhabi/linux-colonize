@@ -129,7 +129,8 @@ int main(void) {
     {43, 68, 0, 0, {0}}, /* one-tile island: layer3 0x0e is continent id 14, not a peak */
     {5, 21, 1, 1, {48}},
     {4, 20, 8, 0, {0}},
-    {8, 14, 8, 1, {103}}, /* scrub + lost-city rumour */
+    {8, 14, 8, 0, {0}}, /* scrub; its rumour moved to (9,15) — see #98 below */
+    {9, 15, 3, 2, {46, 103}}, /* river + lost-city rumour */
     {1, 0, 0, 2, {64, 92}},
     {1, 2, 0, 1, {73}},
     {16, 2, 0, 1, {70}},
@@ -341,9 +342,16 @@ int main(void) {
      * in every direction; (2) the hash-match gate was wrongly skipped
      * whenever a `_for_yield` (settlement-transparent) call landed on a
      * tile that also had the settlement bit set — every colony center —
-     * so centers always reported a match regardless of the real hash. */
-    if (resources != 425 || rumours != 40) {
-      fprintf(stderr, "resource/rumour count expected 425/40 got %d/%d\n", resources, rumours);
+     * so centers always reported a match regardless of the real hash.
+     * Rumours 40 -> 38 (2026-09-09, smell_audit #98): map_procedural_rumour_at
+     * still carried the same unverified `+1` after the resource hash dropped
+     * it, even though mapedit.c:9406/9410 hand FUN_12ab_0458 and
+     * FUN_12ab_0540 the identical coordinate pair, so both hashes must share
+     * a coordinate space. The hash lattice is unchanged, but each lattice
+     * point is now terrain-tested one tile SE of where it used to be, and two
+     * points moved onto terrain 0540 skips (ocean / high seas / arctic). */
+    if (resources != 425 || rumours != 38) {
+      fprintf(stderr, "resource/rumour count expected 425/38 got %d/%d\n", resources, rumours);
       map_free(&map);
       return 1;
     }
@@ -377,7 +385,8 @@ int main(void) {
     {17, 24, 3, 2, {64, 28}},
     {17, 25, 8, 1, {25}},
     {18, 25, 5, 3, {68, 19, 99}},
-    {45, 50, 5, 3, {70, 24, 103}},
+    {45, 50, 5, 2, {70, 24}},
+    {46, 51, 5, 2, {67, 103}}, /* rumour shifted here from (45,50) — see #98 */
     {48, 46, 5, 1, {24}},
     {50, 49, 5, 3, {79, 24, 99}},
   };
@@ -591,6 +600,8 @@ int main(void) {
   {
     ColonizeWorldMap fog_map;
     char err2[128];
+    memset(&fog_map, 0, sizeof(fog_map)); /* map_alloc map_free()s the struct first */
+    memset(err2, 0, sizeof(err2));
     if (!map_alloc(&fog_map, 5, 5, err2, sizeof(err2))) {
       fprintf(stderr, "fog: map_alloc failed: %s\n", err2);
       return 1;
@@ -600,20 +611,29 @@ int main(void) {
     }
     fog_map.terrain[2 * 5 + 3] = 25; /* ocean at (3,2) */
     memset(fog_map.seen, 0, fog_map.tile_count);
+    memset(fog_map.layer2, 0, fog_map.tile_count);
+    memset(fog_map.layer3, 0, fog_map.tile_count);
+    memset(fog_map.improve, 0, fog_map.tile_count);
     fog_map.seen[2 * 5 + 2] = MAP_SEEN_NATION_BIT(0);
-    /* Seen tile (2,2): 4 unseen neighbours → 4 mask+fill pairs; the east
-     * fill is the hidden ocean's own sprite (no rescan on the seen side). */
+    /* Seen tile (2,2): 4 unseen neighbours → 4 mask+fill pairs. */
     if (map_fog_edge_count(&fog_map, 2, 2, 0) != 4) {
       fprintf(stderr, "fog: seen tile should have 4 fog edges\n");
       return 1;
     }
-    if (map_fog_edge_mask_sprite_at(&fog_map, 2, 2, 0, 1) != 105 ||
-        map_fog_edge_fill_sprite_at(&fog_map, 2, 2, 0, 1) != 10) {
-      fprintf(stderr, "fog: east edge should be mask 105 + ocean sprite fill\n");
-      return 1;
-    }
     if (map_fog_edge_fill_sprite_at(&fog_map, 2, 2, 0, 0) != 2) {
       fprintf(stderr, "fog: north edge should fill with plains sprite\n");
+      return 1;
+    }
+    /*
+     * smell #96 / FUN_6ba1_06e0: the ocean resolve is gated on param_2 == 0
+     * (the DRAWN tile is land) alone, never on the neighbour's visibility, so
+     * the SEEN side rescans an ocean neighbour just like the fog side does.
+     * (3,2) is ocean; its W cardinal is the land tile (2,2) itself, so the
+     * east edge dithers plains (2), not the ocean sprite (10).
+     */
+    if (map_fog_edge_mask_sprite_at(&fog_map, 2, 2, 0, 1) != 105 ||
+        map_fog_edge_fill_sprite_at(&fog_map, 2, 2, 0, 1) != 2) {
+      fprintf(stderr, "fog: east edge should be mask 105 + rescanned land fill\n");
       return 1;
     }
     /* Unseen land tile (2,1): one seen neighbour to the south → mask 106 +
@@ -624,13 +644,43 @@ int main(void) {
       fprintf(stderr, "fog: unseen tile should dither the seen neighbour in\n");
       return 1;
     }
-    /* Unseen LAND tile with an ocean seen neighbour resolves via the
-     * neighbour's W/S/E/N cardinals (here: land) instead of ocean art. */
+    /*
+     * Same (2,2)/(3,2) land/ocean pair, fog flipped: the fog LAND tile with a
+     * seen ocean neighbour resolves via the neighbour's W/S/E/N cardinals.
+     * Both directions must agree — that agreement is the point of #96.
+     */
+    {
+      const int seen_side = map_fog_edge_fill_sprite_at(&fog_map, 2, 2, 0, 1);
+      fog_map.seen[2 * 5 + 2] = 0;
+      fog_map.seen[2 * 5 + 3] = MAP_SEEN_NATION_BIT(0); /* the ocean is seen */
+      if (map_fog_reveal_edge_count(&fog_map, 2, 2, 0) != 1 ||
+          map_fog_reveal_edge_mask_sprite_at(&fog_map, 2, 2, 0, 0) != 105 ||
+          map_fog_reveal_edge_fill_sprite_at(&fog_map, 2, 2, 0, 0) != 2) {
+        fprintf(stderr, "fog: ocean neighbour should resolve to a land cardinal fill\n");
+        return 1;
+      }
+      if (map_fog_reveal_edge_fill_sprite_at(&fog_map, 2, 2, 0, 0) != seen_side) {
+        fprintf(stderr, "fog: seen→fog and fog→seen edges must agree (%d vs %d)\n",
+          seen_side, map_fog_reveal_edge_fill_sprite_at(&fog_map, 2, 2, 0, 0));
+        return 1;
+      }
+    }
+    /*
+     * param_2 == 1 (the drawn tile is itself ocean): no rescan, the ocean
+     * neighbour's art is taken as-is on both sides. Make (2,2) ocean too.
+     */
+    fog_map.terrain[2 * 5 + 2] = 25;
+    fog_map.seen[2 * 5 + 3] = 0;
+    fog_map.seen[2 * 5 + 2] = MAP_SEEN_NATION_BIT(0);
+    if (map_fog_edge_count(&fog_map, 2, 2, 0) != 4 ||
+        map_fog_edge_fill_sprite_at(&fog_map, 2, 2, 0, 1) != 10) {
+      fprintf(stderr, "fog: ocean tile should take the ocean neighbour art as-is\n");
+      return 1;
+    }
     fog_map.seen[2 * 5 + 2] = 0;
-    fog_map.seen[2 * 5 + 3] = MAP_SEEN_NATION_BIT(0); /* the ocean is seen */
-    if (map_fog_reveal_edge_count(&fog_map, 2, 2, 0) != 1 ||
-        map_fog_reveal_edge_fill_sprite_at(&fog_map, 2, 2, 0, 0) != 2) {
-      fprintf(stderr, "fog: ocean neighbour should resolve to a land cardinal fill\n");
+    fog_map.seen[2 * 5 + 3] = MAP_SEEN_NATION_BIT(0);
+    if (map_fog_reveal_edge_fill_sprite_at(&fog_map, 2, 2, 0, 0) != 10) {
+      fprintf(stderr, "fog: fog ocean tile should take the ocean neighbour art as-is\n");
       return 1;
     }
     map_free(&fog_map);

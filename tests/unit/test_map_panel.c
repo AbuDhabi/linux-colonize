@@ -459,6 +459,22 @@ int main(void) {
                                    10, 10, 2, 2, 16, 16, 0, 0, &cmap, 0, NULL);
 
     /*
+     * smell_audit_2026-09-09 #100: "Complete Map" makes game_fog_nation()
+     * hand this renderer −1. DOS keys the alarm marks off DS:0x5396
+     * (head.curr_nation_map_view), which is never a sentinel, and draws the
+     * mission cross outside that branch entirely — so the chrome must be
+     * identical to the nation-0 view, not silently dropped.
+     */
+    ccol1.head.curr_nation_map_view = 0;
+    ccol1.head.human_player = 0;
+    uint8_t xpx[32 * 24];
+    memset(xpx, 0xff, sizeof(xpx));
+    ColonizeFramebuffer8 xfb = {.width = 32, .height = 24, .pixels = xpx};
+    map_panel_render_tribes_on_map(&ccol1, NULL, &ccol, &chrome_icons, &xfb,
+                                   10, 10, 2, 2, 16, 16, 0, 0, &cmap, -1, NULL);
+    const int complete_map_chrome_ok = memcmp(xpx, cpx, sizeof(cpx)) == 0;
+
+    /*
      * bugs.md 370: the Dutch shade is DS:0x848 index 13, which is ICONS.SS-
      * native orange (255,113,0) but plain EGA magenta in every other
      * palette. Given the active palette, the cross must land on whatever
@@ -529,6 +545,14 @@ int main(void) {
     }
     if (!dutch_cross_ok) {
       fprintf(stderr, "Dutch mission cross not palette-adapted (bugs.md 370: pink, not orange)\n");
+      free(pixels);
+      map_free(&map);
+      map_panel_free(&panel);
+      assets_msg_free(&labels);
+      return 1;
+    }
+    if (!complete_map_chrome_ok) {
+      fprintf(stderr, "Complete Map (fog nation -1) dropped village alarm/mission chrome\n");
       free(pixels);
       map_free(&map);
       map_panel_free(&panel);

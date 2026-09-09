@@ -1223,6 +1223,89 @@ int main(void) {
       return 1;
     }
 
+    /*
+     * Smell audit #65: the settlement-view badge/figure loop must apply the
+     * same one-badge-per-colonist dedupe turn.c and colony_preview.c do. A
+     * colonist index appearing in a second tiles[] slot is skipped there, so
+     * the rendered frame must be byte-identical to the un-duplicated one.
+     */
+    {
+      static uint8_t before[320 * 200];
+      memcpy(before, pixels, sizeof(before));
+      int dup_slot = -1;
+      for (int i = 1; i < COLONIZE_COLONY_FIELD_TILES && dup_slot < 0; ++i) {
+        int ddx = 0;
+        int ddy = 0;
+        if (!colonies_field_tile_delta(i, &ddx, &ddy)) {
+          continue;
+        }
+        const int fx = col->x + ddx;
+        const int fy = col->y + ddy;
+        if (fx < 0 || fy < 0 || fx >= (int)map.width || fy >= (int)map.height) {
+          continue;
+        }
+        if (col->tiles[i] < 0) {
+          dup_slot = i;
+        }
+      }
+      if (dup_slot < 0) {
+        fprintf(stderr, "no free on-map field slot for the badge dedupe check\n");
+        if (font_ok) {
+          ff_free(&font);
+        }
+        if (phys0_ok) {
+          ss_free(&phys0);
+        }
+        ss_free(&terrain);
+        map_free(&map);
+        assets_msg_free(&names);
+        colony_screen_free(&view);
+        return 1;
+      }
+      const int8_t saved_slot = col->tiles[dup_slot];
+      col->tiles[dup_slot] = col->tiles[0]; /* same colonist, second slot */
+      memset(pixels, 0, sizeof(pixels));
+      colony_screen_render(
+        &view,
+        &pool,
+        col,
+        &units,
+        &map,
+        &terrain,
+        phys0_ok ? &phys0 : NULL,
+        NULL,
+        1492,
+        0,
+        1000,
+        font_ok ? &font : NULL,
+        false,
+        NULL,
+        &fb
+      );
+      const bool same = memcmp(before, pixels, sizeof(before)) == 0;
+      col->tiles[dup_slot] = saved_slot;
+      if (!same) {
+        fprintf(
+          stderr,
+          "settlement badge dedupe: duplicating colonist %d into slot %d changed the frame\n",
+          (int)col->tiles[0],
+          dup_slot
+        );
+        if (font_ok) {
+          ff_free(&font);
+        }
+        if (phys0_ok) {
+          ss_free(&phys0);
+        }
+        ss_free(&terrain);
+        map_free(&map);
+        assets_msg_free(&names);
+        colony_screen_free(&view);
+        return 1;
+      }
+      memcpy(pixels, before, sizeof(before));
+    }
+
     /* People strip non-empty after render. */
     bool people_px = false;
     for (int y = COLONY_PANEL_CONTENT_Y + 16; y < COLONY_PANEL_CONTENT_Y + 30 && !people_px; ++y) {

@@ -782,6 +782,16 @@ static int sound_tune_to_id(int tune) {
   return k_ids[tune];
 }
 
+/*
+ * DOS draws the tune with FUN_19ef_0032(lo, hi) — the ordinary game RNG
+ * (FUN_1d1d_0e04) — but brackets the whole pick with FUN_19ef_002c
+ * (asm 129f:0138 and 129f:0250), which ignores its argument and reseeds from
+ * the BIOS tick (FUN_19ef_0008 -> FUN_1c0c_0012 -> srand). So the music pick
+ * is deliberately wall-clock random and neither reads nor perturbs a
+ * reproducible game stream: routing it through dos_rng would be *less*
+ * faithful, not more, besides running the sim RNG from the audio thread.
+ * A private LCG is the right stand-in (smell_audit_2026-09-09 #102).
+ */
 static uint32_t sound_pick_rand(uint32_t n) {
   g_sound.pick_rng = g_sound.pick_rng * 1103515245u + 12345u;
   return n ? ((g_sound.pick_rng >> 16) & 0x7fffu) % n : 0;
@@ -789,9 +799,29 @@ static uint32_t sound_pick_rand(uint32_t n) {
 
 /* FUN_129f_00f6 tune-pool selection: DS:0x9a category → (first tune, count). */
 static int sound_pick_next_tune_id(void) {
+  /*
+   * asm 129f:0140-01a2 — the pre-switch default pool. Not dead: the switch
+   * below overwrites it for categories 1-4, but categories 5/6/7 skip their
+   * arm when the one-shot tune is already playing, and category 0 / out of
+   * range skips the switch entirely (129f:020e JA), so these values survive.
+   *
+   * DOS:
+   *   if (!(DS:0x5382 & 1))  { base=1;  count=12;
+   *                            if (rng_range(0,8)==0) { base=13; count=11; } }
+   *   else                   { base=13; count=6;
+   *                            if (rng_range(0,4)==0) { base=1;  count=12; } }
+   *   if (DS:0x828)          { base=1;  count=24; }
+   *
+   * The port keeps the peacetime arm (1-in-9, not the 1-in-8 this used to
+   * roll). The WoI arm (DS:0x5382 bit0) and the demo-autoplay arm (DS:0x828)
+   * have no input here: sound.c is a leaf module with no game state, and at
+   * the one moment the WoI default would matter the port already selects the
+   * same pool explicitly via sound_set_bgm(3) (ai_king.c, FUN_43f7_10f0
+   * 43f7:145b). Wire a flag in if a demo/attract mode ever lands.
+   */
   int base = 1;
   int count = 12;
-  if (sound_pick_rand(8) == 0) {
+  if (sound_pick_rand(9) == 0) {
     base = 13;
     count = 11;
   }

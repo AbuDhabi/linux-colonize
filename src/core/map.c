@@ -38,10 +38,14 @@
 #define MAP_RESOURCE_SEED_DEFAULT 100 /* MAPEDIT/runtime seed at DS:0x4dc (AMER2 matches 100) */
 
 #if MAP_COAST_OVERLAYS_ENABLED || MAP_ESTUARY_OVERLAYS_ENABLED
-#define PHYS0_COAST_FRAG_BASE 108 /* MAPEDIT 0x6d − 1 */
-#define PHYS0_COAST_CORNER_BASE 150 /* MAPEDIT 0x97 − 1 → 150–153 */
-#define PHYS0_ESTUARY_MAJOR_BASE 140 /* MAPEDIT 0x8d − 1 */
-#define PHYS0_ESTUARY_MINOR_BASE 144 /* MAPEDIT 0x8d+4 − 1 */
+/*
+ * Coast/estuary sprite bases deliberately have no PHYS0_* constants: the
+ * collectors below stay in MAPEDIT's 1-based id space (0x6d fragments,
+ * 0x97 corners, 0x8d major / 0x8d+4 minor estuaries) and run every id through
+ * mapedit_phys0_index(), so the −1 conversion lives in exactly one place.
+ * Pre-subtracted duplicates were removed 2026-09-09 (smell_audit #103) —
+ * that is the bookkeeping class the fog PHYS0#148 trap came from.
+ */
 #define COAST_QUADS 4
 #endif
 
@@ -592,8 +596,10 @@ static bool map_procedural_rumour_at(const ColonizeWorldMap* map, int x, int y) 
   if (!map || x < 0 || y < 0 || x >= map->width || y >= map->height) {
     return false;
   }
-  const uint8_t terrain_byte = map_get_terrain(map, x, y);
-  const int idx = map_decode_terrain_index(terrain_byte);
+  /* FUN_12ab_0540 gates on FUN_19b7_0032 (the mountain→27 / hill→28 fold),
+   * not on the raw `terrain & 0x1f`: it skips classes 0x18/0x19/0x1a
+   * (arctic / ocean / high seas) only. */
+  const int idx = map_dos_terr_class_at(map, x, y);
   if (map_is_ocean_index(idx) || idx == 24) {
     return false;
   }
@@ -602,8 +608,14 @@ static bool map_procedural_rumour_at(const ColonizeWorldMap* map, int x, int y) 
   if ((layer2 & 2u) != 0) {
     return false;
   }
-  const int dos_x = x + 1;
-  const int dos_y = y + 1;
+  /* No +1, for the same reason map_resource_type_at_ex dropped it (see there,
+   * player-confirmed 2026-08-18): mapedit.c:9406/9410 call FUN_12ab_0458 and
+   * FUN_12ab_0540 with the identical pair of coordinate words
+   * (DS:0x5f16, DS:0x634c), so both hashes live in the same coordinate space.
+   * Biasing one and not the other put rumours one tile off the resource grid
+   * they share a seed with (smell_audit_2026-09-09 #98). */
+  const int dos_x = x;
+  const int dos_y = y;
   const unsigned hash =
     (unsigned)(((dos_y >> 2) * 0x13 + (dos_x >> 2) * 0x11 + (int)map_resource_seed(map) + 8) & 0x1f);
   return (int)hash + (dos_x & 3) * -4 == (dos_y & 3);
@@ -911,94 +923,29 @@ void map_seen_to_col1(const ColonizeWorldMap* map, uint8_t* col1_seen, size_t co
   memcpy(col1_seen, map->seen, n);
 }
 
-int map_fog_edge_count(const ColonizeWorldMap* map, int x, int y, int nation_id) {
-  if (!map || !map->seen || !map_tile_seen_by(map, x, y, nation_id)) {
-    return 0;
-  }
-  int count = 0;
-  for (int q = 0; q < 4; ++q) {
-    const int nx = x + mapedit_card_dx[q];
-    const int ny = y + mapedit_card_dy[q];
-    if (!map_tile_seen_by(map, nx, ny, nation_id)) {
-      ++count;
-    }
-  }
-  return count;
-}
-
-int map_fog_edge_mask_sprite_at(
-  const ColonizeWorldMap* map,
-  int x,
-  int y,
-  int nation_id,
-  int index
-) {
-  if (!map || !map->seen || index < 0 || !map_tile_seen_by(map, x, y, nation_id)) {
-    return -1;
-  }
-  int seen = 0;
-  for (int q = 0; q < 4; ++q) {
-    const int nx = x + mapedit_card_dx[q];
-    const int ny = y + mapedit_card_dy[q];
-    if (!map_tile_seen_by(map, nx, ny, nation_id)) {
-      if (seen == index) {
-        return PHYS0_LAND_TRANSITION_BASE + q; /* 104..107 */
-      }
-      ++seen;
-    }
-  }
-  return -1;
-}
-
 /*
  * VICEROY FUN_6ba1_06e0 (asm 6ba1:0919): the 104..107 edge masks are never
- * left as bare colour-0 dots — every mask blit is followed by FUN_6ba1_067c
- * filling the holes with the NEIGHBOUR's terrain art. For a seen tile the
- * unseen-neighbour case (local_10 = 1) forces the draw past the same-class
- * and ocean skips and fills with that neighbour's real class, so the hidden
- * terrain dithers onto the seen tile's edge (bugs.md "fog edges still
- * black"). Off-map tiles read as seen here, so neither helper fires on the
- * map rim.
+ * left as bare colour-0 dots — every mask blit (0x69 + q, PHYS0 1-based) is
+ * followed by FUN_6ba1_067c(local_1e) filling the holes with a terrain class
+ * resolved from the NEIGHBOUR, so the boundary dithers instead of staying
+ * black (bugs.md "fog edges still black").
+ *
+ * The ocean resolve at 6ba1:082a..08b0 is gated on `param_2 == 0` ALONE.
+ * param_2 is the DRAWN tile's own ocean flag — both call sites push it:
+ * 6ba1:09cd `06e0(1, self_is_ocean, 0)` on the fog side, 6ba1:0a9c
+ * `06e0(0, self_is_ocean, 0)` on the seen side — and the gate never consults
+ * the neighbour's visibility (bVar11). So on BOTH sides of the boundary: a
+ * land tile facing an ocean-class neighbour rescans that neighbour's own
+ * even-ring offsets (ring indices 6,4,2,0 = its W,S,E,N cardinals) for a
+ * non-ocean class and dithers that instead; still ocean → the whole edge is
+ * skipped (6ba1:08b0 jumps to LAB_6ba1_07b3, so neither mask nor fill is
+ * blitted). An ocean tile (param_2 = 1) takes the ocean neighbour art as-is.
+ *
+ * (x, y) is the tile being drawn, (nx, ny) its cardinal neighbour; -1 means
+ * DOS skips the edge entirely. Off-map tiles read as seen, so neither the
+ * seen-side nor the fog-side helper fires on the map rim.
  */
-int map_fog_edge_fill_sprite_at(
-  const ColonizeWorldMap* map,
-  int x,
-  int y,
-  int nation_id,
-  int index
-) {
-  if (!map || !map->seen || index < 0 || !map_tile_seen_by(map, x, y, nation_id)) {
-    return -1;
-  }
-  int seen = 0;
-  for (int q = 0; q < 4; ++q) {
-    const int nx = x + mapedit_card_dx[q];
-    const int ny = y + mapedit_card_dy[q];
-    if (!map_tile_seen_by(map, nx, ny, nation_id)) {
-      if (seen == index) {
-        if (nx < 0 || ny < 0 || nx >= map->width || ny >= map->height) {
-          return -1;
-        }
-        return map_terrain_sprite_at(map, nx, ny);
-      }
-      ++seen;
-    }
-  }
-  return -1;
-}
-
-/*
- * FUN_6ba1_0938 unseen path: after the PHYS0 148 fog fill the tile runs
- * FUN_6ba1_06e0(1, is_ocean, 0) — for each SEEN cardinal neighbour, mask
- * 104+q plus that neighbour's terrain dithered into the holes, so explored
- * land feathers into the fog. When the fog tile is land and the seen
- * neighbour is ocean-class, DOS rescans the neighbour's own even-ring
- * offsets (6ba1:082a: ring indices 6,4,2,0 = its W,S,E,N cardinals) for a
- * non-ocean class and uses that instead; still ocean → the edge is skipped
- * (6ba1:08b0). A fog OCEAN tile (param_2 = 1) takes the ocean neighbour art
- * as-is.
- */
-static int map_fog_reveal_fill_for(
+static int map_fog_edge_fill_for(
   const ColonizeWorldMap* map,
   int x,
   int y,
@@ -1030,6 +977,88 @@ static int map_fog_reveal_fill_for(
   return -1; /* still ocean: DOS draws nothing for this edge */
 }
 
+/*
+ * Seen side of the boundary (FUN_6ba1_0938 -> 06e0(0, self_is_ocean, 0)):
+ * for each UNSEEN cardinal neighbour bVar11 forces the draw past the
+ * same-class check (6ba1:0908) and past the ocean draw-gate (6ba1:08ce), but
+ * NOT past the param_2 == 0 ocean resolve above — that one runs first and can
+ * still skip the edge outright. So count/mask/fill all filter on the same
+ * resolve, and the seen->fog edges agree with the fog->seen mirror below.
+ */
+int map_fog_edge_count(const ColonizeWorldMap* map, int x, int y, int nation_id) {
+  if (!map || !map->seen || !map_tile_seen_by(map, x, y, nation_id)) {
+    return 0;
+  }
+  int count = 0;
+  for (int q = 0; q < 4; ++q) {
+    const int nx = x + mapedit_card_dx[q];
+    const int ny = y + mapedit_card_dy[q];
+    if (!map_tile_seen_by(map, nx, ny, nation_id) &&
+        map_fog_edge_fill_for(map, x, y, nx, ny) >= 0) {
+      ++count;
+    }
+  }
+  return count;
+}
+
+int map_fog_edge_mask_sprite_at(
+  const ColonizeWorldMap* map,
+  int x,
+  int y,
+  int nation_id,
+  int index
+) {
+  if (!map || !map->seen || index < 0 || !map_tile_seen_by(map, x, y, nation_id)) {
+    return -1;
+  }
+  int seen = 0;
+  for (int q = 0; q < 4; ++q) {
+    const int nx = x + mapedit_card_dx[q];
+    const int ny = y + mapedit_card_dy[q];
+    if (!map_tile_seen_by(map, nx, ny, nation_id) &&
+        map_fog_edge_fill_for(map, x, y, nx, ny) >= 0) {
+      if (seen == index) {
+        return PHYS0_LAND_TRANSITION_BASE + q; /* 104..107 */
+      }
+      ++seen;
+    }
+  }
+  return -1;
+}
+
+int map_fog_edge_fill_sprite_at(
+  const ColonizeWorldMap* map,
+  int x,
+  int y,
+  int nation_id,
+  int index
+) {
+  if (!map || !map->seen || index < 0 || !map_tile_seen_by(map, x, y, nation_id)) {
+    return -1;
+  }
+  int seen = 0;
+  for (int q = 0; q < 4; ++q) {
+    const int nx = x + mapedit_card_dx[q];
+    const int ny = y + mapedit_card_dy[q];
+    if (!map_tile_seen_by(map, nx, ny, nation_id)) {
+      const int fill = map_fog_edge_fill_for(map, x, y, nx, ny);
+      if (fill >= 0) {
+        if (seen == index) {
+          return fill;
+        }
+        ++seen;
+      }
+    }
+  }
+  return -1;
+}
+
+/*
+ * Fog side (FUN_6ba1_0938 -> 06e0(1, self_is_ocean, 0), asm 6ba1:09cd): after
+ * the PHYS0 148 fog fill, each SEEN cardinal neighbour gets mask 104+q plus
+ * that neighbour's terrain dithered into the holes, so explored land feathers
+ * into the fog — through the same param_2 resolve as the seen side.
+ */
 int map_fog_reveal_edge_mask_sprite_at(
   const ColonizeWorldMap* map,
   int x,
@@ -1048,7 +1077,7 @@ int map_fog_reveal_edge_mask_sprite_at(
       continue;
     }
     if (map_tile_seen_by(map, nx, ny, nation_id) &&
-        map_fog_reveal_fill_for(map, x, y, nx, ny) >= 0) {
+        map_fog_edge_fill_for(map, x, y, nx, ny) >= 0) {
       if (seen == index) {
         return PHYS0_LAND_TRANSITION_BASE + q; /* 104..107 */
       }
@@ -1076,7 +1105,7 @@ int map_fog_reveal_edge_fill_sprite_at(
       continue;
     }
     if (map_tile_seen_by(map, nx, ny, nation_id)) {
-      const int fill = map_fog_reveal_fill_for(map, x, y, nx, ny);
+      const int fill = map_fog_edge_fill_for(map, x, y, nx, ny);
       if (fill >= 0) {
         if (seen == index) {
           return fill;
@@ -1100,7 +1129,7 @@ int map_fog_reveal_edge_count(const ColonizeWorldMap* map, int x, int y, int nat
       continue;
     }
     if (map_tile_seen_by(map, nx, ny, nation_id) &&
-        map_fog_reveal_fill_for(map, x, y, nx, ny) >= 0) {
+        map_fog_edge_fill_for(map, x, y, nx, ny) >= 0) {
       ++count;
     }
   }
@@ -1880,9 +1909,17 @@ int map_move_cost_at(const ColonizeWorldMap* map, int x, int y) {
     return 1;
   }
   /*
-   * NAMES.TXT movement scale: terr_cost[class] (not thirds). Dest road/river
-   * still halves for single-tile queries. Live unit moves use
-   * map_move_spent_thirds (terr_cost*3). Brave keeps table*3 (ai_dos_move_spent).
+   * NAMES.TXT movement scale: terr_cost[class] (not thirds), destination tile
+   * only. Live unit moves use map_move_spent_thirds (terr_cost*3); Brave keeps
+   * table*3 (ai_dos_move_spent).
+   *
+   * There is no destination-only road/river discount. FUN_465b_0000's cost
+   * head (viceroy_unpacked.c 75450-75465; asm 465b:0051/0078/00b1/00e4) writes
+   * local_40 exactly four times — terr_cost*3, both-FA→1, both-river+axis→1,
+   * tribe-owner cap 3 — and never halves. The old "dest road/river halves"
+   * arm here and in map_move_cost_step was this port's own invention; a
+   * single-tile query has no `from` tile, so it can only report the bare
+   * terrain cost (smell_audit_2026-09-09 #97).
    */
   int spent = map_dos_terr_cost_byte(map_dos_terr_class_at(map, x, y));
   if (spent > 100) {
@@ -1890,12 +1927,6 @@ int map_move_cost_at(const ColonizeWorldMap* map, int x, int y) {
   }
   if (spent < 1) {
     spent = 1;
-  }
-  if (map_tile_has_road(map, x, y) || map_tile_has_river(map, x, y)) {
-    spent = spent / 2;
-    if (spent < 1) {
-      spent = 1;
-    }
   }
   return spent;
 }
@@ -1958,18 +1989,14 @@ int map_move_cost_step(
       (from_x == to_x || from_y == to_y)) {
     return 1;
   }
+  /* No destination-only halving: FUN_465b_0000's cost head has exactly the two
+   * pair rules above and no discount arm (see map_move_cost_at). */
   int spent = map_dos_terr_cost_byte(map_dos_terr_class_at(map, to_x, to_y));
   if (spent > 100) {
     spent = 1;
   }
   if (spent < 1) {
     spent = 1;
-  }
-  if (map_tile_has_road(map, to_x, to_y) || map_tile_has_river(map, to_x, to_y)) {
-    spent = spent / 2;
-    if (spent < 1) {
-      spent = 1;
-    }
   }
   return spent;
 }

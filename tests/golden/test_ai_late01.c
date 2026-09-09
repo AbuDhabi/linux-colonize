@@ -303,6 +303,8 @@ static int run_late01_turn(ColonizeCol1Save* pre_snap) {
         br.human_nation,
         br.cursor_x,
         br.cursor_y,
+        br.view_x,
+        br.view_y,
         units.selected_id,
         err,
         sizeof(err)
