@@ -1307,8 +1307,10 @@ static void apply_effect(
     case FF_POCAHONTAS:
       /* Wiki/fandom: all native tension → content; Indian alarm half as fast.
        * Elect: zero this nation's tribe friction/attacks + alarm_by_player.
-       * Half-rate ongoing growth: ai_contact_alarm_bump_amount (encroachment /
-       * prelude escalate / raid bump) — not PARKED. */
+       * Half-rate ongoing growth: ai_diplo_indian_alarm_delta, which halves
+       * inside the delta exactly as DOS FUN_4cc6_00f2 does (viceroy
+       * 80844-80850). (The old pre-call ai_contact_alarm_bump_amount helper
+       * went with its last caller, smell #72.) */
       effect_pocahontas_reset_alarm(col1, nation_id);
       break;
     case FF_THOMAS_PAINE:

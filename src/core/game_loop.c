@@ -7671,6 +7671,7 @@ static void game_set_view_center(ColonizeGameState* game, int x, int y) {
 static void game_do_end_turn(ColonizeGameState* game);
 static void game_center_on_selected_unit(ColonizeGameState* game);
 static void game_after_unit_action(ColonizeGameState* game);
+static bool game_units_pending_orders(const ColonizeGameState* game);
 
 /* Tile-select mode: clear unit selection, place blinking cursor, center view. */
 static void game_select_tile(ColonizeGameState* game, int x, int y) {
@@ -8376,8 +8377,12 @@ static void game_after_unit_action(ColonizeGameState* game) {
     return;
   }
   game_select_tile(game, exhausted_x, exhausted_y);
+  /* Not turn_human_units_exhausted: that one only tests moves_left>0, so a
+   * colony full of Fortified units (never offered for selection) reports
+   * "not exhausted" forever and the auto-end never fires — see
+   * game_units_pending_orders, which every other site already uses. */
   if (!turn_option_end_of_turn(game->col1_ok ? &game->col1 : NULL, game->col1_ok) &&
-      turn_human_units_exhausted(&game->units, game->human_nation)) {
+      !game_units_pending_orders(game)) {
     game_do_end_turn(game);
   } else {
     snprintf(game->status, sizeof(game->status), "%s", "End of Turn");
@@ -8559,6 +8564,14 @@ static void game_auto_assign_new_colonist(ColonizeGameState* game, int colony_id
   }
   for (int bi = 0; bi < game->colonies.building_type_count; ++bi) {
     if (bi == town_hall || !col->has_building[bi]) {
+      continue;
+    }
+    /* bugs.md 414 (veterans kept teaching after being pulled from the school):
+     * teaching is an explicit player choice — an auto-assign must never
+     * quietly seat a specialist at the Schoolhouse/College/University
+     * (it did whenever Town Hall was full, so a joining specialist started
+     * graduating Veteran Soldiers). Same guard as colonies_auto_assign_idle. */
+    if (colonies_school_building_tier(&game->colonies, bi) > 0) {
       continue;
     }
     if (colonies_assign_workplace(&game->colonies, colony_id, colonist_index, bi)) {

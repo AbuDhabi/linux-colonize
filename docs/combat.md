@@ -91,7 +91,9 @@ No `015e` colony / village / terrain / fortify for ships.
    name ("Soldier"/"Dragoon"), profession `UNITS_JOB_SOLDIER` or
    `UNITS_JOB_DRAGOON` (0x15 / 0x17).
 5. Drake Privateer FF → +50%
-6. Ship: −`holds_occupied` (nonempty cargo slots)
+6. Ship: −`holds_occupied` (nonempty **goods** cargo slots; DOS `+0x3150`,
+   viceroy 8957–8959 — passengers are not counted, so a troop transport takes
+   no strength penalty)
 
 ### Defender site (`FUN_157e_015e` / `combat_engagement_strength`)
 
@@ -111,10 +113,17 @@ No `015e` colony / village / terrain / fortify for ships.
      - **Apply to defender** (`8d02|0x80`): native defender, **or** foe is Euro and
        (not WoI **or** foe is AI)
      - **Stash to attacker** (`8d04` / `8d00|0x80`): Euro defender vs **native**
-       attacker, or vs **human** Euro under WoI (player attacking REF) — unless
-       either tile is a village (then apply to defender) or defender is
-       Fortified — orders 6 only, Fortify(5) does not deny (viceroy 9035)
-       (then neither side gets terrain)
+       attacker, or vs **human** Euro under WoI (player attacking REF) — with two
+       exceptions:
+       - **human Euro attacker**: a Euro **colony** on the defender's tile, else on
+         the **attacker's** tile (`FUN_137f_0358` twice — viceroy 9025–9029) → apply
+         to defender instead, no stash. Corrected 2026-09-09: the port used to test
+         for a *village* on either tile, which DOS never does — the village probe
+         `FUN_137f_0392` already claimed the defender tile at 8988, and no village
+         probe is ever run on the attacker's tile. No WoI re-test either; reaching
+         this arm already implies `0x5382 & 1` (viceroy 9017)
+       - **native attacker**: defender Fortified — orders 6 only, Fortify(5) does
+         not deny (viceroy 9035) → neither side gets terrain
 3. Fortified (orders 6 ONLY — viceroy 9045; Fortify(5) still digging in gets
    nothing), land, `local_1a < 5` → `+2`
 4. Result: `((local_1a + 4) * base) >> 2`
@@ -295,7 +304,9 @@ Combat loss remaps **unit type** (not merely profession). Cite:
 - **Evasion first** (`FUN_5bfb_312e`, DOS 1b0e tail; preempts the rolled
   outcome): defender with type attack BELOW the attacker's escapes on
   `roll(1, atk_pow+def_pow) <= def_pow`, power = movement+3, Privateer ×2,
-  Galleon +3, −4 per occupied hold, min 1 → `@EVASIVE`, no outcome.
+  Galleon +3, −4 per occupied **goods** hold, min 1 → `@EVASIVE`, no outcome.
+  (`FUN_5bfb_312e` viceroy 98448 reads unit `+0x3150` raw, and that byte counts
+  goods holds only — passengers never bump it; corrected 2026-09-09.)
 - Both ships → `units_plunder_ship_holds` (`FUN_5fef_016c`) runs BEFORE the
   damage/sink split; the loser's holds are then zeroed either way (goods not
   lifted vanish, passengers are lost — `units_ship_lose_holds`).

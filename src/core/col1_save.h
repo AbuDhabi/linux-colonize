@@ -788,7 +788,12 @@ typedef struct ColonizeCol1Indian {
   uint8_t unknown31b_pad; /* 0x8d4e+4 — confirmed dead 2026-08-24: zero literal
      offset-+4 touches in any of the 3 decompiled DOS exports. */
   uint8_t lands_bought; /* FUN_479b_00ca INC; purchase cost */
-  uint8_t unknown31_flags; /* Linux: bit 0x20 = contact prelude fired */
+  uint8_t unknown31_flags; /* 0x8d4e+6 — unmapped, and confirmed unread by DOS
+     2026-09-09 (smell #72): offset tally over viceroy_unpacked / _2 /
+     viceroy_overlays shows only +0/+2/+3/+5/+7/+8/+10 ever accessed. The old
+     "bit 0x20 = contact prelude fired" latch was a Linux invention that
+     shadowed the real WoI latch at +3 (`woi_defect_resolved`); retired with
+     the prelude escalate. Nothing reads or writes this byte now. */
   uint8_t muskets;
   uint8_t horse_herds;
   uint8_t unknown31c_pad; /* 0x8d4e+9 — confirmed dead 2026-08-24: zero literal

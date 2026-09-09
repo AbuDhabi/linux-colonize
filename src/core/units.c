@@ -3114,13 +3114,22 @@ static const char* units_home_port_name(const ColonizeCol1Save* col1, int nation
 }
 
 /* Naval: damage-not-always-sink when margin close; else plunder+despawn. */
-/* Occupied holds (DOS unit +0x3150): goods slots in use plus passengers. */
+/*
+ * Occupied holds = DOS unit +0x3150, which is the GOODS hold count only — the
+ * length of the packed hold arrays, written solely by FUN_15eb_30b8 (add
+ * goods, ++) and FUN_15eb_317c (remove hold, --) at viceroy 13301/13339.
+ * Boarding never touches it: FUN_1427_10be parks passengers off-map at
+ * (-2,-2) and debits only its own local budget. FUN_5bfb_312e (viceroy 98448)
+ * reads that byte raw for the -4/hold evasion peel, so a troop-laden ship
+ * evades exactly like an empty one — the same goods-only count
+ * combat_strength.c's FUN_157e_004a peel (viceroy 8957-8959) uses.
+ */
 static int units_holds_used(const ColonizeUnitPool* pool, int unit_id) {
   const ColonizeUnit* u = units_get_const(pool, unit_id);
   if (!u) {
     return 0;
   }
-  int used = u->cargo_count;
+  int used = 0;
   for (int i = 0; i < COLONIZE_UNIT_CARGO_MAX; ++i) {
     if (u->hold_goods_amount[i] > 0 && u->hold_goods_amount[i] < 255) {
       used++;
@@ -8188,6 +8197,56 @@ static int units_dir8_index(int dx, int dy) {
  */
 static int8_t s_units_goto_last_dir[COLONIZE_UNITS_MAX];
 
+/*
+ * The greedy tier's own ownership gate — FUN_6662_0f74 carries one, exactly
+ * like 0015bc's flood tier (units_flood_owner_term), it is just spelled as a
+ * hard skip instead of an additive penalty (viceroy_unpacked.c:104678-104690):
+ *
+ *   uVar19 = FUN_281f_06d2(cand);            // = FUN_1000_88c2, the same
+ *   if ((int)uVar19 < 0 || uVar19 == uVar8)  // tile_tribe_or_presence the
+ *     ... domain test; on mismatch fall through to LAB_6662_13a5
+ *   else
+ *   LAB_6662_13a5:
+ *     uVar19 = FUN_281f_0696(cand);          // Euro settlement owner
+ *     if (uVar19 != uVar8 || cand != (uVar21,uVar5)) goto LAB_6662_12f6;
+ *
+ * (uVar8 = the mover's nation nibble, unit+0x3147 & 0xf, :104553;
+ *  uVar21/uVar5 = the goto goal, unit+0x314d/+0x314e, :104537-104538.)
+ * So a tile another nation or tribe physically occupies — a foreign colony
+ * or village counts even with no unit on it, since 06d2 reads the settlement
+ * bit first — is never stepped through; the sole escape is this nation's OWN
+ * colony when that colony is the goal itself. DOS's domain half of the same
+ * `if` is already units_can_enter's job here (and its own-colony DOCK arm is
+ * the same escape), so only the ownership half is expressed.
+ *
+ * NOT units_flood_owner_term: the flood's second arm (FUN_1000_88d6, the
+ * improved-tile +8 on a peer's land) has no counterpart in 0f74, which knows
+ * only "occupied by someone else" — porting the +8 here would be invention.
+ */
+static bool units_greedy_owner_ok(
+  const ColonizeUnit* u,
+  const ColonizeWorldMap* map,
+  const ColonizeColonyPool* colonies,
+  int nx,
+  int ny,
+  int gx,
+  int gy
+) {
+  if (!u || u->nation_id < 0) {
+    return true;
+  }
+  const int occupant = map_tile_tribe_or_presence(map, nx, ny);
+  if (occupant < 0 || occupant == u->nation_id) {
+    return true;
+  }
+  /* FUN_281f_0696: Euro colony owner (clamps any owner above 3 to -1). */
+  const ColonizeColony* col =
+    colonies ? colonies_get(colonies, colonies_id_at(colonies, nx, ny)) : NULL;
+  const int colony_owner =
+    (col && col->active && col->nation_id >= 0 && col->nation_id <= 3) ? col->nation_id : -1;
+  return colony_owner == u->nation_id && nx == gx && ny == gy;
+}
+
 static bool units_greedy_next_step(
   const ColonizeUnitPool* pool,
   int unit_id,
@@ -8217,6 +8276,9 @@ static bool units_greedy_next_step(
     }
     const int nx = u->x + try_dx[i];
     const int ny = u->y + try_dy[i];
+    if (!units_greedy_owner_ok(u, map, colonies, nx, ny, gx, gy)) {
+      continue;
+    }
     if (!units_can_enter(pool, u->type_index, map, nx, ny, unit_id, colonies)) {
       continue;
     }
@@ -8283,6 +8345,11 @@ static bool units_greedy_next_step(
         if (!is_human_unit && cheb_cand + manh_cand > cheb_cur + manh_cur) {
           continue;
         }
+        /* 0f74's own 06d2/0696 gate, :104678-104690 — see
+         * units_greedy_owner_ok. This is the loop DOS spells it in. */
+        if (!units_greedy_owner_ok(u, map, colonies, nx, ny, gx, gy)) {
+          continue;
+        }
         if (!units_can_enter(pool, u->type_index, map, nx, ny, unit_id, colonies)) {
           continue;
         }
@@ -8326,6 +8393,16 @@ static bool units_greedy_next_step(
       const int d = dos_rng_range(rng, 0, 7);
       const int nx = u->x + k_wig_dx[d];
       const int ny = u->y + k_wig_dy[d];
+      /*
+       * The reroll re-applies 06d2 as well (viceroy_unpacked.c:104724-104726:
+       * `if ((-1 < uVar21) && (uVar21 != uVar8)) ... local_1c = 0xffff`), and
+       * here with no own-colony escape at all — a random sidestep never lands
+       * on someone else's square.
+       */
+      const int wig_occ = map_tile_tribe_or_presence(map, nx, ny);
+      if (wig_occ >= 0 && u->nation_id >= 0 && wig_occ != u->nation_id) {
+        continue;
+      }
       if (!units_can_enter(pool, u->type_index, map, nx, ny, unit_id, colonies)) {
         continue;
       }

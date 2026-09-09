@@ -415,6 +415,7 @@ implementation.
 |------|----------------------------------------------------------|
 | Base NAMES grids | Wired (Hills food = NAMES' 1; the farmer stack term explains the old "2") |
 | Resource effect `17fa` | `colony_yield_resource_effect()`, byte-exact incl. multi-job pairs; Beaver+Fur +3 |
+| Expert doubles the additive bonus | All jobs (asm ~11900-11914 has no per-job carve-out). 2026-09-09: dropped a Silver-Miner-only undoubled bucket left over from commit 3a9f688 — expert Silver Miner on Mountains + Silver Deposit is 6, not 4 |
 | Lumberjack ×2 | Wired at the correct pipeline position |
 | Expert food/fish +2 + SoL re-add | Wired; re-add uses `sol_bonus` itself; SoL folds before expert doubling |
 | Convert job whitelist | Exact gate |
