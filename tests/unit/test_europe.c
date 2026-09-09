@@ -263,7 +263,7 @@ int main(void) {
   eu.tax_percent = 50;
   const int trade_ask = eu.cargo[COLONIZE_CARGO_TRADE_GOODS].ask;
   const int gold_pre_buy = eu.gold;
-  const int bought = europe_buy_cargo(&eu, 0, COLONIZE_CARGO_TRADE_GOODS, 100);
+  const int bought = europe_buy_cargo(&eu, NULL, -1, 0, COLONIZE_CARGO_TRADE_GOODS, 100);
   if (bought != 100 || eu.gold != gold_pre_buy - 100 * trade_ask ||
       eu.harbor[0].hold_goods_amount[0] != 100 ||
       eu.harbor[0].hold_goods_type[0] != COLONIZE_CARGO_TRADE_GOODS) {
@@ -361,7 +361,7 @@ int main(void) {
       europe_free(&eu);
       return 1;
     }
-    const int blocked_buy = europe_buy_cargo(&eu, 0, COLONIZE_CARGO_FURS, 50);
+    const int blocked_buy = europe_buy_cargo(&eu, NULL, -1, 0, COLONIZE_CARGO_FURS, 50);
     if (blocked_buy != 0 || eu.gold != gold_before) {
       fprintf(stderr, "boycotted buy should be refused, got %d\n", blocked_buy);
       europe_free(&eu);

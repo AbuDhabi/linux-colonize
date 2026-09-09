@@ -122,6 +122,10 @@ typedef struct EuropeCargoQuote {
   char name[32];
   int bid; /* port pays this when you sell */
   int ask; /* you pay this when you buy */
+  /* @CARGO columns 0/1: new-campaign opening-bid band (FUN_38fd_6024
+   * rolls RNG(start_lo..start_hi) per cargo; smell audit #55). */
+  int start_lo;
+  int start_hi;
   /* @CARGO dynamics — FUN_38fd_0058 / 1d80 / 1dfa. */
   int low;
   int high;
@@ -462,6 +466,14 @@ void europe_set_pool_slot(EuropeScreen* eu, int slot, int profession);
 /* Game-start pool (DOS `FUN_38fd_6024`): fixed bottom-tier slot 0, two
  * expert-biased rolls, then the human's easy-difficulty override. */
 void europe_seed_pool(EuropeScreen* eu, int difficulty, bool human);
+/*
+ * New-campaign opening prices: FUN_38fd_6024 (viceroy_unpacked.c 68645-68654)
+ * rolls bid = RNG(start_lo..start_hi) inclusive for each of the 16 cargo
+ * slots (16 LCG draws, cargo order, hi==lo still draws), one roll shared by
+ * all four nations. New game only — the load path keeps the save's
+ * euro_price. Smell audit #55.
+ */
+void europe_seed_campaign_prices(EuropeScreen* eu, struct ColonizeDosRng* rng);
 /* Shared recruit-choice source: DOS FUN_38fd_4884 draws the same three pool
  * slots for the Recruit menu, the Brewster @RECRUITCHOOSE pick and the
  * Fountain of Youth @RECRUIT picks. Ensure fills empty slots; label is the
@@ -926,7 +938,16 @@ int europe_cargo_export_eligible(int cargo_type);
  */
 bool europe_custom_house_cargo_enabled(uint16_t custom_house_bits, int cargo_type);
 
-int europe_buy_cargo(EuropeScreen* eu, int harbor_index, int cargo_type, int amount);
+/* Harbor buy; col1+buyer_nation feed the 1d80 nation trade ledger (smell
+ * audit #50) — NULL col1 keeps the price move but skips the ledger. */
+int europe_buy_cargo(
+  EuropeScreen* eu,
+  struct ColonizeCol1Save* col1,
+  int buyer_nation,
+  int harbor_index,
+  int cargo_type,
+  int amount
+);
 /*
  * Trade-route load list at a Europe stop: buy up to `amount` (≤100) of
  * cargo_type straight into a map/transport unit's holds. Flat ask price,
@@ -935,6 +956,7 @@ int europe_buy_cargo(EuropeScreen* eu, int harbor_index, int cargo_type, int amo
  */
 int europe_buy_unit_cargo(
   EuropeScreen* eu,
+  struct ColonizeCol1Save* col1,
   ColonizeUnitPool* units,
   int unit_id,
   int cargo_type,

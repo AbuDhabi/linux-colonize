@@ -2846,7 +2846,7 @@ static void game_apply_howmuch_result(ColonizeGameState* game) {
     if (!game->in_europe || eu->selected_harbor < 0) {
       return;
     }
-    europe_buy_cargo(eu, eu->selected_harbor, cargo, amt);
+    europe_buy_cargo(eu, &game->col1, game->human_nation, eu->selected_harbor, cargo, amt);
         game_europe_drain_price_events(game);
   } else if (kind == HOWMUCH_KIND_SELL) {
     EuropeScreen* eu = &game->europe;
@@ -7509,6 +7509,9 @@ static void game_commit_new_campaign(ColonizeGameState* game) {
       dos_rng_seed(&game->move_rng, ai.rng_seed);
     }
     game->ai_rng_seed = ai.rng_seed;
+    /* FUN_38fd_6024 opening-price roll — new campaign only, 16 draws from
+     * the campaign stream (smell audit #55). Load path keeps euro_price. */
+    europe_seed_campaign_prices(&game->europe, &game->move_rng);
     /*
      * Reveal around owned units and colonies. Was NEW WORLD/CUSTOMIZE-only in
      * practice — scenario .MP starts (Original Americas/AMER2) used to load
@@ -9411,7 +9414,10 @@ static bool game_europe_drag_drop(ColonizeGameState* game, int mx, int my, bool 
         );
         howmuch_open(&game->howmuch, HOWMUCH_KIND_BUY, prompt, max_amt, max_amt, cargo, 0);
       } else if (hidx >= 0) {
-        europe_buy_cargo(eu, hidx, drag->index, drag->amount > 0 ? drag->amount : 100);
+        europe_buy_cargo(
+          eu, &game->col1, game->human_nation, hidx, drag->index,
+          drag->amount > 0 ? drag->amount : 100
+        );
         game_europe_drain_price_events(game);
       } else {
         snprintf(eu->status, sizeof(eu->status), "%s", "Select a ship first.");
@@ -10624,7 +10630,7 @@ static void game_trade_route_service_stop(ColonizeGameState* game, ColonizeUnit*
       }
       for (int i = 0; i < (int)st->load_count && i < 6; ++i) {
         const int ct = col1_trade_nibble_cargo(st->load_cargo_nibbles, i);
-        (void)europe_buy_unit_cargo(&game->europe, &game->units, u->id, ct, 100);
+        (void)europe_buy_unit_cargo(&game->europe, &game->col1, &game->units, u->id, ct, 100);
       }
       game_europe_drain_price_events(game);
       if (game->col1_ok && game->human_nation >= 0 && game->human_nation < 4) {
@@ -10776,7 +10782,7 @@ static void game_europe_service_trade_harbor(ColonizeGameState* game) {
     }
     for (int c = 0; c < (int)st->load_count && c < 6; ++c) {
       const int ct = col1_trade_nibble_cargo(st->load_cargo_nibbles, c);
-      (void)europe_buy_cargo(eu, i, ct, 100);
+      (void)europe_buy_cargo(eu, &game->col1, game->human_nation, i, ct, 100);
     }
     game_europe_drain_price_events(game);
     if (game->human_nation >= 0 && game->human_nation < 4) {
@@ -13396,7 +13402,9 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
         return true;
       }
       if (ch == '+' && eu->selected_harbor >= 0) {
-        europe_buy_cargo(eu, eu->selected_harbor, eu->selected_market, 1);
+        europe_buy_cargo(
+          eu, &game->col1, game->human_nation, eu->selected_harbor, eu->selected_market, 1
+        );
         game_europe_drain_price_events(game);
         return true;
       }

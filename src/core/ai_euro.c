@@ -16725,7 +16725,7 @@ static int ai_euro_20e6_colony_sail_pick(
       if (cid >= 0 && ai_euro_20e6_own_colonies_on(ctx, ctx->human_nation, cid) != 0) {
         score += 0x14;
       }
-      score += (c->ai_flags & COLONIZE_COLONY_AI_NEEDS_COLONISTS) ? 0x19 : -0x25;
+      score += (c->ai_flags & COLONIZE_COLONY_AI_NEEDS_COLONISTS) ? 0x19 : -0x19;
     } else {
       if (cid < 0 || ai_euro_continent_stance_at(nation, cid) == 0) {
         continue; /* raw 1970: war cargo needs nonzero stance */

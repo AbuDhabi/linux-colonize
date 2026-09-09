@@ -8294,20 +8294,13 @@ void ai_contact_indian_raids(ColonizeTurnContext* ctx, int nation_id) {
           ambush_body
         );
       }
-      {
-        /* Pocahontas: half-rate alarm growth (wiki/fandom). */
-        const int bump = ai_contact_alarm_bump_amount(ctx->col1, target_euro, 2);
-        if (bump > 0) {
-          ind->alarm_by_player[target_euro] =
-            (uint16_t)(ind->alarm_by_player[target_euro] + (uint16_t)bump);
-        }
-      }
-      for (uint16_t ti = 0; ti < ctx->col1->head.tribe_count; ++ti) {
-        ColonizeCol1Tribe* t = &ctx->col1->tribe[ti];
-        if ((int)t->nation_id == nation_id) {
-          t->alarm[target_euro].attacks++;
-        }
-      }
+      /*
+       * (Retired 2026-09-08, smell #65.) A +2 alarm bump (Pocahontas-halved)
+       * plus attacks++ across every tribe of the nation sat here — the last
+       * retired-drip-class caller. DOS's post-ambush effects live inside the
+       * combat resolve itself (negative vent + attitude zero); the attacks
+       * byte's only DOS writer is the 465b trespass arm.
+       */
       attacked = 1;
     }
 
