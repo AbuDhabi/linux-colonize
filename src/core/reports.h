@@ -46,11 +46,35 @@ typedef enum ColonizeReportId {
   COLONIZE_REPORT_COUNT
 } ColonizeReportId;
 
+/*
+ * ICONS.SS destinations: one per screen palette the icons are drawn over.
+ * Every report id maps to its own background, plus one extra slot for
+ * Congress page 1, which has its own image (congress_page1_bg = REPORT3.PIK)
+ * rather than backgrounds[COLONIZE_REPORT_CONGRESS] (CCBKGD.PIK, page 2).
+ */
+#define COLONIZE_REPORT_ICONS_CONGRESS_P1 COLONIZE_REPORT_COUNT
+#define COLONIZE_REPORT_ICONS_DEST_COUNT (COLONIZE_REPORT_COUNT + 1)
+
 typedef struct ColonizeReportsView {
   ColonizePikImage backgrounds[COLONIZE_REPORT_COUNT];
   bool background_ok[COLONIZE_REPORT_COUNT];
-  ColonizeSpriteSheet icons; /* ICONS.SS, remapped to REPORT2.PIK's palette (cross counter). */
-  bool icons_ok;
+  /*
+   * ICONS.SS — one instance per destination SCREEN palette, not one shared
+   * copy. The nearest-colour remap (assets_sheet_remap_to_palette) bakes the
+   * destination palette's indices into the sheet's pixels, so a single sheet
+   * remapped onto REPORT2.PIK and then blitted over REPORT3/REPORT4 renders
+   * whatever those palettes happen to hold at the baked indices: ICONS index
+   * 13 (255,113,0) picks REPORT2 slot 177, which is (178,73,24) on REPORT3
+   * and (211,130,65) on REPORT4 instead of their own nearest matches (184 /
+   * 159). That was the shape of the old bug; one copy per screen removes it.
+   *
+   * REMAP is right for ICONS (rather than the reserved-DAC-block MERGE of
+   * KING, IND<t>A<n>, MSSn, MYRn, SCORE<nn>): ICONS.SS is black across 152..251 and so
+   * reserves nothing, while REPORT2/3/4 fill 152..229/236/244 with their own
+   * photo colours — merging would blacken them.
+   */
+  ColonizeSpriteSheet icons[COLONIZE_REPORT_ICONS_DEST_COUNT];
+  bool icons_ok[COLONIZE_REPORT_ICONS_DEST_COUNT];
   /* FONTTINY.FF — every line on every report screen, titles and body alike.
    * The 3f41 overlay only ever loads the FONTTINY font pointer (DS:0x89e);
    * there is no second report font (bugs.md 434). */

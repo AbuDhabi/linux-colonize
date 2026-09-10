@@ -244,6 +244,14 @@ typedef struct ColonyScreenView {
   ColonizeSpriteSheet buildings;
   ColonizeSpriteSheet icons;
   ColonizePikImage bottom_panel;
+  /* FONTINTR.FF — DOS's default dialog font slot (game_loop.c's
+   * begin_menu_font: "@smallfont → FONTTINY, default dialog slot is
+   * FONTINTR"). The colony screen body itself is drawn in FONTTINY, which
+   * arrives as colony_screen_render()'s `font`, so a popup section carrying
+   * @smallfont keeps that one and every other popup takes this. Optional:
+   * dialog_font_ok false falls the popups back to the screen font. */
+  ColonizeFont dialog_font;
+  bool dialog_font_ok;
   bool frame_ok;
   bool parch_ok;
   bool wood_tile_ok;
@@ -303,6 +311,7 @@ typedef struct ColonyScreenView {
   char dock_orders_labels[COLONY_DOCK_ORDERS_MAX][COLONY_DOCK_ORDER_LABEL_LEN];
   int dock_orders_count;
   char dock_orders_title[COLONY_DOCK_ORDER_LABEL_LEN];
+  int dock_orders_width; /* GAME.TXT @COLONYUNIT @width; 0 = measure the rows */
   int dock_orders_dialog_x;
   int dock_orders_dialog_y;
   int dock_orders_dialog_w;
@@ -315,6 +324,8 @@ typedef struct ColonyScreenView {
    * stays open (a checklist, not a pick-one-and-close list like Jobs). */
   bool custom_house_open;
   char custom_house_title[96]; /* GAME.TXT @CUSTOM, tokens/braces stripped */
+  int custom_house_width;      /* GAME.TXT @CUSTOM @width; 0 = measure the title */
+  bool custom_house_smallfont; /* GAME.TXT @CUSTOM @smallfont → FONTTINY rows */
   int custom_house_cargo_ids[COLONIZE_CARGO_COUNT];
   int custom_house_count;
   int custom_house_dialog_x;

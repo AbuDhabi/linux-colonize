@@ -2054,6 +2054,15 @@ int map_move_cost_step(
   /* No destination-only halving: FUN_465b_0000's cost head has exactly the two
    * pair rules above and no discount arm (see map_move_cost_at). */
   int spent = map_dos_terr_cost_byte(map_dos_terr_class_at(map, to_x, to_y));
+  /*
+   * 465b:00e4 — FUN_281f_06be tile_tribe_owner(dest) >= 0 → min(spent, 3
+   * thirds). At NAMES scale (thirds/3) that cap is 1, same predicate as
+   * map_move_spent_thirds. Cite: move_spent.c:124-136, accessors.c:324-327.
+   */
+  if (map_tile_has_city(map, to_x, to_y) && map_tile_tribe_or_presence(map, to_x, to_y) >= 0 &&
+      spent > 1) {
+    spent = 1;
+  }
   if (spent > 100) {
     spent = 1;
   }

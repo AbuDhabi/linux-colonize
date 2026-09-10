@@ -266,23 +266,12 @@ void pedia_terrain_preview(int terrain_index, PediaTerrainPreview* out) {
  * ORs flag 2 and eats one. Anything further (a third caret, braces, spaces)
  * is body text. FUN_6f74_1198 gives (flags & 3) its own unwrapped line and
  * centres only flag 1, so "^" is left-aligned.
+ *
+ * The rule itself lives in popup_msg_caret_flags() (core/popup_msg.c) because
+ * the same DOS parser reads GAME.TXT popups; this is the PEDIA.TXT-side name.
  */
 int pedia_caret_flags(const char* line, const char** out_rest) {
-  int flags = 0;
-  const char* rest = line ? line : "";
-  if (rest[0] == '^') {
-    if (rest[1] == '^') {
-      flags = PEDIA_CARET_CENTER;
-      rest += 2;
-    } else {
-      flags = PEDIA_CARET_OWN_LINE;
-      rest += 1;
-    }
-  }
-  if (out_rest) {
-    *out_rest = rest;
-  }
-  return flags;
+  return popup_msg_caret_flags(line, out_rest);
 }
 
 static void pedia_strip_markup(char* text) {

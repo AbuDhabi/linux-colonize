@@ -28,8 +28,6 @@
 
 /* DOS nation+0xc — bells since last FF elect; not stored in ColonizeCol1Nation. */
 static uint16_t s_ff_bells_since_elect[COLONIZE_COL1_NATION_COUNT];
-/* Score line: +1 per WoI bell-pool spend on foreign intervention. */
-static uint16_t s_intervention_bells[COLONIZE_COL1_NATION_COUNT];
 static bool s_ff_pools_initialized;
 
 /*
@@ -65,7 +63,6 @@ static int s_ff_debate_slate_nation = -1;
 
 void founding_fathers_reset(void) {
   memset(s_ff_bells_since_elect, 0, sizeof(s_ff_bells_since_elect));
-  memset(s_intervention_bells, 0, sizeof(s_intervention_bells));
   s_ff_pools_initialized = false;
   s_ff_debate_slate_n = 0;
   s_ff_debate_slate_nation = -1;
@@ -204,13 +201,6 @@ unsigned founding_fathers_bells_since_last_elect(int nation_id) {
     return 0u;
   }
   return (unsigned)s_ff_bells_since_elect[nation_id];
-}
-
-unsigned founding_fathers_intervention_bells(int nation_id) {
-  if (nation_id < 0 || nation_id >= (int)COLONIZE_COL1_NATION_COUNT) {
-    return 0u;
-  }
-  return (unsigned)s_intervention_bells[nation_id];
 }
 
 void founding_fathers_accrue_bells(int nation_id, unsigned delta) {
@@ -647,18 +637,8 @@ static int ff_pick_strongest_category(const ColonizeCol1Save* col1, int nation) 
   return best_type;
 }
 
-static void ff_record_intervention_spend(int nation_id) {
-  if (nation_id < 0 || nation_id >= (int)COLONIZE_COL1_NATION_COUNT) {
-    return;
-  }
-  if (s_intervention_bells[nation_id] < 65535u) {
-    s_intervention_bells[nation_id]++;
-  }
-}
-
 void founding_fathers_consume_woi_bell_pool(int nation_id) {
   founding_fathers_reset_bells_pool(nation_id);
-  ff_record_intervention_spend(nation_id);
 }
 
 /*
@@ -1222,7 +1202,10 @@ static void apply_effect(
     case FF_JAN_DE_WITT:
       /* docs/fandom_col1994.md: trade with foreign colonies; FA more revealing.
        * Ownership gate: founding_fathers_de_witt_allows_foreign_colony_trade.
-       * FA detailed strength already peeks head.founding_father[4] (reports).
+       * FA detailed strength gate: reports.c:3184 tests the per-nation bitmask
+     * via reports_ff_owned_by_nation(&nation[human], DE_WITT) (or the
+     * show-entire-map cheat) — head.founding_father[] is the first-claimer
+     * stamp only, never an ownership read (audit #82/#83 unification).
        * Cargo: colonies_de_witt_transfer_* + ai_euro de Witt wagon/ship act
        * (stock only; no gold invent). */
       break;

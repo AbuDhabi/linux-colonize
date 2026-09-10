@@ -4,11 +4,13 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "core/assets.h"
 #include "core/colony_preview.h"
 #include "core/colony_production.h"
 #include "core/colony_yield.h"
 #include "core/dos_rng.h"
 #include "core/europe.h"
+#include "core/ff.h"
 #include "core/founding_fathers.h"
 #include "core/popup.h"
 #include "core/popup_msg.h"
@@ -343,6 +345,43 @@ void colony_screen_close_custom_house(ColonyScreenView* view) {
   view->custom_house_count = 0;
 }
 
+/* GAME.TXT's bare directives ("@checkbox", "@smallfont") are kept as ordinary
+ * section lines by the catalog parser, so an owner that wants one scans for
+ * it — the same read pick_music.c:126 and game_loop.c:4428 do. (@width is not
+ * scanned here: popup_msg_fill already latches it, see the two call sites.) */
+static bool colony_screen_section_has_directive(
+  const ColonizeMsgSection* section,
+  const char* directive
+) {
+  if (!section || !directive) {
+    return false;
+  }
+  for (int i = 0; i < section->line_count; ++i) {
+    /* lines[i] is a char array inside the block, never a NULL pointer. */
+    if (strcmp(section->lines[i], directive) == 0) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/* DOS keeps FONTINTR in the dialog font slot and swaps to FONTTINY only for a
+ * section carrying @smallfont. `screen_font` is the colony screen's own font,
+ * which game_loop.c fills with FONTTINY — so it *is* the small font here. */
+static const ColonizeFont* colony_screen_popup_font(
+  const ColonyScreenView* view,
+  const ColonizeFont* screen_font,
+  bool smallfont
+) {
+  if (smallfont && screen_font) {
+    return screen_font;
+  }
+  if (view && view->dialog_font_ok) {
+    return &view->dialog_font;
+  }
+  return screen_font;
+}
+
 void colony_screen_open_custom_house(
   ColonyScreenView* view,
   const ColonizeColony* colony,
@@ -361,6 +400,14 @@ void colony_screen_open_custom_house(
     "Which cargos shall our Custom House export?",
     view->custom_house_title,
     sizeof(view->custom_house_title)
+  );
+  /* Both of @CUSTOM's layout directives come from GAME.TXT, not literals:
+   * popup_msg_fill latched @width=190 (ai_popup.c:205 / save_load_dialog.c
+   * / game_loop.c take the same latch), and @smallfont swaps the rows to
+   * FONTTINY. A catalog without either leaves the draw measuring the title. */
+  view->custom_house_width = popup_msg_take_pending_width();
+  view->custom_house_smallfont = colony_screen_section_has_directive(
+    messages ? assets_msg_find(messages, "CUSTOM") : NULL, "@smallfont"
   );
   /* Every cargo but Food gets a row (col1_save.h's ColonizeCol1CustomHouse
    * bitfield has all 16, Food included, so the save format itself treats
@@ -517,6 +564,9 @@ void colony_screen_open_dock_orders(
     view->dock_orders_title,
     sizeof(view->dock_orders_title)
   );
+  /* @COLONYUNIT's own @width=190, off the same latch as @CUSTOM above —
+   * the 190 used to be a literal here. 0 = no directive → measured rows. */
+  view->dock_orders_width = popup_msg_take_pending_width();
 
   const bool sea = units_is_sea(units, unit_id);
   const ColonizeMsgSection* opts =
@@ -641,52 +691,21 @@ static bool colony_screen_load_pik(
   return true;
 }
 
-/* Remap sprite pixels from src_pal colors onto nearest indices in dst_pal. */
-static void remap_sheet_to_palette(
-  ColonizeSpriteSheet* sheet,
-  const ColonizePalette* dst_pal
-) {
-  if (!sheet || !dst_pal || !sheet->has_palette) {
-    return;
-  }
-
-  uint8_t lut[256];
-  for (int i = 0; i < 256; ++i) {
-    if (i == COLONIZE_SS_TRANSPARENT) {
-      lut[i] = (uint8_t)COLONIZE_SS_TRANSPARENT;
-      continue;
-    }
-    const int sr = sheet->palette.rgb[i][0];
-    const int sg = sheet->palette.rgb[i][1];
-    const int sb = sheet->palette.rgb[i][2];
-    int best = 0;
-    int best_d = 1 << 30;
-    for (int j = 0; j < 256; ++j) {
-      const int dr = sr - dst_pal->rgb[j][0];
-      const int dg = sg - dst_pal->rgb[j][1];
-      const int db = sb - dst_pal->rgb[j][2];
-      const int d = dr * dr + dg * dg + db * db;
-      if (d < best_d) {
-        best_d = d;
-        best = j;
-      }
-    }
-    lut[i] = (uint8_t)best;
-  }
-
-  for (int s = 0; s < sheet->sprite_count; ++s) {
-    ColonizeSprite* spr = &sheet->sprites[s];
-    if (!spr->pixels) {
-      continue;
-    }
-    const int n = spr->width * spr->height;
-    for (int p = 0; p < n; ++p) {
-      spr->pixels[p] = lut[spr->pixels[p]];
-    }
-  }
-  sheet->palette = *dst_pal;
-}
-
+/*
+ * REMAP, not merge, for all four colony-screen sheets (PARCH / WOODTILE /
+ * BUILDING / ICONS over WOODPANL.PIK).
+ *
+ * The reserved-DAC-block rule ("merge, never remap" — crown-europe batch,
+ * reports_remap_exploits_sheet) applies to art sheets that OWN a block of DAC
+ * slots the host screen leaves black. Checked against the shipped data: every
+ * one of these four sheets is itself black across 152..251, which is exactly
+ * the block WOODPANL.PIK leaves black — none of them reserves anything, they
+ * all live in the shared low block, so merging would copy black over the
+ * screen's own slots. Nearest-colour remap is the right treatment here, and
+ * with WOODPANL as the destination it is very nearly the identity: of the
+ * indices these sheets actually paint, only ICONS.SS 5 and 13 (11 px each)
+ * disagree with the screen palette at all.
+ */
 bool colony_screen_load(ColonyScreenView* view, const char* data_dir, char* err, size_t err_size) {
   if (!view || !data_dir) {
     snprintf(err, err_size, "colony_screen_load bad args");
@@ -719,7 +738,7 @@ bool colony_screen_load(ColonyScreenView* view, const char* data_dir, char* err,
     colony_screen_free(view);
     return false;
   }
-  remap_sheet_to_palette(&view->parch, &view->frame.palette);
+  assets_sheet_remap_to_palette(&view->parch, &view->frame.palette);
   view->parch_ok = true;
 
   if (!dos_compat_normalize_asset_path(data_dir, "WOODTILE.SS", ss_path, sizeof(ss_path))) {
@@ -732,7 +751,7 @@ bool colony_screen_load(ColonyScreenView* view, const char* data_dir, char* err,
     colony_screen_free(view);
     return false;
   }
-  remap_sheet_to_palette(&view->wood_tile, &view->frame.palette);
+  assets_sheet_remap_to_palette(&view->wood_tile, &view->frame.palette);
   view->wood_tile_ok = true;
 
   if (!dos_compat_normalize_asset_path(data_dir, "BUILDING.SS", ss_path, sizeof(ss_path))) {
@@ -745,7 +764,7 @@ bool colony_screen_load(ColonyScreenView* view, const char* data_dir, char* err,
     colony_screen_free(view);
     return false;
   }
-  remap_sheet_to_palette(&view->buildings, &view->frame.palette);
+  assets_sheet_remap_to_palette(&view->buildings, &view->frame.palette);
   view->buildings_ok = true;
 
   if (!dos_compat_normalize_asset_path(data_dir, "ICONS.SS", ss_path, sizeof(ss_path))) {
@@ -758,7 +777,7 @@ bool colony_screen_load(ColonyScreenView* view, const char* data_dir, char* err,
     colony_screen_free(view);
     return false;
   }
-  remap_sheet_to_palette(&view->icons, &view->frame.palette);
+  assets_sheet_remap_to_palette(&view->icons, &view->frame.palette);
   view->icons_ok = true;
 
   if (!colony_screen_load_pik(data_dir, "COLONY.PIK", &view->bottom_panel, err, err_size)) {
@@ -766,6 +785,23 @@ bool colony_screen_load(ColonyScreenView* view, const char* data_dir, char* err,
     return false;
   }
   view->bottom_panel_ok = true;
+
+  /*
+   * FONTINTR.FF — the dialog font slot DOS restores after every FONTTINY
+   * swap (game_loop.c's begin_menu_font / europe list dialogs). Popups over
+   * this screen already use it (game_loop.c picks intro_font for howmuch /
+   * name entry), so the screen's own GAME.TXT popups take it too unless
+   * their section carries @smallfont. Non-fatal: without it the popups fall
+   * back to the screen font, which is what they used before.
+   */
+  char font_path[512];
+  char font_err[256];
+  if (dos_compat_normalize_asset_path(data_dir, "FONTINTR.FF", font_path, sizeof(font_path)) &&
+      ff_load(font_path, &view->dialog_font, font_err, sizeof(font_err))) {
+    view->dialog_font_ok = true;
+  } else {
+    diag_warn("Colony screen: FONTINTR.FF unavailable — popups keep the screen font");
+  }
 
   colony_screen_set_status(view, "Colony ready. Esc or C returns to map.");
   diag_info(
@@ -792,6 +828,9 @@ void colony_screen_free(ColonyScreenView* view) {
   ss_free(&view->buildings);
   ss_free(&view->icons);
   pik_free(&view->bottom_panel);
+  if (view->dialog_font_ok) {
+    ff_free(&view->dialog_font);
+  }
   memset(view, 0, sizeof(*view));
 }
 
@@ -3951,12 +3990,16 @@ static void colony_screen_draw_bullet(
 static void colony_screen_draw_custom_house_popup(
   ColonyScreenView* view,
   const ColonizeColony* colony,
-  const ColonizeFont* font,
+  const ColonizeFont* screen_font,
   ColonizeFramebuffer8* framebuffer
 ) {
   if (!view || !view->custom_house_open || !colony || !framebuffer || !framebuffer->pixels) {
     return;
   }
+  /* @CUSTOM carries @smallfont, so the rows render in FONTTINY (the screen
+   * font); drop the directive from GAME.TXT and they take FONTINTR. */
+  const ColonizeFont* font =
+    colony_screen_popup_font(view, screen_font, view->custom_house_smallfont);
   const int rows = view->custom_house_count;
   const int line_h = font ? (font->max_height + 2) : 8;
   const int pad = 4;
@@ -3964,13 +4007,17 @@ static void colony_screen_draw_custom_house_popup(
   if (dialog_h > framebuffer->height - 8) {
     dialog_h = framebuffer->height - 8;
   }
-  /* GAME.TXT @CUSTOM's own @width=190 — the title ("Which cargos shall our
+  /* GAME.TXT @CUSTOM's own @width=190, latched at open time. Without the
+   * directive, fall back to measuring: the title ("Which cargos shall our
    * Custom House export?") is the widest line, not any cargo name. */
-  int dialog_w = 130;
-  if (font) {
-    const int title_w = popup_markup_text_width(font, view->custom_house_title) + pad * 2;
-    if (title_w > dialog_w) {
-      dialog_w = title_w;
+  int dialog_w = view->custom_house_width;
+  if (dialog_w <= 0) {
+    dialog_w = 130;
+    if (font) {
+      const int title_w = popup_markup_text_width(font, view->custom_house_title) + pad * 2;
+      if (title_w > dialog_w) {
+        dialog_w = title_w;
+      }
     }
   }
   if (dialog_w > framebuffer->width - 8) {
@@ -4109,7 +4156,24 @@ static void colony_screen_draw_dock_orders_popup(
   if (dialog_h > framebuffer->height - 8) {
     dialog_h = framebuffer->height - 8;
   }
-  int dialog_w = 190;
+  /* GAME.TXT @COLONYUNIT's own @width=190, latched at open time; without the
+   * directive, measure the title and the rows (same fallback as @CUSTOM). */
+  int dialog_w = view->dock_orders_width;
+  if (dialog_w <= 0) {
+    dialog_w = 130;
+    if (font) {
+      const int title_w = popup_markup_text_width(font, view->dock_orders_title) + pad * 2;
+      if (title_w > dialog_w) {
+        dialog_w = title_w;
+      }
+      for (int i = 0; i < rows; ++i) {
+        const int row_w = font_text_width(font, view->dock_orders_labels[i]) + pad * 2;
+        if (row_w > dialog_w) {
+          dialog_w = row_w;
+        }
+      }
+    }
+  }
   if (dialog_w > framebuffer->width - 8) {
     dialog_w = framebuffer->width - 8;
   }

@@ -466,9 +466,22 @@ int europe_compute_recruit_passage(
   int recruit_count, int difficulty, int current_crosses, int needed_crosses
 );
 
+/*
+ * The pool refill these three leave behind is DOS `FUN_38fd_46d4`, whose
+ * tier rolls come off the shared game stream (`FUN_281f_04d4`) — pass the
+ * game rng (ColonizeTurnContext.rng / ColonizeGameState.move_rng) through
+ * the `_ex` forms. The plain forms are the NULL-rng fixture shorthand and
+ * fall back to europe.c's local LCG. Smell audit 2026-09-10 G5.
+ */
 bool europe_recruit_from_pool(EuropeScreen* eu, int pool_index);
+bool europe_recruit_from_pool_ex(
+  EuropeScreen* eu, int pool_index, struct ColonizeDosRng* rng
+);
 /* FUN_38fd_4884(1,0): pool pick at no passage, no recruit-count bump (Fountain of Youth). */
 bool europe_recruit_free_from_pool(EuropeScreen* eu, int pool_index);
+bool europe_recruit_free_from_pool_ex(
+  EuropeScreen* eu, int pool_index, struct ColonizeDosRng* rng
+);
 /*
  * Crosses / unrest: move one pool slot to docks; refill. DOS `5e52` phase 5
  * picks the slot via `FUN_281f_04d4` RNG(0,2) before rerolling it, not
@@ -479,6 +492,9 @@ bool europe_immigrant_from_pool(EuropeScreen* eu, struct ColonizeDosRng* rng);
 /* Brewster (FF 20) arrival: FUN_38fd_4884(0,1) pick applied — free
  * dock transfer of pool[pool_index], then crosses zeroed (no +6 bump). */
 bool europe_brewster_pick_from_pool(EuropeScreen* eu, int pool_index);
+bool europe_brewster_pick_from_pool_ex(
+  EuropeScreen* eu, int pool_index, struct ColonizeDosRng* rng
+);
 /* Brewster owned (FUN_4345_0342 case 0x14): criminal/servant pool slots are
  * overwritten with Free Colonists in place — a substitution, not a reroll. */
 void europe_apply_brewster(EuropeScreen* eu, int owned);
@@ -487,6 +503,17 @@ void europe_refill_pool_slot(EuropeScreen* eu, int slot, unsigned* rng_state);
  * criminal/servant/free tier roll and goes straight to the expert half.
  * The end-of-turn crosses spawn passes ((turn & 3) == 0). */
 void europe_refill_pool_slot_ex(EuropeScreen* eu, int slot, bool force_expert, unsigned* rng_state);
+/*
+ * Same refill on the real game stream: DOS's `46d4` tier rolls are
+ * `FUN_281f_04d4(1,15)/(1,10)/(1,8)` off the shared RNG (viceroy_unpacked.c
+ * 64632/64636/64640). The expert half stays on europe.c's local generator —
+ * DOS draws that from a per-nation LFSR whose two state bytes the port
+ * repurposed, and like the LFSR it consumes no shared-stream draw, so a
+ * force-expert refill leaves `rng` exactly where DOS leaves it.
+ */
+void europe_refill_pool_slot_rng(
+  EuropeScreen* eu, int slot, bool force_expert, struct ColonizeDosRng* rng
+);
 /* Restore a pool slot from a saved nation+2..+4 job byte (0x1c = empty). */
 void europe_set_pool_slot(EuropeScreen* eu, int slot, int profession);
 /* Game-start pool (DOS `FUN_38fd_6024`): fixed bottom-tier slot 0, two
@@ -661,6 +688,20 @@ bool europe_harbor_push(
   int type_index,
   const char* name,
   const int* cargo_types,
+  int cargo_count,
+  const int* hold_goods_type,
+  const int* hold_goods_amount
+);
+/* Same, carrying the passengers' @JOB professions through like the Expected
+ * mirror europe_enqueue_expected does (smell audit 2026-09-10 G10). The
+ * plain form above is this with cargo_professions = NULL (every profession
+ * -1), which is right only for a push with no passengers. */
+bool europe_harbor_push_ex(
+  EuropeScreen* eu,
+  int type_index,
+  const char* name,
+  const int* cargo_types,
+  const int* cargo_professions,
   int cargo_count,
   const int* hold_goods_type,
   const int* hold_goods_amount
@@ -1153,8 +1194,11 @@ int europe_transit_ship_at(
 
 void europe_menu_open(EuropeScreen* eu, EuropeMenu menu);
 void europe_menu_close(EuropeScreen* eu);
-/* Apply current menu_selection (0 = cancel). Returns true if acted. */
+/* Apply current menu_selection (0 = cancel). Returns true if acted.
+ * `_ex` carries the game rng for the RECRUIT row's pool refill (see
+ * europe_recruit_from_pool_ex); the plain form passes NULL. */
 bool europe_menu_confirm(EuropeScreen* eu);
+bool europe_menu_confirm_ex(EuropeScreen* eu, struct ColonizeDosRng* rng);
 
 /* Apply the highlighted dock-menu row; `units` keeps the mirror unit in step. */
 bool europe_dock_menu_apply_selection(

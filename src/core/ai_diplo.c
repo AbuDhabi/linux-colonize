@@ -2143,16 +2143,25 @@ static void ai_talk_unit_to_europe(ColonizeTurnContext* ctx, int unit_id) {
   if (u->nation_id == human && ctx->europe) {
     if (units_is_sea(ctx->units, unit_id)) {
       int types[COLONIZE_UNIT_CARGO_MAX];
+      int profs[COLONIZE_UNIT_CARGO_MAX];
       int hold_t[COLONIZE_UNIT_CARGO_MAX];
       int hold_a[COLONIZE_UNIT_CARGO_MAX];
       int n = 0;
       int type_index = -1;
       char name[48];
+      /* Snapshot the passengers' professions BEFORE the despawn frees them —
+       * same order as the type export, so europe_harbor_push_ex can carry
+       * the @JOB through the way the Expected mirror does (smell audit
+       * 2026-09-10 G10; without it a gifted ship's passengers arrived
+       * labelled with the bare unit name). */
+      units_export_cargo_professions(ctx->units, unit_id, profs, COLONIZE_UNIT_CARGO_MAX);
       if (units_despawn_ship_with_cargo(
             ctx->units, unit_id, &type_index, name, sizeof(name), types, &n,
             COLONIZE_UNIT_CARGO_MAX, hold_t, hold_a, COLONIZE_UNIT_CARGO_MAX
           )) {
-        (void)europe_harbor_push(ctx->europe, type_index, name, types, n, hold_t, hold_a);
+        (void)europe_harbor_push_ex(
+          ctx->europe, type_index, name, types, profs, n, hold_t, hold_a
+        );
       }
       return;
     }

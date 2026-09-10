@@ -175,7 +175,9 @@ void reports_free(ColonizeReportsView* view) {
   for (int i = 0; i < COLONIZE_REPORT_COUNT; ++i) {
     pik_free(&view->backgrounds[i]);
   }
-  ss_free(&view->icons);
+  for (int i = 0; i < COLONIZE_REPORT_ICONS_DEST_COUNT; ++i) {
+    ss_free(&view->icons[i]);
+  }
   ff_free(&view->title_font);
   pik_free(&view->congress_page1_bg);
   pik_free(&view->exploits_bg);
@@ -190,49 +192,18 @@ void reports_free(ColonizeReportsView* view) {
   }
 }
 
-/* Nearest-color remap of a sprite sheet's own palette onto dst_pal (see
- * colony_screen.c / europe.c: same per-file pattern, no shared header). */
-static void reports_remap_sheet_to_palette(
-  ColonizeSpriteSheet* sheet,
-  const ColonizePalette* dst_pal
+/*
+ * The ICONS.SS instance remapped for one screen's palette (see reports.h).
+ * NULL when that screen's copy never loaded — every caller treats NULL as
+ * "no icons", which is what view->icons_ok used to mean.
+ */
+static const ColonizeSpriteSheet* reports_icons_for(
+  const ColonizeReportsView* view, int dest
 ) {
-  if (!sheet || !dst_pal || !sheet->has_palette) {
-    return;
+  if (!view || dest < 0 || dest >= COLONIZE_REPORT_ICONS_DEST_COUNT || !view->icons_ok[dest]) {
+    return NULL;
   }
-  uint8_t lut[256];
-  for (int i = 0; i < 256; ++i) {
-    if (i == COLONIZE_SS_TRANSPARENT) {
-      lut[i] = (uint8_t)COLONIZE_SS_TRANSPARENT;
-      continue;
-    }
-    const int sr = sheet->palette.rgb[i][0];
-    const int sg = sheet->palette.rgb[i][1];
-    const int sb = sheet->palette.rgb[i][2];
-    int best = 0;
-    int best_d = 1 << 30;
-    for (int j = 0; j < 256; ++j) {
-      const int dr = sr - dst_pal->rgb[j][0];
-      const int dg = sg - dst_pal->rgb[j][1];
-      const int db = sb - dst_pal->rgb[j][2];
-      const int d = dr * dr + dg * dg + db * db;
-      if (d < best_d) {
-        best_d = d;
-        best = j;
-      }
-    }
-    lut[i] = (uint8_t)best;
-  }
-  for (int s = 0; s < sheet->sprite_count; ++s) {
-    ColonizeSprite* spr = &sheet->sprites[s];
-    if (!spr->pixels) {
-      continue;
-    }
-    const int n = spr->width * spr->height;
-    for (int p = 0; p < n; ++p) {
-      spr->pixels[p] = lut[spr->pixels[p]];
-    }
-  }
-  sheet->palette = *dst_pal;
+  return &view->icons[dest];
 }
 
 bool reports_load(ColonizeReportsView* view, const char* data_dir, char* err, size_t err_size) {
@@ -308,22 +279,6 @@ bool reports_load(ColonizeReportsView* view, const char* data_dir, char* err, si
     assets_msg_free(&g_reports_labels);
   }
 
-  /* Cross counter (Religious report) reuses the game's standard resource-count
-   * icon (ICONS.SS #56), remapped to REPORT2.PIK's palette. */
-  char ss_path[512];
-  char ss_err[256];
-  if (dos_compat_normalize_asset_path(data_dir, "ICONS.SS", ss_path, sizeof(ss_path)) &&
-      ss_load(ss_path, &view->icons, ss_err, sizeof(ss_err))) {
-    if (view->background_ok[COLONIZE_REPORT_RELIGIOUS]) {
-      reports_remap_sheet_to_palette(
-        &view->icons, &view->backgrounds[COLONIZE_REPORT_RELIGIOUS].palette
-      );
-    }
-    view->icons_ok = true;
-  } else {
-    diag_warn("Failed to load ICONS.SS for reports: %s", ss_err);
-  }
-
   /* Report titles use FONTTINY, not the FONTSMAL body/menu font (golden:
    * religious.png / labor.png — bolder, wider-spaced glyphs). */
   char font_path[512];
@@ -348,6 +303,51 @@ bool reports_load(ColonizeReportsView* view, const char* data_dir, char* err, si
     view->congress_page1_bg_ok = true;
   } else {
     diag_warn("Failed to load REPORT3.PIK for Congress page 1: %s", cc_p1_err);
+  }
+
+  /*
+   * ICONS.SS — the game's standard resource-count / unit / job icons, used on
+   * nearly every report screen. Loaded once PER DESTINATION SCREEN and
+   * remapped to that screen's palette.
+   *
+   * Why per screen: the remap bakes destination palette indices into the
+   * sheet's pixels, so one sheet remapped to a single screen and then blitted
+   * over the others resolves some indices to whatever those palettes happen
+   * to hold — ICONS index 13 (255,113,0) picks REPORT2 slot 177, which reads
+   * (178,73,24) on REPORT3 and (211,130,65) on REPORT4 rather than their own
+   * nearest matches. (That was latent, not visible: index 13 is 11 px of the
+   * sheet.)
+   *
+   * Why remap rather than the reserved-DAC-block MERGE used for popup art
+   * (crown-europe batch; reports_remap_exploits_sheet for SCORE<nn>.SS):
+   * merging is for sheets that ship their own entries for a DAC block the
+   * host screen leaves black. ICONS.SS is itself black across 152..251, so it
+   * reserves nothing, while REPORT2/3/4 etc. paint their photos in exactly
+   * that range — merging would blacken them.
+   */
+  {
+    char ss_path[512];
+    char ss_err[256] = "path resolve failed";
+    if (dos_compat_normalize_asset_path(data_dir, "ICONS.SS", ss_path, sizeof(ss_path))) {
+      for (int d = 0; d < COLONIZE_REPORT_ICONS_DEST_COUNT; ++d) {
+        const ColonizePalette* dest_pal = NULL;
+        if (d == COLONIZE_REPORT_ICONS_CONGRESS_P1) {
+          dest_pal = view->congress_page1_bg_ok ? &view->congress_page1_bg.palette : NULL;
+        } else {
+          dest_pal = view->background_ok[d] ? &view->backgrounds[d].palette : NULL;
+        }
+        if (!ss_load(ss_path, &view->icons[d], ss_err, sizeof(ss_err))) {
+          diag_warn("Failed to load ICONS.SS for reports: %s", ss_err);
+          break;
+        }
+        if (dest_pal) {
+          assets_sheet_remap_to_palette(&view->icons[d], dest_pal);
+        }
+        view->icons_ok[d] = true;
+      }
+    } else {
+      diag_warn("Failed to load ICONS.SS for reports: %s", ss_err);
+    }
   }
 
   diag_info("Report screens loaded (%d/%d backgrounds)", ok_count, COLONIZE_REPORT_COUNT);
@@ -844,7 +844,7 @@ static void reports_draw_outlined_number(
  * number of them instead. See the bells call site for the measurement.
  */
 static void reports_draw_icon_bar(
-  const ColonizeReportsView* view,
+  const ColonizeSpriteSheet* icons,
   const ColonizeFont* font,
   ColonizeFramebuffer8* fb,
   int icon,
@@ -856,13 +856,13 @@ static void reports_draw_icon_bar(
   bool always_show_number,
   int max_icons
 ) {
-  if (!view || !view->icons_ok || amount <= 0 || w <= 0 || h <= 0) {
+  if (!icons || amount <= 0 || w <= 0 || h <= 0) {
     return;
   }
-  if (icon < 0 || icon >= view->icons.sprite_count) {
+  if (icon < 0 || icon >= icons->sprite_count) {
     return;
   }
-  const ColonizeSprite* sp = &view->icons.sprites[icon];
+  const ColonizeSprite* sp = &icons->sprites[icon];
   if (!sp->pixels || sp->width <= 0 || sp->height <= 0) {
     return;
   }
@@ -875,17 +875,17 @@ static void reports_draw_icon_bar(
   const int iy = y + (h - ih) / 2;
   int start_step = iw;
   if (drawn == 1) {
-    ss_blit_sprite(&view->icons, icon, fb, x + (w - iw) / 2, iy);
+    ss_blit_sprite(icons, icon, fb, x + (w - iw) / 2, iy);
   } else if (w <= iw) {
     for (int i = 0; i < drawn; ++i) {
-      ss_blit_sprite(&view->icons, icon, fb, x, iy);
+      ss_blit_sprite(icons, icon, fb, x, iy);
     }
     start_step = 0;
   } else {
     const int span = w - iw;
     start_step = span / (drawn - 1);
     for (int i = 0; i < drawn; ++i) {
-      ss_blit_sprite(&view->icons, icon, fb, x + (i * span) / (drawn - 1), iy);
+      ss_blit_sprite(icons, icon, fb, x + (i * span) / (drawn - 1), iy);
     }
   }
   if ((always_show_number || start_step <= 1) && font) {
@@ -941,7 +941,7 @@ static void reports_draw_icon_bar(
  * (step 2) bare.
  */
 static void reports_draw_dos_icon_bar(
-  const ColonizeReportsView* view,
+  const ColonizeSpriteSheet* icons,
   const ColonizeFont* font,
   ColonizeFramebuffer8* fb,
   int icon,
@@ -953,13 +953,13 @@ static void reports_draw_dos_icon_bar(
   int denom
 ) {
   /* FUN_1097_0004 bails on a zero count or zero denominator. */
-  if (!view || !view->icons_ok || !fb || amount <= 0 || denom <= 0 || w <= 0) {
+  if (!icons || !fb || amount <= 0 || denom <= 0 || w <= 0) {
     return;
   }
-  if (icon < 0 || icon >= view->icons.sprite_count) {
+  if (icon < 0 || icon >= icons->sprite_count) {
     return;
   }
-  const ColonizeSprite* sp = &view->icons.sprites[icon];
+  const ColonizeSprite* sp = &icons->sprites[icon];
   if (!sp->pixels || sp->width <= 0 || sp->height <= 0) {
     return;
   }
@@ -994,7 +994,7 @@ static void reports_draw_dos_icon_bar(
   const int den = denom >> shift;
   int acc = 0;
   for (int i = 0; i < count; ++i) {
-    ss_blit_sprite(&view->icons, icon, fb, px, y + 1);
+    ss_blit_sprite(icons, icon, fb, px, y + 1);
     px += step;
     if (den > 0) {
       acc += rem;
@@ -1042,7 +1042,7 @@ static void reports_draw_dos_icon_bar(
  * construction). Mirrors colony_screen_draw_resource_count_pair.
  */
 static void reports_draw_icon_bar_pair(
-  const ColonizeReportsView* view,
+  const ColonizeSpriteSheet* icons,
   ColonizeFramebuffer8* fb,
   int icon0,
   int amount0,
@@ -1053,7 +1053,7 @@ static void reports_draw_icon_bar_pair(
   int w,
   int h
 ) {
-  if (!view || !view->icons_ok || w <= 0 || h <= 0) {
+  if (!icons || w <= 0 || h <= 0) {
     return;
   }
   if (amount0 < 0) {
@@ -1067,10 +1067,10 @@ static void reports_draw_icon_bar_pair(
     return;
   }
   const int first_icon = amount0 > 0 ? icon0 : icon1;
-  if (first_icon < 0 || first_icon >= view->icons.sprite_count) {
+  if (first_icon < 0 || first_icon >= icons->sprite_count) {
     return;
   }
-  const ColonizeSprite* sp = &view->icons.sprites[first_icon];
+  const ColonizeSprite* sp = &icons->sprites[first_icon];
   if (!sp->pixels || sp->width <= 0 || sp->height <= 0) {
     return;
   }
@@ -1078,16 +1078,16 @@ static void reports_draw_icon_bar_pair(
   const int ih = sp->height;
   const int iy = y + (h - ih) / 2;
   if (amount == 1) {
-    ss_blit_sprite(&view->icons, first_icon, fb, x + (w - iw) / 2, iy);
+    ss_blit_sprite(icons, first_icon, fb, x + (w - iw) / 2, iy);
   } else if (w <= iw) {
     for (int i = 0; i < amount; ++i) {
-      ss_blit_sprite(&view->icons, (i < amount0) ? icon0 : icon1, fb, x, iy);
+      ss_blit_sprite(icons, (i < amount0) ? icon0 : icon1, fb, x, iy);
     }
   } else {
     const int span = w - iw;
     for (int i = 0; i < amount; ++i) {
       const int icon = (i < amount0) ? icon0 : icon1;
-      ss_blit_sprite(&view->icons, icon, fb, x + (i * span) / (amount - 1), iy);
+      ss_blit_sprite(icons, icon, fb, x + (i * span) / (amount - 1), iy);
     }
   }
 }
@@ -1099,6 +1099,7 @@ static void reports_render_religious(
   const ColonizeFont* font,
   ColonizeFramebuffer8* fb
 ) {
+  const ColonizeSpriteSheet* icons = reports_icons_for(view, COLONIZE_REPORT_RELIGIOUS);
   if (!col1) {
     return;
   }
@@ -1112,7 +1113,7 @@ static void reports_render_religious(
    * sprite 0x39 (= ICONS.SS #56), pushed args x=10, y=25, w=0x12c, min_w=0,
    * split=0, flags=1. Same routine as the Congress bells bar. */
   reports_draw_dos_icon_bar(
-    view, font, fb, REPORTS_CROSS_ICON, REPORTS_CROSS_X, REPORTS_CROSS_Y, REPORTS_CROSS_W, 0,
+    icons, font, fb, REPORTS_CROSS_ICON, REPORTS_CROSS_X, REPORTS_CROSS_Y, REPORTS_CROSS_W, 0,
     (int)current, (int)needed
   );
 }
@@ -1197,6 +1198,7 @@ static void reports_render_congress_page1(
   char* line,
   size_t line_sz
 ) {
+  const ColonizeSpriteSheet* icons = reports_icons_for(view, COLONIZE_REPORT_ICONS_CONGRESS_P1);
   /* Golden text is compact (e.g. "Peter Stuyvesant" fits a 78px column) —
    * FONTTINY, like report titles, not the FONTSMAL other reports' bodies use. */
   const ColonizeFont* font = (view && view->title_font_ok) ? &view->title_font : body_font;
@@ -1271,7 +1273,7 @@ static void reports_render_congress_page1(
        */
       const unsigned drawn = pool < need ? pool : need;
       reports_draw_dos_icon_bar(
-        view,
+        icons,
         font,
         fb,
         REPORTS_CONGRESS_BELL_ICON,
@@ -1303,7 +1305,7 @@ static void reports_render_congress_page1(
     const int flags = (int)((REPORTS_CONGRESS_SENT_SLOTS * rebel_pct + 50) / 100);
     const int crowns = REPORTS_CONGRESS_SENT_SLOTS - flags;
     reports_draw_icon_bar_pair(
-      view,
+      icons,
       fb,
       REPORTS_CONGRESS_FLAG_ICON,
       flags,
@@ -1355,15 +1357,15 @@ static void reports_render_congress_page1(
       }
       const int avail = ((i < 3) ? kForceX[i + 1] : kForceXEnd) - kForceX[i];
       int iw = 16;
-      if (view->icons_ok && kForceIcon[i] >= 0 && kForceIcon[i] < view->icons.sprite_count) {
-        iw = view->icons.sprites[kForceIcon[i]].width;
+      if (icons && kForceIcon[i] >= 0 && kForceIcon[i] < icons->sprite_count) {
+        iw = icons->sprites[kForceIcon[i]].width;
       }
       int w = amount * iw;
       if (w > avail) {
         w = avail;
       }
       reports_draw_icon_bar(
-        view,
+        icons,
         font,
         fb,
         kForceIcon[i],
@@ -1439,15 +1441,15 @@ static void reports_render_congress_page1(
         }
         const int avail = ((i < 3) ? kForceX2[i + 1] : 316) - kForceX2[i];
         int iw = 16;
-        if (view->icons_ok && kForceIcon2[i] >= 0 && kForceIcon2[i] < view->icons.sprite_count) {
-          iw = view->icons.sprites[kForceIcon2[i]].width;
+        if (icons && kForceIcon2[i] >= 0 && kForceIcon2[i] < icons->sprite_count) {
+          iw = icons->sprites[kForceIcon2[i]].width;
         }
         int w = amount * iw;
         if (w > avail) {
           w = avail;
         }
         reports_draw_icon_bar(
-          view, font, fb, kForceIcon2[i], kForceX2[i], row_y, w,
+          icons, font, fb, kForceIcon2[i], kForceX2[i], row_y, w,
           row_h > 6 ? row_h : 6, amount, true, 0
         );
       }
@@ -1729,6 +1731,7 @@ static void reports_render_labor_grid(
   ColonizeFramebuffer8* fb,
   int y
 ) {
+  const ColonizeSpriteSheet* icons = reports_icons_for(view, COLONIZE_REPORT_LABOR);
   /* Golden shows job names/counts in FONTTINY (mixed case, narrow) like the
    * title and Congress page 1 — not body_font (FONTSMAL, all-caps, wide
    * enough to overlap the next column). */
@@ -1754,9 +1757,9 @@ static void reports_render_labor_grid(
       const int cx = REPORTS_LABOR_COL0_X + col * REPORTS_LABOR_COL_STEP;
       const int cy = REPORTS_LABOR_ROW0_Y + row * REPORTS_LABOR_ROW_STEP;
       const int icon = reports_labor_icon_for_job(job);
-      if (view && view->icons_ok && icon >= 0 && icon < view->icons.sprite_count) {
+      if (icons && icon >= 0 && icon < icons->sprite_count) {
         unit_chrome_blit(
-          fb, NULL, &view->icons, icon, cx, cy, UNIT_CHROME_SPRITE_WITH_SHADOW, 0, 0, -1, 0, false,
+          fb, NULL, icons, icon, cx, cy, UNIT_CHROME_SPRITE_WITH_SHADOW, 0, 0, -1, 0, false,
           false, -1, -1
         );
       }
@@ -1786,6 +1789,7 @@ static void reports_render_labor_detail(
   char* line,
   size_t line_sz
 ) {
+  const ColonizeSpriteSheet* icons = reports_icons_for(view, COLONIZE_REPORT_LABOR);
   font = (view && view->title_font_ok) ? &view->title_font : font;
 
   snprintf(line, line_sz, "(%s)", reports_job_name(job));
@@ -1804,9 +1808,9 @@ static void reports_render_labor_detail(
 
   const int header_y = y + REPORTS_LABOR_ROW_STEP / 2;
   const int icon = reports_labor_icon_for_job(job);
-  if (view && view->icons_ok && icon >= 0 && icon < view->icons.sprite_count) {
+  if (icons && icon >= 0 && icon < icons->sprite_count) {
     unit_chrome_blit(
-      fb, NULL, &view->icons, icon, 4, header_y, UNIT_CHROME_SPRITE_WITH_SHADOW, 0, 0, -1, 0, false,
+      fb, NULL, icons, icon, 4, header_y, UNIT_CHROME_SPRITE_WITH_SHADOW, 0, 0, -1, 0, false,
       false, -1, -1
     );
   }
@@ -2104,6 +2108,7 @@ static void reports_render_economic_cargo(
   char* line,
   size_t line_sz
 ) {
+  const ColonizeSpriteSheet* icons = reports_icons_for(view, COLONIZE_REPORT_ECONOMIC);
   font = (view && view->title_font_ok) ? &view->title_font : font;
   if (font) {
     /* LABELS.TXT @MISC index 207 (2026-08-27 fix). */
@@ -2135,11 +2140,11 @@ static void reports_render_economic_cargo(
 
   for (int c = 0; c < REPORTS_ECON2_COLS; ++c) {
     const int icon = 22 + c;
-    if (view && view->icons_ok && icon < view->icons.sprite_count) {
-      const ColonizeSprite* sp = &view->icons.sprites[icon];
+    if (icons && icon < icons->sprite_count) {
+      const ColonizeSprite* sp = &icons->sprites[icon];
       const int col_left = REPORTS_ECON2_DIVIDER_X + c * REPORTS_ECON2_COL_STEP;
       const int icon_x = col_left + (REPORTS_ECON2_COL_STEP - sp->width) / 2;
-      ss_blit_sprite(&view->icons, icon, fb, icon_x, REPORTS_ECON2_ICON_Y);
+      ss_blit_sprite(icons, icon, fb, icon_x, REPORTS_ECON2_ICON_Y);
     }
   }
 
@@ -2312,14 +2317,15 @@ static void reports_render_colony_sidebar(
   char* line,
   size_t line_sz
 ) {
+  const ColonizeSpriteSheet* icons = reports_icons_for(view, COLONIZE_REPORT_COLONY);
   const int icon = reports_colony_fort_icon(c->buildings.fortification);
-  if (view && view->icons_ok && icon >= 0 && icon < view->icons.sprite_count) {
+  if (icons && icon >= 0 && icon < icons->sprite_count) {
     const ColonizePalette* active_palette =
       (view->background_ok[COLONIZE_REPORT_COLONY] && view->backgrounds[COLONIZE_REPORT_COLONY].has_palette)
         ? &view->backgrounds[COLONIZE_REPORT_COLONY].palette
         : NULL;
     colonies_blit_settlement_icon(
-      &view->icons, icon, fb, REPORTS_COLONY_ICON_X, row_top - 3, c->nation_id, active_palette
+      icons, icon, fb, REPORTS_COLONY_ICON_X, row_top - 3, c->nation_id, active_palette
     );
   }
   const int sol_pct = colony ? colony_prod_sol_percent(col1, colony) : reports_colony_rebel_pct(c);
@@ -2348,6 +2354,7 @@ static void reports_render_colony_garrisons(
   char* line,
   size_t line_sz
 ) {
+  const ColonizeSpriteSheet* icons = reports_icons_for(view, COLONIZE_REPORT_COLONY);
   font = (view && view->title_font_ok) ? &view->title_font : font;
   if (font) {
     /* LABELS.TXT @MISC index 208 (2026-08-27 fix). */
@@ -2382,7 +2389,7 @@ static void reports_render_colony_garrisons(
     /* Units on this colony's own tile, drawn exactly as on the map
      * (allegiance/orders chrome + real map sprite — unit_chrome_blit_unit,
      * same call shape as colony_screen.c's docked-transport row). */
-    if (units && view && view->icons_ok) {
+    if (units && icons) {
       /* col1_bridge_apply's transport_chain walk (col1_find_ship_root)
        * conflates "linked to a ship elsewhere in this tile's stacking
        * chain" with "actually boarded" — a land unit merely standing next
@@ -2472,7 +2479,7 @@ static void reports_render_colony_garrisons(
           }
         }
         unit_chrome_blit_unit_for_palette(
-          fb, font, &view->icons, sprite, x, row_top - 3,
+          fb, font, icons, sprite, x, row_top - 3,
           display_type, unit->nation_id, orders, false, false, active_palette
         );
         x += pitch;
@@ -2495,6 +2502,7 @@ static void reports_render_colony_sol(
   char* line,
   size_t line_sz
 ) {
+  const ColonizeSpriteSheet* icons = reports_icons_for(view, COLONIZE_REPORT_COLONY);
   font = (view && view->title_font_ok) ? &view->title_font : font;
   if (font) {
     /* LABELS.TXT @MISC index 209 (2026-08-27 fix). */
@@ -2541,8 +2549,8 @@ static void reports_render_colony_sol(
     reports_render_colony_sidebar(view, col1, c, colony, font, fb, row_top, line, line_sz);
 
     const int sol_pct = colony ? colony_prod_sol_percent(col1, colony) : reports_colony_rebel_pct(c);
-    if (view && view->icons_ok) {
-      ss_blit_sprite(&view->icons, REPORTS_COLONY_FLAG_ICON, fb, REPORTS_COLONY_FLAG_X, row_top - 3);
+    if (icons) {
+      ss_blit_sprite(icons, REPORTS_COLONY_FLAG_ICON, fb, REPORTS_COLONY_FLAG_X, row_top - 3);
     }
     snprintf(line, line_sz, "%d%%", sol_pct);
     reports_draw_line(font, fb, REPORTS_COLONY_PCT_X, row_top, line, REPORTS_COLONY_LABEL_COLOR);
@@ -2563,8 +2571,8 @@ static void reports_render_colony_sol(
         colonies, colony, statesmen_pct, paine_tax_pct, nation_is_ai, sol_bonus
       );
     }
-    if (view && view->icons_ok) {
-      ss_blit_sprite(&view->icons, REPORTS_COLONY_BELL_ICON, fb, REPORTS_COLONY_BELL_X, row_top - 3);
+    if (icons) {
+      ss_blit_sprite(icons, REPORTS_COLONY_BELL_ICON, fb, REPORTS_COLONY_BELL_X, row_top - 3);
     }
     snprintf(line, line_sz, "%d", bells);
     reports_draw_line(font, fb, REPORTS_COLONY_BELL_NUM_X, row_top, line, REPORTS_COLONY_LABEL_COLOR);
@@ -2572,7 +2580,7 @@ static void reports_render_colony_sol(
     /* Colonists currently working the Town Hall — same drop-shadow icon
      * convention as the Labor report's profession icons
      * (units_job_icon_sprite + unit_chrome_blit's SPRITE_WITH_SHADOW mode). */
-    if (colony && town_hall_idx >= 0 && view && view->icons_ok) {
+    if (colony && town_hall_idx >= 0 && icons) {
       int slot = 0;
       for (int p = 0; p < colony->colonist_count && slot < REPORTS_COLONY_WORKER_MAX; ++p) {
         const ColonizeColonist* col = &colony->colonists[p];
@@ -2580,12 +2588,12 @@ static void reports_render_colony_sol(
           continue;
         }
         const int sprite = units_job_icon_sprite(col->profession);
-        if (sprite < 0 || sprite >= view->icons.sprite_count) {
+        if (sprite < 0 || sprite >= icons->sprite_count) {
           continue;
         }
         const int x = REPORTS_COLONY_WORKER_X + slot * REPORTS_COLONY_WORKER_PITCH;
         unit_chrome_blit(
-          fb, NULL, &view->icons, sprite, x, row_top - 3, UNIT_CHROME_SPRITE_WITH_SHADOW, 0, 0, -1, 0,
+          fb, NULL, icons, sprite, x, row_top - 3, UNIT_CHROME_SPRITE_WITH_SHADOW, 0, 0, -1, 0,
           false, false, -1, -1
         );
         slot++;
@@ -2881,6 +2889,7 @@ static void reports_render_naval(
   ColonizeFramebuffer8* fb,
   int page
 ) {
+  const ColonizeSpriteSheet* icons = reports_icons_for(view, COLONIZE_REPORT_NAVAL);
   /* Body text needs FONTTINY, not FONTSMAL — golden's mixed-case, ~2px/char
    * ship/cargo/location text is far narrower than FONTSMAL renders (which
    * also turned out to be upper-case-only at this size); same pitfall as
@@ -2937,9 +2946,9 @@ static void reports_render_naval(
     const int icon_y = row_top + REPORTS_NAVAL_ICON_DY;
     const int text_y = row_top + REPORTS_NAVAL_TEXT_DY;
 
-    if (r->has_ship && view && view->icons_ok && r->ship_sprite >= 0) {
+    if (r->has_ship && icons && r->ship_sprite >= 0) {
       unit_chrome_blit_unit_for_palette(
-        fb, font, &view->icons, r->ship_sprite, REPORTS_NAVAL_SHIP_ICON_X, icon_y,
+        fb, font, icons, r->ship_sprite, REPORTS_NAVAL_SHIP_ICON_X, icon_y,
         r->ship_type, r->ship_nation, r->ship_orders, false, false, active_palette
       );
     }
@@ -2948,9 +2957,9 @@ static void reports_render_naval(
     }
 
     if (r->has_passenger) {
-      if (view && view->icons_ok && r->pass_sprite >= 0) {
+      if (icons && r->pass_sprite >= 0) {
         unit_chrome_blit_unit_for_palette(
-          fb, font, &view->icons, r->pass_sprite, REPORTS_NAVAL_CARGO_ICON_X, icon_y,
+          fb, font, icons, r->pass_sprite, REPORTS_NAVAL_CARGO_ICON_X, icon_y,
           r->pass_type, r->pass_nation, r->pass_orders, false, true, active_palette
         );
       }
@@ -2959,11 +2968,11 @@ static void reports_render_naval(
           font, fb, REPORTS_NAVAL_CARGO_LABEL_X, text_y, r->pass_label, REPORTS_NAVAL_TEXT_COLOR
         );
       }
-    } else if (view && view->icons_ok) {
+    } else if (icons) {
       for (int g = 0; g < r->goods_count; ++g) {
         const int icon = r->goods_icon[g];
-        if (icon >= 0 && icon < view->icons.sprite_count) {
-          ss_blit_sprite(&view->icons, icon, fb, REPORTS_NAVAL_CARGO_ICON_X + g * REPORTS_NAVAL_CARGO_ICON_PITCH, icon_y);
+        if (icon >= 0 && icon < icons->sprite_count) {
+          ss_blit_sprite(icons, icon, fb, REPORTS_NAVAL_CARGO_ICON_X + g * REPORTS_NAVAL_CARGO_ICON_PITCH, icon_y);
         }
       }
     }
@@ -3575,6 +3584,7 @@ static void reports_render_indian(
   const ColonizeFont* font,
   ColonizeFramebuffer8* fb
 ) {
+  const ColonizeSpriteSheet* icons = reports_icons_for(view, COLONIZE_REPORT_INDIAN);
   /*
    * bugs.md 434 — EVERY line on this screen is FONTTINY, the tribe name and
    * the tech-level word included. Player-observed in DOS, and the overlay
@@ -3608,19 +3618,19 @@ static void reports_render_indian(
     const int name_y = REPORTS_INDIAN_ROW0_Y + i * REPORTS_INDIAN_ROW_STEP;
     const int stats_y = name_y + stats_dy;
 
-    if (view && view->icons_ok) {
+    if (icons) {
       /* The base sprite is #113 (quartile 0), so the floor is
        * REPORTS_INDIAN_ICON_SPRITE, not 114 — the old `>= 114` test sent
        * every calm tribe down the fallback branch, which skipped the
        * sprite_count bound the guard exists to apply. */
       const int icon =
         (r->icon_sprite >= REPORTS_INDIAN_ICON_SPRITE &&
-         r->icon_sprite < view->icons.sprite_count)
+         r->icon_sprite < icons->sprite_count)
           ? r->icon_sprite
           : REPORTS_INDIAN_ICON_SPRITE;
-      if (icon < view->icons.sprite_count) {
+      if (icon < icons->sprite_count) {
         ss_blit_sprite(
-          &view->icons, icon, fb, REPORTS_INDIAN_ICON_X, name_y + REPORTS_INDIAN_ICON_DY
+          icons, icon, fb, REPORTS_INDIAN_ICON_X, name_y + REPORTS_INDIAN_ICON_DY
         );
       }
     }
@@ -4113,22 +4123,23 @@ static void reports_score_fill_rect(
 static void reports_score_draw_citizen_icons(
   const ColonizeReportsView* view,
   ColonizeFramebuffer8* fb,
-  const int* icons,
+  const int* icon_ids,
   int count,
   int x,
   int y,
   int w
 ) {
-  if (!view || !view->icons_ok || count <= 0 || w <= 0) {
+  const ColonizeSpriteSheet* icons = reports_icons_for(view, COLONIZE_REPORT_SCORE);
+  if (!view || !icons || count <= 0 || w <= 0) {
     return;
   }
   int icon_w = 6;
   int icon_h = 16;
   for (int i = 0; i < count; ++i) {
-    const int probe = icons[i];
-    if (probe >= 0 && probe < view->icons.sprite_count) {
-      icon_w = view->icons.sprites[probe].width;
-      icon_h = view->icons.sprites[probe].height;
+    const int probe = icon_ids[i];
+    if (probe >= 0 && probe < icons->sprite_count) {
+      icon_w = icons->sprites[probe].width;
+      icon_h = icons->sprites[probe].height;
       break;
     }
   }
@@ -4136,8 +4147,8 @@ static void reports_score_draw_citizen_icons(
   const int row_dy = icon_h / 2;
   const int row_dx = icon_w / 2;
   for (int i = 0; i < count; ++i) {
-    const int icon = icons[i];
-    if (icon < 0 || icon >= view->icons.sprite_count) {
+    const int icon = icon_ids[i];
+    if (icon < 0 || icon >= icons->sprite_count) {
       continue;
     }
     const int row = i / per_row;
@@ -4147,7 +4158,7 @@ static void reports_score_draw_citizen_icons(
       ix += row_dx;
     }
     const int iy = y + row * row_dy;
-    ss_blit_sprite(&view->icons, icon, fb, ix, iy);
+    ss_blit_sprite(icons, icon, fb, ix, iy);
   }
 }
 

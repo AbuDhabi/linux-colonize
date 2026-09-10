@@ -1102,6 +1102,15 @@ void units_fountain_youth_enqueue_pick(
 bool units_fountain_youth_apply_popup(
   EuropeScreen* europe, AiPopupState* popups, const ColonizeMsgCatalog* game_txt
 ) {
+  return units_fountain_youth_apply_popup_ex(europe, popups, game_txt, NULL);
+}
+
+bool units_fountain_youth_apply_popup_ex(
+  EuropeScreen* europe,
+  AiPopupState* popups,
+  const ColonizeMsgCatalog* game_txt,
+  ColonizeDosRng* rng
+) {
   if (!popups || popups->result_tag != AI_POPUP_TAG_FOUNTAIN_YOUTH) {
     return false;
   }
@@ -1113,7 +1122,9 @@ bool units_fountain_youth_apply_popup(
   if (slot < 0 || slot >= EUROPE_POOL_SIZE) {
     slot = 0;
   }
-  (void)europe_recruit_free_from_pool(europe, slot);
+  /* The 4884 tail refills the emptied slot with a `46d4` roll off the shared
+   * game stream — pass the real rng through (smell audit 2026-09-10 G5). */
+  (void)europe_recruit_free_from_pool_ex(europe, slot, rng);
   if (remaining - 1 > 0) {
     units_fountain_youth_enqueue_pick(
       europe, popups, game_txt, popups->result_nation_a, remaining - 1
@@ -1161,6 +1172,12 @@ void units_brewster_enqueue_pick(
 bool units_brewster_apply_popup(
   EuropeScreen* europe, AiPopupState* popups, ColonizeUnitPool* units
 ) {
+  return units_brewster_apply_popup_ex(europe, popups, units, NULL);
+}
+
+bool units_brewster_apply_popup_ex(
+  EuropeScreen* europe, AiPopupState* popups, ColonizeUnitPool* units, ColonizeDosRng* rng
+) {
   if (!popups || popups->result_tag != AI_POPUP_TAG_BREWSTER_PICK) {
     return false;
   }
@@ -1172,7 +1189,9 @@ bool units_brewster_apply_popup(
     return true;
   }
   const int human = popups->result_nation_a;
-  if (!europe_brewster_pick_from_pool(europe, slot)) {
+  /* Same 4884 tail refill as the FoY pick — the emptied slot's `46d4` roll
+   * belongs on the shared game stream (smell audit 2026-09-10 G5). */
+  if (!europe_brewster_pick_from_pool_ex(europe, slot, rng)) {
     return true;
   }
   /* Mirror the dock immigrant as the Europe-map unit (Col1 capture), same
@@ -4830,7 +4849,18 @@ bool units_resolve_lcr_rumour(
         );
       } else {
         for (int i = 0; i < 8; ++i) {
-          (void)europe_immigrant_from_pool(europe, NULL); /* no UI: first-filled */
+          /*
+           * 103728-103731 is `FUN_291f_0d2c(1,0)` ×8 = FUN_38fd_4884(1,0),
+           * the free-passage pick dialog — not the 5e52 random-slot spawn.
+           * With no UI to ask with, take the front slot through the same
+           * 4884(1,0) door the popup path uses: free passage, no recruit
+           * counter bump, and the emptied slot refilled by `46d4(0)` off the
+           * shared game stream, which is in scope here (smell audit
+           * 2026-09-10 G5). The old europe_immigrant_from_pool call rolled
+           * the tail's refill on a private LCG and forced the expert half on
+           * every fourth turn, neither of which 4884 does.
+           */
+          (void)europe_recruit_free_from_pool_ex(europe, 0, rng);
         }
       }
     }
@@ -10881,6 +10911,34 @@ int units_export_cargo_types(
     const ColonizeUnit* pax = units_get_const(pool, ship->cargo_ids[i]);
     if (pax) {
       out_types[n++] = pax->type_index;
+    }
+  }
+  return n;
+}
+
+int units_export_cargo_professions(
+  const ColonizeUnitPool* pool,
+  int ship_id,
+  int* out_profs,
+  int out_max
+) {
+  const ColonizeUnit* ship = units_get_const(pool, ship_id);
+  if (!out_profs || out_max <= 0) {
+    return 0;
+  }
+  for (int i = 0; i < out_max; ++i) {
+    out_profs[i] = -1;
+  }
+  if (!ship) {
+    return 0;
+  }
+  /* Same walk (and same skip-a-dangling-id rule) as
+   * units_export_cargo_types, so index i lines up between the two arrays. */
+  int n = 0;
+  for (int i = 0; i < ship->cargo_count && n < out_max; ++i) {
+    const ColonizeUnit* pax = units_get_const(pool, ship->cargo_ids[i]);
+    if (pax) {
+      out_profs[n++] = pax->profession;
     }
   }
   return n;

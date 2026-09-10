@@ -3,6 +3,7 @@
 
 #include "core/assets.h"
 #include "core/colony.h"
+#include "core/dos_rng.h"
 #include "core/europe.h"
 #include "core/unit_chrome.h"
 #include "core/ui_drag.h"
@@ -1937,6 +1938,172 @@ int main(void) {
       return 1;
     }
     fprintf(stderr, "AI dump-sell untaxed at raw euro_price ok\n");
+  }
+
+  /*
+   * Smell audit 2026-09-10 G7: 255 is the empty-hold sentinel every other
+   * hold consumer already skips (europe_goods_slots_used, europe_sell_hold,
+   * europe_best_sell_hold, reports.c's cargo rows). A docking ship carrying
+   * only sentinels must NOT raise docked_with_goods — that flag fires the
+   * once-per-game "Cargo from the New World" woodcut.
+   */
+  {
+    EuropeScreen* seu = &eu;
+    int sent_types[EUROPE_SHIP_CARGO_MAX];
+    int sent_amts[EUROPE_SHIP_CARGO_MAX];
+    memset(sent_types, 0, sizeof(sent_types));
+    memset(sent_amts, 0, sizeof(sent_amts));
+    sent_amts[0] = 255; /* sentinel: empty hold, not a full one */
+    seu->expected_ships = 0;
+    seu->harbor_ships = 0;
+    seu->docked_with_goods = false;
+    if (!europe_enqueue_expected(
+          seu, 14, "Caravel", NULL, NULL, 0, sent_types, sent_amts, 1, 1, true, 1
+        )) {
+      fprintf(stderr, "sentinel enqueue_expected failed\n");
+      europe_free(&eu);
+      return 1;
+    }
+    europe_tick_voyages(seu, NULL); /* departed_this_turn burns this tick */
+    europe_tick_voyages(seu, NULL); /* turns_left 1 -> 0, ship docks */
+    if (seu->harbor_ships != 1) {
+      fprintf(stderr, "sentinel ship did not dock (harbor_ships=%d)\n", seu->harbor_ships);
+      europe_free(&eu);
+      return 1;
+    }
+    if (seu->docked_with_goods) {
+      fprintf(stderr, "255 sentinel hold raised docked_with_goods\n");
+      europe_free(&eu);
+      return 1;
+    }
+    /* A real hold still raises it. */
+    seu->expected_ships = 0;
+    seu->harbor_ships = 0;
+    seu->docked_with_goods = false;
+    sent_amts[0] = 40;
+    if (!europe_enqueue_expected(
+          seu, 14, "Caravel", NULL, NULL, 0, sent_types, sent_amts, 1, 1, true, 1
+        )) {
+      fprintf(stderr, "goods enqueue_expected failed\n");
+      europe_free(&eu);
+      return 1;
+    }
+    europe_tick_voyages(seu, NULL);
+    europe_tick_voyages(seu, NULL);
+    if (!seu->docked_with_goods) {
+      fprintf(stderr, "real 40-unit hold did not raise docked_with_goods\n");
+      europe_free(&eu);
+      return 1;
+    }
+    seu->expected_ships = 0;
+    seu->harbor_ships = 0;
+    seu->docked_with_goods = false;
+    fprintf(stderr, "docked_with_goods 255-sentinel guard ok\n");
+  }
+
+  /*
+   * Smell audit 2026-09-10 G10: europe_harbor_push_ex carries the
+   * passengers' @JOB through the way europe_enqueue_expected does; the plain
+   * europe_harbor_push stays the no-passenger (-1) form.
+   */
+  {
+    EuropeScreen* peu = &eu;
+    int ptypes[2] = {3, 1};
+    int pprofs[2] = {21, 13}; /* Veteran Soldiers, Master Carpenters */
+    peu->harbor_ships = 0;
+    if (!europe_harbor_push_ex(peu, 15, "Merchantman", ptypes, pprofs, 2, NULL, NULL) ||
+        peu->harbor_ships != 1) {
+      fprintf(stderr, "harbor_push_ex failed\n");
+      europe_free(&eu);
+      return 1;
+    }
+    if (peu->harbor[0].cargo_professions[0] != 21 ||
+        peu->harbor[0].cargo_professions[1] != 13) {
+      fprintf(
+        stderr,
+        "harbor_push_ex dropped professions: %d/%d\n",
+        peu->harbor[0].cargo_professions[0],
+        peu->harbor[0].cargo_professions[1]
+      );
+      europe_free(&eu);
+      return 1;
+    }
+    peu->harbor_ships = 0;
+    if (!europe_harbor_push(peu, 15, "Merchantman", ptypes, 2, NULL, NULL) ||
+        peu->harbor[0].cargo_professions[0] != -1) {
+      fprintf(stderr, "plain harbor_push should leave professions unset\n");
+      europe_free(&eu);
+      return 1;
+    }
+    peu->harbor_ships = 0;
+    fprintf(stderr, "harbor_push_ex profession carry ok\n");
+  }
+
+  /*
+   * Smell audit 2026-09-10 G5: the pool refill's tier rolls are DOS
+   * `FUN_281f_04d4(1,15)/(1,10)/(1,8)` off the shared game stream
+   * (viceroy_unpacked.c 64632/64636/64640), and the expert half is a
+   * per-nation LFSR that takes NO shared draw (64585-64590). So a refill on
+   * a bound rng must consume the tier draws from that stream and exactly
+   * them, and a force-expert refill must consume none at all.
+   */
+  {
+    EuropeScreen* reu = &eu;
+    ColonizeDosRng live;
+    ColonizeDosRng ref;
+    dos_rng_seed(&live, 4242u);
+    dos_rng_seed(&ref, 4242u);
+    reu->difficulty = 4;         /* threshold = (4 + 3) >> 1 = 3 */
+    reu->brewster_no_criminals = false;
+    for (int i = 0; i < EUROPE_POOL_SIZE; ++i) {
+      reu->pool[i].filled = false;
+      reu->pool[i].profession = -1;
+      reu->pool[i].name[0] = '\0';
+    }
+    const int first = dos_rng_range(&ref, 1, 15); /* what DOS draws first */
+    europe_refill_pool_slot_rng(reu, 0, false, &live);
+    if (!reu->pool[0].filled) {
+      fprintf(stderr, "rng refill left slot 0 empty\n");
+      europe_free(&eu);
+      return 1;
+    }
+    if (first <= 3) {
+      /* Criminal tier: exactly one 04d4 draw, stream lands where DOS's does. */
+      if (reu->pool[0].profession != 26 || live.state != ref.state) {
+        fprintf(
+          stderr,
+          "criminal-tier refill: job=%d (want 26), stream %u vs DOS %u\n",
+          reu->pool[0].profession,
+          (unsigned)live.state,
+          (unsigned)ref.state
+        );
+        europe_free(&eu);
+        return 1;
+      }
+    } else if (reu->pool[0].profession == 26 || live.state == ref.state) {
+      fprintf(
+        stderr,
+        "roll %d > threshold should not give criminals nor stop at one draw\n",
+        first
+      );
+      europe_free(&eu);
+      return 1;
+    }
+    /* Force-expert (`46d4(1)`, the (turn & 3) == 0 case) draws nothing from
+     * the shared stream — DOS's expert value comes off the nation LFSR. */
+    const uint32_t before = live.state;
+    europe_refill_pool_slot_rng(reu, 1, true, &live);
+    if (live.state != before || !reu->pool[1].filled) {
+      fprintf(
+        stderr,
+        "force-expert refill moved the shared stream (%u -> %u) or left the slot empty\n",
+        (unsigned)before,
+        (unsigned)live.state
+      );
+      europe_free(&eu);
+      return 1;
+    }
+    fprintf(stderr, "pool refill rolls on the shared DOS stream ok\n");
   }
 
   europe_free(&eu);

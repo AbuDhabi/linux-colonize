@@ -6,6 +6,7 @@
 #include <stdint.h>
 
 #include "platform/platform.h"
+#include "core/ss.h"
 
 #define COLONIZE_MSG_LINE_LEN 160
 #define COLONIZE_MSG_SECTION_LEN 48
@@ -45,6 +46,13 @@ bool assets_load_palette(const char* data_dir, ColonizePalette* out_palette);
 void assets_palette_from_col768(const uint8_t* raw, size_t raw_size, ColonizePalette* out_palette);
 void assets_palette_from_viceroy1024(const uint8_t* raw, size_t raw_size, ColonizePalette* out_palette);
 bool assets_detect_madspack(const char* path, char* info, size_t info_size);
+
+/* Nearest-colour remap of a sprite sheet onto a screen palette. Only for
+ * sheets that share the screen's palette block and reserve no DAC block of
+ * their own; reserved-block popup art must be merged instead (see the
+ * implementation comment in assets.c). Bakes into the sheet's pixels, so one
+ * remapped instance per destination palette. */
+void assets_sheet_remap_to_palette(ColonizeSpriteSheet* sheet, const ColonizePalette* dst_pal);
 
 void assets_msg_init(ColonizeMsgCatalog* catalog);
 void assets_msg_free(ColonizeMsgCatalog* catalog);

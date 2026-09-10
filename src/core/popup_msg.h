@@ -37,6 +37,21 @@ typedef struct PopupMsgTokens {
 #define POPUP_MSG_LINE_MARK '\x01'   /* '^'  — own line, left-aligned */
 #define POPUP_MSG_CENTER_MARK '\x02' /* '^^' — own line, centred */
 
+/*
+ * Leading caret run on a GAME.TXT / PEDIA.TXT line, exactly as DOS
+ * FUN_6f74_0c32 parses it: a first '^' followed by a second stores flag 1 and
+ * consumes BOTH carets; a first '^' followed by anything else ORs flag 2 and
+ * consumes only that one. The DOS parser never loops — a third caret (or a
+ * brace, or a space) is body text and is drawn verbatim. FUN_6f74_1198 gives
+ * either flag (flags & 3) its own unwrapped line but measures for centring
+ * only on flag 1, so '^' alone stays left-aligned.
+ * Returns the flag byte (0 = ordinary flowing prose) and, when out_rest is
+ * given, the text after the consumed carets.
+ */
+#define POPUP_MSG_CARET_CENTER 1   /* "^^" — own line, centred */
+#define POPUP_MSG_CARET_OWN_LINE 2 /* "^"  — own line, left-aligned */
+int popup_msg_caret_flags(const char* line, const char** out_rest);
+
 /* True if line is an @directive (width/default/checkbox/…). */
 bool popup_msg_is_directive(const char* line);
 

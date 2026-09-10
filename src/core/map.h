@@ -182,6 +182,12 @@ uint8_t map_get_layer3(const ColonizeWorldMap* map, int x, int y);
  */
 int map_continent_id_at(const ColonizeWorldMap* map, int x, int y);
 /*
+ * Ocean square in a water region other than the open sea (layer3 low nibble
+ * != 1) — DOS calls these "Lake" instead of "Ocean" in the tile
+ * description (FUN_2f2b_0842, LABELS @MISC 40). Sea Lane is never a lake.
+ */
+bool map_tile_is_lake(const ColonizeWorldMap* map, int x, int y);
+/*
  * Owner (Euro nation 0..3 or tribe id) of whatever is physically standing on
  * (x,y) right now: a settlement (HAS_CITY) if one is there, else an
  * occupying unit (HAS_UNIT), else -1. FUN_1000_88c2 / FUN_137f_0428
@@ -189,12 +195,6 @@ int map_continent_id_at(const ColonizeWorldMap* map, int x, int y);
  * does NOT cover a colony's wider worked-tile claim, only literal
  * occupancy. Cite: euro_unit_act.md T1.8 2026-08-22 (0015bc hard-reject).
  */
-/*
- * Ocean square in a water region other than the open sea (layer3 low nibble
- * != 1) — DOS calls these "Lake" instead of "Ocean" in the tile
- * description (FUN_2f2b_0842, LABELS @MISC 40). Sea Lane is never a lake.
- */
-bool map_tile_is_lake(const ColonizeWorldMap* map, int x, int y);
 int map_tile_tribe_or_presence(const ColonizeWorldMap* map, int x, int y);
 /* DOS FUN_281f_0682: unit-presence bit only (layer2 bit0) → owner nibble. */
 int map_tile_owner_or_presence(const ColonizeWorldMap* map, int x, int y);
@@ -357,7 +357,8 @@ int map_move_spent_thirds(
 /*
  * DOS 465b-shaped step cost from→to at NAMES scale (road-art both — mask
  * 0x0a, same predicate as map_move_spent_thirds — or river both + cardinal
- * → 1).
+ * → 1). A tribe/settlement-owned destination caps the step at the NAMES-scale
+ * equivalent of 3 thirds, i.e. 1 (465b:00e4).
  */
 int map_move_cost_step(
   const ColonizeWorldMap* map,

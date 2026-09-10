@@ -159,8 +159,18 @@ Full opaque-field inventory and RE phases: **[save_format_map.md](save_format_ma
   owner fog slot on `visible_to_euro` (smcol: whole `[4]` is fog **population**
   per Euro; +0xbe is fog **fortification** — see [save_format_map.md](save_format_map.md));
   Col1-only AI timers preserved by xy match
-- Unit `vis_mask`: euro owner bit only on spawn/`units_set_nation`/capture;
-  natives export 0 (fixes fog-visible Indians/AI). Ship `holds_occupied` =
+- Unit `vis_mask` (low nibble; DOS fog draw is `(0x10 << viewer) & vis_mask`):
+  capture round-trips the live `col1_vis_mask & 0x0f` for **every** unit, then
+  ORs in the owner's own bit for Euro units on the map — so a MAP euro record
+  always carries its owner bit (3004/3004 in the fixtures) and a **native**
+  record keeps whatever nibble it had (492 of 3074 on-map native records in the
+  fixtures carry a nonzero nibble, values 1/2/4/8 and combinations: DOS really
+  does track which Europeans have seen a given brave). The only records forced
+  to 0 are the Europe sentinels (`x`/`y` >= 200 — no owner bit there either),
+  per the 2026-09-03 french-campaign survey. **Do not "fix" this to zero
+  natives** — the older wording here claimed natives export 0, which the code
+  never did and the fixtures contradict (corrected 2026-09-10).
+  Ship `holds_occupied` =
   goods only — passengers use `transport_chain` (fixes fake food stacks).
   **2026-08-25**: the *import* side (`col1_bridge_apply`) wasn't honoring
   this on load — it copied all 6 `cargo_hold[]`/`cargo_item_*[]` slots

@@ -4444,9 +4444,6 @@ int main(void) {
     if (founding_fathers_bells_since_last_elect(0) != 0u) {
       return fail("consume_woi_bell_pool must zero side-table pool");
     }
-    if (founding_fathers_intervention_bells(0) != 1u) {
-      return fail("consume_woi_bell_pool must increment intervention_bells");
-    }
     if (count_nation(&units, 0) <= intervene_before) {
       return fail("WoI bell spend should spawn foreign intervention");
     }

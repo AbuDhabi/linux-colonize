@@ -27,8 +27,12 @@ static void skip_ws(Parser* ps) {
   }
 }
 
-static JsonValue* jv_new(JsonType t) {
+static JsonValue* jv_new(Parser* ps, JsonType t) {
   JsonValue* v = calloc(1, sizeof(JsonValue));
+  if (!v) {
+    perr(ps, "out of memory");
+    return NULL;
+  }
   v->type = t;
   return v;
 }
@@ -71,6 +75,10 @@ static char* parse_raw_string(Parser* ps) {
   ps->p++;
   size_t cap = 32, len = 0;
   char* buf = malloc(cap);
+  if (!buf) {
+    perr(ps, "out of memory");
+    return NULL;
+  }
   while (*ps->p && *ps->p != '"') {
     unsigned char c = (unsigned char)*ps->p;
     unsigned int cp = 0;
@@ -127,8 +135,15 @@ static char* parse_raw_string(Parser* ps) {
       enc_len = 3;
     }
     if (len + enc_len + 1 > cap) {
-      cap *= 2;
-      buf = realloc(buf, cap);
+      size_t next = cap * 2;
+      char* grown = realloc(buf, next);
+      if (!grown) {
+        perr(ps, "out of memory");
+        free(buf);
+        return NULL;
+      }
+      buf = grown;
+      cap = next;
     }
     memcpy(buf + len, enc, enc_len);
     len += enc_len;
@@ -148,7 +163,11 @@ static JsonValue* parse_string(Parser* ps) {
   if (!s) {
     return NULL;
   }
-  JsonValue* v = jv_new(JV_STR);
+  JsonValue* v = jv_new(ps, JV_STR);
+  if (!v) {
+    free(s);
+    return NULL;
+  }
   v->str = s;
   return v;
 }
@@ -180,16 +199,27 @@ static JsonValue* parse_number(Parser* ps) {
     perr(ps, "expected number");
     return NULL;
   }
-  JsonValue* v = jv_new(JV_NUM);
+  JsonValue* v = jv_new(ps, JV_NUM);
+  if (!v) {
+    return NULL;
+  }
   v->num = strtod(start, NULL);
   return v;
 }
 
 static JsonValue* parse_array(Parser* ps) {
   ps->p++; /* [ */
-  JsonValue* v = jv_new(JV_ARR);
+  JsonValue* v = jv_new(ps, JV_ARR);
+  if (!v) {
+    return NULL;
+  }
   size_t cap = 8;
   v->arr.items = malloc(cap * sizeof(JsonValue*));
+  if (!v->arr.items) {
+    perr(ps, "out of memory");
+    json_free(v);
+    return NULL;
+  }
   skip_ws(ps);
   if (*ps->p == ']') {
     ps->p++;
@@ -198,14 +228,22 @@ static JsonValue* parse_array(Parser* ps) {
   for (;;) {
     skip_ws(ps);
     JsonValue* item = parse_value(ps);
-    if (ps->failed) {
+    if (!item || ps->failed) {
       json_free(item);
       json_free(v);
       return NULL;
     }
     if (v->arr.count == cap) {
-      cap *= 2;
-      v->arr.items = realloc(v->arr.items, cap * sizeof(JsonValue*));
+      size_t next = cap * 2;
+      JsonValue** grown = realloc(v->arr.items, next * sizeof(JsonValue*));
+      if (!grown) {
+        perr(ps, "out of memory");
+        json_free(item);
+        json_free(v);
+        return NULL;
+      }
+      v->arr.items = grown;
+      cap = next;
     }
     v->arr.items[v->arr.count++] = item;
     skip_ws(ps);
@@ -226,10 +264,18 @@ static JsonValue* parse_array(Parser* ps) {
 
 static JsonValue* parse_object(Parser* ps) {
   ps->p++; /* { */
-  JsonValue* v = jv_new(JV_OBJ);
+  JsonValue* v = jv_new(ps, JV_OBJ);
+  if (!v) {
+    return NULL;
+  }
   size_t cap = 8;
   v->obj.keys = malloc(cap * sizeof(char*));
   v->obj.vals = malloc(cap * sizeof(JsonValue*));
+  if (!v->obj.keys || !v->obj.vals) {
+    perr(ps, "out of memory");
+    json_free(v);
+    return NULL;
+  }
   skip_ws(ps);
   if (*ps->p == '}') {
     ps->p++;
@@ -238,7 +284,7 @@ static JsonValue* parse_object(Parser* ps) {
   for (;;) {
     skip_ws(ps);
     char* key = parse_raw_string(ps);
-    if (ps->failed) {
+    if (!key || ps->failed) {
       free(key);
       json_free(v);
       return NULL;
@@ -253,16 +299,33 @@ static JsonValue* parse_object(Parser* ps) {
     ps->p++;
     skip_ws(ps);
     JsonValue* val = parse_value(ps);
-    if (ps->failed) {
+    if (!val || ps->failed) {
       free(key);
       json_free(val);
       json_free(v);
       return NULL;
     }
     if (v->obj.count == cap) {
-      cap *= 2;
-      v->obj.keys = realloc(v->obj.keys, cap * sizeof(char*));
-      v->obj.vals = realloc(v->obj.vals, cap * sizeof(JsonValue*));
+      size_t next = cap * 2;
+      char** grown_keys = realloc(v->obj.keys, next * sizeof(char*));
+      if (!grown_keys) {
+        perr(ps, "out of memory");
+        free(key);
+        json_free(val);
+        json_free(v);
+        return NULL;
+      }
+      v->obj.keys = grown_keys;
+      JsonValue** grown_vals = realloc(v->obj.vals, next * sizeof(JsonValue*));
+      if (!grown_vals) {
+        perr(ps, "out of memory");
+        free(key);
+        json_free(val);
+        json_free(v);
+        return NULL;
+      }
+      v->obj.vals = grown_vals;
+      cap = next;
     }
     v->obj.keys[v->obj.count] = key;
     v->obj.vals[v->obj.count] = val;
@@ -292,7 +355,10 @@ static JsonValue* parse_value(Parser* ps) {
     case 't':
       if (strncmp(ps->p, "true", 4) == 0) {
         ps->p += 4;
-        JsonValue* v = jv_new(JV_BOOL);
+        JsonValue* v = jv_new(ps, JV_BOOL);
+        if (!v) {
+          return NULL;
+        }
         v->b = true;
         return v;
       }
@@ -301,7 +367,10 @@ static JsonValue* parse_value(Parser* ps) {
     case 'f':
       if (strncmp(ps->p, "false", 5) == 0) {
         ps->p += 5;
-        JsonValue* v = jv_new(JV_BOOL);
+        JsonValue* v = jv_new(ps, JV_BOOL);
+        if (!v) {
+          return NULL;
+        }
         v->b = false;
         return v;
       }
@@ -310,7 +379,7 @@ static JsonValue* parse_value(Parser* ps) {
     case 'n':
       if (strncmp(ps->p, "null", 4) == 0) {
         ps->p += 4;
-        return jv_new(JV_NULL);
+        return jv_new(ps, JV_NULL);
       }
       perr(ps, "bad literal");
       return NULL;
@@ -330,7 +399,7 @@ JsonValue* json_parse(const char* text, char* err, size_t err_size) {
   }
   skip_ws(&ps);
   JsonValue* v = parse_value(&ps);
-  if (ps.failed) {
+  if (!v || ps.failed) {
     json_free(v);
     return NULL;
   }

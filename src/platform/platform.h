@@ -156,15 +156,10 @@ void platform_show_game_mouse_cursor(ColonizePlatform* platform, bool show_game_
 void platform_audio_resume(ColonizePlatform* platform);
 bool platform_audio_enabled(const ColonizePlatform* platform);
 
-/* DOS-compat hooks called by core logic. */
+/* DOS-compat hooks called by core logic. The module is an asset-name shim only;
+ * it carries no tick or port emulation (see dos_compat.c). */
 void dos_compat_init(void);
 void dos_compat_shutdown(void);
-void dos_compat_set_tick_rate_hz(uint32_t hz);
-uint32_t dos_compat_tick_count(void);
-void dos_compat_trace_unknown(const char* callsite, uint32_t code);
-uint8_t dos_compat_in_port(uint16_t port);
-void dos_compat_out_port(uint16_t port, uint8_t value);
-void* dos_compat_ptr_from_segment_offset(uint16_t segment, uint16_t offset);
 bool dos_compat_normalize_asset_path(
   const char* data_dir,
   const char* legacy_name,
