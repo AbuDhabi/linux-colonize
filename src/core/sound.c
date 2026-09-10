@@ -727,7 +727,14 @@ const char* sound_backend_name(void) {
 void sound_set_options(ColonizeSoundOptions opts) {
   pthread_mutex_lock(&g_sound.lock);
   g_sound.opts = opts;
-  if (!opts.background_music && g_sound.vm) {
+  /*
+   * FUN_2b5a_23ce tail (asm 2b5a:2447-2461): after storing the three flags the
+   * dialog fades the running song whenever *any* of them came back off —
+   *   if ([0xa0] == 0 || [0xa2] == 0 || [0xa4] == 0) FUN_281f_04de(1);
+   * and 04de reaches FUN_2059_000a directly, i.e. id 1 bypasses the 12d8 gate.
+   */
+  const bool any_off = !opts.background_music || !opts.event_music || !opts.sound_effects;
+  if (any_off && g_sound.vm) {
     g_sound.current_id = -1;
     gsound_vm_play(g_sound.vm, 1);
   }
@@ -740,24 +747,55 @@ ColonizeSoundOptions sound_get_options(void) {
 
 /* ---- transport (DOS segment 129f BGM scheduler) ------------------------- */
 
-/* FUN_12d8_000e: option gate in front of the driver dispatcher. */
+/*
+ * FUN_12d8_000e (asm 12d8:000e-0050), the option gate in front of the driver
+ * dispatcher, literally:
+ *
+ *   CX = id;  BX = DI = DX = 0
+ *   CMP CX,0x10 / JGE  -> BX = 1 when the *signed* 16-bit id is below 0x10
+ *   TEST CL,0x40 / DI = 1        (low byte only)
+ *   TEST CL,0x20 / DX = 1
+ *   OR BX,BX  / JNZ play                    ; system ids play unconditionally
+ *   OR DX,DX  / JZ  check40                 ; no 0x20 bit -> fall through
+ *   CMP [0xa0],BX (=0) / JNZ play           ; song plays iff DS:0xa0 != 0
+ *   check40: OR DI,DI / JZ  return          ; no 0x40 bit -> nothing to play
+ *            CMP [0xa4],BX (=0) / JZ return ; event plays iff DS:0xa4 != 0
+ *
+ * so the two class checks are an OR chain, not two independent vetoes, and an
+ * id carrying neither bit is dropped rather than played.
+ *
+ * Option binding (FUN_2b5a_23ce, asm 2b5a:23ce-2447): the @SOUNDOPTIONS
+ * checkboxes are read back in declaration order — 1 Background Music ->
+ * DS:0xa2 -> save bit 0x2, 2 Event Music -> DS:0xa0 -> bit 0x4, 3 Sound
+ * Effects -> DS:0xa4 -> bit 0x8 (GAME.TXT:111-118, col1_save.h Tut2). So the
+ * 0x20 class (songs 0x20..0x3f) is gated by Event Music and the 0x40 class
+ * (event ids 0x40..0x5c) by Sound Effects. Background Music gates only the
+ * BGM *scheduler* (DS:0xa2, FUN_129f_00f6/02cc), never this dispatcher.
+ *
+ * The signed compare is load-bearing: the chord stings (0x8020 war
+ * declaration, 0x8024 assign colonist) are negative as int16, so BX = 1 and
+ * they always play, whatever the options say.
+ */
+bool sound_id_gate_allows(int id, ColonizeSoundOptions opts) {
+  if ((int16_t)(uint16_t)id < 0x10) {
+    return true;
+  }
+  const unsigned lo = (unsigned)id & 0xffu;
+  if ((lo & 0x20u) != 0 && opts.event_music) {
+    return true;
+  }
+  if ((lo & 0x40u) != 0 && opts.sound_effects) {
+    return true;
+  }
+  return false;
+}
+
 static void sound_dispatch_gated_unlocked(int id) {
   if (!g_sound.vm || id < 0) {
     return;
   }
-  if (id >= 0x8020) {
-    /* Chord stings (0x8020 war declaration, 0x8024 assign colonist): the
-     * driver's fourth table; treated like event music for the option gate. */
-    if (!g_sound.opts.event_music) {
-      return;
-    }
-  } else if (id >= 0x10) {
-    if ((id & 0x20) != 0 && !g_sound.opts.background_music) {
-      return;
-    }
-    if ((id & 0x40) != 0 && !g_sound.opts.event_music) {
-      return;
-    }
+  if (!sound_id_gate_allows(id, g_sound.opts)) {
+    return;
   }
   gsound_vm_play(g_sound.vm, id);
   if (id == 0) {
@@ -856,8 +894,10 @@ static int sound_pick_next_tune_id(void) {
 
 /*
  * FUN_129f_00f6 idle pump: once the driver has no voice left, play the queued
- * explicit id, else draw the next tune from the current pool. DOS only polls
- * this with sound effects enabled or a pending change. Category 0 is "no
+ * explicit id, else draw the next tune from the current pool. asm 129f:00fa
+ * bails unless DS:0xa2 != 0 or DS:0x9e != 0 — DS:0xa2 is the Background Music
+ * option (FUN_2b5a_23ce checkbox 1), so the poll runs only with background
+ * music enabled or a pending change. Category 0 is "no
  * pool" (DS:0x9a); do not invent a random song until sound_play / sound_set_bgm
  * arms one — otherwise the audio callback starts a map tune at launch before
  * the intro can queue 0x34.
@@ -893,7 +933,15 @@ static void sound_queue_unlocked(int id) {
     return;
   }
   g_sound.pending_id = id;
-  g_sound.pending = true;
+  /*
+   * asm 129f:02dd-02eb arms DS:0x9e only when [0xa0] != 0 && [0xa2] == 0, i.e.
+   * only when Event Music is on and Background Music is off — the one case
+   * where the idle poll (129f:00fa) would otherwise never run. With background
+   * music on the poll runs anyway, so DOS leaves the flag alone.
+   */
+  if (g_sound.opts.event_music && !g_sound.opts.background_music) {
+    g_sound.pending = true;
+  }
   if (id >= 0) {
     sound_dispatch_gated_unlocked(1);
   }
@@ -997,7 +1045,11 @@ void sound_set_bgm(int track) {
   }
   g_sound.category = track;
   if (g_sound.category_applied != track) {
-    g_sound.pending = true;
+    /* FUN_129f_0318 arms DS:0x9e under the same guard as FUN_129f_02cc:
+     * only when [0xa0] != 0 && [0xa2] == 0 (decompile 129f_0318 body). */
+    if (g_sound.opts.event_music && !g_sound.opts.background_music) {
+      g_sound.pending = true;
+    }
     sound_dispatch_gated_unlocked(1);
   }
   pthread_mutex_unlock(&g_sound.lock);

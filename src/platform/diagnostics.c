@@ -29,11 +29,22 @@ static char g_exe_dir[1024];
 static bool g_info_enabled = false;
 static char g_context[64];
 
-static void write_line(const char* level, const char* message) {
-  if (!g_log) {
-    return;
-  }
+/* The startup banner (log path, exe dir, argv[0], cwd, HOME, XDG_DATA_HOME) and
+ * settings.c's two "Settings file" lines are emitted before main() can know
+ * whether debug_logs is on: diag_init must run first so settings_init can call
+ * diag_exe_dir(). So INFO lines emitted before the first diag_set_info_enabled()
+ * are held here and either flushed (debug_logs on) or discarded (off) at that
+ * call. Timestamps are captured when the line is buffered, so a flushed line
+ * carries its real time even though it lands after any WARN/ERROR written in
+ * between. */
+#define DIAG_PENDING_MAX 16
+#define DIAG_LINE_MAX 2176
+static char g_pending[DIAG_PENDING_MAX][DIAG_LINE_MAX];
+static int g_pending_count = 0;
+static int g_pending_dropped = 0;
+static bool g_info_settled = false;
 
+static void format_line(char* out, size_t out_size, const char* level, const char* message) {
   time_t now = time(NULL);
   struct tm tm_now;
 #ifdef _WIN32
@@ -44,11 +55,45 @@ static void write_line(const char* level, const char* message) {
   char stamp[32];
   strftime(stamp, sizeof(stamp), "%Y-%m-%d %H:%M:%S", &tm_now);
   if (g_context[0]) {
-    fprintf(g_log, "[%s] [%s] [%s] %s\n", stamp, level, g_context, message);
+    snprintf(out, out_size, "[%s] [%s] [%s] %s\n", stamp, level, g_context, message);
   } else {
-    fprintf(g_log, "[%s] [%s] %s\n", stamp, level, message);
+    snprintf(out, out_size, "[%s] [%s] %s\n", stamp, level, message);
   }
+}
+
+static void write_line(const char* level, const char* message) {
+  if (!g_log) {
+    return;
+  }
+
+  char line[DIAG_LINE_MAX];
+  format_line(line, sizeof(line), level, message);
+  fputs(line, g_log);
   fflush(g_log);
+}
+
+static void buffer_info_line(const char* message) {
+  if (g_pending_count >= DIAG_PENDING_MAX) {
+    ++g_pending_dropped;
+    return;
+  }
+  format_line(g_pending[g_pending_count], DIAG_LINE_MAX, "INFO", message);
+  ++g_pending_count;
+}
+
+static void flush_pending_info(void) {
+  int i;
+  if (g_log) {
+    for (i = 0; i < g_pending_count; ++i) {
+      fputs(g_pending[i], g_log);
+    }
+    if (g_pending_dropped > 0) {
+      fprintf(g_log, "[INFO] %d earlier startup line(s) dropped (buffer full).\n", g_pending_dropped);
+    }
+    fflush(g_log);
+  }
+  g_pending_count = 0;
+  g_pending_dropped = 0;
 }
 
 static void diag_vlog(const char* level, const char* fmt, va_list args) {
@@ -158,6 +203,16 @@ const char* diag_exe_dir(void) {
 
 void diag_set_info_enabled(bool enabled) {
   g_info_enabled = enabled;
+  if (!g_info_settled) {
+    /* First call decides the fate of everything buffered during startup. */
+    g_info_settled = true;
+    if (enabled) {
+      flush_pending_info();
+    } else {
+      g_pending_count = 0;
+      g_pending_dropped = 0;
+    }
+  }
 }
 
 bool diag_info_enabled(void) {
@@ -177,10 +232,18 @@ const char* diag_context(void) {
 }
 
 void diag_info(const char* fmt, ...) {
+  va_list args;
   if (!g_info_enabled) {
+    char message[2048];
+    if (g_info_settled) {
+      return;
+    }
+    va_start(args, fmt);
+    vsnprintf(message, sizeof(message), fmt, args);
+    va_end(args);
+    buffer_info_line(message);
     return;
   }
-  va_list args;
   va_start(args, fmt);
   diag_vlog("INFO", fmt, args);
   va_end(args);

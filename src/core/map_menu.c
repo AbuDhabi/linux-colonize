@@ -839,33 +839,13 @@ bool map_menu_load(MapMenuBar* bar, const ColonizeMsgCatalog* menu_txt, bool sho
 #endif
   map_menu_load_section(bar, menu_txt, "PEDIA", true);
 
-  /* Lay out title hit-boxes; PEDIA is placed later above the right panel. */
-  int x = 12;
-  for (int i = 0; i < bar->menu_count; ++i) {
-    MapMenuPulldown* menu = &bar->menus[i];
-    if (strcmp(menu->section_name, "PEDIA") == 0) {
-      continue;
-    }
-    const int tw = (int)strlen(menu->title) * 6; /* approx; refined at render with font */
-    menu->title_x = x;
-    menu->title_w = tw + 8;
-    x += menu->title_w + 4;
-  }
-  for (int i = 0; i < bar->menu_count; ++i) {
-    MapMenuPulldown* menu = &bar->menus[i];
-    if (strcmp(menu->section_name, "PEDIA") != 0) {
-      continue;
-    }
-    const int tw = (int)strlen(menu->title) * 6;
-    menu->title_w = tw + 8;
-    const int inner_x0 = MAP_PANEL_X + 2;
-    const int inner_w = 319 - inner_x0 + 1;
-    const int mx = inner_x0 + (inner_w - MAP_PANEL_MINIMAP_W) / 2;
-    menu->title_x = mx + MAP_PANEL_MINIMAP_W / 2 - tw / 2;
-    if (menu->title_x < MAP_PANEL_X) {
-      menu->title_x = MAP_PANEL_X;
-    }
-  }
+  /*
+   * Title hit-boxes stay zero here: map_menu_layout_titles() is the single
+   * answer and both readers (map_menu_handle_input, map_menu_render) call it
+   * before touching title_x/title_w. A load-time copy could only measure
+   * titles without the font, and its constants had already drifted from the
+   * live helper (gap +4 vs +6, no >320 PEDIA clamp).
+   */
 
   bar->loaded = bar->menu_count > 0;
   if (bar->loaded) {

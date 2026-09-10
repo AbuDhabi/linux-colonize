@@ -1823,6 +1823,32 @@ static void game_do_trade_delete_slot(ColonizeGameState* game, int slot) {
       }
     }
   }
+  /*
+   * Ships sitting in a Europe lane are unit records in DOS's own pool, so the
+   * FUN_647e_1486 loop above renumbers them too (viceroy 103175-103189 walks
+   * all *(int*)0x539c units, Europe sentinels included). The port keeps those
+   * ships in EuropeScreen instead, so they need the same fixup by hand — else
+   * a route deleted while a ship is mid-Atlantic leaves it pointing at a dead
+   * or renumbered slot, which col1_bridge's cursor guard then has to drop.
+   */
+  {
+    EuropeHarborShip* lanes[3] = {game->europe.harbor, game->europe.bound, game->europe.expected};
+    const int counts[3] = {
+      game->europe.harbor_ships, game->europe.bound_ships, game->europe.expected_ships
+    };
+    for (int li = 0; li < 3; ++li) {
+      for (int si = 0; si < counts[li] && si < EUROPE_HARBOR_MAX; ++si) {
+        EuropeHarborShip* sh = &lanes[li][si];
+        const int r = sh->trade_route_plus1 - 1;
+        if (r == slot) {
+          sh->trade_route_plus1 = 0;
+          sh->trade_stop = 0;
+        } else if (r > slot) {
+          sh->trade_route_plus1--;
+        }
+      }
+    }
+  }
   const int count = game_trade_route_count(game);
   for (int i = slot; i < count - 1; ++i) {
     game->col1.trade_route[i] = game->col1.trade_route[i + 1];
@@ -3217,16 +3243,17 @@ static void game_apply_ai_popup_result(ColonizeGameState* game) {
     return;
   }
   if (game->ai_popups.result_tag == AI_POPUP_TAG_BREWSTER_PICK) {
-    (void)units_brewster_apply_popup(
+    (void)units_brewster_apply_popup_ex(
       game->europe_ok ? &game->europe : NULL, &game->ai_popups,
-      game->units_ok ? &game->units : NULL
+      game->units_ok ? &game->units : NULL, &game->move_rng
     );
     ai_popup_consume_result(&game->ai_popups);
     return;
   }
   if (game->ai_popups.result_tag == AI_POPUP_TAG_FOUNTAIN_YOUTH) {
-    (void)units_fountain_youth_apply_popup(
-      game->europe_ok ? &game->europe : NULL, &game->ai_popups, &game->messages
+    (void)units_fountain_youth_apply_popup_ex(
+      game->europe_ok ? &game->europe : NULL, &game->ai_popups, &game->messages,
+      &game->move_rng
     );
     ai_popup_consume_result(&game->ai_popups);
     return;
@@ -5663,7 +5690,9 @@ static bool game_europe_menu_confirm(ColonizeGameState* game) {
     }
     return ok;
   }
-  return europe_menu_confirm(eu);
+  /* The RECRUIT row's pool refill is a `46d4` roll DOS takes off the shared
+   * game stream — hand the real rng down (smell audit 2026-09-10 G5). */
+  return europe_menu_confirm_ex(eu, &game->move_rng);
 }
 
 /*
@@ -7341,7 +7370,6 @@ ColonizeGameState* game_create(const ColonizeGameConfig* config) {
 
   diag_info("Game config save_dir=%s", config->save_dir ? config->save_dir : "(null)");
   dos_compat_init();
-  dos_compat_set_tick_rate_hz(18);
   return game;
 }
 
@@ -12107,7 +12135,6 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
 
   game->elapsed_ms += dt_ms;
   game_track_screen(game);
-  (void)dos_compat_tick_count();
   sound_service();
   if (game_service_opening(game, input, dt_ms)) {
     return true;

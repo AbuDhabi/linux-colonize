@@ -11,6 +11,31 @@ bool popup_msg_is_directive(const char* line) {
   return line && line[0] == '@';
 }
 
+/*
+ * DOS FUN_6f74_0c32 caret rule — the single source both the popup body
+ * collector below and pedia_caret_flags() (core/pedia.c) run on. The DOS
+ * parser tests the first byte, then the second, and stops: "^^" eats two and
+ * stores flag 1, a lone "^" eats one and ORs flag 2, and a third caret is
+ * ordinary body text.
+ */
+int popup_msg_caret_flags(const char* line, const char** out_rest) {
+  int flags = 0;
+  const char* rest = line ? line : "";
+  if (rest[0] == '^') {
+    if (rest[1] == '^') {
+      flags = POPUP_MSG_CARET_CENTER;
+      rest += 2;
+    } else {
+      flags = POPUP_MSG_CARET_OWN_LINE;
+      rest += 1;
+    }
+  }
+  if (out_rest) {
+    *out_rest = rest;
+  }
+  return flags;
+}
+
 static bool popup_msg_is_choice_word(const char* line) {
   if (!line || line[0] == '\0') {
     return false;
@@ -75,28 +100,28 @@ size_t popup_msg_section_body(
       break;
     }
     /*
-     * GAME.TXT '^' line prefix (DOS FUN_6f74_0cb0 + the 1198 wrap loop): a
+     * GAME.TXT '^' line prefix (DOS FUN_6f74_0c32 + the 1198 wrap loop): a
      * caret-led line is NOT word-wrapped into the running paragraph. It gets
      * an output line of its own, drawn verbatim — '^^' additionally centres
      * it (the flag-1 arm measures the string before drawing; '^' alone sets
      * flag 2 and stays left-aligned). bugs.md: the caret was copied through
      * literally, so @BUYME1 read "...100$. ^Treasury: 500$." on one line.
      * Encoded for the renderer as a newline break plus a leading
-     * POPUP_MSG_LINE_MARK / POPUP_MSG_CENTER_MARK.
+     * POPUP_MSG_LINE_MARK / POPUP_MSG_CENTER_MARK. At most two carets are
+     * consumed (popup_msg_caret_flags); a third stays as body text.
      */
-    int caret = 0;
-    while (line[caret] == '^') {
-      caret++;
-    }
-    if (caret > 0) {
+    const char* caret_rest = line;
+    const int caret = popup_msg_caret_flags(line, &caret_rest);
+    if (caret != 0) {
       if (used > 0 && used + 1 < out_size) {
         out[used++] = '\n';
       }
       if (used + 1 < out_size) {
-        out[used++] = caret >= 2 ? POPUP_MSG_CENTER_MARK : POPUP_MSG_LINE_MARK;
+        out[used++] =
+          (caret == POPUP_MSG_CARET_CENTER) ? POPUP_MSG_CENTER_MARK : POPUP_MSG_LINE_MARK;
       }
       out[used] = '\0';
-      line += caret;
+      line = caret_rest;
     } else if (used > 0 && used + 1 < out_size) {
       out[used++] = ' ';
     }
@@ -110,7 +135,7 @@ size_t popup_msg_section_body(
     }
     memcpy(out + used, line, n);
     used += n;
-    if (caret > 0 && used + 1 < out_size) {
+    if (caret != 0 && used + 1 < out_size) {
       out[used++] = '\n'; /* the next line starts fresh, never joins this one */
     }
     out[used] = '\0';

@@ -195,6 +195,66 @@ void assets_palette_from_col768(const uint8_t* raw, size_t raw_size, ColonizePal
   }
 }
 
+/*
+ * Nearest-colour remap of a sprite sheet's own palette onto dst_pal: every
+ * sheet index is rewritten to the dst_pal index whose RGB is closest (squared
+ * distance), the sheet's transparent key is preserved, and the sheet then
+ * carries dst_pal as its palette.
+ *
+ * When to use this and when NOT to: it is right only for sheets that live in
+ * the screen palette's SHARED block and reserve nothing of their own — the
+ * ordinary game sheets (PARCH/WOODTILE/BUILDING/ICONS all leave DAC 152..251
+ * black, exactly like the screens they are drawn over). Popup art sheets
+ * (KING/KING2, IND<t>A<n>, MSSn, MYRn, SCORE<nn>) are the opposite case: they
+ * ship their own entries for the DAC block the host screen leaves black, and
+ * must be MERGED into the presented palette (ai_popup_art_palette_merge,
+ * reports_remap_exploits_sheet), never crushed onto the host's colours.
+ *
+ * The result is baked into the sheet's pixels, so a sheet remapped this way
+ * belongs to exactly ONE destination palette: a sheet blitted over several
+ * screens needs one remapped instance per screen palette (see reports.c's
+ * per-screen ICONS.SS copies), not one shared copy.
+ */
+void assets_sheet_remap_to_palette(ColonizeSpriteSheet* sheet, const ColonizePalette* dst_pal) {
+  if (!sheet || !dst_pal || !sheet->has_palette) {
+    return;
+  }
+  uint8_t lut[256];
+  for (int i = 0; i < 256; ++i) {
+    if (i == COLONIZE_SS_TRANSPARENT) {
+      lut[i] = (uint8_t)COLONIZE_SS_TRANSPARENT;
+      continue;
+    }
+    const int sr = sheet->palette.rgb[i][0];
+    const int sg = sheet->palette.rgb[i][1];
+    const int sb = sheet->palette.rgb[i][2];
+    int best = 0;
+    int best_d = 1 << 30;
+    for (int j = 0; j < 256; ++j) {
+      const int dr = sr - dst_pal->rgb[j][0];
+      const int dg = sg - dst_pal->rgb[j][1];
+      const int db = sb - dst_pal->rgb[j][2];
+      const int d = dr * dr + dg * dg + db * db;
+      if (d < best_d) {
+        best_d = d;
+        best = j;
+      }
+    }
+    lut[i] = (uint8_t)best;
+  }
+  for (int s = 0; s < sheet->sprite_count; ++s) {
+    ColonizeSprite* spr = &sheet->sprites[s];
+    if (!spr->pixels) {
+      continue;
+    }
+    const size_t n = (size_t)spr->width * (size_t)spr->height;
+    for (size_t p = 0; p < n; ++p) {
+      spr->pixels[p] = lut[spr->pixels[p]];
+    }
+  }
+  sheet->palette = *dst_pal;
+}
+
 void assets_palette_from_viceroy1024(const uint8_t* raw, size_t raw_size, ColonizePalette* out_palette) {
   if (!raw || !out_palette || raw_size < 1024) {
     return;
@@ -305,7 +365,10 @@ bool assets_msg_load_file(ColonizeMsgCatalog* catalog, const char* path) {
       continue;
     }
     if (line[0] == '@' && (line[1] < 'a' || line[1] > 'z')) {
-      /* New section if @NAME style (not @width/@options/@default). */
+      /* Only @NAME style opens a section. Lowercase directives (@width=,
+       * @options, @smallfont, @default) fail the test above and fall through
+       * as ordinary content lines, which is how the screen-side parsers read
+       * them (see pick_music.c). Uppercase @FOO=bar is a directive too. */
       const char* body = line + 1;
       bool is_directive = false;
       for (const char* p = body; *p; ++p) {
@@ -314,9 +377,7 @@ bool assets_msg_load_file(ColonizeMsgCatalog* catalog, const char* path) {
           break;
         }
       }
-      if (!is_directive &&
-          strcmp(body, "options") != 0 &&
-          strcmp(body, "smallfont") != 0) {
+      if (!is_directive) {
         /* Skip @; comment markers used in PEDIA.TXT / NAMES.TXT. */
         if (body[0] == ';') {
           current = NULL;

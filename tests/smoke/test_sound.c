@@ -253,8 +253,9 @@ int main(void) {
 
   ColonizeSoundOptions opts = sound_get_options();
   opts.background_music = false;
+  opts.event_music = false;
   sound_set_options(opts);
-  sound_play(SOUND_TITLE_ID); /* gated off by options */
+  sound_play(SOUND_TITLE_ID); /* song class (0x20..0x3f): gated off by event_music */
   sound_set_bgm(1);
   sound_play_preview(SOUND_BGM_ID_BASE + 1);
   sound_service();

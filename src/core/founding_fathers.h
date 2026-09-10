@@ -95,9 +95,6 @@ unsigned founding_fathers_bells_needed(const ColonizeCol1Save* col1, int nation)
 /* DOS nation+0xc — bells accrued since last FF elect (reset on elect_commit). */
 unsigned founding_fathers_bells_since_last_elect(int nation_id);
 
-/* WoI bell-pool spends on foreign intervention (+1 Colonization Score each). */
-unsigned founding_fathers_intervention_bells(int nation_id);
-
 /*
  * FUN_4345_0a22 phase 3 (thin): status while WoI bell pool grows toward
  * intervention threshold. Called from turn.c during WoI EOT.
@@ -110,8 +107,10 @@ void founding_fathers_woi_intervention_chrome(
 );
 
 /*
- * After ai_king_spend_woi_bell_pool succeeds: zero side-table pool and
- * increment intervention_bells score counter.
+ * After ai_king_spend_woi_bell_pool succeeds: zero the side-table pool.
+ * DOS keeps no intervention counter — FUN_41f2_0092's total is exactly
+ * early-revolution + congress + villages + treasury + rebel + bells/100 +
+ * citizens (viceroy_unpacked.c:71068-71413), so nothing is scored here.
  */
 void founding_fathers_consume_woi_bell_pool(int nation_id);
 

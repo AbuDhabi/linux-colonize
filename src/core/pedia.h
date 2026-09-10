@@ -8,6 +8,7 @@
 #include "core/assets.h"
 #include "core/font.h"
 #include "core/pik.h"
+#include "core/popup_msg.h"
 #include "core/ss.h"
 #include "core/ui_colors.h"
 #include "platform/platform.h"
@@ -113,9 +114,12 @@ const char* pedia_category_section_prefix(PediaCategory category);
  * only flag 1 takes the extra centring measure, so "^" is LEFT-aligned.
  * Returns that flag byte (0 = ordinary flowing prose) and, when out_rest is
  * given, the text after the caret run.
+ *
+ * PEDIA.TXT and GAME.TXT go through the same DOS parser, so this is a thin
+ * alias of popup_msg_caret_flags() — keep the two in lockstep.
  */
-#define PEDIA_CARET_CENTER 1   /* "^^" — own line, centred */
-#define PEDIA_CARET_OWN_LINE 2 /* "^"  — own line, left-aligned */
+#define PEDIA_CARET_CENTER POPUP_MSG_CARET_CENTER     /* "^^" — own line, centred */
+#define PEDIA_CARET_OWN_LINE POPUP_MSG_CARET_OWN_LINE /* "^" — own line, left-aligned */
 int pedia_caret_flags(const char* line, const char** out_rest);
 
 void pedia_terrain_preview(int terrain_index, PediaTerrainPreview* out);

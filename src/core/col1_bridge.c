@@ -103,12 +103,67 @@ static bool col1_coord_is_europe(uint8_t x, uint8_t y) {
 }
 
 /*
+ * The one trade-route cursor rule, shared by all four bridge sites (map unit
+ * and Europe lane, encode and decode).
+ *
+ * DOS packs the cursor into the profession byte a route-running unit does not
+ * otherwise use — unit +0x17 / DS:0x315b, low nibble = trade_route[] slot
+ * (FUN_1427_0f64/0f74), high nibble = stop index (FUN_1427_0f8e/0fa0) — which
+ * FUN_479b_0bd0 binds before servicing a stop.
+ *
+ * DOS validates the cursor at *neither* end of a save: its write and read are
+ * bulk fwrite/fread of the live structures. What keeps a DOS cursor sane is
+ * that nothing is ever allowed to become stale in the first place — the Begin
+ * picker (FUN_2b5a_1e66) filters routes by sea/land kind, and route delete
+ * (FUN_647e_1486, viceroy 103157-103200) walks the whole unit pool clearing
+ * slot (FUN_281f_0862) and stop (FUN_281f_08b2) and dropping orders 2 for
+ * units on the dead route, then renumbering units on later routes as it
+ * compacts the array. So there is no DOS save/load asymmetry to reproduce:
+ * the port's guard is defensive, and it therefore has to say the same thing
+ * on both sides, or capture writes an orders-2 record whose cursor apply then
+ * throws away — dropping the automation at load time instead of declining to
+ * write it.
+ *
+ * The nibble spans 0..15 but only 12 routes exist, and capture writes
+ * UNITS_JOB_NONE (0x1c — low nibble 12) into that byte for a route unit whose
+ * slot went stale, so the bound check is load-bearing on the decode side.
+ */
+static bool col1_bridge_trade_cursor_valid(
+  const ColonizeCol1Save* save,
+  int route,
+  bool unit_is_sea
+) {
+  if (!save || route < 0 || route >= (int)COLONIZE_COL1_TRADE_ROUTE_COUNT) {
+    return false;
+  }
+  const ColonizeCol1TradeRoute* r = &save->trade_route[route];
+  if (r->dest_count == 0) {
+    return false;
+  }
+  /* Kind must match: the Begin picker never offers a land route to a ship. */
+  return (r->sea != 0) == unit_is_sea;
+}
+
+/* Stop index clamped to the route's live stop list. Both encoders used to
+ * clamp against the array bound (COLONIZE_COL1_TRADE_ROUTE_STOPS) instead, so
+ * an encoder could emit a stop its own decoder then silently reset to 0. */
+static int col1_bridge_trade_cursor_stop(
+  const ColonizeCol1Save* save,
+  int route,
+  int stop
+) {
+  if (!save || route < 0 || route >= (int)COLONIZE_COL1_TRADE_ROUTE_COUNT) {
+    return 0;
+  }
+  const int stops = (int)save->trade_route[route].dest_count;
+  return (stop >= 0 && stop < stops) ? stop : 0;
+}
+
+/*
  * Trade-route cursor of a ship sitting in one of the Europe lanes (see the
  * capture side): DOS keeps orders 2 across the crossing — FUN_48d3_015e and
  * FUN_48d3_007a rewrite the orders byte only `if (unit+0x08 != 2)` — and with
- * it the packed cursor in the profession byte (+0x17 / DS:0x315b: low nibble
- * = trade_route[] slot per FUN_1427_0f64, high nibble = stop per
- * FUN_1427_0f8e), which FUN_479b_0bd0 reads to service the Europe stop
+ * it the packed cursor, which FUN_479b_0bd0 reads to service the Europe stop
  * (dest 999). A slot pointing at an emptied or land route — what saves
  * written before the lanes carried the cursor decode to — drops the
  * automation instead of parking the ship on a dead route.
@@ -123,12 +178,11 @@ static void col1_bridge_europe_ship_route_load(
   }
   const int route = (int)(src->profession & 0x0fu);
   const int stop = (int)((src->profession >> 4) & 0x0fu);
-  if (route >= (int)COLONIZE_COL1_TRADE_ROUTE_COUNT ||
-      save->trade_route[route].dest_count == 0 || save->trade_route[route].sea == 0) {
+  if (!col1_bridge_trade_cursor_valid(save, route, /*unit_is_sea=*/true)) {
     return;
   }
   slot->trade_route_plus1 = route + 1;
-  slot->trade_stop = stop < (int)save->trade_route[route].dest_count ? stop : 0;
+  slot->trade_stop = col1_bridge_trade_cursor_stop(save, route, stop);
 }
 
 /* Display name for a save-loaded Europe-dock colonist: eu->train[]'s @JOB
@@ -1377,16 +1431,13 @@ bool col1_bridge_apply(
       if (u->orders == UNITS_ORDER_TRADE_ROUTE) {
         const int route = (int)(src->profession & 0x0fu);
         const int stop = (int)((src->profession >> 4) & 0x0fu);
-        /* The nibble spans 0..15 but only 12 routes exist: a byte that never
-         * held a cursor (the capture side writes UNITS_JOB_NONE = 0x1c, low
-         * nibble 12, for a route unit whose slot went stale) must not index
-         * past trade_route[] — see the Europe-lane decoder above. */
-        const bool route_valid = route < (int)COLONIZE_COL1_TRADE_ROUTE_COUNT;
-        const bool route_sea = route_valid && save->trade_route[route].sea != 0;
         const bool unit_sea = ut && ut->domain == COLONIZE_UNIT_DOMAIN_SEA;
-        if (route_valid && save->trade_route[route].dest_count > 0 && route_sea == unit_sea) {
+        /* Same rule capture applies before it writes the cursor — see
+         * col1_bridge_trade_cursor_valid. Kept here for saves written before
+         * capture enforced it (and for DOS saves, which enforce nothing). */
+        if (col1_bridge_trade_cursor_valid(save, route, unit_sea)) {
           u->follow_unit_id = route;
-          u->turns_worked = stop < (int)save->trade_route[route].dest_count ? stop : 0;
+          u->turns_worked = col1_bridge_trade_cursor_stop(save, route, stop);
           u->profession = UNITS_JOB_NONE;
         } else {
           u->orders = UNITS_ORDER_NONE;
@@ -2512,13 +2563,21 @@ bool col1_bridge_capture(
          * route and it just sat in the activation queue (bugs.md
          * trade_route_wagon.SAV).
          */
-        if (src->orders == UNITS_ORDER_TRADE_ROUTE && src->follow_unit_id >= 0 &&
-            src->follow_unit_id < (int)COLONIZE_COL1_TRADE_ROUTE_COUNT) {
-          int stop = src->turns_worked;
-          if (stop < 0 || stop >= (int)COLONIZE_COL1_TRADE_ROUTE_STOPS) {
-            stop = 0;
+        if (dst->orders == (uint8_t)UNITS_ORDER_TRADE_ROUTE) {
+          const bool unit_sea = ut && ut->domain == COLONIZE_UNIT_DOMAIN_SEA;
+          if (col1_bridge_trade_cursor_valid(save, src->follow_unit_id, unit_sea)) {
+            const int stop =
+              col1_bridge_trade_cursor_stop(save, src->follow_unit_id, src->turns_worked);
+            dst->profession = (uint8_t)(((stop & 0xf) << 4) | (src->follow_unit_id & 0xf));
+          } else {
+            /* Symmetry with apply: a cursor the decoder would reject must not
+             * be written with orders 2 behind it, or the automation is dropped
+             * at load time instead of at save time. DOS never reaches this
+             * state (FUN_647e_1486 clears order 2 off units whose route is
+             * deleted), so writing the idle unit is the DOS-consistent
+             * outcome, and it is exactly what apply would have produced. */
+            dst->orders = 0;
           }
-          dst->profession = (uint8_t)(((stop & 0xf) << 4) | (src->follow_unit_id & 0xf));
         }
       }
       dst->turns_worked =
@@ -2871,13 +2930,12 @@ bool col1_bridge_capture(
            * the automation on reload.
            */
           const int route_slot = ship->trade_route_plus1 - 1;
-          int route_stop = ship->trade_stop;
-          if (route_stop < 0 || route_stop >= (int)COLONIZE_COL1_TRADE_ROUTE_STOPS) {
-            route_stop = 0;
-          }
-          const bool on_route = route_slot >= 0 &&
-                                route_slot < (int)COLONIZE_COL1_TRADE_ROUTE_COUNT &&
-                                save->trade_route[route_slot].dest_count > 0;
+          /* Same rule as the map encoder and both decoders — a lane ship is a
+           * ship, so the route has to be a sea route. */
+          const bool on_route =
+            col1_bridge_trade_cursor_valid(save, route_slot, /*unit_is_sea=*/true);
+          const int route_stop =
+            col1_bridge_trade_cursor_stop(save, route_slot, ship->trade_stop);
           int last = -1;
           for (int c = 0; c < ship->cargo_count && c < EUROPE_SHIP_CARGO_MAX; ++c) {
             int pti = ship->cargo_types[c];

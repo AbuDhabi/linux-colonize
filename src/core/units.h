@@ -536,11 +536,23 @@ void units_fountain_youth_enqueue_pick(
 void units_brewster_enqueue_pick(
   EuropeScreen* europe, AiPopupState* popups, const ColonizeMsgCatalog* game_txt, int human
 );
+/* The `_ex` forms carry the game rng into the 4884 tail's pool refill, whose
+ * `46d4` tier rolls DOS takes off the shared stream; the plain forms pass
+ * NULL (fixture shorthand). Smell audit 2026-09-10 G5. */
 bool units_brewster_apply_popup(
   EuropeScreen* europe, AiPopupState* popups, ColonizeUnitPool* units
 );
+bool units_brewster_apply_popup_ex(
+  EuropeScreen* europe, AiPopupState* popups, ColonizeUnitPool* units, ColonizeDosRng* rng
+);
 bool units_fountain_youth_apply_popup(
   EuropeScreen* europe, AiPopupState* popups, const ColonizeMsgCatalog* game_txt
+);
+bool units_fountain_youth_apply_popup_ex(
+  EuropeScreen* europe,
+  AiPopupState* popups,
+  const ColonizeMsgCatalog* game_txt,
+  ColonizeDosRng* rng
 );
 bool units_king_galleon_apply_popup(
   ColonizeUnitPool* pool,
@@ -1299,6 +1311,15 @@ int units_export_cargo_types(
   const ColonizeUnitPool* pool,
   int ship_id,
   int* out_types,
+  int out_max
+);
+/* Same walk, the passengers' @JOB professions (unset entries = -1) — the
+ * companion array europe_harbor_push_ex / europe_enqueue_expected want so a
+ * transferred passenger keeps its profession label. */
+int units_export_cargo_professions(
+  const ColonizeUnitPool* pool,
+  int ship_id,
+  int* out_profs,
   int out_max
 );
 /*

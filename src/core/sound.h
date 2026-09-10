@@ -9,8 +9,9 @@
  * DOS-faithful sound/music facade (FUN_12d8_000e gating + FUN_129f_* BGM).
  *
  * Music data is loaded from GSOUND.COL (General MIDI MicroProse driver). Song
- * IDs 0x20..0x3f are background music; 0x40..0x5c are event music; IDs < 0x10
- * are always forwarded (stop / system).
+ * IDs 0x20..0x3f are the song class (gated by the Event Music option);
+ * 0x40..0x5c are the event class (gated by Sound Effects); IDs < 0x10 as a
+ * signed 16-bit value are always forwarded (stop / system / chord stings).
  *
  * Streams are decoded from the GSOUND voice bytecode (note/dur pairs, ED chords,
  * F4 velocity, F8 program, F3 volume envelope, BB pitch-bend RPN, CC ops).
@@ -38,11 +39,26 @@ bool sound_playback_enabled(void);
 /* True when the audio device/backend was opened (previews can be heard). */
 bool sound_audio_output_ready(void);
 
+/*
+ * @SOUNDOPTIONS checkboxes in GAME.TXT:111-118 order. FUN_2b5a_23ce stores
+ * them as DS:0xa2 / DS:0xa0 / DS:0xa4 and saves them as Tut2 bits 0x2 / 0x4 /
+ * 0x8 (col1_save.h). Which flag gates what is *not* the naming: Event Music
+ * (DS:0xa0) gates the 0x20 song class, Sound Effects (DS:0xa4) gates the 0x40
+ * event class, and Background Music (DS:0xa2) gates only the BGM scheduler
+ * (FUN_129f_00f6/02cc). See sound_id_gate_allows.
+ */
 typedef struct ColonizeSoundOptions {
   bool background_music;
   bool event_music;
   bool sound_effects;
 } ColonizeSoundOptions;
+
+/*
+ * FUN_12d8_000e: true when the driver dispatcher would forward this id under
+ * these options. Ids below 0x10 *as a signed 16-bit value* — which includes
+ * the 0x8020/0x8024 chord stings — are always forwarded.
+ */
+bool sound_id_gate_allows(int id, ColonizeSoundOptions opts);
 
 bool sound_init(const char* data_dir, bool enable_audio);
 void sound_shutdown(void);

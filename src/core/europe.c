@@ -28,7 +28,34 @@ static void europe_purse_move(
   EuropeScreen* eu, struct ColonizeCol1Save* col1, int nation, long delta
 );
 
-/* Deterministic LCG for pool fills when no external rng passed. */
+/*
+ * Recruit-pool randomness. DOS `FUN_38fd_46d4` uses TWO sources and the
+ * split matters for stream fidelity:
+ *
+ *  - the three tier rolls come off the shared game stream,
+ *    `FUN_281f_04d4(1,15)` / `(1,10)` / `(1,8)` (viceroy_unpacked.c 64632,
+ *     64636, 64640) — the same stream `europe_immigrant_from_pool`'s slot
+ *     pick (`04d4(0,2)`, 68581) already takes a ColonizeDosRng* for, and the
+ *     two are drawn back to back in DOS's own phase-5 spawn (68581/68583);
+ *  - the expert value comes off a per-nation 5-bit LFSR
+ *    (`FUN_291f_0eda` stepping nation+0x44 with poly 0x14 plus the +0x45
+ *     salt, 64585-64590), which consumes NO shared-stream draw. A
+ *    force-expert refill (`46d4(1)`, the (turn & 3) == 0 case) therefore
+ *    advances the shared stream not at all.
+ *
+ * The port has the shared stream (ColonizeTurnContext.rng /
+ * ColonizeGameState.move_rng, plumbed in below) but not the LFSR: the port
+ * repurposed nation+0x44/+0x45 as ColonizeCol1Nation.diplo_flag[0..1]. So
+ * the tier rolls now go through dos_rng_range on the real stream and the
+ * expert value keeps this local LCG as the LFSR stand-in — which is also
+ * what keeps the shared stream exactly where DOS leaves it.
+ *
+ * The local state is seeded from the bound stream's current state (a read,
+ * never a draw) when there is one; the treasury-derived seed survives only
+ * for callers that legitimately hold no game rng — europe_seed_pool (which
+ * shares one state across the two slots it rolls) and fixture/unit-test
+ * callers that pass NULL.
+ */
 static unsigned europe_rng_next(unsigned* state) {
   unsigned s = state ? *state : 1u;
   s = s * 1103515245u + 12345u;
@@ -36,6 +63,24 @@ static unsigned europe_rng_next(unsigned* state) {
     *state = s;
   }
   return (s >> 16) & 0x7fffu;
+}
+
+typedef struct EuropePoolRng {
+  ColonizeDosRng* dos; /* shared game stream; NULL for fixture callers */
+  unsigned* local;     /* LFSR stand-in state; never NULL */
+} EuropePoolRng;
+
+/* DOS `FUN_281f_04d4(lo,hi)` — inclusive, off the shared stream. */
+static int europe_pool_tier_roll(EuropePoolRng* r, int lo, int hi) {
+  if (r->dos) {
+    return dos_rng_range(r->dos, lo, hi);
+  }
+  return lo + (int)(europe_rng_next(r->local) % (unsigned)(hi - lo + 1));
+}
+
+/* DOS's per-nation LFSR stand-in: 0..hi inclusive, no shared-stream draw. */
+static int europe_pool_expert_roll(EuropePoolRng* r, int hi) {
+  return (int)(europe_rng_next(r->local) % (unsigned)(hi + 1));
 }
 
 static void europe_trim(char* s) {
@@ -50,49 +95,6 @@ static void europe_trim(char* s) {
   while (n > 0 && (s[n - 1] == ' ' || s[n - 1] == '\t' || s[n - 1] == '\r')) {
     s[--n] = '\0';
   }
-}
-
-static void europe_remap_sheet_to_palette(
-  ColonizeSpriteSheet* sheet,
-  const ColonizePalette* dst_pal
-) {
-  if (!sheet || !dst_pal || !sheet->has_palette) {
-    return;
-  }
-  uint8_t lut[256];
-  for (int i = 0; i < 256; ++i) {
-    if (i == COLONIZE_SS_TRANSPARENT) {
-      lut[i] = (uint8_t)COLONIZE_SS_TRANSPARENT;
-      continue;
-    }
-    const int sr = sheet->palette.rgb[i][0];
-    const int sg = sheet->palette.rgb[i][1];
-    const int sb = sheet->palette.rgb[i][2];
-    int best = 0;
-    int best_d = 1 << 30;
-    for (int j = 0; j < 256; ++j) {
-      const int dr = sr - dst_pal->rgb[j][0];
-      const int dg = sg - dst_pal->rgb[j][1];
-      const int db = sb - dst_pal->rgb[j][2];
-      const int d = dr * dr + dg * dg + db * db;
-      if (d < best_d) {
-        best_d = d;
-        best = j;
-      }
-    }
-    lut[i] = (uint8_t)best;
-  }
-  for (int s = 0; s < sheet->sprite_count; ++s) {
-    ColonizeSprite* sp = &sheet->sprites[s];
-    if (!sp->pixels) {
-      continue;
-    }
-    const size_t n = (size_t)sp->width * (size_t)sp->height;
-    for (size_t i = 0; i < n; ++i) {
-      sp->pixels[i] = lut[sp->pixels[i]];
-    }
-  }
-  sheet->palette = *dst_pal;
 }
 
 static bool europe_parse_int_field(const char** cursor, int* out) {
@@ -473,23 +475,25 @@ static bool europe_job_is_expert(int job) {
  * salt, rejecting > 0x18) so the sequence never repeats a value inside one
  * cycle. Those two bytes are the ones the port repurposed as
  * ColonizeCol1Nation.diplo_flag[0..1], so the state is not available here;
- * a uniform draw over the same 0..0x18 range is used instead. The reachable
- * set and its distribution are identical, only the ordering differs.
+ * a uniform draw over the same 0..0x18 range is used instead (see
+ * EuropePoolRng — like the LFSR it takes no shared-stream draw). The
+ * reachable set and its distribution are identical, only the ordering
+ * differs. The tier rolls above are the real `04d4` stream draws.
  */
 static int europe_roll_pool_profession(
-  const EuropeScreen* eu, int slot, bool force_expert, unsigned* st
+  const EuropeScreen* eu, int slot, bool force_expert, EuropePoolRng* st
 ) {
   if (!force_expert) {
     /* DS:0x53a6 for the human nation; AI nations use 1. The port's Europe
      * screen caches the human's difficulty (eu->difficulty). */
     const int threshold = ((eu ? (int)eu->difficulty : 0) + 3) >> 1;
-    if ((int)(europe_rng_next(st) % 15u) + 1 <= threshold) {
+    if (europe_pool_tier_roll(st, 1, 15) <= threshold) {
       return (eu && eu->brewster_no_criminals) ? 0x13 : 0x1a; /* Petty Criminals */
     }
-    if ((int)(europe_rng_next(st) % 10u) + 1 <= threshold) {
+    if (europe_pool_tier_roll(st, 1, 10) <= threshold) {
       return (eu && eu->brewster_no_criminals) ? 0x13 : 0x19; /* Indentured Servants */
     }
-    if ((int)(europe_rng_next(st) % 8u) + 1 <= threshold) {
+    if (europe_pool_tier_roll(st, 1, 8) <= threshold) {
       return 0x13; /* Free Colonists (DOS 0x1c, drawn as Free Colonists) */
     }
   }
@@ -504,7 +508,7 @@ static int europe_roll_pool_profession(
     if (!any_non_expert) {
       return 0x13; /* three experts already in the pool */
     }
-    const int job = europe_pool_remap((int)(europe_rng_next(st) % 0x19u));
+    const int job = europe_pool_remap(europe_pool_expert_roll(st, 0x18));
     if (++tries > 100) {
       return job;
     }
@@ -527,10 +531,25 @@ static int europe_roll_pool_profession(
 /* bugs.md: Brewster's ban covers the EXISTING pool too — slots rolled
  * before the flag rose still held Petty Criminals / Indentured Servants,
  * so the Recruit list and the docks disagreed with the Brewster pick
- * dialog. DOS FUN_4345_0342 case 0x14 walks the three pool slot bytes and
- * overwrites 0x19/0x1a (servant/criminal) with 0x1c — job NONE, which
- * FUN_38fd_4884 draws as Free Colonists (0x1c→0x13 label swap). A direct
- * substitution, not a reroll (bugs.md 230 kept it idempotent). */
+ * dialog. DOS FUN_4345_0342 case 0x14 walks the three pool slot bytes
+ * (nation*0x13c - 0x77f6, viceroy_unpacked.c 73160-73168) and overwrites
+ * 0x19/0x1a (servant/criminal) with 0x1c — job NONE, which FUN_38fd_4884
+ * draws as Free Colonists (0x1c→0x13 label swap, 64719 / 68591). A direct
+ * substitution, not a reroll (bugs.md 230 kept it idempotent).
+ *
+ * The 0x13 stored below is that swap applied at the store instead of at the
+ * draw — the port's single pool convention, not a divergence (smell audit
+ * 2026-09-10 G5 secondary, refuted):
+ *   - europe_set_pool_slot folds 0x1c (and every unnamed job) to 0x13 on
+ *     load, and europe_roll_pool_profession's own free tier returns 0x13
+ *     where DOS returns 0x1c, so 0x13 is the port's Free Colonists byte
+ *     everywhere in the pool;
+ *   - the roll's duplicate check cannot tell them apart: it only ever
+ *     compares against europe_pool_remap output (0..0x18), which is never
+ *     0x13 nor 0x1c;
+ *   - col1_bridge reads a saved 0x1c as "slot empty" (col1_bridge.c:1701)
+ *     and would reroll a fully-Brewstered pool on the next load if this
+ *     wrote the raw DOS byte. */
 void europe_apply_brewster(EuropeScreen* eu, int owned) {
   if (!eu || !owned) {
     return;
@@ -545,24 +564,42 @@ void europe_apply_brewster(EuropeScreen* eu, int owned) {
   }
 }
 
-void europe_refill_pool_slot_ex(
-  EuropeScreen* eu, int slot, bool force_expert, unsigned* rng_state
+static void europe_refill_pool_slot_impl(
+  EuropeScreen* eu, int slot, bool force_expert, ColonizeDosRng* dos, unsigned* rng_state
 ) {
   if (!eu || slot < 0 || slot >= EUROPE_POOL_SIZE) {
     return;
   }
-  unsigned local = 1u + (unsigned)(eu->gold + eu->recruit_passage + slot * 17);
-  unsigned* st = rng_state ? rng_state : &local;
-  const int job = europe_roll_pool_profession(eu, slot, force_expert, st);
+  /* See EuropePoolRng: with a bound stream the LFSR stand-in is seeded from
+   * that stream's state (a read, not a draw); the treasury seed is the
+   * no-rng fallback only. */
+  unsigned local = dos ? (dos->state | 1u)
+                       : 1u + (unsigned)(eu->gold + eu->recruit_passage + slot * 17);
+  EuropePoolRng st;
+  st.dos = dos;
+  st.local = rng_state ? rng_state : &local;
+  const int job = europe_roll_pool_profession(eu, slot, force_expert, &st);
   EuropePoolSlot* p = &eu->pool[slot];
   snprintf(p->name, sizeof(p->name), "%s", europe_pool_job_name(job));
   p->profession = job;
   p->filled = true;
 }
 
+void europe_refill_pool_slot_ex(
+  EuropeScreen* eu, int slot, bool force_expert, unsigned* rng_state
+) {
+  europe_refill_pool_slot_impl(eu, slot, force_expert, NULL, rng_state);
+}
+
 void europe_refill_pool_slot(EuropeScreen* eu, int slot, unsigned* rng_state) {
   /* DOS 64776 (the Recruit-click tail) calls 46d4(0) — the tier roll. */
   europe_refill_pool_slot_ex(eu, slot, false, rng_state);
+}
+
+void europe_refill_pool_slot_rng(
+  EuropeScreen* eu, int slot, bool force_expert, ColonizeDosRng* rng
+) {
+  europe_refill_pool_slot_impl(eu, slot, force_expert, rng, NULL);
 }
 
 /* Restore one pool slot from a saved nation+2..+4 job byte. 0x1c (job NONE,
@@ -1082,7 +1119,16 @@ bool europe_load(EuropeScreen* eu, const char* data_dir, char* err, size_t err_s
   if (dos_compat_normalize_asset_path(data_dir, "WOODTILE.SS", ss_path, sizeof(ss_path)) &&
       ss_load(ss_path, &eu->wood_tile, ss_err, sizeof(ss_err))) {
     if (eu->background.has_palette) {
-      europe_remap_sheet_to_palette(&eu->wood_tile, &eu->background.palette);
+      /*
+       * REMAP, not merge: WOODTILE.SS reserves no DAC block of its own (it is
+       * black across 152..251, the same block EUROPE.PIK leaves black, plus
+       * EUROPE's 120..127 water ramp) — the merge rule is for sheets that ship
+       * entries for the host's black block (KING, IND<t>A<n>, MSSn, MYRn, SCORE<nn>).
+       * WOODTILE paints only 11 indices and EUROPE.PIK carries identical RGB
+       * for all 11, so this remap is an identity today; it stays as insurance
+       * against a modded EUROPE.PIK.
+       */
+      assets_sheet_remap_to_palette(&eu->wood_tile, &eu->background.palette);
     }
     eu->wood_tile_ok = true;
   } else {
@@ -1169,6 +1215,10 @@ static void europe_bump_recruit_count(EuropeScreen* eu) {
 }
 
 bool europe_recruit_from_pool(EuropeScreen* eu, int pool_index) {
+  return europe_recruit_from_pool_ex(eu, pool_index, NULL);
+}
+
+bool europe_recruit_from_pool_ex(EuropeScreen* eu, int pool_index, ColonizeDosRng* rng) {
   if (!eu || pool_index < 0 || pool_index >= EUROPE_POOL_SIZE) {
     return false;
   }
@@ -1219,16 +1269,23 @@ bool europe_recruit_from_pool(EuropeScreen* eu, int pool_index) {
   eu->current_crosses = 0;
   eu->immigration_pressure = 0;
   europe_bump_recruit_count(eu);
-  europe_refill_pool_slot(eu, pool_index, NULL);
+  /* 64776: the emptied slot is refilled by `46d4(0)` off the shared stream. */
+  europe_refill_pool_slot_rng(eu, pool_index, false, rng);
   return true;
 }
 
 bool europe_recruit_free_from_pool(EuropeScreen* eu, int pool_index) {
+  return europe_recruit_free_from_pool_ex(eu, pool_index, NULL);
+}
+
+bool europe_recruit_free_from_pool_ex(
+  EuropeScreen* eu, int pool_index, ColonizeDosRng* rng
+) {
   if (!eu || pool_index < 0 || pool_index >= EUROPE_POOL_SIZE) {
     return false;
   }
   if (!eu->pool[pool_index].filled) {
-    europe_refill_pool_slot(eu, pool_index, NULL);
+    europe_refill_pool_slot_rng(eu, pool_index, false, rng);
   }
   if (eu->dock_count >= EUROPE_DOCK_MAX) {
     europe_set_status(eu, "Docks are full.");
@@ -1244,12 +1301,18 @@ bool europe_recruit_free_from_pool(EuropeScreen* eu, int pool_index) {
   slot->sentry = true;
   slot->dos_type = europe_dock_type_for(slot->name, slot->profession);
   snprintf(eu->status, sizeof(eu->status), "%s joins the docks.", slot->name);
-  europe_refill_pool_slot(eu, pool_index, NULL);
+  europe_refill_pool_slot_rng(eu, pool_index, false, rng);
   return true;
 }
 
 bool europe_brewster_pick_from_pool(EuropeScreen* eu, int pool_index) {
-  if (!eu || !europe_recruit_free_from_pool(eu, pool_index)) {
+  return europe_brewster_pick_from_pool_ex(eu, pool_index, NULL);
+}
+
+bool europe_brewster_pick_from_pool_ex(
+  EuropeScreen* eu, int pool_index, ColonizeDosRng* rng
+) {
+  if (!eu || !europe_recruit_free_from_pool_ex(eu, pool_index, rng)) {
     return false;
   }
   /* 4884 tail with param_1==0: +0x2e crosses zeroed after the pick; no +6
@@ -1286,7 +1349,7 @@ bool europe_immigrant_from_pool(EuropeScreen* eu, ColonizeDosRng* rng) {
     }
   }
   if (slot < 0) {
-    europe_refill_pool_slot(eu, 0, NULL);
+    europe_refill_pool_slot_rng(eu, 0, false, rng);
     slot = 0;
   }
   EuropeDockImmigrant* d = &eu->dock[eu->dock_count++];
@@ -1298,8 +1361,10 @@ bool europe_immigrant_from_pool(EuropeScreen* eu, ColonizeDosRng* rng) {
   d->dos_type = europe_dock_type_for(d->name, d->profession);
   /* DOS 0718 harbor-spawn does NOT bump Europe+6 — only 4884's own real
    * Recruit-click tail does (see europe_compute_recruit_passage). */
-  /* 68583: this refill is `46d4((turn & 3) == 0)`, not `46d4(0)`. */
-  europe_refill_pool_slot_ex(eu, slot, eu->pool_force_expert, NULL);
+  /* 68583: this refill is `46d4((turn & 3) == 0)`, not `46d4(0)` — and it
+   * rolls off the same shared stream as the 04d4(0,2) slot pick above, the
+   * two draws back to back (68581/68583). */
+  europe_refill_pool_slot_rng(eu, slot, eu->pool_force_expert, rng);
   return true;
 }
 
@@ -2015,6 +2080,21 @@ bool europe_harbor_push(
   const int* hold_goods_type,
   const int* hold_goods_amount
 ) {
+  return europe_harbor_push_ex(
+    eu, type_index, name, cargo_types, NULL, cargo_count, hold_goods_type, hold_goods_amount
+  );
+}
+
+bool europe_harbor_push_ex(
+  EuropeScreen* eu,
+  int type_index,
+  const char* name,
+  const int* cargo_types,
+  const int* cargo_professions,
+  int cargo_count,
+  const int* hold_goods_type,
+  const int* hold_goods_amount
+) {
   if (!eu) {
     return false;
   }
@@ -2030,7 +2110,11 @@ bool europe_harbor_push(
     const int n = cargo_count > EUROPE_SHIP_CARGO_MAX ? EUROPE_SHIP_CARGO_MAX : cargo_count;
     for (int i = 0; i < n; ++i) {
       slot->cargo_types[i] = cargo_types[i];
-      slot->cargo_professions[i] = -1;
+      /* Carry the @JOB through exactly as the Expected mirror
+       * (europe_enqueue_expected) does — without it a pushed ship's
+       * passengers lost their profession label
+       * (reports_naval_passenger_label fell back to the bare unit name). */
+      slot->cargo_professions[i] = cargo_professions ? cargo_professions[i] : -1;
     }
     slot->cargo_count = n;
   }
@@ -2432,8 +2516,14 @@ void europe_tick_voyages(EuropeScreen* eu, const ColonizeUnitPool* units) {
     europe_disembark_passengers_to_dock(eu, &ship, units);
     eu->harbor[eu->harbor_ships++] = ship;
     eu->open_on_dock = true;
+    /* 255 is the empty-hold sentinel, not a full hold — the same guard every
+     * other hold consumer carries (europe_goods_slots_used, europe_sell_hold
+     * / _partial, europe_best_sell_hold, europe_buy_cargo, reports.c's cargo
+     * rows). units_despawn_ship_with_cargo copies the raw hold bytes in, so
+     * without it a sentinel hold fired the once-per-game "Cargo from the New
+     * World" woodcut (turn.c → WOODCUT_CARGO_FROM_THE_NEW_WORLD). */
     for (int g = 0; g < EUROPE_SHIP_CARGO_MAX; ++g) {
-      if (ship.hold_goods_amount[g] > 0) {
+      if (ship.hold_goods_amount[g] > 0 && ship.hold_goods_amount[g] < 255) {
         eu->docked_with_goods = true;
         break;
       }
@@ -4547,6 +4637,10 @@ bool europe_dock_menu_apply_selection(
 }
 
 bool europe_menu_confirm(EuropeScreen* eu) {
+  return europe_menu_confirm_ex(eu, NULL);
+}
+
+bool europe_menu_confirm_ex(EuropeScreen* eu, ColonizeDosRng* rng) {
   if (!eu || eu->menu == EUROPE_MENU_NONE) {
     return false;
   }
@@ -4574,7 +4668,7 @@ bool europe_menu_confirm(EuropeScreen* eu) {
   }
   if (m == EUROPE_MENU_RECRUIT) {
     const int pool_i = sel - 1;
-    const bool ok = europe_recruit_from_pool(eu, pool_i);
+    const bool ok = europe_recruit_from_pool_ex(eu, pool_i, rng);
     europe_menu_close(eu);
     return ok;
   }
