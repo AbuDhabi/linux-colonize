@@ -4615,6 +4615,56 @@ int ai_native_brave_turn_origin(int unit_id, int* out_x, int* out_y) {
   return 1;
 }
 
+/*
+ * bugs.md ("I refused, and they didn't attack my wagon train next turn"):
+ * a Brave whose HOME village holds an attitude word over 0x7f toward a
+ * European (LAB_5bfb_0ff2's refused-demand +0x80 — the same `0x7f <` band
+ * FUN_521d_0906 reads out of DS:0x54f6) is an ALARMED unit: DOS's 021a
+ * dispatches it to the raid/attack path instead of the quiet 14fe wander.
+ * That alarmed dispatch is PARKED in the port, and §9's raid pass runs AFTER
+ * this pulse and needs remaining MP — so a grudge-carrying Brave wandered its
+ * whole allotment away and could never answer the refusal. Leave it standing
+ * for the §9 raid dispatch when the offender is right there.
+ */
+static bool ai_native_brave_grudge_hold(
+  const ColonizeUnitPool* units, const ColonizeColonyPool* colonies,
+  const ColonizeCol1Save* col1, const ColonizeUnit* u
+) {
+  if (!units || !col1 || !col1->tribe || !u) {
+    return false;
+  }
+  if (u->home_tribe_id < 0 || u->home_tribe_id >= (int)col1->head.tribe_count) {
+    return false;
+  }
+  const ColonizeCol1Tribe* t = &col1->tribe[u->home_tribe_id];
+  for (int e = 0; e < 4; ++e) {
+    if (col1_tribe_attitude(t, e) <= 0x7f) {
+      continue;
+    }
+    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+      const ColonizeUnit* f = &units->units[i];
+      if (!f->active || f->nation_id != e || !units_is_on_map(f)) {
+        continue;
+      }
+      if (abs(f->x - u->x) <= 1 && abs(f->y - u->y) <= 1) {
+        return true;
+      }
+    }
+    if (colonies) {
+      for (int ci = 0; ci < COLONIZE_COLONIES_MAX; ++ci) {
+        const ColonizeColony* c = &colonies->colonies[ci];
+        if (!c->active || c->nation_id != e) {
+          continue;
+        }
+        if (abs(c->x - u->x) <= 1 && abs(c->y - u->y) <= 1) {
+          return true;
+        }
+      }
+    }
+  }
+  return false;
+}
+
 static void ai_native_nation_pulse(
   ColonizeUnitPool* units,
   ColonizeWorldMap* map,
@@ -4725,6 +4775,11 @@ static void ai_native_nation_pulse(
           (u->home_tribe_id < 0 ||
            u->home_tribe_id >= (int)col1->head.tribe_count)) {
         units_despawn(units, u->id);
+        break;
+      }
+      /* Alarmed dispatch stand-in — see ai_native_brave_grudge_hold. */
+      if (ai_native_brave_grudge_hold(units, s_ai_native_colonies, col1, u)) {
+        u->turns_worked--;
         break;
       }
       if (ai_lcg_audit_enabled() && seed100_init_burns) {

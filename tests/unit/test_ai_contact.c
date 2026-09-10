@@ -648,6 +648,23 @@ static int test_contact_chains_do_not_interleave(void) {
   return 0;
 }
 
+/*
+ * bugs.md (Iroquois raid loop): a pulse raid now discharges the raiding
+ * party, exactly as DOS's only FUN_5fef_0f14 caller does (the attacker is
+ * already dead when 1b0e hands off). These fixtures reuse one Brave slot
+ * across dozens of raid arms, so revive it after each call instead of
+ * respawning at every site.
+ */
+#define RUN_INDIAN_RAIDS()                                       \
+  do {                                                           \
+    const ColonizeUnit brave_snap_ = *brave;                     \
+    ai_contact_indian_raids(&ctx, 4);                            \
+    if (brave_snap_.active && !brave->active) {                  \
+      *brave = brave_snap_;                                      \
+      units.unit_count++;                                        \
+    }                                                            \
+  } while (0)
+
 int main(void) {
   if (test_ai_only_meet_is_silent_for_human() != 0) {
     return 1;
@@ -789,7 +806,7 @@ int main(void) {
   /* War bit clear → FUN_5fef_0f14's alarm tail is not gated out (see below). */
   ind->euro_diplo[0] = (uint8_t)(ind->euro_diplo[0] & ~COL1_INDIAN_WAR_BIT);
   int alarm_pre_raid = (int)ind->alarm_by_player[0];
-  ai_contact_indian_raids(&ctx, 4);
+  RUN_INDIAN_RAIDS();
   const int kind = ai_contact_last_raid_kind();
   if (kind < AI_RAID_NOTHING || kind > AI_RAID_GOLD) {
     return fail("raid kind out of range");
@@ -802,7 +819,7 @@ int main(void) {
     col1.tribe[0].alarm[0].friction = 65;
     brave->moves_left = 0;
     alarm_pre_raid = (int)ind->alarm_by_player[0];
-    ai_contact_indian_raids(&ctx, 4);
+    RUN_INDIAN_RAIDS();
   }
   if (ai_contact_last_raid_kind() == AI_RAID_NOTHING && c->stock[COLONIZE_CARGO_FOOD] == food0) {
     /* Still nothing: apply path must have run — accept if attacks bumped. */
@@ -862,7 +879,7 @@ int main(void) {
     brave->y = 5;
     brave->moves_left = 0;
     const int alarm_war_pre = (int)ind->alarm_by_player[0];
-    ai_contact_indian_raids(&ctx, 4);
+    RUN_INDIAN_RAIDS();
     if ((int)ind->alarm_by_player[0] != alarm_war_pre) {
       return fail("raid alarm tail must be skipped while at war (15b3 bit 1)");
     }
@@ -946,7 +963,7 @@ int main(void) {
     /* Raid marker: 0f14's tail zeroes the home village's attitude word for
      * every kind incl. "Nothing" — but only with a valid home_tribe_id. */
     brave->home_tribe_id = 0;
-    ai_contact_indian_raids(&ctx, 4);
+    RUN_INDIAN_RAIDS();
     /* Any raid — "Nothing" included — zeroes the attitude word via 0f14's
      * tail; an untouched word means the gate never opened. */
     if (col1_tribe_attitude(&col1.tribe[0], 2) != 35) {
@@ -955,7 +972,7 @@ int main(void) {
     ind->alarm_by_player[2] = 40;
     col1.tribe[0].alarm[2].friction = 40;
     brave->moves_left = 0;
-    ai_contact_indian_raids(&ctx, 4);
+    RUN_INDIAN_RAIDS();
     if (col1_tribe_attitude(&col1.tribe[0], 2) == 40) {
       return fail("SP at 40 should open the raid gate (attitude word zeroed)");
     }
@@ -1047,7 +1064,7 @@ int main(void) {
     col1.tribe[0].alarm[0].friction = 55;
     euro->x = 10;
     euro->y = 10;
-    ai_contact_indian_raids(&ctx, 4);
+    RUN_INDIAN_RAIDS();
     if (!brave->active) {
       return fail("ambush win should keep Brave alive");
     }
@@ -1076,7 +1093,7 @@ int main(void) {
     brave->moves_left = 0;
     brave->muskets = 0;
     brave->horses = 0;
-    ai_contact_indian_raids(&ctx, 4);
+    RUN_INDIAN_RAIDS();
     if (brave->horses < 50) {
       return fail("ambush WIN2 should transfer foe horses onto Brave");
     }
@@ -1851,7 +1868,7 @@ int main(void) {
   const int muskets_ml = c->stock[COLONIZE_CARGO_MUSKETS];
   const int pop_ml = c->population;
   const uint16_t gold_ml = col1.nation[0].gold;
-  ai_contact_indian_raids(&ctx, 4);
+  RUN_INDIAN_RAIDS();
   {
     const int kind_ml = ai_contact_last_raid_kind();
     if (kind_ml == AI_RAID_NOTHING) {
@@ -1927,7 +1944,7 @@ int main(void) {
     ctx.status = status;
     ctx.status_size = sizeof(status);
     ctx.human_nation = 0;
-    ai_contact_indian_raids(&ctx, 4);
+    RUN_INDIAN_RAIDS();
     if (ai_contact_last_raid_kind() != AI_RAID_STORES) {
       return fail("muskets-only warehouse should pick AI_RAID_STORES");
     }
@@ -1979,7 +1996,7 @@ int main(void) {
     assets_msg_init(&game_txt_raid);
     (void)assets_msg_load_file(&game_txt_raid, "COLONIZE/GAME.TXT");
     ctx.messages = &game_txt_raid;
-    ai_contact_indian_raids(&ctx, 4);
+    RUN_INDIAN_RAIDS();
     ctx.messages = NULL;
     assets_msg_free(&game_txt_raid);
     if (ai_contact_last_raid_kind() != AI_RAID_STORES) {
@@ -2023,7 +2040,7 @@ int main(void) {
     c->stock[COLONIZE_CARGO_SILVER] = 2;
     const int food_vs = c->stock[COLONIZE_CARGO_FOOD];
     const int sil_vs = c->stock[COLONIZE_CARGO_SILVER];
-    ai_contact_indian_raids(&ctx, 4);
+    RUN_INDIAN_RAIDS();
     if (ai_contact_last_raid_kind() != AI_RAID_STORES) {
       return fail("food+silver warehouse should pick AI_RAID_STORES");
     }
@@ -2063,7 +2080,7 @@ int main(void) {
   status[0] = '\0';
   const int sx0 = scout->x;
   const int sy0 = scout->y;
-  ai_contact_indian_raids(&ctx, 4);
+  RUN_INDIAN_RAIDS();
   scout = units_get(&units, scout_id);
   if (!scout || !scout->active) {
     return fail("359c should displace Scout when free land exists");
@@ -2111,7 +2128,7 @@ int main(void) {
       col1.tribe[0].alarm[0].friction = 95;
       status[0] = '\0';
       const int sid = scout->id;
-      ai_contact_indian_raids(&ctx, 4);
+      RUN_INDIAN_RAIDS();
       scout = units_get(&units, sid);
       if (!scout || !scout->active) {
         if (strstr(status, "kill") == NULL) {
@@ -2214,7 +2231,7 @@ int main(void) {
   ind->alarm_by_player[0] = 90; /* 359c gate */
   col1.tribe[0].alarm[0].friction = 90;
   status[0] = '\0';
-  ai_contact_indian_raids(&ctx, 4);
+  RUN_INDIAN_RAIDS();
   scout = units_get(&units, scout_id);
   if (scout && scout->active) {
     return fail("359c should despawn Scout when displace is blocked");
@@ -2308,7 +2325,7 @@ int main(void) {
     ctx.status = status;
     ctx.status_size = sizeof(status);
     ctx.human_nation = 0;
-    ai_contact_indian_raids(&ctx, 4);
+    RUN_INDIAN_RAIDS();
     if (c->stock[COLONIZE_CARGO_MUSKETS] != 0) {
       return fail("empty warehouse raid must not invent muskets loot");
     }
@@ -2350,7 +2367,7 @@ int main(void) {
     snprintf(c->name, sizeof(c->name), "Roanoke");
     memset(c->stock, 0, sizeof(c->stock));
     c->stock[COLONIZE_CARGO_FOOD] = 20;
-    ai_contact_indian_raids(&ctx, 4);
+    RUN_INDIAN_RAIDS();
     if (ai_contact_last_raid_kind() == AI_RAID_NOTHING) {
       /* "Nothing" is a legal 0f14 roll; the raid still marks itself by
        * zeroing the home village's attitude word (the retired attacks++
@@ -2383,7 +2400,7 @@ int main(void) {
       brave->moves_left = 0;
       brave->x = 5;
       brave->y = 5;
-      ai_contact_indian_raids(&ctx, 4);
+      RUN_INDIAN_RAIDS();
       if (ai_contact_last_raid_kind() != AI_RAID_NOTHING) {
         break;
       }
@@ -2788,7 +2805,7 @@ int main(void) {
     colonies.colony_count = 2;
     const int food0 = c0->stock[COLONIZE_CARGO_FOOD];
     const int food1 = c1->stock[COLONIZE_CARGO_FOOD];
-    ai_contact_indian_raids(&ctx, 4);
+    RUN_INDIAN_RAIDS();
     if (c1->stock[COLONIZE_CARGO_FOOD] >= food1 && c1->population >= 3 &&
         col1.tribe[0].alarm[1].attacks == 0) {
       return fail("raid should prefer lower-relation Euro among equal friction");
@@ -2845,7 +2862,7 @@ int main(void) {
     colonies.colony_count = 2;
     const int food0w = c0->stock[COLONIZE_CARGO_FOOD];
     const int food1w = c1->stock[COLONIZE_CARGO_FOOD];
-    ai_contact_indian_raids(&ctx, 4);
+    RUN_INDIAN_RAIDS();
     if (c1->stock[COLONIZE_CARGO_FOOD] >= food1w && c1->population >= 3 &&
         col1.tribe[0].alarm[1].attacks == 0) {
       return fail("raid should prefer at-war Euro over higher-friction peer");
@@ -2904,7 +2921,7 @@ int main(void) {
     colonies.colony_count = 2;
     const int food_plain = c_food->stock[COLONIZE_CARGO_FOOD];
     const int musk_mil = c_mil->stock[COLONIZE_CARGO_MUSKETS];
-    ai_contact_indian_raids(&ctx, 4);
+    RUN_INDIAN_RAIDS();
     if (c_mil->stock[COLONIZE_CARGO_MUSKETS] >= musk_mil &&
         c_mil->stock[COLONIZE_CARGO_FOOD] >= 20 &&
         col1.tribe[0].alarm[0].attacks == 0) {
@@ -2950,7 +2967,7 @@ int main(void) {
     c_ms->stock[COLONIZE_CARGO_FOOD] = 20;
     colonies.colony_count = 1;
     const int food_ms = c_ms->stock[COLONIZE_CARGO_FOOD];
-    ai_contact_indian_raids(&ctx, 4);
+    RUN_INDIAN_RAIDS();
     if (c_ms->stock[COLONIZE_CARGO_FOOD] != food_ms ||
         col1.tribe[0].alarm[0].attacks != 0) {
       return fail("mid-friction mission tribe should not raise raid gate");
@@ -2958,7 +2975,7 @@ int main(void) {
     /* Burn band (≥80) from mission tribe still raises the gate. */
     col1.tribe[0].alarm[0].friction = 85;
     brave->moves_left = 0;
-    ai_contact_indian_raids(&ctx, 4);
+    RUN_INDIAN_RAIDS();
     if (c_ms->stock[COLONIZE_CARGO_FOOD] >= food_ms &&
         col1.tribe[0].alarm[0].attacks == 0) {
       return fail("burn-band mission tribe friction should still allow raid");
@@ -3065,7 +3082,7 @@ int main(void) {
     colonies.colony_count = 2;
     const int food_plain = c_plain->stock[COLONIZE_CARGO_FOOD];
     const int tools_pref = c_tools->stock[COLONIZE_CARGO_TOOLS];
-    ai_contact_indian_raids(&ctx, 4);
+    RUN_INDIAN_RAIDS();
     if (c_tools->stock[COLONIZE_CARGO_TOOLS] >= tools_pref &&
         c_tools->stock[COLONIZE_CARGO_FOOD] >= 20 &&
         col1.tribe[0].alarm[0].attacks == 0) {
@@ -3127,7 +3144,7 @@ int main(void) {
     colonies.colony_count = 2;
     const int food_plain = c_plain->stock[COLONIZE_CARGO_FOOD];
     const int silver_pref = c_silver->stock[COLONIZE_CARGO_SILVER];
-    ai_contact_indian_raids(&ctx, 4);
+    RUN_INDIAN_RAIDS();
     if (c_silver->stock[COLONIZE_CARGO_SILVER] >= silver_pref &&
         c_silver->stock[COLONIZE_CARGO_FOOD] >= 20 &&
         col1.tribe[0].alarm[0].attacks == 0) {
@@ -3189,7 +3206,7 @@ int main(void) {
     colonies.colony_count = 2;
     const int tools_pref = c_tools->stock[COLONIZE_CARGO_TOOLS];
     const int silver_pref = c_silver->stock[COLONIZE_CARGO_SILVER];
-    ai_contact_indian_raids(&ctx, 4);
+    RUN_INDIAN_RAIDS();
     if (c_tools->stock[COLONIZE_CARGO_TOOLS] >= tools_pref &&
         col1.tribe[0].alarm[0].attacks == 0) {
       return fail("alarm 55 should prefer tools colony over silver peer");
@@ -3207,7 +3224,7 @@ int main(void) {
     brave->orders = UNITS_ORDER_NONE;
     ind->alarm_by_player[0] = 80;
     col1.tribe[0].alarm[0].friction = 80;
-    ai_contact_indian_raids(&ctx, 4);
+    RUN_INDIAN_RAIDS();
     if (c_silver->stock[COLONIZE_CARGO_SILVER] >= silver_pref &&
         col1.tribe[0].alarm[0].attacks == 0) {
       return fail("alarm≥80 should prefer silver wealth over tools peer");
@@ -3269,7 +3286,7 @@ int main(void) {
     ctx.status = status;
     ctx.status_size = sizeof(status);
     ctx.human_nation = 0;
-    ai_contact_indian_raids(&ctx, 4);
+    RUN_INDIAN_RAIDS();
     if (ai_contact_last_raid_kind() != AI_RAID_BURN) {
       fprintf(
         stderr,
@@ -3346,7 +3363,7 @@ int main(void) {
     }
     units_set_combat_human_nation(0);
     units_set_combat_popups(&pop_fbrn, &game_txt_fbrn);
-    ai_contact_indian_raids(&ctx, 4);
+    RUN_INDIAN_RAIDS();
     units_set_combat_popups(NULL, NULL);
     units_set_combat_human_nation(-1);
     ctx.ai_popups = NULL;
@@ -3426,7 +3443,7 @@ int main(void) {
     c_bd->has_building[0] = true;
     c_bd->has_building[1] = true;
     colonies.colony_count = 1;
-    ai_contact_indian_raids(&ctx, 4);
+    RUN_INDIAN_RAIDS();
     if (ai_contact_last_raid_kind() != AI_RAID_BURN) {
       fprintf(stderr, "unit_ai_contact: burn-building kind=%d\n",
               ai_contact_last_raid_kind());
@@ -3454,7 +3471,7 @@ int main(void) {
       brave->moves_left = 0;
       brave->x = 5;
       brave->y = 5;
-      ai_contact_indian_raids(&ctx, 4);
+      RUN_INDIAN_RAIDS();
       if (ai_contact_last_raid_kind() != AI_RAID_BURN || c_bd->has_building[1]) {
         return fail("BURN status probe needs building destroy");
       }
@@ -3504,7 +3521,7 @@ int main(void) {
     brave->follow_unit_id = -1;
     const int bx0 = brave->x;
     const int by0 = brave->y;
-    ai_contact_indian_raids(&ctx, 4);
+    RUN_INDIAN_RAIDS();
     brave = units_get(&units, brave_id);
     if (!brave || !brave->active) {
       return fail("escort follower must remain active");
@@ -3571,7 +3588,7 @@ int main(void) {
     far_lead->orders = UNITS_ORDER_AI_MOVE;
     far_lead->goto_x = 12;
     far_lead->goto_y = 5; /* toward raid-gate Euro colony */
-    ai_contact_indian_raids(&ctx, 4);
+    RUN_INDIAN_RAIDS();
     brave = units_get(&units, brave_id);
     if (!brave || brave->orders != UNITS_ORDER_FOLLOW ||
         brave->follow_unit_id != far_id) {
@@ -3608,7 +3625,7 @@ int main(void) {
     far_lead->orders = UNITS_ORDER_AI_MOVE;
     far_lead->goto_x = 12;
     far_lead->goto_y = 5;
-    ai_contact_indian_raids(&ctx, 4);
+    RUN_INDIAN_RAIDS();
     brave = units_get(&units, brave_id);
     if (!brave || brave->orders != UNITS_ORDER_FOLLOW ||
         brave->follow_unit_id != near2) {
@@ -3647,7 +3664,7 @@ int main(void) {
     md4_lead->orders = UNITS_ORDER_AI_MOVE;
     md4_lead->goto_x = 12;
     md4_lead->goto_y = 5;
-    ai_contact_indian_raids(&ctx, 4);
+    RUN_INDIAN_RAIDS();
     brave = units_get(&units, brave_id);
     if (!brave || brave->orders != UNITS_ORDER_FOLLOW || brave->follow_unit_id != md4) {
       fprintf(stderr, "unit_ai_contact: alarmed MD4 follow=%d\n",
@@ -3684,7 +3701,7 @@ int main(void) {
     md5_lead->orders = UNITS_ORDER_AI_MOVE;
     md5_lead->goto_x = 12;
     md5_lead->goto_y = 5;
-    ai_contact_indian_raids(&ctx, 4);
+    RUN_INDIAN_RAIDS();
     brave = units_get(&units, brave_id);
     if (brave && brave->orders == UNITS_ORDER_FOLLOW && brave->follow_unit_id == md5) {
       return fail("alarm 55 escort must not reach lead at MD=5");
@@ -3693,7 +3710,7 @@ int main(void) {
     brave->follow_unit_id = -1;
     ind->alarm_by_player[0] = 80;
     col1.tribe[0].alarm[0].friction = 80;
-    ai_contact_indian_raids(&ctx, 4);
+    RUN_INDIAN_RAIDS();
     brave = units_get(&units, brave_id);
     if (!brave || brave->orders != UNITS_ORDER_FOLLOW || brave->follow_unit_id != md5) {
       fprintf(stderr, "unit_ai_contact: hot MD5 follow=%d\n",
@@ -3751,7 +3768,7 @@ int main(void) {
     memset(c_fr->stock, 0, sizeof(c_fr->stock));
     c_fr->stock[COLONIZE_CARGO_FOOD] = 20;
     colonies.colony_count = 1;
-    ai_contact_indian_raids(&ctx, 4);
+    RUN_INDIAN_RAIDS();
     const int raid_kind = ai_contact_last_raid_kind();
     if (raid_kind == AI_RAID_NOTHING) {
       return fail("raid friction escalate needs successful loot kind");
@@ -3816,7 +3833,7 @@ int main(void) {
         c_fr->population = 3;
         ind->alarm_by_player[0] = 90;
         col1.tribe[0].alarm[0].friction = 90;
-        ai_contact_indian_raids(&ctx, 4);
+        RUN_INDIAN_RAIDS();
         const int k = ai_contact_last_raid_kind();
         if (k == AI_RAID_WREAK) {
           return fail("year<1520 should demote WREAK away");
@@ -3851,7 +3868,7 @@ int main(void) {
     brave->moves_left = 0;
     brave->x = 5;
     brave->y = 5;
-    ai_contact_indian_raids(&ctx, 4);
+    RUN_INDIAN_RAIDS();
     const int poca_kind = ai_contact_last_raid_kind();
     if (poca_kind == AI_RAID_NOTHING) {
       return fail("Pocahontas raid escalate needs successful loot kind");
@@ -6141,7 +6158,14 @@ int main(void) {
     col1.tribe[0].alarm[0].attacks = 0;
     col1.indian[0].alarm_by_player[0] = 50; /* ≤ 0x4a, away from the clamps */
     col1.indian[0].euro_diplo[0] |= COL1_INDIAN_MET_BIT;
-    col1.indian[0].contact_state[0] = 0;
+    /*
+     * `local_10` (viceroy 96707): 022e only reaches LAB_5bfb_0def when the
+     * encounter is NOT the generous half — village word > 0x7f, or this pair
+     * already demanded once (contact_state == 1). Without it bVar6 is true at
+     * alarm 50 / word 20 and DOS hands over a gift instead (bugs.md: a
+     * wandering Brave with no grievance must not demand).
+     */
+    col1.indian[0].contact_state[0] = 1;
     col1.indian[0].muskets = 0;
     col1.indian[0].horse_herds = 0;
 
@@ -6597,14 +6621,16 @@ int main(void) {
         }
       }
 
-      /* …and the fixture really is demand-capable: only the contact_state-2
-       * latch suppressed it. Clearing the latch (a new turn's midpass) with
-       * the gift arm skipped brings the demand straight back. */
+      /* …and the fixture really is demand-capable: with the latch cleared
+       * (a new turn's midpass) and the pair already past one demand
+       * (contact_state 1 = 022e's `local_10`, the only thing that sends an
+       * alarm-0 village down LAB_5bfb_0def instead of the gift arm), the
+       * demand comes straight back. */
       ai_contact_reset();
       dos_rng_seed(&gift_rng, 7u);
       ctx.rng = &gift_rng;
       ai_popup_clear(&gp);
-      col1.indian[0].contact_state[0] = 0;
+      col1.indian[0].contact_state[0] = 1;
       ai_contact_try_village_beg_food(&ctx, 4);
       ctx.rng = saved_rng;
       int demanded = 0;
