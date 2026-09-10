@@ -3413,7 +3413,11 @@ int main(void) {
       ck->nation_id = 1; /* crown */
       ck->x = 5;
       ck->y = 8;
-      ck->population = 227; /* 85% share — DOS warn band is 80-89% */
+      /* 85% share — DOS warn band is 80-89%. DOS FUN_3844_0442 computes
+       * (crown+1)*100 / ((human+1)+(crown+1)) off the census mirror, so the
+       * crown total that lands on 85 with 40 human pop is 232, not 227
+       * (audit D7 wired the +1 offsets). */
+      ck->population = 232;
       cp.colony_count = 3;
     }
 
@@ -3521,7 +3525,7 @@ int main(void) {
       free(emap.layer3);
       return fail("warn3 latch should clear when pop share <80%");
     }
-    cp.colonies[2].population = 227;
+    cp.colonies[2].population = 232; /* back to 85% under the DOS +1 formula */
     const int q1 = pop.queue_count;
     estatus[0] = '\0';
     ai_king_nation_turn(&ectx);
@@ -3610,7 +3614,10 @@ int main(void) {
       ck->nation_id = 1;
       ck->x = 8;
       ck->y = 5;
-      ck->population = 90; /* 90% */
+      /* 90%: DOS FUN_3844_0442 is (crown+1)*100/((human+1)+(crown+1)) off
+       * the census mirror, so with 10 human pop the bar is crown 98+
+       * (audit D7 wired the +1 offsets). */
+      ck->population = 100;
       cp.colony_count = 2;
     }
 

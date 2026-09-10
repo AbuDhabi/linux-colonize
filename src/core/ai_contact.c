@@ -3372,11 +3372,16 @@ static void ai_contact_gift_or_demand(
   /*
    * Same ≥55 gate as refuse-talk/teach: alarmed → no gift and no demand
    * payoff (no invented gold penalties). Cite: fandom Alarm — refuse trade.
-   * Message band uses tribe friction (not alarm_by_player): gift-band (<40) →
-   * "refuse gifts"; demand-band (≥40) → "refuse demands". Pair friction alone
-   * would always be ≥55 when alarm≥55, making gift-band unreachable.
+   * The `|| alarm_by_player[e] >= 55` disjunct this gate used to carry was
+   * dead: ai_contact_pair_friction seeds friction FROM alarm_by_player[e] and
+   * only raises it, so friction >= alarm always (smell #54, reduced here by
+   * audit D10 2026-09-10).
+   * The message band below is a different quantity on purpose: it maxes the
+   * TRIBE friction rows only, without the alarm_by_player seed, so the
+   * gift-band (<40) "refuse gifts" wording stays reachable even when the
+   * pair value that opened this arm came from alarm alone.
    */
-  if (friction >= 55 || ind->alarm_by_player[e] >= 55) {
+  if (friction >= 55) {
     if (human) {
       int tribe_fr = 0;
       if (ctx->col1->tribe) {
@@ -9177,6 +9182,119 @@ static int ai_contact_land_combat_sum(
 }
 
 /*
+ * DS:0x95f2[cont] `continent_presence_flags` — the single port of
+ * FUN_4962_0018's presence writer (raw 78149-78312), shared by BOTH halves of
+ * the FUN_5952_035e colony tick that read it: the Indian war-declare block
+ * below (`ai_contact_colony_tick_war_5952`) and the expansion-appetite cap in
+ * ai_euro.c (`ai_euro_5952_continent_presence`, the same DOS body ~6 lines
+ * apart). Until 2026-09-10 those were two copies that disagreed about the
+ * aboard-ship filter and the owner-nibble mask, so a passenger aboard a docked
+ * ship set bit 2 in one and not the other (audit C7).
+ *
+ * The port keeps no mirror of the byte: it is ZEROED at the top of every
+ * per-nation call (raw 78149-78150, `for (local_14 = 0; local_14 < 0x10;
+ * ++local_14) *(undefined1 *)(local_14 + -0x6a0e) = 0;`, inside
+ * FUN_4962_0018 whose `param_1` IS the nation), so it always describes the
+ * nation currently being censused and can be recomputed from live state for
+ * one (nation, continent) pair. docs/save_format_map.md row 156's "not
+ * cleared between nations, accumulates across the full per-turn pass" is
+ * refuted by that raw (audit C7, 2026-09-10).
+ *
+ * The three modelled bits, verbatim:
+ *
+ *   bit 1 — raw 78306-78312, the settlement loop: EVERY Indian settlement
+ *     record whose tile has a continent, no nation filter at all
+ *     (`FUN_281f_0a4c(i); iVar6 = FUN_281f_0722(*0x8d4a, [1]);
+ *      if (-1 < iVar6) -0x6a0e[iVar6] |= 1;`).
+ *
+ *   bit 2 — raw 78234-78235, the unit loop's else-arm (i.e. the arm taken
+ *     when the unit is NOT this nation's), verbatim:
+ *
+ *       else if ((-1 < iVar6) && ((unit[+0x3147] & 0xf) < 4))
+ *         -0x6a0e[cont] |= 2;
+ *
+ *     Three DOS details:
+ *      - The owner byte is masked to its low NIBBLE, both here and in the
+ *        own-nation compare at raw 78162 (`(bVar5 & 0xf) == param_1`), and
+ *        the arm then demands `< 4`, i.e. a EUROPEAN nation only. The port
+ *        stores `nation_id` as a clean 0..11 int so the mask is a no-op; it
+ *        is kept literal so the code reads like the raw.
+ *      - No unit-domain filter: a foreign SHIP counts. Ships normally sit on
+ *        water, where `FUN_281f_081c` (→ `FUN_1427_0f0e` → tile continent)
+ *        reports −1 and the `-1 < iVar6` gate drops them; a ship docked in a
+ *        colony stands on a land tile and does set the bit.
+ *      - Passengers are excluded, but only IMPLICITLY: DOS parks a unit in a
+ *        hold at the sentinel (−2,−2) (`FUN_1427_10be` boards via
+ *        `FUN_1427_0362(unit, 0xfffe, 0xfffe)`), so its tile lookup also
+ *        returns −1. The port rides passengers at the carrier's own tile
+ *        (units.c:10282-10283), so the exclusion has to be spelled out.
+ *        `units_is_on_map` already folds in `aboard_ship_id < 0`
+ *        (units.c:1214-1216); it is written out for the reader.
+ *
+ *   bit 4 — raw 78301-78302: `else if (-1 < iVar6) -0x6a0e[cont] |= 4;`
+ *     after `if (colony[+0x1a] == param_1)`. No mask and no range test on the
+ *     colony owner byte here (unlike the unit arm) — every colony that is not
+ *     this nation's counts. Port colonies are always 0..3, so the `< 0` guard
+ *     is uninitialised-fixture defence, not a DOS filter.
+ *
+ * bit 8 (raw 78175-78186: an own non-naval unit standing outside a colony
+ * with orders state 5/6 and a type whose DS:0x5235 attack row is > 1) has no
+ * reader in either 5952 arm and is not modelled.
+ *
+ * Slot walk, not an id walk: `units_get_const` takes a unit ID and ids are
+ * handed out monotonically from 1 and never recycled (units.c:337), so an
+ * `i`-as-id form drops every unit above COLONIZE_UNITS_MAX as well as the
+ * highest slot. DOS walks the unit ARRAY in record order (raw 78159,
+ * `local_1a` indexing `0x3144 + local_1a * 0x1c`), which is what a slot walk
+ * reproduces.
+ */
+int ai_contact_continent_presence_4962(
+  const ColonizeTurnContext* ctx, int nation_id, int cont
+) {
+  if (!ctx || !ctx->map || cont < 0 || cont >= 16) {
+    return 0;
+  }
+  int presence = 0;
+  const ColonizeCol1Save* col1 = (ctx->col1_ok && ctx->col1) ? ctx->col1 : NULL;
+  if (col1 && col1->tribe) {
+    for (uint16_t ti = 0; ti < col1->head.tribe_count; ++ti) {
+      const ColonizeCol1Tribe* t = &col1->tribe[ti];
+      if (map_continent_id_at(ctx->map, (int)t->x, (int)t->y) == cont) {
+        presence |= 1;
+        break;
+      }
+    }
+  }
+  if (ctx->units) {
+    for (int i = 0; i < COLONIZE_UNITS_MAX && (presence & 2) == 0; ++i) {
+      const ColonizeUnit* u = &ctx->units->units[i];
+      if (!u->active || !units_is_on_map(u) || u->aboard_ship_id >= 0) {
+        continue;
+      }
+      const int owner = u->nation_id & 0xf;
+      if (owner >= 4 || owner == nation_id) {
+        continue;
+      }
+      if (map_continent_id_at(ctx->map, u->x, u->y) == cont) {
+        presence |= 2;
+      }
+    }
+  }
+  if (ctx->colonies) {
+    for (int i = 0; i < COLONIZE_COLONIES_MAX && (presence & 4) == 0; ++i) {
+      const ColonizeColony* c = &ctx->colonies->colonies[i];
+      if (!c->active || c->nation_id < 0 || c->nation_id == nation_id) {
+        continue;
+      }
+      if (map_continent_id_at(ctx->map, c->x, c->y) == cont) {
+        presence |= 4;
+      }
+    }
+  }
+  return presence;
+}
+
+/*
  * FUN_5952_035e's Indian war-declare block — the AI colony tick's one and only
  * production writer of COL1_INDIAN_WAR_BIT (viceroy_unpacked.c:94170-94190;
  * clean OVL15 body in original_sources_annotated/ai/colony_tick_5952_035e.md
@@ -9200,14 +9318,10 @@ static int ai_contact_land_combat_sum(
  * or_both/clear_both are the sole mutation channel, and FUN_4cc6_00f2's
  * cool-below-75 clear is the only other toucher.
  *
- * DOS body, verbatim (`presence` = DS:0x95f2[cont], FUN_4962_0018 raw
- * 78149-78312; the array is zeroed at the top of every per-nation call —
- * raw 78149-78150, `for (local_14 = 0; local_14 < 0x10; ++local_14)
- * *(undefined1 *)(local_14 + -0x6a0e) = 0;`, inside FUN_4962_0018 whose
- * `param_1` IS the nation — so it always describes the nation currently
- * being censused. docs/save_format_map.md row 156 and ai_euro.c:9754 both
- * claim the opposite ("not cleared between nations, accumulates across the
- * full per-turn pass"); that claim is refuted by the raw (audit C7)):
+ * DOS body, verbatim (`presence` = DS:0x95f2[cont], computed by the shared
+ * `ai_contact_continent_presence_4962` above — see its header for the
+ * FUN_4962_0018 writer and for why the byte always describes the nation
+ * being censused):
  *
  *   if ((presence & 1) == 0)  -> nothing (no natives on this continent)
  *   if ((presence & 6) != 0 && nation != 2) -> else-arm: only caps the
@@ -9243,93 +9357,17 @@ void ai_contact_colony_tick_war_5952(ColonizeTurnContext* ctx, int nation_id, in
   if (cont < 0 || cont >= 16) {
     return;
   }
-  /* DS:0x95f2[cont] bit 1 — raw 78312: every settlement record, no filter. */
-  int presence = 0;
-  if (col1->tribe) {
-    for (uint16_t ti = 0; ti < col1->head.tribe_count; ++ti) {
-      const ColonizeCol1Tribe* t = &col1->tribe[ti];
-      if (map_continent_id_at(ctx->map, (int)t->x, (int)t->y) == cont) {
-        presence |= 1;
-        break;
-      }
-    }
-  }
+  /*
+   * DS:0x95f2[cont], via the shared writer above. DOS computes all three bits
+   * for every nation in FUN_4962_0018 and only reads them here; the two early
+   * returns below are the port's own short-circuit, not a DOS ordering.
+   */
+  const int presence = ai_contact_continent_presence_4962(ctx, nation_id, cont);
   if ((presence & 1) == 0) {
     return;
   }
-  if (nation_id != 2) {
-    /*
-     * bit 2 — raw 78234-78235, the unit loop's else-arm, verbatim:
-     *
-     *   else if ((-1 < iVar6) && ((unit[+0x3147] & 0xf) < 4))
-     *     -0x6a0e[cont] |= 2;
-     *
-     * Three DOS details, all of which this copy used to get wrong (audit C7,
-     * fixed 2026-09-10; `ai_euro_5952_continent_presence` had them right):
-     *
-     *  - The owner byte is masked to its low NIBBLE, both here and in the
-     *    own-nation compare at raw 78162 (`(bVar5 & 0xf) == param_1`), and
-     *    the arm then demands `< 4`, i.e. a EUROPEAN nation only. The port
-     *    stores `nation_id` as a clean 0..11 int so the mask is a no-op, but
-     *    keep it literal so the two copies read alike.
-     *  - No unit-domain filter: a foreign SHIP counts. Ships normally sit on
-     *    water, where `FUN_281f_081c` (→ `FUN_1427_0f0e` → tile continent)
-     *    reports −1 and the `-1 < iVar6` gate drops them; a ship docked in a
-     *    colony stands on a land tile and does set the bit.
-     *  - Passengers are excluded, but only IMPLICITLY: DOS parks a unit in a
-     *    hold at the sentinel (−2,−2) (`FUN_1427_10be` boards via
-     *    `FUN_1427_0362(unit, 0xfffe, 0xfffe)`), so its tile lookup also
-     *    returns −1. The port rides passengers at the carrier's own tile
-     *    (units.c:10282-10283), so the exclusion has to be spelled out —
-     *    otherwise a passenger aboard a ship docked in a colony sets bit 2
-     *    here and not in the ai_euro copy, flipping the `(presence & 6) == 0`
-     *    gate below between "declare war on the tribe" and "cap the expansion
-     *    appetite". `units_is_on_map` already folds in `aboard_ship_id < 0`
-     *    (units.c:1214-1216); it is spelled out for the reader.
-     *
-     * Slot walk, not an id walk: `units_get_const` takes a unit ID and ids
-     * are handed out monotonically from 1 and never recycled (units.c:337),
-     * so the old `i`-as-id form dropped every unit above COLONIZE_UNITS_MAX
-     * as well as the highest slot. DOS walks the unit ARRAY in record order
-     * (raw 78159, `local_1a` indexing `0x3144 + local_1a * 0x1c`), which is
-     * exactly what a slot walk reproduces.
-     */
-    if (ctx->units) {
-      for (int i = 0; i < COLONIZE_UNITS_MAX && (presence & 2) == 0; ++i) {
-        const ColonizeUnit* u = &ctx->units->units[i];
-        if (!u->active || !units_is_on_map(u) || u->aboard_ship_id >= 0) {
-          continue;
-        }
-        const int owner = u->nation_id & 0xf;
-        if (owner >= 4 || owner == nation_id) {
-          continue;
-        }
-        if (map_continent_id_at(ctx->map, u->x, u->y) == cont) {
-          presence |= 2;
-        }
-      }
-    }
-    /*
-     * bit 4 — raw 78301-78302: `else if (-1 < iVar6) -0x6a0e[cont] |= 4;`
-     * after `if (colony[+0x1a] == param_1)`. No mask and no range test on the
-     * colony owner byte here (unlike the unit arm above) — every colony that
-     * is not this nation's counts. Port colonies are always 0..3 so the `< 0`
-     * guard is only uninitialised-fixture defence, not a DOS filter.
-     */
-    if (ctx->colonies) {
-      for (int i = 0; i < COLONIZE_COLONIES_MAX && (presence & 4) == 0; ++i) {
-        const ColonizeColony* c = &ctx->colonies->colonies[i];
-        if (!c->active || c->nation_id < 0 || c->nation_id == nation_id) {
-          continue;
-        }
-        if (map_continent_id_at(ctx->map, c->x, c->y) == cont) {
-          presence |= 4;
-        }
-      }
-    }
-    if ((presence & 6) != 0) {
-      return;
-    }
+  if (nation_id != 2 && (presence & 6) != 0) {
+    return;
   }
   const int exposed = ai_contact_land_combat_sum(ctx, nation_id, cont, 1, 255);
   if (exposed <= 1) {
@@ -10554,8 +10592,10 @@ void ai_contact_apply_popup_result(ColonizeTurnContext* ctx, const AiPopupState*
      * indian_contact.md gift amount widget.
      */
     const int friction = ai_contact_pair_friction(ind, ctx->col1, nation_id, e);
-    const int gift_band =
-      friction < 40 && friction < 55 && ind->alarm_by_player[e] < 55;
+    /* pair_friction dominates alarm_by_player[e] (it is seeded from it and
+     * only raised), so the old `&& friction < 55 && alarm_by_player[e] < 55`
+     * conjuncts were both dead under `< 40` (smell #54 / audit D10). */
+    const int gift_band = friction < 40;
     if (gift_band && ctx->ai_popups && ai_contact_euro_is_human(ctx, e)) {
       if (ai_contact_enqueue_gift_amount_choice(ctx, e, nation_id)) {
         break;
@@ -10579,8 +10619,9 @@ void ai_contact_apply_popup_result(ColonizeTurnContext* ctx, const AiPopupState*
      * indian_contact.md demand amount widget / alarmed refuse.
      */
     const int friction = ai_contact_pair_friction(ind, ctx->col1, nation_id, e);
-    const int demand_band =
-      friction >= 40 && friction < 55 && ind->alarm_by_player[e] < 55;
+    /* `alarm_by_player[e] < 55` dropped: pair_friction is seeded from it and
+     * only raised, so `friction < 55` already implies it (smell #54 / D10). */
+    const int demand_band = friction >= 40 && friction < 55;
     if (demand_band && ctx->ai_popups && ai_contact_euro_is_human(ctx, e)) {
       if (ai_contact_enqueue_demand_amount_choice(
             ctx, e, nation_id, other, near_x, near_y
@@ -10590,7 +10631,9 @@ void ai_contact_apply_popup_result(ColonizeTurnContext* ctx, const AiPopupState*
     }
     if (other) {
       ai_contact_gift_or_demand(ctx, ind, nation_id, e, other, near_x, near_y);
-    } else if (ind->alarm_by_player[e] >= 55 || friction >= 55) {
+      /* friction >= 55 alone: pair_friction dominates alarm_by_player[e]
+       * (seeded from it, only raised) — smell #54 / audit D10. */
+    } else if (friction >= 55) {
       /* No adjacent Euro unit — still show alarmed refuse chrome. */
       char refuse_fb[AI_POPUP_BODY_LEN];
       snprintf(

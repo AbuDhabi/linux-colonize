@@ -5388,10 +5388,12 @@ bool units_resolve_land_combat_ff(
      * colonist (including a Tory one that changed hands with a captured port)
      * sweep and capture the whole defending stack — wagon trains and all —
      * on a single won attack, while armed defenders were still standing.
-     * Test the DOS combat role instead: attack 0 AND no carried kit.
+     * Test the DOS combat role instead: attack 0 AND no carried kit — which
+     * is exactly `units_is_combat_role` (:6092, the BODY predicate of the two
+     * documented there). Spelled through the helper rather than open-coded,
+     * so the type-byte-only reading cannot creep back (audit 2026-09-10 A6).
      */
-    const int atk_noncombat_body = (at->attack == 0 && atk->muskets <= 0 && atk->horses <= 0);
-    if (atk_noncombat_body) {
+    if (!units_is_combat_role(pool, atk)) {
       units_sweep_stack_after_loss(pool, def_x, def_y, def_nation, attacker_id, defender_id, col1);
     }
     atk = units_get(pool, attacker_id);
@@ -7167,10 +7169,6 @@ bool units_try_move(
       g_units_last_enter_reason = COLONIZE_ENTER_BLOCKED_DOMAIN;
       return false;
     }
-    /* Was the pre-boarding zero a park (Sentry/Fortified, DOS spent 0) or a
-     * real spend? units_board overwrites moves_left either way. */
-    const bool pre_park = units_orders_skip_turn(unit);
-    const bool pre_spent = units_remaining_mp(pool, unit_id) <= 0 && !pre_park;
     if (unit->orders == UNITS_ORDER_SENTRY || unit->orders == UNITS_ORDER_FORTIFY ||
         unit->orders == UNITS_ORDER_FORTIFIED) {
       unit->orders = UNITS_ORDER_NONE;
@@ -7189,8 +7187,16 @@ bool units_try_move(
      * units_board zeroes moves_left as a park flag, which cannot tell that
      * spend apart from a fresh in-port load; mark it explicitly.
      * bugs.md 429.
+     *
+     * Shore-crossing is the ONLY reachable spend here: this function bails out
+     * with COLONIZE_ENTER_NO_MP above (`units_remaining_mp(...) <= 0`) before
+     * any boarding can happen, so a unit that had already burnt its allotment
+     * never reaches the board branch at all. The old "was the pre-boarding
+     * zero a park or a real spend?" discriminator was therefore dead and is
+     * gone (smell audit 2026-09-10 A4); if the MP gate above is ever relaxed
+     * to let a spent unit board, that half of the rule has to come back here.
      */
-    if (pre_spent || units_move_crosses_shore(map, colonies, ox, oy, dest_x, dest_y)) {
+    if (units_move_crosses_shore(map, colonies, ox, oy, dest_x, dest_y)) {
       ColonizeUnit* boarded = units_get(pool, unit_id);
       if (boarded) {
         boarded->mp_spent_turn = 1;
@@ -7550,7 +7556,7 @@ combat_entry_resolved:
    */
   if (colonies && colonies_id_at(colonies, dest_x, dest_y) >= 0) {
     if (units_is_transport(pool, unit_id)) {
-      unit->moves_left = 0;
+      units_mp_exhaust(pool, unit);
     }
     /*
      * bugs.md: docking puts everyone ashore. A unit inside a colony is in the
@@ -7846,7 +7852,9 @@ bool units_order_trade_route(ColonizeUnitPool* pool, int unit_id) {
   u->goto_y = UNITS_GOTO_NONE;
   u->follow_unit_id = -1;
   u->orders = UNITS_ORDER_TRADE_ROUTE;
-  u->moves_left = 0;
+  /* Same park-as-spent rule units_set_orders uses (:7782): spent-aware, since
+   * moves_left is REMAINING for Euros and SPENT for natives (audit A9). */
+  units_mp_exhaust(pool, u);
   return true;
 }
 
@@ -7894,7 +7902,9 @@ bool units_pillage(
     }
     return false;
   }
-  if (u->moves_left <= 0) {
+  /* Spent-aware read (audit A9): moves_left is REMAINING for Euros but the
+   * DOS SPENT byte for natives, so ask the accessor, not the field. */
+  if (units_remaining_mp(pool, unit_id) <= 0) {
     if (err && err_size) {
       snprintf(err, err_size, "No moves left");
     }
@@ -7924,7 +7934,7 @@ bool units_pillage(
     }
     const int take = best_amt < 100 ? best_amt : 100;
     col->stock[best] -= take;
-    u->moves_left = 0;
+    units_mp_exhaust(pool, u); /* pillaging ends the turn (audit A9) */
     if (err && err_size) {
       snprintf(err, err_size, "Pillaged %d cargo", take);
     }
@@ -7946,7 +7956,7 @@ bool units_pillage(
   if (had_road) {
     map_tile_set_road(map, u->x, u->y, false);
   }
-  u->moves_left = 0;
+  units_mp_exhaust(pool, u); /* pillaging ends the turn (audit A9) */
   if (err && err_size) {
     snprintf(err, err_size, "Pillaged improvements");
   }
@@ -8014,8 +8024,9 @@ bool units_wake(ColonizeUnitPool* pool, int unit_id) {
    * 42717/42781), so turns_worked (the shared +0x16 repair-timer /
    * treasure-clock / route-stop counter) is left alone here.
    */
-  /* mp_spent_turn: the aboard zero is a real DOS spend (walked aboard from
-   * open shore / boarded already exhausted) — waking must not refund it
+  /* mp_spent_turn: the aboard zero is a real DOS spend — walked aboard from
+   * open shore, the one case units_try_move can mark (a unit that is already
+   * out of MP never gets to board, audit A4) — so waking must not refund it
    * (bugs.md 429; same discriminator the landfall pick uses). */
   const bool parked =
     (u->aboard_ship_id >= 0 && !u->mp_spent_turn) ||
@@ -9792,8 +9803,8 @@ bool units_pioneer_work_tick(
     (void)clearing;
   }
 
-  /* FUN_281f_0934 stand-in: exhaust MP for this act. */
-  u->moves_left = 0;
+  /* FUN_281f_0934 stand-in: exhaust MP for this act (spent-aware, audit A9). */
+  units_mp_exhaust(pool, u);
   if (u->turns_worked < 255) {
     u->turns_worked++;
   }
@@ -10291,6 +10302,16 @@ bool units_board(ColonizeUnitPool* pool, int land_unit_id, int ship_id) {
   land->aboard_ship_id = ship_id;
   land->x = ship->x;
   land->y = ship->y;
+  /*
+   * Deliberate RAW write, not units_mp_exhaust/restore (audit A9): the aboard
+   * zero is the hold's park sentinel, and the whole aboard subsystem reads it
+   * back literally in Euro space — units_unload_passenger (:10555 "0 means
+   * full allotment, restore for the charge"), units_first_cargo_with_moves
+   * and units_first_landfall_cargo. A spent-aware writer would hand a native
+   * passenger max_mp and every one of those readers would then call it
+   * movable. Only Euro land units ever board (the boardable-ship pick matches
+   * nations), so the sentinel and its readers stay in one space.
+   */
   land->moves_left = 0;
   land->orders = 1; /* sentry aboard */
   ship->cargo_ids[ship->cargo_count++] = land_unit_id;
@@ -10320,6 +10341,7 @@ bool units_board_stacked(ColonizeUnitPool* pool, int land_unit_id, int ship_id) 
   land->aboard_ship_id = ship_id;
   land->x = ship->x;
   land->y = ship->y;
+  /* Same deliberate raw hold sentinel as units_board above (audit A9). */
   land->moves_left = 0;
   land->orders = 1; /* sentry aboard */
   ship->cargo_ids[ship->cargo_count++] = land_unit_id;

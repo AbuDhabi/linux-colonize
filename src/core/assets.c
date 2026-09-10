@@ -168,10 +168,18 @@ bool assets_detect_madspack(const char* path, char* info, size_t info_size) {
   unsigned char hdr[16];
   size_t n = fread(hdr, 1, sizeof(hdr), f);
   fclose(f);
-  if (n < 14 || memcmp(hdr, "MADSPACK 2.0", 12) != 0) {
+  /* Section count is the LE u16 at offset 14, not 13 -- same field madspack.c
+   * reads (read_u16_le(raw + 14)). Verified on COLONIZE/EUROPE.PIK, whose
+   * header runs `4d 41 44 53 50 41 43 4b 20 32 2e 30 1a 00 03 00`: 3 sections
+   * at offset 14, while offset 13 straddles the two fields and yields 768 --
+   * which is exactly what the startup probe used to log for every 3-section
+   * .PIK. The guard reads hdr[15], so it needs all 16 bytes; the old `n < 14`
+   * was one short of even the offset-14 byte and let n==14 read uninitialised
+   * stack. */
+  if (n < 16 || memcmp(hdr, "MADSPACK 2.0", 12) != 0) {
     return false;
   }
-  uint16_t chunks = (uint16_t)(hdr[13] | (hdr[14] << 8));
+  uint16_t chunks = (uint16_t)(hdr[14] | (hdr[15] << 8));
   snprintf(info, info_size, "MADSPACK 2.0 chunks=%u", chunks);
   return true;
 }

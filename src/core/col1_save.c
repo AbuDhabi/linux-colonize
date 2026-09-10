@@ -700,26 +700,71 @@ bool col1_save_write_file(const char* path, const ColonizeCol1Save* save, char* 
     return false;
   }
 
+  /* Write-to-temp-then-rename. Opening the target itself with "wb" truncates
+   * the player's previous save BEFORE a single byte of the new one is known to
+   * be good, so disk-full, a short fwrite or emit_to_stream's own head
+   * validation used to leave a truncated COLONY0N.SAV that
+   * savegame_probe_col1_slot then lists as (EMPTY). The sibling temp lives in
+   * the same directory so the rename is same-filesystem (hence atomic); on any
+   * failure it is unlinked and the original slot is left exactly as it was. */
+  const size_t path_len = strlen(path);
+  char* tmp_path = malloc(path_len + 5);
+  if (!tmp_path) {
+    COL1_FAIL(err, err_size, "oom for temp path of %s", path);
+  }
+  memcpy(tmp_path, path, path_len);
+  memcpy(tmp_path + path_len, ".tmp", 5);
+
   ColonizeCol1Save* mut = (ColonizeCol1Save*)save;
   uint16_t saved_last[COLONIZE_COL1_NATION_COUNT];
   uint8_t saved_pad21[COLONIZE_COL1_NATION_COUNT];
   founding_fathers_stash_pools_into_col1(mut, saved_last, saved_pad21);
 
-  FILE* f = fopen(path, "wb");
+  FILE* f = fopen(tmp_path, "wb");
   if (!f) {
     founding_fathers_restore_col1_last_turn(mut, saved_last, saved_pad21);
+    free(tmp_path);
     COL1_FAIL(err, err_size, "cannot open %s for write", path);
   }
   Col1FileCtx ctx = {.f = f};
-  const bool ok = emit_to_stream(file_put, &ctx, save, err, err_size);
-  if (fclose(f) != 0) {
-    founding_fathers_restore_col1_last_turn(mut, saved_last, saved_pad21);
-    COL1_FAIL(err, err_size, "fclose failed for %s", path);
+  bool ok = emit_to_stream(file_put, &ctx, save, err, err_size);
+  /* fflush before fclose so a delayed ENOSPC is reported while the stream is
+   * still ours to diagnose; fclose's own status is still checked, since it is
+   * the only place some libc implementations surface a failed final flush. */
+  if (ok && fflush(f) != 0) {
+    ok = false;
+    if (err && err_size > 0) {
+      snprintf(err, err_size, "write failed for %s", path);
+    }
+  }
+  if (fclose(f) != 0 && ok) {
+    ok = false;
+    if (err && err_size > 0) {
+      snprintf(err, err_size, "fclose failed for %s", path);
+    }
   }
   founding_fathers_restore_col1_last_turn(mut, saved_last, saved_pad21);
   if (!ok) {
+    remove(tmp_path);
+    free(tmp_path);
     return false;
   }
+#ifdef _WIN32
+  /* MSVCRT's rename() fails when the destination exists (POSIX replaces it).
+   * Dropping the old file first reopens a small window where neither file is
+   * in place, which is still strictly better than the old truncate-first
+   * behaviour: the new save is already complete and fsynced-by-fclose on disk. */
+  remove(path);
+#endif
+  if (rename(tmp_path, path) != 0) {
+    if (err && err_size > 0) {
+      snprintf(err, err_size, "cannot rename %s to %s", tmp_path, path);
+    }
+    remove(tmp_path);
+    free(tmp_path);
+    return false;
+  }
+  free(tmp_path);
   diag_info("col1_save_write_file %s (%zu bytes)", path, col1_save_expected_size(save));
   if (err && err_size > 0) {
     err[0] = '\0';

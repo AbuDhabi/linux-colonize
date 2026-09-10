@@ -257,8 +257,12 @@ bool turn_select_next_unit(ColonizeUnitPool* pool, int human_nation);
  * actually await orders, and parking on one flashes it into control for a
  * frame before the next tick skips past it. Bounded: each turn_select_next_unit
  * call moves strictly forward and never revisits a unit within one sweep.
- * game_loop.c keeps a ColonizeGameState-shaped twin of this
- * (game_select_next_unit_awaiting_orders) that should fold into this one.
+ * Single source: game_loop.c's game_select_next_unit_awaiting_orders is a thin
+ * ColonizeGameState-shaped adapter over this (it only adds the units_ok
+ * guard) — the second copy it used to keep was folded away, so do not
+ * re-introduce one. Every hand-off site, in the turn processor or out of it,
+ * goes through one of the two spellings; a bare turn_select_next_unit is only
+ * ever the inner step of this loop.
  */
 bool turn_select_next_unit_awaiting_orders(ColonizeUnitPool* pool, int human_nation);
 
