@@ -63,6 +63,32 @@ static int fail(const char* msg) {
   return 1;
 }
 
+/*
+ * Sweep-3 D2: ai_diplo_military_score is a live Σ combat_unit_base_x8 over
+ * the nation's active land units (one Soldier, attack 2 → 16), no longer the
+ * stuff.land_combat_strength mirror. Fixtures that state a strength balance
+ * do it with real units now. Returns 0 on success.
+ */
+static int test_pool_soldiers(ColonizeUnitPool* p, int nation0_count, int nation1_count) {
+  memset(p, 0, sizeof(*p));
+  units_reset(p);
+  units_set_occupancy_map(NULL);
+  p->type_count = 1;
+  snprintf(p->types[0].name, sizeof(p->types[0].name), "Soldier");
+  p->types[0].attack = 2;
+  p->types[0].defense = 2;
+  p->types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  for (int i = 0; i < nation0_count + nation1_count; ++i) {
+    const int id = units_spawn(p, 0, 1 + i, 1);
+    if (id < 0) {
+      return 1;
+    }
+    /* units_spawn returns the unit ID (ids start at 1), not the slot index. */
+    units_get(p, id)->nation_id = i < nation0_count ? 0 : 1;
+  }
+  return 0;
+}
+
 int main(void) {
   ColonizeCol1Save col1;
   col1_save_init(&col1);
@@ -890,10 +916,14 @@ int main(void) {
     ctx.col1 = &sc;
     ctx.col1_ok = true;
     /*
-     * 2026-09-09 (#51): the score IS the DS:0x941c mirror
-     * stuff.land_combat_strength[], nothing else. Ships, colony population,
-     * fortifications, treasury and the 00f8 rank must not contribute — the
-     * invented blend that mixed them is retired.
+     * 2026-09-09 (#51): the score is DS:0x941c land_combat_strength — nothing
+     * else. Ships, colony population, fortifications, treasury and the 00f8
+     * rank must not contribute (the invented blend is retired).
+     * 2026-09-10 (sweep-3 D2): computed LIVE (Σ combat_unit_base_x8 over the
+     * nation's active land units), no longer read from the stuff mirror —
+     * that mirror has no live writer in a Linux-started game. The stale
+     * mirror values below must therefore NOT reach the score: the fixture's
+     * one Soldier (attack 2) is worth 2*8 = 16.
      */
     sc.stuff.land_combat_strength[0] = 137;
     sc.stuff.land_combat_strength[1] = 40;
@@ -901,27 +931,27 @@ int main(void) {
     ctx.euro_power_rank[0] = 0;
     ctx.euro_power_rank[1] = 3;
     int score = ai_diplo_military_score(&ctx, 0);
-    if (score != 137) {
-      fprintf(stderr, "unit_ai_diplo: military_score %d (want 137)\n", score);
-      return fail("military_score must be the land_combat_strength mirror");
+    if (score != 16) {
+      fprintf(stderr, "unit_ai_diplo: military_score %d (want 16)\n", score);
+      return fail("military_score must be the live land-unit x8 sum, not the mirror");
     }
-    if (ai_diplo_military_score(&ctx, 1) != 40) {
-      return fail("military_score peer must read the mirror too");
+    if (ai_diplo_military_score(&ctx, 1) != 0) {
+      return fail("military_score peer with no units must be 0 despite mirror 40");
     }
     /* Rank must not double-count: the 00f8 rank table is itself built from
      * land_combat_strength, so flipping rank alone changes nothing. */
     ctx.euro_power_rank[0] = 3;
-    if (ai_diplo_military_score(&ctx, 0) != 137) {
+    if (ai_diplo_military_score(&ctx, 0) != 16) {
       return fail("military_score must not add a rank term");
     }
     /* Treasury must not leak in either. */
     sc.nation[0].gold = 100000;
     score = ai_diplo_military_score(&ctx, 0);
-    if (score != 137) {
-      fprintf(stderr, "unit_ai_diplo: military_score with gold %d (want 137)\n", score);
+    if (score != 16) {
+      fprintf(stderr, "unit_ai_diplo: military_score with gold %d (want 16)\n", score);
       return fail("military_score must not blend treasury");
     }
-    /* No col1 → no mirror → 0 (was a units-only sum before). */
+    /* No col1 → gate closed → 0. */
     ctx.col1_ok = false;
     if (ai_diplo_military_score(&ctx, 0) != 0) {
       return fail("military_score without col1 must be 0");
@@ -1237,12 +1267,15 @@ int main(void) {
     }
     snprintf(wf.player[1].country_name, sizeof(wf.player[1].country_name), "England");
     /*
-     * Near-parity military strength. Since smell #51 the score IS the
-     * DS:0x941c census mirror, so parity is stated there instead of being
-     * conjured out of the treasury: 12 each (|diff| < 15, both > 10).
+     * Near-parity military strength. Since sweep-3 D2 the score is computed
+     * LIVE (Σ combat_unit_base_x8 over the nation's active land units), so
+     * parity is stated with one Soldier (attack 2 → 16) per side:
+     * |diff| = 0 < 15, both > 10.
      */
-    wf.stuff.land_combat_strength[0] = 12;
-    wf.stuff.land_combat_strength[1] = 12;
+    ColonizeUnitPool units_wf;
+    if (test_pool_soldiers(&units_wf, 1, 1)) {
+      return fail("war-fatigue spawn");
+    }
     wf.nation[0].gold = 700;
     wf.nation[1].gold = 700;
     for (int i = 0; i < 8; ++i) {
@@ -1266,6 +1299,7 @@ int main(void) {
     memset(&ctx_wf, 0, sizeof(ctx_wf));
     ctx_wf.col1 = &wf;
     ctx_wf.col1_ok = true;
+    ctx_wf.units = &units_wf;
     ctx_wf.rng = &rng_wf;
     ctx_wf.turn_number = &turn_wf;
     ctx_wf.human_nation = 0;
@@ -1331,9 +1365,11 @@ int main(void) {
       }
       snprintf(wf2.player[0].country_name, sizeof(wf2.player[0].country_name), "England");
       snprintf(wf2.player[1].country_name, sizeof(wf2.player[1].country_name), "France");
-      /* Near-parity strength off the DS:0x941c mirror (smell #51). */
-      wf2.stuff.land_combat_strength[0] = 12;
-      wf2.stuff.land_combat_strength[1] = 12;
+      /* Near-parity strength: one Soldier (16) per side (sweep-3 D2 live). */
+      ColonizeUnitPool units_wf2;
+      if (test_pool_soldiers(&units_wf2, 1, 1)) {
+        return fail("war-fatigue peer spawn");
+      }
       wf2.nation[0].gold = 700;
       wf2.nation[1].gold = 700;
       for (int i = 0; i < 8; ++i) {
@@ -1351,6 +1387,7 @@ int main(void) {
       memset(&ctx_peer, 0, sizeof(ctx_peer));
       ctx_peer.col1 = &wf2;
       ctx_peer.col1_ok = true;
+      ctx_peer.units = &units_wf2;
       ctx_peer.rng = &rng_peer;
       ctx_peer.turn_number = &turn_peer;
       ctx_peer.human_nation = 0; /* human is peer of AI actor 1 */
@@ -2484,10 +2521,13 @@ int main(void) {
     }
     snprintf(cp.player[0].country_name, sizeof(cp.player[0].country_name), "England");
     snprintf(cp.player[1].country_name, sizeof(cp.player[1].country_name), "France");
-    /* self ≫ other on the DS:0x941c mirror (smell #51: the score no longer
-     * blends treasury, so state the strength gap where it actually lives). */
-    cp.stuff.land_combat_strength[1] = 100;
-    cp.stuff.land_combat_strength[0] = 0;
+    /* self ≫ other: 7 Soldiers (112) vs none (sweep-3 D2: the score is the
+     * live land-unit sum, so state the strength gap where it actually lives:
+     * 112 > 0*2+20 and > 30 clears the declare-pressure band). */
+    ColonizeUnitPool units_cp;
+    if (test_pool_soldiers(&units_cp, 0, 7)) {
+      return fail("@CANCELPEACE spawn");
+    }
     cp.nation[1].gold = 2000;
     for (int i = 0; i < 8; ++i) {
       cp.indian[i].alarm_by_player[0] = 0; /* relation 100 */
@@ -2505,6 +2545,7 @@ int main(void) {
     memset(&ctx_cp, 0, sizeof(ctx_cp));
     ctx_cp.col1 = &cp;
     ctx_cp.col1_ok = true;
+    ctx_cp.units = &units_cp;
     ctx_cp.rng = &rng_cp;
     ctx_cp.human_nation = 0;
     ctx_cp.status = status_cp;

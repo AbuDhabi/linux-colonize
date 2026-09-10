@@ -106,7 +106,7 @@
  */
 /*
  * Linux war/peace pressure bands for ai_diplo_military_score, named 2026-09-09
- * (smell #51) when the score became the DS:0x941c mirror. DOS has no bands of
+ * (smell #51) when the score became the DS:0x941c quantity. DOS has no bands of
  * this shape at all — its own war-worthiness test is FUN_5bfb_10ec, ported
  * whole in ai_euro.c and reached through ai_diplo_13b0_treaty_tick. These four
  * gate only the Linux war-fatigue peace roll and the opportunistic declare
@@ -121,6 +121,11 @@
  * the goldens have been recorded through them ever since; with no DOS
  * constant to appeal to, the recorded stream is the only evidence there is,
  * so they stay put.
+ *
+ * 2026-09-10: the score is recomputed live (see ai_diplo_military_score), so
+ * these bands and their draws are now reached in a Linux-started game too. The
+ * old mirror read returned 0 there — nothing refreshes `stuff` outside the
+ * save-writing path — which silenced both arms outside a loaded DOS save.
  */
 #define AI_DIPLO_STRENGTH_MIN 10
 #define AI_DIPLO_STRENGTH_PARITY 15
@@ -2104,6 +2109,14 @@ __attribute__((weak)) const char* ai_contact_tribe_name(int nation_id) {
   return "natives";
 }
 
+/* Weak fallback for link units built without ai_contact.c: apply the bare
+ * clamped delta; the 00f2 escalation tail (mission expel / @INDIANBURN)
+ * needs ai_contact's machinery and is absent from those targets. */
+__attribute__((weak)) void ai_contact_alarm_delta_00f2(
+    ColonizeTurnContext* ctx, int nation_id, int euro, int delta) {
+  ai_diplo_indian_alarm_delta(ctx->col1, nation_id, euro, delta);
+}
+
 static ColonizeCol1Nation* ai_talk_nat(ColonizeTurnContext* ctx, int n) {
   return &ctx->col1->nation[n];
 }
@@ -2734,9 +2747,17 @@ static void ai_talk_resume(ColonizeTurnContext* ctx, int stage, int choice) {
             *f = (uint8_t)(*f | AI_DIPLO_WAR);
           }
         } else {
-          /* FUN_281f_0d6c(tribe, h, 100, 0): the real alarm-delta writer
-           * (clamps 0..100) — joining the crusade enrages the tribe at US. */
-          ai_diplo_indian_alarm_delta(col1, k->third, h, 100);
+          /*
+           * raw :97768-97770 (`FUN_281f_0d6c(0x281f, iVar17 + -4, param_2,
+           * 100, 0)`, the else-arm of the same `local_a == 2` the Euro branch
+           * above takes): joining the crusade enrages the tribe at US. 0d6c is
+           * a thunk to the WHOLE of FUN_4cc6_00f2, so it carries the
+           * escalation tail as well as the clamped delta — and +100 is the one
+           * site guaranteed to land the pair at alarm 100, where that tail's
+           * rng(0,10) mission expel / @INDIANBURN lives. Hence
+           * ai_contact_alarm_delta_00f2, not the half-writer.
+           */
+          ai_contact_alarm_delta_00f2(ctx, k->third, h, 100);
         }
       }
       break;
@@ -3276,11 +3297,12 @@ void ai_diplo_treaty_timers(ColonizeTurnContext* ctx, int nation_id) {
 }
 
 /*
- * Military strength of a Euro nation = the DS:0x941c census mirror
+ * Military strength of a Euro nation = the DS:0x941c census quantity
  * `stuff.land_combat_strength[]`, i.e. Σ FUN_281f_09c8(u, 1) over the
  * nation's land units (combat byte ×8 plus the veteran / Drake /
  * damaged-artillery peels), maintained by FUN_4962_0018 and ported in
- * col1_stuff_census.c.
+ * col1_stuff_census.c — recomputed here rather than read out of the mirror,
+ * see below.
  *
  * 2026-09-09 (smell #51): this used to be an invented blend —
  * Σ(attack+defense), +3 per ship, +2 per colonist of population, +5 per
@@ -3294,14 +3316,62 @@ void ai_diplo_treaty_timers(ColonizeTurnContext* ctx, int nation_id) {
  * land_combat_strength (see ai_diplo_00f8_top_ranked_nation above), so the
  * blend added the same quantity twice on two different scales.
  *
- * The mirror is a word, ×8 the DOS combat byte. The AI_DIPLO_STRENGTH_* bands
+ * The value is a word, ×8 the DOS combat byte. The AI_DIPLO_STRENGTH_* bands
  * that read this score are unchanged Linux constants — see their own note.
+ *
+ * 2026-09-10: computed LIVE instead of read out of `stuff`. The mirror has no
+ * live writer in the port — col1_stuff_census_fill_blank (col1_stuff_census.c)
+ * is reached only from col1_bridge_capture, i.e. the save-WRITING path, and
+ * only while the census window is still blank — so in a Linux-started game the
+ * word is 0 until the first (auto)save and frozen at that turn's roster ever
+ * after. ai_contact.c's FUN_5952_035e block and its Demand-Tribute roll made
+ * the same call for the same reason (ai_contact_land_combat_sum, "the port
+ * never refreshes the DS:0x95b2 / 0x91cc mirrors for a Linux-started game").
+ *
+ * The recompute reproduces FUN_4962_0018's per-nation arm byte for byte, so a
+ * loaded DOS save yields the number the save already carries: every ACTIVE
+ * unit of the nation whose TYPE domain is land — passengers in a hold
+ * included, exactly as the census twin counts them (DOS scans the whole unit
+ * array) — accumulated as Σ FUN_281f_09c8(u, 1) = combat_unit_base_x8(id, 1),
+ * into a word that wraps at 16 bits rather than saturating like the two byte
+ * rows beside it.
  */
+static int ai_diplo_land_combat_strength_live(const ColonizeTurnContext* ctx, int nation_id) {
+  if (!ctx->units) {
+    return 0;
+  }
+  ColonizeCombatStrengthCtx sctx;
+  memset(&sctx, 0, sizeof(sctx));
+  sctx.units = ctx->units;
+  sctx.map = ctx->map;
+  sctx.colonies = ctx->colonies;
+  sctx.col1 = ctx->col1;
+  unsigned sum = 0;
+  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    const ColonizeUnit* u = &ctx->units->units[i];
+    if (!u->active || u->nation_id != nation_id) {
+      continue;
+    }
+    const ColonizeUnitType* t = units_type(ctx->units, u->type_index);
+    if (!t || t->domain != COLONIZE_UNIT_DOMAIN_LAND) {
+      continue;
+    }
+    /* Slot walk, `u->id` to the accessor: combat_unit_base_x8 takes a unit ID
+     * and ids are handed out monotonically, so they neither start at nor track
+     * the slot index (the census twin makes the same note). */
+    const int v = combat_unit_base_x8(&sctx, u->id, 1, NULL);
+    if (v > 0) {
+      sum += (unsigned)v;
+    }
+  }
+  return (int)(uint16_t)sum;
+}
+
 int ai_diplo_military_score(const ColonizeTurnContext* ctx, int nation_id) {
   if (!ctx || !ctx->col1_ok || !ctx->col1 || nation_id < 0 || nation_id >= 4) {
     return 0;
   }
-  return (int)ctx->col1->stuff.land_combat_strength[nation_id];
+  return ai_diplo_land_combat_strength_live(ctx, nation_id);
 }
 
 

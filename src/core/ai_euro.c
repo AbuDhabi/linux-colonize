@@ -20713,14 +20713,16 @@ void ai_euro_dispatcher_turn(ColonizeTurnContext* ctx, int nation_id) {
   memset(s_20e6_explorers, 0, sizeof(s_20e6_explorers));
   /* Village-errand latch hygiene: DOS's +0x3158 dies with its unit record;
    * the session latch must not survive a despawn into a reused unit id.
-   * Same argument for the 20e6 ring-hop wander latch (DOS unit+0x3155 /
-   * +0x3156, raw 1600-1611 / 2416-2458): those bytes are part of the unit
-   * record too, so a reused id must not inherit a foreign hop commitment. */
+   * Same argument for the 20e6 explore-fatigue counter and ring-hop wander
+   * latch (DOS unit+0x3154 / +0x3155 / +0x3156, raw 1600-1611 / 2416-2458):
+   * those bytes are part of the unit record too, so a reused id must not
+   * inherit a foreign fatigue count or hop commitment. */
   for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
     if (units_get_const(ctx->units, i) != NULL) {
       continue;
     }
     s_20e6_wagon_errand[i] = 0;
+    s_20e6_explore_fatigue[i] = 0;  /* fresh counter: 0 == never explored */
     s_20e6_hop_slot[i] = 0;  /* slot+1 encoding: 0 == unset (DOS 0xff) */
     s_20e6_hop_steps[i] = 0;
   }

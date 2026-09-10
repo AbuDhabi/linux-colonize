@@ -3479,9 +3479,25 @@ int europe_custom_house_autosell_ex(
     if (c >= eu->cargo_count) {
       continue;
     }
-    /* Sells at euro_price − 1 (FUN_291f_09ea → FUN_38fd_0040); a zero price
-     * still moves the goods (DOS has no price gate here). */
-    const int price = europe_sell_price(eu, c);
+    /*
+     * Sells at euro_price − 1 (FUN_291f_09ea → FUN_38fd_0040, which reads
+     * `*(char *)(*(int *)0x84fc + cargo + 0x4c) - 1` clamped at 0). 0x84fc is
+     * the *bound* nation record — the same one the tax byte above comes from —
+     * so an AI colony's Custom House prices off that AI's own market, not the
+     * human's. The port's live market (eu->cargo[].bid) is bound to the human
+     * nation only (col1_bridge stamps col1 → bid on load and bid → col1 on
+     * capture), so it is the human's live record; every other nation's market
+     * lives in col1 trade.euro_price[]. Same substitution as the dump-sell
+     * below: a game that never came from a DOS save has the AI nations' byte
+     * still 0, so fall back to the one Linux market. A zero price still moves
+     * the goods (DOS has no price gate here).
+     */
+    int price = europe_sell_price(eu, c);
+    if (!is_human && nat && c < (int)COLONIZE_COL1_CARGO_TYPES &&
+        nat->trade.euro_price[c] != 0) {
+      const int p = (int)nat->trade.euro_price[c] - 1; /* FUN_38fd_0040 */
+      price = p < 0 ? 0 : p;
+    }
     const int gross = price * amount;
     const int gained = europe_net_after_tax(gross, tax);
     const int tax_paid = gross - gained;
