@@ -589,8 +589,41 @@ static int colony_yield_pipeline(
   return yield;
 }
 
+bool colony_yield_colony_has_docks(
+  const ColonizeColonyPool* pool,
+  const ColonizeColony* colony
+) {
+  if (!pool || !colony) {
+    return false;
+  }
+  for (int bi = 0; bi < pool->building_type_count && bi < COLONIZE_BUILDING_TYPES_MAX; ++bi) {
+    if (!colony->has_building[bi]) {
+      continue;
+    }
+    const char* bn = pool->building_types[bi].name;
+    if (bn && (strstr(bn, "Docks") != NULL || strstr(bn, "Drydock") != NULL ||
+               strstr(bn, "Shipyard") != NULL)) {
+      return true;
+    }
+  }
+  return false;
+}
+
 int colony_yield_for_tile(const ColonizeWorldMap* map, int x, int y, int field_job) {
   return colony_yield_pipeline(map, x, y, field_job, -1, 0, true, 0, false);
+}
+
+int colony_yield_for_tile_in_colony(
+  const ColonizeColonyPool* pool,
+  const ColonizeColony* colony,
+  const ColonizeWorldMap* map,
+  int x,
+  int y,
+  int field_job
+) {
+  return colony_yield_pipeline(
+    map, x, y, field_job, -1, 0, colony_yield_colony_has_docks(pool, colony), 0, false
+  );
 }
 
 int colony_yield_for_worker(

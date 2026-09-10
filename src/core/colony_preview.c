@@ -53,19 +53,9 @@ void colony_preview_compute(
     }
 
     /* Docks (or an upgrade: Drydock/Shipyard) gates Fisherman yield to 0 —
-     * FUN_15eb_18ec ~11925-11939. Must match turn.c's check. */
-    bool has_docks = false;
-    for (int bi = 0; bi < pool->building_type_count && bi < COLONIZE_BUILDING_TYPES_MAX; ++bi) {
-      if (!colony->has_building[bi]) {
-        continue;
-      }
-      const char* dn = pool->building_types[bi].name;
-      if (dn && (strstr(dn, "Docks") != NULL || strstr(dn, "Drydock") != NULL ||
-                 strstr(dn, "Shipyard") != NULL)) {
-        has_docks = true;
-        break;
-      }
-    }
+     * FUN_15eb_18ec:11967-11969. Shared answer, so it cannot drift from
+     * turn.c's check the way the AI scorer's copy did (audit E#2). */
+    const bool has_docks = colony_yield_colony_has_docks(pool, colony);
 
     bool worked_colonist[32];
     memset(worked_colonist, 0, sizeof(worked_colonist));

@@ -1637,7 +1637,9 @@ static int europe_arm_buy_cost(const EuropeScreen* eu, int cargo, int qty) {
  * and the net into +0x26. None of that appears at the arm rows — no tax split,
  * no royal_money, no +0x26 — so the disarm gross lands whole in the treasury.
  * The Crown's cut is still reflected in the per-cargo revenue ledger, which is
- * FUN_38fd_1dfa's own (100−tax) term, applied below by the ledger call.
+ * FUN_38fd_1dfa's own (100−tax) term, applied below by the ledger call — the
+ * `europe_apply_trade_volume` in europe_apply_dock_menu_row_ex, which must be
+ * handed a non-NULL col1 for that ledger to move at all.
  */
 static int europe_arm_sell_gain(const EuropeScreen* eu, int cargo, int qty) {
   return europe_sell_price(eu, cargo) * qty;
@@ -1814,9 +1816,10 @@ static const char* europe_arm_row_name(int row) {
   }
 }
 
-bool europe_apply_dock_menu_row(
+bool europe_apply_dock_menu_row_ex(
   EuropeScreen* eu,
   ColonizeUnitPool* units,
+  ColonizeCol1Save* col1,
   int nation_id,
   int dock_index,
   int row
@@ -1931,9 +1934,18 @@ bool europe_apply_dock_menu_row(
      * never raises @PRICEUP/@PRICEDOWN either. europe_apply_volume_price would
      * have run 0058, so call the full form with immediate_threshold = 0.
      */
+    /*
+     * `col1` is passed through so the per-cargo tons/tons2/gold ledger really
+     * is written, as the disarm-tax note 300 lines above promises: DOS's
+     * FUN_38fd_1dfa (viceroy_unpacked.c 60272-60295) adds the amount into
+     * nation+0xbc and +0xfc and the (100−tax)-scaled gross into +0x7c on every
+     * call, and the three arm sell rows call it bare. NULL is still accepted
+     * (tests, and any caller with no save bound) and then only the price pool
+     * moves, exactly as on the harbor channels.
+     */
     const int bound = (int)eu->bound_nation;
     europe_apply_trade_volume(
-      eu, NULL, bound, bound, ledger_cargo, ledger_qty, ledger_is_buy, 0
+      eu, col1, bound, bound, ledger_cargo, ledger_qty, ledger_is_buy, 0
     );
   }
   diag_info(
@@ -1948,6 +1960,16 @@ bool europe_apply_dock_menu_row(
     g_europe_sound_play(sound);
   }
   return true;
+}
+
+bool europe_apply_dock_menu_row(
+  EuropeScreen* eu,
+  ColonizeUnitPool* units,
+  int nation_id,
+  int dock_index,
+  int row
+) {
+  return europe_apply_dock_menu_row_ex(eu, units, NULL, nation_id, dock_index, row);
 }
 
 bool europe_pop_dock_immigrant(EuropeScreen* eu, char* out_name, size_t out_name_size) {
@@ -3591,14 +3613,29 @@ int europe_ai_colony_dump_sell(
    * surplus for gold before spoilage. Stock is not reduced here — spoilage clamps.
    * Cite: viceroy_unpacked.c ~57806–57848; 291f_0a2e → 38fd_1dfa.
    *
-   * UNTAXED, and NOT at the harbor sell price. DOS (viceroy 57834-57846):
+   * UNTAXED. DOS (viceroy 57834-57846):
    *   local_66 = (uint)*(byte *)(cargo + nation*0x10 + -0x7b44) * amount;
    *   *(nation_rec + cargo*4 + 0x7c) += local_66;   // per-cargo ledger
    *   *(nation_rec + 0x2a)          += local_66;    // 32-bit treasury
-   * — the raw DS:0x84BC `euro_price[nation][cargo]` byte (col1 nation
-   * trade.euro_price), no `−1` and no tax split: there is no FUN_1d1d_0ec6
-   * tax call and no `+0x22` royal_money write anywhere in this arm, unlike
-   * the Custom House arm 500 lines earlier (57277-57302) which does both.
+   * No tax split: there is no FUN_1d1d_0ec6 tax call and no `+0x22`
+   * royal_money write anywhere in this arm, unlike the Custom House arm 500
+   * lines earlier (57277-57302) which does both.
+   *
+   * The price byte, though, IS the harbor sell price. `-0x7b44` and DS:0x84BC
+   * are the same address (signed vs unsigned 16-bit), and that 4x16 table is
+   * not the nation records' `euro_price[]` — it is a derived per-nation SELL
+   * table, and every writer of it stores `euro_price − 1` clamped at 0:
+   *   viceroy_unpacked.c:6316-6320 (the nation-bind rebuild, all four nations)
+   *     iVar2 = *(char *)(*(int *)0x84fc + cargo + 0x4c) − 1;
+   *     if (iVar2 < 0) iVar2 = 0;
+   *     *(nation*0x10 + cargo + -0x7b44) = (char)iVar2;
+   *   and identically at :51962-51966 and FUN_38fd_0058's tail :58996-59000,
+   *   plus the two overlay copies (viceroy_overlays.c:30272, :36095).
+   * `+0x4c` is exactly `offsetof(ColonizeCol1Nation, trade.euro_price)` (0x4c,
+   * with sizeof == 0x13c), i.e. the record array this port keeps in
+   * `nat->trade.euro_price[]` — the value DOS reads BEFORE the −1. So the
+   * dump-sell price is `euro_price − 1` == europe_sell_price(), the project's
+   * standing Europe price convention, and NOT the raw record byte.
    */
   if (!eu || !colony || !colony->active) {
     return 0;
@@ -3653,16 +3690,21 @@ int europe_ai_colony_dump_sell(
      * BEFORE it reads the price byte (asm 364b:1795 vs 17d0). */
     europe_apply_trade_volume(eu, col1, nation, human_nation, c, amount, 0, 0);
     /*
-     * DS:0x84BC byte for THIS colony's nation — not eu->cargo[].bid−1
-     * (asm 364b:17d0 `MOV AL,[BX+SI+0x84bc]`, SI = nation<<4, BX = cargo).
+     * DS:0x84BC byte for THIS colony's nation (asm 364b:17d0
+     * `MOV AL,[BX+SI+0x84bc]`, SI = nation<<4, BX = cargo) — which is that
+     * nation's record price minus one, see the derivation in the block above.
      * Substitution: a game that never came from a DOS save has the AI
-     * nations' byte still 0 (only the bound nation's is stamped, see
-     * col1_bridge), so fall back to the one Linux market's raw bid — the
+     * nations' record byte still 0 (only the bound nation's is stamped, see
+     * col1_bridge), so fall back to the one Linux market's sell price — the
      * same live-market-else-col1 pairing ai_euro_5d04_cb_sell_price uses.
      */
-    int price = (nat && c < (int)COLONIZE_COL1_CARGO_TYPES) ? (int)nat->trade.euro_price[c] : 0;
-    if (price <= 0) {
-      price = eu->cargo[c].bid;
+    int price;
+    const int record_price =
+      (nat && c < (int)COLONIZE_COL1_CARGO_TYPES) ? (int)nat->trade.euro_price[c] : 0;
+    if (record_price > 0) {
+      price = record_price - 1; /* the table's own `− 1` clamp; > 0 here, so no floor needed */
+    } else {
+      price = europe_sell_price(eu, c);
     }
     /* No price gate: DOS calls 291f_0a2e (volume) at 57827, before it reads
      * the price byte at 57834 — a zero price still moves the goods. */
@@ -4325,9 +4367,10 @@ void europe_menu_close(EuropeScreen* eu) {
  * and apply it. Row ids are carried per-row because DOS omits the rows it
  * disabled, so the visible index is not the id.
  */
-bool europe_dock_menu_apply_selection(
+bool europe_dock_menu_apply_selection_ex(
   EuropeScreen* eu,
   ColonizeUnitPool* units,
+  ColonizeCol1Save* col1,
   int nation_id
 ) {
   if (!eu || eu->menu != EUROPE_MENU_DOCK) {
@@ -4342,9 +4385,17 @@ bool europe_dock_menu_apply_selection(
     return false;
   }
   eu->menu_answered = true;
-  return europe_apply_dock_menu_row(
-    eu, units, nation_id, eu->menu_dock_index, (int)eu->dock_menu_row[sel]
+  return europe_apply_dock_menu_row_ex(
+    eu, units, col1, nation_id, eu->menu_dock_index, (int)eu->dock_menu_row[sel]
   );
+}
+
+bool europe_dock_menu_apply_selection(
+  EuropeScreen* eu,
+  ColonizeUnitPool* units,
+  int nation_id
+) {
+  return europe_dock_menu_apply_selection_ex(eu, units, NULL, nation_id);
 }
 
 bool europe_menu_confirm(EuropeScreen* eu) {

@@ -445,11 +445,31 @@ void colony_prod_tick_rebel_accumulators(
    * runaway to guard against — the SoL% folded into the bells is the *pre-tick*
    * ratio (the dividend/divisor update happens below, after this read), the
    * same one-turn-lagged feedback DOS has.
+   *
+   * So when this colony already composed on THIS turn, consume that stamped
+   * number instead of deriving a second one — same guard
+   * turn_run_nation_ticks uses for the congress tally (turn.c's
+   * this_turn_stamp block). Re-deriving here is not merely redundant: the
+   * Phase A snapshot is taken before Phase C/D touch the SoL latch and
+   * before F/G/H education rewrites professions, so a graduation turn or a
+   * latch-crossing turn would hand the rebel dividend a different word than
+   * the one the congress got, which is exactly the split "one number, two
+   * consumers" forbids. Colonies with no stamp (a direct caller with no
+   * col1 turn, or a tick that never ran Phase A) fall back to a live
+   * derivation, which for them IS the pre-tick state.
    */
   const int sol_b = colony_prod_sol_bonus(col1, colony);
-  int bells = colony_prod_colony_bells_ff(
-    pool, colony, statesmen_pct, paine_tax_pct, nation_is_ai, sol_b
-  );
+  /* +1 so that turn 0 still produces a stamp distinct from the "never
+   * composed" 0 — same encoding turn.c writes at the Phase A boundary. */
+  const uint32_t this_turn_stamp = (uint32_t)col1->head.turn + 1u;
+  int bells;
+  if (colony->prod_compose_stamp == this_turn_stamp) {
+    bells = colony->prod_bells_phase_a;
+  } else {
+    bells = colony_prod_colony_bells_ff(
+      pool, colony, statesmen_pct, paine_tax_pct, nation_is_ai, sol_b
+    );
+  }
 
   /* WoI + crown-occupied: bells feed Tory (negative half). */
   const int woi = col1->head.game_options.woi != 0;

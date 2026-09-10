@@ -121,6 +121,14 @@ void colony_prod_refresh_sol_flags(ColonizeColony* colony, const ColonizeCol1Sav
  * FUN_364b_0688 Phase C: shrink rebel pairs ≈÷64, divisor += pop*2,
  * dividend += bells (WoI + crown-occupied: bells = -(bells>>1)), clamp.
  * No-op without matching Col1 colony at (x,y). See sons_of_liberty.md.
+ *
+ * Call this at the DOS Phase C position — after Phase B applies the cargos,
+ * but before F/G/H education and before I/J birth/starve-kill. Both the
+ * pop*2 divisor term and the bells it consumes are meant to see the roster
+ * the colony started the turn with. The bells come from the caller's Phase A
+ * snapshot (`ColonizeColony.prod_bells_phase_a`) whenever
+ * `prod_compose_stamp` matches this turn, so the accumulator and the
+ * congress tally share one number.
  */
 void colony_prod_tick_rebel_accumulators(
   const ColonizeColonyPool* pool,

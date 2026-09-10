@@ -1565,6 +1565,16 @@ int ai_diplo_00f8_top_ranked_nation(const ColonizeCol1Save* col1) {
  * col1_stuff_census_settlement_at (that file's copy is static; this is a
  * 20-line pure helper, duplicated rather than exported to keep ai_diplo's
  * link unit independent of col1_stuff_census).
+ *
+ * The returned id is the absolute Col1 nation id in both branches. DOS reads
+ * one owner nibble off the tile (FUN_137f_0200 = FUN_137f_01ac >> 4 & 0xf,
+ * 0xf meaning "none"), and that nibble already holds 0..3 for a European
+ * colony and 4..11 for an Indian village — which is exactly why the sibling
+ * FUN_137f_03c2 can filter villages out with a bare `if (owner < 4) return
+ * -1`. `ColonizeCol1Tribe.nation_id` is stored in the same absolute space
+ * (every consumer indexes `col1->indian[]` with `nation_id - 4`), so the
+ * village branch returns it unmodified. Adding 4 here — as this helper and
+ * both of its clones did until 2026-09-10 — reported villages as 8..15.
  */
 static int ai_diplo_settlement_owner_at(const ColonizeTurnContext* ctx, int x, int y) {
   if (ctx->colonies) {
@@ -1577,7 +1587,7 @@ static int ai_diplo_settlement_owner_at(const ColonizeTurnContext* ctx, int x, i
   if (ctx->col1_ok && ctx->col1 && ctx->col1->tribe) {
     for (uint16_t i = 0; i < ctx->col1->head.tribe_count; ++i) {
       if ((int)ctx->col1->tribe[i].x == x && (int)ctx->col1->tribe[i].y == y) {
-        return 4 + (int)ctx->col1->tribe[i].nation_id;
+        return (int)ctx->col1->tribe[i].nation_id; /* already 4..11 */
       }
     }
   }

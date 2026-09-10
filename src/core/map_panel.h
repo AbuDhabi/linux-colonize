@@ -112,7 +112,10 @@ void map_panel_render(
   int cursor_x,
   int cursor_y,
   int selected_unit_id,
-  int human_nation,
+  /* The fog view nation, not the player: −1 under Complete Map, a foreign
+   * nation under SETVIEW. map_panel_render resolves the real human itself for
+   * the few "is this mine?" questions — do not use this for those. */
+  int fog_nation,
   uint16_t game_year,
   uint16_t game_autumn,
   int gold,

@@ -474,6 +474,11 @@ void colony_screen_open_jobs(
   }
   const int tx = colony->x + dx;
   const int ty = colony->y + dy;
+  /* Row list is deliberately NOT docks-gated (and colony_yield_for_tile's
+   * has_docks=true is right here): DOS offers Fisherman on a dockless colony
+   * and answers the pick with GAME.TXT @NODOCKS, which is what game_loop.c's
+   * two assign paths do. The drawn number IS gated, so the row reads
+   * "Fisherman (0)" — see colony_screen_draw_jobs_popup. */
   for (int job = 0; job < COLONIZE_FIELD_JOB_COUNT && view->job_count < COLONY_JOB_LIST_MAX; ++job) {
     const int yld = map ? colony_yield_for_tile(map, tx, ty, job) : 0;
     if (yld > 0) {
@@ -1585,21 +1590,9 @@ static void colony_screen_draw_area_overlays(
   }
 
   /* Docks (or an upgrade: Drydock/Shipyard) gates Fisherman yield to 0 —
-   * FUN_15eb_18ec ~11925-11939. Must match turn.c's check. */
-  bool has_docks = false;
-  if (pool) {
-    for (int bi = 0; bi < pool->building_type_count && bi < COLONIZE_BUILDING_TYPES_MAX; ++bi) {
-      if (!colony->has_building[bi]) {
-        continue;
-      }
-      const char* dn = pool->building_types[bi].name;
-      if (dn && (strstr(dn, "Docks") != NULL || strstr(dn, "Drydock") != NULL ||
-                 strstr(dn, "Shipyard") != NULL)) {
-        has_docks = true;
-        break;
-      }
-    }
-  }
+   * FUN_15eb_18ec:11967-11969. Shared answer, so it cannot drift from
+   * turn.c's check the way the AI scorer's copy did (audit E#2). */
+  const bool has_docks = colony_yield_colony_has_docks(pool, colony);
 
   /* Same one-badge-per-colonist dedupe turn_produce_one_colony (turn.c) and
    * colony_preview_compute apply to the production loops: a colonist index
@@ -3873,21 +3866,13 @@ static void colony_screen_draw_jobs_popup(
   const int ty = colony ? colony->y + dy : 0;
 
   /* Docks (or an upgrade: Drydock/Shipyard) gates Fisherman yield to 0 —
-   * FUN_15eb_18ec ~11925-11939. Must match turn.c's check. */
-  bool has_docks = false;
-  if (pool && colony) {
-    for (int bi = 0; bi < pool->building_type_count && bi < COLONIZE_BUILDING_TYPES_MAX; ++bi) {
-      if (!colony->has_building[bi]) {
-        continue;
-      }
-      const char* dn = pool->building_types[bi].name;
-      if (dn && (strstr(dn, "Docks") != NULL || strstr(dn, "Drydock") != NULL ||
-                 strstr(dn, "Shipyard") != NULL)) {
-        has_docks = true;
-        break;
-      }
-    }
-  }
+   * FUN_15eb_18ec:11967-11969. Shared answer, so it cannot drift from
+   * turn.c's check the way the AI scorer's copy did (audit E#2). This is why
+   * a dockless colony's job list shows "Fisherman (0)" rather than hiding the
+   * row: DOS lists the job and answers the pick with @NODOCKS (the port does
+   * the same, game_loop.c's two assign paths), so colony_screen_open_jobs
+   * deliberately keeps building the row list ungated. */
+  const bool has_docks = colony_yield_colony_has_docks(pool, colony);
 
   for (int i = 0; i < rows; ++i) {
     const int row_y = list_y0 + i * line_h;
