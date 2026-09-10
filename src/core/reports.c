@@ -1543,7 +1543,8 @@ static void reports_render_congress_page2(
  * empty), plus a per-profession detail view reached by clicking a cell.
  *
  * DOS lays out a fixed 26-slot table, not a straight scan of job ids 0..27:
- * Expert Teachers (18) and Veteran Dragoons (23) never appear, and Free
+ * Expert Teachers (18, a colonist type cut from the final DOS game — see
+ * europe_pool_remap) and Veteran Dragoons (23) never appear, and Free
  * Colonists (19) is pulled out of numeric order to the bottom of column 3.
  * Measured off labor.png (native 320x200): icon rows start y=26, step=18;
  * columns start x=2/107/212.

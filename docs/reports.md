@@ -230,7 +230,9 @@ independently golden-confirmed.
   unit-type fallback in either (smell audit #90: `u->type` is an @UNIT id,
   a different id space from @JOB); a byte outside the job table is skipped.
 - Columns/layout: 9-row x 3-column fixed table, not a straight 0..27 job-id
-  scan — `k_labor_layout[3][9]` skips job 18 (Expert Teacher) and 23
+  scan — `k_labor_layout[3][9]` skips job 18 (Expert Teacher — a colonist
+  type cut from the final DOS game; unreachable, references to it are dead
+  ends, do not port) and 23
   (Veteran Dragoon), and job 19 (Free Colonist) is out-of-order at the
   bottom of column 3. Row0 y=26 step=18; col0 x=2 step=105. Detail view:
   header (icon+name+total), Off Mapboard/On Mapboard/In Colonies

@@ -1403,8 +1403,9 @@ const char* units_display_name(const ColonizeUnitPool* pool, const ColonizeUnit*
 /*
  * ICONS.SS index per NAMES.TXT @JOB profession (0..28) for a colonist
  * working inside a colony / waiting on a dock — no field equipment, unlike
- * the on-map UNITS_ICON_* sprites. -1 if that profession has no dedicated
- * portrait (Expert Teachers, Veteran Dragoons).
+ * the on-map UNITS_ICON_* sprites; -1 if a profession has no dedicated
+ * portrait (currently none). Job 18's sprite exists but the Expert Teacher
+ * colonist type was cut from the final DOS game (unreachable leftover).
  */
 int units_job_icon_sprite(int profession);
 

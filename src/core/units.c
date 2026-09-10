@@ -11068,7 +11068,9 @@ static const int16_t k_units_job_icon[UNITS_JOB_NONE + 1] = {
   /* 18 Expert Teachers: linear branch, 18 + 0x52 = 0x64 → sprite 99 (the
    * blue-coat figure holding a book, between Elder Statesman 98 and Free
    * Colonist 100). Was -1, which fell back to the @UNIT type icon and drew
-   * teachers as plain Free Colonists. */
+   * teachers as plain Free Colonists. Note the Expert Teacher colonist type
+   * was cut from the final DOS game (see europe_pool_remap); the sprite is
+   * a leftover, reachable only via hand-edited saves. */
   99,
   100, UNITS_ICON_HARDY_PIONEER_WORK, UNITS_ICON_VETERAN_SOLDIER_WORK,
   /* 23 Veteran Dragoons: linear branch, 0x17 + 0x52 = 0x69 → sprite 104

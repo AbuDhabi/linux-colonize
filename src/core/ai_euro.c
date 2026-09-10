@@ -4720,6 +4720,9 @@ static int ai_euro_colony_best_craft_building(
  * Distiller/Weaver/Tobacconist/Blacksmith/Gunsmith (Armory→Magazine→Arsenal)/
  * Fur Trader (House→Trading Post→Factory); Carpenter→Shop/Mill; Statesman→Town
  * Hall; Preacher→Church→Cathedral; Teacher→Schoolhouse→College→University.
+ * The Expert Teacher arm is dead in practice: the type was cut from the
+ * final DOS game (see europe_pool_remap) and no unit can normally carry
+ * @JOB 18 — kept only as tolerance for hand-edited saves; never extend it.
  * No invented rates. On-tile: admit then assign. Off-tile MD≤8: AI_MOVE (1).
  */
 static int ai_euro_try_expert_workplace_assign(
@@ -20010,6 +20013,8 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
    * Colonization.pdf Skills Chart; docs/building_production.md craft chains;
    * Carpenter→Shop/Mill; Statesman→Town Hall; Preacher→Church/Cathedral;
    * Teacher→Schoolhouse/College/University. Parallel to planter field-assign.
+   * Expert Teacher arm dead in practice — type cut from the final DOS game
+   * (see europe_pool_remap); save-tolerance only.
    */
   int workplace_assigned = 0;
   if (!treasure_routed && !wagon_hauled && !pioneer_improved && !lumberjack_fielded &&
