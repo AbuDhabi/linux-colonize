@@ -930,230 +930,20 @@ static void turn_produce_one_colony(
     }
   }
   /*
-   * FUN_364b_0688: starvation latch (+0x1c bit3) from food vs pop need.
-   * Phase J kills when still short after this turn *and* food was already 0
-   * at turn start (local_6c==0 / local_12e); pop==kills → @VANISH + abandon.
-   * Easy-difficulty no-kill mercy ported below. Cite: ~57623–57694.
+   * ---- Phases C / D — rebel accumulators + SoL latch ----
+   *
+   * DOS order is C (57349-57414) → D (57415-57485) → E → F/G/H education
+   * (57502-57614) → I birth (57615) → J starve-kill (57623-57695); see
+   * turn/colony_eot_production.md's phase table. The port used to run I and
+   * J here, ahead of C/D, so `rebel_divisor += pop*2`, the accumulator's
+   * bells and `colony_prod_sol_bonus`'s Tory head count all read a roster
+   * DOS never shows them — one that had already gained a newborn or lost a
+   * starved colonist. Phase C reads the population byte `+0x1f` directly
+   * (viceroy_unpacked.c:57377), i.e. the pre-birth, pre-starve count, and
+   * Phase J's abandon jumps straight to the epilogue (`goto LAB_364b_1ae2`,
+   * :57692) with C/D and F/G/H already done. The I/J block now sits below
+   * education, at its DOS position.
    */
-  {
-    const int need = pop * TURN_FOOD_PER_COLONIST;
-    const int food_at_start = stock_before[COLONIZE_CARGO_FOOD];
-    const int was_starving = colony->food_shortfall_latch != 0;
-    int starved_this_tick = 0;
-    /*
-     * bugs.md (port_orange_starves.SAV): DOS's starve trigger is DS:0x8e5a =
-     * max(0, consumption − stock-at-start − production) — the colony must
-     * actually have gone NEGATIVE this turn. The old `stock_after < need`
-     * latch killed a colony producing exactly what it eats at 0 stores
-     * (commons 2 food vs pop 1 eating 2 — net zero, DOS-fine forever).
-     */
-    colony->food_shortfall_latch = (need - food_at_start - field_food > 0) ? 1u : 0u;
-
-    /*
-     * FUN_364b_0688 phase I — birth: food ≥ 200 → Free Colonist in colony;
-     * subtract 200 food (docs/building_production.md; decomp ~57615–57622).
-     */
-    if (colony->stock[COLONIZE_CARGO_FOOD] >= 200 &&
-        colony->colonist_count < COLONIZE_COLONY_POP_MAX) {
-      colony->stock[COLONIZE_CARGO_FOOD] =
-        turn_clamp_stock(colony->stock[COLONIZE_CARGO_FOOD] - 200);
-      if (delta) {
-        delta->goods[COLONIZE_CARGO_FOOD] -= 200;
-        delta->food_net -= 200;
-      }
-      bool born_on_tile = false;
-      if (s_turn_birth_units) {
-        /* bugs.md: the newborn stands on the colony tile awaiting orders. */
-        const int ct = units_find_type(s_turn_birth_units, "Colonists");
-        if (ct >= 0) {
-          const int nid =
-            units_spawn_allow_stack(s_turn_birth_units, ct, colony->x, colony->y);
-          ColonizeUnit* nu = units_get(s_turn_birth_units, nid);
-          if (nu) {
-            units_set_nation(nu, colony->nation_id);
-            nu->orders = UNITS_ORDER_NONE;
-            born_on_tile = true;
-          }
-        }
-      }
-      if (!born_on_tile) {
-        ColonizeColonist* newborn = &colony->colonists[colony->colonist_count];
-        memset(newborn, 0, sizeof(*newborn));
-        newborn->active = true;
-        newborn->unit_type_index = 0;
-        newborn->profession = UNITS_JOB_COLONIST; /* Free Colonists */
-        newborn->building_type = -1;
-        newborn->field_job = -1;
-        colony->colonist_count++;
-        colony->population = colony->colonist_count;
-      }
-      if (europe && colony->nation_id == human_nation) {
-        /* DOS 0xe2f @NEWCOLONIST. Cite: colony_eot_production.md Phase I. */
-        if (colony->name[0]) {
-          snprintf(europe->status, sizeof(europe->status), "Birth in %s.", colony->name);
-        } else {
-          snprintf(europe->status, sizeof(europe->status), "Colony birth.");
-        }
-        if (ai_popups) {
-          char body[AI_POPUP_BODY_LEN];
-          PopupMsgTokens tok;
-          memset(&tok, 0, sizeof(tok));
-          tok.string0 = colony->name[0] ? colony->name : "colony";
-          popup_msg_fill(
-            messages, "NEWCOLONIST", &tok, europe->status, body, sizeof(body)
-          );
-          ai_popup_enqueue_colony_event(ai_popups, colony->id, body);
-        }
-      }
-    }
-
-    /*
-     * Easy-difficulty no-kill mercy (FUN_364b_0688, decomp ~57641-57647):
-     * on Discoverer/Explorer (difficulty < 2), the kill below never fires
-     * before year 1520; from 1520 on it's a `dos_rng_range(0, 2-difficulty)`
-     * roll, nonzero cancels (2/3 odds at Discoverer, 1/2 at Explorer). NULL
-     * col1/rng safely fall through to the plain kill (old behavior).
-     */
-    int starve_mercy = 0;
-    if (col1 && col1->head.difficulty < 2) {
-      if (col1->head.year < 1520) {
-        starve_mercy = 1;
-      } else if (dos_rng_range(rng, 0, 2 - col1->head.difficulty) != 0) {
-        starve_mercy = 1;
-      }
-    }
-
-    /*
-     * Phase J — starve-kill when still short and started the turn at 0 food.
-     * Last colonist → @VANISH + colonies_abandon (DOS 0xe47 / thunk 0254).
-     */
-    if (colony->food_shortfall_latch != 0 && food_at_start == 0 &&
-        colony->colonist_count > 0 && !starve_mercy) {
-      const int colony_id = colony->id;
-      char vanish_name[COLONIZE_COLONY_NAME_MAX];
-      snprintf(
-        vanish_name,
-        sizeof(vanish_name),
-        "%s",
-        colony->name[0] ? colony->name : "colony"
-      );
-      const int kill_i = colony->colonist_count - 1;
-      for (int ti = 0; ti < COLONIZE_COLONY_FIELD_TILES; ++ti) {
-        if ((int)colony->tiles[ti] == kill_i) {
-          colony->tiles[ti] = (int8_t)-1;
-        } else if ((int)colony->tiles[ti] > kill_i) {
-          colony->tiles[ti] = (int8_t)((int)colony->tiles[ti] - 1);
-        }
-      }
-      for (int i = kill_i; i < colony->colonist_count - 1; ++i) {
-        colony->colonists[i] = colony->colonists[i + 1];
-      }
-      memset(
-        &colony->colonists[colony->colonist_count - 1], 0, sizeof(colony->colonists[0])
-      );
-      colony->colonist_count--;
-      colony->population = colony->colonist_count;
-      starved_this_tick = 1;
-      if (colony->colonist_count <= 0) {
-        if (europe && colony->nation_id == human_nation) {
-          snprintf(
-            europe->status,
-            sizeof(europe->status),
-            "Colony %s vanished.",
-            vanish_name
-          );
-          if (ai_popups) {
-            char body[AI_POPUP_BODY_LEN];
-            PopupMsgTokens tok;
-            memset(&tok, 0, sizeof(tok));
-            tok.string0 = vanish_name;
-            popup_msg_fill(messages, "VANISH", &tok, europe->status, body, sizeof(body));
-            ai_popup_enqueue_ok(ai_popups, AI_POPUP_TAG_INFO, NULL, body);
-          }
-        }
-        (void)colonies_abandon(pool, colony_id);
-        return;
-      }
-      if (europe && colony->nation_id == human_nation) {
-        if (colony->name[0]) {
-          snprintf(europe->status, sizeof(europe->status), "Starvation in %s.", colony->name);
-        } else {
-          snprintf(europe->status, sizeof(europe->status), "Colonist starved.");
-        }
-        if (ai_popups) {
-          const char* sec = (col1 && col1->head.autumn) ? "STARVE2" : "STARVE1";
-          char body[AI_POPUP_BODY_LEN];
-          PopupMsgTokens tok;
-          memset(&tok, 0, sizeof(tok));
-          tok.string0 = colony->name[0] ? colony->name : "colony";
-          popup_msg_fill(messages, sec, &tok, europe->status, body, sizeof(body));
-          ai_popup_enqueue_colony_event(ai_popups, colony->id, body);
-        }
-      }
-    }
-
-    /*
-     * First starvation latch (stock < need, not yet killing): @FOOD1 / @FOOD2.
-     * Else DOS 0xe5e @FOODLOW when eating into stores:
-     *   8e5a==0 (stock covers this turn) and 8e32!=0 (production < consumption)
-     *   and post-eat stock < 8e32×4. Cite: FUN_15eb_0b52; ~57626–57636.
-     * Surplus production (8e32==0) never warns — even if stock is modest.
-     */
-    if (!starved_this_tick && need > 0 && europe &&
-        colony->nation_id == human_nation && turn_report_ok_food(col1)) {
-      const int stock = colony->stock[COLONIZE_CARGO_FOOD];
-      const int food_shortfall = consumed - field_food; /* DOS 8e32 when >0 */
-      /*
-       * bugs.md item 5: DOS's literal FOOD1/FOOD2 latch fires on stock<need
-       * alone, even at food_shortfall<=0 (production covers or beats
-       * consumption) — a colony merely flatlining at 0 net-zero food would
-       * re-trigger "depleted" every turn. Require actively losing food
-       * (shortfall>0) to match FOODLOW's own "surplus never warns" rule
-       * below and stop the false-positive nag.
-       *
-       * bugs.md item 292: "depleted" additionally requires the stores to be
-       * EXACTLY 0 — merely dipping below next turn's need reads as "low",
-       * handled by the FOODLOW branch below.
-       */
-      if (stock == 0 && food_shortfall > 0 && !was_starving) {
-        if (colony->name[0]) {
-          snprintf(
-            europe->status, sizeof(europe->status), "Food depleted in %s.", colony->name
-          );
-        } else {
-          snprintf(europe->status, sizeof(europe->status), "Food stores depleted.");
-        }
-        if (ai_popups) {
-          const char* sec = (col1 && col1->head.autumn) ? "FOOD2" : "FOOD1";
-          char body[AI_POPUP_BODY_LEN];
-          PopupMsgTokens tok;
-          memset(&tok, 0, sizeof(tok));
-          tok.string0 = colony->name[0] ? colony->name : "colony";
-          popup_msg_fill(messages, sec, &tok, europe->status, body, sizeof(body));
-          ai_popup_enqueue_colony_event(ai_popups, colony->id, body);
-        }
-      } else if (
-        stock > 0 && food_shortfall > 0 && stock < food_shortfall * 4
-      ) {
-        if (colony->name[0]) {
-          snprintf(europe->status, sizeof(europe->status), "Food low in %s.", colony->name);
-        } else {
-          snprintf(europe->status, sizeof(europe->status), "Food stores low.");
-        }
-        if (ai_popups) {
-          char body[AI_POPUP_BODY_LEN];
-          PopupMsgTokens tok;
-          memset(&tok, 0, sizeof(tok));
-          tok.string0 = colony->name[0] ? colony->name : "colony";
-          tok.number0 = stock;
-          tok.has_number0 = true;
-          popup_msg_fill(messages, "FOODLOW", &tok, europe->status, body, sizeof(body));
-          ai_popup_enqueue_colony_event(ai_popups, colony->id, body);
-        }
-      }
-    }
-  }
-
   {
     const int sol_before = colony_prod_sol_percent(col1, colony);
     const uint8_t flags_before = colony->colony_flags;
@@ -1447,6 +1237,241 @@ static void turn_produce_one_colony(
             popup_msg_fill(messages, "TRAINPROFESSION", &tok, fallback, body, sizeof(body));
             ai_popup_enqueue_colony_event(ai_popups, colony->id, body);
           }
+        }
+      }
+    }
+  }
+
+  /*
+   * ---- Phases I / J — birth and starve-kill ----
+   *
+   * Position is load-bearing: DOS runs these last of the roster-changing
+   * phases, after C/D and after F/G/H education (see the Phase C/D comment
+   * above for the citations), so everything upstream sees the population
+   * this colony started the turn with. Birth compares the food stock as it
+   * stands after Phase B has applied every composed cargo — horses
+   * included, which is why the horse-breeding food cost above is spent
+   * before the 200-food test here rather than after it.
+   *
+   * FUN_364b_0688: starvation latch (+0x1c bit3) from food vs pop need.
+   * Phase J kills when still short after this turn *and* food was already 0
+   * at turn start (local_6c==0 / local_12e); pop==kills → @VANISH + abandon.
+   * Easy-difficulty no-kill mercy ported below. Cite: ~57623–57694.
+   */
+  {
+    const int need = pop * TURN_FOOD_PER_COLONIST;
+    const int food_at_start = stock_before[COLONIZE_CARGO_FOOD];
+    const int was_starving = colony->food_shortfall_latch != 0;
+    int starved_this_tick = 0;
+    /*
+     * bugs.md (port_orange_starves.SAV): DOS's starve trigger is DS:0x8e5a =
+     * max(0, consumption − stock-at-start − production) — the colony must
+     * actually have gone NEGATIVE this turn. The old `stock_after < need`
+     * latch killed a colony producing exactly what it eats at 0 stores
+     * (commons 2 food vs pop 1 eating 2 — net zero, DOS-fine forever).
+     */
+    colony->food_shortfall_latch = (need - food_at_start - field_food > 0) ? 1u : 0u;
+
+    /*
+     * FUN_364b_0688 phase I — birth: food ≥ 200 → Free Colonist in colony;
+     * subtract 200 food (docs/building_production.md; decomp ~57615–57622).
+     */
+    if (colony->stock[COLONIZE_CARGO_FOOD] >= 200 &&
+        colony->colonist_count < COLONIZE_COLONY_POP_MAX) {
+      colony->stock[COLONIZE_CARGO_FOOD] =
+        turn_clamp_stock(colony->stock[COLONIZE_CARGO_FOOD] - 200);
+      if (delta) {
+        delta->goods[COLONIZE_CARGO_FOOD] -= 200;
+        delta->food_net -= 200;
+      }
+      bool born_on_tile = false;
+      if (s_turn_birth_units) {
+        /* bugs.md: the newborn stands on the colony tile awaiting orders. */
+        const int ct = units_find_type(s_turn_birth_units, "Colonists");
+        if (ct >= 0) {
+          const int nid =
+            units_spawn_allow_stack(s_turn_birth_units, ct, colony->x, colony->y);
+          ColonizeUnit* nu = units_get(s_turn_birth_units, nid);
+          if (nu) {
+            units_set_nation(nu, colony->nation_id);
+            nu->orders = UNITS_ORDER_NONE;
+            born_on_tile = true;
+          }
+        }
+      }
+      if (!born_on_tile) {
+        ColonizeColonist* newborn = &colony->colonists[colony->colonist_count];
+        memset(newborn, 0, sizeof(*newborn));
+        newborn->active = true;
+        newborn->unit_type_index = 0;
+        newborn->profession = UNITS_JOB_COLONIST; /* Free Colonists */
+        newborn->building_type = -1;
+        newborn->field_job = -1;
+        colony->colonist_count++;
+        colony->population = colony->colonist_count;
+      }
+      if (europe && colony->nation_id == human_nation) {
+        /* DOS 0xe2f @NEWCOLONIST. Cite: colony_eot_production.md Phase I. */
+        if (colony->name[0]) {
+          snprintf(europe->status, sizeof(europe->status), "Birth in %s.", colony->name);
+        } else {
+          snprintf(europe->status, sizeof(europe->status), "Colony birth.");
+        }
+        if (ai_popups) {
+          char body[AI_POPUP_BODY_LEN];
+          PopupMsgTokens tok;
+          memset(&tok, 0, sizeof(tok));
+          tok.string0 = colony->name[0] ? colony->name : "colony";
+          popup_msg_fill(
+            messages, "NEWCOLONIST", &tok, europe->status, body, sizeof(body)
+          );
+          ai_popup_enqueue_colony_event(ai_popups, colony->id, body);
+        }
+      }
+    }
+
+    /*
+     * Easy-difficulty no-kill mercy (FUN_364b_0688, decomp ~57641-57647):
+     * on Discoverer/Explorer (difficulty < 2), the kill below never fires
+     * before year 1520; from 1520 on it's a `dos_rng_range(0, 2-difficulty)`
+     * roll, nonzero cancels (2/3 odds at Discoverer, 1/2 at Explorer). NULL
+     * col1/rng safely fall through to the plain kill (old behavior).
+     */
+    int starve_mercy = 0;
+    if (col1 && col1->head.difficulty < 2) {
+      if (col1->head.year < 1520) {
+        starve_mercy = 1;
+      } else if (dos_rng_range(rng, 0, 2 - col1->head.difficulty) != 0) {
+        starve_mercy = 1;
+      }
+    }
+
+    /*
+     * Phase J — starve-kill when still short and started the turn at 0 food.
+     * Last colonist → @VANISH + colonies_abandon (DOS 0xe47 / thunk 0254).
+     */
+    if (colony->food_shortfall_latch != 0 && food_at_start == 0 &&
+        colony->colonist_count > 0 && !starve_mercy) {
+      const int colony_id = colony->id;
+      char vanish_name[COLONIZE_COLONY_NAME_MAX];
+      snprintf(
+        vanish_name,
+        sizeof(vanish_name),
+        "%s",
+        colony->name[0] ? colony->name : "colony"
+      );
+      const int kill_i = colony->colonist_count - 1;
+      for (int ti = 0; ti < COLONIZE_COLONY_FIELD_TILES; ++ti) {
+        if ((int)colony->tiles[ti] == kill_i) {
+          colony->tiles[ti] = (int8_t)-1;
+        } else if ((int)colony->tiles[ti] > kill_i) {
+          colony->tiles[ti] = (int8_t)((int)colony->tiles[ti] - 1);
+        }
+      }
+      for (int i = kill_i; i < colony->colonist_count - 1; ++i) {
+        colony->colonists[i] = colony->colonists[i + 1];
+      }
+      memset(
+        &colony->colonists[colony->colonist_count - 1], 0, sizeof(colony->colonists[0])
+      );
+      colony->colonist_count--;
+      colony->population = colony->colonist_count;
+      starved_this_tick = 1;
+      if (colony->colonist_count <= 0) {
+        if (europe && colony->nation_id == human_nation) {
+          snprintf(
+            europe->status,
+            sizeof(europe->status),
+            "Colony %s vanished.",
+            vanish_name
+          );
+          if (ai_popups) {
+            char body[AI_POPUP_BODY_LEN];
+            PopupMsgTokens tok;
+            memset(&tok, 0, sizeof(tok));
+            tok.string0 = vanish_name;
+            popup_msg_fill(messages, "VANISH", &tok, europe->status, body, sizeof(body));
+            ai_popup_enqueue_ok(ai_popups, AI_POPUP_TAG_INFO, NULL, body);
+          }
+        }
+        (void)colonies_abandon(pool, colony_id);
+        return;
+      }
+      if (europe && colony->nation_id == human_nation) {
+        if (colony->name[0]) {
+          snprintf(europe->status, sizeof(europe->status), "Starvation in %s.", colony->name);
+        } else {
+          snprintf(europe->status, sizeof(europe->status), "Colonist starved.");
+        }
+        if (ai_popups) {
+          const char* sec = (col1 && col1->head.autumn) ? "STARVE2" : "STARVE1";
+          char body[AI_POPUP_BODY_LEN];
+          PopupMsgTokens tok;
+          memset(&tok, 0, sizeof(tok));
+          tok.string0 = colony->name[0] ? colony->name : "colony";
+          popup_msg_fill(messages, sec, &tok, europe->status, body, sizeof(body));
+          ai_popup_enqueue_colony_event(ai_popups, colony->id, body);
+        }
+      }
+    }
+
+    /*
+     * First starvation latch (stock < need, not yet killing): @FOOD1 / @FOOD2.
+     * Else DOS 0xe5e @FOODLOW when eating into stores:
+     *   8e5a==0 (stock covers this turn) and 8e32!=0 (production < consumption)
+     *   and post-eat stock < 8e32×4. Cite: FUN_15eb_0b52; ~57626–57636.
+     * Surplus production (8e32==0) never warns — even if stock is modest.
+     */
+    if (!starved_this_tick && need > 0 && europe &&
+        colony->nation_id == human_nation && turn_report_ok_food(col1)) {
+      const int stock = colony->stock[COLONIZE_CARGO_FOOD];
+      const int food_shortfall = consumed - field_food; /* DOS 8e32 when >0 */
+      /*
+       * bugs.md item 5: DOS's literal FOOD1/FOOD2 latch fires on stock<need
+       * alone, even at food_shortfall<=0 (production covers or beats
+       * consumption) — a colony merely flatlining at 0 net-zero food would
+       * re-trigger "depleted" every turn. Require actively losing food
+       * (shortfall>0) to match FOODLOW's own "surplus never warns" rule
+       * below and stop the false-positive nag.
+       *
+       * bugs.md item 292: "depleted" additionally requires the stores to be
+       * EXACTLY 0 — merely dipping below next turn's need reads as "low",
+       * handled by the FOODLOW branch below.
+       */
+      if (stock == 0 && food_shortfall > 0 && !was_starving) {
+        if (colony->name[0]) {
+          snprintf(
+            europe->status, sizeof(europe->status), "Food depleted in %s.", colony->name
+          );
+        } else {
+          snprintf(europe->status, sizeof(europe->status), "Food stores depleted.");
+        }
+        if (ai_popups) {
+          const char* sec = (col1 && col1->head.autumn) ? "FOOD2" : "FOOD1";
+          char body[AI_POPUP_BODY_LEN];
+          PopupMsgTokens tok;
+          memset(&tok, 0, sizeof(tok));
+          tok.string0 = colony->name[0] ? colony->name : "colony";
+          popup_msg_fill(messages, sec, &tok, europe->status, body, sizeof(body));
+          ai_popup_enqueue_colony_event(ai_popups, colony->id, body);
+        }
+      } else if (
+        stock > 0 && food_shortfall > 0 && stock < food_shortfall * 4
+      ) {
+        if (colony->name[0]) {
+          snprintf(europe->status, sizeof(europe->status), "Food low in %s.", colony->name);
+        } else {
+          snprintf(europe->status, sizeof(europe->status), "Food stores low.");
+        }
+        if (ai_popups) {
+          char body[AI_POPUP_BODY_LEN];
+          PopupMsgTokens tok;
+          memset(&tok, 0, sizeof(tok));
+          tok.string0 = colony->name[0] ? colony->name : "colony";
+          tok.number0 = stock;
+          tok.has_number0 = true;
+          popup_msg_fill(messages, "FOODLOW", &tok, europe->status, body, sizeof(body));
+          ai_popup_enqueue_colony_event(ai_popups, colony->id, body);
         }
       }
     }

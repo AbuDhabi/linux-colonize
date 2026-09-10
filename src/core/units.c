@@ -712,13 +712,27 @@ int units_cortes_cash_coastal_treasures(
     if (!map_tile_is_coastal(map, c->x, c->y)) {
       continue;
     }
-    const unsigned lo = (unsigned)(treasure->hold_goods_amount[0] & 0xff);
-    const unsigned hi = (unsigned)(treasure->hold_goods_amount[1] & 0xff);
-    const int value = (int)(lo | (hi << 8));
-    if (value > 0) {
-      (void)europe_cash_treasure(europe, value);
-      nat->gold = (uint32_t)(europe->gold < 0 ? 0 : europe->gold);
+    /*
+     * Both value representations, via the shared helper: a Treasure bridged
+     * from a COL1 save carries its gold in the profession byte (+0x315b,
+     * gold/100) and nothing in the LE16 hold_goods_amount mirror, so the
+     * open-coded mirror read this replaced valued every save-loaded Treasure
+     * at 0 and then deleted it below for nothing.
+     */
+    const int value = units_treasure_value_gold(treasure);
+    if (value <= 0) {
+      /*
+       * DOS never reaches a zero here — FUN_5fef_1908 reads the byte
+       * unconditionally and every DOS Treasure has it set — so a 0 in this
+       * port is the helper's documented blind spot (a save Treasure worth
+       * exactly 2800 is indistinguishable from an unset byte), not a
+       * worthless treasure. Leave the unit standing rather than destroy it,
+       * which is also what the sibling King-galleon sweep does.
+       */
+      continue;
     }
+    (void)europe_cash_treasure(europe, value);
+    nat->gold = (uint32_t)(europe->gold < 0 ? 0 : europe->gold);
     (void)units_despawn(pool, treasure->id);
     cashed++;
   }
@@ -5271,14 +5285,29 @@ bool units_resolve_land_combat_ff(
     const int def_nation = def->nation_id;
     const int atk_nation = atk->nation_id;
     /*
-     * Treasure capture (FUN_5fef_1908): LE16 gold from unit. Human → ransom
+     * Treasure capture: the DOS site is FUN_5fef_0352's capture arm, the one
+     * guarded by `bVar12 && local_32 < 4 && bVar11`
+     * (viceroy_unpacked.c:99392). It reads the loser's value as
+     * `iVar17 = *(char *)(iVar18 + 0x315b) * 100` at raw 99404 — iVar18 =
+     * param_1 * 0x1c, param_1 being the LOSING unit — and prints it in the
+     * loser-type-0xc (Treasure) message 0x1b1f at raw 99407-99408. Reading
+     * the value goes through units_treasure_value_gold so a Treasure bridged
+     * from a COL1 save (value in the profession byte, empty LE16 mirror) is
+     * not silently worth 0; the open-coded mirror read this replaced skipped
+     * the ransom popup and the gold credit outright, and the unit was then
+     * destroyed by units_apply_land_loss_outcome below.
+     *
+     * (The former citation here, FUN_5fef_1908, is the Europe/King-galleon
+     * cash-in — raw 100158, `local_5c = *(byte *)(param_1 * 0x1c + 0x315b) *
+     * 100` — which this file ports separately in the King-galleon share
+     * path, not a combat path.)
+     *
+     * Port-side presentation on top of DOS's rename: human → ransom
      * Accept/Refuse CHOICE before credit; AI → silent full credit.
      */
     if (col1 && atk_nation >= 0 && atk_nation <= 3 && dt->name[0] &&
         strstr(dt->name, "Treasure") != NULL) {
-      const unsigned lo = (unsigned)(def->hold_goods_amount[0] & 0xff);
-      const unsigned hi = (unsigned)(def->hold_goods_amount[1] & 0xff);
-      const int loot_gold = (int)(lo | (hi << 8));
+      const int loot_gold = units_treasure_value_gold(def);
       if (loot_gold > 0) {
         const int human = units_combat_human_involved(col1, atk_nation, def_nation);
         PopupMsgTokens tok;

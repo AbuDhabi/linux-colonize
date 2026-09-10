@@ -45,6 +45,35 @@ Emphasis on the 2026-09-08/09 fix waves (commits f6cdcd0, 73a0ac3, ff6ab75, 4b60
 
 2. units.c:5263-5265 and :715 — two open-coded Treasure-value readers bypass `units_treasure_value_gold` (:747), the helper written precisely because a COL1-imported Treasure carries its value in the profession byte (+0x315b = gold/100), not in the LE16 `hold_goods_amount[0..1]` mirror. Both sites read the mirror only, so a save-loaded Treasure Train values at 0: at :5263 (combat loot) the ransom popup and the gold credit are silently skipped and the unit is then destroyed by `units_apply_land_loss_outcome`; at :715 (`units_cortes_cash_coastal_treasures`) the unit is `units_despawn`ed unconditionally at :722 even when `value == 0`, i.e. a DOS-authored save's Treasure is deleted for nothing. The four other consumers (:821, :912, :995, ai_euro.c:5013, game_loop.c:9933) all delegate to the helper. Secondary: the citation at :5258 is wrong — FUN_5fef_1908 (viceroy_unpacked.c:100158) is the Europe/King-galleon cash-in (`local_5c = *(byte*)(param_1*0x1c+0x315b) * 100`, the tax/Cortes share the port already ports at :791), not a combat-loot path; combat treasure capture is FUN_5fef_0352's `bVar12` arm (loser type 0xc, raw 99345). H
 
+   **RESOLVED 2026-09-10 — both readers routed through the helper; citation replaced.**
+   Both open-coded readers confirmed present and both fixed. Combat loot (now
+   `const int loot_gold = units_treasure_value_gold(def);`) simply delegates. The Cortes
+   coastal sweep also delegates, and the unconditional despawn at the old :722 became a
+   `continue` when the value is 0. Checked the despawn against DOS first: DOS has no zero
+   case at all — FUN_5fef_1908 reads `*(byte *)(param_1 * 0x1c + 0x315b) * 100` with no
+   guard (raw 100158) and every DOS Treasure has that byte set — so a 0 here can only be
+   the helper's own documented blind spot (a save Treasure worth exactly 2800 has
+   `profession == UNITS_JOB_NONE` and reads back as unset). Deleting a unit on the strength
+   of that is strictly worse than leaving it standing, and the sibling sweep
+   `units_king_galleon_offer_coastal_treasures` already `continue`s on `value <= 0` rather
+   than despawning, so the two now agree. The value-bearing path is unchanged: with the
+   helper the value is real, `europe_cash_treasure` runs and the unit is despawned exactly
+   as before.
+   Secondary confirmed and corrected: FUN_5fef_1908 (raw 100158) is indeed the
+   Europe/King-galleon cash-in, not combat. The combat site is FUN_5fef_0352 (raw 99292),
+   in the capture arm guarded by `bVar12 && local_32 < 4 && bVar11` at raw 99392 — the
+   audit's "raw 99345" is the `bVar12` *assignment* band, not the arm. The value read there
+   is `iVar17 = *(char *)(iVar18 + 0x315b) * 100` at raw 99404, with `iVar18 = param_1 *
+   0x1c` and `param_1` the LOSER (the same record `FUN_281f_0894(0x281f,param_1,local_32)`
+   at :99395 hands to the winner's nation), printed by message 0x1b1f in the loser-type-0xc
+   arm at raw 99407-99408. That is what the new comment cites.
+   Noted while reading, not filed as part of this finding: DOS's arm *transfers ownership*
+   of the Treasure and only displays the value; the gold is credited later, when the
+   captured Treasure is delivered. The port instead credits (or ransoms) the gold at combat
+   time and lets `units_apply_land_loss_outcome` destroy the unit. That is a separate,
+   larger divergence from the same DOS band and is out of scope here — the fix above only
+   makes the value the port reads the right one.
+
 3. units.c:7351 vs :7327 / :7374 — the village-raid WIN branch charges only `units_move_cost`, while every other outcome of the same attack charges `cost + 3`: the loss branch at :7327 (`units_mp_charge(pool, atk_mp, cost + 3)`) and the ordinary land-win stay-put branch at :7374 (`drain = cost + 3`), both citing the 1b0e `*(char*)(unit+0x3149) += 3` that this file documents as "win or lose" at :7306-7313. The comment at :7318-7321 justifies the omission by saying the raid branch "already has its own complete, separately-cited MP model (FUN_4d56_4528)" — but the branch is a bare `units_move_cost` + charge with no citation of its own. So winning a village raid is 3 thirds cheaper than losing the same raid. M
 
 4. units.c:7133-7134 — the `pre_park` / `pre_spent` discriminator added for bugs.md 429 is dead: `units_try_move` already returns `COLONIZE_ENTER_NO_MP` at :7065 when `units_remaining_mp(pool, unit_id) <= 0`, so by :7134 remaining is provably > 0 and both booleans are always false. Only the `units_move_crosses_shore` disjunct at :7156 can ever set `mp_spent_turn`, i.e. the "boarded already exhausted" half of the rule (and the `units_wake` refund guard at :7963 that depends on it) never fires. Either the MP check at :7065 should let a spent unit board, or the dead half should go — as written the comment describes behaviour the code cannot reach. M
@@ -117,6 +146,27 @@ are new, most of them introduced by the fix waves that closed those entries.
    the village-entry dispatch (:12359) and sails ships to Europe (:12466). End-of-turn itself
    is safe (`game_turn_flow_allowed` does list them), which is why this survived. Same class
    as prior audit #15. **M-H**
+
+   **RESOLVED 2026-09-10 — `in_hall_of_fame` and `in_exploits` added to `map_visible`.**
+   Confirmed on all four counts. Both flags live outside `game_modal_open` (game_loop.c
+   :16476, whose 14 flags are all dialog/modal state), so the popup-blocking invariant's
+   "new modals must join game_modal_open" does not apply here — these are screens, and
+   every other screen test in the file lists them by hand: `game_turn_flow_allowed`
+   (:10433-10435), `game_service_woodcut`'s `screen_over_map` (:11857-11859), the EOT
+   `screen_over_map` (:12100-12102) and the popup-presentation gate (:12164-12166). The
+   file's own note at :12053 states the rule outright ("It is a screen, not a modal, so it
+   joins the screen tests (`screen_over_map`, `map_visible`, `game_screen_name`) rather
+   than `game_modal_open`"), so the fix belongs exactly where the finding says. Verified
+   both setters: :7679 (title menu → Hall of Fame, `in_menu = false`) and
+   `game_retire_after_score` (:5193 exploits / :5196 Hall of Fame), both with a campaign
+   still loaded, so `in_menu` covered neither. The gated block is `if (game->units_ok &&
+   game->world_map_ok && map_visible)` and runs to :12595 — it does contain the goto pacer,
+   the village-entry dispatch and the Europe sail hand-off the finding names, with the
+   unit-activation cycle at its tail. No further screen flag was missing: `map_visible` now
+   carries the same set as the other three tests (report/menu/Europe/colony/pedia/debug
+   atlas/HoF/exploits/new-game wizard) with `game_modal_open` on top as before. The header
+   comment's overlay list was updated to match and a paragraph added naming the
+   screen-not-modal reason, so the next edit does not drop them again.
 
 3. **src/core/game_loop.c:12430, :12470, :12515 (and :2984) — four hand-off sites still call
    the bare `turn_select_next_unit`, contradicting the comment at :8443 that says the
@@ -294,6 +344,34 @@ docs/smell_audit_2026-09-09.md section D (#44-#59) by substance.
 
 14. src/core/ai_diplo.c:1585-1593 and src/core/ai_contact.c:9095-9103 — both new `settlement_owner_at` helpers double-offset the village owner, returning `4 + tribe[i].nation_id` where `tribe.nation_id` is already the 4..11 Col1 id; evidence: ai.c:68 ("TRIBE.TXT section → Col1 nation_id (4..11)"), and every consumer subtracts 4 (ai.c:2616, ai.c:2856, colony.c:618, colony.c:705; units.c:2213-2216 bounds-checks `>= 4 && <= 11`). A village tile therefore reports 8..15 while both function headers claim "Euro colony (0..3) or Indian village (>= 4)". Latent today — both call sites only test `>= 0` — but it is the id-space class this codebase keeps re-breaking, and the third copy of the helper (col1_stuff_census.c:34-55, the one the two new copies were cloned from) carries it too. Confidence H on the mis-offset, L on current impact.
 
+   **RESOLVED 2026-09-10 — confirmed and fixed in both copies; the id space is absolute 0..11.**
+   DOS settles it directly: `FUN_137f_03e4` (viceroy_unpacked.c:6839-6856) returns
+   `FUN_137f_0200(x,y)` unmodified, and `FUN_137f_0200` (:6687-6698) is
+   `FUN_137f_01ac(x,y) >> 4 & 0xf`, mapping 0xf to −1 — a single tile owner nibble.
+   That one nibble holds Europeans and tribes alike, which is exactly why the
+   sibling one function up (:6813-6836, the villages-only variant) filters with a
+   bare `if (owner < 4) owner = -1;` instead of subtracting anything. So the DOS
+   return value is the absolute nation id: 0..3 Euro, 4..11 Indian.
+   `ColonizeCol1Tribe.nation_id` (col1_save.h:725) is stored in that same absolute
+   space — `ai.c:627` writes it from `k_tribe_txt_nations[].nation_id` (":68 → Col1
+   nation_id (4..11)"), `ai.c:1129` falls back to `indian + 4`, and every reader
+   indexes `col1->indian[]` with `nation_id - 4` (ai.c:2616/2856, colony.c:618/705)
+   or bounds-checks `>= 4 && <= 11` (units.c:2258/2331). The `4 +` was therefore a
+   real double offset; both helpers now return the field as stored.
+   Callers audited — one each, and neither compensated: `ai_diplo.c`'s
+   `ai_diplo_153e_exposed_combat_at` and `ai_contact.c`'s `ai_contact_land_combat_sum`
+   both only ask `>= 0` for the DOS "standing on a settlement" gate, so the bug was
+   latent exactly as the finding says and this fix changes no behaviour today. No
+   `- 4` compensation exists anywhere against either helper.
+   Not fixed here: the third clone, `col1_stuff_census_settlement_at`
+   (col1_stuff_census.c:34-55), carries the identical `4 +` and is outside this
+   agent's file scope — it needs the same one-line change, and its own caller gate
+   (:183-190) likewise only tests `>= 0`, so it too is latent. Finding 15's
+   consolidation proposal would retire all three copies at once.
+   Incidental: the ai_contact.c helper and the ~70 lines of comment around it had
+   nine doubly-UTF-8-encoded punctuation marks (`\xc3\xa2\xc2\x80\xc2\x94` for an em
+   dash, etc.) left by an earlier edit; repaired in the same pass.
+
 15. src/core/ai_diplo.c:1610-1640 vs src/core/ai_contact.c:9109-9160 — two independent ports of the same DOS quantity (DS:0x95b2 exposed per-continent combat, FUN_4962_0018 gate 4962:022f-026e) that must be hand-kept in sync; evidence: this pass had to fix the identical "orders +0x314c vs ai_plan +0x314b" misreading in *both* (`ai_diplo_153e_exposed_combat_at` and `ai_contact_land_combat_sum(..., exposed_only=1)`), plus the third `settlement_owner_at` clone from finding 14, plus a fourth copy of the same gate at col1_stuff_census.c:183-190. Residual divergence: ai_diplo's copy has no `cap` parameter and clamps with `if (sum > 255) return 255`, ai_contact's with `if (sum >= cap) return cap`. Maintenance smell; no live behaviour difference found today. Confidence M.
 
 16. src/core/ai_diplo.c:147-151, :672 (and src/core/ai_contact.c:589) — the constant `AI_DIPLO_INDIAN_PEACE_MEET 96u` is documented as a *scalar* relation value but every live use writes it as the *bitfield* 0x60 = MET|PEACE, and its scalar alias is dead; evidence: the defining comment (:147-149) reads "Peace feeler / first-meet content floor … Heal mid-band up to this ceiling; drift still climbs to 160", while the only two writes store it into `nation[e].relation_by_indian[idx]`, which the line above :672 declares "is the DOS 0x60 MET|PEACE flag byte, not a scalar". `AI_DIPLO_INDIAN_CONTENT_FLOOR` (:151) has no user at all, and both consumers the comment names — `ai_diplo_indian_peaceful_drift` (:480-489) and `ai_diplo_indian_peace_feeler` (:501-506) — are retired no-ops. Secondary: both writes are hard **assignments** (`= 96`) while the paired Indian-side write one line earlier is an **OR** (`euro_diplo[e] |= COL1_INDIAN_PEACE_BIT`), so the Euro→Indian half silently drops any other bit the byte held; and both bypass `ai_diplo_or_both`/`clear_both`, which ai_contact.c:9170-9180 calls "the sole mutation channel" for this matrix (ai.c:5167 is a third raw write). Confidence H on the dead alias + doc contradiction, M on whether the assign-vs-OR asymmetry can bite.
@@ -321,8 +399,77 @@ docs/smell_audit_2026-09-09.md section D (#44-#59) by substance.
 Deduped against docs/smell_audit_2026-09-09.md §E (60-71) and §D (44-46,55) by substance. Items below are new, several of them introduced by the recent Phase-A / Hudson / warehouse-capacity waves.
 
 1. **colony_production.c:449 (+ turn.c:956/1054 vs :1160) — DOS Phase I/J run BEFORE Phase C/D in the port, so the rebel accumulators and the SoL latch see a roster the DOS ones never see, and `colony_prod_tick_rebel_accumulators` re-derives bells instead of consuming the Phase-A stamp created for exactly this purpose.** `colony_eot_production.md`'s phase table is explicit: C = 57349-57414, D = 57415-57485, F/G/H = 57502-57614, **I birth = 57615**, **J starve-kill = 57623-57695**. turn.c's order is I (birth, :956-1008) → J (starve-kill, :1030-1085) → C/D (`colony_prod_tick_rebel_accumulators` + `colony_prod_refresh_sol_flags`, :1160/:1162) → F/G/H (:1215+). Consequences, all live: `cc->rebel_divisor += pop*2` uses the post-birth/post-starve head count; the bells the accumulator computes at :450 come from the post-I/J colonist array; and `colony_prod_sol_bonus` (tories = pop·(100−sol)) is likewise evaluated on the mutated roster. Worse, the function recomputes bells from scratch (`colony_prod_colony_bells_ff` at :450) while `colony->prod_bells_phase_a` already holds the Phase-A number stamped at turn.c:881 — the very "One number, two consumers" invariant this function's own header (colony_production.c:434-448, citing viceroy 57230/57231/57392) asserts. Fix is two-part: move the I/J block below F/G/H, and have the accumulator prefer `prod_bells_phase_a` when `prod_compose_stamp` matches, exactly as `turn_run_nation_ticks` already does. Confidence H (phase order is documented in-repo; only the magnitude of the numeric effect is uncertain — a birth/starve tick is needed to see it).
+   **RESOLVED 2026-09-10 - I/J moved below F/G/H; accumulator now consumes the Phase A stamp.**
+   Both halves confirmed against the raw before touching anything. Phase C really does sit
+   immediately after the Phase B cargo loop (`local_8e = FUN_281f_0c86(...)` at
+   viceroy_unpacked.c:57349) and takes its population term straight off the colony byte
+   `*(char *)(iVar12 + 0x1f) * 2` at :57377 - the pre-birth, pre-starve count. Phase I's birth
+   test is at :57615-57622 and Phase J's kill loop at :57623-57691, with the abandon arm
+   jumping to the epilogue (`thunk_FUN_291f_0254(...); goto LAB_364b_1ae2;`, :57690-57692), so
+   DOS reaches the vanish having already run C, D and F/G/H. The bells claim is exact:
+   `local_ba = FUN_281f_0b50(0x281f,0x12,0)` is assigned once, at :57230, handed to the
+   congress at :57231, and then read again unchanged at :57392 for the rebel dividend - the
+   only writes in between are Phase C's own `+= local_8e / -0x14` / crown `-(x >> 1)`
+   adjustments (:57353-57358). No second compose anywhere.
+
+   Fix as filed. In `turn_produce_one_colony` the whole Phase I/J block (starvation latch,
+   birth, easy-difficulty mercy, starve-kill, @VANISH/abandon, @FOOD1/@FOOD2/@FOODLOW chrome)
+   moved verbatim from just after the food-consumption block to just after the F/G/H education
+   block, leaving Phases C/D, horse breeding and education above it in DOS order. Both ends
+   carry a comment naming the phase and its citation. `colony_prod_tick_rebel_accumulators`
+   now prefers `colony->prod_bells_phase_a` when `colony->prod_compose_stamp ==
+   col1->head.turn + 1`, the same guard `turn_run_nation_ticks` uses, and falls back to
+   `colony_prod_colony_bells_ff` only for callers that never composed (direct unit-test
+   callers, colonies ticked without a col1). The header in colony_production.h now says where
+   the function must be called from and where its bells come from.
+
+   Two side effects worth flagging, both DOS-faithful rather than incidental. Horse breeding
+   now spends its food before Phase I's 200-food birth test instead of after it - correct,
+   since DOS composes horses in Phase A and applies them with the rest of the cargos in Phase B
+   (:57238-57348), long before the birth check reads `stock[+0x9a]`. And a colony that starves
+   to nothing now has its rebel accumulators, SoL latch and education resolved before it
+   abandons, which is what the `goto LAB_364b_1ae2` above shows DOS doing. Existing unit
+   fixtures were checked and none of them assert the old order: the starve / net-zero / #63
+   craft cases all pass `col1 = NULL`, so C/D is a no-op and Phase H is skipped for want of an
+   rng, and the birth fixture holds no horses so breeding is 0. Goldens are binary and
+   untouched - a birth or starve turn is exactly where a diff would show up, so the main thread
+   should expect movement there and read it as the fix landing rather than as a regression.
 
 2. **ai_euro.c:3982-3993 `ai_euro_colony_has_docks` — the AI plot scorer answers the Fisherman docks gate with "coastal OR Docks-family building", while the tick, the preview and the two colony-screen copies all require the building; its own comment claims they are "the same shape".** turn.c:719-735, colony_preview.c:55-68, colony_screen.c:1596 and :3884, game_loop.c:9129 are five byte-identical building-only loops (turn.c's comment: "coastal placement alone is not enough"). ai_euro.c:3987 ORs in `colony_flags & COASTAL || map_tile_is_coastal(...)` and feeds that as `has_docks` into `colony_yield_for_worker` at :4028 and as `fishable` at :4182 — so the AI scores, assigns and food-plans Fisherman plots on dockless coastal colonies that the tick then pays 0 for. Same hole from the other side in **colony_yield.c:592-594**: `colony_yield_for_tile` hardcodes `has_docks = true`, so every one of its callers bypasses the gate — colony_screen.c:478 offers "Fisherman" in the human's job list for a dockless colony (yield > 0 there, 0 at the tick), and ai_euro.c:4464/:4595 score fisherman tiles the same way. In DOS there is no `has_docks` parameter at all: FUN_15eb_18ec reads the colony, so scorer and tick cannot disagree. Confidence M-H.
+
+   **RESOLVED 2026-09-10 — gate unified on one colony-reading answer; two of the three
+   named call sites refuted.** Re-read the raw: the gate is not at 11925-11939 (that block
+   is the silver/mountain forcing the terrain doc cites) but at the tail of FUN_15eb_18ec,
+   `if ((7 < local_14) && (iVar3 = FUN_15eb_038e(6), iVar3 == 0)) local_26 = 0;`
+   (viceroy_unpacked.c:11967-11969), and `FUN_15eb_038e(group)` is one line —
+   `FUN_15eb_035e(*(undefined2 *)0x8dc6, group)` — so it reads the CURRENT-COLONY global
+   and takes no colony argument. The audit's core claim holds: DOS has no `has_docks`
+   parameter, and its gate is @BUILDING group 6 alone, never coastal placement.
+   Fix, in DOS's shape as far as the file ownership allowed: `colony_yield_colony_has_docks(pool, colony)`
+   is now the single answer, living next to the pipeline that consumes it, plus
+   `colony_yield_for_tile_in_colony`, a colony-taking `colony_yield_for_tile` whose gate is
+   derived rather than assumed. `colony_yield_for_worker`'s signature is untouched, so
+   turn.c and the tests keep compiling; its `has_docks` doc now says where the value must
+   come from. `ai_euro_colony_has_docks` is deleted — the coastal OR was the real defect —
+   and its two consumers (28c8 scorer, the `fishable` food plan) call the shared answer, as
+   does `ai_euro_colony_needs_colonists_5952`, whose own local test named only "Docks" and
+   would have missed an upgraded slot. colony_preview.c and both colony_screen.c copies now
+   call it too, leaving turn.c and game_loop.c (other owners) as the only remaining
+   hand-copies, both already correct and both source-compatible with adopting it later.
+   Refutations: (a) **colony_screen.c:478 is not a bug.** DOS lists Fisherman on a dockless
+   colony and answers the pick with GAME.TXT @NODOCKS — the port already does exactly that
+   at game_loop.c:9233 and :13490 — and the drawn number is gated, so the row correctly
+   reads "Fisherman (0)". The ungated `has_docks = true` there is right; a comment now says
+   why, so the next sweep does not "fix" it. (b) **ai_euro.c:4595 never sees the gate**: its
+   caller filters to Sugar/Tobacco/Cotton/Fur before the loop, so no Fisherman job reaches
+   it. Only **ai_euro.c:4464** was live on that side — `ai_euro_colony_free_fisherman_field`
+   would walk an Expert Fisherman up to 8 tiles to a dockless colony and seat him on a plot
+   worth 0; it now returns early on no-docks and scores through the colony-taking entry
+   point. `colony_yield_for_tile`'s hardcoded `true` is kept deliberately: its remaining
+   callers (founding-site scoring at ai_euro.c:3722/:3830, the map probes, the tests) have
+   no colony, and DOS scores sites off the raw class table, not 18ec. No test encoded the
+   bug — test_turn.c:2430/:2440 already asserts the docks/no-docks split through
+   `colony_yield_for_worker` and still passes unchanged.
 
 3. **colony_production.c:843/:846 — `colony_prod_worker_building_output_ctx` has no needle for "Rum Factory" or "Cigar Factory", so a colonist working the top tier of those two chains reads 0 output where colony_craft.c's recipe table pays him.** The badge/display path matches `"Rum Distill"` (misses "Rum Factory") and `"Tobacconist"` (misses "Cigar Factory"), while the sibling table colony_craft.c:59/:65 lists both explicitly, and the four other chains are covered on both sides ("Fur Fact", "Iron Works", "Textile", "Arsenal"). Two hand-maintained lists of the same fact that have drifted. Mostly masked today because colony_screen.c:2612-2620 overrides `amount` with `preview.craft_capacity[cargo]` when the preview is valid — but the local calc is the fallback, it is the value `colonies`-level unit tests assert, and `colony_prod_building_display_output_sol` is public API. Confidence H that the omission is real, M that it is user-visible.
 
@@ -376,6 +523,24 @@ Fixture evidence below was gathered by decoding the raw `.SAV` records directly
    the `orders==SENTRY || orders==NONE` disjuncts are also dead — `units_orders_follow_goto`
    already excludes both.)
 
+   **RESOLVED 2026-09-10 — the transport arm is gone; transports now run the same ladder as
+   land units.** Re-ran the fixture scan independently (all 47 `original_saves/**/*.SAV`, head
+   counts at +42/+44/+46 = tribe/unit/colony, units at `390 + colony_count*202`, stride 28):
+   **104 of 254** on-map Euro transports with non-goto orders carry a nonzero spent byte, and
+   the three cited units decode exactly as claimed — `COLONY00-original` unit 2 (Merchantman,
+   nation 3 = human, orders 0) `moves = 18`, `dutch-campaign/COLONY01` unit 35 (Caravel,
+   orders 0) `moves = 15`, unit 36 (Wagon Train, orders 0) `moves = 6`. So DOS keeps a
+   transport's spent byte like anybody else's, and the blanket refund was wrong. The first arm
+   is now just `aboard_ship_id >= 0` (a passenger spends nothing of its own — the one thing
+   COLONY00 really does show); the dead `SENTRY || NONE` disjuncts went with it. Everything
+   below is unchanged and now reachable for ships and wagons: the AI_MOVE station-keep tip
+   (`goto == position`, TURN5 FR 52,43) still exports 0, the #75 exhausted branch exports the
+   whole allotment with the same Sentry/Fortified `park_nights` escape land units get, and the
+   partial-spend branch exports `max_mp - moves_left`. Left alone deliberately: the Europe
+   sentinel lanes (`x >= 200`), where the byte is genuinely mixed in DOS — 405 of 432 sentinel
+   units carry 0, but 27 do not (`COLONY00_no-transports` 231,231 Artillery `moves = 1`,
+   233,233 `moves = 4`), so there is no rule to write there.
+
 2. **col1_bridge.c:2685-2828 — capture exports the Europe dock only through `(236,236)` mirror
    units, and three of the six dock-push sites never create one, so those immigrants are
    deleted by a save/load.** `col1_bridge_apply`'s own comment (:1267-1272) states the rule —
@@ -388,6 +553,30 @@ Fixture evidence below was gathered by decoding the raw `.SAV` records directly
    Soldiers) and **ai_diplo.c:2206** (unit sent home to Europe) create no mirror, so nothing in
    the save file records them: save → load loses the units outright. Confidence H (code path is
    unambiguous; worth a one-line runtime check to be certain no other site spawns the mirror).
+
+   **RESOLVED 2026-09-10 — capture now reconciles the dock against the mirrors and writes the
+   orphans out itself.** Confirmed, and the finding undercounts: `europe_spawn_dock_mirror_unit`
+   really has only three callers (turn.c:2483 crosses immigrant, units.c:1169 Brewster pick,
+   col1_bridge.c's import), while there are **nine** dock-push sites — the three the finding
+   names (europe.c:323 `europe_dock_push_front` from `europe_disembark_passengers_to_dock`,
+   ai_king.c:4008 mercenaries, ai_diplo.c:2219 sent-home) plus paid Recruit (europe.c:1189),
+   free Recruit / Brewster's underlying push (:1234), the 0718 harbor spawn (:1287), Train
+   (:1315) and Purchase (:1375). Only the Brewster path is covered, by its caller in units.c.
+   Fixed at export, in col1_bridge.c's capture, since the producers live in files this pass
+   could not touch — and it is the more robust place anyway: it cannot be bypassed by a tenth
+   push site. Before the Europe ship lanes, capture claims one dock row per human mirror unit
+   found in the pool (matching `profession` first so an armed or trained immigrant takes its own
+   row, then any free row, both restricted to `present` rows — the same unit shape
+   `europe_remove_dock_mirror_unit` matches on), and every unclaimed row is written out as its
+   own record in the dock lane `236 + n`. Byte shape taken from the French originals' dock
+   colonists (COLONY02 units 121-156 at 237,237): `orders 1`, `origin 0xff`, `ai_plan 0x58`,
+   `vis 0`, goto 0, spent 0, type from `europe_dock_unit_type_index(dos_type)` and profession
+   from the row. `capacity` gained a full `EUROPE_DOCK_MAX` of headroom for them. Import already
+   creates both halves, so the next save finds the units in the pool and the loop goes quiet —
+   the reconciliation converges rather than duplicating. Residue noticed, not fixed (pre-existing
+   and unrelated to the loss): DOS chains the dock lane as a doubly-linked tile stack
+   (COLONY02 #121 next=122, #122 prev=121 …), while the port leaves every `x >= 200` record at
+   -1/-1 — the chain rebuild deliberately skips Europe-sentinel coords.
 
 3. **col1_bridge.c:1254-1302 — Europe-dock import ignores `europe_dock_push_load`'s failure,
    then stamps `dos_type` onto an unrelated immigrant and spawns an orphan mirror.**
@@ -504,6 +693,28 @@ bounds, 09da grid, nibble encode/decode pairing): clean, no finding.
    (`v = euro_price*qty` written into `trade.gold[]`), :14184, :14421, ai_diplo.c:3139.
    Confidence H (mechanism), H (that comment and code disagree with 0058's tail).
 
+   **RESOLVED 2026-09-10 — confirmed and fixed: the dump-sell price is `euro_price − 1`.**
+   The decisive writer is not 0058's tail but the nation-bind rebuild at
+   `viceroy_unpacked.c:6313-6320`, which loops all four nations and all 16 cargoes and does
+   nothing but the derivation: `iVar2 = *(char *)(*(int *)0x84fc + local_10 + 0x4c) + -1;
+   if (iVar2 < 0) iVar2 = 0; *(local_16 * 0x10 + local_10 + -0x7b44) = (char)iVar2;`. The
+   same three lines appear at `:51962-51966` and `:58996-59000`. There is no writer of the
+   `-0x7b44` table anywhere that stores the record byte unmodified, so DS:0x84BC is by
+   construction a derived per-nation *sell* table, never the record array. Confirmed the
+   port's array is the `+0x4c` record side by compiling the header:
+   `offsetof(ColonizeCol1Nation, trade.euro_price) == 0x4c`, `sizeof == 0x13c` — exactly the
+   audit's claim. `europe.c` now computes `record_price − 1` when the col1 byte is stamped
+   (the table's own clamp is unreachable there, since the branch requires `> 0`) and falls
+   back to `europe_sell_price(eu, c)` — not the raw `bid` — when it is not, fixing the
+   `price <= 0` arm's identical defect. The citation block at :3578 was rewritten: the
+   "no `−1`" sentence is gone, the untaxed claim (which is separate and still correct) kept,
+   and the derivation spelled out with the three raw cites.
+   NOT fixed here (other owner, out of this pass's file scope): the same misread stands in
+   `ai_euro.c:14164-14167` and the sibling scoring reads at :14088/:14247, plus
+   `ai_diplo.c`, which all use `trade.euro_price[g]` while citing DS:0x84bc. Those are
+   scoring weights rather than money, so the impact is a slightly-off ordering, not a
+   treasury error — but they should be swept in the same direction.
+
 2. **europe.c:1934-1937 — the @ARMOPTIONS buy/sell rows pass `col1 = NULL` to
    `europe_apply_trade_volume`, so the `trade.tons/tons2/gold` ledger is never written,
    directly contradicting this function's own comment 300 lines above.** europe.c:1639-1640
@@ -517,6 +728,26 @@ bounds, 09da grid, nibble encode/decode pairing): clean, no finding.
    Every caller (game_loop dock-menu handler) has `&game->col1` in hand.
    Confidence H (code contradicts its own comment); M on player-visible impact (F6 Economic
    tons/gold columns and the long-run tons2 price pool under-count arm trades).
+
+   **RESOLVED 2026-09-10 — confirmed against DOS and plumbed; one caller line left to the
+   game_loop owner.** DOS does ledger these trades: `FUN_38fd_1dfa`
+   (`viceroy_unpacked.c:60272-60295`) unconditionally adds the amount into nation `+0xbc`
+   (tons) and `+0xfc` (tons2) and the `(100 − tax)`-scaled `sell_price·amount` into `+0x7c`
+   (gold) on *every* call — there is no arm-row exemption in it — and the three sell rows
+   call it bare (38fd:3b4a/3ba0/3bfc), as this file's own #62 refutation established. So the
+   NULL was simply a leftover, not a DOS-faithful choice, and the comment at :1639-1640 was
+   right while the code was wrong.
+   `europe.c`/`europe.h`: added `europe_apply_dock_menu_row_ex` and
+   `europe_dock_menu_apply_selection_ex`, both taking the `ColonizeCol1Save*`, and the col1
+   is now threaded into the `europe_apply_trade_volume` call at the ledger site. The old
+   two names remain as thin wrappers passing NULL, so the unit tests and the units-less
+   `europe_menu_confirm` path are unchanged. The :1639-1640 comment now names the call and
+   states that it needs a non-NULL col1 to move at all.
+   Last mile, NOT done here (game_loop.c is another agent's file this pass):
+   `game_loop.c:5641` must become
+   `europe_dock_menu_apply_selection_ex(eu, game->units_ok ? &game->units : NULL,
+   game->col1_ok ? &game->col1 : NULL, game->human_nation)` — the same guard idiom used at
+   game_loop.c:1532 — or the arm rows keep ledgering nothing.
 
 3. **Two treasuries for the human nation with no per-turn sync: `europe.gold` is live,
    `col1.nation[human].gold` is written only at 4 scattered sites, and readers are split
@@ -612,6 +843,20 @@ bounds, 09da grid, nibble encode/decode pairing): clean, no finding.
 Deduped against docs/smell_audit_2026-09-09.md §H (#95–#106) by substance: those are all fixed and I re-verified the fixes at their new sites (caret rule, fog ocean-rescan, dest-halving, rumour +1 bias, tribe chrome sentinel, `pedia == 27`, dead PHYS0 bases, dead `case WOODCUT_A_NEW_WORLD`, popup `run[256]`). Nothing below repeats one.
 
 1. **src/core/map_panel.c:1726 and :1527 — the fog-view sentinel that #100 fixed inside `map_panel_draw_tribe_chrome` still leaks into the rest of `map_panel_render`.** The parameter is *named* `human_nation` but game_loop.c:16087 passes `game_fog_nation(game)`, which is −1 under Complete Map and a *foreign* nation under SETVIEW (game_loop.c:3375-3386). Every fog use (:1288/:1302/:1317/:1335/:1436) treats −1 correctly, but two non-fog uses do not: `const bool own_stack = top && top->nation_id == human_nation;` (:1726) makes the player's **own** stack read as foreign — the sidebar collapses it to one "<Nationality> <Type>" row instead of the own-stack listing — and `map_panel_euro_country(..., human_nation)` (:1527, helper at :475) then never returns the player's custom country name for their own colonies. `map_panel_draw_tribe_chrome` (:601-608) resolves the sentinel back through `head.curr_nation_map_view` / `head.human_player` exactly because of #100; the same resolve is missing here. Confirm by opening Complete Map (or SETVIEW to another nation) and clicking one of your own multi-unit stacks. **M-H**
+
+   **RESOLVED 2026-09-10 — sentinel resolved once at the top of `map_panel_render`; parameter renamed `fog_nation`.**
+   Confirmed as filed: game_loop.c:3375-3386 returns −1 for Complete Map and the SETVIEW nation
+   0..3 otherwise, and :16087 hands that straight to the parameter. Fix: `map_panel_render` now
+   computes `resolved_human = col1_save_human_nation(col1)` (the control==0 slot, always 0..3;
+   falls back to −1 only when there is no save to probe) and feeds it to the two "is this mine?"
+   consumers — the own-stack test and `map_panel_euro_country`. Every fog read (map_tile_seen_by
+   at the minimap/colony/tribe/unit passes, the tile_seen probe, both `col1_vis_mask` tests) keeps
+   the raw fog value, so Complete Map and SETVIEW still paint the view they are asked for.
+   Note the resolve here is deliberately NOT the tribe-chrome one: chrome wants the map-VIEW
+   nation (DS:0x5396), so a SETVIEW nation is correct there, while ownership wants the actual
+   player — a range check alone would have missed the SETVIEW half of this bug. To stop a third
+   regression the parameter is renamed `human_nation` -> `fog_nation` in map_panel.c/.h with the
+   constraint spelled out at the declaration and at the resolve. gcc -fsyntax-only clean.
 
 2. **src/core/colony_screen.c:3985-3992 vs :4131 — the Custom House popup hardcodes width 130 in a comment that cites the `@width=190` it is ignoring; its sibling dock-orders popup hardcodes 190.** The comment reads "GAME.TXT @CUSTOM's own @width=190 — the title … is the widest line", then sets `int dialog_w = 130;` and only grows it to the measured title width. COLONIZE/GAME.TXT:2086-2090 does carry `@width=190`, and `popup_msg_fill` already latched it (popup_msg.c:371) — but colony_screen.c is the only popup owner in the tree that never calls `popup_msg_section_width`/`popup_msg_take_pending_width` (ai_popup.c:205, save_load_dialog.c:105, game_loop.c:5982 all do). The dock-orders popup 140 lines later hardcodes exactly 190 for the identically-declared `@COLONYUNIT` (GAME.TXT:1767-1769), so the two siblings disagree about where the number comes from. **M**
 

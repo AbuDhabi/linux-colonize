@@ -47,7 +47,11 @@ static int col1_stuff_census_settlement_at(
   if (col1 && col1->tribe) {
     for (uint16_t i = 0; i < col1->head.tribe_count; ++i) {
       if ((int)col1->tribe[i].x == x && (int)col1->tribe[i].y == y) {
-        return 4 + (int)col1->tribe[i].nation_id;
+        /* tribe[].nation_id is already the absolute Col1 nation id (4..11);
+         * the DOS owner nibble (FUN_137f_0200) is shared by Europeans and
+         * tribes with no offset — see the sibling helpers in ai_diplo.c /
+         * ai_contact.c. */
+        return (int)col1->tribe[i].nation_id;
       }
     }
   }

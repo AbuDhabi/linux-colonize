@@ -1825,17 +1825,21 @@ int main(void) {
       dscol1.nation[1].trade.euro_price[i] = 12;
     }
 
-    /* surplus 80 × euro_price 12 = 960 gross, all of it to gold. */
+    /*
+     * Surplus 80 × sell price (euro_price 12 − 1 = 11) = 880 gross, all of
+     * it to gold. DOS reads the derived sell table DS:0x84BC (-0x7b44),
+     * which is euro_price − 1 by construction (viceroy 57834-57835).
+     */
     const int gained = europe_ai_colony_dump_sell(&dseu, &pool, ai, &dscol1, 0);
-    if (gained != 960) {
-      fprintf(stderr, "dump-sell untaxed gross want 960 got %d\n", gained);
+    if (gained != 880) {
+      fprintf(stderr, "dump-sell untaxed gross want 880 got %d\n", gained);
       europe_free(&eu);
       return 1;
     }
-    if (dscol1.nation[1].gold != 1960u) {
+    if (dscol1.nation[1].gold != 1880u) {
       fprintf(
         stderr,
-        "dump-sell gold want 1960 got %u\n",
+        "dump-sell gold want 1880 got %u\n",
         (unsigned)dscol1.nation[1].gold
       );
       europe_free(&eu);
@@ -1862,14 +1866,14 @@ int main(void) {
     /*
      * Ledger double-book (asm 364b:17b0-17e6): 1dfa already added the taxed
      * (bid−1)·80·(100−50)/100 = 80 and tons += 80; the arm then adds the
-     * untaxed 960 to trade.gold and — verbatim — the CARGO INDEX to tons.
+     * untaxed 880 to trade.gold and — verbatim — the CARGO INDEX to tons.
      */
-    if (dscol1.nation[1].trade.gold[COLONIZE_CARGO_TOBACCO] != 1040 ||
+    if (dscol1.nation[1].trade.gold[COLONIZE_CARGO_TOBACCO] != 960 ||
         dscol1.nation[1].trade.tons[COLONIZE_CARGO_TOBACCO] !=
           80 + COLONIZE_CARGO_TOBACCO) {
       fprintf(
         stderr,
-        "dump-sell ledger gold=%d tons=%d (want 1040/%d)\n",
+        "dump-sell ledger gold=%d tons=%d (want 960/%d)\n",
         (int)dscol1.nation[1].trade.gold[COLONIZE_CARGO_TOBACCO],
         (int)dscol1.nation[1].trade.tons[COLONIZE_CARGO_TOBACCO],
         80 + COLONIZE_CARGO_TOBACCO
@@ -1878,18 +1882,19 @@ int main(void) {
       return 1;
     }
     /* Unseeded nation byte (new game, never round-tripped) → the one Linux
-     * market's raw bid, still untaxed: 80 × 3 = 240. */
+     * market's sell price (bid − 1, matching the derived DS:0x84BC table),
+     * still untaxed: 80 × 2 = 160. */
     dscol1.nation[1].gold = 0;
     for (int i = 0; i < (int)COLONIZE_COL1_CARGO_TYPES; ++i) {
       dscol1.nation[1].trade.euro_price[i] = 0;
     }
     ai->stock[COLONIZE_CARGO_TOBACCO] = 180;
     dseu.cargo[COLONIZE_CARGO_TOBACCO].bid = 3;
-    if (europe_ai_colony_dump_sell(&dseu, &pool, ai, &dscol1, 0) != 240 ||
-        dscol1.nation[1].gold != 240u) {
+    if (europe_ai_colony_dump_sell(&dseu, &pool, ai, &dscol1, 0) != 160 ||
+        dscol1.nation[1].gold != 160u) {
       fprintf(
         stderr,
-        "dump-sell unseeded fallback gold=%u (want 240)\n",
+        "dump-sell unseeded fallback gold=%u (want 160)\n",
         (unsigned)dscol1.nation[1].gold
       );
       europe_free(&eu);

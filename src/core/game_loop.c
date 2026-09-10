@@ -5638,8 +5638,9 @@ static bool game_europe_menu_confirm(ColonizeGameState* game) {
   }
   EuropeScreen* eu = &game->europe;
   if (eu->menu == EUROPE_MENU_DOCK) {
-    const bool ok = europe_dock_menu_apply_selection(
-      eu, game->units_ok ? &game->units : NULL, game->human_nation
+    const bool ok = europe_dock_menu_apply_selection_ex(
+      eu, game->units_ok ? &game->units : NULL,
+      game->col1_ok ? &game->col1 : NULL, game->human_nation
     );
     if (ok) {
       europe_menu_close(eu);
@@ -12295,8 +12296,9 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
    * be silently paced just because time passes with the map on screen.
    *
    * Only runs while the map is actually the thing on screen — an overlay
-   * (report/menu/Europe/colony/pedia/debug atlas, or any modal popup/
-   * dialog — game_modal_open: king tax, ship-sunk, options, name entry,
+   * (report/menu/Europe/colony/pedia/debug atlas/Hall of Fame/exploits, the
+   * new-game wizard, or any modal popup/dialog — game_modal_open: king tax,
+   * ship-sunk, options, name entry,
    * etc.) covering it shouldn't let wall-clock time bleed into unit
    * movement at all (that's also why dt_ms isn't accumulated below while
    * covered, not just skipped — avoids a catch-up burst of steps the
@@ -12307,8 +12309,19 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
    * advance(), during their own turn (see turn_select_next_unit's own
    * human_nation filter).
    */
+  /* The Hall of Fame and the exploits painting are screens, not modals, so
+   * game_modal_open does not see them and they have to be listed here by
+   * hand — exactly as they are in game_turn_flow_allowed, in both
+   * screen_over_map sets and in the popup-presentation gate above. Both are
+   * reachable with a live campaign still loaded and in_menu false (the title
+   * menu opens the Hall of Fame directly, and game_retire_after_score parks
+   * the player on either one), so without them the pacer went on stepping
+   * goto units underneath: village-entry dispatch, ships sailing for Europe
+   * and combat started by units_advance_goto_one_step all ran while the
+   * player was reading a screen he can't act from. */
   const bool map_visible = !game->in_report && !game->in_menu && !game->in_europe &&
     !game->in_colony && !game->in_pedia && !game->in_debug_atlas &&
+    !game->in_hall_of_fame && !game->in_exploits &&
     !new_game_active(&game->new_game) && !game_modal_open(game);
   if (game->units_ok && game->world_map_ok && map_visible) {
     ColonizeUnit* active =

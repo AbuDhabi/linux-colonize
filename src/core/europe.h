@@ -561,6 +561,24 @@ bool europe_apply_dock_menu_row(
 );
 
 /*
+ * As above, plus the col1 save the arm buy/sell rows book their trade into.
+ * The three sell rows and the three buy rows each call DOS's bare volume
+ * routine (291f_0a2e = FUN_38fd_1dfa, 291f_0c14 = FUN_38fd_1d80), and those
+ * write the per-cargo tons/tons2/gold ledger on nation `col1->nation[bound]`
+ * just as the harbor channels do — so a caller that has the save in hand
+ * should use this form. `col1` may be NULL, which keeps the price-pool move
+ * and skips the ledger (the plain form above is exactly that call).
+ */
+bool europe_apply_dock_menu_row_ex(
+  EuropeScreen* eu,
+  ColonizeUnitPool* units,
+  struct ColonizeCol1Save* col1,
+  int nation_id,
+  int dock_index,
+  int row
+);
+
+/*
  * DOS FUN_38fd_0718 (the Europe harbor spawn behind every dock arrival):
  * the @UNIT type a dock immigrant of this @JOB profession is created as.
  * Pioneer (0x14) -> Pioneers, Missionary (0x18) -> Missionaries, Scout
@@ -1053,6 +1071,15 @@ bool europe_menu_confirm(EuropeScreen* eu);
 bool europe_dock_menu_apply_selection(
   EuropeScreen* eu,
   ColonizeUnitPool* units,
+  int nation_id
+);
+
+/* Same, plus the col1 save the arm buy/sell rows book their trade ledger into
+ * — see europe_apply_dock_menu_row_ex. The game loop should call this form. */
+bool europe_dock_menu_apply_selection_ex(
+  EuropeScreen* eu,
+  ColonizeUnitPool* units,
+  struct ColonizeCol1Save* col1,
   int nation_id
 );
 

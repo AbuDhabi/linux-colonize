@@ -4138,14 +4138,15 @@ int main(void) {
     }
 
     /*
-     * DOS (viceroy 57834-57846) pays the raw euro_price byte (10), UNTAXED:
-     * tobacco 50→500 + muskets remainder 10→100; horses→word; muskets 1 batch.
+     * DOS (viceroy 57834-57835) pays the derived sell table DS:0x84BC
+     * (-0x7b44), which is euro_price − 1 = 9, UNTAXED: tobacco 50→450 +
+     * muskets remainder 10→90; horses→word; muskets 1 batch.
      */
     const int gained = europe_ai_colony_dump_sell(&eu, &pool, ai, &col1, 0);
-    if (gained != 600 || col1.nation[1].gold != 600u) {
+    if (gained != 540 || col1.nation[1].gold != 540u) {
       fprintf(
         stderr,
-        "dump-sell gained=%d gold=%u (want 600)\n",
+        "dump-sell gained=%d gold=%u (want 540)\n",
         gained,
         (unsigned)col1.nation[1].gold
       );
@@ -4194,8 +4195,8 @@ int main(void) {
       );
       return 1;
     }
-    if (col1.nation[1].gold != 600u) {
-      fprintf(stderr, "produce+dump gold=%u (want 600)\n", (unsigned)col1.nation[1].gold);
+    if (col1.nation[1].gold != 540u) {
+      fprintf(stderr, "produce+dump gold=%u (want 540)\n", (unsigned)col1.nation[1].gold);
       return 1;
     }
     if (human->stock[COLONIZE_CARGO_TOBACCO] != 100 || col1.nation[0].gold != 0u) {

@@ -1243,7 +1243,7 @@ void map_panel_render(
   int cursor_x,
   int cursor_y,
   int selected_unit_id,
-  int human_nation,
+  int fog_nation,
   uint16_t game_year,
   uint16_t game_autumn,
   int gold,
@@ -1256,6 +1256,30 @@ void map_panel_render(
 ) {
   if (!framebuffer || !framebuffer->pixels) {
     return;
+  }
+
+  /*
+   * fog_nation is the map's fog view, not the player: game_fog_nation() hands
+   * out −1 under Complete Map and a foreign nation 0..3 under SETVIEW. It was
+   * called human_nation until this comment was written, which is how the leak
+   * below happened twice.
+   * Every fog read below (map_tile_seen_by, the col1_vis_mask tests) wants
+   * exactly that and must keep using the raw value. The two consumers that
+   * ask "is this the actual human player?" — the own-stack listing and the
+   * colony country name — must not, or the player's own stack collapses to a
+   * foreign one-liner and their custom country name never appears on their
+   * own colonies (smell audit 2026-09-10 §H #1; the same sentinel leak #100
+   * fixed inside map_panel_draw_tribe_chrome). Resolve it here once.
+   *
+   * Note this is a different question from the one the tribe chrome asks:
+   * that one wants the map-VIEW nation (DS:0x5396), so a SETVIEW nation is
+   * the right answer there; here only the save's control==0 slot will do.
+   */
+  int resolved_human = fog_nation;
+  if (col1) {
+    resolved_human = col1_save_human_nation(col1); /* always 0..3 */
+  } else if (resolved_human < 0 || resolved_human > 3) {
+    resolved_human = -1; /* no save to probe: stay "nobody's own" */
   }
 
   const int panel_y = MAP_MENU_BAR_H;
@@ -1285,7 +1309,7 @@ void map_panel_render(
       for (int lx = 0; lx < mw; ++lx) {
         const int tx = origin_x + lx;
         const int ty = origin_y + ly;
-        if (!map_tile_seen_by(map, tx, ty, human_nation)) {
+        if (!map_tile_seen_by(map, tx, ty, fog_nation)) {
           map_panel_put(framebuffer, mx + lx, my + ly, 0);
           continue;
         }
@@ -1299,7 +1323,7 @@ void map_panel_render(
         if (!c->active) {
           continue;
         }
-        if (!map_tile_seen_by(map, c->x, c->y, human_nation)) {
+        if (!map_tile_seen_by(map, c->x, c->y, fog_nation)) {
           continue;
         }
         const int lx = c->x - origin_x;
@@ -1314,7 +1338,7 @@ void map_panel_render(
     if (col1 && col1->tribe) {
       for (uint16_t i = 0; i < col1->head.tribe_count; ++i) {
         const ColonizeCol1Tribe* t = &col1->tribe[i];
-        if (!map_tile_seen_by(map, (int)t->x, (int)t->y, human_nation)) {
+        if (!map_tile_seen_by(map, (int)t->x, (int)t->y, fog_nation)) {
           continue;
         }
         const int lx = (int)t->x - origin_x;
@@ -1332,12 +1356,12 @@ void map_panel_render(
         if (!units_is_on_map(u)) {
           continue;
         }
-        if (!map_tile_seen_by(map, u->x, u->y, human_nation)) {
+        if (!map_tile_seen_by(map, u->x, u->y, fog_nation)) {
           continue;
         }
         /* Same vis-bit gate as the main map (FUN_2f2b_6372). */
-        if (u->nation_id != human_nation && human_nation >= 0 && human_nation <= 3 &&
-            (u->col1_vis_mask & (1u << human_nation)) == 0) {
+        if (u->nation_id != fog_nation && fog_nation >= 0 && fog_nation <= 3 &&
+            (u->col1_vis_mask & (1u << fog_nation)) == 0) {
           continue;
         }
         const int lx = u->x - origin_x;
@@ -1433,7 +1457,7 @@ void map_panel_render(
   }
   const int info_x = selected ? selected->x : cursor_x;
   const int info_y = selected ? selected->y : cursor_y;
-  const bool tile_seen = map ? map_tile_seen_by(map, info_x, info_y, human_nation) : true;
+  const bool tile_seen = map ? map_tile_seen_by(map, info_x, info_y, fog_nation) : true;
 
   if (selected) {
     /*
@@ -1524,7 +1548,7 @@ void map_panel_render(
       if (col_here && col_here->active) {
         snprintf(
           line, sizeof(line), "%s",
-          map_panel_euro_country(col1, nation_name, col_here->nation_id, human_nation)
+          map_panel_euro_country(col1, nation_name, col_here->nation_id, resolved_human)
         );
         map_panel_draw_line(font, framebuffer, text_x, &text_y, line_h, y_limit, line);
       } else if (tribe) {
@@ -1723,11 +1747,12 @@ void map_panel_render(
       int ids[COLONIZE_UNITS_MAX];
       const int stack_n = map_panel_collect_stack(units, info_x, info_y, ids, COLONIZE_UNITS_MAX);
       const ColonizeUnit* top = stack_n > 0 ? units_get_const(units, ids[0]) : NULL;
-      const bool own_stack = top && top->nation_id == human_nation;
+      /* Own-ness is about the player, not the fog view — see resolved_human. */
+      const bool own_stack = top && top->nation_id == resolved_human;
 
       if (top && !own_stack) {
         const bool visible =
-          human_nation < 0 || human_nation > 3 || (top->col1_vis_mask & (1u << human_nation)) != 0;
+          fog_nation < 0 || fog_nation > 3 || (top->col1_vis_mask & (1u << fog_nation)) != 0;
         if (visible && text_y + MAP_PANEL_ROW_H <= y_limit) {
           const int sprite = units_map_sprite(units, top->id);
           if (icons && sprite >= 0) {

@@ -1343,9 +1343,10 @@ int ai_euro_colony_needs_colonists_5952(
     return 0;
   }
   int blocked = 0;
-  const int docks = colonies_find_building(pool, "Docks");
-  const bool has_docks =
-    docks >= 0 && docks < COLONIZE_BUILDING_TYPES_MAX && c->has_building[docks];
+  /* Same DOS @BUILDING group 6 the Fisherman gate uses, so it goes through
+   * the shared answer — the old local test named "Docks" alone and would
+   * have missed a colony whose slot had been upgraded past it. */
+  const bool has_docks = colony_yield_colony_has_docks(pool, c);
   if (map && !has_docks) {
     for (int ti = 0; ti < COLONIZE_COLONY_FIELD_TILES; ++ti) {
       int dx = 0;
@@ -3978,29 +3979,6 @@ static int ai_euro_28c8_job_headcount(const ColonizeColony* col, int field_job) 
  * yet), and the first-work hidden-resource discovery roll
  * (FUN_281f_0d78/_0d6c — parked, self-contained, doc's own note).
  */
-/* Coastal or Docks-family building — turn.c's Fisherman gate, same shape. */
-static bool ai_euro_colony_has_docks(
-  const ColonizeColonyPool* pool,
-  const ColonizeWorldMap* map,
-  const ColonizeColony* col
-) {
-  if ((col->colony_flags & COLONIZE_COLONY_FLAG_COASTAL) != 0 ||
-      map_tile_is_coastal(map, col->x, col->y)) {
-    return true;
-  }
-  for (int bi = 0; bi < pool->building_type_count && bi < COLONIZE_BUILDING_TYPES_MAX; ++bi) {
-    if (!col->has_building[bi]) {
-      continue;
-    }
-    const char* bn = pool->building_types[bi].name;
-    if (bn && (strstr(bn, "Docks") != NULL || strstr(bn, "Drydock") != NULL ||
-               strstr(bn, "Shipyard") != NULL)) {
-      return true;
-    }
-  }
-  return false;
-}
-
 /*
  * 28c8 scorer body. `profession` < 0 scores plain tile yields (the
  * structural/test entry point); otherwise the colonist's real profession
@@ -4024,8 +4002,13 @@ static int ai_euro_28c8_score(
    * value and only implied an exception DOS does not have (smell audit #43). */
   const int pop_cap = ((int)col->warehouse_level + 1) * 100;
   const int is_ai = col->nation_id != ctx->human_nation;
+  /* The scorer must answer the Fisherman gate exactly as the tick does, or it
+   * assigns plots the tick then pays 0 for. This used to be a local helper
+   * that ORed in `colony_flags & COASTAL || map_tile_is_coastal(...)`, which
+   * DOS's 18ec does not (smell audit 2026-09-10 E#2): the gate there is
+   * FUN_15eb_038e(6), the building alone. */
   const bool has_docks =
-    profession >= 0 ? ai_euro_colony_has_docks(ctx->colonies, ctx->map, col) : true;
+    profession >= 0 ? colony_yield_colony_has_docks(ctx->colonies, col) : true;
   const int sol_b_field =
     profession >= 0 ? colony_prod_sol_bonus_field(ctx->col1_ok ? ctx->col1 : NULL, col) : 0;
   /* DOS 1068/28c8 score through the same FUN_15eb_18ec the tick uses, so
@@ -4179,7 +4162,7 @@ static void ai_euro_colony_tick_28c8_reassign(ColonizeTurnContext* ctx, int nati
       col->colonists[s].field_job = -1;
     }
 
-    const bool fishable = ai_euro_colony_has_docks(ctx->colonies, ctx->map, col);
+    const bool fishable = colony_yield_colony_has_docks(ctx->colonies, col);
     int food_have = 0;
     {
       ColonizeTownCommonsYield tc;
@@ -4444,6 +4427,14 @@ static int ai_euro_colony_free_fisherman_field(
   if (!ctx || !ctx->map || !c || !c->active || !out_ti) {
     return 0;
   }
+  /* No Docks, no fish plot: 18ec zeroes every Fisherman yield here
+   * (FUN_15eb_038e(6)), so an errand that walks an Expert Fisherman across
+   * the map to such a colony ends on a plot worth 0. The per-tile scoring
+   * below goes through colony_yield_for_tile_in_colony for the same reason —
+   * plain colony_yield_for_tile assumes the gate is open (audit E#2). */
+  if (!colony_yield_colony_has_docks(ctx->colonies, c)) {
+    return 0;
+  }
   int best_ti = -1;
   int best_y = 0;
   for (int ti = 0; ti < COLONIZE_COLONY_FIELD_TILES; ++ti) {
@@ -4461,7 +4452,8 @@ static int ai_euro_colony_free_fisherman_field(
     if (pedia != 25 && pedia != 26) {
       continue; /* ocean / sea lane only — coastal fish tile */
     }
-    const int yld = colony_yield_for_tile(ctx->map, tx, ty, COLONIZE_JOB_FISHERMAN);
+    const int yld =
+      colony_yield_for_tile_in_colony(ctx->colonies, c, ctx->map, tx, ty, COLONIZE_JOB_FISHERMAN);
     if (yld <= 0) {
       continue;
     }

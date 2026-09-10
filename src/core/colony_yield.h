@@ -13,13 +13,56 @@
 int colony_yield_job_cargo(int field_job);
 
 /*
+ * The Fisherman docks gate, answered once for the whole port.
+ *
+ * DOS has no `has_docks` parameter at all: FUN_15eb_18ec ends with
+ * `if ((7 < local_14) && (iVar3 = FUN_15eb_038e(6), iVar3 == 0)) local_26 = 0;`
+ * (viceroy_unpacked.c:11967-11969) — job 8+ (Fisherman) yields 0 unless the
+ * colony owns @BUILDING group 6. FUN_15eb_038e is just
+ * `FUN_15eb_035e(*(int *)0x8dc6, group)`, i.e. it reads the *current colony*
+ * global, so in DOS the scorer, the picker and the tick physically cannot
+ * disagree about this. The port had six hand-copied answers instead, one of
+ * which (the AI plot scorer) also accepted bare coastal placement — see the
+ * 2026-09-10 smell audit, Area E #2.
+ *
+ * DOS's group 6 is one building slot upgraded in place; the port models the
+ * three tiers as separate building types, hence the three names. Coastal
+ * placement alone is NOT enough — the building has to be there.
+ */
+bool colony_yield_colony_has_docks(
+  const ColonizeColonyPool* pool,
+  const ColonizeColony* colony
+);
+
+/*
  * Base + resource yield for working (x,y) as field_job, no worker context
  * (no expert/convert bonus, never docks-gated) — used by AI/job-suggestion
  * callers that don't have a specific colonist. 0 if impossible. Thin
  * wrapper over colony_yield_for_worker's full pipeline with profession=-1,
  * sol_bonus=0, has_docks=true.
+ *
+ * The ungated `has_docks=true` is only right for callers with no colony:
+ * founding-site scoring, the map/terrain probes and the tests. A caller that
+ * DOES have a colony and could ask about Fisherman must pass the real answer
+ * — use colony_yield_for_tile_in_colony below, which is the DOS shape.
  */
 int colony_yield_for_tile(const ColonizeWorldMap* map, int x, int y, int field_job);
+
+/*
+ * colony_yield_for_tile for a caller that has the colony: identical pipeline,
+ * except the Fisherman gate is derived from the colony via
+ * colony_yield_colony_has_docks instead of being assumed open. This is DOS's
+ * own shape (18ec reads the colony global), so a scorer using it cannot
+ * disagree with the tick.
+ */
+int colony_yield_for_tile_in_colony(
+  const ColonizeColonyPool* pool,
+  const ColonizeColony* colony,
+  const ColonizeWorldMap* map,
+  int x,
+  int y,
+  int field_job
+);
 
 /*
  * Tile yield for colonist `profession` on `field_job` — the full DOS
@@ -32,9 +75,11 @@ int colony_yield_for_tile(const ColonizeWorldMap* map, int x, int y, int field_j
  * see docs/terrain_yields.md "Field Farmer/Fisherman expert formula"), and
  * only then its own resource bonus (doubled if expert). Lumberjack's
  * unconditional ×2 and negative sol_bonus (not amplified by any of the
- * above) apply last. `has_docks`: pass whether the colony owns Docks (or
- * an upgrade: Drydock/Shipyard) — Fisherman yields 0 without it, matching
- * DOS. `sol_bonus`: colony_prod_sol_bonus_field (signed; 0 to skip).
+ * above) apply last. `has_docks`: Fisherman yields 0 without it, matching
+ * DOS — always source it from colony_yield_colony_has_docks above rather
+ * than open-coding another building scan, and never widen it to bare
+ * coastal placement. `sol_bonus`: colony_prod_sol_bonus_field (signed; 0 to
+ * skip).
  * `colony_flags`: the colony's ColonizeColony.colony_flags (SOL_50/
  * SOL_100 latch bits; 0 if not a matching Farmer/Fisherman expert, or if
  * the caller has no colony context — colony_yield_for_tile passes 0).

@@ -2304,7 +2304,11 @@ bool col1_bridge_capture(
      * EuropeScreen lists, not the pool — reserve room to write them back. */
     const int europe_ships =
       europe ? (europe->harbor_ships + europe->expected_ships + europe->bound_ships) : 0;
-    const int capacity = live + europe_ships * (1 + EUROPE_SHIP_CARGO_MAX);
+    /* Dock immigrants whose mirror unit was never spawned are written back
+     * from the dock array itself (see the reconciliation below) — reserve a
+     * full dock's worth of records for them. */
+    const int europe_dockers = europe ? EUROPE_DOCK_MAX : 0;
+    const int capacity = live + europe_ships * (1 + EUROPE_SHIP_CARGO_MAX) + europe_dockers;
     ColonizeCol1Unit* neu = NULL;
     if (capacity > 0) {
       neu = calloc((size_t)capacity, sizeof(ColonizeCol1Unit));
@@ -2359,9 +2363,9 @@ bool col1_bridge_capture(
       {
         /*
          * Col1 +0x05 = moves_spent in thirds. Euro units export
-         * max_mp - moves_left (idle transports / aboard units always 0, like
-         * COLONY00); natives export the literal byte (Brave engine keeps DOS
-         * spent in moves_left).
+         * max_mp - moves_left (units aboard a ship always 0, like COLONY00);
+         * natives export the literal byte (Brave engine keeps DOS spent in
+         * moves_left).
          */
         const ColonizeUnitType* ut = units_type(units, src->type_index);
         const bool transport = ut && ut->cargo > 0;
@@ -2370,11 +2374,8 @@ bool col1_bridge_capture(
            * Magellan off `save`, not the units module's optional FF global. */
           const int max_mp = col1_bridge_unit_max_mp(ut, src->nation_id, save);
           int spent = 0;
-          if (src->aboard_ship_id >= 0 ||
-              (transport && (src->orders == UNITS_ORDER_SENTRY ||
-                             src->orders == UNITS_ORDER_NONE ||
-                             !units_orders_follow_goto(src->orders)))) {
-            /* Idle transports (no goto/sail): always export full MP like COLONY00. */
+          if (src->aboard_ship_id >= 0) {
+            /* A passenger spends nothing of its own; DOS keeps its byte 0. */
             spent = 0;
           } else if (
             transport && src->orders == UNITS_ORDER_AI_MOVE && src->goto_x == src->x &&
@@ -2383,6 +2384,22 @@ bool col1_bridge_capture(
             /* Station-keep tip (TURN5 FR 52,43): COL1 moves spent = 0. */
             spent = 0;
           } else if (src->moves_left <= 0) {
+            /*
+             * Transports follow exactly the same ladder as land units. The
+             * arm that used to sit above this one — "any transport whose
+             * orders are not goto/sail exports 0" — made everything below
+             * unreachable for ships and wagons, so a ship the player had
+             * moved two of its four tiles saved as spent 0 and reloaded with
+             * a full turn. It cited COLONY00's idle Merchantman, but nothing
+             * in the record distinguishes idle from spent, and DOS does not
+             * blank the byte: across the 47 original saves, 104 of the 254
+             * on-map Euro transports carrying non-goto orders have a nonzero
+             * spent byte (COLONY00-original unit 2, the very Merchantman,
+             * carries 18; dutch-campaign COLONY01 unit 35 Caravel 15, unit 36
+             * Wagon Train 6). AI ships never tripped it because their orders
+             * are 11/12, which is why the TURN goldens stayed quiet.
+             * Smell audit 2026-09-10 F1.
+             */
             /*
              * Exhausted: the whole allotment is gone, so the spent byte is
              * the allotment. DOS clears spent only at the TOP of a calendar
@@ -2686,6 +2703,92 @@ bool col1_bridge_capture(
           }
         }
         free(chained);
+      }
+    }
+
+    /*
+     * Europe dock rows that have no mirror unit behind them.
+     *
+     * col1_bridge_apply's rule (see the import path) is that every dock
+     * immigrant also exists in the pool as a unit parked at (236,236),
+     * because capture only walks the pool. Only three paths honour it:
+     * turn.c's crosses immigrant, units.c's Brewster pick and the import
+     * itself. Every other way a colonist reaches the dock pushes a row and
+     * nothing else — Recruit (paid and free), Train, Purchase, the harbor
+     * 0718 spawn, europe_disembark_passengers_to_dock (every passenger a
+     * ship brings home, whose pool unit units_despawn_ship_with_cargo has
+     * just destroyed), the King's mercenary Veteran Soldiers and a unit sent
+     * home by ai_diplo. Nothing then recorded those immigrants in the file,
+     * so a save/load deleted them outright.
+     *
+     * Rather than chase the producers, reconcile here: claim one dock row for
+     * every human mirror the pool walk above already exported (by profession
+     * first, so an armed or trained immigrant matches its own row), then
+     * write the unclaimed rows out as records of their own in the same dock
+     * lane the mirrors use. Import re-creates both halves, so the next save
+     * finds them in the pool and this loop goes quiet.
+     * Smell audit 2026-09-10 F2.
+     */
+    if (europe && human_nation >= 0 && human_nation < 4 && europe->dock_count > 0) {
+      const uint8_t n = (uint8_t)human_nation;
+      const int rows =
+        europe->dock_count < EUROPE_DOCK_MAX ? europe->dock_count : EUROPE_DOCK_MAX;
+      bool claimed[EUROPE_DOCK_MAX];
+      for (int r = 0; r < EUROPE_DOCK_MAX; ++r) {
+        claimed[r] = false;
+      }
+      for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+        const ColonizeUnit* u = &units->units[i];
+        /* The same shape europe_remove_dock_mirror_unit matches on. */
+        if (!u->active || (u->nation_id & 0xF) != human_nation || u->x != 236 || u->y != 236 ||
+            u->aboard_ship_id >= 0 || units_is_sea(units, u->id)) {
+          continue;
+        }
+        int pick = -1;
+        for (int r = 0; r < rows && pick < 0; ++r) {
+          if (!claimed[r] && europe->dock[r].present &&
+              europe->dock[r].profession == u->profession) {
+            pick = r;
+          }
+        }
+        for (int r = 0; r < rows && pick < 0; ++r) {
+          if (!claimed[r] && europe->dock[r].present) {
+            pick = r;
+          }
+        }
+        if (pick >= 0) {
+          claimed[pick] = true;
+        }
+      }
+      for (int r = 0; r < rows; ++r) {
+        if (claimed[r] || !europe->dock[r].present || written >= capacity) {
+          continue;
+        }
+        const EuropeDockImmigrant* row = &europe->dock[r];
+        int ti = europe_dock_unit_type_index(units, row->dos_type);
+        if (ti < 0) {
+          ti = units_find_type(units, "Colonists");
+        }
+        if (ti < 0) {
+          continue;
+        }
+        ColonizeCol1Unit* dst = &neu[written];
+        memset(dst, 0, sizeof(*dst));
+        /* Same lane and byte shape the French originals carry on their dock
+         * colonists (COLONY02 units 121-156 at 237,237: orders 1, origin
+         * 0xff, ai_plan 0x58, goto 0, spent 0). */
+        dst->x = (uint8_t)(236 + n);
+        dst->y = dst->x;
+        dst->type = (uint8_t)ti;
+        dst->nation_id = n;
+        dst->vis_mask = 0; /* Europe sentinel units carry vis 0 in DOS saves */
+        dst->ai_plan = COL1_UNIT_UNKNOWN16_HI_DEFAULT;
+        dst->origin = 0xff; /* home-colony byte can't survive the Europe screen */
+        dst->orders = 1; /* dock immigrants sentry — DOS +0x314c = 1 */
+        dst->profession = (uint8_t)(row->profession < 0 ? UNITS_JOB_NONE : row->profession);
+        dst->transport_chain.prev_unit_idx = -1;
+        dst->transport_chain.next_unit_idx = -1;
+        written++;
       }
     }
 

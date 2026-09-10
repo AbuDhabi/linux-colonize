@@ -9059,11 +9059,21 @@ static int ai_contact_nearest_own_colony(
  * `exposed_only` reproduces DOS's 0x942c/0x95b2 gate — see the loop body.
  */
 /*
- * FUN_281f_06be â FUN_137f_03e4 (viceroy_unpacked.c:6838-6860): owner byte of
- * ANY settlement standing on the tile â Euro colony (0..3) or Indian village
- * (>= 4) â and â1 for an empty or off-map tile. Twin of
+ * FUN_281f_06be → FUN_137f_03e4 (viceroy_unpacked.c:6838-6860): owner byte of
+ * ANY settlement standing on the tile — Euro colony (0..3) or Indian village
+ * (>= 4) — and −1 for an empty or off-map tile. Twin of
  * col1_stuff_census_settlement_at (static there; a 20-line pure helper is
  * cheaper to repeat than to export across link units).
+ *
+ * Both branches return the absolute Col1 nation id. DOS reads a single owner
+ * nibble off the tile (FUN_137f_0200 = FUN_137f_01ac >> 4 & 0xf, 0xf = none)
+ * that already holds 0..3 for a European colony and 4..11 for an Indian
+ * village — which is why the sibling FUN_137f_03c2 can filter villages out
+ * with a bare `if (owner < 4) return -1`. `ColonizeCol1Tribe.nation_id` lives
+ * in that same absolute space (consumers index `col1->indian[]` with
+ * `nation_id - 4`), so the village branch returns it as stored. Adding 4 here
+ * — as this helper and both of its clones did until 2026-09-10 — reported
+ * villages as 8..15.
  */
 static int ai_contact_settlement_owner_at(const ColonizeTurnContext* ctx, int x, int y) {
   if (ctx->colonies) {
@@ -9076,7 +9086,7 @@ static int ai_contact_settlement_owner_at(const ColonizeTurnContext* ctx, int x,
   if (ctx->col1_ok && ctx->col1 && ctx->col1->tribe) {
     for (uint16_t i = 0; i < ctx->col1->head.tribe_count; ++i) {
       if ((int)ctx->col1->tribe[i].x == x && (int)ctx->col1->tribe[i].y == y) {
-        return 4 + (int)ctx->col1->tribe[i].nation_id;
+        return (int)ctx->col1->tribe[i].nation_id; /* already 4..11 */
       }
     }
   }
@@ -9098,7 +9108,7 @@ static int ai_contact_land_combat_sum(
   sctx.map = ctx->map;
   sctx.colonies = ctx->colonies;
   sctx.col1 = ctx->col1;
-  /* DOS `3 < param_1 || control[param_1] != 0` â a human nation's units never
+  /* DOS `3 < param_1 || control[param_1] != 0` — a human nation's units never
    * reach the exposed row while standing on a settlement. Tribes (>= 4) have
    * no control byte and always pass. */
   const int human_slot = exposed_only && ctx->col1_ok && ctx->col1 && nation >= 0 &&
@@ -9110,10 +9120,10 @@ static int ai_contact_land_combat_sum(
     if (!u || !u->active || u->nation_id != nation || units_is_sea(ctx->units, i)) {
       continue;
     }
-    /* DOS parks a ship's passengers off-map at (â2,â2), where FUN_281f_081c
+    /* DOS parks a ship's passengers off-map at (−2,−2), where FUN_281f_081c
      * reports no continent: they reach the nation-wide word (-0x6be4) but no
      * per-continent row. The port rides passengers at the ship's own tile, so
-     * the exclusion has to be explicit â and only for continent rows. */
+     * the exclusion has to be explicit — and only for continent rows. */
     if (u->aboard_ship_id >= 0 && continent >= 0) {
       continue;
     }
@@ -9125,7 +9135,7 @@ static int ai_contact_land_combat_sum(
        * DOS gate, verbatim (4962:022f-026e): a unit only drops out of the
        * exposed row when it stands on a settlement AND (its nation is
        * human-controlled OR its ai_plan is 'A'/'G'). +0x314b is `ai_plan`,
-       * the FUN_521d_0a60 garrison-assignment letter â not the orders byte
+       * the FUN_521d_0a60 garrison-assignment letter — not the orders byte
        * at +0x314c. Fixed 2026-09-09 (audit follow-up B): this arm tested
        * orders FORTIFY/FORTIFIED and excluded every in-colony unit outright.
        */
