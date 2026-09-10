@@ -116,13 +116,23 @@ static void combat_analysis_push_row_icon(
 
 /*
  * Modifier rows only (FUN_636c_0000 flag walk, DOS check order). Labels match
- * the LABELS.TXT Combat Analysis block. land_attack_bonus: land engage ×3/2.
+ * the LABELS.TXT Combat Analysis block.
+ *
+ * attack_bonus: print the "Attack Bonus" (+50%) row, i.e. DS:0x8d00 bit 0 —
+ * set for every mode != 0 evaluation, whatever the domain (FUN_157e_004a,
+ * viceroy_unpacked.c 8926-8928: `*puVar1 |= (param_2 != 0)` with puVar1 =
+ * 0x8d00), and 636c walks that one bit with no domain test (101874-101891).
+ * Was called `land_attack_bonus` and documented as "land engage ×3/2" — the
+ * naval suppression it named was removed (both callers, :370 and :468-480,
+ * now pass the plain mode bit for either domain). The ×3/2 itself is
+ * unconditional in 1b0e (100458, `* 3 >> 1`, ahead of the is-ship flags
+ * computed at 100451-100455).
  */
 static void combat_analysis_fill_mods(
   CombatAnalysisRow* rows,
   int* count,
   const ColonizeCombatSideFlags* flags,
-  int land_attack_bonus,
+  int attack_bonus,
   bool is_attacker
 ) {
   *count = 0;
@@ -194,7 +204,7 @@ static void combat_analysis_fill_mods(
    * 1b0e applies to naval attackers too (1b0e is the single resolver for both
    * domains; its is-ship flags bVar9/bVar10 gate other clauses, not this one).
    */
-  if (land_attack_bonus) {
+  if (attack_bonus) {
     combat_analysis_push_row(rows, count, "Attack Bonus", 50);
   }
   /* bugs.md 248: DOS 636c bit 0x8000 label ptr DS:0x2e8a = @MISC 104

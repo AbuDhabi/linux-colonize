@@ -1040,6 +1040,21 @@ int colonies_found(
   }
 
   /*
+   * DOS colony +0x1c bit 0x40, the coastal bit — set here and nowhere else,
+   * mirroring FUN_364b_1ba8 (viceroy_unpacked.c 58105-58110), which zeroes the
+   * flag byte and ORs 0x40 in from the site test alone. It used to be a side
+   * effect of the Docks branch below, so a coastal colony founded at pop >= 3
+   * (Stockade branch) or one whose "Docks" row was missing/already built never
+   * got the bit. Nothing recomputes or clears it afterwards — the image has no
+   * other writer — so from here it is save-carried state. Predicate lives in
+   * map.c (map_tile_is_open_sea_adjacent) and is shared with the AI refresh.
+   * Smell audit 2026-09-10 D4.
+   */
+  if (map_tile_is_open_sea_adjacent(map, x, y)) {
+    slot->colony_flags |= COLONIZE_COLONY_FLAG_COASTAL;
+  }
+
+  /*
    * Default first project so carpenter hammers have a target (0 accumulated).
    * Only when the colony can actually build it: Stockade needs 3 colonists
    * (@BUILDING min_colony), and DOS never shows a size-1 town building one —
@@ -1056,12 +1071,23 @@ int colonies_found(
          slot->population >= pool->building_types[stockade].min_population)) {
       slot->building_in_production = stockade;
       slot->hammers = 0;
-    } else if (map && map_tile_is_coastal((ColonizeWorldMap*)map, x, y)) {
+    } else if (map && map_tile_is_coastal(map, x, y)) {
+      /*
+       * Deliberately the loose live probe, not the coastal FLAG stamped above.
+       * DOS's own Docks buildability filter IS the flag (raw 13688:
+       * `local_e == 7 && (colony+0x1c & 0x40) == 0 -> reject`, building id 7),
+       * but this whole first-project default is a port heuristic to begin with
+       * — DOS's found-colony writes +0x8d = 0xff, i.e. no project at all — and
+       * it is pinned by unit tests and the seed-100 AI-town goldens through
+       * map_tile_is_coastal. Tightening it to the flag would only make an
+       * invented default marginally stricter (lake-only towns would start on
+       * Warehouse) while risking those pins; left as a lead for whoever ports
+       * DOS's real "no project at founding" behaviour. Smell audit D4.
+       */
       const int docks = colonies_find_building(pool, "Docks");
       if (docks >= 0 && !slot->has_building[docks]) {
         slot->building_in_production = docks;
         slot->hammers = 0;
-        slot->colony_flags |= COLONIZE_COLONY_FLAG_COASTAL;
       }
     } else {
       const int warehouse = colonies_find_building(pool, "Warehouse");

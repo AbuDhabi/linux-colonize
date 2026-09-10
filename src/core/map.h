@@ -250,8 +250,20 @@ void map_phys0_overlay_offset_at(
 );
 bool map_tile_is_water(const ColonizeWorldMap* map, int x, int y);
 bool map_tile_is_land(const ColonizeWorldMap* map, int x, int y);
-/* Land tile with at least one adjacent (8-neighbor) water tile — docks eligible. */
+/* Land tile with at least one adjacent (8-neighbor) water tile — docks eligible.
+ * The loose live harbour probe: off-map counts as water and lakes count. For
+ * the DOS colony coastal SAVE FIELD (+0x1c bit 0x40) use
+ * map_tile_is_open_sea_adjacent() instead. */
 bool map_tile_is_coastal(const ColonizeWorldMap* map, int x, int y);
+/*
+ * Predicate behind the DOS colony coastal bit (+0x1c bit 0x40): some INSET
+ * 8-neighbour is ocean/high seas AND the lowest-region such neighbour is
+ * water region 1 (the open sea), i.e. lake-only and map-edge sites are
+ * excluded. FUN_364b_1ba8 raw 58105-58110 / FUN_15eb_00a2 raw 9340-9374; full
+ * derivation and the layer3-less-test-map relaxation are on the definition in
+ * map.c. This is the only thing that should ever write that flag bit.
+ */
+bool map_tile_is_open_sea_adjacent(const ColonizeWorldMap* map, int x, int y);
 /* Terrain index 26 — high seas / sea lane (Europe route). */
 bool map_tile_is_high_seas(const ColonizeWorldMap* map, int x, int y);
 

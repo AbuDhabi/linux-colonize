@@ -18,11 +18,37 @@ static AiNationPlanScratch s_plan[4];
 static const int k_dir8_dx[9] = {0, 1, 1, 1, 0, -1, -1, -1, 0};
 static const int k_dir8_dy[9] = {-1, -1, 0, 1, 1, 1, 0, -1, 0};
 
+/*
+ * "Does this map's seen plane carry map-gen site nibbles?" — one whole-map
+ * property, probed once and memoised for ai_goals_site_nibble() (and, through
+ * it, ai_euro_20e6_site_nibble). Module state, so ai_goals_reset() clears it
+ * with the rest: keyed on the plane alone it survived a new game or a Load
+ * that handed back the same `seen` allocation at the same address and size —
+ * the common case, since the pool is re-allocated per map and the scenario
+ * fixes the dimensions — and silently kept the previous world's verdict,
+ * switching the whole founding-site extras term between the real nibble and
+ * the `unseen ? 4 : 0` fallback. Smell audit 2026-09-10 D8.
+ */
+static const ColonizeWorldMap* s_nib_map = NULL;
+static const uint8_t* s_nib_plane = NULL;
+static int s_nib_w = -1;
+static int s_nib_h = -1;
+static int s_nib_present = 0;
+
+static void ai_goals_site_nibble_cache_clear(void) {
+  s_nib_map = NULL;
+  s_nib_plane = NULL;
+  s_nib_w = -1;
+  s_nib_h = -1;
+  s_nib_present = 0;
+}
+
 void ai_goals_reset(void) {
   memset(s_goals, 0, sizeof(s_goals));
   memset(s_work, 0, sizeof(s_work));
   memset(s_inv, 0, sizeof(s_inv));
   memset(s_plan, 0, sizeof(s_plan));
+  ai_goals_site_nibble_cache_clear();
   for (int n = 0; n < 4; ++n) {
     for (int i = 0; i < AI_PRIMARY_SLOTS; ++i) {
       s_goals[n].primary[i].code = AI_GOAL_EMPTY;
@@ -538,19 +564,26 @@ static int ai_goals_tile_layer2_owner(const ColonizeWorldMap* map, int x, int y,
  * no nibble at all, and an all-zero nibble field would silently zero the whole
  * extras term, so when no tile in the plane carries a low nibble the old
  * per-nation unseen→4 stand-in is used instead.
+ *
+ * The "carries nibbles" probe is whole-map, so it is memoised in the module
+ * statics above rather than re-scanned per tile — and cleared by
+ * ai_goals_reset (new game / Load / per test case), which is what makes the
+ * memo safe. Exported as ai_goals_site_nibble so ai_euro_20e6_site_nibble can
+ * share the one cache instead of keeping a second, never-invalidated copy.
  */
-static int ai_goals_site_nibble_074a(const ColonizeWorldMap* map, int x, int y, int nation) {
+int ai_goals_site_nibble(const ColonizeWorldMap* map, int x, int y, int nation) {
   if (!map || !map->seen || x < 0 || y < 0 || x >= (int)map->width || y >= (int)map->height) {
     return 0;
   }
-  static const uint8_t* s_nib_plane = NULL;
-  static int s_nib_count = -1;
-  static int s_nib_present = 0;
-  const int count = (int)map->width * (int)map->height;
-  if (map->seen != s_nib_plane || count != s_nib_count) {
+  const int w = (int)map->width;
+  const int h = (int)map->height;
+  if (map != s_nib_map || map->seen != s_nib_plane || w != s_nib_w || h != s_nib_h) {
+    s_nib_map = map;
     s_nib_plane = map->seen;
-    s_nib_count = count;
+    s_nib_w = w;
+    s_nib_h = h;
     s_nib_present = 0;
+    const int count = w * h;
     for (int i = 0; i < count; ++i) {
       if (map->seen[i] & 0x0f) {
         s_nib_present = 1;
@@ -559,9 +592,13 @@ static int ai_goals_site_nibble_074a(const ColonizeWorldMap* map, int x, int y, 
     }
   }
   if (s_nib_present) {
-    return (int)(map->seen[(size_t)y * (size_t)map->width + (size_t)x] & 0x0f);
+    return (int)(map->seen[(size_t)y * (size_t)w + (size_t)x] & 0x0f);
   }
   return !map_tile_seen_by(map, x, y, nation) ? 4 : 0;
+}
+
+static int ai_goals_site_nibble_074a(const ColonizeWorldMap* map, int x, int y, int nation) {
+  return ai_goals_site_nibble(map, x, y, nation);
 }
 
 /*

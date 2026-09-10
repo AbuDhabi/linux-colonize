@@ -586,8 +586,16 @@ static void ai_contact_apply_welcome_accept(
   (void)ind;
   const uint8_t rel_before = ai_diplo_indian_relation(ctx->col1, nation_id, e);
   ai_contact_set_peace(ctx->col1, nation_id, e);
-  /* relation_by_indian = DOS 0x60 MET|PEACE flag byte (every DOS save: 96 once met). */
-  ctx->col1->nation[e].relation_by_indian[nation_id - 4] = 96u;
+  /*
+   * relation_by_indian is the DOS 0x60 MET|PEACE flag BYTE, not a scalar (every
+   * DOS save: 96 once met, 0 before). set_peace above or-boths 0x40; MET 0x20 is
+   * the other half, and ai_contact_try_first_welcome only ORs it into the Indian
+   * side, so the Euro-side row needs it here. Until 2026-09-10 (audit #16) this
+   * was a raw `= 96` assignment that bypassed the 15b3 pair ops — DOS's own
+   * surrender/first-contact idiom is or_both, never a store (FUN_43f7_0108,
+   * viceroy_unpacked.c:73555-73557).
+   */
+  ai_diplo_or_both(ctx->col1, nation_id, e, COL1_INDIAN_MET_BIT);
   /* FUN_5bfb first contact (viceroy_unpacked.c:96624): alarm clamped <= 20. */
   if (ind->alarm_by_player[e] > 20u) {
     ind->alarm_by_player[e] = 20u;
@@ -9108,7 +9116,7 @@ static int ai_contact_settlement_owner_at(const ColonizeTurnContext* ctx, int x,
   return -1;
 }
 
-static int ai_contact_land_combat_sum(
+int ai_contact_land_combat_sum(
   const ColonizeTurnContext* ctx,
   int nation,
   int continent,

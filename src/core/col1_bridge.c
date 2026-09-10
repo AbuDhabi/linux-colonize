@@ -1533,11 +1533,40 @@ bool col1_bridge_apply(
     units_board_stacked(units, id_by_index[i], id_by_index[ship_idx]);
   }
 
-  /* Active unit */
+  /*
+   * Active unit (DS:0x5392) — and the idle state DOS restores with it.
+   *
+   * DOS's load is a bulk `fread(0x5380, 0x8e)` (viceroy_unpacked.c:120252,
+   * exact mirror of the save's `fwrite` at :120048), so the whole head word
+   * block comes back verbatim: `map_mode` (0x5390), `active_unit` (0x5392)
+   * and `no_unit_selected` (0x53c6) all resume as saved, and FUN_2b5a's
+   * writer pair (:42308-42317) only ever re-derives the other two *from*
+   * 0x5392. `(int16)active_unit < 0` is therefore the authority for "nothing
+   * selected", and it is exactly what col1_bridge_capture stamps (smell
+   * audit #78). Survey of original_saves/dutch-campaign + french-campaign:
+   * 7 carry `active_unit 0xffff` (dutch COLONY01/08/09/10, french
+   * COLONY01/03/08), all 7 with map_mode 1. The converse does NOT hold —
+   * french COLONY09 is map_mode 1 with active_unit 0x50, because entering
+   * View Pieces (:42112) sets 0x5390 without touching 0x5392 — so 0x5392 is
+   * the only field this may key on.
+   *
+   * The fallback scan below is a repair for the *other* case: an in-range
+   * active_unit whose record was not imported (a Europe-lane sentinel, a
+   * dropped row) — there the save did hold a selection and something has to
+   * carry it. Firing it for a deliberate 0xffff is what made the #78 stamp
+   * write-only (smell audit, this file): those 6 View-Pieces saves loaded
+   * with the first on-map unit selected and re-saved as map_mode 0, i.e. the
+   * decoder invalidated a field the encoder had just written. Idle is a
+   * first-class port state — units_reset leaves selected_id -1 and
+   * game_loop's view_pieces_mode / game_end_turn_prompt_active are built for
+   * exactly it (game_loop.c honours head.map_mode on load) — so honouring
+   * the save needs no surgery, just not overriding it here.
+   */
+  const bool save_has_no_active_unit = (int16_t)save->head.active_unit < 0;
   if (save->head.active_unit < save->head.unit_count && id_by_index &&
       id_by_index[save->head.active_unit] >= 0) {
     units->selected_id = id_by_index[save->head.active_unit];
-  } else if (units->unit_count > 0) {
+  } else if (!save_has_no_active_unit && units->unit_count > 0) {
     for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
       if (units->units[i].active && units_is_on_map(&units->units[i])) {
         units->selected_id = units->units[i].id;

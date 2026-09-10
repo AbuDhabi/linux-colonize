@@ -30,14 +30,19 @@
  * FUN_4d56_4528 grace/waiver counter — [11] is the block's one dead byte.)
  * Indian×Euro full 15b3 matrix still PORT DEBT (thin feeler / war-hit / sticky).
  * Phase 1 deepen (T3 roadmap): unmet euro_relation==0 no longer stamped;
- * relation==0 is unmet not war; peaceful meet floor 96 (seed-100 TURN3+).
+ * relation==0 is unmet not war; a met tribe's Euro-side row is 0x60 = 96 =
+ * MET|PEACE (seed-100 TURN3+) — a bitfield, never a scalar floor (audit #16).
  */
 
-#define AI_DIPLO_FLAG_BASE 4
-/* unknown26 index of the sticky stand-in (nation record +0x4b). Unused —
- * every site names the struct member; kept as the block's index legend. */
-#define AI_DIPLO_INDIAN_HOSTILE_STICKY 11
-#define AI_DIPLO_PRIVATEER_SPAWN_SLOT 9
+/*
+ * AI_DIPLO_FLAG_BASE (4), AI_DIPLO_INDIAN_HOSTILE_STICKY (11) and
+ * AI_DIPLO_PRIVATEER_SPAWN_SLOT (9) lived here — raw unknown26 indices from
+ * before the block became a union of named members (col1_save.h:
+ * treaty_timer[4], diplo_flag[4], king_grace_counter, privateer_spawn_mask,
+ * indian_hostility_sticky). Every site names the member, so all three were
+ * dead; removed 2026-09-10 (audit #22). The index legend they stood in for is
+ * the comment block above.
+ */
 /* Off-map Europe tile (turn / ai_euro Europe gate x|y >= 200). */
 #define AI_DIPLO_EUROPE_X 236
 #define AI_DIPLO_EUROPE_Y 236
@@ -134,7 +139,9 @@
 /* First declare: seed peer treaty timer so near-parity peace waits for
  * timer==0 (war aged / fatigue). Reuses unknown26[0..3]; live timers kept. */
 #define AI_DIPLO_WAR_FATIGUE_TIMER 8u
-#define AI_DIPLO_INDIAN_DRIFT_CAP 160u
+/* AI_DIPLO_INDIAN_DRIFT_CAP (160) lived here — the ceiling of the per-turn
+ * peaceful relation drift, retired to a no-op 2026-08-27 (DOS has no alarm
+ * decay). Constant removed 2026-09-10 (audit #16) with its last reader. */
 /* AI_DIPLO_WAR_INDIAN_HIT (5) lived here; its only consumer was the Linux-only
  * Euro-alliance relation hit, retired with T2.4 (2026-09-06). Removed
  * 2026-09-07. */
@@ -149,12 +156,19 @@
  * machinery (FUN_4d56_152e, FUN_4cc6_00f2, FUN_5952_035e, FUN_465b_0000)
  * touches a Euro treasury. Native war costs the player units and stores, not
  * a per-turn tax. */
-/* Peace feeler / first-meet content floor. Seed-100 TURN3+ write 96 on meet
- * (not 100). Heal mid-band up to this ceiling; drift still climbs to 160.
- * Source: fandom Indians — peace → gifts / improve relations (no large gold). */
-#define AI_DIPLO_INDIAN_PEACE_MEET 96u
-#define AI_DIPLO_INDIAN_CONTENT_FLOOR AI_DIPLO_INDIAN_PEACE_MEET
-#define AI_DIPLO_INDIAN_FEELER_HEAL 2
+/*
+ * AI_DIPLO_INDIAN_PEACE_MEET (96), its alias AI_DIPLO_INDIAN_CONTENT_FLOOR and
+ * AI_DIPLO_INDIAN_FEELER_HEAL (2) lived here. Removed 2026-09-10 (audit #16):
+ * the "content floor / heal ceiling" reading was wrong. 96 == 0x60 is the
+ * MET|PEACE BITFIELD of the 12x12 15b3 matrix, not a scalar relation — see
+ * ai_diplo_flag_byte's quadrant map and col1_save.h's relation_by_indian note.
+ * Every DOS save carries exactly 0x60 there once contacted and 0 before, and
+ * DOS never assigns the byte: its surrender idiom is FUN_43f7_0108
+ * (viceroy_unpacked.c:73555-73557), clear_both(0xb) then
+ * or_both(0x60) — so the two writes that used this constant now go through
+ * ai_diplo_or_both, the sole mutation channel. The heal constant's only
+ * consumers (the drift + peace feeler) were retired to no-ops 2026-08-27.
+ */
 #define AI_DIPLO_STICKY_CLEAR 0u
 #define AI_DIPLO_STICKY_AT_WAR 1u
 #define AI_DIPLO_STICKY_DEEP 2u
@@ -667,22 +681,32 @@ void ai_diplo_indian_capital_surrender(
    * cannot be razed unmet — while 4cc6_00f2's clear-both of 0x04/0x02 is a
    * no-op on it, so restating 0x60 reproduces DOS's post-condition exactly.
    *
+   * 2026-09-10 (audit #16): this was a one-sided `euro_diplo |= 0x40` plus a
+   * raw `relation_by_indian = 96` ASSIGNMENT, which dropped any other bit the
+   * Euro-side row held and bypassed the 15b3 pair ops. 43f7_0108 or-boths its
+   * 0x60, so the port does too — one call, both directions, both bits.
+   *
    * The old `alarm > 20 -> 20` line that sat here (FUN_5bfb first-contact
    * clamp, :96624) was dead: the 5fef_1b0e clamp above always leaves alarm at
    * <= 15. Removed 2026-09-09 (smell #77) — it belongs to first contact, not
    * to capital razing.
    */
-  ind->euro_diplo[euro_nation] =
-    (uint8_t)(ind->euro_diplo[euro_nation] | COL1_INDIAN_PEACE_BIT);
-  col1->nation[euro_nation].relation_by_indian[idx] = (uint8_t)AI_DIPLO_INDIAN_PEACE_MEET;
+  ai_diplo_or_both(
+    col1, indian_nation, euro_nation, (uint8_t)(COL1_INDIAN_MET_BIT | COL1_INDIAN_PEACE_BIT)
+  );
   ai_diplo_indian_hostility_sync(col1, euro_nation);
 }
 
 /*
- * euro_balance Indian matrix arm: peace feeler → sticky sync.
- * Sticky→pressure: sticky==2 skips feeler + human "Natives remain hostile."
- * Human status chrome on rise/clear/deep (102a/1092 widgets PARKED);
- * feeler heal while sticky stays clear → "Native relations improve."
+ * euro_balance Indian matrix arm: sticky sync + human status chrome on
+ * rise / clear / deep (102a/1092 widgets PARKED).
+ *
+ * The peace-feeler half of this tick, and the "Native relations improve."
+ * chrome arm it fed, were deleted 2026-09-10 (audit #21). Both had been
+ * unreachable since ai_diplo_indian_peace_feeler was retired to `return 0`
+ * on 2026-08-27 (DOS has no per-turn Indian alarm decay — see there): the
+ * `feeler_healed` flag could never be set, so the fourth chrome arm never
+ * fired, and the `prev_sticky != DEEP` guard wrapped a call with no effect.
  */
 static void ai_diplo_indian_matrix_tick(ColonizeTurnContext* ctx, int nation_id) {
   if (!ctx || !ctx->col1 || nation_id < 0 || nation_id >= 4) {
@@ -690,18 +714,6 @@ static void ai_diplo_indian_matrix_tick(ColonizeTurnContext* ctx, int nation_id)
   }
   ColonizeCol1Save* col1 = ctx->col1;
   const uint8_t prev_sticky = ai_diplo_indian_hostility_sticky(col1, nation_id);
-  int feeler_healed = 0;
-
-  /*
-   * Sticky→pressure (unpark #5): when sticky==2 (very-low deepen), block the
-   * peace feeler this tick — deep hostility refuses the improve-relations path.
-   * Source: fandom Indians — alarmed/hostile may refuse trade/gifts; contact
-   * friction <40 band inverted. No invented gold drain of any kind.
-   */
-  if (prev_sticky != AI_DIPLO_STICKY_DEEP) {
-    /* Peace feeler before sync so content-floor heals can clear sticky. */
-    feeler_healed = ai_diplo_indian_peace_feeler(col1, nation_id);
-  }
   ai_diplo_indian_hostility_sync(col1, nation_id);
 
   const uint8_t sticky = ai_diplo_indian_hostility_sticky(col1, nation_id);
@@ -719,11 +731,6 @@ static void ai_diplo_indian_matrix_tick(ColonizeTurnContext* ctx, int nation_id)
     } else if (sticky == AI_DIPLO_STICKY_DEEP) {
       /* Structural pressure chrome while deep sticky persists. */
       snprintf(ctx->status, ctx->status_size, "Natives remain hostile.");
-      native_chrome = 1;
-    } else if (feeler_healed) {
-      /* Mid-band feeler nudge while sticky stays clear (no rise/clear/deep).
-       * Source: fandom Indians — peace → gifts / improve relations; FA UI PARKED. */
-      snprintf(ctx->status, ctx->status_size, "Native relations improve.");
       native_chrome = 1;
     }
   }
@@ -1575,106 +1582,16 @@ int ai_diplo_00f8_top_ranked_nation(const ColonizeCol1Save* col1) {
 }
 
 /*
- * FUN_281f_06be → FUN_137f_03e4 (viceroy_unpacked.c:6838-6860): owner byte of
- * ANY settlement on the tile — Euro colony (0..3) or Indian village (>= 4) —
- * and −1 both for an empty tile and for an off-map one. Same body as
- * col1_stuff_census_settlement_at (that file's copy is static; this is a
- * 20-line pure helper, duplicated rather than exported to keep ai_diplo's
- * link unit independent of col1_stuff_census).
- *
- * The returned id is the absolute Col1 nation id in both branches. DOS reads
- * one owner nibble off the tile (FUN_137f_0200 = FUN_137f_01ac >> 4 & 0xf,
- * 0xf meaning "none"), and that nibble already holds 0..3 for a European
- * colony and 4..11 for an Indian village — which is exactly why the sibling
- * FUN_137f_03c2 can filter villages out with a bare `if (owner < 4) return
- * -1`. `ColonizeCol1Tribe.nation_id` is stored in the same absolute space
- * (every consumer indexes `col1->indian[]` with `nation_id - 4`), so the
- * village branch returns it unmodified. Adding 4 here — as this helper and
- * both of its clones did until 2026-09-10 — reported villages as 8..15.
+ * ai_diplo_settlement_owner_at (FUN_281f_06be tile-owner clone) and
+ * ai_diplo_153e_exposed_combat_at (-0x6a4e / DS:0x95b2
+ * field_combat_strength_by_continent) lived here. Both deleted 2026-09-10
+ * (audit #15): they were a second, hand-synced port of the same DOS quantity
+ * ai_contact_land_combat_sum(..., exposed_only = 1) already computes, and this
+ * pass had to fix the identical "+0x314c orders vs +0x314b ai_plan" and
+ * villages-as-8..15 misreadings in both copies. The 153e loop below now calls
+ * the exported ai_contact helper — see ai_contact.h for the DOS gate, the raw
+ * citations and the table-per-argument map.
  */
-static int ai_diplo_settlement_owner_at(const ColonizeTurnContext* ctx, int x, int y) {
-  if (ctx->colonies) {
-    const int cid = colonies_id_at(ctx->colonies, x, y);
-    const ColonizeColony* c = colonies_get(ctx->colonies, cid);
-    if (c && c->active) {
-      return c->nation_id >= 0 ? c->nation_id : 0;
-    }
-  }
-  if (ctx->col1_ok && ctx->col1 && ctx->col1->tribe) {
-    for (uint16_t i = 0; i < ctx->col1->head.tribe_count; ++i) {
-      if ((int)ctx->col1->tribe[i].x == x && (int)ctx->col1->tribe[i].y == y) {
-        return (int)ctx->col1->tribe[i].nation_id; /* already 4..11 */
-      }
-    }
-  }
-  return -1;
-}
-
-/*
- * -0x6a4e field_combat_strength_by_continent (DS:0x95b2): the per-continent
- * half of the FUN_4962_0018 arm that also fills the per-nation
- * `stuff.field_combat_totals` byte (0x942c). Σ FUN_281f_09c8(u,1) over the
- * nation's land units on `cid`, under DOS's own gate, verbatim
- * (4962:022f-026e, decompile viceroy_unpacked.c:78222-78231):
- *
- *   settlement = FUN_281f_06be(u.x, u.y)
- *   if (settlement >= 0) {
- *     if (nation < 4 && control[nation] == 0) skip;   // human never counts
- *     if (ai_plan == 'A' || ai_plan == 'G') skip;     // garrison assignment
- *   }
- *   accumulate
- *
- * 2026-09-09 (audit follow-up B): this used to test
- * `orders == FORTIFY/FORTIFIED` and then drop every unit standing in a
- * colony. Both halves were wrong. The gate byte is +0x314b = `ai_plan`, the
- * goal letter FUN_521d_0a60 stamps 'A' on a garrison assignment and ages to
- * 'G' — NOT the orders byte, which is +0x314c (the same DOS function reads
- * 5/6 there, for the separate 0x9456 fortified tally). And a unit inside a
- * settlement is excluded only when it is a garrison or belongs to the human;
- * an AI field unit resting in its own colony still counts. See
- * col1_stuff_census.c for the per-nation twin of this gate.
- *
- * Embarked units stay excluded: DOS parks passengers off-map at (−2,−2),
- * where FUN_281f_081c reports no continent, so they reach no per-continent
- * row (they do reach the per-nation byte, which is why the census twin counts
- * them). Byte table in DOS — capped at 255.
- */
-static int ai_diplo_153e_exposed_combat_at(const ColonizeTurnContext* ctx, int nation, int cid) {
-  ColonizeCombatStrengthCtx sctx;
-  sctx.units = ctx->units;
-  sctx.map = ctx->map;
-  sctx.colonies = ctx->colonies;
-  sctx.col1 = ctx->col1;
-  const int human_slot = ctx->col1_ok && ctx->col1 && nation >= 0 &&
-                         nation < (int)COLONIZE_COL1_NATION_COUNT &&
-                         ctx->col1->player[nation].control == 0;
-  int sum = 0;
-  /*
-   * Slot walk, `u->id` to the id-taking accessors — see
-   * ai_diplo_wake_border_garrisons. This is the −0x6a4e twin of
-   * ai_contact_land_combat_sum's exposed row, and DOS's own loop (raw 78159)
-   * walks the unit array in record order. Fixed 2026-09-10 (audit Leads 1).
-   */
-  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-    const ColonizeUnit* u = &ctx->units->units[i];
-    if (!u->active || u->nation_id != nation || u->aboard_ship_id >= 0 ||
-        units_is_sea(ctx->units, u->id)) {
-      continue;
-    }
-    if (map_continent_id_at(ctx->map, u->x, u->y) != cid) {
-      continue;
-    }
-    if (ai_diplo_settlement_owner_at(ctx, u->x, u->y) >= 0 &&
-        (human_slot || u->col1_ai_plan == 0x41u || u->col1_ai_plan == 0x47u)) {
-      continue;
-    }
-    sum += combat_unit_base_x8(&sctx, u->id, 1, NULL);
-    if (sum > 255) {
-      return 255;
-    }
-  }
-  return sum;
-}
 
 /* -0x6ada skilled_unit_counts_by_continent: +1 per land unit whose type has a
  * profession slot (FUN_281f_0b78 / DS:0x30e >= 0 — colonist-class types 0..9). */
@@ -1777,7 +1694,7 @@ static int ai_diplo_153e_skilled_units_at(const ColonizeTurnContext* ctx, int na
  *   -0x6a4e  per-continent EXPOSED combat value (raw 442+) - distinct
  *            from the already-resolved -0x6e74/-0x6a8e sums this file's
  *            G-table exposes. WIRED 2026-09-09 (audit follow-up B):
- *            ai_diplo_153e_exposed_combat_at now carries DOS's real gate
+ *            ai_contact_land_combat_sum(exposed_only) carries DOS's real gate
  *            from FUN_4962_0018 (4962:022f-026e) — a unit leaves the row
  *            only when it stands on a settlement AND (ai_plan is 'A'/'G'
  *            OR its nation is human-controlled, the 0x543f class gate).
@@ -1900,8 +1817,10 @@ Ai153eWorthinessScore ai_diplo_153e_worthiness_score(
     const int target_colonies = ai_diplo_153e_colonies_at(ctx, target, cid);
     const int target_land_units = ai_diplo_153e_land_units_at(ctx, target, cid);
     const int self_colonies = ai_diplo_153e_colonies_at(ctx, self, cid);
-    const int self_exposed = ai_diplo_153e_exposed_combat_at(ctx, self, cid);
-    const int target_exposed = ai_diplo_153e_exposed_combat_at(ctx, target, cid);
+    /* -0x6a4e (DS:0x95b2) exposed row, byte-capped — the one port of the
+     * FUN_4962_0018 gate lives in ai_contact (audit #15, 2026-09-10). */
+    const int self_exposed = ai_contact_land_combat_sum(ctx, self, cid, 1, 255);
+    const int target_exposed = ai_contact_land_combat_sum(ctx, target, cid, 1, 255);
     const int self_skilled = ai_diplo_153e_skilled_units_at(ctx, self, cid);
     if (target_threshold < target_colonies && target_land_units < self_exposed) {
       dominance_bonus += (self_exposed / (target_land_units + 1)) << (difficulty == 0 ? 1 : 2);
@@ -2137,19 +2056,15 @@ typedef struct Ai153eTalk {
 } Ai153eTalk;
 static Ai153eTalk s_talk;
 
-/* Weak fallback for link units built without ai_contact.c (unit_units). */
-__attribute__((weak)) const char* ai_contact_tribe_name(int nation_id) {
-  (void)nation_id;
-  return "natives";
-}
-
-/* Weak fallback for link units built without ai_contact.c: apply the bare
- * clamped delta; the 00f2 escalation tail (mission expel / @INDIANBURN)
- * needs ai_contact's machinery and is absent from those targets. */
-__attribute__((weak)) void ai_contact_alarm_delta_00f2(
-    ColonizeTurnContext* ctx, int nation_id, int euro, int delta) {
-  ai_diplo_indian_alarm_delta(ctx->col1, nation_id, euro, delta);
-}
+/*
+ * The ai_contact_* weak fallbacks (tribe_name / alarm_delta_00f2) lived here.
+ * Moved to ai_contact_link_stubs.c 2026-09-10: a weak definition in this
+ * translation unit shadows the real ai_contact.c one in any static-archive
+ * link where nothing else pulls ai_contact.o (unit_ai_diplo via
+ * colonize_core), so the "fallback" silently replaced the real function.
+ * The slim targets that genuinely build without ai_contact.c now compile the
+ * strong stubs file instead.
+ */
 
 /*
  * DOS name-prep thunk `FUN_2a1f_0618(slot, base, nation)` — resolved
@@ -3415,13 +3330,9 @@ int ai_diplo_military_score(const ColonizeTurnContext* ctx, int nation_id) {
  * → @DECLAREWAR (no PEACE) / @CANCELTREATY, cooldown=0, clear PEACE (war
  * proper starts when someone attacks). Notices only — no CHOICE.
  */
-/* Weak fallback for link units built without ai_euro.c (unit_units): never war-worthy. */
-__attribute__((weak)) int ai_euro_10ec_war_worthy(const ColonizeTurnContext* ctx, int a, int b) {
-  (void)ctx;
-  (void)a;
-  (void)b;
-  return 0;
-}
+/* The ai_euro_10ec_war_worthy weak fallback lived here — moved to
+ * ai_contact_link_stubs.c 2026-09-10 (see the note there: a weak definition
+ * in this file shadowed the real ai_euro.c one out of colonize_core). */
 
 static void ai_diplo_13b0_treaty_tick(ColonizeTurnContext* ctx, int a, int b) {
   if (!ctx || !ctx->col1_ok || !ctx->col1 || !ctx->turn_number || a < 0 || a > 3 || b < 0 ||

@@ -257,8 +257,13 @@ typedef struct ColonizeColony {
  *   local_74 + (local_74 > 1) < local_82           -> set 0x04 (surplus)
  * So 0x08 is the "needs military" side and 0x04 the "has spare military" side;
  * the 0x04 name below is historical and semantically inverted, but it is kept
- * because its one read site (ai_euro.c ~12103, DOS 88756) really does test
- * bit 4.
+ * because every site that reads it really does test bit 4. Two Linux readers
+ * now (both DOS's own, see the consumer audit below):
+ * ai_euro_20e6_surplus_recall_arm (the read-and-clear recall) and
+ * ai_euro_20e6_wander_step's flag ladder. Grep the macro rather than trusting
+ * a line number here — the previous "its one read site (ai_euro.c ~12103)"
+ * was wrong on both counts by the time it was read. Smell audit
+ * 2026-09-10 D9.
  *
  * Both writers ARE ported since 2026-09-09 (smell audit #41), in
  * ai_euro_colony_threat_seed_5952 — the same DOS body that already produced
@@ -336,8 +341,43 @@ typedef struct ColonizeColony {
  * (bugs.md).
  */
 #define COLONIZE_COLONY_FLAG_INEFFICIENT_GOV 0x08u
+/*
+ * DOS +0x1c bit 0x10 (col1_save.h `small_colony_ai`) — a save-borne one-shot,
+ * READ-ONLY in the port. Both DOS sites are in FUN_5952_035e: the
+ * read-and-clear hand-off at raw 94143-94146 (`(+0x1c & 0x10) && pop < 0x20
+ * -> +0x1b |= 0x10 (NEEDS_COLONISTS); +0x1c &= 0xef`), which is ported in
+ * ai_euro_colony_threat_seed_5952 and consumed at ai_euro.c:10076, and the
+ * writer at raw 95845-95847 (`pop < 10 -> +0x1c |= 0x10`), which lives inside
+ * that function's expansion arm behind a chain of 2a1f_05b4 probability gates
+ * and is NOT ported — so in the port the bit only ever arrives from a DOS or
+ * campaign save and is then consumed once. Do not re-add an unconditional
+ * `pop < 10` stamp: that pinned the flag on every turn (smell audit C3).
+ *
+ * DOS +0x1c bit 0x20 — WRITE-ONLY here, on purpose. DOS derives it in the
+ * FUN_521d_6d8e prelude: raw 93142 clears it on each own colony, then the unit
+ * loop at raw 93148-93157 sets it on the colony a Wagon Train (type 0x0c) is
+ * HOMED to (+0x314a origin), not the one it is standing on. Its only DOS
+ * reader is the unported expansion gate at raw 95762 (`(+0x1c & 0x20) != 0 ||
+ * turn > 0x63f || ...`), so the port re-derives the bit every AI turn in
+ * ai_euro_refresh_colony_ai_flags purely to keep the save field honest; DOS
+ * is the only consumer. Documented debt, not dead code: wiring raw 95762 is
+ * what would give it a Linux reader.
+ */
 #define COLONIZE_COLONY_FLAG_SMALL_AI 0x10u
 #define COLONIZE_COLONY_FLAG_WAGON_TRAIN 0x20u
+/*
+ * DOS +0x1c bit 0x40 — the coastal bit. Written exactly once, at founding,
+ * by FUN_364b_1ba8 (raw 58105-58110) from map_tile_is_open_sea_adjacent()'s
+ * predicate: an inset 8-neighbour is ocean/high-seas AND the lowest-region
+ * such neighbour is water region 1 (the open sea), so lake-only and map-edge
+ * sites do not qualify. Nothing in the image recomputes or clears it (the
+ * tick's flag-byte clear at raw 94145 is `&= 0xef`, bit 0x10 only), so after
+ * founding it is pure save-carried state. Port writers: colonies_found
+ * (the stamp) and a set-only self-heal in ai_euro_refresh_colony_ai_flags —
+ * never a per-turn recompute that can clear it. DOS readers include the Docks
+ * buildability filter (raw 13688, building id 7) and the 20e6 delivery pick
+ * (raw 2054). Smell audit 2026-09-10 D4.
+ */
 #define COLONIZE_COLONY_FLAG_COASTAL 0x40u
 #define COLONIZE_COLONY_FLAG_BUILD_COMPLETE 0x80u
 

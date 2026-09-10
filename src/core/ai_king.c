@@ -62,8 +62,9 @@
  *   clear when share <50%. @LOSING3 when share ≥90%.
  * Calendar @SOONRETIRING0 (1790 spring peacetime): head.unknown46[8] once.
  * Calendar @SOONRETIRING1 (1840 WoI): head.unknown46[9] once.
- * Revolution end: lose if 0 colonies (@LOSING2) or 0 coastal ports (@LOSING1);
- *   win if year≥1850 + no crown units; @RETIRING2 if year≥1850 + crown remains.
+ * Revolution end (raw 58470-58556): lose on one @LOSING%d selector, DOS
+ *   precedence 0 colonies (2) > share ≥90% (3) > 0 coastal ports (1); win on
+ *   the C1 triple with NO year gate; @RETIRING2 on year 1850 alone.
  * SoL restless chrome (40..49): status only (no invented wood OK).
  * backup_force: DOS 0x53e2…0x53e8 foreign-intervention pools, seeded on
  *   declare by the ported FUN_43f7_1a26 body and drained by 10f0.
@@ -1518,7 +1519,8 @@ static void ai_king_tax_hike_apply(ColonizeTurnContext* ctx, int human, int delt
  * 73601-73712). Fires PRE-WoI, the first time the human's SoL passes 49%
  * (caller gate `0x31 < SoL && *0x53d2 < 0`), and 1a26 falls back to it at
  * declare. It frees the slot the King will borrow:
- *   - rank the 4 powers ascending by pop*3 + colonies*2 + SoL-ish term;
+ *   - rank the 4 powers ascending by ship_counts*3 + colony_counts*2 +
+ *     census_pop_proxy (raw 73627-73629, ai_king_rank_nations_0218);
  *   - weakest AI (local_c) is merged INTO the next-weakest AI (local_a):
  *     its colonies change owner (rebel accumulators +0xc2/+0xc4 zeroed),
  *     its units transfer when standing in a colony and are DESPAWNED in
@@ -2088,7 +2090,16 @@ void ai_king_menu_declare_independence(ColonizeTurnContext* ctx) {
   ai_king_show_declare_choice(ctx, human, sol);
 }
 
-/* FUN_43f7_10f0 ~74307: pop-weighted coastal colony roulette (thin). */
+/*
+ * FUN_43f7_10f0 raw 74312-74331: pop-weighted coastal colony roulette.
+ * The gather loop keeps at most TEN candidates (`local_24 < 10`, a fixed
+ * 10-byte stack array) and weights each by the RAW population byte +0x1f —
+ * no floor of 1, so a 0-pop port carries no weight. The roulette then walks
+ * that candidate array, not the colony list, so past ten human ports the
+ * eleventh onward can never be picked.
+ */
+#define AI_KING_10F0_CANDIDATES 10
+
 static int ai_king_10f0_pick_colony(const ColonizeTurnContext* ctx, int human, int* out_x,
                                     int* out_y) {
   if (!ctx || !out_x || !out_y || human < 0 || human >= 4) {
@@ -2097,34 +2108,44 @@ static int ai_king_10f0_pick_colony(const ColonizeTurnContext* ctx, int human, i
   int total_pop = 0;
   int best_i = -1;
   if (ctx->col1_ok && ctx->col1 && ctx->col1->colony) {
+    int cand[AI_KING_10F0_CANDIDATES];
+    int weight[AI_KING_10F0_CANDIDATES];
+    int n_cand = 0;
     for (uint16_t i = 0; i < ctx->col1->head.colony_count; ++i) {
       const ColonizeCol1Colony* c = &ctx->col1->colony[i];
       if ((int)c->nation_id != human || !c->flags.coastal) {
         continue;
       }
-      const int pop = c->population > 0 ? (int)c->population : 1;
+      if (n_cand >= AI_KING_10F0_CANDIDATES) {
+        break; /* DOS keeps scanning but the `local_24 < 10` arm never takes */
+      }
+      const int pop = (int)c->population;
+      cand[n_cand] = (int)i;
+      weight[n_cand] = pop;
       total_pop += pop;
+      n_cand++;
     }
-    if (total_pop <= 0) {
-      return -1;
-    }
-    int pick = total_pop / 2 + 1;
-    if (ctx->rng) {
-      pick = dos_rng_range(ctx->rng, 1, total_pop);
-    }
-    for (uint16_t i = 0; i < ctx->col1->head.colony_count; ++i) {
-      const ColonizeCol1Colony* c = &ctx->col1->colony[i];
-      if ((int)c->nation_id != human || !c->flags.coastal) {
-        continue;
+    if (n_cand > 0 && total_pop > 0) {
+      int pick = total_pop / 2 + 1;
+      if (ctx->rng) {
+        pick = dos_rng_range(ctx->rng, 1, total_pop);
       }
-      const int pop = c->population > 0 ? (int)c->population : 1;
-      pick -= pop;
-      if (pick <= 0) {
-        *out_x = (int)c->x;
-        *out_y = (int)c->y;
-        return (int)i;
+      for (int k = 0; k < n_cand; ++k) {
+        pick -= weight[k];
+        if (pick <= 0) {
+          const ColonizeCol1Colony* c = &ctx->col1->colony[cand[k]];
+          *out_x = (int)c->x;
+          *out_y = (int)c->y;
+          return cand[k];
+        }
       }
     }
+    /*
+     * Weightless candidate set (every one of the first ten ports at pop 0 —
+     * unreachable in a real save): DOS's roulette leaves local_56 at -1 and
+     * 10f0 lands nothing. Fall through to the caller's weakest-port fallback
+     * instead of stalling the whole intervention.
+     */
   }
   if (ctx->colonies) {
     int best_score = 999999;
@@ -3643,21 +3664,32 @@ static void ai_king_merc_offer(ColonizeTurnContext* ctx) {
   if (ai_king_human_popups(ctx)) {
     PopupMsgTokens tok;
     memset(&tok, 0, sizeof(tok));
-    tok.string0 = "Europe"; /* king nation stand-in */
+    /*
+     * DOS 75050 `FUN_291f_0ac8(0, 0, *0x53d6)`: %STRING0 is the COUNTRY name
+     * (mode 0 → FUN_15b3_0144, table DS:-0x72be) of rival slot 2 — the Euro
+     * power selling the mercenaries, the same slot the @MERCS arrival line
+     * names. The "Europe" stand-in that was here named nobody.
+     */
+    static const char* const k_country[4] = {"England", "France", "Spain", "Netherlands"};
+    const int seller = ai_king_intervention_nation_slot(ctx, human, 1);
+    const char* seller_name = (seller >= 0 && seller < 4) ? k_country[seller] : "Europe";
+    tok.string0 = seller_name;
     /* DOS 2022: roll 0 → *0x9e4c (slot 3, Artillery); roll 1 → *0x9e48
      * (slot 1, Cavalry). The port had this pair inverted. */
     tok.string1 = extra_flag == 0 ? "Artillery" : "Dragoons";
     tok.number0 = price;
     tok.has_number0 = true;
-    char body[AI_POPUP_BODY_LEN];
-    popup_msg_fill(
-      ctx->messages,
-      "MERCENARIES",
-      &tok,
-      "The King has offered to send mercenaries in exchange for gold.",
-      body,
-      sizeof(body)
+    char fallback[AI_POPUP_BODY_LEN];
+    snprintf(
+      fallback,
+      sizeof(fallback),
+      "%s offers to sell us mercenaries (%s) for %d gold.",
+      seller_name,
+      tok.string1,
+      price
     );
+    char body[AI_POPUP_BODY_LEN];
+    popup_msg_fill(ctx->messages, "MERCENARIES", &tok, fallback, body, sizeof(body));
     char choice_buf[AI_POPUP_CHOICE_MAX][AI_POPUP_CHOICE_LEN];
     const ColonizeMsgSection* sec = assets_msg_find(ctx->messages, "MERCENARIES");
     int nch = popup_msg_choices(sec, choice_buf, AI_POPUP_CHOICE_MAX);
@@ -3970,36 +4002,21 @@ void ai_king_ai_peacetime_gift(ColonizeTurnContext* ctx, int nation_id) {
 }
 
 /*
- * FUN_43f7_2022 war act + 1eca promote.
- * REF land hunt (Regular/Dragoon/Artillery/Cont.→nearest human colony/unit) + combat/capture;
- * thin Artillery siege prefer fortified (adjacent unfortified must not override);
- * thin Dragoon/Cont. Cav prefer open when Artillery type exists; capital MD bias
- * (founding capital over distant colonies when MD within slack); post-capture
- * fortify one Regular (else Dragoon/Cont.Cav; stack extras hunt) + human status; wartime MoW with cargo
- * → unload-at-coast up to min(moves,capacity) Regular-prefer else Dragoon
- * (prefer colony tile / seize; spend 1 MP/pax) else AI_SAIL→human coast; after
- * *full* unload with moves left → AI_SAIL toward *next* human coast (skip
- * just-served port); after that sail step (or already on next-coast water)
- * prefer unload if still carrying and adjacent; same-beat post-unload
- * capture/fortify for passengers skipped while aboard; idle empty MoW →
- * AI_SAIL coastal patrol (nearest human coast water; no new ships); 0982
- * boards up to ship capacity into cargo_ids;
- * 1eca full port: per colony with SoL>49, cap = max(1, min(pop>>1,
- * pop*(sol-50)/50)) shared across a colony's own-tile, Veteran-status
- * (profession UNITS_JOB_SOLDIER — DOS unit+0x315b==0x15) Soldier/Dragoon
- * (Regular/already-Continental untouched — decomp tests raw type 1/4; an
- * ordinary armed colonist without Veteran profession is also skipped,
- * confirmed 2026-08-14; no FORTIFIED requirement — re-verified 2026-08-24,
- * decomp never reads unit+0x08/orders). Cont. Army/Cav after promote → capital-rally
- * (founding capital; weakest_port fallback);
- * 10f0 intervene arm (≤3 @ difficulty≥2); real 2022 rebel merc gift
- * (recurring per-turn roll, CHOICE or auto-accept).
- * REF idle Regular on crown colony (no adjacent foe) → fortify only if no other
- * Regular/Dragoon/Cont.Cav on tile is already FORTIFY/FORTIFIED; if no Regular,
- * fortify one Dragoon/Cont.Cav (Colonization.pdf Defending a Colony; king_ref
- * one-garrison); already-garrisoned stay put; extras hunt.
- * Idle Artillery on crown/captured colony → FORTIFY (Euro after-siege pattern;
- * Colonization.pdf fortify defense; euro_unit_act Artillery fortify).
+ * FUN_38fd_5930 (viceroy_unpacked.c 68305-68415) — @KINGNEWWAR, the
+ * PEACETIME crown declaration run from the Europe-EOT king slot: the King
+ * cancels the human's peace with a random peer he is at peace with, then
+ * pays compensation. Gates (raw 68335-68365): human slot, not Franklin
+ * (FUN_281f_07b4(nation, 0x13)), `(difficulty + 2) * turn > 799`, at least
+ * one peace peer, NO met-but-not-at-peace peer, peer land strength sum
+ * (-0x6be4, 14 passes) ≤ own, and a `rng(0, (4 - peace_n) * 20) <=
+ * difficulty` roll. Grant (raw 68372-68411): count/gold scaled by the
+ * field-combat gap (-0x6bd4), capped at 6 − difficulty and (5 − difficulty)
+ * * 500, Veteran Soldiers (profession 0x15) spawned in Europe, relation bits
+ * 0x40 cleared / 0x10 set, war year latched at 0x53c8.
+ *
+ * (The FUN_43f7_2022 REF land hunt / MoW unload / capital rally / 1eca
+ * promote description that used to sit here documented code deleted with D1
+ * — see the closure note above ai_king_ref_pre_euro_beat.)
  */
 int ai_king_new_war_event(ColonizeTurnContext* ctx) {
   if (!ctx || !ctx->col1_ok || !ctx->col1 || !ctx->rng || !ctx->turn_number) {
@@ -4524,10 +4541,16 @@ void ai_king_ref_pre_euro_beat(ColonizeTurnContext* ctx) {
 }
 
 /*
- * Revolution end (fandom Independence / manual 1800–1850):
- *   Lose: WoI + zero coastal human ports.
- *   Win: WoI + year≥1850 + no crown REF units on map.
- * Latches unknown46[4]; score reads won/lost. Cite: docs/fandom_col1994.md.
+ * Revolution end — DOS FUN_3844_0442 (viceroy_unpacked.c 58470-58556, 58630):
+ *   Win: the C1 triple, NO year gate (raw 58473-58485) — crown holds no
+ *     colony, crown land units below the give-up bar, REF pool score
+ *     `ef[0] + (ef[1]!=0) + (ef[3]!=0) < 4`; see the inner comment on the
+ *     win block below for the full read.
+ *   Lose: one @LOSING%d selector, last-write-wins over three tests (raw
+ *     58507-58534) — ports==0 → 1, pop share ≥90% → 3, colonies==0 → 2, so
+ *     the effective precedence is colonies, then pop share, then ports.
+ *   Wartime calendar stop: exact year 1850 (raw 58630) → @RETIRING2.
+ * Latches unknown46[4]; score reads won/lost.
  */
 static int ai_king_human_coastal_ports(const ColonizeTurnContext* ctx, int human) {
   if (!ctx || human < 0 || human > 3) {
@@ -4580,21 +4603,11 @@ static int ai_king_human_colonies(const ColonizeTurnContext* ctx, int human) {
   return n;
 }
 
-static int ai_king_crown_units_alive(const ColonizeTurnContext* ctx, int crown) {
-  if (!ctx || !ctx->units || crown < 0) {
-    return 0;
-  }
-  int n = 0;
-  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-    const ColonizeUnit* u = &ctx->units->units[i];
-    if (u->active && u->nation_id == crown) {
-      ++n;
-    }
-  }
-  return n;
-}
-
-/* Richest human colony name by population (estate stand-in for @RETIRING2). */
+/*
+ * @RETIRING2's estate colony: DOS raw 58631-58637 walks the colony list and
+ * keeps the human-owned record with the highest population byte (+0x1f), then
+ * splices its name (`local_6c * 0xca + 0x5d48`) into %STRING2.
+ */
 static const char* ai_king_richest_colony_name(const ColonizeTurnContext* ctx, int human) {
   if (!ctx || !ctx->colonies || human < 0) {
     return "the colonies";
@@ -4606,7 +4619,7 @@ static const char* ai_king_richest_colony_name(const ColonizeTurnContext* ctx, i
     if (!c->active || c->nation_id != human) {
       continue;
     }
-    if ((int)c->population > best_pop) {
+    if ((int)c->population >= best_pop) { /* raw 58636 `cVar1 <= pop`: last max wins */
       best_pop = (int)c->population;
       best = c;
     }
@@ -4887,25 +4900,38 @@ static void ai_king_check_revolution_end(ColonizeTurnContext* ctx, int ref_alrea
     ai_king_latch_set(ctx->col1, AI_KING_WARN3_BYTE, 1);
   }
   /*
-   * Lose: REF already invading (end_checks_armed). Prefer @LOSING2 when no
-   * colonies remain; else @LOSING1 when coastal ports are gone but inland
-   * colonies may still exist. Cite: docs/fandom_col1994.md Independence.
+   * Lose: REF already invading (end_checks_armed). DOS patches one digit into
+   * the "@LOSING%d" tag name and the three tests overwrite each other in
+   * source order (raw 58507-58534): `ports == 0 → 1`, `share >= 90 → 3`,
+   * `colonies == 0 → 2`. Last write wins, so the branch order here has to be
+   * the reverse: colonies, then pop share, then ports.
+   *
+   * @LOSING%d %STRING2 is `FUN_291f_0ac8(2, 0, *0x53d4)` (raw 58538) — the
+   * COUNTRY name of rival slot 1, the intervention ally the deposed viceroy
+   * flees to. All three branches used to hardcode "Europe" there.
    */
+  static const char* const k_exile_country[4] = {
+    "England", "France", "Spain", "Netherlands"
+  };
+  const int exile_nation = ai_king_intervention_nation_slot(ctx, human, 0);
+  const char* exile =
+    (exile_nation >= 0 && exile_nation < 4) ? k_exile_country[exile_nation] : "Europe";
   if (colonies <= 0 && ref_already) {
     ai_king_latch_set(ctx->col1, AI_KING_ENDGAME_BYTE, AI_KING_ENDGAME_LOST);
     PopupMsgTokens tok;
     memset(&tok, 0, sizeof(tok));
     tok.string0 = country;
     tok.string1 = leader;
-    tok.string2 = "Europe";
+    tok.string2 = exile;
     char fallback[AI_POPUP_BODY_LEN];
     snprintf(
       fallback,
       sizeof(fallback),
       "King's Forces control all colonies in %s! Continental Congress capitulates. "
-      "%s, stripped of titles, escapes to exile in Europe.",
+      "%s, stripped of titles, escapes to exile in %s.",
       country,
-      leader
+      leader,
+      exile
     );
     char body[AI_POPUP_BODY_LEN];
     popup_msg_fill(ctx->messages, "LOSING2", &tok, fallback, body, sizeof(body));
@@ -4922,24 +4948,30 @@ static void ai_king_check_revolution_end(ColonizeTurnContext* ctx, int ref_alrea
     ai_king_enqueue_throne_audience(ctx, human, crown, 0);
     return;
   }
-  if (ports <= 0 && ref_already) {
+  /*
+   * Lose: crown controls ≥90% of human+crown colony population.
+   * GAME.TXT @LOSING3 — outranks the ports test (raw 58526-58527 writes 3
+   * after 58507 wrote 1).
+   */
+  if (pop_pct >= AI_KING_LOSING3_PCT && ref_already) {
     ai_king_latch_set(ctx->col1, AI_KING_ENDGAME_BYTE, AI_KING_ENDGAME_LOST);
     PopupMsgTokens tok;
     memset(&tok, 0, sizeof(tok));
     tok.string0 = country;
     tok.string1 = leader;
-    tok.string2 = "Europe";
+    tok.string2 = exile;
     char fallback[AI_POPUP_BODY_LEN];
     snprintf(
       fallback,
       sizeof(fallback),
-      "King's Forces control all ports in %s! Continental Congress capitulates. "
-      "%s, stripped of titles, escapes to exile in Europe.",
+      "King's Forces control over 90%% of %s population! Continental Congress "
+      "capitulates. %s, stripped of titles, escapes to exile in %s.",
       country,
-      leader
+      leader,
+      exile
     );
     char body[AI_POPUP_BODY_LEN];
-    popup_msg_fill(ctx->messages, "LOSING1", &tok, fallback, body, sizeof(body));
+    popup_msg_fill(ctx->messages, "LOSING3", &tok, fallback, body, sizeof(body));
     if (ctx->status && ctx->status_size) {
       snprintf(ctx->status, ctx->status_size, "%s", body);
     }
@@ -4951,28 +4983,25 @@ static void ai_king_check_revolution_end(ColonizeTurnContext* ctx, int ref_alrea
     ai_king_enqueue_throne_audience(ctx, human, crown, 0);
     return;
   }
-  /*
-   * Lose: crown controls ≥90% of human+crown colony population.
-   * GAME.TXT @LOSING3.
-   */
-  if (pop_pct >= AI_KING_LOSING3_PCT && ref_already) {
+  if (ports <= 0 && ref_already) {
     ai_king_latch_set(ctx->col1, AI_KING_ENDGAME_BYTE, AI_KING_ENDGAME_LOST);
     PopupMsgTokens tok;
     memset(&tok, 0, sizeof(tok));
     tok.string0 = country;
     tok.string1 = leader;
-    tok.string2 = "Europe";
+    tok.string2 = exile;
     char fallback[AI_POPUP_BODY_LEN];
     snprintf(
       fallback,
       sizeof(fallback),
-      "King's Forces control over 90%% of %s population! Continental Congress "
-      "capitulates. %s, stripped of titles, escapes to exile in Europe.",
+      "King's Forces control all ports in %s! Continental Congress capitulates. "
+      "%s, stripped of titles, escapes to exile in %s.",
       country,
-      leader
+      leader,
+      exile
     );
     char body[AI_POPUP_BODY_LEN];
-    popup_msg_fill(ctx->messages, "LOSING3", &tok, fallback, body, sizeof(body));
+    popup_msg_fill(ctx->messages, "LOSING1", &tok, fallback, body, sizeof(body));
     if (ctx->status && ctx->status_size) {
       snprintf(ctx->status, ctx->status_size, "%s", body);
     }
@@ -5081,17 +5110,31 @@ static void ai_king_check_revolution_end(ColonizeTurnContext* ctx, int ref_alrea
     return;
   }
   /*
-   * Wartime calendar end (year_end_chrome 0x73a): year≥1850 with crown still
-   * alive → Congress sues for peace. GAME.TXT @RETIRING2.
+   * Wartime calendar end. DOS raw 58630:
+   *   if (((year == 0x708) && !woi) || (year == 0x73a)) { ...retire... }
+   * — under a declared WoI (this whole function's precondition) only the
+   * `year == 1850` arm can fire, with NO crown-units term: the crown holding
+   * colonies but zero live units used to run past 1850 forever here. Kept as
+   * `>=` because DOS's own 1850 arm is unconditional (the year word 0x538a
+   * can never step past it before the score chain runs), so `>=` differs from
+   * `==` only for a port state that already overshot.
+   * GAME.TXT @RETIRING2.
    */
-  if (year >= AI_KING_YEAR_CAP && ai_king_crown_units_alive(ctx, crown) > 0) {
+  if (year >= AI_KING_YEAR_CAP) {
     ai_king_latch_set(ctx->col1, AI_KING_ENDGAME_BYTE, AI_KING_ENDGAME_LOST);
     ai_king_latch_set(ctx->col1, AI_KING_REF_PRESENT_BYTE, 0);
     ctx->col1->head.game_options.ref_present = 0;
     const char* estate = ai_king_richest_colony_name(ctx, human);
     PopupMsgTokens tok;
     memset(&tok, 0, sizeof(tok));
-    tok.string0 = "Viceroy";
+    /* raw 58635 `FUN_281f_0438(0, *(0x53a6 * 2 - 0x7c6c))`: %STRING0 is the
+     * DIFFICULTY title, not a fixed "Viceroy" (same table 38fd_5930 uses at
+     * raw 68388). */
+    static const char* const k_rank[5] = {
+      "Discoverer", "Explorer", "Conquistador", "Governor", "Viceroy"
+    };
+    const int diff = (int)ctx->col1->head.difficulty;
+    tok.string0 = k_rank[(diff >= 0 && diff < 5) ? diff : 4];
     tok.string1 = leader;
     tok.string2 = estate;
     char fallback[AI_POPUP_BODY_LEN];
@@ -5099,7 +5142,8 @@ static void ai_king_check_revolution_end(ColonizeTurnContext* ctx, int ref_alrea
       fallback,
       sizeof(fallback),
       "War-weary Continental Congress sues for peace!  King accepts surrender "
-      "from Viceroy %s, who retires to country estate near %s.",
+      "from %s %s, who retires to country estate near %s.",
+      tok.string0,
       leader,
       estate
     );
