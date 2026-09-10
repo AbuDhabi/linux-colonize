@@ -13,7 +13,16 @@
 /* Europe status-line ring (DOS DS:0x2d54 lines produced by a sale). */
 #define EUROPE_BAR_EVENT_MAX 8
 #define EUROPE_BAR_EVENT_LEN 96
-#define EUROPE_DOCK_MAX 8
+/*
+ * Dock queue depth. NOT the drawn-slot count (that is EUROPE_DOCK_ROW0 +
+ * EUROPE_DOCK_ROW1 = 8, see europe_dock_slot_pos): DOS keeps the whole queue
+ * and simply stops blitting past tier 1, so a real save can carry far more
+ * than eight colonists waiting in Europe. Survey of the French originals
+ * (nation 1 = human, dock lane 236+n = 237,237): COLONY02 20 units,
+ * COLONY03 18, COLONY04 / COLONY09 13 each. 8 truncated every one of them.
+ * Cite: smell audit 2026-09-10 F3.
+ */
+#define EUROPE_DOCK_MAX 32
 #define EUROPE_CLASS_MAX 8
 #define EUROPE_HARBOR_MAX 8
 #define EUROPE_SHIP_CARGO_MAX 6 /* matches COLONIZE_UNIT_CARGO_MAX */
@@ -73,7 +82,9 @@
  * Dock immigrants: DOS FUN_38fd_146c lays them out in TWO rows off one base x
  * (FUN_38fd_15aa passes 0xe9 = 233), 17px pitch, 16x16 sprites — 3 slots on the
  * upper quay (y = 0x8a = 138) and 5 on the lower one (y = 0xa1 = 161). Index 8
- * and up gets tier 2, which FUN_38fd_14e2 never draws, so 8 is also the cap.
+ * and up gets tier 2, which FUN_38fd_14e2 never draws — so 8 is the drawn
+ * count, but NOT the queue depth (EUROPE_DOCK_MAX): DOS keeps the extra
+ * immigrants on the dock lane and just leaves them unpainted.
  * The 233/138 origin is confirmed by original_screenshots/europe (the selection
  * frame there runs x 232..249, y 137..154 — 1px outside a 16x16 at 233,138).
  */

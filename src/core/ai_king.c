@@ -527,8 +527,9 @@ static void ai_king_write_rival_nation_slots(ColonizeCol1Save* col1, int human) 
  * Uses intervention-nation stats where DOS nation bytes are mapped to Col1 fields.
  *
  * Index is a literal mirror of the DOS addresses (backup_force[i] ↔
- * 0x53e2+i*2), confirmed byte-for-byte against viceroy_unpacked.c:74765-74795
- * (formula-to-address) and :74424 (`thunk_FUN_2a1f_0070` type lookup,
+ * 0x53e2+i*2), with the formula-to-address mapping read off
+ * viceroy_unpacked.c:74765-74799 and the unit types off :74424
+ * (`thunk_FUN_2a1f_0070` type lookup,
  * FUN_43f7_0082 @73519: param_1==2 → unit type 0x12 Man-O-War, param_1==3 →
  * type 0xb Artillery — both cross-checked against NAMES.TXT @UNIT row order):
  *   [0] founding-father-count-based (0x53e2) — Regular land-troop pool
@@ -568,16 +569,23 @@ static void ai_king_seed_backup_force_1a26(ColonizeTurnContext* ctx, int human) 
   const int n6bd4 = (int)stuff->field_combat_totals[ally];
   const int n6be4 = (int)stuff->land_combat_strength[ally];
 
-  int pool0 = (n6bf0 / 10) - diff + 8;
+  /*
+   * DOS halves the PRE-store accumulators, not the stored pool (raw
+   * 74769-74784): `iVar4 = pop/10 - diff; *0x53e2 = iVar4 + 8; …
+   * iVar5 = (iVar4 + 9) / 2; *0x53e2 = iVar5`. The +8/+1/+3/+3 stores are
+   * dead — overwritten by the halved value before anything reads them — so
+   * folding them into the halving inflates every pool (pool0 by +4 Regulars,
+   * and a fatter pool2 widens the x2/x6 clamps below and the merc-offer gate).
+   */
+  const int iVar4 = (n6bf0 / 10) - diff;         /* 0x53e2 accumulator */
   const int iVar7 = (4 - diff) / 2;
-  int pool1 = ((n6bd4 + 1) >> 4) + iVar7 + 1;
-  int pool3 = iVar7 + ((n6be4 + 1) >> 5) + 3;
-  int pool2 = iVar7 + local_4 + 3;
+  const int iVar9 = ((n6bd4 + 1) >> 4) + iVar7;  /* 0x53e4 accumulator */
+  const int iVar8 = iVar7 + ((n6be4 + 1) >> 5);  /* 0x53e8 accumulator */
 
-  pool0 = (pool0 + 9) / 2;
-  pool1 = (pool1 + 2) / 2;
-  pool3 = (pool3 + 4) / 2;
-  pool2 = (pool2 + 4) / 2;
+  int pool0 = (iVar4 + 9) / 2;
+  int pool1 = (iVar9 + 2) / 2;
+  int pool3 = (iVar8 + 4) / 2;
+  int pool2 = (iVar7 + local_4 + 4) / 2;
 
   const int cap2x = pool2 * 2;
   if (pool3 > cap2x) {
@@ -2585,7 +2593,9 @@ static void ai_king_ref_wave(ColonizeTurnContext* ctx) {
     exhaust = true;
   }
   if (total != (int)force[2] && ctx->colonies) {
-    /* Score human coastal colonies (≤10), weakest first. */
+    /* Score human coastal colonies (≤10); the list is sorted ASCENDING, and
+     * the picker below walks it from the top (highest score = fattest, most
+     * lightly held target). */
     int score[AI_KING_0982_MAX_TARGETS];
     int cidx[AI_KING_0982_MAX_TARGETS];
     int n = 0;
@@ -2638,11 +2648,19 @@ static void ai_king_ref_wave(ColonizeTurnContext* ctx) {
       }
       garrison[i] = g;
     }
-    /* Pick: three relaxing passes over the weakest-first list. */
+    /*
+     * Pick: three relaxing passes, each walking the ascending list BACKWARDS
+     * (raw 74048-74056: `iVar4 = local_2a - local_48;
+     * local_6a = local_42[iVar4 - 1]`, with local_48 zeroed at the head of
+     * every pass and stepped only when a candidate is rejected — it is a
+     * rejection counter, not a landing-wave cursor). So the HIGHEST score
+     * goes first: many colonists, low SoL, thin garrison. Walking forwards
+     * invaded the least attractive colony instead.
+     */
     int pick = -1;
     int need = 0;
     for (int pass = 0; pass < 3 && pick < 0; ++pass) {
-      for (int i = 0; i < n; ++i) {
+      for (int i = n - 1; i >= 0; --i) {
         int g = garrison[i] < 1 ? 1 : garrison[i];
         int cap = g >> 3;
         if (cap < 1) {
@@ -3664,7 +3682,11 @@ void ai_king_frigate_offer(ColonizeTurnContext* ctx, int nation) {
     return;
   }
   const int ft = units_find_type(ctx->units, "Frigate");
-  for (int ui = 0; ui < ctx->units->unit_count; ++ui) {
+  /* Slot array is sparse — despawns clear a slot but decrement unit_count, so
+   * bound with the array size, not the live population (as every other unit
+   * sweep in this file does). Bounding by unit_count hid an existing Frigate
+   * behind any hole and re-fired the offer (free ship + a real +10% tax). */
+  for (int ui = 0; ui < COLONIZE_UNITS_MAX; ++ui) {
     const ColonizeUnit* u = &ctx->units->units[ui];
     if (u->active && u->nation_id == nation && u->type_index == ft) {
       return; /* per-nation Frigate count != 0 */

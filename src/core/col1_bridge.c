@@ -1253,7 +1253,15 @@ bool col1_bridge_apply(
        * land units/fleets still spawn as live off-map units, unchanged. */
       if (europe && src->nation_id == (uint8_t)local.human_nation) {
         const char* name = col1_bridge_europe_dock_job_name(europe, (int)src->profession);
-        europe_dock_push_load(europe, name, (int)src->profession);
+        /*
+         * Honour the push's answer. EUROPE_DOCK_MAX is 32 now — past the
+         * 20-deep dock the French originals carry — but a refused push must
+         * never fall through onto dock[dock_count-1]: that is a *different*
+         * immigrant, and stamping this unit's @UNIT type on it handed the
+         * wrong @ARMOPTIONS kit both to that row and (via the mirror block
+         * below) to this unit. Smell audit 2026-09-10 F3.
+         */
+        const bool docked = europe_dock_push_load(europe, name, (int)src->profession);
         /*
          * The dock entry's job name says nothing about whether this
          * immigrant was armed, equipped or blessed on the dock, but the
@@ -1261,8 +1269,20 @@ bool col1_bridge_apply(
          * survives the round trip (bugs.md). Types outside the six the dock
          * menu deals in fall back to what the profession implies.
          */
-        if (europe->dock_count > 0 && (int)src->type <= 5) {
-          europe->dock[europe->dock_count - 1].dos_type = (int)src->type;
+        int dos_type = europe_dock_type_for(name, (int)src->profession);
+        if ((int)src->type <= 5) {
+          dos_type = (int)src->type;
+        }
+        if (docked) {
+          europe->dock[europe->dock_count - 1].dos_type = dos_type;
+        } else {
+          /* Queue overflow: keep the unit (the mirror below is what capture
+           * writes back out) but say so — it has no dock row to click. */
+          diag_warn(
+            "col1 import: Europe dock full at %d — unit %d stays as an unlisted mirror",
+            europe->dock_count,
+            i
+          );
         }
         /*
          * Keep the runtime shape turn.c's immigrant path creates: dock entry
@@ -1271,8 +1291,6 @@ bool col1_bridge_apply(
          * from the next save (seed-100 TURN5→6 lost the human's immigrant).
          */
         {
-          const int dos_type =
-            (europe && europe->dock_count > 0) ? europe->dock[europe->dock_count - 1].dos_type : 0;
           int tid = europe_dock_unit_type_index(units, dos_type);
           if (tid < 0) {
             tid = units_find_type(units, "Colonists");

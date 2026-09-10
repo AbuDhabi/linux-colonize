@@ -1655,6 +1655,18 @@ static void turn_produce_one_colony(
      * already ran this tick, sol_bonus-consistent). Food keeps its existing
      * gate (not a craft recipe).
      *
+     * 2026-09-10 fix (smell audit B1): "sol_bonus-consistent" was only true
+     * until the Phase A composition boundary above (:865) hoisted the craft
+     * pass. This mask sits at the Phase K/L position, i.e. AFTER Phase C/D
+     * update the SoL accumulator and latch bits, after F/G/H education
+     * rewrites professions and after I/J birth/starve-kill rewrite the
+     * roster — so a freshly-read `colony_prod_sol_bonus()` here described a
+     * DIFFERENT tier scaling than the `colony_craft_one_colony(pool, colony,
+     * delta, sol_b_phase_a)` pass it is supposed to mirror, producing
+     * spurious/missing "Need X." chrome on exactly the latch-crossing,
+     * graduation and starvation turns. Reuse the Phase A snapshot instead:
+     * one number, two consumers (colony_production.c:419-433).
+     *
      * 2026-08-24 fix (lumber): same false-positive existed for lumber —
      * an unstaffed Carpenter's Shop/Lumber Mill with 0 lumber nagged "Need
      * lumber." every turn even though nobody was banking hammers. Lumber
@@ -1676,7 +1688,7 @@ static void turn_produce_one_colony(
      * as the other five goods above.
      */
     bool craft_demand[COLONIZE_CARGO_COUNT];
-    colony_craft_demand_mask(pool, colony, colony_prod_sol_bonus(col1, colony), craft_demand);
+    colony_craft_demand_mask(pool, colony, sol_b_phase_a, craft_demand);
     int lumber_demand = 0;
     (void)colony_prod_colony_hammers(pool, colony, 0, &lumber_demand);
 

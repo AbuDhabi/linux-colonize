@@ -1915,17 +1915,28 @@ int units_foreign_unit_at(
  *
  * FUN_5fef_1b0e has no unit-at-tile test at all: the only notion of a
  * contested tile it carries is whether FUN_5fef_0000 handed it a defender
- * (`bVar28`), and that picker is domain-gated (raw 99190-99196) — a
- * candidate whose ship-ness (type 0x0d..0x12) differs from the attacker's
- * tile water test is skipped outright. So a foreign hull sitting in a port
- * is invisible to a land assault at every stage: it never defends, it never
- * blocks the walk-in, and the capture arm (raw 100905-101034) never touches
- * it — no sink, no seizure, no owner flip. It simply stays where it is,
- * under its old flag, inside the town that just changed hands.
+ * (`bVar28`), and that picker is domain-gated (raw 99186-99195) — a
+ * candidate whose ship-ness (`0xd <= type && type <= 0x12`, raw 99187-99192)
+ * differs from `local_c` is skipped outright. `local_c` is
+ * `FUN_281f_0768(x, y)` = ocean_or_high_seas of the SCANNED TILE, taken from
+ * `param_2`'s position (raw 99137-99148), and `param_2` is the first unit on
+ * the target tile — the caller passes `uVar17 = FUN_281f_07e0(...)` at raw
+ * 100353-100354, not the attacker. So a foreign hull sitting in a port is
+ * invisible to a land assault at every stage: the tile is land, the hull is
+ * a ship, so it never defends, it never blocks the walk-in, and the capture
+ * arm (raw 100905-101034) never touches it — no sink, no seizure, no owner
+ * flip. It simply stays where it is, under its old flag, inside the town
+ * that just changed hands.
  *
  * The port's plain units_foreign_at could not express that: an armed hull
  * (attack > 0, so units_seize_noncombat_at leaves it) held the tile
  * "contested" forever and no land force could ever take the port.
+ *
+ * The domain is read off the TARGET TILE, exactly as units_best_defender_at
+ * does — see the tile_domain derivation there for the full asm quote and for
+ * why the ATTACKER's own ship-ness is the wrong reading (they diverge for a
+ * warship attacking out of a colony berth: a sea unit on a land tile).
+ * `mover_id` stays for the self-skip and for the headless fallback.
  */
 static int units_domain_blocker_at(
   const ColonizeUnitPool* pool,
@@ -1937,7 +1948,12 @@ static int units_domain_blocker_at(
   if (!pool) {
     return -1;
   }
-  const int mover_sea = units_is_sea(pool, mover_id);
+  /* Same map resolution as units_combat_strength_ctx. Headless fixtures wire
+   * neither map; there the old attacker-ship-ness proxy stands in. */
+  const ColonizeWorldMap* map = g_units_occupancy_map ? g_units_occupancy_map : g_units_fallout_map;
+  const int tile_domain =
+    map ? ((map_tile_is_water(map, x, y) || map_tile_is_high_seas(map, x, y)) ? 1 : 0)
+        : (units_is_sea(pool, mover_id) ? 1 : 0);
   for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
     const ColonizeUnit* u = &pool->units[i];
     if (!units_is_on_map(u) || u->x != x || u->y != y) {
@@ -1949,7 +1965,7 @@ static int units_domain_blocker_at(
     if (mover_nation >= 0 && u->nation_id == mover_nation) {
       continue;
     }
-    if (units_is_sea(pool, u->id) != mover_sea) {
+    if ((units_is_sea(pool, u->id) ? 1 : 0) != tile_domain) {
       continue; /* other domain — FUN_5fef_0000 never sees it */
     }
     return u->id;
