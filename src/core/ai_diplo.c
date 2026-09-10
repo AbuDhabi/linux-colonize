@@ -253,15 +253,13 @@ static void ai_diplo_war_fatigue_timer_seed(ColonizeCol1Save* col1, int nation_a
 }
 
 /* Per-turn light upkeep while at war (euro_balance); floor 0. */
-static void ai_diplo_war_upkeep_drain(ColonizeCol1Nation* nat) {
-  if (!nat || nat->gold == 0) {
+static void ai_diplo_war_upkeep_drain(ColonizeCol1Save* col1, int nation_id) {
+  const uint32_t g = europe_nation_gold(NULL, col1, nation_id); /* audit G3 */
+  if (g == 0u) {
     return;
   }
-  if (nat->gold > AI_DIPLO_WAR_UPKEEP_GOLD) {
-    nat->gold -= AI_DIPLO_WAR_UPKEEP_GOLD;
-  } else {
-    nat->gold = 0;
-  }
+  const long d = g > AI_DIPLO_WAR_UPKEEP_GOLD ? -(long)AI_DIPLO_WAR_UPKEEP_GOLD : -(long)g;
+  europe_nation_gold_add(NULL, col1, nation_id, d);
 }
 
 /*
@@ -454,24 +452,26 @@ static int ai_diplo_war_privateer_prize(ColonizeCol1Save* col1, int nation_id, i
   if (!col1 || nation_id < 0 || nation_id >= 4 || peer < 0 || peer >= 4 || nation_id == peer) {
     return 0;
   }
-  ColonizeCol1Nation* self = &col1->nation[nation_id];
-  ColonizeCol1Nation* other = &col1->nation[peer];
-  ColonizeCol1Nation* donor;
-  ColonizeCol1Nation* prize;
-  if (self->gold > other->gold) {
-    donor = self;
-    prize = other;
-  } else if (other->gold > self->gold) {
-    donor = other;
-    prize = self;
+  /* Either side can be the human (peer sweeps every Euro nation), so both
+   * halves move through the one door — audit G3. */
+  const uint32_t self_gold = europe_nation_gold(NULL, col1, nation_id);
+  const uint32_t other_gold = europe_nation_gold(NULL, col1, peer);
+  int donor;
+  int prize;
+  if (self_gold > other_gold) {
+    donor = nation_id;
+    prize = peer;
+  } else if (other_gold > self_gold) {
+    donor = peer;
+    prize = nation_id;
   } else {
     return 0;
   }
-  if (donor->gold < AI_DIPLO_PRIVATEER_PRIZE_GOLD) {
+  if (europe_nation_gold(NULL, col1, donor) < AI_DIPLO_PRIVATEER_PRIZE_GOLD) {
     return 0;
   }
-  donor->gold -= AI_DIPLO_PRIVATEER_PRIZE_GOLD;
-  prize->gold += AI_DIPLO_PRIVATEER_PRIZE_GOLD;
+  europe_nation_gold_add(NULL, col1, donor, -(long)AI_DIPLO_PRIVATEER_PRIZE_GOLD);
+  europe_nation_gold_add(NULL, col1, prize, (long)AI_DIPLO_PRIVATEER_PRIZE_GOLD);
   return 1;
 }
 
@@ -1352,9 +1352,18 @@ static void ai_diplo_wake_border_garrisons(
   }
   static const int dx[8] = {0, 1, 1, 1, 0, -1, -1, -1};
   static const int dy[8] = {-1, -1, 0, 1, 1, 1, 0, -1};
+  /*
+   * Slot walk, `u->id` to the id-taking accessors. `units_get` /
+   * `units_get_const` / `units_is_sea` / `combat_unit_base_x8` all take a
+   * unit ID, and ids are handed out monotonically from 1 and never recycled
+   * (units.c:337), so `i` is not a unit id: an `i`-as-id walk over
+   * COLONIZE_UNITS_MAX dropped every unit with id >= 256 in a long game and
+   * the highest slot in a short one. DOS walks the unit ARRAY in record
+   * order, which a slot walk reproduces. Fixed 2026-09-10 (audit Leads 1).
+   */
   for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-    ColonizeUnit* u = units_get(ctx->units, i);
-    if (!u || !u->active || u->nation_id != nation_b || units_is_sea(ctx->units, i)) {
+    ColonizeUnit* u = &ctx->units->units[i];
+    if (!u->active || u->nation_id != nation_b || units_is_sea(ctx->units, u->id)) {
       continue;
     }
     if (u->orders != UNITS_ORDER_FORTIFY && u->orders != UNITS_ORDER_FORTIFIED) {
@@ -1371,7 +1380,12 @@ static void ai_diplo_wake_border_garrisons(
       }
       const ColonizeColony* c = colonies_get(ctx->colonies, cid);
       if (c && c->active && c->nation_id == nation_a) {
-        units_clear_orders(ctx->units, i);
+        /* `units_clear_orders` takes a unit ID, not a slot: with the old
+         * `i`-as-id walk this woke whichever unit happened to hold id == the
+         * matched unit's slot index (id = slot + 1 on a fresh load, so
+         * consistently the unit one slot BELOW the border garrison) and woke
+         * nothing at all once ids passed 255. Fixed 2026-09-10 (Leads 1). */
+        units_clear_orders(ctx->units, u->id);
         break;
       }
     }
@@ -1451,9 +1465,10 @@ typedef struct Ai153eBorderProbe {
 /* FUN_1427_0d38 opcode 0xa: land units with attack > 1 on (x,y). */
 static int ai_diplo_stack_military_count(const ColonizeTurnContext* ctx, int x, int y) {
   int n = 0;
+  /* Slot walk — `i` is not a unit id; see ai_diplo_wake_border_garrisons. */
   for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-    const ColonizeUnit* u = units_get_const(ctx->units, i);
-    if (!u || !u->active || u->aboard_ship_id >= 0 || u->x != x || u->y != y) {
+    const ColonizeUnit* u = &ctx->units->units[i];
+    if (!u->active || u->aboard_ship_id >= 0 || u->x != x || u->y != y) {
       continue;
     }
     const ColonizeUnitType* t = units_type(ctx->units, u->type_index);
@@ -1473,16 +1488,17 @@ static int ai_diplo_stack_attack_sum(const ColonizeTurnContext* ctx, int x, int 
   sctx.col1 = ctx->col1;
   const int tile_land = ctx->map ? map_tile_is_land(ctx->map, x, y) : 1;
   int sum = 0;
+  /* Slot walk — `i` is not a unit id; see ai_diplo_wake_border_garrisons. */
   for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-    const ColonizeUnit* u = units_get_const(ctx->units, i);
-    if (!u || !u->active || u->aboard_ship_id >= 0 || u->x != x || u->y != y) {
+    const ColonizeUnit* u = &ctx->units->units[i];
+    if (!u->active || u->aboard_ship_id >= 0 || u->x != x || u->y != y) {
       continue;
     }
-    const int is_sea = units_is_sea(ctx->units, i);
+    const int is_sea = units_is_sea(ctx->units, u->id);
     if ((tile_land && is_sea) || (!tile_land && !is_sea)) {
       continue;
     }
-    sum += combat_unit_base_x8(&sctx, i, 1, NULL);
+    sum += combat_unit_base_x8(&sctx, u->id, 1, NULL);
   }
   return sum;
 }
@@ -1633,10 +1649,16 @@ static int ai_diplo_153e_exposed_combat_at(const ColonizeTurnContext* ctx, int n
                          nation < (int)COLONIZE_COL1_NATION_COUNT &&
                          ctx->col1->player[nation].control == 0;
   int sum = 0;
+  /*
+   * Slot walk, `u->id` to the id-taking accessors — see
+   * ai_diplo_wake_border_garrisons. This is the −0x6a4e twin of
+   * ai_contact_land_combat_sum's exposed row, and DOS's own loop (raw 78159)
+   * walks the unit array in record order. Fixed 2026-09-10 (audit Leads 1).
+   */
   for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-    const ColonizeUnit* u = units_get_const(ctx->units, i);
-    if (!u || !u->active || u->nation_id != nation || u->aboard_ship_id >= 0 ||
-        units_is_sea(ctx->units, i)) {
+    const ColonizeUnit* u = &ctx->units->units[i];
+    if (!u->active || u->nation_id != nation || u->aboard_ship_id >= 0 ||
+        units_is_sea(ctx->units, u->id)) {
       continue;
     }
     if (map_continent_id_at(ctx->map, u->x, u->y) != cid) {
@@ -1646,7 +1668,7 @@ static int ai_diplo_153e_exposed_combat_at(const ColonizeTurnContext* ctx, int n
         (human_slot || u->col1_ai_plan == 0x41u || u->col1_ai_plan == 0x47u)) {
       continue;
     }
-    sum += combat_unit_base_x8(&sctx, i, 1, NULL);
+    sum += combat_unit_base_x8(&sctx, u->id, 1, NULL);
     if (sum > 255) {
       return 255;
     }
@@ -1658,9 +1680,10 @@ static int ai_diplo_153e_exposed_combat_at(const ColonizeTurnContext* ctx, int n
  * profession slot (FUN_281f_0b78 / DS:0x30e >= 0 — colonist-class types 0..9). */
 static int ai_diplo_153e_skilled_units_at(const ColonizeTurnContext* ctx, int nation, int cid) {
   int n = 0;
+  /* Slot walk — `i` is not a unit id; see ai_diplo_wake_border_garrisons. */
   for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-    const ColonizeUnit* u = units_get_const(ctx->units, i);
-    if (!u || !u->active || u->nation_id != nation || u->aboard_ship_id >= 0 ||
+    const ColonizeUnit* u = &ctx->units->units[i];
+    if (!u->active || u->nation_id != nation || u->aboard_ship_id >= 0 ||
         u->type_index < 0 || u->type_index > 9) {
       continue;
     }
@@ -1799,9 +1822,10 @@ static int ai_diplo_153e_land_units_at(
   if (!ctx->units) {
     return 0;
   }
+  /* Slot walk, `u->id` to units_is_sea — see ai_diplo_wake_border_garrisons. */
   for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-    const ColonizeUnit* u = units_get_const(ctx->units, i);
-    if (u && u->active && u->nation_id == nation && !units_is_sea(ctx->units, i) &&
+    const ColonizeUnit* u = &ctx->units->units[i];
+    if (u->active && u->nation_id == nation && !units_is_sea(ctx->units, u->id) &&
         map_continent_id_at(ctx->map, u->x, u->y) == continent_id) {
       ++n;
     }
@@ -2127,9 +2151,6 @@ __attribute__((weak)) void ai_contact_alarm_delta_00f2(
   ai_diplo_indian_alarm_delta(ctx->col1, nation_id, euro, delta);
 }
 
-static ColonizeCol1Nation* ai_talk_nat(ColonizeTurnContext* ctx, int n) {
-  return &ctx->col1->nation[n];
-}
 /*
  * DOS name-prep thunk `FUN_2a1f_0618(slot, base, nation)` — resolved
  * 2026-09-08. The DS bases it is called with are the bare words "LEADER",
@@ -2170,21 +2191,15 @@ static const char* ai_talk_name(ColonizeTurnContext* ctx, int n) {
   }
   return ai_diplo_rival_name(ctx->col1, n);
 }
-static void ai_talk_sync_gold(ColonizeTurnContext* ctx) {
-  if (ctx->europe && ctx->human_nation >= 0 && ctx->human_nation < 4) {
-    ctx->europe->gold = (int)ctx->col1->nation[ctx->human_nation].gold;
-  }
-}
 static void ai_talk_gold(ColonizeTurnContext* ctx, int from, int to, int amount) {
   if (amount <= 0) {
     return;
   }
-  ColonizeCol1Nation* f = ai_talk_nat(ctx, from);
-  ColonizeCol1Nation* t = ai_talk_nat(ctx, to);
-  const uint32_t a = (uint32_t)amount;
-  f->gold = f->gold >= a ? f->gold - a : 0u;
-  t->gold += a;
-  ai_talk_sync_gold(ctx);
+  /* Audit G3: deltas on both nations through the one door; the old
+   * ai_talk_sync_gold copied the record over the live purse. Both ids are
+   * Euro nations here (ai_diplo_153e_encounter rejects target > 3). */
+  europe_nation_gold_add(ctx->europe, ctx->col1, from, -(long)amount);
+  europe_nation_gold_add(ctx->europe, ctx->col1, to, (long)amount);
 }
 static int ai_talk_franklin(ColonizeTurnContext* ctx, int n) {
   return founding_fathers_nation_has(ctx->col1, n, FF_BENJAMIN_FRANKLIN) ? 1 : 0;
@@ -2244,10 +2259,11 @@ static int ai_talk_withdraw(ColonizeTurnContext* ctx, int who, int near_nation) 
   static const int dx[8] = {0, 1, 1, 1, 0, -1, -1, -1};
   static const int dy[8] = {-1, -1, 0, 1, 1, 1, 0, -1};
   int moved = 0;
+  /* Slot walk, `u->id` to units_is_sea — see ai_diplo_wake_border_garrisons. */
   for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-    const ColonizeUnit* u = units_get_const(ctx->units, i);
-    if (!u || !u->active || u->nation_id != who || u->aboard_ship_id >= 0 || u->x >= 200 ||
-        units_is_sea(ctx->units, i)) {
+    const ColonizeUnit* u = &ctx->units->units[i];
+    if (!u->active || u->nation_id != who || u->aboard_ship_id >= 0 || u->x >= 200 ||
+        units_is_sea(ctx->units, u->id)) {
       continue;
     }
     const ColonizeUnitType* t = units_type(ctx->units, u->type_index);
@@ -2441,7 +2457,8 @@ static void ai_talk_advance(ColonizeTurnContext* ctx) {
       }
       case AI_TALK_ST_TRIBUTE: {
         k->stage = AI_TALK_ST_WANTSTUFF;
-        if (k->score != 0 && k->manly && col1->nation[h].gold >= (uint32_t)k->score) {
+        if (k->score != 0 && k->manly &&
+            europe_nation_gold(ctx->europe, col1, h) >= (uint32_t)k->score) {
           PopupMsgTokens tt = tok;
           tt.number0 = k->score;
           tt.has_number0 = true;
@@ -2585,7 +2602,7 @@ static void ai_talk_advance(ColonizeTurnContext* ctx) {
         k->stage = AI_TALK_ST_PEACEMENU;
         if (!k->at_war) {
           int offer = (k->dominance - 2) * 2;
-          const int cap = (int)(col1->nation[t].gold / 100u);
+          const int cap = (int)(europe_nation_gold(ctx->europe, col1, t) / 100u);
           if (offer < 0) offer = 0;
           if (offer > cap) offer = cap;
           offer *= 100;
@@ -2698,7 +2715,7 @@ static void ai_talk_advance(ColonizeTurnContext* ctx) {
           break;
         }
         long base;
-        const long gold50 = (long)(col1->nation[h].gold / 50u);
+        const long gold50 = (long)(europe_nation_gold(ctx->europe, col1, h) / 50u);
         if (p < 4) {
           base = ((long)col1->stuff.field_combat_totals[p] + (long)col1->stuff.land_combat_strength[p]) * gold50 / 50;
         } else {
@@ -2774,9 +2791,13 @@ static void ai_talk_resume(ColonizeTurnContext* ctx, int stage, int choice) {
     case AI_TALK_ST_PIRACY:
       if (choice == 2) {
         int on_map = 0;
+        /* Slot walk — `i` is not a unit id; see
+         * ai_diplo_wake_border_garrisons. (`ai_talk_unit_to_europe` below
+         * already took `u->id`, so this loop reached only the Privateers
+         * whose id happened to fall under COLONIZE_UNITS_MAX.) */
         for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-          const ColonizeUnit* u = units_get_const(ctx->units, i);
-          if (!u || !u->active || u->nation_id != h) {
+          const ColonizeUnit* u = &ctx->units->units[i];
+          if (!u->active || u->nation_id != h) {
             continue;
           }
           const ColonizeUnitType* ty = units_type(ctx->units, u->type_index);
@@ -2898,7 +2919,7 @@ static void ai_talk_resume(ColonizeTurnContext* ctx, int stage, int choice) {
             cost = 100;
           }
           k->withdraw_cost = cost;
-          if (col1->nation[h].gold < (uint32_t)cost || k->latch) {
+          if (europe_nation_gold(ctx->europe, col1, h) < (uint32_t)cost || k->latch) {
             ai_talk_ok(ctx, "NOTWITHDRAW", &tok, "\"Our forces protect valid %STRING0 interests and shall not be moved.\"");
           } else {
             PopupMsgTokens tc = tok;
@@ -2923,7 +2944,7 @@ static void ai_talk_resume(ColonizeTurnContext* ctx, int stage, int choice) {
         if (ai_talk_franklin(ctx, h) && ai_talk_rng(ctx, 0, 2) == 0) {
           g++;
         }
-        const int cap = (int)(col1->nation[t].gold / 100u);
+        const int cap = (int)(europe_nation_gold(ctx->europe, col1, t) / 100u);
         if (g < 0) g = 0;
         if (g > cap) g = cap;
         g *= 100;
@@ -2981,7 +3002,7 @@ static void ai_talk_resume(ColonizeTurnContext* ctx, int stage, int choice) {
     case AI_TALK_ST_ALLY_PAY:
       if (choice == 1) {
         const int p = k->ally_pick;
-        if (col1->nation[h].gold < (uint32_t)k->ally_cost) {
+        if (europe_nation_gold(ctx->europe, col1, h) < (uint32_t)k->ally_cost) {
           ai_talk_ok(ctx, "UNFORTUNATE", &tok, "\"Unfortunately you cannot afford that.\"");
         } else {
           /* decomp 98373-98379: 0a10(t, p, 0x40) clear-both runs for BOTH
@@ -3421,15 +3442,17 @@ static void ai_diplo_13b0_treaty_tick(ColonizeTurnContext* ctx, int a, int b) {
   {
     int encounter = 0;
     if (ctx->units) {
+      /* Slot walks on both levels — `i`/`j` are not unit ids; see
+       * ai_diplo_wake_border_garrisons. */
       for (int i = 0; i < COLONIZE_UNITS_MAX && !encounter; ++i) {
-        const ColonizeUnit* u = units_get_const(ctx->units, i);
-        if (!u || !u->active || u->nation_id != a || u->aboard_ship_id >= 0 || u->x >= 200 ||
+        const ColonizeUnit* u = &ctx->units->units[i];
+        if (!u->active || u->nation_id != a || u->aboard_ship_id >= 0 || u->x >= 200 ||
             u->y >= 200) {
           continue;
         }
         for (int j = 0; j < COLONIZE_UNITS_MAX && !encounter; ++j) {
-          const ColonizeUnit* o = units_get_const(ctx->units, j);
-          if (!o || !o->active || o->nation_id != b || o->aboard_ship_id >= 0) {
+          const ColonizeUnit* o = &ctx->units->units[j];
+          if (!o->active || o->nation_id != b || o->aboard_ship_id >= 0) {
             continue;
           }
           if (abs(o->x - u->x) <= 1 && abs(o->y - u->y) <= 1) {
@@ -3588,8 +3611,8 @@ void ai_diplo_euro_balance(ColonizeTurnContext* ctx, int nation_id) {
       /* uint32: the nation gold word is 32-bit (col1_save.h +0x2a/+0x2c). A
        * uint16 here read 0 at exactly 65536/131072/… and silently swallowed
        * the status line at those treasuries (smell #56). */
-      const uint32_t gold_before_upkeep = ctx->col1->nation[nation_id].gold;
-      ai_diplo_war_upkeep_drain(&ctx->col1->nation[nation_id]);
+      const uint32_t gold_before_upkeep = europe_nation_gold(NULL, ctx->col1, nation_id);
+      ai_diplo_war_upkeep_drain(ctx->col1, nation_id);
       /*
        * Thin war-upkeep human chrome once per euro_balance tick (not per peer).
        * Prefer later privateer / peace status if those fire. FA UI PARKED.

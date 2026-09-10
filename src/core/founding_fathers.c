@@ -1189,10 +1189,23 @@ static void apply_effect(
        * factory 6→9 in colony_production. No elect treasury fiction. */
       break;
     case FF_JAKOB_FUGGER:
-      /* Manual/wiki: clear all Europe boycotts (no back taxes). */
+      /*
+       * Manual/wiki: clear all Europe boycotts (no back taxes).
+       *
+       * nation+0x20 is the authoritative word every trade path now reads
+       * (europe_cargo_boycotted_ex, smell audit G6); europe->boycott_bitmap is
+       * only the Europe-screen render mirror, so drop it too for the human —
+       * same pair europe_buyback_boycott clears, and it keeps the market strip
+       * from painting red rows for one frame after the elect.
+       */
       nat->boycott_bitmap = 0;
-      if (nation_id == human_nation && col1) {
-        ai_king_latch_set(col1, AI_KING_BOYCOTT_BYTE, 0);
+      if (nation_id == human_nation) {
+        if (europe) {
+          europe->boycott_bitmap = 0;
+        }
+        if (col1) {
+          ai_king_latch_set(col1, AI_KING_BOYCOTT_BYTE, 0);
+        }
       }
       break;
     case FF_PETER_MINUIT:

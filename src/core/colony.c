@@ -12,6 +12,7 @@
 #include "core/popup_msg.h"
 #include "core/colony_production.h"
 #include "core/colony_yield.h"
+#include "core/europe.h"
 #include "core/ss.h"
 #include "core/strutil.h"
 #include "core/unit_chrome.h"
@@ -1723,8 +1724,21 @@ int colonies_list_eject_roles(
       col->stock[COLONIZE_CARGO_HORSES] >= UNITS_EQUIP_HORSES) {
     out_roles[n++] = COLONIZE_EJECT_DRAGOON;
   }
-  /* Church bless: leave as Missionary (no cargo cost). Cite: Colonization.pdf
-   * Establishing a Mission / Church; building_production Missionary; fandom bless. */
+  /*
+   * Church bless: leave as Missionary (no cargo cost). DOS-confirmed
+   * 2026-09-10: this whole list is FUN_2f2b_348c's leave-as mode, rows =
+   * professions 0x13..0x18 (`local_fa = 0x13, local_146 = 6`), each gated
+   * through FUN_281f_0bb4 → FUN_15eb_3454; the 0x18 arm asks only
+   * `FUN_15eb_038e(0x25)` (Church bit) and costs no cargo, while the gear
+   * rows test FUN_15eb_0d8e's cargo list against colony stock (tools 0x14 =
+   * 20, muskets/horses 0x32 = 50). Earlier cites: Colonization.pdf
+   * Establishing a Mission / Church; building_production Missionary.
+   *
+   * The same DOS function serves a unit standing on the fence (a band index
+   * at or past the colonist count forces leave-as mode), so game_loop.c's
+   * game_colony_list_outside_roles is a twin of this list and must stay
+   * row-for-row identical — it dropped this row until 2026-09-10.
+   */
   if (n < out_max && colonies_has_church_or_cathedral(pool, col)) {
     out_roles[n++] = COLONIZE_EJECT_MISSIONARY;
   }
@@ -1966,10 +1980,14 @@ static int colonies_capture_col1_effects(
     if (total < 1) {
       total = 1;
     }
-    const uint32_t gold = col1->nation[old_nation].gold;
+    /* FUN_5fef_1b0e moves the share between the two records' +0x2a — one word
+     * per nation. The port's human treasury is live in EuropeScreen.gold, so
+     * route both halves through the accessor or the human's plunder lands in a
+     * copy the next export overwrites (audit G3). */
+    const uint32_t gold = europe_nation_gold(NULL, col1, old_nation);
     plunder = (int)(((uint64_t)gold * (uint64_t)pop) / (uint64_t)total);
-    col1->nation[old_nation].gold -= (uint32_t)plunder;
-    col1->nation[new_nation].gold += (uint32_t)plunder;
+    europe_nation_gold_add(NULL, col1, old_nation, -(long)plunder);
+    europe_nation_gold_add(NULL, col1, new_nation, (long)plunder);
   }
   col1->head.nation_relation[old_nation] = 0;
   col1->head.nation_relation[new_nation] = 0;

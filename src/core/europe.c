@@ -1,5 +1,6 @@
 #include "core/europe.h"
 
+#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -22,6 +23,10 @@ static void (*g_europe_set_bgm)(int pool) = NULL;
 #include "platform/platform.h"
 
 static void europe_refresh_recruit_passage(EuropeScreen* eu);
+/* One treasury, both stores — see the block above europe_cargo_boycotted_ex. */
+static void europe_purse_move(
+  EuropeScreen* eu, struct ColonizeCol1Save* col1, int nation, long delta
+);
 
 /* Deterministic LCG for pool fills when no external rng passed. */
 static unsigned europe_rng_next(unsigned* state) {
@@ -1921,7 +1926,9 @@ bool europe_apply_dock_menu_row_ex(
     europe_set_status(eu, "The treasury cannot afford that.");
     return false;
   }
-  eu->gold += gold_delta;
+  /* 38fd:3b4a/3ba0/3bfc `add [bx+0x2a],..` — the bound record's treasury, so
+   * the col1 word moves with the purse when a save is bound (audit G3). */
+  europe_purse_move(eu, col1, nation_id, gold_delta);
   d->dos_type = to;
   if (ledger_cargo >= 0) {
     /*
@@ -3074,11 +3081,142 @@ int europe_tick_immigration_pressure(
   return 0;
 }
 
-int europe_cargo_boycotted(const EuropeScreen* eu, int cargo_type) {
-  if (!eu || cargo_type < 0 || cargo_type >= EUROPE_CARGO_MAX) {
+/*
+ * The nation `eu->gold` is the purse of: DS:0x9e12, set by FUN_38fd_0000
+ * together with the record pointer DS:0x84fc (viceroy_unpacked.c 58695-58703).
+ * -1 when there is no screen or the field is out of range.
+ */
+static int europe_purse_nation(const EuropeScreen* eu) {
+  if (!eu) {
+    return -1;
+  }
+  const int n = (int)eu->bound_nation;
+  return (n >= 0 && n < (int)COLONIZE_COL1_NATION_COUNT) ? n : -1;
+}
+
+/* Live screen for callers that hold only a save — see europe_set_live_screen. */
+static EuropeScreen* g_europe_live_screen = NULL;
+
+void europe_set_live_screen(EuropeScreen* eu) {
+  g_europe_live_screen = eu;
+}
+
+uint32_t europe_nation_gold(
+  const EuropeScreen* eu, const struct ColonizeCol1Save* col1, int nation
+) {
+  if (nation < 0 || nation >= (int)COLONIZE_COL1_NATION_COUNT) {
+    return 0u;
+  }
+  if (!eu) {
+    eu = g_europe_live_screen;
+  }
+  if (eu && nation == europe_purse_nation(eu)) {
+    return eu->gold > 0 ? (uint32_t)eu->gold : 0u;
+  }
+  return col1 ? col1->nation[nation].gold : 0u;
+}
+
+void europe_nation_gold_add(
+  EuropeScreen* eu, struct ColonizeCol1Save* col1, int nation, long delta
+) {
+  if (nation < 0 || nation >= (int)COLONIZE_COL1_NATION_COUNT) {
+    return;
+  }
+  if (!eu) {
+    eu = g_europe_live_screen;
+  }
+  if (eu && nation == europe_purse_nation(eu)) {
+    long v = (long)eu->gold + delta;
+    if (v < 0) {
+      v = 0;
+    }
+    if (v > (long)INT_MAX) {
+      v = (long)INT_MAX;
+    }
+    eu->gold = (int)v;
+    if (col1) {
+      col1->nation[nation].gold = (uint32_t)eu->gold;
+    }
+    return;
+  }
+  if (!col1) {
+    return;
+  }
+  long v = (long)col1->nation[nation].gold + delta;
+  if (v < 0) {
+    v = 0;
+  }
+  if (v > (long)UINT32_MAX) {
+    v = (long)UINT32_MAX;
+  }
+  col1->nation[nation].gold = (uint32_t)v;
+}
+
+void europe_gold_stamp_record(const EuropeScreen* eu, struct ColonizeCol1Save* col1) {
+  if (!eu) {
+    eu = g_europe_live_screen;
+  }
+  const int n = europe_purse_nation(eu);
+  if (!eu || !col1 || n < 0) {
+    return;
+  }
+  col1->nation[n].gold = (uint32_t)(eu->gold < 0 ? 0 : eu->gold);
+}
+
+/*
+ * Module-internal treasury move for the Europe channels: DOS credits/debits
+ * the record the module is pointed at, so the delta always lands on
+ * `eu->gold` — whoever is currently borrowing it (units.c / ai_euro.c park an
+ * AI treasury there for one call and assign it back) — and the col1 record is
+ * re-stamped only when the purse really is that nation's. That is the missing
+ * half of smell audit G3 for the harbor/transport channels: they moved
+ * `eu->gold` alone and left the human's record for a later push to guess at.
+ *
+ * NOT the same as europe_nation_gold_add, which is for callers OUTSIDE this
+ * module: they never borrow the purse, so a delta for a non-bound nation must
+ * go to that nation's record, whereas here it must go to the borrowed purse.
+ */
+static void europe_purse_move(
+  EuropeScreen* eu, struct ColonizeCol1Save* col1, int nation, long delta
+) {
+  if (!eu) {
+    return;
+  }
+  long v = (long)eu->gold + delta;
+  if (v < 0) {
+    v = 0;
+  }
+  if (v > (long)INT_MAX) {
+    v = (long)INT_MAX;
+  }
+  eu->gold = (int)v;
+  if (col1 && nation >= 0 && nation == europe_purse_nation(eu)) {
+    col1->nation[nation].gold = (uint32_t)eu->gold;
+  }
+}
+
+int europe_cargo_boycotted_ex(
+  const EuropeScreen* eu, const struct ColonizeCol1Save* col1, int nation, int cargo_type
+) {
+  if (cargo_type < 0 || cargo_type >= EUROPE_CARGO_MAX) {
     return 0;
   }
-  return (eu->boycott_bitmap & (uint16_t)(1u << cargo_type)) != 0;
+  uint16_t word = 0;
+  if (col1 && nation >= 0 && nation < (int)COLONIZE_COL1_NATION_COUNT) {
+    /* nation+0x20, DOS FUN_38fd_05e8's operand — the authoritative store. */
+    word = col1->nation[nation].boycott_bitmap;
+    if (word == 0xFFFFu) {
+      word = 0; /* removed all-cargo-embargo fingerprint; both bridge
+                 * directions heal it (col1_bridge.c) — never trade-block on it */
+    }
+  } else if (eu) {
+    word = eu->boycott_bitmap; /* render mirror: tests / chrome / no save bound */
+  }
+  return (word & (uint16_t)(1u << cargo_type)) != 0;
+}
+
+int europe_cargo_boycotted(const EuropeScreen* eu, int cargo_type) {
+  return europe_cargo_boycotted_ex(eu, NULL, -1, cargo_type);
 }
 
 int europe_buyback_boycott(
@@ -3123,7 +3261,7 @@ int europe_buyback_boycott(
   if (cargo_type < 0 || cargo_type >= eu->cargo_count) {
     return 0;
   }
-  if (!europe_cargo_boycotted(eu, cargo_type)) {
+  if (!europe_cargo_boycotted_ex(eu, col1, human_nation, cargo_type)) {
     return 0;
   }
   const int price = eu->cargo[cargo_type].ask;
@@ -3135,9 +3273,8 @@ int europe_buyback_boycott(
     snprintf(eu->status, sizeof(eu->status), "Unfortunately, we only have %d$ available.", eu->gold);
     return 0;
   }
-  eu->gold -= cost;
+  europe_purse_move(eu, col1, human_nation, -cost);
   ColonizeCol1Nation* nation = &col1->nation[human_nation];
-  nation->gold = (uint32_t)(eu->gold < 0 ? 0 : eu->gold);
   nation->royal_money += cost;
   nation->boycott_bitmap &= (uint16_t)~(1u << cargo_type);
   eu->boycott_bitmap = nation->boycott_bitmap;
@@ -3269,7 +3406,9 @@ int europe_sell_hold(
   if (amt <= 0 || amt >= 255) {
     return 0;
   }
-  if (europe_cargo_boycotted(eu, ctype)) {
+  /* Smell audit G6: the SELLER's own nation+0x20 word, not the Europe-screen
+   * render mirror — an EOT trade-route unload runs with no screen in sight. */
+  if (europe_cargo_boycotted_ex(eu, col1, seller_nation, ctype)) {
     const char* cname =
       (ctype >= 0 && ctype < eu->cargo_count) ? eu->cargo[ctype].name : "That cargo";
     snprintf(
@@ -3278,7 +3417,8 @@ int europe_sell_hold(
     return 0;
   }
   const int gained = europe_sell_proceeds(eu, ctype, amt);
-  eu->gold += gained;
+  /* Purse + the seller's record when the purse is theirs (smell audit G3). */
+  europe_purse_move(eu, col1, seller_nation, gained);
   /* DOS `nation+0x22 += tax` on every sale — see europe_credit_sale_tax
    * (smell audit #51). */
   europe_credit_sale_tax(col1, seller_nation, europe_sell_price(eu, ctype) * amt, gained);
@@ -3325,7 +3465,7 @@ int europe_sell_hold_partial(
     return 0;
   }
   const int amt = amount < held ? amount : held;
-  if (europe_cargo_boycotted(eu, ctype)) {
+  if (europe_cargo_boycotted_ex(eu, col1, seller_nation, ctype)) {
     const char* cname =
       (ctype >= 0 && ctype < eu->cargo_count) ? eu->cargo[ctype].name : "That cargo";
     snprintf(
@@ -3334,7 +3474,7 @@ int europe_sell_hold_partial(
     return 0;
   }
   const int gained = europe_sell_proceeds(eu, ctype, amt);
-  eu->gold += gained;
+  europe_purse_move(eu, col1, seller_nation, gained);
   europe_credit_sale_tax(col1, seller_nation, europe_sell_price(eu, ctype) * amt, gained);
   ship->hold_goods_amount[hold_index] = (uint8_t)(held - amt);
   if (ship->hold_goods_amount[hold_index] == 0) {
@@ -3536,7 +3676,16 @@ int europe_custom_house_autosell_ex(
       (*out_count)++;
     }
     if (nat) {
-      nat->gold += (uint32_t)gained;
+      /*
+       * One treasury (+0x2a), both stores: this was already the only europe.c
+       * writer that bumped nat->gold AND eu->gold, which is why it looked
+       * right while the harbor paths did not (smell audit G3). It now goes
+       * through the shared accessor — for the human that credits the live
+       * purse and re-stamps the record from it, for an AI colony's Custom
+       * House only that AI's record, and the `is_human` special case below
+       * is gone with it.
+       */
+      europe_nation_gold_add(eu, col1, nation, gained);
       /* nation +0x22 (royal_money) += tax paid; +0x26 write-only cumulative
        * net trade income (unknown24_pad, int32 LE). */
       nat->royal_money += tax_paid;
@@ -3548,9 +3697,6 @@ int europe_custom_house_autosell_ex(
       nat->unknown24_pad[1] = (uint8_t)((cum >> 8) & 0xffu);
       nat->unknown24_pad[2] = (uint8_t)((cum >> 16) & 0xffu);
       nat->unknown24_pad[3] = (uint8_t)((cum >> 24) & 0xffu);
-    }
-    if (is_human) {
-      eu->gold += gained;
     }
     diag_info(
       "EUROPE customs %s sold %d %s: bid=%d tax=%d%% paid=%d proceeds=%d (nation=%d%s)",
@@ -3762,7 +3908,9 @@ int europe_sell_unit_hold(
   if (amt <= 0 || amt >= 255) {
     return 0;
   }
-  if (europe_cargo_boycotted(eu, ctype)) {
+  /* Smell audit G6: hold owner's own nation+0x20 — this is the map/transport
+   * dump-sell and the trade-route unload, neither of which renders Europe. */
+  if (europe_cargo_boycotted_ex(eu, col1, (int)u->nation_id, ctype)) {
     const char* cname =
       (ctype >= 0 && ctype < eu->cargo_count) ? eu->cargo[ctype].name : "That cargo";
     snprintf(
@@ -3771,7 +3919,7 @@ int europe_sell_unit_hold(
     return 0;
   }
   const int gained = europe_sell_proceeds(eu, ctype, amt);
-  eu->gold += gained;
+  europe_purse_move(eu, col1, (int)u->nation_id, gained);
   /* DOS `nation+0x22 += tax`; the seller is the hold's owner, which keeps the
    * AI borrow path (ai_euro_try_transport_europe_sell swaps eu->gold/tax for
    * the AI nation) crediting the right purse. See europe_credit_sale_tax
@@ -3815,7 +3963,7 @@ int europe_buy_unit_cargo(
   if (!u || !u->active || !units_is_transport(units, unit_id)) {
     return 0;
   }
-  if (europe_cargo_boycotted(eu, cargo_type)) {
+  if (europe_cargo_boycotted_ex(eu, col1, (int)u->nation_id, cargo_type)) {
     return 0;
   }
   const int ask = eu->cargo[cargo_type].ask;
@@ -3834,7 +3982,7 @@ int europe_buy_unit_cargo(
   if (loaded <= 0) {
     return 0;
   }
-  eu->gold -= loaded * ask;
+  europe_purse_move(eu, col1, (int)u->nation_id, -(long)loaded * ask);
   /* Smell audit #50: ledger (1d80 gold −= ask·amt) + price move. */
   europe_apply_trade_volume(
     eu, col1, (int)u->nation_id, col1 ? (int)col1->head.human_player : (int)u->nation_id,
@@ -3890,7 +4038,7 @@ int europe_buy_cargo(
   if (cargo_type < 0 || cargo_type >= eu->cargo_count || amount <= 0) {
     return 0;
   }
-  if (europe_cargo_boycotted(eu, cargo_type)) {
+  if (europe_cargo_boycotted_ex(eu, col1, buyer_nation, cargo_type)) {
     const char* cname = eu->cargo[cargo_type].name[0] ? eu->cargo[cargo_type].name : "That cargo";
     snprintf(
       eu->status, sizeof(eu->status), "%s is boycotted — cannot trade in Europe.", cname
@@ -3967,7 +4115,7 @@ int europe_buy_cargo(
     new_slots--;
   }
   const int bought = buy - remaining;
-  eu->gold -= bought * ask;
+  europe_purse_move(eu, col1, buyer_nation, -(long)bought * ask);
   if (bought > 0) {
     /* Smell audit #50: ledger (1d80 gold −= ask·amt) + price move. */
     europe_apply_trade_volume(
