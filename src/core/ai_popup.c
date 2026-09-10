@@ -22,6 +22,55 @@ void ai_popup_clear(AiPopupState* st) {
   ai_popup_init(st);
 }
 
+/*
+ * bugs.md 433 — contact chains must not interleave.
+ *
+ * DOS never queues a contact dialog: FUN_5bfb_3180 walks the eight neighbours
+ * and, for the one it picks, calls FUN_5bfb_022e (Indian) or FUN_5bfb_153e
+ * (Euro Nation) INLINE (viceroy_unpacked.c:98757-98764, the
+ * thunk_FUN_2a1f_05fc / thunk_FUN_2a1f_066c pair). Those calls block until the
+ * whole exchange — meet, greeting, the tribute/peace follow-ups — is answered,
+ * so a Tupi chain and a Spanish chain are strictly sequential.
+ *
+ * The port enqueues each dialog of a chain only when the previous one is
+ * answered, so a second chain queued in the same pulse would drain in between.
+ * Tagging every request of one exchange with the same key and presenting keyed
+ * requests consecutively restores DOS's ordering.
+ *
+ * Every tag below carries nation_a = the Euro nation and nation_b = the other
+ * party (0..3 Euro peer, 4..11 Indian nation) — the tags whose nation_a is a
+ * unit id instead (WHACK, EURO_WAR, VILLAGE_WARN, INDIAN_LAND) are deliberately
+ * absent: they are single pre-attack confirms, not chains.
+ */
+int ai_popup_chain_key(AiPopupTag tag, int nation_a, int nation_b) {
+  switch (tag) {
+    case AI_POPUP_TAG_CONTACT_MEET:
+    case AI_POPUP_TAG_CONTACT_TEACH:
+    case AI_POPUP_TAG_CONTACT_GIFT:
+    case AI_POPUP_TAG_CONTACT_DEMAND:
+    case AI_POPUP_TAG_CONTACT_RAID:
+    case AI_POPUP_TAG_CONTACT_CONVERT:
+    case AI_POPUP_TAG_CONTACT_REFUSE:
+    case AI_POPUP_TAG_CONTACT_WELCOME:
+    case AI_POPUP_TAG_CONTACT_INCITE:
+    case AI_POPUP_TAG_CONTACT_BEGFOOD:
+    case AI_POPUP_TAG_CONTACT_TRADE_OFFER:
+    case AI_POPUP_TAG_CONTACT_BUYWHICH:
+    case AI_POPUP_TAG_CONTACT_BUY0:
+    case AI_POPUP_TAG_CONTACT_LEARNSTAY:
+    case AI_POPUP_TAG_CONTACT_TRADE_PICK:
+    case AI_POPUP_TAG_CONTACT_REPARATIONS:
+    case AI_POPUP_TAG_DIPLO_TALK:
+      break;
+    default:
+      return 0;
+  }
+  if (nation_a < 0 || nation_a > 3 || nation_b < 0 || nation_b > 11 || nation_a == nation_b) {
+    return 0;
+  }
+  return 1 + nation_a * 12 + nation_b;
+}
+
 bool ai_popup_enqueue(AiPopupState* st, const AiPopupRequest* req) {
   if (!st || !req) {
     return false;
@@ -33,7 +82,12 @@ bool ai_popup_enqueue(AiPopupState* st, const AiPopupRequest* req) {
     );
     return false;
   }
-  st->queue[st->queue_count++] = *req;
+  st->queue[st->queue_count] = *req;
+  if (st->queue[st->queue_count].chain == 0) {
+    st->queue[st->queue_count].chain =
+      ai_popup_chain_key(req->tag, req->nation_a, req->nation_b);
+  }
+  st->queue_count++;
   if (diag_info_enabled()) {
     diag_info(
       "POPUP queued tag=%s kind=%s choices=%d queue=%d",
@@ -106,8 +160,17 @@ bool ai_popup_bar_service(AiPopupState* st, uint32_t now_ms, bool dismiss) {
      * compose runs it, so a line with more behind it is cut to ~0.5 s while
      * the last of a run lives out the full 0x78-tick arm.
      */
-    st->bar_msg_until_ms =
-      now_ms + (st->bar_msg_count > 1 ? AI_POPUP_BAR_MSG_MS : AI_POPUP_BAR_MSG_LAST_MS);
+    uint32_t hold = st->bar_msg_count > 1 ? AI_POPUP_BAR_MSG_MS : AI_POPUP_BAR_MSG_LAST_MS;
+    /*
+     * bugs.md 431: sale lines only (arm kind 1/2 — the Custom House autosell
+     * run and the European Status sell lines, the two producers that feed
+     * this ring) run AI_POPUP_BAR_SALE_SPEEDUP times faster than DOS at the
+     * user's explicit request. Every other arm kind keeps DOS's dwell.
+     */
+    if (st->bar_msg_kind[0] == 1 || st->bar_msg_kind[0] == 2) {
+      hold /= AI_POPUP_BAR_SALE_SPEEDUP;
+    }
+    st->bar_msg_until_ms = now_ms + hold;
     return true;
   }
   if (!dismiss && (int32_t)(now_ms - st->bar_msg_until_ms) < 0) {
@@ -343,9 +406,14 @@ bool ai_popup_present_now(AiPopupState* st, AiPopupTag tag) {
     return false;
   }
   const uint64_t saved_zoom = st->colony_zoom_elected;
+  const int saved_chain = st->active_chain;
   st->colony_zoom_elected = 0; /* player-initiated: never held by a zoom batch */
+  st->active_chain = 0;        /* …nor by another exchange's chain hold */
   const bool ok = ai_popup_try_present_next(st);
   st->colony_zoom_elected = saved_zoom;
+  if (st->active_chain == 0) {
+    st->active_chain = saved_chain;
+  }
   return ok;
 }
 
@@ -557,6 +625,29 @@ bool ai_popup_try_present_next(AiPopupState* st) {
     if (pick < 0) {
       return false;
     }
+    return ai_popup_present_index(st, pick);
+  }
+  /*
+   * Contact chain in flight (bugs.md 433): DOS's contact dialogs are one
+   * blocking inline call per neighbour, so the rest of THIS exchange presents
+   * before any other chain starts. The follow-ups are enqueued as each dialog
+   * is answered, so they sit at the tail behind whatever else was queued in
+   * the same pulse — find them by key instead of taking the head. The key is
+   * dropped as soon as nothing carries it any more.
+   */
+  if (st->active_chain != 0) {
+    int chain_pick = -1;
+    for (int i = 0; i < st->queue_count; ++i) {
+      if (st->queue[i].chain == st->active_chain) {
+        chain_pick = i;
+        break;
+      }
+    }
+    if (chain_pick >= 0) {
+      pick = chain_pick;
+    } else {
+      st->active_chain = 0;
+    }
   }
   return ai_popup_present_index(st, pick);
 }
@@ -572,6 +663,17 @@ bool ai_popup_try_present_next(AiPopupState* st) {
 bool ai_popup_try_present_next_urgent(AiPopupState* st) {
   if (!st || st->open || st->has_result || st->queue_count <= 0) {
     return false;
+  }
+  /* A chain in flight still owns the presenter (bugs.md 433) — an urgent pump
+   * may skip the colony-zoom hold, but not into the middle of a contact
+   * exchange. */
+  if (st->active_chain != 0) {
+    for (int i = 0; i < st->queue_count; ++i) {
+      if (st->queue[i].chain == st->active_chain) {
+        return ai_popup_present_index(st, i);
+      }
+    }
+    st->active_chain = 0;
   }
   for (int i = 0; i < st->queue_count; ++i) {
     if (st->queue[i].tag != AI_POPUP_TAG_COLONY_EVENT) {
@@ -604,6 +706,13 @@ static bool ai_popup_present_index(AiPopupState* st, int pick) {
   }
   st->has_result = false;
   st->result_cancelled = false;
+  /* Latch the exchange this dialog belongs to; only cleared once the queue
+   * holds nothing with that key (bugs.md 433). A chainless popup does not
+   * clear it — a colony-event batch cutting in must not let a rival chain
+   * slip in front of the rest of this one. */
+  if (st->current.chain != 0) {
+    st->active_chain = st->current.chain;
+  }
   st->king_anim_frame = 0;
   st->king_anim_next_ms = 0;
   ai_popup_log_present(&st->current);
@@ -1139,12 +1248,35 @@ void ai_popup_sheet_palette_merge(const ColonizeSpriteSheet* art, ColonizePalett
     return;
   }
   /*
-   * Lend the host palette only the slots it leaves black. That is exactly the
-   * reserved block DOS loads these sheets into (TERRAIN.SS 152..251,
-   * EUROPE.PIK 120..251), so the map's own colours — the animated water ramp
-   * at 120..127 included — are never disturbed.
+   * DOS installs a loaded picture's palette into a fixed reserved DAC block:
+   * every caller of the partial-DAC writer FUN_1c2e_0022(buf, start=AX,
+   * count=DX) for picture art passes AX=0x98, DX=0x64 — slots 152..251
+   * inclusive (FUN_3f41_0000 report plate at 3f41:0072, OVL06 0x0464, the
+   * OVL28 splash loader). The block is written unconditionally, whatever the
+   * host screen had there.
+   *
+   * So slots 152..251 are copied outright, and the rest of the palette is only
+   * lent the slots the host leaves black (EUROPE.PIK leaves 120..251 black and
+   * the MSS courtiers fill them) — the map's own colours, the animated water
+   * ramp at 120..127 included, are never disturbed.
+   *
+   * The unconditional block matters: TERRAIN.SS's palette carries one stray
+   * non-black entry inside it, index 209 = grey (113,113,113), which nothing
+   * on the map uses. Under the old black-only rule every popup art sheet that
+   * paints with index 209 — all 32 IND{t}A{a} chief portraits, KING*, MSS*,
+   * MYR*, SCORE* — showed that grey instead of its own colour (bugs.md 421:
+   * the Iroquois chief, IND3A*, uses 209 as a dark brown (44,20,16) for ~130
+   * px of hair/shadow, so it read as flat grey patches).
    */
+  for (int i = 152; i <= 251; ++i) {
+    dst->rgb[i][0] = art->palette.rgb[i][0];
+    dst->rgb[i][1] = art->palette.rgb[i][1];
+    dst->rgb[i][2] = art->palette.rgb[i][2];
+  }
   for (int i = 1; i < 256; ++i) {
+    if (i >= 152 && i <= 251) {
+      continue;
+    }
     if (dst->rgb[i][0] || dst->rgb[i][1] || dst->rgb[i][2]) {
       continue;
     }

@@ -354,6 +354,7 @@ int units_spawn_allow_stack(ColonizeUnitPool* pool, int type_index, int x, int y
   slot->home_tribe_id = -1;
   slot->turns_worked = 0;
   slot->park_nights = 0;
+  slot->mp_spent_turn = 0;
   slot->last_dir = 0;
   /* COL1 +0x06 origin: DOS leaves it unbound at create; 0xff is the "no
    * home colony / tribe" sentinel every DOS reader tests as < 0. */
@@ -1224,6 +1225,7 @@ static void units_clear_slot(ColonizeUnit* unit) {
   unit->home_tribe_id = -1;
   unit->turns_worked = 0;
   unit->park_nights = 0;
+  unit->mp_spent_turn = 0;
   unit->last_dir = 0;
   unit->col1_origin = 0xff;
   unit->col1_unknown15 = 0;
@@ -6486,7 +6488,25 @@ ColonizeEnterReason units_enter_probe(
   if (!pool || type_index < 0 || type_index >= pool->type_count || !map) {
     return g_units_last_enter_reason;
   }
-  if (x < 0 || y < 0 || x >= map->width || y >= map->height) {
+  /*
+   * bugs.md 435: DOS's in-bounds predicate is FUN_137f_000a
+   * (viceroy_unpacked.c:6519-6531) — `x < 1 || y < 1 || map_w-1 <= x ||
+   * map_h-1 <= y` is OUT. The playable board is the interior 1..w-2 / 1..h-2;
+   * the 1-tile rim exists only as map data. This probe tested the raw array
+   * bounds instead, so a unit could step onto the rim — and the rim is a tile
+   * the viewport can never scroll to (FUN_6ba1_000c clamps the view origin to
+   * >= 1, and so does map_panel_clamp_view_origin) and no map click can
+   * address (the click handler gates on map_coords_inset). On the Americas map
+   * that bites at the west sea lane, which IS column 1: one more step west
+   * dropped the ship onto column 0, off the drawable map — "the western edge
+   * is cut off one tile too soon".
+   *
+   * Degenerate fixture maps (< 3 tiles on a side) have no interior at all;
+   * keep the old raw-bounds behaviour there rather than blocking every move.
+   */
+  const bool rim_meaningful = map->width >= 3 && map->height >= 3;
+  if (x < 0 || y < 0 || x >= map->width || y >= map->height ||
+      (rim_meaningful && !map_coords_inset(map, x, y))) {
     g_units_last_enter_reason = COLONIZE_ENTER_BLOCKED_EDGE;
     return g_units_last_enter_reason;
   }
@@ -7108,6 +7128,10 @@ bool units_try_move(
       g_units_last_enter_reason = COLONIZE_ENTER_BLOCKED_DOMAIN;
       return false;
     }
+    /* Was the pre-boarding zero a park (Sentry/Fortified, DOS spent 0) or a
+     * real spend? units_board overwrites moves_left either way. */
+    const bool pre_park = units_orders_skip_turn(unit);
+    const bool pre_spent = units_remaining_mp(pool, unit_id) <= 0 && !pre_park;
     if (unit->orders == UNITS_ORDER_SENTRY || unit->orders == UNITS_ORDER_FORTIFY ||
         unit->orders == UNITS_ORDER_FORTIFIED) {
       unit->orders = UNITS_ORDER_NONE;
@@ -7117,6 +7141,21 @@ bool units_try_move(
     if (!units_board(pool, unit_id, ship_id)) {
       g_units_last_enter_reason = COLONIZE_ENTER_BLOCKED;
       return false;
+    }
+    /*
+     * DOS 465b_05ca: walking aboard from open shore CROSSES the waterline
+     * with no colony on either end, so moves_spent is forced to max_mp — the
+     * passenger is done for the turn and FUN_4720_015c will not offer it
+     * landfall (spent < max_mp test, viceroy_unpacked.c:76014-76017).
+     * units_board zeroes moves_left as a park flag, which cannot tell that
+     * spend apart from a fresh in-port load; mark it explicitly.
+     * bugs.md 429.
+     */
+    if (pre_spent || units_move_crosses_shore(map, colonies, ox, oy, dest_x, dest_y)) {
+      ColonizeUnit* boarded = units_get(pool, unit_id);
+      if (boarded) {
+        boarded->mp_spent_turn = 1;
+      }
     }
     units_occupancy_refresh_tile(pool, ox, oy, unit_id);
     units_occupancy_refresh_tile(pool, dest_x, dest_y, -1);
@@ -7921,8 +7960,11 @@ bool units_wake(ColonizeUnitPool* pool, int unit_id) {
    * 42717/42781), so turns_worked (the shared +0x16 repair-timer /
    * treasure-clock / route-stop counter) is left alone here.
    */
+  /* mp_spent_turn: the aboard zero is a real DOS spend (walked aboard from
+   * open shore / boarded already exhausted) — waking must not refund it
+   * (bugs.md 429; same discriminator the landfall pick uses). */
   const bool parked =
-    u->aboard_ship_id >= 0 ||
+    (u->aboard_ship_id >= 0 && !u->mp_spent_turn) ||
     ((prev == UNITS_ORDER_FORTIFIED || prev == UNITS_ORDER_SENTRY) &&
      u->park_nights > 0);
   if (parked && units_type(pool, u->type_index)) {
@@ -7977,7 +8019,8 @@ bool units_set_goto(
     /*
      * bugs.md: a Go To aimed at an Indian village is a legal order — the
      * unit travels there and the village-enter handling fires on arrival
-     * (the per-frame pacing stops it adjacent and hands control back).
+     * (bugs.md 424: the final step is dispatched as a real move into the
+     * village, see units_goto_dest_is_village_entry).
      * Everything else that fails the enterability check still refuses.
      */
     const bool village_dest = map_tile_has_city(map, dest_x, dest_y) &&
@@ -7996,6 +8039,49 @@ bool units_set_goto(
     diag_info("ORDER %s: goto (%d,%d)", who, dest_x, dest_y);
   }
   return true;
+}
+
+/*
+ * bugs.md 424: is this unit's NEXT goto step the final one, onto an Indian
+ * settlement it was explicitly ordered to? DOS runs every goto step through
+ * FUN_465b_0000, so that step is a move command into the village and must
+ * raise FUN_4d56_4528's entry flow (woodcut 7 + the @ACTIONS menu / unmet
+ * warn) exactly as an arrow-key step does. The raw pacer
+ * (units_advance_goto_one_step) has no popup channel, so game_loop's
+ * activation pacer asks this and hands the step to game_try_unit_move.
+ *
+ * True only for a village TILE (HAS_CITY with no Euro colony on it) that is
+ * the ordered destination and is adjacent — never for a village the path
+ * merely brushes past.
+ */
+bool units_goto_dest_is_village_entry(
+  const ColonizeUnitPool* pool,
+  int unit_id,
+  const ColonizeWorldMap* map,
+  const ColonizeColonyPool* colonies
+) {
+  const ColonizeUnit* u = units_get_const(pool, unit_id);
+  if (!u || !u->active || !map || !units_is_on_map(u)) {
+    return false;
+  }
+  if (u->orders != UNITS_ORDER_GOTO) {
+    return false;
+  }
+  const int gx = u->goto_x;
+  const int gy = u->goto_y;
+  if (gx >= UNITS_GOTO_NONE || gy >= UNITS_GOTO_NONE) {
+    return false;
+  }
+  if (u->x == gx && u->y == gy) {
+    return false; /* already there — nothing left to enter */
+  }
+  if (units_chebyshev(u->x, u->y, gx, gy) > 1) {
+    return false; /* still en route */
+  }
+  if (!map_tile_has_city(map, gx, gy)) {
+    return false;
+  }
+  return !colonies || colonies_id_at(colonies, gx, gy) < 0;
 }
 
 bool units_follow_unit(ColonizeUnitPool* pool, int unit_id, int target_unit_id) {
@@ -9296,11 +9382,15 @@ bool units_advance_goto_one_step(
         return false;
       }
       /*
-       * bugs.md 293: a go-to AIMED at an Indian settlement is complete once
-       * the unit stands adjacent — clear the order and hand control back so
-       * the player's next move onto the village opens the proper
-       * enter-village popup (goto pacing itself must never auto-enter or
-       * auto-attack the dwelling).
+       * A go-to AIMED at an Indian settlement ends here: this raw pacer has
+       * no popup channel, and units_try_move alone would resolve the village
+       * tile as a silent attack. Clear the order and stop.
+       *
+       * The HUMAN side no longer sees this: game_loop's activation pacer
+       * intercepts the adjacent-to-destination frame and hands the final
+       * step to game_try_unit_move, which raises the real FUN_4d56_4528
+       * entry flow (woodcut 7 + @ACTIONS menu) — bugs.md 424, superseding
+       * 293's "stop one tile short". This arm is the AI/headless backstop.
        */
       if (village >= 4) {
         units_clear_orders(pool, unit_id);
@@ -10372,6 +10462,16 @@ bool units_unload_passenger(
   if (!units_can_enter(pool, pax->type_index, map, dest_x, dest_y, pax_id, colonies)) {
     return false;
   }
+  /*
+   * bugs.md 429: a landfall (shore crossing onto bare coast) is only offered
+   * to cargo whose DOS spent byte is below max — a passenger that already
+   * used its allotment this turn stays aboard. Docking at a colony is not a
+   * landfall: FUN_4720_015c's DOCK arm puts everyone ashore regardless.
+   */
+  if (units_move_crosses_shore(map, colonies, ship->x, ship->y, dest_x, dest_y) &&
+      !units_cargo_can_landfall(pool, pax_id)) {
+    return false;
+  }
   if (!units_remove_from_cargo(ship, pax_id)) {
     return false;
   }
@@ -10442,20 +10542,48 @@ int units_first_cargo_with_moves(const ColonizeUnitPool* pool, int ship_id) {
 }
 
 /*
- * DOS FUN_4720_015c landfall pick: prefer cargo with remaining MP; else any
- * passenger. Aboard sentry uses moves_left=0 as "skip select" but DOS spent
- * is still 0 (full allotment) — they remain landfall-eligible.
+ * DOS FUN_4720_015c landfall pick (viceroy_unpacked.c:76010-76026): walk the
+ * ship's cargo chain and take the FIRST passenger whose spent byte (+0x3149)
+ * is strictly BELOW its own max MP (FUN_281f_090c). If none qualifies the
+ * landfall reason (2/3) is never written and the whole move is refused — a
+ * passenger that already burnt its allotment this turn stays aboard.
+ *
+ * Port mapping: moves_left holds REMAINING, and the port zeroes it when a
+ * passenger boards (park flag). So "spent < max" is `moves_left > 0` for a
+ * normal unit, and for the parked zero it is `!mp_spent_turn` — the flag the
+ * board path sets when DOS would have forced spent to max (bugs.md 429).
  */
-int units_first_landfall_cargo(const ColonizeUnitPool* pool, int ship_id) {
-  const int ready = units_first_cargo_with_moves(pool, ship_id);
-  if (ready >= 0) {
-    return ready;
+bool units_cargo_can_landfall(const ColonizeUnitPool* pool, int unit_id) {
+  const ColonizeUnit* pax = units_get_const(pool, unit_id);
+  if (!pax || !pax->active) {
+    return false;
   }
+  if (pax->mp_spent_turn) {
+    return false; /* DOS spent == max_mp: no landfall this turn. */
+  }
+  return true;
+}
+
+int units_first_landfall_cargo(const ColonizeUnitPool* pool, int ship_id) {
   const ColonizeUnit* ship = units_get_const(pool, ship_id);
   if (!ship || ship->cargo_count <= 0) {
     return -1;
   }
-  return ship->cargo_ids[0];
+  /* Prefer a passenger with live MP (the port's own tie-break), then any
+   * parked-but-unspent one. Both tiers honour the DOS spent test. */
+  for (int i = 0; i < ship->cargo_count; ++i) {
+    const ColonizeUnit* pax = units_get_const(pool, ship->cargo_ids[i]);
+    if (pax && pax->moves_left > 0 && units_cargo_can_landfall(pool, pax->id)) {
+      return pax->id;
+    }
+  }
+  for (int i = 0; i < ship->cargo_count; ++i) {
+    const ColonizeUnit* pax = units_get_const(pool, ship->cargo_ids[i]);
+    if (pax && units_cargo_can_landfall(pool, pax->id)) {
+      return pax->id;
+    }
+  }
+  return -1;
 }
 
 bool units_pick_landfall_tile(
@@ -10748,6 +10876,7 @@ static int units_spawn_aboard(ColonizeUnitPool* pool, int type_index, ColonizeUn
   slot->home_tribe_id = -1;
   slot->turns_worked = 0;
   slot->park_nights = 0;
+  slot->mp_spent_turn = 0;
   slot->last_dir = 0;
   /* COL1 +0x06 origin: DOS leaves it unbound at create; 0xff is the "no
    * home colony / tribe" sentinel every DOS reader tests as < 0. */
@@ -10908,29 +11037,50 @@ const char* units_display_name(const ColonizeUnitPool* pool, const ColonizeUnit*
 
 /*
  * ICONS.SS index per NAMES.TXT @JOB profession (0..28, UNITS_JOB_NONE
- * included); -1 where no dedicated working-colonist portrait was found
- * (Expert Teachers, Veteran Dragoons — falls back to the unit type's own
- * icon_sprite below, same as before this table existed). Identified by
- * visual match against report-screen-goldens/labor.png's per-cell
- * portraits — see reports.c's k_labor_layout comment for the same table's
- * derivation notes (moderate confidence on the near-identical planter/
- * processor pairs). Pioneer/Soldier use each's dedicated *working* pose
- * (UNITS_ICON_HARDY_PIONEER_WORK/VETERAN_SOLDIER_WORK), not the on-map
- * pose with musket/tools/horse equipped (that's what a bare `type->
- * icon_sprite` fallback would give a Colonists-type unit with no
- * profession match — wrong for anyone actually working, hence this table
- * instead of the old 2-profession-only special case). UNITS_JOB_NONE (28,
- * "no expert skill") uses the same portrait as Free Colonists (19) — an
- * unspecialized @UNIT-type-0 Colonists unit *is* a Free Colonist.
+ * included) — the port of DOS FUN_112b_0002 (reached as the far thunk
+ * FUN_281f_02c6), read straight off its asm at 112b:0002:
+ *
+ *   AX -= 0x13; if ((unsigned)AX > 9) return profession + 0x52;
+ *   else JMP CS:[0x14 + AX*2]   ; 10-entry table, offsets
+ *                               ; 30,36,3c,42,28,48,4e,54,5a,30
+ *
+ * so professions 0..18 and 25..26 take the linear `profession + 0x52`
+ * branch, and 19..24 / 27..28 the jump table:
+ *   19 → 0x65   20 → 0x3b   21 → 0x3c   22 → 0x3d
+ *   23 → falls into the linear branch (0x69)
+ *   24 → 0x3e   25 → 0x6b   26 → 0x6c   27 → 0x43   28 → 0x65 (= case 19)
+ * Every id here is the 1-based NAMES/ICONS number, so the port sprite is
+ * one less — hence the table below is `DOS id − 1` throughout.
+ *
+ * Pioneer/Soldier/Scout/Missionary land on the dedicated *working* poses
+ * 58..61 (no musket/tools/horse/book), not the equipped on-map art; a bare
+ * `type->icon_sprite` fallback would give the equipped pose, wrong for
+ * anyone actually working. UNITS_JOB_NONE (28) shares the Free Colonists
+ * portrait — an unspecialized @UNIT-type-0 Colonists unit *is* a Free
+ * Colonist. Cross-checked against report-screen-goldens/labor.png, whose
+ * "Jesuit Missionaries" cell shows the bookless black cassock (sprite 61),
+ * not the book-carrying commissioned-missionary poses 77/105.
  */
 static const int16_t k_units_job_icon[UNITS_JOB_NONE + 1] = {
   81,  82,  83, 84,  85,  86,  87,  88, /* 0-7   farm/forest/mine experts */
   89,  90,  91, 92,  93,  94,  95,  96, 97, /* 8-16  fisherman..preacher */
-  98,  -1, 100, UNITS_ICON_HARDY_PIONEER_WORK, UNITS_ICON_VETERAN_SOLDIER_WORK,
-  /* 23 Veteran Dragoons: DOS FUN_112b_0002 case 0x17 → icon 0x69 = sprite
-   * 104 (equipped veteran dragoon — there is no working portrait). Was -1,
+  98,
+  /* 18 Expert Teachers: linear branch, 18 + 0x52 = 0x64 → sprite 99 (the
+   * blue-coat figure holding a book, between Elder Statesman 98 and Free
+   * Colonist 100). Was -1, which fell back to the @UNIT type icon and drew
+   * teachers as plain Free Colonists. */
+  99,
+  100, UNITS_ICON_HARDY_PIONEER_WORK, UNITS_ICON_VETERAN_SOLDIER_WORK,
+  /* 23 Veteran Dragoons: linear branch, 0x17 + 0x52 = 0x69 → sprite 104
+   * (equipped veteran dragoon — there is no working portrait). Was -1,
    * which left prof-23 citizens invisible on the Score screen (bugs.md). */
-  60,  UNITS_ICON_VETERAN_DRAGOON, 77, 106, 107, 66, /* 22-27 scout,dragoon,missionary,servant,criminal,convert */
+  60,  UNITS_ICON_VETERAN_DRAGOON,
+  /* 24 Jesuit Missionaries: jump-table case 5 → 0x3e → sprite 61, the
+   * working black cassock. Was 77, which is the *commissioned* non-expert
+   * missionary's map pose (FUN_112b_0060's type-3 downgrade), a different
+   * sprite entirely (bugs.md 426). */
+  UNITS_ICON_JESUIT_MISSIONARY_WORK,
+  106, 107, 66, /* 25-27 servant, criminal, convert */
   100 /* 28 NONE: same as Free Colonists */
 };
 
@@ -10990,6 +11140,23 @@ int units_map_sprite(const ColonizeUnitPool* pool, int unit_id) {
    * 1-based offset as the Scout/Dragoon poses in that function). */
   if (combat_type_is_artillery_name(type->name) && (unit->col1_unknown15 & 0x80u) != 0) {
     return UNITS_ICON_DAMAGED_ARTILLERY;
+  }
+  /*
+   * bugs.md 426: a commissioned missionary whose colonist is not a Jesuit
+   * expert has its own, plainer art. DOS FUN_112b_0060 tail:
+   *   if (type == 3 && profession != 0x18) icon = 0x4e;   // sprite 77
+   * i.e. the same expert/generic split the 0x4a..0x4d poses give Pioneers,
+   * Soldiers, Scouts and Dragoons just above it — the Jesuit keeps the
+   * @UNIT icon (106 → sprite 105), everyone else drops to 77. The port had
+   * no missionary branch at all, so every Missionaries-type unit fell
+   * through to `type->icon_sprite` and wore the Jesuit art. Ahead of the
+   * equipment branches because DOS keys this off the @UNIT type, not cargo:
+   * a missionary with leftover horses is still drawn as a missionary.
+   */
+  if (type->name[0] && strcmp(type->name, "Missionaries") == 0) {
+    return (unit->profession == UNITS_JOB_MISSIONARY)
+             ? type->icon_sprite /* = UNITS_ICON_JESUIT_MISSIONARY, from NAMES @UNIT */
+             : UNITS_ICON_MISSIONARY;
   }
   /* bugs.md 269: a mounted Veteran Soldier (profession 0x15) IS a veteran
    * dragoon — both veteran professions (0x15/0x17) take the veteran art. */

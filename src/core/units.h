@@ -298,6 +298,20 @@ typedef struct ColonizeUnit {
    * moves_left, so no refund is needed before the first turn refresh.
    */
   uint8_t park_nights;
+  /*
+   * Port-only "this zero is a SPEND, not a park" flag for units whose
+   * moves_left the port zeroes for bookkeeping reasons. Boarding parks a
+   * passenger at moves_left 0 while DOS's spent byte (+0x3149) may hold
+   * either 0 (loaded in port) or max_mp (walked aboard from open shore —
+   * the 465b_05ca ocean force-to-max), and the two cases behave
+   * differently: FUN_4720_015c only offers landfall to cargo whose
+   * spent byte is BELOW its max (viceroy_unpacked.c:76010-76026). Set when
+   * the port zeroes an allotment that DOS would have spent; cleared by the
+   * per-turn refresh (DOS clears every spent byte at the day top, viceroy
+   * 6355-6357). Not serialized — a reloaded unit imports its real
+   * moves_left / spent byte.
+   */
+  uint8_t mp_spent_turn;
   int last_dir; /* DOS unit facing / Col1 facing; 0..7 for AI scoring */
   uint8_t col1_unknown15; /* round-trip; bit7 = ship damaged */
   /*
@@ -997,6 +1011,18 @@ bool units_set_goto(
   const ColonizeColonyPool* colonies
 );
 /*
+ * True when the unit stands adjacent to a Go To destination that is an Indian
+ * settlement tile — its final step is a move INTO the village and must be
+ * dispatched through the normal entry flow (FUN_4d56_4528: woodcut 7 +
+ * @ACTIONS menu), not silently paced or dropped. bugs.md 424.
+ */
+bool units_goto_dest_is_village_entry(
+  const ColonizeUnitPool* pool,
+  int unit_id,
+  const ColonizeWorldMap* map,
+  const ColonizeColonyPool* colonies
+);
+/*
  * Order unit to stick to target_unit_id (UNITS_ORDER_FOLLOW).
  * Clears tile goto. Both units must be active and on-map; same domain preferred
  * (sea follows sea, land follows land). Returns false if invalid.
@@ -1178,8 +1204,16 @@ bool units_unload_passenger(
 /* First cargo with moves_left > 0, or -1. */
 int units_first_cargo_with_moves(const ColonizeUnitPool* pool, int ship_id);
 /*
- * Landfall passenger pick (FUN_4720_015c): prefer moves_left > 0, else oldest
- * cargo (aboard sentry still landfall-eligible — DOS spent==0).
+ * DOS FUN_4720_015c landfall eligibility: the passenger's spent byte must be
+ * BELOW its max MP. An aboard sentry parked at moves_left 0 still qualifies
+ * (DOS spent == 0); one that burnt its allotment this turn (mp_spent_turn)
+ * does not — it stays on the ship (bugs.md 429).
+ */
+bool units_cargo_can_landfall(const ColonizeUnitPool* pool, int unit_id);
+/*
+ * Landfall passenger pick (FUN_4720_015c): first eligible cargo, preferring
+ * one with live moves_left. −1 = nobody may land this turn (DOS then refuses
+ * the move outright instead of raising @LANDFALL).
  */
 int units_first_landfall_cargo(const ColonizeUnitPool* pool, int ship_id);
 /*
@@ -1313,6 +1347,14 @@ int units_spawn_ship_with_cargo(
 #define UNITS_ICON_SOLDIER 74
 #define UNITS_ICON_SCOUT 75
 #define UNITS_ICON_DRAGOON 76
+/*
+ * The commissioned-but-not-Jesuit missionary: DOS FUN_112b_0060 tail,
+ * `if (type == 3 && profession != 0x18) icon = 0x4e`, i.e. the last of the
+ * 0x4a..0x4e generic-kit poses. The Jesuit keeps the @UNIT icon 106 →
+ * sprite 105 (same black cassock, but coloured trim).
+ */
+#define UNITS_ICON_MISSIONARY 77
+#define UNITS_ICON_JESUIT_MISSIONARY 105
 #define UNITS_ICON_DAMAGED_ARTILLERY 65 /* DOS FUN_112b icon 0x42 (type 0xb + bit7) */
 #define UNITS_ICON_HARDY_PIONEER 101
 #define UNITS_ICON_VETERAN_SOLDIER 102
@@ -1321,6 +1363,9 @@ int units_spawn_ship_with_cargo(
 /* Working inside a colony (unequipped citizen sprites). */
 #define UNITS_ICON_HARDY_PIONEER_WORK 58
 #define UNITS_ICON_VETERAN_SOLDIER_WORK 59
+#define UNITS_ICON_SEASONED_SCOUT_WORK 60
+/* FUN_112b_0002 case 5 (profession 0x18) → 0x3e: the bookless black cassock. */
+#define UNITS_ICON_JESUIT_MISSIONARY_WORK 61
 
 #define UNITS_EQUIP_MUSKETS 50
 #define UNITS_EQUIP_HORSES 50

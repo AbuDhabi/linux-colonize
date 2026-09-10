@@ -29,14 +29,28 @@ static char s_last_ship_type[48];
 static int s_last_gold_drained;
 
 /*
- * Per-Indian-nation event cooldowns, keyed by absolute turn number. Hoisted
- * out of their functions 2026-09-09 (smell #58) so ai_contact_reset can clear
- * them: an absolute turn stamp left over from a previous campaign suppresses
+ * Per-Indian-nation VISIT cooldown, keyed by absolute turn number. Hoisted
+ * out of its functions 2026-09-09 (smell #58) so ai_contact_reset can clear
+ * it: an absolute turn stamp left over from a previous campaign suppresses
  * the arm for the whole early game of the next one.
+ *
+ * ONE array for all three arms (bugs.md 423, "Indians came to demand Horses
+ * very damn quickly, at zero apparent alarm"). DOS's FUN_5bfb_022e is a
+ * single encounter that picks exactly one of gift / beg / demand off `bVar6`
+ * (viceroy_unpacked.c 96723-96731: `bVar6 = local_10 == 0 && bVar5`, then the
+ * demand half at LAB_5bfb_0def is guarded by `if (!bVar6)`), and the
+ * generous half stamps `contact_state = 2` which is the demand half's own
+ * `!= 2` gate. The port reconstructs the encounter as three functions run in
+ * order behind an 8-turn throttle, and the throttle used to be per-arm: a
+ * village that had just handed over a GIFT put only the gift arm to sleep,
+ * and since FUN_4d56_1b3a phase 1 clears every contact_state at the top of
+ * the next turn (ai_indian_midpass_clear_tables), the very next turn the gift
+ * arm returned early on its own cooldown without ever computing the mood roll
+ * — so the demand arm ran unopposed at alarm 0. Sharing the stamp restores
+ * DOS's "one resolved visit per encounter": whichever arm resolves the visit
+ * puts the whole visit to sleep.
  */
-static uint16_t s_beg_cooldown_until[8];
-static uint16_t s_gift_cooldown_until[8];
-static uint16_t s_repar_cooldown_until[8];
+static uint16_t s_visit_cooldown_until[8];
 
 
 int ai_contact_last_raid_kind(void) {
@@ -179,6 +193,26 @@ enum {
 };
 
 /*
+ * FUN_291f_019c(tag, tribe) — every native dialog in DOS goes through the
+ * portrait entry point (FUN_6f74_3760 stores the tribe in DS:0x1f5c, then
+ * FUN_6f74_0042 builds IND{tribe}A{tier}.SS from it, tier = FUN_281f_0a60's
+ * alarm band). DS:0x1f5c is cleared again at LAB_6f74_3018 when the dialog
+ * closes, so each popup re-arms it; the port's equivalent is a set on the
+ * request that was just enqueued. Call right after any enqueue whose DOS
+ * twin is a 019c call with *(0x8d52) — the whole FUN_4d56_2820 village
+ * trade/haggle chain and FUN_5bfb_022e's reparations demands.
+ */
+static void ai_contact_chief_flair(ColonizeTurnContext* ctx, int e, int nation_b) {
+  if (!ctx || !ctx->ai_popups || !ctx->col1 || nation_b < 4 || nation_b > 11) {
+    return;
+  }
+  const int alarm = ai_diplo_indian_alarm(ctx->col1, nation_b, e);
+  ai_popup_set_last_portrait(
+    ctx->ai_popups, nation_b - 4, ai_popup_portrait_tier_from_alarm(alarm)
+  );
+}
+
+/*
  * Human status chrome + optional AI popup OK (keep both). Cite: FUN_5bfb_022e /
  * FUN_4d56_4528 thin arms; unpark #1 dialog widgets.
  */
@@ -201,12 +235,7 @@ static void ai_contact_human_chrome(
     );
     /* FUN_6f74_0042: DS:0x1f5c = the contact tribe → IND{tribe}A{tier}.SS
      * portrait beside the dialog, tier from the alarm band (P8.6). */
-    if (nation_b >= 4 && nation_b <= 11 && ctx->col1) {
-      const int alarm = ai_diplo_indian_alarm(ctx->col1, nation_b, e);
-      ai_popup_set_last_portrait(
-        ctx->ai_popups, nation_b - 4, ai_popup_portrait_tier_from_alarm(alarm)
-      );
-    }
+    ai_contact_chief_flair(ctx, e, nation_b);
   }
 }
 
@@ -691,21 +720,28 @@ static void ai_contact_enqueue_welcome(ColonizeTurnContext* ctx, int e, int nati
   const int shown = settlements > 0 ? settlements : 1;
   /* FUN_5bfb_022e 5bfb:0325: from turn 20 (DS:0x538e ≥ 0x14) the meet
    * switches the tune pool — 5 Natives, Inca → 7 (Cuzco), Aztec → 6
-   * (Tenochtitlan); 04ac vs 0498 only differ in option gating. */
+   * (Tenochtitlan); 04ac vs 0498 only differ in option gating.
+   * DOS keys both this and the woodcut below on `*(int *)0x8d52`, the tribe
+   * SLOT (0 = Inca, 1 = Aztec) — the same value that indexes DS:0x962a at
+   * `*0x8d52 + -0x69d6`. This read `nation_id`, which is the 4..11 Col1 id,
+   * so neither branch could ever be taken (fixed with bugs.md 422). */
+  const int tribe_slot = nation_id - 4;
   if (ctx->col1 && ctx->col1->head.turn >= 20) {
-    sound_set_bgm(nation_id == 0 ? 7 : (nation_id == 1 ? 6 : 5));
+    sound_set_bgm(tribe_slot == 0 ? 7 : (tribe_slot == 1 ? 6 : 5));
   }
   /*
    * FUN_5bfb_022e 5bfb:038a, right before the @INDIANWELCOME dialog: the
-   * tribe's own tech class picks the woodcut — Inca (DS:0x8d52 == 0) gets
-   * THE INCA NATION, Aztec (== 1) THE AZTEC EMPIRE, everyone else MEETING
-   * THE NATIVES.
+   * tribe SLOT picks the woodcut — DOS passes FUN_281f_0524 5 for slot 0
+   * (Inca), 4 for slot 1 (Aztec), 3 otherwise, which are exactly
+   * WOODCUT_THE_INCA_NATION / _THE_AZTEC_EMPIRE / _MEETING_THE_NATIVES.
+   * Keyed on `nation_id` (4..11) until 2026-09-09, so the Aztec and Inca
+   * cinematics were unreachable.
    */
   (void)woodcut_fire(
     ctx->col1,
-    nation_id == 0   ? WOODCUT_THE_INCA_NATION
-    : nation_id == 1 ? WOODCUT_THE_AZTEC_EMPIRE
-                     : WOODCUT_MEETING_THE_NATIVES
+    tribe_slot == 0   ? WOODCUT_THE_INCA_NATION
+    : tribe_slot == 1 ? WOODCUT_THE_AZTEC_EMPIRE
+                      : WOODCUT_MEETING_THE_NATIVES
   );
   PopupMsgTokens welcome_tok;
   memset(&welcome_tok, 0, sizeof(welcome_tok));
@@ -797,11 +833,38 @@ int ai_contact_encounter_scan(ColonizeTurnContext* ctx, int euro_nation, int x, 
       continue;
     }
     int other = -1;
-    /* FUN_137f_03e4 tile_tribe_owner: owner nibble only when bit 0x02 set. */
+    /*
+     * FUN_137f_03e4 tile_tribe_owner: owner nibble only when bit 0x02 set.
+     *
+     * bugs.md 422: the nibble is a STAMP, not a record — DOS FUN_1427_02ca
+     * rewrites it with the mover's own nation on every step, and it survives
+     * the unit leaving (FUN_1427_023a clears presence only). In DOS a unit
+     * never stands on a settlement tile it does not own, so on a `& 2` tile
+     * the stamp is always the settlement's owner; the port's AI walkers do
+     * cross settlement tiles, and a single Brave that passed through left the
+     * tile reading as ITS nation for good. Any Euro land unit that later
+     * stepped beside that settlement then "met" a tribe whose villages were
+     * nowhere near (the user's Aztec, playing France). Resolve the owner from
+     * the settlement records instead — same value DOS reads, without the
+     * stale-stamp aliasing. A Euro colony tile resolves to no tribe at all.
+     */
     const int i = ny * ctx->map->width + nx;
     if (ctx->map->layer2 && ctx->map->layer3 && (ctx->map->layer2[i] & 0x02u) != 0) {
       const int hi = (ctx->map->layer3[i] >> 4) & 0x0f;
       other = hi == 0x0f ? -1 : hi;
+      if (other >= 4 && other <= 11) {
+        int real = -1;
+        if (ctx->col1->tribe) {
+          for (uint16_t ti = 0; ti < ctx->col1->head.tribe_count; ++ti) {
+            const ColonizeCol1Tribe* t = &ctx->col1->tribe[ti];
+            if ((int)t->x == nx && (int)t->y == ny) {
+              real = (int)t->nation_id;
+              break;
+            }
+          }
+        }
+        other = real; /* no village here → the nibble was a passing stamp */
+      }
     }
     /* FUN_281f_07e0 unit_index_on_tile overrides the land owner. */
     const int oid = ctx->units ? units_id_at(ctx->units, nx, ny) : -1;
@@ -3710,7 +3773,7 @@ void ai_contact_try_village_beg_food(ColonizeTurnContext* ctx, int nation_id) {
    * adjacent, and each tribe asks at most once per 8 turns.
    */
   const uint16_t now_turn = ctx->col1->head.turn;
-  if (now_turn && s_beg_cooldown_until[nation_id - 4] > now_turn) {
+  if (now_turn && s_visit_cooldown_until[nation_id - 4] > now_turn) {
     return;
   }
   for (int e = 0; e < 4; ++e) {
@@ -3821,7 +3884,7 @@ void ai_contact_try_village_beg_food(ColonizeTurnContext* ctx, int nation_id) {
     if (roll > delta) {
       continue;
     }
-    s_beg_cooldown_until[nation_id - 4] = (uint16_t)(now_turn + 8);
+    s_visit_cooldown_until[nation_id - 4] = (uint16_t)(now_turn + 8);
     ai_contact_bind_names(ctx);
     if (ai_contact_euro_is_human(ctx, e)) {
       const ColonizeColony* beg_colony = &ctx->colonies->colonies[best_ci];
@@ -5067,7 +5130,7 @@ int ai_contact_try_village_gifts(ColonizeTurnContext* ctx, int nation_id) {
   }
   ColonizeCol1Indian* ind = &ctx->col1->indian[nation_id - 4];
   const uint16_t now_turn = ctx->col1->head.turn;
-  if (now_turn && s_gift_cooldown_until[nation_id - 4] > now_turn) {
+  if (now_turn && s_visit_cooldown_until[nation_id - 4] > now_turn) {
     return 0;
   }
   for (int e = 0; e < 4; ++e) {
@@ -5203,7 +5266,7 @@ int ai_contact_try_village_gifts(ColonizeTurnContext* ctx, int nation_id) {
             ai_contact_tribe_name(nation_id), c->name
           );
         }
-        s_gift_cooldown_until[nation_id - 4] = (uint16_t)(now_turn + 8);
+        s_visit_cooldown_until[nation_id - 4] = (uint16_t)(now_turn + 8);
         return 1; /* DOS: goto LAB_5bfb_1000 — the visit is resolved */
       }
     }
@@ -5313,7 +5376,7 @@ int ai_contact_try_village_gifts(ColonizeTurnContext* ctx, int nation_id) {
         ai_contact_tribe_name(nation_id), c->name
       );
     }
-    s_gift_cooldown_until[nation_id - 4] = (uint16_t)(now_turn + 8);
+    s_visit_cooldown_until[nation_id - 4] = (uint16_t)(now_turn + 8);
     return 1; /* one gift-bearing visit per Indian nation per turn */
   }
   return 0;
@@ -5405,9 +5468,7 @@ static AiContactReparations s_reparations[4];
  */
 void ai_contact_reset(void) {
   memset(s_reparations, 0, sizeof(s_reparations));
-  memset(s_beg_cooldown_until, 0, sizeof(s_beg_cooldown_until));
-  memset(s_gift_cooldown_until, 0, sizeof(s_gift_cooldown_until));
-  memset(s_repar_cooldown_until, 0, sizeof(s_repar_cooldown_until));
+  memset(s_visit_cooldown_until, 0, sizeof(s_visit_cooldown_until));
 }
 
 /*
@@ -5696,6 +5757,9 @@ static void ai_contact_reparations_present(
     s_reparations[e].active = 0;
     return;
   }
+  /* raw 96882 / 96959: `FUN_291f_019c(0x281f, 0x1866|0x1871, *(0x8d52))` —
+   * @INDIANCITY / @INDIANWAGONS are chief audiences, portrait and all. */
+  ai_contact_chief_flair(ctx, e, nation_id);
   if (ctx->status && ctx->status_size) {
     snprintf(
       ctx->status, ctx->status_size, "The %s demand reparations.",
@@ -5717,7 +5781,7 @@ static void ai_contact_try_village_reparations(ColonizeTurnContext* ctx, int nat
   }
   ColonizeCol1Indian* ind = &ctx->col1->indian[nation_id - 4];
   const uint16_t now_turn = ctx->col1->head.turn;
-  if (now_turn && s_repar_cooldown_until[nation_id - 4] > now_turn) {
+  if (now_turn && s_visit_cooldown_until[nation_id - 4] > now_turn) {
     return;
   }
   for (int e = 0; e < 4; ++e) {
@@ -5796,7 +5860,7 @@ static void ai_contact_try_village_reparations(ColonizeTurnContext* ctx, int nat
       if (best_qty <= 0) {
         continue;
       }
-      s_repar_cooldown_until[nation_id - 4] = (uint16_t)(now_turn + 8);
+      s_visit_cooldown_until[nation_id - 4] = (uint16_t)(now_turn + 8);
       AiContactReparations* s = &s_reparations[e];
       s->active = 1;
       s->nation_id = nation_id;
@@ -5867,7 +5931,7 @@ static void ai_contact_try_village_reparations(ColonizeTurnContext* ctx, int nat
       continue;
     }
     ind->contact_state[e] = 1;
-    s_repar_cooldown_until[nation_id - 4] = (uint16_t)(now_turn + 8);
+    s_visit_cooldown_until[nation_id - 4] = (uint16_t)(now_turn + 8);
     AiContactReparations* s = &s_reparations[e];
     s->active = 1;
     s->nation_id = nation_id;
@@ -6236,11 +6300,16 @@ static void ai_contact_enqueue_buy0(
   snprintf(haggle, sizeof(haggle), "A fairer price would be %d$", fair);
   const char* labels[3] = {accept, haggle, "Never mind"};
   const int ids[3] = {1, 2, 0};
-  (void)ai_popup_enqueue_choice_ctx(
-    ctx->ai_popups, AI_POPUP_TAG_CONTACT_BUY0, e, nation_id,
-    (unit->id & 0xffff) | (cargo << 16) | ((price > 0x7ff ? 0x7ff : price) << 20) | (round > 0 ? (1 << 31) : 0),
-    NULL, body, labels, ids, 3
-  );
+  if (ai_popup_enqueue_choice_ctx(
+        ctx->ai_popups, AI_POPUP_TAG_CONTACT_BUY0, e, nation_id,
+        (unit->id & 0xffff) | (cargo << 16) |
+          ((price > 0x7ff ? 0x7ff : price) << 20) | (round > 0 ? (1 << 31) : 0),
+        NULL, body, labels, ids, 3
+      )) {
+    /* 2820 +1297: `FUN_291f_019c(…, BP-0xbe, *(0x8d52))` — @BUY0/@BUY1 carry
+     * the chief portrait like every other village dialog. */
+    ai_contact_chief_flair(ctx, e, nation_id);
+  }
 }
 
 /* Human: @BUYWHICH (up to 3 goods). Returns 1 when a CHOICE was queued. */
@@ -6271,10 +6340,15 @@ static int ai_contact_enqueue_buywhich(
     labels[k] = ai_contact_cargo_name(goods[k]);
     ids[k] = goods[k] + 1; /* 1..16; 0 = cancel */
   }
-  return ai_popup_enqueue_choice_ctx(
-    ctx->ai_popups, AI_POPUP_TAG_CONTACT_BUYWHICH, e, nation_id, unit->id, NULL, body, labels,
-    ids, n
-  );
+  if (!ai_popup_enqueue_choice_ctx(
+        ctx->ai_popups, AI_POPUP_TAG_CONTACT_BUYWHICH, e, nation_id, unit->id, NULL, body,
+        labels, ids, n
+      )) {
+    return 0;
+  }
+  /* 2820 +1217: `FUN_291f_019c(…, 0x15a0, *(0x8d52))`. */
+  ai_contact_chief_flair(ctx, e, nation_id);
+  return 1;
 }
 
 /*
@@ -6532,12 +6606,16 @@ static int ai_contact_enqueue_trade_offer_round(
   const int ids3[3] = {AI_CONTACT_TRADE_OFFER_ACCEPT, AI_CONTACT_TRADE_OFFER_HAGGLE,
                        AI_CONTACT_TRADE_OFFER_DECLINE};
   const int four = s->round == 0;
-  return ai_popup_enqueue_choice_ctx(
-           ctx->ai_popups, AI_POPUP_TAG_CONTACT_TRADE_OFFER, e, nation_id, s->price, NULL,
-           body, four ? labels : labels3, four ? ids4 : ids3, four ? 4 : 3
-         )
-           ? 1
-           : 0;
+  if (!ai_popup_enqueue_choice_ctx(
+        ctx->ai_popups, AI_POPUP_TAG_CONTACT_TRADE_OFFER, e, nation_id, s->price, NULL,
+        body, four ? labels : labels3, four ? ids4 : ids3, four ? 4 : 3
+      )) {
+    return 0;
+  }
+  /* 2820 +606/+890/+1037: `FUN_291f_019c(…, BP-0xbe, *(0x8d52))` — the
+   * @TRADE0/@TRADE1 haggle rounds are chief audiences. */
+  ai_contact_chief_flair(ctx, e, nation_id);
+  return 1;
 }
 
 /*
@@ -6676,6 +6754,9 @@ static int ai_contact_2820_begin_slot(
             ctx->ai_popups, AI_POPUP_TAG_CONTACT_TRADE_PICK, e, nation_id, unit->id, NULL, body,
             labels, ids, n
           )) {
+        /* 2820 +1436/+1439 (0x15ce/0x15da) — the hold menu is a 019c chief
+         * audience too. */
+        ai_contact_chief_flair(ctx, e, nation_id);
         return 1;
       }
     }

@@ -862,6 +862,30 @@ int main(void) {
   CHECK(empty && empty->population == 0 && empty->colonist_count == 0, "no founder => pop 0");
   CHECK(empty && empty->has_building[town_hall], "starter includes Town Hall");
   CHECK(empty && empty->has_building[carpenter], "starter includes Carpenter's Shop");
+  /*
+   * bugs.md 436 — pin the WHOLE free starter set, not just two of it. DOS
+   * hands every new colony the tier-1 manufacturing houses plus the Town Hall
+   * and the Carpenter's Shop (docs/building_production.md "Starter colonies",
+   * docs/assets.md); a silent name-lookup miss in colonies_grant_starters
+   * would otherwise leave a colony that can never build anything and reports
+   * "Build it first" on a shop it should have owned from turn one.
+   */
+  {
+    static const char* const k_starters[] = {
+      "Town Hall",
+      "Carpenter's Shop",
+      "Blacksmith's House",
+      "Weaver's House",
+      "Tobacconist's House",
+      "Rum Distiller's House",
+      "Fur Trader's House"
+    };
+    for (size_t si = 0; si < sizeof(k_starters) / sizeof(k_starters[0]); ++si) {
+      const int bi = colonies_find_building(&pool, k_starters[si]);
+      CHECK(bi >= 0, k_starters[si]);
+      CHECK(empty && bi >= 0 && empty->has_building[bi], k_starters[si]);
+    }
+  }
   CHECK(empty && !empty->has_building[stockade], "starter excludes Stockade");
   CHECK(empty && !empty->has_building[warehouse], "starter excludes Warehouse");
   CHECK(empty && !empty->has_building[docks], "starter excludes Docks");

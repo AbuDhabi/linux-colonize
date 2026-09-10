@@ -5476,6 +5476,28 @@ static int europe_ship_icon_sprite(const ColonizeUnitPool* units, const EuropeHa
   return ut ? ut->icon_sprite : -1;
 }
 
+/*
+ * @UNIT type for unit_chrome's orders-box corner (bugs.md 425). Must use the
+ * SAME by-name fallback the sprite lookup above uses: europe_purchase() files
+ * a freshly bought hull with type_index = -1 ("resolved by name in game_loop /
+ * caller"), and feeding that -1 straight to unit_chrome_corner_for_type made
+ * it miss the 0x0d..0x12 ship range and fall through to BOTTOM_RIGHT — DOS
+ * FUN_112b_01ba puts Caravel/Merchantman (0x0d/0x0e) TOP_LEFT and
+ * Galleon..Man-O-War (0x0f..0x12) TOP_RIGHT. A Merchantman bought in Europe
+ * is the commonest way to see it (the starting Caravel sails in from the map
+ * with its type already resolved), which is why the box sat off the stern on
+ * that hull only.
+ */
+static int europe_ship_display_type(const ColonizeUnitPool* units, const EuropeHarborShip* ship) {
+  if (!units || !ship) {
+    return -1;
+  }
+  if (ship->type_index >= 0) {
+    return ship->type_index;
+  }
+  return units_find_type(units, ship->name);
+}
+
 static void europe_render_transit_box(
   const ColonizeGameState* game,
   const ColonizeFont* font,
@@ -5535,7 +5557,7 @@ static void europe_render_transit_box(
       sprite,
       x,
       y,
-      ships[i].type_index,
+      europe_ship_display_type(&game->units, &ships[i]),
       game->human_nation,
       UNITS_ORDER_NONE,
       ships[i].cargo_count > 0,
@@ -6266,6 +6288,13 @@ static int europe_dock_sprite(const ColonizeUnitPool* units, const EuropeDockImm
     case EUROPE_DOCK_TYPE_SCOUTS:
       return d->profession == UNITS_JOB_SCOUT ? UNITS_ICON_SEASONED_SCOUT
                                               : UNITS_ICON_SCOUT;
+    /* bugs.md 426: same split for the fifth kit — FUN_112b_0060's
+     * `type == 3 && profession != 0x18 → 0x4e`. Without this case a
+     * shipped-home missionary took the @UNIT icon (the Jesuit) whatever
+     * his colonist was. */
+    case EUROPE_DOCK_TYPE_MISSIONARIES:
+      return d->profession == UNITS_JOB_MISSIONARY ? UNITS_ICON_JESUIT_MISSIONARY
+                                                   : UNITS_ICON_MISSIONARY;
     default:
       break;
   }
@@ -7952,7 +7981,15 @@ static bool game_try_unit_move(ColonizeGameState* game, int dest_x, int dest_y) 
       }
       const int pax_ready = units_first_landfall_cargo(&game->units, sid);
       if (pax_ready < 0) {
-        set_status(game, "No unit ready to disembark", NULL);
+        /* DOS FUN_4720_015c writes the landfall reason (2/3) only when some
+         * passenger's spent byte is below its max — with none, reason stays 0
+         * and the move is simply refused, no @LANDFALL prompt (bugs.md 429). */
+        set_status(
+          game,
+          selected->cargo_count > 0 ? "No unit aboard has moves left" :
+                                      "No unit ready to disembark",
+          NULL
+        );
         return false;
       }
       {
@@ -10205,7 +10242,21 @@ static void game_europe_deliver_bound_ships(ColonizeGameState* game) {
     }
     int fx = sx;
     int fy = sy;
-    if (!units_find_high_seas_tile(&game->units, &game->world_map, sx, sy, &fx, &fy)) {
+    /*
+     * DOS FUN_48d3_048e (:77810): the arrival tile is picked by an expanding
+     * ring hunt around the nation's Europe landfall goal (unit +0x314d/+0x314e,
+     * copied from the nation Europe block +0x32/+0x33 — the port's
+     * exit_x/exit_y / last_exit_*), accepting the first tile that passes
+     * FUN_48d3_0434: terrain 0x1a (high seas) AND empty-or-own-nation.
+     * units_spiral_place_hs_near is that ring walk; units_find_high_seas_tile
+     * is a plain nearest-euclidean sweep that also refuses a tile holding one
+     * of our OWN ships, so it could throw an arrival across the map. Keep it
+     * only as the never-lose-a-ship fallback.
+     */
+    if (!units_spiral_place_hs_near(
+          &game->units, &game->world_map, sx, sy, game->human_nation, &fx, &fy
+        ) &&
+        !units_find_high_seas_tile(&game->units, &game->world_map, sx, sy, &fx, &fy)) {
       diag_warn("Europe arrival: no free high-seas tile for '%s' — parked in lane", name);
       break;
     }
@@ -10282,6 +10333,20 @@ static void game_europe_deliver_bound_ships(ColonizeGameState* game) {
         ship->follow_unit_id = trade_route;
         (void)game_trade_route_aim_stop(game, ship, trade_stop);
       }
+      /*
+       * bugs.md 427: a ship stepping off the Europe lane onto the map sees
+       * around itself the moment it lands — it does NOT need to be moved
+       * first. DOS FUN_48d3_048e ends with
+       *   FUN_281f_0948 (set x/y) -> FUN_281f_084e (post-move chrome)
+       *   -> FUN_281f_07a0  == FUN_13f1_02f8  (reveal exploration bits)
+       * (viceroy_unpacked.c:77887-77890; FUN_281f_07a0 -> FUN_13f1_02f8 per
+       * FUNCTION_CATALOG.md:1374, and FUN_13f1_02f8 -> FUN_13f1_02b4 ->
+       * FUN_13f1_0158 is the same sight walk every move runs). The reveal is
+       * unconditional — the human-only tail after it is just the viewport
+       * recentre (FUN_281f_0352 / FUN_281f_09ba). Newly bought ships were
+       * therefore landing inside their own fog.
+       */
+      game_reveal_sight_for_unit(game, ship);
     }
     snprintf(
       game->status, sizeof(game->status), "%s arrived from Europe at (%d,%d)", name, fx, fy
@@ -12277,19 +12342,30 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
 
     if (active_pending) {
       /*
-       * bugs.md: a Go To aimed at an Indian village stops one tile short and
-       * hands control back — entering a village is a player decision (the
-       * @ACTIONS menu fires on the arrow-key step), never something the
-       * pacer walks into on its own.
+       * bugs.md 424: a Go To AIMED at an Indian settlement executes its final
+       * step INTO the village. DOS routes every goto step through
+       * FUN_465b_0000, so arriving next to the dwelling with the village as
+       * the ordered destination raises exactly what an arrow-key step raises
+       * (FUN_4d56_4528: woodcut 7 + the NAMES.TXT @ACTIONS menu, or the
+       * unmet-tribe warn) — the order was a move command into the village.
+       * Earlier this branch stopped one tile short and handed control back
+       * (bugs.md 293), which left the player to repeat the step by hand.
+       *
+       * The order is spent either way: a peaceful meet is conducted from the
+       * adjacent tile (the unit never stands ON the village), so the goto is
+       * cleared BEFORE dispatching — otherwise the pacer would re-fire the
+       * @ACTIONS menu on every frame the unit sat next to the village.
        */
-      if (active->orders == UNITS_ORDER_GOTO && active->goto_x < UNITS_GOTO_NONE &&
-          active->goto_y < UNITS_GOTO_NONE &&
-          map_tile_has_city(&game->world_map, active->goto_x, active->goto_y) &&
-          colonies_id_at(&game->colonies, active->goto_x, active->goto_y) < 0 &&
-          abs(active->x - active->goto_x) <= 1 && abs(active->y - active->goto_y) <= 1) {
-        units_clear_orders(&game->units, active->id);
+      if (units_goto_dest_is_village_entry(
+            &game->units, active->id, &game->world_map, &game->colonies
+          )) {
+        const int aid = active->id;
+        const int gx = active->goto_x;
+        const int gy = active->goto_y;
+        units_clear_orders(&game->units, aid);
+        game->units.selected_id = aid;
+        (void)game_try_unit_move(game, gx, gy);
         game_center_on_selected_unit(game);
-        set_status(game, "Village ahead — awaiting orders", NULL);
         return true;
       }
       /*
