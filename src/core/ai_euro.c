@@ -1571,14 +1571,21 @@ static void ai_euro_refresh_colony_ai_flags(
       }
     }
   }
-  /* +0x1b bit 0x10, raw 555-563 (see ai_euro_colony_needs_colonists_5952).
-   * DOS clears the bit up front (`+0x1b &= 7`, raw 485) and re-ORs it, which
-   * is this set/else-clear pair. */
+  /*
+   * +0x1b bit 0x10, colony_tick_5952_035e.md:557-563 (see
+   * ai_euro_colony_needs_colonists_5952) — the SECOND of DOS's two writers of
+   * this bit. DOS is an OR and nothing else:
+   *   if (+0x1f < ' ') { ... if (a && b) +0x1b |= 0x10; }
+   * The per-tick clear for the bit is the flag byte's `+0x1b &= 7` (raw
+   * 94142), which lives with the first writer in
+   * ai_euro_colony_threat_seed_5952 — the call that runs immediately before
+   * this function, for this same colony. So this writer must NOT carry an
+   * `else`-clear of its own: it used to, and that clear wiped the first
+   * writer's one-shot hand-off from the +0x1c bit 0x10 latch (smell audit
+   * 2026-09-10 C3).
+   */
   if (ai_euro_colony_needs_colonists_5952(ctx->colonies, ctx->map, c)) {
     c->ai_flags |= COLONIZE_COLONY_AI_NEEDS_COLONISTS;
-  } else {
-    c->ai_flags =
-      (uint8_t)(c->ai_flags & (uint8_t)~COLONIZE_COLONY_AI_NEEDS_COLONISTS);
   }
   /*
    * +0x1b bit 0x40 (NEEDS_GARRISON) is NOT set here. DOS raises it from the
@@ -1590,21 +1597,24 @@ static void ai_euro_refresh_colony_ai_flags(
    * (`&= 7`) now lives with the writer too.
    */
   /*
-   * +0x1c thin: wagon / coastal / small-colony. Bit3 is NOT touched here: it
+   * +0x1c thin: wagon / coastal. Bit3 is NOT touched here: it
    * is DOS's inefficient-government latch (FUN_364b_0688 phase D), which the
    * per-turn colony tick owns. This pass used to overwrite it with a
    * food-vs-need reading, which both clobbered the latch and had no DOS
    * basis; ai_euro_colony_food_short below is the food test the AI wanted.
    */
-  {
-    const int pop = c->colonist_count > 0 ? c->colonist_count : c->population;
-    if (pop < 10) {
-      c->colony_flags |= COLONIZE_COLONY_FLAG_SMALL_AI;
-    } else {
-      c->colony_flags =
-        (uint8_t)(c->colony_flags & (uint8_t)~COLONIZE_COLONY_FLAG_SMALL_AI);
-    }
-  }
+  /*
+   * Bit 0x10 (COLONIZE_COLONY_FLAG_SMALL_AI, col1_save.h `small_colony_ai`)
+   * is NOT written here either, and no longer written anywhere in the port.
+   * DOS has exactly one reference to +0x1c bit 0x10 in the entire image — the
+   * read-and-clear hand-off at raw 94143-94146, now ported in
+   * ai_euro_colony_threat_seed_5952 — and no writer at all, so the bit is a
+   * save-borne one-shot, not a per-tick reading of colony size. The
+   * `pop < 10` stamp that used to live here had no raw citation, was never
+   * read by anything in the port, and (once the hand-off exists) would have
+   * re-armed it every tick, i.e. pinned NEEDS_COLONISTS on for every colony
+   * under 10 population. Smell audit 2026-09-10 C3.
+   */
   colony_prod_refresh_sol_flags(c, (ctx->col1_ok && ctx->col1) ? ctx->col1 : NULL);
   if (ctx->units) {
     int wagon = 0;
@@ -7748,11 +7758,10 @@ static int ai_euro_5d04_cb_sell_hold0(int idx) {
   /* Boycotted cargo stays aboard (europe_cargo_boycotted / boycott_bitmap). */
   {
     const int c0 = u->hold_goods_type[0];
+    /* One accessor, one word (nation+0x20 — audit G6): the human branch used
+     * to read the render mirror, which is stale outside the Europe screen. */
     const int boycotted =
-      (ctx->europe && s_5d04_nation == ctx->human_nation)
-        ? europe_cargo_boycotted(ctx->europe, c0)
-        : (c0 >= 0 && c0 < 16 &&
-           (ctx->col1->nation[s_5d04_nation].boycott_bitmap & (1u << c0)) != 0);
+      europe_cargo_boycotted_ex(ctx->europe, ctx->col1, s_5d04_nation, c0);
     if (boycotted) {
       return 0;
     }
@@ -9737,12 +9746,19 @@ static int ai_euro_nation_is_human(const ColonizeTurnContext* ctx, int nation) {
  * +0x1b `& 7` clear and the 0x40 / 0x08 / 0x04 flag writers.
  */
 /*
- * DS:0x95f2[cont] `continent_presence_flags` — writer FUN_4962_0018
- * (docs/save_format_map.md row 156): bit 1 = any Indian settlement on the
- * continent (no nation filter); bit 2 = a foreign Euro unit is present;
- * bit 4 = a foreign colony is present. The port keeps no mirror of the byte
- * (DOS accumulates it across every nation's census pass without clearing),
- * so the three bits are recomputed here from live state; bit 8 (own combat
+ * DS:0x95f2[cont] `continent_presence_flags` — writer FUN_4962_0018: bit 1 =
+ * any Indian settlement on the continent (no nation filter); bit 2 = any
+ * foreign unit of a nation < 4 whose TILE has a continent (DOS masks the
+ * owner nibble and applies no domain filter — a docked foreign ship counts;
+ * passengers are excluded only because DOS parks them at the (−2,−2)
+ * sentinel, so the port needs the explicit aboard filter this function
+ * already has); bit 4 = a foreign colony is present. The port keeps no
+ * mirror of the byte — it is ZEROED at the top of every per-nation call
+ * (raw 78149-78150, `for (local_14 = 0; local_14 < 0x10; ++local_14)
+ * -0x6a0e[local_14] = 0;`), so it always describes the nation being
+ * censused; docs/save_format_map.md row 156's "not cleared between nations,
+ * accumulates across the full per-turn pass" is refuted by the raw (audit
+ * C7, 2026-09-10) — so the three bits are recomputed here; bit 8 (own combat
  * unit caught in the open with a pending-orders state) has no reader in the
  * 5952 arm below and is not modelled.
  */
@@ -10024,10 +10040,12 @@ static void ai_euro_colony_threat_seed_5952(
    *                              (presence & 6) != 0 AND nation != 2
    *     (the other half of that branch is the Indian war-declare block,
    *      already ported as ai_contact_colony_tick_war_5952)
-   * Substitution: DS:0x95f2 is DOS's per-continent presence bitmask, which
-   * FUN_4962_0018 accumulates across ALL nations without clearing; the port
-   * has no stored mirror, so bit0/1/2 are recomputed here from live state
-   * for this nation's point of view (docs/save_format_map.md row 156).
+   * Substitution: DS:0x95f2 is DOS's per-continent presence bitmask, zeroed
+   * at the top of every per-nation FUN_4962_0018 call (raw 78149-78150), so
+   * it always describes the nation being censused; the port has no stored
+   * mirror, so bit0/1/2 are recomputed here from live state for this
+   * nation's point of view (docs/save_format_map.md row 156, corrected
+   * 2026-09-10 audit C7).
    */
   const int cont = map_continent_id_at(ctx->map, c->x, c->y);
   const int stance = ai_euro_continent_stance_at(nation_id, cont);
@@ -10061,6 +10079,32 @@ static void ai_euro_colony_threat_seed_5952(
    * those clears are NOT ported yet, see the note in colony.h.
    */
   c->ai_flags = (uint8_t)(c->ai_flags & 0x07u);
+  /*
+   * raw 94143-94146 (= colony_tick_5952_035e.md:487-490): the FIRST of DOS's
+   * two +0x1b bit 0x10 (NEEDS_COLONISTS) writers, and it runs exactly here —
+   * immediately after the `&= 7` clear above, before every other flag writer
+   * of the tick:
+   *   if ((+0x1c & 0x10) && +0x1f < ' ') { +0x1b |= 0x10; +0x1c &= 0xef; }
+   * A one-shot hand-off: the +0x1c bit 0x10 latch (COLONIZE_COLONY_FLAG_SMALL_AI,
+   * col1_save.h `small_colony_ai`) is consumed AND cleared, raising
+   * NEEDS_COLONISTS once for a colony still under 0x20 population. That read
+   * is the only reference to +0x1c bit 0x10 in the whole DOS image: no writer
+   * of the bit exists in viceroy_unpacked.c, viceroy_overlays.c or
+   * viceroy_unpacked_2.c (checked over every `(byte *)(x + 0x1c)` access and
+   * every `| 0x10` / `& 0xef` store), so in DOS the bit can only arrive from
+   * a loaded save. The port used to re-stamp it from an invented `pop < 10`
+   * every tick in ai_euro_refresh_colony_ai_flags, which would have turned
+   * this one-shot into "NEEDS_COLONISTS whenever pop < 10"; that writer is
+   * gone (smell audit 2026-09-10 C3).
+   * The second writer is the formula one in ai_euro_refresh_colony_ai_flags
+   * (md:557-563), which only ORs — the per-tick clear for both is the
+   * `&= 7` above, so neither may carry an `else`-clear of its own.
+   */
+  if ((c->colony_flags & COLONIZE_COLONY_FLAG_SMALL_AI) != 0 && c->population < 0x20) {
+    c->ai_flags |= COLONIZE_COLONY_AI_NEEDS_COLONISTS;
+    c->colony_flags =
+      (uint8_t)(c->colony_flags & (uint8_t)~COLONIZE_COLONY_FLAG_SMALL_AI);
+  }
   if (want > 0) {
     c->ai_flags |= COLONIZE_COLONY_AI_NEEDS_GARRISON; /* raw 94147-94149 */
   }
@@ -18760,11 +18804,49 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
        * explicitly and this step nets out.
        */
       const int equip_pop = (int)c->population;
+      const int on_tile = (u->x == c->x && u->y == c->y);
+      /*
+       * DOS's `local_90`, the "big settled town" disjunct, verbatim (raw
+       * 94292-94299; the annotated dump keeps the far-call arguments the
+       * decompiler dropped, colony_tick_5952_035e.md:641-648):
+       *   local_90 = (local_2a == 0) && ('\n' < +0x1f) &&
+       *              (FUN_1000_86c4(0x181f, 0, 3) == 0) && ((+0x1b & 0x10) == 0)
+       * All four conjuncts, in DOS's order:
+       *   local_2a = *(byte *)(nation * 0x10 + continent + -0x6790), the
+       *     colony continent's G-stance — ai_euro_continent_stance_at, the
+       *     port's mirror of that table. Stance 0 is "no plan assigned", so
+       *     DOS suppresses this arm on exactly the war/expansion continents.
+       *   FUN_1000_86c4 = FUN_281f_04d4 = dos_rng_range
+       *     (address_mapping.csv:844; same identification as
+       *     ai_euro_20e6_load_pick above), so the third conjunct is a plain
+       *     1-in-4 roll. It is the THIRD conjunct, i.e. `&&`-guarded by the
+       *     stance and population tests — the draw must not happen unless
+       *     those hold, or the shared LCG stream shifts. It is also inside
+       *     `on_tile` here so that walking this file's per-colony loop does
+       *     not draw once per colony of the nation.
+       *   (+0x1b & 0x10) == 0 is the NEEDS_COLONISTS test the port already had.
+       * Two of the four (stance, roll) used to be missing, so every pop>11
+       * colony with 50 muskets re-typed arriving Pioneers unconditionally
+       * (smell audit 2026-09-10 C2). Note the population gate keeps DOS's
+       * literal `> 10` and does NOT get the absorption +1 compensation the
+       * `population > 1` gate above needed; that is deliberately left as it
+       * was calibrated, since widening it would offset this fix.
+       * dos_rng_range returns `lo` for a NULL rng, so a context without an
+       * RNG (fixtures) passes the roll — the pre-fix behaviour.
+       */
+      int equip_local_90 = 0;
+      if (on_tile && ai_euro_continent_stance_at(
+                       nation_id, map_continent_id_at(ctx->map, c->x, c->y)) == 0 &&
+          equip_pop > 10 && dos_rng_range(ctx->rng, 0, 3) == 0 &&
+          (c->ai_flags & COLONIZE_COLONY_AI_NEEDS_COLONISTS) == 0) {
+        equip_local_90 = 1;
+      }
+      /* raw 94304-94306: `((+0x1b & 0x48) != 0 || local_90 != 0) && 0x31 < +0xb8` */
       const int equip_demand =
         (c->ai_flags &
          (COLONIZE_COLONY_AI_NEEDS_GARRISON | COLONIZE_COLONY_AI_SHORT_DEFENDERS)) != 0 ||
-        (equip_pop > 10 && (c->ai_flags & COLONIZE_COLONY_AI_NEEDS_COLONISTS) == 0);
-      if (u->x == c->x && u->y == c->y && equip_pop > 0 && equip_demand &&
+        equip_local_90;
+      if (on_tile && equip_pop > 0 && equip_demand &&
           c->stock[COLONIZE_CARGO_MUSKETS] > 0x31) {
         const int mounted = c->stock[COLONIZE_CARGO_HORSES] > 0x33;
         int arm_ty = mounted ? units_find_type(ctx->units, "Dragoons") : -1;

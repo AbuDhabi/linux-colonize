@@ -836,12 +836,11 @@ static void units_king_galleon_credit(
   const int share = (value * pct) / 100;
   const int net = value - share;
   ColonizeCol1Nation* nat = &col1->nation[nation_id];
-  nat->gold += (uint32_t)(net > 0 ? net : 0);
+  /* Audit G3: the accessor picks the store by nation — the old unconditional
+   * `europe->gold = nat->gold` handed the human's purse an AI's treasury. */
+  europe_nation_gold_add(europe, col1, nation_id, (long)(net > 0 ? net : 0));
   nat->royal_money += share; /* DOS nation+0x22 += Crown share */
   units_play_event_sound(0x5a); /* FUN_5fef_1908: cheering + fireworks (COLDIG 15) */
-  if (europe) {
-    europe->gold = (int)nat->gold;
-  }
   if (popups) {
     PopupMsgTokens tok;
     memset(&tok, 0, sizeof(tok));
@@ -925,8 +924,8 @@ int units_ai_treasure_cash_in_colony(
   }
   const int value = units_treasure_value_gold(treasure);
   if (value > 0) {
-    ColonizeCol1Nation* nat = &col1->nation[nation_id];
-    nat->gold += (uint32_t)value; /* DOS nation+0x2a/+0x2c, 32-bit, uncapped */
+    /* DOS nation+0x2a/+0x2c, 32-bit — one store per nation (audit G3). */
+    europe_nation_gold_add(NULL, col1, nation_id, (long)value);
   }
   /* DS:0x5382 bit0 = the War of Independence flag; the popup is pre-WoI only. */
   if (value > 0 && popups && col1->head.game_options.woi == 0) {
@@ -2453,9 +2452,7 @@ bool units_combat_apply_ransom_popup(ColonizeCol1Save* col1, const AiPopupState*
   if (nation < 0 || nation > 3 || gold <= 0) {
     return true;
   }
-  const uint32_t g = col1->nation[nation].gold;
-  const uint32_t add = (uint32_t)gold;
-  col1->nation[nation].gold = g > UINT32_MAX - add ? UINT32_MAX : g + add;
+  europe_nation_gold_add(NULL, col1, nation, (long)gold); /* audit G3 */
   return true;
 }
 
@@ -4475,8 +4472,8 @@ static int units_lcr_nearest_tribe_dist(
   return best;
 }
 
-/* Credits both the persisted Col1 nation gold and the live Europe screen
- * cache (only the latter is what the human player can spend mid-session). */
+/* Credits the one treasury for `nation` (europe_nation_gold_add picks the live
+ * store: EuropeScreen.gold for the bound/human nation, the record otherwise). */
 static void units_lcr_credit_gold(
   ColonizeCol1Save* col1,
   EuropeScreen* europe,
@@ -4487,10 +4484,8 @@ static void units_lcr_credit_gold(
   if (!col1 || amount <= 0 || nation < 0 || nation >= 4) {
     return;
   }
-  col1->nation[nation].gold += (uint32_t)amount;
-  if (europe && nation == human_nation) {
-    europe->gold += amount;
-  }
+  (void)human_nation; /* the accessor picks the store by nation (audit G3) */
+  europe_nation_gold_add(europe, col1, nation, (long)amount);
 }
 
 /* Everything the FUN_65dd_0004 roll loop decides before the dispatch tail:
@@ -5340,10 +5335,9 @@ bool units_resolve_land_combat_ff(
             2
           );
         } else {
-          ColonizeCol1Save* mut = (ColonizeCol1Save*)col1;
-          const uint32_t g = mut->nation[atk_nation].gold;
-          const uint32_t add = (uint32_t)loot_gold;
-          mut->nation[atk_nation].gold = g > UINT32_MAX - add ? UINT32_MAX : g + add;
+          europe_nation_gold_add(
+            NULL, (ColonizeCol1Save*)col1, atk_nation, (long)loot_gold
+          ); /* audit G3 */
           if (human) {
             units_combat_enqueue_tok(
               AI_POPUP_TAG_COMBAT_LOOT,
@@ -7360,10 +7354,16 @@ bool units_try_move(
      * higher max MP survives it as a genuine slow rather than a full stop
      * — this is what "ship-slow" refers to. Linux previously charged only
      * the step cost, and only on a win (further below); this adds the
-     * missing +3 surcharge plus the missing step cost on a loss. The native
-     * raid-stay-put branch just below already has its own complete,
-     * separately-cited MP model (FUN_4d56_4528) — skip it there to avoid
-     * double-charging.
+     * missing +3 surcharge plus the missing step cost on a loss.
+     *
+     * Every outcome of the same attack pays the same (step_cost + 3): the
+     * loss return just below, the ordinary land-win stay-put branch, the
+     * native raid-stay-put branch, and the walk-in path via
+     * `combat_attack_mp_surcharge`. The +3 in DOS is charged at 1b0e ENTRY,
+     * before the roll and before any branch is chosen, so no outcome can be
+     * cheaper than another (smell audit 2026-09-10 A3: the raid win used to
+     * charge the bare step cost, making a won raid 3 thirds cheaper than a
+     * lost one).
      */
     if (!won) {
       ColonizeUnit* atk_mp = units_get(pool, unit_id);
@@ -7379,7 +7379,16 @@ bool units_try_move(
     }
     /*
      * Native village raid: fight from the adjacent tile and stay there (DOS
-     * FUN_4d56_4528 contact). Charge MP as if the step were spent; do not enter.
+     * FUN_4d56_4528 contact). Charge MP as if the step were spent — step cost
+     * plus the 3-third combat-entry surcharge, exactly as the loss return
+     * above and the ordinary land-win stay-put branch below: DOS applies the
+     * surcharge at FUN_5fef_1b0e entry (`*(char *)(iVar23 + 0x3149) += 3`
+     * under `if (param_5 != 0)`, viceroy_unpacked.c:100341-100343, param_5 =
+     * the attack flag 465b passes as the last argument of
+     * FUN_291f_0a14 → FUN_5fef_1b0e at viceroy_unpacked.c:75692), i.e. before
+     * the roll and before win/lose or "which tile do I end on" is known, so
+     * the raid cannot be cheaper than any other outcome of the same attack.
+     * Do not enter the dwelling tile.
      */
     if (village_nation >= 4 && unit->nation_id >= 0 && unit->nation_id <= 3) {
       /*
@@ -7393,7 +7402,7 @@ bool units_try_move(
        * itself shifted the RNG stream for every later native raid.
        */
       const int cost = units_move_cost(pool, unit_id, map, dest_x, dest_y);
-      units_mp_charge(pool, unit, cost);
+      units_mp_charge(pool, unit, cost + 3);
       if (unit->orders == UNITS_ORDER_SENTRY || unit->orders == UNITS_ORDER_FORTIFY ||
           unit->orders == UNITS_ORDER_FORTIFIED) {
         unit->orders = UNITS_ORDER_NONE;

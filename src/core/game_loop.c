@@ -1443,7 +1443,9 @@ static bool game_request_indian_land_choice(
   if (!ai_contact_indian_has_peace(col1, tribe_nation, hn)) {
     return false;
   }
-  col1->nation[hn].gold = (uint32_t)(game->europe.gold < 0 ? 0 : game->europe.gold);
+  /* colonies_* land helpers take the record word by pointer, so stamp it from
+   * the purse first — the one named form of that copy (audit G3). */
+  europe_gold_stamp_record(&game->europe, col1);
   const int price = colonies_indian_land_purchase_gold(col1, &game->world_map, x, y, hn);
   if (price <= 0) {
     return false;
@@ -1476,7 +1478,7 @@ static bool game_request_indian_land_choice(
   int n = 0;
   labels[n] = nch >= 3 ? choice_buf[0] : "Very well, we shall respect your wishes.";
   ids[n++] = GAME_INDIAN_LAND_RESPECT;
-  if ((uint32_t)price <= col1->nation[hn].gold) {
+  if ((uint32_t)price <= europe_nation_gold(&game->europe, col1, hn)) {
     if (nch >= 3) {
       /* Substitute {%NUMBER1$} inside the label row. */
       static char offer_lbl[AI_POPUP_CHOICE_LEN];
@@ -3015,7 +3017,9 @@ static void game_apply_ai_popup_result(ColonizeGameState* game) {
     const int hn = game->human_nation;
     if (choice == GAME_INDIAN_LAND_OFFER && game->col1_ok && hn >= 0 && hn < 4) {
       ColonizeCol1Save* col1 = &game->col1;
-      col1->nation[hn].gold = (uint32_t)(game->europe.gold < 0 ? 0 : game->europe.gold);
+      /* Stamp → pay-by-pointer → pull: the one place an absolute copy is
+       * legitimate, because the pay helper writes the record directly (G3). */
+      europe_gold_stamp_record(&game->europe, col1);
       const int price = colonies_indian_land_purchase_gold(col1, &game->world_map, x, y, hn);
       if (price > 0 && col1->nation[hn].gold >= (uint32_t)price) {
         colonies_indian_land_pay(col1, &game->world_map, x, y, hn, &col1->nation[hn].gold, price);
@@ -6345,9 +6349,11 @@ static void render_europe_screen(const ColonizeGameState* game, ColonizeFramebuf
   const EuropeScreen* eu = &game->europe;
   if (eu_mut) {
     europe_refresh_harbor_selection(eu_mut);
-    /* Live boycott mirror: ai_king.c tea-party / ai_diplo.c embargo write
-     * game->col1.nation[human].boycott_bitmap directly; europe.c has no
-     * col1 pointer, so refresh the UI-side copy every render (screen is
+    /* Render-only mirror for chrome (market colour, @ARMOPTIONS rows): the
+     * trade gates read the nation word itself through
+     * europe_cargo_boycotted_ex (audit G6). ai_king.c tea-party / ai_diplo.c
+     * embargo write game->col1.nation[human].boycott_bitmap directly; europe.c
+     * has no col1 pointer, so refresh the UI-side copy every render (screen is
      * always rendered at least once before the player can act on it). */
     if (game->col1_ok && game->human_nation >= 0 &&
         game->human_nation < (int)COLONIZE_COL1_NATION_COUNT) {
@@ -6602,7 +6608,9 @@ static void render_europe_screen(const ColonizeGameState* game, ColonizeFramebuf
      * in red — trading is blocked until the boycott lifts (europe_buy_cargo /
      * europe_sell_hold / europe_sell_unit_hold refuse it; see
      * europe_cargo_boycotted). Source: fandom Boycott (Col). */
-    const bool boycotted = europe_cargo_boycotted(eu, i);
+    const bool boycotted = europe_cargo_boycotted_ex(
+      eu, game->col1_ok ? &game->col1 : NULL, game->human_nation, i
+    );
     /* DOS shows sell/buy = (euro_price − 1)/(euro_price + burden). */
     snprintf(line, sizeof(line), "%d/%d", europe_sell_price(eu, i), europe_buy_price(eu, i));
     {
@@ -7275,6 +7283,10 @@ ColonizeGameState* game_create(const ColonizeGameConfig* config) {
 
   char europe_err[256];
   if (europe_load(&game->europe, game->resolved_data_dir, europe_err, sizeof(europe_err))) {
+    /* One treasury (audit G3): writers that hold only a save — colony-capture
+     * plunder, combat ransom/loot — reach the human's live purse through this
+     * registration (europe_set_live_screen). */
+    europe_set_live_screen(&game->europe);
     game->europe_ok = true;
   } else {
     game->europe_ok = false;
@@ -7346,6 +7358,9 @@ void game_destroy(ColonizeGameState* game) {
   woodcut_clear_pending();
   pik_free(&game->menu_bg);
   pik_free(&game->pedia_wood);
+  /* Unregister before the screen dies (audit G3) — same register-once idiom
+   * as the units_set_* watches above. */
+  europe_set_live_screen(NULL);
   europe_free(&game->europe);
   colony_screen_free(&game->colony_screen);
   reports_free(&game->reports);
@@ -8908,6 +8923,7 @@ static void game_colony_select_outside(ColonizeGameState* game, int unit_id) {
 }
 
 static int game_colony_list_outside_roles(
+  const ColonizeColonyPool* pool,
   const ColonizeColony* colony,
   const ColonizeUnit* unit,
   int* out_roles,
@@ -9263,7 +9279,7 @@ static void game_colony_fence_drop(ColonizeGameState* game, ColonizeColony* colo
         : NULL;
       if (u && colony) {
         csv->eject_role_count = game_colony_list_outside_roles(
-          colony, u, csv->eject_roles, COLONIZE_EJECT_ROLE_COUNT
+          &game->colonies, colony, u, csv->eject_roles, COLONIZE_EJECT_ROLE_COUNT
         );
         if (csv->eject_role_count <= 0) {
           csv->eject_roles[0] = COLONIZE_EJECT_COLONIST;
@@ -9607,7 +9623,53 @@ static bool game_europe_drag_drop(ColonizeGameState* game, int mx, int my, bool 
   return true;
 }
 
+/*
+ * Church-or-Cathedral bless gate, the same test colony.c's
+ * colonies_has_church_or_cathedral runs for the inside-colonist twin of this
+ * list. DOS asks only for the Church bit (FUN_15eb_3454's Missionary arm:
+ * `FUN_15eb_038e(0x25)`, building-catalog index 0x25 = Church, 0x26 =
+ * Cathedral — the indices confirmed with the Stable/Printing Press ones in
+ * docs/building_production.md), which is sufficient there because a
+ * completed upgrade only ever SETS its own bit (FUN_364b_0114 →
+ * FUN_281f_0bbe(building, 1), never a clear) and Church is Cathedral's
+ * prerequisite, so a Cathedral colony still has the Church bit. The
+ * disjunction is the same thing for any reachable colony and survives a
+ * bridged save that carries only the upgrade.
+ */
+static bool game_colony_can_bless(
+  const ColonizeColonyPool* pool,
+  const ColonizeColony* colony
+) {
+  if (!pool || !colony) {
+    return false;
+  }
+  const int church = colonies_find_building(pool, "Church");
+  if (church >= 0 && church < COLONIZE_BUILDING_TYPES_MAX && colony->has_building[church]) {
+    return true;
+  }
+  const int cath = colonies_find_building(pool, "Cathedral");
+  return cath >= 0 && cath < COLONIZE_BUILDING_TYPES_MAX && colony->has_building[cath];
+}
+
+/*
+ * The "Leave as" row list for a unit standing on the fence.
+ *
+ * DOS builds this and the inside-colonist list in ONE function,
+ * FUN_2f2b_348c: `param_1 != 0` selects the 6-row leave-as mode (rows =
+ * professions 0x13..0x18 = Colonist / Pioneer / Soldier / Scout / Dragoon /
+ * Missionary; `local_fa = 0x13, local_146 = 6`), and a band index at or past
+ * the colony's colonist count — i.e. an OUTSIDE unit — forces that mode. Rows
+ * are gated one by one through FUN_281f_0bb4 → FUN_15eb_3454, whose >= 0x13
+ * arm is profession-indexed and knows nothing about where the body stands:
+ * the gear rows test colony stock against FUN_15eb_0d8e's cargo list (tools
+ * 0x14 = 20, muskets/horses 0x32 = 50) and row 0x18 tests the Church bit. So
+ * the outside list is the inside list, Missionary included, and this copy
+ * must stay row-for-row identical to colonies_list_eject_roles (colony.c) —
+ * it dropped the Missionary row until 2026-09-10, which let a colonist be
+ * blessed inside the colony but not one pixel outside it.
+ */
 static int game_colony_list_outside_roles(
+  const ColonizeColonyPool* pool,
   const ColonizeColony* colony,
   const ColonizeUnit* unit,
   int* out_roles,
@@ -9634,10 +9696,15 @@ static int game_colony_list_outside_roles(
       stock_horses >= UNITS_EQUIP_HORSES) {
     out_roles[n++] = COLONIZE_EJECT_DRAGOON;
   }
+  /* Church bless, no cargo cost — FUN_15eb_3454 row 0x18. */
+  if (n < out_max && game_colony_can_bless(pool, colony)) {
+    out_roles[n++] = COLONIZE_EJECT_MISSIONARY;
+  }
   return n;
 }
 
 static bool game_colony_apply_outside_role(
+  const ColonizeColonyPool* pool,
   ColonizeColony* colony,
   ColonizeUnitPool* units,
   int unit_id,
@@ -9659,6 +9726,25 @@ static bool game_colony_apply_outside_role(
   int horses_take = 0;
   const char* type_name = units_equip_role_type_name(units, u->type_index, role);
   switch (role) {
+  case COLONIZE_EJECT_MISSIONARY:
+    /*
+     * FUN_15eb_3454 row 0x18: the bless costs no cargo, and its only gate is
+     * the Church bit — re-tested here the way colonies_eject_colonist
+     * re-tests it, so a row that went stale between build and click cannot
+     * bless. units_equip_role_type_name has no Missionary arm (DOS re-types
+     * gear changes through the @JOB->@UNIT table, which the bless does not
+     * use), so name the type outright, exactly as the inside twin does.
+     * The body's profession is left alone: DOS's "Cancel Missionary Status"
+     * gate turns on profession != 0x18 (a blessed ordinary colonist can
+     * cancel, a born Jesuit cannot), which only works because blessing never
+     * writes the profession byte — and this path has never re-professioned a
+     * body for any other row either.
+     */
+    if (!game_colony_can_bless(pool, colony)) {
+      return false;
+    }
+    type_name = "Missionaries";
+    break;
   case COLONIZE_EJECT_PIONEER:
     /* bugs.md: whole 20-tool steps capped at 100, the same rule
      * colonies_eject_colonist uses — this path used to insist on the full 100
@@ -9676,8 +9762,14 @@ static bool game_colony_apply_outside_role(
     horses_take = UNITS_EQUIP_HORSES;
     break;
   case COLONIZE_EJECT_COLONIST:
-  default:
     break;
+  default:
+    /* Not a row FUN_2f2b_348c can offer (professions 0x13..0x18). The old
+     * `COLONIZE_EJECT_COLONIST, default:` pair let any other id through and
+     * re-typed the unit to whatever units_equip_role_type_name defaulted to
+     * while taking no cargo — a free type change from a row that does not
+     * exist. */
+    return false;
   }
 
   if (role == COLONIZE_EJECT_PIONEER && tools_take <= 0) {
@@ -9695,6 +9787,7 @@ static bool game_colony_apply_outside_role(
   if (type_index < 0) {
     type_index = u->type_index;
   }
+  const int prev_type = u->type_index;
   const int prev_tools = u->tools;
   const int prev_muskets = u->muskets;
   const int prev_horses = u->horses;
@@ -9707,8 +9800,12 @@ static bool game_colony_apply_outside_role(
    * ("No changes") costs nothing. bugs.md follow-up: the standing order goes
    * with them — the unit that comes out of the armoury is a different type
    * and reports for orders rather than staying dug in as whatever it was.
-   * (It has no moves left, so it is only offered next turn.) */
-  if (u->tools != prev_tools || u->muskets != prev_muskets || u->horses != prev_horses) {
+   * (It has no moves left, so it is only offered next turn.) The type test
+   * carries the bless, the one row that changes the unit without moving a
+   * single crate; the inside twin's ejected body starts with moves_left = 0
+   * whichever row it took. */
+  if (u->type_index != prev_type || u->tools != prev_tools || u->muskets != prev_muskets ||
+      u->horses != prev_horses) {
     u->moves_left = 0;
     units_clear_orders(units, u->id);
   }
@@ -10906,11 +11003,7 @@ static void game_trade_route_service_stop(ColonizeGameState* game, ColonizeUnit*
         const int ct = col1_trade_nibble_cargo(st->load_cargo_nibbles, i);
         (void)europe_buy_unit_cargo(&game->europe, &game->col1, &game->units, u->id, ct, 100);
       }
-      game_europe_drain_price_events(game);
-      if (game->col1_ok && game->human_nation >= 0 && game->human_nation < 4) {
-        game->col1.nation[game->human_nation].gold =
-          (uint32_t)(game->europe.gold < 0 ? 0 : game->europe.gold);
-      }
+      game_europe_drain_price_events(game); /* sells/buys now stamp the record themselves (G3) */
     }
     return;
   }
@@ -11060,11 +11153,7 @@ static void game_europe_service_trade_harbor(ColonizeGameState* game) {
       const int ct = col1_trade_nibble_cargo(st->load_cargo_nibbles, c);
       (void)europe_buy_cargo(eu, &game->col1, &game->units, game->human_nation, i, ct, 100);
     }
-    game_europe_drain_price_events(game);
-    if (game->human_nation >= 0 && game->human_nation < 4) {
-      game->col1.nation[game->human_nation].gold =
-        (uint32_t)(eu->gold < 0 ? 0 : eu->gold);
-    }
+    game_europe_drain_price_events(game); /* sells/buys now stamp the record themselves (G3) */
     const int next = (si + 1) % (int)r->dest_count;
     const int exit_x = ship->exit_x;
     const int exit_y = ship->exit_y;
@@ -12837,7 +12926,9 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
           const int role = csv->eject_roles[csv->eject_selection];
           if (csv->eject_unit_id >= 0 && colony) {
             const bool ok =
-              game_colony_apply_outside_role(colony, &game->units, csv->eject_unit_id, role);
+              game_colony_apply_outside_role(
+                &game->colonies, colony, &game->units, csv->eject_unit_id, role
+              );
             colony_screen_close_eject(csv);
             if (ok) {
               game_colony_select_outside(game, csv->selected_outside_unit);
@@ -13382,7 +13473,7 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
           if (csv->eject_unit_id >= 0 && colony) {
             const int uid = csv->eject_unit_id;
             const bool ok =
-              game_colony_apply_outside_role(colony, &game->units, uid, role);
+              game_colony_apply_outside_role(&game->colonies, colony, &game->units, uid, role);
             colony_screen_close_eject(csv);
             if (ok) {
               game_colony_select_outside(game, uid);
@@ -13897,7 +13988,9 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
         break;
       case EUROPE_HIT_MARKET:
         eu->selected_market = hit.index;
-        if (europe_cargo_boycotted(eu, hit.index)) {
+        if (europe_cargo_boycotted_ex(
+              eu, game->col1_ok ? &game->col1 : NULL, game->human_nation, hit.index
+            )) {
           /* GAME.TXT @SOMEBOYCOTT: "...click on the cargo type in question"
            * to ask that the boycott be lifted -- pay-back-taxes buyback,
            * not the normal buy/sell flow. See europe_buyback_boycott. */

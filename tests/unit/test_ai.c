@@ -1265,6 +1265,68 @@ static int run_152e_alarm_escalation(void) {
   return 0;
 }
 
+/*
+ * smell sweep-3 E6 — the 152e mission arm indexes
+ * `indian.euro_relation_accum[]` (int8_t[4]) with the low nibble of the
+ * settlement mission byte. DOS (FUN_4d56_152e, raw 81470-81476) sign-extends
+ * the byte and masks the nibble with no bound, so a nibble of 4..15 — outside
+ * the 0..3 domain col1_save.h:729 documents — used to write past the array
+ * into the neighbouring `euro_diplo[]` bytes (offset 0x36 + 7 == 0x3d ==
+ * euro_diplo[3]). ai_indian_tribe_mission_nation now skips the arm instead.
+ *
+ * No colony on the map and no MET bit ⇒ neither the threat arm nor the
+ * friction-roll loop writes the accumulator this tick, so both the array and
+ * the euro_diplo[] bytes that follow it must come back untouched. (Only those
+ * two are compared: the growth arm legitimately edits other fields of the
+ * record.)
+ */
+static int run_152e_mission_nibble_out_of_domain(void) {
+  Ai152eFixture f;
+  if (ai_152e_fixture_init(&f, "152e-mission-nibble", 1337u) != 0) {
+    return 1;
+  }
+  f.tribes[0].mission = 0x07u; /* nibble 7: no such European nation */
+  f.tribes[0].state.capital = 1;
+  int8_t accum_before[4];
+  uint8_t diplo_before[4];
+  memcpy(accum_before, f.col1.indian[0].euro_relation_accum, sizeof(accum_before));
+  memcpy(diplo_before, f.col1.indian[0].euro_diplo, sizeof(diplo_before));
+
+  ai_indian_nation_turn(&f.ctx, 4);
+
+  if (memcmp(accum_before, f.col1.indian[0].euro_relation_accum,
+             sizeof(accum_before)) != 0 ||
+      memcmp(diplo_before, f.col1.indian[0].euro_diplo, sizeof(diplo_before)) != 0) {
+    fprintf(stderr,
+            "152e-mission-nibble: out-of-domain mission nibble 7 wrote into "
+            "the Indian record (euro_relation_accum %d/%d/%d/%d, euro_diplo "
+            "%u/%u/%u/%u)\n",
+            (int)f.col1.indian[0].euro_relation_accum[0],
+            (int)f.col1.indian[0].euro_relation_accum[1],
+            (int)f.col1.indian[0].euro_relation_accum[2],
+            (int)f.col1.indian[0].euro_relation_accum[3],
+            (unsigned)f.col1.indian[0].euro_diplo[0],
+            (unsigned)f.col1.indian[0].euro_diplo[1],
+            (unsigned)f.col1.indian[0].euro_diplo[2],
+            (unsigned)f.col1.indian[0].euro_diplo[3]);
+    ai_152e_fixture_free(&f);
+    return 1;
+  }
+  for (int e = 0; e < 4; ++e) {
+    if (col1_tribe_attitude(&f.tribes[0], e) != 0) {
+      fprintf(stderr,
+              "152e-mission-nibble: attitude[%d] moved to %d on an "
+              "out-of-domain mission nibble\n",
+              e, col1_tribe_attitude(&f.tribes[0], e));
+      ai_152e_fixture_free(&f);
+      return 1;
+    }
+  }
+  ai_152e_fixture_free(&f);
+  fprintf(stderr, "152e out-of-domain mission nibble ok (record untouched)\n");
+  return 0;
+}
+
 int main(void) {
   diag_init(0, NULL);
   const char* data = "COLONIZE";
@@ -1281,6 +1343,9 @@ int main(void) {
     return 1;
   }
   if (run_152e_alarm_escalation() != 0) {
+    return 1;
+  }
+  if (run_152e_mission_nibble_out_of_domain() != 0) {
     return 1;
   }
   return 0;

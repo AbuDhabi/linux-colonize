@@ -3992,8 +3992,11 @@ void reports_compute_score(
     }
 
     out->congress = reports_count_ff_for_nation(col1, human) * 5;
-    if (nat->gold >= 1000) {
-      out->treasury = (int)(nat->gold / 1000);
+    /* Audit G3: the live store for the human is EuropeScreen.gold — the
+     * no-col1 fallback 35 lines below already read it. */
+    const uint32_t treasury_gold = europe_nation_gold(europe, col1, human);
+    if (treasury_gold >= 1000u) {
+      out->treasury = (int)(treasury_gold / 1000u);
     }
     out->villages_burned = (int)nat->villages_burned;
     out->villages_penalty = out->villages_burned * (-1 - out->difficulty);
@@ -4289,7 +4292,8 @@ static void reports_render_score(
   char lines[8][96];
   uint8_t colors[8];
   int n_lines = 0;
-  if (sc.treasury > 0 || col1->nation[human].gold >= 1000) {
+  const uint32_t score_gold = europe_nation_gold(europe, col1, human); /* audit G3 */
+  if (sc.treasury > 0 || score_gold >= 1000u) {
     /* "$" — same coin-glyph convention as the map sidebar's own gold line
      * (map_panel.c: "Gold: %d$"), not a literal "g" suffix. */
     snprintf(
@@ -4297,7 +4301,7 @@ static void reports_render_score(
       sizeof(lines[0]),
       "%s:  (%u$) +%d",
       reports_misc_word(59, "Gold", w1, sizeof(w1)),
-      (unsigned)(col1->nation[human].gold),
+      (unsigned)score_gold,
       sc.treasury
     );
     colors[n_lines++] = REPORTS_SCORE_GREEN_COLOR;

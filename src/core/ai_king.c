@@ -1037,7 +1037,7 @@ static int ai_king_audience_roll(ColonizeTurnContext* ctx, int human, int* out_d
   const int score =
     dos_rng_range(ctx->rng, 1, 1000) +
     (col1->head.rebel_sentiment_report * 2 - (int)nat->tax_rate) * 5 +
-    (int)(nat->gold / 100) +
+    (int)(europe_nation_gold(ctx->europe, col1, human) / 100u) +
     (int)col1->stuff.census_pop_proxy[human] +
     (int)(turn / 30);
 
@@ -3412,8 +3412,7 @@ static int ai_king_do_merc_hire_at(ColonizeTurnContext* ctx, int human, int hx, 
   if (qty_a < 1 || price < 0 || hx < 0 || hy < 0) {
     return 0;
   }
-  ColonizeCol1Nation* nat = &ctx->col1->nation[human];
-  if (nat->gold < (uint32_t)price) {
+  if (europe_nation_gold(ctx->europe, ctx->col1, human) < (uint32_t)price) {
     return 0;
   }
   int landed = 0;
@@ -3430,10 +3429,9 @@ static int ai_king_do_merc_hire_at(ColonizeTurnContext* ctx, int human, int hx, 
   if (landed == 0) {
     return 0;
   }
-  nat->gold -= (uint32_t)price;
-  if (ctx->europe) {
-    ctx->europe->gold = (int)nat->gold;
-  }
+  /* Audit G3: one debit through the accessor — the old pair read the stale
+   * record and then assigned it over the live purse. */
+  europe_nation_gold_add(ctx->europe, ctx->col1, human, -(long)price);
   if (ctx->status && ctx->status_size) {
     snprintf(ctx->status, ctx->status_size,
              "Mercenaries join the Continental cause (−%d gold).", price);
@@ -3520,8 +3518,7 @@ static void ai_king_merc_offer(ColonizeTurnContext* ctx) {
   const int extra_flag = dos_rng_range(ctx->rng, 0, 1);
   const int roll2 = dos_rng_range(ctx->rng, 0, 6);
   const int price = (qty_a + 2) * ((difficulty + 3) * 2 + roll2) * 100;
-  ColonizeCol1Nation* nat = &ctx->col1->nation[human];
-  if (nat->gold < (uint32_t)price) {
+  if (europe_nation_gold(ctx->europe, ctx->col1, human) < (uint32_t)price) {
     return; /* DOS silently skips the offer when unaffordable — no status/dialog */
   }
   int hx = 0;
@@ -4000,7 +3997,7 @@ int ai_king_new_war_event(ColonizeTurnContext* ctx) {
       ai_popup_set_last_portrait(ctx->ai_popups, 8, 0);
     }
   }
-  col1->nation[human].gold += (uint32_t)gold;
+  europe_nation_gold_add(ctx->europe, col1, human, (long)gold); /* audit G3 */
   /* FUN_281f_095c(type 1 Soldier, nation, -20,-20) x count, profession 0x15 = Veteran:
    * the units appear in Europe — Linux puts them on the docks. */
   if (ctx->europe) {

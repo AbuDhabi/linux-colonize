@@ -627,7 +627,7 @@ static bool ai_append_tribe(
   t->nation_id = (uint8_t)nation_id;
   t->state.capital = capital ? 1 : 0;
   t->population = (uint8_t)ai_tribe_initial_pop(tech);
-  t->mission = 0xFF;
+  t->mission = COL1_TRIBE_MISSION_NONE;
   (*count)++;
   return true;
 }
@@ -2717,6 +2717,50 @@ static int ai_indian_152e_spawn_brave(
 }
 
 /*
+ * The two readers of the settlement mission byte (+5) in this file used to
+ * spell "no mission" two different ways (`!= 0xff` in the growth tick,
+ * `(int8_t) >= 0` in the threat picker) while the other twelve readers in the
+ * port use COL1_TRIBE_MISSION_NONE. Unified here (smell sweep-3 E6).
+ *
+ * DOS is the sign test: FUN_4d56_152e (viceroy_unpacked.c raw 81472-81476)
+ * does `uVar7 = (uint)*(char *)(iVar8 + 5); if (-1 < (int)uVar7) uVar7 &= 0xf;`
+ * — it sign-extends the byte FIRST and only masks the nibble when the result
+ * is non-negative, so every 0x80..0xff byte (the 0xff sentinel included)
+ * reads as "no mission". FUN_4cc6_03f8 is identical (raw 81040 sign-extends
+ * into local_e, raw 81090 gates on `-1 < (int)local_e`).
+ */
+static bool ai_indian_tribe_has_mission(const ColonizeCol1Tribe* t) {
+  if (t->mission == COL1_TRIBE_MISSION_NONE) {
+    return false;
+  }
+  return (int)(int8_t)t->mission >= 0;
+}
+
+/*
+ * The European nation owning the mission, 0..3, or -1 for none.
+ *
+ * The >= 4 rejection is a port-safety bound over the documented 0..3 domain
+ * (col1_save.h:729), NOT DOS: DOS indexes `indian + nibble + 0x36` (raw
+ * 81488) and `settlement + nibble*2 + 0xa` (raw 81490) with the raw nibble
+ * and would walk straight past the 4-entry arrays on a 4..15 nibble. Every
+ * writer in the port honours the domain, so an out-of-range nibble can only
+ * come from a corrupt or foreign save; skipping the mission arm is the safe
+ * reading of an undefined value, where indexing would be an out-of-bounds
+ * write past `euro_relation_accum[4]` (col1_save.h:854) into the
+ * neighbouring euro_diplo[] bytes.
+ */
+static int ai_indian_tribe_mission_nation(const ColonizeCol1Tribe* t) {
+  if (!ai_indian_tribe_has_mission(t)) {
+    return -1;
+  }
+  const int nation = (int)(t->mission & COL1_TRIBE_MISSION_NATION_MASK);
+  if (nation >= (int)COLONIZE_COL1_NATION_COUNT) {
+    return -1;
+  }
+  return nation;
+}
+
+/*
  * FUN_281f_0316 -> FUN_4cc6_03f8 (viceroy_unpacked.c:80991): which European
  * nation this settlement feels most threatened by, and how strongly. Ported
  * 2026-08-30 — it was the stub that kept `t->alarm[e]` at zero forever, so
@@ -2935,10 +2979,15 @@ int ai_indian_village_threat(
   if (best_score <= 0) {
     return -1;
   }
-  const int mission = (int)(int8_t)t->mission;
-  if (mission >= 0) {
+  /*
+   * The nibble is only compared here, never used as an index, so this arm
+   * keeps DOS's raw compare (an out-of-domain nibble takes the "rival"
+   * branch, as in FUN_4cc6_03f8) instead of ai_indian_tribe_mission_nation's
+   * port-safety bound.
+   */
+  if (ai_indian_tribe_has_mission(t)) {
     const int jesuit = (t->mission & COL1_TRIBE_MISSION_JESUIT_BIT) != 0;
-    if ((mission & 0x0f) == best_nation) {
+    if ((int)(t->mission & COL1_TRIBE_MISSION_NATION_MASK) == best_nation) {
       best_score = jesuit ? (best_score >> 1) : (best_score - (best_score >> 2));
     } else {
       best_score = jesuit ? (best_score << 1) : (best_score + (best_score >> 1));
@@ -3138,12 +3187,13 @@ static void ai_indian_152e_village_growth(
 
   int threat_score = 0;
   const int threat_nation = ai_indian_152e_best_threat_nation(ctx, tribe_index, &threat_score);
-  const int mission_nation = (t->mission != 0xffu) ? (int)(t->mission & 0x0fu) : -1;
+  /* 0..3 or -1; indexes euro_relation_accum[]/col1_tribe_attitude below. */
+  const int mission_nation = ai_indian_tribe_mission_nation(t);
 
   if (mission_nation >= 0 || threat_nation >= 0) {
     const bool capital_mult = t->state.capital != 0;
     if (mission_nation >= 0) {
-      const bool jesuit = (t->mission & 0x10u) != 0;
+      const bool jesuit = (t->mission & COL1_TRIBE_MISSION_JESUIT_BIT) != 0;
       int local_8 = (jesuit ? 4 : 1) << (capital_mult ? 1 : 0);
       if (ai_indian_152e_ff_bit(ctx, mission_nation, 0x18)) {
         local_8 <<= 1;

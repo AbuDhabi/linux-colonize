@@ -2703,7 +2703,7 @@ int turn_rank_euro_nations(
     int gold100 = 0;
     int land = 0;
     if (col1 && n < (int)COLONIZE_COL1_NATION_COUNT) {
-      gold100 = (int)(col1->nation[n].gold / 100u);
+      gold100 = (int)(europe_nation_gold(NULL, col1, n) / 100u);
       /* Land combat from stuff census when present; colony/pop always live. */
       land = (int)col1->stuff.land_combat_strength[n];
     }
@@ -2800,6 +2800,34 @@ static int turn_colony_repairs_ships(const ColonizeColony* c, int drydock, int s
   return shipyard >= 0 && shipyard < COLONIZE_BUILDING_TYPES_MAX && c->has_building[shipyard];
 }
 
+/*
+ * The DS:0x9418[nation] hull tally FUN_48d3_0002 gates the 2-turn crossing on
+ * (viceroy_unpacked.asm 48d3:003b `cmp byte [bx+0x9418],0x3`), built by
+ * FUN_4962_0018 walking the WHOLE unit array and bumping 0x9418 for every
+ * unit of that nation with type 0x0d..0x12 (4962:0300-0365).
+ *
+ * DOS parks a ship crossing to Europe as a live unit on its nation's Europe
+ * sentinel diagonal (228/232/244+n), so harbour, expected and bound hulls are
+ * all inside that tally. This port hoists the HUMAN's Europe-side ships out of
+ * the unit pool into EuropeScreen (AI nations keep theirs on the diagonal), so
+ * the live-pool walk alone under-counts the human by exactly those three
+ * arrays and `stuff.ship_counts[]` — a census of the live pool only
+ * (col1_stuff_census.c:112) — under-counts him the same way. Reconstructed
+ * here the way game_loop.c's `game_voyage_ship_count` does for the manual
+ * sail-to-Europe path; keep the two in step. Called with the damaged hull
+ * still active, since DOS counts the departing ship too.
+ */
+static int turn_voyage_ship_count(const ColonizeTurnContext* ctx, int nation) {
+  if (!ctx || !ctx->units) {
+    return 0;
+  }
+  int ships = units_count_sea_for_nation(ctx->units, nation);
+  if (ctx->europe && (int)ctx->europe->bound_nation == nation) {
+    ships += ctx->europe->harbor_ships + ctx->europe->expected_ships + ctx->europe->bound_ships;
+  }
+  return ships;
+}
+
 static void turn_route_damaged_ships(ColonizeTurnContext* ctx, int nation) {
   if (!ctx || !ctx->units || !ctx->colonies || nation < 0 || nation > 3) {
     return;
@@ -2891,16 +2919,18 @@ static void turn_route_damaged_ships(ColonizeTurnContext* ctx, int nation) {
     if (nation == ctx->human_nation && !woi && ctx->europe && u->cargo_count == 0) {
       /*
        * FUN_48d3_0002 gates the 2-turn crossing on DS:0x9418[nation] (the
-       * FUN_4962_0018 hull tally, mirrored here as stuff.ship_counts) and on
-       * Magellan (FF 5). Hardcoding count 1 / no-Magellan burned the RNG draw
-       * but could never take either branch, so a damaged ship's voyage home
-       * was always 1 turn regardless of fleet size.
+       * FUN_4962_0018 hull tally — turn_voyage_ship_count) and on Magellan
+       * (FF 5). Hardcoding count 1 / no-Magellan burned the RNG draw but
+       * could never take either branch, so a damaged ship's voyage home was
+       * always 1 turn regardless of fleet size. Reading stuff.ship_counts[]
+       * instead was still one spelling short of game_loop's: the census walks
+       * the live pool only, so a human with 2 hulls on the map and 3 in the
+       * lane rolled "3+ ships" on a manual crossing and "2 ships" here.
        */
       const bool magellan =
         ctx->col1_ok && ctx->col1 &&
         founding_fathers_nation_has(ctx->col1, nation, FF_FERDINAND_MAGELLAN);
-      const int fleet =
-        (ctx->col1_ok && ctx->col1) ? (int)ctx->col1->stuff.ship_counts[nation] : 1;
+      const int fleet = turn_voyage_ship_count(ctx, nation);
       const int turns = europe_voyage_turns_roll(ctx->rng, magellan, fleet);
       /* Same edge rule as the manual sail-to-Europe path so the ship comes
        * back on the side it left from. */

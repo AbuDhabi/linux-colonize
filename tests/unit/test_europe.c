@@ -381,7 +381,13 @@ int main(void) {
    * and leave state untouched, then lift and confirm trade works again.
    * Uses a scratch hold slot (2) so it doesn't disturb hold[0]/[1], which
    * later harbor_pop checks below depend on.
-   * Cite: europe_cargo_boycotted / EuropeScreen.boycott_bitmap.
+   * Smell audit G6: with a save bound, the authoritative word is
+   * col1->nation[n].boycott_bitmap (nation+0x20, DOS FUN_38fd_05e8) and
+   * EuropeScreen.boycott_bitmap is only the Europe-screen render mirror — so
+   * the nation word alone must block a sell (that is the EOT trade-route /
+   * dump-sell case, which never renders the screen), and the mirror alone must
+   * not. The mirror is still the answer when no save is passed.
+   * Cite: europe_cargo_boycotted_ex / europe_cargo_boycotted.
    */
   {
     if (europe_cargo_boycotted(&eu, COLONIZE_CARGO_FURS)) {
@@ -394,6 +400,20 @@ int main(void) {
     eu.boycott_bitmap = (uint16_t)(1u << COLONIZE_CARGO_FURS);
     if (!europe_cargo_boycotted(&eu, COLONIZE_CARGO_FURS)) {
       fprintf(stderr, "furs should read as boycotted\n");
+      europe_free(&eu);
+      return 1;
+    }
+    /* Mirror set, nation word clear: the no-save read still says boycotted,
+     * the col1-bearing read must not. */
+    if (europe_cargo_boycotted_ex(&eu, &sell_col1, 0, COLONIZE_CARGO_FURS)) {
+      fprintf(stderr, "mirror must not outvote a clear nation word\n");
+      europe_free(&eu);
+      return 1;
+    }
+    /* The tea party writes the nation word (ai_king.c) and nothing else. */
+    sell_col1.nation[0].boycott_bitmap = (uint16_t)(1u << COLONIZE_CARGO_FURS);
+    if (!europe_cargo_boycotted_ex(&eu, &sell_col1, 0, COLONIZE_CARGO_FURS)) {
+      fprintf(stderr, "nation word should read as boycotted\n");
       europe_free(&eu);
       return 1;
     }
@@ -411,11 +431,27 @@ int main(void) {
       europe_free(&eu);
       return 1;
     }
-    /* Lift the boycott; the same trade must now succeed. */
+    /* Nation word still set, mirror cleared (a stale screen copy): the sell
+     * must STAY refused — the G6 bug was the other way round. */
     eu.boycott_bitmap = 0;
+    const int stale_mirror_sell = europe_sell_hold(&eu, &sell_col1, 0, 0, 2);
+    if (stale_mirror_sell != 0 || eu.harbor[0].hold_goods_amount[2] != 30) {
+      fprintf(stderr, "stale mirror must not unblock a boycott, got %d\n", stale_mirror_sell);
+      europe_free(&eu);
+      return 1;
+    }
+    /* Lift the boycott where it lives; the same trade must now succeed. */
+    sell_col1.nation[0].boycott_bitmap = 0;
     const int unblocked_sell = europe_sell_hold(&eu, &sell_col1, 0, 0, 2);
     if (unblocked_sell <= 0 || eu.harbor[0].hold_goods_amount[2] != 0) {
       fprintf(stderr, "sell should succeed once boycott lifted, got %d\n", unblocked_sell);
+      europe_free(&eu);
+      return 1;
+    }
+    /* G3: the harbor sale moved the one treasury in BOTH stores. */
+    if (sell_col1.nation[0].gold != (uint32_t)eu.gold) {
+      fprintf(stderr, "harbor sell left the col1 treasury out of sync: %u vs %d\n",
+              (unsigned)sell_col1.nation[0].gold, eu.gold);
       europe_free(&eu);
       return 1;
     }

@@ -12,6 +12,7 @@
 #include "core/colony_yield.h"
 #include "core/combat_strength.h"
 #include "core/dos_rng.h"
+#include "core/europe.h"
 #include "core/founding_fathers.h"
 #include "core/map.h"
 #include "core/popup_msg.h"
@@ -2404,15 +2405,18 @@ static uint32_t ai_contact_incite_price(
     sctx.map = ctx->map;
     sctx.colonies = ctx->colonies;
     sctx.col1 = col1;
+    /* Slot walk, `u->id` to the id-taking accessors — see
+     * ai_contact_land_combat_sum's note (ids are 1-based and never recycled,
+     * so `i` is not a unit id). Fixed 2026-09-10. */
     for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-      const ColonizeUnit* u = units_get_const(ctx->units, i);
-      if (!u || !u->active || u->nation_id != nation_id) {
+      const ColonizeUnit* u = &ctx->units->units[i];
+      if (!u->active || u->nation_id != nation_id) {
         continue;
       }
-      if (units_is_sea(ctx->units, i)) {
+      if (units_is_sea(ctx->units, u->id)) {
         continue;
       }
-      const int val = combat_unit_base_x8(&sctx, i, 1, NULL);
+      const int val = combat_unit_base_x8(&sctx, u->id, 1, NULL);
       brave_value_sum += val;
       if (brave_value_sum > 0xff) {
         brave_value_sum = 0xff;
@@ -2686,8 +2690,7 @@ static void ai_contact_apply_incite(
   }
   const uint32_t price =
     ai_contact_incite_price(ctx, ind, nation_id, e, target, is_missionary, is_capital);
-  ColonizeCol1Nation* nat = &ctx->col1->nation[e];
-  if (nat->gold < price) {
+  if (europe_nation_gold(ctx->europe, ctx->col1, e) < price) {
     /* @UNFORTUNATE (0x16d0). */
     char body[AI_POPUP_BODY_LEN];
     popup_msg_fill(
@@ -2719,7 +2722,7 @@ static void ai_contact_apply_incite(
   /* Raw +100: the French/Pocahontas halving now lives inside
    * ai_diplo_indian_alarm_delta, as in DOS 00f2 (2026-09-07d). */
   ai_contact_alarm_delta_00f2(ctx, nation_id, target, 100);
-  nat->gold -= price;
+  europe_nation_gold_add(ctx->europe, ctx->col1, e, -(long)price); /* audit G3 */
 }
 
 /* Nearest Euro colony with warehouse tools ≥20 (mid demand tools arm). */
@@ -2935,8 +2938,7 @@ static int ai_contact_apply_demand_gold(
     );
     return 0;
   }
-  ColonizeCol1Nation* nat = &ctx->col1->nation[e];
-  if (nat->gold < 50u) {
+  if (europe_nation_gold(ctx->europe, ctx->col1, e) < 50u) {
     char refuse_fb[AI_POPUP_BODY_LEN];
     snprintf(
       refuse_fb,
@@ -2949,7 +2951,7 @@ static int ai_contact_apply_demand_gold(
     );
     return 0;
   }
-  nat->gold -= 15u;
+  europe_nation_gold_add(ctx->europe, ctx->col1, e, -15L); /* audit G3 */
   ai_contact_friction_decay(ind, ctx->col1, nation_id, e, 3);
   {
     char trib_fb[AI_POPUP_BODY_LEN];
@@ -3813,9 +3815,10 @@ void ai_contact_try_village_beg_food(ColonizeTurnContext* ctx, int nation_id) {
         continue;
       }
       bool brave_adjacent = false;
+      /* Slot walk — `ui` is not a unit id; see ai_contact_land_combat_sum. */
       for (int ui = 0; ui < COLONIZE_UNITS_MAX && !brave_adjacent; ++ui) {
-        const ColonizeUnit* bu = units_get_const(ctx->units, ui);
-        if (!bu || !bu->active || bu->nation_id != nation_id || !units_is_on_map(bu)) {
+        const ColonizeUnit* bu = &ctx->units->units[ui];
+        if (!bu->active || bu->nation_id != nation_id || !units_is_on_map(bu)) {
           continue;
         }
         if (abs(bu->x - c->x) > 1 || abs(bu->y - c->y) > 1) {
@@ -4755,12 +4758,14 @@ static void ai_contact_indian_census_4962_06b6(ColonizeTurnContext* ctx, int nat
   sctx.map = ctx->map;
   sctx.colonies = ctx->colonies;
   sctx.col1 = col1;
+  /* Slot walk, `u->id` to the id-taking accessors — see
+   * ai_contact_land_combat_sum's note. Fixed 2026-09-10. */
   for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-    const ColonizeUnit* u = units_get_const(ctx->units, i);
-    if (!u || !u->active || u->nation_id != nation_id) {
+    const ColonizeUnit* u = &ctx->units->units[i];
+    if (!u->active || u->nation_id != nation_id) {
       continue;
     }
-    const int v = combat_unit_base_x8(&sctx, i, 1, NULL);
+    const int v = combat_unit_base_x8(&sctx, u->id, 1, NULL);
     if (v <= 0) {
       continue;
     }
@@ -5141,9 +5146,10 @@ int ai_contact_try_village_gifts(ColonizeTurnContext* ctx, int nation_id) {
       if (!c->active || c->nation_id != e) {
         continue;
       }
+      /* Slot walk — `ui` is not a unit id; see ai_contact_land_combat_sum. */
       for (int ui = 0; ui < COLONIZE_UNITS_MAX; ++ui) {
-        const ColonizeUnit* bu = units_get_const(ctx->units, ui);
-        if (!bu || !bu->active || bu->nation_id != nation_id || !units_is_on_map(bu)) {
+        const ColonizeUnit* bu = &ctx->units->units[ui];
+        if (!bu->active || bu->nation_id != nation_id || !units_is_on_map(bu)) {
           continue;
         }
         if (abs(bu->x - c->x) > 1 || abs(bu->y - c->y) > 1) {
@@ -5662,9 +5668,10 @@ static ColonizeUnit* ai_contact_reparations_visitor(
   if (!ctx || !ctx->units) {
     return NULL;
   }
+  /* Slot walk — `ui` is not a unit id; see ai_contact_land_combat_sum. */
   for (int ui = 0; ui < COLONIZE_UNITS_MAX; ++ui) {
-    ColonizeUnit* bu = units_get(ctx->units, ui);
-    if (!bu || !bu->active || bu->nation_id != nation_id || !units_is_on_map(bu)) {
+    ColonizeUnit* bu = &ctx->units->units[ui];
+    if (!bu->active || bu->nation_id != nation_id || !units_is_on_map(bu)) {
       continue;
     }
     if (abs(bu->x - x) > 1 || abs(bu->y - y) > 1) {
@@ -5889,9 +5896,10 @@ static void ai_contact_try_village_reparations(ColonizeTurnContext* ctx, int nat
     /* `local_42` — no colony, but a Wagon Train (DOS type 0x0c) with cargo. */
     ColonizeUnit* wag = NULL;
     int hold = -1;
+    /* Slot walk — `ui` is not a unit id; see ai_contact_land_combat_sum. */
     for (int ui = 0; ui < COLONIZE_UNITS_MAX && !wag; ++ui) {
-      ColonizeUnit* u = units_get(ctx->units, ui);
-      if (!u || !u->active || u->nation_id != e || !units_is_on_map(u)) {
+      ColonizeUnit* u = &ctx->units->units[ui];
+      if (!u->active || u->nation_id != e || !units_is_on_map(u)) {
         continue;
       }
       const ColonizeUnitType* ty = units_type(ctx->units, u->type_index);
@@ -7364,7 +7372,9 @@ static AiRaidKind ai_contact_pick_raid_kind(
   }
   if (max_alarm >= 55 && roll < 15 && ctx && ctx->col1_ok && ctx->col1 &&
       target_euro >= 0 && target_euro < 4 &&
-      ctx->col1->nation[target_euro].gold > 0) {
+      /* Same store the drain below debits (audit G3) — a stale record here
+       * would pick AI_RAID_GOLD for a victim whose live purse is empty. */
+      europe_nation_gold(ctx->europe, ctx->col1, target_euro) > 0) {
     return AI_RAID_GOLD;
   }
   if (max_alarm >= 50 && roll < 12 && c && ctx && ctx->map) {
@@ -7781,8 +7791,8 @@ static void ai_contact_apply_raid_loot(
        * FUN_5fef_0f14 kind4: roll gold drain vs treasury (thin: 32..min(cap,treasury)).
        * Cite: indian_raid_loot.md; decomp ~99876–99893 / 100017–100030.
        */
-      ColonizeCol1Nation* nat = &ctx->col1->nation[target_euro];
-      if (nat->gold > 0) {
+      const uint32_t victim_gold = europe_nation_gold(ctx->europe, ctx->col1, target_euro);
+      if (victim_gold > 0) {
         unsigned drain = 32u + (unsigned)(c->population > 0 ? c->population * 8 : 8);
         if (drain < 50u) {
           drain = 50u;
@@ -7790,10 +7800,10 @@ static void ai_contact_apply_raid_loot(
         if (drain > 500u) {
           drain = 500u;
         }
-        if (drain > nat->gold) {
-          drain = nat->gold;
+        if (drain > victim_gold) {
+          drain = victim_gold;
         }
-        nat->gold -= (uint16_t)drain;
+        europe_nation_gold_add(ctx->europe, ctx->col1, target_euro, -(long)drain);
         s_last_gold_drained = (int)drain;
       }
     }
@@ -9115,9 +9125,21 @@ static int ai_contact_land_combat_sum(
                          nation < (int)COLONIZE_COL1_NATION_COUNT &&
                          ctx->col1->player[nation].control == 0;
   int sum = 0;
+  /*
+   * Slot walk, `u->id` to every id-taking accessor. `units_get_const`,
+   * `units_is_sea` and `combat_unit_base_x8` all take a unit ID; ids are
+   * handed out monotonically from 1 and never recycled (units.c:337,
+   * `units_reset` next_id = 1), so an `i`-as-id walk over
+   * COLONIZE_UNITS_MAX silently dropped every unit with id >= 256 in a long
+   * game plus the highest slot in a short one. DOS walks the unit ARRAY in
+   * record order (raw 78159: `for (local_1a = 0; local_1a < *(int *)0x539c;
+   * ++local_1a)` indexing `0x3144 + local_1a * 0x1c`), which is exactly a
+   * slot walk. Same idiom as ai_diplo_land_combat_strength_live and
+   * col1_stuff_census's tally. Fixed 2026-09-10 (audit Leads item 1).
+   */
   for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-    const ColonizeUnit* u = units_get_const(ctx->units, i);
-    if (!u || !u->active || u->nation_id != nation || units_is_sea(ctx->units, i)) {
+    const ColonizeUnit* u = &ctx->units->units[i];
+    if (!u->active || u->nation_id != nation || units_is_sea(ctx->units, u->id)) {
       continue;
     }
     /* DOS parks a ship's passengers off-map at (−2,−2), where FUN_281f_081c
@@ -9146,7 +9168,7 @@ static int ai_contact_land_combat_sum(
         continue;
       }
     }
-    sum += combat_unit_base_x8(&sctx, i, 1, NULL);
+    sum += combat_unit_base_x8(&sctx, u->id, 1, NULL);
     if (sum >= cap) {
       return cap;
     }
@@ -9179,8 +9201,13 @@ static int ai_contact_land_combat_sum(
  * cool-below-75 clear is the only other toucher.
  *
  * DOS body, verbatim (`presence` = DS:0x95f2[cont], FUN_4962_0018 raw
- * 78149-78312; the array is zeroed at the top of every per-nation call, so it
- * always describes the nation currently being censused):
+ * 78149-78312; the array is zeroed at the top of every per-nation call —
+ * raw 78149-78150, `for (local_14 = 0; local_14 < 0x10; ++local_14)
+ * *(undefined1 *)(local_14 + -0x6a0e) = 0;`, inside FUN_4962_0018 whose
+ * `param_1` IS the nation — so it always describes the nation currently
+ * being censused. docs/save_format_map.md row 156 and ai_euro.c:9754 both
+ * claim the opposite ("not cleared between nations, accumulates across the
+ * full per-turn pass"); that claim is refuted by the raw (audit C7)):
  *
  *   if ((presence & 1) == 0)  -> nothing (no natives on this continent)
  *   if ((presence & 6) != 0 && nation != 2) -> else-arm: only caps the
@@ -9231,12 +9258,50 @@ void ai_contact_colony_tick_war_5952(ColonizeTurnContext* ctx, int nation_id, in
     return;
   }
   if (nation_id != 2) {
-    /* bit 2 — raw 78235: a land unit of another Euro nation on this continent. */
+    /*
+     * bit 2 — raw 78234-78235, the unit loop's else-arm, verbatim:
+     *
+     *   else if ((-1 < iVar6) && ((unit[+0x3147] & 0xf) < 4))
+     *     -0x6a0e[cont] |= 2;
+     *
+     * Three DOS details, all of which this copy used to get wrong (audit C7,
+     * fixed 2026-09-10; `ai_euro_5952_continent_presence` had them right):
+     *
+     *  - The owner byte is masked to its low NIBBLE, both here and in the
+     *    own-nation compare at raw 78162 (`(bVar5 & 0xf) == param_1`), and
+     *    the arm then demands `< 4`, i.e. a EUROPEAN nation only. The port
+     *    stores `nation_id` as a clean 0..11 int so the mask is a no-op, but
+     *    keep it literal so the two copies read alike.
+     *  - No unit-domain filter: a foreign SHIP counts. Ships normally sit on
+     *    water, where `FUN_281f_081c` (→ `FUN_1427_0f0e` → tile continent)
+     *    reports −1 and the `-1 < iVar6` gate drops them; a ship docked in a
+     *    colony stands on a land tile and does set the bit.
+     *  - Passengers are excluded, but only IMPLICITLY: DOS parks a unit in a
+     *    hold at the sentinel (−2,−2) (`FUN_1427_10be` boards via
+     *    `FUN_1427_0362(unit, 0xfffe, 0xfffe)`), so its tile lookup also
+     *    returns −1. The port rides passengers at the carrier's own tile
+     *    (units.c:10282-10283), so the exclusion has to be spelled out —
+     *    otherwise a passenger aboard a ship docked in a colony sets bit 2
+     *    here and not in the ai_euro copy, flipping the `(presence & 6) == 0`
+     *    gate below between "declare war on the tribe" and "cap the expansion
+     *    appetite". `units_is_on_map` already folds in `aboard_ship_id < 0`
+     *    (units.c:1214-1216); it is spelled out for the reader.
+     *
+     * Slot walk, not an id walk: `units_get_const` takes a unit ID and ids
+     * are handed out monotonically from 1 and never recycled (units.c:337),
+     * so the old `i`-as-id form dropped every unit above COLONIZE_UNITS_MAX
+     * as well as the highest slot. DOS walks the unit ARRAY in record order
+     * (raw 78159, `local_1a` indexing `0x3144 + local_1a * 0x1c`), which is
+     * exactly what a slot walk reproduces.
+     */
     if (ctx->units) {
       for (int i = 0; i < COLONIZE_UNITS_MAX && (presence & 2) == 0; ++i) {
-        const ColonizeUnit* u = units_get_const(ctx->units, i);
-        if (!u || !u->active || u->nation_id < 0 || u->nation_id > 3 ||
-            u->nation_id == nation_id) {
+        const ColonizeUnit* u = &ctx->units->units[i];
+        if (!u->active || !units_is_on_map(u) || u->aboard_ship_id >= 0) {
+          continue;
+        }
+        const int owner = u->nation_id & 0xf;
+        if (owner >= 4 || owner == nation_id) {
           continue;
         }
         if (map_continent_id_at(ctx->map, u->x, u->y) == cont) {
@@ -9244,11 +9309,17 @@ void ai_contact_colony_tick_war_5952(ColonizeTurnContext* ctx, int nation_id, in
         }
       }
     }
-    /* bit 4 — raw 78302: a colony of another Euro nation on this continent. */
+    /*
+     * bit 4 — raw 78301-78302: `else if (-1 < iVar6) -0x6a0e[cont] |= 4;`
+     * after `if (colony[+0x1a] == param_1)`. No mask and no range test on the
+     * colony owner byte here (unlike the unit arm above) — every colony that
+     * is not this nation's counts. Port colonies are always 0..3 so the `< 0`
+     * guard is only uninitialised-fixture defence, not a DOS filter.
+     */
     if (ctx->colonies) {
       for (int i = 0; i < COLONIZE_COLONIES_MAX && (presence & 4) == 0; ++i) {
         const ColonizeColony* c = &ctx->colonies->colonies[i];
-        if (!c->active || c->nation_id < 0 || c->nation_id > 3 || c->nation_id == nation_id) {
+        if (!c->active || c->nation_id < 0 || c->nation_id == nation_id) {
           continue;
         }
         if (map_continent_id_at(ctx->map, c->x, c->y) == cont) {
@@ -9659,12 +9730,9 @@ static void ai_contact_speak_with_chief(
               popup_msg_fill(ctx->messages, "CHIEFGIFT", &tok, fb, body, sizeof(body));
               ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_MEET, nation_id, "Chief", body);
             }
-            col1->nation[e].gold += (uint32_t)gold;
-            /* bugs.md: the human's live treasury is europe->gold — crediting
-             * only the col1 mirror made the beads worth nothing. */
-            if (ctx->europe && e == ctx->human_nation) {
-              ctx->europe->gold += gold;
-            }
+            /* bugs.md: the human's live treasury is EuropeScreen.gold; the
+             * accessor picks the store by nation (audit G3). */
+            europe_nation_gold_add(ctx->europe, col1, e, (long)gold);
             return;
           }
           /* r == 2, or a seasoned scout rolling 1: tales of nearby lands. */
@@ -9880,15 +9948,17 @@ static int ai_contact_4cc6_03f8(
       }
       int owner = -1;
       int sum = 0;
+      /* Slot walk (DOS record order, and `i` is not a unit id) — see
+       * ai_contact_land_combat_sum's note. Fixed 2026-09-10. */
       for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-        const ColonizeUnit* u = units_get_const(ctx->units, i);
-        if (!u || !u->active || u->x != tx || u->y != ty || u->aboard_ship_id >= 0) {
+        const ColonizeUnit* u = &ctx->units->units[i];
+        if (!u->active || u->x != tx || u->y != ty || u->aboard_ship_id >= 0) {
           continue;
         }
         if (owner < 0) {
           owner = u->nation_id;
         }
-        if (u->nation_id != owner || units_is_sea(ctx->units, i)) {
+        if (u->nation_id != owner || units_is_sea(ctx->units, u->id)) {
           continue;
         }
         const ColonizeUnitType* t = units_type(ctx->units, u->type_index);

@@ -392,14 +392,19 @@ typedef struct EuropeScreen {
   uint16_t nation_horses[4];
   uint16_t nation_musket_batches[4];
   /*
-   * Human nation's boycott state — mirrors ColonizeCol1Nation.boycott_bitmap
-   * (ai_king.c tea-party / ai_diplo.c wartime embargo write it; this is a
-   * read-only copy refreshed each frame the Europe screen renders, since
-   * europe.c can't see ColonizeCol1Save directly). Bit c set = cargo type c
-   * blocked from Europe trade until the boycott is lifted. Source: fandom
-   * Boycott (Col) — "goods blocked in Europe until penalty paid or Fugger";
-   * Custom House bypasses this (europe_custom_house_autosell intentionally
-   * does not check it).
+   * RENDER MIRROR of the human nation's ColonizeCol1Nation.boycott_bitmap
+   * (nation+0x20) — refreshed each frame the Europe screen renders, and NOT a
+   * source of truth: ai_king.c's tea party and ai_diplo.c's wartime embargo
+   * write the nation word, so this copy is stale for anything that runs
+   * without a render in between (smell audit G6 — an EOT trade-route unload
+   * sold cargo the same turn's tea party had just boycotted). Every trade
+   * gate now goes through europe_cargo_boycotted_ex with the save in hand;
+   * what is left reading this field is Europe-screen chrome (market strip
+   * colour, @ARMOPTIONS row visibility) and callers with no save bound
+   * (tests). Bit c set = cargo type c blocked from Europe trade until the
+   * boycott is lifted. Source: fandom Boycott (Col) — "goods blocked in
+   * Europe until penalty paid or Fugger"; Custom House bypasses this
+   * (europe_custom_house_autosell intentionally does not check it).
    */
   uint16_t boycott_bitmap;
   /* Mirrors ColonizeCol1Nation.artillery_count (nation+0x1e) for the human —
@@ -739,10 +744,94 @@ void europe_tick_voyages(EuropeScreen* eu, const ColonizeUnitPool* units);
 int europe_cash_treasure(EuropeScreen* eu, int treasure_value);
 
 /*
- * True when cargo_type is set in eu->boycott_bitmap (Parliament boycott
- * still active — see EuropeScreen.boycott_bitmap). Out-of-range cargo_type
- * reads as not boycotted.
+ * ONE treasury per nation — the single door onto it.
+ *
+ * DOS FUN_38fd_0000(nation) (viceroy_unpacked.c 58695-58703) is the whole of
+ * the Europe module's per-nation state: `DS:0x9e12 = nation` and
+ * `DS:0x84fc = nation*0x13c + 0x8808`, i.e. a POINTER to that nation's
+ * 316-byte record. The treasury it spends is that record's 32-bit +0x2a/+0x2c
+ * word (FUN_38fd_2dfe debits it at viceroy 60931-60935; ai_euro.c's 1dfa notes
+ * document the same offset). DOS has no Europe-side copy of it.
+ *
+ * The port has two stores: `EuropeScreen.gold` — live for whoever the module
+ * is bound to (`eu->bound_nation`, DS:0x9e12, always the human here) — and
+ * `ColonizeCol1Nation.gold`, live for every other nation and the word that
+ * goes out to the save file. Smell audit G3: readers and writers were split
+ * between them with no per-turn sync, so gold earned outside Europe (colony
+ * plunder, ransom, loot, King gifts, Indian raid drains) landed in the human's
+ * stale copy and was overwritten by the next europe→col1 push, while
+ * gold-gated decisions read a stale purse.
+ *
+ * Read with europe_nation_gold: the bound nation answers from `eu->gold`
+ * (live), everyone else from the record. Write with europe_nation_gold_add:
+ * the delta lands on `eu->gold` for the bound nation with the record
+ * re-stamped from it, and on the record alone for everyone else. Both accept
+ * NULL for either store. Outside these two, never assign one store from the
+ * other: an absolute copy is what discards a credit the other store already
+ * took (that is the bug), and the delta form is also what keeps the AI borrow
+ * pattern (units.c / ai_euro.c park an AI treasury in `eu->gold` for one call
+ * and assign it back) from ever touching the human's purse.
  */
+uint32_t europe_nation_gold(
+  const EuropeScreen* eu, const struct ColonizeCol1Save* col1, int nation
+);
+void europe_nation_gold_add(
+  EuropeScreen* eu, struct ColonizeCol1Save* col1, int nation, long delta
+);
+
+/*
+ * Register the live Europe screen for the two accessors above, so writers that
+ * legitimately hold only a save — colony-capture plunder (colony.c), combat
+ * ransom/loot (units.c), Indian raid drains — can move the one treasury
+ * without an EuropeScreen threaded through combat. Both accessors fall back to
+ * this pointer when their `eu` argument is NULL; with neither, they degrade to
+ * the record alone (which is what they did before, i.e. the bug). Same
+ * register-once idiom as colonies_set_col1_context / units_set_combat_*.
+ * Pass NULL to unregister. The registered screen must be the LIVE one for the
+ * save being written; a purse borrowed by an AI (units.c / ai_euro.c) is only
+ * ever credited for that AI's own nation, never for the human.
+ */
+void europe_set_live_screen(EuropeScreen* eu);
+
+/*
+ * Stamp the bound nation's record from the purse.
+ *
+ * The five Europe actions that hold no save — europe_recruit_from_pool,
+ * europe_train, europe_purchase, europe_cash_treasure, europe_cheat_add_gold —
+ * can only move `eu->gold`, so the record lags until something writes through
+ * again. All five are reachable from the Europe screen only, which is why the
+ * port already open-coded this stamp at four game_loop sites; this is that
+ * one write, named, so the invariant has a single home. Everything else must
+ * use europe_nation_gold_add instead: a stamp is an absolute copy and will
+ * discard a credit the record took on its own.
+ */
+void europe_gold_stamp_record(const EuropeScreen* eu, struct ColonizeCol1Save* col1);
+
+/*
+ * True when `nation` has cargo_type under a Parliamentary boycott.
+ *
+ * DOS's one boycott accessor is FUN_38fd_05e8 (viceroy_unpacked.c 59010-59015,
+ * reached from other segments as thunk_FUN_291f_0cd8):
+ *   `return 1 << (cargo & 0x1f) & *(uint *)(*(int *)0x84fc + 0x20);`
+ * — the bound nation record's +0x20 word, the same store the tea party ORs
+ * into (FUN_38fd_3dc8, viceroy 64208/64306) and the buy-back clears
+ * (FUN_38fd_2dfe, viceroy 60943). Every DOS trade path calls it, the
+ * trade-route Europe arrival FUN_479b_0bd0 included (viceroy 77260).
+ *
+ * So the authoritative word is `col1->nation[nation].boycott_bitmap`
+ * (nation+0x20), and `EuropeScreen.boycott_bitmap` is only its render-side
+ * mirror — refreshed while the Europe screen draws (game_loop.c
+ * render_europe_screen), which is why the sell paths that never touch the
+ * screen must not read it (smell audit G6). Pass col1 + nation whenever a
+ * save is in hand; the `col1 == NULL` form falls back to the mirror for
+ * tests, chrome and callers with no save bound. Out-of-range cargo_type reads
+ * as not boycotted; a 0xFFFF word (the removed all-cargo-embargo fingerprint,
+ * bugs.md all_boycotted.SAV) reads as no boycott, as both bridge directions
+ * already heal it to 0.
+ */
+int europe_cargo_boycotted_ex(
+  const EuropeScreen* eu, const struct ColonizeCol1Save* col1, int nation, int cargo_type
+);
 int europe_cargo_boycotted(const EuropeScreen* eu, int cargo_type);
 
 /*

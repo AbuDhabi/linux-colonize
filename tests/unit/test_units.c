@@ -8049,6 +8049,17 @@ int main(void) {
       units_set_native_fallout_context(&c1, &map, -1);
       units_set_occupancy_map(&map);
 
+      /*
+       * Raid-win MP (smell audit 2026-09-10 A3): the stay-put raid branch pays
+       * step cost + the 3-third combat-entry surcharge, same as the loss and
+       * the ordinary land-win stay-put branch. DOS charges the surcharge at
+       * FUN_5fef_1b0e ENTRY (`*(char *)(iVar23 + 0x3149) += 3` under
+       * `if (param_5 != 0)`, viceroy_unpacked.c:100341-100343) — before the
+       * roll — so no outcome of one attack can be cheaper than another.
+       */
+      const int raid_cost = units_move_cost(&pool, aid, &map, vx, vy);
+      const int raid_mp_before = a->moves_left;
+
       /* First empty-village attack: temp Brave, pop 3→2, dwelling remains. */
       if (!units_try_move(&pool, aid, &map, vx, vy, NULL, NULL)) {
         fprintf(
@@ -8082,6 +8093,22 @@ int main(void) {
         free(c1.tribe);
         fprintf(stderr, "village-temp soldier should survive\n");
         return 1;
+      }
+      {
+        const int want_mp =
+          raid_mp_before - (raid_cost + 3) < 0 ? 0 : raid_mp_before - (raid_cost + 3);
+        if (a->moves_left != want_mp) {
+          fprintf(
+            stderr,
+            "village-temp raid win MP: got %d want %d (before %d cost %d + 3)\n",
+            a->moves_left,
+            want_mp,
+            raid_mp_before,
+            raid_cost
+          );
+          free(c1.tribe);
+          return 1;
+        }
       }
       /* DOS: fight from adjacent and stay — do not enter the village tile. */
       if (a->x != vx - 1 || a->y != vy) {
