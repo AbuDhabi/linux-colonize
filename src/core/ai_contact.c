@@ -29,28 +29,28 @@ static char s_last_ship_type[48];
 static int s_last_gold_drained;
 
 /*
- * Per-Indian-nation VISIT cooldown, keyed by absolute turn number. Hoisted
- * out of its functions 2026-09-09 (smell #58) so ai_contact_reset can clear
- * it: an absolute turn stamp left over from a previous campaign suppresses
- * the arm for the whole early game of the next one.
- *
- * ONE array for all three arms (bugs.md 423, "Indians came to demand Horses
- * very damn quickly, at zero apparent alarm"). DOS's FUN_5bfb_022e is a
- * single encounter that picks exactly one of gift / beg / demand off `bVar6`
- * (viceroy_unpacked.c 96723-96731: `bVar6 = local_10 == 0 && bVar5`, then the
- * demand half at LAB_5bfb_0def is guarded by `if (!bVar6)`), and the
- * generous half stamps `contact_state = 2` which is the demand half's own
- * `!= 2` gate. The port reconstructs the encounter as three functions run in
- * order behind an 8-turn throttle, and the throttle used to be per-arm: a
- * village that had just handed over a GIFT put only the gift arm to sleep,
- * and since FUN_4d56_1b3a phase 1 clears every contact_state at the top of
- * the next turn (ai_indian_midpass_clear_tables), the very next turn the gift
- * arm returned early on its own cooldown without ever computing the mood roll
- * — so the demand arm ran unopposed at alarm 0. Sharing the stamp restores
- * DOS's "one resolved visit per encounter": whichever arm resolves the visit
- * puts the whole visit to sleep.
+ * VISIT pacing (no turn cooldown — DOS has none; audited 2026-09-10).
+ * DOS's FUN_5bfb_022e is a single encounter that picks exactly one of
+ * gift / beg / demand off `bVar6` (viceroy_unpacked.c 96723-96731:
+ * `bVar6 = local_10 == 0 && bVar5`, then the demand half at LAB_5bfb_0def is
+ * guarded by `if (!bVar6)`), and the generous half stamps `contact_state = 2`
+ * which is the demand half's own `!= 2` gate. Its cadence comes from four
+ * gates the port carries in full:
+ *  - the move-tail trigger: a Brave must WALK UP to the colony this turn
+ *    (ai_contact_brave_walked_up_to, all three arms);
+ *  - once per nation per move-tail pass (`aiStack_20[nation]`, viceroy
+ *    98653-98676) — the port's once-per-nation-per-turn arm order in ai.c §9
+ *    (gifts first; a resolved gift or beg returns before the next arm);
+ *  - the `contact_state` latch (2 = generous resolved blocks demand, 1 = past
+ *    demand blocks gifts), cleared EVERY TURN at the top of FUN_4d56_1b3a
+ *    (viceroy 81704-81707, ai_indian_midpass_clear_tables);
+ *  - the alarm ceiling (`> 0x4a` bails the whole visit) and the mood RNG.
+ * An earlier port (through 2026-09-09) added an invented 8-turn per-nation
+ * throttle on top; bugs.md 423's defect (demand at alarm 0 right after a
+ * gift) was really the per-arm split of that throttle bypassing the mood
+ * roll, and the structural gift-before-demand order above is the DOS-real
+ * fix. Do not reintroduce a cooldown.
  */
-static uint16_t s_visit_cooldown_until[8];
 
 
 int ai_contact_last_raid_kind(void) {
@@ -3768,14 +3768,10 @@ void ai_contact_try_village_beg_food(ColonizeTurnContext* ctx, int nation_id) {
   }
   /*
    * bugs.md: DOS begs at the colony a Brave actually walked next to — the
-   * tribe cannot ask from across the map, and it must not re-ask every
-   * turn. A colony qualifies only with one of this tribe's units standing
-   * adjacent, and each tribe asks at most once per 8 turns.
+   * tribe cannot ask from across the map. The walked-up trigger below plus
+   * the per-turn contact_state latch are DOS's whole pacing (see the visit
+   * pacing note at the top of this file); there is no turn cooldown.
    */
-  const uint16_t now_turn = ctx->col1->head.turn;
-  if (now_turn && s_visit_cooldown_until[nation_id - 4] > now_turn) {
-    return;
-  }
   for (int e = 0; e < 4; ++e) {
     if (!ind->euro_diplo[e]) {
       continue;
@@ -3793,13 +3789,13 @@ void ai_contact_try_village_beg_food(ColonizeTurnContext* ctx, int nation_id) {
     }
     /*
      * DOS's demand half is latched off once this pair has resolved a generous
-     * visit *this year*: `if (contact_state != 2 && (colony || wagon))` guards
+     * visit *this turn*: `if (contact_state != 2 && (colony || wagon))` guards
      * LAB_5bfb_0def, and state 1 (a past demand) symmetrically disables the
      * gift arm (`local_10`).
      *
-     * The latch is per-year, NOT permanent: the Indian mid-pass zeroes all 32
-     * contact_state entries at the top of every year (DOS
-     * `word[(i*0x27 + j)*2 + 0x5b04] = 0`, ported as
+     * The latch is per-turn, NOT permanent: the Indian mid-pass zeroes all 32
+     * contact_state entries at the top of every turn (DOS FUN_4d56_1b3a,
+     * viceroy 81704-81707, `word[(i*0x27 + j)*2 + 0x5b04] = 0`, ported as
      * ai_indian_midpass_clear_tables() in ai.c). So each tribe/Euro pair
      * resolves at most one gift-or-beg visit per turn, then is eligible again
      * next turn — which is why DOS villages keep visiting instead of going
@@ -3884,7 +3880,6 @@ void ai_contact_try_village_beg_food(ColonizeTurnContext* ctx, int nation_id) {
     if (roll > delta) {
       continue;
     }
-    s_visit_cooldown_until[nation_id - 4] = (uint16_t)(now_turn + 8);
     ai_contact_bind_names(ctx);
     if (ai_contact_euro_is_human(ctx, e)) {
       const ColonizeColony* beg_colony = &ctx->colonies->colonies[best_ci];
@@ -5095,7 +5090,8 @@ static const uint8_t k_2820_throttle[16] = {0x00, 0x05, 0x02, 0x03, 0x04, 0x01, 
  * scan found. The Linux native pulse commits its steps inline and runs the
  * contact arms once per nation afterwards, so this reconstructs the trigger
  * from ai_native_brave_turn_origin (the Brave must have walked up this turn —
- * see ai_contact_brave_walked_up_to) plus an 8-turn per-nation throttle, and
+ * see ai_contact_brave_walked_up_to; no turn cooldown — see the visit
+ * pacing note at the top of this file), and
  * declines entirely without a popup queue. That last gate exists because the
  * port's Brave paths are NOT DOS-faithful (golden_ai_turns is DISABLED for
  * exactly that): in COLONY00→01 the port walks an Iroquois Brave to (49,48),
@@ -5129,10 +5125,6 @@ int ai_contact_try_village_gifts(ColonizeTurnContext* ctx, int nation_id) {
     return 0;
   }
   ColonizeCol1Indian* ind = &ctx->col1->indian[nation_id - 4];
-  const uint16_t now_turn = ctx->col1->head.turn;
-  if (now_turn && s_visit_cooldown_until[nation_id - 4] > now_turn) {
-    return 0;
-  }
   for (int e = 0; e < 4; ++e) {
     if (!ind->euro_diplo[e]) {
       continue; /* unmet — first contact runs its own arm */
@@ -5266,7 +5258,6 @@ int ai_contact_try_village_gifts(ColonizeTurnContext* ctx, int nation_id) {
             ai_contact_tribe_name(nation_id), c->name
           );
         }
-        s_visit_cooldown_until[nation_id - 4] = (uint16_t)(now_turn + 8);
         return 1; /* DOS: goto LAB_5bfb_1000 — the visit is resolved */
       }
     }
@@ -5376,7 +5367,6 @@ int ai_contact_try_village_gifts(ColonizeTurnContext* ctx, int nation_id) {
         ai_contact_tribe_name(nation_id), c->name
       );
     }
-    s_visit_cooldown_until[nation_id - 4] = (uint16_t)(now_turn + 8);
     return 1; /* one gift-bearing visit per Indian nation per turn */
   }
   return 0;
@@ -5436,7 +5426,9 @@ int ai_contact_try_village_gifts(ColonizeTurnContext* ctx, int nation_id) {
  *
  * TRIGGER: the same reconstruction @INDIANBEGFOOD and the gift arm use — a
  * unit of this nation that WALKED UP to the target this turn
- * (ai_contact_brave_walked_up_to), one event per Indian nation per 8 turns.
+ * (ai_contact_brave_walked_up_to), at most one event per Indian nation per
+ * turn (no turn cooldown — see the visit pacing note at the top of this
+ * file).
  * Like the gift arm, the whole arm declines without a popup queue: a caller
  * with no presentation context (the DOS colony-production golden fixtures
  * drive turn_end directly) is replaying production math, and this arm both
@@ -5468,7 +5460,6 @@ static AiContactReparations s_reparations[4];
  */
 void ai_contact_reset(void) {
   memset(s_reparations, 0, sizeof(s_reparations));
-  memset(s_visit_cooldown_until, 0, sizeof(s_visit_cooldown_until));
 }
 
 /*
@@ -5780,10 +5771,6 @@ static void ai_contact_try_village_reparations(ColonizeTurnContext* ctx, int nat
     return; /* no presentation context — see the header's TRIGGER note */
   }
   ColonizeCol1Indian* ind = &ctx->col1->indian[nation_id - 4];
-  const uint16_t now_turn = ctx->col1->head.turn;
-  if (now_turn && s_visit_cooldown_until[nation_id - 4] > now_turn) {
-    return;
-  }
   for (int e = 0; e < 4; ++e) {
     if (!ind->euro_diplo[e]) {
       continue; /* unmet — first contact runs its own arm */
@@ -5860,7 +5847,6 @@ static void ai_contact_try_village_reparations(ColonizeTurnContext* ctx, int nat
       if (best_qty <= 0) {
         continue;
       }
-      s_visit_cooldown_until[nation_id - 4] = (uint16_t)(now_turn + 8);
       AiContactReparations* s = &s_reparations[e];
       s->active = 1;
       s->nation_id = nation_id;
@@ -5931,7 +5917,6 @@ static void ai_contact_try_village_reparations(ColonizeTurnContext* ctx, int nat
       continue;
     }
     ind->contact_state[e] = 1;
-    s_visit_cooldown_until[nation_id - 4] = (uint16_t)(now_turn + 8);
     AiContactReparations* s = &s_reparations[e];
     s->active = 1;
     s->nation_id = nation_id;
