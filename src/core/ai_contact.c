@@ -54,6 +54,45 @@ static int s_last_gold_drained;
  */
 
 
+/*
+ * One encounter per Brave per turn (bugs.md: "attacked my colony, and then
+ * gave me gifts in the same interaction").
+ *
+ * DOS has no separate "visit" and "raid" passes: FUN_5bfb_35xx's move tail
+ * walks the stepped-onto tile ONCE (viceroy 98628-98690) and picks a single
+ * limb off the war test — `FUN_281f_0768(mover, neighbour)` non-zero takes
+ * the hostile limb, zero takes the encounter limb that ends in
+ * thunk_FUN_2a1f_066c = FUN_5bfb_022e (gift / beg / demand), latched
+ * per-nation in `aiStack_20[nation]`. The port splits those limbs across
+ * ai.c §9's arm order, so the SAME Brave could be picked up by the gift arm
+ * and then again by the raid pulse in one nation-turn. This latch restores
+ * the one-limb rule: a Brave that resolved a peaceful visit is off the table
+ * for the raid pulse this turn.
+ */
+static int s_visit_brave_id[8] = {-1, -1, -1, -1, -1, -1, -1, -1};
+static int s_visit_brave_turn[8];
+
+static void ai_contact_mark_visit_brave(
+  const ColonizeTurnContext* ctx, int nation_id, int brave_id
+) {
+  if (!ctx || nation_id < 4 || nation_id > 11 || brave_id < 0) {
+    return;
+  }
+  s_visit_brave_id[nation_id - 4] = brave_id;
+  s_visit_brave_turn[nation_id - 4] = ctx->turn_number ? (int)*ctx->turn_number : 0;
+}
+
+static int ai_contact_brave_visited_this_turn(
+  const ColonizeTurnContext* ctx, int nation_id, int brave_id
+) {
+  if (!ctx || nation_id < 4 || nation_id > 11 || brave_id < 0) {
+    return 0;
+  }
+  const int turn = ctx->turn_number ? (int)*ctx->turn_number : 0;
+  return s_visit_brave_id[nation_id - 4] == brave_id &&
+         s_visit_brave_turn[nation_id - 4] == turn;
+}
+
 int ai_contact_last_raid_kind(void) {
   return s_last_raid_kind;
 }
@@ -3611,6 +3650,104 @@ static void ai_contact_tribe_alarm_word_set(ColonizeCol1Tribe* t, int e, int w) 
 }
 
 /*
+ * FUN_5bfb_022e entry mood — `local_10` / `bVar5` / `bVar6`, viceroy 96707-96731.
+ *
+ *   iVar16 = village attitude word toward e   (*(0x8d4a + e*2 + 10))
+ *   local_10 = (0x7f < iVar16) || contact_state[e] == 1
+ *   if (local_10) { if (rng(1,0x80) < iVar16 - 0x80) abort the whole visit; }
+ *   bVar5 = max(0, alarm - 0x19) * 4 + iVar16 <= rng(1, 0x148)
+ *   bVar6 = (local_10 == 0) && bVar5
+ *
+ * and then the demand half is `if (!bVar6) { LAB_5bfb_0def ... }`.
+ *
+ * bugs.md ("Incas ... I have no colonies over there ... demanding stuff"):
+ * the port split 022e's two halves into two functions, and only the gift half
+ * evaluated bVar6. The @INDIANWAGONS flavor of the demand half needs no colony
+ * at all, so for a Brave that wandered up to a lone Wagon Train the gift half
+ * bailed early (no colony of `e` anywhere near) and the demand half then ran
+ * with NO mood gate — a tribe at alarm 0 whose village word is 0 demanded
+ * reparations, where DOS's bVar5 (`0 <= rng(1,0x148)`, always true) makes
+ * bVar6 true and skips LAB_5bfb_0def outright.
+ *
+ * DOS draws once per encounter, so the gift arm publishes its verdict here and
+ * the demand arm reuses it instead of re-rolling; when the gift arm never got
+ * as far as the draw (no colony, or the hostile `local_10` latch, which DOS
+ * reaches with its own extra roll), the demand arm runs the full DOS sequence
+ * itself.
+ */
+typedef struct AiContactVisitMood {
+  int valid;
+  int bvar6;
+  int turn;
+  int brave_id;
+} AiContactVisitMood;
+
+static AiContactVisitMood s_visit_mood[8][4];
+
+/* The verdict belongs to ONE encounter: same turn, same visiting Brave. */
+static void ai_contact_visit_mood_publish(
+  const ColonizeTurnContext* ctx, int nation_id, int e, int brave_id, int bvar6
+) {
+  if (nation_id < 4 || nation_id > 11 || e < 0 || e > 3) {
+    return;
+  }
+  AiContactVisitMood* m = &s_visit_mood[nation_id - 4][e];
+  m->valid = 1;
+  m->bvar6 = bvar6;
+  m->turn = (ctx && ctx->turn_number) ? (int)*ctx->turn_number : -1;
+  m->brave_id = brave_id;
+}
+
+static void ai_contact_visit_mood_clear(int nation_id, int e) {
+  if (nation_id < 4 || nation_id > 11 || e < 0 || e > 3) {
+    return;
+  }
+  s_visit_mood[nation_id - 4][e].valid = 0;
+}
+
+/*
+ * Answers DOS's `if (!bVar6)` for the demand half. Returns 1 when DOS would
+ * fall into LAB_5bfb_0def, 0 when the encounter is generous (bVar6) or the
+ * hostile roll aborted the visit.
+ */
+static int ai_contact_visit_demand_allowed(
+  ColonizeTurnContext* ctx,
+  const ColonizeCol1Indian* ind,
+  const ColonizeCol1Tribe* t,
+  int nation_id,
+  int e,
+  int brave_id,
+  int alarm
+) {
+  if (nation_id >= 4 && nation_id <= 11 && e >= 0 && e <= 3) {
+    const AiContactVisitMood* m = &s_visit_mood[nation_id - 4][e];
+    const int turn = (ctx && ctx->turn_number) ? (int)*ctx->turn_number : -1;
+    if (m->valid && m->turn == turn && m->brave_id == brave_id) {
+      return m->bvar6 ? 0 : 1;
+    }
+  }
+  if (!ctx || !ctx->rng || !ind || !t) {
+    return 0;
+  }
+  const int word = ai_contact_tribe_alarm_word(t, e);
+  const int local_10 = (word > 0x7f) || (ind->contact_state[e] == 1);
+  if (local_10) {
+    if (dos_rng_range(ctx->rng, 1, 0x80) < word - 0x80) {
+      return 0; /* goto LAB_5bfb_1005 — no visit at all */
+    }
+  }
+  const int roll = dos_rng_range(ctx->rng, 1, 0x148);
+  int over = alarm - 0x19;
+  if (over < 0) {
+    over = 0;
+  }
+  const int bvar5 = (over * 4 + word) <= roll;
+  const int bvar6 = (local_10 == 0) && bvar5;
+  ai_contact_visit_mood_publish(ctx, nation_id, e, brave_id, bvar6);
+  return bvar6 ? 0 : 1;
+}
+
+/*
  * `home_tribe` is the VISITING Brave's own settlement — DOS binds it with
  * FUN_281f_0a4c(unit+0x314a) before the encounter body runs (viceroy 96706),
  * and every settlement-scoped effect below (the attitude-word zero / ×1.5,
@@ -3915,6 +4052,7 @@ void ai_contact_try_village_beg_food(ColonizeTurnContext* ctx, int nation_id) {
        * the colony (FUN_281f_0e08/02d0/09ba slide) before the popup — reuse
        * the combat-bump watch so the visit reads on screen first.
        */
+      ai_contact_mark_visit_brave(ctx, nation_id, visit_brave_id);
       units_combat_watch_notify(ctx->units, visit_brave_id, beg_colony->x, beg_colony->y);
       PopupMsgTokens tok;
       memset(&tok, 0, sizeof(tok));
@@ -5157,6 +5295,8 @@ int ai_contact_try_village_gifts(ColonizeTurnContext* ctx, int nation_id) {
   }
   ColonizeCol1Indian* ind = &ctx->col1->indian[nation_id - 4];
   for (int e = 0; e < 4; ++e) {
+    /* One encounter, one mood verdict — drop last turn's. */
+    ai_contact_visit_mood_clear(nation_id, e);
     if (!ind->euro_diplo[e]) {
       continue; /* unmet — first contact runs its own arm */
     }
@@ -5219,10 +5359,17 @@ int ai_contact_try_village_gifts(ColonizeTurnContext* ctx, int nation_id) {
       over = 0;
     }
     if (over * 4 + word > roll) {
-      continue; /* mood roll failed (bVar5) — not generous this visit */
+      /* mood roll failed (bVar5) — not generous this visit; DOS then falls
+       * into LAB_5bfb_0def with bVar6 == false. Publish the verdict so the
+       * demand arm does not re-roll the same encounter (see
+       * ai_contact_visit_mood_publish). */
+      ai_contact_visit_mood_publish(ctx, nation_id, e, brave ? brave->id : -1, 0);
+      continue;
     }
+    ai_contact_visit_mood_publish(ctx, nation_id, e, brave ? brave->id : -1, 1);
     if (alarm > 0x31) {
       ind->contact_state[e] = 2; /* DOS: bVar6 flips off, state stamped */
+      ai_contact_mark_visit_brave(ctx, nation_id, brave->id);
       continue;
     }
     /*
@@ -5230,6 +5377,7 @@ int ai_contact_try_village_gifts(ColonizeTurnContext* ctx, int nation_id) {
      * visited nation before the convert/gift split (both halves get it).
      */
     ind->contact_state[e] = 2;
+    ai_contact_mark_visit_brave(ctx, nation_id, brave->id);
     ai_contact_tribe_alarm_word_set(t, e, 0);
     /*
      * @INDIANSCONVERT (viceroy 96996-97010): mission owned by e → `tech + 2`,
@@ -5492,6 +5640,7 @@ static AiContactReparations s_reparations[4];
  */
 void ai_contact_reset(void) {
   memset(s_reparations, 0, sizeof(s_reparations));
+  memset(s_visit_mood, 0, sizeof(s_visit_mood));
 }
 
 /*
@@ -5723,6 +5872,16 @@ static int ai_contact_reparations_home_tribe(
       (int)ctx->col1->tribe[brave->home_tribe_id].nation_id == nation_id) {
     return brave->home_tribe_id;
   }
+  /*
+   * No fallback: DOS aborts the WHOLE encounter when the visiting unit's
+   * origin byte is unset — `if (*(char *)(param_3 * 0x1c + 0x314a) < '\0')
+   * goto LAB_5bfb_1005;` (viceroy 96705), right before FUN_281f_0a4c binds
+   * DS:0x8d4a to that village record. The old "first village of the nation"
+   * fallback made the refusal's +0x80 (LAB_5bfb_0ff2) land on a village that
+   * is not the demanding Brave's home, so units_native_village_grudge — which
+   * reads the mover's own +0x314a row, exactly like FUN_521d_0906 on
+   * DS:0x54f6 — never saw the grudge and the Brave never answered a refusal.
+   */
   for (uint16_t ti = 0; ti < ctx->col1->head.tribe_count; ++ti) {
     if ((int)ctx->col1->tribe[ti].nation_id == nation_id) {
       return (int)ti;
@@ -5842,6 +6001,12 @@ static void ai_contact_try_village_reparations(ColonizeTurnContext* ctx, int nat
       if (tribe_index < 0) {
         continue;
       }
+      if (!ai_contact_visit_demand_allowed(
+            ctx, ind, &ctx->col1->tribe[tribe_index], nation_id, e,
+            brave ? brave->id : -1, ai_diplo_indian_alarm(ctx->col1, nation_id, e)
+          )) {
+        continue; /* bVar6 — this encounter is the generous half, not a demand */
+      }
       /* The cargo scan (raw 96843-96874). */
       int best_cargo = -1;
       int best_qty = 0;
@@ -5949,6 +6114,12 @@ static void ai_contact_try_village_reparations(ColonizeTurnContext* ctx, int nat
     const int tribe_index = ai_contact_reparations_home_tribe(ctx, nation_id, brave);
     if (tribe_index < 0) {
       continue;
+    }
+    if (!ai_contact_visit_demand_allowed(
+          ctx, ind, &ctx->col1->tribe[tribe_index], nation_id, e,
+          brave ? brave->id : -1, ai_diplo_indian_alarm(ctx->col1, nation_id, e)
+        )) {
+      continue; /* bVar6 — generous encounter; DOS never reaches @INDIANWAGONS */
     }
     ind->contact_state[e] = 1;
     AiContactReparations* s = &s_reparations[e];
@@ -8146,6 +8317,30 @@ static int ai_contact_displace_scout(
   return 1;
 }
 
+/*
+ * A Brave carrying its own village's refused-demand grudge (attitude word
+ * > 0x7f, LAB_5bfb_0ff2) must not be diverted into the escort/follow arm —
+ * it is here to answer the refusal. Same row FUN_521d_0906 reads.
+ */
+static int ai_contact_brave_home_grudge(
+  const ColonizeTurnContext* ctx, const ColonizeUnit* brave
+) {
+  if (!ctx || !ctx->col1_ok || !ctx->col1 || !ctx->col1->tribe || !brave) {
+    return 0;
+  }
+  if (brave->home_tribe_id < 0 ||
+      brave->home_tribe_id >= (int)ctx->col1->head.tribe_count) {
+    return 0;
+  }
+  const ColonizeCol1Tribe* t = &ctx->col1->tribe[brave->home_tribe_id];
+  for (int e = 0; e < 4; ++e) {
+    if (ai_contact_tribe_alarm_word(t, e) > 0x7f) {
+      return 1;
+    }
+  }
+  return 0;
+}
+
 void ai_contact_indian_raids(ColonizeTurnContext* ctx, int nation_id) {
   if (!ctx || !ctx->units || !ctx->map || !ctx->col1_ok || !ctx->col1) {
     return;
@@ -8190,6 +8385,12 @@ void ai_contact_indian_raids(ColonizeTurnContext* ctx, int nation_id) {
     if (units_is_sea(ctx->units, brave->id)) {
       continue;
     }
+    /* One limb per Brave per turn — a Brave that already resolved the
+     * peaceful 5bfb_022e visit (gift / convert / beg) this turn does not also
+     * raid. See the s_visit_brave_id note at the top of this file. */
+    if (ai_contact_brave_visited_this_turn(ctx, nation_id, brave->id)) {
+      continue;
+    }
 
     /*
      * 1. Gate: among Euros with friction/alarm ≥40, prefer Indian×Euro at-war
@@ -8205,6 +8406,7 @@ void ai_contact_indian_raids(ColonizeTurnContext* ctx, int nation_id) {
      * indian_raid_outcomes.md §1.
      */
     if (brave->orders == UNITS_ORDER_NONE &&
+        !ai_contact_brave_home_grudge(ctx, brave) &&
         units_remaining_mp(ctx->units, brave->id) > 0) {
       const int lead =
         ai_contact_escort_pick_lead(ctx, ind, nation_id, brave->id, brave);
@@ -8602,38 +8804,6 @@ void ai_contact_indian_raids(ColonizeTurnContext* ctx, int nation_id) {
                 );
               }
               raid_body = raid_line;
-            } else if (had_peace && max_alarm >= 55) {
-              /* GAME.TXT @INDIANWAR thin — provocations break the treaty. */
-              snprintf(
-                raid_line,
-                sizeof(raid_line),
-                "The %s declare war! Prepare for WAR!",
-                tribe
-              );
-              raid_body = raid_line;
-            } else if (!eff_at_war) {
-              /* GAME.TXT @INDIANSURPRISE thin — a raid while NOT at war is
-               * deniable; once at war (alarm past 0x4a, or the WAR bit) the
-               * plain @RAID* chrome below is used (indian_raid_outcomes.md
-               * §8; bugs.md's "first attack" observation is this rule seen
-               * from play — the first raid predates the war band). */
-              if (c->name[0]) {
-                snprintf(
-                  raid_line,
-                  sizeof(raid_line),
-                  "The %s make a surprise raid near %s! Their chief denies involvement.",
-                  tribe,
-                  c->name
-                );
-              } else {
-                snprintf(
-                  raid_line,
-                  sizeof(raid_line),
-                  "The %s make a surprise raid! Their chief denies involvement.",
-                  tribe
-                );
-              }
-              raid_body = raid_line;
             } else if (kind == AI_RAID_SHIP) {
               /* GAME.TXT @RAIDSHIP: "{tribe}... in {colony}! {ship} damaged. Colonists appalled!" */
               if (c->name[0]) {
@@ -8776,6 +8946,44 @@ void ai_contact_indian_raids(ColonizeTurnContext* ctx, int nation_id) {
               }
               raid_body = raid_line;
             }
+            /*
+             * bugs.md: the @INDIANWAR / @INDIANSURPRISE lines used to sit as
+             * two arms INSIDE this chain, so any raid by a tribe that was not
+             * yet at war printed only "their chief denies involvement" and
+             * the player never learned what had been stolen or burned — the
+             * loot was applied silently. DOS FUN_5fef_0f14 has no such arm:
+             * it always fires the per-kind tag for a human victim (0x1b94
+             * @RAIDSTORES / 0x1b9f @RAIDBURN / 0x1ba8 @RAIDSHIP / 0x1bb1
+             * @RAIDGOLD / 0x1bba @RAIDNOTHING, raw 99909-100020). The war /
+             * deniability sentence is Linux chrome, so it now rides IN FRONT
+             * of the DOS line instead of replacing it.
+             */
+            char raid_full[AI_POPUP_BODY_LEN];
+            if (raid_body && kind != AI_RAID_NOTHING) {
+              const char* pre = NULL;
+              char pre_buf[160];
+              if (had_peace && max_alarm >= 55) {
+                /* GAME.TXT @INDIANWAR thin — provocations break the treaty. */
+                snprintf(
+                  pre_buf, sizeof(pre_buf), "The %s declare war! Prepare for WAR!", tribe
+                );
+                pre = pre_buf;
+              } else if (!eff_at_war) {
+                /* GAME.TXT @INDIANSURPRISE thin — a raid while NOT at war is
+                 * deniable (indian_raid_outcomes.md §8). */
+                snprintf(
+                  pre_buf,
+                  sizeof(pre_buf),
+                  "The %s make a surprise raid! Their chief denies involvement.",
+                  tribe
+                );
+                pre = pre_buf;
+              }
+              if (pre) {
+                snprintf(raid_full, sizeof(raid_full), "%s  %s", pre, raid_body);
+                raid_body = raid_full;
+              }
+            }
             ai_contact_human_chrome(
               ctx,
               target_euro,
@@ -8815,6 +9023,18 @@ void ai_contact_indian_raids(ColonizeTurnContext* ctx, int nation_id) {
               &ctx->col1->tribe[brave->home_tribe_id], target_euro, 0
             );
           }
+          /*
+           * bugs.md: the raiding party does not survive its raid. DOS's only
+           * call site for FUN_5fef_0f14 is FUN_5fef_1b0e's loser limb (raw
+           * 101142): the native attacker has ALREADY been destroyed by the
+           * combat resolve before the raid resolver runs — @RAIDNOTHING even
+           * says so in as many words ("raiding party wiped out"). The port's
+           * pulse reaches 0f14 without a combat, so it has to discharge the
+           * raider itself; without this the Brave stayed parked on the colony
+           * tile and re-raided it every single turn, forever, at no risk.
+           */
+          units_despawn(ctx->units, brave->id);
+          continue;
         } else if (max_alarm >= 70) {
           /*
            * Approach march only in high-friction capture band (≥70). Mid gate
