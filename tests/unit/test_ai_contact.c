@@ -6548,45 +6548,24 @@ int main(void) {
     if (gp.queue_count < 1) {
       return fail("gift visit should raise a popup for the human");
     }
-    /* Second call in the same turn is refused (one visit per nation). */
-    dos_rng_seed(&gift_rng, 7u);
-    ctx.rng = &gift_rng;
-    col1.indian[0].contact_state[0] = 0;
-    const int again = ai_contact_try_village_gifts(&ctx, 4);
-    ctx.rng = saved_rng;
-    if (again) {
-      return fail("gift visit should not repeat while its cooldown stands");
-    }
     /*
-     * Smell #58: the module's cross-game statics (pending reparations offer +
-     * these absolute-turn cooldown stamps) had no reset hook, so they carried
-     * into the next new game. ai_contact_reset is now called from
-     * ai_init_new_game beside ai_goals_reset; after it the same visit is
-     * eligible again.
+     * 2026-09-10: the 8-turn visit cooldown was removed — DOS FUN_5bfb_022e
+     * and its move-tail caller carry no turn counter (see the visit pacing
+     * note atop ai_contact.c). A repeat call in the same turn IS a second
+     * encounter in DOS (a second Brave walking up), so nothing here refuses
+     * it; the once-per-nation-per-turn cadence is ai.c §9's call structure.
      */
-    ai_contact_reset();
-    dos_rng_seed(&gift_rng, 7u);
-    ctx.rng = &gift_rng;
-    col1.indian[0].contact_state[0] = 0;
-    const int after_reset = ai_contact_try_village_gifts(&ctx, 4);
-    ctx.rng = saved_rng;
-    if (!after_reset) {
-      return fail("ai_contact_reset should clear the gift cooldown for a new game");
-    }
     /*
      * bugs.md 423 ("Indians came to demand Horses very damn quickly, at zero
      * apparent alarm"). FUN_5bfb_022e is ONE encounter: `bVar6` picks the
      * generous half or the demand half (viceroy_unpacked.c 96723-96731 and
-     * the `if (!bVar6)` guard at 96833), never both. The port splits that
-     * encounter across three functions behind an 8-turn throttle, and the
-     * throttle used to be per-arm — so the turn AFTER a gift (contact_state
-     * having been cleared by FUN_4d56_1b3a phase 1) the gift arm bailed on
-     * its own cooldown without rolling the mood, and the demand arm ran
-     * unopposed at alarm 0. The throttle is now shared: whichever arm
-     * resolves a visit puts the whole visit to sleep.
+     * the `if (!bVar6)` guard at 96833), never both. At alarm 0 the mood
+     * roll is always generous, so the visit resolves as a gift and stamps
+     * `contact_state = 2` — the demand half's own gate. The port carries
+     * this structurally: ai.c §9 runs the gift arm first, and the beg/demand
+     * arms honour the state-2 latch. No demand can fire at alarm 0.
      */
     {
-      /* The gift above stamped the visit throttle at turn 9 (+8 = 17). */
       col1.head.turn = 10;
       col1.indian[0].contact_state[0] = 0; /* the midpass clears it every turn */
       col1.indian[0].alarm_by_player[0] = 0; /* zero alarm, as reported */
@@ -6605,9 +6584,10 @@ int main(void) {
       ctx.rng = &gift_rng;
       ai_popup_clear(&gp);
       /* ai.c's own order: the gift arm first, then the beg/demand half. */
-      if (ai_contact_try_village_gifts(&ctx, 4)) {
+      ai_contact_try_village_gifts(&ctx, 4);
+      if (col1.indian[0].contact_state[0] != 2) {
         ctx.rng = saved_rng;
-        return fail("gift arm should still be throttled the turn after a gift");
+        return fail("alarm-0 mood is generous — the visit must latch contact_state 2");
       }
       ai_contact_try_village_beg_food(&ctx, 4);
       ctx.rng = saved_rng;
@@ -6617,8 +6597,9 @@ int main(void) {
         }
       }
 
-      /* …and the fixture really is demand-capable: only the shared throttle
-       * suppressed it. Clearing the throttle brings the demand straight back. */
+      /* …and the fixture really is demand-capable: only the contact_state-2
+       * latch suppressed it. Clearing the latch (a new turn's midpass) with
+       * the gift arm skipped brings the demand straight back. */
       ai_contact_reset();
       dos_rng_seed(&gift_rng, 7u);
       ctx.rng = &gift_rng;
@@ -6638,7 +6619,7 @@ int main(void) {
       }
       ai_contact_reset();
       ai_popup_clear(&gp);
-      fprintf(stderr, "unit_ai_contact: shared visit throttle ok\n");
+      fprintf(stderr, "unit_ai_contact: gift-before-demand exclusion ok\n");
     }
     units_despawn(&units, gift_brave);
     for (int cg = 0; cg < COLONIZE_CARGO_COUNT; ++cg) {

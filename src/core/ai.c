@@ -4864,9 +4864,10 @@ static void ai_native_nation_pulse(
  * **Behavioural correction this exposes:** ai_contact.c's beg/gift arm
  * described `contact_state` as a permanent per-(tribe, Euro) latch ("a tribe
  * that has ever brought gifts to a nation never begs from it again"). DOS
- * wipes all 32 entries at the top of every year, so the latch is really
- * *per-year*: one gift-or-beg resolution per tribe/nation pair per turn.
- * That is why DOS villages keep visiting instead of going quiet forever.
+ * wipes all 32 entries at the top of every FUN_4d56_1b3a call — once per
+ * game turn (viceroy 81704-81707) — so the latch is really *per-turn*: one
+ * gift-or-beg resolution per tribe/nation pair per turn. That is why DOS
+ * villages keep visiting instead of going quiet forever.
  */
 void ai_indian_midpass_clear_tables(ColonizeTurnContext* ctx) {
   if (!ctx || !ctx->col1_ok || !ctx->col1) {
