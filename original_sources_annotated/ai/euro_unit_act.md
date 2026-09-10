@@ -2055,8 +2055,11 @@ soldiers, dragoons… or artillery"); `units_wake`.
  prefer Seasoned Scout on Europe dock (CONTACT / fog explore) when no higher
  shortage hire wins; else Elder Statesman (Town Hall liberty bells).
  **Church/Cathedral present:** prefer Firebrand Preacher on Europe dock (crosses).
- **Schoolhouse/College/University present:** prefer Expert Teacher on Europe dock
- (education / Skills Chart job 18).
+ **Schoolhouse/College/University present:** ~~prefer Expert Teacher on Europe
+ dock~~ **DEAD END — do not port.** The Expert Teacher colonist type was cut
+ from the final DOS game: the recruit-pool remap (`FUN_38fd_46d4`) folds @JOB
+ 0x12 into Master Carpenters, so no Expert Teacher can ever stand on the
+ Europe dock. Any hire preference for it is unreachable.
  **Craft building + raw≥20:** prefer Master Distiller/Weaver/Tobacconist/Fur Trader
  on Europe dock (Sugar/Cotton/Tobacco/Furs → Rum/Cloth/Cigars/Coats).
  Cite: europe.c expert pools; building_production /
@@ -2360,7 +2363,9 @@ Chart. Parallel to Farmer field-assign. No invented crop rates.
 **Elder Statesman / Firebrand Preacher / Expert Teacher / Master Carpenter
 workplace assign (unparked):** idle Elder Statesman → Town Hall; Firebrand
 Preacher → Church else Cathedral; Expert Teacher → Schoolhouse else College else
-University; Master Carpenter → Carpenter's Shop else Lumber Mill (highest owned;
+University (dead arm: the Expert Teacher type was cut from the final DOS game
+and no unit can carry @JOB 18 — kept only as save-tolerance, never extend it);
+Master Carpenter → Carpenter's Shop else Lumber Mill (highest owned;
 construction LABOR join remains fallback without Shop/Mill). Off-tile MD≤8 →
 LABOR goto. Cite: building_production.md Skills Chart jobs 13, 16–18;
 Colonization.pdf. Parallel to craft workplace assign. No invented rates.

@@ -416,6 +416,12 @@ static const char* europe_pool_job_name(int profession) {
  * which is also why reports.c's labour scan says Expert Teachers (18) and
  * Veteran Dragoons (23) "never appear". The port used to draw from a
  * hand-weighted candidate table that listed Expert Teachers outright.
+ *
+ * The Expert Teacher colonist TYPE was cut from the final DOS game: this
+ * remap makes it unhirable, schools can't produce it (graduates take the
+ * teacher's specialty), and its school level 4 bars it from teaching. Any
+ * DOS code that seems to create or handle one is a dead leftover — never
+ * port such paths.
  */
 static int europe_pool_remap(int job) {
   switch (job) {

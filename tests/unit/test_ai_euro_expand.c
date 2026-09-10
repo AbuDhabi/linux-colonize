@@ -16995,6 +16995,8 @@ static int unit_preacher_workplace_assign(void) {
 /*
  * Expert Teacher → Schoolhouse workplace (College/University when owned).
  * Cite: building_production.md Skills Chart job 18; Colonization.pdf Teacher.
+ * Note: the Expert Teacher colonist type was cut from the final DOS game
+ * (see europe_pool_remap) — this exercises the save-tolerance arm only.
  */
 static int unit_teacher_workplace_assign(void) {
   const int nation = 1;

@@ -197,6 +197,8 @@ Indices match `NAMES.TXT` `@JOB` and Col1 `profession` bytes.
 | Statesman | 17 | Elder Statesman | Town Hall | Liberty bells (×2 skilled) |
 | Teacher | 18 | Expert Teacher | Schoolhouse / College / University | **Occupation slot, not a specialty.** DOS marks a colonist as teaching by setting his *work slot* to 18 (`FUN_281f_0c0e == 0x12`); @JOB 18's own school level is **4**, so a colonist whose *specialty* is "Expert Teacher" can neither teach nor be taught. Unskilled teacher → `@NOTEACHER`; job tier above the school → `@NEEDCOLLEGE`/`@NEEDUNIVERSITY` |
 
+> **"Expert Teacher" the colonist type was cut from the final DOS game.** The devs removed it before release: the Europe recruit-pool remap (`FUN_38fd_46d4`) folds @JOB 18 into Master Carpenters, schools can't produce it (a graduate takes the teacher's own specialty), its school level 4 blocks it from teaching or studying, and the labor report skips it. Only the NAMES.TXT string, sprite 99 and this occupation-slot id survive as leftovers. Any DOS code path that appears to create, hire or specially handle an Expert Teacher *unit* is a dead end — do **not** port it.
+
 ### Not manufacturing
 
 | @JOB | Index | Role |
