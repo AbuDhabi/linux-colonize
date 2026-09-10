@@ -51,10 +51,11 @@ typedef struct ColonizeReportsView {
   bool background_ok[COLONIZE_REPORT_COUNT];
   ColonizeSpriteSheet icons; /* ICONS.SS, remapped to REPORT2.PIK's palette (cross counter). */
   bool icons_ok;
-  ColonizeFont title_font; /* FONTTINY.FF — report titles (golden: religious.png / labor.png). */
+  /* FONTTINY.FF — every line on every report screen, titles and body alike.
+   * The 3f41 overlay only ever loads the FONTTINY font pointer (DS:0x89e);
+   * there is no second report font (bugs.md 434). */
+  ColonizeFont title_font;
   bool title_font_ok;
-  ColonizeFont intro_font; /* FONTINTR.FF — Indian Adviser tribe name / tech level (golden: indian.png). */
-  bool intro_font_ok;
   /* Congress is two pages: p1 = REPORT3.PIK (this nation's own desk/study —
    * F3's natural REPORT-N slot, unused until now); p2 reuses backgrounds[
    * COLONIZE_REPORT_CONGRESS] (CCBKGD.PIK, the hall photo). */

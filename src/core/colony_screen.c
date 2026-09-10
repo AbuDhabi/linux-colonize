@@ -2011,8 +2011,12 @@ static int colony_screen_slot_size_class(int slot) {
  * lives in that one shuffle. Deterministic per colony, cheap enough to redo
  * on every call.
  */
-static void colony_screen_assign_slot_positions(
-  const ColonizeColonyPool* pool, const ColonizeColony* colony, int* xs, int* ys
+static void colony_screen_assign_slot_positions_ex(
+  const ColonizeColonyPool* pool,
+  const ColonizeColony* colony,
+  int* xs,
+  int* ys,
+  int* out_slot /* optional, indexed by category: the DS:0x266 SLOT it landed in */
 ) {
   (void)pool;
   int perm[COLONY_DOS_SLOT_COUNT];
@@ -2054,7 +2058,16 @@ static void colony_screen_assign_slot_positions(
     const int slot = (pos >= 0 && pos < COLONY_DOS_SLOT_COUNT && perm[pos] >= 0) ? perm[pos] : 0;
     xs[cat] = k_dos_slot_xy[slot].x;
     ys[cat] = k_dos_slot_xy[slot].y;
+    if (out_slot) {
+      out_slot[cat] = slot;
+    }
   }
+}
+
+static void colony_screen_assign_slot_positions(
+  const ColonizeColonyPool* pool, const ColonizeColony* colony, int* xs, int* ys
+) {
+  colony_screen_assign_slot_positions_ex(pool, colony, xs, ys, NULL);
 }
 
 static int colony_screen_find_built(
@@ -4255,10 +4268,14 @@ ColonyScreenHitResult colony_screen_hit_test(
 
   /* Shared with both building-related hit checks below — must match
    * colony_screen_blit_buildings' own call so click regions never drift
-   * from what's drawn (same per-colony-deterministic assignment). */
+   * from what's drawn (same per-colony-deterministic assignment).
+   * slot_of_cat[] is the DS:0x266 SLOT each category landed in: DOS scans
+   * slots, not categories (see the building loop at the end of this
+   * function). */
   int slot_x[32];
   int slot_y[32];
-  colony_screen_assign_slot_positions(pool, colony, slot_x, slot_y);
+  int slot_of_cat[32];
+  colony_screen_assign_slot_positions_ex(pool, colony, slot_x, slot_y, slot_of_cat);
 
   if (view->message_kind != COLONY_MSG_NONE) {
     if (mx < view->message_dialog_x || my < view->message_dialog_y ||
@@ -4712,19 +4729,71 @@ ColonyScreenHitResult colony_screen_hit_test(
       my < COLONY_BOTTOM_SEPARATOR_Y) {
     const int slot_ox = COLONY_VIEWPORT_X;
     const int slot_oy = COLONY_VIEWPORT_Y;
-    for (int i = 0; i < k_building_slot_count; ++i) {
-      const int built = colony_screen_category_built(pool, colony, i);
-      const int sprite = colony_screen_category_sprite(pool, colony, i);
-      if (sprite < 0 || sprite >= view->buildings.sprite_count) {
-        continue;
-      }
-      const ColonizeSprite* spr = &view->buildings.sprites[sprite];
-      if (!spr || spr->width <= 2 || spr->height <= 2) {
-        continue;
-      }
-      const int bx = slot_ox + slot_x[i];
-      const int by = slot_oy + slot_y[i];
-      if (mx >= bx && mx < bx + spr->width && my >= by && my < by + spr->height) {
+    /*
+     * bugs.md 436 — DOS's own building-slot scan, FUN_2f2b_44d4
+     * (viceroy_unpacked.c:51139, loop 2f2b:45ac..45b5):
+     *
+     *   local_e = 0;
+     *   while (local_e < 0xf && local_4 < 0) {
+     *     x = [0x266 + local_e*4]; y = [0x268 + local_e*4] + 8;
+     *     cls = [0x8d62 + local_e];
+     *     if (FUN_281f_03ca(cursor, x, y, [0x230+cls], [0x236+cls]))
+     *       local_4 = (char)[0x8e82 + local_e];   // -1 when unbuilt
+     *     local_e++;
+     *   }
+     *
+     * Four things that matter, all of which this port had wrong:
+     *
+     *  1. It walks SLOT POSITIONS 0..14 ascending, not categories. Only one
+     *     of the 105 slot pairs overlaps at all — slot 8 (class 1,
+     *     (128,53)-(171,74)) under slot 14 (the class-4 dock corner,
+     *     (123,55)-(197,102)) — and slot 8 comes first, so whatever class-1
+     *     building the shuffle put there beats the dock corner.
+     *  2. The rect is the SIZE-CLASS BOX (DS:0x230 / DS:0x236 = k_class_box),
+     *     not the sprite struct's dims — which is moot in BUILDING.SS, where
+     *     every real building sprite is exactly its class box, but not moot
+     *     for the placeholder trees.
+     *  3. There is no per-pixel test: FUN_281f_03ca -> FUN_1262_00f6 is a
+     *     bare inclusive AABB. Transparent margin is live click area.
+     *  4. `local_4 < 0` keeps the scan RUNNING past a slot whose category is
+     *     unbuilt (DS:0x8e82[slot] stays 0xff), so a placeholder never
+     *     swallows a click — the scan falls through to the next slot, and if
+     *     nothing matches DOS returns having done nothing at all: no popup,
+     *     no status, no sound.
+     *
+     * (4) is the reported bug. Montreal in missing_carpenters.SAV has its
+     * Carpenter's Shop in slot 8, under the unbuilt Docks category's coast
+     * placeholder in slot 14; the port's old category-ascending scan matched
+     * Docks (category 2) first, took its -1, and answered a plainly-visible,
+     * long-owned Carpenter's Shop with "Build it first".
+     *
+     * The one exception DOS carves out: FUN_2f2b_0434's writer is
+     * `if (owned(b) || b == 0)`, so building 0 (Stockade) is registered in
+     * the class-3 fence corner even when unbuilt — that corner is always a
+     * live target and always resolves to the Stockade. Mirrored below,
+     * though in practice this port's earlier COLONY_HIT_FENCE branch already
+     * claims that rect and returns first; the arm is here so the fence slot
+     * is never mistaken for an unbuilt one if that branch ever narrows.
+     */
+    for (int slot = 0; slot < COLONY_DOS_SLOT_COUNT; ++slot) {
+      for (int i = 0; i < k_building_slot_count; ++i) {
+        if (slot_of_cat[i] != slot) {
+          continue;
+        }
+        int built = colony_screen_category_built(pool, colony, i);
+        if (built < 0 && i == COLONY_CAT_FORTIFICATION) {
+          built = colonies_find_building(pool, "Stockade"); /* DOS's `|| b == 0` */
+        }
+        if (built < 0) {
+          break; /* unbuilt slot: DOS keeps scanning the later slots */
+        }
+        const int cls = k_building_slots[i].size_class;
+        const int bx = slot_ox + slot_x[i];
+        const int by = slot_oy + slot_y[i];
+        if (mx < bx || mx >= bx + k_class_box[cls][0] || my < by ||
+            my >= by + k_class_box[cls][1]) {
+          break;
+        }
         hit.kind = COLONY_HIT_BUILDING;
         hit.index = built;
         return hit;

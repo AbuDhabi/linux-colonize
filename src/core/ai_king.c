@@ -819,8 +819,31 @@ int ai_king_sol_percent(const ColonizeTurnContext* ctx, int nation_id) {
     return 0;
   }
   /*
-   * FUN_43f7_0004: pop-weighted colony SoL via FUN_15eb_0274 (incl. Bolivar).
-   * Prefer Col1 rebel_dividend/divisor + display boost; else liberty bells.
+   * FUN_43f7_0004 (viceroy_unpacked_2.c:72202-72239) verbatim: walk every
+   * colony record, and for the ones owned by `nation_id` accumulate
+   * `pop` (colony +0x1f) and `pop * FUN_15eb_0274()` (the colony SoL%), then
+   * divide the second by the first. No colonies (or a zero pop sum) returns
+   * the untouched accumulator, i.e. 0.
+   *
+   * NO `liberty_bells_total / 4` STAND-IN (bugs.md 430, "rival monarchs
+   * considering granting independence ... in 1530"). That number is not a
+   * percentage at all — it is the nation's lifetime bell total, which real
+   * DOS saves carry in the MILLIONS (original_saves/valid-lategame-saves/
+   * COLONY00.SAV: nation 3 = 34,605,631), so every hit of the old fallback
+   * clamped straight to 100% rebel sentiment. Section D of the year end then
+   * read `rebel_sentiment * census_pop_proxy / 100` as the rival's rebel
+   * count and fired @OTHERMIGHT as soon as the census passed the band floor.
+   * DOS's FUN_15eb_0274 (viceroy_unpacked_2.c:8167-8190) returns 0 when the
+   * rebel divisor is 0 ("nothing has accumulated"), and 43f7_0004 has no
+   * nation-level fallback whatsoever; colony_prod_sol_percent already
+   * deleted the identical stand-in from the colony-screen path.
+   *
+   * DOS calibration for the same expression, from the shipped late-game
+   * saves (difficulty 2, threshold 60, band floor 40): 1505/1550 fixtures
+   * read rebel_sentiment 0-1 with census 2-3 (v = 0); the 1680 save reads
+   * 23/51/82 with census 51/85/128 (v = 11/43/100) and carries
+   * rebellion_pct_last_notified = 43 on the nation that is inside the band.
+   * The popup belongs to a mature AI empire, not to 1530.
    */
   if (ctx->col1_ok && ctx->col1 && ctx->col1->colony) {
     uint64_t pop_sum = 0;
@@ -830,12 +853,11 @@ int ai_king_sol_percent(const ColonizeTurnContext* ctx, int nation_id) {
       if ((int)c->nation_id != nation_id) {
         continue;
       }
-      const uint64_t pop = (uint64_t)(c->population > 0 ? c->population : 1);
+      /* DOS adds colony +0x1f as-is (a 0-pop record weighs 0), no min-1. */
+      const uint64_t pop = (uint64_t)c->population;
       int sol = 0;
       if (c->rebel_divisor > 0) {
         sol = (int)((c->rebel_dividend * 100u) / c->rebel_divisor);
-      } else {
-        sol = (int)ctx->col1->nation[nation_id].liberty_bells_total / 4;
       }
       if (sol < 0) {
         sol = 0;
@@ -850,16 +872,6 @@ int ai_king_sol_percent(const ColonizeTurnContext* ctx, int nation_id) {
     if (pop_sum > 0) {
       return (int)(sol_sum / pop_sum);
     }
-  }
-  if (ctx->col1_ok && ctx->col1) {
-    const ColonizeCol1Nation* nat = &ctx->col1->nation[nation_id];
-    const int bells = (int)nat->liberty_bells_total;
-    int sol = bells / 4;
-    sol += founding_fathers_bolivar_sol_bonus(ctx->col1, nation_id);
-    if (sol > 100) {
-      sol = 100;
-    }
-    return sol;
   }
   return 0;
 }
@@ -882,8 +894,13 @@ static int ai_king_colony_sol_at(const ColonizeTurnContext* ctx, int nation_id, 
       if ((int)c->x != x || (int)c->y != y) {
         continue;
       }
-      const uint32_t div = c->rebel_divisor > 0 ? c->rebel_divisor : 1;
-      int sol = (int)(((uint64_t)c->rebel_dividend * 100ull) / (uint64_t)div);
+      /* FUN_15eb_0274: divisor 0 means nothing has accumulated = 0%. The old
+       * `div = divisor ? divisor : 1` guard turned a fresh record into
+       * `dividend * 100` instead. */
+      int sol = 0;
+      if (c->rebel_divisor > 0) {
+        sol = (int)(((uint64_t)c->rebel_dividend * 100ull) / (uint64_t)c->rebel_divisor);
+      }
       if (sol < 0) {
         sol = 0;
       }

@@ -707,6 +707,31 @@ static void ai_set_owner_nibble(ColonizeWorldMap* map, int x, int y, int nation_
   map->layer3[i] = (uint8_t)(low | hi);
 }
 
+/*
+ * Mover's stamp (FUN_1427_02ca's tail). Same write, minus settlement tiles for
+ * native units — bugs.md 422.
+ *
+ * The nibble on a `layer2 & 2` tile IS the settlement's owner for every reader
+ * (FUN_137f_03e4 tile_tribe_owner, and through it the FUN_5bfb_3180 first-
+ * contact scan). DOS can stamp unconditionally because a unit never stands on
+ * a settlement tile it does not own; the port's Brave walkers do cross them,
+ * and one crossing repainted a village for good — after which every Euro unit
+ * that stepped beside that village "met" the passing Brave's nation instead
+ * (the user's Aztec, playing France). units.c's own two stamp sites
+ * (units_set_nation, units_claim_tile_owner_from_stack) already carry exactly
+ * this guard; the AI walkers did not.
+ */
+static void ai_set_owner_nibble_move(ColonizeWorldMap* map, int x, int y, int nation) {
+  if (nation > 3 && map && map->layer2 && x >= 0 && y >= 0 && x < map->width &&
+      y < map->height) {
+    const size_t li = (size_t)y * (size_t)map->width + (size_t)x;
+    if (li < map->tile_count && (map->layer2[li] & MAP_OCCUPANCY_HAS_CITY) != 0) {
+      return;
+    }
+  }
+  ai_set_owner_nibble(map, x, y, nation);
+}
+
 /* FUN_137f_01ca / FUN_281f_06b4 — continent ID = layer3 low nibble. */
 static int ai_continent_id(const ColonizeWorldMap* map, int x, int y) {
   return (int)(ai_layer3_at(map, x, y) & 0x0fu);
@@ -1587,6 +1612,12 @@ static void ai_europe_exit_to_map(
       pax->y = sy;
     }
   }
+  /* FUN_48d3_048e tail: the Europe→map place always runs FUN_281f_07a0
+   * (= FUN_13f1_02f8 sight reveal) for the arriving unit, AI or human — it is
+   * how an AI nation's explored set grows across the Atlantic. bugs.md 427. */
+  (void)units_reveal_sight(
+    ctx->map, ctx->units, ctx->colonies, ship, ctx->col1_ok ? ctx->col1 : NULL
+  );
 
   int mp = units_max_mp(ctx->units, ship->id);
 
@@ -4425,7 +4456,7 @@ static void ai_seed100_apply_brave_marks(
     u->goto_x = UNITS_GOTO_NONE;
     u->goto_y = UNITS_GOTO_NONE;
     if (map) {
-      ai_set_owner_nibble(map, u->x, u->y, nation_id);
+      ai_set_owner_nibble_move(map, u->x, u->y, nation_id);
     }
   }
 }
@@ -4770,7 +4801,7 @@ static void ai_native_nation_pulse(
       if (u->orders == UNITS_ORDER_FORTIFY || u->orders == UNITS_ORDER_FORTIFIED) {
         u->orders = UNITS_ORDER_NONE;
       }
-      ai_set_owner_nibble(map, nx, ny, nation_id);
+      ai_set_owner_nibble_move(map, nx, ny, nation_id);
       if (ai_lcg_audit_enabled() && seed100_init_burns) {
         fprintf(
           stderr,

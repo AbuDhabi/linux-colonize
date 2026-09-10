@@ -278,10 +278,136 @@ static int unit_multi_units_pane_roster(void) {
   return 0;
 }
 
+/*
+ * bugs.md 436 — every building the colony OWNS must be clickable, and an
+ * UNBUILT category's placeholder must never answer a click.
+ *
+ * DOS FUN_2f2b_44d4 scans slot positions 0..14 and stops at the first whose
+ * building byte is >= 0 — a slot holding a placeholder keeps -1 and the scan
+ * runs on past it. The port used to scan categories, take the first rect hit
+ * whatever its state, and report "Build it first" on the -1. Montreal in
+ * port_saves/campaign3/missing_carpenters.SAV (tile 31,14) is the reported
+ * case: its Carpenter's Shop sits in slot 8, (128,53)-(171,74), which is the
+ * one slot pair DOS overlaps — slot 14's coast placeholder, drawn for the
+ * Docks category this colony has never built, covers all but two pixel rows
+ * of it. So a plainly-visible Carpenter's Shop the colony has owned since
+ * founding answered with "Build it first".
+ */
+static int unit_building_click_reaches_owned(void) {
+  ColonizeMsgCatalog names;
+  assets_msg_init(&names);
+  if (!assets_msg_load_file(&names, "COLONIZE/NAMES.TXT")) {
+    fprintf(stderr, "building_click: NAMES.TXT load failed\n");
+    return 1;
+  }
+  ColonizeColonyPool pool;
+  memset(&pool, 0, sizeof(pool));
+  colonies_init(&pool);
+  colonies_load_buildings(&pool, &names);
+
+  ColonyScreenView view;
+  memset(&view, 0, sizeof(view));
+  char err[256];
+  if (!colony_screen_load(&view, "COLONIZE", err, sizeof(err))) {
+    fprintf(stderr, "building_click: colony_screen_load failed: %s\n", err);
+    assets_msg_free(&names);
+    return 1;
+  }
+
+  /* Montreal's exact building set and tile from missing_carpenters.SAV — the
+   * founding starters (Town Hall, Carpenter's Shop, Blacksmith's House and
+   * the four craft houses) plus a Stockade. */
+  static const char* const k_owned[] = {
+    "Town Hall",
+    "Carpenter's Shop",
+    "Blacksmith's House",
+    "Weaver's House",
+    "Tobacconist's House",
+    "Rum Distiller's House",
+    "Fur Trader's House",
+    "Stockade"
+  };
+  ColonizeColony col;
+  memset(&col, 0, sizeof(col));
+  col.x = 31;
+  col.y = 14;
+  snprintf(col.name, sizeof(col.name), "Montreal");
+  int owned_idx[sizeof(k_owned) / sizeof(k_owned[0])];
+  int rc = 0;
+  for (size_t i = 0; i < sizeof(k_owned) / sizeof(k_owned[0]); ++i) {
+    owned_idx[i] = colonies_find_building(&pool, k_owned[i]);
+    if (owned_idx[i] < 0 || owned_idx[i] >= COLONIZE_BUILDING_TYPES_MAX) {
+      fprintf(stderr, "building_click: '%s' not in NAMES.TXT @BUILDING\n", k_owned[i]);
+      rc = 1;
+    } else {
+      col.has_building[owned_idx[i]] = true;
+    }
+  }
+
+  ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
+
+  int hits[COLONIZE_BUILDING_TYPES_MAX];
+  int unbuilt_hits = 0;
+  memset(hits, 0, sizeof(hits));
+  for (int y = 0; y < 200 && rc == 0; ++y) {
+    for (int x = 0; x < 320; ++x) {
+      const ColonyScreenHitResult h =
+        colony_screen_hit_test(&view, &pool, &col, &units, x, y);
+      if (h.kind != COLONY_HIT_BUILDING) {
+        continue;
+      }
+      if (h.index < 0 || h.index >= COLONIZE_BUILDING_TYPES_MAX ||
+          !col.has_building[h.index]) {
+        unbuilt_hits++;
+        continue;
+      }
+      hits[h.index]++;
+    }
+  }
+  if (unbuilt_hits > 0) {
+    fprintf(
+      stderr,
+      "building_click: %d pixels resolved to a building the colony does not own "
+      "— DOS's slot scan runs past an unbuilt slot (bugs.md 436)\n",
+      unbuilt_hits
+    );
+    rc = 1;
+  }
+  /* The Stockade is the fence corner — DOS draws it as chrome, not a
+   * clickable workplace — so it is deliberately not required here. */
+  for (size_t i = 0; i < sizeof(k_owned) / sizeof(k_owned[0]) && rc == 0; ++i) {
+    if (strcmp(k_owned[i], "Stockade") == 0 || owned_idx[i] < 0) {
+      continue;
+    }
+    if (hits[owned_idx[i]] < 100) {
+      fprintf(
+        stderr,
+        "building_click: owned '%s' reachable on only %d pixels — an overlapping "
+        "slot is swallowing its clicks (bugs.md 436)\n",
+        k_owned[i],
+        hits[owned_idx[i]]
+      );
+      rc = 1;
+    }
+  }
+
+  colony_screen_free(&view);
+  assets_msg_free(&names);
+  if (rc == 0) {
+    fprintf(stderr, "unit_colony_screen: owned buildings all clickable ok\n");
+  }
+  return rc;
+}
+
 int main(void) {
   diag_init(0, NULL);
 
   if (unit_buyme1_tokens() != 0) {
+    diag_shutdown();
+    return 1;
+  }
+  if (unit_building_click_reaches_owned() != 0) {
     diag_shutdown();
     return 1;
   }

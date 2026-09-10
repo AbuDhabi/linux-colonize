@@ -480,6 +480,50 @@ int main(void) {
   }
 
   /*
+   * bugs.md 430 ("rival monarchs considering granting independence ... in
+   * 1530"). FUN_43f7_0004 (viceroy_unpacked_2.c:72202-72239) is a pop-weighted
+   * average of FUN_15eb_0274 over the nation's colony records, and
+   * FUN_15eb_0274 (:8167-8190) returns 0 when the rebel divisor is 0. Neither
+   * has a `liberty_bells_total / 4` fallback, and that stand-in was
+   * catastrophic: nation bell totals run into the MILLIONS in real DOS saves
+   * (original_saves/valid-lategame-saves/COLONY00.SAV nation 3 =
+   * 34,605,631), so every hit clamped to 100% rebel sentiment. FUN_43f7_2424
+   * caches that byte at nation+0x19, and the year-end Section D reads it as
+   * `rebel_sentiment * census_pop_proxy / 100` = the rival's rebel COUNT, so
+   * a bogus 100% fired @OTHERMIGHT as soon as the census passed the band.
+   */
+  {
+    const uint32_t saved_dvd = col1.colony[0].rebel_dividend;
+    const uint32_t saved_div = col1.colony[0].rebel_divisor;
+    const uint16_t saved_count = col1.head.colony_count;
+    const uint32_t saved_bells = col1.nation[0].liberty_bells_total;
+    col1.nation[0].liberty_bells_total = 4000000u; /* DOS-scale lifetime bells */
+    /* A record with no accumulation yet: DOS reads 0%, not bells/4. */
+    col1.colony[0].rebel_dividend = 0;
+    col1.colony[0].rebel_divisor = 0;
+    if (ai_king_sol_percent(&ctx, 0) != 0) {
+      fprintf(
+        stderr, "unit_ai_king: divisor-0 colony SoL %d (want 0)\n",
+        ai_king_sol_percent(&ctx, 0)
+      );
+      return fail("FUN_15eb_0274: no rebel pair is 0%, never liberty_bells/4");
+    }
+    /* And a nation with no colony records at all is 0 too (43f7_0004 returns
+     * its untouched accumulator), not a clamped 100. */
+    col1.head.colony_count = 0;
+    if (ai_king_sol_percent(&ctx, 0) != 0) {
+      return fail("FUN_43f7_0004: a colony-less nation is 0%, never liberty_bells/4");
+    }
+    col1.head.colony_count = saved_count;
+    col1.colony[0].rebel_dividend = saved_dvd;
+    col1.colony[0].rebel_divisor = saved_div;
+    col1.nation[0].liberty_bells_total = saved_bells;
+    if (ai_king_sol_percent(&ctx, 0) != 60) {
+      return fail("SoL fixture restore");
+    }
+  }
+
+  /*
    * King-audience tax event (FUN_38fd_5be8/3dc8) — 2026-08-20 rewrite
    * against the real formula (ai_king_audience_roll / apply_delta),
    * replacing the retired deterministic/year-gated design this block

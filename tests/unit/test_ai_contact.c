@@ -360,7 +360,304 @@ static int test_prelude_alarm_band(void) {
   return 0;
 }
 
+/*
+ * bugs.md 422 — first contact is strictly per Euro nation.
+ *
+ * DOS FUN_5bfb_3180 hands FUN_5bfb_022e the pair (euro, indian) it actually
+ * found adjacent, and 022e only opens the @INDIANWELCOME dialog when THAT
+ * euro's control byte (`*(char *)(param_1 * 0x34 + 0x543f)`) is 0; any other
+ * nation takes `local_c = 1` and auto-accepts silently. So an AI nation's
+ * meeting must leave the human with no popup and no met bit.
+ */
+static int test_ai_only_meet_is_silent_for_human(void) {
+  ColonizeCol1Save col1;
+  col1_save_init(&col1);
+  col1.head.difficulty = 2;
+  for (int ffi = 0; ffi < (int)COLONIZE_COL1_FF_COUNT; ++ffi) {
+    col1.head.founding_father[ffi] = -1;
+  }
+  col1.head.tribe_count = 1;
+  col1.tribe = calloc(1, sizeof(ColonizeCol1Tribe));
+  if (!col1.tribe) {
+    return fail("ai-only meet: alloc tribe");
+  }
+  col1.tribe[0].x = 5;
+  col1.tribe[0].y = 5;
+  col1.tribe[0].nation_id = 5; /* Aztec */
+  col1.tribe[0].mission = 0xff;
+  col1.tribe[0].population = 4;
+  memset(&col1.indian[1], 0, sizeof(col1.indian[1]));
+
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  map.width = 16;
+  map.height = 16;
+  map.tile_count = 256;
+  map.terrain = calloc(256, 1);
+  map.layer2 = calloc(256, 1);
+  map.layer3 = calloc(256, 1);
+  if (!map.terrain || !map.layer2 || !map.layer3) {
+    return fail("ai-only meet: alloc map");
+  }
+  for (int i = 0; i < 256; ++i) {
+    map.terrain[i] = 1;
+    map.layer3[i] = 0xf0u;
+  }
+
+  ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
+  units_reset(&units);
+  units_set_occupancy_map(NULL);
+  units.type_count = 2;
+  snprintf(units.types[0].name, sizeof(units.types[0].name), "Brave");
+  units.types[0].movement = 1;
+  units.types[0].attack = 2;
+  units.types[0].defense = 1;
+  snprintf(units.types[1].name, sizeof(units.types[1].name), "Free Colonist");
+  units.types[1].movement = 1;
+  units.types[1].attack = 0;
+  units.types[1].defense = 1;
+
+  const int brave_id = units_spawn_allow_stack(&units, 0, 5, 5);
+  const int euro_id = units_spawn_allow_stack(&units, 1, 6, 5);
+  ColonizeUnit* brave = units_get(&units, brave_id);
+  ColonizeUnit* euro = units_get(&units, euro_id);
+  if (!brave || !euro) {
+    return fail("ai-only meet: spawn");
+  }
+  brave->nation_id = 5;
+  brave->moves_left = 0;
+  euro->nation_id = 0; /* English — an AI nation in this fixture */
+
+  ColonizeColonyPool colonies;
+  colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
+
+  AiPopupState pop;
+  ai_popup_init(&pop);
+
+  uint32_t turn = 1;
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.turn_number = &turn;
+  ctx.units = &units;
+  ctx.colonies = &colonies;
+  ctx.map = &map;
+  ctx.col1 = &col1;
+  ctx.col1_ok = true;
+  ctx.rng_seed = 42;
+  ctx.ai_popups = &pop;
+  ctx.human_nation = 1; /* the player is France */
+
+  ai_contact_indian_meet_trade(&ctx, 5);
+
+  int rc = 0;
+  if (col1.indian[1].euro_diplo[0] == 0) {
+    rc = fail("ai-only meet: England (the nation that met) should carry the met bit");
+  } else if (col1.indian[1].euro_diplo[1] != 0) {
+    rc = fail("ai-only meet: France never met the Aztec — no met bit may be set");
+  } else if (pop.queue_count != 0 || pop.open) {
+    rc = fail("ai-only meet: an AI nation's first contact must raise no human popup");
+  }
+  col1_save_free(&col1);
+  free(map.terrain);
+  free(map.layer2);
+  free(map.layer3);
+  return rc;
+}
+
+/*
+ * bugs.md 422 — the layer3 owner nibble is a stamp, not a settlement record.
+ *
+ * FUN_1427_02ca repaints the nibble of every tile a unit steps onto and
+ * FUN_1427_023a leaves it behind when the unit leaves, so a Brave that crossed
+ * a foreign village left that tile reading as its own nation. The
+ * FUN_5bfb_3180 contact scan (ai_contact_encounter_scan) reads exactly that
+ * nibble on `layer2 & 2` tiles, so the stale stamp opened first contact with a
+ * tribe that has no settlement anywhere near.
+ */
+static int test_encounter_scan_ignores_stale_owner_stamp(void) {
+  ColonizeCol1Save col1;
+  col1_save_init(&col1);
+  col1.head.difficulty = 2;
+  for (int ffi = 0; ffi < (int)COLONIZE_COL1_FF_COUNT; ++ffi) {
+    col1.head.founding_father[ffi] = -1;
+  }
+  col1.head.tribe_count = 1;
+  col1.tribe = calloc(1, sizeof(ColonizeCol1Tribe));
+  if (!col1.tribe) {
+    return fail("stale stamp: alloc tribe");
+  }
+  col1.tribe[0].x = 5;
+  col1.tribe[0].y = 5;
+  col1.tribe[0].nation_id = 8; /* Cherokee village really standing here */
+  col1.tribe[0].mission = 0xff;
+  col1.tribe[0].population = 4;
+  memset(&col1.indian[1], 0, sizeof(col1.indian[1])); /* Aztec */
+  memset(&col1.indian[4], 0, sizeof(col1.indian[4])); /* Cherokee */
+
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  map.width = 16;
+  map.height = 16;
+  map.tile_count = 256;
+  map.terrain = calloc(256, 1);
+  map.layer2 = calloc(256, 1);
+  map.layer3 = calloc(256, 1);
+  if (!map.terrain || !map.layer2 || !map.layer3) {
+    return fail("stale stamp: alloc map");
+  }
+  for (int i = 0; i < 256; ++i) {
+    map.terrain[i] = 1;
+    map.layer3[i] = 0xf0u;
+  }
+  const int vi = 5 * 16 + 5;
+  map.layer2[vi] = 0x02u;  /* settlement bit */
+  map.layer3[vi] = 0x50u;  /* stale stamp: an Aztec (5) Brave once walked here */
+
+  ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
+  units_reset(&units);
+  units_set_occupancy_map(NULL);
+
+  ColonizeColonyPool colonies;
+  colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
+
+  AiPopupState pop;
+  ai_popup_init(&pop);
+
+  uint32_t turn = 1;
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.turn_number = &turn;
+  ctx.units = &units;
+  ctx.colonies = &colonies;
+  ctx.map = &map;
+  ctx.col1 = &col1;
+  ctx.col1_ok = true;
+  ctx.rng_seed = 42;
+  ctx.ai_popups = &pop;
+  ctx.human_nation = 1;
+
+  /* A French unit steps to (6,5) — beside the Cherokee village, nowhere near
+   * any Aztec settlement. */
+  (void)ai_contact_encounter_scan(&ctx, 1, 6, 5);
+
+  int rc = 0;
+  if (col1.indian[4].euro_diplo[1] == 0) {
+    rc = fail("stale stamp: the Cherokee village on the tile must open contact");
+  } else if (col1.indian[1].euro_diplo[1] != 0) {
+    rc = fail("stale stamp: a passing Brave's nibble must not make France meet the Aztec");
+  } else {
+    for (int i = 0; i < pop.queue_count; ++i) {
+      if (pop.queue[i].nation_b == 5) {
+        rc = fail("stale stamp: no Aztec welcome popup may be queued");
+        break;
+      }
+    }
+  }
+  col1_save_free(&col1);
+  free(map.terrain);
+  free(map.layer2);
+  free(map.layer3);
+  return rc;
+}
+
+/* Consume the answered popup the way game_loop does after applying it. */
+static void take_popup_result(AiPopupState* pop) {
+  ai_popup_cancel_current(pop);
+  pop->has_result = false;
+}
+
+/*
+ * bugs.md 433 — two contact chains must not interleave.
+ *
+ * FUN_5bfb_3180 calls FUN_5bfb_022e / FUN_5bfb_153e inline per neighbour, so a
+ * Tupi exchange and a Spanish one are strictly sequential in DOS. The port
+ * enqueues each follow-up only when the previous dialog is answered, which
+ * lands it behind anything queued meanwhile — the chain key has to pull it
+ * back to the front of the presentation order.
+ */
+static int test_contact_chains_do_not_interleave(void) {
+  AiPopupState pop;
+  ai_popup_init(&pop);
+
+  static const char* yn[2] = {"Yes", "No"};
+  static const int yn_ids[2] = {1, 2};
+
+  /* One pulse queues the Tupi meet and the Spanish encounter opener. */
+  if (!ai_popup_enqueue_choice_ctx(
+        &pop, AI_POPUP_TAG_CONTACT_WELCOME, 1, 11, 0, NULL, "tupi-welcome", yn, yn_ids, 2
+      )) {
+    return fail("chain: enqueue tupi welcome");
+  }
+  if (!ai_popup_enqueue_ok_ctx(&pop, AI_POPUP_TAG_DIPLO_TALK, 1, 2, 0, NULL, "spain-hello")) {
+    return fail("chain: enqueue spain hello");
+  }
+  if (pop.queue[0].chain == 0 || pop.queue[1].chain == 0 ||
+      pop.queue[0].chain == pop.queue[1].chain) {
+    return fail("chain: the two exchanges must carry distinct non-zero keys");
+  }
+
+  if (!ai_popup_try_present_next(&pop) || pop.current.tag != AI_POPUP_TAG_CONTACT_WELCOME) {
+    return fail("chain: the head of the queue presents first");
+  }
+  take_popup_result(&pop);
+
+  /* Answering the welcome enqueues the peace line — at the TAIL, behind Spain. */
+  if (!ai_popup_enqueue_ok_ctx(&pop, AI_POPUP_TAG_CONTACT_MEET, 1, 11, 0, NULL, "tupi-peace")) {
+    return fail("chain: enqueue tupi peace");
+  }
+  if (!ai_popup_try_present_next(&pop)) {
+    return fail("chain: present after tupi welcome");
+  }
+  if (pop.current.tag != AI_POPUP_TAG_CONTACT_MEET || pop.current.nation_b != 11) {
+    return fail("chain: the Tupi chain must finish before the Spanish one starts");
+  }
+  take_popup_result(&pop);
+
+  /* Tupi chain exhausted — now Spain, and its own follow-up stays with it. */
+  if (!ai_popup_try_present_next(&pop) || pop.current.tag != AI_POPUP_TAG_DIPLO_TALK ||
+      pop.current.nation_b != 2) {
+    return fail("chain: Spain presents once the Tupi chain is done");
+  }
+  take_popup_result(&pop);
+  if (!ai_popup_enqueue_ok_ctx(&pop, AI_POPUP_TAG_DIPLO_TALK, 1, 2, 1, NULL, "spain-2")) {
+    return fail("chain: enqueue spain stage 2");
+  }
+  if (!ai_popup_enqueue_ok_ctx(&pop, AI_POPUP_TAG_CONTACT_MEET, 1, 11, 0, NULL, "tupi-later")) {
+    return fail("chain: enqueue a later tupi line");
+  }
+  if (!ai_popup_try_present_next(&pop) || pop.current.nation_b != 2) {
+    return fail("chain: a new Tupi line must not cut into the live Spanish chain");
+  }
+  take_popup_result(&pop);
+  if (!ai_popup_try_present_next(&pop) || pop.current.nation_b != 11) {
+    return fail("chain: the Tupi line follows once Spain is done");
+  }
+
+  /* Ungrouped popups (colony chrome, king letters) keep key 0. */
+  ai_popup_init(&pop);
+  if (!ai_popup_enqueue_ok_ctx(&pop, AI_POPUP_TAG_KING_TAX, 1, 0, 0, NULL, "tax")) {
+    return fail("chain: enqueue king tax");
+  }
+  if (pop.queue[0].chain != 0) {
+    return fail("chain: non-contact popups must stay ungrouped");
+  }
+  return 0;
+}
+
 int main(void) {
+  if (test_ai_only_meet_is_silent_for_human() != 0) {
+    return 1;
+  }
+  if (test_encounter_scan_ignores_stale_owner_stamp() != 0) {
+    return 1;
+  }
+  if (test_contact_chains_do_not_interleave() != 0) {
+    return 1;
+  }
   if (test_colony_tick_war_5952() != 0) {
     return 1;
   }
@@ -4215,6 +4512,10 @@ int main(void) {
           pop.queue[pop.queue_count - 1].choice_count != 3) {
         return fail("2820: two holds should queue the hold-pick CHOICE (2 holds + Cancel)");
       }
+      /* Every 2820 dialog is a FUN_291f_019c(tag, *(0x8d52)) chief audience. */
+      if (pop.queue[pop.queue_count - 1].portrait_tribe != 0) {
+        return fail("2820: the hold-pick CHOICE needs the chief portrait");
+      }
       ai_popup_clear(&pop);
       pop.has_result = true;
       pop.result_cancelled = false;
@@ -4227,6 +4528,9 @@ int main(void) {
       if (pop.queue_count < 1 || pop.queue[pop.queue_count - 1].tag != AI_POPUP_TAG_CONTACT_TRADE_OFFER ||
           pop.queue[pop.queue_count - 1].choice_count != 4) {
         return fail("2820: hold pick should queue @TRADE0 (accept / fairer / gift / never mind)");
+      }
+      if (pop.queue[pop.queue_count - 1].portrait_tribe != 0) {
+        return fail("2820: @TRADE0 needs the chief portrait");
       }
       const uint32_t gold_c = col1.nation[0].gold;
       const int16_t tons_tg_c = ind->tons[COLONIZE_CARGO_TRADE_GOODS];
@@ -4256,6 +4560,9 @@ int main(void) {
       if (bw < 0) {
         return fail("2820: after a sale the tribe should offer its goods (@BUYWHICH)");
       }
+      if (pop.queue[bw].portrait_tribe != 0) {
+        return fail("2820: @BUYWHICH needs the chief portrait");
+      }
       const int buy_id = pop.queue[bw].choice_ids[0];
       ai_popup_clear(&pop);
       pop.has_result = true;
@@ -4268,6 +4575,9 @@ int main(void) {
       ai_contact_apply_popup_result(&ctx, &pop);
       if (pop.queue_count < 1 || pop.queue[pop.queue_count - 1].tag != AI_POPUP_TAG_CONTACT_BUY0) {
         return fail("2820: @BUYWHICH pick should queue @BUY0");
+      }
+      if (pop.queue[pop.queue_count - 1].portrait_tribe != 0) {
+        return fail("2820: @BUY0 needs the chief portrait");
       }
       const int buy_payload = pop.queue[pop.queue_count - 1].payload;
       const int bought_c = buy_id - 1;
@@ -5874,6 +6184,12 @@ int main(void) {
       ctx.rng = saved_rng;
       return fail("@INDIANCITY should offer both DOS rows");
     }
+    /* raw 96882: `FUN_291f_019c(0x281f, 0x1866, *(0x8d52))` — the demand is a
+     * chief audience, so it carries IND{tribe}A{tier}.SS like every other one. */
+    if (rp.queue[rq].portrait_tribe != 0) {
+      ctx.rng = saved_rng;
+      return fail("@INDIANCITY needs the chief portrait");
+    }
     const int stock_before_refuse = colonies.colonies[0].stock[COLONIZE_CARGO_TOOLS];
     ai_popup_clear(&rp);
     rp.has_result = true;
@@ -5938,6 +6254,95 @@ int main(void) {
     if (ai_diplo_indian_relation(&col1, 4 + (0), 0) <= rel_before_accept_rep) {
       ctx.rng = saved_rng;
       return fail("@INDIANCITY accept applies a NEGATIVE alarm delta");
+    }
+
+    /*
+     * The demanded amount (raw 96843-96866, asm 5bfb:0c1c-0c33): the winning
+     * good's qty is min(stock, 100) — the WHOLE store, capped at 100 — and is
+     * halved only when `FUN_281f_04d4(0, difficulty + 1)` rolls 0, i.e.
+     * 1/(difficulty+2) of the visits. The port must never halve by default.
+     * Tools (DS:0x84BC weight 1) are the only scored good here, so the pick is
+     * deterministic and only the halving roll varies with the seed.
+     */
+    {
+      const uint8_t saved_diff = col1.head.difficulty;
+      col1.head.difficulty = 4; /* halve on 1 of 6 seeds */
+      int saw_full = 0;
+      int saw_half = 0;
+      int saw_demand = 0;
+      /* One long stream, not 48 tiny seeds: dos_rng_seed masks to 0x7fff and a
+       * small seed's first draw is tiny, so seeds 1..48 all roll 0 (the
+       * tiny-seed fixture trap). */
+      dos_rng_seed(&rep_rng, 21089u);
+      for (unsigned iter = 1u; iter <= 48u; ++iter) {
+        colonies.colonies[0].stock[COLONIZE_CARGO_TOOLS] = 240; /* > the 100 cap */
+        colonies.colonies[0].stock[COLONIZE_CARGO_FOOD] = 10;
+        col1.tribe[0].alarm[0].friction = 20;
+        col1.tribe[0].alarm[0].attacks = 0;
+        col1.indian[0].alarm_by_player[0] = 50;
+        col1.indian[0].contact_state[0] = 0;
+        ai_popup_clear(&rp);
+        ai_contact_try_village_beg_food(&ctx, 4);
+        int dq = -1;
+        for (int i = 0; i < rp.queue_count; ++i) {
+          if (rp.queue[i].tag == AI_POPUP_TAG_CONTACT_REPARATIONS &&
+              rp.queue[i].kind == AI_POPUP_KIND_CHOICE && rp.queue[i].payload == 0) {
+            dq = i;
+            break;
+          }
+        }
+        if (dq < 0) {
+          continue;
+        }
+        saw_demand++;
+        ai_popup_clear(&rp);
+        rp.has_result = true;
+        rp.result_cancelled = false;
+        rp.result_tag = AI_POPUP_TAG_CONTACT_REPARATIONS;
+        rp.result_nation_a = 0;
+        rp.result_nation_b = 4;
+        rp.result_payload = 0;
+        rp.result_choice_id = 2; /* "Hand them over." */
+        ai_contact_apply_popup_result(&ctx, &rp);
+        const int taken = 240 - colonies.colonies[0].stock[COLONIZE_CARGO_TOOLS];
+        if (taken == 100) {
+          saw_full++;
+        } else if (taken == 50) {
+          saw_half++;
+        } else {
+          fprintf(stderr, "unit_ai_contact: reparations took %d of 240 Tools\n", taken);
+          col1.head.difficulty = saved_diff;
+          ctx.rng = saved_rng;
+          return fail("@INDIANCITY demands min(stock, 100), optionally halved — nothing else");
+        }
+      }
+      col1.head.difficulty = saved_diff;
+      if (saw_demand < 8) {
+        ctx.rng = saved_rng;
+        return fail("@INDIANCITY demand should re-fire across seeds");
+      }
+      if (saw_full == 0) {
+        fprintf(stderr, "unit_ai_contact: demands=%d full=%d half=%d\n", saw_demand, saw_full,
+                saw_half);
+        ctx.rng = saved_rng;
+        return fail("@INDIANCITY normally demands the WHOLE store (capped at 100), not half");
+      }
+      if (saw_full <= saw_half * 2) {
+        fprintf(stderr, "unit_ai_contact: full=%d half=%d\n", saw_full, saw_half);
+        ctx.rng = saved_rng;
+        return fail("halving is the 1/(difficulty+2) minority arm, not the default");
+      }
+      if (saw_half == 0) {
+        ctx.rng = saved_rng;
+        return fail("the DOS halving roll should still be reachable");
+      }
+      colonies.colonies[0].stock[COLONIZE_CARGO_TOOLS] = 40;
+      colonies.colonies[0].stock[COLONIZE_CARGO_FOOD] = 10;
+      col1.tribe[0].alarm[0].friction = 20;
+      col1.tribe[0].alarm[0].attacks = 0;
+      col1.indian[0].alarm_by_player[0] = 50;
+      col1.indian[0].contact_state[0] = 0;
+      ai_popup_clear(&rp);
     }
 
     /* --- @INDIANWAGONS: no colony in the encounter, accept is row 1. --- */
@@ -6167,6 +6572,73 @@ int main(void) {
     ctx.rng = saved_rng;
     if (!after_reset) {
       return fail("ai_contact_reset should clear the gift cooldown for a new game");
+    }
+    /*
+     * bugs.md 423 ("Indians came to demand Horses very damn quickly, at zero
+     * apparent alarm"). FUN_5bfb_022e is ONE encounter: `bVar6` picks the
+     * generous half or the demand half (viceroy_unpacked.c 96723-96731 and
+     * the `if (!bVar6)` guard at 96833), never both. The port splits that
+     * encounter across three functions behind an 8-turn throttle, and the
+     * throttle used to be per-arm — so the turn AFTER a gift (contact_state
+     * having been cleared by FUN_4d56_1b3a phase 1) the gift arm bailed on
+     * its own cooldown without rolling the mood, and the demand arm ran
+     * unopposed at alarm 0. The throttle is now shared: whichever arm
+     * resolves a visit puts the whole visit to sleep.
+     */
+    {
+      /* The gift above stamped the visit throttle at turn 9 (+8 = 17). */
+      col1.head.turn = 10;
+      col1.indian[0].contact_state[0] = 0; /* the midpass clears it every turn */
+      col1.indian[0].alarm_by_player[0] = 0; /* zero alarm, as reported */
+      col1.tribe[0].alarm[0].friction = 0;
+      col1.tribe[0].alarm[0].attacks = 0;
+      for (int cg = 0; cg < COLONIZE_CARGO_COUNT; ++cg) {
+        colonies.colonies[0].stock[cg] = 0;
+      }
+      /* Food ≤ 0x4a so @INDIANBEGFOOD cannot fire; Tools are the demand. */
+      colonies.colonies[0].stock[COLONIZE_CARGO_FOOD] = 10;
+      colonies.colonies[0].stock[COLONIZE_CARGO_TOOLS] = 40;
+      ai_native_note_brave_turn_origin(
+        gift_brave, colonies.colonies[0].x + 3, colonies.colonies[0].y + 3);
+
+      dos_rng_seed(&gift_rng, 7u);
+      ctx.rng = &gift_rng;
+      ai_popup_clear(&gp);
+      /* ai.c's own order: the gift arm first, then the beg/demand half. */
+      if (ai_contact_try_village_gifts(&ctx, 4)) {
+        ctx.rng = saved_rng;
+        return fail("gift arm should still be throttled the turn after a gift");
+      }
+      ai_contact_try_village_beg_food(&ctx, 4);
+      ctx.rng = saved_rng;
+      for (int i = 0; i < gp.queue_count; ++i) {
+        if (gp.queue[i].tag == AI_POPUP_TAG_CONTACT_REPARATIONS) {
+          return fail("no demand at alarm 0 the turn after this village gave a gift");
+        }
+      }
+
+      /* …and the fixture really is demand-capable: only the shared throttle
+       * suppressed it. Clearing the throttle brings the demand straight back. */
+      ai_contact_reset();
+      dos_rng_seed(&gift_rng, 7u);
+      ctx.rng = &gift_rng;
+      ai_popup_clear(&gp);
+      col1.indian[0].contact_state[0] = 0;
+      ai_contact_try_village_beg_food(&ctx, 4);
+      ctx.rng = saved_rng;
+      int demanded = 0;
+      for (int i = 0; i < gp.queue_count; ++i) {
+        if (gp.queue[i].tag == AI_POPUP_TAG_CONTACT_REPARATIONS) {
+          demanded = 1;
+          break;
+        }
+      }
+      if (!demanded) {
+        return fail("throttle-free control: the demand arm should reach @INDIANCITY here");
+      }
+      ai_contact_reset();
+      ai_popup_clear(&gp);
+      fprintf(stderr, "unit_ai_contact: shared visit throttle ok\n");
     }
     units_despawn(&units, gift_brave);
     for (int cg = 0; cg < COLONIZE_CARGO_COUNT; ++cg) {

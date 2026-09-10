@@ -177,7 +177,6 @@ void reports_free(ColonizeReportsView* view) {
   }
   ss_free(&view->icons);
   ff_free(&view->title_font);
-  ff_free(&view->intro_font);
   pik_free(&view->congress_page1_bg);
   pik_free(&view->exploits_bg);
   memset(view, 0, sizeof(*view));
@@ -332,12 +331,9 @@ bool reports_load(ColonizeReportsView* view, const char* data_dir, char* err, si
   if (dos_compat_normalize_asset_path(data_dir, "FONTTINY.FF", font_path, sizeof(font_path)) &&
       ff_load(font_path, &view->title_font, font_err, sizeof(font_err))) {
     view->title_font_ok = true;
-    /* FONTINTR — the mixed-case serif dialog font; the Indian Adviser's
-     * tribe names and tech levels use it (indian.png). */
-    if (dos_compat_normalize_asset_path(data_dir, "FONTINTR.FF", font_path, sizeof(font_path)) &&
-        ff_load(font_path, &view->intro_font, font_err, sizeof(font_err))) {
-      view->intro_font_ok = true;
-    }
+    /* FONTINTR is deliberately NOT loaded here: the whole 3f41 report overlay
+     * touches only the FONTTINY font pointer (DS:0x89e) — see
+     * reports_render_indian (bugs.md 434). */
   } else {
     diag_warn("Failed to load FONTTINY.FF for reports: %s", font_err);
   }
@@ -3427,7 +3423,18 @@ static void reports_render_foreign(
  * ramp note in reports_indian_build_rows). */
 #define REPORTS_INDIAN_ICON_SPRITE 113
 #define REPORTS_INDIAN_NAME_X 30
-#define REPORTS_INDIAN_STATS_DY 9 /* stats line y = name_y + this (FONTINTR name row is 9px) */
+/*
+ * Stats line y = name_y + this. DOS does not hardcode it: at `3f41:02dc` it
+ * does `LES BX,[0x89e]` (the FONTTINY far pointer) / `MOV AL,ES:[BX]` (FF
+ * header byte 0 = max height) / `INC AX` twice / `ADD [local_6e],AX` — i.e.
+ * FONTTINY.max_height + 2 (= 8, and the golden indian.png measures 8: names
+ * ink rows 28-32, stats ink rows 36-40). reports_render_indian computes that
+ * from the live font; this constant is only the fallback when no font is
+ * loaded, and is left at the old 9 for that degenerate case. (Its old
+ * comment claimed the gap came from a 9px FONTINTR name row — that font is
+ * not on this screen at all; see reports_render_indian.)
+ */
+#define REPORTS_INDIAN_STATS_DY 9
 #define REPORTS_INDIAN_VILLAGES_X 40
 #define REPORTS_INDIAN_MISSIONS_X 96
 #define REPORTS_INDIAN_MUSKETS_X 153
@@ -3567,15 +3574,30 @@ static void reports_render_indian(
   const ColonizeFont* font,
   ColonizeFramebuffer8* fb
 ) {
-  /* The stats line needs FONTTINY — the tight fixed columns ("<n>
-   * Villages" at 56px) only fit at that size — but the tribe NAME and the
-   * tech-level word are FONTSMAL in the golden (indian.png: bolder,
-   * shadowed glyphs, visibly heavier than the stats row). The earlier pass
-   * dropped everything to FONTTINY (bugs.md: "fonts are off ... the tribe
-   * name and tech level"). */
-  const ColonizeFont* name_font =
-    (view && view->intro_font_ok) ? &view->intro_font : font;
+  /*
+   * bugs.md 434 — EVERY line on this screen is FONTTINY, the tribe name and
+   * the tech-level word included. Player-observed in DOS, and the overlay
+   * agrees byte for byte: module 104b exposes two hard-wired drawer families,
+   * one bound to the FONTTINY far pointer at DS:0x89e (FUN_104b_0216 measure,
+   * 024e/0288/02c2/0318 draw) and one bound to the FONTINTR pointer at
+   * DS:0x268a (0232 measure, 035c/039a/03d2 draw) — the font is chosen purely
+   * by which entry point is called, there is no mutable font slot in this
+   * path. Across the whole 3f41 report overlay, DS:0x89e is referenced 20+
+   * times and DS:0x268a exactly zero times; the Indian Adviser
+   * (FUN_3f41_010a) reaches the text layer only through the FONTTINY thunks
+   * FUN_281f_0100 / 0114 / 013c, and never through the FONTINTR ones
+   * (FUN_281f_018c / 01aa). The tribe name draws at 3f41:022c and the level
+   * word at 3f41:02cb, both via FUN_281f_013c.
+   *
+   * An earlier pass read the tribe name as a heavier font off a screenshot
+   * and pointed it at FONTINTR.FF; that was the error, so the separate
+   * intro-font slot this used is gone with it.
+   */
   font = (view && view->title_font_ok) ? &view->title_font : font;
+  const ColonizeFont* name_font = font;
+  /* stats_y = name_y + FONTTINY.max_height + 2 (3f41:02dc, see the
+   * REPORTS_INDIAN_STATS_DY note) — derived from the live font, not fixed. */
+  const int stats_dy = font ? (int)font->max_height + 2 : REPORTS_INDIAN_STATS_DY;
 
   IndianRow rows[COLONIZE_COL1_INDIAN_COUNT];
   const int n = reports_indian_build_rows(col1, units, human, rows, COLONIZE_COL1_INDIAN_COUNT);
@@ -3583,7 +3605,7 @@ static void reports_render_indian(
   for (int i = 0; i < n; ++i) {
     const IndianRow* r = &rows[i];
     const int name_y = REPORTS_INDIAN_ROW0_Y + i * REPORTS_INDIAN_ROW_STEP;
-    const int stats_y = name_y + REPORTS_INDIAN_STATS_DY;
+    const int stats_y = name_y + stats_dy;
 
     if (view && view->icons_ok) {
       /* The base sprite is #113 (quartile 0), so the floor is

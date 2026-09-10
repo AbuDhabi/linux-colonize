@@ -127,6 +127,36 @@ int main(void) {
       assets_msg_free(&labels);
       return 1;
     }
+    /*
+     * bugs.md 435: the AMER2 west-coast sea lane IS column 1 (high seas,
+     * rows 33..70) and the east lane runs to column 56 — both must fall
+     * inside the playable board and inside the scrolled-to-the-edge viewport.
+     * DOS draws exactly columns 1..56 (FUN_6ba1_000c clamps the view origin to
+     * [1, map_w - cols - 1] and FUN_6ba1_0d6c's tile loop is hard-clamped to
+     * [DS:0x8328, DS:0x8804]); columns 0 and 57 are map data only.
+     */
+    map_panel_clamp_view_origin(58, 72, 1, 40, 15, 12, &vx, &vy);
+    if (vx != 1) {
+      fprintf(stderr, "west sea lane column 1 outside far-west viewport (origin %d)\n", vx);
+      map_free(&map);
+      map_panel_free(&panel);
+      assets_msg_free(&labels);
+      return 1;
+    }
+    if (!map_tile_is_high_seas(&map, 1, 40) || !map_coords_inset(&map, 1, 40)) {
+      map_free(&map);
+      map_panel_free(&panel);
+      assets_msg_free(&labels);
+      return fail("AMER2 (1,40) should be a playable high-seas lane tile");
+    }
+    map_panel_clamp_view_origin(58, 72, 56, 40, 15, 12, &vx, &vy);
+    if (vx + 14 != 56) {
+      fprintf(stderr, "east lane column 56 not the last drawn column (origin %d)\n", vx);
+      map_free(&map);
+      map_panel_free(&panel);
+      assets_msg_free(&labels);
+      return 1;
+    }
     if (map_coords_inset(&map, 0, 10) || map_coords_inset(&map, 57, 10) ||
         !map_coords_inset(&map, 1, 1) || !map_coords_inset(&map, 56, 70)) {
       map_free(&map);

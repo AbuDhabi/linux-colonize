@@ -143,6 +143,20 @@ typedef struct AiPopupRequest {
   int nation_a; /* optional context (often human) */
   int nation_b;
   int payload; /* free int (tribe id, colony id, …) */
+  /*
+   * Contact-chain group key (bugs.md 433). 0 = ungrouped. DOS runs a contact
+   * sequence as one BLOCKING inline call — FUN_5bfb_3180 dispatches either
+   * FUN_5bfb_022e (Indian) or FUN_5bfb_153e (Euro) for one neighbour and does
+   * not return until that whole dialog chain is answered, so a Tupi meet and a
+   * Spanish encounter can never interleave. The port's queue is async, and a
+   * chain's follow-up popups are only enqueued when the previous one is
+   * answered, so they land BEHIND whatever else was queued meanwhile. Requests
+   * carrying the same key present consecutively; see ai_popup_try_present_next.
+   * Filled by ai_popup_enqueue from (tag, nation_a, nation_b) — every tag in
+   * the contact/153e family uses nation_a = Euro nation, nation_b = the other
+   * party (0..3 Euro, 4..11 Indian).
+   */
+  int chain;
   char title[AI_POPUP_TITLE_LEN];
   char body[AI_POPUP_BODY_LEN];
   char choices[AI_POPUP_CHOICE_MAX][AI_POPUP_CHOICE_LEN];
@@ -188,6 +202,16 @@ typedef struct AiPopupRequest {
  * clock (FUN_291f_07b0 / FUN_38fd_19d8) = 1971 ms.
  */
 #define AI_POPUP_BAR_MSG_LAST_MS 1971u
+/*
+ * bugs.md 431 — EXPLICIT USER PREFERENCE, deliberately NOT DOS pacing: the
+ * sale one-liners (Custom House autosell run, European Status sell lines) run
+ * three times as fast as DOS, so a big autosell turn stops feeling like a
+ * cutscene. Divides the two dwells above, and ONLY for the sale arm kinds
+ * (DOS FUN_1009_0244's first argument 1/2, the gold "success" ink) — any
+ * other status-strip line keeps DOS's own timing. 500/3 = 166 ms held,
+ * 1971/3 = 657 ms for the last line of a run.
+ */
+#define AI_POPUP_BAR_SALE_SPEEDUP 3u
 
 typedef struct AiPopupState {
   AiPopupRequest queue[AI_POPUP_QUEUE_MAX];
@@ -214,6 +238,14 @@ typedef struct AiPopupState {
    * optionless, and the colony screen opens after the last one is answered
    * (FUN_364b_0688 tail FUN_281f_0608). */
   uint64_t colony_zoom_elected;
+
+  /*
+   * Contact chain currently being presented (AiPopupRequest.chain; 0 = none).
+   * While set, only requests carrying the same key are presented — the async
+   * twin of DOS's blocking inline contact call (bugs.md 433). Cleared the
+   * moment nothing with that key is left in the queue.
+   */
+  int active_chain;
 
   /*
    * DOS status-line queue (DS:0x2d54 + the DS:0x4a "message armed" flag).
@@ -338,6 +370,12 @@ void ai_popup_promote_tag_before(AiPopupState* st, AiPopupTag promote, AiPopupTa
 
 /* Debug-log name for a tag ("KING_TAX", "COMBAT_LOOT", ...). Never NULL. */
 const char* ai_popup_tag_name(AiPopupTag tag);
+
+/*
+ * Contact-chain key for (tag, nation_a, nation_b), or 0 when the tag is not
+ * part of a contact chain. Exposed for tests (see AiPopupRequest.chain).
+ */
+int ai_popup_chain_key(AiPopupTag tag, int nation_a, int nation_b);
 
 bool ai_popup_queue_pending(const AiPopupState* st);
 bool ai_popup_busy(const AiPopupState* st); /* open or queued */

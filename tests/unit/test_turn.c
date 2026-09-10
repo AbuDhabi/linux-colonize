@@ -5102,17 +5102,29 @@ int main(void) {
     ColonizeCol1Save c2b;
     col1_save_init(&c2b);
     c2b.head.game_options.woi = 1;
-    c2b.head.colony_count = 1;
-    c2b.colony = calloc(1, sizeof(ColonizeCol1Colony));
+    c2b.head.colony_count = 2;
+    c2b.colony = calloc(2, sizeof(ColonizeCol1Colony));
     if (!c2b.colony) {
       return 1;
     }
-    c2b.colony[0].nation_id = 0; /* human colony only — crown owns none */
+    c2b.colony[0].nation_id = 0; /* human, no bells accumulated → SoL 0 */
     c2b.colony[0].population = 1;
     c2b.colony[0].rebel_dividend = 0;
     c2b.colony[0].rebel_divisor = 100;
-    /* No colony for the crown ⇒ ai_king_sol_percent falls back to bells/4. */
-    c2b.nation[1].liberty_bells_total = 400;
+    /*
+     * The crown's SoL comes from its own rebel pair, never from a
+     * `liberty_bells_total / 4` stand-in — that stand-in is deleted
+     * (bugs.md 430: nation bell totals run into the millions in real DOS
+     * saves, so every hit of it read as 100%). C1's crown-colony gate counts
+     * the RUNTIME pool (below, which stays crownless so the gate is open and
+     * only the fat REF pool stops C1); ai_king_sol_percent reads the COL1
+     * records, so this record is what gives the crown a SoL history to
+     * compare against.
+     */
+    c2b.colony[1].nation_id = 1; /* crown */
+    c2b.colony[1].population = 1;
+    c2b.colony[1].rebel_dividend = 100;
+    c2b.colony[1].rebel_divisor = 100;
     /* REF pool fat: ref_score = ef[0] + 2 - (ef[1]==0) - (ef[3]==0) = 5 ⇒
      * !ref_thin ⇒ C1 cannot fire even with the crown wiped off the map. */
     c2b.head.expeditionary_force[0] = 5;

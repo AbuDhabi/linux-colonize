@@ -1187,12 +1187,15 @@ static int unit_sea_lane_entry(void) {
   for (int i = 0; i < 8 * 8; ++i) {
     map.terrain[i] = 25; /* ocean */
   }
+  /* Lanes sit INSIDE the playable board, as on AMER2 (west lane = column 1,
+   * east lane = columns 51..56; the outer rim, column 0 / w-1, is plain ocean
+   * a unit may never occupy — DOS FUN_137f_000a, bugs.md 435). */
   for (int y = 0; y < 8; ++y) {
-    map.terrain[y * 8 + 6] = 26; /* high seas / sea lane */
-    map.terrain[y * 8 + 7] = 26;
+    map.terrain[y * 8 + 5] = 26; /* high seas / sea lane */
+    map.terrain[y * 8 + 6] = 26;
   }
 
-  const int id = units_spawn_allow_stack(&pool, 0, 5, 3);
+  const int id = units_spawn_allow_stack(&pool, 0, 4, 3);
   ColonizeUnit* u = units_get(&pool, id);
   if (!u) {
     map_free(&map);
@@ -1203,20 +1206,20 @@ static int unit_sea_lane_entry(void) {
   u->moves_left = 4 * UNITS_MP_PER_TILE;
 
   int rc = 0;
-  if (!units_can_enter(&pool, u->type_index, &map, 6, 3, id, NULL)) {
+  if (!units_can_enter(&pool, u->type_index, &map, 5, 3, id, NULL)) {
     fprintf(stderr, "sea_lane: ocean->lane must be allowed\n");
     rc = 1;
   }
-  if (rc == 0 && !units_set_goto(&pool, id, &map, 6, 3, NULL)) {
+  if (rc == 0 && !units_set_goto(&pool, id, &map, 5, 3, NULL)) {
     fprintf(stderr, "sea_lane: Go To onto a lane tile must be accepted\n");
     rc = 1;
   }
   units_clear_orders(&pool, id);
   u = units_get(&pool, id);
-  u->x = 6;
+  u->x = 5;
   u->y = 3;
   u->orders = UNITS_ORDER_NONE;
-  if (rc == 0 && units_can_enter(&pool, u->type_index, &map, 7, 3, id, NULL)) {
+  if (rc == 0 && units_can_enter(&pool, u->type_index, &map, 6, 3, id, NULL)) {
     fprintf(stderr, "sea_lane: lane->east without a sail order must be denied\n");
     rc = 1;
   }
@@ -1225,21 +1228,173 @@ static int unit_sea_lane_entry(void) {
     rc = 1;
   }
   u->orders = UNITS_ORDER_GOTO;
-  u->goto_x = 7;
+  u->goto_x = 6;
   u->goto_y = 3;
-  if (rc == 0 && !units_can_enter(&pool, u->type_index, &map, 7, 3, id, NULL)) {
+  if (rc == 0 && !units_can_enter(&pool, u->type_index, &map, 6, 3, id, NULL)) {
     fprintf(stderr, "sea_lane: lane->east with Go To must be allowed\n");
     rc = 1;
   }
   u->orders = UNITS_ORDER_NONE;
-  if (rc == 0 && !units_can_enter(&pool, u->type_index, &map, 5, 3, id, NULL)) {
+  if (rc == 0 && !units_can_enter(&pool, u->type_index, &map, 4, 3, id, NULL)) {
     fprintf(stderr, "sea_lane: lane->west back to ocean must be allowed\n");
     rc = 1;
   }
+  /*
+   * bugs.md 435: the outer rim is not a playable tile. A ship on the lane may
+   * not step onto column w-1 (nor column 0 / row 0 / row h-1) — DOS
+   * FUN_137f_000a. Before the fix the port only tested the raw array bounds,
+   * so a ship could slide off the west sea lane onto column 0, a tile the
+   * viewport never scrolls to and no click can address.
+   */
+  u->x = 1;
+  u->y = 3;
+  if (rc == 0 && units_can_enter(&pool, u->type_index, &map, 0, 3, id, NULL)) {
+    fprintf(stderr, "sea_lane: step onto the west rim column must be denied\n");
+    rc = 1;
+  }
+  if (rc == 0 && units_last_enter_reason() != COLONIZE_ENTER_BLOCKED_EDGE) {
+    fprintf(stderr, "sea_lane: rim deny should be reason EDGE\n");
+    rc = 1;
+  }
+  u->x = 3;
+  u->y = 1;
+  if (rc == 0 && units_can_enter(&pool, u->type_index, &map, 3, 0, id, NULL)) {
+    fprintf(stderr, "sea_lane: step onto the north rim row must be denied\n");
+    rc = 1;
+  }
+  u->x = 3;
+  u->y = 6;
+  if (rc == 0 && units_can_enter(&pool, u->type_index, &map, 3, 7, id, NULL)) {
+    fprintf(stderr, "sea_lane: step onto the south rim row must be denied\n");
+    rc = 1;
+  }
+  u->x = 4;
+  u->y = 3;
+  u->orders = UNITS_ORDER_NONE;
 
   map_free(&map);
   if (rc == 0) {
     fprintf(stderr, "unit_units: sea-lane entry rules ok\n");
+  }
+  return rc;
+}
+
+/*
+ * bugs.md 427: "Newly bought Merchantman sent to the New World spawned in an
+ * unexplored sea lane tile, and did not even insta-reveal the fog."
+ *
+ * DOS FUN_48d3_048e (viceroy_unpacked.c:77810) is the Europe->map placement:
+ * an expanding ring hunt around the nation's landfall goal accepting the first
+ * tile that passes FUN_48d3_0434 (terrain 0x1a AND empty-or-own-nation), then
+ * unconditionally
+ *   FUN_281f_0948 (set x/y) -> FUN_281f_084e -> FUN_281f_07a0
+ * where FUN_281f_07a0 == FUN_13f1_02f8, the same sight reveal a normal move
+ * runs. This test pins both halves of the sequence game_loop.c's
+ * game_europe_deliver_bound_ships now performs.
+ */
+static int unit_europe_arrival_reveals(void) {
+  ColonizeUnitPool pool;
+  memset(&pool, 0, sizeof(pool));
+  pool.type_count = 1;
+  snprintf(pool.types[0].name, sizeof(pool.types[0].name), "Merchantman");
+  pool.types[0].movement = 5;
+  pool.types[0].domain = COLONIZE_UNIT_DOMAIN_SEA;
+
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  char err[128];
+  if (!map_alloc(&map, 12, 12, err, sizeof(err))) {
+    fprintf(stderr, "arrival: map_alloc failed: %s\n", err);
+    return 1;
+  }
+  for (int i = 0; i < 12 * 12; ++i) {
+    map.terrain[i] = 25; /* ocean */
+  }
+  for (int y = 0; y < 12; ++y) {
+    map.terrain[y * 12 + 10] = 26; /* eastern high-seas lane */
+  }
+  memset(map.seen, 0, map.tile_count); /* whole map unexplored */
+
+  int rc = 0;
+  const int nation = 2;
+  const int goal_x = 10;
+  const int goal_y = 5;
+
+  /* An own ship already parked on the landfall goal must not push the arrival
+   * across the map: DOS 48d3_0434 accepts an own-nation occupant, and the ring
+   * walk keeps the pick adjacent. (units_find_high_seas_tile, the old pick,
+   * refuses ANY occupied tile.) */
+  const int blocker = units_spawn_allow_stack(&pool, 0, goal_x, goal_y);
+  if (blocker < 0) {
+    fprintf(stderr, "arrival: blocker spawn failed\n");
+    map_free(&map);
+    return 1;
+  }
+  units_get(&pool, blocker)->nation_id = nation;
+
+  int fx = -1;
+  int fy = -1;
+  if (!units_spiral_place_hs_near(&pool, &map, goal_x, goal_y, nation, &fx, &fy)) {
+    fprintf(stderr, "arrival: spiral place found no high-seas tile\n");
+    map_free(&map);
+    return 1;
+  }
+  if (!map_tile_is_high_seas(&map, fx, fy)) {
+    fprintf(stderr, "arrival: placed on non-high-seas tile (%d,%d)\n", fx, fy);
+    rc = 1;
+  }
+  if (rc == 0 && (fx != goal_x || abs(fy - goal_y) > 1)) {
+    fprintf(stderr, "arrival: ring pick (%d,%d) strayed from goal (%d,%d)\n", fx, fy, goal_x, goal_y);
+    rc = 1;
+  }
+
+  if (rc == 0) {
+    const int ship = units_spawn_allow_stack(&pool, 0, fx, fy);
+    if (ship < 0) {
+      fprintf(stderr, "arrival: ship spawn failed\n");
+      map_free(&map);
+      return 1;
+    }
+    ColonizeUnit* u = units_get(&pool, ship);
+    u->nation_id = nation;
+
+    /* Pre-condition: the arrival tile is still fogged for the arriving nation
+     * — this is exactly the state the player was left in. */
+    if (map_tile_seen_by(&map, fx, fy, nation)) {
+      fprintf(stderr, "arrival: fixture tile was already explored\n");
+      rc = 1;
+    }
+    if (rc == 0) {
+      (void)units_reveal_sight(&map, &pool, NULL, u, NULL);
+    }
+    if (rc == 0 && !map_tile_seen_by(&map, fx, fy, nation)) {
+      fprintf(stderr, "arrival: own tile still fogged after reveal\n");
+      rc = 1;
+    }
+    /* Sight radius 1 inner box: every inset neighbour is revealed. */
+    for (int dy = -1; rc == 0 && dy <= 1; ++dy) {
+      for (int dx = -1; rc == 0 && dx <= 1; ++dx) {
+        const int tx = fx + dx;
+        const int ty = fy + dy;
+        if (!map_coords_inset(&map, tx, ty)) {
+          continue;
+        }
+        if (!map_tile_seen_by(&map, tx, ty, nation)) {
+          fprintf(stderr, "arrival: neighbour (%d,%d) still fogged after reveal\n", tx, ty);
+          rc = 1;
+        }
+      }
+    }
+    /* Other nations gained nothing. */
+    if (rc == 0 && map_tile_seen_by(&map, fx, fy, 0)) {
+      fprintf(stderr, "arrival: reveal leaked to another nation\n");
+      rc = 1;
+    }
+  }
+
+  map_free(&map);
+  if (rc == 0) {
+    fprintf(stderr, "unit_units: Europe arrival place+reveal ok\n");
   }
   return rc;
 }
@@ -1648,6 +1803,43 @@ static int unit_fog_vis_mask_and_snapshot(void) {
     vu->horses = 0;
     vu->profession = 0;
     fprintf(stderr, "veteran dragoon chrome ok\n");
+
+    /*
+     * bugs.md 426: FUN_112b_0060's tail downgrades a commissioned missionary
+     * whose colonist is not a Jesuit (profession != 0x18) to icon 0x4e =
+     * sprite 77; the Jesuit keeps the @UNIT icon 106 → sprite 105. And
+     * FUN_112b_0002 case 5 gives a Jesuit *working colonist* icon 0x3e =
+     * sprite 61, not either commissioned pose.
+     */
+    cpool.type_count = 2;
+    snprintf(cpool.types[1].name, sizeof(cpool.types[1].name), "Missionaries");
+    cpool.types[1].movement = 1;
+    cpool.types[1].icon_sprite = UNITS_ICON_JESUIT_MISSIONARY;
+    const int miss = units_spawn_allow_stack(&cpool, 1, 5, 3);
+    ColonizeUnit* mu = units_get(&cpool, miss);
+    if (!mu) {
+      fprintf(stderr, "missionary sprite: spawn failed\n");
+      return 1;
+    }
+    mu->profession = UNITS_JOB_NONE;
+    if (units_map_sprite(&cpool, miss) != UNITS_ICON_MISSIONARY) {
+      fprintf(stderr, "missionary sprite: unskilled icon %d want %d\n",
+              units_map_sprite(&cpool, miss), UNITS_ICON_MISSIONARY);
+      return 1;
+    }
+    mu->profession = UNITS_JOB_MISSIONARY;
+    if (units_map_sprite(&cpool, miss) != UNITS_ICON_JESUIT_MISSIONARY) {
+      fprintf(stderr, "missionary sprite: Jesuit icon %d want %d\n",
+              units_map_sprite(&cpool, miss), UNITS_ICON_JESUIT_MISSIONARY);
+      return 1;
+    }
+    if (units_job_icon_sprite(UNITS_JOB_MISSIONARY) != UNITS_ICON_JESUIT_MISSIONARY_WORK) {
+      fprintf(stderr, "missionary sprite: working portrait %d want %d\n",
+              units_job_icon_sprite(UNITS_JOB_MISSIONARY),
+              UNITS_ICON_JESUIT_MISSIONARY_WORK);
+      return 1;
+    }
+    fprintf(stderr, "missionary sprite split ok\n");
   }
 
   /*
@@ -3309,6 +3501,10 @@ int main(void) {
     diag_shutdown();
     return 1;
   }
+  if (unit_europe_arrival_reveals() != 0) {
+    diag_shutdown();
+    return 1;
+  }
   if (unit_fog_vis_mask_and_snapshot() != 0) {
     diag_shutdown();
     return 1;
@@ -3485,13 +3681,45 @@ int main(void) {
   int land_y = 10;
   if (!map_tile_is_land(&map, land_x, land_y) || units_id_at(&pool, land_x, land_y) >= 0) {
     land_x = -1;
+    /*
+     * Interior tiles only (map_coords_inset / DOS FUN_137f_000a): AMER2 row 0
+     * carries land in columns 1..3, but the outer rim is not a playable tile
+     * and no unit may stand there — bugs.md 435. The tests below then step
+     * the unit one tile east and want a free water neighbour for the boarding
+     * case, so require: (x,y) and (x+1,y) both interior land, and (x+1,y)
+     * coastal.
+     */
     for (int y = 0; y < map.height && land_x < 0; ++y) {
       for (int x = 0; x < map.width; ++x) {
-        if (map_tile_is_land(&map, x, y) && units_id_at(&pool, x, y) < 0) {
-          land_x = x;
-          land_y = y;
-          break;
+        if (!map_coords_inset(&map, x, y) || !map_coords_inset(&map, x + 1, y)) {
+          continue;
         }
+        if (!map_tile_is_land(&map, x, y) || units_id_at(&pool, x, y) >= 0) {
+          continue;
+        }
+        if (!map_tile_is_land(&map, x + 1, y) || units_id_at(&pool, x + 1, y) >= 0) {
+          continue;
+        }
+        bool coastal = false;
+        for (int dy = -1; dy <= 1 && !coastal; ++dy) {
+          for (int dx = -1; dx <= 1; ++dx) {
+            const int tx = x + 1 + dx;
+            const int ty = y + dy;
+            if ((dx == 0 && dy == 0) || !map_coords_inset(&map, tx, ty)) {
+              continue;
+            }
+            if (map_tile_is_water(&map, tx, ty) && units_id_at(&pool, tx, ty) < 0) {
+              coastal = true;
+              break;
+            }
+          }
+        }
+        if (!coastal) {
+          continue;
+        }
+        land_x = x;
+        land_y = y;
+        break;
       }
     }
   }
@@ -4121,8 +4349,13 @@ int main(void) {
     }
     int px = -1;
     int py = -1;
-    for (int y = 0; y < 6 && px < 0; ++y) {
-      for (int x = 0; x < 6; ++x) {
+    /* Interior tiles only — the 1-tile rim is not playable (map_coords_inset /
+     * DOS FUN_137f_000a; bugs.md 435), so a unit may not stand or step there. */
+    for (int y = 1; y < 6 && px < 0; ++y) {
+      for (int x = 1; x < 6; ++x) {
+        if (!map_coords_inset(&tmap, x, y) || !map_coords_inset(&tmap, x + 1, y)) {
+          continue;
+        }
         if (units_id_at(&pool, x, y) < 0 && units_id_at(&pool, x + 1, y) < 0) {
           px = x;
           py = y;
@@ -4845,7 +5078,8 @@ int main(void) {
     int sx = -1, sy = -1;
     for (int y = 1; y < (int)map.height - 1 && sx < 0; ++y) {
       for (int x = 1; x < (int)map.width - 1 && sx < 0; ++x) {
-        if (!map_tile_is_land(&map, x, y) && !map_tile_is_high_seas(&map, x, y)) {
+        if (!map_tile_is_land(&map, x, y) && !map_tile_is_high_seas(&map, x, y) &&
+            units_id_at(&pool, x, y) < 0) {
           sx = x;
           sy = y;
         }
@@ -6760,8 +6994,10 @@ int main(void) {
       int ox = -1, oy = -1;
       for (int y = 0; y < (int)map.height && ox < 0; ++y) {
         for (int x = 0; x < (int)map.width && ox < 0; ++x) {
-          if (map_tile_is_water(&map, x, y) && abs(x - ax) <= 1 && abs(y - ay) <= 1 &&
-              !(x == ax && y == ay)) {
+          /* Interior tiles only: a rim tile denies with BLOCKED_EDGE before the
+           * domain check ever runs (map_coords_inset / DOS FUN_137f_000a). */
+          if (map_coords_inset(&map, x, y) && map_tile_is_water(&map, x, y) &&
+              abs(x - ax) <= 1 && abs(y - ay) <= 1 && !(x == ax && y == ay)) {
             ox = x;
             oy = y;
           }
@@ -7022,7 +7258,32 @@ int main(void) {
               ship ? ship->cargo_count : -1, land ? land->aboard_ship_id : -1);
       return 1;
     }
-    /* Unload onto land for sentry auto-board test. */
+    /*
+     * bugs.md 429: walking aboard from open shore is DOS's 465b_05ca
+     * force-to-max — that passenger is spent, so FUN_4720_015c offers it no
+     * landfall and the unload is refused until the next turn.
+     */
+    if (!land->mp_spent_turn) {
+      fprintf(stderr, "board-enter: shore boarding must mark the pax spent\n");
+      return 1;
+    }
+    if (units_cargo_can_landfall(&pool, land_id) ||
+        units_first_landfall_cargo(&pool, ship_id) >= 0) {
+      fprintf(stderr, "board-enter: spent pax must not be landfall-eligible\n");
+      return 1;
+    }
+    if (units_unload_passenger(&pool, ship_id, land_id, &map, lx, ly, NULL)) {
+      fprintf(stderr, "board-enter: spent pax must not make landfall\n");
+      return 1;
+    }
+    fprintf(stderr, "board-enter spent pax stays aboard ok\n");
+    /* Next turn (DOS day top clears the spent byte): unload onto land for
+     * the sentry auto-board test. */
+    land->mp_spent_turn = 0;
+    if (units_first_landfall_cargo(&pool, ship_id) != land_id) {
+      fprintf(stderr, "board-enter: fresh parked pax must be landfall-eligible\n");
+      return 1;
+    }
     if (!units_unload_passenger(&pool, ship_id, land_id, &map, lx, ly, NULL)) {
       fprintf(stderr, "board-enter unload failed\n");
       return 1;
@@ -9132,6 +9393,164 @@ int main(void) {
     }
     units_despawn(&pool, ship);
     fprintf(stderr, "unit_units: fogged goto destination ok\n");
+  }
+
+  /*
+   * bugs.md 424: a Go To aimed at an Indian settlement is a move command INTO
+   * the village — on arrival its final step must be dispatched through the
+   * normal entry flow (game_loop hands it to game_try_unit_move →
+   * FUN_4d56_4528 @ACTIONS), not stopped one tile short. The raw pacer has no
+   * popup channel and must still refuse to walk in silently.
+   */
+  {
+    int ux = -1, uy = -1, vx = -1, vy = -1;
+    for (int y = 5; y < (int)map.height - 5 && ux < 0; ++y) {
+      for (int x = 5; x < (int)map.width - 6; ++x) {
+        if (map_tile_is_land(&map, x, y) && map_tile_is_land(&map, x + 1, y) &&
+            !map_tile_has_city(&map, x, y) && !map_tile_has_city(&map, x + 1, y) &&
+            units_id_at(&pool, x, y) < 0 && units_id_at(&pool, x + 1, y) < 0) {
+          ux = x;
+          uy = y;
+          vx = x + 1;
+          vy = y;
+          break;
+        }
+      }
+    }
+    if (ux < 0) {
+      fprintf(stderr, "goto-village: no adjacent land pair\n");
+      return 1;
+    }
+    const size_t vi = (size_t)vy * (size_t)map.width + (size_t)vx;
+    const uint8_t saved_l2 = map.layer2[vi];
+    map.layer2[vi] |= MAP_OCCUPANCY_HAS_CITY; /* native village, no colony */
+
+    const int walker = units_spawn(&pool, pioneer, ux, uy);
+    ColonizeUnit* wu = units_get(&pool, walker);
+    if (walker < 0 || !wu) {
+      fprintf(stderr, "goto-village: spawn failed\n");
+      return 1;
+    }
+    wu->nation_id = 0;
+    wu->moves_left = units_max_mp(&pool, walker);
+    /* bugs.md 135: the order itself is legal even though the tile is not
+     * enterable by a plain settler. */
+    if (!units_set_goto(&pool, walker, &map, vx, vy, NULL)) {
+      fprintf(stderr, "goto-village: village destination must be accepted\n");
+      return 1;
+    }
+    if (!units_goto_dest_is_village_entry(&pool, walker, &map, NULL)) {
+      fprintf(stderr, "goto-village: adjacent arrival must dispatch the entry step\n");
+      return 1;
+    }
+    /* Not adjacent yet → still an ordinary en-route step, no dispatch. */
+    wu->x = ux;
+    wu->y = uy + 3;
+    wu->orders = UNITS_ORDER_GOTO;
+    wu->goto_x = (uint8_t)vx;
+    wu->goto_y = (uint8_t)vy;
+    if (units_goto_dest_is_village_entry(&pool, walker, &map, NULL)) {
+      fprintf(stderr, "goto-village: en-route step must not dispatch the entry\n");
+      return 1;
+    }
+    /* Adjacent to a village the path merely brushes past (not the ordered
+     * destination) → no dispatch either. */
+    wu->x = ux;
+    wu->y = uy;
+    wu->goto_x = (uint8_t)ux;
+    wu->goto_y = (uint8_t)(uy + 2);
+    if (units_goto_dest_is_village_entry(&pool, walker, &map, NULL)) {
+      fprintf(stderr, "goto-village: only the ORDERED village tile dispatches\n");
+      return 1;
+    }
+    units_despawn(&pool, walker);
+    map.layer2[vi] = saved_l2;
+    fprintf(stderr, "unit_units: goto village entry dispatch ok\n");
+  }
+
+  /*
+   * bugs.md 429 / DOS FUN_4720_015c (viceroy_unpacked.c:76010-76026): landfall
+   * is offered only to cargo whose spent byte is below its max. A passenger
+   * parked at moves_left 0 by boarding is still fresh (DOS spent 0) and may
+   * land; one that burnt its allotment this turn stays aboard.
+   */
+  {
+    int wx = -1, wy = -1, lx = -1, ly = -1;
+    for (int y = 5; y < (int)map.height - 5 && wx < 0; ++y) {
+      for (int x = 5; x < (int)map.width - 5; ++x) {
+        if (!map_tile_is_water(&map, x, y) || units_id_at(&pool, x, y) >= 0) {
+          continue;
+        }
+        static const int dx8[8] = {1, -1, 0, 0, 1, 1, -1, -1};
+        static const int dy8[8] = {0, 0, 1, -1, 1, -1, 1, -1};
+        for (int d = 0; d < 8; ++d) {
+          const int tx = x + dx8[d];
+          const int ty = y + dy8[d];
+          if (map_tile_is_land(&map, tx, ty) && !map_tile_has_city(&map, tx, ty) &&
+              units_id_at(&pool, tx, ty) < 0) {
+            wx = x;
+            wy = y;
+            lx = tx;
+            ly = ty;
+            break;
+          }
+        }
+        if (wx >= 0) {
+          break;
+        }
+      }
+    }
+    if (wx < 0) {
+      fprintf(stderr, "landfall-spent: no coast pair\n");
+      return 1;
+    }
+    const int boat = units_spawn(&pool, caravel, wx, wy);
+    const int spent_pax = units_spawn_allow_stack(&pool, pioneer, lx, ly);
+    const int fresh_pax = units_spawn_allow_stack(&pool, pioneer, lx, ly);
+    if (boat < 0 || spent_pax < 0 || fresh_pax < 0 ||
+        !units_board(&pool, spent_pax, boat) || !units_board(&pool, fresh_pax, boat)) {
+      fprintf(stderr, "landfall-spent: setup failed\n");
+      return 1;
+    }
+    units_get(&pool, boat)->nation_id = 0;
+    units_get(&pool, spent_pax)->nation_id = 0;
+    units_get(&pool, fresh_pax)->nation_id = 0;
+    /* Both parked at 0 by boarding: both eligible, first one wins. */
+    if (units_first_landfall_cargo(&pool, boat) != spent_pax) {
+      fprintf(stderr, "landfall-spent: parked-fresh cargo must be eligible\n");
+      return 1;
+    }
+    /* Now mark the first one as having spent its allotment this turn. */
+    units_get(&pool, spent_pax)->mp_spent_turn = 1;
+    if (units_cargo_can_landfall(&pool, spent_pax)) {
+      fprintf(stderr, "landfall-spent: spent pax must not be eligible\n");
+      return 1;
+    }
+    if (units_first_landfall_cargo(&pool, boat) != fresh_pax) {
+      fprintf(stderr, "landfall-spent: offer must skip to the fresh passenger\n");
+      return 1;
+    }
+    if (units_unload_passenger(&pool, boat, spent_pax, &map, lx, ly, NULL)) {
+      fprintf(stderr, "landfall-spent: spent pax must not be put ashore\n");
+      return 1;
+    }
+    if (units_get(&pool, spent_pax)->aboard_ship_id != boat) {
+      fprintf(stderr, "landfall-spent: refused pax must stay on the ship\n");
+      return 1;
+    }
+    if (!units_unload_passenger(&pool, boat, fresh_pax, &map, lx, ly, NULL)) {
+      fprintf(stderr, "landfall-spent: parked-fresh pax must be able to land\n");
+      return 1;
+    }
+    /* Every passenger spent → no offer at all (DOS leaves reason 0). */
+    if (units_first_landfall_cargo(&pool, boat) >= 0) {
+      fprintf(stderr, "landfall-spent: all-spent cargo must offer nobody\n");
+      return 1;
+    }
+    units_despawn(&pool, fresh_pax);
+    units_despawn(&pool, spent_pax);
+    units_despawn(&pool, boat);
+    fprintf(stderr, "unit_units: landfall spent-passenger gate ok\n");
   }
 
   /*
