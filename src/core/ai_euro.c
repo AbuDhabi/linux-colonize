@@ -5056,6 +5056,8 @@ static int ai_euro_unit_is_food_labor(const ColonizeUnitPool* units, const Colon
 static int ai_euro_type_is_wagon_name(const char* name);
 static int ai_euro_land_has_useful_goto(const ColonizeUnit* u, const ColonizeWorldMap* map);
 
+static int ai_euro_ship_enter_europe(ColonizeTurnContext* ctx, ColonizeUnit* ship);
+
 static void ai_euro_set_goto(ColonizeUnit* u, int orders, int gx, int gy) {
   if (!u) {
     return;
@@ -13724,6 +13726,16 @@ static int ai_euro_20e6_457e_hs_cadence(ColonizeTurnContext* ctx, ColonizeUnit* 
   if (!spare && (((char)u->id + (char)s.turn) & 0x1f) != 0) {
     return 0;
   }
+  /* Already on High Seas — orders 0x45 means cross, not re-spiral (the
+   * re-spiral skips the own tile as occupied and wiggles the hull between
+   * two rim tiles forever). */
+  if (map_tile_is_high_seas(ctx->map, u->x, u->y)) {
+    if (getenv("AI_20E6_HS_TRACE")) {
+      fprintf(stderr, "[457e] ship %d n%d (%d,%d) turn %d on HS -> Europe\n", u->id, nation_id,
+              u->x, u->y, s.turn);
+    }
+    return ai_euro_ship_enter_europe(ctx, u);
+  }
   int hx = 0;
   int hy = 0;
   if (!units_spiral_place_hs_near(ctx->units, ctx->map, u->x, u->y, nation_id, &hx, &hy)) {
@@ -15652,6 +15664,31 @@ static int ai_euro_ship_holds_export_goods(const ColonizeUnitPool* units, const 
   return 0;
 }
 
+/*
+ * AI High Seas → Europe crossing (the missing half of the 48d3_015e stand-in):
+ * a ship the export/loot arms sent to a High Seas tile enters the Europe park
+ * (200,100) once it stands on one. Without this the sail target re-resolves
+ * every act — units_find_eastern_high_seas_tile skips the ship's OWN tile as
+ * occupied, so the "best" rim tile flips between two neighbours and the ship
+ * wiggles on the sealane forever, never selling. Next act the in_europe branch
+ * cash/sells and teleports it back out toward its landfall.
+ */
+static int ai_euro_ship_enter_europe(ColonizeTurnContext* ctx, ColonizeUnit* ship) {
+  if (!ctx || !ctx->map || !ctx->units || !ship ||
+      !map_tile_is_high_seas(ctx->map, ship->x, ship->y)) {
+    return 0;
+  }
+  const int ox = ship->x;
+  const int oy = ship->y;
+  ship->x = 200;
+  ship->y = 100;
+  units_occupancy_notify_moved(ctx->units, ox, oy, 200, 100);
+  ai_euro_sync_aboard_cargo_xy(ctx->units, ship);
+  ai_euro_set_goto(ship, UNITS_ORDER_AI_SAIL, 200, 100);
+  ship->moves_left = 0;
+  return 1;
+}
+
 static int ai_euro_try_ship_europe_export(
   ColonizeTurnContext* ctx,
   int nation_id,
@@ -15719,6 +15756,9 @@ static int ai_euro_try_ship_europe_export(
   if (!ai_euro_ship_holds_export_goods(ctx->units, ship)) {
     return 0;
   }
+  if (ai_euro_ship_enter_europe(ctx, ship)) {
+    return 1;
+  }
   int ex = 0;
   int ey = 0;
   if (!ai_euro_europe_sail_target(ctx, ship->x, ship->y, &ex, &ey)) {
@@ -15769,6 +15809,9 @@ static int ai_euro_try_privateer_europe_loot_sail(
   (void)nation_id;
   if (!ai_euro_ship_holds_export_goods(ctx->units, ship)) {
     return 0;
+  }
+  if (ai_euro_ship_enter_europe(ctx, ship)) {
+    return 1;
   }
   int ex = 0;
   int ey = 0;
@@ -19576,6 +19619,8 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
       u->orders = UNITS_ORDER_AI_SAIL;
     }
     if (units_orders_follow_goto(u->orders) && (u->x != u->goto_x || u->y != u->goto_y)) {
+      int prev_x = -1;
+      int prev_y = -1;
       for (;;) {
         if (!u->active || u->moves_left <= 0 || !units_orders_follow_goto(u->orders)) {
           break;
@@ -19585,21 +19630,59 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
         }
         int dx = 0;
         int dy = 0;
-        if (!ai_euro_score_move(ctx, u, u->goto_x, u->goto_y, &dx, &dy)) {
-          break;
+        int tx = 0;
+        int ty = 0;
+        if (ai_euro_score_move(ctx, u, u->goto_x, u->goto_y, &dx, &dy)) {
+          tx = u->x + dx;
+          ty = u->y + dy;
+        } else {
+          tx = -1;
+          ty = -1;
         }
-        const int tx = u->x + dx;
-        const int ty = u->y + dy;
-        const int foe = units_id_at(ctx->units, tx, ty);
-        if (foe >= 0) {
-          /* Naval combat stays on adjacent prefer-weak pick — do not
-           * chain-attack via scored step into a foe tile (try_move cannot
-           * enter ships; mirror prior advance_goto block). */
-          break;
+        /* Greedy step straight back to the tile we just left = local optimum
+         * ping-pong (the on-screen wiggle); route via the pathfinder instead. */
+        if (tx == prev_x && ty == prev_y) {
+          tx = -1;
+          ty = -1;
         }
-        if (!units_try_move(ctx->units, u->id, ctx->map, tx, ty, ctx->colonies, ctx->rng)) {
-          break;
+        const int from_x = u->x;
+        const int from_y = u->y;
+        int moved = 0;
+        if (tx >= 0) {
+          const int foe = units_id_at(ctx->units, tx, ty);
+          if (foe >= 0) {
+            /* Naval combat stays on adjacent prefer-weak pick — do not
+             * chain-attack via scored step into a foe tile (try_move cannot
+             * enter ships; mirror prior advance_goto block). */
+            break;
+          }
+          moved = units_try_move(ctx->units, u->id, ctx->map, tx, ty, ctx->colonies, ctx->rng);
         }
+        if (!moved) {
+          /*
+           * Greedy scored step stalled (land wall / own-ship block between
+           * ship and goal). Fall back to the DOS FUN_6662 pathfinder tiers so
+           * a ship with a far goto routes around the coast instead of
+           * grinding the same two tiles every act (the on-screen "wiggle").
+           */
+          int px = 0;
+          int py = 0;
+          if (!units_next_goto_step(ctx->units, u->id, ctx->map, ctx->colonies, ctx->rng, &px, &py)) {
+            /* Pathfinder agrees the goal is unreachable from here — drop the
+             * goto so next act re-aims instead of resuming the same grind
+             * (the cross-turn A↔B wiggle). */
+            ai_euro_set_goto(u, UNITS_ORDER_AI_SAIL, u->x, u->y);
+            break;
+          }
+          if (units_id_at(ctx->units, px, py) >= 0) {
+            break;
+          }
+          if (!units_try_move(ctx->units, u->id, ctx->map, px, py, ctx->colonies, ctx->rng)) {
+            break;
+          }
+        }
+        prev_x = from_x;
+        prev_y = from_y;
         u = units_get(ctx->units, u->id);
         if (!u) {
           return;
