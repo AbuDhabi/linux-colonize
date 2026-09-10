@@ -90,7 +90,10 @@
 #define COLONY_BUILDABLE_MAX 32
 #define COLONY_BUILDING_SLOT_W 48
 #define COLONY_BUILDING_SLOT_H 32
-#define COLONY_JOB_LIST_MAX COLONIZE_FIELD_JOB_COUNT
+#define COLONY_JOB_LIST_MAX (COLONIZE_FIELD_JOB_COUNT + 1)
+/* Sentinel row id in job_ids[]: FUN_2f2b_348c's "Clear Specialty" row
+ * (menu id 0x61) — offered when the selected colonist is a specialist. */
+#define COLONY_JOB_CLEAR_SPECIALTY (-2)
 
 /* COLONY.PIK bands above the warehouse strip (transport shifted +30 for People/Tory). */
 #define COLONY_PEOPLE_X 0
@@ -154,6 +157,7 @@ typedef enum ColonyScreenHit {
   COLONY_HIT_CONSTRUCTION_ROW,
   COLONY_HIT_CONSTRUCTION_CLEAR,
   COLONY_HIT_CONSTRUCTION_BUY,
+  COLONY_HIT_CONSTRUCTION_MORE, /* bugs.md 442: DOS More... page row */
   COLONY_HIT_EXIT,
   COLONY_HIT_CONSTRUCTION_OUTSIDE,
   COLONY_HIT_AREA_TILE,
@@ -276,8 +280,9 @@ typedef struct ColonyScreenView {
   int construction_dialog_h;
   int construction_list_y0;
   int construction_line_h;
-  int construction_rows_per_col; /* DOS 2f2b_5bd2: 2 columns of 16 when > 14 rows */
+  int construction_rows_per_col; /* DOS 2f2b_5bd2: 16 rows per PAGE when > 22 rows */
   int construction_col_w;
+  int construction_page; /* bugs.md 442: DOS pages (More...), never columns */
 
   bool jobs_open;
   int jobs_tile_index;
@@ -392,6 +397,8 @@ void colony_screen_open_construction(
   const ColoniesBuildableOpts* buildable_opts
 );
 void colony_screen_close_construction(ColonyScreenView* view);
+/* bugs.md 442: advance the construction picker's More... page. */
+void colony_screen_construction_next_page(ColonyScreenView* view);
 
 void colony_screen_open_jobs(
   ColonyScreenView* view,

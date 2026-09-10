@@ -552,6 +552,12 @@ const char* ai_popup_tag_name(AiPopupTag tag) {
       return "COMBAT_HALF";
     case AI_POPUP_TAG_CONTACT_REPARATIONS:
       return "CONTACT_REPARATIONS";
+    case AI_POPUP_TAG_COLONY_CLEARSPEC:
+      return "COLONY_CLEARSPEC";
+    case AI_POPUP_TAG_COLONY_ATTACK:
+      return "COLONY_ATTACK";
+    case AI_POPUP_TAG_SCOUT_COLONY:
+      return "SCOUT_COLONY";
   }
   return "UNKNOWN";
 }

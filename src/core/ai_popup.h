@@ -125,7 +125,7 @@ typedef enum AiPopupTag {
                                  * 2 / Esc = "Then let them rest."
                                  * nation_a = attacker unit id, nation_b = remaining thirds,
                                  * payload = dest x | dest y << 8. */
-  AI_POPUP_TAG_CONTACT_REPARATIONS = 61 /* FUN_5bfb_022e LAB_5bfb_0def demand half:
+  AI_POPUP_TAG_CONTACT_REPARATIONS = 61, /* FUN_5bfb_022e LAB_5bfb_0def demand half:
                                  * @INDIANCITY (0x1866, colony stores) / @INDIANWAGONS
                                  * (0x1871, a Wagon Train's hold) reparations demand.
                                  * nation_a = Euro nation, nation_b = Indian nation,
@@ -135,6 +135,21 @@ typedef enum AiPopupTag {
                                  * accepts on 2 ("Hand them over."), @INDIANWAGONS on 1
                                  * (its rows are printed the other way round). A refusal
                                  * runs LAB_5bfb_0ff2 (village attitude word += 0x80). */
+  AI_POPUP_TAG_COLONY_CLEARSPEC = 62, /* @LOBOTOMIZE (FUN_2f2b_348c row 0x61 -> FUN_281f_0652
+                                 * at DS:0xcae): clear a specialist colonist's specialty and
+                                 * make him an ordinary Free Colonist (profession 0x1c).
+                                 * 1 = Yes, 2 / Esc = No.
+                                 * nation_a = colonist index. */
+  AI_POPUP_TAG_COLONY_ATTACK = 63 /* bugs.md 443: confirm before attacking a foreign Euro
+                                 * COLONY (armed or not). 1 = attack, 2 / Esc = cancel.
+                                 * nation_a = unit id, nation_b = target nation,
+                                 * payload = dest x | dest y << 8. */
+  ,
+  AI_POPUP_TAG_SCOUT_COLONY = 64 /* bugs.md 444 / FUN_5f7a_000e @SCOUTCOLONY (DS:0x1a64):
+                                 * scout at a foreign Euro colony. 1 = Meet With Mayor,
+                                 * 2 = Infiltrate Colony, 3 = Attack Colony, 4 = Nothing.
+                                 * nation_a = unit id, nation_b = colony id,
+                                 * payload = dest x | dest y << 8. */
 } AiPopupTag;
 
 typedef struct AiPopupRequest {

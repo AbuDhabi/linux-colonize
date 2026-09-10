@@ -27,6 +27,8 @@ static void ff_tick(ColonizeTurnContext* ctx) {
     founding_fathers_force_pool_from_total(ctx->col1);
   }
   founding_fathers_tick(ctx);
+  /* bugs.md 440: human election moved to TURN_PROC_FINISH's own call. */
+  founding_fathers_tick_human_elect(ctx);
 }
 
 static void seed_unclaimed(ColonizeCol1Save* col1) {

@@ -2845,6 +2845,8 @@ void colonies_emit_warehouse_full_chrome(
   const ColonizeColony* colony,
   int cargo_type,
   const char* cargo_name,
+  int deposited,
+  int already_included,
   AiPopupState* ai_popups,
   const ColonizeMsgCatalog* messages
 ) {
@@ -2861,7 +2863,12 @@ void colonies_emit_warehouse_full_chrome(
     return;
   }
   const int cap = colonies_warehouse_capacity(pool, colony, cargo_type);
-  const int stock = colony->stock[cargo_type];
+  /* bugs.md 439: NUMBER0 is the pre-deposit stock; back out whatever part of
+   * this deposit has already landed in stock[]. */
+  int stock = colony->stock[cargo_type] - (already_included > 0 ? already_included : 0);
+  if (stock < 0) {
+    stock = 0;
+  }
   const char* cname = colony->name[0] ? colony->name : "colony";
   const char* gname = (cargo_name && cargo_name[0]) ? cargo_name : "cargo";
   char body[AI_POPUP_BODY_LEN];
@@ -2883,6 +2890,8 @@ void colonies_emit_warehouse_full_chrome(
   tok.has_number0 = true;
   tok.number1 = cap;
   tok.has_number1 = true;
+  tok.number2 = deposited > 0 ? deposited : 0;
+  tok.has_number2 = true;
   popup_msg_fill(messages, "WAREHOUSEFULL", &tok, fallback, body, sizeof(body));
   ai_popup_enqueue_ok(ai_popups, AI_POPUP_TAG_INFO, NULL, body);
 }

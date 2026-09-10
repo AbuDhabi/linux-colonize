@@ -280,6 +280,12 @@ bool founding_fathers_revere_should_auto_arm(
 /* Elect at most one FF per eligible nation when the bells threshold is met. */
 void founding_fathers_tick(ColonizeTurnContext* ctx);
 
+/* bugs.md 440: the human's Congress election check, run in TURN_PROC_FINISH
+ * (start of the player's turn) — DOS puts it in the human's own 3844_00f2
+ * pass, right before Move Pieces. founding_fathers_tick no longer elects for
+ * the human. */
+void founding_fathers_tick_human_elect(ColonizeTurnContext* ctx);
+
 /*
  * La Salle immediate hook: call right when a colony's population changes
  * (join/admit/birth) so a colony reaching pop 3 gets its free Stockade the

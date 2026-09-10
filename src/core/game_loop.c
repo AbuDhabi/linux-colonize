@@ -150,6 +150,9 @@ struct ColonizeGameState {
    */
   int tired_ok_unit;
   int tired_ok_payload;
+  /* bugs.md 443: same one-shot latch shape for the attack-a-colony confirm. */
+  int colony_attack_ok_unit;
+  int colony_attack_ok_payload;
   int map_zoom; /* 0..3 — VIEW Zoom In/Out/Level N. FUN_2b5a_0f92 DS:0x184; 0 = 15×12 native. */
   /*
    * VIEW ~Hidden Terrain (H): 0 = off; 1..3 = DOS's three peel passes (units/
@@ -1358,7 +1361,9 @@ static bool game_try_enter_europe(ColonizeGameState* game) {
 static void game_emit_warehouse_full(
   ColonizeGameState* game,
   int colony_id,
-  int cargo_type
+  int cargo_type,
+  int deposited,
+  int already_included
 ) {
   if (!game) {
     return;
@@ -1373,7 +1378,8 @@ static void game_emit_warehouse_full(
     cargo_name = game->europe.cargo[cargo_type].name;
   }
   colonies_emit_warehouse_full_chrome(
-    &game->colonies, col, cargo_type, cargo_name, &game->ai_popups, &game->messages
+    &game->colonies, col, cargo_type, cargo_name, deposited, already_included, &game->ai_popups,
+    &game->messages
   );
 }
 
@@ -2876,12 +2882,12 @@ static void game_apply_howmuch_result(ColonizeGameState* game) {
     );
     if (moved > 0 && full) {
       snprintf(game->status, sizeof(game->status), "Unloaded %d (Warehouse full)", moved);
-      game_emit_warehouse_full(game, game->colony_view_id, peek_type);
+      game_emit_warehouse_full(game, game->colony_view_id, peek_type, moved, moved);
     } else if (moved > 0) {
       snprintf(game->status, sizeof(game->status), "Unloaded %d", moved);
     } else if (full) {
       set_status(game, "Warehouse full", NULL);
-      game_emit_warehouse_full(game, game->colony_view_id, peek_type);
+      game_emit_warehouse_full(game, game->colony_view_id, peek_type, amt, 0);
     } else {
       set_status(game, "Cannot unload", NULL);
     }
@@ -2957,6 +2963,21 @@ static void game_apply_ai_popup_result(ColonizeGameState* game) {
     if (go && game->in_colony) {
       colony_screen_close_eject(&game->colony_screen);
       game_colony_finish_eject(game, who, role);
+    }
+    return;
+  }
+  if (game->ai_popups.result_tag == AI_POPUP_TAG_COLONY_CLEARSPEC) {
+    /* @LOBOTOMIZE: only choice 1 clears — FUN_281f_0cae(colonist, 0x1c). */
+    const bool go = !game->ai_popups.result_cancelled && game->ai_popups.result_choice_id == 1;
+    const int who = game->ai_popups.result_nation_a;
+    ai_popup_consume_result(&game->ai_popups);
+    if (go && game->in_colony) {
+      ColonizeColony* col = colonies_get_mut(&game->colonies, game->colony_view_id);
+      if (col && who >= 0 && who < col->colonist_count) {
+        col->colonists[who].profession = COLONIZE_PROF_FREE_COLONIST;
+        set_status(game, "Specialty cleared", NULL);
+        colony_screen_set_status(&game->colony_screen, game->status);
+      }
     }
     return;
   }
@@ -3197,7 +3218,12 @@ static void game_apply_ai_popup_result(ColonizeGameState* game) {
         ai_diplo_declare_war_ctx(&ctx, u->nation_id, target_nation);
         game->units.selected_id = unit_id;
         ai_popup_consume_result(&game->ai_popups);
+        /* bugs.md 443: the colony confirm (if any) was already answered
+         * before this treaty prompt — don't ask twice on the retry. */
+        game->colony_attack_ok_unit = unit_id;
+        game->colony_attack_ok_payload = dest_x | (dest_y << 8);
         (void)game_try_unit_move(game, dest_x, dest_y);
+        game->colony_attack_ok_unit = -1;
         return;
       }
     } else {
@@ -3209,6 +3235,117 @@ static void game_apply_ai_popup_result(ColonizeGameState* game) {
       set_status(game, "Attack called off", NULL);
     }
     ai_popup_consume_result(&game->ai_popups);
+    return;
+  }
+  if (game->ai_popups.result_tag == AI_POPUP_TAG_COLONY_ATTACK) {
+    const int unit_id = game->ai_popups.result_nation_a;
+    const int dest_x = game->ai_popups.result_payload & 0xff;
+    const int dest_y = (game->ai_popups.result_payload >> 8) & 0xff;
+    const bool go = !game->ai_popups.result_cancelled && game->ai_popups.result_choice_id == 1;
+    const int payload = game->ai_popups.result_payload;
+    ai_popup_consume_result(&game->ai_popups);
+    ColonizeUnit* u = units_get(&game->units, unit_id);
+    if (go && u && u->active) {
+      game->units.selected_id = unit_id;
+      game->colony_attack_ok_unit = unit_id;
+      game->colony_attack_ok_payload = payload;
+      (void)game_try_unit_move(game, dest_x, dest_y);
+      game->colony_attack_ok_unit = -1;
+      return;
+    }
+    if (u && u->active && units_orders_follow_goto(u->orders)) {
+      units_clear_orders(&game->units, unit_id);
+    }
+    set_status(game, "Attack called off", NULL);
+    return;
+  }
+  if (game->ai_popups.result_tag == AI_POPUP_TAG_SCOUT_COLONY) {
+    const int unit_id = game->ai_popups.result_nation_a;
+    const int cid = game->ai_popups.result_nation_b;
+    const int payload = game->ai_popups.result_payload;
+    const int dest_x = payload & 0xff;
+    const int dest_y = (payload >> 8) & 0xff;
+    const int choice = game->ai_popups.result_cancelled ? 4 : game->ai_popups.result_choice_id;
+    ai_popup_consume_result(&game->ai_popups);
+    ColonizeUnit* u = units_get(&game->units, unit_id);
+    ColonizeColony* col = colonies_get_mut(&game->colonies, cid);
+    if (!u || !u->active || !col || !col->active) {
+      return;
+    }
+    if (choice == 1) {
+      /* Meet With Mayor — FUN_5f7a_000e local_8 == 1: WoI refuses with
+       * @NOMAYORSDURINGREV, else the 5bfb_153e encounter dialog runs. */
+      if (game->col1.head.game_options.woi) {
+        char body[AI_POPUP_BODY_LEN];
+        popup_msg_fill(
+          &game->messages, "NOMAYORSDURINGREV", NULL,
+          "Scouts cannot meet with mayors during the {War of Independence}.",
+          body, sizeof(body)
+        );
+        ai_popup_enqueue_ok(&game->ai_popups, AI_POPUP_TAG_INFO, NULL, body);
+        (void)ai_popup_present_now(&game->ai_popups, AI_POPUP_TAG_INFO);
+      } else {
+        ColonizeTurnContext ctx;
+        game_fill_turn_context(game, &ctx);
+        (void)ai_diplo_153e_encounter(&ctx, u->nation_id, col->nation_id, unit_id);
+      }
+      game_after_unit_action(game);
+      return;
+    }
+    if (choice == 2) {
+      /* Infiltrate — DOS roll: threshold = (fortification-chain count + 6)*2,
+       * halved for a Seasoned Scout (profession 0x16); RNG(1,0x24) must beat
+       * it. Success opens a view of the colony; failure loses the scouts
+       * (@LOSTOURSCOUTS) and the colony stables gain their 100 horses. */
+      int fort_chain = 0;
+      static const char* k_forts[3] = {"Stockade", "Fort", "Fortress"};
+      for (int f = 0; f < 3; ++f) {
+        const int bi = colonies_find_building(&game->colonies, k_forts[f]);
+        if (bi >= 0 && bi < COLONIZE_BUILDING_TYPES_MAX && col->has_building[bi]) {
+          fort_chain++;
+        }
+      }
+      int threshold = (fort_chain + 6) * 2;
+      if (u->profession == 22) { /* @JOB 0x16 Seasoned Scout */
+        threshold >>= 1;
+      }
+      const int roll = dos_rng_range(&game->move_rng, 1, 0x24);
+      if (threshold < roll) {
+        game_enter_colony(game, cid);
+      } else {
+        PopupMsgTokens tok;
+        memset(&tok, 0, sizeof(tok));
+        static const char* k_euro_names[4] = {"English", "French", "Spanish", "Dutch"};
+        tok.string0 = (col->nation_id >= 0 && col->nation_id < 4)
+                        ? k_euro_names[col->nation_id]
+                        : "enemy";
+        tok.string1 = col->name;
+        char body[AI_POPUP_BODY_LEN];
+        popup_msg_fill(
+          &game->messages, "LOSTOURSCOUTS", &tok,
+          "Our {scouts} near {%STRING1} have been captured by the {%STRING0}, "
+          "Your Excellency!",
+          body, sizeof(body)
+        );
+        ai_popup_enqueue_ok(&game->ai_popups, AI_POPUP_TAG_INFO, NULL, body);
+        (void)ai_popup_present_now(&game->ai_popups, AI_POPUP_TAG_INFO);
+        col->stock[COLONIZE_CARGO_HORSES] += 100; /* +0xaa += 100 */
+        units_despawn(&game->units, unit_id);
+        game_after_unit_action(game);
+      }
+      return;
+    }
+    if (choice == 3) {
+      /* Attack Colony: rejoin the ordinary attack path (443 confirm already
+       * answered here — the latch skips both menus on the retry). */
+      game->units.selected_id = unit_id;
+      game->colony_attack_ok_unit = unit_id;
+      game->colony_attack_ok_payload = payload;
+      (void)game_try_unit_move(game, dest_x, dest_y);
+      game->colony_attack_ok_unit = -1;
+      return;
+    }
+    set_status(game, "The scouts hold their ground", NULL);
     return;
   }
   if (game->ai_popups.result_tag == AI_POPUP_TAG_COMBAT_HALF) {
@@ -3223,6 +3360,7 @@ static void game_apply_ai_popup_result(ColonizeGameState* game) {
       ai_popup_consume_result(&game->ai_popups);
       (void)game_try_unit_move(game, dest_x, dest_y);
       game->tired_ok_unit = -1;
+  game->colony_attack_ok_unit = -1;
       return;
     }
     /*
@@ -8199,6 +8337,108 @@ static bool game_try_unit_move(ColonizeGameState* game, int dest_x, int dest_y) 
     }
   }
   /*
+   * bugs.md 444 / DOS FUN_5f7a_000e: a SCOUT stepping onto a foreign Euro
+   * colony gets the @SCOUTCOLONY menu (Meet With Mayor / Infiltrate Colony /
+   * Attack Colony / Nothing) instead of a bare attack. The colony_attack_ok
+   * latch doubles as the "Attack Colony" pass-through.
+   */
+  if (game->col1_ok && !units_is_sea(&game->units, sid) &&
+      units_id_at(&game->units, dest_x, dest_y) < 0 &&
+      !(game->colony_attack_ok_unit == sid &&
+        game->colony_attack_ok_payload == (dest_x | (dest_y << 8)))) {
+    const ColonizeUnitType* sty = units_type(&game->units, selected->type_index);
+    if (sty && strcmp(sty->name, "Scouts") == 0) {
+      const int cid = colonies_id_at(&game->colonies, dest_x, dest_y);
+      const ColonizeColony* col = colonies_get(&game->colonies, cid);
+      if (col && col->active && col->nation_id >= 0 && col->nation_id <= 3 &&
+          col->nation_id != selected->nation_id) {
+        bool pending = game->ai_popups.open &&
+                       game->ai_popups.current.tag == AI_POPUP_TAG_SCOUT_COLONY &&
+                       game->ai_popups.current.nation_a == sid;
+        for (int qi = 0; !pending && qi < game->ai_popups.queue_count; ++qi) {
+          pending = game->ai_popups.queue[qi].tag == AI_POPUP_TAG_SCOUT_COLONY &&
+                    game->ai_popups.queue[qi].nation_a == sid;
+        }
+        if (pending) {
+          set_status(game, "Scouts…", NULL);
+          return true;
+        }
+        PopupMsgTokens tok;
+        memset(&tok, 0, sizeof(tok));
+        tok.string0 = col->name[0] ? col->name : "the colony";
+        char body[AI_POPUP_BODY_LEN];
+        popup_msg_fill(
+          &game->messages, "SCOUTCOLONY", &tok,
+          "Our {scouts} have reached the outskirts of {%STRING0}, "
+          "Your Excellency.  What shall they do?",
+          body, sizeof(body)
+        );
+        char choices[AI_POPUP_CHOICE_MAX][AI_POPUP_CHOICE_LEN];
+        const ColonizeMsgSection* sec = assets_msg_find(&game->messages, "SCOUTCOLONY");
+        const int nch = popup_msg_choices(sec, choices, AI_POPUP_CHOICE_MAX);
+        const char* labels[4] = {
+          nch >= 1 ? choices[0] : "Meet With Mayor",
+          nch >= 2 ? choices[1] : "Infiltrate Colony",
+          nch >= 3 ? choices[2] : "Attack Colony",
+          nch >= 4 ? choices[3] : "Nothing"
+        };
+        const int ids[4] = {1, 2, 3, 4};
+        const int payload = dest_x | (dest_y << 8);
+        if (ai_popup_enqueue_choice_ctx(
+              &game->ai_popups, AI_POPUP_TAG_SCOUT_COLONY, sid, cid, payload, NULL, body,
+              labels, ids, 4
+            )) {
+          (void)ai_popup_present_now(&game->ai_popups, AI_POPUP_TAG_SCOUT_COLONY);
+          set_status(game, "Scouts…", NULL);
+          return true;
+        }
+      }
+    }
+  }
+  /*
+   * bugs.md 443: attacking a foreign EURO COLONY — armed or not, at war or
+   * not — always asks first. One-shot latch (colony_attack_ok) so the Yes
+   * retry through game_try_unit_move does not re-ask.
+   */
+  if (game->col1_ok && combat_unit_is_combat_role(&game->units, sid) &&
+      !units_is_sea(&game->units, sid) &&
+      units_id_at(&game->units, dest_x, dest_y) < 0 &&
+      !(game->colony_attack_ok_unit == sid &&
+        game->colony_attack_ok_payload == (dest_x | (dest_y << 8)))) {
+    const int cid = colonies_id_at(&game->colonies, dest_x, dest_y);
+    const ColonizeColony* col = colonies_get(&game->colonies, cid);
+    if (col && col->active && col->nation_id >= 0 && col->nation_id <= 3 &&
+        col->nation_id != selected->nation_id) {
+      bool pending = game->ai_popups.open &&
+                     game->ai_popups.current.tag == AI_POPUP_TAG_COLONY_ATTACK &&
+                     game->ai_popups.current.nation_a == sid;
+      for (int qi = 0; !pending && qi < game->ai_popups.queue_count; ++qi) {
+        pending = game->ai_popups.queue[qi].tag == AI_POPUP_TAG_COLONY_ATTACK &&
+                  game->ai_popups.queue[qi].nation_a == sid;
+      }
+      if (pending) {
+        set_status(game, "Attack?", NULL);
+        return true;
+      }
+      char body[AI_POPUP_BODY_LEN];
+      snprintf(
+        body, sizeof(body), "Shall we attack the colony of {%s}, Your Excellency?",
+        col->name[0] ? col->name : "the enemy"
+      );
+      static const char* labels[] = {"No, cancel the attack.", "Attack!"};
+      static const int ids[] = {2, 1};
+      const int payload = dest_x | (dest_y << 8);
+      if (ai_popup_enqueue_choice_ctx(
+            &game->ai_popups, AI_POPUP_TAG_COLONY_ATTACK, sid, col->nation_id, payload, NULL,
+            body, labels, ids, 2
+          )) {
+        (void)ai_popup_present_now(&game->ai_popups, AI_POPUP_TAG_COLONY_ATTACK);
+        set_status(game, "Attack?", NULL);
+        return true;
+      }
+    }
+  }
+  /*
    * FUN_465b_0000 Euro peer at peace (bugs.md): DOS never refuses the attack —
    * a signed treaty asks @HAVETREATY first, no treaty just opens hostilities.
    * Covers a foreign unit on the tile and an (even undefended) foreign colony.
@@ -8290,7 +8530,13 @@ static bool game_try_unit_move(ColonizeGameState* game, int dest_x, int dest_y) 
   }
   if (selected->type_index >= 0 && selected->type_index < game->units.type_count &&
       strcmp(game->units.types[selected->type_index].name, "Wagon Train") == 0) {
-    sound_play(0x52); /* FUN_465b_0000 wagon-train move (COLDIG 12 wagon wheels) */
+    /* bugs.md 446: the wheels (COLDIG 12, event 0x52) roll only when the
+     * wagon ARRIVES at a colony, not on every overland step. */
+    const int arrive_cid = colonies_id_at(&game->colonies, selected->x, selected->y);
+    const ColonizeColony* arrive_col = colonies_get(&game->colonies, arrive_cid);
+    if (arrive_col && arrive_col->active) {
+      sound_play(0x52);
+    }
   }
   /*
    * FUN_465b_0000 tail (viceroy_unpacked.c ~75800): a Treasure Train (type
@@ -9435,6 +9681,43 @@ static bool game_colony_drag_drop(
       }
     }
   } else if (kind == UI_DRAG_COLONY_HOLD) {
+    if (hit.kind == COLONY_HIT_TRANSPORT && hit.index >= 0 &&
+        hit.index < csv->docked_transport_count &&
+        csv->docked_transport_ids[hit.index] != csv->transport_unit_id) {
+      /* bugs.md 438: hold → another docked transport's sprite moves the
+       * cargo ship-to-ship (if the target has a free hold), never through
+       * the warehouse. */
+      const int dst = csv->docked_transport_ids[hit.index];
+      if (csv->transport_unit_id >= 0 && game->units_ok) {
+        int ctype = -1;
+        int amt = 0;
+        const ColonizeUnit* su = units_get_const(&game->units, csv->transport_unit_id);
+        if (su && drag->index >= 0 && drag->index < COLONIZE_UNIT_CARGO_MAX) {
+          ctype = su->hold_goods_type[drag->index];
+          amt = su->hold_goods_amount[drag->index];
+        }
+        if (amt > 0 && amt < 255) {
+          const int moved = units_load_goods(&game->units, dst, ctype, amt);
+          if (moved > 0) {
+            (void)units_unload_goods_hold(
+              &game->units, csv->transport_unit_id, drag->index, NULL, NULL
+            );
+            if (moved < amt) {
+              /* Partial fit: put the remainder back in the source hold. */
+              (void)units_load_goods(&game->units, csv->transport_unit_id, ctype, amt - moved);
+            }
+            snprintf(game->status, sizeof(game->status), "Transferred %d", moved);
+          } else {
+            set_status(game, "No empty hold", NULL);
+          }
+        } else {
+          set_status(game, "Hold empty", NULL);
+        }
+        colony_screen_set_status(csv, game->status);
+      }
+      game_ui_drag_clear(game);
+      return true;
+    }
     if (hit.kind == COLONY_HIT_CARGO_SLOT ||
         (hit.kind == COLONY_HIT_NONE && my >= COLONY_CARGO_STRIP_Y)) {
       if (csv->transport_unit_id >= 0 && game->units_ok && shift) {
@@ -9467,10 +9750,12 @@ static bool game_colony_drag_drop(
       if (csv->transport_unit_id >= 0 && game->units_ok) {
         bool full = false;
         int peek_type = -1;
+        int peek_amt = 0;
         {
           const ColonizeUnit* tu = units_get_const(&game->units, csv->transport_unit_id);
           if (tu && drag->index >= 0 && drag->index < COLONIZE_UNIT_CARGO_MAX) {
             peek_type = tu->hold_goods_type[drag->index];
+            peek_amt = tu->hold_goods_amount[drag->index];
           }
         }
         const int moved = colonies_transfer_from_unit(
@@ -9483,12 +9768,12 @@ static bool game_colony_drag_drop(
         );
         if (moved > 0 && full) {
           snprintf(game->status, sizeof(game->status), "Unloaded %d (Warehouse full)", moved);
-          game_emit_warehouse_full(game, game->colony_view_id, peek_type);
+          game_emit_warehouse_full(game, game->colony_view_id, peek_type, moved, moved);
         } else if (moved > 0) {
           snprintf(game->status, sizeof(game->status), "Unloaded %d", moved);
         } else if (full) {
           set_status(game, "Warehouse full", NULL);
-          game_emit_warehouse_full(game, game->colony_view_id, peek_type);
+          game_emit_warehouse_full(game, game->colony_view_id, peek_type, peek_amt, 0);
         } else {
           set_status(game, "Hold empty", NULL);
         }
@@ -9931,12 +10216,12 @@ static void game_colony_unload_all_cargo(ColonizeGameState* game, int unit_id) {
   }
   if (total > 0 && any_full) {
     snprintf(game->status, sizeof(game->status), "Unloaded %d (Warehouse full)", total);
-    game_emit_warehouse_full(game, game->colony_view_id, last_full_type);
+    game_emit_warehouse_full(game, game->colony_view_id, last_full_type, total, total);
   } else if (total > 0) {
     snprintf(game->status, sizeof(game->status), "Unloaded %d", total);
   } else if (any_full) {
     set_status(game, "Warehouse full", NULL);
-    game_emit_warehouse_full(game, game->colony_view_id, last_full_type);
+    game_emit_warehouse_full(game, game->colony_view_id, last_full_type, 0, 0);
   } else {
     set_status(game, "No cargo to unload", NULL);
   }
@@ -13023,6 +13308,31 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
         if (csv->jobs_selection >= 0 && csv->jobs_selection < csv->job_count) {
           const int job = csv->job_ids[csv->jobs_selection];
           const int ci = game_colony_selected_colonist(game);
+          if (job == COLONY_JOB_CLEAR_SPECIALTY) {
+            /* Same @LOBOTOMIZE confirm as the mouse row (FUN_2f2b_348c 0x61). */
+            if (ci >= 0 && colony && ci < colony->colonist_count) {
+              PopupMsgTokens tok;
+              memset(&tok, 0, sizeof(tok));
+              tok.string0 = colonies_profession_name(colony->colonists[ci].profession);
+              char body[AI_POPUP_BODY_LEN];
+              popup_msg_fill(
+                &game->messages, "LOBOTOMIZE", &tok,
+                "Do you wish to {clear} this colonist's specialty and make "
+                "him an ordinary free colonist?",
+                body, sizeof(body)
+              );
+              const char* labels[2] = {"Yes", "No"};
+              const int ids[2] = {1, 2};
+              if (ai_popup_enqueue_choice_ctx(
+                    &game->ai_popups, AI_POPUP_TAG_COLONY_CLEARSPEC, ci, 0, 0, NULL, body,
+                    labels, ids, 2
+                  )) {
+                (void)ai_popup_present_now(&game->ai_popups, AI_POPUP_TAG_COLONY_CLEARSPEC);
+              }
+            }
+            colony_screen_close_jobs(csv);
+            return true;
+          }
           if (ci < 0) {
             set_status(game, "Select a colonist first", NULL);
           } else if (colonies_assign_field(
@@ -13384,10 +13694,12 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
           } else {
             bool full = false;
             int peek_type = -1;
+            int peek_amt = 0;
             {
               const ColonizeUnit* tu = units_get_const(&game->units, csv->transport_unit_id);
               if (tu && hold >= 0 && hold < COLONIZE_UNIT_CARGO_MAX) {
                 peek_type = tu->hold_goods_type[hold];
+                peek_amt = tu->hold_goods_amount[hold];
               }
             }
             const int moved = colonies_transfer_from_unit(
@@ -13400,12 +13712,12 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
             );
             if (moved > 0 && full) {
               snprintf(game->status, sizeof(game->status), "Unloaded %d (Warehouse full)", moved);
-              game_emit_warehouse_full(game, game->colony_view_id, peek_type);
+              game_emit_warehouse_full(game, game->colony_view_id, peek_type, moved, moved);
             } else if (moved > 0) {
               snprintf(game->status, sizeof(game->status), "Unloaded %d", moved);
             } else if (full) {
               set_status(game, "Warehouse full", NULL);
-              game_emit_warehouse_full(game, game->colony_view_id, peek_type);
+              game_emit_warehouse_full(game, game->colony_view_id, peek_type, peek_amt, 0);
             } else {
               set_status(game, "Cannot unload", NULL);
             }
@@ -13704,6 +14016,32 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
         if (hit.index >= 0 && hit.index < csv->job_count) {
           const int job = csv->job_ids[hit.index];
           const int ci = game_colony_selected_colonist(game);
+          if (job == COLONY_JOB_CLEAR_SPECIALTY) {
+            /* FUN_2f2b_348c row 0x61 → FUN_281f_0652(@LOBOTOMIZE): confirm,
+             * then FUN_281f_0cae writes profession 0x1c (Free Colonist). */
+            if (ci >= 0 && colony && ci < colony->colonist_count) {
+              PopupMsgTokens tok;
+              memset(&tok, 0, sizeof(tok));
+              tok.string0 = colonies_profession_name(colony->colonists[ci].profession);
+              char body[AI_POPUP_BODY_LEN];
+              popup_msg_fill(
+                &game->messages, "LOBOTOMIZE", &tok,
+                "Do you wish to {clear} this colonist's specialty and make "
+                "him an ordinary free colonist?",
+                body, sizeof(body)
+              );
+              const char* labels[2] = {"Yes", "No"};
+              const int ids[2] = {1, 2};
+              if (ai_popup_enqueue_choice_ctx(
+                    &game->ai_popups, AI_POPUP_TAG_COLONY_CLEARSPEC, ci, 0, 0, NULL, body,
+                    labels, ids, 2
+                  )) {
+                (void)ai_popup_present_now(&game->ai_popups, AI_POPUP_TAG_COLONY_CLEARSPEC);
+              }
+            }
+            colony_screen_close_jobs(csv);
+            break;
+          }
           if (job == COLONIZE_JOB_FISHERMAN &&
               !game_colony_has_docks(&game->colonies, colony)) {
             /* DOS: picking Fisherman without Docks raises @NODOCKS. */
@@ -13806,6 +14144,9 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
         }
         colony_screen_close_construction(csv);
         colony_screen_set_status(csv, game->status);
+        break;
+      case COLONY_HIT_CONSTRUCTION_MORE:
+        colony_screen_construction_next_page(csv);
         break;
       case COLONY_HIT_CONSTRUCTION_OUTSIDE:
         colony_screen_close_construction(csv);

@@ -6206,6 +6206,26 @@ static bool units_at_war_for_move(int a, int b) {
   return units_at_war_for_move_target(a, b, NULL);
 }
 
+/*
+ * bugs.md 445: refusing an Indian demand writes +0x80 into the VILLAGE's own
+ * attitude word (LAB_5bfb_0ff2), and DOS treats a village grudge over 0x7f as
+ * hostility in its own right (the same `0x7f <` test FUN_521d_0906 uses on
+ * DS:0x54f6). The nation-level gate above never sees that word, so a refused
+ * demand could never be answered with an attack. A native mover with a home
+ * village holding such a grudge fights the offender.
+ */
+static bool units_native_village_grudge(const ColonizeUnit* mover, int euro_nation) {
+  if (!mover || !g_units_ff_col1 || !g_units_ff_col1->tribe || euro_nation < 0 ||
+      euro_nation > 3) {
+    return false;
+  }
+  const int home = mover->home_tribe_id;
+  if (home < 0 || home >= (int)g_units_ff_col1->head.tribe_count) {
+    return false;
+  }
+  return col1_tribe_attitude(&g_units_ff_col1->tribe[home], euro_nation) > 0x7f;
+}
+
 static bool units_village_squat_illegal(
   const ColonizeUnitPool* pool,
   const ColonizeUnitType* type,
@@ -6689,7 +6709,9 @@ ColonizeEnterReason units_enter_probe(
     const ColonizeUnitType* ft = fu ? units_type(pool, fu->type_index) : NULL;
     const bool treasure_bait = mover_nation >= 4 && ft && ft->name[0] &&
       strstr(ft->name, "Treasure") != NULL;
-    if (!treasure_bait && !units_at_war_for_move(mover_nation, foe_nation)) {
+    const bool grudge = mover_nation >= 4 && foe_nation >= 0 && foe_nation <= 3 &&
+      units_native_village_grudge(mover, foe_nation);
+    if (!treasure_bait && !grudge && !units_at_war_for_move(mover_nation, foe_nation)) {
       g_units_last_enter_reason = COLONIZE_ENTER_BOUNCE_PEACE;
       return g_units_last_enter_reason;
     }
