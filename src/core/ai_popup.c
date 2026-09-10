@@ -126,10 +126,19 @@ const char* ai_popup_bar_message(const AiPopupState* st) {
 }
 
 /*
- * DOS FUN_1009_0004 (resident twin FUN_0000_0094): the arm kind stored in
- * DS:0x4c picks the strip ink. 1/2 -> 0x95 (@COLORS hilite gold), 3 -> 0x0c
- * (bright red, used by the Europe screen's refusals), anything else 0x44
- * (@COLORS basic). bugs.md 381: the port painted every line basic green.
+ * DOS FUN_1009_0004 (resident twin FUN_0000_0094, viceroy_unpacked.c:449-463):
+ * the arm kind stored in DS:0x4c picks the strip ink. 1/2 -> 0x95 (@COLORS
+ * hilite gold), 3 -> 0x0c (bright red), anything else 0x44 (@COLORS basic).
+ * bugs.md 381: the port painted every line basic green.
+ *
+ * The `1 || 2` disjunct is DOS's own — transcribed, not a port invention — but
+ * no producer in either game passes 2. Every literal arm kind that reaches
+ * FUN_1009_0244 is 1 or 3: 1 for the sale/success lines
+ * (FUN_281f_0dc2(1, 0x78, 0), raw 77421 and 77503) and 3 for the red refusal
+ * (FUN_281f_0de0(0x479b, 0x16, 3), raw 77369, plus the overlay Europe screen's
+ * thunk_FUN_1000_99a0(3, 0x78, 0)). Kind 3 is DOS-real and simply unported —
+ * the Linux ring has one producer, ai_popup_enqueue_bar_message's kind 1.
+ * Corrected 2026-09-10 (audit #20), which read the 1/2 pair as two producers.
  */
 uint8_t ai_popup_bar_message_color(const AiPopupState* st) {
   if (!st || st->bar_msg_count <= 0) {
@@ -162,12 +171,15 @@ bool ai_popup_bar_service(AiPopupState* st, uint32_t now_ms, bool dismiss) {
      */
     uint32_t hold = st->bar_msg_count > 1 ? AI_POPUP_BAR_MSG_MS : AI_POPUP_BAR_MSG_LAST_MS;
     /*
-     * bugs.md 431: sale lines only (arm kind 1/2 — the Custom House autosell
-     * run and the European Status sell lines, the two producers that feed
-     * this ring) run AI_POPUP_BAR_SALE_SPEEDUP times faster than DOS at the
-     * user's explicit request. Every other arm kind keeps DOS's dwell.
+     * bugs.md 431: the sale lines run AI_POPUP_BAR_SALE_SPEEDUP times faster
+     * than DOS at the user's explicit request. That is arm kind 1 — DOS's
+     * gold "success" arm, and the only kind this ring produces (the Custom
+     * House autosell run and the European Status sell lines both come in
+     * through ai_popup_enqueue_bar_message). Any other arm kind keeps DOS's
+     * dwell; the dead `|| kind == 2` disjunct went 2026-09-10 (audit #20 —
+     * nothing in either game arms kind 2, see ai_popup_bar_message_color).
      */
-    if (st->bar_msg_kind[0] == 1 || st->bar_msg_kind[0] == 2) {
+    if (st->bar_msg_kind[0] == 1) {
       hold /= AI_POPUP_BAR_SALE_SPEEDUP;
     }
     st->bar_msg_until_ms = now_ms + hold;

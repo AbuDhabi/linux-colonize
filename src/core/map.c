@@ -1184,6 +1184,68 @@ bool map_tile_is_lake(const ColonizeWorldMap* map, int x, int y) {
   return (int)(map_get_layer3(map, x, y) & 0x0fu) != 1;
 }
 
+/*
+ * The DOS colony coastal bit (colony +0x1c bit 0x40), as a site predicate.
+ *
+ * Sole writer in the whole image is the found-colony body FUN_364b_1ba8: it
+ * zeroes the flag byte (`puVar1[0x1c] = 0`, viceroy_unpacked.c 58039) and then
+ *   if (FUN_281f_0d12(x,y) != 0 &&
+ *       FUN_281f_06b4(DS:0x8dba, DS:0x8dbc) == 1)  colony[+0x1c] |= 0x40;
+ * (raw 58105-58110; `local_6 * 0xca + 0x5d62` is colony[i] + 0x1c — stride
+ * 0xca, base 0x5d46, same expression as the +0x1f population write above it).
+ * `+ 0x1c) *= ... | 0x40` appears nowhere else, and the per-tick clear at raw
+ * 94145 is `&= 0xef` (bit 0x10 only) — so the bit is set once at founding and
+ * is pure save-carried state afterwards: never recomputed, never cleared.
+ *
+ * FUN_281f_0d12 → FUN_15eb_00a2 (raw 9340-9374) walks the 8 neighbours with an
+ * INSET bounds test (FUN_137f_000a, so off-map is NOT water here), uses
+ * FUN_13e4_0074 (ocean 0x19 / high seas 0x1a) as the water test, returns 1 if
+ * any neighbour is water, and stashes at DS:0x8dba/0x8dbc the water neighbour
+ * with the LOWEST layer3 low nibble — its water-region id, with region 0
+ * remapped to 0x10 so it sorts last. The `== 1` then demands that winner be
+ * region 1, the open sea (the water connected-component pass always labels the
+ * main body 1 — see map_tile_is_lake). Consequences: a colony touching only a
+ * lake does not get the bit, and a map-edge colony whose only "water" is
+ * off-map does not either.
+ *
+ * Relaxation, exactly the one ai_king_10f0_score_tile already documents for
+ * the same `06b4 == 1` test: synthetic/test maps leave layer3 zero, so strict
+ * region-1 would answer false for every colony on them. When the winning
+ * neighbour's region is 0 — DOS's 0x10 sentinel, i.e. no water neighbour
+ * carries any region id at all — we accept. That reproduces the plain
+ * 8-neighbour water answer on unclassified maps and the exact DOS answer on
+ * generated ones.
+ *
+ * Deliberately NOT map_tile_is_coastal(): that one is the looser live harbour
+ * probe (8-neighbour map_tile_is_water, off-map counts as water, lakes count)
+ * used by ~60 call sites as the Docks/ship-reachability rule. This one is the
+ * save-field writer's predicate. Smell audit 2026-09-10 D4.
+ */
+bool map_tile_is_open_sea_adjacent(const ColonizeWorldMap* map, int x, int y) {
+  if (!map) {
+    return false;
+  }
+  int best = -1; /* local_a, seeded 0xffff/-1 */
+  for (int d = 0; d < 8; ++d) {
+    const int nx = x + mapedit_neigh8_dx[d];
+    const int ny = y + mapedit_neigh8_dy[d];
+    if (!map_coords_inset(map, nx, ny)) {
+      continue;
+    }
+    if (!map_is_ocean_index(map_decode_terrain_index(map_get_terrain(map, nx, ny)))) {
+      continue;
+    }
+    int region = (int)(map_get_layer3(map, nx, ny) & 0x0fu);
+    if (region == 0) {
+      region = 0x10; /* raw 9365: region 0 sorts last */
+    }
+    if (best < 0 || region < best) {
+      best = region;
+    }
+  }
+  return best == 1 || best == 0x10;
+}
+
 /* DOS FUN_281f_0682: unit-presence bit only (layer2 bit0) → owner nibble. */
 int map_tile_owner_or_presence(const ColonizeWorldMap* map, int x, int y) {
   if (!map || !map->layer2 || x < 0 || y < 0 || x >= map->width || y >= map->height) {

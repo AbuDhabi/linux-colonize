@@ -198,7 +198,7 @@ typedef struct AiPopupRequest {
 #define AI_POPUP_BAR_MSG_MS 500u
 /*
  * Held by the last line of a run: nothing composes behind it, so it lives out
- * the full armed deadline. Both producers arm 0x78 ticks on the 60.877 Hz
+ * the full armed deadline. Every DOS arm passes 0x78 ticks on the 60.877 Hz
  * clock (FUN_291f_07b0 / FUN_38fd_19d8) = 1971 ms.
  */
 #define AI_POPUP_BAR_MSG_LAST_MS 1971u
@@ -206,10 +206,10 @@ typedef struct AiPopupRequest {
  * bugs.md 431 — EXPLICIT USER PREFERENCE, deliberately NOT DOS pacing: the
  * sale one-liners (Custom House autosell run, European Status sell lines) run
  * three times as fast as DOS, so a big autosell turn stops feeling like a
- * cutscene. Divides the two dwells above, and ONLY for the sale arm kinds
- * (DOS FUN_1009_0244's first argument 1/2, the gold "success" ink) — any
- * other status-strip line keeps DOS's own timing. 500/3 = 166 ms held,
- * 1971/3 = 657 ms for the last line of a run.
+ * cutscene. Divides the two dwells above, and ONLY for arm kind 1 (DOS
+ * FUN_1009_0244's first argument for the gold "success" ink) — any other
+ * status-strip line keeps DOS's own timing. 500/3 = 166 ms held, 1971/3 =
+ * 657 ms for the last line of a run.
  */
 #define AI_POPUP_BAR_SALE_SPEEDUP 3u
 
@@ -259,7 +259,8 @@ typedef struct AiPopupState {
    * DOS FUN_1009_0244's first argument, kept per line because it picks the
    * ink FUN_1009_0004 hands the strip painter: 1/2 = 0x95 (gold, every
    * success line), 3 = 0x0c (red, the Europe refusals), anything else 0x44
-   * (@COLORS basic green). See ai_popup_bar_message_color.
+   * (@COLORS basic green). DOS itself only ever arms 1 or 3, and the port
+   * produces only 1 — see ai_popup_bar_message_color for the raw citations.
    */
   uint8_t bar_msg_kind[AI_POPUP_BAR_MSG_MAX];
   int bar_msg_count;       /* [0] is the one on screen */
@@ -281,7 +282,9 @@ bool ai_popup_enqueue_bar_message(AiPopupState* st, const char* text);
 
 /*
  * As above with an explicit DOS arm kind (FUN_1009_0244's first argument).
- * The plain enqueue is kind 1 — what both DOS producers use for a sale.
+ * The plain enqueue is kind 1, the gold success ink DOS uses for a sale line;
+ * kind 3 (red refusal) is DOS-real but has no Linux producer yet, so this
+ * entry point is currently reached only through the kind-1 wrapper.
  */
 bool ai_popup_enqueue_bar_message_kind(AiPopupState* st, const char* text, int kind);
 

@@ -1298,6 +1298,15 @@ static int ai_euro_colony_ring_tier(
  * cut, unbuildable @BUILDING rows), the live answer is always 8 — the
  * 0xc/0x20 rows are dead in DOS too. The switch is kept verbatim rather than
  * folded to `return 8` so the DOS table stays readable next to its citation.
+ *
+ * Corollary, so nobody "fixes" them: BOTH clamps on this function's result are
+ * therefore dead code by construction — `wanted > 0x10` in the 20e6 labor arm
+ * (:12320) and `wanted > 0xc -> 0x10` in the colony-sail matrix (raw 1949-1951,
+ * :17377). They are DOS-literal and are kept for exactly that reason; a live
+ * clamp would mean this function had started returning something other than 8,
+ * i.e. that ring_tier's dead-row argument above had been falsified. Do not
+ * "repair" a clamp to make it fire, and do not delete one as unreachable.
+ * Smell audit 2026-09-10 D9.
  */
 static int ai_euro_colony_wanted_size(
   const ColonizeColonyPool* pool,
@@ -1605,22 +1614,40 @@ static void ai_euro_refresh_colony_ai_flags(
    */
   /*
    * Bit 0x10 (COLONIZE_COLONY_FLAG_SMALL_AI, col1_save.h `small_colony_ai`)
-   * is NOT written here either, and no longer written anywhere in the port.
-   * DOS has exactly one reference to +0x1c bit 0x10 in the entire image — the
-   * read-and-clear hand-off at raw 94143-94146, now ported in
-   * ai_euro_colony_threat_seed_5952 — and no writer at all, so the bit is a
-   * save-borne one-shot, not a per-tick reading of colony size. The
-   * `pop < 10` stamp that used to live here had no raw citation, was never
-   * read by anything in the port, and (once the hand-off exists) would have
-   * re-armed it every tick, i.e. pinned NEEDS_COLONISTS on for every colony
-   * under 10 population. Smell audit 2026-09-10 C3.
+   * is NOT written here. There are exactly TWO DOS references to +0x1c bit
+   * 0x10: the read-and-clear hand-off at raw 94143-94146 (`(+0x1c & 0x10) &&
+   * pop < 0x20 -> +0x1b |= 0x10; +0x1c &= 0xef`), ported in
+   * ai_euro_colony_threat_seed_5952 and consumed at :10076; and a writer
+   * deeper in the SAME function, raw 95845-95847 (`pop < 10 -> +0x1c |=
+   * 0x10`), which sits inside FUN_5952_035e's expansion arm behind a chain of
+   * 2a1f_05b4 probability gates and is NOT ported. So the bit is set by a
+   * narrow branch, not per tick: the unconditional `pop < 10` stamp that used
+   * to live here re-armed it every turn, pinning NEEDS_COLONISTS on for every
+   * colony under 10 population, which is why it was dropped (smell audit
+   * 2026-09-10 C3) — correct removal, but "DOS has no writer at all" was
+   * wrong; the real writer is a live lead, not absent (2026-09-10 D7).
    */
   colony_prod_refresh_sol_flags(c, (ctx->col1_ok && ctx->col1) ? ctx->col1 : NULL);
   if (ctx->units) {
+    /*
+     * +0x1c bit 0x20 (WAGON_TRAIN). DOS writes it in the 6d8e prelude
+     * (FUN_521d_6d8e): raw 93142 clears it on every own colony, then the unit
+     * loop at raw 93148-93157 sets it on the colony a unit is HOMED to —
+     * `unit type (+0x3146) == 0x0c && origin (+0x314a) >= 0`, then
+     * `colony +0x1a == nation`. It is not an on-tile test: this pass used to
+     * look for a wagon standing on the colony square, so a wagon homed here
+     * but out on the road cleared the bit and a foreign-homed wagon parked
+     * here set it. Clearing on the negative arm IS right for this bit (DOS
+     * clears then re-derives). Placement in the 5952 per-colony refresh
+     * rather than the 6d8e prelude is immaterial while the port has no
+     * reader — DOS's reader is the unported gate at raw 95762. Smell audit
+     * 2026-09-10 D7.
+     */
     int wagon = 0;
     for (int ui = 0; ui < COLONIZE_UNITS_MAX; ++ui) {
       const ColonizeUnit* u = &ctx->units->units[ui];
-      if (!u->active || u->nation_id != nation_id || u->x != c->x || u->y != c->y) {
+      if (!u->active || u->nation_id != nation_id || u->col1_origin >= 0x80 ||
+          (int)u->col1_origin != c->id) {
         continue;
       }
       const char* nm = units_display_name(ctx->units, u);
@@ -1636,22 +1663,23 @@ static void ai_euro_refresh_colony_ai_flags(
         (uint8_t)(c->colony_flags & (uint8_t)~COLONIZE_COLONY_FLAG_WAGON_TRAIN);
     }
   }
-  if (ctx->map) {
-    int coastal = 0;
-    static const int dx[4] = {0, 1, 0, -1};
-    static const int dy[4] = {-1, 0, 1, 0};
-    for (int d = 0; d < 4; ++d) {
-      if (!map_tile_is_land(ctx->map, c->x + dx[d], c->y + dy[d])) {
-        coastal = 1;
-        break;
-      }
-    }
-    if (coastal) {
-      c->colony_flags |= COLONIZE_COLONY_FLAG_COASTAL;
-    } else {
-      c->colony_flags =
-        (uint8_t)(c->colony_flags & (uint8_t)~COLONIZE_COLONY_FLAG_COASTAL);
-    }
+  /*
+   * +0x1c bit 0x40 (COASTAL) is a founding-time stamp, not a per-turn
+   * reading. DOS's only writer of that bit anywhere in the image is
+   * FUN_364b_1ba8 (raw 58105-58110) — see map_tile_is_open_sea_adjacent — and
+   * the tick's own flag-byte clear is `&= 0xef` (raw 94145, bit 0x10 only),
+   * so nothing ever recomputes or clears 0x40. This pass used to recompute it
+   * from `!map_tile_is_land` over the FOUR orthogonal neighbours, where
+   * off-map reads as water (so every map-edge colony became coastal) and the
+   * negative arm CLEARED the bit — discarding what a DOS save carried, e.g.
+   * for a colony whose only ocean neighbour is diagonal. What is left is a
+   * set-only self-heal through the shared predicate, for colonies that
+   * predate colonies_found's stamp; it can never take the bit away.
+   * Smell audit 2026-09-10 D4.
+   */
+  if (ctx->map && (c->colony_flags & COLONIZE_COLONY_FLAG_COASTAL) == 0 &&
+      map_tile_is_open_sea_adjacent(ctx->map, c->x, c->y)) {
+    c->colony_flags |= COLONIZE_COLONY_FLAG_COASTAL;
   }
 }
 
@@ -10154,8 +10182,11 @@ static void ai_euro_colony_goals(ColonizeTurnContext* ctx, int nation_id) {
     }
   }
 
-  /* D: own colonies — LABOR from tools/food shortage / underpop (5cf6 tallies),
-   * Col1 labor_shortage (+0x8e), or Stockade/Warehouse under construction.
+  /* D: own colonies — LABOR from tools/food shortage / underpop (5cf6 tallies)
+   * or Stockade/Warehouse under construction. NOT from Col1 labor_shortage
+   * (+0x8e): that disjunct was dropped 2026-09-09 and must not come back —
+   * the long comment at the arm itself explains why (+0x8e is >= 1 for
+   * essentially every colony of pop >= 3, so it made the arm unconditional).
    * Threatened Stockade deepen: war-peer within MD≤3 + incomplete Stockade →
    * higher LABOR prio so Free Colonist prefers hammers over distant FOUND.
    * Cite: building_production.md Stockade defense; Colonization.pdf fortify;
@@ -11937,29 +11968,15 @@ static int ai_euro_20e6_open_continents(const ColonizeTurnContext* ctx, int nati
  * otherwise disable the explore ring on generated maps).
  */
 static int ai_euro_20e6_site_nibble(const ColonizeTurnContext* ctx, int x, int y, int nation) {
-  const ColonizeWorldMap* map = ctx->map;
-  if (!map || !map->seen || x < 0 || y < 0 || x >= map->width || y >= map->height) {
-    return 0;
-  }
-  static const uint8_t* s_nib_plane = NULL;
-  static int s_nib_count = -1;
-  static int s_nib_present = 0;
-  const int count = map->width * map->height;
-  if (map->seen != s_nib_plane || count != s_nib_count) {
-    s_nib_plane = map->seen;
-    s_nib_count = count;
-    s_nib_present = 0;
-    for (int i = 0; i < count; ++i) {
-      if (map->seen[i] & 0x0f) {
-        s_nib_present = 1;
-        break;
-      }
-    }
-  }
-  if (s_nib_present) {
-    return (int)(map->seen[y * map->width + x] & 0x0f);
-  }
-  return !map_tile_seen_by(map, x, y, nation) ? 4 : 0;
+  /*
+   * Was a byte-for-byte copy of ai_goals.c's probe, including its own
+   * file-static "does this plane carry nibbles" memo — which nothing ever
+   * invalidated, so a new game or a Load that reused the same `seen`
+   * allocation kept the previous world's verdict and flipped the whole extras
+   * term between the real nibble and the unseen→4 stand-in. Single cache now,
+   * cleared by ai_goals_reset. Smell audit 2026-09-10 D8.
+   */
+  return ai_goals_site_nibble(ctx ? ctx->map : NULL, x, y, nation);
 }
 
 /*
@@ -14097,8 +14114,10 @@ static int ai_euro_20e6_quartile(int v) {
  * (raw 2128; asm CMP/JL at 0041e5+0x1a).
  *
  * Substitutions: the coastal bit is OR'd with a live map_tile_is_coastal probe
- * because Linux only latches +0x1c bit 0x40 from the AI colony tick (same
- * belt-and-braces as ai_euro.c:3651); colonies_warehouse_capacity is now
+ * as belt-and-braces. Since 2026-09-10 the bit itself is DOS-shaped — stamped
+ * once by colonies_found from map_tile_is_open_sea_adjacent, self-healed
+ * set-only by ai_euro_refresh_colony_ai_flags — so the OR only matters for
+ * fixtures that build colony records by hand; colonies_warehouse_capacity is now
  * cargo-independent like DOS 8f2a (the port's uncited FOOD-199 branch went
  * with smell audit #25), so the cargo argument below is cosmetic — FOOD is
  * never a delivery cargo here anyway. Nothing invented.

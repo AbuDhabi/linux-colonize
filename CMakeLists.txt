@@ -712,6 +712,7 @@ add_executable(unit_units
   src/core/colony_yield.c
   src/core/founding_fathers.c
   src/core/ai_diplo.c
+  src/core/ai_contact_link_stubs.c
   src/core/ai_popup.c
   src/core/popup.c
   src/core/popup_msg.c
@@ -751,6 +752,7 @@ add_executable(unit_combat_strength
   src/core/colony_yield.c
   src/core/founding_fathers.c
   src/core/ai_diplo.c
+  src/core/ai_contact_link_stubs.c
   src/core/ai_popup.c
   src/core/popup.c
   src/core/popup_msg.c
@@ -804,6 +806,7 @@ add_executable(unit_colonies
   src/core/unit_chrome.c
   src/core/founding_fathers.c
   src/core/ai_diplo.c
+  src/core/ai_contact_link_stubs.c
   src/core/ai_popup.c
   src/core/popup.c
   src/core/popup_msg.c
@@ -843,6 +846,7 @@ add_executable(unit_reports
   src/core/unit_chrome.c
   src/core/founding_fathers.c
   src/core/ai_diplo.c
+  src/core/ai_contact_link_stubs.c
   src/core/ai_popup.c
   src/core/popup.c
   src/core/popup_msg.c

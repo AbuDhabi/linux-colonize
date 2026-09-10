@@ -85,8 +85,13 @@ void unit_chrome_nation_shades_for_palette(
 /* -1 outside the WoI; else the crown's borrowed nation slot. */
 int unit_chrome_crown_nation(void);
 
-/* Col1 @UNIT type index → badge corner (aboard: unit is cargo of a ship). */
-UnitChromeCorner unit_chrome_corner_for_type(int display_type_index, bool aboard);
+/*
+ * DOS @UNIT type id → badge corner (aboard: unit is cargo of a ship).
+ * The argument is an @UNIT id, not a pool index; callers pass a pool index
+ * and get away with it only through the NAMES.TXT ordering invariant — see
+ * the definition's comment (smell audit 2026-09-10 #7).
+ */
+UnitChromeCorner unit_chrome_corner_for_type(int dos_unit_type_id, bool aboard);
 
 /* @ORDERS index → single letter (natives always '-'). */
 char unit_chrome_order_letter(int orders_index, int nation_id);

@@ -4764,7 +4764,18 @@ static bool game_apply_col1_save(ColonizeGameState* game, ColonizeCol1Save* load
   game->colony_view_id = -1;
   game->found_open_colony_id = -1;
   game->turn_flow_deferred = false;
-  game->view_pieces_mode = false; /* loaded save resumes Move Pieces */
+  /*
+   * DS:0x5390 rides in the head word block DOS's load restores wholesale
+   * (viceroy_unpacked.c:120252), so a save taken in View Pieces resumes in
+   * View Pieces: 7 DOS campaign saves under original_saves/ carry map_mode 1
+   * with active_unit 0xffff. col1_bridge_apply now honours that 0xffff by
+   * leaving selected_id -1; without this line the activation queue below
+   * would grab the next unit awaiting orders on the very next frame and the
+   * re-save would drop back to map_mode 0 (smell audit: the #78 capture
+   * stamp was write-only). A live selection always means Move Pieces (see
+   * the field's own comment), so gate on there being none.
+   */
+  game->view_pieces_mode = loaded->head.map_mode != 0 && game->units.selected_id < 0;
 
   col1_save_free(&game->col1);
   game->col1 = *loaded;
@@ -11373,11 +11384,22 @@ static bool game_apply_map_menu_action(ColonizeGameState* game, MapMenuAction ac
       return true;
     }
     case MAP_MENU_ACTION_ANCHOR: {
+      /*
+       * Smell audit 2026-09-10 #7: this is the SHIP half of MENU.TXT's two
+       * "~Fortify" rows (units.c:7830), and it used to reuse FORTIFY's own
+       * status strings verbatim — the one place the port told the player a
+       * ship was "Fortifying". DOS has no status-line string for either row
+       * (the DS:0x2d54 channel is never armed by FUN_2b5a_1112; both port
+       * strings are Linux chrome), so the wording comes from the one place
+       * DOS words the ship variant: GAME.TXT @SHIPOPTIONS line 1782,
+       * `Anchor in harbor ("Fortify")`. The order set is still Fortify /
+       * Fortified (@ORDERS letter F) — only the chrome differs.
+       */
       const int uid = game->units.selected_id;
       if (uid < 0 || !units_order_anchor(&game->units, uid, &game->colonies)) {
-        set_status(game, "Cannot fortify", NULL);
+        set_status(game, "Cannot anchor", NULL);
       } else {
-        set_status(game, "Fortifying", NULL);
+        set_status(game, "Anchoring in harbor", NULL);
         game_wait_next_unit(game);
       }
       return true;

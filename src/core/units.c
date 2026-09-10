@@ -2959,7 +2959,20 @@ static int units_apply_land_loss_outcome(
   const int human =
     show_popups && units_combat_human_involved(col1, lose->nation_id, win->nation_id);
   const int win_euro = win->nation_id >= 0 && win->nation_id <= 3;
-  const int win_can_capture = win_euro && wt && wt->attack > 0;
+  /*
+   * Smell audit 2026-09-10 #5. DOS raw 99378-99380 gates the capture on the
+   * WINNER's type-table byte (`*(char *)(local_4 * 0xe + 0x5236) == '\0' →
+   * bVar12 = false`, local_4 = param_2's type byte at raw 99343, param_2 =
+   * winner — its nation nibble is the `local_32 < 4` Euro gate at raw 99392).
+   * That byte is the @UNIT attack column, so the DOS question is "is the
+   * winner a combatant". A bare `wt->attack > 0` asks it of the port's TYPE
+   * only, and DOS stores a colony-armed colonist as type 1 "Soldiers"
+   * (attack 2) where this port keeps the Colonists body and hangs muskets on
+   * it — so a winner DOS calls a soldier read attack 0 here and its beaten
+   * Colonists/Wagon fell through to demote/despawn instead of flipping.
+   * units_is_combat_role (:6111) is the body-model spelling of the same byte.
+   */
+  const int win_can_capture = win_euro && units_is_combat_role(pool, win);
   const int loser_euro = lose->nation_id >= 0 && lose->nation_id <= 3;
 
   /* Artillery: first loss → damaged bit7; already damaged → destroyed. */
@@ -6076,9 +6089,13 @@ int units_coastal_fort_fire_pulse(
  *   combat_strength.c `combat_unit_is_combat_role(pool, id)` — "does this
  *     unit's @UNIT TYPE row carry the combat flag?", i.e. the literal
  *     DS:0x5236 column read (`type[*0xe + 0x5236] != 0`, spelled
- *     `type->attack > 0` here). That is the byte FUN_5fef_0000 skips on and
- *     the byte FUN_5fef_0352 requires of a WINNER before it may capture
- *     (viceroy_unpacked.c 99380). Use it whenever DOS reads the type table.
+ *     `type->attack > 0` here). That is the byte FUN_5fef_0000 skips on.
+ *     Use it whenever DOS reads the type table AND the port's body model
+ *     cannot disagree with it.
+ *     (FUN_5fef_0352's WINNER-may-capture gate, viceroy_unpacked.c 99378-80,
+ *     reads the same DOS byte but is spelled with the BODY predicate below —
+ *     smell audit 2026-09-10 #5: DOS's armed colonist is type 1 Soldiers, so
+ *     the type read is the wrong half of the split for that unit.)
  *
  *   units.c `units_is_combat_role(pool, u)` (this one) — "can this BODY
  *     fight?", the same question asked of a port unit. DOS stores a

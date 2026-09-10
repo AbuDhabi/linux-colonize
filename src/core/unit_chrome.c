@@ -272,8 +272,41 @@ static uint8_t unit_chrome_names_color(int nation_id) {
   return k_european_names[0];
 }
 
-UnitChromeCorner unit_chrome_corner_for_type(int display_type_index, bool aboard) {
-  const int t = display_type_index;
+/*
+ * Smell audit 2026-09-10 #7 — WHICH ID SPACE THIS IS.
+ *
+ * These are DOS @UNIT type ids, read literally off FUN_112b_01ba's own
+ * dispatch on the unit record's type byte `+0x3146` (viceroy_unpacked.c
+ * 2102-2118):
+ *
+ *   bVar1 = *(byte *)(local_2c + 0x3146);
+ *   if ((bVar1 < 0xd) || (0x12 < bVar1)) {            // land types
+ *     if (bVar1 == 0x15 || 0x16 || 5 || 4 || 7 || 8)  local_14 = 3;  // TOP_LEFT
+ *     else if (bVar1 == 0xc || 10 || 0xb)             local_14 = 2;  // TOP_CENTER
+ *   } else {                                          // hulls 0xd..0x12
+ *     if (bVar1 == 0xf || 0x10 || 0x11 || 0x12)       local_14 = 1;  // TOP_RIGHT
+ *     else                                            local_14 = 3;  // TOP_LEFT
+ *   }
+ *
+ * Callers hand this a Linux POOL INDEX (units_display_type_index, units.c;
+ * europe_dock_display_type_index / europe_ship_display_type, europe.c), and
+ * "a Linux POOL INDEX is not a DOS @UNIT id" is the rule units.c:5117 states
+ * for the combat gates. It holds here only because of a data-format
+ * invariant, not by construction: units_load_types appends NAMES.TXT @UNIT
+ * rows in file order, and the DOS exe hardcodes these very ids, so the
+ * shipped section is exactly Colonists 0 … Mtd. Warriors 0x16 with no
+ * comment or blank rows inside it (verified against COLONIZE/NAMES.TXT) —
+ * any roster DOS itself could run therefore lands index == id.
+ *
+ * Where it does NOT hold: synthetic test fixtures that build a pool by hand
+ * in some other order. The only consequence is a badge drawn in the wrong
+ * corner (cosmetic, no gameplay path reads this), so the numeric test is
+ * kept rather than pushed through a name lookup — this module deliberately
+ * takes no ColonizeUnitPool, and converting the space would have to happen
+ * in every caller. Do not copy this pattern into a rules path.
+ */
+UnitChromeCorner unit_chrome_corner_for_type(int dos_unit_type_id, bool aboard) {
+  const int t = dos_unit_type_id;
   if (t >= 0x0d && t <= 0x12) {
     if (t == 0x0f || t == 0x10 || t == 0x11 || t == 0x12) {
       return UNIT_CHROME_CORNER_TOP_RIGHT;
@@ -284,6 +317,14 @@ UnitChromeCorner unit_chrome_corner_for_type(int display_type_index, bool aboard
     return UNIT_CHROME_CORNER_TOP_LEFT;
   }
   if (t == 10 || t == 11 || t == 12) {
+    /*
+     * DOS's fourth arm is Artillery + the damaged bit, NOT "aboard a ship":
+     * raw 2109-2111 is `bVar1 == 0xb && (*(byte *)(local_2c + 0x3148) & 0x80)`
+     * → local_14 = 4 (the y+2 box at raw 2253-2254). Callers pass
+     * `aboard_ship_id >= 0` here (map_panel.c:1189), so the port keys the
+     * same offset off the wrong flag. Left as-is: the fix belongs at the
+     * call sites, which pass no damage bit today. Logged as a new lead.
+     */
     if (t == 11 && aboard) {
       return UNIT_CHROME_CORNER_TOP_CENTER_ABOARD;
     }

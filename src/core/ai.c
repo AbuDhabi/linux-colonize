@@ -2779,7 +2779,7 @@ static int ai_indian_tribe_mission_nation(const ColonizeCol1Tribe* t) {
  *
  *  2. Colonies within distance 7 (FUN_281f_037a = ai_dos_dist). Each scores
  *
- *       base  = 2*max(0, pop-6) + min(indian.capitol_x, pop/2) + min(pop, 6)
+ *       base  = 2*max(0, pop-6) + min(tribe.tech, pop/2) + min(pop, 6)
  *               + difficulty + ((buildings*c/e - 8) >> 2)
  *       score = (base*2 - d - 1) / (d + 4)
  *
@@ -2787,14 +2787,17 @@ static int ai_indian_tribe_mission_nation(const ColonizeCol1Tribe* t) {
  *     ({1,2},{3,4},{1,1},{3,2},{2,1}) and are 1/1 for an AI's. Halve when the
  *     colony is on a different continent, add that nation's military pressure,
  *     halve for the French (nation 1 — their standing native-relations bonus),
- *     halve again on the unresolved FF bit 0x10. The highest-scoring colony
- *     names the threatening nation.
+ *     halve again on FF 16 (Pocahontas). The highest-scoring colony names the
+ *     threatening nation.
  *
- *     `min(indian.capitol_x, pop/2)` is exactly what the binary computes
- *     (byte +0 of the Indian record at DS:0x59a0 + nation*0x4e — the record
- *     stride and the tech-at-+2 mapping both check out against this port's
- *     ColonizeCol1Indian). It reads like a DOS slip, but since capitol_x is a
- *     map column it is larger than pop/2 in practice, so it behaves as pop/2.
+ *     The `min(..., pop/2)` operand is the tribe's TECH level, not
+ *     `capitol_x`: DOS reads `*(byte *)(tribe.nation_id * 0x4e + 0x59a0)`
+ *     (raw 81038) and `0x59a0 + 4*0x4e == 0x5ad8 == indian_base(0x5ad6) + 2`,
+ *     i.e. `indian[nation_id-4].tech`. Corrected 2026-09-06d; this header kept
+ *     claiming capitol_x, plus the argument that "capitol_x is a map column so
+ *     it exceeds pop/2 and the term behaves as pop/2" — which is backwards for
+ *     tech (0..~5), a genuinely BINDING cap on pop/2 for any colony of pop >= 2.
+ *     Do not "restore" pop/2. Smell audit 2026-09-10 D6.
  *
  * Finally the village's own mission rescales the winner: owned by the threat
  * nation → ×3/4 plain, ×1/2 Jesuit; owned by a rival → ×3/2 plain, ×2 Jesuit.
@@ -2967,7 +2970,7 @@ int ai_indian_village_threat(
      * generated half as fast" clause: it halves the threat score that feeds
      * `euro_relation_accum`, which is the only DOS producer of Indian alarm.
      */
-    if (founding_fathers_nation_has(col1, c->nation_id, 16)) {
+    if (founding_fathers_nation_has(col1, c->nation_id, FF_POCAHONTAS)) {
       score >>= 1;
     }
     if (score > best_score) {
