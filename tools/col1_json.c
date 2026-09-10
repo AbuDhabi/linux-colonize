@@ -904,7 +904,8 @@ static void write_nation(FILE* f, const ColonizeCol1Nation* nt) {
   W_U8ARR(f, &n, "diplo_flag", nt->diplo_flag, 4);
   wi(f, &n, "indian_hostility_sticky", nt->indian_hostility_sticky);
   wi(f, &n, "privateer_spawn_mask", nt->privateer_spawn_mask);
-  W_U8ARR(f, &n, "unknown26_pad", nt->unknown26_pad, 2);
+  wi(f, &n, "king_grace_counter", nt->king_grace_counter);
+  wi(f, &n, "unknown26_pad", nt->unknown26_pad);
   jkey(f, &n, "trade");
   write_nation_trade(f, &nt->trade);
   fputc('}', f);
@@ -954,7 +955,18 @@ static void read_nation(const JsonValue* o, ColonizeCol1Nation* nt) {
   read_arr_u8(o, "diplo_flag", nt->diplo_flag, 4);
   if (json_get_u64(o, "indian_hostility_sticky", &u)) nt->indian_hostility_sticky = (uint8_t)u;
   if (json_get_u64(o, "privateer_spawn_mask", &u)) nt->privateer_spawn_mask = (uint8_t)u;
-  read_arr_u8(o, "unknown26_pad", nt->unknown26_pad, 2);
+  if (json_get_u64(o, "king_grace_counter", &u)) nt->king_grace_counter = (uint8_t)u;
+  if (json_get_u64(o, "unknown26_pad", &u)) nt->unknown26_pad = (uint8_t)u;
+  /* Legacy exports carried the pre-split two-byte pad [grace, pad]. */
+  {
+    JsonValue* legacy = json_obj_get(o, "unknown26_pad");
+    if (legacy && legacy->type == JV_ARR) {
+      uint8_t pair[2] = {nt->king_grace_counter, nt->unknown26_pad};
+      read_arr_u8(o, "unknown26_pad", pair, 2);
+      nt->king_grace_counter = pair[0];
+      nt->unknown26_pad = pair[1];
+    }
+  }
   JsonValue* sub = json_obj_get(o, "trade");
   if (sub) read_nation_trade(sub, &nt->trade);
 }

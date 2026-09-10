@@ -56,7 +56,7 @@ Useful flags (CLI wins over `settings.json`, which wins over the default):
 |------|---------|---------|-----------------|
 | `--data-dir DIR` | `./COLONIZE` | Original game data | `data_dir` |
 | `--save-dir DIR` | platform default | Save games | `save_dir` (empty = default) |
-| `--scale N` | `2` | Window scale | `display.window_scale` |
+| `--scale N` | `2` | Window scale, clamped to 1..8 | `display.window_scale` |
 | `--windowed` / `--fullscreen` | windowed | Window / fullscreen | `display.windowed` |
 | `--nosound` | — | Disable audio | `no_sound` |
 | `--seed N` | — | Fixed RNG seed (debug; like VR_SEED; `0` is valid) | `seed` (`null` / omit = unset) |

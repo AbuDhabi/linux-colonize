@@ -232,6 +232,7 @@ static int run_mid01_to_mid02(void) {
         br.view_x,
         br.view_y,
         units.selected_id,
+        units.selected_id < 0,
         err,
         sizeof(err)
       )) {

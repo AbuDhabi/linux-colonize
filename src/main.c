@@ -69,10 +69,8 @@ static bool parse_args(int argc, char** argv, CliConfig* cfg) {
       cfg->no_sound = true;
       cfg->nosound_from_cli = true;
     } else if (strcmp(arg, "--scale") == 0 && i + 1 < argc) {
-      cfg->window_scale = atoi(argv[++i]);
-      if (cfg->window_scale < 1) {
-        cfg->window_scale = 1;
-      }
+      /* Same 1..8 range the settings.json path clamps to (settings.c). */
+      cfg->window_scale = settings_clamp_window_scale(atoi(argv[++i]));
       cfg->scale_from_cli = true;
     } else if (strcmp(arg, "--seed") == 0 && i + 1 < argc) {
       cfg->rng_seed = (uint32_t)strtoul(argv[++i], NULL, 0);

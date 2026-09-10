@@ -1198,8 +1198,12 @@ bool units_brewster_apply_popup_ex(
    * shape as turn.c's random-pick path. */
   if (units && europe->dock_count > 0 && human >= 0 && human < 4) {
     const EuropeDockImmigrant* d = &europe->dock[europe->dock_count - 1];
+    /* Same shared stream turn.c's imm==1 path uses: europe_dock_unit_dos_type's
+     * Dragoon roll (46d4 bound difficulty+4 for a human) is a real DOS draw, and
+     * passing NULL here dropped it — every Brewster Soldier mirrored as Soldiers.
+     * Draw order matches 4884: pool refill first, then the mirror-unit roll. */
     (void)europe_spawn_dock_mirror_unit(
-      units, human, d->profession, (int)europe->difficulty, true, NULL
+      units, human, d->profession, (int)europe->difficulty, true, rng
     );
   }
   return true;
@@ -2042,7 +2046,7 @@ int units_best_defender_at(
   int best_soft_score = -1;
   /*
    * DOS FUN_5fef_0000 domain gate, verbatim (viceroy_unpacked.c 99137-99147
-   * + 99190-99196):
+   * + 99186-99195):
    *
    *   if (-1 < param_2) {
    *     uVar1 = unit[param_2].x; uVar6 = unit[param_2].y;
@@ -6532,7 +6536,7 @@ void units_seize_noncombat_at(
      *    capture or demote row for a ship and therefore silently DESPAWNED
      *    them — while Privateer / Frigate / Man-O-War (attack > 0) were left
      *    alone. That accidental split contradicts this file's own domain rule
-     *    (units_domain_blocker_at, FUN_5fef_0000 raw 99190-99196) and the
+     *    (units_domain_blocker_at, FUN_5fef_0000 raw 99186-99195) and the
      *    ai_euro caller's comment: a land walk-in neither sees nor touches a
      *    hull in the harbour. Skip every ship, not just the armed ones.
      *    (DOS's own 0ec0 does hand hulls to 0352's damage/repair-port arm,
@@ -6611,7 +6615,7 @@ ColonizeEnterReason units_enter_probe(
   const bool land = map_tile_is_land(map, x, y);
 
   /*
-   * FUN_5fef_0000 domain gate (raw 99190-99196): a candidate defender's
+   * FUN_5fef_0000 domain gate (raw 99186-99195): a candidate defender's
    * ship-ness must match the destination tile's water test, so a berthed
    * foreign hull neither defends a port nor blocks the assault. Prefer a
    * domain-matching foe; when only mismatched foreigners stand on a colony
@@ -7174,21 +7178,26 @@ bool units_try_move(
   int village_temp = -1;
   int village_nation = -1;
   /*
-   * DOS FUN_5fef_1b0e: attacking always drains 3 extra moves_spent right
-   * before the roll, win or lose (viceroy_unpacked.c ~100340-100343:
-   * `*(char*)(unit+0x3149) += 3` when the attack-flag param is set — real
-   * on every combat-entry call site, confirmed both in the flattened export
-   * and a fresh OVL17_L0000:1b0e decompile). It stacks with the normal
-   * per-tile step cost (DOS FUN_465b ~75640) into the same gate/RNG-roll
-   * that decides whether the unit can afford to enter, so it must feed the
-   * shared `cost` below rather than being pre-subtracted from moves_left
-   * (pre-subtracting would corrupt the "started this move at full MP"
-   * bypass check that gate also does). Land units' low max MP (<=4) is
-   * usually consumed either way ("attack ends the turn"); ships' much
-   * higher max MP survives it as a genuine slow, not a full stop — this is
-   * what "ship-slow" refers to.
+   * DOS attack MP model (re-derived 2026-09-10, seventh-wave pass; the old
+   * "(step cost + 3) surcharge, ship-slow survives it" model was wrong):
+   *   - FUN_5fef_1b0e entry does `spent += 3` for an attack
+   *     (viceroy_unpacked.c:100341-100343) but then unconditionally calls
+   *     FUN_281f_0934 under the same attack flag (100381-100383), and 0934 →
+   *     FUN_1427_155e writes `spent = FUN_1427_065a(unit)` — the FULL max
+   *     allotment (viceroy_unpacked.c:8880-8888). The +3 is a dead store;
+   *     the real charge is a full exhaust, before the roll, win or lose,
+   *     ships included. There is no ship-slow: a Frigate that attacks is
+   *     done for the turn exactly like a Soldier.
+   *   - FUN_465b charges its per-tile step cost only on NON-attack moves:
+   *     `if (!bVar4) spent += local_40` (viceroy_unpacked.c:75639-75640),
+   *     and the shore-crossing exhaust sits inside the same `!bVar4` block —
+   *     an attacker pays neither (it is already exhausted by 1b0e).
+   * The fatigue penalty and its Combat Analysis rows read the ENTRY
+   * remaining (uVar15 is captured at 100339-100340, before the mutations),
+   * which is why the port keeps charging after the resolve: the strength
+   * calc reads live remaining, so charging first would erase the fatigue.
    */
-  int combat_attack_mp_surcharge = 0;
+  bool combat_attack_entry = false;
   if (g_units_ff_col1 && unit->nation_id >= 0 && unit->nation_id <= 3) {
     village_nation = units_tribe_nation_at(g_units_ff_col1, dest_x, dest_y);
     if (village_nation >= 4) {
@@ -7292,7 +7301,7 @@ bool units_try_move(
         /* Own colony squatted by foreign civilians (an old capture left them
          * put): seize them on entry, no militia fight against your own town. */
         units_seize_noncombat_at(pool, unit_id, dest_x, dest_y, g_units_ff_col1);
-        combat_attack_mp_surcharge = 3;
+        combat_attack_entry = true;
         goto combat_entry_resolved;
       }
       if (!units_revere_defend_colony_tile(
@@ -7305,7 +7314,7 @@ bool units_try_move(
         return false;
       }
       units_seize_noncombat_at(pool, unit_id, dest_x, dest_y, g_units_ff_col1);
-      combat_attack_mp_surcharge = 3;
+      combat_attack_entry = true;
       goto combat_entry_resolved;
     }
     /*
@@ -7342,6 +7351,32 @@ bool units_try_move(
         ai_diplo_indian_alarm_delta(
           (ColonizeCol1Save*)g_units_ff_col1, foe_nation, unit->nation_id, delta
         );
+      }
+    }
+    /*
+     * DOS FUN_5fef_1b0e entry gate (viceroy_unpacked.c:100359-100372): with
+     * fewer than 3 thirds remaining an attack is refused outright for every
+     * non-interactive nation — natives/crown (`3 < uVar16` return) and any
+     * Euro slot whose control byte is set (`0x543f[nation] != 0` return).
+     * Only the interactive human reaches the @HALF tired-attack CHOICE
+     * (game_loop asks it before calling here, so a confirmed human attack
+     * arrives with the same low MP and proceeds). The 465b alarm slam above
+     * already ran — DOS orders it the same way (75600-75626 precede the
+     * 0a14 → 1b0e call at 75692). Gated on col1 being wired so bare unit
+     * fixtures keep their attacks.
+     */
+    if (g_units_ff_col1 && units_remaining_mp(pool, unit_id) < UNITS_MP_PER_TILE) {
+      const bool ai_controlled =
+        unit->nation_id > 3 ||
+        (unit->nation_id >= 0 && unit->nation_id <= 3 &&
+         g_units_ff_col1->player[unit->nation_id].control != 0);
+      if (ai_controlled) {
+        if (village_temp >= 0) {
+          units_despawn(pool, village_temp);
+          village_temp = -1;
+        }
+        g_units_last_enter_reason = COLONIZE_ENTER_NO_MP;
+        return false;
       }
     }
     bool won = false;
@@ -7395,34 +7430,19 @@ bool units_try_move(
       village_temp = -1;
     }
     /*
-     * DOS FUN_5fef_1b0e: attacking always drains 3 extra moves_spent right
-     * before the roll, win or lose (viceroy_unpacked.c ~100340-100343:
-     * `*(char*)(unit+0x3149) += 3` when the attack-flag param is set — real
-     * on every combat-entry call site, confirmed both in the flattened
-     * export and a fresh OVL17_L0000:1b0e decompile). This stacks with the
-     * normal per-tile step cost (DOS FUN_465b ~75640, applied unconditionally
-     * *before* combat even starts) — so attacking costs (step_cost + 3) MP
-     * total, win or lose. Land units' low max MP (<=4) is usually consumed
-     * either way, so this reads as "attack ends the turn"; ships' much
-     * higher max MP survives it as a genuine slow rather than a full stop
-     * — this is what "ship-slow" refers to. Linux previously charged only
-     * the step cost, and only on a win (further below); this adds the
-     * missing +3 surcharge plus the missing step cost on a loss.
-     *
-     * Every outcome of the same attack pays the same (step_cost + 3): the
-     * loss return just below, the ordinary land-win stay-put branch, the
-     * native raid-stay-put branch, and the walk-in path via
-     * `combat_attack_mp_surcharge`. The +3 in DOS is charged at 1b0e ENTRY,
-     * before the roll and before any branch is chosen, so no outcome can be
-     * cheaper than another (smell audit 2026-09-10 A3: the raid win used to
-     * charge the bare step cost, making a won raid 3 thirds cheaper than a
-     * lost one).
+     * DOS: an attacker is FULLY exhausted for the turn, win or lose, ships
+     * included — FUN_281f_0934 (spent = max allotment via FUN_1427_155e) runs
+     * at 1b0e entry under the attack flag (viceroy_unpacked.c:100381-100383),
+     * and 465b's step cost is skipped on attacks (75639-75640). See the model
+     * comment above `combat_attack_entry`. Every outcome of the same attack
+     * pays this same full exhaust: the loss return just below, the ordinary
+     * land-win stay-put branch, the native raid-stay-put branch, and the
+     * walk-in/advance path via `combat_attack_entry`.
      */
     if (!won) {
       ColonizeUnit* atk_mp = units_get(pool, unit_id);
       if (atk_mp && atk_mp->active) {
-        const int cost = units_move_cost(pool, unit_id, map, dest_x, dest_y);
-        units_mp_charge(pool, atk_mp, cost + 3);
+        units_mp_exhaust(pool, atk_mp);
       }
       return false;
     }
@@ -7432,16 +7452,10 @@ bool units_try_move(
     }
     /*
      * Native village raid: fight from the adjacent tile and stay there (DOS
-     * FUN_4d56_4528 contact). Charge MP as if the step were spent — step cost
-     * plus the 3-third combat-entry surcharge, exactly as the loss return
-     * above and the ordinary land-win stay-put branch below: DOS applies the
-     * surcharge at FUN_5fef_1b0e entry (`*(char *)(iVar23 + 0x3149) += 3`
-     * under `if (param_5 != 0)`, viceroy_unpacked.c:100341-100343, param_5 =
-     * the attack flag 465b passes as the last argument of
-     * FUN_291f_0a14 → FUN_5fef_1b0e at viceroy_unpacked.c:75692), i.e. before
-     * the roll and before win/lose or "which tile do I end on" is known, so
-     * the raid cannot be cheaper than any other outcome of the same attack.
-     * Do not enter the dwelling tile.
+     * FUN_4d56_4528 contact). The attack exhausts the full allotment (1b0e's
+     * FUN_281f_0934, viceroy_unpacked.c:100381-100383 — the same charge as
+     * every other outcome of the same attack; 465b's step cost is attack-
+     * skipped, 75639-75640). Do not enter the dwelling tile.
      */
     if (village_nation >= 4 && unit->nation_id >= 0 && unit->nation_id <= 3) {
       /*
@@ -7454,8 +7468,7 @@ bool units_try_move(
        * denial refused an entry whose effects were permanent, and the draw
        * itself shifted the RNG stream for every later native raid.
        */
-      const int cost = units_move_cost(pool, unit_id, map, dest_x, dest_y);
-      units_mp_charge(pool, unit, cost + 3);
+      units_mp_exhaust(pool, unit);
       if (unit->orders == UNITS_ORDER_SENTRY || unit->orders == UNITS_ORDER_FORTIFY ||
           unit->orders == UNITS_ORDER_FORTIFIED) {
         unit->orders = UNITS_ORDER_NONE;
@@ -7473,13 +7486,13 @@ bool units_try_move(
     /*
      * bugs.md 249: a land attacker does NOT advance into the vacated tile.
      * Only ships (naval combat) and the attack that captures a colony enter;
-     * everywhere else the winner stays put — the step cost + 3 attack drain
-     * is spent either way (DOS 1b0e / 465b, same charge as the loss branch).
+     * everywhere else the winner stays put — the full attack exhaust is
+     * spent either way (DOS 1b0e FUN_281f_0934, same charge as the loss
+     * branch).
      */
     if (reason == COLONIZE_ENTER_COMBAT_LAND &&
         (!colonies || colonies_id_at(colonies, dest_x, dest_y) < 0)) {
-      const int drain = units_move_cost(pool, unit_id, map, dest_x, dest_y) + 3;
-      units_mp_charge(pool, unit, drain);
+      units_mp_exhaust(pool, unit);
       if (unit->orders == UNITS_ORDER_SENTRY || unit->orders == UNITS_ORDER_FORTIFY ||
           unit->orders == UNITS_ORDER_FORTIFIED) {
         unit->orders = UNITS_ORDER_NONE;
@@ -7487,10 +7500,11 @@ bool units_try_move(
       g_units_last_enter_reason = COLONIZE_ENTER_OK;
       return true;
     }
-    /* Combat-entry MP surcharge (see comment above) folded into the shared
-     * step-cost gate below, not applied directly — feeding it into `cost`
-     * there keeps the "started this move at full MP" bypass check correct. */
-    combat_attack_mp_surcharge = 3;
+    /* Advancing attacker (naval win, colony capture): the full exhaust is
+     * applied at the shared charge site below via `combat_attack_entry` —
+     * DOS charged it at 1b0e entry and 465b then skips both the step cost
+     * and the shore exhaust on the attack flag (75639-75640). */
+    combat_attack_entry = true;
   } else {
     if (village_temp >= 0) {
       units_despawn(pool, village_temp);
@@ -7527,8 +7541,7 @@ combat_entry_resolved:
     }
   }
 
-  const int cost =
-    units_move_cost(pool, unit_id, map, dest_x, dest_y) + combat_attack_mp_surcharge;
+  const int cost = units_move_cost(pool, unit_id, map, dest_x, dest_y);
   const int remaining = units_remaining_mp(pool, unit_id);
   const int max_mp = units_max_mp(pool, unit_id);
   const bool full_mp = remaining >= max_mp;
@@ -7556,13 +7569,22 @@ combat_entry_resolved:
   }
 
   /*
-   * DOS adds the full terrain cost to spent MP before the allow/deny gate for
-   * non-combat moves — including failed partial-overspend rolls.
+   * DOS charges MP here in two disjoint regimes (465b_05ca, `if (!bVar4)`
+   * with bVar4 = the attack flag, viceroy_unpacked.c:75639-75648):
+   *   - attack: the full-allotment exhaust 1b0e already applied via
+   *     FUN_281f_0934 — no step cost, no shore exhaust (both sit inside the
+   *     `!bVar4` block);
+   *   - plain move: the full terrain cost is added to spent before the
+   *     allow/deny gate — including failed partial-overspend rolls — and
+   *     crossing the shoreline outside a colony spends the lot.
    */
-  units_mp_charge(pool, unit, cost);
-  /* DOS 465b_05ca: crossing the shoreline outside a colony spends the lot. */
-  if (units_move_crosses_shore(map, colonies, unit->x, unit->y, dest_x, dest_y)) {
+  if (combat_attack_entry) {
     units_mp_exhaust(pool, unit);
+  } else {
+    units_mp_charge(pool, unit, cost);
+    if (units_move_crosses_shore(map, colonies, unit->x, unit->y, dest_x, dest_y)) {
+      units_mp_exhaust(pool, unit);
+    }
   }
   if (!allow) {
     return false;
@@ -11542,7 +11564,9 @@ void units_render_on_map(
      * standing on the tile. A loaded transport carries the tab (bugs.md).
      */
     const bool stacked = units_map_stack_chrome(pool, top->id);
-    const bool aboard = top->aboard_ship_id >= 0;
+    /* Chrome's 4th badge arm is Artillery + the damaged bit (+0x3148 bit7),
+     * not "aboard a ship" — unit_chrome_corner_for_type. */
+    const bool damaged = (top->col1_unknown15 & 0x80u) != 0;
 
     unit_chrome_blit_unit_for_palette(
       framebuffer,
@@ -11555,7 +11579,7 @@ void units_render_on_map(
       top->nation_id,
       top->orders,
       stacked,
-      aboard,
+      damaged,
       active_palette
     );
   }

@@ -1597,9 +1597,12 @@ bool col1_bridge_apply(
    * audit #78). Survey of original_saves/dutch-campaign + french-campaign:
    * 7 carry `active_unit 0xffff` (dutch COLONY01/08/09/10, french
    * COLONY01/03/08), all 7 with map_mode 1. The converse does NOT hold —
-   * french COLONY09 is map_mode 1 with active_unit 0x50, because entering
-   * View Pieces (:42112) sets 0x5390 without touching 0x5392 — so 0x5392 is
-   * the only field this may key on.
+   * french COLONY09 is map_mode 1 with active_unit 0x50 (and so is
+   * original_saves/COLONY01, map_mode 1 with active 0x0000), because
+   * entering View Pieces (:42112) sets 0x5390 without touching 0x5392 — so
+   * 0x5392 is the only field this may key on, and map_mode rides through as
+   * its own live word (capture takes it from game_loop's view_pieces_mode,
+   * 2026-09-10).
    *
    * The fallback scan below is a repair for the *other* case: an in-range
    * active_unit whose record was not imported (a Europe-lane sentinel, a
@@ -1924,6 +1927,7 @@ bool col1_bridge_capture(
   int view_x,
   int view_y,
   int active_unit_id,
+  bool view_pieces_mode,
   char* err,
   size_t err_size
 ) {
@@ -3039,20 +3043,45 @@ bool col1_bridge_capture(
     save->unit = neu;
     save->head.unit_count = (uint16_t)written;
     /*
-     * DS:0x5392 active unit, and the two idle-state words that DOS keeps in
-     * step with it. FUN_2b5a (viceroy_unpacked.c 42308-42317, and its twin at
-     * 45449-45458) is the only writer pair: `if (0x5392 < 0) { 0x53c6 = 1; }
-     * else { 0x5390 = 0; 0x53c6 = 0; }` — a live unit forces Move Pieces and
-     * clears no_unit_selected. The port stamped only active_unit, leaving
-     * map_mode / no_unit_selected at whatever the loaded template held, so a
-     * save could claim View Pieces with a unit selected (smell audit #78).
-     * Survey of the 11 in-game saves under original_saves/: all 7 with a real
-     * active unit carry map_mode 0 + no_unit_selected 0, and all 4 with
-     * active_unit 0xffff carry map_mode 1 (View Pieces).
+     * DS:0x5392 active unit, and the two idle-state words DOS keeps near it.
+     * FUN_2b5a (viceroy_unpacked.c 42308-42317, and its twin at 45449-45458):
+     *   if (0x5392 < 0) { 0x53c6 = 1; if (0x97b0 && !(0x5383 & 8)) 0x53c4 = 0; }
+     *   else            { 0x5390 = 0; 0x53c6 = 0; }
+     * — picking a live unit forces Move Pieces and clears no_unit_selected.
+     *
+     * map_mode is NOT a function of the selection, though: the View Pieces
+     * command (raw 42112) is a bare `0x5390 = 1` that leaves 0x5392 alone, so
+     * "View Pieces with a unit still active" is a real DOS state. Deriving it
+     * from `has_active_unit` (the smell #78 stamp) therefore threw the mode
+     * away on every save and broke the round-trip of the DOS fixtures that
+     * carry it. It is now the live UI word — game_loop's `view_pieces_mode`,
+     * which game_apply_col1_save seeds straight from head.map_mode.
+     *
+     * Fixture tally, all 60 size-valid saves under original_saves/ (head is a
+     * packed image: map_mode @32, active_unit @34, turn_loop_running @82,
+     * map_modal_active @84, no_unit_selected @86):
+     *   - 50 saves with a real active unit: no_unit_selected 0 in every one,
+     *     map_mode 0 in 48 and map_mode **1** in two — original_saves/COLONY01
+     *     (mode 1, active 0x0000) and french-campaign/COLONY09 (mode 1, active
+     *     0x0050), the pair that pins the paragraph above.
+     *   - 7 saves with active_unit 0xffff (dutch COLONY01/08/09/10, french
+     *     COLONY01/03/08): map_mode 1 in all 7; no_unit_selected 1 in three
+     *     (dutch01, french01, french03) and 0 in four (dutch08/09/10,
+     *     french08).
+     * The nus split is DOS's pump phase, not a rule: 42309 raises it on the
+     * idle pass and FUN_2b5a_3752 (raw 46159) then drops map_modal_active,
+     * after which the input loop's `if (0x829 == '\0') 0x53c6 = 0` (raw 6346)
+     * clears it — so (nus 1, modal 1) and (nus 0, modal 0) are the same state
+     * one pass apart. The pair (nus 1, modal 0) appears in no DOS save, and
+     * neither does (nus 0, modal 1) with active_unit 0xffff. Since this
+     * capture must stamp map_modal_active = 1 for DOS interop (see the
+     * turn_loop_running block above), (nus 1, modal 1) is the only coherent
+     * idle state left, and that is what is kept — the "disagrees with the
+     * other saves" lead is a mis-framing: those saves also carry modal 0.
      */
     const bool has_active_unit = active_col1 >= 0;
     save->head.active_unit = has_active_unit ? (uint16_t)active_col1 : 0xffffu;
-    save->head.map_mode = has_active_unit ? 0u : 1u;
+    save->head.map_mode = view_pieces_mode ? 1u : 0u;
     save->head.no_unit_selected = has_active_unit ? 0u : 1u;
     free(runtime_to_col1);
   }

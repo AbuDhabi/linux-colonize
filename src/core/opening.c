@@ -28,10 +28,11 @@ static const char* const kCreditSheets[OPENING_CREDIT_SHEETS] = {
 };
 
 static ColonizeOpeningSoundFn g_opening_play;
+static ColonizeOpeningSoundFn g_opening_set_bgm;
 
 void opening_set_sound_hooks(ColonizeOpeningSoundFn play_fn, ColonizeOpeningSoundFn set_bgm_fn) {
   g_opening_play = play_fn;
-  (void)set_bgm_fn;
+  g_opening_set_bgm = set_bgm_fn;
 }
 
 static void opening_strip_comment(char* line) {
@@ -635,6 +636,13 @@ bool opening_open(OpeningCinematic* o, const char* data_dir) {
   o->finished = false;
   o->logo_phase = o->mps_logo_ok;
   opening_compose(o);
+  if (g_opening_set_bgm) {
+    /* OPENING.EXE is its own process; no VICEROY pool. Clearing the category
+     * first makes sound_play take the immediate branch (sound.c "No VICEROY
+     * pool") instead of queueing 0x34 behind a running map tune. Mirrors
+     * closing_open. */
+    g_opening_set_bgm(0);
+  }
   if (g_opening_play) {
     g_opening_play(OPENING_BGM_ID);
   }

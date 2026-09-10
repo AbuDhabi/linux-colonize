@@ -296,6 +296,8 @@ typedef struct ColonyScreenView {
   int eject_unit_id; /* outside unit id when re-equipping at fence; else -1 */
   int eject_selection;
   int eject_roles[COLONIZE_EJECT_ROLE_COUNT];
+  /* false = DOS's 0xffff row: listed, drawn greyed, not pickable. */
+  bool eject_role_enabled[COLONIZE_EJECT_ROLE_COUNT];
   int eject_role_count;
   int eject_dialog_x;
   int eject_dialog_y;

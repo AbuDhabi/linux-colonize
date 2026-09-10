@@ -8,6 +8,7 @@
 #include "platform/diagnostics.h"
 #include "platform/platform.h"
 #include "core/sound.h"
+#include "core/ss.h" /* COLONIZE_SS_TRANSPARENT — the cursor key, platform.h:138 */
 
 struct ColonizePlatform {
   SDL_Window* window;
@@ -472,7 +473,7 @@ bool platform_set_mouse_cursor_indexed(
       const int sx = x / scale;
       const uint8_t index = indexed_pixels[sy * width + sx];
       uint32_t pixel = 0;
-      if (index != 0xFDu) {
+      if (index != COLONIZE_SS_TRANSPARENT) {
         const uint8_t r = palette->rgb[index][0];
         const uint8_t g = palette->rgb[index][1];
         const uint8_t b = palette->rgb[index][2];
@@ -526,16 +527,52 @@ bool platform_present(
     return false;
   }
 
-  const size_t pixel_count = (size_t)framebuffer->width * (size_t)framebuffer->height;
-  for (size_t i = 0; i < pixel_count; ++i) {
-    uint8_t index = framebuffer->pixels[i];
-    uint8_t r = palette->rgb[index][0];
-    uint8_t g = palette->rgb[index][1];
-    uint8_t b = palette->rgb[index][2];
-    platform->rgba_buffer[i] = 0xff000000u | ((uint32_t)r << 16) | ((uint32_t)g << 8) | (uint32_t)b;
+  if (!framebuffer->pixels || !platform->rgba_buffer) {
+    diag_error("platform_present called without pixels");
+    return false;
   }
 
-  SDL_UpdateTexture(platform->texture, NULL, platform->rgba_buffer, framebuffer->width * (int)sizeof(uint32_t));
+  /*
+   * `rgba_buffer` and the streaming texture are both platform->width x
+   * platform->height (platform_create's 320x200), so the caller's dimensions
+   * are never allowed to size this loop: sizing it from
+   * framebuffer->width * framebuffer->height while the allocation came from
+   * the hardcoded 320x200 was a latent heap overrun for any larger
+   * framebuffer. Copy the overlap instead, keeping the destination stride at
+   * the allocation's width, and say so once.
+   */
+  const int fb_w = framebuffer->width;
+  const int fb_h = framebuffer->height;
+  const int copy_w = fb_w < platform->width ? fb_w : platform->width;
+  const int copy_h = fb_h < platform->height ? fb_h : platform->height;
+  if (fb_w != platform->width || fb_h != platform->height) {
+    static bool size_mismatch_warned = false;
+    if (!size_mismatch_warned) {
+      size_mismatch_warned = true;
+      diag_warn(
+        "platform_present: framebuffer %dx%d != display %dx%d; presenting the %dx%d overlap",
+        fb_w, fb_h, platform->width, platform->height, copy_w, copy_h
+      );
+    }
+    memset(
+      platform->rgba_buffer,
+      0,
+      (size_t)platform->width * (size_t)platform->height * sizeof(uint32_t)
+    );
+  }
+  for (int y = 0; y < copy_h; ++y) {
+    const uint8_t* src_row = &framebuffer->pixels[(size_t)y * (size_t)fb_w];
+    uint32_t* dst_row = &platform->rgba_buffer[(size_t)y * (size_t)platform->width];
+    for (int x = 0; x < copy_w; ++x) {
+      const uint8_t index = src_row[x];
+      const uint8_t r = palette->rgb[index][0];
+      const uint8_t g = palette->rgb[index][1];
+      const uint8_t b = palette->rgb[index][2];
+      dst_row[x] = 0xff000000u | ((uint32_t)r << 16) | ((uint32_t)g << 8) | (uint32_t)b;
+    }
+  }
+
+  SDL_UpdateTexture(platform->texture, NULL, platform->rgba_buffer, platform->width * (int)sizeof(uint32_t));
   SDL_RenderClear(platform->renderer);
   SDL_RenderCopy(platform->renderer, platform->texture, NULL, NULL);
   SDL_RenderPresent(platform->renderer);
@@ -549,7 +586,7 @@ bool platform_present(
       framebuffer->height,
       framebuffer->pixels[0],
       platform->rgba_buffer[0],
-      framebuffer->width * (int)sizeof(uint32_t)
+      platform->width * (int)sizeof(uint32_t)
     );
   }
   return true;

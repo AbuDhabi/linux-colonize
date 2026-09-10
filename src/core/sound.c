@@ -915,7 +915,16 @@ static void sound_pump_unlocked(void) {
     id = g_sound.pending_id;
     g_sound.pending_id = -1;
   } else {
-    if (!g_sound.opts.background_music || g_sound.preview_active) {
+    /*
+     * asm 129f:011c-0134: once the gate is passed and DS:0x94 is negative, the
+     * pool pick at LAB_129f_0134 runs unconditionally — DS:0xa2 (Background
+     * Music) gates only whether the idle poll runs at all, never the pick. With
+     * Background Music off and Event Music on, DS:0x9e is armed by
+     * FUN_129f_02cc / FUN_129f_0318, so the one-shot poll still picks and plays
+     * a random tune from the new pool. Re-checking background_music here made
+     * that case silent.
+     */
+    if (g_sound.preview_active) {
       return;
     }
     if (g_sound.category <= 0 && g_sound.category_applied <= 0) {

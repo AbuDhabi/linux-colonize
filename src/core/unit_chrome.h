@@ -22,7 +22,7 @@ typedef enum UnitChromeCorner {
   UNIT_CHROME_CORNER_TOP_RIGHT = 1,
   UNIT_CHROME_CORNER_TOP_CENTER = 2,
   UNIT_CHROME_CORNER_TOP_LEFT = 3,
-  UNIT_CHROME_CORNER_TOP_CENTER_ABOARD = 4 /* Artillery aboard: top-center, y+2 */
+  UNIT_CHROME_CORNER_TOP_CENTER_DAMAGED = 4 /* Damaged Artillery: top-center, y+2 */
 } UnitChromeCorner;
 
 #define UNIT_CHROME_ORDERS_MAX 16
@@ -86,12 +86,16 @@ void unit_chrome_nation_shades_for_palette(
 int unit_chrome_crown_nation(void);
 
 /*
- * DOS @UNIT type id → badge corner (aboard: unit is cargo of a ship).
- * The argument is an @UNIT id, not a pool index; callers pass a pool index
- * and get away with it only through the NAMES.TXT ordering invariant — see
- * the definition's comment (smell audit 2026-09-10 #7).
+ * DOS @UNIT type id → badge corner. `damaged` is the unit's DOS +0x3148
+ * bit7 (Linux col1_unknown15 & 0x80); it only matters for Artillery
+ * (@UNIT 0x0b), whose damaged form takes the y+2 box (DOS FUN_112b_01ba
+ * raw 2109-2111 / 2253-2254). It is NOT "aboard a ship" — that was the
+ * port's own reading until the 2026-09-10 seventh fix wave.
+ * The type argument is an @UNIT id, not a pool index; callers pass a pool
+ * index and get away with it only through the NAMES.TXT ordering invariant
+ * — see the definition's comment (smell audit 2026-09-10 #7).
  */
-UnitChromeCorner unit_chrome_corner_for_type(int dos_unit_type_id, bool aboard);
+UnitChromeCorner unit_chrome_corner_for_type(int dos_unit_type_id, bool damaged);
 
 /* @ORDERS index → single letter (natives always '-'). */
 char unit_chrome_order_letter(int orders_index, int nation_id);
@@ -111,7 +115,7 @@ void unit_chrome_draw(
   int nation_id,
   int orders_index,
   bool show_stack,
-  bool aboard
+  bool damaged
 );
 
 /*
@@ -129,7 +133,7 @@ void unit_chrome_blit_unit(
   int nation_id,
   int orders_index,
   bool show_stack,
-  bool aboard
+  bool damaged
 );
 
 /*
@@ -159,7 +163,7 @@ void unit_chrome_blit_unit_colored(
   int nation_id,
   int orders_index,
   bool show_stack,
-  bool aboard,
+  bool damaged,
   int fill_override,
   int letter_override
 );
@@ -189,7 +193,7 @@ void unit_chrome_blit_unit_for_palette(
   int nation_id,
   int orders_index,
   bool show_stack,
-  bool aboard,
+  bool damaged,
   const ColonizePalette* active_palette
 );
 
@@ -250,7 +254,7 @@ void unit_chrome_blit(
   int nation_id,
   int orders_index,
   bool show_stack,
-  bool aboard,
+  bool damaged,
   int fill_override,
   int letter_override
 );

@@ -2816,8 +2816,17 @@ static int turn_colony_repairs_ships(const ColonizeColony* c, int drydock, int s
  * here the way game_loop.c's `game_voyage_ship_count` does for the manual
  * sail-to-Europe path; keep the two in step. Called with the damaged hull
  * still active, since DOS counts the departing ship too.
+ *
+ * Exported 2026-09-10 (audit second-wave lead 3): ai_king.c's @KINGFRIGATE
+ * gift spawn was a THIRD spelling of this count — a bare
+ * `units_count_sea_for_nation` with no Europe adds — so a human whose whole
+ * fleet was sitting in the harbour rolled the Crown's free Frigate a
+ * 2-turn crossing DOS would have given 4-6. It now calls this.
+ * (game_loop.c's `game_voyage_ship_count` is the same reconstruction over
+ * ColonizeGameState rather than ColonizeTurnContext; it has no turn ctx in
+ * hand, so it stays a separate spelling of the same three adds.)
  */
-static int turn_voyage_ship_count(const ColonizeTurnContext* ctx, int nation) {
+int turn_voyage_ship_count(const ColonizeTurnContext* ctx, int nation) {
   if (!ctx || !ctx->units) {
     return 0;
   }

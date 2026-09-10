@@ -292,7 +292,12 @@ typedef struct ColonizeColony {
  *     is UNPORTED — the port has no 5952 stack-absorption pass at all — so
  *     this clear is documented debt, not a port defect. Wiring it needs the
  *     loop (DS:0x8d72 stack count, local_42/local_3e expert budgets,
- *     labor_shortage sign) first.
+ *     labor_shortage sign) first. 2026-09-10: local_42/local_3e are NOT
+ *     independent locals — aiStack_68 is memset for 0x32 bytes, so they are
+ *     aiStack_68[19] and aiStack_68[21] of the per-@JOB head-count buckets
+ *     (non-experts bucket as 0x13), i.e. "plain colonists here" and "@JOB
+ *     0x15 Soldiers here". Full decode in docs/smell_audit_2026-09-10.md,
+ *     "FUN_5952_035e building / expert passes".
  */
 #define COLONIZE_COLONY_AI_NEEDS_MILITARY 0x04u
 #define COLONIZE_COLONY_AI_SHORT_DEFENDERS 0x08u
@@ -312,12 +317,16 @@ typedef struct ColonizeColony {
  * cleared ground with food >= 3; "clearable" (local_c) = forest whose
  * CLEARED counterpart (class & 7) has food > 2.
  *
- * The writer is ported (ai_euro_refresh_colony_ai_flags). DOS's own readers
+ * The writer is ported (ai_euro_refresh_colony_ai_flags). DOS's four readers
  * are all inside FUN_5952_035e's later building/expert passes (raw 94422,
- * 94454, 94499, 94751), none of which the port has — so the bit is currently
- * WRITE-ONLY here. It is still worth carrying: it is save-visible state a
- * DOS-authored save round-trips, and it is the hook a future Pioneer-errand
- * arm reads instead of re-deriving the ring scan.
+ * 94454, 94499, 94751). Raw 94751 IS ported since 2026-09-10 — the
+ * field-specialist restore pass at the tail of
+ * ai_euro_colony_tick_28c8_reassign, where this bit (or a live lumber
+ * shortfall, DS:0x8e64) is what lets a colony take a SECOND Expert
+ * Lumberjack onto its ring. The other three live in the colony-tick
+ * pioneer-improve pass (raw 94330-94560), which spawns a phantom worker and
+ * has no Linux counterpart; see docs/smell_audit_2026-09-10.md, the
+ * "FUN_5952_035e building / expert passes" section.
  */
 #define COLONIZE_COLONY_AI_WANTS_PIONEER_CLEAR 0x20u
 #define COLONIZE_COLONY_AI_NEEDS_GARRISON 0x40u
@@ -347,11 +356,17 @@ typedef struct ColonizeColony {
  * read-and-clear hand-off at raw 94143-94146 (`(+0x1c & 0x10) && pop < 0x20
  * -> +0x1b |= 0x10 (NEEDS_COLONISTS); +0x1c &= 0xef`), which is ported in
  * ai_euro_colony_threat_seed_5952 and consumed at ai_euro.c:10076, and the
- * writer at raw 95845-95847 (`pop < 10 -> +0x1c |= 0x10`), which lives inside
- * that function's expansion arm behind a chain of 2a1f_05b4 probability gates
- * and is NOT ported — so in the port the bit only ever arrives from a DOS or
- * campaign save and is then consumed once. Do not re-add an unconditional
- * `pop < 10` stamp: that pinned the flag on every turn (smell audit C3).
+ * writer at raw 95845-95847 (`pop < 10 -> +0x1c |= 0x10`), which is NOT
+ * ported — so in the port the bit only ever arrives from a DOS or campaign
+ * save and is then consumed once. Do not re-add an unconditional `pop < 10`
+ * stamp: that pinned the flag on every turn (smell audit C3).
+ * The "chain of 2a1f_05b4 probability gates" this note used to name is a
+ * misreading corrected 2026-09-10: thunk_FUN_2a1f_05b4 is the RTLink stub for
+ * FUN_5952_0214, the tick's build-candidate helper (`try_build(id)`, id in AX,
+ * returns 0 when it picked), not an RNG roll. The writer sits at the bottom of
+ * that helper's 24-candidate cascade — asm LAB_OVL15_L0000__00270d — so it is
+ * reachable only once the whole cascade is ported. Every dropped id is
+ * recovered in docs/smell_audit_2026-09-10.md (seventh-wave lead 5).
  *
  * DOS +0x1c bit 0x20 — WRITE-ONLY here, on purpose. DOS derives it in the
  * FUN_521d_6d8e prelude: raw 93142 clears it on each own colony, then the unit
@@ -739,7 +754,21 @@ bool colonies_capture_ex(
  */
 int colonies_equip_tools_take(int available);
 
-/* Fill out_roles with affordable eject roles for this colonist; returns count. */
+/*
+ * Fill out_roles with the "Leave as" rows DOS offers this colonist, and
+ * out_enabled (optional) with each row's enabled state: DOS lists a row whose
+ * cargo the colony cannot cover but draws it GREYED (FUN_15eb_3454 → 0xffff),
+ * and offers an Indian Convert nothing but the Colonist row. See the comment
+ * on the definition in colony.c. The short form passes out_enabled = NULL.
+ */
+int colonies_list_eject_roles_ex(
+  const ColonizeColonyPool* pool,
+  int colony_id,
+  int colonist_index,
+  int* out_roles,
+  bool* out_enabled,
+  int out_max
+);
 int colonies_list_eject_roles(
   const ColonizeColonyPool* pool,
   int colony_id,

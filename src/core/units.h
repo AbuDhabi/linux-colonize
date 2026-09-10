@@ -907,7 +907,7 @@ bool units_resolve_naval_combat(
  * Coastal Fort/Fortress naval fire strength (FUN_364b_03f6).
  * Fort: 4*(1+arty); Fortress: 8*(1+arty). Artillery/Cannon on colony tile
  * (owner nation). Stockade alone → 0. Cite: decomp local_12*local_c*4;
- * fandom Fort/Fortress. PARK: ship-slow formula.
+ * fandom Fort/Fortress.
  */
 int units_coastal_fort_attack_strength(
   const ColonizeColonyPool* colonies,
@@ -918,7 +918,7 @@ int units_coastal_fort_attack_strength(
 /*
  * EOT pulse: each Fort/Fortress colony fires on adjacent ocean ships that are
  * at war with the colony owner, or Privateers (peace ignored). Fort win →
- * sink ship (no hold plunder). Fort loss → ship-slow (moves_left=0).
+ * sink ship (no hold plunder). Fort loss → ship stopped (moves_left=0).
  * Optional human status line. Returns ships sunk. Cite: FUN_364b_03f6.
  */
 int units_coastal_fort_fire_pulse(

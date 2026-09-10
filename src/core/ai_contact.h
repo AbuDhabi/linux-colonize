@@ -81,13 +81,26 @@ void ai_contact_colony_tick_war_5952(ColonizeTurnContext* ctx, int nation_id, in
  * DS:0x95f2[cont] `continent_presence_flags` for one (nation, continent) pair:
  * bit 1 = an Indian settlement is on the continent (no nation filter), bit 2 =
  * a foreign EUROPEAN (id < 4) unit stands on it, bit 4 = a foreign colony is
- * on it. Recomputed live from FUN_4962_0018's writer (raw 78149-78312), which
- * zeroes the array at the top of every per-nation call — the port keeps no
- * mirror. Shared by both halves of the FUN_5952_035e colony tick that read the
- * byte: ai_contact_colony_tick_war_5952 here and ai_euro.c's
- * ai_euro_5952_continent_presence expansion-appetite cap (audit C7).
+ * on it, bit 8 = one of THIS nation's non-naval combat units (defense row > 1)
+ * is fortifying/fortified outside a Euro colony on it. Recomputed live from
+ * FUN_4962_0018's writer (raw 78149-78312), which zeroes the array at the top
+ * of every per-nation call — the port keeps no mirror. Readers: both halves of
+ * the FUN_5952_035e colony tick (ai_contact_colony_tick_war_5952 here and
+ * ai_euro.c's ai_euro_5952_continent_presence expansion-appetite cap, audit
+ * C7) test bits 1/2/4; FUN_521d_20e6's war-cargo scorer adds
+ * `(flags & 7) * 8` (raw 89654-89656); bit 8 feeds only the DS:0xa89c tally
+ * below.
  */
 int ai_contact_continent_presence_4962(const ColonizeTurnContext* ctx, int nation_id, int cont);
+
+/*
+ * DS:0xa89c (raw 93110-93115): the number of continents, 0..16, carrying this
+ * nation's bit 8 — recounted at the head of every per-nation AI pass right
+ * after FUN_4962_0018 refills the array. Sole reader is FUN_521d_20e6's
+ * war-cargo colony scorer (raw 89660-89662), which multiplies it by the cargo's
+ * military count and −8. See the body in ai_contact.c for the raw.
+ */
+int ai_contact_continent_war_count_a89c(const ColonizeTurnContext* ctx, int nation_id);
 
 /*
  * The single port of FUN_4962_0018's land-combat accumulators — Σ

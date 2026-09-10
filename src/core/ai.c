@@ -5217,8 +5217,29 @@ int col1_kill_indian_nation(
     const uint8_t tech = ind->tech;
     memset(ind, 0, sizeof(*ind));
     ind->tech = tech;
+    /*
+     * The 15b3 matrix is symmetric storage in two different Linux fields —
+     * nation[e].relation_by_indian[idx] is the Euro→tribe direction, and the
+     * indian[idx].euro_diplo[e] the memset above just cleared is the other —
+     * so a raw one-sided assignment here was the last write to it outside the
+     * FUN_15b3_0066/00d0 pair helpers (audit #16 class). DOS never assigns
+     * the byte: its two idioms are FUN_43f7_0108's `clear_both(0xb)` +
+     * `or_both(0x60)` surrender (raw 73555-73557) and the new-game reset,
+     * which zeroes the whole 12-wide row a column at a time
+     * (`for (c = 0; c < 0xc; ++c) *(nation*0x13c + c - 0x77c4) = 0`, raw
+     * 121620-121622). This site is the second: a nation that no longer
+     * exists has no relation with anybody, in either direction. Routed
+     * through ai_diplo_clear_both with a full mask so both halves fall
+     * together and ai_diplo_write's dual-mode addressing (plus its
+     * player.diplomacy mirror) is the only channel into the matrix.
+     *
+     * FUN_4d56_00e0, the per-village DOS razer this whole helper stands in
+     * for, does not touch the matrix at all (raw 81292-81346) — it only ORs
+     * the extinct bit 0x80 into indian[].+3 — which is why this is a Linux
+     * invention routed to the DOS helper rather than a port of a DOS write.
+     */
     for (int e = 0; e < 4; ++e) {
-      col1->nation[e].relation_by_indian[idx] = 0;
+      ai_diplo_clear_both(col1, e, nation_id, 0xffu);
     }
   }
 

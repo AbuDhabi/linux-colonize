@@ -225,6 +225,15 @@ void turn_tally_professions(
 void turn_run_king_stub(ColonizeTurnContext* ctx);
 
 /*
+ * DS:0x9418[nation] hull tally as FUN_48d3_0002 reads it — the input to the
+ * FUN_291f_0aee voyage-turns roll. Live pool count PLUS the human's
+ * EuropeScreen harbour/expected/bound arrays, which this port hoists out of
+ * the unit pool where DOS parks them on the Europe sentinel diagonal. Every
+ * voyage roll must use this, never a bare units_count_sea_for_nation.
+ */
+int turn_voyage_ship_count(const ColonizeTurnContext* ctx, int nation);
+
+/*
  * FUN_3844_0442 section B thin: year≥1600 && human colonies==0 && !WoI →
  * set out->year_end_defeat + status. Full chrome PARKED.
  * Cite: turn/year_end_chrome.md.
