@@ -646,6 +646,23 @@ void col1_bridge_sync_map_occupancy(
       col1_occupancy_or_xy(
         save, map, width, height, (int)tr->x, (int)tr->y, MAP_OCCUPANCY_HAS_CITY
       );
+      /*
+       * DOS invariant (every DOS-authored save): village tile path high nibble
+       * == tribe nation_id (4..11). A euro nibble (<4) on a village tile makes
+       * FUN_15eb_0a76 expect a colony record there and raise @COLONYFLAG on
+       * first tile lookup. Heal unconditionally — stray euro stamps came from
+       * reveal-ring claims crossing village tiles.
+       */
+      if (tr->x < width && tr->y < height) {
+        const size_t ti = (size_t)tr->y * (size_t)width + (size_t)tr->x;
+        const uint8_t hi = (uint8_t)(((unsigned)tr->nation_id & 0x0fu) << 4);
+        if (save && save->map.path && ti < tile_count) {
+          save->map.path[ti] = (uint8_t)((save->map.path[ti] & 0x0fu) | hi);
+        }
+        if (map && map->layer3 && ti < map->tile_count) {
+          map->layer3[ti] = (uint8_t)((map->layer3[ti] & 0x0fu) | hi);
+        }
+      }
     }
   }
 }

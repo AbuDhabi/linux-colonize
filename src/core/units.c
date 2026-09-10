@@ -1381,7 +1381,16 @@ static void units_reveal_tile_effects(void* vctx, int x, int y, bool outer) {
     const int owner = (map_get_layer3(map, x, y) >> 4) & 0x0f;
     /* FUN_137f_0200 < 0 (nibble 0xf) and not a rumour spot (FUN_137f_0598). */
     if (owner == 0x0f && !map_tile_has_rumour(map, x, y)) {
-      units_map_set_owner_nibble(map, x, y, ctx->nation);
+      /*
+       * Never claim a settlement tile: village nibble must stay the tribe's
+       * nation (DOS invariant; euro nibble there triggers @COLONYFLAG).
+       */
+      const bool settlement =
+        map->layer2 != NULL &&
+        (map->layer2[(size_t)y * (size_t)map->width + (size_t)x] & MAP_OCCUPANCY_HAS_CITY) != 0;
+      if (!settlement) {
+        units_map_set_owner_nibble(map, x, y, ctx->nation);
+      }
     }
   }
   const uint8_t bit = (uint8_t)(1u << (ctx->nation & 3));
