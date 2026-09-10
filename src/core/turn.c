@@ -3945,6 +3945,9 @@ bool turn_processor_advance(ColonizeTurnProcessor* proc, ColonizeTurnContext* ct
        * save-import value. AI nations get the same probe in their own pass.
        */
       ai_euro_census_ship_pressure_refresh(ctx, ctx->human_nation);
+      /* bugs.md 440: the human's FF election lands here — start of the
+       * player's turn, with the production chrome — not in SETUP. */
+      founding_fathers_tick_human_elect(ctx);
       s_prod_only_nation = -1;
       s_prod_only_set = false;
       /* bugs.md 400/404/407: yield here so the production popups queued

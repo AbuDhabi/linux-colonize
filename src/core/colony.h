@@ -906,12 +906,19 @@ int colonies_warehouse_capacity(
 /*
  * Human unload chrome: GAME.TXT @WAREHOUSEFULL when warehouse has no room.
  * cargo_name optional (fallback "cargo"). No-op if ai_popups NULL.
+ * @WAREHOUSEFULL's numbers (bugs.md 439): NUMBER0 = what the warehouse
+ * already held BEFORE this deposit, NUMBER1 = capacity, NUMBER2 = the
+ * deposit itself. `deposited` = units the player just unloaded (or tried
+ * to); `already_included` = how much of that has already been added to
+ * colony->stock by the time this is called (0 when the transfer failed).
  */
 void colonies_emit_warehouse_full_chrome(
   const ColonizeColonyPool* pool,
   const ColonizeColony* colony,
   int cargo_type,
   const char* cargo_name,
+  int deposited,
+  int already_included,
   AiPopupState* ai_popups,
   const ColonizeMsgCatalog* messages
 );

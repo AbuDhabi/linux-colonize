@@ -550,7 +550,7 @@ static int unit_warehouse_full(void) {
   AiPopupState pops;
   ai_popup_init(&pops);
   colonies_emit_warehouse_full_chrome(
-    &colonies, col, COLONIZE_CARGO_LUMBER, "Lumber", &pops, &game_txt
+    &colonies, col, COLONIZE_CARGO_LUMBER, "Lumber", 100, 0, &pops, &game_txt
   );
   if (pops.queue_count < 1 ||
       (strstr(pops.queue[0].body, "warehouse") == NULL &&

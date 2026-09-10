@@ -541,6 +541,17 @@ void colony_screen_open_jobs(
       view->job_ids[view->job_count++] = job;
     }
   }
+  /* FUN_2f2b_348c: a colonist with a specialty (FUN_15eb_0002 — profession
+   * outside 0x13/0x19/0x1a/0x1b/0x1c) gets one extra row, "Clear Specialty"
+   * (menu id 0x61); picking it asks @LOBOTOMIZE before wiping to 0x1c. */
+  if (view->selected_colonist >= 0 && view->selected_colonist < colony->colonist_count &&
+      view->job_count < COLONY_JOB_LIST_MAX) {
+    const int prof = colony->colonists[view->selected_colonist].profession;
+    if (prof != 19 && prof != COLONIZE_PROF_INDENTURED && prof != COLONIZE_PROF_CRIMINAL &&
+        prof != COLONIZE_PROF_CONVERT && prof != COLONIZE_PROF_FREE_COLONIST) {
+      view->job_ids[view->job_count++] = COLONY_JOB_CLEAR_SPECIALTY;
+    }
+  }
   view->jobs_open = true;
   view->jobs_selection = 0;
 }
@@ -3742,16 +3753,29 @@ static void colony_screen_draw_construction_popup(
   const int rows = view->buildable_count + 1; /* Clear + projects (Buy is multifunction) */
   const int line_h = font ? (font->max_height + 2) : 8;
   const int pad = 4;
-  /* DOS 2f2b:5c05..5c17: past 14 rows the picker goes two-column, 16 rows
-   * per column (bugs.md styling row). */
-  const int rows_per_col = rows > 14 ? 16 : rows;
-  const int cols = rows > 14 ? 2 : 1;
-  const int drawn_rows = rows < rows_per_col ? rows : rows_per_col;
+  /* bugs.md 442 / DOS 2f2b_5bd2: SINGLE column always. Past 0x16 = 22 rows
+   * the DOS picker splits into PAGES of 0x10 = 16 rows chained with a
+   * "More..." row — never side-by-side columns. */
+  const int rows_per_page = rows > 22 ? 16 : rows;
+  const int pages = rows_per_page > 0 ? (rows + rows_per_page - 1) / rows_per_page : 1;
+  if (view->construction_selection >= 0 && rows_per_page > 0) {
+    view->construction_page = view->construction_selection / rows_per_page;
+  }
+  if (view->construction_page < 0 || view->construction_page >= pages) {
+    view->construction_page = 0;
+  }
+  const int page = view->construction_page;
+  const int start = page * rows_per_page;
+  int n_slice = rows - start;
+  if (n_slice > rows_per_page) {
+    n_slice = rows_per_page;
+  }
+  const int drawn_rows = n_slice + (pages > 1 ? 1 : 0); /* +More... */
   int dialog_h = POPUP_FRAME_INSET * 2 + pad + line_h + drawn_rows * line_h + pad;
   if (dialog_h > framebuffer->height - 8) {
     dialog_h = framebuffer->height - 8;
   }
-  int dialog_w = cols == 2 ? 300 : 200;
+  int dialog_w = 200;
   if (dialog_w > framebuffer->width - 8) {
     dialog_w = framebuffer->width - 8;
   }
@@ -3779,35 +3803,40 @@ static void colony_screen_draw_construction_popup(
   view->construction_dialog_w = dialog_w;
   view->construction_dialog_h = dialog_h;
   view->construction_line_h = line_h;
-  view->construction_rows_per_col = rows_per_col;
-  view->construction_col_w = cols == 2 ? inner_w / 2 : inner_w;
+  view->construction_rows_per_col = rows_per_page;
+  view->construction_col_w = inner_w;
 
+  /* bugs.md 442: DOS draws this picker's text GREEN (the standard menu ink),
+   * and the "|   " (DS:0xd1d) tab in 2f2b_5a68 right-justifies the cost. */
+  const uint8_t ink = 10u;
   if (font && inner_w > 0) {
-    font_draw_text(font, framebuffer, inner_x + pad, inner_y + pad, "Construction", 15);
+    font_draw_text(font, framebuffer, inner_x + pad, inner_y + pad, "Construction", ink);
   }
   const int list_y0 = inner_y + pad + line_h;
   view->construction_list_y0 = list_y0;
 
-  for (int i = 0; i < rows; ++i) {
-    const int col = rows_per_col > 0 ? i / rows_per_col : 0;
-    const int row_in_col = rows_per_col > 0 ? i % rows_per_col : i;
-    const int col_x = inner_x + col * view->construction_col_w;
-    const int row_y = list_y0 + row_in_col * line_h;
+  for (int i = 0; i < drawn_rows; ++i) {
+    const int gi = start + i; /* global row (More... row falls past rows) */
+    const int row_y = list_y0 + i * line_h;
     if (row_y + line_h > framebuffer->height) {
       continue;
     }
-    const bool selected = (i == view->construction_selection);
+    const bool more_row = (i >= n_slice);
+    const bool selected = (!more_row && gi == view->construction_selection);
     if (selected) {
       colony_screen_fill_rect(
-        framebuffer, col_x + 1, row_y - 1, col_x + view->construction_col_w - 1,
-        row_y + line_h - 1, 138
+        framebuffer, inner_x + 1, row_y - 1, inner_x + inner_w - 1, row_y + line_h - 1, 138
       );
     }
     char label[80];
-    if (i == 0) {
+    char cost[48];
+    cost[0] = 0;
+    if (more_row) {
+      snprintf(label, sizeof(label), "More...");
+    } else if (gi == 0) {
       snprintf(label, sizeof(label), "Clear project");
     } else {
-      const int bid = view->buildable_ids[i - 1];
+      const int bid = view->buildable_ids[gi - 1];
       const ColonizeBuildingType* bt = colonies_building_type(pool, bid);
       const char* uname = NULL;
       int uh = 0;
@@ -3816,22 +3845,19 @@ static void colony_screen_draw_construction_popup(
        * the requirement adjusted down by the colony's already-banked
        * hammers (min 0) — hammers carry over to whatever project is picked,
        * unlike tools, which are never adjusted away in this popup.
-       * Row text is DOS's own (2f2b:5a68 string build): the full cargo
-       * words — "Name (N Hammers)(M Tools)" — not the earlier "H"/"T"
-       * shorthand (bugs.md styling row). */
+       * Cost words are DOS's own (2f2b_5a68 string build), right-aligned
+       * behind the "|   " tab (bugs.md 442). */
       const int stored_hammers = colony ? colony->hammers : 0;
       if (bt) {
         int hammers_left = bt->hammers - stored_hammers;
         if (hammers_left < 0) {
           hammers_left = 0;
         }
+        snprintf(label, sizeof(label), "%s", bt->name);
         if (bt->tools_cost > 0) {
-          snprintf(
-            label, sizeof(label), "%s (%d Hammers)(%d Tools)", bt->name, hammers_left,
-            bt->tools_cost
-          );
+          snprintf(cost, sizeof(cost), "%d Hammers %d Tools", hammers_left, bt->tools_cost);
         } else {
-          snprintf(label, sizeof(label), "%s (%d Hammers)", bt->name, hammers_left);
+          snprintf(cost, sizeof(cost), "%d Hammers", hammers_left);
         }
       } else if (colonies_unit_build_info(bid, &uname, &uh, &ut)) {
         /* Artillery (colonies_unit_build_info) — not a real @BUILDING row. */
@@ -3839,15 +3865,36 @@ static void colony_screen_draw_construction_popup(
         if (hammers_left < 0) {
           hammers_left = 0;
         }
-        snprintf(label, sizeof(label), "%s (%d Hammers)(%d Tools)", uname, hammers_left, ut);
+        snprintf(label, sizeof(label), "%s", uname);
+        snprintf(cost, sizeof(cost), "%d Hammers %d Tools", hammers_left, ut);
       } else {
-        snprintf(label, sizeof(label), "%s (%d Hammers)", "?", 0);
+        snprintf(label, sizeof(label), "?");
       }
     }
     if (font) {
-      font_draw_text(font, framebuffer, col_x + pad, row_y + 1, label, 15);
+      font_draw_text(font, framebuffer, inner_x + pad, row_y + 1, label, ink);
+      if (cost[0]) {
+        const int cw = font_text_width(font, cost);
+        font_draw_text(font, framebuffer, inner_x + inner_w - pad - cw, row_y + 1, cost, ink);
+      }
     }
   }
+}
+
+/* bugs.md 442: advance the DOS "More..." page (wraps). */
+void colony_screen_construction_next_page(ColonyScreenView* view) {
+  if (!view) {
+    return;
+  }
+  const int rows = view->buildable_count + 1;
+  const int per = rows > 22 ? 16 : rows;
+  const int pages = per > 0 ? (rows + per - 1) / per : 1;
+  if (pages <= 1) {
+    return;
+  }
+  const int page = (view->construction_page + 1) % pages;
+  view->construction_page = page;
+  view->construction_selection = page * per;
 }
 
 static void colony_screen_draw_jobs_popup(
@@ -3929,6 +3976,12 @@ static void colony_screen_draw_jobs_popup(
     }
     char label[48];
     const int job = view->job_ids[i];
+    if (job == COLONY_JOB_CLEAR_SPECIALTY) {
+      if (font) {
+        font_draw_text(font, framebuffer, inner_x + pad, row_y + 1, "Clear Specialty", 15);
+      }
+      continue;
+    }
     int profession = COLONIZE_PROF_FREE_COLONIST;
     if (colony && view->selected_colonist >= 0 &&
         view->selected_colonist < colony->colonist_count) {
@@ -4443,27 +4496,23 @@ ColonyScreenHitResult colony_screen_hit_test(
       return hit;
     }
     if (view->construction_line_h > 0 && my >= view->construction_list_y0) {
-      const int row_in_col = (my - view->construction_list_y0) / view->construction_line_h;
-      int col = 0;
-      if (view->construction_col_w > 0 &&
-          view->construction_rows_per_col > 0) {
-        col = (mx - (view->construction_dialog_x + POPUP_FRAME_INSET)) /
-              view->construction_col_w;
-        if (col < 0) {
-          col = 0;
-        }
-        if (col > 1) {
-          col = 1;
-        }
-      }
+      const int row_in_page = (my - view->construction_list_y0) / view->construction_line_h;
       const int rows = view->buildable_count + 1;
-      const int idx =
-        col * (view->construction_rows_per_col > 0 ? view->construction_rows_per_col : rows) +
-        row_in_col;
-      if (row_in_col >= 0 &&
-          (view->construction_rows_per_col <= 0 ||
-           row_in_col < view->construction_rows_per_col) &&
-          idx >= 0 && idx < rows) {
+      const int per = view->construction_rows_per_col > 0 ? view->construction_rows_per_col : rows;
+      const int start = view->construction_page * per;
+      int n_slice = rows - start;
+      if (n_slice > per) {
+        n_slice = per;
+      }
+      const int pages = per > 0 ? (rows + per - 1) / per : 1;
+      if (row_in_page >= 0 && pages > 1 && row_in_page == n_slice) {
+        /* The More... row (bugs.md 442). */
+        hit.kind = COLONY_HIT_CONSTRUCTION_MORE;
+        hit.index = -1;
+        return hit;
+      }
+      const int idx = start + row_in_page;
+      if (row_in_page >= 0 && row_in_page < n_slice && idx >= 0 && idx < rows) {
         if (idx == 0) {
           hit.kind = COLONY_HIT_CONSTRUCTION_CLEAR;
           hit.index = -1;
