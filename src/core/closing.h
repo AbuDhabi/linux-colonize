@@ -45,8 +45,14 @@
  * CLOSING.EXE `call 069B:000E` (GSOUND FUN_12d8_000e):
  *   0x3d  BGM at `_closing` start (unlisted victory cue, not pool 3)
  *   0x5a  COLDIG 15 cheer+fireworks when CLOS-HAT's 1-based frame is 1
+ *         (`_do_anims` 0x19b, tested on the drawn counter)
  *   0x59  COLDIG event when CLOS-FWK's pre-increment frame is
  *         1, 27, 37 or 42 (`_anim_loop` 0x284)
+ *
+ * Both cues re-fire on every wrap of their sheet: a repeats == -1 row makes
+ * `_anim_loop` (0x2c4-0x2e5) reset the counter to 1 and stay active instead
+ * of retiring the series, so the counter cycles 1..sprite_count for the whole
+ * run. closing.c's cue block carries the full counter/frame mapping.
  */
 #define CLOSING_BGM_ID 0x3d
 #define CLOSING_CHEER_SOUND_ID 0x5a

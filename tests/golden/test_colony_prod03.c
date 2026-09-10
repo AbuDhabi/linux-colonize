@@ -224,7 +224,7 @@ static int run_pair(const char* path_in, const char* path_exp, const char* label
   if (!col1_bridge_capture(
         &start, &map, &units, &colonies, &europe, year, autumn, turn_number, br.human_nation,
         br.cursor_x, br.cursor_y,
-        br.view_x, br.view_y, units.selected_id, err, sizeof(err)
+        br.view_x, br.view_y, units.selected_id, units.selected_id < 0, err, sizeof(err)
       )) {
     fprintf(stderr, "bridge capture: %s\n", err);
     map_free(&map);

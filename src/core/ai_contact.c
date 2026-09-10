@@ -2263,8 +2263,13 @@ static void ai_contact_apply_gift_gold(
     );
     return;
   }
-  ColonizeCol1Nation* nat = &ctx->col1->nation[e];
-  if (nat->gold < gold_cost) {
+  /* audit G3: one treasury per nation — the human's live purse is
+   * EuropeScreen.gold and the record lags it, so the gate and the debit both
+   * go through the accessor pair. Gifts are human-reachable (the CONTACT_GIFT
+   * amount CHOICE below), which is exactly the case the record-only read got
+   * wrong: a player who had just sold in Europe could not afford a gift his
+   * sidebar said he could. */
+  if (europe_nation_gold(ctx->europe, ctx->col1, e) < gold_cost) {
     char refuse_fb[AI_POPUP_BODY_LEN];
     snprintf(
       refuse_fb,
@@ -2277,7 +2282,7 @@ static void ai_contact_apply_gift_gold(
     );
     return;
   }
-  nat->gold -= gold_cost;
+  europe_nation_gold_add(ctx->europe, ctx->col1, e, -(long)gold_cost);
   ai_contact_friction_decay(ind, ctx->col1, nation_id, e, friction_decay);
   {
     char gift_fb[AI_POPUP_BODY_LEN];
@@ -2308,7 +2313,8 @@ static int ai_contact_enqueue_gift_amount_choice(
   if (!ai_contact_euro_is_human(ctx, e)) {
     return 0;
   }
-  const unsigned gold = ctx->col1->nation[e].gold;
+  /* audit G3: single treasury — the human's purse is EuropeScreen.gold. */
+  const unsigned gold = (unsigned)europe_nation_gold(ctx->europe, ctx->col1, e);
   if (gold < 5u) {
     return 0; /* cannot pay Small — caller refuses */
   }
@@ -2548,7 +2554,8 @@ static int ai_contact_enqueue_incite_target_choice(
     return 0;
   }
   const ColonizeCol1Indian* ind = &ctx->col1->indian[nation_id - 4];
-  const uint32_t gold = ctx->col1->nation[e].gold;
+  /* audit G3: single treasury — incite pricing is human-reachable. */
+  const uint32_t gold = europe_nation_gold(ctx->europe, ctx->col1, e);
 
   /*
    * 417e Mode-1 target set (viceroy_unpacked.c 83595-83615): before the
@@ -2832,8 +2839,9 @@ static int ai_contact_demand_can_pay_tools(
 }
 
 static int ai_contact_demand_can_pay_gold(const ColonizeTurnContext* ctx, int e) {
+  /* audit G3: single treasury — tribute demands hit the human. */
   return ctx && ctx->col1_ok && ctx->col1 && e >= 0 && e <= 3 &&
-         ctx->col1->nation[e].gold >= 50u;
+         europe_nation_gold(ctx->europe, ctx->col1, e) >= 50u;
 }
 
 /*
@@ -3422,7 +3430,10 @@ static void ai_contact_gift_or_demand(
     return; /* alarmed / very high — raids handle hostility; no invented gold penalty */
   }
 
-  ColonizeCol1Nation* nat = &ctx->col1->nation[e];
+  /* audit G3: single treasury — this whole band is human-reachable, so the
+   * three purse gates below read through the accessor rather than the record
+   * the human's live purse only reaches at save time. */
+  const uint32_t purse = europe_nation_gold(ctx->europe, ctx->col1, e);
 
   AiContactMeetEcon2154 econ;
   memset(&econ, 0, sizeof(econ));
@@ -3447,7 +3458,7 @@ static void ai_contact_gift_or_demand(
   /* Low friction gift / tribute (2154 ask−bid + gold≥0x4b → Generous). */
   if (friction < 40) {
     /* Cannot pay −10 gift drain → refuse with status (widgets unparked). */
-    if (nat->gold < 10u) {
+    if (purse < 10u) {
       char refuse_fb[AI_POPUP_BODY_LEN];
       snprintf(
         refuse_fb,
@@ -3460,7 +3471,7 @@ static void ai_contact_gift_or_demand(
       );
       return;
     }
-    if (nat->gold < 20u) {
+    if (purse < 20u) {
       return; /* mid purse: skip silent (needs ≥20 band to auto-gift Large) */
     }
     /*
@@ -3468,7 +3479,7 @@ static void ai_contact_gift_or_demand(
      * (281f_04d4 stand-in). Else Large. Cite: indian_meet_scoring_2154.md.
      */
     int generous = 0;
-    if (delta >= 1 && nat->gold >= 0x4bu) {
+    if (delta >= 1 && purse >= 0x4bu) {
       ColonizeDosRng local;
       ai_contact_local_rng(ctx, nation_id, &local);
       ColonizeDosRng* rng = ctx->rng ? ctx->rng : &local;
@@ -4037,7 +4048,10 @@ int ai_contact_ai_incite_human(
   if (!ctx->euro_power_rank_ok || ctx->euro_power_rank[e] >= ctx->euro_power_rank[human]) {
     return 0; /* wealth_rank[ai] < wealth_rank[human] (0x917c table) */
   }
-  if (ctx->col1->nation[e].gold < 1500u) {
+  /* audit G3: single treasury (the inciter is an AI here, so the accessor
+   * answers from the record unless that AI is the one borrowing the purse —
+   * which is exactly the case a raw record read got wrong). */
+  if (europe_nation_gold(ctx->europe, ctx->col1, e) < 1500u) {
     return 0;
   }
   if (dos_rng_range(ctx->rng, 0, 4) == 0 && t->mission != COL1_TRIBE_MISSION_NONE) {
@@ -4055,8 +4069,7 @@ int ai_contact_ai_incite_human(
   const uint32_t price = ai_contact_incite_price(
     ctx, ind, nation_id, e, human, is_missionary, t->state.capital ? 1 : 0
   );
-  ColonizeCol1Nation* nat = &ctx->col1->nation[e];
-  if (nat->gold < price) {
+  if (europe_nation_gold(ctx->europe, ctx->col1, e) < price) {
     return 0;
   }
   /*
@@ -4070,7 +4083,7 @@ int ai_contact_ai_incite_human(
   /* Raw +100: the French/Pocahontas halving now lives inside
    * ai_diplo_indian_alarm_delta, as in DOS 00f2 (2026-09-07d). */
   ai_contact_alarm_delta_00f2(ctx, nation_id, human, 100);
-  nat->gold -= price;
+  europe_nation_gold_add(ctx->europe, ctx->col1, e, -(long)price); /* audit G3 */
   return 1;
 }
 
@@ -6093,7 +6106,10 @@ static void ai_contact_2820_sell_settle(
   const int cargo = s->cargo;
   const int qty = ai_contact_2820_remove_slot(unit, s->slot);
   s->qty = qty; /* DS:0x8dc4 */
-  ctx->col1->nation[e].gold += (uint32_t)s->price;
+  /* audit G3: single treasury — village trade is the human's main non-Europe
+   * gold source, and crediting the record alone meant the sale evaporated at
+   * the next europe→col1 push. */
+  europe_nation_gold_add(ctx->europe, ctx->col1, e, (long)s->price);
   ind->tons[cargo & 15] = (int16_t)(ind->tons[cargo & 15] + qty);
   if (t) {
     t->sticky_trade_good = 0xff;
@@ -6213,11 +6229,12 @@ static int ai_contact_2e92_settle(
   ColonizeTurnContext* ctx, ColonizeCol1Indian* ind, ColonizeCol1Tribe* t, int nation_id, int e,
   ColonizeUnit* unit, int cargo, int price, int qty
 ) {
-  ColonizeCol1Nation* nat = &ctx->col1->nation[e];
-  if (nat->gold < (uint32_t)price) {
+  /* audit G3: single treasury — the buy gate and the debit both go through
+   * the accessor, so a purse topped up in Europe can actually be spent here. */
+  if (europe_nation_gold(ctx->europe, ctx->col1, e) < (uint32_t)price) {
     return 0;
   }
-  nat->gold -= (uint32_t)price;
+  europe_nation_gold_add(ctx->europe, ctx->col1, e, -(long)price);
   if (t) {
     t->last_sold = (uint8_t)(cargo == 9 ? 0xff : cargo); /* literal `if (cargo == 9) +9 = 0xff` */
   }
@@ -6302,7 +6319,7 @@ static void ai_contact_enqueue_buy0(
   char accept[AI_POPUP_CHOICE_LEN];
   char haggle[AI_POPUP_CHOICE_LEN];
   snprintf(accept, sizeof(accept), "We will gladly pay %d$ (of %u$)", price,
-           (unsigned)ctx->col1->nation[e].gold);
+           (unsigned)europe_nation_gold(ctx->europe, ctx->col1, e)); /* audit G3 */
   snprintf(haggle, sizeof(haggle), "A fairer price would be %d$", fair);
   const char* labels[3] = {accept, haggle, "Never mind"};
   const int ids[3] = {1, 2, 0};
@@ -6565,7 +6582,7 @@ static void ai_contact_apply_buy0(
     ai_contact_alarm_delta_00f2(ctx, nation_id, e, 1);
     PopupMsgTokens tok;
     memset(&tok, 0, sizeof(tok));
-    tok.number0 = (int)ctx->col1->nation[e].gold;
+    tok.number0 = (int)europe_nation_gold(ctx->europe, ctx->col1, e); /* audit G3 */
     tok.has_number0 = true;
     char fb[AI_POPUP_BODY_LEN];
     snprintf(fb, sizeof(fb), "\"Sadly, your treasury (%d$) is not large enough to back your promise.\"",
@@ -9245,9 +9262,29 @@ int ai_contact_land_combat_sum(
  *     this nation's counts. Port colonies are always 0..3, so the `< 0` guard
  *     is uninitialised-fixture defence, not a DOS filter.
  *
- * bit 8 (raw 78175-78186: an own non-naval unit standing outside a colony
- * with orders state 5/6 and a type whose DS:0x5235 attack row is > 1) has no
- * reader in either 5952 arm and is not modelled.
+ *   bit 8 — raw 78167-78180, the own-nation arm of the same unit loop, i.e.
+ *     "this nation has a dug-in field force on the continent":
+ *
+ *       if ((type < 0xd) || (0x12 < type))                  // non-naval
+ *         if ((1 < *(byte *)(type * 0xe + 0x5235)) &&       // combat row > 1
+ *             ((orders == 5 || orders == 6) &&              // +0x314c fortify/-ied
+ *              (FUN_281f_0696(x, y) < 0)) &&                // NOT in a Euro colony
+ *             (-1 < iVar6))
+ *           -0x6a0e[cont] |= 8;
+ *
+ *     `FUN_281f_0696` is the EURO-colony owner probe (clamps any owner above 3
+ *     to −1), not the settlement probe `FUN_281f_06be` the exposed-row gate
+ *     uses — a unit parked on a village tile still sets the bit. DS:0x5235 is
+ *     the NAMES @UNIT combat column, `ColonizeUnitType.defense` in the port
+ *     (units.c:533). +0x314c is `orders`, UNITS_ORDER_FORTIFY / FORTIFIED.
+ *
+ *     Neither 5952 arm reads bit 8; its one reader is the DS:0xa89c tally
+ *     (raw 93110-93115, `for (i = 0; i < 0x10; ++i) if (-0x6a0e[i] & 8)
+ *     ++*(char *)0xa89c;`) at the top of the per-nation AI pass, consumed by
+ *     FUN_521d_20e6's war-cargo colony scorer — see
+ *     `ai_contact_continent_war_count_a89c` below. Modelled since 2026-09-10
+ *     (third-fix-wave lead 1); before that the scorer stood in
+ *     `head.difficulty` for the tally.
  *
  * Slot walk, not an id walk: `units_get_const` takes a unit ID and ids are
  * handed out monotonically from 1 and never recycled (units.c:337), so an
@@ -9256,6 +9293,40 @@ int ai_contact_land_combat_sum(
  * `local_1a` indexing `0x3144 + local_1a * 0x1c`), which is what a slot walk
  * reproduces.
  */
+/*
+ * The bit-8 predicate of the writer above, factored out so the DS:0xa89c tally
+ * below walks the same test rather than a second copy of it. Returns 1 for an
+ * own, on-map, non-naval, combat-row->1 unit that is fortifying/fortified and
+ * is NOT standing on a Euro colony. Continent validity is the caller's job.
+ */
+static int ai_contact_4962_unit_sets_bit8(
+  const ColonizeTurnContext* ctx, const ColonizeUnit* u, int nation_id
+) {
+  if (!u->active || !units_is_on_map(u) || u->aboard_ship_id >= 0) {
+    return 0;
+  }
+  if ((u->nation_id & 0xf) != nation_id) {
+    return 0;
+  }
+  if (u->type_index >= 0xd && u->type_index <= 0x12) {
+    return 0; /* naval band: DOS `type < 0xd || 0x12 < type` */
+  }
+  const ColonizeUnitType* ty = units_type(ctx->units, u->type_index);
+  if (!ty || ty->defense <= 1) {
+    return 0; /* `1 < *(byte *)(type * 0xe + 0x5235)` */
+  }
+  if (u->orders != UNITS_ORDER_FORTIFY && u->orders != UNITS_ORDER_FORTIFIED) {
+    return 0; /* +0x314c == 5 || == 6 */
+  }
+  if (ctx->colonies) {
+    const ColonizeColony* c = colonies_get(ctx->colonies, colonies_id_at(ctx->colonies, u->x, u->y));
+    if (c && c->active) {
+      return 0; /* FUN_281f_0696(x, y) < 0 */
+    }
+  }
+  return 1;
+}
+
 int ai_contact_continent_presence_4962(
   const ColonizeTurnContext* ctx, int nation_id, int cont
 ) {
@@ -9274,13 +9345,21 @@ int ai_contact_continent_presence_4962(
     }
   }
   if (ctx->units) {
-    for (int i = 0; i < COLONIZE_UNITS_MAX && (presence & 2) == 0; ++i) {
+    for (int i = 0; i < COLONIZE_UNITS_MAX && (presence & 0xa) != 0xa; ++i) {
       const ColonizeUnit* u = &ctx->units->units[i];
       if (!u->active || !units_is_on_map(u) || u->aboard_ship_id >= 0) {
         continue;
       }
       const int owner = u->nation_id & 0xf;
-      if (owner >= 4 || owner == nation_id) {
+      if (owner == nation_id) {
+        /* own-nation arm: bit 8 */
+        if ((presence & 8) == 0 && ai_contact_4962_unit_sets_bit8(ctx, u, nation_id) &&
+            map_continent_id_at(ctx->map, u->x, u->y) == cont) {
+          presence |= 8;
+        }
+        continue;
+      }
+      if (owner >= 4) {
         continue;
       }
       if (map_continent_id_at(ctx->map, u->x, u->y) == cont) {
@@ -9300,6 +9379,53 @@ int ai_contact_continent_presence_4962(
     }
   }
   return presence;
+}
+
+/*
+ * DS:0xa89c, raw 93110-93115 — the head of the per-nation AI pass, immediately
+ * after FUN_4962_0018 has refilled DS:0x95f2 for that nation:
+ *
+ *   *(undefined1 *)0xa89c = 0;
+ *   local_12 = 0;
+ *   do {
+ *     if ((*(byte *)(local_12 + -0x6a0e) & 8) != 0)
+ *       *(char *)0xa89c = *(char *)0xa89c + '\x01';
+ *     local_12 = local_12 + 1;
+ *   } while (local_12 < 0x10);
+ *
+ * i.e. the COUNT of continents (0..15) on which this nation has a dug-in field
+ * force, 0..16. Recomputed live from the same bit-8 predicate the presence
+ * writer uses, in one unit walk instead of sixteen presence calls; the port
+ * keeps no mirror of either byte for the same reason (the array is zeroed at
+ * the top of every per-nation FUN_4962_0018 call).
+ *
+ * Sole reader: FUN_521d_20e6's war-cargo colony scorer (raw 89660-89662,
+ * `if ((*(char *)0xa89c != '\0') && (1 < local_48)) local_28 += (uint)*(byte
+ * *)0xa89c * local_48 * -8;`) — ai_euro.c's ai_euro_20e6_colony_sail_pick,
+ * which stood `head.difficulty` in for it until 2026-09-10.
+ */
+int ai_contact_continent_war_count_a89c(const ColonizeTurnContext* ctx, int nation_id) {
+  if (!ctx || !ctx->units || !ctx->map) {
+    return 0;
+  }
+  unsigned mask = 0;
+  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    const ColonizeUnit* u = &ctx->units->units[i];
+    if (!ai_contact_4962_unit_sets_bit8(ctx, u, nation_id)) {
+      continue;
+    }
+    const int cont = map_continent_id_at(ctx->map, u->x, u->y);
+    if (cont >= 0 && cont < 16) {
+      mask |= 1u << (unsigned)cont;
+    }
+  }
+  int n = 0;
+  for (int c = 0; c < 16; ++c) {
+    if (mask & (1u << (unsigned)c)) {
+      ++n;
+    }
+  }
+  return n;
 }
 
 /*

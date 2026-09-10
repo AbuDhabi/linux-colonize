@@ -7,6 +7,7 @@
 #include <string.h>
 #include <strings.h>
 
+#include "core/popup_msg.h"
 #include "core/strutil.h"
 #include "core/ui_colors.h"
 #include "core/turn.h"
@@ -2084,14 +2085,9 @@ static void new_game_render_lore(
     if (new_game_is_directive(line)) {
       continue;
     }
-    bool center = false;
+    /* DOS FUN_6f74_0c32 eats at most two carets; a third is body text. */
     const char* p = line;
-    if (p[0] == '^') {
-      center = true;
-      while (*p == '^') {
-        p++;
-      }
-    }
+    const bool center = popup_msg_caret_flags(line, &p) != 0;
     while (*p == '_' || *p == ' ') {
       p++;
     }
@@ -2252,14 +2248,9 @@ static void new_game_render_king(
     char buf[COLONIZE_MSG_LINE_LEN];
     new_game_subst_country(buf, sizeof(buf), line, new_game_nation_name(ng->nation));
 
-    bool center = false;
+    /* DOS FUN_6f74_0c32 eats at most two carets; a third is body text. */
     const char* p = buf;
-    if (p[0] == '^') {
-      center = true;
-      while (*p == '^') {
-        p++;
-      }
-    }
+    const bool center = popup_msg_caret_flags(buf, &p) != 0;
     while (*p == '_' || *p == ' ') {
       p++;
     }
@@ -2531,10 +2522,9 @@ static void new_game_render_sail(
     }
     char buf[COLONIZE_MSG_LINE_LEN];
     new_game_subst_build(buf, sizeof(buf), line, s0, s1);
+    /* DOS FUN_6f74_0c32 eats at most two carets; a third is body text. */
     const char* body = buf;
-    while (*body == '^') {
-      body++;
-    }
+    (void)popup_msg_caret_flags(buf, &body);
     int w = new_game_text_width(font, body);
     int x = (fb->width - w) / 2;
     if (tw < fb->width) {

@@ -305,7 +305,7 @@ static uint8_t unit_chrome_names_color(int nation_id) {
  * takes no ColonizeUnitPool, and converting the space would have to happen
  * in every caller. Do not copy this pattern into a rules path.
  */
-UnitChromeCorner unit_chrome_corner_for_type(int dos_unit_type_id, bool aboard) {
+UnitChromeCorner unit_chrome_corner_for_type(int dos_unit_type_id, bool damaged) {
   const int t = dos_unit_type_id;
   if (t >= 0x0d && t <= 0x12) {
     if (t == 0x0f || t == 0x10 || t == 0x11 || t == 0x12) {
@@ -320,13 +320,13 @@ UnitChromeCorner unit_chrome_corner_for_type(int dos_unit_type_id, bool aboard) 
     /*
      * DOS's fourth arm is Artillery + the damaged bit, NOT "aboard a ship":
      * raw 2109-2111 is `bVar1 == 0xb && (*(byte *)(local_2c + 0x3148) & 0x80)`
-     * → local_14 = 4 (the y+2 box at raw 2253-2254). Callers pass
-     * `aboard_ship_id >= 0` here (map_panel.c:1189), so the port keys the
-     * same offset off the wrong flag. Left as-is: the fix belongs at the
-     * call sites, which pass no damage bit today. Logged as a new lead.
+     * → local_14 = 4 (the y+2 box at raw 2253-2254). The port used to pass
+     * `aboard_ship_id >= 0` here; every caller now passes the unit's real
+     * damaged bit (Linux col1_unknown15 & 0x80, the same +0x3148 bit7 the
+     * damaged-Artillery combat gates read at units.c:11130/11294).
      */
-    if (t == 11 && aboard) {
-      return UNIT_CHROME_CORNER_TOP_CENTER_ABOARD;
+    if (t == 11 && damaged) {
+      return UNIT_CHROME_CORNER_TOP_CENTER_DAMAGED;
     }
     return UNIT_CHROME_CORNER_TOP_CENTER;
   }
@@ -468,7 +468,7 @@ static void unit_chrome_draw_impl(
   int nation_id,
   int orders_index,
   bool show_stack,
-  bool aboard,
+  bool damaged,
   int fill_override,
   int letter_override
 ) {
@@ -502,7 +502,7 @@ static void unit_chrome_draw_impl(
     right_x -= (span - 16);
   }
 
-  const UnitChromeCorner corner = unit_chrome_corner_for_type(display_type_index, aboard);
+  const UnitChromeCorner corner = unit_chrome_corner_for_type(display_type_index, damaged);
   int box_x = right_x;
   int box_y = icon_y;
   int stack_x = right_x - 2;
@@ -522,11 +522,11 @@ static void unit_chrome_draw_impl(
       stack_y = icon_y + 2;
       break;
     case UNIT_CHROME_CORNER_TOP_CENTER:
-    case UNIT_CHROME_CORNER_TOP_CENTER_ABOARD: {
+    case UNIT_CHROME_CORNER_TOP_CENTER_DAMAGED: {
       const int mid = icon_x - (box_w >> 1);
       box_x = mid + 9;
       box_y = icon_y;
-      if (corner == UNIT_CHROME_CORNER_TOP_CENTER_ABOARD) {
+      if (corner == UNIT_CHROME_CORNER_TOP_CENTER_DAMAGED) {
         box_y = icon_y + 2;
       }
       stack_x = mid + 7;
@@ -592,11 +592,11 @@ void unit_chrome_draw(
   int nation_id,
   int orders_index,
   bool show_stack,
-  bool aboard
+  bool damaged
 ) {
   unit_chrome_draw_impl(
     fb, font, icon_x, icon_y, icon_w, icon_h, display_type_index, nation_id, orders_index,
-    show_stack, aboard, -1, -1
+    show_stack, damaged, -1, -1
   );
 }
 
@@ -616,7 +616,7 @@ static void unit_chrome_blit_unit_colored_shadow(
   int nation_id,
   int orders_index,
   bool show_stack,
-  bool aboard,
+  bool damaged,
   int fill_override,
   int letter_override,
   int shadow_color
@@ -642,7 +642,7 @@ static void unit_chrome_blit_unit_colored_shadow(
     nation_id,
     orders_index,
     show_stack,
-    aboard,
+    damaged,
     fill_override,
     letter_override
   );
@@ -660,13 +660,13 @@ void unit_chrome_blit_unit_colored(
   int nation_id,
   int orders_index,
   bool show_stack,
-  bool aboard,
+  bool damaged,
   int fill_override,
   int letter_override
 ) {
   unit_chrome_blit_unit_colored_shadow(
     fb, font, sheet, sprite_index, x, y, display_type_index, nation_id, orders_index, show_stack,
-    aboard, fill_override, letter_override, 0
+    damaged, fill_override, letter_override, 0
   );
 }
 
@@ -681,11 +681,11 @@ void unit_chrome_blit_unit(
   int nation_id,
   int orders_index,
   bool show_stack,
-  bool aboard
+  bool damaged
 ) {
   unit_chrome_blit_unit_colored(
     fb, font, sheet, sprite_index, x, y, display_type_index, nation_id, orders_index, show_stack,
-    aboard, -1, -1
+    damaged, -1, -1
   );
 }
 
@@ -700,7 +700,7 @@ void unit_chrome_blit_unit_for_palette(
   int nation_id,
   int orders_index,
   bool show_stack,
-  bool aboard,
+  bool damaged,
   const ColonizePalette* active_palette
 ) {
   int fill_override = -1;
@@ -735,7 +735,7 @@ void unit_chrome_blit_unit_for_palette(
   }
   unit_chrome_blit_unit_colored(
     fb, font, sheet, sprite_index, x, y, display_type_index, nation_id, orders_index, show_stack,
-    aboard, fill_override, letter_override
+    damaged, fill_override, letter_override
   );
 }
 
@@ -752,7 +752,7 @@ void unit_chrome_blit(
   int nation_id,
   int orders_index,
   bool show_stack,
-  bool aboard,
+  bool damaged,
   int fill_override,
   int letter_override
 ) {
@@ -771,7 +771,7 @@ void unit_chrome_blit(
     default:
       unit_chrome_blit_unit_colored_shadow(
         fb, font, sheet, sprite_index, x, y, display_type_index, nation_id, orders_index, show_stack,
-        aboard, fill_override, letter_override, shadow_color
+        damaged, fill_override, letter_override, shadow_color
       );
       return;
   }

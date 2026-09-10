@@ -188,12 +188,22 @@ static void ai_euro_refresh_continent_stance(ColonizeTurnContext* ctx, int natio
   sctx.map = ctx->map;
   sctx.colonies = ctx->colonies;
   sctx.col1 = ctx->col1;
+  /*
+   * Slot walk, `u->id` to every id-taking accessor. `units_get_const`,
+   * `units_is_sea` and `combat_unit_base_x8` all take a unit ID, and ids are
+   * handed out monotonically from 1 and never recycled (units.c:337), so an
+   * `i`-as-id walk over COLONIZE_UNITS_MAX dropped every unit with id >= 256
+   * in a long game plus the highest slot in a short one. DOS walks the unit
+   * ARRAY in record order (raw 78159: `local_1a` indexing
+   * `0x3144 + local_1a * 0x1c`), which is exactly a slot walk.
+   * Fixed 2026-09-10 (audit second-wave Leads item 2).
+   */
   for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-    const ColonizeUnit* u = units_get_const(ctx->units, i);
-    if (!u || !u->active || u->nation_id < 0 || u->nation_id >= 12) {
+    const ColonizeUnit* u = &ctx->units->units[i];
+    if (!u->active || u->nation_id < 0 || u->nation_id >= 12) {
       continue;
     }
-    if (units_is_sea(ctx->units, i)) {
+    if (units_is_sea(ctx->units, u->id)) {
       continue; /* land units / Braves only, matches type∉[0xd,0x12] gate */
     }
     const int cid = map_continent_id_at(ctx->map, u->x, u->y);
@@ -203,7 +213,7 @@ static void ai_euro_refresh_continent_stance(ColonizeTurnContext* ctx, int natio
     if (land_unit_count[u->nation_id][cid] < 0xff) {
       land_unit_count[u->nation_id][cid]++;
     }
-    const int val = combat_unit_base_x8(&sctx, i, 0, NULL);
+    const int val = combat_unit_base_x8(&sctx, u->id, 0, NULL);
     const int sum = (int)defense_value[u->nation_id][cid] + val;
     defense_value[u->nation_id][cid] = (uint8_t)(sum > 0xff ? 0xff : sum);
   }
@@ -4022,12 +4032,18 @@ static int ai_euro_28c8_job_headcount(const ColonizeColony* col, int field_job) 
  * structural/test entry point); otherwise the colonist's real profession
  * goes through colony_yield_for_worker (DOS 1068 trial-assigns the job, so
  * 18ec sees the expert) — that is what the live tick uses.
+ *
+ * `restrict_job` is DOS's `FUN_1000_8d5e(colony, slot, job)` third argument
+ * when it is a real job index rather than one of the −1 / −2 modes: the
+ * search is then confined to that one field job and only the best TILE for
+ * it is elected. −1 keeps the all-jobs search the two placement passes use.
  */
-static int ai_euro_28c8_score(
+static int ai_euro_28c8_score_job(
   const ColonizeTurnContext* ctx,
   const ColonizeColony* col,
   int colonist_slot,
   int profession,
+  int restrict_job,
   AiEuro28c8JobCandidate* out_best
 ) {
   const ColonizeColonist* self = &col->colonists[colonist_slot];
@@ -4075,6 +4091,9 @@ static int ai_euro_28c8_score(
     const int terr = map_dos_terr_class_at(ctx->map, tx, ty);
     const int penalty = map_dos_terr_labor_penalty_byte(terr);
     for (int job = 0; job < COLONIZE_FIELD_JOB_COUNT; ++job) {
+      if (restrict_job >= 0 && job != restrict_job) {
+        continue;
+      }
       int yld = profession >= 0
                   ? colony_yield_for_worker(
                       ctx->map, tx, ty, job, profession, has_docks, sol_b_field,
@@ -4120,6 +4139,17 @@ static int ai_euro_28c8_score(
   return out_best->job >= 0 ? 1 : 0;
 }
 
+/* DOS `FUN_1000_8d5e(colony, slot, −1)` — the unrestricted all-jobs search. */
+static int ai_euro_28c8_score(
+  const ColonizeTurnContext* ctx,
+  const ColonizeColony* col,
+  int colonist_slot,
+  int profession,
+  AiEuro28c8JobCandidate* out_best
+) {
+  return ai_euro_28c8_score_job(ctx, col, colonist_slot, profession, -1, out_best);
+}
+
 int ai_euro_28c8_colonist_job_score_structural(
   const ColonizeTurnContext* ctx,
   int colony_id,
@@ -4134,6 +4164,20 @@ int ai_euro_28c8_colonist_job_score_structural(
     return 0;
   }
   return ai_euro_28c8_score(ctx, col, colonist_slot, -1, out_best);
+}
+
+/*
+ * DOS FUN_281f_0c9a → FUN_15eb_0002 (viceroy_unpacked.c 9298-9307): the
+ * expert/class test the colony tick uses everywhere it buckets colonists.
+ * False for @JOB 0x13 (the "Colonist" row), 0x19 Indentured, 0x1a Criminal,
+ * 0x1b Indian Convert and 0x1c Free Colonist; true for every real skill.
+ * europe.c has the same predicate for the dock pool (europe_job_is_expert) —
+ * kept separate rather than cross-included so the two files stay independent.
+ */
+static bool ai_euro_5952_job_is_expert(int job) {
+  return job != 0x13 && job != COLONIZE_PROF_INDENTURED &&
+         job != COLONIZE_PROF_CRIMINAL && job != COLONIZE_PROF_CONVERT &&
+         job != COLONIZE_PROF_FREE_COLONIST;
 }
 
 /*
@@ -4269,6 +4313,113 @@ static void ai_euro_colony_tick_28c8_reassign(ColonizeTurnContext* ctx, int nati
           if (best.job == COLONIZE_JOB_FARMER || best.job == COLONIZE_JOB_FISHERMAN) {
             food_have += best.yield;
           }
+        }
+      }
+    }
+
+    /*
+     * DOS raw 94751 (colony_tick_5952_035e.md:1163-1185) — the field-
+     * specialist restore pass, the last placement arm before the tick's
+     * building passes. It runs whether or not the two passes above tripped
+     * their `goto LAB_5952_178f`: that goto lands on LAB_17a9, and this loop
+     * is downstream of it.
+     *
+     *   for slot in 0..pop-1, if unplaced:
+     *     if (is_expert(prof) && prof < 9 && prof != 0 && prof != 8) {
+     *       if (prof == 5) {                      // Expert Lumberjack
+     *         if (local_14 == 0) local_14 = 1;    // the first one is free
+     *         else if (!(+0x1b & 0x20) && DS:0x8e64 == 0) continue;
+     *       }
+     *       if (colony[0x9a + prof*2] <= local_36) assign(slot, job = prof);
+     *     }
+     *
+     * @JOB 0 (Expert Farmer) and 8 (Expert Fisherman) are excluded because
+     * the food pass above already had first refusal on them. `is_expert` is
+     * FUN_281f_0c9a → FUN_15eb_0002 (viceroy 9298-9307): false for @JOB
+     * 0x13 and 0x19..0x1c, true otherwise — so for @JOB 1..7 the profession
+     * index doubles as both the field job and the cargo slot.
+     *
+     * `local_36` is FUN_1000_8f2a → FUN_281f_0d3a → FUN_15eb_0a50, i.e.
+     * colonies_warehouse_capacity — one number for all goods, not per-cargo.
+     *
+     * `local_14` is seeded 1 when the colony does NOT want construction
+     * (md:1069, `if ((+0x1d & 0x80) == 0) local_14 = 1;`), so a construction
+     * colony admits its first Lumberjack unconditionally and a
+     * non-construction one does not. Beyond the first, DOS demands either
+     * COLONIZE_COLONY_AI_WANTS_PIONEER_CLEAR (+0x1b bit 0x20) or a live
+     * lumber shortfall. This is that bit's FIRST Linux reader — colony.h
+     * called it write-only, because all four of DOS's readers (raw 94422,
+     * 94454, 94499, 94751) sit in unported passes and this is the first one
+     * to land.
+     *
+     * DS:0x8e64 is the unmet-after-stock slot for cargo 5 in the
+     * FUN_15eb_1f72 ledger array whose base colony_craft.c already names
+     * (DS:0x8e5a + 5*2); FUN_15eb_0b52 records those rows as
+     * `stock + production < demand`, which is what is recomputed here —
+     * DOS refreshes the array through FUN_1000_8df4 after every assign, so
+     * it is this colony's live number, not last turn's.
+     */
+    {
+      const int wh_cap =
+        colonies_warehouse_capacity(ctx->colonies, col, COLONIZE_CARGO_LUMBER);
+      int lumber_use = 0;
+      (void)colony_prod_colony_hammers(ctx->colonies, col, 0, &lumber_use);
+      int lumber_prod = 0;
+      for (int ti = 0; ti < COLONIZE_COLONY_FIELD_TILES; ++ti) {
+        const int occ = col->tiles[ti];
+        if (occ < 0 || occ >= n) {
+          continue;
+        }
+        if (col->colonists[occ].field_job != COLONIZE_JOB_LUMBERJACK) {
+          continue;
+        }
+        int dx = 0;
+        int dy = 0;
+        if (!colonies_field_tile_delta(ti, &dx, &dy)) {
+          continue;
+        }
+        lumber_prod += colony_yield_for_tile(
+          ctx->map, col->x + dx, col->y + dy, COLONIZE_JOB_LUMBERJACK
+        );
+      }
+      const int lumber_unmet =
+        lumber_use > col->stock[COLONIZE_CARGO_LUMBER] + lumber_prod ? 1 : 0;
+      int lumber_seen =
+        (col->build_ai_flags & COLONIZE_BUILD_AI_WANTS_CONSTRUCTION) != 0 ? 0 : 1;
+      for (int s = 0; s < n; ++s) {
+        if (placed[s]) {
+          continue;
+        }
+        const int prof = col->colonists[s].profession;
+        if (!ai_euro_5952_job_is_expert(prof)) {
+          continue;
+        }
+        /* DOS reads a byte, so its `< 9` cannot go negative; the port's
+         * profession is an int and an unset one is −1. */
+        if (prof < 0 || prof >= COLONIZE_FIELD_JOB_COUNT ||
+            prof == COLONIZE_JOB_FARMER || prof == COLONIZE_JOB_FISHERMAN) {
+          continue;
+        }
+        if (prof == COLONIZE_JOB_LUMBERJACK) {
+          if (lumber_seen == 0) {
+            lumber_seen = 1;
+          } else if ((col->ai_flags & COLONIZE_COLONY_AI_WANTS_PIONEER_CLEAR) == 0 &&
+                     lumber_unmet == 0) {
+            continue;
+          }
+        }
+        if (col->stock[prof] > wh_cap) {
+          continue;
+        }
+        AiEuro28c8JobCandidate best;
+        col->colonists[s].field_job = prev_job[s];
+        const int ok = ai_euro_28c8_score_job(ctx, col, s, prof, prof, &best);
+        col->colonists[s].field_job = -1;
+        if (!ok) {
+          continue;
+        }
+        if (colonies_assign_field(ctx->colonies, col->id, s, best.tile, best.job)) {
+          placed[s] = true;
         }
       }
     }
@@ -6589,9 +6740,12 @@ static void ai_euro_colony_inventory(ColonizeTurnContext* ctx, int nation_id) {
      * 4393 pick, the 20e6 arrival gate and the 457e wagon walk all read it.
      */
     if (ctx->units) {
+      /* Slot walk (audit second-wave Leads 2, 2026-09-10): the loop variable
+       * is an ARRAY index, not a unit id — see the ai_euro_refresh_continent_
+       * stance note. */
       for (int uid = 0; uid < COLONIZE_UNITS_MAX; ++uid) {
-        ColonizeUnit* su = units_get(ctx->units, uid);
-        if (!su || !su->active || su->nation_id != nation_id || su->aboard_ship_id >= 0) {
+        ColonizeUnit* su = &ctx->units->units[uid];
+        if (!su->active || su->nation_id != nation_id || su->aboard_ship_id >= 0) {
           continue;
         }
         if (su->x != c->x || su->y != c->y) {
@@ -8779,9 +8933,10 @@ static int ai_euro_0a60_weight_seed(const ColonizeTurnContext* ctx, int nation_i
     /* No col1 census window (unit-test contexts): recompute DS:0x8cfc live,
      * same saturating all-active-units-of-nation tally FUN_4962_0018 does. */
     count = 0;
+    /* Slot walk (Leads 2, 2026-09-10): `i` is an array index, not a unit id. */
     for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-      const ColonizeUnit* u = units_get_const(ctx->units, i);
-      if (u && u->active && u->nation_id == nation_id && count < 255) {
+      const ColonizeUnit* u = &ctx->units->units[i];
+      if (u->active && u->nation_id == nation_id && count < 255) {
         count++;
       }
     }
@@ -8879,9 +9034,10 @@ static void ai_euro_0a60_continent_presence(
     }
   }
   if (ctx->units) {
+    /* Slot walk (Leads 2, 2026-09-10): `i` is an array index, not a unit id. */
     for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-      const ColonizeUnit* u = units_get_const(ctx->units, i);
-      if (u && u->active && u->nation_id == nation_id && !units_is_sea(ctx->units, i) &&
+      const ColonizeUnit* u = &ctx->units->units[i];
+      if (u->active && u->nation_id == nation_id && !units_is_sea(ctx->units, u->id) &&
           map_continent_id_at(ctx->map, u->x, u->y) == continent_id) {
         land_units++;
       }
@@ -9003,9 +9159,13 @@ static void ai_euro_0a60_stack_counts(
   const ColonizeUnitPool* units, int x, int y, Ai0a60StackCounts* sc
 ) {
   memset(sc, 0, sizeof(*sc));
+  if (!units) {
+    return;
+  }
+  /* Slot walk (Leads 2, 2026-09-10): `i` is an array index, not a unit id. */
   for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-    const ColonizeUnit* m = units_get_const(units, i);
-    if (!m || !m->active || m->aboard_ship_id >= 0 || m->x != x || m->y != y) {
+    const ColonizeUnit* m = &units->units[i];
+    if (!m->active || m->aboard_ship_id >= 0 || m->x != x || m->y != y) {
       continue;
     }
     ai_euro_0a60_stack_count_member(units, m, sc);
@@ -9050,9 +9210,10 @@ static void ai_euro_0a60_unit_housekeeping(ColonizeTurnContext* ctx, int nation_
   int caravels = 0;
   int merchantmen = 0;
   int galleons = 0;
+  /* Slot walk (Leads 2, 2026-09-10): `i` is an array index, not a unit id. */
   for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-    const ColonizeUnit* u = units_get_const(ctx->units, i);
-    if (!u || !u->active || u->nation_id != nation_id) {
+    const ColonizeUnit* u = &ctx->units->units[i];
+    if (!u->active || u->nation_id != nation_id) {
       continue;
     }
     const int t = ai_euro_20e6_dos_type(ctx->units, u);
@@ -9068,15 +9229,22 @@ static void ai_euro_0a60_unit_housekeeping(ColonizeTurnContext* ctx, int nation_
   int spare_marked = 0; /* iStack_c: at most one spare-transport mark per turn */
   const int woi = (ctx->col1_ok && ctx->col1) ? (int)ctx->col1->head.game_options.woi : 0;
 
+  /* Slot walk (Leads 2, 2026-09-10): `ui` is an array index, not a unit id —
+   * the shadow state array is keyed by `u->id` everywhere else in this file
+   * (see ai_euro_20e6_unit_state / the 457e and 10be readers), so it is keyed
+   * by `u->id` here too. */
   for (int ui = 0; ui < COLONIZE_UNITS_MAX; ++ui) {
-    const ColonizeUnit* u = units_get_const(ctx->units, ui);
-    if (!u || !u->active) {
+    const ColonizeUnit* u = &ctx->units->units[ui];
+    if (!u->active) {
       continue;
     }
     const int dos_type = ai_euro_20e6_dos_type(ctx->units, u);
     const int is_ship_t = (dos_type >= 0x0d && dos_type <= 0x12);
     if (u->nation_id == nation_id) {
-      Ai0a60UnitState* st = &s_0a60_pilot_state[ui];
+      if (u->id < 0 || u->id >= COLONIZE_UNITS_MAX) {
+        continue; /* shadow array is id-keyed and 256 wide, like every reader */
+      }
+      Ai0a60UnitState* st = &s_0a60_pilot_state[u->id];
       const int ux = u->x;
       const int uy = u->y;
       if (st->order_code == 'A') {
@@ -9104,8 +9272,8 @@ static void ai_euro_0a60_unit_housekeeping(ColonizeTurnContext* ctx, int nation_
            * earlier-indexed own ship in the same stack is still loading. */
           ok = ai_euro_0a60_ship_full(ctx->units, u);
           for (int oi = 0; ok && oi < ui; ++oi) {
-            const ColonizeUnit* o = units_get_const(ctx->units, oi);
-            if (!o || !o->active || o->nation_id != nation_id || o->x != ux ||
+            const ColonizeUnit* o = &ctx->units->units[oi];
+            if (!o->active || o->nation_id != nation_id || o->x != ux ||
                 o->y != uy) {
               continue;
             }
@@ -9194,9 +9362,12 @@ static void ai_euro_0a60_goal_orders_structural(ColonizeTurnContext* ctx, int na
     weight[i] = weight_seed;
   }
 
+  /* Slot walk (Leads 2, 2026-09-10): `ui` is an array index, not a unit id;
+   * the id-keyed shadow keeps its `u->id` key and its 256-wide guard. */
   for (int ui = 0; ui < COLONIZE_UNITS_MAX; ++ui) {
-    const ColonizeUnit* u = units_get_const(ctx->units, ui);
-    if (!u || !u->active || u->nation_id != nation_id) {
+    const ColonizeUnit* u = &ctx->units->units[ui];
+    if (!u->active || u->nation_id != nation_id || u->id < 0 ||
+        u->id >= COLONIZE_UNITS_MAX) {
       continue;
     }
     /*
@@ -9212,7 +9383,7 @@ static void ai_euro_0a60_goal_orders_structural(ColonizeTurnContext* ctx, int na
     if (u->orders == UNITS_ORDER_CLEAR_PLOW || u->orders == UNITS_ORDER_BUILD_ROAD) {
       continue;
     }
-    Ai0a60UnitState* st = &s_0a60_pilot_state[ui];
+    Ai0a60UnitState* st = &s_0a60_pilot_state[u->id];
     if (st->order_code == 'A') {
       continue; /* already admitted as labor */
     }
@@ -9227,7 +9398,7 @@ static void ai_euro_0a60_goal_orders_structural(ColonizeTurnContext* ctx, int na
     }
 
     const char* uname = units_display_name(ctx->units, u);
-    const int unit_is_ship = ai_euro_is_ship_type(ctx->units, ui);
+    const int unit_is_ship = ai_euro_is_ship_type(ctx->units, u->id);
     const int unit_continent = map_continent_id_at(ctx->map, u->x, u->y);
 
     /* unit+0x3148 bits 2/3, written by ai_euro_0a60_unit_housekeeping from
@@ -9383,9 +9554,13 @@ static int ai_euro_0a60_tile_owner_or_presence(const ColonizeWorldMap* map, int 
  * 2026-09-06b (0d38 case 2 is a bare per-member count). */
 static int ai_euro_0a60_units_on_tile(const ColonizeUnitPool* units, int x, int y) {
   int n = 0;
+  if (!units) {
+    return 0;
+  }
+  /* Slot walk (Leads 2, 2026-09-10): `i` is an array index, not a unit id. */
   for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-    const ColonizeUnit* u = units_get_const(units, i);
-    if (u && u->active && u->aboard_ship_id < 0 && u->x == x && u->y == y) {
+    const ColonizeUnit* u = &units->units[i];
+    if (u->active && u->aboard_ship_id < 0 && u->x == x && u->y == y) {
       n++;
     }
   }
@@ -9421,10 +9596,11 @@ static void ai_euro_0a60_settlement_goal_producers(ColonizeTurnContext* ctx, int
       col_cnt[c->nation_id][cid]++;
     }
   }
+  /* Slot walk (Leads 2, 2026-09-10): `i` is an array index, not a unit id. */
   for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-    const ColonizeUnit* u = units_get_const(ctx->units, i);
-    if (!u || !u->active || u->nation_id < 0 || u->nation_id > 3 ||
-        units_is_sea(ctx->units, i)) {
+    const ColonizeUnit* u = &ctx->units->units[i];
+    if (!u->active || u->nation_id < 0 || u->nation_id > 3 ||
+        units_is_sea(ctx->units, u->id)) {
       continue;
     }
     const int cid = map_continent_id_at(map, u->x, u->y);
@@ -9801,8 +9977,9 @@ static int ai_euro_nation_is_human(const ColonizeTurnContext* ctx, int nation) {
  * about the aboard-ship filter and the owner-nibble mask were merged
  * 2026-09-10 (audit C7); the same audit refuted docs/save_format_map.md row
  * 156's "not cleared between nations, accumulates across the full per-turn
- * pass". Bit 8 (own combat unit caught in the open) has no reader in the
- * 5952 arm below and is not modelled.
+ * pass". Bit 8 (this nation's own dug-in field force) has no reader in the
+ * 5952 arm below; it is modelled since 2026-09-10 for the DS:0xa89c tally that
+ * FUN_521d_20e6's war-cargo scorer consumes, and is simply ignored here.
  */
 static int ai_euro_5952_continent_presence(
   const ColonizeTurnContext* ctx, int nation_id, int cont
@@ -9856,9 +10033,10 @@ static void ai_euro_colony_threat_seed_5952(
 
       /* DOS walks the whole tile stack once the head qualified — including
        * any own-nation unit stacked behind a foreign one. */
+      /* Slot walk (Leads 2, 2026-09-10): `ui` is an array index, not an id. */
       for (int ui = 0; ui < COLONIZE_UNITS_MAX; ++ui) {
-        const ColonizeUnit* u = units_get_const(ctx->units, ui);
-        if (!u || !units_is_on_map(u) || u->x != tx || u->y != ty) {
+        const ColonizeUnit* u = &ctx->units->units[ui];
+        if (!u->active || !units_is_on_map(u) || u->x != tx || u->y != ty) {
           continue;
         }
         const int dtype = ai_euro_20e6_dos_type(ctx->units, u);
@@ -9955,9 +10133,10 @@ static void ai_euro_colony_threat_seed_5952(
   const int pop = (int)c->population;
   int outside = 0; /* DS:0x8d72 — FUN_15eb_09c0 raw 10014-10034 */
   if (ctx->units) {
+    /* Slot walk (Leads 2, 2026-09-10): `i` is an array index, not a unit id. */
     for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-      const ColonizeUnit* u = units_get_const(ctx->units, i);
-      if (!u || !u->active || u->aboard_ship_id >= 0 || u->x != c->x || u->y != c->y) {
+      const ColonizeUnit* u = &ctx->units->units[i];
+      if (!u->active || u->aboard_ship_id >= 0 || u->x != c->x || u->y != c->y) {
         continue;
       }
       if (units_type_has_profession_slot(ai_euro_20e6_dos_type(ctx->units, u))) {
@@ -9985,9 +10164,10 @@ static void ai_euro_colony_threat_seed_5952(
   c->labor_shortage = (uint8_t)(want < 0 ? 0 : (want > 255 ? 255 : want));
   const int want_pre = want;
   if (ctx->units) {
+    /* Slot walk (Leads 2, 2026-09-10): `i` is an array index, not a unit id. */
     for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-      const ColonizeUnit* u = units_get_const(ctx->units, i);
-      if (!u || !u->active || u->aboard_ship_id >= 0 || u->x != c->x || u->y != c->y) {
+      const ColonizeUnit* u = &ctx->units->units[i];
+      if (!u->active || u->aboard_ship_id >= 0 || u->x != c->x || u->y != c->y) {
         continue;
       }
       const int dtype = ai_euro_20e6_dos_type(ctx->units, u);
@@ -10009,9 +10189,10 @@ static void ai_euro_colony_threat_seed_5952(
    */
   int homed_mil = 0;
   if (ctx->units) {
+    /* Slot walk (Leads 2, 2026-09-10): `i` is an array index, not a unit id. */
     for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-      const ColonizeUnit* u = units_get_const(ctx->units, i);
-      if (!u || !u->active || (u->nation_id & 0xf) != nation_id) {
+      const ColonizeUnit* u = &ctx->units->units[i];
+      if (!u->active || (u->nation_id & 0xf) != nation_id) {
         continue;
       }
       if ((int)u->col1_origin != c->id) {
@@ -10463,8 +10644,10 @@ static void ai_euro_colony_goals(ColonizeTurnContext* ctx, int nation_id) {
               ++wloads; /* DOS iStack_40++ in the same arm */
               wbvar5 = 1; /* raw :87622 */
             }
+            /* `units_is_sea` takes a unit ID; this loop is a slot walk, so
+             * `ui` was the wrong key (Leads 2, 2026-09-10). */
             if (ai_euro_continent_stance_at(nation_id, cid) == 0 &&
-                !units_is_sea(ctx->units, ui) && u->col1_ai_plan != 0x47u /* 'G' */ &&
+                !units_is_sea(ctx->units, u->id) && u->col1_ai_plan != 0x47u /* 'G' */ &&
                 u->col1_ai_plan != 0x41u /* 'A' */) {
               const ColonizeUnitType* ty = units_type(ctx->units, u->type_index);
               if (ty && ty->attack > 1) {
@@ -10600,10 +10783,12 @@ static void ai_euro_colony_goals(ColonizeTurnContext* ctx, int nation_id) {
         static const int k_adm_type[5] = {0x0b, 0x01, 0x01, 0x04, 0x04};
         static const int k_adm_vet[5] = {-1, 0, 1, 0, 1}; /* -1 any; 0/1 vs prof 0x15 */
         for (int pass = 0; pass < 5 && c->labor_shortage > 0; ++pass) {
+          /* Slot walk (Leads 2, 2026-09-10): `ui` is an array index; the
+           * id-keyed shadow below keeps its `u->id` key. */
           for (int ui = 0; ui < COLONIZE_UNITS_MAX && c->labor_shortage > 0; ++ui) {
-            const ColonizeUnit* gu = units_get_const(ctx->units, ui);
-            if (!gu || !gu->active || gu->nation_id != nation_id || gu->x != c->x ||
-                gu->y != c->y) {
+            const ColonizeUnit* gu = &ctx->units->units[ui];
+            if (!gu->active || gu->nation_id != nation_id || gu->x != c->x ||
+                gu->y != c->y || gu->id < 0 || gu->id >= COLONIZE_UNITS_MAX) {
               continue;
             }
             if (ai_euro_20e6_dos_type(ctx->units, gu) != k_adm_type[pass]) {
@@ -10613,7 +10798,7 @@ static void ai_euro_colony_goals(ColonizeTurnContext* ctx, int nation_id) {
             if (k_adm_vet[pass] >= 0 && is_vet != k_adm_vet[pass]) {
               continue;
             }
-            Ai0a60UnitState* gst = &s_0a60_pilot_state[ui];
+            Ai0a60UnitState* gst = &s_0a60_pilot_state[gu->id];
             if (gst->order_code == 'A') {
               continue; /* already admitted this turn */
             }
@@ -11809,15 +11994,16 @@ static int ai_euro_20e6_combat_value_on(const ColonizeTurnContext* ctx, int nati
   sctx.map = ctx->map;
   sctx.colonies = ctx->colonies;
   sctx.col1 = ctx->col1;
+  /* Slot walk (Leads 2, 2026-09-10): `i` is an array index, not a unit id. */
   for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-    const ColonizeUnit* o = units_get_const(ctx->units, i);
-    if (!o || !o->active || o->nation_id != nation || units_is_sea(ctx->units, i)) {
+    const ColonizeUnit* o = &ctx->units->units[i];
+    if (!o->active || o->nation_id != nation || units_is_sea(ctx->units, o->id)) {
       continue;
     }
     if (map_continent_id_at(ctx->map, o->x, o->y) != cid) {
       continue;
     }
-    sum += combat_unit_base_x8(&sctx, i, 1, NULL);
+    sum += combat_unit_base_x8(&sctx, o->id, 1, NULL);
     if (sum > 255) {
       return 255; /* DOS byte table */
     }
@@ -11828,9 +12014,10 @@ static int ai_euro_20e6_combat_value_on(const ColonizeTurnContext* ctx, int nati
 /* DS:0x95f2 continent_presence_flags bit 0x04: a foreign colony sits on cid. */
 static int ai_euro_10ec_land_units_on(const ColonizeTurnContext* ctx, int nation, int cid) {
   int n = 0;
+  /* Slot walk (Leads 2, 2026-09-10): `i` is an array index, not a unit id. */
   for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-    const ColonizeUnit* o = units_get_const(ctx->units, i);
-    if (!o || !o->active || o->nation_id != nation || units_is_sea(ctx->units, i)) {
+    const ColonizeUnit* o = &ctx->units->units[i];
+    if (!o->active || o->nation_id != nation || units_is_sea(ctx->units, o->id)) {
       continue;
     }
     if (map_continent_id_at(ctx->map, o->x, o->y) == cid) {
@@ -12008,9 +12195,10 @@ static int ai_euro_20e6_site_nibble(const ColonizeTurnContext* ctx, int x, int y
  */
 static int ai_euro_20e6_stack_count(const ColonizeTurnContext* ctx, int x, int y) {
   int n = 0;
+  /* Slot walk (Leads 2, 2026-09-10): `i` is an array index, not a unit id. */
   for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-    const ColonizeUnit* o = units_get_const(ctx->units, i);
-    if (!o || !o->active || o->aboard_ship_id >= 0 || o->x != x || o->y != y) {
+    const ColonizeUnit* o = &ctx->units->units[i];
+    if (!o->active || o->aboard_ship_id >= 0 || o->x != x || o->y != y) {
       continue;
     }
     n++;
@@ -12031,15 +12219,16 @@ static int ai_euro_20e6_stack_combat_0b(ColonizeTurnContext* ctx, int x, int y) 
   sctx.col1 = ctx->col1;
   const int water = map_tile_is_water(ctx->map, x, y);
   int sum = 0;
+  /* Slot walk (Leads 2, 2026-09-10): `i` is an array index, not a unit id. */
   for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-    const ColonizeUnit* o = units_get_const(ctx->units, i);
-    if (!o || !o->active || o->aboard_ship_id >= 0 || o->x != x || o->y != y) {
+    const ColonizeUnit* o = &ctx->units->units[i];
+    if (!o->active || o->aboard_ship_id >= 0 || o->x != x || o->y != y) {
       continue;
     }
-    if ((units_is_sea(ctx->units, i) ? 1 : 0) != (water ? 1 : 0)) {
+    if ((units_is_sea(ctx->units, o->id) ? 1 : 0) != (water ? 1 : 0)) {
       continue;
     }
-    sum += combat_unit_base_x8(&sctx, i, 1, NULL);
+    sum += combat_unit_base_x8(&sctx, o->id, 1, NULL);
   }
   return sum;
 }
@@ -12658,9 +12847,10 @@ static int ai_euro_20e6_attack_term(
   int col9_sum = 0;
   int stack = 0;
   if (foe_id >= 0) {
+    /* Slot walk (Leads 2, 2026-09-10): `i` is an array index, not a unit id. */
     for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-      const ColonizeUnit* o = units_get_const(ctx->units, i);
-      if (!o || !o->active || o->aboard_ship_id >= 0 || o->x != nx || o->y != ny) {
+      const ColonizeUnit* o = &ctx->units->units[i];
+      if (!o->active || o->aboard_ship_id >= 0 || o->x != nx || o->y != ny) {
         continue;
       }
       const int t = ai_euro_20e6_dos_type(ctx->units, o);
@@ -13042,15 +13232,19 @@ static int ai_euro_20e6_nearest_own_unit(
 ) {
   int best = -1;
   int bd = 9999;
+  /* Slot walk (Leads 2, 2026-09-10): `i` is an array index, not a unit id —
+   * so `except_id` (the caller passes `u->id`) has to be matched against
+   * `o->id`, and the returned handle is `o->id`, which is what the caller
+   * feeds back to `units_get_const`. */
   for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-    const ColonizeUnit* o = units_get_const(ctx->units, i);
-    if (!o || !o->active || o->nation_id != nation || i == except_id) {
+    const ColonizeUnit* o = &ctx->units->units[i];
+    if (!o->active || o->nation_id != nation || o->id == except_id) {
       continue;
     }
     const int d = ai_euro_20e6_dist(x, y, o->x, o->y);
     if (d <= bd) {
       bd = d;
-      best = i;
+      best = o->id;
     }
   }
   return best;
@@ -14643,9 +14837,12 @@ static void ai_euro_20e6_clear_stale_board_marks(
   if (!ctx || !ctx->units || !ship) {
     return;
   }
+  /* Slot walk (Leads 2, 2026-09-10): `ui` is an array index; the id-keyed
+   * shadow below keeps its `lu->id` key and its 256-wide guard. */
   for (int ui = 0; ui < COLONIZE_UNITS_MAX; ++ui) {
-    const ColonizeUnit* lu = units_get_const(ctx->units, ui);
-    if (!lu || !lu->active || lu->aboard_ship_id >= 0) {
+    const ColonizeUnit* lu = &ctx->units->units[ui];
+    if (!lu->active || lu->aboard_ship_id >= 0 || lu->id < 0 ||
+        lu->id >= COLONIZE_UNITS_MAX) {
       continue;
     }
     int on_stack = (lu->x == ship->x && lu->y == ship->y);
@@ -14657,8 +14854,8 @@ static void ai_euro_20e6_clear_stale_board_marks(
         on_stack = 1;
       }
     }
-    if (on_stack && s_0a60_pilot_state[ui].act_state == 1) {
-      s_0a60_pilot_state[ui].act_state = 0;
+    if (on_stack && s_0a60_pilot_state[lu->id].act_state == 1) {
+      s_0a60_pilot_state[lu->id].act_state = 0;
     }
   }
 }
@@ -14705,9 +14902,12 @@ static int ai_euro_20e6_transport_assemble(
   }
   const int trace = getenv("AI_20E6_BOARD_TRACE") != NULL;
   int boarded = 0;
+  /* Slot walk (Leads 2, 2026-09-10): `ui` is an array index — `units_board`,
+   * `units_is_sea` and the id-keyed shadow all take `lu->id`. */
   for (int ui = 0; ui < COLONIZE_UNITS_MAX && free_holds > 0; ++ui) {
-    ColonizeUnit* lu = units_get(ctx->units, ui);
-    if (!lu || !lu->active || lu->id == ship->id || lu->nation_id != nation_id) {
+    ColonizeUnit* lu = &ctx->units->units[ui];
+    if (!lu->active || lu->id == ship->id || lu->nation_id != nation_id ||
+        lu->id < 0 || lu->id >= COLONIZE_UNITS_MAX) {
       continue;
     }
     if (lu->aboard_ship_id >= 0 || units_is_sea(ctx->units, lu->id)) {
@@ -14778,7 +14978,7 @@ static int ai_euro_20e6_transport_assemble(
      * an unattached unit sitting in a non-Europe off-map park (arm 1), or
      * standing on the ship's open-water tile (arm 2).
      */
-    int take = (s_0a60_pilot_state[ui].act_state == 1);
+    int take = (s_0a60_pilot_state[lu->id].act_state == 1);
     int arm = 0;
     if (!take) {
       if (ai_euro_20e6_member_off_map(ctx, lu)) {
@@ -14800,17 +15000,17 @@ static int ai_euro_20e6_transport_assemble(
     if (size > free_holds || size >= 99) {
       continue;
     }
-    if (!units_board(ctx->units, ui, ship->id)) {
+    if (!units_board(ctx->units, lu->id, ship->id)) {
       continue;
     }
-    s_0a60_pilot_state[ui].act_state = 1; /* asm 1427:1264 `[BX+0x314c] = 1` */
+    s_0a60_pilot_state[lu->id].act_state = 1; /* asm 1427:1264 `[BX+0x314c] = 1` */
     free_holds -= size;
     boarded++;
     if (trace) {
       static const char* const arm_name[3] = {"mark", "force:offmap", "force:water"};
       fprintf(
         stderr, "[10be] ship %d n%d assembles unit %d via %s (size %d, free %d left)\n", ship->id,
-        nation_id, ui, arm_name[arm], size, free_holds
+        nation_id, lu->id, arm_name[arm], size, free_holds
       );
     }
   }
@@ -15020,9 +15220,11 @@ static int ai_euro_20e6_ship_berth_arrival(
       if (s_0a60_work_registered[nation_id] >= 0x19) {
         break;
       }
-      ColonizeUnit* lu = units_get(ctx->units, ui);
-      if (!lu || !lu->active || lu->nation_id != nation_id || lu->aboard_ship_id >= 0 ||
-          lu->id == ship->id) {
+      /* Slot walk (Leads 2, 2026-09-10): `ui` is an array index; the id-keyed
+       * shadow below keeps its `lu->id` key and its 256-wide guard. */
+      ColonizeUnit* lu = &ctx->units->units[ui];
+      if (!lu->active || lu->nation_id != nation_id || lu->aboard_ship_id >= 0 ||
+          lu->id == ship->id || lu->id < 0 || lu->id >= COLONIZE_UNITS_MAX) {
         continue;
       }
       if (lu->x != c->x || lu->y != c->y) {
@@ -15038,7 +15240,7 @@ static int ai_euro_20e6_ship_berth_arrival(
         continue;
       }
       int mark = 0;
-      const int oc = s_0a60_pilot_state[ui].order_code;
+      const int oc = s_0a60_pilot_state[lu->id].order_code;
       if (ai_euro_20e6_type_combat(lt) > 1 && oc != 'G' && oc != 'A' && stance == 0) {
         mark = 1;
       }
@@ -15050,12 +15252,12 @@ static int ai_euro_20e6_ship_berth_arrival(
       }
       if (mark) {
         /* raw 3046-3050: act_state = 1, iStack_d2 -= 0x5238[type]. */
-        s_0a60_pilot_state[ui].act_state = 1;
+        s_0a60_pilot_state[lu->id].act_state = 1;
         free_holds -= space;
         if (trace) {
           fprintf(
             stderr, "[shipdump] ship %d n%d MARKS unit %d (type 0x%02x space %d)\n",
-            ship->id, nation_id, ui, lt, space
+            ship->id, nation_id, lu->id, lt, space
           );
         }
       }
@@ -17362,7 +17564,14 @@ static int ai_euro_20e6_colony_sail_pick(
     return 0;
   }
   const int ship_type = ai_euro_20e6_dos_type(ctx->units, ship);
-  const int difficulty = (ctx->col1_ok && ctx->col1) ? (int)ctx->col1->head.difficulty : 2;
+  /*
+   * DS:0xa89c, raw 93110-93115: the COUNT of continents whose DS:0x95f2 byte
+   * has bit 8 set (this nation has a dug-in field force there), recounted at
+   * the head of every per-nation AI pass. Until 2026-09-10 this line read
+   * `head.difficulty`, which is a different DS byte entirely — the writer was
+   * simply unlocated. See ai_contact_continent_war_count_a89c.
+   */
+  const int war_cont_count = ai_contact_continent_war_count_a89c(ctx, nation);
   const int open_cont = ai_euro_20e6_open_continents(ctx, nation);
   int best = -9999;
   int have = 0;
@@ -17404,9 +17613,20 @@ static int ai_euro_20e6_colony_sail_pick(
         continue; /* raw 1970: war cargo needs nonzero stance */
       }
       score = 0;
-      /* (−0x6a0e[cid] & 7) * 8: presence-bit writer undecoded — no term. */
-      if (difficulty != 0 && mil > 1) {
-        score += difficulty * mil * -8;
+      /*
+       * Raw 89654-89656: `local_58 = (*(byte *)(FUN_281f_0722(colony) +
+       * -0x6a0e) & 7) * 8; local_28 += local_58;` — the DS:0x95f2 presence
+       * byte for the CANDIDATE colony's continent, low three bits only, so
+       * natives (1) + a foreign Euro unit (2) + a foreign colony (4) each add
+       * 8, up to +56. All four bit writers are decoded (raw 78167/78235/
+       * 78302/78312), so the term is live since 2026-09-10; it used to be a
+       * "writer undecoded" comment with no term at all. Bit 8 is masked off
+       * here — it reaches this scorer only through war_cont_count.
+       */
+      score += (ai_contact_continent_presence_4962(ctx, nation, cid) & 7) * 8;
+      /* Raw 89660-89662, verbatim shape: `if (a89c != 0 && 1 < mil)`. */
+      if (war_cont_count != 0 && mil > 1) {
+        score += war_cont_count * mil * -8;
       }
       if (ai_euro_20e6_own_colonies_on(ctx, ctx->human_nation, cid) != 0) {
         score += 0x32;
@@ -18713,17 +18933,27 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
        *   (+0x1b & 0x10) == 0 is the NEEDS_COLONISTS test the port already had.
        * Two of the four (stance, roll) used to be missing, so every pop>11
        * colony with 50 muskets re-typed arriving Pioneers unconditionally
-       * (smell audit 2026-09-10 C2). Note the population gate keeps DOS's
-       * literal `> 10` and does NOT get the absorption +1 compensation the
-       * `population > 1` gate above needed; that is deliberately left as it
-       * was calibrated, since widening it would offset this fix.
+       * (smell audit 2026-09-10 C2).
+       *
+       * Compensation rule, one rule for the whole block (2026-09-10 seventh
+       * wave, second-wave lead 5): BOTH population gates read the SAME DOS
+       * byte, colony +0x1f, at the same point in FUN_5952_035e — raw 94276
+       * (`+0x1f < 2` → bail) and raw 94290 (`'\n' < +0x1f`) — and that point
+       * is after the absorption arm has already added the on-tile Pioneer to
+       * the workforce. The port compresses absorb+equip into one step on the
+       * pre-absorption population, so every read of +0x1f in this block gets
+       * the same +1: `> 1` becomes `> 0` and `> 10` becomes `> 9`. The `> 10`
+       * read used to keep DOS's literal spelling while its neighbour carried
+       * the +1 — two compensations for one byte, which is what this fixes.
+       * Widening it admits pop-10 towns (pop 11 post-absorption) to the
+       * "big settled town" arm, exactly as DOS admits them.
        * dos_rng_range returns `lo` for a NULL rng, so a context without an
        * RNG (fixtures) passes the roll — the pre-fix behaviour.
        */
       int equip_local_90 = 0;
       if (on_tile && ai_euro_continent_stance_at(
                        nation_id, map_continent_id_at(ctx->map, c->x, c->y)) == 0 &&
-          equip_pop > 10 && dos_rng_range(ctx->rng, 0, 3) == 0 &&
+          equip_pop > 9 && dos_rng_range(ctx->rng, 0, 3) == 0 &&
           (c->ai_flags & COLONIZE_COLONY_AI_NEEDS_COLONISTS) == 0) {
         equip_local_90 = 1;
       }
@@ -20651,7 +20881,11 @@ void ai_euro_dispatcher_turn(ColonizeTurnContext* ctx, int nation_id) {
    * Same argument for the 20e6 explore-fatigue counter and ring-hop wander
    * latch (DOS unit+0x3154 / +0x3155 / +0x3156, raw 1600-1611 / 2416-2458):
    * those bytes are part of the unit record too, so a reused id must not
-   * inherit a foreign fatigue count or hop commitment. */
+   * inherit a foreign fatigue count or hop commitment.
+   * NOT a slot walk on purpose (audit second-wave Leads 2, 2026-09-10): these
+   * latch arrays are keyed by unit ID everywhere they are read, so this loop
+   * walks the addressable ID SPACE and clears the entries no live unit owns.
+   * `units_get_const(pool, i) == NULL` is exactly "no live unit has id i". */
   for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
     if (units_get_const(ctx->units, i) != NULL) {
       continue;

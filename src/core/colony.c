@@ -1071,18 +1071,17 @@ int colonies_found(
          slot->population >= pool->building_types[stockade].min_population)) {
       slot->building_in_production = stockade;
       slot->hammers = 0;
-    } else if (map && map_tile_is_coastal(map, x, y)) {
+    } else if ((slot->colony_flags & COLONIZE_COLONY_FLAG_COASTAL) != 0) {
       /*
-       * Deliberately the loose live probe, not the coastal FLAG stamped above.
-       * DOS's own Docks buildability filter IS the flag (raw 13688:
+       * Gate on the coastal FLAG stamped above, not the loose live probe:
+       * DOS's own Docks buildability filter IS that flag (raw 13688:
        * `local_e == 7 && (colony+0x1c & 0x40) == 0 -> reject`, building id 7),
-       * but this whole first-project default is a port heuristic to begin with
-       * — DOS's found-colony writes +0x8d = 0xff, i.e. no project at all — and
-       * it is pinned by unit tests and the seed-100 AI-town goldens through
-       * map_tile_is_coastal. Tightening it to the flag would only make an
-       * invented default marginally stricter (lake-only towns would start on
-       * Warehouse) while risking those pins; left as a lead for whoever ports
-       * DOS's real "no project at founding" behaviour. Smell audit D4.
+       * so a site the flag rejects could never carry Docks as a project. The
+       * first-project default itself stays a port heuristic (DOS's found-colony
+       * writes +0x8d = 0xff, i.e. no project at all), but its Docks/Warehouse
+       * fork now uses DOS's own predicate. Practical delta vs the old
+       * map_tile_is_coastal probe: a lake-only or map-edge-only "coastal" town
+       * starts on Warehouse. Smell audit D4 / 2026-09-10 lead 8.
        */
       const int docks = colonies_find_building(pool, "Docks");
       if (docks >= 0 && !slot->has_building[docks]) {
@@ -1709,6 +1708,24 @@ static int colonies_has_church_or_cathedral(
   return 0;
 }
 
+/*
+ * Tools handed to a body being equipped as a Pioneer: whole 20-tool steps,
+ * capped at 100. DOS-literal, not a port convenience — verified 2026-09-10
+ * (seventh wave, second-wave lead 7, which suspected a deviation):
+ *   FUN_15eb_1068, the equip/leave-as applier (viceroy_unpacked.c 11250-11253):
+ *     local_8 = colony stock[TOOLS] (+0xb6) / 0x14;
+ *     iVar6   = local_8 * 0x14;  if (100 < iVar6) iVar6 = 100;
+ *   then `param_2 == 0x14` (profession Pioneer) writes that byte to the unit's
+ *   tools field +0x3159 (raw 11274 and 11288, the re-type and the new-unit
+ *   arms), and the tail at raw 11322-11331 charges the colony the same amount.
+ *   The four dialog builders recompute it the same way for their row text
+ *   (raw 50570-50571, 53455, 62541, 67774), clamped to [0x14, 100].
+ * FUN_15eb_35d0's `min(stock, 100, req)` is a different path — the cargo-hold
+ * loader, whose `req` is FUN_15eb_3208's free-hold count * 100 (raw 13375) —
+ * i.e. loading 100-lots into a ship/wagon, never equipping a colonist.
+ * bugs.md row 362 (a Pioneer legitimately walks with 20/40/60/80/100) is the
+ * behaviour this reproduces.
+ */
 int colonies_equip_tools_take(int available) {
   if (available < UNITS_EQUIP_TOOLS_STEP) {
     return 0;
@@ -1720,11 +1737,45 @@ int colonies_equip_tools_take(int available) {
   return take;
 }
 
-int colonies_list_eject_roles(
+/*
+ * The "Leave as" row list, DOS's three states.
+ *
+ * This list is FUN_2f2b_348c's leave-as mode, rows = professions 0x13..0x18
+ * (`local_fa = 0x13, local_146 = 6`), each asked through FUN_281f_0bb4 →
+ * FUN_15eb_3454 (viceroy_unpacked.c 13518-13590), whose answer has THREE
+ * values, not two:
+ *   0       — row not offered at all; the dialog loop skips it outright
+ *             (raw 50753 `if (local_e != 0)`, and the row counter at 50575).
+ *   0xffff  — row offered but DISABLED: raw 50805 `if (local_e == -1)` calls
+ *             the greyed-row draw FUN_291f_01b6. This is the short-stock
+ *             answer: for each cargo in the row's FUN_15eb_0d8e list, colony
+ *             stock < required (tools 0x14 = 20, muskets/horses 0x32 = 50)
+ *             sets local_4 = 0xffff (raw 13580-13585).
+ *   0xfffe  — ordinary enabled row.
+ * Return 0 comes from exactly two places for these rows: an Indian Convert
+ * (@JOB 0x1b) gets nothing but Colonist — raw 13557-13560,
+ * `if (0x13 < param_1 && cur_prof == 0x1b) return 0` — and the Missionary row
+ * 0x18 needs the Church bit (FUN_15eb_038e(0x25), raw 13567-13569).
+ *
+ * The port used to OMIT short-stock gear rows instead of greying them, and
+ * offered all six to a Convert. Both fixed 2026-09-10 (seventh wave,
+ * second-wave lead 4). out_enabled (optional) carries the 0xfffe/0xffff
+ * distinction; callers that pass NULL get the row list only.
+ *
+ * The same DOS function serves a unit standing on the fence (a band index at
+ * or past the colonist count forces leave-as mode), so game_loop.c's
+ * game_colony_list_outside_roles is a twin of this list and must stay
+ * row-for-row identical, greying included.
+ *
+ * Earlier cites for the bless row: Colonization.pdf Establishing a Mission /
+ * Church; building_production Missionary.
+ */
+int colonies_list_eject_roles_ex(
   const ColonizeColonyPool* pool,
   int colony_id,
   int colonist_index,
   int* out_roles,
+  bool* out_enabled,
   int out_max
 ) {
   const ColonizeColony* col = colonies_get(pool, colony_id);
@@ -1735,40 +1786,55 @@ int colonies_list_eject_roles(
       !col->colonists[colonist_index].active) {
     return 0;
   }
+  const int tools = col->stock[COLONIZE_CARGO_TOOLS];
+  const int muskets = col->stock[COLONIZE_CARGO_MUSKETS];
+  const int horses = col->stock[COLONIZE_CARGO_HORSES];
+  /* raw 13557-13560: rows above 0x13 return 0 outright for @JOB 0x1b. */
+  const bool convert = (col->colonists[colonist_index].profession == COLONIZE_PROF_CONVERT);
+
   int n = 0;
-  out_roles[n++] = COLONIZE_EJECT_COLONIST;
-  if (n < out_max && col->stock[COLONIZE_CARGO_TOOLS] >= UNITS_EQUIP_TOOLS_STEP) {
-    out_roles[n++] = COLONIZE_EJECT_PIONEER;
+  out_roles[n] = COLONIZE_EJECT_COLONIST;
+  if (out_enabled) {
+    out_enabled[n] = true;
   }
-  if (n < out_max && col->stock[COLONIZE_CARGO_MUSKETS] >= UNITS_EQUIP_MUSKETS) {
-    out_roles[n++] = COLONIZE_EJECT_SOLDIER;
-  }
-  if (n < out_max && col->stock[COLONIZE_CARGO_HORSES] >= UNITS_EQUIP_HORSES) {
-    out_roles[n++] = COLONIZE_EJECT_SCOUT;
-  }
-  if (n < out_max && col->stock[COLONIZE_CARGO_MUSKETS] >= UNITS_EQUIP_MUSKETS &&
-      col->stock[COLONIZE_CARGO_HORSES] >= UNITS_EQUIP_HORSES) {
-    out_roles[n++] = COLONIZE_EJECT_DRAGOON;
-  }
-  /*
-   * Church bless: leave as Missionary (no cargo cost). DOS-confirmed
-   * 2026-09-10: this whole list is FUN_2f2b_348c's leave-as mode, rows =
-   * professions 0x13..0x18 (`local_fa = 0x13, local_146 = 6`), each gated
-   * through FUN_281f_0bb4 → FUN_15eb_3454; the 0x18 arm asks only
-   * `FUN_15eb_038e(0x25)` (Church bit) and costs no cargo, while the gear
-   * rows test FUN_15eb_0d8e's cargo list against colony stock (tools 0x14 =
-   * 20, muskets/horses 0x32 = 50). Earlier cites: Colonization.pdf
-   * Establishing a Mission / Church; building_production Missionary.
-   *
-   * The same DOS function serves a unit standing on the fence (a band index
-   * at or past the colonist count forces leave-as mode), so game_loop.c's
-   * game_colony_list_outside_roles is a twin of this list and must stay
-   * row-for-row identical — it dropped this row until 2026-09-10.
-   */
-  if (n < out_max && colonies_has_church_or_cathedral(pool, col)) {
-    out_roles[n++] = COLONIZE_EJECT_MISSIONARY;
+  ++n;
+  if (!convert) {
+    const struct {
+      int role;
+      bool enabled;
+    } k_gear[] = {
+      {COLONIZE_EJECT_PIONEER, tools >= UNITS_EQUIP_TOOLS_STEP},
+      {COLONIZE_EJECT_SOLDIER, muskets >= UNITS_EQUIP_MUSKETS},
+      {COLONIZE_EJECT_SCOUT, horses >= UNITS_EQUIP_HORSES},
+      {COLONIZE_EJECT_DRAGOON, muskets >= UNITS_EQUIP_MUSKETS && horses >= UNITS_EQUIP_HORSES}
+    };
+    for (size_t i = 0; i < sizeof(k_gear) / sizeof(k_gear[0]) && n < out_max; ++i) {
+      out_roles[n] = k_gear[i].role;
+      if (out_enabled) {
+        out_enabled[n] = k_gear[i].enabled;
+      }
+      ++n;
+    }
+    /* Bless costs no cargo, so the row is never the greyed kind. */
+    if (n < out_max && colonies_has_church_or_cathedral(pool, col)) {
+      out_roles[n] = COLONIZE_EJECT_MISSIONARY;
+      if (out_enabled) {
+        out_enabled[n] = true;
+      }
+      ++n;
+    }
   }
   return n;
+}
+
+int colonies_list_eject_roles(
+  const ColonizeColonyPool* pool,
+  int colony_id,
+  int colonist_index,
+  int* out_roles,
+  int out_max
+) {
+  return colonies_list_eject_roles_ex(pool, colony_id, colonist_index, out_roles, NULL, out_max);
 }
 
 int colonies_eject_colonist(

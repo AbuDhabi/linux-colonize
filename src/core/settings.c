@@ -27,6 +27,16 @@ static void set_err(char* err, size_t err_size, const char* fmt, ...) {
   va_end(ap);
 }
 
+int settings_clamp_window_scale(int64_t scale) {
+  if (scale < COLONIZE_WINDOW_SCALE_MIN) {
+    return COLONIZE_WINDOW_SCALE_MIN;
+  }
+  if (scale > COLONIZE_WINDOW_SCALE_MAX) {
+    return COLONIZE_WINDOW_SCALE_MAX;
+  }
+  return (int)scale;
+}
+
 void settings_defaults(ColonizeSettings* out) {
   if (!out) {
     return;
@@ -241,6 +251,26 @@ bool settings_load_file(const char* path, ColonizeSettings* out, char* err, size
     return false;
   }
 
+  /*
+   * "version" is written by settings_save_file; read it back so the constant
+   * is an actual gate rather than write-only decoration. Version 1 is the
+   * only shape that has ever shipped, so there is nothing to migrate yet —
+   * any future bump adds its migration here, keyed on `file_version`. A file
+   * from the future loads best-effort (every field below is optional) with a
+   * warning; a missing key means a pre-versioned or hand-written file, which
+   * is the same best-effort case.
+   */
+  int64_t file_version = 0;
+  (void)json_get_i64(root, "version", &file_version);
+  if (file_version > COLONIZE_SETTINGS_VERSION) {
+    diag_warn(
+      "settings: %s is version %lld, newer than %d; loading best-effort",
+      path,
+      (long long)file_version,
+      COLONIZE_SETTINGS_VERSION
+    );
+  }
+
   /* Every field is optional: a partial or older file keeps the defaults. */
   const JsonValue* g = json_obj_get(root, "game_options");
   rb(g, "show_indian_moves", &out->show_indian_moves);
@@ -283,7 +313,7 @@ bool settings_load_file(const char* path, ColonizeSettings* out, char* err, size
   rb(d, "windowed", &out->windowed);
   int64_t scale = 0;
   if (d && json_get_i64(d, "window_scale", &scale)) {
-    out->window_scale = (int)(scale < 1 ? 1 : (scale > 8 ? 8 : scale));
+    out->window_scale = settings_clamp_window_scale(scale);
   }
 
   const JsonValue* dbg = json_obj_get(root, "debug");
@@ -329,7 +359,15 @@ const char* settings_path(void) {
 bool settings_init(const char* path, char* err, size_t err_size) {
   settings_defaults(&g_settings);
   g_settings_ready = true;
-  g_settings_loaded = true;
+  /*
+   * Only the success path below sets this. `settings_is_loaded` means "a
+   * preference file is in play"; on the corrupt-file path no preferences were
+   * recovered (we fall back to defaults and leave the bad file alone), so the
+   * DOS-faithful no-preferences behaviour is what callers want there —
+   * settings_apply_to_head is skipped for a new game (game_loop.c:7639) and
+   * game_try_start_intro (game_loop.c:12091) stays out.
+   */
+  g_settings_loaded = false;
   if (path && path[0]) {
     snprintf(g_settings_path, sizeof(g_settings_path), "%s", path);
   } else {
@@ -353,6 +391,7 @@ bool settings_init(const char* path, char* err, size_t err_size) {
     set_err(err, err_size, "%s", load_err);
     return false;
   }
+  g_settings_loaded = true;
 
   if (!existed) {
     /* First run: materialize the file so the options are discoverable and

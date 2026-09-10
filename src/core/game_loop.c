@@ -623,7 +623,7 @@ static void game_blit_unit_in_viewport(
   int nation_id,
   int orders_index,
   bool show_stack,
-  bool aboard,
+  bool damaged,
   const ColonizePalette* active_palette
 ) {
   static uint8_t s_viewport[MAP_VIEW_W * MAP_VIEW_H];
@@ -640,7 +640,7 @@ static void game_blit_unit_in_viewport(
   }
   unit_chrome_blit_unit_for_palette(
     &view, font, sheet, sprite_index, x, y - MAP_MENU_BAR_H, display_type_index, nation_id,
-    orders_index, show_stack, aboard, active_palette
+    orders_index, show_stack, damaged, active_palette
   );
   for (int row = 0; row < MAP_VIEW_H; ++row) {
     memcpy(
@@ -733,7 +733,8 @@ static void game_move_watch(
          * bugs.md 371: the sliding piece wears the SAME chrome it wears
          * standing still. DOS animates the move by calling FUN_112b_01ba once
          * per pixel step with no extra arguments — every decision inside it
-         * (the stack tab from the unit's own chain, the aboard corner) is read
+         * (the stack tab from the unit's own chain, the damaged-Artillery
+         * corner) is read
          * off the unit record, so it cannot change just because the piece is
          * in motion. Forcing both to false here made a loaded wagon train or
          * ship drop its "more units here" tab for the length of the move and
@@ -742,7 +743,9 @@ static void game_move_watch(
          * units_render_on_map uses.
          */
         const bool slide_stacked = units_map_stack_chrome(pool, unit_id);
-        const bool slide_aboard = mu->aboard_ship_id >= 0;
+        /* unit_chrome's 4th badge arm is Artillery + the damaged bit
+         * (+0x3148 bit7), not "aboard a ship". */
+        const bool slide_damaged = (mu->col1_unknown15 & 0x80u) != 0;
         /*
          * bugs.md: and it must be read BEFORE `mu->active` is cleared below.
          * `units_display_type_index` goes through `units_get_const`, which
@@ -784,7 +787,7 @@ static void game_move_watch(
              * not a forced '-' (bugs.md). */
             unit->orders,
             slide_stacked,
-            slide_aboard,
+            slide_damaged,
             /* bugs.md: NULL here fell back to the raw ICONS.SS fill index,
              * which the game palette repurposes (Dutch orange → pink while
              * moving). Use the frame's real palette like the static draw. */
@@ -874,7 +877,7 @@ static void game_combat_watch(
   const bool was_active = mu ? mu->active : false;
   /* bugs.md 371: same chrome standing or lunging — see game_move_watch. */
   const bool bump_stacked = units_map_stack_chrome(pool, attacker_id);
-  const bool bump_aboard = atk->aboard_ship_id >= 0;
+  const bool bump_damaged = (atk->col1_unknown15 & 0x80u) != 0;
   /* Read the chrome corner before the piece is hidden — see game_move_watch:
    * units_display_type_index resolves through units_get_const, which skips
    * inactive units, so an in-loop call gives -1 and the default corner. */
@@ -895,7 +898,7 @@ static void game_combat_watch(
       atk->nation_id,
       atk->orders, /* as above: the lunging piece keeps its own letter */
       bump_stacked,
-      bump_aboard,
+      bump_damaged,
       /* bugs.md: same palette rule as the move slide — raw index went pink. */
       &pal
     );
@@ -4799,10 +4802,22 @@ static bool game_apply_col1_save(ColonizeGameState* game, ColonizeCol1Save* load
    * leaving selected_id -1; without this line the activation queue below
    * would grab the next unit awaiting orders on the very next frame and the
    * re-save would drop back to map_mode 0 (smell audit: the #78 capture
-   * stamp was write-only). A live selection always means Move Pieces (see
-   * the field's own comment), so gate on there being none.
+   * stamp was write-only).
+   *
+   * 2026-09-10: the `&& selected_id < 0` guard this line used to carry is
+   * gone. "A live selection always means Move Pieces" is FUN_2b5a's rule for
+   * the moment a unit is *picked* (0x5390 = 0 there), not an invariant: the
+   * View Pieces command at raw 42112 is a bare `0x5390 = 1` that leaves
+   * 0x5392 alone, and two DOS fixtures prove the combination survives to
+   * disk — original_saves/COLONY01 (map_mode 1, active 0x0000) and
+   * french-campaign/COLONY09 (map_mode 1, active 0x0050). With capture now
+   * stamping map_mode from this field, the guard was the thing that made
+   * those two saves lose their mode on a re-save. The two readers of this
+   * field (game_end_turn_prompt_active, and the auto-advance below) both
+   * take `active_awaiting_player` into account, so mode 1 with a live
+   * selection resolves the moment the player touches anything.
    */
-  game->view_pieces_mode = loaded->head.map_mode != 0 && game->units.selected_id < 0;
+  game->view_pieces_mode = loaded->head.map_mode != 0;
 
   col1_save_free(&game->col1);
   game->col1 = *loaded;
@@ -5012,6 +5027,7 @@ static bool game_save_col1_slot(ColonizeGameState* game, int slot, char* err, si
         game->map_view_x,
         game->map_view_y,
         game->units.selected_id,
+        game->view_pieces_mode,
         err,
         err_size
       )) {
@@ -8967,6 +8983,7 @@ static int game_colony_list_outside_roles(
   const ColonizeColony* colony,
   const ColonizeUnit* unit,
   int* out_roles,
+  bool* out_enabled,
   int out_max
 );
 
@@ -9318,11 +9335,20 @@ static void game_colony_fence_drop(ColonizeGameState* game, ColonizeColony* colo
         ? units_get_const(&game->units, csv->selected_outside_unit)
         : NULL;
       if (u && colony) {
+        for (int ri = 0; ri < COLONIZE_EJECT_ROLE_COUNT; ++ri) {
+          csv->eject_role_enabled[ri] = true;
+        }
         csv->eject_role_count = game_colony_list_outside_roles(
-          &game->colonies, colony, u, csv->eject_roles, COLONIZE_EJECT_ROLE_COUNT
+          &game->colonies,
+          colony,
+          u,
+          csv->eject_roles,
+          csv->eject_role_enabled,
+          COLONIZE_EJECT_ROLE_COUNT
         );
         if (csv->eject_role_count <= 0) {
           csv->eject_roles[0] = COLONIZE_EJECT_COLONIST;
+          csv->eject_role_enabled[0] = true;
           csv->eject_role_count = 1;
         }
         csv->eject_colonist_index = -1;
@@ -9713,6 +9739,7 @@ static int game_colony_list_outside_roles(
   const ColonizeColony* colony,
   const ColonizeUnit* unit,
   int* out_roles,
+  bool* out_enabled,
   int out_max
 ) {
   if (!colony || !unit || !out_roles || out_max <= 0) {
@@ -9721,24 +9748,45 @@ static int game_colony_list_outside_roles(
   int stock_tools = colony->stock[COLONIZE_CARGO_TOOLS] + (unit->tools > 0 ? unit->tools : 0);
   int stock_muskets = colony->stock[COLONIZE_CARGO_MUSKETS] + (unit->muskets > 0 ? unit->muskets : 0);
   int stock_horses = colony->stock[COLONIZE_CARGO_HORSES] + (unit->horses > 0 ? unit->horses : 0);
+  /*
+   * Three states, exactly colonies_list_eject_roles_ex's — same DOS function
+   * (FUN_15eb_3454): a short-stock gear row is LISTED and greyed, not
+   * dropped, and an Indian Convert (@JOB 0x1b, raw 13557-13560) is offered
+   * nothing but the Colonist row. Both were wrong here until 2026-09-10.
+   */
+  const bool convert = (unit->profession == COLONIZE_PROF_CONVERT);
   int n = 0;
-  out_roles[n++] = COLONIZE_EJECT_COLONIST;
-  if (n < out_max && stock_tools >= UNITS_EQUIP_TOOLS_STEP) {
-    out_roles[n++] = COLONIZE_EJECT_PIONEER;
+  out_roles[n] = COLONIZE_EJECT_COLONIST;
+  if (out_enabled) {
+    out_enabled[n] = true;
   }
-  if (n < out_max && stock_muskets >= UNITS_EQUIP_MUSKETS) {
-    out_roles[n++] = COLONIZE_EJECT_SOLDIER;
-  }
-  if (n < out_max && stock_horses >= UNITS_EQUIP_HORSES) {
-    out_roles[n++] = COLONIZE_EJECT_SCOUT;
-  }
-  if (n < out_max && stock_muskets >= UNITS_EQUIP_MUSKETS &&
-      stock_horses >= UNITS_EQUIP_HORSES) {
-    out_roles[n++] = COLONIZE_EJECT_DRAGOON;
-  }
-  /* Church bless, no cargo cost — FUN_15eb_3454 row 0x18. */
-  if (n < out_max && game_colony_can_bless(pool, colony)) {
-    out_roles[n++] = COLONIZE_EJECT_MISSIONARY;
+  ++n;
+  if (!convert) {
+    const struct {
+      int role;
+      bool enabled;
+    } k_gear[] = {
+      {COLONIZE_EJECT_PIONEER, stock_tools >= UNITS_EQUIP_TOOLS_STEP},
+      {COLONIZE_EJECT_SOLDIER, stock_muskets >= UNITS_EQUIP_MUSKETS},
+      {COLONIZE_EJECT_SCOUT, stock_horses >= UNITS_EQUIP_HORSES},
+      {COLONIZE_EJECT_DRAGOON,
+       stock_muskets >= UNITS_EQUIP_MUSKETS && stock_horses >= UNITS_EQUIP_HORSES}
+    };
+    for (size_t i = 0; i < sizeof(k_gear) / sizeof(k_gear[0]) && n < out_max; ++i) {
+      out_roles[n] = k_gear[i].role;
+      if (out_enabled) {
+        out_enabled[n] = k_gear[i].enabled;
+      }
+      ++n;
+    }
+    /* Church bless, no cargo cost — FUN_15eb_3454 row 0x18, never greyed. */
+    if (n < out_max && game_colony_can_bless(pool, colony)) {
+      out_roles[n] = COLONIZE_EJECT_MISSIONARY;
+      if (out_enabled) {
+        out_enabled[n] = true;
+      }
+      ++n;
+    }
   }
   return n;
 }
@@ -9786,9 +9834,12 @@ static bool game_colony_apply_outside_role(
     type_name = "Missionaries";
     break;
   case COLONIZE_EJECT_PIONEER:
-    /* bugs.md: whole 20-tool steps capped at 100, the same rule
+    /* bugs.md row 362: whole 20-tool steps capped at 100, the same rule
      * colonies_eject_colonist uses — this path used to insist on the full 100
-     * and refused a Pioneer the menu beside it had just offered. */
+     * and refused a Pioneer the menu beside it had just offered. The rule is
+     * DOS-literal (FUN_15eb_1068 raw 11250-11253); the full citation, and why
+     * FUN_15eb_35d0's unrounded min(stock,100,req) is a different path, live
+     * on colonies_equip_tools_take in colony.c. */
     tools_take = colonies_equip_tools_take(stock_tools);
     break;
   case COLONIZE_EJECT_SOLDIER:
@@ -13001,6 +13052,11 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
       }
       if (csv->eject_open) {
         if (csv->eject_selection >= 0 && csv->eject_selection < csv->eject_role_count &&
+            !csv->eject_role_enabled[csv->eject_selection]) {
+          /* DOS's 0xffff row: drawn greyed and inert — the dialog stays up. */
+          return true;
+        }
+        if (csv->eject_selection >= 0 && csv->eject_selection < csv->eject_role_count &&
             game->units_ok) {
           const int role = csv->eject_roles[csv->eject_selection];
           if (csv->eject_unit_id >= 0 && colony) {
@@ -13226,13 +13282,28 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
         return true;
       }
     } else if (csv->eject_open) {
+      /* Greyed rows (FUN_15eb_3454 → 0xffff) are drawn but never land under
+       * the highlight — step over them the way a DOS disabled listbox row is
+       * stepped over, and stay put if there is nothing enabled beyond. */
       if (colonize_key_up(input->last_key) && csv->eject_selection > 0) {
-        csv->eject_selection--;
+        int sel = csv->eject_selection - 1;
+        while (sel > 0 && !csv->eject_role_enabled[sel]) {
+          --sel;
+        }
+        if (csv->eject_role_enabled[sel]) {
+          csv->eject_selection = sel;
+        }
         return true;
       }
       if (colonize_key_down(input->last_key) &&
           csv->eject_selection + 1 < csv->eject_role_count) {
-        csv->eject_selection++;
+        int sel = csv->eject_selection + 1;
+        while (sel + 1 < csv->eject_role_count && !csv->eject_role_enabled[sel]) {
+          ++sel;
+        }
+        if (csv->eject_role_enabled[sel]) {
+          csv->eject_selection = sel;
+        }
         return true;
       }
     } else if (csv->dock_orders_open) {
@@ -13518,6 +13589,10 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
         break;
       }
       case COLONY_HIT_EJECT_ROW: {
+        if (hit.index >= 0 && hit.index < csv->eject_role_count &&
+            !csv->eject_role_enabled[hit.index]) {
+          break; /* greyed row (FUN_15eb_3454 → 0xffff): not clickable */
+        }
         if (hit.index >= 0 && hit.index < csv->eject_role_count && game->units_ok) {
           const int role = csv->eject_roles[hit.index];
           if (csv->eject_unit_id >= 0 && colony) {
@@ -14879,11 +14954,19 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
     }
   }
 
-  /* F: fortify selected land unit. */
+  /*
+   * F: fortify the selected unit. Ships take MENU.TXT's ship half of the two
+   * "~Fortify" rows: same order set (Fortify / Fortified, @ORDERS letter F),
+   * different chrome — GAME.TXT @SHIPOPTIONS line 1782 words it
+   * `Anchor in harbor ("Fortify")`. The keyboard path used to print
+   * "Fortifying" for a ship while MAP_MENU_ACTION_ANCHOR (:11417) printed
+   * "Anchoring in harbor" for the same order (audit 2026-09-10 lead 2).
+   */
   if (input->last_key == COLONIZE_KEY_F && game->world_map_ok && game->units_ok) {
     const int uid = game->units.selected_id;
+    const bool ship = uid >= 0 && units_is_sea(&game->units, uid);
     if (uid >= 0 && units_order_fortify(&game->units, uid)) {
-      set_status(game, "Fortifying", NULL);
+      set_status(game, ship ? "Anchoring in harbor" : "Fortifying", NULL);
       game_wait_next_unit(game);
       return true;
     }

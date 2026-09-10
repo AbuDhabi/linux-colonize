@@ -496,8 +496,8 @@ int main(void) {
     const uint32_t saved_dvd = col1.colony[0].rebel_dividend;
     const uint32_t saved_div = col1.colony[0].rebel_divisor;
     const uint16_t saved_count = col1.head.colony_count;
-    const uint32_t saved_bells = col1.nation[0].liberty_bells_total;
-    col1.nation[0].liberty_bells_total = 4000000u; /* DOS-scale lifetime bells */
+    const uint16_t saved_bells = col1.nation[0].liberty_bells_total;
+    col1.nation[0].liberty_bells_total = 40000u; /* large lifetime-bells word */
     /* A record with no accumulation yet: DOS reads 0%, not bells/4. */
     col1.colony[0].rebel_dividend = 0;
     col1.colony[0].rebel_divisor = 0;
@@ -3086,8 +3086,12 @@ int main(void) {
     fprintf(stderr, "unit_ai_king: revolution lose1 (no ports, inland left) ok\n");
   }
 
-  /* Mid-war @WARN1/@WARN2: WoI + REF + exactly one coastal colony → INFO OKs;
-   * unknown46[6] port episode + unknown46[7] colony episode; clear when >1. */
+  /*
+   * Mid-war @WARN%d: WoI + exactly one coastal colony. DOS patches ONE digit
+   * into the warn tag and the colonies test overwrites the ports test (raw
+   * 58506-58534), so this fixture shows @WARN2 alone — unknown46[7] latches,
+   * unknown46[6] stays clear — and the episode clears when colonies >= 3.
+   */
   {
     ColonizeCol1Save end;
     col1_save_init(&end);
@@ -3193,12 +3197,12 @@ int main(void) {
       free(emap.layer3);
       return fail("warn1 must not latch endgame");
     }
-    if (ai_king_latch_get(&end, 6) != 1) {
+    if (ai_king_latch_get(&end, 6) != 0) {
       assets_msg_free(&game_txt);
       free(emap.terrain);
       free(emap.layer2);
       free(emap.layer3);
-      return fail("warn1 should set unknown46[6] episode latch");
+      return fail("colonies<3 outranks ports<3: unknown46[6] must stay clear");
     }
     if (ai_king_latch_get(&end, 7) != 1) {
       assets_msg_free(&game_txt);
@@ -3207,13 +3211,13 @@ int main(void) {
       free(emap.layer3);
       return fail("warn2 should set unknown46[7] episode latch");
     }
-    if (!strstr(estatus, "all but 1") || !strstr(estatus, "surrender")) {
-      fprintf(stderr, "unit_ai_king: warn1 status: '%s'\n", estatus);
+    if (!strstr(estatus, "all but 1") || !strstr(estatus, "lose the war")) {
+      fprintf(stderr, "unit_ai_king: warn2 status: '%s'\n", estatus);
       assets_msg_free(&game_txt);
       free(emap.terrain);
       free(emap.layer2);
       free(emap.layer3);
-      return fail("warn1 should set @WARN1 status");
+      return fail("warn2 should set @WARN2 status");
     }
     {
       int found_port = 0;
@@ -3233,13 +3237,6 @@ int main(void) {
           found_col = 1;
         }
       }
-      if (!found_port) {
-        assets_msg_free(&game_txt);
-        free(emap.terrain);
-        free(emap.layer2);
-        free(emap.layer3);
-        return fail("warn1 should enqueue @WARN1 INFO OK");
-      }
       if (!found_col) {
         assets_msg_free(&game_txt);
         free(emap.terrain);
@@ -3247,19 +3244,26 @@ int main(void) {
         free(emap.layer3);
         return fail("warn2 should enqueue @WARN2 INFO OK");
       }
-    }
-
-    /* Second turn with latches set: no second WARN1/WARN2 enqueue. */
-    {
-      const int q0 = pop.queue_count;
-      estatus[0] = '\0';
-      ai_king_nation_turn(&ectx);
-      if (ai_king_latch_get(&end, 6) != 1 || ai_king_latch_get(&end, 7) != 1) {
+      if (found_port) {
         assets_msg_free(&game_txt);
         free(emap.terrain);
         free(emap.layer2);
         free(emap.layer3);
-        return fail("warn latches should remain while one colony/port left");
+        return fail("DOS shows one @WARN%d per turn: @WARN1 must not join @WARN2");
+      }
+    }
+
+    /* Second turn with the latch set: no second @WARN2 enqueue. */
+    {
+      const int q0 = pop.queue_count;
+      estatus[0] = '\0';
+      ai_king_nation_turn(&ectx);
+      if (ai_king_latch_get(&end, 7) != 1) {
+        assets_msg_free(&game_txt);
+        free(emap.terrain);
+        free(emap.layer2);
+        free(emap.layer3);
+        return fail("warn latch should remain while one colony left");
       }
       int rewarn = 0;
       for (int i = q0; i < pop.queue_count; ++i) {
@@ -3274,7 +3278,7 @@ int main(void) {
         free(emap.terrain);
         free(emap.layer2);
         free(emap.layer3);
-        return fail("warn1/warn2 must not re-enqueue while latched");
+        return fail("warn2 must not re-enqueue while latched");
       }
     }
 
@@ -3311,7 +3315,7 @@ int main(void) {
       const int q1 = pop.queue_count;
       estatus[0] = '\0';
       ai_king_nation_turn(&ectx);
-      if (ai_king_latch_get(&end, 6) != 1 || ai_king_latch_get(&end, 7) != 1) {
+      if (ai_king_latch_get(&end, 7) != 1) {
         assets_msg_free(&game_txt);
         free(emap.terrain);
         free(emap.layer2);
@@ -3333,12 +3337,12 @@ int main(void) {
           found_col = 1;
         }
       }
-      if (!found_port || !found_col) {
+      if (!found_col || found_port) {
         assets_msg_free(&game_txt);
         free(emap.terrain);
         free(emap.layer2);
         free(emap.layer3);
-        return fail("warn1/warn2 should re-enqueue after reclaim episode");
+        return fail("@WARN2 alone should re-enqueue after the reclaim episode");
       }
     }
 
@@ -3346,10 +3350,10 @@ int main(void) {
     free(emap.terrain);
     free(emap.layer2);
     free(emap.layer3);
-    fprintf(stderr, "unit_ai_king: revolution warn1/warn2 (one colony) ok\n");
+    fprintf(stderr, "unit_ai_king: revolution warn selector (one colony) ok\n");
   }
 
-  /* Mid-war @WARN3: crown pop share 50–89%; unknown46[10] episode. */
+  /* Mid-war @WARN3: crown pop share 80–89%; unknown46[10] episode. */
   {
     ColonizeCol1Save end;
     col1_save_init(&end);
@@ -3385,11 +3389,17 @@ int main(void) {
     for (int i = 0; i < 256; ++i) {
       emap.terrain[i] = 25;
     }
-    /* Two human coastal colonies (avoid WARN1/WARN2) + one crown. */
+    /*
+     * THREE human coastal colonies (the colonies<3 test is the last write in
+     * DOS's warn selector and would otherwise pick @WARN2, raw 58530) + one
+     * crown colony.
+     */
     emap.terrain[5 + 5 * 16] = 1;
     emap.terrain[6 + 5 * 16] = 25;
     emap.terrain[8 + 5 * 16] = 1;
     emap.terrain[9 + 5 * 16] = 25;
+    emap.terrain[11 + 5 * 16] = 1;
+    emap.terrain[12 + 5 * 16] = 25;
     emap.terrain[5 + 8 * 16] = 1;
     emap.terrain[6 + 8 * 16] = 25;
     {
@@ -3407,7 +3417,16 @@ int main(void) {
       c1->x = 8;
       c1->y = 5;
       c1->population = 20;
-      ColonizeColony* ck = &cp.colonies[2];
+      /* Third human colony keeps the count at 3 (so the colonies<3 arm of the
+       * selector stays quiet) without moving the 85% share. */
+      ColonizeColony* c2 = &cp.colonies[2];
+      memset(c2, 0, sizeof(*c2));
+      c2->active = true;
+      c2->nation_id = 0;
+      c2->x = 11;
+      c2->y = 5;
+      c2->population = 0;
+      ColonizeColony* ck = &cp.colonies[3];
       memset(ck, 0, sizeof(*ck));
       ck->active = true;
       ck->nation_id = 1; /* crown */
@@ -3418,7 +3437,7 @@ int main(void) {
        * crown total that lands on 85 with 40 human pop is 232, not 227
        * (audit D7 wired the +1 offsets). */
       ck->population = 232;
-      cp.colony_count = 3;
+      cp.colony_count = 4;
     }
 
     ColonizeUnitPool eu;
@@ -3515,7 +3534,7 @@ int main(void) {
       }
     }
     /* Drop crown share below 80% → clear latch; raise again → re-fire. */
-    cp.colonies[2].population = 10; /* 10/50 = 20% */
+    cp.colonies[3].population = 10; /* crown 11/(41+11) = 21% */
     estatus[0] = '\0';
     ai_king_nation_turn(&ectx);
     if (ai_king_latch_get(&end, 10) != 0) {
@@ -3525,7 +3544,7 @@ int main(void) {
       free(emap.layer3);
       return fail("warn3 latch should clear when pop share <80%");
     }
-    cp.colonies[2].population = 232; /* back to 85% under the DOS +1 formula */
+    cp.colonies[3].population = 232; /* crown back to 85% under the DOS +1 formula */
     const int q1 = pop.queue_count;
     estatus[0] = '\0';
     ai_king_nation_turn(&ectx);
@@ -4375,9 +4394,18 @@ int main(void) {
    * "2244/2022 — corrected". Deterministic seed=13 hits both the 1-in-21
    * gate and rolls beneficiary==nation_id (self-gift) on its first two
    * calls (probed empirically, same small-seed-first-roll convention used
-   * elsewhere in this file). AI-only: never fires post-WoI or for the
-   * human nation (not exercised here since the caller itself, not this
-   * function, is what skips the human — see ai.c's ai_euro_nation_turn).
+   * elsewhere in this file). Ported as an AI-nation beat: never fires
+   * post-WoI, and the caller (ai.c's ai_euro_nation_turn), not this
+   * function, is what skips the human. See the PREMISE note on
+   * ai_king_ai_peacetime_gift — DOS's 0x543f polarity says 2244 is really
+   * a human-turn beat; re-premising it is its own pass.
+   *
+   * 2026-09-10 (third-wave lead 2): the landing now runs through
+   * ai_king_10f0_land's paid arm (2244's own `thunk_FUN_2a1f_010a(1)`
+   * tail), so the beneficiary gets a Man-O-War-borne force on a scored
+   * water tile instead of bare units dropped at `(hx, hy+1)`. The MoW is
+   * despawned after unloading (paid mode), so the net unit gain is the
+   * land troops only.
    */
   {
     ai_king_latch_set(&col1, 0, 0); /* peacetime */
@@ -4389,6 +4417,15 @@ int main(void) {
     colonies.colonies[0].active = true;
     colonies.colonies[0].nation_id = 1;
     colonies.colonies[0].population = 3;
+    /* 10f0's water scan (281f_0682) refuses a tile holding another nation's
+     * units; earlier subtests parked nation-0 hulls on both ocean tiles
+     * beside (5,5). Clear them so the paid landing has a scored tile. */
+    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+      ColonizeUnit* wu2 = &units.units[i];
+      if (wu2->active && wu2->y == 5 && (wu2->x == 4 || wu2->x == 6)) {
+        wu2->active = false;
+      }
+    }
     const int gift_units_before = count_nation(&units, 1);
     const uint32_t gift_gold_before = col1.nation[1].gold;
     ai_king_ai_peacetime_gift(&ctx, 1);

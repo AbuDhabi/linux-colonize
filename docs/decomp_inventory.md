@@ -284,8 +284,9 @@ Linux-side present layout and intended constraints (living):
 
 - `GAME.TXT` / palette / MADSPACK+FAB / `.PIK` decode: done for menu background
 - Decomp exports (`original_sources_decompiled/viceroy_unpacked.c`,
-  `original_sources_decompiled/mapedit.c`) are not compiled into the binary; DOS
-  typedef stubs live in `src/platform/dos_compat/dos_types.h` for incremental extraction
+  `original_sources_decompiled/mapedit.c`) are not compiled into the binary. (The old
+  `src/platform/dos_compat/dos_types.h` typedef-stub header was deleted 2026-09-10: never
+  included anywhere, and its `typedef uint8_t bool` collided with `<stdbool.h>`.)
 - Map compositor lookup tables from `VICEROY.EXE` are extracted to `src/data/viceroy_tables.{h,c}`
   (see `docs/viceroy_tables.md`); **static map feature art** follows `MAPEDIT.EXE` instead
 - World map view (**fidelity OK vs MAPEDIT**): terrain, land transitions, forest/hill/mountain/river

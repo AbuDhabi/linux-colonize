@@ -446,9 +446,7 @@ fragment. Related sections are listed in the first column.
 | `@INVASION` / intervene | REF / ally arrival | Done thin | REF `@INVASION`; ally `@INTERVENTION`+`@INTERVENE` |
 | Crown capture | REF takes colony | Done thin | `KING_CAPTURE` via `@CAPTURED3` |
 | Revolution win/lose | End WoI | Done thin | `@WINNING` / `@LOSING1` / `@LOSING2` / `@RETIRING2` via `popup_msg_fill`; latches; VGA PARKED |
-| Mid-war port warn | WoI | Done thin | `@WARN1` when exactly one coastal port left (`unknown46[6]` episode) |
-| Mid-war colony warn | WoI | Done thin | `@WARN2` when exactly one colony left (`unknown46[7]` episode) |
-| Mid-war pop warn | WoI | Done thin | `@WARN3` crown pop share 50–89% (`unknown46[10]`); `@LOSING3` at ≥90% |
+| Mid-war warn | WoI | Done | ONE `@WARN%d` per turn from DOS's digit-patch selector (raw 58506-58534): colonies<3 → `@WARN2` > share ≥80% → `@WARN3` > ports<3 → `@WARN1`; skipped on a turn that wins or loses the war; port-side episode latches `unknown46[6]/[7]/[10]`. `@LOSING3` takes over at share ≥90% |
 | `@CONTINENTAL` FF elect | Founding Father debate | Done | `FF_CONGRESS` |
 | 1800 peacetime end | Auto-end | Done thin | `@SCORED` CHOICE; That's all → `@RETIRING` + retire score; latch `unknown46[4]=3` |
 | Anniversary soon-retire | Calendar | Done thin | `@SOONRETIRING0` Spring 1790 peacetime; `@SOONRETIRING1` 1840 WoI |
@@ -989,11 +987,11 @@ work.
 | `@EXPLOITS` | Partial | endgame/score/calendar — Partial (F10/status/thin INFO) |
 | `@SCORE` | Partial | endgame/score/calendar — Partial (F10/status/thin INFO) |
 | `@LOSING1` | Done thin | WoI lose all ports — `ai_king_check_revolution_end` |
-| `@WARN1` | Done thin | WoI one coastal port left — `ai_king_check_revolution_end` (`unknown46[6]`) |
+| `@WARN1` | Done | WoI ports<3, lowest-priority selector arm — `ai_king_check_revolution_end` (`unknown46[6]`) |
 | `@LOSING2` | Done thin | WoI lose all colonies — `ai_king_check_revolution_end` |
-| `@WARN2` | Done thin | WoI one colony left — `ai_king_check_revolution_end` (`unknown46[7]`) |
+| `@WARN2` | Done | WoI colonies<3, wins the selector — `ai_king_check_revolution_end` (`unknown46[7]`) |
 | `@LOSING3` | Done thin | WoI crown pop share ≥90% — `ai_king_check_revolution_end` |
-| `@WARN3` | Done thin | WoI crown pop share 50–89% — `unknown46[10]` episode |
+| `@WARN3` | Done | WoI crown pop share ≥80% (below the 90% `@LOSING3`), outranked by colonies<3 — `unknown46[10]` episode |
 | `@WINNING` | Done | WoI win — `ai_king_check_revolution_end`; precedes the `@KINGLOSE` throne audience then the CLOSING.EXE cinematic; win tune pool 3 |
 | `@OTHERGRANTED` | Partial | endgame/score/calendar — Partial (F10/status/thin INFO) |
 | `@OTHERMIGHT` | Partial | endgame/score/calendar — Partial (F10/status/thin INFO) |

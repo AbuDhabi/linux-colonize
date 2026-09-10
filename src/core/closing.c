@@ -195,13 +195,36 @@ static void closing_play_frame_sounds(const ClosingCinematic* c) {
       continue;
     }
     const int frame = elapsed % n;
-    /* `_anim_loop` checks the 1-based counter *before* incrementing, so
-     * port elapsed 1/27/37/42 is DOS frame 1/27/37/42. */
+    /*
+     * CLOSING.EXE keeps a 1-based per-series counter (record +12, table
+     * 0x4b96 stride 14) and both cues are keyed on it, so `frame` — this
+     * port's 0-based sprite index — is the counter minus one:
+     *
+     *   `_anim_loop` (image 0x20c, cue test 0x284-0x2a5) compares the
+     *   counter BEFORE incrementing: series 4 (CLOS-FWK) plays 0x59 at
+     *   counter 1, 27, 37, 42 (`cmp ax,0x2a` then `dec al` / `sub al,0x1a`
+     *   / `sub al,0x0a`). It then increments and tail-calls `_do_anims`
+     *   (0x37b -> 0x102), which draws with the *incremented* counter — so
+     *   the tick that plays 0x59 for counter c is the tick that draws
+     *   c + 1, i.e. port frame c. The two off-by-ones cancel and the test
+     *   below is literally 1/27/37/42. `_do_anims` instead plays 0x5a
+     *   inline while drawing (0x19b-0x1ae: series 0 = CLOS-HAT, counter
+     *   == 1), which is the drawn frame itself, i.e. port frame 0.
+     *
+     * Both cues DO re-fire on every wrap, and that is DOS behaviour, not a
+     * port artefact: with repeats == -1 (the shipped CLOS-FWK/CLOS-HAT
+     * rows) `_anim_loop` at 0x2c4-0x2e5 leaves the negative repeat count
+     * alone, resets the counter to 1 and keeps the series active, so the
+     * counter cycles 1..sprite_count forever with period sprite_count —
+     * exactly what `elapsed % n` reproduces. CLOS-FWK has 66 sprites and
+     * CLOS-HAT 22 (section 1 of each .SS is 1056 / 352 bytes of 16-byte
+     * sprite records), so over the 390-tick run the fireworks cue fires in
+     * ~5.9 cycles and every one of the four counters is reachable.
+     */
     if (s->series == CLOSING_SHEET_FIREWORKS &&
         (frame == 1 || frame == 27 || frame == 37 || frame == 42)) {
       g_closing_play(CLOSING_FIREWORK_SOUND_ID);
     }
-    /* `_do_anims` plays 0x5a while drawing hat sprite 1 (after increment). */
     if (s->series == CLOSING_SHEET_HAT && frame == 0) {
       g_closing_play(CLOSING_CHEER_SOUND_ID);
     }

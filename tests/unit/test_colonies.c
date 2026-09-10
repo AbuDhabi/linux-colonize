@@ -938,8 +938,11 @@ int main(void) {
   CHECK(col->stock[COLONIZE_CARGO_TOOLS] == 100, "founder tools enter stockpile");
   /* Stockade needs 3 colonists (@BUILDING min_colony); a size-1 coastal
    * town starts on Docks (bugs.md; seed-100 goldens), a landlocked one on
-   * Warehouse (player-confirmed DOS behaviour). */
-  if (map_tile_is_coastal(&map, land2_x, land2_y)) {
+   * Warehouse (player-confirmed DOS behaviour). "Coastal" here is DOS's own
+   * Docks predicate — the colony +0x1c 0x40 bit (raw 13688), stamped at
+   * founding from map_tile_is_open_sea_adjacent — not the looser live
+   * map_tile_is_coastal harbour probe. */
+  if (map_tile_is_open_sea_adjacent(&map, land2_x, land2_y)) {
     const int docks = colonies_find_building(&pool, "Docks");
     CHECK(col->building_in_production == docks, "coastal size-1 town starts on Docks");
   } else {

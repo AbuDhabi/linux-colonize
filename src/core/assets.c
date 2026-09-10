@@ -29,12 +29,27 @@ static void strip_crlf(char* line) {
   }
 }
 
+/*
+ * DAC byte (6-bit) -> 8-bit channel, uniformly for every input.
+ *
+ * DOS never scales: FUN_1ade_0004 (raw 15184) and FUN_1ae3_0006 (raw 17606)
+ * set the DAC write index at port 0x3c8 and then `out(byte, 0x3c9)` each
+ * palette byte verbatim, as does the retrace-free variant at raw 123768 and
+ * the read-back at raw 124222. The VGA DAC latches only the low 6 bits of a
+ * 0x3c9 write (bits 6-7 are ignored by the hardware), so on real DOS a byte
+ * above 63 displays as `v & 0x3f` — never as itself. The old pass-through for
+ * v > 63 was an uncited guess that made such a channel ~4x brighter than its
+ * neighbours (a hue shift, not an obvious failure); masking first is what the
+ * hardware does and keeps the scaling uniform across all three channels.
+ *
+ * Latent either way: every shipped palette is already 0..63 (VICEROY.PAL and
+ * the COL768 sections are DAC dumps), so no live asset takes this branch.
+ * `(v << 2) | (v >> 4)` is the standard 6->8 bit replication so 63 maps to
+ * 255 rather than 252.
+ */
 static uint8_t vga6_to8(uint8_t v) {
-  /* Classic VGA DAC values are 0..63. */
-  if (v > 63) {
-    return v;
-  }
-  return (uint8_t)((v << 2) | (v >> 4));
+  const uint8_t dac = (uint8_t)(v & 0x3f);
+  return (uint8_t)((dac << 2) | (dac >> 4));
 }
 
 bool assets_resolve_data_dir(const char* override_dir, char* out, size_t out_size) {

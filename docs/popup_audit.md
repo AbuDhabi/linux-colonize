@@ -100,9 +100,9 @@ choices from data where a real `@SECTION` exists.
 | Revolution stalemate (1850) | `@RETIRING2` | Authentic | year≥1850 + crown still alive |
 | Revolution lose (ports) | `@LOSING1` | Authentic | all coastal ports lost (inland may remain) |
 | Revolution lose (colonies) | `@LOSING2` | Authentic | all colonies lost |
-| Mid-war port warn | `@WARN1` | Authentic | one coastal port left; `unknown46[6]` episode |
-| Mid-war colony warn | `@WARN2` | Authentic | one colony left; `unknown46[7]` episode |
-| Mid-war pop warn | `@WARN3` | Authentic | crown pop share 50–89%; `unknown46[10]` |
+| Mid-war port warn | `@WARN1` | Authentic | ports<3; lowest arm of the one-per-turn selector; `unknown46[6]` episode |
+| Mid-war colony warn | `@WARN2` | Authentic | colonies<3; wins the selector (last write, raw 58530); `unknown46[7]` episode |
+| Mid-war pop warn | `@WARN3` | Authentic | crown pop share ≥80% (<90%); `unknown46[10]` |
 | Revolution lose (pop) | `@LOSING3` | Authentic | crown pop share ≥90% |
 
 ## Remediation completed in this pass

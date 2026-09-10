@@ -99,7 +99,7 @@ typedef struct CombatAnalysisSideChrome {
   int display_type;
   int nation_id;
   int orders;
-  bool aboard;
+  bool damaged; /* +0x3148 bit7: damaged Artillery badge arm */
 } CombatAnalysisSideChrome;
 
 typedef struct CombatAnalysisDialog {

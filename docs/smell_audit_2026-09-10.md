@@ -436,7 +436,7 @@ docs/smell_audit_2026-09-09.md section D (#44-#59) by substance.
 
 16. src/core/ai_diplo.c:147-151, :672 (and src/core/ai_contact.c:589) — the constant `AI_DIPLO_INDIAN_PEACE_MEET 96u` is documented as a *scalar* relation value but every live use writes it as the *bitfield* 0x60 = MET|PEACE, and its scalar alias is dead; evidence: the defining comment (:147-149) reads "Peace feeler / first-meet content floor … Heal mid-band up to this ceiling; drift still climbs to 160", while the only two writes store it into `nation[e].relation_by_indian[idx]`, which the line above :672 declares "is the DOS 0x60 MET|PEACE flag byte, not a scalar". `AI_DIPLO_INDIAN_CONTENT_FLOOR` (:151) has no user at all, and both consumers the comment names — `ai_diplo_indian_peaceful_drift` (:480-489) and `ai_diplo_indian_peace_feeler` (:501-506) — are retired no-ops. Secondary: both writes are hard **assignments** (`= 96`) while the paired Indian-side write one line earlier is an **OR** (`euro_diplo[e] |= COL1_INDIAN_PEACE_BIT`), so the Euro→Indian half silently drops any other bit the byte held; and both bypass `ai_diplo_or_both`/`clear_both`, which ai_contact.c:9170-9180 calls "the sole mutation channel" for this matrix (ai.c:5167 is a third raw write). Confidence H on the dead alias + doc contradiction, M on whether the assign-vs-OR asymmetry can bite.
 
-   **RESOLVED 2026-09-10 — 96 == 0x60 == MET|PEACE, a bitfield; writes now or-both.** DOS never assigns the byte: the surrender idiom is FUN_43f7_0108 `clear_both(0xb)` then `or_both(0x60)` (raw 73555-73557). The capital-surrender write (was one-sided `|= 0x40` plus raw `= 96`) and the ai_contact meet write both route through `ai_diplo_or_both` so no other bit is clobbered; the three dead scalar constants (PEACE_MEET, CONTENT_FLOOR, FEELER_HEAL, plus DRIFT_CAP) deleted with tombstones. Open lead: ai.c:5218 still raw-writes `relation_by_indian[idx] = 0`.
+   **RESOLVED 2026-09-10 — 96 == 0x60 == MET|PEACE, a bitfield; writes now or-both.** DOS never assigns the byte: the surrender idiom is FUN_43f7_0108 `clear_both(0xb)` then `or_both(0x60)` (raw 73555-73557). The capital-surrender write (was one-sided `|= 0x40` plus raw `= 96`) and the ai_contact meet write both route through `ai_diplo_or_both` so no other bit is clobbered; the three dead scalar constants (PEACE_MEET, CONTENT_FLOOR, FEELER_HEAL, plus DRIFT_CAP) deleted with tombstones. Open lead: ai.c:5218 still raw-writes `relation_by_indian[idx] = 0`. (Closed 2026-09-10 — routed through `ai_diplo_clear_both(col1, e, nation_id, 0xff)`; see the batch-of-20 lead 4 stamp.)
 
 17. src/core/ai_king.c:4748 — the three lose branches run LOSING2 → LOSING1 → LOSING3, but DOS resolves one selector by last-write-wins in the order `ports==0 → 1`, `pct>=90 → 3`, `colonies==0 → 2` (viceroy_unpacked.c:58507-58532), so LOSING3 outranks LOSING1; the port shows @LOSING1 in the `ports==0 ∧ pct>=90 ∧ colonies>0` case where DOS shows @LOSING3. Confidence L-M.
 
@@ -714,7 +714,7 @@ Fixture evidence below was gathered by decoding the raw `.SAV` records directly
    M on whether the idle state is worth restoring. Same class as the known
    "decoder honors bits the encoder zeroes", inverted.
 
-   **RESOLVED 2026-09-10 — import now honors the stamp; round-trip closes.** `col1_bridge_apply` gates the first-on-map-unit fallback on `(int16_t)active_unit >= 0`, so 0xffff loads as `selected_id = -1`, and `game_apply_col1_save` derives `view_pieces_mode` from `head.map_mode` ANDed with "nothing selected" instead of hardcoding false. DOS's load is a bulk `fread(0x5380, 0x8e)` (raw 120252) restoring the trio verbatim, so honoring it is DOS-literal. Note `map_mode 1` does NOT imply no selection (french COLONY09 carries map_mode 1 + active 0x50; View Pieces at raw 42112 leaves 0x5392 alone) — `active_unit` is the sole authority. Fixture survey: 7 DOS campaign saves carry active_unit 0xffff (the #78 comment's "4 saves" corrected). Two leads: capture's `no_unit_selected` stamp disagrees with 3 of the 7 DOS saves (nus 0), and a View-Pieces session WITH a selection re-saves as map_mode 0 (needs view_pieces_mode plumbed into capture).
+   **RESOLVED 2026-09-10 — import now honors the stamp; round-trip closes.** `col1_bridge_apply` gates the first-on-map-unit fallback on `(int16_t)active_unit >= 0`, so 0xffff loads as `selected_id = -1`, and `game_apply_col1_save` derives `view_pieces_mode` from `head.map_mode` ANDed with "nothing selected" instead of hardcoding false. DOS's load is a bulk `fread(0x5380, 0x8e)` (raw 120252) restoring the trio verbatim, so honoring it is DOS-literal. Note `map_mode 1` does NOT imply no selection (french COLONY09 carries map_mode 1 + active 0x50; View Pieces at raw 42112 leaves 0x5392 alone) — `active_unit` is the sole authority. Fixture survey: 7 DOS campaign saves carry active_unit 0xffff (the #78 comment's "4 saves" corrected). Two leads: capture's `no_unit_selected` stamp disagrees with 3 of the 7 DOS saves (nus 0), and a View-Pieces session WITH a selection re-saves as map_mode 0 (needs view_pieces_mode plumbed into capture). (Both closed 2026-09-10 — `view_pieces_mode` is now a `col1_bridge_capture` parameter and `map_mode` stamps from it, while the `no_unit_selected` half is refuted on a 60-save tally; see the batch-of-20 lead 9 stamp. The count there is corrected again: four of the seven carry nus 0, not three.)
 
 5. **col1_bridge.c:2728-2730 vs :116-132 and :1366-1369 — four copies of the trade-route
    cursor validation, three different rules.** The map-unit decoder requires
@@ -1055,13 +1055,23 @@ madspack/ss/pik/ff failure paths have no leaks or double frees.
 
 9. src/core/opening.c:32-35 vs src/core/closing.c:302-307 — mirrored cinematics, one drops a hook. `opening_set_sound_hooks` accepts `set_bgm_fn` and discards it (`(void)set_bgm_fn;`) though game_loop.c:1078 passes `sound_set_bgm`; `closing_open` calls `g_closing_set_bgm(0)` before its cue precisely so `sound_play` takes the "no VICEROY pool" immediate branch (sound.c:917-925) instead of queueing behind the running song. Harmless today because `game_try_start_intro` only runs from main.c:198 with category still 0; it breaks the moment the intro becomes replayable. Confidence M.
 
+   **RESOLVED 2026-09-10 — hook stored and used, opening now mirrors closing.** `opening_set_sound_hooks` keeps `set_bgm_fn` in `g_opening_set_bgm` (opening.c:31/35) and `opening_open` calls `g_opening_set_bgm(0)` immediately before `g_opening_play(OPENING_BGM_ID)` (opening.c:639-647), the same order as `closing_open` (closing.c:302-307). With the category cleared, `sound_play` takes the "No VICEROY pool" immediate branch (sound.c:964-973) instead of `sound_queue_unlocked`, so 0x34 starts now rather than waiting for a running song to go idle — which is exactly why CLOSING.EXE's port needed it. Game wiring already passed the hook (game_loop.c:1078); test_opening.c passes NULL for it and is unaffected.
+
 10. src/core/settings.c — three read/write asymmetries. `"version"` is written (:110) and never read back, so `COLONIZE_SETTINGS_VERSION` cannot actually gate a migration. `settings_init` sets `g_settings_loaded = true` at :332 *before* `settings_load_file` at :348, so `settings_is_loaded()` reports true even on the corrupt-file path that returns false — and `game_try_start_intro` (game_loop.c:11962) keys off exactly that. `--scale` clamps to `>= 1` with no ceiling (main.c:73-75) while the settings-file path clamps 1..8 (settings.c:286), two answers to the same question. Confidence H, severity L.
+
+   **RESOLVED 2026-09-10 — all three closed.** (a) `settings_load_file` now reads `"version"` back (settings.c:254-271): version 1 is the only shape shipped so there is nothing to migrate, but the read is the hook a future `COLONIZE_SETTINGS_VERSION` bump keys on, and a from-the-future file logs a "loading best-effort" warning instead of parsing silently. (b) `settings_init` sets `g_settings_loaded = false` up front and `true` only after `settings_load_file` succeeds (settings.c:362-371, :394) — the corrupt-file path now reports what actually happened, so `game_try_start_intro` (game_loop.c:12091), the new-game `settings_apply_to_head` (game_loop.c:7639) and `game_persist_debug_hud` (game_loop.c:2546, which would otherwise re-save over a file we deliberately left untouched) all take the no-preferences path. settings.h's contract comment updated from "whether settings_init ran at all" to "a preference file is in play"; test_settings.c asserts `!settings_first_run()` on that path (still true) and never asserts `settings_is_loaded()` there. (c) One clamp for both entry points: `settings_clamp_window_scale` (settings.c:30, declared settings.h with `COLONIZE_WINDOW_SCALE_MIN/MAX` 1..8) is now called by the settings-file read (settings.c:316) and by `--scale` (main.c:72-73); README's flag table says "clamped to 1..8".
 
 11. src/core/assets.c:32-38 — `vga6_to8` silently passes through any channel > 63 instead of scaling, with no citation. On a palette where some channels exceed 63 the result is per-channel mixed scaling (that channel ends up ~4× darker relative to its neighbours), which would show as a hue shift rather than an obvious failure. All shipped VICEROY.PAL/COL768 data is 0..63 so nothing triggers it, but the guard is a heuristic guessing at input it never sees rather than a documented DOS rule. Confidence M, severity L.
 
+   **RESOLVED 2026-09-10 — masked, not passed through; DOS cites added.** DOS never scales and never validates: the palette uploaders write the bytes verbatim to the DAC — `out(0x3c8, index)` then a byte-at-a-time `out(v, 0x3c9)` loop in FUN_1ade_0004 (raw 15184-15201, full 0x300-byte upload), FUN_1ae3_0006 (raw 17606-17623, partial range), the retrace-free variant at raw 123768-123783 and the read-back at raw 124222-124239. The VGA DAC latches only the low 6 bits of a 0x3c9 write, so a byte above 63 displays on real DOS as `v & 0x3f`, never as itself; the old `if (v > 63) return v;` was an uncited guess that would have rendered such a channel ~4x brighter than its neighbours. `vga6_to8` now masks first and applies the same `(v << 2) | (v >> 4)` replication to every channel (assets.c:32-53), with the citations and the "all shipped data is 0..63" note in the comment. Confirmed latent: VICEROY.PAL is 1024 bytes with max byte 63 (zero bytes over 63), and the COL768 sections feeding `assets_palette_from_col768` are DAC dumps of the same kind, so no shipped asset changes a single pixel.
+
 12. src/platform/linux_sdl2/sdl_runtime.c:205 vs :529-536 — `platform_present` sizes its index→RGBA loop from `framebuffer->width * framebuffer->height` but `rgba_buffer` is allocated from the hardcoded 320×200 at :205; a larger framebuffer overruns the heap. Only main.c:216-221 supplies one and it is 320×200, so this is latent. Same function family hardcodes `0xFD` at :475 instead of `COLONIZE_SS_TRANSPARENT` (ss.h:10) — documented in platform.h:138, but it is the one place the magic number is re-typed. Confidence H (facts), severity L.
 
+   **RESOLVED 2026-09-10 — loop clamped to the allocation, magic number retyped.** `platform_present` no longer sizes anything from the caller: it copies row-wise over `min(framebuffer, platform)` extents with the destination stride fixed at `platform->width` (sdl_runtime.c:536-573), zeroes the scratch and logs once when the dimensions disagree, and passes `platform->width * 4` as the `SDL_UpdateTexture` pitch (:575) and in the frame-1/120 diag line (:589). The old code walked `framebuffer->width * framebuffer->height` entries of a buffer allocated from the hardcoded 320x200 (:206) — and the streaming texture is created at that same 320x200 (:184-190), so a larger framebuffer was never presentable in the first place, only overrunnable. A null-`pixels` guard was added alongside the existing null-argument check. `0xFDu` at :475 is now `COLONIZE_SS_TRANSPARENT` via a new `#include "core/ss.h"` (:11), the same constant platform.h:138 documents for this parameter. All present-path callers pass 320x200 (main.c:212-218 and the ten `platform_present` sites in game_loop.c), so this is behaviour-preserving today.
+
 13. src/core/closing.c:198-207 — comment/code mismatch in the firework cue. The comment says "port elapsed 1/27/37/42 is DOS frame 1/27/37/42", but the test uses `frame = elapsed % n` (:197), not `elapsed`. With `repeats == -1` (the shipped CLOS-FWK row, :283) the sheet loops forever, so the four cues re-fire on every wrap rather than once as the comment implies. Whether DOS's `_anim_loop` re-triggers per loop is what would settle it; closing.h:47-49 cites the pre-increment counter but not the wrap behaviour. Confidence M.
+
+   **RESOLVED 2026-09-10 — code is DOS-correct (including the per-wrap re-fire); the comment was wrong and is rewritten.** Settled by disassembling COLONIZE/CLOSING.EXE directly (ndisasm -b16 on the image at file offset 0xa00 = load base; `_anim_loop` is image 0x20c, `_do_anims` image 0x102, main loop 0x44c). Each series is a 14-byte record at 0x4b96 (+0 series, +2 start frame, +4 repeats, +6 baseX, +8 delay, +10 active, +12 1-based counter). Three findings: (1) `_anim_loop` tests the counter BEFORE incrementing (0x284-0x2a5: `cmp ax,0x4` for CLOS-FWK, then `cmp ax,0x2a` / `dec al` / `sub al,0x1a` / `sub al,0x0a` = counter 1, 27, 37, 42 -> `mov ax,0x59; call 0x69b:0xe`), then increments (0x2ba) and tail-calls `_do_anims` (0x37b), which draws with the incremented counter — so the tick that plays 0x59 for counter c draws counter c+1, i.e. this port's 0-based `frame == c`. The two off-by-ones cancel and `frame == 1/27/37/42` is literally right. The hat cue is different in kind: `_do_anims` plays 0x5a inline while drawing (0x19b-0x1ae, series 0 and counter == 1), i.e. the drawn frame, which is port `frame == 0` — also already right. (2) The wrap re-fire is DOS-real: with `repeats == -1` the wrap path (0x2c4-0x2e5) skips the decrement (`jng`), sets the counter back to 1 and, with delay 0, leaves the series active, so the counter cycles 1..sprite_count forever with period sprite_count — exactly `elapsed % n`. (3) Reachability confirmed: CLOS-FWK.SS section 1 is 1056 bytes = 66 sprite records and CLOS-HAT.SS 352 = 22, so all four firework counters exist and the cue set repeats ~5.9 times over the 390-tick run. Code unchanged; closing.c:198-223 now carries the counter/frame mapping with these citations and closing.h:45-56 records the wrap behaviour the old note omitted. New lead below: the same disassembly shows CLOSING.TXT's Delay column is an inter-cycle pause in DOS, not a start-tick offset as `closing_start_tick` treats it.
 
 
 ---
@@ -1081,9 +1091,25 @@ madspack/ss/pik/ff failure paths have no leaks or double frees.
 2. units.c:6447 carries a second copy of the stale "raw 99190-99196" citation
    (correct range is 99186-99195); the A1 fix corrected only the
    `units_domain_blocker_at` copy.
+
+   **RESOLVED 2026-09-10 — three stale copies in units.c corrected; two more catalogued elsewhere.** Confirmed against the decomp: `FUN_5fef_0000` opens at viceroy_unpacked.c:99111, and the domain gate is **99186-99195** — `if (bVar2) { if (type < 0xd || 0x12 < type) local_16 = 0; else local_16 = 1; local_a._0_2_ = local_16; if (local_c != local_16) goto code_r0x0006ffa9; }`. Lines 99190-99196 are the middle of that block plus the two statements after the `goto` label, i.e. the citation pointed one arm past the comparison it names. units.c had **three** copies, not two: `:2048` (the verbatim transcription block at the head of the defender picker, cited as `99137-99147 + 99190-99196`), `:6539` (the smell #4 berthed-hull note) and `:6618` (`units_domain_blocker_at`'s own gate comment) — all now read 99186-99195. Left for a later pass, same stale range in two other files: `ai_euro.c:16721` and `combat_strength.c:541` (the latter cites 99190 as the *function* address, which is doubly wrong — the function is at 99111). No code changed; `gcc -fsyntax-only` clean.
 3. `build/debug/sav_json` still segfaults on
    original_saves/french-campaign/COLONY02.SAV (known from bugs batch
    2026-09-09b; reconfirmed during the F3 fix).
+   **RESOLVED 2026-09-10 — stale JSON schema in tools/col1_json.c, crashed on
+   every fixture.** col1_save.h had split the old two-byte nation
+   `unknown26_pad[2]` into `king_grace_counter` (+0x48) + scalar
+   `unknown26_pad` (+0x4a) (smell #52 fallout), but the JSON writer still did
+   `W_U8ARR(..., nt->unknown26_pad, 2)` — the scalar's VALUE was passed where
+   `wi_arr` expects a data pointer, so the first nation record dereferenced
+   e.g. `(const uint8_t*)0x98`. Writer now emits both fields as scalars (and
+   `king_grace_counter`, previously dropped, round-trips); reader accepts both
+   the new scalars and the legacy `[grace, pad]` array form. All 60+
+   original_saves/port_saves fixtures convert cleanly; SAV→JSON→SAV on
+   french COLONY02 differs only in 2 bytes of DOS name-tail garbage past a
+   colony-name NUL (pre-existing, cosmetic — DOS leaves heap residue after
+   the terminator, the JSON path zero-fills). Lead 14 of the seventh wave is
+   closed by the same fix.
 
 # Leads surfaced by the 2026-09-10 second fix wave (E6/G3/C2/C3/C7/G6/Lead1/B6/B5/A3), unfiled above
 
@@ -1094,26 +1120,182 @@ madspack/ss/pik/ff failure paths have no leaks or double frees.
    "ship-slow survives the surcharge" model and "step cost applied
    unconditionally before combat" comment are both questionable. Needs its own
    pass; rewrites the shared model + the ship-slow test.
+   **RESOLVED 2026-09-10 — lead confirmed in full; model rewritten in
+   units_try_move.** Asm: 1b0e entry snapshots remaining (`uVar15`, raw
+   100339-100340), does the attack `spent += 3` (100341-100343), then under
+   the SAME flag calls `FUN_281f_0934` (100381-100383) → `FUN_1427_155e`
+   `spent = FUN_1427_065a(unit)` = the full max allotment (raw 8880-8888) —
+   so the +3 is a dead store and the real charge is a FULL exhaust, before
+   the roll, win or lose, ships included; there is no ship-slow. 465b's step
+   cost and its shore-crossing exhaust both sit inside `if (!bVar4)`
+   (75639-75648), so an attacker pays neither. Port changes (units.c): the
+   `combat_attack_mp_surcharge` int became `bool combat_attack_entry`; all
+   four outcome sites (loss return, land-win stay-put, native raid stay-put,
+   advance/walk-in via the shared charge site) now call `units_mp_exhaust`
+   instead of `units_mp_charge(cost + 3)`, and the shared charge site skips
+   step cost + shore exhaust for attacks. Charging stays AFTER the resolve
+   because the fatigue peel and its Combat Analysis rows read the ENTRY
+   remaining, which DOS gets from the pre-mutation snapshot. Also ported the
+   1b0e entry gate (100359-100372): with remaining < 3 thirds an attack is
+   refused outright for natives/crown (`3 < uVar16`) and for any Euro slot
+   with `0x543f[nation] != 0` (port: `col1->player[n].control != 0`); only
+   the interactive human reaches the @HALF tired-attack CHOICE, which
+   game_loop already asks before the move. Gate is active only when col1 is
+   wired so bare unit fixtures keep their attacks. The naval "ship-slow" test
+   in test_units.c re-premised to expect 0 MP after a naval win; the stale
+   "PARK: ship-slow formula" note in units.h deleted. 62/62 tests pass.
 2. 31 remaining id-as-slot walks outside ai_contact/ai_diplo (see Lead 1's
    RESOLVED paragraph for the full line list): ai_euro.c ×27, ai_king.c ×3
    (:4037/:4121/:4171), ai_goals.c:1336.
+   **RESOLVED 2026-09-10 — all 30 converted to slot walks, 1 deliberately
+   left.** Idiom throughout: iterate `&pool->units[slot]`, drop the now-dead
+   `!u ||` NULL arm in favour of `!u->active`, and hand `u->id` to every
+   id-taking accessor (`units_get`/`units_get_const`/`units_is_sea`/
+   `units_board`/`units_max_mp`/`ai_euro_is_ship_type`/
+   `combat_unit_base_x8`) — same as the ai_contact/ai_diplo pass, and the
+   same shape as DOS's own record-order walk (raw 78159, `local_1a` indexing
+   `0x3144 + local_1a * 0x1c`). Sites, by function:
+   **ai_euro.c ×26** — `ai_euro_refresh_continent_stance` (also
+   `units_is_sea`/`combat_unit_base_x8` keys); the 5952_035e origin refresh;
+   `ai_euro_0a60_weight_seed`'s live census fallback; the continent
+   colony/land-unit pair (also `units_is_sea`); `ai_euro_0a60_stack_counts`
+   (+ NULL-pool guard, since the walk no longer goes through the accessor);
+   `ai_euro_0a60_unit_housekeeping`'s ship-type census, its main loop **and**
+   its inner "earlier-indexed own ship in the stack" loop; the 0a60
+   goal-consumption loop (also the `ai_euro_is_ship_type` key);
+   `ai_euro_0a60_units_on_tile`; the col/land/skilled continent tally (also
+   `units_is_sea`); the 20e6 tile-stack scoring walk; the labor-shortage
+   `outside` count, its garrison decrement and the `homed_mil` tally; the
+   five admission passes; `ai_euro_10ec` land combat strength (also both
+   accessor keys) and `ai_euro_10ec_land_units_on`; `ai_euro_20e6_stack_count`
+   and `..._stack_combat_0b` (also both keys); the 20e6 foe-stack col9 tally;
+   `ai_euro_20e6_nearest_own_unit`; `ai_euro_20e6_clear_stale_board_marks`;
+   the 10be transport-assemble loop; the 457e ship-dump mark loop.
+   **ai_king.c ×3** — `ai_king_crown_ships_in_europe_lane`, the MoW
+   return-home tile-block scan, the crown-presence (`ref_present` re-arm)
+   scan. **ai_goals.c ×1** — the water-arm armed-hull stack scan.
+   Two extra bug classes fell out of the sweep, both the ai_diplo.c:1388
+   `units_clear_orders` class (index used as slot *and* as id in one body):
+   (a) the work-slot pioneer/military scan was already a slot walk but still
+   passed `ui` to `units_is_sea`, so its "is this a land unit" test read a
+   different unit than the one being scored; (b)
+   `ai_euro_20e6_nearest_own_unit` compared its `except_id` parameter (the
+   caller passes `u->id`) against the loop *index* and returned that index to
+   a caller that fed it straight back into `units_get_const` — so the
+   treasure-train rendezvous test could exclude the wrong unit and then
+   resolve the "mate" to a third one. Both now key on `o->id`.
+   **Left as-is on purpose:** the village-errand / explore-fatigue / hop-latch
+   hygiene loop in the 20e6 dispatcher (`if (units_get_const(ctx->units, i) !=
+   NULL) continue;`). Those latch arrays are keyed by unit ID at every read,
+   so that loop walks the addressable ID SPACE and clears the entries no live
+   unit owns — `units_get_const(pool, i) == NULL` is exactly "no live unit
+   has id i". Converting it would break the arrays' key. Comment added
+   in-place so the next sweep does not re-flag it.
+   Where a converted loop touches the id-keyed `s_0a60_pilot_state` shadow
+   (housekeeping, goal consumption, admission passes, stale-board-mark clear,
+   10be, 457e) the shadow keeps its `u->id` key and the file's existing
+   `0 <= id < COLONIZE_UNITS_MAX` guard is applied in the loop's skip
+   condition — the shadow is 256 wide, so an id past that is skipped exactly
+   as the other readers (e.g. the 20e6 unit-state snapshot) already skip it.
+   Verified with `gcc -fsyntax-only` at the project's debug flags; all three
+   files clean. **Expected test impact:** the extra top slot and any id >= 256
+   now reach the sums, so census/strength/stack figures can shift and goldens
+   may need a re-run.
 3. ai_king.c:3654 KINGFRIGATE gift spawn = third spelling of the voyage fleet
    count (bare `units_count_sea_for_nation`, no Europe adds) and fires for the
    human — same under-count B6 fixed in turn.c.
+
+   **RESOLVED 2026-09-10 — B6's counter exported and reused; human-firing confirmed DOS-real.**
+   The count half was real. `ai_king_frigate_spawn` fed
+   `europe_voyage_turns_roll` a bare `units_count_sea_for_nation`, but DOS
+   58419 is `FUN_291f_0aee(0x281f, iVar5, x, y)` — the same roll the manual
+   sail path uses, reading the DS:0x9418[nation] hull tally built by
+   FUN_4962_0018 over the WHOLE unit array. DOS parks a crossing ship as a
+   live unit on its nation's Europe sentinel diagonal, so harbour, expected
+   and bound hulls are all inside that tally; this port hoists the human's
+   Europe-side ships into `EuropeScreen`, so the live-pool walk under-counts
+   him by exactly those three arrays. A human with his whole fleet in the
+   harbour therefore drew the `< 3 hulls` fast crossing for the Crown's gift
+   Frigate. B6's `turn_voyage_ship_count` (turn.c:2819) is now non-static and
+   declared in turn.h; ai_king.c calls it. game_loop.c's
+   `game_voyage_ship_count` stays a separate spelling of the same three adds
+   — it works on `ColonizeGameState` and has no `ColonizeTurnContext` in
+   hand — and both headers now say so. The counter adds the Europe arrays
+   only when `europe->bound_nation == nation`, i.e. only for the human, which
+   is correct for AI nations (theirs stay on the diagonal, inside the pool
+   walk), so one function serves both.
+   Human-firing: **DOS-real, no change.** FUN_3844_00f2's tail
+   (viceroy_unpacked.c:58393-58424) runs the whole @KINGFRIGATE block for any
+   nation `iVar1`; `if ((iVar1 < 4) && (*(char *)(iVar1*0x34 + 0x543f) == '\0'))`
+   plays the 0x3e audience tune and takes the interactive `FUN_281f_03fe`
+   CHOICE, `else local_4 = 1` auto-accepts, and the closing
+   `FUN_291f_0ae0(0xf01, 10)` (+10% KINGTAX) is behind that same human test.
+   `0x543f == 0` is the HUMAN value — the sibling `== '\x01'` arm at 6397 is
+   the AI nation turn and `== '\x02'` is absent. So `ai_king_nation_turn`'s
+   `ai_king_frigate_offer(ctx, ctx->human_nation)` is the DOS shape and the
+   port's existing header already described it correctly.
 4. Leave-as dialog residues (both builders): DOS greys short-stock rows
    (`FUN_15eb_3454` returns 0xffff → disabled render) where the port omits
    them; DOS refuses every row but Colonist to an Indian Convert
    (`cur_prof == 0x1b`) — rule already ported for the Europe dock menu.
+   **RESOLVED 2026-09-10 — both fixed, in both builders.** FUN_15eb_3454 (raw
+   13518-13590) answers three values, and the port now carries all three: 0 =
+   row absent, 0xffff = row listed but disabled (raw 50805 `local_e == -1` →
+   the greyed draw FUN_291f_01b6), 0xfffe = ordinary. New
+   `colonies_list_eject_roles_ex` (colony.c, old signature kept as a wrapper
+   so the three test call sites are untouched) and its twin
+   `game_colony_list_outside_roles` (game_loop.c) now always list the four
+   gear rows and flag each enabled/disabled from colony stock (tools 20,
+   muskets/horses 50), and both return the Colonist row alone when the body's
+   profession is `COLONIZE_PROF_CONVERT` (raw 13557-13560,
+   `0x13 < param_1 && cur_prof == 0x1b -> return 0`) — the same rule
+   `europe_arm_row_enabled`'s `convert` flag already enforced on the dock
+   menu. Carrier: `ColonyScreenView.eject_role_enabled[]`. Greyed rows draw in
+   colour 8 (colony_screen.c, the Europe dock menu's disabled grey), are
+   stepped over by the up/down keys, and are inert to Enter and to a click —
+   the dialog stays up rather than answering "Cannot equip unit". The
+   appliers' own stock re-checks are untouched. **Golden impact:** none —
+   dialog rows and input only; no simulation path calls these builders.
+   Not ported, filed below: the Missionary row's `iVar2 != 0x18` disjunct
+   (DOS offers row 0x18 to an already-Jesuit body in a churchless colony).
 5. C2 follow-up: the equip gate keeps DOS-literal `pop > 10` while the
    neighbouring `population > 1` gate carries the absorption +1 compensation —
    two reads of the same DOS byte with different compensation in one block.
+   **RESOLVED 2026-09-10 — both reads now carry the same +1.** ai_euro.c:18781
+   is `equip_pop > 9` (was `> 10`), matching the `equip_pop > 0` beside it, and
+   the block comment states the rule once: both gates read colony +0x1f at the
+   same point in FUN_5952_035e — raw 94276 (`+0x1f < 2` → bail) and raw 94290
+   (`'\n' < +0x1f`) — which is *after* the absorption arm has added the on-tile
+   Pioneer, while the port's compressed step holds the pre-absorption
+   population, so every read of that byte here gets the same +1. **Golden
+   impact:** the "big settled town" arm now admits pop-10 towns (11
+   post-absorption), which is what DOS admits; a golden turn with a pop-10
+   colony, stance 0, 50+ muskets, no NEEDS_COLONISTS and a passing 1-in-4 roll
+   would gain a Soldier. Not run here (no-build rule).
 6. G3 residues in ai_contact.c (human-reachable record-only gold, same class):
    `ai_contact_apply_gift_gold` (CONTACT_GIFT popup), village trade
    (`ai_contact_2820_sell_settle` credit, `ai_contact_2e92_settle` read+debit),
    display/gate reads at ~2302/2542/2828/3438-3459/6293/6556.
+
+   **RESOLVED 2026-09-10 — every record-only gold site in ai_contact.c now goes through `europe_nation_gold` / `europe_nation_gold_add`; `grep '\.gold\|->gold'` on the file returns nothing but comments.** Confirmed as filed and one site wider. Converted, in file order: `ai_contact_apply_gift_gold` (the affordability gate **and** the debit — this is the CONTACT_GIFT amount CHOICE the human drives, so a player who had just sold in Europe could be told "The Xxx refuse gifts" against a purse his sidebar said was fat); `ai_contact_enqueue_gift_amount_choice`'s `< 5` "cannot pay Small" gate; the incite-price read at the head of the 417e Mode-1 menu; `ai_contact_demand_can_pay_gold`'s `>= 50` tribute gate; the low-friction meet band, where one `const uint32_t purse` now feeds all three thresholds that used to read `nat->gold` (`< 10` refuse, `< 20` skip-silent, `>= 0x4b` Generous); the 417e **Mode-2** auto-incite (`< 1500` pre-gate, price gate, and the `gold -= price` debit at the LAB_4d56_4499 tail); `ai_contact_2820_sell_settle`'s sale credit; `ai_contact_2e92_settle`'s buy gate and debit; and the two human-facing display reads — the BUY0/BUY1 accept label's `(of %u$)` and the @NOTENOUGH popup's `%d0` treasury figure, which could name a different number than the gate that had just rejected the purchase. The village-trade pair is the sharpest of them: buying and selling at a village is the human's main non-Europe gold channel, and crediting the record alone meant the sale was overwritten at the next europe→col1 push (the exact G3 failure mode). Mode-2 incite is AI-driven, where the accessor answers from the record as before — no behaviour change today, but it stops being wrong the moment that AI is the nation borrowing `eu->gold` (`units.c:680`, `ai_euro.c:5030/6690`). All calls pass `ctx->europe`, matching the three sites the G3 pass itself had already converted in this file (`:2701/2733`, `:2949/2962`, `:9896`). `gcc -fsyntax-only` clean at the project's debug flags.
 7. Equip-tools rounding: DOS `FUN_15eb_35d0` takes `min(stock, 100, req)` tools
    with no 20-step rounding; both port appliers use `colonies_equip_tools_take`
    (whole 20-steps, a bugs.md fix) — possibly deliberate deviation, re-check.
+   **REFUTED 2026-09-10 — wrong DOS function; the port is DOS-literal.**
+   `FUN_15eb_35d0` is the cargo-hold loader, not the equip path: its `req`
+   comes from `FUN_15eb_3208` (raw 13367-13390), which returns *free hold
+   slots* and writes `*param_3 = free * 100`, so `min(stock, 100, req)` is
+   "load one 100-lot into a ship/wagon hold". The equip path is
+   `FUN_15eb_1068`, and raw 11250-11253 is the port's rule verbatim:
+   `local_8 = stock[TOOLS] (+0xb6) / 0x14; iVar6 = local_8 * 0x14; if (100 <
+   iVar6) iVar6 = 100;`, written to the unit's tools byte +0x3159 on
+   profession 0x14 (raw 11274 / 11288) and charged back to the colony in the
+   tail (raw 11322-11331). The four dialog builders recompute the same
+   `stock/20*20`, clamped to [0x14, 100] (raw 50570-50571, 53455, 62541,
+   67774). So bugs.md row 362's "a Pioneer legitimately walks with
+   20/40/60/80/100" is DOS behaviour, not a port convenience. Citation added
+   to `colonies_equip_tools_take` (colony.c) with a pointer from the
+   game_loop.c call site; no behaviour change, no golden impact.
 
 # Leads surfaced by the 2026-09-10 third fix wave (20-smell batch: A4/A6/A9, B3/B4/B8, C1/C5/C6/C7/C8, D6/D7/D9/D10/D11/D13, E3, F7, I2), unfiled above
 
@@ -1124,12 +1306,97 @@ madspack/ss/pik/ff failure paths have no leaks or double frees.
    ARE decoded (raw 78150/78177/78235/78302/78312, now cited in
    `ai_contact_continent_presence_4962`). The term is worth up to +56 against a war
    commit threshold of > 0.
+
+   **RESOLVED 2026-09-10 — both halves ported, bit 8 modelled, no weak symbols.**
+   (a) DS:0xa89c is now `ai_contact_continent_war_count_a89c(ctx, nation)`
+   (ai_contact.c, declared in ai_contact.h) — raw 93110-93115, verbatim
+   `*(undefined1 *)0xa89c = 0; do { if ((*(byte *)(local_12 + -0x6a0e) & 8) != 0)
+   *(char *)0xa89c = *(char *)0xa89c + '\x01'; ... } while (local_12 < 0x10);`,
+   i.e. the count (0..16) of continents carrying this nation's bit 8, recounted at
+   the head of the per-nation AI pass right after FUN_4962_0018 refills DS:0x95f2.
+   `head.difficulty` was never that byte; the substitution existed only because the
+   writer was unlocated. Consumed at raw 89660-89662 exactly as DOS spells it:
+   `if ((*(char *)0xa89c != '\0') && (1 < local_48)) local_28 += (uint)*(byte
+   *)0xa89c * local_48 * -8;`.
+   (b) Bit 8's writer (raw 78167-78180) is now modelled inside
+   `ai_contact_continent_presence_4962` via a shared static predicate
+   `ai_contact_4962_unit_sets_bit8` that the tally reuses — no second copy of the
+   bit logic, and nothing weak-linked. DOS gate, verbatim: own-nation unit
+   (`(bVar5 & 0xf) == param_1`), non-naval (`type < 0xd || 0x12 < type`), combat row
+   `1 < *(byte *)(type * 0xe + 0x5235)` (= `ColonizeUnitType.defense`, units.c:533),
+   orders `+0x314c == 5 || == 6` (UNITS_ORDER_FORTIFY / FORTIFIED), and
+   `FUN_281f_0696(x, y) < 0` — the **Euro-colony** owner probe, not the settlement
+   probe `FUN_281f_06be` the exposed-row gate uses, so a unit on a village tile
+   still sets the bit. Passengers excluded explicitly (DOS parks them at (−2,−2)
+   where the continent lookup returns −1; the port rides them at the carrier tile).
+   The presence loop's early-out widened from `(presence & 2) == 0` to
+   `(presence & 0xa) != 0xa`. No existing reader changes: both 5952 arms test only
+   bits 1/2/4, and the new scorer term masks with `& 7`.
+   (c) The scorer's missing war term is live: `score += (
+   ai_contact_continent_presence_4962(ctx, nation, cid) & 7) * 8;` — raw
+   89654-89656 `local_58 = (*(byte *)(iVar16 + -0x6a0e) & 7) * 8; local_28 +=
+   local_58;`, keyed on the **candidate colony's** continent. Bit writers cited:
+   raw 78167-78180 (bit 8), 78234-78235 (bit 2), 78301-78302 (bit 4), 78306-78312
+   (bit 1).
+
+   **Expected golden impact (AI turns).** Both changes hit only the `mil != 0`
+   (war-cargo) arm of `ai_euro_20e6_colony_sail_pick`, whose commit threshold is
+   `best > 0`. (c) adds a uniform-per-continent +8/+16/+24 — on a single-continent
+   map it is a constant offset that changes no ranking but does push marginal
+   scores over the commit threshold, so expect *more* war-cargo sails to commit
+   where they previously fizzled; on multi-continent maps it also re-ranks
+   candidates toward contested continents. (a) replaces a constant 2..4 penalty
+   multiplier with a live 0..16 count that is 0 for a nation with no fortified
+   field units — so early-game war sails lose the `difficulty * mil * -8` penalty
+   entirely (net +16..+48 for `mil >= 2`) and late-game multi-continent nations
+   gain a much larger one. Net: `golden_ai_turns` / `golden_ai_mid01` /
+   `golden_ai_late01` war-cargo destinations can move; not re-run here (no-build
+   rule). Peace sails (`mil == 0`) are untouched.
 2. `FUN_43f7_2244` (peacetime AI twin of the merc hire, raw 75100-75147) fills the
    same `0x9e46` array and also tails into `thunk_FUN_2a1f_010a(1)`; the port's
    counterpart (`ai_king_spawn_landing` at `(hx, hy+1)`, ai_king.c ~:4020) is a
    THIRD copy of the divergent spawner the D6 fix deleted, with the same
    water-spawn exposure. Touches AI-nation goldens; needs its own pass wiring it
    to `ai_king_10f0_land`.
+
+   **RESOLVED 2026-09-10 — 2244 now tails into the shared 10f0 paid arm; the third spawner is deleted.**
+   Confirmed the tail: 2244 ends `thunk_FUN_2a1f_010a(0x281f, 1)` at raw 75146,
+   2022's accept ends `thunk_FUN_2a1f_010a(0x281f, uVar7)` at 75068, and
+   `FUN_2a1f_010a` is a thunk to `FUN_43f7_10f0` (75377-75381) — one landing
+   routine, `param_1` the paid flag, for both. `ai_king_ai_peacetime_gift`
+   now fills the DS:0x9e46 count array as DOS does — `{regular, 0, -,
+   artillery}`, with slot 1 (0x9e48, Cavalry) left zero because 2244 zeroes it
+   at entry (75096-75099) and only 2022 ever writes it — stamps
+   `head.rival_nation_slot_2` from the rolled nation (DOS 75091
+   `*0x53d6 = iVar4`, the slot 10f0's paid arm reads for the @MERCS line),
+   debits, and calls `ai_king_10f0_land(ctx, beneficiary, 0, 1, merc_counts)`.
+   Debit-before-landing is DOS-literal (75136-75146: the gold goes whether or
+   not the roulette finds a port). `ai_king_spawn_landing` had no callers left
+   and is deleted, with a do-not-reintroduce note in its place — every King
+   landing now runs 10f0's colony roulette, water-tile scoring, Man-O-War
+   transport (despawned after unload in paid mode) and the FUN_43f7_0082 type
+   map, so the `(hx, hy+1)` water-spawn class (bugs.md 261) is gone from
+   ai_king.c entirely.
+   Two enabling changes: (a) `ai_king_10f0_land`'s hoisted
+   `ai_king_independence_declared` early-return is **removed** — DOS's 10f0
+   has no WoI gate (74270-74310 goes straight into the colony walk); WoI state
+   is the callers' business (2022 behind `0x5382 & 1` set, 2244 behind it
+   clear at 75088), and every free-arm caller already gates itself
+   (`ai_king_war_act`, `ai_king_spend_woi_bell_pool`), so the free path is
+   unchanged while the peacetime paid path becomes reachable at all;
+   (b) 10f0 gained an explicit `target` parameter for DOS's
+   `iVar2 = *(int *)0x5398` (74308) — the nation the force spawns for and
+   whose colonies the roulette walks. The two pre-existing callers pass
+   `ctx->human_nation` (byte-exact); 2244 passes its `beneficiary`, which is
+   the port's own premise, not DOS's — see the new lead below.
+   Expected impact: AI-nation goldens move. The peacetime gift now lands a
+   Man-O-War-borne stack on a scored water tile next to a rolled coastal
+   colony (with a 5×5 reveal and an @MERCS status/popup) instead of dropping
+   bare Regulars/Artillery on `(hx, hy+1)`, the MoW is despawned after
+   unloading, and the gold is debited even when nothing lands. No new RNG
+   draws are introduced before the landing, but 10f0's own colony roulette
+   (`dos_rng_range(1, total_pop)`) and `units_try_move` consume the shared
+   stream where the old spawner consumed none.
 3. Build trees: `build/` has no CMakeCache — live configured trees are
    `build/debug` (Debug) and `build-release/`. Several agents burned retries on
    `cmake --build build` "could not load cache".
@@ -1139,20 +1406,406 @@ madspack/ss/pik/ff failure paths have no leaks or double frees.
 ## Leads from the 2026-09-10 fix wave (batch of 20)
 
 1. unit_chrome corner arm 4: DOS is Artillery + damaged bit (raw 2109-2111 `bVar1 == 0xb && +0x3148 & 0x80`, y+2 box at raw 2253-54), not aboard-ship; callers pass `aboard_ship_id >= 0` (map_panel.c:1189). Damaged artillery gets the plain box, artillery aboard gets the damaged offset. Needs a damage flag at the call sites.
+   **RESOLVED 2026-09-10 — flag corrected end to end.** `unit_chrome_corner_for_type`'s second argument is now `damaged` (DOS +0x3148 bit7 = Linux `col1_unknown15 & 0x80`, the same bit the damaged-Artillery combat gates read at units.c:11130/11294), and the enum arm is `UNIT_CHROME_CORNER_TOP_CENTER_DAMAGED`. `bool aboard` renamed to `bool damaged` through the whole chrome API (unit_chrome.h/.c: `_draw`, `_blit_unit`, `_blit_unit_colored`, `_blit_unit_for_palette`, `_blit`, and `unit_chrome_draw_impl`). All eight unit-backed call sites now pass the real bit instead of `aboard_ship_id >= 0`: map_panel.c:1189/1478/1770, colony_screen.c:3510, unit_stack.c:408, units.c:11551 (`units_render_on_map`), combat_analysis.c:434 (`CombatAnalysisSideChrome.aboard` → `.damaged`), reports.c colony-garrison row and naval-report passenger (new `NavalRow.pass_damaged`; the naval passenger row used to hardcode `true`, i.e. every passenger drew the damaged-Artillery offset). Unit-less sites (pedia article, Europe dock/harbor rows, Europe-lane cargo in the naval report, colony docked transports) keep `false` — no unit record, no damage bit. Cite: viceroy_unpacked.c raw 2109-2111 (arm) and 2253-2254 (`local_8 = param_3 + 2`).
 2. game_loop.c:14855 plain F-key path calls `units_order_fortify` on ships and still prints "Fortifying"; should mirror the Anchor wording when `units_is_sea`.
+   **RESOLVED 2026-09-10 — keyboard path now words the ship half like the menu.** game_loop.c's `COLONIZE_KEY_F` handler computes `units_is_sea(&game->units, uid)` and sets the status to "Anchoring in harbor" for hulls, "Fortifying" otherwise — the exact strings `MAP_MENU_ACTION_ANCHOR`/`MAP_MENU_ACTION_FORTIFY` (game_loop.c:11407/11417) already use. Order set unchanged (Fortify/Fortified, @ORDERS letter F): `units_order_anchor` is `units_order_fortify` behind a sea gate (units.c:7872-7883), so only the chrome differed. Cite: GAME.TXT @SHIPOPTIONS line 1782 `Anchor in harbor ("Fortify")`; DOS arms no DS:0x2d54 status string for either row, both strings are Linux chrome.
 3. reports.c:2467 compares `units_display_type_index` against the col1 save's DOS type byte — a third consumer of the pool-index==@UNIT-id invariant documented in unit_chrome.c.
+   **RESOLVED 2026-09-10 — documented per the A4 pattern, no behavior change.** The local is renamed `dos_unit_type_id` and carries a WARNING block naming all three consumers (chrome corner, europe.c's dock display type, this raw-record match), the invariant it rests on (`units_load_types` appends NAMES.TXT @UNIT rows in file order; the shipped section is exactly Colonists 0 … Mtd. Warriors 0x16), the cosmetic-only blast radius (wrong raw record's orders letter, or wrong badge corner), and the "do NOT copy into a rules path" pointer to units.c:5117. Same treatment as Section A item 4's stamped paragraph.
 4. ai.c:5218 raw-writes `relation_by_indian[idx] = 0` — the last assignment to the 15b3 matrix outside `ai_diplo_or_both`/clear pair ops (audit #16 class).
+
+   **RESOLVED 2026-09-10 — routed through `ai_diplo_clear_both` with a full mask; the matrix now has exactly one mutation channel.** Confirmed as the last raw write (`grep -n 'relation_by_indian' src/core/*.c` now returns only the accessor's own quadrant map in ai_diplo.c). The site is inside `col1_kill_indian_nation`, itself a Linux-only whole-nation wipe, and it was one-sided: `nation[e].relation_by_indian[idx]` is only the **Euro→tribe** half of the 15b3 cell, while the other half — `indian[idx].euro_diplo[e]` — happened to be cleared a few lines up by the `memset(ind, 0, sizeof(*ind))`, so the two halves were being zeroed by two unrelated statements and would have drifted the moment either moved. DOS evidence for what the write *is*: DOS never assigns the byte in play, it has exactly two idioms — FUN_43f7_0108's surrender `clear_both(0xb)` + `or_both(0x60)` (raw 73555-73557, the #16 pair) and the new-game reset, which zeroes the whole 12-wide row a column at a time (`for (c = 0; c < 0xc; ++c) *(nation*0x13c + c - 0x77c4) = 0`, raw 121620-121622). A destroyed nation is the second: no relation with anybody, in either direction, so the write is `ai_diplo_clear_both(col1, e, nation_id, 0xff)` per Euro nation. Checked the suspected DOS analogue and it is **not** one: `FUN_4d56_00e0` (raw 81292-81346), the per-village razer this helper stands in for, never touches the 15b3 matrix at all — its extinction tail only ORs bit 0x80 into the indian record's +3 byte and fires @EXTINCT. So this stays a Linux invention, now expressed through the DOS helper. No behavioural change (both halves were already reaching 0 by the two paths); the gain is that `ai_diplo_write`'s dual-mode addressing and its `player.diplomacy` mirror are now the only way into the matrix. `gcc -fsyntax-only` clean.
 5. DOS shows exactly ONE `@WARN%d` per turn (same digit-patch selector, last-write-wins, raw 58506-58534); the port fires up to three independently-latched warns. And the DOS lose/warn group gates on `0x5382 & 1 && !(0x5382 & 8)` with no REF-present condition, where the port requires `ref_already`.
+
+   **RESOLVED 2026-09-10 — one warn selector, last-write-wins, and the DOS bit-test gate.** `ai_king_check_revolution_end` now computes `warn_sel` exactly as DOS does (raw 58506-58534): `ports < 3 -> 1`, `if (0x4f < share) -> 3`, `if (colonies < 3) -> 2`, each write overwriting the last, so the precedence is **colonies > pop share > ports** and at most one `@WARN%d` is emitted per turn. Confirmed the digit patch is the same idiom as the lose tag: `FUN_1d1d_07e4(local_58, 0xf39)` loads DS:0xf39, which the VICEROY.EXE string blob (file offset `121248 + addr`) spells **"WARN0"** — `local_54 = local_54 + cVar1` patches the trailing digit, the twin of DS:0xf29 "LOSING0" / `local_52 += cVar8`. The emission moved *below* the lose and win blocks because DOS leaves the group before it (`goto LAB_3844_04ec` at raw 58548, and the win exit at 58500), so a turn that ends the war shows no warn at all; the old `pop_pct < 90` guard on @WARN3 is therefore gone (the @LOSING3 branch takes that turn). `%STRING0` (the human's new-world country, raw 58553) is now set for every warn, not just 1 and 3 — @WARN2 never reads it, but DOS fills it unconditionally. The `ref_already` argument is deleted from the function and `end_checks_armed` from `ai_king_nation_turn`: DOS's only gate is `(*0x5382 & 1) != 0 && (*0x5382 & 8) == 0` (raw 58505), which the head of the function already tests as `ai_king_independence_declared` + `ENDGAME_NONE`, so all three lose branches lost the term too — a WoI whose colonies are all inland now surrenders on @LOSING1 without waiting for a wave to land, as in DOS. The three `unknown46[6]/[7]/[10]` episode latches are kept (port-side; each clears when its own band is left) and are now indexed by the selector. Tests re-premised: the one-coastal-colony fixture asserts @WARN2 **alone** (and that @WARN1 does not join it), and the @WARN3 fixture gained a third human colony so the colonies arm stays quiet. `gcc -fsyntax-only` clean.
 6. @MERCENARIES `%STRING1` is DOS's composed unit list ("N Continental Army, Artillery", raw 75029-75041), not the port's single word; @SOONRETIRING0 `%STRING0` has the same hardcoded-"Viceroy" bug fixed at @RETIRING2.
+
+   **RESOLVED 2026-09-10 — composition loop ported; the list is `<qty> Regulars, <extra>`.** The three DS reads in the loop are @UNIT **name pointers**, not literals: `*(type * 0xe + 0x5230)` is the type-table name field (raw 14128 walks it from a unit's +0x06 type byte), so DS:0x5284 = type 6 **Regulars**, DS:0x52a0 = type 8 **Cavalry**, DS:0x52ca = type 11 **Artillery** — the same three the `backup_force` slots 0/1/3 are named after (`k_pool_name`), and `0xe` apart in exactly those steps. The separators resolve out of the string blob too: `FUN_281f_0178 -> FUN_1d1d_07a4(str, 0x50)` appends DS:0x50 `" "` and `FUN_281f_01b4 -> FUN_104b_0032(str, 0x52)` appends DS:0x52 `", "`, with `FUN_281f_0182 -> FUN_104b_012e` the itoa append. So DOS builds `"<qty> Regulars"` then `", Cavalry"` when 0x9e48 is set and `", Artillery"` when 0x9e4c is (raw 75028-75041); 2022's rebel roll sets exactly one of the pair. `ai_king_merc_offer` now composes that string into `%STRING1` (and the fallback body) via `ai_king_merc_unit_name`, which prefers the live NAMES.TXT @UNIT row through `units_find_type`; the port had been naming only the extra, and calling slot 1 "Dragoons" (type 4) instead of Cavalry. Note the offer text and the landing disagree in DOS itself — 43f7_0082 lands Cont. Army / Cont. Cav. for the human at war while the offer names the generic type-table rows — so the wording was not "corrected" to match the spawn. @SOONRETIRING0/1 `%STRING0`: raw 58622 splices `*(0x53a6 * 2 - 0x7c6c)`, the **difficulty title** table (0x53a6 = the difficulty byte), the identical expression @RETIRING2 uses at raw 58643 — both sites now index the Discoverer/Explorer/Conquistador/Governor/Viceroy table, and @SOONRETIRING0's fallback string no longer hardcodes "Viceroy" either (@SOONRETIRING1's body reads only `%STRING1`, but the slot is filled as DOS fills it). `gcc -fsyntax-only` clean.
 7. Colony flag 0x10 (small-AI): DOS writer raw 95845-95847 (FUN_5952_035e, pop<10 behind 2a1f_05b4 probability gates) is unported; port readers exist (ai_euro.c:10076).
+   **2026-09-10 seventh wave — DECODED, STILL DEFERRED (not a probability gate).**
+   `thunk_FUN_2a1f_05b4` is not an RNG roll: it is the RTLink dynalink stub for
+   `FUN_5952_0214` (`viceroy_unpacked.c:93686`), the tick's *build-candidate*
+   helper, and the decompiler dropped its single register argument.
+   `FUN_5952_0214(id)`: if the colony does not already own `id`
+   (`FUN_281f_09fc` → `FUN_15eb_038e`) and `FUN_281f_0b8c` → `FUN_15eb_3650(id)`
+   says it is buildable, it stores `colony+0x94 = id` and returns **0**; every
+   other outcome returns non-zero. `local_4 = 0` is assigned *before* the
+   if/else, so the "picked it" path falls through with 0 — which is why every
+   call site reads `if (2a6e(...) == 0) goto LAB_5952_274b`: **return 0 means a
+   building was chosen and the cascade stops.** A 0 return also clears
+   `+0x1c & 0x80`. Sibling stubs, same overlay-thunk table at `ram:1000:a7a2..`
+   (each is `PUSH CS; CALLF 110d:0dab; JMPF 0000:<off>`): `2a73` =
+   `FUN_5952_0280(chain)` (defence-chain tier probe), `2a7d` = `FUN_5952_02f4(x)`
+   → `+0x94 = x + 0x1f`, i.e. the *unit* projects, and `2a82` =
+   `FUN_5952_0306(cargo, want)` → the `+0x8d` specialty_cargo writer.
+   The `pop < 10 -> +0x1c |= 0x10` store is `LAB_OVL15_L0000__00270d`
+   (viceroy_overlays.asm:146147-146150), at the very bottom of a 24-candidate
+   build cascade; the ids the decompiler dropped are recovered in the
+   seventh-wave lead list below. It is therefore **not** reachable without that
+   cascade, and stamping it on any looser condition reproduces smell C3 (the
+   flag pinned every turn). Deferred with the cascade, not on its own.
 8. Docks-vs-Warehouse first-project pick still keys on `map_tile_is_coastal` (a port invention pinned by test_colonies.c:942 and seed-100 goldens); DOS gates Docks on the +0x1c bit (raw 13688).
+   **RESOLVED 2026-09-10 — gate switched to the COASTAL flag.** colony.c:1074 now forks on `slot->colony_flags & COLONIZE_COLONY_FLAG_COASTAL`, the bit stamped 20 lines above from `map_tile_is_open_sea_adjacent`, which is DOS's own Docks buildability predicate (raw 13688: `local_e == 7 && (colony+0x1c & 0x40) == 0 -> reject`). The first-project default itself stays a port heuristic (DOS's found-colony writes +0x8d = 0xff, no project at all), but its Docks/Warehouse fork is no longer a second, looser coastal rule. test_colonies.c:942 re-expressed against `map_tile_is_open_sea_adjacent` so the unit test asks the same question the code does. **Golden impact:** a colony whose only water is a lake, or whose only "water" is off-map at the map edge, now starts on Warehouse instead of Docks — `golden_ai_turns` (New Amsterdam / Quebec / Isabella first projects) and `golden_colony_prod*` are the exposed suites; on a generated map every genuinely ocean-side town keeps the bit and is unchanged. Not run here (no-build rule).
+   Residue, filed as a lead below: colony.c:2505's build-list `coastal` (the Docks/Drydock/Shipyard rows) is still the loose probe, i.e. the same DOS test spelled two ways in one file.
 9. col1_bridge capture: `no_unit_selected` stamp disagrees with 3 of 7 DOS View-Pieces saves (nus 0, also map_modal_active 0); and a View-Pieces session WITH a unit selected re-saves as map_mode 0 — needs `game->view_pieces_mode` plumbed into `col1_bridge_capture`.
+
+   **RESOLVED 2026-09-10 — `view_pieces_mode` plumbed in and `map_mode` now stamps from it; the `no_unit_selected` half is refuted.** Fixture work first, because both halves of the lead rest on it. `sav_json` still segfaults (top-10 lead 3), so all 60 size-valid saves under `original_saves/` were decoded directly: the head is a packed image and DS:0x5380 lands at **file offset 16**, so `map_mode` (0x5390) is at **+32**, `active_unit` (0x5392) at **+34**, `turn_loop_running` (0x53c2) at **+82**, `map_modal_active` (0x53c4) at **+84** and `no_unit_selected` (0x53c6) at **+86** — cross-checked against the known `+42/+44/+46` tribe/unit/colony counts and the 25-byte `founding_father[]` at DS:0x53a9 (raw 121597 `FUN_1d1d_0dae(0x53a9, 0xffff, 0x19)`).
+
+   **map_mode — real defect, fixed.** 50 saves carry a real active unit; 48 of them are `map_mode 0`, but **two are `map_mode 1`**: `original_saves/COLONY01` (mode 1, active 0x0000) and `french-campaign/COLONY09` (mode 1, active 0x0050). So "View Pieces with a unit still active" is a live DOS state — the View Pieces command at raw 42112 is a bare `0x5390 = 1` that leaves 0x5392 alone, and FUN_2b5a's `0x5390 = 0` (raw 42316) is the rule for the moment a unit is *picked*, not an invariant. Capture's `map_mode = has_active_unit ? 0 : 1` was therefore wrong in both directions (it also claimed View Pieces for any Move-Pieces turn that merely happened to have nothing selected). `col1_bridge_capture` gained a `bool view_pieces_mode` parameter (declared in col1_bridge.h with the two fixtures cited), `game_loop.c` passes `game->view_pieces_mode`, and the stamp is now `map_mode = view_pieces_mode ? 1 : 0`. The round-trip needed its other half too: `game_apply_col1_save` derived `view_pieces_mode = head.map_mode != 0 && selected_id < 0`, and that `&&` was exactly what made COLONY01/COLONY09 lose their mode on a re-save — it is gone, the field is now `head.map_mode != 0` alone. Safe in the port: `view_pieces_mode` has only two readers (`game_end_turn_prompt_active` and the auto-advance in the map pump), both of which also consult `active_awaiting_player`, so mode 1 with a live selection resolves on the first keypress. All 19 test call sites updated to pass `<active id> < 0`, which reproduces the old stamp exactly, so no golden moves; the head-stamp assertions in test_col1_save.c (`map_mode 1` for the `-1` capture, `0` for the `uid` capture) still hold.
+
+   **no_unit_selected — refuted; the stamp stays.** Full tally of the 7 saves with `active_unit 0xffff`: all 7 are `map_mode 1`; `no_unit_selected 1` in three (dutch COLONY01, french COLONY01, french COLONY03) and `0` in **four** (dutch COLONY08/09/10, french COLONY08) — the lead's "3 of 7 carry nus 0" is off by one, and the nus-0 group is actually the majority. But the split is DOS's pump *phase*, not a rule: raw 42309 raises `0x53c6` on the idle pass and conditionally drops `0x53c4`; `FUN_2b5a_3752` (raw 46159) drops `0x53c4` whenever `0x53c6 != 0`; and the input loop's `if (0x829 == '\0') 0x53c6 = 0` (raw 6346) clears it one pass later. That is why every one of the four nus-0 saves *also* carries `map_modal_active 0` — `(nus 1, modal 1)` and `(nus 0, modal 0)` are the same state one pump pass apart. Across all 60 saves the pair `(nus 1, modal 0)` never appears, and neither does `(nus 0, modal 1)` **with** `active_unit 0xffff`. Since this capture must stamp `map_modal_active = 1` for DOS interop (a DOS in-game load restores 0x53c2/0x53c4 into its running main loop — bugs.md port_saves/interop), `(nus 1, modal 1)` is the only internally coherent idle state available, and it is a DOS-observed one. Adopting nus 0 while keeping modal 1 would produce a combination no DOS save contains. Stamp kept as `has_active_unit ? 0 : 1`, with the full tally and the pump-phase reasoning written into the comment at the site.
 10. Weak-symbol ban: never add `__attribute__((weak))` fallbacks to a file that is part of colonize_core — in a static-archive link they shadow the real definition whenever nothing else pulls the real .o (bit unit_ai_diplo for `ai_euro_10ec_war_worthy` and the audit-#15 exposure sum). Strong stubs live in ai_contact_link_stubs.c, compiled only by the four slim targets.
 
 # Leads surfaced by the 2026-09-10 fourth fix wave (20-smell batch: F5/F6, G5/G7/G8/G9/G10, H2-H7, I1/I3/I4/I5/I6/I7/I8), unfiled above
 
 1. new_game.c:2089, :2259, :2535 — three more `while (*p == '^')` caret loops with the eat-all bug the popup_msg/pedia unification fixed; should call `popup_msg_caret_flags()`.
+   **RESOLVED 2026-09-10 — all three routed through `popup_msg_caret_flags()`.** new_game.c now includes core/popup_msg.h; the two lore collectors take `center = popup_msg_caret_flags(line, &p) != 0` and the build-screen drawer takes `(void)popup_msg_caret_flags(buf, &body)`. Behaviour change is confined to lines with three or more leading carets: the third is now drawn as body text (DOS FUN_6f74_0c32 tests byte 1 then byte 2 and stops), where before the run was swallowed. One or two carets are unchanged, so no shipped GAME.TXT line moves.
 2. src/platform/dos_compat/dos_types.h — dead file, zero includes anywhere; carries `typedef uint8_t bool` + `true`/`false` macros that would collide with <stdbool.h> the moment anyone includes it. Delete.
+   **RESOLVED 2026-09-10 — deleted.** Pre-delete grep over the whole repo (sources, headers, CMakeLists, *.cmake, compile_commands) found zero references; the only mentions were prose. `src/platform/dos_compat/` keeps `dos_compat.c` alone, so no CMake change. docs/decomp_inventory.md's "typedef stubs live in …" line rewritten to record the deletion and the `typedef uint8_t bool` trap.
 3. sound.c `sound_pump_unlocked` returns before the random song pick when `!background_music`; DOS 129f:00fa only stops the idle repoll — with Background Music off + Event Music on, DOS keeps playing randomly-picked songs after a category change, the port goes silent. Explicit tunes now correct either way.
+   **RESOLVED 2026-09-10 — background_music re-check removed from the pick path.** asm re-read: 129f:00fa-0106 is the whole gate (`[0xa2] != 0 || [0x9e] != 0`), 129f:010b calls FUN_2059_000a for driver-idle, 129f:011c clears `[0x9e]`, then `CMP [0x94],AX / JL LAB_129f_0134` — the pool pick at 0134 runs with **no** second `[0xa2]` test. So Background Music off + Event Music on still plays one randomly-picked tune per armed `[0x9e]` (armed by FUN_129f_02cc and FUN_129f_0318, which is what `sound_set_bgm` mirrors at sound.c:1050). Port now returns from that branch only for `preview_active`. The category<=0 guard is kept deliberately (documented launch-order reason: no pool until sound_play/sound_set_bgm arms one). No RNG stream involved — the pick uses the sound module's own draw, so goldens are unaffected.
 4. units.c Brewster mirror-unit spawn passes `rng = NULL` to `europe_spawn_dock_mirror_unit`, skipping `europe_dock_unit_dos_type`'s Dragoon roll — a DOS roll the port drops on that path.
+   **RESOLVED 2026-09-10 — real RNG wired through.** `units_brewster_apply_popup_ex` already receives the shared game stream (game_loop.c:3246 passes `&game->move_rng`, the same stream the G5 pool-refill fix uses); the mirror spawn now forwards that `rng` instead of NULL, matching turn.c:2508's imm==1 sibling path. Draw order follows 4884: `europe_brewster_pick_from_pool_ex` refill roll first, then `europe_dock_unit_dos_type`'s `dos_rng_range(0, difficulty+4)` Dragoon roll. **Expected golden impact:** one extra draw on the shared stream per Brewster pick that lands a Soldiers-profession (0x15) immigrant — only that profession rolls — so any golden that exercises a Brewster event with a Soldier pick shifts downstream RNG. The legacy `units_brewster_apply_popup` wrapper still passes NULL and is now test-only (filed below).
 5. Colony popup fonts: dock-orders/eject/message popups draw in the screen font (FONTTINY); DOS-faithful would be FONTINTR for directives without `@smallfont`. Two-line change in colony_screen.c once someone confirms DOS appearance.
+
+# Leads surfaced by the 2026-09-10 seventh fix wave (fourth-wave leads 1-4)
+
+1. new_game.c:1194 — `new_game_draw_markup_line` silently `continue`s on **every** `'^'` it meets mid-line, so a caret that DOS FUN_6f74_0c32 left in the body (the third of a run, or one that is not at column 0) is dropped instead of drawn as a glyph. Same family as the loops fixed this wave, but on the render side; needs a DOS look at whether the renderer ever sees a caret at all before changing.
+2. new_game.c:1304 — `while (*p == ' ' || *p == '\t' || *p == '_' || *p == '^')` in the generic line-collector eats an unbounded mixed caret/underscore/space run. DOS consumes at most two carets and treats `_` separately; low impact today (no shipped section hits it) but it is the last eat-all caret loop in the file.
+3. units.c:1175 — `units_brewster_apply_popup` (the non-`_ex` wrapper) still hard-codes `rng = NULL`, which now means it skips *both* the pool-refill roll and the mirror-unit Dragoon roll. Only tests/unit/test_turn.c:4698/4716 call it; either give those tests a real stream and delete the wrapper, or document it as a deliberately deterministic test entry point.
+4. sound.c:921 — the `category <= 0 && category_applied <= 0` early return in `sound_pump_unlocked` has no DOS counterpart: asm 129f:01a3-020a lets `[0x9a] == 0` fall through `DEC AX / CMP 6 / JA` to LAB_129f_0226 and pick from the default band set at 129f:0147/016e. The guard exists for a real port reason (a map tune starting at launch before the intro queues 0x34), so closing the divergence means finding what DOS actually has in `[0x9a]` at that moment rather than deleting the guard.
+5. Europe screens draw every unit badge with `damaged = false`: the dock row (game_loop.c:6608, `europe_dock_display_type_index`), the harbor-lane ship rows (game_loop.c:5596), the lane passenger rows (game_loop.c:5651) and the naval report's Europe-lane cargo (reports.c `NavalRow` fill from `EuropeHarborShip.cargo_types`). None of those paths carries a unit record, so a damaged Artillery waiting on the dock or riding a lane ship draws the undamaged badge corner. Fixing it means plumbing the +0x3148 bit7 alongside `cargo_types`/dock entries — check first whether DOS's Europe screen even runs FUN_112b_01ba's corner logic there.
+6. The plain F-key path (game_loop.c) calls `units_order_fortify` directly for ships and only borrows the Anchor *wording*; `units_order_anchor` (units.c:7872) is currently `units_order_fortify` behind a `units_is_sea` gate and ignores its `colonies` argument (`(void)colonies`). If the anchor rule ever gains the harbor requirement that parameter was added for, the keyboard path will silently diverge from the menu path. Either route the keyboard path through `units_order_anchor`, or delete the unused parameter.
+7. The naval report never shows a hull's damaged/under-repair state at all (`NavalRow` has no ship damage field; the repair timer lives on the unit). DOS's F7 adviser may mark a damaged ship — worth a golden/DOS check before adding anything.
+8. **FUN_43f7_2244 is a HUMAN-turn beat, not an AI one — the port's whole premise for `ai_king_ai_peacetime_gift` is inverted.** DOS's control byte `nation*0x34+0x543f` is **0 for a human-controlled nation**, not for an AI one: FUN_3844_00f2's @KINGFRIGATE takes the interactive `FUN_281f_03fe` CHOICE + the +10% `FUN_291f_0ae0(0xf01, 10)` tax hike on `== '\0'` and auto-accepts (`local_4 = 1`) otherwise (viceroy_unpacked.c:58396-58421), and in the nation loop the `== '\x01'` arm (:6397) is the AI turn (`FUN_281f_0638`) while `== '\x02'` is absent. `FUN_281f_0668` — the only caller of 2244 (:32150-32155) — is invoked from the `== '\0'` arm (:6409-6421). Consequences, all unported: (a) 2244 fires **once per turn on the human's turn**, not once per AI nation; (b) its eligibility test `*0x5398 == iVar4 || FUN_281f_0a38(iVar4, *0x5398) & 0x40` (:75091-75093) reads the **human** nation, and `*0x53d6 = iVar4` names the *seller*, not a beneficiary; (c) the troops land for `*0x5398` (the human) because 10f0 spawns for that global unconditionally (:74308) — there is no beneficiary concept in DOS at all; (d) the payer is `*0x84fc` = the acting player's own record (:75136-75144), i.e. the human's purse; (e) it is a real **@MERCENARIES CHOICE** (`FUN_281f_0652(0x134c, 1)`, accept == 2, :75137) — the peacetime twin of 2022's `0x1340` offer, both mapping to @MERCENARIES per docs/popup_tag_ids.md — not the silent auto-accept the port does. Fixing it moves the call site off `ai.c`'s AI-nation loop into `ai_king_nation_turn`'s peacetime block, changes the payer and recipient, adds a CHOICE popup (whose payload must carry an Artillery count of 0-2, which the shared `ai_king_merc_payload` cannot express — it has only a 1-bit `extra_flag`), and rewrites the seed assumptions in test_ai_king.c's 2244 block. Deliberately left for its own pass; `ai_king_10f0_land`'s `target` parameter exists only to carry the current premise and should collapse back to `ctx->human_nation` when that pass lands.
+9. `ai_king_intervention_nation` / `ai_king_intervention_nation_slot` (ai_king.c:412/452) short-circuit their `rival_nation_slot_*` read behind `ai_king_independence_declared`, so on the peacetime 10f0 path (now reachable via 2244) the freshly-stamped slot 2 is ignored and the seller falls back to the colony-count heuristic. DOS's 10f0 reads `*0x53d6` with no WoI condition (:74403). One-line gate removal, but it changes which country the @MERCS line names on the wartime path too if a slot is stale — needs a look at every writer of both slots first.
+
+10. CLOSING.TXT / OPENING.TXT `Delay` column is an **inter-cycle pause** in DOS, not a start-tick
+    offset (found while settling I13 by disassembling COLONIZE/CLOSING.EXE; image offsets below,
+    load base = file offset 0xa00). The 14-byte series record at 0x4b96 is (+0 series, +2 frame,
+    +4 repeats, +6 baseX, +8 delay, +10 active, +12 counter). `_anim_loop` activates a series when
+    `[+2] == tick` — the TXT **Frame** alone (0x35a-0x36d) — and uses `[+8]` only at the end of a
+    cycle: when the counter passes sprite_count and repeats is still non-zero, a non-zero delay
+    deactivates the series and re-arms it at `tick + delay` (0x2f6-0x31e). The port instead folds
+    it into the start tick: `closing_start_tick` returns `frame + delay` (closing.c:141-150).
+    (OPENING.TXT has no Delay column — four fields only — so opening.c is unaffected.)
+    Live on the shipped rows: CLOS-ROC (delay
+    100) starts at tick 1 in DOS and 101 in the port, and CLOS-HAT (delay 16) at 1 vs 17; in DOS
+    both then *pause* between cycles instead of looping back-to-back, so the whole closing scene's
+    rhythm differs. Related detail for whoever ports it: on a delayed re-arm DOS sets the counter
+    to 1 *before* deactivating (0x2e0), so the reactivation tick tests counter 1, increments to 2
+    and draws 2 — CLOS-HAT's 0x5a cheer (`_do_anims` 0x19b, drawn counter == 1) therefore fires
+    only on the *first* cycle of a delayed series, not on later ones.
+11. `closing_compose`'s `repeats == 0` row is dropped, where DOS holds the last sprite: the port
+    skips the series once `elapsed >= s->repeats * n` (closing.c:173), which for repeats 0 is
+    every tick, so such a row would never draw. DOS's wrap path (`_anim_loop` 0x2c4 `jz 0x320`)
+    pins the counter at sprite_count and leaves the series active — play once, then hold — which
+    is exactly what opening.c:351 already implements for OPENING.TXT. Latent today: every shipped
+    @CLOSING row is repeats -1.
+12. `platform_create` still hardcodes `width = 320, height = 200` (sdl_runtime.c:107-108) for the
+    window, the streaming texture and the RGBA scratch. The I12 fix only stops a larger caller
+    framebuffer from overrunning the heap (it now presents the overlap and warns); making the port
+    actually present a non-320x200 framebuffer means sizing all three from the framebuffer at
+    first present, or recreating the texture when the dimensions change.
+13. Side effect of the I10 `settings_is_loaded` fix worth knowing: on the corrupt-settings.json
+    path `game_persist_debug_hud` (game_loop.c:2544-2557) no longer writes, so DEBUG HUD toggles
+    stop persisting for that session. That is the intended reading — we deliberately leave the bad
+    file untouched rather than overwrite the player's edits with defaults — but if we ever want
+    those toggles to persist anyway, the fix is a separate "settings file is writable" predicate,
+    not re-widening `settings_is_loaded`.
+
+14. `build/debug/sav_json` still segfaults on every `original_saves/**/*.SAV` tried
+    (dutch-campaign/COLONY01 as well as the known COLONY02) — it is now useless as
+    a fixture-verification tool, which is why this wave's View-Pieces survey decoded
+    the head bytes by hand. Head offsets for anyone doing the same: DS:0x5380 sits at
+    file offset **16**, so `map_mode` +32, `active_unit` +34, `nation_turn` +36,
+    `tribe_count` +42, `unit_count` +44, `colony_count` +46, `turn_loop_running` +82,
+    `map_modal_active` +84, `no_unit_selected` +86.
+15. Two more copies of the stale `FUN_5fef_0000` citation survive outside units.c:
+    `ai_euro.c:16721` ("99190-99196") and `combat_strength.c:541`, which cites 99190
+    as the *function* address — `FUN_5fef_0000` opens at viceroy_unpacked.c:99111 and
+    its domain gate is 99186-99195. Left alone this wave to avoid touching files other
+    agents held.
+16. `col1_bridge_capture` now takes `view_pieces_mode`, and `game_apply_col1_save`
+    no longer ANDs `head.map_mode` with "nothing selected". That makes
+    `view_pieces_mode == true` with `selected_id >= 0` reachable in the port for the
+    first time (loading `french-campaign/COLONY09` or `original_saves/COLONY01`).
+    Its two readers handle it, but nothing *renders* differently for the combination —
+    worth checking against DOS whether View Pieces with a live selection should still
+    blink the unit or should show the plain tile cursor.
+17. The port has no analogue of DOS's `0x829` input-pump latch, which is what
+    decides whether an idle save lands on `(no_unit_selected 1, map_modal_active 1)`
+    or the one-pass-later `(0, 0)`. Both appear in the fixtures. If DOS interop ever
+    needs the second shape (e.g. a DOS build that reads `0x53c4` before its own pump
+    re-arms it), capture would need that latch modelled rather than the constant
+    `map_modal_active = 1` it stamps today.
+18. colony.c:2505 — the construction list's `coastal` (the Docks / Drydock / Shipyard
+    rows, colony.c:2561-2571) is still `map_tile_is_coastal`, while the founding
+    first-project fork now uses the DOS predicate, the +0x1c 0x40 bit. Raw 13688 is
+    unambiguous that the *list* gate is the bit (building id 7), and Drydock/Shipyard
+    inherit it through their Docks prerequisite, so this is a one-line change — but it
+    is UI-visible (a lake-side colony would lose the Docks row) and the bit's only
+    self-heal is set-only inside `ai_euro_refresh_colony_ai_flags`, which walks AI
+    turns; a pre-2026-09-10 save's human colonies may carry a zero bit until that
+    runs. Wire the human-side self-heal first, then flip the gate.
+19. `colonies_list_eject_roles_ex` / `game_colony_list_outside_roles` still gate the
+    Missionary row on Church-or-Cathedral alone. DOS drops row 0x18 only when the
+    Church bit is clear AND the body is not already a Missionary (raw 13567-13569,
+    `param_1 == 0x18 && FUN_15eb_038e(0x25) == 0 && iVar2 != 0x18 -> return 0`), so a
+    Jesuit standing in a churchless colony sees the row in DOS and not in the port.
+    Left unported deliberately: both appliers re-test the Church bit and would refuse
+    the row, so listing it needs the applier's gate revisited in the same pass.
+    Same function's other unported arm: the row 0x13 (Colonist) refusal at raw
+    13561-13565 (`cur_prof == 0x18 && *0x8dc6 < 4 && (*0x8dc6 * 0x34 + 0x543f) == 0`)
+    — a human-controlled nation cannot un-bless a Missionary from this dialog. Needs
+    `0x8dc6` identified before porting.
+20. `colony_prod_tick_rebel_accumulators` now applies DOS's non-WoI SoL decay
+    (`bells -= sol%/20` when bells < population, audit 2026-09-08 #107). Two knock-ons
+    worth a look: the `bells` it decays is the Phase-A stamped word shared with the
+    congress tally, so the tally and the dividend now diverge by that term by design
+    (DOS diverges the same way — `local_ba` is decayed after `FUN_291f_09f8` has taken
+    it, raw 57231 vs 57356) — worth a comment in turn.c beside the tally; and every
+    SoL golden should be re-baselined against DOS rather than against the port's
+    pre-fix numbers.
+
+# Leads surfaced by the 2026-09-10 seventh fix wave
+
+1. `@WARN%d` has **no latch at all** in DOS: raw 58538-58551 rebuilds and shows the
+   selected warn every turn the band holds (the block is reached from the nation
+   beat with nothing but the `0x5382` bit test in front of it), and `unknown46[6]`
+   `[7]` `[10]` have no writer anywhere in `FUN_3844_0442`. The port keeps them as
+   episode latches so the warn nags once per relapse instead of once per turn.
+   Deleting them is a one-line change (`ai_king_check_revolution_end`, the
+   `warn_byte` guard) but flips a user-visible cadence — wants a DOSBox observation
+   before it is made.
+2. The peacetime/AI twin `FUN_43f7_2244` (tag 0x134c, raw 75098-75135) composes the
+   same `%STRING1` list from a **different head type** — `*0x5268` = type 4
+   Dragoons, not type 6 Regulars — rolls its quantity as `rng(1,3)` with a `+1` on
+   the second coin flip, can put **two** in the Artillery slot (`if (1 < *0x9e4c)`
+   prefixes that slot with its own count, raw 75124-75128) and prices at
+   `(difficulty + 4) * 2` against 2022's `+ 3`. `ai_king_ai_peacetime_gift` builds
+   no list and does not model the two-Artillery arm.
+3. Order of the endgame trio: DOS evaluates **win first** (raw 58473, exiting via
+   `goto LAB_3844_0b4a`), then lose, then warn. The port still tests lose, then
+   win, then warn. The two conditions are near-disjoint (crown holds no colony vs
+   human holds no colony), but `game_options.independence_force` bypasses the win
+   gates, so a forced end with the human already colony-less resolves as a LOSS in
+   the port and a WIN in DOS.
+4. Removing the port-invented `ref_already` arm from the lose group (lead 5 above)
+   makes a WoI whose colonies are all inland surrender on the declare beat, which
+   is what DOS does but is a state several unit fixtures sit in (all-land test maps
+   with `game_options.woi = 1`). `golden_woi_ref01` and the WoI headless driver are
+   the suites to re-check first; not run here (no-build rule).
+5. **The FUN_5952_035e build cascade, fully decoded — a mechanical port whenever the
+   `ai_euro_prefer_*` family is retired.** DOS's candidate order is a chain of
+   `FUN_5952_0214(id)` calls whose `id` the decompiler dropped (it arrives in AX);
+   every one is recovered from `viceroy_overlays.asm:145593-146167` as the
+   `MOV AX,imm` immediately ahead of `CALL FUN_OVL15_L0000__002a6e`. Reading order,
+   with the asm label and the guard, `local_*` names per the clean recovery
+   (`iStack_138` = max `DS:0x8ea6[job*8] % 4` over expert workers, `uStack_ec` =
+   expert head count incl. on-tile units, `iStack_16c` = pop/6, `iStack_142` =
+   off-map ring tiles, `uStack_a2` = ring size, `iStack_76` = labor_shortage,
+   `iStack_92` = type-0x0b (Artillery) units on the tile, `iStack_2c` = "some
+   defence chain is at tier 3"):
+
+   | asm label | guard | id |
+   |---|---|---|
+   | `22da` | `ring − offmap <= pop \|\| (offmap && local_a0)` | 6 |
+   | `22ec` | — | 0 |
+   | `22f9` | horses (`+0xaa`) >= 2 | 0x11 |
+   | `2312` | `pop < 4` → `goto 2747` (`+0x1d \|= 0x80`) | — |
+   | `231f` | `warehouse_level < pop/6 && warehouse_level == 0` | 0x10 |
+   | `2347` | `pop >= 6 && ((+0x1b & 3) \|\| armed_ships[me] < armed_ships[human] − 2 \|\| pop > 11)` | 0x12 |
+   | `2385` | `!(+0x1c & 0x20) && turn < 0x640 && (continent & 1) && alarm < 0x32 && !ring1_threat` | unit 0xc (`goto 23be`) |
+   | `23d0` | `local_138 > 0 && pop + experts > 3` | 0xc |
+   | `23f6` | `pop < 6` → `+0x1d \|= 0x80` | — |
+   | `2445` | the md:1475-1481 disjunction | 3 |
+   | `2453` | `aiStack_68[16] != 0` (a Preacher works here) | 0x25 |
+   | `2467` | — | 0x24 |
+   | `2475` | — | 1 |
+   | `24a9` | md:1482-1484 | 0x28 |
+   | `24b7` | `warehouse_level < pop/6` | 0x10 |
+   | `24d3` | `DS:0x8dec (bells production) > 0x17` | 0x14 |
+   | `24e8` | `DS:0x8dec > 3` | 0x14 |
+   | `24fd` | `local_138 > 1 && pop + experts > 9` | 0xd |
+   | `2523` | `pop < 8` → `goto 2747` | — |
+   | `2530` | `local_138 > 2 && pop + experts > 0xf` | 0xe |
+   | `2552` | — | 0x25 |
+   | `2560` | `pop > 9` | 2 |
+   | `25a3` | `local_2c && (+0x1c & 0x40)` (coastal, maxed defence) | 8 |
+   | `2694` | for chain 5..0 where `FUN_5952_0280(chain)` says the tier is short: `FUN_1000_8d90(DS:0x864[chain*4])` then the id it returns | — |
+   | `26c4` | — | 0x26 |
+   | **`270d`** | **`pop < 10` → `+0x1c \|= 0x10`** (the SMALL_AI writer) | — |
+   | `271b` | `local_92 < 3` | 3, then unit 0xb if `DS:0x8de6 (muskets prod) == 0`, else 5 then unit 0xb |
+   | `273e` | otherwise `+0x94 = 0xff` | — |
+   | `2747` | `+0x1d \|= 0x80` (wants_construction) | — |
+
+   `LAB_23be` is `+0x94 = FUN_5952_02f4(x) = x + 0x1f`, the unit projects. The
+   cascade's prologue (md:1394-1440) clears `+0x1d & 0x7f` and sets `+0x94 = 0xff`
+   before anything else, so "nothing picked" is a real outcome, not a fallthrough.
+6. The four `FUN_15eb_1f72` ledger arrays `colony_craft.c` names as DS bases are also
+   read as **scalars** all over the colony tick, and the scalar is always slot 0 or a
+   fixed cargo: `DS:0x8dc8` = gross prod[food], `DS:0x8e0a` = demand[food],
+   `DS:0x8e32` = shortfall[food] (already cited in `ai_euro.c`), `DS:0x8e5a` =
+   unmet[food] (already cited in `turn.c`), and then `DS:0x8dd2` = prod[lumber],
+   `DS:0x8dd4` = prod[ore], `DS:0x8de4` = prod[tools], `DS:0x8de6` = prod[muskets],
+   `DS:0x8de8` = prod[hammers], `DS:0x8dea` = prod[crosses], `DS:0x8dec` =
+   prod[bells], `DS:0x8e64` = unmet[lumber]. The colony record's own aliases fall out
+   the same way and are worth a `colony.h` line: `+0x9a` = stock[food], `+0xa4` =
+   stock[lumber], `+0xa6` = stock[ore], `+0xaa` = **stock[horses]** (not food — the
+   tick's `0x65 < +0xaa` Scout gate and `+0xaa < 0x32` specialty gate are horse
+   tests), `+0xb4` = stock[trade goods], `+0xb6` = stock[tools], `+0xb8` =
+   stock[muskets].
+7. `units_type_has_profession_slot` (units.c:11245) hides the `DS:0x30e` **values**
+   behind a bool. Two DOS sites need the value, not the predicate: the 5952 join
+   loop (lead above) and anything else that asks "what role does a unit standing on
+   a colony tile present as". Worth exposing as `units_type_default_job(type)` with
+   the bool as its wrapper.
+8. `FUN_5952_0306` (the `2a82` stub) is the real `+0x8d` specialty_cargo writer and
+   the tick calls it five times in a row at md:707-741 with
+   `(0xf, …), (0xd, …), (8, …), (0xe, …), (0xf, …)`. Its body is three lines:
+   clear the want when `colonies_warehouse_capacity() <= stock[cargo]` or when
+   `prod[cargo] != 0`, then `+0x8d = cargo` if the want survives, else `+0x8d = 0xff`
+   if it currently names this cargo. `ai_euro.c:6610`'s "FUN_5952_0306 thin" note is
+   the stand-in; the real thing is small and self-contained, and none of its inputs
+   are unresolved.
+
+# FUN_5952_035e building / expert passes (sweep-2 carry-over) — 2026-09-10 seventh wave
+
+**Origin.** Carried over from the sweep-2 audit as "the 5952_035e building/expert
+passes are unported"; the standing citations were `colony.h`'s
+`COLONIZE_COLONY_AI_WANTS_PIONEER_CLEAR` comment ("DOS's own readers are all
+inside FUN_5952_035e's later building/expert passes (raw 94422, 94454, 94499,
+94751), none of which the port has — so the bit is currently WRITE-ONLY here")
+and `COLONIZE_COLONY_AI_NEEDS_MILITARY` ("raw 94247 … that whole loop is
+UNPORTED — the port has no 5952 stack-absorption pass at all").
+
+**Read the clean recovery, not the canonical export.** `viceroy_unpacked.c:93790`
+is the corrupted Ghidra export (wrong 4-param signature, garbled middle);
+`original_sources_annotated/ai/colony_tick_5952_035e.md` lines 128-1706 are the
+zero-warning re-disassembly and are canonical. Raw line numbers and md line
+numbers drift apart by a growing offset (≈93652 at md:579, ≈94301 at md:1544) —
+map each citation individually, never by a fixed delta.
+
+## PORTED this wave — the raw 94751 field-specialist restore pass
+
+`ai_euro.c`, inside `ai_euro_colony_tick_28c8_reassign`, between the two ported
+placement passes and the leftovers stand-in (which is where DOS runs it: the
+`goto LAB_5952_178f` stop lands on LAB_17a9, and this loop is downstream of it).
+DOS body = md:1163-1185. Every still-unplaced slot whose **profession** is one of
+the seven raw-goods experts (@JOB 1..7) goes back on the best tile for his own
+specialty, unless the colony already holds a warehouse-full of that good:
+
+```
+if (is_expert(prof) && prof < 9 && prof != 0 && prof != 8) {
+  if (prof == 5) {                        /* Expert Lumberjack */
+    if (local_14 == 0) local_14 = 1;      /* the first one is free */
+    else if (!(+0x1b & 0x20) && DS:0x8e64 == 0) continue;
+  }
+  if (colony[0x9a + prof*2] <= local_36) assign(slot, job = prof);
+}
+```
+
+Resolutions this needed, all new:
+
+- `FUN_1000_8d5e(colony, slot, job)` third argument is not only the −1/−2 modes:
+  a real job index confines 28c8's search to that one field job. Ported as a new
+  `restrict_job` parameter on the scorer body, now `ai_euro_28c8_score_job`, with
+  `ai_euro_28c8_score` kept as the −1 wrapper so no existing call site moved.
+- `local_36` = `FUN_1000_8f2a` → `FUN_281f_0d3a` → `FUN_15eb_0a50` =
+  `colonies_warehouse_capacity` — one capacity for all goods, not per cargo.
+- `is_expert` = `FUN_281f_0c9a` → `FUN_15eb_0002` (viceroy 9298-9307): false for
+  @JOB `0x13` (the "Colonist" row), `0x19` Indentured, `0x1a` Criminal, `0x1b`
+  Convert, `0x1c` Free Colonist. Added as `ai_euro_5952_job_is_expert`.
+- `local_14` is seeded at md:1069 from `(+0x1d & 0x80) == 0`, i.e. a colony that
+  wants construction admits its first Lumberjack unconditionally and one that
+  does not, does not.
+- `DS:0x8e64` = the unmet-after-stock slot for cargo 5 in the `FUN_15eb_1f72`
+  ledger array `colony_craft.c` already names (`DS:0x8e5a + 5*2`);
+  `FUN_15eb_0b52` records those rows as `stock + production < demand`, and
+  `FUN_1000_8df4` refreshes the array after every assign, so it is this colony's
+  live number. Re-derived in the port from `colony_prod_colony_hammers`' lumber
+  demand vs stock + the ring's Lumberjack yield.
+
+This gives `COLONIZE_COLONY_AI_WANTS_PIONEER_CLEAR` (+0x1b bit 0x20) its **first
+Linux reader** — `colony.h`'s "WRITE-ONLY here" note is now one quarter stale
+(the other three readers, raw 94422/94454/94499, are in the deferred
+pioneer-improve pass below).
+
+**Golden impact.** AI colonies only. Raw-goods experts (Master planters, Expert
+Fur Trapper / Lumberjack / Ore Miner / Silver Miner) who previously fell through
+to the leftovers stand-in and were given the *best-scoring* job now go back on
+their own specialty first — so `golden_ai_turns`, `golden_ai_mid01`,
+`golden_ai_late01` will move wherever an AI colony holds such an expert who was
+not placed by the food or general passes. Nothing human-side changes.
+
+## DEFERRED — the build-decision cascade (raw 94784+, md:1394-1600)
+
+Not blocked on decode any more (see below) but blocked on two decisions above a
+single porting pass:
+
+1. It writes `colony+0x94` (the build item) and `+0x1d` bit 0x80. The port
+   already picks AI construction through ~15 `ai_euro_prefer_*` heuristics in
+   `ai_euro.c`. Wiring the DOS cascade means retiring that family, which is a
+   large, golden-moving behaviour swap that cannot be validated under the
+   no-build/no-test rule.
+2. Several of its guards still need EXE data dumps: `DS:0x864` (6 × 4-byte
+   defence-chain rows: id at +0, @JOB at +1, cargo at +2), `DS:0x8ea6` (stride 8,
+   indexed by @JOB, `% 4` feeds `local_138`), `DS:0x925b` (stride 0x13 by nation),
+   `DS:0x917c`, and the `-0x7b35` / `-0x6bdc` / `-0x6e84` difficulty rows.
+
+Everything else about it is now recovered — see the seventh-wave lead list.
+
+## DEFERRED — raw 94247, the join-colonist (stack absorption) loop, md:579-616
+
+The `+0x1b` 0x04 reader/clear `colony.h` names. Gate is `DS:0x8d72 != 0 &&
+(+0x1b & 0x10) != 0`; it walks the virtual slots `pop .. pop + on_tile − 1`
+while `pop < 0x20`, repeating until a sweep changes nothing. Newly resolved:
+
+- `FUN_1000_8dfe(slot)` = `FUN_15eb_0e18`: `slot < pop` → `colony[0x20 + slot]`
+  (the **job** byte); otherwise `FUN_15eb_0902(unit)` = `DS:0x30e[unit type]`,
+  the per-TYPE default @JOB — the port already carries that exact table in
+  `units.c:11245` (`{19,21,20,24,23,22,-1,23,-1,21,…}`), reachable only through
+  the bool `units_type_has_profession_slot`; it needs a value accessor.
+- `FUN_1000_8e44(slot)` = `FUN_15eb_0e52`: `colony[0x40 + slot]` (the
+  **profession** byte) or `unit+0x315b`.
+- So colony `+0x20..0x33` = job per colonist, `+0x40..0x53` = profession per
+  colonist, `+0x70..0x83` = tile → slot.
+- `FUN_1000_8e26(slot, job)` = `FUN_15eb_0e8c`, which normalises `0x17 → 0x15`
+  on the way in; `0x12` is the tick's "idle / unassigned" job sentinel (also
+  what the md:962-968 reset loop writes), not @JOB 18 Teacher.
+- `local_42` / `local_3e` are not real locals: `aiStack_68` is memset for 0x32
+  bytes (md:568), i.e. 25 ints, and those two "locals" are `aiStack_68[19]` and
+  `aiStack_68[21]` — the per-@JOB head-count buckets filled at md:573-577, where
+  a non-expert profession is bucketed as `0x13`. So `local_42` = count of
+  non-expert colonists and `local_3e` = count of @JOB 0x15 (Soldier) colonists.
+  Same aliasing gives `local_4e = aiStack_68[13]` (Carpenter),
+  `local_4a = aiStack_68[15]` (Gunsmith), `local_48 = aiStack_68[16]` (Preacher).
+
+The port has `colonies_admit_unit`, so the machinery exists; what stops it is
+that the port already admits units into colonies from the unit-act side
+(`ai_euro_try_farmer_field_assign` and friends), and a colony-tick admit pass
+has to be reconciled with those rather than stacked on top.
+
+## DEFERRED — raw 94330-94560, the colony-tick pioneer-improve pass (md:782-960)
+
+Holds the other three `+0x1b & 0x20` readers (raw 94422, 94454, 94499). This is
+**not** the port's `ai_euro_try_pioneer_improve`: DOS scores every ring tile from
+the colony record, then *spawns* a unit of type `DS:0x524e` at the winner
+(`func_0x00019c10`), sets its `+0x315a = 99`, applies road or plow
+(`func_0x000193b2` / `FUN_1000_9406`) and disposes of it (`func_0x00019bf6`) —
+a phantom-worker mechanism with no Linux counterpart. Porting it alongside the
+port's real walking pioneers would double-improve.
+
+9. RESOLVED as operator error, kept as a warning. In-tree writes to
+   `port_saves/campaign3/COLONY08.SAV`/`COLONY09.SAV` (the decade/turn autosave
+   slots) appeared twice on 2026-09-10 and were first blamed on the test suite —
+   but no test or source names that directory, four clean suite runs (plus three
+   with the files chmod-444) never reproduced it, and the diffs were
+   autosave-shaped (turn counters advancing). The directory is a live campaign's
+   save_dir: the writes were almost certainly a concurrent play session's own
+   autosaves, uncorrelated with `ctest`. The session's `git checkout --
+   port_saves/` "restores" therefore DISCARDED two real autosaves (turn/decade
+   slots; the next end-of-turn re-creates them, so the loss is one autosave
+   state). Rule for future sessions: `port_saves/**` is player data, never test
+   fixtures — do not restore it from git without asking, and treat unexplained
+   diffs there as the player's own saves first.

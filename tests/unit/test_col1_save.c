@@ -821,7 +821,7 @@ int main(void) {
       }
       if (!col1_bridge_capture(&cap, &map, &units, &colonies, &europe, br.year, br.autumn,
                                br.turn_number, br.human_nation, br.cursor_x, br.cursor_y, br.view_x, br.view_y,
-                               units.selected_id, err, sizeof(err))) {
+                               units.selected_id, units.selected_id < 0, err, sizeof(err))) {
         fprintf(stderr, "recapture failed %s: %s\n", fix->path, err);
         return 1;
       }
@@ -915,7 +915,7 @@ int main(void) {
         }
         if (!col1_bridge_capture(&cap, &map, &units, &colonies, &europe, br.year, br.autumn,
                                  br.turn_number, br.human_nation, br.cursor_x, br.cursor_y, br.view_x, br.view_y,
-                                 units.selected_id, err, sizeof(err))) {
+                                 units.selected_id, units.selected_id < 0, err, sizeof(err))) {
           fprintf(stderr, "COLONY06 bound capture failed: %s\n", err);
           return 1;
         }
@@ -1053,7 +1053,7 @@ int main(void) {
     memset(&europe, 0, sizeof(europe));
     europe.cargo_count = 16;
     if (!col1_bridge_capture(
-          &save, &map, &units, &colonies, &europe, 1492, 0, 1, 0, fx, fy, fx, fy, -1, err, sizeof(err)
+          &save, &map, &units, &colonies, &europe, 1492, 0, 1, 0, fx, fy, fx, fy, -1, true, err, sizeof(err)
         )) {
       fprintf(stderr, "building roundtrip: capture: %s\n", err);
       col1_save_free(&save);
@@ -1251,6 +1251,7 @@ int main(void) {
           br.view_x,
           br.view_y,
           units.selected_id,
+          units.selected_id < 0,
           err,
           sizeof(err)
         )) {
@@ -1371,7 +1372,7 @@ int main(void) {
     memset(&europe, 0, sizeof(europe));
     europe.cargo_count = 16;
     if (!col1_bridge_capture(
-          &save, &map, &units, &colonies, &europe, 1492, 0, 1, 0, 10, 12, 10, 12, uid, err, sizeof(err)
+          &save, &map, &units, &colonies, &europe, 1492, 0, 1, 0, 10, 12, 10, 12, uid, uid < 0, err, sizeof(err)
         )) {
       fprintf(stderr, "newgame export: capture: %s\n", err);
       units_set_occupancy_map(NULL);
@@ -1547,7 +1548,7 @@ int main(void) {
         }
       }
       if (!col1_bridge_capture(
-            &save, &map, &units, &colonies, &europe, 1492, 0, 1, 0, 40, 30, 40, 30, ship_id, err,
+            &save, &map, &units, &colonies, &europe, 1492, 0, 1, 0, 40, 30, 40, 30, ship_id, ship_id < 0, err,
             sizeof(err)
           )) {
         fprintf(stderr, "fleet export: capture: %s\n", err);
@@ -1828,7 +1829,7 @@ int main(void) {
     memset(&europe, 0, sizeof(europe));
     europe.cargo_count = 16;
     if (!col1_bridge_capture(
-          &save, &map, &units, &colonies, &europe, 1492, 0, 1, 0, 20, 20, 20, 20, ship_id, err,
+          &save, &map, &units, &colonies, &europe, 1492, 0, 1, 0, 20, 20, 20, 20, ship_id, ship_id < 0, err,
           sizeof(err)
         )) {
       fprintf(stderr, "dock-garrison: capture: %s\n", err);
@@ -2244,7 +2245,7 @@ int main(void) {
     europe.recruit_count = 9;
     if (!col1_bridge_capture(
           &save, &map, &units, &colonies, &europe, br.year, br.autumn, br.turn_number,
-          br.human_nation, br.cursor_x, br.cursor_y, br.view_x, br.view_y, -1, err, sizeof(err)
+          br.human_nation, br.cursor_x, br.cursor_y, br.view_x, br.view_y, -1, true, err, sizeof(err)
         )) {
       fprintf(stderr, "recruit_count roundtrip: capture: %s\n", err);
       col1_save_free(&save);
@@ -2351,7 +2352,7 @@ int main(void) {
     memset(&europe, 0, sizeof(europe));
     europe.cargo_count = 16;
     if (!col1_bridge_capture(
-          &save, &map, &units, &colonies, &europe, 1492, 0, 1, 0, 20, 20, 20, 20, wagon, err, sizeof(err)
+          &save, &map, &units, &colonies, &europe, 1492, 0, 1, 0, 20, 20, 20, 20, wagon, wagon < 0, err, sizeof(err)
         )) {
       fprintf(stderr, "trade-route cursor: capture: %s\n", err);
       units_set_occupancy_map(NULL);
@@ -2560,7 +2561,7 @@ int main(void) {
     memset(&europe, 0, sizeof(europe));
     europe.cargo_count = 16;
     if (!col1_bridge_capture(
-          &save, &map, &units, &colonies, &europe, 1492, 0, 1, 0, 20, 20, 20, 20, -1, err, sizeof(err)
+          &save, &map, &units, &colonies, &europe, 1492, 0, 1, 0, 20, 20, 20, 20, -1, true, err, sizeof(err)
         )) {
       fprintf(stderr, "decoder bounds: capture: %s\n", err);
       units_set_occupancy_map(NULL);
@@ -2806,7 +2807,7 @@ int main(void) {
     memset(&europe, 0, sizeof(europe));
     europe.cargo_count = 16;
     if (!col1_bridge_capture(
-          &save, &map, &units, &colonies, &europe, 1492, 0, 1, 0, 20, 20, 20, 20, -1, err, sizeof(err)
+          &save, &map, &units, &colonies, &europe, 1492, 0, 1, 0, 20, 20, 20, 20, -1, true, err, sizeof(err)
         )) {
       fprintf(stderr, "wagon errand latch: capture: %s\n", err);
       col1_save_free(&save);
@@ -3051,7 +3052,7 @@ int main(void) {
     memset(&europe, 0, sizeof(europe));
     europe.cargo_count = 16;
     if (!col1_bridge_capture(
-          &save, &map, &units, &colonies, &europe, 1492, 0, 1, 0, 30, 20, 30, 20, -1, err, sizeof(err)
+          &save, &map, &units, &colonies, &europe, 1492, 0, 1, 0, 30, 20, 30, 20, -1, true, err, sizeof(err)
         )) {
       fprintf(stderr, "moves_spent export: capture: %s\n", err);
       col1_save_free(&save);
@@ -3274,7 +3275,7 @@ int main(void) {
     /* Capture with a deliberately different camera and no active unit. */
     if (!col1_bridge_capture(
           &save, &map, &units, &colonies, &europe, br.year, br.autumn, br.turn_number,
-          br.human_nation, 11, 12, 40, 41, -1, err, sizeof(err)
+          br.human_nation, 11, 12, 40, 41, -1, true, err, sizeof(err)
         )) {
       fprintf(stderr, "head-stamp: capture: %s\n", err);
       goto head_stamp_fail;
@@ -3344,7 +3345,7 @@ int main(void) {
       }
       if (!col1_bridge_capture(
             &save, &map, &units, &colonies, &europe, br.year, br.autumn, br.turn_number,
-            br.human_nation, 11, 12, 40, 41, uid, err, sizeof(err)
+            br.human_nation, 11, 12, 40, 41, uid, uid < 0, err, sizeof(err)
           )) {
         fprintf(stderr, "head-stamp: capture2: %s\n", err);
         goto head_stamp_fail;

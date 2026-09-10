@@ -415,7 +415,8 @@ void unit_stack_render(
         u->nation_id,
         u->orders,
         false,
-        u->aboard_ship_id >= 0,
+        /* Chrome's 4th arm = damaged Artillery (+0x3148 bit7), not aboard. */
+        (u->col1_unknown15 & 0x80u) != 0,
         /* bugs.md: raw nation fill index goes pink for the Dutch under the
          * game palette — remap through the frame's real palette. */
         active_palette

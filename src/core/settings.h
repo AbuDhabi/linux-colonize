@@ -30,8 +30,16 @@
  * not preferences, and are never read or written by this module.
  */
 
-/* Bumped when a field's meaning changes; unknown versions load best-effort. */
+/* Bumped when a field's meaning changes; unknown versions load best-effort.
+ * settings_load_file reads the key back and warns on a from-the-future file;
+ * a bump hangs its migration off that read. */
 #define COLONIZE_SETTINGS_VERSION 1
+
+/* Window scale range. One answer for both entry points: the settings.json
+ * "display.window_scale" key and main.c's --scale flag. */
+#define COLONIZE_WINDOW_SCALE_MIN 1
+#define COLONIZE_WINDOW_SCALE_MAX 8
+int settings_clamp_window_scale(int64_t scale);
 
 /*
  * Everything here is stored in the player-facing sense: true means the thing
@@ -96,9 +104,11 @@ void settings_defaults(ColonizeSettings* out);
  * not be parsed — the settings are left at defaults in that case, the bad
  * file is left untouched, and the game still starts.
  *
- * settings_is_loaded reports whether settings_init ran at all. Callers that
- * must stay DOS-faithful when no preference file is in play (the New Game
- * path) gate on it, which is what keeps the goldens golden.
+ * settings_is_loaded reports whether a preference file is in play: false
+ * before settings_init, and false again when init failed to parse an existing
+ * file (nothing was recovered, the settings are back at defaults). Callers
+ * that must stay DOS-faithful without preferences (the New Game path) gate on
+ * it, which is what keeps the goldens golden.
  */
 bool settings_init(const char* path, char* err, size_t err_size);
 bool settings_is_loaded(void);

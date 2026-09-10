@@ -65,6 +65,11 @@ bool col1_bridge_capture(
   int view_x, /* DS:0x17c/0x17e camera centre */
   int view_y,
   int active_unit_id,
+  /* DS:0x5390 map_mode — the live View Pieces toggle, NOT a function of the
+   * selection: the View Pieces command (raw 42112) sets 0x5390 = 1 without
+   * touching 0x5392, and two DOS fixtures carry mode 1 with an active unit
+   * (original_saves/COLONY01, french-campaign/COLONY09). */
+  bool view_pieces_mode,
   char* err,
   size_t err_size
 );

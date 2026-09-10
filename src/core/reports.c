@@ -2462,7 +2462,21 @@ static void reports_render_colony_garrisons(
         if (sprite < 0) {
           continue;
         }
-        const int display_type = units_display_type_index(units, unit->id);
+        /*
+         * WARNING — pool index used as a DOS @UNIT id. units_display_type_index
+         * returns a Linux POOL INDEX; `ru->type` below is the col1 save's raw
+         * DOS type byte, and unit_chrome_corner_for_type's argument is a DOS
+         * @UNIT id. The three only agree because of the NAMES.TXT ordering
+         * invariant documented at unit_chrome.c's unit_chrome_corner_for_type
+         * (units_load_types appends the @UNIT rows in file order, and the
+         * shipped section is exactly Colonists 0 … Mtd. Warriors 0x16). This is
+         * the third consumer of that invariant (chrome corner, europe.c's dock
+         * display type, this row match); it is cosmetic here — a mismatch picks
+         * the wrong raw record's orders letter or the wrong badge corner — so
+         * the numeric compare is kept rather than pushed through a name lookup.
+         * Do NOT copy this pattern into a rules path (units.c:5117).
+         */
+        const int dos_unit_type_id = units_display_type_index(units, unit->id);
         int orders = unit->orders;
         if (raw_used) {
           for (uint16_t ri = 0; ri < col1->head.unit_count; ++ri) {
@@ -2471,7 +2485,7 @@ static void reports_render_colony_garrisons(
             }
             const ColonizeCol1Unit* ru = &col1->unit[ri];
             if (ru->nation_id == (uint8_t)human && ru->x == c->x && ru->y == c->y &&
-                ru->type == (uint8_t)display_type) {
+                ru->type == (uint8_t)dos_unit_type_id) {
               orders = ru->orders;
               raw_used[ri] = true;
               break;
@@ -2479,8 +2493,10 @@ static void reports_render_colony_garrisons(
           }
         }
         unit_chrome_blit_unit_for_palette(
-          fb, font, icons, sprite, x, row_top - 3,
-          display_type, unit->nation_id, orders, false, false, active_palette
+          fb, font, icons, sprite, x, row_top - 3, dos_unit_type_id, unit->nation_id, orders,
+          false,
+          /* Badge arm 4 = Artillery + damaged (+0x3148 bit7), not aboard. */
+          (unit->col1_unknown15 & 0x80u) != 0, active_palette
         );
         x += pitch;
       }
@@ -2648,6 +2664,9 @@ typedef struct NavalRow {
   int pass_type;
   int pass_nation;
   int pass_orders;
+  /* DOS badge arm 4 = Artillery + damaged (+0x3148 bit7), not "aboard" —
+   * unit_chrome_corner_for_type. Europe-lane cargo has no unit, so false. */
+  bool pass_damaged;
   const char* pass_label;
 
   int goods_icon[COLONIZE_UNIT_CARGO_MAX];
@@ -2750,6 +2769,7 @@ static int reports_naval_build_rows(
         r->pass_type = units_display_type_index(units, pax->id);
         r->pass_nation = pax->nation_id;
         r->pass_orders = pax->orders;
+        r->pass_damaged = (pax->col1_unknown15 & 0x80u) != 0;
         const ColonizeUnitType* pt = units_type(units, pax->type_index);
         r->pass_label = reports_naval_passenger_label(pax->profession, pt ? pt->name : NULL);
         reports_naval_location(colonies, u->x, u->y, r->location, sizeof(r->location));
@@ -2960,7 +2980,7 @@ static void reports_render_naval(
       if (icons && r->pass_sprite >= 0) {
         unit_chrome_blit_unit_for_palette(
           fb, font, icons, r->pass_sprite, REPORTS_NAVAL_CARGO_ICON_X, icon_y,
-          r->pass_type, r->pass_nation, r->pass_orders, false, true, active_palette
+          r->pass_type, r->pass_nation, r->pass_orders, false, r->pass_damaged, active_palette
         );
       }
       if (r->pass_label) {

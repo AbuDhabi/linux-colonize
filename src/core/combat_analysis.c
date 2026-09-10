@@ -429,7 +429,9 @@ static void combat_analysis_snap_chrome(
   chrome->display_type = units_display_type_index(pool, unit_id);
   chrome->nation_id = u->nation_id;
   chrome->orders = u->orders;
-  chrome->aboard = u->aboard_ship_id >= 0;
+  /* DOS FUN_112b_01ba's 4th badge arm is Artillery + the damaged bit
+   * (+0x3148 bit7), not "aboard a ship" — see unit_chrome.h. */
+  chrome->damaged = (u->col1_unknown15 & 0x80u) != 0;
 }
 
 bool combat_analysis_open(
@@ -532,7 +534,7 @@ static void combat_analysis_blit_side(
     chrome->nation_id,
     chrome->orders,
     false,
-    chrome->aboard,
+    chrome->damaged,
     active_palette
   );
 }

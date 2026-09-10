@@ -487,11 +487,20 @@ void colony_screen_open_eject(
   colony_screen_close_subpanels(view);
   view->eject_colonist_index = colonist_index;
   view->eject_unit_id = -1;
-  view->eject_role_count = colonies_list_eject_roles(
-    pool, colony_id, colonist_index, view->eject_roles, COLONIZE_EJECT_ROLE_COUNT
+  for (int i = 0; i < COLONIZE_EJECT_ROLE_COUNT; ++i) {
+    view->eject_role_enabled[i] = true;
+  }
+  view->eject_role_count = colonies_list_eject_roles_ex(
+    pool,
+    colony_id,
+    colonist_index,
+    view->eject_roles,
+    view->eject_role_enabled,
+    COLONIZE_EJECT_ROLE_COUNT
   );
   if (view->eject_role_count <= 0) {
     view->eject_roles[0] = COLONIZE_EJECT_COLONIST;
+    view->eject_role_enabled[0] = true;
     view->eject_role_count = 1;
   }
   view->eject_open = true;
@@ -3517,7 +3526,8 @@ static void colony_screen_draw_multifunction(
         u->nation_id,
         u->orders,
         false,
-        u->aboard_ship_id >= 0,
+        /* Chrome's 4th arm = damaged Artillery (+0x3148 bit7), not aboard. */
+        (u->col1_unknown15 & 0x80u) != 0,
         (view->frame_ok && view->frame.has_palette) ? &view->frame.palette : NULL
       );
       if (view->multi_unit_selected_id == u->id) {
@@ -4136,7 +4146,13 @@ static void colony_screen_draw_eject_popup(
     }
     const char* name = colonies_eject_role_name(view->eject_roles[i]);
     if (font) {
-      font_draw_text(font, framebuffer, inner_x + pad, row_y + 1, name, 15);
+      /* DOS draws a short-stock row greyed rather than dropping it
+       * (FUN_15eb_3454 → 0xffff, raw 50805 FUN_291f_01b6); colour 8 is the
+       * same disabled grey the Europe dock menu uses. */
+      font_draw_text(
+        font, framebuffer, inner_x + pad, row_y + 1, name,
+        view->eject_role_enabled[i] ? 15 : 8
+      );
     }
   }
 }

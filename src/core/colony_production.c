@@ -471,10 +471,36 @@ void colony_prod_tick_rebel_accumulators(
     );
   }
 
-  /* WoI + crown-occupied: bells feed Tory (negative half). */
+  /*
+   * DOS FUN_364b_0688, viceroy_unpacked.c:57349-57357, one if/else with two
+   * arms — the port carried only the WoI one until 2026-09-10 (smell audit
+   * 2026-09-08 #107):
+   *
+   *   local_8e = FUN_281f_0c86();                     // = colony SoL %,
+   *                                                   //   FUN_15eb_0274,
+   *                                                   //   read BEFORE the
+   *                                                   //   decay/add below
+   *   if ((0x5382 & 1) == 0 || colony->nation != 0x53d2) {   // NOT WoI-crown
+   *     if (local_ba < colony->+0x1f)                 // bells < population
+   *       local_ba += local_8e / -0x14;               // bells -= SoL% / 20
+   *   } else {
+   *     local_ba = -(local_ba >> 1);                  // the Tory half
+   *   }
+   *
+   * The non-WoI arm is SoL decay under an under-producing town: a colony
+   * whose bells this turn do not even match its head count loses up to 5
+   * bells (SoL 100 → 5, SoL 0 → 0) off the dividend feed. `local_8e` is
+   * non-negative and DOS's division truncates toward zero, so `/ -0x14`
+   * then `+=` is exactly `-= sol / 20` here. colony_prod_sol_percent is
+   * FUN_15eb_0274 (Bolivar +20 included, capped 100) and reads the rebel
+   * pair before this tick updates it, matching DOS's read order.
+   */
   const int woi = col1->head.game_options.woi != 0;
   if (woi && nation_id == colony_prod_crown_nation(col1)) {
+    /* WoI + crown-occupied: bells feed Tory (negative half). */
     bells = -(bells >> 1);
+  } else if (bells < pop) {
+    bells -= colony_prod_sol_percent(col1, colony) / 20;
   }
 
   cc->rebel_dividend -= (cc->rebel_dividend >> 6);

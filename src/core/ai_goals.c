@@ -1370,9 +1370,15 @@ int ai_goals_probe_adjacent_contact_claim(
          */
         int armed = 0;
         if (units) {
+          /* Slot walk, not an id walk: `units_get_const` takes a unit ID and
+           * ids are handed out monotonically from 1 and never recycled
+           * (units.c:337), so a `ui`-as-id walk over COLONIZE_UNITS_MAX
+           * dropped every unit with id >= 256 plus the highest slot. DOS
+           * walks the unit ARRAY in record order (raw 78159).
+           * Fixed 2026-09-10 (audit second-wave Leads item 2). */
           for (int ui = 0; ui < COLONIZE_UNITS_MAX && !armed; ++ui) {
-            const ColonizeUnit* su = units_get_const(units, ui);
-            if (!su || !su->active || su->aboard_ship_id >= 0 || su->x != nx || su->y != ny) {
+            const ColonizeUnit* su = &units->units[ui];
+            if (!su->active || su->aboard_ship_id >= 0 || su->x != nx || su->y != ny) {
               continue;
             }
             const ColonizeUnitType* st = units_type(units, su->type_index);
