@@ -361,6 +361,17 @@ void colony_screen_set_status(ColonyScreenView* view, const char* text);
 void colony_screen_reset_ui(ColonyScreenView* view);
 void colony_screen_set_delta(ColonyScreenView* view, const ColonizeColonyProdDelta* delta);
 
+/*
+ * Close every colony-screen sub-panel (message, jobs, eject, dock orders,
+ * Custom House, construction) in one call. The six panels are mutually
+ * exclusive — DOS never stacks two of them — so every colony_screen_open_*
+ * starts here, and so does any caller that opens a panel by hotkey. Each
+ * opener used to hand-roll its own five-line cascade and they had drifted
+ * (open_jobs left a message popup up), which is what let a second panel
+ * survive underneath a freshly opened one.
+ */
+void colony_screen_close_subpanels(ColonyScreenView* view);
+
 void colony_screen_open_construction(
   ColonyScreenView* view,
   const ColonizeColonyPool* pool,

@@ -247,6 +247,25 @@ void colony_screen_set_delta(ColonyScreenView* view, const ColonizeColonyProdDel
   view->last_delta_valid = true;
 }
 
+/*
+ * Single close-all for the six mutually exclusive sub-panels — see
+ * colony_screen.h. Every opener below calls it, so no opener can leave one of
+ * its siblings flagged open underneath itself, and game_loop's panel hotkeys
+ * call it for the same reason. Cheap and idempotent: each close_* is a plain
+ * field reset that no-ops on an already-closed panel.
+ */
+void colony_screen_close_subpanels(ColonyScreenView* view) {
+  if (!view) {
+    return;
+  }
+  colony_screen_close_message(view);
+  colony_screen_close_jobs(view);
+  colony_screen_close_eject(view);
+  colony_screen_close_dock_orders(view);
+  colony_screen_close_custom_house(view);
+  colony_screen_close_construction(view);
+}
+
 void colony_screen_close_construction(ColonyScreenView* view) {
   if (!view) {
     return;
@@ -264,11 +283,7 @@ void colony_screen_open_construction(
   if (!view) {
     return;
   }
-  colony_screen_close_jobs(view);
-  colony_screen_close_eject(view);
-  colony_screen_close_message(view);
-  colony_screen_close_dock_orders(view);
-  colony_screen_close_custom_house(view);
+  colony_screen_close_subpanels(view);
   view->buildable_count = colonies_list_buildable(
     pool, colony_id, view->buildable_ids, COLONY_BUILDABLE_MAX, buildable_opts
   );
@@ -336,11 +351,7 @@ void colony_screen_open_custom_house(
   if (!view || !colony) {
     return;
   }
-  colony_screen_close_jobs(view);
-  colony_screen_close_construction(view);
-  colony_screen_close_eject(view);
-  colony_screen_close_message(view);
-  colony_screen_close_dock_orders(view);
+  colony_screen_close_subpanels(view);
   PopupMsgTokens tok;
   memset(&tok, 0, sizeof(tok));
   popup_msg_fill(
@@ -372,11 +383,7 @@ void colony_screen_open_message_ok(ColonyScreenView* view, const char* text) {
   if (!view) {
     return;
   }
-  colony_screen_close_jobs(view);
-  colony_screen_close_construction(view);
-  colony_screen_close_eject(view);
-  colony_screen_close_dock_orders(view);
-  colony_screen_close_custom_house(view);
+  colony_screen_close_subpanels(view);
   view->message_kind = COLONY_MSG_OK;
   snprintf(view->message_text, sizeof(view->message_text), "%s", text ? text : "");
   view->message_choice0[0] = '\0';
@@ -396,11 +403,7 @@ void colony_screen_open_abandon_confirm(
   if (!view) {
     return;
   }
-  colony_screen_close_jobs(view);
-  colony_screen_close_construction(view);
-  colony_screen_close_eject(view);
-  colony_screen_close_dock_orders(view);
-  colony_screen_close_custom_house(view);
+  colony_screen_close_subpanels(view);
   view->message_kind = COLONY_MSG_CONFIRM;
   snprintf(
     view->message_text,
@@ -434,11 +437,7 @@ void colony_screen_open_eject(
   if (!view || !pool || colonist_index < 0) {
     return;
   }
-  colony_screen_close_jobs(view);
-  colony_screen_close_construction(view);
-  colony_screen_close_message(view);
-  colony_screen_close_dock_orders(view);
-  colony_screen_close_custom_house(view);
+  colony_screen_close_subpanels(view);
   view->eject_colonist_index = colonist_index;
   view->eject_unit_id = -1;
   view->eject_role_count = colonies_list_eject_roles(
@@ -461,17 +460,18 @@ void colony_screen_open_jobs(
   if (!view || !colony || tile_index < 0 || tile_index >= COLONIZE_COLONY_FIELD_TILES) {
     return;
   }
-  colony_screen_close_construction(view);
-  colony_screen_close_eject(view);
-  colony_screen_close_dock_orders(view);
-  colony_screen_close_custom_house(view);
-  view->jobs_tile_index = tile_index;
-  view->job_count = 0;
+  /* Resolve the tile BEFORE touching any panel state: a tile with no delta
+   * (the colony's own centre square) opens nothing, and a call that opens
+   * nothing must not close the panels that are up either — the same early-out
+   * shape colony_screen_open_dock_orders uses for an unknown unit. */
   int dx = 0;
   int dy = 0;
   if (!colonies_field_tile_delta(tile_index, &dx, &dy)) {
     return;
   }
+  colony_screen_close_subpanels(view);
+  view->jobs_tile_index = tile_index;
+  view->job_count = 0;
   const int tx = colony->x + dx;
   const int ty = colony->y + dy;
   /* Row list is deliberately NOT docks-gated (and colony_yield_for_tile's
@@ -502,11 +502,7 @@ void colony_screen_open_dock_orders(
   if (!u) {
     return;
   }
-  colony_screen_close_jobs(view);
-  colony_screen_close_construction(view);
-  colony_screen_close_eject(view);
-  colony_screen_close_message(view);
-  colony_screen_close_custom_house(view);
+  colony_screen_close_subpanels(view);
 
   const ColonizeUnitType* type = units_type(units, u->type_index);
   PopupMsgTokens tok;

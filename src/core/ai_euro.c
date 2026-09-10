@@ -7706,16 +7706,29 @@ static int ai_euro_5d04_cb_colony_demand_query(int head, int mode) {
   }
   return n;
 }
+/* DOS unit+0x3150 holds_occupied (defined below with the 0a60 block). */
+static int ai_euro_0a60_holds_occupied(const ColonizeUnitPool* units, const ColonizeUnit* u);
+
+/* 255 in a hold amount is the COL1 empty-hold sentinel (col1_bridge.c:2580),
+ * not 255 units of cargo — an imported DOS save carries it on Euro hulls.
+ * Same guard as ai_euro_hauler_free_holds / ai_euro_0a60_holds_occupied. */
+static int ai_euro_5d04_hold_amount(const ColonizeUnit* u, int h) {
+  if (!u || h < 0 || h >= COLONIZE_UNIT_CARGO_MAX) {
+    return 0;
+  }
+  const int amt = u->hold_goods_amount[h];
+  return (amt > 0 && amt < 255) ? amt : 0;
+}
 static int ai_euro_5d04_cb_reward_case(int idx) {
   const ColonizeUnit* u = ai_euro_5d04_cb_unit(idx);
-  if (!u || u->hold_goods_amount[0] <= 0) {
+  if (!u || ai_euro_5d04_hold_amount(u, 0) <= 0) {
     return -1;
   }
   return u->hold_goods_type[0];
 }
 static int ai_euro_5d04_cb_reward_value(int idx) {
   const ColonizeUnit* u = ai_euro_5d04_cb_unit(idx);
-  return u ? u->hold_goods_amount[0] : 0;
+  return ai_euro_5d04_hold_amount(u, 0);
 }
 static void ai_euro_5d04_cb_reward_ack(int idx) {
   const ColonizeUnit* u = ai_euro_5d04_cb_unit(idx);
@@ -7752,7 +7765,9 @@ static void ai_euro_5d04_cb_reward_ack(int idx) {
 static int ai_euro_5d04_cb_sell_hold0(int idx) {
   ColonizeTurnContext* ctx = s_5d04_ctx;
   const ColonizeUnit* u = ai_euro_5d04_cb_unit(idx);
-  if (!ctx || !u || u->hold_goods_amount[0] <= 0) {
+  /* Sentinel-aware: a 255 hold 0 is empty, not 255 units to sell at
+   * euro_price−1 (smell audit sweep-3 area C #5). */
+  if (!ctx || !u || ai_euro_5d04_hold_amount(u, 0) <= 0) {
     return 0;
   }
   /* Boycotted cargo stays aboard (europe_cargo_boycotted / boycott_bitmap). */
@@ -7998,8 +8013,11 @@ static void ai_euro_5d04_cb_cargo_demand(int nation_id, int8_t out[16]) {
       if (!units_is_sea(s_5d04_ctx->units, u->id)) {
         continue;
       }
-      for (int h = 0; h < COLONIZE_UNIT_CARGO_MAX; ++h) {
-        if (u->hold_goods_amount[h] > 0 && u->hold_goods_type[h] >= 0 &&
+      const int holds = units_goods_hold_count(s_5d04_ctx->units, u->id);
+      for (int h = 0; h < holds && h < COLONIZE_UNIT_CARGO_MAX; ++h) {
+        /* Sentinel-aware, hold-count bound: a 255 hold is empty, not cargo
+         * already in transit (smell audit sweep-3 area C #5). */
+        if (ai_euro_5d04_hold_amount(u, h) > 0 && u->hold_goods_type[h] >= 0 &&
             u->hold_goods_type[h] < 16) {
           out[u->hold_goods_type[h]]--;
         }
@@ -8521,12 +8539,12 @@ static void ai_euro_5d04_hire_ladder_tail(
             /* raw: break when 0x5237[type] (capacity) == unit+0x3150 (cargo). */
             const ColonizeUnit* sh = ai_euro_5d04_cb_unit(idx2);
             const int cap = units_ship_capacity(ctx->units, sh->id);
-            int used = sh->cargo_count;
-            for (int hh = 0; hh < COLONIZE_UNIT_CARGO_MAX; ++hh) {
-              if (sh->hold_goods_amount[hh] > 0) {
-                used++;
-              }
-            }
+            /* Was a third open-coded copy of unit+0x3150 (smell audit sweep-3
+             * area C #5): it scanned the array bound instead of
+             * units_goods_hold_count and counted the 255 empty-hold sentinel as
+             * cargo, which is exactly what #36 fixed in the other two copies —
+             * a sentinel hull read as full here and bought nothing. */
+            const int used = ai_euro_0a60_holds_occupied(ctx->units, sh);
             if (cap == used || f->cargo_short || !has_any_colony) {
               break;
             }
@@ -9746,68 +9764,22 @@ static int ai_euro_nation_is_human(const ColonizeTurnContext* ctx, int nation) {
  * +0x1b `& 7` clear and the 0x40 / 0x08 / 0x04 flag writers.
  */
 /*
- * DS:0x95f2[cont] `continent_presence_flags` — writer FUN_4962_0018: bit 1 =
- * any Indian settlement on the continent (no nation filter); bit 2 = any
- * foreign unit of a nation < 4 whose TILE has a continent (DOS masks the
- * owner nibble and applies no domain filter — a docked foreign ship counts;
- * passengers are excluded only because DOS parks them at the (−2,−2)
- * sentinel, so the port needs the explicit aboard filter this function
- * already has); bit 4 = a foreign colony is present. The port keeps no
- * mirror of the byte — it is ZEROED at the top of every per-nation call
- * (raw 78149-78150, `for (local_14 = 0; local_14 < 0x10; ++local_14)
- * -0x6a0e[local_14] = 0;`), so it always describes the nation being
- * censused; docs/save_format_map.md row 156's "not cleared between nations,
- * accumulates across the full per-turn pass" is refuted by the raw (audit
- * C7, 2026-09-10) — so the three bits are recomputed here; bit 8 (own combat
- * unit caught in the open with a pending-orders state) has no reader in the
+ * DS:0x95f2[cont] `continent_presence_flags` - the war-declare half of this
+ * same FUN_5952_035e body reads the identical byte ~6 lines later, so the
+ * computation lives once, in ai_contact.c
+ * (`ai_contact_continent_presence_4962`, which carries the full
+ * FUN_4962_0018 citation for all three bits and the argument that the array
+ * is zeroed at the top of every per-nation call). Two copies that disagreed
+ * about the aboard-ship filter and the owner-nibble mask were merged
+ * 2026-09-10 (audit C7); the same audit refuted docs/save_format_map.md row
+ * 156's "not cleared between nations, accumulates across the full per-turn
+ * pass". Bit 8 (own combat unit caught in the open) has no reader in the
  * 5952 arm below and is not modelled.
  */
 static int ai_euro_5952_continent_presence(
   const ColonizeTurnContext* ctx, int nation_id, int cont
 ) {
-  if (!ctx || !ctx->map || cont < 0 || cont >= 16) {
-    return 0;
-  }
-  int flags = 0;
-  const ColonizeCol1Save* col1 = (ctx->col1_ok && ctx->col1) ? ctx->col1 : NULL;
-  if (col1 && col1->tribe) {
-    for (uint16_t ti = 0; ti < col1->head.tribe_count; ++ti) {
-      const ColonizeCol1Tribe* t = &col1->tribe[ti];
-      if (map_continent_id_at(ctx->map, (int)t->x, (int)t->y) == cont) {
-        flags |= 1;
-        break;
-      }
-    }
-  }
-  if (ctx->units) {
-    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-      const ColonizeUnit* u = units_get_const(ctx->units, i);
-      if (!u || !u->active || !units_is_on_map(u) || u->aboard_ship_id >= 0) {
-        continue;
-      }
-      const int owner = u->nation_id & 0xf;
-      if (owner >= 4 || owner == nation_id) {
-        continue;
-      }
-      if (map_continent_id_at(ctx->map, u->x, u->y) == cont) {
-        flags |= 2;
-        break;
-      }
-    }
-  }
-  if (ctx->colonies) {
-    for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
-      const ColonizeColony* o = &ctx->colonies->colonies[i];
-      if (!o->active || o->nation_id == nation_id) {
-        continue;
-      }
-      if (map_continent_id_at(ctx->map, o->x, o->y) == cont) {
-        flags |= 4;
-        break;
-      }
-    }
-  }
-  return flags;
+  return ai_contact_continent_presence_4962(ctx, nation_id, cont);
 }
 
 static void ai_euro_colony_threat_seed_5952(
@@ -13525,7 +13497,8 @@ static int ai_euro_20e6_457e_hs_cadence(ColonizeTurnContext* ctx, ColonizeUnit* 
     const int holds = units_goods_hold_count(ctx->units, u->id);
     for (int h = 0; h < holds; ++h) {
       const int ct = u->hold_goods_type[h];
-      if (u->hold_goods_amount[h] <= 0 || ct < 0) {
+      /* 255 = COL1 empty-hold sentinel, not cargo (sweep-3 area C #5). */
+      if (u->hold_goods_amount[h] <= 0 || u->hold_goods_amount[h] >= 255 || ct < 0) {
         continue;
       }
       if (ct > 0xc || ct == 8) {
@@ -13988,49 +13961,17 @@ static int ai_euro_is_cargo_ship_name(const char* name) {
 }
 
 /*
- * LAB_521d_3558 peace colony-sail score (~89614–89711 thin):
- * prefer higher pop, nearer ship, docks present, hungrier idle timer.
- * War cargo: fort% + human-presence peel + 0x1b-shaped defense ladder
- * (Stockade/Fort/Fortress). Cite: move_scoring_ship.md; Series O.
+ * `ai_euro_ocean_colony_sail_score` — the thin second port of LAB_521d_3558
+ * (~89614-89711) — lived here until smell audit sweep-3 area C #6 retired it:
+ * every term was invented (`pop*8` where DOS scores `((0x11-pop)^2+2)*4`, i.e.
+ * the opposite sign of preference; `-d*4` for DOS's `-((d>>1)+1)`; `idle*8` for
+ * a signed `+idle`; a Stockade/Fort/Fortress ladder DOS does not have; a "docks
+ * flag 0x1b&0x10" that is really NEEDS_COLONISTS), and it had no rng draw,
+ * wanted-size term, human-presence term or commit threshold. The one DOS site
+ * it answered is ported structurally by `ai_euro_20e6_colony_sail_pick` (raw
+ * 89663 ladder), reached from `ai_euro_unload_settle` — DOS enters 3558 once
+ * per act, from the 20e6 unload/settle flow, and now so does this port.
  */
-static int ai_euro_ocean_colony_sail_score(
-  ColonizeTurnContext* ctx,
-  int nation_id,
-  int from_x,
-  int from_y,
-  const ColonizeColony* c,
-  int at_war_cargo
-) {
-  if (!ctx || !ctx->map || !c || !c->active || c->nation_id != nation_id) {
-    return -999999;
-  }
-  if (!map_tile_is_coastal(ctx->map, c->x, c->y)) {
-    return -999999;
-  }
-  const int d = abs(c->x - from_x) + abs(c->y - from_y);
-  int score = (int)c->population * 8 - d * 4 + (int)c->cargo_idle_turns * 8;
-  const int docks_id = colonies_find_building(ctx->colonies, "Docks");
-  if (docks_id >= 0 && c->has_building[docks_id]) {
-    score += 16; /* dock flag 0x1b&0x10 stand-in */
-  }
-  if (at_war_cargo) {
-    const int fort = ai_euro_colony_fort_bonus_at(ctx->colonies, c->x, c->y, nation_id);
-    score += fort / 5;
-    score += 14; /* war human-presence / fort peel thin */
-    /* Building flags 0x1b stand-in: Stockade +8 / Fort +16 / Fortress +24. */
-    const int fortress_id = colonies_find_building(ctx->colonies, "Fortress");
-    const int fort_id = colonies_find_building(ctx->colonies, "Fort");
-    const int stockade_id = colonies_find_building(ctx->colonies, "Stockade");
-    if (fortress_id >= 0 && c->has_building[fortress_id]) {
-      score += 24;
-    } else if (fort_id >= 0 && c->has_building[fort_id]) {
-      score += 16;
-    } else if (stockade_id >= 0 && c->has_building[stockade_id]) {
-      score += 8;
-    }
-  }
-  return score;
-}
 
 static int ai_euro_20e6_unit_col5(int dos_type);
 
@@ -15573,89 +15514,15 @@ static int ai_euro_try_ship_europe_export(
 }
 
 /*
- * War cargo colony-sail (3558 thin, needs −0x6790 stance ≠ 0): ship with
- * muskets/horses or military pax sails to best fortified own coastal colony.
- * Cite: move_scoring_ship.md war cargo; euro_ocean_scoring.c.
+ * The war-cargo colony-sail arm that stood here (`ai_euro_try_ship_war_cargo_sail`)
+ * was a second, earlier entry into LAB_521d_3558 with its own invented scorer;
+ * smell audit sweep-3 area C #6 retired both. DOS reaches 3558 exactly once per
+ * act, from the 20e6 unload/settle flow, which this port keeps in
+ * `ai_euro_unload_settle` -> `ai_euro_20e6_colony_sail_pick` (raw 89614-89711,
+ * ladder at 89663). Goods-only hulls are the delivery matrix's business (raw
+ * 2047-2139), not 3558's; military passengers still reach the structural pick
+ * through the settle gate.
  */
-static int ai_euro_try_ship_war_cargo_sail(
-  ColonizeTurnContext* ctx,
-  int nation_id,
-  ColonizeUnit* ship
-) {
-  if (!ctx || !ctx->units || !ctx->map || !ctx->colonies || !ship || !ship->active) {
-    return 0;
-  }
-  if (ai_euro_in_europe(ship->x, ship->y)) {
-    return 0;
-  }
-  if (!ctx->col1_ok || !ctx->col1 || !ai_euro_at_war_any_peer(ctx->col1, nation_id)) {
-    return 0;
-  }
-  ai_euro_refresh_continent_stance(ctx, nation_id);
-  int any_stance = 0;
-  for (int cid = 0; cid <= 15; ++cid) {
-    if (ai_euro_continent_stance_at(nation_id, cid) != 0) {
-      any_stance = 1;
-      break;
-    }
-  }
-  if (!any_stance) {
-    return 0;
-  }
-  const int has_muskets =
-    ai_euro_wagon_has_cargo_type(ctx->units, ship, COLONIZE_CARGO_MUSKETS);
-  const int has_horses =
-    ai_euro_wagon_has_cargo_type(ctx->units, ship, COLONIZE_CARGO_HORSES);
-  int has_mil_pax = 0;
-  for (int c = 0; c < ship->cargo_count && c < COLONIZE_UNIT_CARGO_MAX; ++c) {
-    const ColonizeUnit* pax = units_get_const(ctx->units, ship->cargo_ids[c]);
-    if (!pax || !pax->active) {
-      continue;
-    }
-    if (ai_euro_is_military_name(units_display_name(ctx->units, pax))) {
-      has_mil_pax = 1;
-      break;
-    }
-  }
-  if (!has_muskets && !has_horses && !has_mil_pax) {
-    return 0;
-  }
-  int best_score = -999999;
-  int bx = 0;
-  int by = 0;
-  int have = 0;
-  for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
-    const ColonizeColony* c = &ctx->colonies->colonies[i];
-    if (!c->active || c->nation_id != nation_id) {
-      continue;
-    }
-    const int cid = map_continent_id_at(ctx->map, c->x, c->y);
-    if (ai_euro_continent_stance_at(nation_id, cid) == 0) {
-      continue;
-    }
-    const int score =
-      ai_euro_ocean_colony_sail_score(ctx, nation_id, ship->x, ship->y, c, /*at_war=*/1);
-    if (!have || score > best_score) {
-      have = 1;
-      best_score = score;
-      bx = c->x;
-      by = c->y;
-    }
-  }
-  if (!have) {
-    return 0;
-  }
-  int wx = 0;
-  int wy = 0;
-  if (!ai_euro_coastal_water_near(ctx->map, bx, by, ship->x, ship->y, &wx, &wy)) {
-    return 0;
-  }
-  if (ship->x == wx && ship->y == wy) {
-    return 1;
-  }
-  ai_euro_set_goto(ship, UNITS_ORDER_AI_SAIL, wx, wy);
-  return 1;
-}
 
 /*
  * Peace Privateer loot sail: already carrying FUN_364b-eligible goods → AI_SAIL
@@ -18861,8 +18728,8 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
           c->stock[COLONIZE_CARGO_MUSKETS] -= UNITS_EQUIP_MUSKETS;
           u->muskets = UNITS_EQUIP_MUSKETS;
           if (mounted && arm_ty != units_find_type(ctx->units, "Soldiers")) {
-            c->stock[COLONIZE_CARGO_HORSES] -= UNITS_EQUIP_MUSKETS;
-            u->horses = UNITS_EQUIP_MUSKETS;
+            c->stock[COLONIZE_CARGO_HORSES] -= UNITS_EQUIP_HORSES;
+            u->horses = UNITS_EQUIP_HORSES;
           }
           u->type_index = arm_ty;
           /* raw 11270: FUN_15eb_1068 zeroes +0x314c (the orders/act-state
@@ -19296,10 +19163,10 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
       (void)ai_euro_try_unload_military_threatened(ctx, nation_id, u);
     }
     if (at_war && !ai_euro_in_europe(u->x, u->y) && !treasure_aboard) {
-      /* War cargo → fortified own coast when −0x6790 stance ≠ 0. */
-      if (ai_euro_try_ship_war_cargo_sail(ctx, nation_id, u)) {
-        /* fall through to hunt only if still idle after course set */
-      }
+      /* The war-cargo colony-sail call that sat here is retired (smell audit
+       * sweep-3 area C #6): it was a second entry into LAB_521d_3558 with an
+       * invented scorer, running before this act's sail loop and so overriding
+       * the structural pick that ai_euro_unload_settle makes below. */
       /* Leave enemy Fort/Fortress battery tiles before hunt/attack. */
       if (ai_euro_naval_try_flee_fort_fire(ctx, u)) {
         u = units_get(ctx->units, u->id);
@@ -20700,40 +20567,15 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
     }
   }
 
-  /*
-   * Sticky CONTACT re-hunt: if moves remain and an adjacent foreign Euro is
-   * at war, chain try_attack while MP lasts (mirror land_try_adjacent_attack
-   * multi-step; dispatcher sticky waves still apply). Deep 20e6 scoring PARKED.
-   *
-   * Gates match the sibling block above (`at_war_land && is_land_hunter &&
-   * !fortified`) — smell audit #37. They used to be missing, which the
-   * comment's own "is at war" claim never covered: since smell #106 made
-   * `ai_euro_land_best_adjacent_foe` peace-permissive (DOS gates a Euro
-   * target on the signed-treaty bit alone, viceroy 75567-75593), an ungated
-   * tail let ANY land unit — a Pioneer, a Treasure escort, a fortified
-   * garrison — open a @SNEAK war at the end of its act.
-   */
-  if (u->active && u->moves_left > 0 && ctx->col1_ok && ctx->col1 && at_war_land &&
-      is_land_hunter && !ai_euro_land_is_fortified(u) && !units_is_sea(ctx->units, u->id)) {
-    for (int step = 0; step < 8 && u->active && u->moves_left > 0; ++step) {
-      const int foe = ai_euro_land_best_adjacent_foe(ctx, u);
-      if (foe < 0) {
-        break;
-      }
-      const ColonizeUnit* f = units_get_const(ctx->units, foe);
-      /* Sticky CONTACT is Euro-peer war only (Indians stay on contact/raid paths). */
-      if (!f || f->nation_id < 0 || f->nation_id > 3) {
-        break;
-      }
-      const int ml0 = u->moves_left;
-      const int ax = u->x;
-      const int ay = u->y;
-      ai_euro_try_attack(ctx, u, f->x, f->y);
-      if (!u->active || (u->moves_left >= ml0 && u->x == ax && u->y == ay)) {
-        break;
-      }
-    }
-  }
+  /* The "sticky CONTACT re-hunt" tail that used to sit here is folded into the
+   * block above (smell audit sweep-3 area C #1): once smell #37 gave it the
+   * same `at_war_land && is_land_hunter && !fortified` gate,
+   * ai_euro_land_try_adjacent_attack (euro_unit_act §2c sticky re-hunt; Euro
+   * target gate viceroy 75567-75593) already ran the identical 8-step
+   * best_adjacent_foe/try_attack loop under strictly weaker preconditions, so
+   * the tail could only ever re-hit its own `foe < 0`/no-progress break —
+   * confirmed by instrumenting its try_attack over the whole ctest suite
+   * (golden_ai_turns/mid01/late01/joint included): zero hits. */
 }
 
 int ai_euro_use_full_dispatch(const ColonizeTurnContext* ctx) {

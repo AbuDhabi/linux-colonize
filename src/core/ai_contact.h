@@ -77,6 +77,18 @@ void ai_contact_indian_relation_tick(ColonizeTurnContext* ctx, int nation_id);
  */
 void ai_contact_colony_tick_war_5952(ColonizeTurnContext* ctx, int nation_id, int cx, int cy);
 
+/*
+ * DS:0x95f2[cont] `continent_presence_flags` for one (nation, continent) pair:
+ * bit 1 = an Indian settlement is on the continent (no nation filter), bit 2 =
+ * a foreign EUROPEAN (id < 4) unit stands on it, bit 4 = a foreign colony is
+ * on it. Recomputed live from FUN_4962_0018's writer (raw 78149-78312), which
+ * zeroes the array at the top of every per-nation call — the port keeps no
+ * mirror. Shared by both halves of the FUN_5952_035e colony tick that read the
+ * byte: ai_contact_colony_tick_war_5952 here and ai_euro.c's
+ * ai_euro_5952_continent_presence expansion-appetite cap (audit C7).
+ */
+int ai_contact_continent_presence_4962(const ColonizeTurnContext* ctx, int nation_id, int cont);
+
 /* FUN_5bfb_022e meet / auto-trade (status + AI popup CHOICE/OK when queued). */
 void ai_contact_indian_meet_trade(ColonizeTurnContext* ctx, int nation_id);
 

@@ -1139,6 +1139,7 @@ static void game_open_pedia_article(
 );
 static bool game_try_unit_move(ColonizeGameState* game, int dest_x, int dest_y);
 static void game_after_unit_action(ColonizeGameState* game);
+static bool game_select_next_unit_awaiting_orders(ColonizeGameState* game);
 static void activate_menu_selection(ColonizeGameState* game);
 static void game_wait_next_unit(ColonizeGameState* game);
 static bool game_turn_flow_allowed(const ColonizeGameState* game);
@@ -2983,7 +2984,7 @@ static void game_apply_ai_popup_result(ColonizeGameState* game) {
          * crossing leaves it selected on the lane tile). */
         if (units_on_high_seas(&game->world_map, ship->x, ship->y) && game->europe_ok &&
             game_ship_sail_to_europe(game, ship_id)) {
-          if (turn_select_next_unit(&game->units, game->human_nation)) {
+          if (game_select_next_unit_awaiting_orders(game)) {
             game->view_pieces_mode = false;
           }
         }
@@ -10606,35 +10607,22 @@ static bool game_units_pending_orders(const ColonizeGameState* game) {
 }
 
 /*
- * turn_select_next_unit + the standing-order skip loop every hand-off site
- * needs. A Fortified/Sentried unit (units_orders_skip_turn — the same
- * discriminator the per-frame activation queue in game_update uses) must
- * never end up as the live selection: DOS's control cycle only ever offers
- * units that actually await orders, and stopping the cycle on one here
- * flashes it into control for a frame before the next tick skips past it.
- * Bounded — each turn_select_next_unit call moves strictly forward and never
- * revisits a unit within one sweep. Returns true with pool->selected_id
- * parked on a unit that genuinely awaits orders.
+ * ColonizeGameState-shaped adapter for turn.c's shared
+ * turn_select_next_unit_awaiting_orders (the standing-order skip loop every
+ * hand-off site needs — see turn.h for the rule it enforces). This used to be
+ * a byte-for-byte second copy of that body; the two must behave identically
+ * inside and outside the turn processor, so there is now exactly one, and this
+ * only adds the units_ok guard the game-state callers rely on.
+ *
+ * EVERY hand-off in this file goes through here, never through a bare
+ * turn_select_next_unit: parking the live selection on a Fortified/Sentried
+ * unit flashes it into control for a frame before the next tick skips past it.
  */
 static bool game_select_next_unit_awaiting_orders(ColonizeGameState* game) {
   if (!game || !game->units_ok) {
     return false;
   }
-  bool found = turn_select_next_unit(&game->units, game->human_nation);
-  for (int guard = 0; found && guard < COLONIZE_UNITS_MAX; ++guard) {
-    const ColonizeUnit* next = units_get_const(&game->units, game->units.selected_id);
-    if (!next || !units_orders_skip_turn(next)) {
-      break;
-    }
-    found = turn_select_next_unit(&game->units, game->human_nation);
-  }
-  if (found) {
-    const ColonizeUnit* next = units_get_const(&game->units, game->units.selected_id);
-    if (!next || units_orders_skip_turn(next)) {
-      return false; /* guard ran out on a run of standing-order units */
-    }
-  }
-  return found;
+  return turn_select_next_unit_awaiting_orders(&game->units, game->human_nation);
 }
 
 /*
@@ -12529,7 +12517,7 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
            * the Atlantic lane) — hand the queue to the next unit. */
           active = units_get(&game->units, active_id);
           if (!active || !active->active) {
-            if (turn_select_next_unit(&game->units, game->human_nation)) {
+            if (game_select_next_unit_awaiting_orders(game)) {
               game->view_pieces_mode = false;
             }
             return true;
@@ -12569,7 +12557,7 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
            * was ordered to, so it still gets the ordinary arrival tail
            * instead of an unconditional hand-off. */
           if (game_ship_sail_to_europe(game, active_id)) {
-            if (turn_select_next_unit(&game->units, game->human_nation)) {
+            if (game_select_next_unit_awaiting_orders(game)) {
               game->view_pieces_mode = false;
             }
           } else if (stepped) {
@@ -12614,7 +12602,7 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
               stalled->moves_left > 0) {
             stalled->moves_left = 0;
           }
-          if (turn_select_next_unit(&game->units, game->human_nation)) {
+          if (game_select_next_unit_awaiting_orders(game)) {
             game->view_pieces_mode = false;
             const ColonizeUnit* next = units_get_const(&game->units, game->units.selected_id);
             if (next) {
@@ -12869,6 +12857,12 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
         game_ui_drag_clear(game);
         return true;
       }
+      /* Sub-panel cascade: Escape dismisses the topmost open panel and only
+       * leaves the colony once none is up. Priority order is shared verbatim
+       * with the Enter cascade below (message, jobs, eject, dock orders,
+       * Custom House, construction); the six can never actually be open at
+       * once — colony_screen_close_subpanels runs from every opener — so the
+       * order is a tie-break the two keys must not spell differently. */
       if (csv->message_kind != COLONY_MSG_NONE) {
         colony_screen_close_message(csv);
         return true;
@@ -12920,6 +12914,42 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
         }
         return true;
       }
+      /* Panel priority below is the SAME order Escape's cascade uses
+       * (message, jobs, eject, dock orders, Custom House, construction).
+       * The six are mutually exclusive by construction — every opener goes
+       * through colony_screen_close_subpanels — so the order is a tie-break
+       * that must not disagree between the two keys. */
+      if (csv->jobs_open) {
+        if (csv->jobs_selection >= 0 && csv->jobs_selection < csv->job_count) {
+          const int job = csv->job_ids[csv->jobs_selection];
+          const int ci = game_colony_selected_colonist(game);
+          if (ci < 0) {
+            set_status(game, "Select a colonist first", NULL);
+          } else if (colonies_assign_field(
+                       &game->colonies,
+                       game->colony_view_id,
+                       ci,
+                       csv->jobs_tile_index,
+                       job
+                     )) {
+            game_colony_assign_job_sound(job);
+            snprintf(
+              game->status,
+              sizeof(game->status),
+              "Working as %s",
+              colony_yield_job_name(job)
+            );
+            game_colony_indian_land_worked(
+              game, colonies_get(&game->colonies, game->colony_view_id), csv->jobs_tile_index
+            );
+          } else {
+            set_status(game, "Cannot assign field", NULL);
+          }
+        }
+        colony_screen_close_jobs(csv);
+        colony_screen_set_status(csv, game->status);
+        return true;
+      }
       if (csv->eject_open) {
         if (csv->eject_selection >= 0 && csv->eject_selection < csv->eject_role_count &&
             game->units_ok) {
@@ -12959,37 +12989,6 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
        * through to the panels underneath. */
       if (csv->custom_house_open) {
         colony_screen_close_custom_house(csv);
-        return true;
-      }
-      if (csv->jobs_open) {
-        if (csv->jobs_selection >= 0 && csv->jobs_selection < csv->job_count) {
-          const int job = csv->job_ids[csv->jobs_selection];
-          const int ci = game_colony_selected_colonist(game);
-          if (ci < 0) {
-            set_status(game, "Select a colonist first", NULL);
-          } else if (colonies_assign_field(
-                       &game->colonies,
-                       game->colony_view_id,
-                       ci,
-                       csv->jobs_tile_index,
-                       job
-                     )) {
-            game_colony_assign_job_sound(job);
-            snprintf(
-              game->status,
-              sizeof(game->status),
-              "Working as %s",
-              colony_yield_job_name(job)
-            );
-            game_colony_indian_land_worked(
-              game, colonies_get(&game->colonies, game->colony_view_id), csv->jobs_tile_index
-            );
-          } else {
-            set_status(game, "Cannot assign field", NULL);
-          }
-        }
-        colony_screen_close_jobs(csv);
-        colony_screen_set_status(csv, game->status);
         return true;
       }
       if (csv->construction_open) {
@@ -13042,14 +13041,16 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
       return true;
     }
 
-    /* C = Construction Change (tech-supp). */
+    /* C = Construction Change (tech-supp). Toggle: down when Construction is
+     * already up, otherwise every other sub-panel closes first so the new one
+     * cannot open underneath a still-open eject / dock-orders / Custom House
+     * list (colony_screen_open_construction closes them too — this states the
+     * hotkey's own "one panel at a time" contract next to the toggle). */
     if (input->last_key == COLONIZE_KEY_C) {
-      if (csv->jobs_open) {
-        colony_screen_close_jobs(csv);
-      }
       if (csv->construction_open) {
         colony_screen_close_construction(csv);
       } else {
+        colony_screen_close_subpanels(csv);
         {
           ColoniesBuildableOpts bopts = game_colony_buildable_opts(game);
           colony_screen_open_construction(

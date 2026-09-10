@@ -860,10 +860,18 @@ int colony_prod_worker_building_output_ctx(
   if (colony_prod_name_has(name, "Carpenter") || colony_prod_name_has(name, "Lumber Mill")) {
     return colony_prod_hammers_worker(name, profession, sol_bonus, has_mill);
   }
-  if (colony_prod_name_has(name, "Rum Distill")) {
+  /* Needles below must stay in lockstep with colony_craft.c's k_recipes table:
+   * that table is what the turn tick actually pays, this chain is what the
+   * badge/preview fallback displays, and a name covered by one but not the
+   * other reads 0 output for a worker who is in fact producing. Each of the
+   * six chains needs BOTH a needle for the house/shop tiers and one for the
+   * renamed factory tier ("Rum Factory", "Cigar Factory", "Textile Mill",
+   * "Fur Factory", "Iron Works", "Arsenal"), which share no substring with
+   * their lower tiers. */
+  if (colony_prod_name_has(name, "Rum Distill") || colony_prod_name_has(name, "Rum Factory")) {
     return colony_prod_manufacturing_output(name, profession, COLONIZE_PROF_DISTILLER, sol_bonus);
   }
-  if (colony_prod_name_has(name, "Tobacconist")) {
+  if (colony_prod_name_has(name, "Tobacconist") || colony_prod_name_has(name, "Cigar Factory")) {
     return colony_prod_manufacturing_output(name, profession, COLONIZE_PROF_TOBACCONIST, sol_bonus);
   }
   if (colony_prod_name_has(name, "Weaver") || colony_prod_name_has(name, "Textile")) {

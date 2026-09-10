@@ -970,12 +970,20 @@ static void ai_king_teaparty_payload_parts(int payload, int* out_applied, int* o
   }
 }
 
+/* Defined with the WoI counters below; used by the audience colony gate. */
+static int ai_king_human_colonies(const ColonizeTurnContext* ctx, int human);
+
 /*
  * FUN_38fd_5be8: King-audience favor-score ladder → signed tax-rate delta.
  * Real DOS gating/formula (no invented Accept/Refuse-whether-it-happens
  * gate here — see divergence note above ai_king_tax_event for history).
  * Source: original_sources_decompiled/viceroy_unpacked.c:68420.
  *
+ * Gate 0 (DOS's FIRST line, raw 68433-68435: `if (*(char *)(iVar1 + -0x6d68)
+ * == '\0') return 0;`): the audience nation owns at least one colony.
+ * −0x6d68 = DS:0x9298 = stuff.colony_counts[] (save_format_map.md row 241),
+ * the same table ai_king_rank_nations_0218 reads. Ported 2026-09-10 (audit
+ * D9) — a human with zero colonies used to keep drawing tax audiences.
  * Gate: turn counter (DS:0x538e, Linux ctx->turn_number) >= 30; interval
  * base 18/15/12/9 by year band (>1600/>1700/>1750), narrowed by
  * difficulty (DOS: only when the audience's own nation *is* the human —
@@ -1002,6 +1010,21 @@ static int ai_king_audience_roll(ColonizeTurnContext* ctx, int human, int* out_d
   }
   ColonizeCol1Save* col1 = ctx->col1;
   ColonizeCol1Nation* nat = &col1->nation[human];
+  /*
+   * DOS's first gate: colony_counts[audience nation] != 0. The census mirror
+   * is refreshed every turn (turn.c → col1_stuff_census_refresh_colony_counts),
+   * but a synthetic fixture can leave the whole window blank, so a zero row
+   * falls back to the live colony count before the early-out bites.
+   */
+  {
+    int owned = (int)col1->stuff.colony_counts[human];
+    if (owned == 0) {
+      owned = ai_king_human_colonies(ctx, human);
+    }
+    if (owned == 0) {
+      return 0;
+    }
+  }
   const uint32_t turn = ctx->turn_number ? *ctx->turn_number : 0u;
   if (turn < 30) {
     return 0;
@@ -2150,20 +2173,39 @@ static int ai_king_10f0_score_tile(const ColonizeTurnContext* ctx, int human, in
     return -1;
   }
   int score = 1;
+  /*
+   * DOS runs TWO different ownership questions here, in this order
+   * (viceroy_unpacked.c:74350-74364), and the port used to collapse them
+   * into one human-only test — inverting the penalty (audit D11):
+   *   1. `local_34 = 07e0(tile)` (first unit of the stack); if the stack's
+   *      owner nibble equals the CROWN (`*(byte*)0x53d2`), walk the stack
+   *      with 02e4 and subtract 999 per Man-O-War (type 0x12). A crown MoW
+   *      parked on the tile is what DOS is refusing to land beside.
+   *   2. `local_4 = 0682(tile)` (unit-presence owner, map.c:1187): the tile
+   *      must be empty of units or hold only the HUMAN's.
+   * The human's own Man-O-War therefore costs nothing in DOS; the old code
+   * charged it −999 and rejected the tile, while a crown stack was rejected
+   * by the wrong test and never reached the penalty at all.
+   */
+  const int crown = ai_king_crown_nation_col1(ctx->col1_ok ? ctx->col1 : NULL, human);
+  int tile_owner = -1; /* 281f_0682 */
   for (int i = 0; i < COLONIZE_UNITS_MAX && ctx->units; ++i) {
     const ColonizeUnit* u = &ctx->units->units[i];
     if (!u->active || u->x != tx || u->y != ty || u->aboard_ship_id >= 0) {
       continue;
     }
-    if (u->nation_id != human) {
-      return -1;
+    if (tile_owner < 0) {
+      tile_owner = u->nation_id;
     }
-    if (u->type_index == 0x12) {
+    if (crown >= 0 && u->nation_id == crown && ai_king_is_mow(ctx->units, u)) {
       score -= 999;
     }
   }
   if (score < 0) {
     return score;
+  }
+  if (tile_owner >= 0 && tile_owner != human) {
+    return -1;
   }
   const int colony_region = map_continent_id_at(ctx->map, cx, cy);
   for (int d = 0; d < 8; ++d) {
@@ -3053,9 +3095,23 @@ static const char* ai_king_1528_announce_colony(const ColonizeTurnContext* ctx, 
 }
 
 /*
- * FUN_43f7_10f0 foreign-intervention landing. `backup_force` is the real
- * mapped DOS pool array (0x53e2/0x53e4/0x53e6/0x53e8), seeded on the
- * declaration by ai_king_seed_backup_force_1a26 — not a stand-in.
+ * FUN_43f7_10f0(param_1) — the ONE landing routine DOS uses for both the
+ * free foreign intervention (`param_1 == 0`, reached per turn from
+ * FUN_43f7_2022's else arm) and the PAID mercenary hire (`param_1 == 1`,
+ * FUN_43f7_2022's `thunk_FUN_2a1f_010a(1)` tail at 75068). `paid` is that
+ * flag; it changes four things and nothing else:
+ *   - the pools are neither gated on nor decremented (74379, 74445);
+ *   - the per-type counts come from the caller's mercenary array
+ *     (DS:0x9e46 = −0x61ba) instead of the 6-troop cap arithmetic (74424);
+ *   - the arrival popup is @MERCS naming rival slot 2, not @INTERVENE /
+ *     @INTERVENTION naming slot 1, and there is no music switch (74396-406);
+ *   - the Man-O-War that carried them in is despawned afterwards (74451).
+ * Audit D6 (2026-09-10) folded ai_king_do_merc_hire_at's separate spawner
+ * into this path; before that the paid hire had no terrain test at all.
+ *
+ * `backup_force` is the real mapped DOS pool array
+ * (0x53e2/0x53e4/0x53e6/0x53e8), seeded on the declaration by
+ * ai_king_seed_backup_force_1a26 — not a stand-in.
  *
  * Gate (no REF-empty condition; see the bugs.md note in the body): the
  * bells-threshold announce path (from_bells) runs unconditionally, while the
@@ -3078,7 +3134,9 @@ static const char* ai_king_1528_announce_colony(const ColonizeTurnContext* ctx, 
  * general and the human's largest coastal colony), the arrival line every
  * landing. Deep economy / mercenary chrome remains unported.
  */
-static void ai_king_foreign_intervene_ex(ColonizeTurnContext* ctx, int from_bells) {
+static void ai_king_10f0_land(
+  ColonizeTurnContext* ctx, int from_bells, int paid, const int merc_counts[4]
+) {
   if (!ctx || !ctx->col1_ok || !ctx->col1 || !ctx->units) {
     return;
   }
@@ -3098,14 +3156,16 @@ static void ai_king_foreign_intervene_ex(ColonizeTurnContext* ctx, int from_bell
    * (74493) — it is the intervention-once latch, not "REF on the map";
    * AI_KING_INTERVENE_ANNOUNCED_BYTE models it here.
    */
-  if (!from_bells) {
-    if (ai_king_latch_get(ctx->col1, AI_KING_INTERVENE_ANNOUNCED_BYTE) == 0 ||
-        backup[2] == 0) {
+  if (!paid) {
+    if (!from_bells) {
+      if (ai_king_latch_get(ctx->col1, AI_KING_INTERVENE_ANNOUNCED_BYTE) == 0 ||
+          backup[2] == 0) {
+        return;
+      }
+    }
+    if (ai_king_force_total(backup) <= 0) {
       return;
     }
-  }
-  if (ai_king_force_total(backup) <= 0) {
-    return;
   }
   int hx = 0;
   int hy = 0;
@@ -3133,7 +3193,14 @@ static void ai_king_foreign_intervene_ex(ColonizeTurnContext* ctx, int from_bell
     }
   }
   const int human = ctx->human_nation;
-  const int ally1 = ai_king_intervention_nation_slot(ctx, human, 0);
+  /*
+   * DOS names a different power in each mode's arrival line: the free
+   * intervention splices `FUN_281f_09a4(*0x53d4)` (rival slot 1, the ally)
+   * into %STRING1 for @INTERVENE (74396), the paid hire
+   * `FUN_281f_09a4(*0x53d6)` (rival slot 2) for @MERCS (74403) — the same
+   * 0x53d6 the @MERCENARIES offer names as the seller (75048).
+   */
+  const int ally1 = ai_king_intervention_nation_slot(ctx, human, paid ? 1 : 0);
   if (ally1 < 0) {
     return;
   }
@@ -3153,25 +3220,46 @@ static void ai_king_foreign_intervene_ex(ColonizeTurnContext* ctx, int from_bell
   if (mow < 0) {
     return;
   }
-  if (backup[2] > 0) {
-    backup[2]--;
+  if (!paid && backup[2] > 0) {
+    backup[2]--; /* DOS: `if (param_1 == 0) *0x53e6 -= 1` (74379) */
   }
   if (ctx->map) {
     map_reveal_tile(ctx->map, sx, sy, human);
   }
   int landings = 1;
-  int caps[4] = {0, 0, 0, 0};
-  caps[1] = backup[1] > 2 ? 2 : (int)backup[1];
-  caps[3] = backup[3] > 2 ? 2 : (int)backup[3];
-  caps[0] = 6 - (caps[1] + caps[3]);
   static const int pool_k[3] = {0, 1, 3};
-  for (int pi = 0; pi < 3; ++pi) {
-    const int k = pool_k[pi];
-    int n = caps[k];
-    if (n > (int)backup[k]) {
-      n = (int)backup[k];
+  /*
+   * DOS 74409-74427 computes the free-drain caps into local_50[] and mins
+   * each against its pool, then — for the paid hire — throws that away:
+   * `if (param_1 != 0) local_8 = *(int *)(iVar4 + -0x61ba);`, i.e. the
+   * mercenary count array FUN_43f7_2022 filled (DS:0x9e46/0x9e48/0x9e4c,
+   * −0x61ba == 0x9e46). Neither the pools nor 0x53e2+ are touched in that
+   * mode.
+   */
+  int want[4] = {0, 0, 0, 0};
+  if (paid) {
+    for (int pi = 0; pi < 3; ++pi) {
+      const int k = pool_k[pi];
+      want[k] = merc_counts ? merc_counts[k] : 0;
+      if (want[k] < 0) {
+        want[k] = 0;
+      }
     }
-    landings += n;
+  } else {
+    int caps[4] = {0, 0, 0, 0};
+    caps[1] = backup[1] > 2 ? 2 : (int)backup[1];
+    caps[3] = backup[3] > 2 ? 2 : (int)backup[3];
+    caps[0] = 6 - (caps[1] + caps[3]);
+    for (int pi = 0; pi < 3; ++pi) {
+      const int k = pool_k[pi];
+      want[k] = caps[k] > (int)backup[k] ? (int)backup[k] : caps[k];
+      if (want[k] < 0) {
+        want[k] = 0;
+      }
+    }
+  }
+  for (int pi = 0; pi < 3; ++pi) {
+    landings += want[pool_k[pi]];
   }
 
   if (landings > 0) {
@@ -3209,10 +3297,38 @@ static void ai_king_foreign_intervene_ex(ColonizeTurnContext* ctx, int from_bell
     }
 
     if (ctx->status && ctx->status_size) {
-      snprintf(ctx->status, ctx->status_size, "%s Intervention Force arrives in %s!",
-               ally_name, colony);
+      if (paid) {
+        snprintf(ctx->status, ctx->status_size, "%s mercenaries arrive in %s.",
+                 ally_name, colony);
+      } else {
+        snprintf(ctx->status, ctx->status_size, "%s Intervention Force arrives in %s!",
+                 ally_name, colony);
+      }
     }
-    if (ai_king_human_popups(ctx)) {
+    if (paid && ai_king_human_popups(ctx)) {
+      /*
+       * DOS 74400-74406: the paid arm shows GAME.TXT 0x12ce = @MERCS
+       * ("%STRING1 mercenaries arrive in %STRING0.") with %STRING0 = the
+       * landing colony name (0416(0, *0x8542+2), shared with the free arm)
+       * and %STRING1 = the nationality adjective of rival slot 2. No
+       * @INTERVENTION declaration, no 0498(3) music switch — those are the
+       * free arm's (`param_1 == 0`) only.
+       */
+      PopupMsgTokens mtok;
+      memset(&mtok, 0, sizeof(mtok));
+      mtok.string0 = colony;
+      mtok.string1 = ally_name;
+      char mbody[AI_POPUP_BODY_LEN];
+      char mfallback[AI_POPUP_BODY_LEN];
+      snprintf(mfallback, sizeof(mfallback), "%s mercenaries arrive in %s.", ally_name, colony);
+      popup_msg_fill(ctx->messages, "MERCS", &mtok, mfallback, mbody, sizeof(mbody));
+      (void)ai_popup_enqueue_ok_ctx(
+        ctx->ai_popups, AI_POPUP_TAG_KING_MERC, human,
+        ai_king_crown_nation_col1(ctx->col1, human), landings, NULL, mbody
+      );
+      units_pump_combat_popups();
+    }
+    if (!paid && ai_king_human_popups(ctx)) {
       char body[AI_POPUP_BODY_LEN];
       char fallback[AI_POPUP_BODY_LEN];
       /* bugs.md 258: the declares-war announcement fires ONCE per game (DOS
@@ -3273,16 +3389,15 @@ static void ai_king_foreign_intervene_ex(ColonizeTurnContext* ctx, int from_bell
    * arrive ready for action: full moves restored after the step. */
   for (int pi = 0; pi < 3; ++pi) {
     const int k = pool_k[pi];
-    int n = caps[k];
-    if (n > (int)backup[k]) {
-      n = (int)backup[k];
-    }
+    const int n = want[k];
     for (int s = 0; s < n; ++s) {
       const int uid = ai_king_10f0_spawn_unit(ctx, human, k, sx, sy);
       if (uid < 0) {
         break;
       }
-      backup[k]--;
+      if (!paid && backup[k] > 0) {
+        backup[k]--; /* DOS 74445: `if (param_1 == 0) *(0x53e2 + k*2) -= 1` */
+      }
       ColonizeUnit* lu = units_get(ctx->units, uid);
       if (lu) {
         lu->moves_left = 3;
@@ -3314,6 +3429,19 @@ static void ai_king_foreign_intervene_ex(ColonizeTurnContext* ctx, int from_bell
   if (ctx->map) {
     map_reveal_radius(ctx->map, hx, hy, human, 2);
   }
+  /*
+   * DOS 74450-74452: `if ((param_1 != 0) && (-1 < local_1c))
+   * FUN_281f_0808(local_1c);` — the paid hire's Man-O-War is the seller's
+   * transport, not a gift: it drops the mercenaries and is despawned. Only
+   * the free intervention leaves its hull behind for the player.
+   */
+  if (paid && mow >= 0) {
+    (void)units_despawn(ctx->units, mow);
+  }
+}
+
+static void ai_king_foreign_intervene_ex(ColonizeTurnContext* ctx, int from_bells) {
+  ai_king_10f0_land(ctx, from_bells, 0, NULL);
 }
 
 /*
@@ -3351,13 +3479,11 @@ int ai_king_spend_woi_bell_pool(ColonizeTurnContext* ctx, int nation_id) {
 /*
  * Pack offer-time roll + landing pick into the popup payload:
  * hx(6b)<<26 | hy(6b)<<20 | qty_a(4b)<<16 | extra_flag(1b)<<15 | price(15b).
- * Landing coords are captured at OFFER time (not re-derived at apply time)
- * — same discipline the old fixed-cost hire used ("a same-turn REF capture
- * cannot void the hire after CHOICE was queued"). Re-deriving via
- * ai_king_weakest_port at apply time was tried and is NOT harmless: if the
- * only human colony gets captured in the same beat the offer was rolled
- * (a real, observed same-turn race in ai_king_war_act's own capture path),
- * weakest_port returns -1 and the whole accept silently fails. Price fits
+ * Since audit D6 the accept runs FUN_43f7_10f0(1), which rolls its own
+ * landing colony the way DOS does, so hx/hy survive only as an offer-time
+ * sanity field (a negative pair still refuses the hire). qty_a and
+ * extra_flag are the load-bearing halves: they ARE the DS:0x9e46 mercenary
+ * count array 2022 fills before the CHOICE. Price fits
  * 15 bits (max observed (8+2)*((4+3)*2+6)*100 = 20000 < 32768); qty_a fits
  * 4 bits (range 2-8); hx/hy fit 6 bits each (map width/height ≤ 63 in this
  * project's fixed 58×72 world).
@@ -3392,17 +3518,23 @@ static void ai_king_merc_payload_parts(int payload, int* out_hx, int* out_hy, in
 }
 
 /*
- * FUN_43f7_2022 rebel-branch accept: spend the rolled price, spawn qty_a
- * Regular + 1 extra (Dragoon or Artillery, per the offer-time coin flip)
- * at the offer-time landing pick (hx,hy — NOT re-derived here; a same-turn
- * capture of the only human colony would otherwise silently void an
- * already-accepted offer, see ai_king_merc_payload's comment). Returns 1
- * on success (at least the Regular batch landed), 0 if unaffordable or
- * nothing could spawn. Real DOS type codes for a human-controlled rebel
- * are FUN_43f7_0082's fixed slot0/1 values (6/8), not independently named
- * this pass — using the already-established "Regular"/"Dragoon"/
- * "Artillery" display names (same as ai_king_intervene_one) as a
- * documented approximation.
+ * FUN_43f7_2022 rebel-branch accept (viceroy_unpacked.c:75060-75070): debit
+ * the rolled price, then `thunk_FUN_2a1f_010a(uVar7)` = FUN_43f7_10f0(1) —
+ * the paid hire and the free intervention are the SAME landing routine, and
+ * 10f0's `param_1` is exactly the paid flag. Ported 2026-09-10 (audit D6):
+ * this used to be a second implementation that spawned bare "Regular"/
+ * "Dragoon"/"Artillery" at (hx, hy+1) with no terrain test at all — the
+ * water-spawn class bugs.md 261 fixed for 06a6 — and skipped the colony
+ * roulette, the Man-O-War transport and the FUN_43f7_0082 type map (which
+ * for a rebel human at war yields Cont. Army / Cont. Cav., not colonial
+ * Regulars). It now hands 10f0 the mercenary counts DOS keeps at DS:0x9e46
+ * (−0x61ba): slot 0 = qty_a Regulars-class, and exactly one of slot 1
+ * (Cavalry) or slot 3 (Artillery) per the offer-time coin flip.
+ *
+ * DOS re-derives the landing colony inside 10f0 at accept time; hx/hy from
+ * the payload survive only as an offer-time sanity field (see
+ * ai_king_merc_payload). Returns 1 when the hire went through, 0 when the
+ * treasury cannot cover the price.
  */
 static int ai_king_do_merc_hire_at(ColonizeTurnContext* ctx, int human, int hx, int hy,
                                    int qty_a, int extra_flag, int price) {
@@ -3415,43 +3547,25 @@ static int ai_king_do_merc_hire_at(ColonizeTurnContext* ctx, int human, int hx, 
   if (europe_nation_gold(ctx->europe, ctx->col1, human) < (uint32_t)price) {
     return 0;
   }
-  int landed = 0;
-  for (int i = 0; i < qty_a; ++i) {
-    if (ai_king_spawn_landing(ctx, human, hx, hy + 1, "Regular", "Soldier", false) >= 0) {
-      ++landed;
-    }
-  }
-  if (extra_flag) {
-    (void)ai_king_spawn_landing(ctx, human, hx, hy + 1, "Artillery", NULL, false);
-  } else {
-    (void)ai_king_spawn_landing(ctx, human, hx, hy + 1, "Dragoon", "Scout", false);
-  }
-  if (landed == 0) {
-    return 0;
-  }
   /* Audit G3: one debit through the accessor — the old pair read the stale
-   * record and then assigned it over the live purse. */
+   * record and then assigned it over the live purse. DOS debits before the
+   * 10f0 call (75052-75059). */
   europe_nation_gold_add(ctx->europe, ctx->col1, human, -(long)price);
+  /*
+   * DOS 2022 writes the count array as: 0x9e46 = qty_a; then
+   * `if (rng(0,1) == 0) *0x9e4c = 1; else *0x9e48 = 1;` — 0x9e4c is slot 3
+   * (Artillery), 0x9e48 slot 1 (Cavalry). extra_flag carries that raw roll.
+   */
+  int merc_counts[4] = {0, 0, 0, 0};
+  merc_counts[0] = qty_a;
+  merc_counts[extra_flag == 0 ? 3 : 1] = 1;
+  /* Stand-in status first: the landing overwrites it with the @MERCS line
+   * when it actually puts troops ashore. */
   if (ctx->status && ctx->status_size) {
     snprintf(ctx->status, ctx->status_size,
              "Mercenaries join the Continental cause (−%d gold).", price);
   }
-  /* GAME.TXT @MERCS arrival OK. */
-  if (ai_king_human_popups(ctx)) {
-    PopupMsgTokens tok;
-    memset(&tok, 0, sizeof(tok));
-    tok.string0 = "the colonies";
-    tok.string1 = "Trained";
-    char body[AI_POPUP_BODY_LEN];
-    popup_msg_fill(
-      ctx->messages, "MERCS", &tok,
-      "Mercenaries arrive.", body, sizeof(body)
-    );
-    (void)ai_popup_enqueue_ok_ctx(ctx->ai_popups, AI_POPUP_TAG_KING_MERC, human,
-                                  ai_king_crown_nation_col1(ctx->col1_ok ? ctx->col1 : NULL, human),
-                                  ai_king_merc_payload(hx, hy, qty_a, extra_flag, price), NULL,
-                                  body);
-  }
+  ai_king_10f0_land(ctx, 0, 1, merc_counts);
   return 1;
 }
 
@@ -3530,7 +3644,9 @@ static void ai_king_merc_offer(ColonizeTurnContext* ctx) {
     PopupMsgTokens tok;
     memset(&tok, 0, sizeof(tok));
     tok.string0 = "Europe"; /* king nation stand-in */
-    tok.string1 = extra_flag ? "Artillery" : "Dragoons";
+    /* DOS 2022: roll 0 → *0x9e4c (slot 3, Artillery); roll 1 → *0x9e48
+     * (slot 1, Cavalry). The port had this pair inverted. */
+    tok.string1 = extra_flag == 0 ? "Artillery" : "Dragoons";
     tok.number0 = price;
     tok.has_number0 = true;
     char body[AI_POPUP_BODY_LEN];
@@ -4502,50 +4618,71 @@ static const char* ai_king_richest_colony_name(const ColonizeTurnContext* ctx, i
 }
 
 /*
- * Crown share of (human+crown) colony population during WoI.
- * Used for @WARN3 / @LOSING3. Returns 0 if no counted population.
+ * Crown share of (human+crown) colony population during WoI (@WARN3 /
+ * @LOSING3, %NUMBER2).
+ *
+ * DOS FUN_3844_0442 (viceroy_unpacked.c:58507-58521) reads the census
+ * mirror, NOT the colony list:
+ *   uVar3 = colony_pop_totals[*0x53d2]   (crown)
+ *   uVar4 = colony_pop_totals[*0x5398]   (human)
+ *   local_8 = (uVar3 + 1) * 100 / ((uVar4 + 1) + (uVar3 + 1))
+ * −0x6bf4 = DS:0x940c = stuff.colony_pop_totals[] (save_format_map.md
+ * row 243); the two `if (byte == 0) x = ~byte + 1; else x = byte;` arms in
+ * the raw are a sign-extension artifact — both spell the plain byte.
+ *
+ * The +1 on BOTH sides is load-bearing: human 1 / crown 9 is 83% in DOS
+ * (a @WARN3) but was 90% (instant @LOSING3 surrender) under the old
+ * per-colony `pop>0?pop:1` re-sum. Ported 2026-09-10 (audit D7). With no
+ * population at all DOS answers 50, not 0.
+ *
+ * The mirror is refreshed every turn by
+ * col1_stuff_census_refresh_colony_counts (turn.c); a blank fixture window
+ * (both rows zero) falls back to summing the live pools before the +1s.
  */
 static int ai_king_woi_pop_share_pct(
   const ColonizeTurnContext* ctx,
   int human,
   int crown
 ) {
-  if (!ctx || human < 0 || crown < 0) {
+  if (!ctx || human < 0 || human >= 4 || crown < 0 || crown >= 4) {
     return 0;
   }
   int human_pop = 0;
   int crown_pop = 0;
-  if (ctx->colonies) {
-    for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
-      const ColonizeColony* c = &ctx->colonies->colonies[i];
-      if (!c->active) {
-        continue;
+  if (ctx->col1_ok && ctx->col1) {
+    human_pop = (int)ctx->col1->stuff.colony_pop_totals[human];
+    crown_pop = (int)ctx->col1->stuff.colony_pop_totals[crown];
+  }
+  if (human_pop == 0 && crown_pop == 0) {
+    /* Blank census window (synthetic fixtures): re-tally the same sum. */
+    if (ctx->colonies) {
+      for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+        const ColonizeColony* c = &ctx->colonies->colonies[i];
+        if (!c->active) {
+          continue;
+        }
+        const int pop = c->population > 0 ? (int)c->population : 0;
+        if (c->nation_id == human) {
+          human_pop += pop;
+        } else if (c->nation_id == crown) {
+          crown_pop += pop;
+        }
       }
-      const int pop = c->population > 0 ? (int)c->population : 1;
-      if (c->nation_id == human) {
-        human_pop += pop;
-      } else if (c->nation_id == crown) {
-        crown_pop += pop;
+    }
+    if (human_pop == 0 && crown_pop == 0 && ctx->col1_ok && ctx->col1 &&
+        ctx->col1->colony) {
+      for (uint16_t i = 0; i < ctx->col1->head.colony_count; ++i) {
+        const ColonizeCol1Colony* c = &ctx->col1->colony[i];
+        const int pop = c->population > 0 ? (int)c->population : 0;
+        if ((int)c->nation_id == human) {
+          human_pop += pop;
+        } else if ((int)c->nation_id == crown) {
+          crown_pop += pop;
+        }
       }
     }
   }
-  if (human_pop == 0 && crown_pop == 0 && ctx->col1_ok && ctx->col1 &&
-      ctx->col1->colony) {
-    for (uint16_t i = 0; i < ctx->col1->head.colony_count; ++i) {
-      const ColonizeCol1Colony* c = &ctx->col1->colony[i];
-      const int pop = c->population > 0 ? (int)c->population : 1;
-      if ((int)c->nation_id == human) {
-        human_pop += pop;
-      } else if ((int)c->nation_id == crown) {
-        crown_pop += pop;
-      }
-    }
-  }
-  const int total = human_pop + crown_pop;
-  if (total <= 0) {
-    return 0;
-  }
-  return (crown_pop * 100) / total;
+  return ((crown_pop + 1) * 100) / ((human_pop + 1) + (crown_pop + 1));
 }
 
 /*
@@ -4595,6 +4732,28 @@ static void ai_king_enqueue_throne_audience(
   );
 }
 
+/*
+ * DOS FUN_3844_0442 fills all three number slots once, before it decides
+ * which mid-war warn popup to show (viceroy_unpacked.c:58552-58556):
+ *   FUN_281f_09ae(0, local_68)                 — coastal-port count
+ *   FUN_281f_09ae(1, colony_counts[human])     — colonies still held
+ *   FUN_281f_09ae(2, local_8)                  — crown pop share %
+ * @WARN1 reads %NUMBER0, @WARN2 %NUMBER1, @WARN3 %NUMBER2 (GAME.TXT), so
+ * every warn body gets the same live triple. Ported 2026-09-10 (audit D13);
+ * @WARN1/@WARN2 used to hardcode 1 and read "all but 1" with 2 ports left.
+ */
+static void ai_king_warn_numbers(PopupMsgTokens* tok, int ports, int colonies, int pop_pct) {
+  if (!tok) {
+    return;
+  }
+  tok->has_number0 = true;
+  tok->number0 = ports;
+  tok->has_number1 = true;
+  tok->number1 = colonies;
+  tok->has_number2 = true;
+  tok->number2 = pop_pct;
+}
+
 static void ai_king_check_revolution_end(ColonizeTurnContext* ctx, int ref_already) {
   if (!ctx || !ctx->col1_ok || !ctx->col1) {
     return;
@@ -4611,6 +4770,8 @@ static void ai_king_check_revolution_end(ColonizeTurnContext* ctx, int ref_alrea
   }
   const int crown = ai_king_crown_nation_col1(ctx->col1_ok ? ctx->col1 : NULL, human);
   const int ports = ai_king_human_coastal_ports(ctx, human);
+  const int colonies = ai_king_human_colonies(ctx, human);
+  const int pop_pct = ai_king_woi_pop_share_pct(ctx, human, crown);
   const ColonizeCol1Player* pl = &ctx->col1->player[human];
   const char* country =
     (pl->country_name[0] != '\0') ? pl->country_name : "the colonies";
@@ -4627,16 +4788,16 @@ static void ai_king_check_revolution_end(ColonizeTurnContext* ctx, int ref_alrea
       ai_king_latch_get(ctx->col1, AI_KING_WARN1_BYTE) == 0) {
     PopupMsgTokens tok;
     memset(&tok, 0, sizeof(tok));
-    tok.has_number0 = true;
-    tok.number0 = 1;
+    ai_king_warn_numbers(&tok, ports, colonies, pop_pct);
     tok.string0 = country;
     char fallback[AI_POPUP_BODY_LEN];
     snprintf(
       fallback,
       sizeof(fallback),
-      "Your Excellency, the King's forces control all but 1 of the ports in %s!  "
+      "Your Excellency, the King's forces control all but %d of the ports in %s!  "
       "If we don't retain control of at least one port our commerce will be "
       "choked and we will have to surrender!",
+      ports,
       country
     );
     char body[AI_POPUP_BODY_LEN];
@@ -4655,7 +4816,6 @@ static void ai_king_check_revolution_end(ColonizeTurnContext* ctx, int ref_alrea
     }
     ai_king_latch_set(ctx->col1, AI_KING_WARN1_BYTE, 1);
   }
-  const int colonies = ai_king_human_colonies(ctx, human);
   /* Reclaiming colonies (>=3) clears the mid-war colony-warn episode. */
   if (colonies >= 3) {
     ai_king_latch_set(ctx->col1, AI_KING_WARN2_BYTE, 0);
@@ -4668,14 +4828,14 @@ static void ai_king_check_revolution_end(ColonizeTurnContext* ctx, int ref_alrea
       ai_king_latch_get(ctx->col1, AI_KING_WARN2_BYTE) == 0) {
     PopupMsgTokens tok;
     memset(&tok, 0, sizeof(tok));
-    tok.has_number1 = true;
-    tok.number1 = 1;
+    ai_king_warn_numbers(&tok, ports, colonies, pop_pct);
     char fallback[AI_POPUP_BODY_LEN];
     snprintf(
       fallback,
       sizeof(fallback),
-      "Your Excellency, the King's forces control all but 1 of our colonies!  "
-      "We need to protect our remaining colonies, or we will lose the war!"
+      "Your Excellency, the King's forces control all but %d of our colonies!  "
+      "We need to protect our remaining colonies, or we will lose the war!",
+      colonies
     );
     char body[AI_POPUP_BODY_LEN];
     popup_msg_fill(ctx->messages, "WARN2", &tok, fallback, body, sizeof(body));
@@ -4689,7 +4849,6 @@ static void ai_king_check_revolution_end(ColonizeTurnContext* ctx, int ref_alrea
     }
     ai_king_latch_set(ctx->col1, AI_KING_WARN2_BYTE, 1);
   }
-  const int pop_pct = ai_king_woi_pop_share_pct(ctx, human, crown);
   /* Reclaiming population share clears the mid-war pop-warn episode. */
   if (pop_pct < AI_KING_WARN3_PCT_MIN) {
     ai_king_latch_set(ctx->col1, AI_KING_WARN3_BYTE, 0);
@@ -4703,8 +4862,7 @@ static void ai_king_check_revolution_end(ColonizeTurnContext* ctx, int ref_alrea
       ai_king_latch_get(ctx->col1, AI_KING_WARN3_BYTE) == 0) {
     PopupMsgTokens tok;
     memset(&tok, 0, sizeof(tok));
-    tok.has_number2 = true;
-    tok.number2 = pop_pct;
+    ai_king_warn_numbers(&tok, ports, colonies, pop_pct);
     tok.string0 = country;
     char fallback[AI_POPUP_BODY_LEN];
     snprintf(
