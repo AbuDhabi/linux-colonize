@@ -16,6 +16,21 @@ int main(void) {
     return 1;
   }
 
+  /*
+   * Live NAMES.TXT cargo names must not alias: the village trade dialogs
+   * hold three at once ("Cigars, Cigars and Cigars" bug, 2026-09-15).
+   */
+  {
+    const char* c0 = reports_cargo_display_name(4);
+    const char* c1 = reports_cargo_display_name(8);
+    const char* c2 = reports_cargo_display_name(12);
+    if (strcmp(c0, c1) == 0 || strcmp(c1, c2) == 0 || strcmp(c0, c2) == 0) {
+      fprintf(stderr, "cargo names alias: '%s' '%s' '%s'\n", c0, c1, c2);
+      reports_free(&view);
+      return 1;
+    }
+  }
+
   static const struct {
     ColonizeReportId id;
     const char* file;
