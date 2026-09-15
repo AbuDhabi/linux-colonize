@@ -139,6 +139,8 @@ typedef enum AiPopupTag {
                                  * accepts on 2 ("Hand them over."), @INDIANWAGONS on 1
                                  * (its rows are printed the other way round). A refusal
                                  * runs LAB_5bfb_0ff2 (village attitude word += 0x80). */
+  AI_POPUP_TAG_KING_MERC_PEACE = 65, /* FUN_43f7_2244 @MERCENARIES (0x134c): peacetime paid
+                                       * mercenary offer to the human — No thank you / Pay. */
   AI_POPUP_TAG_COLONY_CLEARSPEC = 62, /* @LOBOTOMIZE (FUN_2f2b_348c row 0x61 -> FUN_281f_0652
                                  * at DS:0xcae): clear a specialist colonist's specialty and
                                  * make him an ordinary Free Colonist (profession 0x1c).

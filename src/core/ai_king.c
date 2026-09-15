@@ -2980,10 +2980,14 @@ static void ai_king_ref_wave(ColonizeTurnContext* ctx) {
  * plain — see ai_king_10f0_score_tile.
  */
 /*
- * FUN_43f7_0082(pool k, nation): unit type for a 10f0 landing. For the human
- * at war: 0 → Cont. Army (9), 1 → Cont. Cav. (7), 2 → Man-O-War (0x12),
- * 3 → Artillery (0xb). Names are the NAMES.TXT @UNIT rows; the singular
- * fallbacks cover the test pools.
+ * FUN_43f7_0082(pool k, nation) (viceroy_unpacked.c:73519-73543): unit type
+ * for a 10f0 landing. k==2 → Man-O-War (0x12), k==3 → Artillery (0xb). For
+ * k 0/1 the human (control == 0) gets `9 - 5*(!woi)` / `7 - 3*(!woi)`, i.e.
+ * Cont. Army (9) / Cont. Cav. (7) once independence is declared and
+ * Dragoons (4) for BOTH slots before it — the peacetime @MERCENARIES hire
+ * (2244) lands Dragoons. Non-human nations get Regulars (6) / Cavalry (8).
+ * Names are the NAMES.TXT @UNIT rows; the singular fallbacks cover the
+ * test pools.
  */
 static int ai_king_10f0_spawn_unit(ColonizeTurnContext* ctx, int human, int k, int x, int y) {
   static const char* names[4][4] = {
@@ -2992,10 +2996,16 @@ static int ai_king_10f0_spawn_unit(ColonizeTurnContext* ctx, int human, int k, i
     {"Man-O-War", "Frigate", NULL, NULL},
     {"Artillery", NULL, NULL, NULL},
   };
+  static const char* peace_names[2] = {"Dragoons", "Dragoon"};
   if (!ctx || !ctx->units || k < 0 || k > 3) {
     return -1;
   }
   int ty = -1;
+  if (k < 2 && ctx->col1_ok && ctx->col1 && !ai_king_independence_declared(ctx->col1)) {
+    for (int i = 0; i < 2 && ty < 0; ++i) {
+      ty = units_find_type(ctx->units, peace_names[i]);
+    }
+  }
   for (int i = 0; i < 4 && ty < 0 && names[k][i]; ++i) {
     ty = units_find_type(ctx->units, names[k][i]);
   }
@@ -3123,10 +3133,9 @@ static const char* ai_king_1528_announce_colony(const ColonizeTurnContext* ctx, 
  *
  * `target` = DOS's `iVar2 = *(int *)0x5398` (74308), the nation the whole
  * force is spawned for and whose colonies the roulette walks. DOS hardcodes
- * the human there; it is a parameter here ONLY because the port's
- * FUN_43f7_2244 twin (ai_king_ai_peacetime_gift) is currently premised on an
- * AI beneficiary — see the lead filed against that premise. Every other
- * caller passes ctx->human_nation, which is byte-exact.
+ * the human there; every caller passes ctx->human_nation (the 2244
+ * peacetime hire included since 2026-09-15 — its AI-beneficiary premise was
+ * refuted), so the parameter is byte-exact everywhere.
  *
  * NO independence gate: 10f0 itself has none in DOS (74270-74310 goes
  * straight into the colony walk). WoI state is the CALLERS' business —
@@ -3920,79 +3929,124 @@ void ai_king_frigate_offer(ColonizeTurnContext* ctx, int nation) {
 }
 
 /*
- * FUN_43f7_2244 — peacetime twin of 2022's rebel gift, implemented
- * 2026-08-14 (see king_ref.md "2244/2022 — corrected"), ported here as an
- * AI-nation beat. Reached via FUN_281f_0668 from the generic per-Euro-nation
- * turn loop (viceroy_unpacked.c:6409-6421). The "confirmed AI-only" claim
- * this header used to carry was WRONG on the polarity of
- * `nation*0x34+0x543f` — see the PREMISE note at the end of this comment.
+ * FUN_43f7_2244 (viceroy_unpacked.c:75074-75152) — the PEACETIME mercenary
+ * offer to the human. Reached via FUN_281f_0668 (:32150) from the
+ * `*(char *)(n*0x34+0x543f) == '\0'` (human, control == 0) arm of the
+ * FUN_130d_0290 year loop (:6409-6421): after FUN_281f_0644 (= 3844_00f2,
+ * the nation's own EOT / census / king beats) and right before FUN_281f_062c
+ * (Move Pieces). It never runs for an AI nation — the `== '\x01'` sibling
+ * arm at :6397 is the AI turn (6d8e) and has no 0668 call. Until 2026-09-15
+ * this was ported as an AI-nation "self-funded troop gift"; that premise is
+ * refuted, see king_ref.md "2244 — human peacetime merc offer".
  *
- * Gate: WoI not yet declared, 1-in-21 roll (dos_rng_range(0,20)==0). Then
- * picks a random Euro nation 0-3 as beneficiary; eligible only if that's
- * this AI nation itself or a nation it's allied with (AI_DIPLO_ALLY bit;
- * byte-faithful DOS read — never set on Euro pairs, so in practice
- * eligibility reduces to self-only, in DOS and here alike).
- * Quantity/price shape is genuinely NOT identical to 2022's (read raw
- * bytes side by side, viceroy_unpacked.c:75098-75113 vs :75017-75028,
- * before assuming king_ref.md's "same formula" summary was byte-precise
- * — it wasn't, in the quantity roll specifically):
- *   regular = dos_rng_range(1,3)
- *   coin = dos_rng_range(0,1)
- *   coin==0: artillery = 1, then dos_rng_range(0,1)==0 → artillery += 1
- *            (so artillery ends up 1 or 2; regular stays as rolled)
- *   coin==1: regular += 1 (no Dragoon path at all in 2244 — the shared
- *            0x9e48 Dragoon slot is zeroed at entry and never written
- *            again, unlike 2022 which sometimes sets it)
- *   price = (artillery*2 + regular) * ((difficulty+4)*2 + dos_rng_range(0,6)) * 100
- * (2022's `+3` price constant becomes `+4` here, matching the doc's
- * original claim — that part *was* right).
+ * Raw, in order:
+ *   75087  (0x5382 & 1) == 0  &&  RNG(0,0x14) == 0        WoI not declared, 1-in-21
+ *   75090  seller = RNG(0,3);  *0x53d6 = seller           rival slot 2 stamped BEFORE the test
+ *   75092  seller == *0x5398 (human)  ||  FUN_281f_0a38(seller, human) & 0x40 (PEACE)
+ *   75095  0x9e46..0x9e4c = 0                             {regular, cavalry, -, artillery}
+ *   75100  regular = RNG(1,3)
+ *   75102  RNG(0,1)==0 → artillery = 1, RNG(0,1)==0 → artillery = 2   else regular += 1
+ *   75111  roll = RNG(0,6)
+ *   75112  price = ((artillery + cavalry)*2 + regular) * ((difficulty+4)*2 + roll) * 100
+ *   75115  %STRING1 = "<regular> " + @UNIT[4] (Dragoons)  [", " + @UNIT[8]]  [", " + ["<n> "] + @UNIT[11]]
+ *          (0x5268/0x52a0/0x52ca = @UNIT name pointers of types 4 / 8 / 11; the
+ *          artillery count is only spelled out when > 1; cavalry is never set here)
+ *   75131  offer only when price <= human gold (32-bit at *0x84fc+0x2a/0x2c)
+ *   75136  %STRING0 = country name of seller (FUN_291f_0ac8 mode 0), %NUMBER0 = price
+ *   75139  FUN_281f_0652(0x134c = @MERCENARIES, 1) — "No thank you." / "Pay {%NUMBER0$}."
+ *   75141  choice 2 (Pay) → debit human gold, thunk_FUN_2a1f_010a(1) = FUN_43f7_10f0(1)
+ *          — the shared paid landing: colony roulette, seller's Man-O-War
+ *          ferries the troops and is despawned, @MERCS arrival line.
  *
- * Paid from the ACTING nation's own gold; troops land for the BENEFICIARY
- * (self or ally) through ai_king_10f0_land's paid arm — 2244's own tail,
- * `thunk_FUN_2a1f_010a(0x281f, 1)` at 75146, which is FUN_43f7_10f0(1)
- * exactly as 2022's accept is (75068; both resolve through FUN_2a1f_010a
- * at 75377-75381). No human popup is reachable through this call chain
- * (DOS's own popup-flush call presumably auto-resolves for AI without
- * blocking, same as every other AI-context dialog in this codebase) —
- * Linux always auto-accepts when affordable, matching 2022's own no-popup
- * fallback path.
+ * FUN_43f7_0082's type map for the human BEFORE independence gives type 4
+ * (Dragoons) for both the regular and the cavalry slot, Artillery for slot
+ * 3 — which is why the dialog names Dragoons (see ai_king_10f0_spawn_unit).
  *
- * PREMISE NOT CONFIRMED — see the lead filed 2026-09-10 (seventh wave).
- * DOS's "which nation" for the eligibility check and the landing is
- * DS:0x5398, and 0x5398 is the HUMAN nation, not the acting one; the
- * caller FUN_281f_0668 (viceroy 32150-32155) is invoked from the
- * `*(char *)(n*0x34+0x543f) == '\0'` arm of the nation loop (6409-6421),
- * and that byte is 0 for a HUMAN nation (FUN_3844_00f2's @KINGFRIGATE
- * takes the interactive CHOICE + tax-hike branch on the same test,
- * 58396-58421, and the `== '\x01'` sibling arm at 6397 is the AI turn).
- * Read literally, 2244 is the PEACETIME twin of 2022's @MERCENARIES offer
- * to the human (dialog tag 0x134c vs 2022's 0x1340, both @MERCENARIES),
- * debited from `*0x84fc` = the acting player's own record. Re-premising it
- * moves the call site off the AI loop, changes the payer and the shared
- * RNG stream, and rewrites the unit test's seed assumptions — its own
- * pass. Until then `nation_id` stands in for 0x5398 in both the
- * eligibility test and the payer, and `beneficiary` is threaded into
- * ai_king_10f0_land's `target` parameter (which DOS hardcodes to 0x5398).
+ * Port shape: the roll and the eligibility/affordability gates run here, at
+ * the same point of the turn (TURN_PROC_KING tail, after the 00f2 chrome
+ * and before the player gets control). The CHOICE is queued with the rolled
+ * counts + price in the payload; Pay is applied in ai_king_apply_popup_result
+ * (AI_POPUP_TAG_KING_MERC_PEACE), which debits and calls ai_king_10f0_land's
+ * paid arm exactly as 2022's Hire does. Without a human popup queue
+ * (headless / harness) the offer is dropped after the draws: DOS blocks on
+ * a dialog nobody can answer, and auto-buying with the player's gold would
+ * be an invention. The RNG draws are burned either way, as in DOS.
  */
-void ai_king_ai_peacetime_gift(ColonizeTurnContext* ctx, int nation_id) {
+static int ai_king_merc_peace_payload(int regular, int artillery, int price) {
+  return ((regular & 0xf) << 20) | ((artillery & 0x3) << 16) | (price & 0xffff);
+}
+
+static void ai_king_merc_peace_payload_parts(
+  int payload, int* out_regular, int* out_artillery, int* out_price
+) {
+  if (out_regular) {
+    *out_regular = (payload >> 20) & 0xf;
+  }
+  if (out_artillery) {
+    *out_artillery = (payload >> 16) & 0x3;
+  }
+  if (out_price) {
+    *out_price = payload & 0xffff;
+  }
+}
+
+static int ai_king_merc_peace_offer_pending(const AiPopupState* st) {
+  if (!st) {
+    return 0;
+  }
+  for (int i = 0; i < st->queue_count; ++i) {
+    if (st->queue[i].tag == AI_POPUP_TAG_KING_MERC_PEACE) {
+      return 1;
+    }
+  }
+  return st->open && st->current.tag == AI_POPUP_TAG_KING_MERC_PEACE;
+}
+
+/* Pay arm of @MERCENARIES (raw 75141-75146): debit, then the 10f0 paid landing. */
+static int ai_king_do_merc_peace_hire(
+  ColonizeTurnContext* ctx, int human, int regular, int artillery, int price
+) {
+  if (!ctx || !ctx->col1_ok || !ctx->col1 || !ctx->units || human < 0 || human >= 4) {
+    return 0;
+  }
+  if (regular < 1 || price < 0) {
+    return 0;
+  }
+  if (europe_nation_gold(ctx->europe, ctx->col1, human) < (uint32_t)price) {
+    return 0;
+  }
+  europe_nation_gold_add(ctx->europe, ctx->col1, human, -(long)price);
+  int merc_counts[4] = {0, 0, 0, 0};
+  merc_counts[0] = regular;
+  merc_counts[3] = artillery;
+  if (ctx->status && ctx->status_size) {
+    snprintf(ctx->status, ctx->status_size, "Mercenaries hired (−%d gold).", price);
+  }
+  /* DOS debits before 10f0 runs; a failed roulette / water scan keeps the
+   * gold spent. Kept literal. */
+  ai_king_10f0_land(ctx, human, 0, 1, merc_counts);
+  return 1;
+}
+
+void ai_king_peacetime_merc_offer(ColonizeTurnContext* ctx) {
   if (!ctx || !ctx->col1_ok || !ctx->col1 || !ctx->units || !ctx->rng) {
     return;
   }
-  if (nation_id < 0 || nation_id >= 4) {
+  const int human = ctx->human_nation;
+  if (human < 0 || human >= 4) {
     return;
   }
   if (ai_king_independence_declared(ctx->col1)) {
-    return; /* peacetime only */
+    return; /* 75087: 0x5382 bit0 set → no peacetime offer */
   }
   if (dos_rng_range(ctx->rng, 0, 20) != 0) {
     return; /* 1-in-21 */
   }
-  const int beneficiary = dos_rng_range(ctx->rng, 0, 3);
-  int eligible = (beneficiary == nation_id);
-  if (!eligible && beneficiary >= 0 && beneficiary < 4) {
-    eligible = (ai_diplo_read(ctx->col1, nation_id, beneficiary) & AI_DIPLO_ALLY) != 0;
-  }
-  if (!eligible) {
+  const int seller = dos_rng_range(ctx->rng, 0, 3);
+  /* 75091: rival slot 2 = seller, stamped before the eligibility test; it is
+   * the slot 10f0's paid arm names in the @MERCS arrival line. */
+  ctx->col1->head.rival_nation_slot_2 = (uint16_t)seller;
+  if (seller != human && (ai_diplo_read(ctx->col1, seller, human) & AI_DIPLO_PEACE) == 0) {
     return;
   }
 
@@ -4010,46 +4064,82 @@ void ai_king_ai_peacetime_gift(ColonizeTurnContext* ctx, int nation_id) {
   const int roll = dos_rng_range(ctx->rng, 0, 6);
   const int price = (artillery * 2 + regular) * ((difficulty + 4) * 2 + roll) * 100;
 
-  ColonizeCol1Nation* payer = &ctx->col1->nation[nation_id];
-  if (payer->gold < (uint32_t)price) {
-    return; /* DOS silently skips when unaffordable — no status/dialog */
+  if (europe_nation_gold(ctx->europe, ctx->col1, human) < (uint32_t)price) {
+    return; /* 75131: unaffordable → no dialog at all */
   }
-  /*
-   * DOS 75091 `*(int *)0x53d6 = iVar4` — the rolled nation is stamped into
-   * rival slot 2 BEFORE the offer, and that is the slot 10f0's paid arm
-   * reads for the @MERCS arrival line (74403) and the @MERCENARIES offer
-   * for %STRING0 (75048). Stamp it the same way so the landing names the
-   * seller instead of falling back to the colony-count heuristic.
-   */
-  if (beneficiary >= 0 && beneficiary < 4) {
-    ctx->col1->head.rival_nation_slot_2 = (uint16_t)beneficiary;
+  if (!ai_king_human_popups(ctx)) {
+    return; /* nobody to answer the CHOICE — see header */
   }
-  /*
-   * DOS 75136-75146: debit, then `thunk_FUN_2a1f_010a(0x281f, 1)` =
-   * FUN_43f7_10f0(1) — 2244 tails into the SAME paid landing routine as
-   * 2022 (viceroy_unpacked.c:75146 vs :75068, both resolving through
-   * FUN_2a1f_010a at :75377-75381). Ported 2026-09-10 (third-wave lead 2):
-   * this used to be a third copy of the divergent spawner audit D6 deleted
-   * from the paid merc hire — bare "Regular"/"Artillery" dropped at
-   * `(hx, hy+1)` with no terrain test, i.e. the water-spawn class bugs.md
-   * 261 fixed for 06a6, and no Man-O-War transport, no colony roulette, no
-   * FUN_43f7_0082 type map. The mercenary count array DOS fills at
-   * DS:0x9e46 is `{regular, 0, -, artillery}`: 2244 never writes 0x9e48
-   * (slot 1, Cavalry) — it is zeroed at entry (75096-75099) and only 2022
-   * ever sets it — and puts its 1-or-2 guns in 0x9e4c (slot 3).
-   *
-   * DOS debits unconditionally, before 10f0 has any chance to fail its
-   * colony roulette or water-tile scan, so the gold goes whether or not a
-   * hull actually lands. Kept literal.
-   */
-  int merc_counts[4] = {0, 0, 0, 0};
-  merc_counts[0] = regular;
-  merc_counts[3] = artillery;
-  /* Payer (nation_id) is always AI-controlled (the caller only runs this
-   * for AI turns) — no ctx->europe mirror to sync, that field only
-   * shadows the human's own treasury. */
-  payer->gold -= (uint32_t)price;
-  ai_king_10f0_land(ctx, beneficiary, 0, 1, merc_counts);
+  if (ai_king_merc_peace_offer_pending(ctx->ai_popups)) {
+    return;
+  }
+
+  /* %STRING1 (75115-75130): "<n> Dragoons[, Artillery | , 2 Artillery]". */
+  char merc_list[96];
+  int list_n = snprintf(
+    merc_list, sizeof(merc_list), "%d %s", regular,
+    ai_king_merc_unit_name(ctx->units, "Dragoons")
+  );
+  if (list_n < 0) {
+    list_n = 0;
+  }
+  if (artillery > 0 && (size_t)list_n < sizeof(merc_list)) {
+    if (artillery > 1) {
+      snprintf(
+        merc_list + list_n, sizeof(merc_list) - (size_t)list_n, ", %d %s", artillery,
+        ai_king_merc_unit_name(ctx->units, "Artillery")
+      );
+    } else {
+      snprintf(
+        merc_list + list_n, sizeof(merc_list) - (size_t)list_n, ", %s",
+        ai_king_merc_unit_name(ctx->units, "Artillery")
+      );
+    }
+  }
+
+  PopupMsgTokens tok;
+  memset(&tok, 0, sizeof(tok));
+  const char* seller_name = reports_nation_country_name(seller);
+  tok.string0 = seller_name;
+  tok.string1 = merc_list;
+  tok.number0 = price;
+  tok.has_number0 = true;
+  char fallback[AI_POPUP_BODY_LEN];
+  snprintf(
+    fallback, sizeof(fallback),
+    "The King of %s has offered to send us a force of trained mercenaries (%s) in exchange for %d gold.",
+    seller_name, merc_list, price
+  );
+  char body[AI_POPUP_BODY_LEN];
+  popup_msg_fill(ctx->messages, "MERCENARIES", &tok, fallback, body, sizeof(body));
+  char choice_buf[AI_POPUP_CHOICE_MAX][AI_POPUP_CHOICE_LEN];
+  const ColonizeMsgSection* sec = assets_msg_find(ctx->messages, "MERCENARIES");
+  int nch = popup_msg_choices(sec, choice_buf, AI_POPUP_CHOICE_MAX);
+  for (int i = 0; i < nch; ++i) {
+    char filled[AI_POPUP_CHOICE_LEN];
+    popup_msg_apply_tokens(filled, sizeof(filled), choice_buf[i], &tok);
+    str_copy_trunc(choice_buf[i], sizeof(choice_buf[i]), filled);
+  }
+  /* GAME.TXT: No thank you. / Pay {%NUMBER0$}. — DOS choice 2 = Pay. */
+  const char* labels[2];
+  char pay_fallback[32];
+  snprintf(pay_fallback, sizeof(pay_fallback), "Pay %d gold.", price);
+  const int ids[] = {AI_KING_CHOICE_DECLINE, AI_KING_CHOICE_HIRE};
+  if (nch >= 2) {
+    labels[0] = choice_buf[0];
+    labels[1] = choice_buf[1];
+  } else {
+    labels[0] = "No thank you.";
+    labels[1] = pay_fallback;
+  }
+  if (ai_popup_enqueue_choice_ctx(
+        ctx->ai_popups, AI_POPUP_TAG_KING_MERC_PEACE, human, seller,
+        ai_king_merc_peace_payload(regular, artillery, price), NULL, body, labels, ids, 2
+      )) {
+    if (ctx->status && ctx->status_size) {
+      snprintf(ctx->status, ctx->status_size, "%s", body);
+    }
+  }
 }
 
 /*
@@ -5532,6 +5622,25 @@ void ai_king_apply_popup_result(ColonizeTurnContext* ctx, const AiPopupState* po
         int price = 0;
         ai_king_merc_payload_parts(popup->result_payload, &hx, &hy, &qty_a, &extra_flag, &price);
         if (!ai_king_do_merc_hire_at(ctx, human, hx, hy, qty_a, extra_flag, price) &&
+            ctx->status && ctx->status_size) {
+          snprintf(ctx->status, ctx->status_size, "Cannot afford mercenaries.");
+        }
+      } else if (popup->result_choice_id == AI_KING_CHOICE_DECLINE) {
+        if (ctx->status && ctx->status_size) {
+          snprintf(ctx->status, ctx->status_size, "Mercenaries declined.");
+        }
+      }
+      break;
+    case AI_POPUP_TAG_KING_MERC_PEACE:
+      /* FUN_43f7_2244 @MERCENARIES: Pay → debit + 10f0 paid landing at the
+       * roulette-picked colony (DOS picks at accept time too); No thank you
+       * → nothing, the 1-in-21 roll may hit again next turn. */
+      if (popup->result_choice_id == AI_KING_CHOICE_HIRE) {
+        int regular = 0;
+        int artillery = 0;
+        int price = 0;
+        ai_king_merc_peace_payload_parts(popup->result_payload, &regular, &artillery, &price);
+        if (!ai_king_do_merc_peace_hire(ctx, human, regular, artillery, price) &&
             ctx->status && ctx->status_size) {
           snprintf(ctx->status, ctx->status_size, "Cannot afford mercenaries.");
         }

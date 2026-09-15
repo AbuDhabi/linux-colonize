@@ -312,9 +312,16 @@ void euro_unit_colony_goals(int nation_id) {
 /* Dispatcher FUN_521d_6d8e                                               */
 /* ====================================================================== */
 
-static int unit_is_ship(uint8_t type) {
-  return type == VICEROY_UNIT_TYPE_SHIP_A || type == VICEROY_UNIT_TYPE_SHIP_B ||
-         type == VICEROY_UNIT_TYPE_SHIP_C;
+/*
+ * CORRECTED 2026-09-15: the wave-0 test at raw 93247-93253 is
+ * type == 0x0c || 0x0a || 0x0b = Wagon Train / Treasure / Artillery, NOT
+ * ships (ships are 0x0d..0x12 — see the prelude hold walk at 93153,
+ * `0xc < type < 0x13`). viceroy_types.h's SHIP_A..C = 0x0a..0x0c names
+ * were a mislabel.
+ */
+static int unit_is_wave0_type(uint8_t type) {
+  return type == VICEROY_UNIT_TYPE_TREASURE || type == VICEROY_UNIT_TYPE_ARTILLERY ||
+         type == VICEROY_UNIT_TYPE_WAGON_TRAIN;
 }
 
 /*
@@ -390,7 +397,15 @@ void euro_nation_turn(int nation_id) {
   progress_beat(4, 0);
   ui_pump();
 
-  /* --- 6–7. Unit act loop (ships then land) ----------------------------- */
+  /* --- 6–7. Unit act loop (Treasure/Artillery/Wagon first, then all) --- */
+  /*
+   * Raw 93237-93325 (re-read 2026-09-15). Per wave: scan ids high->low,
+   * take the FIRST unit with MP left, act it until MP==0 (inner while,
+   * no break), set local_a=1 and leave the wave. Outer do-while restarts
+   * from the top and returns when wave 1 found nobody. So DOS drains one
+   * wave-0 unit and one any-unit per outer pass. The Linux port instead
+   * gives every ship one act, then every unit one act, per pass.
+   */
   int any_acted;
   do {
     ui_pump();
@@ -400,8 +415,8 @@ void euro_nation_turn(int nation_id) {
       /* Scan units high→low (decomp: local_1c = count; while --local_1c >= 0). */
       for (int u = /* g_unit_count */ 0 - 1; u >= 0; --u) {
         ViceroyUnit *unit = VICEROY_UNIT_AT(u);
-        int is_ship = unit_is_ship(unit->type);
-        int in_wave = (wave != 0) || is_ship;
+        int is_wave0 = unit_is_wave0_type(unit->type);
+        int in_wave = (wave != 0) || is_wave0;
         if (!in_wave) {
           continue;
         }
@@ -413,11 +428,15 @@ void euro_nation_turn(int nation_id) {
           euro_unit_act(u); /* 0488 → 5b66 */
           any_acted = 1;
           /*
-           * Ship follow-up: if unit count unchanged and ship exhausted,
-           * upsert_primary at ship xy code=CONTACT(2) prio=ship-type-based.
-           * Camera follow for human-visible AI omitted.
+           * Wave-0 follow-up (raw 93286-93298): if unit count unchanged,
+           * unit is Treasure/Artillery/Wagon and now has MP 0 ->
+           * upsert_primary(nation, x, y, code=2, prio = 2 Treasure /
+           * 3 Artillery / 1 Wagon). Code 2 is NOT CONTACT (CONTACT=0);
+           * it is the goal the DS:0x523d capability bit 2 admits — a
+           * transport pick-up request. Unported. Camera follow omitted.
+           * (No `break` in DOS — the inner while re-acts until MP==0.)
            */
-          break;
+          break; /* Linux structural shape only */
         }
       }
     }

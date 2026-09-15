@@ -23,7 +23,7 @@ EOT → 291f_0a66 → 43f7_2424  (SoL refresh + dispatch)
 | Branch | Bodies |
 |--------|--------|
 | Crown | tax residual `1d42`?; pools>0 → `0982` invasion; else `06a6` irregulars |
-| Rebel | once `1eca` promote (colony-SoL bands; Soldier/Regular + Dragoon/Cavalry); each turn: REF-absent-or-artillery-pool-empty → self-funded troop-gift roll (own treasury) via `10f0` mode 1; else `10f0` mode 0 drains `backup_force` free (see "`2244`/`2022` — corrected" below, **not** a human-facing merc hire) |
+| Rebel | once `1eca` promote (colony-SoL bands; Soldier/Regular + Dragoon/Cavalry); each turn: REF-absent-or-artillery-pool-empty → self-funded troop-gift roll (own treasury) via `10f0` mode 1; else `10f0` mode 0 drains `backup_force` free (see "`2244`/`2022` — corrected" below; `2022`'s rebel branch is the wartime merc hire, `2244` its peacetime twin — both human-facing) |
 
 ## Key symbols → Linux
 
@@ -38,7 +38,7 @@ EOT → 291f_0a66 → 43f7_2424  (SoL refresh + dispatch)
 | `06a6` | Irregulars when REF empty | `ai_king_ref_wave` (else) |
 | `1528` | Foreign-intervention announce (@INTERVENTION 0x12db, sets `0x5382` bit2; **not** REF arrival — corrected 2026-09-06, see below) | announce block in `ai_king_foreign_intervene_ex`; the wave's own `@INVASION` status/OK lives in `ai_king_ref_wave` |
 | `10f0` | Foreign landing when REF empty + `backup_force` (≤2/call; third @diff≥2; prefer Regular+Dragoon) | `ai_king_foreign_intervene`. Slot mix **Done** Phase 4; coastal roulette + 8-neighbor scorer + per-call caps + Veteran 0x15 **Done** Phase 5. Foreign MoW ship **Done too** (stale PARK corrected 2026-09-07f): `ai_king_10f0_score_tile`/`_pick_spawn` (`ai_king.c:3236`/`:3284`) pick the water tile, `ai_king.c:4220` spawns the type 0x12 hull for the human slot and decrements pool `0x53e6`. Open nit: crown-MoW −999 scorer (below) |
-| `2244` | Peacetime AI-nation self-funded troop gift (**not** a human merc hire — see "`2244`/`2022` — corrected" below) | `ai_king_ai_peacetime_gift` **Done** |
+| `2244` | Peacetime @MERCENARIES paid hire offer to the **human** (caller `281f_0668` is in the control==0 arm of the year loop, raw 6418 — corrected 2026-09-15, see "`2244` — human peacetime merc offer" below) | `ai_king_peacetime_merc_offer` **Done** (TURN_PROC_KING tail) |
 | `2022` / `1eca` | War act + Continental/vet promote | `ai_king_war_act` (colony-SoL bias; Veteran-profession gate — see `1eca` note below) |
 | `05ea` / `05f4` | Crown colors | `turn.c` (known) |
 
@@ -438,16 +438,18 @@ agree byte-for-byte).
   paths, already documented in this file's own "Structural `10f0`"
   section.
 - **`FUN_43f7_2244(void)`** (`viceroy_unpacked.c:75074-75152`, reached via
-  `FUN_281f_0668`, called from the **generic per-AI-Euro-nation turn
-  loop** — nothing to do with the King/REF/war dispatch chain at all,
-  just living in the same code segment) — the **peacetime** twin of
-  `2022`'s rebel-gift branch: fires only when WoI is **not yet declared**
-  (`0x5382` bit0 clear), picks a random Euro nation and rolls the same
-  quantity/price formula (price constant `+4` instead of `2022`'s `+3`,
-  popup `0x134c` instead of `0x1340`), paid from **that AI power's own
-  treasury**, landing troops via the same `10f0` mode-1 path. Reads as "a
-  foreign AI power occasionally funds and gifts itself/an ally
-  reinforcements before the war," not a human-facing hire offer at all.
+  `FUN_281f_0668`) — **re-corrected 2026-09-15**: the 0668 call sits in
+  the `*(char *)(n*0x34+0x543f) == '\0'` = **human** (control 0) arm of the
+  130d year loop (raw 6409-6421), after `281f_0644` (= 3844_00f2) and
+  right before `281f_062c` (Move Pieces); the AI arm (`== 1`, raw 6397)
+  has no such call. So it is the **peacetime** twin of `2022`'s rebel
+  branch *for the human*: WoI not declared, 1-in-21, seller = RNG(0,3)
+  nation that is the human or at PEACE (0x40) with it (stamped into
+  `0x53d6` first), quantity/price roll (`+4` constant, popup `0x134c`
+  @MERCENARIES "No thank you." / "Pay"), offered only when affordable,
+  paid from the **human's** treasury, landing via `10f0` mode 1 (seller's
+  Man-O-War ferries and despawns, @MERCS arrival). The 2026-08-14
+  "AI self-gift" reading below was wrong on the 0x543f polarity.
 
 **No SoL check and no literal `300` gold cost exist in either function.**
 
@@ -467,7 +469,20 @@ the DOS AI-controlled case. No once-per-war gate — DOS has none; the roll
 recurs every eligible turn. `AI_KING_MERC_COST`/`AI_KING_MERC_SOL_MIN` (the
 old invented SoL/300-gold stand-in) removed.
 
-**`2244` peacetime AI-nation-only branch — implemented 2026-08-14**
+### `2244` — human peacetime merc offer (ported 2026-09-15)
+
+`ai_king_peacetime_merc_offer` (`ai_king.c`), called from `turn.c`
+`TURN_PROC_KING` after the 00f2/market chrome and before the player gets
+control. Roll + gates as in the raw walk in the function header; %STRING1
+= "<n> Dragoons[, Artillery | , 2 Artillery]" (FUN_43f7_0082 maps the
+human's slots 0/1 to type 4 Dragoons before independence — `ai_king_10f0_
+spawn_unit` now does the same); CHOICE tag `AI_POPUP_TAG_KING_MERC_PEACE`,
+payload = regular/artillery/price; Pay → `europe_nation_gold_add` debit +
+`ai_king_10f0_land(paid=1)`. Headless (no popup queue): draws burned, offer
+dropped — DOS blocks on a dialog nobody can answer. The old AI-turn call
+(`ai_king_ai_peacetime_gift`) is deleted.
+
+**`2244` peacetime AI-nation-only branch — implemented 2026-08-14 (SUPERSEDED, wrong premise)**
 (`ai_king_ai_peacetime_gift` in `ai_king.c`, called from
 `ai_euro_nation_turn` — the DOS caller, `FUN_281f_0668` at
 `viceroy_unpacked.c:6409-6421`, sits in the SAME generic per-Euro-nation
@@ -964,7 +979,7 @@ the euro-driven REF is stronger, no re-baseline was needed.
 
 ## PORT DEBT
 
-- **Done (ai_popup unpark):** `38fd_5be8` audience CHOICE Accept/Refuse (+ auto when no queue); `@TEAPARTY` refuse/dump follow-up OK (thin `3dc8` stock dump + tokens); `2564` congress `@DECLARE` CHOICE Never/Yes; merc CHOICE widget now ports real `2022` rebel-branch troop-gift (recurring per-turn roll, real price formula, own-treasury pay — see "corrected" note above; `2244` peacetime AI-only self/ally-funded twin now also ported, `ai_king_ai_peacetime_gift`); `1528` REF `@INVASION` arrival OK; `10f0` `@INTERVENTION`+`@INTERVENE` ARRIVAL; REF `@CAPTURED3` capture OK; tax hike OK on Accept apply; revolution end `@WINNING` / `@LOSING1`–`3` / `@RETIRING2` Done thin (`unknown46[4]` latch); mid-war `@WARN1`–`3` Done thin (`unknown46[6]`/`[7]`/`[10]`); peacetime 1800 `@SCORED` CHOICE + `@RETIRING` on That's all Done thin (`KING_SCORED` → retire score); `@SOONRETIRING0`/`1` Done thin (1790/1840; `unknown46[8]`/`[9]`); declare `@HOWTOWIN` Done thin (invent WoI-begins demoted); restless status-only (invent OK demoted)
+- **Done (ai_popup unpark):** `38fd_5be8` audience CHOICE Accept/Refuse (+ auto when no queue); `@TEAPARTY` refuse/dump follow-up OK (thin `3dc8` stock dump + tokens); `2564` congress `@DECLARE` CHOICE Never/Yes; merc CHOICE widget now ports real `2022` rebel-branch troop-gift (recurring per-turn roll, real price formula, own-treasury pay — see "corrected" note above; `2244` peacetime twin re-ported 2026-09-15 as the human @MERCENARIES CHOICE, `ai_king_peacetime_merc_offer`); `1528` REF `@INVASION` arrival OK; `10f0` `@INTERVENTION`+`@INTERVENE` ARRIVAL; REF `@CAPTURED3` capture OK; tax hike OK on Accept apply; revolution end `@WINNING` / `@LOSING1`–`3` / `@RETIRING2` Done thin (`unknown46[4]` latch); mid-war `@WARN1`–`3` Done thin (`unknown46[6]`/`[7]`/`[10]`); peacetime 1800 `@SCORED` CHOICE + `@RETIRING` on That's all Done thin (`KING_SCORED` → retire score); `@SOONRETIRING0`/`1` Done thin (1790/1840; `unknown46[8]`/`[9]`); declare `@HOWTOWIN` Done thin (invent WoI-begins demoted); restless status-only (invent OK demoted)
 - **Done (structural REF / rebel — Marathon3):** **Dragoon garrison** (up to two Regular else Dragoon/Cont. Cav after capture / idle on crown; Defending a Colony cap 2; multi-garrison chrome still PARKED); ~~**Cont. capital-rally**~~ (**removed 2026-09-04** — see the `1eca` section: the King never orders the human's own Continentals); **Artillery siege spawn** (`force[3]` prefer when target fortified even if Regular/Dragoon live; unfortified → Regular first); **SoL50 band** (`1eca`: SoL>50 Continental; exactly 50 mid-band Soldier→Veteran only, Dragoon unchanged). Smoke covers each.
 - **Still PARKED (king modals / chrome):** VGA-identical wood chrome; dump-goods `38fd_3dc8` **CHOICE prompt** invent English (picker Done; `@TEAPARTY` after apply Done thin); deep `10f0` economy / merc-hire dialog beyond thin OK; full MoW embark **UI**; REF deep siege scoring UI. `160a` letter cinematic **Done** 2026-08-30 (`declaration.c`).
 - Deep `10f0` economy / merc hire / VGA arrival chrome — **PARKED** (≤2 + third @diff≥2 + Regular/Dragoon mix + nation-by-colonies pick + drain + thin ARRIVAL OK once Done)

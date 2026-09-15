@@ -85,13 +85,6 @@ graphs:
         fn: ai_goals.c:ai_goals_plan_scratch_refresh
         dos: 6d8e prelude raw 93109, 93139-93141 (DS:0xa0b8, FUN_4962_0018 bytes, DS:0x9567)
         status: dos
-      - id: gift
-        kind: call
-        label: Peacetime troop gift to the nation
-        fn: ai_king.c:ai_king_ai_peacetime_gift
-        dos: FUN_43f7_2244 via FUN_281f_0668
-        status: thin
-        note: Premise not confirmed (lead 2026-09-10) — DOS may target the human, not the acting nation.
       - id: frigate
         kind: call
         label: "@KINGFRIGATE offer auto-accept"
@@ -109,6 +102,7 @@ graphs:
       - id: end
         kind: end
         label: next nation / TURN_PROC_INDIAN / FINISH
+        note: "Not in this graph: FUN_43f7_2244 (peacetime @MERCENARIES offer) — its caller FUN_281f_0668 is in the HUMAN arm of the year loop (raw 6418), ported 2026-09-15 as ai_king_peacetime_merc_offer at the TURN_PROC_KING tail. Until then the port ran an invented AI self-gift here."
     edges:
       - [turn_slice, is_ref]
       - [is_ref, king_pre_beat, "yes"]
@@ -116,8 +110,7 @@ graphs:
       - [king_pre_beat, nation_turn]
       - [nation_turn, reseed]
       - [reseed, scratch]
-      - [scratch, gift]
-      - [gift, frigate]
+      - [scratch, frigate]
       - [frigate, has_map]
       - [has_map, dispatcher, "yes"]
       - [has_map, end, "no"]
@@ -141,14 +134,14 @@ graphs:
         fn: ai_euro.c:ai_euro_colony_inventory
         dos: FUN_521d_5cf6-shaped tallies; FUN_5952_035e +0x8f/+0x8c increments
         status: structural
-        note: Per own colony tools<20, muskets<10, food<pop*2, ore<20, lumber-labor want; ++cargo_idle_turns, ++improve_timer.
+        note: "Per own colony tools<20, muskets<10, food<pop*2, ore<20, lumber-labor want; ++cargo_idle_turns, ++improve_timer. DOS's own loop (raw 93107-93135) is the 5952_035e tick + specialty/muskets/tools/horses demand tallies (0xa0cc/0xa0db/0xa0da/0xa0d4) and the NEEDS_COLONISTS count; the port's tallies here are Linux-shaped, the DOS ones live in ai_euro_5d04_cb_colony_needs / plan_scratch_refresh."
       - id: treaty_timers
         kind: call
         label: Treaty timers tick
         fn: ai_diplo.c:ai_diplo_treaty_timers
         dos: 6d8e prelude raw 93173-93188
         status: dos
-        note: Per peer — flag bit 0x08 && timer==0 && RNG(0,3)==0 seeds a timer; timer>0 decrements (expiry = WAR_INTENT, not peace).
+        note: "Per peer — flag bit 0x08 set && timer==0 && RNG(0,3)==0 → clear 0x08|0x40 (PEACE) and set 0x01 WAR_INTENT (no timer write); then, independently, timer>0 decrements. Expiry breeds war intent, never peace. This is the ONLY DOS Euro→Euro war opener reachable from 6d8e — the WAR bit itself is set at the attack sites (465b etc.) once WAR_INTENT is up."
       - id: planning
         kind: sub
         label: Nation planning — treasury, ship buys, Europe hires
@@ -194,10 +187,11 @@ graphs:
         note: ai_euro_try_cash_treasure_europe per unit; units_cortes_cash_coastal_treasures.
       - id: unit_loop
         kind: loop
-        label: "do { wave 0: ships; wave 1: ships+land; unit ids high→low } while any_acted && guard<64"
+        label: "do { wave 0: ships; wave 1: ships+land; unit ids high→low; one act per unit } while any_acted && guard<64"
         fn: ai_euro.c:ai_euro_dispatcher_turn
-        dos: 6d8e steps 6–7
-        status: structural
+        dos: 6d8e steps 6–7, raw 93237-93325
+        status: thin
+        note: "DIVERGES from DOS (verified 2026-09-15). DOS wave 0 = unit types 0x0a/0x0b/0x0c = Treasure / Artillery / Wagon Train (bVar4), NOT ships — the annotated header's SHIP_A..C = 0x0a..0x0c was a mislabel (ships are 0x0d-0x12, cf. the 6d8e prelude hold walk). Wave 1 = every unit. DOS granularity: each wave scans ids high→low, takes the FIRST unit with MP, acts it repeatedly until MP==0 (inner while), then leaves the wave; the outer do-while restarts from the top and returns when wave 1 found nobody. That shape is implemented behind AI_6D8E_DOS_LOOP=1 but NOT default: the golden-fit beachhead arms (first_colony / corridors / wake_elig) and the headless WoI sim were fitted to ships-first-twice-per-pass and flip under it (golden_ai_turns TURN3→4 loses the SP/DU founds, golden_woi_ref01 never reaches LOST, unit_ai_euro_20e6 berth boarding). Open item: refit those arms to the DOS order, then flip the default."
       - id: skip
         kind: decision
         label: Skip? (inactive / other nation / aboard ship / land in wave 0)
@@ -213,7 +207,7 @@ graphs:
       - id: sticky
         kind: decision
         label: Same unit acted > 0x14 times without progress?
-        note: Anti-spin — clears orders and skips the unit.
+        note: "Anti-spin. DOS (raw 93262-93268): DS:0x2d14 counts consecutive acts of the same unit; >0x14 → FUN_281f_0934 clears its orders and the unit is STILL acted. Port matches since 2026-09-15 (used to skip the unit)."
       - id: act
         kind: sub
         label: Unit act (5b66 dispatcher)
@@ -231,9 +225,11 @@ graphs:
         note: Per-act granularity vs DOS per-step; dedupes once per pair per turn.
       - id: ship_contact
         kind: step
-        label: Ship out of MP → CONTACT goal prio 2 at its tile
+        label: Treasure / Artillery / Wagon out of MP → ESCORT goal (code 2) prio 2 / 3 / 1 at its tile
         fn: ai_goals.c:ai_goals_upsert_primary
-        status: linux
+        dos: raw 93286-93298 (thunk_FUN_2a1f_0470(nation, x, y, 2, prio))
+        status: dos
+        note: "Ported 2026-09-15 as AI_GOAL_ESCORT (replaced the invented ship→CONTACT arm). Consumers per DS:0x523d bit 2 (k_20e6_type_flags 0x1c/0x3c/0x64): Soldiers, Dragoons, Regulars, Continentals, Cavalry, Scouts — no ship type. Consumption: 0a60 tail capability match → goto to the tile (drains MP like CONTACT); nothing special on arrival yet."
       - id: colony_tick
         kind: sub
         label: Colony tick — colonist re-placement (FUN_5952_035e)
@@ -1253,7 +1249,8 @@ graphs:
         kind: step
         label: War upkeep drain (5 gold/turn per war peer)
         fn: ai_diplo.c:ai_diplo_war_upkeep_drain
-        status: thin
+        status: linux
+        note: No DOS per-turn war gold drain exists; 153e's stings are one-shot audience outcomes.
       - id: privateer
         kind: step
         label: Wartime Privateer spawn (or prize gold when no unit pool)
@@ -1273,7 +1270,8 @@ graphs:
         kind: step
         label: "RNG(1,20)==1 → declare war (human peer gets a CHOICE popup)"
         fn: ai_diplo.c:ai_diplo_declare_war_ctx
-        status: thin
+        status: linux
+        note: "Second, Linux-only war opener. DOS AI→Euro war starts only via WAR_INTENT (treaty_timers) followed by an attack site setting WAR, or 13b0's paid @SMITE. 10ec itself is a pure eligibility predicate in DOS."
       - id: treaty
         kind: call
         label: Treaty sign / cancel tick (requires an encounter this turn; (a+turn+b)%3 cadence)
@@ -1310,8 +1308,9 @@ graphs:
         kind: loop
         label: Each own colony with colonists (AI nations only — DOS has one call site, inside 6d8e)
         fn: ai_euro.c:ai_euro_colony_tick_28c8_reassign
-        dos: FUN_5952_035e via 2a1f_0530 → 521d_5cf6 → 2a1f_05a8
+        dos: FUN_5952_035e via 2a1f_0530 → 521d_5cf6 → 2a1f_05a8 — raw 93119, inside the PRELUDE colony loop
         status: dos
+        note: "ORDER DIVERGES: DOS runs the tick per colony in the 6d8e prelude (before 5d04 / 0342 / 0a60 and before any unit acts), so planning reads post-tick colony state. The port runs it last on purpose (w31-28c8 2026-08-29: the Linux expert field-assign arm needs a free tile first). Body is DOS; position is Linux."
       - id: pass1
         kind: loop
         label: "Pass 1 — food: re-score the slots that were feeding the colony until food_have ≥ food_need"

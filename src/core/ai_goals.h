@@ -18,6 +18,11 @@
 #define AI_GOAL_EMPTY 0xff
 #define AI_GOAL_CONTACT 0
 #define AI_GOAL_FOUND 1
+/* DOS goal code 2 (FUN_521d_6d8e raw 93286-93298): a Treasure / Artillery /
+ * Wagon Train that ended its act with MP 0 asks for company at its tile
+ * (prio 2 / 3 / 1). DS:0x523d capability bit 2 = Soldiers, Dragoons, Scouts,
+ * Regulars, Continentals, Cavalry (and Braves) — an escort request. */
+#define AI_GOAL_ESCORT 2
 #define AI_GOAL_LABOR 3
 #define AI_GOAL_MILITARY 4
 #define AI_GOAL_COLONY 5

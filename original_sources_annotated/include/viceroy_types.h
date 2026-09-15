@@ -73,12 +73,14 @@ typedef struct ViceroyUnit {
 
 _Static_assert(sizeof(ViceroyUnit) == VICEROY_UNIT_STRIDE, "ViceroyUnit stride");
 
-/* Unit type constants used by Euro dispatcher ship/land split. */
+/* Unit type constants used by the Euro dispatcher wave split.
+ * 2026-09-15: 0x0a..0x0c were mislabeled SHIP_A..C; they are Treasure /
+ * Artillery / Wagon Train (ships are 0x0d Caravel .. 0x12 Man-O-War). */
 #define VICEROY_UNIT_TYPE_SOLDIER   0x01
 #define VICEROY_UNIT_TYPE_PIONEER   0x02
-#define VICEROY_UNIT_TYPE_SHIP_A    0x0a
-#define VICEROY_UNIT_TYPE_SHIP_B    0x0b
-#define VICEROY_UNIT_TYPE_SHIP_C    0x0c
+#define VICEROY_UNIT_TYPE_TREASURE  0x0a
+#define VICEROY_UNIT_TYPE_ARTILLERY 0x0b
+#define VICEROY_UNIT_TYPE_WAGON_TRAIN 0x0c
 #define VICEROY_UNIT_TYPE_BRAVE     19
 
 /* ---- Tribe record (DS base 0x54ee, stride 0x12) ------------------------- */

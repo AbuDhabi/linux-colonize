@@ -697,8 +697,8 @@ helpers; every helper had a live twin in ai_euro.c/ai.c).
   (FA gift + imbalance-break CHOICE), the treaty-timer ALLY-expiry arm,
   the DIPLO_ALLIANCE/BREAK CHOICE applies, and the sticky "precludes new
   alliances" chrome. Kept: `AI_DIPLO_ALLY` define (self-pair virtual +
-  ai_king 2244 byte-faithful read — never set on Euro pairs, so 2244
-  eligibility reduces to self-only, as in DOS), tag 22 as a numbering gap,
+  the 13b0 reads; the 2244 ALLY read is gone — 2244 tests PEACE 0x40
+  toward the human, 2026-09-15), tag 22 as a numbering gap,
   `DIPLO_BREAK` as the 13b0 treaty-cancel OK tag, the AI_TALK
   ALLY_PICK/ALLY_PAY paid-@SMITE stages (real DOS 153e), timer decrement +
   peace-tweak expiry (real 6d8e step 4). ai_diplo.c −422 lines,
@@ -820,7 +820,7 @@ full port, census>3 gate, +4 hysteresis); `10f0` intervene **structural
 Done** (player-controlled MoW+troops, real caps/pools; crown-MoW −999
 scorer nit documented); `1528` = intervention announce (corrected label)
 **Done thin** (announce+landing coupled in one beat vs DOS's two);
-`160a` cinematic / `2244` peacetime gift **Done**. Remaining documented
+`160a` cinematic **Done**; `2244` = peacetime @MERCENARIES offer to the human (re-premised 2026-09-15: caller is the human year-loop arm, raw 6418), `ai_king_peacetime_merc_offer` at the TURN_PROC_KING tail **Done**. Remaining documented
 divergences live in king_ref.md (1d42 `nation+0xe` bump skipped, declare
 crown-diplo bitmask 0x22/0x40 vs WAR|MET, 1528 colony-name pick).
 2026-09-07: crown **MoW return-home** is the real `20e6` ship-band tail
