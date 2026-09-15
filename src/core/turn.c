@@ -621,9 +621,14 @@ static void turn_produce_one_colony(
   const ColonizeMsgCatalog* messages,
   ColonizeDosRng* rng
 ) {
-  if (delta) {
-    memset(delta, 0, sizeof(*delta));
+  /* The delta doubles as this tick's per-cargo net ledger (the DOS
+   * FUN_281f_0b50 scratch), which the cargo_produced_mask below needs even
+   * when the caller wants no delta back. */
+  ColonizeColonyProdDelta local_delta;
+  if (!delta) {
+    delta = &local_delta;
   }
+  memset(delta, 0, sizeof(*delta));
   if (!pool || !colony || !colony->active) {
     return;
   }
@@ -645,6 +650,12 @@ static void turn_produce_one_colony(
   for (int c = 0; c < COLONIZE_CARGO_COUNT; ++c) {
     stock_before[c] = colony->stock[c];
   }
+  /* Phase I birth food (200) and Phase B Custom House sales, kept apart from
+   * the delta so the produced-mask below can see the Phase B net exactly. */
+  int birth_food_debit = 0;
+  int ai_food_subsidy = 0;
+  int ch_sold[COLONIZE_CARGO_COUNT];
+  memset(ch_sold, 0, sizeof(ch_sold));
   const int pop = colony->colonist_count > 0 ? colony->colonist_count : colony->population;
   if (pop <= 0) {
     return;
@@ -859,6 +870,7 @@ static void turn_produce_one_colony(
       colony->stock[COLONIZE_CARGO_FOOD] =
         turn_clamp_stock(colony->stock[COLONIZE_CARGO_FOOD] + ai_food);
       field_food += ai_food;
+      ai_food_subsidy = ai_food;
       if (delta) {
         delta->goods[COLONIZE_CARGO_FOOD] += ai_food;
       }
@@ -1234,6 +1246,7 @@ static void turn_produce_one_colony(
       if (delta) {
         delta->goods[COLONIZE_CARGO_FOOD] -= 200;
       }
+      birth_food_debit = 200;
       bool born_on_tile = false;
       if (s_turn_birth_units) {
         /* bugs.md: the newborn stands on the colony tile awaiting orders. */
@@ -1422,25 +1435,6 @@ static void turn_produce_one_colony(
           ai_popup_enqueue_colony_event(ai_popups, colony->id, body);
         }
       }
-    }
-  }
-
-  /* Settlement manufacturing already ran at the Phase A composition
-   * boundary above (raw → goods, before hammers consume lumber); this only
-   * re-syncs the delta's summary fields, which the food/consumption block
-   * overwrote from the field-only totals in between. */
-  if (delta) {
-  }
-
-  /*
-   * FUN_364b_0688 Phase B: cargo_produced_mask (+0x90) sets bits for cargos
-   * whose net production is positive this tick.
-   */
-  colony->cargo_produced_mask = 0;
-  for (int c = 0; c < COLONIZE_CARGO_COUNT; ++c) {
-    const int net = delta ? delta->goods[c] : (colony->stock[c] - stock_before[c]);
-    if (net > 0) {
-      colony->cargo_produced_mask |= (uint16_t)(1u << c);
     }
   }
 
@@ -1728,6 +1722,11 @@ static void turn_produce_one_colony(
     const int ch_total = europe_custom_house_autosell_ex(
       europe, pool, colony, col1, human_nation, ch_sales, COLONIZE_CARGO_COUNT, &ch_sale_count
     );
+    for (int si = 0; si < ch_sale_count; ++si) {
+      if (ch_sales[si].cargo >= 0 && ch_sales[si].cargo < COLONIZE_CARGO_COUNT) {
+        ch_sold[ch_sales[si].cargo] += ch_sales[si].amount;
+      }
+    }
     /*
      * FUN_364b_0688 assembles ONE line PER CARGO into DS:0x2d54 and arms it
      * with FUN_1009_0092 — that is the map's top-strip STATUS LINE, not a
@@ -1774,6 +1773,38 @@ static void turn_produce_one_colony(
         ai_popup_enqueue_bar_message(ai_popups, line);
       }
     }
+  }
+
+  /*
+   * FUN_364b_0688 Phase B (raw 57343-57346): cargo_produced_mask (+0x90)
+   * bit c is set when the compose scratch (gross production, DS:-0x7238)
+   * is non-zero AND the applied net is positive. The net is FUN_281f_0b50's
+   * gross minus consumption (colonists' food, craft inputs, the Carpenter's
+   * lumber) MINUS what the Custom House shipped in the same loop iteration
+   * (raw 57273 `local_86 -= sold`), so a cargo the house sells down to 50
+   * never counts as produced. The `net == 0 && surplus != 0` arm is dead:
+   * surplus is clamp(0, stock - cap, net), which is 0 whenever net is 0.
+   * Phase I's birth food and Phase L/O (hammers already debited above,
+   * dump-sell, spoilage) are outside that loop; the net here is taken at
+   * the Phase B point. The gross test only matters for food: the AI food
+   * subsidy is added to the net, not the scratch, so a colony fed by the
+   * subsidy alone does not "produce" food.
+   */
+  colony->cargo_produced_mask = 0;
+  for (int c = 0; c < COLONIZE_CARGO_COUNT; ++c) {
+    int net = delta->goods[c] - ch_sold[c];
+    if (c == COLONIZE_CARGO_FOOD) {
+      net += birth_food_debit;
+      if (field_food - ai_food_subsidy <= 0) {
+        continue;
+      }
+    }
+    if (net > 0) {
+      colony->cargo_produced_mask |= (uint16_t)(1u << c);
+    }
+  }
+
+  if (europe) {
     /* Phase O: AI dump-sell surplus for gold before spoilage clamp. */
     (void)europe_ai_colony_dump_sell(europe, pool, colony, col1, human_nation);
   }

@@ -980,7 +980,7 @@ TT-1..5 (test_ai_euro_expand/war boilerplate — needs re-baselining), TT-17/18 
 
 ### New findings (open)
 
-- **`cargo_produced_mask` disagrees with the DOS goldens in 4 colonies**: prod01 New Amsterdam `0x0278` vs `0x0270` (spurious cotton), Guadeloupe `0x0139` vs `0x0111` (spurious cotton + lumber), St. Louis `0x0051` vs `0x0055` (missing tobacco); prod02 New Amsterdam `0xc961` vs `0xc941` (spurious lumber). prod03 passes the full field set. The two goldens keep `COL1_CMP_ALL & ~COL1_CMP_CARGO_PRODUCED_MASK` with the diffs named in the test; everything else (incl. `depletion_counter`, `improve_timer`) is now compared everywhere.
+- **`cargo_produced_mask` (RESOLVED 2026-09-15)**: the 4 golden diffs (prod01 New Amsterdam / Guadeloupe / St. Louis, prod02 New Amsterdam) were two things. (1) DOS FUN_364b_0688 Phase B tests the net AFTER the same-iteration Custom House sale (`local_86 -= sold`, raw 57273) and requires the compose scratch to be non-zero (raw 57343); the port tested the pre-sale stock delta, so cotton/lumber sold down to 50 got a spurious bit. Mask now computed after the Custom House block in turn.c. (2) prod01's St. Louis fixture re-picked the Tobacco Planter's tile to Plains (yield 0, hidden by the 100 cap); the real Grassland+River+Prime Tobacco tile is restored. All production goldens now compare the full field set including the mask.
 - Shared-scratch trap: `reports_cargo_display_name` returns a single static buffer; holding the pointer across another NAMES lookup clobbers it (three sites now copy first). The country/adjective/difficulty accessors use per-index buffers.
 
 ### Traps recorded
