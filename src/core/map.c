@@ -654,6 +654,29 @@ static bool map_procedural_rumour_at(const ColonizeWorldMap* map, int x, int y) 
   return (int)hash + (dos_x & 3) * -4 == (dos_y & 3);
 }
 
+/*
+ * FUN_137f_0598 (FUN_281f_075e thunk) — the Indian move scorer's rumour-tile
+ * skip. DOS-literal: prime_resource_seed nonzero, terrain class not arctic /
+ * ocean / high seas, layer3 owner nibble unset (FUN_137f_0200 < 0), and the
+ * same rumour hash as map_procedural_rumour_at. No cleared-bit test in DOS.
+ */
+bool map_dos_0598_rumour_tile(const ColonizeWorldMap* map, int x, int y) {
+  if (!map || map->prime_resource_seed == 0 || !map_in_bounds(map, x, y)) {
+    return false;
+  }
+  const int idx = map_dos_terr_class_at(map, x, y);
+  if (idx == 0x19 || idx == 0x1a || idx == 0x18) {
+    return false;
+  }
+  const int nib = (int)((map_get_layer3(map, x, y) >> 4) & 0x0fu);
+  if (nib != 0x0f) {
+    return false;
+  }
+  const int seed = (int)map->prime_resource_seed;
+  const unsigned hash = (unsigned)(((y >> 2) * 0x13 + (x >> 2) * 0x11 + seed + 8) & 0x1f);
+  return (int)hash + (x & 3) * -4 == (y & 3);
+}
+
 static bool map_has_rumour_at(const ColonizeWorldMap* map, int x, int y) {
   if (!map_in_bounds(map, x, y)) {
     return false;

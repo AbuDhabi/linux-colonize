@@ -207,6 +207,8 @@ int ai_contact_try_first_welcome(ColonizeTurnContext* ctx, int euro_nation, int 
  * (ai_contact_try_first_welcome). Returns number of welcomes opened.
  */
 int ai_contact_encounter_scan(ColonizeTurnContext* ctx, int euro_nation, int x, int y);
+/* 022e already-met mood rolls on the Brave\'s own step (3180 from the 465b tail); publishes the verdict. */
+int ai_contact_visit_step_roll(ColonizeTurnContext* ctx, int nation_id, int e, int brave_id);
 
 /*
  * Village-enter Meet CHOICE (already-met human Euro on tribe tile). Enqueues

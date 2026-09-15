@@ -122,4 +122,7 @@ void ai_coarse_fog_euro_restamp(
   const ColonizeUnitPool* units, const ColonizeColonyPool* colonies, int nation_id
 );
 
+/* Set when a Brave step of this pulse opened first contact with euro_nation (3180 on the Indian mover). */
+int ai_native_first_contact_this_turn(int nation_id, int euro_nation);
+
 #endif

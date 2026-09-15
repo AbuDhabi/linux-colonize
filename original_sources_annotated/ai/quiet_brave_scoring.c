@@ -1,6 +1,10 @@
 /*
  * Quiet NEW WORLD Brave move scoring — ASM LAB_521d_4ea9 / flags 0x10|0x20.
  *
+ * SUPERSEDED 2026-09-15: quiet Braves are scored by FUN_4d56_021a's own dir
+ * loop (see src/core/ai.c ai_native_pick_dir_021a); this 20e6 branch is only
+ * reached by Euro-side callers. Kept for reference (AI_BRAVE_PICK=20e6).
+ *
  * Recovered from original_sources_decompiled/viceroy_unpacked.c FUN_521d_20e6
  * and viceroy_unpacked.asm around CODE_125:521d:4ea9.
  *

@@ -19842,6 +19842,20 @@ void ai_euro_dispatcher_turn(ColonizeTurnContext* ctx, int nation_id) {
             (void)ai_diplo_153e_encounter(ctx, ctx->human_nation, nation_id, u->id);
           }
         }
+        /*
+         * FUN_5bfb_3180's Indian-side half runs on the AI mover's own step as
+         * well (465b commit tail -> 0984 -> 0192 -> 3180 -> 022e): a land unit
+         * that ends beside a tribe's unit or village opens first contact
+         * right there, in the Euro phase — BEFORE that tribe's own 021a act
+         * loop reads the MET bit (seed-100 TURN2: the Sioux Brave at (48,56)
+         * scores the Spanish soldier next to it as already met). Ships and
+         * the human are handled elsewhere (landfall hook / game_loop).
+         */
+        if (progressed && u->active && units_is_on_map(u) && u->aboard_ship_id < 0 &&
+            !units_is_sea(ctx->units, u->id) &&
+            (u->x != before_x || u->y != before_y)) {
+          (void)ai_contact_encounter_scan(ctx, nation_id, u->x, u->y);
+        }
         if (!progressed) {
           /* Port-only spin guard: DOS re-acts until MP 0 (or the sticky
            * clear). Treat a no-progress unit as exhausted for this scan so
