@@ -552,41 +552,33 @@ static void game_combat_analysis_present(const ColonizeCombatEngagement* eng, vo
 
 static void game_set_view_center(ColonizeGameState* game, int x, int y);
 
+/*
+ * bugs.md: "Show Foreign/Indian Moves" gate — DOS FUN_465b (raw ~75660)
+ * animates a rival step only when show_entire_map (DS:0x53a2) is set or the
+ * mover's vis-mask carries the human bit after FUN_281f_0826(x,y): the
+ * destination lies inside the human's colony claim (layer3 owner nibble) or
+ * one of its 8 neighbours holds a human unit/colony (FUN_1427_0bfe). There is
+ * no "tile explored" test; the port used map_tile_seen_by here, so every move
+ * on once-seen ground was watched with nobody nearby.
+ */
 static bool game_move_is_near_human(
   const ColonizeGameState* game,
   const ColonizeUnit* mover,
   const ColonizeWorldMap* map,
-  const ColonizeColonyPool* colonies,
   int x,
   int y
 ) {
-  if (!game || !mover || !map || !colonies || !game->col1_ok) {
+  if (!game || !mover || !map || !game->col1_ok) {
     return false;
   }
-  if (game->col1.head.show_entire_map ||
-      map_tile_seen_by(map, x, y, game->human_nation)) {
+  if (game->col1.head.show_entire_map) {
     return true;
   }
-  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-    const ColonizeUnit* human = &game->units.units[i];
-    if (!human->active || human->nation_id != game->human_nation ||
-        !units_is_on_map(human)) {
-      continue;
-    }
-    if (map_tiles_adjacent(human->x, human->y, x, y, true)) {
-      return true;
-    }
+  if (game->human_nation < 0 || game->human_nation > 3) {
+    return false;
   }
-  /* Pool bound (colonies_abandon leaves holes and shrinks colony_count). */
-  for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
-    const ColonizeColony* colony = &colonies->colonies[i];
-    if (colony->active && colony->nation_id == game->human_nation &&
-        map_tiles_adjacent(colony->x, colony->y, x, y, true)) {
-      return true;
-    }
-  }
-  (void)mover;
-  return false;
+  const uint8_t mask = units_vis_mask_for_tile(map, x, y, mover->nation_id);
+  return (mask & (1u << game->human_nation)) != 0;
 }
 
 static void game_map_zoom_view_size(int zoom, int* out_cols, int* out_rows);
@@ -682,7 +674,7 @@ static void game_move_watch(
       (unit->nation_id >= 0 && unit->nation_id < 4)
         ? game->col1.head.game_options.show_foreign_moves != 0
         : game->col1.head.game_options.show_indian_moves != 0;
-    if (!show || !game_move_is_near_human(game, unit, map, colonies, to_x, to_y)) {
+    if (!show || !game_move_is_near_human(game, unit, map, to_x, to_y)) {
       return;
     }
     game_set_view_center(game, to_x, to_y);
