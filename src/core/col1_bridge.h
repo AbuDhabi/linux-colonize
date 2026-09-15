@@ -84,30 +84,6 @@ bool col1_bridge_init_template(
 );
 
 /*
- * Rebuild Col1 mask / live layer2 occupancy bits (has_unit / has_city) from
- * live units, colonies, and tribe villages. Clears bits 0–1 then sets them;
- * preserves road/plow/suppress/purchased/pacific and other high mask bits.
- * Pass NULL for save or map to skip that side. Required before Linux→DOS write.
- * tribe_save supplies village tiles (may be the same pointer as save, or a
- * const apply-time snapshot when save is NULL).
- */
-void col1_bridge_sync_map_occupancy(
-  ColonizeCol1Save* save,
-  ColonizeWorldMap* map,
-  const ColonizeUnitPool* units,
-  const ColonizeColonyPool* colonies,
-  const ColonizeCol1Save* tribe_save
-);
-
-/*
- * Synthesize Col1 mask density bits (suppress/purchased/pacific) from live
- * terrain + layer2 (FUN_684c_08c0 / FUN_137f_015e). Preserves purchased when
- * neither plane tracks a clear; ORs layer2 deplete/purchase/pacific.
- * Call after road/plow sync, before or after occupancy rebuild.
- */
-void col1_bridge_sync_map_density(ColonizeCol1Save* save, const ColonizeWorldMap* map);
-
-/*
  * After a European unit steps onto (x,y): report whether a tribe village is
  * adjacent, for european_nation (0..3). Alarm-free — the per-step friction /
  * alarm_by_player bumps were the fourth drip of the fandom class bugs.md

@@ -17,27 +17,17 @@ RIVER_TRANSITION = bytes(
     [7, 4, 2, 1, 1, 0, 0, 7, 11, 13, 14, 0, 23, 44, 53, 73, 75, 0, 27, 22, 37, 18, 48, 0, 3, 20, 25, 5]
 )
 
+# Only terrain_meta is emitted: the tile_display / river / feature-base /
+# connectivity tables this script used to generate had no consumer outside
+# the smoke test that re-typed them as literals (duplication audit TT-27/28/29).
+# The river table above stays as the EXE anchor, not as generated output.
 TABLES = {
     "terrain_meta": {"ds": 0x543F, "count": 29, "elem": 0x34},
-    "tile_display": {"ds": 0x5234, "count": 29, "elem": 0x0E},
-    "river_transition": {"ds": DS_RIVER_TRANSITION, "count": 28, "elem": 1},
-    "feature_sprite_bases_a": {"ds": 0x54FC, "count": 4, "elem": 1},
-    "feature_sprite_bases_b": {"ds": 0x5502, "count": 4, "elem": 1},
-    "connectivity_transition": {"ds": 0x5599, "count": 21, "elem": 1},
 }
 
 
 def ds_to_file(ds_offset: int, ds_to_file: int) -> int:
     return ds_offset + ds_to_file
-
-
-def format_array(name: str, values: list[int], elems_per_row: int) -> str:
-    lines = [f"const uint8_t {name}[] = {{"]
-    for i in range(0, len(values), elems_per_row):
-        chunk = values[i : i + elems_per_row]
-        lines.append("  " + ", ".join(f"0x{b:02x}" for b in chunk) + ",")
-    lines.append("};")
-    return "\n".join(lines)
 
 
 def format_matrix(name: str, rows: list[list[int]]) -> str:
@@ -89,19 +79,7 @@ def main() -> int:
         "",
         '#include "data/viceroy_tables.h"',
         "",
-        f"const uint32_t viceroy_ds_to_file_offset = 0x{ds_to_file_offset:x}u;",
-        "",
         format_matrix("viceroy_terrain_meta", terrain_meta),
-        "",
-        format_matrix("viceroy_tile_display", extracted["tile_display"]),
-        "",
-        format_array("viceroy_river_transition", extracted["river_transition"], 14),
-        "",
-        format_array("viceroy_feature_sprite_bases_a", extracted["feature_sprite_bases_a"], 4),
-        "",
-        format_array("viceroy_feature_sprite_bases_b", extracted["feature_sprite_bases_b"], 4),
-        "",
-        format_array("viceroy_connectivity_transition", extracted["connectivity_transition"], 14),
         "",
     ]
 

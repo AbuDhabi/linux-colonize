@@ -47,15 +47,11 @@ static void turn_reveal_fog_for_nation(ColonizeTurnContext* ctx, int nation_id) 
   }
 }
 
-uint8_t turn_nation_color(int nation_id) {
-  return unit_chrome_nation_color(nation_id);
-}
-
 void turn_draw_owner_indicator(ColonizeFramebuffer8* framebuffer, int nation_id) {
   if (!framebuffer || !framebuffer->pixels || framebuffer->width <= 0 || framebuffer->height <= 0) {
     return;
   }
-  const uint8_t color = turn_nation_color(nation_id);
+  const uint8_t color = unit_chrome_nation_color(nation_id);
   const int x0 = TURN_OWNER_INDICATOR_X;
   const int y0 = TURN_OWNER_INDICATOR_Y;
   for (int y = y0; y < y0 + TURN_OWNER_INDICATOR_H; ++y) {
@@ -198,25 +194,6 @@ void turn_refresh_moves_for_nation(
   }
 }
 
-bool turn_human_units_exhausted(const ColonizeUnitPool* pool, int human_nation) {
-  if (!pool) {
-    return true;
-  }
-  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-    const ColonizeUnit* u = &pool->units[i];
-    if (!u->active || u->nation_id != human_nation) {
-      continue;
-    }
-    if (!units_is_on_map(u)) {
-      continue;
-    }
-    if (u->moves_left > 0) {
-      return false;
-    }
-  }
-  return true;
-}
-
 bool turn_select_next_unit(ColonizeUnitPool* pool, int human_nation) {
   if (!pool) {
     return false;
@@ -272,7 +249,7 @@ bool turn_option_end_of_turn(const ColonizeCol1Save* col1, bool col1_ok) {
   return col1_ok && col1 && col1->head.game_options.end_of_turn != 0;
 }
 
-bool turn_option_autosave(const ColonizeCol1Save* col1, bool col1_ok) {
+static bool turn_option_autosave(const ColonizeCol1Save* col1, bool col1_ok) {
   return col1_ok && col1 && col1->head.game_options.autosave != 0;
 }
 
@@ -284,21 +261,6 @@ static int turn_clamp_stock(int v) {
     return 65535;
   }
   return v;
-}
-
-static bool turn_building_name_has(const ColonizeColonyPool* pool, const ColonizeColony* colony, const char* needle) {
-  if (!pool || !colony || !needle) {
-    return false;
-  }
-  for (int i = 0; i < pool->building_type_count && i < COLONIZE_BUILDING_TYPES_MAX; ++i) {
-    if (!colony->has_building[i]) {
-      continue;
-    }
-    if (strstr(pool->building_types[i].name, needle) != NULL) {
-      return true;
-    }
-  }
-  return false;
 }
 
 /*
@@ -330,7 +292,7 @@ static int turn_report_ok_rebel_maj(const ColonizeCol1Save* col1) {
  * the old join-the-colony behaviour.
  */
 static ColonizeUnitPool* s_turn_birth_units = NULL;
-void turn_set_birth_units_pool(ColonizeUnitPool* units) {
+static void turn_set_birth_units_pool(ColonizeUnitPool* units) {
   s_turn_birth_units = units;
 }
 
@@ -581,16 +543,8 @@ static const char* turn_label(const char* section, int idx, const char* fallback
   return fallback;
 }
 
-/*
- * One colony's bells + crosses for a given SoL bonus — DOS composes both in
- * FUN_364b_0688's Phase A prologue (`15eb_1f72`'s per-colonist `1d4c` loop,
- * viceroy 12602-12609) and feeds the same words to the nation tally and the
- * rebel dividend. Shared here by the Phase A snapshot and by
- * turn_count_bells_and_crosses_for_nation's live fallback so the two can
- * never drift apart. Cite: turn/nation_ticks_bells_ff.md;
- * manufacturing_worker_calc_1d4c.md.
- */
-static void turn_compose_colony_bells_crosses(
+/* Header comment on the prototype in turn.h. */
+void turn_compose_colony_bells_crosses(
   const ColonizeColonyPool* pool,
   const ColonizeColony* colony,
   const ColonizeCol1Save* col1,
@@ -626,6 +580,32 @@ static void turn_compose_colony_bells_crosses(
   if (out_crosses) {
     *out_crosses = crosses;
   }
+}
+
+/*
+ * DOS @BUILT — "%STRING0 colony produces {%STRING1}." One emitter for the
+ * three completion paths (audit CO-11): turn_produce_one_colony's in-tick
+ * building completion, turn_run_colony_unit_construction and
+ * turn_run_colony_building_completion. The caller writes europe->status
+ * first and passes it as `fallback`, exactly as all three did inline.
+ */
+static void turn_emit_built_chrome(
+  const ColonizeMsgCatalog* messages,
+  AiPopupState* ai_popups,
+  const ColonizeColony* colony,
+  const char* built_name,
+  const char* fallback
+) {
+  if (!ai_popups || !colony) {
+    return;
+  }
+  char body[AI_POPUP_BODY_LEN];
+  PopupMsgTokens tok;
+  memset(&tok, 0, sizeof(tok));
+  tok.string0 = colony->name[0] ? colony->name : "colony";
+  tok.string1 = (built_name && built_name[0]) ? built_name : "building";
+  popup_msg_fill(messages, "BUILT", &tok, fallback, body, sizeof(body));
+  ai_popup_enqueue_colony_event(ai_popups, colony->id, body);
 }
 
 static void turn_produce_one_colony(
@@ -718,41 +698,16 @@ static void turn_produce_one_colony(
     }
 
     /* Docks (or Drydock/Shipyard) gates Fisherman yield — FUN_15eb_18ec
-     * ~11925-11939; coastal placement alone is not enough. Must match
-     * colony_preview.c / colony_screen.c / game_loop.c checks. */
-    bool has_docks = false;
-    {
-      for (int bi = 0; bi < pool->building_type_count && bi < COLONIZE_BUILDING_TYPES_MAX; ++bi) {
-        if (!colony->has_building[bi]) {
-          continue;
-        }
-        const char* bn = pool->building_types[bi].name;
-        if (bn && (strstr(bn, "Docks") != NULL || strstr(bn, "Drydock") != NULL ||
-                   strstr(bn, "Shipyard") != NULL)) {
-          has_docks = true;
-          break;
-        }
-      }
-    }
-    bool worked_colonist[32];
-    memset(worked_colonist, 0, sizeof(worked_colonist));
-    for (int ti = 0; ti < COLONIZE_COLONY_FIELD_TILES; ++ti) {
-      const int who = (int)colony->tiles[ti];
-      if (who < 0 || who >= colony->colonist_count || (who < 32 && worked_colonist[who])) {
-        continue;
-      }
-      if (who < 32) {
-        worked_colonist[who] = true;
-      }
-      const ColonizeColonist* c = &colony->colonists[who];
-      if (!c->active || c->field_job < 0) {
-        continue;
-      }
-      int dx = 0;
-      int dy = 0;
-      if (!colonies_field_tile_delta(ti, &dx, &dy)) {
-        continue;
-      }
+     * ~11925-11939; coastal placement alone is not enough. One scan shared
+     * with colony_preview.c / colony_screen.c / game_loop.c. */
+    const bool has_docks = colony_yield_colony_has_docks(pool, colony);
+    ColonizeWorkedTileIter wit;
+    ColonizeWorkedTile w;
+    colony_yield_worked_tiles_begin(&wit, colony);
+    while (colony_yield_worked_tiles_next(&wit, &w)) {
+      const ColonizeColonist* c = w.colonist;
+      const int dx = w.dx;
+      const int dy = w.dy;
       /* DOS net SoL/Tory mod (sons_of_liberty.md). Field-specific variant:
        * zeroed outright for AI colonies, unlike manufacturing/bells/crosses/
        * hammers — see colony_prod_sol_bonus_field. Folded into
@@ -915,9 +870,6 @@ static void turn_produce_one_colony(
     turn_clamp_stock(colony->stock[COLONIZE_CARGO_FOOD] - consumed);
   if (delta) {
     delta->goods[COLONIZE_CARGO_FOOD] -= consumed;
-    delta->food_net = field_food - consumed;
-    delta->lumber = field_lumber;
-    delta->ore = field_ore;
   }
   if (field_food < consumed && out) {
     out->food_shortages++;
@@ -977,7 +929,7 @@ static void turn_produce_one_colony(
    * and warehouse headroom.
    */
   {
-    const bool horse_has_stable = turn_building_name_has(pool, colony, "Stable");
+    const bool horse_has_stable = colonies_has_building_name_contains(pool, colony, "Stable");
     const int horse_warehouse_cap =
       colonies_warehouse_capacity(pool, colony, COLONIZE_CARGO_HORSES);
     const ColonyProdHorseBreed breed = colony_prod_horse_breed(
@@ -994,7 +946,6 @@ static void turn_produce_one_colony(
         turn_clamp_stock(colony->stock[COLONIZE_CARGO_HORSES] + breed.bred);
       if (delta) {
         delta->goods[COLONIZE_CARGO_FOOD] -= breed.bred;
-        delta->food_net -= breed.bred;
         delta->goods[COLONIZE_CARGO_HORSES] += breed.bred;
       }
       if (europe && colony->nation_id == human_nation) {
@@ -1282,7 +1233,6 @@ static void turn_produce_one_colony(
         turn_clamp_stock(colony->stock[COLONIZE_CARGO_FOOD] - 200);
       if (delta) {
         delta->goods[COLONIZE_CARGO_FOOD] -= 200;
-        delta->food_net -= 200;
       }
       bool born_on_tile = false;
       if (s_turn_birth_units) {
@@ -1386,12 +1336,10 @@ static void turn_produce_one_colony(
             vanish_name
           );
           if (ai_popups) {
-            char body[AI_POPUP_BODY_LEN];
             PopupMsgTokens tok;
             memset(&tok, 0, sizeof(tok));
             tok.string0 = vanish_name;
-            popup_msg_fill(messages, "VANISH", &tok, europe->status, body, sizeof(body));
-            ai_popup_enqueue_ok(ai_popups, AI_POPUP_TAG_INFO, NULL, body);
+            popup_chrome_ok(ai_popups, messages, "VANISH", &tok, europe->status);
           }
         }
         (void)colonies_abandon(pool, colony_id);
@@ -1482,9 +1430,6 @@ static void turn_produce_one_colony(
    * re-syncs the delta's summary fields, which the food/consumption block
    * overwrote from the field-only totals in between. */
   if (delta) {
-    delta->lumber = delta->goods[COLONIZE_CARGO_LUMBER];
-    delta->ore = delta->goods[COLONIZE_CARGO_ORE];
-    delta->food_net = delta->goods[COLONIZE_CARGO_FOOD];
   }
 
   /*
@@ -1547,7 +1492,6 @@ static void turn_produce_one_colony(
       if (hammers > 0) {
         colony->stock[COLONIZE_CARGO_LUMBER] -= hammers;
         if (delta) {
-          delta->lumber -= hammers;
           delta->goods[COLONIZE_CARGO_LUMBER] -= hammers;
         }
       }
@@ -1599,16 +1543,7 @@ static void turn_produce_one_colony(
             } else {
               snprintf(europe->status, sizeof(europe->status), "Building completed.");
             }
-            /* DOS @BUILT — "%STRING0 colony produces {%STRING1}." */
-            if (ai_popups) {
-              char body[AI_POPUP_BODY_LEN];
-              PopupMsgTokens tok;
-              memset(&tok, 0, sizeof(tok));
-              tok.string0 = colony->name[0] ? colony->name : "colony";
-              tok.string1 = (bname && bname[0]) ? bname : "building";
-              popup_msg_fill(messages, "BUILT", &tok, europe->status, body, sizeof(body));
-              ai_popup_enqueue_colony_event(ai_popups, colony->id, body);
-            }
+            turn_emit_built_chrome(messages, ai_popups, colony, bname, europe->status);
           }
         } else if (
           colony->nation_id == human_nation && europe &&
@@ -1988,9 +1923,7 @@ static void turn_produce_one_colony(
           ttok.string0 = cargo_name ? cargo_name : "cargo";
           ttok.string1 = colony->name[0] ? colony->name : "colony";
           ttok.string2 = europe->nation_name[0] ? europe->nation_name : "Europe";
-          char tbody[AI_POPUP_BODY_LEN];
-          popup_msg_fill(messages, "TUTORIAL6", &ttok, europe->status, tbody, sizeof(tbody));
-          ai_popup_enqueue_ok(ai_popups, AI_POPUP_TAG_INFO, NULL, tbody);
+          popup_chrome_ok(ai_popups, messages, "TUTORIAL6", &ttok, europe->status);
         }
       }
     }
@@ -2053,17 +1986,16 @@ static void turn_produce_one_colony(
  * @CARGO when a Europe screen is loaded (headless callers get the fallback).
  */
 static const char* turn_log_cargo_name(const EuropeScreen* europe, int cargo) {
-  static const char* fallback[COLONIZE_CARGO_COUNT] = {
-    "Food", "Sugar", "Tobacco", "Cotton", "Furs", "Lumber", "Ore", "Silver",
-    "Horses", "Rum", "Cigars", "Cloth", "Coats", "Trade Goods", "Tools", "Muskets"
-  };
   if (cargo < 0 || cargo >= COLONIZE_CARGO_COUNT) {
     return "?";
   }
   if (europe && cargo < europe->cargo_count && europe->cargo[cargo].name[0]) {
     return europe->cargo[cargo].name;
   }
-  return fallback[cargo];
+  /* No Europe screen loaded: NAMES.TXT @CARGO via reports.c (audit CO-14).
+   * The private 16-name fallback array this replaced ignored a renamed
+   * catalog, which is the whole point of the accessor. */
+  return reports_cargo_display_name(cargo);
 }
 
 static void turn_log_colony_production(
@@ -2215,7 +2147,7 @@ void turn_run_colony_production(
   }
 }
 
-void turn_run_colony_unit_construction(ColonizeTurnContext* ctx) {
+static void turn_run_colony_unit_construction(ColonizeTurnContext* ctx) {
   if (!ctx || !ctx->colonies || !ctx->units) {
     return;
   }
@@ -2235,17 +2167,7 @@ void turn_run_colony_unit_construction(ColonizeTurnContext* ctx) {
     }
     if (ctx->europe && col->nation_id == ctx->human_nation) {
       snprintf(ctx->europe->status, sizeof(ctx->europe->status), "%s completed.", name);
-      /* DOS @BUILT — same "%STRING0 colony produces {%STRING1}." wording
-       * turn_produce_one_colony's real-building completion path uses. */
-      if (ctx->ai_popups) {
-        char body[AI_POPUP_BODY_LEN];
-        PopupMsgTokens tok;
-        memset(&tok, 0, sizeof(tok));
-        tok.string0 = col->name[0] ? col->name : "colony";
-        tok.string1 = name;
-        popup_msg_fill(ctx->messages, "BUILT", &tok, ctx->europe->status, body, sizeof(body));
-        ai_popup_enqueue_colony_event(ctx->ai_popups, col->id, body);
-      }
+      turn_emit_built_chrome(ctx->messages, ctx->ai_popups, col, name, ctx->europe->status);
     }
   }
 }
@@ -2265,7 +2187,7 @@ void turn_run_colony_unit_construction(ColonizeTurnContext* ctx) {
  * inline per-colony-production path in turn_produce_one_colony already
  * completed the same project (second call just returns false).
  */
-void turn_run_colony_building_completion(ColonizeTurnContext* ctx) {
+static void turn_run_colony_building_completion(ColonizeTurnContext* ctx) {
   if (!ctx || !ctx->colonies) {
     return;
   }
@@ -2284,20 +2206,42 @@ void turn_run_colony_building_completion(ColonizeTurnContext* ctx) {
     }
     if (ctx->europe && col->nation_id == ctx->human_nation) {
       snprintf(ctx->europe->status, sizeof(ctx->europe->status), "%s completed.", bt->name);
-      if (ctx->ai_popups) {
-        char body[AI_POPUP_BODY_LEN];
-        PopupMsgTokens tok;
-        memset(&tok, 0, sizeof(tok));
-        tok.string0 = col->name[0] ? col->name : "colony";
-        tok.string1 = bt->name;
-        popup_msg_fill(ctx->messages, "BUILT", &tok, ctx->europe->status, body, sizeof(body));
-        ai_popup_enqueue_colony_event(ctx->ai_popups, col->id, body);
-      }
+      turn_emit_built_chrome(ctx->messages, ctx->ai_popups, col, bt->name, ctx->europe->status);
     }
   }
 }
 
-int turn_run_coastal_fort_fire(ColonizeTurnContext* ctx) {
+/*
+ * The colony end-of-turn trio, in DOS's order (audit CO-10): production,
+ * then the two completion sweeps production itself cannot do.
+ * turn_run_colony_production has no ColonizeUnitPool access
+ * (colonies_try_complete_building never needed one; spawning a unit does),
+ * so unit construction is its own pass; and BUY-topped-up (or otherwise
+ * carpenter-idle / Autumn-frozen) real buildings sitting at or above the
+ * hammer threshold need theirs, because turn_produce_one_colony's inline
+ * complete check only fires on a tick that adds new hammers.
+ * The nation scoping (s_prod_skip_* / s_prod_only_*) stays at the call
+ * sites: TURN_PROC_SETUP runs every AI nation, TURN_PROC_FINISH the human.
+ */
+static void turn_run_colony_eot(ColonizeTurnContext* ctx, ColonizeTurnResult* out) {
+  turn_set_birth_units_pool(ctx->units);
+  turn_run_colony_production(
+    ctx->colonies,
+    ctx->map,
+    ctx->col1_ok ? ctx->col1 : NULL,
+    ctx->europe,
+    ctx->human_nation,
+    out,
+    ctx->ai_popups,
+    ctx->messages,
+    ctx->rng
+  );
+  turn_set_birth_units_pool(NULL);
+  turn_run_colony_unit_construction(ctx);
+  turn_run_colony_building_completion(ctx);
+}
+
+static int turn_run_coastal_fort_fire(ColonizeTurnContext* ctx) {
   if (!ctx || !ctx->units || !ctx->colonies || !ctx->map) {
     return 0;
   }
@@ -2609,31 +2553,24 @@ void turn_run_nation_ticks(ColonizeTurnContext* ctx, ColonizeTurnResult* out) {
         const char* ally_name = "A European power";
         /* bugs.md 258 rule: PARENT country ("France"), never the new-world
          * colony name player[ally].country_name ("New France"). */
-        static const char* k_euro[4] = {"England", "France", "Spain", "Netherlands"};
         if (ally >= 0 && ally < 4) {
-          ally_name = k_euro[ally];
+          ally_name = reports_nation_country_name(ally); /* NAMES.TXT @COUNTRY */
         }
-        char body[AI_POPUP_BODY_LEN];
-        popup_msg_fill(
-          ctx->messages, "AMBUSHHINT", NULL,
+        popup_chrome_ok(
+          ctx->ai_popups, ctx->messages, "AMBUSHHINT", NULL,
           "Attacking the King's troops while neither unit is in a colony square "
-          "gains an ambush bonus equal to the terrain's defensive value!",
-          body, sizeof(body)
+          "gains an ambush bonus equal to the terrain's defensive value!"
         );
-        (void)ai_popup_enqueue_ok(ctx->ai_popups, AI_POPUP_TAG_INFO, NULL, body);
         PopupMsgTokens tok;
         memset(&tok, 0, sizeof(tok));
         tok.string0 = ally_name;
         tok.has_number0 = true;
         tok.number0 = (int)founding_fathers_bells_needed(ctx->col1, ctx->human_nation);
-        char body2[AI_POPUP_BODY_LEN];
-        popup_msg_fill(
-          ctx->messages, "CONSIDER", &tok,
+        popup_chrome_ok(
+          ctx->ai_popups, ctx->messages, "CONSIDER", &tok,
           "%STRING0 is considering intervention on our behalf against the King! "
-          "If we can generate %NUMBER0 liberty bells, they will join us.",
-          body2, sizeof(body2)
+          "If we can generate %NUMBER0 liberty bells, they will join us."
         );
-        (void)ai_popup_enqueue_ok(ctx->ai_popups, AI_POPUP_TAG_INFO, NULL, body2);
         ctx->col1->head.game_options.woi_crosses_event = 1;
       }
       for (int n = 0; n < 4; ++n) {
@@ -2979,10 +2916,6 @@ static bool turn_euro_nation_is_ref(const ColonizeTurnContext* ctx, int n) {
          n == ai_king_crown_nation_col1(ctx->col1_ok ? ctx->col1 : NULL, ctx->human_nation);
 }
 
-void turn_run_king_stub(ColonizeTurnContext* ctx) {
-  ai_king_nation_turn(ctx);
-}
-
 /*
  * FUN_3844_0442 §D support.
  *
@@ -3019,18 +2952,17 @@ static const char* turn_year_end_independent_name(int nation) {
   return (nation >= 0 && nation < (int)COLONIZE_COL1_NATION_COUNT) ? k[nation] : "";
 }
 
-/* player[n].country_name (DS 0x5426) with the shipped default as fallback. */
+/* player[n].country_name (DS 0x5426) with NAMES.TXT @COUNTRY as fallback.
+ * The private table this replaced said "Holland"; @COUNTRY row 3 is
+ * "Netherlands" (audit theme D). */
 static const char* turn_year_end_country_name(const ColonizeCol1Save* col1, int nation) {
-  static const char* k[COLONIZE_COL1_NATION_COUNT] = {
-    "England", "France", "Spain", "Holland"
-  };
   if (nation < 0 || nation >= (int)COLONIZE_COL1_NATION_COUNT) {
     return "";
   }
   if (col1 && col1->player[nation].country_name[0]) {
     return col1->player[nation].country_name;
   }
-  return k[nation];
+  return reports_nation_country_name(nation);
 }
 
 /* player[n].name (DS 0x540e) with the nationality adjective as fallback. */
@@ -3054,9 +2986,7 @@ static void turn_year_end_rival_popup(
   if (!ctx || !ctx->ai_popups) {
     return;
   }
-  char body[AI_POPUP_BODY_LEN];
-  popup_msg_fill(ctx->messages, tag, tok, fallback, body, sizeof(body));
-  ai_popup_enqueue_ok(ctx->ai_popups, AI_POPUP_TAG_INFO, NULL, body);
+  popup_chrome_ok(ctx->ai_popups, ctx->messages, tag, tok, fallback);
 }
 
 void turn_run_year_end_chrome(ColonizeTurnContext* ctx, ColonizeTurnResult* out) {
@@ -3096,12 +3026,10 @@ void turn_run_year_end_chrome(ColonizeTurnContext* ctx, ColonizeTurnResult* out)
       ctx->status && ctx->status_size > 0 && !out->year_end_defeat &&
       !out->year_end_victory &&
       !(ctx->game_autumn && *ctx->game_autumn != 0)) {
-    static const char* k_diff[] = {
-      "Discoverer", "Explorer", "Conquistador", "Governor", "Viceroy"
-    };
     const int d =
       (ctx->col1_ok && ctx->col1) ? (int)ctx->col1->head.difficulty : -1;
-    const char* dname = (d >= 0 && d <= 4) ? k_diff[d] : NULL;
+    /* NAMES.TXT @DIFFICULTY (audit theme D). */
+    const char* dname = (d >= 0 && d <= 4) ? reports_difficulty_title(d) : NULL;
     if (dname) {
       snprintf(
         ctx->status,
@@ -3119,16 +3047,9 @@ void turn_run_year_end_chrome(ColonizeTurnContext* ctx, ColonizeTurnResult* out)
       );
     }
     if (ctx->ai_popups) {
-      char body[AI_POPUP_BODY_LEN];
-      popup_msg_fill(
-        ctx->messages,
-        year == 0x6feu ? "WARN1" : "WARN2",
-        NULL,
-        ctx->status,
-        body,
-        sizeof(body)
+      popup_chrome_ok(
+        ctx->ai_popups, ctx->messages, year == 0x6feu ? "WARN1" : "WARN2", NULL, ctx->status
       );
-      ai_popup_enqueue_ok(ctx->ai_popups, AI_POPUP_TAG_INFO, NULL, body);
     }
   }
   /* Section E game-over years (0x708=1800, 0x73a=1850) — status; HoF PARKED.
@@ -3140,12 +3061,10 @@ void turn_run_year_end_chrome(ColonizeTurnContext* ctx, ColonizeTurnResult* out)
   if (!splash_done && ((year == 0x708u && !woi_latched) || year == 0x73au) &&
       ctx->status && ctx->status_size > 0 && !out->year_end_defeat &&
       !out->year_end_victory) {
-    static const char* k_diff[] = {
-      "Discoverer", "Explorer", "Conquistador", "Governor", "Viceroy"
-    };
     const int d =
       (ctx->col1_ok && ctx->col1) ? (int)ctx->col1->head.difficulty : -1;
-    const char* dname = (d >= 0 && d <= 4) ? k_diff[d] : NULL;
+    /* NAMES.TXT @DIFFICULTY (audit theme D). */
+    const char* dname = (d >= 0 && d <= 4) ? reports_difficulty_title(d) : NULL;
     const char* richest = NULL;
     int best_pop = -1;
     if (ctx->colonies) {
@@ -3231,12 +3150,12 @@ void turn_run_year_end_chrome(ColonizeTurnContext* ctx, ColonizeTurnResult* out)
           continue;
         }
         /* DOS crown land-force types 0x06/0x08/0x0b (Regulars/Cavalry/
-         * Artillery) — matched by name so synthetic pools count right. */
-        const ColonizeUnitType* t = units_type(ctx->units, u->type_index);
-        const char* n = t ? t->name : NULL;
-        if (n && (strstr(n, "Regular") ||
-                  (strstr(n, "Cavalry") && !strstr(n, "Cont")) ||
-                  strstr(n, "Artillery") || strstr(n, "Cannon"))) {
+         * Artillery) — classified by @UNIT kind (audit theme E) so
+         * synthetic pools count right. units_name_kind resolves "Continental
+         * Cavalry" to 0x07 before bare "Cavalry" can claim it, which is what
+         * the old `!strstr(n, "Cont")` guard was for. */
+        const ColonizeUnitKind k = units_type_kind(units_type(ctx->units, u->type_index));
+        if (units_kind_is_royal(k) || k == UNITS_KIND_ARTILLERY) {
           warships++;
         }
       }
@@ -3498,13 +3417,11 @@ void turn_run_year_end_chrome(ColonizeTurnContext* ctx, ColonizeTurnResult* out)
     }
     /* Once only — the chrome runs again every year while the board is empty. */
     if (first_time && ctx->ai_popups) {
-      static const char* k_diff[5] = {
-        "Discoverer", "Explorer", "Conquistador", "Governor", "Viceroy"
-      };
       const int d = (int)ctx->col1->head.difficulty;
       PopupMsgTokens tok;
       memset(&tok, 0, sizeof(tok));
-      tok.string0 = (d >= 0 && d <= 4) ? k_diff[d] : "Viceroy";
+      /* NAMES.TXT @DIFFICULTY (audit theme D). */
+      tok.string0 = (d >= 0 && d <= 4) ? reports_difficulty_title(d) : reports_difficulty_title(4);
       tok.string1 = (ctx->human_nation >= 0 && ctx->human_nation < 4)
         ? ctx->col1->player[ctx->human_nation].name
         : "";
@@ -3668,32 +3585,12 @@ bool turn_processor_advance(ColonizeTurnProcessor* proc, ColonizeTurnContext* ct
         ctx->col1->head.year = *ctx->game_year;
         ctx->col1->head.autumn = *ctx->game_autumn;
       }
-      turn_set_birth_units_pool(ctx->units);
       /* AI nations only — the human's colonies run their EOT at the top of
        * TURN_PROC_FINISH instead, which is where DOS puts it (see the
        * s_prod_only_nation comment). */
       s_prod_skip_nation = ctx->human_nation;
       s_prod_skip_set = true;
-      turn_run_colony_production(
-        ctx->colonies,
-        ctx->map,
-        ctx->col1_ok ? ctx->col1 : NULL,
-        ctx->europe,
-        ctx->human_nation,
-        &proc->result,
-        ctx->ai_popups,
-        ctx->messages,
-        ctx->rng
-      );
-      turn_set_birth_units_pool(NULL);
-      /* Artillery construction completion — turn_run_colony_production has
-       * no ColonizeUnitPool access (colonies_try_complete_building never
-       * needed one; spawning a unit does), so this is its own pass. */
-      turn_run_colony_unit_construction(ctx);
-      /* BUY-topped-up (or otherwise carpenter-idle/Autumn-frozen) real
-       * buildings sitting at/above threshold — turn_produce_one_colony's
-       * inline complete check only fires on a tick that adds new hammers. */
-      turn_run_colony_building_completion(ctx);
+      turn_run_colony_eot(ctx, &proc->result);
       s_prod_skip_nation = -1;
       s_prod_skip_set = false;
       /* FUN_364b_03f6 coastal Fort/Fortress fire after production. */
@@ -3922,21 +3819,7 @@ bool turn_processor_advance(ColonizeTurnProcessor* proc, ColonizeTurnContext* ct
       proc->show_indicator = true;
       s_prod_only_nation = ctx->human_nation;
       s_prod_only_set = true;
-      turn_set_birth_units_pool(ctx->units);
-      turn_run_colony_production(
-        ctx->colonies,
-        ctx->map,
-        ctx->col1_ok ? ctx->col1 : NULL,
-        ctx->europe,
-        ctx->human_nation,
-        &proc->result,
-        ctx->ai_popups,
-        ctx->messages,
-        ctx->rng
-      );
-      turn_set_birth_units_pool(NULL);
-      turn_run_colony_unit_construction(ctx);
-      turn_run_colony_building_completion(ctx);
+      turn_run_colony_eot(ctx, &proc->result);
       /*
        * FUN_3844_00f2 census AFTER the colony-EOT loop (viceroy_unpacked.c
        * :58390 → FUN_291f_0a74 → FUN_4962_0018): refresh the human colonies'
@@ -3959,7 +3842,7 @@ bool turn_processor_advance(ColonizeTurnProcessor* proc, ColonizeTurnContext* ct
     case TURN_PROC_KING: {
       proc->show_indicator = false;
       turn_set_active_nation(ctx, ctx->human_nation);
-      turn_run_king_stub(ctx);
+      ai_king_nation_turn(ctx);
       turn_run_year_end_chrome(ctx, &proc->result);
       /* FUN_38fd_0058 EOT market attrition / rise-fall for Europe screen. */
       if (ctx->europe) {
@@ -3981,12 +3864,11 @@ bool turn_processor_advance(ColonizeTurnProcessor* proc, ColonizeTurnContext* ct
             tok.string1 = ctx->europe->port_city;
             tok.number0 = ctx->europe->cargo[c].bid;
             tok.has_number0 = true;
-            char body[AI_POPUP_BODY_LEN];
-            popup_msg_fill(
-              ctx->messages, ctx->europe->price_event_dir[i] > 0 ? "PRICEUP" : "PRICEDOWN", &tok,
-              ctx->europe->status, body, sizeof(body)
+            popup_chrome_ok(
+              ctx->ai_popups, ctx->messages,
+              ctx->europe->price_event_dir[i] > 0 ? "PRICEUP" : "PRICEDOWN", &tok,
+              ctx->europe->status
             );
-            (void)ai_popup_enqueue_ok(ctx->ai_popups, AI_POPUP_TAG_INFO, NULL, body);
           }
         }
         /* Shown — clear, or the next player sell/buy replays these stale
@@ -4038,11 +3920,7 @@ bool turn_processor_advance(ColonizeTurnProcessor* proc, ColonizeTurnContext* ct
           proc->result.request_europe_open = true;
         }
         if (ships_ready > 0 && ctx->ai_popups && ctx->status && ctx->status[0]) {
-          char body[AI_POPUP_BODY_LEN];
-          popup_msg_fill(
-            ctx->messages, "CARGOREADY0", NULL, ctx->status, body, sizeof(body)
-          );
-          ai_popup_enqueue_ok(ctx->ai_popups, AI_POPUP_TAG_INFO, NULL, body);
+          popup_chrome_ok(ctx->ai_popups, ctx->messages, "CARGOREADY0", NULL, ctx->status);
         }
         if (ctx->col1_ok && ctx->col1) {
           /* FUN_465b_0000 → FUN_5fef_1908 King's Galleon offer (human only). */

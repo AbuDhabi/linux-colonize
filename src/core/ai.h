@@ -17,13 +17,12 @@
  * European / Indian / King AI (Full T0/T1 surface).
  *
  * New-game: Col1 template + rival fleets + tribes/Braves.
- * Euro: full dispatcher by default (ai_euro.c). Opt into retired seed-100
- *   early fixture with AI_EURO_EARLY_FIXTURE=1 (bisect only).
+ * Euro: full dispatcher (ai_euro.c). The retired seed-100 early-turn fixture
+ *   and its AI_EURO_EARLY_FIXTURE bisect gate were deleted 2026-09-14.
  * Indian: growth + quiet pulse + contact/meet/trade/raids (ai_contact.c).
  * King: tax / SoL declare / REF waves (ai_king.c).
  */
 
-#define AI_TRIBE_CAP_AMERICA 84
 #define AI_TRIBE_CAP_NEW_WORLD 84
 #define AI_VILLAGE_GROWTH_THRESHOLD 19
 
@@ -103,7 +102,7 @@ int ai_indian_village_threat(
   int* out_score
 );
 
-/* King / tax / REF / independence phase (replaces turn_run_king_stub body). */
+/* King / tax / REF / independence phase (TURN_PROC_KING slice). */
 void ai_king_nation_turn(ColonizeTurnContext* ctx);
 
 /*

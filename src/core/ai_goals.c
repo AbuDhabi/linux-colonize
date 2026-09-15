@@ -15,6 +15,9 @@ static AiWorkSlot s_work[AI_WORK_SLOTS];
 static AiEuroInventory s_inv[4];
 static AiNationPlanScratch s_plan[4];
 
+/* MAP_DIR8_DX/DY plus DOS's past-table 9th entry (0,0) = "stay": the goal
+ * ring loops below run `dir <= 8` and DOS's own default is dir 8, so this
+ * cannot be the shared [8] table. */
 static const int k_dir8_dx[9] = {0, 1, 1, 1, 0, -1, -1, -1, 0};
 static const int k_dir8_dy[9] = {-1, -1, 0, 1, 1, 1, 0, -1, 0};
 
@@ -76,22 +79,12 @@ void ai_goals_inventory_clear(int nation_id) {
   }
 }
 
-void ai_goals_clear_primary_slot(int nation_id, int slot) {
+static void ai_goals_clear_primary_slot(int nation_id, int slot) {
   if (nation_id < 0 || nation_id >= 4 || slot < 0 || slot >= AI_PRIMARY_SLOTS) {
     return;
   }
   s_goals[nation_id].primary[slot].code = AI_GOAL_EMPTY;
   s_goals[nation_id].primary[slot].prio = 0;
-}
-
-void ai_goals_clear_secondary_slots(int nation_id) {
-  if (nation_id < 0 || nation_id >= 4) {
-    return;
-  }
-  for (int i = 0; i < AI_SECONDARY_SLOTS; ++i) {
-    s_goals[nation_id].secondary[i].code = AI_GOAL_EMPTY;
-    s_goals[nation_id].secondary[i].prio = 0;
-  }
 }
 
 /*
@@ -124,22 +117,42 @@ void ai_goals_invalidate_nearby_secondary(int nation_id, int code, int x, int y,
   }
 }
 
-/* FUN_521d_0072 — open hole at slot by shifting [slot..62] down. */
-static void primary_shift_down(int nation_id, int slot) {
-  for (int i = AI_PRIMARY_SLOTS - 2; i >= slot; --i) {
-    s_goals[nation_id].primary[i + 1] = s_goals[nation_id].primary[i];
+/*
+ * FUN_521d_0072 — open a hole at `slot` by shifting [slot..n-2] down one.
+ * One body for the three arrays that use it (primary goals, secondary goals,
+ * work queue); the last element falls off the end exactly as before.
+ */
+static void ai_goals_slot_shift_down(void* base, size_t stride, int n, int slot) {
+  unsigned char* p = (unsigned char*)base;
+  for (int i = n - 2; i >= slot; --i) {
+    memcpy(p + (size_t)(i + 1) * stride, p + (size_t)i * stride, stride);
   }
 }
 
-static void secondary_shift_down(int nation_id, int slot) {
-  for (int i = AI_SECONDARY_SLOTS - 2; i >= slot; --i) {
-    s_goals[nation_id].secondary[i + 1] = s_goals[nation_id].secondary[i];
+/*
+ * Shared upsert for both goal tables. Reject when a slot already holds this
+ * exact (x,y,code) at prio >= the new one; otherwise insert at the first slot
+ * of lower prio (or an empty code), shifting the rest down.
+ */
+static void ai_goals_upsert(AiGoalSlot* arr, int n, int x, int y, int code, int prio) {
+  for (int i = 0; i < n; ++i) {
+    const AiGoalSlot* s = &arr[i];
+    if (s->x == (int8_t)x && s->y == (int8_t)y && s->code == (uint8_t)code &&
+        prio <= (int)s->prio) {
+      return;
+    }
   }
-}
-
-static void work_shift_down(int slot) {
-  for (int i = AI_WORK_SLOTS - 2; i >= slot; --i) {
-    s_work[i + 1] = s_work[i];
+  for (int i = 0; i < n; ++i) {
+    AiGoalSlot* s = &arr[i];
+    if ((int)s->prio < prio || s->code == AI_GOAL_EMPTY) {
+      ai_goals_slot_shift_down(arr, sizeof(arr[0]), n, i);
+      s = &arr[i];
+      s->x = (int8_t)x;
+      s->y = (int8_t)y;
+      s->code = (uint8_t)code;
+      s->prio = (uint8_t)(prio > 255 ? 255 : prio);
+      return;
+    }
   }
 }
 
@@ -147,54 +160,14 @@ void ai_goals_upsert_primary(int nation_id, int x, int y, int code, int prio) {
   if (nation_id < 0 || nation_id >= 4 || code < 0 || code == (int)AI_GOAL_EMPTY) {
     return;
   }
-  AiNationGoals* g = &s_goals[nation_id];
-  /* Reject if matching (x,y,code) already has prio ≥ new. */
-  for (int i = 0; i < AI_PRIMARY_SLOTS; ++i) {
-    AiGoalSlot* s = &g->primary[i];
-    if (s->x == (int8_t)x && s->y == (int8_t)y && s->code == (uint8_t)code &&
-        prio <= (int)s->prio) {
-      return;
-    }
-  }
-  /* Insert at first slot with lower prio or empty code (priority-ordered). */
-  for (int i = 0; i < AI_PRIMARY_SLOTS; ++i) {
-    AiGoalSlot* s = &g->primary[i];
-    if ((int)s->prio < prio || s->code == AI_GOAL_EMPTY) {
-      primary_shift_down(nation_id, i);
-      s = &g->primary[i];
-      s->x = (int8_t)x;
-      s->y = (int8_t)y;
-      s->code = (uint8_t)code;
-      s->prio = (uint8_t)(prio > 255 ? 255 : prio);
-      return;
-    }
-  }
+  ai_goals_upsert(s_goals[nation_id].primary, AI_PRIMARY_SLOTS, x, y, code, prio);
 }
 
 void ai_goals_upsert_secondary(int nation_id, int x, int y, int code, int prio) {
   if (nation_id < 0 || nation_id >= 4 || code < 0 || code == (int)AI_GOAL_EMPTY) {
     return;
   }
-  AiNationGoals* g = &s_goals[nation_id];
-  for (int i = 0; i < AI_SECONDARY_SLOTS; ++i) {
-    AiGoalSlot* s = &g->secondary[i];
-    if (s->x == (int8_t)x && s->y == (int8_t)y && s->code == (uint8_t)code &&
-        prio <= (int)s->prio) {
-      return;
-    }
-  }
-  for (int i = 0; i < AI_SECONDARY_SLOTS; ++i) {
-    AiGoalSlot* s = &g->secondary[i];
-    if ((int)s->prio < prio || s->code == AI_GOAL_EMPTY) {
-      secondary_shift_down(nation_id, i);
-      s = &g->secondary[i];
-      s->x = (int8_t)x;
-      s->y = (int8_t)y;
-      s->code = (uint8_t)code;
-      s->prio = (uint8_t)(prio > 255 ? 255 : prio);
-      return;
-    }
-  }
+  ai_goals_upsert(s_goals[nation_id].secondary, AI_SECONDARY_SLOTS, x, y, code, prio);
 }
 
 void ai_goals_promote_secondary_to_primary(int nation_id) {
@@ -232,7 +205,7 @@ void ai_goals_upsert_work(int id, int score, uint8_t loads, uint8_t military) {
   /* FUN_521d_02be: score-ordered insert when score > occupant or id < 0. */
   for (int i = 0; i < AI_WORK_SLOTS; ++i) {
     if (s_work[i].score < score || s_work[i].id < 0) {
-      work_shift_down(i);
+      ai_goals_slot_shift_down(s_work, sizeof(s_work[0]), AI_WORK_SLOTS, i);
       s_work[i].id = (int16_t)id;
       s_work[i].score = (int16_t)score;
       s_work[i].loads = loads;
@@ -326,8 +299,6 @@ int ai_goals_nearest_landing_water(
   if (!map || !out_x || !out_y || from_x < 0 || from_y < 0) {
     return 0;
   }
-  static const int k_dx[8] = {0, 1, 1, 1, 0, -1, -1, -1};
-  static const int k_dy[8] = {-1, -1, 0, 1, 1, 1, 0, -1};
   if (max_radius < 1) {
     max_radius = 1;
   }
@@ -353,8 +324,8 @@ int ai_goals_nearest_landing_water(
         }
         int landable = 0;
         for (int d = 0; d < 8; ++d) {
-          const int lx = x + k_dx[d];
-          const int ly = y + k_dy[d];
+          const int lx = x + MAP_DIR8_DX[d];
+          const int ly = y + MAP_DIR8_DY[d];
           if (lx < 0 || ly < 0 || lx >= (int)map->width || ly >= (int)map->height) {
             continue;
           }
@@ -597,10 +568,6 @@ int ai_goals_site_nibble(const ColonizeWorldMap* map, int x, int y, int nation) 
   return !map_tile_seen_by(map, x, y, nation) ? 4 : 0;
 }
 
-static int ai_goals_site_nibble_074a(const ColonizeWorldMap* map, int x, int y, int nation) {
-  return ai_goals_site_nibble(map, x, y, nation);
-}
-
 /*
  * FUN_521d_06ae — pick_best_adjacent_founding_tile.
  * Decomp viceroy_unpacked.c ~87237. Base score = DS:0x2f77[class]; when
@@ -710,7 +677,7 @@ int ai_goals_pick_founding_tile_ex(
           }
         }
         const ColonizeUnitType* ot = units_type(units, ou->type_index);
-        const int ou_is_wagon = ot && strstr(ot->name, "Wagon") != NULL;
+        const int ou_is_wagon = units_type_is_wagon(ot) ? 1 : 0;
         if (on_tile != 1 || (ou_is_wagon != 0) == (wagon_filter != 0)) {
           continue;
         }
@@ -797,7 +764,7 @@ int ai_goals_pick_founding_tile_ex(
          * +120 in DOS, +8 before. DOS multiplier `* 0x10` kept verbatim.
          * Score must stay signed — bal can be −1.
          */
-        const int explore = ai_goals_site_nibble_074a(map, hx, hy, nation_id);
+        const int explore = ai_goals_site_nibble(map, hx, hy, nation_id) /* FUN_521d_074a */;
         score += bal * 0x10 + (explore & 0xf);
       }
     }
@@ -850,6 +817,8 @@ int ai_goals_pick_founding_tile(
   );
 }
 
+/* Test-only accessor (tests/unit/test_ai_goals.c): production refills the
+ * scratch through ai_goals_plan_scratch_refresh and reads it in-module. */
 AiNationPlanScratch* ai_goals_plan_scratch(int nation_id) {
   if (nation_id < 0 || nation_id >= 4) {
     return NULL;
@@ -986,7 +955,7 @@ int ai_goals_founding_expansion_urgency(int nation_id, int total_colony_count) {
  * continent from the probe tile and require colony flag 0x40) has no caller
  * in this segment and is not modelled.
  */
-static int ai_goals_nearest_colony_15eb_0142(
+int ai_goals_nearest_colony_15eb_0142(
   const ColonizeWorldMap* map,
   const ColonizeColonyPool* colonies,
   int x,
@@ -1015,7 +984,7 @@ static int ai_goals_nearest_colony_15eb_0142(
       int dy = (int)c->y - y;
       if (dx < 0) dx = -dx;
       if (dy < 0) dy = -dy;
-      const int d = (dy < dx) ? (dy >> 1) + dx : (dx >> 1) + dy;
+      const int d = (dy < dx) ? (dy >> 1) + dx : (dx >> 1) + dy; /* == map_dos_dist */
       if (d <= best_d) { /* DOS uses <=, so the LAST tie wins */
         best_d = d;
         best = i;

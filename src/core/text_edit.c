@@ -2,6 +2,8 @@
 
 #include <string.h>
 
+#include "core/fb.h"
+#include "core/strutil.h"
 #include "core/ui_colors.h"
 
 #define TEXT_EDIT_CLIP_MAX 128
@@ -67,19 +69,14 @@ void text_edit_default_colors(TextEditColors* out) {
   out->selection = COLONIZE_COL_SELECT;
 }
 
+/* Defined below, next to the glyph-width helper. */
+static int text_edit_prefix_width(const ColonizeFont* font, const char* buf, int n);
+static int text_edit_index_at_x(const ColonizeFont* font, const char* buf, int dx);
+
 static int buf_len(const char* buf) {
   return buf ? (int)strlen(buf) : 0;
 }
 
-static int clampi(int v, int lo, int hi) {
-  if (v < lo) {
-    return lo;
-  }
-  if (v > hi) {
-    return hi;
-  }
-  return v;
-}
 
 void text_edit_reset(TextEditState* st, const char* buf, bool select_all) {
   if (!st) {
@@ -90,13 +87,14 @@ void text_edit_reset(TextEditState* st, const char* buf, bool select_all) {
   st->anchor = (select_all && n > 0) ? 0 : n;
 }
 
-void text_edit_clamp(TextEditState* st, const char* buf) {
+/* Re-clamp caret/anchor after the owner rewrote buf behind our back. */
+static void text_edit_clamp(TextEditState* st, const char* buf) {
   if (!st) {
     return;
   }
   const int n = buf_len(buf);
-  st->cursor = clampi(st->cursor, 0, n);
-  st->anchor = clampi(st->anchor, 0, n);
+  st->cursor = clamp_int(st->cursor, 0, n);
+  st->anchor = clamp_int(st->anchor, 0, n);
 }
 
 bool text_edit_has_selection(const TextEditState* st) {
@@ -120,8 +118,8 @@ int text_edit_sel_hi(const TextEditState* st) {
 /* Remove [lo,hi) from buf; returns true if anything went. */
 static bool erase_range(char* buf, int lo, int hi) {
   const int n = buf_len(buf);
-  lo = clampi(lo, 0, n);
-  hi = clampi(hi, 0, n);
+  lo = clamp_int(lo, 0, n);
+  hi = clamp_int(hi, 0, n);
   if (hi <= lo) {
     return false;
   }
@@ -154,7 +152,7 @@ static bool insert_text(TextEditState* st, char* buf, size_t cap, const char* te
   if (text_len > room) {
     text_len = room;
   }
-  const int at = clampi(st->cursor, 0, n);
+  const int at = clamp_int(st->cursor, 0, n);
   memmove(buf + at + text_len, buf + at, (size_t)(n - at) + 1);
   memcpy(buf + at, text, (size_t)text_len);
   st->cursor = at + text_len;
@@ -275,14 +273,14 @@ TextEditAction text_edit_handle_input(
       if (!shift && text_edit_has_selection(st)) {
         move_caret(st, text_edit_sel_lo(st), false);
       } else {
-        move_caret(st, ctrl ? word_left(buf, st->cursor) : clampi(st->cursor - 1, 0, n), shift);
+        move_caret(st, ctrl ? word_left(buf, st->cursor) : clamp_int(st->cursor - 1, 0, n), shift);
       }
       return TEXT_EDIT_ACTION_EDIT;
     case COLONIZE_KEY_RIGHT:
       if (!shift && text_edit_has_selection(st)) {
         move_caret(st, text_edit_sel_hi(st), false);
       } else {
-        move_caret(st, ctrl ? word_right(buf, st->cursor) : clampi(st->cursor + 1, 0, n), shift);
+        move_caret(st, ctrl ? word_right(buf, st->cursor) : clamp_int(st->cursor + 1, 0, n), shift);
       }
       return TEXT_EDIT_ACTION_EDIT;
     case COLONIZE_KEY_HOME:
@@ -375,7 +373,8 @@ static int char_width(const ColonizeFont* font, unsigned char ch) {
   return 6;
 }
 
-int text_edit_prefix_width(const ColonizeFont* font, const char* buf, int n) {
+/* Pixel width of the first n bytes of buf, as text_edit_render draws them. */
+static int text_edit_prefix_width(const ColonizeFont* font, const char* buf, int n) {
   if (!buf) {
     return 0;
   }
@@ -386,7 +385,8 @@ int text_edit_prefix_width(const ColonizeFont* font, const char* buf, int n) {
   return w;
 }
 
-int text_edit_index_at_x(const ColonizeFont* font, const char* buf, int dx) {
+/* Byte index whose caret slot is nearest dx pixels from the field origin. */
+static int text_edit_index_at_x(const ColonizeFont* font, const char* buf, int dx) {
   const int n = buf_len(buf);
   int w = 0;
   for (int i = 0; i < n; ++i) {
@@ -403,22 +403,6 @@ int text_edit_field_width(const ColonizeFont* font, const char* buf) {
   return text_edit_prefix_width(font, buf, buf_len(buf)) + char_width(font, '_');
 }
 
-static void fill_rect(ColonizeFramebuffer8* fb, int x, int y, int w, int h, uint8_t c) {
-  if (!fb || !fb->pixels || w <= 0 || h <= 0) {
-    return;
-  }
-  for (int yy = y; yy < y + h; ++yy) {
-    if (yy < 0 || yy >= fb->height) {
-      continue;
-    }
-    for (int xx = x; xx < x + w; ++xx) {
-      if (xx < 0 || xx >= fb->width) {
-        continue;
-      }
-      fb->pixels[yy * fb->width + xx] = c;
-    }
-  }
-}
 
 /*
  * Ink rows the font actually uses, over the whole printable range so the frame
@@ -479,13 +463,7 @@ void text_edit_frame_rect(
 }
 
 void text_edit_draw_frame(ColonizeFramebuffer8* fb, int x, int y, int w, int h, uint8_t color) {
-  if (!fb || !fb->pixels || w <= 0 || h <= 0) {
-    return;
-  }
-  fill_rect(fb, x, y, w, 1, color);
-  fill_rect(fb, x, y + h - 1, w, 1, color);
-  fill_rect(fb, x, y, 1, h, color);
-  fill_rect(fb, x + w - 1, y, 1, h, color);
+  fb_rect_outline(fb, x, y, w, h, color, color);
 }
 
 void text_edit_render(
@@ -512,7 +490,7 @@ void text_edit_render(
     const int hi = text_edit_sel_hi(st);
     const int sx = x + text_edit_prefix_width(font, buf, lo);
     const int sw = text_edit_prefix_width(font, buf + lo, hi - lo);
-    fill_rect(fb, sx - 1, y - 1, sw + 2, line_h, colors->selection);
+    fb_fill_rect(fb, sx - 1, y - 1, sw + 2, line_h, colors->selection);
   }
   /* Unbold FONTINTR (shade-1 ink only) over a 1px offset drop shadow, same as
    * the wizard's captions but with the field's warm shadow colour. */
@@ -524,12 +502,12 @@ void text_edit_render(
    * caret can sit inside the text an underline is too easy to lose against the
    * wood, so mid-text it becomes a plain insertion bar.
    */
-  const int caret = st ? clampi(st->cursor, 0, n) : n;
+  const int caret = st ? clamp_int(st->cursor, 0, n) : n;
   const int cx = x + text_edit_prefix_width(font, buf, caret);
   if (caret >= n) {
     font_draw_text_unbold(font, fb, cx + 1, y + 1, "_", colors->shadow);
     font_draw_text_unbold(font, fb, cx, y, "_", colors->text);
   } else {
-    fill_rect(fb, cx, y, 1, line_h - 1, colors->text);
+    fb_fill_rect(fb, cx, y, 1, line_h - 1, colors->text);
   }
 }

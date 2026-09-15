@@ -38,15 +38,10 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "core/col1_bridge.h"
-#include "core/col1_save.h"
-#include "core/colony.h"
-#include "core/ff.h"
 #include "core/founding_fathers.h"
 #include "core/reports.h"
-#include "core/unit_chrome.h"
-#include "core/units.h"
-#include "platform/platform.h"
+
+#include "tools/render_common.h"
 
 int main(int argc, char** argv) {
   if (argc < 4) {
@@ -75,95 +70,41 @@ int main(int argc, char** argv) {
     return 1;
   }
 
-  ColonizeCol1Save save;
-  memset(&save, 0, sizeof(save));
-  if (!col1_save_read_file(save_path, &save, err, sizeof(err))) {
-    fprintf(stderr, "col1_save_read_file failed: %s\n", err);
+  RenderSaveBundle rs;
+  if (!render_load_save(data_dir, save_path, &rs)) {
     return 1;
   }
-  const int human = col1_save_human_nation(&save);
+  const int human = rs.human;
 
-  /* Same sync the live game does in col1_bridge_apply() after loading a
-   * save — without this, founding_fathers_bells_since_last_elect() reads 0. */
-  founding_fathers_sync_from_col1_after_load(&save);
+  /* Same sync col1_bridge_apply() already did on load — repeated here only so
+   * the bells line below reads the pool the live game would have. */
+  founding_fathers_sync_from_col1_after_load(&rs.save);
   fprintf(
     stderr,
     "bells pool=%u need=%u (human=%d)\n",
     founding_fathers_bells_since_last_elect(human),
-    founding_fathers_bells_needed(&save, human),
+    founding_fathers_bells_needed(&rs.save, human),
     human
   );
 
-  /* Economic report (F5) Bid/Ask needs europe.cargo[].bid/ask — the same
-   * sync col1_bridge_apply() does on load (bid = this nation's euro_price;
-   * ask = bid + this cargo's @CARGO burden + 1), done by hand here since
-   * this tool skips the full map/units/colonies bridge import. */
-  EuropeScreen europe;
-  memset(&europe, 0, sizeof(europe));
-  bool europe_ok = europe_load(&europe, data_dir, err, sizeof(err));
-  if (!europe_ok) {
-    fprintf(stderr, "europe_load warning: %s\n", err);
-  } else {
-    const ColonizeCol1Nation* nat = &save.nation[human];
-    for (int i = 0; i < europe.cargo_count && i < (int)COLONIZE_COL1_CARGO_TYPES; ++i) {
-      europe.cargo[i].bid = nat->trade.euro_price[i];
-      europe.cargo[i].ask = europe.cargo[i].bid + europe.cargo[i].burden + 1;
-    }
-  }
-
-  /* Colony report (F6) needs real map/units/colonies pools (garrison unit
-   * sprites, bell production, Town Hall workers) — build them the same way
-   * col1_bridge_apply() does on a live save load. */
-  ColonizeWorldMap map;
-  ColonizeUnitPool units_pool;
-  ColonizeColonyPool colonies_pool;
-  memset(&map, 0, sizeof(map));
-  memset(&units_pool, 0, sizeof(units_pool));
-  memset(&colonies_pool, 0, sizeof(colonies_pool));
-  colonies_init(&colonies_pool);
-  bool bridge_ok = false;
-  ColonizeMsgCatalog names;
-  memset(&names, 0, sizeof(names));
-  char names_path[512];
-  if (dos_compat_normalize_asset_path(data_dir, "NAMES.TXT", names_path, sizeof(names_path)) &&
-      assets_msg_load_file(&names, names_path)) {
-    unit_chrome_load_orders(&names);
-    units_load_types(&units_pool, &names);
-    colonies_load_buildings(&colonies_pool, &names);
-    ColonizeCol1BridgeResult bridge_result;
-    /* Same pre-bridge reset game_apply_col1_save() does in game_loop.c. */
-    if (europe_ok) {
-      europe.harbor_ships = 0;
-      europe.dock_count = 0;
-    }
-    if (europe_ok &&
-        col1_bridge_apply(
-          &save, &map, &units_pool, &colonies_pool, &europe, &bridge_result, err, sizeof(err)
-        )) {
-      bridge_ok = true;
-    } else {
-      fprintf(stderr, "col1_bridge_apply warning: %s\n", err);
-    }
-  } else {
-    fprintf(stderr, "NAMES.TXT load warning (colony report will be text-only)\n");
-  }
+  /*
+   * Economic report (F5) Bid/Ask comes straight from col1_bridge_apply()'s
+   * own sync (bid = this nation's euro_price, ask = bid + @CARGO burden,
+   * FUN_38fd_0016). This tool used to re-derive it by hand with "+ 1" on the
+   * ask before the bridge ran — dead while the bridge overwrote it, and one
+   * gold too high the moment it did not. Removed with the shared prologue
+   * (duplication audit TT-34).
+   */
 
   /* Report body text uses menu_font (FONTSMAL) in the live game; report
    * TITLES and Congress page 1's body both actually use view.title_font
    * (FONTTINY) once loaded — reports_render() picks that automatically. */
   ColonizeFont font;
-  char ff_path[512];
-  char ff_err[256];
-  bool font_ok = false;
-  if (dos_compat_normalize_asset_path(data_dir, "FONTSMAL.FF", ff_path, sizeof(ff_path))) {
-    font_ok = ff_load(ff_path, &font, ff_err, sizeof(ff_err));
-    if (!font_ok) {
-      fprintf(stderr, "ff_load warning: %s\n", ff_err);
-    }
-  }
+  const bool font_ok = render_load_font(data_dir, "FONTSMAL.FF", &font);
 
   uint8_t pixels[320 * 200];
-  ColonizeFramebuffer8 fb = {.width = 320, .height = 200, .pixels = pixels};
+  ColonizeFramebuffer8 fb;
+  render_fb_init(&fb, pixels);
 
   reports_render(
     &view,
@@ -173,11 +114,11 @@ int main(int argc, char** argv) {
     economic_page,
     colony_page,
     naval_page,
-    bridge_ok ? &colonies_pool : NULL,
-    bridge_ok ? &units_pool : NULL,
-    bridge_ok ? &map : NULL,
-    europe_ok ? &europe : NULL,
-    &save,
+    &rs.colonies,
+    &rs.units,
+    &rs.map,
+    &rs.europe,
+    &rs.save,
     human,
     0,
     0,
@@ -196,18 +137,9 @@ int main(int argc, char** argv) {
     pal = view.backgrounds[report_id].palette;
   }
 
-  FILE* f = fopen(out_path, "wb");
-  if (!f) {
-    fprintf(stderr, "cannot open %s for writing\n", out_path);
+  if (!render_write_ppm(out_path, pixels, &pal)) {
     return 1;
   }
-  fprintf(f, "P6\n320 200\n255\n");
-  for (int i = 0; i < 320 * 200; ++i) {
-    const uint8_t idx = pixels[i];
-    const unsigned char rgb[3] = {pal.rgb[idx][0], pal.rgb[idx][1], pal.rgb[idx][2]};
-    fwrite(rgb, 1, 3, f);
-  }
-  fclose(f);
   fprintf(stderr, "wrote %s (report_id=%d congress_page2=%d)\n", out_path, report_id, congress_page2);
   return 0;
 }

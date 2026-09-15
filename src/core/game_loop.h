@@ -42,6 +42,21 @@ void game_apply_mouse_cursor(
   int mouse_y
 );
 
+/*
+ * TEST PROBES — everything below this line (audit GL-35).
+ *
+ * The module's real public surface is the block above: game_create/destroy,
+ * game_set_platform, game_update, game_render, game_status_text and
+ * game_apply_mouse_cursor. The 19 accessors that follow have no caller in
+ * src/ or tools/ at all; they exist so tests/smoke/test_play_smoke.c,
+ * tests/unit/test_new_game.c and tests/unit/test_hall_of_fame.c can read
+ * private ColonizeGameState without a header for the struct. Adding a caller
+ * in src/ means the state belongs somewhere reachable, not here.
+ *
+ * game_modal_open is the exception and is genuinely internal API as well: it
+ * is the popup-blocking invariant's gate and has 13 uses inside game_loop.c.
+ */
+
 /* New-game wizard / campaign identity (for smoke tests). */
 bool game_in_menu(const ColonizeGameState* game);
 bool game_in_new_game(const ColonizeGameState* game);

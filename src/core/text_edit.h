@@ -37,9 +37,6 @@ typedef enum TextEditAction {
 /* Point the caret at the end of buf; select_all highlights the whole text. */
 void text_edit_reset(TextEditState* st, const char* buf, bool select_all);
 
-/* Re-clamp caret/anchor after the owner rewrote buf behind our back. */
-void text_edit_clamp(TextEditState* st, const char* buf);
-
 bool text_edit_has_selection(const TextEditState* st);
 int text_edit_sel_lo(const TextEditState* st);
 int text_edit_sel_hi(const TextEditState* st);
@@ -70,12 +67,6 @@ bool text_edit_handle_mouse(
   int field_y,
   int field_h
 );
-
-/* Pixel width of the first n bytes of buf, as text_edit_render draws them. */
-int text_edit_prefix_width(const ColonizeFont* font, const char* buf, int n);
-
-/* Byte index whose caret slot is nearest dx pixels from the field origin. */
-int text_edit_index_at_x(const ColonizeFont* font, const char* buf, int dx);
 
 /* Total drawn width including the trailing caret cell. */
 int text_edit_field_width(const ColonizeFont* font, const char* buf);

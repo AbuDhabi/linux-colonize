@@ -58,7 +58,27 @@ void font_draw_text_shaded(
   const uint8_t shade_colors[4]
 );
 
-/* Pixel width of text as drawn (honors '~' / '#' markup; missing FF glyphs use builtin 6px). */
+/*
+ * Marker sets for font_text_width_skip. The six private width loops retired on
+ * 2026-09-14 each skipped a different set: font_text_width and
+ * map_menu_text_width skip the hotkey markers, game_loop's
+ * begin_menu_text_width and popup's markup measure skip the emphasis braces,
+ * new_game's prose measure also skips the GAME.TXT layout directives, while
+ * the old pedia/colony_screen width loops skipped nothing (so a '~' in a
+ * label widened those strings). Pick the set the string actually carries.
+ */
+#define FONT_SKIP_NONE ""
+#define FONT_SKIP_HOTKEY "~#"
+#define FONT_SKIP_BRACES "{}"
+#define FONT_SKIP_MARKUP "~#{}"
+#define FONT_SKIP_LAYOUT "{}^_"
+
+/* Pixel width of text as drawn, stopping at the first '\n'. Characters in
+ * `skipset` (a NUL-terminated set, may be NULL/empty) cost nothing; missing
+ * FF glyphs fall back to the builtin 6px cell. */
+int font_text_width_skip(const ColonizeFont* font, const char* text, const char* skipset);
+
+/* font_text_width_skip with FONT_SKIP_HOTKEY. */
 int font_text_width(const ColonizeFont* font, const char* text);
 
 /*

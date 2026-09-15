@@ -8,6 +8,50 @@
 #define COLONIZE_MAP_HEADER_SIZE 6
 
 /*
+ * Terrain indices (terrain byte bits 0-4) and overlay flag bits, from
+ * docs/assets.md / FreeCol ColonizationMapLoader. Lived as a private T_ / F_
+ * set in map_gen.c and as bare 25/26 literals in map.c, pedia.c and
+ * col1_bridge.c until 2026-09-14; one definition now.
+ */
+#define T_TUNDRA 0
+#define T_DESERT 1
+#define T_PLAINS 2
+#define T_PRAIRIE 3
+#define T_GRASSLAND 4
+#define T_SAVANNAH 5
+#define T_MARSH 6
+#define T_SWAMP 7
+#define T_FOREST_BIT 8 /* OR onto 0-7 */
+#define T_ARCTIC 24
+#define T_OCEAN 25
+#define T_HIGH_SEAS 26
+#define F_HILL 0x20
+#define F_RIVER 0x40
+#define F_MOUNTAIN 0x80
+
+/*
+ * VICEROY DS:0xb4 / 0xbe (MAPEDIT DS:0x6c0 / 0x6ca): the 8-neighbour walk in
+ * clockwise order starting north — N, NE, E, SE, S, SW, W, NW. This exact
+ * ordering was retyped 54 times across src/ (every other spelling is a
+ * deliberately different table: ai_euro.c's landfall-preference order, ai_king
+ * and colony_yield's row-major variants). Direction index d is the same d that
+ * FUN_684c_009c / FUN_6ba1_0938 / the road-overlay sprite base 81+d use, so do
+ * not reorder.
+ */
+extern const int MAP_DIR8_DX[8];
+extern const int MAP_DIR8_DY[8];
+/*
+ * VICEROY DS:0xc8 / 0xde — the 20-tile ring: the four cardinals, then the
+ * four diagonals (NW, NE, SE, SW), then the twelve distance-2 tiles, in DOS's
+ * own order. This is a different walk from MAP_DIR8 above and callers rely on
+ * the index order (ai_euro's +0x3156 latches a slot number into a save field).
+ * Byte-identical in col1_bridge.c, map_gen.c, ai_contact.c and ai.c. NOT the
+ * same table as ai_euro.c's k_20e6_ring20_*, a different (spiral) order.
+ */
+extern const int MAP_RING20_DX[20];
+extern const int MAP_RING20_DY[20];
+
+/*
  * Ocean-tile coast decoration from MAPEDIT.EXE FUN_1a47_0932 / FUN_1a47_01ae:
  * 8-neighbour land mask → either one 16×16 corner (150–153) or four 8×8
  * fragments (108 + 4*quad_mask + q). MAPEDIT IDs are 1-based; values here are
@@ -74,6 +118,59 @@ typedef struct ColonizeWorldMap {
   uint16_t prime_resource_seed;
 } ColonizeWorldMap;
 
+/*
+ * Bounds / distance / adjacency predicates. These were hand-rolled ~39 times
+ * across src/ (map.c alone had 26 copies of the guard, map_gen.c its own
+ * width/height-parameter in_bounds) before 2026-09-14.
+ */
+static inline bool map_dims_in_bounds(int x, int y, int w, int h) {
+  return x >= 0 && y >= 0 && x < w && y < h;
+}
+
+static inline bool map_in_bounds(const ColonizeWorldMap* map, int x, int y) {
+  return map && map_dims_in_bounds(x, y, (int)map->width, (int)map->height);
+}
+
+/* Chebyshev (king-move) tile distance: max(|dx|,|dy|). */
+static inline int map_chebyshev(int ax, int ay, int bx, int by) {
+  const int dx = ax > bx ? ax - bx : bx - ax;
+  const int dy = ay > by ? ay - by : by - ay;
+  return dx > dy ? dx : dy;
+}
+
+/*
+ * 8-neighbour adjacency. `include_self` picks between the two forms found in
+ * the tree: units.c's units_adjacent excludes the same tile, the six inline
+ * `abs(dx)<=1 && abs(dy)<=1` tests in game_loop.c include it.
+ */
+static inline bool map_tiles_adjacent(int ax, int ay, int bx, int by, bool include_self) {
+  const int dx = ax - bx;
+  const int dy = ay - by;
+  if (!include_self && dx == 0 && dy == 0) {
+    return false;
+  }
+  return dx >= -1 && dx <= 1 && dy >= -1 && dy <= 1;
+}
+
+/*
+ * DOS FUN_124c_0040 (also reached as FUN_281f_0370 / FUN_1000_856a) octile
+ * tile distance: max(|dx|,|dy|) + min(|dx|,|dy|)/2. Seven private copies
+ * existed (ai_euro_dos_dist, ai_dos_dist, colonies_dos_dist, units_dos_dist,
+ * units_coarse_dos_dist and two inline in ai_goals.c). They spelled the halving
+ * `/2` and `>>1` and swapped the comparison operands, but after the abs step
+ * both operands are non-negative and the dx==dy case is symmetric, so all seven
+ * compute the same value for every input including negative deltas.
+ */
+static inline int map_dos_dist(int dx, int dy) {
+  if (dx < 0) {
+    dx = -dx;
+  }
+  if (dy < 0) {
+    dy = -dy;
+  }
+  return (dy < dx) ? (dy >> 1) + dx : (dx >> 1) + dy;
+}
+
 bool map_load_mp(const char* path, ColonizeWorldMap* out_map, char* err, size_t err_size);
 /* Allocate empty layers (terrain/layer2/layer3/seen zeroed). Replaces any prior buffers. */
 bool map_alloc(ColonizeWorldMap* out_map, uint8_t width, uint8_t height, char* err, size_t err_size);
@@ -132,6 +229,14 @@ void map_seen_to_col1(const ColonizeWorldMap* map, uint8_t* col1_seen, size_t co
 
 /* Set or clear one occupancy bit on map->layer2 (no-op if OOB / no layer2). */
 void map_occupancy_set_layer2(ColonizeWorldMap* map, int x, int y, uint8_t bit, bool on);
+/*
+ * FUN_137f_0228 set_owner_nibble: stamp the layer3 high nibble (0..14 owner,
+ * 0xf unowned), preserving the low continent nibble. DOS gates only on the
+ * layer3 pointer being in range (original_sources_annotated/ai/accessors.c
+ * set_owner_nibble), so this takes plain bounds — ai_contact.c's private copy
+ * additionally required map_coords_inset, which DOS does not.
+ */
+void map_set_owner_nibble(ColonizeWorldMap* map, int x, int y, int nation_or_ff);
 
 /*
  * Fog edge on a *seen* tile: PHYS0 104+q (N/E/S/W) colour-0 fringe toward an
@@ -174,7 +279,17 @@ int map_fog_reveal_edge_fill_sprite_at(
   int index
 );
 
+/*
+ * Terrain index (0-26) -> base TERRAIN.SS row. Shared with the Colonizopedia's
+ * terrain article, which layers its own 27/28 pseudo-terrains and a
+ * no-PHYS0-overlay fallback on top (audit IN-26).
+ */
+int map_terrain_index_to_sprite(int terrain_index);
+
 uint8_t map_get_terrain(const ColonizeWorldMap* map, int x, int y);
+/* map_get_terrain, but with a caller-chosen out-of-bounds sentinel (ai.c's
+ * ai_terrain_at returned T_OCEAN where map_get_terrain returns 0). */
+uint8_t map_get_terrain_or(const ColonizeWorldMap* map, int x, int y, uint8_t fallback);
 uint8_t map_get_layer3(const ColonizeWorldMap* map, int x, int y);
 /*
  * FUN_281f_0722 / FUN_137f_01ca — continent id = layer3 low nibble.
@@ -198,7 +313,6 @@ bool map_tile_is_lake(const ColonizeWorldMap* map, int x, int y);
 int map_tile_tribe_or_presence(const ColonizeWorldMap* map, int x, int y);
 /* DOS FUN_281f_0682: unit-presence bit only (layer2 bit0) → owner nibble. */
 int map_tile_owner_or_presence(const ColonizeWorldMap* map, int x, int y);
-uint8_t map_terrain_overlay(uint8_t terrain_byte);
 int map_terrain_sprite_at(const ColonizeWorldMap* map, int x, int y);
 int map_phys0_forest_sprite_at(const ColonizeWorldMap* map, int x, int y);
 /* PHYS0 149 when tile is plowed (runtime improve); -1 otherwise. */
@@ -255,6 +369,10 @@ bool map_tile_is_land(const ColonizeWorldMap* map, int x, int y);
  * the DOS colony coastal SAVE FIELD (+0x1c bit 0x40) use
  * map_tile_is_open_sea_adjacent() instead. */
 bool map_tile_is_coastal(const ColonizeWorldMap* map, int x, int y);
+/* Water-side complement of map_tile_is_coastal: (x,y) is ocean or high seas
+ * and at least one of its 8 neighbours is neither. Off-map neighbours are
+ * skipped, so a map-rim water tile is not coast by itself. */
+bool map_tile_is_coast_water(const ColonizeWorldMap* map, int x, int y);
 /*
  * Predicate behind the DOS colony coastal bit (+0x1c bit 0x40): some INSET
  * 8-neighbour is ocean/high seas AND the lowest-region such neighbour is

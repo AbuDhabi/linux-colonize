@@ -227,10 +227,6 @@ void diag_set_context(const char* context) {
   str_copy_trunc(g_context, sizeof(g_context), context);
 }
 
-const char* diag_context(void) {
-  return g_context;
-}
-
 void diag_info(const char* fmt, ...) {
   va_list args;
   if (!g_info_enabled) {

@@ -5,6 +5,7 @@
 #include <string.h>
 
 #include "core/map_menu.h"
+#include "core/popup.h"
 #include "core/strutil.h"
 #include "platform/diagnostics.h"
 
@@ -28,7 +29,8 @@ void howmuch_init(HowmuchDialog* dlg) {
   memset(dlg, 0, sizeof(*dlg));
 }
 
-void howmuch_close(HowmuchDialog* dlg) {
+/* Single close point for the finish path; see name_entry_dialog.c. */
+static void howmuch_close(HowmuchDialog* dlg) {
   if (!dlg) {
     return;
   }
@@ -64,7 +66,7 @@ static void howmuch_finish(HowmuchDialog* dlg, bool cancelled) {
   dlg->result_cancelled = cancelled;
   dlg->result_amount = cancelled ? 0 : dlg->amount;
   dlg->result_kind = dlg->kind;
-  dlg->open = false;
+  howmuch_close(dlg);
   diag_info(
     "POPUP answered tag=HOWMUCH_%s %s amount=%d/%d cargo=%d",
     howmuch_kind_name(dlg->result_kind), cancelled ? "cancelled" : "picked",
@@ -215,65 +217,30 @@ void howmuch_render(
   if (!dlg || !dlg->open || !framebuffer || !framebuffer->pixels) {
     return;
   }
-  const int line_h = font ? (font->max_height + 2) : 8;
+  const int line_h = popup_dialog_line_h(font);
   const int pad = 6;
   const int dialog_w = 200;
   const int prompt_h = line_h * 3;
   const int dialog_h = POPUP_FRAME_INSET * 2 + pad + prompt_h + pad + line_h * 2 + pad;
+  /* The prompt is chunked to 3 rows of 36 characters, not word-wrapped; that
+   * character budget is what DOS's How Much box has always drawn. */
+  PopupPromptGeom g;
+  popup_prompt_frame(
+    framebuffer, font, wood_tile, colors, dialog_w, dialog_h, pad, dlg->prompt, 3, 36,
+    text_color, &g
+  );
+  dlg->dialog_x = g.frame.x;
+  dlg->dialog_y = g.frame.y;
   dlg->dialog_w = dialog_w;
   dlg->dialog_h = dialog_h;
-  dlg->dialog_x = (framebuffer->width - dialog_w) / 2;
-  dlg->dialog_y = (framebuffer->height - dialog_h) / 2;
-  if (dlg->dialog_y < MAP_MENU_BAR_H + 2) {
-    dlg->dialog_y = MAP_MENU_BAR_H + 2;
-  }
-
-  ColonizePopupColors local;
-  if (!colors) {
-    popup_colors_from_ui(&local);
-    colors = &local;
-  }
-  int ix = 0, iy = 0, iw = 0, ih = 0;
-  popup_draw(
-    framebuffer,
-    dlg->dialog_x,
-    dlg->dialog_y,
-    dialog_w,
-    dialog_h,
-    wood_tile,
-    colors,
-    &ix,
-    &iy,
-    &iw,
-    &ih
-  );
-  (void)ih;
   if (!font) {
     return;
   }
-  int ty = iy + pad;
-  /* Draw prompt truncated to ~3 lines by character budget. */
-  {
-    const char* p = dlg->prompt;
-    for (int row = 0; row < 3 && *p; ++row) {
-      char line[64];
-      size_t n = 0;
-      while (*p && n + 1 < sizeof(line) && n < 36) {
-        line[n++] = *p++;
-      }
-      line[n] = '\0';
-      while (*p == ' ') {
-        ++p;
-      }
-      popup_draw_text_shadowed(font, framebuffer, ix + pad, ty, line, text_color);
-      ty += line_h;
-    }
-  }
-  ty = iy + pad + prompt_h + 2;
+  const int ix = g.frame.inner_x;
+  int ty = g.text_y + 2;
   popup_draw_text_shadowed(font, framebuffer, ix + pad, ty, "Amount:", text_color);
   ty += line_h;
   char shown[24];
   snprintf(shown, sizeof(shown), "%s_", dlg->field);
   popup_draw_text_shadowed(font, framebuffer, ix + pad, ty, shown, select_color);
-  (void)iw;
 }

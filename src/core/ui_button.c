@@ -78,6 +78,3 @@ void ui_button_draw(
   );
 }
 
-bool ui_button_hit(int x, int y, int w, int h, int mx, int my) {
-  return mx >= x && my >= y && mx < x + w && my < y + h;
-}

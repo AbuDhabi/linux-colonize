@@ -4113,8 +4113,10 @@ int main(void) {
       assets_msg_free(&names);
       return 1;
     }
-    if (units_first_cargo_with_moves(&pool, lf_ship) != lf_pax) {
-      fprintf(stderr, "first cargo with moves mismatch\n");
+    /* UN-28: units_first_cargo_with_moves deleted — units_first_landfall_cargo
+     * supersedes it (same first loop plus the DOS spent test). */
+    if (units_first_landfall_cargo(&pool, lf_ship) != lf_pax) {
+      fprintf(stderr, "first landfall cargo mismatch\n");
       map_free(&map);
       assets_msg_free(&names);
       return 1;
@@ -5168,7 +5170,7 @@ int main(void) {
     if (sh) {
       sh->moves_left = 4 * UNITS_MP_PER_TILE;
     }
-    if (!units_order_anchor(&pool, ship, &cpool) || !sh || sh->orders != UNITS_ORDER_FORTIFY) {
+    if (!units_order_fortify(&pool, ship) || !sh || sh->orders != UNITS_ORDER_FORTIFY) {
       fprintf(stderr, "anchor order failed orders=%d\n", sh ? sh->orders : -1);
       ss_free(&icons);
       map_free(&map);
@@ -5187,7 +5189,7 @@ int main(void) {
     if (sh) {
       sh->moves_left = 4 * UNITS_MP_PER_TILE;
     }
-    if (!units_order_anchor(&pool, ship, NULL) || !sh || sh->orders != UNITS_ORDER_FORTIFY) {
+    if (!units_order_fortify(&pool, ship) || !sh || sh->orders != UNITS_ORDER_FORTIFY) {
       fprintf(stderr, "anchor at sea failed orders=%d\n", sh ? sh->orders : -1);
       ss_free(&icons);
       map_free(&map);

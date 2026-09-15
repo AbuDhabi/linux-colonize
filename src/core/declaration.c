@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "core/cinematic.h"
 #include "platform/diagnostics.h"
 
 /*
@@ -74,14 +75,7 @@ static bool declaration_load_sheet(
   } else {
     snprintf(name, sizeof(name), "DEC-LOW%c.SS", 'A' + (slot - 26));
   }
-  char path[512];
-  char err[256];
-  if (!dos_compat_normalize_asset_path(data_dir, name, path, sizeof(path))) {
-    diag_warn("Declaration cinematic: %s not found.", name);
-    return false;
-  }
-  if (!ss_load(path, &d->sheets[slot], err, sizeof(err))) {
-    diag_warn("Declaration cinematic: %s failed to load: %s", name, err);
+  if (!cinematic_load_sheet(data_dir, name, &d->sheets[slot], "Declaration cinematic")) {
     return false;
   }
   d->sheet_ok[slot] = true;
@@ -200,25 +194,12 @@ bool declaration_open(
   declaration_close(d); /* free sheets if a previous run is still resident */
   memset(d, 0, sizeof(*d));
 
-  char path[512];
-  char err[256];
-  if (!dos_compat_normalize_asset_path(data_dir, "DECOIND.PIK", path, sizeof(path))) {
-    diag_warn("Declaration cinematic: DECOIND.PIK not found.");
+  if (!cinematic_load_background(
+        data_dir, "DECOIND.PIK", "Declaration cinematic", d->canvas, &d->palette,
+        &d->palette_ok
+      )) {
     return false;
   }
-  ColonizePikImage bg;
-  if (!pik_load(path, &bg, err, sizeof(err))) {
-    diag_warn("Declaration cinematic: DECOIND.PIK failed to load: %s", err);
-    return false;
-  }
-  ColonizeFramebuffer8 fb = {.width = 320, .height = 200, .pixels = d->canvas};
-  memset(d->canvas, 0, sizeof(d->canvas));
-  pik_blit(&bg, &fb, 0, 0);
-  if (bg.has_palette) {
-    d->palette = bg.palette;
-    d->palette_ok = true;
-  }
-  pik_free(&bg);
 
   snprintf(d->name, sizeof(d->name), "%s", country_name ? country_name : "");
   declaration_title_case(d->name);
@@ -332,15 +313,7 @@ void declaration_render(
   if (!d || !d->open || !framebuffer || !framebuffer->pixels) {
     return;
   }
-  const int w = framebuffer->width < 320 ? framebuffer->width : 320;
-  const int h = framebuffer->height < 200 ? framebuffer->height : 200;
-  for (int y = 0; y < h; ++y) {
-    memcpy(
-      framebuffer->pixels + (size_t)y * (size_t)framebuffer->width,
-      d->canvas + (size_t)y * 320,
-      (size_t)w
-    );
-  }
+  cinematic_blit_canvas320(d->canvas, framebuffer);
   if (palette && d->palette_ok) {
     *palette = d->palette;
   }

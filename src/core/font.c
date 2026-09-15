@@ -3,6 +3,8 @@
 #include <stdbool.h>
 #include <string.h>
 
+#include "core/fb.h"
+
 /* Tiny 5x7 glyphs for printable ASCII 32..126 (packed as 5 columns, LSB top). */
 static const uint8_t FONT5X7[95][5] = {
   {0x00,0x00,0x00,0x00,0x00}, /* space */
@@ -108,13 +110,6 @@ static const uint8_t FONT5X7[95][5] = {
  */
 static const uint8_t FF_COLOR_MAP[4] = {0, 0x0F, 0x07, 0x08};
 
-static void put_pixel(ColonizeFramebuffer8* fb, int x, int y, uint8_t color) {
-  if (!fb || !fb->pixels || x < 0 || y < 0 || x >= fb->width || y >= fb->height) {
-    return;
-  }
-  fb->pixels[y * fb->width + x] = color;
-}
-
 static void draw_ff_glyph(
   const ColonizeFont* font,
   ColonizeFramebuffer8* framebuffer,
@@ -163,7 +158,7 @@ static void draw_ff_glyph(
           } else {
             pixel = color;
           }
-          put_pixel(framebuffer, x + col, y + row, pixel);
+          fb_put(framebuffer, x + col, y + row, pixel);
         }
         col += 1;
         if (col >= width) {
@@ -189,13 +184,13 @@ static void draw_builtin_glyph(
     uint8_t bits = glyph[col];
     for (int row = 0; row < 7; ++row) {
       if (bits & (1u << row)) {
-        put_pixel(framebuffer, x + col, y + row, color);
+        fb_put(framebuffer, x + col, y + row, color);
       }
     }
   }
 }
 
-int font_text_width(const ColonizeFont* font, const char* text) {
+int font_text_width_skip(const ColonizeFont* font, const char* text, const char* skipset) {
   if (!text) {
     return 0;
   }
@@ -205,7 +200,7 @@ int font_text_width(const ColonizeFont* font, const char* text) {
     if (ch == '\n') {
       break;
     }
-    if (ch == '~' || ch == '#') {
+    if (skipset && strchr(skipset, (char)ch)) {
       continue;
     }
     if (font && font->section_data && ch < 128 && font->char_widths[ch] != 0) {
@@ -215,6 +210,10 @@ int font_text_width(const ColonizeFont* font, const char* text) {
     }
   }
   return width;
+}
+
+int font_text_width(const ColonizeFont* font, const char* text) {
+  return font_text_width_skip(font, text, FONT_SKIP_HOTKEY);
 }
 
 bool font_glyph_ink_bounds(
@@ -321,55 +320,27 @@ void font_draw_text(
   font_draw_text_hotkey(font, framebuffer, x, y, text, color, color);
 }
 
-void font_draw_text_unbold(
-  const ColonizeFont* font,
-  ColonizeFramebuffer8* framebuffer,
-  int x,
-  int y,
-  const char* text,
-  uint8_t color
-) {
-  if (!framebuffer || !text) {
-    return;
-  }
-  const int line_step = font ? (font->max_height + 2) : 8;
-  int cx = x;
-  for (const char* p = text; *p; ++p) {
-    unsigned char ch = (unsigned char)*p;
-    if (ch == '\n') {
-      y += line_step;
-      cx = x;
-      continue;
-    }
-    if (ch == '~' || ch == '#') {
-      continue;
-    }
-    if (font && font->section_data && ch < 128 && font->char_widths[ch] != 0) {
-      draw_ff_glyph(font, framebuffer, cx, y, ch, color, true, NULL);
-      cx += font->char_widths[ch];
-      continue;
-    }
-    if (ch < 32 || ch > 126) {
-      ch = '?';
-    }
-    draw_builtin_glyph(framebuffer, cx, y, ch, color);
-    cx += 6;
-  }
-}
-
-void font_draw_text_hotkey(
+/*
+ * IN-15: font_draw_text, _unbold, _hotkey and _shaded were four copies of one
+ * glyph loop (newline step, marker skip, FF-vs-builtin dispatch, advance),
+ * differing only in the draw_ff_glyph arguments. One run here; the four public
+ * names stay as wrappers. hotkey_color < 0 means '~' is a plain skip rather
+ * than a hotkey marker, which is what _unbold and _shaded did.
+ */
+static void font_draw_run(
   const ColonizeFont* font,
   ColonizeFramebuffer8* framebuffer,
   int x,
   int y,
   const char* text,
   uint8_t color,
-  uint8_t hotkey_color
+  int hotkey_color,
+  bool unbold_colored,
+  const uint8_t* shade_colors
 ) {
   if (!framebuffer || !text) {
     return;
   }
-
   const int line_step = font ? (font->max_height + 2) : 8;
   int cx = x;
   bool next_hotkey = false;
@@ -382,20 +353,22 @@ void font_draw_text_hotkey(
       continue;
     }
     if (ch == '~') {
-      next_hotkey = true;
+      if (hotkey_color >= 0) {
+        next_hotkey = true;
+      }
       continue;
     }
     if (ch == '#') {
       continue;
     }
 
-    const uint8_t use = next_hotkey ? hotkey_color : color;
+    const uint8_t use = next_hotkey ? (uint8_t)hotkey_color : color;
     next_hotkey = false;
 
     /* Some .FF faces (notably FONTSMAL) omit punctuation such as '/'.
      * Skipping those glyphs advanced 0px and jammed digits into "57" for "5/7". */
     if (font && font->section_data && ch < 128 && font->char_widths[ch] != 0) {
-      draw_ff_glyph(font, framebuffer, cx, y, ch, use, false, NULL);
+      draw_ff_glyph(font, framebuffer, cx, y, ch, use, unbold_colored, shade_colors);
       cx += font->char_widths[ch];
       continue;
     }
@@ -408,6 +381,29 @@ void font_draw_text_hotkey(
   }
 }
 
+void font_draw_text_unbold(
+  const ColonizeFont* font,
+  ColonizeFramebuffer8* framebuffer,
+  int x,
+  int y,
+  const char* text,
+  uint8_t color
+) {
+  font_draw_run(font, framebuffer, x, y, text, color, -1, true, NULL);
+}
+
+void font_draw_text_hotkey(
+  const ColonizeFont* font,
+  ColonizeFramebuffer8* framebuffer,
+  int x,
+  int y,
+  const char* text,
+  uint8_t color,
+  uint8_t hotkey_color
+) {
+  font_draw_run(font, framebuffer, x, y, text, color, (int)hotkey_color, false, NULL);
+}
+
 void font_draw_text_shaded(
   const ColonizeFont* font,
   ColonizeFramebuffer8* framebuffer,
@@ -416,31 +412,8 @@ void font_draw_text_shaded(
   const char* text,
   const uint8_t shade_colors[4]
 ) {
-  if (!framebuffer || !text || !shade_colors) {
+  if (!shade_colors) {
     return;
   }
-
-  const int line_step = font ? (font->max_height + 2) : 8;
-  int cx = x;
-  for (const char* p = text; *p; ++p) {
-    unsigned char ch = (unsigned char)*p;
-    if (ch == '\n') {
-      y += line_step;
-      cx = x;
-      continue;
-    }
-    if (ch == '~' || ch == '#') {
-      continue;
-    }
-    if (font && font->section_data && ch < 128 && font->char_widths[ch] != 0) {
-      draw_ff_glyph(font, framebuffer, cx, y, ch, shade_colors[1], false, shade_colors);
-      cx += font->char_widths[ch];
-      continue;
-    }
-    if (ch < 32 || ch > 126) {
-      ch = '?';
-    }
-    draw_builtin_glyph(framebuffer, cx, y, ch, shade_colors[1]);
-    cx += 6;
-  }
+  font_draw_run(font, framebuffer, x, y, text, shade_colors[1], -1, false, shade_colors);
 }

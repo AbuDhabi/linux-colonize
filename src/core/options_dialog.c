@@ -4,8 +4,10 @@
 #include <string.h>
 
 #include "core/map_menu.h"
+#include "core/popup.h"
 #include "core/popup_msg.h"
 #include "core/strutil.h"
+#include "core/ui_button.h"
 
 void options_dialog_init(OptionsDialog* dlg) {
   if (!dlg) {
@@ -23,19 +25,6 @@ void options_dialog_close(OptionsDialog* dlg) {
   dlg->kind = OPTIONS_KIND_NONE;
 }
 
-static void options_strip_tilde(char* s) {
-  if (!s) {
-    return;
-  }
-  char* w = s;
-  for (char* r = s; *r; ++r) {
-    if (*r == '~') {
-      continue;
-    }
-    *w++ = *r;
-  }
-  *w = '\0';
-}
 
 static bool options_load_section(
   OptionsDialog* dlg,
@@ -88,7 +77,7 @@ static bool options_load_section(
       }
       char lab[OPTIONS_DIALOG_LABEL_LEN];
       str_copy_trunc(lab, sizeof(lab), line);
-      options_strip_tilde(lab);
+      str_strip_chars(lab, "~");
       /* {} kept — render colors braced spans with the hilite ink. */
       str_copy_trunc(dlg->labels[dlg->option_count], sizeof(dlg->labels[0]), lab);
       dlg->values[dlg->option_count] =
@@ -304,18 +293,7 @@ static void options_finish(OptionsDialog* dlg, bool cancelled) {
 }
 
 static int options_option_at_y(const OptionsDialog* dlg, int mouse_y) {
-  if (!dlg || dlg->line_h <= 0) {
-    return -1;
-  }
-  const int rel = mouse_y - dlg->list_y0;
-  if (rel < 0) {
-    return -1;
-  }
-  const int idx = rel / dlg->line_h;
-  if (idx < 0 || idx >= dlg->option_count) {
-    return -1;
-  }
-  return idx;
+  return dlg ? popup_row_at_y(dlg->list_y0, dlg->line_h, dlg->option_count, mouse_y) : -1;
 }
 
 static void options_draw_checkbox(
@@ -369,9 +347,10 @@ bool options_dialog_handle_input(OptionsDialog* dlg, const ColonizeInputState* i
     return true;
   }
   if (input->mouse_left_clicked) {
-    if (input->mouse_x < dlg->dialog_x || input->mouse_y < dlg->dialog_y ||
-        input->mouse_x >= dlg->dialog_x + dlg->dialog_w ||
-        input->mouse_y >= dlg->dialog_y + dlg->dialog_h) {
+    if (!ui_rect_hit(
+          dlg->dialog_x, dlg->dialog_y, dlg->dialog_w, dlg->dialog_h, input->mouse_x,
+          input->mouse_y
+        )) {
       /* bugs.md: clicking away should commit, like Enter — only Esc/right-
        * click truly discard. */
       options_finish(dlg, false);
@@ -391,6 +370,33 @@ bool options_dialog_handle_input(OptionsDialog* dlg, const ColonizeInputState* i
   return true;
 }
 
+typedef struct OptionsRowCtx {
+  const OptionsDialog* dlg;
+  uint8_t box_color;
+} OptionsRowCtx;
+
+static const char* options_row_label(void* user, int index) {
+  return ((const OptionsRowCtx*)user)->dlg->labels[index];
+}
+
+static void options_row_decor(
+  void* user,
+  int index,
+  ColonizeFramebuffer8* framebuffer,
+  int row_x,
+  int row_y,
+  int line_h
+) {
+  const OptionsRowCtx* ctx = (const OptionsRowCtx*)user;
+  options_draw_checkbox(
+    framebuffer,
+    row_x - 10,
+    row_y + (line_h > 7 ? (line_h - 7) / 2 : 0),
+    ctx->dlg->values[index] != 0,
+    ctx->box_color
+  );
+}
+
 void options_dialog_render(
   OptionsDialog* dlg,
   const ColonizeFont* font,
@@ -404,72 +410,40 @@ void options_dialog_render(
   if (!dlg || !dlg->open || !framebuffer || !framebuffer->pixels) {
     return;
   }
-  const int line_h = font ? (font->max_height + 2) : 8;
-  const int pad_x = 6;
-  const int pad_y = 4;
-  const int prompt_h = dlg->prompt[0] ? line_h + 2 : 0;
-  const int options_h = dlg->option_count * line_h;
-  int dialog_h = POPUP_FRAME_INSET * 2 + pad_y + prompt_h + options_h + pad_y;
-  if (dialog_h > framebuffer->height - 8) {
-    dialog_h = framebuffer->height - 8;
-  }
-  int dialog_w = dlg->width;
-  if (dialog_w > framebuffer->width - 8) {
-    dialog_w = framebuffer->width - 8;
-  }
-  int dialog_x = (framebuffer->width - dialog_w) / 2;
-  int dialog_y = (framebuffer->height - dialog_h) / 2;
-  if (dialog_y < MAP_MENU_BAR_H + 2) {
-    dialog_y = MAP_MENU_BAR_H + 2;
-  }
-
-  ColonizePopupColors local;
-  if (!colors) {
-    popup_colors_from_ui(&local);
-    colors = &local;
-  }
-  int ix = 0, iy = 0, iw = 0, ih = 0;
-  popup_draw(
-    framebuffer, dialog_x, dialog_y, dialog_w, dialog_h, wood_tile, colors, &ix, &iy, &iw, &ih
+  PopupListMetrics metrics;
+  popup_list_metrics_classic(font, &metrics);
+  /* This dialog never had the 40 px floor, draws a checkbox column 10 px wide
+   * ahead of each label, and shadows the prompt / marks up the rows. */
+  metrics.min_h = 0;
+  metrics.label_dx = 10;
+  metrics.shadow_text = true;
+  metrics.markup_text = true;
+  OptionsRowCtx ctx;
+  ctx.dlg = dlg;
+  ctx.box_color = text_color;
+  PopupListGeom geom;
+  popup_list_render(
+    framebuffer,
+    font,
+    wood_tile,
+    colors,
+    &metrics,
+    dlg->width,
+    dlg->prompt,
+    dlg->option_count,
+    dlg->selection,
+    options_row_label,
+    options_row_decor,
+    &ctx,
+    text_color,
+    hilite_color,
+    select_color,
+    &geom
   );
-  (void)ih;
-
-  dlg->dialog_x = dialog_x;
-  dlg->dialog_y = dialog_y;
-  dlg->dialog_w = dialog_w;
-  dlg->dialog_h = dialog_h;
-  dlg->line_h = line_h;
-
-  int text_y = iy + pad_y;
-  if (dlg->prompt[0] && font) {
-    popup_draw_text_shadowed(font, framebuffer, ix + pad_x, text_y, dlg->prompt, text_color);
-    text_y += prompt_h;
-  }
-  dlg->list_y0 = text_y;
-
-  for (int i = 0; i < dlg->option_count; ++i) {
-    const int row_y = text_y + i * line_h;
-    if (i == dlg->selection) {
-      for (int y = row_y - 1; y <= row_y + line_h - 2; ++y) {
-        for (int x = ix + 1; x <= ix + iw - 2; ++x) {
-          if (x >= 0 && y >= 0 && x < framebuffer->width && y < framebuffer->height) {
-            framebuffer->pixels[y * framebuffer->width + x] = select_color;
-          }
-        }
-      }
-    }
-    options_draw_checkbox(
-      framebuffer,
-      ix + pad_x,
-      row_y + (line_h > 7 ? (line_h - 7) / 2 : 0),
-      dlg->values[i] != 0,
-      text_color
-    );
-    if (font) {
-      popup_draw_text_markup(
-        font, framebuffer, ix + pad_x + 10, row_y, dlg->labels[i], text_color,
-        hilite_color, true, true, NULL
-      );
-    }
-  }
+  dlg->dialog_x = geom.frame.x;
+  dlg->dialog_y = geom.frame.y;
+  dlg->dialog_w = geom.frame.w;
+  dlg->dialog_h = geom.frame.h;
+  dlg->line_h = geom.line_h;
+  dlg->list_y0 = geom.list_y0;
 }

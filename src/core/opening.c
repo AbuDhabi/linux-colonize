@@ -5,6 +5,7 @@
 #include <string.h>
 
 #include "core/assets.h"
+#include "core/cinematic.h"
 #include "core/pik.h"
 #include "platform/diagnostics.h"
 
@@ -35,59 +36,14 @@ void opening_set_sound_hooks(ColonizeOpeningSoundFn play_fn, ColonizeOpeningSoun
   g_opening_set_bgm = set_bgm_fn;
 }
 
-static void opening_strip_comment(char* line) {
-  if (!line) {
-    return;
-  }
-  char* semi = strchr(line, ';');
-  if (semi) {
-    *semi = '\0';
-  }
-}
-
-static int opening_parse_series_row(const char* line, OpeningSeries* out) {
-  if (!line || !out) {
-    return 0;
-  }
-  char buf[COLONIZE_MSG_LINE_LEN];
-  snprintf(buf, sizeof(buf), "%s", line);
-  opening_strip_comment(buf);
-  int series = 0;
-  int frame = 0;
-  int repeats = 0;
-  int base_x = 0;
-  if (sscanf(buf, "%d , %d , %d , %d", &series, &frame, &repeats, &base_x) < 4) {
-    return 0;
-  }
-  out->series = series;
-  out->frame = frame;
-  out->repeats = repeats;
-  out->base_x = base_x;
-  return 1;
-}
-
-static int opening_parse_credit_row(const char* line, OpeningCredit* out) {
-  if (!line || !out) {
-    return 0;
-  }
-  char buf[COLONIZE_MSG_LINE_LEN];
-  snprintf(buf, sizeof(buf), "%s", line);
-  opening_strip_comment(buf);
-  int start_frame = 0;
-  int end_frame = 0;
-  int series = 0;
-  int sprite = 0;
-  if (sscanf(buf, "%d , %d , %d , %d", &start_frame, &end_frame, &series, &sprite) < 4) {
-    return 0;
-  }
-  if (sprite > 0) {
-    sprite--;
-  }
-  out->start_frame = start_frame;
-  out->end_frame = end_frame;
-  out->series = series;
-  out->sprite = sprite;
-  return 1;
+/* OPENING.TXT @OPENING row: series, frame, repeats, baseX. */
+static void opening_store_row(void* ctx, int index, const int* v, int n) {
+  (void)n;
+  OpeningSeries* out = (OpeningSeries*)ctx;
+  out[index].series = v[0];
+  out[index].frame = v[1];
+  out[index].repeats = v[2];
+  out[index].base_x = v[3];
 }
 
 int opening_parse_timeline(
@@ -102,41 +58,9 @@ int opening_parse_timeline(
   if (!out || out_max <= 0) {
     return 0;
   }
-  ColonizeMsgCatalog cat;
-  assets_msg_init(&cat);
-  int count = 0;
-  int end_frame = 891;
-  char path[512];
-  if (data_dir &&
-      dos_compat_normalize_asset_path(data_dir, "OPENING.TXT", path, sizeof(path)) &&
-      assets_msg_load_file(&cat, path)) {
-    const ColonizeMsgSection* sec = assets_msg_find(&cat, "OPENING");
-    if (sec) {
-      for (int i = 0; i < sec->line_count; ++i) {
-        OpeningSeries row;
-        if (!opening_parse_series_row(sec->lines[i], &row)) {
-          continue;
-        }
-        if (row.series < 0) {
-          if (row.frame > 0) {
-            end_frame = row.frame;
-          }
-          break;
-        }
-        if (row.series == 0 && row.frame == 0 && row.repeats == 0) {
-          break;
-        }
-        if (count < out_max) {
-          out[count++] = row;
-        }
-      }
-    }
-  }
-  assets_msg_free(&cat);
-  if (out_end_frame) {
-    *out_end_frame = end_frame;
-  }
-  return count;
+  return cinematic_parse_timeline(
+    data_dir, "OPENING.TXT", "OPENING", 891, out_max, opening_store_row, out, out_end_frame
+  );
 }
 
 int opening_parse_credits(const char* data_dir, OpeningCredit* out, int out_max) {
@@ -153,12 +77,18 @@ int opening_parse_credits(const char* data_dir, OpeningCredit* out, int out_max)
     const ColonizeMsgSection* sec = assets_msg_find(&cat, "CREDITS");
     if (sec) {
       for (int i = 0; i < sec->line_count; ++i) {
-        OpeningCredit row;
-        if (!opening_parse_credit_row(sec->lines[i], &row)) {
+        int v[CINEMATIC_ROW_FIELDS];
+        if (cinematic_parse_ints(sec->lines[i], v, CINEMATIC_ROW_FIELDS) < 4) {
           continue;
         }
         if (count < out_max) {
-          out[count++] = row;
+          /* start_frame, end_frame, series, sprite — the sprite column is
+           * 1-based in the file. */
+          out[count].start_frame = v[0];
+          out[count].end_frame = v[1];
+          out[count].series = v[2];
+          out[count].sprite = (v[3] > 0) ? v[3] - 1 : v[3];
+          count++;
         }
       }
     }
@@ -193,26 +123,6 @@ int opening_parse_path(const char* data_dir, int* xs, int* ys, int out_max) {
   }
   fclose(f);
   return count;
-}
-
-static void opening_blit_anchored(
-  const ColonizeSpriteSheet* sheet,
-  int sprite_index,
-  ColonizeFramebuffer8* fb,
-  int add_x,
-  int add_y
-) {
-  if (!sheet || sprite_index < 0 || sprite_index >= sheet->sprite_count) {
-    return;
-  }
-  const ColonizeSprite* s = &sheet->sprites[sprite_index];
-  ss_blit_sprite(
-    sheet,
-    sprite_index,
-    fb,
-    s->anchor_x - (s->width >> 1) + add_x,
-    s->anchor_y - s->height + 1 + add_y
-  );
 }
 
 /* MPSLOGO.SS is 155×119 with FUN_6f30 dest y = 0. Shift so the spin sits on
@@ -401,7 +311,7 @@ static void opening_compose_logo(OpeningCinematic* o) {
     if (idx >= o->mps_logo.sprite_count) {
       idx = o->mps_logo.sprite_count - 1;
     }
-    opening_blit_anchored(&o->mps_logo, idx, &fb, 0, logo_dy);
+    ss_blit_anchored(&o->mps_logo, idx, &fb, 0, logo_dy);
   }
   if (o->logo_clock >= OPENING_LOGO_NAME_FRAME && o->mps_name_ok &&
       o->mps_name.sprite_count > 0) {
@@ -412,7 +322,7 @@ static void opening_compose_logo(OpeningCinematic* o) {
     if (idx >= o->mps_name.sprite_count) {
       idx = o->mps_name.sprite_count - 1;
     }
-    opening_blit_anchored(&o->mps_name, idx, &fb, 0, logo_dy);
+    ss_blit_anchored(&o->mps_name, idx, &fb, 0, logo_dy);
   }
 }
 
@@ -458,7 +368,7 @@ static void opening_compose(OpeningCinematic* o) {
     if (idx < 0) {
       continue;
     }
-    opening_blit_anchored(sheet, idx, &fb, s->base_x - camera, 0);
+    ss_blit_anchored(sheet, idx, &fb, s->base_x - camera, 0);
   }
 
   if (o->ship_ok && o->ship.sprite_count > 0 && o->clock < opening_ship_end_clock(o)) {
@@ -568,11 +478,7 @@ bool opening_open(OpeningCinematic* o, const char* data_dir) {
   char err[256];
   int loaded = 0;
   for (int i = 0; i < OPENING_SHEET_COUNT; ++i) {
-    if (!dos_compat_normalize_asset_path(data_dir, kOpeningSheets[i], path, sizeof(path))) {
-      continue;
-    }
-    if (!ss_load(path, &o->sheets[i], err, sizeof(err))) {
-      diag_warn("Opening cinematic: %s failed: %s", kOpeningSheets[i], err);
+    if (!cinematic_load_sheet(data_dir, kOpeningSheets[i], &o->sheets[i], "Opening cinematic")) {
       continue;
     }
     o->sheet_ok[i] = true;
@@ -767,15 +673,7 @@ void opening_render(
   if (!o || !o->open || !framebuffer || !framebuffer->pixels) {
     return;
   }
-  const int w = framebuffer->width < 320 ? framebuffer->width : 320;
-  const int h = framebuffer->height < 200 ? framebuffer->height : 200;
-  for (int y = 0; y < h; ++y) {
-    memcpy(
-      framebuffer->pixels + (size_t)y * (size_t)framebuffer->width,
-      o->canvas + (size_t)y * 320,
-      (size_t)w
-    );
-  }
+  cinematic_blit_canvas320(o->canvas, framebuffer);
   if (palette) {
     if (o->logo_phase && o->mps_logo_ok && o->mps_logo.has_palette) {
       *palette = o->mps_logo.palette;

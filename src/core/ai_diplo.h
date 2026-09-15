@@ -12,6 +12,33 @@
  */
 
 /*
+ * FUN_15dc_00a2: the relation/alarm quartile bucketer — <25 → 0, <50 → 1,
+ * <75 → 2, else 3. DOS uses the same four bands for Indian relation, Indian
+ * alarm and the 20e6 Euro scorer alike.
+ *
+ * Audit AK-22 / AC-13: written out three times (ai.c's
+ * ai_indian_152e_quartile, ai_diplo.c's ai_diplo_indian_relation_quartile,
+ * ai_euro.c's ai_euro_20e6_quartile), each with a comment explaining the
+ * duplication was deliberate "to avoid cross-module coupling", plus a fourth
+ * and fifth spelling inside ai_contact.c (ai_contact_2820_quartile as a
+ * ternary chain, ai_contact_alarm_quartile as ifs). All five were verified
+ * identical for every input before this was extracted — same thresholds,
+ * same return values, no clamping on either side.
+ */
+static inline int ai_relation_quartile(int v) {
+  if (v < 25) {
+    return 0;
+  }
+  if (v < 50) {
+    return 1;
+  }
+  if (v < 75) {
+    return 2;
+  }
+  return 3;
+}
+
+/*
  * nation.euro_relation[peer] bit map — re-derived 2026-08-27 from the DOS
  * writers (T1.19): 0x20 MET (FUN_5bfb_022e/3180 first contact), 0x40 PEACE
  * (FUN_5bfb_0182 / 13b0 peace branch / 3844_0442; cleared at every attack
@@ -178,8 +205,6 @@ void ai_diplo_or_both(ColonizeCol1Save* col1, int nation_a, int nation_b, uint8_
 void ai_diplo_clear_both(ColonizeCol1Save* col1, int nation_a, int nation_b, uint8_t bits);
 
 int ai_diplo_at_war(const ColonizeCol1Save* col1, int nation_a, int nation_b);
-/* War-turn helper alias of ai_diplo_at_war (pair). */
-int ai_diplo_at_war_with(const ColonizeCol1Save* col1, int nation_a, int nation_b);
 /* True if Euro nation is at war with any other Euro (feeler / drift / lift gate). */
 int ai_diplo_at_war_with_any(const ColonizeCol1Save* col1, int nation);
 /* First declare: thin 153e sting + war-hit. Franklin pair → no-op (fandom NW peace). */

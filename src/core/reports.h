@@ -112,6 +112,44 @@ const char* reports_cargo_display_name(int cargo);
 const char* reports_tribe_display_name(int t);
 const char* reports_nation_adjective_display_name(int nation);
 const char* reports_tribe_level_display_name(uint8_t tech);
+
+/*
+ * The rest of the shared NAMES.TXT name tables (2026-09-14 duplication
+ * audit, theme D). Same contract as the accessors above: live catalog when
+ * one is loaded, shipped-NAMES.TXT literal otherwise. Each returns a
+ * per-index static buffer that stays valid until the next call with the
+ * SAME index, so building a rows[] array of them is safe.
+ *
+ *   country      @COUNTRY col 0   England / France / Spain / Netherlands
+ *   home port    @HOMEPORT col 0  London / La Rochelle / Seville / Amsterdam
+ *   difficulty   @DIFFICULTY      Discoverer … Viceroy (0..4)
+ *   tribe (sing) @TRIBES col 1    "Inca" — the plural "Incas" is
+ *                                 reports_tribe_display_name (col 0)
+ *   fort tier    @BUILDING 0..2   Stockade / Fort / Fortress (tier 0..2)
+ *   brave ladder @UNIT 19..22     Braves / Armed Braves / Mtd. Braves /
+ *                                 Mtd. Warriors (rank 0..3)
+ *   dock type    @UNIT 0..5       Colonists / Soldiers / Pioneers /
+ *                                 Missionaries / Dragoons / Scouts
+ *
+ * Out-of-range returns "" (difficulty: "?", tribe: "Tribe"), never NULL.
+ */
+const char* reports_nation_country_name(int nation);
+const char* reports_home_port_name(int nation);
+const char* reports_difficulty_title(int level);
+const char* reports_tribe_singular_name(int t);
+const char* reports_fort_tier_name(int tier);
+const char* reports_brave_ladder_name(int rank);
+const char* reports_dock_type_name(int dos_type);
+
+/*
+ * NAMES.TXT @JOB column 0 — the singular job word ("Farmer", "Distiller",
+ * "Preacher"), the column colony.c's profession labels use. Unlike the
+ * accessors above this one has NO literal fallback: it returns "" when no
+ * catalog is loaded, so the caller keeps its own switch/table as the
+ * fallback (see colonies_profession_name, which also decides which
+ * professions get a label at all).
+ */
+const char* reports_job_short_name(int job);
 /*
  * NAMES.TXT @FOUNDING row `type` (0=Trade 1=Exploration 2=Military
  * 3=Political 4=Religious 5=Independence) — the Founding-Father category
@@ -258,10 +296,6 @@ int reports_score_apply_recognition(int base_total, int prior_nations, bool achi
  * total score at a difficulty. *tier_out gets -1 when no exploits line
  * qualifies. Returns the rating. */
 int reports_score_rating(int total, int difficulty, int* tier_out);
-
-/* Declaration year latched by FUN_43f7_1a26 into DS:0x53a7/0x53a8
- * (king_audience_streak / king_audience_last_pick reuse); 0 unless WoI. */
-int reports_score_declare_year(const ColonizeCol1Save* col1);
 
 /* congress_page2: true shows Continental Congress page 2 (golden:
  * continental_p2.png); ignored for every id but COLONIZE_REPORT_CONGRESS.

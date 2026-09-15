@@ -6,7 +6,9 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "core/bytes.h"
 #include "core/gsound_vm.h"
+#include "core/strutil.h"
 #include "platform/diagnostics.h"
 #include "platform/platform.h"
 
@@ -119,47 +121,25 @@ typedef struct SoundState {
 
 static SoundState g_sound;
 
-static uint16_t rd_u16(const uint8_t* p) {
-  return (uint16_t)(p[0] | ((uint16_t)p[1] << 8));
-}
-
 static bool sound_load_gsound(const char* data_dir) {
   char path[512];
   if (!dos_compat_normalize_asset_path(data_dir, "GSOUND.COL", path, sizeof(path))) {
     diag_warn("sound: cannot resolve GSOUND.COL");
     return false;
   }
-  FILE* f = fopen(path, "rb");
-  if (!f) {
+  uint8_t* file = NULL;
+  size_t file_size = 0;
+  if (!file_slurp(path, &file, &file_size, NULL, 0)) {
     diag_warn("sound: failed to open %s", path);
     return false;
   }
-  if (fseek(f, 0, SEEK_END) != 0) {
-    fclose(f);
-    return false;
-  }
-  const long sz = ftell(f);
+  const long sz = (long)file_size;
   if (sz < SOUND_GSOUND_IMG_HDR + 0x3400) {
-    fclose(f);
-    return false;
-  }
-  if (fseek(f, 0, SEEK_SET) != 0) {
-    fclose(f);
-    return false;
-  }
-  uint8_t* file = (uint8_t*)malloc((size_t)sz);
-  if (!file) {
-    fclose(f);
-    return false;
-  }
-  if (fread(file, 1, (size_t)sz, f) != (size_t)sz) {
     free(file);
-    fclose(f);
     return false;
   }
-  fclose(f);
 
-  const uint16_t hdr_paras = rd_u16(file + 8);
+  const uint16_t hdr_paras = rd_u16_le(file + 8);
   const size_t hdr = (size_t)hdr_paras * 16u;
   if (hdr >= (size_t)sz) {
     free(file);
@@ -453,26 +433,17 @@ static void sound_load_coldig(const char* data_dir) {
     diag_info("sound: COLDIG.BIN not found; digital SFX off");
     return;
   }
-  FILE* f = fopen(path, "rb");
-  if (!f) {
+  size_t sfx_bytes = 0;
+  if (!file_slurp(path, &g_sound.sfx_data, &sfx_bytes, NULL, 0)) {
     return;
   }
-  fseek(f, 0, SEEK_END);
-  const long sz = ftell(f);
-  fseek(f, 0, SEEK_SET);
+  const long sz = (long)sfx_bytes;
   if (sz <= 0) {
-    fclose(f);
-    return;
-  }
-  g_sound.sfx_data = (uint8_t*)malloc((size_t)sz);
-  if (!g_sound.sfx_data || fread(g_sound.sfx_data, 1, (size_t)sz, f) != (size_t)sz) {
     free(g_sound.sfx_data);
     g_sound.sfx_data = NULL;
-    fclose(f);
     return;
   }
-  fclose(f);
-  g_sound.sfx_size = (size_t)sz;
+  g_sound.sfx_size = sfx_bytes;
   g_sound.sfx_count =
     gsound_vm_sfx_table(g_sound.vm, g_sound.sfx_size, g_sound.sfx_off, g_sound.sfx_len, SOUND_SFX_MAX);
   if (g_sound.sfx_count > SOUND_SFX_MAX) {

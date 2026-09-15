@@ -153,32 +153,30 @@ bool debug_atlas_load(DebugAtlas* atlas, const char* data_dir, int index) {
   return true;
 }
 
-void debug_atlas_next_file(DebugAtlas* atlas, const char* data_dir, int step) {
+/* One wrap-around step through the file list; dir +1 forward, -1 back. */
+static void debug_atlas_step_file(DebugAtlas* atlas, const char* data_dir, int step, int dir) {
   if (!atlas || atlas->count <= 0) {
     return;
   }
   if (step < 1) {
     step = 1;
   }
-  int next = atlas->index + step;
+  int next = atlas->index + dir * step;
+  while (next < 0) {
+    next += atlas->count;
+  }
   if (next >= atlas->count) {
     next = next % atlas->count;
   }
   debug_atlas_load(atlas, data_dir, next);
 }
 
+void debug_atlas_next_file(DebugAtlas* atlas, const char* data_dir, int step) {
+  debug_atlas_step_file(atlas, data_dir, step, 1);
+}
+
 void debug_atlas_prev_file(DebugAtlas* atlas, const char* data_dir, int step) {
-  if (!atlas || atlas->count <= 0) {
-    return;
-  }
-  if (step < 1) {
-    step = 1;
-  }
-  int prev = atlas->index - step;
-  while (prev < 0) {
-    prev += atlas->count;
-  }
-  debug_atlas_load(atlas, data_dir, prev);
+  debug_atlas_step_file(atlas, data_dir, step, -1);
 }
 
 /* Cell sized to the largest sprite so wide art (fence, docks) does not overlap neighbours. */

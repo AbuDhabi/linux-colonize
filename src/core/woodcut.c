@@ -5,6 +5,7 @@
 #include <string.h>
 
 #include "core/assets.h"
+#include "core/cinematic.h"
 #include "core/font.h"
 #include "platform/diagnostics.h"
 
@@ -38,7 +39,7 @@ void woodcut_set_sound_hooks(ColonizeWoodcutSoundFn play_fn, ColonizeWoodcutSoun
 static int g_woodcut_queue[WOODCUT_QUEUE_MAX];
 static int g_woodcut_queue_len;
 
-void woodcut_request(int id) {
+static void woodcut_request(int id) {
   if (id < 0 || id >= WOODCUT_ID_MAX) {
     return;
   }
@@ -144,29 +145,7 @@ static bool woodcut_load_sheet(
   const char* name,
   ColonizeSpriteSheet* out
 ) {
-  char path[512];
-  char err[256];
-  if (!dos_compat_normalize_asset_path(data_dir, name, path, sizeof(path))) {
-    diag_warn("Woodcut: %s not found.", name);
-    return false;
-  }
-  if (!ss_load(path, out, err, sizeof(err))) {
-    diag_warn("Woodcut: %s failed to load: %s", name, err);
-    return false;
-  }
-  return true;
-}
-
-/* FUN_6f30_002e: place a sheet's first sprite by its own anchor. */
-static void woodcut_blit_centred(
-  const ColonizeSpriteSheet* sheet,
-  ColonizeFramebuffer8* fb
-) {
-  if (!sheet || sheet->sprite_count < 1) {
-    return;
-  }
-  const ColonizeSprite* s = &sheet->sprites[0];
-  ss_blit_sprite(sheet, 0, fb, s->anchor_x - (s->width >> 1), s->anchor_y - s->height + 1);
+  return cinematic_load_sheet(data_dir, name, out, "Woodcut");
 }
 
 /* WOODCUT.TXT @WOODCUT line `id` (line 0 is id 0's "A NEW WORLD"). */
@@ -290,12 +269,12 @@ bool woodcut_open(ColonizeWoodcutScreen* w, const char* data_dir, int id) {
 
   ColonizeFramebuffer8 fb = {.width = 320, .height = 200, .pixels = w->canvas};
   memset(w->canvas, 0, sizeof(w->canvas));
-  woodcut_blit_centred(&frame, &fb);
+  ss_blit_anchored(&frame, 0, &fb, 0, 0); /* FUN_6f30_002e */
   if (plate_ok) {
     woodcut_draw_plate(&plate, font_ok ? &font : NULL, w->caption, &fb);
   }
   /* DOS draws the picture last, after the plate and the palette fade-in. */
-  woodcut_blit_centred(&art, &fb);
+  ss_blit_anchored(&art, 0, &fb, 0, 0); /* FUN_6f30_002e */
 
   ss_free(&art);
   ss_free(&frame);
@@ -340,15 +319,7 @@ void woodcut_render(
   if (!w || !w->open || !framebuffer || !framebuffer->pixels) {
     return;
   }
-  const int cw = framebuffer->width < 320 ? framebuffer->width : 320;
-  const int ch = framebuffer->height < 200 ? framebuffer->height : 200;
-  for (int y = 0; y < ch; ++y) {
-    memcpy(
-      framebuffer->pixels + (size_t)y * (size_t)framebuffer->width,
-      w->canvas + (size_t)y * 320,
-      (size_t)cw
-    );
-  }
+  cinematic_blit_canvas320(w->canvas, framebuffer);
   if (palette && w->palette_ok) {
     *palette = w->palette;
   }

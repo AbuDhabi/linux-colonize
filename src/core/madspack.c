@@ -5,6 +5,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "core/bytes.h"
+#include "core/strutil.h"
 #include "platform/diagnostics.h"
 
 typedef struct FabBitReader {
@@ -165,14 +167,6 @@ bool fab_decompress(
   return true;
 }
 
-static uint16_t read_u16_le(const uint8_t* p) {
-  return (uint16_t)(p[0] | (p[1] << 8));
-}
-
-static uint32_t read_u32_le(const uint8_t* p) {
-  return (uint32_t)(p[0] | (p[1] << 8) | (p[2] << 16) | (p[3] << 24));
-}
-
 bool madspack_load(const char* path, MadspackFile* out_file, char* err, size_t err_size) {
   if (!path || !out_file) {
     snprintf(err, err_size, "madspack_load bad args");
@@ -180,37 +174,17 @@ bool madspack_load(const char* path, MadspackFile* out_file, char* err, size_t e
   }
   memset(out_file, 0, sizeof(*out_file));
 
-  FILE* f = fopen(path, "rb");
-  if (!f) {
-    snprintf(err, err_size, "cannot open %s", path);
+  uint8_t* raw = NULL;
+  size_t raw_size = 0;
+  if (!file_slurp(path, &raw, &raw_size, err, err_size)) {
     return false;
   }
-  if (fseek(f, 0, SEEK_END) != 0) {
-    fclose(f);
-    snprintf(err, err_size, "seek failed for %s", path);
-    return false;
-  }
-  long file_size = ftell(f);
-  if (file_size < 16 + 0xA0) {
-    fclose(f);
+  if (raw_size < 16 + 0xA0) {
+    free(raw);
     snprintf(err, err_size, "file too small: %s", path);
     return false;
   }
-  rewind(f);
-
-  uint8_t* raw = malloc((size_t)file_size);
-  if (!raw) {
-    fclose(f);
-    snprintf(err, err_size, "oom reading %s", path);
-    return false;
-  }
-  if (fread(raw, 1, (size_t)file_size, f) != (size_t)file_size) {
-    free(raw);
-    fclose(f);
-    snprintf(err, err_size, "short read: %s", path);
-    return false;
-  }
-  fclose(f);
+  const long file_size = (long)raw_size;
 
   if (memcmp(raw, "MADSPACK 2.0", 12) != 0) {
     free(raw);
@@ -218,7 +192,7 @@ bool madspack_load(const char* path, MadspackFile* out_file, char* err, size_t e
     return false;
   }
 
-  uint16_t count = read_u16_le(raw + 14);
+  uint16_t count = rd_u16_le(raw + 14);
   if (count == 0 || count > 16) {
     free(raw);
     snprintf(err, err_size, "invalid section count %u in %s", count, path);
@@ -238,9 +212,9 @@ bool madspack_load(const char* path, MadspackFile* out_file, char* err, size_t e
 
   for (uint16_t i = 0; i < count; ++i) {
     const uint8_t* h = header + (size_t)i * 10;
-    sections[i].flags = read_u16_le(h);
-    sections[i].uncompressed_size = read_u32_le(h + 2);
-    sections[i].compressed_size = read_u32_le(h + 6);
+    sections[i].flags = rd_u16_le(h);
+    sections[i].uncompressed_size = rd_u32_le(h + 2);
+    sections[i].compressed_size = rd_u32_le(h + 6);
 
     if (data_pos + sections[i].compressed_size > (size_t)file_size) {
       snprintf(err, err_size, "section %u exceeds file size in %s", i, path);

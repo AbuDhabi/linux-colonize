@@ -16,14 +16,6 @@ void combat_analysis_set_presenter(ColonizeCombatAnalysisPresenter fn, void* use
   g_combat_analysis_presenter_user = user;
 }
 
-ColonizeCombatAnalysisPresenter combat_analysis_presenter(void) {
-  return g_combat_analysis_presenter;
-}
-
-void* combat_analysis_presenter_user(void) {
-  return g_combat_analysis_presenter_user;
-}
-
 void combat_analysis_present_if_hooked(const ColonizeCombatEngagement* eng) {
   if (g_combat_analysis_presenter && eng) {
     g_combat_analysis_presenter(eng, g_combat_analysis_presenter_user);
@@ -342,6 +334,48 @@ static void combat_analysis_join_rows(
   }
 }
 
+/*
+ * UN-44: attacker/defender header names, shared by the dialog header and the
+ * debug.logs line. DOS 636c reads the NAMES type string via the DS:0x5230
+ * table; bugs.md 267 adds the eng->atk_label fallback for the unit-less
+ * coastal Fort/Fortress battery attacker. `fallback` is what a side with no
+ * name gets: "?" in the log, "" (empty header slot) in the dialog.
+ */
+static void combat_analysis_side_names(
+  const ColonizeUnitPool* pool,
+  const ColonizeCombatEngagement* eng,
+  char* atk_out,
+  size_t atk_size,
+  char* def_out,
+  size_t def_size,
+  const char* fallback
+) {
+  if (!eng) {
+    return;
+  }
+  if (!fallback) {
+    fallback = "";
+  }
+  const ColonizeUnit* atk_u = pool ? units_get_const(pool, eng->attacker_id) : NULL;
+  const ColonizeUnit* def_u = pool ? units_get_const(pool, eng->defender_id) : NULL;
+  if (atk_out && atk_size > 0) {
+    if (atk_u && atk_u->active) {
+      snprintf(atk_out, atk_size, "%s", units_display_name(pool, atk_u));
+    } else if (eng->atk_label[0]) {
+      snprintf(atk_out, atk_size, "%s", eng->atk_label);
+    } else {
+      snprintf(atk_out, atk_size, "%s", fallback);
+    }
+  }
+  if (def_out && def_size > 0) {
+    if (def_u && def_u->active) {
+      snprintf(def_out, def_size, "%s", units_display_name(pool, def_u));
+    } else {
+      snprintf(def_out, def_size, "%s", fallback);
+    }
+  }
+}
+
 void combat_analysis_log_engagement(
   const ColonizeUnitPool* pool,
   const ColonizeCombatEngagement* eng,
@@ -354,14 +388,8 @@ void combat_analysis_log_engagement(
   const ColonizeUnit* def_u = pool ? units_get_const(pool, eng->defender_id) : NULL;
   char atk_name[COMBAT_ANALYSIS_LINE_LEN];
   char def_name[COMBAT_ANALYSIS_LINE_LEN];
-  snprintf(
-    atk_name, sizeof(atk_name), "%s",
-    (atk_u && atk_u->active) ? units_display_name(pool, atk_u)
-                             : (eng->atk_label[0] ? eng->atk_label : "?")
-  );
-  snprintf(
-    def_name, sizeof(def_name), "%s",
-    (def_u && def_u->active) ? units_display_name(pool, def_u) : "?"
+  combat_analysis_side_names(
+    pool, eng, atk_name, sizeof(atk_name), def_name, sizeof(def_name), "?"
   );
 
   CombatAnalysisRow atk_rows[COMBAT_ANALYSIS_LINES_MAX];
@@ -453,20 +481,10 @@ bool combat_analysis_open(
   combat_analysis_snap_chrome(&dlg->atk_chrome, pool, eng->attacker_id);
   combat_analysis_snap_chrome(&dlg->def_chrome, pool, eng->defender_id);
 
-  /* Header names (DOS NAMES type string via 0x5230 table). */
-  dlg->atk_name[0] = '\0';
-  dlg->def_name[0] = '\0';
-  const ColonizeUnit* atk_u = units_get_const(pool, eng->attacker_id);
-  const ColonizeUnit* def_u = units_get_const(pool, eng->defender_id);
-  if (atk_u && atk_u->active) {
-    snprintf(dlg->atk_name, sizeof(dlg->atk_name), "%s", units_display_name(pool, atk_u));
-  } else if (eng->atk_label[0]) {
-    /* bugs.md 267: unit-less attacker (coastal Fort/Fortress battery). */
-    snprintf(dlg->atk_name, sizeof(dlg->atk_name), "%s", eng->atk_label);
-  }
-  if (def_u && def_u->active) {
-    snprintf(dlg->def_name, sizeof(dlg->def_name), "%s", units_display_name(pool, def_u));
-  }
+  /* Header names (DOS NAMES type string via 0x5230 table); empty when absent. */
+  combat_analysis_side_names(
+    pool, eng, dlg->atk_name, sizeof(dlg->atk_name), dlg->def_name, sizeof(dlg->def_name), ""
+  );
 
   /*
    * Every attacker — land or naval — carries the ×3/2 standing attack factor

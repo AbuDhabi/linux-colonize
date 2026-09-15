@@ -6,23 +6,19 @@
 
 #include "core/ai_euro.h"
 #include "core/col1_post_map.h"
+#include "core/col1_save.h"
 #include "core/col1_stuff_census.h"
 #include "core/founding_fathers.h"
-#include "core/turn.h"
+#include "core/map.h"
+#include "core/reports.h"
 #include "core/strutil.h"
+#include "core/turn.h"
+#include "core/units.h"
 #include "platform/diagnostics.h"
-
-/* DS:0xc8 / 0xde — same 20-ring as map_gen offshore suppress. */
-static const int k_mask_nbr20_dx[20] = {
-  0, 1, 0, -1, -1, 1, 1, -1, 0, 2, 0, -2, -1, 1, -1, 1, -2, -2, 2, 2
-};
-static const int k_mask_nbr20_dy[20] = {
-  -1, 0, 1, 0, -1, -1, 1, 1, -2, 0, 2, 0, -2, -2, 2, 2, -1, 1, -1, 1
-};
 
 static int col1_mask_is_water_mp(uint8_t mp_terrain) {
   const uint8_t t = (uint8_t)(mp_terrain & 0x1fu);
-  return t == 25u || t == 26u; /* ocean / high seas */
+  return t == T_OCEAN || t == T_HIGH_SEAS;
 }
 
 #define COL1_FAIL(err, err_size, ...)           \
@@ -224,17 +220,6 @@ static int col1_find_human_nation(const ColonizeCol1Save* save) {
   return col1_save_human_nation(save);
 }
 
-static void col1_copy_name24(char* dst, size_t dst_size, const char* src24) {
-  if (!dst || dst_size == 0) {
-    return;
-  }
-  size_t n = 0;
-  while (n < 23 && n + 1 < dst_size && src24[n] != '\0') {
-    dst[n] = src24[n];
-    n++;
-  }
-  dst[n] = '\0';
-}
 
 /*
  * Player-confirmed 2026-08-18 (colony_prod02 golden): a chain's stored
@@ -299,47 +284,59 @@ static unsigned col1_encode_building_bits(
   return bits;
 }
 
+/* Highest tier of `chain` the colony actually owns, or -1. */
+static int col1_best_owned_chain_building(
+  const ColonizeColonyPool* colonies, const ColonizeColony* col, int chain
+) {
+  const char* const* names = colonies_building_chain(chain);
+  if (!names || !colonies || !col) {
+    return -1;
+  }
+  for (int i = colonies_building_chain_length(chain) - 1; i >= 0; --i) {
+    const int bi = colonies_find_building(colonies, names[i]);
+    if (bi >= 0 && bi < COLONIZE_BUILDING_TYPES_MAX && col->has_building[bi]) {
+      return bi;
+    }
+  }
+  return -1;
+}
+
+/*
+ * The 15 upgrade chains all come out of colonies_building_chain() now (audit
+ * 2026-09-14 IN-24 / CO-13); COLONIES_CHAIN_* order and each chain's tier
+ * order are a save-format contract, because chain position i IS bit i of the
+ * matching ColonizeCol1Buildings group word. The per-call name_count is still
+ * spelled out at each site: Warehouse and Capitol deliberately decode fewer
+ * bits than their chain is long (their upper tiers live in the +0x95 / +0x96
+ * level bytes, never in the mask).
+ */
+static void col1_apply_chain_bits(
+  ColonizeColonyPool* pool, ColonizeColony* colony, int chain, int name_count, unsigned bits
+) {
+  col1_apply_building_bits(pool, colony, colonies_building_chain(chain), name_count, bits);
+}
+
+static unsigned col1_encode_chain_bits(
+  const ColonizeColonyPool* pool, const ColonizeColony* colony, int chain, int name_count
+) {
+  return col1_encode_building_bits(pool, colony, colonies_building_chain(chain), name_count);
+}
+
 static void col1_apply_colony_buildings(
   ColonizeColonyPool* pool,
   ColonizeColony* colony,
   const ColonizeCol1Buildings* b
 ) {
-  static const char* k_fort[] = {"Stockade", "Fort", "Fortress"};
-  static const char* k_armory[] = {"Armory", "Magazine", "Arsenal"};
-  static const char* k_docks[] = {"Docks", "Drydock", "Shipyard"};
-  static const char* k_school[] = {"Schoolhouse", "College", "University"};
-  static const char* k_warehouse[] = {"Warehouse", "Warehouse Expansion"};
-  static const char* k_press[] = {"Printing Press", "Newspaper"};
-  static const char* k_weaver[] = {"Weaver's House", "Weaver's Shop", "Textile Mill"};
-  static const char* k_tobacco[] = {
-    "Tobacconist's House", "Tobacconist's Shop", "Cigar Factory"
-  };
-  static const char* k_rum[] = {
-    "Rum Distiller's House", "Rum Distillery", "Rum Factory"
-  };
-  static const char* k_fur[] = {
-    "Fur Trader's House", "Fur Trading Post", "Fur Factory"
-  };
-  static const char* k_carpenter[] = {"Carpenter's Shop", "Lumber Mill"};
-  static const char* k_church[] = {"Church", "Cathedral"};
-  static const char* k_smith[] = {
-    "Blacksmith's House", "Blacksmith's Shop", "Iron Works"
-  };
-  static const char* k_capitol[] = {"Capitol", "Capitol Expansion"};
-
-  col1_apply_building_bits(pool, colony, k_fort, 3, b->fortification);
-  col1_apply_building_bits(pool, colony, k_armory, 3, b->armory);
-  col1_apply_building_bits(pool, colony, k_docks, 3, b->docks);
-  {
-    /* Bit 0 of the 3-bit town_hall group, tested like every other chain —
-     * this used to be an "any bit set" test while the encoder wrote bit 0
-     * only, the same lossy shape as the retired popcount-tiers bug. All 916
-     * colonies in original_saves read exactly 1 here, and the encoder now
-     * carries bits 1-2 through untouched (smell audit #81). */
-    static const char* k_hall[] = {"Town Hall"};
-    col1_apply_building_bits(pool, colony, k_hall, 1, b->town_hall);
-  }
-  col1_apply_building_bits(pool, colony, k_school, 3, b->schoolhouse);
+  col1_apply_chain_bits(pool, colony, COLONIES_CHAIN_FORTIFICATION, 3, b->fortification);
+  col1_apply_chain_bits(pool, colony, COLONIES_CHAIN_ARMORY, 3, b->armory);
+  col1_apply_chain_bits(pool, colony, COLONIES_CHAIN_DOCKS, 3, b->docks);
+  /* Bit 0 of the 3-bit town_hall group, tested like every other chain — this
+   * used to be an "any bit set" test while the encoder wrote bit 0 only, the
+   * same lossy shape as the retired popcount-tiers bug. All 916 colonies in
+   * original_saves read exactly 1 here, and the encoder now carries bits 1-2
+   * through untouched (smell audit #81). */
+  col1_apply_chain_bits(pool, colony, COLONIES_CHAIN_TOWN_HALL, 1, b->town_hall);
+  col1_apply_chain_bits(pool, colony, COLONIES_CHAIN_SCHOOL, 3, b->schoolhouse);
   /*
    * Warehouse Expansion has no bit of its own in DOS: FUN_364b_0114 only INCs
    * the level counter at colony +0x95 for it, and FUN_15eb_3650 gates a second
@@ -350,33 +347,31 @@ static void col1_apply_colony_buildings(
    * Same shape for the Capitol (+0x96), which is moot in practice: that
    * building is unbuildable, and its mask is 0 in every save.
    */
-  col1_apply_building_bits(pool, colony, k_warehouse, 1, b->warehouse);
+  col1_apply_chain_bits(pool, colony, COLONIES_CHAIN_WAREHOUSE, 1, b->warehouse);
   if (colony->warehouse_level >= 2u) {
-    col1_apply_building_bits(pool, colony, k_warehouse, 2, 0x3u);
+    col1_apply_chain_bits(pool, colony, COLONIES_CHAIN_WAREHOUSE, 2, 0x3u);
   }
-  col1_apply_building_bits(pool, colony, k_capitol, 2, b->capitol);
+  col1_apply_chain_bits(pool, colony, COLONIES_CHAIN_CAPITOL, 2, b->capitol);
   if (colony->capitol_level >= 1u) {
-    col1_apply_building_bits(pool, colony, k_capitol, 1, 0x1u);
+    col1_apply_chain_bits(pool, colony, COLONIES_CHAIN_CAPITOL, 1, 0x1u);
   }
   if (colony->capitol_level >= 2u) {
-    col1_apply_building_bits(pool, colony, k_capitol, 2, 0x3u);
+    col1_apply_chain_bits(pool, colony, COLONIES_CHAIN_CAPITOL, 2, 0x3u);
   }
   if (b->stables) {
-    static const char* k_stable[] = {"Stable"};
-    col1_apply_building_bits(pool, colony, k_stable, 1, 1);
+    col1_apply_chain_bits(pool, colony, COLONIES_CHAIN_STABLE, 1, 1);
   }
   if (b->custom_house) {
-    static const char* k_custom[] = {"Custom House"};
-    col1_apply_building_bits(pool, colony, k_custom, 1, 1);
+    col1_apply_chain_bits(pool, colony, COLONIES_CHAIN_CUSTOM_HOUSE, 1, 1);
   }
-  col1_apply_building_bits(pool, colony, k_press, 2, b->printing_press);
-  col1_apply_building_bits(pool, colony, k_weaver, 3, b->weavers_house);
-  col1_apply_building_bits(pool, colony, k_tobacco, 3, b->tobacconists_house);
-  col1_apply_building_bits(pool, colony, k_rum, 3, b->rum_distillers_house);
-  col1_apply_building_bits(pool, colony, k_fur, 3, b->fur_traders_house);
-  col1_apply_building_bits(pool, colony, k_carpenter, 2, b->carpenters_shop);
-  col1_apply_building_bits(pool, colony, k_church, 2, b->church);
-  col1_apply_building_bits(pool, colony, k_smith, 3, b->blacksmiths_house);
+  col1_apply_chain_bits(pool, colony, COLONIES_CHAIN_PRESS, 2, b->printing_press);
+  col1_apply_chain_bits(pool, colony, COLONIES_CHAIN_WEAVER, 3, b->weavers_house);
+  col1_apply_chain_bits(pool, colony, COLONIES_CHAIN_TOBACCONIST, 3, b->tobacconists_house);
+  col1_apply_chain_bits(pool, colony, COLONIES_CHAIN_RUM, 3, b->rum_distillers_house);
+  col1_apply_chain_bits(pool, colony, COLONIES_CHAIN_FUR, 3, b->fur_traders_house);
+  col1_apply_chain_bits(pool, colony, COLONIES_CHAIN_CARPENTER, 2, b->carpenters_shop);
+  col1_apply_chain_bits(pool, colony, COLONIES_CHAIN_CHURCH, 2, b->church);
+  col1_apply_chain_bits(pool, colony, COLONIES_CHAIN_BLACKSMITH, 3, b->blacksmiths_house);
 }
 
 static void col1_encode_colony_buildings(
@@ -384,30 +379,6 @@ static void col1_encode_colony_buildings(
   const ColonizeColony* colony,
   ColonizeCol1Buildings* out
 ) {
-  static const char* k_fort[] = {"Stockade", "Fort", "Fortress"};
-  static const char* k_armory[] = {"Armory", "Magazine", "Arsenal"};
-  static const char* k_docks[] = {"Docks", "Drydock", "Shipyard"};
-  static const char* k_hall[] = {"Town Hall"};
-  static const char* k_school[] = {"Schoolhouse", "College", "University"};
-  static const char* k_warehouse[] = {"Warehouse", "Warehouse Expansion"};
-  static const char* k_stable[] = {"Stable"};
-  static const char* k_custom[] = {"Custom House"};
-  static const char* k_press[] = {"Printing Press", "Newspaper"};
-  static const char* k_weaver[] = {"Weaver's House", "Weaver's Shop", "Textile Mill"};
-  static const char* k_tobacco[] = {
-    "Tobacconist's House", "Tobacconist's Shop", "Cigar Factory"
-  };
-  static const char* k_rum[] = {
-    "Rum Distiller's House", "Rum Distillery", "Rum Factory"
-  };
-  static const char* k_fur[] = {
-    "Fur Trader's House", "Fur Trading Post", "Fur Factory"
-  };
-  static const char* k_carpenter[] = {"Carpenter's Shop", "Lumber Mill"};
-  static const char* k_church[] = {"Church", "Cathedral"};
-  static const char* k_smith[] = {
-    "Blacksmith's House", "Blacksmith's Shop", "Iron Works"
-  };
   if (!out) {
     return;
   }
@@ -422,26 +393,28 @@ static void col1_encode_colony_buildings(
     *out = prev;
     return;
   }
-  out->fortification = col1_encode_building_bits(pool, colony, k_fort, 3);
-  out->armory = col1_encode_building_bits(pool, colony, k_armory, 3);
-  out->docks = col1_encode_building_bits(pool, colony, k_docks, 3);
+  out->fortification = col1_encode_chain_bits(pool, colony, COLONIES_CHAIN_FORTIFICATION, 3);
+  out->armory = col1_encode_chain_bits(pool, colony, COLONIES_CHAIN_ARMORY, 3);
+  out->docks = col1_encode_chain_bits(pool, colony, COLONIES_CHAIN_DOCKS, 3);
   /* Bit 0 from the live building, bits 1-2 straight back out of the save. */
   out->town_hall = (uint32_t)(
-    (col1_encode_building_bits(pool, colony, k_hall, 1) ? 1u : 0u) | (prev.town_hall & 0x6u)
+    (col1_encode_chain_bits(pool, colony, COLONIES_CHAIN_TOWN_HALL, 1) ? 1u : 0u) |
+    (prev.town_hall & 0x6u)
   );
-  out->schoolhouse = col1_encode_building_bits(pool, colony, k_school, 3);
+  out->schoolhouse = col1_encode_chain_bits(pool, colony, COLONIES_CHAIN_SCHOOL, 3);
   /* Tier 1 lives in warehouse_level, never in the bitfield — see the decode. */
-  out->warehouse = col1_encode_building_bits(pool, colony, k_warehouse, 1);
-  out->stables = col1_encode_building_bits(pool, colony, k_stable, 1) ? 1u : 0u;
-  out->custom_house = col1_encode_building_bits(pool, colony, k_custom, 1) ? 1u : 0u;
-  out->printing_press = col1_encode_building_bits(pool, colony, k_press, 2);
-  out->weavers_house = col1_encode_building_bits(pool, colony, k_weaver, 3);
-  out->tobacconists_house = col1_encode_building_bits(pool, colony, k_tobacco, 3);
-  out->rum_distillers_house = col1_encode_building_bits(pool, colony, k_rum, 3);
-  out->fur_traders_house = col1_encode_building_bits(pool, colony, k_fur, 3);
-  out->carpenters_shop = col1_encode_building_bits(pool, colony, k_carpenter, 2);
-  out->church = col1_encode_building_bits(pool, colony, k_church, 2);
-  out->blacksmiths_house = col1_encode_building_bits(pool, colony, k_smith, 3);
+  out->warehouse = col1_encode_chain_bits(pool, colony, COLONIES_CHAIN_WAREHOUSE, 1);
+  out->stables = col1_encode_chain_bits(pool, colony, COLONIES_CHAIN_STABLE, 1) ? 1u : 0u;
+  out->custom_house =
+    col1_encode_chain_bits(pool, colony, COLONIES_CHAIN_CUSTOM_HOUSE, 1) ? 1u : 0u;
+  out->printing_press = col1_encode_chain_bits(pool, colony, COLONIES_CHAIN_PRESS, 2);
+  out->weavers_house = col1_encode_chain_bits(pool, colony, COLONIES_CHAIN_WEAVER, 3);
+  out->tobacconists_house = col1_encode_chain_bits(pool, colony, COLONIES_CHAIN_TOBACCONIST, 3);
+  out->rum_distillers_house = col1_encode_chain_bits(pool, colony, COLONIES_CHAIN_RUM, 3);
+  out->fur_traders_house = col1_encode_chain_bits(pool, colony, COLONIES_CHAIN_FUR, 3);
+  out->carpenters_shop = col1_encode_chain_bits(pool, colony, COLONIES_CHAIN_CARPENTER, 2);
+  out->church = col1_encode_chain_bits(pool, colony, COLONIES_CHAIN_CHURCH, 2);
+  out->blacksmiths_house = col1_encode_chain_bits(pool, colony, COLONIES_CHAIN_BLACKSMITH, 3);
   /*
    * Capitol: unbuildable in DOS and 0 in all 916 original-save colonies, and
    * DOS carries both its tiers in the +0x96 level counter (FUN_364b_0114 INCs
@@ -562,7 +535,15 @@ static void col1_occupancy_or_xy(
   }
 }
 
-void col1_bridge_sync_map_occupancy(
+/*
+ * Rebuild Col1 mask / live layer2 occupancy bits (has_unit / has_city) from
+ * live units, colonies, and tribe villages. Clears bits 0-1 then sets them;
+ * preserves road/plow/suppress/purchased/pacific and other high mask bits.
+ * Pass NULL for save or map to skip that side. Required before Linux->DOS write.
+ * tribe_save supplies village tiles (may be the same pointer as save, or a
+ * const apply-time snapshot when save is NULL).
+ */
+static void col1_bridge_sync_map_occupancy(
   ColonizeCol1Save* save,
   ColonizeWorldMap* map,
   const ColonizeUnitPool* units,
@@ -667,7 +648,12 @@ void col1_bridge_sync_map_occupancy(
   }
 }
 
-void col1_bridge_sync_map_density(ColonizeCol1Save* save, const ColonizeWorldMap* map) {
+/*
+ * Synthesize Col1 mask density bits (suppress/purchased/pacific) from live
+ * terrain + layer2 (FUN_684c_08c0 / FUN_137f_015e). Preserves purchased when
+ * neither plane tracks a clear; ORs layer2 deplete/purchase/pacific.
+ */
+static void col1_bridge_sync_map_density(ColonizeCol1Save* save, const ColonizeWorldMap* map) {
   if (!save || !save->map.mask || !map || !map->terrain) {
     return;
   }
@@ -718,8 +704,8 @@ void col1_bridge_sync_map_density(ColonizeCol1Save* save, const ColonizeWorldMap
     if (col1_mask_is_water_mp(map->terrain[i])) {
       int has_land = 0;
       for (int k = 0; k < 20; ++k) {
-        const int nx = x + k_mask_nbr20_dx[k];
-        const int ny = y + k_mask_nbr20_dy[k];
+        const int nx = x + MAP_RING20_DX[k];
+        const int ny = y + MAP_RING20_DY[k];
         if (nx < 1 || ny < 1 || nx >= w - 1 || ny >= h - 1) {
           continue;
         }
@@ -920,7 +906,10 @@ bool col1_bridge_apply(
           continue;
         }
         char cname[COLONIZE_COLONY_NAME_MAX];
-        col1_copy_name24(cname, sizeof(cname), sc->name);
+        /* Bound by the SAVE field, not the destination: COL1 colony names are
+         * a fixed 24-byte slot that need not be NUL-terminated, so copying up
+         * to the wider live buffer would run into the next record fields. */
+        str_copy_trunc(cname, sizeof(sc->name), sc->name);
         for (int k = 0; k < colonies->name_count[n]; ++k) {
           if (strcmp(colonies->names[n][k], cname) == 0 && k + 1 > next) {
             next = k + 1;
@@ -943,7 +932,8 @@ bool col1_bridge_apply(
     dst->active = true;
     dst->x = src->x;
     dst->y = src->y;
-    col1_copy_name24(dst->name, sizeof(dst->name), src->name);
+    /* 24-byte save slot, possibly unterminated — see the cname copy above. */
+    str_copy_trunc(dst->name, sizeof(src->name), src->name);
     dst->nation_id = src->nation_id;
     dst->population = src->population;
     dst->hammers = src->hammers;
@@ -1050,59 +1040,40 @@ bool col1_bridge_apply(
         continue;
       }
       const int occ = (int)src->occupation[p];
-      static const char* const k_chain_carpenter[] = {"Lumber Mill", "Carpenter's Shop"};
-      static const char* const k_chain_distiller[] = {"Rum Factory", "Rum Distillery", "Rum Distiller's House"};
-      static const char* const k_chain_tobacconist[] = {"Cigar Factory", "Tobacconist's Shop", "Tobacconist's House"};
-      static const char* const k_chain_weaver[] = {"Textile Mill", "Weaver's Shop", "Weaver's House"};
-      static const char* const k_chain_fur[] = {"Fur Factory", "Fur Trading Post", "Fur Trader's House"};
-      static const char* const k_chain_smith[] = {"Iron Works", "Blacksmith's Shop", "Blacksmith's House"};
-      static const char* const k_chain_gunsmith[] = {"Arsenal", "Magazine", "Armory"};
-      static const char* const k_chain_church[] = {"Cathedral", "Church"};
-      static const char* const k_chain_school[] = {"University", "College", "Schoolhouse"};
-      static const char* const k_chain_hall[] = {"Town Hall"};
-
-      const char* const* chain = NULL;
-      size_t chain_len = 0;
-
+      /*
+       * The occupation byte names a JOB, not a building, so resolve it to the
+       * highest tier of that job's chain the colony actually owns. This was
+       * the third hand-typed copy of the 15 upgrade chains (audit IN-24),
+       * spelled highest-tier-first; colonies_building_chain() is lowest-first,
+       * so col1_best_owned_chain_building walks it backwards.
+       */
+      int chain = -1;
       if (occ == 13) {
-        chain = k_chain_carpenter;
-        chain_len = sizeof(k_chain_carpenter) / sizeof(k_chain_carpenter[0]);
+        chain = COLONIES_CHAIN_CARPENTER;
       } else if (occ == 9 || occ == 27 || occ == 28 || occ == 29) {
-        chain = k_chain_distiller;
-        chain_len = sizeof(k_chain_distiller) / sizeof(k_chain_distiller[0]);
+        chain = COLONIES_CHAIN_RUM;
       } else if (occ == 10) {
-        chain = k_chain_tobacconist;
-        chain_len = sizeof(k_chain_tobacconist) / sizeof(k_chain_tobacconist[0]);
+        chain = COLONIES_CHAIN_TOBACCONIST;
       } else if (occ == 11) {
-        chain = k_chain_weaver;
-        chain_len = sizeof(k_chain_weaver) / sizeof(k_chain_weaver[0]);
+        chain = COLONIES_CHAIN_WEAVER;
       } else if (occ == 12) {
-        chain = k_chain_fur;
-        chain_len = sizeof(k_chain_fur) / sizeof(k_chain_fur[0]);
+        chain = COLONIES_CHAIN_FUR;
       } else if (occ == 14) {
-        chain = k_chain_smith;
-        chain_len = sizeof(k_chain_smith) / sizeof(k_chain_smith[0]);
+        chain = COLONIES_CHAIN_BLACKSMITH;
       } else if (occ == 15) {
-        chain = k_chain_gunsmith;
-        chain_len = sizeof(k_chain_gunsmith) / sizeof(k_chain_gunsmith[0]);
+        chain = COLONIES_CHAIN_ARMORY;
       } else if (occ == 16) {
-        chain = k_chain_church;
-        chain_len = sizeof(k_chain_church) / sizeof(k_chain_church[0]);
+        chain = COLONIES_CHAIN_CHURCH;
       } else if (occ == 17) {
-        chain = k_chain_hall;
-        chain_len = sizeof(k_chain_hall) / sizeof(k_chain_hall[0]);
+        chain = COLONIES_CHAIN_TOWN_HALL;
       } else if (occ == 18) {
-        chain = k_chain_school;
-        chain_len = sizeof(k_chain_school) / sizeof(k_chain_school[0]);
+        chain = COLONIES_CHAIN_SCHOOL;
       }
 
-      if (chain) {
-        for (size_t ci = 0; ci < chain_len; ++ci) {
-          const int bi = colonies_find_building(colonies, chain[ci]);
-          if (bi >= 0 && bi < COLONIZE_BUILDING_TYPES_MAX && dst->has_building[bi]) {
-            dst->colonists[p].building_type = bi;
-            break;
-          }
+      if (chain >= 0) {
+        const int bi = col1_best_owned_chain_building(colonies, dst, chain);
+        if (bi >= 0) {
+          dst->colonists[p].building_type = bi;
         }
       }
       /*
@@ -1779,25 +1750,7 @@ bool col1_bridge_apply(
   return true;
 }
 
-static int col1_bridge_tribe_at(const ColonizeCol1Save* save, int x, int y) {
-  if (!save || !save->tribe) {
-    return -1;
-  }
-  for (uint16_t i = 0; i < save->head.tribe_count; ++i) {
-    if ((int)save->tribe[i].x == x && (int)save->tribe[i].y == y) {
-      return (int)i;
-    }
-  }
-  return -1;
-}
 
-static int col1_bridge_unit_is_missionary(const ColonizeUnitPool* units, const ColonizeUnit* u) {
-  if (!units || !u) {
-    return 0;
-  }
-  const ColonizeUnitType* t = units_type(units, u->type_index);
-  return t && strstr(t->name, "Missionary") != NULL;
-}
 
 /*
  * Last-chance DOS hygiene before export: board co-located land onto own ships,
@@ -1812,9 +1765,6 @@ static void col1_bridge_sanitize_units_for_dos(
   if (!units || !map) {
     return;
   }
-  static const int k_dx[8] = {0, 1, 1, 1, 0, -1, -1, -1};
-  static const int k_dy[8] = {-1, -1, 0, 1, 1, 1, 0, -1};
-
   for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
     ColonizeUnit* land = &units->units[i];
     if (!land->active || land->nation_id < 0 || land->nation_id > 3) {
@@ -1835,7 +1785,8 @@ static void col1_bridge_sanitize_units_for_dos(
      * Save with a ship docked at a colony and the whole garrison silently
      * became passengers, sailing off with the next departure. Land-tile
      * stacks (colony docks, coastal stacks) are left alone; genuine
-     * departures pick up Sentry units via units_board_sentries_from_tile.
+     * departures pick Sentry units up through the ordinary move path
+     * (units_board_stacked), not here.
      */
     if (map_tile_is_land(map, land->x, land->y)) {
       continue;
@@ -1862,13 +1813,22 @@ static void col1_bridge_sanitize_units_for_dos(
     if (land->aboard_ship_id >= 0 || units_is_sea(units, land->id)) {
       continue;
     }
-    if (col1_bridge_unit_is_missionary(units, land)) {
+    /*
+     * Missionaries may legitimately stand on a village tile (@ORDERS row 4
+     * "Live In Village"), so the nudge skips them. The old local test was
+     * strstr(type->name, "Missionary"), which matched NOTHING: the only
+     * missionary @UNIT row is "Missionaries" (NAMES.TXT @UNIT row 3), and
+     * the Jesuit tier is a @JOB profession (row 24 "Jesuit Missionaries"),
+     * not a type name. units_is_missionary tests both, so the exemption now
+     * actually fires (audit 2026-09-14 IN-45).
+     */
+    if (units_is_missionary(units, land)) {
       continue;
     }
     if (land->muskets > 0 || land->horses > 0) {
       continue;
     }
-    if (col1_bridge_tribe_at(save, land->x, land->y) < 0) {
+    if (col1_save_tribe_index_at(save, land->x, land->y) < 0) {
       continue;
     }
     int dest_x = -1;
@@ -1884,7 +1844,7 @@ static void col1_bridge_sanitize_units_for_dos(
           if (!map_tile_is_land(map, nx, ny)) {
             continue;
           }
-          if (col1_bridge_tribe_at(save, nx, ny) >= 0) {
+          if (col1_save_tribe_index_at(save, nx, ny) >= 0) {
             continue;
           }
           if (colonies && colonies_id_at(colonies, nx, ny) >= 0) {
@@ -1905,9 +1865,9 @@ static void col1_bridge_sanitize_units_for_dos(
     if (dest_x < 0) {
       /* Fallback: any adjacent land, even if crowded. */
       for (int d = 0; d < 8; ++d) {
-        const int nx = land->x + k_dx[d];
-        const int ny = land->y + k_dy[d];
-        if (map_tile_is_land(map, nx, ny) && col1_bridge_tribe_at(save, nx, ny) < 0) {
+        const int nx = land->x + MAP_DIR8_DX[d];
+        const int ny = land->y + MAP_DIR8_DY[d];
+        if (map_tile_is_land(map, nx, ny) && col1_save_tribe_index_at(save, nx, ny) < 0) {
           dest_x = nx;
           dest_y = ny;
           break;
@@ -2166,7 +2126,8 @@ bool col1_bridge_capture(
       }
       dst->x = (uint8_t)src->x;
       dst->y = (uint8_t)src->y;
-      str_copy_trunc(dst->name, sizeof(dst->name), src->name);
+      /* 24-byte save slot, possibly unterminated — see the cname copy above. */
+    str_copy_trunc(dst->name, sizeof(src->name), src->name);
       dst->nation_id = (uint8_t)src->nation_id;
       dst->population = (uint8_t)(src->colonist_count > 32 ? 32 : src->colonist_count);
       dst->hammers = (uint16_t)(src->hammers < 0 ? 0 : (src->hammers > 65535 ? 65535 : src->hammers));
@@ -3179,9 +3140,6 @@ bool col1_contact_adjacent_tribe(
   size_t status_size,
   int* out_first_indian_nation
 ) {
-  static const char* k_tribe_names[8] = {
-    "Inca", "Aztec", "Arawak", "Iroquois", "Cherokee", "Apache", "Sioux", "Tupi"
-  };
   if (out_first_indian_nation) {
     *out_first_indian_nation = -1;
   }
@@ -3214,7 +3172,7 @@ bool col1_contact_adjacent_tribe(
     if (indian >= 0 && indian < 8) {
       if (save->indian[indian].euro_diplo[european_nation] == 0) {
         if (!first_name) {
-          first_name = k_tribe_names[indian];
+          first_name = reports_tribe_singular_name(indian);
           if (out_first_indian_nation) {
             *out_first_indian_nation = 4 + indian;
           }

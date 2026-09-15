@@ -1,10 +1,7 @@
 /*
- * PARKED 2026-08-19 (docs/port_plan.md R0, docs/port_plan.md): DISABLED
- * in CMakeLists.txt — same reason as tests/golden/test_ai_turns.c. Red here
- * means AI porting incomplete, not a fresh regression; do not chase to green
- * until the transcription is done.
- *
- * Joint late-war golden (T3 Series K).
+ * Joint late-war smoke test (T3 Series K). Filed under tests/smoke, not
+ * tests/golden: the geometry it checks is Linux-derived and regenerated each
+ * run, so nothing here is a DOS-derived expectation.
  * LATE01: load MID02, stamp late-war Indian×Euro fields, write LATE01.SAV,
  * run one full joint turn, then structural pair compare (not TURN XY field-diff).
  * Mutation signals: raid-side (stock/pop/attacks / hotter relation_by_indian /
@@ -23,103 +20,33 @@
 #include <stdio.h>
 #include <string.h>
 
+#define TEST_NAME "smoke_ai_late01"
+#include "tests/common/joint_fixture.h"
+#include "tests/common/test_fail.h"
+
 #define MID02_PATH "test-saves-ai/MID02.SAV"
 #define LATE01_PATH "test-saves-ai/LATE01.SAV"
 #define LATE01_POST_PATH "test-saves-ai/LATE01_POST.SAV"
 #define AI_LATE_VR_SEED 100u
 
-static int fail(const char* msg) {
-  fprintf(stderr, "golden_ai_late01: FAIL %s\n", msg);
-  return 1;
-}
-
-static int assert_joint_fields(const ColonizeCol1Save* s, const char* tag) {
-  if (!s || s->head.unit_count == 0) {
-    fprintf(stderr, "%s: no units\n", tag);
-    return 0;
-  }
-  if (s->head.tribe_count == 0 || !s->tribe) {
-    fprintf(stderr, "%s: no tribes\n", tag);
-    return 0;
-  }
-  int euro_u = 0;
-  int brave_u = 0;
-  for (unsigned i = 0; i < s->head.unit_count; ++i) {
-    const ColonizeCol1Unit* u = &s->unit[i];
-    if (u->nation_id < 4) {
-      euro_u++;
-    } else if (u->nation_id <= 11) {
-      brave_u++;
-    }
-  }
-  if (euro_u == 0 || brave_u == 0) {
-    fprintf(stderr, "%s: euro_u=%d brave_u=%d\n", tag, euro_u, brave_u);
-    return 0;
-  }
-  if (s->head.colony_count == 0) {
-    fprintf(stderr, "%s: no colonies\n", tag);
-    return 0;
-  }
-  (void)s->nation[0].indian_hostility_sticky;
-  (void)s->nation[0].relation_by_indian[0];
-  (void)s->nation[0].euro_relation[1];
-  return 1;
-}
-
 static int write_late01_from_mid02(void) {
-  char err[256];
-  ColonizeCol1Save save;
-  col1_save_init(&save);
-  if (!col1_save_read_file(MID02_PATH, &save, err, sizeof(err))) {
-    fprintf(stderr, "read MID02: %s\n", err);
-    return fail("load MID02.SAV (run golden_ai_mid01 first)");
+  /* Late-war stamp: calendar floored to 1550, sticky raised to 2, hot
+   * relation rows cooled to 30, contacted-tribe alarm and tribe friction
+   * raised to their floors (never lowered). */
+  const JointHostilityStamp st = {
+    .year_floor = 1550,
+    .year_set = 1550,
+    .sticky_value = 2,
+    .sticky_force = false,
+    .relation_above = 35,
+    .relation_set = 30,
+    .alarm_value = 60,
+    .alarm_force = false,
+    .friction_min = 55
+  };
+  if (!joint_stamp_hostility_fixture(MID02_PATH, LATE01_PATH, &st)) {
+    return fail("stamp LATE01.SAV from MID02.SAV (run smoke_ai_mid01 first)");
   }
-
-  /* Late-war stamp: calendar + sticky + alarm; keep Linux-derived geometry. */
-  if (save.head.year < 1550) {
-    save.head.year = 1550;
-  }
-  for (int e = 0; e < 4; ++e) {
-    if (save.nation[e].indian_hostility_sticky < 2) {
-      save.nation[e].indian_hostility_sticky = 2;
-    }
-    for (int i = 0; i < 8; ++i) {
-      if (save.nation[e].relation_by_indian[i] == 0) {
-        continue;
-      }
-      /* Hotter late hostility scalar (still readable joint row). */
-      if (save.nation[e].relation_by_indian[i] > 35) {
-        save.nation[e].relation_by_indian[i] = 30;
-      }
-    }
-  }
-  for (int n = 0; n < 8; ++n) {
-    ColonizeCol1Indian* ind = &save.indian[n];
-    for (int e = 0; e < 4; ++e) {
-      if (ind->euro_diplo[e]) {
-        if (ind->alarm_by_player[e] < 60) {
-          ind->alarm_by_player[e] = 60;
-        }
-      }
-    }
-  }
-  if (save.tribe) {
-    for (uint16_t ti = 0; ti < save.head.tribe_count; ++ti) {
-      ColonizeCol1Tribe* t = &save.tribe[ti];
-      for (int e = 0; e < 4; ++e) {
-        if (t->alarm[e].friction < 55) {
-          t->alarm[e].friction = 55;
-        }
-      }
-    }
-  }
-
-  if (!col1_save_write_file(LATE01_PATH, &save, err, sizeof(err))) {
-    fprintf(stderr, "write LATE01: %s\n", err);
-    col1_save_free(&save);
-    return fail("write LATE01.SAV");
-  }
-  col1_save_free(&save);
   return 0;
 }
 
@@ -340,7 +267,7 @@ static int run_late01_turn(ColonizeCol1Save* pre_snap) {
   if (!raid_signal) {
     fprintf(
       stderr,
-      "golden_ai_late01: raid-side silent food %d→%d pop %d→%d atk %d→%d fr %d→%d rel %d→%d\n",
+      "smoke_ai_late01: raid-side silent food %d→%d pop %d→%d atk %d→%d fr %d→%d rel %d→%d\n",
       pre_food,
       post_food,
       pre_pop,
@@ -363,7 +290,7 @@ static int run_late01_turn(ColonizeCol1Save* pre_snap) {
     col1_save_free(&late);
     return fail("LATE01 expected hunt-side mutation signal");
   }
-  if (!assert_joint_fields(&late, "LATE01_POST")) {
+  if (!joint_assert_fields(&late, "LATE01_POST")) {
     map_free(&map);
     assets_msg_free(&names);
     col1_save_free(&late);
@@ -390,7 +317,7 @@ int main(void) {
     fprintf(stderr, "reload LATE01: %s\n", err);
     return fail("reload LATE01.SAV");
   }
-  if (!assert_joint_fields(&late, "LATE01")) {
+  if (!joint_assert_fields(&late, "LATE01")) {
     col1_save_free(&late);
     return fail("LATE01 joint field snapshot");
   }
@@ -409,7 +336,7 @@ int main(void) {
   }
 
   printf(
-    "golden_ai_late01: ok (LATE01 stamp + turn + structural raid/hunt; %s)\n",
+    "smoke_ai_late01: ok (LATE01 stamp + turn + structural raid/hunt; %s)\n",
     LATE01_PATH
   );
   return 0;

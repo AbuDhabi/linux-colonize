@@ -156,37 +156,6 @@ int units_spawn_village_temp_defender(
 );
 
 /*
- * After combat vs a village temp Brave (FUN_5fef_1b0e): always despawn the
- * phantom if still alive; on attacker win, if tribe.population < 2 destroy
- * (+ fallout treasure/convert), else population--. Map Braves on the tile are
- * unrelated — killing them does not drain dwelling population.
- */
-void units_finish_village_temp_defender(
-  ColonizeUnitPool* pool,
-  ColonizeCol1Save* col1,
-  ColonizeWorldMap* map,
-  int temp_id,
-  int attacker_won,
-  int attacker_nation,
-  int village_x,
-  int village_y,
-  ColonizeDosRng* rng
-);
-
-/*
- * Destroy native village Col1 record at (x,y) if present. Clears map owner
- * nibble to 0xf and remaps unit home_tribe_id. Returns tribe nation_id (>=4)
- * or -1. Does not invent treasure gold.
- */
-int col1_destroy_tribe_at(
-  ColonizeCol1Save* col1,
-  ColonizeUnitPool* units,
-  ColonizeWorldMap* map,
-  int x,
-  int y
-);
-
-/*
  * FUN_5fef_31ea conquest treasure gold (×100 from DOS amount byte). Runs for
  * ANY conqueror (bugs.md 387) — Hernan Cortes only removes the difficulty-0/1
  * "did it pay out at all" roll and adds +50% (difficulty 0/1) or +10/+100
@@ -586,6 +555,143 @@ ColonizeUnit* units_get(ColonizeUnitPool* pool, int unit_id);
 const ColonizeUnit* units_get_const(const ColonizeUnitPool* pool, int unit_id);
 const ColonizeUnitType* units_type(const ColonizeUnitPool* pool, int type_index);
 bool units_is_sea(const ColonizeUnitPool* pool, int unit_id);
+
+/*
+ * DOS @UNIT type codes (COLONIZE/NAMES.TXT @UNIT row order, which is what DOS
+ * stores in unit +0x3146 and what every `type < 0xb` / `type == 0x12` range
+ * test in the decompile means; ai_euro.c:11742 ai_euro_20e6_dos_type carries
+ * the same table). A Linux pool index is NOT a DOS code — synthetic fixtures
+ * place types at arbitrary slots — so the mapping goes through the @UNIT name.
+ */
+typedef enum ColonizeUnitKind {
+  UNITS_KIND_UNKNOWN = -1,
+  UNITS_KIND_COLONIST = 0,     /* Colonists */
+  UNITS_KIND_SOLDIER = 1,      /* Soldiers */
+  UNITS_KIND_PIONEER = 2,      /* Pioneers */
+  UNITS_KIND_MISSIONARY = 3,   /* Missionaries */
+  UNITS_KIND_DRAGOON = 4,      /* Dragoons */
+  UNITS_KIND_SCOUT = 5,        /* Scouts */
+  UNITS_KIND_REGULAR = 6,      /* Regulars (King) */
+  UNITS_KIND_CONT_CAV = 7,     /* Cont. Cav. */
+  UNITS_KIND_CAVALRY = 8,      /* Cavalry (King) */
+  UNITS_KIND_CONT_ARMY = 9,    /* Cont. Army */
+  UNITS_KIND_TREASURE = 10,    /* Treasure */
+  UNITS_KIND_ARTILLERY = 11,   /* Artillery */
+  UNITS_KIND_WAGON = 12,       /* Wagon Train */
+  UNITS_KIND_CARAVEL = 13,
+  UNITS_KIND_MERCHANTMAN = 14,
+  UNITS_KIND_GALLEON = 15,
+  UNITS_KIND_PRIVATEER = 16,
+  UNITS_KIND_FRIGATE = 17,
+  UNITS_KIND_MAN_O_WAR = 18,
+  UNITS_KIND_BRAVE = 19,       /* Braves */
+  UNITS_KIND_ARMED_BRAVE = 20, /* Armed Braves */
+  UNITS_KIND_MTD_BRAVE = 21,   /* Mtd. Braves */
+  UNITS_KIND_MTD_WARRIOR = 22  /* Mtd. Warriors */
+} ColonizeUnitKind;
+
+/*
+ * Classify an @UNIT type name. Every spelling that any call site in the tree
+ * used before the predicates landed is accepted, most-specific first:
+ *   7  "Cont. Cav" / "Continental Cav"
+ *   9  "Cont. Army" / "Continental Army" / bare "Army"
+ *   6  "Regular"
+ *   8  "Cavalry" / "Cav." / bare "Cav"
+ *   18 "Man-O-War" / "Man-o-War" / "Man O War" / "Man of War" / "Man-O'-War"
+ *   14 "Merchantman"  15 "Galleon"  16 "Privateer"  17 "Frigate"  13 "Caravel"
+ *   10 "Treasure"     11 "Artillery" / "Cannon"     12 "Wagon"
+ *   22 "Mtd. Warrior" / "Mtd Warrior" / "Mounted Warrior"
+ *   21 "Mtd. Brave" / "Mtd Brave" / "Mounted Brave"
+ *   20 "Armed Brave"  19 "Brave"
+ *   4  "Dragoon"      5  "Scout"    2  "Pioneer" / "Hardy"
+ *   3  "Missionar" / "Mission" / "Jesuit"
+ *   1  "Soldier"      0  "Colonist"
+ * Returns UNITS_KIND_UNKNOWN for a name none of those match.
+ */
+ColonizeUnitKind units_name_kind(const char* name);
+ColonizeUnitKind units_type_kind(const ColonizeUnitType* type);
+/* DOS @UNIT code for a type, or -1 when the name is not a stock @UNIT row. */
+int units_type_dos_code(const ColonizeUnitType* type);
+
+/* Kind-set tests (see units.c for the exact @UNIT rows each covers). */
+bool units_kind_is_continental(ColonizeUnitKind k); /* 7, 9 */
+bool units_kind_is_royal(ColonizeUnitKind k);       /* 6, 8 */
+bool units_kind_is_military(ColonizeUnitKind k);    /* 1, 4, 6, 7, 8, 9, 11 */
+bool units_kind_is_mounted(ColonizeUnitKind k);     /* 4, 5, 7, 8, 21, 22 */
+bool units_kind_is_ship(ColonizeUnitKind k);        /* 13..18 */
+bool units_kind_is_native(ColonizeUnitKind k);      /* 19..22 */
+
+bool units_type_is_colonist(const ColonizeUnitType* t);
+bool units_type_is_soldier(const ColonizeUnitType* t);
+bool units_type_is_pioneer(const ColonizeUnitType* t);
+bool units_type_is_missionary(const ColonizeUnitType* t);
+bool units_type_is_dragoon(const ColonizeUnitType* t);
+bool units_type_is_scout(const ColonizeUnitType* t);
+bool units_type_is_regular(const ColonizeUnitType* t);
+bool units_type_is_cont_cav(const ColonizeUnitType* t);
+bool units_type_is_cavalry(const ColonizeUnitType* t);
+bool units_type_is_cont_army(const ColonizeUnitType* t);
+bool units_type_is_continental(const ColonizeUnitType* t);
+bool units_type_is_royal(const ColonizeUnitType* t);
+bool units_type_is_treasure(const ColonizeUnitType* t);
+bool units_type_is_artillery(const ColonizeUnitType* t);
+bool units_type_is_wagon(const ColonizeUnitType* t);
+bool units_type_is_caravel(const ColonizeUnitType* t);
+bool units_type_is_merchantman(const ColonizeUnitType* t);
+bool units_type_is_galleon(const ColonizeUnitType* t);
+bool units_type_is_privateer(const ColonizeUnitType* t);
+bool units_type_is_frigate(const ColonizeUnitType* t);
+bool units_type_is_man_o_war(const ColonizeUnitType* t);
+bool units_type_is_ship(const ColonizeUnitType* t);
+bool units_type_is_military(const ColonizeUnitType* t);
+bool units_type_is_mounted(const ColonizeUnitType* t);
+bool units_type_is_native(const ColonizeUnitType* t);
+/*
+ * Unit-level missionary test (AC-34 / IN-45): the @UNIT Missionaries type or
+ * the NAMES @JOB 24 Missionary profession, which is what "Jesuit Missionaries"
+ * is in this port (units_display_name never spells "Jesuit"). Widest of the
+ * three former rules (ai_contact "Mission", ai_euro "Missionary"|"Jesuit",
+ * col1_bridge "Missionary").
+ */
+bool units_is_missionary(const ColonizeUnitPool* pool, const ColonizeUnit* u);
+
+/*
+ * COL1 empty-hold sentinel (DOS FUN_15eb_30b8 / 317c): a hold counts as loaded
+ * only when 0 < amount < 255. Returns the amount, or 0 for an empty hold.
+ */
+int units_hold_amount(const ColonizeUnitPool* pool, int unit_id, int hold);
+/*
+ * Goods holds in use = DOS unit +0x3150. GOODS only: boarding parks passengers
+ * off-map (FUN_1427_10be) and never bumps the byte, so a troop-laden ship
+ * counts as empty here (combat_strength.c FUN_157e_004a peel, viceroy
+ * 8957-8959; units.c FUN_5bfb_312e evasion peel, viceroy 98448).
+ */
+int units_holds_used(const ColonizeUnitPool* pool, int unit_id);
+/*
+ * Two-pass DOS FUN_15eb_30b8 goods packing on a raw hold pair: top up matching
+ * partial holds to 100, then append into free slots (at most max_new_slots of
+ * them; pass n_holds for "unbounded"). Returns the amount actually packed.
+ */
+int goods_pack_into_holds(
+  int* hold_types,
+  int* hold_amounts,
+  int n_holds,
+  int cargo_type,
+  int amount,
+  int max_new_slots
+);
+
+/*
+ * Tile-stack iterator (theme M): *slot is the pool index to resume from (start
+ * at 0). Returns the next active, on-map unit standing on (x,y) — aboard
+ * passengers are excluded, matching DOS parking them at (-2,-2) — or NULL.
+ */
+ColonizeUnit* units_next_on_tile(ColonizeUnitPool* pool, int x, int y, int* slot);
+const ColonizeUnit* units_next_on_tile_const(
+  const ColonizeUnitPool* pool, int x, int y, int* slot
+);
+/* Active, on-map, not-aboard units standing on (x,y). */
+int units_count_at(const ColonizeUnitPool* pool, int x, int y);
 /*
  * FUN_13f1_02f8 sight radius: 1; Galleon/Privateer/Frigate 2; de Soto (FF 7)
  * makes every non-ship unit 2; Scouts +1 on top. FUN_13f1_02b4 then reveals
@@ -710,16 +816,6 @@ int units_move_cost(
   const ColonizeWorldMap* map,
   int dest_x,
   int dest_y
-);
-/*
- * DOS FUN_465b gate (non-combat, deterministic half): afford if cost <= moves_left,
- * OR the unit still has its full allotment (spent MP == 0). Partial overspend is
- * decided only in units_try_move via dos_rng_range(1, cost) <= remaining.
- */
-bool units_can_afford_move_cost(
-  const ColonizeUnitPool* pool,
-  int unit_id,
-  int cost
 );
 bool units_try_move(
   ColonizeUnitPool* pool,
@@ -871,13 +967,6 @@ bool units_resolve_land_combat(
 );
 
 /*
- * Transfer commodity holds from loser ship into winner before naval despawn
- * (FUN_5fef_016c-shaped hold plunder). Passengers are not transferred.
- * Returns total goods amount moved into winner holds (0 if none/full).
- */
-int units_plunder_ship_holds(ColonizeUnitPool* pool, int winner_id, int loser_id);
-
-/*
  * Naval combat: FUN_157e_004a for both sides (damage/holds/Drake). Same roll
  * shape as land; ships only. Winner keeps the tile; loser despawned after hold
  * plunder into winner. Optional Combat Analysis after strengths, before roll.
@@ -969,15 +1058,6 @@ void units_clear_orders(ColonizeUnitPool* pool, int unit_id);
 bool units_set_orders(ColonizeUnitPool* pool, int unit_id, int orders);
 /* Fortify: orders=FORTIFY, spend MP; next nation refresh → FORTIFIED. */
 bool units_order_fortify(ColonizeUnitPool* pool, int unit_id);
-/*
- * Ship Anchor (ORDERS 2nd Fortify / GAME.TXT @SHIPOPTIONS). Sea unit at own
- * colony tile or adjacent sea → FORTIFY (overnight → FORTIFIED). Land rejects.
- */
-bool units_order_anchor(
-  ColonizeUnitPool* pool,
-  int unit_id,
-  const ColonizeColonyPool* colonies
-);
 /* Sentry on map (or already-aboard). Spends MP. */
 bool units_order_sentry(ColonizeUnitPool* pool, int unit_id);
 /* Begin Trade Route (@ORDERS index 2). Clears goto; spends remaining MP. */
@@ -1183,11 +1263,6 @@ int units_find_boardable_ship(
   const ColonizeUnitPool* pool, int x, int y, int nation_id, bool require_galleon
 );
 /*
- * Board same-nation on-map land units with Sentry on (x,y) onto ship until full.
- * Used when a ship leaves a colony or stacked ocean tile. Returns count boarded.
- */
-int units_board_sentries_from_tile(ColonizeUnitPool* pool, int ship_id, int x, int y);
-/*
  * Departure pickup (DOS ship-switch quirk): one ascending-id first-come-
  * first-served sweep boarding sentried land units on (x,y) AND passengers
  * riding other own ships still on (x,y), until the departing ship is full.
@@ -1213,8 +1288,6 @@ bool units_unload_passenger(
   int dest_y,
   const ColonizeColonyPool* colonies
 );
-/* First cargo with moves_left > 0, or -1. */
-int units_first_cargo_with_moves(const ColonizeUnitPool* pool, int ship_id);
 /*
  * DOS FUN_4720_015c landfall eligibility: the passenger's spent byte must be
  * BELOW its max MP. An aboard sentry parked at moves_left 0 still qualifies
@@ -1306,13 +1379,6 @@ int units_unload_goods_hold(
 );
 /* First non-empty goods hold index, or -1. */
 int units_first_goods_hold(const ColonizeUnitPool* pool, int unit_id);
-/* Snapshot passenger type indices (for Europe harbor transfer). */
-int units_export_cargo_types(
-  const ColonizeUnitPool* pool,
-  int ship_id,
-  int* out_types,
-  int out_max
-);
 /* Same walk, the passengers' @JOB professions (unset entries = -1) — the
  * companion array europe_harbor_push_ex / europe_enqueue_expected want so a
  * transferred passenger keeps its profession label. */
@@ -1384,7 +1450,6 @@ int units_spawn_ship_with_cargo(
 /* Working inside a colony (unequipped citizen sprites). */
 #define UNITS_ICON_HARDY_PIONEER_WORK 58
 #define UNITS_ICON_VETERAN_SOLDIER_WORK 59
-#define UNITS_ICON_SEASONED_SCOUT_WORK 60
 /* FUN_112b_0002 case 5 (profession 0x18) → 0x3e: the bookless black cassock. */
 #define UNITS_ICON_JESUIT_MISSIONARY_WORK 61
 
@@ -1439,6 +1504,14 @@ int units_job_icon_sprite(int profession);
  * (FUN_4962_0018 → DS:0x9410) and the sidebar profession line both gate on it.
  */
 bool units_type_has_profession_slot(int type_index);
+/*
+ * Expert-skill label for a unit row: the plural NAMES @JOB field, or NULL for
+ * the five non-expert professions (NONE/19/25/26/27) and for @UNIT types with
+ * no profession slot. Shared by unit_stack.c and map_panel.c (UN-22).
+ */
+const char* units_profession_label(
+  const ColonizeMsgCatalog* names, int type_index, int profession
+);
 
 /*
  * ICONS.SS index for a colonist working inside a colony (no field

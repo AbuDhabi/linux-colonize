@@ -10,6 +10,7 @@
 #include "core/founding_fathers.h"
 #include "core/ai_diplo.h"
 #include "core/popup_msg.h"
+#include "core/reports.h"
 #include "core/colony_production.h"
 #include "core/colony_yield.h"
 #include "core/europe.h"
@@ -25,7 +26,7 @@
 #define COLONY_MAP_ICON_FORTRESS 2
 #define COLONY_MAP_ICON_NONE 3
 
-static int colony_map_icon(const ColonizeColonyPool* pool, const ColonizeColony* c) {
+int colonies_settlement_icon(const ColonizeColonyPool* pool, const ColonizeColony* c) {
   if (!pool || !c) {
     return COLONY_MAP_ICON_NONE;
   }
@@ -44,8 +45,10 @@ static int colony_map_icon(const ColonizeColonyPool* pool, const ColonizeColony*
   return COLONY_MAP_ICON_NONE;
 }
 
-int colonies_fortification_tier(const ColonizeColonyPool* pool, const ColonizeColony* c) {
-  switch (colony_map_icon(pool, c)) {
+/* File-local since the 2026-09-14 duplication pass (audit CO-29): the only
+ * caller is colonies_fog_snapshot below. */
+static int colonies_fortification_tier(const ColonizeColonyPool* pool, const ColonizeColony* c) {
+  switch (colonies_settlement_icon(pool, c)) {
     case COLONY_MAP_ICON_FORTRESS:
       return 3;
     case COLONY_MAP_ICON_FORT:
@@ -55,6 +58,37 @@ int colonies_fortification_tier(const ColonizeColonyPool* pool, const ColonizeCo
     default:
       return 0;
   }
+}
+
+int colonies_count_for_nation(const ColonizeColonyPool* pool, int nation) {
+  if (!pool) {
+    return 0;
+  }
+  int n = 0;
+  for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+    const ColonizeColony* c = &pool->colonies[i];
+    if (c->active && c->nation_id == nation) {
+      n++;
+    }
+  }
+  return n;
+}
+
+/*
+ * Pool-bound walk, not `colony_count`-bound: colonies_abandon zeroes a slot
+ * in place, so the array has holes and the live colonies are not a prefix.
+ */
+const ColonizeColony* colonies_find_at_xy(const ColonizeColonyPool* pool, int x, int y) {
+  if (!pool) {
+    return NULL;
+  }
+  for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+    const ColonizeColony* c = &pool->colonies[i];
+    if (c->active && c->x == x && c->y == y) {
+      return c;
+    }
+  }
+  return NULL;
 }
 
 void colonies_fog_snapshot(ColonizeColonyPool* pool, int colony_id, int nation_id) {
@@ -142,10 +176,6 @@ void colonies_reveal_founded(
     }
     colonies_reveal_ring5(map, pool, c, nation);
   }
-}
-
-int colonies_settlement_icon(const ColonizeColonyPool* pool, const ColonizeColony* colony) {
-  return colony_map_icon(pool, colony);
 }
 
 /*
@@ -546,20 +576,6 @@ static void colonies_grant_starters(ColonizeColonyPool* pool, ColonizeColony* sl
   }
 }
 
-/* DOS FUN_124c_0040 / ai_dos_dist — diagonal-aware tile distance. */
-static int colonies_dos_dist(int dx, int dy) {
-  if (dx < 0) {
-    dx = -dx;
-  }
-  if (dy < 0) {
-    dy = -dy;
-  }
-  if (dy < dx) {
-    return (dy >> 1) + dx;
-  }
-  return (dx >> 1) + dy;
-}
-
 /*
  * FUN_4cc6_0356: nearest village index; *out_dist = DOS distance (DS:0x8db8).
  * DOS filters by continent (param_4): villages on another landmass never claim
@@ -593,7 +609,7 @@ static int colonies_nearest_tribe_on(
         continue;
       }
     }
-    const int d = colonies_dos_dist(x - (int)t->x, y - (int)t->y);
+    const int d = map_dos_dist(x - (int)t->x, y - (int)t->y);
     if (d <= best_d) {
       best_d = d;
       best = (int)i;
@@ -820,19 +836,6 @@ int colonies_indian_claim_tribe_from(
     return -1;
   }
   return ti;
-}
-
-int colonies_indian_claim_tribe(
-  const ColonizeCol1Save* col1,
-  const ColonizeWorldMap* map,
-  const ColonizeColonyPool* pool,
-  int viewer_nation,
-  int x,
-  int y
-) {
-  return colonies_indian_claim_tribe_from(
-    col1, map, pool, viewer_nation, x, y, x, y
-  );
 }
 
 void colonies_indian_land_pay(
@@ -1196,10 +1199,6 @@ static void colonies_clear_colonist_tile(ColonizeColony* col, int colonist_index
   }
 }
 
-bool colonies_is_school_building(const ColonizeColonyPool* pool, int building_type) {
-  return colonies_school_building_tier(pool, building_type) > 0;
-}
-
 /* NAMES.TXT @JOB school field (1..4), index-aligned. */
 static const uint8_t k_job_school_tier[28] = {
   1, 2, 2, 2, 1, 1, 1, 1, 1, /* 0..8 field */
@@ -1265,7 +1264,15 @@ bool colonies_profession_may_teach(int profession) {
   return level >= 1 && level <= 3;
 }
 
-const char* colonies_profession_name(int profession) {
+/*
+ * NAMES.TXT @JOB column 0, with the table below as the no-catalog fallback
+ * (audit CO-33). The fallback also decides WHICH professions get a label at
+ * all: 0x13 Colonist / 0x19 Ind. Servant / 0x1a Criminal / 0x1b Convert are
+ * deliberately absent and answer "profession", matching DOS
+ * FUN_15eb_0002's non-expert gate, so the live lookup is only consulted for
+ * professions the fallback already names.
+ */
+static const char* colonies_profession_name_fallback(int profession) {
   if (profession >= 0 && profession < COLONIZE_FIELD_JOB_COUNT) {
     const char* n = colony_yield_job_name(profession);
     if (n && n[0]) {
@@ -1306,6 +1313,15 @@ const char* colonies_profession_name(int profession) {
   default:
     return "profession";
   }
+}
+
+const char* colonies_profession_name(int profession) {
+  const char* fallback = colonies_profession_name_fallback(profession);
+  if (strcmp(fallback, "profession") == 0) {
+    return fallback;
+  }
+  const char* live = reports_job_short_name(profession);
+  return (live && live[0]) ? live : fallback;
 }
 
 void colonies_emit_noteacher_chrome(
@@ -1690,7 +1706,7 @@ const char* colonies_eject_role_name(int role) {
   }
 }
 
-static int colonies_has_church_or_cathedral(
+int colonies_has_church_or_cathedral(
   const ColonizeColonyPool* pool,
   const ColonizeColony* col
 ) {
@@ -1770,27 +1786,23 @@ int colonies_equip_tools_take(int available) {
  * Earlier cites for the bless row: Colonization.pdf Establishing a Mission /
  * Church; building_production Missionary.
  */
-int colonies_list_eject_roles_ex(
+int colonies_list_eject_roles_gear(
   const ColonizeColonyPool* pool,
-  int colony_id,
-  int colonist_index,
+  const ColonizeColony* col,
+  int add_tools,
+  int add_muskets,
+  int add_horses,
+  bool convert,
   int* out_roles,
   bool* out_enabled,
   int out_max
 ) {
-  const ColonizeColony* col = colonies_get(pool, colony_id);
   if (!col || !out_roles || out_max <= 0) {
     return 0;
   }
-  if (colonist_index < 0 || colonist_index >= col->colonist_count ||
-      !col->colonists[colonist_index].active) {
-    return 0;
-  }
-  const int tools = col->stock[COLONIZE_CARGO_TOOLS];
-  const int muskets = col->stock[COLONIZE_CARGO_MUSKETS];
-  const int horses = col->stock[COLONIZE_CARGO_HORSES];
-  /* raw 13557-13560: rows above 0x13 return 0 outright for @JOB 0x1b. */
-  const bool convert = (col->colonists[colonist_index].profession == COLONIZE_PROF_CONVERT);
+  const int tools = col->stock[COLONIZE_CARGO_TOOLS] + add_tools;
+  const int muskets = col->stock[COLONIZE_CARGO_MUSKETS] + add_muskets;
+  const int horses = col->stock[COLONIZE_CARGO_HORSES] + add_horses;
 
   int n = 0;
   out_roles[n] = COLONIZE_EJECT_COLONIST;
@@ -1815,7 +1827,8 @@ int colonies_list_eject_roles_ex(
       }
       ++n;
     }
-    /* Bless costs no cargo, so the row is never the greyed kind. */
+    /* Bless costs no cargo, so the row is never the greyed kind
+     * (FUN_15eb_3454 row 0x18). */
     if (n < out_max && colonies_has_church_or_cathedral(pool, col)) {
       out_roles[n] = COLONIZE_EJECT_MISSIONARY;
       if (out_enabled) {
@@ -1825,6 +1838,69 @@ int colonies_list_eject_roles_ex(
     }
   }
   return n;
+}
+
+int colonies_list_eject_roles_ex(
+  const ColonizeColonyPool* pool,
+  int colony_id,
+  int colonist_index,
+  int* out_roles,
+  bool* out_enabled,
+  int out_max
+) {
+  const ColonizeColony* col = colonies_get(pool, colony_id);
+  if (!col || !out_roles || out_max <= 0) {
+    return 0;
+  }
+  if (colonist_index < 0 || colonist_index >= col->colonist_count ||
+      !col->colonists[colonist_index].active) {
+    return 0;
+  }
+  /* raw 13557-13560: rows above 0x13 return 0 outright for @JOB 0x1b. */
+  const bool convert = (col->colonists[colonist_index].profession == COLONIZE_PROF_CONVERT);
+  return colonies_list_eject_roles_gear(pool, col, 0, 0, 0, convert, out_roles, out_enabled, out_max);
+}
+
+bool colonies_eject_role_gear(
+  int role,
+  int stock_tools,
+  int* out_tools,
+  int* out_muskets,
+  int* out_horses
+) {
+  int tools_take = 0;
+  int muskets_take = 0;
+  int horses_take = 0;
+  switch (role) {
+  case COLONIZE_EJECT_PIONEER:
+    tools_take = colonies_equip_tools_take(stock_tools);
+    break;
+  case COLONIZE_EJECT_SOLDIER:
+    muskets_take = UNITS_EQUIP_MUSKETS;
+    break;
+  case COLONIZE_EJECT_SCOUT:
+    horses_take = UNITS_EQUIP_HORSES;
+    break;
+  case COLONIZE_EJECT_DRAGOON:
+    muskets_take = UNITS_EQUIP_MUSKETS;
+    horses_take = UNITS_EQUIP_HORSES;
+    break;
+  case COLONIZE_EJECT_COLONIST:
+  case COLONIZE_EJECT_MISSIONARY:
+    break;
+  default:
+    return false;
+  }
+  if (out_tools) {
+    *out_tools = tools_take;
+  }
+  if (out_muskets) {
+    *out_muskets = muskets_take;
+  }
+  if (out_horses) {
+    *out_horses = horses_take;
+  }
+  return true;
 }
 
 int colonies_list_eject_roles(
@@ -1860,35 +1936,24 @@ int colonies_eject_colonist(
   int muskets_take = 0;
   int horses_take = 0;
   const char* type_name = "Colonists";
+  /* Unknown rows fall through as a plain Colonist (the old `default:` arm). */
+  (void)colonies_eject_role_gear(
+    role, col->stock[COLONIZE_CARGO_TOOLS], &tools_take, &muskets_take, &horses_take
+  );
   switch (role) {
   case COLONIZE_EJECT_PIONEER:
-    tools_take = colonies_equip_tools_take(col->stock[COLONIZE_CARGO_TOOLS]);
     if (tools_take <= 0) {
       return -1;
     }
     type_name = "Pioneers";
     break;
   case COLONIZE_EJECT_SOLDIER:
-    if (col->stock[COLONIZE_CARGO_MUSKETS] < UNITS_EQUIP_MUSKETS) {
-      return -1;
-    }
-    muskets_take = UNITS_EQUIP_MUSKETS;
     type_name = "Soldiers";
     break;
   case COLONIZE_EJECT_SCOUT:
-    if (col->stock[COLONIZE_CARGO_HORSES] < UNITS_EQUIP_HORSES) {
-      return -1;
-    }
-    horses_take = UNITS_EQUIP_HORSES;
     type_name = "Scouts";
     break;
   case COLONIZE_EJECT_DRAGOON:
-    if (col->stock[COLONIZE_CARGO_MUSKETS] < UNITS_EQUIP_MUSKETS ||
-        col->stock[COLONIZE_CARGO_HORSES] < UNITS_EQUIP_HORSES) {
-      return -1;
-    }
-    muskets_take = UNITS_EQUIP_MUSKETS;
-    horses_take = UNITS_EQUIP_HORSES;
     type_name = "Dragoons";
     break;
   case COLONIZE_EJECT_MISSIONARY:
@@ -1899,8 +1964,11 @@ int colonies_eject_colonist(
     break;
   case COLONIZE_EJECT_COLONIST:
   default:
-    type_name = "Colonists";
     break;
+  }
+  if (col->stock[COLONIZE_CARGO_MUSKETS] < muskets_take ||
+      col->stock[COLONIZE_CARGO_HORSES] < horses_take) {
+    return -1;
   }
 
   int type_index = units_find_type(units, type_name);
@@ -2121,12 +2189,6 @@ bool colonies_capture(ColonizeColonyPool* pool, int colony_id, int new_nation_id
   return colonies_capture_ex(pool, colony_id, new_nation_id, NULL);
 }
 
-static bool colonies_has_building_named(
-  const ColonizeColonyPool* pool,
-  const ColonizeColony* col,
-  const char* name
-);
-
 bool colonies_unit_build_info(int raw_code, const char** name, int* hammers, int* tools_cost) {
   if (raw_code == COLONIZE_UNIT_BUILD_ARTILLERY) {
     /* Golden-confirmed (New Amsterdam, dutch-reports.SAV): hammers=192 the
@@ -2321,19 +2383,6 @@ int colonies_construction_gold_cost(
     cost *= 2;
   }
   return cost;
-}
-
-int colonies_construction_tools_needed(
-  const ColonizeColonyPool* pool,
-  const ColonizeColony* colony
-) {
-  int tools_cost = 0;
-  if (!colonies_construction_cost(pool, colony, NULL, &tools_cost) || tools_cost <= 0) {
-    return 0;
-  }
-  const int have = colony->stock[COLONIZE_CARGO_TOOLS];
-  const int need = tools_cost - have;
-  return need > 0 ? need : 0;
 }
 
 bool colonies_try_complete_building(ColonizeColonyPool* pool, int colony_id) {
@@ -2535,13 +2584,157 @@ bool colonies_buy_construction(ColonizeColonyPool* pool, int colony_id, int diff
   return true;
 }
 
-static bool colonies_has_building_named(
+bool colonies_has_building_named(
   const ColonizeColonyPool* pool,
   const ColonizeColony* col,
   const char* name
 ) {
+  if (!pool || !col || !name) {
+    return false;
+  }
   const int idx = colonies_find_building(pool, name);
   return idx >= 0 && idx < COLONIZE_BUILDING_TYPES_MAX && col->has_building[idx];
+}
+
+bool colonies_has_building_name_contains(
+  const ColonizeColonyPool* pool,
+  const ColonizeColony* col,
+  const char* needle
+) {
+  if (!pool || !col || !needle) {
+    return false;
+  }
+  for (int i = 0; i < pool->building_type_count && i < COLONIZE_BUILDING_TYPES_MAX; ++i) {
+    if (!col->has_building[i]) {
+      continue;
+    }
+    const char* bn = pool->building_types[i].name;
+    if (bn && strstr(bn, needle) != NULL) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/*
+ * ---------------------------------------------------------------------
+ * The building upgrade chains (audit CO-13 / IN-24).
+ *
+ * DOS groups the 42 NAMES.TXT @BUILDING rows into 15 CATEGORIES (the static
+ * setup table FUN_75c2_144c). Each category is one upgrade chain, low tier
+ * first, and each owns exactly one colony-screen slot. This table has 17
+ * entries: the 15 screen categories, plus Capitol and Stable broken out of
+ * the Town Hall and Warehouse categories they share a slot with, because
+ * the save format gives each of those its own bit group.
+ *
+ * ***THE ORDER OF THIS TABLE IS A SAVE-FORMAT CONTRACT.*** col1_bridge.c's
+ * col1_apply_colony_buildings / col1_encode_colony_buildings walk the chains
+ * in this order and map chain position i to bit i of the matching
+ * ColonizeCol1Buildings group word. Reordering the table, or inserting a
+ * tier in the middle of a chain, silently rewrites every colony's building
+ * mask on the next export. Appending a whole new chain at the end is safe;
+ * nothing else is.
+ *
+ * Two chains carry DOS quirks the bridge handles itself and that are
+ * deliberately NOT folded in here:
+ *   - Warehouse: "Warehouse Expansion" has no bit of its own; DOS counts it
+ *     on the colony's warehouse_level byte (+0x95). The chain still lists
+ *     it because the colony screen draws it as a tier.
+ *   - Capitol / Capitol Expansion: the tail of the Town Hall category in
+ *     DOS's own table, but unbuildable (see colonies_building_is_buildable)
+ *     and tracked on capitol_level (+0x96), so they are a separate chain
+ *     here rather than three Town Hall tiers.
+ * The colony screen also draws the Stable in the warehouse slot; that is a
+ * rendering rule (colony_screen_category_sprite), not a chain tier, so the
+ * Stable keeps its own one-entry chain.
+ * ---------------------------------------------------------------------
+ */
+static const char* const k_chain_fortification[] = {"Stockade", "Fort", "Fortress", NULL};
+static const char* const k_chain_armory[] = {"Armory", "Magazine", "Arsenal", NULL};
+static const char* const k_chain_docks[] = {"Docks", "Drydock", "Shipyard", NULL};
+static const char* const k_chain_town_hall[] = {"Town Hall", NULL};
+static const char* const k_chain_school[] = {"Schoolhouse", "College", "University", NULL};
+static const char* const k_chain_warehouse[] = {"Warehouse", "Warehouse Expansion", NULL};
+static const char* const k_chain_capitol[] = {"Capitol", "Capitol Expansion", NULL};
+static const char* const k_chain_stable[] = {"Stable", NULL};
+static const char* const k_chain_custom_house[] = {"Custom House", NULL};
+static const char* const k_chain_press[] = {"Printing Press", "Newspaper", NULL};
+static const char* const k_chain_weaver[] = {
+  "Weaver's House", "Weaver's Shop", "Textile Mill", NULL
+};
+static const char* const k_chain_tobacconist[] = {
+  "Tobacconist's House", "Tobacconist's Shop", "Cigar Factory", NULL
+};
+static const char* const k_chain_rum[] = {
+  "Rum Distiller's House", "Rum Distillery", "Rum Factory", NULL
+};
+static const char* const k_chain_fur[] = {
+  "Fur Trader's House", "Fur Trading Post", "Fur Factory", NULL
+};
+static const char* const k_chain_carpenter[] = {"Carpenter's Shop", "Lumber Mill", NULL};
+static const char* const k_chain_church[] = {"Church", "Cathedral", NULL};
+static const char* const k_chain_blacksmith[] = {
+  "Blacksmith's House", "Blacksmith's Shop", "Iron Works", NULL
+};
+
+static const char* const* const k_building_chains[COLONIES_BUILDING_CHAIN_COUNT] = {
+  k_chain_fortification, /* COLONIES_CHAIN_FORTIFICATION */
+  k_chain_armory,        /* COLONIES_CHAIN_ARMORY */
+  k_chain_docks,         /* COLONIES_CHAIN_DOCKS */
+  k_chain_town_hall,     /* COLONIES_CHAIN_TOWN_HALL */
+  k_chain_school,        /* COLONIES_CHAIN_SCHOOL */
+  k_chain_warehouse,     /* COLONIES_CHAIN_WAREHOUSE */
+  k_chain_capitol,       /* COLONIES_CHAIN_CAPITOL */
+  k_chain_stable,        /* COLONIES_CHAIN_STABLE */
+  k_chain_custom_house,  /* COLONIES_CHAIN_CUSTOM_HOUSE */
+  k_chain_press,         /* COLONIES_CHAIN_PRESS */
+  k_chain_weaver,        /* COLONIES_CHAIN_WEAVER */
+  k_chain_tobacconist,   /* COLONIES_CHAIN_TOBACCONIST */
+  k_chain_rum,           /* COLONIES_CHAIN_RUM */
+  k_chain_fur,           /* COLONIES_CHAIN_FUR */
+  k_chain_carpenter,     /* COLONIES_CHAIN_CARPENTER */
+  k_chain_church,        /* COLONIES_CHAIN_CHURCH */
+  k_chain_blacksmith,    /* COLONIES_CHAIN_BLACKSMITH */
+};
+
+const char* const* colonies_building_chain(int chain) {
+  if (chain < 0 || chain >= COLONIES_BUILDING_CHAIN_COUNT) {
+    return NULL;
+  }
+  return k_building_chains[chain];
+}
+
+int colonies_building_chain_length(int chain) {
+  const char* const* c = colonies_building_chain(chain);
+  int n = 0;
+  while (c && c[n]) {
+    ++n;
+  }
+  return n;
+}
+
+/*
+ * Standard tier gate for a chain position: the tier below it is owned (or
+ * this is the first tier) and no tier from this one up is. Every chain arm
+ * of colonies_building_is_buildable below is this rule plus at most a
+ * Founding-Father / coastal side condition.
+ */
+static bool colonies_chain_tier_open(
+  const ColonizeColonyPool* pool, const ColonizeColony* col, int chain, int tier
+) {
+  const char* const* names = colonies_building_chain(chain);
+  if (!names || tier < 0 || !names[tier]) {
+    return false;
+  }
+  if (tier > 0 && !colonies_has_building_named(pool, col, names[tier - 1])) {
+    return false;
+  }
+  for (int i = tier; names[i]; ++i) {
+    if (colonies_has_building_named(pool, col, names[i])) {
+      return false;
+    }
+  }
+  return true;
 }
 
 /* True if this type is currently a legal construction project for the colony. */
@@ -2591,157 +2784,126 @@ static bool colonies_building_is_buildable(
     return false;
   }
 
-  /* Fortification chain. */
+  /*
+   * Chain tiers (audit CO-13): "the tier below is owned and nothing from
+   * this tier up is" is colonies_chain_tier_open; the only per-row extras
+   * are Adam Smith on every factory tier and coastal on the port chain.
+   * Spelled out arm-by-arm below this block are the rows that are NOT that
+   * rule (the Warehouse and the six starter houses, which DOS lets you
+   * build regardless of what sits above them in the chain).
+   */
   if (strcmp(n, "Stockade") == 0) {
-    return !colonies_has_building_named(pool, col, "Stockade") &&
-           !colonies_has_building_named(pool, col, "Fort") &&
-           !colonies_has_building_named(pool, col, "Fortress");
+    return colonies_chain_tier_open(pool, col, COLONIES_CHAIN_FORTIFICATION, 0);
   }
   if (strcmp(n, "Fort") == 0) {
-    return colonies_has_building_named(pool, col, "Stockade") &&
-           !colonies_has_building_named(pool, col, "Fort") &&
-           !colonies_has_building_named(pool, col, "Fortress");
+    return colonies_chain_tier_open(pool, col, COLONIES_CHAIN_FORTIFICATION, 1);
   }
   if (strcmp(n, "Fortress") == 0) {
-    return colonies_has_building_named(pool, col, "Fort") &&
-           !colonies_has_building_named(pool, col, "Fortress");
+    return colonies_chain_tier_open(pool, col, COLONIES_CHAIN_FORTIFICATION, 2);
   }
 
   /* Military production chain. */
   if (strcmp(n, "Armory") == 0) {
-    return !colonies_has_building_named(pool, col, "Armory") &&
-           !colonies_has_building_named(pool, col, "Magazine") &&
-           !colonies_has_building_named(pool, col, "Arsenal");
+    return colonies_chain_tier_open(pool, col, COLONIES_CHAIN_ARMORY, 0);
   }
   if (strcmp(n, "Magazine") == 0) {
-    return colonies_has_building_named(pool, col, "Armory") &&
-           !colonies_has_building_named(pool, col, "Magazine") &&
-           !colonies_has_building_named(pool, col, "Arsenal");
+    return colonies_chain_tier_open(pool, col, COLONIES_CHAIN_ARMORY, 1);
   }
   if (strcmp(n, "Arsenal") == 0) {
-    return adam && colonies_has_building_named(pool, col, "Magazine") &&
-           !colonies_has_building_named(pool, col, "Arsenal");
+    return adam && colonies_chain_tier_open(pool, col, COLONIES_CHAIN_ARMORY, 2);
   }
 
   /* Port chain (coastal only). */
   if (strcmp(n, "Docks") == 0) {
-    return coastal && !colonies_has_building_named(pool, col, "Docks") &&
-           !colonies_has_building_named(pool, col, "Drydock") &&
-           !colonies_has_building_named(pool, col, "Shipyard");
+    return coastal && colonies_chain_tier_open(pool, col, COLONIES_CHAIN_DOCKS, 0);
   }
   if (strcmp(n, "Drydock") == 0) {
-    return coastal && colonies_has_building_named(pool, col, "Docks") &&
-           !colonies_has_building_named(pool, col, "Drydock") &&
-           !colonies_has_building_named(pool, col, "Shipyard");
+    return coastal && colonies_chain_tier_open(pool, col, COLONIES_CHAIN_DOCKS, 1);
   }
   if (strcmp(n, "Shipyard") == 0) {
-    return coastal && colonies_has_building_named(pool, col, "Drydock") &&
-           !colonies_has_building_named(pool, col, "Shipyard");
+    return coastal && colonies_chain_tier_open(pool, col, COLONIES_CHAIN_DOCKS, 2);
   }
 
   /* Education chain. */
   if (strcmp(n, "Schoolhouse") == 0) {
-    return !colonies_has_building_named(pool, col, "Schoolhouse") &&
-           !colonies_has_building_named(pool, col, "College") &&
-           !colonies_has_building_named(pool, col, "University");
+    return colonies_chain_tier_open(pool, col, COLONIES_CHAIN_SCHOOL, 0);
   }
   if (strcmp(n, "College") == 0) {
-    return colonies_has_building_named(pool, col, "Schoolhouse") &&
-           !colonies_has_building_named(pool, col, "College") &&
-           !colonies_has_building_named(pool, col, "University");
+    return colonies_chain_tier_open(pool, col, COLONIES_CHAIN_SCHOOL, 1);
   }
   if (strcmp(n, "University") == 0) {
-    return colonies_has_building_named(pool, col, "College") &&
-           !colonies_has_building_named(pool, col, "University");
+    return colonies_chain_tier_open(pool, col, COLONIES_CHAIN_SCHOOL, 2);
   }
 
+  /* Warehouse tier 0 is deliberately NOT colonies_chain_tier_open: DOS gates
+   * it on the Warehouse alone and ignores the Expansion above it (an
+   * Expansion without its Warehouse is unreachable anyway — col1_bridge
+   * derives tier 1 from warehouse_level, which implies tier 0). */
   if (strcmp(n, "Warehouse") == 0) {
     return !colonies_has_building_named(pool, col, "Warehouse");
   }
   if (strcmp(n, "Warehouse Expansion") == 0) {
-    return colonies_has_building_named(pool, col, "Warehouse") &&
-           !colonies_has_building_named(pool, col, "Warehouse Expansion");
+    return colonies_chain_tier_open(pool, col, COLONIES_CHAIN_WAREHOUSE, 1);
   }
 
   if (strcmp(n, "Custom House") == 0) {
-    return stuy && !colonies_has_building_named(pool, col, "Custom House");
+    return stuy && colonies_chain_tier_open(pool, col, COLONIES_CHAIN_CUSTOM_HOUSE, 0);
   }
 
   if (strcmp(n, "Printing Press") == 0) {
-    return !colonies_has_building_named(pool, col, "Printing Press") &&
-           !colonies_has_building_named(pool, col, "Newspaper");
+    return colonies_chain_tier_open(pool, col, COLONIES_CHAIN_PRESS, 0);
   }
   if (strcmp(n, "Newspaper") == 0) {
-    return colonies_has_building_named(pool, col, "Printing Press") &&
-           !colonies_has_building_named(pool, col, "Newspaper");
+    return colonies_chain_tier_open(pool, col, COLONIES_CHAIN_PRESS, 1);
   }
 
   if (strcmp(n, "Weaver's Shop") == 0) {
-    return colonies_has_building_named(pool, col, "Weaver's House") &&
-           !colonies_has_building_named(pool, col, "Weaver's Shop") &&
-           !colonies_has_building_named(pool, col, "Textile Mill");
+    return colonies_chain_tier_open(pool, col, COLONIES_CHAIN_WEAVER, 1);
   }
   if (strcmp(n, "Textile Mill") == 0) {
-    return adam && colonies_has_building_named(pool, col, "Weaver's Shop") &&
-           !colonies_has_building_named(pool, col, "Textile Mill");
+    return adam && colonies_chain_tier_open(pool, col, COLONIES_CHAIN_WEAVER, 2);
   }
 
   if (strcmp(n, "Tobacconist's Shop") == 0) {
-    return colonies_has_building_named(pool, col, "Tobacconist's House") &&
-           !colonies_has_building_named(pool, col, "Tobacconist's Shop") &&
-           !colonies_has_building_named(pool, col, "Cigar Factory");
+    return colonies_chain_tier_open(pool, col, COLONIES_CHAIN_TOBACCONIST, 1);
   }
   if (strcmp(n, "Cigar Factory") == 0) {
-    return adam && colonies_has_building_named(pool, col, "Tobacconist's Shop") &&
-           !colonies_has_building_named(pool, col, "Cigar Factory");
+    return adam && colonies_chain_tier_open(pool, col, COLONIES_CHAIN_TOBACCONIST, 2);
   }
 
   if (strcmp(n, "Rum Distillery") == 0) {
-    return colonies_has_building_named(pool, col, "Rum Distiller's House") &&
-           !colonies_has_building_named(pool, col, "Rum Distillery") &&
-           !colonies_has_building_named(pool, col, "Rum Factory");
+    return colonies_chain_tier_open(pool, col, COLONIES_CHAIN_RUM, 1);
   }
   if (strcmp(n, "Rum Factory") == 0) {
-    return adam && colonies_has_building_named(pool, col, "Rum Distillery") &&
-           !colonies_has_building_named(pool, col, "Rum Factory");
+    return adam && colonies_chain_tier_open(pool, col, COLONIES_CHAIN_RUM, 2);
   }
 
   if (strcmp(n, "Fur Trading Post") == 0) {
-    return colonies_has_building_named(pool, col, "Fur Trader's House") &&
-           !colonies_has_building_named(pool, col, "Fur Trading Post") &&
-           !colonies_has_building_named(pool, col, "Fur Factory");
+    return colonies_chain_tier_open(pool, col, COLONIES_CHAIN_FUR, 1);
   }
   if (strcmp(n, "Fur Factory") == 0) {
-    return adam && colonies_has_building_named(pool, col, "Fur Trading Post") &&
-           !colonies_has_building_named(pool, col, "Fur Factory");
+    return adam && colonies_chain_tier_open(pool, col, COLONIES_CHAIN_FUR, 2);
   }
 
   if (strcmp(n, "Carpenter's Shop") == 0) {
-    return !colonies_has_building_named(pool, col, "Carpenter's Shop") &&
-           !colonies_has_building_named(pool, col, "Lumber Mill");
+    return colonies_chain_tier_open(pool, col, COLONIES_CHAIN_CARPENTER, 0);
   }
   if (strcmp(n, "Lumber Mill") == 0) {
-    return colonies_has_building_named(pool, col, "Carpenter's Shop") &&
-           !colonies_has_building_named(pool, col, "Lumber Mill");
+    return colonies_chain_tier_open(pool, col, COLONIES_CHAIN_CARPENTER, 1);
   }
 
   if (strcmp(n, "Church") == 0) {
-    return !colonies_has_building_named(pool, col, "Church") &&
-           !colonies_has_building_named(pool, col, "Cathedral");
+    return colonies_chain_tier_open(pool, col, COLONIES_CHAIN_CHURCH, 0);
   }
   if (strcmp(n, "Cathedral") == 0) {
-    return colonies_has_building_named(pool, col, "Church") &&
-           !colonies_has_building_named(pool, col, "Cathedral");
+    return colonies_chain_tier_open(pool, col, COLONIES_CHAIN_CHURCH, 1);
   }
 
   if (strcmp(n, "Blacksmith's Shop") == 0) {
-    return colonies_has_building_named(pool, col, "Blacksmith's House") &&
-           !colonies_has_building_named(pool, col, "Blacksmith's Shop") &&
-           !colonies_has_building_named(pool, col, "Iron Works");
+    return colonies_chain_tier_open(pool, col, COLONIES_CHAIN_BLACKSMITH, 1);
   }
   if (strcmp(n, "Iron Works") == 0) {
-    return adam && colonies_has_building_named(pool, col, "Blacksmith's Shop") &&
-           !colonies_has_building_named(pool, col, "Iron Works");
+    return adam && colonies_chain_tier_open(pool, col, COLONIES_CHAIN_BLACKSMITH, 2);
   }
 
   /* Starter houses and other leaf buildings: available if not already owned. */
@@ -2795,6 +2957,9 @@ int colonies_warehouse_capacity(
   const ColonizeColony* colony,
   int cargo_type
 ) {
+  /* Audit CO-28: DOS takes no cargo argument (see below) and neither does
+   * this body; the parameter stays only to keep the ~10 call sites legible. */
+  (void)cargo_type;
   if (!colony) {
     return 0;
   }
@@ -3545,7 +3710,7 @@ void colonies_render_on_map(
 
     if (have_icon) {
       colony_blit_map_icon(
-        icons, colony_map_icon(pool, c), framebuffer, px, py, tile_w, tile_h, c->nation_id,
+        icons, colonies_settlement_icon(pool, c), framebuffer, px, py, tile_w, tile_h, c->nation_id,
         active_palette
       );
     } else {

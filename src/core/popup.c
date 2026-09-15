@@ -4,7 +4,11 @@
 #include <stddef.h>
 #include <string.h>
 
+#include <stdio.h>
+
 #include "core/font.h"
+#include "core/map_menu.h"
+#include "core/popup_msg.h"
 #include "core/ui_colors.h"
 
 void popup_colors_from_ui(ColonizePopupColors* out) {
@@ -364,4 +368,447 @@ int popup_draw_text_markup(
     *inout_hilite = hi;
   }
   return cx;
+}
+
+
+/* ---- Shared wood list-dialog pipeline (audit theme K) ---- */
+
+int popup_dialog_line_h(const ColonizeFont* font) {
+  return font ? (int)font->max_height + 2 : 8;
+}
+
+int popup_row_at_y(int list_y0, int line_h, int count, int mouse_y) {
+  if (line_h <= 0 || count <= 0) {
+    return -1;
+  }
+  const int rel = mouse_y - list_y0;
+  if (rel < 0) {
+    return -1;
+  }
+  const int idx = rel / line_h;
+  if (idx < 0 || idx >= count) {
+    return -1;
+  }
+  return idx;
+}
+
+void popup_center_frame(
+  ColonizeFramebuffer8* framebuffer,
+  int w,
+  int h,
+  const ColonizeSpriteSheet* tile,
+  const ColonizePopupColors* colors,
+  PopupFrameGeom* out
+) {
+  PopupFrameGeom geom;
+  memset(&geom, 0, sizeof(geom));
+  if (!framebuffer || !framebuffer->pixels) {
+    if (out) {
+      *out = geom;
+    }
+    return;
+  }
+  ColonizePopupColors local;
+  if (!colors) {
+    popup_colors_from_ui(&local);
+    colors = &local;
+  }
+  geom.x = (framebuffer->width - w) / 2;
+  geom.y = (framebuffer->height - h) / 2;
+  if (geom.y < MAP_MENU_BAR_H + 2) {
+    geom.y = MAP_MENU_BAR_H + 2;
+  }
+  geom.w = w;
+  geom.h = h;
+  popup_draw(
+    framebuffer,
+    geom.x,
+    geom.y,
+    w,
+    h,
+    tile,
+    colors,
+    &geom.inner_x,
+    &geom.inner_y,
+    &geom.inner_w,
+    &geom.inner_h
+  );
+  if (out) {
+    *out = geom;
+  }
+}
+
+void popup_list_metrics_classic(const ColonizeFont* font, PopupListMetrics* out) {
+  if (!out) {
+    return;
+  }
+  memset(out, 0, sizeof(*out));
+  const int line_h = popup_dialog_line_h(font);
+  out->line_h = line_h;
+  out->option_h = line_h;
+  out->pad_x = 6;
+  out->pad_y = 4;
+  out->bottom_pad = 4;
+  out->prompt_gap = 2;
+  out->min_h = 40;
+  out->screen_margin_w = 8;
+  out->screen_margin_h = 8;
+  out->sel_h = line_h;
+}
+
+void popup_list_metrics_dos6f74(const ColonizeFont* font, PopupListMetrics* out) {
+  if (!out) {
+    return;
+  }
+  memset(out, 0, sizeof(*out));
+  /*
+   * FUN_6f74_0f16 row height: the 6-px font counts as 5. Body/prompt lines
+   * advance by glyph_h + 1 (FUN_6f74_1198 @ OVL24 0x1234/0x124c); the +0x54
+   * option rows advance by glyph_h + box[+0x46], and box[+0x46] is 3 for every
+   * framed dialog (FUN_6f74_06d0 @ 0x078a-0x0799). The selection bar is
+   * glyph_h + 2 tall (FUN_6f74_1b7c @ 0x1c5b-0x1c9b).
+   */
+  int glyph_h = font ? (int)font->max_height : 6;
+  if (glyph_h == 6) {
+    glyph_h = 5;
+  }
+  out->line_h = glyph_h + 1;
+  out->option_h = glyph_h + 3;
+  out->pad_x = 2;
+  out->pad_y = 3;
+  out->bottom_pad = 3;
+  out->prompt_gap = 2;
+  out->frame_pad = 6; /* box +0x46/+0x2a = 3 px of wood on each side */
+  out->sel_h = glyph_h + 2;
+  out->widen_to_rows = true;
+  out->shadow_text = true;
+}
+
+static void popup_list_draw_row_text(
+  const ColonizeFont* font,
+  ColonizeFramebuffer8* framebuffer,
+  const PopupListMetrics* m,
+  int x,
+  int y,
+  const char* text,
+  uint8_t text_color,
+  uint8_t hilite_color
+) {
+  if (!font || !text) {
+    return;
+  }
+  if (m->markup_text) {
+    popup_draw_text_markup(
+      font, framebuffer, x, y, text, text_color, hilite_color, true, true, NULL
+    );
+  } else if (m->shadow_text) {
+    popup_draw_text_shadowed(font, framebuffer, x, y, text, text_color);
+  } else {
+    font_draw_text(font, framebuffer, x, y, text, text_color);
+  }
+}
+
+void popup_list_render(
+  ColonizeFramebuffer8* framebuffer,
+  const ColonizeFont* font,
+  const ColonizeSpriteSheet* wood_tile,
+  const ColonizePopupColors* colors,
+  const PopupListMetrics* metrics,
+  int width,
+  const char* prompt,
+  int count,
+  int selection,
+  PopupListLabelFn label_fn,
+  PopupListRowFn row_fn,
+  void* user,
+  uint8_t text_color,
+  uint8_t hilite_color,
+  uint8_t select_color,
+  PopupListGeom* out
+) {
+  PopupListGeom geom;
+  memset(&geom, 0, sizeof(geom));
+  if (!framebuffer || !framebuffer->pixels || !metrics) {
+    if (out) {
+      *out = geom;
+    }
+    return;
+  }
+  const PopupListMetrics* m = metrics;
+  const bool has_prompt = prompt && prompt[0];
+  if (count < 0) {
+    count = 0;
+  }
+
+  const int prompt_h = has_prompt ? m->line_h + m->prompt_gap : 0;
+  const int options_h = count * m->option_h;
+  int dialog_h = POPUP_FRAME_INSET * 2 + m->pad_y + prompt_h + options_h + m->bottom_pad;
+  if (m->min_h > 0 && dialog_h < m->min_h) {
+    dialog_h = m->min_h;
+  }
+  if (dialog_h > framebuffer->height - m->screen_margin_h) {
+    dialog_h = framebuffer->height - m->screen_margin_h;
+  }
+
+  int content_w = width;
+  /*
+   * FUN_6f74_14c6: the box grows to the widest emitted row (the prompt is
+   * flow-wrapped to the declared @width first, so only single-line rows widen
+   * it). Measured with font_text_width, matching save_load_dialog.
+   */
+  if (m->widen_to_rows && font) {
+    if (has_prompt) {
+      const int w = font_text_width(font, prompt) + 2 * m->pad_x;
+      if (w > content_w) {
+        content_w = w;
+      }
+    }
+    for (int i = 0; i < count; ++i) {
+      const char* label = label_fn ? label_fn(user, i) : NULL;
+      if (!label) {
+        continue;
+      }
+      const int w = font_text_width(font, label) + 2 * m->pad_x + m->label_dx;
+      if (w > content_w) {
+        content_w = w;
+      }
+    }
+  }
+  int dialog_w = content_w + m->frame_pad;
+  if (dialog_w > framebuffer->width - m->screen_margin_w) {
+    dialog_w = framebuffer->width - m->screen_margin_w;
+  }
+
+  popup_center_frame(framebuffer, dialog_w, dialog_h, wood_tile, colors, &geom.frame);
+  geom.line_h = m->option_h;
+
+  int text_y = geom.frame.inner_y + m->pad_y;
+  if (has_prompt && font) {
+    if (m->shadow_text) {
+      popup_draw_text_shadowed(
+        font, framebuffer, geom.frame.inner_x + m->pad_x, text_y, prompt, text_color
+      );
+    } else {
+      font_draw_text(
+        font, framebuffer, geom.frame.inner_x + m->pad_x, text_y, prompt, text_color
+      );
+    }
+  }
+  if (has_prompt) {
+    text_y += prompt_h;
+  }
+  geom.list_y0 = text_y;
+
+  for (int i = 0; i < count; ++i) {
+    const int row_y = text_y + i * m->option_h;
+    if (i == selection) {
+      /* Same bar every wood list draws: inner rect inset 1 px per side,
+       * starting one row above the text baseline. */
+      popup_fill_rect(
+        framebuffer,
+        geom.frame.inner_x + 1,
+        row_y - 1,
+        geom.frame.inner_x + geom.frame.inner_w - 2,
+        row_y - 1 + m->sel_h - 1,
+        select_color
+      );
+    }
+    const int row_x = geom.frame.inner_x + m->pad_x + m->label_dx;
+    if (row_fn) {
+      row_fn(user, i, framebuffer, row_x, row_y, m->option_h);
+    }
+    const char* label = label_fn ? label_fn(user, i) : NULL;
+    popup_list_draw_row_text(
+      font, framebuffer, m, row_x, row_y, label, text_color, hilite_color
+    );
+  }
+
+  if (out) {
+    *out = geom;
+  }
+}
+
+void popup_prompt_frame(
+  ColonizeFramebuffer8* framebuffer,
+  const ColonizeFont* font,
+  const ColonizeSpriteSheet* wood_tile,
+  const ColonizePopupColors* colors,
+  int w,
+  int h,
+  int pad,
+  const char* prompt,
+  int rows,
+  int cols,
+  uint8_t text_color,
+  PopupPromptGeom* out
+) {
+  PopupPromptGeom geom;
+  memset(&geom, 0, sizeof(geom));
+  if (!framebuffer || !framebuffer->pixels) {
+    if (out) {
+      *out = geom;
+    }
+    return;
+  }
+  popup_center_frame(framebuffer, w, h, wood_tile, colors, &geom.frame);
+  geom.line_h = popup_dialog_line_h(font);
+  geom.text_y = geom.frame.inner_y + pad;
+  if (!font) {
+    if (out) {
+      *out = geom;
+    }
+    return;
+  }
+  int ty = geom.frame.inner_y + pad;
+  const char* p = prompt;
+  for (int row = 0; p && *p && row < rows; ++row) {
+    char line[64];
+    size_t n = 0;
+    while (*p && n + 1 < sizeof(line) && (int)n < cols) {
+      line[n++] = *p++;
+    }
+    line[n] = '\0';
+    while (*p == ' ') {
+      ++p;
+    }
+    popup_draw_text_shadowed(
+      font, framebuffer, geom.frame.inner_x + pad, ty, line, text_color
+    );
+    ty += geom.line_h;
+  }
+  geom.text_y = geom.frame.inner_y + pad + rows * geom.line_h;
+  if (out) {
+    *out = geom;
+  }
+}
+
+/* ---- Shared word wrap (promoted from ai_popup_wrap_body; audit GL-8) ---- */
+
+int popup_wrap_text(
+  const ColonizeFont* font,
+  const char* text,
+  char* out,
+  size_t out_stride,
+  bool* out_center,
+  int max_out,
+  int max_w
+) {
+  int count = 0;
+  if (!text || !text[0] || !out || out_stride < 2 || max_out <= 0) {
+    return 0;
+  }
+  char accum[512];
+  accum[0] = '\0';
+
+  const char* p = text;
+  while (*p && count < max_out) {
+    while (*p == ' ') {
+      p++;
+    }
+    if (!*p) {
+      break;
+    }
+    if (*p == '\n') {
+      if (accum[0]) {
+        snprintf(out + (size_t)count * out_stride, out_stride, "%s", accum);
+        if (out_center) {
+          out_center[count] = false;
+        }
+        count++;
+        accum[0] = '\0';
+        if (count >= max_out) {
+          return count;
+        }
+      } else {
+        out[(size_t)count * out_stride] = '\0';
+        if (out_center) {
+          out_center[count] = false;
+        }
+        count++;
+      }
+      p++;
+      continue;
+    }
+    if (*p == POPUP_MSG_LINE_MARK || *p == POPUP_MSG_CENTER_MARK) {
+      /* Caret row: flush the paragraph, then take the rest of the source line
+       * whole — no wrapping, no re-flowing into what follows. */
+      if (accum[0]) {
+        snprintf(out + (size_t)count * out_stride, out_stride, "%s", accum);
+        if (out_center) {
+          out_center[count] = false;
+        }
+        count++;
+        accum[0] = '\0';
+        if (count >= max_out) {
+          return count;
+        }
+      }
+      const bool centered = (*p == POPUP_MSG_CENTER_MARK);
+      p++;
+      const char* row = p;
+      while (*p && *p != '\n') {
+        p++;
+      }
+      size_t rn = (size_t)(p - row);
+      if (rn >= out_stride) {
+        rn = out_stride - 1;
+      }
+      char* dst = out + (size_t)count * out_stride;
+      memcpy(dst, row, rn);
+      dst[rn] = '\0';
+      if (out_center) {
+        out_center[count] = centered;
+      }
+      count++;
+      if (*p == '\n') {
+        p++; /* the trailing break is the row's own terminator, not a blank */
+      }
+      continue;
+    }
+
+    const char* start = p;
+    while (*p && *p != ' ' && *p != '\n') {
+      p++;
+    }
+    char word[512];
+    size_t n = (size_t)(p - start);
+    if (n >= sizeof(word)) {
+      n = sizeof(word) - 1;
+    }
+    memcpy(word, start, n);
+    word[n] = '\0';
+
+    const int word_w = popup_markup_text_width(font, word);
+    if (accum[0]) {
+      const int space_w = font_text_width(font, " ");
+      if (popup_markup_text_width(font, accum) + space_w + word_w > max_w) {
+        snprintf(out + (size_t)count * out_stride, out_stride, "%s", accum);
+        if (out_center) {
+          out_center[count] = false;
+        }
+        count++;
+        accum[0] = '\0';
+        if (count >= max_out) {
+          return count;
+        }
+      }
+    }
+    size_t len = strlen(accum);
+    if (accum[0] && len + 1 < sizeof(accum)) {
+      accum[len++] = ' ';
+      accum[len] = '\0';
+    }
+    for (const char* w = word; *w && len + 1 < sizeof(accum); ++w) {
+      accum[len++] = *w;
+    }
+    accum[len] = '\0';
+  }
+  if (accum[0] && count < max_out) {
+    snprintf(out + (size_t)count * out_stride, out_stride, "%s", accum);
+    if (out_center) {
+      out_center[count] = false;
+    }
+    count++;
+  }
+  return count;
 }

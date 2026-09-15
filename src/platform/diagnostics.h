@@ -20,7 +20,6 @@ bool diag_info_enabled(void);
  * ownership.
  */
 void diag_set_context(const char* context);
-const char* diag_context(void);
 
 void diag_info(const char* fmt, ...);
 void diag_warn(const char* fmt, ...);

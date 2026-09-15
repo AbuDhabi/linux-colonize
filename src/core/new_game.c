@@ -7,17 +7,18 @@
 #include <string.h>
 #include <strings.h>
 
+#include "core/fb.h"
 #include "core/popup_msg.h"
+#include "core/reports.h"
 #include "core/strutil.h"
 #include "core/ui_colors.h"
 #include "core/turn.h"
+#include "core/unit_chrome.h"
 #include "platform/diagnostics.h"
 #include "platform/platform.h"
 
 #define NEW_GAME_SAIL_FRAME_MS 1600u
 
-static const char* k_nation_names[4] = {"England", "France", "Spain", "Netherlands"};
-static const char* k_nation_ports[4] = {"London", "Paris", "Seville", "Amsterdam"};
 static const char* k_nation_ss[4] = {"ENGLND1.SS", "FRANCE1.SS", "SPAIN1.SS", "DUTCH1.SS"};
 
 typedef struct NewGameRect {
@@ -52,9 +53,6 @@ static const NewGameRect k_customiz_rects[4][3] = {
   {{238, 16, 72, 48}, {238, 76, 72, 48}, {238, 135, 72, 48}},
 };
 
-static const char* k_difficul_names[5] = {
-  "Discoverer", "Explorer", "Conquistador", "Governor", "Viceroy"
-};
 static const char* k_difficul_levels[5] = {
   "Easiest", "Easy", "Moderate", "Tough", "Toughest"
 };
@@ -73,21 +71,30 @@ static const char* k_customiz_vals[4][3] = {
   {"Arid", "Normal", "Wet"},
 };
 
+/*
+ * The wizard's country / home-port / difficulty labels all come from the one
+ * NAMES.TXT-backed accessor set in reports.c (@COUNTRY, @HOMEPORT,
+ * @DIFFICULTY), so a renamed or translated NAMES.TXT reaches this screen too.
+ * The literal tables that used to live here are gone: the home-port one said
+ * "Paris" for France, while NAMES.TXT @HOMEPORT (and europe.c/units.c) say
+ * "La Rochelle" (audit SC-7). Out-of-range nations keep resolving to the
+ * English row, as the old local tables did.
+ */
 const char* new_game_nation_name(int nation) {
   if (nation < 0 || nation > 3) {
-    return "England";
+    nation = 0;
   }
-  return k_nation_names[nation];
+  return reports_nation_country_name(nation);
 }
 
-const char* new_game_nation_port(int nation) {
+static const char* new_game_nation_port(int nation) {
   if (nation < 0 || nation > 3) {
-    return "London";
+    nation = 0;
   }
-  return k_nation_ports[nation];
+  return reports_home_port_name(nation);
 }
 
-const char* new_game_nation_ruler_title(int nation) {
+static const char* new_game_nation_ruler_title(int nation) {
   return (nation == 3) ? "Stadtholder" : "King";
 }
 
@@ -220,8 +227,14 @@ static void new_game_ensure_customiz(NewGameWizard* ng) {
   new_game_load_pik(ng, "CUSTOMIZ.PIK", &ng->customiz_pik, &ng->customiz_ok);
 }
 
-static void new_game_ensure_king(NewGameWizard* ng) {
+/* KINGLSS1.PIK is the throne-room backdrop for both the wizard audience and
+ * the endgame one (audit SC-42: the load was typed out at both sites). */
+static void new_game_ensure_kinglss(NewGameWizard* ng) {
   new_game_load_pik(ng, "KINGLSS1.PIK", &ng->kinglss_pik, &ng->kinglss_ok);
+}
+
+static void new_game_ensure_king(NewGameWizard* ng) {
+  new_game_ensure_kinglss(ng);
   new_game_load_ss(ng, "KING1.SS", &ng->king1, &ng->king1_ok);
   if (ng->nation_art_ok) {
     ss_free(&ng->nation_art);
@@ -423,11 +436,10 @@ static void new_game_enter_difficulty(NewGameWizard* ng) {
   new_game_ensure_difficul(ng);
   new_game_load_choice_section(ng, "DIFFICULTY");
   if (ng->option_count == 0) {
-    static const char* d[] = {"Discoverer", "Explorer", "Conquistador", "Governor", "Viceroy"};
     snprintf(ng->prompt_lines[0], sizeof(ng->prompt_lines[0]), "Select a Difficulty Level");
     ng->prompt_line_count = 1;
     for (int i = 0; i < 5; ++i) {
-      snprintf(ng->options[i], sizeof(ng->options[0]), "%s", d[i]);
+      snprintf(ng->options[i], sizeof(ng->options[0]), "%s", reports_difficulty_title(i));
     }
     ng->option_count = 5;
   }
@@ -512,7 +524,7 @@ static void new_game_enter_nation(NewGameWizard* ng) {
     snprintf(ng->prompt_lines[0], sizeof(ng->prompt_lines[0]), "Select a European Power");
     ng->prompt_line_count = 1;
     for (int i = 0; i < 4; ++i) {
-      snprintf(ng->options[i], sizeof(ng->options[0]), "%s", k_nation_names[i]);
+      snprintf(ng->options[i], sizeof(ng->options[0]), "%s", new_game_nation_name(i));
     }
     ng->option_count = 4;
   }
@@ -1236,43 +1248,21 @@ static void new_game_draw_markup_line_unbold(
   new_game_draw_markup_line_ex(font, fb, x, y, text, normal_color, emphasis_color, true);
 }
 
-static int new_game_text_width(const ColonizeFont* font, const char* text) {
-  if (!text) {
-    return 0;
-  }
-  int w = 0;
-  for (const char* p = text; *p; ++p) {
-    if (*p == '{' || *p == '}' || *p == '^' || *p == '_') {
-      continue;
-    }
-    const unsigned char ch = (unsigned char)*p;
-    if (font && font->section_data && ch < 128 && font->char_widths[ch] > 0) {
-      w += font->char_widths[ch];
-    } else {
-      w += 6;
-    }
-  }
-  return w;
-}
-
-static void new_game_fill_rect(ColonizeFramebuffer8* fb, int x, int y, int w, int h, uint8_t c) {
-  if (!fb || !fb->pixels || w <= 0 || h <= 0) {
-    return;
-  }
-  for (int yy = y; yy < y + h; ++yy) {
-    if (yy < 0 || yy >= fb->height) {
-      continue;
-    }
-    for (int xx = x; xx < x + w; ++xx) {
-      if (xx < 0 || xx >= fb->width) {
-        continue;
-      }
-      fb->pixels[yy * fb->width + xx] = c;
-    }
-  }
-}
-
-/* Word-wrap prompt lines to max_w (pixels), joining file lines into one flow. */
+/*
+ * Word-wrap prompt lines to max_w (pixels), joining file lines into one flow.
+ * The wrap itself is popup_wrap_text (audit SC-35 — this file used to carry
+ * two private copies of the same greedy engine). The only thing left here is
+ * the flattening the old copy did inline: drop each source line's leading
+ * spaces/tabs and its GAME.TXT `_` / `^` layout markers, then join the lines
+ * with a single space so the paragraph re-flows across them.
+ *
+ * Verified byte-identical to the retired local engine over every @-section of
+ * the shipped COLONIZE/GAME.TXT, all five shipped fonts and every max_w from
+ * 20 to 320, except @GAMEOPTIONS / @SOUNDOPTIONS (`~` hotkey markers) and
+ * @LEARNMAD (`_` inside a word) — three sections the wizard never loads.
+ * popup_wrap_text measures with popup_markup_text_width, which skips `~`/`#`
+ * and counts `^`/`_`; the old loop did the reverse.
+ */
 static void new_game_wrap_prompt_flow(
   const ColonizeFont* font,
   char src[][COLONIZE_MSG_LINE_LEN],
@@ -1292,11 +1282,10 @@ static void new_game_wrap_prompt_flow(
   if (max_w < 20) {
     max_w = 20;
   }
-
-  char accum[COLONIZE_MSG_LINE_LEN];
-  accum[0] = '\0';
-
-  for (int i = 0; i < src_count && *dst_count < max_dst; ++i) {
+  char flow[8 * COLONIZE_MSG_LINE_LEN];
+  size_t len = 0;
+  flow[0] = '\0';
+  for (int i = 0; i < src_count; ++i) {
     const char* p = src[i];
     if (!p) {
       continue;
@@ -1304,52 +1293,18 @@ static void new_game_wrap_prompt_flow(
     while (*p == ' ' || *p == '\t' || *p == '_' || *p == '^') {
       p++;
     }
-    while (*p && *dst_count < max_dst) {
-      while (*p == ' ') {
-        p++;
-      }
-      if (!*p) {
-        break;
-      }
-      const char* start = p;
-      while (*p && *p != ' ') {
-        p++;
-      }
-      char word[COLONIZE_MSG_LINE_LEN];
-      size_t n = (size_t)(p - start);
-      if (n >= sizeof(word)) {
-        n = sizeof(word) - 1;
-      }
-      memcpy(word, start, n);
-      word[n] = '\0';
-
-      const int word_w = new_game_text_width(font, word);
-      if (accum[0]) {
-        const int space_w = new_game_text_width(font, " ");
-        if (new_game_text_width(font, accum) + space_w + word_w > max_w) {
-          str_copy_trunc(dst[*dst_count], COLONIZE_MSG_LINE_LEN, accum);
-          (*dst_count)++;
-          accum[0] = '\0';
-          if (*dst_count >= max_dst) {
-            return;
-          }
-        }
-      }
-      size_t len = strlen(accum);
-      if (accum[0] && len + 1 < sizeof(accum)) {
-        accum[len++] = ' ';
-        accum[len] = '\0';
-      }
-      for (const char* w = word; *w && len + 1 < sizeof(accum); ++w) {
-        accum[len++] = *w;
-      }
-      accum[len] = '\0';
+    if (!*p) {
+      continue;
     }
+    if (len && len + 1 < sizeof(flow)) {
+      flow[len++] = ' ';
+    }
+    while (*p && len + 1 < sizeof(flow)) {
+      flow[len++] = *p++;
+    }
+    flow[len] = '\0';
   }
-  if (accum[0] && *dst_count < max_dst) {
-    str_copy_trunc(dst[*dst_count], COLONIZE_MSG_LINE_LEN, accum);
-    (*dst_count)++;
-  }
+  *dst_count = popup_wrap_text(font, flow, dst[0], COLONIZE_MSG_LINE_LEN, NULL, max_dst, max_w);
 }
 
 static void new_game_render_list_dialog(
@@ -1454,7 +1409,7 @@ static void new_game_render_list_dialog(
 
   for (int i = 0; i < ng->option_count; ++i) {
     if (i == ng->selection) {
-      new_game_fill_rect(fb, inner_x + 2, cy - 1, inner_w - 4, line_h, select_color);
+      fb_fill_rect(fb, inner_x + 2, cy - 1, inner_w - 4, line_h, select_color);
     }
     new_game_draw_markup_line_unbold(
       font, fb, inner_x + pad_x + 1, cy + 1, ng->options[i], shadow, shadow
@@ -1472,40 +1427,17 @@ static void new_game_copy_palette(ColonizePalette* dst, const ColonizePalette* s
   }
 }
 
-static void new_game_draw_rect_border(
-  ColonizeFramebuffer8* fb,
-  int x,
-  int y,
-  int w,
-  int h,
-  uint8_t color
+/* Full-screen PIK backdrop plus "adopt its palette if it carries one" — the
+ * same three lines at all five backdrop sites (audit SC-40). */
+static void new_game_blit_bg(
+  const ColonizePikImage* pik, ColonizeFramebuffer8* fb, ColonizePalette* out_palette
 ) {
-  if (!fb || !fb->pixels || w <= 0 || h <= 0) {
+  if (!pik) {
     return;
   }
-  for (int xx = x; xx < x + w; ++xx) {
-    if (xx < 0 || xx >= fb->width) {
-      continue;
-    }
-    if (y >= 0 && y < fb->height) {
-      fb->pixels[y * fb->width + xx] = color;
-    }
-    const int y2 = y + h - 1;
-    if (y2 >= 0 && y2 < fb->height) {
-      fb->pixels[y2 * fb->width + xx] = color;
-    }
-  }
-  for (int yy = y; yy < y + h; ++yy) {
-    if (yy < 0 || yy >= fb->height) {
-      continue;
-    }
-    if (x >= 0 && x < fb->width) {
-      fb->pixels[yy * fb->width + x] = color;
-    }
-    const int x2 = x + w - 1;
-    if (x2 >= 0 && x2 < fb->width) {
-      fb->pixels[yy * fb->width + x2] = color;
-    }
+  pik_blit(pik, fb, 0, 0);
+  if (pik->has_palette) {
+    new_game_copy_palette(out_palette, &pik->palette);
   }
 }
 
@@ -1516,10 +1448,7 @@ static void new_game_blit_woodpanl(
 ) {
   memset(fb->pixels, 4, (size_t)fb->width * (size_t)fb->height);
   if (ng->woodpanl && ng->woodpanl->pixels) {
-    pik_blit(ng->woodpanl, fb, 0, 0);
-    if (ng->woodpanl->has_palette && out_palette) {
-      new_game_copy_palette(out_palette, &ng->woodpanl->palette);
-    }
+    new_game_blit_bg(ng->woodpanl, fb, out_palette);
   }
 }
 
@@ -1559,45 +1488,23 @@ static const int k_euro_fill_rgb[4][3] = {
   {255, 113, 0}, /* Netherlands */
 };
 
-static uint8_t new_game_palette_nearest_rgb(const ColonizePalette* pal, int r, int g, int b) {
-  if (!pal) {
-    return 0;
-  }
-  int best = 0;
-  int best_d = 1 << 30;
-  for (int i = 0; i < 256; ++i) {
-    const int dr = r - (int)pal->rgb[i][0];
-    const int dg = g - (int)pal->rgb[i][1];
-    const int db = b - (int)pal->rgb[i][2];
-    const int d = dr * dr + dg * dg + db * db;
-    if (d < best_d) {
-      best_d = d;
-      best = i;
-      if (d == 0) {
-        break;
-      }
-    }
-  }
-  return (uint8_t)best;
-}
-
 static uint8_t new_game_nation_ink_on_pik(const NewGameWizard* ng, int nation_id) {
   if (nation_id < 0 || nation_id > 3) {
     nation_id = 0;
   }
   if (ng && ng->nations_ok && ng->nations_pik.has_palette) {
-    return new_game_palette_nearest_rgb(
+    return assets_palette_nearest_rgb(
       &ng->nations_pik.palette,
       k_euro_fill_rgb[nation_id][0],
       k_euro_fill_rgb[nation_id][1],
       k_euro_fill_rgb[nation_id][2]
     );
   }
-  return turn_nation_color(nation_id);
+  return unit_chrome_nation_color(nation_id);
 }
 
 static int new_game_centered_x(const ColonizeFont* font, const char* text, int anchor_cx) {
-  const int w = new_game_text_width(font, text);
+  const int w = font_text_width_skip(font, text, FONT_SKIP_LAYOUT);
   int x = anchor_cx - w / 2;
   if (x < 0) {
     x = 0;
@@ -1629,8 +1536,8 @@ static void new_game_draw_centered_pair(
   if (y0 < rect->y + 1) {
     y0 = rect->y + 1;
   }
-  const int top_w = new_game_text_width(font, top);
-  const int bot_w = new_game_text_width(font, bottom);
+  const int top_w = font_text_width_skip(font, top, FONT_SKIP_LAYOUT);
+  const int bot_w = font_text_width_skip(font, bottom, FONT_SKIP_LAYOUT);
   int top_x = rect->x + (rect->w - top_w) / 2;
   int bot_x = rect->x + (rect->w - bot_w) / 2;
   if (top_x < rect->x + 1) {
@@ -1654,8 +1561,8 @@ static void new_game_draw_nation_pair(
   /* Nation name at top, bonus at bottom — maximize vertical whitespace. */
   const int line_h = font ? font->max_height : 6;
   const int pad = 4;
-  const int top_w = new_game_text_width(font, top);
-  const int bot_w = new_game_text_width(font, bottom);
+  const int top_w = font_text_width_skip(font, top, FONT_SKIP_LAYOUT);
+  const int bot_w = font_text_width_skip(font, bottom, FONT_SKIP_LAYOUT);
   int top_x = rect->x + (rect->w - top_w) / 2;
   int bot_x = rect->x + (rect->w - bot_w) / 2;
   if (top_x < rect->x + 1) {
@@ -1682,15 +1589,9 @@ static void new_game_render_region_pick(
   const bool difficul = (ng->phase == NEW_GAME_PHASE_DIFFICULTY);
   memset(fb->pixels, 0, (size_t)fb->width * (size_t)fb->height);
   if (difficul && ng->difficul_ok) {
-    pik_blit(&ng->difficul_pik, fb, 0, 0);
-    if (ng->difficul_pik.has_palette && out_palette) {
-      new_game_copy_palette(out_palette, &ng->difficul_pik.palette);
-    }
+    new_game_blit_bg(&ng->difficul_pik, fb, out_palette);
   } else if (!difficul && ng->nations_ok) {
-    pik_blit(&ng->nations_pik, fb, 0, 0);
-    if (ng->nations_pik.has_palette && out_palette) {
-      new_game_copy_palette(out_palette, &ng->nations_pik.palette);
-    }
+    new_game_blit_bg(&ng->nations_pik, fb, out_palette);
   }
 
   const NewGameRect* rects = difficul ? k_difficul_rects : k_nation_rects;
@@ -1716,7 +1617,7 @@ static void new_game_render_region_pick(
     } else {
       border = nation_ink;
     }
-    new_game_draw_rect_border(fb, r->x, r->y, r->w, r->h, border);
+    fb_rect_outline(fb, r->x, r->y, r->w, r->h, border, border);
   }
 
   const uint8_t shadow = 0;
@@ -1724,7 +1625,7 @@ static void new_game_render_region_pick(
   new_game_format_finished(ng, finished_buf, sizeof(finished_buf));
   const int finished_line_h = tiny ? tiny->max_height : 6;
   const int tx = 8;
-  const int finished_w = new_game_text_width(tiny, finished_buf);
+  const int finished_w = font_text_width_skip(tiny, finished_buf, FONT_SKIP_LAYOUT);
   const int anchor_cx = tx + finished_w / 2;
   const int title_lh = title_font ? title_font->max_height + 1 : 8;
 
@@ -1751,7 +1652,7 @@ static void new_game_render_region_pick(
     /* Labels only on the selected difficulty (FUN_733a_0512). */
     if (ng->selection >= 0 && ng->selection < count) {
       char top[32];
-      snprintf(top, sizeof(top), "%s:", k_difficul_names[ng->selection]);
+      snprintf(top, sizeof(top), "%s:", reports_difficulty_title(ng->selection));
       new_game_draw_centered_pair(
         tiny,
         fb,
@@ -1791,7 +1692,7 @@ static void new_game_render_region_pick(
     /* Labels only when that nation is selected. */
     if (ng->selection >= 0 && ng->selection < count) {
       char top[32];
-      snprintf(top, sizeof(top), "%s:", k_nation_names[ng->selection]);
+      snprintf(top, sizeof(top), "%s:", new_game_nation_name(ng->selection));
       for (char* p = top; *p; ++p) {
         if (*p >= 'a' && *p <= 'z') {
           *p = (char)(*p - 'a' + 'A');
@@ -1824,10 +1725,7 @@ static void new_game_render_customize(
 ) {
   memset(fb->pixels, 0, (size_t)fb->width * (size_t)fb->height);
   if (ng->customiz_ok) {
-    pik_blit(&ng->customiz_pik, fb, 0, 0);
-    if (ng->customiz_pik.has_palette && out_palette) {
-      new_game_copy_palette(out_palette, &ng->customiz_pik.palette);
-    }
+    new_game_blit_bg(&ng->customiz_pik, fb, out_palette);
   }
 
   const char* cats[4];
@@ -1848,13 +1746,13 @@ static void new_game_render_customize(
     const NewGameRect* rect = &k_customiz_rects[c][row];
     const bool focused = (c == ng->customize_focus);
     const uint8_t ink = focused ? yellow : green;
-    new_game_draw_rect_border(fb, rect->x, rect->y, rect->w, rect->h, ink);
+    fb_rect_outline(fb, rect->x, rect->y, rect->w, rect->h, ink, ink);
     new_game_draw_centered_pair(tiny, fb, rect, cats[c], vals[c * 3 + row], ink);
   }
 
   char finished_buf[80];
   new_game_format_finished(ng, finished_buf, sizeof(finished_buf));
-  const int fw = new_game_text_width(tiny, finished_buf);
+  const int fw = font_text_width_skip(tiny, finished_buf, FONT_SKIP_LAYOUT);
   const int fx = (fb->width - fw) / 2;
   const int fy = 186;
   new_game_draw_markup_line(tiny, fb, fx, fy, finished_buf, green, green);
@@ -1891,7 +1789,7 @@ static void new_game_render_leader_name(
   if (box_w < 120) {
     box_w = 120;
   }
-  const int prompt_w = new_game_text_width(font, prompt_clean);
+  const int prompt_w = font_text_width_skip(font, prompt_clean, FONT_SKIP_LAYOUT);
   if (box_w < prompt_w) {
     box_w = prompt_w;
   }
@@ -1948,84 +1846,56 @@ static void new_game_lore_emit(
   (*n_out)++;
 }
 
-static void new_game_lore_flush_accum(
-  char* accum,
-  char out[][COLONIZE_MSG_LINE_LEN],
-  bool out_center[],
-  int* n_out
-) {
-  if (!accum || !accum[0]) {
-    return;
-  }
-  new_game_lore_emit(out, out_center, n_out, accum, false);
-  accum[0] = '\0';
-}
+/*
+ * Paragraph buffer -> wrapped output. `para` accumulates the body runs of
+ * consecutive source lines (DOS FUN_6f74_1198 reflows across file newlines);
+ * the flush hands the whole paragraph to popup_wrap_text, which is the one
+ * word-wrap engine in the port (audit SC-35 retired the two private copies
+ * this file used to carry). Verified byte-identical to the retired engine
+ * over every section of the shipped COLONIZE/GAME.TXT and all five shipped
+ * fonts; see new_game_wrap_prompt_flow for the three sections that do differ
+ * and why they are unreachable from here.
+ */
+#define NEW_GAME_LORE_PARA_MAX 2048
 
-static void new_game_lore_add_word(
+static void new_game_lore_flush_para(
   const ColonizeFont* font,
   int max_w,
-  char* accum,
-  size_t accum_size,
-  const char* word,
+  char* para,
   char out[][COLONIZE_MSG_LINE_LEN],
   bool out_center[],
   int* n_out
 ) {
-  if (!word || !word[0] || !accum || accum_size == 0) {
+  if (!para || !para[0]) {
     return;
   }
-  const int word_w = new_game_text_width(font, word);
-  if (accum[0]) {
-    const int space_w = new_game_text_width(font, " ");
-    if (new_game_text_width(font, accum) + space_w + word_w > max_w) {
-      new_game_lore_flush_accum(accum, out, out_center, n_out);
-    }
+  if (n_out && *n_out < NEW_GAME_LORE_MAX_OUT) {
+    *n_out += popup_wrap_text(
+      font,
+      para,
+      out[*n_out],
+      COLONIZE_MSG_LINE_LEN,
+      out_center + *n_out,
+      NEW_GAME_LORE_MAX_OUT - *n_out,
+      max_w
+    );
   }
-  size_t len = strlen(accum);
-  if (accum[0] && len + 1 < accum_size) {
-    accum[len++] = ' ';
-    accum[len] = '\0';
-  }
-  for (const char* p = word; *p && len + 1 < accum_size; ++p) {
-    accum[len++] = *p;
-  }
-  accum[len] = '\0';
+  para[0] = '\0';
 }
 
-static void new_game_lore_add_run(
-  const ColonizeFont* font,
-  int max_w,
-  char* accum,
-  size_t accum_size,
-  const char* text,
-  char out[][COLONIZE_MSG_LINE_LEN],
-  bool out_center[],
-  int* n_out
-) {
-  if (!text) {
+/* Append one source line's body to the running paragraph, space-joined. */
+static void new_game_lore_add_run(char* para, size_t para_size, const char* text) {
+  if (!para || para_size == 0 || !text) {
     return;
   }
-  const char* p = text;
-  while (*p) {
-    while (*p == ' ') {
-      p++;
-    }
-    if (!*p) {
-      break;
-    }
-    const char* start = p;
-    while (*p && *p != ' ') {
-      p++;
-    }
-    char word[COLONIZE_MSG_LINE_LEN];
-    size_t n = (size_t)(p - start);
-    if (n >= sizeof(word)) {
-      n = sizeof(word) - 1;
-    }
-    memcpy(word, start, n);
-    word[n] = '\0';
-    new_game_lore_add_word(font, max_w, accum, accum_size, word, out, out_center, n_out);
+  size_t len = strlen(para);
+  if (len && len + 1 < para_size) {
+    para[len++] = ' ';
   }
+  while (*text && len + 1 < para_size) {
+    para[len++] = *text++;
+  }
+  para[len] = '\0';
 }
 
 static void new_game_render_lore(
@@ -2067,8 +1937,8 @@ static void new_game_render_lore(
   char out[NEW_GAME_LORE_MAX_OUT][COLONIZE_MSG_LINE_LEN];
   bool out_center[NEW_GAME_LORE_MAX_OUT];
   int n_out = 0;
-  char accum[COLONIZE_MSG_LINE_LEN];
-  accum[0] = '\0';
+  char para[NEW_GAME_LORE_PARA_MAX];
+  para[0] = '\0';
 
   for (int i = 0; i < section->line_count && n_out < NEW_GAME_LORE_MAX_OUT; ++i) {
     const char* line = section->lines[i];
@@ -2092,18 +1962,18 @@ static void new_game_render_lore(
       p++;
     }
     if (*p == '\0') {
-      new_game_lore_flush_accum(accum, out, out_center, &n_out);
+      new_game_lore_flush_para(font, max_w, para, out, out_center, &n_out);
       new_game_lore_emit(out, out_center, &n_out, "", false);
       continue;
     }
     if (center) {
-      new_game_lore_flush_accum(accum, out, out_center, &n_out);
+      new_game_lore_flush_para(font, max_w, para, out, out_center, &n_out);
       new_game_lore_emit(out, out_center, &n_out, p, true);
       continue;
     }
-    new_game_lore_add_run(font, max_w, accum, sizeof(accum), p, out, out_center, &n_out);
+    new_game_lore_add_run(para, sizeof(para), p);
   }
-  new_game_lore_flush_accum(accum, out, out_center, &n_out);
+  new_game_lore_flush_para(font, max_w, para, out, out_center, &n_out);
 
   const int block_h = n_out * line_h;
   int cy = (fb->height - block_h) / 2;
@@ -2122,7 +1992,7 @@ static void new_game_render_lore(
     if (text[0]) {
       int x = margin_x;
       if (out_center[i]) {
-        const int w = new_game_text_width(font, text);
+        const int w = font_text_width_skip(font, text, FONT_SKIP_LAYOUT);
         x = (fb->width - w) / 2;
         if (x < margin_x) {
           x = margin_x;
@@ -2169,10 +2039,7 @@ static void new_game_render_king(
   (void)text_color;
   memset(fb->pixels, 0, (size_t)fb->width * (size_t)fb->height);
   if (ng->kinglss_ok) {
-    pik_blit(&ng->kinglss_pik, fb, 0, 0);
-    if (ng->kinglss_pik.has_palette) {
-      new_game_copy_palette(out_palette, &ng->kinglss_pik.palette);
-    }
+    new_game_blit_bg(&ng->kinglss_pik, fb, out_palette);
   }
   if (ng->nation_art_ok && ng->nation_art.sprite_count > 0 && ng->king1_ok &&
       ng->king1.sprite_count > 0) {
@@ -2218,8 +2085,8 @@ static void new_game_render_king(
   char out[NEW_GAME_LORE_MAX_OUT][COLONIZE_MSG_LINE_LEN];
   bool out_center[NEW_GAME_LORE_MAX_OUT];
   int n_out = 0;
-  char accum[COLONIZE_MSG_LINE_LEN];
-  accum[0] = '\0';
+  char para[NEW_GAME_LORE_PARA_MAX];
+  para[0] = '\0';
 
   for (int i = 0; i < section->line_count && n_out < NEW_GAME_LORE_MAX_OUT; ++i) {
     const char* line = section->lines[i];
@@ -2256,19 +2123,19 @@ static void new_game_render_king(
     }
     if (*p == '\0') {
       /* Lone ^ / blank — vertical spacer (DOS hard break). */
-      new_game_lore_flush_accum(accum, out, out_center, &n_out);
+      new_game_lore_flush_para(font, tw, para, out, out_center, &n_out);
       new_game_lore_emit(out, out_center, &n_out, "", false);
       continue;
     }
     if (center) {
-      new_game_lore_flush_accum(accum, out, out_center, &n_out);
+      new_game_lore_flush_para(font, tw, para, out, out_center, &n_out);
       new_game_lore_emit(out, out_center, &n_out, p, true);
       continue;
     }
     /* Body: flow-wrap at @width (FUN_6f74_1198); file newlines are not hard breaks. */
-    new_game_lore_add_run(font, tw, accum, sizeof(accum), p, out, out_center, &n_out);
+    new_game_lore_add_run(para, sizeof(para), p);
   }
-  new_game_lore_flush_accum(accum, out, out_center, &n_out);
+  new_game_lore_flush_para(font, tw, para, out, out_center, &n_out);
 
   int y = ty;
   for (int i = 0; i < n_out; ++i) {
@@ -2279,7 +2146,7 @@ static void new_game_render_king(
     if (text[0]) {
       int x = tx;
       if (out_center[i]) {
-        const int w = new_game_text_width(font, text);
+        const int w = font_text_width_skip(font, text, FONT_SKIP_LAYOUT);
         x = tx + (tw - w) / 2;
         if (x < tx) {
           x = tx;
@@ -2316,7 +2183,7 @@ void new_game_render_throne_audience(
   if (ng->data_dir[0] == '\0' && data_dir && data_dir[0]) {
     snprintf(ng->data_dir, sizeof(ng->data_dir), "%s", data_dir);
   }
-  new_game_load_pik(ng, "KINGLSS1.PIK", &ng->kinglss_pik, &ng->kinglss_ok);
+  new_game_ensure_kinglss(ng);
   if (ng->endking_ok && strcmp(ng->endking_name, king_sheet) != 0) {
     ss_free(&ng->endking);
     ng->endking_ok = false;
@@ -2348,10 +2215,7 @@ void new_game_render_throne_audience(
 
   memset(fb->pixels, 0, (size_t)fb->width * (size_t)fb->height);
   if (ng->kinglss_ok) {
-    pik_blit(&ng->kinglss_pik, fb, 0, 0);
-    if (ng->kinglss_pik.has_palette && out_palette) {
-      new_game_copy_palette(out_palette, &ng->kinglss_pik.palette);
-    }
+    new_game_blit_bg(&ng->kinglss_pik, fb, out_palette);
   }
   if (ng->endking_ok && ng->endking.sprite_count > 0) {
     const ColonizeSprite* king = &ng->endking.sprites[0];
@@ -2380,10 +2244,10 @@ void new_game_render_throne_audience(
   char out[NEW_GAME_LORE_MAX_OUT][COLONIZE_MSG_LINE_LEN];
   bool out_center[NEW_GAME_LORE_MAX_OUT];
   int n_out = 0;
-  char accum[COLONIZE_MSG_LINE_LEN];
-  accum[0] = '\0';
-  new_game_lore_add_run(font, text_w, accum, sizeof(accum), body, out, out_center, &n_out);
-  new_game_lore_flush_accum(accum, out, out_center, &n_out);
+  char para[NEW_GAME_LORE_PARA_MAX];
+  para[0] = '\0';
+  new_game_lore_add_run(para, sizeof(para), body);
+  new_game_lore_flush_para(font, text_w, para, out, out_center, &n_out);
   const int line_h = font->max_height + 1;
   int y = text_y;
   for (int i = 0; i < n_out; ++i) {
@@ -2450,10 +2314,7 @@ static void new_game_render_sail(
   const int frame = ng->sail_frame;
   memset(fb->pixels, 0, (size_t)fb->width * (size_t)fb->height);
   if (frame >= 0 && frame < NEW_GAME_SAIL_FRAMES && ng->levn_ok[frame]) {
-    pik_blit(&ng->levn[frame], fb, 0, 0);
-    if (ng->levn[frame].has_palette) {
-      new_game_copy_palette(out_palette, &ng->levn[frame].palette);
-    }
+    new_game_blit_bg(&ng->levn[frame], fb, out_palette);
   }
 
   char section_name[24];
@@ -2525,7 +2386,7 @@ static void new_game_render_sail(
     /* DOS FUN_6f74_0c32 eats at most two carets; a third is body text. */
     const char* body = buf;
     (void)popup_msg_caret_flags(buf, &body);
-    int w = new_game_text_width(font, body);
+    int w = font_text_width_skip(font, body, FONT_SKIP_LAYOUT);
     int x = (fb->width - w) / 2;
     if (tw < fb->width) {
       x = (fb->width - tw) / 2 + (tw - w) / 2;

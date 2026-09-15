@@ -605,8 +605,9 @@ annotated thin map that owns that mutation → fix or deepen the ported path.
 No seed-/turn-/nation-only exception tables unless explicitly documented as
 temporary PORT DEBT with a retire criterion. `--seed 100` overrides every
 timer-word read for deterministic runs (docs/assets.md "Fixed seed");
-`AI_EURO_EARLY_FIXTURE=1` re-enables the retired early-turn fixture for
-regression bisect only.
+The retired early-turn fixture and its `AI_EURO_EARLY_FIXTURE=1` bisect gate
+were deleted 2026-09-14 (the hand-written seed-100 script and all 20 of its
+helpers; every helper had a live twin in ai_euro.c/ai.c).
 
 ### Method notes (don't relearn these)
 

@@ -4,10 +4,12 @@
 #include <string.h>
 
 #include "core/map_menu.h"
+#include "core/popup.h"
 #include "core/popup_msg.h"
 #include "core/reports.h"
 #include "core/savegame.h"
 #include "core/strutil.h"
+#include "core/ui_button.h"
 #include "core/ui_colors.h"
 
 /* GAME.TXT @SAVEGAME/@LOADGAME @width (DOS 6f74 content width). */
@@ -51,11 +53,7 @@ static void save_load_format_label(
     str_copy_trunc(out, out_sz, "(EMPTY)");
     return;
   }
-  static const char* k_titles[5] = {
-    "Discoverer", "Explorer", "Conquistador", "Governor", "Viceroy"
-  };
-  const char* diff =
-    k_titles[info->difficulty <= 4 ? info->difficulty : 4];
+  const char* diff = reports_difficulty_title(info->difficulty <= 4 ? info->difficulty : 4);
   char leader[24];
   str_copy_trunc(leader, sizeof(leader), info->leader_name);
   if (font) {
@@ -145,18 +143,7 @@ bool save_load_open(
 }
 
 static int save_load_option_at_y(const SaveLoadDialog* dlg, int mouse_y) {
-  if (!dlg || dlg->line_h <= 0 || dlg->option_count <= 0) {
-    return -1;
-  }
-  const int rel = mouse_y - dlg->list_y0;
-  if (rel < 0) {
-    return -1;
-  }
-  const int idx = rel / dlg->line_h;
-  if (idx < 0 || idx >= dlg->option_count) {
-    return -1;
-  }
-  return idx;
+  return dlg ? popup_row_at_y(dlg->list_y0, dlg->line_h, dlg->option_count, mouse_y) : -1;
 }
 
 static bool save_load_can_confirm(const SaveLoadDialog* dlg, int idx) {
@@ -230,8 +217,7 @@ bool save_load_handle_input(SaveLoadDialog* dlg, const ColonizeInputState* input
   if (input->mouse_left_clicked) {
     const int mx = input->mouse_x;
     const int my = input->mouse_y;
-    if (mx < dlg->dialog_x || my < dlg->dialog_y || mx >= dlg->dialog_x + dlg->dialog_w ||
-        my >= dlg->dialog_y + dlg->dialog_h) {
+    if (!ui_rect_hit(dlg->dialog_x, dlg->dialog_y, dlg->dialog_w, dlg->dialog_h, mx, my)) {
       save_load_cancel(dlg);
       return true;
     }
@@ -264,6 +250,11 @@ bool save_load_handle_input(SaveLoadDialog* dlg, const ColonizeInputState* input
   return true; /* consume while open */
 }
 
+static const char* save_load_row_label(void* user, int index) {
+  const SaveLoadDialog* dlg = (const SaveLoadDialog*)user;
+  return dlg->options[index];
+}
+
 void save_load_render(
   SaveLoadDialog* dlg,
   const ColonizeFont* font,
@@ -287,109 +278,39 @@ void save_load_render(
    * glyph_h + box[+0x46] (FUN_6f74_14c6 @ 0x1611-0x1628). FUN_7562_0052
    * appends each slot row with FUN_291f_0176 (decomp viceroy_unpacked.c
    * 119680), and FUN_291f_0176 is a straight thunk to FUN_6f74_0a00
-   * (viceroy_unpacked_2.c 33285-33289) — the +0x54 option list — so the save
+   * (viceroy_unpacked_2.c 33285-33289) - the +0x54 option list - so the save
    * and load dialogs are +0x54 rows exactly like every ai_popup CHOICE.
    * box[+0x46] = (flags & 0x10) ? 0 : 3 (FUN_6f74_06d0 @ 0x078a-0x0799), and
    * GAME.TXT @SAVEGAME/@LOADGAME declare nothing but @width=190, so the box
-   * is framed and the pitch is glyph_h + 3. The port used glyph_h + 1 here,
-   * leaving every slot row 2 px tight. */
-  int glyph_h = font ? font->max_height : 6;
-  if (glyph_h == 6) {
-    glyph_h = 5;
-  }
-  const int line_h = glyph_h + 1;
-  const int option_h = glyph_h + 3;
-  const int pad_x = 2;
-  const int title_gap = dlg->prompt[0] ? 2 : 0;
-
-  int content_w = dlg->width > 0 ? dlg->width : SAVE_LOAD_DEFAULT_WIDTH;
-  /* FUN_6f74_14c6: content width = max(@width, widest emitted row). */
-  if (font) {
-    for (int i = -1; i < dlg->option_count; ++i) {
-      const char* row = (i < 0) ? dlg->prompt : dlg->options[i];
-      const int w = font_text_width(font, row) + 2 * pad_x;
-      if (w > content_w) {
-        content_w = w;
-      }
-    }
-  }
-  if (content_w + 6 > framebuffer->width) {
-    content_w = framebuffer->width - 6;
-  }
-  const int dialog_w = content_w + 6;
-  const int prompt_h = dlg->prompt[0] ? line_h + title_gap : 0;
-  const int options_h = dlg->option_count * option_h;
-  int dialog_h = 12 + prompt_h + options_h;
-  if (dialog_h > framebuffer->height) {
-    dialog_h = framebuffer->height;
-  }
-
-  const int dialog_x = (framebuffer->width - dialog_w) / 2;
-  int dialog_y = (framebuffer->height - dialog_h) / 2;
-  if (dialog_y < MAP_MENU_BAR_H + 2) {
-    dialog_y = MAP_MENU_BAR_H + 2;
-  }
-
-  ColonizePopupColors local_colors;
-  if (!colors) {
-    popup_colors_from_ui(&local_colors);
-    colors = &local_colors;
-  }
-
-  int inner_x = 0;
-  int inner_y = 0;
-  int inner_w = 0;
-  int inner_h = 0;
-  popup_draw(
+   * is framed and the pitch is glyph_h + 3. All of that now lives in
+   * popup_list_metrics_dos6f74, which also carries the FUN_6f74_14c6
+   * widen-to-widest-row rule and the FUN_6f74_1b7c selection bar. */
+  PopupListMetrics metrics;
+  popup_list_metrics_dos6f74(font, &metrics);
+  PopupListGeom geom;
+  popup_list_render(
     framebuffer,
-    dialog_x,
-    dialog_y,
-    dialog_w,
-    dialog_h,
+    font,
     wood_tile,
     colors,
-    &inner_x,
-    &inner_y,
-    &inner_w,
-    &inner_h
+    &metrics,
+    dlg->width > 0 ? dlg->width : SAVE_LOAD_DEFAULT_WIDTH,
+    dlg->prompt,
+    dlg->option_count,
+    dlg->selection,
+    save_load_row_label,
+    NULL,
+    dlg,
+    text_color,
+    text_color,
+    select_color,
+    &geom
   );
-
-  dlg->dialog_x = dialog_x;
-  dlg->dialog_y = dialog_y;
-  dlg->dialog_w = dialog_w;
-  dlg->dialog_h = dialog_h;
+  dlg->dialog_x = geom.frame.x;
+  dlg->dialog_y = geom.frame.y;
+  dlg->dialog_w = geom.frame.w;
+  dlg->dialog_h = geom.frame.h;
   /* Hit-testing walks the slot rows, so this is their pitch, not the prompt's. */
-  dlg->line_h = option_h;
-
-  /* FONTINTR unbold + black drop-shadow, like every other wood popup. */
-  int text_y = inner_y + 3;
-  if (dlg->prompt[0] && font) {
-    popup_draw_text_shadowed(
-      font, framebuffer, inner_x + pad_x, text_y, dlg->prompt, text_color
-    );
-    text_y += prompt_h;
-  }
-  dlg->list_y0 = text_y;
-
-  for (int i = 0; i < dlg->option_count; ++i) {
-    const int row_y = text_y + i * option_h;
-    if (i == dlg->selection) {
-      /* FUN_6f74_1b7c selection bar (OVL24 0x1c5b-0x1c9b), same rect
-       * ai_popup_render draws: x = box[+0x24] + box[+0x48] - 1 (the two
-       * box[+0x22] terms built at 0x1b86 cancel), width = content - 2,
-       * height = glyph_h + 2. */
-      for (int y = row_y - 1; y <= row_y - 1 + (glyph_h + 2) - 1; ++y) {
-        for (int x = inner_x + pad_x - 1; x <= inner_x + pad_x - 1 + (inner_w - 2) - 1; ++x) {
-          if (x >= 0 && y >= 0 && x < framebuffer->width && y < framebuffer->height) {
-            framebuffer->pixels[y * framebuffer->width + x] = select_color;
-          }
-        }
-      }
-    }
-    if (font) {
-      popup_draw_text_shadowed(
-        font, framebuffer, inner_x + pad_x, row_y, dlg->options[i], text_color
-      );
-    }
-  }
+  dlg->line_h = geom.line_h;
+  dlg->list_y0 = geom.list_y0;
 }

@@ -3,6 +3,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "core/bytes.h"
+
 /*
  * Symbols below are image offsets in GSOUND.COL (MZ header stripped). The
  * data segment starts at paragraph 0x322 (image 0x3220); DS-relative
@@ -92,17 +94,13 @@ struct GsoundVm {
   int depth;
 };
 
-static uint16_t rd16(const uint8_t* p) {
-  return (uint16_t)(p[0] | ((uint16_t)p[1] << 8));
-}
-
 static void wr16(uint8_t* p, uint16_t v) {
   p[0] = (uint8_t)v;
   p[1] = (uint8_t)(v >> 8);
 }
 
 static uint16_t ds16(const GsoundVm* vm, uint16_t a) {
-  return rd16(vm->ds + a);
+  return rd_u16_le(vm->ds + a);
 }
 
 static void ds16w(GsoundVm* vm, uint16_t a, uint16_t v) {
@@ -176,7 +174,7 @@ static void voice_tick(GsoundVm* vm, uint16_t vaddr) {
   }
 
   for (;;) {
-    uint16_t p = rd16(v + W_POS);
+    uint16_t p = rd_u16_le(v + W_POS);
     const uint8_t op = ds[p];
     if (!((op & 0x80) && (int8_t)op > (int8_t)0xBA)) {
       /* Note / rest: note, dur. */
@@ -237,7 +235,7 @@ static void voice_tick(GsoundVm* vm, uint16_t vaddr) {
         }
         break;
       case 0xC4: /* call code at CS:imm16 */
-        run_x86(vm, rd16(ds + (uint16_t)(p + 1)));
+        run_x86(vm, rd_u16_le(ds + (uint16_t)(p + 1)));
         next = (uint16_t)(p + 3);
         break;
       case 0xC5: case 0xC6: case 0xC7: case 0xC8:
@@ -259,7 +257,7 @@ static void voice_tick(GsoundVm* vm, uint16_t vaddr) {
           if (is_call) {
             wr16(v + W_RET, (uint16_t)(p + 5));
           }
-          next = rd16(ds + (uint16_t)(p + 3));
+          next = rd_u16_le(ds + (uint16_t)(p + 3));
         } else {
           next = (uint16_t)(p + 5);
         }
@@ -414,22 +412,22 @@ static void voice_tick(GsoundVm* vm, uint16_t vaddr) {
         emit(vm, (uint8_t)(0xC0 | ch), v[V_PROG], 0);
         break;
       case 0xF9:
-        if (rd16(v + W_RET) == 0) {
+        if (rd_u16_le(v + W_RET) == 0) {
           next = (uint16_t)(p + 1);
         } else {
-          next = rd16(v + W_RET);
+          next = rd_u16_le(v + W_RET);
           wr16(v + W_RET, 0);
         }
         break;
       case 0xFA:
         wr16(v + W_RET, (uint16_t)(p + 3));
-        next = rd16(ds + (uint16_t)(p + 1));
+        next = rd_u16_le(ds + (uint16_t)(p + 1));
         break;
       case 0xFB:
-        next = rd16(ds + (uint16_t)(p + 1));
+        next = rd_u16_le(ds + (uint16_t)(p + 1));
         break;
       case 0xFC: {
-        const uint16_t t = rd16(ds + (uint16_t)(p + 1));
+        const uint16_t t = rd_u16_le(ds + (uint16_t)(p + 1));
         wr16(v + W_LOOP0, t);
         wr16(v + W_FF_MARK, t);
         wr16(v + W_FE_MARK, t);
@@ -438,10 +436,10 @@ static void voice_tick(GsoundVm* vm, uint16_t vaddr) {
         break;
       }
       case 0xFD:
-        if (rd16(v + W_SONG_START) == 0) {
-          next = rd16(v + W_LOOP0);
+        if (rd_u16_le(v + W_SONG_START) == 0) {
+          next = rd_u16_le(v + W_LOOP0);
         } else {
-          const uint16_t t = rd16(v + W_SONG_START);
+          const uint16_t t = rd_u16_le(v + W_SONG_START);
           wr16(v + W_LOOP0, t);
           wr16(v + W_FF_MARK, t);
           wr16(v + W_FE_MARK, t);
@@ -452,7 +450,7 @@ static void voice_tick(GsoundVm* vm, uint16_t vaddr) {
         }
         break;
       case 0xFE:
-        if (rd16(v + W_FE_CNT) == 0) {
+        if (rd_u16_le(v + W_FE_CNT) == 0) {
           if (b1 == 0) {
             next = (uint16_t)(p + 2);
             wr16(v + W_FE_MARK, next);
@@ -463,37 +461,37 @@ static void voice_tick(GsoundVm* vm, uint16_t vaddr) {
             continue;
           }
           wr16(v + W_FE_CNT, (uint16_t)(int16_t)(int8_t)b1);
-          next = rd16(v + W_FE_MARK);
+          next = rd_u16_le(v + W_FE_MARK);
         } else {
-          uint16_t c = (uint16_t)(rd16(v + W_FE_CNT) - 1);
+          uint16_t c = (uint16_t)(rd_u16_le(v + W_FE_CNT) - 1);
           wr16(v + W_FE_CNT, c);
           if (c == 0) {
             next = (uint16_t)(p + 2);
             wr16(v + W_FE_MARK, next);
           } else {
-            next = rd16(v + W_FE_MARK);
+            next = rd_u16_le(v + W_FE_MARK);
           }
         }
         wr16(v + W_FF_MARK, next);
         break;
       case 0xFF:
-        if (rd16(v + W_FF_CNT) == 0) {
+        if (rd_u16_le(v + W_FF_CNT) == 0) {
           if (b1 == 0) {
             next = (uint16_t)(p + 2);
             wr16(v + W_FF_MARK, next);
             wr16(v + W_FF_CNT, 0);
           } else {
             wr16(v + W_FF_CNT, (uint16_t)(int16_t)(int8_t)b1);
-            next = rd16(v + W_FF_MARK);
+            next = rd_u16_le(v + W_FF_MARK);
           }
         } else {
-          uint16_t c = (uint16_t)(rd16(v + W_FF_CNT) - 1);
+          uint16_t c = (uint16_t)(rd_u16_le(v + W_FF_CNT) - 1);
           wr16(v + W_FF_CNT, c);
           if (c == 0) {
             next = (uint16_t)(p + 2);
             wr16(v + W_FF_MARK, next);
           } else {
-            next = rd16(v + W_FF_MARK);
+            next = rd_u16_le(v + W_FF_MARK);
           }
         }
         break;
@@ -667,7 +665,7 @@ static void alloc_voice(GsoundVm* vm, int lo, int hi, uint16_t stream) {
 static int find_voice_by_start(const GsoundVm* vm, uint16_t stream) {
   for (int ch = 1; ch <= 8; ++ch) {
     const uint8_t* v = vm->ds + k_voice_by_channel[ch];
-    if (v[V_DUR] != 0 && rd16(v + W_SONG_START) == stream) {
+    if (v[V_DUR] != 0 && rd_u16_le(v + W_SONG_START) == stream) {
       return ch;
     }
   }
@@ -819,8 +817,8 @@ static void run_x86_regs(GsoundVm* vm, X86* r, uint16_t ip) {
     }
     const uint8_t op = c[ip];
     const uint8_t m = c[ip + 1];
-    const uint16_t w1 = rd16(c + ip + 1);
-    const uint16_t w2 = rd16(c + ip + 2);
+    const uint16_t w1 = rd_u16_le(c + ip + 1);
+    const uint16_t w2 = rd_u16_le(c + ip + 2);
     if (op == 0xC3) {
       break;
     }
@@ -855,7 +853,7 @@ static void run_x86_regs(GsoundVm* vm, X86* r, uint16_t ip) {
       case 0x89: if (m == 0x1E) { ds16w(vm, w2, r->bx); ip += 4; continue; } break;
       case 0x8B: if (m == 0xCB) { r->cx = r->bx; ip += 2; continue; } break;
       case 0xC6: if (m == 0x06) { ds[w2] = c[ip + 4]; ip += 5; continue; } break;
-      case 0xC7: if (m == 0x06) { ds16w(vm, w2, rd16(c + ip + 4)); ip += 6; continue; } break;
+      case 0xC7: if (m == 0x06) { ds16w(vm, w2, rd_u16_le(c + ip + 4)); ip += 6; continue; } break;
       case 0x83:
         if (m == 0x3E) { set_cmp16(r, ds16(vm, w2), (uint16_t)(int16_t)(int8_t)c[ip + 4]); ip += 5; continue; }
         if (m == 0xE0) { r->ax &= (uint16_t)(int16_t)(int8_t)c[ip + 2]; r->zf = (r->ax == 0); r->cf = false; ip += 3; continue; }
@@ -926,8 +924,8 @@ int gsound_vm_sfx_table(const GsoundVm* vm, size_t coldig_size, uint32_t* offs, 
     if (e + 8 > vm->img_size) {
       break;
     }
-    const uint32_t off = (uint32_t)rd16(vm->img + e) | ((uint32_t)rd16(vm->img + e + 2) << 16);
-    const uint32_t len = (uint32_t)rd16(vm->img + e + 4) | ((uint32_t)rd16(vm->img + e + 6) << 16);
+    const uint32_t off = (uint32_t)rd_u16_le(vm->img + e) | ((uint32_t)rd_u16_le(vm->img + e + 2) << 16);
+    const uint32_t len = (uint32_t)rd_u16_le(vm->img + e + 4) | ((uint32_t)rd_u16_le(vm->img + e + 6) << 16);
     if (len == 0 || (uint64_t)off + len > coldig_size) {
       break;
     }
@@ -983,7 +981,7 @@ static uint16_t handler_for(const GsoundVm* vm, int id) {
   if (e + 2 > vm->img_size) {
     return 0;
   }
-  return rd16(vm->img + e);
+  return rd_u16_le(vm->img + e);
 }
 
 bool gsound_vm_has_song(const GsoundVm* vm, int id) {
@@ -1037,10 +1035,6 @@ void gsound_vm_stop_events(GsoundVm* vm) {
   if (vm) {
     soft_stop_78(vm);
   }
-}
-
-uint32_t gsound_vm_tick_count(const GsoundVm* vm) {
-  return vm ? vm->ticks : 0;
 }
 
 uint32_t gsound_vm_loop_tick(const GsoundVm* vm) {

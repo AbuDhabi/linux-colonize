@@ -164,8 +164,6 @@ void combat_analysis_render(
 typedef void (*ColonizeCombatAnalysisPresenter)(const ColonizeCombatEngagement* eng, void* user);
 
 void combat_analysis_set_presenter(ColonizeCombatAnalysisPresenter fn, void* user);
-ColonizeCombatAnalysisPresenter combat_analysis_presenter(void);
-void* combat_analysis_presenter_user(void);
 
 /* Invoke presenter if set; no-op otherwise. */
 void combat_analysis_present_if_hooked(const ColonizeCombatEngagement* eng);

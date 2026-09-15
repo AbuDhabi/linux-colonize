@@ -3,6 +3,7 @@
 #include <string.h>
 
 #include "core/map_menu.h"
+#include "core/popup.h"
 #include "core/strutil.h"
 
 void name_entry_init(NameEntryDialog* dlg) {
@@ -12,7 +13,9 @@ void name_entry_init(NameEntryDialog* dlg) {
   memset(dlg, 0, sizeof(*dlg));
 }
 
-void name_entry_close(NameEntryDialog* dlg) {
+/* Single close point for both the finish paths. Clearing `kind` matters only
+ * while the dialog is open; the caller reads result_kind, captured above. */
+static void name_entry_close(NameEntryDialog* dlg) {
   if (!dlg) {
     return;
   }
@@ -45,7 +48,7 @@ static void name_entry_finish(NameEntryDialog* dlg, bool cancelled) {
       dlg->result_name[0] = '\0';
     }
   }
-  dlg->open = false;
+  name_entry_close(dlg);
 }
 
 bool name_entry_open(
@@ -127,59 +130,27 @@ void name_entry_render(
   if (!dlg || !dlg->open || !framebuffer || !framebuffer->pixels) {
     return;
   }
-  const int line_h = font ? (font->max_height + 2) : 8;
+  const int line_h = popup_dialog_line_h(font);
   const int pad = 6;
   const int dialog_w = 200;
   /* Last line_h is the input field; it also carries a frame pad above and below. */
   const int dialog_h = POPUP_FRAME_INSET * 2 + pad + line_h * 3 + pad + line_h * 2 +
                        TEXT_EDIT_FRAME_PAD * 2 + pad;
+  PopupPromptGeom g;
+  popup_prompt_frame(
+    framebuffer, font, wood_tile, colors, dialog_w, dialog_h, pad, dlg->prompt, 3, 36,
+    text_color, &g
+  );
+  dlg->dialog_x = g.frame.x;
+  dlg->dialog_y = g.frame.y;
   dlg->dialog_w = dialog_w;
   dlg->dialog_h = dialog_h;
-  dlg->dialog_x = (framebuffer->width - dialog_w) / 2;
-  dlg->dialog_y = (framebuffer->height - dialog_h) / 2;
-  if (dlg->dialog_y < MAP_MENU_BAR_H + 2) {
-    dlg->dialog_y = MAP_MENU_BAR_H + 2;
-  }
-
-  ColonizePopupColors local;
-  if (!colors) {
-    popup_colors_from_ui(&local);
-    colors = &local;
-  }
-  int ix = 0, iy = 0, iw = 0, ih = 0;
-  popup_draw(
-    framebuffer,
-    dlg->dialog_x,
-    dlg->dialog_y,
-    dialog_w,
-    dialog_h,
-    wood_tile,
-    colors,
-    &ix,
-    &iy,
-    &iw,
-    &ih
-  );
-  (void)ih;
   if (!font) {
     return;
   }
-  int ty = iy + pad;
-  const char* p = dlg->prompt;
-  for (int row = 0; row < 3 && *p; ++row) {
-    char line[64];
-    size_t n = 0;
-    while (*p && n + 1 < sizeof(line) && n < 36) {
-      line[n++] = *p++;
-    }
-    line[n] = '\0';
-    while (*p == ' ') {
-      ++p;
-    }
-    popup_draw_text_shadowed(font, framebuffer, ix + pad, ty, line, text_color);
-    ty += line_h;
-  }
-  ty = iy + pad + line_h * 3 + 2;
+  const int ix = g.frame.inner_x;
+  const int iw = g.frame.inner_w;
+  int ty = g.text_y + 2;
   popup_draw_text_shadowed(font, framebuffer, ix + pad, ty, "Name:", text_color);
   ty += line_h + TEXT_EDIT_FRAME_PAD;
   dlg->field_font = font;

@@ -9,7 +9,7 @@
 /*
  * King / tax / REF / independence — partial structural port of FUN_43f7_*.
  * Thin map: original_sources_annotated/ai/king_ref.md
- * Replaces turn_run_king_stub body.
+ * Runs as the turn processor's TURN_PROC_KING slice.
  */
 
 
@@ -19,7 +19,8 @@
 #define AI_KING_WOI_BYTE 0
 #define AI_KING_REF_PRESENT_BYTE 1
 #define AI_KING_BOYCOTT_BYTE 2
-#define AI_KING_MERC_HIRED_BYTE 3
+/* id 3 (and pad[1] bit 0x02) is free: AI_KING_MERC_HIRED_BYTE had no get/set
+ * caller anywhere and was deleted 2026-09-14. */
 /* Endgame latch: 0 none, 1 revolution won, 2 revolution lost (was rename-reserved). */
 #define AI_KING_ENDGAME_BYTE 4
 #define AI_KING_ENDGAME_NONE 0
@@ -55,6 +56,9 @@
  * ended" and every WoI end-check bailed. WoI / REF-present use their real
  * 0x5382 bits; the port-only latches pack into the human nation's
  * unknown23_pad[3] (nation+0x1b..+0x1d), confirmed never touched by DOS.
+ * Only pad[0] (endgame 0x03, ref-wave-wait 0x04, intervene-announced 0x08) and
+ * pad[1] (the bit latches below) are in use; pad[2] is reserved — never read
+ * or written — so a new latch byte can claim it without a save-format change.
  */
 static inline uint8_t* ai_king_latch_pad(ColonizeCol1Save* col1) {
   int n = (int)col1->head.human_player;
@@ -67,7 +71,6 @@ static inline uint8_t* ai_king_latch_pad(ColonizeCol1Save* col1) {
 static inline int ai_king_latch_bit(int which) {
   switch (which) {
     case AI_KING_BOYCOTT_BYTE: return 0x01;
-    case AI_KING_MERC_HIRED_BYTE: return 0x02;
     case AI_KING_CONGRESS_BYTE: return 0x04;
     case AI_KING_WARN1_BYTE: return 0x08;
     case AI_KING_WARN2_BYTE: return 0x10;

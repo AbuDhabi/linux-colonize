@@ -4,12 +4,15 @@
 #include <string.h>
 
 #include "core/assets.h"
+#include "core/fb.h"
 #include "core/font.h"
 #include "core/map_menu.h"
+#include "core/popup.h"
+#include "core/ui_button.h"
 #include "core/ui_colors.h"
 #include "core/unit_chrome.h"
 
-void unit_stack_close(UnitStackPopup* dlg) {
+static void unit_stack_close(UnitStackPopup* dlg) {
   if (!dlg) {
     return;
   }
@@ -230,8 +233,7 @@ bool unit_stack_handle_input(
   if (input->mouse_left_clicked) {
     const int mx = input->mouse_x;
     const int my = input->mouse_y;
-    if (mx < dlg->dialog_x || my < dlg->dialog_y || mx >= dlg->dialog_x + dlg->dialog_w ||
-        my >= dlg->dialog_y + dlg->dialog_h) {
+    if (!ui_rect_hit(dlg->dialog_x, dlg->dialog_y, dlg->dialog_w, dlg->dialog_h, mx, my)) {
       unit_stack_close(dlg);
       return true;
     }
@@ -338,30 +340,17 @@ void unit_stack_render(
   if (dialog_w > framebuffer->width - 8) {
     dialog_w = framebuffer->width - 8;
   }
-  int dialog_x = (framebuffer->width - dialog_w) / 2;
-  int dialog_y = (framebuffer->height - dialog_h) / 2;
-  if (dialog_y < MAP_MENU_BAR_H + 2) {
-    dialog_y = MAP_MENU_BAR_H + 2;
-  }
+  PopupFrameGeom fr;
+  popup_center_frame(framebuffer, dialog_w, dialog_h, wood_tile, colors, &fr);
+  const int inner_x = fr.inner_x;
+  const int inner_y = fr.inner_y;
+  const int inner_w = fr.inner_w;
+  const int inner_h = fr.inner_h;
 
-  ColonizePopupColors local_colors;
-  if (!colors) {
-    popup_colors_from_ui(&local_colors);
-    colors = &local_colors;
-  }
-
-  int inner_x = 0;
-  int inner_y = 0;
-  int inner_w = 0;
-  int inner_h = 0;
-  popup_draw(
-    framebuffer, dialog_x, dialog_y, dialog_w, dialog_h, wood_tile, colors, &inner_x, &inner_y, &inner_w, &inner_h
-  );
-
-  dlg->dialog_x = dialog_x;
-  dlg->dialog_y = dialog_y;
-  dlg->dialog_w = dialog_w;
-  dlg->dialog_h = dialog_h;
+  dlg->dialog_x = fr.x;
+  dlg->dialog_y = fr.y;
+  dlg->dialog_w = fr.w;
+  dlg->dialog_h = fr.h;
   dlg->line_h = line_h;
 
   if (inner_w <= 0 || inner_h <= 0) {
@@ -389,13 +378,7 @@ void unit_stack_render(
     const bool selected = (i == dlg->selection);
     if (selected) {
       const int sel_x1 = cols > 1 ? col_x0 + dlg->col_w - 1 : inner_x + inner_w - 1;
-      for (int y = row_y - 1; y <= row_y + line_h - 2; ++y) {
-        for (int x = col_x0; x < sel_x1; ++x) {
-          if (x >= 0 && y >= 0 && x < framebuffer->width && y < framebuffer->height) {
-            framebuffer->pixels[y * framebuffer->width + x] = select_color;
-          }
-        }
-      }
+      fb_fill_rect(framebuffer, col_x0, row_y - 1, sel_x1 - col_x0, line_h, select_color);
     }
 
     const ColonizeUnit* u = units_get_const(pool, dlg->ids[i]);

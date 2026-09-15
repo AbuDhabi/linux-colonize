@@ -5,7 +5,10 @@
 #include <string.h>
 
 #include "core/map_menu.h"
+#include "core/popup.h"
+#include "core/reports.h"
 #include "core/strutil.h"
+#include "core/ui_button.h"
 #include "core/ui_colors.h"
 
 void cheat_list_init(CheatListDialog* dlg) {
@@ -32,32 +35,6 @@ static bool cheat_list_is_directive(const char* line) {
   return line && line[0] == '@';
 }
 
-static void cheat_list_csv_field2(const char* line, char* out, size_t out_sz) {
-  if (!out || out_sz == 0) {
-    return;
-  }
-  out[0] = '\0';
-  if (!line) {
-    return;
-  }
-  const char* p = strchr(line, ',');
-  if (!p) {
-    str_copy_trunc(out, out_sz, line);
-    return;
-  }
-  ++p;
-  while (*p == ' ' || *p == '\t') {
-    ++p;
-  }
-  size_t n = 0;
-  while (*p && *p != ',' && n + 1 < out_sz) {
-    out[n++] = *p++;
-  }
-  while (n > 0 && (out[n - 1] == ' ' || out[n - 1] == '\t')) {
-    --n;
-  }
-  out[n] = '\0';
-}
 
 bool cheat_list_open_setview(CheatListDialog* dlg, const ColonizeMsgCatalog* debug_txt) {
   if (!dlg) {
@@ -146,19 +123,14 @@ bool cheat_list_open_kill_indians(CheatListDialog* dlg, const ColonizeMsgCatalog
   dlg->width = 190;
   str_copy_trunc(dlg->prompt, sizeof(dlg->prompt), "Select Tribe To Kill");
 
-  static const char* k_fallback[] = {
-    "Inca", "Aztec", "Arawak", "Iroquois", "Cherokee", "Apache", "Sioux", "Tupi"
-  };
-
-  const ColonizeMsgSection* tribes = names ? assets_msg_find(names, "TRIBES") : NULL;
+  /* @TRIBES field 1 — the singular tribe word ("Inca"), the same column the
+   * map panel and the unit labels name one tribe by. The caller's catalog
+   * wins; reports_tribe_singular_name supplies the literal fallback. */
   for (int i = 0; i < 8; ++i) {
     char short_name[CHEAT_LIST_LABEL_LEN];
-    short_name[0] = '\0';
-    if (tribes && i < tribes->line_count && tribes->lines[i][0]) {
-      cheat_list_csv_field2(tribes->lines[i], short_name, sizeof(short_name));
-    }
-    if (!short_name[0]) {
-      str_copy_trunc(short_name, sizeof(short_name), k_fallback[i]);
+    if (!assets_msg_row_field(names, "TRIBES", i, 1, short_name, sizeof(short_name)) ||
+        !short_name[0]) {
+      str_copy_trunc(short_name, sizeof(short_name), reports_tribe_singular_name(i));
     }
     str_copy_trunc(dlg->options[i], sizeof(dlg->options[i]), short_name);
     dlg->option_ids[i] = 4 + i;
@@ -266,7 +238,6 @@ bool cheat_list_open_create_unit(
 
 bool cheat_list_open_set_human(CheatListDialog* dlg, const ColonizeMsgCatalog* debug_txt) {
   static const char* k_fallback_prompt = "Select Human Nationality";
-  static const char* k_fallback[] = {"English", "French", "Spanish", "Dutch", "None"};
   static const int k_fallback_ids[] = {0, 1, 2, 3, -1};
   if (!dlg) {
     return false;
@@ -279,8 +250,13 @@ bool cheat_list_open_set_human(CheatListDialog* dlg, const ColonizeMsgCatalog* d
   const ColonizeMsgSection* section = debug_txt ? assets_msg_find(debug_txt, "SETHUMAN") : NULL;
   if (!section) {
     str_copy_trunc(dlg->prompt, sizeof(dlg->prompt), k_fallback_prompt);
+    /* @NATIONALITY rows 0-3 plus this dialog's own fifth "None" row. */
     for (int i = 0; i < 5; ++i) {
-      str_copy_trunc(dlg->options[i], sizeof(dlg->options[i]), k_fallback[i]);
+      str_copy_trunc(
+        dlg->options[i],
+        sizeof(dlg->options[i]),
+        i < 4 ? reports_nation_adjective_display_name(i) : "None"
+      );
       dlg->option_ids[i] = k_fallback_ids[i];
     }
     dlg->option_count = 5;
@@ -412,18 +388,7 @@ static void cheat_list_flip_checkbox(CheatListDialog* dlg, int idx) {
 }
 
 static int cheat_list_option_at_y(const CheatListDialog* dlg, int mouse_y) {
-  if (!dlg || dlg->line_h <= 0 || dlg->option_count <= 0) {
-    return -1;
-  }
-  const int rel = mouse_y - dlg->list_y0;
-  if (rel < 0) {
-    return -1;
-  }
-  const int idx = rel / dlg->line_h;
-  if (idx < 0 || idx >= dlg->option_count) {
-    return -1;
-  }
-  return idx;
+  return dlg ? popup_row_at_y(dlg->list_y0, dlg->line_h, dlg->option_count, mouse_y) : -1;
 }
 
 static void cheat_list_cancel(CheatListDialog* dlg) {
@@ -500,8 +465,7 @@ bool cheat_list_handle_input(CheatListDialog* dlg, const ColonizeInputState* inp
   if (input->mouse_left_clicked) {
     const int mx = input->mouse_x;
     const int my = input->mouse_y;
-    if (mx < dlg->dialog_x || my < dlg->dialog_y || mx >= dlg->dialog_x + dlg->dialog_w ||
-        my >= dlg->dialog_y + dlg->dialog_h) {
+    if (!ui_rect_hit(dlg->dialog_x, dlg->dialog_y, dlg->dialog_w, dlg->dialog_h, mx, my)) {
       cheat_list_cancel(dlg);
       return true;
     }
@@ -525,6 +489,11 @@ bool cheat_list_handle_input(CheatListDialog* dlg, const ColonizeInputState* inp
   return true; /* consume while open */
 }
 
+static const char* cheat_list_row_label(void* user, int index) {
+  const CheatListDialog* dlg = (const CheatListDialog*)user;
+  return dlg->options[index];
+}
+
 void cheat_list_render(
   CheatListDialog* dlg,
   const ColonizeFont* font,
@@ -537,82 +506,31 @@ void cheat_list_render(
   if (!dlg || !dlg->open || !framebuffer || !framebuffer->pixels) {
     return;
   }
-
-  const int line_h = font ? (font->max_height + 2) : 8;
-  const int pad_x = 6;
-  const int pad_y = 4;
-  const int prompt_h = dlg->prompt[0] ? line_h + 2 : 0;
-  const int options_h = dlg->option_count * line_h;
-  int dialog_h = POPUP_FRAME_INSET * 2 + pad_y + prompt_h + options_h + pad_y;
-  if (dialog_h < 40) {
-    dialog_h = 40;
-  }
-  if (dialog_h > framebuffer->height - 8) {
-    dialog_h = framebuffer->height - 8;
-  }
-
-  int dialog_w = dlg->width;
-  if (dialog_w > framebuffer->width - 8) {
-    dialog_w = framebuffer->width - 8;
-  }
-  int dialog_x = (framebuffer->width - dialog_w) / 2;
-  int dialog_y = (framebuffer->height - dialog_h) / 2;
-  if (dialog_y < MAP_MENU_BAR_H + 2) {
-    dialog_y = MAP_MENU_BAR_H + 2;
-  }
-
-  ColonizePopupColors local_colors;
-  if (!colors) {
-    popup_colors_from_ui(&local_colors);
-    colors = &local_colors;
-  }
-
-  int inner_x = 0;
-  int inner_y = 0;
-  int inner_w = 0;
-  int inner_h = 0;
-  popup_draw(
+  PopupListMetrics metrics;
+  popup_list_metrics_classic(font, &metrics);
+  PopupListGeom geom;
+  popup_list_render(
     framebuffer,
-    dialog_x,
-    dialog_y,
-    dialog_w,
-    dialog_h,
+    font,
     wood_tile,
     colors,
-    &inner_x,
-    &inner_y,
-    &inner_w,
-    &inner_h
+    &metrics,
+    dlg->width,
+    dlg->prompt,
+    dlg->option_count,
+    dlg->selection,
+    cheat_list_row_label,
+    NULL,
+    dlg,
+    text_color,
+    text_color,
+    select_color,
+    &geom
   );
-
-  dlg->dialog_x = dialog_x;
-  dlg->dialog_y = dialog_y;
-  dlg->dialog_w = dialog_w;
-  dlg->dialog_h = dialog_h;
-  dlg->line_h = line_h;
-
-  int text_y = inner_y + pad_y;
-  if (dlg->prompt[0] && font) {
-    font_draw_text(font, framebuffer, inner_x + pad_x, text_y, dlg->prompt, text_color);
-    text_y += prompt_h;
-  }
-  dlg->list_y0 = text_y;
-
-  for (int i = 0; i < dlg->option_count; ++i) {
-    const int row_y = text_y + i * line_h;
-    if (i == dlg->selection) {
-      for (int y = row_y - 1; y <= row_y + line_h - 2; ++y) {
-        for (int x = inner_x + 1; x <= inner_x + inner_w - 2; ++x) {
-          if (x >= 0 && y >= 0 && x < framebuffer->width && y < framebuffer->height) {
-            framebuffer->pixels[y * framebuffer->width + x] = select_color;
-          }
-        }
-      }
-    }
-    if (font) {
-      font_draw_text(
-        font, framebuffer, inner_x + pad_x, row_y, dlg->options[i], text_color
-      );
-    }
-  }
+  dlg->dialog_x = geom.frame.x;
+  dlg->dialog_y = geom.frame.y;
+  dlg->dialog_w = geom.frame.w;
+  dlg->dialog_h = geom.frame.h;
+  dlg->line_h = geom.line_h;
+  dlg->list_y0 = geom.list_y0;
 }

@@ -40,7 +40,8 @@ void ui_drag_begin(
   drag->cursor_dirty = true;
 }
 
-bool ui_drag_set_cursor_sprite(UiDragSession* drag, const ColonizeSprite* sp) {
+/* Copy a sprite into the drag cursor buffer (clamped to UI_DRAG_CURSOR_MAX). */
+static bool ui_drag_set_cursor_sprite(UiDragSession* drag, const ColonizeSprite* sp) {
   if (!drag || !sp || !sp->pixels || sp->width <= 0 || sp->height <= 0) {
     return false;
   }

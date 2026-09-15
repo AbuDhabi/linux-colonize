@@ -51,7 +51,6 @@ typedef struct HowmuchDialog {
 } HowmuchDialog;
 
 void howmuch_init(HowmuchDialog* dlg);
-void howmuch_close(HowmuchDialog* dlg);
 
 bool howmuch_open(
   HowmuchDialog* dlg,

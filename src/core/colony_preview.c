@@ -57,25 +57,11 @@ void colony_preview_compute(
      * turn.c's check the way the AI scorer's copy did (audit E#2). */
     const bool has_docks = colony_yield_colony_has_docks(pool, colony);
 
-    bool worked_colonist[32];
-    memset(worked_colonist, 0, sizeof(worked_colonist));
-    for (int ti = 0; ti < COLONIZE_COLONY_FIELD_TILES; ++ti) {
-      const int who = (int)colony->tiles[ti];
-      if (who < 0 || who >= colony->colonist_count || (who < 32 && worked_colonist[who])) {
-        continue;
-      }
-      if (who < 32) {
-        worked_colonist[who] = true;
-      }
-      const ColonizeColonist* c = &colony->colonists[who];
-      if (!c->active || c->field_job < 0) {
-        continue;
-      }
-      int dx = 0;
-      int dy = 0;
-      if (!colonies_field_tile_delta(ti, &dx, &dy)) {
-        continue;
-      }
+    ColonizeWorkedTileIter wit;
+    ColonizeWorkedTile w;
+    colony_yield_worked_tiles_begin(&wit, colony);
+    while (colony_yield_worked_tiles_next(&wit, &w)) {
+      const ColonizeColonist* c = w.colonist;
       /* sol_b_field folds into colony_yield_for_worker directly now
        * (2026-08-15, player-confirmed order) — must match turn.c's
        * turn_produce_one_colony exactly, including the same Hudson-after-
@@ -84,8 +70,8 @@ void colony_preview_compute(
        * turn_produce_one_colony / colony_yield.c, smell audit #60). */
       int yld = colony_yield_for_worker(
         map,
-        colony->x + dx,
-        colony->y + dy,
+        w.x,
+        w.y,
         c->field_job,
         c->profession,
         has_docks,
@@ -134,14 +120,7 @@ void colony_preview_compute(
                              * colony_craft_preview below, which memsets
                              * out->shortfall at its own start. */
   {
-    bool has_stable = false;
-    for (int i = 0; i < pool->building_type_count && i < COLONIZE_BUILDING_TYPES_MAX; ++i) {
-      if (colony->has_building[i] &&
-          strstr(pool->building_types[i].name, "Stable") != NULL) {
-        has_stable = true;
-        break;
-      }
-    }
+    const bool has_stable = colonies_has_building_name_contains(pool, colony, "Stable");
     const int warehouse_cap =
       colonies_warehouse_capacity(pool, colony, COLONIZE_CARGO_HORSES);
     const ColonyProdHorseBreed breed = colony_prod_horse_breed(
@@ -176,30 +155,12 @@ void colony_preview_compute(
     out->shortfall[COLONIZE_CARGO_HORSES] += horse_shortfall;
   }
 
-  /* Jefferson / Paine / Penn — must match turn.c's EOT tick (colony_prod_colony_bells_ff /
-   * colony_prod_colony_crosses_ff call sites) or the Production tab preview undercounts
-   * bells/crosses for colonies with these Founding Fathers active. */
-  const int nation_id = colony->nation_id;
-  const int statesmen_pct =
-    (col1 && founding_fathers_nation_has(col1, nation_id, FF_THOMAS_JEFFERSON)) ? 50 : 0;
-  const int paine_tax_pct =
-    (col1 && founding_fathers_nation_has(col1, nation_id, FF_THOMAS_PAINE) &&
-     nation_id >= 0 && nation_id < (int)COLONIZE_COL1_NATION_COUNT)
-      ? (int)col1->nation[nation_id].tax_rate
-      : 0;
-  const bool nation_has_penn =
-    col1 && founding_fathers_nation_has(col1, nation_id, FF_WILLIAM_PENN);
-  const bool nation_is_ai =
-    col1 && nation_id >= 0 && nation_id < (int)COLONIZE_COL1_NATION_COUNT &&
-    col1->player[nation_id].control != 0;
-  /* Bells / crosses: sol_b folds into each Statesman/Preacher worker
-   * individually, inside colony_prod_colony_bells_ff/_crosses_ff (matches
-   * FUN_15eb_1d4c's Statesman/Preacher bodies — see
-   * manufacturing_worker_calc_1d4c.md). Must match turn.c's
-   * turn_count_bells_and_crosses_for_nation call exactly. */
-  out->crosses = colony_prod_colony_crosses_ff(pool, colony, nation_has_penn, sol_b);
-  out->bells =
-    colony_prod_colony_bells_ff(pool, colony, statesmen_pct, paine_tax_pct, nation_is_ai, sol_b);
+  /* Bells / crosses: the Jefferson/Paine/Penn/is-AI derivation and the
+   * sol_b fold live in turn.h's turn_compose_colony_bells_crosses, the same
+   * entry point turn.c's EOT tick uses (audit CO-4) — a private copy here
+   * silently undercounted the Production tab whenever one of those Founding
+   * Fathers was active on only one side. */
+  turn_compose_colony_bells_crosses(pool, colony, col1, sol_b, &out->bells, &out->crosses);
 
   {
     /* Hammers bank even with no project queued (turn.c "TURN5→6" comment) —

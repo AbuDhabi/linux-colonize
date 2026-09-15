@@ -609,6 +609,58 @@ bool colony_yield_colony_has_docks(
   return false;
 }
 
+void colony_yield_worked_tiles_begin(
+  ColonizeWorkedTileIter* it, const ColonizeColony* colony
+) {
+  if (!it) {
+    return;
+  }
+  it->colony = colony;
+  it->next_tile = 0;
+  it->seen = 0u;
+}
+
+bool colony_yield_worked_tiles_next(ColonizeWorkedTileIter* it, ColonizeWorkedTile* out) {
+  if (!it || !it->colony || !out) {
+    return false;
+  }
+  const ColonizeColony* colony = it->colony;
+  while (it->next_tile < COLONIZE_COLONY_FIELD_TILES) {
+    const int ti = it->next_tile++;
+    const int who = (int)colony->tiles[ti];
+    if (who < 0 || who >= colony->colonist_count) {
+      continue;
+    }
+    if (who < 32) {
+      if (it->seen & (1u << who)) {
+        continue;
+      }
+      /* The dedupe mark is set for every in-range colonist the tiles[] walk
+       * reaches, BEFORE the active/field_job test — exactly what the three
+       * hand-written copies did with their worked_colonist[32] array. A
+       * colonist listed on two field tiles is therefore skipped on the
+       * second even when the first was rejected. */
+      it->seen |= 1u << who;
+    }
+    const ColonizeColonist* c = &colony->colonists[who];
+    if (!c->active || c->field_job < 0) {
+      continue;
+    }
+    out->tile_index = ti;
+    out->colonist_index = who;
+    out->colonist = c;
+    /* colonies_field_tile_delta's table (colony.c) is MAP_DIR8 — N, NE, E,
+     * SE, S, SW, W, NW. Read straight off map.h here so colony_yield.c
+     * keeps linking without colony.c (unit_colony_yield links it alone). */
+    out->dx = MAP_DIR8_DX[ti];
+    out->dy = MAP_DIR8_DY[ti];
+    out->x = colony->x + out->dx;
+    out->y = colony->y + out->dy;
+    return true;
+  }
+  return false;
+}
+
 int colony_yield_for_tile(const ColonizeWorldMap* map, int x, int y, int field_job) {
   return colony_yield_pipeline(map, x, y, field_job, -1, 0, true, 0, false);
 }

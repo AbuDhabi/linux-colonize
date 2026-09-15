@@ -97,8 +97,6 @@ void ai_goals_reset(void);
  * cache came to live in ai_euro.c (smell audit 2026-09-10 D8).
  */
 int ai_goals_site_nibble(const ColonizeWorldMap* map, int x, int y, int nation);
-void ai_goals_clear_primary_slot(int nation_id, int slot);
-void ai_goals_clear_secondary_slots(int nation_id);
 void ai_goals_promote_secondary_to_primary(int nation_id);
 void ai_goals_upsert_primary(int nation_id, int x, int y, int code, int prio);
 void ai_goals_upsert_secondary(int nation_id, int x, int y, int code, int prio);
@@ -116,6 +114,21 @@ void ai_goals_upsert_work(int id, int score, uint8_t loads, uint8_t military);
  */
 void ai_goals_work_consume(int slot, int free_holds);
 int ai_goals_max_primary_prio(int nation_id, int x, int y, int code);
+/*
+ * FUN_281f_0614 -> FUN_15eb_0142: nearest colony of `nation` (< 0 = any) on
+ * `continent` (< 0 = any) by the FUN_124c_0040 octile metric; DOS `<=` so the
+ * LAST tie wins. Returns the colony index or -1; *out_dist = distance (9999
+ * on a miss). Shared with ai_euro (duplication audit AE-39).
+ */
+int ai_goals_nearest_colony_15eb_0142(
+  const ColonizeWorldMap* map,
+  const ColonizeColonyPool* colonies,
+  int x,
+  int y,
+  int nation,
+  int continent,
+  int* out_dist
+);
 const AiGoalSlot* ai_goals_primary(int nation_id, int slot);
 const AiWorkSlot* ai_goals_work(int slot);
 int ai_goals_best_found_tile(int nation_id, int* out_x, int* out_y);
@@ -204,6 +217,7 @@ typedef struct AiNationPlanScratch {
   int last_colony_founded_turn;  /* DS nation*0x13c-0x77b2; 0 = never founded, matches DOS's zero-init */
 } AiNationPlanScratch;
 
+/* Test-only: production uses ai_goals_plan_scratch_refresh below. */
 AiNationPlanScratch* ai_goals_plan_scratch(int nation_id);
 
 /*
@@ -281,6 +295,8 @@ int ai_goals_composite_unit_priority(
  * so the first of equal types wins. -1 when the chain holds none, which is
  * the meaningful "no settler aboard" gate 20e6's cargo goal fold reads.
  */
+/* Test-only export (tests/unit/test_ai_goals.c); no production caller since
+ * 20e6's cargo goal fold inlined the walk. */
 int ai_goals_stack_settler_pick(
   const ColonizeCol1Unit* units,
   int unit_count,

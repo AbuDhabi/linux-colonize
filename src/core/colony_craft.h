@@ -5,6 +5,37 @@
 #include "core/turn.h"
 
 /*
+ * One row of the craft table (audit CO-12: colony_production.c's
+ * colony_prod_worker_building_output_ctx and colony_screen.c's
+ * colony_screen_building_production_badge each carried the same six chains
+ * as a private if-ladder, with a "must stay in lockstep with k_recipes"
+ * comment admitting it).
+ *
+ *   needle           substring matched against the building's @BUILDING name
+ *   in_cargo         raw good consumed
+ *   out_cargo        manufactured good produced
+ *   craft_profession the @JOB id that is "expert" at this building
+ *
+ * The table order is the DOS conversion-ledger emission order and is
+ * load-bearing (Ore→Tools first, Tools→Muskets last) — see colony_craft.c.
+ */
+typedef struct ColonizeCraftRecipe {
+  const char* needle;
+  int in_cargo;
+  int out_cargo;
+  int craft_profession;
+} ColonizeCraftRecipe;
+
+/* First recipe whose needle occurs in `building_name`, or NULL. Both tiers
+ * of every chain match: the needles cover the house/shop spellings and the
+ * renamed factory tier separately ("Rum Distill" + "Rum Factory", …). */
+const ColonizeCraftRecipe* colony_craft_recipe_for_building(const char* building_name);
+
+/* Raw table access, for callers that need to walk every chain. */
+int colony_craft_recipe_count(void);
+const ColonizeCraftRecipe* colony_craft_recipe_at(int index);
+
+/*
  * Settlement manufacturing: workplace colonists convert warehouse raw → goods.
  * Called from turn production after field harvest, before carpenter hammers.
  * sol_bonus: SoL ≥50% → +1 / =100% → +2 per craft worker on output

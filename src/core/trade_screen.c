@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "core/fb.h"
 #include "core/strutil.h"
 
 /* ICONS.SS cargo strip (same base as colony warehouse / map sidebar). */
@@ -21,18 +22,17 @@
 #define TRADE_LOAD_X 208     /* 0xd0 — load strip / header x */
 #define TRADE_ICON_GAP 2
 
+/* LABELS.TXT line, else the literal fallback (audit SC-14 — the same
+ * "section line idx or fallback" lookup five modules used to each own). */
 static void trade_label(
   char* dst,
   size_t dst_size,
-  const ColonizeMsgSection* sec,
+  const ColonizeMsgCatalog* labels,
+  const char* section,
   int line,
   const char* fallback
 ) {
-  if (sec && line >= 0 && line < sec->line_count && sec->lines[line][0] != '\0') {
-    str_copy_trunc(dst, dst_size, sec->lines[line]);
-  } else {
-    str_copy_trunc(dst, dst_size, fallback);
-  }
+  str_copy_trunc(dst, dst_size, assets_msg_line_or(labels, section, line, fallback));
 }
 
 void trade_screen_init(TradeScreen* ts, const ColonizeMsgCatalog* labels) {
@@ -41,18 +41,18 @@ void trade_screen_init(TradeScreen* ts, const ColonizeMsgCatalog* labels) {
   }
   memset(ts, 0, sizeof(*ts));
   ts->route = -1;
-  const ColonizeMsgSection* sec = labels ? assets_msg_find(labels, "ROUTE") : NULL;
-  trade_label(ts->lab_title, sizeof(ts->lab_title), sec, 0, "EDIT TRADE ROUTE");
-  trade_label(ts->lab_name, sizeof(ts->lab_name), sec, 1, "Route Name:");
-  trade_label(ts->lab_type, sizeof(ts->lab_type), sec, 2, "Route Type:");
-  trade_label(ts->lab_sea, sizeof(ts->lab_sea), sec, 3, "Sea");
-  trade_label(ts->lab_land, sizeof(ts->lab_land), sec, 4, "Land");
-  trade_label(ts->lab_dest, sizeof(ts->lab_dest), sec, 5, "Destination");
-  trade_label(ts->lab_unload, sizeof(ts->lab_unload), sec, 6, "Unload Cargo");
-  trade_label(ts->lab_load, sizeof(ts->lab_load), sec, 7, "Load Cargo");
-  trade_label(ts->lab_delete, sizeof(ts->lab_delete), sec, 8, "(Delete Destination)");
-  const ColonizeMsgSection* misc = labels ? assets_msg_find(labels, "MISC") : NULL;
-  trade_label(ts->lab_ok, sizeof(ts->lab_ok), misc, 46, "OK");
+  trade_label(ts->lab_title, sizeof(ts->lab_title), labels, "ROUTE", 0, "EDIT TRADE ROUTE");
+  trade_label(ts->lab_name, sizeof(ts->lab_name), labels, "ROUTE", 1, "Route Name:");
+  trade_label(ts->lab_type, sizeof(ts->lab_type), labels, "ROUTE", 2, "Route Type:");
+  trade_label(ts->lab_sea, sizeof(ts->lab_sea), labels, "ROUTE", 3, "Sea");
+  trade_label(ts->lab_land, sizeof(ts->lab_land), labels, "ROUTE", 4, "Land");
+  trade_label(ts->lab_dest, sizeof(ts->lab_dest), labels, "ROUTE", 5, "Destination");
+  trade_label(ts->lab_unload, sizeof(ts->lab_unload), labels, "ROUTE", 6, "Unload Cargo");
+  trade_label(ts->lab_load, sizeof(ts->lab_load), labels, "ROUTE", 7, "Load Cargo");
+  trade_label(
+    ts->lab_delete, sizeof(ts->lab_delete), labels, "ROUTE", 8, "(Delete Destination)"
+  );
+  trade_label(ts->lab_ok, sizeof(ts->lab_ok), labels, "MISC", 46, "OK");
 }
 
 void trade_screen_open(TradeScreen* ts, int route) {
@@ -209,36 +209,6 @@ bool trade_screen_handle_input(
   return true;
 }
 
-static void trade_hline(ColonizeFramebuffer8* fb, int x0, int x1, int y, uint8_t color) {
-  if (!fb || y < 0 || y >= fb->height) {
-    return;
-  }
-  if (x0 < 0) {
-    x0 = 0;
-  }
-  if (x1 > fb->width - 1) {
-    x1 = fb->width - 1;
-  }
-  for (int x = x0; x <= x1; ++x) {
-    fb->pixels[y * fb->width + x] = color;
-  }
-}
-
-static void trade_vline(ColonizeFramebuffer8* fb, int x, int y0, int y1, uint8_t color) {
-  if (!fb || x < 0 || x >= fb->width) {
-    return;
-  }
-  if (y0 < 0) {
-    y0 = 0;
-  }
-  if (y1 > fb->height - 1) {
-    y1 = fb->height - 1;
-  }
-  for (int y = y0; y <= y1; ++y) {
-    fb->pixels[y * fb->width + x] = color;
-  }
-}
-
 static void trade_draw_cargo_strip(
   const ColonizeCol1TradeStop* st,
   bool is_load,
@@ -315,13 +285,13 @@ void trade_screen_render(
   /* Grid: 5 horizontal separators + 2 column rules (FUN_647e_09da). */
   const uint8_t rule = cols.dark;
   for (int i = 0; i <= TRADE_ROW_COUNT; ++i) {
-    trade_hline(framebuffer, 6, framebuffer->width - 7, TRADE_ROW_Y0 - 2 + i * TRADE_ROW_H, rule);
+    fb_hline(framebuffer, TRADE_ROW_Y0 - 2 + i * TRADE_ROW_H, 6, framebuffer->width - 7, rule);
   }
-  trade_vline(
+  fb_vline(
     framebuffer, TRADE_COL_DEST_X1 + 5, TRADE_ROW_Y0 - 2,
     TRADE_ROW_Y0 - 2 + TRADE_ROW_COUNT * TRADE_ROW_H, rule
   );
-  trade_vline(
+  fb_vline(
     framebuffer, TRADE_COL_UNLOAD_X1 + 5, TRADE_ROW_Y0 - 2,
     TRADE_ROW_Y0 - 2 + TRADE_ROW_COUNT * TRADE_ROW_H, rule
   );
@@ -347,5 +317,5 @@ void trade_screen_render(
 
   /* OK, bottom right (LABELS @MISC 46; DOS draws it at x 0x118). */
   popup_draw_text_shadowed(font, framebuffer, 280, 176, ts->lab_ok, 15);
-  trade_hline(framebuffer, 6, framebuffer->width - 7, 189, rule);
+  fb_hline(framebuffer, 189, 6, framebuffer->width - 7, rule);
 }

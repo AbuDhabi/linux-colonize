@@ -24,40 +24,9 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "core/col1_bridge.h"
-#include "core/col1_save.h"
-#include "core/colony.h"
-#include "core/europe.h"
-#include "core/font.h"
-#include "core/map.h"
 #include "core/map_panel.h"
-#include "core/ss.h"
-#include "core/unit_chrome.h"
-#include "core/units.h"
-#include "platform/platform.h"
 
-static bool load_sheet(const char* dir, const char* name, ColonizeSpriteSheet* out) {
-  char path[512];
-  char err[256];
-  memset(out, 0, sizeof(*out));
-  if (!dos_compat_normalize_asset_path(dir, name, path, sizeof(path))) {
-    return false;
-  }
-  if (!ss_load(path, out, err, sizeof(err))) {
-    fprintf(stderr, "ss_load %s warning: %s\n", name, err);
-    return false;
-  }
-  return true;
-}
-
-static bool load_msg(const char* dir, const char* name, ColonizeMsgCatalog* out) {
-  char path[512];
-  memset(out, 0, sizeof(*out));
-  if (!dos_compat_normalize_asset_path(dir, name, path, sizeof(path))) {
-    return false;
-  }
-  return assets_msg_load_file(out, path);
-}
+#include "tools/render_common.h"
 
 int main(int argc, char** argv) {
   if (argc < 7) {
@@ -76,75 +45,28 @@ int main(int argc, char** argv) {
   const bool select_unit = atoi(argv[5]) != 0;
   const char* out_path = argv[6];
 
-  char err[256];
-
-  ColonizeCol1Save save;
-  memset(&save, 0, sizeof(save));
-  if (!col1_save_read_file(save_path, &save, err, sizeof(err))) {
-    fprintf(stderr, "col1_save_read_file failed: %s\n", err);
+  RenderSaveBundle rs;
+  if (!render_load_save(data_dir, save_path, &rs)) {
     return 1;
   }
-  const int human = col1_save_human_nation(&save);
-
-  ColonizeMsgCatalog names;
-  ColonizeMsgCatalog labels;
-  if (!load_msg(data_dir, "NAMES.TXT", &names)) {
-    fprintf(stderr, "NAMES.TXT load failed\n");
-    return 1;
-  }
-  const bool labels_ok = load_msg(data_dir, "LABELS.TXT", &labels);
-
-  ColonizeUnitPool units_pool;
-  ColonizeColonyPool colonies_pool;
-  memset(&units_pool, 0, sizeof(units_pool));
-  memset(&colonies_pool, 0, sizeof(colonies_pool));
-  colonies_init(&colonies_pool);
-  units_load_types(&units_pool, &names);
-  colonies_load_buildings(&colonies_pool, &names);
-  unit_chrome_load_orders(&names);
-
-  ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
-  EuropeScreen europe;
-  memset(&europe, 0, sizeof(europe));
-  if (!europe_load(&europe, data_dir, err, sizeof(err))) {
-    fprintf(stderr, "europe_load failed: %s\n", err);
-    return 1;
-  }
-
-  ColonizeCol1BridgeResult bridge;
-  memset(&bridge, 0, sizeof(bridge));
-  if (!col1_bridge_apply(
-        &save, &map, &units_pool, &colonies_pool, &europe, &bridge, err, sizeof(err)
-      )) {
-    fprintf(stderr, "col1_bridge_apply failed: %s\n", err);
-    return 1;
-  }
+  const int human = rs.human;
 
   MapPanel panel;
   memset(&panel, 0, sizeof(panel));
-  if (!map_panel_load(&panel, data_dir, labels_ok ? &labels : NULL)) {
+  if (!map_panel_load(&panel, data_dir, rs.labels_ok ? &rs.labels : NULL)) {
     fprintf(stderr, "map_panel_load warning (WOODTILE.SS missing)\n");
   }
 
   ColonizeSpriteSheet icons;
-  const bool icons_ok = load_sheet(data_dir, "ICONS.SS", &icons);
+  const bool icons_ok = render_load_sheet(data_dir, "ICONS.SS", &icons);
 
   ColonizeFont font;
-  memset(&font, 0, sizeof(font));
-  bool font_ok = false;
-  char ff_path[512];
-  if (dos_compat_normalize_asset_path(data_dir, "FONTTINY.FF", ff_path, sizeof(ff_path))) {
-    font_ok = ff_load(ff_path, &font, err, sizeof(err));
-    if (!font_ok) {
-      fprintf(stderr, "ff_load warning: %s\n", err);
-    }
-  }
+  const bool font_ok = render_load_font(data_dir, "FONTTINY.FF", &font);
 
   int selected = -1;
   if (select_unit) {
     for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-      const ColonizeUnit* u = &units_pool.units[i];
+      const ColonizeUnit* u = &rs.units.units[i];
       if (units_is_on_map(u) && u->x == tile_x && u->y == tile_y && u->nation_id == human) {
         selected = u->id;
         break;
@@ -156,7 +78,7 @@ int main(int argc, char** argv) {
   }
 
   if (selected >= 0 && argc > 7 && strncmp(argv[7], "load=", 5) == 0) {
-    ColonizeUnit* ship = units_get(&units_pool, selected);
+    ColonizeUnit* ship = units_get(&rs.units, selected);
     if (ship) {
       const char* p = argv[7] + 5;
       int slot = 0;
@@ -181,8 +103,8 @@ int main(int argc, char** argv) {
   int view_x = 0;
   int view_y = 0;
   map_panel_clamp_view_origin(
-    (int)map.width,
-    (int)map.height,
+    (int)rs.map.width,
+    (int)rs.map.height,
     tile_x,
     tile_y,
     MAP_VIEW_TILE_COLS,
@@ -192,24 +114,24 @@ int main(int argc, char** argv) {
   );
 
   uint8_t pixels[320 * 200];
-  memset(pixels, 0, sizeof(pixels));
-  ColonizeFramebuffer8 fb = {.width = 320, .height = 200, .pixels = pixels};
+  ColonizeFramebuffer8 fb;
+  render_fb_init(&fb, pixels);
 
   ColonizeSpriteSheet terrain;
-  const bool terrain_ok = load_sheet(data_dir, "TERRAIN.SS", &terrain);
+  const bool terrain_ok = render_load_sheet(data_dir, "TERRAIN.SS", &terrain);
   const ColonizePalette* pal_ptr =
     (terrain_ok && terrain.has_palette) ? &terrain.palette : NULL;
 
   map_panel_render(
     &panel,
-    &map,
-    &units_pool,
-    &colonies_pool,
+    &rs.map,
+    &rs.units,
+    &rs.colonies,
     icons_ok ? &icons : NULL,
     font_ok ? &font : NULL,
-    &names,
-    labels_ok ? &labels : NULL,
-    &save,
+    &rs.names,
+    rs.labels_ok ? &rs.labels : NULL,
+    &rs.save,
     view_x,
     view_y,
     MAP_VIEW_TILE_COLS,
@@ -218,11 +140,11 @@ int main(int argc, char** argv) {
     tile_y,
     selected,
     human,
-    bridge.year,
-    bridge.autumn,
-    (int)save.nation[human].gold,
-    (int)save.nation[human].tax_rate,
-    save.player[human].country_name,
+    rs.bridge.year,
+    rs.bridge.autumn,
+    (int)rs.save.nation[human].gold,
+    (int)rs.save.nation[human].tax_rate,
+    rs.save.player[human].country_name,
     pal_ptr,
     selected < 0,
     true,
@@ -234,18 +156,9 @@ int main(int argc, char** argv) {
     pal = *pal_ptr;
   }
 
-  FILE* f = fopen(out_path, "wb");
-  if (!f) {
-    fprintf(stderr, "cannot open %s for writing\n", out_path);
+  if (!render_write_ppm(out_path, pixels, &pal)) {
     return 1;
   }
-  fprintf(f, "P6\n320 200\n255\n");
-  for (int i = 0; i < 320 * 200; ++i) {
-    const uint8_t idx = pixels[i];
-    const unsigned char rgb[3] = {pal.rgb[idx][0], pal.rgb[idx][1], pal.rgb[idx][2]};
-    fwrite(rgb, 1, 3, f);
-  }
-  fclose(f);
   fprintf(stderr, "wrote %s (tile=%d,%d selected=%d human=%d)\n", out_path, tile_x, tile_y, selected, human);
   return 0;
 }

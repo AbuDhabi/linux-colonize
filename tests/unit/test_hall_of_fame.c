@@ -10,6 +10,8 @@
 
 #include "core/game_loop.h"
 
+#include "tests/common/test_assets.h"
+
 /*
  * Hall of Fame: ranked HOF.TXT table (score|leader|nation|year|difficulty,
  * highest score first; backward-compat with the old single-integer-per-line
@@ -20,97 +22,20 @@
  * docs/manual_gap.md "Hall of Fame".
  */
 
-static bool write_text_file(const char* path, const char* content) {
-  FILE* f = fopen(path, "wb");
-  if (!f) {
-    return false;
-  }
-  fwrite(content, 1, strlen(content), f);
-  fclose(f);
-  return true;
-}
-
-static bool write_palette(const char* path) {
-  FILE* f = fopen(path, "wb");
-  if (!f) {
-    return false;
-  }
-  unsigned char raw[1024];
-  for (int i = 0; i < 256; ++i) {
-    raw[i * 4 + 0] = (unsigned char)(i & 0x3f);
-    raw[i * 4 + 1] = (unsigned char)((i * 2) & 0x3f);
-    raw[i * 4 + 2] = (unsigned char)((255 - i) & 0x3f);
-    raw[i * 4 + 3] = 0;
-  }
-  bool ok = fwrite(raw, 1, sizeof(raw), f) == sizeof(raw);
-  fclose(f);
-  return ok;
-}
-
 /* Minimal title-menu assets: enough for game_create to reach the menu with a
  * "View Hall of Fame" option, nothing else (no wizard pages needed). */
-static bool create_assets(const char* dir) {
-  char path[512];
-  mkdir(dir, 0755);
-
-  snprintf(path, sizeof(path), "%s/MODULES.DB", dir);
-  if (!write_text_file(path, "<Matte>\r\n")) return false;
-  snprintf(path, sizeof(path), "%s/ERRORS.DB", dir);
-  if (!write_text_file(path, "SeriesListFull\r\n")) return false;
-  snprintf(path, sizeof(path), "%s/MENU.TXT", dir);
-  if (!write_text_file(path, "@GAME\r\n~GAME\r\n  Exit\r\n")) return false;
-  snprintf(path, sizeof(path), "%s/GAME.TXT", dir);
-  if (!write_text_file(
-        path,
-        "@BEGINMENU\r\n"
-        "@width=160\r\n"
-        "{COLONIZATION} Version test\r\n"
-        "@options\r\n"
-        "Start a Game in NEW WORLD\r\n"
-        "Start a Game in AMERICA\r\n"
-        "LOAD Game\r\n"
-        "View Hall of Fame\r\n"
-        "Exit to DOS\r\n"
-      )) {
-    return false;
-  }
-  snprintf(path, sizeof(path), "%s/NAMES.TXT", dir);
-  if (!write_text_file(
-        path,
-        "@LEADERNAME\r\n"
-        "Walter Raleigh, 1, -1, 0\r\n"
-        "\r\n"
-        "@SCENARIO\r\n"
-        "AMER2, 34, 20, 39, 10, 47, 61, 50, 33\r\n"
-        "\r\n"
-        "@UNIT\r\n"
-        "Colonists, 0, 0, 0, 0, 0, 0, 0, 0\r\n"
-      )) {
-    return false;
-  }
-  snprintf(path, sizeof(path), "%s/VICEROY.PAL", dir);
-  if (!write_palette(path)) return false;
-  return true;
-}
-
-static bool step(ColonizeGameState* game, ColonizeKey key) {
-  ColonizeInputState input = {0};
-  input.last_key = key;
-  return game_update(game, &input, 16);
-}
-
 /* Move DOWN to the "View Hall of Fame" option (index 3) and activate it. */
 static bool open_hall_of_fame(ColonizeGameState* game) {
   for (int i = 0; i < 3; ++i) {
-    if (!step(game, COLONIZE_KEY_DOWN)) return false;
+    if (!test_assets_step(game, COLONIZE_KEY_DOWN)) return false;
   }
-  return step(game, COLONIZE_KEY_ENTER);
+  return test_assets_step(game, COLONIZE_KEY_ENTER);
 }
 
 int main(void) {
   const char* data_dir = "./test-assets-hof";
   const char* save_dir = "./test-saves-hof";
-  if (!create_assets(data_dir)) {
+  if (!test_assets_create(data_dir, TEST_ASSETS_FULL_MENU | TEST_ASSETS_NAMES)) {
     fprintf(stderr, "failed to create test assets\n");
     return 1;
   }
@@ -144,11 +69,11 @@ int main(void) {
     }
     /* Idle frames (no key) must not close it or bounce back to the menu —
      * game_update runs every frame, not just on keypress. */
-    if (!step(game, COLONIZE_KEY_NONE) || !game_in_hall_of_fame(game)) {
+    if (!test_assets_step(game, COLONIZE_KEY_NONE) || !game_in_hall_of_fame(game)) {
       fprintf(stderr, "Hall of Fame screen closed on idle frame\n");
       return 1;
     }
-    if (!step(game, COLONIZE_KEY_ESCAPE)) {
+    if (!test_assets_step(game, COLONIZE_KEY_ESCAPE)) {
       fprintf(stderr, "Esc from Hall of Fame failed\n");
       return 1;
     }
@@ -161,7 +86,7 @@ int main(void) {
 
   /* 2. Legacy single-integer-per-line HOF.TXT still loads (as one entry). */
   {
-    if (!write_text_file(hof_path, "1200\n")) {
+    if (!test_assets_write_text_file(hof_path, "1200\n")) {
       fprintf(stderr, "failed to seed legacy HOF.TXT\n");
       return 1;
     }
@@ -184,7 +109,7 @@ int main(void) {
 
   /* 3. Unsorted, multi-field HOF.TXT re-ranks highest-first on load. */
   {
-    if (!write_text_file(
+    if (!test_assets_write_text_file(
           hof_path,
           "800|Ann Bonny|English|1700|2\n"
           "1500|Jacques Cartier|French|1750|3\n"
@@ -260,7 +185,7 @@ int main(void) {
       return 1;
     }
     /* Enter closes it back to the title menu (Esc covered in case 1). */
-    if (!step(game, COLONIZE_KEY_ENTER)) {
+    if (!test_assets_step(game, COLONIZE_KEY_ENTER)) {
       fprintf(stderr, "Enter from Hall of Fame failed\n");
       return 1;
     }

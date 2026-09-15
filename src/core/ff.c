@@ -4,14 +4,11 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "core/bytes.h"
 #include "core/madspack.h"
 #include "platform/diagnostics.h"
 
 #define FF_HEADER_SIZE (2 + 128 + 256)
-
-static uint16_t read_u16_le(const uint8_t* p) {
-  return (uint16_t)(p[0] | (p[1] << 8));
-}
 
 bool ff_load(const char* path, ColonizeFont* out_font, char* err, size_t err_size) {
   if (!path || !out_font) {
@@ -57,7 +54,7 @@ bool ff_load(const char* path, ColonizeFont* out_font, char* err, size_t err_siz
   const uint16_t glyph_base = (uint16_t)FF_HEADER_SIZE;
   out_font->char_offsets[0] = glyph_base;
   for (int ch = 1; ch < 128; ++ch) {
-    out_font->char_offsets[ch] = read_u16_le(data + 2 + 128 + (ch - 1) * 2);
+    out_font->char_offsets[ch] = rd_u16_le(data + 2 + 128 + (ch - 1) * 2);
   }
 
   out_font->section_size = section->data_size;

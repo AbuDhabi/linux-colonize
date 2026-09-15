@@ -5,13 +5,10 @@
 
 /*
  * Euro AI dispatcher T0 — FUN_521d_6d8e / 0a60 / 5d04 / 5b66 / 20e6.
- * Called from ai_euro_nation_turn after crosses (and optionally after early fixture).
+ * Called from ai_euro_nation_turn after crosses.
  */
 
 void ai_euro_dispatcher_turn(ColonizeTurnContext* ctx, int nation_id);
-
-/* True when full dispatcher should run (non-fixture path). */
-int ai_euro_use_full_dispatch(const ColonizeTurnContext* ctx);
 
 /*
  * FUN_4962_0018 ship probe (raw 78239-78299): reset the nation's
@@ -23,9 +20,6 @@ int ai_euro_use_full_dispatch(const ColonizeTurnContext* ctx);
  * human Custom House blockade gate (europe.c, ai_flags & 3) reads it.
  */
 void ai_euro_census_ship_pressure_refresh(ColonizeTurnContext* ctx, int nation_id);
-void ai_euro_colony_ship_probe_4962(
-  ColonizeTurnContext* ctx, int nation_id, ColonizeColony* c
-);
 
 /*
  * FUN_15eb_28c8 — colonist work-plot job scoring, structural reference port
@@ -87,13 +81,6 @@ int ai_euro_10ec_war_worthy(const ColonizeTurnContext* ctx, int a, int b);
 unsigned char ai_euro_wagon_errand_get(int unit_id);
 void ai_euro_wagon_errand_set(int unit_id, unsigned char value);
 void ai_euro_wagon_errand_clear_all(void);
-
-/*
- * DS:0x1734[nation] — colonies that registered work-queue work (0a60 bVar5
- * branch bumps it; only the 20e6 berth boarding scan zeroes it). Exposed for
- * tests; session-local, not save data.
- */
-int ai_euro_0a60_work_registered(int nation_id);
 
 /*
  * FUN_5952_035e raw 555-563 — the colony `+0x1b` bit 0x10 (NEEDS_COLONISTS)

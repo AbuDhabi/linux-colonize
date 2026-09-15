@@ -12,6 +12,7 @@
 #include "core/europe.h"
 #include "core/founding_fathers.h"
 #include "core/popup_msg.h"
+#include "core/reports.h"
 #include "core/sound.h"
 #include "core/strutil.h"
 #include "core/unit_chrome.h"
@@ -20,7 +21,6 @@
 
 /* Defined later; used by naval hold plunder before combat despawn. */
 int units_load_goods(ColonizeUnitPool* pool, int unit_id, int cargo_type, int amount);
-int units_plunder_ship_holds(ColonizeUnitPool* pool, int winner_id, int loser_id);
 bool units_advance_goto_one_step(
   ColonizeUnitPool* pool,
   int unit_id,
@@ -28,44 +28,15 @@ bool units_advance_goto_one_step(
   const ColonizeColonyPool* colonies,
   ColonizeDosRng* rng
 );
+static int units_unit_hold_amount(const ColonizeUnit* u, int hold);
+static void units_sync_equip_after_type_change(ColonizeUnit* u, const ColonizeUnitType* t);
+static int units_plunder_ship_holds(ColonizeUnitPool* pool, int winner_id, int loser_id);
 static void units_occupancy_refresh_tile(ColonizeUnitPool* pool, int x, int y, int except_id);
-static void units_map_set_owner_nibble(ColonizeWorldMap* map, int x, int y, int nation_or_ff);
 static void units_mp_charge(const ColonizeUnitPool* pool, ColonizeUnit* u, int cost);
 static void units_mp_exhaust(const ColonizeUnitPool* pool, ColonizeUnit* u);
 static void units_mp_restore(const ColonizeUnitPool* pool, ColonizeUnit* u);
 static bool units_is_combat_role(const ColonizeUnitPool* pool, const ColonizeUnit* u);
 static ColonizeWorldMap* g_units_occupancy_map = NULL;
-
-static void units_trim(char* s) {
-  char* start = s;
-  while (*start == ' ' || *start == '\t') {
-    ++start;
-  }
-  if (start != s) {
-    memmove(s, start, strlen(start) + 1);
-  }
-  size_t n = strlen(s);
-  while (n > 0 && (s[n - 1] == ' ' || s[n - 1] == '\t' || s[n - 1] == '\r')) {
-    s[--n] = '\0';
-  }
-}
-
-static bool units_parse_int_field(const char** cursor, int* out) {
-  while (**cursor == ' ' || **cursor == '\t' || **cursor == ',') {
-    ++(*cursor);
-  }
-  if (**cursor == '\0') {
-    return false;
-  }
-  char* end = NULL;
-  long v = strtol(*cursor, &end, 10);
-  if (end == *cursor) {
-    return false;
-  }
-  *out = (int)v;
-  *cursor = end;
-  return true;
-}
 
 static ColonizeUnit* units_slot(ColonizeUnitPool* pool) {
   for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
@@ -127,7 +98,7 @@ static void units_cache_names_rows(
     if (comma) {
       *comma = '\0';
     }
-    units_trim(line);
+    str_trim(line);
     if (line[0] == '\0') {
       continue;
     }
@@ -171,7 +142,7 @@ bool units_load_types(ColonizeUnitPool* pool, const ColonizeMsgCatalog* names) {
       continue;
     }
     *comma = '\0';
-    units_trim(line);
+    str_trim(line);
 
     const char* p = comma + 1;
     int icon = 0;
@@ -184,11 +155,11 @@ bool units_load_types(ColonizeUnitPool* pool, const ColonizeMsgCatalog* names) {
     int tools = 0;
     int guns = 0;
     int hull = 0;
-    if (!units_parse_int_field(&p, &icon) || !units_parse_int_field(&p, &movement) ||
-        !units_parse_int_field(&p, &attack) || !units_parse_int_field(&p, &defense) ||
-        !units_parse_int_field(&p, &cargo) || !units_parse_int_field(&p, &size) ||
-        !units_parse_int_field(&p, &cost) || !units_parse_int_field(&p, &tools) ||
-        !units_parse_int_field(&p, &guns) || !units_parse_int_field(&p, &hull)) {
+    if (!str_next_int_field(&p, &icon) || !str_next_int_field(&p, &movement) ||
+        !str_next_int_field(&p, &attack) || !str_next_int_field(&p, &defense) ||
+        !str_next_int_field(&p, &cargo) || !str_next_int_field(&p, &size) ||
+        !str_next_int_field(&p, &cost) || !str_next_int_field(&p, &tools) ||
+        !str_next_int_field(&p, &guns) || !str_next_int_field(&p, &hull)) {
       continue;
     }
     (void)tools;
@@ -255,6 +226,187 @@ int units_find_type(const ColonizeUnitPool* pool, const char* name) {
 }
 
 /*
+ * @UNIT name -> DOS type code (units.h ColonizeUnitKind). The table is the
+ * NAMES.TXT @UNIT row order (COLONIZE/NAMES.TXT:300-322), the same scale
+ * ai_euro.c:11742 ai_euro_20e6_dos_type encodes and the same one every
+ * `type < 0xb` / `type == 0x12` range test in the decompile reads out of unit
+ * +0x3146. Matched by name, never by pool index: synthetic test fixtures place
+ * types at arbitrary slots (combat_strength.c FUN_157e_004a carries the same
+ * note).
+ *
+ * Order is most-specific-first and the accepted spellings are the union of
+ * every substring set that existed at a call site before the predicates landed
+ * ("Cav" vs "Cavalry" vs "Cav.", the four Man-O-War lists, the three
+ * missionary rules). On the stock roster each row still resolves to exactly
+ * one @UNIT type, so folding the sets changed no classification:
+ *   "Cont. Cav." hits 7 before "Cavalry"/"Cav" can claim it, "Cont. Army"
+ *   hits 9 before bare "Army", "Armed Braves" and "Mtd. Braves" hit 20/21
+ *   before bare "Brave", and "Mtd. Warriors" hits 22 before either.
+ */
+static const struct {
+  const char* key;
+  ColonizeUnitKind kind;
+} k_units_kind_names[] = {
+  {"Cont. Cav", UNITS_KIND_CONT_CAV},
+  {"Continental Cav", UNITS_KIND_CONT_CAV},
+  {"Cont. Army", UNITS_KIND_CONT_ARMY},
+  {"Continental Army", UNITS_KIND_CONT_ARMY},
+  {"Regular", UNITS_KIND_REGULAR},
+  {"Cavalry", UNITS_KIND_CAVALRY},
+  {"Cav.", UNITS_KIND_CAVALRY},
+  {"Man-O-War", UNITS_KIND_MAN_O_WAR},
+  {"Man-o-War", UNITS_KIND_MAN_O_WAR},
+  {"Man O War", UNITS_KIND_MAN_O_WAR},
+  {"Man of War", UNITS_KIND_MAN_O_WAR},
+  {"Man-O'-War", UNITS_KIND_MAN_O_WAR},
+  {"Man-o'-War", UNITS_KIND_MAN_O_WAR},
+  {"Merchantman", UNITS_KIND_MERCHANTMAN},
+  {"Galleon", UNITS_KIND_GALLEON},
+  {"Privateer", UNITS_KIND_PRIVATEER},
+  {"Frigate", UNITS_KIND_FRIGATE},
+  {"Caravel", UNITS_KIND_CARAVEL},
+  {"Treasure", UNITS_KIND_TREASURE},
+  {"Artillery", UNITS_KIND_ARTILLERY},
+  {"Cannon", UNITS_KIND_ARTILLERY},
+  {"Wagon", UNITS_KIND_WAGON},
+  {"Mtd. Warrior", UNITS_KIND_MTD_WARRIOR},
+  {"Mtd Warrior", UNITS_KIND_MTD_WARRIOR},
+  {"Mounted Warrior", UNITS_KIND_MTD_WARRIOR},
+  {"Mtd. Brave", UNITS_KIND_MTD_BRAVE},
+  {"Mtd Brave", UNITS_KIND_MTD_BRAVE},
+  {"Mounted Brave", UNITS_KIND_MTD_BRAVE},
+  {"Armed Brave", UNITS_KIND_ARMED_BRAVE},
+  {"Brave", UNITS_KIND_BRAVE},
+  {"Dragoon", UNITS_KIND_DRAGOON},
+  {"Scout", UNITS_KIND_SCOUT},
+  {"Pioneer", UNITS_KIND_PIONEER},
+  {"Hardy", UNITS_KIND_PIONEER},
+  {"Missionar", UNITS_KIND_MISSIONARY},
+  {"Mission", UNITS_KIND_MISSIONARY},
+  {"Jesuit", UNITS_KIND_MISSIONARY},
+  {"Soldier", UNITS_KIND_SOLDIER},
+  {"Colonist", UNITS_KIND_COLONIST},
+  /* Last resort: the abbreviated WoI/King spellings the equip ladders used. */
+  {"Cav", UNITS_KIND_CAVALRY},
+  {"Army", UNITS_KIND_CONT_ARMY},
+};
+
+ColonizeUnitKind units_name_kind(const char* name) {
+  if (!name || !name[0]) {
+    return UNITS_KIND_UNKNOWN;
+  }
+  for (size_t i = 0; i < sizeof(k_units_kind_names) / sizeof(k_units_kind_names[0]); ++i) {
+    if (strstr(name, k_units_kind_names[i].key) != NULL) {
+      return k_units_kind_names[i].kind;
+    }
+  }
+  return UNITS_KIND_UNKNOWN;
+}
+
+ColonizeUnitKind units_type_kind(const ColonizeUnitType* type) {
+  return type ? units_name_kind(type->name) : UNITS_KIND_UNKNOWN;
+}
+
+int units_type_dos_code(const ColonizeUnitType* type) {
+  return (int)units_type_kind(type);
+}
+
+bool units_kind_is_continental(ColonizeUnitKind k) {
+  return k == UNITS_KIND_CONT_CAV || k == UNITS_KIND_CONT_ARMY;
+}
+
+bool units_kind_is_royal(ColonizeUnitKind k) {
+  return k == UNITS_KIND_REGULAR || k == UNITS_KIND_CAVALRY;
+}
+
+bool units_kind_is_military(ColonizeUnitKind k) {
+  return k == UNITS_KIND_SOLDIER || k == UNITS_KIND_DRAGOON || k == UNITS_KIND_ARTILLERY ||
+         units_kind_is_royal(k) || units_kind_is_continental(k);
+}
+
+bool units_kind_is_mounted(ColonizeUnitKind k) {
+  return k == UNITS_KIND_DRAGOON || k == UNITS_KIND_SCOUT || k == UNITS_KIND_CONT_CAV ||
+         k == UNITS_KIND_CAVALRY || k == UNITS_KIND_MTD_BRAVE || k == UNITS_KIND_MTD_WARRIOR;
+}
+
+bool units_kind_is_ship(ColonizeUnitKind k) {
+  return k >= UNITS_KIND_CARAVEL && k <= UNITS_KIND_MAN_O_WAR;
+}
+
+bool units_kind_is_native(ColonizeUnitKind k) {
+  return k >= UNITS_KIND_BRAVE && k <= UNITS_KIND_MTD_WARRIOR;
+}
+
+#define UNITS_TYPE_PREDICATE(fn, kindval)                  \
+  bool fn(const ColonizeUnitType* t) {                     \
+    return units_type_kind(t) == (kindval);                \
+  }
+UNITS_TYPE_PREDICATE(units_type_is_colonist, UNITS_KIND_COLONIST)
+UNITS_TYPE_PREDICATE(units_type_is_soldier, UNITS_KIND_SOLDIER)
+UNITS_TYPE_PREDICATE(units_type_is_pioneer, UNITS_KIND_PIONEER)
+UNITS_TYPE_PREDICATE(units_type_is_missionary, UNITS_KIND_MISSIONARY)
+UNITS_TYPE_PREDICATE(units_type_is_dragoon, UNITS_KIND_DRAGOON)
+UNITS_TYPE_PREDICATE(units_type_is_scout, UNITS_KIND_SCOUT)
+UNITS_TYPE_PREDICATE(units_type_is_regular, UNITS_KIND_REGULAR)
+UNITS_TYPE_PREDICATE(units_type_is_cont_cav, UNITS_KIND_CONT_CAV)
+UNITS_TYPE_PREDICATE(units_type_is_cavalry, UNITS_KIND_CAVALRY)
+UNITS_TYPE_PREDICATE(units_type_is_cont_army, UNITS_KIND_CONT_ARMY)
+UNITS_TYPE_PREDICATE(units_type_is_treasure, UNITS_KIND_TREASURE)
+UNITS_TYPE_PREDICATE(units_type_is_artillery, UNITS_KIND_ARTILLERY)
+UNITS_TYPE_PREDICATE(units_type_is_wagon, UNITS_KIND_WAGON)
+UNITS_TYPE_PREDICATE(units_type_is_caravel, UNITS_KIND_CARAVEL)
+UNITS_TYPE_PREDICATE(units_type_is_merchantman, UNITS_KIND_MERCHANTMAN)
+UNITS_TYPE_PREDICATE(units_type_is_galleon, UNITS_KIND_GALLEON)
+UNITS_TYPE_PREDICATE(units_type_is_privateer, UNITS_KIND_PRIVATEER)
+UNITS_TYPE_PREDICATE(units_type_is_frigate, UNITS_KIND_FRIGATE)
+UNITS_TYPE_PREDICATE(units_type_is_man_o_war, UNITS_KIND_MAN_O_WAR)
+#undef UNITS_TYPE_PREDICATE
+
+bool units_type_is_continental(const ColonizeUnitType* t) {
+  return units_kind_is_continental(units_type_kind(t));
+}
+
+bool units_type_is_royal(const ColonizeUnitType* t) {
+  return units_kind_is_royal(units_type_kind(t));
+}
+
+bool units_type_is_ship(const ColonizeUnitType* t) {
+  return units_kind_is_ship(units_type_kind(t));
+}
+
+bool units_type_is_military(const ColonizeUnitType* t) {
+  return units_kind_is_military(units_type_kind(t));
+}
+
+bool units_type_is_mounted(const ColonizeUnitType* t) {
+  return units_kind_is_mounted(units_type_kind(t));
+}
+
+bool units_type_is_native(const ColonizeUnitType* t) {
+  return units_kind_is_native(units_type_kind(t));
+}
+
+/*
+ * The three @UNIT rows whose name carries "Brave" (19 Braves, 20 Armed Braves,
+ * 21 Mtd. Braves) — deliberately NOT 22 Mtd. Warriors, which the substring
+ * test this replaced also let through.
+ */
+static bool units_type_is_brave_named(const ColonizeUnitType* t) {
+  const ColonizeUnitKind k = units_type_kind(t);
+  return k == UNITS_KIND_BRAVE || k == UNITS_KIND_ARMED_BRAVE || k == UNITS_KIND_MTD_BRAVE;
+}
+
+bool units_is_missionary(const ColonizeUnitPool* pool, const ColonizeUnit* u) {
+  if (!u) {
+    return false;
+  }
+  if (u->profession == UNITS_JOB_MISSIONARY) {
+    return true;
+  }
+  return units_type_is_missionary(pool ? units_type(pool, u->type_index) : NULL);
+}
+
+/*
  * bugs.md: the destination @UNIT type for an equipment change, honouring the
  * body's own tier. DOS re-types through the DS:0x2f5 @JOB->@UNIT table
  * (FUN_15eb_0916 out of FUN_15eb_1068 case 1), whose only entries are the six
@@ -273,10 +425,9 @@ const char* units_equip_role_type_name(
   int role
 ) {
   const ColonizeUnitType* t = units_type(units, cur_type_index);
-  const char* n = (t && t->name[0]) ? t->name : NULL;
-  const int is_cont = n && (strstr(n, "Cont") != NULL || strstr(n, "Continental") != NULL);
-  const int is_royal = n && !is_cont &&
-                       (strstr(n, "Regular") != NULL || strstr(n, "Cavalry") != NULL);
+  const ColonizeUnitKind k = units_type_kind(t);
+  const int is_cont = units_kind_is_continental(k);
+  const int is_royal = units_kind_is_royal(k);
   if (role == COLONIZE_EJECT_SOLDIER) {
     if (is_cont) {
       return "Cont. Army";
@@ -316,15 +467,24 @@ int units_spawn(ColonizeUnitPool* pool, int type_index, int x, int y) {
   return units_spawn_allow_stack(pool, type_index, x, y);
 }
 
-int units_spawn_allow_stack(ColonizeUnitPool* pool, int type_index, int x, int y) {
-  if (!pool || type_index < 0 || type_index >= pool->type_count) {
-    return -1;
-  }
-  ColonizeUnit* slot = units_slot(pool);
-  if (!slot) {
-    return -1;
-  }
-  const ColonizeUnitType* type = &pool->types[type_index];
+/*
+ * Field-for-field slot init shared by units_spawn_allow_stack and
+ * units_spawn_aboard (UN-2). Everything here is what both DOS spawn paths
+ * agree on; the aboard path then overrides the three fields FUN_1427_10be
+ * differs on (moves_left 0, orders 1 = sentry aboard, profession always
+ * UNITS_JOB_NONE because a passenger holds no colony job) and stamps
+ * aboard_ship_id itself — the helper deliberately does NOT touch
+ * aboard_ship_id, because units_set_nation reads it (through units_is_on_map)
+ * and the aboard path calls set_nation before the id is known.
+ */
+static void units_slot_reset_defaults(
+  ColonizeUnitPool* pool,
+  ColonizeUnit* slot,
+  const ColonizeUnitType* type,
+  int type_index,
+  int x,
+  int y
+) {
   slot->id = pool->next_id++;
   slot->type_index = type_index;
   slot->x = x;
@@ -333,7 +493,6 @@ int units_spawn_allow_stack(ColonizeUnitPool* pool, int type_index, int x, int y
   slot->active = true;
   slot->nation_id = 0;
   slot->col1_vis_mask = 0; /* FUN_1427_0992: owner bit via units_set_nation */
-  slot->aboard_ship_id = -1;
   slot->cargo_count = 0;
   memset(slot->cargo_ids, 0, sizeof(slot->cargo_ids));
   memset(slot->hold_goods_type, 0, sizeof(slot->hold_goods_type));
@@ -362,19 +521,20 @@ int units_spawn_allow_stack(ColonizeUnitPool* pool, int type_index, int x, int y
   slot->col1_unknown15 = 0;
   slot->col1_ai_plan = COL1_UNIT_UNKNOWN16_HI_DEFAULT;
   slot->repair_pending = 0;
-  if (strstr(type->name, "Pioneer") != NULL) {
-    slot->tools = UNITS_EQUIP_TOOLS_MAX;
-  } else if (strstr(type->name, "Dragoon") != NULL || strstr(type->name, "Cav") != NULL) {
-    slot->muskets = UNITS_EQUIP_MUSKETS;
-    slot->horses = UNITS_EQUIP_HORSES;
-  } else if (
-    strstr(type->name, "Soldier") != NULL || strstr(type->name, "Regular") != NULL ||
-    strstr(type->name, "Army") != NULL
-  ) {
-    slot->muskets = UNITS_EQUIP_MUSKETS;
-  } else if (strstr(type->name, "Scout") != NULL) {
-    slot->horses = UNITS_EQUIP_HORSES;
+  units_sync_equip_after_type_change(slot, type);
+}
+
+int units_spawn_allow_stack(ColonizeUnitPool* pool, int type_index, int x, int y) {
+  if (!pool || type_index < 0 || type_index >= pool->type_count) {
+    return -1;
   }
+  ColonizeUnit* slot = units_slot(pool);
+  if (!slot) {
+    return -1;
+  }
+  const ColonizeUnitType* type = &pool->types[type_index];
+  units_slot_reset_defaults(pool, slot, type, type_index, x, y);
+  slot->aboard_ship_id = -1;
   pool->unit_count++;
   if (units_is_on_map(slot)) {
     units_occupancy_refresh_tile(pool, slot->x, slot->y, -1);
@@ -407,7 +567,7 @@ void units_set_nation(ColonizeUnit* unit, int nation_id) {
         return;
       }
     }
-    units_map_set_owner_nibble(g_units_occupancy_map, unit->x, unit->y, nation_id);
+    map_set_owner_nibble(g_units_occupancy_map, unit->x, unit->y, nation_id);
   }
 }
 
@@ -463,7 +623,7 @@ int units_tick_treasure_outside_colony(
       continue;
     }
     const ColonizeUnitType* ty = units_type(pool, u->type_index);
-    if (!ty || !ty->name[0] || strstr(ty->name, "Treasure") == NULL) {
+    if (!units_type_is_treasure(ty)) {
       continue;
     }
     int on_own_colony = 0;
@@ -691,7 +851,7 @@ int units_cortes_cash_coastal_treasures(
       continue;
     }
     const ColonizeUnitType* ty = units_type(pool, u->type_index);
-    if (!ty || !ty->name[0] || strstr(ty->name, "Treasure") == NULL) {
+    if (!units_type_is_treasure(ty)) {
       continue;
     }
     ids[n++] = u->id;
@@ -919,7 +1079,7 @@ int units_ai_treasure_cash_in_colony(
     return 0;
   }
   const ColonizeUnitType* ty = units_type(pool, treasure->type_index);
-  if (!ty || !ty->name[0] || strstr(ty->name, "Treasure") == NULL) {
+  if (!units_type_is_treasure(ty)) {
     return 0;
   }
   const int value = units_treasure_value_gold(treasure);
@@ -985,9 +1145,9 @@ int units_king_galleon_offer_coastal_treasures(
     if (!ty || !ty->name[0]) {
       continue;
     }
-    if (strstr(ty->name, "Galleon") != NULL) {
+    if (units_type_is_galleon(ty)) {
       has_galleon = true;
-    } else if (u->aboard_ship_id < 0 && strstr(ty->name, "Treasure") != NULL) {
+    } else if (u->aboard_ship_id < 0 && units_type_is_treasure(ty)) {
       ids[n++] = u->id;
     }
   }
@@ -1028,11 +1188,10 @@ int units_king_galleon_offer_coastal_treasures(
     if (queued) {
       continue;
     }
-    static const char* k_titles[5] = {"Discoverer", "Explorer", "Conquistador", "Governor", "Viceroy"};
     const int d = (int)col1->head.difficulty;
     PopupMsgTokens tok;
     memset(&tok, 0, sizeof(tok));
-    tok.string0 = k_titles[d >= 0 && d < 5 ? d : 0];
+    tok.string0 = reports_difficulty_title(d >= 0 && d < 5 ? d : 0);
     tok.string1 = col1->player[nation_id].name[0] ? col1->player[nation_id].name
                                                   : units_combat_nation_label(col1, nation_id);
     tok.string2 = europe && europe->port_city[0] ? europe->port_city : "Europe";
@@ -1238,6 +1397,43 @@ bool units_is_on_map(const ColonizeUnit* unit) {
   return unit && unit->active && unit->id >= 0 && unit->aboard_ship_id < 0;
 }
 
+/*
+ * Tile-stack walk (theme M). DOS parks a boarded passenger off-map at (-2,-2)
+ * (FUN_1427_10be), so an on-map test is the DOS-faithful stack filter and a
+ * bare `active` test is not: the latter would let passengers answer for the
+ * tile their carrier stands on.
+ */
+ColonizeUnit* units_next_on_tile(ColonizeUnitPool* pool, int x, int y, int* slot) {
+  if (!pool || !slot) {
+    return NULL;
+  }
+  for (int i = *slot < 0 ? 0 : *slot; i < COLONIZE_UNITS_MAX; ++i) {
+    ColonizeUnit* u = &pool->units[i];
+    if (!units_is_on_map(u) || u->x != x || u->y != y) {
+      continue;
+    }
+    *slot = i + 1;
+    return u;
+  }
+  *slot = COLONIZE_UNITS_MAX;
+  return NULL;
+}
+
+const ColonizeUnit* units_next_on_tile_const(
+  const ColonizeUnitPool* pool, int x, int y, int* slot
+) {
+  return units_next_on_tile((ColonizeUnitPool*)pool, x, y, slot);
+}
+
+int units_count_at(const ColonizeUnitPool* pool, int x, int y) {
+  int slot = 0;
+  int n = 0;
+  while (units_next_on_tile_const(pool, x, y, &slot) != NULL) {
+    n++;
+  }
+  return n;
+}
+
 static void units_clear_slot(ColonizeUnit* unit) {
   unit->active = false;
   unit->id = -1;
@@ -1389,7 +1585,7 @@ static void units_reveal_tile_effects(void* vctx, int x, int y, bool outer) {
         map->layer2 != NULL &&
         (map->layer2[(size_t)y * (size_t)map->width + (size_t)x] & MAP_OCCUPANCY_HAS_CITY) != 0;
       if (!settlement) {
-        units_map_set_owner_nibble(map, x, y, ctx->nation);
+        map_set_owner_nibble(map, x, y, ctx->nation);
       }
     }
   }
@@ -1525,16 +1721,9 @@ void units_founder_loot(
 }
 
 int units_id_at(const ColonizeUnitPool* pool, int x, int y) {
-  if (!pool) {
-    return -1;
-  }
-  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-    const ColonizeUnit* u = &pool->units[i];
-    if (units_is_on_map(u) && u->x == x && u->y == y) {
-      return u->id;
-    }
-  }
-  return -1;
+  int slot = 0;
+  const ColonizeUnit* u = units_next_on_tile_const(pool, x, y, &slot);
+  return u ? u->id : -1;
 }
 
 ColonizeUnit* units_get(ColonizeUnitPool* pool, int unit_id) {
@@ -1752,12 +1941,10 @@ static int units_tile_has_on_map_unit(const ColonizeUnitPool* pool, int x, int y
   if (!pool || x < 0 || y < 0 || x >= 200 || y >= 200) {
     return 0;
   }
-  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-    const ColonizeUnit* u = &pool->units[i];
-    if (!units_is_on_map(u) || u->id == except_id) {
-      continue;
-    }
-    if (u->x == x && u->y == y) {
+  int slot = 0;
+  for (const ColonizeUnit* u = units_next_on_tile_const(pool, x, y, &slot); u != NULL;
+       u = units_next_on_tile_const(pool, x, y, &slot)) {
+    if (u->id != except_id) {
       return 1;
     }
   }
@@ -1783,12 +1970,10 @@ static void units_claim_tile_owner_from_stack(
     return;
   }
   int nation = -1;
-  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-    const ColonizeUnit* u = &pool->units[i];
-    if (!units_is_on_map(u) || u->id == except_id) {
-      continue;
-    }
-    if (u->x == x && u->y == y) {
+  int slot = 0;
+  for (const ColonizeUnit* u = units_next_on_tile_const(pool, x, y, &slot); u != NULL;
+       u = units_next_on_tile_const(pool, x, y, &slot)) {
+    if (u->id != except_id) {
       nation = u->nation_id;
       break;
     }
@@ -1802,7 +1987,7 @@ static void units_claim_tile_owner_from_stack(
       return; /* village tile keeps tribe owner */
     }
   }
-  units_map_set_owner_nibble(map, x, y, nation);
+  map_set_owner_nibble(map, x, y, nation);
 }
 
 void units_occupancy_notify_moved(ColonizeUnitPool* pool, int old_x, int old_y, int new_x, int new_y) {
@@ -1919,26 +2104,30 @@ const char* units_enter_reason_status(ColonizeEnterReason reason) {
   }
 }
 
-static int units_foreign_at(
+/*
+ * First unit on (x,y) that is neither `mover_id` nor of `mover_nation`
+ * (UN-11/UN-12). domain_filter -1 = any unit; 0/1 = land/sea hulls only, which
+ * is the extra test units_domain_blocker_at needs.
+ */
+static int units_foreign_scan_at(
   const ColonizeUnitPool* pool,
   int x,
   int y,
   int mover_id,
-  int mover_nation
+  int mover_nation,
+  int domain_filter
 ) {
-  if (!pool) {
-    return -1;
-  }
-  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-    const ColonizeUnit* u = &pool->units[i];
-    if (!units_is_on_map(u) || u->x != x || u->y != y) {
-      continue;
-    }
+  int slot = 0;
+  for (const ColonizeUnit* u = units_next_on_tile_const(pool, x, y, &slot); u != NULL;
+       u = units_next_on_tile_const(pool, x, y, &slot)) {
     if (u->id == mover_id) {
       continue;
     }
     if (mover_nation >= 0 && u->nation_id == mover_nation) {
       continue;
+    }
+    if (domain_filter >= 0 && (units_is_sea(pool, u->id) ? 1 : 0) != domain_filter) {
+      continue; /* other domain — FUN_5fef_0000 never sees it */
     }
     return u->id;
   }
@@ -1952,7 +2141,7 @@ int units_foreign_unit_at(
   int except_unit_id,
   int except_nation_id
 ) {
-  return units_foreign_at(pool, x, y, except_unit_id, except_nation_id);
+  return units_foreign_scan_at(pool, x, y, except_unit_id, except_nation_id, -1);
 }
 
 /*
@@ -1973,7 +2162,7 @@ int units_foreign_unit_at(
  * flip. It simply stays where it is, under its old flag, inside the town
  * that just changed hands.
  *
- * The port's plain units_foreign_at could not express that: an armed hull
+ * The port's plain units_foreign_unit_at could not express that: an armed hull
  * (attack > 0, so units_seize_noncombat_at leaves it) held the tile
  * "contested" forever and no land force could ever take the port.
  *
@@ -1999,23 +2188,7 @@ static int units_domain_blocker_at(
   const int tile_domain =
     map ? ((map_tile_is_water(map, x, y) || map_tile_is_high_seas(map, x, y)) ? 1 : 0)
         : (units_is_sea(pool, mover_id) ? 1 : 0);
-  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-    const ColonizeUnit* u = &pool->units[i];
-    if (!units_is_on_map(u) || u->x != x || u->y != y) {
-      continue;
-    }
-    if (u->id == mover_id) {
-      continue;
-    }
-    if (mover_nation >= 0 && u->nation_id == mover_nation) {
-      continue;
-    }
-    if ((units_is_sea(pool, u->id) ? 1 : 0) != tile_domain) {
-      continue; /* other domain — FUN_5fef_0000 never sees it */
-    }
-    return u->id;
-  }
-  return -1;
+  return units_foreign_scan_at(pool, x, y, mover_id, mover_nation, tile_domain);
 }
 
 /*
@@ -2042,7 +2215,7 @@ int units_best_defender_at(
    * bugs.md: the picker looked "random" for two reasons. (1) A colony-armed
    * soldier is stored as a Colonists-TYPE unit with muskets — the type-attack
    * combat-role gate skipped it, so a stack of armed colonists fell through
-   * to the fallback. (2) That fallback was units_foreign_at = first unit in
+   * to the fallback. (2) That fallback was units_foreign_unit_at = first unit in
    * POOL ORDER, which happily handed an unarmed colonist to the attacker.
    * Now: two tiers. Armed (combat-role type OR carrying muskets/horses) are
    * ranked by full engagement strength and always outrank everyone; unarmed
@@ -2100,11 +2273,9 @@ int units_best_defender_at(
       tile_domain = units_is_sea(pool, attacker_id) ? 1 : 0;
     }
   }
-  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-    const ColonizeUnit* u = &pool->units[i];
-    if (!units_is_on_map(u) || u->x != x || u->y != y) {
-      continue;
-    }
+  int slot_1 = 0;
+  for (const ColonizeUnit* u = units_next_on_tile_const(pool, x, y, &slot_1); u != NULL;
+       u = units_next_on_tile_const(pool, x, y, &slot_1)) {
     if (u->id == except_id || u->id == attacker_id) {
       continue;
     }
@@ -2245,7 +2416,7 @@ int units_spawn_village_temp_defender(
   return id;
 }
 
-void units_finish_village_temp_defender(
+static void units_finish_village_temp_defender(
   ColonizeUnitPool* pool,
   ColonizeCol1Save* col1,
   ColonizeWorldMap* map,
@@ -2322,10 +2493,6 @@ static int units_combat_human_involved(const ColonizeCol1Save* col1, int nat_a, 
 }
 
 static const char* units_combat_nation_label(const ColonizeCol1Save* col1, int nation_id) {
-  static const char* k_euro[4] = {"English", "French", "Spanish", "Dutch"};
-  static const char* k_tribe[8] = {
-    "Inca", "Aztec", "Arawak", "Iroquois", "Cherokee", "Apache", "Sioux", "Tupi"
-  };
   if (nation_id >= 0 && nation_id <= 3) {
     /* bugs.md: during the WoI the crown's borrowed slot is the King's side —
      * the proper adjective is "Tory" ("Tory Cavalry"), not the peer nation
@@ -2349,10 +2516,14 @@ static const char* units_combat_nation_label(const ColonizeCol1Save* col1, int n
     if (g_units_nationality[nation_id][0]) {
       return g_units_nationality[nation_id];
     }
-    return k_euro[nation_id];
+    /* Theme D: the local {"English",...} fallback table is now the shared
+     * NAMES @NATIONALITY accessor. */
+    return reports_nation_adjective_display_name(nation_id);
   }
   if (nation_id >= 4 && nation_id <= 11) {
-    return k_tribe[nation_id - 4];
+    /* @TRIBES column 1 is the singular ("Inca"), which is what a unit label
+     * wants — column 0 is the plural. */
+    return reports_tribe_singular_name(nation_id - 4);
   }
   return "enemy";
 }
@@ -2456,22 +2627,6 @@ static void units_combat_enqueue_tok(
   );
 }
 
-__attribute__((unused)) static void units_combat_enqueue_section(
-  AiPopupTag tag,
-  const char* section,
-  int nation_a,
-  int nation_b,
-  const char* string0,
-  const char* string1,
-  const char* fallback
-) {
-  PopupMsgTokens tok;
-  memset(&tok, 0, sizeof(tok));
-  tok.string0 = string0;
-  tok.string1 = string1;
-  units_combat_enqueue_tok(tag, section, nation_a, nation_b, 0, &tok, fallback);
-}
-
 bool units_combat_apply_ransom_popup(ColonizeCol1Save* col1, const AiPopupState* popups) {
   if (!popups || popups->result_tag != AI_POPUP_TAG_COMBAT_RANSOM) {
     return false;
@@ -2542,6 +2697,31 @@ void units_combat_notify_colony_captured(
   }
 }
 
+/*
+ * Shared token fill + enqueue of the two colony-burned notices (UN-46): the
+ * burner label, the victim's adjective and the colony name go into the same
+ * three slots either way; the callers differ only in tag, section and
+ * audience.
+ */
+static void units_combat_burn_chrome(
+  const ColonizeCol1Save* col1,
+  AiPopupTag tag,
+  const char* section,
+  int nation_a,
+  int nation_b,
+  const char* burner_label,
+  int victim_nation,
+  const char* colony_name,
+  const char* fallback
+) {
+  PopupMsgTokens tok;
+  memset(&tok, 0, sizeof(tok));
+  tok.string0 = burner_label && burner_label[0] ? burner_label : "Enemies";
+  tok.string1 = units_combat_nation_label(col1, victim_nation);
+  tok.string3 = colony_name;
+  units_combat_enqueue_tok(tag, section, nation_a, nation_b, 0, &tok, fallback);
+}
+
 void units_combat_notify_colony_burned(
   const ColonizeCol1Save* col1,
   const char* colony_name,
@@ -2559,11 +2739,6 @@ void units_combat_notify_colony_burned(
   if (!human) {
     return;
   }
-  PopupMsgTokens tok;
-  memset(&tok, 0, sizeof(tok));
-  tok.string0 = burner_label && burner_label[0] ? burner_label : "Enemies";
-  tok.string1 = units_combat_nation_label(col1, victim_nation);
-  tok.string3 = colony_name;
   /*
    * DOS FUN_5fef_1b0e splits the colony-destroyed chrome by attacker class:
    * the both-Euro arm (`uVar16 < 4 && uVar15 < 4`) uses @BURNED / @BURNED2 /
@@ -2573,14 +2748,9 @@ void units_combat_notify_colony_burned(
    * callers here are native burners (units.c last-colonist kill, ai_contact
    * SCALP/BURN raid abandon) — cite ai/indian_raid_outcomes.md §6.
    */
-  units_combat_enqueue_tok(
-    AI_POPUP_TAG_COMBAT_COLONY,
-    "INDIANBURNCOLONY",
-    victim_nation,
-    -1,
-    0,
-    &tok,
-    "Colony burned to the ground!"
+  units_combat_burn_chrome(
+    col1, AI_POPUP_TAG_COMBAT_COLONY, "INDIANBURNCOLONY", victim_nation, -1, burner_label,
+    victim_nation, colony_name, "Colony burned to the ground!"
   );
 }
 
@@ -2600,18 +2770,9 @@ void units_combat_notify_colony_burned_foreign(
   if (g_units_combat_human_nation < 0 || g_units_combat_human_nation == victim_nation) {
     return;
   }
-  PopupMsgTokens tok;
-  memset(&tok, 0, sizeof(tok));
-  tok.string0 = burner_label && burner_label[0] ? burner_label : "Enemies";
-  tok.string1 = units_combat_nation_label(col1, victim_nation);
-  tok.string3 = colony_name;
-  units_combat_enqueue_tok(
-    AI_POPUP_TAG_INFO,
-    "INDIANBURNCOLONY2",
-    g_units_combat_human_nation,
-    victim_nation,
-    0,
-    &tok,
+  units_combat_burn_chrome(
+    col1, AI_POPUP_TAG_INFO, "INDIANBURNCOLONY2", g_units_combat_human_nation, victim_nation,
+    burner_label, victim_nation, colony_name,
     "Spies report: %STRING0 burn %STRING1 colony at %STRING3."
   );
 }
@@ -2623,13 +2784,7 @@ void units_combat_notify_colony_burned_foreign(
  * Colonists), and defeated Regulars are destroyed, not demoted.
  */
 static int units_type_is_royal_name(const char* n) {
-  if (!n) {
-    return 0;
-  }
-  if (strstr(n, "Regular") != NULL) {
-    return 1;
-  }
-  return strstr(n, "Cavalry") != NULL && strstr(n, "Cont") == NULL;
+  return units_kind_is_royal(units_name_kind(n)) ? 1 : 0;
 }
 
 /*
@@ -2678,22 +2833,19 @@ static int units_promote_on_win(
     return 0; /* DOS: promotions are for Euro nations (natives never) */
   }
   const ColonizeUnitType* ut = units_type(pool, winner->type_index);
-  const char* tname = ut ? ut->name : NULL;
-  if (units_type_is_royal_name(tname)) {
+  const ColonizeUnitKind wk = units_type_kind(ut);
+  if (units_kind_is_royal(wk)) {
     return 0; /* REF units never promote into colonial types */
   }
-  const int is_cont = tname && (strstr(tname, "Cont") || strstr(tname, "Continental"));
-  if (is_cont) {
+  if (units_kind_is_continental(wk)) {
     return 0; /* already at the top of the ladder */
   }
   /* DOS type 1/4 gate: a soldier or dragoon body. The port also stores an
    * armed colonist as a Colonists-type with muskets — same thing in DOS. */
   const int is_dragoon_body =
-    (tname && (strstr(tname, "Dragoon") != NULL)) ||
-    (winner->muskets > 0 && winner->horses > 0);
+    wk == UNITS_KIND_DRAGOON || (winner->muskets > 0 && winner->horses > 0);
   const int is_soldier_body =
-    !is_dragoon_body &&
-    ((tname && strstr(tname, "Soldier") != NULL) || winner->muskets > 0);
+    !is_dragoon_body && (wk == UNITS_KIND_SOLDIER || winner->muskets > 0);
   if (!is_soldier_body && !is_dragoon_body) {
     return 0; /* unarmed colonists never combat-promote */
   }
@@ -2804,18 +2956,23 @@ static int units_combat_demote_type_index(ColonizeUnitPool* pool, const Colonize
   if (!lt || !lt->name[0]) {
     return -1;
   }
-  const char* n = lt->name;
   const char* dest = NULL;
-  if (strstr(n, "Cont") != NULL && strstr(n, "Cav") != NULL) {
+  switch (units_type_kind(lt)) {
+  case UNITS_KIND_CONT_CAV:
     dest = "Cont. Army";
-  } else if (strstr(n, "Cavalry") != NULL) {
+    break;
+  case UNITS_KIND_CAVALRY:
     dest = "Regulars";
-  } else if (strstr(n, "Cont") != NULL && strstr(n, "Army") != NULL) {
+    break;
+  case UNITS_KIND_CONT_ARMY:
+  case UNITS_KIND_SOLDIER:
     dest = (loser->profession == UNITS_JOB_MISSIONARY) ? "Missionaries" : "Colonists";
-  } else if (strstr(n, "Dragoon") != NULL) {
+    break;
+  case UNITS_KIND_DRAGOON:
     dest = "Soldiers";
-  } else if (strstr(n, "Soldier") != NULL) {
-    dest = (loser->profession == UNITS_JOB_MISSIONARY) ? "Missionaries" : "Colonists";
+    break;
+  default:
+    break;
   }
   if (!dest) {
     return -1;
@@ -2831,18 +2988,26 @@ static void units_sync_equip_after_type_change(ColonizeUnit* u, const ColonizeUn
   u->tools = 0;
   u->muskets = 0;
   u->horses = 0;
-  if (strstr(t->name, "Pioneer") != NULL) {
+  switch (units_type_kind(t)) {
+  case UNITS_KIND_PIONEER:
     u->tools = UNITS_EQUIP_TOOLS_MAX;
-  } else if (strstr(t->name, "Dragoon") != NULL || strstr(t->name, "Cav") != NULL) {
+    break;
+  case UNITS_KIND_DRAGOON:
+  case UNITS_KIND_CONT_CAV:
+  case UNITS_KIND_CAVALRY:
     u->muskets = UNITS_EQUIP_MUSKETS;
     u->horses = UNITS_EQUIP_HORSES;
-  } else if (
-    strstr(t->name, "Soldier") != NULL || strstr(t->name, "Regular") != NULL ||
-    strstr(t->name, "Army") != NULL
-  ) {
+    break;
+  case UNITS_KIND_SOLDIER:
+  case UNITS_KIND_REGULAR:
+  case UNITS_KIND_CONT_ARMY:
     u->muskets = UNITS_EQUIP_MUSKETS;
-  } else if (strstr(t->name, "Scout") != NULL) {
+    break;
+  case UNITS_KIND_SCOUT:
     u->horses = UNITS_EQUIP_HORSES;
+    break;
+  default:
+    break;
   }
 }
 
@@ -2875,7 +3040,7 @@ static int units_demote_combat_type(
      * Braves) is DESTROYED — the old unguarded branch stripped a Regular's
      * muskets and popped "Regulars routed, demoted to Regulars". */
     if (table_target < 0 && lt0 && loser->muskets > 0 &&
-        !units_type_is_royal_name(lt0->name) && strstr(lt0->name, "Brave") == NULL) {
+        !units_type_is_royal_name(lt0->name) && !units_type_is_brave_named(lt0)) {
       const char* was = units_display_name(pool, loser);
       char old_name[48];
       snprintf(old_name, sizeof(old_name), "%s", was ? was : "Soldier");
@@ -2974,6 +3139,20 @@ static void units_capture_relocate_to_winner(
  * Missionaries / Scouts are not capture types → destroy. Returns 1 if unit still
  * active (captured/damaged/demoted), 0 if gone.
  */
+/*
+ * DOS FUN_5fef_0352 capture-alive core, shared by the wagon and colonist arms
+ * (UN-45): the unit changes flag, drops its orders and its remaining MP and
+ * steps onto the winner's tile. The two arms differ only in their chrome.
+ */
+static void units_capture_to_winner(
+  ColonizeUnitPool* pool, ColonizeUnit* lose, ColonizeUnit* win
+) {
+  units_set_nation(lose, win->nation_id);
+  lose->orders = UNITS_ORDER_NONE;
+  lose->moves_left = 0;
+  units_capture_relocate_to_winner(pool, lose, win);
+}
+
 static int units_apply_land_loss_outcome(
   ColonizeUnitPool* pool,
   int loser_id,
@@ -3052,8 +3231,8 @@ static int units_apply_land_loss_outcome(
    * Winner must be Euro with attack>0 — natives destroy, never nation-flip.
    */
   if (loser_euro && lt && lt->name[0] && win_can_capture) {
-    const int is_treasure = strstr(lt->name, "Treasure") != NULL;
-    const int is_wagon = strstr(lt->name, "Wagon") != NULL;
+    const int is_treasure = units_type_is_treasure(lt);
+    const int is_wagon = units_type_is_wagon(lt);
     /*
      * bugs.md: mounted scouts are DESTROYED, never captured — by anyone.
      * DOS captures type 0 Colonists only, and an equipped colonist is a
@@ -3062,7 +3241,7 @@ static int units_apply_land_loss_outcome(
      * branch on its type name.
      */
     const int is_colonist =
-      strstr(lt->name, "Colonist") != NULL && !is_treasure && !is_wagon &&
+      units_type_is_colonist(lt) && !is_treasure && !is_wagon &&
       lose->horses <= 0 && lose->muskets <= 0;
     if (is_treasure) {
       /* Treasure gold handled in resolve; despawn below. */
@@ -3070,14 +3249,9 @@ static int units_apply_land_loss_outcome(
       const int from_nat = lose->nation_id;
       int cargo_amt = 0;
       for (int i = 0; i < COLONIZE_UNIT_CARGO_MAX; ++i) {
-        if (lose->hold_goods_amount[i] > 0 && lose->hold_goods_amount[i] < 255) {
-          cargo_amt += lose->hold_goods_amount[i];
-        }
+        cargo_amt += units_unit_hold_amount(lose, i);
       }
-      units_set_nation(lose, win->nation_id);
-      lose->orders = UNITS_ORDER_NONE;
-      lose->moves_left = 0;
-      units_capture_relocate_to_winner(pool, lose, win);
+      units_capture_to_winner(pool, lose, win);
       if (human) {
         PopupMsgTokens tok;
         memset(&tok, 0, sizeof(tok));
@@ -3117,10 +3291,7 @@ static int units_apply_land_loss_outcome(
       if (stripped_vet) {
         lose->profession = UNITS_JOB_NONE;
       }
-      units_set_nation(lose, win->nation_id);
-      lose->orders = UNITS_ORDER_NONE;
-      lose->moves_left = 0;
-      units_capture_relocate_to_winner(pool, lose, win);
+      units_capture_to_winner(pool, lose, win);
       if (human) {
         PopupMsgTokens tok;
         memset(&tok, 0, sizeof(tok));
@@ -3179,11 +3350,9 @@ static void units_sweep_stack_after_loss(
   if (!win || !win->active) {
     return;
   }
-  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-    ColonizeUnit* u = &pool->units[i];
-    if (!units_is_on_map(u) || u->x != x || u->y != y) {
-      continue;
-    }
+  int slot_2 = 0;
+  for (ColonizeUnit* u = units_next_on_tile(pool, x, y, &slot_2); u != NULL;
+       u = units_next_on_tile(pool, x, y, &slot_2)) {
     if (u->nation_id != loser_nation || u->id == winner_id || u->id == primary_loser_id) {
       continue;
     }
@@ -3248,34 +3417,6 @@ static void units_sweep_stack_after_loss(
   }
 }
 
-/* Nearest active colony of nation_id to (x,y) by squared distance; NULL if none. */
-__attribute__((unused)) static const ColonizeColony* units_nearest_own_colony(
-  const ColonizeColonyPool* colonies,
-  int nation_id,
-  int x,
-  int y
-) {
-  if (!colonies) {
-    return NULL;
-  }
-  const ColonizeColony* best = NULL;
-  long best_d = -1;
-  for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
-    const ColonizeColony* c = &colonies->colonies[i];
-    if (!c->active || c->nation_id != nation_id) {
-      continue;
-    }
-    const long dx = c->x - x;
-    const long dy = c->y - y;
-    const long d = dx * dx + dy * dy;
-    if (best_d < 0 || d < best_d) {
-      best_d = d;
-      best = c;
-    }
-  }
-  return best;
-}
-
 /* Nearest own colony WITH a Drydock (bugs.md: repair routing). NULL if none. */
 static const ColonizeColony* units_nearest_own_drydock_colony(
   const ColonizeColonyPool* colonies,
@@ -3337,6 +3478,75 @@ static const char* units_home_port_name(const ColonizeCol1Save* col1, int nation
   return g_units_homeport[n][0] ? g_units_homeport[n] : "Europe";
 }
 
+/*
+ * DOS FUN_5fef_0352 damage tail (overlays.c 85117-85186), shared by the naval
+ * loss outcome and the FUN_5fef_0f14 raid (UN-7): repair is a TIMER, not a
+ * drydock flash — bit7 + turns_worked preset so the normal EOT ship tick
+ * (+1/turn, +1 extra on a colony tile) counts up to the 0x5235-column
+ * threshold. Remaining turns = winner's combat strength (already doubled by
+ * the caller for a non-ship winner), clamped to the own threshold; Frigate
+ * presets turns_worked >= 4, Man-O-War >= 8 (repair-time cap).
+ *
+ * `winner_nation` is the @SHIPDAMAGE popup's nation_b; the raid arm has no
+ * winner unit and passes -1.
+ */
+static void units_ship_enter_repair(
+  ColonizeUnitPool* pool,
+  ColonizeUnit* lose,
+  int wstr,
+  const ColonizeColony* home,
+  const ColonizeCol1Save* col1,
+  int human,
+  int winner_nation
+) {
+  const ColonizeUnitType* lt = units_type(pool, lose->type_index);
+  lose->col1_unknown15 |= 0x80u;
+  lose->moves_left = 0;
+  lose->orders = 0; /* DOS zeroes +0x314c */
+  lose->repair_pending = 2; /* 2 = damaged this turn; see the repair tick */
+  {
+    const int thresh = lt && lt->defense > 0 ? lt->defense : 4;
+    int worked = (wstr < thresh) ? thresh - wstr : 0;
+    if (units_type_is_frigate(lt) && worked < 4) {
+      worked = 4;
+    }
+    if (units_type_is_man_o_war(lt) && worked < 8) {
+      worked = 8;
+    }
+    lose->turns_worked = (uint8_t)worked;
+  }
+  /*
+   * With no Drydock/Shipyard colony the ship is Europe-bound: it stays on
+   * its tile this turn and turn_route_damaged_ships hands it to the Europe
+   * lane at end of turn (that voyage IS the repair). Only a repair port
+   * teleports it. bugs.md: it must not simply park at the nearest colony.
+   */
+  if (home && (home->x != lose->x || home->y != lose->y)) {
+    const int old_x = lose->x;
+    const int old_y = lose->y;
+    lose->x = home->x;
+    lose->y = home->y;
+    units_occupancy_refresh_tile(pool, old_x, old_y, -1);
+    units_occupancy_refresh_tile(pool, home->x, home->y, -1);
+  }
+  if (human) {
+    PopupMsgTokens tok;
+    memset(&tok, 0, sizeof(tok));
+    tok.string0 = units_combat_nation_label(col1, lose->nation_id);
+    tok.string1 = lt ? lt->name : "Ship";
+    tok.string2 =
+      (home && home->name[0]) ? home->name : units_home_port_name(col1, lose->nation_id);
+    char fb[AI_POPUP_BODY_LEN];
+    snprintf(
+      fb, sizeof(fb), "%s %s damaged! Ship returns to %s for repairs.", tok.string0, tok.string1,
+      tok.string2
+    );
+    units_combat_enqueue_tok(
+      AI_POPUP_TAG_COMBAT_SHIP, "SHIPDAMAGE", lose->nation_id, winner_nation, 0, &tok, fb
+    );
+  }
+}
+
 /* Naval: damage-not-always-sink when margin close; else plunder+despawn. */
 /*
  * Occupied holds = DOS unit +0x3150, which is the GOODS hold count only — the
@@ -3348,14 +3558,26 @@ static const char* units_home_port_name(const ColonizeCol1Save* col1, int nation
  * evades exactly like an empty one — the same goods-only count
  * combat_strength.c's FUN_157e_004a peel (viceroy 8957-8959) uses.
  */
-static int units_holds_used(const ColonizeUnitPool* pool, int unit_id) {
+static int units_unit_hold_amount(const ColonizeUnit* u, int hold) {
+  if (!u || hold < 0 || hold >= COLONIZE_UNIT_CARGO_MAX) {
+    return 0;
+  }
+  const int amt = u->hold_goods_amount[hold];
+  return (amt > 0 && amt < 255) ? amt : 0;
+}
+
+int units_hold_amount(const ColonizeUnitPool* pool, int unit_id, int hold) {
+  return units_unit_hold_amount(units_get_const(pool, unit_id), hold);
+}
+
+int units_holds_used(const ColonizeUnitPool* pool, int unit_id) {
   const ColonizeUnit* u = units_get_const(pool, unit_id);
   if (!u) {
     return 0;
   }
   int used = 0;
   for (int i = 0; i < COLONIZE_UNIT_CARGO_MAX; ++i) {
-    if (u->hold_goods_amount[i] > 0 && u->hold_goods_amount[i] < 255) {
+    if (units_unit_hold_amount(u, i) > 0) {
       used++;
     }
   }
@@ -3477,14 +3699,8 @@ static int units_apply_naval_loss_outcome(
   const int lhull = lt ? lt->hull : 0;
   int damaged = units_ship_damage_vs_sink(rng, wguns, lhull);
   /*
-   * bugs.md 260 / DOS 0352 damage tail (overlays.c 85117-85186): repair is a
-   * TIMER, not a drydock flash — bit7 + turns_worked preset so the normal
-   * EOT ship tick (+1/turn, +1 extra on a colony tile) counts up to the
-   * 0x5235-column threshold. Remaining turns = winner's combat strength,
-   * doubled when the winner is not a ship (fort fire), clamped to the own
-   * threshold; Frigate presets turns_worked ≥ 4, Man-O-War ≥ 8 (repair-time
-   * cap). WoI human with no drydock port: no friendly Europe either — the
-   * ship goes down instead of limping anywhere.
+   * bugs.md 260: WoI human with no drydock port has no friendly Europe either
+   * — the ship goes down instead of limping anywhere (DOS 85139).
    */
   const ColonizeColony* home = NULL;
   if (damaged) {
@@ -3497,55 +3713,11 @@ static int units_apply_naval_loss_outcome(
     }
   }
   if (damaged) {
-    lose->col1_unknown15 |= 0x80u;
-    lose->moves_left = 0;
-    lose->orders = 0; /* DOS zeroes +0x314c */
-    lose->repair_pending = 2; /* 2 = damaged this turn; see the repair tick */
-    {
-      const int thresh = lt && lt->defense > 0 ? lt->defense : 4;
-      int wstr = wt ? wt->defense : 0;
-      if (!units_is_sea(pool, winner_id)) {
-        wstr <<= 1; /* non-ship (fort) winner doubles the repair bill */
-      }
-      int worked = (wstr < thresh) ? thresh - wstr : 0;
-      if (lt && strcmp(lt->name, "Frigate") == 0 && worked < 4) {
-        worked = 4;
-      }
-      if (lt && strcmp(lt->name, "Man-O-War") == 0 && worked < 8) {
-        worked = 8;
-      }
-      lose->turns_worked = (uint8_t)worked;
+    int wstr = wt ? wt->defense : 0;
+    if (!units_is_sea(pool, winner_id)) {
+      wstr <<= 1; /* non-ship (fort) winner doubles the repair bill */
     }
-    /*
-     * With no Drydock/Shipyard colony the ship is Europe-bound: it stays on
-     * its tile this turn and turn_route_damaged_ships hands it to the Europe
-     * lane at end of turn (that voyage IS the repair). Only a repair port
-     * teleports it. bugs.md: it must not simply park at the nearest colony.
-     */
-    if (home && (home->x != lose->x || home->y != lose->y)) {
-      const int old_x = lose->x;
-      const int old_y = lose->y;
-      lose->x = home->x;
-      lose->y = home->y;
-      units_occupancy_refresh_tile(pool, old_x, old_y, -1);
-      units_occupancy_refresh_tile(pool, home->x, home->y, -1);
-    }
-    if (human) {
-      PopupMsgTokens tok;
-      memset(&tok, 0, sizeof(tok));
-      tok.string0 = units_combat_nation_label(col1, lose->nation_id);
-      tok.string1 = lt ? lt->name : "Ship";
-      tok.string2 = (home && home->name[0]) ? home->name
-                                            : units_home_port_name(col1, lose->nation_id);
-      char fb[AI_POPUP_BODY_LEN];
-      snprintf(
-        fb, sizeof(fb), "%s %s damaged! Ship returns to %s for repairs.",
-        tok.string0, tok.string1, tok.string2
-      );
-      units_combat_enqueue_tok(
-        AI_POPUP_TAG_COMBAT_SHIP, "SHIPDAMAGE", lose->nation_id, win->nation_id, 0, &tok, fb
-      );
-    }
+    units_ship_enter_repair(pool, lose, wstr, home, col1, human, win->nation_id);
     return 1;
   }
 
@@ -3643,47 +3815,12 @@ int units_raid_damage_ship(ColonizeUnitPool* pool, int ship_id, const ColonizeCo
     return 0;
   }
 
-  lose->col1_unknown15 |= 0x80u;
-  lose->moves_left = 0;
-  lose->orders = 0;
-  lose->repair_pending = 2;
   {
-    const int thresh = lt && lt->defense > 0 ? lt->defense : 4;
+    /* The raid arm has no winner unit: DOS bills the repair against the
+     * Privateer's defense column (the raider stand-in). */
     const int pi = units_find_type(pool, "Privateer");
     const ColonizeUnitType* pt = pi >= 0 ? units_type(pool, pi) : NULL;
-    const int wstr = pt ? pt->defense : 0;
-    int worked = (wstr < thresh) ? thresh - wstr : 0;
-    if (lt && strcmp(lt->name, "Frigate") == 0 && worked < 4) {
-      worked = 4;
-    }
-    if (lt && strcmp(lt->name, "Man-O-War") == 0 && worked < 8) {
-      worked = 8;
-    }
-    lose->turns_worked = (uint8_t)worked;
-  }
-  if (home && (home->x != lose->x || home->y != lose->y)) {
-    const int old_x = lose->x;
-    const int old_y = lose->y;
-    lose->x = home->x;
-    lose->y = home->y;
-    units_occupancy_refresh_tile(pool, old_x, old_y, -1);
-    units_occupancy_refresh_tile(pool, home->x, home->y, -1);
-  }
-  if (human) {
-    PopupMsgTokens tok;
-    memset(&tok, 0, sizeof(tok));
-    tok.string0 = units_combat_nation_label(col1, lose->nation_id);
-    tok.string1 = lt ? lt->name : "Ship";
-    tok.string2 =
-      (home && home->name[0]) ? home->name : units_home_port_name(col1, lose->nation_id);
-    char fb[AI_POPUP_BODY_LEN];
-    snprintf(
-      fb, sizeof(fb), "%s %s damaged! Ship returns to %s for repairs.", tok.string0, tok.string1,
-      tok.string2
-    );
-    units_combat_enqueue_tok(
-      AI_POPUP_TAG_COMBAT_SHIP, "SHIPDAMAGE", lose->nation_id, -1, 0, &tok, fb
-    );
+    units_ship_enter_repair(pool, lose, pt ? pt->defense : 0, home, col1, human, -1);
   }
   return 1;
 }
@@ -3699,10 +3836,10 @@ static int units_naval_evade_power(const ColonizeUnitPool* pool, int unit_id) {
     return 1;
   }
   int p = t->movement + 3;
-  if (t->name[0] && strstr(t->name, "Privateer") != NULL) {
+  if (units_type_is_privateer(t)) {
     p *= 2;
   }
-  if (t->name[0] && strstr(t->name, "Galleon") != NULL) {
+  if (units_type_is_galleon(t)) {
     p += 3;
   }
   p -= 4 * units_holds_used(pool, unit_id);
@@ -3737,11 +3874,9 @@ static void units_sweep_naval_stack_after_loss(
   if (!win || !win->active) {
     return;
   }
-  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-    ColonizeUnit* u = &pool->units[i];
-    if (!units_is_on_map(u) || u->x != x || u->y != y) {
-      continue;
-    }
+  int slot_3 = 0;
+  for (ColonizeUnit* u = units_next_on_tile(pool, x, y, &slot_3); u != NULL;
+       u = units_next_on_tile(pool, x, y, &slot_3)) {
     if (u->nation_id != loser_nation || u->id == winner_id || u->id == primary_loser_id) {
       continue;
     }
@@ -4007,24 +4142,13 @@ static int units_drake_scale_strength(
     return strength;
   }
   const ColonizeUnitType* t = units_type(pool, unit->type_index);
-  if (!t || strstr(t->name, "Privateer") == NULL) {
+  if (!units_type_is_privateer(t)) {
     return strength;
   }
   if (!founding_fathers_nation_has(col1, unit->nation_id, FF_FRANCIS_DRAKE)) {
     return strength;
   }
   return (strength * 3) / 2;
-}
-
-/* FUN_137f_0228 — set continent high nibble (nation / 0xf unowned). */
-static void units_map_set_owner_nibble(ColonizeWorldMap* map, int x, int y, int nation_or_ff) {
-  if (!map || !map->layer3 || x < 0 || y < 0 || x >= map->width || y >= map->height) {
-    return;
-  }
-  const int i = y * map->width + x;
-  const uint8_t low = (uint8_t)(map->layer3[i] & 0x0fu);
-  const uint8_t hi = (uint8_t)(((unsigned)nation_or_ff & 0x0fu) << 4);
-  map->layer3[i] = (uint8_t)(low | hi);
 }
 
 static int units_count_nation_on_tile(
@@ -4061,7 +4185,7 @@ static bool units_tile_has_tribe(const ColonizeCol1Save* col1, int x, int y) {
   return false;
 }
 
-int col1_destroy_tribe_at(
+static int col1_destroy_tribe_at(
   ColonizeCol1Save* col1,
   ColonizeUnitPool* units,
   ColonizeWorldMap* map,
@@ -4156,7 +4280,7 @@ int col1_destroy_tribe_at(
   }
 
   if (map) {
-    units_map_set_owner_nibble(map, x, y, 0x0f);
+    map_set_owner_nibble(map, x, y, 0x0f);
   }
   return nation_id;
 }
@@ -4908,11 +5032,8 @@ bool units_resolve_lcr_rumour(
         units_set_nation(nu, nation);
       }
     }
-    {
-      static const char* const k_crown[4] = {"England", "France", "Spain", "Netherlands"};
-      tok.string0 = (nation >= 0 && nation <= 3) ? k_crown[nation]
-                                                 : units_combat_nation_label(col1, nation);
-    }
+    tok.string0 = (nation >= 0 && nation <= 3) ? reports_nation_country_name(nation)
+                                               : units_combat_nation_label(col1, nation);
     units_combat_enqueue_tok(
       AI_POPUP_TAG_INFO, "LOSTCITY9", nation, -1, 0, &tok,
       "Desperate survivors of a former colony join you."
@@ -5129,11 +5250,7 @@ static void units_mounted_attack_spend_all(ColonizeUnitPool* pool, int attacker_
     return;
   }
   const ColonizeUnitType* t = units_type(pool, a->type_index);
-  const char* n = t ? t->name : NULL;
-  const bool mounted =
-    a->horses > 0 ||
-    (n && (strstr(n, "Dragoon") || strstr(n, "Cavalry") || strstr(n, "Cav.") ||
-           strstr(n, "Scout") || strstr(n, "Mtd") || strstr(n, "Mounted")));
+  const bool mounted = a->horses > 0 || units_type_is_mounted(t);
   if (mounted) {
     /* Natives keep the SPENT byte: drain = spent := max, not 0 (audit). */
     units_mp_exhaust(pool, a);
@@ -5167,14 +5284,7 @@ static void units_mounted_attack_spend_all(ColonizeUnitPool* pool, int attacker_
  * On the stock roster the two spellings are identical.
  */
 static int units_combat_type_is_plain_brave(const ColonizeUnitType* t) {
-  if (!t || !t->name[0]) {
-    return 0;
-  }
-  if (strstr(t->name, "Brave") == NULL) {
-    return 0;
-  }
-  return strstr(t->name, "Armed") == NULL && strstr(t->name, "Mtd") == NULL &&
-         strstr(t->name, "Mounted") == NULL;
+  return units_type_kind(t) == UNITS_KIND_BRAVE ? 1 : 0;
 }
 
 static int units_combat_brave_vs_human_arty(
@@ -5201,6 +5311,52 @@ static int units_combat_brave_vs_human_arty(
   }
   return units_combat_type_is_plain_brave(at) && dt &&
          combat_type_is_artillery_name(dt->name);
+}
+
+/*
+ * Shared pre-roll of units_resolve_land_combat_ff / units_resolve_naval_combat_ff
+ * (UN-8): Combat Analysis (strengths known, outcome not decided) -> the attack
+ * bump -> the DOS 1b0e difficulty-handicap group (raw 100534-100556, which runs
+ * after the param_5==0 early return so the panel shows the RAW odds while the
+ * roll uses the handicapped attacker; raw 100563's defender bump feeds the
+ * 100571 total) -> the roll itself. Writes atk_strength / def_strength / roll /
+ * atk_wins into eng.
+ */
+static void units_combat_present_and_roll(
+  ColonizeUnitPool* pool,
+  ColonizeCombatStrengthCtx* sctx,
+  ColonizeCombatEngagement* eng,
+  ColonizeCombatEngageResult* er,
+  int attacker_id,
+  int defender_id,
+  int atk_nation,
+  int def_nation,
+  int def_x,
+  int def_y,
+  ColonizeDosRng* rng,
+  const ColonizeCol1Save* col1
+) {
+  units_combat_maybe_present_analysis(col1, eng, atk_nation, def_nation);
+  /* bugs.md 239: the attack "bump" plays AFTER the analysis is dismissed —
+   * analysis → bump → outcome popups, each blocking, per combat. */
+  if (g_units_combat_watch) {
+    g_units_combat_watch(g_units_combat_watch_user, pool, attacker_id, def_x, def_y);
+  }
+  combat_apply_1b0e_resolve_handicaps(sctx, attacker_id, defender_id, er);
+  eng->atk_strength = er->atk_strength;
+  eng->def_strength = er->def_strength;
+
+  const int total = eng->atk_strength + eng->def_strength;
+  if (total <= 0) {
+    eng->atk_wins = true;
+    eng->roll = 0;
+  } else if (!rng) {
+    eng->atk_wins = eng->atk_strength >= eng->def_strength;
+    eng->roll = eng->atk_wins ? eng->atk_strength : eng->atk_strength + 1;
+  } else {
+    eng->roll = dos_rng_range(rng, 1, total);
+    eng->atk_wins = eng->roll <= eng->atk_strength;
+  }
 }
 
 bool units_resolve_land_combat_ff(
@@ -5280,37 +5436,15 @@ bool units_resolve_land_combat_ff(
   }
   g_units_revere_muskets_latch = 0;
 
-  /* Combat Analysis before roll — strengths known, outcome not yet decided. */
-  units_combat_maybe_present_analysis(col1, &eng, atk->nation_id, def->nation_id);
-  /* bugs.md 239: the attack "bump" plays AFTER the analysis is dismissed —
-   * analysis → bump → outcome popups, each blocking, per combat. */
-  if (g_units_combat_watch) {
-    g_units_combat_watch(g_units_combat_watch_user, pool, attacker_id, def->x, def->y);
-  }
-
-  /* DOS 1b0e difficulty-handicap group (raw 100534-100556) runs after the
-   * param_5==0 early return: the analysis above showed the raw odds, the
-   * roll below uses the handicapped attacker. The colony-tile tail that
-   * follows (raw 100557-100564) also moves the DEFENDER — `local_a8 =
-   * local_a8 + (0x53a6 - 4) * -4` — and raw 100571 rolls
-   * FUN_281f_04d4(1, local_a8 + local_92) off the bumped value, so both
-   * sides come back. (local_a8 stays bumped for the promotion calls at raw
-   * 100728 / 100758 too.) */
-  combat_apply_1b0e_resolve_handicaps(&sctx, attacker_id, defender_id, &er);
-  eng.atk_strength = er.atk_strength;
-  eng.def_strength = er.def_strength;
-
-  const int total = eng.atk_strength + eng.def_strength;
-  if (total <= 0) {
-    eng.atk_wins = true;
-    eng.roll = 0;
-  } else if (!rng) {
-    eng.atk_wins = eng.atk_strength >= eng.def_strength;
-    eng.roll = eng.atk_wins ? eng.atk_strength : eng.atk_strength + 1;
-  } else {
-    eng.roll = dos_rng_range(rng, 1, total);
-    eng.atk_wins = eng.roll <= eng.atk_strength;
-  }
+  /* The colony-tile tail inside the handicap group (raw 100557-100564) also
+   * moves the DEFENDER — `local_a8 = local_a8 + (0x53a6 - 4) * -4` — and raw
+   * 100571 rolls FUN_281f_04d4(1, local_a8 + local_92) off the bumped value,
+   * so both sides come back. (local_a8 stays bumped for the promotion calls
+   * at raw 100728 / 100758 too.) */
+  units_combat_present_and_roll(
+    pool, &sctx, &eng, &er, attacker_id, defender_id, atk->nation_id, def->nation_id, def->x,
+    def->y, rng, col1
+  );
   /*
    * DOS 1b0e raw 100573-100577, kept in DOS's own place: the roll is drawn
    * first (RNG stream unchanged), then a plain Brave attacking a
@@ -5357,7 +5491,7 @@ bool units_resolve_land_combat_ff(
      * Accept/Refuse CHOICE before credit; AI → silent full credit.
      */
     if (col1 && atk_nation >= 0 && atk_nation <= 3 && dt->name[0] &&
-        strstr(dt->name, "Treasure") != NULL) {
+        units_type_is_treasure(dt)) {
       const int loot_gold = units_treasure_value_gold(def);
       if (loot_gold > 0) {
         const int human = units_combat_human_involved(col1, atk_nation, def_nation);
@@ -5574,7 +5708,7 @@ bool units_resolve_land_combat_ff(
   return false;
 }
 
-int units_plunder_ship_holds(ColonizeUnitPool* pool, int winner_id, int loser_id) {
+static int units_plunder_ship_holds(ColonizeUnitPool* pool, int winner_id, int loser_id) {
   if (!pool || winner_id < 0 || loser_id < 0 || winner_id == loser_id) {
     return 0;
   }
@@ -5593,9 +5727,9 @@ int units_plunder_ship_holds(ColonizeUnitPool* pool, int winner_id, int loser_id
   const int n = units_goods_hold_count(pool, loser_id);
   int moved = 0;
   for (int i = 0; i < n; ++i) {
-    const int amt = lose->hold_goods_amount[i];
+    const int amt = units_unit_hold_amount(lose, i);
     const int ctype = lose->hold_goods_type[i];
-    if (amt <= 0 || amt >= 255 || ctype < 0 || ctype >= COLONIZE_CARGO_COUNT) {
+    if (amt <= 0 || ctype < 0 || ctype >= COLONIZE_CARGO_COUNT) {
       continue;
     }
     const int got = units_load_goods(pool, winner_id, ctype, amt);
@@ -5670,31 +5804,12 @@ bool units_resolve_naval_combat_ff(
   eng.atk_flags = er.atk_flags;
   eng.def_flags = er.def_flags;
 
-  /* Combat Analysis before roll — strengths known, outcome not yet decided. */
-  units_combat_maybe_present_analysis(col1, &eng, atk->nation_id, def->nation_id);
-  /* bugs.md 239: the attack "bump" plays AFTER the analysis is dismissed —
-   * analysis → bump → outcome popups, each blocking, per combat. */
-  if (g_units_combat_watch) {
-    g_units_combat_watch(g_units_combat_watch_user, pool, attacker_id, def->x, def->y);
-  }
-
   /* Same 1b0e handicap group as land — DOS's single resolver covers naval,
    * defender bump included (raw 100563 feeds the 100571 roll total). */
-  combat_apply_1b0e_resolve_handicaps(&sctx, attacker_id, defender_id, &er);
-  eng.atk_strength = er.atk_strength;
-  eng.def_strength = er.def_strength;
-
-  const int total = eng.atk_strength + eng.def_strength;
-  if (total <= 0) {
-    eng.atk_wins = true;
-    eng.roll = 0;
-  } else if (!rng) {
-    eng.atk_wins = eng.atk_strength >= eng.def_strength;
-    eng.roll = eng.atk_wins ? eng.atk_strength : eng.atk_strength + 1;
-  } else {
-    eng.roll = dos_rng_range(rng, 1, total);
-    eng.atk_wins = eng.roll <= eng.atk_strength;
-  }
+  units_combat_present_and_roll(
+    pool, &sctx, &eng, &er, attacker_id, defender_id, atk->nation_id, def->nation_id, def->x,
+    def->y, rng, col1
+  );
   combat_analysis_log_engagement(pool, &eng, true);
 
   /*
@@ -5757,7 +5872,7 @@ bool units_resolve_naval_combat_ff(
     );
     {
       const ColonizeUnitType* wt = units_type(pool, atk->type_index);
-      const int is_priv = wt && wt->name[0] && strstr(wt->name, "Privateer") != NULL;
+      const int is_priv = units_type_is_privateer(wt);
       const int human = units_combat_human_involved(col1, atk_nation, def_nation);
       /*
        * bugs.md: the "captured/seized" cue belongs to a Privateer (or the
@@ -5855,11 +5970,9 @@ int units_coastal_fort_attack_strength(
     return 0;
   }
   int arty = 0;
-  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-    const ColonizeUnit* u = &units->units[i];
-    if (!u->active || !units_is_on_map(u) || u->x != colony->x || u->y != colony->y) {
-      continue;
-    }
+  int slot_a = 0;
+  for (const ColonizeUnit* u = units_next_on_tile_const(units, colony->x, colony->y, &slot_a);
+       u != NULL; u = units_next_on_tile_const(units, colony->x, colony->y, &slot_a)) {
     if (u->nation_id != colony->nation_id) {
       continue;
     }
@@ -5867,7 +5980,7 @@ int units_coastal_fort_attack_strength(
     if (!t) {
       continue;
     }
-    if (strstr(t->name, "Artillery") != NULL || strstr(t->name, "Cannon") != NULL) {
+    if (units_type_is_artillery(t)) {
       arty++;
     }
   }
@@ -5884,7 +5997,7 @@ static int units_fort_fire_is_hostile(
   if (!ship || ship->nation_id == owner_nation) {
     return 0;
   }
-  if (st && strstr(st->name, "Privateer") != NULL) {
+  if (units_type_is_privateer(st)) {
     return 1;
   }
   if (!col1 || owner_nation < 0 || owner_nation > 3) {
@@ -6060,8 +6173,6 @@ int units_coastal_fort_fire_pulse(
   if (!units || !colonies || !map) {
     return 0;
   }
-  static const int k_dx[8] = {0, 1, 1, 1, 0, -1, -1, -1};
-  static const int k_dy[8] = {-1, -1, 0, 1, 1, 1, 0, -1};
   int sunk = 0;
   for (int ci = 0; ci < COLONIZE_COLONIES_MAX; ++ci) {
     const ColonizeColony* col = &colonies->colonies[ci];
@@ -6084,19 +6195,17 @@ int units_coastal_fort_fire_pulse(
       );
     }
     for (int d = 0; d < 8; ++d) {
-      const int nx = col->x + k_dx[d];
-      const int ny = col->y + k_dy[d];
+      const int nx = col->x + MAP_DIR8_DX[d];
+      const int ny = col->y + MAP_DIR8_DY[d];
       if (!map_tile_is_water(map, nx, ny)) {
         continue;
       }
       /* Snapshot ids: combat may despawn mid-scan. */
       int targets[COLONIZE_UNITS_MAX];
       int n_tg = 0;
-      for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-        const ColonizeUnit* u = &units->units[i];
-        if (!u->active || !units_is_on_map(u) || u->x != nx || u->y != ny) {
-          continue;
-        }
+      int slot_b = 0;
+      for (const ColonizeUnit* u = units_next_on_tile_const(units, nx, ny, &slot_b); u != NULL;
+           u = units_next_on_tile_const(units, nx, ny, &slot_b)) {
         if (!units_is_sea(units, u->id)) {
           continue;
         }
@@ -6259,15 +6368,14 @@ static bool units_village_squat_illegal(
   if (cid >= 0) {
     return false;
   }
-  const char* n = type->name;
-  const int missionary = n && strstr(n, "Missionar") != NULL;
+  const ColonizeUnitKind k = units_type_kind(type);
+  const int missionary = k == UNITS_KIND_MISSIONARY;
+  /* Old set was {Soldier, Scout, Dragoon, Regular, Army, Cavalry, Artillery};
+   * units_kind_is_military adds Cont. Cav., which the type->attack > 0 term
+   * below already claimed (@UNIT Cont. Cav. attack 5), so the fold is inert. */
   const int combatish =
     (mover && (mover->muskets > 0 || mover->horses > 0)) ||
-    (n &&
-     (strstr(n, "Soldier") != NULL || strstr(n, "Scout") != NULL || strstr(n, "Dragoon") != NULL ||
-      strstr(n, "Regular") != NULL || strstr(n, "Army") != NULL || strstr(n, "Cavalry") != NULL ||
-      strstr(n, "Artillery") != NULL)) ||
-    (type->attack > 0);
+    units_kind_is_military(k) || k == UNITS_KIND_SCOUT || (type->attack > 0);
   return !missionary && !combatish;
 }
 
@@ -6307,14 +6415,12 @@ static int units_colony_plunder_stock_sum(const ColonizeColony* col) {
  * state, and an AI capture stamps the ring exactly the same way.
  */
 static void units_capture_claim_ring(ColonizeWorldMap* map, int x, int y, int new_owner) {
-  static const int k_dx[8] = {0, 1, 1, 1, 0, -1, -1, -1};
-  static const int k_dy[8] = {-1, -1, 0, 1, 1, 1, 0, -1};
   if (!map || !map->layer2 || !map->layer3) {
     return;
   }
   for (int d = 0; d < 8; ++d) {
-    const int tx = x + k_dx[d];
-    const int ty = y + k_dy[d];
+    const int tx = x + MAP_DIR8_DX[d];
+    const int ty = y + MAP_DIR8_DY[d];
     if (tx < 0 || ty < 0 || tx >= map->width || ty >= map->height) {
       continue;
     }
@@ -6322,7 +6428,7 @@ static void units_capture_claim_ring(ColonizeWorldMap* map, int x, int y, int ne
     if ((l2 & (MAP_OCCUPANCY_HAS_UNIT | MAP_OCCUPANCY_HAS_CITY)) != 0) {
       continue; /* FUN_137f_0428 returned an owner — DOS leaves the tile alone */
     }
-    units_map_set_owner_nibble(map, tx, ty, new_owner);
+    map_set_owner_nibble(map, tx, ty, new_owner);
   }
 }
 
@@ -6548,11 +6654,9 @@ void units_seize_noncombat_at(
     return;
   }
   const int win_nat = win->nation_id;
-  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-    ColonizeUnit* u = &pool->units[i];
-    if (!units_is_on_map(u) || u->x != x || u->y != y) {
-      continue;
-    }
+  int slot_4 = 0;
+  for (ColonizeUnit* u = units_next_on_tile(pool, x, y, &slot_4); u != NULL;
+       u = units_next_on_tile(pool, x, y, &slot_4)) {
     if (u->id == winner_id || u->nation_id == win_nat) {
       continue;
     }
@@ -6655,9 +6759,10 @@ ColonizeEnterReason units_enter_probe(
   int foe = -1;
   {
     int foe_mismatch = -1;
-    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-      const ColonizeUnit* u = &pool->units[i];
-      if (!units_is_on_map(u) || u->x != x || u->y != y || u->id == mover_id) {
+    int slot_d = 0;
+    for (const ColonizeUnit* u = units_next_on_tile_const(pool, x, y, &slot_d); u != NULL;
+         u = units_next_on_tile_const(pool, x, y, &slot_d)) {
+      if (u->id == mover_id) {
         continue;
       }
       if (mover_nation >= 0 && u->nation_id == mover_nation) {
@@ -6717,7 +6822,7 @@ ColonizeEnterReason units_enter_probe(
     /* Treasure Train: natives always take it (bugs.md — "hard to resist"). */
     const ColonizeUnitType* ft = fu ? units_type(pool, fu->type_index) : NULL;
     const bool treasure_bait = mover_nation >= 4 && ft && ft->name[0] &&
-      strstr(ft->name, "Treasure") != NULL;
+      units_type_is_treasure(ft);
     const bool grudge = mover_nation >= 4 && foe_nation >= 0 && foe_nation <= 3 &&
       units_native_village_grudge(mover, foe_nation);
     if (!treasure_bait && !grudge && !units_at_war_for_move(mover_nation, foe_nation)) {
@@ -6794,7 +6899,7 @@ ColonizeEnterReason units_enter_probe(
      * Land → ocean/HS: embark if own ship on dest has room (FUN_4720_015c /
      * 0006). Otherwise domain deny.
      */
-    const bool board_needs_galleon = type && type->name[0] && strstr(type->name, "Treasure") != NULL;
+    const bool board_needs_galleon = units_type_is_treasure(type);
     if (mover_nation >= 0 &&
         units_find_boardable_ship(pool, x, y, mover_nation, board_needs_galleon) >= 0) {
       g_units_last_enter_reason = COLONIZE_ENTER_BOARD;
@@ -6948,7 +7053,7 @@ int units_move_cost(
   return map_move_spent_thirds(map, u->x, u->y, dest_x, dest_y);
 }
 
-bool units_can_afford_move_cost(const ColonizeUnitPool* pool, int unit_id, int cost) {
+static bool units_can_afford_move_cost(const ColonizeUnitPool* pool, int unit_id, int cost) {
   const ColonizeUnit* unit = units_get_const(pool, unit_id);
   const int remaining = units_remaining_mp(pool, unit_id);
   if (!unit || !unit->active || remaining <= 0) {
@@ -6974,16 +7079,12 @@ static bool units_is_standing_soldier(const ColonizeUnitPool* pool, const Coloni
     return true;
   }
   const ColonizeUnitType* t = units_type(pool, u->type_index);
-  const char* n = t ? t->name : NULL;
-  const char* d = units_display_name(pool, u);
-  if ((n && (strstr(n, "Soldier") || strstr(n, "Dragoon") || strstr(n, "Cavalry") ||
-             strstr(n, "Artillery") || strstr(n, "Regular") || strstr(n, "Continental") ||
-             strstr(n, "Cont."))) ||
-      (d && (strstr(d, "Soldier") || strstr(d, "Dragoon") || strstr(d, "Cavalry") ||
-             strstr(d, "Artillery") || strstr(d, "Regular") || strstr(d, "Continental")))) {
-    return true;
-  }
-  return false;
+  /* Type name OR display name: an armed Colonists-type body reads "Soldier"
+   * only through units_display_name. Both former substring sets are exactly
+   * the military kinds (Soldiers/Dragoons/Cavalry/Artillery/Regulars/
+   * Cont. Cav./Cont. Army). */
+  return units_kind_is_military(units_type_kind(t)) ||
+         units_kind_is_military(units_name_kind(units_display_name(pool, u)));
 }
 
 static bool units_colony_has_soldier_on_tile(
@@ -6995,11 +7096,9 @@ static bool units_colony_has_soldier_on_tile(
   if (!pool || colony_nation < 0) {
     return false;
   }
-  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-    const ColonizeUnit* u = &pool->units[i];
-    if (!u->active || !units_is_on_map(u) || u->x != x || u->y != y) {
-      continue;
-    }
+  int slot_c = 0;
+  for (const ColonizeUnit* u = units_next_on_tile_const(pool, x, y, &slot_c); u != NULL;
+       u = units_next_on_tile_const(pool, x, y, &slot_c)) {
     if (u->nation_id != colony_nation) {
       continue;
     }
@@ -7249,7 +7348,7 @@ bool units_try_move(
     }
     const ColonizeUnitType* mover_ty = units_type(pool, unit->type_index);
     const bool board_needs_galleon =
-      mover_ty && mover_ty->name[0] && strstr(mover_ty->name, "Treasure") != NULL;
+      units_type_is_treasure(mover_ty);
     const int ship_id =
       units_find_boardable_ship(pool, dest_x, dest_y, unit->nation_id, board_needs_galleon);
     if (ship_id < 0) {
@@ -7908,27 +8007,6 @@ bool units_order_fortify(ColonizeUnitPool* pool, int unit_id) {
     u->turns_worked = 0;
   }
   return ok;
-}
-
-/*
- * The ship half of MENU.TXT @ORDERS' two "~Fortify" rows (the port calls this
- * one Anchor to tell them apart; DOS labels both the same and runs both
- * through FUN_2b5a_1112). It used to require an own colony on or next to the
- * ship's tile, which is why fortifying at sea worked "only sometimes" — DOS
- * has no such rule, or any water rule, so this is now plain fortify.
- * `colonies` is kept in the signature for the call sites and is unused.
- */
-bool units_order_anchor(
-  ColonizeUnitPool* pool,
-  int unit_id,
-  const ColonizeColonyPool* colonies
-) {
-  (void)colonies;
-  const ColonizeUnit* u = units_get_const(pool, unit_id);
-  if (!u || !u->active || !units_is_sea(pool, unit_id)) {
-    return false;
-  }
-  return units_order_fortify(pool, unit_id);
 }
 
 bool units_order_sentry(ColonizeUnitPool* pool, int unit_id) {
@@ -8715,10 +8793,8 @@ static bool units_bfs_next_step(
 
 /* DOS dir8 table (DS:0xb4/0xbe), also used project-wide; index^4 = reverse. */
 static int units_dir8_index(int dx, int dy) {
-  static const int k_dx[8] = {0, 1, 1, 1, 0, -1, -1, -1};
-  static const int k_dy[8] = {-1, -1, 0, 1, 1, 1, 0, -1};
   for (int i = 0; i < 8; ++i) {
-    if (k_dx[i] == dx && k_dy[i] == dy) {
+    if (MAP_DIR8_DX[i] == dx && MAP_DIR8_DY[i] == dy) {
       return i;
     }
   }
@@ -8927,14 +9003,12 @@ static bool units_greedy_next_step(
       units_dir8_index(best_x - u->x, best_y - u->y) ==
         (s_units_goto_last_dir[unit_id] ^ 4) &&
       units_orders_follow_goto(u->orders)) {
-    static const int k_wig_dx[8] = {0, 1, 1, 1, 0, -1, -1, -1};
-    static const int k_wig_dy[8] = {-1, -1, 0, 1, 1, 1, 0, -1};
     int wig_x = -1;
     int wig_y = -1;
     for (int tries = 0; tries < 8 && wig_x < 0; ++tries) {
       const int d = dos_rng_range(rng, 0, 7);
-      const int nx = u->x + k_wig_dx[d];
-      const int ny = u->y + k_wig_dy[d];
+      const int nx = u->x + MAP_DIR8_DX[d];
+      const int ny = u->y + MAP_DIR8_DY[d];
       /*
        * The reroll re-applies 06d2 as well (viceroy_unpacked.c:104724-104726:
        * `if ((-1 < uVar21) && (uVar21 != uVar8)) ... local_1c = 0xffff`), and
@@ -9072,8 +9146,6 @@ static int units_coarse_probe(
  * 225 expansions); with `steps` = 1 each edge, `cost` is the step count.
  */
 static int units_coarse_reach(const ColonizeWorldMap* map, int ax, int ay, int bx, int by, int sea) {
-  static const int k_dx[8] = {0, 1, 1, 1, 0, -1, -1, -1};
-  static const int k_dy[8] = {-1, -1, 0, 1, 1, 1, 0, -1};
   if (abs(ax - bx) >= 8 || abs(ay - by) >= 8) {
     return -1;
   }
@@ -9102,8 +9174,8 @@ static int units_coarse_reach(const ColonizeWorldMap* map, int ax, int ay, int b
       return dist[x - ox][y - oy];
     }
     for (int d = 0; d < 8; ++d) {
-      const int nx = x + k_dx[d];
-      const int ny = y + k_dy[d];
+      const int nx = x + MAP_DIR8_DX[d];
+      const int ny = y + MAP_DIR8_DY[d];
       if (abs(nx - bx) >= 8 || abs(ny - by) >= 8) {
         continue;
       }
@@ -9139,8 +9211,6 @@ static int units_coarse_connected(const ColonizeWorldMap* map, int ax, int ay, i
 }
 
 static void units_coarse_build(const ColonizeWorldMap* map) {
-  static const int k_dx[8] = {0, 1, 1, 1, 0, -1, -1, -1};
-  static const int k_dy[8] = {-1, -1, 0, 1, 1, 1, 0, -1};
   UnitsCoarseGrid* g = &s_units_coarse;
   if (g->map == map && g->width == (int)map->width && g->height == (int)map->height) {
     return;
@@ -9167,8 +9237,8 @@ static void units_coarse_build(const ColonizeWorldMap* map) {
          * ((d+4)&7) is written on the neighbour; both cells must probe to
          * the same body id. */
         for (int d = 0; d < 4; ++d) {
-          const int nx = cx + k_dx[d];
-          const int ny = cy + k_dy[d];
+          const int nx = cx + MAP_DIR8_DX[d];
+          const int ny = cy + MAP_DIR8_DY[d];
           if (nx < 0 || ny < 0 || nx >= UNITS_COARSE_ROWS || ny >= UNITS_COARSE_COLS ||
               !g->walk[sea][nx][ny]) {
             continue;
@@ -9189,18 +9259,10 @@ static void units_coarse_build(const ColonizeWorldMap* map) {
 }
 
 /* FUN_124c_0040 (ai_dos_dist): max(|dx|,|dy|) + min(|dx|,|dy|)/2. */
-static int units_coarse_dos_dist(int dx, int dy) {
-  if (dx < 0) dx = -dx;
-  if (dy < 0) dy = -dy;
-  return dx > dy ? dx + (dy >> 1) : dy + (dx >> 1);
-}
-
 /* FUN_6662_09ae */
 static int units_coarse_snap(
   const ColonizeWorldMap* map, int x, int y, int sea, int* out_cx, int* out_cy
 ) {
-  static const int k_dx[8] = {0, 1, 1, 1, 0, -1, -1, -1};
-  static const int k_dy[8] = {-1, -1, 0, 1, 1, 1, 0, -1};
   const UnitsCoarseGrid* g = &s_units_coarse;
   const int cx = x >> 2;
   const int cy = y >> 2;
@@ -9214,13 +9276,13 @@ static int units_coarse_snap(
   if (pick < 0) {
     int best = 99;
     for (int d = 0; d < 8; ++d) {
-      const int nx = cx + k_dx[d];
-      const int ny = cy + k_dy[d];
+      const int nx = cx + MAP_DIR8_DX[d];
+      const int ny = cy + MAP_DIR8_DY[d];
       if (nx < 0 || ny < 0 || nx >= UNITS_COARSE_ROWS || ny >= UNITS_COARSE_COLS ||
           g->mask[sea][nx][ny] == 0) {
         continue;
       }
-      const int dist = units_coarse_dos_dist(x - (nx * 4 + 1), y - (ny * 4 + 1));
+      const int dist = map_dos_dist(x - (nx * 4 + 1), y - (ny * 4 + 1));
       if (dist >= best) {
         continue;
       }
@@ -9242,8 +9304,8 @@ static int units_coarse_snap(
   if (pick < 0) {
     return 0;
   }
-  *out_cx = pick == 8 ? cx : cx + k_dx[pick];
-  *out_cy = pick == 8 ? cy : cy + k_dy[pick];
+  *out_cx = pick == 8 ? cx : cx + MAP_DIR8_DX[pick];
+  *out_cy = pick == 8 ? cy : cy + MAP_DIR8_DY[pick];
   return 1;
 }
 
@@ -9253,8 +9315,6 @@ static int units_coarse_waypoint(
   const ColonizeWorldMap* map, int ux, int uy, int gx, int gy, int sea,
   int* out_x, int* out_y, int* out_ucx, int* out_ucy
 ) {
-  static const int k_dx[8] = {0, 1, 1, 1, 0, -1, -1, -1};
-  static const int k_dy[8] = {-1, -1, 0, 1, 1, 1, 0, -1};
   units_coarse_build(map);
   const UnitsCoarseGrid* g = &s_units_coarse;
   int ucx = 0;
@@ -9293,8 +9353,8 @@ static int units_coarse_waypoint(
       if ((m & (1u << d)) == 0) {
         continue;
       }
-      const int nx = cx + k_dx[d];
-      const int ny = cy + k_dy[d];
+      const int nx = cx + MAP_DIR8_DX[d];
+      const int ny = cy + MAP_DIR8_DY[d];
       if (nx < 0 || ny < 0 || nx >= UNITS_COARSE_ROWS || ny >= UNITS_COARSE_COLS ||
           cost[nx][ny] != 0) {
         continue;
@@ -9318,8 +9378,8 @@ static int units_coarse_waypoint(
     if ((um & (1u << d)) == 0) {
       continue;
     }
-    const int nx = ucx + k_dx[d];
-    const int ny = ucy + k_dy[d];
+    const int nx = ucx + MAP_DIR8_DX[d];
+    const int ny = ucy + MAP_DIR8_DY[d];
     if (nx < 0 || ny < 0 || nx >= UNITS_COARSE_ROWS || ny >= UNITS_COARSE_COLS ||
         cost[nx][ny] == 0) {
       continue;
@@ -9334,8 +9394,8 @@ static int units_coarse_waypoint(
   if (best_d < 0) {
     return 0;
   }
-  const int wcx = ucx + k_dx[best_d];
-  const int wcy = ucy + k_dy[best_d];
+  const int wcx = ucx + MAP_DIR8_DX[best_d];
+  const int wcy = ucy + MAP_DIR8_DY[best_d];
   int wx = wcx * 4 + 1;
   int wy = wcy * 4 + 1;
   (void)units_coarse_probe(map, wcx, wcy, sea, &wx, &wy);
@@ -9517,7 +9577,7 @@ bool units_advance_goto_one_step(
    */
   {
     const ColonizeUnitType* mt = units_type(pool, u->type_index);
-    const int missionary = mt && mt->name[0] && strstr(mt->name, "Missionar") != NULL;
+    const int missionary = units_type_is_missionary(mt);
     const int occ = units_id_at(pool, nx, ny);
     const ColonizeUnit* of = occ >= 0 ? units_get_const(pool, occ) : NULL;
     const int village = units_tribe_nation_at(g_units_ff_col1, nx, ny);
@@ -9639,21 +9699,10 @@ static int units_pioneer_work_needed(const ColonizeUnit* u, const ColonizeWorldM
   return needed;
 }
 
-/* FUN_124c_0040 / FUN_281f_0370 — DOS tile distance: max + min/2. */
-static int units_dos_dist(int dx, int dy) {
-  if (dx < 0) {
-    dx = -dx;
-  }
-  if (dy < 0) {
-    dy = -dy;
-  }
-  return (dy < dx) ? (dy >> 1) + dx : (dx >> 1) + dy;
-}
-
 /*
  * FUN_281f_0614 (= FUN_15eb_0142) nearest-colony search, the one writer of
  * DOS DS:0x8db8: closest active colony of `filter_nation` (any when < 0) by
- * units_dos_dist, first wins on ties; *out_dist gets the winning distance
+ * map_dos_dist, first wins on ties; *out_dist gets the winning distance
  * (the 0x8db8 side effect both Pioneer bodies read back). Cite:
  * move_scoring_land.md "0x8db8 identified".
  */
@@ -9672,7 +9721,7 @@ static ColonizeColony* units_nearest_colony_dos(
       if (!c->active || (filter_nation >= 0 && c->nation_id != filter_nation)) {
         continue;
       }
-      const int d = units_dos_dist(c->x - x, c->y - y);
+      const int d = map_dos_dist(c->x - x, c->y - y);
       if (d < best_d) {
         best_d = d;
         best = c;
@@ -9744,7 +9793,7 @@ static void units_pioneer_native_land_tail(
   if (!is_ai) {
     base += (int)col1->head.difficulty;
   }
-  const int dist = units_dos_dist(u->x - (int)col1->tribe[ti].x, u->y - (int)col1->tribe[ti].y);
+  const int dist = map_dos_dist(u->x - (int)col1->tribe[ti].x, u->y - (int)col1->tribe[ti].y);
   int amount = base;
   if (dist < 3) {
     amount = base * 2;
@@ -10102,6 +10151,45 @@ bool units_pioneer_work_tick(
   return true;
 }
 
+/*
+ * Shared head of units_pioneer_plow / units_pioneer_road (UN-9): the pioneer
+ * gate + @ONLYPIO refusal, the moves gate (skipped while the order is already
+ * latched, because a work tick costs nothing) and the tools gate. Returns the
+ * unit on success, NULL when the order was refused.
+ */
+static ColonizeUnit* units_pioneer_begin_order(
+  ColonizeUnitPool* pool,
+  int unit_id,
+  const ColonizeWorldMap* map,
+  int order,
+  char* err,
+  size_t err_size,
+  AiPopupState* ai_popups,
+  const ColonizeMsgCatalog* messages
+) {
+  ColonizeUnit* u = units_get(pool, unit_id);
+  if (!u || !map || !units_is_pioneer(pool, unit_id)) {
+    if (err && err_size) {
+      snprintf(err, err_size, "Select a Pioneer");
+    }
+    units_pioneer_emit_order_gate(u, ai_popups, messages, "ONLYPIO", "Only pioneers can do that.");
+    return NULL;
+  }
+  if (u->orders != order && u->moves_left <= 0) {
+    if (err && err_size) {
+      snprintf(err, err_size, "No moves left");
+    }
+    return NULL;
+  }
+  if (u->tools < UNITS_PIONEER_TOOL_COST) {
+    if (err && err_size) {
+      snprintf(err, err_size, "Need tools");
+    }
+    return NULL;
+  }
+  return u;
+}
+
 bool units_pioneer_plow(
   ColonizeUnitPool* pool,
   int unit_id,
@@ -10112,24 +10200,10 @@ bool units_pioneer_plow(
   AiPopupState* ai_popups,
   const ColonizeMsgCatalog* messages
 ) {
-  ColonizeUnit* u = units_get(pool, unit_id);
-  if (!u || !map || !units_is_pioneer(pool, unit_id)) {
-    if (err && err_size) {
-      snprintf(err, err_size, "Select a Pioneer");
-    }
-    units_pioneer_emit_order_gate(u, ai_popups, messages, "ONLYPIO", "Only pioneers can do that.");
-    return false;
-  }
-  if (u->orders != UNITS_ORDER_CLEAR_PLOW && u->moves_left <= 0) {
-    if (err && err_size) {
-      snprintf(err, err_size, "No moves left");
-    }
-    return false;
-  }
-  if (u->tools < UNITS_PIONEER_TOOL_COST) {
-    if (err && err_size) {
-      snprintf(err, err_size, "Need tools");
-    }
+  ColonizeUnit* u = units_pioneer_begin_order(
+    pool, unit_id, map, UNITS_ORDER_CLEAR_PLOW, err, err_size, ai_popups, messages
+  );
+  if (!u) {
     return false;
   }
   if (map_tile_is_plowed(map, u->x, u->y)) {
@@ -10176,24 +10250,10 @@ bool units_pioneer_road(
   AiPopupState* ai_popups,
   const ColonizeMsgCatalog* messages
 ) {
-  ColonizeUnit* u = units_get(pool, unit_id);
-  if (!u || !map || !units_is_pioneer(pool, unit_id)) {
-    if (err && err_size) {
-      snprintf(err, err_size, "Select a Pioneer");
-    }
-    units_pioneer_emit_order_gate(u, ai_popups, messages, "ONLYPIO", "Only pioneers can do that.");
-    return false;
-  }
-  if (u->orders != UNITS_ORDER_BUILD_ROAD && u->moves_left <= 0) {
-    if (err && err_size) {
-      snprintf(err, err_size, "No moves left");
-    }
-    return false;
-  }
-  if (u->tools < UNITS_PIONEER_TOOL_COST) {
-    if (err && err_size) {
-      snprintf(err, err_size, "Need tools");
-    }
+  ColonizeUnit* u = units_pioneer_begin_order(
+    pool, unit_id, map, UNITS_ORDER_BUILD_ROAD, err, err_size, ai_popups, messages
+  );
+  if (!u) {
     return false;
   }
   if (!map_tile_is_land(map, u->x, u->y) || map_tile_is_high_seas(map, u->x, u->y)) {
@@ -10232,16 +10292,13 @@ static bool units_adjacent(int ax, int ay, int bx, int by) {
   return dx >= -1 && dx <= 1 && dy >= -1 && dy <= 1;
 }
 
+/* Sea-only view of units_goods_hold_count (UN-16): identical body behind the
+ * units_is_sea gate, so a wagon reports 0 capacity but keeps its goods holds. */
 int units_ship_capacity(const ColonizeUnitPool* pool, int ship_id) {
-  const ColonizeUnit* ship = units_get_const(pool, ship_id);
-  if (!ship || !units_is_sea(pool, ship_id)) {
+  if (!units_is_sea(pool, ship_id)) {
     return 0;
   }
-  const ColonizeUnitType* type = units_type(pool, ship->type_index);
-  if (!type || type->cargo <= 0) {
-    return 0;
-  }
-  return type->cargo > COLONIZE_UNIT_CARGO_MAX ? COLONIZE_UNIT_CARGO_MAX : type->cargo;
+  return units_goods_hold_count(pool, ship_id);
 }
 
 bool units_is_transport(const ColonizeUnitPool* pool, int unit_id) {
@@ -10256,7 +10313,7 @@ bool units_is_transport(const ColonizeUnitPool* pool, int unit_id) {
   if (!type) {
     return false;
   }
-  return strstr(type->name, "Wagon") != NULL && type->cargo > 0;
+  return units_type_is_wagon(type) && type->cargo > 0;
 }
 
 int units_goods_hold_count(const ColonizeUnitPool* pool, int unit_id) {
@@ -10280,11 +10337,61 @@ int units_first_goods_hold(const ColonizeUnitPool* pool, int unit_id) {
   }
   const int n = units_goods_hold_count(pool, unit_id);
   for (int i = 0; i < n; ++i) {
-    if (u->hold_goods_amount[i] > 0 && u->hold_goods_amount[i] < 255) {
+    if (units_unit_hold_amount(u, i) > 0) {
       return i;
     }
   }
   return -1;
+}
+
+/*
+ * DOS FUN_15eb_30b8 goods packing, on a raw (types, amounts) hold pair so the
+ * Europe harbor mirror (europe.c europe_buy_cargo) and the unit pool can share
+ * one implementation: top up matching partial holds to 100 first, then append
+ * into free slots. The append pass is budgeted because DOS only appends while
+ * `holds_occupied < cargo_cap`; pass n_holds for an unbudgeted append.
+ */
+int goods_pack_into_holds(
+  int* hold_types,
+  int* hold_amounts,
+  int n_holds,
+  int cargo_type,
+  int amount,
+  int max_new_slots
+) {
+  if (!hold_types || !hold_amounts || n_holds <= 0 || amount <= 0) {
+    return 0;
+  }
+  int loaded = 0;
+  /* Prefer stacking into a matching partial hold. */
+  for (int i = 0; i < n_holds && amount > 0; ++i) {
+    if (hold_amounts[i] <= 0 || hold_amounts[i] >= 255) {
+      continue;
+    }
+    if (hold_types[i] != cargo_type) {
+      continue;
+    }
+    const int room = 100 - hold_amounts[i];
+    if (room <= 0) {
+      continue;
+    }
+    const int add = amount < room ? amount : room;
+    hold_amounts[i] += add;
+    amount -= add;
+    loaded += add;
+  }
+  for (int i = 0; i < n_holds && amount > 0 && max_new_slots > 0; ++i) {
+    if (hold_amounts[i] > 0 && hold_amounts[i] < 255) {
+      continue;
+    }
+    const int add = amount < 100 ? amount : 100;
+    hold_types[i] = cargo_type;
+    hold_amounts[i] = add;
+    amount -= add;
+    loaded += add;
+    max_new_slots--;
+  }
+  return loaded;
 }
 
 int units_load_goods(ColonizeUnitPool* pool, int unit_id, int cargo_type, int amount) {
@@ -10296,35 +10403,9 @@ int units_load_goods(ColonizeUnitPool* pool, int unit_id, int cargo_type, int am
     return 0;
   }
   const int n = units_goods_hold_count(pool, unit_id);
-  int loaded = 0;
-  /* Prefer stacking into a matching partial hold. */
-  for (int i = 0; i < n && amount > 0; ++i) {
-    if (u->hold_goods_amount[i] <= 0 || u->hold_goods_amount[i] >= 255) {
-      continue;
-    }
-    if (u->hold_goods_type[i] != cargo_type) {
-      continue;
-    }
-    const int room = 100 - u->hold_goods_amount[i];
-    if (room <= 0) {
-      continue;
-    }
-    const int add = amount < room ? amount : room;
-    u->hold_goods_amount[i] += add;
-    amount -= add;
-    loaded += add;
-  }
-  for (int i = 0; i < n && amount > 0; ++i) {
-    if (u->hold_goods_amount[i] > 0 && u->hold_goods_amount[i] < 255) {
-      continue;
-    }
-    const int add = amount < 100 ? amount : 100;
-    u->hold_goods_type[i] = cargo_type;
-    u->hold_goods_amount[i] = add;
-    amount -= add;
-    loaded += add;
-  }
-  return loaded;
+  return goods_pack_into_holds(
+    u->hold_goods_type, u->hold_goods_amount, n, cargo_type, amount, n
+  );
 }
 
 int units_unload_goods_hold(
@@ -10342,8 +10423,8 @@ int units_unload_goods_hold(
   if (hold_index < 0 || hold_index >= n) {
     return 0;
   }
-  const int amt = u->hold_goods_amount[hold_index];
-  if (amt <= 0 || amt >= 255) {
+  const int amt = units_unit_hold_amount(u, hold_index);
+  if (amt <= 0) {
     return 0;
   }
   const int ctype = u->hold_goods_type[hold_index];
@@ -10369,57 +10450,17 @@ int units_ship_free_passenger_slots(const ColonizeUnitPool* pool, int ship_id) {
   if (!ship || cap <= 0) {
     return 0;
   }
+  /* Bounded by the hull's own hold count, not COLONIZE_UNIT_CARGO_MAX, so this
+   * is deliberately not units_holds_used (which walks all 8 slots). */
   int goods = 0;
   const int holds = units_goods_hold_count(pool, ship_id);
   for (int i = 0; i < holds && i < COLONIZE_UNIT_CARGO_MAX; ++i) {
-    if (ship->hold_goods_amount[i] > 0 && ship->hold_goods_amount[i] < 255) {
+    if (units_unit_hold_amount(ship, i) > 0) {
       goods++;
     }
   }
   int free_slots = cap - ship->cargo_count - goods;
   return free_slots > 0 ? free_slots : 0;
-}
-
-bool units_board(ColonizeUnitPool* pool, int land_unit_id, int ship_id) {
-  ColonizeUnit* land = units_get(pool, land_unit_id);
-  ColonizeUnit* ship = units_get(pool, ship_id);
-  if (!land || !ship) {
-    return false;
-  }
-  if (units_is_sea(pool, land_unit_id) || !units_is_sea(pool, ship_id)) {
-    return false;
-  }
-  if (land->aboard_ship_id >= 0 || ship->aboard_ship_id >= 0) {
-    return false;
-  }
-  const int cap = units_ship_capacity(pool, ship_id);
-  if (cap <= 0 || units_ship_free_passenger_slots(pool, ship_id) <= 0) {
-    return false;
-  }
-  if (!units_adjacent(land->x, land->y, ship->x, ship->y)) {
-    return false;
-  }
-  land->aboard_ship_id = ship_id;
-  land->x = ship->x;
-  land->y = ship->y;
-  /*
-   * Deliberate RAW write, not units_mp_exhaust/restore (audit A9): the aboard
-   * zero is the hold's park sentinel, and the whole aboard subsystem reads it
-   * back literally in Euro space — units_unload_passenger (:10555 "0 means
-   * full allotment, restore for the charge"), units_first_cargo_with_moves
-   * and units_first_landfall_cargo. A spent-aware writer would hand a native
-   * passenger max_mp and every one of those readers would then call it
-   * movable. Only Euro land units ever board (the boardable-ship pick matches
-   * nations), so the sentinel and its readers stay in one space.
-   */
-  land->moves_left = 0;
-  land->orders = 1; /* sentry aboard */
-  ship->cargo_ids[ship->cargo_count++] = land_unit_id;
-  if (pool->selected_id == land_unit_id) {
-    pool->selected_id = ship_id;
-  }
-  diag_info("Unit %d boarded ship %d (cargo %d/%d)", land_unit_id, ship_id, ship->cargo_count, cap);
-  return true;
 }
 
 bool units_board_stacked(ColonizeUnitPool* pool, int land_unit_id, int ship_id) {
@@ -10434,17 +10475,51 @@ bool units_board_stacked(ColonizeUnitPool* pool, int land_unit_id, int ship_id) 
   if (land->aboard_ship_id >= 0 || ship->aboard_ship_id >= 0) {
     return false;
   }
-  const int cap = units_ship_capacity(pool, ship_id);
-  if (cap <= 0 || units_ship_free_passenger_slots(pool, ship_id) <= 0) {
+  if (units_ship_capacity(pool, ship_id) <= 0 ||
+      units_ship_free_passenger_slots(pool, ship_id) <= 0) {
     return false;
   }
   land->aboard_ship_id = ship_id;
   land->x = ship->x;
   land->y = ship->y;
-  /* Same deliberate raw hold sentinel as units_board above (audit A9). */
+  /*
+   * Deliberate RAW write, not units_mp_exhaust/restore (audit A9): the aboard
+   * zero is the hold's park sentinel, and the whole aboard subsystem reads it
+   * back literally in Euro space — units_unload_passenger ("0 means full
+   * allotment, restore for the charge") and units_first_landfall_cargo. A
+   * spent-aware writer would hand a native passenger max_mp and every one of
+   * those readers would then call it movable. Only Euro land units ever board
+   * (the boardable-ship pick matches nations), so the sentinel and its readers
+   * stay in one space.
+   */
   land->moves_left = 0;
   land->orders = 1; /* sentry aboard */
   ship->cargo_ids[ship->cargo_count++] = land_unit_id;
+  return true;
+}
+
+/* units_board = units_board_stacked plus the adjacency gate and the selection
+ * hand-off (UN-10). The adjacency test must run BEFORE anything is written. */
+bool units_board(ColonizeUnitPool* pool, int land_unit_id, int ship_id) {
+  const ColonizeUnit* land = units_get_const(pool, land_unit_id);
+  const ColonizeUnit* ship = units_get_const(pool, ship_id);
+  if (!land || !ship || !units_adjacent(land->x, land->y, ship->x, ship->y)) {
+    return false;
+  }
+  if (!units_board_stacked(pool, land_unit_id, ship_id)) {
+    return false;
+  }
+  if (pool->selected_id == land_unit_id) {
+    pool->selected_id = ship_id;
+  }
+  const ColonizeUnit* boat = units_get_const(pool, ship_id);
+  diag_info(
+    "Unit %d boarded ship %d (cargo %d/%d)",
+    land_unit_id,
+    ship_id,
+    boat ? boat->cargo_count : 0,
+    units_ship_capacity(pool, ship_id)
+  );
   return true;
 }
 
@@ -10468,7 +10543,7 @@ int units_find_boardable_ship(
     if (require_galleon) {
       /* Treasure Trains may only board a Galleon (Colonization.pdf; P7.3). */
       const ColonizeUnitType* sty = units_type(pool, ship->type_index);
-      if (!sty || !sty->name[0] || strstr(sty->name, "Galleon") == NULL) {
+      if (!units_type_is_galleon(sty)) {
         continue;
       }
     }
@@ -10488,31 +10563,6 @@ int units_find_boardable_ship(
     }
   }
   return -1;
-}
-
-int units_board_sentries_from_tile(ColonizeUnitPool* pool, int ship_id, int x, int y) {
-  ColonizeUnit* ship = units_get(pool, ship_id);
-  if (!pool || !ship || !units_is_sea(pool, ship_id)) {
-    return 0;
-  }
-  int boarded = 0;
-  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-    ColonizeUnit* land = &pool->units[i];
-    if (!land->active || !units_is_on_map(land) || units_is_sea(pool, land->id)) {
-      continue;
-    }
-    if (land->nation_id != ship->nation_id || land->x != x || land->y != y) {
-      continue;
-    }
-    if (land->orders != UNITS_ORDER_SENTRY) {
-      continue;
-    }
-    if (!units_board_stacked(pool, land->id, ship_id)) {
-      break; /* full or reject — stop filling */
-    }
-    boarded++;
-  }
-  return boarded;
 }
 
 static bool units_remove_from_cargo(ColonizeUnit* ship, int pax_id) {
@@ -10550,7 +10600,7 @@ int units_ship_departure_pickup(ColonizeUnitPool* pool, int ship_id, int x, int 
     return 0;
   }
   const ColonizeUnitType* sty = units_type(pool, ship->type_index);
-  const bool is_galleon = sty && sty->name[0] && strstr(sty->name, "Galleon") != NULL;
+  const bool is_galleon = units_type_is_galleon(sty);
   int taken = 0;
   /* "Move to front" (bugs.md): the flagged unit is first in line. */
   int order[COLONIZE_UNITS_MAX];
@@ -10576,7 +10626,7 @@ int units_ship_departure_pickup(ColonizeUnitPool* pool, int ship_id, int x, int 
     }
     if (!is_galleon) {
       const ColonizeUnitType* ut = units_type(pool, u->type_index);
-      if (ut && ut->name[0] && strstr(ut->name, "Treasure") != NULL) {
+      if (units_type_is_treasure(ut)) {
         continue;
       }
     }
@@ -10703,20 +10753,6 @@ bool units_unload(
   );
 }
 
-int units_first_cargo_with_moves(const ColonizeUnitPool* pool, int ship_id) {
-  const ColonizeUnit* ship = units_get_const(pool, ship_id);
-  if (!ship) {
-    return -1;
-  }
-  for (int i = 0; i < ship->cargo_count; ++i) {
-    const ColonizeUnit* pax = units_get_const(pool, ship->cargo_ids[i]);
-    if (pax && pax->moves_left > 0) {
-      return pax->id;
-    }
-  }
-  return -1;
-}
-
 /*
  * DOS FUN_4720_015c landfall pick (viceroy_unpacked.c:76010-76026): walk the
  * ship's cargo chain and take the FIRST passenger whose spent byte (+0x3149)
@@ -10789,15 +10825,13 @@ bool units_pick_landfall_tile(
     return false;
   }
 
-  static const int k_dx[8] = {0, 1, 1, 1, 0, -1, -1, -1};
-  static const int k_dy[8] = {-1, -1, 0, 1, 1, 1, 0, -1};
   const bool have_prefer = prefer_x >= 0 && prefer_y >= 0;
   int best_x = -1;
   int best_y = -1;
   int best_score = -0x7fffffff;
   for (int d = 0; d < 8; ++d) {
-    const int nx = ship->x + k_dx[d];
-    const int ny = ship->y + k_dy[d];
+    const int nx = ship->x + MAP_DIR8_DX[d];
+    const int ny = ship->y + MAP_DIR8_DY[d];
     if (!map_tile_is_land(map, nx, ny) || map_tile_is_water(map, nx, ny)) {
       continue;
     }
@@ -10949,24 +10983,51 @@ int units_collect_tile_stack(
   return n;
 }
 
-int units_export_cargo_types(
+/*
+ * One passenger walk with the one dangling-id skip rule, so the type and
+ * profession arrays stay index-aligned (UN-17). Either out array may be NULL.
+ */
+static int units_export_cargo(
   const ColonizeUnitPool* pool,
   int ship_id,
   int* out_types,
+  int* out_profs,
   int out_max
 ) {
   const ColonizeUnit* ship = units_get_const(pool, ship_id);
-  if (!ship || !out_types || out_max <= 0) {
+  if (out_max <= 0 || (!out_types && !out_profs)) {
+    return 0;
+  }
+  if (!ship) {
     return 0;
   }
   int n = 0;
   for (int i = 0; i < ship->cargo_count && n < out_max; ++i) {
     const ColonizeUnit* pax = units_get_const(pool, ship->cargo_ids[i]);
-    if (pax) {
-      out_types[n++] = pax->type_index;
+    if (!pax) {
+      continue;
     }
+    if (out_types) {
+      out_types[n] = pax->type_index;
+    }
+    if (out_profs) {
+      out_profs[n] = pax->profession;
+    }
+    n++;
   }
   return n;
+}
+
+static int units_export_cargo_types(
+  const ColonizeUnitPool* pool,
+  int ship_id,
+  int* out_types,
+  int out_max
+) {
+  if (!out_types) {
+    return 0;
+  }
+  return units_export_cargo(pool, ship_id, out_types, NULL, out_max);
 }
 
 int units_export_cargo_professions(
@@ -10975,25 +11036,13 @@ int units_export_cargo_professions(
   int* out_profs,
   int out_max
 ) {
-  const ColonizeUnit* ship = units_get_const(pool, ship_id);
   if (!out_profs || out_max <= 0) {
     return 0;
   }
   for (int i = 0; i < out_max; ++i) {
     out_profs[i] = -1;
   }
-  if (!ship) {
-    return 0;
-  }
-  /* Same walk (and same skip-a-dangling-id rule) as
-   * units_export_cargo_types, so index i lines up between the two arrays. */
-  int n = 0;
-  for (int i = 0; i < ship->cargo_count && n < out_max; ++i) {
-    const ColonizeUnit* pax = units_get_const(pool, ship->cargo_ids[i]);
-    if (pax) {
-      out_profs[n++] = pax->profession;
-    }
-  }
+  const int n = units_export_cargo(pool, ship_id, NULL, out_profs, out_max);
   return n;
 }
 
@@ -11055,52 +11104,19 @@ static int units_spawn_aboard(ColonizeUnitPool* pool, int type_index, ColonizeUn
    * home_tribe_id must be -1 so Col1 origin exports as 0xff (DOS cargo UI);
    * leftover 0 looks like tribe[0] and breaks passenger treatment. */
   const ColonizeUnitType* type = &pool->types[type_index];
-  slot->id = pool->next_id++;
-  slot->type_index = type_index;
-  slot->x = ship->x;
-  slot->y = ship->y;
+  units_slot_reset_defaults(pool, slot, type, type_index, ship->x, ship->y);
+  /*
+   * FUN_1427_10be divergences from the on-map spawn (UN-2): a passenger has no
+   * movement of its own this turn, rides sentried, and carries no colony job.
+   * units_set_nation runs before aboard_ship_id is stamped, exactly as before
+   * the extraction — the helper leaves that field alone so the ordering (and
+   * with it whether set_nation stamps the tile owner nibble) is unchanged.
+   */
   slot->moves_left = 0;
-  slot->active = true;
-  slot->nation_id = 0;
-  slot->col1_vis_mask = 0;
   units_set_nation(slot, ship->nation_id);
   slot->aboard_ship_id = ship->id;
-  slot->cargo_count = 0;
-  memset(slot->cargo_ids, 0, sizeof(slot->cargo_ids));
-  memset(slot->hold_goods_type, 0, sizeof(slot->hold_goods_type));
-  memset(slot->hold_goods_amount, 0, sizeof(slot->hold_goods_amount));
   slot->orders = 1; /* sentry aboard */
-  slot->goto_x = 0xFF;
-  slot->goto_y = 0xFF;
-  slot->follow_unit_id = -1;
   slot->profession = UNITS_JOB_NONE;
-  slot->tools = 0;
-  slot->muskets = 0;
-  slot->horses = 0;
-  slot->home_tribe_id = -1;
-  slot->turns_worked = 0;
-  slot->park_nights = 0;
-  slot->mp_spent_turn = 0;
-  slot->last_dir = 0;
-  /* COL1 +0x06 origin: DOS leaves it unbound at create; 0xff is the "no
-   * home colony / tribe" sentinel every DOS reader tests as < 0. */
-  slot->col1_origin = 0xff;
-  slot->col1_unknown15 = 0;
-  slot->col1_ai_plan = COL1_UNIT_UNKNOWN16_HI_DEFAULT;
-  slot->repair_pending = 0;
-  if (strstr(type->name, "Pioneer") != NULL) {
-    slot->tools = UNITS_EQUIP_TOOLS_MAX;
-  } else if (strstr(type->name, "Dragoon") != NULL || strstr(type->name, "Cav") != NULL) {
-    slot->muskets = UNITS_EQUIP_MUSKETS;
-    slot->horses = UNITS_EQUIP_HORSES;
-  } else if (
-    strstr(type->name, "Soldier") != NULL || strstr(type->name, "Regular") != NULL ||
-    strstr(type->name, "Army") != NULL
-  ) {
-    slot->muskets = UNITS_EQUIP_MUSKETS;
-  } else if (strstr(type->name, "Scout") != NULL) {
-    slot->horses = UNITS_EQUIP_HORSES;
-  }
   ship->cargo_ids[ship->cargo_count++] = slot->id;
   pool->unit_count++;
   return slot->id;
@@ -11165,6 +11181,20 @@ static void units_starter_skills(int nation_id, int difficulty, int* pioneer_job
   }
 }
 
+/*
+ * UN-6: DOS FUN_112b_0060 keys the WoI / King military rows (Cont. Army 9,
+ * Cont. Cav. 7, Regulars 6, Cavalry 8) off the @UNIT type, never off carried
+ * equipment — those rows carry their muskets and horses implicitly, so the
+ * colonial equipment ladders in units_display_name / units_map_sprite /
+ * units_display_type_index must not repaint them as plain or veteran
+ * Soldiers/Dragoons. Two of the three had the guard open-coded and
+ * units_display_type_index had none at all, so it handed chrome and the
+ * reports @UNIT id (reports.c:2655) type 1 for a Cont. Army.
+ */
+static bool units_display_keeps_own_type(const ColonizeUnitType* t) {
+  return units_type_is_continental(t) || units_type_is_royal(t);
+}
+
 const char* units_display_name(const ColonizeUnitPool* pool, const ColonizeUnit* unit) {
   static char buf[48];
   if (!unit) {
@@ -11174,9 +11204,7 @@ const char* units_display_name(const ColonizeUnitPool* pool, const ColonizeUnit*
   /* bugs.md: the WoI military types keep their own names — a Cont. Army unit
    * carries muskets + a veteran profession, and the equipment branches below
    * would relabel it "Veteran Soldier" in the sidebar. */
-  if (ut && ut->name[0] &&
-      (strstr(ut->name, "Cont.") != NULL || strstr(ut->name, "Continental") != NULL ||
-       strstr(ut->name, "Regular") != NULL || strstr(ut->name, "Cavalry") != NULL)) {
+  if (units_display_keeps_own_type(ut)) {
     return ut->name;
   }
   /* bugs.md: damaged artillery (bit7, −2 combat) reads "Damaged Artillery". */
@@ -11290,6 +11318,49 @@ static const int16_t k_units_job_icon[UNITS_JOB_NONE + 1] = {
   100 /* 28 NONE: same as Free Colonists */
 };
 
+/*
+ * Expert-skill label for a unit row (UN-22): the plural @JOB field, or NULL.
+ * DOS FUN_49dd_0386 resolves the @JOB record, but FUN_15eb_0002 first gates
+ * out the five non-expert professions (none / Colonist 19 / Ind. Servant 25 /
+ * Criminal 26 / Convert 27), so a plain colonist gets no second line at all.
+ * One copy for unit_stack.c's row label and map_panel.c's sidebar line, which
+ * had the same body twice (the unit_stack one only to dodge a link edge).
+ */
+const char* units_profession_label(
+  const ColonizeMsgCatalog* names, int type_index, int profession
+) {
+  if (!units_type_has_profession_slot(type_index)) {
+    return NULL;
+  }
+  if (profession < 0 || profession == UNITS_JOB_NONE || profession == 19 || profession == 25 ||
+      profession == 26 || profession == 27) {
+    return NULL;
+  }
+  const ColonizeMsgSection* sec = names ? assets_msg_find(names, "JOB") : NULL;
+  if (!sec || profession >= sec->line_count) {
+    return NULL;
+  }
+  const char* p = strchr(sec->lines[profession], ',');
+  if (!p) {
+    return NULL;
+  }
+  ++p;
+  while (*p == ' ' || *p == '\t') {
+    ++p;
+  }
+  static char buf[40];
+  size_t n = 0;
+  while (p[n] && p[n] != ',' && n + 1 < sizeof(buf)) {
+    buf[n] = p[n];
+    ++n;
+  }
+  while (n > 0 && (buf[n - 1] == ' ' || buf[n - 1] == '\t')) {
+    --n;
+  }
+  buf[n] = '\0';
+  return buf[0] ? buf : NULL;
+}
+
 bool units_type_has_profession_slot(int type_index) {
   /* DS:0x30e, one signed byte per @UNIT type; -1 = no profession slot. */
   static const signed char k_default_job[] = {19, 21, 20, 24, 23, 22, -1, 23, -1, 21, -1, -1,
@@ -11336,9 +11407,7 @@ int units_map_sprite(const ColonizeUnitPool* pool, int unit_id) {
   /* bugs.md: the WoI military types (Cont. Army / Cont. Cav. / Regulars /
    * Cavalry) have their own @UNIT art — the colonial equipment overrides
    * below must not repaint them as plain/veteran Soldiers. */
-  if (type->name[0] &&
-      (strstr(type->name, "Cont.") != NULL || strstr(type->name, "Continental") != NULL ||
-       strstr(type->name, "Regular") != NULL || strstr(type->name, "Cavalry") != NULL)) {
+  if (units_display_keeps_own_type(type)) {
     return type->icon_sprite;
   }
   /* bugs.md: damaged artillery has its own art — DOS FUN_112b icon pick:
@@ -11391,7 +11460,7 @@ int units_map_sprite(const ColonizeUnitPool* pool, int unit_id) {
    * type != 0 overrides (Pioneers/Soldiers/Scouts/Dragoons are distinct unit
    * types there, equipment on a colonist here), so they still come first.
    */
-  if (type->name[0] && strstr(type->name, "Colonist") != NULL) {
+  if (units_type_is_colonist(type)) {
     const int by_job = units_job_icon_sprite(unit->profession);
     if (by_job >= 0) {
       return by_job;
@@ -11404,6 +11473,11 @@ int units_display_type_index(const ColonizeUnitPool* pool, int unit_id) {
   const ColonizeUnit* unit = units_get_const(pool, unit_id);
   if (!unit) {
     return -1;
+  }
+  /* The WoI / King rows keep their own @UNIT index (see
+   * units_display_keeps_own_type) — this ladder is the colonial one. */
+  if (units_display_keeps_own_type(units_type(pool, unit->type_index))) {
+    return unit->type_index;
   }
   int tools = 0;
   int muskets = 0;
@@ -11429,23 +11503,12 @@ int units_display_type_index(const ColonizeUnitPool* pool, int unit_id) {
   return unit->type_index;
 }
 
-static int units_count_on_map_tile(const ColonizeUnitPool* pool, int x, int y) {
-  int n = 0;
-  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-    const ColonizeUnit* u = &pool->units[i];
-    if (units_is_on_map(u) && u->x == x && u->y == y) {
-      n++;
-    }
-  }
-  return n;
-}
-
 bool units_map_stack_chrome(const ColonizeUnitPool* pool, int unit_id) {
   const ColonizeUnit* u = pool ? units_get_const(pool, unit_id) : NULL;
   if (!u) {
     return false;
   }
-  return units_count_on_map_tile(pool, u->x, u->y) > 1 || u->cargo_count > 0;
+  return units_count_at(pool, u->x, u->y) > 1 || u->cargo_count > 0;
 }
 
 /*
@@ -11480,11 +11543,9 @@ int units_top_on_map_tile(
       return selected_visible ? sel->id : -1;
     }
   }
-  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-    const ColonizeUnit* u = &pool->units[i];
-    if (!units_is_on_map(u) || u->x != x || u->y != y) {
-      continue;
-    }
+  int slot_5 = 0;
+  for (const ColonizeUnit* u = units_next_on_tile_const(pool, x, y, &slot_5); u != NULL;
+       u = units_next_on_tile_const(pool, x, y, &slot_5)) {
     if (u->id != pool->selected_id) {
       continue;
     }
@@ -11495,11 +11556,9 @@ int units_top_on_map_tile(
   }
   int top = -1;
   int top_id = -1;
-  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-    const ColonizeUnit* u = &pool->units[i];
-    if (!units_is_on_map(u) || u->x != x || u->y != y) {
-      continue;
-    }
+  int slot_6 = 0;
+  for (const ColonizeUnit* u = units_next_on_tile_const(pool, x, y, &slot_6); u != NULL;
+       u = units_next_on_tile_const(pool, x, y, &slot_6)) {
     if (on_colony) {
       continue;
     }
@@ -11863,6 +11922,50 @@ bool units_spiral_place_hs_near(
   return false;
 }
 
+/*
+ * Eastern high-seas scan (UN-18): one loop for both the western-rim pass and
+ * the "any eastern high seas" fallback. Closer latitude wins; tie-break
+ * westward (smaller x).
+ */
+static bool units_scan_eastern_high_seas(
+  const ColonizeUnitPool* pool,
+  const ColonizeWorldMap* map,
+  int prefer_y,
+  int require_west_edge,
+  int* out_x,
+  int* out_y
+) {
+  int best_x = -1;
+  int best_y = -1;
+  int best_score = -1;
+  const int east_min_x = map->width / 2;
+  for (int y = 0; y < (int)map->height; ++y) {
+    for (int x = east_min_x; x < (int)map->width; ++x) {
+      if (!map_tile_is_high_seas(map, x, y)) {
+        continue;
+      }
+      if (require_west_edge && map_tile_is_high_seas(map, x - 1, y)) {
+        continue; /* interior of eastern high seas — not the western edge */
+      }
+      if (pool && units_id_at(pool, x, y) >= 0) {
+        continue;
+      }
+      const int score = 100000 - abs(y - prefer_y) * 1000 - x;
+      if (score > best_score) {
+        best_score = score;
+        best_x = x;
+        best_y = y;
+      }
+    }
+  }
+  if (best_x < 0) {
+    return false;
+  }
+  *out_x = best_x;
+  *out_y = best_y;
+  return true;
+}
+
 bool units_find_eastern_high_seas_tile(
   const ColonizeUnitPool* pool,
   const ColonizeWorldMap* map,
@@ -11881,49 +11984,10 @@ bool units_find_eastern_high_seas_tile(
    */
   int best_x = -1;
   int best_y = -1;
-  int best_score = -1;
-  const int east_min_x = map->width / 2;
 
-  for (int y = 0; y < (int)map->height; ++y) {
-    for (int x = east_min_x; x < (int)map->width; ++x) {
-      if (!map_tile_is_high_seas(map, x, y)) {
-        continue;
-      }
-      if (map_tile_is_high_seas(map, x - 1, y)) {
-        continue; /* interior of eastern high seas — not the western edge */
-      }
-      if (pool && units_id_at(pool, x, y) >= 0) {
-        continue;
-      }
-      /* Closer latitude wins; tie-break westward (smaller x). */
-      const int score = 100000 - abs(y - prefer_y) * 1000 - x;
-      if (score > best_score) {
-        best_score = score;
-        best_x = x;
-        best_y = y;
-      }
-    }
-  }
-
-  if (best_x < 0) {
+  if (!units_scan_eastern_high_seas(pool, map, prefer_y, 1, &best_x, &best_y)) {
     /* Fallback: any eastern high seas near prefer_y, then any high seas / water. */
-    best_score = -1;
-    for (int y = 0; y < (int)map->height; ++y) {
-      for (int x = east_min_x; x < (int)map->width; ++x) {
-        if (!map_tile_is_high_seas(map, x, y)) {
-          continue;
-        }
-        if (pool && units_id_at(pool, x, y) >= 0) {
-          continue;
-        }
-        const int score = 100000 - abs(y - prefer_y) * 1000 - x;
-        if (score > best_score) {
-          best_score = score;
-          best_x = x;
-          best_y = y;
-        }
-      }
-    }
+    (void)units_scan_eastern_high_seas(pool, map, prefer_y, 0, &best_x, &best_y);
   }
 
   if (best_x < 0) {

@@ -1,154 +1,12 @@
 #include <stdbool.h>
 #include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
-#include <sys/stat.h>
-#ifdef _WIN32
-#include <direct.h>
-#define mkdir(path, mode) _mkdir(path)
-#endif
 
 #include "core/assets.h"
 #include "core/game_loop.h"
 #include "core/new_game.h"
 
-static bool write_text_file(const char* path, const char* content) {
-  FILE* f = fopen(path, "wb");
-  if (!f) {
-    return false;
-  }
-  fwrite(content, 1, strlen(content), f);
-  fclose(f);
-  return true;
-}
-
-static bool write_palette(const char* path) {
-  FILE* f = fopen(path, "wb");
-  if (!f) {
-    return false;
-  }
-  unsigned char raw[1024];
-  for (int i = 0; i < 256; ++i) {
-    raw[i * 4 + 0] = (unsigned char)(i & 0x3f);
-    raw[i * 4 + 1] = (unsigned char)((i * 2) & 0x3f);
-    raw[i * 4 + 2] = (unsigned char)((255 - i) & 0x3f);
-    raw[i * 4 + 3] = 0;
-  }
-  bool ok = fwrite(raw, 1, sizeof(raw), f) == sizeof(raw);
-  fclose(f);
-  return ok;
-}
-
-static bool create_assets(const char* dir) {
-  char path[512];
-  mkdir(dir, 0755);
-
-  snprintf(path, sizeof(path), "%s/MODULES.DB", dir);
-  if (!write_text_file(path, "<Matte>\r\n")) return false;
-  snprintf(path, sizeof(path), "%s/ERRORS.DB", dir);
-  if (!write_text_file(path, "SeriesListFull\r\n")) return false;
-  snprintf(path, sizeof(path), "%s/MENU.TXT", dir);
-  if (!write_text_file(path, "@GAME\r\n~GAME\r\n  Exit\r\n")) return false;
-  snprintf(path, sizeof(path), "%s/GAME.TXT", dir);
-  if (!write_text_file(
-        path,
-        "@BEGINMENU\r\n"
-        "@width=160\r\n"
-        "{COLONIZATION} Version test\r\n"
-        "@options\r\n"
-        "Start a Game in NEW WORLD\r\n"
-        "Start a Game in AMERICA\r\n"
-        "LOAD Game\r\n"
-        "View Hall of Fame\r\n"
-        "Exit to DOS\r\n"
-        "\r\n"
-        "@AMERICA\r\n"
-        "@width=160\r\n"
-        "Would you like to use the original Americas map, or\r\n"
-        "a map prepared with the map editor?\r\n"
-        "Original Americas\r\n"
-        "Map Editor\r\n"
-        "\r\n"
-        "@DIFFICULTY\r\n"
-        "@width=190\r\n"
-        "Select a Difficulty Level\r\n"
-        "Discoverer\r\n"
-        "Explorer\r\n"
-        "Conquistador\r\n"
-        "Governor\r\n"
-        "Viceroy\r\n"
-        "\r\n"
-        "@PICKNATION\r\n"
-        "@default=1\r\n"
-        "Select a European Power\r\n"
-        "England\r\n"
-        "France\r\n"
-        "Spain\r\n"
-        "Netherlands\r\n"
-        "\r\n"
-        "@LEADERNAME\r\n"
-        "@width=300\r\n"
-        "Please Enter Your Name.\r\n"
-        "@options\r\n"
-        "______________________\r\n"
-        "\r\n"
-        "@NATION1A\r\n"
-        "@width=300\r\n"
-        "FRANCE\r\n"
-        "History page A.\r\n"
-        "\r\n"
-        "@NATION1B\r\n"
-        "@width=300\r\n"
-        "FRANCE\r\n"
-        "Bonus page B.\r\n"
-        "\r\n"
-        "@VICEROY\r\n"
-        "@width=78\r\n"
-        "@x=232\r\n"
-        "@y=21\r\n"
-        "An Audience With\r\n"
-        "The King of %COUNTRY\r\n"
-        "\r\n"
-        "@BUILD1\r\n"
-        "@width=310\r\n"
-        "@y=30\r\n"
-        "In the Year of Our Lord\r\n"
-        "\r\n"
-        "@BUILD2\r\n"
-        "@y=30\r\n"
-        "led by %STRING0, %STRING1\r\n"
-      )) {
-    return false;
-  }
-  snprintf(path, sizeof(path), "%s/NAMES.TXT", dir);
-  if (!write_text_file(
-        path,
-        "@LEADERNAME\r\n"
-        "Walter Raleigh, 1, -1, 0\r\n"
-        "Jacques Cartier, 0, 1, 0\r\n"
-        "Christopher Columbus, 1, 0, -1\r\n"
-        "Michiel De Ruyter, -1, 0, 1\r\n"
-        "\r\n"
-        "@SCENARIO\r\n"
-        "AMER2, 34, 20, 39, 10, 47, 61, 50, 33\r\n"
-        "\r\n"
-        "@UNIT\r\n"
-        "Colonists, 0, 0, 0, 0, 0, 0, 0, 0\r\n"
-        "Pioneers, 0, 0, 0, 0, 0, 0, 0, 0\r\n"
-        "Caravel, 0, 0, 0, 0, 0, 0, 0, 0\r\n"
-      )) {
-    return false;
-  }
-  snprintf(path, sizeof(path), "%s/VICEROY.PAL", dir);
-  if (!write_palette(path)) return false;
-  return true;
-}
-
-static bool step(ColonizeGameState* game, ColonizeKey key) {
-  ColonizeInputState input = {0};
-  input.last_key = key;
-  return game_update(game, &input, 16);
-}
+#include "tests/common/test_assets.h"
 
 static bool step_click(ColonizeGameState* game) {
   ColonizeInputState input = {0};
@@ -161,7 +19,7 @@ static bool step_click(ColonizeGameState* game) {
 int main(void) {
   const char* data_dir = "./test-assets-newgame";
   const char* save_dir = "./test-saves-newgame";
-  if (!create_assets(data_dir)) {
+  if (!test_assets_create(data_dir, TEST_ASSETS_FULL_MENU | TEST_ASSETS_WIZARD_PAGES | TEST_ASSETS_NAMES_FULL)) {
     fprintf(stderr, "failed to create test assets\n");
     return 1;
   }
@@ -277,7 +135,7 @@ int main(void) {
   }
 
   /* Select NEW WORLD (index 0) and activate. */
-  if (!step(game, COLONIZE_KEY_ENTER)) {
+  if (!test_assets_step(game, COLONIZE_KEY_ENTER)) {
     fprintf(stderr, "enter NEW WORLD failed\n");
     return 1;
   }
@@ -287,20 +145,20 @@ int main(void) {
   }
 
   /* Difficulty: Discoverer(0) is default; RIGHT → Explorer(1), then confirm. */
-  if (!step(game, COLONIZE_KEY_RIGHT)) return 1;
-  if (!step(game, COLONIZE_KEY_ENTER)) return 1;
+  if (!test_assets_step(game, COLONIZE_KEY_RIGHT)) return 1;
+  if (!test_assets_step(game, COLONIZE_KEY_ENTER)) return 1;
 
   /* Nation: England(0) default; RIGHT → France(1). */
-  if (!step(game, COLONIZE_KEY_RIGHT)) return 1;
-  if (!step(game, COLONIZE_KEY_ENTER)) return 1;
+  if (!test_assets_step(game, COLONIZE_KEY_RIGHT)) return 1;
+  if (!test_assets_step(game, COLONIZE_KEY_ENTER)) return 1;
 
   /* Leader name: confirm default. */
-  if (!step(game, COLONIZE_KEY_ENTER)) return 1;
+  if (!test_assets_step(game, COLONIZE_KEY_ENTER)) return 1;
 
   /* Lore A → B → King → Sail */
-  if (!step(game, COLONIZE_KEY_ENTER)) return 1;
-  if (!step(game, COLONIZE_KEY_ENTER)) return 1;
-  if (!step(game, COLONIZE_KEY_ENTER)) return 1;
+  if (!test_assets_step(game, COLONIZE_KEY_ENTER)) return 1;
+  if (!test_assets_step(game, COLONIZE_KEY_ENTER)) return 1;
+  if (!test_assets_step(game, COLONIZE_KEY_ENTER)) return 1;
 
   /* Skip sail with LMB. */
   if (!step_click(game)) {
@@ -334,16 +192,16 @@ int main(void) {
   }
   /* Move to Hall of Fame (index 3) */
   for (int i = 0; i < 3; ++i) {
-    if (!step(game, COLONIZE_KEY_DOWN)) return 1;
+    if (!test_assets_step(game, COLONIZE_KEY_DOWN)) return 1;
   }
-  if (!step(game, COLONIZE_KEY_ENTER)) return 1;
+  if (!test_assets_step(game, COLONIZE_KEY_ENTER)) return 1;
   /* Opens the Hall of Fame screen (see unit_hall_of_fame), not a new game;
    * Esc returns to the title menu. */
   if (!game_in_hall_of_fame(game) || game_in_menu(game) || game_in_new_game(game)) {
     fprintf(stderr, "Hall of Fame should open its own screen, not start a game\n");
     return 1;
   }
-  if (!step(game, COLONIZE_KEY_ESCAPE)) return 1;
+  if (!test_assets_step(game, COLONIZE_KEY_ESCAPE)) return 1;
   if (game_in_hall_of_fame(game) || !game_in_menu(game)) {
     fprintf(stderr, "Esc from Hall of Fame should return to title menu\n");
     return 1;

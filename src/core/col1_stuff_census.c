@@ -2,6 +2,7 @@
 
 #include <string.h>
 
+#include "core/ai_contact.h"
 #include "core/combat_strength.h"
 #include "core/units.h"
 
@@ -25,38 +26,6 @@ bool col1_stuff_census_window_is_blank(const ColonizeCol1Stuff* stuff) {
   return true;
 }
 
-/*
- * FUN_281f_06be → FUN_137f_03e4 (viceroy_unpacked.c 6838-6860): owner byte of
- * ANY settlement standing on the tile — Euro colony (0..3) or Indian village
- * (>= 4) — and −1 both when the tile carries no settlement and when the tile
- * is off the map (the FUN_137f_000a bounds gate).
- */
-static int col1_stuff_census_settlement_at(
-  const ColonizeColonyPool* colonies,
-  const ColonizeCol1Save* col1,
-  int x,
-  int y
-) {
-  if (colonies) {
-    const int cid = colonies_id_at(colonies, x, y);
-    const ColonizeColony* c = colonies_get(colonies, cid);
-    if (c && c->active) {
-      return c->nation_id >= 0 ? c->nation_id : 0;
-    }
-  }
-  if (col1 && col1->tribe) {
-    for (uint16_t i = 0; i < col1->head.tribe_count; ++i) {
-      if ((int)col1->tribe[i].x == x && (int)col1->tribe[i].y == y) {
-        /* tribe[].nation_id is already the absolute Col1 nation id (4..11);
-         * the DOS owner nibble (FUN_137f_0200) is shared by Europeans and
-         * tribes with no offset — see the sibling helpers in ai_diplo.c /
-         * ai_contact.c. */
-        return (int)col1->tribe[i].nation_id;
-      }
-    }
-  }
-  return -1;
-}
 
 static void col1_stuff_census_tally_units(
   ColonizeCol1Stuff* stuff,
@@ -162,36 +131,11 @@ static void col1_stuff_census_tally_units(
       stuff->land_combat_strength[n] =
         (uint16_t)((unsigned)stuff->land_combat_strength[n] + (unsigned)(v1 > 0 ? v1 : 0));
       /*
-       * 0x942c gate, verbatim (4962:022f-026e):
-       *
-       *   settlement = FUN_281f_06be(u.x, u.y)
-       *   if (settlement >= 0) {
-       *     if (nation < 4 && control[nation] == 0) skip;  // human never counts
-       *     if (ai_plan == 'A' || ai_plan == 'G') skip;
-       *   }
-       *   accumulate 09c8(u, 1)
-       *
-       * +0x314b is unit byte 7 — `ai_plan` (col1_ai_plan), the AI goal letter
-       * FUN_521d_0a60 stamps 'A' on a garrison assignment and ages to 'G' at
-       * the top of its next pass. It is NOT the orders byte, which lives at
-       * +0x314c (the same function reads 5/6 there for fortify/fortified).
-       *
-       * DOS parks a ship's passengers off-map at (−2,−2), where FUN_137f_000a
-       * fails the bounds test and 06be returns −1, so an embarked unit always
-       * counts; the port rides passengers at the ship's own tile, hence the
-       * explicit aboard short-circuit.
+       * 0x942c gate (4962:022f-026e) — one copy, exported by ai_contact.c,
+       * which needs the same predicate for its exposed row (audit AC-9); the
+       * two used to be hand-synced. See ai_contact.h for the DOS citation.
        */
-      int counts_as_field = 1;
-      const int settlement =
-        u->aboard_ship_id >= 0 ? -1
-                               : col1_stuff_census_settlement_at(colonies, col1, u->x, u->y);
-      if (settlement >= 0) {
-        const int human_slot =
-          col1 && n < (int)COLONIZE_COL1_NATION_COUNT && col1->player[n].control == 0;
-        if (human_slot || u->col1_ai_plan == 0x41u || u->col1_ai_plan == 0x47u) {
-          counts_as_field = 0;
-        }
-      }
+      const int counts_as_field = ai_contact_unit_counts_as_field(colonies, col1, u);
       if (counts_as_field) {
         unsigned fc = (unsigned)stuff->field_combat_totals[n] + (unsigned)(v1 > 0 ? v1 : 0);
         if (fc > 255u) {

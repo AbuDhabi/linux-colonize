@@ -475,8 +475,9 @@ static bool ff_available_to(const ColonizeCol1Save* col1, int nation, int idx) {
   if (nation < 0 || nation >= (int)COLONIZE_COL1_NATION_COUNT) {
     return false;
   }
-  const uint8_t byte = col1->nation[nation].founding_fathers[idx / 8];
-  return (byte & (uint8_t)(1u << (idx % 8))) == 0;
+  /* The one per-nation bitmask read (audit SC-4): "available" is exactly
+   * "not already elected by this nation". */
+  return !founding_fathers_nation_has(col1, nation, idx);
 }
 
 /* NAMES.TXT @FATHERS type column (0=Trade … 4=Religious). */
@@ -520,34 +521,6 @@ static const uint8_t k_ff_weight[COLONIZE_COL1_FF_COUNT][3] = {
   {0, 5, 10}
 };
 
-static const char* k_ff_short_names[COLONIZE_COL1_FF_COUNT] = {
-  "Adam Smith",
-  "Jakob Fugger",
-  "Peter Minuit",
-  "Peter Stuyvesant",
-  "Jan de Witt",
-  "Ferdinand Magellan",
-  "Francisco Coronado",
-  "Hernando de Soto",
-  "Henry Hudson",
-  "Sieur De La Salle",
-  "Hernan Cortes",
-  "George Washington",
-  "Paul Revere",
-  "Francis Drake",
-  "John Paul Jones",
-  "Thomas Jefferson",
-  "Pocahontas",
-  "Thomas Paine",
-  "Simon Bolivar",
-  "Benjamin Franklin",
-  "William Brewster",
-  "William Penn",
-  "Jean de Brebeuf",
-  "Juan de Sepulveda",
-  "Bartolome de las Casas"
-};
-
 /* FUN_4345_005a: century band for @FATHERS weight column. */
 static int ff_century_band(const ColonizeCol1Save* col1) {
   const unsigned year = col1 ? (unsigned)col1->head.year : 1600u;
@@ -560,15 +533,27 @@ static int ff_century_band(const ColonizeCol1Save* col1) {
   return 2;
 }
 
+/*
+ * This century's @FATHERS weight for candidate `i`, or 0 when it is not an
+ * eligible pick for `nation` at all (wrong category, or already elected).
+ * The single predicate FUN_4345_0080 and FUN_4345_06d2 share (audit SC-43,
+ * where it was spelled out four times).
+ */
+static int ff_eligible_weight(
+  const ColonizeCol1Save* col1, int nation, int i, int type, int band
+) {
+  if ((int)k_ff_type[i] != type || !ff_available_to(col1, nation, i)) {
+    return 0;
+  }
+  return (int)k_ff_weight[i][band];
+}
+
 /* FUN_4345_0080: count unclaimed FFs of type with non-zero weight this century. */
 static int ff_count_eligible_of_type(const ColonizeCol1Save* col1, int nation, int type) {
   const int band = ff_century_band(col1);
   int count = 0;
   for (int i = 0; i < (int)COLONIZE_COL1_FF_COUNT; ++i) {
-    if ((int)k_ff_type[i] != type || !ff_available_to(col1, nation, i)) {
-      continue;
-    }
-    if (k_ff_weight[i][band] > 0) {
+    if (ff_eligible_weight(col1, nation, i, type, band) > 0) {
       count++;
     }
   }
@@ -588,10 +573,7 @@ static int ff_pick_weighted_of_type(
   const int band = ff_century_band(col1);
   int total = 0;
   for (int i = 0; i < (int)COLONIZE_COL1_FF_COUNT; ++i) {
-    if ((int)k_ff_type[i] != type || !ff_available_to(col1, nation, i)) {
-      continue;
-    }
-    total += (int)k_ff_weight[i][band];
+    total += ff_eligible_weight(col1, nation, i, type, band);
   }
   if (total <= 0) {
     return -1;
@@ -599,8 +581,7 @@ static int ff_pick_weighted_of_type(
   if (!rng) {
     /* Deterministic fallback when no RNG context (should not happen in tick). */
     for (int i = 0; i < (int)COLONIZE_COL1_FF_COUNT; ++i) {
-      if ((int)k_ff_type[i] == type && ff_available_to(col1, nation, i) &&
-          k_ff_weight[i][band] > 0) {
+      if (ff_eligible_weight(col1, nation, i, type, band) > 0) {
         return i;
       }
     }
@@ -608,10 +589,7 @@ static int ff_pick_weighted_of_type(
   }
   int roll = dos_rng_range(rng, 1, total);
   for (int i = 0; i < (int)COLONIZE_COL1_FF_COUNT; ++i) {
-    if ((int)k_ff_type[i] != type || !ff_available_to(col1, nation, i)) {
-      continue;
-    }
-    const int w = (int)k_ff_weight[i][band];
+    const int w = ff_eligible_weight(col1, nation, i, type, band);
     if (w <= 0) {
       continue;
     }
@@ -717,9 +695,6 @@ static void ff_debate_row_label(int idx, char* out, size_t out_size) {
   snprintf(name, sizeof(name), "%s", reports_ff_display_name(idx));
   snprintf(category, sizeof(category), "%s", reports_ff_category_display_name(k_ff_type[idx]));
   snprintf(adviser, sizeof(adviser), "%s", reports_misc_display_word(103, "Adviser"));
-  if (name[0] == '\0') {
-    snprintf(name, sizeof(name), "%s", k_ff_short_names[idx]);
-  }
   if (category[0] == '\0') {
     snprintf(out, out_size, "%s", name);
     return;
@@ -1370,7 +1345,7 @@ static bool elect_commit(
   }
   diag_info(
     "FF nation %d elected #%d %s (count=%u)",
-    nation_id, idx, k_ff_short_names[idx], (unsigned)nat->founding_father_count
+    nation_id, idx, reports_ff_display_name(idx), (unsigned)nat->founding_father_count
   );
   founding_fathers_reset_bells_pool(nation_id);
 
@@ -1378,7 +1353,13 @@ static bool elect_commit(
     char body[AI_POPUP_BODY_LEN];
     PopupMsgTokens tok;
     memset(&tok, 0, sizeof(tok));
-    tok.string0 = k_ff_short_names[idx];
+    /* Audit SC-3: the player-visible @FREEDOM popup used the hardcoded
+     * English name while every other FF string went through NAMES.TXT.
+     * Copied out: reports_ff_display_name hands back a shared scratch
+     * buffer, and `tok` outlives this statement. */
+    char ff_name[48];
+    snprintf(ff_name, sizeof(ff_name), "%s", reports_ff_display_name(idx));
+    tok.string0 = ff_name;
     tok.string1 = "The";
     popup_msg_fill(
       ctx->messages,
@@ -1501,7 +1482,7 @@ void founding_fathers_apply_popup_result(ColonizeTurnContext* ctx, AiPopupState*
       ctx->status,
       ctx->status_size,
       "Congress seeks %s (%u/%u bells).",
-      k_ff_short_names[idx],
+      reports_ff_display_name(idx),
       pool,
       needed
     );

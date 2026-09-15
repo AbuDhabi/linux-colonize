@@ -3,6 +3,10 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "core/assets.h"
+#include "core/fb.h"
+#include "core/strutil.h"
+
 /*
  * NAMES.TXT @COUNTRY indices (DS:0x848). Used for letter-color math (color-8).
  * Fill uses k_european_fill — England 112 is saturated red matching original
@@ -51,21 +55,6 @@ void unit_chrome_set_rebel_nation(int nation_id) {
  * borrows (an English player's REF was showing French blue). */
 static int g_chrome_crown_nation = -1;
 
-static int unit_chrome_nearest_palette_index(const ColonizePalette* pal, const uint8_t rgb[3]) {
-  int best = 0;
-  int best_d = 1 << 30;
-  for (int i = 0; i < 256; ++i) {
-    const int dr = (int)pal->rgb[i][0] - rgb[0];
-    const int dg = (int)pal->rgb[i][1] - rgb[1];
-    const int db = (int)pal->rgb[i][2] - rgb[2];
-    const int d = dr * dr + dg * dg + db * db;
-    if (d < best_d) {
-      best_d = d;
-      best = i;
-    }
-  }
-  return best;
-}
 
 /*
  * ICONS.SS #0-3 (colony settlement fortification markers) each carry an
@@ -85,8 +74,19 @@ static int unit_chrome_nearest_palette_index(const ColonizePalette* pal, const u
  * approximation), nearest-matched into whatever palette is actually
  * active (same reasoning as unit_chrome_blit_unit_for_palette).
  */
-void unit_chrome_nation_flag_shades_for_palette(
-  int nation_id, const ColonizePalette* active_palette, int* out_light, int* out_dark
+/*
+ * Both nation shade pairs below resolve the same way: clear both outs, bail
+ * on a missing palette or a non-European slot, then nearest-match the two
+ * native RGBs into the active palette. Only where the dark half comes from
+ * differs (audit 2026-09-14 UN-42).
+ */
+static void unit_chrome_shade_pair(
+  const ColonizePalette* active_palette,
+  int nation_id,
+  const uint8_t* light_rgb,
+  const uint8_t* dark_rgb,
+  int* out_light,
+  int* out_dark
 ) {
   if (out_light) {
     *out_light = -1;
@@ -97,33 +97,39 @@ void unit_chrome_nation_flag_shades_for_palette(
   if (!active_palette || nation_id < 0 || nation_id >= 4) {
     return;
   }
+  if (out_light) {
+    *out_light =
+      assets_palette_nearest_rgb(active_palette, light_rgb[0], light_rgb[1], light_rgb[2]);
+  }
+  if (out_dark) {
+    *out_dark = assets_palette_nearest_rgb(active_palette, dark_rgb[0], dark_rgb[1], dark_rgb[2]);
+  }
+}
+
+void unit_chrome_nation_flag_shades_for_palette(
+  int nation_id, const ColonizePalette* active_palette, int* out_light, int* out_dark
+) {
   /*
    * bugs.md WoI flags: colonies held by the crown slot fly the color of the
-   * nation the PLAYER started as (orange for Dutch, red for English, …) —
+   * nation the PLAYER started as (orange for Dutch, red for English, ...) —
    * they are the player's captured towns under the King, not the peer whose
    * slot the crown borrows. The rebel nation's own colonies get an actual
    * striped American flag, painted per-pixel by the caller (see
    * unit_chrome_rebel_flag_colors_for_palette) — the two-shade pair here is
    * its fallback only.
    */
-  const uint8_t* light_rgb;
-  if (nation_id == g_chrome_crown_nation && g_chrome_rebel_nation >= 0 &&
-      g_chrome_rebel_nation < 4) {
-    light_rgb = k_nation_fill_rgb_native[g_chrome_rebel_nation];
-  } else {
-    light_rgb = k_nation_fill_rgb_native[nation_id];
-  }
+  const bool crown_flies_rebel_colors = nation_id == g_chrome_crown_nation &&
+                                        g_chrome_rebel_nation >= 0 && g_chrome_rebel_nation < 4;
+  const int shade_nation = crown_flies_rebel_colors ? g_chrome_rebel_nation : nation_id;
+  const uint8_t k_black[3] = {0, 0, 0};
+  const uint8_t* light_rgb =
+    (nation_id >= 0 && nation_id < 4) ? k_nation_fill_rgb_native[shade_nation] : k_black;
   const uint8_t dark_rgb[3] = {
     (uint8_t)((int)light_rgb[0] * 82 / 100),
     (uint8_t)((int)light_rgb[1] * 82 / 100),
     (uint8_t)((int)light_rgb[2] * 82 / 100)
   };
-  if (out_light) {
-    *out_light = unit_chrome_nearest_palette_index(active_palette, light_rgb);
-  }
-  if (out_dark) {
-    *out_dark = unit_chrome_nearest_palette_index(active_palette, dark_rgb);
-  }
+  unit_chrome_shade_pair(active_palette, nation_id, light_rgb, dark_rgb, out_light, out_dark);
 }
 
 int unit_chrome_rebel_nation(void) {
@@ -133,27 +139,22 @@ int unit_chrome_rebel_nation(void) {
 /* bugs.md 370: the map's tribe chrome (alarm marks, mission cross) drew
  * DS:0x848's raw index — Dutch 13 / 5, which TERRAIN.SS's palette maps to
  * EGA magenta rather than ICONS.SS-native orange. Same nearest-match
- * treatment the unit badges already get. */
+ * treatment the unit badges already get. Unlike the colony flag above this
+ * pair takes its dark half straight from the letter table, and never remaps
+ * the crown slot. */
 void unit_chrome_nation_shades_for_palette(
   int nation_id, const ColonizePalette* active_palette, int* out_bright, int* out_dark
 ) {
-  if (out_bright) {
-    *out_bright = -1;
-  }
-  if (out_dark) {
-    *out_dark = -1;
-  }
-  if (!active_palette || nation_id < 0 || nation_id >= 4) {
-    return;
-  }
-  if (out_bright) {
-    *out_bright =
-      unit_chrome_nearest_palette_index(active_palette, k_nation_fill_rgb_native[nation_id]);
-  }
-  if (out_dark) {
-    *out_dark =
-      unit_chrome_nearest_palette_index(active_palette, k_nation_letter_rgb_native[nation_id]);
-  }
+  const uint8_t k_black[3] = {0, 0, 0};
+  const bool euro = nation_id >= 0 && nation_id < 4;
+  unit_chrome_shade_pair(
+    active_palette,
+    nation_id,
+    euro ? k_nation_fill_rgb_native[nation_id] : k_black,
+    euro ? k_nation_letter_rgb_native[nation_id] : k_black,
+    out_bright,
+    out_dark
+  );
 }
 
 /* bugs.md: US flag colors for the rebel colony marker — navy hoist, red and
@@ -165,13 +166,19 @@ void unit_chrome_rebel_flag_colors_for_palette(
   static const uint8_t k_red[3] = {200, 30, 30};
   static const uint8_t k_white[3] = {245, 245, 245};
   if (out_navy) {
-    *out_navy = active_palette ? unit_chrome_nearest_palette_index(active_palette, k_navy) : -1;
+    *out_navy =
+      active_palette ? assets_palette_nearest_rgb(active_palette, k_navy[0], k_navy[1], k_navy[2])
+                     : -1;
   }
   if (out_red) {
-    *out_red = active_palette ? unit_chrome_nearest_palette_index(active_palette, k_red) : -1;
+    *out_red =
+      active_palette ? assets_palette_nearest_rgb(active_palette, k_red[0], k_red[1], k_red[2]) : -1;
   }
   if (out_white) {
-    *out_white = active_palette ? unit_chrome_nearest_palette_index(active_palette, k_white) : -1;
+    *out_white =
+      active_palette
+        ? assets_palette_nearest_rgb(active_palette, k_white[0], k_white[1], k_white[2])
+        : -1;
   }
 }
 
@@ -188,22 +195,6 @@ static void unit_chrome_init_defaults(void) {
   g_orders_loaded = true;
 }
 
-static void unit_chrome_trim(char* s) {
-  if (!s) {
-    return;
-  }
-  char* start = s;
-  while (*start == ' ' || *start == '\t') {
-    ++start;
-  }
-  if (start != s) {
-    memmove(s, start, strlen(start) + 1);
-  }
-  size_t n = strlen(s);
-  while (n > 0 && (s[n - 1] == ' ' || s[n - 1] == '\t' || s[n - 1] == '\r')) {
-    s[--n] = '\0';
-  }
-}
 
 void unit_chrome_load_orders(const ColonizeMsgCatalog* names) {
   unit_chrome_init_defaults();
@@ -229,7 +220,7 @@ void unit_chrome_load_orders(const ColonizeMsgCatalog* names) {
     if (!comma) {
       continue;
     }
-    unit_chrome_trim(comma + 1);
+    str_trim(comma + 1);
     const char* letter = comma + 1;
     g_order_letters[n++] = letter[0] ? letter[0] : '-';
   }
@@ -364,30 +355,7 @@ uint8_t unit_chrome_letter_color(int nation_id, int orders_index) {
   return 0;
 }
 
-static void unit_chrome_put(ColonizeFramebuffer8* fb, int x, int y, uint8_t c) {
-  if (!fb || !fb->pixels || x < 0 || y < 0 || x >= fb->width || y >= fb->height) {
-    return;
-  }
-  fb->pixels[y * fb->width + x] = c;
-}
 
-static void unit_chrome_fill_rect(
-  ColonizeFramebuffer8* fb,
-  int x,
-  int y,
-  int w,
-  int h,
-  uint8_t color
-) {
-  if (w <= 0 || h <= 0) {
-    return;
-  }
-  for (int dy = 0; dy < h; ++dy) {
-    for (int dx = 0; dx < w; ++dx) {
-      unit_chrome_put(fb, x + dx, y + dy, color);
-    }
-  }
-}
 
 static void unit_chrome_draw_box(
   ColonizeFramebuffer8* fb,
@@ -400,8 +368,8 @@ static void unit_chrome_draw_box(
   if (w < 2 || h < 2) {
     return;
   }
-  unit_chrome_fill_rect(fb, x, y, w, h, 0);
-  unit_chrome_fill_rect(fb, x + 1, y + 1, w - 2, h - 2, fill);
+  fb_fill_rect(fb, x, y, w, h, 0);
+  fb_fill_rect(fb, x + 1, y + 1, w - 2, h - 2, fill);
 }
 
 void unit_chrome_selection_frame(
@@ -437,9 +405,9 @@ void unit_chrome_selection_frame(
 }
 
 /*
- * Shared implementation behind unit_chrome_draw() and the *_colored()
+ * Shared implementation behind the *_colored()
  * override variants. fill_override/letter_override < 0 means "use the
- * normal nation-color computation" (unit_chrome_draw's public behavior,
+ * normal nation-color computation" (the plain public behavior,
  * unchanged); >= 0 substitutes a caller-supplied raw palette index for
  * that specific active output palette instead.
  *
@@ -581,24 +549,6 @@ static void unit_chrome_draw_impl(
   font_draw_text(font, fb, tx, ty, letter_buf, ink);
 }
 
-void unit_chrome_draw(
-  ColonizeFramebuffer8* fb,
-  const ColonizeFont* font,
-  int icon_x,
-  int icon_y,
-  int icon_w,
-  int icon_h,
-  int display_type_index,
-  int nation_id,
-  int orders_index,
-  bool show_stack,
-  bool damaged
-) {
-  unit_chrome_draw_impl(
-    fb, font, icon_x, icon_y, icon_w, icon_h, display_type_index, nation_id, orders_index,
-    show_stack, damaged, -1, -1
-  );
-}
 
 /* Shared impl behind unit_chrome_blit_unit_colored and unit_chrome_blit's
  * ORDERS mode — the only difference is the shadow tint (every existing
@@ -649,7 +599,7 @@ static void unit_chrome_blit_unit_colored_shadow(
   ss_blit_sprite(sheet, sprite_index, fb, sx, y);
 }
 
-void unit_chrome_blit_unit_colored(
+static void unit_chrome_blit_unit_colored(
   ColonizeFramebuffer8* fb,
   const ColonizeFont* font,
   const ColonizeSpriteSheet* sheet,
@@ -670,24 +620,6 @@ void unit_chrome_blit_unit_colored(
   );
 }
 
-void unit_chrome_blit_unit(
-  ColonizeFramebuffer8* fb,
-  const ColonizeFont* font,
-  const ColonizeSpriteSheet* sheet,
-  int sprite_index,
-  int x,
-  int y,
-  int display_type_index,
-  int nation_id,
-  int orders_index,
-  bool show_stack,
-  bool damaged
-) {
-  unit_chrome_blit_unit_colored(
-    fb, font, sheet, sprite_index, x, y, display_type_index, nation_id, orders_index, show_stack,
-    damaged, -1, -1
-  );
-}
 
 void unit_chrome_blit_unit_for_palette(
   ColonizeFramebuffer8* fb,
@@ -710,10 +642,10 @@ void unit_chrome_blit_unit_for_palette(
      * crown override in unit_chrome_nation_color, so the main map still
      * showed the borrowed peer's blue. */
     static const uint8_t k_white_rgb[3] = {255, 255, 255};
-    fill_override = unit_chrome_nearest_palette_index(
-      active_palette,
-      nation_id == g_chrome_crown_nation ? k_white_rgb
-                                         : k_nation_fill_rgb_native[nation_id]);
+    const uint8_t* fill_rgb =
+      nation_id == g_chrome_crown_nation ? k_white_rgb : k_nation_fill_rgb_native[nation_id];
+    fill_override =
+      assets_palette_nearest_rgb(active_palette, fill_rgb[0], fill_rgb[1], fill_rgb[2]);
     /*
      * DOS 112b:1996..19b8: only Sentry (1) and Fortified (6) letters take
      * the nation shade — every other order (No Orders, Go To, Fortify in
@@ -725,10 +657,10 @@ void unit_chrome_blit_unit_for_palette(
      */
     if (orders_index == 1 /* Sentry */ || orders_index == 6 /* Fortified */) {
       static const uint8_t k_grey_rgb[3] = {180, 180, 180};
-      letter_override = unit_chrome_nearest_palette_index(
-        active_palette,
-        nation_id == g_chrome_crown_nation ? k_grey_rgb
-                                           : k_nation_letter_rgb_native[nation_id]);
+      const uint8_t* letter_rgb =
+        nation_id == g_chrome_crown_nation ? k_grey_rgb : k_nation_letter_rgb_native[nation_id];
+      letter_override =
+        assets_palette_nearest_rgb(active_palette, letter_rgb[0], letter_rgb[1], letter_rgb[2]);
     } else {
       letter_override = 0;
     }

@@ -3,9 +3,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-/* DS:0xb4 / 0xbe — same order as map_gen / ai k_dir8. */
-static const int k_dir8_dx[8] = {0, 1, 1, 1, 0, -1, -1, -1};
-static const int k_dir8_dy[8] = {-1, -1, 0, 1, 1, 1, 0, -1};
+#include "core/map.h"
 
 static int post_terrain_byte(const ColonizeWorldMap* map, int x, int y) {
   if (!map || !map->terrain || x < 0 || y < 0 || x >= map->width || y >= map->height) {
@@ -208,8 +206,8 @@ static int post_cheap_cost(
       continue;
     }
     for (int i = 0; i < 8; ++i) {
-      const int nx = x + k_dir8_dx[i];
-      const int ny = y + k_dir8_dy[i];
+      const int nx = x + MAP_DIR8_DX[i];
+      const int ny = y + MAP_DIR8_DY[i];
       if (nx - tx >= 8 || tx - nx >= 8 || ny - ty >= 8 || ty - ny >= 8) {
         continue;
       }
@@ -265,8 +263,8 @@ static void post_fill_plane(
         continue;
       }
       for (int d = 0; d < 4; ++d) {
-        const int fox = ox + k_dir8_dx[d] * 4;
-        const int foy = oy + k_dir8_dy[d] * 4;
+        const int fox = ox + MAP_DIR8_DX[d] * 4;
+        const int foy = oy + MAP_DIR8_DY[d] * 4;
         if (!map_coords_inset(map, fox, foy)) {
           continue;
         }
@@ -282,8 +280,8 @@ static void post_fill_plane(
           continue;
         }
         plane[cx * 18 + cy] = (uint8_t)(plane[cx * 18 + cy] | (uint8_t)(1u << d));
-        const int nx = cx + k_dir8_dx[d];
-        const int ny = cy + k_dir8_dy[d];
+        const int nx = cx + MAP_DIR8_DX[d];
+        const int ny = cy + MAP_DIR8_DY[d];
         if (nx >= 0 && nx < (int)COLONIZE_COL1_CONNECT_PLANE_W && ny >= 0 &&
             ny < (int)COLONIZE_COL1_CONNECT_PLANE_H) {
           plane[nx * 18 + ny] =

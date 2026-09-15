@@ -1,15 +1,7 @@
 /*
- * PARKED 2026-08-19 (docs/port_plan.md R0, docs/port_plan.md): DISABLED
- * in CMakeLists.txt. This chases turn-for-turn DOS parity against an AI
- * planner that is still only structurally/T0-T1 ported, not T3 1:1 — every
- * remaining unported/stubbed callee (FUN_41f2_0294 etc.) is a guaranteed
- * future diff here, so a red run means "porting incomplete", not "new
- * regression". Do not chase individual TURN-step diffs to green until the
- * underlying AI transcription is actually done; re-enable
- * (set_tests_properties ... DISABLED FALSE) only then.
+ * Golden AI turn steps (TURN1..7 pair compares, live in ctest since 2026-08-28).
  *
- * 2026-08-28: TURN1→2, 2→3, 4→5, 5→6, 6→7 pass; TURN3→4 fails on two Braves
- * (docs/port_plan.md T1.23). Diagnostics: AI_TURNS_ALL=1 runs every step
+ * All six steps pass (T1.23 closed 2026-09-05). Diagnostics: AI_TURNS_ALL=1 runs every step
  * instead of stopping at the first failure, AI_TURNS_ONLY=t runs one step.
  */
 #include <stdio.h>
@@ -17,16 +9,9 @@
 #include <string.h>
 
 #include "core/ai.h"
-#include "core/assets.h"
-#include "core/col1_bridge.h"
 #include "core/col1_save.h"
-#include "core/colony.h"
-#include "core/dos_rng.h"
-#include "core/europe.h"
-#include "core/map.h"
-#include "core/turn.h"
-#include "core/units.h"
-#include "platform/platform.h"
+
+#include "tests/common/golden_fixture.h"
 
 #define AI_TURNS_VR_SEED 100u
 
@@ -295,128 +280,24 @@ static bool compare_ai_state(
 static int run_step(int from_turn) {
   char path_in[64];
   char path_exp[64];
-  char err[256];
   snprintf(path_in, sizeof(path_in), "test-saves-ai/TURN%d.SAV", from_turn);
   snprintf(path_exp, sizeof(path_exp), "test-saves-ai/TURN%d.SAV", from_turn + 1);
 
-  ColonizeCol1Save start;
-  ColonizeCol1Save expect;
-  col1_save_init(&start);
-  col1_save_init(&expect);
-  if (!col1_save_read_file(path_in, &start, err, sizeof(err))) {
-    fprintf(stderr, "read %s: %s\n", path_in, err);
+  GoldenFixture fx;
+  if (!golden_open(path_in, path_exp, AI_TURNS_VR_SEED, &fx)) {
+    golden_close(&fx);
     return 1;
   }
-  if (!col1_save_read_file(path_exp, &expect, err, sizeof(err))) {
-    fprintf(stderr, "read %s: %s\n", path_exp, err);
-    col1_save_free(&start);
-    return 1;
-  }
-
-  ColonizeMsgCatalog names;
-  assets_msg_init(&names);
-  if (!assets_msg_load_file(&names, "COLONIZE/NAMES.TXT")) {
-    fprintf(stderr, "NAMES.TXT load failed\n");
-    col1_save_free(&start);
-    col1_save_free(&expect);
-    return 1;
-  }
-
-  ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  if (!units_load_types(&units, &names)) {
-    fprintf(stderr, "units_load_types failed\n");
-    assets_msg_free(&names);
-    col1_save_free(&start);
-    col1_save_free(&expect);
-    return 1;
-  }
-
-  ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  if (!colonies_load_buildings(&colonies, &names)) {
-    fprintf(stderr, "colonies_load_buildings failed\n");
-    assets_msg_free(&names);
-    col1_save_free(&start);
-    col1_save_free(&expect);
-    return 1;
-  }
-  (void)colonies_load_names(&colonies, "COLONIZE/COLONY.TXT");
-
-  ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
-  EuropeScreen europe;
-  memset(&europe, 0, sizeof(europe));
-  europe.cargo_count = 16;
-  ColonizeCol1BridgeResult br;
-  if (!col1_bridge_apply(&start, &map, &units, &colonies, &europe, &br, err, sizeof(err))) {
-    fprintf(stderr, "bridge apply %s: %s\n", path_in, err);
-    map_free(&map);
-    assets_msg_free(&names);
-    col1_save_free(&start);
-    col1_save_free(&expect);
-    return 1;
-  }
-
-  uint32_t turn_number = br.turn_number;
-  uint16_t year = br.year;
-  uint16_t autumn = br.autumn;
-  ColonizeDosRng rng;
-  dos_rng_seed(&rng, AI_TURNS_VR_SEED);
-
-  ColonizeTurnContext ctx;
-  memset(&ctx, 0, sizeof(ctx));
-  ctx.turn_number = &turn_number;
-  ctx.game_year = &year;
-  ctx.game_autumn = &autumn;
-  ctx.human_nation = br.human_nation;
-  ctx.units = &units;
-  ctx.colonies = &colonies;
-  ctx.europe = &europe;
-  ctx.map = &map;
-  ctx.col1 = &start;
-  ctx.col1_ok = true;
-  ctx.rng = &rng;
-  ctx.rng_seed = AI_TURNS_VR_SEED;
-
-  turn_end(&ctx);
-
-  if (!col1_bridge_capture(
-        &start,
-        &map,
-        &units,
-        &colonies,
-        &europe,
-        year,
-        autumn,
-        turn_number,
-        br.human_nation,
-        br.cursor_x,
-        br.cursor_y,
-        br.view_x,
-        br.view_y,
-        units.selected_id,
-        units.selected_id < 0,
-        err,
-        sizeof(err)
-      )) {
-    fprintf(stderr, "bridge capture: %s\n", err);
-    map_free(&map);
-    assets_msg_free(&names);
-    col1_save_free(&start);
-    col1_save_free(&expect);
+  if (!golden_turn(&fx)) {
+    golden_close(&fx);
     return 1;
   }
 
   char label[32];
   snprintf(label, sizeof(label), "TURN%d→%d", from_turn, from_turn + 1);
-  const bool ok = compare_ai_state(&start, &expect, label);
+  const bool ok = compare_ai_state(&fx.start, &fx.expect, label);
 
-  map_free(&map);
-  assets_msg_free(&names);
-  col1_save_free(&start);
-  col1_save_free(&expect);
+  golden_close(&fx);
   if (!ok) {
     fprintf(stderr, "%s FAILED\n", label);
     return 1;

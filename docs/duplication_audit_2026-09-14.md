@@ -921,3 +921,71 @@ Mechanical hits the agents checked and rejected, so nobody re-investigates them:
 - `k_ring20_dx/dy` (ai_contact.c) vs `k_20e6_ring20_dx/dy` (ai_euro.c): different DS tables, do not merge.
 - `MAP_COAST_OVERLAYS_ENABLED` / `MAP_ESTUARY_OVERLAYS_ENABLED`: documented build toggles, never exercised.
 - Expert Teacher test arm (TT-46), `AI_GOAL_EXPLORE` (AK-51), bar-message kinds 2/3 (AK-54), `ai_euro_colony_ring_tier` constant 2 (AE-30): DOS-faithful dead arithmetic, keep.
+
+## Resolution — 2026-09-14 fix pass
+
+Applied the same day in two agent waves (4 helper agents, then 8 cluster agents in the
+shared tree, plus coordinator hunks). Net `src/` + `tests/` + `tools/`: −17.6k / +11.0k lines
+in tracked files, +1.3k in 16 new files (≈ −5.3k net); ctest 61/61 green in Debug and
+Release, all AI/production goldens byte-identical, render-tool pixel check 16/16 identical.
+The suite went 62 → 61 because TT-14 removed the duplicate `golden_ai_joint` registration;
+`golden_ai_mid01/late01` are now `smoke_ai_mid01/late01`.
+
+### New shared homes
+
+| Helper family | Where |
+|---|---|
+| `MAP_DIR8_DX/DY`, `MAP_RING20_DX/DY`, `T_*`/`F_*` terrain ids, `map_in_bounds`, `map_dims_in_bounds`, `map_chebyshev`, `map_tiles_adjacent`, `map_dos_dist`, `map_get_terrain_or`, `map_set_owner_nibble`, `map_tile_is_coast_water`, `map_terrain_index_to_sprite` | map.h / map.c |
+| `str_trim`, `str_next_int_field`, `str_strip_chars`, `str_strip_comment`, `clamp_int`, `file_slurp` | strutil.h |
+| `rd_u16_le` / `rd_u32_le` | bytes.h (new) |
+| `fb_put/hline/vline/fill_rect/rect_outline` | fb.h / fb.c (new; migration table for inclusive-vs-w/h copies in the header) |
+| `font_text_width_skip` + `FONT_SKIP_*`, one `font_draw_run` | font.h |
+| `ss_blit_anchored`, one `ss_blit_run` | ss.h |
+| `assets_palette_nearest_rgb`, `assets_msg_csv_field/row_field/line_or` | assets.h |
+| `reports_nation_country_name`, `reports_home_port_name`, `reports_difficulty_title`, `reports_tribe_singular_name`, `reports_fort_tier_name`, `reports_brave_ladder_name`, `reports_dock_type_name`, `reports_job_short_name` (NAMES.TXT-backed, literal fallback) | reports.h |
+| `colonies_count_for_nation`, `colonies_find_at_xy`, `COLONIES_CHAIN_*` + `colonies_building_chain`, `colonies_chain_tier_open`, `colonies_has_building_name_contains`, `colonies_list_eject_roles_gear`, `colonies_eject_role_gear`; `colony_craft_recipe_for_building`; `colony_yield_worked_tiles_*` | colony.h, colony_craft.h, colony_yield.h |
+| `col1_save_tribe_at` / `_village_at` / `_tribe_index_at`, `col1_tribe_first_of`, `col1_colony_at_xy`, `col1_save_colony_at` | col1_save.h |
+| `units_type_kind` / `units_name_kind` / `units_type_dos_code` + `units_type_is_*` / `units_kind_is_*`, `units_is_missionary`, `units_hold_amount`, `units_holds_used`, `goods_pack_into_holds`, `units_next_on_tile`, `units_count_at`, `units_profession_label`, `combat_strength_ctx_from_turn` | units.h, combat_strength.h |
+| `ai_relation_quartile` | ai_diplo.h |
+| `europe_purchase_price`, `europe_dock_unit_type_index_ex`, `europe_sell_commit` | europe.h |
+| `popup_list_render` + metrics presets, `popup_center_frame`, `popup_row_at_y`, `popup_prompt_frame`, `popup_wrap_text`, `popup_msg_section_labels`, `popup_chrome_ok`, `ui_rect_hit`, `ai_popup_pending`, `ai_popup_lazy_sheet` | popup.h, popup_msg.h, ui_button.h, ai_popup.h |
+| cinematic timeline/blit/load helpers | cinematic.h (new, header-only) |
+| `k_pick_music_*_song_ids` | pick_music_ids.h (new; tool and dialog share it) |
+| `col1_compare_*`, `golden_open/turn/close`, `joint_*`, `test_assets_*`, `test_fail.h` | tests/common/ |
+| `render_load_save`, `render_fb_init`, `render_write_ppm` | tools/render_common.c |
+| `COLONIZE_SLIM_SOURCES`; 4 full targets now link `colonize_core` | CMakeLists.txt |
+
+### Behaviour fixes that fell out (all DOS-checked)
+
+- French home port "Paris" → La Rochelle (NAMES @HOMEPORT); Dutch "Holland" → Netherlands (@COUNTRY).
+- Keyboard jobs-row commit now has the Fisherman/@NODOCKS gate; keyboard construction pick resolves unit-build names (GL-15/16).
+- `units_display_type_index` gained the WoI type guard DOS `FUN_112b_0060` applies (Cont. Army with muskets no longer chromes as Soldiers).
+- FUN_15eb_0142 nearest colony: tie-break is `<=` (last tie wins, raw 9411) and there is no nation 0..3 filter (raw 9402); ai_euro's copy fixed and folded onto ai_goals'.
+- 5d04's collapsed sea-hull table was a port shortcut; DOS keeps the real @UNIT row (test row Galleon 0x0d → 0x0f).
+- Missionary type tests: `"Missionary"` never matched @UNIT row 3 `Missionaries`, so the export-time village-tile nudge hit every missionary and AI missionary arms never fired; `units_is_missionary` matches type and the Jesuit @JOB.
+- Cigar Factory drew no produce badge (needle "Tobacconist" matched neither tier spelling); recipe lookup fixes it.
+- `pool->board_first_id` was written as a unit id and consumed as a slot (Move-to-front picked the wrong unit once any unit had been despawned).
+- `ai_contact` read `control == 0` directly at one site, bypassing the `ctx->human_nation` override; `ai_contact_reset` now clears `s_2820[4]` and `s_visit_brave_id[]` across games.
+- `ai_king.c` double-wrote the WoI latch; `ai_king_is_mow`'s "Galleon" arm was port-side (DOS tests type 0x12 only).
+- `tools/dump_gsound_wav` carried the discredited `0x20+n` song-id table and overrode the correct titles; `render_report` used `ask = bid + burden + 1` (bridge and DOS FUN_38fd_0016 use `+ burden`) and never zeroed its framebuffer (Foreign report rendered nondeterministically).
+- `closing_skip_to_end` was dead: CLOSING.EXE's input handler (image 0x398) clears the same loop word on Enter/Esc/Space/click that the terminator row clears, so close-on-first-press is DOS-exact.
+
+### Kept split on DOS grounds (do not re-open)
+
+AE-30/33/35/40, AK-51/54, UN-6 (three display ladders are three DOS decisions; only the WoI guard was one rule), UN-48, AC-24/33-give_goods (FUN_0000_8f68 has no 100/hold cap)/26-full/31, AE-38 (goals-phase and act-phase scout aims chain, not duplicate), AE-41 (three metrics, three DOS bodies), CO-3 (preview predicts the next tick and inverts the Spring/Autumn gate deliberately), CO-28 (param kept with `(void)`), GL-23/30 partial (EOT vs idle guard sets are deliberate — bugs.md 268), GL-25, AK-26 partial (6 emitters write a different status), AK-44 partial (9-entry dir tables carry DOS's `(0,0)` "stay" slot), IN-30 (`str_copy_trunc` must be bounded by the 24-byte save field, not the 28-byte live buffer), SC-12 (pedia uses game_loop's catalog, not reports'), ai.c `ai_tile_has_tribe` (map-gen scan, not a save walk), `units.c` k_euro/k_port (fallbacks of units.c's own live-NAMES cache).
+
+### Not done (deliberately)
+
+TT-1..5 (test_ai_euro_expand/war boilerplate — needs re-baselining), TT-17/18 for tests/unit (helper exists in tests/common/test_fail.h; 21 files not converted), TT-35..41 (Ghidra scripts, release scripts), IN-18 (terrain compositing copy in colony_screen vs game_loop), SC-37 (`font_draw_text_centered`), AC-36, GL-27 cross-file, the `ctx->status_kind` enum that would retire status-string sniffing (ai_diplo.c `ai_diplo_tag_from_status`, ai_king.c ~5408).
+
+### New findings (open)
+
+- **`cargo_produced_mask` disagrees with the DOS goldens in 4 colonies**: prod01 New Amsterdam `0x0278` vs `0x0270` (spurious cotton), Guadeloupe `0x0139` vs `0x0111` (spurious cotton + lumber), St. Louis `0x0051` vs `0x0055` (missing tobacco); prod02 New Amsterdam `0xc961` vs `0xc941` (spurious lumber). prod03 passes the full field set. The two goldens keep `COL1_CMP_ALL & ~COL1_CMP_CARGO_PRODUCED_MASK` with the diffs named in the test; everything else (incl. `depletion_counter`, `improve_timer`) is now compared everywhere.
+- Shared-scratch trap: `reports_cargo_display_name` returns a single static buffer; holding the pointer across another NAMES lookup clobbers it (three sites now copy first). The country/adjective/difficulty accessors use per-index buffers.
+
+### Traps recorded
+
+- Rate-limit 429 killed all 8 wave-2 agents; `SendMessage` to each agentId resumed every one with context intact.
+- In a shared tree, a red test or a pixel diff is more often another agent's in-flight edit than your own; A/B against a `git archive HEAD` build before root-causing, and confirm the binary actually relinked.
+- `colony_craft.c/h` are CRLF too (not in the earlier CRLF list); `turn.h` is LF.
+- Adding a call from a `COLONIZE_SLIM_SOURCES` file to a symbol outside that list breaks the four slim unit targets at link (hit twice: `colony_craft_recipe_for_building`, `map_panel_tile_rect_screen_phase`).

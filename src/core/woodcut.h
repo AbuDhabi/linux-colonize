@@ -97,9 +97,6 @@ void woodcut_set_sound_hooks(ColonizeWoodcutSoundFn play_fn, ColonizeWoodcutSoun
  */
 bool woodcut_fire(ColonizeCol1Save* col1, int id);
 
-/* Queue a woodcut with no once-only gate (DOS negative-id form). */
-void woodcut_request(int id);
-
 bool woodcut_has_pending(void);
 /* Pop the oldest queued id, or -1 when the queue is empty. */
 int woodcut_take_pending(void);

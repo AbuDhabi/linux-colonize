@@ -473,8 +473,6 @@ void colonies_reveal_all_for_nation(
 );
 /* FUN_364b_1b4c: nation's fog snapshot of colony := live population / fort tier. */
 void colonies_fog_snapshot(ColonizeColonyPool* pool, int colony_id, int nation_id);
-/* Stockade→Fort→Fortress tier 0..3 (FUN_15eb_03d6 chain count). */
-int colonies_fortification_tier(const ColonizeColonyPool* pool, const ColonizeColony* c);
 /*
  * FUN_364b_1b76: colony is known to nation — own colony, Complete Map
  * (show_entire_map), or a nonzero pop_on_map snapshot. nation outside 0..3 = known.
@@ -495,24 +493,12 @@ int colonies_indian_land_owner_tribe(
 );
 
 /*
- * bugs.md 290 / FUN_15eb_26e4: tribe index claiming (x,y) for the colony
- * screen's totem overlay + work complaint — MET tribes only, unbought land
- * (Peter Minuit folds to none), no colony on the tile. -1 = no claim.
- */
-int colonies_indian_claim_tribe(
-  const ColonizeCol1Save* col1,
-  const ColonizeWorldMap* map,
-  const ColonizeColonyPool* pool,
-  int viewer_nation,
-  int x,
-  int y
-);
-
-/*
  * Same test as the colony screen actually runs it (bugs.md 372): DOS hoists the
  * continent lookup out of the 5x5 loop and reads it at the COLONY tile
  * (origin_x, origin_y), and clears every Ocean / Sea Lane cell outright.
- * colonies_indian_claim_tribe is this with origin == the queried tile.
+ * Also answers the plain "what claims this tile" question with origin ==
+ * the queried tile (the thin colonies_indian_claim_tribe wrapper that used
+ * to spell that was deleted 2026-09-14, audit CO-22 — it had no callers).
  */
 int colonies_indian_claim_tribe_from(
   const ColonizeCol1Save* col1,
@@ -609,12 +595,6 @@ bool colonies_assign_workplace(
  * for a cargo outside 0..COLONIZE_CARGO_COUNT.
  */
 bool colonies_toggle_custom_house_cargo(ColonizeColonyPool* pool, int colony_id, int cargo_type);
-
-/* True if building name is Schoolhouse / College / University. */
-bool colonies_is_school_building(
-  const ColonizeColonyPool* pool,
-  int building_type
-);
 
 /*
  * True when the @JOB school level of `profession` is 1..3 — DOS's `level < 4`
@@ -769,6 +749,39 @@ int colonies_list_eject_roles_ex(
   bool* out_enabled,
   int out_max
 );
+/*
+ * Same row list for a body that carries its own gear (a unit outside the
+ * colony): add_* is what the unit already holds and counts toward the row
+ * gates, convert says whether it is an Indian Convert (Colonist row only).
+ * colonies_list_eject_roles_ex is this with add_* = 0 and the colonist's own
+ * profession; the colony-screen "outside" list in game_loop used to carry a
+ * row-for-row copy that drifted once (duplication audit GL-11).
+ */
+int colonies_list_eject_roles_gear(
+  const ColonizeColonyPool* pool,
+  const ColonizeColony* col,
+  int add_tools,
+  int add_muskets,
+  int add_horses,
+  bool convert,
+  int* out_roles,
+  bool* out_enabled,
+  int out_max
+);
+/*
+ * Gear a "Leave as" row takes from the stock: Pioneer = whole 20-tool steps
+ * capped at 100 (FUN_15eb_1068 raw 11250-11253, via colonies_equip_tools_take),
+ * Soldier 50 muskets, Scout 50 horses, Dragoon both, Colonist / Missionary
+ * nothing. Returns false for a role FUN_2f2b_348c never offers. Shared by
+ * colonies_eject_colonist and the outside-unit path in game_loop (GL-12).
+ */
+bool colonies_eject_role_gear(
+  int role,
+  int stock_tools,
+  int* out_tools,
+  int* out_muskets,
+  int* out_horses
+);
 int colonies_list_eject_roles(
   const ColonizeColonyPool* pool,
   int colony_id,
@@ -853,11 +866,6 @@ int colonies_construction_gold_cost(
   const ColonizeColony* colony,
   int difficulty
 );
-/* Tools still needed from warehouse for current project (0 if none/affordable). */
-int colonies_construction_tools_needed(
-  const ColonizeColonyPool* pool,
-  const ColonizeColony* colony
-);
 /*
  * If hammers >= need and tools >= tools_cost: spend tools, mark built, clear project.
  * Returns true when a building was completed.
@@ -895,7 +903,10 @@ bool colonies_buy_construction(ColonizeColonyPool* pool, int colony_id, int diff
  * FUN_15eb_0a50 takes no cargo argument — one capacity for all sixteen goods,
  * Food included. Food's exemptions live at the three sites that consume the
  * cap (EOT spoilage, @WAREHOUSEFULL unload confirm, colony-screen alert ink),
- * not here; cargo_type is kept for those callers' readability.
+ * not here; cargo_type is unused by the body and is kept only so the ~10
+ * call sites stay readable (audit CO-28 — keeping the parameter is far less
+ * churn than rewriting every caller, and the body now says so with a
+ * (void) cast).
  */
 int colonies_warehouse_capacity(
   const ColonizeColonyPool* pool,
@@ -1094,6 +1105,80 @@ void colonies_trade_stop_set_cargos(
 
 /* ICONS.SS settlement marker #0–3 by fortification (none/stockade/fort/fortress). */
 int colonies_settlement_icon(const ColonizeColonyPool* pool, const ColonizeColony* colony);
+
+/*
+ * ---------------------------------------------------------------------
+ * Shared building upgrade chains (2026-09-14 duplication audit CO-13 /
+ * IN-24: the same 15 chains were typed out in col1_bridge.c twice,
+ * colony_screen.c once and colony.c once more as hardcoded name pairs).
+ *
+ * colonies_building_chain(chain) returns the chain's NULL-terminated name
+ * list, lowest tier first, or NULL for an out-of-range id.
+ *
+ * ***THE ENUM ORDER IS A SAVE-FORMAT CONTRACT.*** col1_bridge.c maps chain
+ * position i onto bit i of the matching ColonizeCol1Buildings group word and
+ * walks the chains in this order. Reordering the enum, or inserting a tier
+ * into the middle of a chain, rewrites every colony's building mask on the
+ * next export. Appending a new chain at the end is safe; nothing else is.
+ *
+ * 17 entries for DOS's 15 screen categories: Capitol and Stable are split
+ * out of the Town Hall / Warehouse categories they share a colony-screen
+ * slot with, because the save format gives each its own bit group and its
+ * own level byte (+0x96 / +0x95).
+ * ---------------------------------------------------------------------
+ */
+enum {
+  COLONIES_CHAIN_FORTIFICATION = 0, /* Stockade / Fort / Fortress */
+  COLONIES_CHAIN_ARMORY,            /* Armory / Magazine / Arsenal */
+  COLONIES_CHAIN_DOCKS,             /* Docks / Drydock / Shipyard */
+  COLONIES_CHAIN_TOWN_HALL,         /* Town Hall */
+  COLONIES_CHAIN_SCHOOL,            /* Schoolhouse / College / University */
+  COLONIES_CHAIN_WAREHOUSE,         /* Warehouse / Warehouse Expansion */
+  COLONIES_CHAIN_CAPITOL,           /* Capitol / Capitol Expansion (unbuildable) */
+  COLONIES_CHAIN_STABLE,            /* Stable */
+  COLONIES_CHAIN_CUSTOM_HOUSE,      /* Custom House */
+  COLONIES_CHAIN_PRESS,             /* Printing Press / Newspaper */
+  COLONIES_CHAIN_WEAVER,            /* Weaver's House / Shop / Textile Mill */
+  COLONIES_CHAIN_TOBACCONIST,       /* Tobacconist's House / Shop / Cigar Factory */
+  COLONIES_CHAIN_RUM,               /* Rum Distiller's House / Distillery / Factory */
+  COLONIES_CHAIN_FUR,               /* Fur Trader's House / Trading Post / Factory */
+  COLONIES_CHAIN_CARPENTER,         /* Carpenter's Shop / Lumber Mill */
+  COLONIES_CHAIN_CHURCH,            /* Church / Cathedral */
+  COLONIES_CHAIN_BLACKSMITH,        /* Blacksmith's House / Shop / Iron Works */
+  COLONIES_BUILDING_CHAIN_COUNT
+};
+
+const char* const* colonies_building_chain(int chain);
+int colonies_building_chain_length(int chain);
+
+/* Exact-name / substring "does this colony own such a building" (audit
+ * CO-17: turn.c, colony_screen.c and colony_preview.c each had a private
+ * spelling of one of these two). */
+bool colonies_has_building_named(
+  const ColonizeColonyPool* pool,
+  const ColonizeColony* col,
+  const char* name
+);
+bool colonies_has_building_name_contains(
+  const ColonizeColonyPool* pool,
+  const ColonizeColony* col,
+  const char* needle
+);
+
+/* True when the colony owns a Church or a Cathedral (audit GL-10 — the
+ * game_loop copy was a verbatim duplicate of this file-local test). */
+int colonies_has_church_or_cathedral(
+  const ColonizeColonyPool* pool,
+  const ColonizeColony* col
+);
+
+/* Active colonies belonging to `nation` (audit AK-9: ai.c, ai_king.c and
+ * ai_euro.c each had a byte-identical private copy, plus five inline ones). */
+int colonies_count_for_nation(const ColonizeColonyPool* pool, int nation);
+
+/* The active colony standing on (x,y), or NULL (audit SC-38/AC-7/AE-41 — the
+ * same pool walk was retyped in reports.c twice and in the AI files). */
+const ColonizeColony* colonies_find_at_xy(const ColonizeColonyPool* pool, int x, int y);
 
 /*
  * Draw ICONS.SS settlement marker `sprite` (0-3) at (px,py) — the sprite's
