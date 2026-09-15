@@ -713,7 +713,7 @@ graphs:
         fn: ai_euro.c:ai_euro_in_europe
       - id: exit_europe
         kind: step
-        label: Europe → map — spiral-place on High Seas near landfall goto; first leg = scored ocean steps
+        label: Europe → map — spiral-place on High Seas near landfall goto; first leg = scored ocean steps; then goto = home coastal colony water (established nation) else west-explore (4,13)
         fn: ai_euro.c:ai_euro_resolve_landfall_goto
         dos: FUN_48d3_048e/0434; LAB_521d_3558 ocean scorer
         status: structural
@@ -742,7 +742,7 @@ graphs:
         fn: ai_euro.c:ai_euro_try_ship_trade_haul
       - id: war_naval
         kind: step
-        label: War — flee fort fire, adjacent attack, Privateer/idle re-aim to naval hunt target
+        label: War — flee fort fire, adjacent attack, Privateer/idle re-aim to naval hunt target (attack-0 hulls without passenger space never hunt)
         fn: ai_euro.c:ai_euro_naval_war_hunt_target
         status: thin
         note: Deep 20e6 naval combat scoring PARKED; Galleon/Frigate prefer threatened own coastal colony.
@@ -753,7 +753,7 @@ graphs:
         status: golden
       - id: sail
         kind: loop
-        label: "AI_SAIL goto: score_move (ocean scorer) or greedy step until MP 0 / arrival; back-step guard"
+        label: "AI_SAIL goto: score_move (ocean scorer) until MP 0 / arrival; back-step guard; on stall → FUN_6662 pathfinder, latched per goto (s_euro_ship_route_latch) until the goto changes"
         fn: ai_euro.c:ai_euro_ocean_score_step
         dos: LAB_521d_3558 ocean branch
         status: structural
