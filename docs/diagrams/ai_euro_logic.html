@@ -1,0 +1,756 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Euro AI Logic Map</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+  :root { --bg:#f3f5f7; --fg:#1f2933; --muted:#52606d; --card:#ffffff; --line:#d9dee3; --accent:#1c5d7a; --diagram:#ffffff; }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) { --bg:#15181c; --fg:#e4e7eb; --muted:#9aa5b1; --card:#1e2227; --line:#323a43; --accent:#7cc0dd; --diagram:#f3f5f7; }
+  }
+  :root[data-theme="dark"] { --bg:#15181c; --fg:#e4e7eb; --muted:#9aa5b1; --card:#1e2227; --line:#323a43; --accent:#7cc0dd; --diagram:#f3f5f7; }
+  body { background:var(--bg); color:var(--fg); font-family:"IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif; padding-inline:20px; padding-block:24px; margin:0; line-height:1.45; }
+  code, .mono { font-family:"IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace; font-size:.92em; }
+  h1 { font-size:1.5rem; font-weight:600; margin:0 0 4px; letter-spacing:-.01em; text-wrap:balance; }
+  .sub { color:var(--muted); font-size:.9rem; margin-bottom:14px; max-width:70ch; }
+  a { color:var(--accent); text-decoration:none; } a:hover { text-decoration:underline; } a:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+  nav { display:flex; flex-wrap:wrap; gap:6px 14px; margin:8px 0 14px; font-size:.88rem; }
+  .legend { display:flex; flex-wrap:wrap; gap:8px 16px; font-size:.78rem; color:var(--muted); margin-bottom:20px; text-transform:uppercase; letter-spacing:.04em; }
+  .legend span { display:inline-flex; align-items:center; gap:6px; }
+  .legend i { display:inline-block; width:12px; height:12px; border-radius:2px; border:1px solid #868e96; }
+  section { background:var(--card); border:1px solid var(--line); border-radius:6px; padding:14px 16px; margin-bottom:22px; }
+  section h2 { font-size:1.05rem; font-weight:600; margin:0 0 4px; text-wrap:balance; }
+  section .meta { color:var(--muted); font-size:.8rem; margin-bottom:10px; }
+  .diagram { overflow-x:auto; }
+  pre.mermaid { margin:0; background:var(--diagram); border-radius:4px; padding:8px; color:#1f2933; }
+  details { font-size:.85rem; margin-top:10px; } summary { cursor:pointer; color:var(--muted); }
+  details table { border-collapse:collapse; font-size:.8rem; margin-top:6px; }
+  details td { border-top:1px solid var(--line); padding:4px 10px 4px 0; vertical-align:top; }
+  details td:first-child { white-space:nowrap; font-family:"IBM Plex Mono", ui-monospace, monospace; }
+  .top { font-size:.78rem; margin-top:8px; }
+  @media (prefers-reduced-motion: no-preference) { html { scroll-behavior:smooth; } }
+</style>
+</head><body>
+
+<a id='top'></a>
+<h1>European AI logic map</h1>
+<div class='sub'>Generated from docs/ai_euro_logic_map.yaml (2026-09-15) by tools/ai_logic_map.py. Start at <a href='#graph-nation_turn'>nation_turn</a> and follow the dashed “→ graph” boxes.</div>
+<nav><a href='#graph-nation_turn'>nation_turn</a> <a href='#graph-dispatcher'>dispatcher</a> <a href='#graph-planning_5d04'>planning_5d04</a> <a href='#graph-goals_0a60'>goals_0a60</a> <a href='#graph-goal_orders'>goal_orders</a> <a href='#graph-unit_act'>unit_act</a> <a href='#graph-ship_band'>ship_band</a> <a href='#graph-ship_haul'>ship_haul</a> <a href='#graph-unload_settle'>unload_settle</a> <a href='#graph-land_band'>land_band</a> <a href='#graph-move_scoring_gate'>move_scoring_gate</a> <a href='#graph-diplo_balance'>diplo_balance</a> <a href='#graph-colony_tick'>colony_tick</a></nav>
+<div class='legend'><span><i style='background:#d8f5d0;border-color:#2b8a3e'></i>DOS-literal</span><span><i style='background:#d0ebff;border-color:#1971c2'></i>structural port</span><span><i style='background:#fff3bf;border-color:#e67700'></i>thin approximation</span><span><i style='background:#e9ecef;border-color:#495057'></i>Linux-only</span><span><i style='background:#f3d9fa;border-color:#9c36b5'></i>golden-fit</span><span><i style='border:2px dashed #212529'></i>jump to another graph</span><span>◇ decision · ▱ loop · ⟦ ⟧ call · ( ) exit</span></div>
+<section id='graph-nation_turn'><h2>Nation turn entry (TURN_PROC_EURO → FUN_521d_6d8e)</h2>
+<div class='meta'>id <code>nation_turn</code> · entry <code>turn_slice</code> · opens <a href='#graph-dispatcher'>dispatcher</a></div>
+<div class='diagram'><pre class='mermaid'>flowchart TD
+  nation_turn__turn_slice["TURN_PROC_EURO slice — one AI Euro nation per advance&lt;br/&gt;&lt;i&gt;TURN_PROC_EURO&lt;/i&gt;"]
+  nation_turn__is_ref{"Slot is the WoI crown (REF) nation?&lt;br/&gt;&lt;i&gt;turn_euro_nation_is_ref&lt;/i&gt;"}
+  nation_turn__king_pre_beat[["REF pre-beat — wave spawn + war bookkeeping&lt;br/&gt;&lt;i&gt;ai_king_ref_pre_euro_beat&lt;/i&gt;"]]
+  nation_turn__nation_turn["ai_euro_nation_turn&lt;br/&gt;&lt;i&gt;ai_euro_nation_turn&lt;/i&gt;"]
+  nation_turn__reseed["Reseed RNG from timer word&lt;br/&gt;&lt;i&gt;ai_nation_reseed&lt;/i&gt;"]
+  nation_turn__scratch[["Rebuild planning scratch (needs-colonists count, census bytes, leader trait)&lt;br/&gt;&lt;i&gt;ai_goals_plan_scratch_refresh&lt;/i&gt;"]]
+  nation_turn__gift[["Peacetime troop gift to the nation&lt;br/&gt;&lt;i&gt;ai_king_ai_peacetime_gift&lt;/i&gt;"]]
+  nation_turn__frigate[["@KINGFRIGATE offer auto-accept&lt;br/&gt;&lt;i&gt;ai_king_frigate_offer&lt;/i&gt;"]]
+  nation_turn__has_map{"World map present?"}
+  nation_turn__dispatcher[["Euro dispatcher (FUN_521d_6d8e body)&lt;br/&gt;&lt;i&gt;ai_euro_dispatcher_turn&lt;/i&gt;&lt;br/&gt;&lt;b&gt;→ dispatcher&lt;/b&gt;"]]
+  nation_turn__end(["next nation / TURN_PROC_INDIAN / FINISH"])
+  nation_turn__turn_slice --&gt; nation_turn__is_ref
+  nation_turn__is_ref --&gt;|"yes"| nation_turn__king_pre_beat
+  nation_turn__is_ref --&gt;|"no"| nation_turn__nation_turn
+  nation_turn__king_pre_beat --&gt; nation_turn__nation_turn
+  nation_turn__nation_turn --&gt; nation_turn__reseed
+  nation_turn__reseed --&gt; nation_turn__scratch
+  nation_turn__scratch --&gt; nation_turn__gift
+  nation_turn__gift --&gt; nation_turn__frigate
+  nation_turn__frigate --&gt; nation_turn__has_map
+  nation_turn__has_map --&gt;|"yes"| nation_turn__dispatcher
+  nation_turn__has_map --&gt;|"no"| nation_turn__end
+  nation_turn__dispatcher --&gt; nation_turn__end
+  style nation_turn__turn_slice fill:#d8f5d0,stroke:#2b8a3e,color:#212529,stroke-width:2px
+  style nation_turn__is_ref fill:#ffffff,stroke:#868e96,color:#212529
+  style nation_turn__king_pre_beat fill:#d8f5d0,stroke:#2b8a3e,color:#212529
+  style nation_turn__nation_turn fill:#d0ebff,stroke:#1971c2,color:#212529,stroke-width:2px
+  style nation_turn__reseed fill:#d8f5d0,stroke:#2b8a3e,color:#212529
+  style nation_turn__scratch fill:#d8f5d0,stroke:#2b8a3e,color:#212529
+  style nation_turn__gift fill:#fff3bf,stroke:#e67700,color:#212529
+  style nation_turn__frigate fill:#d8f5d0,stroke:#2b8a3e,color:#212529
+  style nation_turn__has_map fill:#ffffff,stroke:#868e96,color:#212529
+  style nation_turn__dispatcher fill:#fff,stroke:#212529,color:#212529,stroke-width:2px,stroke-dasharray:4 2
+  click nation_turn__dispatcher "#graph-dispatcher" "open dispatcher"
+  style nation_turn__end fill:#ffffff,stroke:#868e96,color:#212529
+</pre></div>
+<details><summary>Node notes and citations</summary><table><tr><td>turn_slice</td><td>TURN_PROC_EURO slice — one AI Euro nation per advance</td><td><code>turn.c:TURN_PROC_EURO</code><br/>DOS: FUN_130d_0290 year loop, control==1 branch (:6397)<br/>Slots above the human run before TURN_PROC_INDIAN, slots below after (DOS 130d order).</td></tr><tr><td>is_ref</td><td>Slot is the WoI crown (REF) nation?</td><td><code>turn.c:turn_euro_nation_is_ref</code></td></tr><tr><td>king_pre_beat</td><td>REF pre-beat — wave spawn + war bookkeeping</td><td><code>ai_king.c:ai_king_ref_pre_euro_beat</code><br/>DOS: FUN_43f7_* king beat (00f2→2424→2022), pure spawner<br/>D1 closed 2026-09-07g — crown slot then runs the full Euro turn like any AI nation.</td></tr><tr><td>nation_turn</td><td>ai_euro_nation_turn</td><td><code>ai.c:ai_euro_nation_turn</code><br/>DOS: FUN_521d_6d8e entry</td></tr><tr><td>reseed</td><td>Reseed RNG from timer word</td><td><code>ai.c:ai_nation_reseed</code><br/>DOS: FUN_281f_04ca<br/>--seed 100 overrides every timer-word read for deterministic runs.</td></tr><tr><td>scratch</td><td>Rebuild planning scratch (needs-colonists count, census bytes, leader trait)</td><td><code>ai_goals.c:ai_goals_plan_scratch_refresh</code><br/>DOS: 6d8e prelude raw 93109, 93139-93141 (DS:0xa0b8, FUN_4962_0018 bytes, DS:0x9567)</td></tr><tr><td>gift</td><td>Peacetime troop gift to the nation</td><td><code>ai_king.c:ai_king_ai_peacetime_gift</code><br/>DOS: FUN_43f7_2244 via FUN_281f_0668<br/>Premise not confirmed (lead 2026-09-10) — DOS may target the human, not the acting nation.</td></tr><tr><td>frigate</td><td>@KINGFRIGATE offer auto-accept</td><td><code>ai_king.c:ai_king_frigate_offer</code><br/>DOS: FUN_3844_00f2 tail</td></tr><tr><td>has_map</td><td>World map present?</td><td></td></tr><tr><td>dispatcher</td><td>Euro dispatcher (FUN_521d_6d8e body)</td><td><code>ai_euro.c:ai_euro_dispatcher_turn</code></td></tr><tr><td>end</td><td>next nation / TURN_PROC_INDIAN / FINISH</td><td></td></tr></table></details>
+<div class='top'><a href='#top'>top</a></div></section>
+<section id='graph-dispatcher'><h2>Dispatcher — ai_euro_dispatcher_turn (FUN_521d_6d8e)</h2>
+<div class='meta'>id <code>dispatcher</code> · entry <code>reset</code> · reached from <a href='#graph-nation_turn'>nation_turn</a> · opens <a href='#graph-colony_tick'>colony_tick</a>, <a href='#graph-diplo_balance'>diplo_balance</a>, <a href='#graph-goal_orders'>goal_orders</a>, <a href='#graph-goals_0a60'>goals_0a60</a>, <a href='#graph-planning_5d04'>planning_5d04</a>, <a href='#graph-unit_act'>unit_act</a></div>
+<div class='diagram'><pre class='mermaid'>flowchart TD
+  dispatcher__reset["Reset per-turn shadow state&lt;br/&gt;&lt;i&gt;ai_euro_dispatcher_turn&lt;/i&gt;"]
+  dispatcher__inventory[["Colony inventory — shortage tallies&lt;br/&gt;&lt;i&gt;ai_euro_colony_inventory&lt;/i&gt;"]]
+  dispatcher__treaty_timers[["Treaty timers tick&lt;br/&gt;&lt;i&gt;ai_diplo_treaty_timers&lt;/i&gt;"]]
+  dispatcher__planning[["Nation planning — treasury, ship buys, Europe hires&lt;br/&gt;&lt;i&gt;ai_euro_nation_planning&lt;/i&gt;&lt;br/&gt;&lt;b&gt;→ planning_5d04&lt;/b&gt;"]]
+  dispatcher__promote[["Promote secondary goals to primary&lt;br/&gt;&lt;i&gt;ai_goals_promote_secondary_to_primary&lt;/i&gt;"]]
+  dispatcher__build_policy["Build-queue policy (cancel stale, peace construction ladder, craft upgrades)&lt;br/&gt;&lt;i&gt;ai_euro_prefer_peace_construction&lt;/i&gt;"]
+  dispatcher__goals[["Goal writer — colony/unit goals (0a60 A–H)&lt;br/&gt;&lt;i&gt;ai_euro_colony_goals&lt;/i&gt;&lt;br/&gt;&lt;b&gt;→ goals_0a60&lt;/b&gt;"]]
+  dispatcher__goal_orders[["Goal consumption — assign each idle unit a primary goal&lt;br/&gt;&lt;i&gt;ai_euro_0a60_goal_orders_structural&lt;/i&gt;&lt;br/&gt;&lt;b&gt;→ goal_orders&lt;/b&gt;"]]
+  dispatcher__is_crown{"WoI crown slot?"}
+  dispatcher__balance[["Euro diplomacy balance (war/peace rolls)&lt;br/&gt;&lt;i&gt;ai_diplo_euro_balance&lt;/i&gt;&lt;br/&gt;&lt;b&gt;→ diplo_balance&lt;/b&gt;"]]
+  dispatcher__treasure["Treasure → gold (harbor-due ships, Europe/HS cash, Cortes coastal galleon)&lt;br/&gt;&lt;i&gt;ai_euro_try_expected_treasure_harbor&lt;/i&gt;"]
+  dispatcher__unit_loop[/"do { wave 0: ships; wave 1: ships+land; unit ids high→low } while any_acted #38;#38; guard#60;64&lt;br/&gt;&lt;i&gt;ai_euro_dispatcher_turn&lt;/i&gt;"/]
+  dispatcher__skip{"Skip? (inactive / other nation / aboard ship / land in wave 0)"}
+  dispatcher__no_mp{"moves_left #60;= 0?"}
+  dispatcher__wake_elig{"First-colony sentry wake eligible? (no colonies yet, Pioneer/Soldier, found-approach conditions)&lt;br/&gt;&lt;i&gt;ai_euro_06ae_first_colony_from_landfall&lt;/i&gt;"}
+  dispatcher__sticky{"Same unit acted #62; 0x14 times without progress?"}
+  dispatcher__act[["Unit act (5b66 dispatcher)&lt;br/&gt;&lt;i&gt;ai_euro_unit_act&lt;/i&gt;&lt;br/&gt;&lt;b&gt;→ unit_act&lt;/b&gt;"]]
+  dispatcher__progressed{"Progressed? (moved, spent MP, or despawned)"}
+  dispatcher__encounter[["Ended adjacent to the human → 153e audience&lt;br/&gt;&lt;i&gt;ai_diplo_153e_encounter&lt;/i&gt;"]]
+  dispatcher__ship_contact["Ship out of MP → CONTACT goal prio 2 at its tile&lt;br/&gt;&lt;i&gt;ai_goals_upsert_primary&lt;/i&gt;"]
+  dispatcher__colony_tick[["Colony tick — colonist re-placement (FUN_5952_035e)&lt;br/&gt;&lt;i&gt;ai_euro_colony_tick_28c8_reassign&lt;/i&gt;&lt;br/&gt;&lt;b&gt;→ colony_tick&lt;/b&gt;"]]
+  dispatcher__end(["return"])
+  dispatcher__reset --&gt; dispatcher__inventory
+  dispatcher__inventory --&gt; dispatcher__treaty_timers
+  dispatcher__treaty_timers --&gt; dispatcher__planning
+  dispatcher__planning --&gt; dispatcher__promote
+  dispatcher__promote --&gt; dispatcher__build_policy
+  dispatcher__build_policy --&gt; dispatcher__goals
+  dispatcher__goals --&gt; dispatcher__goal_orders
+  dispatcher__goal_orders --&gt; dispatcher__is_crown
+  dispatcher__is_crown --&gt;|"no"| dispatcher__balance
+  dispatcher__is_crown --&gt;|"yes"| dispatcher__treasure
+  dispatcher__balance --&gt; dispatcher__treasure
+  dispatcher__treasure --&gt; dispatcher__unit_loop
+  dispatcher__unit_loop --&gt; dispatcher__skip
+  dispatcher__skip --&gt;|"yes: next unit"| dispatcher__unit_loop
+  dispatcher__skip --&gt;|"no"| dispatcher__no_mp
+  dispatcher__no_mp --&gt;|"yes"| dispatcher__wake_elig
+  dispatcher__no_mp --&gt;|"no"| dispatcher__sticky
+  dispatcher__wake_elig --&gt;|"yes"| dispatcher__sticky
+  dispatcher__wake_elig --&gt;|"no: next unit"| dispatcher__unit_loop
+  dispatcher__sticky --&gt;|"yes: clear orders"| dispatcher__unit_loop
+  dispatcher__sticky --&gt;|"no"| dispatcher__act
+  dispatcher__act --&gt; dispatcher__progressed
+  dispatcher__progressed --&gt;|"yes"| dispatcher__encounter
+  dispatcher__progressed --&gt;|"no"| dispatcher__ship_contact
+  dispatcher__encounter --&gt; dispatcher__ship_contact
+  dispatcher__ship_contact --&gt;|"next unit"| dispatcher__unit_loop
+  dispatcher__unit_loop --&gt;|"no unit acted or guard==64"| dispatcher__colony_tick
+  dispatcher__colony_tick --&gt; dispatcher__end
+  style dispatcher__reset fill:#d0ebff,stroke:#1971c2,color:#212529
+  style dispatcher__inventory fill:#d0ebff,stroke:#1971c2,color:#212529
+  style dispatcher__treaty_timers fill:#d8f5d0,stroke:#2b8a3e,color:#212529
+  style dispatcher__planning fill:#fff,stroke:#212529,color:#212529,stroke-width:2px,stroke-dasharray:4 2
+  click dispatcher__planning "#graph-planning_5d04" "open planning_5d04"
+  style dispatcher__promote fill:#d8f5d0,stroke:#2b8a3e,color:#212529
+  style dispatcher__build_policy fill:#e9ecef,stroke:#495057,color:#212529
+  style dispatcher__goals fill:#fff,stroke:#212529,color:#212529,stroke-width:2px,stroke-dasharray:4 2
+  click dispatcher__goals "#graph-goals_0a60" "open goals_0a60"
+  style dispatcher__goal_orders fill:#fff,stroke:#212529,color:#212529,stroke-width:2px,stroke-dasharray:4 2
+  click dispatcher__goal_orders "#graph-goal_orders" "open goal_orders"
+  style dispatcher__is_crown fill:#ffffff,stroke:#868e96,color:#212529
+  style dispatcher__balance fill:#fff,stroke:#212529,color:#212529,stroke-width:2px,stroke-dasharray:4 2
+  click dispatcher__balance "#graph-diplo_balance" "open diplo_balance"
+  style dispatcher__treasure fill:#fff3bf,stroke:#e67700,color:#212529
+  style dispatcher__unit_loop fill:#d0ebff,stroke:#1971c2,color:#212529
+  style dispatcher__skip fill:#ffffff,stroke:#868e96,color:#212529
+  style dispatcher__no_mp fill:#ffffff,stroke:#868e96,color:#212529
+  style dispatcher__wake_elig fill:#f3d9fa,stroke:#9c36b5,color:#212529
+  style dispatcher__sticky fill:#ffffff,stroke:#868e96,color:#212529
+  style dispatcher__act fill:#fff,stroke:#212529,color:#212529,stroke-width:2px,stroke-dasharray:4 2
+  click dispatcher__act "#graph-unit_act" "open unit_act"
+  style dispatcher__progressed fill:#ffffff,stroke:#868e96,color:#212529
+  style dispatcher__encounter fill:#d0ebff,stroke:#1971c2,color:#212529
+  style dispatcher__ship_contact fill:#e9ecef,stroke:#495057,color:#212529
+  style dispatcher__colony_tick fill:#fff,stroke:#212529,color:#212529,stroke-width:2px,stroke-dasharray:4 2
+  click dispatcher__colony_tick "#graph-colony_tick" "open colony_tick"
+  style dispatcher__end fill:#ffffff,stroke:#868e96,color:#212529
+</pre></div>
+<details><summary>Node notes and citations</summary><table><tr><td>reset</td><td>Reset per-turn shadow state</td><td><code>ai_euro.c:ai_euro_dispatcher_turn</code><br/>DOS: FUN_521d_0a60 entry memset(0xa13c,0,16); housekeeping clears act_state 1/2/3 at :87560<br/>Sticky-unit counter, deferred-found, unloaded-this-turn, 0a60 pilot state, per-continent explorer count; wagon-errand / explore-fatigue / ring-hop latches of dead unit ids.</td></tr><tr><td>inventory</td><td>Colony inventory — shortage tallies</td><td><code>ai_euro.c:ai_euro_colony_inventory</code><br/>DOS: FUN_521d_5cf6-shaped tallies; FUN_5952_035e +0x8f/+0x8c increments<br/>Per own colony tools&lt;20, muskets&lt;10, food&lt;pop*2, ore&lt;20, lumber-labor want; ++cargo_idle_turns, ++improve_timer.</td></tr><tr><td>treaty_timers</td><td>Treaty timers tick</td><td><code>ai_diplo.c:ai_diplo_treaty_timers</code><br/>DOS: 6d8e prelude raw 93173-93188<br/>Per peer — flag bit 0x08 &amp;&amp; timer==0 &amp;&amp; RNG(0,3)==0 seeds a timer; timer&gt;0 decrements (expiry = WAR_INTENT, not peace).</td></tr><tr><td>planning</td><td>Nation planning — treasury, ship buys, Europe hires</td><td><code>ai_euro.c:ai_euro_nation_planning</code></td></tr><tr><td>promote</td><td>Promote secondary goals to primary</td><td><code>ai_goals.c:ai_goals_promote_secondary_to_primary</code><br/>DOS: FUN_521d_0342 — clear 64 primaries, upsert every live secondary</td></tr><tr><td>build_policy</td><td>Build-queue policy (cancel stale, peace construction ladder, craft upgrades)</td><td><code>ai_euro.c:ai_euro_prefer_peace_construction</code><br/>ai_euro_cancel_stale_zero_hammer_builds, prefer_peace_construction (Stockade→Fort→Fortress→Warehouse→Docks, Drydock→Shipyard, Custom House, Church), prefer_all_buildings, prefer_craft_upgrades, clear_pre_stockade_build_queue.</td></tr><tr><td>goals</td><td>Goal writer — colony/unit goals (0a60 A–H)</td><td><code>ai_euro.c:ai_euro_colony_goals</code></td></tr><tr><td>goal_orders</td><td>Goal consumption — assign each idle unit a primary goal</td><td><code>ai_euro.c:ai_euro_0a60_goal_orders_structural</code></td></tr><tr><td>is_crown</td><td>WoI crown slot?</td><td></td></tr><tr><td>balance</td><td>Euro diplomacy balance (war/peace rolls)</td><td><code>ai_diplo.c:ai_diplo_euro_balance</code><br/>Linux-shaped pass with DOS pieces inside (10ec, 13b0); skipped for the crown because its peace arm would end the WoI.</td></tr><tr><td>treasure</td><td>Treasure → gold (harbor-due ships, Europe/HS cash, Cortes coastal galleon)</td><td><code>ai_euro.c:ai_euro_try_expected_treasure_harbor</code><br/>ai_euro_try_cash_treasure_europe per unit; units_cortes_cash_coastal_treasures.</td></tr><tr><td>unit_loop</td><td>do { wave 0: ships; wave 1: ships+land; unit ids high→low } while any_acted &amp;&amp; guard&lt;64</td><td><code>ai_euro.c:ai_euro_dispatcher_turn</code><br/>DOS: 6d8e steps 6–7</td></tr><tr><td>skip</td><td>Skip? (inactive / other nation / aboard ship / land in wave 0)</td><td></td></tr><tr><td>no_mp</td><td>moves_left &lt;= 0?</td><td></td></tr><tr><td>wake_elig</td><td>First-colony sentry wake eligible? (no colonies yet, Pioneer/Soldier, found-approach conditions)</td><td><code>ai_euro.c:ai_euro_06ae_first_colony_from_landfall</code><br/>Cite TURN3–5 goldens; soldier/pioneer wake rules keyed on landfall + found tile geometry.</td></tr><tr><td>sticky</td><td>Same unit acted &gt; 0x14 times without progress?</td><td>Anti-spin — clears orders and skips the unit.</td></tr><tr><td>act</td><td>Unit act (5b66 dispatcher)</td><td><code>ai_euro.c:ai_euro_unit_act</code></td></tr><tr><td>progressed</td><td>Progressed? (moved, spent MP, or despawned)</td><td></td></tr><tr><td>encounter</td><td>Ended adjacent to the human → 153e audience</td><td><code>ai_diplo.c:ai_diplo_153e_encounter</code><br/>DOS: FUN_5bfb_3180 on the moving unit's step; param_4 = AI unit arms @WANTSTUFF<br/>Per-act granularity vs DOS per-step; dedupes once per pair per turn.</td></tr><tr><td>ship_contact</td><td>Ship out of MP → CONTACT goal prio 2 at its tile</td><td><code>ai_goals.c:ai_goals_upsert_primary</code></td></tr><tr><td>colony_tick</td><td>Colony tick — colonist re-placement (FUN_5952_035e)</td><td><code>ai_euro.c:ai_euro_colony_tick_28c8_reassign</code></td></tr><tr><td>end</td><td>return</td><td></td></tr></table></details>
+<div class='top'><a href='#top'>top</a></div></section>
+<section id='graph-planning_5d04'><h2>Nation planning — FUN_521d_5d04 (treasury, ship buys, Europe hires)</h2>
+<div class='meta'>id <code>planning_5d04</code> · entry <code>treasury</code> · reached from <a href='#graph-dispatcher'>dispatcher</a></div>
+<div class='diagram'><pre class='mermaid'>flowchart TD
+  planning_5d04__treasury["Treasury bump&lt;br/&gt;&lt;i&gt;ai_euro_5d04_treasury_bump&lt;/i&gt;"]
+  planning_5d04__flags["Compute planning flags (college, frigate/privateer threat, no-clear-navy, cargo-short)&lt;br/&gt;&lt;i&gt;ai_euro_5d04_compute_flags&lt;/i&gt;"]
+  planning_5d04__floors["Apply naval gold floors (= 5c3c purchase prices per threat flag)&lt;br/&gt;&lt;i&gt;ai_euro_5d04_apply_naval_gold_floors&lt;/i&gt;"]
+  planning_5d04__ladder_gate{"WoI, or ship_cargo_totals #62; census_pop_proxy/2 + colony count?&lt;br/&gt;&lt;i&gt;ai_euro_5d04_ship_buy_ladder&lt;/i&gt;"}
+  planning_5d04__frig{"frigate_threatened? → buy Frigate (5000)&lt;br/&gt;&lt;i&gt;ai_euro_5d04_propose_ship_buy&lt;/i&gt;"}
+  planning_5d04__priv{"privateer_threatened? → buy Privateer (2000)"}
+  planning_5d04__rng_ladder["RNG ladder — Frigate / Galleon / Merchantman / Caravel / Privateer&lt;br/&gt;&lt;i&gt;ai_euro_5d04_ship_buy_ladder&lt;/i&gt;"]
+  planning_5d04__abort(["Abort planning (threat buy failed) — hire tail skipped"])
+  planning_5d04__hire_gate{"Bought a ship OR nation already has ships? (raw 92568)"}
+  planning_5d04__hire["Hire ladder tail (the DOS Europe hire economy)&lt;br/&gt;&lt;i&gt;ai_euro_5d04_hire_ladder_tail&lt;/i&gt;"]
+  planning_5d04__needs["Colony musket/tool needs (DS:0xa0da/0xa0db, minus own Pioneers)&lt;br/&gt;&lt;i&gt;ai_euro_5d04_cb_colony_needs&lt;/i&gt;"]
+  planning_5d04__arty{"No Artillery on dock #38;#38; muskets needed #38;#38; RNG(0,3)==0 #38;#38; !cargo_short #38;#38; cargo totals#62;4 #38;#38; !WoI?"}
+  planning_5d04__buy_arty["Buy Artillery (500)&lt;br/&gt;&lt;i&gt;ai_euro_5d04_propose_ship_buy&lt;/i&gt;"]
+  planning_5d04__swap["Recruit-slot swap when gold #62;= price + reserve(census_pop_proxy)"]
+  planning_5d04__two_pass[/"Two-pass Europe dock candidate loop (unskilled pass, skilled pass); muskets-training arm"/]
+  planning_5d04__demand[/"Colony demand vs purchase loop (demand query modes 4/0xc/0xe; goal trigger 0xb)"/]
+  planning_5d04__depart[/"Departing-ship loop — sell/bank hold, top up with the cargo colonies most want"/]
+  planning_5d04__end(["return"])
+  planning_5d04__treasury --&gt; planning_5d04__flags
+  planning_5d04__flags --&gt; planning_5d04__floors
+  planning_5d04__floors --&gt; planning_5d04__ladder_gate
+  planning_5d04__ladder_gate --&gt;|"yes: no candidate"| planning_5d04__hire_gate
+  planning_5d04__ladder_gate --&gt;|"no"| planning_5d04__frig
+  planning_5d04__frig --&gt;|"not threatened / bought"| planning_5d04__priv
+  planning_5d04__frig --&gt;|"threatened, buy failed"| planning_5d04__abort
+  planning_5d04__priv --&gt;|"not threatened / bought"| planning_5d04__rng_ladder
+  planning_5d04__priv --&gt;|"threatened, buy failed"| planning_5d04__abort
+  planning_5d04__rng_ladder --&gt; planning_5d04__hire_gate
+  planning_5d04__hire_gate --&gt;|"yes"| planning_5d04__hire
+  planning_5d04__hire_gate --&gt;|"no: shipless and bought nothing"| planning_5d04__end
+  planning_5d04__hire --&gt; planning_5d04__needs
+  planning_5d04__needs --&gt; planning_5d04__arty
+  planning_5d04__arty --&gt;|"yes"| planning_5d04__buy_arty
+  planning_5d04__arty --&gt;|"no"| planning_5d04__swap
+  planning_5d04__buy_arty --&gt; planning_5d04__swap
+  planning_5d04__swap --&gt; planning_5d04__two_pass
+  planning_5d04__two_pass --&gt; planning_5d04__demand
+  planning_5d04__demand --&gt; planning_5d04__depart
+  planning_5d04__depart --&gt; planning_5d04__end
+  style planning_5d04__treasury fill:#d8f5d0,stroke:#2b8a3e,color:#212529
+  style planning_5d04__flags fill:#d8f5d0,stroke:#2b8a3e,color:#212529
+  style planning_5d04__floors fill:#d8f5d0,stroke:#2b8a3e,color:#212529
+  style planning_5d04__ladder_gate fill:#ffffff,stroke:#868e96,color:#212529
+  style planning_5d04__frig fill:#d8f5d0,stroke:#2b8a3e,color:#212529
+  style planning_5d04__priv fill:#ffffff,stroke:#868e96,color:#212529
+  style planning_5d04__rng_ladder fill:#d8f5d0,stroke:#2b8a3e,color:#212529
+  style planning_5d04__abort fill:#ffffff,stroke:#868e96,color:#212529
+  style planning_5d04__hire_gate fill:#ffffff,stroke:#868e96,color:#212529
+  style planning_5d04__hire fill:#d8f5d0,stroke:#2b8a3e,color:#212529,stroke-width:2px
+  style planning_5d04__needs fill:#d8f5d0,stroke:#2b8a3e,color:#212529
+  style planning_5d04__arty fill:#ffffff,stroke:#868e96,color:#212529
+  style planning_5d04__buy_arty fill:#ffffff,stroke:#868e96,color:#212529
+  style planning_5d04__swap fill:#d8f5d0,stroke:#2b8a3e,color:#212529
+  style planning_5d04__two_pass fill:#d8f5d0,stroke:#2b8a3e,color:#212529
+  style planning_5d04__demand fill:#d8f5d0,stroke:#2b8a3e,color:#212529
+  style planning_5d04__depart fill:#d8f5d0,stroke:#2b8a3e,color:#212529
+  style planning_5d04__end fill:#ffffff,stroke:#868e96,color:#212529
+</pre></div>
+<details><summary>Node notes and citations</summary><table><tr><td>treasury</td><td>Treasury bump</td><td><code>ai_euro.c:ai_euro_5d04_treasury_bump</code><br/>DOS: FUN_521d_5d04 head</td></tr><tr><td>flags</td><td>Compute planning flags (college, frigate/privateer threat, no-clear-navy, cargo-short)</td><td><code>ai_euro.c:ai_euro_5d04_compute_flags</code><br/>DOS: raw 85934-86024, 92412-92532<br/>WoI arm seizes the nation's Man-O-War into expeditionary_force (ai_euro_5d04_woi_seize_manowar). Threat crumbs are the 4962_0018 census tallies 0xa89a/0xa89b/0x9e52/0x9e54.</td></tr><tr><td>floors</td><td>Apply naval gold floors (= 5c3c purchase prices per threat flag)</td><td><code>ai_euro.c:ai_euro_5d04_apply_naval_gold_floors</code></td></tr><tr><td>ladder_gate</td><td>WoI, or ship_cargo_totals &gt; census_pop_proxy/2 + colony count?</td><td><code>ai_euro.c:ai_euro_5d04_ship_buy_ladder</code></td></tr><tr><td>frig</td><td>frigate_threatened? → buy Frigate (5000)</td><td><code>ai_euro.c:ai_euro_5d04_propose_ship_buy</code><br/>DOS: FUN_521d_5c3c purchase table DS:0x978d (Artillery 500 / Caravel 1000 / Merchantman 2000 / Galleon 3000 / Privateer 2000 / Frigate 5000)</td></tr><tr><td>priv</td><td>privateer_threatened? → buy Privateer (2000)</td><td></td></tr><tr><td>rng_ladder</td><td>RNG ladder — Frigate / Galleon / Merchantman / Caravel / Privateer</td><td><code>ai_euro.c:ai_euro_5d04_ship_buy_ladder</code><br/>armed&lt;8 &amp;&amp; RNG(0,1)!=0 &amp;&amp; no_clear_navy → Frigate; RNG(0,3)!=0 → Galleon; RNG(0,1)==0 &amp;&amp; cargo&lt;12 → Merchantman; cargo&lt;3 → Caravel; armed&lt;4 &amp;&amp; RNG(0,3)==0 &amp;&amp; no_clear_navy &amp;&amp; !cargo_short → Privateer. First affordable wins.</td></tr><tr><td>abort</td><td>Abort planning (threat buy failed) — hire tail skipped</td><td>DOS: raw 92541/92547 early return</td></tr><tr><td>hire_gate</td><td>Bought a ship OR nation already has ships? (raw 92568)</td><td></td></tr><tr><td>hire</td><td>Hire ladder tail (the DOS Europe hire economy)</td><td><code>ai_euro.c:ai_euro_5d04_hire_ladder_tail</code><br/>DOS: raw 92568-93070</td></tr><tr><td>needs</td><td>Colony musket/tool needs (DS:0xa0da/0xa0db, minus own Pioneers)</td><td><code>ai_euro.c:ai_euro_5d04_cb_colony_needs</code></td></tr><tr><td>arty</td><td>No Artillery on dock &amp;&amp; muskets needed &amp;&amp; RNG(0,3)==0 &amp;&amp; !cargo_short &amp;&amp; cargo totals&gt;4 &amp;&amp; !WoI?</td><td>DOS: raw 92569-92578</td></tr><tr><td>buy_arty</td><td>Buy Artillery (500)</td><td><code>ai_euro.c:ai_euro_5d04_propose_ship_buy</code></td></tr><tr><td>swap</td><td>Recruit-slot swap when gold &gt;= price + reserve(census_pop_proxy)</td><td>DOS: raw 92592-92625</td></tr><tr><td>two_pass</td><td>Two-pass Europe dock candidate loop (unskilled pass, skilled pass); muskets-training arm</td><td>DOS: raw 86122-86306; LAB_521d_642a/6454<br/>Skips when any colony exists and (unit bit5 or turn%3==0). turn&gt;99 Pioneer-training skip reads unit_type_counts[n][2].</td></tr><tr><td>demand</td><td>Colony demand vs purchase loop (demand query modes 4/0xc/0xe; goal trigger 0xb)</td><td>DOS: raw 86307-86479<br/>turn&gt;0x50 crosses-bank delay counter; turn&gt;0x27 price adjust (difficulty-10)*-100.</td></tr><tr><td>depart</td><td>Departing-ship loop — sell/bank hold, top up with the cargo colonies most want</td><td>DOS: raw 92983-93070<br/>Buys 100 of a cargo when its demand cell (DS:0xa0cc) exceeds Europe land units + turn parity; resets +0x314a=0xff on the ship; Missionary latch unit_type_counts[n][3]++.</td></tr><tr><td>end</td><td>return</td><td></td></tr></table></details>
+<div class='top'><a href='#top'>top</a></div></section>
+<section id='graph-goals_0a60'><h2>Goal writer — ai_euro_colony_goals (FUN_521d_0a60 sections A–H)</h2>
+<div class='meta'>id <code>goals_0a60</code> · entry <code>clear_wq</code> · reached from <a href='#graph-dispatcher'>dispatcher</a></div>
+<div class='diagram'><pre class='mermaid'>flowchart TD
+  goals_0a60__clear_wq["Clear work queue (16 slots)&lt;br/&gt;&lt;i&gt;ai_goals_clear_work_queue&lt;/i&gt;"]
+  goals_0a60__sec_a["A: urgency seed; coarse-plane wipe + restamp"]
+  goals_0a60__housekeeping[["Unit housekeeping — +0x3148 bits, act-state transitions, foreign-ship CONTACT&lt;br/&gt;&lt;i&gt;ai_euro_0a60_unit_housekeeping&lt;/i&gt;"]]
+  goals_0a60__sec_b[/"B: own land units — adjacent foreign unit → CONTACT prio 3&lt;br/&gt;&lt;i&gt;ai_goals_upsert_primary&lt;/i&gt;"/]
+  goals_0a60__ship_reset["Reset ship-pressure tallies&lt;br/&gt;&lt;i&gt;ai_euro_ship_pressure_reset&lt;/i&gt;"]
+  goals_0a60__sec_d[/"D: own colony loop&lt;br/&gt;&lt;i&gt;ai_euro_colony_goals&lt;/i&gt;"/]
+  goals_0a60__d_flags[["Refresh colony ai_flags — ship probe, field tallies, NEEDS_COLONISTS, WANTS_PIONEER_WORK&lt;br/&gt;&lt;i&gt;ai_euro_refresh_colony_ai_flags&lt;/i&gt;"]]
+  goals_0a60__d_threat[["Threat accumulator → garrison_quota&lt;br/&gt;&lt;i&gt;ai_euro_colony_threat_seed_5952&lt;/i&gt;"]]
+  goals_0a60__d_labor["LABOR primary — tools/food shortage, underpop, Stockade/Warehouse construction; threatened-Stockade prio bump&lt;br/&gt;&lt;i&gt;ai_goals_upsert_primary&lt;/i&gt;"]
+  goals_0a60__d_colony["COLONY / COLONY_ALT primary — blockade bits set → prio 8"]
+  goals_0a60__d_work["Work-queue haul score → ai_goals_upsert_work&lt;br/&gt;&lt;i&gt;ai_goals_upsert_work&lt;/i&gt;"]
+  goals_0a60__d_garrison["Garrison-quota distribution — LABOR at colony for 'A' military units under quota"]
+  goals_0a60__sec_e[/"E: foreign colonies at war → MILITARY prio 5; thin bind one idle Soldier/Dragoon&lt;br/&gt;&lt;i&gt;ai_diplo_at_war&lt;/i&gt;"/]
+  goals_0a60__e_scout[/"E2: peace, own≥1 — idle Scout → CONTACT ring MD 2–4 prio 2, else fog-explore&lt;br/&gt;&lt;i&gt;ai_euro_scout_contact_ring_target&lt;/i&gt;"/]
+  goals_0a60__food["Food emergency — food_short ≥ 4 → bind nearest food-capable colonist MD≤8 to LABOR"]
+  goals_0a60__sec_f[/"F: tribes — tribe-adjacent FOUND secondary prio 2 (never on the village); friction#62;50 → MILITARY (capital higher)&lt;br/&gt;&lt;i&gt;ai_euro_pick_founding_tile&lt;/i&gt;"/]
+  goals_0a60__producers[["Foreign-colony + village producers — MILITARY approach, CONTACT lurk, FOUND/MIL_EXPAND ship staging&lt;br/&gt;&lt;i&gt;ai_euro_0a60_settlement_goal_producers&lt;/i&gt;"]]
+  goals_0a60__sec_g["G: continent stance — own≥2: at war MILITARY on weakest/nearest foe prio 6/7/8; peace bump one FOUND +1 or explore&lt;br/&gt;&lt;i&gt;ai_euro_refresh_continent_stance&lt;/i&gt;"]
+  goals_0a60__ship_found["Ship FOUND — colonies#60;6: 06ae landfall seed from each ship at sea → FOUND primary&lt;br/&gt;&lt;i&gt;ai_euro_06ae_first_colony_from_landfall&lt;/i&gt;"]
+  goals_0a60__sec_h[/"H: idle land founders (Pioneer/Colonist, not mid-improve, not Soldier) → per-unit nearest FOUND primary&lt;br/&gt;&lt;i&gt;ai_goals_best_found_tile_near&lt;/i&gt;"/]
+  goals_0a60__end(["return"])
+  goals_0a60__clear_wq --&gt; goals_0a60__sec_a
+  goals_0a60__sec_a --&gt; goals_0a60__housekeeping
+  goals_0a60__housekeeping --&gt; goals_0a60__sec_b
+  goals_0a60__sec_b --&gt; goals_0a60__ship_reset
+  goals_0a60__ship_reset --&gt; goals_0a60__sec_d
+  goals_0a60__sec_d --&gt;|"each own colony"| goals_0a60__d_flags
+  goals_0a60__d_flags --&gt; goals_0a60__d_threat
+  goals_0a60__d_threat --&gt; goals_0a60__d_labor
+  goals_0a60__d_labor --&gt; goals_0a60__d_colony
+  goals_0a60__d_colony --&gt; goals_0a60__d_work
+  goals_0a60__d_work --&gt; goals_0a60__d_garrison
+  goals_0a60__d_garrison --&gt;|"next colony"| goals_0a60__sec_d
+  goals_0a60__sec_d --&gt;|"done"| goals_0a60__sec_e
+  goals_0a60__sec_e --&gt; goals_0a60__e_scout
+  goals_0a60__e_scout --&gt; goals_0a60__food
+  goals_0a60__food --&gt; goals_0a60__sec_f
+  goals_0a60__sec_f --&gt; goals_0a60__producers
+  goals_0a60__producers --&gt; goals_0a60__sec_g
+  goals_0a60__sec_g --&gt; goals_0a60__ship_found
+  goals_0a60__ship_found --&gt; goals_0a60__sec_h
+  goals_0a60__sec_h --&gt; goals_0a60__end
+  style goals_0a60__clear_wq fill:#d8f5d0,stroke:#2b8a3e,color:#212529
+  style goals_0a60__sec_a fill:#d0ebff,stroke:#1971c2,color:#212529
+  style goals_0a60__housekeeping fill:#d8f5d0,stroke:#2b8a3e,color:#212529
+  style goals_0a60__sec_b fill:#d8f5d0,stroke:#2b8a3e,color:#212529
+  style goals_0a60__ship_reset fill:#d8f5d0,stroke:#2b8a3e,color:#212529
+  style goals_0a60__sec_d fill:#d0ebff,stroke:#1971c2,color:#212529
+  style goals_0a60__d_flags fill:#d8f5d0,stroke:#2b8a3e,color:#212529
+  style goals_0a60__d_threat fill:#d8f5d0,stroke:#2b8a3e,color:#212529
+  style goals_0a60__d_labor fill:#d0ebff,stroke:#1971c2,color:#212529
+  style goals_0a60__d_colony fill:#d8f5d0,stroke:#2b8a3e,color:#212529
+  style goals_0a60__d_work fill:#d8f5d0,stroke:#2b8a3e,color:#212529
+  style goals_0a60__d_garrison fill:#d8f5d0,stroke:#2b8a3e,color:#212529
+  style goals_0a60__sec_e fill:#fff3bf,stroke:#e67700,color:#212529
+  style goals_0a60__e_scout fill:#e9ecef,stroke:#495057,color:#212529
+  style goals_0a60__food fill:#e9ecef,stroke:#495057,color:#212529
+  style goals_0a60__sec_f fill:#d0ebff,stroke:#1971c2,color:#212529
+  style goals_0a60__producers fill:#d8f5d0,stroke:#2b8a3e,color:#212529
+  style goals_0a60__sec_g fill:#e9ecef,stroke:#495057,color:#212529
+  style goals_0a60__ship_found fill:#d0ebff,stroke:#1971c2,color:#212529
+  style goals_0a60__sec_h fill:#e9ecef,stroke:#495057,color:#212529
+  style goals_0a60__end fill:#ffffff,stroke:#868e96,color:#212529
+</pre></div>
+<details><summary>Node notes and citations</summary><table><tr><td>clear_wq</td><td>Clear work queue (16 slots)</td><td><code>ai_goals.c:ai_goals_clear_work_queue</code><br/>DOS: FUN_521d_031c</td></tr><tr><td>sec_a</td><td>A: urgency seed; coarse-plane wipe + restamp</td><td>DOS: FUN_1d1d_0dae(0x9faa,0,0x10e)</td></tr><tr><td>housekeeping</td><td>Unit housekeeping — +0x3148 bits, act-state transitions, foreign-ship CONTACT</td><td><code>ai_euro.c:ai_euro_0a60_unit_housekeeping</code><br/>DOS: 0a60 raw lines 1-189<br/>FOUND/MIL_EXPAND eligibility (bits 2/3) from 0d38 stack counts (military ≥2 or mobilizable → bits 2+3; Pioneers → bit 2); spare-transport bit5 (one ship per nation per turn); act_state 1/2/3 → 0 on tile, 10 at a contact claim, 1 when aboard/off-map; foreign hostile ship → CONTACT prio 3 (Frigates only post-declaration).</td></tr><tr><td>sec_b</td><td>B: own land units — adjacent foreign unit → CONTACT prio 3</td><td><code>ai_goals.c:ai_goals_upsert_primary</code><br/>DOS: 0a60 unit loop thunk_FUN_2a1f_0470</td></tr><tr><td>ship_reset</td><td>Reset ship-pressure tallies</td><td><code>ai_euro.c:ai_euro_ship_pressure_reset</code><br/>DOS: FUN_4962_0018 raw 78239-78242</td></tr><tr><td>sec_d</td><td>D: own colony loop</td><td><code>ai_euro.c:ai_euro_colony_goals</code><br/>DOS: 0a60 colony loop raw 190-980</td></tr><tr><td>d_flags</td><td>Refresh colony ai_flags — ship probe, field tallies, NEEDS_COLONISTS, WANTS_PIONEER_WORK</td><td><code>ai_euro.c:ai_euro_refresh_colony_ai_flags</code><br/>DOS: FUN_4962_0018 phase-3 ship probe (blockade bits 0x01/0x02); FUN_5952_035e raw 94200-94206, 555-563</td></tr><tr><td>d_threat</td><td>Threat accumulator → garrison_quota</td><td><code>ai_euro.c:ai_euro_colony_threat_seed_5952</code><br/>DOS: FUN_5952_035e 11×11 scan<br/>Floor from building chain rows 0-2; outside&gt;0x32; stance nibble; WoI and SMALL_AI colony adjustments; Indian war-declare block lives in ai_contact.c.</td></tr><tr><td>d_labor</td><td>LABOR primary — tools/food shortage, underpop, Stockade/Warehouse construction; threatened-Stockade prio bump</td><td><code>ai_goals.c:ai_goals_upsert_primary</code><br/>NOT from Col1 +0x8e labor_shortage (dropped 2026-09-09, it is ≥1 for nearly every colony).</td></tr><tr><td>d_colony</td><td>COLONY / COLONY_ALT primary — blockade bits set → prio 8</td><td>DOS: 0a60 thunk_FUN_2a1f_0470 call</td></tr><tr><td>d_work</td><td>Work-queue haul score → ai_goals_upsert_work</td><td><code>ai_goals.c:ai_goals_upsert_work</code><br/>DOS: 0a60 colony loop raw 528-604 (thunk_FUN_2a1f_0524)<br/>Σ euro_price × (stock − target) over cargos except FOOD/LUMBER/TRADE_GOODS (MUSKETS −100 discount, HORSES floor-adjust); +800 idle Pioneer / +1500 exposed combat unit on the tile; bVar5 registration gate; 0x1734[nation] urgency bump.</td></tr><tr><td>d_garrison</td><td>Garrison-quota distribution — LABOR at colony for 'A' military units under quota</td><td>DOS: 0a60 raw 904-980; 0d38 case 0xa armed count</td></tr><tr><td>sec_e</td><td>E: foreign colonies at war → MILITARY prio 5; thin bind one idle Soldier/Dragoon</td><td><code>ai_diplo.c:ai_diplo_at_war</code></td></tr><tr><td>e_scout</td><td>E2: peace, own≥1 — idle Scout → CONTACT ring MD 2–4 prio 2, else fog-explore</td><td><code>ai_euro.c:ai_euro_scout_contact_ring_target</code><br/>Chains with the act-phase copy (act only re-aims without a useful goto).</td></tr><tr><td>food</td><td>Food emergency — food_short ≥ 4 → bind nearest food-capable colonist MD≤8 to LABOR</td><td></td></tr><tr><td>sec_f</td><td>F: tribes — tribe-adjacent FOUND secondary prio 2 (never on the village); friction&gt;50 → MILITARY (capital higher)</td><td><code>ai_euro.c:ai_euro_pick_founding_tile</code></td></tr><tr><td>producers</td><td>Foreign-colony + village producers — MILITARY approach, CONTACT lurk, FOUND/MIL_EXPAND ship staging</td><td><code>ai_euro.c:ai_euro_0a60_settlement_goal_producers</code><br/>DOS: 0a60 raw 983-1276 (viceroy ~87795-88052)<br/>Fair-play gates difficulty×turn &lt; 0xb5 / 0xc9; outmatched (fewer colonies + owner has ≥8 skilled) vs absent; open-sea staging tile scan ±3; priority ladder (human owner, colony tally, MET-not-PEACE, turn&lt;0x96); weak-defender cancel (defenders ≤ 6 − turn/50). Village loop: CONTACT lurk ring, FOUND beachhead on colony-free continents (0x173c/0x173e masks).</td></tr><tr><td>sec_g</td><td>G: continent stance — own≥2: at war MILITARY on weakest/nearest foe prio 6/7/8; peace bump one FOUND +1 or explore</td><td><code>ai_euro.c:ai_euro_refresh_continent_stance</code></td></tr><tr><td>ship_found</td><td>Ship FOUND — colonies&lt;6: 06ae landfall seed from each ship at sea → FOUND primary</td><td><code>ai_euro.c:ai_euro_06ae_first_colony_from_landfall</code><br/>DOS: FUN_521d_06ae site pick (20e6 unload placement 89587 / landing ~85045)</td></tr><tr><td>sec_h</td><td>H: idle land founders (Pioneer/Colonist, not mid-improve, not Soldier) → per-unit nearest FOUND primary</td><td><code>ai_goals.c:ai_goals_best_found_tile_near</code></td></tr><tr><td>end</td><td>return</td><td></td></tr></table></details>
+<div class='top'><a href='#top'>top</a></div></section>
+<section id='graph-goal_orders'><h2>Goal consumption — ai_euro_0a60_goal_orders_structural (0a60 tail)</h2>
+<div class='meta'>id <code>goal_orders</code> · entry <code>weight</code> · reached from <a href='#graph-dispatcher'>dispatcher</a></div>
+<div class='diagram'><pre class='mermaid'>flowchart TD
+  goal_orders__weight["Weight seed = clamp(all_unit_counts[nation] #62;#62; 3, 3, 99) for every primary slot&lt;br/&gt;&lt;i&gt;ai_euro_0a60_weight_seed&lt;/i&gt;"]
+  goal_orders__loop[/"Each own unit (slot walk)&lt;br/&gt;&lt;i&gt;ai_euro_0a60_goal_orders_structural&lt;/i&gt;"/]
+  goal_orders__skip_job{"Mid Pioneer job (CLEAR_PLOW / BUILD_ROAD)?"}
+  goal_orders__skip_state{"order 'A' → clear; act_state ≥10, or act_state ∉ {0,5,6} → skip; stale 't'/'i' → '?'"}
+  goal_orders__presence{"Land Soldier/Dragoon whose continent has #60;3 land units (or #60;2 and no colony)?&lt;br/&gt;&lt;i&gt;ai_euro_0a60_continent_presence&lt;/i&gt;"}
+  goal_orders__scan[/"Scan primary slots — capability match (FOUND bit2 / MIL_EXPAND bit3 / CONTACT / MILITARY / LABOR), same continent for land, can_pursue&lt;br/&gt;&lt;i&gt;ai_euro_0a60_unit_can_pursue_goal&lt;/i&gt;"/]
+  goal_orders__commit["Commit best slot: order '1' (FOUND 't', MIL_EXPAND 'i'), act_state 0xb, goal x/y/code; claim-count++ unless MILITARY"]
+  goal_orders__end(["return (unit_act reads the pilot state back)"])
+  goal_orders__weight --&gt; goal_orders__loop
+  goal_orders__loop --&gt; goal_orders__skip_job
+  goal_orders__skip_job --&gt;|"yes"| goal_orders__loop
+  goal_orders__skip_job --&gt;|"no"| goal_orders__skip_state
+  goal_orders__skip_state --&gt;|"skip"| goal_orders__loop
+  goal_orders__skip_state --&gt;|"eligible"| goal_orders__presence
+  goal_orders__presence --&gt;|"yes: hold"| goal_orders__loop
+  goal_orders__presence --&gt;|"no"| goal_orders__scan
+  goal_orders__scan --&gt;|"best slot found"| goal_orders__commit
+  goal_orders__scan --&gt;|"no slot"| goal_orders__loop
+  goal_orders__commit --&gt;|"next unit"| goal_orders__loop
+  goal_orders__loop --&gt;|"done"| goal_orders__end
+  style goal_orders__weight fill:#d8f5d0,stroke:#2b8a3e,color:#212529
+  style goal_orders__loop fill:#ffffff,stroke:#868e96,color:#212529
+  style goal_orders__skip_job fill:#e9ecef,stroke:#495057,color:#212529
+  style goal_orders__skip_state fill:#d0ebff,stroke:#1971c2,color:#212529
+  style goal_orders__presence fill:#d8f5d0,stroke:#2b8a3e,color:#212529
+  style goal_orders__scan fill:#d8f5d0,stroke:#2b8a3e,color:#212529
+  style goal_orders__commit fill:#d0ebff,stroke:#1971c2,color:#212529
+  style goal_orders__end fill:#ffffff,stroke:#868e96,color:#212529
+</pre></div>
+<details><summary>Node notes and citations</summary><table><tr><td>weight</td><td>Weight seed = clamp(all_unit_counts[nation] &gt;&gt; 3, 3, 99) for every primary slot</td><td><code>ai_euro.c:ai_euro_0a60_weight_seed</code><br/>DOS: FUN_281f_035c → FUN_124c_000c clamp (521d:0ab8)</td></tr><tr><td>loop</td><td>Each own unit (slot walk)</td><td><code>ai_euro.c:ai_euro_0a60_goal_orders_structural</code></td></tr><tr><td>skip_job</td><td>Mid Pioneer job (CLEAR_PLOW / BUILD_ROAD)?</td><td>Port guard — pilot state is fresh each turn, so a multi-turn job would otherwise be hijacked.</td></tr><tr><td>skip_state</td><td>order 'A' → clear; act_state ≥10, or act_state ∉ {0,5,6} → skip; stale 't'/'i' → '?'</td><td>DOS: 0a60 tail order-code / act-state gates (unit+0x314b/+0x314c)</td></tr><tr><td>presence</td><td>Land Soldier/Dragoon whose continent has &lt;3 land units (or &lt;2 and no colony)?</td><td><code>ai_euro.c:ai_euro_0a60_continent_presence</code><br/>Home-defense hold — unit keeps no goal.</td></tr><tr><td>scan</td><td>Scan primary slots — capability match (FOUND bit2 / MIL_EXPAND bit3 / CONTACT / MILITARY / LABOR), same continent for land, can_pursue</td><td><code>ai_euro.c:ai_euro_0a60_unit_can_pursue_goal</code><br/>act_state 5/6 land units skip when standing in any Euro colony (FUN_137f_0358 euro_settlement_owner on the unit's own tile). Pick: score &lt; best &amp;&amp; score/weight_seed &lt;= prio*3/2.</td></tr><tr><td>commit</td><td>Commit best slot: order '1' (FOUND 't', MIL_EXPAND 'i'), act_state 0xb, goal x/y/code; claim-count++ unless MILITARY</td><td></td></tr><tr><td>end</td><td>return (unit_act reads the pilot state back)</td><td></td></tr></table></details>
+<div class='top'><a href='#top'>top</a></div></section>
+<section id='graph-unit_act'><h2>Unit act — ai_euro_unit_act (FUN_521d_5b66 dispatcher) common head</h2>
+<div class='meta'>id <code>unit_act</code> · entry <code>guard</code> · reached from <a href='#graph-dispatcher'>dispatcher</a> · opens <a href='#graph-land_band'>land_band</a>, <a href='#graph-move_scoring_gate'>move_scoring_gate</a>, <a href='#graph-ship_band'>ship_band</a></div>
+<div class='diagram'><pre class='mermaid'>flowchart TD
+  unit_act__guard{"Unit inactive or aboard a ship?&lt;br/&gt;&lt;i&gt;ai_euro_unit_act&lt;/i&gt;"}
+  unit_act__first_colony[["First-colony land beachhead (no colonies yet — Pioneer/Soldier found walk / sentry / found)&lt;br/&gt;&lt;i&gt;ai_euro_try_first_colony_land&lt;/i&gt;"]]
+  unit_act__no_mp{"moves_left #60;= 0?"}
+  unit_act__notify["Territorial notify + treasure tension bump&lt;br/&gt;&lt;i&gt;ai_euro_try_violate_notify&lt;/i&gt;"]
+  unit_act__roam_abort["Roam-abort — idle-wander goto cleared when a MET foreign unit is adjacent"]
+  unit_act__war_embark{"At war, land Soldier/Dragoon/Artillery on coastal own colony → board empty transport?&lt;br/&gt;&lt;i&gt;ai_euro_try_soldier_board_transport&lt;/i&gt;"}
+  unit_act__mil_unload["Ship not in Europe — drop Soldier at threatened coastal colony&lt;br/&gt;&lt;i&gt;ai_euro_try_unload_military_threatened&lt;/i&gt;"]
+  unit_act__mow_home{"WoI crown Man-O-War → sail home once pool spent?&lt;br/&gt;&lt;i&gt;ai_king_mow_sail_home_20e6&lt;/i&gt;"}
+  unit_act__gate_q{"Not on a goto, not mid Pioneer job, and type not deferred (Treasure/Missionary/Wagon/cargo ship)?"}
+  unit_act__gate[["Move-scoring gate (FUN_521d_20e6 land)&lt;br/&gt;&lt;i&gt;ai_euro_move_scoring_gate&lt;/i&gt;&lt;br/&gt;&lt;b&gt;→ move_scoring_gate&lt;/b&gt;"]]
+  unit_act__gate_ret{"Gate returned nonzero (act aborted)?"}
+  unit_act__admit_soldier["On own colony with no fortify quota — admit military unit as colonist"]
+  unit_act__corridors["First-colony staging corridors (Pioneer found+1 → SW coast; Soldier SE+1→SE+2→SE+3); on-tile equip arm"]
+  unit_act__is_ship{"Ship?"}
+  unit_act__ship_band[["Ship band&lt;br/&gt;&lt;b&gt;→ ship_band&lt;/b&gt;"]]
+  unit_act__land_band[["Land band&lt;br/&gt;&lt;b&gt;→ land_band&lt;/b&gt;"]]
+  unit_act__end(["return"])
+  unit_act__guard --&gt;|"yes"| unit_act__end
+  unit_act__guard --&gt;|"no"| unit_act__first_colony
+  unit_act__first_colony --&gt;|"handled"| unit_act__end
+  unit_act__first_colony --&gt;|"not handled"| unit_act__no_mp
+  unit_act__no_mp --&gt;|"yes"| unit_act__end
+  unit_act__no_mp --&gt;|"no"| unit_act__notify
+  unit_act__notify --&gt; unit_act__roam_abort
+  unit_act__roam_abort --&gt; unit_act__war_embark
+  unit_act__war_embark --&gt;|"boarded"| unit_act__end
+  unit_act__war_embark --&gt;|"no"| unit_act__mil_unload
+  unit_act__mil_unload --&gt; unit_act__mow_home
+  unit_act__mow_home --&gt;|"sailed"| unit_act__end
+  unit_act__mow_home --&gt;|"no"| unit_act__gate_q
+  unit_act__gate_q --&gt;|"yes"| unit_act__gate
+  unit_act__gate_q --&gt;|"no"| unit_act__admit_soldier
+  unit_act__gate --&gt; unit_act__gate_ret
+  unit_act__gate_ret --&gt;|"yes"| unit_act__end
+  unit_act__gate_ret --&gt;|"no"| unit_act__admit_soldier
+  unit_act__admit_soldier --&gt; unit_act__corridors
+  unit_act__corridors --&gt; unit_act__is_ship
+  unit_act__is_ship --&gt;|"yes"| unit_act__ship_band
+  unit_act__is_ship --&gt;|"no"| unit_act__land_band
+  unit_act__ship_band --&gt; unit_act__end
+  unit_act__land_band --&gt; unit_act__end
+  style unit_act__guard fill:#ffffff,stroke:#868e96,color:#212529
+  style unit_act__first_colony fill:#f3d9fa,stroke:#9c36b5,color:#212529
+  style unit_act__no_mp fill:#ffffff,stroke:#868e96,color:#212529
+  style unit_act__notify fill:#fff3bf,stroke:#e67700,color:#212529
+  style unit_act__roam_abort fill:#d0ebff,stroke:#1971c2,color:#212529
+  style unit_act__war_embark fill:#fff3bf,stroke:#e67700,color:#212529
+  style unit_act__mil_unload fill:#fff3bf,stroke:#e67700,color:#212529
+  style unit_act__mow_home fill:#d8f5d0,stroke:#2b8a3e,color:#212529
+  style unit_act__gate_q fill:#ffffff,stroke:#868e96,color:#212529
+  style unit_act__gate fill:#fff,stroke:#212529,color:#212529,stroke-width:2px,stroke-dasharray:4 2
+  click unit_act__gate "#graph-move_scoring_gate" "open move_scoring_gate"
+  style unit_act__gate_ret fill:#ffffff,stroke:#868e96,color:#212529
+  style unit_act__admit_soldier fill:#f3d9fa,stroke:#9c36b5,color:#212529
+  style unit_act__corridors fill:#f3d9fa,stroke:#9c36b5,color:#212529
+  style unit_act__is_ship fill:#ffffff,stroke:#868e96,color:#212529
+  style unit_act__ship_band fill:#fff,stroke:#212529,color:#212529,stroke-width:2px,stroke-dasharray:4 2
+  click unit_act__ship_band "#graph-ship_band" "open ship_band"
+  style unit_act__land_band fill:#fff,stroke:#212529,color:#212529,stroke-width:2px,stroke-dasharray:4 2
+  click unit_act__land_band "#graph-land_band" "open land_band"
+  style unit_act__end fill:#ffffff,stroke:#868e96,color:#212529
+</pre></div>
+<details><summary>Node notes and citations</summary><table><tr><td>guard</td><td>Unit inactive or aboard a ship?</td><td><code>ai_euro.c:ai_euro_unit_act</code></td></tr><tr><td>first_colony</td><td>First-colony land beachhead (no colonies yet — Pioneer/Soldier found walk / sentry / found)</td><td><code>ai_euro.c:ai_euro_try_first_colony_land</code><br/>DOS: 06ae site pick + 20e6 landing block; geometry fitted to TURN2–5 goldens<br/>Wakes sentry units; SP/FR/DU staging tips hard-coded from goldens (e.g. landfall 53,56).</td></tr><tr><td>no_mp</td><td>moves_left &lt;= 0?</td><td></td></tr><tr><td>notify</td><td>Territorial notify + treasure tension bump</td><td><code>ai_euro.c:ai_euro_try_violate_notify</code><br/>DOS: FUN_4720_049e</td></tr><tr><td>roam_abort</td><td>Roam-abort — idle-wander goto cleared when a MET foreign unit is adjacent</td><td>DOS: 20e6 epilogue unit+0x314c==5 clear (raw ~2213-2275)</td></tr><tr><td>war_embark</td><td>At war, land Soldier/Dragoon/Artillery on coastal own colony → board empty transport?</td><td><code>ai_euro.c:ai_euro_try_soldier_board_transport</code></td></tr><tr><td>mil_unload</td><td>Ship not in Europe — drop Soldier at threatened coastal colony</td><td><code>ai_euro.c:ai_euro_try_unload_military_threatened</code></td></tr><tr><td>mow_home</td><td>WoI crown Man-O-War → sail home once pool spent?</td><td><code>ai_king.c:ai_king_mow_sail_home_20e6</code><br/>DOS: 20e6 ship-band tail raw 89717-89720 + FUN_48d3_015e</td></tr><tr><td>gate_q</td><td>Not on a goto, not mid Pioneer job, and type not deferred (Treasure/Missionary/Wagon/cargo ship)?</td><td>DOS: 6d8e ~90552 early 20e6 call</td></tr><tr><td>gate</td><td>Move-scoring gate (FUN_521d_20e6 land)</td><td><code>ai_euro.c:ai_euro_move_scoring_gate</code></td></tr><tr><td>gate_ret</td><td>Gate returned nonzero (act aborted)?</td><td></td></tr><tr><td>admit_soldier</td><td>On own colony with no fortify quota — admit military unit as colonist</td><td>Dutch Isabella TURN4→5.</td></tr><tr><td>corridors</td><td>First-colony staging corridors (Pioneer found+1 → SW coast; Soldier SE+1→SE+2→SE+3); on-tile equip arm</td><td>Geometric offsets from town fitted to TURN4–7 goldens; equip arm cites raw 94304-94306.</td></tr><tr><td>is_ship</td><td>Ship?</td><td></td></tr><tr><td>ship_band</td><td>Ship band</td><td></td></tr><tr><td>land_band</td><td>Land band</td><td></td></tr><tr><td>end</td><td>return</td><td></td></tr></table></details>
+<div class='top'><a href='#top'>top</a></div></section>
+<section id='graph-ship_band'><h2>Ship band — unit_act is_ship branch (5b66 case 0x0b sail + 20e6 ship band)</h2>
+<div class='meta'>id <code>ship_band</code> · entry <code>cash_europe</code> · reached from <a href='#graph-unit_act'>unit_act</a> · opens <a href='#graph-ship_haul'>ship_haul</a>, <a href='#graph-unload_settle'>unload_settle</a></div>
+<div class='diagram'><pre class='mermaid'>flowchart TD
+  ship_band__cash_europe["Cash Treasure passengers at Europe/HS; dump-sell TRADE_GOODS at Europe&lt;br/&gt;&lt;i&gt;ai_euro_try_cash_treasure_europe&lt;/i&gt;"]
+  ship_band__in_europe{"Ship in Europe?&lt;br/&gt;&lt;i&gt;ai_euro_in_europe&lt;/i&gt;"}
+  ship_band__exit_europe["Europe → map — spiral-place on High Seas near landfall goto; first leg = scored ocean steps&lt;br/&gt;&lt;i&gt;ai_euro_resolve_landfall_goto&lt;/i&gt;"]
+  ship_band__retarget["Post-west-explore retarget to coastal staging by passenger landfall; post-found coast retarget&lt;br/&gt;&lt;i&gt;ai_euro_coastal_staging_from_landfall&lt;/i&gt;"]
+  ship_band__treasure_aboard{"Treasure aboard? (keep Europe sail, no hunt/haul yank)"}
+  ship_band__at_war{"At war with a Euro peer?&lt;br/&gt;&lt;i&gt;ai_euro_at_war_any_peer&lt;/i&gt;"}
+  ship_band__peace_haul["Peace — post-found coast cruise, else trade haul (arrival block / delivery matrix / queue)&lt;br/&gt;&lt;i&gt;ai_euro_try_post_found_coast_cruise&lt;/i&gt;"]
+  ship_band__haul[["Ship arrival + trade haul (20e6 ship band)&lt;br/&gt;&lt;i&gt;ai_euro_try_ship_trade_haul&lt;/i&gt;&lt;br/&gt;&lt;b&gt;→ ship_haul&lt;/b&gt;"]]
+  ship_band__war_naval["War — flee fort fire, adjacent attack, Privateer/idle re-aim to naval hunt target&lt;br/&gt;&lt;i&gt;ai_euro_naval_war_hunt_target&lt;/i&gt;"]
+  ship_band__reassert["Re-assert first-colony ship course (post-beachhead only)&lt;br/&gt;&lt;i&gt;ai_euro_first_colony_ship_course&lt;/i&gt;"]
+  ship_band__sail[/"AI_SAIL goto: score_move (ocean scorer) or greedy step until MP 0 / arrival; back-step guard&lt;br/&gt;&lt;i&gt;ai_euro_ocean_score_step&lt;/i&gt;"/]
+  ship_band__post["After sail — adjacent attack (war), mil unload, cash treasure at HS/Europe&lt;br/&gt;&lt;i&gt;ai_euro_naval_try_adjacent_attack&lt;/i&gt;"]
+  ship_band__unload[["Settle unload (passengers → landfall / FOUND)&lt;br/&gt;&lt;i&gt;ai_euro_unload_settle&lt;/i&gt;&lt;br/&gt;&lt;b&gt;→ unload_settle&lt;/b&gt;"]]
+  ship_band__tips["First-colony hold / cruise tip MP drain; post-found park (AI_MOVE@self)"]
+  ship_band__ambush["Naval ambush — warship ending adjacent to a foreign ship may lose remaining MP&lt;br/&gt;&lt;i&gt;ai_euro_naval_try_ambush&lt;/i&gt;"]
+  ship_band__end(["return"])
+  ship_band__cash_europe --&gt; ship_band__in_europe
+  ship_band__in_europe --&gt;|"yes"| ship_band__exit_europe
+  ship_band__in_europe --&gt;|"no"| ship_band__retarget
+  ship_band__exit_europe --&gt; ship_band__treasure_aboard
+  ship_band__retarget --&gt; ship_band__treasure_aboard
+  ship_band__treasure_aboard --&gt;|"yes"| ship_band__reassert
+  ship_band__treasure_aboard --&gt;|"no"| ship_band__at_war
+  ship_band__at_war --&gt;|"no, and no useful goto"| ship_band__peace_haul
+  ship_band__at_war --&gt;|"yes"| ship_band__war_naval
+  ship_band__peace_haul --&gt;|"no coast cruise"| ship_band__haul
+  ship_band__haul --&gt; ship_band__reassert
+  ship_band__peace_haul --&gt;|"cruise set"| ship_band__reassert
+  ship_band__war_naval --&gt; ship_band__reassert
+  ship_band__reassert --&gt; ship_band__sail
+  ship_band__sail --&gt; ship_band__post
+  ship_band__post --&gt;|"not the Europe-exit act"| ship_band__unload
+  ship_band__post --&gt;|"Europe-exit act"| ship_band__tips
+  ship_band__unload --&gt; ship_band__tips
+  ship_band__tips --&gt; ship_band__ambush
+  ship_band__ambush --&gt; ship_band__end
+  style ship_band__cash_europe fill:#fff3bf,stroke:#e67700,color:#212529
+  style ship_band__in_europe fill:#ffffff,stroke:#868e96,color:#212529
+  style ship_band__exit_europe fill:#d0ebff,stroke:#1971c2,color:#212529
+  style ship_band__retarget fill:#f3d9fa,stroke:#9c36b5,color:#212529
+  style ship_band__treasure_aboard fill:#ffffff,stroke:#868e96,color:#212529
+  style ship_band__at_war fill:#ffffff,stroke:#868e96,color:#212529
+  style ship_band__peace_haul fill:#d0ebff,stroke:#1971c2,color:#212529
+  style ship_band__haul fill:#fff,stroke:#212529,color:#212529,stroke-width:2px,stroke-dasharray:4 2
+  click ship_band__haul "#graph-ship_haul" "open ship_haul"
+  style ship_band__war_naval fill:#fff3bf,stroke:#e67700,color:#212529
+  style ship_band__reassert fill:#f3d9fa,stroke:#9c36b5,color:#212529
+  style ship_band__sail fill:#d0ebff,stroke:#1971c2,color:#212529
+  style ship_band__post fill:#fff3bf,stroke:#e67700,color:#212529
+  style ship_band__unload fill:#fff,stroke:#212529,color:#212529,stroke-width:2px,stroke-dasharray:4 2
+  click ship_band__unload "#graph-unload_settle" "open unload_settle"
+  style ship_band__tips fill:#f3d9fa,stroke:#9c36b5,color:#212529
+  style ship_band__ambush fill:#fff3bf,stroke:#e67700,color:#212529
+  style ship_band__end fill:#ffffff,stroke:#868e96,color:#212529
+</pre></div>
+<details><summary>Node notes and citations</summary><table><tr><td>cash_europe</td><td>Cash Treasure passengers at Europe/HS; dump-sell TRADE_GOODS at Europe</td><td><code>ai_euro.c:ai_euro_try_cash_treasure_europe</code></td></tr><tr><td>in_europe</td><td>Ship in Europe?</td><td><code>ai_euro.c:ai_euro_in_europe</code></td></tr><tr><td>exit_europe</td><td>Europe → map — spiral-place on High Seas near landfall goto; first leg = scored ocean steps</td><td><code>ai_euro.c:ai_euro_resolve_landfall_goto</code><br/>DOS: FUN_48d3_048e/0434; LAB_521d_3558 ocean scorer</td></tr><tr><td>retarget</td><td>Post-west-explore retarget to coastal staging by passenger landfall; post-found coast retarget</td><td><code>ai_euro.c:ai_euro_coastal_staging_from_landfall</code><br/>TURN2–5 goldens (ship XY = staging tip; FR lands near 52,43).</td></tr><tr><td>treasure_aboard</td><td>Treasure aboard? (keep Europe sail, no hunt/haul yank)</td><td></td></tr><tr><td>at_war</td><td>At war with a Euro peer?</td><td><code>ai_euro.c:ai_euro_at_war_any_peer</code></td></tr><tr><td>peace_haul</td><td>Peace — post-found coast cruise, else trade haul (arrival block / delivery matrix / queue)</td><td><code>ai_euro.c:ai_euro_try_post_found_coast_cruise</code></td></tr><tr><td>haul</td><td>Ship arrival + trade haul (20e6 ship band)</td><td><code>ai_euro.c:ai_euro_try_ship_trade_haul</code></td></tr><tr><td>war_naval</td><td>War — flee fort fire, adjacent attack, Privateer/idle re-aim to naval hunt target</td><td><code>ai_euro.c:ai_euro_naval_war_hunt_target</code><br/>Deep 20e6 naval combat scoring PARKED; Galleon/Frigate prefer threatened own coastal colony.</td></tr><tr><td>reassert</td><td>Re-assert first-colony ship course (post-beachhead only)</td><td><code>ai_euro.c:ai_euro_first_colony_ship_course</code></td></tr><tr><td>sail</td><td>AI_SAIL goto: score_move (ocean scorer) or greedy step until MP 0 / arrival; back-step guard</td><td><code>ai_euro.c:ai_euro_ocean_score_step</code><br/>DOS: LAB_521d_3558 ocean branch</td></tr><tr><td>post</td><td>After sail — adjacent attack (war), mil unload, cash treasure at HS/Europe</td><td><code>ai_euro.c:ai_euro_naval_try_adjacent_attack</code></td></tr><tr><td>unload</td><td>Settle unload (passengers → landfall / FOUND)</td><td><code>ai_euro.c:ai_euro_unload_settle</code></td></tr><tr><td>tips</td><td>First-colony hold / cruise tip MP drain; post-found park (AI_MOVE@self)</td><td>TURN2/TURN5 goldens; COL1 export maps AI_MOVE@self → moves spent 0.</td></tr><tr><td>ambush</td><td>Naval ambush — warship ending adjacent to a foreign ship may lose remaining MP</td><td><code>ai_euro.c:ai_euro_naval_try_ambush</code><br/>DOS: FUN_5bfb_3180 (thin)</td></tr><tr><td>end</td><td>return</td><td></td></tr></table></details>
+<div class='top'><a href='#top'>top</a></div></section>
+<section id='graph-ship_haul'><h2>Ship arrival + haul — 20e6 ship band at an own colony (raw 1691, 2044-2168, 2991-3138, 4393, 457e)</h2>
+<div class='meta'>id <code>ship_haul</code> · entry <code>cap_gate</code> · reached from <a href='#graph-ship_band'>ship_band</a></div>
+<div class='diagram'><pre class='mermaid'>flowchart TD
+  ship_haul__cap_gate{"Cargo-capable type standing at (berthed next to) an own colony?&lt;br/&gt;&lt;i&gt;ai_euro_20e6_ship_berth_arrival&lt;/i&gt;"}
+  ship_haul__clear_marks["Clear stale board marks on the berth stack&lt;br/&gt;&lt;i&gt;ai_euro_20e6_clear_stale_board_marks&lt;/i&gt;"]
+  ship_haul__dump["Dump every hold into the colony; drop +0x314a origin; zero colony +0x8f"]
+  ship_haul__cower{"Cargo ship ≤ Merchantman at a NEARBY_FRIGATE colony and turns_worked #60; 10 − capacity?"}
+  ship_haul__load["LOAD matrix — one cargo per free hold; latch source colony in +0x314a&lt;br/&gt;&lt;i&gt;ai_euro_20e6_load_pick&lt;/i&gt;"]
+  ship_haul__board_marks["Passenger-board MARK scan — armed / Pioneer members get act_state 1, hold budget debited"]
+  ship_haul__assemble[["Transport assemble — board marked members (+ two force-board invariant arms)&lt;br/&gt;&lt;i&gt;ai_euro_20e6_transport_assemble&lt;/i&gt;"]]
+  ship_haul__delivery_q{"Delivery cargo aboard (Horses / Trade Goods / Tools / Muskets)?&lt;br/&gt;&lt;i&gt;ai_euro_20e6_delivery_tallies&lt;/i&gt;"}
+  ship_haul__deliver["Delivery colony pick → AI_SAIL there&lt;br/&gt;&lt;i&gt;ai_euro_20e6_delivery_colony_pick&lt;/i&gt;"]
+  ship_haul__sell_tail["No taker — sell tail (hold strip + ledger, untaxed), fall through with empty hull&lt;br/&gt;&lt;i&gt;ai_euro_20e6_delivery_sell_tail&lt;/i&gt;"]
+  ship_haul__laden{"Holds occupied and untasked → sail for High Seas / Europe?"}
+  ship_haul__queue["Work-queue pickup pick (ships only) → AI_SAIL to queue tip; proportional score write-back on consume&lt;br/&gt;&lt;i&gt;ai_euro_4393_work_queue_haul_pick&lt;/i&gt;"]
+  ship_haul__cadence["Empty untasked ship — High Seas cadence&lt;br/&gt;&lt;i&gt;ai_euro_20e6_457e_hs_cadence&lt;/i&gt;"]
+  ship_haul__end(["return"])
+  ship_haul__cap_gate --&gt;|"yes"| ship_haul__clear_marks
+  ship_haul__cap_gate --&gt;|"no"| ship_haul__delivery_q
+  ship_haul__clear_marks --&gt; ship_haul__dump
+  ship_haul__dump --&gt; ship_haul__cower
+  ship_haul__cower --&gt;|"yes: park in port"| ship_haul__end
+  ship_haul__cower --&gt;|"no"| ship_haul__load
+  ship_haul__load --&gt; ship_haul__board_marks
+  ship_haul__board_marks --&gt; ship_haul__assemble
+  ship_haul__assemble --&gt; ship_haul__delivery_q
+  ship_haul__delivery_q --&gt;|"yes, colony wants it"| ship_haul__deliver
+  ship_haul__delivery_q --&gt;|"yes, no taker"| ship_haul__sell_tail
+  ship_haul__delivery_q --&gt;|"no"| ship_haul__laden
+  ship_haul__deliver --&gt; ship_haul__end
+  ship_haul__sell_tail --&gt; ship_haul__laden
+  ship_haul__laden --&gt;|"yes: sail"| ship_haul__end
+  ship_haul__laden --&gt;|"no"| ship_haul__queue
+  ship_haul__queue --&gt;|"tip found"| ship_haul__end
+  ship_haul__queue --&gt;|"queue empty"| ship_haul__cadence
+  ship_haul__cadence --&gt; ship_haul__end
+  style ship_haul__cap_gate fill:#d8f5d0,stroke:#2b8a3e,color:#212529
+  style ship_haul__clear_marks fill:#d8f5d0,stroke:#2b8a3e,color:#212529
+  style ship_haul__dump fill:#d8f5d0,stroke:#2b8a3e,color:#212529
+  style ship_haul__cower fill:#d8f5d0,stroke:#2b8a3e,color:#212529
+  style ship_haul__load fill:#d8f5d0,stroke:#2b8a3e,color:#212529
+  style ship_haul__board_marks fill:#d8f5d0,stroke:#2b8a3e,color:#212529
+  style ship_haul__assemble fill:#d8f5d0,stroke:#2b8a3e,color:#212529
+  style ship_haul__delivery_q fill:#d8f5d0,stroke:#2b8a3e,color:#212529
+  style ship_haul__deliver fill:#d8f5d0,stroke:#2b8a3e,color:#212529
+  style ship_haul__sell_tail fill:#d8f5d0,stroke:#2b8a3e,color:#212529
+  style ship_haul__laden fill:#d8f5d0,stroke:#2b8a3e,color:#212529
+  style ship_haul__queue fill:#d8f5d0,stroke:#2b8a3e,color:#212529
+  style ship_haul__cadence fill:#d8f5d0,stroke:#2b8a3e,color:#212529
+  style ship_haul__end fill:#ffffff,stroke:#868e96,color:#212529
+</pre></div>
+<details><summary>Node notes and citations</summary><table><tr><td>cap_gate</td><td>Cargo-capable type standing at (berthed next to) an own colony?</td><td><code>ai_euro.c:ai_euro_20e6_ship_berth_arrival</code><br/>DOS: raw 1691 gate (capacity_table[type] != 0, iStack_2e == 0)</td></tr><tr><td>clear_marks</td><td>Clear stale board marks on the berth stack</td><td><code>ai_euro.c:ai_euro_20e6_clear_stale_board_marks</code><br/>DOS: raw 2991-2997</td></tr><tr><td>dump</td><td>Dump every hold into the colony; drop +0x314a origin; zero colony +0x8f</td><td>DOS: raw 3002-3011<br/>Kill switch AI_20E6_SHIP_DUMP=0.</td></tr><tr><td>cower</td><td>Cargo ship ≤ Merchantman at a NEARBY_FRIGATE colony and turns_worked &lt; 10 − capacity?</td><td>DOS: raw 3018-3023 → LAB_5899 park</td></tr><tr><td>load</td><td>LOAD matrix — one cargo per free hold; latch source colony in +0x314a</td><td><code>ai_euro.c:ai_euro_20e6_load_pick</code><br/>DOS: raw 3059-3134 (iStack_34 = ship-vs-wagon)</td></tr><tr><td>board_marks</td><td>Passenger-board MARK scan — armed / Pioneer members get act_state 1, hold budget debited</td><td>DOS: raw 3024-3051 (0x1734[nation] &lt; 0x19 gate)</td></tr><tr><td>assemble</td><td>Transport assemble — board marked members (+ two force-board invariant arms)</td><td><code>ai_euro.c:ai_euro_20e6_transport_assemble</code><br/>DOS: FUN_1427_10be (anchor 0x3609, runs on every ship act)</td></tr><tr><td>delivery_q</td><td>Delivery cargo aboard (Horses / Trade Goods / Tools / Muskets)?</td><td><code>ai_euro.c:ai_euro_20e6_delivery_tallies</code><br/>DOS: raw 2044-2139</td></tr><tr><td>deliver</td><td>Delivery colony pick → AI_SAIL there</td><td><code>ai_euro.c:ai_euro_20e6_delivery_colony_pick</code></td></tr><tr><td>sell_tail</td><td>No taker — sell tail (hold strip + ledger, untaxed), fall through with empty hull</td><td><code>ai_euro.c:ai_euro_20e6_delivery_sell_tail</code><br/>DOS: raw 2140-2163 (15eb_317c, 38fd_1dfa)</td></tr><tr><td>laden</td><td>Holds occupied and untasked → sail for High Seas / Europe?</td><td>DOS: raw 2166-2168 (FUN_48d3_015e ring hunt)</td></tr><tr><td>queue</td><td>Work-queue pickup pick (ships only) → AI_SAIL to queue tip; proportional score write-back on consume</td><td><code>ai_euro.c:ai_euro_4393_work_queue_haul_pick</code><br/>DOS: LAB_004393; ai_goals_work_consume</td></tr><tr><td>cadence</td><td>Empty untasked ship — High Seas cadence</td><td><code>ai_euro.c:ai_euro_20e6_457e_hs_cadence</code><br/>DOS: LAB_457e (after the 4393 haul)<br/>Kill switch AI_20E6_HS_CADENCE=0.</td></tr><tr><td>end</td><td>return</td><td></td></tr></table></details>
+<div class='top'><a href='#top'>top</a></div></section>
+<section id='graph-unload_settle'><h2>Settle unload — ai_euro_unload_settle (20e6 LAB_3558 unload mask + landfall)</h2>
+<div class='meta'>id <code>unload_settle</code> · entry <code>no_colony</code> · reached from <a href='#graph-ship_band'>ship_band</a></div>
+<div class='diagram'><pre class='mermaid'>flowchart TD
+  unload_settle__no_colony{"Nation has no colony yet?&lt;br/&gt;&lt;i&gt;ai_euro_unload_settle&lt;/i&gt;"}
+  unload_settle__beachhead["Beachhead choreography — found-approach with pioneer aboard, empty-transport cruise, staging tip unload-all&lt;br/&gt;&lt;i&gt;ai_euro_resolve_landfall_goto&lt;/i&gt;"]
+  unload_settle__mask["Per-cargo unload mask (0x40/0x20/0x10/0xffff bits) → unload by mask&lt;br/&gt;&lt;i&gt;ai_euro_20e6_unload_mask&lt;/i&gt;"]
+  unload_settle__pick_pax["Pick best passenger (Pioneer #62; Colonist; Treasure stays aboard)"]
+  unload_settle__site["Site — nearest primary FOUND on this landmass, else pick_founding_tile, else landfall tile&lt;br/&gt;&lt;i&gt;ai_goals_best_found_tile_near&lt;/i&gt;"]
+  unload_settle__unload_pax["Unload passenger (adjacent landfall fallback)&lt;br/&gt;&lt;i&gt;ai_euro_unload_pax_at&lt;/i&gt;"]
+  unload_settle__second_wave{"Under 6 colonies and pax can found here?"}
+  unload_settle__found["Found on the spot, else AI_MOVE to chosen site&lt;br/&gt;&lt;i&gt;ai_euro_found_with_unit&lt;/i&gt;"]
+  unload_settle__end(["return"])
+  unload_settle__no_colony --&gt;|"yes"| unload_settle__beachhead
+  unload_settle__no_colony --&gt;|"no"| unload_settle__mask
+  unload_settle__beachhead --&gt; unload_settle__end
+  unload_settle__mask --&gt; unload_settle__pick_pax
+  unload_settle__pick_pax --&gt; unload_settle__site
+  unload_settle__site --&gt; unload_settle__unload_pax
+  unload_settle__unload_pax --&gt; unload_settle__second_wave
+  unload_settle__second_wave --&gt;|"yes"| unload_settle__found
+  unload_settle__second_wave --&gt;|"no: goto site"| unload_settle__end
+  unload_settle__found --&gt; unload_settle__end
+  style unload_settle__no_colony fill:#ffffff,stroke:#868e96,color:#212529
+  style unload_settle__beachhead fill:#f3d9fa,stroke:#9c36b5,color:#212529
+  style unload_settle__mask fill:#d8f5d0,stroke:#2b8a3e,color:#212529
+  style unload_settle__pick_pax fill:#d0ebff,stroke:#1971c2,color:#212529
+  style unload_settle__site fill:#d0ebff,stroke:#1971c2,color:#212529
+  style unload_settle__unload_pax fill:#ffffff,stroke:#868e96,color:#212529
+  style unload_settle__second_wave fill:#ffffff,stroke:#868e96,color:#212529
+  style unload_settle__found fill:#ffffff,stroke:#868e96,color:#212529
+  style unload_settle__end fill:#ffffff,stroke:#868e96,color:#212529
+</pre></div>
+<details><summary>Node notes and citations</summary><table><tr><td>no_colony</td><td>Nation has no colony yet?</td><td><code>ai_euro.c:ai_euro_unload_settle</code></td></tr><tr><td>beachhead</td><td>Beachhead choreography — found-approach with pioneer aboard, empty-transport cruise, staging tip unload-all</td><td><code>ai_euro.c:ai_euro_resolve_landfall_goto</code><br/>Dist ≤1 / staging tests keyed on 06ae found tile; TURN2–4 goldens.</td></tr><tr><td>mask</td><td>Per-cargo unload mask (0x40/0x20/0x10/0xffff bits) → unload by mask</td><td><code>ai_euro.c:ai_euro_20e6_unload_mask</code><br/>DOS: LAB_3558 raw ~1746-1762 goal fold + mask<br/>Runs transport_assemble first (the 0x3609 anchor). Civilian→founder promotion via goal fold.</td></tr><tr><td>pick_pax</td><td>Pick best passenger (Pioneer &gt; Colonist; Treasure stays aboard)</td><td></td></tr><tr><td>site</td><td>Site — nearest primary FOUND on this landmass, else pick_founding_tile, else landfall tile</td><td><code>ai_goals.c:ai_goals_best_found_tile_near</code><br/>DOS: FUN_521d_06ae / 052c</td></tr><tr><td>unload_pax</td><td>Unload passenger (adjacent landfall fallback)</td><td><code>ai_euro.c:ai_euro_unload_pax_at</code></td></tr><tr><td>second_wave</td><td>Under 6 colonies and pax can found here?</td><td></td></tr><tr><td>found</td><td>Found on the spot, else AI_MOVE to chosen site</td><td><code>ai_euro.c:ai_euro_found_with_unit</code></td></tr><tr><td>end</td><td>return</td><td></td></tr></table></details>
+<div class='top'><a href='#top'>top</a></div></section>
+<section id='graph-land_band'><h2>Land band — unit_act land branch (5b66 case 0x0b + act-level arms)</h2>
+<div class='meta'>id <code>land_band</code> · entry <code>bind</code> · reached from <a href='#graph-unit_act'>unit_act</a></div>
+<div class='diagram'><pre class='mermaid'>flowchart TD
+  land_band__bind["Read this unit's primary goal (role-aware) + at_war_land (peer war, or Indian sticky war with a real hunt target)&lt;br/&gt;&lt;i&gt;ai_euro_unit_act&lt;/i&gt;"]
+  land_band__lcr{"Standing on a Lost City Rumour?&lt;br/&gt;&lt;i&gt;units_resolve_lcr_rumour&lt;/i&gt;"}
+  land_band__war_hunt["War — wake passive hunter, seize adjacent colony/village, attack adjacent, else goto nearest foe&lt;br/&gt;&lt;i&gt;ai_euro_land_engage_then_hunt&lt;/i&gt;"]
+  land_band__peace_border["Peace — garrison wakes when a foreign Euro land unit enters MD≤2, hunts it&lt;br/&gt;&lt;i&gt;units_wake&lt;/i&gt;"]
+  land_band__scout["Peace Scout — CONTACT ring MD 2–4 around nearest tribe, else fog-explore MD≤8 (Seasoned deeper)&lt;br/&gt;&lt;i&gt;ai_euro_scout_fog_explore_target&lt;/i&gt;"]
+  land_band__treasure["Treasure — cash at own colony (20e6), Europe cash, Cortes galleon, board ship, coast target, 47b9 dead-end destroy&lt;br/&gt;&lt;i&gt;ai_euro_20e6_treasure_cash_in&lt;/i&gt;"]
+  land_band__wagon["Wagon — de Witt foreign trade, else haul (load matrix, 457e origin walk, village errand, 47b9)&lt;br/&gt;&lt;i&gt;ai_euro_try_wagon_haul&lt;/i&gt;"]
+  land_band__pioneer["Pioneer — pick own-colony surround to clear/plow/road&lt;br/&gt;&lt;i&gt;ai_euro_try_pioneer_improve&lt;/i&gt;"]
+  land_band__field["Expert field assign — Lumberjack / Miner / Farmer / Fisherman / Planter / craft workplace&lt;br/&gt;&lt;i&gt;ai_euro_try_field_assign&lt;/i&gt;"]
+  land_band__fortify["Peace fortify — idle military on own colony → FORTIFY; Artillery siege hunt (war) / fortify&lt;br/&gt;&lt;i&gt;ai_euro_fortify_with_quota&lt;/i&gt;"]
+  land_band__missionary["Missionary — CONTACT prio 3 at nearest tribe without mission (not fleeing alarm ≥55)&lt;br/&gt;&lt;i&gt;ai_euro_missionary_no_mission_target&lt;/i&gt;"]
+  land_band__pilot["Read 0a60 pick (act_state 0xb) — threatened-Stockade LABOR override&lt;br/&gt;&lt;i&gt;ai_euro_threatened_stockade_near&lt;/i&gt;"]
+  land_band__labor["LABOR bind ladder — carpenter hammers, lumber, tools-short Pioneer, food labor, Free Colonist; MD≤8"]
+  land_band__found_now{"FOUND goal and standing on its tile?"}
+  land_band__found["Found colony with this unit&lt;br/&gt;&lt;i&gt;ai_euro_found_with_unit&lt;/i&gt;"]
+  land_band__found_near{"No goal, founder type, best FOUND tile adjacent?&lt;br/&gt;&lt;i&gt;ai_goals_best_found_tile_near&lt;/i&gt;"}
+  land_band__on_colony["Own colony arrival — admit / LABOR / COLONY join; wagon Europe sell&lt;br/&gt;&lt;i&gt;ai_euro_join_colony&lt;/i&gt;"]
+  land_band__mil_contact["MILITARY / CONTACT goal — adjacent foe → try_attack; at goal colony → resolve&lt;br/&gt;&lt;i&gt;ai_euro_try_attack&lt;/i&gt;"]
+  land_band__set_goto["Goal → AI_MOVE goto (unless an arm above already routed the unit)&lt;br/&gt;&lt;i&gt;ai_euro_set_goto&lt;/i&gt;"]
+  land_band__move_loop[/"Follow goto — score_move step, units_try_move; drain MP for FOUND/MILITARY/CONTACT/hunt/scout else one step&lt;br/&gt;&lt;i&gt;ai_euro_score_move&lt;/i&gt;"/]
+  land_band__fortify_fallback["No goto — peace fortify fallback on own colony"]
+  land_band__war_tail["War hunter tail — adjacent colony seize, village seize, adjacent attack&lt;br/&gt;&lt;i&gt;ai_euro_land_try_adjacent_colony_seize&lt;/i&gt;"]
+  land_band__end(["return"])
+  land_band__bind --&gt; land_band__lcr
+  land_band__lcr --&gt;|"resolve rumour, unit survives"| land_band__war_hunt
+  land_band__lcr --&gt;|"unit vanished"| land_band__end
+  land_band__war_hunt --&gt;|"hunt bound"| land_band__end
+  land_band__war_hunt --&gt;|"not at war / not hunter"| land_band__peace_border
+  land_band__peace_border --&gt; land_band__scout
+  land_band__scout --&gt; land_band__treasure
+  land_band__treasure --&gt;|"cashed / destroyed / boarded"| land_band__end
+  land_band__treasure --&gt;|"not treasure"| land_band__wagon
+  land_band__wagon --&gt; land_band__pioneer
+  land_band__pioneer --&gt; land_band__field
+  land_band__field --&gt; land_band__fortify
+  land_band__fortify --&gt; land_band__missionary
+  land_band__missionary --&gt; land_band__pilot
+  land_band__pilot --&gt; land_band__labor
+  land_band__labor --&gt; land_band__found_now
+  land_band__found_now --&gt;|"yes"| land_band__found
+  land_band__found_now --&gt;|"no"| land_band__found_near
+  land_band__found --&gt; land_band__end
+  land_band__found_near --&gt;|"yes"| land_band__found
+  land_band__found_near --&gt;|"no"| land_band__on_colony
+  land_band__on_colony --&gt; land_band__mil_contact
+  land_band__mil_contact --&gt; land_band__set_goto
+  land_band__set_goto --&gt;|"on goto"| land_band__move_loop
+  land_band__set_goto --&gt;|"no goto"| land_band__fortify_fallback
+  land_band__move_loop --&gt; land_band__war_tail
+  land_band__fortify_fallback --&gt; land_band__war_tail
+  land_band__war_tail --&gt; land_band__end
+  style land_band__bind fill:#d0ebff,stroke:#1971c2,color:#212529
+  style land_band__lcr fill:#d8f5d0,stroke:#2b8a3e,color:#212529
+  style land_band__war_hunt fill:#fff3bf,stroke:#e67700,color:#212529
+  style land_band__peace_border fill:#e9ecef,stroke:#495057,color:#212529
+  style land_band__scout fill:#e9ecef,stroke:#495057,color:#212529
+  style land_band__treasure fill:#d8f5d0,stroke:#2b8a3e,color:#212529
+  style land_band__wagon fill:#d8f5d0,stroke:#2b8a3e,color:#212529
+  style land_band__pioneer fill:#d8f5d0,stroke:#2b8a3e,color:#212529
+  style land_band__field fill:#e9ecef,stroke:#495057,color:#212529
+  style land_band__fortify fill:#d0ebff,stroke:#1971c2,color:#212529
+  style land_band__missionary fill:#fff3bf,stroke:#e67700,color:#212529
+  style land_band__pilot fill:#d0ebff,stroke:#1971c2,color:#212529
+  style land_band__labor fill:#e9ecef,stroke:#495057,color:#212529
+  style land_band__found_now fill:#ffffff,stroke:#868e96,color:#212529
+  style land_band__found fill:#d8f5d0,stroke:#2b8a3e,color:#212529
+  style land_band__found_near fill:#ffffff,stroke:#868e96,color:#212529
+  style land_band__on_colony fill:#d0ebff,stroke:#1971c2,color:#212529
+  style land_band__mil_contact fill:#fff3bf,stroke:#e67700,color:#212529
+  style land_band__set_goto fill:#ffffff,stroke:#868e96,color:#212529
+  style land_band__move_loop fill:#d0ebff,stroke:#1971c2,color:#212529
+  style land_band__fortify_fallback fill:#ffffff,stroke:#868e96,color:#212529
+  style land_band__war_tail fill:#fff3bf,stroke:#e67700,color:#212529
+  style land_band__end fill:#ffffff,stroke:#868e96,color:#212529
+</pre></div>
+<details><summary>Node notes and citations</summary><table><tr><td>bind</td><td>Read this unit's primary goal (role-aware) + at_war_land (peer war, or Indian sticky war with a real hunt target)</td><td><code>ai_euro.c:ai_euro_unit_act</code></td></tr><tr><td>lcr</td><td>Standing on a Lost City Rumour?</td><td><code>units.c:units_resolve_lcr_rumour</code><br/>DOS: FUN_65dd_0004</td></tr><tr><td>war_hunt</td><td>War — wake passive hunter, seize adjacent colony/village, attack adjacent, else goto nearest foe</td><td><code>ai_euro.c:ai_euro_land_engage_then_hunt</code><br/>Deep 20e6 multi-step combat scoring PARKED; Euro target gate cites viceroy 75567-75593.</td></tr><tr><td>peace_border</td><td>Peace — garrison wakes when a foreign Euro land unit enters MD≤2, hunts it</td><td><code>units.c:units_wake</code></td></tr><tr><td>scout</td><td>Peace Scout — CONTACT ring MD 2–4 around nearest tribe, else fog-explore MD≤8 (Seasoned deeper)</td><td><code>ai_euro.c:ai_euro_scout_fog_explore_target</code></td></tr><tr><td>treasure</td><td>Treasure — cash at own colony (20e6), Europe cash, Cortes galleon, board ship, coast target, 47b9 dead-end destroy</td><td><code>ai_euro.c:ai_euro_20e6_treasure_cash_in</code><br/>DOS: 20e6 treasure band (iStack_2e==0 cash-in first); LAB_457e/47b9<br/>DOS AI treasure always insta-cashes at any own colony; ship/Cortes chain effectively unreachable.</td></tr><tr><td>wagon</td><td>Wagon — de Witt foreign trade, else haul (load matrix, 457e origin walk, village errand, 47b9)</td><td><code>ai_euro.c:ai_euro_try_wagon_haul</code><br/>DOS: 20e6 wagon arms (iStack_34==0), LAB_457e origin walk, 8d4a village errand</td></tr><tr><td>pioneer</td><td>Pioneer — pick own-colony surround to clear/plow/road</td><td><code>ai_euro.c:ai_euro_try_pioneer_improve</code><br/>DOS: 5b66 cases 8/9 bodies FUN_479b_*</td></tr><tr><td>field</td><td>Expert field assign — Lumberjack / Miner / Farmer / Fisherman / Planter / craft workplace</td><td><code>ai_euro.c:ai_euro_try_field_assign</code></td></tr><tr><td>fortify</td><td>Peace fortify — idle military on own colony → FORTIFY; Artillery siege hunt (war) / fortify</td><td><code>ai_euro.c:ai_euro_fortify_with_quota</code><br/>DOS: 5b66 case 0x0b fortify arm</td></tr><tr><td>missionary</td><td>Missionary — CONTACT prio 3 at nearest tribe without mission (not fleeing alarm ≥55)</td><td><code>ai_euro.c:ai_euro_missionary_no_mission_target</code></td></tr><tr><td>pilot</td><td>Read 0a60 pick (act_state 0xb) — threatened-Stockade LABOR override</td><td><code>ai_euro.c:ai_euro_threatened_stockade_near</code></td></tr><tr><td>labor</td><td>LABOR bind ladder — carpenter hammers, lumber, tools-short Pioneer, food labor, Free Colonist; MD≤8</td><td></td></tr><tr><td>found_now</td><td>FOUND goal and standing on its tile?</td><td></td></tr><tr><td>found</td><td>Found colony with this unit</td><td><code>ai_euro.c:ai_euro_found_with_unit</code><br/>DOS: 5b66 case 7 FOUND</td></tr><tr><td>found_near</td><td>No goal, founder type, best FOUND tile adjacent?</td><td><code>ai_goals.c:ai_goals_best_found_tile_near</code></td></tr><tr><td>on_colony</td><td>Own colony arrival — admit / LABOR / COLONY join; wagon Europe sell</td><td><code>ai_euro.c:ai_euro_join_colony</code></td></tr><tr><td>mil_contact</td><td>MILITARY / CONTACT goal — adjacent foe → try_attack; at goal colony → resolve</td><td><code>ai_euro.c:ai_euro_try_attack</code></td></tr><tr><td>set_goto</td><td>Goal → AI_MOVE goto (unless an arm above already routed the unit)</td><td><code>ai_euro.c:ai_euro_set_goto</code></td></tr><tr><td>move_loop</td><td>Follow goto — score_move step, units_try_move; drain MP for FOUND/MILITARY/CONTACT/hunt/scout else one step</td><td><code>ai_euro.c:ai_euro_score_move</code><br/>DOS: LAB_521d_4d2e→5183 wander scorer, 54f5 facing bias, 0x46 siege approach</td></tr><tr><td>fortify_fallback</td><td>No goto — peace fortify fallback on own colony</td><td></td></tr><tr><td>war_tail</td><td>War hunter tail — adjacent colony seize, village seize, adjacent attack</td><td><code>ai_euro.c:ai_euro_land_try_adjacent_colony_seize</code></td></tr><tr><td>end</td><td>return</td><td></td></tr></table></details>
+<div class='top'><a href='#top'>top</a></div></section>
+<section id='graph-move_scoring_gate'><h2>Move-scoring gate — ai_euro_move_scoring_gate (FUN_521d_20e6 land path)</h2>
+<div class='meta'>id <code>move_scoring_gate</code> · entry <code>is_sea</code> · reached from <a href='#graph-unit_act'>unit_act</a></div>
+<div class='diagram'><pre class='mermaid'>flowchart TD
+  move_scoring_gate__is_sea{"Ship?&lt;br/&gt;&lt;i&gt;ai_euro_move_scoring_gate&lt;/i&gt;"}
+  move_scoring_gate__war_defer{"At war and unit is a land hunter / Artillery?"}
+  move_scoring_gate__peace_defer{"Peace — passive colony Artillery, or idle Soldier already on own colony?"}
+  move_scoring_gate__no_colony{"Nation has no colony and unit is a Pioneer/Colonist?"}
+  move_scoring_gate__found_near{"Nearest top-priority FOUND on this landmass?&lt;br/&gt;&lt;i&gt;ai_goals_best_found_tile_near&lt;/i&gt;"}
+  move_scoring_gate__on_goto{"Already following a goto?"}
+  move_scoring_gate__prologue["20e6 prologue — unit state, continent, explorer flag&lt;br/&gt;&lt;i&gt;ai_euro_20e6_prologue&lt;/i&gt;"]
+  move_scoring_gate__patrol{"Patrol arm — stance 0, untasked, bound colony on same continent → sit / walk home&lt;br/&gt;&lt;i&gt;ai_euro_20e6_patrol_arm&lt;/i&gt;"}
+  move_scoring_gate__village{"Village arm — Scout (unscouted, attitude 0) / Free Colonist (unlearned, attitude #60;0x40) → nearest village&lt;br/&gt;&lt;i&gt;ai_euro_20e6_village_arm&lt;/i&gt;"}
+  move_scoring_gate__labor{"Labor arm — under-filled colony by ring tier → join / walk; none → become Pioneer or force-explore&lt;br/&gt;&lt;i&gt;ai_euro_20e6_labor_arm&lt;/i&gt;"}
+  move_scoring_gate__recall{"Surplus recall — colony flag 0x04 → clear, garrison_quota--, walk home&lt;br/&gt;&lt;i&gt;ai_euro_20e6_surplus_recall_arm&lt;/i&gt;"}
+  move_scoring_gate__explore["Explorer — windowed ring scan (site nibble, fog, far-probe), else ring-hop 4 tiles on a latched direction&lt;br/&gt;&lt;i&gt;ai_euro_20e6_ring_hop&lt;/i&gt;"]
+  move_scoring_gate__wander["8-direction wander scorer (stay = 8)&lt;br/&gt;&lt;i&gt;ai_euro_20e6_wander_step&lt;/i&gt;"]
+  move_scoring_gate__score["score_move toward target → set AI_MOVE goto&lt;br/&gt;&lt;i&gt;ai_euro_score_move&lt;/i&gt;"]
+  move_scoring_gate__ret0(["return 0 (act continues)"])
+  move_scoring_gate__ret1(["return 1 (act aborted)"])
+  move_scoring_gate__is_sea --&gt;|"yes"| move_scoring_gate__ret0
+  move_scoring_gate__is_sea --&gt;|"no"| move_scoring_gate__war_defer
+  move_scoring_gate__war_defer --&gt;|"yes"| move_scoring_gate__ret0
+  move_scoring_gate__war_defer --&gt;|"no"| move_scoring_gate__peace_defer
+  move_scoring_gate__peace_defer --&gt;|"yes"| move_scoring_gate__ret0
+  move_scoring_gate__peace_defer --&gt;|"no"| move_scoring_gate__no_colony
+  move_scoring_gate__no_colony --&gt;|"yes: own tile"| move_scoring_gate__score
+  move_scoring_gate__no_colony --&gt;|"no"| move_scoring_gate__found_near
+  move_scoring_gate__found_near --&gt;|"yes"| move_scoring_gate__score
+  move_scoring_gate__found_near --&gt;|"no"| move_scoring_gate__on_goto
+  move_scoring_gate__on_goto --&gt;|"yes: keep"| move_scoring_gate__score
+  move_scoring_gate__on_goto --&gt;|"no"| move_scoring_gate__prologue
+  move_scoring_gate__prologue --&gt; move_scoring_gate__patrol
+  move_scoring_gate__patrol --&gt;|"handled"| move_scoring_gate__ret0
+  move_scoring_gate__patrol --&gt;|"no"| move_scoring_gate__village
+  move_scoring_gate__village --&gt;|"handled"| move_scoring_gate__ret0
+  move_scoring_gate__village --&gt;|"no"| move_scoring_gate__labor
+  move_scoring_gate__labor --&gt;|"handled"| move_scoring_gate__ret0
+  move_scoring_gate__labor --&gt;|"no"| move_scoring_gate__recall
+  move_scoring_gate__recall --&gt;|"handled"| move_scoring_gate__ret0
+  move_scoring_gate__recall --&gt;|"no, explorer"| move_scoring_gate__explore
+  move_scoring_gate__recall --&gt;|"no, not explorer"| move_scoring_gate__wander
+  move_scoring_gate__explore --&gt;|"target"| move_scoring_gate__score
+  move_scoring_gate__explore --&gt;|"no target, no hop"| move_scoring_gate__wander
+  move_scoring_gate__wander --&gt; move_scoring_gate__score
+  move_scoring_gate__score --&gt;|"goto set"| move_scoring_gate__ret0
+  move_scoring_gate__score --&gt;|"no step"| move_scoring_gate__ret1
+  style move_scoring_gate__is_sea fill:#ffffff,stroke:#868e96,color:#212529
+  style move_scoring_gate__war_defer fill:#ffffff,stroke:#868e96,color:#212529
+  style move_scoring_gate__peace_defer fill:#ffffff,stroke:#868e96,color:#212529
+  style move_scoring_gate__no_colony fill:#ffffff,stroke:#868e96,color:#212529
+  style move_scoring_gate__found_near fill:#ffffff,stroke:#868e96,color:#212529
+  style move_scoring_gate__on_goto fill:#ffffff,stroke:#868e96,color:#212529
+  style move_scoring_gate__prologue fill:#d8f5d0,stroke:#2b8a3e,color:#212529
+  style move_scoring_gate__patrol fill:#d8f5d0,stroke:#2b8a3e,color:#212529
+  style move_scoring_gate__village fill:#d8f5d0,stroke:#2b8a3e,color:#212529
+  style move_scoring_gate__labor fill:#d8f5d0,stroke:#2b8a3e,color:#212529
+  style move_scoring_gate__recall fill:#d8f5d0,stroke:#2b8a3e,color:#212529
+  style move_scoring_gate__explore fill:#d8f5d0,stroke:#2b8a3e,color:#212529
+  style move_scoring_gate__wander fill:#d8f5d0,stroke:#2b8a3e,color:#212529
+  style move_scoring_gate__score fill:#ffffff,stroke:#868e96,color:#212529
+  style move_scoring_gate__ret0 fill:#ffffff,stroke:#868e96,color:#212529
+  style move_scoring_gate__ret1 fill:#ffffff,stroke:#868e96,color:#212529
+</pre></div>
+<details><summary>Node notes and citations</summary><table><tr><td>is_sea</td><td>Ship?</td><td><code>ai_euro.c:ai_euro_move_scoring_gate</code><br/>Ships never retarget here — courses owned by the ship band.</td></tr><tr><td>war_defer</td><td>At war and unit is a land hunter / Artillery?</td><td>Defer to the act-level hunt (no explore yank).</td></tr><tr><td>peace_defer</td><td>Peace — passive colony Artillery, or idle Soldier already on own colony?</td><td></td></tr><tr><td>no_colony</td><td>Nation has no colony and unit is a Pioneer/Colonist?</td><td>DOS: FUN_521d_06ae settle-where-landed</td></tr><tr><td>found_near</td><td>Nearest top-priority FOUND on this landmass?</td><td><code>ai_goals.c:ai_goals_best_found_tile_near</code></td></tr><tr><td>on_goto</td><td>Already following a goto?</td><td></td></tr><tr><td>prologue</td><td>20e6 prologue — unit state, continent, explorer flag</td><td><code>ai_euro.c:ai_euro_20e6_prologue</code><br/>DOS: 20e6 raw ~1095-1180 (iStack_6a explorer clauses)</td></tr><tr><td>patrol</td><td>Patrol arm — stance 0, untasked, bound colony on same continent → sit / walk home</td><td><code>ai_euro.c:ai_euro_20e6_patrol_arm</code><br/>DOS: LAB_521d_277a</td></tr><tr><td>village</td><td>Village arm — Scout (unscouted, attitude 0) / Free Colonist (unlearned, attitude &lt;0x40) → nearest village</td><td><code>ai_euro.c:ai_euro_20e6_village_arm</code><br/>DOS: 20e6 0x4c village arms; 8d4a attitude read</td></tr><tr><td>labor</td><td>Labor arm — under-filled colony by ring tier → join / walk; none → become Pioneer or force-explore</td><td><code>ai_euro.c:ai_euro_20e6_labor_arm</code><br/>DOS: 20e6 colonist labor loop (fort-capacity wanted size)</td></tr><tr><td>recall</td><td>Surplus recall — colony flag 0x04 → clear, garrison_quota--, walk home</td><td><code>ai_euro.c:ai_euro_20e6_surplus_recall_arm</code><br/>DOS: raw 85313-85337</td></tr><tr><td>explore</td><td>Explorer — windowed ring scan (site nibble, fog, far-probe), else ring-hop 4 tiles on a latched direction</td><td><code>ai_euro.c:ai_euro_20e6_ring_hop</code><br/>DOS: LAB_2912→2a59 ring scan; raw 2416-2458 ring hop (+0x3155/+0x3156)</td></tr><tr><td>wander</td><td>8-direction wander scorer (stay = 8)</td><td><code>ai_euro.c:ai_euro_20e6_wander_step</code><br/>DOS: LAB_521d_4d2e→5183</td></tr><tr><td>score</td><td>score_move toward target → set AI_MOVE goto</td><td><code>ai_euro.c:ai_euro_score_move</code></td></tr><tr><td>ret0</td><td>return 0 (act continues)</td><td></td></tr><tr><td>ret1</td><td>return 1 (act aborted)</td><td></td></tr></table></details>
+<div class='top'><a href='#top'>top</a></div></section>
+<section id='graph-diplo_balance'><h2>Euro diplomacy balance — ai_diplo_euro_balance (+ FUN_5bfb_10ec / 13b0)</h2>
+<div class='meta'>id <code>diplo_balance</code> · entry <code>indian_tick</code> · reached from <a href='#graph-dispatcher'>dispatcher</a></div>
+<div class='diagram'><pre class='mermaid'>flowchart TD
+  diplo_balance__indian_tick["Indian relation matrix tick&lt;br/&gt;&lt;i&gt;ai_diplo_indian_matrix_tick&lt;/i&gt;"]
+  diplo_balance__peer_loop[/"Each Euro peer (skip self and control==2 slots)&lt;br/&gt;&lt;i&gt;ai_diplo_euro_balance&lt;/i&gt;"/]
+  diplo_balance__at_war{"At war with this peer?"}
+  diplo_balance__franklin{"Franklin held?"}
+  diplo_balance__upkeep["War upkeep drain (5 gold/turn per war peer)&lt;br/&gt;&lt;i&gt;ai_diplo_war_upkeep_drain&lt;/i&gt;"]
+  diplo_balance__privateer["Wartime Privateer spawn (or prize gold when no unit pool)&lt;br/&gt;&lt;i&gt;ai_diplo_war_privateer_spawn&lt;/i&gt;"]
+  diplo_balance__fatigue{"Near parity, timer 0, RNG(1,30)==1 → war-fatigue peace?"}
+  diplo_balance__eligible{"self #62; 2×other + edge #38;#38; self #62; war-min? (10ec war-worthy)&lt;br/&gt;&lt;i&gt;ai_euro_10ec_war_worthy&lt;/i&gt;"}
+  diplo_balance__declare["RNG(1,20)==1 → declare war (human peer gets a CHOICE popup)&lt;br/&gt;&lt;i&gt;ai_diplo_declare_war_ctx&lt;/i&gt;"]
+  diplo_balance__treaty[["Treaty sign / cancel tick (requires an encounter this turn; (a+turn+b)%3 cadence)&lt;br/&gt;&lt;i&gt;ai_diplo_13b0_treaty_tick&lt;/i&gt;"]]
+  diplo_balance__end(["return"])
+  diplo_balance__indian_tick --&gt; diplo_balance__peer_loop
+  diplo_balance__peer_loop --&gt; diplo_balance__at_war
+  diplo_balance__at_war --&gt;|"yes"| diplo_balance__franklin
+  diplo_balance__franklin --&gt;|"yes: make peace"| diplo_balance__peer_loop
+  diplo_balance__franklin --&gt;|"no"| diplo_balance__upkeep
+  diplo_balance__upkeep --&gt; diplo_balance__privateer
+  diplo_balance__privateer --&gt; diplo_balance__fatigue
+  diplo_balance__fatigue --&gt;|"yes: peace offer"| diplo_balance__peer_loop
+  diplo_balance__fatigue --&gt;|"no"| diplo_balance__treaty
+  diplo_balance__at_war --&gt;|"no"| diplo_balance__eligible
+  diplo_balance__eligible --&gt;|"yes, not Franklin"| diplo_balance__declare
+  diplo_balance__eligible --&gt;|"no"| diplo_balance__treaty
+  diplo_balance__declare --&gt; diplo_balance__treaty
+  diplo_balance__treaty --&gt;|"next peer"| diplo_balance__peer_loop
+  diplo_balance__peer_loop --&gt;|"done"| diplo_balance__end
+  style diplo_balance__indian_tick fill:#e9ecef,stroke:#495057,color:#212529
+  style diplo_balance__peer_loop fill:#ffffff,stroke:#868e96,color:#212529
+  style diplo_balance__at_war fill:#ffffff,stroke:#868e96,color:#212529
+  style diplo_balance__franklin fill:#ffffff,stroke:#868e96,color:#212529
+  style diplo_balance__upkeep fill:#fff3bf,stroke:#e67700,color:#212529
+  style diplo_balance__privateer fill:#e9ecef,stroke:#495057,color:#212529
+  style diplo_balance__fatigue fill:#e9ecef,stroke:#495057,color:#212529
+  style diplo_balance__eligible fill:#d8f5d0,stroke:#2b8a3e,color:#212529
+  style diplo_balance__declare fill:#fff3bf,stroke:#e67700,color:#212529
+  style diplo_balance__treaty fill:#d8f5d0,stroke:#2b8a3e,color:#212529
+  style diplo_balance__end fill:#ffffff,stroke:#868e96,color:#212529
+</pre></div>
+<details><summary>Node notes and citations</summary><table><tr><td>indian_tick</td><td>Indian relation matrix tick</td><td><code>ai_diplo.c:ai_diplo_indian_matrix_tick</code></td></tr><tr><td>peer_loop</td><td>Each Euro peer (skip self and control==2 slots)</td><td><code>ai_diplo.c:ai_diplo_euro_balance</code></td></tr><tr><td>at_war</td><td>At war with this peer?</td><td></td></tr><tr><td>franklin</td><td>Franklin held?</td><td>Europeans in the New World always offer peace — conclude peace (AI→human enqueues CHOICE).</td></tr><tr><td>upkeep</td><td>War upkeep drain (5 gold/turn per war peer)</td><td><code>ai_diplo.c:ai_diplo_war_upkeep_drain</code></td></tr><tr><td>privateer</td><td>Wartime Privateer spawn (or prize gold when no unit pool)</td><td><code>ai_diplo.c:ai_diplo_war_privateer_spawn</code></td></tr><tr><td>fatigue</td><td>Near parity, timer 0, RNG(1,30)==1 → war-fatigue peace?</td><td></td></tr><tr><td>eligible</td><td>self &gt; 2×other + edge &amp;&amp; self &gt; war-min? (10ec war-worthy)</td><td><code>ai_euro.c:ai_euro_10ec_war_worthy</code><br/>DOS: FUN_5bfb_10ec</td></tr><tr><td>declare</td><td>RNG(1,20)==1 → declare war (human peer gets a CHOICE popup)</td><td><code>ai_diplo.c:ai_diplo_declare_war_ctx</code></td></tr><tr><td>treaty</td><td>Treaty sign / cancel tick (requires an encounter this turn; (a+turn+b)%3 cadence)</td><td><code>ai_diplo.c:ai_diplo_13b0_treaty_tick</code><br/>DOS: FUN_5bfb_13b0<br/>Unworthy pair without PEACE → sign PEACE + wake border garrisons; worthy pair with PEACE → cancel (@CANCELTREATY missing in GAME.TXT).</td></tr><tr><td>end</td><td>return</td><td></td></tr></table></details>
+<div class='top'><a href='#top'>top</a></div></section>
+<section id='graph-colony_tick'><h2>Colony tick — ai_euro_colony_tick_28c8_reassign (FUN_5952_035e placement section)</h2>
+<div class='meta'>id <code>colony_tick</code> · entry <code>loop</code> · reached from <a href='#graph-dispatcher'>dispatcher</a></div>
+<div class='diagram'><pre class='mermaid'>flowchart TD
+  colony_tick__loop[/"Each own colony with colonists (AI nations only — DOS has one call site, inside 6d8e)&lt;br/&gt;&lt;i&gt;ai_euro_colony_tick_28c8_reassign&lt;/i&gt;"/]
+  colony_tick__pass1[/"Pass 1 — food: re-score the slots that were feeding the colony until food_have ≥ food_need&lt;br/&gt;&lt;i&gt;ai_euro_28c8_score_job&lt;/i&gt;"/]
+  colony_tick__pass2[/"Pass 2 ×2 — everyone else, best job wins (raw 94613-94614 stop)"/]
+  colony_tick__expert["Expert workplace fix-ups; origin refresh&lt;br/&gt;&lt;i&gt;ai_euro_5952_job_is_expert&lt;/i&gt;"]
+  colony_tick__end(["return"])
+  colony_tick__loop --&gt;|"each colony"| colony_tick__pass1
+  colony_tick__pass1 --&gt; colony_tick__pass2
+  colony_tick__pass2 --&gt; colony_tick__expert
+  colony_tick__expert --&gt;|"next colony"| colony_tick__loop
+  colony_tick__loop --&gt;|"done"| colony_tick__end
+  style colony_tick__loop fill:#d8f5d0,stroke:#2b8a3e,color:#212529
+  style colony_tick__pass1 fill:#d8f5d0,stroke:#2b8a3e,color:#212529
+  style colony_tick__pass2 fill:#d8f5d0,stroke:#2b8a3e,color:#212529
+  style colony_tick__expert fill:#d8f5d0,stroke:#2b8a3e,color:#212529
+  style colony_tick__end fill:#ffffff,stroke:#868e96,color:#212529
+</pre></div>
+<details><summary>Node notes and citations</summary><table><tr><td>loop</td><td>Each own colony with colonists (AI nations only — DOS has one call site, inside 6d8e)</td><td><code>ai_euro.c:ai_euro_colony_tick_28c8_reassign</code><br/>DOS: FUN_5952_035e via 2a1f_0530 → 521d_5cf6 → 2a1f_05a8</td></tr><tr><td>pass1</td><td>Pass 1 — food: re-score the slots that were feeding the colony until food_have ≥ food_need</td><td><code>ai_euro.c:ai_euro_28c8_score_job</code><br/>DOS: FUN_15eb_28c8 job scorer (9-job formula); colony+0x9a food stock</td></tr><tr><td>pass2</td><td>Pass 2 ×2 — everyone else, best job wins (raw 94613-94614 stop)</td><td></td></tr><tr><td>expert</td><td>Expert workplace fix-ups; origin refresh</td><td><code>ai_euro.c:ai_euro_5952_job_is_expert</code></td></tr><tr><td>end</td><td>return</td><td></td></tr></table></details>
+<div class='top'><a href='#top'>top</a></div></section>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mermaid/11.4.0/mermaid.min.js"></script>
+<script>mermaid.initialize({startOnLoad:true, securityLevel:'loose', maxTextSize:1000000, maxEdges:5000, flowchart:{useMaxWidth:false, htmlLabels:true}});</script>
+
+</body></html>
