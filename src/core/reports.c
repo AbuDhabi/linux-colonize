@@ -686,12 +686,21 @@ static const char* reports_job_name(int job) {
   return live ? live : k_job_names[job];
 }
 
+/*
+ * Per-index buffer, same reason as reports_tribe_name below: the village
+ * trade dialogs (@BRING, @BADCARGO, @BUYWHICH, @CHIEFHOWDY) fetch three cargo
+ * names into one token set before filling the text, and the shared
+ * reports_names_field scratch made all three read back the last one
+ * ("Cigars, Cigars and Cigars", three "Ore" choice rows). bugs 2026-09-15.
+ */
 static const char* reports_cargo_name(int cargo) {
+  static char buf[COLONIZE_COL1_CARGO_TYPES][32];
   if (cargo < 0 || cargo >= (int)COLONIZE_COL1_CARGO_TYPES) {
     return "cargo";
   }
   const char* live = reports_names_field("CARGO", cargo, 0);
-  return live ? live : k_cargo_names[cargo];
+  snprintf(buf[cargo], sizeof(buf[cargo]), "%s", live ? live : k_cargo_names[cargo]);
+  return buf[cargo];
 }
 
 static const char* reports_ff_name(int idx) {
