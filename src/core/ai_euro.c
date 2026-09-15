@@ -89,6 +89,13 @@ static uint32_t s_violate_last_turn[COLONIZE_UNITS_MAX];
  * (see the check near the top of ai_euro_unit_act).
  */
 static uint8_t s_euro_roam_wander[COLONIZE_UNITS_MAX];
+/*
+ * Ship sail-loop route latch: set once the greedy ocean scorer stalls against
+ * a land wall for a goto, cleared on every goto write. While set, the act
+ * routes via the FUN_6662 pathfinder from its first step instead of greedy
+ * west / pathfinder east ping-pong (net zero progress = multi-turn "circles").
+ */
+static uint8_t s_euro_ship_route_latch[COLONIZE_UNITS_MAX];
 
 static void ai_euro_set_goto(ColonizeUnit* u, int orders, int gx, int gy);
 static int ai_euro_at_war_any_peer(const ColonizeCol1Save* col1, int nation_id);
@@ -3774,6 +3781,7 @@ static void ai_euro_set_goto(ColonizeUnit* u, int orders, int gx, int gy) {
    */
   if (u->id >= 0 && u->id < COLONIZE_UNITS_MAX) {
     s_euro_roam_wander[u->id] = 0;
+    s_euro_ship_route_latch[u->id] = 0;
   }
 }
 
@@ -14270,6 +14278,25 @@ static int ai_euro_try_ship_europe_export(
   if (!ai_euro_ship_holds_export_goods(ctx->units, ship)) {
     return 0;
   }
+  /*
+   * Only a real load is worth the crossing: the arm's own load rule above
+   * yields >= 50 (stock > 99, leave 50), so hold that bar for cargo the
+   * berth-arrival load matrix put aboard as well. A few furs from a young
+   * colony's stock sent the Caravel to Europe and back every four turns
+   * (the "circles"), the same trip again each time it came home.
+   */
+  {
+    int total = 0;
+    const int n = units_goods_hold_count(ctx->units, ship->id);
+    for (int h = 0; h < n; ++h) {
+      if (europe_cargo_export_eligible(ship->hold_goods_type[h])) {
+        total += units_hold_amount(ctx->units, ship->id, h);
+      }
+    }
+    if (total < 50) {
+      return 0;
+    }
+  }
   return ai_euro_ship_sail_to_europe(ctx, ship);
 }
 
@@ -17761,6 +17788,52 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
       int lx = 0;
       int ly = 0;
       ai_euro_resolve_landfall_goto(ctx, u, &lx, &ly);
+      /*
+       * Established nation: the Europe-exit goto is the home coast, not the
+       * opening west-explore course (4,13). A passenger's colony goto wins,
+       * else the own coastal colony nearest the landfall guess. Without this
+       * a mid-game ship left Europe aimed at (4,y): greedy steps west into a
+       * land pocket, the pathfinder fallback routed back east, and the ship
+       * sailed the same loop every turn with its cargo still aboard.
+       */
+      int home_wx = -1;
+      int home_wy = -1;
+      if (colonies_count_for_nation(ctx->colonies, nation_id) > 0) {
+        int cx = -1;
+        int cy = -1;
+        for (int c = 0; c < u->cargo_count && c < COLONIZE_UNIT_CARGO_MAX; ++c) {
+          const ColonizeUnit* pax = units_get_const(ctx->units, u->cargo_ids[c]);
+          if (!pax || !pax->active) {
+            continue;
+          }
+          const ColonizeColony* pc = colonies_find_at_xy(ctx->colonies, pax->goto_x, pax->goto_y);
+          if (pc && pc->nation_id == nation_id && map_tile_is_coastal(ctx->map, pc->x, pc->y)) {
+            cx = pc->x;
+            cy = pc->y;
+            break;
+          }
+        }
+        if (cx < 0) {
+          int best = -1;
+          for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+            const ColonizeColony* c = &ctx->colonies->colonies[i];
+            if (!c->active || c->nation_id != nation_id ||
+                !map_tile_is_coastal(ctx->map, c->x, c->y)) {
+              continue;
+            }
+            const int d = abs(c->x - lx) + abs(c->y - ly);
+            if (best < 0 || d < best) {
+              best = d;
+              cx = c->x;
+              cy = c->y;
+            }
+          }
+        }
+        if (cx >= 0 && ai_euro_coastal_water_near(ctx->map, cx, cy, lx, ly, &home_wx, &home_wy)) {
+          lx = home_wx;
+          ly = home_wy;
+        }
+      }
       int hx = lx;
       int hy = ly;
       int placed = 0;
@@ -17835,8 +17908,13 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
             return;
           }
         }
-        /* After approach leg, west-explore course for later turns (0a60). */
-        ai_euro_set_goto(u, UNITS_ORDER_AI_SAIL, wx, wy);
+        /* After approach leg: home coast (established), else west-explore
+         * course for later turns (0a60). */
+        if (home_wx >= 0) {
+          ai_euro_set_goto(u, UNITS_ORDER_AI_SAIL, home_wx, home_wy);
+        } else {
+          ai_euro_set_goto(u, UNITS_ORDER_AI_SAIL, wx, wy);
+        }
         u->moves_left = 0;
       }
     }
@@ -18072,7 +18150,11 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
       if (!u->active) {
         return;
       }
-      if (is_privateer || !ai_euro_has_useful_goto(u, ctx->map)) {
+      /* A hull that cannot fight (Caravel/Merchantman/Galleon, @UNIT attack
+       * 0) and has no passenger errand has no business hunting: aimed at a
+       * foe ship's tile it parked next to it for the rest of the war. */
+      const int can_hunt = has_pax_space || !ai_euro_unit_cannot_attack(ctx->units, u);
+      if (can_hunt && (is_privateer || !ai_euro_has_useful_goto(u, ctx->map))) {
         int hx = 0;
         int hy = 0;
         const int aimed =
@@ -18152,6 +18234,9 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
     } else if (!units_orders_follow_goto(u->orders)) {
       u->orders = UNITS_ORDER_AI_SAIL;
     }
+    if (getenv("AI_SHIP_TRACE")) {
+      fprintf(stderr, "[ship] unit %d at (%d,%d) goto (%d,%d) ord %d mp %d cargo %d\n", u->id, u->x, u->y, u->goto_x, u->goto_y, u->orders, u->moves_left, u->cargo_count);
+    }
     if (units_orders_follow_goto(u->orders) && (u->x != u->goto_x || u->y != u->goto_y)) {
       int prev_x = -1;
       int prev_y = -1;
@@ -18166,7 +18251,9 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
         int dy = 0;
         int tx = 0;
         int ty = 0;
-        if (ai_euro_score_move(ctx, u, u->goto_x, u->goto_y, &dx, &dy)) {
+        const int latched =
+          u->id >= 0 && u->id < COLONIZE_UNITS_MAX && s_euro_ship_route_latch[u->id];
+        if (!latched && ai_euro_score_move(ctx, u, u->goto_x, u->goto_y, &dx, &dy)) {
           tx = u->x + dx;
           ty = u->y + dy;
         } else {
@@ -18192,6 +18279,9 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
           }
           moved = units_try_move(ctx->units, u->id, ctx->map, tx, ty, ctx->colonies, ctx->rng);
         }
+        if (getenv("AI_SHIP_TRACE")) {
+          fprintf(stderr, "[ship]   step try (%d,%d) moved=%d mp %d\n", tx, ty, moved, u->moves_left);
+        }
         if (!moved) {
           /*
            * Greedy scored step stalled (land wall / own-ship block between
@@ -18201,12 +18291,21 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
            */
           int px = 0;
           int py = 0;
+          /* Stay on the pathfinder for this goto, this act and the next:
+           * greedy-then-pathfinder each act undoes itself (west two, east
+           * two) and the ship circles for turns. */
+          if (u->id >= 0 && u->id < COLONIZE_UNITS_MAX) {
+            s_euro_ship_route_latch[u->id] = 1;
+          }
           if (!units_next_goto_step(ctx->units, u->id, ctx->map, ctx->colonies, ctx->rng, &px, &py)) {
             /* Pathfinder agrees the goal is unreachable from here — drop the
              * goto so next act re-aims instead of resuming the same grind
              * (the cross-turn A↔B wiggle). */
             ai_euro_set_goto(u, UNITS_ORDER_AI_SAIL, u->x, u->y);
             break;
+          }
+          if (getenv("AI_SHIP_TRACE")) {
+            fprintf(stderr, "[ship]   pathfinder step (%d,%d)\n", px, py);
           }
           if (units_id_at(ctx->units, px, py) >= 0) {
             break;
