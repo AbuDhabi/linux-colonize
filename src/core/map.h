@@ -399,6 +399,8 @@ int map_resource_type_at(const ColonizeWorldMap* map, int x, int y);
  */
 int map_resource_type_for_yield(const ColonizeWorldMap* map, int x, int y);
 bool map_tile_has_rumour(const ColonizeWorldMap* map, int x, int y);
+/* FUN_137f_0598: DOS rumour-tile test used by the Indian move scorer (owner nibble unset + hash). */
+bool map_dos_0598_rumour_tile(const ColonizeWorldMap* map, int x, int y);
 /* Mark procedural lost-city rumour at (x,y) as explored/consumed. Returns false if none. */
 bool map_clear_rumour(ColonizeWorldMap* map, int x, int y);
 /* True when terrain byte has a river (major or minor). */

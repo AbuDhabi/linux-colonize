@@ -4,6 +4,7 @@
 #include <string.h>
 
 #include "core/turn.h"
+#include "core/units.h"
 
 bool golden_open(const char* path_in, const char* path_exp, uint32_t rng_seed, GoldenFixture* fx) {
   char err[256];
@@ -54,6 +55,10 @@ bool golden_open(const char* path_in, const char* path_exp, uint32_t rng_seed, G
     return false;
   }
   fx->bridged = true;
+  /* Live presence-bit maintenance (DOS FUN_1427_02ca/023a) — game_loop wires
+   * this at load; without it every mover leaves a stale UNITFLAG behind. */
+  units_set_occupancy_map(&fx->map);
+  units_occupancy_rebuild(&fx->units);
 
   fx->turn_number = fx->br.turn_number;
   fx->year = fx->br.year;
@@ -108,6 +113,7 @@ bool golden_turn(GoldenFixture* fx) {
 }
 
 void golden_close(GoldenFixture* fx) {
+  units_set_occupancy_map(NULL);
   map_free(&fx->map);
   if (fx->names_loaded) {
     assets_msg_free(&fx->names);

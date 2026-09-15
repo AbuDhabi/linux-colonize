@@ -2075,6 +2075,8 @@ static void ai_indian_152e_village_growth(
   }
 }
 
+static int ai_021a_trace_enabled(void);
+
 static void ai_grow_villages(ColonizeTurnContext* ctx, int nation_id) {
   if (!ctx || !ctx->col1_ok || !ctx->col1 || !ctx->col1->tribe) {
     return;
@@ -2091,7 +2093,25 @@ static void ai_grow_villages(ColonizeTurnContext* ctx, int nation_id) {
     if ((int)t->nation_id != nation_id) {
       continue;
     }
+    const uint32_t before = rng->state;
     ai_indian_152e_village_growth(ctx, (int)i, nation_id, rng);
+    if (ai_021a_trace_enabled()) {
+      int draws = 0;
+      AiRng probe;
+      probe.state = before;
+      while (draws < 1000 && probe.state != rng->state) {
+        (void)dos_rng_next(&probe);
+        draws++;
+      }
+      fprintf(
+        stderr, "AI_152E_DRAWS n=%d tribe=%u xy=(%u,%u) pop=%u draws=%d met=%d%d%d%d\n", nation_id,
+        (unsigned)i, t->x, t->y, t->population, draws,
+        (ctx->col1->indian[nation_id - 4].euro_diplo[0] & 0x20) != 0,
+        (ctx->col1->indian[nation_id - 4].euro_diplo[1] & 0x20) != 0,
+        (ctx->col1->indian[nation_id - 4].euro_diplo[2] & 0x20) != 0,
+        (ctx->col1->indian[nation_id - 4].euro_diplo[3] & 0x20) != 0
+      );
+    }
   }
 }
 
@@ -2364,6 +2384,75 @@ static int ai_native_foreign_euro_pull(
     e8 = 1;
   }
   return score + e8 * 4;
+}
+
+/*
+ * Seed-100 dir peels (init + mid-turn tables) shared by both Brave pickers.
+ * Returns the (possibly overridden) dir. audit_unseen/audit_seen may be NULL
+ * (the 021a picker has no seen/unseen branch pair).
+ */
+static int ai_native_apply_seed100_peels(
+  int nation_id,
+  int x,
+  int y,
+  int best_dir,
+  int dump,
+  const int* audit_unseen,
+  const int* audit_seen,
+  int unit_seen_by_any
+) {
+  /*
+   * Seed-100 peels: quiet formula at matched LCG still misses these dirs
+   * (empiricism matches golden). Override after scoring/LCG burns.
+   */
+  /* Init-pulse peels retired 2026-09-15: SEED100.SAV matches without them. */
+  if (s_ai_seed100_midturn_turn > 0 && !ai_brave_peels_disabled()) {
+    /*
+     * Mid-turn dir peels — residue after the FUN_4d56_021a picker landed
+     * (2026-09-15). 99 scoring holdouts + 6 river/multi-step + 2 cascade rows
+     * of the retired 20e6-shaped scorer collapsed to the six below: each is
+     * a 1..5-point near-tie the 021a transcription still resolves the other
+     * way (see docs/port_plan.md "D3 determinism debt"). AI_PEEL_AUDIT=1
+     * re-classifies them; drop a row the moment picked == golden.
+     */
+    static const struct {
+      int turn;
+      int nation_id;
+      int x, y, dir;
+    } k_mid_peels[] = {
+      {1, 6, 48, 15, 6}, /* W (47,15); 207 vs NW 212 */
+      {3, 6, 26, 6, 5}, /* SW (25,7); tie 203/203 with S, strict > keeps S */
+      {3, 7, 46, 53, 3}, /* SE (47,54); 208 vs W 209 */
+      {3, 10, 49, 39, 5}, /* SW (48,40); 204 vs N 207 (French-owned N) */
+      {4, 7, 47, 54, 0}, /* N (47,53); 202 vs S 207 */
+      {4, 10, 47, 38, 6}, /* W (46,38); 200 vs NE 212 */
+    };
+    for (size_t i = 0; i < sizeof(k_mid_peels) / sizeof(k_mid_peels[0]); ++i) {
+      if (k_mid_peels[i].turn == s_ai_seed100_midturn_turn &&
+          k_mid_peels[i].nation_id == nation_id && k_mid_peels[i].x == x &&
+          k_mid_peels[i].y == y) {
+        if (ai_peel_audit_enabled()) {
+          fprintf(
+            stderr,
+            "AI_PEEL_AUDIT turn=%d n=%d xy=(%d,%d) golden=%d picked=%d "
+            "unseen_best=%d seen_best=%d gate_now=%d\n",
+            s_ai_seed100_midturn_turn,
+            nation_id,
+            x,
+            y,
+            k_mid_peels[i].dir,
+            best_dir,
+            audit_unseen ? ai_peel_audit_argmax(audit_unseen) : -1,
+            audit_seen ? ai_peel_audit_argmax(audit_seen) : -1,
+            unit_seen_by_any
+          );
+        }
+        best_dir = k_mid_peels[i].dir;
+        break;
+      }
+    }
+  }
+  return best_dir;
 }
 
 static int ai_native_pick_dir_asm(
@@ -2661,220 +2750,953 @@ static int ai_native_pick_dir_asm(
   if (dump) {
     fprintf(stderr, "AI_SCORE_DUMP asm best=%d score=%d\n", best_dir, best_score);
   }
-  /*
-   * Seed-100 peels: quiet formula at matched LCG still misses these dirs
-   * (empiricism matches golden). Override after scoring/LCG burns.
-   */
-  if (s_ai_seed100_init_pulse && !ai_brave_peels_disabled()) {
-    static const struct {
-      int nation_id;
-      int x, y, dir;
-    } k_peels[] = {
-      {4, 11, 30, 1},
-      {4, 6, 34, 1},
-      {6, 48, 4, 5},
-      {6, 25, 7, 7},
-      {7, 46, 56, 2},
-      {8, 13, 48, 5},
-      {8, 17, 33, 3},
-      {8, 9, 43, 7},
-      {9, 33, 54, 7},
-      {9, 30, 50, 5},
-      {10, 48, 42, 1},
-      {10, 47, 39, 2},
-      {11, 32, 31, 5},
-    };
-    for (size_t i = 0; i < sizeof(k_peels) / sizeof(k_peels[0]); ++i) {
-      if (k_peels[i].nation_id == nation_id && k_peels[i].x == x && k_peels[i].y == y) {
-        if (dump && best_dir != k_peels[i].dir) {
-          fprintf(
-            stderr,
-            "AI_SCORE_DUMP peel n=%d xy=(%d,%d) asm=%d golden=%d\n",
-            nation_id,
-            x,
-            y,
-            best_dir,
-            k_peels[i].dir
-          );
-        }
-        best_dir = k_peels[i].dir;
-        break;
-      }
-    }
-  } else if (s_ai_seed100_midturn_turn > 0 && !ai_brave_peels_disabled()) {
-    /*
-     * Mid-turn dir peels (AI_STEP_AUDIT triage, fog-axis fix does not shrink):
-     *   river / multi-step first pick: 6
-     *   cascade / mis-key fixes: 2
-     *   scoring holdouts (quiet terms at matched LCG): 99 (2026-09-08:
-     *     6 rows retired after the vis-mask seen gate + local_ec fog gate +
-     *     facing byte-8 fixes; AI_PEEL_AUDIT=1 classifies every firing row
-     *     against both seen/unseen branch scorers — rerun it after any
-     *     scorer change and delete rows reported picked==golden)
-     * Drop only when quiet formula (or inputs) catch golden without peels.
-     */
-    static const struct {
-      int turn;
-      int nation_id;
-      int x, y, dir;
-    } k_mid_peels[] = {
-  {1, 4, 7, 33, 2}, /* river E; then N to (8,32) */
-  {1, 4, 8, 33, 0}, /* Inca step2 N -> (8,32) */
-  {1, 10, 48, 39, 4}, /* Sioux river S multi */
-  {2, 8, 19, 37, 6}, /* Arawak river W */
-  {2, 8, 18, 37, 5}, /* Arawak SW -> (17,38) */
-  {2, 8, 7, 41, 0}, /* after Arawak multi-step LCG */
-  {4, 9, 33, 50, 4}, /* Cherokee river S */
-  {1, 4, 11, 29, 3},
-  {1, 6, 19, 9, 6},
-  {1, 6, 41, 20, 6},
-  {1, 6, 44, 13, 2},
-  {1, 6, 47, 5, 4},
-  {1, 6, 48, 15, 6},
-  {1, 7, 44, 50, 0},
-  {1, 7, 46, 52, 6},
-  {1, 7, 47, 47, 0},
-  {1, 8, 12, 49, 0},
-  {1, 8, 18, 34, 3},
-  {1, 8, 19, 40, 3},
-  {1, 9, 29, 51, 0},
-  {1, 9, 35, 50, 2},
-  {1, 10, 48, 36, 5},
-  {1, 11, 27, 34, 2},
-  {2, 4, 8, 32, 7},
-  {2, 4, 12, 22, 1},
-  {2, 4, 12, 28, 7},
-  {2, 6, 37, 21, 1},
-  {2, 6, 47, 6, 1},
-  {2, 7, 44, 49, 5},
-  {2, 7, 44, 60, 3},
-  {2, 7, 45, 52, 3},
-  {2, 7, 48, 56, 5},
-  {2, 8, 12, 48, 3},
-  {2, 8, 19, 35, 6},
-  {2, 8, 20, 41, 5},
-  {2, 9, 29, 50, 5},
-  {2, 10, 47, 37, 5},
-  {2, 11, 28, 34, 3},
-  {3, 4, 7, 31, 4},
-  {3, 4, 9, 25, 0},
-  {3, 4, 11, 27, 6},
-  {3, 4, 13, 31, 2},
-  {3, 6, 26, 6, 5},
-  {3, 6, 39, 20, 1}, /* NE -> (40,19); was N collapsing with (38,20) */
-  {3, 6, 48, 5, 6},
-  {3, 7, 45, 61, 5},
-  {3, 7, 47, 57, 6},
-  {3, 8, 13, 49, 6},
-  {3, 8, 15, 35, 5},
-  {3, 8, 17, 38, 5},
-  {3, 9, 32, 51, 1},
-  {3, 10, 46, 38, 2},
-  {3, 10, 49, 39, 5},
-  {3, 10, 49, 43, 1},
-  {3, 11, 27, 34, 3}, /* SE -> (28,35); scoring picked S→(27,35) */
-  {3, 11, 29, 34, 0},
-  {4, 4, 7, 32, 6},
-  {4, 4, 9, 24, 5},
-  {4, 4, 10, 21, 6},
-  {4, 4, 10, 27, 4},
-  {4, 4, 14, 20, 4},
-  {4, 4, 14, 31, 0},
-  {4, 5, 23, 53, 6},
-  {4, 6, 39, 19, 4},
-  {4, 6, 44, 13, 2},
-  {4, 6, 47, 5, 4},
-  {4, 7, 43, 51, 4},
-  {4, 7, 46, 57, 3},
-  {4, 7, 47, 54, 0},
-  {4, 7, 49, 46, 4},
-  {4, 8, 14, 36, 6},
-  {4, 8, 16, 39, 0},
-  {4, 8, 17, 35, 7},
-  {4, 9, 36, 52, 6}, /* W -> (35,52); scoring picked SW→(35,53) */
-  {4, 10, 47, 38, 6},
-  {4, 10, 48, 41, 3}, /* step2 SE -> (49,42) mv=7; scoring picked S→(48,42) */
-  {4, 11, 28, 35, 6},
-  {4, 11, 29, 33, 2},
-  {4, 11, 30, 34, 5},
-  {5, 4, 8, 25, 3},
-  {5, 4, 10, 28, 4},
-  {5, 4, 14, 21, 4},
-  {5, 6, 24, 7, 1},
-  {5, 6, 47, 18, 1},
-  {5, 7, 43, 52, 4}, /* S -> (43,53); scoring picked SE→(44,53) */
-  {5, 7, 47, 53, 5},
-  {5, 7, 49, 47, 4},
-  {5, 8, 9, 41, 4},
-  {5, 8, 13, 36, 5},
-  {5, 8, 16, 34, 2},
-  {5, 9, 29, 51, 0},
-  {5, 9, 35, 52, 0},
-  {5, 10, 46, 38, 1},
-  {5, 11, 30, 33, 2},
-  {6, 4, 9, 26, 2},
-  {6, 4, 10, 29, 4},
-  {6, 4, 13, 29, 4},
-  {6, 4, 14, 22, 1},
-  {6, 6, 40, 21, 0},
-  {6, 6, 48, 17, 4},
-  {6, 7, 48, 59, 6},
-  {6, 8, 9, 42, 5},
-  {6, 8, 12, 37, 4},
-  {6, 8, 16, 37, 7},
-  {6, 8, 17, 34, 2},
-  {6, 9, 29, 50, 5},
-  {6, 9, 33, 53, 3},
-  {6, 10, 47, 37, 0},
-  {6, 10, 50, 40, 7},
-  {6, 11, 27, 34, 1}, /* NE -> (28,33); was S colliding */
-    };
-    for (size_t i = 0; i < sizeof(k_mid_peels) / sizeof(k_mid_peels[0]); ++i) {
-      if (k_mid_peels[i].turn == s_ai_seed100_midturn_turn &&
-          k_mid_peels[i].nation_id == nation_id && k_mid_peels[i].x == x &&
-          k_mid_peels[i].y == y) {
-        if (ai_peel_audit_enabled()) {
-          fprintf(
-            stderr,
-            "AI_PEEL_AUDIT turn=%d n=%d xy=(%d,%d) golden=%d picked=%d "
-            "unseen_best=%d seen_best=%d gate_now=%d\n",
-            s_ai_seed100_midturn_turn,
-            nation_id,
-            x,
-            y,
-            k_mid_peels[i].dir,
-            best_dir,
-            ai_peel_audit_argmax(audit_unseen),
-            ai_peel_audit_argmax(audit_seen),
-            unit_seen_by_any
-          );
-        }
-        best_dir = k_mid_peels[i].dir;
-        break;
-      }
-    }
-  }
+  best_dir = ai_native_apply_seed100_peels(
+    nation_id, x, y, best_dir, dump, audit_unseen, audit_seen, unit_seen_by_any
+  );
   /* Quiet ASM always burns one extra LCG next (stay-shaped) for stream sync. */
   (void)ai_rng_next_counted(rng);
   return best_dir;
+}
+
+
+/*
+ * ===========================================================================
+ * FUN_4d56_021a — the REAL quiet Brave move picker (2026-09-15).
+ *
+ * The 20e6 "quiet Brave" branch above was never what DOS runs for an Indian
+ * unit. 4d56:021a..14fd (ndisasm of overlay 13, origin 0x21a) carries its OWN
+ * nine-way direction loop (dirs 0..7 plus index 8 = stay, DS:0xb4/0xbe both
+ * hold a 9th (0,0) entry). The far call at 021a:1182 that the docs read as
+ * "reaches the 521d scorer through thunk 291f:012c" is FUN_7a65_0008 — the
+ * on-map debug number plotter behind the "Show Indian moves" option, called
+ * with (x, y, score, colour 0xf). It never scores anything.
+ *
+ * Shape (asm offsets are 4d56:xxxx):
+ *   0x21a  prologue: cool = turn - turn/25; unit fa/river; 0bce adjacent
+ *          foreign probe (+ DS:0x8cfa nation); 15eb_0142 nearest colony of
+ *          any nation on this continent; home village (destroy if bad);
+ *          home unreachable when on another continent; "encroaching" colony
+ *          = dist(colony, village) <= max(2, pop/2); Euro military stacks
+ *          adjacent to the VILLAGE (count - colony pop/4, total >= 2);
+ *          angry = #(alarm >= 75) + #(village attitude >= 0x80) over Euros.
+ *   0x5aa  for d in 0..8: score = 200, flags = 0
+ *          skip ocean/HS, DOS rumour tile (137f_0598), arctic 0x18
+ *          owner / presence / settlement owner / fa / river / prime resource
+ *          foreign owner: flags|=1, grudge/hostile (|=0x40 / |=4)
+ *          occupied by foreign: flags|=2
+ *          !occupied: adjacent Euro colony (100) / wagon (50) + alarm/2, best
+ *            -> cooldown gate, += val + 2*(cool - last_visit), flags|=0x80
+ *          !occupied & no visit & encroaching colony & cooldown: += (12-d)*10
+ *          occupied: other tribe -> skip; land only -> -= 50-alarm; units ->
+ *            +4*found[terr], per-type stack bonuses (treasure/artillery/wagon
+ *            loot arms with RNG(50,100) and RNG(0,7) draws), colony +20/+10,
+ *            -= 50-alarm, need loot or grudge, flags|=8 (attack)
+ *          own village tile: musket/horse upgrade +20
+ *          own unit on dest: 2+ off-village -> skip, else -40
+ *          stay: (1-stack)*40, -25 (attack intent or RNG(0,(tech+1)*4)==0)
+ *          facing +4 / +3 adjacent (byte math: facing 8 counts 1 and 7) / -6
+ *          road pair +4 else cardinal river pair +4
+ *          home tether: dist>2 -> -= 3*dist (>>1 angry, >>1 armed, >>2 mtd)
+ *          09dc adjacent-foreign at dest: Euro -> +50 unmet, +(alarm-50)/4
+ *            when alarm >= 25; other tribe -> -25
+ *          stay-only arms (adjacent foreign at own tile, no-stay unless upg)
+ *          !angry: unclaimed +5, drift toward nearest colony
+ *            += (tier(alarm)+1)*(12-d)>>2 within 12
+ *          angry: +5, +10 resource, colony +500, unit stack combat estimate,
+ *            hostile colony -2*d (met) else drift
+ *          += RNG(1,5); clamp 0; strict > keeps first
+ *   0x11ae facing = dir (8 on stay); stay: orders 5/6 latch + in-field
+ *          arm/mount; move: orders = 0
+ *   0x1277 tail: contact_state[owner]==2 -> stay; ==1 stamp; contact/attack
+ *          need 3 thirds left; human-colony warning chrome (not ported);
+ *          pending-encounter bit (unit +0x3148 & 8) -> encounter, stay;
+ *          peaceful visit (0x80): last_visit = turn, bit 8 set;
+ *          encroach march via 6662_0f74 pathfinder after the long cooldown;
+ *          foreign-land quiet move with spent > 0 -> stay.
+ *
+ * DOS unit +0x12 word (COL1 cargo_hold[2..3], the "spawn turn stamp" with
+ * "no reader found") is this routine's last-visit stamp: port keeps it in
+ * col1_hold_raw[6..7].
+ * ===========================================================================
+ */
+
+static int ai_021a_settle_owner(const ColonizeWorldMap* map, int x, int y) {
+  /* FUN_281f_06be -> FUN_137f_03e4: layer2 bit 0x02 then the owner nibble. */
+  if (!map || !map->layer2 || !map_coords_inset(map, x, y)) {
+    return -1;
+  }
+  if ((map->layer2[(size_t)y * (size_t)map->width + (size_t)x] & 0x02u) == 0) {
+    return -1;
+  }
+  return ai_owner_nibble(map, x, y);
+}
+
+static int ai_021a_colony_at(const ColonizeColonyPool* colonies, int x, int y) {
+  /* FUN_15eb_0a76: colony index at tile (pool order == COL1 order). */
+  if (!colonies) {
+    return -1;
+  }
+  for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+    const ColonizeColony* c = &colonies->colonies[i];
+    if (c->active && c->x == x && c->y == y) {
+      return i;
+    }
+  }
+  return -1;
+}
+
+static int ai_021a_type_attack(const ColonizeUnitPool* units, int type_index) {
+  const ColonizeUnitType* t = units_type(units, type_index);
+  return t ? t->attack : 0;
+}
+
+/* FUN_1427_0fec / 0fc0 — armed / mounted type sets. */
+static int ai_021a_type_armed(int t) {
+  return t == 1 || t == 4 || t == 0xb || t == 0x14 || t == 0x16;
+}
+static int ai_021a_type_mounted(int t) {
+  return t == 4 || t == 5 || t == 0x15 || t == 0x16;
+}
+
+/*
+ * FUN_1427_0b08 (via 0bce) / FUN_1427_09dc: first adjacent foreign owner on
+ * the same medium. 0b08 checks unit presence then settlement per tile (the
+ * settlement write wins), stopping after the first tile that found one; 09dc
+ * checks settlement first, else presence, stopping at the first hit. Both
+ * leave the nation in DS:0x8cfa.
+ */
+static int s_021a_adj_fx = -1;
+static int s_021a_adj_fy = -1;
+static int ai_021a_adjacent_foreign(
+  const ColonizeWorldMap* map, int x, int y, int nation_id, int settlement_first
+) {
+  const int medium = ai_is_ocean_hs(map, x, y);
+  int found = -1;
+  s_021a_adj_fx = s_021a_adj_fy = -1;
+  for (int d = 0; d < 8 && found < 0; ++d) {
+    const int nx = x + k_ai_dir8_dx[d];
+    const int ny = y + k_ai_dir8_dy[d];
+    if (!map_coords_inset(map, nx, ny)) {
+      continue;
+    }
+    if (ai_is_ocean_hs(map, nx, ny) != medium) {
+      continue;
+    }
+    const int p = map_tile_owner_or_presence(map, nx, ny);
+    const int s = ai_021a_settle_owner(map, nx, ny);
+    if (settlement_first) {
+      const int o = s >= 0 ? s : p;
+      if (o >= 0 && o != nation_id) {
+        found = o;
+      }
+    } else {
+      if (p >= 0 && p != nation_id) {
+        found = p;
+      }
+      if (s >= 0 && s != nation_id) {
+        found = s;
+      }
+    }
+    if (found >= 0) {
+      s_021a_adj_fx = nx;
+      s_021a_adj_fy = ny;
+    }
+  }
+  return found;
+}
+
+static int ai_021a_visit_turn(const ColonizeUnit* u) {
+  if (!u->col1_hold_raw_valid) {
+    return 0;
+  }
+  return (int)(int16_t)((unsigned)u->col1_hold_raw[6] | ((unsigned)u->col1_hold_raw[7] << 8));
+}
+
+static void ai_021a_set_visit_turn(ColonizeUnit* u, int turn) {
+  u->col1_hold_raw[6] = (uint8_t)(turn & 0xff);
+  u->col1_hold_raw[7] = (uint8_t)((turn >> 8) & 0xff);
+  u->col1_hold_raw_valid = 1;
+}
+
+typedef struct Ai021aResult {
+  int dir; /* 0..7 move, 8 stay */
+  int flags; /* DOS [bp-0x82] of the winning dir */
+} Ai021aResult;
+
+/* FUN_15dc_00a2 alarm tier: <25 0, <50 1, <75 2, else 3. */
+static int ai_021a_alarm_tier(int alarm) {
+  if (alarm < 0x19) return 0;
+  if (alarm < 0x32) return 1;
+  if (alarm < 0x4b) return 2;
+  return 3;
+}
+
+static int ai_native_pick_dir_021a(
+  AiRng* rng,
+  const ColonizeWorldMap* map,
+  const ColonizeUnitPool* units,
+  const ColonizeCol1Save* col1,
+  const ColonizeColonyPool* colonies,
+  const ColonizeUnit* u,
+  int nation_id,
+  Ai021aResult* out
+) {
+  out->dir = 8;
+  out->flags = 0;
+  if (!rng || !map || !units || !col1 || !u) {
+    return 8;
+  }
+  const int x = u->x;
+  const int y = u->y;
+  const int indian = nation_id - 4;
+  const int turn_w = (int)col1->head.turn;
+  const int cool = turn_w + turn_w / -25; /* 021a:22b idiv by -25 */
+  const int unit_fa = ai_mask_fa_flags(map, x, y) & 0x0a;
+  const int unit_river = (int)(map_get_terrain_or(map, x, y, 25) & 0x40u);
+  const int home = u->home_tribe_id;
+  const int dump = ai_score_at_match(nation_id, x, y) ||
+                   (ai_peel_audit_enabled() && s_ai_seed100_midturn_turn > 0);
+
+  /* 0x291: FUN_1427_0bce — 0 when standing on a settlement tile. */
+  int adj_foreign = 0;
+  int adj_nation = -1;
+  if (ai_021a_settle_owner(map, x, y) < 0) {
+    adj_nation = ai_021a_adjacent_foreign(map, x, y, nation_id, 0);
+    adj_foreign = adj_nation >= 0;
+  }
+  const int continent = ai_continent_id(map, x, y);
+  /* 0x31d: nearest colony of any nation on this continent. */
+  int col_dist = 9999;
+  const int col_idx =
+    ai_goals_nearest_colony_15eb_0142(map, colonies, x, y, -1, continent, &col_dist);
+  const ColonizeColony* col = (col_idx >= 0) ? &colonies->colonies[col_idx] : NULL;
+  /* Home village (validity already enforced by the pulse). */
+  const ColonizeCol1Tribe* village =
+    (home >= 0 && home < (int)col1->head.tribe_count) ? &col1->tribe[home] : NULL;
+  const int vx = village ? (int)village->x : x;
+  const int vy = village ? (int)village->y : y;
+  int home_reach = home;
+  if (village && ai_continent_id(map, vx, vy) != continent) {
+    home_reach = -1;
+  }
+  /* 0x3bd: encroaching colony = within max(2, pop/2) of the village. */
+  int encroach = -1;
+  if (col) {
+    const int d = map_dos_dist(col->x - vx, col->y - vy);
+    int lim = (int)((int8_t)col->population >> 1);
+    if (lim < 2) {
+      lim = 2;
+    }
+    encroach = (lim >= d) ? d : -1;
+  }
+  /* 0x40a: Euro military stacks adjacent to the village. */
+  int threat = 0;
+  int threat_nation = -1;
+  for (int d = 0; d < 8; ++d) {
+    const int nx = vx + k_ai_dir8_dx[d];
+    const int ny = vy + k_ai_dir8_dy[d];
+    const int o = ai_owner_nibble(map, nx, ny);
+    if (o < 0 || o >= 4) {
+      continue;
+    }
+    if (ai_is_ocean_hs(map, nx, ny)) {
+      continue;
+    }
+    if (ai_unit_index_on_tile(units, nx, ny) < 0) {
+      continue;
+    }
+    int cnt = 0;
+    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+      const ColonizeUnit* o_u = &units->units[i];
+      if (!o_u->active || o_u->aboard_ship_id >= 0 || o_u->x != nx || o_u->y != ny) {
+        continue;
+      }
+      if (o_u->type_index >= 0xd && o_u->type_index <= 0x12) {
+        continue;
+      }
+      if (ai_021a_type_attack(units, o_u->type_index) > 1) {
+        cnt++;
+      }
+    }
+    if (cnt > 0) {
+      const int ci = ai_021a_colony_at(colonies, nx, ny);
+      if (ci >= 0) {
+        cnt -= (int)((int8_t)colonies->colonies[ci].population >> 2);
+      }
+    }
+    if (cnt > 0) {
+      threat += cnt;
+      threat_nation = o;
+    }
+  }
+  if (threat < 2) {
+    threat = 0;
+    threat_nation = -1;
+  }
+  /* 0x52e: angry count. */
+  int angry = 0;
+  for (int e = 0; e < 4; ++e) {
+    if (ai_diplo_indian_alarm(col1, nation_id, e) >= 0x4b) {
+      angry++;
+    }
+    if (village && col1_tribe_attitude(village, e) >= 0x80) {
+      angry++;
+    }
+  }
+  const int visit_turn = ai_021a_visit_turn(u);
+  const int self_stack = units_count_at(units, x, y);
+  const int lone = self_stack == 1;
+  const ColonizeCol1Indian* ind =
+    (indian >= 0 && indian < 8) ? &col1->indian[indian] : NULL;
+  const int tech = ind ? (int)ind->tech : 0;
+  const int facing = u->last_dir;
+
+  {
+    /* AI_021A_WATCH="x:y" — print that tile's layer2/layer3 at every act. */
+    static int wx = -2, wy = -2;
+    if (wx == -2) {
+      const char* e = getenv("AI_021A_WATCH");
+      if (!e || sscanf(e, "%d:%d", &wx, &wy) != 2) {
+        wx = wy = -1;
+      }
+    }
+    if (wx >= 0) {
+      fprintf(
+        stderr, "AI_021A_WATCH n=%d act@(%d,%d) tile(%d,%d) l2=%02x l3=%02x\n", nation_id, x, y,
+        wx, wy, ai_layer2_at(map, wx, wy), map_get_layer3(map, wx, wy)
+      );
+    }
+  }
+  if (dump) {
+    fprintf(
+      stderr,
+      "AI_021A begin n=%d xy=(%d,%d) facing=%d cool=%d visit=%d adj=%d/%d col=%d encroach=%d "
+      "threat=%d/%d angry=%d stack=%d seed=%u\n",
+      nation_id, x, y, facing, cool, visit_turn, adj_foreign, adj_nation, col_idx, encroach,
+      threat, threat_nation, angry, self_stack, (unsigned)map->prime_resource_seed
+    );
+  }
+
+  int best = -1;
+  int best_dir = 8;
+  int best_flags = 0;
+  int grudge = 0; /* [bp-0x14] — NOT reset on the other-tribe owner arm (DOS) */
+  for (int d = 0; d < 9; ++d) {
+    const int nx = x + (d < 8 ? k_ai_dir8_dx[d] : 0);
+    const int ny = y + (d < 8 ? k_ai_dir8_dy[d] : 0);
+    int score = 200;
+    int flags = 0;
+    const int terr = ai_dos_terr_class(map, nx, ny);
+    if (terr == 0x19 || terr == 0x1a) {
+      if (dump) fprintf(stderr, "AI_021A d=%d skip water\n", d);
+      continue;
+    }
+    if (map_dos_0598_rumour_tile(map, nx, ny)) {
+      if (dump) fprintf(stderr, "AI_021A d=%d skip rumour dest=(%d,%d)\n", d, nx, ny);
+      continue;
+    }
+    if (terr == 0x18) {
+      if (dump) fprintf(stderr, "AI_021A d=%d skip arctic\n", d);
+      continue;
+    }
+    const int owner = ai_owner_nibble(map, nx, ny);
+    const int presence = map_tile_owner_or_presence(map, nx, ny);
+    const int settle = ai_021a_settle_owner(map, nx, ny);
+    const int dfa = ai_mask_fa_flags(map, nx, ny) & 0x0a;
+    const int driver = (int)(map_get_terrain_or(map, nx, ny, 25) & 0x40u);
+    const int dres = map_resource_type_at(map, nx, ny) >= 0;
+    int hostile = 0;
+    int att = 0;
+    if (owner < 0 || owner == nation_id) {
+      hostile = 0;
+      grudge = 0;
+      att = 0;
+    } else {
+      flags |= 1;
+      att = (owner < 4 && village) ? col1_tribe_attitude(village, owner) : 0;
+      if (owner >= 4) {
+        hostile = 0;
+      } else {
+        grudge = att >= 0x80;
+        hostile = ai_diplo_indian_alarm(col1, nation_id, owner) >= 0x4b;
+        if (hostile) {
+          grudge = 1;
+        }
+        if (owner == threat_nation) {
+          grudge = 1;
+        }
+      }
+      if (hostile) {
+        flags |= 4;
+      }
+      if (grudge) {
+        flags |= 0x40;
+      }
+    }
+    int occ = 0;
+    {
+      int t = presence >= 0 ? presence : settle;
+      if (t == nation_id) {
+        t = -1;
+      }
+      if (t >= 0) {
+        flags |= 2;
+        occ = 1;
+      }
+    }
+    int visit_nation = -1;
+    int visit_val = -1;
+    if (!occ) {
+      for (int n = 0; n < 8; ++n) {
+        const int ax = nx + k_ai_dir8_dx[n];
+        const int ay = ny + k_ai_dir8_dy[n];
+        if (ax == x && ay == y) {
+          continue;
+        }
+        int val = 100;
+        int e = ai_021a_settle_owner(map, ax, ay);
+        if (e < 0) {
+          const int ui = ai_unit_index_on_tile(units, ax, ay);
+          if (ui < 0) {
+            continue;
+          }
+          const ColonizeUnit* au = &units->units[ui];
+          if (au->nation_id == nation_id) {
+            continue;
+          }
+          if (au->type_index != 0x0c) {
+            continue;
+          }
+          e = au->nation_id;
+          val >>= 1;
+        }
+        if (e < 0 || e >= 4) {
+          continue;
+        }
+        val += ai_diplo_indian_alarm(col1, nation_id, e) >> 1;
+        if (val >= visit_val) {
+          visit_val = val;
+          visit_nation = e;
+        }
+      }
+    }
+    const int vdist = map_dos_dist(nx - vx, ny - vy);
+    if (visit_nation >= 0) {
+      att = village ? col1_tribe_attitude(village, visit_nation) : 0;
+      grudge = att >= 0x80;
+      hostile = ai_diplo_indian_alarm(col1, nation_id, visit_nation) >= 0x4b;
+      if (!grudge && !hostile) {
+        if (cool - visit_turn < vdist * 2 + 5) {
+          if (dump) fprintf(stderr, "AI_021A d=%d skip visit-cooldown\n", d);
+          continue;
+        }
+      }
+      visit_val += (cool - visit_turn) * 2;
+      score += visit_val;
+      if (!hostile) {
+        flags |= 0x80;
+      }
+    }
+    if (!occ && visit_nation < 0 && encroach >= 0 && col) {
+      const int cn = col->nation_id;
+      const int census = (cn >= 0 && cn < 4) ? (int)col1->stuff.census_pop_proxy[cn] : 0;
+      const int cx = (census >> 3) + encroach * 2 + 5;
+      if (cx <= cool - visit_turn) {
+        const int dcol = map_dos_dist(col->x - nx, col->y - ny);
+        if (dcol < 12) {
+          score += (12 - dcol) * 10;
+        }
+      }
+    }
+    int attack_intent = 0;
+    int alarm = 0;
+    if (occ) {
+      if (owner >= 4) {
+        if (dump) fprintf(stderr, "AI_021A d=%d skip other-tribe\n", d);
+        continue;
+      }
+      alarm = ai_diplo_indian_alarm(col1, nation_id, owner);
+      if (alarm > 100) {
+        alarm = 100;
+      }
+      if (presence < 0 && settle < 0) {
+        score -= 50 - alarm;
+      } else {
+        int loot = 0;
+        int want = 0;
+        int treasure = 0;
+        if (presence >= 0) {
+          score += map_dos_terr_found_score_byte(terr & 31) << 2;
+          for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+            const ColonizeUnit* su = &units->units[i];
+            if (!su->active || su->aboard_ship_id >= 0 || su->x != nx || su->y != ny) {
+              continue;
+            }
+            const int st = su->type_index;
+            switch (st) {
+              case 0:
+                score += 5;
+                loot = lone; /* 0xa42 -> 0xa4c */
+                break;
+              case 1:
+              case 4:
+                if (vdist <= 1) {
+                  score += (threat + 5) * 4;
+                }
+                break;
+              case 2:
+                score += 10;
+                loot = lone; /* 0xa48 -> 0xa4c */
+                break;
+              case 5:
+                score += 10;
+                break;
+              case 0xa:
+                if (lone) {
+                  score += 50;
+                  loot = 1;
+                }
+                treasure = 1;
+                break;
+              case 0xb:
+                score += 35;
+                want = 1;
+                loot = lone;
+                break;
+              case 0xc: {
+                score += 2;
+                int holds = 0;
+                for (int h = 0; h < COLONIZE_UNIT_CARGO_MAX; ++h) {
+                  if (su->hold_goods_amount[h] > 0 && su->hold_goods_amount[h] < 255) {
+                    holds++;
+                  }
+                }
+                if (holds != 0) {
+                  want = 1;
+                  flags |= 0x10;
+                  score += 8;
+                }
+                if (!want) {
+                  if (ai_rng_range(rng, 50, 100) >= alarm) {
+                    break;
+                  }
+                }
+                /* +0x315c/+0x315e both negative: not in a transport chain. */
+                if (su->aboard_ship_id < 0) {
+                  score += 10;
+                  want = 1;
+                  loot = 1; /* 0xaa8: ax=1 -> [bp-0x20] */
+                }
+                break;
+              }
+              default:
+                break;
+            }
+          }
+        }
+        if (settle >= 0) {
+          if (alarm >= 0x4b) {
+            score += 0x14;
+          }
+          if (alarm >= 0x32) {
+            score += 10;
+          }
+        }
+        if (alarm <= 0x19 && !grudge) {
+          if (!loot) {
+            continue;
+          }
+          if (!treasure) {
+            continue;
+          }
+          if (ai_rng_range(rng, 0, 7) != 0) {
+            continue;
+          }
+        }
+        if (settle < 0 && att >= 0x20) {
+          grudge = 1;
+        }
+        score -= 0x32 - alarm;
+        if (!loot && !grudge) {
+          continue;
+        }
+        flags |= 8;
+        attack_intent = 1;
+      }
+    }
+    /* 0xbb6: own village tile — musket / horse upgrade beacon. */
+    int upg = 0;
+    if (settle == nation_id && ind) {
+      if ((int8_t)ind->muskets > 0 && (u->type_index == 0x13 || u->type_index == 0x15)) {
+        score += 0x14;
+        upg = 1;
+      }
+      if (ind->horse_breeding >= 0x19 && units_max_mp(units, u->id) <= 3) {
+        score += 0x14;
+        upg = 1;
+      }
+    }
+    /* 0xc0b */
+    if (d != 8) {
+      if (presence >= 0 && presence == nation_id) {
+        if (units_count_at(units, nx, ny) >= 2 && settle < 0) {
+          if (dump) fprintf(stderr, "AI_021A d=%d skip own-stack\n", d);
+          continue;
+        }
+        score -= 0x28;
+      }
+    } else {
+      score += (1 - self_stack) * 0x28;
+      if (attack_intent) {
+        score -= 0x19;
+      } else if (ai_rng_range(rng, 0, (tech + 1) * 4) == 0) {
+        score -= 0x19;
+      }
+    }
+    /* 0xc82: facing / road / river */
+    if (d != 8) {
+      if (facing == d) {
+        score += 4;
+      } else if (((facing + 1) & 7) == d || ((facing - 1) & 7) == d) {
+        score += 3;
+      } else if (((facing ^ 4) & 0xff) == d) {
+        score -= 6;
+      }
+      if (dfa && unit_fa) {
+        score += 4;
+      } else if ((d & 1) == 0 && driver && unit_river) {
+        score += 4;
+      }
+    } else {
+      /* 0xdf6: stay-only arms */
+      if (!angry) {
+        if (adj_foreign) {
+          if (adj_nation < 4) {
+            const int a = ai_diplo_indian_alarm(col1, nation_id, adj_nation);
+            if (ai_021a_alarm_tier(a) > 0) {
+              score += ((a - 0x32) >> 1) + 8;
+            }
+          }
+        } else if (!upg) {
+          if (dump) fprintf(stderr, "AI_021A d=8 skip stay (tech roll drawn)\n");
+          continue;
+        }
+      } else if (adj_foreign && adj_nation < 4) {
+        const int a = ai_diplo_indian_alarm(col1, nation_id, adj_nation);
+        if (a >= 0x5f) {
+          score += 0x10;
+        } else if (ai_021a_alarm_tier(a) > 0) {
+          score += ((a - 0x32) >> 1) + 5;
+        }
+      }
+    }
+    /* 0xcea: home tether */
+    if (home_reach >= 0) {
+      const int hd = map_dos_dist(nx - vx, ny - vy);
+      if (hd > 2) {
+        int t = hd * 3;
+        if (angry) {
+          t >>= 1;
+        }
+        if (ai_021a_type_armed(u->type_index)) {
+          t >>= 1;
+        }
+        if (ai_021a_type_mounted(u->type_index)) {
+          t >>= 2;
+        }
+        score -= t;
+      }
+    }
+    /* 0xd5c: FUN_1427_09dc adjacent foreign at dest */
+    {
+      const int fn = ai_021a_adjacent_foreign(map, nx, ny, nation_id, 1);
+      if (fn >= 0) {
+        if (fn < 4) {
+          const uint8_t rel = ai_diplo_read(col1, nation_id, fn);
+          if ((rel & 0x20) == 0) {
+            score += 0x32;
+          }
+          const int a = ai_diplo_indian_alarm(col1, nation_id, fn);
+          if (ai_021a_alarm_tier(a) > 0) {
+            score += (a - 0x32) >> 2;
+          }
+        } else {
+          score -= 0x19;
+        }
+      }
+    }
+    /* 0xeba */
+    if (!angry) {
+      if (owner < 0) {
+        score += 5;
+      }
+      if (col && ai_continent_id(map, nx, ny) == continent) {
+        const int dcol = map_dos_dist(col->x - nx, col->y - ny);
+        const int a = ai_diplo_indian_alarm(col1, nation_id, col->nation_id);
+        if (dcol < 12) {
+          score += ((ai_021a_alarm_tier(a) + 1) * (12 - dcol)) >> 2;
+        }
+      }
+    } else {
+      if (!grudge && !hostile) {
+        if (settle >= 0) {
+          continue;
+        }
+      } else {
+        score += 5;
+        if (dres) {
+          score += 10;
+        }
+        const int ci = ai_021a_colony_at(colonies, nx, ny);
+        if (ci >= 0) {
+          score += 500;
+        } else if (presence >= 0) {
+          ColonizeCombatStrengthCtx sctx;
+          sctx.units = units;
+          sctx.map = map;
+          sctx.colonies = colonies;
+          sctx.col1 = col1;
+          const int def_id = units_best_defender_at(units, col1, nx, ny, u->id, -1);
+          const int atk = (combat_unit_base_x8(&sctx, u->id, 1, NULL) * 3) >> 1;
+          int defs = 0;
+          if (def_id >= 0) {
+            defs = combat_engagement_strength(&sctx, def_id, u->id, NULL);
+            const ColonizeUnit* du = units_get_const(units, def_id);
+            if (du && du->type_index == 0xb) {
+              defs >>= 3;
+            }
+          }
+          for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+            const ColonizeUnit* su = &units->units[i];
+            if (!su->active || su->aboard_ship_id >= 0 || su->x != nx || su->y != ny) {
+              continue;
+            }
+            switch (su->type_index) {
+              case 0: score += 4; break;
+              case 1: score -= 2; break;
+              case 2: case 3: case 5: score += 8; break;
+              case 4: score -= 1; break;
+              case 0xa: case 0xb: case 0xc: score += 0x10; break;
+              default: break;
+            }
+          }
+          if (defs <= atk) {
+            score += (atk - defs) + 0x1e;
+          } else {
+            score += (atk - defs) * 2;
+          }
+        }
+      }
+      if (col && ai_continent_id(map, nx, ny) == continent) {
+        const int dcol = map_dos_dist(col->x - nx, col->y - ny);
+        const uint8_t rel = ai_diplo_read(col1, nation_id, col->nation_id);
+        const int a = ai_diplo_indian_alarm(col1, nation_id, col->nation_id);
+        if (a >= 0x4b) {
+          if (rel & 0x20) {
+            score -= dcol * 2;
+          }
+        } else if (dcol < 12) {
+          score += ((ai_021a_alarm_tier(a) + 1) * (12 - dcol)) >> 2;
+        }
+      }
+    }
+    /* 0x1158 */
+    const int roll = ai_rng_range(rng, 1, 5);
+    score += roll;
+    if (score < 0) {
+      score = 0;
+    }
+    if (dump) {
+      fprintf(
+        stderr,
+        "AI_021A d=%d dest=(%d,%d) score=%d roll=%d flags=%02x terr=%02x own=%d pres=%d set=%d "
+        "fa=%d/%d riv=%d/%d res=%d vdist=%d adjf=%d visit=%d/%d occ=%d rum=%d hd=%d cont=%d\n",
+        d, nx, ny, score, roll, flags, terr, owner, presence, settle, unit_fa, dfa,
+        unit_river != 0, driver != 0, dres, vdist,
+        ai_021a_adjacent_foreign(map, nx, ny, nation_id, 1), visit_nation, visit_val, occ,
+        map_dos_0598_rumour_tile(map, nx, ny), map_dos_dist(nx - vx, ny - vy),
+        ai_continent_id(map, nx, ny)
+      );
+      if (s_021a_adj_fx >= 0) {
+        fprintf(
+          stderr, "AI_021A   adjf tile=(%d,%d) l2=%02x l3=%02x unit=%d\n", s_021a_adj_fx,
+          s_021a_adj_fy, ai_layer2_at(map, s_021a_adj_fx, s_021a_adj_fy),
+          map_get_layer3(map, s_021a_adj_fx, s_021a_adj_fy),
+          ai_unit_index_on_tile(units, s_021a_adj_fx, s_021a_adj_fy)
+        );
+      }
+    }
+    if (score > best) {
+      best = score;
+      best_dir = d;
+      best_flags = flags;
+    }
+  }
+  if (dump) {
+    fprintf(stderr, "AI_021A best=%d score=%d flags=%02x\n", best_dir, best, best_flags);
+  }
+  out->dir = best_dir;
+  out->flags = best_flags;
+  return best_dir;
+}
+
+/*
+ * FUN_4d56_021a post-loop tail (021a:1277..14e6). Returns the final dir (8 =
+ * stay). Not ported: the human-colony warning chrome (021a:1329..13ae) and
+ * the pending-encounter resolver call (2a1f_0192 -> 5bfb_3180) — the port's
+ * §9 contact pass after the pulse plays the visit from the unit's position,
+ * so here the bit only costs the act, as in DOS.
+ */
+static int ai_native_021a_tail(
+  ColonizeUnitPool* units,
+  const ColonizeWorldMap* map,
+  ColonizeCol1Save* col1,
+  AiRng* rng,
+  ColonizeUnit* u,
+  int nation_id,
+  int dir,
+  int flags
+) {
+  const int indian = nation_id - 4;
+  ColonizeCol1Indian* ind = (indian >= 0 && indian < 8) ? &col1->indian[indian] : NULL;
+  const int turn_w = (int)col1->head.turn;
+  const int cool = turn_w + turn_w / -25;
+  int owner = -1;
+  if (flags & 0x0a) {
+    const int dx = (dir < 8) ? u->x + k_ai_dir8_dx[dir] : u->x;
+    const int dy = (dir < 8) ? u->y + k_ai_dir8_dy[dir] : u->y;
+    owner = ai_owner_nibble(map, dx, dy);
+    if (ind && owner >= 0 && owner < 4) {
+      if (ind->contact_state[owner] == 2) {
+        return 8;
+      }
+      ind->contact_state[owner] = 1;
+    }
+  }
+  const int hostile = flags & 0x04;
+  if (flags & 0x0a) {
+    /* 021a:12f8 — a contact/attack step needs a full move left. */
+    if (units_max_mp(units, u->id) - u->moves_left < 3) {
+      return 8;
+    }
+  }
+  if ((flags & 0x0a) || hostile) {
+    u->col1_unknown15 &= (uint8_t)~0x08u;
+    flags &= 0x7f;
+  }
+  if (u->col1_unknown15 & 0x08u) {
+    /* 021a:13cc — pending encounter at own tile resolves, unit stays. */
+    u->col1_unknown15 &= (uint8_t)~0x08u;
+    return 8;
+  }
+  if (flags & 0x80) {
+    ai_021a_set_visit_turn(u, turn_w);
+    u->col1_unknown15 |= 0x08u;
+  }
+  if ((flags & 0x8a) == 0 && s_ai_native_colonies) {
+    /* 021a:1419 — march on an encroaching colony after the long cooldown. */
+    const int continent = ai_continent_id(map, u->x, u->y);
+    int col_dist = 9999;
+    const int col_idx = ai_goals_nearest_colony_15eb_0142(
+      map, s_ai_native_colonies, u->x, u->y, -1, continent, &col_dist
+    );
+    const int home = u->home_tribe_id;
+    const ColonizeCol1Tribe* village =
+      (home >= 0 && home < (int)col1->head.tribe_count) ? &col1->tribe[home] : NULL;
+    if (col_idx >= 0 && village) {
+      const ColonizeColony* col = &s_ai_native_colonies->colonies[col_idx];
+      const int d = map_dos_dist(col->x - (int)village->x, col->y - (int)village->y);
+      int lim = (int)((int8_t)col->population >> 1);
+      if (lim < 2) {
+        lim = 2;
+      }
+      if (lim >= d) {
+        const int cn = col->nation_id;
+        const int census = (cn >= 0 && cn < 4) ? (int)col1->stuff.census_pop_proxy[cn] : 0;
+        const int cx = (census >> 3) + d * 4 + 10;
+        if (cx <= cool - ai_021a_visit_turn(u)) {
+          const int save_gx = u->goto_x;
+          const int save_gy = u->goto_y;
+          u->goto_x = col->x;
+          u->goto_y = col->y;
+          int sx = 0;
+          int sy = 0;
+          const bool ok =
+            units_next_goto_step(units, u->id, map, s_ai_native_colonies, rng, &sx, &sy);
+          u->goto_x = save_gx;
+          u->goto_y = save_gy;
+          if (ok) {
+            int step = -1;
+            for (int k = 0; k < 8; ++k) {
+              if (u->x + k_ai_dir8_dx[k] == sx && u->y + k_ai_dir8_dy[k] == sy) {
+                step = k;
+              }
+            }
+            if (step >= 0) {
+              const int so = ai_021a_settle_owner(map, sx, sy);
+              if (so < 0 || so == nation_id) {
+                const int po = map_tile_owner_or_presence(map, sx, sy);
+                if (po < 0 || po == nation_id) {
+                  return step;
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+  /* 021a:14ca — quiet step onto foreign-owned land only with a fresh allotment. */
+  if ((flags & 0x1a) == 0 && (flags & 0x01) && u->moves_left != 0) {
+    return 8;
+  }
+  return dir;
+}
+
+/* AI_021A_TRACE=1 — one line per Brave act (pick, flags, final dir). */
+static int ai_021a_trace_enabled(void) {
+  static int cached = -1;
+  if (cached < 0) {
+    const char* e = getenv("AI_021A_TRACE");
+    cached = (e && e[0] == '1') ? 1 : 0;
+  }
+  return cached;
+}
+
+/* AI_BRAVE_PICK=20e6 — fall back to the retired 20e6-shaped quiet scorer. */
+static int ai_brave_pick_legacy(void) {
+  static int cached = -1;
+  if (cached < 0) {
+    const char* e = getenv("AI_BRAVE_PICK");
+    cached = (e && strcmp(e, "20e6") == 0) ? 1 : 0;
+  }
+  return cached;
 }
 
 static int ai_native_pick_dir(
   AiRng* rng,
   const ColonizeWorldMap* map,
   const ColonizeUnitPool* units,
-  int x,
-  int y,
+  const ColonizeCol1Save* col1,
+  const ColonizeUnit* u,
   int nation_id,
-  int home_x,
-  int home_y,
   int last_dir,
-  int nation_tech
+  Ai021aResult* res
 ) {
-  (void)home_x;
-  (void)home_y;
-  (void)nation_tech;
-  return ai_native_pick_dir_asm(rng, map, units, x, y, nation_id, last_dir);
+  res->dir = 8;
+  res->flags = 0;
+  if (ai_brave_pick_legacy() || !col1) {
+    res->dir = ai_native_pick_dir_asm(rng, map, units, u->x, u->y, nation_id, last_dir);
+    return res->dir;
+  }
+  int dir = ai_native_pick_dir_021a(
+    rng, map, units, col1, s_ai_native_colonies, u, nation_id, res
+  );
+  dir = ai_native_apply_seed100_peels(
+    nation_id, u->x, u->y, dir, ai_score_at_match(nation_id, u->x, u->y), NULL, NULL, 0
+  );
+  res->dir = dir;
+  return dir;
 }
 
 
@@ -2937,14 +3759,16 @@ static int ai_dos_move_spent(
  * Mid-turn uses prelude burns (Inca=14, Aztec=4) instead — do not mix.
  */
 static void ai_native_post_first_brave_burns(AiRng* rng, int nation_id) {
-  if (!rng) {
-    return;
-  }
+  /*
+   * Init pulse only (turn 0, right after FUN_6a09). Six draws for the Inca
+   * — one per Inca village — reproduce SEED100.SAV; 2026-09-15 showed the
+   * placement is free (before the pulse or after the first step both match)
+   * and the old Tupi burn was a fit against the retired scorer (removed).
+   * Source of the six draws in DOS's init 1816 not identified.
+   */
   int burns = 0;
   if (nation_id == 4) {
     burns = 6;
-  } else if (nation_id == 11) {
-    burns = 1;
   }
   for (int b = 0; b < burns; ++b) {
     (void)ai_rng_next_counted(rng);
@@ -3006,6 +3830,81 @@ static void ai_native_post_first_brave_burns(AiRng* rng, int nation_id) {
 static int16_t s_brave_origin_x[COLONIZE_UNITS_MAX];
 static int16_t s_brave_origin_y[COLONIZE_UNITS_MAX];
 static uint8_t s_brave_origin_ok[COLONIZE_UNITS_MAX];
+
+/*
+ * FUN_5bfb_3180 on a BRAVE step (465b commit tail -> 0984 -> 0192 -> 3180 ->
+ * 022e): first contact with a Euro unit/colony beside the new tile is opened
+ * at the step itself, and the mover's MP is exhausted (LAB_5bfb_1005,
+ * brave_spent_callgraph.md). Later acts of the same nation in the same pulse
+ * therefore already read MET (seed-100 TURN2: the Sioux Brave at (45,52)
+ * meets Spain, so the (48,56) Brave scores the Spanish soldier as met).
+ * The turn context is stashed here because the pulse itself is ctx-free.
+ */
+static ColonizeTurnContext* s_ai_native_ctx = NULL;
+static uint8_t s_ai_first_contact_this_turn[8][4];
+
+int ai_native_first_contact_this_turn(int nation_id, int euro_nation) {
+  if (nation_id < 4 || nation_id > 11 || euro_nation < 0 || euro_nation > 3) {
+    return 0;
+  }
+  return s_ai_first_contact_this_turn[nation_id - 4][euro_nation] != 0;
+}
+
+/* Returns 1 when a first contact fired (MP exhausted by the caller). */
+static int ai_native_step_first_contact(
+  ColonizeUnitPool* units, const ColonizeWorldMap* map, ColonizeCol1Save* col1,
+  ColonizeUnit* u, int nation_id
+) {
+  if (!s_ai_native_ctx || !col1 || nation_id < 4 || nation_id > 11) {
+    return 0;
+  }
+  ColonizeCol1Indian* ind = &col1->indian[nation_id - 4];
+  int fired = 0;
+  int done[4] = {0, 0, 0, 0};
+  for (int d = 0; d < 8; ++d) {
+    const int nx = u->x + k_ai_dir8_dx[d];
+    const int ny = u->y + k_ai_dir8_dy[d];
+    if (!map_coords_inset(map, nx, ny)) {
+      continue;
+    }
+    int e = -1;
+    const int oid = units_id_at(units, nx, ny);
+    const ColonizeUnit* o = oid >= 0 ? units_get_const(units, oid) : NULL;
+    if (o && o->active && o->nation_id >= 0 && o->nation_id <= 3 && !units_is_sea(units, oid)) {
+      e = o->nation_id;
+    } else if (s_ai_native_colonies) {
+      const int cid = colonies_id_at(s_ai_native_colonies, nx, ny);
+      const ColonizeColony* c = cid >= 0 ? colonies_get(s_ai_native_colonies, cid) : NULL;
+      if (c && c->active && c->nation_id >= 0 && c->nation_id <= 3) {
+        e = c->nation_id;
+      }
+    }
+    if (e < 0 || done[e]) {
+      continue;
+    }
+    done[e] = 1; /* 3180: one 022e per other nation per scan (aiStack_20) */
+    if (ind->euro_diplo[e] == 0) {
+      (void)ai_contact_try_first_welcome(s_ai_native_ctx, e, nation_id);
+      s_ai_first_contact_this_turn[nation_id - 4][e] = 1;
+      fired = 1;
+      continue;
+    }
+    /*
+     * Already met: 022e's visit-mood rolls (raw 96735-96760) — skipped when
+     * the mover carries the pending-encounter bit, stands on an Indian
+     * settlement tile (FUN_137f_0392 >= 0), or has no home village.
+     */
+    if (fired || (u->col1_unknown15 & 0x08u) || ai_021a_settle_owner(map, u->x, u->y) >= 4 ||
+        u->home_tribe_id < 0) {
+      continue;
+    }
+    if (ai_021a_trace_enabled()) {
+      fprintf(stderr, "AI_021A_VISITROLL n=%d xy=(%d,%d) e=%d\n", nation_id, u->x, u->y, e);
+    }
+    (void)ai_contact_visit_step_roll(s_ai_native_ctx, nation_id, e, u->id);
+  }
+  return fired;
+}
 
 void ai_native_note_brave_turn_origin(int unit_id, int x, int y) {
   if (unit_id < 0 || unit_id >= COLONIZE_UNITS_MAX) {
@@ -3092,25 +3991,17 @@ static void ai_native_nation_pulse(
   }
 
   s_ai_seed100_init_pulse = seed100_init_burns ? 1 : 0;
+  memset(s_ai_first_contact_this_turn[nation_id - 4], 0, sizeof(s_ai_first_contact_this_turn[0]));
 
   const int max_mp = 3; /* Brave thirds allotment (FUN_281f_090c path) */
   /*
-   * Mid-turn FUN_4d56_1816 prelude burns LCG after 04ca reseed (alarm /
-   * relation helpers). Exact call sites TBD; seed-100 TURN fixtures need
-   * these counts before the first Brave act (Inca=14, Aztec=4).
+   * Mid-turn FUN_4d56_1816 prelude: DOS burns nothing on the shared stream
+   * before the act loop except the 152e growth-loop draws (already on
+   * ctx->rng via ai_grow_villages) and the post-independence alarm roll. The
+   * old "Inca=14 / Aztec=4" burns were a fit against the retired 20e6-shaped
+   * scorer; with the 021a picker they cost every Inca act (2026-09-15
+   * sweep: k=0 -> zero Inca misses on all six seed-100 turns).
    */
-  if (!seed100_init_burns) {
-    int prelude = 0;
-    if (nation_id == 4) {
-      prelude = 14;
-    } else if (nation_id == 5) {
-      prelude = 4;
-    }
-    for (int b = 0; b < prelude; ++b) {
-      (void)ai_rng_next_counted(rng);
-    }
-  }
-
   if (ai_lcg_audit_enabled() && seed100_init_burns) {
     fprintf(
       stderr,
@@ -3212,9 +4103,21 @@ static void ai_native_nation_pulse(
        * act) legitimately disable the facing term — do NOT clamp to 0. */
       const int last_dir = u->last_dir;
       s_ai_native_home_dist = map_dos_dist(u->x - hx, u->y - hy); /* DS:0x8db8 */
-      const int dir = ai_native_pick_dir(
-        rng, map, units, u->x, u->y, nation_id, hx, hy, last_dir, tech
-      );
+      (void)tech;
+      Ai021aResult pick;
+      int dir = ai_native_pick_dir(rng, map, units, col1, u, nation_id, last_dir, &pick);
+      if (!ai_brave_pick_legacy() && col1) {
+        const int picked = dir;
+        dir = ai_native_021a_tail(units, map, col1, rng, u, nation_id, dir, pick.flags);
+        if (ai_021a_trace_enabled()) {
+          fprintf(
+            stderr,
+            "AI_021A_ACT t=%d n=%d idx=%d xy=(%d,%d) facing=%d spent=%d tw=%d pick=%d flags=%02x dir=%d\n",
+            s_ai_seed100_midturn_turn, nation_id, brave_index, u->x, u->y, last_dir,
+            u->moves_left, u->turns_worked, picked, pick.flags, dir
+          );
+        }
+      }
       if (dir < 0 || dir > 7) {
         /*
          * Stay (dir == 8). 021a:11b9 writes the picked dir into the facing
@@ -3269,6 +4172,38 @@ static void ai_native_nation_pulse(
       const int cost = ai_dos_move_spent(map, u->x, u->y, nx, ny, dir);
       const int from_x = u->x;
       const int from_y = u->y;
+      /*
+       * FUN_465b_0000 cost gate (viceroy_unpacked.c 75643-75647 + the
+       * `else` at :75820): `(cost <= left) || (spent == 0) || (04ca(timer),
+       * attack)`; a quiet step that overspends with MP already spent RESEEDS
+       * the LCG from the timer word (= the fixed seed under VR_SEED / --seed)
+       * and then rolls RNG(1, cost) — only `roll <= left` moves. The denied
+       * unit stays put with `spent += cost` already booked at :75617, its
+       * facing already stamped by 021a. Seed-100 TURN2: the Arawak Brave's
+       * river second step (spent 1, cost 9) is exactly this roll, and every
+       * later Arawak act reads the restarted stream.
+       */
+      if (spent != 0 && cost > max_mp - spent) {
+        dos_rng_seed(rng, ai_turn_seed(s_ai_native_ctx));
+        const int roll = ai_rng_range(rng, 1, cost);
+        if (ai_021a_trace_enabled()) {
+          fprintf(
+            stderr, "AI_021A_GAMBLE n=%d xy=(%d,%d) dir=%d cost=%d left=%d roll=%d -> %s\n",
+            nation_id, u->x, u->y, dir, cost, max_mp - spent, roll,
+            roll <= max_mp - spent ? "move" : "denied"
+          );
+        }
+        if (roll > max_mp - spent) {
+          u->moves_left = spent + cost;
+          u->last_dir = dir;
+          u->col1_facing_pad = 0;
+          if (u->orders == UNITS_ORDER_FORTIFY || u->orders == UNITS_ORDER_FORTIFIED) {
+            u->orders = UNITS_ORDER_NONE;
+          }
+          steps++;
+          break;
+        }
+      }
       if (ai_step_audit_enabled() && s_ai_seed100_midturn_turn > 0) {
         fprintf(
           stderr,
@@ -3324,6 +4259,11 @@ static void ai_native_nation_pulse(
         u->orders = UNITS_ORDER_NONE;
       }
       ai_set_owner_nibble_move(map, nx, ny, nation_id);
+      if (!seed100_init_burns && ai_native_step_first_contact(units, map, col1, u, nation_id)) {
+        u->moves_left = max_mp; /* LAB_5bfb_1005: FUN_281f_0934 on the Indian mover */
+        steps++;
+        break;
+      }
       if (ai_lcg_audit_enabled() && seed100_init_burns) {
         fprintf(
           stderr,
@@ -3510,9 +4450,11 @@ void ai_indian_nation_turn(ColonizeTurnContext* ctx, int nation_id) {
   /* §7–8 quiet 14fe act loop (+ seed-100 overlays). */
   s_ai_native_colonies = ctx->colonies;
   s_ai_native_col1 = ctx->col1_ok ? ctx->col1 : NULL;
+  s_ai_native_ctx = ctx;
   ai_native_nation_pulse(
     ctx->units, ctx->map, ctx->col1_ok ? ctx->col1 : NULL, rng, nation_id, false
   );
+  s_ai_native_ctx = NULL;
 
   s_ai_seed100_midturn_turn = 0;
 

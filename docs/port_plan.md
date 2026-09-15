@@ -503,37 +503,31 @@ list, not from the inventory.
   duplicate (DS:0x54f6 = the settlement record's `attitude[4]` word =
   `tribe.alarm[]`, already live); array retired, all consumers repointed
   (see indians.md).
-- [ ] **D3 determinism debt** — retire the `k_mid_peels` rows (99 + 6
-  river/2 cascade left, ai.c ~3930) by deepening the quiet scorer; the emp
-  `home_dist` term stays quarantined in the debug-only emp picker.
-  Partial-MP gamble sub-item CLOSED 2026-09-08: already ported in
-  `units_try_move`; "NULL-rng" was the `FUN_281f_04ca` BIOS-tick
-  `randomize()` reseed, intentionally not ported (see P5.8 note).
-  2026-09-08 scorer pass (6 rows retired, all asm-verified from raw
-  521d:4ea9..5a78; 60/60 green):
-  - seen-branch gate = mover's `col1_vis_mask` (DOS unit+0x3147 observed
-    nibble — live cache cleared+recomputed each move, NOT the explored-fog
-    plane; all 7 writers traced); AI brave steps now recompute it via
-    `units_vis_mask_after_move` (DOS 465b commit tail).
-  - facing input read raw: byte 8 (written on every stay, 521d:5899) means
-    "no facing term" (54f5 guard is signed 0..7) — load reconstructs the
-    full DOS facing byte (`facing | facing_pad<<3`, col1_bridge), the old
-    clamp-to-North removed. Dormant in the TURN fixtures (no byte-8 braves)
-    but live in real play.
-  - fog band gated by local_ec (521d:4d46/56ce): adjacent-foreign-claim
-    probe ≥ 0 kills +8/+4/−2 entirely; Braves' combat byte is 1 so the
-    rescue clause never fires (annotated stub said 0 — drift, fixed).
-  - Euro 20e6 fog ring −2 accessor fixed to `map_tile_owner_or_presence`
-    (DOS 0682, unit bit only; was tribe_or_presence = city tiles too).
-  - verified matching: tie-break strict `>` first-wins, ring walks FAR-tile
-    neighbours, coarse index math, −2 accessor identity.
-  Tooling: `AI_PEEL_AUDIT=1` classifies every firing peel row against both
-  seen/unseen branch scorers (dual-branch scoring from one LCG draw);
-  rerun after any scorer change and delete rows reporting picked==golden.
-  Remaining 99 holdouts: neither branch reproduces golden with matched
-  LCG; per-row single-term toggles are ambiguous/overfit — next real step
-  is DOS-side evidence (DOSBox trace of 20e6 score terms), not more
-  static fitting.
+- [~] **D3 determinism debt — root-caused 2026-09-15.** The quiet Brave
+  picker was never `FUN_521d_20e6`'s "Brave branch": `FUN_4d56_021a`
+  (4d56:021a..14fd, ndisasm of overlay 13) carries its OWN nine-way dir
+  loop (dirs 0..7 + stay), and the far call at 021a:1182 that the docs read
+  as "reaches the 521d scorer" is `FUN_7a65_0008`, the on-map score plotter
+  behind "Show Indian moves". Ported as `ai_native_pick_dir_021a` +
+  `ai_native_021a_tail` (ai.c; env `AI_BRAVE_PICK=20e6` keeps the old
+  scorer): score 200 + RNG(1,5), facing +4/+3/−6, road/river +4, home
+  tether −3·dist beyond 2, colony drift, visit/loot/attack arms, stay
+  penalties. Three stream-order fixes fell out of the audit: the 465b
+  overspend gate (`spent != 0 && cost > left` → reseed from the timer word,
+  RNG(1,cost), deny on `roll > left`), first contact + 022e visit-mood rolls
+  on the BRAVE's own step (3180 from the 465b tail, `ai_native_step_first_
+  contact` / `ai_contact_visit_step_roll`), and AI Euro land steps opening
+  Indian first contact (`ai_contact_encounter_scan` in the ai_euro act loop).
+  The Inca=14/Aztec=4 mid-turn burns and the 13 init peels were artifacts of
+  the old scorer and are gone. Residue: `k_mid_peels` is down from 107 rows
+  to 6 near-ties (1..5 points; ai.c lists them); the init pulse still needs
+  the 6 Inca burns (one per Inca village, source in DOS's init 1816 not
+  found). Tooling: `AI_021A_TRACE=1` (per act / gamble / visit roll),
+  `AI_SCORE_AT`, `AI_PEEL_AUDIT=1`. Trap: `golden_ai_turns` steps leak state
+  across TURN steps inside one process (ALL mode) — audit one turn at a time
+  (`AI_TURNS_ONLY=t`). Second trap: save offset 612 is NOT
+  `prime_resource_seed` (it changes across TURN saves); DS:0x190 is the
+  post_map word (365 on seed 100).
 - [x] **Human-colony `5952_035e` tick** — **REFUTED 2026-09-08d, no work.**
   The "DOS runs the colony tick for every nation" premise was wrong. The
   tick has exactly ONE call site in the whole EXE: inside the AI nation

@@ -88,8 +88,9 @@ the truth is the 15-entry JMPF stub table at `4d56:4c22..4c6c`,
 - The residue behind the old "partial (T2 quiet)" label is the **callee**:
   `FUN_4d56_021a` (`4d56:021a..14fd`, 4836 bytes, one function) — the Indian
   unit decision routine Ghidra emitted as raw `??` bytes, reached from `14fe`
-  via stub `4c3b`. It calls the `521d` move scorer through thunk `291f:012c`
-  (`021a:1182`), so the ported quiet formula sits one level *below* it. Newly
+  via stub `4c3b`. **Correction 2026-09-15:** it does NOT call the `521d` scorer — `291f:012c`
+  (`021a:1182`) is `FUN_7a65_0008`, the "Show Indian moves" score plotter; 021a
+  carries its own dir loop, now ported as `ai_native_pick_dir_021a` (ai.c). Newly
   decoded there and **unported**: homeless-unit despawn (`021a:0337`, bad
   `+0x314a` → `FUN_281f_0808` + return −1); unconditional `facing` write
   including the stay value 8 (`021a:11b9` → `+0x314f`); the `orders` cower

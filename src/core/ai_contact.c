@@ -3512,6 +3512,52 @@ static int ai_contact_visit_demand_allowed(
 }
 
 /*
+ * FUN_5bfb_022e already-met arm run from FUN_5bfb_3180 on the BRAVE's own
+ * step (465b commit tail): raw 96745-96760. The mood rolls happen right
+ * there, on the shared stream, before the tribe's next Brave acts — the
+ * post-pulse gift/demand passes then consume the published verdict instead
+ * of rolling again. Returns 1 when a roll sequence ran.
+ */
+int ai_contact_visit_step_roll(ColonizeTurnContext* ctx, int nation_id, int e, int brave_id) {
+  if (!ctx || !ctx->col1_ok || !ctx->col1 || !ctx->col1->tribe || !ctx->rng || nation_id < 4 ||
+      nation_id > 11 || e < 0 || e > 3) {
+    return 0;
+  }
+  ColonizeCol1Indian* ind = &ctx->col1->indian[nation_id - 4];
+  const ColonizeUnit* brave = units_get_const(ctx->units, brave_id);
+  if (!brave || brave->home_tribe_id < 0 ||
+      brave->home_tribe_id >= (int)ctx->col1->head.tribe_count) {
+    return 0;
+  }
+  const ColonizeCol1Tribe* t = &ctx->col1->tribe[brave->home_tribe_id];
+  const int alarm = ai_diplo_indian_alarm(ctx->col1, nation_id, e);
+  if (alarm > 0x4a) {
+    return 0; /* raw 96752: no peaceful visit at all */
+  }
+  const int word = col1_tribe_attitude(t, e);
+  const int local_10 = (word > 0x7f) || (ind->contact_state[e] == 1);
+  if (local_10) {
+    if (dos_rng_range(ctx->rng, 1, 0x80) < word - 0x80) {
+      ai_contact_visit_mood_publish(ctx, nation_id, e, brave_id, 0);
+      return 1; /* LAB_5bfb_1005 */
+    }
+  }
+  const int roll = dos_rng_range(ctx->rng, 1, 0x148);
+  int over = alarm - 0x19;
+  if (over < 0) {
+    over = 0;
+  }
+  const int bvar5 = (over * 4 + word) <= roll;
+  int bvar6 = (local_10 == 0) && bvar5;
+  if (bvar6 && alarm > 0x31) {
+    bvar6 = 0;
+    ind->contact_state[e] = 2;
+  }
+  ai_contact_visit_mood_publish(ctx, nation_id, e, brave_id, bvar6);
+  return 1;
+}
+
+/*
  * `home_tribe` is the VISITING Brave's own settlement — DOS binds it with
  * FUN_281f_0a4c(unit+0x314a) before the encounter body runs (viceroy 96706),
  * and every settlement-scoped effect below (the attitude-word zero / ×1.5,
@@ -4994,7 +5040,13 @@ int ai_contact_try_village_gifts(ColonizeTurnContext* ctx, int nation_id) {
   ColonizeCol1Indian* ind = &ctx->col1->indian[nation_id - 4];
   for (int e = 0; e < 4; ++e) {
     /* One encounter, one mood verdict — drop last turn's. */
-    ai_contact_visit_mood_clear(nation_id, e);
+    {
+      const AiContactVisitMood* pm = &s_visit_mood[nation_id - 4][e];
+      const int pturn = ctx->turn_number ? (int)*ctx->turn_number : -1;
+      if (!(pm->valid && pm->turn == pturn)) {
+        ai_contact_visit_mood_clear(nation_id, e);
+      }
+    }
     if (!ind->euro_diplo[e]) {
       continue; /* unmet — first contact runs its own arm */
     }
@@ -5047,24 +5099,39 @@ int ai_contact_try_village_gifts(ColonizeTurnContext* ctx, int nation_id) {
     if (!t) {
       continue;
     }
+    {
+      /* The Brave's own step already rolled this encounter (022e via 3180 in
+       * the 465b tail, ai_contact_visit_step_roll): reuse that verdict. */
+      const AiContactVisitMood* m = &s_visit_mood[nation_id - 4][e];
+      const int turn = ctx->turn_number ? (int)*ctx->turn_number : -1;
+      if (m->valid && m->turn == turn && m->brave_id == brave->id) {
+        if (!m->bvar6) {
+          continue;
+        }
+        goto gifts_generous;
+      }
+    }
     const int word = col1_tribe_attitude(t, e);
     if (word >= 0x80 || ind->contact_state[e] == 1) {
       continue; /* hostile latch (local_10) — demand arm, not gifts */
     }
-    const int roll = dos_rng_range(ctx->rng, 1, 0x148);
-    int over = alarm - 0x19;
-    if (over < 0) {
-      over = 0;
-    }
-    if (over * 4 + word > roll) {
-      /* mood roll failed (bVar5) — not generous this visit; DOS then falls
-       * into LAB_5bfb_0def with bVar6 == false. Publish the verdict so the
-       * demand arm does not re-roll the same encounter (see
-       * ai_contact_visit_mood_publish). */
-      ai_contact_visit_mood_publish(ctx, nation_id, e, brave ? brave->id : -1, 0);
-      continue;
+    {
+      const int roll = dos_rng_range(ctx->rng, 1, 0x148);
+      int over = alarm - 0x19;
+      if (over < 0) {
+        over = 0;
+      }
+      if (over * 4 + word > roll) {
+        /* mood roll failed (bVar5) — not generous this visit; DOS then falls
+         * into LAB_5bfb_0def with bVar6 == false. Publish the verdict so the
+         * demand arm does not re-roll the same encounter (see
+         * ai_contact_visit_mood_publish). */
+        ai_contact_visit_mood_publish(ctx, nation_id, e, brave ? brave->id : -1, 0);
+        continue;
+      }
     }
     ai_contact_visit_mood_publish(ctx, nation_id, e, brave ? brave->id : -1, 1);
+  gifts_generous:
     if (alarm > 0x31) {
       ind->contact_state[e] = 2; /* DOS: bVar6 flips off, state stamped */
       ai_contact_mark_visit_brave(ctx, nation_id, brave->id);
@@ -6917,6 +6984,9 @@ void ai_contact_indian_meet_trade(ColonizeTurnContext* ctx, int nation_id) {
       const int human = ai_contact_euro_is_human(ctx, e);
 
       /* 1. First meet → FUN_5bfb_022e @INDIANWELCOME (not Trade/Gift menu). */
+      if (ai_native_first_contact_this_turn(nation_id, e)) {
+        continue; /* first contact already fired on the Brave's own step */
+      }
       if (!ind->euro_diplo[e]) {
         (void)ai_contact_try_first_welcome(ctx, e, nation_id);
         if (ctx->col1->tribe) {
