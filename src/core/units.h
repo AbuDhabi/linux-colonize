@@ -1133,6 +1133,14 @@ bool units_advance_follow_one_step(
   ColonizeDosRng* rng
 );
 /*
+ * Record a committed goto step (dx,dy in -1..1) for the FUN_6662 anti-backtrack
+ * check. units_advance_goto_one_step does this itself; any other stepper that
+ * moves a goto-following unit via units_try_move (the AI ship sail loop) must
+ * call it after each successful step, or the check compares against stale
+ * history and drops correct pathfinder hits.
+ */
+void units_note_goto_step(int unit_id, int dx, int dy);
+/*
  * Next adjacent step toward goto (DOS FUN_6662 tiers: sign-step / cost flood / BFS).
  * Writes (out_x,out_y); returns false if stuck or already there. rng may be
  * NULL (disables the anti-backtrack wiggle reroll; deterministic geometry

@@ -8809,11 +8809,33 @@ static int units_dir8_index(int dx, int dy) {
  * corrupt that engine's own bookkeeping for any unit that also takes a
  * goto step. Same shadow-array pattern ai_euro.c already uses for its own
  * Euro `last_dir` equivalent (`s_euro_last_dir`), for the same reason.
- * Zero-initialized (== dir 0/North): a unit's first goto step gets a
- * harmless, self-correcting small bias instead of "no history" — not
- * worth a separate reset hook, matching `s_euro_last_dir`'s own precedent.
+ * Stored as dir+1 so the zero-initialised slot means "no history" (the old
+ * "0 == North, harmless bias" reading was not harmless: a ship whose first
+ * pathfinder step was South saw it as the reverse of a step it never took,
+ * dropped the flood hit and fell back to the greedy tier — campaign3
+ * Spanish Caravel ping-pong at (32,51)). Any goto stepper that commits a
+ * move outside units_advance_goto_one_step (the AI ship sail loop) must
+ * record its step through units_note_goto_step so the anti-backtrack check
+ * compares against the unit's real last step.
  */
 static int8_t s_units_goto_last_dir[COLONIZE_UNITS_MAX];
+
+static int units_goto_last_dir_reverse(int unit_id) {
+  if (unit_id < 0 || unit_id >= COLONIZE_UNITS_MAX || s_units_goto_last_dir[unit_id] <= 0) {
+    return -1;
+  }
+  return (s_units_goto_last_dir[unit_id] - 1) ^ 4;
+}
+
+void units_note_goto_step(int unit_id, int dx, int dy) {
+  if (unit_id < 0 || unit_id >= COLONIZE_UNITS_MAX) {
+    return;
+  }
+  const int d = units_dir8_index(dx, dy);
+  if (d >= 0) {
+    s_units_goto_last_dir[unit_id] = (int8_t)(d + 1);
+  }
+}
 
 /*
  * The greedy tier's own ownership gate — FUN_6662_0f74 carries one, exactly
@@ -9001,7 +9023,7 @@ static bool units_greedy_next_step(
    */
   if (rng != NULL && unit_id >= 0 && unit_id < COLONIZE_UNITS_MAX &&
       units_dir8_index(best_x - u->x, best_y - u->y) ==
-        (s_units_goto_last_dir[unit_id] ^ 4) &&
+        units_goto_last_dir_reverse(unit_id) &&
       units_orders_follow_goto(u->orders)) {
     int wig_x = -1;
     int wig_y = -1;
@@ -9511,8 +9533,8 @@ bool units_next_goto_step(
         const bool moved_this_turn =
           units_remaining_mp(pool, unit_id) < units_max_mp(pool, unit_id);
         const bool reversal =
-          moved_this_turn && unit_id >= 0 && unit_id < COLONIZE_UNITS_MAX &&
-          units_dir8_index(*out_x - u->x, *out_y - u->y) == (s_units_goto_last_dir[unit_id] ^ 4);
+          moved_this_turn &&
+          units_dir8_index(*out_x - u->x, *out_y - u->y) == units_goto_last_dir_reverse(unit_id);
         if (!reversal || u->nation_id > 3) {
           return true;
         }
@@ -9635,12 +9657,7 @@ bool units_advance_goto_one_step(
      * it commits — feeds the anti-backtrack wiggle check above. Tracked in
      * s_units_goto_last_dir, not ColonizeUnit.last_dir (see that array's
      * own header comment for why). */
-    if (unit_id >= 0 && unit_id < COLONIZE_UNITS_MAX) {
-      const int d = units_dir8_index(nx - ox, ny - oy);
-      if (d >= 0) {
-        s_units_goto_last_dir[unit_id] = (int8_t)d;
-      }
-    }
+    units_note_goto_step(unit_id, nx - ox, ny - oy);
     if (u->x == gx && u->y == gy && u->orders != UNITS_ORDER_TRADE_ROUTE) {
       units_clear_orders(pool, unit_id);
     }
