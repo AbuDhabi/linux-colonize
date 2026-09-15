@@ -5,30 +5,26 @@
 #include <string.h>
 
 #include "core/assets.h"
+#include "core/colony_craft.h"
 #include "core/colony_preview.h"
 #include "core/colony_production.h"
 #include "core/colony_yield.h"
 #include "core/dos_rng.h"
 #include "core/europe.h"
+#include "core/fb.h"
 #include "core/ff.h"
 #include "core/founding_fathers.h"
+#include "core/map_menu.h"
+#include "core/map_panel.h"
 #include "core/popup.h"
 #include "core/popup_msg.h"
+#include "core/reports.h"
 #include "core/ui_colors.h"
 #include "core/turn.h"
 #include "core/ui_button.h"
 #include "core/unit_chrome.h"
 #include "platform/diagnostics.h"
 #include "platform/platform.h"
-
-static void colony_screen_fill_rect(
-  ColonizeFramebuffer8* framebuffer,
-  int x0,
-  int y0,
-  int x1,
-  int y1,
-  uint8_t color
-);
 
 void colony_screen_set_status(ColonyScreenView* view, const char* text) {
   if (!view) {
@@ -439,42 +435,6 @@ void colony_screen_open_message_ok(ColonyScreenView* view, const char* text) {
   view->pending_eject_colonist = -1;
 }
 
-void colony_screen_open_abandon_confirm(
-  ColonyScreenView* view,
-  int colonist_index,
-  int role,
-  const char* body,
-  const char* choice_yes,
-  const char* choice_no
-) {
-  if (!view) {
-    return;
-  }
-  colony_screen_close_subpanels(view);
-  view->message_kind = COLONY_MSG_CONFIRM;
-  snprintf(
-    view->message_text,
-    sizeof(view->message_text),
-    "%s",
-    body && body[0] ? body : "Shall we abandon this colony?"
-  );
-  snprintf(
-    view->message_choice0,
-    sizeof(view->message_choice0),
-    "%s",
-    choice_yes && choice_yes[0] ? choice_yes : "Yes"
-  );
-  snprintf(
-    view->message_choice1,
-    sizeof(view->message_choice1),
-    "%s",
-    choice_no && choice_no[0] ? choice_no : "No"
-  );
-  view->message_selection = 1; /* @default=2 → No */
-  view->pending_eject_colonist = colonist_index;
-  view->pending_eject_role = role;
-}
-
 void colony_screen_open_eject(
   ColonyScreenView* view,
   const ColonizeColonyPool* pool,
@@ -854,51 +814,11 @@ void colony_screen_free(ColonyScreenView* view) {
   memset(view, 0, sizeof(*view));
 }
 
-static void colony_screen_tile_rect(
-  const ColonizeSpriteSheet* sheet,
-  int origin_x,
-  int origin_y,
-  int rect_w,
-  int rect_h,
-  ColonizeFramebuffer8* framebuffer
-) {
-  if (!sheet || sheet->sprite_count < 1 || !framebuffer || rect_w <= 0 || rect_h <= 0) {
-    return;
-  }
-  const ColonizeSprite* tile = &sheet->sprites[0];
-  if (!tile->pixels || tile->width <= 0 || tile->height <= 0) {
-    return;
-  }
-  const int x1 = origin_x + rect_w;
-  const int y1 = origin_y + rect_h;
-  for (int y = origin_y; y < y1; y += tile->height) {
-    for (int x = origin_x; x < x1; x += tile->width) {
-      for (int sy = 0; sy < tile->height; ++sy) {
-        const int dy = y + sy;
-        if (dy < origin_y || dy >= y1 || dy < 0 || dy >= framebuffer->height) {
-          continue;
-        }
-        for (int sx = 0; sx < tile->width; ++sx) {
-          const int dx = x + sx;
-          if (dx < origin_x || dx >= x1 || dx < 0 || dx >= framebuffer->width) {
-            continue;
-          }
-          const uint8_t px = tile->pixels[sy * tile->width + sx];
-          if (px == COLONIZE_SS_TRANSPARENT) {
-            continue;
-          }
-          framebuffer->pixels[dy * framebuffer->width + dx] = px;
-        }
-      }
-    }
-  }
-}
-
 static void colony_screen_fill_parch(const ColonyScreenView* view, ColonizeFramebuffer8* framebuffer) {
   if (!view || !view->parch_ok) {
     return;
   }
-  colony_screen_tile_rect(
+  map_panel_tile_rect(
     &view->parch,
     COLONY_VIEWPORT_X,
     COLONY_VIEWPORT_Y,
@@ -908,56 +828,11 @@ static void colony_screen_fill_parch(const ColonyScreenView* view, ColonizeFrame
   );
 }
 
-/* Wood grain tiling with the pattern anchored to screen (0,0), not the rect
- * origin — golden-measured: the top bar and the minimap wood section share
- * one continuous grain phase (top-bar rows repeat at y+24, columns at x+32),
- * i.e. DOS tiles WOODTILE across the whole screen and the panels just clip
- * windows out of it. */
-static void colony_screen_tile_rect_screen_phase(
-  const ColonizeSpriteSheet* sheet,
-  int origin_x,
-  int origin_y,
-  int rect_w,
-  int rect_h,
-  ColonizeFramebuffer8* framebuffer
-) {
-  if (!sheet || sheet->sprite_count < 1 || !framebuffer || rect_w <= 0 || rect_h <= 0) {
-    return;
-  }
-  const ColonizeSprite* tile = &sheet->sprites[0];
-  if (!tile->pixels || tile->width <= 0 || tile->height <= 0) {
-    return;
-  }
-  int x1 = origin_x + rect_w;
-  int y1 = origin_y + rect_h;
-  if (origin_x < 0) {
-    origin_x = 0;
-  }
-  if (origin_y < 0) {
-    origin_y = 0;
-  }
-  if (x1 > framebuffer->width) {
-    x1 = framebuffer->width;
-  }
-  if (y1 > framebuffer->height) {
-    y1 = framebuffer->height;
-  }
-  for (int dy = origin_y; dy < y1; ++dy) {
-    for (int dx = origin_x; dx < x1; ++dx) {
-      const uint8_t px = tile->pixels[(dy % tile->height) * tile->width + dx % tile->width];
-      if (px == COLONIZE_SS_TRANSPARENT) {
-        continue;
-      }
-      framebuffer->pixels[dy * framebuffer->width + dx] = px;
-    }
-  }
-}
-
 static void colony_screen_fill_wood_tile(const ColonyScreenView* view, ColonizeFramebuffer8* framebuffer) {
   if (!view || !view->wood_tile_ok) {
     return;
   }
-  colony_screen_tile_rect_screen_phase(
+  map_menu_tile_rect_screen_phase(
     &view->wood_tile,
     COLONY_MINIMAP_SECTION_X,
     COLONY_MINIMAP_SECTION_Y,
@@ -976,7 +851,7 @@ static void colony_screen_fill_top_bar_wood(
   if (!view || !view->wood_tile_ok) {
     return;
   }
-  colony_screen_tile_rect_screen_phase(
+  map_menu_tile_rect_screen_phase(
     &view->wood_tile, 0, 0, COLONY_SCREEN_WIDTH, COLONY_TOP_BAR_H, framebuffer
   );
 }
@@ -1050,7 +925,7 @@ static void colony_screen_draw_top_bar(
   const int x = (COLONY_SCREEN_WIDTH - w) / 2;
   /* bugs.md item 1: golden (new_amsterdam_production.png) ink top edge
    * measures native y=1, not 2 — title sat 1px too low. */
-  font_draw_text(font, framebuffer, x, 1, line, 68);
+  font_draw_text(font, framebuffer, x, 1, line, COLONIZE_COL_BASIC);
 }
 
 static void colony_screen_draw_selection_box(
@@ -1064,10 +939,10 @@ static void colony_screen_draw_selection_box(
   if (!framebuffer || w <= 0 || h <= 0) {
     return;
   }
-  colony_screen_fill_rect(framebuffer, x, y, x + w, y + 1, color);
-  colony_screen_fill_rect(framebuffer, x, y + h - 1, x + w, y + h, color);
-  colony_screen_fill_rect(framebuffer, x, y, x + 1, y + h, color);
-  colony_screen_fill_rect(framebuffer, x + w - 1, y, x + w, y + h, color);
+  fb_fill_rect(framebuffer, x, y, w, 1, color);
+  fb_fill_rect(framebuffer, x, y + h - 1, w, 1, color);
+  fb_fill_rect(framebuffer, x, y, 1, h, color);
+  fb_fill_rect(framebuffer, x + w - 1, y, 1, h, color);
 }
 
 /* Tight green box around an ICONS.SS sprite at (x,y), 1px margin. */
@@ -1443,52 +1318,19 @@ static void colony_screen_draw_resource_count(
   );
 }
 
-/* Nearest-neighbor 1.5× blit (16→24 for standard terrain cells). */
-static void colony_screen_blit_scaled_15(
-  const ColonizeSpriteSheet* sheet,
-  int sprite_index,
-  ColonizeFramebuffer8* framebuffer,
-  int dst_x,
-  int dst_y
-) {
-  if (!sheet || !framebuffer || !framebuffer->pixels || sprite_index < 0 ||
-      sprite_index >= sheet->sprite_count) {
-    return;
-  }
-  const ColonizeSprite* sprite = &sheet->sprites[sprite_index];
-  if (!sprite->pixels || sprite->width <= 0 || sprite->height <= 0) {
-    return;
-  }
-  const int dw = (sprite->width * 3) / 2;
-  const int dh = (sprite->height * 3) / 2;
-  for (int dy = 0; dy < dh; ++dy) {
-    const int sy = dy * sprite->height / dh;
-    const int fy = dst_y + dy;
-    if (fy < 0 || fy >= framebuffer->height) {
-      continue;
-    }
-    for (int dx = 0; dx < dw; ++dx) {
-      const int sx = dx * sprite->width / dw;
-      const int fx = dst_x + dx;
-      if (fx < 0 || fx >= framebuffer->width) {
-        continue;
-      }
-      const uint8_t color = sprite->pixels[sy * sprite->width + sx];
-      if (color == COLONIZE_SS_TRANSPARENT) {
-        continue;
-      }
-      framebuffer->pixels[fy * framebuffer->width + fx] = color;
-    }
-  }
-}
-
+/*
+ * Nearest-neighbour 1.5× blit (16→24 for standard terrain cells).
+ * Audit CO-19 / IN-14: this and the "only where the destination already
+ * holds match_color" variant were the same 35 lines twice. match_color < 0
+ * means "write every pixel", which is what the plain blit did.
+ */
 static void colony_screen_blit_scaled_15_where_dest(
   const ColonizeSpriteSheet* sheet,
   int sprite_index,
   ColonizeFramebuffer8* framebuffer,
   int dst_x,
   int dst_y,
-  uint8_t match_color
+  int match_color
 ) {
   if (!sheet || !framebuffer || !framebuffer->pixels || sprite_index < 0 ||
       sprite_index >= sheet->sprite_count) {
@@ -1513,7 +1355,7 @@ static void colony_screen_blit_scaled_15_where_dest(
         continue;
       }
       const int di = fy * framebuffer->width + fx;
-      if (framebuffer->pixels[di] != match_color) {
+      if (match_color >= 0 && framebuffer->pixels[di] != (uint8_t)match_color) {
         continue;
       }
       const uint8_t color = sprite->pixels[sy * sprite->width + sx];
@@ -1524,6 +1366,20 @@ static void colony_screen_blit_scaled_15_where_dest(
     }
   }
 }
+
+/* Unconditional 1.5x blit — the "match any destination" sentinel. */
+static void colony_screen_blit_scaled_15(
+  const ColonizeSpriteSheet* sheet,
+  int sprite_index,
+  ColonizeFramebuffer8* framebuffer,
+  int dst_x,
+  int dst_y
+) {
+  colony_screen_blit_scaled_15_where_dest(
+    sheet, sprite_index, framebuffer, dst_x, dst_y, -1
+  );
+}
+
 
 static void colony_screen_debug_building_rect(
   const ColonyScreenView* view, ColonizeFramebuffer8* framebuffer, int sprite, int x, int y
@@ -1654,35 +1510,21 @@ static void colony_screen_draw_area_overlays(
    * appearing in two tiles[] slots is worked (and drawn) once, at the first
    * slot. Without it a stale second slot drew a second badge + figure for a
    * colonist the tick itself never paid twice (smell audit #65). */
-  bool worked_colonist[32];
-  memset(worked_colonist, 0, sizeof(worked_colonist));
-  for (int ti = 0; ti < COLONIZE_COLONY_FIELD_TILES; ++ti) {
-    const int who = (int)colony->tiles[ti];
-    if (who < 0 || who >= colony->colonist_count || (who < 32 && worked_colonist[who])) {
-      continue;
-    }
-    if (who < 32) {
-      worked_colonist[who] = true;
-    }
-    const ColonizeColonist* c = &colony->colonists[who];
-    if (!c->active || c->field_job < 0) {
-      continue;
-    }
-    int dx = 0;
-    int dy = 0;
-    if (!colonies_field_tile_delta(ti, &dx, &dy)) {
-      continue;
-    }
-    const int tile_x = origin_x + (dx + half) * tile;
-    const int tile_y = origin_y + (dy + half) * tile;
+  ColonizeWorkedTileIter wit;
+  ColonizeWorkedTile w;
+  colony_yield_worked_tiles_begin(&wit, colony);
+  while (colony_yield_worked_tiles_next(&wit, &w)) {
+    const ColonizeColonist* c = w.colonist;
+    const int tile_x = origin_x + (w.dx + half) * tile;
+    const int tile_y = origin_y + (w.dy + half) * tile;
     const int cargo = colony_yield_job_cargo(c->field_job);
     /* Henry Hudson's Fur Trapper doubling lives inside the pipeline now
      * (colony_yield.c, DOS FUN_15eb_18ec 11970-11973; smell audit #60) —
      * matches turn.c/colony_preview.c. */
     int yld = colony_yield_for_worker(
       map,
-      colony->x + dx,
-      colony->y + dy,
+      w.x,
+      w.y,
       c->field_job,
       c->profession,
       has_docks,
@@ -1742,7 +1584,7 @@ static void colony_screen_draw_area_overlays(
         const int ix = tile_x + (tile - iw) / 2;
         const int iy = tile_y + tile - ih - 1;
         colony_screen_blit_icon_shadowed(view, sprite, framebuffer, ix, iy);
-        if (view->selected_colonist == who) {
+        if (view->selected_colonist == w.colonist_index) {
           colony_screen_draw_selection_box(framebuffer, tile_x, tile_y, tile, tile, 10);
         }
       }
@@ -1938,8 +1780,9 @@ static void colony_screen_render_minimap(
  */
 
 typedef struct ColonyBuildingSlot {
-  const char* const* chain; /* low → high tier, DOS's own chain order */
-  int size_class;           /* NAMES.TXT @BUILDING column 4 */
+  int chain;                 /* COLONIES_CHAIN_* (colony.h owns the name list) */
+  const char* const* render; /* NULL, or a render-only override of that chain */
+  int size_class;            /* NAMES.TXT @BUILDING column 4 */
 } ColonyBuildingSlot;
 
 typedef struct ColonyPoint {
@@ -1947,45 +1790,44 @@ typedef struct ColonyPoint {
   int y;
 } ColonyPoint;
 
-static const char* k_slot_stockade[] = {"Stockade", "Fort", "Fortress", NULL};
-static const char* k_slot_armory[] = {"Armory", "Magazine", "Arsenal", NULL};
-static const char* k_slot_docks[] = {"Docks", "Drydock", "Shipyard", NULL};
-/* Capitol / Capitol Expansion really are the tail of the Town Hall chain in
- * DOS's table; they are unbuildable (see colonies_building_is_buildable) and
- * BUILDING.SS has only 1x1 / 2x2 stubs for them, so they never draw. */
-static const char* k_slot_town_hall[] = {"Town Hall", NULL};
-static const char* k_slot_school[] = {"Schoolhouse", "College", "University", NULL};
-/* DOS folds the Stable into the warehouse category — one shared slot, with
- * its own sprite rule (see colony_screen_category_sprite). */
-static const char* k_slot_warehouse[] = {"Warehouse", "Warehouse Expansion", "Stable", NULL};
-static const char* k_slot_custom[] = {"Custom House", NULL};
-static const char* k_slot_press[] = {"Printing Press", "Newspaper", NULL};
-static const char* k_slot_weaver[] = {"Weaver's House", "Weaver's Shop", "Textile Mill", NULL};
-static const char* k_slot_tobacco[] = {"Tobacconist's House", "Tobacconist's Shop", "Cigar Factory", NULL};
-static const char* k_slot_rum[] = {"Rum Distiller's House", "Rum Distillery", "Rum Factory", NULL};
-static const char* k_slot_fur[] = {"Fur Trader's House", "Fur Trading Post", "Fur Factory", NULL};
-static const char* k_slot_carpenter[] = {"Carpenter's Shop", "Lumber Mill", NULL};
-static const char* k_slot_church[] = {"Church", "Cathedral", NULL};
-static const char* k_slot_blacksmith[] = {"Blacksmith's House", "Blacksmith's Shop", "Iron Works", NULL};
+/*
+ * The 15 colony-screen building categories (audit CO-13). The tier name
+ * lists themselves live once in colony.c behind colonies_building_chain() —
+ * the same table col1_bridge.c's save encode/decode walks — so a renamed or
+ * re-tiered building cannot draw one thing and save another.
+ *
+ * Two DOS screen categories are not a 1:1 match for a save chain:
+ *  - Town Hall: DOS's table really does continue into Capitol / Capitol
+ *    Expansion, but both are unbuildable (colonies_building_is_buildable)
+ *    and BUILDING.SS has only stubs for them, so the screen slot stops at
+ *    the Town Hall and the Capitol keeps its own save chain.
+ *  - Warehouse: DOS folds the Stable into this one slot (its sprite rule is
+ *    in colony_screen_category_sprite), while the save format gives the
+ *    Stable its own bit group and level byte. Hence the render-only
+ *    override below, which appends the Stable after the warehouse tiers.
+ */
+static const char* const k_slot_warehouse_render[] = {
+  "Warehouse", "Warehouse Expansion", "Stable", NULL
+};
 
 /* DOS category order (FUN_75c2_144c). The order matters: it is also the
  * order categories claim positions within their size class. */
 static const ColonyBuildingSlot k_building_slots[] = {
-  {k_slot_stockade, 3},   /*  0 fortification (the fence corner) */
-  {k_slot_armory, 1},     /*  1 */
-  {k_slot_docks, 4},      /*  2 (the dock corner) */
-  {k_slot_town_hall, 2},  /*  3 */
-  {k_slot_school, 1},     /*  4 */
-  {k_slot_warehouse, 1},  /*  5 warehouse + stable */
-  {k_slot_custom, 0},     /*  6 */
-  {k_slot_press, 0},      /*  7 */
-  {k_slot_weaver, 0},     /*  8 */
-  {k_slot_tobacco, 0},    /*  9 */
-  {k_slot_rum, 0},        /* 10 */
-  {k_slot_fur, 0},        /* 11 */
-  {k_slot_carpenter, 1},  /* 12 */
-  {k_slot_church, 2},     /* 13 */
-  {k_slot_blacksmith, 0}, /* 14 */
+  {COLONIES_CHAIN_FORTIFICATION, NULL, 3}, /*  0 fortification (the fence corner) */
+  {COLONIES_CHAIN_ARMORY, NULL, 1},        /*  1 */
+  {COLONIES_CHAIN_DOCKS, NULL, 4},         /*  2 (the dock corner) */
+  {COLONIES_CHAIN_TOWN_HALL, NULL, 2},     /*  3 */
+  {COLONIES_CHAIN_SCHOOL, NULL, 1},        /*  4 */
+  {COLONIES_CHAIN_WAREHOUSE, k_slot_warehouse_render, 1}, /*  5 warehouse + stable */
+  {COLONIES_CHAIN_CUSTOM_HOUSE, NULL, 0},  /*  6 */
+  {COLONIES_CHAIN_PRESS, NULL, 0},         /*  7 */
+  {COLONIES_CHAIN_WEAVER, NULL, 0},        /*  8 */
+  {COLONIES_CHAIN_TOBACCONIST, NULL, 0},   /*  9 */
+  {COLONIES_CHAIN_RUM, NULL, 0},           /* 10 */
+  {COLONIES_CHAIN_FUR, NULL, 0},           /* 11 */
+  {COLONIES_CHAIN_CARPENTER, NULL, 1},     /* 12 */
+  {COLONIES_CHAIN_CHURCH, NULL, 2},        /* 13 */
+  {COLONIES_CHAIN_BLACKSMITH, NULL, 0},    /* 14 */
 };
 static const int k_building_slot_count =
   (int)(sizeof(k_building_slots) / sizeof(k_building_slots[0]));
@@ -2112,12 +1954,9 @@ static void colony_screen_assign_slot_positions_ex(
   }
 }
 
-static void colony_screen_assign_slot_positions(
-  const ColonizeColonyPool* pool, const ColonizeColony* colony, int* xs, int* ys
-) {
-  colony_screen_assign_slot_positions_ex(pool, colony, xs, ys, NULL);
-}
-
+/* colonies_has_building_named's answer plus the building-type index, which
+ * the slot renderer needs as a BUILDING.SS sprite id (audit CO-17: the bool
+ * uses now call the colony.h helper; this spelling stays only for the id). */
 static int colony_screen_find_built(
   const ColonizeColonyPool* pool,
   const ColonizeColony* colony,
@@ -2150,6 +1989,18 @@ static int colony_screen_best_built(
   return best;
 }
 
+/* A screen category's tier list: the shared colony.h chain, unless the
+ * category carries a render-only override (audit CO-13). */
+static const char* const* colony_screen_slot_chain(int cat) {
+  if (cat < 0 || cat >= (int)(sizeof(k_building_slots) / sizeof(k_building_slots[0]))) {
+    return NULL;
+  }
+  if (k_building_slots[cat].render) {
+    return k_building_slots[cat].render;
+  }
+  return colonies_building_chain(k_building_slots[cat].chain);
+}
+
 /* Chain length helper — the tables are NULL-terminated. */
 static size_t colony_screen_chain_len(const char* const* chain) {
   size_t n = 0;
@@ -2177,7 +2028,7 @@ static int colony_screen_category_built(
     const int warehouse = colony_screen_find_built(pool, colony, "Warehouse");
     return warehouse >= 0 ? warehouse : colony_screen_find_built(pool, colony, "Stable");
   }
-  const char* const* chain = k_building_slots[cat].chain;
+  const char* const* chain = colony_screen_slot_chain(cat);
   return colony_screen_best_built(pool, colony, chain, colony_screen_chain_len(chain));
 }
 
@@ -2208,7 +2059,7 @@ static int colony_screen_category_sprite(
   }
   if (cat == COLONY_CAT_WAREHOUSE) {
     const int warehouse = colony_screen_find_built(pool, colony, "Warehouse");
-    const bool stable = colony_screen_find_built(pool, colony, "Stable") >= 0;
+    const bool stable = colonies_has_building_named(pool, colony, "Stable");
     if (warehouse < 0) {
       return stable ? COLONY_STABLE_ONLY_SPRITE : k_dos_class_placeholder[k_building_slots[cat].size_class];
     }
@@ -2224,7 +2075,7 @@ static int colony_screen_category_sprite(
 /*
  * Screen rectangle of the fortification slot (DOS category 0, always drawn),
  * which the outside-unit strip sits on. xs/ys come from
- * colony_screen_assign_slot_positions.
+ * colony_screen_assign_slot_positions_ex.
  */
 static void colony_screen_fence_rect(
   const ColonyScreenView* view,
@@ -2311,7 +2162,7 @@ static int colony_screen_outside_display_sprite(
   }
   const ColonizeUnitType* type = units_type(units, u->type_index);
   int sprite = units_map_sprite(units, u->id);
-  if (type && strstr(type->name, "Colonist") != NULL &&
+  if (units_type_is_colonist(type) &&
       u->muskets <= 0 && u->horses <= 0 && u->tools <= 0) {
     sprite = units_working_colonist_sprite(units, u->type_index, u->profession);
   }
@@ -2328,8 +2179,7 @@ static bool colony_screen_unit_is_artillery(const ColonizeUnitPool* units, const
   if (!units || !u) {
     return false;
   }
-  const ColonizeUnitType* type = units_type(units, u->type_index);
-  return type && strstr(type->name, "Artillery") != NULL;
+  return units_type_is_artillery(units_type(units, u->type_index));
 }
 
 int colony_screen_multi_units_layout(
@@ -2460,23 +2310,16 @@ static int colony_screen_building_production_badge(
   if (strstr(name, "Carpenter") || strstr(name, "Lumber Mill")) {
     return COLONY_ICON_HAMMER;
   }
-  if (strstr(name, "Rum")) {
-    return COLONY_CARGO_ICON_BASE + COLONIZE_CARGO_RUM;
-  }
-  if (strstr(name, "Tobacconist")) {
-    return COLONY_CARGO_ICON_BASE + COLONIZE_CARGO_CIGARS;
-  }
-  if (strstr(name, "Weaver") || strstr(name, "Textile")) {
-    return COLONY_CARGO_ICON_BASE + COLONIZE_CARGO_CLOTH;
-  }
-  if (strstr(name, "Fur")) {
-    return COLONY_CARGO_ICON_BASE + COLONIZE_CARGO_COATS;
-  }
-  if (strstr(name, "Blacksmith") || strstr(name, "Iron")) {
-    return COLONY_CARGO_ICON_BASE + COLONIZE_CARGO_TOOLS;
-  }
-  if (strstr(name, "Armory") || strstr(name, "Magazine") || strstr(name, "Arsenal")) {
-    return COLONY_CARGO_ICON_BASE + COLONIZE_CARGO_MUSKETS;
+  /* Manufacturing: the badge icon is the recipe's out_cargo, read from the
+   * one shared table in colony_craft.c (audit CO-12). The private ladder
+   * this replaced used looser needles — and its "Tobacconist" spelling
+   * matched neither tier of the Cigar Factory, so a staffed Cigar Factory
+   * (NAMES.TXT @BUILDING row 26) drew no produce badge at all while its
+   * Tobacconist's Shop predecessor did. Every other @BUILDING row resolves
+   * to the same icon under both spellings. */
+  const ColonizeCraftRecipe* rec = colony_craft_recipe_for_building(name);
+  if (rec) {
+    return COLONY_CARGO_ICON_BASE + rec->out_cargo;
   }
   return -1;
 }
@@ -2499,6 +2342,54 @@ static void colony_screen_debug_building_rect(
   colony_screen_draw_selection_box(framebuffer, x, y, spr->width, spr->height, COLONY_DEBUG_RECT_COLOR);
 }
 
+/*
+ * Workers assigned to one building (DOS shows up to 3) plus the strip height
+ * the drawer and the hit-tester must agree on (audit CO-18: drift between
+ * the two silently desynced click regions from what was drawn). Returns the
+ * worker count; out_ci gets colonist indices, out_icons their ICONS.SS
+ * sprites, out_strip_h the tallest icon (never below the 16px default).
+ */
+static int colony_screen_building_worker_strip(
+  const ColonyScreenView* view,
+  const ColonizeColony* colony,
+  const ColonizeUnitPool* units,
+  int built,
+  int* out_ci,
+  int* out_icons,
+  int* out_strip_h
+) {
+  int workers = 0;
+  int strip_h = 16;
+  if (view && colony && units && built >= 0) {
+    for (int ci = 0; ci < colony->colonist_count && workers < COLONY_BUILDING_WORKERS_MAX; ++ci) {
+      const ColonizeColonist* c = &colony->colonists[ci];
+      if (!c->active || c->building_type != built) {
+        continue;
+      }
+      const int sprite =
+        units_working_colonist_sprite(units, c->unit_type_index, c->profession);
+      if (sprite < 0) {
+        continue;
+      }
+      out_ci[workers] = ci;
+      out_icons[workers] = sprite;
+      workers++;
+    }
+    for (int wi = 0; wi < workers; ++wi) {
+      if (out_icons[wi] >= 0 && out_icons[wi] < view->icons.sprite_count) {
+        const int ih = view->icons.sprites[out_icons[wi]].height;
+        if (ih > strip_h) {
+          strip_h = ih;
+        }
+      }
+    }
+  }
+  if (out_strip_h) {
+    *out_strip_h = strip_h;
+  }
+  return workers;
+}
+
 static void colony_screen_blit_buildings(
   ColonyScreenView* view,
   const ColonizeColonyPool* pool,
@@ -2517,7 +2408,7 @@ static void colony_screen_blit_buildings(
   const int slot_oy = COLONY_VIEWPORT_Y;
   int slot_x[32];
   int slot_y[32];
-  colony_screen_assign_slot_positions(pool, colony, slot_x, slot_y);
+  colony_screen_assign_slot_positions_ex(pool, colony, slot_x, slot_y, NULL);
   /* Pass 1: every building sprite first. Badges/worker strips/production
    * counters go in a second pass so an overlapping neighbour's sprite can
    * never blit over another slot's counters (player-reported: resource
@@ -2574,36 +2465,16 @@ static void colony_screen_blit_buildings(
     }
     int worker_ci[COLONY_BUILDING_WORKERS_MAX];
     int worker_icons[COLONY_BUILDING_WORKERS_MAX];
-    int workers = 0;
-    for (int ci = 0; ci < colony->colonist_count && workers < COLONY_BUILDING_WORKERS_MAX; ++ci) {
-      const ColonizeColonist* c = &colony->colonists[ci];
-      if (!c->active || c->building_type != built) {
-        continue;
-      }
-      const int sprite =
-        units_working_colonist_sprite(units, c->unit_type_index, c->profession);
-      if (sprite < 0) {
-        continue;
-      }
-      worker_ci[workers] = ci;
-      worker_icons[workers] = sprite;
-      workers++;
-    }
+    int strip_h = 16;
+    const int workers = colony_screen_building_worker_strip(
+      view, colony, units, built, worker_ci, worker_icons, &strip_h
+    );
     const ColonizeSprite* bspr =
       (built >= 0 && built < view->buildings.sprite_count) ? &view->buildings.sprites[built] : NULL;
     const int bw = (bspr && bspr->width > 2) ? bspr->width : COLONY_BUILDING_SLOT_W;
     const int bh = (bspr && bspr->height > 2) ? bspr->height : COLONY_BUILDING_SLOT_H;
     const int bx = slot_ox + slot_x[i];
     const int by = slot_oy + slot_y[i];
-    int strip_h = 16;
-    for (int wi = 0; wi < workers; ++wi) {
-      if (worker_icons[wi] >= 0 && worker_icons[wi] < view->icons.sprite_count) {
-        const int ih = view->icons.sprites[worker_icons[wi]].height;
-        if (ih > strip_h) {
-          strip_h = ih;
-        }
-      }
-    }
     const int strip_y = by + bh - strip_h;
     if (workers > 0) {
       int selected = -1;
@@ -2740,22 +2611,6 @@ static void colony_screen_blit_buildings(
   }
 }
 
-static int colony_screen_text_width(const ColonizeFont* font, const char* text) {
-  if (!text) {
-    return 0;
-  }
-  int w = 0;
-  for (const char* p = text; *p; ++p) {
-    const unsigned char ch = (unsigned char)*p;
-    if (font && font->section_data && ch < 128 && font->char_widths[ch] > 0) {
-      w += font->char_widths[ch];
-    } else {
-      w += 6;
-    }
-  }
-  return w;
-}
-
 
 /* Warehouse strip: icon centered in each COLONY.PIK slot, amount below. */
 static void colony_screen_draw_cargo_strip(
@@ -2804,14 +2659,14 @@ static void colony_screen_draw_cargo_strip(
          * by this fix) rather than guessing how it'd interact with the
          * hundreds/Custom-House split above. */
         snprintf(amount, sizeof(amount), "%d%+d", colony->stock[i], delta);
-        const int tw = colony_screen_text_width(font, amount);
+        const int tw = font_text_width_skip(font, amount, FONT_SKIP_NONE);
         const int tx = slot_x + (COLONY_CARGO_SLOT_W - tw) / 2;
         const uint8_t col = delta > 0 ? 10 : 12;
         font_draw_text(font, framebuffer, tx, num_y, amount, col);
         continue;
       }
       snprintf(amount, sizeof(amount), "%d", colony->stock[i]);
-      const int tw = colony_screen_text_width(font, amount);
+      const int tw = font_text_width_skip(font, amount, FONT_SKIP_NONE);
       const int tx = slot_x + (COLONY_CARGO_SLOT_W - tw) / 2;
       /* bugs.md: stock past warehouse capacity draws in the alert colour —
        * the excess spoils next turn (over-capacity unloads are allowed).
@@ -2831,7 +2686,7 @@ static void colony_screen_draw_cargo_strip(
         memcpy(hundreds, amount, hlen);
         hundreds[hlen] = '\0';
         font_draw_text(font, framebuffer, tx, num_y, hundreds, kHundredsColor);
-        const int hw = colony_screen_text_width(font, hundreds);
+        const int hw = font_text_width_skip(font, hundreds, FONT_SKIP_NONE);
         font_draw_text(font, framebuffer, tx + hw, num_y, amount + hlen, base_col);
       } else {
         font_draw_text(font, framebuffer, tx, num_y, amount, base_col);
@@ -2930,7 +2785,7 @@ static void colony_screen_draw_transports(
        * in a colony is *in the colony*, standing on the dock — whether it will
        * sail with a ship is not settled until the ship actually leaves, at
        * which point the sentried units on the tile board it
-       * (units_board_sentries_from_tile). Arriving passengers are put ashore
+       * (units_ship_departure_pickup). Arriving passengers are put ashore
        * the moment the ship docks (units_try_move), so a docked ship normally
        * has no passengers to draw here at all.
        */
@@ -3063,7 +2918,7 @@ static void colony_screen_draw_people(
     snprintf(buf, sizeof(buf), "%d%% (%d)", sol, sol_count);
     font_draw_text(font, framebuffer, COLONY_PEOPLE_X + 16, sol_y + 2, buf, 15);
     snprintf(buf, sizeof(buf), "%d%% (%d)", tory, tory_count);
-    const int tw = colony_screen_text_width(font, buf);
+    const int tw = font_text_width_skip(font, buf, FONT_SKIP_NONE);
     font_draw_text(
       font, framebuffer, COLONY_PEOPLE_X + COLONY_PEOPLE_W - 16 - tw, sol_y + 2, buf, 15
     );
@@ -3584,27 +3439,8 @@ static void colony_screen_draw_multifunction(
         if (view->frame_ok && view->frame.has_palette) {
           /* Remap Europe-style blues into the colony frame palette. */
           const ColonizePalette* pal = &view->frame.palette;
-          int best_d = 1 << 30;
-          int best_l = 1 << 30;
-          uint8_t dark = bc.dark;
-          uint8_t light = bc.light;
-          for (int j = 0; j < 256; ++j) {
-            const int r = pal->rgb[j][0];
-            const int g = pal->rgb[j][1];
-            const int b = pal->rgb[j][2];
-            const int dd = (r - 20) * (r - 20) + (g - 40) * (g - 40) + (b - 120) * (b - 120);
-            const int ld = (r - 180) * (r - 180) + (g - 200) * (g - 200) + (b - 255) * (b - 255);
-            if (dd < best_d) {
-              best_d = dd;
-              dark = (uint8_t)j;
-            }
-            if (ld < best_l) {
-              best_l = ld;
-              light = (uint8_t)j;
-            }
-          }
-          bc.dark = dark;
-          bc.light = light;
+          bc.dark = assets_palette_nearest_rgb(pal, 20, 40, 120);
+          bc.light = assets_palette_nearest_rgb(pal, 180, 200, 255);
         }
         int buy_w = 0;
         int buy_h = 0;
@@ -3720,24 +3556,71 @@ static void colony_screen_draw_multifunction(
   }
 }
 
-static void colony_screen_fill_rect(
+/*
+ * Frame for one colony-screen sub-dialog (audit CO-5): clamp the width to the
+ * framebuffer, centre it horizontally at the caller's y, draw the standard
+ * wood popup, and record the rect so colony_screen_hit_test can map a click
+ * back onto the same rows that were drawn. The six pickers each wrote this
+ * block out by hand. The height is clamped by the caller (each derives it
+ * from its own row count first).
+ */
+static void colony_screen_open_dialog_frame(
+  ColonyScreenView* view,
   ColonizeFramebuffer8* framebuffer,
-  int x0,
-  int y0,
-  int x1,
-  int y1,
-  uint8_t color
+  int dialog_w,
+  int dialog_h,
+  int dialog_y,
+  int line_h,
+  ColonyDialogRect* out,
+  int* inner_x,
+  int* inner_y,
+  int* inner_w,
+  int* inner_h
 ) {
-  if (!framebuffer || !framebuffer->pixels) {
-    return;
+  if (dialog_w > framebuffer->width - 8) {
+    dialog_w = framebuffer->width - 8;
   }
-  for (int y = y0; y < y1; ++y) {
-    for (int x = x0; x < x1; ++x) {
-      if (x >= 0 && y >= 0 && x < framebuffer->width && y < framebuffer->height) {
-        framebuffer->pixels[y * framebuffer->width + x] = color;
-      }
-    }
+  const int dialog_x = (framebuffer->width - dialog_w) / 2;
+  ColonizePopupColors colors;
+  popup_colors_from_ui(&colors);
+  popup_draw(
+    framebuffer,
+    dialog_x,
+    dialog_y,
+    dialog_w,
+    dialog_h,
+    view->wood_tile_ok ? &view->wood_tile : NULL,
+    &colors,
+    inner_x,
+    inner_y,
+    inner_w,
+    inner_h
+  );
+  out->x = dialog_x;
+  out->y = dialog_y;
+  out->w = dialog_w;
+  out->h = dialog_h;
+  out->line_h = line_h;
+}
+
+/*
+ * Click-to-row for one sub-dialog (audit CO-7): false when the point is
+ * outside the frame, true otherwise with *out_row set to the row index under
+ * it, or -1 when the click landed on the frame but above/below the rows.
+ */
+static bool colony_screen_dialog_row_hit(
+  const ColonyDialogRect* rect, int rows, int mx, int my, int* out_row
+) {
+  if (out_row) {
+    *out_row = -1;
   }
+  if (!rect || !ui_rect_hit(rect->x, rect->y, rect->w, rect->h, mx, my)) {
+    return false;
+  }
+  if (out_row) {
+    *out_row = popup_row_at_y(rect->list_y0, rect->line_h, rows, my);
+  }
+  return true;
 }
 
 static void colony_screen_draw_construction_popup(
@@ -3776,33 +3659,11 @@ static void colony_screen_draw_construction_popup(
     dialog_h = framebuffer->height - 8;
   }
   int dialog_w = 200;
-  if (dialog_w > framebuffer->width - 8) {
-    dialog_w = framebuffer->width - 8;
-  }
-  const int dialog_x = (framebuffer->width - dialog_w) / 2;
-  const int dialog_y = 24;
-
-  ColonizePopupColors colors;
-  popup_colors_from_ui(&colors);
   int inner_x = 0, inner_y = 0, inner_w = 0, inner_h = 0;
-  popup_draw(
-    framebuffer,
-    dialog_x,
-    dialog_y,
-    dialog_w,
-    dialog_h,
-    view->wood_tile_ok ? &view->wood_tile : NULL,
-    &colors,
-    &inner_x,
-    &inner_y,
-    &inner_w,
-    &inner_h
+  colony_screen_open_dialog_frame(
+    view, framebuffer, dialog_w, dialog_h, 24, line_h, &view->construction_rect,
+    &inner_x, &inner_y, &inner_w, &inner_h
   );
-  view->construction_dialog_x = dialog_x;
-  view->construction_dialog_y = dialog_y;
-  view->construction_dialog_w = dialog_w;
-  view->construction_dialog_h = dialog_h;
-  view->construction_line_h = line_h;
   view->construction_rows_per_col = rows_per_page;
   view->construction_col_w = inner_w;
 
@@ -3813,7 +3674,7 @@ static void colony_screen_draw_construction_popup(
     font_draw_text(font, framebuffer, inner_x + pad, inner_y + pad, "Construction", ink);
   }
   const int list_y0 = inner_y + pad + line_h;
-  view->construction_list_y0 = list_y0;
+  view->construction_rect.list_y0 = list_y0;
 
   for (int i = 0; i < drawn_rows; ++i) {
     const int gi = start + i; /* global row (More... row falls past rows) */
@@ -3824,9 +3685,7 @@ static void colony_screen_draw_construction_popup(
     const bool more_row = (i >= n_slice);
     const bool selected = (!more_row && gi == view->construction_selection);
     if (selected) {
-      colony_screen_fill_rect(
-        framebuffer, inner_x + 1, row_y - 1, inner_x + inner_w - 1, row_y + line_h - 1, 138
-      );
+      fb_fill_rect(framebuffer, inner_x + 1, row_y - 1, inner_w - 2, line_h, 138);
     }
     char label[80];
     char cost[48];
@@ -3917,39 +3776,17 @@ static void colony_screen_draw_jobs_popup(
     dialog_h = framebuffer->height - 8;
   }
   int dialog_w = 170;
-  if (dialog_w > framebuffer->width - 8) {
-    dialog_w = framebuffer->width - 8;
-  }
-  const int dialog_x = (framebuffer->width - dialog_w) / 2;
-  const int dialog_y = 28;
-
-  ColonizePopupColors colors;
-  popup_colors_from_ui(&colors);
   int inner_x = 0, inner_y = 0, inner_w = 0, inner_h = 0;
-  popup_draw(
-    framebuffer,
-    dialog_x,
-    dialog_y,
-    dialog_w,
-    dialog_h,
-    view->wood_tile_ok ? &view->wood_tile : NULL,
-    &colors,
-    &inner_x,
-    &inner_y,
-    &inner_w,
-    &inner_h
+  colony_screen_open_dialog_frame(
+    view, framebuffer, dialog_w, dialog_h, 28, line_h, &view->jobs_rect,
+    &inner_x, &inner_y, &inner_w, &inner_h
   );
-  view->jobs_dialog_x = dialog_x;
-  view->jobs_dialog_y = dialog_y;
-  view->jobs_dialog_w = dialog_w;
-  view->jobs_dialog_h = dialog_h;
-  view->jobs_line_h = line_h;
 
   if (font && inner_w > 0) {
     font_draw_text(font, framebuffer, inner_x + pad, inner_y + pad, "Field job", 15);
   }
   const int list_y0 = inner_y + pad + line_h;
-  view->jobs_list_y0 = list_y0;
+  view->jobs_rect.list_y0 = list_y0;
 
   int dx = 0;
   int dy = 0;
@@ -3970,9 +3807,7 @@ static void colony_screen_draw_jobs_popup(
     const int row_y = list_y0 + i * line_h;
     const bool selected = (i == view->jobs_selection);
     if (selected) {
-      colony_screen_fill_rect(
-        framebuffer, inner_x + 1, row_y - 1, inner_x + inner_w - 1, row_y + line_h - 1, 138
-      );
+      fb_fill_rect(framebuffer, inner_x + 1, row_y - 1, inner_w - 2, line_h, 138);
     }
     char label[48];
     const int job = view->job_ids[i];
@@ -4007,15 +3842,6 @@ static void colony_screen_draw_jobs_popup(
     }
   }
 }
-
-/* colony.h's COLONIZE_CARGO_* order — see reports.c's k_cargo_names for the
- * same list (kept as its own local copy, matching this file's existing
- * per-module convention rather than a shared header array). */
-static const char* const k_custom_house_cargo_names[COLONIZE_CARGO_COUNT] = {
-  "Food",   "Sugar",  "Tobacco",     "Cotton", "Furs",    "Lumber", "Ore",    "Silver",
-  "Horses", "Rum",    "Cigars",      "Cloth",  "Coats",   "Trade Goods",
-  "Tools",  "Muskets"
-};
 
 /* DOS's own Custom House checklist uses a filled/hollow circle as its
  * checkbox (GAME.TXT @CUSTOM's @checkbox directive) — this pixel font has
@@ -4083,33 +3909,11 @@ static void colony_screen_draw_custom_house_popup(
       }
     }
   }
-  if (dialog_w > framebuffer->width - 8) {
-    dialog_w = framebuffer->width - 8;
-  }
-  const int dialog_x = (framebuffer->width - dialog_w) / 2;
-  const int dialog_y = 20;
-
-  ColonizePopupColors colors;
-  popup_colors_from_ui(&colors);
   int inner_x = 0, inner_y = 0, inner_w = 0, inner_h = 0;
-  popup_draw(
-    framebuffer,
-    dialog_x,
-    dialog_y,
-    dialog_w,
-    dialog_h,
-    view->wood_tile_ok ? &view->wood_tile : NULL,
-    &colors,
-    &inner_x,
-    &inner_y,
-    &inner_w,
-    &inner_h
+  colony_screen_open_dialog_frame(
+    view, framebuffer, dialog_w, dialog_h, 20, line_h, &view->custom_house_rect,
+    &inner_x, &inner_y, &inner_w, &inner_h
   );
-  view->custom_house_dialog_x = dialog_x;
-  view->custom_house_dialog_y = dialog_y;
-  view->custom_house_dialog_w = dialog_w;
-  view->custom_house_dialog_h = dialog_h;
-  view->custom_house_line_h = line_h;
 
   if (font && inner_w > 0) {
     popup_draw_text_markup(
@@ -4118,7 +3922,7 @@ static void colony_screen_draw_custom_house_popup(
     );
   }
   const int list_y0 = inner_y + pad + line_h;
-  view->custom_house_list_y0 = list_y0;
+  view->custom_house_rect.list_y0 = list_y0;
 
   /* Uniform dark green (player-reported: not the brighter green some rows
    * used before — the state is the bullet's job now, not the text color). */
@@ -4127,8 +3931,10 @@ static void colony_screen_draw_custom_house_popup(
     const int row_y = list_y0 + i * line_h;
     const int cargo = view->custom_house_cargo_ids[i];
     const bool on = europe_custom_house_cargo_enabled(colony->custom_house_bits, cargo);
+    /* NAMES.TXT @CARGO via reports.c's accessor (audit CO-14) — the private
+     * copy of the 16 names this replaced ignored a renamed catalog. */
     const char* name = (cargo >= 0 && cargo < COLONIZE_CARGO_COUNT)
-      ? k_custom_house_cargo_names[cargo]
+      ? reports_cargo_display_name(cargo)
       : "?";
     colony_screen_draw_bullet(
       framebuffer, inner_x + pad + 2, row_y + line_h / 2, on, kRowColor
@@ -4155,47 +3961,23 @@ static void colony_screen_draw_eject_popup(
     dialog_h = framebuffer->height - 8;
   }
   int dialog_w = 180;
-  if (dialog_w > framebuffer->width - 8) {
-    dialog_w = framebuffer->width - 8;
-  }
-  const int dialog_x = (framebuffer->width - dialog_w) / 2;
-  const int dialog_y = 28;
-
-  ColonizePopupColors colors;
-  popup_colors_from_ui(&colors);
   int inner_x = 0, inner_y = 0, inner_w = 0, inner_h = 0;
-  popup_draw(
-    framebuffer,
-    dialog_x,
-    dialog_y,
-    dialog_w,
-    dialog_h,
-    view->wood_tile_ok ? &view->wood_tile : NULL,
-    &colors,
-    &inner_x,
-    &inner_y,
-    &inner_w,
-    &inner_h
+  colony_screen_open_dialog_frame(
+    view, framebuffer, dialog_w, dialog_h, 28, line_h, &view->eject_rect,
+    &inner_x, &inner_y, &inner_w, &inner_h
   );
-  view->eject_dialog_x = dialog_x;
-  view->eject_dialog_y = dialog_y;
-  view->eject_dialog_w = dialog_w;
-  view->eject_dialog_h = dialog_h;
-  view->eject_line_h = line_h;
 
   if (font && inner_w > 0) {
     font_draw_text(font, framebuffer, inner_x + pad, inner_y + pad, "Leave as", 15);
   }
   const int list_y0 = inner_y + pad + line_h;
-  view->eject_list_y0 = list_y0;
+  view->eject_rect.list_y0 = list_y0;
 
   for (int i = 0; i < rows; ++i) {
     const int row_y = list_y0 + i * line_h;
     const bool selected = (i == view->eject_selection);
     if (selected) {
-      colony_screen_fill_rect(
-        framebuffer, inner_x + 1, row_y - 1, inner_x + inner_w - 1, row_y + line_h - 1, 138
-      );
+      fb_fill_rect(framebuffer, inner_x + 1, row_y - 1, inner_w - 2, line_h, 138);
     }
     const char* name = colonies_eject_role_name(view->eject_roles[i]);
     if (font) {
@@ -4243,33 +4025,11 @@ static void colony_screen_draw_dock_orders_popup(
       }
     }
   }
-  if (dialog_w > framebuffer->width - 8) {
-    dialog_w = framebuffer->width - 8;
-  }
-  const int dialog_x = (framebuffer->width - dialog_w) / 2;
-  const int dialog_y = 28;
-
-  ColonizePopupColors colors;
-  popup_colors_from_ui(&colors);
   int inner_x = 0, inner_y = 0, inner_w = 0, inner_h = 0;
-  popup_draw(
-    framebuffer,
-    dialog_x,
-    dialog_y,
-    dialog_w,
-    dialog_h,
-    view->wood_tile_ok ? &view->wood_tile : NULL,
-    &colors,
-    &inner_x,
-    &inner_y,
-    &inner_w,
-    &inner_h
+  colony_screen_open_dialog_frame(
+    view, framebuffer, dialog_w, dialog_h, 28, line_h, &view->dock_orders_rect,
+    &inner_x, &inner_y, &inner_w, &inner_h
   );
-  view->dock_orders_dialog_x = dialog_x;
-  view->dock_orders_dialog_y = dialog_y;
-  view->dock_orders_dialog_w = dialog_w;
-  view->dock_orders_dialog_h = dialog_h;
-  view->dock_orders_line_h = line_h;
 
   if (font && inner_w > 0) {
     popup_draw_text_markup(
@@ -4278,15 +4038,13 @@ static void colony_screen_draw_dock_orders_popup(
     );
   }
   const int list_y0 = inner_y + pad + line_h;
-  view->dock_orders_list_y0 = list_y0;
+  view->dock_orders_rect.list_y0 = list_y0;
 
   for (int i = 0; i < rows; ++i) {
     const int row_y = list_y0 + i * line_h;
     const bool selected = (i == view->dock_orders_selection);
     if (selected) {
-      colony_screen_fill_rect(
-        framebuffer, inner_x + 1, row_y - 1, inner_x + inner_w - 1, row_y + line_h - 1, 138
-      );
+      fb_fill_rect(framebuffer, inner_x + 1, row_y - 1, inner_w - 2, line_h, 138);
     }
     if (font) {
       font_draw_text(font, framebuffer, inner_x + pad, row_y + 1, view->dock_orders_labels[i], 15);
@@ -4312,46 +4070,22 @@ static void colony_screen_draw_message_popup(
     dialog_h = framebuffer->height - 8;
   }
   int dialog_w = 220;
-  if (dialog_w > framebuffer->width - 8) {
-    dialog_w = framebuffer->width - 8;
-  }
-  const int dialog_x = (framebuffer->width - dialog_w) / 2;
-  const int dialog_y = 36;
-
-  ColonizePopupColors colors;
-  popup_colors_from_ui(&colors);
   int inner_x = 0, inner_y = 0, inner_w = 0, inner_h = 0;
-  popup_draw(
-    framebuffer,
-    dialog_x,
-    dialog_y,
-    dialog_w,
-    dialog_h,
-    view->wood_tile_ok ? &view->wood_tile : NULL,
-    &colors,
-    &inner_x,
-    &inner_y,
-    &inner_w,
-    &inner_h
+  colony_screen_open_dialog_frame(
+    view, framebuffer, dialog_w, dialog_h, 36, line_h, &view->message_rect,
+    &inner_x, &inner_y, &inner_w, &inner_h
   );
-  view->message_dialog_x = dialog_x;
-  view->message_dialog_y = dialog_y;
-  view->message_dialog_w = dialog_w;
-  view->message_dialog_h = dialog_h;
-  view->message_line_h = line_h;
 
   if (font && inner_w > 0) {
     font_draw_text(font, framebuffer, inner_x + pad, inner_y + pad, view->message_text, 15);
   }
   const int list_y0 = inner_y + pad + text_lines * line_h;
-  view->message_list_y0 = list_y0;
+  view->message_rect.list_y0 = list_y0;
   for (int i = 0; i < rows; ++i) {
     const int row_y = list_y0 + i * line_h;
     const bool selected = (i == view->message_selection);
     if (selected) {
-      colony_screen_fill_rect(
-        framebuffer, inner_x + 1, row_y - 1, inner_x + inner_w - 1, row_y + line_h - 1, 138
-      );
+      fb_fill_rect(framebuffer, inner_x + 1, row_y - 1, inner_w - 2, line_h, 138);
     }
     const char* label =
       (view->message_kind == COLONY_MSG_OK)
@@ -4392,111 +4126,87 @@ ColonyScreenHitResult colony_screen_hit_test(
   colony_screen_assign_slot_positions_ex(pool, colony, slot_x, slot_y, slot_of_cat);
 
   if (view->message_kind != COLONY_MSG_NONE) {
-    if (mx < view->message_dialog_x || my < view->message_dialog_y ||
-        mx >= view->message_dialog_x + view->message_dialog_w ||
-        my >= view->message_dialog_y + view->message_dialog_h) {
+    const int rows = (view->message_kind == COLONY_MSG_CONFIRM) ? 2 : 1;
+    int idx = -1;
+    if (!colony_screen_dialog_row_hit(&view->message_rect, rows, mx, my, &idx)) {
       hit.kind = COLONY_HIT_MESSAGE_OUTSIDE;
       return hit;
     }
-    if (view->message_line_h > 0 && my >= view->message_list_y0) {
-      const int idx = (my - view->message_list_y0) / view->message_line_h;
-      const int rows = (view->message_kind == COLONY_MSG_CONFIRM) ? 2 : 1;
-      if (idx >= 0 && idx < rows) {
-        if (view->message_kind == COLONY_MSG_OK) {
-          hit.kind = COLONY_HIT_MESSAGE_OK;
-        } else if (idx == 0) {
-          hit.kind = COLONY_HIT_MESSAGE_YES;
-        } else {
-          hit.kind = COLONY_HIT_MESSAGE_NO;
-        }
-        return hit;
+    if (idx >= 0) {
+      if (view->message_kind == COLONY_MSG_OK) {
+        hit.kind = COLONY_HIT_MESSAGE_OK;
+      } else if (idx == 0) {
+        hit.kind = COLONY_HIT_MESSAGE_YES;
+      } else {
+        hit.kind = COLONY_HIT_MESSAGE_NO;
       }
     }
     return hit;
   }
 
   if (view->custom_house_open) {
-    if (mx < view->custom_house_dialog_x || my < view->custom_house_dialog_y ||
-        mx >= view->custom_house_dialog_x + view->custom_house_dialog_w ||
-        my >= view->custom_house_dialog_y + view->custom_house_dialog_h) {
+    int idx = -1;
+    if (!colony_screen_dialog_row_hit(&view->custom_house_rect, view->custom_house_count, mx, my, &idx)) {
       hit.kind = COLONY_HIT_CUSTOM_HOUSE_OUTSIDE;
       return hit;
     }
-    if (view->custom_house_line_h > 0 && my >= view->custom_house_list_y0) {
-      const int idx = (my - view->custom_house_list_y0) / view->custom_house_line_h;
-      if (idx >= 0 && idx < view->custom_house_count) {
-        hit.kind = COLONY_HIT_CUSTOM_HOUSE_ROW;
-        hit.index = idx;
-        return hit;
-      }
+    if (idx >= 0) {
+      hit.kind = COLONY_HIT_CUSTOM_HOUSE_ROW;
+      hit.index = idx;
     }
     return hit;
   }
 
   if (view->jobs_open) {
-    if (mx < view->jobs_dialog_x || my < view->jobs_dialog_y ||
-        mx >= view->jobs_dialog_x + view->jobs_dialog_w ||
-        my >= view->jobs_dialog_y + view->jobs_dialog_h) {
+    int idx = -1;
+    if (!colony_screen_dialog_row_hit(&view->jobs_rect, view->job_count, mx, my, &idx)) {
       hit.kind = COLONY_HIT_JOBS_OUTSIDE;
       return hit;
     }
-    if (view->jobs_line_h > 0 && my >= view->jobs_list_y0) {
-      const int idx = (my - view->jobs_list_y0) / view->jobs_line_h;
-      const int rows = view->job_count;
-      if (idx >= 0 && idx < rows) {
-        hit.kind = COLONY_HIT_JOBS_ROW;
-        hit.index = idx;
-        return hit;
-      }
+    if (idx >= 0) {
+      hit.kind = COLONY_HIT_JOBS_ROW;
+      hit.index = idx;
     }
     return hit;
   }
 
   if (view->eject_open) {
-    if (mx < view->eject_dialog_x || my < view->eject_dialog_y ||
-        mx >= view->eject_dialog_x + view->eject_dialog_w ||
-        my >= view->eject_dialog_y + view->eject_dialog_h) {
+    int idx = -1;
+    if (!colony_screen_dialog_row_hit(&view->eject_rect, view->eject_role_count, mx, my, &idx)) {
       hit.kind = COLONY_HIT_EJECT_OUTSIDE;
       return hit;
     }
-    if (view->eject_line_h > 0 && my >= view->eject_list_y0) {
-      const int idx = (my - view->eject_list_y0) / view->eject_line_h;
-      if (idx >= 0 && idx < view->eject_role_count) {
-        hit.kind = COLONY_HIT_EJECT_ROW;
-        hit.index = idx;
-        return hit;
-      }
+    if (idx >= 0) {
+      hit.kind = COLONY_HIT_EJECT_ROW;
+      hit.index = idx;
     }
     return hit;
   }
 
   if (view->dock_orders_open) {
-    if (mx < view->dock_orders_dialog_x || my < view->dock_orders_dialog_y ||
-        mx >= view->dock_orders_dialog_x + view->dock_orders_dialog_w ||
-        my >= view->dock_orders_dialog_y + view->dock_orders_dialog_h) {
+    int idx = -1;
+    if (!colony_screen_dialog_row_hit(&view->dock_orders_rect, view->dock_orders_count, mx, my, &idx)) {
       hit.kind = COLONY_HIT_DOCK_ORDERS_OUTSIDE;
       return hit;
     }
-    if (view->dock_orders_line_h > 0 && my >= view->dock_orders_list_y0) {
-      const int idx = (my - view->dock_orders_list_y0) / view->dock_orders_line_h;
-      if (idx >= 0 && idx < view->dock_orders_count) {
-        hit.kind = COLONY_HIT_DOCK_ORDERS_ROW;
-        hit.index = idx;
-        return hit;
-      }
+    if (idx >= 0) {
+      hit.kind = COLONY_HIT_DOCK_ORDERS_ROW;
+      hit.index = idx;
     }
     return hit;
   }
 
   if (view->construction_open) {
-    if (mx < view->construction_dialog_x || my < view->construction_dialog_y ||
-        mx >= view->construction_dialog_x + view->construction_dialog_w ||
-        my >= view->construction_dialog_y + view->construction_dialog_h) {
+    /* Construction keeps its own row math below: paging adds the More...
+     * row, so the row index is not a plain popup_row_at_y (audit CO-7). */
+    if (!ui_rect_hit(
+          view->construction_rect.x, view->construction_rect.y,
+          view->construction_rect.w, view->construction_rect.h, mx, my)) {
       hit.kind = COLONY_HIT_CONSTRUCTION_OUTSIDE;
       return hit;
     }
-    if (view->construction_line_h > 0 && my >= view->construction_list_y0) {
-      const int row_in_page = (my - view->construction_list_y0) / view->construction_line_h;
+    if (view->construction_rect.line_h > 0 && my >= view->construction_rect.list_y0) {
+      const int row_in_page = (my - view->construction_rect.list_y0) / view->construction_rect.line_h;
       const int rows = view->buildable_count + 1;
       const int per = view->construction_rows_per_col > 0 ? view->construction_rows_per_col : rows;
       const int start = view->construction_page * per;
@@ -4723,35 +4433,15 @@ ColonyScreenHitResult colony_screen_hit_test(
       }
       int worker_ci[COLONY_BUILDING_WORKERS_MAX];
       int worker_icons[COLONY_BUILDING_WORKERS_MAX];
-      int workers = 0;
-      for (int ci = 0; ci < colony->colonist_count && workers < COLONY_BUILDING_WORKERS_MAX; ++ci) {
-        const ColonizeColonist* c = &colony->colonists[ci];
-        if (!c->active || c->building_type != built) {
-          continue;
-        }
-        const int sprite =
-          units_working_colonist_sprite(units, c->unit_type_index, c->profession);
-        if (sprite < 0) {
-          continue;
-        }
-        worker_ci[workers] = ci;
-        worker_icons[workers] = sprite;
-        workers++;
-      }
+      int strip_h = 16;
+      const int workers = colony_screen_building_worker_strip(
+        view, colony, units, built, worker_ci, worker_icons, &strip_h
+      );
       if (workers <= 0) {
         continue;
       }
       const int bx = slot_ox + slot_x[i];
       const int by = slot_oy + slot_y[i];
-      int strip_h = 16;
-      for (int wi = 0; wi < workers; ++wi) {
-        if (worker_icons[wi] < view->icons.sprite_count) {
-          const int ih = view->icons.sprites[worker_icons[wi]].height;
-          if (ih > strip_h) {
-            strip_h = ih;
-          }
-        }
-      }
       const int strip_y = by + bspr->height - strip_h;
       int ref_iw = 12;
       if (worker_icons[0] < view->icons.sprite_count) {

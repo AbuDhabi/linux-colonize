@@ -3,6 +3,25 @@
 #include <string.h>
 
 #include "core/founding_fathers.h"
+#include "core/turn.h"
+
+/*
+ * AK-56: the units/map/colonies/col1 fill ~20 combat call sites repeat by
+ * hand (ai_king.c:2285-2291 is the canonical spelling). Zeroed first, so a
+ * later field cannot go uninitialised the way ai_diplo.c:1491-1494 would.
+ */
+ColonizeCombatStrengthCtx combat_strength_ctx_from_turn(const struct ColonizeTurnContext* tc) {
+  ColonizeCombatStrengthCtx cs;
+  memset(&cs, 0, sizeof(cs));
+  if (!tc) {
+    return cs;
+  }
+  cs.units = tc->units;
+  cs.map = tc->map;
+  cs.colonies = tc->colonies;
+  cs.col1 = tc->col1;
+  return cs;
+}
 
 /*
  * DOS `bVar28` (FUN_5fef_1b0e, raw 100387): the defender this engagement is
@@ -39,28 +58,6 @@ void combat_side_flags_clear(ColonizeCombatSideFlags* f) {
 }
 
 /*
- * DOS unit +0x3150, read raw by the FUN_157e_004a cargo peel (viceroy
- * 8957-8959: `0xc < type < 0x13` → `local_4 -= +0x3150`). That byte is the
- * GOODS hold count only — written just by FUN_15eb_30b8 / FUN_15eb_317c
- * (viceroy 13301/13339); boarding parks passengers off-map (FUN_1427_10be)
- * and never bumps it. So goods slots only here: a troop-laden ship takes no
- * strength penalty in DOS, and the naval-evasion peel in units.c
- * (FUN_5bfb_312e, viceroy 98448) reads the same byte the same way.
- */
-static int combat_ship_holds_occupied(const ColonizeUnit* u) {
-  if (!u) {
-    return 0;
-  }
-  int n = 0;
-  for (int i = 0; i < COLONIZE_UNIT_CARGO_MAX; ++i) {
-    if (u->hold_goods_amount[i] > 0 && u->hold_goods_amount[i] < 255) {
-      ++n;
-    }
-  }
-  return n;
-}
-
-/*
  * FUN_157e_004a veteran gate (viceroy_unpacked.c 8942-8944), verbatim:
  *
  *   if (((*(char *)(param_1 * 0x1c + 0x3146) == '\x01') ||
@@ -79,20 +76,13 @@ static int combat_ship_holds_occupied(const ColonizeUnit* u) {
  * @UNIT id (synthetic test fixtures place Soldier/Dragoon at arbitrary slots);
  * that is the same mapping idiom as ai_euro.c's ai_euro_5d04_dos_type_of.
  * On the stock roster "Soldier"/"Dragoon" hit exactly types 1 and 4.
+ *
+ * units_type_kind() is that same @UNIT-row classifier, most-specific first, so
+ * "Cont. Cav."/"Cavalry"/"Regulars"/"Cont. Army" still fall outside the gate.
  */
 static int combat_type_is_soldier_or_dragoon(const ColonizeUnitType* t) {
-  if (!t || !t->name[0]) {
-    return 0;
-  }
-  return strstr(t->name, "Soldier") != NULL || strstr(t->name, "Dragoon") != NULL;
-}
-
-static int combat_type_is_privateer(const ColonizeUnitType* t) {
-  return t && t->name[0] && strstr(t->name, "Privateer") != NULL;
-}
-
-static int combat_type_is_ship(const ColonizeUnitPool* pool, int unit_id) {
-  return pool && units_is_sea(pool, unit_id);
+  const ColonizeUnitKind k = units_type_kind(t);
+  return k == UNITS_KIND_SOLDIER || k == UNITS_KIND_DRAGOON;
 }
 
 static int combat_nation_is_ai(const ColonizeCol1Save* col1, int nation_id) {
@@ -143,12 +133,6 @@ static int combat_colony_local_1a(
   const int local_1a = (tier + 1) * 2;
   if (flags) {
     flags->flags |= COMBAT_FLAG_COLONY;
-    if (tier > 0) {
-      flags->flags |= COMBAT_FLAG_STOCKADE; /* "Stockade or better" (8d02|0x10 shape) */
-    }
-    if (has_fortress) {
-      flags->flags |= COMBAT_FLAG_FORTRESS;
-    }
     /*
      * FUN_636c_0000's colony row prints (tier + 1) * 50% and labels itself
      * with the topmost built tier (FUN_281f_0bdc = FUN_15eb_0434(0)).
@@ -223,7 +207,7 @@ int combat_unit_base_x8(
   }
 
   /* Drake Privateer → +50%. */
-  if (combat_type_is_privateer(t) && ctx->col1 &&
+  if (units_type_is_privateer(t) && ctx->col1 &&
       founding_fathers_nation_has(ctx->col1, u->nation_id, FF_FRANCIS_DRAKE)) {
     local_4 = local_4 + (local_4 >> 1);
     if (out_flags) {
@@ -231,9 +215,20 @@ int combat_unit_base_x8(
     }
   }
 
-  /* Ship holds occupied subtract after ×8. */
-  if (combat_type_is_ship(ctx->units, unit_id)) {
-    const int holds = combat_ship_holds_occupied(u);
+  /*
+   * Ship holds occupied subtract after ×8.
+   *
+   * DOS unit +0x3150, read raw by the FUN_157e_004a cargo peel (viceroy
+   * 8957-8959: `0xc < type < 0x13` → `local_4 -= +0x3150`). That byte is the
+   * GOODS hold count only — written just by FUN_15eb_30b8 / FUN_15eb_317c
+   * (viceroy 13301/13339); boarding parks passengers off-map (FUN_1427_10be)
+   * and never bumps it. So goods slots only here: a troop-laden ship takes no
+   * strength penalty in DOS, and the naval-evasion peel in units.c
+   * (FUN_5bfb_312e, viceroy 98448) reads the same byte the same way.
+   * units_holds_used() is that same 0 < amount < 255 count.
+   */
+  if (units_is_sea(ctx->units, unit_id)) {
+    const int holds = units_holds_used(ctx->units, unit_id);
     if (holds > 0) {
       local_4 -= holds;
       if (out_flags) {
@@ -500,7 +495,7 @@ fortify:
   /* D. Fortify: orders==6 ONLY (FUN_157e_015e 9045 — Fortify(5) gets nothing
    * until it flips to Fortified), land unit, local_1a < 5 → +2. */
   if (u->orders == UNITS_ORDER_FORTIFIED &&
-      !combat_type_is_ship(ctx->units, unit_id) && local_1a < 5) {
+      !units_is_sea(ctx->units, unit_id) && local_1a < 5) {
     local_1a += 2;
     if (out_flags) {
       out_flags->flags_hi |= 0x20u;
@@ -508,9 +503,6 @@ fortify:
     }
   }
 
-  if (out_flags) {
-    out_flags->local_1a = local_1a;
-  }
   return (int)(((local_1a + 4) * base) >> 2);
 }
 
@@ -523,13 +515,19 @@ int combat_unit_toughness(
   return combat_engagement_strength(ctx, unit_id, foe_id, NULL);
 }
 
+/*
+ * @UNIT row 11 (Artillery) by name. units_name_kind() accepts the same
+ * "Artillery"/"Cannon" spellings this used to test for directly; no stock
+ * NAMES.TXT @UNIT row carries either token alongside a more specific one, so
+ * the classifier's most-specific-first order cannot change any verdict here.
+ */
 int combat_type_is_artillery_name(const char* name) {
-  return name && name[0] &&
-         (strstr(name, "Artillery") != NULL || strstr(name, "Cannon") != NULL);
+  return units_name_kind(name) == UNITS_KIND_ARTILLERY;
 }
 
+/* @UNIT row 5 (Scouts); "Seasoned Scout" and friends still classify as 5. */
 int combat_type_is_scout_name(const char* name) {
-  return name && name[0] && strstr(name, "Scout") != NULL;
+  return units_name_kind(name) == UNITS_KIND_SCOUT;
 }
 
 /*
@@ -662,7 +660,12 @@ static int combat_colony_sol_at(
  * FUN_5fef_1b0e peels after 157e base strengths.
  * Cite: viceroy_unpacked.c ~100459–100576 (artillery/ambush/SoL/diff/Scout).
  */
-void combat_apply_1b0e_peels(
+/*
+ * FUN_5fef_1b0e peels on top of 157e strengths: artillery, Spanish ambush,
+ * WoI colony REF +50% / Tory|Rebel %, crown open-field difficulty/20,
+ * difficulty, Scout-vs-Arty forced lose. Fills io strengths+flags in place.
+ */
+static void combat_apply_1b0e_peels(
   const ColonizeCombatStrengthCtx* ctx,
   int attacker_id,
   int defender_id,
@@ -684,8 +687,8 @@ void combat_apply_1b0e_peels(
 
   const int atk_nat = atk->nation_id;
   const int def_nat = def->nation_id;
-  const int atk_ship = combat_type_is_ship(ctx->units, attacker_id);
-  const int def_ship = combat_type_is_ship(ctx->units, defender_id);
+  const int atk_ship = units_is_sea(ctx->units, attacker_id);
+  const int def_ship = units_is_sea(ctx->units, defender_id);
   const int on_colony = combat_unit_on_colony(ctx, def);
   /*
    * DOS 1b0e keys the artillery + Spanish-ambush clauses on
@@ -948,7 +951,7 @@ void combat_apply_1b0e_resolve_handicaps(
   const int def_colony_id =
     ctx->colonies ? colonies_id_at(ctx->colonies, def->x, def->y) : -1;
   const int on_colony = (def_colony_id >= 0);
-  const int atk_ship = combat_type_is_ship(ctx->units, attacker_id);
+  const int atk_ship = units_is_sea(ctx->units, attacker_id);
   const bool atk_euro = (atk_nat >= 0 && atk_nat <= 3);
   const bool def_human_euro =
     def_nat >= 0 && def_nat <= 3 && !combat_nation_is_ai(ctx->col1, def_nat);
@@ -1074,8 +1077,16 @@ void combat_naval_engage(
    * this one. Combat Analysis shows the matching "Attack Bonus +50%" row for
    * ships as well (FUN_636c_0000 viceroy_unpacked.c 101874-101891, walking
    * DS:0x8d00 bit 0, which FUN_157e_004a sets on every mode-1 evaluation).
+   *
+   * UN-43: spelled exactly like combat_land_engage, because it is the same
+   * single DOS line — 1b0e resolves both domains. Naval defence goes through
+   * 004a mode 0, which never stashes terrain, so 0x8d04 is 0 here and the
+   * expression reduces to the plain ×3/2 the old `s += s >> 1` computed
+   * (for s >= 0, ((0 + 4) * s >> 2) * 3 >> 1 == s + (s >> 1)). Written
+   * DOS-literally so the two engage paths cannot drift.
    */
-  out->atk_strength += out->atk_strength >> 1;
+  out->atk_strength =
+    ((out->def_flags.terrain_stash + 4) * out->atk_strength >> 2) * 3 >> 1;
   if (out->atk_strength < 0) {
     out->atk_strength = 0;
   }

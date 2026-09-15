@@ -25,13 +25,9 @@
 #include "core/dos_rng.h"
 #include "core/europe.h"
 #include "core/map.h"
+#include "core/reports.h"
 #include "core/turn.h"
 #include "core/units.h"
-
-static const char* k_cargo_names[COLONIZE_CARGO_COUNT] = {
-  "food",   "sugar",  "tobacco", "cotton", "furs",   "lumber", "ore",   "silver",
-  "horses", "rum",    "cigars",  "cloth",  "coats",  "trade",  "tools", "muskets"
-};
 
 typedef struct Snapshot {
   ColonizeColonyPreview preview;
@@ -161,7 +157,7 @@ static int run_fixture(const char* path) {
         fprintf(
           stderr,
           "%s (nation %d) %s: preview %+d actual %+d (stock %d -> %d, cap %d)\n",
-          col->name, col->nation_id, k_cargo_names[c], want, actual, s->stock[c], col->stock[c],
+          col->name, col->nation_id, reports_cargo_display_name(c), want, actual, s->stock[c], col->stock[c],
           s->cap[c]
         );
         mismatches++;

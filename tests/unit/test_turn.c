@@ -16,6 +16,7 @@
 #include "core/map.h"
 #include "core/ai_king.h"
 #include "core/turn.h"
+#include "core/unit_chrome.h"
 #include "core/units.h"
 #include "platform/diagnostics.h"
 
@@ -1099,12 +1100,12 @@ int main(void) {
   }
 
   /* Turn-owner colors: NAMES.TXT @COUNTRY; England fill uses saturated red 112. */
-  if (turn_nation_color(0) != 112 || turn_nation_color(1) != 9 || turn_nation_color(2) != 14 ||
-      turn_nation_color(3) != 13) {
+  if (unit_chrome_nation_color(0) != 112 || unit_chrome_nation_color(1) != 9 || unit_chrome_nation_color(2) != 14 ||
+      unit_chrome_nation_color(3) != 13) {
     fprintf(stderr, "european turn colors mismatch\n");
     return 1;
   }
-  if (turn_nation_color(4) != 97 || turn_nation_color(11) != 71) {
+  if (unit_chrome_nation_color(4) != 97 || unit_chrome_nation_color(11) != 71) {
     fprintf(stderr, "tribe turn colors mismatch\n");
     return 1;
   }
@@ -1917,11 +1918,11 @@ int main(void) {
     memset(&prod, 0, sizeof(prod));
     turn_colony_free_production(&pool, col, &map, &prod, &delta);
     /* No carpenter assigned → hammers stay 0 (shop alone does not produce). */
-    if (delta.lumber < expect) {
+    if (delta.goods[COLONIZE_CARGO_LUMBER] < expect) {
       fprintf(
         stderr,
         "field lumber delta too low got %d expect %d (stock %d->%d)\n",
-        delta.lumber,
+        delta.goods[COLONIZE_CARGO_LUMBER],
         expect,
         before,
         col->stock[COLONIZE_CARGO_LUMBER]

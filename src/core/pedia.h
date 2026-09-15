@@ -79,8 +79,6 @@ typedef struct PediaTerrainPreview {
 typedef struct PediaPage {
   PediaCategory category;
   int index;
-  int flat_index;
-  int flat_count;
   char category_label[PEDIA_CATEGORY_LABEL_LEN];
   char title[PEDIA_TITLE_LEN];
   char body[PEDIA_BODY_MAX_LINES][PEDIA_BODY_LINE_LEN];
@@ -105,7 +103,6 @@ typedef struct PediaListHit {
 
 int pedia_category_count(PediaCategory category);
 const char* pedia_category_label(PediaCategory category);
-const char* pedia_category_section_prefix(PediaCategory category);
 
 /*
  * Leading caret run on a PEDIA.TXT body line, as DOS FUN_6f74_0c32 parses it:

@@ -56,6 +56,7 @@ add_library(colonize_core STATIC
   src/core/game_loop.c
   src/core/trade_screen.c
   src/core/assets.c
+  src/core/fb.c
   src/core/font.c
   src/core/ff.c
   src/core/map.c
@@ -247,241 +248,39 @@ add_test(NAME unit_settings COMMAND unit_settings WORKING_DIRECTORY ${CMAKE_SOUR
 add_executable(smoke_game_flow
   tests/smoke/test_game_flow.c
   tests/common/platform_cursor_stubs.c
-  src/core/game_loop.c
-  src/core/trade_screen.c
-  src/core/assets.c
-  src/core/font.c
-  src/core/ff.c
-  src/core/map.c
-  src/core/map_gen.c
-  src/core/dos_rng.c
-  src/core/strutil.c
-  src/core/map_menu.c
-  src/core/map_panel.c
-  src/core/popup.c
-  src/core/ui_button.c
-  src/core/ui_drag.c
-  src/core/pick_music.c
-  src/core/cheat_list_dialog.c
-  src/core/popup_msg.c
-  src/core/howmuch_dialog.c
-  src/core/name_entry_dialog.c
-  src/core/text_edit.c
-  src/core/options_dialog.c
-  src/core/save_load_dialog.c
-  src/core/unit_stack.c
-  src/core/unit_chrome.c
-  src/core/new_game.c
-  src/core/pedia.c
-  src/core/reports.c
-  src/core/europe.c
-  src/core/colony_screen.c
-  src/core/debug_atlas.c
-  src/core/declaration.c
-  src/core/closing.c
-  src/core/opening.c
-  src/core/woodcut.c
-  src/core/units.c
-  src/core/colony.c
-  src/core/colony_yield.c
-  src/core/colony_production.c
-  src/core/colony_craft.c
-  src/core/colony_preview.c
-  src/core/combat_strength.c
-  src/core/combat_analysis.c
-  src/core/turn.c
-  src/core/founding_fathers.c
-  src/core/ai.c
-  src/core/ai_goals.c
-  src/core/ai_euro.c
-  src/core/ai_diplo.c
-  src/core/ai_contact.c
-  src/core/ai_king.c
-  src/core/ai_popup.c
-  src/core/sound.c
-  src/core/gsound_vm.c
-  src/core/madspack.c
-  src/core/pik.c
-  src/core/ss.c
-  src/core/savegame.c
-  src/core/col1_save.c
-  src/core/col1_bridge.c
-  src/core/col1_post_map.c
-  src/core/col1_stuff_census.c
-  src/core/json_min.c
-  src/core/settings.c
-  src/data/viceroy_tables.c
-  src/platform/diagnostics.c
-  src/platform/dos_compat/dos_compat.c
+  tests/common/test_assets.c
 )
 
 add_executable(unit_new_game
   tests/unit/test_new_game.c
   tests/common/platform_cursor_stubs.c
-  src/core/game_loop.c
-  src/core/trade_screen.c
-  src/core/assets.c
-  src/core/font.c
-  src/core/ff.c
-  src/core/map.c
-  src/core/map_gen.c
-  src/core/dos_rng.c
-  src/core/strutil.c
-  src/core/map_menu.c
-  src/core/map_panel.c
-  src/core/popup.c
-  src/core/ui_button.c
-  src/core/ui_drag.c
-  src/core/pick_music.c
-  src/core/cheat_list_dialog.c
-  src/core/popup_msg.c
-  src/core/howmuch_dialog.c
-  src/core/name_entry_dialog.c
-  src/core/text_edit.c
-  src/core/options_dialog.c
-  src/core/save_load_dialog.c
-  src/core/unit_stack.c
-  src/core/unit_chrome.c
-  src/core/new_game.c
-  src/core/pedia.c
-  src/core/reports.c
-  src/core/europe.c
-  src/core/colony_screen.c
-  src/core/debug_atlas.c
-  src/core/declaration.c
-  src/core/closing.c
-  src/core/opening.c
-  src/core/woodcut.c
-  src/core/units.c
-  src/core/colony.c
-  src/core/colony_yield.c
-  src/core/colony_production.c
-  src/core/colony_craft.c
-  src/core/colony_preview.c
-  src/core/combat_strength.c
-  src/core/combat_analysis.c
-  src/core/turn.c
-  src/core/founding_fathers.c
-  src/core/ai.c
-  src/core/ai_goals.c
-  src/core/ai_euro.c
-  src/core/ai_diplo.c
-  src/core/ai_contact.c
-  src/core/ai_king.c
-  src/core/ai_popup.c
-  src/core/sound.c
-  src/core/gsound_vm.c
-  src/core/madspack.c
-  src/core/pik.c
-  src/core/ss.c
-  src/core/savegame.c
-  src/core/col1_save.c
-  src/core/col1_bridge.c
-  src/core/col1_post_map.c
-  src/core/col1_stuff_census.c
-  src/core/json_min.c
-  src/core/settings.c
-  src/data/viceroy_tables.c
-  src/platform/diagnostics.c
-  src/platform/dos_compat/dos_compat.c
+  tests/common/test_assets.c
 )
 
 target_include_directories(unit_new_game PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR}
   ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
-target_link_libraries(unit_new_game PRIVATE m pthread)
-if(COLONIZE_HAS_FLUIDSYNTH)
-  target_include_directories(unit_new_game PRIVATE ${FLUIDSYNTH_INCLUDE_DIRS})
-  target_link_libraries(unit_new_game PRIVATE ${FLUIDSYNTH_LIBRARIES})
-  target_compile_definitions(unit_new_game PRIVATE COLONIZE_HAS_FLUIDSYNTH=1)
-endif()
+target_link_libraries(unit_new_game PRIVATE colonize_core)
 add_test(NAME unit_new_game COMMAND unit_new_game)
 
 add_executable(unit_hall_of_fame
   tests/unit/test_hall_of_fame.c
   tests/common/platform_cursor_stubs.c
-  src/core/game_loop.c
-  src/core/trade_screen.c
-  src/core/assets.c
-  src/core/font.c
-  src/core/ff.c
-  src/core/map.c
-  src/core/map_gen.c
-  src/core/dos_rng.c
-  src/core/strutil.c
-  src/core/map_menu.c
-  src/core/map_panel.c
-  src/core/popup.c
-  src/core/ui_button.c
-  src/core/ui_drag.c
-  src/core/pick_music.c
-  src/core/cheat_list_dialog.c
-  src/core/popup_msg.c
-  src/core/howmuch_dialog.c
-  src/core/name_entry_dialog.c
-  src/core/text_edit.c
-  src/core/options_dialog.c
-  src/core/save_load_dialog.c
-  src/core/unit_stack.c
-  src/core/unit_chrome.c
-  src/core/new_game.c
-  src/core/pedia.c
-  src/core/reports.c
-  src/core/europe.c
-  src/core/colony_screen.c
-  src/core/debug_atlas.c
-  src/core/declaration.c
-  src/core/closing.c
-  src/core/opening.c
-  src/core/woodcut.c
-  src/core/units.c
-  src/core/colony.c
-  src/core/colony_yield.c
-  src/core/colony_production.c
-  src/core/colony_craft.c
-  src/core/colony_preview.c
-  src/core/combat_strength.c
-  src/core/combat_analysis.c
-  src/core/turn.c
-  src/core/founding_fathers.c
-  src/core/ai.c
-  src/core/ai_goals.c
-  src/core/ai_euro.c
-  src/core/ai_diplo.c
-  src/core/ai_contact.c
-  src/core/ai_king.c
-  src/core/ai_popup.c
-  src/core/sound.c
-  src/core/gsound_vm.c
-  src/core/madspack.c
-  src/core/pik.c
-  src/core/ss.c
-  src/core/savegame.c
-  src/core/col1_save.c
-  src/core/col1_bridge.c
-  src/core/col1_post_map.c
-  src/core/col1_stuff_census.c
-  src/core/json_min.c
-  src/core/settings.c
-  src/data/viceroy_tables.c
-  src/platform/diagnostics.c
-  src/platform/dos_compat/dos_compat.c
+  tests/common/test_assets.c
 )
 
 target_include_directories(unit_hall_of_fame PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR}
   ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
-target_link_libraries(unit_hall_of_fame PRIVATE m pthread)
-if(COLONIZE_HAS_FLUIDSYNTH)
-  target_include_directories(unit_hall_of_fame PRIVATE ${FLUIDSYNTH_INCLUDE_DIRS})
-  target_link_libraries(unit_hall_of_fame PRIVATE ${FLUIDSYNTH_LIBRARIES})
-  target_compile_definitions(unit_hall_of_fame PRIVATE COLONIZE_HAS_FLUIDSYNTH=1)
-endif()
+target_link_libraries(unit_hall_of_fame PRIVATE colonize_core)
 add_test(NAME unit_hall_of_fame COMMAND unit_hall_of_fame)
 
 add_executable(smoke_popup
   tests/smoke/test_popup.c
   src/core/popup.c
+  src/core/fb.c
   src/core/font.c
   src/core/ss.c
   src/core/madspack.c
@@ -524,6 +323,7 @@ add_executable(smoke_pick_music
   src/core/popup.c
   src/core/sound.c
   src/core/gsound_vm.c
+  src/core/fb.c
   src/core/font.c
   src/core/assets.c
   src/core/ss.c
@@ -608,9 +408,11 @@ target_link_libraries(sav_json PRIVATE colonize_core)
 
 add_executable(render_report
   tools/render_report_main.c
+  tools/render_common.c
 )
 
 target_include_directories(render_report PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR}
   ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 
@@ -618,9 +420,11 @@ target_link_libraries(render_report PRIVATE colonize_core)
 
 add_executable(render_map_panel
   tools/render_map_panel_main.c
+  tools/render_common.c
 )
 
 target_include_directories(render_map_panel PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR}
   ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 
@@ -628,9 +432,11 @@ target_link_libraries(render_map_panel PRIVATE colonize_core)
 
 add_executable(render_colony
   tools/render_colony_main.c
+  tools/render_common.c
 )
 
 target_include_directories(render_colony PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR}
   ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 
@@ -710,12 +516,16 @@ target_link_libraries(unit_map_panel PRIVATE colonize_core)
 
 add_test(NAME unit_map_panel COMMAND unit_map_panel WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 
-add_executable(unit_units
-  tests/unit/test_units.c
+# Shared source list for the four "slim" unit tests (duplication audit
+# TT-16). They deliberately do NOT link colonize_core: they compile
+# src/core/ai_contact_link_stubs.c instead of the real ai_contact/ai_euro/
+# ai_king, and an archive would shadow those weak stubs. Each target adds
+# its own test file plus the one extra source it needs.
+set(COLONIZE_SLIM_SOURCES
   src/core/units.c
-  src/core/unit_stack.c
   src/core/reports.c
   src/core/colony_production.c
+  src/core/colony_craft.c
   src/core/woodcut.c
   src/core/combat_strength.c
   src/core/combat_analysis.c
@@ -735,6 +545,7 @@ add_executable(unit_units
   src/core/dos_rng.c
   src/core/strutil.c
   src/core/assets.c
+  src/core/fb.c
   src/core/font.c
   src/core/ff.c
   src/core/ss.c
@@ -742,6 +553,12 @@ add_executable(unit_units
   src/data/viceroy_tables.c
   src/platform/diagnostics.c
   src/platform/dos_compat/dos_compat.c
+)
+
+add_executable(unit_units
+  tests/unit/test_units.c
+  src/core/unit_stack.c
+  ${COLONIZE_SLIM_SOURCES}
 )
 
 target_include_directories(unit_units PRIVATE
@@ -752,36 +569,8 @@ add_test(NAME unit_units COMMAND unit_units WORKING_DIRECTORY ${CMAKE_SOURCE_DIR
 
 add_executable(unit_combat_strength
   tests/unit/test_combat_strength.c
-  src/core/units.c
   src/core/unit_stack.c
-  src/core/reports.c
-  src/core/colony_production.c
-  src/core/woodcut.c
-  src/core/combat_strength.c
-  src/core/combat_analysis.c
-  src/core/unit_chrome.c
-  src/core/colony.c
-  src/core/colony_yield.c
-  src/core/founding_fathers.c
-  src/core/ai_diplo.c
-  src/core/ai_contact_link_stubs.c
-  src/core/ai_popup.c
-  src/core/popup.c
-  src/core/popup_msg.c
-  src/core/map_menu.c
-  src/core/europe.c
-  src/core/pik.c
-  src/core/map.c
-  src/core/dos_rng.c
-  src/core/strutil.c
-  src/core/assets.c
-  src/core/font.c
-  src/core/ff.c
-  src/core/ss.c
-  src/core/madspack.c
-  src/data/viceroy_tables.c
-  src/platform/diagnostics.c
-  src/platform/dos_compat/dos_compat.c
+  ${COLONIZE_SLIM_SOURCES}
 )
 
 target_include_directories(unit_combat_strength PRIVATE
@@ -806,36 +595,7 @@ add_test(NAME unit_colony_yield COMMAND unit_colony_yield WORKING_DIRECTORY ${CM
 
 add_executable(unit_colonies
   tests/unit/test_colonies.c
-  src/core/colony.c
-  src/core/colony_craft.c
-  src/core/reports.c
-  src/core/colony_production.c
-  src/core/colony_yield.c
-  src/core/units.c
-  src/core/woodcut.c
-  src/core/combat_strength.c
-  src/core/combat_analysis.c
-  src/core/unit_chrome.c
-  src/core/founding_fathers.c
-  src/core/ai_diplo.c
-  src/core/ai_contact_link_stubs.c
-  src/core/ai_popup.c
-  src/core/popup.c
-  src/core/popup_msg.c
-  src/core/map_menu.c
-  src/core/europe.c
-  src/core/pik.c
-  src/core/map.c
-  src/core/dos_rng.c
-  src/core/strutil.c
-  src/core/assets.c
-  src/core/font.c
-  src/core/ff.c
-  src/core/ss.c
-  src/core/madspack.c
-  src/data/viceroy_tables.c
-  src/platform/diagnostics.c
-  src/platform/dos_compat/dos_compat.c
+  ${COLONIZE_SLIM_SOURCES}
 )
 
 target_include_directories(unit_colonies PRIVATE
@@ -846,36 +606,8 @@ add_test(NAME unit_colonies COMMAND unit_colonies WORKING_DIRECTORY ${CMAKE_SOUR
 
 add_executable(unit_reports
   tests/unit/test_reports.c
-  src/core/reports.c
   src/core/col1_save.c
-  src/core/colony.c
-  src/core/colony_yield.c
-  src/core/colony_production.c
-  src/core/units.c
-  src/core/woodcut.c
-  src/core/combat_strength.c
-  src/core/combat_analysis.c
-  src/core/unit_chrome.c
-  src/core/founding_fathers.c
-  src/core/ai_diplo.c
-  src/core/ai_contact_link_stubs.c
-  src/core/ai_popup.c
-  src/core/popup.c
-  src/core/popup_msg.c
-  src/core/map_menu.c
-  src/core/dos_rng.c
-  src/core/strutil.c
-  src/core/map.c
-  src/core/europe.c
-  src/core/pik.c
-  src/core/ss.c
-  src/core/madspack.c
-  src/core/assets.c
-  src/core/font.c
-  src/core/ff.c
-  src/data/viceroy_tables.c
-  src/platform/diagnostics.c
-  src/platform/dos_compat/dos_compat.c
+  ${COLONIZE_SLIM_SOURCES}
 )
 
 target_include_directories(unit_reports PRIVATE
@@ -923,6 +655,7 @@ add_test(NAME unit_turn COMMAND unit_turn WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 add_executable(unit_ff
   tests/unit/test_ff.c
   src/core/ff.c
+  src/core/fb.c
   src/core/font.c
   src/core/madspack.c
   src/platform/diagnostics.c
@@ -939,6 +672,7 @@ add_executable(unit_woodcut
   tests/unit/test_woodcut.c
   src/core/woodcut.c
   src/core/ss.c
+  src/core/fb.c
   src/core/font.c
   src/core/ff.c
   src/core/madspack.c
@@ -1246,61 +980,59 @@ add_test(NAME unit_kill_indians COMMAND unit_kill_indians WORKING_DIRECTORY ${CM
 
 add_executable(golden_ai_turns
   tests/golden/test_ai_turns.c
+  tests/common/golden_fixture.c
 )
 
 target_include_directories(golden_ai_turns PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR}
   ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 
 target_link_libraries(golden_ai_turns PRIVATE colonize_core)
 
 add_test(NAME golden_ai_turns COMMAND golden_ai_turns WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
-# T2 early gate: full Euro dispatcher (TURN1→7). Fixture opt-in via AI_EURO_EARLY_FIXTURE=1 for bisect.
+# T2 early gate: full Euro dispatcher (TURN1→7). The AI_EURO_EARLY_FIXTURE bisect fixture was deleted 2026-09-14.
 
-add_executable(golden_ai_mid01
-  tests/golden/test_ai_mid01.c
+# Renamed from golden_ai_* 2026-09-14 (duplication audit TT-13): both generate
+# their own input fixture each run and assert only self-consistency, so the
+# golden_ prefix wrongly implied a DOS-derived expectation.
+add_executable(smoke_ai_mid01
+  tests/smoke/test_ai_mid01.c
+  tests/common/joint_fixture.c
 )
-target_include_directories(golden_ai_mid01 PRIVATE
+target_include_directories(smoke_ai_mid01 PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR}
   ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
-target_link_libraries(golden_ai_mid01 PRIVATE colonize_core)
-add_test(NAME golden_ai_mid01 COMMAND golden_ai_mid01 WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+target_link_libraries(smoke_ai_mid01 PRIVATE colonize_core)
+add_test(NAME smoke_ai_mid01 COMMAND smoke_ai_mid01 WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 
-add_executable(golden_ai_late01
-  tests/golden/test_ai_late01.c
+add_executable(smoke_ai_late01
+  tests/smoke/test_ai_late01.c
+  tests/common/joint_fixture.c
 )
-target_include_directories(golden_ai_late01 PRIVATE
+target_include_directories(smoke_ai_late01 PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR}
   ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
-target_link_libraries(golden_ai_late01 PRIVATE colonize_core)
-add_test(NAME golden_ai_late01 COMMAND golden_ai_late01 WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+target_link_libraries(smoke_ai_late01 PRIVATE colonize_core)
+add_test(NAME smoke_ai_late01 COMMAND smoke_ai_late01 WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 
-# PARKED 2026-08-19 (see docs/port_plan.md, Deferred AI track T3.3): the
-# golden AI bit-fidelity cluster (golden_ai_turns / golden_ai_mid01 /
-# golden_ai_late01 / golden_ai_joint below) chases turn-for-turn DOS parity
-# against a AI planner that is still only structurally/T0-T1 ported, not T3
-# 1:1. Until the underlying AI transcription is actually complete, these
-# goldens have no chance of staying green — every unported/stubbed callee
-# (FUN_41f2_0294, the deep 20e6/5d04 bodies, etc.) is a guaranteed future
-# diff, so chasing each red run here is chasing symptoms of "not done yet",
-# not real regressions. DISABLED (not deleted): builds still run in CI, ctest
-# just skips executing them by default. Re-enable per test with
-# `ctest -R <name> --force-new-ctest-process` (DISABLED tests must be run
-# explicitly) once AI transcription is far enough along that byte-diffs here
-# mean something; re-enable for real (flip DISABLED off) only once the full
-# port has landed and this is back to a legitimate regression gate, not a
-# progress tracker.
-# 2026-08-27 (T3.3, partial): golden_ai_mid01 / golden_ai_late01 pass again
-# after the Indian alarm-store consolidation and the 5d04 live wire, so they
-# are back on as regression gates.
-# 2026-09-05 (T3.3, complete): T1.23 closed — all six TURN steps green — so
-# golden_ai_turns and golden_ai_joint are re-enabled as regression gates.
+# History: this AI cluster (golden_ai_turns / the two joint smoke tests /
+# golden_ai_joint) was parked 2026-08-19 while the AI transcription was
+# still structural. 2026-08-27 brought the joint pair back as regression
+# gates, 2026-09-05 (T1.23, all six TURN steps green) golden_ai_turns and
+# golden_ai_joint. Nothing here is DISABLED any more; there is no
+# set_tests_properties call.
 
 # Colony production golden vs real-DOS-run saves (COLONY00/01_no-transports.SAV):
 add_executable(golden_colony_prod01
   tests/golden/test_colony_prod01.c
+  tests/common/col1_compare.c
+  tests/common/golden_fixture.c
 )
 target_include_directories(golden_colony_prod01 PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR}
   ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 target_link_libraries(golden_colony_prod01 PRIVATE colonize_core)
@@ -1339,8 +1071,11 @@ add_test(NAME golden_woi_ref01 COMMAND golden_woi_ref01 WORKING_DIRECTORY ${CMAK
 # Colony production golden #2 vs real-DOS-run saves (COLONY00/01-dutch2-t0/t1.SAV):
 add_executable(golden_colony_prod02
   tests/golden/test_colony_prod02.c
+  tests/common/col1_compare.c
+  tests/common/golden_fixture.c
 )
 target_include_directories(golden_colony_prod02 PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR}
   ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 target_link_libraries(golden_colony_prod02 PRIVATE colonize_core)
@@ -1349,8 +1084,11 @@ add_test(NAME golden_colony_prod02 COMMAND golden_colony_prod02 WORKING_DIRECTOR
 # Colony production golden #3: farmer skill/river arithmetic (farming/case1+case2 DOS pairs):
 add_executable(golden_colony_prod03
   tests/golden/test_colony_prod03.c
+  tests/common/col1_compare.c
+  tests/common/golden_fixture.c
 )
 target_include_directories(golden_colony_prod03 PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR}
   ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 target_link_libraries(golden_colony_prod03 PRIVATE colonize_core)
@@ -1363,18 +1101,16 @@ add_custom_target(golden_ai_joint
   COMMAND $<TARGET_FILE:golden_ai_turns>
   COMMAND $<TARGET_FILE:unit_ai_contact>
   COMMAND $<TARGET_FILE:unit_ai_diplo>
-  COMMAND $<TARGET_FILE:golden_ai_mid01>
-  COMMAND $<TARGET_FILE:golden_ai_late01>
-  DEPENDS golden_mapgen_seed100 golden_ai_turns unit_ai_contact unit_ai_diplo golden_ai_mid01 golden_ai_late01
+  COMMAND $<TARGET_FILE:smoke_ai_mid01>
+  COMMAND $<TARGET_FILE:smoke_ai_late01>
+  DEPENDS golden_mapgen_seed100 golden_ai_turns unit_ai_contact unit_ai_diplo smoke_ai_mid01 smoke_ai_late01
   WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
   COMMENT "Joint Euro↔Indian AI golden gate (shared-surface)"
 )
-add_test(
-  NAME golden_ai_joint
-  COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR} --target golden_ai_joint
-  WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-)
-# Re-enabled 2026-09-05 with golden_ai_turns (T3.3) — see comment above.
+# No add_test() here (duplication audit TT-14): all six COMMANDs above are
+# already registered as their own ctest tests, so registering the target too
+# ran every one of them twice per `ctest`. Build it by hand when you want the
+# joint gate in one shot: cmake --build <dir> --target golden_ai_joint
 
 add_executable(smoke_sound
   tests/smoke/test_sound.c
@@ -1419,96 +1155,21 @@ if(COLONIZE_HAS_FLUIDSYNTH)
 endif()
 
 target_include_directories(smoke_game_flow PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR}
   ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 
-target_link_libraries(smoke_game_flow PRIVATE m pthread)
-if(COLONIZE_HAS_FLUIDSYNTH)
-  target_include_directories(smoke_game_flow PRIVATE ${FLUIDSYNTH_INCLUDE_DIRS})
-  target_link_libraries(smoke_game_flow PRIVATE ${FLUIDSYNTH_LIBRARIES})
-  target_compile_definitions(smoke_game_flow PRIVATE COLONIZE_HAS_FLUIDSYNTH=1)
-endif()
+target_link_libraries(smoke_game_flow PRIVATE colonize_core)
 
 add_test(NAME smoke_game_flow COMMAND smoke_game_flow)
 
 add_executable(smoke_play
   tests/smoke/test_play_smoke.c
   tests/common/platform_cursor_stubs.c
-  src/core/game_loop.c
-  src/core/trade_screen.c
-  src/core/assets.c
-  src/core/font.c
-  src/core/ff.c
-  src/core/map.c
-  src/core/map_gen.c
-  src/core/dos_rng.c
-  src/core/strutil.c
-  src/core/map_menu.c
-  src/core/map_panel.c
-  src/core/popup.c
-  src/core/ui_button.c
-  src/core/ui_drag.c
-  src/core/pick_music.c
-  src/core/cheat_list_dialog.c
-  src/core/popup_msg.c
-  src/core/howmuch_dialog.c
-  src/core/name_entry_dialog.c
-  src/core/text_edit.c
-  src/core/options_dialog.c
-  src/core/save_load_dialog.c
-  src/core/unit_stack.c
-  src/core/unit_chrome.c
-  src/core/new_game.c
-  src/core/pedia.c
-  src/core/reports.c
-  src/core/europe.c
-  src/core/colony_screen.c
-  src/core/debug_atlas.c
-  src/core/declaration.c
-  src/core/closing.c
-  src/core/opening.c
-  src/core/woodcut.c
-  src/core/units.c
-  src/core/colony.c
-  src/core/colony_yield.c
-  src/core/colony_production.c
-  src/core/colony_craft.c
-  src/core/colony_preview.c
-  src/core/combat_strength.c
-  src/core/combat_analysis.c
-  src/core/turn.c
-  src/core/founding_fathers.c
-  src/core/ai.c
-  src/core/ai_goals.c
-  src/core/ai_euro.c
-  src/core/ai_diplo.c
-  src/core/ai_contact.c
-  src/core/ai_king.c
-  src/core/ai_popup.c
-  src/core/sound.c
-  src/core/gsound_vm.c
-  src/core/madspack.c
-  src/core/pik.c
-  src/core/ss.c
-  src/core/savegame.c
-  src/core/col1_save.c
-  src/core/col1_bridge.c
-  src/core/col1_post_map.c
-  src/core/col1_stuff_census.c
-  src/core/json_min.c
-  src/core/settings.c
-  src/data/viceroy_tables.c
-  src/platform/diagnostics.c
-  src/platform/dos_compat/dos_compat.c
 )
 
 target_include_directories(smoke_play PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
-target_link_libraries(smoke_play PRIVATE m pthread)
-if(COLONIZE_HAS_FLUIDSYNTH)
-  target_include_directories(smoke_play PRIVATE ${FLUIDSYNTH_INCLUDE_DIRS})
-  target_link_libraries(smoke_play PRIVATE ${FLUIDSYNTH_LIBRARIES})
-  target_compile_definitions(smoke_play PRIVATE COLONIZE_HAS_FLUIDSYNTH=1)
-endif()
+target_link_libraries(smoke_play PRIVATE colonize_core)
 add_test(NAME smoke_play COMMAND smoke_play WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})

@@ -5,13 +5,6 @@
 
 #include "core/colony_production.h"
 
-typedef struct ColonyCraftRecipe {
-  const char* needle;
-  int in_cargo;
-  int out_cargo;
-  int craft_profession;
-} ColonyCraftRecipe;
-
 /*
  * Recipe table order = the DOS conversion-ledger emission order.
  *
@@ -52,7 +45,7 @@ typedef struct ColonyCraftRecipe {
  * DOS-correct. Same conclusion as the Lumberjack+Carpenter same-turn lumber
  * finding in turn.c's hammers block.
  */
-static const ColonyCraftRecipe k_recipes[] = {
+static const ColonizeCraftRecipe k_recipes[] = {
   {"Blacksmith", COLONIZE_CARGO_ORE, COLONIZE_CARGO_TOOLS, COLONIZE_PROF_BLACKSMITH},
   {"Iron Works", COLONIZE_CARGO_ORE, COLONIZE_CARGO_TOOLS, COLONIZE_PROF_BLACKSMITH},
   {"Tobacconist", COLONIZE_CARGO_TOBACCO, COLONIZE_CARGO_CIGARS, COLONIZE_PROF_TOBACCONIST},
@@ -67,6 +60,29 @@ static const ColonyCraftRecipe k_recipes[] = {
   {"Magazine", COLONIZE_CARGO_TOOLS, COLONIZE_CARGO_MUSKETS, COLONIZE_PROF_GUNSMITH},
   {"Arsenal", COLONIZE_CARGO_TOOLS, COLONIZE_CARGO_MUSKETS, COLONIZE_PROF_GUNSMITH},
 };
+
+const ColonizeCraftRecipe* colony_craft_recipe_for_building(const char* building_name) {
+  if (!building_name || !building_name[0]) {
+    return NULL;
+  }
+  for (size_t r = 0; r < sizeof(k_recipes) / sizeof(k_recipes[0]); ++r) {
+    if (strstr(building_name, k_recipes[r].needle) != NULL) {
+      return &k_recipes[r];
+    }
+  }
+  return NULL;
+}
+
+int colony_craft_recipe_count(void) {
+  return (int)(sizeof(k_recipes) / sizeof(k_recipes[0]));
+}
+
+const ColonizeCraftRecipe* colony_craft_recipe_at(int index) {
+  if (index < 0 || index >= colony_craft_recipe_count()) {
+    return NULL;
+  }
+  return &k_recipes[index];
+}
 
 static int colony_craft_clamp(int v) {
   if (v < 0) {
@@ -85,7 +101,7 @@ static bool colony_craft_name_matches(const char* name, const char* needle) {
 static void colony_craft_pair_totals(
   const ColonizeColonyPool* pool,
   const ColonizeColony* colony,
-  const ColonyCraftRecipe* rec,
+  const ColonizeCraftRecipe* rec,
   int sol_bonus,
   int* out_total_out,
   int* out_total_in
@@ -131,33 +147,45 @@ static void colony_craft_pair_totals(
   }
 }
 
-void colony_craft_one_colony(
-  ColonizeColonyPool* pool,
-  ColonizeColony* colony,
-  ColonizeColonyProdDelta* delta,
-  int sol_bonus
-) {
-  if (!pool || !colony || !colony->active) {
-    return;
-  }
-
+/*
+ * The k_recipes outer/inner double walk (audit CO-8): yield each distinct
+ * (in_cargo, out_cargo) pair once, in table order, with the staffed totals
+ * summed across every recipe row that shares that pair. All three passes
+ * below were spelling this out identically.
+ */
+typedef struct ColonyCraftPairIter {
+  size_t next;
   bool done_pair[COLONIZE_CARGO_COUNT][COLONIZE_CARGO_COUNT];
-  memset(done_pair, 0, sizeof(done_pair));
+} ColonyCraftPairIter;
 
-  for (size_t r = 0; r < sizeof(k_recipes) / sizeof(k_recipes[0]); ++r) {
-    const ColonyCraftRecipe* rec = &k_recipes[r];
+static void colony_craft_pairs_begin(ColonyCraftPairIter* it) {
+  it->next = 0;
+  memset(it->done_pair, 0, sizeof(it->done_pair));
+}
+
+static bool colony_craft_pairs_next(
+  ColonyCraftPairIter* it,
+  const ColonizeColonyPool* pool,
+  const ColonizeColony* colony,
+  int sol_bonus,
+  const ColonizeCraftRecipe** out_rec,
+  int* out_total_out,
+  int* out_total_in
+) {
+  const size_t n = sizeof(k_recipes) / sizeof(k_recipes[0]);
+  while (it->next < n) {
+    const ColonizeCraftRecipe* rec = &k_recipes[it->next++];
     if (rec->in_cargo < 0 || rec->in_cargo >= COLONIZE_CARGO_COUNT || rec->out_cargo < 0 ||
         rec->out_cargo >= COLONIZE_CARGO_COUNT) {
       continue;
     }
-    if (done_pair[rec->in_cargo][rec->out_cargo]) {
+    if (it->done_pair[rec->in_cargo][rec->out_cargo]) {
       continue;
     }
-
     int total_out = 0;
     int total_in = 0;
-    for (size_t r2 = 0; r2 < sizeof(k_recipes) / sizeof(k_recipes[0]); ++r2) {
-      const ColonyCraftRecipe* rec2 = &k_recipes[r2];
+    for (size_t r2 = 0; r2 < n; ++r2) {
+      const ColonizeCraftRecipe* rec2 = &k_recipes[r2];
       if (rec2->in_cargo != rec->in_cargo || rec2->out_cargo != rec->out_cargo) {
         continue;
       }
@@ -167,99 +195,44 @@ void colony_craft_one_colony(
       total_out += pair_out;
       total_in += pair_in;
     }
-    done_pair[rec->in_cargo][rec->out_cargo] = true;
-
-    if (total_out <= 0 || total_in <= 0) {
-      continue;
-    }
-
-    int actual_in = colony->stock[rec->in_cargo];
-    if (actual_in > total_in) {
-      actual_in = total_in;
-    }
-    if (actual_in <= 0) {
-      continue;
-    }
-
-    const int actual_out = total_out * actual_in / total_in;
-    colony->stock[rec->in_cargo] -= actual_in;
-    colony->stock[rec->out_cargo] =
-      colony_craft_clamp(colony->stock[rec->out_cargo] + actual_out);
-    if (delta) {
-      delta->goods[rec->in_cargo] -= actual_in;
-      delta->goods[rec->out_cargo] += actual_out;
-    }
+    it->done_pair[rec->in_cargo][rec->out_cargo] = true;
+    *out_rec = rec;
+    *out_total_out = total_out;
+    *out_total_in = total_in;
+    return true;
   }
-}
-
-/* See header: demand[in_cargo] = someone staffed produced a positive
- * tier-scaled input requirement for that recipe this tick (stock not read). */
-void colony_craft_demand_mask(
-  const ColonizeColonyPool* pool,
-  const ColonizeColony* colony,
-  int sol_bonus,
-  bool demand[COLONIZE_CARGO_COUNT]
-) {
-  if (!demand) {
-    return;
-  }
-  memset(demand, 0, sizeof(bool) * COLONIZE_CARGO_COUNT);
-  if (!pool || !colony || !colony->active) {
-    return;
-  }
-
-  bool done_pair[COLONIZE_CARGO_COUNT][COLONIZE_CARGO_COUNT];
-  memset(done_pair, 0, sizeof(done_pair));
-
-  for (size_t r = 0; r < sizeof(k_recipes) / sizeof(k_recipes[0]); ++r) {
-    const ColonyCraftRecipe* rec = &k_recipes[r];
-    if (rec->in_cargo < 0 || rec->in_cargo >= COLONIZE_CARGO_COUNT || rec->out_cargo < 0 ||
-        rec->out_cargo >= COLONIZE_CARGO_COUNT) {
-      continue;
-    }
-    if (done_pair[rec->in_cargo][rec->out_cargo]) {
-      continue;
-    }
-
-    int total_in = 0;
-    for (size_t r2 = 0; r2 < sizeof(k_recipes) / sizeof(k_recipes[0]); ++r2) {
-      const ColonyCraftRecipe* rec2 = &k_recipes[r2];
-      if (rec2->in_cargo != rec->in_cargo || rec2->out_cargo != rec->out_cargo) {
-        continue;
-      }
-      int pair_out = 0;
-      int pair_in = 0;
-      colony_craft_pair_totals(pool, colony, rec2, sol_bonus, &pair_out, &pair_in);
-      total_in += pair_in;
-    }
-    done_pair[rec->in_cargo][rec->out_cargo] = true;
-
-    if (total_in > 0) {
-      demand[rec->in_cargo] = true;
-    }
-  }
+  return false;
 }
 
 /*
- * Preview helper: same recipe pass as colony_craft_one_colony but records shortfalls
- * and does not require mutating the live colony (operates on scratch stock).
+ * The one craft pass (audit CO-9). colony_craft_one_colony is exactly this
+ * with the three optional outputs off; colony_craft_preview is this with all
+ * of them on and `delta` zeroed first. Nothing else differed between the two
+ * bodies — same clamp, same `total_out * actual_in / total_in`, same stock
+ * mutation, same delta accumulation — so the live tick and the preview
+ * cannot drift apart any more.
+ *
+ * `reset_delta` is the one behavioural axis: the preview owns its delta and
+ * memsets it, while the live tick accumulates into a delta that already
+ * holds this colony's field production.
  */
-void colony_craft_preview(
+static void colony_craft_run(
   const ColonizeColonyPool* pool,
-  ColonizeColony* scratch,
+  ColonizeColony* colony,
   int shortfall[COLONIZE_CARGO_COUNT],
   ColonizeColonyProdDelta* delta,
   int sol_bonus,
   int gross_out[COLONIZE_CARGO_COUNT],
-  int capacity_out[COLONIZE_CARGO_COUNT]
+  int capacity_out[COLONIZE_CARGO_COUNT],
+  bool reset_delta
 ) {
-  if (!pool || !scratch || !scratch->active) {
+  if (!pool || !colony || !colony->active) {
     return;
   }
   if (shortfall) {
     memset(shortfall, 0, sizeof(int) * COLONIZE_CARGO_COUNT);
   }
-  if (delta) {
+  if (delta && reset_delta) {
     memset(delta, 0, sizeof(*delta));
   }
   if (gross_out) {
@@ -269,34 +242,12 @@ void colony_craft_preview(
     memset(capacity_out, 0, sizeof(int) * COLONIZE_CARGO_COUNT);
   }
 
-  bool done_pair[COLONIZE_CARGO_COUNT][COLONIZE_CARGO_COUNT];
-  memset(done_pair, 0, sizeof(done_pair));
-
-  for (size_t r = 0; r < sizeof(k_recipes) / sizeof(k_recipes[0]); ++r) {
-    const ColonyCraftRecipe* rec = &k_recipes[r];
-    if (rec->in_cargo < 0 || rec->in_cargo >= COLONIZE_CARGO_COUNT || rec->out_cargo < 0 ||
-        rec->out_cargo >= COLONIZE_CARGO_COUNT) {
-      continue;
-    }
-    if (done_pair[rec->in_cargo][rec->out_cargo]) {
-      continue;
-    }
-
-    int total_out = 0;
-    int total_in = 0;
-    for (size_t r2 = 0; r2 < sizeof(k_recipes) / sizeof(k_recipes[0]); ++r2) {
-      const ColonyCraftRecipe* rec2 = &k_recipes[r2];
-      if (rec2->in_cargo != rec->in_cargo || rec2->out_cargo != rec->out_cargo) {
-        continue;
-      }
-      int pair_out = 0;
-      int pair_in = 0;
-      colony_craft_pair_totals(pool, scratch, rec2, sol_bonus, &pair_out, &pair_in);
-      total_out += pair_out;
-      total_in += pair_in;
-    }
-    done_pair[rec->in_cargo][rec->out_cargo] = true;
-
+  ColonyCraftPairIter it;
+  colony_craft_pairs_begin(&it);
+  const ColonizeCraftRecipe* rec = NULL;
+  int total_out = 0;
+  int total_in = 0;
+  while (colony_craft_pairs_next(&it, pool, colony, sol_bonus, &rec, &total_out, &total_in)) {
     if (total_out <= 0 || total_in <= 0) {
       continue;
     }
@@ -306,7 +257,7 @@ void colony_craft_preview(
       capacity_out[rec->out_cargo] += total_out;
     }
 
-    int actual_in = scratch->stock[rec->in_cargo];
+    int actual_in = colony->stock[rec->in_cargo];
     if (actual_in > total_in) {
       actual_in = total_in;
     }
@@ -327,13 +278,11 @@ void colony_craft_preview(
     if (shortfall && actual_in < total_in) {
       shortfall[rec->in_cargo] += total_in - actual_in;
     }
-    scratch->stock[rec->in_cargo] -= actual_in;
-    /* Same clamp the live tick applies (colony_craft_one_colony above): the
-     * preview must not run the scratch stock past the u16 the save format
-     * holds, or a near-full warehouse previews a different figure than the
-     * tick produces (smell audit #71). */
-    scratch->stock[rec->out_cargo] =
-      colony_craft_clamp(scratch->stock[rec->out_cargo] + actual_out);
+    colony->stock[rec->in_cargo] -= actual_in;
+    /* u16 save-format clamp — a near-full warehouse must preview the same
+     * figure the tick produces (smell audit #71). */
+    colony->stock[rec->out_cargo] =
+      colony_craft_clamp(colony->stock[rec->out_cargo] + actual_out);
     if (delta) {
       delta->goods[rec->in_cargo] -= actual_in;
       delta->goods[rec->out_cargo] += actual_out;
@@ -342,4 +291,57 @@ void colony_craft_preview(
       gross_out[rec->out_cargo] += actual_out;
     }
   }
+}
+
+void colony_craft_one_colony(
+  ColonizeColonyPool* pool,
+  ColonizeColony* colony,
+  ColonizeColonyProdDelta* delta,
+  int sol_bonus
+) {
+  colony_craft_run(pool, colony, NULL, delta, sol_bonus, NULL, NULL, false);
+}
+
+/* See header: demand[in_cargo] = someone staffed produced a positive
+ * tier-scaled input requirement for that recipe this tick (stock not read). */
+void colony_craft_demand_mask(
+  const ColonizeColonyPool* pool,
+  const ColonizeColony* colony,
+  int sol_bonus,
+  bool demand[COLONIZE_CARGO_COUNT]
+) {
+  if (!demand) {
+    return;
+  }
+  memset(demand, 0, sizeof(bool) * COLONIZE_CARGO_COUNT);
+  if (!pool || !colony || !colony->active) {
+    return;
+  }
+
+  ColonyCraftPairIter it;
+  colony_craft_pairs_begin(&it);
+  const ColonizeCraftRecipe* rec = NULL;
+  int total_out = 0;
+  int total_in = 0;
+  while (colony_craft_pairs_next(&it, pool, colony, sol_bonus, &rec, &total_out, &total_in)) {
+    if (total_in > 0) {
+      demand[rec->in_cargo] = true;
+    }
+  }
+}
+
+/*
+ * Preview helper: same recipe pass as colony_craft_one_colony but records shortfalls
+ * and does not require mutating the live colony (operates on scratch stock).
+ */
+void colony_craft_preview(
+  const ColonizeColonyPool* pool,
+  ColonizeColony* scratch,
+  int shortfall[COLONIZE_CARGO_COUNT],
+  ColonizeColonyProdDelta* delta,
+  int sol_bonus,
+  int gross_out[COLONIZE_CARGO_COUNT],
+  int capacity_out[COLONIZE_CARGO_COUNT]
+) {
+  colony_craft_run(pool, scratch, shortfall, delta, sol_bonus, gross_out, capacity_out, true);
 }

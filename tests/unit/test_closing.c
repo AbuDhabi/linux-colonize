@@ -110,14 +110,15 @@ static void test_open_and_skip(void) {
   closing_update(&c, CLOSING_FRAME_MS); /* clock 17, hat sprite 0 */
   check(c.clock == 17, "hat start tick");
 
-  closing_skip_to_end(&skip);
-  check(skip.finished, "skip finishes");
-  check(skip.clock == skip.end_frame, "skip lands on the end marker");
+  /* Sound hooks are still NULL here, so running `skip` out is silent. */
+  closing_update(&skip, 30000);
+  check(skip.finished, "run-out finishes");
+  check(skip.clock == skip.end_frame, "run-out lands on the end marker");
 
   closing_update(&c, 30000);
   check(c.finished, "timed run completes");
   check(c.clock == c.end_frame, "timed run hits the end marker");
-  check(memcmp(c.canvas, skip.canvas, sizeof(c.canvas)) == 0, "skip matches timed end frame");
+  check(memcmp(c.canvas, skip.canvas, sizeof(c.canvas)) == 0, "both runs end on one frame");
 
   ColonizeInputState in;
   memset(&in, 0, sizeof(in));
@@ -160,21 +161,19 @@ static void test_sounds(void) {
   check(last_play() == CLOSING_CHEER_SOUND_ID, "0x5a on first hat sprite");
   check(count_play(CLOSING_CHEER_SOUND_ID) == 1, "one cheer so far");
 
-  ClosingCinematic skip;
-  memset(&skip, 0, sizeof(skip));
-  const int before_skip = g_nplay;
-  if (!closing_open(&skip, "COLONIZE")) {
-    fprintf(stderr, "FAIL: closing_open skip sound\n");
+  ClosingCinematic second;
+  memset(&second, 0, sizeof(second));
+  const int before_second = g_nplay;
+  if (!closing_open(&second, "COLONIZE")) {
+    fprintf(stderr, "FAIL: closing_open second sound\n");
     failures++;
     closing_close(&c);
     closing_set_sound_hooks(NULL, NULL, NULL);
     return;
   }
-  check(g_nplay == before_skip + 1, "skip open only adds 0x3d");
-  closing_skip_to_end(&skip);
-  check(g_nplay == before_skip + 1, "skip does not burst SFX");
-  check(g_sfx_stops == 0, "skip-to-end keeps SFX until close");
-  closing_close(&skip);
+  check(g_nplay == before_second + 1, "second open only adds 0x3d");
+  check(g_sfx_stops == 0, "opening never dumps SFX");
+  closing_close(&second);
   check(g_sfx_stops == 1, "close dumps COLDIG");
   closing_close(&c);
   check(g_sfx_stops == 2, "each close dumps once");

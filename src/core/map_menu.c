@@ -4,6 +4,8 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "core/fb.h"
+#include "core/font.h"
 #include "core/map_panel.h"
 #include "core/ss.h"
 #include "core/strutil.h"
@@ -27,42 +29,8 @@ enum {
   MAP_MENU_COL_HOVER = COLONIZE_COL_SELECT
 };
 
-static void map_menu_strip_all_markers(char* text) {
-  char* dst = text;
-  for (char* src = text; *src; ++src) {
-    if (*src == '~' || *src == '#') {
-      continue;
-    }
-    *dst++ = *src;
-  }
-  *dst = '\0';
-}
 
-/* Keep '~' hotkey markers for rendering; drop '#' disable/zoom tags. */
-static void map_menu_strip_hash_only(char* text) {
-  char* dst = text;
-  for (char* src = text; *src; ++src) {
-    if (*src == '#') {
-      continue;
-    }
-    *dst++ = *src;
-  }
-  *dst = '\0';
-}
 
-static void map_menu_trim(char* text) {
-  char* start = text;
-  while (*start == ' ' || *start == '\t') {
-    ++start;
-  }
-  if (start != text) {
-    memmove(text, start, strlen(start) + 1);
-  }
-  size_t n = strlen(text);
-  while (n > 0 && (text[n - 1] == ' ' || text[n - 1] == '\t' || text[n - 1] == '\r')) {
-    text[--n] = '\0';
-  }
-}
 
 /* Parse ~ hotkeys from MENU.TXT (space / Shift+D chords, else first ~letter). */
 static void map_menu_parse_hotkey(const char* label_raw, MapMenuItem* item) {
@@ -162,62 +130,6 @@ static int map_menu_visible_row_from_item(const MapMenuPulldown* menu, int item_
   return row;
 }
 
-static int map_menu_text_width(const ColonizeFont* font, const char* text) {
-  if (!text) {
-    return 0;
-  }
-  int w = 0;
-  for (const char* p = text; *p; ++p) {
-    const unsigned char ch = (unsigned char)*p;
-    if (ch == '~' || ch == '#') {
-      continue;
-    }
-    if (font && font->section_data && ch < 128 && font->char_widths[ch] > 0) {
-      w += font->char_widths[ch];
-    } else {
-      w += 6;
-    }
-  }
-  return w;
-}
-
-static void map_menu_fill_rect(
-  ColonizeFramebuffer8* fb,
-  int x0,
-  int y0,
-  int x1,
-  int y1,
-  uint8_t color
-) {
-  if (!fb || !fb->pixels) {
-    return;
-  }
-  if (x0 < 0) {
-    x0 = 0;
-  }
-  if (y0 < 0) {
-    y0 = 0;
-  }
-  if (x1 >= fb->width) {
-    x1 = fb->width - 1;
-  }
-  if (y1 >= fb->height) {
-    y1 = fb->height - 1;
-  }
-  for (int y = y0; y <= y1; ++y) {
-    for (int x = x0; x <= x1; ++x) {
-      fb->pixels[y * fb->width + x] = color;
-    }
-  }
-}
-
-static void map_menu_hline(ColonizeFramebuffer8* fb, int y, int x0, int x1, uint8_t color) {
-  map_menu_fill_rect(fb, x0, y, x1, y, color);
-}
-
-static void map_menu_vline(ColonizeFramebuffer8* fb, int x, int y0, int y1, uint8_t color) {
-  map_menu_fill_rect(fb, x, y0, x, y1, color);
-}
 
 static MapMenuAction map_menu_classify(const char* section, const char* label) {
   if (!section || !label) {
@@ -755,22 +667,22 @@ static bool map_menu_load_section(
 
   char title[MAP_MENU_TITLE_LEN];
   str_copy_trunc(title, sizeof(title), sec->lines[0]);
-  map_menu_strip_hash_only(title);
-  map_menu_trim(title);
+  str_strip_chars(title, "#");
+  str_trim(title);
   str_copy_trunc(menu->title, sizeof(menu->title), title);
   menu->title_hotkey = map_menu_parse_title_hotkey(title);
 
   for (int i = 1; i < sec->line_count && menu->item_count < MAP_MENU_MAX_ITEMS; ++i) {
     char label[MAP_MENU_LABEL_LEN];
     str_copy_trunc(label, sizeof(label), sec->lines[i]);
-    map_menu_strip_hash_only(label);
-    map_menu_trim(label);
+    str_strip_chars(label, "#");
+    str_trim(label);
     if (label[0] == '\0') {
       continue;
     }
     char classify_label[MAP_MENU_LABEL_LEN];
     snprintf(classify_label, sizeof(classify_label), "%s", label);
-    map_menu_strip_all_markers(classify_label);
+    str_strip_chars(classify_label, FONT_SKIP_HOTKEY);
     if (classify_label[0] == '\0') {
       continue;
     }
@@ -1245,14 +1157,14 @@ static void map_menu_layout_titles(MapMenuBar* bar, const ColonizeFont* font) {
       pedia = i;
       continue;
     }
-    const int tw = map_menu_text_width(font, menu->title);
+    const int tw = font_text_width(font, menu->title);
     menu->title_x = x;
     menu->title_w = tw + 8;
     x += menu->title_w + 6;
   }
   if (pedia >= 0) {
     MapMenuPulldown* menu = &bar->menus[pedia];
-    const int tw = map_menu_text_width(font, menu->title);
+    const int tw = font_text_width(font, menu->title);
     menu->title_w = tw + 8;
     /* Center over the minimap (same horizontal math as map_panel_minimap_rect). */
     const int inner_x0 = MAP_PANEL_X + 2;
@@ -1269,12 +1181,12 @@ static void map_menu_layout_titles(MapMenuBar* bar, const ColonizeFont* font) {
 }
 
 static int map_menu_dropdown_width(const MapMenuPulldown* menu, const ColonizeFont* font) {
-  int max_w = map_menu_text_width(font, menu->title) + 12;
+  int max_w = font_text_width(font, menu->title) + 12;
   for (int i = 0; i < menu->item_count; ++i) {
     if (!menu->items[i].visible) {
       continue;
     }
-    const int w = map_menu_text_width(font, menu->items[i].label) + 12;
+    const int w = font_text_width(font, menu->items[i].label) + 12;
     if (w > max_w) {
       max_w = w;
     }
@@ -1451,7 +1363,8 @@ MapMenuAction map_menu_handle_input(
 }
 
 /* Screen-aligned WOODTILE so bar and pull-down grain continue seamlessly. */
-static void map_menu_tile_wood(
+
+void map_menu_tile_rect_screen_phase(
   const ColonizeSpriteSheet* sheet,
   int origin_x,
   int origin_y,
@@ -1466,31 +1379,27 @@ static void map_menu_tile_wood(
   if (!tile->pixels || tile->width <= 0 || tile->height <= 0) {
     return;
   }
-  const int tw = tile->width;
-  const int th = tile->height;
-  const int x1 = origin_x + rect_w;
-  const int y1 = origin_y + rect_h;
-  const int x0 = (origin_x / tw) * tw;
-  const int y0 = (origin_y / th) * th;
-  for (int y = y0; y < y1; y += th) {
-    for (int x = x0; x < x1; x += tw) {
-      for (int sy = 0; sy < th; ++sy) {
-        const int fy = y + sy;
-        if (fy < origin_y || fy >= y1 || fy < 0 || fy >= framebuffer->height) {
-          continue;
-        }
-        for (int sx = 0; sx < tw; ++sx) {
-          const int fx = x + sx;
-          if (fx < origin_x || fx >= x1 || fx < 0 || fx >= framebuffer->width) {
-            continue;
-          }
-          const uint8_t color = tile->pixels[sy * tw + sx];
-          if (color == COLONIZE_SS_TRANSPARENT) {
-            continue;
-          }
-          framebuffer->pixels[fy * framebuffer->width + fx] = color;
-        }
+  int x1 = origin_x + rect_w;
+  int y1 = origin_y + rect_h;
+  if (origin_x < 0) {
+    origin_x = 0;
+  }
+  if (origin_y < 0) {
+    origin_y = 0;
+  }
+  if (x1 > framebuffer->width) {
+    x1 = framebuffer->width;
+  }
+  if (y1 > framebuffer->height) {
+    y1 = framebuffer->height;
+  }
+  for (int dy = origin_y; dy < y1; ++dy) {
+    for (int dx = origin_x; dx < x1; ++dx) {
+      const uint8_t px = tile->pixels[(dy % tile->height) * tile->width + dx % tile->width];
+      if (px == COLONIZE_SS_TRANSPARENT) {
+        continue;
       }
+      framebuffer->pixels[dy * framebuffer->width + dx] = px;
     }
   }
 }
@@ -1524,12 +1433,12 @@ void map_menu_render(
   map_menu_layout_titles(bar, font);
 
   if (wood_tile && wood_tile->sprite_count > 0) {
-    map_menu_tile_wood(wood_tile, 0, 0, framebuffer->width, MAP_MENU_BAR_H, framebuffer);
+    map_menu_tile_rect_screen_phase(wood_tile, 0, 0, framebuffer->width, MAP_MENU_BAR_H, framebuffer);
   } else {
-    map_menu_fill_rect(framebuffer, 0, 0, framebuffer->width - 1, MAP_MENU_BAR_H - 1, MAP_MENU_COL_BAR);
+    fb_fill_rect(framebuffer, 0, 0, framebuffer->width, MAP_MENU_BAR_H, MAP_MENU_COL_BAR);
   }
   /* Black rule under the menu bar (full width; separates bar from map + minimap). */
-  map_menu_hline(framebuffer, MAP_MENU_BAR_H - 1, 0, framebuffer->width - 1, MAP_MENU_COL_RULE);
+  fb_hline(framebuffer, MAP_MENU_BAR_H - 1, 0, framebuffer->width - 1, MAP_MENU_COL_RULE);
 
   /* Status line owns the whole strip while it is up (DOS FUN_0000_035c: the
    * message buffer is drawn instead of the strip's normal content). */
@@ -1571,14 +1480,14 @@ void map_menu_render(
   int dx, dy, dw, dh;
   map_menu_dropdown_rect(bar, font, bar->open_index, &dx, &dy, &dw, &dh);
   if (wood_tile && wood_tile->sprite_count > 0) {
-    map_menu_tile_wood(wood_tile, dx, dy, dw, dh, framebuffer);
+    map_menu_tile_rect_screen_phase(wood_tile, dx, dy, dw, dh, framebuffer);
   } else {
-    map_menu_fill_rect(framebuffer, dx, dy, dx + dw - 1, dy + dh - 1, MAP_MENU_COL_PANEL);
+    fb_fill_rect(framebuffer, dx, dy, dw, dh, MAP_MENU_COL_PANEL);
   }
-  map_menu_hline(framebuffer, dy, dx, dx + dw - 1, MAP_MENU_COL_BORDER);
-  map_menu_hline(framebuffer, dy + dh - 1, dx, dx + dw - 1, MAP_MENU_COL_BORDER);
-  map_menu_vline(framebuffer, dx, dy, dy + dh - 1, MAP_MENU_COL_BORDER);
-  map_menu_vline(framebuffer, dx + dw - 1, dy, dy + dh - 1, MAP_MENU_COL_BORDER);
+  fb_hline(framebuffer, dy, dx, dx + dw - 1, MAP_MENU_COL_BORDER);
+  fb_hline(framebuffer, dy + dh - 1, dx, dx + dw - 1, MAP_MENU_COL_BORDER);
+  fb_vline(framebuffer, dx, dy, dy + dh - 1, MAP_MENU_COL_BORDER);
+  fb_vline(framebuffer, dx + dw - 1, dy, dy + dh - 1, MAP_MENU_COL_BORDER);
 
   const int item_h = map_menu_item_height(font);
   for (int i = 0; i < open->item_count; ++i) {
@@ -1592,14 +1501,12 @@ void map_menu_render(
     const int iy = dy + 2 + vis_row * item_h;
     if (open->items[i].separator) {
       const int mid = iy + item_h / 2;
-      map_menu_hline(framebuffer, mid, dx + 4, dx + dw - 5, MAP_MENU_COL_RULE_ITEM);
+      fb_hline(framebuffer, mid, dx + 4, dx + dw - 5, MAP_MENU_COL_RULE_ITEM);
       continue;
     }
     if (i == bar->hover_item && open->items[i].enabled) {
       /* bugs.md: hover fill sat 1px too low vs. its label row. */
-      map_menu_fill_rect(
-        framebuffer, dx + 1, iy - 1, dx + dw - 2, iy + item_h - 2, MAP_MENU_COL_HOVER
-      );
+      fb_fill_rect(framebuffer, dx + 1, iy - 1, dw - 2, item_h, MAP_MENU_COL_HOVER);
     }
     const uint8_t color =
       open->items[i].enabled ? MAP_MENU_COL_ITEM : MAP_MENU_COL_ITEM_DISABLED;

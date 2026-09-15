@@ -34,8 +34,6 @@ typedef struct UnitStackPopup {
   int rows;    /* rows per column */
 } UnitStackPopup;
 
-void unit_stack_close(UnitStackPopup* dlg);
-
 /* Collect human units at (x,y); opens only when count > 1. */
 bool unit_stack_try_open(
   UnitStackPopup* dlg,

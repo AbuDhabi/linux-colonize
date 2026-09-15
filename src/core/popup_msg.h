@@ -131,6 +131,27 @@ void popup_msg_fill(
 /* Must fit longest GAME.TXT choice (@DECLARE Never… = 53 with quotes). */
 #define POPUP_MSG_CHOICE_LEN 64
 
+
+/*
+ * The "GAME.TXT labels, else hardcoded fallbacks" idiom every two-row CHOICE
+ * site copies (audit AC-28 / GL-26): find section_name, take its first two
+ * choice rows, run popup_msg_apply_tokens over each into buf[0..1], and point
+ * labels[0..1] at them. When the section is missing or carries fewer than two
+ * rows, fallback0/fallback1 are copied into buf instead (token-substituted the
+ * same way, so a fallback may carry %STRING/%NUMBER too). labels always end up
+ * pointing into buf. catalog and tok may be NULL. Returns the number of
+ * GAME.TXT rows that were found (0 when the fallbacks were used).
+ */
+int popup_msg_section_labels(
+  const ColonizeMsgCatalog* catalog,
+  const char* section_name,
+  const PopupMsgTokens* tok,
+  const char* fallback0,
+  const char* fallback1,
+  char buf[2][POPUP_MSG_CHOICE_LEN],
+  const char* labels[2]
+);
+
 /* Extract Yes/No (or listed) choice labels from section; returns count (0..max). */
 int popup_msg_choices(
   const ColonizeMsgSection* section,

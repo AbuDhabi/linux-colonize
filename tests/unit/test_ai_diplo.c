@@ -158,8 +158,8 @@ int main(void) {
   if ((col1.nation[2].boycott_bitmap & AI_DIPLO_SMOKE_WARTIME_MASK) != 0) {
     return fail("war(0,1) must not set wartime embargo bits on nation 2");
   }
-  if (!ai_diplo_at_war_with(&col1, 0, 1) || ai_diplo_at_war_with(&col1, 0, 2)) {
-    return fail("ai_diplo_at_war_with should mirror at_war for pair checks");
+  if (!ai_diplo_at_war(&col1, 0, 1) || ai_diplo_at_war(&col1, 0, 2)) {
+    return fail("ai_diplo_at_war should report the declared pair only");
   }
   if (!ai_diplo_at_war_with_any(&col1, 0) || ai_diplo_at_war_with_any(&col1, 2)) {
     return fail("ai_diplo_at_war_with_any should detect any Euro×Euro war");
@@ -1629,8 +1629,8 @@ int main(void) {
         (sg.nation[1].boycott_bitmap & AI_DIPLO_SMOKE_SUGAR_BIT) != 0) {
       return fail("make_peace should lift Sugar boycott when no Euro wars remain");
     }
-    if (ai_diplo_at_war_with_any(&sg, 0) || ai_diplo_at_war_with(&sg, 0, 1)) {
-      return fail("after peace, at_war_with / at_war_with_any should be clear");
+    if (ai_diplo_at_war_with_any(&sg, 0) || ai_diplo_at_war(&sg, 0, 1)) {
+      return fail("after peace, at_war / at_war_with_any should be clear");
     }
 
     /* R4/R11: Rum+Cigars+Cotton wartime boycott set on declare, lift on peace. */

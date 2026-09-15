@@ -1747,12 +1747,12 @@ int main(void) {
       return 1;
     }
     /* Seed dialog metrics as render would. */
-    view.construction_dialog_x = 70;
-    view.construction_dialog_y = 24;
-    view.construction_dialog_w = 180;
-    view.construction_dialog_h = 80;
-    view.construction_list_y0 = 40;
-    view.construction_line_h = 10;
+    view.construction_rect.x = 70;
+    view.construction_rect.y = 24;
+    view.construction_rect.w = 180;
+    view.construction_rect.h = 80;
+    view.construction_rect.list_y0 = 40;
+    view.construction_rect.line_h = 10;
     hit = colony_screen_hit_test(&view, &pool, sample, &units, 80, 42);
     if (hit.kind != COLONY_HIT_CONSTRUCTION_CLEAR) {
       fprintf(stderr, "expected construction clear hit got kind=%d\n", (int)hit.kind);

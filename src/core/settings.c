@@ -2,11 +2,13 @@
 
 #include <errno.h>
 #include <stdarg.h>
+#include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 #include "core/json_min.h"
+#include "core/strutil.h"
 #include "platform/diagnostics.h"
 
 #define SETTINGS_FILE_NAME "settings.json"
@@ -27,6 +29,82 @@ static void set_err(char* err, size_t err_size, const char* fmt, ...) {
   va_end(ap);
 }
 
+/*
+ * One descriptor per JSON boolean option (audit 2026-09-14 IN-42). The same
+ * 21 fields used to be spelled out three times — defaults, writer, reader —
+ * and drifted silently when one copy was edited. `def` is the DOS new-game
+ * value cited in settings_defaults' comments; the writer emits each group in
+ * table order, which is the file layout. The ColonizeCol1Head bridge halves
+ * (settings_apply_to_head / settings_capture_from_head) stay written out by
+ * hand: those are bitfield members, which have no offsetof.
+ */
+typedef struct SettingsBoolOpt {
+  const char* key;
+  size_t offset;
+  bool def;
+} SettingsBoolOpt;
+
+#define SETTINGS_BOOL(field, def_value) \
+  {#field, offsetof(ColonizeSettings, field), (def_value)}
+
+/* DS:0x5382 = 0xc600 at new game, FUN_75c2_235c (viceroy_unpacked_2.c:112401):
+ * Indian moves, foreign moves, autosave and combat analysis on; fast slide and
+ * end-of-turn off; the water bit is an inverted disable flag, so clear =
+ * cycling on. Tutorial hints (0x5382 bit 7) are NOT in that word — DOS ORs
+ * them in afterwards only at difficulty 0 (Discoverer). A preference file has
+ * no difficulty to consult, so the shipped value is the Discoverer one; the
+ * DOS rule still governs any game started without a settings file. */
+static const SettingsBoolOpt k_game_opts[] = {
+  SETTINGS_BOOL(show_indian_moves, true),
+  SETTINGS_BOOL(show_foreign_moves, true),
+  SETTINGS_BOOL(fast_piece_slide, false),
+  SETTINGS_BOOL(end_of_turn, false),
+  SETTINGS_BOOL(autosave, true),
+  SETTINGS_BOOL(combat_analysis, true),
+  SETTINGS_BOOL(water_color_cycling, true),
+  SETTINGS_BOOL(tutorial_hints, true),
+};
+
+/* DS:0x5384/0x5385 is all-zero at new game and every bit is a suppress flag,
+ * so DOS starts with all ten reports and labels showing. */
+static const SettingsBoolOpt k_report_opts[] = {
+  SETTINGS_BOOL(labels_on_buildings, true),
+  SETTINGS_BOOL(labels_on_cargo_and_terrain, true),
+  SETTINGS_BOOL(report_when_colonists_trained, true),
+  SETTINGS_BOOL(report_food_shortages, true),
+  SETTINGS_BOOL(report_raw_materials_shortages, true),
+  SETTINGS_BOOL(report_tools_needed_for_production, true),
+  SETTINGS_BOOL(report_inefficient_government, true),
+  SETTINGS_BOOL(report_new_cargos_available, true),
+  SETTINGS_BOOL(report_sons_of_liberty_membership, true),
+  SETTINGS_BOOL(report_rebel_majorities, true),
+};
+
+/* DS:0x5386 = 0x0e at new game: all three audio bits on, howtowin clear. */
+static const SettingsBoolOpt k_sound_opts[] = {
+  SETTINGS_BOOL(background_music, true),
+  SETTINGS_BOOL(event_music, true),
+  SETTINGS_BOOL(sound_effects, true),
+};
+
+/* The "debug" object's JSON keys are shorter than the struct fields. */
+static const SettingsBoolOpt k_debug_opts[] = {
+  {"menu", offsetof(ColonizeSettings, debug_menu), false},
+  {"mouse_coords", offsetof(ColonizeSettings, show_mouse_coords), false},
+  {"building_rects", offsetof(ColonizeSettings, show_building_rects), false},
+  {"logs", offsetof(ColonizeSettings, debug_logs), false},
+};
+
+#define SETTINGS_OPT_COUNT(t) ((int)(sizeof(t) / sizeof((t)[0])))
+
+static bool* settings_bool_at(ColonizeSettings* s, const SettingsBoolOpt* opt) {
+  return (bool*)((char*)s + opt->offset);
+}
+
+static bool settings_bool_of(const ColonizeSettings* s, const SettingsBoolOpt* opt) {
+  return *(const bool*)((const char*)s + opt->offset);
+}
+
 int settings_clamp_window_scale(int64_t scale) {
   if (scale < COLONIZE_WINDOW_SCALE_MIN) {
     return COLONIZE_WINDOW_SCALE_MIN;
@@ -42,42 +120,18 @@ void settings_defaults(ColonizeSettings* out) {
     return;
   }
   memset(out, 0, sizeof(*out));
-  /*
-   * DOS new-game state, FUN_75c2_235c (viceroy_unpacked_2.c:112401):
-   *   DS:0x5382 = 0xc600 — Indian moves, foreign moves, autosave and combat
-   *   analysis on; fast slide and end-of-turn off; the water bit is an
-   *   inverted disable flag, so clear = cycling on.
-   * Tutorial hints (0x5382 bit 7) are NOT in that word — DOS ORs them in
-   * afterwards only at difficulty 0 (Discoverer). A preference file has no
-   * difficulty to consult, so the shipped value is the Discoverer one; the
-   * DOS rule still governs any game started without a settings file.
-   */
-  out->show_indian_moves = true;
-  out->show_foreign_moves = true;
-  out->fast_piece_slide = false;
-  out->end_of_turn = false;
-  out->autosave = true;
-  out->combat_analysis = true;
-  out->water_color_cycling = true;
-  out->tutorial_hints = true;
-
-  /* DS:0x5384/0x5385 is all-zero at new game and every bit is a suppress
-   * flag, so DOS starts with all ten reports and labels showing. */
-  out->labels_on_buildings = true;
-  out->labels_on_cargo_and_terrain = true;
-  out->report_when_colonists_trained = true;
-  out->report_food_shortages = true;
-  out->report_raw_materials_shortages = true;
-  out->report_tools_needed_for_production = true;
-  out->report_inefficient_government = true;
-  out->report_new_cargos_available = true;
-  out->report_sons_of_liberty_membership = true;
-  out->report_rebel_majorities = true;
-
-  /* DS:0x5386 = 0x0e at new game: all three audio bits on, howtowin clear. */
-  out->background_music = true;
-  out->event_music = true;
-  out->sound_effects = true;
+  for (int i = 0; i < SETTINGS_OPT_COUNT(k_game_opts); ++i) {
+    *settings_bool_at(out, &k_game_opts[i]) = k_game_opts[i].def;
+  }
+  for (int i = 0; i < SETTINGS_OPT_COUNT(k_report_opts); ++i) {
+    *settings_bool_at(out, &k_report_opts[i]) = k_report_opts[i].def;
+  }
+  for (int i = 0; i < SETTINGS_OPT_COUNT(k_sound_opts); ++i) {
+    *settings_bool_at(out, &k_sound_opts[i]) = k_sound_opts[i].def;
+  }
+  for (int i = 0; i < SETTINGS_OPT_COUNT(k_debug_opts); ++i) {
+    *settings_bool_at(out, &k_debug_opts[i]) = k_debug_opts[i].def;
+  }
   out->soundfont[0] = '\0';
   out->midi_backend[0] = '\0';
 
@@ -88,10 +142,6 @@ void settings_defaults(ColonizeSettings* out) {
   out->save_dir[0] = '\0';
   out->seed = 0;
   out->seed_present = false;
-  out->debug_menu = false;
-  out->show_mouse_coords = false;
-  out->show_building_rects = false;
-  out->debug_logs = false;
   /* Newly created settings.json writes true so later launches skip OPENING.EXE.
    * First launch still plays it because the file was absent (settings_first_run).
    * After that the key is the player's; the intro never writes it back. */
@@ -102,6 +152,16 @@ void settings_defaults(ColonizeSettings* out) {
 
 static void wb(FILE* f, const char* key, bool v, bool last) {
   fprintf(f, "    \"%s\": %s%s\n", key, v ? "true" : "false", last ? "" : ",");
+}
+
+/* Emit a whole descriptor group; `last` says whether the final row closes the
+ * object (no trailing comma) or another key follows it inside the object. */
+static void wb_group(
+  FILE* f, const ColonizeSettings* in, const SettingsBoolOpt* opts, int count, bool last
+) {
+  for (int i = 0; i < count; ++i) {
+    wb(f, opts[i].key, settings_bool_of(in, &opts[i]), last && i == count - 1);
+  }
 }
 
 bool settings_save_file(const char* path, const ColonizeSettings* in, char* err, size_t err_size) {
@@ -120,33 +180,15 @@ bool settings_save_file(const char* path, const ColonizeSettings* in, char* err,
   fprintf(f, "  \"version\": %d,\n", COLONIZE_SETTINGS_VERSION);
 
   fprintf(f, "  \"game_options\": {\n");
-  wb(f, "show_indian_moves", in->show_indian_moves, false);
-  wb(f, "show_foreign_moves", in->show_foreign_moves, false);
-  wb(f, "fast_piece_slide", in->fast_piece_slide, false);
-  wb(f, "end_of_turn", in->end_of_turn, false);
-  wb(f, "autosave", in->autosave, false);
-  wb(f, "combat_analysis", in->combat_analysis, false);
-  wb(f, "water_color_cycling", in->water_color_cycling, false);
-  wb(f, "tutorial_hints", in->tutorial_hints, true);
+  wb_group(f, in, k_game_opts, SETTINGS_OPT_COUNT(k_game_opts), true);
   fprintf(f, "  },\n");
 
   fprintf(f, "  \"colony_report_options\": {\n");
-  wb(f, "labels_on_buildings", in->labels_on_buildings, false);
-  wb(f, "labels_on_cargo_and_terrain", in->labels_on_cargo_and_terrain, false);
-  wb(f, "report_when_colonists_trained", in->report_when_colonists_trained, false);
-  wb(f, "report_food_shortages", in->report_food_shortages, false);
-  wb(f, "report_raw_materials_shortages", in->report_raw_materials_shortages, false);
-  wb(f, "report_tools_needed_for_production", in->report_tools_needed_for_production, false);
-  wb(f, "report_inefficient_government", in->report_inefficient_government, false);
-  wb(f, "report_new_cargos_available", in->report_new_cargos_available, false);
-  wb(f, "report_sons_of_liberty_membership", in->report_sons_of_liberty_membership, false);
-  wb(f, "report_rebel_majorities", in->report_rebel_majorities, true);
+  wb_group(f, in, k_report_opts, SETTINGS_OPT_COUNT(k_report_opts), true);
   fprintf(f, "  },\n");
 
   fprintf(f, "  \"sound_options\": {\n");
-  wb(f, "background_music", in->background_music, false);
-  wb(f, "event_music", in->event_music, false);
-  wb(f, "sound_effects", in->sound_effects, false);
+  wb_group(f, in, k_sound_opts, SETTINGS_OPT_COUNT(k_sound_opts), false);
   fprintf(f, "    \"soundfont\": ");
   json_write_escaped_string(f, in->soundfont, sizeof(in->soundfont) - 1);
   fprintf(f, ",\n");
@@ -160,10 +202,7 @@ bool settings_save_file(const char* path, const ColonizeSettings* in, char* err,
   fprintf(f, "  },\n");
 
   fprintf(f, "  \"debug\": {\n");
-  wb(f, "menu", in->debug_menu, false);
-  wb(f, "mouse_coords", in->show_mouse_coords, false);
-  wb(f, "building_rects", in->show_building_rects, false);
-  wb(f, "logs", in->debug_logs, true);
+  wb_group(f, in, k_debug_opts, SETTINGS_OPT_COUNT(k_debug_opts), true);
   fprintf(f, "  },\n");
 
   fprintf(f, "  \"data_dir\": ");
@@ -204,6 +243,14 @@ static void rb(const JsonValue* obj, const char* key, bool* out) {
   }
 }
 
+static void rb_group(
+  const JsonValue* obj, ColonizeSettings* out, const SettingsBoolOpt* opts, int count
+) {
+  for (int i = 0; i < count; ++i) {
+    rb(obj, opts[i].key, settings_bool_at(out, &opts[i]));
+  }
+}
+
 bool settings_load_file(const char* path, ColonizeSettings* out, char* err, size_t err_size) {
   if (!path || !path[0] || !out) {
     set_err(err, err_size, "settings: bad arguments");
@@ -211,32 +258,34 @@ bool settings_load_file(const char* path, ColonizeSettings* out, char* err, size
   }
   settings_defaults(out);
 
-  FILE* f = fopen(path, "rb");
-  if (!f) {
-    /* No file yet is the normal first-run case, not an error. */
+  /* No file yet is the normal first-run case, not an error. */
+  FILE* probe = fopen(path, "rb");
+  if (!probe) {
     return true;
   }
-  if (fseek(f, 0, SEEK_END) != 0) {
-    fclose(f);
-    set_err(err, err_size, "settings: cannot size %s", path);
+  fclose(probe);
+
+  uint8_t* raw = NULL;
+  size_t raw_size = 0;
+  char slurp_err[200] = {0};
+  if (!file_slurp(path, &raw, &raw_size, slurp_err, sizeof(slurp_err))) {
+    set_err(err, err_size, "settings: %s", slurp_err[0] ? slurp_err : "cannot read file");
     return false;
   }
-  const long len = ftell(f);
-  if (len < 0 || len > (1 << 20)) {
-    fclose(f);
+  if (raw_size > (1u << 20)) {
+    free(raw);
     set_err(err, err_size, "settings: %s is not a settings file", path);
     return false;
   }
-  rewind(f);
-  char* text = (char*)malloc((size_t)len + 1);
+  char* text = (char*)malloc(raw_size + 1);
   if (!text) {
-    fclose(f);
+    free(raw);
     set_err(err, err_size, "settings: out of memory");
     return false;
   }
-  const size_t got = fread(text, 1, (size_t)len, f);
-  fclose(f);
-  text[got] = '\0';
+  memcpy(text, raw, raw_size);
+  text[raw_size] = '\0';
+  free(raw);
 
   char perr[256] = {0};
   JsonValue* root = json_parse(text, perr, sizeof(perr));
@@ -273,31 +322,13 @@ bool settings_load_file(const char* path, ColonizeSettings* out, char* err, size
 
   /* Every field is optional: a partial or older file keeps the defaults. */
   const JsonValue* g = json_obj_get(root, "game_options");
-  rb(g, "show_indian_moves", &out->show_indian_moves);
-  rb(g, "show_foreign_moves", &out->show_foreign_moves);
-  rb(g, "fast_piece_slide", &out->fast_piece_slide);
-  rb(g, "end_of_turn", &out->end_of_turn);
-  rb(g, "autosave", &out->autosave);
-  rb(g, "combat_analysis", &out->combat_analysis);
-  rb(g, "water_color_cycling", &out->water_color_cycling);
-  rb(g, "tutorial_hints", &out->tutorial_hints);
+  rb_group(g, out, k_game_opts, SETTINGS_OPT_COUNT(k_game_opts));
 
   const JsonValue* c = json_obj_get(root, "colony_report_options");
-  rb(c, "labels_on_buildings", &out->labels_on_buildings);
-  rb(c, "labels_on_cargo_and_terrain", &out->labels_on_cargo_and_terrain);
-  rb(c, "report_when_colonists_trained", &out->report_when_colonists_trained);
-  rb(c, "report_food_shortages", &out->report_food_shortages);
-  rb(c, "report_raw_materials_shortages", &out->report_raw_materials_shortages);
-  rb(c, "report_tools_needed_for_production", &out->report_tools_needed_for_production);
-  rb(c, "report_inefficient_government", &out->report_inefficient_government);
-  rb(c, "report_new_cargos_available", &out->report_new_cargos_available);
-  rb(c, "report_sons_of_liberty_membership", &out->report_sons_of_liberty_membership);
-  rb(c, "report_rebel_majorities", &out->report_rebel_majorities);
+  rb_group(c, out, k_report_opts, SETTINGS_OPT_COUNT(k_report_opts));
 
   const JsonValue* s = json_obj_get(root, "sound_options");
-  rb(s, "background_music", &out->background_music);
-  rb(s, "event_music", &out->event_music);
-  rb(s, "sound_effects", &out->sound_effects);
+  rb_group(s, out, k_sound_opts, SETTINGS_OPT_COUNT(k_sound_opts));
   const char* soundfont = s ? json_get_str(s, "soundfont") : NULL;
   if (soundfont) {
     snprintf(out->soundfont, sizeof(out->soundfont), "%s", soundfont);
@@ -317,10 +348,7 @@ bool settings_load_file(const char* path, ColonizeSettings* out, char* err, size
   }
 
   const JsonValue* dbg = json_obj_get(root, "debug");
-  rb(dbg, "menu", &out->debug_menu);
-  rb(dbg, "mouse_coords", &out->show_mouse_coords);
-  rb(dbg, "building_rects", &out->show_building_rects);
-  rb(dbg, "logs", &out->debug_logs);
+  rb_group(dbg, out, k_debug_opts, SETTINGS_OPT_COUNT(k_debug_opts));
 
   const char* data_dir = json_get_str(root, "data_dir");
   if (data_dir && data_dir[0]) {

@@ -190,8 +190,8 @@ bool new_game_scenario_start(
 void new_game_default_leader_name(
   const ColonizeMsgCatalog* names_txt, int nation, char* out, size_t out_size
 );
+/* @COUNTRY row `nation`, NAMES.TXT-backed via reports.c. The home-port and
+ * ruler-title helpers are file-local to new_game.c. */
 const char* new_game_nation_name(int nation);
-const char* new_game_nation_port(int nation);
-const char* new_game_nation_ruler_title(int nation); /* "King" or "Stadtholder" */
 
 #endif

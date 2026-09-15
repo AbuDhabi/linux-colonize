@@ -194,6 +194,22 @@ typedef enum ColonyMessageKind {
   COLONY_MSG_CONFIRM  /* Yes / No */
 } ColonyMessageKind;
 
+/*
+ * One colony-screen sub-dialog's on-screen geometry (audit CO-5/CO-6/CO-7).
+ * The six pickers — Construction, Field job, Leave as, dock orders, Custom
+ * House checklist and the message box — each carried this same six-field
+ * group, and their hit-tests each re-derived the row index from it by hand.
+ * `list_y0` is the top of the first row; `line_h` the row pitch.
+ */
+typedef struct ColonyDialogRect {
+  int x;
+  int y;
+  int w;
+  int h;
+  int list_y0;
+  int line_h;
+} ColonyDialogRect;
+
 typedef struct ColonyScreenHitResult {
   ColonyScreenHit kind;
   int index;
@@ -274,12 +290,7 @@ typedef struct ColonyScreenView {
   int construction_selection;
   int buildable_ids[COLONY_BUILDABLE_MAX];
   int buildable_count;
-  int construction_dialog_x;
-  int construction_dialog_y;
-  int construction_dialog_w;
-  int construction_dialog_h;
-  int construction_list_y0;
-  int construction_line_h;
+  ColonyDialogRect construction_rect;
   int construction_rows_per_col; /* DOS 2f2b_5bd2: 16 rows per PAGE when > 22 rows */
   int construction_col_w;
   int construction_page; /* bugs.md 442: DOS pages (More...), never columns */
@@ -289,12 +300,7 @@ typedef struct ColonyScreenView {
   int jobs_selection;
   int job_ids[COLONY_JOB_LIST_MAX];
   int job_count;
-  int jobs_dialog_x;
-  int jobs_dialog_y;
-  int jobs_dialog_w;
-  int jobs_dialog_h;
-  int jobs_list_y0;
-  int jobs_line_h;
+  ColonyDialogRect jobs_rect;
 
   bool eject_open;
   int eject_colonist_index;
@@ -304,12 +310,7 @@ typedef struct ColonyScreenView {
   /* false = DOS's 0xffff row: listed, drawn greyed, not pickable. */
   bool eject_role_enabled[COLONIZE_EJECT_ROLE_COUNT];
   int eject_role_count;
-  int eject_dialog_x;
-  int eject_dialog_y;
-  int eject_dialog_w;
-  int eject_dialog_h;
-  int eject_list_y0;
-  int eject_line_h;
+  ColonyDialogRect eject_rect;
 
   bool dock_orders_open;
   int dock_orders_unit_id;
@@ -319,12 +320,7 @@ typedef struct ColonyScreenView {
   int dock_orders_count;
   char dock_orders_title[COLONY_DOCK_ORDER_LABEL_LEN];
   int dock_orders_width; /* GAME.TXT @COLONYUNIT @width; 0 = measure the rows */
-  int dock_orders_dialog_x;
-  int dock_orders_dialog_y;
-  int dock_orders_dialog_w;
-  int dock_orders_dialog_h;
-  int dock_orders_list_y0;
-  int dock_orders_line_h;
+  ColonyDialogRect dock_orders_rect;
 
   /* Custom House per-cargo autosell checklist — clicking the Custom House
    * building opens this; each row toggles one cargo's bit and the popup
@@ -335,12 +331,7 @@ typedef struct ColonyScreenView {
   bool custom_house_smallfont; /* GAME.TXT @CUSTOM @smallfont → FONTTINY rows */
   int custom_house_cargo_ids[COLONIZE_CARGO_COUNT];
   int custom_house_count;
-  int custom_house_dialog_x;
-  int custom_house_dialog_y;
-  int custom_house_dialog_w;
-  int custom_house_dialog_h;
-  int custom_house_list_y0;
-  int custom_house_line_h;
+  ColonyDialogRect custom_house_rect;
 
   ColonyMessageKind message_kind;
   char message_text[240];
@@ -349,12 +340,7 @@ typedef struct ColonyScreenView {
   int message_selection; /* 0=Yes/OK, 1=No for confirm */
   int pending_eject_colonist;
   int pending_eject_role;
-  int message_dialog_x;
-  int message_dialog_y;
-  int message_dialog_w;
-  int message_dialog_h;
-  int message_list_y0;
-  int message_line_h;
+  ColonyDialogRect message_rect;
 
   ColonizeColonyProdDelta last_delta;
   bool last_delta_valid;
@@ -440,14 +426,6 @@ void colony_screen_open_dock_orders(
 void colony_screen_close_dock_orders(ColonyScreenView* view);
 
 void colony_screen_open_message_ok(ColonyScreenView* view, const char* text);
-void colony_screen_open_abandon_confirm(
-  ColonyScreenView* view,
-  int colonist_index,
-  int role,
-  const char* body,
-  const char* choice_yes,
-  const char* choice_no
-);
 void colony_screen_close_message(ColonyScreenView* view);
 
 void colony_screen_minimap_origin(int* out_x, int* out_y);

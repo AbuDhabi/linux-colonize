@@ -39,7 +39,7 @@ Phase 1 AI-critical symbols + Euro early-settle Layer D + between-turns
 | `func_0x0004219b` = **`FUN_4d56_021a`** (stub `4c3b`) | `indian_pick_dir` — real body is `4d56:021a..14fd`, 4836 bytes, emitted by Ghidra as `??` bytes; reaches the `521d` scorer via thunk `291f:012c` at `021a:1182` | `ai/indian_nation_turn.c` | PARKED; Linux calls `quiet_brave_pick_dir_asm` directly (one level too low) |
 | `FUN_4d56_01e2` | `indian_wipe_tribe_settlements` — descending tribe-array walk calling `00e0`; **dead code**, nothing reaches it (2026-09-08) | `ai/indian_nation_turn.c` | none (`col1_kill_indian_nation` is a Linux invention) |
 | (callgraph) | — | `ai/brave_spent_callgraph.md` | spent `0x3149` writers |
-| quiet `20e6` / `LAB_521d_4ea9` | `quiet_brave_pick_dir_asm` | `ai/quiet_brave_scoring.c` | `ai_native_pick_dir_asm` via `AI_QUIET_ASM=1` |
+| quiet `20e6` / `LAB_521d_4ea9` | `quiet_brave_pick_dir_asm` | `ai/quiet_brave_scoring.c` | `ai_native_pick_dir_asm` (sole picker since 2026-09-14) |
 | Init A/B dumps | `AI_LCG_AUDIT` / `AI_AB` / `AI_SCORE_DUMP` | `src/core/ai.c` | phase 7–8: fog `+8` flips `(47,53)`; far tiles AGREE SAV |
 | `AI_ASM_STAY_SYNC` | audit stay-shaped +1 next | `src/core/ai.c` | matched RNG for score dump only |
 | `LAB_521d_54f5` gate | `quiet_lab_54f5_gate` | `ai/quiet_brave_scoring.c` | not in Linux (reverted) |

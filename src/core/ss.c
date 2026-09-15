@@ -5,6 +5,7 @@
 #include <string.h>
 
 #include "core/assets.h"
+#include "core/bytes.h"
 #include "core/madspack.h"
 #include "platform/diagnostics.h"
 
@@ -32,24 +33,16 @@ typedef struct SpriteHeader {
   uint16_t height;
 } SpriteHeader;
 
-static uint16_t read_u16(const uint8_t* p) {
-  return (uint16_t)(p[0] | (p[1] << 8));
-}
-
-static uint32_t read_u32(const uint8_t* p) {
-  return (uint32_t)(p[0] | (p[1] << 8) | (p[2] << 16) | (p[3] << 24));
-}
-
 static bool parse_ss_header(const uint8_t* data, size_t size, SsHeader* out) {
   if (!data || size < 0x98 || !out) {
     return false;
   }
   out->mode = data[0];
   out->pflag = data[0x0c];
-  out->place_offset_y = (int16_t)read_u16(data + 0x0e);
-  out->place_mode = (int16_t)read_u16(data + 0x10);
-  out->place_offset_x = (int16_t)read_u16(data + 0x12);
-  out->nsprites = read_u16(data + 0x26);
+  out->place_offset_y = (int16_t)rd_u16_le(data + 0x0e);
+  out->place_mode = (int16_t)rd_u16_le(data + 0x10);
+  out->place_offset_x = (int16_t)rd_u16_le(data + 0x12);
+  out->nsprites = rd_u16_le(data + 0x26);
   return out->nsprites > 0;
 }
 
@@ -57,12 +50,12 @@ static bool parse_sprite_header(const uint8_t* data, SpriteHeader* out) {
   if (!data || !out) {
     return false;
   }
-  out->start_offset = read_u32(data + 0);
-  out->length = read_u32(data + 4);
-  out->anchor_x = (int16_t)read_u16(data + 8);
-  out->anchor_y = (int16_t)read_u16(data + 10);
-  out->width = read_u16(data + 12);
-  out->height = read_u16(data + 14);
+  out->start_offset = rd_u32_le(data + 0);
+  out->length = rd_u32_le(data + 4);
+  out->anchor_x = (int16_t)rd_u16_le(data + 8);
+  out->anchor_y = (int16_t)rd_u16_le(data + 10);
+  out->width = rd_u16_le(data + 12);
+  out->height = rd_u16_le(data + 14);
   return true;
 }
 
@@ -342,47 +335,26 @@ void ss_free(ColonizeSpriteSheet* sheet) {
   sheet->has_palette = false;
 }
 
-void ss_blit_sprite(
-  const ColonizeSpriteSheet* sheet,
-  int sprite_index,
-  ColonizeFramebuffer8* framebuffer,
-  int dst_x,
-  int dst_y
-) {
-  if (!sheet || !framebuffer || !framebuffer->pixels || sprite_index < 0 || sprite_index >= sheet->sprite_count) {
-    return;
-  }
-  const ColonizeSprite* sprite = &sheet->sprites[sprite_index];
-  if (!sprite->pixels || sprite->width <= 0 || sprite->height <= 0) {
-    return;
-  }
+/*
+ * IN-14: the three public blitters were 35-line copies of one loop differing
+ * only in what gets written — the source colour, a replacement colour, or the
+ * source colour but only where the destination already holds match_color.
+ * One loop with a mode; the three names stay.
+ */
+typedef enum SsBlitMode {
+  SS_BLIT_SRC = 0,      /* write the sprite's own colour */
+  SS_BLIT_REPLACE,      /* write replace_color for every opaque pixel */
+  SS_BLIT_WHERE_DEST    /* write the sprite colour only over match_color */
+} SsBlitMode;
 
-  for (int y = 0; y < sprite->height; ++y) {
-    int fy = dst_y + y;
-    if (fy < 0 || fy >= framebuffer->height) {
-      continue;
-    }
-    for (int x = 0; x < sprite->width; ++x) {
-      int fx = dst_x + x;
-      if (fx < 0 || fx >= framebuffer->width) {
-        continue;
-      }
-      uint8_t color = sprite->pixels[y * sprite->width + x];
-      if (color == COLONIZE_SS_TRANSPARENT) {
-        continue;
-      }
-      framebuffer->pixels[fy * framebuffer->width + fx] = color;
-    }
-  }
-}
-
-void ss_blit_sprite_color(
+static void ss_blit_run(
   const ColonizeSpriteSheet* sheet,
   int sprite_index,
   ColonizeFramebuffer8* framebuffer,
   int dst_x,
   int dst_y,
-  uint8_t replace_color
+  SsBlitMode mode,
+  uint8_t key_color
 ) {
   if (!sheet || !framebuffer || !framebuffer->pixels || sprite_index < 0 ||
       sprite_index >= sheet->sprite_count) {
@@ -403,13 +375,38 @@ void ss_blit_sprite_color(
       if (fx < 0 || fx >= framebuffer->width) {
         continue;
       }
-      uint8_t color = sprite->pixels[y * sprite->width + x];
+      const int di = fy * framebuffer->width + fx;
+      if (mode == SS_BLIT_WHERE_DEST && framebuffer->pixels[di] != key_color) {
+        continue;
+      }
+      const uint8_t color = sprite->pixels[y * sprite->width + x];
       if (color == COLONIZE_SS_TRANSPARENT) {
         continue;
       }
-      framebuffer->pixels[fy * framebuffer->width + fx] = replace_color;
+      framebuffer->pixels[di] = (mode == SS_BLIT_REPLACE) ? key_color : color;
     }
   }
+}
+
+void ss_blit_sprite(
+  const ColonizeSpriteSheet* sheet,
+  int sprite_index,
+  ColonizeFramebuffer8* framebuffer,
+  int dst_x,
+  int dst_y
+) {
+  ss_blit_run(sheet, sprite_index, framebuffer, dst_x, dst_y, SS_BLIT_SRC, 0);
+}
+
+void ss_blit_sprite_color(
+  const ColonizeSpriteSheet* sheet,
+  int sprite_index,
+  ColonizeFramebuffer8* framebuffer,
+  int dst_x,
+  int dst_y,
+  uint8_t replace_color
+) {
+  ss_blit_run(sheet, sprite_index, framebuffer, dst_x, dst_y, SS_BLIT_REPLACE, replace_color);
 }
 
 void ss_blit_sprite_where_dest(
@@ -420,33 +417,32 @@ void ss_blit_sprite_where_dest(
   int dst_y,
   uint8_t match_color
 ) {
-  if (!sheet || !framebuffer || !framebuffer->pixels || sprite_index < 0 || sprite_index >= sheet->sprite_count) {
-    return;
-  }
-  const ColonizeSprite* sprite = &sheet->sprites[sprite_index];
-  if (!sprite->pixels || sprite->width <= 0 || sprite->height <= 0) {
-    return;
-  }
+  ss_blit_run(sheet, sprite_index, framebuffer, dst_x, dst_y, SS_BLIT_WHERE_DEST, match_color);
+}
 
-  for (int y = 0; y < sprite->height; ++y) {
-    int fy = dst_y + y;
-    if (fy < 0 || fy >= framebuffer->height) {
-      continue;
-    }
-    for (int x = 0; x < sprite->width; ++x) {
-      int fx = dst_x + x;
-      if (fx < 0 || fx >= framebuffer->width) {
-        continue;
-      }
-      const int di = fy * framebuffer->width + fx;
-      if (framebuffer->pixels[di] != match_color) {
-        continue;
-      }
-      uint8_t color = sprite->pixels[y * sprite->width + x];
-      if (color == COLONIZE_SS_TRANSPARENT) {
-        continue;
-      }
-      framebuffer->pixels[di] = color;
-    }
+/*
+ * SC-30 / FUN_6f30_002e: place a sprite by its own header anchor —
+ * (anchor_x - width/2, anchor_y - height + 1) — plus an optional extra
+ * offset. Five copies of this one line lived in closing.c, opening.c,
+ * woodcut.c and reports.c (twice); the convention was documented in ss.h but
+ * never implemented here. Pass add_x = add_y = 0 for the plain DOS placement.
+ */
+void ss_blit_anchored(
+  const ColonizeSpriteSheet* sheet,
+  int sprite_index,
+  ColonizeFramebuffer8* framebuffer,
+  int add_x,
+  int add_y
+) {
+  if (!sheet || sprite_index < 0 || sprite_index >= sheet->sprite_count) {
+    return;
   }
+  const ColonizeSprite* s = &sheet->sprites[sprite_index];
+  ss_blit_sprite(
+    sheet,
+    sprite_index,
+    framebuffer,
+    s->anchor_x - (s->width >> 1) + add_x,
+    s->anchor_y - s->height + 1 + add_y
+  );
 }

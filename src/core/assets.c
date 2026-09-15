@@ -230,6 +230,28 @@ void assets_palette_from_col768(const uint8_t* raw, size_t raw_size, ColonizePal
  * screens needs one remapped instance per screen palette (see reports.c's
  * per-screen ICONS.SS copies), not one shared copy.
  */
+uint8_t assets_palette_nearest_rgb(const ColonizePalette* pal, int r, int g, int b) {
+  if (!pal) {
+    return 0;
+  }
+  int best = 0;
+  int best_d = 1 << 30;
+  for (int i = 0; i < 256; ++i) {
+    const int dr = r - (int)pal->rgb[i][0];
+    const int dg = g - (int)pal->rgb[i][1];
+    const int db = b - (int)pal->rgb[i][2];
+    const int d = dr * dr + dg * dg + db * db;
+    if (d < best_d) {
+      best_d = d;
+      best = i;
+      if (d == 0) {
+        break; /* squared distance is never negative: nothing can beat 0 */
+      }
+    }
+  }
+  return (uint8_t)best;
+}
+
 void assets_sheet_remap_to_palette(ColonizeSpriteSheet* sheet, const ColonizePalette* dst_pal) {
   if (!sheet || !dst_pal || !sheet->has_palette) {
     return;
@@ -240,22 +262,9 @@ void assets_sheet_remap_to_palette(ColonizeSpriteSheet* sheet, const ColonizePal
       lut[i] = (uint8_t)COLONIZE_SS_TRANSPARENT;
       continue;
     }
-    const int sr = sheet->palette.rgb[i][0];
-    const int sg = sheet->palette.rgb[i][1];
-    const int sb = sheet->palette.rgb[i][2];
-    int best = 0;
-    int best_d = 1 << 30;
-    for (int j = 0; j < 256; ++j) {
-      const int dr = sr - dst_pal->rgb[j][0];
-      const int dg = sg - dst_pal->rgb[j][1];
-      const int db = sb - dst_pal->rgb[j][2];
-      const int d = dr * dr + dg * dg + db * db;
-      if (d < best_d) {
-        best_d = d;
-        best = j;
-      }
-    }
-    lut[i] = (uint8_t)best;
+    lut[i] = assets_palette_nearest_rgb(
+      dst_pal, sheet->palette.rgb[i][0], sheet->palette.rgb[i][1], sheet->palette.rgb[i][2]
+    );
   }
   for (int s = 0; s < sheet->sprite_count; ++s) {
     ColonizeSprite* spr = &sheet->sprites[s];
@@ -270,7 +279,9 @@ void assets_sheet_remap_to_palette(ColonizeSpriteSheet* sheet, const ColonizePal
   sheet->palette = *dst_pal;
 }
 
-void assets_palette_from_viceroy1024(const uint8_t* raw, size_t raw_size, ColonizePalette* out_palette) {
+static void assets_palette_from_viceroy1024(
+  const uint8_t* raw, size_t raw_size, ColonizePalette* out_palette
+) {
   if (!raw || !out_palette || raw_size < 1024) {
     return;
   }
@@ -447,4 +458,69 @@ const ColonizeMsgSection* assets_msg_find(const ColonizeMsgCatalog* catalog, con
     }
   }
   return NULL;
+}
+
+/*
+ * Row/field access over a loaded catalog. See the block comment in assets.h
+ * for why section->lines[] is already the DOS row ordinal (blank and ';'
+ * lines are dropped at load time) and no further skipping is correct.
+ */
+bool assets_msg_csv_field(const char* line, int n, char* out, size_t out_sz) {
+  if (!out || out_sz == 0) {
+    return false;
+  }
+  out[0] = '\0';
+  if (!line || n < 0) {
+    return false;
+  }
+  const char* p = line;
+  for (int f = 0; f < n; ++f) {
+    p = strchr(p, ',');
+    if (!p) {
+      return false;
+    }
+    ++p;
+  }
+  while (*p == ' ' || *p == '\t') {
+    ++p;
+  }
+  const char* end = strchr(p, ',');
+  size_t len = end ? (size_t)(end - p) : strlen(p);
+  while (len > 0 && (p[len - 1] == ' ' || p[len - 1] == '\t')) {
+    --len;
+  }
+  if (len >= out_sz) {
+    len = out_sz - 1;
+  }
+  memcpy(out, p, len);
+  out[len] = '\0';
+  return out[0] != '\0';
+}
+
+const char* assets_msg_line_or(
+  const ColonizeMsgCatalog* catalog,
+  const char* section,
+  int idx,
+  const char* fallback
+) {
+  if (!catalog || !section || idx < 0) {
+    return fallback;
+  }
+  const ColonizeMsgSection* sec = assets_msg_find(catalog, section);
+  if (!sec || idx >= sec->line_count || sec->lines[idx][0] == '\0') {
+    return fallback;
+  }
+  return sec->lines[idx];
+}
+
+bool assets_msg_row_field(
+  const ColonizeMsgCatalog* catalog,
+  const char* section,
+  int row,
+  int field,
+  char* out,
+  size_t out_sz
+) {
+  const char* line = assets_msg_line_or(catalog, section, row, NULL);
+  return assets_msg_csv_field(line, field, out, out_sz);
 }

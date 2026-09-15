@@ -508,3 +508,35 @@ int popup_msg_choices(
   }
   return count;
 }
+
+
+int popup_msg_section_labels(
+  const ColonizeMsgCatalog* catalog,
+  const char* section_name,
+  const PopupMsgTokens* tok,
+  const char* fallback0,
+  const char* fallback1,
+  char buf[2][POPUP_MSG_CHOICE_LEN],
+  const char* labels[2]
+) {
+  if (!buf || !labels) {
+    return 0;
+  }
+  buf[0][0] = '\0';
+  buf[1][0] = '\0';
+  labels[0] = buf[0];
+  labels[1] = buf[1];
+  const ColonizeMsgSection* section =
+    (catalog && section_name) ? assets_msg_find(catalog, section_name) : NULL;
+  char raw[2][POPUP_MSG_CHOICE_LEN];
+  const int found = popup_msg_choices(section, raw, 2);
+  const char* src[2] = {fallback0, fallback1};
+  if (found >= 2) {
+    src[0] = raw[0];
+    src[1] = raw[1];
+  }
+  for (int i = 0; i < 2; ++i) {
+    popup_msg_apply_tokens(buf[i], POPUP_MSG_CHOICE_LEN, src[i] ? src[i] : "", tok);
+  }
+  return found >= 2 ? found : 0;
+}

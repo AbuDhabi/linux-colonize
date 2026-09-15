@@ -28,11 +28,20 @@ file_offset = ds_offset + viceroy_ds_to_file_offset   // 0x186e6
 | DS offset | Symbol | Size | Purpose |
 |-----------|--------|------|---------|
 | `0x543f` | `viceroy_terrain_meta` | 29 × 52 | Per map terrain index (0–28, matches `PEDIA.TXT` `@TERRAINn`) |
-| `0x5234` | `viceroy_tile_display` | 29 × 14 | Per tile display type (`0x3146` in the runtime tile object) |
-| `0x54de` | `viceroy_river_transition` | 28 | Overlay nibble → PHYS0 river sprite offset |
-| `0x54fc` | `viceroy_feature_sprite_bases_a` | 4 | Feature sprite base indices (mountain/hill path) |
-| `0x5502` | `viceroy_feature_sprite_bases_b` | 4 | Feature sprite base indices (forest/resource path) |
-| `0x5599` | `viceroy_connectivity_transition` | 21 | Cardinal connectivity → transition variant |
+
+Only `viceroy_terrain_meta` (and the `viceroy_terrain_class` / `viceroy_forest_phys0_sprite`
+accessors over it) is still generated and consumed (pedia.c). The tables below were
+extracted 2026-08 but had no consumer outside a self-checking smoke test; they were
+retired from `src/data/viceroy_tables.c` on 2026-09-14 (duplication audit TT-27..29).
+Their DS offsets stay documented here for future work:
+
+| DS offset | Symbol (retired) | Size | Purpose |
+|-----------|--------|------|---------|
+| `0x5234` | `tile_display` | 29 × 14 | Per tile display type (`0x3146` in the runtime tile object); all zeros in the EXE for types 0–9 |
+| `0x54de` | `river_transition` | 28 | Overlay nibble → PHYS0 river sprite offset (still used by the extractor as the EXE anchor) |
+| `0x54fc` | `feature_sprite_bases_a` | 4 | Feature sprite base indices (mountain/hill path) |
+| `0x5502` | `feature_sprite_bases_b` | 4 | Feature sprite base indices (forest/resource path) |
+| `0x5599` | `connectivity_transition` | 21 | Cardinal connectivity → transition variant |
 
 ### `terrain_meta` (52 bytes / terrain)
 

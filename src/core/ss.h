@@ -62,6 +62,19 @@ void ss_blit_sprite_color(
   int dst_y,
   uint8_t replace_color
 );
+/*
+ * FUN_6f30_002e placement: blit the sprite at
+ * (anchor_x - width/2 + add_x, anchor_y - height + 1 + add_y), i.e. its own
+ * header anchor (see ColonizeSprite above) shifted by an optional offset.
+ * Pass 0,0 for the plain DOS centring.
+ */
+void ss_blit_anchored(
+  const ColonizeSpriteSheet* sheet,
+  int sprite_index,
+  ColonizeFramebuffer8* framebuffer,
+  int add_x,
+  int add_y
+);
 /* Copy sprite pixels only onto framebuffer cells that currently equal match_color (MAPEDIT masked terrain). */
 void ss_blit_sprite_where_dest(
   const ColonizeSpriteSheet* sheet,

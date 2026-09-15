@@ -89,9 +89,6 @@ typedef struct ColonizeTurnResult {
 
 /* Per-colony last production tick (for colony-screen deltas). */
 typedef struct ColonizeColonyProdDelta {
-  int food_net;
-  int lumber;
-  int ore;
   int hammers_added;
   bool building_completed;
   /* Net change per @CARGO (field harvest, craft consume/produce, lumber use). */
@@ -140,6 +137,24 @@ bool turn_processor_show_indicator(const ColonizeTurnProcessor* proc);
 /* One slice; returns true if still active. */
 bool turn_processor_advance(ColonizeTurnProcessor* proc, ColonizeTurnContext* ctx);
 
+/*
+ * One colony's bells + crosses for a given SoL bonus — DOS composes both in
+ * FUN_364b_0688's Phase A prologue (`15eb_1f72`'s per-colonist `1d4c` loop,
+ * viceroy 12602-12609). The Jefferson/Paine/Penn/is-AI derivation lives here
+ * once so turn.c's Phase A snapshot, its live nation-tally fallback and
+ * colony_preview.c's Production tab can never drift apart. Cite:
+ * turn/nation_ticks_bells_ff.md; manufacturing_worker_calc_1d4c.md.
+ * Either out pointer may be NULL.
+ */
+void turn_compose_colony_bells_crosses(
+  const ColonizeColonyPool* pool,
+  const ColonizeColony* colony,
+  const ColonizeCol1Save* col1,
+  int sol_bonus,
+  int* out_bells,
+  int* out_crosses
+);
+
 /* Colony Space cheat: one production cycle without advancing world time.
  * If out_delta is non-NULL, fills last-tick nets for UI. map may be NULL. */
 void turn_colony_free_production(
@@ -151,9 +166,6 @@ void turn_colony_free_production(
 );
 
 /* Production for every active colony (used by turn_end). map/col1/europe may be NULL. */
-/* Hand the unit pool in so births land ON the colony tile (NULL = old
- * join-colony fallback for headless callers). */
-void turn_set_birth_units_pool(ColonizeUnitPool* units);
 void turn_run_colony_production(
   ColonizeColonyPool* pool,
   const ColonizeWorldMap* map,
@@ -165,34 +177,6 @@ void turn_run_colony_production(
   const ColonizeMsgCatalog* messages,
   ColonizeDosRng* rng
 );
-
-/*
- * Coastal Fort/Fortress naval fire (FUN_364b_03f6). Call after colony
- * production in EOT SETUP. Returns ships sunk (0 if ctx incomplete).
- */
-int turn_run_coastal_fort_fire(ColonizeTurnContext* ctx);
-
-/*
- * Unit-type construction completion (Artillery — colonies_unit_build_info)
- * for every active colony. Call after turn_run_colony_production in EOT
- * SETUP; needs ctx->units, which colony production itself doesn't have
- * access to, so colonies_try_complete_unit_construction can't be reached
- * from inside turn_produce_one_colony the way colonies_try_complete_
- * building is. No-op (not an error) for colonies not building a unit.
- */
-void turn_run_colony_unit_construction(ColonizeTurnContext* ctx);
-
-/*
- * Real-building construction completion for every active colony whose
- * banked hammers/tools already meet the current project's cost — including
- * a project a BUY topped up but didn't complete (colonies_buy_construction
- * only tops hammers/tools; this is where the actual completion happens,
- * once per turn, unconditionally). Call alongside
- * turn_run_colony_unit_construction in EOT SETUP. Safe to call even when
- * turn_produce_one_colony's own inline completion already fired this turn
- * (colonies_try_complete_building's has_building[] guard no-ops the retry).
- */
-void turn_run_colony_building_completion(ColonizeTurnContext* ctx);
 
 /* Crosses → dock immigrant; liberty bells counters (human + AI Euro Col1). */
 void turn_run_nation_ticks(ColonizeTurnContext* ctx, ColonizeTurnResult* out);
@@ -219,10 +203,6 @@ void turn_tally_professions(
   int nation_id,
   uint8_t out_hist[32]
 );
-
-/* King phase (tax/REF). The native pass is the TURN_PROC_INDIAN slice
- * (FUN_4d56_1b3a phases 1-3) inside turn_process_step, not a helper. */
-void turn_run_king_stub(ColonizeTurnContext* ctx);
 
 /*
  * DS:0x9418[nation] hull tally as FUN_48d3_0002 reads it — the input to the
@@ -275,12 +255,8 @@ bool turn_select_next_unit(ColonizeUnitPool* pool, int human_nation);
  */
 bool turn_select_next_unit_awaiting_orders(ColonizeUnitPool* pool, int human_nation);
 
-/* True when no on-map human unit still has movement. */
-bool turn_human_units_exhausted(const ColonizeUnitPool* pool, int human_nation);
-
 /* Read Col1 end_of_turn / autosave option bits (false if no save). */
 bool turn_option_end_of_turn(const ColonizeCol1Save* col1, bool col1_ok);
-bool turn_option_autosave(const ColonizeCol1Save* col1, bool col1_ok);
 
 /*
  * Turn-owner indicator (FUN_1984_00aa / FUN_281f_0590): 5×3 fill at bottom-right
@@ -292,7 +268,6 @@ bool turn_option_autosave(const ColonizeCol1Save* col1, bool col1_ok);
 #define TURN_OWNER_INDICATOR_W 5
 #define TURN_OWNER_INDICATOR_H 3
 
-uint8_t turn_nation_color(int nation_id);
 void turn_draw_owner_indicator(ColonizeFramebuffer8* framebuffer, int nation_id);
 
 #endif

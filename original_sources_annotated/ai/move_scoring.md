@@ -11,7 +11,7 @@
 | Ocean / HS force-to-max | Annotated; Linux uses `euro_settlement_owner` (0358); **not** Sioux T2 writer (`dump_b465f3`) |
 | Multi-step / Inca tw | Cleared (river cost=1 peels; `097a` continues while spent&lt;3) |
 | Spent-only Sioux/Apache | Residual; dump-free predicates exhausted (phase 17); hang X last resort |
-| Force empiricism | `AI_EMPIRICISM=1` / `AI_QUIET_ASM=0` |
+| Force empiricism | gone — `AI_EMPIRICISM` / `AI_QUIET_ASM` and the empirical picker were deleted 2026-09-14 |
 | Far `(43,49)`/`(43,53)` vs SAV | **AGREE** |
 | Complete Map / Reveal | **Irrelevant** |
 | Coarse fog plane | Dual index; Linux buffer; `+8` gated |

@@ -158,6 +158,7 @@ typedef struct EuropeCargoQuote {
 #define EUROPE_DOCK_TYPE_MISSIONARIES 3
 #define EUROPE_DOCK_TYPE_DRAGOONS 4
 #define EUROPE_DOCK_TYPE_SCOUTS 5
+#define EUROPE_DOCK_TYPE_COUNT 6
 
 typedef struct EuropeDockImmigrant {
   char name[40];
@@ -442,7 +443,6 @@ void europe_set_labels(EuropeScreen* eu, const struct ColonizeMsgCatalog* labels
  * Call it with the price still at the pre-sale bid; `net` is the gold that
  * was actually credited.
  */
-void europe_push_sale_status(EuropeScreen* eu, int cargo_type, int amount, int net);
 
 /*
  * FUN_48d3_0002 voyage roll. rng NULL → 1 (no roll). The x<3 west-edge
@@ -473,12 +473,7 @@ int europe_compute_recruit_passage(
  * the `_ex` forms. The plain forms are the NULL-rng fixture shorthand and
  * fall back to europe.c's local LCG. Smell audit 2026-09-10 G5.
  */
-bool europe_recruit_from_pool(EuropeScreen* eu, int pool_index);
-bool europe_recruit_from_pool_ex(
-  EuropeScreen* eu, int pool_index, struct ColonizeDosRng* rng
-);
 /* FUN_38fd_4884(1,0): pool pick at no passage, no recruit-count bump (Fountain of Youth). */
-bool europe_recruit_free_from_pool(EuropeScreen* eu, int pool_index);
 bool europe_recruit_free_from_pool_ex(
   EuropeScreen* eu, int pool_index, struct ColonizeDosRng* rng
 );
@@ -491,18 +486,15 @@ bool europe_recruit_free_from_pool_ex(
 bool europe_immigrant_from_pool(EuropeScreen* eu, struct ColonizeDosRng* rng);
 /* Brewster (FF 20) arrival: FUN_38fd_4884(0,1) pick applied — free
  * dock transfer of pool[pool_index], then crosses zeroed (no +6 bump). */
-bool europe_brewster_pick_from_pool(EuropeScreen* eu, int pool_index);
 bool europe_brewster_pick_from_pool_ex(
   EuropeScreen* eu, int pool_index, struct ColonizeDosRng* rng
 );
 /* Brewster owned (FUN_4345_0342 case 0x14): criminal/servant pool slots are
  * overwritten with Free Colonists in place — a substitution, not a reroll. */
 void europe_apply_brewster(EuropeScreen* eu, int owned);
-void europe_refill_pool_slot(EuropeScreen* eu, int slot, unsigned* rng_state);
 /* Same refill with DOS `FUN_38fd_46d4`'s param_1: non-zero skips the
  * criminal/servant/free tier roll and goes straight to the expert half.
  * The end-of-turn crosses spawn passes ((turn & 3) == 0). */
-void europe_refill_pool_slot_ex(EuropeScreen* eu, int slot, bool force_expert, unsigned* rng_state);
 /*
  * Same refill on the real game stream: DOS's `46d4` tier rolls are
  * `FUN_281f_04d4(1,15)/(1,10)/(1,8)` off the shared RNG (viceroy_unpacked.c
@@ -601,14 +593,6 @@ bool europe_apply_dock_menu_row(
  * should use this form. `col1` may be NULL, which keeps the price-pool move
  * and skips the ledger (the plain form above is exactly that call).
  */
-bool europe_apply_dock_menu_row_ex(
-  EuropeScreen* eu,
-  ColonizeUnitPool* units,
-  struct ColonizeCol1Save* col1,
-  int nation_id,
-  int dock_index,
-  int row
-);
 
 /*
  * DOS FUN_38fd_0718 (the Europe harbor spawn behind every dock arrival):
@@ -624,6 +608,24 @@ int europe_dock_unit_dos_type(int profession, int difficulty, bool human, struct
 
 /* Pool type_index for a DOS @UNIT type code 0..5, or -1. */
 int europe_dock_unit_type_index(const ColonizeUnitPool* units, int dos_type);
+/*
+ * Same lookup with ai_euro's singular fallbacks (audit AE-18): "Soldiers"
+ * → "Soldier", "Colonists" → "Free Colonist" → "Colonist", and so on, for
+ * pools that carry the singular @UNIT spelling. The Europe screen passes
+ * false; the 5d04 AI purchase path wants true.
+ */
+int europe_dock_unit_type_index_ex(
+  const ColonizeUnitPool* units, int dos_type, bool with_singular_fallback
+);
+
+/*
+ * The Europe purchase table (DOS FUN_521d_5c3c, DS:0x978d stride 6) — the
+ * single owner of the six prices (audit AE-17). europe_purchase_price
+ * returns 0 for a name that is not on the list.
+ */
+int europe_purchase_option_count(void);
+const EuropePurchaseOption* europe_purchase_option_at(int index);
+int europe_purchase_price(const char* type_name);
 
 /*
  * DOS @UNIT type for a dock entry. A name that is itself one of the six
@@ -643,9 +645,6 @@ int europe_dock_display_type_index(
 );
 
 /* Kit implied by a dock entry's type, for the mirror unit and for landing. */
-int europe_dock_type_tools(int dos_type);
-int europe_dock_type_muskets(int dos_type);
-int europe_dock_type_horses(int dos_type);
 
 /*
  * Spawn (or re-kit) the Europe-map mirror unit for a dock immigrant, exactly
@@ -667,21 +666,8 @@ int europe_spawn_dock_mirror_unit(
 void europe_apply_dock_unit_kit(ColonizeUnit* u, int dos_type);
 
 /* Move the (236,236) mirror unit behind a dock entry to a new @UNIT type. */
-void europe_retype_dock_mirror_unit(
-  ColonizeUnitPool* units,
-  int nation_id,
-  int profession,
-  int from_dos_type,
-  int to_dos_type
-);
 bool europe_pop_dock_immigrant(EuropeScreen* eu, char* out_name, size_t out_name_size);
 /* Pop with profession; returns false if empty. */
-bool europe_pop_dock_immigrant_ex(
-  EuropeScreen* eu,
-  char* out_name,
-  size_t out_name_size,
-  int* out_profession
-);
 
 bool europe_harbor_push(
   EuropeScreen* eu,
@@ -1178,19 +1164,6 @@ EuropeHitResult europe_hit_test_ex(
 );
 
 /* Ship icon index under (mx,my) inside a transit box, or -1. */
-int europe_transit_ship_at(
-  const EuropeHarborShip* ships,
-  int count,
-  const ColonizeUnitPool* units,
-  const ColonizeSpriteSheet* unit_icons,
-  int box_x,
-  int box_y,
-  int box_w,
-  int box_h,
-  int transit_line_h,
-  int mx,
-  int my
-);
 
 void europe_menu_open(EuropeScreen* eu, EuropeMenu menu);
 void europe_menu_close(EuropeScreen* eu);
@@ -1201,11 +1174,6 @@ bool europe_menu_confirm(EuropeScreen* eu);
 bool europe_menu_confirm_ex(EuropeScreen* eu, struct ColonizeDosRng* rng);
 
 /* Apply the highlighted dock-menu row; `units` keeps the mirror unit in step. */
-bool europe_dock_menu_apply_selection(
-  EuropeScreen* eu,
-  ColonizeUnitPool* units,
-  int nation_id
-);
 
 /* Same, plus the col1 save the arm buy/sell rows book their trade ledger into
  * — see europe_apply_dock_menu_row_ex. The game loop should call this form. */

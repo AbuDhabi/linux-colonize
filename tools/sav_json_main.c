@@ -19,6 +19,7 @@
 #include "col1_json.h"
 #include "core/col1_save.h"
 #include "core/json_min.h"
+#include "core/strutil.h"
 
 static bool has_sav_ext(const char* path) {
   size_t len = strlen(path);
@@ -30,32 +31,6 @@ static bool has_sav_ext(const char* path) {
          (tolower((unsigned char)ext[1]) == 's') &&
          (tolower((unsigned char)ext[2]) == 'a') &&
          (tolower((unsigned char)ext[3]) == 'v');
-}
-
-static char* read_whole_file(const char* path, size_t* out_len) {
-  FILE* f = fopen(path, "rb");
-  if (!f) {
-    return NULL;
-  }
-  fseek(f, 0, SEEK_END);
-  long size = ftell(f);
-  if (size < 0) {
-    fclose(f);
-    return NULL;
-  }
-  fseek(f, 0, SEEK_SET);
-  char* buf = malloc((size_t)size + 1);
-  if (!buf) {
-    fclose(f);
-    return NULL;
-  }
-  size_t got = fread(buf, 1, (size_t)size, f);
-  fclose(f);
-  buf[got] = '\0';
-  if (out_len) {
-    *out_len = got;
-  }
-  return buf;
 }
 
 static int sav_to_json(const char* in_path, const char* out_path) {
@@ -82,12 +57,21 @@ static int sav_to_json(const char* in_path, const char* out_path) {
 }
 
 static int json_to_sav(const char* in_path, const char* out_path) {
+  uint8_t* raw = NULL;
   size_t len = 0;
-  char* text = read_whole_file(in_path, &len);
-  if (!text) {
-    fprintf(stderr, "sav_json: cannot read %s\n", in_path);
+  char slurp_err[256];
+  if (!file_slurp(in_path, &raw, &len, slurp_err, sizeof slurp_err)) {
+    fprintf(stderr, "sav_json: cannot read %s: %s\n", in_path, slurp_err);
     return 1;
   }
+  /* json_parse wants a NUL-terminated buffer; file_slurp returns raw bytes. */
+  char* text = (char*)realloc(raw, len + 1);
+  if (!text) {
+    free(raw);
+    fprintf(stderr, "sav_json: out of memory reading %s\n", in_path);
+    return 1;
+  }
+  text[len] = '\0';
   char perr_buf[256];
   JsonValue* root = json_parse(text, perr_buf, sizeof perr_buf);
   free(text);

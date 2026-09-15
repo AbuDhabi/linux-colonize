@@ -55,7 +55,6 @@ typedef struct NameEntryDialog {
 } NameEntryDialog;
 
 void name_entry_init(NameEntryDialog* dlg);
-void name_entry_close(NameEntryDialog* dlg);
 
 bool name_entry_open(
   NameEntryDialog* dlg,

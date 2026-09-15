@@ -3,6 +3,9 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "core/fb.h"
+#include "core/map.h"
+#include "core/strutil.h"
 #include "core/unit_chrome.h"
 #include "core/units.h"
 #include "data/viceroy_tables.h"
@@ -172,48 +175,34 @@ const char* pedia_category_label(PediaCategory category) {
   return k_category_labels[category];
 }
 
-const char* pedia_category_section_prefix(PediaCategory category) {
+static const char* pedia_category_section_prefix(PediaCategory category) {
   if (category < 0 || category >= PEDIA_CAT_COUNT) {
     return NULL;
   }
   return k_category_prefixes[category];
 }
 
-static int pedia_cleared_base_for_forest(int forest_index) {
-  return forest_index & 7;
-}
-
 static int pedia_forest_phys0(int forest_index) {
   return viceroy_forest_phys0_sprite(forest_index & 7);
 }
 
+/*
+ * Terrain index -> TERRAIN.SS row. The shared part is map_terrain_index_to_sprite
+ * (audit IN-26); the Pedia adds two rows the map never carries — 27/28, the
+ * Mountains/Hills pseudo-terrains of the article list — and falls back to the
+ * scrub tile for a forest class with no PHYS0 overlay sprite. Both extensions
+ * sit in front of the shared mapping, which leaves every other index untouched
+ * (forest class 1 already resolves to 8 there).
+ */
 static int pedia_terrain_base_sprite(int terrain_index) {
-  if (terrain_index >= 0 && terrain_index <= 7) {
-    return terrain_index;
-  }
-  if (terrain_index >= 8 && terrain_index <= 23) {
-    const int forest_index = 8 + (terrain_index & 7);
-    if (forest_index == 9) {
-      return 8;
-    }
-    if (pedia_forest_phys0(forest_index) >= 0) {
-      return pedia_cleared_base_for_forest(forest_index);
-    }
-    return 8;
-  }
-  if (terrain_index == 24) {
-    return 9;
-  }
-  if (terrain_index == 25) {
-    return 10;
-  }
-  if (terrain_index == 26) {
-    return 11;
-  }
   if (terrain_index == 27 || terrain_index == 28) {
     return 4;
   }
-  return 0;
+  if (terrain_index >= 8 && terrain_index <= 23 &&
+      pedia_forest_phys0(8 + (terrain_index & 7)) < 0) {
+    return 8;
+  }
+  return map_terrain_index_to_sprite(terrain_index);
 }
 
 void pedia_terrain_preview(int terrain_index, PediaTerrainPreview* out) {
@@ -239,7 +228,7 @@ void pedia_terrain_preview(int terrain_index, PediaTerrainPreview* out) {
     return;
   }
 
-  if (terrain_index == 25 || terrain_index == 26) {
+  if (terrain_index == T_OCEAN || terrain_index == T_HIGH_SEAS) {
     static const int coast_corners[] = {150, 151, 152, 153};
     for (int i = 0; i < 4 && out->phys0_count < PEDIA_PREVIEW_PHYS0_MAX; ++i) {
       out->phys0_sprites[out->phys0_count++] = coast_corners[i];
@@ -275,14 +264,7 @@ int pedia_caret_flags(const char* line, const char** out_rest) {
 }
 
 static void pedia_strip_markup(char* text) {
-  char* dst = text;
-  for (char* src = text; *src; ++src) {
-    if (*src == '~' || *src == '{' || *src == '}' || *src == '^') {
-      continue;
-    }
-    *dst++ = *src;
-  }
-  *dst = '\0';
+  str_strip_chars(text, "~{}^");
 }
 
 static bool pedia_extract_title(const char* line, char* out, size_t out_size) {
@@ -473,8 +455,6 @@ bool pedia_page(
 
   out->category = category;
   out->index = index;
-  out->flat_index = index;
-  out->flat_count = count;
   snprintf(out->category_label, sizeof(out->category_label), "%s", pedia_category_label(category));
 
   char fallback[PEDIA_TITLE_LEN];
@@ -581,22 +561,6 @@ bool pedia_entry_title(
   return true;
 }
 
-static int pedia_text_width(const ColonizeFont* font, const char* text) {
-  if (!text) {
-    return 0;
-  }
-  int w = 0;
-  for (const char* p = text; *p; ++p) {
-    const unsigned char ch = (unsigned char)*p;
-    if (font && font->section_data && ch < 128 && font->char_widths[ch] > 0) {
-      w += font->char_widths[ch];
-    } else {
-      w += 6;
-    }
-  }
-  return w;
-}
-
 static int pedia_list_line_h(const ColonizeFont* font) {
   const int h = font ? (font->max_height + 2) : 8;
   return h < 8 ? 8 : h;
@@ -644,7 +608,7 @@ static void pedia_list_exit_rect(
   int* out_w,
   int* out_h
 ) {
-  const int tw = pedia_text_width(font, PEDIA_LIST_EXIT);
+  const int tw = font_text_width_skip(font, PEDIA_LIST_EXIT, FONT_SKIP_NONE);
   const int line_h = pedia_list_line_h(font);
   if (out_w) {
     *out_w = tw + 4;
@@ -758,7 +722,7 @@ PediaListHit pedia_list_hit(
     /* Tighten hit box to text width when possible. */
     char title[PEDIA_TITLE_LEN];
     if (pedia_entry_title(pedia, names, category, id, title, sizeof(title))) {
-      const int tw = pedia_text_width(font, title);
+      const int tw = font_text_width_skip(font, title, FONT_SKIP_NONE);
       if (tw + 4 < w) {
         w = tw + 4;
       }
@@ -834,13 +798,7 @@ static int pedia_resource_effect(int resource, int job) {
 
 /* LABELS.TXT @MISC line, with literal fallback (DOS DS:0x2dba pointer table). */
 static const char* pedia_label(const ColonizeMsgCatalog* labels, int idx, const char* fallback) {
-  if (labels) {
-    const ColonizeMsgSection* sec = assets_msg_find(labels, "MISC");
-    if (sec && idx >= 0 && idx < sec->line_count && sec->lines[idx][0]) {
-      return sec->lines[idx];
-    }
-  }
-  return fallback;
+  return assets_msg_line_or(labels, "MISC", idx, fallback);
 }
 
 /* @PEDIA category subtitle ("Cargo Type" .. "Game Concept"). */
@@ -865,64 +823,33 @@ static void pedia_category_subtitle(
   }
 }
 
-/* First comma-separated field of a NAMES.TXT section line (trimmed). */
-static void pedia_names_field(
-  const ColonizeMsgCatalog* names,
-  const char* section,
-  int line_idx,
-  int field,
-  char* out,
-  size_t out_size
-) {
-  out[0] = '\0';
-  if (!names) {
-    return;
-  }
-  const ColonizeMsgSection* sec = assets_msg_find(names, section);
-  if (!sec || line_idx < 0 || line_idx >= sec->line_count) {
-    return;
-  }
-  const char* p = sec->lines[line_idx];
-  for (int f = 0; f < field && p; ++f) {
-    p = strchr(p, ',');
-    if (p) {
-      p++;
-    }
-  }
-  if (!p) {
-    return;
-  }
-  while (*p == ' ' || *p == '\t') {
-    p++;
-  }
-  const char* end = strchr(p, ',');
-  size_t n = end ? (size_t)(end - p) : strlen(p);
-  while (n > 0 && (p[n - 1] == ' ' || p[n - 1] == '\t')) {
-    n--;
-  }
-  if (n >= out_size) {
-    n = out_size - 1;
-  }
-  memcpy(out, p, n);
-  out[n] = '\0';
-}
-
 static int pedia_names_int(
   const ColonizeMsgCatalog* names, const char* section, int line_idx, int field
 ) {
   char buf[32];
-  pedia_names_field(names, section, line_idx, field, buf, sizeof(buf));
+  assets_msg_row_field(names, section, line_idx, field, buf, sizeof(buf));
   int v = 0;
   sscanf(buf, "%d", &v);
   return v;
 }
 
-/* @CARGO name for id 0..19 (16 Hammers, 17 Crosses, 18 Liberty Bells, 19 Flags). */
+/*
+ * @CARGO name for id 0..19 (16 Hammers, 17 Crosses, 18 Liberty Bells, 19 Flags)
+ * and @JOB column 0 (the short skill name, "Distiller" — reports.c's
+ * reports_job_display_name is column 1, "Master Distiller").
+ *
+ * Audit SC-12 proposed routing both through reports_cargo_display_name /
+ * reports_job_short_name. Not done: those read reports.c's OWN NAMES.TXT
+ * catalog, which only reports_load() fills — and reports_load bails out before
+ * that block when no report background loads (reports.c "no report backgrounds
+ * loaded"), while the Pedia is handed game_loop's separate catalog and works
+ * without reports at all. The shared part, the row/field walker, is now
+ * assets_msg_row_field (SC-11).
+ */
 static void pedia_cargo_display_name(
   const ColonizeMsgCatalog* names, int cargo, char* out, size_t out_size
 ) {
-  pedia_names_field(names, "CARGO", cargo, 0, out, out_size);
-  if (!out[0]) {
+  if (!assets_msg_row_field(names, "CARGO", cargo, 0, out, out_size)) {
     snprintf(out, out_size, "Cargo %d", cargo);
   }
 }
@@ -930,8 +857,7 @@ static void pedia_cargo_display_name(
 static void pedia_job_display_name(
   const ColonizeMsgCatalog* names, int job, char* out, size_t out_size
 ) {
-  pedia_names_field(names, "JOB", job, 0, out, out_size);
-  if (!out[0]) {
+  if (!assets_msg_row_field(names, "JOB", job, 0, out, out_size)) {
     snprintf(out, out_size, "Skill %d", job);
   }
 }
@@ -939,7 +865,7 @@ static void pedia_job_display_name(
 static void pedia_job_expert_name(
   const ColonizeMsgCatalog* names, int job, char* out, size_t out_size
 ) {
-  pedia_names_field(names, "JOB", job, 1, out, out_size);
+  assets_msg_row_field(names, "JOB", job, 1, out, out_size);
 }
 
 /* NAMES terrain display name; forest classes get " Forest" appended (DOS 033a). */
@@ -952,9 +878,9 @@ static void pedia_terrain_display_name(
 ) {
   out[0] = '\0';
   if (idx >= 0 && idx <= 7) {
-    pedia_names_field(names, "UNFORESTED", idx, 0, out, out_size);
+    assets_msg_row_field(names, "UNFORESTED", idx, 0, out, out_size);
   } else if (idx >= 8 && idx <= 23) {
-    pedia_names_field(names, "FORESTED", idx & 7, 0, out, out_size);
+    assets_msg_row_field(names, "FORESTED", idx & 7, 0, out, out_size);
     const char* forest = "Forest";
     if (names) {
       const ColonizeMsgSection* other = assets_msg_find(names, "OTHER_NAMES");
@@ -966,7 +892,7 @@ static void pedia_terrain_display_name(
     size_t len = strlen(out);
     snprintf(out + len, out_size > len ? out_size - len : 0, " %s", forest);
   } else if (idx >= 24 && idx <= 28) {
-    pedia_names_field(names, "OTHER", idx - 24, 0, out, out_size);
+    assets_msg_row_field(names, "OTHER", idx - 24, 0, out, out_size);
   }
   if (!out[0]) {
     snprintf(out, out_size, "Terrain %d", idx);
@@ -980,37 +906,12 @@ static void pedia_draw_centered(
   const char* text,
   uint8_t color
 ) {
-  const int w = pedia_text_width(font, text);
+  const int w = font_text_width_skip(font, text, FONT_SKIP_NONE);
   int x = (fb->width - w) / 2;
   if (x < 0) {
     x = 0;
   }
   font_draw_text(font, fb, x, y, text, color);
-}
-
-static void pedia_fill_rect_outline(
-  ColonizeFramebuffer8* fb, int x0, int y0, int x1, int y1, uint8_t color
-) {
-  for (int x = x0; x <= x1; ++x) {
-    if (x >= 0 && x < fb->width) {
-      if (y0 >= 0 && y0 < fb->height) {
-        fb->pixels[y0 * fb->width + x] = color;
-      }
-      if (y1 >= 0 && y1 < fb->height) {
-        fb->pixels[y1 * fb->width + x] = color;
-      }
-    }
-  }
-  for (int y = y0; y <= y1; ++y) {
-    if (y >= 0 && y < fb->height) {
-      if (x0 >= 0 && x0 < fb->width) {
-        fb->pixels[y * fb->width + x0] = color;
-      }
-      if (x1 >= 0 && x1 < fb->width) {
-        fb->pixels[y * fb->width + x1] = color;
-      }
-    }
-  }
 }
 
 static void pedia_blit(
@@ -1137,7 +1038,7 @@ static void pedia_body_flow_text(PediaBodyCtx* c, const char* text) {
   char word[128];
   bool word_hilite;
   while (pedia_body_next_word(c, &p, word, sizeof(word), &word_hilite)) {
-    const int ww = pedia_text_width(c->font, word);
+    const int ww = font_text_width_skip(c->font, word, FONT_SKIP_NONE);
     if (c->seg_count > 0 && c->line_w + c->space_w + ww > c->width) {
       pedia_body_flush_flow(c);
     }
@@ -1201,7 +1102,7 @@ static void pedia_body_own_line(PediaBodyCtx* c, const char* text, bool centered
       memcpy(dst, word, (size_t)wn + 1);
     }
     segs[n].start = used;
-    segs[n].width = pedia_text_width(c->font, word) + (extra ? c->space_w : 0);
+    segs[n].width = font_text_width_skip(c->font, word, FONT_SKIP_NONE) + (extra ? c->space_w : 0);
     segs[n].color = word_hilite ? (uint8_t)PEDIA_COL_LINK_HOVER : (uint8_t)PEDIA_COL_LINK;
     line_w += segs[n].width;
     used += wn + extra + 1;
@@ -1229,7 +1130,7 @@ static void pedia_body_ctx_init(
   c->x0 = (fb->width - width) / 2;
   c->y = y;
   c->line_h = (font ? font->max_height : 6) + 1;
-  c->space_w = pedia_text_width(font, " ");
+  c->space_w = font_text_width_skip(font, " ", FONT_SKIP_NONE);
 }
 
 static void pedia_body_render_text(
@@ -1424,7 +1325,7 @@ static int pedia_article_unit(
   const int plain_icon = icon_1based > 0 ? icon_1based - 1 : -1;
 
   char name[64];
-  pedia_names_field(a->names, "UNIT", t, 0, name, sizeof(name));
+  assets_msg_row_field(a->names, "UNIT", t, 0, name, sizeof(name));
 
   /* Default expert profession per type (DOS FUN_281f_0b78 / DS:0x30e). */
   static const signed char k_default_job[6] = {19, 21, 20, 24, 23, 22};
@@ -1540,7 +1441,7 @@ static int pedia_article_terrain(
 ) {
   const int top = y;
   const bool is_mtn_hills = (idx == 27 || idx == 28);
-  const bool is_ocean = (idx == 25 || idx == 26);
+  const bool is_ocean = (idx == T_OCEAN || idx == T_HIGH_SEAS);
   const bool is_arctic = (idx == 24);
   const bool is_forest = (idx >= 8 && idx <= 23);
   const bool is_scrub_forest = is_forest && (idx & 7) == 1;
@@ -1553,17 +1454,18 @@ static int pedia_article_terrain(
     base = is_scrub_forest ? 8 : (idx & 7);
   } else if (idx == 24) {
     base = 9;
-  } else if (idx == 25) {
+  } else if (idx == T_OCEAN) {
     base = 10;
-  } else if (idx == 26) {
+  } else if (idx == T_HIGH_SEAS) {
     base = 11;
   }
 
   const int res = (idx >= 0 && idx < PEDIA_TERRAIN_COUNT) ? k_pedia_terrain_resource[idx] : -1;
 
   /* Double frame around the 3x3 preview (DOS colors border2 / border0). */
-  pedia_fill_rect_outline(fb, 7, top, 7 + 51, top + 51, COLONIZE_COL_BORDER2);
-  pedia_fill_rect_outline(fb, 8, top + 1, 7 + 50, top + 50, COLONIZE_COL_BORDER0);
+  /* fb_rect_outline takes w/h; these were the inclusive-x1/y1 spelling. */
+  fb_rect_outline(fb, 7, top, 52, 52, COLONIZE_COL_BORDER2, COLONIZE_COL_BORDER2);
+  fb_rect_outline(fb, 8, top + 1, 50, 50, COLONIZE_COL_BORDER0, COLONIZE_COL_BORDER0);
 
   /* 3x3 block overlay pieces (PHYS0, DOS table {5,7,6,d,f,e,9,b,a}+base). */
   static const int k_block[3][3] = {{5, 7, 6}, {13, 15, 14}, {9, 11, 10}};
@@ -1641,7 +1543,7 @@ static int pedia_article_terrain(
     }
     snprintf(buf, sizeof(buf), "%s: %d", jobname, shown);
     font_draw_text(a->font, fb, x, y + 6, buf, PEDIA_COL_LINK_HOVER);
-    x += pedia_text_width(a->font, buf);
+    x += font_text_width_skip(a->font, buf, FONT_SKIP_NONE);
 
     const char* first = (j <= 3) ? pedia_label(a->labels, 183, "Plow")
       : (j < 8) ? pedia_label(a->labels, 31, "Road")
@@ -1655,18 +1557,18 @@ static int pedia_article_terrain(
       1 + (j == 4) + (j == 5)
     );
     font_draw_text(a->font, fb, x, y + 6, buf, PEDIA_COL_LINK);
-    x += pedia_text_width(a->font, buf);
+    x += font_text_width_skip(a->font, buf, FONT_SKIP_NONE);
 
     const int eff = (res >= 0) ? pedia_resource_effect(res, j) : 0;
     if (eff != 0) {
-      x += pedia_text_width(a->font, " ");
+      x += font_text_width_skip(a->font, " ", FONT_SKIP_NONE);
       pedia_blit(a->phys0, 89 + res, fb, x, y);
       x += 18;
       char resname[48];
       if (res == 4) {
         snprintf(resname, sizeof(resname), "%s", pedia_label(a->labels, 200, "Prime"));
       } else {
-        pedia_names_field(a->names, "RESOURCE", res, 0, resname, sizeof(resname));
+        assets_msg_row_field(a->names, "RESOURCE", res, 0, resname, sizeof(resname));
       }
       if (eff < 0) {
         snprintf(buf, sizeof(buf), "%s: x2", resname);
@@ -1679,7 +1581,7 @@ static int pedia_article_terrain(
         }
       }
       font_draw_text(a->font, fb, x, y + 6, buf, PEDIA_COL_LINK_HOVER);
-      x += pedia_text_width(a->font, buf);
+      x += font_text_width_skip(a->font, buf, FONT_SKIP_NONE);
     }
 
     if (j == 0 || j == 8) {
@@ -1739,7 +1641,7 @@ static int pedia_article_job(
   char expert[64];
   pedia_job_expert_name(a->names, job, expert, sizeof(expert));
   font_draw_text(a->font, fb, 24, icon_y + 6, expert, PEDIA_COL_LINK_HOVER);
-  int bx = 24 + pedia_text_width(a->font, expert) + 24;
+  int bx = 24 + font_text_width_skip(a->font, expert, FONT_SKIP_NONE) + 24;
   int prod_x = bx;
 
   bool first = true;
@@ -1752,14 +1654,14 @@ static int pedia_article_job(
       h = a->buildings->sprites[chain].height;
     }
     char bname[64];
-    pedia_names_field(a->names, "BUILDING", chain, 0, bname, sizeof(bname));
+    assets_msg_row_field(a->names, "BUILDING", chain, 0, bname, sizeof(bname));
     int ty = y + h / 2 - 7;
     if (ty < y) {
       ty = y;
     }
     font_draw_text(a->font, fb, bx + w + 3, ty + 6, bname, PEDIA_COL_LINK_HOVER);
     if (first) {
-      prod_x = bx + w + 3 + pedia_text_width(a->font, bname) + 24;
+      prod_x = bx + w + 3 + font_text_width_skip(a->font, bname, FONT_SKIP_NONE) + 24;
       first = false;
     }
     y += h + 4;
@@ -1821,9 +1723,9 @@ static int pedia_article_building(
   const int icon_y = top + dy;
 
   char bname[64];
-  pedia_names_field(a->names, "BUILDING", b, 0, bname, sizeof(bname));
+  assets_msg_row_field(a->names, "BUILDING", b, 0, bname, sizeof(bname));
   font_draw_text(a->font, fb, 10 + w + 3, icon_y + 6, bname, PEDIA_COL_LINK_HOVER);
-  int x = 10 + w + 3 + pedia_text_width(a->font, bname) + 24;
+  int x = 10 + w + 3 + font_text_width_skip(a->font, bname, FONT_SKIP_NONE) + 24;
 
   int job = (b >= 0 && b < PEDIA_BUILDING_COUNT) ? k_pedia_building_job[b] : -1;
   if (job == 18 || job == 21) {
@@ -1834,7 +1736,7 @@ static int pedia_article_building(
     char expert[64];
     pedia_job_expert_name(a->names, job, expert, sizeof(expert));
     font_draw_text(a->font, fb, x + 14, icon_y + 6, expert, PEDIA_COL_LINK_HOVER);
-    x += 14 + pedia_text_width(a->font, expert) + 24;
+    x += 14 + font_text_width_skip(a->font, expert, FONT_SKIP_NONE) + 24;
 
     int cargo_sprite = 22 + job;
     int cargo_name_id = job;
@@ -1861,7 +1763,7 @@ static int pedia_article_building(
   if (prereq >= 0) {
     char pname[64];
     char buf[128];
-    pedia_names_field(a->names, "BUILDING", prereq, 0, pname, sizeof(pname));
+    assets_msg_row_field(a->names, "BUILDING", prereq, 0, pname, sizeof(pname));
     snprintf(
       buf, sizeof(buf), "%s: %s", pedia_label(a->labels, 188, "Prerequisite"), pname
     );
@@ -1912,7 +1814,7 @@ void pedia_article_render(
       pedia_cargo_display_name(a->names, index, name, sizeof(name));
       break;
     case PEDIA_CAT_UNIT:
-      pedia_names_field(a->names, "UNIT", index, 0, name, sizeof(name));
+      assets_msg_row_field(a->names, "UNIT", index, 0, name, sizeof(name));
       break;
     case PEDIA_CAT_TERRAIN:
       pedia_terrain_display_name(a->names, a->labels, index, name, sizeof(name));
@@ -1921,10 +1823,10 @@ void pedia_article_render(
       pedia_job_display_name(a->names, index, name, sizeof(name));
       break;
     case PEDIA_CAT_BUILDING:
-      pedia_names_field(a->names, "BUILDING", index, 0, name, sizeof(name));
+      assets_msg_row_field(a->names, "BUILDING", index, 0, name, sizeof(name));
       break;
     case PEDIA_CAT_FATHER:
-      pedia_names_field(a->names, "FATHERS", index, 0, name, sizeof(name));
+      assets_msg_row_field(a->names, "FATHERS", index, 0, name, sizeof(name));
       break;
     case PEDIA_CAT_MISC:
     default: {

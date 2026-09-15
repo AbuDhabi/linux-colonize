@@ -1789,3 +1789,33 @@ LAB_OVL16_L0040__0034de:
 }
 
 ```
+
+## 153e selector slots
+
+Moved here 2026-09-14 from `src/core/ai_diplo.c`, where it was a
+`static const` struct-of-strings array with no reader (its only "uses" were two
+`(void)` casts added to keep it compiling). Columns: table slot in the
+`OVL16_L0040:3bcb-3bf8` selector table, `153e`'s own call-site symbol, the
+canonical `FUN_5bfb_XXXX` bound to that slot, and where the target lives in the
+Linux port.
+
+| slot | ovl offset | target | port status |
+|---|---|---|---|
+| 7 | 3bee | `FUN_5bfb_13b0` | `ai_diplo_13b0_treaty_tick` sign/cancel (Done) |
+| 4 | 3bdf | `FUN_5bfb_0000` | `ai_diplo_153e_border_probe` (Done) |
+| 2 | 3bd5 | `FUN_5bfb_102a` | thin `ctx->status` dialog (Done, generic) |
+| 5 | 3be4 | `FUN_5bfb_1092` | thin `ctx->status` dialog (Done, generic) |
+| 1 | 3bd0 | `FUN_5bfb_12d0` | `ai_diplo_wake_border_garrisons` (Done) |
+
+- **idx7, 3bee** (raw line 406) is `153e`'s OWN entry gate: it fires with an
+  unrecoverable zero-arg register call when `param_2` is invalid or IS the human
+  nation (DOS `param_2*0x34+0x543f != 0`, the same control-status byte
+  `FUN_43f7_2244` uses as its human-skip gate).
+- **idx4, 3bdf** (raw line 485) is the only selector call inside the worthiness-
+  score phase itself: the per-colony border probe inside the colony loop.
+- **idx2, 3bd5** is the commit/flavour-text phase (raw ~704+), fired ~9x with
+  different message-id literals (0x18bb..0x197c).
+- **idx5, 3be4** is the commit-phase sibling status/bool setter (not a message
+  id), fired 3x (raw 734/785/842).
+- **idx1, 3bd0** is the commit phase (raw 1065-1067): border-garrison wake, fired
+  (A,B) then (B,A) once the "at war" bit reads set on the just-updated relation.

@@ -36,19 +36,26 @@ static int find_resource_tile(
   return 0;
 }
 
-static int check_commons(
+/*
+ * One town-commons assertion (audit TT-24: this and check_commons_sol were
+ * the same body twice). colony_flags carries the SoL latch bits;
+ * expect_food < 0 skips the food check, which is how the SoL-latch cases
+ * isolate the secondary amount.
+ */
+static int check_commons_flags(
   ColonizeWorldMap* map,
   int x,
   int y,
   int expect_food,
   int expect_cargo,
   int expect_amt,
+  uint8_t colony_flags,
   const char* label
 ) {
   ColonizeTownCommonsYield tc;
-  colony_yield_town_commons(map, x, y, 0, 2, &tc);
-  if (tc.food != expect_food || tc.secondary_cargo != expect_cargo ||
-      tc.secondary_amount != expect_amt) {
+  colony_yield_town_commons(map, x, y, colony_flags, 2, &tc);
+  const bool food_bad = expect_food >= 0 && tc.food != expect_food;
+  if (food_bad || tc.secondary_cargo != expect_cargo || tc.secondary_amount != expect_amt) {
     fprintf(
       stderr,
       "town commons %s: expected food=%d cargo=%d amt=%d got food=%d cargo=%d amt=%d\n",
@@ -65,33 +72,10 @@ static int check_commons(
   return 0;
 }
 
-/* Same as check_commons, but with a colony_flags param (SoL latch bits)
- * and no food check — isolates the secondary-amount SoL-latch behavior. */
-static int check_commons_sol(
-  ColonizeWorldMap* map,
-  int x,
-  int y,
-  int expect_cargo,
-  int expect_amt,
-  uint8_t colony_flags,
-  const char* label
-) {
-  ColonizeTownCommonsYield tc;
-  colony_yield_town_commons(map, x, y, colony_flags, 2, &tc);
-  if (tc.secondary_cargo != expect_cargo || tc.secondary_amount != expect_amt) {
-    fprintf(
-      stderr,
-      "town commons %s: expected cargo=%d amt=%d got cargo=%d amt=%d\n",
-      label,
-      expect_cargo,
-      expect_amt,
-      tc.secondary_cargo,
-      tc.secondary_amount
-    );
-    return 1;
-  }
-  return 0;
-}
+#define check_commons(map, x, y, food, cargo, amt, label) \
+  check_commons_flags((map), (x), (y), (food), (cargo), (amt), 0, (label))
+#define check_commons_sol(map, x, y, cargo, amt, flags, label) \
+  check_commons_flags((map), (x), (y), -1, (cargo), (amt), (flags), (label))
 
 int main(void) {
   char err[256];

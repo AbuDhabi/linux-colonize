@@ -62,9 +62,8 @@ static const int mapedit_resource_type_by_terrain[29] = {
   6, 1, 2, 3, 4, 5, 6, 6, 9, 1, 8, 9, 10, 10, 6, 6, 9, 1, 8, 9, 10, 10, 6, 6, -1, 7, -1, 12, 13
 };
 
+/* Map row y == 0 (a coordinate, not a terrain index): the tundra/ice fringe. */
 #define MAP_TUNDRA_ROW 0
-#define MAP_OCEAN_INDEX 25
-#define MAP_HIGH_SEAS_INDEX 26
 
 static int map_decode_terrain_index(uint8_t terrain_byte) {
   /* FreeCol ColonizationMapLoader: bits 0-4 are terrain index 0-26. */
@@ -84,7 +83,7 @@ static int map_cleared_base_for_forest_type(int forest_type) {
   return forest_type;
 }
 
-static int map_terrain_index_to_sprite(int terrain_index) {
+int map_terrain_index_to_sprite(int terrain_index) {
   if (terrain_index >= 0 && terrain_index <= 7) {
     return terrain_index;
   }
@@ -108,7 +107,7 @@ static int map_terrain_index_to_sprite(int terrain_index) {
 }
 
 static bool map_is_ocean_index(int terrain_index) {
-  return terrain_index == MAP_OCEAN_INDEX || terrain_index == MAP_HIGH_SEAS_INDEX;
+  return terrain_index == T_OCEAN || terrain_index == T_HIGH_SEAS;
 }
 
 static bool map_is_land_for_coast(int terrain_index) {
@@ -165,7 +164,7 @@ static uint8_t map_cardinal_mask(
   for (int dir = 0; dir < 4; ++dir) {
     const int nx = x + dx[dir];
     const int ny = y + dy[dir];
-    if (nx < 0 || ny < 0 || nx >= map->width || ny >= map->height) {
+    if (!map_in_bounds(map, nx, ny)) {
       continue;
     }
     const uint8_t neighbor = map_get_terrain(map, nx, ny);
@@ -193,9 +192,20 @@ static bool river_bit_neighbor(uint8_t tile_byte, uint8_t self_byte) {
 
 static bool map_is_land_at(const ColonizeWorldMap* map, int x, int y);
 
-/* MAPEDIT 8-neighbour walk: N,NE,E,SE,S,SW,W,NW (DS 0x6c0 / 0x6ca). */
-static const int mapedit_neigh8_dx[8] = {0, 1, 1, 1, 0, -1, -1, -1};
-static const int mapedit_neigh8_dy[8] = {-1, -1, 0, 1, 1, 1, 0, -1};
+/*
+ * MAPEDIT 8-neighbour walk: N,NE,E,SE,S,SW,W,NW (DS 0x6c0 / 0x6ca) — the same
+ * table VICEROY keeps at DS:0xb4 / 0xbe, now shared from map.h.
+ */
+const int MAP_DIR8_DX[8] = {0, 1, 1, 1, 0, -1, -1, -1};
+const int MAP_DIR8_DY[8] = {-1, -1, 0, 1, 1, 1, 0, -1};
+
+/* VICEROY DS:0xc8 / 0xde 20-tile ring (see map.h). */
+const int MAP_RING20_DX[20] = {
+  0, 1, 0, -1, -1, 1, 1, -1, 0, 2, 0, -2, -1, 1, -1, 1, -2, -2, 2, 2
+};
+const int MAP_RING20_DY[20] = {
+  -1, 0, 1, 0, -1, -1, 1, 1, -2, 0, 2, 0, -2, -2, 2, 2, -1, 1, -1, 1
+};
 
 /* MAPEDIT estuary / 4-corner walk: N,E,S,W (DS 0x6b4 / 0x6ba). */
 static const int mapedit_card_dx[4] = {0, 1, 0, -1};
@@ -224,7 +234,7 @@ static void mapedit_coast_masks(
   uint8_t mask8 = 0;
   out_quads[0] = out_quads[1] = out_quads[2] = out_quads[3] = 0;
   for (int d = 0; d < 8; ++d) {
-    if (!map_is_land_at(map, x + mapedit_neigh8_dx[d], y + mapedit_neigh8_dy[d])) {
+    if (!map_is_land_at(map, x + MAP_DIR8_DX[d], y + MAP_DIR8_DY[d])) {
       continue;
     }
     mask8 = (uint8_t)(mask8 | (uint8_t)(1u << d));
@@ -338,7 +348,7 @@ static int map_phys0_estuary_collect(const ColonizeWorldMap* map, int x, int y, 
   for (int q = 0; q < 4 && count < max_out; ++q) {
     const int nx = x + mapedit_card_dx[q];
     const int ny = y + mapedit_card_dy[q];
-    if (nx < 0 || ny < 0 || nx >= map->width || ny >= map->height) {
+    if (!map_in_bounds(map, nx, ny)) {
       continue;
     }
     const uint8_t neighbor = map_get_terrain(map, nx, ny);
@@ -408,8 +418,8 @@ int map_coast_underlayer_sprite_at(const ColonizeWorldMap* map, int x, int y) {
   int land_x = -1;
   int land_y = -1;
   for (int d = 0; d < 8; d += 2) {
-    const int nx = x + mapedit_neigh8_dx[d];
-    const int ny = y + mapedit_neigh8_dy[d];
+    const int nx = x + MAP_DIR8_DX[d];
+    const int ny = y + MAP_DIR8_DY[d];
     if (map_is_land_at(map, nx, ny)) {
       land_x = nx;
       land_y = ny;
@@ -423,14 +433,14 @@ int map_coast_underlayer_sprite_at(const ColonizeWorldMap* map, int x, int y) {
 }
 
 static bool map_is_land_at(const ColonizeWorldMap* map, int x, int y) {
-  if (!map || x < 0 || y < 0 || x >= map->width || y >= map->height) {
+  if (!map_in_bounds(map, x, y)) {
     return false; /* off-map counts as water, not land */
   }
   return map_is_land_for_coast(map_decode_terrain_index(map_get_terrain(map, x, y)));
 }
 
 static bool map_is_water_at(const ColonizeWorldMap* map, int x, int y) {
-  if (!map || x < 0 || y < 0 || x >= map->width || y >= map->height) {
+  if (!map_in_bounds(map, x, y)) {
     return true; /* off-map counts as water */
   }
   return map_is_ocean_index(map_decode_terrain_index(map_get_terrain(map, x, y)));
@@ -461,11 +471,34 @@ bool map_tile_is_coastal(const ColonizeWorldMap* map, int x, int y) {
   return false;
 }
 
-bool map_tile_is_high_seas(const ColonizeWorldMap* map, int x, int y) {
-  if (!map || x < 0 || y < 0 || x >= map->width || y >= map->height) {
+/*
+ * Water-side complement of map_tile_is_coastal, from ai_euro.c's
+ * ai_euro_tile_is_coast_water (ai.c carried a byte-identical bool twin).
+ * Off-map neighbours are skipped rather than treated as land, so a map-rim
+ * water tile is coast only if a real land neighbour exists.
+ */
+bool map_tile_is_coast_water(const ColonizeWorldMap* map, int x, int y) {
+  if (!map || !(map_tile_is_water(map, x, y) || map_tile_is_high_seas(map, x, y))) {
     return false;
   }
-  return map_decode_terrain_index(map_get_terrain(map, x, y)) == MAP_HIGH_SEAS_INDEX;
+  for (int d = 0; d < 8; ++d) {
+    const int nx = x + MAP_DIR8_DX[d];
+    const int ny = y + MAP_DIR8_DY[d];
+    if (!map_in_bounds(map, nx, ny)) {
+      continue;
+    }
+    if (!map_tile_is_water(map, nx, ny) && !map_tile_is_high_seas(map, nx, ny)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+bool map_tile_is_high_seas(const ColonizeWorldMap* map, int x, int y) {
+  if (!map_in_bounds(map, x, y)) {
+    return false;
+  }
+  return map_decode_terrain_index(map_get_terrain(map, x, y)) == T_HIGH_SEAS;
 }
 
 static int phys0_connectivity_sprite(int base, uint8_t mask) {
@@ -514,7 +547,7 @@ static int map_resource_type_at_ex(
   int y,
   bool ignore_settlement
 ) {
-  if (!map || x < 0 || y < 0 || x >= map->width || y >= map->height) {
+  if (!map_in_bounds(map, x, y)) {
     return -1;
   }
   const uint8_t terrain_byte = map_get_terrain(map, x, y);
@@ -593,7 +626,7 @@ int map_resource_type_for_yield(const ColonizeWorldMap* map, int x, int y) {
 }
 
 static bool map_procedural_rumour_at(const ColonizeWorldMap* map, int x, int y) {
-  if (!map || x < 0 || y < 0 || x >= map->width || y >= map->height) {
+  if (!map_in_bounds(map, x, y)) {
     return false;
   }
   /* FUN_12ab_0540 gates on FUN_19b7_0032 (the mountain→27 / hill→28 fold),
@@ -622,7 +655,7 @@ static bool map_procedural_rumour_at(const ColonizeWorldMap* map, int x, int y) 
 }
 
 static bool map_has_rumour_at(const ColonizeWorldMap* map, int x, int y) {
-  if (!map || x < 0 || y < 0 || x >= map->width || y >= map->height) {
+  if (!map_in_bounds(map, x, y)) {
     return false;
   }
   const uint8_t layer2 = map->layer2 ? map->layer2[y * map->width + x] : 0;
@@ -670,31 +703,18 @@ bool map_load_mp(const char* path, ColonizeWorldMap* out_map, char* err, size_t 
     return false;
   }
 
-  const size_t tile_count = (size_t)width * (size_t)height;
-  uint8_t* terrain = calloc(tile_count, 1);
-  uint8_t* layer2 = calloc(tile_count, 1);
-  uint8_t* layer3 = calloc(tile_count, 1);
-  uint8_t* improve = calloc(tile_count, 1);
-  uint8_t* seen = calloc(tile_count, 1);
-  if (!terrain || !layer2 || !layer3 || !improve || !seen) {
-    free(terrain);
-    free(layer2);
-    free(layer3);
-    free(improve);
-    free(seen);
+  /* Same 5-plane calloc / all-or-nothing free block map_alloc already owns. */
+  if (!map_alloc(out_map, width, height, NULL, 0)) {
     fclose(f);
     snprintf(err, err_size, "oom loading map %s", path);
     return false;
   }
+  const size_t tile_count = out_map->tile_count;
 
-  if (fread(terrain, 1, tile_count, f) != tile_count ||
-      fread(layer2, 1, tile_count, f) != tile_count ||
-      fread(layer3, 1, tile_count, f) != tile_count) {
-    free(terrain);
-    free(layer2);
-    free(layer3);
-    free(improve);
-    free(seen);
+  if (fread(out_map->terrain, 1, tile_count, f) != tile_count ||
+      fread(out_map->layer2, 1, tile_count, f) != tile_count ||
+      fread(out_map->layer3, 1, tile_count, f) != tile_count) {
+    map_free(out_map);
     fclose(f);
     snprintf(err, err_size, "truncated map data in %s", path);
     return false;
@@ -702,16 +722,7 @@ bool map_load_mp(const char* path, ColonizeWorldMap* out_map, char* err, size_t 
   fclose(f);
 
   /* Scenario .MP has no fog plane — start fully explored. */
-  memset(seen, 0xff, tile_count);
-
-  out_map->width = width;
-  out_map->height = height;
-  out_map->terrain = terrain;
-  out_map->layer2 = layer2;
-  out_map->layer3 = layer3;
-  out_map->improve = improve;
-  out_map->seen = seen;
-  out_map->tile_count = tile_count;
+  memset(out_map->seen, 0xff, tile_count);
 
   diag_info("Loaded map %s (%ux%u, %zu tiles)", path, width, height, tile_count);
   return true;
@@ -793,7 +804,7 @@ void map_clamp_coords_inset(const ColonizeWorldMap* map, int* x, int* y) {
 }
 
 bool map_tile_seen_by(const ColonizeWorldMap* map, int x, int y, int nation_id) {
-  if (!map || !map->seen || x < 0 || y < 0 || x >= map->width || y >= map->height) {
+  if (!map_in_bounds(map, x, y) || !map->seen) {
     return true; /* no fog plane → treat as visible */
   }
   if (nation_id < 0 || nation_id > 3) {
@@ -803,7 +814,7 @@ bool map_tile_seen_by(const ColonizeWorldMap* map, int x, int y, int nation_id) 
 }
 
 void map_reveal_tile(ColonizeWorldMap* map, int x, int y, int nation_id) {
-  if (!map || !map->seen || x < 0 || y < 0 || x >= map->width || y >= map->height) {
+  if (!map_in_bounds(map, x, y) || !map->seen) {
     return;
   }
   if (nation_id < 0 || nation_id > 3) {
@@ -874,9 +885,9 @@ bool map_nation_watches_tile(const ColonizeWorldMap* map, int x, int y, int nati
     return false;
   }
   for (int q = 0; q < 8; ++q) {
-    const int nx = x + mapedit_neigh8_dx[q];
-    const int ny = y + mapedit_neigh8_dy[q];
-    if (nx < 0 || ny < 0 || nx >= map->width || ny >= map->height) {
+    const int nx = x + MAP_DIR8_DX[q];
+    const int ny = y + MAP_DIR8_DY[q];
+    if (!map_in_bounds(map, nx, ny)) {
       continue;
     }
     const size_t i = (size_t)ny * map->width + (size_t)nx;
@@ -952,7 +963,7 @@ static int map_fog_edge_fill_for(
   int nx,
   int ny
 ) {
-  if (nx < 0 || ny < 0 || nx >= map->width || ny >= map->height) {
+  if (!map_in_bounds(map, nx, ny)) {
     return -1;
   }
   const bool self_ocean =
@@ -965,9 +976,9 @@ static int map_fog_edge_fill_for(
   static const int even_dir[4] = {6, 4, 2, 0}; /* W, S, E, N of the neighbour */
   for (int i = 0; i < 4; ++i) {
     const int d = even_dir[i];
-    const int x2 = nx + mapedit_neigh8_dx[d];
-    const int y2 = ny + mapedit_neigh8_dy[d];
-    if (x2 < 0 || y2 < 0 || x2 >= map->width || y2 >= map->height) {
+    const int x2 = nx + MAP_DIR8_DX[d];
+    const int y2 = ny + MAP_DIR8_DY[d];
+    if (!map_in_bounds(map, x2, y2)) {
       continue;
     }
     if (!map_is_ocean_index(map_decode_terrain_index(map_get_terrain(map, x2, y2)))) {
@@ -978,6 +989,30 @@ static int map_fog_edge_fill_for(
 }
 
 /*
+ * IN-17: the fog seen-side, fog reveal-side and MAPEDIT land-transition edge
+ * collectors are one shape — walk the four cardinals, apply a per-kind
+ * predicate, and report mask 104+q plus the resolved fill for each hit. The
+ * nine public count/mask/fill entry points below are thin wrappers over this
+ * single pass (they used to re-walk the neighbourhood once per returned edge).
+ */
+typedef enum MapEdgeKind {
+  MAP_EDGE_FOG_SEEN = 0,    /* seen tile toward unseen cardinals (6ba1:0a9c) */
+  MAP_EDGE_FOG_REVEAL,      /* unseen tile toward seen cardinals (6ba1:09cd) */
+  MAP_EDGE_LAND_TRANSITION  /* MAPEDIT FUN_1a47_06da land-land blends */
+} MapEdgeKind;
+
+static int map_edge_walk(
+  const ColonizeWorldMap* map,
+  int x,
+  int y,
+  int nation_id,
+  MapEdgeKind kind,
+  int* out_masks,
+  int* out_fills,
+  int max
+);
+
+/*
  * Seen side of the boundary (FUN_6ba1_0938 -> 06e0(0, self_is_ocean, 0)):
  * for each UNSEEN cardinal neighbour bVar11 forces the draw past the
  * same-class check (6ba1:0908) and past the ocean draw-gate (6ba1:08ce), but
@@ -986,19 +1021,7 @@ static int map_fog_edge_fill_for(
  * resolve, and the seen->fog edges agree with the fog->seen mirror below.
  */
 int map_fog_edge_count(const ColonizeWorldMap* map, int x, int y, int nation_id) {
-  if (!map || !map->seen || !map_tile_seen_by(map, x, y, nation_id)) {
-    return 0;
-  }
-  int count = 0;
-  for (int q = 0; q < 4; ++q) {
-    const int nx = x + mapedit_card_dx[q];
-    const int ny = y + mapedit_card_dy[q];
-    if (!map_tile_seen_by(map, nx, ny, nation_id) &&
-        map_fog_edge_fill_for(map, x, y, nx, ny) >= 0) {
-      ++count;
-    }
-  }
-  return count;
+  return map_edge_walk(map, x, y, nation_id, MAP_EDGE_FOG_SEEN, NULL, NULL, 0);
 }
 
 int map_fog_edge_mask_sprite_at(
@@ -1008,22 +1031,12 @@ int map_fog_edge_mask_sprite_at(
   int nation_id,
   int index
 ) {
-  if (!map || !map->seen || index < 0 || !map_tile_seen_by(map, x, y, nation_id)) {
+  if (index < 0) {
     return -1;
   }
-  int seen = 0;
-  for (int q = 0; q < 4; ++q) {
-    const int nx = x + mapedit_card_dx[q];
-    const int ny = y + mapedit_card_dy[q];
-    if (!map_tile_seen_by(map, nx, ny, nation_id) &&
-        map_fog_edge_fill_for(map, x, y, nx, ny) >= 0) {
-      if (seen == index) {
-        return PHYS0_LAND_TRANSITION_BASE + q; /* 104..107 */
-      }
-      ++seen;
-    }
-  }
-  return -1;
+  int masks[4];
+  const int n = map_edge_walk(map, x, y, nation_id, MAP_EDGE_FOG_SEEN, masks, NULL, 4);
+  return index < n ? masks[index] : -1;
 }
 
 int map_fog_edge_fill_sprite_at(
@@ -1033,24 +1046,12 @@ int map_fog_edge_fill_sprite_at(
   int nation_id,
   int index
 ) {
-  if (!map || !map->seen || index < 0 || !map_tile_seen_by(map, x, y, nation_id)) {
+  if (index < 0) {
     return -1;
   }
-  int seen = 0;
-  for (int q = 0; q < 4; ++q) {
-    const int nx = x + mapedit_card_dx[q];
-    const int ny = y + mapedit_card_dy[q];
-    if (!map_tile_seen_by(map, nx, ny, nation_id)) {
-      const int fill = map_fog_edge_fill_for(map, x, y, nx, ny);
-      if (fill >= 0) {
-        if (seen == index) {
-          return fill;
-        }
-        ++seen;
-      }
-    }
-  }
-  return -1;
+  int fills[4];
+  const int n = map_edge_walk(map, x, y, nation_id, MAP_EDGE_FOG_SEEN, NULL, fills, 4);
+  return index < n ? fills[index] : -1;
 }
 
 /*
@@ -1066,25 +1067,12 @@ int map_fog_reveal_edge_mask_sprite_at(
   int nation_id,
   int index
 ) {
-  if (!map || !map->seen || index < 0 || map_tile_seen_by(map, x, y, nation_id)) {
+  if (index < 0) {
     return -1;
   }
-  int seen = 0;
-  for (int q = 0; q < 4; ++q) {
-    const int nx = x + mapedit_card_dx[q];
-    const int ny = y + mapedit_card_dy[q];
-    if (nx < 0 || ny < 0 || nx >= map->width || ny >= map->height) {
-      continue;
-    }
-    if (map_tile_seen_by(map, nx, ny, nation_id) &&
-        map_fog_edge_fill_for(map, x, y, nx, ny) >= 0) {
-      if (seen == index) {
-        return PHYS0_LAND_TRANSITION_BASE + q; /* 104..107 */
-      }
-      ++seen;
-    }
-  }
-  return -1;
+  int masks[4];
+  const int n = map_edge_walk(map, x, y, nation_id, MAP_EDGE_FOG_REVEAL, masks, NULL, 4);
+  return index < n ? masks[index] : -1;
 }
 
 int map_fog_reveal_edge_fill_sprite_at(
@@ -1094,64 +1082,41 @@ int map_fog_reveal_edge_fill_sprite_at(
   int nation_id,
   int index
 ) {
-  if (!map || !map->seen || index < 0 || map_tile_seen_by(map, x, y, nation_id)) {
+  if (index < 0) {
     return -1;
   }
-  int seen = 0;
-  for (int q = 0; q < 4; ++q) {
-    const int nx = x + mapedit_card_dx[q];
-    const int ny = y + mapedit_card_dy[q];
-    if (nx < 0 || ny < 0 || nx >= map->width || ny >= map->height) {
-      continue;
-    }
-    if (map_tile_seen_by(map, nx, ny, nation_id)) {
-      const int fill = map_fog_edge_fill_for(map, x, y, nx, ny);
-      if (fill >= 0) {
-        if (seen == index) {
-          return fill;
-        }
-        ++seen;
-      }
-    }
-  }
-  return -1;
+  int fills[4];
+  const int n = map_edge_walk(map, x, y, nation_id, MAP_EDGE_FOG_REVEAL, NULL, fills, 4);
+  return index < n ? fills[index] : -1;
 }
 
 int map_fog_reveal_edge_count(const ColonizeWorldMap* map, int x, int y, int nation_id) {
-  if (!map || !map->seen || map_tile_seen_by(map, x, y, nation_id)) {
-    return 0;
-  }
-  int count = 0;
-  for (int q = 0; q < 4; ++q) {
-    const int nx = x + mapedit_card_dx[q];
-    const int ny = y + mapedit_card_dy[q];
-    if (nx < 0 || ny < 0 || nx >= map->width || ny >= map->height) {
-      continue;
-    }
-    if (map_tile_seen_by(map, nx, ny, nation_id) &&
-        map_fog_edge_fill_for(map, x, y, nx, ny) >= 0) {
-      ++count;
-    }
-  }
-  return count;
+  return map_edge_walk(map, x, y, nation_id, MAP_EDGE_FOG_REVEAL, NULL, NULL, 0);
 }
 
 uint8_t map_get_terrain(const ColonizeWorldMap* map, int x, int y) {
-  if (!map || !map->terrain || x < 0 || y < 0 || x >= map->width || y >= map->height) {
+  if (!map_in_bounds(map, x, y) || !map->terrain) {
     return 0;
   }
   return map->terrain[y * map->width + x];
 }
 
+uint8_t map_get_terrain_or(const ColonizeWorldMap* map, int x, int y, uint8_t fallback) {
+  if (!map_in_bounds(map, x, y) || !map->terrain) {
+    return fallback;
+  }
+  return map->terrain[y * map->width + x];
+}
+
 uint8_t map_get_layer3(const ColonizeWorldMap* map, int x, int y) {
-  if (!map || !map->layer3 || x < 0 || y < 0 || x >= map->width || y >= map->height) {
+  if (!map_in_bounds(map, x, y) || !map->layer3) {
     return 0;
   }
   return map->layer3[y * map->width + x];
 }
 
 int map_continent_id_at(const ColonizeWorldMap* map, int x, int y) {
-  if (!map || x < 0 || y < 0 || x >= map->width || y >= map->height) {
+  if (!map_in_bounds(map, x, y)) {
     return -1;
   }
   if (map_tile_is_water(map, x, y) || map_tile_is_high_seas(map, x, y)) {
@@ -1175,7 +1140,7 @@ int map_continent_id_at(const ColonizeWorldMap* map, int x, int y) {
  * match across a coastline.
  */
 bool map_tile_is_lake(const ColonizeWorldMap* map, int x, int y) {
-  if (!map || x < 0 || y < 0 || x >= map->width || y >= map->height) {
+  if (!map_in_bounds(map, x, y)) {
     return false;
   }
   if (map_pedia_terrain_index_at(map, x, y) != 25) {
@@ -1227,8 +1192,8 @@ bool map_tile_is_open_sea_adjacent(const ColonizeWorldMap* map, int x, int y) {
   }
   int best = -1; /* local_a, seeded 0xffff/-1 */
   for (int d = 0; d < 8; ++d) {
-    const int nx = x + mapedit_neigh8_dx[d];
-    const int ny = y + mapedit_neigh8_dy[d];
+    const int nx = x + MAP_DIR8_DX[d];
+    const int ny = y + MAP_DIR8_DY[d];
     if (!map_coords_inset(map, nx, ny)) {
       continue;
     }
@@ -1248,7 +1213,7 @@ bool map_tile_is_open_sea_adjacent(const ColonizeWorldMap* map, int x, int y) {
 
 /* DOS FUN_281f_0682: unit-presence bit only (layer2 bit0) → owner nibble. */
 int map_tile_owner_or_presence(const ColonizeWorldMap* map, int x, int y) {
-  if (!map || !map->layer2 || x < 0 || y < 0 || x >= map->width || y >= map->height) {
+  if (!map_in_bounds(map, x, y) || !map->layer2) {
     return -1;
   }
   const uint8_t l2 = map->layer2[(size_t)y * (size_t)map->width + (size_t)x];
@@ -1260,7 +1225,7 @@ int map_tile_owner_or_presence(const ColonizeWorldMap* map, int x, int y) {
 }
 
 int map_tile_tribe_or_presence(const ColonizeWorldMap* map, int x, int y) {
-  if (!map || !map->layer2 || x < 0 || y < 0 || x >= map->width || y >= map->height) {
+  if (!map_in_bounds(map, x, y) || !map->layer2) {
     return -1;
   }
   const uint8_t l2 = map->layer2[(size_t)y * (size_t)map->width + (size_t)x];
@@ -1271,7 +1236,7 @@ int map_tile_tribe_or_presence(const ColonizeWorldMap* map, int x, int y) {
   return hi == 0x0f ? -1 : hi;
 }
 
-uint8_t map_terrain_overlay(uint8_t terrain_byte) {
+static uint8_t map_terrain_overlay(uint8_t terrain_byte) {
   return (uint8_t)(terrain_byte >> 5);
 }
 
@@ -1343,9 +1308,9 @@ static int map_land_transition_resolve_neighbour(
   static const int even_dir[4] = {6, 4, 2, 0}; /* W, S, E, N */
   for (int i = 0; i < 4; ++i) {
     const int d = even_dir[i];
-    const int x2 = nx + mapedit_neigh8_dx[d];
-    const int y2 = ny + mapedit_neigh8_dy[d];
-    if (x2 < 0 || y2 < 0 || x2 >= map->width || y2 >= map->height) {
+    const int x2 = nx + MAP_DIR8_DX[d];
+    const int y2 = ny + MAP_DIR8_DY[d];
+    if (!map_in_bounds(map, x2, y2)) {
       continue;
     }
     const uint8_t b2 = map_get_terrain(map, x2, y2);
@@ -1360,87 +1325,105 @@ static int map_land_transition_resolve_neighbour(
   return -1;
 }
 
+/* The single pass behind the nine edge accessors (see MapEdgeKind above). */
+static int map_edge_walk(
+  const ColonizeWorldMap* map,
+  int x,
+  int y,
+  int nation_id,
+  MapEdgeKind kind,
+  int* out_masks,
+  int* out_fills,
+  int max
+) {
+  if (!map) {
+    return 0;
+  }
+  int self_type = 0;
+  if (kind == MAP_EDGE_LAND_TRANSITION) {
+    const uint8_t self_byte = map_get_terrain(map, x, y);
+    if (map_is_ocean_index(map_decode_terrain_index(self_byte))) {
+      return 0;
+    }
+    self_type = map_land_transition_type(self_byte);
+  } else {
+    if (!map->seen) {
+      return 0;
+    }
+    /* Seen side wants a seen centre, reveal side an unseen one. */
+    if (map_tile_seen_by(map, x, y, nation_id) != (kind == MAP_EDGE_FOG_SEEN)) {
+      return 0;
+    }
+  }
+
+  int n = 0;
+  for (int q = 0; q < 4; ++q) {
+    const int nx = x + mapedit_card_dx[q];
+    const int ny = y + mapedit_card_dy[q];
+    int fill = -1;
+    if (kind == MAP_EDGE_LAND_TRANSITION) {
+      if (!map_in_bounds(map, nx, ny)) {
+        continue;
+      }
+      const int ntype = map_land_transition_resolve_neighbour(map, nx, ny, &fill);
+      if (ntype < 0 || ntype == self_type) {
+        continue;
+      }
+    } else {
+      /* The seen side lets off-map neighbours through (they read as unseen)
+       * and relies on map_fog_edge_fill_for returning -1 for them; the reveal
+       * side skips them outright, as the DOS fog-side walk does. */
+      if (kind == MAP_EDGE_FOG_REVEAL && !map_in_bounds(map, nx, ny)) {
+        continue;
+      }
+      if (map_tile_seen_by(map, nx, ny, nation_id) != (kind == MAP_EDGE_FOG_REVEAL)) {
+        continue;
+      }
+      fill = map_fog_edge_fill_for(map, x, y, nx, ny);
+      if (fill < 0) {
+        continue;
+      }
+    }
+    if (n < max) {
+      if (out_masks) {
+        out_masks[n] = PHYS0_LAND_TRANSITION_BASE + q; /* 104..107 */
+      }
+      if (out_fills) {
+        out_fills[n] = fill;
+      }
+    }
+    ++n;
+  }
+  return n;
+}
+
 /*
  * MAPEDIT FUN_1a47_06da land transitions: for each cardinal neighbour with a different
  * display type, blit PHYS0 104+q (colour-0 edge) then fill holes with neighbour TERRAIN.
  */
 int map_land_transition_count(const ColonizeWorldMap* map, int x, int y) {
-  if (!map || x < 0 || y < 0 || x >= map->width || y >= map->height) {
+  if (!map_in_bounds(map, x, y)) {
     return 0;
   }
-  const uint8_t self_byte = map_get_terrain(map, x, y);
-  if (map_is_ocean_index(map_decode_terrain_index(self_byte))) {
-    return 0;
-  }
-  const int self_type = map_land_transition_type(self_byte);
-  int count = 0;
-  for (int q = 0; q < 4; ++q) {
-    const int nx = x + mapedit_card_dx[q];
-    const int ny = y + mapedit_card_dy[q];
-    if (nx < 0 || ny < 0 || nx >= map->width || ny >= map->height) {
-      continue;
-    }
-    const int ntype = map_land_transition_resolve_neighbour(map, nx, ny, NULL);
-    if (ntype >= 0 && ntype != self_type) {
-      ++count;
-    }
-  }
-  return count;
+  return map_edge_walk(map, x, y, 0, MAP_EDGE_LAND_TRANSITION, NULL, NULL, 0);
 }
 
 int map_land_transition_mask_sprite_at(const ColonizeWorldMap* map, int x, int y, int index) {
-  if (!map || index < 0) {
+  if (index < 0) {
     return -1;
   }
-  const uint8_t self_byte = map_get_terrain(map, x, y);
-  if (map_is_ocean_index(map_decode_terrain_index(self_byte))) {
-    return -1;
-  }
-  const int self_type = map_land_transition_type(self_byte);
-  int seen = 0;
-  for (int q = 0; q < 4; ++q) {
-    const int nx = x + mapedit_card_dx[q];
-    const int ny = y + mapedit_card_dy[q];
-    if (nx < 0 || ny < 0 || nx >= map->width || ny >= map->height) {
-      continue;
-    }
-    const int ntype = map_land_transition_resolve_neighbour(map, nx, ny, NULL);
-    if (ntype >= 0 && ntype != self_type) {
-      if (seen == index) {
-        return PHYS0_LAND_TRANSITION_BASE + q;
-      }
-      ++seen;
-    }
-  }
-  return -1;
+  int masks[4];
+  const int n = map_edge_walk(map, x, y, 0, MAP_EDGE_LAND_TRANSITION, masks, NULL, 4);
+  return index < n ? masks[index] : -1;
 }
 
 int map_land_transition_fill_terrain_at(const ColonizeWorldMap* map, int x, int y, int index) {
-  if (!map || index < 0) {
+  if (index < 0) {
     return -1;
   }
-  const uint8_t self_byte = map_get_terrain(map, x, y);
-  if (map_is_ocean_index(map_decode_terrain_index(self_byte))) {
-    return -1;
-  }
-  const int self_type = map_land_transition_type(self_byte);
-  int seen = 0;
-  for (int q = 0; q < 4; ++q) {
-    const int nx = x + mapedit_card_dx[q];
-    const int ny = y + mapedit_card_dy[q];
-    if (nx < 0 || ny < 0 || nx >= map->width || ny >= map->height) {
-      continue;
-    }
-    int fill = -1;
-    const int ntype = map_land_transition_resolve_neighbour(map, nx, ny, &fill);
-    if (ntype >= 0 && ntype != self_type) {
-      if (seen == index) {
-        return fill;
-      }
-      ++seen;
-    }
-  }
-  return -1;
+  int fills[4];
+  const int n = map_edge_walk(map, x, y, 0, MAP_EDGE_LAND_TRANSITION, NULL, fills, 4);
+  return index < n ? fills[index] : -1;
 }
 
 int map_phys0_overlay_count(const ColonizeWorldMap* map, int x, int y) {
@@ -1662,7 +1645,7 @@ bool map_tile_has_rumour(const ColonizeWorldMap* map, int x, int y) {
 }
 
 bool map_clear_rumour(ColonizeWorldMap* map, int x, int y) {
-  if (!map || !map->layer2 || x < 0 || y < 0 || x >= map->width || y >= map->height) {
+  if (!map_in_bounds(map, x, y) || !map->layer2) {
     return false;
   }
   if (!map_procedural_rumour_at(map, x, y)) {
@@ -1673,9 +1656,23 @@ bool map_clear_rumour(ColonizeWorldMap* map, int x, int y) {
   return true;
 }
 
+/*
+ * FUN_137f_0228 set_owner_nibble (see map.h). DOS's own gate is only
+ * `layer3_ptr(x, y)` non-NULL (original_sources_annotated/ai/accessors.c), so
+ * plain bounds — not map_coords_inset — is the DOS-faithful form.
+ */
+void map_set_owner_nibble(ColonizeWorldMap* map, int x, int y, int nation_or_ff) {
+  if (!map_in_bounds(map, x, y) || !map->layer3) {
+    return;
+  }
+  const size_t i = (size_t)y * (size_t)map->width + (size_t)x;
+  const uint8_t low = (uint8_t)(map->layer3[i] & 0x0fu);
+  const uint8_t hi = (uint8_t)(((unsigned)nation_or_ff & 0x0fu) << 4);
+  map->layer3[i] = (uint8_t)(low | hi);
+}
+
 void map_occupancy_set_layer2(ColonizeWorldMap* map, int x, int y, uint8_t bit, bool on) {
-  if (!map || !map->layer2 || bit == 0 || x < 0 || y < 0 || x >= map->width ||
-      y >= map->height) {
+  if (!map_in_bounds(map, x, y) || !map->layer2 || bit == 0) {
     return;
   }
   uint8_t* p = &map->layer2[y * map->width + x];
@@ -1687,7 +1684,7 @@ void map_occupancy_set_layer2(ColonizeWorldMap* map, int x, int y, uint8_t bit, 
 }
 
 bool map_tile_has_river(const ColonizeWorldMap* map, int x, int y) {
-  if (!map || x < 0 || y < 0 || x >= map->width || y >= map->height) {
+  if (!map_in_bounds(map, x, y)) {
     return false;
   }
   return map_byte_has_river(map_get_terrain(map, x, y));
@@ -1701,7 +1698,7 @@ bool map_tile_has_major_river(const ColonizeWorldMap* map, int x, int y) {
 }
 
 int map_pedia_terrain_index_at(const ColonizeWorldMap* map, int x, int y) {
-  if (!map || x < 0 || y < 0 || x >= map->width || y >= map->height) {
+  if (!map_in_bounds(map, x, y)) {
     return 0;
   }
   const uint8_t terrain_byte = map_get_terrain(map, x, y);
@@ -1723,28 +1720,28 @@ int map_pedia_terrain_index_at(const ColonizeWorldMap* map, int x, int y) {
 }
 
 static uint8_t* map_improve_ptr(ColonizeWorldMap* map, int x, int y) {
-  if (!map || !map->improve || x < 0 || y < 0 || x >= map->width || y >= map->height) {
+  if (!map_in_bounds(map, x, y) || !map->improve) {
     return NULL;
   }
   return &map->improve[y * map->width + x];
 }
 
 bool map_tile_has_road(const ColonizeWorldMap* map, int x, int y) {
-  if (!map || !map->improve || x < 0 || y < 0 || x >= map->width || y >= map->height) {
+  if (!map_in_bounds(map, x, y) || !map->improve) {
     return false;
   }
   return (map->improve[y * map->width + x] & MAP_IMPROVE_ROAD) != 0;
 }
 
 bool map_tile_has_city(const ColonizeWorldMap* map, int x, int y) {
-  if (!map || !map->layer2 || x < 0 || y < 0 || x >= map->width || y >= map->height) {
+  if (!map_in_bounds(map, x, y) || !map->layer2) {
     return false;
   }
   return (map->layer2[y * map->width + x] & MAP_OCCUPANCY_HAS_CITY) != 0;
 }
 
 bool map_tile_is_plowed(const ColonizeWorldMap* map, int x, int y) {
-  if (!map || !map->improve || x < 0 || y < 0 || x >= map->width || y >= map->height) {
+  if (!map_in_bounds(map, x, y) || !map->improve) {
     return false;
   }
   return (map->improve[y * map->width + x] & MAP_IMPROVE_PLOWED) != 0;
@@ -1785,8 +1782,8 @@ static uint8_t map_road_neigh8_mask(const ColonizeWorldMap* map, int x, int y) {
     return 0;
   }
   for (int d = 0; d < 8; ++d) {
-    const int nx = x + mapedit_neigh8_dx[d];
-    const int ny = y + mapedit_neigh8_dy[d];
+    const int nx = x + MAP_DIR8_DX[d];
+    const int ny = y + MAP_DIR8_DY[d];
     if (map_tile_has_road_art(map, nx, ny)) {
       m = (uint8_t)(m | (uint8_t)(1u << d));
     }
@@ -1863,7 +1860,7 @@ void map_tile_set_plowed(ColonizeWorldMap* map, int x, int y, bool on) {
 }
 
 bool map_tile_is_scrub_forest(const ColonizeWorldMap* map, int x, int y) {
-  if (!map || x < 0 || y < 0 || x >= map->width || y >= map->height) {
+  if (!map_in_bounds(map, x, y)) {
     return false;
   }
   const int terrain_index = map_decode_terrain_index(map_get_terrain(map, x, y));
@@ -1871,7 +1868,7 @@ bool map_tile_is_scrub_forest(const ColonizeWorldMap* map, int x, int y) {
 }
 
 bool map_tile_clear_forest(ColonizeWorldMap* map, int x, int y) {
-  if (!map || !map->terrain || x < 0 || y < 0 || x >= map->width || y >= map->height) {
+  if (!map_in_bounds(map, x, y) || !map->terrain) {
     return false;
   }
   const size_t idx = (size_t)y * (size_t)map->width + (size_t)x;
@@ -1960,7 +1957,7 @@ int map_dos_terr_lumber_reward_byte(int terr_class) {
 }
 
 int map_dos_terr_class_at(const ColonizeWorldMap* map, int x, int y) {
-  if (!map || x < 0 || y < 0 || x >= map->width || y >= map->height) {
+  if (!map_in_bounds(map, x, y)) {
     return 0;
   }
   return map_resource_terrain_class(map_get_terrain(map, x, y));

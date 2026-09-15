@@ -9,6 +9,8 @@
 #include "core/founding_fathers.h"
 #include "core/map.h"
 #include "core/popup_msg.h"
+#include "core/reports.h"
+#include "core/strutil.h"
 #include "core/units.h"
 #include "core/woodcut.h"
 
@@ -34,15 +36,9 @@
  * MET|PEACE (seed-100 TURN3+) — a bitfield, never a scalar floor (audit #16).
  */
 
-/*
- * AI_DIPLO_FLAG_BASE (4), AI_DIPLO_INDIAN_HOSTILE_STICKY (11) and
- * AI_DIPLO_PRIVATEER_SPAWN_SLOT (9) lived here — raw unknown26 indices from
- * before the block became a union of named members (col1_save.h:
- * treaty_timer[4], diplo_flag[4], king_grace_counter, privateer_spawn_mask,
- * indian_hostility_sticky). Every site names the member, so all three were
- * dead; removed 2026-09-10 (audit #22). The index legend they stood in for is
- * the comment block above.
- */
+/* Retired: AI_DIPLO_FLAG_BASE/INDIAN_HOSTILE_STICKY/PRIVATEER_SPAWN_SLOT (raw
+ * unknown26 indices; every site now names the col1_save.h union member) —
+ * docs/smell_audit_2026-09-09.md #22. */
 /* Off-map Europe tile (turn / ai_euro Europe gate x|y >= 200). */
 #define AI_DIPLO_EUROPE_X 236
 #define AI_DIPLO_EUROPE_Y 236
@@ -62,23 +58,12 @@
  * lifts leftover wartime bits on poisoned saves. The full per-rival 153e
  * audience is LIVE (ai_diplo_153e_encounter below, 2026-09-06 close-out). */
 
-/*
- * AI_DIPLO_WAR_GOLD_STING (100) / AI_DIPLO_WAR_TAX_BUMP (1) /
- * AI_DIPLO_WAR_TAX_CAP (75) lived here. Retired 2026-09-09 (smell #47): DOS
- * charges neither on a war declare. Evidence of absence:
- *   - tax_rate is nation record +5 (DS `*(int *)0x84fc + 5`, see
- *     FUN_38fd_44a4 viceroy 64481/64502). The ONLY DOS site that increments
- *     it is FUN_38fd_44a4 itself, the @TAXRAISE king event; the nation-record
- *     form `n * 0x13c + -0x77f3` never appears in any decompile. No declare
- *     path (5fef_1b0e viceroy 101005-101014, 684c_08c0, 6cb2_24b8, or
- *     5bfb_153e) touches it.
- *   - Gold is nation record +0x2a/+0x2c (`n * 0x13c + -0x77ce`). Every gold
- *     move next to a war-bit write is a TRANSFER, never a symmetric drain:
- *     153e's paid-@SMITE moves the payer's gold to the hired nation
- *     (viceroy 98387-98397), and 5fef_1b0e's combat plunder moves the loser's
- *     to the winner (viceroy 100995-101002). Neither side loses 100 flat, and
- *     the human is never charged for a war it did not buy.
- */
+/* Retired: AI_DIPLO_WAR_GOLD_STING/TAX_BUMP/TAX_CAP. A war declare charges
+ * nothing in DOS — the only tax_rate writer is FUN_38fd_44a4 @TAXRAISE
+ * (viceroy 64481/64502), and every gold move beside a war-bit write is a
+ * TRANSFER (153e paid-@SMITE viceroy 98387-98397; 5fef_1b0e plunder viceroy
+ * 100995-101002), never a symmetric drain.
+ * docs/smell_audit_2026-09-09.md #47. */
 #define AI_DIPLO_WAR_UPKEEP_GOLD 5u
 /* PARKED accuracy debt: null-units treasury stand-in only; do not change rate. */
 #define AI_DIPLO_PRIVATEER_PRIZE_GOLD 8u
@@ -98,17 +83,9 @@
 #define AI_DIPLO_WAR_TRADE_GOODS_EMBARGO_BIT (1u << COLONIZE_CARGO_TRADE_GOODS)
 #define AI_DIPLO_WAR_TOOLS_EMBARGO_BIT (1u << COLONIZE_CARGO_TOOLS)
 #define AI_DIPLO_WAR_MUSKETS_EMBARGO_BIT (1u << COLONIZE_CARGO_MUSKETS)
-/*
- * AI_DIPLO_WAR_TRADE_STING (25) / AI_DIPLO_WAR_COLONY_GAP (2) lived here.
- * Retired 2026-09-09 (audit follow-up A) for the same reason as the −100
- * declare sting above, and on the same evidence: a static sweep of every
- * gold write in the three decompiles (`n * 0x13c + -0x77ce`, 103 hits) finds
- * NO constant-valued treasury decrement anywhere in the game. Every
- * `*puVar = *puVar - X` on the gold word takes a variable X — a price, a
- * wage, a hire fee or a plunder amount — and each one has a matching credit
- * on the other side. The 153e gold movement this sting claimed as pedigree
- * is the paid-@SMITE TRANSFER (viceroy 98387-98397), not a drain.
- */
+/* Retired: AI_DIPLO_WAR_TRADE_STING/WAR_COLONY_GAP. A sweep of all 103 gold
+ * writes (`n * 0x13c + -0x77ce`) finds no constant-valued treasury decrement
+ * anywhere in the game. docs/smell_audit_2026-09-09.md follow-up A. */
 /*
  * Linux war/peace pressure bands for ai_diplo_military_score, named 2026-09-09
  * (smell #51) when the score became the DS:0x941c quantity. DOS has no bands of
@@ -139,36 +116,21 @@
 /* First declare: seed peer treaty timer so near-parity peace waits for
  * timer==0 (war aged / fatigue). Reuses unknown26[0..3]; live timers kept. */
 #define AI_DIPLO_WAR_FATIGUE_TIMER 8u
-/* AI_DIPLO_INDIAN_DRIFT_CAP (160) lived here — the ceiling of the per-turn
- * peaceful relation drift, retired to a no-op 2026-08-27 (DOS has no alarm
- * decay). Constant removed 2026-09-10 (audit #16) with its last reader. */
-/* AI_DIPLO_WAR_INDIAN_HIT (5) lived here; its only consumer was the Linux-only
- * Euro-alliance relation hit, retired with T2.4 (2026-09-06). Removed
- * 2026-09-07. */
+/* Retired: AI_DIPLO_INDIAN_DRIFT_CAP (no DOS per-turn alarm decay,
+ * docs/smell_audit_2026-09-10.md #16) and AI_DIPLO_WAR_INDIAN_HIT (fed only
+ * the Linux-only Euro-alliance hit, gone with T2.4). */
 /* At-war gate: relation < 26, i.e. DOS alarm > 0x4a. */
 #define AI_DIPLO_INDIAN_AT_WAR_REL 26 /* alarm > 0x4a (FUN_5bfb_153e hostile tier) */
 /* Very-low deepen: relation < 16, i.e. DOS alarm >= 85. */
 #define AI_DIPLO_INDIAN_VERY_LOW_REL 16 /* alarm >= 85: sticky deepen band (Linux) */
-/* AI_DIPLO_INDIAN_HARASS_GOLD (2) lived here — an invented −2g/turn
- * "harassment" drain on any Euro at war with any tribe, the human included.
- * Retired 2026-09-09 (smell #49) on the same evidence-of-absence sweep as the
- * declare stings: DOS has no constant gold decrement at all, and no native
- * machinery (FUN_4d56_152e, FUN_4cc6_00f2, FUN_5952_035e, FUN_465b_0000)
- * touches a Euro treasury. Native war costs the player units and stores, not
- * a per-turn tax. */
-/*
- * AI_DIPLO_INDIAN_PEACE_MEET (96), its alias AI_DIPLO_INDIAN_CONTENT_FLOOR and
- * AI_DIPLO_INDIAN_FEELER_HEAL (2) lived here. Removed 2026-09-10 (audit #16):
- * the "content floor / heal ceiling" reading was wrong. 96 == 0x60 is the
- * MET|PEACE BITFIELD of the 12x12 15b3 matrix, not a scalar relation — see
- * ai_diplo_flag_byte's quadrant map and col1_save.h's relation_by_indian note.
- * Every DOS save carries exactly 0x60 there once contacted and 0 before, and
- * DOS never assigns the byte: its surrender idiom is FUN_43f7_0108
- * (viceroy_unpacked.c:73555-73557), clear_both(0xb) then
- * or_both(0x60) — so the two writes that used this constant now go through
- * ai_diplo_or_both, the sole mutation channel. The heal constant's only
- * consumers (the drift + peace feeler) were retired to no-ops 2026-08-27.
- */
+/* Retired: AI_DIPLO_INDIAN_HARASS_GOLD (invented −2g/turn native-war drain).
+ * No native machinery (FUN_4d56_152e, 4cc6_00f2, 5952_035e, 465b_0000) touches
+ * a Euro treasury. docs/smell_audit_2026-09-09.md #49. */
+/* Retired: AI_DIPLO_INDIAN_PEACE_MEET (96) / _CONTENT_FLOOR / _FEELER_HEAL.
+ * 96 == 0x60 is the MET|PEACE bitfield of the 12x12 15b3 matrix, not a scalar
+ * floor; DOS never assigns the byte (surrender idiom FUN_43f7_0108,
+ * viceroy_unpacked.c:73555-73557 = clear_both(0xb) then or_both(0x60)), so both
+ * writes go through ai_diplo_or_both. docs/smell_audit_2026-09-10.md #16. */
 #define AI_DIPLO_STICKY_CLEAR 0u
 #define AI_DIPLO_STICKY_AT_WAR 1u
 #define AI_DIPLO_STICKY_DEEP 2u
@@ -188,26 +150,14 @@ static void ai_diplo_popup_ok(
   AiPopupTag tag,
   int nation_a,
   int nation_b,
-  const char* title,
   const char* body
 );
 
-/*
- * ai_diplo_war_treasury_sting (−100 gold both sides) and
- * ai_diplo_war_tax_bump (+1 tax_rate both sides, cap 75) lived here.
- * Both retired 2026-09-09 (smell #47) as fandom inventions — see the
- * evidence-of-absence note on the constants block above. The tax bump was
- * additionally writing nation.tax_rate raw, bypassing
- * ai_king_audience_apply_delta and its europe->tax_percent mirror, so the
- * Europe screen went stale until the next audience.
- */
-
-/*
- * ai_diplo_col1_colony_count + ai_diplo_war_trade_score_sting (colony-gap ≥ 2
- * → −25 gold off the richer treasury on first declare) lived here. Retired
- * 2026-09-09 (audit follow-up A) — see the constants note above for the
- * evidence of absence.
- */
+/* Retired here: ai_diplo_war_treasury_sting, ai_diplo_war_tax_bump,
+ * ai_diplo_col1_colony_count, ai_diplo_war_trade_score_sting — the fandom
+ * declare-friction layer; evidence of absence on the constants block above.
+ * Trap the tax bump carried: it wrote nation.tax_rate raw, bypassing
+ * ai_king_audience_apply_delta and its europe->tax_percent mirror. */
 
 /*
  * Lift leftover wartime @CARGO embargo bits when a nation has no remaining
@@ -308,8 +258,6 @@ static int ai_diplo_find_privateer_spawn(
   int* out_x,
   int* out_y
 ) {
-  static const int dx[8] = {0, 1, 1, 1, 0, -1, -1, -1};
-  static const int dy[8] = {-1, -1, 0, 1, 1, 1, 0, -1};
 
   if (!ctx || !out_x || !out_y || nation_id < 0 || nation_id >= 4) {
     return 0;
@@ -324,8 +272,8 @@ static int ai_diplo_find_privateer_spawn(
         continue;
       }
       for (int d = 0; d < 8; ++d) {
-        const int nx = col->x + dx[d];
-        const int ny = col->y + dy[d];
+        const int nx = col->x + MAP_DIR8_DX[d];
+        const int ny = col->y + MAP_DIR8_DY[d];
         if (map_tile_is_water(ctx->map, nx, ny) &&
             ai_diplo_privateer_spawn_hunt_ready(ctx, nx, ny)) {
           *out_x = nx;
@@ -487,54 +435,6 @@ static int ai_diplo_war_privateer_prize(ColonizeCol1Save* col1, int nation_id, i
   europe_nation_gold_add(NULL, col1, donor, -(long)AI_DIPLO_PRIVATEER_PRIZE_GOLD);
   europe_nation_gold_add(NULL, col1, prize, (long)AI_DIPLO_PRIVATEER_PRIZE_GOLD);
   return 1;
-}
-
-/*
- * Peaceful Indian×Euro relation drift (not full 15b3 matrix).
- * Per tick: for each of 8 Indian slots already contacted (r>0), if < 160 and
- * Euro not at war → +1 (cap 160). Do not invent contact from r==0 (seed-100
- * early goldens keep relation_by_indian at 0 until meet). Source: 6d8e §4;
- * fandom alarm cools without encroachment.
- */
-static void ai_diplo_indian_peaceful_drift(ColonizeCol1Save* col1, int nation_id) {
-  /*
-   * Retired 2026-08-27: DOS has no per-turn Indian alarm decay (alarm_by_player
-   * is byte-stable across seed-100 TURN3..7 saves; the only ±1 moves are the
-   * FUN_4d56_152e accumulator, ported in ai.c). Kept as a no-op so the tick
-   * shape/callers stay put.
-   */
-  (void)col1;
-  (void)nation_id;
-}
-
-/*
- * Peace feeler toward Indians (unpark #5 matrix deepen): once per euro_balance,
- * if Euro is at peace with all Euro peers (!ai_diplo_at_war_with_any), each
- * mid/high Indian slot (relation ≥ at-war floor 50 and < content floor 100)
- * heals +2 toward 100. Skip while any Euro×Euro war (same gate as drift).
- * Returns 1 if any slot healed (caller may write human feeler status).
- * Source: fandom Indians — peace → gifts / improve relations; contact trade
- * already uses +2 relation. No gold cost (prefer flags over treasury fiction).
- * Full gift dialog / 15b3 bilateral write PARKED.
- */
-static int ai_diplo_indian_peace_feeler(ColonizeCol1Save* col1, int nation_id) {
-  /* Retired 2026-08-27 with the drift above — no DOS counterpart (see there). */
-  (void)col1;
-  (void)nation_id;
-  return 0;
-}
-
-/*
- * Retired 2026-09-03 (bugs: attacking a Spanish colony popped "Natives grow
- * hostile"): no DOS declare-war site (5fef_1b0e 0x53c8 clears, 153e, 684c_08c0,
- * 6cb2_24b8) touches Indian relations — DOS grows alarm only through the
- * FUN_4d56_152e accumulator (see alarm-fandom-drips retirement). The −5×8
- * "Indians dislike Euro×Euro war" hit was a fandom stand-in.
- */
-static void ai_diplo_war_indian_relation_hit(ColonizeCol1Save* col1, int nation_a, int nation_b) {
-  (void)col1;
-  (void)nation_a;
-  (void)nation_b;
 }
 
 uint8_t ai_diplo_indian_read(const ColonizeCol1Save* col1, int euro_nation, int indian_idx) {
@@ -703,7 +603,7 @@ void ai_diplo_indian_capital_surrender(
  *
  * The peace-feeler half of this tick, and the "Native relations improve."
  * chrome arm it fed, were deleted 2026-09-10 (audit #21). Both had been
- * unreachable since ai_diplo_indian_peace_feeler was retired to `return 0`
+ * unreachable since the peace feeler was retired to `return 0`
  * on 2026-08-27 (DOS has no per-turn Indian alarm decay — see there): the
  * `feeler_healed` flag could never be set, so the fourth chrome arm never
  * fired, and the `prev_sticky != DEEP` guard wrapped a call with no effect.
@@ -737,7 +637,7 @@ static void ai_diplo_indian_matrix_tick(ColonizeTurnContext* ctx, int nation_id)
   /* FUN_15b3 Indian hostility chrome → OK popup (INFO); status kept. */
   if (native_chrome) {
     ai_diplo_popup_ok(
-      ctx, AI_POPUP_TAG_INFO, nation_id, -1, "Natives", ctx->status
+      ctx, AI_POPUP_TAG_INFO, nation_id, -1, ctx->status
     );
   }
 
@@ -796,19 +696,6 @@ static uint8_t* ai_diplo_timer_byte(ColonizeCol1Save* col1, int nation, int peer
  */
 #define AI_DIPLO_SLOT_COUNT 12
 
-static uint8_t* ai_diplo_flag_byte(ColonizeCol1Save* col1, int nation, int peer) {
-  if (!col1 || nation < 0 || nation >= AI_DIPLO_SLOT_COUNT || peer < 0 ||
-      peer >= AI_DIPLO_SLOT_COUNT || nation == peer) {
-    return NULL;
-  }
-  if (nation < 4) {
-    return peer < 4 ? &col1->nation[nation].euro_relation[peer]
-                    : &col1->nation[nation].relation_by_indian[peer - 4];
-  }
-  return peer < 4 ? &col1->indian[nation - 4].euro_diplo[peer]
-                  : &col1->indian[nation - 4].unknown33_pad[peer - 4];
-}
-
 static const uint8_t* ai_diplo_flag_byte_const(const ColonizeCol1Save* col1, int nation, int peer) {
   if (!col1 || nation < 0 || nation >= AI_DIPLO_SLOT_COUNT || peer < 0 ||
       peer >= AI_DIPLO_SLOT_COUNT || nation == peer) {
@@ -822,16 +709,29 @@ static const uint8_t* ai_diplo_flag_byte_const(const ColonizeCol1Save* col1, int
                   : &col1->indian[nation - 4].unknown33_pad[peer - 4];
 }
 
-/* Mirror WAR/ALLY into nation_relation for legacy readers (derived only). */
-static void ai_diplo_mirror_relation_summary(ColonizeCol1Save* col1, int nation) {
+/* Mutable spelling of the same quadrant computation. */
+static uint8_t* ai_diplo_flag_byte(ColonizeCol1Save* col1, int nation, int peer) {
+  return (uint8_t*)ai_diplo_flag_byte_const(col1, nation, peer);
+}
+
+
+/*
+ * Save-format only: refresh player[nation].diplomacy, the coarse OR of that
+ * nation's four Euro peer-flag bytes. Nothing in src/ reads the field —
+ * tools/col1_json.c serialises it — so this exists to keep written saves
+ * self-consistent, not to drive any behaviour.
+ *
+ * It was called ai_diplo_mirror_relation_summary until 2026-09-14 and its
+ * comment still claimed to mirror WAR/ALLY into head.nation_relation. It has
+ * not touched that field since 2026-08-27: head.nation_relation (DS:0x53c8) is
+ * NOT a relation summary but the per-nation Crown-war turn stamp
+ * (FUN_38fd_5930 writes the turn; every attack/declare site zeroes both
+ * nations' slots) — see ai_diplo_declare_war / ai_king_new_war_event.
+ */
+static void ai_diplo_sync_player_diplomacy_byte(ColonizeCol1Save* col1, int nation) {
   if (!col1 || nation < 0 || nation >= 4) {
     return;
   }
-  /* head.nation_relation (DS:0x53c8) is NOT a relation summary: DOS uses it as
-   * the per-nation Crown-war turn stamp (FUN_38fd_5930 writes turn; every
-   * attack/declare site zeroes both nations' slots). The old WAR/ALLY mirror
-   * was dropped 2026-08-27; see ai_diplo_declare_war / ai_king_new_war_event. */
-  /* Keep player.diplomacy as a coarse OR of peer flags (UI crumb). */
   uint8_t agg = 0;
   for (int peer = 0; peer < 4; ++peer) {
     if (peer == nation) {
@@ -887,7 +787,7 @@ void ai_diplo_write(ColonizeCol1Save* col1, int nation_a, int nation_b, uint8_t 
     return;
   }
   *f = value;
-  ai_diplo_mirror_relation_summary(col1, nation_a);
+  ai_diplo_sync_player_diplomacy_byte(col1, nation_a);
 }
 
 /*
@@ -933,10 +833,6 @@ int ai_diplo_at_war(const ColonizeCol1Save* col1, int nation_a, int nation_b) {
   return (ai_diplo_read(col1, nation_a, nation_b) & AI_DIPLO_WAR) != 0;
 }
 
-int ai_diplo_at_war_with(const ColonizeCol1Save* col1, int nation_a, int nation_b) {
-  return ai_diplo_at_war(col1, nation_a, nation_b);
-}
-
 int ai_diplo_at_war_with_any(const ColonizeCol1Save* col1, int nation) {
   if (!col1 || nation < 0 || nation >= 4) {
     return 0;
@@ -975,8 +871,11 @@ void ai_diplo_declare_war(ColonizeCol1Save* col1, int nation_a, int nation_b) {
    * were retired 2026-09-09 — no DOS declare path charges any of them; see
    * the evidence-of-absence notes on the constants block at the top. */
   if (!already) {
-    /* Indians dislike Euro×Euro war (scalar stand-in; full 15b3 PARKED). */
-    ai_diplo_war_indian_relation_hit(col1, nation_a, nation_b);
+    /* No Indian-relation hit here: no DOS declare-war site (5fef_1b0e 0x53c8
+     * clears, 153e, 684c_08c0, 6cb2_24b8) touches Indian relations — alarm
+     * grows only through the FUN_4d56_152e accumulator. The −5×8 "Indians
+     * dislike Euro×Euro war" stand-in was retired 2026-09-03 and its no-op
+     * stub deleted 2026-09-14. */
     /* War fatigue: seed treaty timer if 0 so near-parity peace waits for age. */
     ai_diplo_war_fatigue_timer_seed(col1, nation_a, nation_b);
   }
@@ -1034,12 +933,19 @@ static int ai_diplo_popup_pair_queued(
  * War re-declare uses !already (no spam); do not gate OK on tag+pair —
  * war boycott OK and peace Tools-lift OK share DIPLO_BOYCOTT.
  */
+/*
+ * No title: ai_popup draws req->title as an extra heading line above the body
+ * (ai_popup.c:1541), and no GAME.TXT @-section carries a heading row — a DOS
+ * dialog is the wood frame plus the section text. Every other emitter in the
+ * port passes NULL for the same reason. The three call sites here used to pass
+ * "Natives"/"Diplomacy" literals that the body then `(void)`-discarded; the
+ * parameter went with them 2026-09-14.
+ */
 static void ai_diplo_popup_ok(
   ColonizeTurnContext* ctx,
   AiPopupTag tag,
   int nation_a,
   int nation_b,
-  const char* title,
   const char* body
 ) {
   if (!ctx || !ctx->ai_popups || !body || body[0] == '\0') {
@@ -1048,7 +954,6 @@ static void ai_diplo_popup_ok(
   if (!ai_diplo_involves_human(ctx, nation_a, nation_b)) {
     return;
   }
-  (void)title;
   (void)ai_popup_enqueue_ok_ctx(
     ctx->ai_popups, tag, nation_a, nation_b, 0, NULL, body
   );
@@ -1154,19 +1059,6 @@ static void ai_diplo_status_sign_treaty(
   popup_msg_strip_markup(ctx->status); /* status line: no {} coloring */
 }
 
-/* @CARGO display names (colony.h / NAMES.TXT / reports.c) for boycott chrome. */
-static const char* ai_diplo_cargo_name(int cargo_idx) {
-  static const char* const names[COLONIZE_CARGO_COUNT] = {
-    "Food",        "Sugar",  "Tobacco", "Cotton", "Furs",  "Lumber",
-    "Ore",         "Silver", "Horses",  "Rum",    "Cigars", "Cloth",
-    "Coats",       "Trade Goods", "Tools", "Muskets"
-  };
-  if (cargo_idx < 0 || cargo_idx >= COLONIZE_CARGO_COUNT) {
-    return "cargo";
-  }
-  return names[cargo_idx];
-}
-
 /* Full wartime 16-bit embargo mask (lift leftover bits; declare no longer sets). */
 static uint16_t ai_diplo_wartime_boycott_mask(void) {
   return (uint16_t)(AI_DIPLO_WAR_FOOD_EMBARGO_BIT | AI_DIPLO_WAR_EMBARGO_CARGO_BIT |
@@ -1234,7 +1126,7 @@ void ai_diplo_declare_war_ctx(ColonizeTurnContext* ctx, int nation_a, int nation
         for (int c = 0; c < COLONIZE_CARGO_COUNT; ++c) {
           if (newly & (uint16_t)(1u << c)) {
             snprintf(ctx->status, ctx->status_size, "%s boycott imposed.",
-                     ai_diplo_cargo_name(c));
+                     reports_cargo_display_name(c));
             break;
           }
         }
@@ -1250,7 +1142,6 @@ void ai_diplo_declare_war_ctx(ColonizeTurnContext* ctx, int nation_a, int nation
         ai_diplo_tag_from_status(ctx->status, AI_POPUP_TAG_DIPLO_WAR),
         nation_a,
         nation_b,
-        "Diplomacy",
         ctx->status
       );
     }
@@ -1285,19 +1176,16 @@ void ai_diplo_make_peace(ColonizeCol1Save* col1, int nation_a, int nation_b) {
     ai_diplo_privateer_spawn_clear(col1, nation_b, nation_a);
   }
   /*
-   * Peace restores Indian feeler (unpark #5): Euro×Euro war gates feeler off;
-   * when sticky was at-war (==1), nudge once via existing peace-feeler path
-   * after WAR clear so !at_war_with_any can pass. sticky==2 self-gates inside
-   * feeler (deep hostility refuses). Sync sticky after heal.
-   * Source: fandom Indians — peace → gifts / improve relations; FA UI PARKED.
+   * Re-sync the sticky Indian-hostility byte on either side that was flagged
+   * at-war. The "peace feeler" heal that used to precede each sync was retired
+   * to a no-op on 2026-08-27 (DOS has no per-turn Indian relation decay) and
+   * the stub was deleted 2026-09-14; the syncs are the load-bearing half.
    */
   if (was_war) {
     if (sticky_a == AI_DIPLO_STICKY_AT_WAR) {
-      ai_diplo_indian_peace_feeler(col1, nation_a);
       ai_diplo_indian_hostility_sync(col1, nation_a);
     }
     if (sticky_b == AI_DIPLO_STICKY_AT_WAR) {
-      ai_diplo_indian_peace_feeler(col1, nation_b);
       ai_diplo_indian_hostility_sync(col1, nation_b);
     }
   }
@@ -1334,7 +1222,6 @@ void ai_diplo_make_peace_ctx(ColonizeTurnContext* ctx, int nation_a, int nation_
           ai_diplo_tag_from_status(ctx->status, AI_POPUP_TAG_DIPLO_PEACE),
           nation_a,
           nation_b,
-          "Diplomacy",
           ctx->status
         );
       }
@@ -1357,8 +1244,6 @@ static void ai_diplo_wake_border_garrisons(
   if (!ctx || !ctx->units || !ctx->colonies) {
     return;
   }
-  static const int dx[8] = {0, 1, 1, 1, 0, -1, -1, -1};
-  static const int dy[8] = {-1, -1, 0, 1, 1, 1, 0, -1};
   /*
    * Slot walk, `u->id` to the id-taking accessors. `units_get` /
    * `units_get_const` / `units_is_sea` / `combat_unit_base_x8` all take a
@@ -1381,7 +1266,7 @@ static void ai_diplo_wake_border_garrisons(
       continue;
     }
     for (int d = 0; d < 8; ++d) {
-      const int cid = colonies_id_at(ctx->colonies, u->x + dx[d], u->y + dy[d]);
+      const int cid = colonies_id_at(ctx->colonies, u->x + MAP_DIR8_DX[d], u->y + MAP_DIR8_DY[d]);
       if (cid < 0) {
         continue;
       }
@@ -1414,39 +1299,10 @@ static void ai_diplo_wake_border_garrisons(
  * ever reaches 5 of the 10 slots (never 312e, 0182, or 022e — those are
  * reached by other callers):
  */
-typedef struct Ai153eSelectorSite {
-  int table_index;          /* 0-9 slot in the OVL16_L0040:3bcb-3bf8 table */
-  const char* ovl_offset;   /* 153e's own call-site symbol */
-  const char* target;       /* canonical FUN_5bfb_XXXX bound to that slot */
-  const char* linux_status; /* where the target already lives in Linux */
-} Ai153eSelectorSite;
-
-static const Ai153eSelectorSite ai_diplo_153e_selector_table[] = {
-  /* idx7, offset 3bee — raw line 406, 153e's OWN entry gate: fires with
-   * an unrecoverable zero-arg register call when `param_2` is invalid or
-   * IS the human nation (DOS `param_2*0x34+0x543f != 0`, the same
-   * control-status byte `ai_king.c`'s FUN_43f7_2244 header already cites
-   * as identical to the TURN_PROC_EURO slice's human-skip gate). */
-  {7, "3bee", "FUN_5bfb_13b0", "ai_diplo_13b0_treaty_tick sign/cancel (Done)"},
-  /* idx4, offset 3bdf — raw line 485, the ONLY selector call inside the
-   * worthiness-score phase itself: the per-colony border probe inside the
-   * colony loop. See ai_diplo_153e_border_probe below (full port). */
-  {4, "3bdf", "FUN_5bfb_0000", "ai_diplo_153e_border_probe (Done)"},
-  /* idx2, offset 3bd5 — commit/flavor-text phase (raw ~704+, past the
-   * worthiness-score phase), fired ~9x with different message-id
-   * literals (0x18bb..0x197c). Thin ctx->status dialog already covers
-   * the generic shape project-wide. */
-  {2, "3bd5", "FUN_5bfb_102a", "thin ctx->status dialog (Done, generic)"},
-  /* idx5, offset 3be4 — commit-phase sibling status/bool setter (not a
-   * message id), fired 3x (raw 734/785/842). */
-  {5, "3be4", "FUN_5bfb_1092", "thin ctx->status dialog (Done, generic)"},
-  /* idx1, offset 3bd0 — commit phase (raw 1065-1067): border-garrison
-   * wake, fired (A,B) then (B,A) once the "at war" bit reads set on the
-   * just-updated relation. Already the full port target above. */
-  {1, "3bd0", "FUN_5bfb_12d0", "ai_diplo_wake_border_garrisons (Done)"},
-};
-#define AI_DIPLO_153E_SELECTOR_COUNT \
-  (int)(sizeof(ai_diplo_153e_selector_table) / sizeof(ai_diplo_153e_selector_table[0]))
+/* The FUN_5bfb_153e selector-slot table (which OVL16_L0040:3bcb-3bf8 slot
+ * binds to which FUN_5bfb_XXXX, and where each target lives in the port) was
+ * prose-only C with no reader; moved 2026-09-14 to
+ * original_sources_annotated/ai/euro_diplo_153e_full.md, "153e selector slots". */
 
 /*
  * FUN_5bfb_0000 (selector idx4) — colony-border stack probe, full port
@@ -1488,11 +1344,7 @@ static int ai_diplo_stack_military_count(const ColonizeTurnContext* ctx, int x, 
 
 /* FUN_1427_0d38 opcode 0xb: Σ 004a(unit, mode 1) for units whose domain matches the tile. */
 static int ai_diplo_stack_attack_sum(const ColonizeTurnContext* ctx, int x, int y) {
-  ColonizeCombatStrengthCtx sctx;
-  sctx.units = ctx->units;
-  sctx.map = ctx->map;
-  sctx.colonies = ctx->colonies;
-  sctx.col1 = ctx->col1;
+  const ColonizeCombatStrengthCtx sctx = combat_strength_ctx_from_turn(ctx);
   const int tile_land = ctx->map ? map_tile_is_land(ctx->map, x, y) : 1;
   int sum = 0;
   /* Slot walk — `i` is not a unit id; see ai_diplo_wake_border_garrisons. */
@@ -1513,8 +1365,6 @@ static int ai_diplo_stack_attack_sum(const ColonizeTurnContext* ctx, int x, int 
 static Ai153eBorderProbe ai_diplo_153e_border_probe(
   const ColonizeTurnContext* ctx, int colony_x, int colony_y, int target
 ) {
-  static const int dx[8] = {0, 1, 1, 1, 0, -1, -1, -1};
-  static const int dy[8] = {-1, -1, 0, 1, 1, 1, 0, -1};
   Ai153eBorderProbe r;
   r.value = 0;
   r.matched_target = -1;
@@ -1528,8 +1378,8 @@ static Ai153eBorderProbe ai_diplo_153e_border_probe(
   }
   int best = 0;
   for (int d = 0; d < 8; ++d) {
-    const int nx = colony_x + dx[d];
-    const int ny = colony_y + dy[d];
+    const int nx = colony_x + MAP_DIR8_DX[d];
+    const int ny = colony_y + MAP_DIR8_DY[d];
     const int uid = units_id_at(ctx->units, nx, ny);
     if (uid < 0) {
       continue;
@@ -2180,8 +2030,6 @@ static void ai_talk_unit_to_europe(ColonizeTurnContext* ctx, int unit_id) {
 /* raw :98001-98032 / :98328-98358: military land units of `who` adjacent to
  * a colony of `near` are sent to Europe. Returns the count moved. */
 static int ai_talk_withdraw(ColonizeTurnContext* ctx, int who, int near_nation) {
-  static const int dx[8] = {0, 1, 1, 1, 0, -1, -1, -1};
-  static const int dy[8] = {-1, -1, 0, 1, 1, 1, 0, -1};
   int moved = 0;
   /* Slot walk, `u->id` to units_is_sea — see ai_diplo_wake_border_garrisons. */
   for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
@@ -2196,7 +2044,7 @@ static int ai_talk_withdraw(ColonizeTurnContext* ctx, int who, int near_nation) 
     }
     int adjacent = 0;
     for (int d = 0; d < 8 && !adjacent; ++d) {
-      const int cid = colonies_id_at(ctx->colonies, u->x + dx[d], u->y + dy[d]);
+      const int cid = colonies_id_at(ctx->colonies, u->x + MAP_DIR8_DX[d], u->y + MAP_DIR8_DY[d]);
       const ColonizeColony* c = cid >= 0 ? colonies_get(ctx->colonies, cid) : NULL;
       if (c && c->active && c->nation_id == near_nation) {
         adjacent = 1;
@@ -2410,7 +2258,11 @@ static void ai_talk_advance(ColonizeTurnContext* ctx) {
           PopupMsgTokens tw = tok;
           tw.number0 = k->want_amount;
           tw.has_number0 = true;
-          tw.string1 = ai_diplo_cargo_name(k->want_cargo);
+          /* reports_cargo_display_name hands back reports.c's shared NAMES
+           * scratch and ai_talk_name looks a name up too, so copy first. */
+          char want_nm[32];
+          str_copy_trunc(want_nm, sizeof(want_nm), reports_cargo_display_name(k->want_cargo));
+          tw.string1 = want_nm;
           tw.string2 = ai_talk_name(ctx, t);
           static const char* const lab[2] = {
             "We laugh at your puny threats.",
@@ -2725,7 +2577,7 @@ static void ai_talk_resume(ColonizeTurnContext* ctx, int stage, int choice) {
             continue;
           }
           const ColonizeUnitType* ty = units_type(ctx->units, u->type_index);
-          if (!ty || !strstr(ty->name, "Privateer")) {
+          if (!units_type_is_privateer(ty)) {
             continue;
           }
           if (u->x < 200) {
@@ -3078,8 +2930,6 @@ int ai_diplo_153e_encounter(ColonizeTurnContext* ctx, int human, int target, int
   {
     const ColonizeUnit* eu = units_get_const(ctx->units, unit_id);
     if (eu && eu->active && eu->nation_id == target && ctx->colonies) {
-      static const int ddx[8] = {0, 1, 1, 1, 0, -1, -1, -1};
-      static const int ddy[8] = {-1, -1, 0, 1, 1, 1, 0, -1};
       int dst = -1;
       int best_d = 0x7fff;
       for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
@@ -3099,7 +2949,7 @@ int ai_diplo_153e_encounter(ColonizeTurnContext* ctx, int human, int target, int
       }
       int src = -1;
       for (int d = 0; d < 8 && src < 0; ++d) {
-        src = colonies_id_at(ctx->colonies, eu->x + ddx[d], eu->y + ddy[d]);
+        src = colonies_id_at(ctx->colonies, eu->x + MAP_DIR8_DX[d], eu->y + MAP_DIR8_DY[d]);
       }
       const ColonizeColony* cd = dst >= 0 ? colonies_get(ctx->colonies, dst) : NULL;
       const ColonizeColony* cs = src >= 0 ? colonies_get(ctx->colonies, src) : NULL;
@@ -3247,8 +3097,10 @@ void ai_diplo_treaty_timers(ColonizeTurnContext* ctx, int nation_id) {
       (*t)--;
     }
   }
-  /* Peaceful Indian relation drift (thin; full Indian×Euro 15b3 PORT DEBT). */
-  ai_diplo_indian_peaceful_drift(ctx->col1, nation_id);
+  /* No peaceful Indian relation drift: DOS has no per-turn alarm decay
+   * (alarm_by_player is byte-stable across the seed-100 TURN3..7 saves; the
+   * only ±1 moves come from the FUN_4d56_152e accumulator in ai.c). The no-op
+   * stub that used to be called here was deleted 2026-09-14. */
 }
 
 /*
@@ -3291,42 +3143,19 @@ void ai_diplo_treaty_timers(ColonizeTurnContext* ctx, int nation_id) {
  * into a word that wraps at 16 bits rather than saturating like the two byte
  * rows beside it.
  */
-static int ai_diplo_land_combat_strength_live(const ColonizeTurnContext* ctx, int nation_id) {
-  if (!ctx->units) {
-    return 0;
-  }
-  ColonizeCombatStrengthCtx sctx;
-  memset(&sctx, 0, sizeof(sctx));
-  sctx.units = ctx->units;
-  sctx.map = ctx->map;
-  sctx.colonies = ctx->colonies;
-  sctx.col1 = ctx->col1;
-  unsigned sum = 0;
-  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-    const ColonizeUnit* u = &ctx->units->units[i];
-    if (!u->active || u->nation_id != nation_id) {
-      continue;
-    }
-    const ColonizeUnitType* t = units_type(ctx->units, u->type_index);
-    if (!t || t->domain != COLONIZE_UNIT_DOMAIN_LAND) {
-      continue;
-    }
-    /* Slot walk, `u->id` to the accessor: combat_unit_base_x8 takes a unit ID
-     * and ids are handed out monotonically, so they neither start at nor track
-     * the slot index (the census twin makes the same note). */
-    const int v = combat_unit_base_x8(&sctx, u->id, 1, NULL);
-    if (v > 0) {
-      sum += (unsigned)v;
-    }
-  }
-  return (int)(uint16_t)sum;
-}
-
 int ai_diplo_military_score(const ColonizeTurnContext* ctx, int nation_id) {
   if (!ctx || !ctx->col1_ok || !ctx->col1 || nation_id < 0 || nation_id >= 4) {
     return 0;
   }
-  return ai_diplo_land_combat_strength_live(ctx, nation_id);
+  /*
+   * The nation-wide row: every continent, no exposed gate. This used to be a
+   * private copy of ai_contact_land_combat_sum's walk (2026-09-14 audit
+   * AC-10). The one nominal difference is the tail: DOS's 0x941c word is a
+   * plain 16-bit ADD that wraps while the helper's `cap` saturates — but a
+   * 256-slot pool (COLONIZE_UNITS_MAX) of combat_unit_base_x8 values cannot
+   * reach 0xffff, so the two agree for every reachable input.
+   */
+  return ai_contact_land_combat_sum(ctx, nation_id, -1, 0, 0xffff);
 }
 
 
@@ -3472,10 +3301,6 @@ void ai_diplo_euro_balance(ColonizeTurnContext* ctx, int nation_id) {
   if (!ctx || !ctx->col1_ok || !ctx->col1 || nation_id < 0 || nation_id >= 4) {
     return;
   }
-  /* Keep the 153e selector-table documentation compiled (the worthiness
-   * score itself is now a real exported function — see ai_diplo.h). */
-  (void)ai_diplo_153e_selector_table;
-  (void)AI_DIPLO_153E_SELECTOR_COUNT;
   /*
    * FUN_5bfb_10ec / 13b0 checklist:
    *  1 skip human; at-war → upkeep + privateer prize; war-fatigue + near-parity
@@ -3663,22 +3488,6 @@ void ai_diplo_euro_balance(ColonizeTurnContext* ctx, int nation_id) {
   }
 }
 
-/* FUN_281f_0a60 -> FUN_15dc_00a2 quartile bucketer, same formula as
- * ai.c's ai_indian_152e_quartile (duplicated here, not shared, to avoid
- * cross-module coupling under parallel edits — 5-line pure function). */
-static int ai_diplo_indian_relation_quartile(int relation) {
-  if (relation < 25) {
-    return 0;
-  }
-  if (relation < 50) {
-    return 1;
-  }
-  if (relation < 75) {
-    return 2;
-  }
-  return 3;
-}
-
 /*
  * DS:0x54f6 grudge/tension tier-crossing update — FUN_4cc6_00f2's second
  * half (viceroy_unpacked.c:80864-80900), never wired before this pass
@@ -3699,7 +3508,7 @@ static int ai_diplo_indian_relation_quartile(int relation) {
  *   }
  * where iVar2/iVar5 are the OLD/NEW relation values (0..100 DOS scale,
  * same storage as ai_diplo_indian_relation_delta's own clamp) and
- * iVar3/iVar6 = ai_diplo_indian_relation_quartile(iVar2)/(iVar5) — the
+ * iVar3/iVar6 = ai_relation_quartile(iVar2)/(iVar5) — the
  * *same* FUN_281f_0a60 quartile bucketer ai.c already ported for 152e,
  * not a separate "combat strength" stat (archive/mysteries_catalog.md's framing
  * of this branch was a misreading of what FUN_281f_0a60 was bucketing —
@@ -3735,7 +3544,7 @@ static void ai_diplo_indian_tension_tier_update(
   if (old99 / -5 == new99 / -5) {
     return; /* no tier boundary crossed */
   }
-  const int cap = (ai_diplo_indian_relation_quartile(new99) >> 1) == 0 ? 0x20 : 0x60;
+  const int cap = (ai_relation_quartile(new99) >> 1) == 0 ? 0x20 : 0x60;
   for (uint16_t ti = 0; ti < col1->head.tribe_count; ++ti) {
     if ((int)col1->tribe[ti].nation_id != indian_nation) {
       continue;

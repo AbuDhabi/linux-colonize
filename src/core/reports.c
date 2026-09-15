@@ -160,6 +160,54 @@ static const char* k_euro_short[COLONIZE_COL1_NATION_COUNT] = {
   "English", "French", "Spanish", "Dutch"
 };
 
+/*
+ * Shared fallback tables for the NAMES.TXT-backed name accessors below.
+ * Every one of these was retyped in a dozen other files before the
+ * 2026-09-14 duplication pass (audit theme D); the literals here are the
+ * shipped COLONIZE/NAMES.TXT rows and are only reached when no catalog is
+ * loaded (slim unit-test targets, tools).
+ */
+
+/* @COUNTRY column 0. The rows carry a trailing ", <colour>" number that
+ * reports_names_field drops with the rest of the line at the first comma.
+ * "Netherlands", never "Holland" (turn.c:3025 was the odd one out). */
+static const char* k_euro_country[COLONIZE_COL1_NATION_COUNT] = {
+  "England", "France", "Spain", "Netherlands"
+};
+
+/* @HOMEPORT column 0. France is La Rochelle — new_game.c's "Paris" was
+ * wrong (audit SC-7). */
+static const char* k_home_ports[COLONIZE_COL1_NATION_COUNT] = {
+  "London", "La Rochelle", "Seville", "Amsterdam"
+};
+
+/* @DIFFICULTY column 0. */
+static const char* k_difficulty_titles[5] = {
+  "Discoverer", "Explorer", "Conquistador", "Governor", "Viceroy"
+};
+
+/* @TRIBES column 1 (singular). Column 0 is the plural k_tribe_names above. */
+static const char* k_tribe_singular[COLONIZE_COL1_INDIAN_COUNT] = {
+  "Inca", "Aztec", "Arawak", "Iroquois", "Cherokee", "Apache", "Sioux", "Tupi"
+};
+
+/* @BUILDING rows 0..2 column 0 — the fortification chain, low tier first. */
+static const char* k_fort_tier_names[3] = {"Stockade", "Fort", "Fortress"};
+
+/* @UNIT rows 19..22 column 0 — the Indian arms/mounts ladder. The DOS
+ * spellings are abbreviated ("Mtd."), and these strings double as
+ * units_find_type keys, so they must stay the @UNIT text. */
+#define REPORTS_UNIT_ROW_BRAVES 19
+static const char* k_brave_ladder_names[4] = {
+  "Braves", "Armed Braves", "Mtd. Braves", "Mtd. Warriors"
+};
+
+/* @UNIT rows 0..5 column 0 — the Europe dock immigrant types, in DOS
+ * dos_type order (europe.h EUROPE_DOCK_TYPE_*). */
+static const char* k_dock_type_names[6] = {
+  "Colonists", "Soldiers", "Pioneers", "Missionaries", "Dragoons", "Scouts"
+};
+
 void reports_init(ColonizeReportsView* view) {
   if (!view) {
     return;
@@ -702,6 +750,26 @@ const char* reports_job_display_name(int job) {
   return reports_job_name(job);
 }
 
+/*
+ * @JOB column 0 — the singular job word ("Distiller"), as opposed to
+ * reports_job_display_name's column 1 recruit/specialty plural ("Master
+ * Distiller"). colony.c's profession label and the colony-yield field job
+ * names are this column; the map panel's unit profession line and the
+ * Europe recruit pool are column 1.
+ */
+const char* reports_job_short_name(int job) {
+  static char live[32][24];
+  if (job < 0 || job >= k_job_count || job >= 32) {
+    return "";
+  }
+  const char* field = reports_names_field("JOB", job, 0);
+  if (!field) {
+    return "";
+  }
+  snprintf(live[job], sizeof(live[job]), "%s", field);
+  return live[job];
+}
+
 const char* reports_cargo_display_name(int cargo) {
   return reports_cargo_name(cargo);
 }
@@ -711,18 +779,108 @@ const char* reports_tribe_display_name(int t) {
 }
 
 /*
- * head.founding_father[i] (-1 unclaimed, else 0..3) is NOT "does this
- * nation have FF i" — nation.founding_fathers[4] is the real per-nation
- * bitmask (bit i set = elected). Confirmed against dutch-reports.SAV: the
- * Dutch bitmask's 10 set bits are exactly the golden's 10 names (including
- * Franklin/Brewster, whose head.founding_father[] entry reads nation 2 —
- * apparently FFs aren't nation-exclusive the way that array alone implies).
+ * Copy one NAMES.TXT field into a caller-owned buffer, falling back to a
+ * literal when the catalog is absent. Callers pass a per-index buffer rather
+ * than sharing reports_names_field's single scratch one: several of these
+ * accessors get called back-to-back while a screen builds a rows[] array
+ * (same hazard reports_tribe_name / reports_nation_adjective document).
  */
-static bool reports_ff_owned_by_nation(const ColonizeCol1Nation* nat, int ff_index) {
-  if (!nat || ff_index < 0 || ff_index >= (int)COLONIZE_COL1_FF_COUNT) {
-    return false;
+static const char* reports_names_or(
+  char* buf, size_t buf_size, const char* section, int row, int col, const char* literal
+) {
+  const char* live = reports_names_field(section, row, col);
+  snprintf(buf, buf_size, "%s", live ? live : literal);
+  return buf;
+}
+
+const char* reports_nation_country_name(int nation) {
+  static char live[COLONIZE_COL1_NATION_COUNT][24];
+  if (nation < 0 || nation >= (int)COLONIZE_COL1_NATION_COUNT) {
+    return "";
   }
-  return (nat->founding_fathers[ff_index / 8] >> (ff_index % 8)) & 1;
+  return reports_names_or(
+    live[nation], sizeof(live[nation]), "COUNTRY", nation, 0, k_euro_country[nation]
+  );
+}
+
+const char* reports_home_port_name(int nation) {
+  static char live[COLONIZE_COL1_NATION_COUNT][24];
+  if (nation < 0 || nation >= (int)COLONIZE_COL1_NATION_COUNT) {
+    return "";
+  }
+  return reports_names_or(
+    live[nation], sizeof(live[nation]), "HOMEPORT", nation, 0, k_home_ports[nation]
+  );
+}
+
+const char* reports_difficulty_title(int level) {
+  static char live[5][24];
+  if (level < 0 || level > 4) {
+    return "?";
+  }
+  return reports_names_or(
+    live[level], sizeof(live[level]), "DIFFICULTY", level, 0, k_difficulty_titles[level]
+  );
+}
+
+/*
+ * @TRIBES column 1 — the singular tribe word ("Inca"), as opposed to
+ * reports_tribe_display_name's column 0 plural ("Incas").
+ *
+ * Which one DOS uses is per-string, and GAME.TXT settles it: the tribe token
+ * is substituted into both shapes, e.g. `@INDIANRAID` ("The ^ raid ...", a
+ * plural subject) and `@CAPTUREVILLAGE` ("^ village", a singular modifier).
+ * The Indian Adviser report's own column heading is plural (golden
+ * indian.png "Arawaks:"), while the map panel / cheat list / unit labels
+ * name one settlement or one brave and are singular. Only Inca/Aztec/Arawak
+ * actually differ between the two columns; the other five rows are the same
+ * word twice.
+ */
+const char* reports_tribe_singular_name(int t) {
+  static char live[COLONIZE_COL1_INDIAN_COUNT][24];
+  if (t < 0 || t >= (int)COLONIZE_COL1_INDIAN_COUNT) {
+    return "Tribe";
+  }
+  return reports_names_or(live[t], sizeof(live[t]), "TRIBES", t, 1, k_tribe_singular[t]);
+}
+
+/* Fortification chain name, tier 0 = Stockade. NAMES.TXT has no separate
+ * "fort tier" list: DOS reads these off the first three @BUILDING rows,
+ * which are the chain in order. */
+const char* reports_fort_tier_name(int tier) {
+  static char live[3][24];
+  if (tier < 0 || tier > 2) {
+    return "";
+  }
+  return reports_names_or(
+    live[tier], sizeof(live[tier]), "BUILDING", tier, 0, k_fort_tier_names[tier]
+  );
+}
+
+/* Indian arms/mounts ladder, 0 = Braves … 3 = Mtd. Warriors (@UNIT rows
+ * 19..22). Also used as a units_find_type key, so it must stay the @UNIT
+ * spelling rather than a prettier "Mounted Warriors". */
+const char* reports_brave_ladder_name(int rank) {
+  static char live[4][24];
+  if (rank < 0 || rank > 3) {
+    return "";
+  }
+  return reports_names_or(
+    live[rank], sizeof(live[rank]), "UNIT", REPORTS_UNIT_ROW_BRAVES + rank, 0,
+    k_brave_ladder_names[rank]
+  );
+}
+
+/* Europe dock immigrant type name, indexed by DOS dos_type 0..5 — which is
+ * exactly @UNIT row order for those six rows. */
+const char* reports_dock_type_name(int dos_type) {
+  static char live[6][24];
+  if (dos_type < 0 || dos_type > 5) {
+    return "";
+  }
+  return reports_names_or(
+    live[dos_type], sizeof(live[dos_type]), "UNIT", dos_type, 0, k_dock_type_names[dos_type]
+  );
 }
 
 /*
@@ -776,16 +934,7 @@ static bool reports_unit_in_europe(int x, int y) {
  * there (garrison, e.g.) counts as "In Colonies" for the labor report even
  * though it's a separate col1->unit[] record, not colony population. */
 static bool reports_xy_is_own_colony(const ColonizeCol1Save* col1, int human, int x, int y) {
-  if (!col1) {
-    return false;
-  }
-  for (uint16_t i = 0; i < col1->head.colony_count; ++i) {
-    const ColonizeCol1Colony* c = &col1->colony[i];
-    if (c->nation_id == (uint8_t)human && c->x == (uint8_t)x && c->y == (uint8_t)y) {
-      return true;
-    }
-  }
-  return false;
+  return col1_colony_at_xy(col1, human, x, y) != NULL;
 }
 
 static int reports_colony_rebel_pct(const ColonizeCol1Colony* c) {
@@ -1462,7 +1611,7 @@ static void reports_render_congress_page1(
     int shown = 0;
     int y = ff_header_y + step;
     for (int i = 0; i < (int)COLONIZE_COL1_FF_COUNT; ++i) {
-      if (!reports_ff_owned_by_nation(nat, i)) {
+      if (!founding_fathers_nation_has(col1, human, i)) {
         continue;
       }
       const int col = shown % 4;
@@ -1521,10 +1670,9 @@ static void reports_render_congress_page2(
   if (!col1 || !view || !view->data_dir[0]) {
     return;
   }
-  const ColonizeCol1Nation* nat = &col1->nation[human];
   for (int i = 0; i < (int)COLONIZE_COL1_FF_COUNT; ++i) {
     const int ff = (int)k_ff_portrait_draw_order[i];
-    if (!reports_ff_owned_by_nation(nat, ff)) {
+    if (!founding_fathers_nation_has(col1, human, ff)) {
       continue;
     }
     const ColonizeSpriteSheet* sheet = reports_ff_portrait_sheet(view->data_dir, ff);
@@ -2287,16 +2435,55 @@ static uint8_t reports_colony_pop_color(int sol_pct) {
 static const ColonizeColony* reports_pool_colony_for(
   const ColonizeColonyPool* colonies, const ColonizeCol1Colony* c
 ) {
-  if (!colonies || !c) {
-    return NULL;
+  return c ? colonies_find_at_xy(colonies, (int)c->x, (int)c->y) : NULL;
+}
+
+/*
+ * One page of the Colony report's rows (audit SC-15). Both Colony pages —
+ * Military Garrisons and Sons of Liberty — walked col1->colony[] with the
+ * identical own-nation filter, `skip = page * ROWS_PER_PAGE` counter,
+ * row_top arithmetic and reports_pool_colony_for pairing. Fills `out` with
+ * up to REPORTS_COLONY_ROWS_PER_PAGE rows and returns how many.
+ */
+typedef struct ReportsColonyRow {
+  const ColonizeCol1Colony* c;
+  const ColonizeColony* colony; /* pool colony paired by tile; may be NULL */
+  int row_top;
+} ReportsColonyRow;
+
+static int reports_colony_page_rows(
+  const ColonizeCol1Save* col1,
+  int human,
+  const ColonizeColonyPool* colonies,
+  int page,
+  ReportsColonyRow* out
+) {
+  if (!col1 || !out) {
+    return 0;
   }
-  for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
-    const ColonizeColony* col = &colonies->colonies[i];
-    if (col->active && col->x == (int)c->x && col->y == (int)c->y) {
-      return col;
+  int shown = 0;
+  int n = 0;
+  const int skip = page * REPORTS_COLONY_ROWS_PER_PAGE;
+  for (uint16_t i = 0; i < col1->head.colony_count; ++i) {
+    const ColonizeCol1Colony* c = &col1->colony[i];
+    if (c->nation_id != (uint8_t)human) {
+      continue;
     }
+    if (shown < skip) {
+      shown++;
+      continue;
+    }
+    const int row = shown - skip;
+    if (row >= REPORTS_COLONY_ROWS_PER_PAGE) {
+      break;
+    }
+    out[n].c = c;
+    out[n].colony = reports_pool_colony_for(colonies, c);
+    out[n].row_top = REPORTS_COLONY_ROW0_Y + row * REPORTS_COLONY_ROW_STEP;
+    n++;
+    shown++;
   }
-  return NULL;
+  return n;
 }
 
 /* Shared icon+digit+name sidebar cell, identical on both Colony pages.
@@ -2367,23 +2554,12 @@ static void reports_render_colony_garrisons(
     return;
   }
 
-  int shown = 0;
-  const int skip = page * REPORTS_COLONY_ROWS_PER_PAGE;
-  for (uint16_t i = 0; i < col1->head.colony_count; ++i) {
-    const ColonizeCol1Colony* c = &col1->colony[i];
-    if (c->nation_id != (uint8_t)human) {
-      continue;
-    }
-    if (shown < skip) {
-      shown++;
-      continue;
-    }
-    const int row = shown - skip;
-    if (row >= REPORTS_COLONY_ROWS_PER_PAGE) {
-      break;
-    }
-    const int row_top = REPORTS_COLONY_ROW0_Y + row * REPORTS_COLONY_ROW_STEP;
-    const ColonizeColony* colony = reports_pool_colony_for(colonies, c);
+  ReportsColonyRow rows[REPORTS_COLONY_ROWS_PER_PAGE];
+  const int row_count = reports_colony_page_rows(col1, human, colonies, page, rows);
+  for (int ri = 0; ri < row_count; ++ri) {
+    const ColonizeCol1Colony* c = rows[ri].c;
+    const ColonizeColony* colony = rows[ri].colony;
+    const int row_top = rows[ri].row_top;
     reports_render_colony_sidebar(view, col1, c, colony, font, fb, row_top, line, line_sz);
 
     /* Units on this colony's own tile, drawn exactly as on the map
@@ -2502,7 +2678,6 @@ static void reports_render_colony_garrisons(
       }
       free(raw_used);
     }
-    shown++;
   }
 }
 
@@ -2542,26 +2717,15 @@ static void reports_render_colony_sol(
       ? (int)col1->nation[human].tax_rate
       : 0;
 
-  int shown = 0;
-  const int skip = page * REPORTS_COLONY_ROWS_PER_PAGE;
-  for (uint16_t i = 0; i < col1->head.colony_count; ++i) {
-    const ColonizeCol1Colony* c = &col1->colony[i];
-    if (c->nation_id != (uint8_t)human) {
-      continue;
-    }
-    if (shown < skip) {
-      shown++;
-      continue;
-    }
-    const int row = shown - skip;
-    if (row >= REPORTS_COLONY_ROWS_PER_PAGE) {
-      break;
-    }
-    const int row_top = REPORTS_COLONY_ROW0_Y + row * REPORTS_COLONY_ROW_STEP;
-    /* Pool colony paired by tile (reports_pool_colony_for) — needed for both
-     * the Bolivar-aware SoL% and the bell-production formula below, same
-     * formula turn.c's EOT bells tally uses. */
-    const ColonizeColony* colony = reports_pool_colony_for(colonies, c);
+  /* `rows[].colony` is the pool colony paired by tile — needed for both the
+   * Bolivar-aware SoL% and the bell-production formula below, same formula
+   * turn.c's EOT bells tally uses. */
+  ReportsColonyRow rows[REPORTS_COLONY_ROWS_PER_PAGE];
+  const int row_count = reports_colony_page_rows(col1, human, colonies, page, rows);
+  for (int ri = 0; ri < row_count; ++ri) {
+    const ColonizeCol1Colony* c = rows[ri].c;
+    const ColonizeColony* colony = rows[ri].colony;
+    const int row_top = rows[ri].row_top;
     reports_render_colony_sidebar(view, col1, c, colony, font, fb, row_top, line, line_sz);
 
     const int sol_pct = colony ? colony_prod_sol_percent(col1, colony) : reports_colony_rebel_pct(c);
@@ -2615,7 +2779,6 @@ static void reports_render_colony_sol(
         slot++;
       }
     }
-    shown++;
   }
 }
 
@@ -2682,15 +2845,10 @@ typedef struct NavalRow {
 static void reports_naval_location(
   const ColonizeColonyPool* colonies, int x, int y, char* out, size_t out_sz
 ) {
-  if (colonies) {
-    /* Pool bound (colonies_abandon leaves holes and shrinks colony_count). */
-    for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
-      const ColonizeColony* c = &colonies->colonies[i];
-      if (c->active && c->x == x && c->y == y) {
-        snprintf(out, out_sz, "%s", c->name);
-        return;
-      }
-    }
+  const ColonizeColony* c = colonies_find_at_xy(colonies, x, y);
+  if (c) {
+    snprintf(out, out_sz, "%s", c->name);
+    return;
   }
   snprintf(out, out_sz, "(%d, %d)", x, y);
 }
@@ -3115,14 +3273,6 @@ static void reports_render_naval(
 #define REPORTS_FOREIGN_WAR_COLOR 112 /* red (243,0,0) — same index as REPORTS_ECON_NEG_COLOR */
 #define REPORTS_FOREIGN_RULE_COLOR 119 /* dark red (134,0,0) — same index as REPORTS_NAVAL_LINE_COLOR */
 
-/* NAMES.TXT country names (europe.c / map_panel.c / new_game.c share this
- * exact set) — distinct from k_euro_short's nationality adjectives; the
- * golden uses country names ("France", "Netherlands") for peer relations
- * but adjectives ("French", "Dutch") in the leader header line. */
-static const char* k_euro_country[COLONIZE_COL1_NATION_COUNT] = {
-  "England", "France", "Spain", "Netherlands"
-};
-
 /* The six de Witt cells, in the .asm's draw order (row A then row B). */
 typedef enum ForeignDetail {
   FOREIGN_DETAIL_COLONIES = 0,
@@ -3210,7 +3360,7 @@ static int reports_foreign_build_rows(
    * gate is the same for all four blocks. */
   const bool reveal =
     (human >= 0 && human < (int)COLONIZE_COL1_NATION_COUNT &&
-     reports_ff_owned_by_nation(&col1->nation[human], REPORTS_FOREIGN_DE_WITT_FF)) ||
+     founding_fathers_nation_has(col1, human, REPORTS_FOREIGN_DE_WITT_FF)) ||
     col1->head.show_entire_map != 0;
   /*
    * The Crown's slot is by definition a nation the player is not playing
@@ -3771,7 +3921,7 @@ static int reports_count_ff_for_nation(const ColonizeCol1Save* col1, int human) 
    * the name is drawn, so the plate's number and its grid can never disagree.
    * FUN_281f_07b4 -> FUN_15eb_3960 (13832-13844) is exactly the per-nation
    * bitmask read `nation[n].founding_fathers[i >> 3] & (1 << (i & 7))` that
-   * reports_ff_owned_by_nation ports. There is no count field and no
+   * founding_fathers_nation_has ports. There is no count field and no
    * head.founding_father[] reading anywhere in the chain: the old
    * founding_father_count / head-equality fallbacks (the reading audit #83
    * removed elsewhere — head.founding_father[] holds the FIRST CLAIMER, not
@@ -3779,7 +3929,7 @@ static int reports_count_ff_for_nation(const ColonizeCol1Save* col1, int human) 
    * (:1462), page-2 portraits (:1524) and the Score FF strip (:4229). */
   int ff = 0;
   for (int i = 0; i < (int)COLONIZE_COL1_FF_COUNT; ++i) {
-    if (reports_ff_owned_by_nation(&col1->nation[human], i)) {
+    if (founding_fathers_nation_has(col1, human, i)) {
       ff++;
     }
   }
@@ -3961,7 +4111,9 @@ int reports_score_rating(int total, int difficulty, int* tier_out) {
   return pre >> 1;
 }
 
-int reports_score_declare_year(const ColonizeCol1Save* col1) {
+/* File-local since 2026-09-14 (audit SC-26): reports_compute_score is the
+ * only caller anywhere in src/, tests/ or tools/. */
+static int reports_score_declare_year(const ColonizeCol1Save* col1) {
   if (!col1 || !col1->head.game_options.woi) {
     return 0;
   }
@@ -4200,11 +4352,7 @@ static void reports_render_score(
 
   const ColonizeFont* body_font = (view && view->title_font_ok) ? &view->title_font : font;
 
-  static const char* k_diff[] = {
-    "Discoverer", "Explorer", "Conquistador", "Governor", "Viceroy"
-  };
-  const char* diff_name =
-    (sc.difficulty >= 0 && sc.difficulty <= 4) ? k_diff[sc.difficulty] : "?";
+  const char* diff_name = reports_difficulty_title(sc.difficulty);
   const char* nation_adj = reports_nation_adjective(human);
 
   /* Subtitle: "<difficulty rank> <leader> of the <nation>:  <Season> <year>"
@@ -4301,7 +4449,7 @@ static void reports_render_score(
   {
     int shown = 0;
     for (int idx = 0; idx < (int)COLONIZE_COL1_FF_COUNT; ++idx) {
-      if (!reports_ff_owned_by_nation(&col1->nation[human], idx)) {
+      if (!founding_fathers_nation_has(col1, human, idx)) {
         continue;
       }
       const int col = shown % REPORTS_SCORE_FF_COLS;
@@ -4489,9 +4637,6 @@ void reports_render_hall_of_fame(
    * "Colonization_Rating" #199 — the difficulty name table and the nation
    * adjective / @INDEPENDENT name are resolved by the caller.
    */
-  static const char* k_diff[] = {
-    "Discoverer", "Explorer", "Conquistador", "Governor", "Viceroy"
-  };
   char w1[64], w2[64], w3[64];
   reports_draw_centered(
     body_font, fb, 3, reports_misc_word(192, "COLONIZATION HALL OF FAME", w1, sizeof(w1)),
@@ -4504,8 +4649,7 @@ void reports_render_hall_of_fame(
   const int shown = entry_count > COLONIZE_HOF_SHOWN_MAX ? COLONIZE_HOF_SHOWN_MAX : entry_count;
   for (int i = 0; i < shown; ++i) {
     const ColonizeHofRow* e = &entries[i];
-    const char* diff_name =
-      (e->difficulty >= 0 && e->difficulty <= 4) ? k_diff[e->difficulty] : "?";
+    const char* diff_name = reports_difficulty_title(e->difficulty);
     snprintf(
       line,
       sizeof(line),

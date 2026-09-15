@@ -5,11 +5,13 @@
 
 #include "core/map_menu.h"
 #include "core/popup_msg.h"
+#include "core/ui_button.h"
 #include "core/ui_colors.h"
 #include "platform/diagnostics.h"
 #include "platform/platform.h"
 
 static void ai_popup_log_present(const AiPopupRequest* req);
+static const char* ai_popup_tag_name(AiPopupTag tag);
 
 void ai_popup_init(AiPopupState* st) {
   if (!st) {
@@ -42,7 +44,7 @@ void ai_popup_clear(AiPopupState* st) {
  * unit id instead (WHACK, EURO_WAR, VILLAGE_WARN, INDIAN_LAND) are deliberately
  * absent: they are single pre-attack confirms, not chains.
  */
-int ai_popup_chain_key(AiPopupTag tag, int nation_a, int nation_b) {
+static int ai_popup_chain_key(AiPopupTag tag, int nation_a, int nation_b) {
   switch (tag) {
     case AI_POPUP_TAG_CONTACT_MEET:
     case AI_POPUP_TAG_CONTACT_TEACH:
@@ -71,7 +73,8 @@ int ai_popup_chain_key(AiPopupTag tag, int nation_a, int nation_b) {
   return 1 + nation_a * 12 + nation_b;
 }
 
-bool ai_popup_enqueue(AiPopupState* st, const AiPopupRequest* req) {
+/* Enqueue (no-op if full or st NULL). Returns false if dropped. */
+static bool ai_popup_enqueue(AiPopupState* st, const AiPopupRequest* req) {
   if (!st || !req) {
     return false;
   }
@@ -100,7 +103,15 @@ bool ai_popup_enqueue(AiPopupState* st, const AiPopupRequest* req) {
   return true;
 }
 
-bool ai_popup_enqueue_bar_message_kind(AiPopupState* st, const char* text, int kind) {
+/*
+ * Status line with an explicit DOS arm kind (FUN_1009_0244's first argument).
+ * The plain enqueue is kind 1, the gold success ink DOS uses for a sale line;
+ * kind 3 (red refusal) is DOS-real but has no Linux producer yet, so this
+ * entry point is currently reached only through the kind-1 wrapper.
+ */
+static bool ai_popup_enqueue_bar_message_kind(
+  AiPopupState* st, const char* text, int kind
+) {
   if (!st || !text || !text[0]) {
     return false;
   }
@@ -430,7 +441,7 @@ bool ai_popup_present_now(AiPopupState* st, AiPopupTag tag) {
 }
 
 /* One line per tag so the debug log names the popup, not a raw id. */
-const char* ai_popup_tag_name(AiPopupTag tag) {
+static const char* ai_popup_tag_name(AiPopupTag tag) {
   switch (tag) {
     case AI_POPUP_TAG_INFO:
       return "INFO";
@@ -779,26 +790,19 @@ void ai_popup_cancel_current(AiPopupState* st) {
 }
 
 static int ai_popup_option_at_y(const AiPopupState* st, int mouse_y) {
-  if (!st || st->line_h <= 0) {
+  if (!st) {
     return -1;
   }
-  const int rel = mouse_y - st->list_y0;
-  if (rel < 0) {
-    return -1;
-  }
-  const int idx = rel / st->line_h;
-  if (idx < 0 || idx >= st->current.choice_count) {
-    return -1;
-  }
-  return idx;
+  return popup_row_at_y(st->list_y0, st->line_h, st->current.choice_count, mouse_y);
 }
 
 int ai_popup_choice_row_at(const AiPopupState* st, int mouse_x, int mouse_y) {
   if (!st || !st->open || st->current.choice_count <= 0) {
     return -1;
   }
-  if (mouse_x < st->dialog_x || mouse_y < st->dialog_y ||
-      mouse_x >= st->dialog_x + st->dialog_w || mouse_y >= st->dialog_y + st->dialog_h) {
+  if (!ui_rect_hit(
+        st->dialog_x, st->dialog_y, st->dialog_w, st->dialog_h, mouse_x, mouse_y
+      )) {
     return -1;
   }
   return ai_popup_option_at_y(st, mouse_y);
@@ -853,8 +857,7 @@ bool ai_popup_handle_input(AiPopupState* st, const ColonizeInputState* input) {
     const int mx = input->mouse_x;
     const int my = input->mouse_y;
     const bool inside_dialog =
-      mx >= st->dialog_x && my >= st->dialog_y && mx < st->dialog_x + st->dialog_w &&
-      my < st->dialog_y + st->dialog_h;
+      ui_rect_hit(st->dialog_x, st->dialog_y, st->dialog_w, st->dialog_h, mx, my);
     if (inside_dialog) {
       const int idx = ai_popup_option_at_y(st, my);
       if (idx >= 0) {
@@ -896,10 +899,11 @@ static void ai_popup_fill_row(
 }
 
 /*
- * Flow-wrap body to pixel max_w (DOS FUN_6f74_1198 / new_game_wrap_prompt_flow).
- * Honors embedded '\n'. Returns number of output lines.
- */
-/*
+ * Flow-wrap body to pixel max_w (DOS FUN_6f74_1198). The engine lives in
+ * popup.c as popup_wrap_text now (audit GL-8 / SC-35 / IN-7) so new_game.c,
+ * game_loop.c's europe prose and the name-entry/howmuch prompts can share it;
+ * this is only the AI_POPUP_BODY_LEN-strided view of it.
+ *
  * out_center, when given, receives one flag per emitted line: true for a
  * GAME.TXT '^^' row, which DOS centres in the dialog (FUN_6f74_1198's flag-1
  * arm). Rows from '^' or '^^' are drawn verbatim — the wrap loop never breaks
@@ -913,123 +917,9 @@ static int ai_popup_wrap_body(
   int max_out,
   int max_w
 ) {
-  int count = 0;
-  if (!body || !body[0] || max_out <= 0) {
-    return 0;
-  }
-  char accum[AI_POPUP_BODY_LEN];
-  accum[0] = '\0';
-
-  const char* p = body;
-  while (*p && count < max_out) {
-    while (*p == ' ') {
-      p++;
-    }
-    if (!*p) {
-      break;
-    }
-    if (*p == '\n') {
-      if (accum[0]) {
-        snprintf(out[count], AI_POPUP_BODY_LEN, "%s", accum);
-        if (out_center) {
-          out_center[count] = false;
-        }
-        count++;
-        accum[0] = '\0';
-        if (count >= max_out) {
-          return count;
-        }
-      } else {
-        out[count][0] = '\0';
-        if (out_center) {
-          out_center[count] = false;
-        }
-        count++;
-      }
-      p++;
-      continue;
-    }
-    if (*p == POPUP_MSG_LINE_MARK || *p == POPUP_MSG_CENTER_MARK) {
-      /* Caret row: flush the paragraph, then take the rest of the source line
-       * whole — no wrapping, no re-flowing into what follows. */
-      if (accum[0]) {
-        snprintf(out[count], AI_POPUP_BODY_LEN, "%s", accum);
-        if (out_center) {
-          out_center[count] = false;
-        }
-        count++;
-        accum[0] = '\0';
-        if (count >= max_out) {
-          return count;
-        }
-      }
-      const bool centered = (*p == POPUP_MSG_CENTER_MARK);
-      p++;
-      const char* row = p;
-      while (*p && *p != '\n') {
-        p++;
-      }
-      size_t rn = (size_t)(p - row);
-      if (rn >= AI_POPUP_BODY_LEN) {
-        rn = AI_POPUP_BODY_LEN - 1;
-      }
-      memcpy(out[count], row, rn);
-      out[count][rn] = '\0';
-      if (out_center) {
-        out_center[count] = centered;
-      }
-      count++;
-      if (*p == '\n') {
-        p++; /* the trailing break is the row's own terminator, not a blank */
-      }
-      continue;
-    }
-
-    const char* start = p;
-    while (*p && *p != ' ' && *p != '\n') {
-      p++;
-    }
-    char word[AI_POPUP_BODY_LEN];
-    size_t n = (size_t)(p - start);
-    if (n >= sizeof(word)) {
-      n = sizeof(word) - 1;
-    }
-    memcpy(word, start, n);
-    word[n] = '\0';
-
-    const int word_w = popup_markup_text_width(font, word);
-    if (accum[0]) {
-      const int space_w = font_text_width(font, " ");
-      if (popup_markup_text_width(font, accum) + space_w + word_w > max_w) {
-        snprintf(out[count], AI_POPUP_BODY_LEN, "%s", accum);
-        if (out_center) {
-          out_center[count] = false;
-        }
-        count++;
-        accum[0] = '\0';
-        if (count >= max_out) {
-          return count;
-        }
-      }
-    }
-    size_t len = strlen(accum);
-    if (accum[0] && len + 1 < sizeof(accum)) {
-      accum[len++] = ' ';
-      accum[len] = '\0';
-    }
-    for (const char* w = word; *w && len + 1 < sizeof(accum); ++w) {
-      accum[len++] = *w;
-    }
-    accum[len] = '\0';
-  }
-  if (accum[0] && count < max_out) {
-    snprintf(out[count], AI_POPUP_BODY_LEN, "%s", accum);
-    if (out_center) {
-      out_center[count] = false;
-    }
-    count++;
-  }
-  return count;
+  return popup_wrap_text(
+    font, body, out ? out[0] : NULL, AI_POPUP_BODY_LEN, out_center, max_out, max_w
+  );
 }
 
 /*
@@ -1138,69 +1028,72 @@ void ai_popup_set_last_portrait(AiPopupState* st, int tribe, int tier) {
   req->portrait_tier = tier < 0 ? 0 : (tier > 3 ? 3 : tier);
 }
 
-static const ColonizeSpriteSheet* ai_popup_portrait_sheet(int tribe, int tier) {
-  if (tribe < 0 || tribe > 7 || tier < 0 || tier > 3 || !g_portrait_dir[0]) {
+/*
+ * One lazy load per popup sheet: try once, remember the verdict in *state
+ * (0 untried, 1 loaded, 2 failed), hand back the sheet only on success.
+ */
+static const ColonizeSpriteSheet* ai_popup_lazy_sheet(
+  const char* name, ColonizeSpriteSheet* sheet, uint8_t* state
+) {
+  if (!name || !sheet || !state || !g_portrait_dir[0]) {
     return NULL;
   }
-  if (g_portrait_state[tribe][tier] == 0) {
-    char name[16];
+  if (*state == 0) {
     char path[600];
     char err[128];
-    snprintf(name, sizeof(name), "IND%dA%d.SS", tribe, tier);
-    g_portrait_state[tribe][tier] = 2;
+    *state = 2;
     if (dos_compat_normalize_asset_path(g_portrait_dir, name, path, sizeof(path)) &&
-        ss_load(path, &g_portrait_sheets[tribe][tier], err, sizeof(err))) {
-      g_portrait_state[tribe][tier] = 1;
+        ss_load(path, sheet, err, sizeof(err))) {
+      *state = 1;
     }
   }
-  return g_portrait_state[tribe][tier] == 1 ? &g_portrait_sheets[tribe][tier] : NULL;
+  return *state == 1 ? sheet : NULL;
+}
+
+static const ColonizeSpriteSheet* ai_popup_portrait_sheet(int tribe, int tier) {
+  if (tribe < 0 || tribe > 7 || tier < 0 || tier > 3) {
+    return NULL;
+  }
+  char name[16];
+  snprintf(name, sizeof(name), "IND%dA%d.SS", tribe, tier);
+  return ai_popup_lazy_sheet(
+    name, &g_portrait_sheets[tribe][tier], &g_portrait_state[tribe][tier]
+  );
 }
 
 static const ColonizeSpriteSheet* ai_popup_king_sheet(void) {
-  if (!g_portrait_dir[0]) {
-    return NULL;
-  }
-  if (g_king_state == 0) {
-    char path[600];
-    char err[128];
-    g_king_state = 2;
-    if (dos_compat_normalize_asset_path(g_portrait_dir, "KING2.SS", path, sizeof(path)) &&
-        ss_load(path, &g_king_sheet, err, sizeof(err))) {
-      g_king_state = 1;
-    }
-  }
-  return g_king_state == 1 ? &g_king_sheet : NULL;
+  return ai_popup_lazy_sheet("KING2.SS", &g_king_sheet, &g_king_state);
 }
 
 /* The static full-figure King the KING2 frames overlay. */
 static const ColonizeSpriteSheet* ai_popup_king_base_sheet(void) {
-  if (!g_portrait_dir[0]) {
-    return NULL;
+  return ai_popup_lazy_sheet("KING.SS", &g_king_base_sheet, &g_king_base_state);
+}
+
+/*
+ * AK-55: both graphic latches patch the last queued request the same way —
+ * clamp a negative to -1, drop the call entirely above the sheet family's top
+ * index (MSS0..5, MYR0..3).
+ */
+static void ai_popup_set_last_graphic(AiPopupState* st, int* field, int value, int max_value) {
+  if (!st || st->queue_count <= 0 || value > max_value) {
+    return;
   }
-  if (g_king_base_state == 0) {
-    char path[600];
-    char err[128];
-    g_king_base_state = 2;
-    if (dos_compat_normalize_asset_path(g_portrait_dir, "KING.SS", path, sizeof(path)) &&
-        ss_load(path, &g_king_base_sheet, err, sizeof(err))) {
-      g_king_base_state = 1;
-    }
-  }
-  return g_king_base_state == 1 ? &g_king_base_sheet : NULL;
+  *field = value < 0 ? -1 : value;
 }
 
 void ai_popup_set_last_graphic_mss(AiPopupState* st, int mss) {
-  if (!st || st->queue_count <= 0 || mss > 5) {
+  if (!st || st->queue_count <= 0) {
     return;
   }
-  st->queue[st->queue_count - 1].graphic_mss = mss < 0 ? -1 : mss;
+  ai_popup_set_last_graphic(st, &st->queue[st->queue_count - 1].graphic_mss, mss, 5);
 }
 
 void ai_popup_set_last_graphic_myr(AiPopupState* st, int nation) {
-  if (!st || st->queue_count <= 0 || nation > 3) {
+  if (!st || st->queue_count <= 0) {
     return;
   }
-  st->queue[st->queue_count - 1].graphic_myr = nation < 0 ? -1 : nation;
+  ai_popup_set_last_graphic(st, &st->queue[st->queue_count - 1].graphic_myr, nation, 3);
 }
 
 static const ColonizeSpriteSheet* ai_popup_graphic_sheet(int mss, int myr) {
@@ -1219,19 +1112,7 @@ static const ColonizeSpriteSheet* ai_popup_graphic_sheet(int mss, int myr) {
   } else {
     return NULL;
   }
-  if (!g_portrait_dir[0]) {
-    return NULL;
-  }
-  if (*state == 0) {
-    char path[600];
-    char err[128];
-    *state = 2;
-    if (dos_compat_normalize_asset_path(g_portrait_dir, name, path, sizeof(path)) &&
-        ss_load(path, sheet, err, sizeof(err))) {
-      *state = 1;
-    }
-  }
-  return *state == 1 ? sheet : NULL;
+  return ai_popup_lazy_sheet(name, sheet, state);
 }
 
 /*
@@ -1724,4 +1605,84 @@ void ai_popup_consume_result(AiPopupState* st) {
   st->has_result = false;
   st->result_cancelled = false;
   st->result_choice_id = -1;
+}
+
+/* ---- Shared queue predicates and chrome tail (audit AC-19 / theme L) ---- */
+
+static bool ai_popup_req_matches(
+  const AiPopupRequest* req,
+  AiPopupTag tag,
+  int kind,
+  AiPopupKeyField key_field,
+  int key_a,
+  int key_b
+) {
+  if (req->tag != tag) {
+    return false;
+  }
+  if (kind >= 0 && (int)req->kind != kind) {
+    return false;
+  }
+  switch (key_field) {
+    case AI_POPUP_KEY_NATION_A:
+      return req->nation_a == key_a;
+    case AI_POPUP_KEY_NATION_AB:
+      return req->nation_a == key_a && req->nation_b == key_b;
+    case AI_POPUP_KEY_ANY:
+    default:
+      return true;
+  }
+}
+
+bool ai_popup_pending(
+  const AiPopupState* st,
+  AiPopupTag tag,
+  int kind,
+  AiPopupKeyField key_field,
+  int key_a,
+  int key_b
+) {
+  if (!st) {
+    return false;
+  }
+  for (int i = 0; i < st->queue_count; ++i) {
+    if (ai_popup_req_matches(&st->queue[i], tag, kind, key_field, key_a, key_b)) {
+      return true;
+    }
+  }
+  return st->open && ai_popup_req_matches(&st->current, tag, kind, key_field, key_a, key_b);
+}
+
+bool ai_popup_pending_payload(
+  const AiPopupState* st,
+  AiPopupTag tag,
+  int kind,
+  int (*decode)(int payload),
+  int key
+) {
+  if (!st || !decode) {
+    return false;
+  }
+  for (int i = 0; i < st->queue_count; ++i) {
+    const AiPopupRequest* req = &st->queue[i];
+    if (ai_popup_req_matches(req, tag, kind, AI_POPUP_KEY_ANY, 0, 0) &&
+        decode(req->payload) == key) {
+      return true;
+    }
+  }
+  return st->open &&
+         ai_popup_req_matches(&st->current, tag, kind, AI_POPUP_KEY_ANY, 0, 0) &&
+         decode(st->current.payload) == key;
+}
+
+void popup_chrome_ok(
+  AiPopupState* ai_popups,
+  const ColonizeMsgCatalog* messages,
+  const char* section,
+  const PopupMsgTokens* tok,
+  const char* fallback
+) {
+  char body[AI_POPUP_BODY_LEN];
+  popup_msg_fill(messages, section, tok, fallback, body, sizeof(body));
+  ai_popup_enqueue_ok(ai_popups, AI_POPUP_TAG_INFO, NULL, body);
 }

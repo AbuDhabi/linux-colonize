@@ -1,10 +1,7 @@
 /*
- * PARKED 2026-08-19 (docs/port_plan.md R0, docs/port_plan.md): DISABLED
- * in CMakeLists.txt — same reason as tests/golden/test_ai_turns.c. Red here
- * means AI porting incomplete, not a fresh regression; do not chase to green
- * until the transcription is done.
- *
- * Joint mid-turn goldens (T3 Series D + H).
+ * Joint mid-turn smoke pair (T3 Series D + H). Filed under tests/smoke, not
+ * tests/golden: it generates its own input fixture each run and asserts only
+ * self-consistency invariants — there is no DOS-derived expectation here.
  * MID01: load TURN7, stamp mid-war Indian×Euro fields, write MID01.SAV.
  * MID02: load MID01, run one full joint turn (Euro + Indian), capture MID02.SAV.
  * Pair compare: joint field list vs golden_ai_turns (units/Braves, tribes,
@@ -25,44 +22,14 @@
 #include <stdio.h>
 #include <string.h>
 
+#define TEST_NAME "smoke_ai_mid01"
+#include "tests/common/joint_fixture.h"
+#include "tests/common/test_fail.h"
+
 #define MID01_PATH "test-saves-ai/MID01.SAV"
 #define MID02_PATH "test-saves-ai/MID02.SAV"
 #define TURN7_PATH "test-saves-ai/TURN7.SAV"
 #define AI_MID_VR_SEED 100u
-
-static int fail(const char* msg) {
-  fprintf(stderr, "golden_ai_mid01: FAIL %s\n", msg);
-  return 1;
-}
-
-static int assert_joint_fields(const ColonizeCol1Save* s, const char* tag) {
-  if (!s || s->head.unit_count == 0) {
-    fprintf(stderr, "%s: no units\n", tag);
-    return 0;
-  }
-  if (s->head.tribe_count == 0 || !s->tribe) {
-    fprintf(stderr, "%s: no tribes\n", tag);
-    return 0;
-  }
-  int euro_u = 0;
-  int brave_u = 0;
-  for (unsigned i = 0; i < s->head.unit_count; ++i) {
-    const ColonizeCol1Unit* u = &s->unit[i];
-    if (u->nation_id < 4) {
-      euro_u++;
-    } else if (u->nation_id <= 11) {
-      brave_u++;
-    }
-  }
-  if (euro_u == 0 || brave_u == 0) {
-    fprintf(stderr, "%s: euro_u=%d brave_u=%d\n", tag, euro_u, brave_u);
-    return 0;
-  }
-  (void)s->nation[0].indian_hostility_sticky;
-  (void)s->nation[0].relation_by_indian[0];
-  (void)s->nation[0].euro_relation[1];
-  return 1;
-}
 
 /*
  * Pair compare MID01→MID02 using the same joint surface as golden_ai_turns:
@@ -70,7 +37,7 @@ static int assert_joint_fields(const ColonizeCol1Save* s, const char* tag) {
  * readable. Exact unit XY golden is Linux-derived (regenerated each run).
  */
 static int compare_mid_pair(const ColonizeCol1Save* a, const ColonizeCol1Save* b) {
-  if (!assert_joint_fields(a, "MID01") || !assert_joint_fields(b, "MID02")) {
+  if (!joint_assert_fields(a, "MID01") || !joint_assert_fields(b, "MID02")) {
     return 0;
   }
   if (b->head.turn <= a->head.turn && b->head.year <= a->head.year &&
@@ -106,43 +73,22 @@ static int compare_mid_pair(const ColonizeCol1Save* a, const ColonizeCol1Save* b
 }
 
 static int write_mid01_from_turn7(void) {
-  char err[256];
-  ColonizeCol1Save save;
-  col1_save_init(&save);
-  if (!col1_save_read_file(TURN7_PATH, &save, err, sizeof(err))) {
-    fprintf(stderr, "read TURN7: %s\n", err);
-    return fail("load TURN7.SAV");
+  /* Mid-war stamp: sticky pinned to 2, hot relation rows cooled to 35, every
+   * contacted tribe's alarm forced to 60, calendar floored into the 1500s. */
+  const JointHostilityStamp st = {
+    .year_floor = 1500,
+    .year_set = 1505,
+    .sticky_value = 2,
+    .sticky_force = true,
+    .relation_above = 40,
+    .relation_set = 35,
+    .alarm_value = 60,
+    .alarm_force = true,
+    .friction_min = -1
+  };
+  if (!joint_stamp_hostility_fixture(TURN7_PATH, MID01_PATH, &st)) {
+    return fail("stamp MID01.SAV from TURN7.SAV");
   }
-
-  for (int e = 0; e < 4; ++e) {
-    save.nation[e].indian_hostility_sticky = 2;
-    for (int i = 0; i < 8; ++i) {
-      if (save.nation[e].relation_by_indian[i] == 0) {
-        continue;
-      }
-      if (save.nation[e].relation_by_indian[i] > 40) {
-        save.nation[e].relation_by_indian[i] = 35;
-      }
-    }
-  }
-  for (int n = 0; n < 8; ++n) {
-    ColonizeCol1Indian* ind = &save.indian[n];
-    for (int e = 0; e < 4; ++e) {
-      if (ind->euro_diplo[e]) {
-        ind->alarm_by_player[e] = 60;
-      }
-    }
-  }
-  if (save.head.year < 1500) {
-    save.head.year = 1505;
-  }
-
-  if (!col1_save_write_file(MID01_PATH, &save, err, sizeof(err))) {
-    fprintf(stderr, "write MID01: %s\n", err);
-    col1_save_free(&save);
-    return fail("write MID01.SAV");
-  }
-  col1_save_free(&save);
   return 0;
 }
 
@@ -270,7 +216,7 @@ int main(void) {
     fprintf(stderr, "reload MID01: %s\n", err);
     return fail("reload MID01.SAV");
   }
-  if (!assert_joint_fields(&mid, "MID01")) {
+  if (!joint_assert_fields(&mid, "MID01")) {
     col1_save_free(&mid);
     return fail("MID01 joint field snapshot");
   }
@@ -308,7 +254,7 @@ int main(void) {
   col1_save_free(&b);
 
   printf(
-    "golden_ai_mid01: ok (MID01 stamp + MID02 turn + pair compare; %s %s)\n",
+    "smoke_ai_mid01: ok (MID01 stamp + MID02 turn + pair compare; %s %s)\n",
     MID01_PATH,
     MID02_PATH
   );

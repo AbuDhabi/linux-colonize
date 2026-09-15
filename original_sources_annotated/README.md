@@ -212,7 +212,7 @@ the catalog only mirrors light-label status.
 - Phase 2: Quiet Brave `LAB_521d_4ea9` annotated in `ai/quiet_brave_scoring.c`.
 - Phase 9: Coarse fog `DS:0x9faa` dual index + Linux buffer.
 - Phase 10–11: Seed-100 **init and mid-turn** quiet ASM cutover (stay LCG +
-  peels). `AI_EMPIRICISM=1` for legacy.
+  peels). The legacy `AI_EMPIRICISM=1` empirical picker was deleted 2026-09-14.
 - Phase 12: `FUN_465b_0000` annotated end-to-end in `ai/move_spent.c` (cost head,
   foreign gate, ocean force-to-max, ADD/gamble; combat PARKED). Linux ocean gate
   uses `euro_settlement_owner`.

@@ -11,6 +11,7 @@
 #include "core/dos_rng.h"
 #include "core/founding_fathers.h"
 #include "core/popup_msg.h"
+#include "core/reports.h"
 #include "platform/diagnostics.h"
 #include "core/ss.h"
 #include "core/strutil.h"
@@ -342,20 +343,57 @@ static void europe_disembark_passengers_to_dock(
   }
 }
 
-/* Screenshot / DOS purchase list (no Man-O-War). Oracle: original_screenshots/europe/purchase.png */
+/*
+ * The Europe purchase list (no Man-O-War). Oracle:
+ * original_screenshots/europe/purchase.png; in DOS it is the FUN_521d_5c3c
+ * table at DS:0x978d, stride 6, pinned byte-identical across three
+ * original_memory_dumps — 0=Artillery/500, 1=Caravel/1000,
+ * 2=Merchantman/2000, 3=Galleon/3000, 4=Privateer/2000, 5=Frigate/5000.
+ *
+ * Audit AE-17: the same six prices were also typed out in ai_euro.c's
+ * 5d04 `k_purchase` and a third time as 5d04's gold-floor switch (the
+ * DS:0x9796/0x97a8/0x97ae "catch-up gold" values are literally this table's
+ * Caravel / Privateer / Frigate price cells). This file owns the numbers
+ * now; europe_purchase_price / europe_purchase_option_at expose them.
+ */
+static const EuropePurchaseOption k_purchase_opts[] = {
+  {"Artillery", 500, false},
+  {"Caravel", 1000, true},
+  {"Merchantman", 2000, true},
+  {"Galleon", 3000, true},
+  {"Privateer", 2000, true},
+  {"Frigate", 5000, true},
+};
+static const int k_purchase_opt_count =
+  (int)(sizeof(k_purchase_opts) / sizeof(k_purchase_opts[0]));
+
+int europe_purchase_option_count(void) {
+  return k_purchase_opt_count;
+}
+
+const EuropePurchaseOption* europe_purchase_option_at(int index) {
+  if (index < 0 || index >= k_purchase_opt_count) {
+    return NULL;
+  }
+  return &k_purchase_opts[index];
+}
+
+int europe_purchase_price(const char* type_name) {
+  if (!type_name || !type_name[0]) {
+    return 0;
+  }
+  for (int i = 0; i < k_purchase_opt_count; ++i) {
+    if (strcmp(k_purchase_opts[i].name, type_name) == 0) {
+      return k_purchase_opts[i].gold;
+    }
+  }
+  return 0;
+}
+
 static void europe_init_purchase_table(EuropeScreen* eu) {
-  static const EuropePurchaseOption k_opts[] = {
-    {"Artillery", 500, false},
-    {"Caravel", 1000, true},
-    {"Merchantman", 2000, true},
-    {"Galleon", 3000, true},
-    {"Privateer", 2000, true},
-    {"Frigate", 5000, true},
-  };
   eu->purchase_count = 0;
-  for (size_t i = 0; i < sizeof(k_opts) / sizeof(k_opts[0]) && eu->purchase_count < EUROPE_PURCHASE_MAX;
-       ++i) {
-    eu->purchase[eu->purchase_count++] = k_opts[i];
+  for (int i = 0; i < k_purchase_opt_count && eu->purchase_count < EUROPE_PURCHASE_MAX; ++i) {
+    eu->purchase[eu->purchase_count++] = k_purchase_opts[i];
   }
 }
 
@@ -394,13 +432,30 @@ static const EuropePoolCand k_pool_cands[] = {
   {"Jesuit Missionaries", 24},
 };
 
-static const char* europe_pool_job_name(int profession) {
+/* @JOB id of Free Colonists — the pool's "nothing special here" value and
+ * what the DOS label 4884 swaps 0x1c (job NONE) for. */
+#define EUROPE_POOL_JOB_FREE_COLONIST 19
+
+/* Slot in k_pool_cands, or -1 when this @JOB id cannot appear in the pool. */
+static int europe_pool_cand_index(int profession) {
   for (size_t i = 0; i < sizeof(k_pool_cands) / sizeof(k_pool_cands[0]); ++i) {
     if (k_pool_cands[i].profession == profession) {
-      return k_pool_cands[i].name;
+      return (int)i;
     }
   }
-  return "Free Colonists";
+  return -1;
+}
+
+/*
+ * Audit SC-13: k_pool_cands stays as the DOS profession-id FILTER (the
+ * remap below makes six @JOB ids unreachable from Europe), but the name
+ * column no longer answers — reports_job_display_name reads NAMES.TXT @JOB
+ * column 1, the same column those literals were copied from, so a
+ * translated NAMES.TXT now reaches the recruit pool too.
+ */
+static const char* europe_pool_job_name(int profession) {
+  const int cand = europe_pool_cand_index(profession);
+  return reports_job_display_name(cand >= 0 ? profession : EUROPE_POOL_JOB_FREE_COLONIST);
 }
 
 /*
@@ -558,8 +613,11 @@ void europe_apply_brewster(EuropeScreen* eu, int owned) {
   for (int i = 0; i < EUROPE_POOL_SIZE; ++i) {
     if (eu->pool[i].filled &&
         (eu->pool[i].profession == 25 || eu->pool[i].profession == 26)) {
-      snprintf(eu->pool[i].name, sizeof(eu->pool[i].name), "Free Colonists");
-      eu->pool[i].profession = 19;
+      eu->pool[i].profession = EUROPE_POOL_JOB_FREE_COLONIST;
+      snprintf(
+        eu->pool[i].name, sizeof(eu->pool[i].name), "%s",
+        europe_pool_job_name(EUROPE_POOL_JOB_FREE_COLONIST)
+      );
     }
   }
 }
@@ -585,15 +643,11 @@ static void europe_refill_pool_slot_impl(
   p->filled = true;
 }
 
-void europe_refill_pool_slot_ex(
-  EuropeScreen* eu, int slot, bool force_expert, unsigned* rng_state
-) {
-  europe_refill_pool_slot_impl(eu, slot, force_expert, NULL, rng_state);
-}
-
-void europe_refill_pool_slot(EuropeScreen* eu, int slot, unsigned* rng_state) {
-  /* DOS 64776 (the Recruit-click tail) calls 46d4(0) — the tier roll. */
-  europe_refill_pool_slot_ex(eu, slot, false, rng_state);
+/* DOS 64776 (the Recruit-click tail) calls 46d4(0) — the tier roll. Audit
+ * SC-24: this used to be a three-deep wrapper stack (_ex over _impl, plain
+ * over _ex) with no external caller for either intermediate. */
+static void europe_refill_pool_slot(EuropeScreen* eu, int slot, unsigned* rng_state) {
+  europe_refill_pool_slot_impl(eu, slot, false, NULL, rng_state);
 }
 
 void europe_refill_pool_slot_rng(
@@ -610,12 +664,14 @@ void europe_set_pool_slot(EuropeScreen* eu, int slot, int profession) {
     return;
   }
   EuropePoolSlot* p = &eu->pool[slot];
-  const char* name = europe_pool_job_name(profession);
-  if (profession < 0 || profession > 0x1a || strcmp(name, "Free Colonists") == 0) {
-    profession = 0x13;
-    name = "Free Colonists";
+  /* Anything outside the pool's own candidate set (including 0x1c "job
+   * NONE") becomes a Free Colonist, the swap label 4884 does. The test used
+   * to be a strcmp against the English name, which a translated NAMES.TXT
+   * would have broken (audit SC-13). */
+  if (profession < 0 || profession > 0x1a || europe_pool_cand_index(profession) < 0) {
+    profession = EUROPE_POOL_JOB_FREE_COLONIST;
   }
-  snprintf(p->name, sizeof(p->name), "%s", name);
+  snprintf(p->name, sizeof(p->name), "%s", europe_pool_job_name(profession));
   p->profession = profession;
   p->filled = true;
 }
@@ -677,10 +733,10 @@ void europe_seed_pool(EuropeScreen* eu, int difficulty, bool human) {
     eu->pool[0].filled = true;
   }
   if (EUROPE_POOL_SIZE > 1) {
-    europe_refill_pool_slot_ex(eu, 1, difficulty < 3, &rng);
+    europe_refill_pool_slot_impl(eu, 1, difficulty < 3, NULL, &rng);
   }
   if (EUROPE_POOL_SIZE > 2) {
-    europe_refill_pool_slot_ex(eu, 2, true, &rng);
+    europe_refill_pool_slot_impl(eu, 2, true, NULL, &rng);
   }
   if (human && difficulty <= 1) {
     static const int k_easy[3] = {0x0d, 0x00, 0x16};
@@ -959,8 +1015,10 @@ static bool europe_load_tables(EuropeScreen* eu, const ColonizeMsgCatalog* names
 }
 
 void europe_set_nation(EuropeScreen* eu, int nation, const ColonizeMsgCatalog* names) {
-  static const char* k_ports[4] = {"London", "La Rochelle", "Seville", "Amsterdam"};
-  static const char* k_nations[4] = {"England", "France", "Spain", "Netherlands"};
+  /* @HOMEPORT / @COUNTRY come from reports.c's shared NAMES.TXT accessors
+   * now (audit SC-6/SC-7). The `names` catalog handed in here is read first
+   * when it has the section — it is the *caller's* catalog, which may be a
+   * different one from reports_load's. */
   static const char* k_regions[4] = {
     "New England", "New France", "New Spain", "New Netherlands"
   };
@@ -980,10 +1038,10 @@ void europe_set_nation(EuropeScreen* eu, int nation, const ColonizeMsgCatalog* n
       if (line[0] && line[0] != ';') {
         str_copy_trunc(eu->port_city, sizeof(eu->port_city), line);
       } else {
-        str_copy_trunc(eu->port_city, sizeof(eu->port_city), k_ports[nation]);
+        str_copy_trunc(eu->port_city, sizeof(eu->port_city), reports_home_port_name(nation));
       }
     } else {
-      str_copy_trunc(eu->port_city, sizeof(eu->port_city), k_ports[nation]);
+      str_copy_trunc(eu->port_city, sizeof(eu->port_city), reports_home_port_name(nation));
     }
     if (reg && nation >= 0 && nation < reg->line_count) {
       char line[COLONIZE_MSG_LINE_LEN];
@@ -998,10 +1056,10 @@ void europe_set_nation(EuropeScreen* eu, int nation, const ColonizeMsgCatalog* n
       str_copy_trunc(eu->colony_region, sizeof(eu->colony_region), k_regions[nation]);
     }
   } else {
-    str_copy_trunc(eu->port_city, sizeof(eu->port_city), k_ports[nation]);
+    str_copy_trunc(eu->port_city, sizeof(eu->port_city), reports_home_port_name(nation));
     str_copy_trunc(eu->colony_region, sizeof(eu->colony_region), k_regions[nation]);
   }
-  str_copy_trunc(eu->nation_name, sizeof(eu->nation_name), k_nations[nation]);
+  str_copy_trunc(eu->nation_name, sizeof(eu->nation_name), reports_nation_country_name(nation));
   /* FUN_38fd_0000(nation): DS:0x9e12 = nation, DS:0x84fc = its record
    * (viceroy_unpacked.c 58696-58702). The trade-volume term reads 0x9e12 for
    * the human test and the Dutch slot-3 damping. */
@@ -1214,11 +1272,7 @@ static void europe_bump_recruit_count(EuropeScreen* eu) {
   europe_refresh_recruit_passage(eu);
 }
 
-bool europe_recruit_from_pool(EuropeScreen* eu, int pool_index) {
-  return europe_recruit_from_pool_ex(eu, pool_index, NULL);
-}
-
-bool europe_recruit_from_pool_ex(EuropeScreen* eu, int pool_index, ColonizeDosRng* rng) {
+static bool europe_recruit_from_pool_ex(EuropeScreen* eu, int pool_index, ColonizeDosRng* rng) {
   if (!eu || pool_index < 0 || pool_index >= EUROPE_POOL_SIZE) {
     return false;
   }
@@ -1274,10 +1328,6 @@ bool europe_recruit_from_pool_ex(EuropeScreen* eu, int pool_index, ColonizeDosRn
   return true;
 }
 
-bool europe_recruit_free_from_pool(EuropeScreen* eu, int pool_index) {
-  return europe_recruit_free_from_pool_ex(eu, pool_index, NULL);
-}
-
 bool europe_recruit_free_from_pool_ex(
   EuropeScreen* eu, int pool_index, ColonizeDosRng* rng
 ) {
@@ -1303,10 +1353,6 @@ bool europe_recruit_free_from_pool_ex(
   snprintf(eu->status, sizeof(eu->status), "%s joins the docks.", slot->name);
   europe_refill_pool_slot_rng(eu, pool_index, false, rng);
   return true;
-}
-
-bool europe_brewster_pick_from_pool(EuropeScreen* eu, int pool_index) {
-  return europe_brewster_pick_from_pool_ex(eu, pool_index, NULL);
 }
 
 bool europe_brewster_pick_from_pool_ex(
@@ -1483,11 +1529,9 @@ int europe_dock_unit_dos_type(int profession, int difficulty, bool human, Coloni
 }
 
 int europe_dock_type_for(const char* name, int profession) {
-  static const char* const k_names[6] = {"Colonists", "Soldiers",  "Pioneers",
-                                         "Missionaries", "Dragoons", "Scouts"};
   if (name && name[0]) {
-    for (int i = 0; i < 6; ++i) {
-      if (strcmp(name, k_names[i]) == 0) {
+    for (int i = 0; i < EUROPE_DOCK_TYPE_COUNT; ++i) {
+      if (strcmp(name, reports_dock_type_name(i)) == 0) {
         return i;
       }
     }
@@ -1495,25 +1539,56 @@ int europe_dock_type_for(const char* name, int profession) {
   return europe_dock_unit_dos_type(profession, 0, true, NULL);
 }
 
-int europe_dock_type_tools(int dos_type) {
+static int europe_dock_type_tools(int dos_type) {
   return dos_type == EUROPE_DOCK_TYPE_PIONEERS ? 100 : 0;
 }
 
-int europe_dock_type_muskets(int dos_type) {
+static int europe_dock_type_muskets(int dos_type) {
   return (dos_type == EUROPE_DOCK_TYPE_SOLDIERS || dos_type == EUROPE_DOCK_TYPE_DRAGOONS) ? 50 : 0;
 }
 
-int europe_dock_type_horses(int dos_type) {
+static int europe_dock_type_horses(int dos_type) {
   return (dos_type == EUROPE_DOCK_TYPE_DRAGOONS || dos_type == EUROPE_DOCK_TYPE_SCOUTS) ? 50 : 0;
 }
 
-int europe_dock_unit_type_index(const ColonizeUnitPool* units, int dos_type) {
-  static const char* const k_names[6] = {"Colonists", "Soldiers",  "Pioneers",
-                                         "Missionaries", "Dragoons", "Scouts"};
-  if (!units || dos_type < 0 || dos_type > 5) {
+/*
+ * Audit SC-20/AE-18. The six dock type names are NAMES.TXT @UNIT rows 0..5
+ * (reports_dock_type_name) — they were typed out twice in this file 24
+ * lines apart, and a third time in ai_euro.c's ai_euro_5d04_linux_type_for
+ * with singular fallbacks bolted on.
+ *
+ * `with_singular_fallback` is that third spelling: when the pool has no
+ * "Soldiers" row, try "Soldier"; likewise Pioneer/Missionary/Dragoon/Scout,
+ * and Colonists → "Free Colonist" → "Colonist". The Europe screen itself
+ * always passes false (its pool is built from the same @UNIT rows, so the
+ * plural always resolves); the 5d04 AI purchase path passes true because it
+ * also runs against hand-built test pools.
+ */
+int europe_dock_unit_type_index_ex(
+  const ColonizeUnitPool* units, int dos_type, bool with_singular_fallback
+) {
+  static const char* const k_singular[EUROPE_DOCK_TYPE_COUNT][2] = {
+    {"Free Colonist", "Colonist"}, {"Soldier", NULL},  {"Pioneer", NULL},
+    {"Missionary", NULL},          {"Dragoon", NULL},  {"Scout", NULL},
+  };
+  if (!units || dos_type < 0 || dos_type >= EUROPE_DOCK_TYPE_COUNT) {
     return -1;
   }
-  return units_find_type((ColonizeUnitPool*)units, k_names[dos_type]);
+  int t = units_find_type((ColonizeUnitPool*)units, reports_dock_type_name(dos_type));
+  if (t >= 0 || !with_singular_fallback) {
+    return t;
+  }
+  for (int i = 0; i < 2 && k_singular[dos_type][i]; ++i) {
+    t = units_find_type((ColonizeUnitPool*)units, k_singular[dos_type][i]);
+    if (t >= 0) {
+      return t;
+    }
+  }
+  return -1;
+}
+
+int europe_dock_unit_type_index(const ColonizeUnitPool* units, int dos_type) {
+  return europe_dock_unit_type_index_ex(units, dos_type, false);
 }
 
 /*
@@ -1572,7 +1647,7 @@ void europe_apply_dock_unit_kit(ColonizeUnit* u, int dos_type) {
  * europe_remove_dock_mirror_unit matches, with the pre-change type as the
  * tie-break so two immigrants of the same profession do not swap.
  */
-void europe_retype_dock_mirror_unit(
+static void europe_retype_dock_mirror_unit(
   ColonizeUnitPool* units,
   int nation_id,
   int profession,
@@ -1886,7 +1961,7 @@ static const char* europe_arm_row_name(int row) {
   }
 }
 
-bool europe_apply_dock_menu_row_ex(
+static bool europe_apply_dock_menu_row_ex(
   EuropeScreen* eu,
   ColonizeUnitPool* units,
   ColonizeCol1Save* col1,
@@ -2044,11 +2119,18 @@ bool europe_apply_dock_menu_row(
   return europe_apply_dock_menu_row_ex(eu, units, NULL, nation_id, dock_index, row);
 }
 
+static bool europe_pop_dock_immigrant_ex(
+  EuropeScreen* eu,
+  char* out_name,
+  size_t out_name_size,
+  int* out_profession
+);
+
 bool europe_pop_dock_immigrant(EuropeScreen* eu, char* out_name, size_t out_name_size) {
   return europe_pop_dock_immigrant_ex(eu, out_name, out_name_size, NULL);
 }
 
-bool europe_pop_dock_immigrant_ex(
+static bool europe_pop_dock_immigrant_ex(
   EuropeScreen* eu,
   char* out_name,
   size_t out_name_size,
@@ -3441,7 +3523,7 @@ static const char* europe_label(
   return fallback;
 }
 
-void europe_push_sale_status(EuropeScreen* eu, int cargo_type, int amount, int net) {
+static void europe_push_sale_status(EuropeScreen* eu, int cargo_type, int amount, int net) {
   if (!eu || amount <= 0 || cargo_type < 0 || cargo_type >= eu->cargo_count) {
     return;
   }
@@ -3477,6 +3559,76 @@ void europe_push_sale_status(EuropeScreen* eu, int cargo_type, int amount, int n
   eu->bar_event_count++;
 }
 
+/*
+ * ---------------------------------------------------------------------
+ * The one Europe sell pipeline (audit SC-16 / SC-17).
+ *
+ * europe_sell_hold, europe_sell_hold_partial and europe_sell_unit_hold each
+ * wrote this sequence out in full, with three separately-maintained copies
+ * of the same smell-audit comment block. The order below is DOS's and is
+ * load-bearing:
+ *
+ *   1. Boycott gate on the SELLER's own nation+0x20 word, not the
+ *      Europe-screen render mirror (smell audit G6): an EOT trade-route
+ *      unload and the map/transport dump-sell both run with no screen in
+ *      sight, and the AI borrow path swaps eu->gold for the AI nation.
+ *   2. europe_sell_proceeds, then europe_purse_move — which credits the
+ *      seller's own record when the purse is theirs (smell audit G3).
+ *   3. europe_credit_sale_tax: DOS `nation+0x22 += tax` on every sale
+ *      (smell audit #51), seller = the hold's owner.
+ *   4. Clear the hold. Partial sales subtract and only reset the type word
+ *      once the hold empties — the empty-hold sentinel is amount 0 / type 0
+ *      everywhere else in the port, and 255 here used to be the odd one out
+ *      (smell audit #64). A full sale is the amt == held case of the same
+ *      rule, so all three callers share it.
+ *   5. europe_push_sale_status BEFORE the volume move, so the printed gross
+ *      is the bid the sale actually went through at (bugs.md 382).
+ *   6. europe_apply_trade_volume: the 1dfa ledger (tons/tons2/gold) so the
+ *      human's own trading feeds the long-run price pool (smell audit #50).
+ *
+ * `hold_type` / `hold_amount` point at the caller's own slot — an
+ * EuropeHarborShip mirror hold or a ColonizeUnit hold, both int[]. Returns
+ * the proceeds, or 0 when the boycott gate refused (nothing is mutated).
+ * The caller keeps its own diag_info line: the three differ in what they
+ * can name (ship name / unit id) and whether a partial shows "amt/held".
+ * ---------------------------------------------------------------------
+ */
+static int europe_sell_commit(
+  EuropeScreen* eu,
+  struct ColonizeCol1Save* col1,
+  int seller_nation,
+  int* hold_type,
+  int* hold_amount,
+  int amt
+) {
+  const int ctype = *hold_type;
+  const int held = *hold_amount;
+  if (europe_cargo_boycotted_ex(eu, col1, seller_nation, ctype)) {
+    const char* bname =
+      (ctype >= 0 && ctype < eu->cargo_count) ? eu->cargo[ctype].name : "That cargo";
+    snprintf(
+      eu->status, sizeof(eu->status), "%s is boycotted — cannot trade in Europe.", bname
+    );
+    return 0;
+  }
+  const int gained = europe_sell_proceeds(eu, ctype, amt);
+  europe_purse_move(eu, col1, seller_nation, gained);
+  europe_credit_sale_tax(col1, seller_nation, europe_sell_price(eu, ctype) * amt, gained);
+  *hold_amount = held - amt;
+  if (*hold_amount == 0) {
+    *hold_type = 0;
+  }
+  europe_push_sale_status(eu, ctype, amt, gained);
+  europe_apply_trade_volume(
+    eu, col1, seller_nation, col1 ? (int)col1->head.human_player : seller_nation,
+    ctype, amt, 0, 1
+  );
+  const char* cname =
+    (ctype >= 0 && ctype < eu->cargo_count) ? eu->cargo[ctype].name : "cargo";
+  snprintf(eu->status, sizeof(eu->status), "Sold %d %s for %d$.", amt, cname, gained);
+  return gained;
+}
+
 int europe_sell_hold(
   EuropeScreen* eu,
   struct ColonizeCol1Save* col1,
@@ -3496,36 +3648,15 @@ int europe_sell_hold(
   if (amt <= 0 || amt >= 255) {
     return 0;
   }
-  /* Smell audit G6: the SELLER's own nation+0x20 word, not the Europe-screen
-   * render mirror — an EOT trade-route unload runs with no screen in sight. */
-  if (europe_cargo_boycotted_ex(eu, col1, seller_nation, ctype)) {
-    const char* cname =
-      (ctype >= 0 && ctype < eu->cargo_count) ? eu->cargo[ctype].name : "That cargo";
-    snprintf(
-      eu->status, sizeof(eu->status), "%s is boycotted — cannot trade in Europe.", cname
-    );
+  const int gained = europe_sell_commit(
+    eu, col1, seller_nation, &ship->hold_goods_type[hold_index],
+    &ship->hold_goods_amount[hold_index], amt
+  );
+  if (gained <= 0) {
     return 0;
   }
-  const int gained = europe_sell_proceeds(eu, ctype, amt);
-  /* Purse + the seller's record when the purse is theirs (smell audit G3). */
-  europe_purse_move(eu, col1, seller_nation, gained);
-  /* DOS `nation+0x22 += tax` on every sale — see europe_credit_sale_tax
-   * (smell audit #51). */
-  europe_credit_sale_tax(col1, seller_nation, europe_sell_price(eu, ctype) * amt, gained);
-  ship->hold_goods_amount[hold_index] = 0;
-  ship->hold_goods_type[hold_index] = 0;
-  /* Status line before the volume move, so the printed gross is the bid the
-   * sale actually went through at (bugs.md 382). */
-  europe_push_sale_status(eu, ctype, amt, gained);
-  /* Smell audit #50: route through the ledger (1dfa tons/tons2/gold) so the
-   * human's own trading feeds the long-run price pool. */
-  europe_apply_trade_volume(
-    eu, col1, seller_nation, col1 ? (int)col1->head.human_player : seller_nation,
-    ctype, amt, 0, 1
-  );
   const char* cname =
     (ctype >= 0 && ctype < eu->cargo_count) ? eu->cargo[ctype].name : "cargo";
-  snprintf(eu->status, sizeof(eu->status), "Sold %d %s for %d$.", amt, cname, gained);
   diag_info(
     "EUROPE sold %d %s from %s: bid=%d tax=%d%% proceeds=%d gold=%d",
     amt, cname, ship->name[0] ? ship->name : "ship",
@@ -3555,35 +3686,15 @@ int europe_sell_hold_partial(
     return 0;
   }
   const int amt = amount < held ? amount : held;
-  if (europe_cargo_boycotted_ex(eu, col1, seller_nation, ctype)) {
-    const char* cname =
-      (ctype >= 0 && ctype < eu->cargo_count) ? eu->cargo[ctype].name : "That cargo";
-    snprintf(
-      eu->status, sizeof(eu->status), "%s is boycotted — cannot trade in Europe.", cname
-    );
+  const int gained = europe_sell_commit(
+    eu, col1, seller_nation, &ship->hold_goods_type[hold_index],
+    &ship->hold_goods_amount[hold_index], amt
+  );
+  if (gained <= 0) {
     return 0;
   }
-  const int gained = europe_sell_proceeds(eu, ctype, amt);
-  europe_purse_move(eu, col1, seller_nation, gained);
-  europe_credit_sale_tax(col1, seller_nation, europe_sell_price(eu, ctype) * amt, gained);
-  ship->hold_goods_amount[hold_index] = (uint8_t)(held - amt);
-  if (ship->hold_goods_amount[hold_index] == 0) {
-    /* Empty-hold sentinel is amount 0 / type 0 everywhere else in the port
-     * (europe_sell_hold, europe_sell_unit_hold, the AI dump paths, the COL1
-     * import); 255 here was the odd one out. Smell audit #64. Every reader
-     * gates on the amount, so the type value is inert either way — but the
-     * drag/peek paths do read hold_goods_type raw. */
-    ship->hold_goods_type[hold_index] = 0;
-  }
-  europe_push_sale_status(eu, ctype, amt, gained);
-  /* Smell audit #50: ledger + price move (see europe_sell_hold). */
-  europe_apply_trade_volume(
-    eu, col1, seller_nation, col1 ? (int)col1->head.human_player : seller_nation,
-    ctype, amt, 0, 1
-  );
   const char* cname =
     (ctype >= 0 && ctype < eu->cargo_count) ? eu->cargo[ctype].name : "cargo";
-  snprintf(eu->status, sizeof(eu->status), "Sold %d %s for %d$.", amt, cname, gained);
   diag_info(
     "EUROPE sold %d/%d %s from %s: bid=%d tax=%d%% proceeds=%d gold=%d",
     amt, held, cname, ship->name[0] ? ship->name : "ship",
@@ -3998,34 +4109,18 @@ int europe_sell_unit_hold(
   if (amt <= 0 || amt >= 255) {
     return 0;
   }
-  /* Smell audit G6: hold owner's own nation+0x20 — this is the map/transport
-   * dump-sell and the trade-route unload, neither of which renders Europe. */
-  if (europe_cargo_boycotted_ex(eu, col1, (int)u->nation_id, ctype)) {
-    const char* cname =
-      (ctype >= 0 && ctype < eu->cargo_count) ? eu->cargo[ctype].name : "That cargo";
-    snprintf(
-      eu->status, sizeof(eu->status), "%s is boycotted — cannot trade in Europe.", cname
-    );
+  /* Seller = the hold's owner, which keeps the AI borrow path
+   * (ai_euro_try_transport_europe_sell swaps eu->gold/tax for the AI
+   * nation) crediting the right purse. */
+  const int gained = europe_sell_commit(
+    eu, col1, (int)u->nation_id, &u->hold_goods_type[hold_index],
+    &u->hold_goods_amount[hold_index], amt
+  );
+  if (gained <= 0) {
     return 0;
   }
-  const int gained = europe_sell_proceeds(eu, ctype, amt);
-  europe_purse_move(eu, col1, (int)u->nation_id, gained);
-  /* DOS `nation+0x22 += tax`; the seller is the hold's owner, which keeps the
-   * AI borrow path (ai_euro_try_transport_europe_sell swaps eu->gold/tax for
-   * the AI nation) crediting the right purse. See europe_credit_sale_tax
-   * (smell audit #51). */
-  europe_credit_sale_tax(col1, u->nation_id, europe_sell_price(eu, ctype) * amt, gained);
-  u->hold_goods_amount[hold_index] = 0;
-  u->hold_goods_type[hold_index] = 0;
-  /* Smell audit #50: ledger + price move; seller = hold owner (AI borrow
-   * path keeps crediting the right nation record). */
-  europe_apply_trade_volume(
-    eu, col1, (int)u->nation_id, col1 ? (int)col1->head.human_player : (int)u->nation_id,
-    ctype, amt, 0, 1
-  );
   const char* cname =
     (ctype >= 0 && ctype < eu->cargo_count) ? eu->cargo[ctype].name : "cargo";
-  snprintf(eu->status, sizeof(eu->status), "Sold %d %s for %d$.", amt, cname, gained);
   diag_info(
     "EUROPE sold %d %s from unit %d: bid=%d tax=%d%% proceeds=%d gold=%d",
     amt, cname, unit_id, europe_sell_price(eu, ctype), eu->tax_percent, gained, eu->gold
@@ -4176,34 +4271,14 @@ int europe_buy_cargo(
     return 0;
   }
 
-  int remaining = buy;
-  for (int i = 0; i < EUROPE_SHIP_CARGO_MAX && remaining > 0; ++i) {
-    const int amt = ship->hold_goods_amount[i];
-    if (amt <= 0 || amt >= 255 || ship->hold_goods_type[i] != cargo_type) {
-      continue;
-    }
-    const int room = 100 - amt;
-    if (room <= 0) {
-      continue;
-    }
-    const int add = remaining < room ? remaining : room;
-    ship->hold_goods_amount[i] += add;
-    remaining -= add;
-  }
-  /* Appends are bounded by the free-slot budget: DOS FUN_15eb_30b8 only
-   * appends while `holds_occupied < cargo_cap`. */
-  int new_slots = free_slots;
-  for (int i = 0; i < EUROPE_SHIP_CARGO_MAX && remaining > 0 && new_slots > 0; ++i) {
-    const int amt = ship->hold_goods_amount[i];
-    if (amt > 0 && amt < 255) {
-      continue;
-    }
-    const int add = remaining < 100 ? remaining : 100;
-    ship->hold_goods_type[i] = cargo_type;
-    ship->hold_goods_amount[i] = add;
-    remaining -= add;
-    new_slots--;
-  }
+  /* Same two-pass packing as units_load_goods (top up matching partial
+   * holds to 100, then append into free slots); the append pass is bounded
+   * by `free_slots` because DOS FUN_15eb_30b8 only appends while
+   * holds_occupied < cargo_cap. Shared body: goods_pack_into_holds. */
+  const int remaining = buy - goods_pack_into_holds(
+    ship->hold_goods_type, ship->hold_goods_amount, EUROPE_SHIP_CARGO_MAX, cargo_type, buy,
+    free_slots
+  );
   const int bought = buy - remaining;
   europe_purse_move(eu, col1, buyer_nation, -(long)bought * ask);
   if (bought > 0) {
@@ -4292,7 +4367,7 @@ static int europe_ship_icon_sprite(const ColonizeUnitPool* units, const EuropeHa
   return ut ? ut->icon_sprite : -1;
 }
 
-int europe_transit_ship_at(
+static int europe_transit_ship_at(
   const EuropeHarborShip* ships,
   int count,
   const ColonizeUnitPool* units,
@@ -4628,7 +4703,7 @@ bool europe_dock_menu_apply_selection_ex(
   );
 }
 
-bool europe_dock_menu_apply_selection(
+static bool europe_dock_menu_apply_selection(
   EuropeScreen* eu,
   ColonizeUnitPool* units,
   int nation_id

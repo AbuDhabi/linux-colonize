@@ -25,11 +25,13 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
+#include "core/gsound_vm.h"
+#include "core/pick_music_ids.h"
 #include "core/sound.h"
 #include "platform/diagnostics.h"
 
 /* Match GSOUND PIT tick rate used in sound.c (~59.95 Hz). */
-#define DUMP_TICK_HZ (1193182.0 / 19903.0)
+#define DUMP_TICK_HZ GSOUND_TICK_HZ
 #define DUMP_TAIL_SECONDS 2
 #define DUMP_MAX_SECONDS 300
 #define DUMP_TITLE_LEN 64
@@ -174,13 +176,6 @@ static void dump_load_section_titles(
 }
 
 static void dump_load_titles_from_game_txt(const char* data_dir) {
-  static const int k_main[] = {
-    0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27, 0x28, 0x29, 0x2a, 0x2b, 0x2c
-  };
-  static const int k_ind[] = {0x2d, 0x2e, 0x2f, 0x30, 0x31};
-  static const int k_mil[] = {0x32, 0x34, 0x35, 0x36};
-  static const int k_indian[] = {0x37, 0x38, 0x39, 0x3a};
-
   char path[512];
   snprintf(path, sizeof(path), "%s/GAME.TXT", data_dir);
   FILE* f = fopen(path, "rb");
@@ -188,13 +183,20 @@ static void dump_load_titles_from_game_txt(const char* data_dir) {
     fprintf(stderr, "warning: %s missing — using built-in song titles\n", path);
     return;
   }
-  dump_load_section_titles(f, "PICKMUSIC", k_main, (int)(sizeof(k_main) / sizeof(k_main[0])));
   dump_load_section_titles(
-    f, "PICKINDEPENDENCE", k_ind, (int)(sizeof(k_ind) / sizeof(k_ind[0]))
+    f, "PICKMUSIC", k_pick_music_main_song_ids, PICK_MUSIC_IDS_COUNT(k_pick_music_main_song_ids)
   );
-  dump_load_section_titles(f, "PICKMILITARY", k_mil, (int)(sizeof(k_mil) / sizeof(k_mil[0])));
   dump_load_section_titles(
-    f, "PICKINDIAN", k_indian, (int)(sizeof(k_indian) / sizeof(k_indian[0]))
+    f,
+    "PICKINDEPENDENCE",
+    k_pick_music_independence_song_ids,
+    PICK_MUSIC_IDS_COUNT(k_pick_music_independence_song_ids)
+  );
+  dump_load_section_titles(
+    f, "PICKMILITARY", k_pick_music_military_song_ids, PICK_MUSIC_IDS_COUNT(k_pick_music_military_song_ids)
+  );
+  dump_load_section_titles(
+    f, "PICKINDIAN", k_pick_music_indian_song_ids, PICK_MUSIC_IDS_COUNT(k_pick_music_indian_song_ids)
   );
   fclose(f);
 }

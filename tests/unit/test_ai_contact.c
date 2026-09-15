@@ -5615,7 +5615,7 @@ int main(void) {
 
   /*
    * Capital-destroy surrender (fandom): reset alarm/friction + peace toward
-   * attacker. Cite: docs/fandom_col1994.md Capital destroy; ai_contact_indian_capital_surrender.
+   * attacker. Cite: docs/fandom_col1994.md Capital destroy; ai_diplo_indian_capital_surrender.
    */
   {
     ind->alarm_by_player[0] = 90;
@@ -5625,7 +5625,7 @@ int main(void) {
     ind->euro_diplo[0] = (uint8_t)(ind->euro_diplo[0] & ~0x40u);
 /* alarm pinned above (was relation write) */
     col1.indian[0].euro_diplo[0] |= COL1_INDIAN_MET_BIT;
-    ai_contact_indian_capital_surrender(&col1, 4, 0);
+    ai_diplo_indian_capital_surrender(&col1, 4, 0);
     /* FUN_5fef_1b0e capital-razed arm (raw 101289-101298): alarm is clamped
      * DOWN to 15, not zeroed. */
     if (ind->alarm_by_player[0] != 15 || col1.tribe[0].alarm[0].friction != 0) {
@@ -5642,7 +5642,7 @@ int main(void) {
     }
     /* Remaining villages must not become / stay capital (fandom). */
     col1.tribe[0].state.capital = 1;
-    ai_contact_indian_capital_surrender(&col1, 4, 0);
+    ai_diplo_indian_capital_surrender(&col1, 4, 0);
     if (col1.tribe[0].state.capital != 0) {
       return fail("capital surrender should clear capital bit on remaining tribes");
     }

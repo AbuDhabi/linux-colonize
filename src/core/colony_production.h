@@ -35,11 +35,6 @@ typedef enum ColonyProdTier {
   COLONY_PROD_TIER_FACTORY,
 } ColonyProdTier;
 
-ColonyProdTier colony_prod_building_tier(const char* building_name);
-
-/* Cargo input consumed to produce `output` units at tier (factory: 6 in per 9 out). */
-int colony_prod_tier_input_for_output(ColonyProdTier tier, int output);
-
 /*
  * Manufacturing output for one worker. `craft_profession` is the @JOB index for the
  * recipe (e.g. COLONIZE_PROF_BLACKSMITH). Wrong skill → free-colonist rate only.
@@ -63,7 +58,8 @@ int colony_prod_manufacturing_output(
 
 /*
  * Raw-good input for one worker's manufacturing output. Factory tier
- * discounts 6-in for 9-out (`colony_prod_tier_input_for_output`); house/shop
+ * discounts 6-in for 9-out (colony_production.c's own
+ * colony_prod_tier_input_for_output); house/shop
  * are 1:1. `sol_bonus` folds into the *output* used to derive this the same
  * way colony_prod_manufacturing_output does — player-confirmed 2026-08-15
  * (Viceroy): factory tier, +2 sentiment, output 12 → input 8, matching
@@ -175,11 +171,6 @@ int colony_prod_hammers_worker(
   int sol_bonus,
   bool colony_has_lumber_mill
 );
-
-/* Passive crosses when Church (+1) or Cathedral (+1) is built — same
- * passive either way, confirmed via FUN_15eb_1f72 (not manual-sourced
- * +2/+3). See manufacturing_worker_calc_1d4c.md. */
-int colony_prod_church_passive_crosses(const char* building_name);
 
 #define COLONY_PROD_COLONY_BASE_CROSSES 1
 
@@ -304,18 +295,6 @@ ColonyProdHorseBreed colony_prod_horse_breed(
   int food_gross_this_turn,
   int warehouse_cap,
   bool colony_has_stable
-);
-
-/* Full-context worker output: folds in the colony's upgrade multipliers
- * (Lumber Mill x2, Cathedral x2) and Penn (x1.5 crosses) — what the turn
- * tick actually pays (bugs.md: badge read 7 where DOS shows 14). */
-int colony_prod_worker_building_output_ctx(
-  const ColonizeColonyPool* pool,
-  const ColonizeColony* colony,
-  const ColonizeCol1Save* col1,
-  int building_type,
-  int profession,
-  int sol_bonus
 );
 
 /*

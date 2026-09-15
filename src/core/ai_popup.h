@@ -8,6 +8,7 @@
 #include "core/assets.h"
 #include "core/font.h"
 #include "core/popup.h"
+#include "core/popup_msg.h"
 #include "core/ss.h"
 #include "platform/platform.h"
 
@@ -46,6 +47,9 @@ typedef enum AiPopupTag {
   AI_POPUP_TAG_KING_MERC = 2,
   AI_POPUP_TAG_KING_CONGRESS = 3,
   AI_POPUP_TAG_KING_ARRIVAL = 4,
+  /* PARKED: no producer in src/, tests/ or tools/ (audit AK-53). Kept for
+   * the DOS colony-seizure chrome it was reserved for; tags are stable
+   * ids, so the slot stays even while nothing enqueues it. */
   AI_POPUP_TAG_KING_CAPTURE = 5,
   AI_POPUP_TAG_KING_TAX = 6,
   AI_POPUP_TAG_KING_LETTER = 7, /* thin 160a independence rename; game_loop plays the
@@ -295,14 +299,6 @@ typedef struct AiPopupState {
  */
 bool ai_popup_enqueue_bar_message(AiPopupState* st, const char* text);
 
-/*
- * As above with an explicit DOS arm kind (FUN_1009_0244's first argument).
- * The plain enqueue is kind 1, the gold success ink DOS uses for a sale line;
- * kind 3 (red refusal) is DOS-real but has no Linux producer yet, so this
- * entry point is currently reached only through the kind-1 wrapper.
- */
-bool ai_popup_enqueue_bar_message_kind(AiPopupState* st, const char* text, int kind);
-
 /* Line currently owning the strip, or NULL. */
 const char* ai_popup_bar_message(const AiPopupState* st);
 
@@ -320,8 +316,6 @@ bool ai_popup_bar_service(AiPopupState* st, uint32_t now_ms, bool dismiss);
 void ai_popup_init(AiPopupState* st);
 void ai_popup_clear(AiPopupState* st);
 
-/* Enqueue (no-op if full or st NULL). Returns false if dropped. */
-bool ai_popup_enqueue(AiPopupState* st, const AiPopupRequest* req);
 bool ai_popup_enqueue_ok(
   AiPopupState* st,
   AiPopupTag tag,
@@ -386,14 +380,50 @@ int ai_popup_take_colony_zoom(AiPopupState* st);
  */
 void ai_popup_promote_tag_before(AiPopupState* st, AiPopupTag promote, AiPopupTag before);
 
-/* Debug-log name for a tag ("KING_TAX", "COMBAT_LOOT", ...). Never NULL. */
-const char* ai_popup_tag_name(AiPopupTag tag);
+/*
+ * "Is a popup with this tag already queued or on screen?" — the eight scans
+ * ai_contact.c copied (audit AC-19). kind is AI_POPUP_KIND_OK / _CHOICE, or
+ * -1 for any kind. The queue and the open request are both checked.
+ */
+typedef enum AiPopupKeyField {
+  AI_POPUP_KEY_ANY = 0, /* tag (+kind) only */
+  AI_POPUP_KEY_NATION_A, /* nation_a == key_a (a unit id at the confirm tags) */
+  AI_POPUP_KEY_NATION_AB /* nation_a == key_a && nation_b == key_b */
+} AiPopupKeyField;
+
+bool ai_popup_pending(
+  const AiPopupState* st,
+  AiPopupTag tag,
+  int kind,
+  AiPopupKeyField key_field,
+  int key_a,
+  int key_b
+);
+
+/* Same, keyed on a caller-decoded payload field (CONTACT_MEET's unit id). */
+bool ai_popup_pending_payload(
+  const AiPopupState* st,
+  AiPopupTag tag,
+  int kind,
+  int (*decode)(int payload),
+  int key
+);
 
 /*
- * Contact-chain key for (tag, nation_a, nation_b), or 0 when the tag is not
- * part of a contact chain. Exposed for tests (see AiPopupRequest.chain).
+ * The chrome-emitter tail ~200 sites repeat (audit theme L): fill a GAME.TXT
+ * section body with tok (falling back to `fallback`) and enqueue it as an
+ * AI_POPUP_TAG_INFO OK popup. The caller still owns the memset and the tok
+ * fields, and still writes its own status line when it wants one.
+ * Lives here, not in popup_msg.c: unit_popup_msg links popup_msg.c without
+ * ai_popup.c, so popup_msg must not reference the queue.
  */
-int ai_popup_chain_key(AiPopupTag tag, int nation_a, int nation_b);
+void popup_chrome_ok(
+  AiPopupState* ai_popups,
+  const ColonizeMsgCatalog* messages,
+  const char* section,
+  const PopupMsgTokens* tok,
+  const char* fallback
+);
 
 bool ai_popup_queue_pending(const AiPopupState* st);
 bool ai_popup_busy(const AiPopupState* st); /* open or queued */

@@ -41,7 +41,15 @@ void ui_button_draw(
   const UiButtonColors* colors
 );
 
-bool ui_button_hit(int x, int y, int w, int h, int mx, int my);
+/*
+ * Point-in-rect: [x, x+w) x [y, y+h). The one hit test every dialog and
+ * screen hand-rolled (audit IN-9/IN-37). static inline so a caller does not
+ * have to link ui_button.c — the slim unit_* targets compile ai_popup.c
+ * without it.
+ */
+static inline bool ui_rect_hit(int x, int y, int w, int h, int px, int py) {
+  return px >= x && py >= y && px < x + w && py < y + h;
+}
 
 /* Preferred size for label (includes 1px frame + 2px padding each side). */
 void ui_button_measure(

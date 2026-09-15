@@ -3,6 +3,7 @@
 #include <string.h>
 
 #include "core/col1_save.h"
+#include "core/colony_craft.h"
 #include "core/colony_yield.h"
 #include "core/founding_fathers.h"
 
@@ -10,7 +11,8 @@ static bool colony_prod_name_has(const char* name, const char* needle) {
   return name && needle && strstr(name, needle) != NULL;
 }
 
-ColonyProdTier colony_prod_building_tier(const char* building_name) {
+/* Audit CO-31: file-local. */
+static ColonyProdTier colony_prod_building_tier(const char* building_name) {
   if (!building_name) {
     return COLONY_PROD_TIER_HOUSE;
   }
@@ -37,7 +39,9 @@ ColonyProdTier colony_prod_building_tier(const char* building_name) {
   return COLONY_PROD_TIER_HOUSE;
 }
 
-int colony_prod_tier_input_for_output(ColonyProdTier tier, int output) {
+/* Cargo input consumed to produce `output` units at tier (factory: 6 in per
+ * 9 out). Audit CO-31: file-local. */
+static int colony_prod_tier_input_for_output(ColonyProdTier tier, int output) {
   if (output <= 0) {
     return 0;
   }
@@ -578,7 +582,10 @@ int colony_prod_hammers_worker(
   );
 }
 
-int colony_prod_church_passive_crosses(const char* building_name) {
+/* Passive crosses when Church (+1) or Cathedral (+1) is built — same passive
+ * either way, confirmed via FUN_15eb_1f72 (not manual-sourced +2/+3). See
+ * manufacturing_worker_calc_1d4c.md. Audit CO-31: file-local. */
+static int colony_prod_church_passive_crosses(const char* building_name) {
   /*
    * DOS FUN_15eb_1f72 (nation bells/crosses composer, viceroy_unpacked_2.c
    * ~11306-11314): colony crosses = 1 (unconditional) + 1 if Church built +
@@ -852,7 +859,11 @@ ColonyProdHorseBreed colony_prod_horse_breed(
   return r;
 }
 
-int colony_prod_worker_building_output_ctx(
+/* Full-context worker output: folds in the colony's upgrade multipliers
+ * (Lumber Mill x2, Cathedral x2) and Penn (x1.5 crosses) — what the turn tick
+ * actually pays (bugs.md: badge read 7 where DOS shows 14). Audit CO-31:
+ * file-local. */
+static int colony_prod_worker_building_output_ctx(
   const ColonizeColonyPool* pool,
   const ColonizeColony* colony,
   const ColonizeCol1Save* col1,
@@ -886,32 +897,14 @@ int colony_prod_worker_building_output_ctx(
   if (colony_prod_name_has(name, "Carpenter") || colony_prod_name_has(name, "Lumber Mill")) {
     return colony_prod_hammers_worker(name, profession, sol_bonus, has_mill);
   }
-  /* Needles below must stay in lockstep with colony_craft.c's k_recipes table:
-   * that table is what the turn tick actually pays, this chain is what the
-   * badge/preview fallback displays, and a name covered by one but not the
-   * other reads 0 output for a worker who is in fact producing. Each of the
-   * six chains needs BOTH a needle for the house/shop tiers and one for the
-   * renamed factory tier ("Rum Factory", "Cigar Factory", "Textile Mill",
-   * "Fur Factory", "Iron Works", "Arsenal"), which share no substring with
-   * their lower tiers. */
-  if (colony_prod_name_has(name, "Rum Distill") || colony_prod_name_has(name, "Rum Factory")) {
-    return colony_prod_manufacturing_output(name, profession, COLONIZE_PROF_DISTILLER, sol_bonus);
-  }
-  if (colony_prod_name_has(name, "Tobacconist") || colony_prod_name_has(name, "Cigar Factory")) {
-    return colony_prod_manufacturing_output(name, profession, COLONIZE_PROF_TOBACCONIST, sol_bonus);
-  }
-  if (colony_prod_name_has(name, "Weaver") || colony_prod_name_has(name, "Textile")) {
-    return colony_prod_manufacturing_output(name, profession, COLONIZE_PROF_WEAVER, sol_bonus);
-  }
-  if (colony_prod_name_has(name, "Fur Trad") || colony_prod_name_has(name, "Fur Fact")) {
-    return colony_prod_manufacturing_output(name, profession, COLONIZE_PROF_FUR_TRADER, sol_bonus);
-  }
-  if (colony_prod_name_has(name, "Blacksmith") || colony_prod_name_has(name, "Iron Works")) {
-    return colony_prod_manufacturing_output(name, profession, COLONIZE_PROF_BLACKSMITH, sol_bonus);
-  }
-  if (colony_prod_name_has(name, "Armory") || colony_prod_name_has(name, "Magazine") ||
-      colony_prod_name_has(name, "Arsenal")) {
-    return colony_prod_manufacturing_output(name, profession, COLONIZE_PROF_GUNSMITH, sol_bonus);
+  /* Manufacturing: one shared table, colony_craft.c's k_recipes (audit
+   * CO-12). It is what the turn tick actually pays, so the badge/preview
+   * fallback cannot display 0 for a worker who is in fact producing — the
+   * private if-ladder this replaced carried exactly that risk, with a
+   * "must stay in lockstep with k_recipes" comment admitting it. */
+  const ColonizeCraftRecipe* rec = colony_craft_recipe_for_building(name);
+  if (rec) {
+    return colony_prod_manufacturing_output(name, profession, rec->craft_profession, sol_bonus);
   }
   return 0;
 }

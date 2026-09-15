@@ -48,12 +48,6 @@ void map_gen_params_random(MapGenParams* out, uint32_t seed);
  */
 bool map_generate(ColonizeWorldMap* out, const MapGenParams* params, char* err, size_t err_size);
 
-/*
- * FUN_67bf_0000: water then land connected-component IDs remapped to 1..0xf,
- * written to layer3. Clears layer2 (flags). Does not touch terrain.
- * Then FUN_684c_08c0 density: pacific strip + offshore prime suppress.
- */
-void map_gen_assign_continents(ColonizeWorldMap* map);
 
 /*
  * Pick a coastal land start for nation 0..3 on a generated map.

@@ -2579,7 +2579,7 @@ int main(void) {
     colonies.colonies[0].active = true; /* wave test above may have captured/destroyed it */
     memset(col1.head.expeditionary_force, 0, sizeof(col1.head.expeditionary_force));
     /* MoW pool (0x53e6, backup_force[2]) empty → 2022 gate allows the roll;
-     * zero Artillery pool [3] too so ai_king_foreign_intervene's land-troop
+     * zero Artillery pool [3] too so the free ai_king_10f0_land land-troop
      * drain can't spawn an unrelated unit in this merc-offer probe. */
     col1.head.backup_force[2] = 0;
     col1.head.backup_force[3] = 0;

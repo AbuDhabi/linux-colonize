@@ -11,6 +11,7 @@
 #include "core/founding_fathers.h"
 #include "core/map.h"
 #include "core/popup_msg.h"
+#include "core/reports.h"
 #include "core/strutil.h"
 #include "core/units.h"
 
@@ -22,10 +23,11 @@
  * FUN_43f7_* King/REF/independence — partial structural port.
  * Thin map: original_sources_annotated/ai/king_ref.md
  *
- * WoI: primary latch is head.game_options.woi (DOS 0x5382 bit0, mapped in col1_save.h).
- *   unknown46[AI_KING_WOI_BYTE] is kept in sync on declare for legacy Linux saves only;
- *   reads use game_options.woi — unknown46[0..5] alias price_group_state on DOS saves.
- * REF-present: head.unknown46[1] stand-in for 0x5382 bit1.
+ * WoI: the latch is head.game_options.woi (DOS 0x5382 bit0, mapped in col1_save.h);
+ *   ai_king_latch_set(AI_KING_WOI_BYTE) writes that same field. The old
+ *   unknown46[] mirror is gone (unknown46[0..5] alias price_group_state on DOS
+ *   saves, so it was never a safe home).
+ * REF-present: head.game_options.ref_present (0x5382 bit1).
  * Tax audience (ported 2026-08-19, real formula — see ai_king_audience_roll /
  *   ai_king_audience_apply_delta / ai_king_tax_event): FUN_38fd_5be8 rolls a
  *   signed delta off a turn-interval-gated favor-score ladder (cut, +1, +2,
@@ -98,10 +100,8 @@
  * king_ref.md "2244/2022 — corrected"). Recurring per-turn 1-in-3 roll
  * while REF is not present or the Artillery backup pool is empty; price
  * = (qty_regular+2) * ((difficulty+3)*2 + roll(0,6)) * 100, paid from the
- * rebel (human) nation's own gold. AI_KING_MERC_COST kept only as the
- * cannot-afford-path fallback display value, not a real DOS constant.
+ * rebel (human) nation's own gold.
  */
-#define AI_KING_MERC_COST 300
 #define AI_KING_MERC_ROLL_CHANCE 3 /* 1-in-3 per turn, dos_rng_range(0,2)==0 */
 /*
  * FUN_43f7_2564 / fandom Independence: declare when nation SoL ≥ 50%.
@@ -125,14 +125,11 @@
  * Man-O-War on the best water tile by the colony + Cont. Cav. ≤2 /
  * Artillery ≤2 / Cont. Army = 6 − those, pool-capped, Veteran 0x15. The old
  * "dual/third landing by difficulty" shape was a stand-in and is gone. */
-/* 0982: second MoW same beat when difficulty ≥ 2 and force[2] still > 0. */
-#define AI_KING_SECOND_MOW_DIFF 2
-/*
- * REF idle hunt capital bias: when founding-capital MD is within this slack of
- * the nearest other human colony MD, prefer the capital (fandom REF pressure
- * on main ports; FUN_521d_20e6 multi-step combat×8 siege scoring PARKED).
- */
-#define AI_KING_CAPITAL_MD_SLACK 2
+/* 0982: second MoW same beat when difficulty >= 2 and force[2] still > 0.
+ * REF idle hunt prefers the founding capital when its MD is within 2 of the
+ * nearest other human colony. Both numbers are spelled at their one use site;
+ * the AI_KING_SECOND_MOW_DIFF / AI_KING_CAPITAL_MD_SLACK names had no
+ * references at all and were deleted 2026-09-14. */
 
 /* ai_popup choice_ids (FUN_43f7_38fd_5be8 / 2244 / 2564). */
 #define AI_KING_CHOICE_ACCEPT 1
@@ -211,19 +208,6 @@ int ai_king_pick_dump_goods_cargo(
   return idxs[n - 1];
 }
 
-/* @CARGO display names (colony.h / NAMES.TXT / reports.c) for boycott chrome. */
-static const char* ai_king_cargo_name(int cargo_idx) {
-  static const char* const names[COLONIZE_CARGO_COUNT] = {
-    "Food",        "Sugar",  "Tobacco", "Cotton", "Furs",  "Lumber",
-    "Ore",         "Silver", "Horses",  "Rum",    "Cigars", "Cloth",
-    "Coats",       "Trade Goods", "Tools", "Muskets"
-  };
-  if (cargo_idx < 0 || cargo_idx >= COLONIZE_CARGO_COUNT) {
-    return "cargo";
-  }
-  return names[cargo_idx];
-}
-
 /*
  * Comma-separated @CARGO names set in boycott_bitmap (presentation only).
  * Returns 1 if any bit set. Cite: king_ref refuse/holds chrome; Fugger partial
@@ -246,7 +230,7 @@ static int ai_king_format_boycott_cargos(char* buf, size_t buf_size, uint16_t bi
       }
       pos += (size_t)snprintf(buf + pos, buf_size - pos, ", ");
     }
-    pos += (size_t)snprintf(buf + pos, buf_size - pos, "%s", ai_king_cargo_name(c));
+    pos += (size_t)snprintf(buf + pos, buf_size - pos, "%s", reports_cargo_display_name(c));
     any = 1;
   }
   return any;
@@ -255,6 +239,46 @@ static int ai_king_format_boycott_cargos(char* buf, size_t buf_size, uint16_t bi
 /* Human-facing map popup queue attached (game_loop); AI/auto path when NULL. */
 static int ai_king_human_popups(const ColonizeTurnContext* ctx) {
   return (ctx && ctx->ai_popups) ? 1 : 0;
+}
+
+/*
+ * The King chrome emitter (2026-09-14 duplication audit AK-26). Roughly two
+ * dozen sites repeated the same tail verbatim: popup_msg_fill(msg_tag) into a
+ * local body, write that body to ctx->status, and — only when a human popup
+ * queue is attached — enqueue an OK carrying the same body.
+ *
+ * `overwrite_status` keeps the one real difference between them: the endgame
+ * and audience lines overwrite ctx->status unconditionally, while the mid-war
+ * warns and the retirement notices only claim it when it is still empty (so a
+ * same-turn @INVASION / merc line is not clobbered). `out_body` is optional
+ * and is filled with the same text the popup got, for callers that reuse it.
+ */
+static void ai_king_emit_ok(
+  ColonizeTurnContext* ctx,
+  const char* msg_tag,
+  const PopupMsgTokens* tok,
+  const char* fallback,
+  AiPopupTag popup_tag,
+  int nation_a,
+  int nation_b,
+  int payload,
+  int overwrite_status,
+  char* out_body,
+  size_t out_body_size
+) {
+  char body[AI_POPUP_BODY_LEN];
+  popup_msg_fill(ctx->messages, msg_tag, tok, fallback, body, sizeof(body));
+  if (ctx->status && ctx->status_size && (overwrite_status || ctx->status[0] == '\0')) {
+    snprintf(ctx->status, ctx->status_size, "%s", body);
+  }
+  if (ai_king_human_popups(ctx)) {
+    (void)ai_popup_enqueue_ok_ctx(
+      ctx->ai_popups, popup_tag, nation_a, nation_b, payload, NULL, body
+    );
+  }
+  if (out_body && out_body_size) {
+    snprintf(out_body, out_body_size, "%s", body);
+  }
 }
 
 /*
@@ -303,7 +327,7 @@ static void ai_king_teaparty_party_name(
   if (!buf || buf_size == 0) {
     return;
   }
-  const char* cargo_nm = ai_king_cargo_name(cargo);
+  const char* cargo_nm = reports_cargo_display_name(cargo);
   if (colony && colony->name[0]) {
     snprintf(buf, buf_size, "%s %s", colony->name, cargo_nm);
   } else {
@@ -333,7 +357,10 @@ static void ai_king_enqueue_teaparty_ok(ColonizeTurnContext* ctx, int human, int
     best->stock[cargo] -= tons;
   }
 
-  const char* cargo_nm = ai_king_cargo_name(cargo);
+  /* reports_cargo_display_name returns reports.c's shared NAMES scratch, so
+   * copy it out before any other catalog lookup runs. */
+  char cargo_nm[32];
+  str_copy_trunc(cargo_nm, sizeof(cargo_nm), reports_cargo_display_name(cargo));
   const char* colony_nm =
     (best && best->name[0]) ? best->name : "the colonies";
   char party[96];
@@ -378,20 +405,6 @@ static void ai_king_enqueue_teaparty_ok(ColonizeTurnContext* ctx, int human, int
 }
 
 /* Active colony count for a Euro nation (10f0 intervene nation pick). */
-static int ai_king_colony_count(const ColonizeColonyPool* colonies, int nation_id) {
-  if (!colonies || nation_id < 0) {
-    return 0;
-  }
-  int n = 0;
-  for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
-    const ColonizeColony* c = &colonies->colonies[i];
-    if (c->active && c->nation_id == nation_id) {
-      n++;
-    }
-  }
-  return n;
-}
-
 /*
  * Crown-hostile Euro slot for 10f0 landings (not human, not crown).
  * After declare, prefer head.rival_nation_slot_1 cached at 1a26 (DOS 0x53d4);
@@ -424,7 +437,7 @@ static int ai_king_intervention_nation(const ColonizeTurnContext* ctx, int human
     if (n == human_nation || n == crown) {
       continue;
     }
-    const int cols = ctx && ctx->colonies ? ai_king_colony_count(ctx->colonies, n) : 0;
+    const int cols = ctx && ctx->colonies ? colonies_count_for_nation(ctx->colonies, n) : 0;
     int force = 0;
     if (ctx && ctx->units) {
       for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
@@ -608,17 +621,17 @@ static void ai_king_seed_backup_force_1a26(ColonizeTurnContext* ctx, int human) 
 }
 
 /* True if name looks like a Man-O-War (Galleon fallback used as REF ship). */
+/*
+ * Crown Man-O-War test. The private copy this replaced also accepted
+ * "Galleon"; DOS does not — both call sites are the @UNIT-type-0x12 tests
+ * (king_ref.md:841 refill gate `unit_type_counts[crown][0x12]`, king_ref.md:870
+ * `unit+0x3146 != 0x12`), so the Galleon arm was a port-side invention.
+ */
 static int ai_king_is_mow(const ColonizeUnitPool* units, const ColonizeUnit* u) {
   if (!units || !u || !units_is_sea(units, u->id)) {
     return 0;
   }
-  const ColonizeUnitType* ut = units_type(units, u->type_index);
-  const char* tname = ut ? ut->name : NULL;
-  if (tname && (strstr(tname, "Man-O-War") || strstr(tname, "Man-o-War") ||
-                strstr(tname, "Galleon"))) {
-    return 1;
-  }
-  return 0;
+  return units_type_is_man_o_war(units_type(units, u->type_index)) ? 1 : 0;
 }
 
 static int ai_king_force_total(const uint16_t force[4]) {
@@ -709,7 +722,7 @@ static void ai_king_sync_boycott_refuse(ColonizeCol1Save* col1, int human) {
  * reader, so the bump is observable only in the saved word.
  * `DS:0x9408` = `stuff.free_colonist_counts` (save_format_map row 242,
  * type==0 units). Phase order matches DOS: turn_run_nation_ticks (bells,
- * TURN_PROC_SETUP) runs before turn_run_king_stub (TURN_PROC_KING), so the
+ * TURN_PROC_SETUP) runs before ai_king_nation_turn (TURN_PROC_KING), so the
  * bump lands last, exactly as 2424's EOT position does in DOS.
  * Caveat kept: founding_fathers_stash_pools_into_col1 overwrites this word
  * with the FF pool while writing our own .SAV, so the bumped value survives
@@ -912,8 +925,10 @@ static void ai_king_set_independence(ColonizeCol1Save* col1, int on) {
   if (!col1) {
     return;
   }
-  /* Legacy Linux mirror; authoritative latch is game_options.woi. */
-  ai_king_latch_set(col1, AI_KING_WOI_BYTE, on ? 1 : 0);
+  /* game_options.woi IS the latch — ai_king_latch_set(AI_KING_WOI_BYTE)
+   * writes this same field and returns, so the "legacy Linux mirror" call
+   * that used to precede this line was writing it twice (deleted 2026-09-14
+   * with the unknown46[] mirror it referred to, which no longer exists). */
   col1->head.game_options.woi = on ? 1 : 0;
   if (on) {
     col1->head.event.colony_burning = 1; /* chrome hint */
@@ -1093,17 +1108,11 @@ static int ai_king_audience_preview_delta(const ColonizeCol1Nation* nat, int del
   return applied;
 }
 
+/* Same clamp as the preview, plus the store. */
 static void ai_king_audience_apply_delta(ColonizeCol1Nation* nat, int delta, int* out_applied) {
-  int applied = delta;
-  if (applied < 0) {
-    const int mag = -applied;
-    if (mag > (int)nat->tax_rate) {
-      applied = -(int)nat->tax_rate;
-    }
-  }
+  const int applied = ai_king_audience_preview_delta(nat, delta);
   int new_tax = (int)nat->tax_rate + applied;
   if (new_tax > 75) {
-    applied -= (new_tax - 75);
     new_tax = 75;
   }
   if (new_tax < 0) {
@@ -1206,7 +1215,7 @@ static void ai_king_tax_teaparty(ColonizeTurnContext* ctx, int human, int cargo)
       ctx->status_size,
       "Audience: tea party! Tax stays at %u%%. %s boycotted in Europe.",
       nat->tax_rate,
-      ai_king_cargo_name(cargo)
+      reports_cargo_display_name(cargo)
     );
   }
   if (ai_king_human_popups(ctx)) {
@@ -1409,7 +1418,9 @@ static void ai_king_tax_hike_apply(ColonizeTurnContext* ctx, int human, int delt
      * come to. The rate itself is still the old one until Accept. */
     tok.number1 = proposed;
     tok.has_number1 = true;
-    tok.string0 = ai_king_cargo_name(picked);
+    char picked_nm[32];
+    str_copy_trunc(picked_nm, sizeof(picked_nm), reports_cargo_display_name(picked));
+    tok.string0 = picked_nm;
     /* @TAXOPTIONS "Hold '{%STRING3 Party}.'" — DOS names it after the colony
      * that will be raided plus the boycotted cargo, not "Tea". */
     char party[96];
@@ -1572,9 +1583,7 @@ static void ai_king_succession(ColonizeTurnContext* ctx) {
   col1->head.crown_nation_id = (int16_t)merged;
   /* @SUCCESSION Treaty of Utrecht announcement. */
   if (ai_king_human_popups(ctx)) {
-    static const char* k_country[4] = {"England", "France", "Spain", "Netherlands"};
-    static const char* k_adj[4] = {"English", "French", "Spanish", "Dutch"};
-    const char* ceder = k_country[merged];
+    const char* ceder = reports_nation_country_name(merged);
     const char* domain = col1->player[merged].country_name[0]
                            ? col1->player[merged].country_name
                            : "its colonies";
@@ -1582,8 +1591,11 @@ static void ai_king_succession(ColonizeTurnContext* ctx) {
     memset(&tok, 0, sizeof(tok));
     tok.string0 = ceder;
     tok.string1 = domain;
-    tok.string2 = k_adj[heir];
-    tok.string3 = k_adj[merged];
+    /* Per-index buffers in reports.c, so heir and merged can be held at once. */
+    const char* heir_adj = reports_nation_adjective_display_name(heir);
+    const char* merged_adj = reports_nation_adjective_display_name(merged);
+    tok.string2 = heir_adj;
+    tok.string3 = merged_adj;
     char body[AI_POPUP_BODY_LEN];
     char fallback[AI_POPUP_BODY_LEN];
     snprintf(
@@ -1592,7 +1604,7 @@ static void ai_king_succession(ColonizeTurnContext* ctx) {
       "War of the Spanish Succession ends in Europe! %s, ravaged by war, agrees "
       "to cede %s to the %s. Treaty of Utrecht specifies that all %s possessions "
       "in the New World now fall under %s rule.",
-      ceder, domain, k_adj[heir], k_adj[merged], k_adj[heir]
+      ceder, domain, heir_adj, merged_adj, heir_adj
     );
     popup_msg_fill(ctx->messages, "SUCCESSION", &tok, fallback, body, sizeof(body));
     (void)ai_popup_enqueue_ok_ctx(
@@ -1604,9 +1616,8 @@ static void ai_king_succession(ColonizeTurnContext* ctx) {
              "War of the Spanish Succession: %s possessions pass to the %s.",
              col1->player[merged].country_name[0] ? col1->player[merged].country_name
                                                   : "foreign",
-             (heir >= 0 && heir < 4)
-               ? (const char*[]){"English", "French", "Spanish", "Dutch"}[heir]
-               : "heir");
+             (heir >= 0 && heir < 4) ? reports_nation_adjective_display_name(heir)
+                                     : "heir");
   }
 }
 
@@ -1922,8 +1933,8 @@ static void ai_king_show_declare_choice(ColonizeTurnContext* ctx, int human, int
   if (ai_king_human_popups(ctx)) {
     /* bugs.md 241: %STRING0 is the Crown nation ("England"), never the
      * player's new-world country_name ("New England"). NAMES.TXT @COUNTRY. */
-    static const char* const k_crown[4] = {"England", "France", "Spain", "Netherlands"};
-    const char* motherland = (human >= 0 && human <= 3) ? k_crown[human] : "the Crown";
+    const char* motherland =
+      (human >= 0 && human <= 3) ? reports_nation_country_name(human) : "the Crown";
     PopupMsgTokens tok;
     memset(&tok, 0, sizeof(tok));
     tok.string0 = motherland;
@@ -2148,8 +2159,8 @@ static int ai_king_10f0_pick_colony(const ColonizeTurnContext* ctx, int human, i
  */
 static int ai_king_10f0_score_tile(const ColonizeTurnContext* ctx, int human, int cx, int cy,
                                    int tx, int ty) {
-  static const int dx[8] = {-1, 0, 1, -1, 1, -1, 0, 1};
-  static const int dy[8] = {-1, -1, -1, 0, 0, 1, 1, 1};
+  static const int k_raster8_dx[8] = {-1, 0, 1, -1, 1, -1, 0, 1};
+  static const int k_raster8_dy[8] = {-1, -1, -1, 0, 0, 1, 1, 1};
   if (!ctx || !ctx->map || !map_coords_inset(ctx->map, tx, ty) ||
       !map_tile_is_water(ctx->map, tx, ty)) {
     return -1;
@@ -2197,8 +2208,8 @@ static int ai_king_10f0_score_tile(const ColonizeTurnContext* ctx, int human, in
   }
   const int colony_region = map_continent_id_at(ctx->map, cx, cy);
   for (int d = 0; d < 8; ++d) {
-    const int nx = tx + dx[d];
-    const int ny = ty + dy[d];
+    const int nx = tx + k_raster8_dx[d];
+    const int ny = ty + k_raster8_dy[d];
     if (!map_coords_inset(ctx->map, nx, ny) || !map_tile_is_land(ctx->map, nx, ny)) {
       continue;
     }
@@ -2215,8 +2226,8 @@ static int ai_king_10f0_score_tile(const ColonizeTurnContext* ctx, int human, in
 
 static bool ai_king_10f0_pick_spawn(const ColonizeTurnContext* ctx, int human, int cx, int cy,
                                     int* out_x, int* out_y) {
-  static const int dx[8] = {-1, 0, 1, -1, 1, -1, 0, 1};
-  static const int dy[8] = {-1, -1, -1, 0, 0, 1, 1, 1};
+  static const int k_raster8_dx[8] = {-1, 0, 1, -1, 1, -1, 0, 1};
+  static const int k_raster8_dy[8] = {-1, -1, -1, 0, 0, 1, 1, 1};
   if (!ctx || !out_x || !out_y) {
     return false;
   }
@@ -2225,8 +2236,8 @@ static bool ai_king_10f0_pick_spawn(const ColonizeTurnContext* ctx, int human, i
   int by = -1;
   for (int pass = 0; pass < 2 && bx < 0; ++pass) {
     for (int d = 0; d < 8; ++d) {
-      const int tx = cx + dx[d];
-      const int ty = cy + dy[d];
+      const int tx = cx + k_raster8_dx[d];
+      const int ty = cy + k_raster8_dy[d];
       if (pass == 0 && ctx->map && map_continent_id_at(ctx->map, tx, ty) != 1) {
         continue; /* 281f_06b4 == 1: open-ocean region first */
       }
@@ -2283,12 +2294,7 @@ static int ai_king_weakest_port(ColonizeTurnContext* ctx, int nation_id, int* ou
  */
 static int ai_king_0982_garrison_score(const ColonizeTurnContext* ctx, const ColonizeColony* c) {
   int g = (c->stock[COLONIZE_CARGO_MUSKETS] + 50) / 100 + 1;
-  ColonizeCombatStrengthCtx cs;
-  memset(&cs, 0, sizeof(cs));
-  cs.units = ctx->units;
-  cs.map = ctx->map;
-  cs.colonies = ctx->colonies;
-  cs.col1 = ctx->col1;
+  const ColonizeCombatStrengthCtx cs = combat_strength_ctx_from_turn(ctx);
   for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
     const ColonizeUnit* u = &ctx->units->units[i];
     if (!u->active || u->x != c->x || u->y != c->y || !units_is_on_map(u) ||
@@ -2309,12 +2315,7 @@ static int ai_king_0982_garrison_score(const ColonizeTurnContext* ctx, const Col
 
 /* 08bc stack query stand-in: Σ defense (004a mode 0 ×8 >> 4) of units at (x,y). */
 static int ai_king_0982_tile_strength(const ColonizeTurnContext* ctx, int x, int y) {
-  ColonizeCombatStrengthCtx cs;
-  memset(&cs, 0, sizeof(cs));
-  cs.units = ctx->units;
-  cs.map = ctx->map;
-  cs.colonies = ctx->colonies;
-  cs.col1 = ctx->col1;
+  const ColonizeCombatStrengthCtx cs = combat_strength_ctx_from_turn(ctx);
   int s = 0;
   for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
     const ColonizeUnit* u = &ctx->units->units[i];
@@ -2652,15 +2653,13 @@ static void ai_king_ref_wave(ColonizeTurnContext* ctx) {
         t = cidx[b]; cidx[b] = cidx[b - 1]; cidx[b - 1] = t;
       }
     }
-    static const int dx[8] = {0, 1, 1, 1, 0, -1, -1, -1};
-    static const int dy[8] = {-1, -1, 0, 1, 1, 1, 0, -1};
     int garrison[AI_KING_0982_MAX_TARGETS];
     for (int i = 0; i < n; ++i) {
       const ColonizeColony* c = &ctx->colonies->colonies[cidx[i]];
       int g = ai_king_0982_garrison_score(ctx, c);
       for (int d = 0; d < 8; ++d) {
-        const int nx = c->x + dx[d];
-        const int ny = c->y + dy[d];
+        const int nx = c->x + MAP_DIR8_DX[d];
+        const int ny = c->y + MAP_DIR8_DY[d];
         if (map_tile_is_water(ctx->map, nx, ny)) {
           continue;
         }
@@ -2723,15 +2722,15 @@ static void ai_king_ref_wave(ColonizeTurnContext* ctx) {
       int lx = -1;
       int ly = -1;
       for (int d = 0; d < 8; ++d) {
-        const int wx = c->x + dx[d];
-        const int wy = c->y + dy[d];
+        const int wx = c->x + MAP_DIR8_DX[d];
+        const int wy = c->y + MAP_DIR8_DY[d];
         if (!map_tile_is_water(ctx->map, wx, wy)) {
           continue;
         }
         int free_land = 0;
         for (int e = 0; e < 8; ++e) {
-          const int nx = wx + dx[e];
-          const int ny = wy + dy[e];
+          const int nx = wx + MAP_DIR8_DX[e];
+          const int ny = wy + MAP_DIR8_DY[e];
           if (map_tile_is_water(ctx->map, nx, ny)) {
             continue;
           }
@@ -2828,8 +2827,8 @@ static void ai_king_ref_wave(ColonizeTurnContext* ctx) {
           int cs[8];
           int nc = 0;
           for (int e = 0; e < 8; ++e) {
-            const int nx = lx + dx[e];
-            const int ny = ly + dy[e];
+            const int nx = lx + MAP_DIR8_DX[e];
+            const int ny = ly + MAP_DIR8_DY[e];
             if (map_tile_is_water(ctx->map, nx, ny) ||
                 map_tile_has_city(ctx->map, nx, ny) ||
                 (ctx->colonies && colonies_id_at(ctx->colonies, nx, ny) >= 0) ||
@@ -3272,11 +3271,12 @@ static void ai_king_10f0_land(
      * "France declares war on England"), never the new-world colony names.
      * The arrival line uses the nationality adjective ("French Intervention
      * Force"). */
-    static const char* k_euro[4] = {"English", "French", "Spanish", "Dutch"};
-    static const char* k_country[4] = {"England", "France", "Spain", "Netherlands"};
-    const char* ally_name = (ally1 >= 0 && ally1 < 4) ? k_euro[ally1] : "Foreign";
-    const char* ally_country = (ally1 >= 0 && ally1 < 4) ? k_country[ally1] : "A foreign power";
-    const char* crown_country = (human >= 0 && human < 4) ? k_country[human] : "the Crown";
+    const char* ally_name =
+      (ally1 >= 0 && ally1 < 4) ? reports_nation_adjective_display_name(ally1) : "Foreign";
+    const char* ally_country =
+      (ally1 >= 0 && ally1 < 4) ? reports_nation_country_name(ally1) : "A foreign power";
+    const char* crown_country =
+      (human >= 0 && human < 4) ? reports_nation_country_name(human) : "the Crown";
     const char* colony = "the colonies";
     if (ctx->colonies) {
       const int cid = colonies_id_at(ctx->colonies, hx, hy);
@@ -3444,10 +3444,6 @@ static void ai_king_10f0_land(
   }
 }
 
-static void ai_king_foreign_intervene_ex(ColonizeTurnContext* ctx, int from_bells) {
-  ai_king_10f0_land(ctx, ctx->human_nation, from_bells, 0, NULL);
-}
-
 /*
  * FUN_4345_0a22 wartime spend: when the bell pool reaches the WoI threshold,
  * trigger foreign intervention / REF arrival instead of electing a Father.
@@ -3475,7 +3471,7 @@ int ai_king_spend_woi_bell_pool(ColonizeTurnContext* ctx, int nation_id) {
     return 0; /* pool kept, same as DOS */
   }
   if (nation_id == ctx->human_nation) {
-    ai_king_foreign_intervene_ex(ctx, 1);
+    ai_king_10f0_land(ctx, ctx->human_nation, 1, 0, NULL); /* FUN_43f7_10f0, bells-funded */
   }
   return 1;
 }
@@ -3492,10 +3488,6 @@ int ai_king_spend_woi_bell_pool(ColonizeTurnContext* ctx, int nation_id) {
  * 4 bits (range 2-8); hx/hy fit 6 bits each (map width/height ≤ 63 in this
  * project's fixed 58×72 world).
  */
-
-static void ai_king_foreign_intervene(ColonizeTurnContext* ctx) {
-  ai_king_foreign_intervene_ex(ctx, 0);
-}
 
 static int ai_king_merc_payload(int hx, int hy, int qty_a, int extra_flag, int price) {
   return ((hx & 0x3f) << 26) | ((hy & 0x3f) << 20) | ((qty_a & 0xf) << 16) |
@@ -3639,14 +3631,14 @@ static void ai_king_merc_offer(ColonizeTurnContext* ctx) {
    * FUN_43f7_2022 line 75007: `(*(byte*)0x5382 & 2) == 0 || *(int*)0x53e6 == 0`
    * — gate reads the Man-O-War/colony-count pool (backup_force[2], see
    * ai_king_seed_backup_force_1a26), not the Artillery pool. Bit2 is the
-   * intervention-announced latch (see ai_king_foreign_intervene_ex), which
+   * intervention-announced latch (see ai_king_10f0_land), which
    * the port used to conflate with ref_present.
    */
   const int intervened =
     ai_king_latch_get(ctx->col1, AI_KING_INTERVENE_ANNOUNCED_BYTE) != 0;
   const int mow_pool = ctx->col1->head.backup_force[2];
   if (intervened && mow_pool != 0) {
-    return; /* free backup-force drain path (ai_king_foreign_intervene) covers this beat */
+    return; /* free backup-force drain path (ai_king_10f0_land) covers this beat */
   }
   if (dos_rng_range(ctx->rng, 0, AI_KING_MERC_ROLL_CHANCE - 1) != 0) {
     return; /* 1-in-3 chance to even attempt this turn */
@@ -3673,9 +3665,9 @@ static void ai_king_merc_offer(ColonizeTurnContext* ctx) {
      * power selling the mercenaries, the same slot the @MERCS arrival line
      * names. The "Europe" stand-in that was here named nobody.
      */
-    static const char* const k_country[4] = {"England", "France", "Spain", "Netherlands"};
     const int seller = ai_king_intervention_nation_slot(ctx, human, 1);
-    const char* seller_name = (seller >= 0 && seller < 4) ? k_country[seller] : "Europe";
+    const char* seller_name =
+      (seller >= 0 && seller < 4) ? reports_nation_country_name(seller) : "Europe";
     tok.string0 = seller_name;
     /*
      * %STRING1 is a COMPOSED LIST, not one word. DOS builds it in a local
@@ -3892,11 +3884,10 @@ void ai_king_frigate_offer(ColonizeTurnContext* ctx, int nation) {
       return;
     }
   }
-  static const char* k_titles[5] = {"Discoverer", "Explorer", "Conquistador", "Governor", "Viceroy"};
   const int d = (int)ctx->col1->head.difficulty;
   PopupMsgTokens tok;
   memset(&tok, 0, sizeof(tok));
-  tok.string0 = k_titles[d >= 0 && d < 5 ? d : 0];
+  tok.string0 = reports_difficulty_title(d >= 0 && d < 5 ? d : 0);
   tok.string1 = ctx->col1->player[nation].name[0] ? ctx->col1->player[nation].name
                                                     : "Your Excellency";
   tok.string2 = ctx->col1->player[nation].country_name[0]
@@ -4156,13 +4147,12 @@ int ai_king_new_war_event(ColonizeTurnContext* ctx) {
     count = 0;
   }
 
-  static const char* k_titles[5] = {"Discoverer", "Explorer", "Conquistador", "Governor", "Viceroy"};
   const char* peer_name =
     col1->player[peer].country_name[0] ? col1->player[peer].country_name : "rival";
   if (ctx->ai_popups) {
     PopupMsgTokens tok;
     memset(&tok, 0, sizeof(tok));
-    tok.string0 = k_titles[difficulty >= 0 && difficulty < 5 ? difficulty : 0];
+    tok.string0 = reports_difficulty_title(difficulty >= 0 && difficulty < 5 ? difficulty : 0);
     tok.string1 = col1->player[human].name[0] ? col1->player[human].name : "Governor";
     tok.string2 = peer_name;
     tok.number0 = gold;
@@ -4403,7 +4393,7 @@ static void ai_king_war_act(ColonizeTurnContext* ctx) {
      * Rebel arm first: 10f0 while human ports still exist (crown move/capture
      * below may seize the landing pick). In addition to 06a6 in ref_wave.
      */
-    ai_king_foreign_intervene(ctx);
+    ai_king_10f0_land(ctx, ctx->human_nation, 0, 0, NULL); /* FUN_43f7_10f0, free drain */
     /* Real 2022: recurring per-turn rebel merc gift (hire CHOICE / auto). */
     ai_king_merc_offer(ctx);
   }
@@ -4664,7 +4654,7 @@ static int ai_king_human_colonies(const ColonizeTurnContext* ctx, int human) {
     return 0;
   }
   if (ctx->colonies && ctx->colonies->colony_count > 0) {
-    return ai_king_colony_count(ctx->colonies, human);
+    return colonies_count_for_nation(ctx->colonies, human);
   }
   int n = 0;
   if (ctx->col1_ok && ctx->col1 && ctx->col1->colony) {
@@ -4788,8 +4778,8 @@ static void ai_king_enqueue_throne_audience(
   if (!ai_king_human_popups(ctx)) {
     return;
   }
-  static const char* const k_crown[4] = {"England", "France", "Spain", "Netherlands"};
-  const char* motherland = (human >= 0 && human <= 3) ? k_crown[human] : "the Crown";
+  const char* motherland =
+    (human >= 0 && human <= 3) ? reports_nation_country_name(human) : "the Crown";
   PopupMsgTokens tok;
   memset(&tok, 0, sizeof(tok));
   char body[AI_POPUP_BODY_LEN];
@@ -4817,6 +4807,39 @@ static void ai_king_enqueue_throne_audience(
   (void)ai_popup_enqueue_ok_ctx(
     ctx->ai_popups, AI_POPUP_TAG_KING_THRONE, human, crown, win ? 1 : 2, NULL, body
   );
+}
+
+/*
+ * GAME.TXT @LOSING1/2/3 emitter. The three loss branches below (all ports
+ * taken / all colonies taken / >=90% population) ran byte-identical 28-line
+ * blocks that differed only in the tag and the fallback wording: latch
+ * ENDGAME_LOST, tok.string0/1/2 = country / leader / exile, popup_msg_fill,
+ * overwrite ctx->status with the filled body, queue the human OK with payload
+ * 4, then the throne audience. Callers pass an already-formatted fallback
+ * because each branch's wording takes a different mix of the three strings.
+ */
+static void ai_king_emit_loss(
+  ColonizeTurnContext* ctx,
+  const char* tag,
+  const char* fallback,
+  int human,
+  int crown,
+  const char* country,
+  const char* leader,
+  const char* exile
+) {
+  ai_king_latch_set(ctx->col1, AI_KING_ENDGAME_BYTE, AI_KING_ENDGAME_LOST);
+  PopupMsgTokens tok;
+  memset(&tok, 0, sizeof(tok));
+  tok.string0 = country;
+  tok.string1 = leader;
+  tok.string2 = exile;
+  ai_king_emit_ok(
+    ctx, tag, &tok, fallback, AI_POPUP_TAG_KING_WAR_END, human, crown, 4, 1, NULL, 0
+  );
+  /* DOS lose order: @LOSINGn dialog, then the @KINGWIN gloating audience
+   * (291f_0aba(2,1,0xf31)); the retire score follows its dismissal. */
+  ai_king_enqueue_throne_audience(ctx, human, crown, 0);
 }
 
 /*
@@ -4924,19 +4947,11 @@ static void ai_king_check_revolution_end(ColonizeTurnContext* ctx) {
    * COUNTRY name of rival slot 1, the intervention ally the deposed viceroy
    * flees to. All three branches used to hardcode "Europe" there.
    */
-  static const char* const k_exile_country[4] = {
-    "England", "France", "Spain", "Netherlands"
-  };
   const int exile_nation = ai_king_intervention_nation_slot(ctx, human, 0);
-  const char* exile =
-    (exile_nation >= 0 && exile_nation < 4) ? k_exile_country[exile_nation] : "Europe";
+  const char* exile = (exile_nation >= 0 && exile_nation < 4)
+                        ? reports_nation_country_name(exile_nation)
+                        : "Europe";
   if (colonies <= 0) {
-    ai_king_latch_set(ctx->col1, AI_KING_ENDGAME_BYTE, AI_KING_ENDGAME_LOST);
-    PopupMsgTokens tok;
-    memset(&tok, 0, sizeof(tok));
-    tok.string0 = country;
-    tok.string1 = leader;
-    tok.string2 = exile;
     char fallback[AI_POPUP_BODY_LEN];
     snprintf(
       fallback,
@@ -4947,19 +4962,7 @@ static void ai_king_check_revolution_end(ColonizeTurnContext* ctx) {
       leader,
       exile
     );
-    char body[AI_POPUP_BODY_LEN];
-    popup_msg_fill(ctx->messages, "LOSING2", &tok, fallback, body, sizeof(body));
-    if (ctx->status && ctx->status_size) {
-      snprintf(ctx->status, ctx->status_size, "%s", body);
-    }
-    if (ai_king_human_popups(ctx)) {
-      (void)ai_popup_enqueue_ok_ctx(
-        ctx->ai_popups, AI_POPUP_TAG_KING_WAR_END, human, crown, 4, NULL, body
-      );
-    }
-    /* DOS lose order: @LOSINGn dialog, then the @KINGWIN gloating audience
-     * (291f_0aba(2,1,0xf31)); the retire score follows its dismissal. */
-    ai_king_enqueue_throne_audience(ctx, human, crown, 0);
+    ai_king_emit_loss(ctx, "LOSING2", fallback, human, crown, country, leader, exile);
     return;
   }
   /*
@@ -4968,12 +4971,6 @@ static void ai_king_check_revolution_end(ColonizeTurnContext* ctx) {
    * after 58507 wrote 1).
    */
   if (pop_pct >= AI_KING_LOSING3_PCT) {
-    ai_king_latch_set(ctx->col1, AI_KING_ENDGAME_BYTE, AI_KING_ENDGAME_LOST);
-    PopupMsgTokens tok;
-    memset(&tok, 0, sizeof(tok));
-    tok.string0 = country;
-    tok.string1 = leader;
-    tok.string2 = exile;
     char fallback[AI_POPUP_BODY_LEN];
     snprintf(
       fallback,
@@ -4984,26 +4981,10 @@ static void ai_king_check_revolution_end(ColonizeTurnContext* ctx) {
       leader,
       exile
     );
-    char body[AI_POPUP_BODY_LEN];
-    popup_msg_fill(ctx->messages, "LOSING3", &tok, fallback, body, sizeof(body));
-    if (ctx->status && ctx->status_size) {
-      snprintf(ctx->status, ctx->status_size, "%s", body);
-    }
-    if (ai_king_human_popups(ctx)) {
-      (void)ai_popup_enqueue_ok_ctx(
-        ctx->ai_popups, AI_POPUP_TAG_KING_WAR_END, human, crown, 4, NULL, body
-      );
-    }
-    ai_king_enqueue_throne_audience(ctx, human, crown, 0);
+    ai_king_emit_loss(ctx, "LOSING3", fallback, human, crown, country, leader, exile);
     return;
   }
   if (ports <= 0) {
-    ai_king_latch_set(ctx->col1, AI_KING_ENDGAME_BYTE, AI_KING_ENDGAME_LOST);
-    PopupMsgTokens tok;
-    memset(&tok, 0, sizeof(tok));
-    tok.string0 = country;
-    tok.string1 = leader;
-    tok.string2 = exile;
     char fallback[AI_POPUP_BODY_LEN];
     snprintf(
       fallback,
@@ -5014,17 +4995,7 @@ static void ai_king_check_revolution_end(ColonizeTurnContext* ctx) {
       leader,
       exile
     );
-    char body[AI_POPUP_BODY_LEN];
-    popup_msg_fill(ctx->messages, "LOSING1", &tok, fallback, body, sizeof(body));
-    if (ctx->status && ctx->status_size) {
-      snprintf(ctx->status, ctx->status_size, "%s", body);
-    }
-    if (ai_king_human_popups(ctx)) {
-      (void)ai_popup_enqueue_ok_ctx(
-        ctx->ai_popups, AI_POPUP_TAG_KING_WAR_END, human, crown, 4, NULL, body
-      );
-    }
-    ai_king_enqueue_throne_audience(ctx, human, crown, 0);
+    ai_king_emit_loss(ctx, "LOSING1", fallback, human, crown, country, leader, exile);
     return;
   }
   const int year = (int)ctx->col1->head.year;
@@ -5042,15 +5013,7 @@ static void ai_king_check_revolution_end(ColonizeTurnContext* ctx) {
    * game_options.independence_force (0x5382 bit 0x20, the cheat) bypasses
    * gates 2 and 3 and the colony gate, as in DOS. No year gate.
    */
-  int crown_colonies = 0;
-  if (ctx->colonies) {
-    for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
-      const ColonizeColony* c = &ctx->colonies->colonies[i];
-      if (c->active && c->nation_id == crown) {
-        ++crown_colonies;
-      }
-    }
-  }
+  const int crown_colonies = colonies_count_for_nation(ctx->colonies, crown);
   int crown_land = 0;
   if (ctx->units) {
     for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
@@ -5058,13 +5021,13 @@ static void ai_king_check_revolution_end(ColonizeTurnContext* ctx) {
       if (!u->active || u->nation_id != crown) {
         continue;
       }
-      /* DOS counts types 6/8/0xb — Regulars / Cavalry / Artillery. Matched
-       * by NAME here (synthetic test pools reorder type indices). */
-      const ColonizeUnitType* t = units_type(ctx->units, u->type_index);
-      const char* n = t ? t->name : NULL;
-      if (n && (strstr(n, "Regular") ||
-                (strstr(n, "Cavalry") && !strstr(n, "Cont")) ||
-                strstr(n, "Artillery") || strstr(n, "Cannon"))) {
+      /* DOS counts types 6/8/0xb — Regulars / Cavalry / Artillery. Keyed off
+       * the @UNIT code rather than the pool slot (synthetic test pools reorder
+       * type indices); units_type_kind's own name table draws the
+       * Cavalry/Cont. Cav. line the hand-rolled strstr pair used to. */
+      const ColonizeUnitKind k = units_type_kind(units_type(ctx->units, u->type_index));
+      if (k == UNITS_KIND_REGULAR || k == UNITS_KIND_CAVALRY ||
+          k == UNITS_KIND_ARTILLERY) {
         ++crown_land;
       }
     }
@@ -5171,20 +5134,13 @@ static void ai_king_check_revolution_end(ColonizeTurnContext* ctx) {
           country
         );
       }
-      char body[AI_POPUP_BODY_LEN];
-      popup_msg_fill(ctx->messages, tag, &tok, fallback, body, sizeof(body));
       /*
        * Do not clobber same-turn wave/war_act status (1528 @INVASION, 2244
        * merc). The warn still enqueues its INFO OK; status when buffer empty.
        */
-      if (ctx->status && ctx->status_size && ctx->status[0] == '\0') {
-        snprintf(ctx->status, ctx->status_size, "%s", body);
-      }
-      if (ai_king_human_popups(ctx)) {
-        (void)ai_popup_enqueue_ok_ctx(
-          ctx->ai_popups, AI_POPUP_TAG_INFO, human, crown, warn_sel, NULL, body
-        );
-      }
+      ai_king_emit_ok(
+        ctx, tag, &tok, fallback, AI_POPUP_TAG_INFO, human, crown, warn_sel, 0, NULL, 0
+      );
       ai_king_latch_set(ctx->col1, warn_byte, 1);
     }
   }
@@ -5209,11 +5165,8 @@ static void ai_king_check_revolution_end(ColonizeTurnContext* ctx) {
     /* raw 58635 `FUN_281f_0438(0, *(0x53a6 * 2 - 0x7c6c))`: %STRING0 is the
      * DIFFICULTY title, not a fixed "Viceroy" (same table 38fd_5930 uses at
      * raw 68388). */
-    static const char* const k_rank[5] = {
-      "Discoverer", "Explorer", "Conquistador", "Governor", "Viceroy"
-    };
     const int diff = (int)ctx->col1->head.difficulty;
-    tok.string0 = k_rank[(diff >= 0 && diff < 5) ? diff : 4];
+    tok.string0 = reports_difficulty_title((diff >= 0 && diff < 5) ? diff : 4);
     tok.string1 = leader;
     tok.string2 = estate;
     char fallback[AI_POPUP_BODY_LEN];
@@ -5226,22 +5179,10 @@ static void ai_king_check_revolution_end(ColonizeTurnContext* ctx) {
       leader,
       estate
     );
-    char body[AI_POPUP_BODY_LEN];
-    popup_msg_fill(ctx->messages, "RETIRING2", &tok, fallback, body, sizeof(body));
-    if (ctx->status && ctx->status_size) {
-      snprintf(ctx->status, ctx->status_size, "%s", body);
-    }
-    if (ai_king_human_popups(ctx)) {
-      (void)ai_popup_enqueue_ok_ctx(
-        ctx->ai_popups,
-        AI_POPUP_TAG_KING_WAR_END,
-        human,
-        crown,
-        2,
-        NULL,
-        body
-      );
-    }
+    ai_king_emit_ok(
+      ctx, "RETIRING2", &tok, fallback, AI_POPUP_TAG_KING_WAR_END, human, crown, 2, 1,
+      NULL, 0
+    );
   }
 }
 
@@ -5302,11 +5243,8 @@ void ai_king_nation_turn(ColonizeTurnContext* ctx) {
       /* raw 58622 `FUN_281f_0438(0, *(0x53a6 * 2 - 0x7c6c))`: %STRING0 is the
        * DIFFICULTY title, not a fixed "Viceroy" — the same splice @RETIRING2
        * makes at raw 58643 (0x53a6 = the difficulty byte). */
-      static const char* const k_rank[5] = {
-        "Discoverer", "Explorer", "Conquistador", "Governor", "Viceroy"
-      };
       const int diff = (int)ctx->col1->head.difficulty;
-      tok.string0 = k_rank[(diff >= 0 && diff < 5) ? diff : 4];
+      tok.string0 = reports_difficulty_title((diff >= 0 && diff < 5) ? diff : 4);
       tok.string1 = leader;
       char fallback[AI_POPUP_BODY_LEN];
       snprintf(
@@ -5317,22 +5255,11 @@ void ai_king_nation_turn(ColonizeTurnContext* ctx) {
         tok.string0,
         leader
       );
-      char body[AI_POPUP_BODY_LEN];
-      popup_msg_fill(ctx->messages, "SOONRETIRING0", &tok, fallback, body, sizeof(body));
-      if (ctx->status && ctx->status_size && ctx->status[0] == '\0') {
-        snprintf(ctx->status, ctx->status_size, "%s", body);
-      }
-      if (ai_king_human_popups(ctx)) {
-        (void)ai_popup_enqueue_ok_ctx(
-          ctx->ai_popups,
-          AI_POPUP_TAG_INFO,
-          human,
-          ai_king_crown_nation_col1(ctx->col1_ok ? ctx->col1 : NULL, human),
-          AI_KING_SOONRETIRE0_YEAR,
-          NULL,
-          body
-        );
-      }
+      ai_king_emit_ok(
+        ctx, "SOONRETIRING0", &tok, fallback, AI_POPUP_TAG_INFO, human,
+        ai_king_crown_nation_col1(ctx->col1_ok ? ctx->col1 : NULL, human),
+        AI_KING_SOONRETIRE0_YEAR, 0, NULL, 0
+      );
       ai_king_latch_set(ctx->col1, AI_KING_SOONRETIRE0_BYTE, 1);
     }
     /*
@@ -5404,8 +5331,7 @@ void ai_king_nation_turn(ColonizeTurnContext* ctx) {
       const int rising = last < sol / 10;
       const int falling = !rising && last > (sol + 4) / 10;
       if (rising || falling) {
-        static const char* k_country[4] = {"England", "France", "Spain", "Netherlands"};
-        const char* country = k_country[ctx->human_nation & 3];
+        const char* country = reports_nation_country_name(ctx->human_nation & 3);
         if (ctx->status && ctx->status_size && ctx->status[0] == '\0') {
           snprintf(
             ctx->status,
@@ -5496,11 +5422,8 @@ void ai_king_nation_turn(ColonizeTurnContext* ctx) {
        * difficulty title, %STRING1 the leader. The 1840 body reads only
        * %STRING1, but DOS fills both slots. */
       {
-        static const char* const k_rank[5] = {
-          "Discoverer", "Explorer", "Conquistador", "Governor", "Viceroy"
-        };
         const int diff = (int)ctx->col1->head.difficulty;
-        tok.string0 = k_rank[(diff >= 0 && diff < 5) ? diff : 4];
+        tok.string0 = reports_difficulty_title((diff >= 0 && diff < 5) ? diff : 4);
       }
       tok.string1 = leader;
       char fallback[AI_POPUP_BODY_LEN];
@@ -5512,22 +5435,11 @@ void ai_king_nation_turn(ColonizeTurnContext* ctx) {
         "peace and seek to swear renewed allegiance to the King.\"",
         leader
       );
-      char body[AI_POPUP_BODY_LEN];
-      popup_msg_fill(ctx->messages, "SOONRETIRING1", &tok, fallback, body, sizeof(body));
-      if (ctx->status && ctx->status_size && ctx->status[0] == '\0') {
-        snprintf(ctx->status, ctx->status_size, "%s", body);
-      }
-      if (ai_king_human_popups(ctx)) {
-        (void)ai_popup_enqueue_ok_ctx(
-          ctx->ai_popups,
-          AI_POPUP_TAG_INFO,
-          human,
-          ai_king_crown_nation_col1(ctx->col1_ok ? ctx->col1 : NULL, human),
-          AI_KING_SOONRETIRE1_YEAR,
-          NULL,
-          body
-        );
-      }
+      ai_king_emit_ok(
+        ctx, "SOONRETIRING1", &tok, fallback, AI_POPUP_TAG_INFO, human,
+        ai_king_crown_nation_col1(ctx->col1_ok ? ctx->col1 : NULL, human),
+        AI_KING_SOONRETIRE1_YEAR, 0, NULL, 0
+      );
       ai_king_latch_set(ctx->col1, AI_KING_SOONRETIRE1_BYTE, 1);
     }
     /*

@@ -1100,6 +1100,136 @@ typedef struct ColonizeCol1Save {
 void col1_save_init(ColonizeCol1Save* save);
 void col1_save_free(ColonizeCol1Save* save);
 
+/*
+ * ---------------------------------------------------------------------
+ * Settlement-at-tile accessors (2026-09-14 duplication audit IN-25 / AC-35 /
+ * TT-7). The tribe[] walk had eight private copies (map_panel_tribe_at,
+ * col1_bridge_tribe_at, col1_stuff_census_settlement_at, combat_tribe_at,
+ * two inline in ai_contact.c, ai.c, two in ai_euro.c) and the colony[] walk
+ * four more, three of them in the golden tests.
+ *
+ * TWO tribe spellings, because the eight copies were not all the same:
+ *
+ *   col1_save_tribe_at        — any record on the tile, no owner filter.
+ *     This is the DOS FUN_281f_06be / FUN_137f_03e4 reading: the tile owner
+ *     is a single nibble that already holds 0..3 for a Euro colony and
+ *     4..11 for a village, so the settlement probe returns whatever is
+ *     stored. Use it for the tile-owner / settlement-bit ports.
+ *   col1_save_village_at      — same walk plus `nation_id` in 4..11.
+ *     The encounter and village-target paths (ai_contact's 1736 probe,
+ *     ai_euro_village_nation_at) added this as a record-validity guard so a
+ *     malformed record cannot be mistaken for a village. Use it wherever
+ *     the answer feeds `col1->indian[nation_id - 4]`.
+ *
+ * All four return NULL / -1 when there is nothing there; none of them
+ * touches `save->head.tribe_count` beyond bounding the walk.
+ * ---------------------------------------------------------------------
+ */
+static inline const ColonizeCol1Tribe* col1_save_tribe_at(
+  const ColonizeCol1Save* save, int x, int y
+) {
+  if (!save || !save->tribe) {
+    return NULL;
+  }
+  for (uint16_t i = 0; i < save->head.tribe_count; ++i) {
+    const ColonizeCol1Tribe* t = &save->tribe[i];
+    if ((int)t->x == x && (int)t->y == y) {
+      return t;
+    }
+  }
+  return NULL;
+}
+
+static inline const ColonizeCol1Tribe* col1_save_village_at(
+  const ColonizeCol1Save* save, int x, int y
+) {
+  if (!save || !save->tribe) {
+    return NULL;
+  }
+  for (uint16_t i = 0; i < save->head.tribe_count; ++i) {
+    const ColonizeCol1Tribe* t = &save->tribe[i];
+    if ((int)t->x == x && (int)t->y == y && t->nation_id >= 4 && t->nation_id <= 11) {
+      return t;
+    }
+  }
+  return NULL;
+}
+
+/* Index into save->tribe[] of the tile's settlement record, or -1 — the
+ * shape col1_bridge.c's copy returned. */
+static inline int col1_save_tribe_index_at(const ColonizeCol1Save* save, int x, int y) {
+  if (!save || !save->tribe) {
+    return -1;
+  }
+  for (uint16_t i = 0; i < save->head.tribe_count; ++i) {
+    if ((int)save->tribe[i].x == x && (int)save->tribe[i].y == y) {
+      return (int)i;
+    }
+  }
+  return -1;
+}
+
+/* First settlement record belonging to `nation` (absolute Col1 id 4..11),
+ * or NULL. The tribe capital lookup several callers hand-rolled. */
+static inline const ColonizeCol1Tribe* col1_tribe_first_of(
+  const ColonizeCol1Save* save, int nation
+) {
+  if (!save || !save->tribe) {
+    return NULL;
+  }
+  for (uint16_t i = 0; i < save->head.tribe_count; ++i) {
+    if ((int)save->tribe[i].nation_id == nation) {
+      return &save->tribe[i];
+    }
+  }
+  return NULL;
+}
+
+/*
+ * Colony record on (x,y), or NULL. `nation` < 0 accepts any owner (the
+ * golden tests' find_colony_by_xy); 0..3 filters to that nation's own
+ * colonies (reports.c's own-colony tile test).
+ */
+static inline const ColonizeCol1Colony* col1_colony_at_xy(
+  const ColonizeCol1Save* save, int nation, int x, int y
+) {
+  if (!save) {
+    return NULL;
+  }
+  for (uint16_t i = 0; i < save->head.colony_count; ++i) {
+    const ColonizeCol1Colony* c = &save->colony[i];
+    if ((int)c->x != x || (int)c->y != y) {
+      continue;
+    }
+    if (nation >= 0 && (int)c->nation_id != nation) {
+      continue;
+    }
+    return c;
+  }
+  return NULL;
+}
+
+/* Index form of col1_colony_at_xy, for callers that need the array slot
+ * (the three golden colony-production tests). -1 when absent. */
+static inline int col1_save_colony_at(
+  const ColonizeCol1Save* save, int nation, int x, int y
+) {
+  if (!save) {
+    return -1;
+  }
+  for (uint16_t i = 0; i < save->head.colony_count; ++i) {
+    const ColonizeCol1Colony* c = &save->colony[i];
+    if ((int)c->x != x || (int)c->y != y) {
+      continue;
+    }
+    if (nation >= 0 && (int)c->nation_id != nation) {
+      continue;
+    }
+    return (int)i;
+  }
+  return -1;
+}
+
 /* Compile-time layout checks (also run at runtime in smoke tests). */
 bool col1_save_check_layout(char* err, size_t err_size);
 

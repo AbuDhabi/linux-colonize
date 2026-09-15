@@ -98,9 +98,13 @@ bool closing_open(ClosingCinematic* c, const char* data_dir);
 void closing_close(ClosingCinematic* c);
 
 void closing_update(ClosingCinematic* c, uint32_t dt_ms);
-void closing_skip_to_end(ClosingCinematic* c);
 
-/* Any key or click skips the rest and closes. True while still open. */
+/*
+ * Enter / Esc / Space / a mouse click end the cinematic outright — there is no
+ * skip-to-the-last-frame step (CLOSING.EXE image 0x398: those keys store 0 into
+ * the [0x6c] loop flag, the same word _anim_loop clears at the terminator row,
+ * and the main loop at 0x471 falls straight out). True while still open.
+ */
 bool closing_handle_input(ClosingCinematic* c, const ColonizeInputState* input);
 
 void closing_render(

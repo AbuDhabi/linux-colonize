@@ -50,9 +50,6 @@ void ui_drag_begin(
   int amount
 );
 
-/* Copy a sprite into the drag cursor buffer (clamped to UI_DRAG_CURSOR_MAX). */
-bool ui_drag_set_cursor_sprite(UiDragSession* drag, const ColonizeSprite* sp);
-
 bool ui_drag_set_cursor_from_sheet(
   UiDragSession* drag,
   const ColonizeSpriteSheet* sheet,

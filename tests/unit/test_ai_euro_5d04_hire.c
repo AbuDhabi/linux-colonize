@@ -571,9 +571,11 @@ static int pioneer_training_skipped_past_turn_99(void) {
  * The pool below is deliberately NOT in NAMES order, so a mapper that fell
  * back on the pool index would fail every row.
  *
- * Sea rows stay coarse by design (this mapper only separates Privateer 0x10
- * from "some other ship" 0x0d, which is all the 5d04 chain looks at), so the
- * two ship rows assert that contract rather than the file index.
+ * Sea rows used to be coarse (every hull folded onto Caravel 0x0d except
+ * Privateer 0x10). That was a port shortcut, not DOS: unit+0x3146 always
+ * carries the real @UNIT row, so the hulls now map to their own file indices
+ * 13 Caravel .. 18 Man-O-War (duplication audit AE-4; neither live consumer
+ * of the mapper can tell the difference).
  */
 static int dos_type_table_is_names_txt_unit_order(void) {
   static const struct {
@@ -595,7 +597,7 @@ static int dos_type_table_is_names_txt_unit_order(void) {
     {"Artillery", COLONIZE_UNIT_DOMAIN_LAND, 0xb},
     {"Wagon Train", COLONIZE_UNIT_DOMAIN_LAND, 0xc},
     {"Privateer", COLONIZE_UNIT_DOMAIN_SEA, 0x10},
-    {"Galleon", COLONIZE_UNIT_DOMAIN_SEA, 0xd},
+    {"Galleon", COLONIZE_UNIT_DOMAIN_SEA, 0xf},
   };
   const int rows = (int)(sizeof(k_rows) / sizeof(k_rows[0]));
 

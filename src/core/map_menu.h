@@ -248,4 +248,23 @@ void map_menu_render(
 /* Human-readable label for status line when stubbing. */
 const char* map_menu_action_name(MapMenuAction action);
 
+/*
+ * Fill a rect with WOODTILE sprite 0, with the tile grain anchored to screen
+ * (0, 0) rather than to the rect's own corner: DOS tiles the wood across the
+ * whole screen and the panels just clip windows out of it, so wood in a panel
+ * lines up with wood in the menu bar beside it. One copy for the menu bar,
+ * the dropdown panels and (audit 2026-09-14 GL-2) the colony screen, which
+ * had its own pixel-identical copy (retired 2026-09-14).
+ * NOTE: lives here rather than in map_panel.c because map_menu.c is in the
+ * slim unit-test source list and map_panel.c is not.
+ */
+void map_menu_tile_rect_screen_phase(
+  const ColonizeSpriteSheet* sheet,
+  int origin_x,
+  int origin_y,
+  int rect_w,
+  int rect_h,
+  ColonizeFramebuffer8* framebuffer
+);
+
 #endif

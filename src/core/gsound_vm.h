@@ -59,9 +59,6 @@ bool gsound_vm_active(const GsoundVm* vm);
 /* 0x1912: fade event-music channels 7 and 8. BGM 1..6 and 9 stay. */
 void gsound_vm_stop_events(GsoundVm* vm);
 
-/* Ticks elapsed since create/reset; monotonic. */
-uint32_t gsound_vm_tick_count(const GsoundVm* vm);
-
 /*
  * Tick at which a voice first executed the whole-song loop opcode (FD) with a
  * song start set (i.e. the song restarted from the top); 0 if never.

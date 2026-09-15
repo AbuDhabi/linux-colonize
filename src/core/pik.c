@@ -5,12 +5,9 @@
 #include <string.h>
 
 #include "core/assets.h"
+#include "core/bytes.h"
 #include "core/madspack.h"
 #include "platform/diagnostics.h"
-
-static uint16_t read_u16(const uint8_t* p) {
-  return (uint16_t)(p[0] | (p[1] << 8));
-}
 
 bool pik_load(const char* path, ColonizePikImage* out_image, char* err, size_t err_size) {
   if (!path || !out_image) {
@@ -37,8 +34,8 @@ bool pik_load(const char* path, ColonizePikImage* out_image, char* err, size_t e
     return false;
   }
 
-  int height = read_u16(header->data + 0);
-  int width = read_u16(header->data + 2);
+  int height = rd_u16_le(header->data + 0);
+  int width = rd_u16_le(header->data + 2);
   if (width <= 0 || height <= 0 || width > 1024 || height > 1024) {
     madspack_free(&pack);
     snprintf(err, err_size, "PIK invalid dimensions %dx%d in %s", width, height, path);

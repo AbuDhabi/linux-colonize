@@ -34,9 +34,12 @@
 
 /*
  * New-game / load hook (sibling of ai_goals_reset / founding_fathers_reset).
- * Clears the module's cross-game statics: a pending Indian reparations offer
- * (colony/unit/tribe indices into the previous game) and the per-tribe event
- * cooldowns, which are absolute turn stamps. Added 2026-09-09 (smell #58).
+ * Clears every cross-game static in the module: the pending Indian
+ * reparations offer and the village-trade latch (both hold colony / unit /
+ * tribe indices into the previous game), the per-tribe visit mood, and the
+ * "this brave already paid a peaceful visit" marks (brave id + turn stamp).
+ * Added 2026-09-09 (smell #58); completed 2026-09-14 (audit AC-37 — the
+ * per-tribe event cooldowns this used to mention were retired long before).
  */
 void ai_contact_reset(void);
 
@@ -146,6 +149,19 @@ int ai_contact_land_combat_sum(
   int cap
 );
 
+/*
+ * The 0x942c field/exposed garrison gate of FUN_4962_0018 (4962:022f-026e) on
+ * its own: 1 when `u` belongs in the field tally, 0 when it is a garrison DOS
+ * skips (standing on a settlement while its nation is human-controlled, or its
+ * ai_plan is 'A'/'G'). col1_stuff_census.c's per-nation twin and
+ * ai_contact_land_combat_sum's exposed row share this one copy (audit AC-9).
+ */
+int ai_contact_unit_counts_as_field(
+  const ColonizeColonyPool* colonies,
+  const ColonizeCol1Save* col1,
+  const ColonizeUnit* u
+);
+
 /* FUN_5bfb_022e meet / auto-trade (status + AI popup CHOICE/OK when queued). */
 void ai_contact_indian_meet_trade(ColonizeTurnContext* ctx, int nation_id);
 
@@ -202,6 +218,11 @@ int ai_contact_encounter_scan(ColonizeTurnContext* ctx, int euro_nation, int x, 
  * CHOICE's payload for the Incite sub-flow's two DOS flat discounts — see
  * indian_incite_417e.md. Pass 0/0 when not applicable (e.g. ship contact).
  * Returns 1 if a CHOICE was enqueued.
+ *
+ * Kept as an argument-defaulting shim for the unit tests (audit AC-24): game
+ * code always calls the _unit_at form below, which carries the acting unit
+ * and the specific settlement record. Same for ai_contact_try_village_meet_unit
+ * and ai_contact_try_ship_village.
  */
 int ai_contact_try_village_meet(
   ColonizeTurnContext* ctx,
@@ -283,7 +304,6 @@ int ai_contact_try_whack_confirm(
   int dest_x,
   int dest_y
 );
-int ai_contact_whack_pending(const AiPopupState* st, int unit_id);
 
 /*
  * FUN_465b_0000 Euro-vs-Euro attack gate: with a signed peace treaty
@@ -315,7 +335,6 @@ int ai_contact_try_tired_attack_confirm(
   int dest_x,
   int dest_y
 );
-int ai_contact_tired_pending(const AiPopupState* st, int unit_id);
 
 /* @TRADE0 sell-side haggle arm (pure). Exposed for tests. */
 int ai_contact_2820_sell_haggle(int difficulty, int ask, int qty, ColonizeDosRng* rng, int* io_c4, int* io_price, int* io_fair);
@@ -383,17 +402,6 @@ int ai_contact_indian_has_peace(const ColonizeCol1Save* col1, int indian_nation,
 void ai_contact_alarm_delta_00f2(ColonizeTurnContext* ctx, int nation_id, int euro, int delta);
 /* Tribe display name for Indian nation ids 4..11. */
 const char* ai_contact_tribe_name(int nation_id);
-
-/*
- * Fandom capital-destroy surrender: when a capital village falls, reset that
- * Indian nation's alarm/friction toward the attacker and restore peace once.
- * Cite: docs/fandom_col1994.md Capital destroy; units_try_native_settlement_fallout.
- */
-void ai_contact_indian_capital_surrender(
-  ColonizeCol1Save* col1,
-  int indian_nation,
-  int euro_nation
-);
 
 /* FUN_4d56_4528 / 5fef_0f14 raid outcomes + 359c scout stub. */
 void ai_contact_indian_raids(ColonizeTurnContext* ctx, int nation_id);

@@ -35,6 +35,55 @@ bool colony_yield_colony_has_docks(
 );
 
 /*
+ * ---------------------------------------------------------------------
+ * Worked-field iterator (audit CO-2).
+ *
+ * turn.c's turn_produce_one_colony, colony_preview.c's
+ * colony_preview_compute and colony_screen.c's
+ * colony_screen_draw_area_overlays each carried a byte-identical copy of
+ * this walk: `worked_colonist[32]` dedupe, tiles[] range/active/field_job
+ * guards, colonies_field_tile_delta. Replace a copy with
+ *
+ *     ColonizeWorkedTileIter it;
+ *     ColonizeWorkedTile w;
+ *     colony_yield_worked_tiles_begin(&it, colony);
+ *     while (colony_yield_worked_tiles_next(&it, &w)) { ... }
+ *
+ * and then the caller's own 9-argument yield call, unchanged:
+ *
+ *     colony_yield_for_worker(map, w.x, w.y, w.colonist->field_job,
+ *                             w.colonist->profession, has_docks,
+ *                             sol_bonus, colony->colony_flags, has_hudson)
+ *
+ * The iterator deliberately does NOT make that call itself: has_docks,
+ * sol_bonus and has_hudson are per-colony answers the three callers derive
+ * differently (turn.c hoists them, the preview recomputes Hudson per tile),
+ * and folding them in would drag founding_fathers.c / colony.c into this
+ * file's link set — unit_colony_yield links colony_yield.c standalone.
+ * ---------------------------------------------------------------------
+ */
+typedef struct ColonizeWorkedTile {
+  int tile_index;                /* 0..7, MAP_DIR8 order */
+  int dx;                        /* field tile offset from the colony centre */
+  int dy;
+  int x;                         /* absolute map tile = colony->x + dx */
+  int y;
+  int colonist_index;            /* index into colony->colonists[] */
+  const ColonizeColonist* colonist;
+} ColonizeWorkedTile;
+
+typedef struct ColonizeWorkedTileIter {
+  const ColonizeColony* colony;
+  int next_tile;
+  uint32_t seen; /* the worked_colonist[32] dedupe, one bit per colonist */
+} ColonizeWorkedTileIter;
+
+void colony_yield_worked_tiles_begin(
+  ColonizeWorkedTileIter* it, const ColonizeColony* colony
+);
+bool colony_yield_worked_tiles_next(ColonizeWorkedTileIter* it, ColonizeWorkedTile* out);
+
+/*
  * Base + resource yield for working (x,y) as field_job, no worker context
  * (no expert/convert bonus, never docks-gated) — used by AI/job-suggestion
  * callers that don't have a specific colonist. 0 if impossible. Thin
