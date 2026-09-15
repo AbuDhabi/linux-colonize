@@ -70,4 +70,12 @@ bool map_gen_pick_start(
  */
 bool map_gen_euro_landfall(const ColonizeWorldMap* map, int nation, int* out_x, int* out_y);
 
+/*
+ * FUN_684c_08c0 LAB_684c_17f1 tail (HS outline rings, arctic rows, bit-4 forest
+ * demote, hills/mountains lose forest). map_generate runs it itself; a loaded
+ * .MP campaign map (Original Americas) must run it after map_load_mp, as DOS
+ * does for param_1 != 0.
+ */
+void map_gen_finalize_border_and_forest(uint8_t* terrain, int w, int h);
+
 #endif
