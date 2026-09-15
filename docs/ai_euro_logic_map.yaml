@@ -187,11 +187,11 @@ graphs:
         note: ai_euro_try_cash_treasure_europe per unit; units_cortes_cash_coastal_treasures.
       - id: unit_loop
         kind: loop
-        label: "do { wave 0: ships; wave 1: ships+land; unit ids high→low; one act per unit } while any_acted && guard<64"
+        label: "do { wave 0: Treasure/Artillery/Wagon; wave 1: all; ids high→low; first unit with MP drained, rescan } while wave 1 progressed && guard<64"
         fn: ai_euro.c:ai_euro_dispatcher_turn
         dos: 6d8e steps 6–7, raw 93237-93325
-        status: thin
-        note: "DIVERGES from DOS (verified 2026-09-15). DOS wave 0 = unit types 0x0a/0x0b/0x0c = Treasure / Artillery / Wagon Train (bVar4), NOT ships — the annotated header's SHIP_A..C = 0x0a..0x0c was a mislabel (ships are 0x0d-0x12, cf. the 6d8e prelude hold walk). Wave 1 = every unit. DOS granularity: each wave scans ids high→low, takes the FIRST unit with MP, acts it repeatedly until MP==0 (inner while), then leaves the wave; the outer do-while restarts from the top and returns when wave 1 found nobody. That shape is implemented behind AI_6D8E_DOS_LOOP=1 but NOT default: the golden-fit beachhead arms (first_colony / corridors / wake_elig) and the headless WoI sim were fitted to ships-first-twice-per-pass and flip under it (golden_ai_turns TURN3→4 loses the SP/DU founds, golden_woi_ref01 never reaches LOST, unit_ai_euro_20e6 berth boarding). Open item: refit those arms to the DOS order, then flip the default."
+        status: structural
+        note: "DOS shape ported 2026-09-15 (was ships-first, one act per unit per pass — a mislabelled type constant in the annotated header). Wave 0 = types 0x0a/0x0b/0x0c (bVar4), wave 1 = every unit; each wave scans ids high→low, takes the first unit with MP, acts it until MP==0, then leaves; the outer loop restarts from the top and returns when wave 1 found nobody. Port-only: a no-progress act marks the unit exhausted for the scan (DOS re-acts until the >0x14 sticky clear) and the guard<64 ceiling stays. AI_6D8E_DOS_LOOP=0 = legacy shape (bisect aid). Refit needed for the DOS order: SP soldier first-colony eligibility (both landed, ship still at the tip)."
       - id: skip
         kind: decision
         label: Skip? (inactive / other nation / aboard ship / land in wave 0)

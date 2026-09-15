@@ -1037,10 +1037,14 @@ static int unit_berth_marks_then_assembles_passenger(void) {
   f.colonies.next_id = 1;
   f.col1.nation[nation].trade.euro_price[COLONIZE_CARGO_SILVER] = 20;
 
-  const int ship_id = units_spawn(&f.units, 2, 12, 4); /* berthed alongside */
-  ColonizeUnit* ship = units_get(&f.units, ship_id);
+  /* Pioneer first so its id is LOWER than the ship's: the dispatcher acts
+   * ids high→low, and the mark/10be hand-off under test needs the ship's
+   * berth act to run before the Pioneer's own act would admit it to the
+   * colony as labor (true in both loop shapes only with this ordering). */
   const int sol_id = units_spawn(&f.units, 4, 11, 4);  /* Pioneer in the colony */
   ColonizeUnit* sol = units_get(&f.units, sol_id);
+  const int ship_id = units_spawn(&f.units, 2, 12, 4); /* berthed alongside */
+  ColonizeUnit* ship = units_get(&f.units, ship_id);
   if (!ship || !sol) {
     fixture_free(&f);
     return fail("spawn berth boarding units");

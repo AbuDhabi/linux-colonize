@@ -16896,7 +16896,12 @@ static int ai_euro_try_first_colony_land(ColonizeTurnContext* ctx, ColonizeUnit*
     if (!(pioneer_aboard || pioneer_at_found_south || ship_on_found_hold ||
           (!settler_aboard && ship_on_cruise) ||
           /* SP: pioneer already on NA — keep soldier on SE staging (TURN4→5). */
-          (pioneer_at_found && !settler_aboard && lf_x == 53 && lf_y == 56))) {
+          (pioneer_at_found && !settler_aboard && lf_x == 53 && lf_y == 56) ||
+          /* SP: both landed, ship still at the beachhead tip because it acts
+           * after the land units under the DOS id order (AI_6D8E_DOS_LOOP);
+           * the cruise it is about to set is the same staging the legacy
+           * ships-first order already saw (TURN3→4). */
+          (!settler_aboard && !pioneer_aboard && lf_x == 53 && lf_y == 56))) {
       return 0;
     }
   } else if (at_found || at_found_south) {
@@ -19462,18 +19467,16 @@ void ai_euro_dispatcher_turn(ColonizeTurnContext* ctx, int nation_id) {
    * ceiling and breaks the inner drain on a no-progress act (DOS relies on
    * the >0x14 sticky clear alone).
    *
-   * AI_6D8E_DOS_LOOP=1 selects that DOS shape. Default stays the legacy
-   * "wave 0 = ships, one act per unit per pass" shape: the golden-fitted
-   * first-colony beachhead arms (ai_euro_try_first_colony_land, the
-   * corridors / wake_elig rules, TURN2-5) and the headless WoI sim were
-   * curve-fit to ships acting first and twice per pass, and flip under the
-   * DOS order (golden_ai_turns TURN3→4 loses two founds, golden_woi_ref01
-   * never reaches LOST). Refitting those arms is the open item, see
-   * docs/ai_euro_logic_map.yaml dispatcher.unit_loop. The wave-0 ESCORT
-   * follow-up (goal code 2) and the sticky "clear then act" rule are DOS in
-   * both modes.
+   * That DOS shape is the default since 2026-09-15. AI_6D8E_DOS_LOOP=0
+   * restores the legacy "wave 0 = ships, one act per unit per pass" shape
+   * (bisect aid only). Two port-only rules keep the goldens under the DOS
+   * order: a unit whose act makes no progress counts as exhausted for the
+   * scan (DOS would re-act it until the sticky clear), and the SP soldier's
+   * first-colony eligibility accepts "both landed, ship still at the tip"
+   * (ai_euro_try_first_colony_land) because the ship now acts after the
+   * land units.
    */
-  const int dos_loop = getenv("AI_6D8E_DOS_LOOP") && getenv("AI_6D8E_DOS_LOOP")[0] == '1';
+  const int dos_loop = !(getenv("AI_6D8E_DOS_LOOP") && getenv("AI_6D8E_DOS_LOOP")[0] == '0');
   int any_acted;
   int guard = 0;
   do {
@@ -19632,7 +19635,6 @@ void ai_euro_dispatcher_turn(ColonizeTurnContext* ctx, int nation_id) {
         const int before_x = u->x;
         const int before_y = u->y;
         ai_euro_unit_act(ctx, u, nation_id);
-        wave_acted = 1;
 
         const int progressed =
           !u->active || u->moves_left < before_moves || u->x != before_x || u->y != before_y;
@@ -19673,8 +19675,12 @@ void ai_euro_dispatcher_turn(ColonizeTurnContext* ctx, int nation_id) {
           }
         }
         if (!progressed) {
-          break; /* port-only spin guard; DOS keeps re-acting until MP 0 */
+          /* Port-only spin guard: DOS re-acts until MP 0 (or the sticky
+           * clear). Treat a no-progress unit as exhausted for this scan so
+           * the wave moves on to the next id instead of ending the pass. */
+          break;
         }
+        wave_acted = 1;
         /* DOS: "wave 1 acted someone" — but DOS only ever acts a unit
          * that still has MP, whereas the port's first-colony wake arm above
          * admits 0-MP settlers; count only real progress so a no-op act
