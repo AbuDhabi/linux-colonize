@@ -103,16 +103,16 @@ static int run_pair(const char* path_in, const char* path_exp, const char* label
   }
 
   /*
-   * Full field set except cargo_produced_mask — a real, still-open
-   * divergence, not a comparator weakening: New Amsterdam produces an extra
-   * lumber bit (0xc961 vs the real save's 0xc941). This save carries no
-   * hand-patched terrain, so this one is engine-side. Every other field in
-   * COL1_CMP_ALL matches, including depletion_counter and cargo_idle_turns
-   * which the old per-file comparator here did not check at all.
+   * Full field set, cargo_produced_mask included (2026-09-15): New
+   * Amsterdam's Custom House ships 70 lumber the same tick, and DOS
+   * subtracts the sale from the net before setting the produced bit (raw
+   * 57273/57343), so the old "extra lumber bit" was the port testing the
+   * pre-sale net. depletion_counter and cargo_idle_turns, which the old
+   * per-file comparator never checked, are compared too.
    */
   const bool ok = col1_compare_nation_colonies(
     &fx.orig, &fx.start, &fx.expect, COLONY_PROD02_HUMAN_NATION,
-    COL1_CMP_ALL & ~(unsigned)COL1_CMP_CARGO_PRODUCED_MASK, label
+    COL1_CMP_ALL, label
   );
   golden_close(&fx);
   if (!ok) {

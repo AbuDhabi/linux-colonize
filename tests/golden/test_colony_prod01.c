@@ -606,6 +606,20 @@ static int run_pair(const char* path_in, const char* path_exp, const char* label
         if (map.improve) map.improve[ty * map.width + tx] = 0;
         if (map.layer2) map.layer2[ty * map.width + tx] = 0;
       }
+      /*
+       * Middle-left (ti=6, dx=-1, dy=0): the real save's tile — Grassland +
+       * River + Prime Tobacco — stays for the Tobacco Planter (colonist 1,
+       * tiles[6] from the save). Tobacco is at the 100 cap, so the yield
+       * (8) is invisible in the stock, but DOS's cargo_produced_mask
+       * (0x0055) records that tobacco WAS produced; a Plains re-pick here
+       * yields 0 and drops that bit (duplication-audit finding 2026-09-15).
+       */
+      if (map.terrain) {
+        map.terrain[64 * map.width + 46] = 0x44; /* Grassland + River */
+      }
+      if (map.layer2) {
+        map.layer2[64 * map.width + 46] |= 0x02u; /* Prime Tobacco */
+      }
       /* Top-center (ti=0, dx=0, dy=-1): Ocean + Fish resource -> 14 food for Expert Fisherman */
       st->tiles[0] = 4;
       if (map.terrain) {
@@ -788,19 +802,17 @@ static int run_pair(const char* path_in, const char* path_exp, const char* label
   }
 
   /*
-   * Full field set except cargo_produced_mask — a real, still-open
-   * divergence, not a comparator weakening: New Amsterdam gets an extra
-   * cotton bit (0x0278 vs 0x0270), Guadeloupe extra cotton+lumber bits
-   * (0x0139 vs 0x0111) and St. Louis is missing the tobacco bit (0x0051 vs
-   * 0x0055). Every other field in COL1_CMP_ALL — including the
-   * depletion_counter and improve_timer checks this test used to have
-   * commented out — matches. (This fixture's terrain is hand-synthesized, so
-   * the two extra-bit colonies may be fixture artifacts; golden_colony_prod02
-   * has the same mask hole on a save whose terrain was never touched.)
+   * Full field set, cargo_produced_mask included (2026-09-15). The mask used
+   * to differ in three colonies: New Amsterdam's and Guadeloupe's Custom
+   * Houses sold cotton/lumber down to 50 the same tick (DOS subtracts the
+   * sale from the net before testing it, raw 57273/57343), and St. Louis's
+   * Tobacco Planter sat on a Plains re-pick that yields nothing (the real
+   * tile is restored above). depletion_counter and improve_timer, which this
+   * test used to have commented out, are compared too.
    */
   const bool ok = col1_compare_nation_colonies(
     &fx.orig, &fx.start, &fx.expect, COLONY_PROD01_HUMAN_NATION,
-    COL1_CMP_ALL & ~(unsigned)COL1_CMP_CARGO_PRODUCED_MASK, label
+    COL1_CMP_ALL, label
   );
   golden_close(&fx);
   if (!ok) {

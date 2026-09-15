@@ -125,7 +125,13 @@ Scratch: `DS:−0x7238` (gross), `−0x71f6` (reserve). Net: `281f_0b50` → `15
   - Human only: message box assembled 0056/006a/0074/007e/0088/07d4
     (colony, amt, cargo, gross, tax%, tax, net) + sound `0x78` when
     `0xa897` set. Linux: one OK popup from `europe->status` per colony.
-- OR `cargo_produced_mask` (`+0x90`) when net>0; surplus clamp vs warehouse
+- OR `cargo_produced_mask` (`+0x90`) when scratch gross `−0x7238[c] != 0`
+  AND net>0 — where net is `local_86` AFTER the Custom House sale
+  (`local_86 -= sold`, 57273), so a cargo sold down to 50 does not count as
+  produced. The `net==0 && surplus!=0` arm (57344) is dead: surplus is
+  `clamp(0, stock−cap, net)` = 0 whenever net is 0. Port: `turn.c` mask
+  after the Custom House block (fixed 2026-09-15; it used to test the
+  pre-sale stock delta and set spurious bits). Surplus clamp vs warehouse
   `0d3a` → `aiStack_e4[c]` caps.
 
 ### C — SoL accumulators (57349–57414)
