@@ -636,6 +636,19 @@ int europe_purchase_price(const char* type_name);
 int europe_dock_type_for(const char* name, int profession);
 
 /*
+ * ICONS.SS sprite for a dock entry: what the immigrant now is (kit type),
+ * with DOS FUN_112b_0060's expert/generic pose split keyed by profession.
+ */
+int europe_dock_icon_sprite(const ColonizeUnitPool* units, const EuropeDockImmigrant* d);
+
+/*
+ * ICONS.SS sprite for a Europe-side ship passenger (pool type + profession):
+ * colonists get their working portrait, the five kit types go through
+ * europe_dock_icon_sprite (bugs.md 458), anything else its @UNIT icon.
+ */
+int europe_passenger_icon_sprite(const ColonizeUnitPool* units, int type_index, int profession);
+
+/*
  * @UNIT display type for a dock entry, for unit_chrome's box corner. Reads
  * dos_type (what @ARMOPTIONS moves around), not the profession name, so an
  * armed/mounted immigrant gets its own corner. -1 only without a pool.

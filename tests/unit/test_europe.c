@@ -1813,6 +1813,21 @@ int main(void) {
       europe_free(&eu);
       return 1;
     }
+    /* bugs.md 458: a ship passenger of the Pioneers kit type wears the plain
+     * Pioneer pose unless the colonist really is a Hardy Pioneer — in the
+     * Europe ship boxes and the naval report alike. */
+    const int pioneers_ti = units_find_type(&units, "Pioneers");
+    const int carpenter_pose = europe_passenger_icon_sprite(&units, pioneers_ti, 13); /* @JOB 13 Master Carpenters */
+    const int hardy_pose = europe_passenger_icon_sprite(&units, pioneers_ti, UNITS_JOB_PIONEER);
+    if (pioneers_ti < 0 || carpenter_pose != UNITS_ICON_PIONEER ||
+        hardy_pose != UNITS_ICON_HARDY_PIONEER) {
+      fprintf(
+        stderr, "passenger pioneer pose: carpenter=%d hardy=%d\n", carpenter_pose, hardy_pose
+      );
+      assets_msg_free(&names);
+      europe_free(&eu);
+      return 1;
+    }
     assets_msg_free(&names);
   }
 

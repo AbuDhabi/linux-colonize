@@ -2998,7 +2998,7 @@ static int reports_naval_build_rows(
           memset(r, 0, sizeof(*r));
           r->has_passenger = true;
           const ColonizeUnitType* pt = units ? units_type(units, s->cargo_types[c]) : NULL;
-          r->pass_sprite = pt ? pt->icon_sprite : -1;
+          r->pass_sprite = pt ? europe_passenger_icon_sprite(units, s->cargo_types[c], s->cargo_professions[c]) : -1;
           r->pass_type = s->cargo_types[c];
           r->pass_nation = human;
           r->pass_orders = 1; /* Sentry — aboard, matching the docked/undirected passenger look */

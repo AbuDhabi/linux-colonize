@@ -2876,7 +2876,21 @@ int ai_diplo_leader_trait(const ColonizeTurnContext* ctx, int nation, int column
   return ai_diplo_leader_trait_from_names(ctx->names, nation, column);
 }
 
+static int ai_diplo_153e_encounter_gated(
+  ColonizeTurnContext* ctx, int human, int target, int unit_id, int forced_gate
+);
+
 int ai_diplo_153e_encounter(ColonizeTurnContext* ctx, int human, int target, int unit_id) {
+  return ai_diplo_153e_encounter_gated(ctx, human, target, unit_id, 0);
+}
+
+int ai_diplo_153e_encounter_forced(ColonizeTurnContext* ctx, int human, int target, int unit_id) {
+  return ai_diplo_153e_encounter_gated(ctx, human, target, unit_id, 1);
+}
+
+static int ai_diplo_153e_encounter_gated(
+  ColonizeTurnContext* ctx, int human, int target, int unit_id, int forced_gate
+) {
   if (!ctx || !ctx->col1_ok || !ctx->col1 || !ctx->ai_popups || !ctx->units || !ctx->map ||
       !ctx->colonies || human < 0 || human > 3 || target < 0 || target > 3 || human == target ||
       human != ctx->human_nation) {
@@ -2886,10 +2900,11 @@ int ai_diplo_153e_encounter(ColonizeTurnContext* ctx, int human, int target, int
   if (s_talk.active) {
     return 0;
   }
-  if (s_talk.last_talk_turn[human][target] == (int)col1->head.turn + 1) {
+  if (!forced_gate && s_talk.last_talk_turn[human][target] == (int)col1->head.turn + 1) {
     return 0; /* one talk per pair per turn (3180 fires per move) */
   }
-  Ai153eWorthinessScore w = ai_diplo_153e_worthiness_score(ctx, human, target, unit_id, 0);
+  Ai153eWorthinessScore w =
+    ai_diplo_153e_worthiness_score(ctx, human, target, unit_id, forced_gate);
   if (!w.handled) {
     return 0;
   }
