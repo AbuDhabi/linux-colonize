@@ -12,6 +12,7 @@
 #include "core/map.h"
 #include "core/turn.h"
 #include "core/units.h"
+#include "core/village_trade_intel.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -4476,6 +4477,7 @@ int main(void) {
       col1.tribe[0].last_sold = 0xffu;
       col1.tribe[0].sticky_trade_good = 0xffu;
       /* a) @BADCARGO */
+      village_trade_intel_reset();
       ai_popup_clear(&pop);
       st_pop[0] = '\0';
       pop.has_result = true;
@@ -4493,6 +4495,16 @@ int main(void) {
       }
       if (wag->hold_goods_amount[0] != 100) {
         return fail("2820: @BADCARGO must not touch the hold");
+      }
+      {
+        /* Sidebar intel: @BADCARGO names three wanted goods; nothing sold yet. */
+        int ib[3];
+        int is[3];
+        int ibn = 0;
+        int isn = 0;
+        if (!village_trade_intel_get(0, 5, 5, ib, &ibn, is, &isn) || ibn != 3 || isn != 0) {
+          return fail("2820: @BADCARGO should record the village's three wanted goods");
+        }
       }
       /* b) @BADHAGGLE1 (furs may sit in the tribe's top-3 bids → ask 0; use trade goods) */
       col1.tribe[0].last_bought = 0xffu;
@@ -4579,6 +4591,22 @@ int main(void) {
       }
       if (pop.queue[bw].portrait_tribe != 0) {
         return fail("2820: @BUYWHICH needs the chief portrait");
+      }
+      {
+        /* Sidebar intel: @BUYWHICH records exactly the offered goods. */
+        int ib[3];
+        int is[3];
+        int ibn = 0;
+        int isn = 0;
+        if (!village_trade_intel_get(0, 5, 5, ib, &ibn, is, &isn) ||
+            isn != pop.queue[bw].choice_count) {
+          return fail("2820: @BUYWHICH should record the village's goods for sale");
+        }
+        for (int k = 0; k < isn; ++k) {
+          if (is[k] + 1 != pop.queue[bw].choice_ids[k]) {
+            return fail("2820: @BUYWHICH intel goods differ from the offered choices");
+          }
+        }
       }
       const int buy_id = pop.queue[bw].choice_ids[0];
       ai_popup_clear(&pop);

@@ -10,6 +10,7 @@
 #include "core/map_panel.h"
 #include "core/ss.h"
 #include "core/units.h"
+#include "core/village_trade_intel.h"
 #include "platform/diagnostics.h"
 #include "platform/platform.h"
 
@@ -719,6 +720,117 @@ int main(void) {
         return fail("stack leaked onto a neighbouring tile");
       }
       assets_msg_free(&names);
+    }
+  }
+
+  /*
+   * Linux-only village trade intel: "Buys:" / "Sells:" icon rows under the
+   * settlement line, each only once that half has been disclosed to the
+   * viewing player; reset and village removal forget it.
+   */
+  {
+    village_trade_intel_reset();
+    int got_b[3];
+    int got_s[3];
+    int nb = -1;
+    int ns = -1;
+    const int want[3] = {12, 11, 16}; /* 16 is not a cargo id: dropped */
+    const int sell[3] = {1, 2, 3};
+    village_trade_intel_note_buys(0, 10, 10, want, 3);
+    if (!village_trade_intel_get(0, 10, 10, got_b, &nb, got_s, &ns) || nb != 2 || ns != 0 ||
+        got_b[0] != 12 || got_b[1] != 11) {
+      return fail("village intel: buys half not recorded");
+    }
+    if (village_trade_intel_get(1, 10, 10, got_b, &nb, got_s, &ns) || nb != 0) {
+      return fail("village intel leaked to another European nation");
+    }
+    if (village_trade_intel_get(0, 11, 10, got_b, &nb, got_s, &ns)) {
+      return fail("village intel leaked to another tile");
+    }
+    village_trade_intel_forget_tile(10, 10);
+    if (village_trade_intel_get(0, 10, 10, got_b, &nb, got_s, &ns)) {
+      return fail("village intel survived forget_tile");
+    }
+
+    ColonizeSpriteSheet iicons;
+    memset(&iicons, 0, sizeof(iicons));
+    char ierr[256];
+    if (!ss_load("COLONIZE/ICONS.SS", &iicons, ierr, sizeof(ierr))) {
+      fprintf(stderr, "ICONS.SS for village intel: %s\n", ierr);
+      return 1;
+    }
+    ColonizeWorldMap imap;
+    memset(&imap, 0, sizeof(imap));
+    if (!map_alloc(&imap, 32, 32, ierr, sizeof(ierr))) {
+      fprintf(stderr, "village intel map_alloc: %s\n", ierr);
+      return 1;
+    }
+    for (int i = 0; i < 32 * 32; ++i) {
+      imap.terrain[i] = 2;
+    }
+    map_reveal_all(&imap, 0);
+    ColonizeCol1Tribe itribe;
+    memset(&itribe, 0, sizeof(itribe));
+    itribe.x = 10;
+    itribe.y = 10;
+    itribe.nation_id = 4;
+    itribe.population = 5;
+    itribe.mission = COL1_TRIBE_MISSION_NONE;
+    ColonizeCol1Save icol1;
+    memset(&icol1, 0, sizeof(icol1));
+    for (size_t fi = 0; fi < sizeof(icol1.head.founding_father); ++fi) {
+      icol1.head.founding_father[fi] = -1;
+    }
+    for (int n = 1; n < 4; ++n) {
+      icol1.player[n].control = 1;
+    }
+    icol1.head.tribe_count = 1;
+    icol1.tribe = &itribe;
+
+    ColonizeFramebuffer8 ifb = {.width = 320, .height = 200, .pixels = pixels};
+    uint8_t* shot[3];
+    for (int pass = 0; pass < 3; ++pass) {
+      village_trade_intel_reset();
+      if (pass >= 1) {
+        village_trade_intel_note_buys(0, 10, 10, want, 2);
+      }
+      if (pass >= 2) {
+        village_trade_intel_note_sells(0, 10, 10, sell, 3);
+      }
+      memset(pixels, 0, 320 * 200);
+      map_panel_render(
+        &panel, &imap, NULL, NULL, &iicons, NULL, NULL, &labels, &icol1, 3, 3,
+        MAP_VIEW_TILE_COLS, MAP_VIEW_TILE_ROWS, 10, 10, -1, 0, 1492, 0, 1000, 0, "England",
+        NULL, false, false, &ifb
+      );
+      shot[pass] = malloc(320 * 200);
+      if (shot[pass]) {
+        memcpy(shot[pass], pixels, 320 * 200);
+      }
+    }
+    village_trade_intel_reset();
+    ss_free(&iicons);
+    map_free(&imap);
+    if (!shot[0] || !shot[1] || !shot[2]) {
+      return fail("village intel: out of memory");
+    }
+    /* First differing row between two renders, −1 when identical. */
+    int first_diff[2] = {-1, -1};
+    for (int k = 0; k < 2; ++k) {
+      for (int y = 0; y < 200 && first_diff[k] < 0; ++y) {
+        if (memcmp(shot[k] + y * 320, shot[k + 1] + y * 320, 320) != 0) {
+          first_diff[k] = y;
+        }
+      }
+    }
+    for (int k = 0; k < 3; ++k) {
+      free(shot[k]);
+    }
+    /* Buys row appears below the village line; Sells row one row further down. */
+    if (first_diff[0] < 0 || first_diff[1] < 0 || first_diff[1] <= first_diff[0]) {
+      fprintf(stderr, "village intel rows missing/misordered (buys y=%d, sells y=%d)\n",
+              first_diff[0], first_diff[1]);
+      return 1;
     }
   }
 

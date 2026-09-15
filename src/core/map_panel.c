@@ -14,6 +14,7 @@
 #include "core/turn.h"
 #include "core/ui_colors.h"
 #include "core/unit_chrome.h"
+#include "core/village_trade_intel.h"
 #include "platform/diagnostics.h"
 #include "platform/platform.h"
 
@@ -903,6 +904,68 @@ static int map_panel_draw_cargo_icons(
 }
 
 /*
+ * Linux-only "Buys:" / "Sells:" rows under a native settlement — what the
+ * settlement has told the player in trade / chief dialogs this session
+ * (village_trade_intel.h). Each row is skipped until that half is known.
+ * Icons share one column so the two rows line up.
+ */
+#define MAP_PANEL_INTEL_ROW_H 13
+
+static void map_panel_draw_village_trade_intel(
+  const ColonizeFont* font,
+  const ColonizeSpriteSheet* icons,
+  ColonizeFramebuffer8* fb,
+  int euro_nation,
+  int village_x,
+  int village_y,
+  int x,
+  int* io_y,
+  int y_limit,
+  int x_limit
+) {
+  int buys[VILLAGE_TRADE_INTEL_GOODS];
+  int sells[VILLAGE_TRADE_INTEL_GOODS];
+  int buys_n = 0;
+  int sells_n = 0;
+  if (!icons || !io_y ||
+      !village_trade_intel_get(euro_nation, village_x, village_y, buys, &buys_n, sells, &sells_n)) {
+    return;
+  }
+  static const char* const k_labels[2] = {"Buys: ", "Sells: "};
+  const int* const goods[2] = {buys, sells};
+  const int counts[2] = {buys_n, sells_n};
+  int icon_x = x;
+  for (int r = 0; r < 2; ++r) {
+    if (counts[r] > 0) {
+      const int w = font ? font_text_width(font, k_labels[r]) : 24;
+      if (x + w > icon_x) {
+        icon_x = x + w;
+      }
+    }
+  }
+  for (int r = 0; r < 2; ++r) {
+    if (counts[r] <= 0 || *io_y + MAP_PANEL_INTEL_ROW_H > y_limit) {
+      continue;
+    }
+    font_draw_text(font, fb, x, *io_y + 2, k_labels[r], MAP_PANEL_COL_TEXT);
+    int gx = icon_x;
+    for (int i = 0; i < counts[r]; ++i) {
+      const int sprite = MAP_PANEL_CARGO_ICON_BASE + goods[r][i];
+      if (sprite < 0 || sprite >= icons->sprite_count) {
+        continue;
+      }
+      const int w = icons->sprites[sprite].width > 0 ? icons->sprites[sprite].width : 8;
+      if (gx + w > x_limit) {
+        break;
+      }
+      ss_blit_sprite(icons, sprite, fb, gx, *io_y);
+      gx += w + 1;
+    }
+    *io_y += MAP_PANEL_INTEL_ROW_H;
+  }
+}
+
+/*
  * Orders line. DOS resolves a destination-bearing order (goto, @ORDERS 3)
  * through FUN_49dd_02d0, which names the colony on the target tile if there is
  * one and falls back to the target's terrain.
@@ -1518,6 +1581,10 @@ void map_panel_render(
         snprintf(line, sizeof(line), "%s %s", tshort, settlement);
         font_draw_text(font, framebuffer, indent_x, text_y + 2, line, MAP_PANEL_COL_TEXT);
         text_y += MAP_PANEL_ROW_H;
+        map_panel_draw_village_trade_intel(
+          font, icons, framebuffer, resolved_human, tribe->x, tribe->y, text_x, &text_y, y_limit,
+          panel_right
+        );
       }
     }
 

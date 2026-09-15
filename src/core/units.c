@@ -16,6 +16,7 @@
 #include "core/sound.h"
 #include "core/strutil.h"
 #include "core/unit_chrome.h"
+#include "core/village_trade_intel.h"
 #include "core/woodcut.h"
 #include "platform/diagnostics.h"
 
@@ -4208,6 +4209,7 @@ static int col1_destroy_tribe_at(
     return -1;
   }
 
+  village_trade_intel_forget_tile(x, y); /* sidebar Buys/Sells rows go with it */
   const uint16_t old_count = col1->head.tribe_count;
   if (found + 1 < (int)old_count) {
     memmove(

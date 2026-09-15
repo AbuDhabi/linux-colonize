@@ -89,6 +89,7 @@ add_library(colonize_core STATIC
   src/core/opening.c
   src/core/woodcut.c
   src/core/units.c
+  src/core/village_trade_intel.c
   src/core/colony.c
   src/core/colony_yield.c
   src/core/colony_production.c
@@ -523,6 +524,7 @@ add_test(NAME unit_map_panel COMMAND unit_map_panel WORKING_DIRECTORY ${CMAKE_SO
 # its own test file plus the one extra source it needs.
 set(COLONIZE_SLIM_SOURCES
   src/core/units.c
+  src/core/village_trade_intel.c
   src/core/reports.c
   src/core/colony_production.c
   src/core/colony_craft.c

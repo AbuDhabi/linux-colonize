@@ -18,6 +18,7 @@
 #include "core/popup_msg.h"
 #include "core/reports.h"
 #include "core/units.h"
+#include "core/village_trade_intel.h"
 
 #include <stdint.h>
 #include <stdio.h>
@@ -5414,6 +5415,7 @@ void ai_contact_reset(void) {
     s_visit_brave_id[i] = -1;
   }
   memset(s_visit_brave_turn, 0, sizeof(s_visit_brave_turn));
+  village_trade_intel_reset(); /* sidebar Buys/Sells knowledge is campaign-scoped */
 }
 
 /*
@@ -6220,6 +6222,35 @@ int ai_contact_2e92_haggle(int difficulty, int bid, ColonizeDosRng* rng, int* io
   return 1;
 }
 
+/*
+ * Sidebar trade intel (Linux-only, village_trade_intel.h): the settlement of
+ * `nation_id` the trading unit stands next to. NULL when none is adjacent —
+ * never guess the tribe's first village, the knowledge is per settlement.
+ */
+static const ColonizeCol1Tribe* ai_contact_intel_village(
+  const ColonizeTurnContext* ctx, int nation_id, const ColonizeUnit* unit
+) {
+  if (!ctx || !ctx->col1 || !ctx->col1->tribe || !unit) {
+    return NULL;
+  }
+  for (uint16_t ti = 0; ti < ctx->col1->head.tribe_count; ++ti) {
+    const ColonizeCol1Tribe* t = &ctx->col1->tribe[ti];
+    if ((int)t->nation_id == nation_id && map_chebyshev(t->x, t->y, unit->x, unit->y) <= 1) {
+      return t;
+    }
+  }
+  return NULL;
+}
+
+static void ai_contact_intel_note_buys(
+  const ColonizeTurnContext* ctx, int e, int nation_id, const ColonizeUnit* unit, const int wanted[3]
+) {
+  const ColonizeCol1Tribe* v = ai_contact_intel_village(ctx, nation_id, unit);
+  if (v) {
+    village_trade_intel_note_buys(e, v->x, v->y, wanted, 3);
+  }
+}
+
 static void ai_contact_enqueue_buy0(
   ColonizeTurnContext* ctx, int nation_id, int e, ColonizeUnit* unit, int cargo, int price, int qty,
   int round
@@ -6301,6 +6332,12 @@ static int ai_contact_enqueue_buywhich(
   }
   /* 2820 +1217: `FUN_291f_019c(…, 0x15a0, *(0x8d52))`. */
   ai_contact_chief_flair(ctx, e, nation_id);
+  {
+    const ColonizeCol1Tribe* v = ai_contact_intel_village(ctx, nation_id, unit);
+    if (v) {
+      village_trade_intel_note_sells(e, v->x, v->y, goods, n);
+    }
+  }
   return 1;
 }
 
@@ -6336,6 +6373,7 @@ static void ai_contact_2820_buy_phase(
     char body[AI_POPUP_BODY_LEN];
     popup_msg_fill(ctx->messages, "BRING", &tok, fb, body, sizeof(body));
     ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_MEET, nation_id, "Trade", body);
+    ai_contact_intel_note_buys(ctx, e, nation_id, unit, wanted);
   }
   if (human && t && t->sticky_trade_good == 0xfe) {
     s->active = 0;
@@ -6620,6 +6658,7 @@ static void ai_contact_2820_dispatch(
     char body[AI_POPUP_BODY_LEN];
     popup_msg_fill(ctx->messages, "BADCARGO", &tok, fb, body, sizeof(body));
     ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_REFUSE, nation_id, "Trade", body);
+    ai_contact_intel_note_buys(ctx, e, nation_id, unit, wanted);
     s->active = 0;
     return;
   }
@@ -9695,6 +9734,9 @@ static void ai_contact_speak_with_chief(
           snprintf(fb, sizeof(fb), "\"Greetings, travelers. We are a peaceful village known for our %s. We would gladly trade with you if you bring us some badly needed %s. We would also pay well for %s or %s.\"", ht.string0, ht.string1, ht.string2, ht.string3);
           popup_msg_fill(ctx->messages, "CHIEFHOWDY", &ht, fb, body, sizeof(body));
           ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_MEET, nation_id, "Chief", body);
+          if (want[0] >= 0) {
+            village_trade_intel_note_buys(e, t->x, t->y, want, 3);
+          }
         }
         if (alarm < thr && !t->state.scouted) {
           t->state.scouted = 1;
