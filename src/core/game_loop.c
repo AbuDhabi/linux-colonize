@@ -7588,6 +7588,14 @@ static void game_commit_new_campaign(ColonizeGameState* game) {
     if (game->world_map_ok && game->world_map.seen) {
       memset(game->world_map.seen, 0, game->world_map.tile_count);
     }
+    /* bugs.md: DOS runs the FUN_684c_08c0 tail on a loaded map too (HS rings,
+     * arctic rows, hill/mountain tiles lose their forest class) — AMER2.MP
+     * ships 146 forested hill/mountain tiles that DOS never draws as forest. */
+    if (game->world_map_ok && game->world_map.terrain) {
+      map_gen_finalize_border_and_forest(
+        game->world_map.terrain, (int)game->world_map.width, (int)game->world_map.height
+      );
+    }
     snprintf(map_label, sizeof(map_label), "%s", ng->map_file[0] ? ng->map_file : "AMER2.MP");
   }
 

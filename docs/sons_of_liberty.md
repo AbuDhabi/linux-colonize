@@ -56,6 +56,20 @@ read out as 100% until the first end of turn replaced it with the real ratio
 fallback - no pair means nothing has accumulated, which is 0, and that is what
 `reports.c` / `combat_strength.c` / `ai_king.c` already returned.
 
+### Instant population adjustment (colony screen join / leave)
+
+DOS colony-screen colonist add (viceroy_unpacked.c:11301, the `FUN_15eb_1068`
+caller) does `rebel_divisor += 100` and colonist remove (:10279)
+`rebel_divisor -= 100`, so the displayed SoL% moves the moment population
+changes rather than one EOT later (bugs.md 2026-09-15: "adding a colonist
+doesn't recalculate SoL instantly"). Founding seeds 100 (below), so an
+n-colonist colony starts at `divisor ≈ 100·n` before the accumulator takes
+over. **Port:** `colonies_col1_rebel_divisor_adjust` in
+[`colony.c`](../src/core/colony.c), called from `colonies_admit_unit` (+100)
+and `colonies_eject_colonist` (−100) against the bound col1 context
+(`colonies_set_col1_context`); dividend clamped ≤ divisor, divisor floored at
+0. Births / starvation / scalping do not touch the pair (DOS EOT paths).
+
 ### EOT accumulator (`FUN_364b_0688` Phase C)
 
 Each colony end-of-turn (DOS):

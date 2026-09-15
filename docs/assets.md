@@ -192,6 +192,8 @@ Small sprite sheets render as a labeled grid. Large or single-sprite sheets show
 
 ### Map overlay compositing
 
+**Loaded-map finalize (2026-09-15):** DOS runs the `FUN_684c_08c0` tail on a loaded `.MP` too (asm `684c:08e2` jumps to `LAB_684c_17f1` when the map came from file): two high-seas outline rings, arctic on rows 0 / h−1, bit-4 forest demote and hills/mountains lose their forest class. AMER2.MP ships 146 forested hill/mountain tiles that DOS therefore never draws with canopy; the port applies the same pass (`map_gen_finalize_border_and_forest`) on the Original Americas new-game path.
+
 **Fidelity status:** static AMER2 art matches MAPEDIT for coasts, estuaries, land–land transitions, forest/hill/mountain/river connectivity, special resources, and rumours. **Plowed fields** use runtime PHYS0 **149**; **roads** use PHYS0 **80** isolated or multi-blit **81–88** directional stubs (`FUN_6ba1_0938`). Land MP uses DOS `terr_cost` table at NAMES scale (`map_move_cost_*`). Remaining gaps are fog-of-war polish, coast animation, and per-tile texture variation (see [decomp_inventory.md](decomp_inventory.md)).
 
 Authority for static map art is decompiled **`MAPEDIT.EXE` /

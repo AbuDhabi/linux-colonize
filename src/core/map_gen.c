@@ -818,6 +818,23 @@ static void paint_arctic_and_high_seas(
     }
   }
 
+  map_gen_finalize_border_and_forest(terrain, w, h);
+}
+
+/*
+ * FUN_684c_08c0 LAB_684c_17f1 tail — runs for BOTH generated and loaded (.MP)
+ * maps: a loaded map jumps straight here (asm 684c:08e2 `JMP LAB_684c_17f1`
+ * when param_1 != 0). Two 00ce high-seas outline rings, 00ba arctic on the
+ * top and bottom rows, then the LAB_684c_1888 feature normalisation: bit-4
+ * forests demote (0x10..0x17 → −8) and a hill/mountain tile drops its
+ * forest class (typ & 7). AMER2.MP ships 146 hill/mountain tiles with
+ * forest classes; DOS strips them at new-game time, which is why it never
+ * shows forest canopy under hills (bugs.md).
+ */
+void map_gen_finalize_border_and_forest(uint8_t* terrain, int w, int h) {
+  if (!terrain || w <= 0 || h <= 0) {
+    return;
+  }
   /* Final 00ce HS outlines: (0,0)–(w-1,h-1) and (1,0)–(w-2,h-1). */
   if (h > 1) {
     paint_rect_outline(terrain, w, h, 0, 0, w - 1, h - 1, T_HIGH_SEAS);
@@ -849,6 +866,7 @@ static void paint_arctic_and_high_seas(
     }
   }
 }
+
 
 /*
  * Climate humidity walk (FUN_684c_08c0 after latitude paint).

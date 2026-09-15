@@ -966,6 +966,35 @@ static void colonies_col1_forget_record_at(ColonizeCol1Save* col1, int x, int y,
   }
 }
 
+/*
+ * DOS colony-screen colonist add (viceroy_unpacked.c:11301) does
+ * `rebel_divisor += 100` and remove (:10279) `rebel_divisor -= 100`, so the
+ * FUN_15eb_0274 SoL% (dividend*100/divisor) moves the moment population
+ * changes instead of waiting for the EOT accumulator (bugs.md: "adding a
+ * colonist doesn't recalculate SoL instantly"). Record absent (colony
+ * founded this turn, mirror not yet exported) → nothing to touch.
+ */
+static void colonies_col1_rebel_divisor_adjust(ColonizeCol1Save* col1, int x, int y, int delta) {
+  if (!col1 || !col1->colony) {
+    return;
+  }
+  for (uint16_t i = 0; i < col1->head.colony_count; ++i) {
+    ColonizeCol1Colony* c = &col1->colony[i];
+    if ((int)c->x != x || (int)c->y != y) {
+      continue;
+    }
+    if (delta < 0 && c->rebel_divisor < (uint32_t)(-delta)) {
+      c->rebel_divisor = 0;
+    } else {
+      c->rebel_divisor = (uint32_t)((int64_t)c->rebel_divisor + delta);
+    }
+    if (c->rebel_dividend > c->rebel_divisor) {
+      c->rebel_dividend = c->rebel_divisor;
+    }
+    break;
+  }
+}
+
 int colonies_found(
   ColonizeColonyPool* pool,
   const ColonizeWorldMap* map,
@@ -1628,6 +1657,7 @@ int colonies_admit_unit(
   c->field_job = -1;
   const int idx = col->colonist_count++;
   col->population = col->colonist_count;
+  colonies_col1_rebel_divisor_adjust(g_colonies_col1, col->x, col->y, 100);
   /* La Salle: this join may have just crossed pop 3 — grant the free
    * Stockade the same moment, not next turn (see founding_fathers.h). */
   (void)founding_fathers_la_salle_check(pool, col1, col->nation_id);
@@ -1989,6 +2019,7 @@ int colonies_eject_colonist(
   }
   col->colonist_count--;
   col->population = col->colonist_count;
+  colonies_col1_rebel_divisor_adjust(g_colonies_col1, col->x, col->y, -100);
   if (col->colonist_count >= 0 && col->colonist_count < COLONIZE_COLONY_POP_MAX) {
     memset(&col->colonists[col->colonist_count], 0, sizeof(col->colonists[0]));
   }

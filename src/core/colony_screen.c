@@ -42,7 +42,8 @@ void colony_screen_reset_ui(ColonyScreenView* view) {
   view->selected_outside_unit = -1;
   /* show_production_numbers deliberately NOT reset here: it is DOS's
    * game-wide DS:0x336 numbers toggle and survives between colonies. */
-  view->multi_mode = COLONY_MULTI_PRODUCTION;
+  /* bugs.md: DOS opens the colony screen on the construction view. */
+  view->multi_mode = COLONY_MULTI_CONSTRUCTION;
   view->selected_cargo = -1;
   view->construction_open = false;
   view->construction_selection = 0;
