@@ -16,6 +16,9 @@
  *              the "With:" row can be checked without a save that has one —
  *              e.g. load=1:100,4:37 is a full sugar hold and a part-full furs
  *              hold, which DOS draws colored and grey respectively.
+ *   buys=a,b,c / sells=a,b,c  seed the Linux-only village trade intel for the
+ *              settlement on the tile (@CARGO ids), so the sidebar's "Buys:" /
+ *              "Sells:" rows can be checked (View Pieces on a village).
  *
  * See docs/assets.md for the sidebar layout this tool is used to check.
  */
@@ -25,6 +28,7 @@
 #include <string.h>
 
 #include "core/map_panel.h"
+#include "core/village_trade_intel.h"
 
 #include "tools/render_common.h"
 
@@ -97,6 +101,30 @@ int main(int argc, char** argv) {
         }
         p = comma + 1;
       }
+    }
+  }
+
+  for (int ai = 7; ai < argc; ++ai) {
+    const bool is_buys = strncmp(argv[ai], "buys=", 5) == 0;
+    const bool is_sells = strncmp(argv[ai], "sells=", 6) == 0;
+    if (!is_buys && !is_sells) {
+      continue;
+    }
+    int goods[VILLAGE_TRADE_INTEL_GOODS];
+    int n = 0;
+    const char* p = argv[ai] + (is_buys ? 5 : 6);
+    while (*p && n < VILLAGE_TRADE_INTEL_GOODS) {
+      goods[n++] = atoi(p);
+      const char* comma = strchr(p, ',');
+      if (!comma) {
+        break;
+      }
+      p = comma + 1;
+    }
+    if (is_buys) {
+      village_trade_intel_note_buys(human, tile_x, tile_y, goods, n);
+    } else {
+      village_trade_intel_note_sells(human, tile_x, tile_y, goods, n);
     }
   }
 
