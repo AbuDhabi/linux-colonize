@@ -4927,7 +4927,43 @@ static void ai_contact_2e92_give_goods(ColonizeUnit* unit, int cargo, int qty) {
   }
 }
 
-static ColonizeCol1Tribe* ai_contact_2e92_tribe(ColonizeTurnContext* ctx, int nation_id) {
+/*
+ * The settlement a trading unit is visiting: the `nation_id` settlement
+ * standing next to it (a unit never moves onto the village tile to trade).
+ * NULL when none is adjacent.
+ */
+static ColonizeCol1Tribe* ai_contact_2e92_visited_village(
+  ColonizeTurnContext* ctx, int nation_id, const ColonizeUnit* unit
+) {
+  if (!ctx || !ctx->col1 || !ctx->col1->tribe || !unit) {
+    return NULL;
+  }
+  for (uint16_t ti = 0; ti < ctx->col1->head.tribe_count; ++ti) {
+    ColonizeCol1Tribe* t = &ctx->col1->tribe[ti];
+    if ((int)t->nation_id == nation_id && map_chebyshev(t->x, t->y, unit->x, unit->y) <= 1) {
+      return t;
+    }
+  }
+  return NULL;
+}
+
+/*
+ * DS:0x8d4a — the settlement record FUN_4d56_2820 trades with. It is the
+ * VISITED settlement (4528 binds it from the entered tile), not the tribe's
+ * first record: 2820 reads/writes its +7 sticky good, +8 last_bought and
+ * +9 last_sold, and FUN_4d56_2154's cover/econ tables are built around its
+ * tile. The port used col1_tribe_first_of here until 2026-09-15, so trading
+ * at any other village of a tribe priced and remembered goods against the
+ * first one. The first-record fallback only covers callers whose unit is
+ * not beside a settlement of that tribe (the Linux meet-pulse stand-in).
+ */
+static ColonizeCol1Tribe* ai_contact_2e92_tribe(
+  ColonizeTurnContext* ctx, int nation_id, const ColonizeUnit* unit
+) {
+  ColonizeCol1Tribe* v = ai_contact_2e92_visited_village(ctx, nation_id, unit);
+  if (v) {
+    return v;
+  }
   /* Writes t->last_sold, so the const off col1_tribe_first_of is cast away. */
   return (ColonizeCol1Tribe*)col1_tribe_first_of(ctx->col1, nation_id);
 }
@@ -5924,9 +5960,9 @@ static void ai_contact_try_village_reparations(ColonizeTurnContext* ctx, int nat
  *   sort by bid; top three: ask[c] = 0 (a food slot becomes cloth, 0xc).
  */
 static int ai_contact_2820_prepare(
-  ColonizeTurnContext* ctx, int nation_id, AiContact2820* s
+  ColonizeTurnContext* ctx, int nation_id, const ColonizeUnit* unit, AiContact2820* s
 ) {
-  const ColonizeCol1Tribe* t = ai_contact_2e92_tribe(ctx, nation_id);
+  const ColonizeCol1Tribe* t = ai_contact_2e92_tribe(ctx, nation_id, unit);
   if (!t) {
     return 0;
   }
@@ -6228,22 +6264,13 @@ int ai_contact_2e92_haggle(int difficulty, int bid, ColonizeDosRng* rng, int* io
  * never guess the tribe's first village, the knowledge is per settlement.
  */
 static const ColonizeCol1Tribe* ai_contact_intel_village(
-  const ColonizeTurnContext* ctx, int nation_id, const ColonizeUnit* unit
+  ColonizeTurnContext* ctx, int nation_id, const ColonizeUnit* unit
 ) {
-  if (!ctx || !ctx->col1 || !ctx->col1->tribe || !unit) {
-    return NULL;
-  }
-  for (uint16_t ti = 0; ti < ctx->col1->head.tribe_count; ++ti) {
-    const ColonizeCol1Tribe* t = &ctx->col1->tribe[ti];
-    if ((int)t->nation_id == nation_id && map_chebyshev(t->x, t->y, unit->x, unit->y) <= 1) {
-      return t;
-    }
-  }
-  return NULL;
+  return ai_contact_2e92_visited_village(ctx, nation_id, unit);
 }
 
 static void ai_contact_intel_note_buys(
-  const ColonizeTurnContext* ctx, int e, int nation_id, const ColonizeUnit* unit, const int wanted[3]
+  ColonizeTurnContext* ctx, int e, int nation_id, const ColonizeUnit* unit, const int wanted[3]
 ) {
   const ColonizeCol1Tribe* v = ai_contact_intel_village(ctx, nation_id, unit);
   if (v) {
@@ -6349,7 +6376,7 @@ static void ai_contact_2820_buy_phase(
   ColonizeTurnContext* ctx, ColonizeCol1Indian* ind, int nation_id, int e, ColonizeUnit* unit,
   AiContact2820* s, int human
 ) {
-  ColonizeCol1Tribe* t = ai_contact_2e92_tribe(ctx, nation_id);
+  ColonizeCol1Tribe* t = ai_contact_2e92_tribe(ctx, nation_id, unit);
   if (!unit || !ai_contact_2e92_unit_can_take(ctx, unit)) {
     s->sold_ok = 0;
   }
@@ -6431,7 +6458,7 @@ int ai_contact_auto_buy_2e92(
   }
   AiContact2820 s;
   memset(&s, 0, sizeof(s));
-  if (!ai_contact_2820_prepare(ctx, nation_id, &s)) {
+  if (!ai_contact_2820_prepare(ctx, nation_id, unit, &s)) {
     return 0;
   }
   ai_contact_local_rng(ctx, nation_id, &s.rng);
@@ -6449,7 +6476,7 @@ int ai_contact_auto_buy_2e92(
       best = k;
     }
   }
-  ColonizeCol1Tribe* t = ai_contact_2e92_tribe(ctx, nation_id);
+  ColonizeCol1Tribe* t = ai_contact_2e92_tribe(ctx, nation_id, unit);
   const int qty = ai_contact_2820_buy_qty(ctx, unit, 0);
   const int price = ai_contact_2e92_price(ctx, ind, nation_id, e, goods[best], (int)s.bid[goods[best]], qty, &s.rng);
   return ai_contact_2e92_settle(ctx, ind, t, nation_id, e, unit, goods[best], price, qty);
@@ -6469,7 +6496,7 @@ static void ai_contact_apply_buywhich(
   if (!s->active || s->nation_id != nation_id) {
     /* Session lost (save/load mid-dialog): rebuild tables, qty 100 / 25. */
     memset(s, 0, sizeof(*s));
-    if (!ai_contact_2820_prepare(ctx, nation_id, s)) {
+    if (!ai_contact_2820_prepare(ctx, nation_id, unit, s)) {
       return;
     }
     ai_contact_local_rng(ctx, nation_id, &s->rng);
@@ -6505,7 +6532,7 @@ static void ai_contact_apply_buy0(
     return; /* Never mind */
   }
   ColonizeUnit* unit = units_get(ctx->units, unit_id);
-  ColonizeCol1Tribe* t = ai_contact_2e92_tribe(ctx, nation_id);
+  ColonizeCol1Tribe* t = ai_contact_2e92_tribe(ctx, nation_id, unit);
   if (!unit) {
     s->active = 0;
     return;
@@ -6621,7 +6648,7 @@ static void ai_contact_2820_dispatch(
   AiContact2820* s
 ) {
   const int human = ai_contact_euro_is_human(ctx, e);
-  ColonizeCol1Tribe* t = ai_contact_2e92_tribe(ctx, nation_id);
+  ColonizeCol1Tribe* t = ai_contact_2e92_tribe(ctx, nation_id, unit);
   const int alarm = ai_diplo_indian_alarm(ctx->col1, nation_id, e); /* aiStack_d6[0] */
   if (s->cargo < 0) {
     ai_contact_2820_buy_phase(ctx, ind, nation_id, e, unit, s, human);
@@ -6699,7 +6726,7 @@ static int ai_contact_2820_begin_slot(
   }
   AiContact2820* s = &s_2820[e];
   memset(s, 0, sizeof(*s));
-  if (!ai_contact_2820_prepare(ctx, nation_id, s)) {
+  if (!ai_contact_2820_prepare(ctx, nation_id, unit, s)) {
     return 0;
   }
   ai_contact_local_rng(ctx, nation_id, &s->rng);
@@ -6894,7 +6921,7 @@ static void ai_contact_apply_trade_offer(
     return;
   }
   ColonizeUnit* unit = units_get(ctx->units, s->unit_id);
-  ColonizeCol1Tribe* t = ai_contact_2e92_tribe(ctx, nation_id);
+  ColonizeCol1Tribe* t = ai_contact_2e92_tribe(ctx, nation_id, unit);
   if (!unit || unit->hold_goods_amount[s->slot] <= 0 || unit->hold_goods_type[s->slot] != s->cargo) {
     s->active = 0;
     return;

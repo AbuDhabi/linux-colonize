@@ -6915,6 +6915,64 @@ int main(void) {
     fprintf(stderr, "unit_ai_contact: 2820 LAB_002e92 auto-buy ok\n");
   }
 
+  /*
+   * DS:0x8d4a: 2820 trades with the VISITED settlement. With two villages of
+   * one tribe, a purchase beside the second must stamp the second record's
+   * last_sold and leave the first (the old col1_tribe_first_of pick) alone.
+   */
+  {
+    const ColonizeCol1Tribe* old_tribes = col1.tribe;
+    const uint16_t old_count = col1.head.tribe_count;
+    ColonizeCol1Tribe two[2];
+    two[0] = col1.tribe[0];
+    two[1] = col1.tribe[0];
+    two[0].last_sold = 0xffu;
+    two[1].x = 12;
+    two[1].y = 12;
+    two[1].last_sold = 0xffu;
+    two[1].state.capital = 0;
+    col1.tribe = two;
+    col1.head.tribe_count = 2;
+    int wagon_ti = units_find_type(&units, "Wagon Train");
+    const int wid = wagon_ti >= 0 ? units_spawn_allow_stack(&units, wagon_ti, 13, 12) : -1;
+    ColonizeUnit* w = units_get(&units, wid);
+    if (!w) {
+      return fail("8d4a: wagon spawn");
+    }
+    w->nation_id = 1;
+    for (int i = 0; i < COLONIZE_UNIT_CARGO_MAX; ++i) {
+      w->hold_goods_type[i] = 0;
+      w->hold_goods_amount[i] = 0;
+    }
+    ColonizeTurnContext vctx;
+    memset(&vctx, 0, sizeof(vctx));
+    vctx.col1 = &col1;
+    vctx.col1_ok = true;
+    vctx.units = &units;
+    vctx.map = &map;
+    vctx.colonies = &colonies;
+    vctx.human_nation = 0;
+    col1.player[1].control = 1;
+    col1.nation[1].gold = 5000;
+    const int bought_ok = ai_contact_auto_buy_2e92(&vctx, ind, 4, 1, w);
+    const int bought = w->hold_goods_type[0];
+    units_despawn(&units, wid);
+    col1.player[1].control = 0;
+    col1.tribe = (ColonizeCol1Tribe*)old_tribes;
+    col1.head.tribe_count = old_count;
+    if (!bought_ok) {
+      return fail("8d4a: wagon beside the second village should buy");
+    }
+    /* Silver (9) writes 0xff and would prove nothing; this fixture buys otherwise. */
+    if (bought == 9 || two[1].last_sold != (uint8_t)bought) {
+      return fail("8d4a: purchase must stamp the visited village's last_sold");
+    }
+    if (two[0].last_sold != 0xffu) {
+      return fail("8d4a: purchase must not touch the tribe's first village");
+    }
+    fprintf(stderr, "unit_ai_contact: 2820 visited-settlement binding ok\n");
+  }
+
   /* @BUY0 haggle arm: cheap offers / unlucky rolls exhaust patience, else -25% re-ask. */
   {
     ColonizeDosRng hr;
