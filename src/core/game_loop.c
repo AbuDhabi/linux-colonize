@@ -3304,6 +3304,19 @@ static void game_apply_ai_popup_result(ColonizeGameState* game) {
     if (!u || !u->active || !col || !col->active) {
       return;
     }
+    /*
+     * bugs.md 459/460: every outcome that ends the move — Meet (000e returns
+     * true), Nothing (local_8 == 4, returns true) and a successful Infiltrate —
+     * makes FUN_5f7a_0662 call FUN_281f_0934 (spent = full allotment), and
+     * 465b stops the step. Without the spend and with the Go To still armed,
+     * the pacer (or the next keypress) re-fired @SCOUTCOLONY at once.
+     */
+    if (choice != 3) {
+      u->moves_left = 0;
+      if (units_orders_follow_goto(u->orders)) {
+        units_clear_orders(&game->units, unit_id);
+      }
+    }
     if (choice == 1) {
       /* Meet With Mayor — FUN_5f7a_000e local_8 == 1: WoI refuses with
        * @NOMAYORSDURINGREV, else the 5bfb_153e encounter dialog runs. */
@@ -3319,7 +3332,7 @@ static void game_apply_ai_popup_result(ColonizeGameState* game) {
       } else {
         ColonizeTurnContext ctx;
         game_fill_turn_context(game, &ctx);
-        (void)ai_diplo_153e_encounter(&ctx, u->nation_id, col->nation_id, unit_id);
+        (void)ai_diplo_153e_encounter_forced(&ctx, u->nation_id, col->nation_id, unit_id);
       }
       game_after_unit_action(game);
       return;
@@ -5679,17 +5692,6 @@ static int europe_pax_type_index(const ColonizeUnitPool* units, int tag) {
   return tag;
 }
 
-static int europe_pax_icon_sprite(const ColonizeUnitPool* units, int type_index, int profession) {
-  const ColonizeUnitType* ut = units_type(units, type_index);
-  if (!ut) {
-    return -1;
-  }
-  if (units_type_is_colonist(ut)) {
-    return units_working_colonist_sprite(units, type_index, profession);
-  }
-  return ut->icon_sprite;
-}
-
 /* Two-line header + ship icons inside an Expected/Bound/Loading water box. */
 /*
  * @UNIT type for unit_chrome's orders-box corner (bugs.md 425). Must use the
@@ -5810,7 +5812,7 @@ static void europe_render_transit_box(
     for (int c = 0; c < ships[i].cargo_count && c < EUROPE_SHIP_CARGO_MAX; ++c) {
       const int pax_type = europe_pax_type_index(&game->units, ships[i].cargo_types[c]);
       const int pax_sprite =
-        europe_pax_icon_sprite(&game->units, pax_type, ships[i].cargo_professions[c]);
+        europe_passenger_icon_sprite(&game->units, pax_type, ships[i].cargo_professions[c]);
       if (pax_sprite < 0 || pax_sprite >= game->unit_icons.sprite_count) {
         continue;
       }
@@ -6393,70 +6395,6 @@ static void europe_render_menu_popup(
 }
 
 
-static int europe_dock_sprite(const ColonizeUnitPool* units, const EuropeDockImmigrant* d) {
-  if (!units || !d || !d->name[0]) {
-    return -1;
-  }
-  if (strcmp(d->name, "Artillery") == 0) {
-    const int ti = units_find_type(units, "Artillery");
-    const ColonizeUnitType* ut = units_type(units, ti);
-    return ut ? ut->icon_sprite : -1;
-  }
-  /* Armed / equipped / blessed on the dock: show what the immigrant now is,
-   * not the profession portrait it arrived with (bugs.md @ARMOPTIONS).
-   * bugs.md 164/177: the @UNIT icon column carries the EXPERT poses (Hardy
-   * Pioneer / Veteran Soldier …) — DOS's map rule overrides those to the
-   * base pose unless the unit's own profession matches; the dock follows
-   * the same rule, so a Master Blacksmith with tools reads as a plain
-   * Pioneer, not a Hardy one. */
-  /* bugs.md 269 (units_map_sprite): BOTH veteran professions (0x15 Veteran
-   * Soldiers / 0x17 Veteran Dragoons) take the veteran pose — a Veteran
-   * Soldier armed with horses on the dock is a Veteran Dragoon, exactly as
-   * the map draws him. */
-  const bool dock_vet_prof =
-    d->profession == UNITS_JOB_SOLDIER || d->profession == UNITS_JOB_DRAGOON;
-  switch (d->dos_type) {
-    case EUROPE_DOCK_TYPE_PIONEERS:
-      return d->profession == UNITS_JOB_PIONEER ? UNITS_ICON_HARDY_PIONEER
-                                                : UNITS_ICON_PIONEER;
-    case EUROPE_DOCK_TYPE_SOLDIERS:
-      return dock_vet_prof ? UNITS_ICON_VETERAN_SOLDIER : UNITS_ICON_SOLDIER;
-    case EUROPE_DOCK_TYPE_DRAGOONS:
-      return dock_vet_prof ? UNITS_ICON_VETERAN_DRAGOON : UNITS_ICON_DRAGOON;
-    case EUROPE_DOCK_TYPE_SCOUTS:
-      return d->profession == UNITS_JOB_SCOUT ? UNITS_ICON_SEASONED_SCOUT
-                                              : UNITS_ICON_SCOUT;
-    /* bugs.md 426: same split for the fifth kit — FUN_112b_0060's
-     * `type == 3 && profession != 0x18 → 0x4e`. Without this case a
-     * shipped-home missionary took the @UNIT icon (the Jesuit) whatever
-     * his colonist was. */
-    case EUROPE_DOCK_TYPE_MISSIONARIES:
-      return d->profession == UNITS_JOB_MISSIONARY ? UNITS_ICON_JESUIT_MISSIONARY
-                                                   : UNITS_ICON_MISSIONARY;
-    default:
-      break;
-  }
-  if (d->dos_type != EUROPE_DOCK_TYPE_COLONISTS) {
-    const int eti = europe_dock_unit_type_index(units, d->dos_type);
-    const ColonizeUnitType* eut = units_type(units, eti);
-    if (eut && eut->icon_sprite >= 0) {
-      return eut->icon_sprite;
-    }
-  }
-  int ti = units_find_type(units, d->name);
-  if (ti < 0) {
-    ti = units_find_type(units, "Colonists");
-  }
-  if (ti < 0) {
-    return -1;
-  }
-  const ColonizeUnitType* ut = units_type(units, ti);
-  if (units_type_is_colonist(ut)) {
-    return units_working_colonist_sprite(units, ti, d->profession);
-  }
-  return ut ? ut->icon_sprite : -1;
-}
-
 static int europe_harbor_open_holds(const ColonizeUnitPool* units, const EuropeHarborShip* ship) {
   if (!units || !ship) {
     return 0;
@@ -6720,7 +6658,7 @@ static void render_europe_screen(const ColonizeGameState* game, ColonizeFramebuf
       if (!europe_dock_slot_pos(i, &dx, &dy)) {
         break;
       }
-      const int sprite = europe_dock_sprite(&game->units, &eu->dock[i]);
+      const int sprite = europe_dock_icon_sprite(&game->units, &eu->dock[i]);
       if (sprite >= 0 && sprite < game->unit_icons.sprite_count) {
         const ColonizeSprite* sp = &game->unit_icons.sprites[sprite];
         const int iw = sp->width > 0 ? sp->width : 16;

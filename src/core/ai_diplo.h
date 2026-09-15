@@ -190,6 +190,14 @@ int ai_diplo_leader_trait(const ColonizeTurnContext* ctx, int nation, int column
 int ai_diplo_153e_encounter(ColonizeTurnContext* ctx, int human, int target, int unit_id);
 
 /*
+ * Same talk with DOS param_6 = 1: FUN_5f7a_000e's Meet With Mayor pushes 1
+ * (asm `PUSH 0x1` ahead of the 6662_0086 direction arg), so the unmet /
+ * 16-turn cooldown gate always opens and the port's per-turn pair latch is
+ * skipped. bugs.md 459.
+ */
+int ai_diplo_153e_encounter_forced(ColonizeTurnContext* ctx, int human, int target, int unit_id);
+
+/*
  * FUN_15b3_0004 / 0032 / 0066 / 00d0 (decomp 9056-9117). Byte-audited
  * 2026-09-08: both sides take the FULL 0..11 nation space (4 Euro + 8
  * Indian) and the pair resolves to one of four Linux fields —

@@ -3094,17 +3094,47 @@ int main(void) {
       ai_diplo_apply_popup_result(&ectx, &epop);
       epop.has_result = false;
     }
+    const bool peace_ok = (e.nation[0].euro_relation[1] & AI_DIPLO_PEACE) &&
+                          (e.nation[1].euro_relation[0] & AI_DIPLO_PEACE);
+    const bool stamp_ok = e.head.nation_relation[1] == 30 + 0x10;
+    const int second = ai_diplo_153e_encounter(&ectx, 0, 1, pa->id);
+    /* bugs.md 459: FUN_5f7a_000e Meet With Mayor pushes param_6 = 1, so the
+     * scout's audience opens even inside the cooldown and the same turn. */
+    ai_popup_init(&epop);
+    const int forced = second ? 0 : ai_diplo_153e_encounter_forced(&ectx, 0, 1, pa->id);
+    const int forced_queued = epop.queue_count;
+    /* Drain it so the talk machine is idle for the next block. */
+    for (int guard = 0; guard < 12 && epop.queue_count > 0; ++guard) {
+      AiPopupRequest front = epop.queue[0];
+      memmove(&epop.queue[0], &epop.queue[1], sizeof(epop.queue[0]) * (size_t)(epop.queue_count - 1));
+      epop.queue_count--;
+      if (front.kind != AI_POPUP_KIND_CHOICE) {
+        continue;
+      }
+      epop.has_result = true;
+      epop.result_cancelled = false;
+      epop.result_tag = AI_POPUP_TAG_DIPLO_TALK;
+      epop.result_choice_id = 1;
+      epop.result_nation_a = 0;
+      epop.result_nation_b = 1;
+      epop.result_payload = front.payload;
+      ai_diplo_apply_popup_result(&ectx, &epop);
+      epop.has_result = false;
+    }
     free(emap.terrain);
     free(emap.layer2);
     free(emap.layer3);
-    if (!(e.nation[0].euro_relation[1] & AI_DIPLO_PEACE) || !(e.nation[1].euro_relation[0] & AI_DIPLO_PEACE)) {
+    if (!peace_ok) {
       return fail("153e talk: accepting the partition treaty must sign PEACE both ways");
     }
-    if (e.head.nation_relation[1] != 30 + 0x10) {
+    if (!stamp_ok) {
       return fail("153e talk: partition must stamp DS:0x53c8[target] = turn + 16");
     }
-    if (ai_diplo_153e_encounter(&ectx, 0, 1, pa->id)) {
+    if (second) {
       return fail("153e talk: a second encounter the same turn must not reopen the talk");
+    }
+    if (!forced || forced_queued < 1) {
+      return fail("153e talk: scout Meet With Mayor (forced gate) must open inside the cooldown");
     }
   }
 

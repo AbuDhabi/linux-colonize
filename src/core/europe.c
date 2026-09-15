@@ -4785,3 +4785,96 @@ void europe_cheat_adjust_tax(EuropeScreen* eu, int delta) {
   }
   snprintf(eu->status, sizeof(eu->status), "Tax rate %d%%.", eu->tax_percent);
 }
+
+int europe_dock_icon_sprite(const ColonizeUnitPool* units, const EuropeDockImmigrant* d) {
+  if (!units || !d || !d->name[0]) {
+    return -1;
+  }
+  if (strcmp(d->name, "Artillery") == 0) {
+    const int ti = units_find_type(units, "Artillery");
+    const ColonizeUnitType* ut = units_type(units, ti);
+    return ut ? ut->icon_sprite : -1;
+  }
+  /* Armed / equipped / blessed on the dock: show what the immigrant now is,
+   * not the profession portrait it arrived with (bugs.md @ARMOPTIONS).
+   * bugs.md 164/177: the @UNIT icon column carries the EXPERT poses (Hardy
+   * Pioneer / Veteran Soldier …) — DOS's map rule overrides those to the
+   * base pose unless the unit's own profession matches; the dock follows
+   * the same rule, so a Master Blacksmith with tools reads as a plain
+   * Pioneer, not a Hardy one. */
+  /* bugs.md 269 (units_map_sprite): BOTH veteran professions (0x15 Veteran
+   * Soldiers / 0x17 Veteran Dragoons) take the veteran pose — a Veteran
+   * Soldier armed with horses on the dock is a Veteran Dragoon, exactly as
+   * the map draws him. */
+  const bool dock_vet_prof =
+    d->profession == UNITS_JOB_SOLDIER || d->profession == UNITS_JOB_DRAGOON;
+  switch (d->dos_type) {
+    case EUROPE_DOCK_TYPE_PIONEERS:
+      return d->profession == UNITS_JOB_PIONEER ? UNITS_ICON_HARDY_PIONEER
+                                                : UNITS_ICON_PIONEER;
+    case EUROPE_DOCK_TYPE_SOLDIERS:
+      return dock_vet_prof ? UNITS_ICON_VETERAN_SOLDIER : UNITS_ICON_SOLDIER;
+    case EUROPE_DOCK_TYPE_DRAGOONS:
+      return dock_vet_prof ? UNITS_ICON_VETERAN_DRAGOON : UNITS_ICON_DRAGOON;
+    case EUROPE_DOCK_TYPE_SCOUTS:
+      return d->profession == UNITS_JOB_SCOUT ? UNITS_ICON_SEASONED_SCOUT
+                                              : UNITS_ICON_SCOUT;
+    /* bugs.md 426: same split for the fifth kit — FUN_112b_0060's
+     * `type == 3 && profession != 0x18 → 0x4e`. Without this case a
+     * shipped-home missionary took the @UNIT icon (the Jesuit) whatever
+     * his colonist was. */
+    case EUROPE_DOCK_TYPE_MISSIONARIES:
+      return d->profession == UNITS_JOB_MISSIONARY ? UNITS_ICON_JESUIT_MISSIONARY
+                                                   : UNITS_ICON_MISSIONARY;
+    default:
+      break;
+  }
+  if (d->dos_type != EUROPE_DOCK_TYPE_COLONISTS) {
+    const int eti = europe_dock_unit_type_index(units, d->dos_type);
+    const ColonizeUnitType* eut = units_type(units, eti);
+    if (eut && eut->icon_sprite >= 0) {
+      return eut->icon_sprite;
+    }
+  }
+  int ti = units_find_type(units, d->name);
+  if (ti < 0) {
+    ti = units_find_type(units, "Colonists");
+  }
+  if (ti < 0) {
+    return -1;
+  }
+  const ColonizeUnitType* ut = units_type(units, ti);
+  if (units_type_is_colonist(ut)) {
+    return units_working_colonist_sprite(units, ti, d->profession);
+  }
+  return ut ? ut->icon_sprite : -1;
+}
+
+int europe_passenger_icon_sprite(const ColonizeUnitPool* units, int type_index, int profession) {
+  const ColonizeUnitType* ut = units_type(units, type_index);
+  if (!ut) {
+    return -1;
+  }
+  if (units_type_is_colonist(ut)) {
+    return units_working_colonist_sprite(units, type_index, profession);
+  }
+  /*
+   * bugs.md 458: the @UNIT icon of the five kit types is the EXPERT pose
+   * (Hardy Pioneer, Veteran Soldier, ...), so a Master Carpenter given tools
+   * sailed out as a Hardy Pioneer. A passenger is the same unit the dock
+   * showed a moment earlier: route it through the dock's expert/generic
+   * split (DOS FUN_112b_0060), keyed by its own profession.
+   */
+  for (int k = EUROPE_DOCK_TYPE_SOLDIERS; k < EUROPE_DOCK_TYPE_COUNT; ++k) {
+    if (strcmp(ut->name, reports_dock_type_name(k)) == 0) {
+      EuropeDockImmigrant d;
+      memset(&d, 0, sizeof(d));
+      snprintf(d.name, sizeof(d.name), "%s", ut->name);
+      d.profession = profession;
+      d.present = true;
+      d.dos_type = k;
+      return europe_dock_icon_sprite(units, &d);
+    }
+  }
+  return ut->icon_sprite;
+}
