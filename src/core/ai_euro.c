@@ -9943,9 +9943,12 @@ static int ai_euro_ocean_score_step(
     if (foe >= 0) {
       const ColonizeUnit* f = units_get_const(ctx->units, foe);
       if (f && f->nation_id == u->nation_id) {
-        continue;
-      }
-      if (f && !units_is_sea(ctx->units, foe)) {
+        /* Own ship on water: stackable, step through it. Anything else of
+         * our own on a non-water tile is a land unit — skip. */
+        if (!units_is_sea(ctx->units, foe)) {
+          continue;
+        }
+      } else if (f && !units_is_sea(ctx->units, foe)) {
         continue;
       }
     } else if (!map_tile_is_water(ctx->map, nx, ny)) {
@@ -18340,10 +18343,11 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
         int moved = 0;
         if (tx >= 0) {
           const int foe = units_id_at(ctx->units, tx, ty);
-          if (foe >= 0) {
+          const ColonizeUnit* fo = foe >= 0 ? units_get_const(ctx->units, foe) : NULL;
+          if (fo && fo->nation_id != u->nation_id) {
             /* Naval combat stays on adjacent prefer-weak pick — do not
              * chain-attack via scored step into a foe tile (try_move cannot
-             * enter ships; mirror prior advance_goto block). */
+             * enter ships; mirror prior advance_goto block). Own ships stack. */
             break;
           }
           moved = units_try_move(ctx->units, u->id, ctx->map, tx, ty, ctx->colonies, ctx->rng);
@@ -18376,12 +18380,24 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
           if (getenv("AI_SHIP_TRACE")) {
             fprintf(stderr, "[ship]   pathfinder step (%d,%d)\n", px, py);
           }
-          if (units_id_at(ctx->units, px, py) >= 0) {
-            break;
+          {
+            /* Only a FOREIGN occupant blocks the pathfinder step. Own ships
+             * stack (DOS allows same-nation stacking on water); refusing the
+             * tile made two own hulls whose routes crossed block each other
+             * for a hundred turns (campaign3 Spanish Caravel/Privateer at
+             * (32,51)/(31,50), each pathing onto the other's tile). */
+            const int occ = units_id_at(ctx->units, px, py);
+            const ColonizeUnit* o = occ >= 0 ? units_get_const(ctx->units, occ) : NULL;
+            if (o && o->nation_id != u->nation_id) {
+              break;
+            }
           }
           if (!units_try_move(ctx->units, u->id, ctx->map, px, py, ctx->colonies, ctx->rng)) {
             break;
           }
+          units_note_goto_step(u->id, px - from_x, py - from_y);
+        } else {
+          units_note_goto_step(u->id, tx - from_x, ty - from_y);
         }
         prev_x = from_x;
         prev_y = from_y;
