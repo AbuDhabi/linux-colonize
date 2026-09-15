@@ -98,6 +98,11 @@ static uint8_t s_euro_roam_wander[COLONIZE_UNITS_MAX];
 static uint8_t s_euro_ship_route_latch[COLONIZE_UNITS_MAX];
 
 static void ai_euro_set_goto(ColonizeUnit* u, int orders, int gx, int gy);
+static void ai_euro_try_attack(ColonizeTurnContext* ctx, ColonizeUnit* u, int tx, int ty);
+static void ai_euro_20e6_ship_cargo_counts(
+  ColonizeTurnContext* ctx, const ColonizeUnit* ship,
+  int* pioneers, int* mil, int* scouts, int* milvet, int* civ
+);
 static int ai_euro_at_war_any_peer(const ColonizeCol1Save* col1, int nation_id);
 static void ai_euro_treasure_tension_bump(ColonizeTurnContext* ctx, ColonizeUnit* u);
 static void ai_euro_try_violate_notify(ColonizeTurnContext* ctx, ColonizeUnit* u);
@@ -11484,9 +11489,26 @@ static int ai_euro_20e6_attack_term(
 }
 
 /*
- * LAB_521d_4d2e → 5183: the 8-direction wander scorer, land branch. Picks
- * one adjacent tile (or stay) exactly as DOS does when no arm above has
- * committed a destination. Returns dir 0..7, or 8 = stay.
+ * FUN_281f_06b4(x, y) == 1 for water: the open-sea body (water region 1).
+ * Same region-0 relaxation as map_tile_is_open_sea_adjacent — synthetic /
+ * test maps leave layer3 zero.
+ */
+static int ai_euro_20e6_open_sea(const ColonizeWorldMap* map, int x, int y) {
+  if (!map_tile_is_water(map, x, y)) {
+    return 0;
+  }
+  const int region = (int)(map_get_layer3(map, x, y) & 0x0fu);
+  return region <= 1;
+}
+
+/*
+ * LAB_521d_4d2e → 5183: the 8-direction wander scorer. Picks one adjacent
+ * tile (or stay) exactly as DOS does when no arm above has committed a
+ * destination. Ships reach it through the raw 90219 `goto LAB_4d2e` after the
+ * 3558 / 4393 / 457e bands fall through; their arms are the iStack_34 branches
+ * inside the same loop (water-only step, no settlement term, fort/artillery
+ * term scaled by holds, west lean, unseen-water credit). Returns dir 0..7,
+ * or 8 = stay.
  */
 static int ai_euro_20e6_wander_step(ColonizeTurnContext* ctx, ColonizeUnit* u, Ai20e6Unit* s) {
   const int nation = s->nation;
@@ -11495,6 +11517,22 @@ static int ai_euro_20e6_wander_step(ColonizeTurnContext* ctx, ColonizeUnit* u, A
   int fog_enable = 0;
   if (ai_euro_20e6_probe_adjacent(ctx, u->x, u->y, nation) < 0 || (!s->is_ship && s->combat == 0)) {
     fog_enable = 1;
+  }
+  /* raw 88622-88624: a ship in the War of Independence never idles (bVar20). */
+  if (s->is_ship && s->woi) {
+    fog_enable = 0;
+  }
+  /* iStack_90: the unit's own tile is ocean / high seas. */
+  const int unit_on_water = map_tile_is_water(ctx->map, u->x, u->y) ? 1 : 0;
+  /* +0x3150 occupied goods holds — the multiplier of the ship fort term. */
+  int goods_holds = 0;
+  if (s->is_ship) {
+    const int nh = units_goods_hold_count(ctx->units, u->id);
+    for (int h = 0; h < nh; ++h) {
+      if (units_hold_amount(ctx->units, u->id, h) > 0) {
+        goods_holds++;
+      }
+    }
   }
   /* unit+0x3148 bit4 wander_dest_chosen: peacetime distant-tile roll (raw
    * ~1960-1995) — kept as the latch only; the >7-tile random goto it
@@ -11513,12 +11551,25 @@ static int ai_euro_20e6_wander_step(ColonizeTurnContext* ctx, ColonizeUnit* u, A
       continue; /* FUN_1000_84f2 inset bounds */
     }
     const int terr = map_dos_terr_class_at(ctx->map, nx, ny);
-    if (terr == 0x19 || terr == 0x1a) {
-      continue; /* land unit: ocean / high seas */
+    const int dest_water = (terr == 0x19 || terr == 0x1a);
+    if (!s->is_ship) {
+      if (dest_water) {
+        continue; /* land unit: ocean / high seas */
+      }
+    } else if (!dest_water || !ai_euro_20e6_open_sea(ctx->map, nx, ny)) {
+      /* raw 88679-88687: a ship steps only onto ocean / high seas in the open
+       * sea body (FUN_281f_06b4 == 1); a land tile falls to the bare
+       * FUN_281f_0696 probe with no score. */
+      continue;
     }
-    const int owner = ai_euro_20e6_owner_nibble(ctx->map, nx, ny);
+    int owner = ai_euro_20e6_owner_nibble(ctx->map, nx, ny);
     const int here = units_id_at(ctx->units, nx, ny);
     const ColonizeUnit* hu = here >= 0 ? units_get_const(ctx->units, here) : NULL;
+    if (s->is_ship && hu && owner < 0) {
+      /* DOS stamps the owner nibble from the stack on entry; the port's water
+       * tiles carry no claim, so the hull on the tile is the owner. */
+      owner = hu->nation_id;
+    }
     int score = 0;
     const int dest_river = map_tile_has_river(ctx->map, nx, ny) ? 1 : 0;
     const int dest_road = map_tile_has_road(ctx->map, nx, ny) ? 1 : 0;
@@ -11533,7 +11584,7 @@ static int ai_euro_20e6_wander_step(ColonizeTurnContext* ctx, ColonizeUnit* u, A
         score -= map_dos_terr_cost_byte(terr) * 3;
       }
     } else if (!s->explorer) {
-      if (u->col1_vis_mask == 0) { /* unseen by every Euro nation */
+      if (u->col1_vis_mask == 0 && !unit_on_water) { /* unseen; raw 88709 also iStack_90 == 0 */
         if ((s->flags & 0x20) == 0 && (s->flags & 0x10) == 0) {
           score = dos_rng_range(ctx->rng, 1, 3);
           if (!s->woi) {
@@ -11669,6 +11720,43 @@ static int ai_euro_20e6_wander_step(ColonizeTurnContext* ctx, ColonizeUnit* u, A
         score -= 10;
       }
     }
+    /*
+     * Ship-only (raw 88808-88830): a hostile Euro colony (diplo & 0x60 ==
+     * 0x20) next to the destination costs 0x14 with a Stockade, 0x28 with a
+     * Fort (FUN_281f_0322 feature bits 1 / 2), plus 0x1e per Artillery in
+     * its stack, all multiplied by the ship's occupied goods holds — an
+     * empty hull ignores the batteries entirely.
+     */
+    if (s->is_ship && goods_holds > 0) {
+      for (int n = 0; n < 8; ++n) {
+        const int ax = nx + MAP_DIR8_DX[n];
+        const int ay = ny + MAP_DIR8_DY[n];
+        const ColonizeColony* fc = colonies_find_at_xy(ctx->colonies, ax, ay);
+        if (!fc || !fc->active || fc->nation_id < 0 || fc->nation_id > 3 ||
+            fc->nation_id == nation) {
+          continue;
+        }
+        if ((ai_euro_20e6_diplo(ctx->col1, nation, fc->nation_id) & 0x60) != 0x20) {
+          continue;
+        }
+        const int bonus = colonies_fortification_defense_bonus_percent(ctx->colonies, fc);
+        int pen = 0;
+        if (bonus >= 100) {
+          pen = 0x14;
+        }
+        if (bonus >= 150) {
+          pen = 0x28;
+        }
+        for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+          const ColonizeUnit* o = &ctx->units->units[i];
+          if (o->active && o->aboard_ship_id < 0 && o->x == ax && o->y == ay &&
+              ai_euro_20e6_dos_type(ctx->units, o) == 0xb) {
+            pen += 0x1e;
+          }
+        }
+        score -= pen * goods_holds;
+      }
+    }
     /* Far probe (unit + 4·dir) explore terms. */
     if (fog_enable) {
       const int fx = u->x + MAP_DIR8_DX[d] * 4;
@@ -11677,6 +11765,10 @@ static int ai_euro_20e6_wander_step(ColonizeTurnContext* ctx, ColonizeUnit* u, A
           ctx->map->seen && !map_tile_seen_by(ctx->map, fx, fy, nation)) {
         score += 8; /* DS:0x9faa coarse cell unseen — per-nation seen[] stand-in */
       }
+      /* raw 88842-88844: a ship in the eastern half leans west (dirs SW/W/NW). */
+      if (s->is_ship && d >= 5 && d <= 7 && u->x > (int)ctx->map->width / 2) {
+        score += 4;
+      }
       for (int n = 0; n < 8; ++n) {
         const int ax = fx + MAP_DIR8_DX[n];
         const int ay = fy + MAP_DIR8_DY[n];
@@ -11684,8 +11776,8 @@ static int ai_euro_20e6_wander_step(ColonizeTurnContext* ctx, ColonizeUnit* u, A
           continue;
         }
         if (nation < 4 && ctx->map->seen && !map_tile_seen_by(ctx->map, ax, ay, nation) &&
-            !map_tile_is_water(ctx->map, ax, ay)) {
-          score += 2;
+            (s->is_ship || !map_tile_is_water(ctx->map, ax, ay))) {
+          score += 2; /* raw 88853-88856: ships count unseen water too */
         }
         /* DOS 521d:57c2 calls FUN_281f_0682 (unit-presence bit only) here,
          * not 06d2 — a settlement tile without a unit does not −2. */
@@ -11708,6 +11800,120 @@ static int ai_euro_20e6_wander_step(ColonizeTurnContext* ctx, ColonizeUnit* u, A
    * loop already requires >0, so nothing extra to gate here. */
   (void)best_attack;
   return best_dir;
+}
+
+/*
+ * Raw 88632-88664, the ship-only arm just ahead of LAB_4d2e: an idle hull
+ * (bVar20) carrying military or Pioneers (8aac modes 4 + 3) with no unload
+ * mask, outside the War of Independence, rolls FUN_281f_04d4(0, 0x10) once
+ * per act; on 0 it picks a random inset tile (rng(2, w-3), rng(2, h-3)) and,
+ * if that is open-sea water more than 7 Manhattan tiles away, latches unit
+ * +0x3148 bit 0x10 and commits it as the goto (LAB_27f5). With the bit
+ * already set, rng(0, 0x30) == 0 clears it. The unload mask is taken as 0
+ * here: the port calls this after the ship band's own unload arm has had its
+ * go, which is the only way DOS reaches this line with cargo still aboard.
+ * Returns 1 when a far goto was set.
+ */
+static int ai_euro_20e6_ship_far_roam(ColonizeTurnContext* ctx, ColonizeUnit* u, const Ai20e6Unit* s) {
+  if (!s->is_ship || s->woi || u->id < 0 || u->id >= COLONIZE_UNITS_MAX) {
+    return 0;
+  }
+  if (ai_euro_20e6_probe_adjacent(ctx, u->x, u->y, s->nation) >= 0) {
+    return 0; /* bVar20 false */
+  }
+  int pioneers = 0;
+  int mil = 0;
+  int scouts = 0;
+  int milvet = 0;
+  int civ = 0;
+  ai_euro_20e6_ship_cargo_counts(ctx, u, &pioneers, &mil, &scouts, &milvet, &civ);
+  if (mil + pioneers == 0) {
+    return 0;
+  }
+  uint8_t* flags = &s_0a60_pilot_state[u->id].flags;
+  if ((*flags & 0x10) == 0) {
+    if (dos_rng_range(ctx->rng, 0, 0x10) != 0) {
+      return 0;
+    }
+    const int tx = dos_rng_range(ctx->rng, 2, (int)ctx->map->width - 3);
+    const int ty = dos_rng_range(ctx->rng, 2, (int)ctx->map->height - 3);
+    if (!map_tile_is_water(ctx->map, tx, ty) || !ai_euro_20e6_open_sea(ctx->map, tx, ty)) {
+      return 0;
+    }
+    if (abs(tx - u->x) + abs(ty - u->y) <= 7) {
+      return 0;
+    }
+    *flags |= 0x10;
+    ai_euro_set_goto(u, UNITS_ORDER_AI_SAIL, tx, ty);
+    if (getenv("AI_SHIP_TRACE")) {
+      fprintf(stderr, "[ship] unit %d far roam -> (%d,%d)\n", u->id, tx, ty);
+    }
+    return 1;
+  }
+  if (dos_rng_range(ctx->rng, 0, 0x30) == 0) {
+    *flags &= (uint8_t)~0x10u;
+  }
+  return 0;
+}
+
+/*
+ * Ship entry into the 20e6 wander scorer (raw 90210-90219 → LAB_4d2e). An
+ * idle hull (act state 0 / 5 / 6 / 0xa, or a step goto onto its own tile)
+ * always scores; a busy one only when FUN_281f_0984 finds a foreign unit
+ * adjacent, and then the port keeps its course unless the pick is an attack
+ * (a wander step would otherwise overwrite a delivery goto the port has no
+ * goal record to rebuild from). An attack pick resolves at once through
+ * ai_euro_try_attack (LAB_589e's step into a foe tile); a water pick becomes
+ * a one-tile AI_SAIL goto for the sail loop below. Returns 1 when the act
+ * committed something.
+ */
+static int ai_euro_20e6_ship_wander_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nation_id, int busy) {
+  if (!ctx || !ctx->map || !u || !u->active || u->id < 0 || u->id >= COLONIZE_UNITS_MAX) {
+    return 0;
+  }
+  Ai20e6Unit s;
+  ai_euro_20e6_prologue(ctx, u, nation_id, &s);
+  if (!s.is_ship) {
+    return 0;
+  }
+  if (!busy && ai_euro_20e6_ship_far_roam(ctx, u, &s)) {
+    return 1;
+  }
+  const int dir = ai_euro_20e6_wander_step(ctx, u, &s);
+  if (getenv("AI_SHIP_TRACE")) {
+    fprintf(stderr, "[ship] unit %d wander dir %d busy %d at (%d,%d)\n", u->id, dir, busy, u->x, u->y);
+  }
+  if (dir < 0 || dir > 7) {
+    if (!busy) {
+      s_euro_last_dir[u->id] = 8; /* unit+0x314f, 8 = stay */
+    }
+    return 0;
+  }
+  const int nx = u->x + MAP_DIR8_DX[dir];
+  const int ny = u->y + MAP_DIR8_DY[dir];
+  const int foe = units_id_at(ctx->units, nx, ny);
+  if (foe >= 0) {
+    const ColonizeUnit* f = units_get_const(ctx->units, foe);
+    if (!f || f->nation_id == nation_id) {
+      return 0;
+    }
+    s_euro_last_dir[u->id] = (int8_t)dir;
+    if (getenv("AI_SHIP_TRACE")) {
+      fprintf(stderr, "[ship] unit %d wander attack (%d,%d)\n", u->id, nx, ny);
+    }
+    ai_euro_try_attack(ctx, u, nx, ny);
+    return 1;
+  }
+  if (busy) {
+    return 0;
+  }
+  s_euro_last_dir[u->id] = (int8_t)dir;
+  if (getenv("AI_SHIP_TRACE")) {
+    fprintf(stderr, "[ship] unit %d wander step (%d,%d)\n", u->id, nx, ny);
+  }
+  ai_euro_set_goto(u, UNITS_ORDER_AI_SAIL, nx, ny);
+  s_euro_roam_wander[u->id] = 1; /* unit+0x314c==5 idle-roam */
+  return 1;
 }
 
 /* Returns non-zero to abort act (DOS 20e6 non-zero return). */
@@ -14423,15 +14629,6 @@ static int ai_euro_try_de_witt_ship_trade(
   return 1;
 }
 
-/* Galleon / Frigate / Man-O-War — war passenger transport (Europe purchase +
- * Jones Frigate/MoW fallback; king MoW). Cite: euro_unit_act §2b2; king_ref
- * MoW cargo; founding_fathers John Paul Jones. */
-static int ai_euro_is_war_transport_name(const char* name) {
-  return name &&
-         (units_name_kind(name) == UNITS_KIND_GALLEON || units_name_kind(name) == UNITS_KIND_FRIGATE ||
-          ai_euro_type_is_man_o_war_name(name));
-}
-
 /*
  * Own coastal colony threatened by a war-peer land/sea unit within MD≤3.
  * Cite: Colonization.pdf naval transport / fortify defense — troop ships sail
@@ -14622,14 +14819,6 @@ static int ai_euro_try_unload_military_threatened(
  * (foe sea / enemy coast). Cite: euro_unit_act §2b; Colonization.pdf naval
  * transport; Europe Galleon/Frigate purchase. Full 20e6 PARKED.
  */
-static int ai_euro_war_transport_target(
-  ColonizeTurnContext* ctx,
-  int nation_id,
-  int from_x,
-  int from_y,
-  int* out_x,
-  int* out_y
-);
 
 /*
  * Thin naval war hunt (5b66 case 0x0b act-level): nearest enemy sea unit or
@@ -14728,127 +14917,6 @@ static int ai_euro_naval_try_flee_fort_fire(ColonizeTurnContext* ctx, ColonizeUn
     return 1;
   }
   return 0;
-}
-
-static int ai_euro_naval_war_hunt_target(
-  ColonizeTurnContext* ctx,
-  int nation_id,
-  int from_x,
-  int from_y,
-  int* out_x,
-  int* out_y
-) {
-  if (!ctx || !ctx->units || !ctx->map || !ctx->col1_ok || !ctx->col1 || !out_x || !out_y) {
-    return 0;
-  }
-  int best = -1;
-  int bx = 0;
-  int by = 0;
-
-  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-    const ColonizeUnit* f = &ctx->units->units[i];
-    if (!f->active || f->nation_id == nation_id || f->nation_id < 0 || f->nation_id > 3) {
-      continue;
-    }
-    if (!units_is_sea(ctx->units, f->id) || ai_euro_in_europe(f->x, f->y)) {
-      continue;
-    }
-    if (!ai_diplo_at_war(ctx->col1, nation_id, f->nation_id)) {
-      continue;
-    }
-    /* Skip foe parked under coastal fort batteries (FUN_364b_03f6). */
-    if (ai_euro_tile_under_enemy_fort_fire(ctx, nation_id, f->x, f->y)) {
-      continue;
-    }
-    const int dist = abs(f->x - from_x) + abs(f->y - from_y);
-    if (best < 0 || dist < best) {
-      best = dist;
-      bx = f->x;
-      by = f->y;
-    }
-  }
-
-  if (ctx->colonies) {
-    for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
-      const ColonizeColony* c = &ctx->colonies->colonies[i];
-      if (!c->active || c->nation_id == nation_id || c->nation_id < 0 || c->nation_id > 3) {
-        continue;
-      }
-      if (!ai_diplo_at_war(ctx->col1, nation_id, c->nation_id)) {
-        continue;
-      }
-      int wx = 0;
-      int wy = 0;
-      if (!ai_euro_coastal_water_near(ctx->map, c->x, c->y, from_x, from_y, &wx, &wy)) {
-        continue;
-      }
-      if (ai_euro_tile_under_enemy_fort_fire(ctx, nation_id, wx, wy)) {
-        continue;
-      }
-      const int dist = abs(wx - from_x) + abs(wy - from_y);
-      if (best < 0 || dist < best) {
-        best = dist;
-        bx = wx;
-        by = wy;
-      }
-    }
-  }
-
-  if (best < 0) {
-    return 0;
-  }
-  *out_x = bx;
-  *out_y = by;
-  return 1;
-}
-
-static int ai_euro_war_transport_target(
-  ColonizeTurnContext* ctx,
-  int nation_id,
-  int from_x,
-  int from_y,
-  int* out_x,
-  int* out_y
-) {
-  if (!ctx || !ctx->map || !out_x || !out_y) {
-    return 0;
-  }
-  /* Prefer threatened own coastal colony water (troop lift / reinforce). */
-  if (ctx->colonies) {
-    int best = -1;
-    int bx = 0;
-    int by = 0;
-    for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
-      const ColonizeColony* c = &ctx->colonies->colonies[i];
-      if (!c->active || c->nation_id != nation_id) {
-        continue;
-      }
-      if (!map_tile_is_coastal(ctx->map, c->x, c->y)) {
-        continue;
-      }
-      if (!ai_euro_colony_threatened_by_war(ctx, nation_id, c)) {
-        continue;
-      }
-      int wx = 0;
-      int wy = 0;
-      if (!ai_euro_coastal_water_near(ctx->map, c->x, c->y, from_x, from_y, &wx, &wy)) {
-        continue;
-      }
-      const int dist = abs(wx - from_x) + abs(wy - from_y);
-      if (best < 0 || dist < best) {
-        best = dist;
-        bx = wx;
-        by = wy;
-      }
-    }
-    if (best >= 0) {
-      *out_x = bx;
-      *out_y = by;
-      return 1;
-    }
-  }
-  /* No threatened own port — enemy coast / foe sea (existing hunt). */
-  return ai_euro_naval_war_hunt_target(ctx, nation_id, from_x, from_y, out_x, out_y);
 }
 
 /*
@@ -18067,12 +18135,16 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
           }
         }
       }
-      if (cid >= 0 &&
+      /* Opening-only geometry (one colony): a mid-game hull wandering through
+       * (fx, fy+2) was yanked to a tip that can even be land, then ground the
+       * greedy/pathfinder pair against it every turn. */
+      if (cid >= 0 && colonies_count_for_nation(ctx->colonies, nation_id) == 1 &&
           ((u->goto_x == fx && u->goto_y == fy + 2) ||
            (u->x == fx && u->y == fy + 2))) {
         int tx = 0;
         int ty = 0;
-        if (ai_euro_ocean_3558_empty_cruise_tip(ctx->map, fx, fy, &tx, &ty)) {
+        if (ai_euro_ocean_3558_empty_cruise_tip(ctx->map, fx, fy, &tx, &ty) &&
+            map_tile_is_water(ctx->map, tx, ty)) {
           ai_euro_set_goto(u, UNITS_ORDER_AI_SAIL, tx, ty);
         }
       }
@@ -18138,33 +18210,14 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
           return;
         }
       }
-      const char* sname = units_display_name(ctx->units, u);
-      const int is_privateer = sname && units_name_kind(sname) == UNITS_KIND_PRIVATEER;
-      /* Galleon/Frigate with passenger space: prefer threatened own coastal
-       * colony water, else enemy coast (naval hunt). Cite: euro_unit_act §2b2;
-       * Colonization.pdf naval transport; Europe purchase Galleon/Frigate. */
-      const int is_wtrans = ai_euro_is_war_transport_name(sname);
-      const int cap = units_ship_capacity(ctx->units, u->id);
-      const int has_pax_space = is_wtrans && cap > 0 && u->cargo_count < cap;
       ai_euro_naval_try_adjacent_attack(ctx, u);
       if (!u->active) {
         return;
       }
-      /* A hull that cannot fight (Caravel/Merchantman/Galleon, @UNIT attack
-       * 0) and has no passenger errand has no business hunting: aimed at a
-       * foe ship's tile it parked next to it for the rest of the war. */
-      const int can_hunt = has_pax_space || !ai_euro_unit_cannot_attack(ctx->units, u);
-      if (can_hunt && (is_privateer || !ai_euro_has_useful_goto(u, ctx->map))) {
-        int hx = 0;
-        int hy = 0;
-        const int aimed =
-          has_pax_space
-            ? ai_euro_war_transport_target(ctx, nation_id, u->x, u->y, &hx, &hy)
-            : ai_euro_naval_war_hunt_target(ctx, nation_id, u->x, u->y, &hx, &hy);
-        if (aimed) {
-          ai_euro_set_goto(u, UNITS_ORDER_AI_SAIL, hx, hy);
-        }
-      }
+      /* The "nearest foe ship / enemy port" hunt aim that stood here was a
+       * port invention: DOS has no distant naval hunt. A warship finds its
+       * fights through the 20e6 wander scorer below (adjacent tiles only,
+       * LAB_52aa odds term) and its stations through the colony-sail matrix. */
     }
 
     /*
@@ -18218,9 +18271,25 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
     }
 
     /*
+     * Raw 90210-90219 → LAB_4d2e: every ship band above fell through. An idle
+     * hull takes the 8-direction wander pick (far roam latch, explore terms,
+     * LAB_52aa attack odds); a busy one only fights an adjacent foe.
+     */
+    if (u->active && !exited_europe && !ai_euro_in_europe(u->x, u->y) && !treasure_aboard &&
+        u->moves_left > 0) {
+      const int busy = ai_euro_has_useful_goto(u, ctx->map);
+      if (!busy || ai_euro_20e6_adjacent_foreign_09dc(ctx, u->x, u->y, nation_id)) {
+        (void)ai_euro_20e6_ship_wander_act(ctx, u, nation_id, busy);
+        u = units_get(ctx->units, u->id);
+        if (!u || !u->active) {
+          return;
+        }
+      }
+    }
+    /*
      * Case 0x0b ship sail: preserve landfall/sail goto. Scored ocean steps
      * (thin 20e6) drain moves_left — mirror land FOUND/MILITARY MP-drain.
-     * Arrival clears via station-keep below. Full ocean combat scoring PARKED.
+     * Arrival clears via station-keep below.
      */
     int gx = u->goto_x;
     int gy = u->goto_y;

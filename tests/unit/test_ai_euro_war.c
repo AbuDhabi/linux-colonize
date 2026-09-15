@@ -514,17 +514,17 @@ static int unit_naval_flee_fort_fire(void) {
 }
 
 /*
- * Privateer hunt: at war, named Privateer with a prior west-explore sail goto
- * re-aims AI_SAIL toward enemy sea (commerce raid). Cite: euro_unit_act §2b;
- * europe Privateer; fandom Drake Privateer.
+ * Privateer at war with a foe ship adjacent and a prior sail goto: the 20e6
+ * wander scorer (raw 90210-90219 busy-unit entry, LAB_52aa odds term) picks
+ * the foe tile and the act resolves the naval fight. DOS has no distant hunt.
  */
 static int unit_privateer_war_hunt(void) {
   const int nation = 1;
   const int foe = 2;
   const int own_x = 4;
   const int own_y = 4;
-  const int foe_x = 10;
-  const int foe_y = 10;
+  const int foe_x = 5;
+  const int foe_y = 5;
 
   ColonizeWorldMap map;
   memset(&map, 0, sizeof(map));
@@ -566,7 +566,9 @@ static int unit_privateer_war_hunt(void) {
     return fail("spawn privateer");
   }
   priv->nation_id = nation;
-  /* Prior west-explore goto — Privateer should override toward foe. */
+  /* Prior west sail goto: a BUSY hull. DOS (raw 90210-90219) still sends it
+   * through LAB_4d2e when FUN_281f_0984 finds a foreign unit adjacent, and
+   * the LAB_52aa odds term makes the foe tile the pick. */
   priv->orders = UNITS_ORDER_AI_SAIL;
   priv->goto_x = 0;
   priv->goto_y = own_y;
@@ -594,8 +596,6 @@ static int unit_privateer_war_hunt(void) {
   }
   col1.head.difficulty = 0;
   col1.nation[nation].gold = 100;
-  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
-   * ladder / recruit / Artillery buys naturally inert (blank census). */
   col1.stuff.ship_counts[nation] = 1;
   col1.nation[foe].gold = 100;
   ai_diplo_declare_war(&col1, nation, foe);
@@ -619,84 +619,47 @@ static int unit_privateer_war_hunt(void) {
   ctx.col1_ok = true;
   ctx.rng_seed = 42;
 
-  const int dist0 = abs(own_x - foe_x) + abs(own_y - foe_y);
-  const int mp0 = priv->moves_left;
+  const int foe_hp0 = (int)(foe_ship->col1_unknown15 & 0x80u);
   ai_euro_dispatcher_turn(&ctx, nation);
 
   priv = units_get(&units, own_id);
   foe_ship = units_get(&units, foe_id);
 
   const int combat_done =
-    (priv == NULL || !priv->active) || (foe_ship == NULL || !foe_ship->active);
-  int hunt = 0;
-  int moved_closer = 0;
-  int spent = 0;
-  if (priv && priv->active) {
-    hunt = priv->orders == UNITS_ORDER_AI_SAIL && priv->goto_x == foe_x &&
-           priv->goto_y == foe_y;
-    const int dist1 = foe_ship && foe_ship->active
-                        ? abs(priv->x - foe_ship->x) + abs(priv->y - foe_ship->y)
-                        : 0;
-    moved_closer = dist1 < dist0 || (priv->x != own_x || priv->y != own_y);
-    spent = mp0 - priv->moves_left;
-    /* Must not keep west-explore goto (0, own_y) when foe is east. */
-    if (priv->goto_x == 0 && priv->goto_y == own_y && !combat_done) {
-      hunt = 0;
-      moved_closer = 0;
-    }
-  }
-
-  if (!combat_done && !hunt && !moved_closer) {
+    (priv == NULL || !priv->active) || (foe_ship == NULL || !foe_ship->active) ||
+    (foe_ship && (int)(foe_ship->col1_unknown15 & 0x80u) != foe_hp0) || (priv && (priv->col1_unknown15 & 0x80u) != 0);
+  /* A naval resolve spends the whole allotment (ai_euro_try_attack). */
+  const int fought = combat_done || (priv && priv->moves_left == 0 && priv->x == own_x && priv->y == own_y);
+  const int sailed_west = priv && priv->active && priv->x < own_x;
+  if (!fought || sailed_west) {
     fprintf(
       stderr,
-      "unit_ai_euro_war: privateer orders=%d goto=(%d,%d) pos=(%d,%d)\n",
+      "unit_ai_euro_war: privateer orders=%d goto=(%d,%d) pos=(%d,%d) mp=%d foe_active=%d\n",
       priv ? priv->orders : -1,
       priv ? priv->goto_x : -1,
       priv ? priv->goto_y : -1,
       priv ? priv->x : -1,
-      priv ? priv->y : -1
-    );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
-    return fail("expected Privateer hunt override toward foe sea");
-  }
-  /* Multi-step sail: when still alive and advancing, scored steps spend MP. */
-  if (!combat_done && moved_closer && spent < 1) {
-    fprintf(
-      stderr,
-      "unit_ai_euro_war: privateer multi-step mp %d→%d pos=(%d,%d) goto=(%d,%d)\n",
-      mp0,
-      priv ? priv->moves_left : -1,
-      priv ? priv->x : -1,
       priv ? priv->y : -1,
-      priv ? priv->goto_x : -1,
-      priv ? priv->goto_y : -1
+      priv ? priv->moves_left : -1,
+      foe_ship && foe_ship->active
     );
     free(map.terrain);
     free(map.layer2);
     free(map.layer3);
-    return fail("expected Privateer hunt multi-step to spend MP");
+    return fail("expected busy Privateer to fight the adjacent foe (LAB_52aa pick)");
   }
 
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(
-    stderr,
-    "unit_ai_euro_war: privateer hunt ok (hunt=%d closer=%d combat=%d mp_spent=%d)\n",
-    hunt,
-    moved_closer,
-    combat_done,
-    spent
-  );
+  fprintf(stderr, "unit_ai_euro_war: privateer adjacent-foe attack ok (combat=%d)\n", combat_done);
   return 0;
 }
 
 /*
  * Post-diplo Privateer spawn station-keep: idle AI_SAIL with goto=self (as
- * euro_diplo wartime commission) → still re-aims hunt toward foe sea.
- * Cite: euro_diplo Privateer spawn; euro_unit_act §2b; is_privateer re-aim.
+ * euro_diplo wartime commission). goto=self is not a useful goto, so the
+ * 20e6 ship wander (raw 90210 → LAB_4d2e) moves it off station.
  */
 static int unit_privateer_station_keep_hunt(void) {
   const int nation = 1;
@@ -719,6 +682,7 @@ static int unit_privateer_station_keep_hunt(void) {
   }
   for (int i = 0; i < 256; ++i) {
     map.terrain[i] = 25; /* ocean */
+    map.layer3[i] = 0xf0; /* owner nibble 0xf = unclaimed (calloc 0 = English) */
   }
 
   ColonizeUnitPool units;
@@ -793,30 +757,16 @@ static int unit_privateer_station_keep_hunt(void) {
   ctx.col1_ok = true;
   ctx.rng_seed = 43;
 
-  const int dist0 = abs(own_x - foe_x) + abs(own_y - foe_y);
   ai_euro_dispatcher_turn(&ctx, nation);
 
   priv = units_get(&units, own_id);
   foe_ship = units_get(&units, foe_id);
   const int combat_done =
     (priv == NULL || !priv->active) || (foe_ship == NULL || !foe_ship->active);
-  int hunt = 0;
-  int moved_closer = 0;
-  if (priv && priv->active) {
-    hunt = priv->orders == UNITS_ORDER_AI_SAIL && priv->goto_x == foe_x &&
-           priv->goto_y == foe_y;
-    const int dist1 = foe_ship && foe_ship->active
-                        ? abs(priv->x - foe_ship->x) + abs(priv->y - foe_ship->y)
-                        : 0;
-    moved_closer = dist1 < dist0 || (priv->x != own_x || priv->y != own_y);
-    /* Must leave station-keep (self) goto. */
-    if (priv->goto_x == own_x && priv->goto_y == own_y && !combat_done) {
-      hunt = 0;
-      moved_closer = 0;
-    }
-  }
-
-  if (!combat_done && !hunt && !moved_closer) {
+  /* DOS has no distant hunt: the idle hull takes a LAB_4d2e wander step and
+   * leaves its station; it must not sit on goto=self all turn. */
+  const int moved = priv && priv->active && (priv->x != own_x || priv->y != own_y);
+  if (!combat_done && !moved) {
     fprintf(
       stderr,
       "unit_ai_euro_war: priv-sk orders=%d goto=(%d,%d) pos=(%d,%d)\n",
@@ -829,13 +779,13 @@ static int unit_privateer_station_keep_hunt(void) {
     free(map.terrain);
     free(map.layer2);
     free(map.layer3);
-    return fail("expected station-keep Privateer to hunt toward foe sea");
+    return fail("expected station-keep Privateer to take a wander step");
   }
 
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "unit_ai_euro_war: privateer station-keep hunt ok\n");
+  fprintf(stderr, "unit_ai_euro_war: priv-sk wander ok (moved=%d combat=%d)\n", moved, combat_done);
   return 0;
 }
 
