@@ -4598,8 +4598,12 @@ int main(void) {
         int is[3];
         int ibn = 0;
         int isn = 0;
-        if (!village_trade_intel_get(0, 5, 5, ib, &ibn, is, &isn) ||
-            isn != pop.queue[bw].choice_count) {
+        /* Goods rows + DOS's "Nothing right now, thank you." decline (id 0). */
+        const int cc = pop.queue[bw].choice_count;
+        if (cc < 2 || pop.queue[bw].choice_ids[cc - 1] != 0) {
+          return fail("2820: @BUYWHICH must end with a decline row carrying id 0");
+        }
+        if (!village_trade_intel_get(0, 5, 5, ib, &ibn, is, &isn) || isn != cc - 1) {
           return fail("2820: @BUYWHICH should record the village's goods for sale");
         }
         for (int k = 0; k < isn; ++k) {

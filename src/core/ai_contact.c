@@ -6323,7 +6323,13 @@ static void ai_contact_enqueue_buy0(
   }
 }
 
-/* Human: @BUYWHICH (up to 3 goods). Returns 1 when a CHOICE was queued. */
+/*
+ * Human: @BUYWHICH. DOS menu 0x15a0 has four rows — the three goods
+ * (`"{%STRING0}."` …) and `"Nothing right now, thank you."`; 2820 only buys
+ * on a pick of 1..3 (`0 < iStack_5e < 4`), row 4 ends the visit. The
+ * decline row carries id 0 like a cancelled popup. Returns 1 when a CHOICE
+ * was queued.
+ */
 static int ai_contact_enqueue_buywhich(
   ColonizeTurnContext* ctx, int nation_id, int e, ColonizeUnit* unit, const AiContact2820* s
 ) {
@@ -6345,15 +6351,28 @@ static int ai_contact_enqueue_buywhich(
            tok.string0, tok.string1, tok.string2);
   char body[AI_POPUP_BODY_LEN];
   popup_msg_fill(ctx->messages, "BUYWHICH", &tok, fb, body, sizeof(body));
-  const char* labels[3];
-  int ids[3];
+  /* GAME.TXT rows when the section carries all four, else plain fallbacks. */
+  char rows[AI_POPUP_CHOICE_MAX][POPUP_MSG_CHOICE_LEN];
+  const ColonizeMsgSection* sec = ctx->messages ? assets_msg_find(ctx->messages, "BUYWHICH") : NULL;
+  const int nrows = sec ? popup_msg_choices(sec, rows, AI_POPUP_CHOICE_MAX) : 0;
+  char filled[4][AI_POPUP_CHOICE_LEN];
+  const char* labels[4];
+  int ids[4];
   for (int k = 0; k < n; ++k) {
-    labels[k] = ai_contact_cargo_name(goods[k]);
-    ids[k] = goods[k] + 1; /* 1..16; 0 = cancel */
+    if (nrows >= 4) {
+      popup_msg_apply_tokens(filled[k], sizeof(filled[k]), rows[k], &tok);
+    } else {
+      snprintf(filled[k], sizeof(filled[k]), "%s", ai_contact_cargo_name(goods[k]));
+    }
+    labels[k] = filled[k];
+    ids[k] = goods[k] + 1; /* 1..16 */
   }
+  snprintf(filled[n], sizeof(filled[n]), "%s", nrows >= 4 ? rows[3] : "Nothing right now, thank you.");
+  labels[n] = filled[n];
+  ids[n] = 0; /* decline: no purchase */
   if (!ai_popup_enqueue_choice_ctx(
         ctx->ai_popups, AI_POPUP_TAG_CONTACT_BUYWHICH, e, nation_id, unit->id, NULL, body,
-        labels, ids, n
+        labels, ids, n + 1
       )) {
     return 0;
   }
@@ -10433,6 +10452,8 @@ void ai_contact_apply_popup_result(ColonizeTurnContext* ctx, const AiPopupState*
   if (popup->result_tag == AI_POPUP_TAG_CONTACT_BUYWHICH) {
     if (popup->result_choice_id > 0) {
       ai_contact_apply_buywhich(ctx, ind, nation_id, e, popup->result_payload, popup->result_choice_id - 1);
+    } else if (e >= 0 && e <= 3) {
+      s_2820[e].active = 0; /* "Nothing right now" / cancel ends the visit */
     }
     return;
   }
