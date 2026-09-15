@@ -7,9 +7,12 @@ Parent: [`move_scoring.md`](move_scoring.md). Annotated stub:
 [`euro_ocean_scoring.c`](euro_ocean_scoring.c). Land OPEN arms:
 [`move_scoring_land.md`](move_scoring_land.md).
 
-**Port status (revised 2026-09-07f — the old "cargo matrix PARKED" line was
-stale):** mapped; the ocean *step* scorer `ai_euro_ocean_score_step` is still
-thin, but every cargo matrix in this band is ported —
+**Port status (revised 2026-09-15):** mapped; every cargo matrix in this
+band is ported, and the ship arms of the shared 8-direction scorer are too
+(see "Ship wander" below). The goal-directed ocean *step* toward a committed
+goto (`ai_euro_ocean_score_step`) is still the port's own greedy scorer: DOS
+walks a committed goto through the FUN_6662 pathfinder, not through 20e6.
+Every cargo matrix in this band is ported —
 `ai_euro_20e6_unload_mask`/`_unload_by_mask`, `_delivery_tallies`/
 `_delivery_colony_pick`, `_delivery_sell_tail`, `_load_pick`,
 `_colony_sail_pick`, `_457e_hs_cadence`, `_47b9_dead_end`,
@@ -120,6 +123,36 @@ recovered as the NAMES @UNIT bit-string (`k_20e6_type_flags`).
   idle timer `+0x8f`, ship-type docks.
 - Distance penalty via `037a` Chebyshev-ish; keep best `local_e2`.
 
+## Ship wander (raw 90210-90219 → `LAB_521d_4d2e`) — ported 2026-09-15
+
+There is **no naval combat scoring inside `3558`**. After the cargo bands fall
+through (`3558` → `4393` → `457e` → the `47b9`/`48ab` tail), raw 90210 sends
+the unit into the shared 8-direction scorer `LAB_4d2e` — always for an idle
+hull (`+0x314c` ∈ {0, 5, 6, 0xa} or a step goto onto its own tile), and for a
+busy one only when `FUN_281f_0984` (8-adjacent foreign-owner probe) hits.
+`LAB_4d2e` carries the ship (`local_34 != 0`) arms inline:
+
+| Raw | Ship arm | Port |
+|-----|----------|------|
+| 88622-88624 | WoI → not idle (`bVar20 = false`) | `fog_enable = 0` |
+| 88632-88664 | idle hull with military / Pioneers aboard, no unload mask, `+0x3148` bit 0x10 clear: `rng(0,0x10)==0` → random inset tile, open-sea water, MD > 7 → latch bit, goto; bit set: `rng(0,0x30)==0` clears | `ai_euro_20e6_ship_far_roam` |
+| 88679-88687 | step only onto ocean / high seas with `06b4 == 1` (open-sea region); a land neighbour falls to a bare `0696` probe | `ai_euro_20e6_open_sea` (region ≤ 1 relaxation for synthetic maps) |
+| 88709 | the "unseen tile" arm needs `iStack_90 == 0` (unit on land) | `unit_on_water` gate |
+| 88729-88735 | settlement-step term is non-ship only | already gated |
+| 88808-88830 | hostile Euro colony (diplo `& 0x60 == 0x20`) adjacent to the destination: 0x14 Stockade / 0x28 Fort (`0322` bits 1/2) + 0x1e per Artillery in its stack, × occupied goods holds `+0x3150` | in `ai_euro_20e6_wander_step` |
+| 88842-88844 | eastern half of the map: +4 for dirs 5..7 (SW/W/NW) | same |
+| 88853-88856 | ring +2 for unseen tiles counts water for ships | same |
+| `LAB_52aa` | attack odds ×4; the `< 0xc → −999` penalty is non-ship only | `ai_euro_20e6_attack_term` (was already ship-aware) |
+
+Consequences the port now follows: a warship does **not** hunt distant foes
+(the thin "nearest foe ship / enemy port" aim and the Galleon "war transport
+target" were retired), it fights what the wander pick puts next to it; an
+attack-0 hull scores no foe tile at all (`0x5236 == 0` → the tile is skipped);
+idle ships roam instead of parking on the berth. Entry in the port:
+`ai_euro_20e6_ship_wander_act` (ship band of `ai_euro_unit_act`, just before
+the sail loop); a busy hull only takes an attack pick from it, never a step
+(the port has no goal record to rebuild an overwritten delivery goto from).
+
 ## Follow-on bands (`4393` … `47b9`)
 
 | LAB | Lines | Gate | Role |
@@ -138,7 +171,8 @@ Work-queue layout (AI goals): id @ `−0x5f24`, score @ `−0x5f22`, count byte
 
 | Behavior | Linux | OPEN |
 |----------|-------|------|
-| Ocean step toward goto | `ai_euro_ocean_score_step` (HS west/east bias, fort avoid, thin war) | — (`local_9c` unload + colony sail matrix both ported; see rows below) |
+| Ocean step toward goto | `ai_euro_ocean_score_step` (HS west/east bias, fort avoid) — the port's own; DOS walks a committed goto via FUN_6662 | — |
+| Idle / adjacent-foe wander | **Ported 2026-09-15**: `ai_euro_20e6_ship_wander_act` → `_ship_far_roam` + `_wander_step` ship arms (see "Ship wander") | — |
 | HS place | `units_spiral_place_hs_near` / `48d3_0434` | Matches `3fa6` intent |
 | `06ae` unload | **Ported 2026-09-06**: `ai_euro_20e6_unload_mask` / `_unload_by_mask` (`ai_euro.c:10536` call site) — the real per-cargo `0x523d & local_9c` rule with the `06ae` drop tile | first-colony beachhead branch + empty-mask best-passenger fallback only |
 | Work-queue haul | `4393` pick is **ships-only 2026-09-07b**, with the `LAB_457e` wagon origin walk live (`ai_euro_20e6_wagon_origin_walk`); queue-decrement tail = `ai_goals_work_consume` | — |

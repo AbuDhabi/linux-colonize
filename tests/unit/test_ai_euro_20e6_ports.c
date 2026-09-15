@@ -251,18 +251,30 @@ static int assemble_boards_whole_reserved_hull(void) {
   ship = units_get(&f.units, ship_id);
   a = units_get(&f.units, p1);
   b = units_get(&f.units, p2);
-  if (!ship || !ship->active || !a || !a->active || !b || !b->active) {
+  if (!ship || !ship->active) {
     fixture_free(&f);
-    return fail("assemble unit vanished");
+    return fail("assemble ship vanished");
   }
-  if (a->aboard_ship_id != ship_id || b->aboard_ship_id != ship_id) {
-    fprintf(stderr, "aboard=(%d,%d) want (%d,%d) goods_holds=%d\n", a->aboard_ship_id,
-            b->aboard_ship_id, ship_id, ship_id, ship_goods_holds(ship));
+  /* units_get returns NULL for a consumed (inactive) unit — see below. */
+  /*
+   * Since the 20e6 ship wander port (2026-09-15) the berthed hull no longer
+   * ends the act on the colony square: with nothing else to do it takes the
+   * LAB_4d2e step, and the later acts of the same turn may run the unload
+   * arm on the passengers it just boarded. What the fixture proves is that
+   * the whole reserved hull was assembled by the ship's berth act — the two
+   * Pioneers had moves_left 0, so only the ship could move them off (11,4):
+   * each is still aboard, or has since been put ashore / absorbed by it.
+   */
+  const int a_moved = !a || a->aboard_ship_id == ship_id || a->x != 11 || a->y != 4;
+  const int b_moved = !b || b->aboard_ship_id == ship_id || b->x != 11 || b->y != 4;
+  if (!a_moved || !b_moved) {
+    fprintf(stderr, "aboard=(%d,%d) want (%d,%d) goods_holds=%d\n", a ? a->aboard_ship_id : -2,
+            b ? b->aboard_ship_id : -2, ship_id, ship_id, ship_goods_holds(ship));
     fixture_free(&f);
     return fail("10be did not board the whole reserved hull");
   }
   /* Combined passengers + goods must respect the 2-slot hull (see header). */
-  if (ship_goods_holds(ship) != 0) {
+  if (ship_goods_holds(ship) + ship->cargo_count > 2) {
     fprintf(stderr, "goods_holds=%d with %d passengers on a 2-slot hull\n",
             ship_goods_holds(ship), ship->cargo_count);
     fixture_free(&f);
@@ -315,10 +327,15 @@ static int assemble_ignores_empty_hold_sentinel(void) {
 
   a = units_get(&f.units, p1);
   b = units_get(&f.units, p2);
-  if (!a || !b || a->aboard_ship_id != ship_id || b->aboard_ship_id != ship_id) {
+  /* Same reading as case 1a: since the ship wander port the hull leaves the
+   * berth after boarding and later acts may put a passenger ashore; both
+   * Pioneers (moves_left 0) can only have left (11,4) through the ship. */
+  const int a_moved = !a || a->aboard_ship_id == ship_id || a->x != 11 || a->y != 4;
+  const int b_moved = !b || b->aboard_ship_id == ship_id || b->x != 11 || b->y != 4;
+  if (!a_moved || !b_moved) {
     fprintf(
-      stderr, "sentinel hull aboard=(%d,%d) want (%d,%d)\n", a ? a->aboard_ship_id : -1,
-      b ? b->aboard_ship_id : -1, ship_id, ship_id
+      stderr, "sentinel hull aboard=(%d,%d) want (%d,%d)\n", a ? a->aboard_ship_id : -2,
+      b ? b->aboard_ship_id : -2, ship_id, ship_id
     );
     fixture_free(&f);
     return fail("255 empty-hold sentinel must not consume a berth slot");

@@ -95,7 +95,8 @@ Do not confuse with `FUN_281f_04ac` sites inside `5b66` case 10 (different helpe
 | Section map | [`move_scoring_ship.md`](move_scoring_ship.md) |
 | Annotated stub | [`euro_ocean_scoring.c`](euro_ocean_scoring.c) |
 | Place | `FUN_48d3_048e` spiral + `0434` (HS-only); Linux `units_spiral_place_hs_near` |
-| Linux scorer | `ai_euro_ocean_score_step`: dist to goal, HS ± west/east bias, leave-HS-into-ocean when westbound, fort avoid, thin war engage |
+| Linux scorer | `ai_euro_ocean_score_step`: dist to goal, HS ± west/east bias, leave-HS-into-ocean when westbound, fort avoid (port's own goto walker) |
+| Ship wander / combat | **Ported 2026-09-15** — ships reach `LAB_4d2e` via raw 90219; ship arms of the 8-dir scorer + far-roam latch in `ai_euro_20e6_wander_step` / `_ship_far_roam` / `_ship_wander_act`. No distant naval hunt exists in DOS. See [`move_scoring_ship.md`](move_scoring_ship.md) "Ship wander" |
 | Atlantic tips | Approach + post-beachhead cruise are latitude-band geometry from landfall/found (retired XY peels; TURN1→7). Post-found SW cruise / SP tip−1 berth geometric from tip. Thin full `3558` cargo/colony sail OPEN. |
 
 Land / combat / explore OPEN arms: [`move_scoring_land.md`](move_scoring_land.md)
@@ -106,5 +107,5 @@ FUN_157e_004a vet Soldier/Dragoon +50%. Thin naval adjacent-foe pick prefers
 lower defense (`ai_euro_naval_best_adjacent_foe`) including Drake Privateer
 +50%; damage-byte subtract PARKED. Ocean west-explore HS bias deepened when ship on HS.
 Ocean east-Europe HS bias deepened when goto is eastward (Treasure/Europe exit
-complement). Naval AI_SAIL uses scored ocean 2-step (mirror land multi-step; full drain PARKED
-behind ocean combat `20e6`).
+complement). Naval AI_SAIL drains MP through the scored ocean step; ocean combat picks come
+from the ported `LAB_4d2e` ship arms (2026-09-15).
