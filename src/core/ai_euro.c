@@ -7657,6 +7657,13 @@ static int ai_euro_0a60_unit_can_pursue_goal(
         return has_bit3;
       }
       return ai_euro_is_military_name(name) || ai_euro_is_artillery_name(name);
+    case AI_GOAL_ESCORT:
+      /* DS:0x523d bit 2 (k_20e6_type_flags 0x1c/0x3c/0x64 rows): land
+       * military and Scouts; no ship type carries it. */
+      if (is_ship) {
+        return 0;
+      }
+      return ai_euro_is_military_name(name) || units_name_kind(name) == UNITS_KIND_SCOUT;
     default:
       return 1; /* CONTACT/LABOR/COLONY/COLONY_ALT: no known DOS type gate here */
   }
@@ -18816,7 +18823,8 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
           if (!g || g->code == AI_GOAL_EMPTY) {
             continue;
           }
-          if ((g->code == AI_GOAL_MILITARY || g->code == AI_GOAL_CONTACT) &&
+          if ((g->code == AI_GOAL_MILITARY || g->code == AI_GOAL_CONTACT ||
+               g->code == AI_GOAL_ESCORT) &&
               (g->x != u->x || g->y != u->y)) {
             keep_mil = 1;
             break;
@@ -19273,7 +19281,8 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
   if (units_orders_follow_goto(u->orders)) {
     const int drain =
       (goal_code == AI_GOAL_FOUND || goal_code == AI_GOAL_MILITARY ||
-       goal_code == AI_GOAL_CONTACT || land_war_hunted || peace_border_hunted ||
+       goal_code == AI_GOAL_CONTACT || goal_code == AI_GOAL_ESCORT || land_war_hunted ||
+       peace_border_hunted ||
        scout_explored);
     /* drain: while MP left; else one scored step (prior non-multi path). */
     for (;;) {
@@ -19433,20 +19442,54 @@ void ai_euro_dispatcher_turn(ColonizeTurnContext* ctx, int nation_id) {
     ctx->units, ctx->colonies, ctx->map, ctx->europe, ctx->col1, nation_id
   );
 
-  /* 6–7. Outer any_acted; wave0 ships; wave1 ships+land; high→low.
-   * Each unit gets one act call per outer iteration (inner while breaks). */
+  /*
+   * 6–7. FUN_521d_6d8e raw 93237-93325 (re-read 2026-09-15; the old "ships
+   * first, one act per unit per pass" shape came from a mislabelled type
+   * constant in the annotated header):
+   *   do {
+   *     for wave 0..1:
+   *       acted = 0;
+   *       for id = count-1 down to 0 while !acted:
+   *         wave 0 admits only types 0x0a/0x0b/0x0c (Treasure / Artillery /
+   *         Wagon Train, bVar4); wave 1 admits every unit;
+   *         while (unit has MP): sticky bookkeeping, act (5b66), acted = 1;
+   *         then, if the unit count is unchanged and it is a wave-0 type
+   *         now out of MP: upsert primary goal code 2 at its tile with prio
+   *         2 Treasure / 3 Artillery / 1 Wagon (thunk_FUN_2a1f_0470).
+   *   } while (wave 1 acted someone);
+   * i.e. each outer pass drains ONE wave-0 unit and ONE any-unit, highest
+   * id first, then rescans from the top. Port keeps the `guard < 64`
+   * ceiling and breaks the inner drain on a no-progress act (DOS relies on
+   * the >0x14 sticky clear alone).
+   *
+   * AI_6D8E_DOS_LOOP=1 selects that DOS shape. Default stays the legacy
+   * "wave 0 = ships, one act per unit per pass" shape: the golden-fitted
+   * first-colony beachhead arms (ai_euro_try_first_colony_land, the
+   * corridors / wake_elig rules, TURN2-5) and the headless WoI sim were
+   * curve-fit to ships acting first and twice per pass, and flip under the
+   * DOS order (golden_ai_turns TURN3→4 loses two founds, golden_woi_ref01
+   * never reaches LOST). Refitting those arms is the open item, see
+   * docs/ai_euro_logic_map.yaml dispatcher.unit_loop. The wave-0 ESCORT
+   * follow-up (goal code 2) and the sticky "clear then act" rule are DOS in
+   * both modes.
+   */
+  const int dos_loop = getenv("AI_6D8E_DOS_LOOP") && getenv("AI_6D8E_DOS_LOOP")[0] == '1';
   int any_acted;
   int guard = 0;
   do {
     any_acted = 0;
     for (int wave = 0; wave < 2; ++wave) {
-      for (int i = COLONIZE_UNITS_MAX - 1; i >= 0; --i) {
+      int wave_acted = 0;
+      for (int i = COLONIZE_UNITS_MAX - 1; i >= 0 && !(dos_loop && wave_acted); --i) {
         ColonizeUnit* u = &ctx->units->units[i];
         if (!u->active || u->nation_id != nation_id || u->aboard_ship_id >= 0) {
           continue;
         }
         const int is_ship = ai_euro_is_ship_type(ctx->units, u->id);
-        const int in_wave = (wave != 0) || is_ship;
+        const ColonizeUnitKind ukind = units_name_kind(units_display_name(ctx->units, u));
+        const int is_wave0_type =
+          ukind == UNITS_KIND_TREASURE || ukind == UNITS_KIND_ARTILLERY || ukind == UNITS_KIND_WAGON;
+        const int in_wave = (wave != 0) || (dos_loop ? is_wave0_type : is_ship);
         if (!in_wave) {
           continue;
         }
@@ -19569,24 +19612,27 @@ void ai_euro_dispatcher_turn(ColonizeTurnContext* ctx, int nation_id) {
           }
         }
 
+        /* DOS inner `while (has_moves)`: drain this unit before the next scan. */
+        int first_act = 1;
+        while (u->active && (first_act || (dos_loop && u->moves_left > 0))) {
+          first_act = 0;
         if (u->id == s_sticky_unit) {
           s_sticky_count++;
           if (s_sticky_count > 0x14) {
+            /* DOS FUN_281f_0934: clear orders, then act anyway (no skip). */
             units_clear_orders(ctx->units, u->id);
-            s_sticky_unit = -1;
             s_sticky_count = 0;
-            continue;
           }
         } else {
           s_sticky_unit = u->id;
           s_sticky_count = 0;
         }
 
-        const int was_ship = is_ship;
         const int before_moves = u->moves_left;
         const int before_x = u->x;
         const int before_y = u->y;
         ai_euro_unit_act(ctx, u, nation_id);
+        wave_acted = 1;
 
         const int progressed =
           !u->active || u->moves_left < before_moves || u->x != before_x || u->y != before_y;
@@ -19626,17 +19672,28 @@ void ai_euro_dispatcher_turn(ColonizeTurnContext* ctx, int nation_id) {
             (void)ai_diplo_153e_encounter(ctx, ctx->human_nation, nation_id, u->id);
           }
         }
-        if (progressed) {
+        if (!progressed) {
+          break; /* port-only spin guard; DOS keeps re-acting until MP 0 */
+        }
+        /* DOS: "wave 1 acted someone" — but DOS only ever acts a unit
+         * that still has MP, whereas the port's first-colony wake arm above
+         * admits 0-MP settlers; count only real progress so a no-op act
+         * cannot spin the outer loop to the guard. Legacy shape counts
+         * either wave (ships act in both). */
+        if (wave == 1 || !dos_loop) {
           any_acted = 1;
-          if (u->active && u->id == s_sticky_unit) {
-            s_sticky_count = 0; /* progress resets anti-spin */
-          }
-        } else if (u->id == s_sticky_unit) {
-          /* no-op act still counts toward sticky via the increment above */
+        }
         }
 
-        if (was_ship && u->active && u->moves_left <= 0) {
-          ai_goals_upsert_primary(nation_id, u->x, u->y, AI_GOAL_CONTACT, 2);
+        /*
+         * Raw 93286-93298: wave-0 type, unit count unchanged, out of MP →
+         * primary goal code 2 (AI_GOAL_ESCORT) at its tile, prio by type.
+         * (The old "ship out of MP → CONTACT prio 2" arm here was an
+         * invention built on the ships-first misread.)
+         */
+        if (is_wave0_type && u->active && u->moves_left <= 0) {
+          const int prio = ukind == UNITS_KIND_TREASURE ? 2 : ukind == UNITS_KIND_ARTILLERY ? 3 : 1;
+          ai_goals_upsert_primary(nation_id, u->x, u->y, AI_GOAL_ESCORT, prio);
         }
       }
     }

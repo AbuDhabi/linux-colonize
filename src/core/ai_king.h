@@ -174,12 +174,13 @@ struct ColonizeUnit;
 int ai_king_mow_sail_home_20e6(ColonizeTurnContext* ctx, struct ColonizeUnit* u, int crown);
 
 /*
- * FUN_43f7_2244 — peacetime AI-nation-only self/ally-funded troop gift.
- * Called once per AI-controlled Euro nation's own turn (never the human —
- * see ai_king.c's header comment on the function body for the full
- * derivation). No-op post-WoI.
+ * FUN_43f7_2244 — peacetime @MERCENARIES offer to the human (1-in-21 per
+ * turn, WoI not declared, seller = random nation at peace with the human,
+ * offered only when affordable). Pay → 10f0 paid landing. DOS runs it in
+ * the human's year-loop slot right before Move Pieces; call it once per
+ * turn from the TURN_PROC_KING tail. Never for AI nations.
  */
-void ai_king_ai_peacetime_gift(ColonizeTurnContext* ctx, int nation_id);
+void ai_king_peacetime_merc_offer(ColonizeTurnContext* ctx);
 
 /*
  * FUN_3844_00f2 tail — @KINGFRIGATE. Every 8th peacetime turn, a nation

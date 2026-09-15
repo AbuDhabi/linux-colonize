@@ -145,7 +145,7 @@ Major thunks (catalog):
 | `281f_0676` | `4d56_1b3a` | Mid-turn Indian tables | [`mid_pass_indian_rank.md`](../original_sources_annotated/turn/mid_pass_indian_rank.md) |
 | `281f_0550` | `5bfb_00f8` | Rank Euro nations | same |
 | `281f_061e` | `3844_0442` | Year-end chrome | [`year_end_chrome.md`](../original_sources_annotated/turn/year_end_chrome.md) |
-| `281f_0668` | `43f7_2244` | Human merc offer | — |
+| `281f_0668` | `43f7_2244` | Human merc offer (@MERCENARIES 0x134c) | `ai_king_peacetime_merc_offer`, TURN_PROC_KING tail (2026-09-15) |
 | `291f_0a66` | `43f7_2424` | SoL / king (inside `00f2`) | ai/king_ref |
 | `291f_0950` | `364b_0688` | Colony production | [`colony_eot_production.md`](../original_sources_annotated/turn/colony_eot_production.md) |
 | `291f_0a90` | `38fd_5e52` | Europe nation EOT | [`europe_nation_eot.md`](../original_sources_annotated/turn/europe_nation_eot.md) |

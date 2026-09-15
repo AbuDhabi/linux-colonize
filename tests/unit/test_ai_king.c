@@ -4389,33 +4389,28 @@ int main(void) {
   }
 
   /*
-   * FUN_43f7_2244: peacetime AI-nation self/ally-funded troop gift
-   * (ai_king_ai_peacetime_gift) — implemented 2026-08-14, see king_ref.md
-   * "2244/2022 — corrected". Deterministic seed=13 hits both the 1-in-21
-   * gate and rolls beneficiary==nation_id (self-gift) on its first two
-   * calls (probed empirically, same small-seed-first-roll convention used
-   * elsewhere in this file). Ported as an AI-nation beat: never fires
-   * post-WoI, and the caller (ai.c's ai_euro_nation_turn), not this
-   * function, is what skips the human. See the PREMISE note on
-   * ai_king_ai_peacetime_gift — DOS's 0x543f polarity says 2244 is really
-   * a human-turn beat; re-premising it is its own pass.
-   *
-   * 2026-09-10 (third-wave lead 2): the landing now runs through
-   * ai_king_10f0_land's paid arm (2244's own `thunk_FUN_2a1f_010a(1)`
-   * tail), so the beneficiary gets a Man-O-War-borne force on a scored
-   * water tile instead of bare units dropped at `(hx, hy+1)`. The MoW is
-   * despawned after unloading (paid mode), so the net unit gain is the
-   * land troops only.
+   * FUN_43f7_2244 — peacetime @MERCENARIES offer to the HUMAN
+   * (ai_king_peacetime_merc_offer, re-premised 2026-09-15: DOS calls it from
+   * the control==0 arm of the year loop, raw 6418, never for AI nations).
+   * Gate 1-in-21 + seller RNG(0,3) must be the human or at peace with it, so
+   * the seed is probed. Pay → gold debited by the rolled price and the 10f0
+   * paid landing puts Dragoons/Artillery ashore (Man-O-War despawned).
    */
   {
+    AiPopupState mpop;
+    ai_popup_init(&mpop);
+    AiPopupState* saved_pops = ctx.ai_popups;
+    ctx.ai_popups = &mpop;
     ai_king_latch_set(&col1, 0, 0); /* peacetime */
     col1.head.game_options.woi = 0;
-    ColonizeDosRng gift_rng;
-    dos_rng_seed(&gift_rng, 13u);
-    ctx.rng = &gift_rng;
-    col1.nation[1].gold = 1000000;
+    ColonizeDosRng merc_rng;
+    ctx.rng = &merc_rng;
+    /* The human purse is the Europe mirror (europe_nation_gold); keep both
+     * in step or the accessor debits the stale mirror value. */
+    col1.nation[0].gold = 1000000;
+    europe.gold = 1000000;
     colonies.colonies[0].active = true;
-    colonies.colonies[0].nation_id = 1;
+    colonies.colonies[0].nation_id = 0;
     colonies.colonies[0].population = 3;
     /* 10f0's water scan (281f_0682) refuses a tile holding another nation's
      * units; earlier subtests parked nation-0 hulls on both ocean tiles
@@ -4426,29 +4421,68 @@ int main(void) {
         wu2->active = false;
       }
     }
-    const int gift_units_before = count_nation(&units, 1);
-    const uint32_t gift_gold_before = col1.nation[1].gold;
-    ai_king_ai_peacetime_gift(&ctx, 1);
-    if (col1.nation[1].gold >= gift_gold_before) {
-      return fail("2244 self-gift (seed=13) should spend gold from the acting nation");
+    const uint32_t merc_gold_before = europe_nation_gold(ctx.europe, &col1, 0);
+    const int merc_units_before = count_nation(&units, 0);
+    int merc_seed = -1;
+    int merc_payload = 0;
+    for (unsigned sd = 1; sd < 2000 && merc_seed < 0; ++sd) {
+      dos_rng_seed(&merc_rng, sd);
+      ai_popup_clear(&mpop);
+      ai_king_peacetime_merc_offer(&ctx);
+      for (int i = 0; i < mpop.queue_count; ++i) {
+        if (mpop.queue[i].tag == AI_POPUP_TAG_KING_MERC_PEACE &&
+            mpop.queue[i].kind == AI_POPUP_KIND_CHOICE) {
+          merc_seed = (int)sd;
+          merc_payload = mpop.queue[i].payload;
+          break;
+        }
+      }
     }
-    if (count_nation(&units, 1) <= gift_units_before) {
-      return fail("2244 self-gift (seed=13) should land at least one unit");
+    if (merc_seed < 0) {
+      return fail("2244 should enqueue @MERCENARIES for some seed < 2000");
     }
-    fprintf(stderr, "unit_ai_king: 2244 peacetime AI self-gift ok\n");
+    if (europe_nation_gold(ctx.europe, &col1, 0) != merc_gold_before) {
+      return fail("2244 offer must not spend before Pay");
+    }
+    const int merc_price = merc_payload & 0xffff;
+    const int merc_regular = (merc_payload >> 20) & 0xf;
+    if (merc_price <= 0 || merc_regular < 1 || merc_regular > 4) {
+      return fail("2244 payload should carry price and 1..4 regulars");
+    }
+    mpop.has_result = true;
+    mpop.result_cancelled = false;
+    mpop.result_choice_id = 1; /* Pay */
+    mpop.result_tag = AI_POPUP_TAG_KING_MERC_PEACE;
+    mpop.result_nation_a = 0;
+    mpop.result_nation_b = (int)col1.head.rival_nation_slot_2;
+    mpop.result_payload = merc_payload;
+    ai_king_apply_popup_result(&ctx, &mpop);
+    ai_popup_consume_result(&mpop);
+    if (europe_nation_gold(ctx.europe, &col1, 0) != merc_gold_before - (uint32_t)merc_price) {
+      fprintf(stderr, "unit_ai_king: gold after Pay=%u want=%u (price=%d)\n",
+              (unsigned)europe_nation_gold(ctx.europe, &col1, 0),
+              (unsigned)(merc_gold_before - (uint32_t)merc_price), merc_price);
+      return fail("2244 Pay should spend the rolled price");
+    }
+    if (count_nation(&units, 0) < merc_units_before + merc_regular) {
+      return fail("2244 Pay should land the rolled Dragoons");
+    }
+    fprintf(stderr, "unit_ai_king: 2244 peacetime @MERCENARIES (seed=%d) ok\n", merc_seed);
 
     /* Post-WoI: must no-op even on the same hit-shaped seed. */
     ai_king_latch_set(&col1, 0, 1);
     col1.head.game_options.woi = 1;
-    dos_rng_seed(&gift_rng, 13u);
-    col1.nation[1].gold = 1000000;
-    const uint32_t gift_gold_before2 = col1.nation[1].gold;
-    ai_king_ai_peacetime_gift(&ctx, 1);
-    if (col1.nation[1].gold != gift_gold_before2) {
-      return fail("2244 must no-op once WoI is declared");
+    dos_rng_seed(&merc_rng, (unsigned)merc_seed);
+    ai_popup_clear(&mpop);
+    ai_king_peacetime_merc_offer(&ctx);
+    for (int i = 0; i < mpop.queue_count; ++i) {
+      if (mpop.queue[i].tag == AI_POPUP_TAG_KING_MERC_PEACE) {
+        return fail("2244 must no-op once WoI is declared");
+      }
     }
     ai_king_latch_set(&col1, 0, 0);
     col1.head.game_options.woi = 0;
+    ctx.ai_popups = saved_pops;
     ctx.rng = NULL; /* restore — later code in this test assumes no RNG */
   }
 

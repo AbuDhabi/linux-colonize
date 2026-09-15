@@ -3907,6 +3907,13 @@ bool turn_processor_advance(ColonizeTurnProcessor* proc, ColonizeTurnContext* ct
          * (e.g. Coats) looks like it moved in response to that sale. */
         ctx->europe->price_event_count = 0;
       }
+      /*
+       * FUN_281f_0668 → FUN_43f7_2244 (viceroy_unpacked.c:6418): the
+       * peacetime @MERCENARIES offer sits in the human arm of the year loop
+       * after FUN_281f_0644 (= 3844_00f2, everything above) and right before
+       * FUN_281f_062c (Move Pieces).
+       */
+      ai_king_peacetime_merc_offer(ctx);
       turn_set_active_nation(ctx, ctx->human_nation);
       turn_reveal_fog_for_nation(ctx, ctx->human_nation);
       turn_refresh_moves_for_nation(

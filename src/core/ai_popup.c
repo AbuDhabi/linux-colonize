@@ -449,6 +449,8 @@ static const char* ai_popup_tag_name(AiPopupTag tag) {
       return "KING_AUDIENCE";
     case AI_POPUP_TAG_KING_MERC:
       return "KING_MERC";
+    case AI_POPUP_TAG_KING_MERC_PEACE:
+      return "KING_MERC_PEACE";
     case AI_POPUP_TAG_KING_CONGRESS:
       return "KING_CONGRESS";
     case AI_POPUP_TAG_KING_ARRIVAL:

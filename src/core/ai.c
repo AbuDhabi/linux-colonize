@@ -1339,17 +1339,10 @@ void ai_euro_nation_turn(ColonizeTurnContext* ctx, int nation_id) {
     ai_diplo_leader_trait(ctx, nation_id, 1)
   );
 
-  /*
-   * FUN_43f7_2244 (King segment, reached via FUN_281f_0668 from this same
-   * generic per-AI-Euro-nation turn loop in DOS): peacetime AI-nation
-   * self/ally-funded troop gift. Placed before the dispatch-mode branch
-   * below so it fires exactly once per AI nation's turn regardless of
-   * which dispatch path (full vs early-fixture) is active — see
-   * ai_king_ai_peacetime_gift's own header comment for the full formula
-   * derivation. No-op post-WoI or for the human (this function is never
-   * called for ctx->human_nation — see turn.c's TURN_PROC_EURO slice).
-   */
-  ai_king_ai_peacetime_gift(ctx, nation_id);
+  /* FUN_43f7_2244 used to be called here as an AI "peacetime gift"; its DOS
+   * caller FUN_281f_0668 is in the HUMAN arm of the year loop (raw 6418),
+   * so it moved to turn.c's TURN_PROC_KING tail as the @MERCENARIES offer
+   * (ai_king_peacetime_merc_offer, 2026-09-15). */
   /* FUN_3844_00f2 tail: @KINGFRIGATE auto-accept for AI nations. */
   ai_king_frigate_offer(ctx, nation_id);
 
