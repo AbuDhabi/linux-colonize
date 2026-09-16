@@ -208,6 +208,114 @@ static int unit_century_cargoready(void) {
   return 0;
 }
 
+/*
+ * bugs.md #466: "hammer capacity > lumber income, lumber fell one turn then
+ * returned to maximum the next". Locks the two halves of the real rule:
+ *
+ *  - Pre-1600 (one turn/year, head.autumn always 0) every tick banks hammers
+ *    and debits lumber 1:1, so the stock falls on BOTH consecutive turns.
+ *  - Post-1600 the Spring/Autumn alternation freezes hammers (and therefore
+ *    the lumber debit) on Autumn ticks — real-DOS
+ *    original_saves/colony-prod-tests/COLONY00_no-transports.SAV (Spring 1680,
+ *    turn 268) -> COLONY01_no-transports.SAV (Autumn 1680, turn 269): all 32
+ *    colonies end the Autumn tick with `hammers` byte-for-byte unchanged and
+ *    lumber only rising (New Amsterdam 74 -> 98, Vlissingen 70 -> 82).
+ *    FUN_364b_0688's own Phase L (raw 57730-57733) has no season term, so the
+ *    freeze is composed upstream, but the observed DOS turn is the authority.
+ */
+static int unit_hammers_lumber_two_turns(void) {
+  ColonizeColonyPool pool;
+  colonies_init(&pool);
+  colonies_set_occupancy_map(NULL);
+  snprintf(pool.building_types[0].name, sizeof(pool.building_types[0].name), "Carpenter's Shop");
+  pool.building_type_count = 1;
+
+  ColonizeColony* col = &pool.colonies[0];
+  memset(col, 0, sizeof(*col));
+  col->active = true;
+  col->id = 1;
+  col->nation_id = 0;
+  snprintf(col->name, sizeof(col->name), "Timberton");
+  col->building_in_production = -1; /* bank hammers, no completion noise */
+  col->has_building[0] = true;
+  col->stock[COLONIZE_CARGO_FOOD] = 200;
+  col->stock[COLONIZE_CARGO_LUMBER] = 40;
+  col->colonists[0].active = true;
+  col->colonists[0].building_type = 0;
+  col->colonists[0].profession = COLONIZE_PROF_CARPENTER;
+  col->colonists[0].field_job = -1;
+  for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES; ++t) {
+    col->tiles[t] = -1;
+  }
+  col->colonist_count = 1;
+  col->population = 1;
+  pool.colony_count = 1;
+
+  ColonizeCol1Save save;
+  memset(&save, 0, sizeof(save));
+  save.head.year = 1550; /* pre-1600: every turn is a Spring tick */
+  save.head.autumn = 0;
+
+  /* Lumber income (2/turn) < carpenter capacity (6/turn). */
+  const int income = 2;
+  int prev = col->stock[COLONIZE_CARGO_LUMBER];
+  for (int turn = 0; turn < 2; ++turn) {
+    col->stock[COLONIZE_CARGO_LUMBER] += income;
+    ColonizeTurnResult prod;
+    memset(&prod, 0, sizeof(prod));
+    turn_run_colony_production_w(
+      &(ColonizeWorld){
+        .colonies = &pool, .map = NULL, .col1 = &save, .col1_ok = true,
+        .rng = NULL, .europe = NULL},
+      0, &prod, NULL, NULL
+    );
+    const int now = col->stock[COLONIZE_CARGO_LUMBER];
+    if (now >= prev) {
+      fprintf(
+        stderr, "#466 pre-1600 turn %d lumber must fall: %d -> %d\n", turn, prev, now
+      );
+      return 1;
+    }
+    prev = now;
+  }
+  if (col->hammers != 12) {
+    fprintf(stderr, "#466 pre-1600 hammers want 12 got %d\n", col->hammers);
+    return 1;
+  }
+
+  /* Post-1600: Spring tick spends, Autumn tick is frozen (real-DOS pair). */
+  save.head.year = 1680;
+  col->hammers = 0;
+  col->stock[COLONIZE_CARGO_LUMBER] = 40;
+  for (int turn = 0; turn < 2; ++turn) {
+    save.head.autumn = (uint16_t)turn; /* 0 = Spring tick, 1 = Autumn tick */
+    const int before = col->stock[COLONIZE_CARGO_LUMBER];
+    ColonizeTurnResult prod;
+    memset(&prod, 0, sizeof(prod));
+    turn_run_colony_production_w(
+      &(ColonizeWorld){
+        .colonies = &pool, .map = NULL, .col1 = &save, .col1_ok = true,
+        .rng = NULL, .europe = NULL},
+      0, &prod, NULL, NULL
+    );
+    const int now = col->stock[COLONIZE_CARGO_LUMBER];
+    const int want = (turn == 0) ? before - 6 : before;
+    if (now != want) {
+      fprintf(
+        stderr, "#466 post-1600 %s lumber want %d got %d\n",
+        turn == 0 ? "Spring" : "Autumn", want, now
+      );
+      return 1;
+    }
+  }
+  if (col->hammers != 6) {
+    fprintf(stderr, "#466 post-1600 hammers want 6 (Autumn frozen) got %d\n", col->hammers);
+    return 1;
+  }
+  fprintf(stderr, "#466 hammers/lumber two-turn drain ok\n");
+  return 0;
+}
+
 static int unit_eot_fog_reveal(void) {
   ColonizeWorldMap map;
   memset(&map, 0, sizeof(map));
@@ -5653,6 +5761,10 @@ int main(void) {
   }
 
   if (unit_century_cargoready() != 0) {
+    return 1;
+  }
+
+  if (unit_hammers_lumber_two_turns() != 0) {
     return 1;
   }
 

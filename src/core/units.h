@@ -65,6 +65,16 @@ void units_set_combat_human_nation(int human_nation);
 void units_set_combat_popups(AiPopupState* popups, const ColonizeMsgCatalog* game_txt);
 
 /*
+ * Europe screen for the DOS damaged-ship teleport (FUN_5fef_0352 raw 99610-
+ * 99623 / asm 5fef:0bc0-5fef:0cf9): a ship that loses at sea and has no own
+ * Drydock/Shipyard colony is unlinked from its tile and re-placed at
+ * (nation-20, nation-20) — the off-map Europe slot — on the spot. Pass NULL
+ * to clear (headless callers leave it unset and keep the ship on its tile).
+ */
+struct EuropeScreen;
+void units_set_combat_europe(struct EuropeScreen* europe);
+
+/*
  * ai_contact's ambush arm draws its own @INDIANWIN1/2 chrome (muskets/horses
  * seizure line, chief portrait), so it sets this around its
  * units_resolve_land_combat call to keep the generic native-attacker

@@ -1805,6 +1805,7 @@ static const ColonizeColonyPool* g_units_combat_colonies = NULL;
 static int g_units_combat_human_nation = -1;
 static AiPopupState* g_units_combat_popups = NULL;
 static const ColonizeMsgCatalog* g_units_combat_game_txt = NULL;
+static EuropeScreen* g_units_combat_europe = NULL;
 static ColonizeUnitsMoveWatchFn g_units_move_watch = NULL;
 static ColonizeUnitsCombatWatchFn g_units_combat_watch = NULL;
 static void* g_units_combat_watch_user = NULL;
@@ -2087,6 +2088,10 @@ void units_set_native_fallout_context(
 
 void units_set_combat_colonies(const ColonizeColonyPool* colonies) {
   g_units_combat_colonies = colonies;
+}
+
+void units_set_combat_europe(struct EuropeScreen* europe) {
+  g_units_combat_europe = (EuropeScreen*)europe;
 }
 
 int units_last_combat_outcome(void) {
