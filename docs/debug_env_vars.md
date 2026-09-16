@@ -10,6 +10,7 @@ comparing golden output.
 |-----|-----------|------|--------|---------|
 | `DOS_RNG_TRACE` | `src/core/dos_rng.c:10` | trace | Logs every RNG draw with a running index | off |
 | `AI_LCG_AUDIT` | `src/core/ai.c:184` | trace | Logs init-pulse `pick_dir` burn counts (phase 5) | off |
+| `AI_INIT_SCHED` | `src/core/ai.c` (`ai_init_sched_apply`) | trace | `"n:idx:count[:R];..."` — init-pulse burn schedule sweep: burn `count` draws before Brave `idx` of nation `n` picks (`idx=-1` = before the pulse; `R` = reseed to the pulse seed first). Setting it disables the default Inca burns. `golden_mapgen_seed100` is the oracle | unset |
 | `AI_SCORE_AT` | `src/core/ai.c:195` | trace | `"n:x:y[,n:x:y...]"` — extra `pick_dir` score-dump targets for the given nation/tile | unset |
 | `AI_STEP_AUDIT` | `src/core/ai.c:224` | trace | Logs mid-turn Brave step paths (phase 13 multi-step) | off |
 | `AI_PEEL_AUDIT` | `src/core/ai.c:239` | trace | Classifies each firing peel row against both branch scorers | off |

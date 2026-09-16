@@ -514,6 +514,24 @@ list, not from the inventory.
   (`COLONIZE_TEST_ONLY=TURN<t>_to_<t+1>`; was `AI_TURNS_ONLY=t`). Second trap: save offset 612 is NOT
   `prime_resource_seed` (it changes across TURN saves); DS:0x190 is the
   post_map word (365 on seed 100).
+  **Init Inca burns, static audit 2026-09-16 (not a live-capture item):**
+  every RNG call site reachable between 1816's entry reseed and the first
+  021a pick was enumerated (all `281f_04d4/04ca/0d90/0e68` sites in the 31
+  overlays via `rtlink_overlay_extract.py` + ndisasm, plus every direct
+  `19ef_0032/002c` caller in resident code) and each is already modelled or
+  gated off at game start; VR_SEED patches `FUN_1c0c_0012` (BIOS tick) to
+  return 100, so every `randomize` incl. the music picker's two calls in the
+  UI pump (`129f:0138`/`0250`) is a reset, never a burn; SEED100_REGEN1/2
+  reproduce SEED100 byte-for-byte, so it is not timing. The golden is a weak
+  oracle: with 0 burns only Brave 1 at (9,28) misses on a 1-point near-tie,
+  and k in {6,14,25,32} before Brave 1 all pass (also "reseed+3 before every
+  Brave"). The 6 is therefore a fit for one near-tie, same class as the six
+  `k_mid_peels` rows, not a missing DOS site. Tool: `AI_INIT_SCHED`
+  (debug_env_vars.md). One real lead fell out: DOS 152e's met test is
+  `FUN_281f_0a38(e, nation)` = `nation[e].relation_by_indian[n-4]`
+  (Euro-side byte), the port reads `indian.euro_diplo[e]` (Indian-side);
+  equal whenever the or-both writer set them, but `4cc6_0092` clears only
+  one side.
 - [x] **Human-colony `5952_035e` tick** — **REFUTED 2026-09-08d, no work.**
   The "DOS runs the colony tick for every nation" premise was wrong. The
   tick has exactly ONE call site in the whole EXE: inside the AI nation

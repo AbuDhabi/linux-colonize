@@ -230,6 +230,7 @@ static int ai_step_audit_enabled(void) {
 
 /* Seed-100 init pulse: peels + select quiet ASM. */
 static int s_ai_seed100_init_pulse;
+static uint32_t s_ai_init_pulse_seed;
 /* Calendar turn after advance during seed-100 mid-turn pulse (0 = not mid-turn). */
 static int s_ai_seed100_midturn_turn;
 
@@ -1292,6 +1293,7 @@ bool ai_init_new_game(const AiNewGameParams* params, char* err, size_t err_size)
       }
     }
     const uint32_t pulse_seed = ai_new_game_seed(params);
+    s_ai_init_pulse_seed = pulse_seed;
     for (int n = 4; n <= 11; ++n) {
       dos_rng_seed(rng, pulse_seed);
       ai_native_nation_pulse(params->units, params->map, params->col1, rng, n, true);
@@ -4051,21 +4053,29 @@ static int ai_dos_move_spent(
  * deleted 2026-09-14 with the rest of the empirical picker. */
 
 /*
- * Init-only LCG burns after the first Brave step of a nation pulse
- * (`ai_init_new_game` / post-`6a09`). Counts calibrated to SEED100 Brave
- * goldens (Inca=6, Tupi=1). DOS site still unlabeled — hang dumps B26/B27
- * place the mover after `6a09` returns, inside the subsequent `1816` pulse;
- * exact CALL that burns between Brave0 step1 and Brave1 pick is not named.
- * Mid-turn uses prelude burns (Inca=14, Aztec=4) instead — do not mix.
+ * Init-only LCG burns after the first Brave step of the Inca pulse
+ * (`ai_init_new_game` / post-`6a09`). Calibrated to SEED100.SAV; every
+ * other tribe needs exactly 0 (Sioux, also 6 villages, misses with any
+ * k in 1..10), so this is not a per-village draw.
+ *
+ * 2026-09-16 static audit (no DOS source found, and none can exist on the
+ * visible path): every FUN_281f_04d4/04ca/0d90/0e68 call site in all 31
+ * overlays plus every direct FUN_19ef_0032/002c caller in resident code was
+ * enumerated and attributed. Between 1816's entry reseed (BIOS tick read
+ * FUN_1c0c_0012, which VR_SEED.EXE patches to `mov ax,100`) and the first
+ * 021a pick the only RNG consumers are the ones already modelled: 152e's
+ * met-Euro loop (needs FUN_15b3_0004 bit 0x20, all zero at start), the
+ * 465b overspend gate (needs spent != 0), 3180/022e (need a foreign
+ * neighbour) and the UI pump's music picker (FUN_129f_00f6, which reseeds
+ * from the tick on BOTH sides of its draws, so it nets a reset, never a
+ * burn). SEED100_REGEN1/2 are byte-identical here, so it is not wall-clock.
+ * The golden is a weak constraint: with k=0 only Brave 1 at (9,28) misses,
+ * a 1-point near-tie (bases 209/208/208 decided by RNG(1,5)), and k in
+ * {6,14,25,32} before Brave 1 all pass, as does "reseed + 3 draws before
+ * every Brave". Treat 6 as a fit for that single near-tie, same class as
+ * the k_mid_peels residue; AI_INIT_SCHED (below) is the sweep tool.
  */
 static void ai_native_post_first_brave_burns(AiRng* rng, int nation_id) {
-  /*
-   * Init pulse only (turn 0, right after FUN_6a09). Six draws for the Inca
-   * — one per Inca village — reproduce SEED100.SAV; 2026-09-15 showed the
-   * placement is free (before the pulse or after the first step both match)
-   * and the old Tupi burn was a fit against the retired scorer (removed).
-   * Source of the six draws in DOS's init 1816 not identified.
-   */
   int burns = 0;
   if (nation_id == 4) {
     burns = 6;
@@ -4076,6 +4086,48 @@ static void ai_native_post_first_brave_burns(AiRng* rng, int nation_id) {
   if (ai_lcg_audit_enabled() && burns > 0) {
     fprintf(stderr, "AI_LCG_AUDIT post_first_brave n=%d burns=%d\n", nation_id, burns);
   }
+}
+
+/*
+ * Init-pulse burn-schedule sweep tool. AI_INIT_SCHED="n:idx:count[:R];..."
+ * burns `count` draws before Brave `idx` of nation `n` picks (idx = -1:
+ * before that nation's pulse); a trailing `R` reseeds to the pulse seed
+ * first. Setting it disables the default Inca burns above.
+ */
+static bool ai_init_sched_apply(AiRng* rng, int nation_id, int brave_index) {
+  const char* p = getenv("AI_INIT_SCHED");
+  if (!p) {
+    return false;
+  }
+  while (*p) {
+    int n = 0;
+    int idx = 0;
+    int cnt = 0;
+    int used = 0;
+    char r = 0;
+    if (sscanf(p, "%d:%d:%d:%c%n", &n, &idx, &cnt, &r, &used) < 4) {
+      r = 0;
+      if (sscanf(p, "%d:%d:%d%n", &n, &idx, &cnt, &used) < 3) {
+        break;
+      }
+    }
+    if (n == nation_id && idx == brave_index) {
+      if (r == 'R') {
+        dos_rng_seed(rng, s_ai_init_pulse_seed);
+      }
+      for (int b = 0; b < cnt; ++b) {
+        (void)ai_rng_next_counted(rng);
+      }
+      if (ai_lcg_audit_enabled()) {
+        fprintf(stderr, "AI_LCG_AUDIT sched n=%d idx=%d burns=%d reset=%d\n", n, idx, cnt, r == 'R');
+      }
+    }
+    p += used;
+    while (*p == ';') {
+      ++p;
+    }
+  }
+  return true;
 }
 
 /*
@@ -4341,6 +4393,9 @@ static AiNativeStepStatus ai_native_brave_step(
   /* DOS reads unit+0x314f raw; values outside 0..7 (8 = stayed last
    * act) legitimately disable the facing term — do NOT clamp to 0. */
   const int last_dir = u->last_dir;
+  if (seed100_init_burns && *steps == 0) {
+    (void)ai_init_sched_apply(rng, nation_id, brave_index);
+  }
   s_ai_native_home_dist = map_dos_dist(u->x - hx, u->y - hy); /* DS:0x8db8 */
   (void)tech;
   Ai021aResult pick;
@@ -4518,7 +4573,7 @@ static AiNativeStepStatus ai_native_brave_step(
     );
   }
   (*steps)++;
-  if (seed100_init_burns && brave_index == 0 && *steps == 1) {
+  if (seed100_init_burns && brave_index == 0 && *steps == 1 && !getenv("AI_INIT_SCHED")) {
     ai_native_post_first_brave_burns(rng, nation_id);
   }
   /*
@@ -4546,6 +4601,9 @@ static void ai_native_nation_pulse(
   }
 
   s_ai_seed100_init_pulse = seed100_init_burns ? 1 : 0;
+  if (seed100_init_burns) {
+    (void)ai_init_sched_apply(rng, nation_id, -1);
+  }
   memset(s_ai_first_contact_this_turn[nation_id - 4], 0, sizeof(s_ai_first_contact_this_turn[0]));
 
   const int max_mp = 3; /* Brave thirds allotment (FUN_281f_090c path) */
