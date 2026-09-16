@@ -25,7 +25,7 @@ void ai_popup_clear(AiPopupState* st) {
 }
 
 /*
- * bugs.md 433 — contact chains must not interleave.
+ * bugs.md #427 — contact chains must not interleave.
  *
  * DOS never queues a contact dialog: FUN_5bfb_3180 walks the eight neighbours
  * and, for the one it picks, calls FUN_5bfb_022e (Indian) or FUN_5bfb_153e
@@ -140,7 +140,7 @@ const char* ai_popup_bar_message(const AiPopupState* st) {
  * DOS FUN_1009_0004 (resident twin FUN_0000_0094, viceroy_unpacked.c:449-463):
  * the arm kind stored in DS:0x4c picks the strip ink. 1/2 -> 0x95 (@COLORS
  * hilite gold), 3 -> 0x0c (bright red), anything else 0x44 (@COLORS basic).
- * bugs.md 381: the port painted every line basic green.
+ * bugs.md #375: the port painted every line basic green.
  *
  * The `1 || 2` disjunct is DOS's own — transcribed, not a port invention — but
  * no producer in either game passes 2. Every literal arm kind that reaches
@@ -182,7 +182,7 @@ bool ai_popup_bar_service(AiPopupState* st, uint32_t now_ms, bool dismiss) {
      */
     uint32_t hold = st->bar_msg_count > 1 ? AI_POPUP_BAR_MSG_MS : AI_POPUP_BAR_MSG_LAST_MS;
     /*
-     * bugs.md 431: the sale lines run AI_POPUP_BAR_SALE_SPEEDUP times faster
+     * bugs.md #425: the sale lines run AI_POPUP_BAR_SALE_SPEEDUP times faster
      * than DOS at the user's explicit request. That is arm kind 1 — DOS's
      * gold "success" arm, and the only kind this ring produces (the Custom
      * House autosell run and the European Status sell lines both come in
@@ -661,7 +661,7 @@ bool ai_popup_try_present_next(AiPopupState* st) {
     return ai_popup_present_index(st, pick);
   }
   /*
-   * Contact chain in flight (bugs.md 433): DOS's contact dialogs are one
+   * Contact chain in flight (bugs.md #427): DOS's contact dialogs are one
    * blocking inline call per neighbour, so the rest of THIS exchange presents
    * before any other chain starts. The follow-ups are enqueued as each dialog
    * is answered, so they sit at the tail behind whatever else was queued in
@@ -686,7 +686,7 @@ bool ai_popup_try_present_next(AiPopupState* st) {
 }
 
 /*
- * bugs.md 404: a nested blocking pump (combat / king chrome raised mid-beat)
+ * bugs.md #398: a nested blocking pump (combat / king chrome raised mid-beat)
  * may bypass the colony-zoom hold — but ONLY for popups that are outside the
  * per-colony batch flow. A COLONY_EVENT of a non-elected colony must stay
  * held: the old "zero the elected mask and present anything" fallback showed
@@ -697,7 +697,7 @@ bool ai_popup_try_present_next_urgent(AiPopupState* st) {
   if (!st || st->open || st->has_result || st->queue_count <= 0) {
     return false;
   }
-  /* A chain in flight still owns the presenter (bugs.md 433) — an urgent pump
+  /* A chain in flight still owns the presenter (bugs.md #427) — an urgent pump
    * may skip the colony-zoom hold, but not into the middle of a contact
    * exchange. */
   if (st->active_chain != 0) {
@@ -740,7 +740,7 @@ static bool ai_popup_present_index(AiPopupState* st, int pick) {
   st->has_result = false;
   st->result_cancelled = false;
   /* Latch the exchange this dialog belongs to; only cleared once the queue
-   * holds nothing with that key (bugs.md 433). A chainless popup does not
+   * holds nothing with that key (bugs.md #427). A chainless popup does not
    * clear it — a colony-event batch cutting in must not let a rival chain
    * slip in front of the rest of this one. */
   if (st->current.chain != 0) {
@@ -1167,7 +1167,7 @@ void ai_popup_sheet_palette_merge(const ColonizeSpriteSheet* art, ColonizePalett
    * non-black entry inside it, index 209 = grey (113,113,113), which nothing
    * on the map uses. Under the old black-only rule every popup art sheet that
    * paints with index 209 — all 32 IND{t}A{a} chief portraits, KING*, MSS*,
-   * MYR*, SCORE* — showed that grey instead of its own colour (bugs.md 421:
+   * MYR*, SCORE* — showed that grey instead of its own colour (bugs.md #415:
    * the Iroquois chief, IND3A*, uses 209 as a dark brown (44,20,16) for ~130
    * px of hair/shadow, so it read as flat grey patches).
    */

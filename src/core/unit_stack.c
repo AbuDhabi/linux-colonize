@@ -35,7 +35,7 @@ bool unit_stack_try_open(
   if (n <= 1) {
     return false;
   }
-  /* bugs.md 252: grid shows up to 3 columns x 8 rows. */
+  /* bugs.md #246: grid shows up to 3 columns x 8 rows. */
   if (n > 24) {
     n = 24;
   }
@@ -55,7 +55,7 @@ bool unit_stack_try_open(
   return true;
 }
 
-/* bugs.md 266: one row's full label ("Dragoon (Expert Farmers) (aboard)"). */
+/* bugs.md #260: one row's full label ("Dragoon (Expert Farmers) (aboard)"). */
 static void unit_stack_row_label(
   const ColonizeUnitPool* pool,
   const ColonizeMsgCatalog* names,
@@ -64,7 +64,7 @@ static void unit_stack_row_label(
   size_t out_size
 ) {
   const char* name = units_display_name(pool, u);
-  /* bugs.md 232: cross-specialized soldiers/dragoons carry their expert
+  /* bugs.md #226: cross-specialized soldiers/dragoons carry their expert
    * skill in the row name — "Dragoon (Expert Farmers)". */
   const char* prof =
     (u && names) ? units_profession_label(names, u->type_index, u->profession) : NULL;
@@ -81,7 +81,7 @@ static void unit_stack_row_label(
   }
 }
 
-/* bugs.md 266: crop a label to max_w pixels (drop trailing chars). */
+/* bugs.md #260: crop a label to max_w pixels (drop trailing chars). */
 static void unit_stack_crop_label(const ColonizeFont* font, char* label, int max_w) {
   if (!font || max_w <= 0) {
     return;
@@ -92,7 +92,7 @@ static void unit_stack_crop_label(const ColonizeFont* font, char* label, int max
   }
 }
 
-/* bugs.md 252: grid hit-test — column-major fill (first 8 in column 0, ...). */
+/* bugs.md #246: grid hit-test — column-major fill (first 8 in column 0, ...). */
 static int unit_stack_row_at_y(const UnitStackPopup* dlg, int mx, int my) {
   if (!dlg || dlg->line_h <= 0 || dlg->count <= 0 || dlg->rows <= 0) {
     return -1;
@@ -175,7 +175,7 @@ bool unit_stack_handle_input(
     dlg->selection++;
     return true;
   }
-  /* bugs.md 252: left/right hop a full grid column. */
+  /* bugs.md #246: left/right hop a full grid column. */
   if (colonize_key_left(input->last_key) && dlg->rows > 0 && dlg->selection - dlg->rows >= 0) {
     dlg->selection -= dlg->rows;
     return true;
@@ -243,7 +243,7 @@ void unit_stack_render(
   const int pad_x = 6;
   const int pad_y = 4;
   const int title_h = font ? font->max_height + 2 : 10;
-  /* bugs.md 252: 8 rows per column, columns added as needed (max 3 / 24). */
+  /* bugs.md #246: 8 rows per column, columns added as needed (max 3 / 24). */
   const int rows_per_col = 8;
   int cols = (dlg->count + rows_per_col - 1) / rows_per_col;
   if (cols < 1) {
@@ -254,7 +254,7 @@ void unit_stack_render(
   }
   const int rows = cols > 1 ? rows_per_col : dlg->count;
   /*
-   * bugs.md 266: size each column to its widest row instead of a fixed
+   * bugs.md #260: size each column to its widest row instead of a fixed
    * 148px — with the labels cropped to whatever per-column budget still
    * lets every column fit on screen.
    */
@@ -374,7 +374,7 @@ void unit_stack_render(
     char label[72];
     unit_stack_row_label(pool, names, u, label, sizeof(label));
     if (font) {
-      /* bugs.md 266: crop instead of spilling into the next column. */
+      /* bugs.md #260: crop instead of spilling into the next column. */
       unit_stack_crop_label(font, label, col_x0 + dlg->col_w - 2 - text_x);
       font_draw_text(font, framebuffer, text_x, row_y + 2, label, text_color);
     }

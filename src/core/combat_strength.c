@@ -416,7 +416,7 @@ int combat_engagement_strength(
     if (unit_nat > 3 || (foe_nat < 4 && (!woi || foe_is_ai))) {
       local_1a = terr_byte;
       /* DOS 1b0e: `if (local_1a == 0) 8d02 &= 0x7f` — a 0-value terrain
-       * never shows a "+0%" analysis row (bugs.md 405). */
+       * never shows a "+0%" analysis row (bugs.md #399). */
       if (out_flags && terr_byte != 0) {
         out_flags->flags |= COMBAT_FLAG_TERRAIN;
         out_flags->terrain_byte = terr_byte;
@@ -472,7 +472,7 @@ int combat_engagement_strength(
 
     if (apply_now) {
       local_1a = terr_byte;
-      if (out_flags && terr_byte != 0) { /* bugs.md 405, same 8d02 &= 0x7f rule */
+      if (out_flags && terr_byte != 0) { /* bugs.md #399, same 8d02 &= 0x7f rule */
         out_flags->flags |= COMBAT_FLAG_TERRAIN;
         out_flags->terrain_byte = terr_byte;
         out_flags->terrain_sprite = map_terrain_sprite_at(ctx->map, u->x, u->y);
@@ -1083,7 +1083,7 @@ void combat_naval_engage(
    * 004a mode 0, which never stashes terrain, so 0x8d04 is 0 here and the
    * expression reduces to the plain ×3/2 the old `s += s >> 1` computed
    * (for s >= 0, ((0 + 4) * s >> 2) * 3 >> 1 == s + (s >> 1)). Written
-   * DOS-literally so the two engage paths cannot drift.
+   * DOS-LITERALLY so the two engage paths cannot drift.
    */
   out->atk_strength =
     ((out->def_flags.terrain_stash + 4) * out->atk_strength >> 2) * 3 >> 1;

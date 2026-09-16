@@ -76,7 +76,7 @@ void unit_chrome_rebel_flag_colors_for_palette(
  * unit_chrome_blit_unit_for_palette: the raw indices are ICONS.SS-native,
  * and every other screen's palette (TERRAIN.SS included) repurposes slots
  * 5/13 back to EGA magenta, which is what made the Dutch map chrome pink
- * (bugs.md 370). Outputs are -1 when active_palette is NULL or nation_id
+ * (bugs.md #364). Outputs are -1 when active_palette is NULL or nation_id
  * isn't a 0..3 European; the crown/rebel overrides do NOT apply here.
  */
 void unit_chrome_nation_shades_for_palette(

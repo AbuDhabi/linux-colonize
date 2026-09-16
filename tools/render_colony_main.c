@@ -1,5 +1,7 @@
 /*
  * render_colony: standalone colony-screen renderer for golden comparison.
+ * Usage: render_colony <data_dir> <save.SAV> <colony_name> <multi_mode> <out.ppm>
+ * External requirements: Built by CMake; outputs 320×200 PPM (convert to PNG with ImageMagick)
  *
  * Loads a Col1 .SAV, bridges it into live map/units/colonies pools the same
  * way the game does on load (col1_bridge_apply), finds a named colony, and

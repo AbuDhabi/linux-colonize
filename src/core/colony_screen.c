@@ -924,7 +924,7 @@ static void colony_screen_draw_top_bar(
   snprintf(line, sizeof(line), "%s.  %s, %u.  Gold: %d$", name, season, year, gold);
   const int w = font_text_width(font, line);
   const int x = (COLONY_SCREEN_WIDTH - w) / 2;
-  /* bugs.md item 1: golden (new_amsterdam_production.png) ink top edge
+  /* bugs.md #1: golden (new_amsterdam_production.png) ink top edge
    * measures native y=1, not 2 — title sat 1px too low. */
   font_draw_text(font, framebuffer, x, 1, line, COLONIZE_COL_BASIC);
 }
@@ -1578,7 +1578,7 @@ static void colony_screen_draw_area_overlays(
   }
 
   /*
-   * bugs.md 290 / DOS FUN_15eb_26e4: unworked tiles still claimed as Indian
+   * bugs.md #284 / DOS FUN_15eb_26e4: unworked tiles still claimed as Indian
    * land (MET tribe radius, land unbought, no Peter Minuit) carry a totem
    * pole marker — ICONS.SS #108 (8x16 red totem pole), bottom-centred with
    * the standard 2px shadow like other on-tile figures.
@@ -3545,7 +3545,7 @@ static void colony_screen_draw_construction_popup(
   const int rows = view->buildable_count + 1; /* Clear + projects (Buy is multifunction) */
   const int line_h = font ? (font->max_height + 2) : 8;
   const int pad = 4;
-  /* bugs.md 442 / DOS 2f2b_5bd2: SINGLE column always. Past 0x16 = 22 rows
+  /* bugs.md #436 / DOS 2f2b_5bd2: SINGLE column always. Past 0x16 = 22 rows
    * the DOS picker splits into PAGES of 0x10 = 16 rows chained with a
    * "More..." row — never side-by-side columns. */
   const int rows_per_page = rows > 22 ? 16 : rows;
@@ -3576,7 +3576,7 @@ static void colony_screen_draw_construction_popup(
   view->construction_rows_per_col = rows_per_page;
   view->construction_col_w = inner_w;
 
-  /* bugs.md 442: DOS draws this picker's text GREEN (the standard menu ink),
+  /* bugs.md #436: DOS draws this picker's text GREEN (the standard menu ink),
    * and the "|   " (DS:0xd1d) tab in 2f2b_5a68 right-justifies the cost. */
   const uint8_t ink = 10u;
   if (font && inner_w > 0) {
@@ -3614,7 +3614,7 @@ static void colony_screen_draw_construction_popup(
        * hammers (min 0) — hammers carry over to whatever project is picked,
        * unlike tools, which are never adjusted away in this popup.
        * Cost words are DOS's own (2f2b_5a68 string build), right-aligned
-       * behind the "|   " tab (bugs.md 442). */
+       * behind the "|   " tab (bugs.md #436). */
       const int stored_hammers = colony ? colony->hammers : 0;
       if (bt) {
         int hammers_left = bt->hammers - stored_hammers;
@@ -3649,7 +3649,7 @@ static void colony_screen_draw_construction_popup(
   }
 }
 
-/* bugs.md 442: advance the DOS "More..." page (wraps). */
+/* bugs.md #436: advance the DOS "More..." page (wraps). */
 void colony_screen_construction_next_page(ColonyScreenView* view) {
   if (!view) {
     return;
@@ -4125,7 +4125,7 @@ ColonyScreenHitResult colony_screen_hit_test(
       }
       const int pages = per > 0 ? (rows + per - 1) / per : 1;
       if (row_in_page >= 0 && pages > 1 && row_in_page == n_slice) {
-        /* The More... row (bugs.md 442). */
+        /* The More... row (bugs.md #436). */
         hit.kind = COLONY_HIT_CONSTRUCTION_MORE;
         hit.index = -1;
         return hit;
@@ -4439,7 +4439,7 @@ ColonyScreenHitResult colony_screen_hit_test(
     const int slot_ox = COLONY_VIEWPORT_X;
     const int slot_oy = COLONY_VIEWPORT_Y;
     /*
-     * bugs.md 436 — DOS's own building-slot scan, FUN_2f2b_44d4
+     * bugs.md #430 — DOS's own building-slot scan, FUN_2f2b_44d4
      * (viceroy_unpacked.c:51139, loop 2f2b:45ac..45b5):
      *
      *   local_e = 0;

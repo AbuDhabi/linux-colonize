@@ -146,12 +146,12 @@ typedef enum AiPopupTag {
                                  * make him an ordinary Free Colonist (profession 0x1c).
                                  * 1 = Yes, 2 / Esc = No.
                                  * nation_a = colonist index. */
-  AI_POPUP_TAG_COLONY_ATTACK = 63 /* bugs.md 443: confirm before attacking a foreign Euro
+  AI_POPUP_TAG_COLONY_ATTACK = 63 /* bugs.md #437: confirm before attacking a foreign Euro
                                  * COLONY (armed or not). 1 = attack, 2 / Esc = cancel.
                                  * nation_a = unit id, nation_b = target nation,
                                  * payload = dest x | dest y << 8. */
   ,
-  AI_POPUP_TAG_SCOUT_COLONY = 64 /* bugs.md 444 / FUN_5f7a_000e @SCOUTCOLONY (DS:0x1a64):
+  AI_POPUP_TAG_SCOUT_COLONY = 64 /* bugs.md #438 / FUN_5f7a_000e @SCOUTCOLONY (DS:0x1a64):
                                  * scout at a foreign Euro colony. 1 = Meet With Mayor,
                                  * 2 = Infiltrate Colony, 3 = Attack Colony, 4 = Nothing.
                                  * nation_a = unit id, nation_b = colony id,
@@ -172,7 +172,7 @@ typedef struct AiPopupRequest {
   int nation_b;
   int payload; /* free int (tribe id, colony id, …) */
   /*
-   * Contact-chain group key (bugs.md 433). 0 = ungrouped. DOS runs a contact
+   * Contact-chain group key (bugs.md #427). 0 = ungrouped. DOS runs a contact
    * sequence as one BLOCKING inline call — FUN_5bfb_3180 dispatches either
    * FUN_5bfb_022e (Indian) or FUN_5bfb_153e (Euro) for one neighbour and does
    * not return until that whole dialog chain is answered, so a Tupi meet and a
@@ -231,7 +231,7 @@ typedef struct AiPopupRequest {
  */
 #define AI_POPUP_BAR_MSG_LAST_MS 1971u
 /*
- * bugs.md 431 — EXPLICIT USER PREFERENCE, deliberately NOT DOS pacing: the
+ * bugs.md #425 — EXPLICIT USER PREFERENCE, deliberately NOT DOS pacing: the
  * sale one-liners (Custom House autosell run, European Status sell lines) run
  * three times as fast as DOS, so a big autosell turn stops feeling like a
  * cutscene. Divides the two dwells above, and ONLY for arm kind 1 (DOS
@@ -270,7 +270,7 @@ typedef struct AiPopupState {
   /*
    * Contact chain currently being presented (AiPopupRequest.chain; 0 = none).
    * While set, only requests carrying the same key are presented — the async
-   * twin of DOS's blocking inline contact call (bugs.md 433). Cleared the
+   * twin of DOS's blocking inline contact call (bugs.md #427). Cleared the
    * moment nothing with that key is left in the queue.
    */
   int active_chain;
@@ -440,7 +440,7 @@ bool ai_popup_busy(const AiPopupState* st); /* open or queued */
 /* If !open && queue non-empty, pop front into current and open. */
 bool ai_popup_try_present_next(AiPopupState* st);
 /* Present the first queued NON-colony-event popup, bypassing the colony-zoom
- * hold — for nested blocking pumps only (bugs.md 404). */
+ * hold — for nested blocking pumps only (bugs.md #398). */
 bool ai_popup_try_present_next_urgent(AiPopupState* st);
 
 /*

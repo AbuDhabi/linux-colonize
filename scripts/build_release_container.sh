@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
-# Build the release tarball inside a manylinux2014 (CentOS 7) container so the
-# binary links against glibc 2.17 (2013) — it then runs on essentially any
-# x86_64 Linux from the last decade. The image ships a modern gcc on that old
-# glibc; meson/ninja/cmake come from its bundled pythons.
+# Build release tarball inside manylinux2014 container for glibc 2.17 compatibility.
+# Usage: bash scripts/build_release_container.sh
+# External requirements: docker or podman
 #
 # SDL2 is built X11-only there (CentOS 7 wayland is too old) — Wayland
 # desktops run it fine via XWayland.

@@ -157,7 +157,7 @@ int units_spawn_village_temp_defender(
 
 /*
  * FUN_5fef_31ea conquest treasure gold (×100 from DOS amount byte). Runs for
- * ANY conqueror (bugs.md 387) — Hernan Cortes only removes the difficulty-0/1
+ * ANY conqueror (bugs.md #381) — Hernan Cortes only removes the difficulty-0/1
  * "did it pay out at all" roll and adds +50% (difficulty 0/1) or +10/+100
  * (difficulty 2/3); at difficulty 2 and 3 everyone gets an amount.
  * rich_capital: stack-local -0xcc ← ColonizeCol1TribeState.capital.
@@ -177,7 +177,7 @@ int units_conquest_treasure_gold(
  * when tribe.mission low-nibble == attacker (PEDIA Sepulveda / @INDIANSLAVES) —
  * threshold 4|8 (±Spanish/Sepulveda/Las Casas), roll dos_rng_range(0,12).
  * Conquest treasure: gold_amount>0 is used as-is, else the FUN_5fef_31ea peel
- * rolls one (no Cortes gate — see bugs.md 387).
+ * rolls one (no Cortes gate — see bugs.md #381).
  * May adjust Indian relation via ai_diplo helpers when col1 is set.
  */
 bool units_try_native_settlement_fallout(
@@ -909,7 +909,7 @@ void units_set_colony_raid_repelled(ColonizeUnitsRaidRepelledFn fn);
 typedef void (*ColonizeUnitsPopupPumpFn)(void* user);
 void units_set_combat_popup_pump(ColonizeUnitsPopupPumpFn fn, void* user);
 /* Present-and-answer queued popups now via the registered pump (no-op when
- * headless). bugs.md 243: popup before animation, each blocking. */
+ * headless). bugs.md #237: popup before animation, each blocking. */
 void units_pump_combat_popups(void);
 
 /*
@@ -1122,7 +1122,7 @@ bool units_set_goto(
  * True when the unit stands adjacent to a Go To destination that is an Indian
  * settlement tile — its final step is a move INTO the village and must be
  * dispatched through the normal entry flow (FUN_4d56_4528: woodcut 7 +
- * @ACTIONS menu), not silently paced or dropped. bugs.md 424.
+ * @ACTIONS menu), not silently paced or dropped. bugs.md #418.
  */
 bool units_goto_dest_is_village_entry(
   const ColonizeUnitPool* pool,
@@ -1316,7 +1316,7 @@ bool units_unload_passenger(
  * DOS FUN_4720_015c landfall eligibility: the passenger's spent byte must be
  * BELOW its max MP. An aboard sentry parked at moves_left 0 still qualifies
  * (DOS spent == 0); one that burnt its allotment this turn (mp_spent_turn)
- * does not — it stays on the ship (bugs.md 429).
+ * does not — it stays on the ship (bugs.md #423).
  */
 bool units_cargo_can_landfall(const ColonizeUnitPool* pool, int unit_id);
 /*
@@ -1563,7 +1563,7 @@ int units_display_type_index(const ColonizeUnitPool* pool, int unit_id);
  * "More units here" tab state for a unit's map chrome: another piece shares its
  * tile, or it is carrying (DOS decides it from the unit's own chain,
  * FUN_1427_0002/004a behind FUN_112b_01ba). Shared so the move slide and combat
- * lunge wear the same chrome as the standing draw (bugs.md 371).
+ * lunge wear the same chrome as the standing draw (bugs.md #365).
  */
 bool units_map_stack_chrome(const ColonizeUnitPool* pool, int unit_id);
 

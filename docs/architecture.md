@@ -23,6 +23,26 @@ lives](#where-detail-lives)).
 | AI FUN / unpark | [port_plan.md](port_plan.md) |
 | Euro AI control flow (machine-readable map + flowchart) | [ai_euro_logic_map.yaml](ai_euro_logic_map.yaml), rendered by `tools/ai_logic_map.py` to [diagrams/ai_euro_logic.html](diagrams/ai_euro_logic.html) |
 | Decomp / data navigation | [original_index.md](original_index.md) |
+| Feature Done / Partial / Missing | [manual_gap.md](manual_gap.md) |
+| Popup inventory / authenticity | [popups.md](popups.md), [popup_audit.md](popup_audit.md) |
+| Combat mechanics | [combat.md](combat.md) |
+| Report screens (F2–F10 + HoF) | [reports.md](reports.md), [report_screens.md](report_screens.md) |
+| SoL / independence | [sons_of_liberty.md](sons_of_liberty.md) |
+| Indians | [indians.md](indians.md) |
+| Production formulas | [building_production.md](building_production.md), [terrain_yields.md](terrain_yields.md) |
+| Music / sound | [assets.md](assets.md) "Music / sound" |
+| `COLONY##.SAV` layout / Col1 bridge | [savegame.md](savegame.md), [save_format_map.md](save_format_map.md) |
+| Conventions, jargon, fixture traps, verification loop | [conventions.md](conventions.md) |
+| Debug env vars / `debug.logs` categories | [debug_env_vars.md](debug_env_vars.md) |
+| Data files vs bake-into-code (dev guide) | [data_vs_hardcoded.md](data_vs_hardcoded.md) |
+| Move-into-tile authority (enter / landfall) | [move_enter.md](move_enter.md) |
+| Unit orders (issue / tick / gates / port status) | [unit_orders.md](unit_orders.md) |
+| Bring-up status, EOT pipeline, map fidelity gaps | [decomp_inventory.md](decomp_inventory.md) |
+| Between player turns (full EOT map) | [turn_between_players.md](turn_between_players.md) |
+| Difficulty level effects | [difficulty.md](difficulty.md) |
+| Fandom wiki digest (1994 Col only; tier-3) | [fandom_col1994.md](fandom_col1994.md) |
+| Extracted VICEROY DS tables | [viceroy_tables.md](viceroy_tables.md) |
+| Decomp function catalog (all `FUN_*`, light) | [`../original_sources_annotated/FUNCTION_CATALOG.md`](../original_sources_annotated/FUNCTION_CATALOG.md) · [`MODULE_MAP.md`](../original_sources_annotated/MODULE_MAP.md) |
 
 **Non-goal:** restructuring `src/` to mirror VICEROY overlays. DOS segment maps
 ([`MODULE_MAP.md`](../original_sources_annotated/MODULE_MAP.md)) are for RE

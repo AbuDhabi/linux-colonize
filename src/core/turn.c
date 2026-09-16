@@ -122,7 +122,7 @@ void turn_refresh_moves_for_nation(
   units_set_occupancy_map(map);
   colonies_set_occupancy_map(map);
   if (col1) {
-    /* bugs.md 288: the first-`control == 0` scan reads a stale save that
+    /* bugs.md #282: the first-`control == 0` scan reads a stale save that
      * carries TWO zeroed control slots as England. col1_save_human_nation is
      * the one place that resolution lives (head.human_player preferred when
      * it agrees with the control table); turn_processor_advance's own
@@ -142,7 +142,7 @@ void turn_refresh_moves_for_nation(
       continue;
     }
     /* DOS clears every unit's spent byte at the day top (viceroy 6355-6357):
-     * last turn's spend never gates this turn's landfall (bugs.md 429). */
+     * last turn's spend never gates this turn's landfall (bugs.md #423). */
     u->mp_spent_turn = 0;
     /* Fortify completes overnight → Fortified; stay asleep until woken. */
     if (u->orders == UNITS_ORDER_FORTIFY) {
@@ -626,7 +626,7 @@ static void turn_produce_one_colony(
   }
   /* FUN_364b_0688: clear cargo_produced_mask (+0x90) at production start. */
   colony->cargo_produced_mask = 0;
-  /* bugs.md 403: europe->status is shared across the whole colony loop, so
+  /* bugs.md #397: europe->status is shared across the whole colony loop, so
    * "status empty" as the Phase K crumb gate let ANY earlier colony's
    * message (birth, food low, cargo ready, ...) suppress every later
    * colony's "has run out of X" popup for the rest of the EOT. Snapshot the
@@ -969,7 +969,7 @@ static void turn_produce_one_colony(
    * @TRAINCRIMINAL / @TRAININDENTURED / @TRAINPROFESSION;
    * docs/building_production.md, colony_eot_production.md.
    *
-   * bugs.md 386 ("has education even been implemented?" — it had not). Every
+   * bugs.md #380 ("has education even been implemented?" — it had not). Every
    * axis of the previous port was wrong, and nothing could ever graduate:
    *   - A TEACHER is a colonist whose WORK SLOT is the school (DOS occupation
    *     0x12, i.e. the @JOB 18 "Teacher" slot, `local_c2 == 0x12`) and whose
@@ -1380,14 +1380,14 @@ static void turn_produce_one_colony(
       const int stock = colony->stock[COLONIZE_CARGO_FOOD];
       const int food_shortfall = consumed - field_food; /* DOS 8e32 when >0 */
       /*
-       * bugs.md item 5: DOS's literal FOOD1/FOOD2 latch fires on stock<need
+       * bugs.md #5: DOS's literal FOOD1/FOOD2 latch fires on stock<need
        * alone, even at food_shortfall<=0 (production covers or beats
        * consumption) — a colony merely flatlining at 0 net-zero food would
        * re-trigger "depleted" every turn. Require actively losing food
        * (shortfall>0) to match FOODLOW's own "surplus never warns" rule
        * below and stop the false-positive nag.
        *
-       * bugs.md item 292: "depleted" additionally requires the stores to be
+       * bugs.md #292: "depleted" additionally requires the stores to be
        * EXACTLY 0 — merely dipping below next turn's need reads as "low",
        * handled by the FOODLOW branch below.
        */
@@ -1722,7 +1722,7 @@ static void turn_produce_one_colony(
     /*
      * FUN_364b_0688 assembles ONE line PER CARGO into DS:0x2d54 and arms it
      * with FUN_1009_0092 — that is the map's top-strip STATUS LINE, not a
-     * dialog (bugs.md 375). Each line replaces the strip's normal content for
+     * dialog (bugs.md #369). Each line replaces the strip's normal content for
      * its dwell and the next one follows; nothing has to be clicked away.
      *
      * Wording is DOS's own: colony name, LABELS @MISC 47 "sells", amount,
@@ -2137,7 +2137,7 @@ void turn_run_colony_production(
   }
   for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
     if (pool->colonies[i].active && turn_prod_nation_in_scope(pool->colonies[i].nation_id)) {
-      /* bugs.md 262: DOS never carries an idle colonist — sweep any
+      /* bugs.md #256: DOS never carries an idle colonist — sweep any
        * job-less colonist (stale saves, non-UI admit paths) into work
        * before producing, so the head count always matches the workers. */
       colonies_auto_assign_idle(pool, i);
@@ -2561,7 +2561,7 @@ void turn_run_nation_ticks(ColonizeTurnContext* ctx, ColonizeTurnResult* out) {
     /* FUN_4345_0a22 wartime branch: bell pool → intervention / REF, not FF elect. */
     if (ctx->col1->head.game_options.woi) {
       /*
-       * bugs.md 237 / DOS FUN_4345_0a22 (viceroy ~73346): once per war,
+       * bugs.md #231 / DOS FUN_4345_0a22 (viceroy ~73346): once per war,
        * while the REF has not yet landed (0x5382 bit1 clear) and the bell
        * pool has started accruing, show @AMBUSHHINT then @CONSIDER —
        * "%STRING0 is considering intervention ... generate %NUMBER0 liberty
@@ -2574,7 +2574,7 @@ void turn_run_nation_ticks(ColonizeTurnContext* ctx, ColonizeTurnResult* out) {
           ctx->ai_popups) {
         const int ally = (int)ctx->col1->head.rival_nation_slot_1;
         const char* ally_name = "A European power";
-        /* bugs.md 258 rule: PARENT country ("France"), never the new-world
+        /* bugs.md #252 rule: PARENT country ("France"), never the new-world
          * colony name player[ally].country_name ("New France"). */
         if (ally >= 0 && ally < 4) {
           ally_name = reports_nation_country_name(ally); /* NAMES.TXT @COUNTRY */
@@ -3212,7 +3212,7 @@ void turn_run_year_end_chrome(ColonizeTurnContext* ctx, ColonizeTurnResult* out)
         /* calendar_latch (0x5382|0x10 "scoring complete") is NOT set here:
          * DOS sets it only after the score chain runs (main-loop 0x104
          * block); setting it at the latch suppressed the win sequence
-         * (bugs.md 265 — the game just carried on with a status line). */
+         * (bugs.md #259 — the game just carried on with a status line). */
         ctx->col1->head.turn_loop_running = 0; /* DS:0x53c2 clear */
       }
       if (ctx->status && ctx->status_size > 0) {
@@ -3874,12 +3874,12 @@ bool turn_processor_advance(ColonizeTurnProcessor* proc, ColonizeTurnContext* ct
        * save-import value. AI nations get the same probe in their own pass.
        */
       ai_euro_census_ship_pressure_refresh(ctx, ctx->human_nation);
-      /* bugs.md 440: the human's FF election lands here — start of the
+      /* bugs.md #434: the human's FF election lands here — start of the
        * player's turn, with the production chrome — not in SETUP. */
       founding_fathers_tick_human_elect(ctx);
       s_prod_only_nation = -1;
       s_prod_only_set = false;
-      /* bugs.md 400/404/407: yield here so the production popups queued
+      /* bugs.md #394/404/407: yield here so the production popups queued
        * above are answered (and an elected colony zoom taken) before the
        * king's REF beats run in TURN_PROC_KING — see turn.h. */
       proc->step = TURN_PROC_KING;

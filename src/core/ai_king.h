@@ -42,7 +42,7 @@
  * set to 1 on declare, consumed (cleared, no landing) by the first wave
  * tick. */
 #define AI_KING_REF_WAVE_WAIT_BYTE 11
-/* bugs.md 258: @INTERVENTION "declares war" announcement fires once (DOS
+/* bugs.md #252: @INTERVENTION "declares war" announcement fires once (DOS
  * FUN_43f7_1528 latches 0x5382 bit2 after showing it; the port's ref_present
  * bit gets cleared when no crown unit remains, so it keeps its own bit). */
 #define AI_KING_INTERVENE_ANNOUNCED_BYTE 12

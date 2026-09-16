@@ -108,7 +108,7 @@
 #define COLONY_PANEL_CONTENT_H (COLONY_CARGO_STRIP_Y - COLONY_PANEL_CONTENT_Y - 4)
 
 #define COLONY_TRANSPORT_MAX 8
-/* bugs.md item 11: transport icons sat 10px too high; nudged down. */
+/* bugs.md #11: transport icons sat 10px too high; nudged down. */
 #define COLONY_TRANSPORT_ICON_Y (COLONY_BOTTOM_PANEL_Y + 18)
 #define COLONY_TRANSPORT_PITCH 18
 /*
@@ -157,7 +157,7 @@ typedef enum ColonyScreenHit {
   COLONY_HIT_CONSTRUCTION_ROW,
   COLONY_HIT_CONSTRUCTION_CLEAR,
   COLONY_HIT_CONSTRUCTION_BUY,
-  COLONY_HIT_CONSTRUCTION_MORE, /* bugs.md 442: DOS More... page row */
+  COLONY_HIT_CONSTRUCTION_MORE, /* bugs.md #436: DOS More... page row */
   COLONY_HIT_EXIT,
   COLONY_HIT_CONSTRUCTION_OUTSIDE,
   COLONY_HIT_AREA_TILE,
@@ -293,7 +293,7 @@ typedef struct ColonyScreenView {
   ColonyDialogRect construction_rect;
   int construction_rows_per_col; /* DOS 2f2b_5bd2: 16 rows per PAGE when > 22 rows */
   int construction_col_w;
-  int construction_page; /* bugs.md 442: DOS pages (More...), never columns */
+  int construction_page; /* bugs.md #436: DOS pages (More...), never columns */
 
   bool jobs_open;
   int jobs_tile_index;
@@ -383,7 +383,7 @@ void colony_screen_open_construction(
   const ColoniesBuildableOpts* buildable_opts
 );
 void colony_screen_close_construction(ColonyScreenView* view);
-/* bugs.md 442: advance the construction picker's More... page. */
+/* bugs.md #436: advance the construction picker's More... page. */
 void colony_screen_construction_next_page(ColonyScreenView* view);
 
 void colony_screen_open_jobs(

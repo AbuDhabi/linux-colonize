@@ -635,7 +635,7 @@ static void ai_layer2_or(ColonizeWorldMap* map, int x, int y, uint8_t bits) {
 
 /*
  * Mover's stamp (FUN_1427_02ca's tail). Same write, minus settlement tiles for
- * native units — bugs.md 422.
+ * native units — bugs.md #416.
  *
  * The nibble on a `layer2 & 2` tile IS the settlement's owner for every reader
  * (FUN_137f_03e4 tile_tribe_owner, and through it the FUN_5bfb_3180 first-

@@ -1,11 +1,7 @@
 #!/usr/bin/env bash
-# Cross-build the Windows release zip in a Fedora container (mingw-w64):
-#   dist/linux-colonize-<version>-windows-x86_64.zip
-# Fedora ships prebuilt static mingw SDL2/glib, so only FluidSynth is
-# cross-built here (same minimal config as the Linux release). Everything is
-# linked statically (-static) into one console-subsystem colonize.exe.
-#
-# Requires docker or podman. Output lands in dist/ as usual.
+# Cross-build Windows release zip in Fedora container (mingw-w64 toolchain).
+# Usage: bash scripts/build_release_windows.sh
+# External requirements: docker or podman, Fedora image with mingw-w64
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"

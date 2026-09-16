@@ -205,7 +205,7 @@ the eight nations — only Aztec (2) and Inca (3) reach further. `colony.c`
 Was the manual's "capital 2" rule until 2026-08-28 (`colony.c`
 `colonies_tile_indian_homeland`).
 
-**Which tiles the colony screen may mark (2026-09-04, bugs.md 372).** The
+**Which tiles the colony screen may mark (2026-09-04, bugs.md #366).** The
 5x5 table `FUN_15eb_26e4` builds is not just "village within radius":
 
 * `FUN_13e4_0074(tile)` clears the slot whenever the terrain index is **25 or
@@ -532,7 +532,7 @@ entries into the resolver — the raid pulse in `ai_contact_indian_raids` and
 `ai_contact_colony_raid_repelled` — immediately before each site's DS:0x54f6
 clear, as DOS orders them. The pulse's old *positive* fandom bump
 (`kind_delta` +4/+12/+16/+8 via `ai_contact_alarm_bump_amount`) is retired
-under the same rule as the three fandom alarm drips (bugs.md 295): DOS grows
+under the same rule as the three fandom alarm drips (bugs.md #289): DOS grows
 Indian alarm only through the `FUN_4d56_152e` accumulator.
 
 **`local_a6` alarm vent — ported 2026-09-08** (raw 101043-101196), applied as
@@ -709,7 +709,7 @@ deliberate **Live Among The Natives** `@ACTIONS` row.
 | Foreign mission | 50/50 heresy replace vs burn denouncer |
 | Las Casas | Existing Converts → free colonists on elect |
 | Sepulveda | Higher convert-join odds on settlement fallout |
-| Cortes | Conquest treasure **bonus and guaranteed payout**, not a prerequisite — any conqueror can find treasure, and at difficulty 2+ always does (bugs.md 387); capital = `rich_capital` |
+| Cortes | Conquest treasure **bonus and guaranteed payout**, not a prerequisite — any conqueror can find treasure, and at difficulty 2+ always does (bugs.md #381); capital = `rich_capital` |
 | Minuit | Indians no longer demand land payment |
 | Pocahontas | Reset + half future alarm |
 

@@ -1,0 +1,14 @@
+# Excluded from ripgrep / grep-tool default searches (still on disk, still greppable
+# explicitly with `rg --no-ignore` or `rg -u`). Keeps repo-wide searches focused on
+# the port itself instead of multi-MB RE dumps and archived docs.
+original_sources_decompiled/
+original_sources_annotated/
+original_memory_dumps/
+original_music_dumps/
+dosbox-x-dumps/
+docs/archive/
+build/
+build-*/
+deps-*/
+dist/
+Testing/

@@ -340,7 +340,7 @@ dwelling. Human `4528` `@ACTIONS` arm **Done** (P8.8). Deep `4528` mid-body / VG
 - Winner: Washington always-promote; else chance promote (`FUN_5fef_172c`)
 - Native def: settlement fallout (`FUN_5fef_31ea`) + `@LOOT` (treasure, DOS tag
   `0x1ccc`) / `@LOOT2` (burn, no treasure, `0x1cd1`). The treasure peel is **not
-  Cortes-gated** (bugs.md 387): everyone rolls it. Cortes (`local -6`) is one of
+  Cortes-gated** (bugs.md #381): everyone rolls it. Cortes (`local -6`) is one of
   the three "or" terms (`roll == 0 || rich || cortes`) that let the difficulty
   0/1 roll pay out at all, plus a bonus — +50% at difficulty 0/1, +6 units at
   difficulty 2, +10 at difficulty 3. **At difficulty 2 and 3 the amount is
@@ -654,7 +654,7 @@ dual column. Shown **before** the combat roll (strengths known; no outcome yet).
 - **WoI support row labels — fixed 2026-09-08.** DOS's rows read `0x2ec2` /
   `0x2ec4` = LABELS lines 147/148 **"Tory Unrest" / "Rebel Unrest"**. Address →
   line is `addr = 0x2d9c + 2*line` (anchors: `0x2e52` = line 91 "Fatigue",
-  `0x2e8a` = line 119 "Bombard" per bugs.md 248, `0x2e3c` = line 80 "Veteran",
+  `0x2e8a` = line 119 "Bombard" per bugs.md #242, `0x2e3c` = line 80 "Veteran",
   `0x2e54` = line 92 "Attack Bonus"). The port printed "Tories"/"Rebels"
   (LABELS lines 101/102, which 636c never reads).
 - Roll still uses post-modifier odds weights (`atk` / `def` in
@@ -688,9 +688,9 @@ The pre-2026-09-16 port had only an AI-only end-of-act "naval ambush" keyed on t
 | Strength | `units_coastal_fort_attack_strength` = `4 * tier * (1 + arty)`; Fort tier1, Fortress tier2 |
 | Pulse | `units_coastal_fort_fire_pulse` — all Fort/Fortress colonies, 8 ocean dirs |
 | Hostile | at war (Euro/Indian) **or** Privateer |
-| Resolve | `units_fort_vs_ship`: fort atk vs ship defense (Drake scales Privateer); Combat Analysis is presented first when a human is involved (bugs.md 267), then `roll(1, atk+def) <= atk` |
-| Fort wins | bugs.md 255 — the same outcomes as a naval fight: holds lost, then the DOS `0352` damage-vs-sink roll with the fort's strength standing in for the winner's guns column. Damaged → `col1_unknown15` bit7, `moves_left=0`, `repair_pending=2`, relocate to the nearest own Drydock colony with the DOS repair timer doubled (non-ship winner), `@SHIPDAMAGE`; a WoI human with no repair port sinks instead. Undamaged → sink, `@SHIPSUNK`, no plunder |
-| Fort loses | bugs.md 255 — **nothing happens**: DOS undoes the temp attacker and the ship sails on. The old `moves_left=0` ship-slow here was invented; the real MP drain is the separate per-step `FUN_5bfb_3180` branch, see "Ship-slow" below |
+| Resolve | `units_fort_vs_ship`: fort atk vs ship defense (Drake scales Privateer); Combat Analysis is presented first when a human is involved (bugs.md #261), then `roll(1, atk+def) <= atk` |
+| Fort wins | bugs.md #249 — the same outcomes as a naval fight: holds lost, then the DOS `0352` damage-vs-sink roll with the fort's strength standing in for the winner's guns column. Damaged → `col1_unknown15` bit7, `moves_left=0`, `repair_pending=2`, relocate to the nearest own Drydock colony with the DOS repair timer doubled (non-ship winner), `@SHIPDAMAGE`; a WoI human with no repair port sinks instead. Undamaged → sink, `@SHIPSUNK`, no plunder |
+| Fort loses | bugs.md #249 — **nothing happens**: DOS undoes the temp attacker and the ship sails on. The old `moves_left=0` ship-slow here was invented; the real MP drain is the separate per-step `FUN_5bfb_3180` branch, see "Ship-slow" below |
 | Repair | `units_tick_drydock_repair` clears combat bit7 for finished ships on own Drydock colony (EOT after ship-build tick); human `@REFIT` ai_popup OK |
 | Turn | `turn_run_coastal_fort_fire` after colony production |
 | AI | `ai_euro_tile_under_enemy_fort_fire` / flee |
@@ -701,7 +701,7 @@ Deep DOS notes: [`coastal_fort_fire.md`](../original_sources_annotated/turn/coas
 `turns_worked < type.defense` → construction (`units_tick_ship_build_ready`);
 `>=` → combat damage (fort/naval), repaired only by Drydock.
 
-**Analysis (bugs.md 267):** `units_fort_vs_ship` presents Combat Analysis
+**Analysis (bugs.md #261):** `units_fort_vs_ship` presents Combat Analysis
 pre-roll (attacker_id −1, `eng.atk_label` = "<Colony> Fort/Fortress", battery
 strength as base; Drake row on scaled defense). **PARKED:** DOS temp-attacker
 spawn + fort VGA chrome.

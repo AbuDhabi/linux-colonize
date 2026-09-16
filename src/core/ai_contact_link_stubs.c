@@ -11,6 +11,10 @@
  * unit_ai_diplo and the "fallbacks" replaced the real functions there.
  * Strong stubs in a file the full targets never compile cannot shadow.
  */
+#ifndef COLONIZE_SLIM_TEST
+#error "ai_contact_link_stubs.c only in SLIM test targets"
+#endif
+
 #include "ai_contact.h"
 #include "ai_diplo.h"
 #include "ai_euro.h"

@@ -280,7 +280,7 @@ bool founding_fathers_revere_should_auto_arm(
 /* Elect at most one FF per eligible nation when the bells threshold is met. */
 void founding_fathers_tick(ColonizeTurnContext* ctx);
 
-/* bugs.md 440: the human's Congress election check, run in TURN_PROC_FINISH
+/* bugs.md #434: the human's Congress election check, run in TURN_PROC_FINISH
  * (start of the player's turn) — DOS puts it in the human's own 3844_00f2
  * pass, right before Move Pieces. founding_fathers_tick no longer elects for
  * the human. */

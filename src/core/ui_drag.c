@@ -60,7 +60,7 @@ static bool ui_drag_set_cursor_sprite(UiDragSession* drag, const ColonizeSprite*
    * frame - a sheet-authoring artifact, not art (a scan of every COLONIZE
    * .SS finds the pair in CURSOR.SS alone). ui_drag_install_arrow already
    * dropped them for the plain pointer; the Go-To pointer (sprite 1) is
-   * built through here, which is why it kept them (bugs.md 379).
+   * built through here, which is why it kept them (bugs.md #373).
    */
   if (w >= 2 && h >= 2) {
     uint8_t* const tr = &drag->cursor_pixels[(size_t)(w - 1)];

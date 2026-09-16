@@ -1,7 +1,9 @@
 /*
  * render_report: standalone report-screen renderer for golden comparison.
+ * Usage: render_report <data_dir> <save.SAV> <out.ppm> [report_id] [params...]
+ * External requirements: Built by CMake; outputs 320×200 PPM (convert to PNG with ImageMagick)
  *
- * Calls reports_load()/reports_render() directly (bypasses SDL/xvfb entirely)
+ * Calls reports_load()/reports_render() directly (bypasses SDL/xvfx entirely)
  * and dumps the resulting 320x200 indexed framebuffer, expanded through the
  * right palette, as a binary PPM. Convert/view with ImageMagick:
  *

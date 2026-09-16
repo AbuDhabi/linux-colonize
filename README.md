@@ -19,9 +19,11 @@ hardening, not missing planner arms. Music is a literal `GSOUND.COL` driver
 emulator; `COLDIG.BIN` SFX are wired (leftover misfires are polish).
 
 Remaining work is incoming [bugs.md](bugs.md) nits, production / combat depth
-on the Partial rows in [manual_gap.md](docs/manual_gap.md), and the still-open
-deferred tracks: known-seed determinism residue (D3), pixel-exact dialog
-chrome and VGA meet chrome (D4), SC-55 timbre (D5).
+on the Partial rows in [manual_gap.md](docs/manual_gap.md), and the two
+still-open deferred phases: pixel-exact dialog chrome and VGA meet chrome
+(D4), SC-55 timbre (D5). (D3, known-seed determinism, closed 2026-09-05 —
+golden gates are 60/60 live; its remaining residue is documented port debt,
+not required for playability.)
 
 Living status:
 
@@ -31,6 +33,12 @@ Living status:
 - [docs/manual_gap.md](docs/manual_gap.md) — feature Done / Partial / Missing
 - [docs/original_index.md](docs/original_index.md) — decomp / data navigation
 - [bugs.md](bugs.md) - user reported bugs
+
+Docs map: for conventions, jargon, fixture traps and the verification loop
+see [docs/conventions.md](docs/conventions.md); for debug env vars and
+`debug.logs` categories see [docs/debug_env_vars.md](docs/debug_env_vars.md).
+The port-only preference file `settings.json` lives next to the executable
+(see [docs/settings.md](docs/settings.md)).
 
 ## Requirements
 

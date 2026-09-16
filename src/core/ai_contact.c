@@ -1,5 +1,23 @@
 #include "core/ai_contact.h"
 
+/*
+ * Sections:
+ *  - Contact bookkeeping: visit tracking, status/chrome text & tribe/euro names (~line 76)
+ *  - Peace state, land-grant welcome dialogs & first-contact welcome flow (~line 332)
+ *  - Encounter/meet scans, village-meet dialogs & attack/raid confirmations (~line 803)
+ *  - Ship-village visits, jesuit/teachable checks & skill teaching (~line 1543)
+ *  - Friction/gift-gold, choice popups & incite pricing/confirmation (~line 2042)
+ *  - Tools/gold demand pipeline & gift-or-demand economics (raw 2154) (~line 2694)
+ *  - Visit mood, demand gating & beg-food flow (~line 3451)
+ *  - Human incite response, missionary convert/flee, WoI defect, prelude & relation tick (~line 4022)
+ *  - Village gift exchange (2820/2e92 helpers) (~line 4993)
+ *  - Reparations pricing, ladder & presentation (~line 5593)
+ *  - Village trade haggle/buy-sell mechanics (2820/2e92) & wagon trade dispatch (~line 6095)
+ *  - Colony stores/loot scoring, raid-kind selection & raid execution helpers (~line 7165)
+ *  - Raid execution, colony-tile scout displacement, field/war census & colony war-tick (~line 8373)
+ *  - Menu actions: live-among-natives, speak-with-chief, demand-tribute, denounce/mission & popup-result dispatch (~line 9707)
+ */
+
 #include "core/ai.h"
 #include "core/ai_diplo.h"
 #include "core/sound.h"
@@ -49,7 +67,7 @@ static int s_last_gold_drained;
  *    (viceroy 81704-81707, ai_indian_midpass_clear_tables);
  *  - the alarm ceiling (`> 0x4a` bails the whole visit) and the mood RNG.
  * An earlier port (through 2026-09-09) added an invented 8-turn per-nation
- * throttle on top; bugs.md 423's defect (demand at alarm 0 right after a
+ * throttle on top; bugs.md #417's defect (demand at alarm 0 right after a
  * gift) was really the per-arm split of that throttle bypassing the mood
  * roll, and the structural gift-before-demand order above is the DOS-real
  * fix. Do not reintroduce a cooldown.
@@ -73,6 +91,8 @@ static int s_last_gold_drained;
  */
 static int s_visit_brave_id[8] = {-1, -1, -1, -1, -1, -1, -1, -1};
 static int s_visit_brave_turn[8];
+/* ===================== Contact bookkeeping: visit tracking, status/chrome text & tribe/euro names (ai_contact_mark_visit_brave .. ai_contact_euro_name) ===================== */
+
 
 static void ai_contact_mark_visit_brave(
   const ColonizeTurnContext* ctx, int nation_id, int brave_id
@@ -327,6 +347,8 @@ static const char* ai_contact_euro_name(int euro_nation) {
   }
   return reports_nation_adjective_display_name(euro_nation);
 }
+/* ===================== Peace state, land-grant welcome dialogs & first-contact welcome flow (ai_contact_alarm_delta_00f2 .. ai_contact_try_first_welcome) ===================== */
+
 
 /*
  * FUN_4cc6_00f2 with its escalation tail (raw 80903-80915) + FUN_4cc6_0000:
@@ -424,7 +446,7 @@ static void ai_contact_clear_peace(ColonizeCol1Save* col1, int indian_nation, in
   ai_diplo_clear_both(col1, indian_nation, euro_nation, COL1_INDIAN_PEACE_BIT);
 }
 
-/* Settlement count (villages/camps/cities), not braves — bugs.md item 3. */
+/* Settlement count (villages/camps/cities), not braves — bugs.md #3. */
 static int ai_contact_nation_settlement_count(const ColonizeTurnContext* ctx, int nation_id) {
   int count = 0;
   if (!ctx || !ctx->col1 || !ctx->col1->tribe) {
@@ -703,7 +725,7 @@ static void ai_contact_enqueue_welcome(ColonizeTurnContext* ctx, int e, int nati
    * DOS keys both this and the woodcut below on `*(int *)0x8d52`, the tribe
    * SLOT (0 = Inca, 1 = Aztec) — the same value that indexes DS:0x962a at
    * `*0x8d52 + -0x69d6`. This read `nation_id`, which is the 4..11 Col1 id,
-   * so neither branch could ever be taken (fixed with bugs.md 422). */
+   * so neither branch could ever be taken (fixed with bugs.md #416). */
   const int tribe_slot = nation_id - 4;
   if (ctx->col1 && ctx->col1->head.turn >= 20) {
     sound_set_bgm(tribe_slot == 0 ? 7 : (tribe_slot == 1 ? 6 : 5));
@@ -796,6 +818,8 @@ int ai_contact_try_first_welcome(ColonizeTurnContext* ctx, int euro_nation, int 
   ai_contact_apply_welcome_accept(ctx, ind, indian_nation, euro_nation);
   return 1;
 }
+/* ===================== Encounter/meet scans, village-meet dialogs & attack/raid confirmations (ai_contact_encounter_scan .. ai_contact_try_village_raid_warn) ===================== */
+
 
 int ai_contact_encounter_scan(ColonizeTurnContext* ctx, int euro_nation, int x, int y) {
   if (!ctx || !ctx->col1_ok || !ctx->col1 || !ctx->map || euro_nation < 0 || euro_nation > 3) {
@@ -813,7 +837,7 @@ int ai_contact_encounter_scan(ColonizeTurnContext* ctx, int euro_nation, int x, 
     /*
      * FUN_137f_03e4 tile_tribe_owner: owner nibble only when bit 0x02 set.
      *
-     * bugs.md 422: the nibble is a STAMP, not a record — DOS FUN_1427_02ca
+     * bugs.md #416: the nibble is a STAMP, not a record — DOS FUN_1427_02ca
      * rewrites it with the mover's own nation on every step, and it survives
      * the unit leaving (FUN_1427_023a clears presence only). In DOS a unit
      * never stands on a settlement tile it does not own, so on a `& 2` tile
@@ -1348,7 +1372,7 @@ int ai_contact_try_euro_attack_confirm(
     return 1;
   }
   /*
-   * bugs.md 388: ONE byte, ONE direction — DOS tests
+   * bugs.md #382: ONE byte, ONE direction — DOS tests
    * `FUN_281f_0a38(attacker, target) & 0x40` (viceroy_unpacked.c:75545), the
    * attacker's own relation byte, which is exactly what the Foreign Affairs
    * report prints (reports.c reports_foreign_at_war reads
@@ -1534,6 +1558,8 @@ int ai_contact_try_village_raid_warn(
   }
   return 1;
 }
+/* ===================== Ship-village visits, jesuit/teachable checks & skill teaching (ai_contact_try_ship_village .. ai_contact_teach_skill) ===================== */
+
 
 /*
  * FUN_4d56_4528 ship head (ASM): unmet met-bit 0x20 → @DONTKNOWSHIPS abort;
@@ -2031,6 +2057,8 @@ static void ai_contact_teach_skill(ColonizeTurnContext* ctx, int nation_id) {
     }
   }
 }
+/* ===================== Friction/gift-gold, choice popups & incite pricing/confirmation (ai_contact_friction_decay .. ai_contact_apply_incite) ===================== */
+
 
 /* Decay alarm_by_player + this nation's tribe frictions by `amount` (floor 0). */
 static void ai_contact_friction_decay(
@@ -2681,6 +2709,8 @@ static void ai_contact_apply_incite(
   ai_contact_alarm_delta_00f2(ctx, nation_id, target, 100);
   europe_nation_gold_add(ctx->europe, ctx->col1, e, -(long)price); /* audit G3 */
 }
+/* ===================== Tools/gold demand pipeline & gift-or-demand economics (raw 2154) (ai_contact_nearest_colony .. ai_contact_gift_or_demand) ===================== */
+
 
 /* Nearest Euro colony with warehouse tools ≥20 (mid demand tools arm). */
 /*
@@ -3436,6 +3466,8 @@ static void ai_contact_gift_or_demand(
     ai_contact_refuse_chrome(ctx, e, nation_id, AI_POPUP_TAG_CONTACT_DEMAND, "Demand", "demands");
   }
 }
+/* ===================== Visit mood, demand gating & beg-food flow (ai_contact_beg_food_gift .. ai_contact_try_village_beg_food) ===================== */
+
 
 /*
  * FUN_5bfb_022e already-met Brave/Euro adjacency accept/refuse
@@ -4005,6 +4037,8 @@ void ai_contact_try_village_beg_food(ColonizeTurnContext* ctx, int nation_id) {
    */
   ai_contact_try_village_reparations(ctx, nation_id);
 }
+/* ===================== Human incite response, missionary convert/flee, WoI defect, prelude & relation tick (ai_contact_ai_incite_human .. ai_contact_indian_relation_tick) ===================== */
+
 
 /*
  * Missionary adjacent to tribe → convert / heresy pulse (5bfb / fandom
@@ -4974,6 +5008,8 @@ typedef struct AiContact2820 {
   ColonizeDosRng rng;
 } AiContact2820;
 static AiContact2820 s_2820[4];
+/* ===================== Village gift exchange (2820/2e92 helpers) (ai_contact_values_name .. ai_contact_reset) ===================== */
+
 
 /* NAMES.TXT @VALUES (DS:-0x6cc0 table): "low quality" / "good" / "fine" / "excellent". */
 static const char* ai_contact_values_name(int idx) {
@@ -5572,6 +5608,8 @@ void ai_contact_reset(void) {
   memset(s_visit_brave_turn, 0, sizeof(s_visit_brave_turn));
   village_trade_intel_reset(); /* sidebar Buys/Sells knowledge is campaign-scoped */
 }
+/* ===================== Reparations pricing, ladder & presentation (ai_contact_reparations_price .. ai_contact_try_village_reparations) ===================== */
+
 
 /*
  * DOS's demand price row. `-0x7b44 + nation*0x10 + good` wraps to the fixed
@@ -6072,6 +6110,8 @@ static void ai_contact_try_village_reparations(ColonizeTurnContext* ctx, int nat
     return; /* one reparations demand per Indian nation per turn */
   }
 }
+/* ===================== Village trade haggle/buy-sell mechanics (2820/2e92) & wagon trade dispatch (ai_contact_2820_prepare .. ai_contact_find_adjacent_euro) ===================== */
+
 
 /*
  * Shell tables: 2154 ask/bid, then
@@ -7140,6 +7180,8 @@ static ColonizeUnit* ai_contact_find_adjacent_euro(
   }
   return NULL;
 }
+/* ===================== Colony stores/loot scoring, raid-kind selection & raid execution helpers (ai_contact_indian_meet_trade .. ai_contact_raid_chrome_row) ===================== */
+
 
 void ai_contact_indian_meet_trade(ColonizeTurnContext* ctx, int nation_id) {
   if (!ctx || !ctx->units || !ctx->col1_ok || !ctx->col1 || nation_id < 4 || nation_id > 11) {
@@ -7999,7 +8041,7 @@ static void ai_contact_apply_raid_loot(
  * FUN_5fef_0f14's alarm tail (raw viceroy_unpacked.c:99944-100033) — ported
  * 2026-09-08, replacing the fandom-derived POSITIVE "raids raise tension"
  * bump the raid pulse used to apply here (same retirement as the three
- * fandom alarm drips, bugs.md 295: DOS grows Indian alarm only through the
+ * fandom alarm drips, bugs.md #289: DOS grows Indian alarm only through the
  * FUN_4d56_152e accumulator).
  *
  * Each of 0f14's four loot arms ends with the SAME two lines — a war gate
@@ -8346,6 +8388,8 @@ static const AiRaidChrome* ai_contact_raid_chrome_row(AiRaidKind kind, int have_
   }
   return &k_raid_chrome_generic;
 }
+/* ===================== Raid execution, colony-tile scout displacement, field/war census & colony war-tick (ai_contact_indian_raids .. ai_contact_a618_skill) ===================== */
+
 
 void ai_contact_indian_raids(ColonizeTurnContext* ctx, int nation_id) {
   if (!ctx || !ctx->units || !ctx->map || !ctx->col1_ok || !ctx->col1) {
@@ -8695,7 +8739,7 @@ void ai_contact_indian_raids(ColonizeTurnContext* ctx, int nation_id) {
            * spot (moving them up made the attacks snapshot read an
            * already-cleared word once the phantom array was retired). */
           /*
-           * bugs.md 287: the raid pulse never takes or destroys a colony —
+           * bugs.md #281: the raid pulse never takes or destroys a colony —
            * DOS FUN_5fef_0f14 only loots. Colony destruction lives on the
            * real combat path (units_try_capture_foreign_colony's Indian arm:
            * kill one colonist, burn only when the last falls), and Indians
@@ -8721,7 +8765,7 @@ void ai_contact_indian_raids(ColonizeTurnContext* ctx, int nation_id) {
            * signs flipped and DOS's kind 3 mis-assigned to SCALP. DOS 0f14
            * does the exact opposite: see ai_contact_raid_alarm_tail above,
            * now called right after the loot. Same retirement rule as the
-           * three fandom alarm drips (bugs.md 295).
+           * three fandom alarm drips (bugs.md #289).
            */
           /*
            * High-friction successful raid → escalate Indian×Euro hostility
@@ -9678,6 +9722,8 @@ static int ai_contact_a618_skill(ColonizeTurnContext* ctx, int nation_id, const 
   }
   return skill;
 }
+/* ===================== Menu actions: live-among-natives, speak-with-chief, demand-tribute, denounce/mission & popup-result dispatch (ai_contact_learnstay_apply .. ai_contact_ai_live_among_village) ===================== */
+
 
 /* thunk_FUN_1000_a618 LAB_398c "DONE": profession = skill, village learned bit, @LEARNDONE. */
 static void ai_contact_learnstay_apply(

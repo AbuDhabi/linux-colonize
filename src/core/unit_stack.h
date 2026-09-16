@@ -29,7 +29,7 @@ typedef struct UnitStackPopup {
   int list_y0;
   int list_x0;
   int line_h;
-  int col_w;   /* grid column width in px (bugs.md 252) */
+  int col_w;   /* grid column width in px (bugs.md #246) */
   int cols;    /* columns in use, 1..3 */
   int rows;    /* rows per column */
 } UnitStackPopup;

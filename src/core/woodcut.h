@@ -66,7 +66,7 @@ typedef enum ColonizeWoodcutId {
 #define WOODCUT_QUEUE_MAX 8
 #define WOODCUT_CAPTION_LEN 96
 
-/* DOS literals from FUN_6f30_0062. */
+/* DOS-LITERALS from FUN_6f30_0062. */
 #define WOODCUT_PLATE_Y 0xa2
 #define WOODCUT_CAPTION_Y 0xa5
 #define WOODCUT_CENTRE_X 0xa0

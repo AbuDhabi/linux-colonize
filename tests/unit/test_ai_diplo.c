@@ -3098,7 +3098,7 @@ int main(void) {
                           (e.nation[1].euro_relation[0] & AI_DIPLO_PEACE);
     const bool stamp_ok = e.head.nation_relation[1] == 30 + 0x10;
     const int second = ai_diplo_153e_encounter(&ectx, 0, 1, pa->id);
-    /* bugs.md 459: FUN_5f7a_000e Meet With Mayor pushes param_6 = 1, so the
+    /* bugs.md #453: FUN_5f7a_000e Meet With Mayor pushes param_6 = 1, so the
      * scout's audience opens even inside the cooldown and the same turn. */
     ai_popup_init(&epop);
     const int forced = second ? 0 : ai_diplo_153e_encounter_forced(&ectx, 0, 1, pa->id);

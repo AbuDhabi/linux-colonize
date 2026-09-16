@@ -461,7 +461,7 @@ static int unit_needtools(void) {
 }
 
 /*
- * bugs.md 386: a Veteran Soldier teaching in a College turns a Free Colonist
+ * bugs.md #380: a Veteran Soldier teaching in a College turns a Free Colonist
  * who is working a FIELD TILE (not sitting in the school) into a Veteran
  * Soldier after 6 turns. The old port needed profession == @JOB 18 for the
  * teacher, required students to be inside the school, and handed out the
@@ -4441,7 +4441,7 @@ int main(void) {
     }
     fprintf(stderr, "colony education graduate ok\n");
 
-    /* bugs.md 386: the graduate takes the TEACHER'S OWN profession. */
+    /* bugs.md #380: the graduate takes the TEACHER'S OWN profession. */
     col->colonists[0].profession = COLONIZE_JOB_FISHERMAN;
     col->colonists[0].building_type = 0;
     col->colonists[0].field_job = -1;
@@ -4963,7 +4963,7 @@ int main(void) {
     fprintf(stderr, "year-end defeat chrome ok\n");
     fprintf(stderr, "year-end victory chrome ok\n");
     /* calendar_latch ("scoring complete") is set by the retire-score chain,
-     * not the victory latch (bugs.md 265) — the WON latch alone must both
+     * not the victory latch (bugs.md #259) — the WON latch alone must both
      * leave it clear and still suppress the anniversary chrome. */
     if (col1.head.game_options.calendar_latch) {
       fprintf(stderr, "year-end victory must NOT set calendar_latch (scoring pending)\n");
@@ -5116,7 +5116,7 @@ int main(void) {
     /*
      * The crown's SoL comes from its own rebel pair, never from a
      * `liberty_bells_total / 4` stand-in — that stand-in is deleted
-     * (bugs.md 430: nation bell totals run into the millions in real DOS
+     * (bugs.md #424: nation bell totals run into the millions in real DOS
      * saves, so every hit of it read as 100%). C1's crown-colony gate counts
      * the RUNTIME pool (below, which stays crownless so the gate is open and
      * only the fat REF pool stops C1); ai_king_sol_percent reads the COL1

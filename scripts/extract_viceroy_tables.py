@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
-"""Extract static data tables from COLONIZE/VICEROY.EXE into src/data/viceroy_tables.c."""
+"""Extract static data tables from COLONIZE/VICEROY.EXE into src/data/viceroy_tables.c.
+
+Usage: python3 scripts/extract_viceroy_tables.py
+External requirements: Python 3 stdlib only; reads COLONIZE/VICEROY.EXE"""
 
 from __future__ import annotations
 

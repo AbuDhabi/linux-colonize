@@ -577,7 +577,7 @@ static int europe_roll_pool_profession(
  * (nation*0x13c - 0x77f6, viceroy_unpacked.c 73160-73168) and overwrites
  * 0x19/0x1a (servant/criminal) with 0x1c — job NONE, which FUN_38fd_4884
  * draws as Free Colonists (0x1c→0x13 label swap, 64719 / 68591). A direct
- * substitution, not a reroll (bugs.md 230 kept it idempotent).
+ * substitution, not a reroll (bugs.md #224 kept it idempotent).
  *
  * The 0x13 stored below is that swap applied at the store instead of at the
  * draw — the port's single pool convention, not a divergence (smell audit
@@ -1353,7 +1353,7 @@ bool europe_brewster_pick_from_pool_ex(
   eu->current_crosses = 0;
   eu->immigration_pressure = 0;
   eu->crosses_immigrant_seen = true;
-  /* bugs.md 229: do NOT clear open_on_dock here — that flag belongs to a
+  /* bugs.md #223: do NOT clear open_on_dock here — that flag belongs to a
    * ship ARRIVAL (DS:0x14c). A Brewster pick answered after the end of turn
    * was wiping the pending auto-open of the ship that had just docked. */
   europe_refresh_recruit_passage(eu);
@@ -2805,7 +2805,7 @@ void europe_apply_trade_volume(
     return;
   }
   /* 0058 single-cargo: temporary attrition then rise/fall thresholds. */
-  const int bid_before = q->bid; /* bugs.md 231: player-move price popups */
+  const int bid_before = q->bid; /* bugs.md #225: player-move price popups */
   int attrition = q->attrition;
   nr += attrition;
   const int rise = q->rise;
@@ -2825,7 +2825,7 @@ void europe_apply_trade_volume(
   nr -= attrition;
   /* Only clamp when @CARGO low/high were loaded (high > low). */
   europe_quote_settle(q);
-  /* bugs.md 231: a player transaction that moved the price gets the same
+  /* bugs.md #225: a player transaction that moved the price gets the same
    * @PRICEUP/@PRICEDOWN dialog the EOT market tick shows — record the event;
    * game_loop drains it into a popup right after the sell/buy. */
   if (q->bid != bid_before && eu->price_event_count < EUROPE_CARGO_MAX) {
@@ -3219,7 +3219,7 @@ int europe_tick_immigration_pressure(
      */
     if ((col1 && founding_fathers_nation_has(col1, nation_id, FF_WILLIAM_BREWSTER)) ||
         eu->brewster_no_criminals) {
-      europe_apply_brewster(eu, 1); /* bugs.md 230: purge stale slots BEFORE the pick */
+      europe_apply_brewster(eu, 1); /* bugs.md #224: purge stale slots BEFORE the pick */
       return 2;
     }
     eu->current_crosses = 0;
@@ -3227,7 +3227,7 @@ int europe_tick_immigration_pressure(
     eu->crosses_immigrant_seen = true;
     europe_refresh_recruit_passage(eu);
     if (europe_immigrant_from_pool(eu, rng)) {
-      /* bugs.md 229: keep open_on_dock — arrivals own it (see above). */
+      /* bugs.md #223: keep open_on_dock — arrivals own it (see above). */
       snprintf(eu->status, sizeof(eu->status), "Immigrant arrives in Europe.");
       return 1;
     }
@@ -3586,7 +3586,7 @@ static void europe_push_sale_status(EuropeScreen* eu, int cargo_type, int amount
  *      (smell audit #64). A full sale is the amt == held case of the same
  *      rule, so all three callers share it.
  *   5. europe_push_sale_status BEFORE the volume move, so the printed gross
- *      is the bid the sale actually went through at (bugs.md 382).
+ *      is the bid the sale actually went through at (bugs.md #376).
  *   6. europe_apply_trade_volume: the 1dfa ledger (tons/tons2/gold) so the
  *      human's own trading feeds the long-run price pool (smell audit #50).
  *
@@ -4863,12 +4863,12 @@ int europe_dock_icon_sprite(const ColonizeUnitPool* units, const EuropeDockImmig
   }
   /* Armed / equipped / blessed on the dock: show what the immigrant now is,
    * not the profession portrait it arrived with (bugs.md @ARMOPTIONS).
-   * bugs.md 164/177: the @UNIT icon column carries the EXPERT poses (Hardy
+   * bugs.md #158/177: the @UNIT icon column carries the EXPERT poses (Hardy
    * Pioneer / Veteran Soldier …) — DOS's map rule overrides those to the
    * base pose unless the unit's own profession matches; the dock follows
    * the same rule, so a Master Blacksmith with tools reads as a plain
    * Pioneer, not a Hardy one. */
-  /* bugs.md 269 (units_map_sprite): BOTH veteran professions (0x15 Veteran
+  /* bugs.md #263 (units_map_sprite): BOTH veteran professions (0x15 Veteran
    * Soldiers / 0x17 Veteran Dragoons) take the veteran pose — a Veteran
    * Soldier armed with horses on the dock is a Veteran Dragoon, exactly as
    * the map draws him. */
@@ -4885,7 +4885,7 @@ int europe_dock_icon_sprite(const ColonizeUnitPool* units, const EuropeDockImmig
     case EUROPE_DOCK_TYPE_SCOUTS:
       return d->profession == UNITS_JOB_SCOUT ? UNITS_ICON_SEASONED_SCOUT
                                               : UNITS_ICON_SCOUT;
-    /* bugs.md 426: same split for the fifth kit — FUN_112b_0060's
+    /* bugs.md #420: same split for the fifth kit — FUN_112b_0060's
      * `type == 3 && profession != 0x18 → 0x4e`. Without this case a
      * shipped-home missionary took the @UNIT icon (the Jesuit) whatever
      * his colonist was. */
@@ -4925,7 +4925,7 @@ int europe_passenger_icon_sprite(const ColonizeUnitPool* units, int type_index, 
     return units_working_colonist_sprite(units, type_index, profession);
   }
   /*
-   * bugs.md 458: the @UNIT icon of the five kit types is the EXPERT pose
+   * bugs.md #452: the @UNIT icon of the five kit types is the EXPERT pose
    * (Hardy Pioneer, Veteran Soldier, ...), so a Master Carpenter given tools
    * sailed out as a Hardy Pioneer. A passenger is the same unit the dock
    * showed a moment earlier: route it through the dock's expert/generic

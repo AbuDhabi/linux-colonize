@@ -480,7 +480,7 @@ int main(void) {
   }
 
   /*
-   * bugs.md 430 ("rival monarchs considering granting independence ... in
+   * bugs.md #424 ("rival monarchs considering granting independence ... in
    * 1530"). FUN_43f7_0004 (viceroy_unpacked_2.c:72202-72239) is a pop-weighted
    * average of FUN_15eb_0274 over the nation's colony records, and
    * FUN_15eb_0274 (:8167-8190) returns 0 when the rebel divisor is 0. Neither
@@ -1107,18 +1107,18 @@ int main(void) {
   if (ai_king_latch_get(&col1, 5) == 0) {
     return fail("declare should set congress confirm unknown46[5]");
   }
-  /* bugs.md 245: NO rename — DOS 160a is only the signing cinematic;
+  /* bugs.md #239: NO rename — DOS 160a is only the signing cinematic;
    * "United Colonies" was a port invention. The faction reads Rebels/Tory
    * via units_combat_nation_label instead. */
   if (strcmp(col1.player[0].country_name, "England") != 0) {
     fprintf(stderr, "unit_ai_king: country_name after declare: '%s'\n",
             col1.player[0].country_name);
-    return fail("declare must NOT rename player.country_name (bugs.md 245)");
+    return fail("declare must NOT rename player.country_name (bugs.md #239)");
   }
   if (strcmp(europe.nation_name, "England") != 0) {
-    return fail("declare must NOT rename europe.nation_name (bugs.md 245)");
+    return fail("declare must NOT rename europe.nation_name (bugs.md #239)");
   }
-  /* bugs.md 234: the crown's borrowed slot (human 0 → 1) stays a live AI
+  /* bugs.md #228: the crown's borrowed slot (human 0 → 1) stays a live AI
    * combatant (DOS 1a26: *(0x53d2*0x34+0x543f)=1); only the other two Euro
    * powers withdraw. crown_nation_id must be stamped for DOS interop. */
   if (col1.player[1].control != 1 || col1.player[2].control != 2 ||
@@ -1631,7 +1631,7 @@ int main(void) {
     unfort->profession = UNITS_JOB_SOLDIER;
     offtile->profession = UNITS_JOB_SOLDIER;
   }
-  /* bugs.md 256: 1eca is a ONCE-only mobilization gated on nation_flags bit
+  /* bugs.md #250: 1eca is a ONCE-only mobilization gated on nation_flags bit
    * 0x08 (already consumed by the first war turn above) — re-arm it so this
    * subtest exercises the mobilization body itself. */
   col1.nation[0].nation_flags = (uint8_t)(col1.nation[0].nation_flags & ~0x08u);
@@ -1802,7 +1802,7 @@ int main(void) {
       su->profession = UNITS_JOB_SOLDIER; /* Veteran gate, see 1eca note above */
       du->profession = UNITS_JOB_SOLDIER; /* eligible by type/profession; cap==1 still skips it */
     }
-    /* bugs.md 256: re-arm the once-only mobilization for this subtest. */
+    /* bugs.md #250: re-arm the once-only mobilization for this subtest. */
     col1.nation[0].nation_flags = (uint8_t)(col1.nation[0].nation_flags & ~0x08u);
     ai_king_ref_pre_euro_beat(&ctx);
     ai_king_nation_turn(&ctx);
@@ -1907,7 +1907,7 @@ int main(void) {
     hi->profession = UNITS_JOB_SOLDIER; /* Veteran gate, see 1eca note above */
     lo->profession = UNITS_JOB_SOLDIER;
   }
-  /* bugs.md 256: re-arm the once-only mobilization for this subtest. */
+  /* bugs.md #250: re-arm the once-only mobilization for this subtest. */
   col1.nation[0].nation_flags = (uint8_t)(col1.nation[0].nation_flags & ~0x08u);
   ai_king_ref_pre_euro_beat(&ctx);
   ai_king_nation_turn(&ctx);
@@ -2497,7 +2497,7 @@ int main(void) {
       assets_msg_free(&game_txt);
       return fail("apply Confirm should declare WoI + congress unknown46[5]");
     }
-    /* R2: Confirm chain → @INDEPENDENCE letter OK. bugs.md 242: NO @HOWTOWIN
+    /* R2: Confirm chain → @INDEPENDENCE letter OK. bugs.md #236: NO @HOWTOWIN
      * at declare — it fires at the first rebel recapture (units.c). */
     {
       int found_letter = 0;
@@ -2528,13 +2528,13 @@ int main(void) {
       }
       if (found_how) {
         assets_msg_free(&game_txt);
-        return fail("apply Confirm must NOT enqueue @HOWTOWIN (bugs.md 242)");
+        return fail("apply Confirm must NOT enqueue @HOWTOWIN (bugs.md #236)");
       }
     }
-    /* bugs.md 245: no rename on the choice-apply path either. */
+    /* bugs.md #239: no rename on the choice-apply path either. */
     if (strcmp(col1.player[0].country_name, "United Colonies") == 0) {
       assets_msg_free(&game_txt);
-      return fail("apply Confirm must NOT rename country_name (bugs.md 245)");
+      return fail("apply Confirm must NOT rename country_name (bugs.md #239)");
     }
 
     /*
@@ -2580,7 +2580,7 @@ int main(void) {
      */
     ColonizeDosRng merc_rng;
     /* Seed re-probed for the DOS 06a6 Tory-uprising roll now consumed first
-     * (bugs.md 261): first draw skips the uprising, second hits the 1-in-3
+     * (bugs.md #255): first draw skips the uprising, second hits the 1-in-3
      * merc roll. */
     dos_rng_seed(&merc_rng, 3u);
     ctx.rng = &merc_rng;
@@ -2609,7 +2609,7 @@ int main(void) {
     }
     status[0] = '\0';
     ai_popup_clear(&pop);
-    /* bugs.md 256: intervene/merc skip the mobilization turn — make sure the
+    /* bugs.md #250: intervene/merc skip the mobilization turn — make sure the
      * once-only mobilization is already consumed before this probe. */
     col1.nation[0].nation_flags |= 0x08u;
     const int merc_units_before = count_nation(&units, 0);
@@ -2753,7 +2753,7 @@ int main(void) {
     {
       ai_king_latch_set(&col1, 0, 1);
       col1.head.game_options.woi = 1;
-      /* bugs.md 258: @INTERVENTION fires once per game — earlier probes in
+      /* bugs.md #252: @INTERVENTION fires once per game — earlier probes in
        * this file already landed an intervention; reset the latch so this
        * subtest sees the announcement again. */
       ai_king_latch_set(&col1, AI_KING_INTERVENE_ANNOUNCED_BYTE, 0);
@@ -3169,7 +3169,7 @@ int main(void) {
     }
     /* DOS 3844_0442 win gate: a bare typeless crown unit doesn't count as
      * land force — keep the REF Regulars pool stocked so the King has not
-     * "run out of forces" in this warn-only scenario (bugs.md 261 rework). */
+     * "run out of forces" in this warn-only scenario (bugs.md #255 rework). */
     end.head.expeditionary_force[0] = 5;
 
     ColonizeMsgCatalog game_txt;
@@ -3851,7 +3851,7 @@ int main(void) {
         return fail("rev-win should enqueue @WINNING INFO OK");
       }
     }
-    /* bugs.md 264: @WINNING (KING_WAR_END payload 1) FIRST, then the
+    /* bugs.md #258: @WINNING (KING_WAR_END payload 1) FIRST, then the
      * @KINGLOSE throne audience (KING_THRONE payload 1) — the audience
      * dismissal is what opens the retire score. */
     {
@@ -3950,7 +3950,7 @@ int main(void) {
       u->nation_id = 1; /* crown still in the field */
       eu.unit_count = 1;
     }
-    /* DOS win gate (bugs.md 261): keep the REF pool stocked so the
+    /* DOS win gate (bugs.md #255): keep the REF pool stocked so the
      * exhaustion win cannot preempt the 1850 war-weariness loss. */
     end.head.expeditionary_force[0] = 5;
 
@@ -4309,7 +4309,7 @@ int main(void) {
       u->nation_id = 1;
       eu.unit_count = 1;
     }
-    /* DOS win gate (bugs.md 261): stocked pool keeps the war live at 1840. */
+    /* DOS win gate (bugs.md #255): stocked pool keeps the war live at 1840. */
     end.head.expeditionary_force[0] = 5;
 
     ColonizeMsgCatalog game_txt;

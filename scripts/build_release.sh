@@ -1,19 +1,7 @@
 #!/usr/bin/env bash
-# Build a standalone release tarball:
-#   dist/linux-colonize-<version>-linux-x86_64.tar.gz
-# Layout inside:
-#   linux-colonize                      single static-deps binary
-#   data/soundfonts/Roland_SC-55.sf2    bundled soundfont + its COPYRIGHT
-#   COLONIZE/put original game files here
-#   README.md                           install instructions (scripts/release/README.md)
-#   LICENSE                             repo LICENSE
-#
-# SDL2 and a minimal FluidSynth (+ glib) are linked statically into the binary
-# (built by scripts/build_static_deps.sh), so no lib/ directory is shipped.
-# The only runtime requirements are glibc and the host's X11/Wayland + audio
-# stack, which static SDL2 dlopens as usual. The glibc floor is set by the
-# build machine — build inside the container (build_release_container.sh) for
-# releases.
+# Build standalone Linux release tarball (dist/linux-colonize-<version>-linux-x86_64.tar.gz).
+# Usage: bash scripts/build_release.sh
+# External requirements: CMake, compiler, SDL2/FluidSynth (or build_static_deps.sh for static linking)
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"

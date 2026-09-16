@@ -1274,7 +1274,7 @@ static int ai_euro_colony_ring_tier(
  * Corollary, so nobody "fixes" them: BOTH clamps on this function's result are
  * therefore dead code by construction — `wanted > 0x10` in the 20e6 labor arm
  * (:12320) and `wanted > 0xc -> 0x10` in the colony-sail matrix (raw 1949-1951,
- * :17377). They are DOS-literal and are kept for exactly that reason; a live
+ * :17377). They are DOS-LITERAL and are kept for exactly that reason; a live
  * clamp would mean this function had started returning something other than 8,
  * i.e. that ring_tier's dead-row argument above had been falsified. Do not
  * "repair" a clamp to make it fire, and do not delete one as unreachable.
@@ -2570,7 +2570,7 @@ static int ai_euro_is_treasure_name(const char* name) {
  * `uVar11` there is the acting unit's owner nibble (`+0x3147 & 0xf`) and
  * `local_4` the nation on the target tile, so the byte written is
  * `nation[target].euro_relation[actor]` — the index order this port uses.
- * Both follow-up bits are DOS literals: `2` when the target's
+ * Both follow-up bits are DOS-LITERALS: `2` when the target's
  * `land_combat_strength` (`-0x6be4`) is lower, `8` otherwise. Bit 8 is
  * NOT a Linux invention (see ai_diplo.h) — it is the same
  * amicable-negotiation latch the 153e tail sets, one latch, one consumer.
@@ -8550,7 +8550,7 @@ static int ai_euro_nation_is_human(const ColonizeTurnContext* ctx, int nation) {
 }
 
 /*
- * Colony threat accumulator → garrison_quota (+0x1e). Ported DOS-literally
+ * Colony threat accumulator → garrison_quota (+0x1e). Ported DOS-LITERALLY
  * 2026-09-08 from the CLEAN RECOVERY in
  * `original_sources_annotated/ai/colony_tick_5952_035e.md` (raw body lines
  * 233-324 there); the canonical Ghidra export of FUN_5952_035e is corrupted

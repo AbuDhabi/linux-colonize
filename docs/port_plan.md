@@ -26,26 +26,13 @@ D4 (pixel chrome) and D5 (music timbre).
 
 This file now also owns **phase order / whole-project "what's next"** (was
 roadmap.md). North star: same rules, assets, saves, and inputs as DOS
-Colonization (1994); when goals conflict prefer (1) save/data interop,
-(2) gameplay/determinism, (3) UI parity, (4) visual polish last —
-[project_goals.md](project_goals.md).
+Colonization (1994); acceptance order when goals conflict is in
+[project_goals.md](project_goals.md#acceptance-order-when-goals-conflict).
 
-Status detail still lives with its owners:
-
-| Detail | Owner |
-|--------|-------|
-| Feature Done/Partial/Missing | [manual_gap.md](manual_gap.md) |
-| Popup inventory / authenticity | [popups.md](popups.md), [popup_audit.md](popup_audit.md) |
-| Combat mechanics | [combat.md](combat.md) |
-| Report screen (F2–F10 + HoF) DOS FUN map / layout | [reports.md](reports.md), [report_screens.md](report_screens.md) |
-| SoL / independence | [sons_of_liberty.md](sons_of_liberty.md) |
-| Indians | [indians.md](indians.md) |
-| Production formulas | [building_production.md](building_production.md), [terrain_yields.md](terrain_yields.md) |
-| Music / sound | [assets.md](assets.md) "Music / sound" |
-| AI FUN inventory + deferred queue | **this file**, "Deferred AI track — detail" |
-| Architecture constraints | [architecture.md](architecture.md) |
-| Fidelity bar / conflict order | [project_goals.md](project_goals.md) |
-| Decomp / data navigation | [original_index.md](original_index.md) |
+Status detail still lives with its owners — see the Authority table in
+[architecture.md](architecture.md#authority) (AI FUN inventory + deferred
+queue is the exception: that stays in **this file**, "Deferred AI track —
+detail").
 
 ## How an agent should use this file
 

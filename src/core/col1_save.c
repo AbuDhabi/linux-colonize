@@ -52,7 +52,7 @@ void col1_save_reset_nation_slots(ColonizeCol1Head* head) {
   /* DS:0x53a4 SETVIEW cheat override — DOS's turn loop does
    * `view = human_player; if (0x53a4 >= 0) view = 0x53a4` every pass. All DOS
    * saves carry 0xffff (= none); the template's zero-fill pinned the map view
-   * to England forever (bugs.md 288: Dutch campaign, English fog after EOT). */
+   * to England forever (bugs.md #282: Dutch campaign, English fog after EOT). */
   head->fixed_nation_map_view = 0xffffu;
 }
 
@@ -65,7 +65,7 @@ int col1_save_human_nation_from(
   }
   /* Prefer DS:0x5398 when it agrees with the control table — a stale save can
    * carry TWO control==0 slots (pre-fix template left England's), and the
-   * first-zero scan then read a Dutch campaign as England (bugs.md 288).
+   * first-zero scan then read a Dutch campaign as England (bugs.md #282).
    * head.human_player alone is not trusted either: older port saves carry a
    * stale 0 there with a correct control table. */
   const int hp = (int)head->human_player;

@@ -1,5 +1,24 @@
 #include "core/units.h"
 
+/*
+ * Sections:
+ *  - Unit pool slots, type loading & kind/type predicates (~line 41)
+ *  - Spawning, treasure trains, drydock/ship ticks, Fountain/Brewster/King-galleon popups (~line 451)
+ *  - Tile occupancy/sight/vision, combat hook registration & context setters (~line 1388)
+ *  - Defender selection, village temp-defenders & combat label helpers (~line 2106)
+ *  - Combat outcomes: promote/demote/capture, loss resolution, cargo holds, alarm venting (~line 2791)
+ *  - Outcome popups, native fallout, LCR resolution & combat sound hooks (~line 4018)
+ *  - Land & naval combat resolution (FF-aware) (~line 5281)
+ *  - Coastal fort fire, ship-slowing & foreign-colony capture setup (~line 6008)
+ *  - Colony capture & movement-point accounting (~line 6714)
+ *  - Unit movement, orders & basic order commands (~line 7573)
+ *  - Pillage/disband/wake, goto/follow flood-fill & greedy pathfinding (~line 8350)
+ *  - Coarse-grid route caching & goto step advancement (~line 9421)
+ *  - Pioneer work: plow/road/clear tick & tool wear (~line 9997)
+ *  - Cargo/passenger holds, boarding, landfall, display name/sprite & map rendering (~line 10629)
+ *  - New-world start placement & colonist deployment (~line 12013)
+ */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -38,6 +57,8 @@ static void units_mp_exhaust(const ColonizeUnitPool* pool, ColonizeUnit* u);
 static void units_mp_restore(const ColonizeUnitPool* pool, ColonizeUnit* u);
 static bool units_is_combat_role(const ColonizeUnitPool* pool, const ColonizeUnit* u);
 static ColonizeWorldMap* g_units_occupancy_map = NULL;
+/* ===================== Unit pool slots, type loading & kind/type predicates (units_slot .. units_equip_role_type_name) ===================== */
+
 
 static ColonizeUnit* units_slot(ColonizeUnitPool* pool) {
   for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
@@ -446,6 +467,8 @@ const char* units_equip_role_type_name(
     return "Colonists";
   }
 }
+/* ===================== Spawning, treasure trains, drydock/ship ticks, Fountain/Brewster/King-galleon popups (units_spawn .. units_king_galleon_apply_popup) ===================== */
+
 
 int units_spawn(ColonizeUnitPool* pool, int type_index, int x, int y) {
   if (!pool || type_index < 0 || type_index >= pool->type_count) {
@@ -685,7 +708,7 @@ int units_tick_ship_build_ready(
      */
     int threshold = ty && ty->defense > 0 ? ty->defense : 4;
     /*
-     * bugs.md 260: combat damage presets turns_worked BELOW threshold (DOS
+     * bugs.md #254: combat damage presets turns_worked BELOW threshold (DOS
      * repair timer) and this same tick counts it up — construction and
      * repair share the loop like DOS. At/past threshold with bit7 still set
      * (legacy save parked by the old drydock model): leave for
@@ -737,7 +760,7 @@ int units_tick_ship_build_ready(
 }
 
 /*
- * Repair completion (bugs.md 260): combat-damage bit7 clears when the repair
+ * Repair completion (bugs.md #254): combat-damage bit7 clears when the repair
  * TIMER (turns_worked, counted by units_tick_ship_build_ready, double speed
  * in port) reaches the type threshold — DOS's model; no Drydock building
  * required. Also clears legacy-save ships parked at/past threshold by the
@@ -1381,6 +1404,8 @@ bool units_king_galleon_apply_popup(
   );
   return true;
 }
+/* ===================== Tile occupancy/sight/vision, combat hook registration & context setters (units_is_on_map .. units_enter_reason_status) ===================== */
+
 
 bool units_is_on_map(const ColonizeUnit* unit) {
   /* id < 0 = cleared/ghost slot (tests may flip active without respawn). */
@@ -1830,7 +1855,7 @@ static void units_combat_pump_popups(void) {
 }
 
 /* Public pump for non-combat callers that must block on queued popups before
- * animating (bugs.md 243: REF landing popup precedes the disembark slides). */
+ * animating (bugs.md #237: REF landing popup precedes the disembark slides). */
 void units_pump_combat_popups(void) {
   units_combat_pump_popups();
 }
@@ -2097,6 +2122,8 @@ const char* units_enter_reason_status(ColonizeEnterReason reason) {
     return "Move blocked";
   }
 }
+/* ===================== Defender selection, village temp-defenders & combat label helpers (units_foreign_scan_at .. units_type_is_royal_name) ===================== */
+
 
 /*
  * First unit on (x,y) that is neither `mover_id` nor of `mover_nation`
@@ -2302,7 +2329,7 @@ int units_best_defender_at(
      *   → score >>= 3, so a gun in the open never outranks the dragoons
      *   standing next to it.
      *
-     * The port had the x2 with no colony gate and no >>3 at all (bugs.md 334
+     * The port had the x2 with no colony gate and no >>3 at all (bugs.md #328
      * described both but only the pick-order rewrite landed), which made
      * open-field artillery the pick against Indians by a factor of 16.
      */
@@ -2494,7 +2521,7 @@ static const char* units_combat_nation_label(const ColonizeCol1Save* col1, int n
     if (nation_id == unit_chrome_crown_nation()) {
       return "Tory";
     }
-    /* bugs.md 245: under the WoI the player faction is "Rebels" (LABELS 101),
+    /* bugs.md #239: under the WoI the player faction is "Rebels" (LABELS 101),
      * never "United Colonies" or the old country name. */
     if (col1 && col1->head.game_options.woi &&
         (col1->player[nation_id].control == 0 ||
@@ -2780,9 +2807,11 @@ void units_combat_notify_colony_burned_foreign(
 static int units_type_is_royal_name(const char* n) {
   return units_kind_is_royal(units_name_kind(n)) ? 1 : 0;
 }
+/* ===================== Combat outcomes: promote/demote/capture, loss resolution, cargo holds, alarm venting (units_promote_prof_label .. units_indian_attack_alarm_vent) ===================== */
+
 
 /*
- * bugs.md 254 — full FUN_5fef_172c + FUN_5fef_16ea port (combat promotion).
+ * bugs.md #248 — full FUN_5fef_172c + FUN_5fef_16ea port (combat promotion).
  * Eligibility: winner is an armed colonial soldier/dragoon body (DOS types
  * 1/4; royal Regulars/Cavalry never promote). Ladder (16ea, by @JOB id):
  *   Petty Criminal → Indentured Servant → Free Colonist (job NONE) →
@@ -2917,7 +2946,7 @@ static int units_promote_on_win(
       tok.string0 = base;
       snprintf(fb, sizeof(fb), "Our %s have hardened to Veteran status, Your Excellency!", base);
     } else {
-      /* bugs.md 271: DOS 172c fills @VALOR's STRING1/STRING2 with the OLD
+      /* bugs.md #265: DOS 172c fills @VALOR's STRING1/STRING2 with the OLD
        * and NEW profession names (FUN_281f_0c40), not unit display names —
        * a dragoon body's display name hides the profession change, so the
        * popup read "our Dragoons ... promoted from Dragoon to Dragoon". */
@@ -3029,7 +3058,7 @@ static int units_demote_combat_type(
   {
     const ColonizeUnitType* lt0 = units_type(pool, loser->type_index);
     const int table_target = units_combat_demote_type_index(pool, loser);
-    /* bugs.md 253: the equipment-shed demote is for colonist-BODY units
+    /* bugs.md #247: the equipment-shed demote is for colonist-BODY units
      * only. A typed military unit with no table target (Regulars, Armed
      * Braves) is DESTROYED — the old unguarded branch stripped a Regular's
      * muskets and popped "Regulars routed, demoted to Regulars". */
@@ -3080,7 +3109,7 @@ static int units_demote_combat_type(
     memset(&tok, 0, sizeof(tok));
     tok.string0 = units_combat_nation_label(col1, loser->nation_id);
     tok.string1 = old_name;
-    /* bugs.md 253: name the post-demote unit by DISPLAY name so a veteran
+    /* bugs.md #247: name the post-demote unit by DISPLAY name so a veteran
      * stripped to a colonist body reads "Veteran Soldiers", not "Colonists". */
     const char* new_disp = units_display_name(pool, loser);
     tok.string2 = new_disp && new_disp[0] ? new_disp
@@ -3693,7 +3722,7 @@ static int units_apply_naval_loss_outcome(
   const int lhull = lt ? lt->hull : 0;
   int damaged = units_ship_damage_vs_sink(rng, wguns, lhull);
   /*
-   * bugs.md 260: WoI human with no drydock port has no friendly Europe either
+   * bugs.md #254: WoI human with no drydock port has no friendly Europe either
    * — the ship goes down instead of limping anywhere (DOS 85139).
    */
   const ColonizeColony* home = NULL;
@@ -4005,8 +4034,10 @@ static void units_indian_attack_alarm_vent(
   }
   ai_diplo_indian_alarm_delta((ColonizeCol1Save*)col1, atk_nation, def_nation, delta);
 }
+/* ===================== Outcome popups, native fallout, LCR resolution & combat sound hooks (units_combat_outcome_popups .. units_combat_music_sting) ===================== */
 
-/* win/lose are PRE-LOSS snapshots: bugs.md 246 — DOS 1b0e applies the 0352
+
+/* win/lose are PRE-LOSS snapshots: bugs.md #240 — DOS 1b0e applies the 0352
  * loss outcome (demote/damage/capture popups) first and fills @EUROPEWIN /
  * @EUROPELOSE after, so this runs after the loser may already be despawned. */
 static void units_combat_outcome_popups(
@@ -4119,7 +4150,7 @@ static void units_combat_outcome_popups(
         );
       }
     }
-    /* bugs.md 244: no @SEIZURELAND here — DOS shows it only from the 0512
+    /* bugs.md #238: no @SEIZURELAND here — DOS shows it only from the 0512
      * entry-seizure path (FUN_43f7_0512, ported in ai_king.c), never as a
      * combat-win follow-up. A damaged/destroyed loser is not "captured". */
   }
@@ -4572,7 +4603,7 @@ bool units_try_native_settlement_fallout(
   }
 
   /*
-   * bugs.md 387: treasure is NOT Cortes-gated. FUN_5fef_31ea runs the peel for
+   * bugs.md #381: treasure is NOT Cortes-gated. FUN_5fef_31ea runs the peel for
    * every conqueror (viceroy_unpacked.c ~101407-101495) — Cortes (local -6) is
    * only one of the three "or" terms that let the low-difficulty roll pay out
    * (`roll == 0 || rich || cortes`) plus a +50% / +10-per-unit bonus, and at
@@ -5266,6 +5297,8 @@ static void units_combat_music_sting(void) {
     g_units_combat_sound_play(SOUND_MILITARY_BGM_ID);
   }
 }
+/* ===================== Land & naval combat resolution (FF-aware) (units_resolve_land_combat .. units_resolve_naval_combat_ff) ===================== */
+
 
 bool units_resolve_land_combat(
   ColonizeUnitPool* pool,
@@ -5381,7 +5414,7 @@ static void units_combat_present_and_roll(
   const ColonizeCol1Save* col1
 ) {
   units_combat_maybe_present_analysis(col1, eng, atk_nation, def_nation);
-  /* bugs.md 239: the attack "bump" plays AFTER the analysis is dismissed —
+  /* bugs.md #233: the attack "bump" plays AFTER the analysis is dismissed —
    * analysis → bump → outcome popups, each blocking, per combat. */
   if (g_units_combat_watch) {
     g_units_combat_watch(g_units_combat_watch_user, pool, attacker_id, def_x, def_y);
@@ -5586,7 +5619,7 @@ bool units_resolve_land_combat_ff(
         }
       }
     }
-    /* bugs.md 246: loss outcome (demote/damage/capture popups) FIRST, then
+    /* bugs.md #240: loss outcome (demote/damage/capture popups) FIRST, then
      * @EUROPEWIN — DOS 1b0e order. Snapshots keep labels past a despawn. */
     {
       const ColonizeUnit win_snap = *atk;
@@ -5679,7 +5712,7 @@ bool units_resolve_land_combat_ff(
     const int def_nation = def->nation_id;
     const ColonizeUnit win_snap = *def;
     const ColonizeUnit lose_snap = *atk;
-    /* bugs.md 246: loss outcome popups first, then @EUROPELOSE (DOS order). */
+    /* bugs.md #240: loss outcome popups first, then @EUROPELOSE (DOS order). */
     (void)units_apply_land_loss_outcome(pool, attacker_id, defender_id, col1, 1);
     units_combat_outcome_popups(
       pool, &win_snap, &lose_snap, 0, atk_nation, def_nation, 0, ambush, col1
@@ -5991,6 +6024,8 @@ bool units_resolve_naval_combat_ff(
   units_combat_pump_popups();
   return false;
 }
+/* ===================== Coastal fort fire, ship-slowing & foreign-colony capture setup (units_coastal_fort_attack_strength .. units_capture_claim_ring) ===================== */
+
 
 int units_coastal_fort_attack_strength(
   const ColonizeColonyPool* colonies,
@@ -6082,7 +6117,7 @@ static bool units_fort_vs_ship(
     defense = 0;
   }
   defense = units_drake_scale_strength(pool, def, defense, col1);
-  /* bugs.md 267: DOS engages through the real resolver (temp attacker →
+  /* bugs.md #261: DOS engages through the real resolver (temp attacker →
    * FUN_5fef_1b0e), so a fort firing on a human-visible ship shows the
    * Combat Analysis dialog before the roll, same as any naval fight. */
   {
@@ -6115,7 +6150,7 @@ static bool units_fort_vs_ship(
   }
   if (atk_wins) {
     /*
-     * bugs.md 255: DOS engages via the REAL naval resolver (temp attacker →
+     * bugs.md #249: DOS engages via the REAL naval resolver (temp attacker →
      * FUN_5fef_1b0e), so a fort win lands the same outcomes as any naval
      * fight: holds lost, damage-vs-sink roll (fort strength as "guns"),
      * damaged ship relocates to the repair port with the DOS repair timer
@@ -6199,7 +6234,7 @@ static bool units_fort_vs_ship(
     units_despawn(pool, defender_id);
     return true;
   }
-  /* bugs.md 255: fort loses the exchange → NOTHING happens (DOS undoes the
+  /* bugs.md #249: fort loses the exchange → NOTHING happens (DOS undoes the
    * temp attacker and the ship sails on; the old ship-slow was invented). */
   return false;
 }
@@ -6226,7 +6261,7 @@ static bool units_fort_vs_ship(
  *      `spent += 50` (dead stop), else Fort (09fc(1)) → `spent += 2`,
  *      Stockade/none → nothing. @SHIPSLOW (0x1a5a) with the building name
  *      when the mover is human. Independent of fort fire (that is the
- *      end-of-turn 5fef_1b0e temp-attacker path; bugs.md 255).
+ *      end-of-turn 5fef_1b0e temp-attacker path; bugs.md #249).
  *
  * 312e power = max MP thirds + 3, ×2 for a Privateer (0x10), +3 for a
  * Galleon (0x0f), −4 per hold in use, floor 1. Type ids: 13 Caravel .. 18
@@ -6424,7 +6459,7 @@ int units_coastal_fort_fire_pulse(
     if (atk <= 0) {
       continue;
     }
-    /* bugs.md 267: analysis header for the unit-less attacker. */
+    /* bugs.md #261: analysis header for the unit-less attacker. */
     char fort_label[40];
     {
       const int fortress = colonies_find_building(colonies, "Fortress");
@@ -6491,7 +6526,7 @@ int units_coastal_fort_fire_pulse(
             snprintf(status, status_size, "Coastal fort sank a ship.");
           }
         }
-        /* bugs.md 255: fort loss/miss → nothing happens, no chrome. */
+        /* bugs.md #249: fort loss/miss → nothing happens, no chrome. */
       }
     }
   }
@@ -6589,7 +6624,7 @@ static bool units_at_war_for_move(int a, int b) {
 }
 
 /*
- * bugs.md 445: refusing an Indian demand writes +0x80 into the VILLAGE's own
+ * bugs.md #439: refusing an Indian demand writes +0x80 into the VILLAGE's own
  * attitude word (LAB_5bfb_0ff2), and DOS treats a village grudge over 0x7f as
  * hostility in its own right (the same `0x7f <` test FUN_521d_0906 uses on
  * DS:0x54f6). The nation-level gate above never sees that word, so a refused
@@ -6695,6 +6730,8 @@ static void units_capture_claim_ring(ColonizeWorldMap* map, int x, int y, int ne
     map_set_owner_nibble(map, tx, ty, new_owner);
   }
 }
+/* ===================== Colony capture & movement-point accounting (units_try_capture_foreign_colony .. units_revere_defend_colony_tile) ===================== */
+
 
 static void units_try_capture_foreign_colony(
   ColonizeUnitPool* pool,
@@ -6725,7 +6762,7 @@ static void units_try_capture_foreign_colony(
     return;
   }
   /*
-   * bugs.md 287: Indians never conquer — no "march into" @CAPTURED, no
+   * bugs.md #281: Indians never conquer — no "march into" @CAPTURED, no
    * ownership flip. DOS (FUN_5fef land-combat colony arm, ~91576): an
    * Indian winner kills ONE colonist while population > 1; only when the
    * LAST colonist falls is the colony burned to the ground
@@ -6865,7 +6902,7 @@ static void units_try_capture_foreign_colony(
   /* DOS 5fef capture tail (~100915): @HOWTOWIN "glorious victory on the road
    * to freedom" fires ONCE, on the first colony the human recaptures while
    * the REF is present (0x5382 bit1) — latch DS:0x5386 bit0 (tut2.howtowin).
-   * bugs.md 242: it does NOT fire at the declaration. */
+   * bugs.md #236: it does NOT fire at the declaration. */
   if (g_units_ff_col1 && g_units_ff_col1->head.game_options.woi &&
       g_units_ff_col1->head.game_options.ref_present &&
       u->nation_id == g_units_combat_human_nation &&
@@ -6978,7 +7015,7 @@ ColonizeEnterReason units_enter_probe(
     return g_units_last_enter_reason;
   }
   /*
-   * bugs.md 435: DOS's in-bounds predicate is FUN_137f_000a
+   * bugs.md #429: DOS's in-bounds predicate is FUN_137f_000a
    * (viceroy_unpacked.c:6519-6531) — `x < 1 || y < 1 || map_w-1 <= x ||
    * map_h-1 <= y` is OUT. The playable board is the interior 1..w-2 / 1..h-2;
    * the 1-tile rim exists only as map data. This probe tested the raw array
@@ -7552,6 +7589,8 @@ static bool units_revere_defend_colony_tile(
   }
   return units_get(pool, attacker_id) != NULL;
 }
+/* ===================== Unit movement, orders & basic order commands (units_try_move .. units_order_trade_route) ===================== */
+
 
 bool units_try_move(
   ColonizeUnitPool* pool,
@@ -7659,7 +7698,7 @@ bool units_try_move(
      * landfall (spent < max_mp test, viceroy_unpacked.c:76014-76017).
      * units_board zeroes moves_left as a park flag, which cannot tell that
      * spend apart from a fresh in-port load; mark it explicitly.
-     * bugs.md 429.
+     * bugs.md #423.
      *
      * Shore-crossing is the ONLY reachable spend here: this function bails out
      * with COLONIZE_ENTER_NO_MP above (`units_remaining_mp(...) <= 0`) before
@@ -7902,7 +7941,7 @@ bool units_try_move(
       return false;
     }
     /*
-     * bugs.md 249: a land attacker does NOT advance into the vacated tile.
+     * bugs.md #243: a land attacker does NOT advance into the vacated tile.
      * Only ships (naval combat) and the attack that captures a colony enter;
      * everywhere else the winner stays put — the full attack exhaust is
      * spent either way (DOS 1b0e FUN_281f_0934, same charge as the loss
@@ -8038,7 +8077,7 @@ combat_entry_resolved:
 
   /*
    * Transports (wagons, cargo ships) on a Euro settlement forfeit remaining
-   * MP for the turn — DOS 465b:08f8 exhaust MP. bugs.md item 7: was gated on
+   * MP for the turn — DOS 465b:08f8 exhaust MP. bugs.md #7: was gated on
    * wagon type only, so ships could still move again after entering a colony.
    */
   if (colonies && colonies_id_at(colonies, dest_x, dest_y) >= 0) {
@@ -8327,6 +8366,8 @@ bool units_order_trade_route(ColonizeUnitPool* pool, int unit_id) {
   units_mp_exhaust(pool, u);
   return true;
 }
+/* ===================== Pillage/disband/wake, goto/follow flood-fill & greedy pathfinding (units_dump_cargo_overboard .. units_greedy_next_step) ===================== */
+
 
 int units_dump_cargo_overboard(
   ColonizeUnitPool* pool,
@@ -8497,7 +8538,7 @@ bool units_wake(ColonizeUnitPool* pool, int unit_id) {
   /* mp_spent_turn: the aboard zero is a real DOS spend — walked aboard from
    * open shore, the one case units_try_move can mark (a unit that is already
    * out of MP never gets to board, audit A4) — so waking must not refund it
-   * (bugs.md 429; same discriminator the landfall pick uses). */
+   * (bugs.md #423; same discriminator the landfall pick uses). */
   const bool parked =
     (u->aboard_ship_id >= 0 && !u->mp_spent_turn) ||
     ((prev == UNITS_ORDER_FORTIFIED || prev == UNITS_ORDER_SENTRY) &&
@@ -8554,7 +8595,7 @@ bool units_set_goto(
     /*
      * bugs.md: a Go To aimed at an Indian village is a legal order — the
      * unit travels there and the village-enter handling fires on arrival
-     * (bugs.md 424: the final step is dispatched as a real move into the
+     * (bugs.md #418: the final step is dispatched as a real move into the
      * village, see units_goto_dest_is_village_entry).
      * Everything else that fails the enterability check still refuses.
      */
@@ -8577,7 +8618,7 @@ bool units_set_goto(
 }
 
 /*
- * bugs.md 424: is this unit's NEXT goto step the final one, onto an Indian
+ * bugs.md #418: is this unit's NEXT goto step the final one, onto an Indian
  * settlement it was explicitly ordered to? DOS runs every goto step through
  * FUN_465b_0000, so that step is a move command into the village and must
  * raise FUN_4d56_4528's entry flow (woodcut 7 + the @ACTIONS menu / unmet
@@ -8903,7 +8944,7 @@ static bool units_flood_next_step(
   int best_x = -1;
   int best_y = -1;
   /*
-   * Both bounds are the DOS literals, not a port cap: the neighbour-pick tail
+   * Both bounds are the DOS-LITERALS, not a port cap: the neighbour-pick tail
    * opens with `uStack_30 = 99; uStack_e = 99;` (viceroy_overlays.c:86761-86762,
    * FUN_OVL20_L0000__0015bc). Costs are thirds, so a path priced above 99
    * inside the 15x15 window genuinely takes no candidate and the flood reports
@@ -9396,6 +9437,8 @@ typedef struct UnitsCoarseGrid {
   uint8_t walk[2][UNITS_COARSE_ROWS][UNITS_COARSE_COLS];
 } UnitsCoarseGrid;
 static UnitsCoarseGrid s_units_coarse;
+/* ===================== Coarse-grid route caching & goto step advancement (units_coarse_domain_tile .. units_advance_goto) ===================== */
+
 
 static int units_coarse_domain_tile(const ColonizeWorldMap* map, int x, int y, int sea) {
   if (x < 0 || y < 0 || x >= (int)map->width || y >= (int)map->height) {
@@ -9928,7 +9971,7 @@ bool units_advance_goto_one_step(
        * The HUMAN side no longer sees this: game_loop's activation pacer
        * intercepts the adjacent-to-destination frame and hands the final
        * step to game_try_unit_move, which raises the real FUN_4d56_4528
-       * entry flow (woodcut 7 + @ACTIONS menu) — bugs.md 424, superseding
+       * entry flow (woodcut 7 + @ACTIONS menu) — bugs.md #418, superseding
        * 293's "stop one tile short". This arm is the AI/headless backstop.
        */
       if (village >= 4) {
@@ -9970,6 +10013,8 @@ bool units_advance_goto(
   }
   return moved;
 }
+/* ===================== Pioneer work: plow/road/clear tick & tool wear (units_is_pioneer .. units_pioneer_road) ===================== */
+
 
 bool units_is_pioneer(const ColonizeUnitPool* pool, int unit_id) {
   const ColonizeUnit* u = units_get_const(pool, unit_id);
@@ -10428,7 +10473,7 @@ bool units_pioneer_work_tick(
         );
         ai_popup_enqueue_ok(ai_popups, AI_POPUP_TAG_INFO, NULL, body);
       }
-      /* bugs.md 284: no @DEFOREST popup — the tag string never appears in
+      /* bugs.md #278: no @DEFOREST popup — the tag string never appears in
        * VICEROY.EXE (unlike CLEARCUT/DEPLETION), so DOS never shows that
        * GAME.TXT section; the port fired it on every chop on top of
        * @CLEARCUT, double-notifying. */
@@ -10600,6 +10645,8 @@ static bool units_adjacent(int ax, int ay, int bx, int by) {
   }
   return dx >= -1 && dx <= 1 && dy >= -1 && dy <= 1;
 }
+/* ===================== Cargo/passenger holds, boarding, landfall, display name/sprite & map rendering (units_ship_capacity .. units_render_on_map) ===================== */
+
 
 /* Sea-only view of units_goods_hold_count (UN-16): identical body behind the
  * units_is_sea gate, so a wagon reports 0 capacity but keeps its goods holds. */
@@ -10998,7 +11045,7 @@ bool units_unload_passenger(
     return false;
   }
   /*
-   * bugs.md 429: a landfall (shore crossing onto bare coast) is only offered
+   * bugs.md #423: a landfall (shore crossing onto bare coast) is only offered
    * to cargo whose DOS spent byte is below max — a passenger that already
    * used its allotment this turn stays aboard. Docking at a colony is not a
    * landfall: FUN_4720_015c's DOCK arm puts everyone ashore regardless.
@@ -11072,7 +11119,7 @@ bool units_unload(
  * Port mapping: moves_left holds REMAINING, and the port zeroes it when a
  * passenger boards (park flag). So "spent < max" is `moves_left > 0` for a
  * normal unit, and for the parked zero it is `!mp_spent_turn` — the flag the
- * board path sets when DOS would have forced spent to max (bugs.md 429).
+ * board path sets when DOS would have forced spent to max (bugs.md #423).
  */
 bool units_cargo_can_landfall(const ColonizeUnitPool* pool, int unit_id) {
   const ColonizeUnit* pax = units_get_const(pool, unit_id);
@@ -11524,7 +11571,7 @@ const char* units_display_name(const ColonizeUnitPool* pool, const ColonizeUnit*
   const bool armed = unit->muskets > 0;
   const bool mounted = unit->horses > 0;
   const bool has_tools = unit->tools > 0;
-  /* bugs.md 269: either veteran profession (0x15/0x17) reads Veteran when
+  /* bugs.md #263: either veteran profession (0x15/0x17) reads Veteran when
    * armed — a mounted Veteran Soldier is a Veteran Dragoon. */
   const bool vet_prof =
     unit->profession == UNITS_JOB_SOLDIER || unit->profession == UNITS_JOB_DRAGOON;
@@ -11621,7 +11668,7 @@ static const int16_t k_units_job_icon[UNITS_JOB_NONE + 1] = {
   /* 24 Jesuit Missionaries: jump-table case 5 → 0x3e → sprite 61, the
    * working black cassock. Was 77, which is the *commissioned* non-expert
    * missionary's map pose (FUN_112b_0060's type-3 downgrade), a different
-   * sprite entirely (bugs.md 426). */
+   * sprite entirely (bugs.md #420). */
   UNITS_ICON_JESUIT_MISSIONARY_WORK,
   106, 107, 66, /* 25-27 servant, criminal, convert */
   100 /* 28 NONE: same as Free Colonists */
@@ -11726,7 +11773,7 @@ int units_map_sprite(const ColonizeUnitPool* pool, int unit_id) {
     return UNITS_ICON_DAMAGED_ARTILLERY;
   }
   /*
-   * bugs.md 426: a commissioned missionary whose colonist is not a Jesuit
+   * bugs.md #420: a commissioned missionary whose colonist is not a Jesuit
    * expert has its own, plainer art. DOS FUN_112b_0060 tail:
    *   if (type == 3 && profession != 0x18) icon = 0x4e;   // sprite 77
    * i.e. the same expert/generic split the 0x4a..0x4d poses give Pioneers,
@@ -11742,7 +11789,7 @@ int units_map_sprite(const ColonizeUnitPool* pool, int unit_id) {
              ? type->icon_sprite /* = UNITS_ICON_JESUIT_MISSIONARY, from NAMES @UNIT */
              : UNITS_ICON_MISSIONARY;
   }
-  /* bugs.md 269: a mounted Veteran Soldier (profession 0x15) IS a veteran
+  /* bugs.md #263: a mounted Veteran Soldier (profession 0x15) IS a veteran
    * dragoon — both veteran professions (0x15/0x17) take the veteran art. */
   const bool vet_prof =
     unit->profession == UNITS_JOB_SOLDIER || unit->profession == UNITS_JOB_DRAGOON;
@@ -11982,6 +12029,8 @@ void units_render_on_map(
     );
   }
 }
+/* ===================== New-world start placement & colonist deployment (units_spawn_euro_starter_fleet .. units_deploy_colonist) ===================== */
+
 
 int units_spawn_euro_starter_fleet(
   ColonizeUnitPool* pool,

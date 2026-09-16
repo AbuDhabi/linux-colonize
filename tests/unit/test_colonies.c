@@ -519,7 +519,7 @@ static int unit_noteacher_chrome(void) {
   }
   assets_msg_free(&game_txt);
 
-  /* bugs.md 386: @JOB 18 "Teacher" is level 4 and may NOT teach in DOS. */
+  /* bugs.md #380: @JOB 18 "Teacher" is level 4 and may NOT teach in DOS. */
   col->colonists[0].profession = COLONIZE_PROF_TEACHER;
   if (colonies_assign_workplace(&pool, 1, 0, 0)) {
     fprintf(stderr, "noteacher: @JOB 18 Teacher must not assign to Schoolhouse\n");
@@ -863,7 +863,7 @@ int main(void) {
   CHECK(empty && empty->has_building[town_hall], "starter includes Town Hall");
   CHECK(empty && empty->has_building[carpenter], "starter includes Carpenter's Shop");
   /*
-   * bugs.md 436 — pin the WHOLE free starter set, not just two of it. DOS
+   * bugs.md #430 — pin the WHOLE free starter set, not just two of it. DOS
    * hands every new colony the tier-1 manufacturing houses plus the Town Hall
    * and the Carpenter's Shop (docs/building_production.md "Starter colonies",
    * docs/assets.md); a silent name-lookup miss in colonies_grant_starters

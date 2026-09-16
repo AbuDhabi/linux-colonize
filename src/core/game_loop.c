@@ -1,5 +1,24 @@
 #include "core/game_loop.h"
 
+/*
+ * Sections:
+ *  - Screen tracking & move/combat watch presentation (~line 421)
+ *  - Colony/trade/found-colony confirm dialogs (~line 1143)
+ *  - Construction & Europe boycott/buy dialogs (~line 2103)
+ *  - Modal input handling & AI popup result appliers (~line 2812)
+ *  - Cheat menu, trade-route wizard, cheat-list & save/load popups (~line 3781)
+ *  - Map sprite blitting & zoom helpers (~line 4937)
+ *  - Save/load slot IO, reports/score/pedia menus (~line 5151)
+ *  - Europe screen rendering (~line 5875)
+ *  - Colony screen render, asset/palette loading, game_create/destroy (~line 6955)
+ *  - Unit selection & movement dispatch (~line 7976)
+ *  - Colony UI: enter colony, drag & drop, job/building assignment (~line 8914)
+ *  - Europe voyages, colony roles, dock orders (~line 9905)
+ *  - End-of-turn flow, trade-route servicing, map menu actions (~line 10377)
+ *  - Woodcuts/intro/popup queue servicing & main per-frame update (~line 12447)
+ *  - Begin menu, full-screen render & public accessor API (~line 15360)
+ */
+
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -124,7 +143,7 @@ struct ColonizeGameState {
    * silently snatch control back the next frame. units.selected_id >= 0
    * always implies Move Pieces regardless of this flag. */
   bool view_pieces_mode;
-  /* bugs.md 291: unit id whose off-screen auto-recentre is suspended
+  /* bugs.md #285: unit id whose off-screen auto-recentre is suspended
    * because the player deliberately panned away (map or minimap click)
    * while it was active; -1 = none. Cleared by the unit's next action /
    * the next unit hand-off. */
@@ -146,14 +165,14 @@ struct ColonizeGameState {
    */
   int found_open_colony_id;
   /*
-   * bugs.md 409: one-shot latch for the @HALF tired-attack confirm. "Charge!"
+   * bugs.md #403: one-shot latch for the @HALF tired-attack confirm. "Charge!"
    * re-enters game_try_unit_move, and unlike WHACK (confirmed bit) or Break
    * Treaty (war opened) nothing in the save marks the answer, so without this
    * the confirm would just re-ask. unit id + (x | y<<8); unit -1 = none.
    */
   int tired_ok_unit;
   int tired_ok_payload;
-  /* bugs.md 443: same one-shot latch shape for the attack-a-colony confirm. */
+  /* bugs.md #437: same one-shot latch shape for the attack-a-colony confirm. */
   int colony_attack_ok_unit;
   int colony_attack_ok_payload;
   int map_zoom; /* 0..3 — VIEW Zoom In/Out/Level N. FUN_2b5a_0f92 DS:0x184; 0 = 15×12 native. */
@@ -418,6 +437,8 @@ struct ColonizeGameState {
   X(cheat_list, "cheat list")                                                                     \
   X(unit_stack, "unit stack")                                                                     \
   X(ai_popups, NULL)
+/* ===================== Screen tracking & move/combat watch presentation (game_screen_name .. game_key_letter) ===================== */
+
 
 /*
  * debug.logs: the screen the player is looking at, stamped onto every log
@@ -734,7 +755,7 @@ static void game_move_watch(
       ColonizeUnit* mu = units_get(&game->units, unit_id);
       if (mu) {
         /*
-         * bugs.md 371: the sliding piece wears the SAME chrome it wears
+         * bugs.md #365: the sliding piece wears the SAME chrome it wears
          * standing still. DOS animates the move by calling FUN_112b_01ba once
          * per pixel step with no extra arguments — every decision inside it
          * (the stack tab from the unit's own chain, the damaged-Artillery
@@ -874,12 +895,12 @@ static void game_combat_watch(
   uint8_t pixels[320 * 200];
   ColonizeFramebuffer8 fb = {.width = 320, .height = 200, .pixels = pixels};
   ColonizePalette pal;
-  /* bugs.md 247: the lunge must draw ON TOP of everything and not fight its
+  /* bugs.md #241: the lunge must draw ON TOP of everything and not fight its
    * own static sprite — hide the attacker from the base frame (as the move
    * slide does) and blit the chrome'd copy after game_render. */
   ColonizeUnit* mu = units_get((ColonizeUnitPool*)pool, attacker_id);
   const bool was_active = mu ? mu->active : false;
-  /* bugs.md 371: same chrome standing or lunging — see game_move_watch. */
+  /* bugs.md #365: same chrome standing or lunging — see game_move_watch. */
   const bool bump_stacked = units_map_stack_chrome(pool, attacker_id);
   const bool bump_damaged = (atk->col1_unknown15 & 0x80u) != 0;
   /* Read the chrome corner before the piece is hidden — see game_move_watch:
@@ -1042,7 +1063,7 @@ static void game_combat_popup_pump(void* user) {
        *
        * A popup raised from inside a nested blocking pump is already outside
        * that per-colony ordering (in DOS it IS the blocking call), so let it
-       * through the hold — but only NON-colony-event popups (bugs.md 404:
+       * through the hold — but only NON-colony-event popups (bugs.md #398:
        * the old blanket hold-drop presented another colony's zoom CHOICE
        * mid-batch). Only if that still cannot present is there nothing to do
        * but leave.
@@ -1138,6 +1159,8 @@ static bool game_try_found_colony_at_cursor(ColonizeGameState* game);
 static void game_fill_turn_context(ColonizeGameState* game, ColonizeTurnContext* ctx);
 static void game_apply_ai_popup_result(ColonizeGameState* game);
 static void game_open_report(ColonizeGameState* game, ColonizeReportId id);
+/* ===================== Colony/trade/found-colony confirm dialogs (game_open_pedia_article .. game_request_disband_confirm) ===================== */
+
 static void game_open_pedia_article(
   ColonizeGameState* game,
   PediaCategory category,
@@ -1286,7 +1309,7 @@ static bool game_europe_blocked_by_woi(const ColonizeGameState* game) {
   return game && game->col1_ok && ai_king_independence_declared(&game->col1);
 }
 
-/* bugs.md 231: player sell/buy that crossed a price threshold — show the
+/* bugs.md #225: player sell/buy that crossed a price threshold — show the
  * @PRICEUP/@PRICEDOWN dialog immediately (same format as the EOT market
  * tick's) and clear the event list. */
 static void game_europe_drain_price_events(ColonizeGameState* game) {
@@ -1316,7 +1339,7 @@ static void game_europe_drain_price_events(ColonizeGameState* game) {
 }
 
 /*
- * Europe status line (bugs.md 382). DOS composes the sale line into the same
+ * Europe status line (bugs.md #376). DOS composes the sale line into the same
  * DS:0x2d54 buffer the map strip uses and arms it with FUN_38fd_19d8(1, 0x78,
  * 0), then repaints the European Status screen — the line replaces the top
  * strip's normal content for its dwell. Nothing blocks: the Europe screen
@@ -1603,7 +1626,7 @@ static bool game_do_found_colony_at_unit(ColonizeGameState* game, int uid, bool 
   if (gold) {
     game->europe.gold = (int)*gold;
   }
-  /* bugs.md 274: DOS tracks names-consumed per nation in the SAVE (the AI
+  /* bugs.md #268: DOS tracks names-consumed per nation in the SAVE (the AI
    * paths already bump player.founded_colonies); the human path didn't, so
    * a reload re-derived nothing and the session counter drifted. */
   if (game->col1_ok && hn >= 0 && hn < 4) {
@@ -2096,6 +2119,8 @@ static void game_request_disband_confirm(ColonizeGameState* game) {
     &tok
   );
 }
+/* ===================== Construction & Europe boycott/buy dialogs (game_do_buy_construction .. game_trade_service_screen_request) ===================== */
+
 
 static void game_do_buy_construction(ColonizeGameState* game, int colony_id) {
   if (!game || !game->in_colony) {
@@ -2803,6 +2828,8 @@ static void game_trade_service_screen_request(ColonizeGameState* game) {
       break;
   }
 }
+/* ===================== Modal input handling & AI popup result appliers (game_handle_modal_input .. game_apply_ai_popup_result) ===================== */
+
 
 /*
  * Parent-view hotkeys must not fire while any wood modal is open (name entry,
@@ -2908,7 +2935,7 @@ static bool game_handle_modal_input(ColonizeGameState* game, const ColonizeInput
         if (ff_index >= 0 && ff_index < PEDIA_FATHER_COUNT) {
           /* Cancel the open dialog — apply's cancelled branch re-enqueues
            * the identical slate, which re-presents once the pedia closes.
-           * bugs.md 374: the re-enqueue lands at the BACK of the queue, so
+           * bugs.md #368: the re-enqueue lands at the BACK of the queue, so
            * without this the article handed the screen to whatever else was
            * waiting instead of back to the debate. Reading a candidate's
            * entry must not cost the player their place in the vote. */
@@ -3010,7 +3037,7 @@ static void game_apply_howmuch_result(ColonizeGameState* game) {
   const int cargo = game->howmuch.result_cargo;
   const HowmuchKind kind = game->howmuch.result_kind;
   if (kind == HOWMUCH_KIND_MOVE) {
-    /* @HOWMUCH3: ship-to-ship transfer of a chosen amount (bugs.md 438
+    /* @HOWMUCH3: ship-to-ship transfer of a chosen amount (bugs.md #432
      * pattern), never through the warehouse. */
     const int src = game->colony_screen.transport_unit_id;
     const int dst = game->howmuch_move_dst_unit_id;
@@ -3400,7 +3427,7 @@ static void game_apply_ai_popup_result(ColonizeGameState* game) {
         ai_diplo_declare_war_ctx(&ctx, u->nation_id, target_nation);
         game->units.selected_id = unit_id;
         ai_popup_consume_result(&game->ai_popups);
-        /* bugs.md 443: the colony confirm (if any) was already answered
+        /* bugs.md #437: the colony confirm (if any) was already answered
          * before this treaty prompt — don't ask twice on the retry. */
         game->colony_attack_ok_unit = unit_id;
         game->colony_attack_ok_payload = dest_x | (dest_y << 8);
@@ -3485,7 +3512,7 @@ static void game_apply_ai_popup_result(ColonizeGameState* game) {
       return;
     }
     /*
-     * bugs.md 459/460: every outcome that ends the move — Meet (000e returns
+     * bugs.md #453/460: every outcome that ends the move — Meet (000e returns
      * true), Nothing (local_8 == 4, returns true) and a successful Infiltrate —
      * makes FUN_5f7a_0662 call FUN_281f_0934 (spent = full allotment), and
      * 465b stops the step. Without the spend and with the Go To still armed,
@@ -3770,6 +3797,8 @@ static void game_apply_ai_popup_result(ColonizeGameState* game) {
   }
   ai_popup_consume_result(&game->ai_popups);
 }
+/* ===================== Cheat menu, trade-route wizard, cheat-list & save/load popups (game_fog_nation .. load_begin_menu) ===================== */
+
 
 /* Fog nation for map paint: special view override, else human. */
 static int game_fog_nation(const ColonizeGameState* game) {
@@ -4924,6 +4953,8 @@ static void load_begin_menu(ColonizeGameState* game) {
     diag_info("  menu[%d]=%s", i, game->menu_options[i]);
   }
 }
+/* ===================== Map sprite blitting & zoom helpers (blit_map_sprite_offset .. game_pick_rng_seed) ===================== */
+
 
 static void blit_map_sprite_offset(
   const ColonizeSpriteSheet* sheet,
@@ -5136,6 +5167,8 @@ static uint32_t game_pick_rng_seed(const ColonizeGameState* game, uint32_t fallb
   }
   return fallback ? fallback : 1u;
 }
+/* ===================== Save/load slot IO, reports/score/pedia menus (game_apply_col1_save .. render_pedia_screen) ===================== */
+
 
 static bool game_apply_col1_save(ColonizeGameState* game, ColonizeCol1Save* loaded, char* err, size_t err_size) {
   ColonizeCol1BridgeResult result;
@@ -5858,6 +5891,8 @@ static void render_pedia_screen(const ColonizeGameState* game, ColonizeFramebuff
     font_draw_text(font, framebuffer, 8, framebuffer->height - 12, "(PEDIA.TXT not loaded)", 12);
   }
 }
+/* ===================== Europe screen rendering (europe_draw_box_border .. render_europe_screen) ===================== */
+
 
 
 static void europe_draw_box_border(
@@ -5875,7 +5910,7 @@ static void europe_draw_box_border(
 
 /* Two-line header + ship icons inside an Expected/Bound/Loading water box. */
 /*
- * @UNIT type for unit_chrome's orders-box corner (bugs.md 425). Must use the
+ * @UNIT type for unit_chrome's orders-box corner (bugs.md #419). Must use the
  * SAME by-name fallback the sprite lookup above uses: europe_purchase() files
  * a freshly bought hull with type_index = -1 ("resolved by name in game_loop /
  * caller"), and feeding that -1 straight to unit_chrome_corner_for_type made
@@ -6166,7 +6201,7 @@ static void europe_menu_draw_shadowed(
   const char* text,
   uint8_t color
 ) {
-  /* bugs.md 286: thin letters like every other dialog caption. */
+  /* bugs.md #280: thin letters like every other dialog caption. */
   font_draw_text_unbold(font, fb, x + 1, y + 1, text, 0);
   font_draw_text_unbold(font, fb, x, y, text, color);
 }
@@ -6181,7 +6216,7 @@ static void europe_menu_draw_shadowed(
  * height used. {…} spans take the highlight ink and the state carries across
  * words and lines, like DOS's dialog text writer (FUN_6f74_0538); the 1px
  * black drop shadow and the unbold face are the same ones every other
- * FONTINTR caption uses (bugs.md 286).
+ * FONTINTR caption uses (bugs.md #280).
  *
  * Audit GL-8: the wrap engine and the brace-run drawer were private copies of
  * popup_wrap_text / popup_draw_text_markup. They are now those two — verified
@@ -6689,7 +6724,7 @@ static void render_europe_screen(const ColonizeGameState* game, ColonizeFramebuf
     /*
      * DOS status line owns this strip while one is armed: FUN_38fd_23c4
      * composes the sale into DS:0x2d54 and FUN_1009_02cc paints it INSTEAD of
-     * the strip's normal content, in the arm kind's ink (bugs.md 382).
+     * the strip's normal content, in the arm kind's ink (bugs.md #376).
      */
     const char* bar = ai_popup_bar_message(&game->ai_popups);
     const char* text = bar ? bar : line;
@@ -6936,6 +6971,8 @@ static void render_europe_screen(const ColonizeGameState* game, ColonizeFramebuf
     font_draw_text(font, framebuffer, 4, 100, "EUROPE.PIK / NAMES.TXT failed to load", 12);
   }
 }
+/* ===================== Colony screen render, asset/palette loading, game_create/destroy (render_colony_screen .. activate_menu_selection) ===================== */
+
 
 static void render_colony_screen(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffer) {
   const ColonizeColony* colony = colonies_get(&game->colonies, game->colony_view_id);
@@ -7261,7 +7298,7 @@ ColonizeGameState* game_create(const ColonizeGameConfig* config) {
       }
       /* EDIT TRADE ROUTE screen strings (@ROUTE + @MISC 46 "OK"). */
       trade_screen_init(&game->trade_screen, &game->labels);
-      /* @CMESSAGE wording for the Europe sale status line (bugs.md 382). */
+      /* @CMESSAGE wording for the Europe sale status line (bugs.md #376). */
       europe_set_labels(&game->europe, &game->labels);
     } else {
       diag_warn("Failed to parse LABELS.TXT");
@@ -7443,7 +7480,7 @@ ColonizeGameState* game_create(const ColonizeGameConfig* config) {
   if (game_load_ss_asset(game, "ICONS.SS", &game->unit_icons, "unit icon sheet")) {
     game->unit_icons_ok = true;
     /*
-     * bugs.md 370 (Dutch mission cross pink): the map screen draws
+     * bugs.md #364 (Dutch mission cross pink): the map screen draws
      * TERRAIN.SS tiles and ICONS.SS pieces through ONE DAC. The two sheets'
      * own palettes agree everywhere that matters except slots 5 and 13 —
      * TERRAIN leaves them as plain EGA magenta and never uses them (0 pixels
@@ -7670,7 +7707,7 @@ static void game_commit_new_campaign(ColonizeGameState* game) {
       }
     }
     /*
-     * bugs.md item 2: map_load_mp marks scenario .MP maps fully explored
+     * bugs.md #2: map_load_mp marks scenario .MP maps fully explored
      * (no fog plane in the file) — fine for the pre-game-start default load,
      * but a real Original Americas/AMER2 campaign start must begin fogged
      * like NEW WORLD/CUSTOMIZE (map_generate's map_alloc zero-inits `seen`).
@@ -7828,7 +7865,7 @@ static void game_commit_new_campaign(ColonizeGameState* game) {
     /*
      * Reveal around owned units and colonies. Was NEW WORLD/CUSTOMIZE-only in
      * practice — scenario .MP starts (Original Americas/AMER2) used to load
-     * fully explored, so this loop was a no-op there (bugs.md item 2, fixed
+     * fully explored, so this loop was a no-op there (bugs.md #2, fixed
      * by clearing `seen` after map_load_mp above).
      */
     if (game->world_map_ok) {
@@ -7955,6 +7992,8 @@ static void activate_menu_selection(ColonizeGameState* game) {
 
   set_status(game, "Menu", "unknown option");
 }
+/* ===================== Unit selection & movement dispatch (game_set_view_center .. game_key_move_delta) ===================== */
+
 
 static void game_set_view_center(ColonizeGameState* game, int x, int y) {
   if (!game) {
@@ -8254,7 +8293,7 @@ static bool game_try_unit_move(ColonizeGameState* game, int dest_x, int dest_y) 
       if (pax_ready < 0) {
         /* DOS FUN_4720_015c writes the landfall reason (2/3) only when some
          * passenger's spent byte is below its max — with none, reason stays 0
-         * and the move is simply refused, no @LANDFALL prompt (bugs.md 429). */
+         * and the move is simply refused, no @LANDFALL prompt (bugs.md #423). */
         set_status(
           game,
           selected->cargo_count > 0 ? "No unit aboard has moves left" :
@@ -8399,7 +8438,7 @@ static bool game_try_unit_move(ColonizeGameState* game, int dest_x, int dest_y) 
     }
   }
   /*
-   * bugs.md 444 / DOS FUN_5f7a_000e: a SCOUT stepping onto a foreign Euro
+   * bugs.md #438 / DOS FUN_5f7a_000e: a SCOUT stepping onto a foreign Euro
    * colony gets the @SCOUTCOLONY menu (Meet With Mayor / Infiltrate Colony /
    * Attack Colony / Nothing) instead of a bare attack. The colony_attack_ok
    * latch doubles as the "Attack Colony" pass-through.
@@ -8458,7 +8497,7 @@ static bool game_try_unit_move(ColonizeGameState* game, int dest_x, int dest_y) 
     }
   }
   /*
-   * bugs.md 443: attacking a foreign EURO COLONY — armed or not, at war or
+   * bugs.md #437: attacking a foreign EURO COLONY — armed or not, at war or
    * not — always asks first. One-shot latch (colony_attack_ok) so the Yes
    * retry through game_try_unit_move does not re-ask.
    */
@@ -8592,7 +8631,7 @@ static bool game_try_unit_move(ColonizeGameState* game, int dest_x, int dest_y) 
   }
   if (selected->type_index >= 0 && selected->type_index < game->units.type_count &&
       strcmp(game->units.types[selected->type_index].name, "Wagon Train") == 0) {
-    /* bugs.md 446: the wheels (COLDIG 12, event 0x52) roll only when the
+    /* bugs.md #440: the wheels (COLDIG 12, event 0x52) roll only when the
      * wagon ARRIVES at a colony, not on every overland step. */
     const int arrive_cid = colonies_id_at(&game->colonies, selected->x, selected->y);
     const ColonizeColony* arrive_col = colonies_get(&game->colonies, arrive_cid);
@@ -8699,7 +8738,7 @@ static void game_after_unit_action(ColonizeGameState* game) {
   if (!game || !game->units_ok) {
     return;
   }
-  /* bugs.md 291: any unit action ends the manual-pan hold — from here the
+  /* bugs.md #285: any unit action ends the manual-pan hold — from here the
    * view follows the acting unit again. */
   game->view_pan_hold_unit = -1;
   ColonizeUnit* u = units_get(&game->units, game->units.selected_id);
@@ -8891,6 +8930,8 @@ static bool game_key_move_delta(ColonizeKey key, int* out_dx, int* out_dy) {
   }
   return true;
 }
+/* ===================== Colony UI: enter colony, drag & drop, job/building assignment (game_owned_unit_at .. game_colony_drag_drop) ===================== */
+
 
 /* Human-owned map unit on tile with moves remaining (else -1). */
 static int game_owned_unit_at(const ColonizeGameState* game, int x, int y) {
@@ -8993,7 +9034,7 @@ static void game_enter_colony_at_cursor(ColonizeGameState* game) {
 }
 
 /*
- * bugs.md item 6: a colonist admitted via 'B' had no field_job/building_type
+ * bugs.md #6: a colonist admitted via 'B' had no field_job/building_type
  * — invisible on the settlement grid and minimap, and not producing anything.
  * No general auto-assignment exists yet (docs/terrain_yields.md: DOS's own
  * work-plot scorer FUN_15eb_28c8 is unported), so give the new hire a plain
@@ -9014,7 +9055,7 @@ static void game_auto_assign_new_colonist(ColonizeGameState* game, int colony_id
     if (bi == town_hall || !col->has_building[bi]) {
       continue;
     }
-    /* bugs.md 414 (veterans kept teaching after being pulled from the school):
+    /* bugs.md #408 (veterans kept teaching after being pulled from the school):
      * teaching is an explicit player choice — an auto-assign must never
      * quietly seat a specialist at the Schoolhouse/College/University
      * (it did whenever Town Hall was full, so a joining specialist started
@@ -9459,7 +9500,7 @@ static void game_colony_assign_building_drop(ColonizeGameState* game, int buildi
 /* Docks / Drydock / Shipyard — same check as colony_preview.c / turn.c. */
 
 /*
- * bugs.md 290 — DOS work-assign complaint (overlays.c ~8789, the colony
+ * bugs.md #284 — DOS work-assign complaint (overlays.c ~8789, the colony
  * tiles[] writer): putting a colonist on Indian-claimed land bumps the
  * owning tribe's alarm. base = difficulty+5 (human turn); ×2 when the
  * claiming village stands within 3 tiles, +base again within 2; ×2 on a
@@ -9770,7 +9811,7 @@ static bool game_colony_drag_drop(
     if (hit.kind == COLONY_HIT_TRANSPORT && hit.index >= 0 &&
         hit.index < csv->docked_transport_count &&
         csv->docked_transport_ids[hit.index] != csv->transport_unit_id) {
-      /* bugs.md 438: hold → another docked transport's sprite moves the
+      /* bugs.md #432: hold → another docked transport's sprite moves the
        * cargo ship-to-ship (if the target has a free hold), never through
        * the warehouse. */
       const int dst = csv->docked_transport_ids[hit.index];
@@ -9880,6 +9921,8 @@ static bool game_colony_drag_drop(
   game_ui_drag_clear(game);
   return true;
 }
+/* ===================== Europe voyages, colony roles, dock orders (game_voyage_ship_count .. game_center_on_selected_unit) ===================== */
+
 
 /*
  * The ship count FUN_48d3_0002 gates on. DOS reads DS:0x9418[nation]
@@ -10144,7 +10187,7 @@ static bool game_colony_apply_outside_role(
   case COLONIZE_EJECT_SCOUT:
   case COLONIZE_EJECT_DRAGOON:
   case COLONIZE_EJECT_COLONIST:
-    /* bugs.md row 362: the Pioneer takes whole 20-tool steps capped at 100,
+    /* bugs.md #356: the Pioneer takes whole 20-tool steps capped at 100,
      * the same rule colonies_eject_colonist uses — this path used to insist
      * on the full 100 and refused a Pioneer the menu beside it had just
      * offered. The shared helper owns the rule (FUN_15eb_1068, see
@@ -10183,7 +10226,7 @@ static bool game_colony_apply_outside_role(
   u->tools = tools_take;
   u->muskets = muskets_take;
   u->horses = horses_take;
-  /* bugs.md 283: ANY loadout change (arming, mounting, tools taken OR laid
+  /* bugs.md #277: ANY loadout change (arming, mounting, tools taken OR laid
    * down) exhausts the unit's moves for the turn; picking the same kit
    * ("No changes") costs nothing. bugs.md follow-up: the standing order goes
    * with them — the unit that comes out of the armoury is a different type
@@ -10350,6 +10393,8 @@ static void game_center_on_selected_unit(ColonizeGameState* game) {
   game_set_view_center(game, selected->x, selected->y);
   set_status(game, "Centered on active unit", NULL);
 }
+/* ===================== End-of-turn flow, trade-route servicing, map menu actions (game_apply_turn_autosave .. game_map_click_dispatch) ===================== */
+
 
 static void game_apply_turn_autosave(ColonizeGameState* game, const ColonizeTurnResult* result) {
   if (!game || !result) {
@@ -10864,7 +10909,7 @@ static void game_europe_deliver_bound_ships(ColonizeGameState* game) {
         (void)game_trade_route_aim_stop(game, ship, trade_stop);
       }
       /*
-       * bugs.md 427: a ship stepping off the Europe lane onto the map sees
+       * bugs.md #421: a ship stepping off the Europe lane onto the map sees
        * around itself the moment it lands — it does NOT need to be moved
        * first. DOS FUN_48d3_048e ends with
        *   FUN_281f_0948 (set x/y) -> FUN_281f_084e (post-move chrome)
@@ -12407,7 +12452,7 @@ static void game_map_click_dispatch(ColonizeGameState* game, int mx, int my) {
   if (game->units_ok && game->units.selected_id >= 0) {
     const ColonizeUnit* sel = units_get_const(&game->units, game->units.selected_id);
     if (sel && sel->active) {
-      /* View only — the cursor stays with the controlled unit. bugs.md 291:
+      /* View only — the cursor stays with the controlled unit. bugs.md #285:
        * the deliberate pan also holds off the off-screen auto-recentre so
        * the player can reach a far go-to destination. */
       game->view_pan_hold_unit = sel->id;
@@ -12418,6 +12463,8 @@ static void game_map_click_dispatch(ColonizeGameState* game, int mx, int my) {
 
   game_select_tile(game, mx, my);
 }
+/* ===================== Woodcuts/intro/popup queue servicing & main per-frame update (game_service_woodcut .. game_update) ===================== */
+
 
 /*
  * Milestone woodcut (FUN_12fd_006c) — full-screen, and ahead of whatever
@@ -12437,7 +12484,7 @@ static bool game_service_woodcut(ColonizeGameState* game, const ColonizeInputSta
    * ai_contact's first-contact 3/4/5 — used to seize a screen the player was
    * reading. Only `in_menu` was parked before. The pending id stays queued
    * and is picked up when the map is back (popup-blocking invariant,
-   * bugs.md 268). Modals/popups are deliberately NOT in this set: DOS pushes
+   * bugs.md #262). Modals/popups are deliberately NOT in this set: DOS pushes
    * the woodcut ahead of the dialog the same event queues behind it.
    */
   const bool screen_over_map =
@@ -12465,7 +12512,7 @@ static bool game_service_woodcut(ColonizeGameState* game, const ColonizeInputSta
 }
 
 /*
- * DOS status line (bugs.md 375). FUN_1009_00b4 is a BLOCKING call: it holds
+ * DOS status line (bugs.md #369). FUN_1009_00b4 is a BLOCKING call: it holds
  * whatever was running until the line's dwell expires or the player presses
  * anything, then clears the strip and lets the next one through. Same shape
  * here — while a line is up, the map's top strip shows it instead of the
@@ -12569,7 +12616,7 @@ bool game_try_start_intro(ColonizeGameState* game) {
  * idle branch, with different guard sets. The difference is deliberate and both
  * halves survive here:
  *  - the EOT caller only reaches this when no screen is over the map at all
- *    (bugs.md 268 — a colony zoom / Europe / report / pedia freezes the whole
+ *    (bugs.md #262 — a colony zoom / Europe / report / pedia freezes the whole
  *    end-of-turn pipeline and control falls through to the idle path so that
  *    screen gets its input), so it passes zoom_blocked_by_screen = false;
  *  - the idle caller DOES present over in_colony / in_europe / in_menu, the
@@ -12752,11 +12799,11 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
   unit_chrome_set_rebel_nation(
     game->col1_ok && ai_king_independence_declared(&game->col1) ? game->human_nation : -1
   );
-  /* bugs.md 240: the move/combat watches were only armed during end-of-turn
+  /* bugs.md #234: the move/combat watches were only armed during end-of-turn
    * processing, so the PLAYER's own moves fired into a NULL watch and never
    * animated. Arm them every frame; the callbacks guard platform/zoom
    * themselves. (The moving unit's overlay is blitted after game_render, so
-   * it also draws on top of any stack it passes — bugs.md 233.) */
+   * it also draws on top of any stack it passes — bugs.md #227.) */
   units_set_move_watch(game_move_watch, game);
   units_set_combat_watch(game_combat_watch, game);
   units_set_combat_dissolve(game_combat_dissolve, game);
@@ -12775,7 +12822,7 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
    * pipeline underneath — end-of-turn slices, queued popups, the bar line,
    * a woodcut, the deferred Europe open, the goto pacer and the unit
    * activation cycle — must freeze while a screen is up (the popup-blocking
-   * invariant, bugs.md 268). It is a screen, not a modal, so it joins the
+   * invariant, bugs.md #262). It is a screen, not a modal, so it joins the
    * screen tests (`screen_over_map`, `map_visible`, `game_screen_name`)
    * rather than `game_modal_open`, which drives `game_handle_modal_input`.
    */
@@ -12814,7 +12861,7 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
    * next slice of processing runs, not hoarded until FINISH. Present it
    * here and freeze the whole pipeline until the player deals with it;
    * only animations (water cycle, flair clocks above) keep running. */
-  /* bugs.md 268: a screen over the map (colony zoom mid-EOT, Europe, a
+  /* bugs.md #262: a screen over the map (colony zoom mid-EOT, Europe, a
    * report, the pedia) freezes the WHOLE end-of-turn pipeline — nothing may
    * advance while the player is occupied with it. Fall through so that
    * screen gets its input; the EOT branch resumes when it closes. Queued
@@ -13054,14 +13101,14 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
 
     if (active_pending) {
       /*
-       * bugs.md 424: a Go To AIMED at an Indian settlement executes its final
+       * bugs.md #418: a Go To AIMED at an Indian settlement executes its final
        * step INTO the village. DOS routes every goto step through
        * FUN_465b_0000, so arriving next to the dwelling with the village as
        * the ordered destination raises exactly what an arrow-key step raises
        * (FUN_4d56_4528: woodcut 7 + the NAMES.TXT @ACTIONS menu, or the
        * unmet-tribe warn) — the order was a move command into the village.
        * Earlier this branch stopped one tile short and handed control back
-       * (bugs.md 293), which left the player to repeat the step by hand.
+       * (bugs.md #287), which left the player to repeat the step by hand.
        *
        * The order is spent either way: a peaceful meet is conducted from the
        * adjacent tile (the unit never stands ON the village), so the goto is
@@ -13115,7 +13162,7 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
               units_clear_orders(&game->units, aid);
             } else {
               /* Refused without a prompt (cost, domain…): park like a
-               * blocked step (bugs.md 369) so the pacer doesn't spin. */
+               * blocked step (bugs.md #363) so the pacer doesn't spin. */
               after->moves_left = 0;
               units_clear_orders(&game->units, aid);
             }
@@ -13201,7 +13248,7 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
            * (game_select_tile) instead of leaving a moves-exhausted
            * "ghost" selection this loop would otherwise re-poll forever. */
           /*
-           * bugs.md 369 (trade-routed wagon sat in the control queue and
+           * bugs.md #363 (trade-routed wagon sat in the control queue and
            * only moved after the turn ended): a unit whose order is STILL
            * a goto/trade route after a failed step did not arrive — it is
            * blocked (foreign unit or native village on the next tile) or
@@ -13262,7 +13309,7 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
         &vy
       );
       if ((active->x < vx || active->y < vy || active->x >= vx + vc || active->y >= vy + vr) &&
-          game->view_pan_hold_unit != active->id /* bugs.md 291 manual pan */) {
+          game->view_pan_hold_unit != active->id /* bugs.md #285 manual pan */) {
         game->map_cursor_x = active->x;
         game->map_cursor_y = active->y;
         game_set_view_center(game, active->x, active->y);
@@ -14914,7 +14961,7 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
                 &tx,
                 &ty
               )) {
-            /* bugs.md 291: a minimap pan while a unit is active must hold,
+            /* bugs.md #285: a minimap pan while a unit is active must hold,
              * exactly like a main-map pan — suspend that unit's off-screen
              * auto-recentre until its next action / hand-off. */
             if (game->units_ok && game->units.selected_id >= 0) {
@@ -15329,6 +15376,8 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
   }
   return true;
 }
+/* ===================== Begin menu, full-screen render & public accessor API (begin_menu_font .. game_unit_info) ===================== */
+
 
 /* Title-menu helpers: brace markup + selection fill (chrome via popup_draw). */
 
@@ -15637,7 +15686,7 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
     ai_popup_sheet_palette_merge(europe_menu_decoration(game), palette);
   }
 
-  /* bugs.md 408: SCORE<nn>.SS carries the exploits painting's colours in the
+  /* bugs.md #402: SCORE<nn>.SS carries the exploits painting's colours in the
    * DAC slots WOODPAN2.PIK leaves black — same reserved-block rule as the
    * popup art sheets (merge, never remap). */
   if (game->in_exploits && game->exploits_sheet_ok && game->exploits_sheet.has_palette) {

@@ -1535,7 +1535,7 @@ static int unit_land_adjacent_combat_chain(void) {
   fb = units_get(&units, foe_b);
   const int a_dead = !fa || !fa->active;
   const int b_dead = !fb || !fb->active;
-  /* bugs.md 249: a land attacker stays put after a win — foe A (adjacent)
+  /* bugs.md #243: a land attacker stays put after a win — foe A (adjacent)
    * dies; the AI may then STEP into the vacated tile as a normal move, but
    * the attack itself no longer carries it there, so foe B two tiles out
    * survives the act. */
