@@ -2086,6 +2086,10 @@ const char* units_enter_reason_status(ColonizeEnterReason reason) {
     return "Boarded ship";
   case COLONIZE_ENTER_VILLAGE_SHIP:
     return "Village";
+  case COLONIZE_ENTER_LAKE_BLOCKED:
+    return "Ship cannot enter lake";
+  case COLONIZE_ENTER_LANDFIRST:
+    return "Must unload troops first";
   case COLONIZE_ENTER_NO_MP:
     return "No moves left";
   case COLONIZE_ENTER_BLOCKED:
@@ -4467,6 +4471,29 @@ bool units_try_native_settlement_fallout(
       const int roll = dos_rng_range(rng, 0, 12);
       if (roll < thr) {
         (void)units_spawn_subjugated_convert(units, tile_x, tile_y, attacker_nation_id);
+        /*
+         * @INDIANSLAVES (0x1cbf, viceroy_unpacked.c 101176-101181): DOS
+         * announces the convert to a HUMAN conqueror, with slot 0 = the
+         * tribe's name and slot 1 = the conquering nation's adjective, in
+         * the same `attacker < 4 && not AI-run` gate the rest of 1b0e's
+         * chrome uses. The spawn itself was already ported; only the popup
+         * was missing (2026-09-16).
+         */
+        if (attacker_nation_id == g_units_combat_human_nation) {
+          PopupMsgTokens stok;
+          memset(&stok, 0, sizeof(stok));
+          stok.string0 = units_combat_nation_label(col1, defender_nation_id);
+          stok.string1 = units_combat_nation_label(col1, attacker_nation_id);
+          char sfb[160];
+          snprintf(
+            sfb, sizeof(sfb), "Frightened %s flock to %s mission as converts.",
+            stok.string0, stok.string1
+          );
+          units_combat_enqueue_tok(
+            AI_POPUP_TAG_COMBAT_COLONY, "INDIANSLAVES", attacker_nation_id,
+            defender_nation_id, 0, &stok, sfb
+          );
+        }
       }
     }
   }
@@ -4505,6 +4532,32 @@ bool units_try_native_settlement_fallout(
        * ai_diplo_indian_capital_surrender models.
        */
       ai_diplo_indian_capital_surrender(col1, tribe_nation, attacker_nation_id);
+      /*
+       * @INDIANBOW (0x1cd7, viceroy_unpacked.c 101300-101306): the tribe
+       * bows and cedes the land it occupies. DOS shows it at the tail of
+       * the same capital-fall block, to a human conqueror only, with slot 0
+       * = the tribe name and slot 1 = the conqueror's adjective (2026-09-16
+       * — the mechanics were ported, the popup was not).
+       */
+      if (attacker_nation_id == g_units_combat_human_nation) {
+        PopupMsgTokens btok;
+        memset(&btok, 0, sizeof(btok));
+        btok.string0 = units_combat_nation_label(col1, tribe_nation);
+        btok.string1 = units_combat_nation_label(col1, attacker_nation_id);
+        char bfb[224];
+        snprintf(
+          bfb,
+          sizeof(bfb),
+          "\"The %s tribe bows before the might of the %s. In tribute to your "
+          "greatness, we give you all the land you now occupy.\"",
+          btok.string0,
+          btok.string1
+        );
+        units_combat_enqueue_tok(
+          AI_POPUP_TAG_COMBAT_COLONY, "INDIANBOW", attacker_nation_id,
+          tribe_nation, 0, &btok, bfb
+        );
+      }
       if (col1->tribe) {
         for (uint16_t ti = 0; ti < col1->head.tribe_count; ++ti) {
           if ((int)col1->tribe[ti].nation_id == tribe_nation) {
@@ -6409,6 +6462,29 @@ int units_coastal_fort_fire_pulse(
         const int human_chrome =
           status && status_size > 0 &&
           (col->nation_id == human_nation || ship_nation == human_nation);
+        if (human_chrome) {
+          /* GAME.TXT @FORTFIRE: "{%STRING0} at {%STRING1} opens fire on
+           * {%STRING2 %STRING3}!" — announced whenever the fort/fortress
+           * fires on a hostile ship, hit or miss (FUN_364b_03f6 tail). */
+          const ColonizeUnitType* ship_type = before ? units_type(units, before->type_index) : NULL;
+          PopupMsgTokens tok;
+          memset(&tok, 0, sizeof(tok));
+          const int fortress = colonies_find_building(colonies, "Fortress");
+          const int is_fortress = fortress >= 0 && fortress < COLONIZE_BUILDING_TYPES_MAX &&
+            col->has_building[fortress];
+          tok.string0 = is_fortress ? "Fortress" : "Fort";
+          tok.string1 = col->name[0] ? col->name : "the colony";
+          tok.string2 = units_combat_nation_label(col1, ship_nation);
+          tok.string3 = ship_type && ship_type->name[0] ? ship_type->name : "ship";
+          char fb[AI_POPUP_BODY_LEN];
+          snprintf(
+            fb, sizeof(fb), "%s at %s opens fire on %s %s!", tok.string0, tok.string1,
+            tok.string2, tok.string3
+          );
+          units_combat_enqueue_tok(
+            AI_POPUP_TAG_COMBAT_SHIP, "FORTFIRE", col->nation_id, ship_nation, 0, &tok, fb
+          );
+        }
         if (units_fort_vs_ship(units, atk, col->nation_id, targets[t], rng, col1, fort_label)) {
           sunk++;
           if (human_chrome) {
@@ -6993,7 +7069,15 @@ ColonizeEnterReason units_enter_probe(
       return g_units_last_enter_reason;
     }
     if (sea != foe_sea) {
-      g_units_last_enter_reason = COLONIZE_ENTER_BLOCKED_DOMAIN;
+      /*
+       * DOS OVL08_L0040 @LANDFIRST (0x1429): a ship approaching a
+       * land tile held by a foreign land unit cannot fight from shipboard —
+       * the land unit must be unloaded first. A land mover meeting a sea foe
+       * (e.g. attacking a docked hull) keeps the generic domain-blocked
+       * reading; DOS has no distinct tag for that direction.
+       */
+      g_units_last_enter_reason =
+        (sea && !foe_sea) ? COLONIZE_ENTER_LANDFIRST : COLONIZE_ENTER_BLOCKED_DOMAIN;
       return g_units_last_enter_reason;
     }
     /* Land × land foreign. */
@@ -7038,6 +7122,21 @@ ColonizeEnterReason units_enter_probe(
       return g_units_last_enter_reason;
     }
     if (water) {
+      /*
+       * GAME.TXT @SHIPLAKE: "Ship units cannot enter inland lake squares."
+       * map_tile_is_lake's own DOS-faithful test (region nibble != 1) treats
+       * an unpopulated/zeroed layer3 (nibble 0 — many synthetic unit-test and
+       * AI fixtures never run the water connected-component pass) as a lake
+       * too, which would spuriously bounce every ship on those boards. A
+       * real generated map's main sea body is always exactly region 1 and a
+       * real enclosed lake is >= 2, so gate on that stricter reading here
+       * instead of reusing the shared predicate.
+       */
+      if (map_pedia_terrain_index_at(map, x, y) == 25 &&
+          (int)(map_get_layer3(map, x, y) & 0x0fu) > 1) {
+        g_units_last_enter_reason = COLONIZE_ENTER_LAKE_BLOCKED;
+        return g_units_last_enter_reason;
+      }
       g_units_last_enter_reason = COLONIZE_ENTER_OK;
       return g_units_last_enter_reason;
     }
@@ -7586,7 +7685,8 @@ bool units_try_move(
       reason == COLONIZE_ENTER_BLOCKED_DOMAIN || reason == COLONIZE_ENTER_BLOCKED_EDGE ||
       reason == COLONIZE_ENTER_BLOCKED_HS_SAIL || reason == COLONIZE_ENTER_VILLAGE_ILLEGAL ||
       reason == COLONIZE_ENTER_LANDFALL || reason == COLONIZE_ENTER_VILLAGE_SHIP ||
-      reason == COLONIZE_ENTER_NO_MP || reason == COLONIZE_ENTER_BLOCKED) {
+      reason == COLONIZE_ENTER_NO_MP || reason == COLONIZE_ENTER_BLOCKED ||
+      reason == COLONIZE_ENTER_LAKE_BLOCKED || reason == COLONIZE_ENTER_LANDFIRST) {
     if (village_temp >= 0) {
       units_despawn(pool, village_temp);
     }

@@ -2290,6 +2290,17 @@ int main(void) {
       assets_msg_free(&game_txt);
       return fail("ai_popups should enqueue KING_AUDIENCE choice after the hike");
     }
+    /*
+     * FUN_38fd_5be8 names the section per rung: score 1053 is the 3..4 band,
+     * so the body must be @KINGNAVACT ("a new {Navigation Act}") addressed to
+     * the player by difficulty title, not the generic @KINGTAX line the port
+     * used to show for every rung.
+     */
+    if (!strstr(pop.queue[choice_qi].body, "Navigation Act")) {
+      fprintf(stderr, "unit_ai_king: audience body=\"%s\"\n", pop.queue[choice_qi].body);
+      assets_msg_free(&game_txt);
+      return fail("audience +3..4 rung should render GAME.TXT @KINGNAVACT");
+    }
     if (pop.queue[choice_qi].payload != expected_payload) {
       fprintf(stderr, "unit_ai_king: KING_AUDIENCE payload=%d (want %d)\n",
               pop.queue[choice_qi].payload, expected_payload);

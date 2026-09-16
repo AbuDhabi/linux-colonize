@@ -7188,8 +7188,10 @@ int main(void) {
         for (int d = 0; d < 4; ++d) {
           const int nx = x + kdx[d];
           const int ny = y + kdy[d];
-          if (!map_tile_is_water(&map, nx, ny) || units_id_at(&pool, x, y) >= 0 ||
-              units_id_at(&pool, nx, ny) >= 0) {
+          /* @SHIPLAKE: skip inland lake water — this sub-test is exercising
+           * plain boarding/sentry mechanics, not the lake gate. */
+          if (!map_tile_is_water(&map, nx, ny) || map_tile_is_lake(&map, nx, ny) ||
+              units_id_at(&pool, x, y) >= 0 || units_id_at(&pool, nx, ny) >= 0) {
             continue;
           }
           /* Need a second adjacent water tile for the ship to leave to. */
@@ -7199,8 +7201,8 @@ int main(void) {
             static const int edy[8] = {0, 0, 1, -1, 1, -1, 1, -1};
             const int tx = nx + edx[e];
             const int ty = ny + edy[e];
-            if (map_tile_is_water(&map, tx, ty) && (tx != x || ty != y) &&
-                units_id_at(&pool, tx, ty) < 0) {
+            if (map_tile_is_water(&map, tx, ty) && !map_tile_is_lake(&map, tx, ty) &&
+                (tx != x || ty != y) && units_id_at(&pool, tx, ty) < 0) {
               ox = tx;
               oy = ty;
               break;

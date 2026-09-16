@@ -476,6 +476,15 @@ int main(void) {
     eu.cargo[COLONIZE_CARGO_FURS].ask = 6;
     eu.gold = 500; /* not enough for 6*500 = 3000 */
 
+    /* @KISSUP quotes the cost before the player answers; the same number the
+     * applier charges, and 0 for a cargo DOS would not raise the dialog on. */
+    if (europe_buyback_boycott_cost(&eu, &col1, 0, COLONIZE_CARGO_FURS) != 3000 ||
+        europe_buyback_boycott_cost(&eu, &col1, 0, COLONIZE_CARGO_ORE) != 0) {
+      fprintf(stderr, "buyback cost quote wrong\n");
+      europe_free(&eu);
+      return 1;
+    }
+
     const int fail = europe_buyback_boycott(&eu, &col1, 0, COLONIZE_CARGO_FURS);
     if (fail != 0 || eu.gold != 500 || col1.nation[0].royal_money != 1000 ||
         !europe_cargo_boycotted(&eu, COLONIZE_CARGO_FURS)) {

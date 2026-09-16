@@ -3373,6 +3373,25 @@ int europe_cargo_boycotted(const EuropeScreen* eu, int cargo_type) {
   return europe_cargo_boycotted_ex(eu, NULL, -1, cargo_type);
 }
 
+int europe_buyback_boycott_cost(
+  const EuropeScreen* eu, const struct ColonizeCol1Save* col1, int human_nation, int cargo_type
+) {
+  if (!eu || human_nation < 0 || human_nation >= (int)COLONIZE_COL1_NATION_COUNT) {
+    return 0;
+  }
+  if (cargo_type < 0 || cargo_type >= eu->cargo_count) {
+    return 0;
+  }
+  if (!europe_cargo_boycotted_ex(eu, col1, human_nation, cargo_type)) {
+    return 0;
+  }
+  const int price = eu->cargo[cargo_type].ask;
+  if (price <= 0) {
+    return 0;
+  }
+  return price * 500;
+}
+
 int europe_buyback_boycott(
   EuropeScreen* eu, struct ColonizeCol1Save* col1, int human_nation, int cargo_type
 ) {
@@ -3400,10 +3419,13 @@ int europe_buyback_boycott(
    * check at 0x543f); callers here only ever pass the human nation for the
    * same reason (only the human clicks their own market strip).
    *
-   * GAME.TXT @KISSUP's Pay/Cancel CHOICE dialog chrome PARKED (VGA modal,
-   * matching this file's existing chrome-PARKED precedent -- e.g.
-   * europe_custom_house_autosell); ported as an immediate action + status
-   * line instead, same pattern as the '+'/'U' immediate buy/sell keys.
+   * The dialog chrome around this is DOS's own two-step and lives at the
+   * click site (game_loop.c EUROPE_HIT_MARKET): @KISSUP is a 2-row CHOICE
+   * whose SECOND row is "Pay {%NUMBER0$}." (38fd:2e5e compares the return of
+   * FUN_281f_0652(0x1033, 2) against 2), and only after that answer does DOS
+   * test the purse and show @KISSSORRY. This function is the applier — it
+   * re-checks the purse itself, so a caller that skips the dialog (tests,
+   * scripted play) still cannot overdraw.
    * Returns gold paid (>0) on success, 0 on no-op/insufficient funds.
    */
   if (!eu || !col1) {

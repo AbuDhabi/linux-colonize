@@ -36,7 +36,10 @@ typedef enum CheatListKind {
   /* CHEAT Set Human Player (@SETHUMAN). */
   CHEAT_LIST_KIND_SET_HUMAN,
   /* CHEAT Debug Info Flags (@OPTIONS checkbox). */
-  CHEAT_LIST_KIND_DEBUG_FLAGS
+  CHEAT_LIST_KIND_DEBUG_FLAGS,
+  /* Unit ORDERS "Go to Port" (@SAILPORT, DOS FUN_647e_01c6 unit>=0 branch):
+   * ids = colony id, 999 = Europe. */
+  CHEAT_LIST_KIND_GOTO_PORT
 } CheatListKind;
 
 typedef struct CheatListDialog {
@@ -107,6 +110,24 @@ bool cheat_list_open_trade_dest(
   const int* dest_ids,
   int count
 );
+
+/*
+ * Unit ORDERS "Go to Port" (@SAILPORT — ship destination-colony picker,
+ * DOS FUN_647e_01c6 with unit>=0). option_ids = colony id, 999 = Europe.
+ */
+bool cheat_list_open_goto_port(
+  CheatListDialog* dlg,
+  const char* prompt,
+  const char* const* labels,
+  const int* dest_ids,
+  int count
+);
+
+/*
+ * Set the initial highlighted row after opening a list (DOS @default /
+ * FUN_291f_08ec preselect). Clamped to the option range; no-op if closed.
+ */
+void cheat_list_set_selection(CheatListDialog* dlg, int index);
 
 /* Single-cargo append picker (@CARGOLOAD / @CARGOUNLOAD, 16 goods). */
 bool cheat_list_open_trade_cargo_one(

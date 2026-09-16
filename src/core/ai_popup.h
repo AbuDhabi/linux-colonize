@@ -156,6 +156,13 @@ typedef enum AiPopupTag {
                                  * 2 = Infiltrate Colony, 3 = Attack Colony, 4 = Nothing.
                                  * nation_a = unit id, nation_b = colony id,
                                  * payload = dest x | dest y << 8. */
+  ,
+  AI_POPUP_TAG_EUROPE_KISSUP = 66 /* FUN_38fd_2dfe @KISSUP (DS:0x1033): clicking a
+                                 * boycotted cargo cell on the Europe market strip.
+                                 * 1 = "Pay {%NUMBER0$}." (DOS row 2), 2 / Esc =
+                                 * "This is taxation without representation! Unfair!".
+                                 * nation_a = human nation, nation_b = cargo type,
+                                 * payload = back-tax cost in gold. */
 } AiPopupTag;
 
 typedef struct AiPopupRequest {

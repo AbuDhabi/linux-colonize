@@ -922,6 +922,14 @@ int europe_cargo_boycotted(const EuropeScreen* eu, int cargo_type);
 int europe_buyback_boycott(
   EuropeScreen* eu, struct ColonizeCol1Save* col1, int human_nation, int cargo_type
 );
+/*
+ * The same cost without paying it: what @KISSUP quotes in %NUMBER0 before the
+ * player answers. 0 when the cargo is not boycotted or has no price, i.e.
+ * when DOS would not raise the dialog at all.
+ */
+int europe_buyback_boycott_cost(
+  const EuropeScreen* eu, const struct ColonizeCol1Save* col1, int human_nation, int cargo_type
+);
 
 /*
  * DOS price accessors (FUN_38fd_0040 / FUN_38fd_0016). `bid` stores the
