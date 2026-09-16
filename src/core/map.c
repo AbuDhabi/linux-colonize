@@ -915,7 +915,7 @@ bool map_nation_watches_tile(const ColonizeWorldMap* map, int x, int y, int nati
     }
     const size_t i = (size_t)ny * map->width + (size_t)nx;
     const uint8_t occ = map->layer2[i];
-    const int owner = (map->layer3[i] >> 4) & 0x0f;
+    const int owner = (map->layer3[i] >> MAP_L3_OWNER_SHIFT) & MAP_L3_OWNER_MASK;
     /* FUN_137f_0314: unit present + owner nibble; FUN_137f_0358: colony (owner < 4). */
     if ((occ & MAP_OCCUPANCY_HAS_UNIT) != 0 && owner == nation_id) {
       return true;
@@ -1689,8 +1689,8 @@ void map_set_owner_nibble(ColonizeWorldMap* map, int x, int y, int nation_or_ff)
     return;
   }
   const size_t i = (size_t)y * (size_t)map->width + (size_t)x;
-  const uint8_t low = (uint8_t)(map->layer3[i] & 0x0fu);
-  const uint8_t hi = (uint8_t)(((unsigned)nation_or_ff & 0x0fu) << 4);
+  const uint8_t low = (uint8_t)(map->layer3[i] & MAP_L3_CONTINENT_MASK);
+  const uint8_t hi = (uint8_t)(((unsigned)nation_or_ff & MAP_L3_OWNER_MASK) << MAP_L3_OWNER_SHIFT);
   map->layer3[i] = (uint8_t)(low | hi);
 }
 

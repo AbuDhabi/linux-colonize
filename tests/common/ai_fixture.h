@@ -60,6 +60,7 @@ static inline void fx_units_init(ColonizeUnitPool* units) {
   units_reset(units);
   units_set_occupancy_map(NULL);
   units_reset_hooks();
+  units_reset_state();
   ai_euro_reset();
   ai_native_reset();
   turn_reset();

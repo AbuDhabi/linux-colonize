@@ -32,7 +32,7 @@ static int post_continent_id(const ColonizeWorldMap* map, int x, int y) {
   if (!map || !map->layer3 || x < 0 || y < 0 || x >= map->width || y >= map->height) {
     return 0;
   }
-  return (int)(map->layer3[y * map->width + x] & 0x0fu);
+  return (int)(map->layer3[y * map->width + x] & MAP_L3_CONTINENT_MASK);
 }
 
 static int post_land_continent(const ColonizeWorldMap* map, int x, int y) {

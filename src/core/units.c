@@ -9189,6 +9189,20 @@ void units_note_goto_step(int unit_id, int dx, int dy) {
 }
 
 /*
+ * Statics-reset sweep 2026-09-16: s_units_goto_last_dir is indexed by
+ * unit_id, not owned by the pool, so units_reset(pool) never touches it — a
+ * New Game / Load reuses low unit ids for brand-new units that inherit a
+ * stale shadow direction from the previous campaign. units_coarse (below,
+ * s_units_coarse) is deliberately NOT reset here: it caches walkability by
+ * (map pointer, width, height), and the world map's land/water layout never
+ * changes across a New Game / Load in the same process (always the same
+ * AMER2.MP), so the cache is content-correct without ever rebuilding.
+ */
+void units_reset_state(void) {
+  memset(s_units_goto_last_dir, 0, sizeof(s_units_goto_last_dir));
+}
+
+/*
  * The greedy tier's own ownership gate — FUN_6662_0f74 carries one, exactly
  * like 0015bc's flood tier (units_flood_owner_term), it is just spelled as a
  * hard skip instead of an additive penalty (viceroy_unpacked.c:104678-104690):

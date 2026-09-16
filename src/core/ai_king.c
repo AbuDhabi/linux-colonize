@@ -1,3 +1,4 @@
+#include "core/internal.h"
 #include "core/ai_king.h"
 #include "core/ai_diplo.h"
 #include "core/sound.h"
@@ -2462,7 +2463,7 @@ static int ai_king_weakest_port(ColonizeTurnContext* ctx, int nation_id, int* ou
  *   (muskets + 50) / 100 + 1, + Σ land units on the tile (004a attack ×8 >> 4),
  *   ×2 with a Fortress, ×1.5 with a Fort, min 1.
  */
-static int ai_king_0982_garrison_score(const ColonizeTurnContext* ctx, const ColonizeColony* c) {
+COLONIZE_INTERNAL int ai_king_0982_garrison_score(const ColonizeTurnContext* ctx, const ColonizeColony* c) {
   int g = (c->stock[COLONIZE_CARGO_MUSKETS] + 50) / 100 + 1;
   const ColonizeCombatStrengthCtx cs = combat_strength_ctx_from_turn(ctx);
   for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
@@ -2484,7 +2485,7 @@ static int ai_king_0982_garrison_score(const ColonizeTurnContext* ctx, const Col
 }
 
 /* 08bc stack query stand-in: Σ defense (004a mode 0 ×8 >> 4) of units at (x,y). */
-static int ai_king_0982_tile_strength(const ColonizeTurnContext* ctx, int x, int y) {
+COLONIZE_INTERNAL int ai_king_0982_tile_strength(const ColonizeTurnContext* ctx, int x, int y) {
   const ColonizeCombatStrengthCtx cs = combat_strength_ctx_from_turn(ctx);
   int s = 0;
   for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
@@ -2500,7 +2501,7 @@ static int ai_king_0982_tile_strength(const ColonizeTurnContext* ctx, int x, int
  * FUN_43f7_0512: purge every non-crown unit at (x,y). Human units get the
  * @SEIZURELAND / @SEIZURESEA notice (%STRING0 = unit type name).
  */
-static void ai_king_0982_purge_tile(ColonizeTurnContext* ctx, int crown, int x, int y) {
+COLONIZE_INTERNAL void ai_king_0982_purge_tile(ColonizeTurnContext* ctx, int crown, int x, int y) {
   for (int i = COLONIZE_UNITS_MAX - 1; i >= 0; --i) {
     ColonizeUnit* u = &ctx->units->units[i];
     if (!u->active || u->x != x || u->y != y || !units_is_on_map(u) || u->nation_id == crown) {
@@ -2533,7 +2534,7 @@ static void ai_king_0982_purge_tile(ColonizeTurnContext* ctx, int crown, int x, 
   }
 }
 
-static int ai_king_0982_crown_mow_alive(const ColonizeTurnContext* ctx, int crown) {
+COLONIZE_INTERNAL int ai_king_0982_crown_mow_alive(const ColonizeTurnContext* ctx, int crown) {
   int n = 0;
   for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
     const ColonizeUnit* u = &ctx->units->units[i];
@@ -2545,7 +2546,7 @@ static int ai_king_0982_crown_mow_alive(const ColonizeTurnContext* ctx, int crow
 }
 
 /* 0982 pool index → NAMES type (43f7_0082 crown class map). */
-static int ai_king_0982_spawn_pool_unit(ColonizeTurnContext* ctx, int crown, int k, int x, int y) {
+COLONIZE_INTERNAL int ai_king_0982_spawn_pool_unit(ColonizeTurnContext* ctx, int crown, int k, int x, int y) {
   /* bugs.md: the REF fields Regulars and CAVALRY (@UNIT 8) — not colonial
    * Dragoons; pool[1] is the Cavalry pool. */
   static const char* names[4] = {"Regulars", "Cavalry", "Man-O-War", "Artillery"};
@@ -2757,7 +2758,7 @@ static void ai_king_ref_tory_uprising(ColonizeTurnContext* ctx, int crown, int h
  * the Regular/Dragoon/Artillery pools ashore around the landing tile.
  * Extracted verbatim from ai_king_ref_wave.
  */
-static void ai_king_0982_land_troops(
+COLONIZE_INTERNAL void ai_king_0982_land_troops(
   ColonizeTurnContext* ctx, int crown, uint16_t* force, const ColonizeColony* c,
   int continent, int garrison_raw, int need, int lx, int ly
 ) {
@@ -2919,23 +2920,14 @@ static void ai_king_0982_land_troops(
   }
 }
 
-/* Wave-local state shared by the FUN_43f7_0982 invasion stages. */
-struct ai_king_0982_ctx {
-  ColonizeTurnContext* ctx;
-  int crown;
-  int human;
-  uint16_t* force;
-  int total;
-  bool exhaust;
-  bool landed;
-};
+#include "core/ai_king_internal.h" /* struct ai_king_0982_ctx */
 
 /*
  * FUN_43f7_0982 invasion wave: score human coastal colonies, pick a target
  * over three relaxing passes, seize/claim the landing water tile, spawn the
  * Man-O-War and land the troops. Extracted verbatim from ai_king_ref_wave.
  */
-static void ai_king_0982_invasion(struct ai_king_0982_ctx* w) {
+COLONIZE_INTERNAL void ai_king_0982_invasion(struct ai_king_0982_ctx* w) {
   ColonizeTurnContext* const ctx = w->ctx;
   const int crown = w->crown;
   uint16_t* const force = w->force;
