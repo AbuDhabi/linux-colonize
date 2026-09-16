@@ -154,7 +154,7 @@ static int census_expect(const ColonizeUnitPool* units, int uid, int mode) {
   const ColonizeUnit* u = units_get_const(units, uid);
   const ColonizeUnitType* t = units_type(units, u->type_index);
   int base = (mode == 0) ? t->defense : t->attack;
-  if (strstr(t->name, "Artillery") != NULL && (u->col1_unknown15 & 0x80u) != 0) {
+  if (strstr(t->name, "Artillery") != NULL && (u->col1_flags15 & 0x80u) != 0) {
     base -= 2;
   }
   if (base < 0) {
@@ -235,7 +235,7 @@ static int test_euro_census_4962_0018(void) {
   units_get(&units, u_vet)->profession = UNITS_JOB_SOLDIER; /* veteran +50% */
   units_get(&units, u_gar)->profession = UNITS_JOB_SOLDIER;
   units_get(&units, u_hum)->profession = UNITS_JOB_SOLDIER;
-  units_get(&units, u_art)->col1_unknown15 |= 0x80u; /* damaged artillery -2 */
+  units_get(&units, u_art)->col1_flags15 |= 0x80u; /* damaged artillery -2 */
   units_get(&units, u_gar)->col1_ai_plan = 0x47u; /* 'G' */
   units_get(&units, u_intown)->col1_ai_plan = 'X';
   units_get(&units, u_hum)->col1_ai_plan = 'X';

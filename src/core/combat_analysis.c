@@ -459,7 +459,7 @@ static void combat_analysis_snap_chrome(
   chrome->orders = u->orders;
   /* DOS FUN_112b_01ba's 4th badge arm is Artillery + the damaged bit
    * (+0x3148 bit7), not "aboard a ship" — see unit_chrome.h. */
-  chrome->damaged = (u->col1_unknown15 & 0x80u) != 0;
+  chrome->damaged = (u->col1_flags15 & 0x80u) != 0;
 }
 
 bool combat_analysis_open(

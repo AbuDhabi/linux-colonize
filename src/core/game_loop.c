@@ -481,7 +481,7 @@ COLONIZE_INTERNAL void game_move_watch_w(
         const bool slide_stacked = units_map_stack_chrome(pool, unit_id);
         /* unit_chrome's 4th badge arm is Artillery + the damaged bit
          * (+0x3148 bit7), not "aboard a ship". */
-        const bool slide_damaged = (mu->col1_unknown15 & 0x80u) != 0;
+        const bool slide_damaged = (mu->col1_flags15 & 0x80u) != 0;
         /*
          * bugs.md: and it must be read BEFORE `mu->active` is cleared below.
          * `units_display_type_index` goes through `units_get_const`, which
@@ -633,7 +633,7 @@ static void game_combat_watch(
   const bool was_active = mu ? mu->active : false;
   /* bugs.md #365: same chrome standing or lunging — see game_move_watch. */
   const bool bump_stacked = units_map_stack_chrome(pool, attacker_id);
-  const bool bump_damaged = (atk->col1_unknown15 & 0x80u) != 0;
+  const bool bump_damaged = (atk->col1_flags15 & 0x80u) != 0;
   /* Read the chrome corner before the piece is hidden — see game_move_watch:
    * units_display_type_index resolves through units_get_const, which skips
    * inactive units, so an in-loop call gives -1 and the default corner. */
@@ -7513,18 +7513,18 @@ static void game_colony_apply_dock_order(
        * it now heads the queue: first pick for a departing ship and the
        * Units-pane selection.
        *
-       * Audit 2026-09-14 (section 3 incidental): despite its name,
-       * pool->board_first_id is CONSUMED as a pool SLOT, not a unit id —
+       * Audit 2026-09-14 (section 3 incidental): pool->board_first_slot
+       * (then named board_first_id) is CONSUMED as a pool SLOT, not a unit id —
        * units_ship_departure_pickup seeds its walk order with it and then
-       * skips `i == board_first_id` while indexing pool->units[i] directly.
+       * skips `i == board_first_slot` while indexing pool->units[i] directly.
        * Unit ids are handed out from pool->next_id and do not track slots
        * (units_get scans for a matching u->id), so writing uid here put a
        * random OTHER unit at the head of the boarding queue and left the
        * flagged one in ordinary chain order. Write the slot. */
-      game->units.board_first_id = -1;
+      game->units.board_first_slot = -1;
       for (int bi = 0; bi < COLONIZE_UNITS_MAX; ++bi) {
         if (game->units.units[bi].active && game->units.units[bi].id == uid) {
-          game->units.board_first_id = bi;
+          game->units.board_first_slot = bi;
           break;
         }
       }

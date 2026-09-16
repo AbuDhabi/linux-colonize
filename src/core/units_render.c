@@ -98,7 +98,7 @@ void units_render_on_map(
     const bool stacked = units_map_stack_chrome(pool, top->id);
     /* Chrome's 4th badge arm is Artillery + the damaged bit (+0x3148 bit7),
      * not "aboard a ship" — unit_chrome_corner_for_type. */
-    const bool damaged = (top->col1_unknown15 & 0x80u) != 0;
+    const bool damaged = (top->col1_flags15 & 0x80u) != 0;
 
     unit_chrome_blit_unit_for_palette(
       framebuffer,

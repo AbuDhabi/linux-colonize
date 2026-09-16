@@ -2062,7 +2062,7 @@ static void reports_render_colony_garrisons(
           fb, font, icons, sprite, x, row_top - 3, dos_unit_type_id, unit->nation_id, orders,
           false,
           /* Badge arm 4 = Artillery + damaged (+0x3148 bit7), not aboard. */
-          (unit->col1_unknown15 & 0x80u) != 0, active_palette
+          (unit->col1_flags15 & 0x80u) != 0, active_palette
         );
         x += pitch;
       }
@@ -2317,7 +2317,7 @@ static int reports_naval_build_rows(
         r->pass_type = units_display_type_index(units, pax->id);
         r->pass_nation = pax->nation_id;
         r->pass_orders = pax->orders;
-        r->pass_damaged = (pax->col1_unknown15 & 0x80u) != 0;
+        r->pass_damaged = (pax->col1_flags15 & 0x80u) != 0;
         const ColonizeUnitType* pt = units_type(units, pax->type_index);
         r->pass_label = reports_naval_passenger_label(pax->profession, pt ? pt->name : NULL);
         reports_naval_location(colonies, u->x, u->y, r->location, sizeof(r->location));

@@ -865,7 +865,7 @@ bool col1_bridge_apply_w(
      * a hash of position + prime_resource_seed) with no dedicated
      * "already explored" bit anywhere in the Col1 tile/mask format —
      * map_clear_rumour instead sets our own runtime-only layer2 bit
-     * (MAP_LAYER2_RUMOUR_CLEARED) the moment a unit resolves one live.
+     * (MAP_LAYER2_LCR_CONSUMED) the moment a unit resolves one live.
      * That bit starts zero on every fresh import, so a save carrying a
      * rumour some unit already stood on and resolved in DOS shows it as
      * freshly unexplored again. Player-reported: dutch-reports.SAV — every
@@ -880,7 +880,7 @@ bool col1_bridge_apply_w(
      * everything downstream of this bit.
      */
     if (map->layer2 && save->map.path && (save->map.path[i] >> 4) != 0x0fu) {
-      map->layer2[i] = (uint8_t)(map->layer2[i] | MAP_LAYER2_RUMOUR_CLEARED);
+      map->layer2[i] = (uint8_t)(map->layer2[i] | MAP_LAYER2_LCR_CONSUMED);
     }
   }
   if (save->map.seen) {
@@ -1458,8 +1458,8 @@ bool col1_bridge_apply_w(
         u->home_tribe_id = (int)src->origin;
       }
       /* Repack the 8 named single-bit fields (was one unknown15_lo:7 blob;
-       * see col1_save.h) back into the raw byte col1_unknown15 expects. */
-      u->col1_unknown15 =
+       * see col1_save.h) back into the raw byte col1_flags15 expects. */
+      u->col1_flags15 =
         (uint8_t)((src->unknown15_bit0 ? 0x01u : 0u) |
                   (src->roam_reeval_pending ? 0x02u : 0u) |
                   (src->stack_has_founders_or_military ? 0x04u : 0u) |
@@ -2582,16 +2582,16 @@ bool col1_bridge_capture_w(
       }
       dst->turns_worked =
         (uint8_t)(src->turns_worked < 0 ? 0 : (src->turns_worked > 255 ? 255 : src->turns_worked));
-      /* Unpack col1_unknown15's raw byte into the 8 named single-bit fields
+      /* Unpack col1_flags15's raw byte into the 8 named single-bit fields
        * (was one unknown15_lo:7 blob; see col1_save.h). */
-      dst->unknown15_bit0 = (src->col1_unknown15 & 0x01u) != 0 ? 1u : 0u;
-      dst->roam_reeval_pending = (src->col1_unknown15 & 0x02u) != 0 ? 1u : 0u;
-      dst->stack_has_founders_or_military = (src->col1_unknown15 & 0x04u) != 0 ? 1u : 0u;
-      dst->stack_has_military = (src->col1_unknown15 & 0x08u) != 0 ? 1u : 0u;
-      dst->wander_dest_chosen = (src->col1_unknown15 & 0x10u) != 0 ? 1u : 0u;
-      dst->garrison_request_pending = (src->col1_unknown15 & 0x20u) != 0 ? 1u : 0u;
-      dst->bound_in_transit = (src->col1_unknown15 & 0x40u) != 0 ? 1u : 0u;
-      dst->ship_damaged = (src->col1_unknown15 & 0x80u) != 0 ? 1u : 0u;
+      dst->unknown15_bit0 = (src->col1_flags15 & 0x01u) != 0 ? 1u : 0u;
+      dst->roam_reeval_pending = (src->col1_flags15 & 0x02u) != 0 ? 1u : 0u;
+      dst->stack_has_founders_or_military = (src->col1_flags15 & 0x04u) != 0 ? 1u : 0u;
+      dst->stack_has_military = (src->col1_flags15 & 0x08u) != 0 ? 1u : 0u;
+      dst->wander_dest_chosen = (src->col1_flags15 & 0x10u) != 0 ? 1u : 0u;
+      dst->garrison_request_pending = (src->col1_flags15 & 0x20u) != 0 ? 1u : 0u;
+      dst->bound_in_transit = (src->col1_flags15 & 0x40u) != 0 ? 1u : 0u;
+      dst->ship_damaged = (src->col1_flags15 & 0x80u) != 0 ? 1u : 0u;
       /* Natives: origin = home tribe index / 0xff. Euro units: home colony
        * index (COL1 +0x06, the byte 20e6's haul band and colony tick bind) —
        * col1_origin is now live AI state (spawn inits it to 0xff, the load

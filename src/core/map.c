@@ -682,7 +682,7 @@ static bool map_has_rumour_at(const ColonizeWorldMap* map, int x, int y) {
     return false;
   }
   const uint8_t layer2 = map->layer2 ? map->layer2[y * map->width + x] : 0;
-  if ((layer2 & MAP_LAYER2_RUMOUR_CLEARED) != 0) {
+  if ((layer2 & MAP_LAYER2_LCR_CONSUMED) != 0) {
     return false;
   }
   return map_procedural_rumour_at(map, x, y);
@@ -1675,7 +1675,7 @@ bool map_clear_rumour(ColonizeWorldMap* map, int x, int y) {
     return false;
   }
   map->layer2[y * map->width + x] =
-    (uint8_t)(map->layer2[y * map->width + x] | MAP_LAYER2_RUMOUR_CLEARED);
+    (uint8_t)(map->layer2[y * map->width + x] | MAP_LAYER2_LCR_CONSUMED);
   return true;
 }
 

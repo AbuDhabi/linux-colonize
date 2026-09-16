@@ -4085,7 +4085,7 @@ static int ai_king_frigate_spawn(ColonizeTurnContext* ctx, int nation) {
   }
   units_set_nation(u, nation);
   u->orders = UNITS_ORDER_AI_SAIL;
-  u->col1_unknown15 = (uint8_t)(u->col1_unknown15 | 0x40u);
+  u->col1_flags15 = (uint8_t)(u->col1_flags15 | 0x40u);
   u->goto_x = x;
   u->goto_y = y;
   const bool magellan = founding_fathers_nation_has(ctx->col1, nation, FF_FERDINAND_MAGELLAN);

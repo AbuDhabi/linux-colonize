@@ -3303,7 +3303,7 @@ static void colony_screen_draw_multifunction(
         u->orders,
         false,
         /* Chrome's 4th arm = damaged Artillery (+0x3148 bit7), not aboard. */
-        (u->col1_unknown15 & 0x80u) != 0,
+        (u->col1_flags15 & 0x80u) != 0,
         (view->frame_ok && view->frame.has_palette) ? &view->frame.palette : NULL
       );
       if (view->multi_unit_selected_id == u->id) {

@@ -85,8 +85,9 @@ extern const int MAP_RING20_DY[20];
 #define MAP_LAYER2_SUPPRESS 0x04u /* prime suppress / silver deplete */
 #define MAP_LAYER2_PURCHASED 0x10u /* tribal land purchased */
 #define MAP_LAYER2_PACIFIC 0x20u /* western ocean strip (mapgen) */
-/* Layer2 stand-in: procedural LCR consumed — NOT Col1 road (mask 0x08). */
-#define MAP_LAYER2_RUMOUR_CLEARED 0x08u
+/* Layer2 stand-in: procedural Lost City Rumour consumed — NOT Col1 road
+ * (same mask 0x08). Was MAP_LAYER2_RUMOUR_CLEARED. */
+#define MAP_LAYER2_LCR_CONSUMED 0x08u
 /*
  * Col1 mask bit 0x40 = plowed (same bit col1_bridge maps to MAP_IMPROVE_PLOWED).
  * DOS FUN_1000_88d6's `layer2 & 0x48` = road | plowed ("improved tile").
