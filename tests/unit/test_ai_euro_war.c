@@ -8366,19 +8366,19 @@ static int unit_frigate_war_transport_threatened(void) {
 }
 
 /*
- * FUN_5bfb_3180 naval ambush (thin, non-destructive): a Frigate ending its
- * turn adjacent to a foreign Man-O-War, at peace (not war — DOS fires this
- * regardless of war state), may lose moves to a surprise encounter. Seeded
- * RNG so the outcome is deterministic; asserts moves_left is either
- * unchanged (no ambush) or reduced by exactly the Frigate's type drain (6),
- * proving the mechanic ran and picked one of its two real outcomes rather
- * than silently no-op'ing or corrupting state.
+ * FUN_5bfb_3180 ship-slow (units_ship_slow_scan, run from units_try_move's
+ * commit tail). Frigate (nation 1) next to a foreign Man-O-War: over a
+ * sweep of seeds the drain is 0 / 4 (tie, half of 8) / 8 (the NEIGHBOUR's
+ * type constant), and at least one seed slows. PEACE bit set → never
+ * slowed; a Privateer mover ignores PEACE. Adjacent foreign Fort → −2 with
+ * no roll; Fortress → dead stop; Stockade → nothing.
  */
 static int unit_naval_ambush(void) {
   const int nation = 1;
   const int foe_nat = 2;
   const int own_x = 5;
   const int own_y = 5;
+  const int full = 5 * UNITS_MP_PER_TILE;
 
   ColonizeWorldMap map;
   memset(&map, 0, sizeof(map));
@@ -8389,7 +8389,7 @@ static int unit_naval_ambush(void) {
   map.layer2 = calloc(256, 1);
   map.layer3 = calloc(256, 1);
   if (!map.terrain || !map.layer2 || !map.layer3) {
-    return fail("naval-ambush alloc map");
+    return fail("ship-slow alloc map");
   }
   for (int i = 0; i < 256; ++i) {
     map.terrain[i] = 25; /* ocean */
@@ -8397,99 +8397,136 @@ static int unit_naval_ambush(void) {
 
   ColonizeUnitPool units;
   fx_units_init(&units);
-  units.type_count = 2;
+  units.type_count = 3;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Frigate");
   units.types[0].movement = 5;
   units.types[0].domain = COLONIZE_UNIT_DOMAIN_SEA;
-  units.types[0].attack = 5;
-  units.types[0].defense = 5;
   snprintf(units.types[1].name, sizeof(units.types[1].name), "Man-O-War");
   units.types[1].movement = 5;
   units.types[1].domain = COLONIZE_UNIT_DOMAIN_SEA;
-  units.types[1].attack = 8;
-  units.types[1].defense = 8;
+  snprintf(units.types[2].name, sizeof(units.types[2].name), "Privateer");
+  units.types[2].movement = 8;
+  units.types[2].domain = COLONIZE_UNIT_DOMAIN_SEA;
 
   ColonizeColonyPool colonies;
   fx_colonies_init(&colonies);
+  snprintf(colonies.building_types[0].name, sizeof(colonies.building_types[0].name), "Stockade");
+  snprintf(colonies.building_types[1].name, sizeof(colonies.building_types[1].name), "Fort");
+  snprintf(colonies.building_types[2].name, sizeof(colonies.building_types[2].name), "Fortress");
+  colonies.building_type_count = 3;
 
   const int own_id = units_spawn(&units, 0, own_x, own_y);
   ColonizeUnit* own = units_get(&units, own_id);
-  if (!own) {
-    fx_map_free(&map);
-    return fail("naval-ambush spawn own");
-  }
-  own->nation_id = nation;
-  own->orders = 0;
-  own->moves_left = 5 * UNITS_MP_PER_TILE;
-
   const int foe_id = units_spawn(&units, 1, own_x, own_y - 1);
   ColonizeUnit* foe = units_get(&units, foe_id);
-  if (!foe) {
+  if (!own || !foe) {
     fx_map_free(&map);
-    return fail("naval-ambush spawn foe");
+    return fail("ship-slow spawn");
   }
+  own->nation_id = nation;
   foe->nation_id = foe_nat;
-  foe->orders = 0;
-  foe->moves_left = 0;
 
   ColonizeCol1Save col1;
   col1_save_init(&col1);
   memset(col1.nation, 0, sizeof(col1.nation));
   memset(col1.head.nation_relation, 0, sizeof(col1.head.nation_relation));
   for (int i = 0; i < 4; ++i) {
-    col1.player[i].control = 0;
-    col1.player[i].diplomacy = 0;
+    col1.player[i].control = 1; /* nobody human: no popups needed */
   }
-  col1.head.difficulty = 0;
-  col1.nation[nation].gold = 50;
-  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
-   * ladder / recruit / Artillery buys naturally inert (blank census). */
-  col1.stuff.ship_counts[nation] = 1;
-  col1.nation[foe_nat].gold = 50;
-  /* Deliberately at peace — DOS ambush fires regardless of war state. */
+  units_set_native_fallout_context(&col1, &map, -1);
+  units_set_combat_popups(NULL, NULL);
 
   ColonizeDosRng rng;
-  dos_rng_seed(&rng, 7);
-
-  ai_goals_reset();
-
-  uint32_t turn = 42;
-  ColonizeTurnContext ctx;
-  memset(&ctx, 0, sizeof(ctx));
-  ctx.turn_number = &turn;
-  ctx.units = &units;
-  ctx.colonies = &colonies;
-  ctx.map = &map;
-  ctx.col1 = &col1;
-  ctx.col1_ok = true;
-  ctx.rng = &rng;
-  ctx.rng_seed = 7;
-
-  ai_euro_dispatcher_turn(&ctx, nation);
-
-  own = units_get(&units, own_id);
-  foe = units_get(&units, foe_id);
-  const int own_alive = own && own->active;
-  const int foe_alive = foe && foe->active;
-  const int moves_after = own_alive ? own->moves_left : -1;
-  const int ok = own_alive && foe_alive &&
-                 (moves_after == 5 /* no ambush this roll */ ||
-                  moves_after == 0 /* ambushed: drain 6 > moves_left 5, floored at 0 */);
-
-  fx_map_free(&map);
-  if (!ok) {
-    fprintf(
-      stderr,
-      "unit_ai_euro_war: naval ambush moves_after=%d own_alive=%d foe_alive=%d\n",
-      moves_after,
-      own_alive,
-      foe_alive
-    );
-    return fail("expected naval ambush to either no-op or drain exactly the Frigate amount");
+  int slowed = 0;
+  int ran = 0;
+  for (uint32_t seed = 1000; seed < 60000; seed += 1777) {
+    dos_rng_seed(&rng, seed);
+    own->moves_left = full;
+    units_ship_slow_scan(&units, own_id, &map, &colonies, &rng);
+    const int d = full - own->moves_left;
+    if (d != 0 && d != 4 && d != 8) {
+      fx_map_free(&map);
+      fprintf(stderr, "ship-slow: seed %u drain %d\n", seed, d);
+      return fail("ship-slow drain must be 0 / 4 / 8 (Man-O-War neighbour)");
+    }
+    slowed += d != 0;
+    ran += d == 0;
   }
-  fprintf(
-    stderr, "unit_ai_euro_war: naval ambush ok (moves 5->%d, no combat, no war)\n", moves_after
-  );
+  if (!slowed || !ran) {
+    fx_map_free(&map);
+    return fail("ship-slow: expected both slowed and slipped-past outcomes across seeds");
+  }
+
+  /* PEACE: never slowed. */
+  ai_diplo_or_both(&col1, nation, foe_nat, AI_DIPLO_PEACE);
+  for (uint32_t seed = 1000; seed < 60000; seed += 1777) {
+    dos_rng_seed(&rng, seed);
+    own->moves_left = full;
+    units_ship_slow_scan(&units, own_id, &map, &colonies, &rng);
+    if (own->moves_left != full) {
+      fx_map_free(&map);
+      return fail("ship-slow: PEACE pair must not be slowed");
+    }
+  }
+  /* Privateer mover ignores PEACE. */
+  own->type_index = 2;
+  slowed = 0;
+  for (uint32_t seed = 1000; seed < 60000; seed += 1777) {
+    dos_rng_seed(&rng, seed);
+    own->moves_left = full;
+    units_ship_slow_scan(&units, own_id, &map, &colonies, &rng);
+    slowed += own->moves_left != full;
+  }
+  if (!slowed) {
+    fx_map_free(&map);
+    return fail("ship-slow: Privateer mover must be slowed despite PEACE");
+  }
+  own->type_index = 0;
+
+  /* Fort / Fortress branch: foe ship gone, foreign colony on land west. */
+  units_despawn(&units, foe_id);
+  map.terrain[own_y * map.width + (own_x - 1)] = 1; /* land */
+  ColonizeColony* col = fx_colony_add(&colonies, foe_nat, own_x - 1, own_y, 1);
+  dos_rng_seed(&rng, 1);
+  own->moves_left = full;
+  units_ship_slow_scan(&units, own_id, &map, &colonies, &rng);
+  if (own->moves_left != full) {
+    fx_map_free(&map);
+    return fail("ship-slow: PEACE colony must not slow");
+  }
+  ai_diplo_clear_both(&col1, nation, foe_nat, AI_DIPLO_PEACE);
+  own->moves_left = full;
+  units_ship_slow_scan(&units, own_id, &map, &colonies, &rng);
+  if (own->moves_left != full) {
+    fx_map_free(&map);
+    return fail("ship-slow: bare colony must not slow");
+  }
+  col->has_building[0] = true; /* Stockade: nothing */
+  own->moves_left = full;
+  units_ship_slow_scan(&units, own_id, &map, &colonies, &rng);
+  if (own->moves_left != full) {
+    fx_map_free(&map);
+    return fail("ship-slow: Stockade must not slow");
+  }
+  col->has_building[1] = true; /* Fort: +2 spent */
+  own->moves_left = full;
+  units_ship_slow_scan(&units, own_id, &map, &colonies, &rng);
+  if (own->moves_left != full - 2) {
+    fx_map_free(&map);
+    fprintf(stderr, "ship-slow: fort left %d\n", own->moves_left);
+    return fail("ship-slow: Fort must cost exactly 2 thirds");
+  }
+  col->has_building[2] = true; /* Fortress: dead stop */
+  own->moves_left = full;
+  units_ship_slow_scan(&units, own_id, &map, &colonies, &rng);
+  if (own->moves_left != 0) {
+    fx_map_free(&map);
+    return fail("ship-slow: Fortress must exhaust the ship");
+  }
+
+  units_set_native_fallout_context(NULL, NULL, -1);
+  fx_map_free(&map);
+  fprintf(stderr, "unit_ai_euro_war: ship-slow (3180 naval half) ok\n");
   return 0;
 }
 
