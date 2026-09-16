@@ -13,7 +13,7 @@
 #include "core/founding_fathers.h"
 #include "core/map.h"
 #include "core/savegame.h"
-#include "core/units.h"
+#include "core/units_move.h"
 #include "platform/diagnostics.h"
 
 static void fill_pattern(uint8_t* p, size_t n, uint8_t seed) {

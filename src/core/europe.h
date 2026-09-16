@@ -7,7 +7,7 @@
 
 #include "core/pik.h"
 #include "core/ss.h"
-#include "core/units.h"
+#include "core/units_cargo.h"
 
 #define EUROPE_CARGO_MAX 16
 /* Europe status-line ring (DOS DS:0x2d54 lines produced by a sale). */

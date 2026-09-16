@@ -75,7 +75,10 @@ static void unit_stack_row_label(
     snprintf(base, sizeof(base), "%s", name ? name : "Unit");
   }
   if (u && u->aboard_ship_id >= 0) {
-    snprintf(out, out_size, "%s (%s)", base, u->orders == 1 ? "aboard" : "ready");
+    snprintf(
+      out, out_size, "%s (%s)", base,
+      u->orders == UNITS_ORDER_SENTRY ? "aboard" : "ready"
+    );
   } else {
     snprintf(out, out_size, "%s", base);
   }
@@ -130,7 +133,7 @@ static void unit_stack_activate_row(UnitStackPopup* dlg, ColonizeUnitPool* pool,
     return;
   }
   dlg->selection = idx;
-  if (u->orders != 0) {
+  if (u->orders != UNITS_ORDER_NONE) {
     /*
      * First pick cancels orders only. Wake through units_wake, not a bare
      * orders=0: boarding parks a passenger at moves_left 0 as a "skip this

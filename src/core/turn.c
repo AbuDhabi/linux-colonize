@@ -4038,3 +4038,18 @@ ColonizeTurnResult turn_end(ColonizeTurnContext* ctx) {
   }
   return proc.result;
 }
+
+/*
+ * New-game / load hook (sibling of ai_euro_reset / ai_native_reset /
+ * ai_goals_reset / founding_fathers_reset / ai_contact_reset): the
+ * production-scope debug filters default to "unset" (matching how
+ * turn_prod_nation_in_scope treats them, not to nation 0), and the birth-
+ * units pool pointer must not survive into a different campaign's pool.
+ */
+void turn_reset(void) {
+  s_turn_birth_units = NULL;
+  s_prod_only_nation = -1;
+  s_prod_only_set = false;
+  s_prod_skip_nation = -1;
+  s_prod_skip_set = false;
+}

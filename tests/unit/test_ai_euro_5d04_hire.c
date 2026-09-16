@@ -41,7 +41,7 @@
 #include "core/dos_rng.h"
 #include "core/map.h"
 #include "core/turn.h"
-#include "core/units.h"
+#include "core/units_cargo.h"
 
 #include <stdio.h>
 #include <stdlib.h>

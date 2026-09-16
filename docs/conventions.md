@@ -89,6 +89,12 @@ the verification loop. It does **not** own feature status — that stays in the
   0074/007e` append API paints the map's top strip. When a DOS site builds a
   sentence through that API rather than the `6f74` compositor, the port must
   **not** raise a popup.
+- **Big-function rule: extract stages into static functions with a status enum**
+  (e.g. `AiEuroActStatus { CONTINUE, RETURN }`); no function > ~400 lines. Split
+  by **gameplay concern**, not arbitrary line count. All stage functions take a
+  shared context struct (`ai_euro_act_ctx`, `game_update_ctx`, etc.). Pattern:
+  `FUN_` with complex control flow → dispatcher over `ai_euro_act_*` stages with
+  `ai_euro_reset()` lifecycle hook for stateful iterators. (2026-09-16)
 
 ### Structural invariants
 
@@ -117,7 +123,11 @@ These have each cost a session. Check them before blaming the code.
   (`guns`/`hull`/`cargo`) — benign at `-O0`, wrong at `-O3`. Always
   `memset(&pool, 0, sizeof pool)`. Same for `ColonizeReportsView`.
   Also `*_set_occupancy_map(NULL)` after every `units_reset`/`colonies_init`,
-  or a dead stack map stays bound.
+  or a dead stack map stays bound. **Reset functions** (`units_reset_hooks()`,
+  `ai_euro_reset()`, `ai_native_reset()`, `turn_reset()`) must be called in all
+  test fixtures and from `ai_init_new_game` + `game_apply_col1_save`. Known
+  exclusion: `s_euro_last_dir` is not reset (intentional — it tracks the human's
+  last ship direction across save/load).
 - **Zeroed `founding_father[]`.** Granting an FF by writing `head.founding_father[i]`
   does nothing — grant via `col1.nation[n].founding_fathers[idx/8] |= 1<<(idx%8)`
   and clear the bit on reset, or grants leak across sub-tests.

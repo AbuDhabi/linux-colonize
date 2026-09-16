@@ -103,4 +103,11 @@ int ai_euro_colony_needs_colonists_5952(
 int ai_euro_5d04_dos_type_code(const ColonizeUnitPool* pool, int type_index);
 int ai_euro_5d04_dos_type_space(const ColonizeUnitPool* pool, int dos_code);
 
+/*
+ * New-game / load hook (sibling of ai_goals_reset / founding_fathers_reset /
+ * ai_contact_reset): clears this module's per-unit/colony/nation sticky
+ * latches so they don't leak from a previous campaign in the same process.
+ */
+void ai_euro_reset(void);
+
 #endif

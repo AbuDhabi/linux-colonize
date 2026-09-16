@@ -475,12 +475,12 @@ static const char* europe_pool_job_name(int profession) {
 static int europe_pool_remap(int job) {
   switch (job) {
     case 0x12: return 0x0d;
-    case 0x13: return 0x16;
+    case UNITS_JOB_COLONIST: return 0x16;
     case 0x01: return 0x08;
     case 0x02: return 0x05;
     case 0x03: return 0x00;
     case 0x04: return 0x06;
-    case 0x17: return 0x0d;
+    case UNITS_JOB_DRAGOON: return 0x0d;
     default: return job;
   }
 }
@@ -489,7 +489,7 @@ static int europe_pool_remap(int job) {
  * i.e. Free Colonists / Servants / Criminals / Converts / job NONE — the
  * non-expert classes. 1 for every expert. */
 static bool europe_job_is_expert(int job) {
-  return !(job == 0x13 || (job >= 0x19 && job <= 0x1c));
+  return !(job == UNITS_JOB_COLONIST || (job >= 0x19 && job <= 0x1c));
 }
 
 /*
@@ -599,7 +599,8 @@ void europe_apply_brewster(EuropeScreen* eu, int owned) {
   eu->brewster_no_criminals = true;
   for (int i = 0; i < EUROPE_POOL_SIZE; ++i) {
     if (eu->pool[i].filled &&
-        (eu->pool[i].profession == 25 || eu->pool[i].profession == 26)) {
+        (eu->pool[i].profession == UNITS_JOB_SERVANT ||
+         eu->pool[i].profession == UNITS_JOB_CRIMINAL)) {
       eu->pool[i].profession = EUROPE_POOL_JOB_FREE_COLONIST;
       snprintf(
         eu->pool[i].name, sizeof(eu->pool[i].name), "%s",
@@ -744,7 +745,7 @@ void europe_seed_pool(EuropeScreen* eu, int difficulty, bool human) {
    * Smell audit #56.
    */
   if (EUROPE_POOL_SIZE > 0 && eu->bound_nation == 2) {
-    const int job = 0x18; /* NAMES @JOB 24 = "Jesuit Missionaries" */
+    const int job = UNITS_JOB_MISSIONARY; /* NAMES @JOB 24 = "Jesuit Missionaries" */
     snprintf(eu->pool[0].name, sizeof(eu->pool[0].name), "%s", europe_pool_job_name(job));
     eu->pool[0].profession = job;
     eu->pool[0].filled = true;
@@ -1497,13 +1498,13 @@ bool europe_recruit(EuropeScreen* eu) {
 
 int europe_dock_unit_dos_type(int profession, int difficulty, bool human, ColonizeDosRng* rng) {
   int type = 0; /* Colonists */
-  if (profession == 0x14) {
+  if (profession == UNITS_JOB_PIONEER) {
     type = 2; /* Pioneers */
-  } else if (profession == 0x18) {
+  } else if (profession == UNITS_JOB_MISSIONARY) {
     type = 3; /* Missionaries */
-  } else if (profession == 0x16) {
+  } else if (profession == UNITS_JOB_SCOUT) {
     type = 5; /* Scouts */
-  } else if (profession == 0x15) {
+  } else if (profession == UNITS_JOB_SOLDIER) {
     type = 1; /* Soldiers */
     if (rng) {
       const int bound = human ? difficulty : 1;
@@ -1791,7 +1792,7 @@ static bool europe_arm_row_enabled(
   int* out_price
 ) {
   const int t = d->dos_type;
-  const bool convert = (d->profession == 0x1b);
+  const bool convert = (d->profession == UNITS_JOB_CONVERT);
   *out_price = 0;
   switch (row) {
     case EUROPE_ARM_ROW_NO_BOARD:
@@ -1846,7 +1847,7 @@ static bool europe_arm_row_enabled(
        * ordinary colonist can cancel Missionary status; a born Jesuit
        * Missionary specialist cannot. Was inverted.
        */
-      return t == EUROPE_DOCK_TYPE_MISSIONARIES && d->profession != 0x18;
+      return t == EUROPE_DOCK_TYPE_MISSIONARIES && d->profession != UNITS_JOB_MISSIONARY;
     case EUROPE_ARM_ROW_NO_CHANGES:
     default:
       return true;

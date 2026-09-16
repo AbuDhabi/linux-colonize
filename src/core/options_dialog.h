@@ -6,7 +6,7 @@
 #include <stdint.h>
 
 #include "core/assets.h"
-#include "core/col1_save.h"
+#include "core/col1_save_layout.h"
 #include "core/font.h"
 #include "core/popup.h"
 #include "core/ss.h"

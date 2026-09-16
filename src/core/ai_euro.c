@@ -3261,7 +3261,7 @@ int ai_euro_28c8_colonist_job_score_structural(
  * kept separate rather than cross-included so the two files stay independent.
  */
 static bool ai_euro_5952_job_is_expert(int job) {
-  return job != 0x13 && job != COLONIZE_PROF_INDENTURED &&
+  return job != UNITS_JOB_COLONIST && job != COLONIZE_PROF_INDENTURED &&
          job != COLONIZE_PROF_CRIMINAL && job != COLONIZE_PROF_CONVERT &&
          job != COLONIZE_PROF_FREE_COLONIST;
 }
@@ -6378,7 +6378,7 @@ static int ai_euro_5d04_dos_type_of(const ColonizeUnitPool* pool, int type_index
  * carry, so it keeps its own arm.
  */
 static int ai_euro_5d04_linux_type_for(const ColonizeUnitPool* pool, int dos_code) {
-  if (dos_code == 0xb) {
+  if (dos_code == UNITS_KIND_ARTILLERY) {
     const int t = units_find_type(pool, "Artillery");
     return t >= 0 ? t : units_find_type(pool, "Cannon");
   }
@@ -6449,7 +6449,10 @@ static int ai_euro_5d04_cb_unit_is_skilled(int idx) {
   return (t >= 0 && t <= 9) ? 0 : -1;
 }
 static int ai_euro_5d04_cb_profession_gate(int profession) {
-  return (profession == 0x13 || (profession >= 0x19 && profession <= 0x1c)) ? 0 : 1;
+  return (profession == UNITS_JOB_COLONIST ||
+          (profession >= 0x19 && profession <= 0x1c))
+           ? 0
+           : 1;
 }
 /* FUN_38fd_0718: spawn the recruit in Europe (gold already paid by the caller). */
 static int ai_euro_5d04_cb_dock_pop_candidate(int profession) {
@@ -6458,13 +6461,13 @@ static int ai_euro_5d04_cb_dock_pop_candidate(int profession) {
     return -1;
   }
   int type = 0;
-  if (profession == 0x14) {
+  if (profession == UNITS_JOB_PIONEER) {
     type = 2;
-  } else if (profession == 0x18) {
+  } else if (profession == UNITS_JOB_MISSIONARY) {
     type = 3;
-  } else if (profession == 0x16) {
+  } else if (profession == UNITS_JOB_SCOUT) {
     type = 5;
-  } else if (profession == 0x15) {
+  } else if (profession == UNITS_JOB_SOLDIER) {
     type = 1;
     const int span = (s_5d04_nation == ctx->human_nation) ? (int)ctx->col1->head.difficulty : 1;
     if (dos_rng_range(ctx->rng, 0, span + 4) == 0) {
@@ -7794,7 +7797,7 @@ static void ai_euro_0a60_stack_count_member(
   }
   if (t == 1 || t == 4) {
     sc->mobilizable++;
-  } else if (m->profession == 0x15) {
+  } else if (m->profession == UNITS_JOB_SOLDIER) {
     sc->mobilizable++;
   }
   if (t >= 6 && t <= 9) {
@@ -7952,11 +7955,11 @@ static void ai_euro_0a60_unit_housekeeping(ColonizeTurnContext* ctx, int nation_
        * ships not already FOUND/MIL_EXPAND-eligible. */
       if (!spare_marked && is_ship_t && (st->flags & 0x0c) == 0) {
         if (merchantmen + galleons < 2 || merchantmen == 0) {
-          if (dos_type == 0x0d && caravels > 1) {
+          if (dos_type == UNITS_KIND_CARAVEL && caravels > 1) {
             st->flags |= 0x20;
             spare_marked = 1;
           }
-        } else if (dos_type == 0x0e) {
+        } else if (dos_type == UNITS_KIND_MERCHANTMAN) {
           st->flags |= 0x20;
           spare_marked = 1;
         }
@@ -7993,11 +7996,12 @@ static void ai_euro_0a60_unit_housekeeping(ColonizeTurnContext* ctx, int nation_
     } else if (u->nation_id >= 0 && u->nation_id < 4) {
       /* Foreign branch: spotted hostile ship → CONTACT goal prio 3.
        * Frigates only count once independence is declared (DS:0x5382 bit0). */
-      if (is_ship_t && (dos_type != 0x11 || woi) &&
+      if (is_ship_t && (dos_type != UNITS_KIND_FRIGATE || woi) &&
           map_tile_seen_by(ctx->map, u->x, u->y, nation_id) && ctx->col1_ok &&
           ctx->col1) {
         const uint8_t d = ai_diplo_read(ctx->col1, nation_id, u->nation_id);
-        if ((d & (AI_DIPLO_MET | AI_DIPLO_PEACE)) == AI_DIPLO_MET || dos_type == 0x10) {
+        if ((d & (AI_DIPLO_MET | AI_DIPLO_PEACE)) == AI_DIPLO_MET ||
+            dos_type == UNITS_KIND_PRIVATEER) {
           ai_goals_upsert_primary(nation_id, u->x, u->y, AI_GOAL_CONTACT, 3);
         }
       }
@@ -9416,7 +9420,7 @@ static void ai_euro_colony_goals(ColonizeTurnContext* ctx, int nation_id) {
             if (ai_euro_20e6_dos_type(ctx->units, gu) != k_adm_type[pass]) {
               continue;
             }
-            const int is_vet = (gu->profession == 0x15);
+            const int is_vet = (gu->profession == UNITS_JOB_SOLDIER);
             if (k_adm_vet[pass] >= 0 && is_vet != k_adm_vet[pass]) {
               continue;
             }
@@ -10336,11 +10340,11 @@ static int16_t s_20e6_hop_slot[COLONIZE_UNITS_MAX];
  * Merchantman 1, Galleon 4, Privateer 4, Frigate 12, Man-O-War 32. */
 static int ai_euro_20e6_unit_col9(int dos_type) {
   switch (dos_type) {
-    case 0xe: return 1;
-    case 0xf: return 4;
-    case 0x10: return 4;
-    case 0x11: return 12;
-    case 0x12: return 32;
+    case UNITS_KIND_MERCHANTMAN: return 1;
+    case UNITS_KIND_GALLEON: return 4;
+    case UNITS_KIND_PRIVATEER: return 4;
+    case UNITS_KIND_FRIGATE: return 12;
+    case UNITS_KIND_MAN_O_WAR: return 32;
     default: return 0;
   }
 }
@@ -10791,7 +10795,7 @@ static int ai_euro_20e6_probe_adjacent(const ColonizeTurnContext* ctx, int x, in
 static void ai_euro_20e6_explorer_flag(ColonizeTurnContext* ctx, const ColonizeUnit* u, Ai20e6Unit* s) {
   const int t = s->dos_type;
   int ex = (t == 2 || t == 0) ? 1 : 0; /* Pioneers / Colonists */
-  if (u->profession == 27) {           /* Indian Convert */
+  if (u->profession == UNITS_JOB_CONVERT) {           /* Indian Convert */
     ex = 0;
   }
   if (t == 1 || t == 4) { /* Soldiers / Dragoons */
@@ -10810,7 +10814,7 @@ static void ai_euro_20e6_explorer_flag(ColonizeTurnContext* ctx, const ColonizeU
     if (ai_euro_20e6_probe_adjacent(ctx, u->x, u->y, s->nation) >= 0) {
       ex = 0;
     }
-    if (u->profession == 21) { /* Veteran Soldier */
+    if (u->profession == UNITS_JOB_SOLDIER) { /* Veteran Soldier */
       ex = 0;
     }
     if (ai_euro_20e6_own_colonies_on(ctx, s->nation, s->cid) == 0 &&
@@ -10879,7 +10883,8 @@ static void ai_euro_20e6_explorer_flag(ColonizeTurnContext* ctx, const ColonizeU
  */
 static int ai_euro_20e6_patrol_arm(ColonizeTurnContext* ctx, ColonizeUnit* u, const Ai20e6Unit* s) {
   const int tasked = (s->order_code == 't' || s->order_code == 'i');
-  if (s->stance != 0 || tasked || s->is_ship || !(s->dos_type == 2 || s->combat > 1) ||
+  if (s->stance != 0 || tasked || s->is_ship ||
+      !(s->dos_type == UNITS_KIND_PIONEER || s->combat > 1) ||
       s->home_cid != s->cid || s->home_colony < 0) {
     return 0;
   }
@@ -11003,14 +11008,15 @@ static int ai_euro_20e6_village_arm(ColonizeTurnContext* ctx, ColonizeUnit* u, c
   /* Real 8d4a attitude[nation] gates (raw 1366 scout ==0, raw 1686 colonist
    * <0x40) — the record word is tribe.alarm[nation] {friction, attacks}. */
   const int att = ai_euro_20e6_village_attitude(t, s->nation);
-  if (s->dos_type == 5 && !t->state.scouted && att == 0) {
+  if (s->dos_type == UNITS_KIND_SCOUT && !t->state.scouted && att == 0) {
     if (ai_contact_ai_scout_visit_village(ctx, s->nation, s->village_idx, u->id)) {
       s_20e6_village_visited[s->village_idx] |= (uint8_t)(1u << s->nation);
       u->moves_left = 0;
       return 1;
     }
   }
-  if (!(s->combat > 1 || s->dos_type == 5 || s->dos_type == 3) &&
+  if (!(s->combat > 1 || s->dos_type == UNITS_KIND_SCOUT ||
+        s->dos_type == UNITS_KIND_MISSIONARY) &&
       (u->profession == UNITS_JOB_NONE || u->profession == UNITS_JOB_SERVANT) && att < 0x40 &&
       !t->state.learned && !units_is_sea(ctx->units, u->id)) {
     if (ai_contact_ai_live_among_village(ctx, s->nation, s->village_idx, u->id)) {
@@ -11041,7 +11047,7 @@ static int ai_euro_20e6_village_arm(ColonizeTurnContext* ctx, ColonizeUnit* u, c
  * (join / convert — abort the act, the unit may be gone).
  */
 static int ai_euro_20e6_labor_arm(ColonizeTurnContext* ctx, ColonizeUnit* u, Ai20e6Unit* s) {
-  if (s->dos_type != 0 || s->explorer || s->is_ship || !ctx->colonies) {
+  if (s->dos_type != UNITS_KIND_COLONIST || s->explorer || s->is_ship || !ctx->colonies) {
     return 0;
   }
   int best = -1;
@@ -11054,7 +11060,8 @@ static int ai_euro_20e6_labor_arm(ColonizeTurnContext* ctx, ColonizeUnit* u, Ai2
     if (map_continent_id_at(ctx->map, c->x, c->y) != s->cid) {
       continue;
     }
-    if (!(c->ai_flags & COLONIZE_COLONY_AI_NEEDS_COLONISTS) && u->profession != 27) {
+    if (!(c->ai_flags & COLONIZE_COLONY_AI_NEEDS_COLONISTS) &&
+        u->profession != UNITS_JOB_CONVERT) {
       continue; /* 27 = Indian Convert (DOS profession 0x1b) */
     }
     int wanted = ai_euro_colony_wanted_size(ctx->colonies, c); /* FUN_15eb_0484 */
@@ -11293,7 +11300,7 @@ static int ai_euro_land_explore_scan_target(
           if (own_here == 0) {
             score += score >> 1;
           }
-          if (s.dos_type == 0) {
+          if (s.dos_type == UNITS_KIND_COLONIST) {
             score <<= 1;
           }
           score += local_12 >> tier;
@@ -11418,7 +11425,7 @@ static int ai_euro_20e6_attack_term(
     odds <<= 1;
     settlement = 1;
   }
-  if (s->dos_type == 0xb && !settlement) {
+  if (s->dos_type == UNITS_KIND_ARTILLERY && !settlement) {
     odds = 0;
   }
   /* Raw 2855: DS:0x53d2 (crown_nation_id) == 2 ∧ open tile ∧ standing on own
@@ -11439,7 +11446,7 @@ static int ai_euro_20e6_attack_term(
    * in move_scoring_20e6_full.md as "adjacent Spanish-owned units?").
    * own ≤ def → skip the tile entirely (LAB_5183).
    */
-  if ((s->dos_type == 1 || s->dos_type == 4) &&
+  if ((s->dos_type == UNITS_KIND_SOLDIER || s->dos_type == UNITS_KIND_DRAGOON) &&
       ai_euro_20e6_colony_owner_at(ctx, nx, ny) >= 0) {
     const int def = ai_euro_20e6_stack_combat_0b(ctx, nx, ny);
     if (def != 0) {
@@ -11569,7 +11576,7 @@ static int ai_euro_20e6_wander_step(ColonizeTurnContext* ctx, ColonizeUnit* u, A
     const int dest_river = map_tile_has_river(ctx->map, nx, ny) ? 1 : 0;
     const int dest_road = map_tile_has_road(ctx->map, nx, ny) ? 1 : 0;
     const int cardinal = (d & 1) == 0;
-    if (s->dos_type == 5) { /* Scouts */
+    if (s->dos_type == UNITS_KIND_SCOUT) { /* Scouts */
       score = dos_rng_range(ctx->rng, 1, 8);
       if (s->unit_river && dest_river && cardinal) {
         score += 2;
@@ -11657,7 +11664,10 @@ static int ai_euro_20e6_wander_step(ColonizeTurnContext* ctx, ColonizeUnit* u, A
        * driven by ai_contact_*, so this port only takes the arm at war —
        * a deliberate narrowing, not a transcription slip. */
       const int at_war = owner >= 0 && ctx->col1 && ai_diplo_at_war(ctx->col1, nation, owner);
-      if ((at_war || ((rel & AI_DIPLO_MET) == 0 && s->dos_type == 0x10) || hu_type == 0x10) && woi_ok) {
+      if ((at_war ||
+           ((rel & AI_DIPLO_MET) == 0 && s->dos_type == UNITS_KIND_PRIVATEER) ||
+           hu_type == UNITS_KIND_PRIVATEER) &&
+          woi_ok) {
         if (!ai_euro_20e6_attack_term(ctx, u, s, nx, ny, here, &score)) {
           continue;
         }
@@ -12050,7 +12060,7 @@ static int ai_euro_20e6_treasure_cash_in(
   }
   Ai20e6Unit s;
   ai_euro_20e6_prologue(ctx, u, nation_id, &s);
-  if (s.dos_type != 0x0a) {
+  if (s.dos_type != UNITS_KIND_TREASURE) {
     return 0;
   }
   if (s.cid < 0) {
@@ -12130,7 +12140,7 @@ static int ai_euro_20e6_47b9_dead_end(ColonizeTurnContext* ctx, ColonizeUnit* u,
   }
   Ai20e6Unit s;
   ai_euro_20e6_prologue(ctx, u, nation_id, &s);
-  if (s.dos_type != 0x0c && s.dos_type != 0x0a) {
+  if (s.dos_type != UNITS_KIND_WAGON && s.dos_type != UNITS_KIND_TREASURE) {
     return 0;
   }
   if (s.cid < 0) {
@@ -12146,7 +12156,7 @@ static int ai_euro_20e6_47b9_dead_end(ColonizeTurnContext* ctx, ColonizeUnit* u,
   const int in_own_colony = (s.home_colony >= 0 && s.home_dist == 0);
   const int destroy_trace = getenv("AI_20E6_DEADEND_TRACE") != NULL;
 
-  if (s.dos_type == 0x0c) {
+  if (s.dos_type == UNITS_KIND_WAGON) {
     /* The wagon 457e arm now lives whole in ai_euro_20e6_wagon_origin_walk
      * (bind / park / walk / destroy), called from ai_euro_try_wagon_haul in
      * DOS position. Nothing left for the act-level dead-end pass to do. */
@@ -12223,7 +12233,7 @@ static int ai_euro_20e6_wagon_origin_walk(
   }
   Ai20e6Unit s;
   ai_euro_20e6_prologue(ctx, u, nation_id, &s);
-  if (s.dos_type != 0x0c || s.cid < 0) {
+  if (s.dos_type != UNITS_KIND_WAGON || s.cid < 0) {
     return 0;
   }
   if (s.order_code == 't' || s.order_code == 'i') {
@@ -12389,13 +12399,13 @@ static int ai_euro_20e6_457e_type_gate(
   const int n = u ? u->nation_id : -1;
   const ColonizeCol1Stuff* stuff =
     (ctx && ctx->col1_ok && ctx->col1) ? &ctx->col1->stuff : NULL;
-  if (dos_type == 0x12) { /* Man-O-War (decomp 88576-88579) */
+  if (dos_type == UNITS_KIND_MAN_O_WAR) { /* Man-O-War (decomp 88576-88579) */
     if (u && (u->id & 1) != 0) {
       return 1;
     }
     return stuff && n >= 0 && n < 4 && stuff->unit_type_counts[n][0x12] == 1;
   }
-  if (dos_type == 0x11) { /* Frigate (decomp 88557-88566) */
+  if (dos_type == UNITS_KIND_FRIGATE) { /* Frigate (decomp 88557-88566) */
     if (!stuff || !u || n < 0 || n > 3) {
       return 0;
     }
@@ -12407,7 +12417,7 @@ static int ai_euro_20e6_457e_type_gate(
     }
     return !ai_euro_20e6_adjacent_foreign_09dc(ctx, u->x, u->y, n);
   }
-  if (dos_type == 0x10) { /* Privateer (decomp 88567-88574) */
+  if (dos_type == UNITS_KIND_PRIVATEER) { /* Privateer (decomp 88567-88574) */
     if (n < 0 || n > 3) {
       return 0;
     }
@@ -16002,13 +16012,13 @@ static int ai_euro_20e6_unload_by_mask(
  * Caravel 2, Merchantman 4, Galleon 6, Privateer 2, Frigate 4, MoW 6. */
 static int ai_euro_20e6_unit_col5(int dos_type) {
   switch (dos_type) {
-    case 0xc: return 2;
-    case 0xd: return 2;
-    case 0xe: return 4;
-    case 0xf: return 6;
-    case 0x10: return 2;
-    case 0x11: return 4;
-    case 0x12: return 6;
+    case UNITS_KIND_WAGON: return 2;
+    case UNITS_KIND_CARAVEL: return 2;
+    case UNITS_KIND_MERCHANTMAN: return 4;
+    case UNITS_KIND_GALLEON: return 6;
+    case UNITS_KIND_PRIVATEER: return 2;
+    case UNITS_KIND_FRIGATE: return 4;
+    case UNITS_KIND_MAN_O_WAR: return 6;
     default: return 0;
   }
 }
@@ -17333,174 +17343,82 @@ static void ai_euro_first_colony_ship_course(
   }
 }
 
-/*
- * FUN_521d_5b66 — scoring gate + case 0x0b arms; case 7 hire economy thin
- * (Pioneer tools-delivery here; wagon/tools dock hire lives in 5d04 planning).
+/* ========================================================================
+ * FUN_521d_20e6 / FUN_521d_0a60 per-unit act — stage split (2026-09-16)
  *
- * Correction (2026-08-13, see euro_unit_act.md): `FUN_521d_5b66` itself is a
- * tiny 198-byte `switch(unit.orders_or_state)` dispatcher (cases
- * 7/8/9/0xb/0xc/default calling out to `FUN_1000_93ea` / `func_0x000193b2` /
- * `FUN_1000_9406` / `FUN_1000_8b24` / `FUN_1000_96aa`), not the ~1815-line
- * body this file's "5b66 case N" comments were written against — that
- * estimate came from a Ghidra disassembly-fault-corrupted read of the
- * canonical export (real root cause: false adjacency to the next RTLink
- * overlay segment in the flattened file, see `docs/rtlink_decode_v2_gap.md`).
- * The case *numbers* below are still meaningful — they match the real
- * dispatcher's cases 1:1 — but the elaborate bodies live in the callees
- * above, not literally inside `5b66`. Re-attributing each "5b66 case N"
- * comment throughout this function to its real DOS home is not done (large,
- * mostly cosmetic given the case-shape framing still holds); treat "5b66
- * case N" comments here as "the game behavior DOS dispatches via 5b66's
- * case N", not "literally transcribed from 5b66's own bytes".
+ * `ai_euro_unit_act` below used to carry the whole act body (~2060 lines) in
+ * one function. It is now a driver that runs the DOS stages in the same order,
+ * as a chain of static per-stage helpers. The split is purely structural: no
+ * statement was reordered, no gate changed, and every RNG-drawing call keeps
+ * its position in the stream.
+ *
+ * Stage order (each helper's own header names its DOS citation):
+ *   head (in ai_euro_unit_act)    guards, 049e notify, roam-abort, coastal
+ *                                 embark / mil unload, MoW sail-home, early
+ *                                 20e6 move-scoring gate, on-colony admit
+ *   ai_euro_act_pioneer_corridor  FR tip corridor + 5952_035e equip arm
+ *   ai_euro_act_soldier_staging   SP post-found soldier staging corridor
+ *   ai_euro_act_ship              ship band (5 sub-stages, see below)
+ *   ai_euro_act_land              case 0x0b land band (6 sub-stages)
+ *
+ * Locals that cross stage boundaries live in `struct ai_euro_act_ctx`; each
+ * helper aliases the ones it needs at entry and writes the mutated ones back
+ * at its fall-through exit. Control flow that used to be a bare `return;`
+ * inside the body is carried out as `AI_EURO_ACT_RETURN` and honoured by the
+ * caller, so an early bail still ends the act exactly where it did before.
+ * ======================================================================== */
+
+typedef enum {
+  AI_EURO_ACT_CONTINUE = 0, /* stage fell through — run the next one */
+  AI_EURO_ACT_RETURN = 1    /* stage ended the act (was a bare `return;`) */
+} AiEuroActStatus;
+
+/* Act-local state shared between the stages of one ai_euro_unit_act call. */
+struct ai_euro_act_ctx {
+  ColonizeTurnContext* ctx;
+  ColonizeUnit* u; /* re-read after every call that can free/replace the unit */
+  int nation_id;
+  int is_ship;
+  /* ship band */
+  int exited_europe;
+  int at_war;
+  int treasure_aboard;
+  /* land band */
+  const char* uname;
+  int is_land_hunter;
+  int is_scout;
+  int is_treasure;
+  int is_missionary;
+  int at_war_land;
+  int land_war_hunted;
+  int scout_explored;
+  int treasure_routed;
+  int missionary_contacted;
+  int peace_border_hunted;
+  int wagon_hauled;
+  int pioneer_improved;
+  int lumberjack_fielded;
+  int miner_fielded;
+  int farmer_fielded;
+  int fisherman_fielded;
+  int planter_fielded;
+  int workplace_assigned;
+  int goal_x;
+  int goal_y;
+  int goal_code;
+};
+
+/*
+ * Stage: Pioneer FR tip corridor + colony tools/muskets equip arm
+ * (FUN_5952_035e absorb+equip pair, raw 94256-94352). Extracted verbatim
+ * from ai_euro_unit_act.
  */
-static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nation_id) {
-  if (!ctx || !u || !u->active || u->aboard_ship_id >= 0) {
-    return;
-  }
-  /* First-colony land may wake sentry (moves_left was 0). Ships still need MP. */
-  const int is_ship_early = ai_euro_is_ship_type(ctx->units, u->id);
-  if (!is_ship_early && ai_euro_try_first_colony_land(ctx, u, nation_id)) {
-    return;
-  }
-  if (u->moves_left <= 0) {
-    return;
-  }
+static AiEuroActStatus ai_euro_act_pioneer_corridor(struct ai_euro_act_ctx* a) {
+  ColonizeTurnContext* const ctx = a->ctx;
+  ColonizeUnit* u = a->u;
+  const int nation_id = a->nation_id;
+  const int is_ship = a->is_ship;
 
-  /*
-   * FUN_4720_049e notify/tension checks (thin, approximate — see the two
-   * functions' own headers). Fire once near the top of the act, matching
-   * DOS's own move-driver-completion timing as closely as this port's
-   * architecture allows.
-   */
-  ai_euro_treasure_tension_bump(ctx, u);
-  if (!is_ship_early) {
-    ai_euro_try_violate_notify(ctx, u);
-  }
-
-  const int is_ship = is_ship_early;
-  int is_goto = units_orders_follow_goto(u->orders);
-
-  /*
-   * FUN_521d_20e6 epilogue roam-abort (unit+0x314c==5 cleared the moment a
-   * met foreign unit is adjacent, forcing a re-decide next call — see
-   * move_scoring_20e6_full.md "Epilogue / commit block", line ~2213-2275).
-   * Scoped to gotos this port's own idle-wander branch set
-   * (s_euro_roam_wander, written only by ai_euro_move_scoring_gate's
-   * explore-scan / fallback-west arms); goal-directed AI_MOVE gotos (found-
-   * tile pursuit, war hunt, wagon delivery, ship staging) are not DOS's
-   * "roaming" state and are left alone. MET check both directions, same
-   * gate as ai_euro_try_violate_notify's adjacency scan.
-   */
-  if (!is_ship && is_goto && u->orders == UNITS_ORDER_AI_MOVE && u->id >= 0 &&
-      u->id < COLONIZE_UNITS_MAX && s_euro_roam_wander[u->id] && ctx->col1_ok && ctx->col1) {
-    static const int rdx[8] = {0, 1, 1, 1, 0, -1, -1, -1};
-    static const int rdy[8] = {-1, -1, 0, 1, 1, 1, 0, -1};
-    for (int d = 0; d < 8; ++d) {
-      const int fid = units_id_at(ctx->units, u->x + rdx[d], u->y + rdy[d]);
-      if (fid < 0 || units_is_sea(ctx->units, fid)) {
-        continue;
-      }
-      const ColonizeUnit* f = units_get_const(ctx->units, fid);
-      if (!f || f->nation_id == u->nation_id || f->nation_id < 0 || f->nation_id >= 4) {
-        continue;
-      }
-      if ((ai_diplo_read(ctx->col1, u->nation_id, f->nation_id) & AI_DIPLO_MET) &&
-          (ai_diplo_read(ctx->col1, f->nation_id, u->nation_id) & AI_DIPLO_MET)) {
-        ai_euro_set_goto(u, UNITS_ORDER_NONE, u->x, u->y);
-        is_goto = units_orders_follow_goto(u->orders);
-        break;
-      }
-    }
-  }
-
-  /*
-   * At-war Soldier/Dragoon/Artillery coastal embark — before move-scoring gate /
-   * hunt yank / Artillery on-colony fortify. Soldier, Dragoon, or Artillery/
-   * Cannon on coastal own colony boards empty transport (may override MILITARY
-   * goto from E deepen). Cite: Colonization.pdf naval transport / Defending a
-   * Colony; units_board; euro_unit_act §2d3.
-   */
-  if (!is_ship && ctx->col1_ok && ctx->col1 && ai_euro_at_war_any_peer(ctx->col1, nation_id)) {
-    const char* board_name = units_display_name(ctx->units, u);
-    if (board_name &&
-        (ai_euro_is_military_name(board_name) || ai_euro_is_artillery_name(board_name)) &&
-        ai_euro_try_soldier_board_transport(ctx, nation_id, u)) {
-      return;
-    }
-  }
-
-  /*
-   * War / peacetime-sticky mil unload — before move-scoring gate. Galleon/Frigate
-   * are not cargo-ship deferred, so 20e6 gate can abort the ship act before the
-   * unload arm. Drop Soldier at threatened coastal colony first. Cite:
-   * Colonization.pdf naval transport; euro_unit_act §2b2; Series L sticky≥2.
-   */
-  if (is_ship && ctx->col1_ok && ctx->col1 && !ai_euro_in_europe(u->x, u->y) &&
-      (ai_euro_at_war_any_peer(ctx->col1, nation_id) ||
-       ai_diplo_indian_hostility_sticky(ctx->col1, nation_id) >= 2)) {
-    (void)ai_euro_try_unload_military_threatened(ctx, nation_id, u);
-  }
-
-  /*
-   * FUN_521d_20e6 ship-band tail (raw 89717-89720): during WoI an empty,
-   * untasked crown Man-O-War standing alone sails for the High Seas once
-   * the MoW pool is spent and land pools remain. D1 (2026-09-07g): the
-   * crown ship acts through this band now, so the beat runs here; the
-   * full DOS skip-test lives in ai_king_mow_sail_home_20e6.
-   */
-  if (is_ship && ctx->col1_ok && ctx->col1 && ctx->col1->head.game_options.woi &&
-      nation_id == (int)ctx->col1->head.crown_nation_id && u->cargo_count == 0 &&
-      ai_euro_20e6_dos_type(ctx->units, u) == 0x12 &&
-      ai_king_mow_sail_home_20e6(ctx, u, nation_id)) {
-    return;
-  }
-
-  /*
-   * Early move-scoring gate (~90552): if orders!=goto (or fresh), call 20e6;
-   * non-zero return aborts act. Linux: always score when not already on goto.
-   * Treasure / Missionary: defer course to act-level coast / CONTACT routing
-   * (do not FOUND-yank before treasure coast or missionary mission hunt).
-   */
-  /*
-   * A unit mid-way through a Pioneer improve job (CLEAR_PLOW/BUILD_ROAD)
-   * isn't a "goto" per units_orders_follow_goto, so it used to fall
-   * through to the move-scoring gate below every turn and get hijacked
-   * into an AI_MOVE elsewhere before finishing — invisible while the
-   * real DS:0x2f78 threshold was unknown and every job finished in one
-   * tick, exposed once the real (usually multi-turn) threshold was
-   * captured 2026-08-20. Treat it as committed, same as a goto.
-   */
-  const int is_pioneer_job_active =
-    u->orders == UNITS_ORDER_CLEAR_PLOW || u->orders == UNITS_ORDER_BUILD_ROAD;
-  if (!is_goto && !is_pioneer_job_active) {
-    const char* gate_name = units_display_name(ctx->units, u);
-    const int defer_gate =
-      ai_euro_is_treasure_name(gate_name) || ai_euro_is_missionary_name(gate_name) ||
-      ai_euro_type_is_wagon_name(gate_name) || ai_euro_is_cargo_ship_name(gate_name);
-    if (!defer_gate && ai_euro_move_scoring_gate(ctx, u, nation_id)) {
-      return;
-    }
-  }
-
-  /*
-   * On own colony with no fortify quota: admit Soldier as colonist before
-   * later FOUND/explore arms yank them (Isabella TURN4→5). Cite: TURN4–5.
-   */
-  if (!is_ship && ctx->colonies && !ai_euro_land_is_fortified(u)) {
-    const char* join_name = units_display_name(ctx->units, u);
-    if (join_name && ai_euro_is_military_name(join_name)) {
-      const int early_cid = colonies_id_at(ctx->colonies, u->x, u->y);
-      if (early_cid >= 0) {
-        ColonizeColony* ec = colonies_get_mut(ctx->colonies, early_cid);
-        if (ec && ec->active && ec->nation_id == nation_id && ec->garrison_quota == 0 &&
-            (ec->population < 3 ||
-             (ec->ai_flags & COLONIZE_COLONY_AI_NEEDS_COLONISTS) != 0)) {
-          ai_euro_join_colony(ctx, u, early_cid);
-          return;
-        }
-      }
-    }
-  }
   /*
    * FR tip south of new colony: leave found+1 toward SW coast (TURN4→5 pioneer
    * (50,38)→(48,39)). Geometric offset from town — not a nation peel.
@@ -17521,13 +17439,13 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
           }
           u = units_get(ctx->units, u->id);
           if (!u) {
-            return;
+            return AI_EURO_ACT_RETURN;
           }
         }
         if (u) {
           u->moves_left = 0;
         }
-        return;
+        return AI_EURO_ACT_RETURN;
       }
       /* Next act: from SW coast staging return to town (TURN5→6 48,39→50,37). */
       if (u->x == c->x - 2 && u->y == c->y + 2) {
@@ -17541,14 +17459,14 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
           }
           u = units_get(ctx->units, u->id);
           if (!u) {
-            return;
+            return AI_EURO_ACT_RETURN;
           }
         }
         if (u && u->active && u->x == c->x && u->y == c->y) {
           ai_euro_set_goto(u, UNITS_ORDER_NONE, c->x, c->y);
           u->moves_left = 0;
         }
-        return;
+        return AI_EURO_ACT_RETURN;
       }
       /*
        * On town tile: deposit tools, take warehouse muskets → Soldiers /
@@ -17668,11 +17586,25 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
            * byte). The (0,0) goto is this port's spelling of "no goto". */
           ai_euro_set_goto(u, UNITS_ORDER_NONE, 0, 0);
           u->moves_left = 0;
-          return;
+          return AI_EURO_ACT_RETURN;
         }
       }
     }
   }
+
+  a->u = u;
+  return AI_EURO_ACT_CONTINUE;
+}
+
+/*
+ * Stage: SP post-found soldier staging corridor. Extracted verbatim
+ * from ai_euro_unit_act.
+ */
+static AiEuroActStatus ai_euro_act_soldier_staging(struct ai_euro_act_ctx* a) {
+  ColonizeTurnContext* const ctx = a->ctx;
+  ColonizeUnit* u = a->u;
+  const int nation_id = a->nation_id;
+  const int is_ship = a->is_ship;
 
   /*
    * SP post-found soldier staging corridor:
@@ -17713,778 +17645,837 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
           ai_euro_set_goto(u, UNITS_ORDER_AI_MOVE, u->x, u->y);
           u->moves_left = 0;
         }
-        return;
+        return AI_EURO_ACT_RETURN;
       }
     }
   }
 
-  /* Case 7 Europe hire / wagon economy: treasury + dock expert tails in 5d04.
-   * Thin tools delivery runs on land Pioneer/Hardy at own colony (below). */
+  a->u = u;
+  return AI_EURO_ACT_CONTINUE;
+}
 
-  if (is_ship) {
-    /* Treasure cash-in before Europe→HS teleport (passengers would leave map). */
-    (void)ai_euro_try_cash_treasure_europe(ctx, nation_id, u);
-    u = units_get(ctx->units, u->id);
-    if (!u || !u->active) {
-      return;
-    }
-    /* TRADE_GOODS dump-sell at Europe before HS teleport. */
-    (void)ai_euro_try_transport_europe_sell(ctx, nation_id, u);
-    u = units_get(ctx->units, u->id);
-    if (!u || !u->active) {
-      return;
-    }
+/*
+ * Ship stage 1: Europe treasure cash-in / dump-sell, then FUN_48d3_048e
+ * Europe->map exit and its first scored ocean leg.
+ */
+static AiEuroActStatus ai_euro_act_ship_europe_exit(struct ai_euro_act_ctx* a) {
+  ColonizeTurnContext* const ctx = a->ctx;
+  ColonizeUnit* u = a->u;
+  const int nation_id = a->nation_id;
 
+  /* Treasure cash-in before Europe→HS teleport (passengers would leave map). */
+  (void)ai_euro_try_cash_treasure_europe(ctx, nation_id, u);
+  u = units_get(ctx->units, u->id);
+  if (!u || !u->active) {
+    return AI_EURO_ACT_RETURN;
+  }
+  /* TRADE_GOODS dump-sell at Europe before HS teleport. */
+  (void)ai_euro_try_transport_europe_sell(ctx, nation_id, u);
+  u = units_get(ctx->units, u->id);
+  if (!u || !u->active) {
+    return AI_EURO_ACT_RETURN;
+  }
+
+  /*
+   * FUN_48d3_048e Europe→map: spiral-place on HS near landfall goto — never
+   * prefer_y from Europe sentinel (~228+nation); that pinned rivals south.
+   * First leg: scored ocean steps (FUN_521d_20e6 / LAB_521d_3558) toward
+   * west-explore (4,13). TURN2 endpoints are one-act MP landings of that
+   * drain — not a separate approach goal / colony-sail pick.
+   * Cite: FUN_48d3_048e/0434; move_scoring.md §ocean; test-saves-ai/TURN2.
+   */
+  int exited_europe = 0;
+  if (ai_euro_in_europe(u->x, u->y)) {
+    int lx = 0;
+    int ly = 0;
+    ai_euro_resolve_landfall_goto(ctx, u, &lx, &ly);
     /*
-     * FUN_48d3_048e Europe→map: spiral-place on HS near landfall goto — never
-     * prefer_y from Europe sentinel (~228+nation); that pinned rivals south.
-     * First leg: scored ocean steps (FUN_521d_20e6 / LAB_521d_3558) toward
-     * west-explore (4,13). TURN2 endpoints are one-act MP landings of that
-     * drain — not a separate approach goal / colony-sail pick.
-     * Cite: FUN_48d3_048e/0434; move_scoring.md §ocean; test-saves-ai/TURN2.
+     * Established nation: the Europe-exit goto is the home coast, not the
+     * opening west-explore course (4,13). A passenger's colony goto wins,
+     * else the own coastal colony nearest the landfall guess. Without this
+     * a mid-game ship left Europe aimed at (4,y): greedy steps west into a
+     * land pocket, the pathfinder fallback routed back east, and the ship
+     * sailed the same loop every turn with its cargo still aboard.
      */
-    int exited_europe = 0;
-    if (ai_euro_in_europe(u->x, u->y)) {
-      int lx = 0;
-      int ly = 0;
-      ai_euro_resolve_landfall_goto(ctx, u, &lx, &ly);
+    int home_wx = -1;
+    int home_wy = -1;
+    if (colonies_count_for_nation(ctx->colonies, nation_id) > 0) {
+      int cx = -1;
+      int cy = -1;
+      for (int c = 0; c < u->cargo_count && c < COLONIZE_UNIT_CARGO_MAX; ++c) {
+        const ColonizeUnit* pax = units_get_const(ctx->units, u->cargo_ids[c]);
+        if (!pax || !pax->active) {
+          continue;
+        }
+        const ColonizeColony* pc = colonies_find_at_xy(ctx->colonies, pax->goto_x, pax->goto_y);
+        if (pc && pc->nation_id == nation_id && map_tile_is_coastal(ctx->map, pc->x, pc->y)) {
+          cx = pc->x;
+          cy = pc->y;
+          break;
+        }
+      }
+      if (cx < 0) {
+        int best = -1;
+        for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+          const ColonizeColony* c = &ctx->colonies->colonies[i];
+          if (!c->active || c->nation_id != nation_id ||
+              !map_tile_is_coastal(ctx->map, c->x, c->y)) {
+            continue;
+          }
+          const int d = abs(c->x - lx) + abs(c->y - ly);
+          if (best < 0 || d < best) {
+            best = d;
+            cx = c->x;
+            cy = c->y;
+          }
+        }
+      }
+      if (cx >= 0 && ai_euro_coastal_water_near(ctx->map, cx, cy, lx, ly, &home_wx, &home_wy)) {
+        lx = home_wx;
+        ly = home_wy;
+      }
+    }
+    int hx = lx;
+    int hy = ly;
+    int placed = 0;
+    if (units_spiral_place_hs_near(ctx->units, ctx->map, lx, ly, u->nation_id, &hx, &hy)) {
+      placed = 1;
+    }
+    if (!placed &&
+        (map_tile_is_high_seas(ctx->map, lx, ly) || map_tile_is_water(ctx->map, lx, ly)) &&
+        units_id_at(ctx->units, lx, ly) < 0) {
+      hx = lx;
+      hy = ly;
+      placed = 1;
+    }
+    if (!placed &&
+        units_find_high_seas_tile(ctx->units, ctx->map, lx, ly, &hx, &hy)) {
+      placed = 1;
+    }
+    if (!placed &&
+        units_find_eastern_high_seas_tile(ctx->units, ctx->map, ly, &hx, &hy)) {
+      placed = 1;
+    }
+    if (placed) {
+      {
+        const int tel_ox = u->x;
+        const int tel_oy = u->y;
+        u->x = hx;
+        u->y = hy;
+        units_occupancy_notify_moved(ctx->units, tel_ox, tel_oy, hx, hy);
+      }
+      ai_euro_sync_aboard_cargo_xy(ctx->units, u);
+      int wx = 4;
+      int wy = 13;
+      if (!(map_tile_is_water(ctx->map, wx, wy) || map_tile_is_high_seas(ctx->map, wx, wy))) {
+        wy = ly;
+      }
       /*
-       * Established nation: the Europe-exit goto is the home coast, not the
-       * opening west-explore course (4,13). A passenger's colony goto wins,
-       * else the own coastal colony nearest the landfall guess. Without this
-       * a mid-game ship left Europe aimed at (4,y): greedy steps west into a
-       * land pocket, the pathfinder fallback routed back east, and the ship
-       * sailed the same loop every turn with its cargo still aboard.
+       * First leg: LAB_521d_3558-shaped waypoint (latitude tip preferred when
+       * in MP range; else score toward coastal staging). Then west-explore.
+       * Cite: move_scoring.md §ocean; test-saves-ai/TURN2.
        */
-      int home_wx = -1;
-      int home_wy = -1;
-      if (colonies_count_for_nation(ctx->colonies, nation_id) > 0) {
-        int cx = -1;
-        int cy = -1;
+      int approach_x = wx;
+      int approach_y = wy;
+      const int mp = u->moves_left > 0 ? u->moves_left : units_max_mp(ctx->units, u->id);
+      int stage_x = lx;
+      int stage_y = ly;
+      int way_x = wx;
+      int way_y = wy;
+      if (ai_euro_coastal_staging_from_landfall(ctx->map, lx, ly, &stage_x, &stage_y) &&
+          ai_euro_ocean_3558_first_leg_tip(
+            ctx->map, u->x, u->y, lx, ly, stage_x, stage_y, mp, &way_x, &way_y
+          )) {
+        approach_x = way_x;
+        approach_y = way_y;
+      } else if (ai_euro_ocean_3558_first_leg_tip(
+                   ctx->map, u->x, u->y, lx, ly, lx, ly, mp, &way_x, &way_y
+                 )) {
+        approach_x = way_x;
+        approach_y = way_y;
+      }
+      ai_euro_set_goto(u, UNITS_ORDER_AI_SAIL, approach_x, approach_y);
+      exited_europe = 1;
+      while (u->active && u->moves_left > 0 &&
+             (u->x != u->goto_x || u->y != u->goto_y)) {
+        if (!units_advance_goto_one_step(
+              ctx->units, u->id, ctx->map, ctx->colonies, NULL
+            )) {
+          break;
+        }
+        ai_euro_sync_aboard_cargo_xy(ctx->units, u);
+        u = units_get(ctx->units, u->id);
+        if (!u) {
+          return AI_EURO_ACT_RETURN;
+        }
+      }
+      /* After approach leg: home coast (established), else west-explore
+       * course for later turns (0a60). */
+      if (home_wx >= 0) {
+        ai_euro_set_goto(u, UNITS_ORDER_AI_SAIL, home_wx, home_wy);
+      } else {
+        ai_euro_set_goto(u, UNITS_ORDER_AI_SAIL, wx, wy);
+      }
+      u->moves_left = 0;
+    }
+  }
+
+  a->exited_europe = exited_europe;
+  a->u = u;
+  return AI_EURO_ACT_CONTINUE;
+}
+
+/*
+ * Ship stage 2: pre-first-colony staging retarget / beachhead hold, and
+ * the post-found coast retarget once the first colony exists.
+ */
+static AiEuroActStatus ai_euro_act_ship_first_colony_course(struct ai_euro_act_ctx* a) {
+  ColonizeTurnContext* const ctx = a->ctx;
+  ColonizeUnit* u = a->u;
+  const int nation_id = a->nation_id;
+  int exited_europe = a->exited_europe;
+
+  /*
+   * After Europe-exit west-explore (TURN2 goto 4,13): next nation turn
+   * retarget to 0a60 coastal staging by passenger landfall, then unload.
+   * Cite: test-saves-ai/TURN2-3, ship XY = staging tip.
+   */
+  if (!exited_europe && !ai_euro_in_europe(u->x, u->y) &&
+      colonies_count_for_nation(ctx->colonies, nation_id) == 0) {
+    int has_settler = 0;
+    int plx = -1;
+    int ply = -1;
+    for (int c = 0; c < u->cargo_count && c < COLONIZE_UNIT_CARGO_MAX; ++c) {
+      const ColonizeUnit* pax = units_get_const(ctx->units, u->cargo_ids[c]);
+      if (!pax || !pax->active) {
+        continue;
+      }
+      const char* pn = units_display_name(ctx->units, pax);
+      if (ai_euro_name_is_pioneer(pn) || units_name_kind(pn) == UNITS_KIND_COLONIST ||
+          units_name_kind(pn) == UNITS_KIND_SOLDIER) {
+        has_settler = 1;
+      }
+      if (plx < 0 && pax->goto_x >= 0 && pax->goto_y >= 0 && pax->goto_x < 255 &&
+          pax->goto_y < 255 && pax->goto_x < ctx->map->width &&
+          pax->goto_y < ctx->map->height) {
+        plx = pax->goto_x;
+        ply = pax->goto_y;
+      }
+    }
+    /* Landfall from ashore settlers when cargo empty (post-beachhead cruise). */
+    if (plx < 0) {
+      for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+        const ColonizeUnit* lu = &ctx->units->units[i];
+        if (!lu->active || lu->nation_id != nation_id || lu->aboard_ship_id >= 0) {
+          continue;
+        }
+        if (!units_is_on_map(lu) || units_is_sea(ctx->units, lu->id)) {
+          continue;
+        }
+        const char* ln = units_display_name(ctx->units, lu);
+        if (!ai_euro_name_is_pioneer(ln) && !ai_euro_name_is_soldier(ln)) {
+          continue;
+        }
+        if (lu->goto_x >= 0 && lu->goto_y >= 0 && lu->goto_x < 255 && lu->goto_y < 255 &&
+            lu->goto_x < (int)ctx->map->width && lu->goto_y < (int)ctx->map->height) {
+          plx = lu->goto_x;
+          ply = lu->goto_y;
+          break;
+        }
+      }
+    }
+    const int west_explore_course = u->goto_x == 4 && u->goto_y == 13;
+    {
+      int fx_try = 0;
+      int fy_try = 0;
+      if (plx < 0 || !ai_euro_06ae_first_colony_from_landfall(ctx->map, ctx->colonies, ctx->units, nation_id, plx, ply, &fx_try, &fy_try)) {
+        int rx = 0;
+        int ry = 0;
+        if (ai_euro_recover_landfall_from_ship(u->x, u->y, &rx, &ry)) {
+          plx = rx;
+          ply = ry;
+        }
+      }
+    }
+    if (has_settler && west_explore_course && plx >= 0) {
+      int sx = plx;
+      int sy = ply;
+      if (ai_euro_coastal_staging_from_landfall(ctx->map, plx, ply, &sx, &sy)) {
+        ai_euro_set_goto(u, UNITS_ORDER_AI_MOVE, sx, sy);
+        /*
+         * Already on/near tip (Dutch Atlantic approach): retarget only —
+         * do not spend MP sailing onto staging this act. Cite: TURN3 DU
+         * ship stays (48,13) with goto (47,13).
+         */
+        if (map_chebyshev(u->x, u->y, sx, sy) <= 1) {
+          u->moves_left = 0;
+        }
+      }
+    }
+    /*
+     * Found-approach / post-beachhead ship course (TURN3→4) before sail.
+     * Only after beachhead (not west-explore): pioneer still aboard + soldier
+     * ashore → hold south of found; empty ship → RE'd coast waypoint.
+     * Stop once the first colony exists (TURN4→5 FR leaves Quebec hold).
+     * Cite: test-saves-ai/TURN3-5.
+     */
+    if (!west_explore_course && plx >= 0 &&
+        colonies_count_for_nation(ctx->colonies, nation_id) == 0) {
+      int fx = 0;
+      int fy = 0;
+      if (ai_euro_06ae_first_colony_from_landfall(ctx->map, ctx->colonies, ctx->units, nation_id, plx, ply, &fx, &fy)) {
+        int pioneer_aboard = 0;
+        int any_cargo_settler = 0;
+        int soldier_ashore = 0;
+        int pioneer_ashore = 0;
         for (int c = 0; c < u->cargo_count && c < COLONIZE_UNIT_CARGO_MAX; ++c) {
           const ColonizeUnit* pax = units_get_const(ctx->units, u->cargo_ids[c]);
           if (!pax || !pax->active) {
             continue;
           }
-          const ColonizeColony* pc = colonies_find_at_xy(ctx->colonies, pax->goto_x, pax->goto_y);
-          if (pc && pc->nation_id == nation_id && map_tile_is_coastal(ctx->map, pc->x, pc->y)) {
-            cx = pc->x;
-            cy = pc->y;
-            break;
+          const char* pn = units_display_name(ctx->units, pax);
+          if (ai_euro_name_is_pioneer(pn)) {
+            pioneer_aboard = 1;
+            any_cargo_settler = 1;
+          } else if (ai_euro_name_is_soldier(pn) ||
+                     units_name_kind(pn) == UNITS_KIND_COLONIST) {
+            any_cargo_settler = 1;
           }
         }
-        if (cx < 0) {
-          int best = -1;
-          for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
-            const ColonizeColony* c = &ctx->colonies->colonies[i];
-            if (!c->active || c->nation_id != nation_id ||
-                !map_tile_is_coastal(ctx->map, c->x, c->y)) {
-              continue;
-            }
-            const int d = abs(c->x - lx) + abs(c->y - ly);
-            if (best < 0 || d < best) {
-              best = d;
-              cx = c->x;
-              cy = c->y;
-            }
-          }
-        }
-        if (cx >= 0 && ai_euro_coastal_water_near(ctx->map, cx, cy, lx, ly, &home_wx, &home_wy)) {
-          lx = home_wx;
-          ly = home_wy;
-        }
-      }
-      int hx = lx;
-      int hy = ly;
-      int placed = 0;
-      if (units_spiral_place_hs_near(ctx->units, ctx->map, lx, ly, u->nation_id, &hx, &hy)) {
-        placed = 1;
-      }
-      if (!placed &&
-          (map_tile_is_high_seas(ctx->map, lx, ly) || map_tile_is_water(ctx->map, lx, ly)) &&
-          units_id_at(ctx->units, lx, ly) < 0) {
-        hx = lx;
-        hy = ly;
-        placed = 1;
-      }
-      if (!placed &&
-          units_find_high_seas_tile(ctx->units, ctx->map, lx, ly, &hx, &hy)) {
-        placed = 1;
-      }
-      if (!placed &&
-          units_find_eastern_high_seas_tile(ctx->units, ctx->map, ly, &hx, &hy)) {
-        placed = 1;
-      }
-      if (placed) {
-        {
-          const int tel_ox = u->x;
-          const int tel_oy = u->y;
-          u->x = hx;
-          u->y = hy;
-          units_occupancy_notify_moved(ctx->units, tel_ox, tel_oy, hx, hy);
-        }
-        ai_euro_sync_aboard_cargo_xy(ctx->units, u);
-        int wx = 4;
-        int wy = 13;
-        if (!(map_tile_is_water(ctx->map, wx, wy) || map_tile_is_high_seas(ctx->map, wx, wy))) {
-          wy = ly;
-        }
-        /*
-         * First leg: LAB_521d_3558-shaped waypoint (latitude tip preferred when
-         * in MP range; else score toward coastal staging). Then west-explore.
-         * Cite: move_scoring.md §ocean; test-saves-ai/TURN2.
-         */
-        int approach_x = wx;
-        int approach_y = wy;
-        const int mp = u->moves_left > 0 ? u->moves_left : units_max_mp(ctx->units, u->id);
-        int stage_x = lx;
-        int stage_y = ly;
-        int way_x = wx;
-        int way_y = wy;
-        if (ai_euro_coastal_staging_from_landfall(ctx->map, lx, ly, &stage_x, &stage_y) &&
-            ai_euro_ocean_3558_first_leg_tip(
-              ctx->map, u->x, u->y, lx, ly, stage_x, stage_y, mp, &way_x, &way_y
-            )) {
-          approach_x = way_x;
-          approach_y = way_y;
-        } else if (ai_euro_ocean_3558_first_leg_tip(
-                     ctx->map, u->x, u->y, lx, ly, lx, ly, mp, &way_x, &way_y
-                   )) {
-          approach_x = way_x;
-          approach_y = way_y;
-        }
-        ai_euro_set_goto(u, UNITS_ORDER_AI_SAIL, approach_x, approach_y);
-        exited_europe = 1;
-        while (u->active && u->moves_left > 0 &&
-               (u->x != u->goto_x || u->y != u->goto_y)) {
-          if (!units_advance_goto_one_step(
-                ctx->units, u->id, ctx->map, ctx->colonies, NULL
-              )) {
-            break;
-          }
-          ai_euro_sync_aboard_cargo_xy(ctx->units, u);
-          u = units_get(ctx->units, u->id);
-          if (!u) {
-            return;
-          }
-        }
-        /* After approach leg: home coast (established), else west-explore
-         * course for later turns (0a60). */
-        if (home_wx >= 0) {
-          ai_euro_set_goto(u, UNITS_ORDER_AI_SAIL, home_wx, home_wy);
-        } else {
-          ai_euro_set_goto(u, UNITS_ORDER_AI_SAIL, wx, wy);
-        }
-        u->moves_left = 0;
-      }
-    }
-
-    /*
-     * After Europe-exit west-explore (TURN2 goto 4,13): next nation turn
-     * retarget to 0a60 coastal staging by passenger landfall, then unload.
-     * Cite: test-saves-ai/TURN2-3, ship XY = staging tip.
-     */
-    if (!exited_europe && !ai_euro_in_europe(u->x, u->y) &&
-        colonies_count_for_nation(ctx->colonies, nation_id) == 0) {
-      int has_settler = 0;
-      int plx = -1;
-      int ply = -1;
-      for (int c = 0; c < u->cargo_count && c < COLONIZE_UNIT_CARGO_MAX; ++c) {
-        const ColonizeUnit* pax = units_get_const(ctx->units, u->cargo_ids[c]);
-        if (!pax || !pax->active) {
-          continue;
-        }
-        const char* pn = units_display_name(ctx->units, pax);
-        if (ai_euro_name_is_pioneer(pn) || units_name_kind(pn) == UNITS_KIND_COLONIST ||
-            units_name_kind(pn) == UNITS_KIND_SOLDIER) {
-          has_settler = 1;
-        }
-        if (plx < 0 && pax->goto_x >= 0 && pax->goto_y >= 0 && pax->goto_x < 255 &&
-            pax->goto_y < 255 && pax->goto_x < ctx->map->width &&
-            pax->goto_y < ctx->map->height) {
-          plx = pax->goto_x;
-          ply = pax->goto_y;
-        }
-      }
-      /* Landfall from ashore settlers when cargo empty (post-beachhead cruise). */
-      if (plx < 0) {
-        for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-          const ColonizeUnit* lu = &ctx->units->units[i];
-          if (!lu->active || lu->nation_id != nation_id || lu->aboard_ship_id >= 0) {
-            continue;
-          }
-          if (!units_is_on_map(lu) || units_is_sea(ctx->units, lu->id)) {
-            continue;
-          }
-          const char* ln = units_display_name(ctx->units, lu);
-          if (!ai_euro_name_is_pioneer(ln) && !ai_euro_name_is_soldier(ln)) {
-            continue;
-          }
-          if (lu->goto_x >= 0 && lu->goto_y >= 0 && lu->goto_x < 255 && lu->goto_y < 255 &&
-              lu->goto_x < (int)ctx->map->width && lu->goto_y < (int)ctx->map->height) {
-            plx = lu->goto_x;
-            ply = lu->goto_y;
-            break;
-          }
-        }
-      }
-      const int west_explore_course = u->goto_x == 4 && u->goto_y == 13;
-      {
-        int fx_try = 0;
-        int fy_try = 0;
-        if (plx < 0 || !ai_euro_06ae_first_colony_from_landfall(ctx->map, ctx->colonies, ctx->units, nation_id, plx, ply, &fx_try, &fy_try)) {
-          int rx = 0;
-          int ry = 0;
-          if (ai_euro_recover_landfall_from_ship(u->x, u->y, &rx, &ry)) {
-            plx = rx;
-            ply = ry;
-          }
-        }
-      }
-      if (has_settler && west_explore_course && plx >= 0) {
-        int sx = plx;
-        int sy = ply;
-        if (ai_euro_coastal_staging_from_landfall(ctx->map, plx, ply, &sx, &sy)) {
-          ai_euro_set_goto(u, UNITS_ORDER_AI_MOVE, sx, sy);
-          /*
-           * Already on/near tip (Dutch Atlantic approach): retarget only —
-           * do not spend MP sailing onto staging this act. Cite: TURN3 DU
-           * ship stays (48,13) with goto (47,13).
-           */
-          if (map_chebyshev(u->x, u->y, sx, sy) <= 1) {
-            u->moves_left = 0;
-          }
-        }
-      }
-      /*
-       * Found-approach / post-beachhead ship course (TURN3→4) before sail.
-       * Only after beachhead (not west-explore): pioneer still aboard + soldier
-       * ashore → hold south of found; empty ship → RE'd coast waypoint.
-       * Stop once the first colony exists (TURN4→5 FR leaves Quebec hold).
-       * Cite: test-saves-ai/TURN3-5.
-       */
-      if (!west_explore_course && plx >= 0 &&
-          colonies_count_for_nation(ctx->colonies, nation_id) == 0) {
-        int fx = 0;
-        int fy = 0;
-        if (ai_euro_06ae_first_colony_from_landfall(ctx->map, ctx->colonies, ctx->units, nation_id, plx, ply, &fx, &fy)) {
-          int pioneer_aboard = 0;
-          int any_cargo_settler = 0;
-          int soldier_ashore = 0;
-          int pioneer_ashore = 0;
-          for (int c = 0; c < u->cargo_count && c < COLONIZE_UNIT_CARGO_MAX; ++c) {
-            const ColonizeUnit* pax = units_get_const(ctx->units, u->cargo_ids[c]);
-            if (!pax || !pax->active) {
-              continue;
-            }
-            const char* pn = units_display_name(ctx->units, pax);
-            if (ai_euro_name_is_pioneer(pn)) {
-              pioneer_aboard = 1;
-              any_cargo_settler = 1;
-            } else if (ai_euro_name_is_soldier(pn) ||
-                       units_name_kind(pn) == UNITS_KIND_COLONIST) {
-              any_cargo_settler = 1;
-            }
-          }
-          ai_euro_settlers_ashore(
-            ctx, nation_id, &pioneer_ashore, &soldier_ashore, NULL, NULL
-          );
-          ai_euro_first_colony_ship_course(
-            ctx, u, nation_id, fx, fy, pioneer_aboard, any_cargo_settler, pioneer_ashore,
-            soldier_ashore
-          );
-        }
-      }
-      /*
-       * Beachhead hold station: settler still aboard and goto is adjacent coast
-       * water — do not spend MP entering the hold tile (TURN3 FR ship stays on
-       * staging with goto=hold). Skip on west-explore retarget (staging sail).
-       */
-      if (!west_explore_course && has_settler &&
-          map_chebyshev(u->x, u->y, u->goto_x, u->goto_y) <= 1 &&
-          map_tile_is_coast_water(ctx->map, u->goto_x, u->goto_y)) {
-        u->moves_left = 0;
-      }
-    }
-    /*
-     * First colony planted: drop found-hold latch (fx,fy+2) so the ship can
-     * spend MP. Retarget along coast south of the town (not west-explore) —
-     * TURN4→5 FR lands near (52,43). Cite: test-saves-ai/TURN5.
-     */
-    if (!exited_europe && !ai_euro_in_europe(u->x, u->y) &&
-        colonies_count_for_nation(ctx->colonies, nation_id) > 0) {
-      int fx = 0;
-      int fy = 0;
-      int cid = -1;
-      if (ctx->colonies) {
-        for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
-          const ColonizeColony* c = &ctx->colonies->colonies[i];
-          if (c->active && c->nation_id == nation_id) {
-            cid = c->id;
-            fx = c->x;
-            fy = c->y;
-            break;
-          }
-        }
-      }
-      /* Opening-only geometry (one colony): a mid-game hull wandering through
-       * (fx, fy+2) was yanked to a tip that can even be land, then ground the
-       * greedy/pathfinder pair against it every turn. */
-      if (cid >= 0 && colonies_count_for_nation(ctx->colonies, nation_id) == 1 &&
-          ((u->goto_x == fx && u->goto_y == fy + 2) ||
-           (u->x == fx && u->y == fy + 2))) {
-        int tx = 0;
-        int ty = 0;
-        if (ai_euro_ocean_3558_empty_cruise_tip(ctx->map, fx, fy, &tx, &ty) &&
-            map_tile_is_water(ctx->map, tx, ty)) {
-          ai_euro_set_goto(u, UNITS_ORDER_AI_SAIL, tx, ty);
-        }
-      }
-    }
-
-    /*
-     * Thin naval war hunt (act-level): idle / station-keep ships at war sail
-     * toward nearest foe sea unit or coastal colony water. Adjacent → try_attack.
-     * Privateer deepen: named Privateer always re-aims hunt (commerce raid) even
-     * with a prior sail goto — reuse naval_war_hunt_target. Post-diplo wartime
-     * spawn station-keeps (goto=self → !useful_goto) so idle commission also
-     * aims. Cite: europe purchase Privateer; fandom Drake; euro_unit_act §2b;
-     * euro_diplo Privateer spawn. Deep 20e6 naval combat scoring stays PARKED.
-     */
-    const int at_war =
-      ctx->col1_ok && ctx->col1 && ai_euro_at_war_any_peer(ctx->col1, nation_id);
-    /* Treasure aboard → keep Europe sail; do not war-hunt yank. Cite: Treasure
-     * Trains → Europe (cash on Europe/HS via ai_euro_try_cash_treasure_europe). */
-    int treasure_aboard = 0;
-    for (int c = 0; c < u->cargo_count && c < COLONIZE_UNIT_CARGO_MAX; ++c) {
-      const ColonizeUnit* pax = units_get_const(ctx->units, u->cargo_ids[c]);
-      if (pax && ai_euro_is_treasure_name(units_display_name(ctx->units, pax))) {
-        treasure_aboard = 1;
-        break;
-      }
-    }
-    /*
-     * Peace cargo haul: idle Caravel/Merchantman with hold space/TOOLS →
-     * AI_SAIL toward tools/food-short coastal colony water. Cite: euro_unit_act
-     * §2d2; TOOLS only (no invented FOOD cargo). Skip when war / treasure /
-     * useful sail already set.
-     */
-    if (!at_war && !treasure_aboard && !ai_euro_has_useful_goto(u, ctx->map)) {
-      if (!ai_euro_try_post_found_coast_cruise(ctx, nation_id, u)) {
-        if (!ai_euro_try_de_witt_ship_trade(ctx, nation_id, u)) {
-          if (!ai_euro_try_ship_trade_haul(ctx, nation_id, u)) {
-            /* DOS order: LAB_521d_457e sits immediately after the 4393
-             * work-queue haul pick and before the wagon/treasure arms. */
-            if (!(ai_euro_20e6_hs_cadence_enabled() &&
-                  ai_euro_20e6_457e_hs_cadence(ctx, u, nation_id))) {
-              if (!ai_euro_try_ship_europe_export(ctx, nation_id, u)) {
-                (void)ai_euro_try_privateer_europe_loot_sail(ctx, nation_id, u);
-              }
-            }
-          }
-        }
-      }
-    }
-    if (!ai_euro_in_europe(u->x, u->y) && !treasure_aboard &&
-        (at_war || ai_diplo_indian_hostility_sticky(ctx->col1, nation_id) >= 2)) {
-      /* Drop Soldier at threatened own coastal colony (war or sticky mil). */
-      (void)ai_euro_try_unload_military_threatened(ctx, nation_id, u);
-    }
-    if (at_war && !ai_euro_in_europe(u->x, u->y) && !treasure_aboard) {
-      /* The war-cargo colony-sail call that sat here is retired (smell audit
-       * sweep-3 area C #6): it was a second entry into LAB_521d_3558 with an
-       * invented scorer, running before this act's sail loop and so overriding
-       * the structural pick that ai_euro_unload_settle makes below. */
-      /* Leave enemy Fort/Fortress battery tiles before hunt/attack. */
-      if (ai_euro_naval_try_flee_fort_fire(ctx, u)) {
-        u = units_get(ctx->units, u->id);
-        if (!u || !u->active) {
-          return;
-        }
-      }
-      ai_euro_naval_try_adjacent_attack(ctx, u);
-      if (!u->active) {
-        return;
-      }
-      /* The "nearest foe ship / enemy port" hunt aim that stood here was a
-       * port invention: DOS has no distant naval hunt. A warship finds its
-       * fights through the 20e6 wander scorer below (adjacent tiles only,
-       * LAB_52aa odds term) and its stations through the colony-sail matrix. */
-    }
-
-    /*
-     * Re-assert first-colony ship course after trade/war haul may have yanked
-     * idle Privateer/Caravel. Only post-beachhead (soldier ashore or cargo
-     * empty) — never during Atlantic approach. Cite: TURN3→4 SP/DU cruise.
-     */
-    if (!exited_europe && !ai_euro_in_europe(u->x, u->y) &&
-        colonies_count_for_nation(ctx->colonies, nation_id) == 0 &&
-        !(u->goto_x == 4 && u->goto_y == 13)) {
-      int lf_x = -1;
-      int lf_y = -1;
-      int pioneer_aboard = 0;
-      int any_cargo = 0;
-      int soldier_ashore = 0;
-      int pioneer_ashore = 0;
-      for (int c = 0; c < u->cargo_count && c < COLONIZE_UNIT_CARGO_MAX; ++c) {
-        const ColonizeUnit* pax = units_get_const(ctx->units, u->cargo_ids[c]);
-        if (!pax || !pax->active) {
-          continue;
-        }
-        const char* pn = units_display_name(ctx->units, pax);
-        if (ai_euro_name_is_pioneer(pn)) {
-          pioneer_aboard = 1;
-          any_cargo = 1;
-        } else if (ai_euro_name_is_soldier(pn)) {
-          any_cargo = 1;
-        }
-        if (lf_x < 0 && pax->goto_x >= 0 && pax->goto_y >= 0 && pax->goto_x < 255 &&
-            pax->goto_y < 255) {
-          lf_x = pax->goto_x;
-          lf_y = pax->goto_y;
-        }
-      }
-      ai_euro_settlers_ashore(ctx, nation_id, &pioneer_ashore, &soldier_ashore, &lf_x, &lf_y);
-      int fx = 0;
-      int fy = 0;
-      if (lf_x < 0 || !ai_euro_06ae_first_colony_from_landfall(ctx->map, ctx->colonies, ctx->units, nation_id, lf_x, lf_y, &fx, &fy)) {
-        int rx = 0;
-        int ry = 0;
-        if (ai_euro_recover_landfall_from_ship(u->x, u->y, &rx, &ry)) {
-          lf_x = rx;
-          lf_y = ry;
-        }
-      }
-      if (lf_x >= 0 && ai_euro_06ae_first_colony_from_landfall(ctx->map, ctx->colonies, ctx->units, nation_id, lf_x, lf_y, &fx, &fy)) {
+        ai_euro_settlers_ashore(
+          ctx, nation_id, &pioneer_ashore, &soldier_ashore, NULL, NULL
+        );
         ai_euro_first_colony_ship_course(
-          ctx, u, nation_id, fx, fy, pioneer_aboard, any_cargo, pioneer_ashore, soldier_ashore
+          ctx, u, nation_id, fx, fy, pioneer_aboard, any_cargo_settler, pioneer_ashore,
+          soldier_ashore
         );
       }
     }
-
     /*
-     * Raw 90210-90219 → LAB_4d2e: every ship band above fell through. An idle
-     * hull takes the 8-direction wander pick (far roam latch, explore terms,
-     * LAB_52aa attack odds); a busy one only fights an adjacent foe.
+     * Beachhead hold station: settler still aboard and goto is adjacent coast
+     * water — do not spend MP entering the hold tile (TURN3 FR ship stays on
+     * staging with goto=hold). Skip on west-explore retarget (staging sail).
      */
-    if (u->active && !exited_europe && !ai_euro_in_europe(u->x, u->y) && !treasure_aboard &&
-        u->moves_left > 0) {
-      const int busy = ai_euro_has_useful_goto(u, ctx->map);
-      if (!busy || ai_euro_20e6_adjacent_foreign_09dc(ctx, u->x, u->y, nation_id)) {
-        (void)ai_euro_20e6_ship_wander_act(ctx, u, nation_id, busy);
-        u = units_get(ctx->units, u->id);
-        if (!u || !u->active) {
-          return;
-        }
-      }
+    if (!west_explore_course && has_settler &&
+        map_chebyshev(u->x, u->y, u->goto_x, u->goto_y) <= 1 &&
+        map_tile_is_coast_water(ctx->map, u->goto_x, u->goto_y)) {
+      u->moves_left = 0;
     }
-    /*
-     * Case 0x0b ship sail: preserve landfall/sail goto. Scored ocean steps
-     * (thin 20e6) drain moves_left — mirror land FOUND/MILITARY MP-drain.
-     * Arrival clears via station-keep below.
-     */
-    int gx = u->goto_x;
-    int gy = u->goto_y;
-    const int have_goto =
-      gx >= 0 && gy >= 0 && gx < 255 && gy < 255 && gx < ctx->map->width &&
-      gy < ctx->map->height;
-    if (!have_goto) {
-      gx = u->x;
-      gy = u->y;
-      ai_euro_set_goto(u, UNITS_ORDER_AI_SAIL, gx, gy);
-    } else if (!units_orders_follow_goto(u->orders)) {
-      u->orders = UNITS_ORDER_AI_SAIL;
-    }
-    if (getenv("AI_SHIP_TRACE")) {
-      fprintf(stderr, "[ship] unit %d at (%d,%d) goto (%d,%d) ord %d mp %d cargo %d\n", u->id, u->x, u->y, u->goto_x, u->goto_y, u->orders, u->moves_left, u->cargo_count);
-    }
-    if (units_orders_follow_goto(u->orders) && (u->x != u->goto_x || u->y != u->goto_y)) {
-      int prev_x = -1;
-      int prev_y = -1;
-      for (;;) {
-        if (!u->active || u->moves_left <= 0 || !units_orders_follow_goto(u->orders)) {
-          break;
-        }
-        if (u->x == u->goto_x && u->y == u->goto_y) {
-          break;
-        }
-        int dx = 0;
-        int dy = 0;
-        int tx = 0;
-        int ty = 0;
-        const int latched =
-          u->id >= 0 && u->id < COLONIZE_UNITS_MAX && s_euro_ship_route_latch[u->id];
-        if (!latched && ai_euro_score_move(ctx, u, u->goto_x, u->goto_y, &dx, &dy)) {
-          tx = u->x + dx;
-          ty = u->y + dy;
-        } else {
-          tx = -1;
-          ty = -1;
-        }
-        /* Greedy step straight back to the tile we just left = local optimum
-         * ping-pong (the on-screen wiggle); route via the pathfinder instead. */
-        if (tx == prev_x && ty == prev_y) {
-          tx = -1;
-          ty = -1;
-        }
-        const int from_x = u->x;
-        const int from_y = u->y;
-        int moved = 0;
-        if (tx >= 0) {
-          const int foe = units_id_at(ctx->units, tx, ty);
-          const ColonizeUnit* fo = foe >= 0 ? units_get_const(ctx->units, foe) : NULL;
-          if (fo && fo->nation_id != u->nation_id) {
-            /* Naval combat stays on adjacent prefer-weak pick — do not
-             * chain-attack via scored step into a foe tile (try_move cannot
-             * enter ships; mirror prior advance_goto block). Own ships stack. */
-            break;
-          }
-          moved = units_try_move(ctx->units, u->id, ctx->map, tx, ty, ctx->colonies, ctx->rng);
-        }
-        if (getenv("AI_SHIP_TRACE")) {
-          fprintf(stderr, "[ship]   step try (%d,%d) moved=%d mp %d\n", tx, ty, moved, u->moves_left);
-        }
-        if (!moved) {
-          /*
-           * Greedy scored step stalled (land wall / own-ship block between
-           * ship and goal). Fall back to the DOS FUN_6662 pathfinder tiers so
-           * a ship with a far goto routes around the coast instead of
-           * grinding the same two tiles every act (the on-screen "wiggle").
-           */
-          int px = 0;
-          int py = 0;
-          /* Stay on the pathfinder for this goto, this act and the next:
-           * greedy-then-pathfinder each act undoes itself (west two, east
-           * two) and the ship circles for turns. */
-          if (u->id >= 0 && u->id < COLONIZE_UNITS_MAX) {
-            s_euro_ship_route_latch[u->id] = 1;
-          }
-          if (!units_next_goto_step(ctx->units, u->id, ctx->map, ctx->colonies, ctx->rng, &px, &py)) {
-            /* Pathfinder agrees the goal is unreachable from here — drop the
-             * goto so next act re-aims instead of resuming the same grind
-             * (the cross-turn A↔B wiggle). */
-            ai_euro_set_goto(u, UNITS_ORDER_AI_SAIL, u->x, u->y);
-            break;
-          }
-          if (getenv("AI_SHIP_TRACE")) {
-            fprintf(stderr, "[ship]   pathfinder step (%d,%d)\n", px, py);
-          }
-          {
-            /* Only a FOREIGN occupant blocks the pathfinder step. Own ships
-             * stack (DOS allows same-nation stacking on water); refusing the
-             * tile made two own hulls whose routes crossed block each other
-             * for a hundred turns (campaign3 Spanish Caravel/Privateer at
-             * (32,51)/(31,50), each pathing onto the other's tile). */
-            const int occ = units_id_at(ctx->units, px, py);
-            const ColonizeUnit* o = occ >= 0 ? units_get_const(ctx->units, occ) : NULL;
-            if (o && o->nation_id != u->nation_id) {
-              break;
-            }
-          }
-          if (!units_try_move(ctx->units, u->id, ctx->map, px, py, ctx->colonies, ctx->rng)) {
-            break;
-          }
-          units_note_goto_step(u->id, px - from_x, py - from_y);
-        } else {
-          units_note_goto_step(u->id, tx - from_x, ty - from_y);
-        }
-        prev_x = from_x;
-        prev_y = from_y;
-        u = units_get(ctx->units, u->id);
-        if (!u) {
-          return;
-        }
-      }
-    }
-    if (u->active && at_war && !ai_euro_in_europe(u->x, u->y) && u->moves_left > 0) {
-      ai_euro_naval_try_adjacent_attack(ctx, u);
-    }
-    /* War / sticky mil unload after sail arrival (Soldier → threatened colony). */
-    if (u->active && !ai_euro_in_europe(u->x, u->y) &&
-        (at_war || ai_diplo_indian_hostility_sticky(ctx->col1, nation_id) >= 2)) {
-      (void)ai_euro_try_unload_military_threatened(ctx, nation_id, u);
-    }
-    /* HS / Europe arrival after sail steps — cash Treasure passengers. */
-    if (u->active) {
-      (void)ai_euro_try_cash_treasure_europe(ctx, nation_id, u);
-      u = units_get(ctx->units, u->id);
-      if (!u || !u->active) {
-        return;
-      }
-    }
-    /*
-     * Settle unload after sail — not on the Europe-exit act. TURN1→2 goldens
-     * keep all passengers aboard after 48d3 + west-explore (Dutch approach is
-     * already land-adjacent). Unload starts the following nation turn.
-     */
-    if (u->active && !exited_europe && !ai_euro_in_europe(u->x, u->y)) {
-      ai_euro_unload_settle(ctx, u, nation_id);
-      u = units_get(ctx->units, u->id);
-    }
-    /* First-colony hold / cruise tip: drain leftover MP; snap cruise overshoot.
-     * Skip on Europe-exit act — Dutch approach can equal a later cruise tip and
-     * must keep west-explore goto (4,13). Cite: test-saves-ai/TURN2. */
-    if (u && u->active && !exited_europe &&
-        colonies_count_for_nation(ctx->colonies, nation_id) == 0) {
-      int fx = 0;
-      int fy = 0;
-      int lx = 0;
-      int ly = 0;
-      if (ai_euro_recover_landfall_from_ship(u->x, u->y, &lx, &ly) ||
-          ai_euro_recover_landfall_from_ship(u->goto_x, u->goto_y, &lx, &ly)) {
-        if (ai_euro_06ae_first_colony_from_landfall(ctx->map, ctx->colonies, ctx->units, nation_id, lx, ly, &fx, &fy)) {
-          if (u->goto_x == fx && u->goto_y == fy + 2) {
-            u->moves_left = 0;
-          }
-          int wx = 0;
-          int wy = 0;
-          if (ai_euro_ocean_3558_empty_cruise_tip(ctx->map, fx, fy, &wx, &wy) &&
-              map_chebyshev(u->x, u->y, wx, wy) <= 1) {
-            /*
-             * Already stationed on SP cruise tip from a prior turn: one west
-             * (TURN4→5 46,50→45,50). First arrival parks on tip (TURN3→4).
-             * Also honor tip−1 goto from re-assert / pioneer landfall.
-             */
-            int pioneer_on_found = 0;
-            for (int pi = 0; pi < COLONIZE_UNITS_MAX; ++pi) {
-              const ColonizeUnit* pu = &ctx->units->units[pi];
-              if (!pu->active || pu->nation_id != nation_id || pu->aboard_ship_id >= 0) {
-                continue;
-              }
-              if (ai_euro_name_is_pioneer(units_display_name(ctx->units, pu)) &&
-                  pu->x == fx && pu->y == fy) {
-                pioneer_on_found = 1;
-                break;
-              }
-            }
-            const int want_west =
-              pioneer_on_found && fx == 45 && fy == 52 &&
-              map_tile_is_water(ctx->map, wx - 1, wy);
-            const int goto_tip = (u->goto_x == wx && u->goto_y == wy);
-            const int goto_west = (u->goto_x == wx - 1 && u->goto_y == wy);
-            if (want_west && (goto_tip || goto_west || (u->x == wx && u->y == wy))) {
-              if (u->x != wx - 1 || u->y != wy) {
-                if (u->moves_left <= 0) {
-                  u->moves_left = units_max_mp(ctx->units, u->id);
-                }
-                ai_euro_set_goto(u, UNITS_ORDER_AI_MOVE, wx - 1, wy);
-                (void)units_advance_goto_one_step(
-                  ctx->units, u->id, ctx->map, ctx->colonies, NULL
-                );
-                u = units_get(ctx->units, u->id);
-              }
-              if (u) {
-                ai_euro_set_goto(u, UNITS_ORDER_AI_MOVE, u->x, u->y);
-                u->moves_left = 0;
-              }
-            } else if (goto_tip) {
-              {
-                const int tel_ox = u->x;
-                const int tel_oy = u->y;
-                u->x = wx;
-                u->y = wy;
-                units_occupancy_notify_moved(ctx->units, tel_ox, tel_oy, wx, wy);
-              }
-              ai_euro_set_goto(u, UNITS_ORDER_AI_MOVE, wx, wy);
-              u->moves_left = 0;
-            }
-          }
-        }
-      }
-    }
-    /* Post-found coast tip: park AI_MOVE; spent MP stops outer re-act.
-     * COL1 export maps AI_MOVE@self → moves spent 0. Cite: TURN5 FR 52,43. */
-    if (u && u->active && !exited_europe &&
-        colonies_count_for_nation(ctx->colonies, nation_id) > 0 &&
-        u->x == u->goto_x && u->y == u->goto_y) {
-      int match_post = 0;
-      for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
-        const ColonizeColony* c = &ctx->colonies->colonies[i];
-        if (!c->active || c->nation_id != nation_id) {
-          continue;
-        }
-        if (u->x == c->x + 2 && u->y == c->y + 6) {
-          match_post = 1;
-          break;
-        }
-      }
-      if (match_post) {
-        ai_euro_set_goto(u, UNITS_ORDER_AI_MOVE, u->x, u->y);
-        u->moves_left = 0;
-      }
-    }
-    /*
-     * Post-found SW cruise: park AI_MOVE@self after MP drain (TURN5 DU 39,18).
-     * Tip station-keep alone is !useful_goto — without this, trade haul yanks.
-     */
-    if (u && u->active && !exited_europe &&
-        colonies_count_for_nation(ctx->colonies, nation_id) == 1 && u->cargo_count == 0 &&
-        u->moves_left <= 0) {
-      int tip_x = 0;
-      int tip_y = 0;
-      int fx = -1;
-      int fy = -1;
+  }
+  /*
+   * First colony planted: drop found-hold latch (fx,fy+2) so the ship can
+   * spend MP. Retarget along coast south of the town (not west-explore) —
+   * TURN4→5 FR lands near (52,43). Cite: test-saves-ai/TURN5.
+   */
+  if (!exited_europe && !ai_euro_in_europe(u->x, u->y) &&
+      colonies_count_for_nation(ctx->colonies, nation_id) > 0) {
+    int fx = 0;
+    int fy = 0;
+    int cid = -1;
+    if (ctx->colonies) {
       for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
         const ColonizeColony* c = &ctx->colonies->colonies[i];
         if (c->active && c->nation_id == nation_id) {
+          cid = c->id;
           fx = c->x;
           fy = c->y;
           break;
         }
       }
-      if (fx >= 0 &&
-          ai_euro_ocean_3558_empty_cruise_tip(ctx->map, fx, fy, &tip_x, &tip_y) &&
-          u->x <= tip_x && abs(u->y - tip_y) <= 4 &&
-          map_chebyshev(u->x, u->y, tip_x, tip_y) <= 8 &&
-          /* Do not yank FR mid tip→colony SAIL (TURN6→7 g=Quebec). */
-          !(u->goto_x == fx && u->goto_y == fy)) {
-        ai_euro_set_goto(u, UNITS_ORDER_AI_MOVE, u->x, u->y);
+    }
+    /* Opening-only geometry (one colony): a mid-game hull wandering through
+     * (fx, fy+2) was yanked to a tip that can even be land, then ground the
+     * greedy/pathfinder pair against it every turn. */
+    if (cid >= 0 && colonies_count_for_nation(ctx->colonies, nation_id) == 1 &&
+        ((u->goto_x == fx && u->goto_y == fy + 2) ||
+         (u->x == fx && u->y == fy + 2))) {
+      int tx = 0;
+      int ty = 0;
+      if (ai_euro_ocean_3558_empty_cruise_tip(ctx->map, fx, fy, &tx, &ty) &&
+          map_tile_is_water(ctx->map, tx, ty)) {
+        ai_euro_set_goto(u, UNITS_ORDER_AI_SAIL, tx, ty);
       }
     }
-    /*
-     * FUN_5bfb_3180 ship-slow (adjacent foreign warship / Fort / Fortress)
-     * now runs per step inside units_try_move (units_ship_slow_scan), for
-     * AI and human movers alike; the old end-of-act ambush here is gone.
-     */
-    return;
   }
 
-  /* Case 0x0b land: bind primary goal (role-aware scan). */
-  const char* uname = units_display_name(ctx->units, u);
-  const int is_land_hunter = ai_euro_is_land_war_hunter(uname);
-  const int is_scout = uname && units_name_kind(uname) == UNITS_KIND_SCOUT;
-  const int is_treasure = ai_euro_is_treasure_name(uname);
-  const int is_missionary = ai_euro_is_missionary_name(uname);
+  a->exited_europe = exited_europe;
+  a->u = u;
+  return AI_EURO_ACT_CONTINUE;
+}
+
+/*
+ * Ship stage 3: war flag + treasure-aboard scan, peace cargo haul chain
+ * (LAB_521d_457e cadence included), threatened unload, adjacent naval
+ * attack, and the first-colony course re-assert.
+ */
+static AiEuroActStatus ai_euro_act_ship_war_trade(struct ai_euro_act_ctx* a) {
+  ColonizeTurnContext* const ctx = a->ctx;
+  ColonizeUnit* u = a->u;
+  const int nation_id = a->nation_id;
+  int exited_europe = a->exited_europe;
+
   /*
-   * Land war: Euro peer war, or Indian hostility sticky with a real hunt
-   * target (tribe / Brave). Sticky alone is not enough — memset relation=0
-   * syncs sticky during euro_balance and would skip peace fortify / admit
-   * Soldiers as LABOR. Cite: ai_diplo_indian_hostility_sticky; §2c hunt.
+   * Thin naval war hunt (act-level): idle / station-keep ships at war sail
+   * toward nearest foe sea unit or coastal colony water. Adjacent → try_attack.
+   * Privateer deepen: named Privateer always re-aims hunt (commerce raid) even
+   * with a prior sail goto — reuse naval_war_hunt_target. Post-diplo wartime
+   * spawn station-keeps (goto=self → !useful_goto) so idle commission also
+   * aims. Cite: europe purchase Privateer; fandom Drake; euro_unit_act §2b;
+   * euro_diplo Privateer spawn. Deep 20e6 naval combat scoring stays PARKED.
    */
-  int indian_war_hunt = 0;
-  if (ctx->col1_ok && ctx->col1 &&
-      ai_diplo_indian_hostility_sticky(ctx->col1, nation_id) != 0 &&
-      ai_diplo_indian_any_at_war(ctx->col1, nation_id)) {
-    if (ctx->col1->tribe && ctx->col1->head.tribe_count > 0) {
-      indian_war_hunt = 1;
-    } else if (ctx->units) {
-      for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-        const ColonizeUnit* f = &ctx->units->units[i];
-        if (f->active && f->nation_id >= 4 && f->nation_id <= 11 && units_is_on_map(f) &&
-            !units_is_sea(ctx->units, f->id)) {
-          indian_war_hunt = 1;
-          break;
+  const int at_war =
+    ctx->col1_ok && ctx->col1 && ai_euro_at_war_any_peer(ctx->col1, nation_id);
+  /* Treasure aboard → keep Europe sail; do not war-hunt yank. Cite: Treasure
+   * Trains → Europe (cash on Europe/HS via ai_euro_try_cash_treasure_europe). */
+  int treasure_aboard = 0;
+  for (int c = 0; c < u->cargo_count && c < COLONIZE_UNIT_CARGO_MAX; ++c) {
+    const ColonizeUnit* pax = units_get_const(ctx->units, u->cargo_ids[c]);
+    if (pax && ai_euro_is_treasure_name(units_display_name(ctx->units, pax))) {
+      treasure_aboard = 1;
+      break;
+    }
+  }
+  /*
+   * Peace cargo haul: idle Caravel/Merchantman with hold space/TOOLS →
+   * AI_SAIL toward tools/food-short coastal colony water. Cite: euro_unit_act
+   * §2d2; TOOLS only (no invented FOOD cargo). Skip when war / treasure /
+   * useful sail already set.
+   */
+  if (!at_war && !treasure_aboard && !ai_euro_has_useful_goto(u, ctx->map)) {
+    if (!ai_euro_try_post_found_coast_cruise(ctx, nation_id, u)) {
+      if (!ai_euro_try_de_witt_ship_trade(ctx, nation_id, u)) {
+        if (!ai_euro_try_ship_trade_haul(ctx, nation_id, u)) {
+          /* DOS order: LAB_521d_457e sits immediately after the 4393
+           * work-queue haul pick and before the wagon/treasure arms. */
+          if (!(ai_euro_20e6_hs_cadence_enabled() &&
+                ai_euro_20e6_457e_hs_cadence(ctx, u, nation_id))) {
+            if (!ai_euro_try_ship_europe_export(ctx, nation_id, u)) {
+              (void)ai_euro_try_privateer_europe_loot_sail(ctx, nation_id, u);
+            }
+          }
         }
       }
     }
   }
-  const int at_war_land =
-    ctx->col1_ok && ctx->col1 &&
-    (ai_euro_at_war_any_peer(ctx->col1, nation_id) || indian_war_hunt);
-  int land_war_hunted = 0;
-  int scout_explored = 0;
-  int treasure_routed = 0;
-  int missionary_contacted = 0;
+  if (!ai_euro_in_europe(u->x, u->y) && !treasure_aboard &&
+      (at_war || ai_diplo_indian_hostility_sticky(ctx->col1, nation_id) >= 2)) {
+    /* Drop Soldier at threatened own coastal colony (war or sticky mil). */
+    (void)ai_euro_try_unload_military_threatened(ctx, nation_id, u);
+  }
+  if (at_war && !ai_euro_in_europe(u->x, u->y) && !treasure_aboard) {
+    /* The war-cargo colony-sail call that sat here is retired (smell audit
+     * sweep-3 area C #6): it was a second entry into LAB_521d_3558 with an
+     * invented scorer, running before this act's sail loop and so overriding
+     * the structural pick that ai_euro_unload_settle makes below. */
+    /* Leave enemy Fort/Fortress battery tiles before hunt/attack. */
+    if (ai_euro_naval_try_flee_fort_fire(ctx, u)) {
+      u = units_get(ctx->units, u->id);
+      if (!u || !u->active) {
+        return AI_EURO_ACT_RETURN;
+      }
+    }
+    ai_euro_naval_try_adjacent_attack(ctx, u);
+    if (!u->active) {
+      return AI_EURO_ACT_RETURN;
+    }
+    /* The "nearest foe ship / enemy port" hunt aim that stood here was a
+     * port invention: DOS has no distant naval hunt. A warship finds its
+     * fights through the 20e6 wander scorer below (adjacent tiles only,
+     * LAB_52aa odds term) and its stations through the colony-sail matrix. */
+  }
+
+  /*
+   * Re-assert first-colony ship course after trade/war haul may have yanked
+   * idle Privateer/Caravel. Only post-beachhead (soldier ashore or cargo
+   * empty) — never during Atlantic approach. Cite: TURN3→4 SP/DU cruise.
+   */
+  if (!exited_europe && !ai_euro_in_europe(u->x, u->y) &&
+      colonies_count_for_nation(ctx->colonies, nation_id) == 0 &&
+      !(u->goto_x == 4 && u->goto_y == 13)) {
+    int lf_x = -1;
+    int lf_y = -1;
+    int pioneer_aboard = 0;
+    int any_cargo = 0;
+    int soldier_ashore = 0;
+    int pioneer_ashore = 0;
+    for (int c = 0; c < u->cargo_count && c < COLONIZE_UNIT_CARGO_MAX; ++c) {
+      const ColonizeUnit* pax = units_get_const(ctx->units, u->cargo_ids[c]);
+      if (!pax || !pax->active) {
+        continue;
+      }
+      const char* pn = units_display_name(ctx->units, pax);
+      if (ai_euro_name_is_pioneer(pn)) {
+        pioneer_aboard = 1;
+        any_cargo = 1;
+      } else if (ai_euro_name_is_soldier(pn)) {
+        any_cargo = 1;
+      }
+      if (lf_x < 0 && pax->goto_x >= 0 && pax->goto_y >= 0 && pax->goto_x < 255 &&
+          pax->goto_y < 255) {
+        lf_x = pax->goto_x;
+        lf_y = pax->goto_y;
+      }
+    }
+    ai_euro_settlers_ashore(ctx, nation_id, &pioneer_ashore, &soldier_ashore, &lf_x, &lf_y);
+    int fx = 0;
+    int fy = 0;
+    if (lf_x < 0 || !ai_euro_06ae_first_colony_from_landfall(ctx->map, ctx->colonies, ctx->units, nation_id, lf_x, lf_y, &fx, &fy)) {
+      int rx = 0;
+      int ry = 0;
+      if (ai_euro_recover_landfall_from_ship(u->x, u->y, &rx, &ry)) {
+        lf_x = rx;
+        lf_y = ry;
+      }
+    }
+    if (lf_x >= 0 && ai_euro_06ae_first_colony_from_landfall(ctx->map, ctx->colonies, ctx->units, nation_id, lf_x, lf_y, &fx, &fy)) {
+      ai_euro_first_colony_ship_course(
+        ctx, u, nation_id, fx, fy, pioneer_aboard, any_cargo, pioneer_ashore, soldier_ashore
+      );
+    }
+  }
+
+  a->at_war = at_war;
+  a->exited_europe = exited_europe;
+  a->treasure_aboard = treasure_aboard;
+  a->u = u;
+  return AI_EURO_ACT_CONTINUE;
+}
+
+/*
+ * Ship stage 4: raw 90210-90219 LAB_4d2e idle wander, then the case 0x0b
+ * sail loop (scored step, pathfinder fallback, route latch).
+ */
+static AiEuroActStatus ai_euro_act_ship_sail(struct ai_euro_act_ctx* a) {
+  ColonizeTurnContext* const ctx = a->ctx;
+  ColonizeUnit* u = a->u;
+  const int nation_id = a->nation_id;
+  int exited_europe = a->exited_europe;
+  int treasure_aboard = a->treasure_aboard;
+
+  /*
+   * Raw 90210-90219 → LAB_4d2e: every ship band above fell through. An idle
+   * hull takes the 8-direction wander pick (far roam latch, explore terms,
+   * LAB_52aa attack odds); a busy one only fights an adjacent foe.
+   */
+  if (u->active && !exited_europe && !ai_euro_in_europe(u->x, u->y) && !treasure_aboard &&
+      u->moves_left > 0) {
+    const int busy = ai_euro_has_useful_goto(u, ctx->map);
+    if (!busy || ai_euro_20e6_adjacent_foreign_09dc(ctx, u->x, u->y, nation_id)) {
+      (void)ai_euro_20e6_ship_wander_act(ctx, u, nation_id, busy);
+      u = units_get(ctx->units, u->id);
+      if (!u || !u->active) {
+        return AI_EURO_ACT_RETURN;
+      }
+    }
+  }
+  /*
+   * Case 0x0b ship sail: preserve landfall/sail goto. Scored ocean steps
+   * (thin 20e6) drain moves_left — mirror land FOUND/MILITARY MP-drain.
+   * Arrival clears via station-keep below.
+   */
+  int gx = u->goto_x;
+  int gy = u->goto_y;
+  const int have_goto =
+    gx >= 0 && gy >= 0 && gx < 255 && gy < 255 && gx < ctx->map->width &&
+    gy < ctx->map->height;
+  if (!have_goto) {
+    gx = u->x;
+    gy = u->y;
+    ai_euro_set_goto(u, UNITS_ORDER_AI_SAIL, gx, gy);
+  } else if (!units_orders_follow_goto(u->orders)) {
+    u->orders = UNITS_ORDER_AI_SAIL;
+  }
+  if (getenv("AI_SHIP_TRACE")) {
+    fprintf(stderr, "[ship] unit %d at (%d,%d) goto (%d,%d) ord %d mp %d cargo %d\n", u->id, u->x, u->y, u->goto_x, u->goto_y, u->orders, u->moves_left, u->cargo_count);
+  }
+  if (units_orders_follow_goto(u->orders) && (u->x != u->goto_x || u->y != u->goto_y)) {
+    int prev_x = -1;
+    int prev_y = -1;
+    for (;;) {
+      if (!u->active || u->moves_left <= 0 || !units_orders_follow_goto(u->orders)) {
+        break;
+      }
+      if (u->x == u->goto_x && u->y == u->goto_y) {
+        break;
+      }
+      int dx = 0;
+      int dy = 0;
+      int tx = 0;
+      int ty = 0;
+      const int latched =
+        u->id >= 0 && u->id < COLONIZE_UNITS_MAX && s_euro_ship_route_latch[u->id];
+      if (!latched && ai_euro_score_move(ctx, u, u->goto_x, u->goto_y, &dx, &dy)) {
+        tx = u->x + dx;
+        ty = u->y + dy;
+      } else {
+        tx = -1;
+        ty = -1;
+      }
+      /* Greedy step straight back to the tile we just left = local optimum
+       * ping-pong (the on-screen wiggle); route via the pathfinder instead. */
+      if (tx == prev_x && ty == prev_y) {
+        tx = -1;
+        ty = -1;
+      }
+      const int from_x = u->x;
+      const int from_y = u->y;
+      int moved = 0;
+      if (tx >= 0) {
+        const int foe = units_id_at(ctx->units, tx, ty);
+        const ColonizeUnit* fo = foe >= 0 ? units_get_const(ctx->units, foe) : NULL;
+        if (fo && fo->nation_id != u->nation_id) {
+          /* Naval combat stays on adjacent prefer-weak pick — do not
+           * chain-attack via scored step into a foe tile (try_move cannot
+           * enter ships; mirror prior advance_goto block). Own ships stack. */
+          break;
+        }
+        moved = units_try_move(ctx->units, u->id, ctx->map, tx, ty, ctx->colonies, ctx->rng);
+      }
+      if (getenv("AI_SHIP_TRACE")) {
+        fprintf(stderr, "[ship]   step try (%d,%d) moved=%d mp %d\n", tx, ty, moved, u->moves_left);
+      }
+      if (!moved) {
+        /*
+         * Greedy scored step stalled (land wall / own-ship block between
+         * ship and goal). Fall back to the DOS FUN_6662 pathfinder tiers so
+         * a ship with a far goto routes around the coast instead of
+         * grinding the same two tiles every act (the on-screen "wiggle").
+         */
+        int px = 0;
+        int py = 0;
+        /* Stay on the pathfinder for this goto, this act and the next:
+         * greedy-then-pathfinder each act undoes itself (west two, east
+         * two) and the ship circles for turns. */
+        if (u->id >= 0 && u->id < COLONIZE_UNITS_MAX) {
+          s_euro_ship_route_latch[u->id] = 1;
+        }
+        if (!units_next_goto_step(ctx->units, u->id, ctx->map, ctx->colonies, ctx->rng, &px, &py)) {
+          /* Pathfinder agrees the goal is unreachable from here — drop the
+           * goto so next act re-aims instead of resuming the same grind
+           * (the cross-turn A↔B wiggle). */
+          ai_euro_set_goto(u, UNITS_ORDER_AI_SAIL, u->x, u->y);
+          break;
+        }
+        if (getenv("AI_SHIP_TRACE")) {
+          fprintf(stderr, "[ship]   pathfinder step (%d,%d)\n", px, py);
+        }
+        {
+          /* Only a FOREIGN occupant blocks the pathfinder step. Own ships
+           * stack (DOS allows same-nation stacking on water); refusing the
+           * tile made two own hulls whose routes crossed block each other
+           * for a hundred turns (campaign3 Spanish Caravel/Privateer at
+           * (32,51)/(31,50), each pathing onto the other's tile). */
+          const int occ = units_id_at(ctx->units, px, py);
+          const ColonizeUnit* o = occ >= 0 ? units_get_const(ctx->units, occ) : NULL;
+          if (o && o->nation_id != u->nation_id) {
+            break;
+          }
+        }
+        if (!units_try_move(ctx->units, u->id, ctx->map, px, py, ctx->colonies, ctx->rng)) {
+          break;
+        }
+        units_note_goto_step(u->id, px - from_x, py - from_y);
+      } else {
+        units_note_goto_step(u->id, tx - from_x, ty - from_y);
+      }
+      prev_x = from_x;
+      prev_y = from_y;
+      u = units_get(ctx->units, u->id);
+      if (!u) {
+        return AI_EURO_ACT_RETURN;
+      }
+    }
+  }
+
+  a->exited_europe = exited_europe;
+  a->treasure_aboard = treasure_aboard;
+  a->u = u;
+  return AI_EURO_ACT_CONTINUE;
+}
+
+/*
+ * Ship stage 5: post-sail arrival tails — adjacent attack, threatened
+ * unload, Europe/HS treasure cash, unload_settle, first-colony hold /
+ * cruise-tip parking.
+ */
+static AiEuroActStatus ai_euro_act_ship_arrival(struct ai_euro_act_ctx* a) {
+  ColonizeTurnContext* const ctx = a->ctx;
+  ColonizeUnit* u = a->u;
+  const int nation_id = a->nation_id;
+  int at_war = a->at_war;
+  int exited_europe = a->exited_europe;
+
+  if (u->active && at_war && !ai_euro_in_europe(u->x, u->y) && u->moves_left > 0) {
+    ai_euro_naval_try_adjacent_attack(ctx, u);
+  }
+  /* War / sticky mil unload after sail arrival (Soldier → threatened colony). */
+  if (u->active && !ai_euro_in_europe(u->x, u->y) &&
+      (at_war || ai_diplo_indian_hostility_sticky(ctx->col1, nation_id) >= 2)) {
+    (void)ai_euro_try_unload_military_threatened(ctx, nation_id, u);
+  }
+  /* HS / Europe arrival after sail steps — cash Treasure passengers. */
+  if (u->active) {
+    (void)ai_euro_try_cash_treasure_europe(ctx, nation_id, u);
+    u = units_get(ctx->units, u->id);
+    if (!u || !u->active) {
+      return AI_EURO_ACT_RETURN;
+    }
+  }
+  /*
+   * Settle unload after sail — not on the Europe-exit act. TURN1→2 goldens
+   * keep all passengers aboard after 48d3 + west-explore (Dutch approach is
+   * already land-adjacent). Unload starts the following nation turn.
+   */
+  if (u->active && !exited_europe && !ai_euro_in_europe(u->x, u->y)) {
+    ai_euro_unload_settle(ctx, u, nation_id);
+    u = units_get(ctx->units, u->id);
+  }
+  /* First-colony hold / cruise tip: drain leftover MP; snap cruise overshoot.
+   * Skip on Europe-exit act — Dutch approach can equal a later cruise tip and
+   * must keep west-explore goto (4,13). Cite: test-saves-ai/TURN2. */
+  if (u && u->active && !exited_europe &&
+      colonies_count_for_nation(ctx->colonies, nation_id) == 0) {
+    int fx = 0;
+    int fy = 0;
+    int lx = 0;
+    int ly = 0;
+    if (ai_euro_recover_landfall_from_ship(u->x, u->y, &lx, &ly) ||
+        ai_euro_recover_landfall_from_ship(u->goto_x, u->goto_y, &lx, &ly)) {
+      if (ai_euro_06ae_first_colony_from_landfall(ctx->map, ctx->colonies, ctx->units, nation_id, lx, ly, &fx, &fy)) {
+        if (u->goto_x == fx && u->goto_y == fy + 2) {
+          u->moves_left = 0;
+        }
+        int wx = 0;
+        int wy = 0;
+        if (ai_euro_ocean_3558_empty_cruise_tip(ctx->map, fx, fy, &wx, &wy) &&
+            map_chebyshev(u->x, u->y, wx, wy) <= 1) {
+          /*
+           * Already stationed on SP cruise tip from a prior turn: one west
+           * (TURN4→5 46,50→45,50). First arrival parks on tip (TURN3→4).
+           * Also honor tip−1 goto from re-assert / pioneer landfall.
+           */
+          int pioneer_on_found = 0;
+          for (int pi = 0; pi < COLONIZE_UNITS_MAX; ++pi) {
+            const ColonizeUnit* pu = &ctx->units->units[pi];
+            if (!pu->active || pu->nation_id != nation_id || pu->aboard_ship_id >= 0) {
+              continue;
+            }
+            if (ai_euro_name_is_pioneer(units_display_name(ctx->units, pu)) &&
+                pu->x == fx && pu->y == fy) {
+              pioneer_on_found = 1;
+              break;
+            }
+          }
+          const int want_west =
+            pioneer_on_found && fx == 45 && fy == 52 &&
+            map_tile_is_water(ctx->map, wx - 1, wy);
+          const int goto_tip = (u->goto_x == wx && u->goto_y == wy);
+          const int goto_west = (u->goto_x == wx - 1 && u->goto_y == wy);
+          if (want_west && (goto_tip || goto_west || (u->x == wx && u->y == wy))) {
+            if (u->x != wx - 1 || u->y != wy) {
+              if (u->moves_left <= 0) {
+                u->moves_left = units_max_mp(ctx->units, u->id);
+              }
+              ai_euro_set_goto(u, UNITS_ORDER_AI_MOVE, wx - 1, wy);
+              (void)units_advance_goto_one_step(
+                ctx->units, u->id, ctx->map, ctx->colonies, NULL
+              );
+              u = units_get(ctx->units, u->id);
+            }
+            if (u) {
+              ai_euro_set_goto(u, UNITS_ORDER_AI_MOVE, u->x, u->y);
+              u->moves_left = 0;
+            }
+          } else if (goto_tip) {
+            {
+              const int tel_ox = u->x;
+              const int tel_oy = u->y;
+              u->x = wx;
+              u->y = wy;
+              units_occupancy_notify_moved(ctx->units, tel_ox, tel_oy, wx, wy);
+            }
+            ai_euro_set_goto(u, UNITS_ORDER_AI_MOVE, wx, wy);
+            u->moves_left = 0;
+          }
+        }
+      }
+    }
+  }
+  /* Post-found coast tip: park AI_MOVE; spent MP stops outer re-act.
+   * COL1 export maps AI_MOVE@self → moves spent 0. Cite: TURN5 FR 52,43. */
+  if (u && u->active && !exited_europe &&
+      colonies_count_for_nation(ctx->colonies, nation_id) > 0 &&
+      u->x == u->goto_x && u->y == u->goto_y) {
+    int match_post = 0;
+    for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+      const ColonizeColony* c = &ctx->colonies->colonies[i];
+      if (!c->active || c->nation_id != nation_id) {
+        continue;
+      }
+      if (u->x == c->x + 2 && u->y == c->y + 6) {
+        match_post = 1;
+        break;
+      }
+    }
+    if (match_post) {
+      ai_euro_set_goto(u, UNITS_ORDER_AI_MOVE, u->x, u->y);
+      u->moves_left = 0;
+    }
+  }
+  /*
+   * Post-found SW cruise: park AI_MOVE@self after MP drain (TURN5 DU 39,18).
+   * Tip station-keep alone is !useful_goto — without this, trade haul yanks.
+   */
+  if (u && u->active && !exited_europe &&
+      colonies_count_for_nation(ctx->colonies, nation_id) == 1 && u->cargo_count == 0 &&
+      u->moves_left <= 0) {
+    int tip_x = 0;
+    int tip_y = 0;
+    int fx = -1;
+    int fy = -1;
+    for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+      const ColonizeColony* c = &ctx->colonies->colonies[i];
+      if (c->active && c->nation_id == nation_id) {
+        fx = c->x;
+        fy = c->y;
+        break;
+      }
+    }
+    if (fx >= 0 &&
+        ai_euro_ocean_3558_empty_cruise_tip(ctx->map, fx, fy, &tip_x, &tip_y) &&
+        u->x <= tip_x && abs(u->y - tip_y) <= 4 &&
+        map_chebyshev(u->x, u->y, tip_x, tip_y) <= 8 &&
+        /* Do not yank FR mid tip→colony SAIL (TURN6→7 g=Quebec). */
+        !(u->goto_x == fx && u->goto_y == fy)) {
+      ai_euro_set_goto(u, UNITS_ORDER_AI_MOVE, u->x, u->y);
+    }
+  }
+  /*
+   * FUN_5bfb_3180 ship-slow (adjacent foreign warship / Fort / Fortress)
+   * now runs per step inside units_try_move (units_ship_slow_scan), for
+   * AI and human movers alike; the old end-of-act ambush here is gone.
+   */
+
+  a->at_war = at_war;
+  a->exited_europe = exited_europe;
+  a->u = u;
+  return AI_EURO_ACT_CONTINUE;
+}
+
+/*
+ * Land stage 1: LCR on entry, land-war engage/hunt, peace-border hunt,
+ * scout exploration.
+ */
+static AiEuroActStatus ai_euro_act_land_hunt_scout(struct ai_euro_act_ctx* a) {
+  ColonizeTurnContext* const ctx = a->ctx;
+  ColonizeUnit* u = a->u;
+  const int nation_id = a->nation_id;
+  const int at_war_land = a->at_war_land;
+  const int is_land_hunter = a->is_land_hunter;
+  const int is_scout = a->is_scout;
+  int land_war_hunted = a->land_war_hunted;
+  int scout_explored = a->scout_explored;
+  const char* const uname = a->uname;
 
   /*
    * LCR (FUN_65dd_0004 thin transcription): any land unit standing on a
@@ -18511,7 +18502,7 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
     }
     /* Vanish / hostile-burial outcomes may have despawned the scout. */
     if (!u->active) {
-      return;
+      return AI_EURO_ACT_RETURN;
     }
   }
 
@@ -18537,7 +18528,7 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
       u->orders != UNITS_ORDER_SENTRY) {
     const int prefer_open = units_name_kind(uname) == UNITS_KIND_DRAGOON;
     if (!ai_euro_land_engage_then_hunt(ctx, u, nation_id, 0, prefer_open, &land_war_hunted)) {
-      return;
+      return AI_EURO_ACT_RETURN;
     }
   }
 
@@ -18574,7 +18565,7 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
             }
           }
           if (!u->active) {
-            return;
+            return AI_EURO_ACT_RETURN;
           }
           if (!ai_euro_has_useful_goto(u, ctx->map)) {
             ai_euro_set_goto(u, UNITS_ORDER_AI_MOVE, tx, ty);
@@ -18654,6 +18645,24 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
     }
   }
 
+  a->land_war_hunted = land_war_hunted;
+  a->peace_border_hunted = peace_border_hunted;
+  a->scout_explored = scout_explored;
+  a->u = u;
+  return AI_EURO_ACT_CONTINUE;
+}
+
+/*
+ * Land stage 2: Treasure Train routing (coast / board / cash) and the
+ * 20e6 47b9 dead-end bail.
+ */
+static AiEuroActStatus ai_euro_act_land_treasure(struct ai_euro_act_ctx* a) {
+  ColonizeTurnContext* const ctx = a->ctx;
+  ColonizeUnit* u = a->u;
+  const int nation_id = a->nation_id;
+  const int is_treasure = a->is_treasure;
+  int treasure_routed = a->treasure_routed;
+
   /*
    * Treasure train (act-level): idle Treasure → AI_MOVE toward nearest own
    * coastal colony (or coastal land if none). At coastal own colony: Cortes →
@@ -18671,18 +18680,18 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
      * is cashed at face value and destroyed on the spot.
      */
     if (ai_euro_20e6_treasure_cash_in(ctx, u, nation_id)) {
-      return;
+      return AI_EURO_ACT_RETURN;
     }
     if (ai_euro_try_cash_treasure_europe(ctx, nation_id, u)) {
-      return;
+      return AI_EURO_ACT_RETURN;
     }
     if (ai_euro_try_cortes_king_galleon_cash(ctx, nation_id, u)) {
       treasure_routed = 1;
-      return; /* cashed via free king galleon stand-in */
+      return AI_EURO_ACT_RETURN; /* cashed via free king galleon stand-in */
     }
     if (ai_euro_try_treasure_board_sail(ctx, nation_id, u)) {
       treasure_routed = 1;
-      return; /* boarded — ship owns Europe sail course */
+      return AI_EURO_ACT_RETURN; /* boarded — ship owns Europe sail course */
     }
     int tx = 0;
     int ty = 0;
@@ -18701,8 +18710,27 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
    * defer_gate list), so this band runs act-level here instead.
    */
   if (is_treasure && !treasure_routed && ai_euro_20e6_47b9_dead_end(ctx, u, nation_id)) {
-    return;
+    return AI_EURO_ACT_RETURN;
   }
+
+  a->treasure_routed = treasure_routed;
+  a->u = u;
+  return AI_EURO_ACT_CONTINUE;
+}
+
+/*
+ * Land stage 3: wagon haul, Pioneer improve job, the six field-expert
+ * admit/assign arms, and the indoor expert workplace assign.
+ */
+static AiEuroActStatus ai_euro_act_land_roles(struct ai_euro_act_ctx* a) {
+  ColonizeTurnContext* const ctx = a->ctx;
+  ColonizeUnit* u = a->u;
+  const int nation_id = a->nation_id;
+  int land_war_hunted = a->land_war_hunted;
+  int peace_border_hunted = a->peace_border_hunted;
+  int scout_explored = a->scout_explored;
+  int treasure_routed = a->treasure_routed;
+  const char* const uname = a->uname;
 
   /*
    * Wagon Train haul (act-level): idle Wagon with hold capacity or TOOLS /
@@ -18727,7 +18755,7 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
     /* The wagon 47b9 destroy lives inside the origin walk now (the haul beat
      * above owns the whole 457e wagon arm) — stop touching a despawned unit. */
     if (!u->active) {
-      return;
+      return AI_EURO_ACT_RETURN;
     }
   }
 
@@ -18744,7 +18772,7 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
     if (ai_euro_try_pioneer_improve(ctx, nation_id, u)) {
       pioneer_improved = 1;
       if (!u->active || u->moves_left <= 0) {
-        return; /* plowed/roaded — spent tools + moves */
+        return AI_EURO_ACT_RETURN; /* plowed/roaded — spent tools + moves */
       }
     }
   }
@@ -18762,7 +18790,7 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
     if (ai_euro_try_field_assign(ctx, nation_id, u, &k_field_roles[AI_EURO_FIELD_LUMBERJACK])) {
       lumberjack_fielded = 1;
       if (!u->active) {
-        return; /* admitted + field-assigned */
+        return AI_EURO_ACT_RETURN; /* admitted + field-assigned */
       }
     }
   }
@@ -18780,7 +18808,7 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
     if (ai_euro_try_field_assign(ctx, nation_id, u, &k_field_roles[AI_EURO_FIELD_MINER])) {
       miner_fielded = 1;
       if (!u->active) {
-        return; /* admitted + field-assigned */
+        return AI_EURO_ACT_RETURN; /* admitted + field-assigned */
       }
     }
   }
@@ -18800,7 +18828,7 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
     if (ai_euro_try_field_assign(ctx, nation_id, u, &k_field_roles[AI_EURO_FIELD_FARMER])) {
       farmer_fielded = 1;
       if (!u->active) {
-        return; /* admitted + field-assigned */
+        return AI_EURO_ACT_RETURN; /* admitted + field-assigned */
       }
     }
   }
@@ -18819,7 +18847,7 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
     if (ai_euro_try_field_assign(ctx, nation_id, u, &k_field_roles[AI_EURO_FIELD_FISHERMAN])) {
       fisherman_fielded = 1;
       if (!u->active) {
-        return; /* admitted + field-assigned */
+        return AI_EURO_ACT_RETURN; /* admitted + field-assigned */
       }
     }
   }
@@ -18838,7 +18866,7 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
     if (ai_euro_try_field_assign(ctx, nation_id, u, &k_field_roles[AI_EURO_FIELD_PLANTER])) {
       planter_fielded = 1;
       if (!u->active) {
-        return; /* admitted + field-assigned */
+        return AI_EURO_ACT_RETURN; /* admitted + field-assigned */
       }
     }
   }
@@ -18866,10 +18894,51 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
     if (ai_euro_try_expert_workplace_assign(ctx, nation_id, u)) {
       workplace_assigned = 1;
       if (!u->active) {
-        return; /* admitted + workplace-assigned */
+        return AI_EURO_ACT_RETURN; /* admitted + workplace-assigned */
       }
     }
   }
+
+  a->farmer_fielded = farmer_fielded;
+  a->fisherman_fielded = fisherman_fielded;
+  a->land_war_hunted = land_war_hunted;
+  a->lumberjack_fielded = lumberjack_fielded;
+  a->miner_fielded = miner_fielded;
+  a->peace_border_hunted = peace_border_hunted;
+  a->pioneer_improved = pioneer_improved;
+  a->planter_fielded = planter_fielded;
+  a->scout_explored = scout_explored;
+  a->treasure_routed = treasure_routed;
+  a->wagon_hauled = wagon_hauled;
+  a->workplace_assigned = workplace_assigned;
+  a->u = u;
+  return AI_EURO_ACT_CONTINUE;
+}
+
+/*
+ * Land stage 4: peace fortify / colonist admit, Artillery siege hunt and
+ * Artillery fortify, Missionary CONTACT.
+ */
+static AiEuroActStatus ai_euro_act_land_fortify(struct ai_euro_act_ctx* a) {
+  ColonizeTurnContext* const ctx = a->ctx;
+  ColonizeUnit* u = a->u;
+  const int nation_id = a->nation_id;
+  const int at_war_land = a->at_war_land;
+  int farmer_fielded = a->farmer_fielded;
+  int fisherman_fielded = a->fisherman_fielded;
+  const int is_missionary = a->is_missionary;
+  int land_war_hunted = a->land_war_hunted;
+  int lumberjack_fielded = a->lumberjack_fielded;
+  int miner_fielded = a->miner_fielded;
+  int missionary_contacted = a->missionary_contacted;
+  int peace_border_hunted = a->peace_border_hunted;
+  int pioneer_improved = a->pioneer_improved;
+  int planter_fielded = a->planter_fielded;
+  int scout_explored = a->scout_explored;
+  int treasure_routed = a->treasure_routed;
+  const char* const uname = a->uname;
+  int wagon_hauled = a->wagon_hauled;
+  int workplace_assigned = a->workplace_assigned;
 
   /*
    * Peace fortify (case 0x0b fortify arm): idle Soldier / Dragoon / Regular /
@@ -18903,7 +18972,7 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
           }
         }
         if (!keep_mil && ai_euro_fortify_with_quota(ctx, nation_id, u, cid)) {
-          return; /* stay fortified — skip FOUND/explore yank */
+          return AI_EURO_ACT_RETURN; /* stay fortified — skip FOUND/explore yank */
         }
         /*
          * No fortify slots left: admit as colonist (Dutch Isabella TURN4→5)
@@ -18911,7 +18980,7 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
          */
         if (!keep_mil && c->garrison_quota == 0) {
           ai_euro_join_colony(ctx, u, cid);
-          return;
+          return AI_EURO_ACT_RETURN;
         }
       }
     }
@@ -18936,7 +19005,7 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
     }
     if (!on_own) {
       if (!ai_euro_land_engage_then_hunt(ctx, u, nation_id, 1, 0, &land_war_hunted)) {
-        return;
+        return AI_EURO_ACT_RETURN;
       }
     }
   }
@@ -18956,7 +19025,7 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
       const ColonizeColony* c = colonies_get(ctx->colonies, cid);
       if (c && c->active && c->nation_id == nation_id &&
           ai_euro_fortify_with_quota(ctx, nation_id, u, cid)) {
-        return;
+        return AI_EURO_ACT_RETURN;
       }
     }
   }
@@ -18982,6 +19051,47 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
       missionary_contacted = 1;
     }
   }
+
+  a->farmer_fielded = farmer_fielded;
+  a->fisherman_fielded = fisherman_fielded;
+  a->land_war_hunted = land_war_hunted;
+  a->lumberjack_fielded = lumberjack_fielded;
+  a->miner_fielded = miner_fielded;
+  a->missionary_contacted = missionary_contacted;
+  a->peace_border_hunted = peace_border_hunted;
+  a->pioneer_improved = pioneer_improved;
+  a->planter_fielded = planter_fielded;
+  a->scout_explored = scout_explored;
+  a->treasure_routed = treasure_routed;
+  a->wagon_hauled = wagon_hauled;
+  a->workplace_assigned = workplace_assigned;
+  a->u = u;
+  return AI_EURO_ACT_CONTINUE;
+}
+
+/*
+ * Land stage 5: FUN_521d_0a60 goal-consumption tail — read the committed
+ * primary-goal pick back, else run the founder/labor fallback scan.
+ */
+static AiEuroActStatus ai_euro_act_land_goal_consume(struct ai_euro_act_ctx* a) {
+  ColonizeTurnContext* const ctx = a->ctx;
+  ColonizeUnit* u = a->u;
+  const int nation_id = a->nation_id;
+  const int at_war_land = a->at_war_land;
+  int farmer_fielded = a->farmer_fielded;
+  int fisherman_fielded = a->fisherman_fielded;
+  int land_war_hunted = a->land_war_hunted;
+  int lumberjack_fielded = a->lumberjack_fielded;
+  int miner_fielded = a->miner_fielded;
+  int missionary_contacted = a->missionary_contacted;
+  int peace_border_hunted = a->peace_border_hunted;
+  int pioneer_improved = a->pioneer_improved;
+  int planter_fielded = a->planter_fielded;
+  int scout_explored = a->scout_explored;
+  int treasure_routed = a->treasure_routed;
+  const char* const uname = a->uname;
+  int wagon_hauled = a->wagon_hauled;
+  int workplace_assigned = a->workplace_assigned;
 
   int goal_x = u->goto_x;
   int goal_y = u->goto_y;
@@ -19201,9 +19311,59 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
     }
   }
 
+  a->farmer_fielded = farmer_fielded;
+  a->fisherman_fielded = fisherman_fielded;
+  a->goal_code = goal_code;
+  a->goal_x = goal_x;
+  a->goal_y = goal_y;
+  a->land_war_hunted = land_war_hunted;
+  a->lumberjack_fielded = lumberjack_fielded;
+  a->miner_fielded = miner_fielded;
+  a->missionary_contacted = missionary_contacted;
+  a->peace_border_hunted = peace_border_hunted;
+  a->pioneer_improved = pioneer_improved;
+  a->planter_fielded = planter_fielded;
+  a->scout_explored = scout_explored;
+  a->treasure_routed = treasure_routed;
+  a->wagon_hauled = wagon_hauled;
+  a->workplace_assigned = workplace_assigned;
+  a->u = u;
+  return AI_EURO_ACT_CONTINUE;
+}
+
+/*
+ * Land stage 6: act on the bound goal — FOUND on arrival, wagon Europe
+ * sell, LABOR/COLONY admit, MILITARY/CONTACT engage, goto commit + move
+ * drain, and the adjacent seize/attack tail.
+ */
+static AiEuroActStatus ai_euro_act_land_goal_dispatch(struct ai_euro_act_ctx* a) {
+  ColonizeTurnContext* const ctx = a->ctx;
+  ColonizeUnit* u = a->u;
+  const int nation_id = a->nation_id;
+  const int at_war_land = a->at_war_land;
+  int farmer_fielded = a->farmer_fielded;
+  int fisherman_fielded = a->fisherman_fielded;
+  int goal_code = a->goal_code;
+  int goal_x = a->goal_x;
+  int goal_y = a->goal_y;
+  const int is_land_hunter = a->is_land_hunter;
+  const int is_ship = a->is_ship;
+  int land_war_hunted = a->land_war_hunted;
+  int lumberjack_fielded = a->lumberjack_fielded;
+  int miner_fielded = a->miner_fielded;
+  int missionary_contacted = a->missionary_contacted;
+  int peace_border_hunted = a->peace_border_hunted;
+  int pioneer_improved = a->pioneer_improved;
+  int planter_fielded = a->planter_fielded;
+  int scout_explored = a->scout_explored;
+  int treasure_routed = a->treasure_routed;
+  const char* const uname = a->uname;
+  int wagon_hauled = a->wagon_hauled;
+  int workplace_assigned = a->workplace_assigned;
+
   if (goal_code == AI_GOAL_FOUND && u->x == goal_x && u->y == goal_y) {
     ai_euro_found_with_unit(ctx, u, nation_id);
-    return;
+    return AI_EURO_ACT_RETURN;
   }
   /*
    * A founder can also arrive on a FOUND tile through the 20e6 move-scoring
@@ -19220,7 +19380,7 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
         bfx == u->x && bfy == u->y &&
         colonies_can_found(ctx->colonies, ctx->map, u->x, u->y)) {
       ai_euro_found_with_unit(ctx, u, nation_id);
-      return;
+      return AI_EURO_ACT_RETURN;
     }
   }
 
@@ -19236,7 +19396,7 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
     (void)ai_euro_try_transport_europe_sell(ctx, nation_id, u);
     u = units_get(ctx->units, u->id);
     if (!u || !u->active) {
-      return;
+      return AI_EURO_ACT_RETURN;
     }
   }
 
@@ -19295,7 +19455,7 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
       }
       if (admit) {
         ai_euro_join_colony(ctx, u, cid);
-        return;
+        return AI_EURO_ACT_RETURN;
       }
     }
   }
@@ -19307,7 +19467,7 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
       const int foe = units_id_at(ctx->units, goal_x, goal_y);
       if (foe >= 0 && foe != u->id) {
         ai_euro_try_attack(ctx, u, goal_x, goal_y);
-        return;
+        return AI_EURO_ACT_RETURN;
       }
     }
     if (ctx->colonies && u->x == goal_x && u->y == goal_y) {
@@ -19328,7 +19488,7 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
               ctx->col1_ok ? ctx->col1 : NULL, &snap, nation_id, plunder
             );
           }
-          return;
+          return AI_EURO_ACT_RETURN;
         }
       }
     }
@@ -19414,6 +19574,324 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
    * the tail could only ever re-hit its own `foe < 0`/no-progress break —
    * confirmed by instrumenting its try_attack over the whole ctest suite
    * (golden_ai_turns/mid01/late01/joint included): zero hits. */
+
+  a->farmer_fielded = farmer_fielded;
+  a->fisherman_fielded = fisherman_fielded;
+  a->goal_code = goal_code;
+  a->goal_x = goal_x;
+  a->goal_y = goal_y;
+  a->land_war_hunted = land_war_hunted;
+  a->lumberjack_fielded = lumberjack_fielded;
+  a->miner_fielded = miner_fielded;
+  a->missionary_contacted = missionary_contacted;
+  a->peace_border_hunted = peace_border_hunted;
+  a->pioneer_improved = pioneer_improved;
+  a->planter_fielded = planter_fielded;
+  a->scout_explored = scout_explored;
+  a->treasure_routed = treasure_routed;
+  a->wagon_hauled = wagon_hauled;
+  a->workplace_assigned = workplace_assigned;
+  a->u = u;
+  return AI_EURO_ACT_CONTINUE;
+}
+
+/*
+ * Ship band driver (FUN_521d_20e6 ship arms, raw 89717-90219). Runs the
+ * five ship stages in DOS order; any stage may end the act.
+ */
+static void ai_euro_act_ship(struct ai_euro_act_ctx* a) {
+  if (ai_euro_act_ship_europe_exit(a) == AI_EURO_ACT_RETURN) {
+    return;
+  }
+  if (ai_euro_act_ship_first_colony_course(a) == AI_EURO_ACT_RETURN) {
+    return;
+  }
+  if (ai_euro_act_ship_war_trade(a) == AI_EURO_ACT_RETURN) {
+    return;
+  }
+  if (ai_euro_act_ship_sail(a) == AI_EURO_ACT_RETURN) {
+    return;
+  }
+  if (ai_euro_act_ship_arrival(a) == AI_EURO_ACT_RETURN) {
+    return;
+  }
+  /*
+   * FUN_5bfb_3180 ship-slow (adjacent foreign warship / Fort / Fortress)
+   * now runs per step inside units_try_move (units_ship_slow_scan), for
+   * AI and human movers alike; the old end-of-act ambush here is gone.
+   */
+}
+
+/*
+ * Land band driver (case 0x0b). Binds the per-unit role flags the stages
+ * share, then runs the six land stages in DOS order.
+ */
+static void ai_euro_act_land(struct ai_euro_act_ctx* a) {
+  ColonizeTurnContext* const ctx = a->ctx;
+  ColonizeUnit* u = a->u;
+  const int nation_id = a->nation_id;
+
+  /* Case 0x0b land: bind primary goal (role-aware scan). */
+  const char* uname = units_display_name(ctx->units, u);
+  const int is_land_hunter = ai_euro_is_land_war_hunter(uname);
+  const int is_scout = uname && units_name_kind(uname) == UNITS_KIND_SCOUT;
+  const int is_treasure = ai_euro_is_treasure_name(uname);
+  const int is_missionary = ai_euro_is_missionary_name(uname);
+  /*
+   * Land war: Euro peer war, or Indian hostility sticky with a real hunt
+   * target (tribe / Brave). Sticky alone is not enough — memset relation=0
+   * syncs sticky during euro_balance and would skip peace fortify / admit
+   * Soldiers as LABOR. Cite: ai_diplo_indian_hostility_sticky; §2c hunt.
+   */
+  int indian_war_hunt = 0;
+  if (ctx->col1_ok && ctx->col1 &&
+      ai_diplo_indian_hostility_sticky(ctx->col1, nation_id) != 0 &&
+      ai_diplo_indian_any_at_war(ctx->col1, nation_id)) {
+    if (ctx->col1->tribe && ctx->col1->head.tribe_count > 0) {
+      indian_war_hunt = 1;
+    } else if (ctx->units) {
+      for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+        const ColonizeUnit* f = &ctx->units->units[i];
+        if (f->active && f->nation_id >= 4 && f->nation_id <= 11 && units_is_on_map(f) &&
+            !units_is_sea(ctx->units, f->id)) {
+          indian_war_hunt = 1;
+          break;
+        }
+      }
+    }
+  }
+  const int at_war_land =
+    ctx->col1_ok && ctx->col1 &&
+    (ai_euro_at_war_any_peer(ctx->col1, nation_id) || indian_war_hunt);
+  int land_war_hunted = 0;
+  int scout_explored = 0;
+  int treasure_routed = 0;
+  int missionary_contacted = 0;
+
+  a->uname = uname;
+  a->is_land_hunter = is_land_hunter;
+  a->is_scout = is_scout;
+  a->is_treasure = is_treasure;
+  a->is_missionary = is_missionary;
+  a->at_war_land = at_war_land;
+  a->land_war_hunted = land_war_hunted;
+  a->scout_explored = scout_explored;
+  a->treasure_routed = treasure_routed;
+  a->missionary_contacted = missionary_contacted;
+  a->u = u;
+
+  if (ai_euro_act_land_hunt_scout(a) == AI_EURO_ACT_RETURN) {
+    return;
+  }
+  if (ai_euro_act_land_treasure(a) == AI_EURO_ACT_RETURN) {
+    return;
+  }
+  if (ai_euro_act_land_roles(a) == AI_EURO_ACT_RETURN) {
+    return;
+  }
+  if (ai_euro_act_land_fortify(a) == AI_EURO_ACT_RETURN) {
+    return;
+  }
+  if (ai_euro_act_land_goal_consume(a) == AI_EURO_ACT_RETURN) {
+    return;
+  }
+  if (ai_euro_act_land_goal_dispatch(a) == AI_EURO_ACT_RETURN) {
+    return;
+  }
+}
+
+/*
+ * FUN_521d_5b66 — scoring gate + case 0x0b arms; case 7 hire economy thin
+ * (Pioneer tools-delivery here; wagon/tools dock hire lives in 5d04 planning).
+ *
+ * Correction (2026-08-13, see euro_unit_act.md): `FUN_521d_5b66` itself is a
+ * tiny 198-byte `switch(unit.orders_or_state)` dispatcher (cases
+ * 7/8/9/0xb/0xc/default calling out to `FUN_1000_93ea` / `func_0x000193b2` /
+ * `FUN_1000_9406` / `FUN_1000_8b24` / `FUN_1000_96aa`), not the ~1815-line
+ * body this file's "5b66 case N" comments were written against — that
+ * estimate came from a Ghidra disassembly-fault-corrupted read of the
+ * canonical export (real root cause: false adjacency to the next RTLink
+ * overlay segment in the flattened file, see `docs/rtlink_decode_v2_gap.md`).
+ * The case *numbers* below are still meaningful — they match the real
+ * dispatcher's cases 1:1 — but the elaborate bodies live in the callees
+ * above, not literally inside `5b66`. Re-attributing each "5b66 case N"
+ * comment throughout this function to its real DOS home is not done (large,
+ * mostly cosmetic given the case-shape framing still holds); treat "5b66
+ * case N" comments here as "the game behavior DOS dispatches via 5b66's
+ * case N", not "literally transcribed from 5b66's own bytes".
+ */
+static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nation_id) {
+  if (!ctx || !u || !u->active || u->aboard_ship_id >= 0) {
+    return;
+  }
+  /* First-colony land may wake sentry (moves_left was 0). Ships still need MP. */
+  const int is_ship_early = ai_euro_is_ship_type(ctx->units, u->id);
+  if (!is_ship_early && ai_euro_try_first_colony_land(ctx, u, nation_id)) {
+    return;
+  }
+  if (u->moves_left <= 0) {
+    return;
+  }
+
+  /*
+   * FUN_4720_049e notify/tension checks (thin, approximate — see the two
+   * functions' own headers). Fire once near the top of the act, matching
+   * DOS's own move-driver-completion timing as closely as this port's
+   * architecture allows.
+   */
+  ai_euro_treasure_tension_bump(ctx, u);
+  if (!is_ship_early) {
+    ai_euro_try_violate_notify(ctx, u);
+  }
+
+  const int is_ship = is_ship_early;
+  int is_goto = units_orders_follow_goto(u->orders);
+
+  /*
+   * FUN_521d_20e6 epilogue roam-abort (unit+0x314c==5 cleared the moment a
+   * met foreign unit is adjacent, forcing a re-decide next call — see
+   * move_scoring_20e6_full.md "Epilogue / commit block", line ~2213-2275).
+   * Scoped to gotos this port's own idle-wander branch set
+   * (s_euro_roam_wander, written only by ai_euro_move_scoring_gate's
+   * explore-scan / fallback-west arms); goal-directed AI_MOVE gotos (found-
+   * tile pursuit, war hunt, wagon delivery, ship staging) are not DOS's
+   * "roaming" state and are left alone. MET check both directions, same
+   * gate as ai_euro_try_violate_notify's adjacency scan.
+   */
+  if (!is_ship && is_goto && u->orders == UNITS_ORDER_AI_MOVE && u->id >= 0 &&
+      u->id < COLONIZE_UNITS_MAX && s_euro_roam_wander[u->id] && ctx->col1_ok && ctx->col1) {
+    static const int rdx[8] = {0, 1, 1, 1, 0, -1, -1, -1};
+    static const int rdy[8] = {-1, -1, 0, 1, 1, 1, 0, -1};
+    for (int d = 0; d < 8; ++d) {
+      const int fid = units_id_at(ctx->units, u->x + rdx[d], u->y + rdy[d]);
+      if (fid < 0 || units_is_sea(ctx->units, fid)) {
+        continue;
+      }
+      const ColonizeUnit* f = units_get_const(ctx->units, fid);
+      if (!f || f->nation_id == u->nation_id || f->nation_id < 0 || f->nation_id >= 4) {
+        continue;
+      }
+      if ((ai_diplo_read(ctx->col1, u->nation_id, f->nation_id) & AI_DIPLO_MET) &&
+          (ai_diplo_read(ctx->col1, f->nation_id, u->nation_id) & AI_DIPLO_MET)) {
+        ai_euro_set_goto(u, UNITS_ORDER_NONE, u->x, u->y);
+        is_goto = units_orders_follow_goto(u->orders);
+        break;
+      }
+    }
+  }
+
+  /*
+   * At-war Soldier/Dragoon/Artillery coastal embark — before move-scoring gate /
+   * hunt yank / Artillery on-colony fortify. Soldier, Dragoon, or Artillery/
+   * Cannon on coastal own colony boards empty transport (may override MILITARY
+   * goto from E deepen). Cite: Colonization.pdf naval transport / Defending a
+   * Colony; units_board; euro_unit_act §2d3.
+   */
+  if (!is_ship && ctx->col1_ok && ctx->col1 && ai_euro_at_war_any_peer(ctx->col1, nation_id)) {
+    const char* board_name = units_display_name(ctx->units, u);
+    if (board_name &&
+        (ai_euro_is_military_name(board_name) || ai_euro_is_artillery_name(board_name)) &&
+        ai_euro_try_soldier_board_transport(ctx, nation_id, u)) {
+      return;
+    }
+  }
+
+  /*
+   * War / peacetime-sticky mil unload — before move-scoring gate. Galleon/Frigate
+   * are not cargo-ship deferred, so 20e6 gate can abort the ship act before the
+   * unload arm. Drop Soldier at threatened coastal colony first. Cite:
+   * Colonization.pdf naval transport; euro_unit_act §2b2; Series L sticky≥2.
+   */
+  if (is_ship && ctx->col1_ok && ctx->col1 && !ai_euro_in_europe(u->x, u->y) &&
+      (ai_euro_at_war_any_peer(ctx->col1, nation_id) ||
+       ai_diplo_indian_hostility_sticky(ctx->col1, nation_id) >= 2)) {
+    (void)ai_euro_try_unload_military_threatened(ctx, nation_id, u);
+  }
+
+  /*
+   * FUN_521d_20e6 ship-band tail (raw 89717-89720): during WoI an empty,
+   * untasked crown Man-O-War standing alone sails for the High Seas once
+   * the MoW pool is spent and land pools remain. D1 (2026-09-07g): the
+   * crown ship acts through this band now, so the beat runs here; the
+   * full DOS skip-test lives in ai_king_mow_sail_home_20e6.
+   */
+  if (is_ship && ctx->col1_ok && ctx->col1 && ctx->col1->head.game_options.woi &&
+      nation_id == (int)ctx->col1->head.crown_nation_id && u->cargo_count == 0 &&
+      ai_euro_20e6_dos_type(ctx->units, u) == 0x12 &&
+      ai_king_mow_sail_home_20e6(ctx, u, nation_id)) {
+    return;
+  }
+
+  /*
+   * Early move-scoring gate (~90552): if orders!=goto (or fresh), call 20e6;
+   * non-zero return aborts act. Linux: always score when not already on goto.
+   * Treasure / Missionary: defer course to act-level coast / CONTACT routing
+   * (do not FOUND-yank before treasure coast or missionary mission hunt).
+   */
+  /*
+   * A unit mid-way through a Pioneer improve job (CLEAR_PLOW/BUILD_ROAD)
+   * isn't a "goto" per units_orders_follow_goto, so it used to fall
+   * through to the move-scoring gate below every turn and get hijacked
+   * into an AI_MOVE elsewhere before finishing — invisible while the
+   * real DS:0x2f78 threshold was unknown and every job finished in one
+   * tick, exposed once the real (usually multi-turn) threshold was
+   * captured 2026-08-20. Treat it as committed, same as a goto.
+   */
+  const int is_pioneer_job_active =
+    u->orders == UNITS_ORDER_CLEAR_PLOW || u->orders == UNITS_ORDER_BUILD_ROAD;
+  if (!is_goto && !is_pioneer_job_active) {
+    const char* gate_name = units_display_name(ctx->units, u);
+    const int defer_gate =
+      ai_euro_is_treasure_name(gate_name) || ai_euro_is_missionary_name(gate_name) ||
+      ai_euro_type_is_wagon_name(gate_name) || ai_euro_is_cargo_ship_name(gate_name);
+    if (!defer_gate && ai_euro_move_scoring_gate(ctx, u, nation_id)) {
+      return;
+    }
+  }
+
+  /*
+   * On own colony with no fortify quota: admit Soldier as colonist before
+   * later FOUND/explore arms yank them (Isabella TURN4→5). Cite: TURN4–5.
+   */
+  if (!is_ship && ctx->colonies && !ai_euro_land_is_fortified(u)) {
+    const char* join_name = units_display_name(ctx->units, u);
+    if (join_name && ai_euro_is_military_name(join_name)) {
+      const int early_cid = colonies_id_at(ctx->colonies, u->x, u->y);
+      if (early_cid >= 0) {
+        ColonizeColony* ec = colonies_get_mut(ctx->colonies, early_cid);
+        if (ec && ec->active && ec->nation_id == nation_id && ec->garrison_quota == 0 &&
+            (ec->population < 3 ||
+             (ec->ai_flags & COLONIZE_COLONY_AI_NEEDS_COLONISTS) != 0)) {
+          ai_euro_join_colony(ctx, u, early_cid);
+          return;
+        }
+      }
+    }
+  }
+
+  struct ai_euro_act_ctx a;
+  memset(&a, 0, sizeof(a));
+  a.ctx = ctx;
+  a.u = u;
+  a.nation_id = nation_id;
+  a.is_ship = is_ship;
+
+  if (ai_euro_act_pioneer_corridor(&a) == AI_EURO_ACT_RETURN) {
+    return;
+  }
+  if (ai_euro_act_soldier_staging(&a) == AI_EURO_ACT_RETURN) {
+    return;
+  }
+
+  /* Case 7 Europe hire / wagon economy: treasury + dock expert tails in 5d04.
+   * Thin tools delivery runs on land Pioneer/Hardy at own colony (below). */
+
+  if (is_ship) {
+    ai_euro_act_ship(&a);
+    return;
+  }
+
+  ai_euro_act_land(&a);
 }
 
 void ai_euro_dispatcher_turn(ColonizeTurnContext* ctx, int nation_id) {
@@ -19767,4 +20245,53 @@ void ai_euro_dispatcher_turn(ColonizeTurnContext* ctx, int nation_id) {
    * land; the tick then re-scores everyone with real professions.
    */
   ai_euro_colony_tick_28c8_reassign(ctx, nation_id);
+}
+
+/*
+ * New-game / load hook (sibling of ai_goals_reset / founding_fathers_reset /
+ * ai_contact_reset): this module's per-unit/colony/nation latch arrays are
+ * plain file-local statics with no save-file backing (besides the wagon
+ * errand latch, which round-trips through the save and is cleared via its
+ * own accessor below), so they silently persist across a new game or Load
+ * in one process unless explicitly zeroed here. Every array is restored to
+ * its declaration-time initializer, not blanket-zeroed, so sentinels stay
+ * sentinels (s_sticky_unit == -1, s_5d04_nation == -1, s_5d04_ctx == NULL).
+ */
+void ai_euro_reset(void) {
+  s_sticky_unit = -1;
+  s_sticky_count = 0;
+  memset(s_deferred_found, 0, sizeof(s_deferred_found));
+  memset(s_unloaded_this_turn, 0, sizeof(s_unloaded_this_turn));
+  /*
+   * s_euro_last_dir deliberately NOT reset: its own declaration comment
+   * already documents this ("not worth a separate reset hook for that
+   * one-turn edge case") and the golden gate proves it's load-bearing, not
+   * just harmless — unit_ai_euro_war's naval multi-step case (Frigate war
+   * hunt on open ocean) relies on a leftover per-slot bias from an earlier
+   * test/turn to clear the first-move ambiguity and cover ≥2 tiles in one
+   * act; zeroing it here made that case regress (ship advanced 0 tiles).
+   * Excluded per audit instructions rather than papered over.
+   */
+  memset(s_founded_colony_turn, 0, sizeof(s_founded_colony_turn));
+  memset(s_euro_continent_stance, 0, sizeof(s_euro_continent_stance));
+  memset(s_euro_rival_strength, 0, sizeof(s_euro_rival_strength));
+  memset(s_violate_last_turn, 0, sizeof(s_violate_last_turn));
+  memset(s_euro_roam_wander, 0, sizeof(s_euro_roam_wander));
+  memset(s_euro_ship_route_latch, 0, sizeof(s_euro_ship_route_latch));
+  memset(s_ship_pressure, 0, sizeof(s_ship_pressure));
+  memset(s_4393_claim_turn, 0, sizeof(s_4393_claim_turn));
+  memset(s_4393_claim_colony, 0, sizeof(s_4393_claim_colony));
+  memset(s_4393_claim_valid, 0, sizeof(s_4393_claim_valid));
+  /* Save-backed latch: goes through its own accessor, not a raw memset. */
+  ai_euro_wagon_errand_clear_all();
+  memset(s_0a60_work_registered, 0, sizeof(s_0a60_work_registered));
+  s_5d04_ctx = NULL;
+  s_5d04_nation = -1;
+  memset(s_5d04_hire_scratch, 0, sizeof(s_5d04_hire_scratch));
+  memset(s_0a60_pilot_state, 0, sizeof(s_0a60_pilot_state));
+  memset(s_20e6_explorers, 0, sizeof(s_20e6_explorers));
+  memset(s_20e6_explore_fatigue, 0, sizeof(s_20e6_explore_fatigue));
+  memset(s_20e6_hop_steps, 0, sizeof(s_20e6_hop_steps));
+  memset(s_20e6_hop_slot, 0, sizeof(s_20e6_hop_slot));
+  memset(s_20e6_village_visited, 0, sizeof(s_20e6_village_visited));
 }

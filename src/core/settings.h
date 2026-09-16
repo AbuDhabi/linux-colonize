@@ -5,7 +5,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include "core/col1_save.h"
+#include "core/col1_save_layout.h"
 #include "core/sound.h"
 
 /*

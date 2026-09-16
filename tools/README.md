@@ -12,7 +12,6 @@ These are compiled C tools built from `tools/*.c` sources. Run them from `build/
 | `render_report` | Standalone report-screen renderer for golden comparison | `render_report <data_dir> <save.SAV> <out.ppm> [report_id] [params...]` | Built by CMake; output is 320×200 PPM; convert to PNG with ImageMagick |
 | `render_map_panel` | Standalone main-map sidebar renderer for golden comparison | `render_map_panel <data_dir> <save.SAV> <x> <y> <select_unit> <out.ppm> [load=...] [buys=...] [sells=...]` | Built by CMake; output is 320×200 PPM; convert to PNG with ImageMagick |
 | `render_colony` | Standalone colony-screen renderer for golden comparison | `render_colony <data_dir> <save.SAV> <colony_name> <multi_mode> <out.ppm>` | Built by CMake; output is 320×200 PPM; convert to PNG with ImageMagick |
-| `dump_gsound_wav` | Offline GSOUND → WAV (and optional SMF MIDI) dump | `dump_gsound_wav [--data-dir DIR] [--out-dir DIR] [--seconds N] [--midi] [--ab] [--backend fluidsynth\|tsf] [--soundfont FILE.sf2] [song_id ...]` | Built by CMake; requires FluidSynth or TinySoundFont for rendering |
 
 ## Python Tools (tools/)
 
@@ -22,7 +21,6 @@ These require Python 3.
 |------|---------|-----------|-------|
 | `ai_logic_map.py` | Render and validate docs/ai_euro_logic_map.yaml | `python3 tools/ai_logic_map.py <check\|html\|mermaid\|dot\|outline> [MAP] [options]` | Python 3 stdlib only |
 | `build_address_mapping.py` | Build FUN_<seg>_<off> ↔ overlay addressing lookup table | `python3 tools/build_address_mapping.py <canonical_csv> <overlay_csv> <layout_json>` | Python 3 stdlib only; requires Ghidra CSV dumps and rtlink layout |
-| `compare_music_ab.py` | Automated A/B comparator for port vs DOS sound renders | `python3 tools/compare_music_ab.py <ref_wav> <port_wav> [options]` | Requires **numpy** (non-stdlib) |
 | `rtlink_overlay_extract.py` | Extract RTLink v2 overlay segments from VICEROY.EXE | `python3 tools/rtlink_overlay_extract.py COLONIZE/VICEROY.EXE OUTDIR` | Python 3 stdlib only; reads VICEROY.EXE, writes segments.json + per-segment .bin files |
 
 ## Shell Scripts (scripts/)
@@ -77,10 +75,6 @@ These scripts are **read-only** (do not modify or save the Ghidra program) unles
 
 ---
 
-## Non-Stdlib Python Dependencies
+## Python dependencies
 
-The following Python scripts require external (non-stdlib) modules:
-
-- **`tools/compare_music_ab.py`** requires **numpy** (for chroma-DTW alignment, beat tracking, drift analysis)
-
-All other Python tools use Python 3 standard library only.
+All Python tools use the Python 3 standard library only.

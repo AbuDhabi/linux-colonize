@@ -155,7 +155,7 @@ Topic hub (graphics, units, settlements, alarm, contact): [indians.md](indians.m
 
 | Manual feature | Status | Notes |
 |----------------|--------|-------|
-| Rival starter fleets + sail to landfall | Done | NEW WORLD: `FUN_684c` HS-rim landfalls + Europe exit via landfall goto (`48d3_048e` / `ai_euro_unit_act`); seed-100 early fixture still gated — [port_plan.md](port_plan.md) |
+| Rival starter fleets + sail to landfall | Done | NEW WORLD: `FUN_684c` HS-rim landfalls + Europe exit via landfall goto (`48d3_048e` / `ai_euro_act_*` dispatcher); seed-100 early fixture still gated — [port_plan.md](port_plan.md) |
 | Unload, found colonies, combat, colony AI | Done | Not claimed 1:1. Rival-Euro AI closed at logic level 2026-09-07g (D1): `0a60` goals, `5d04` hire ladder (the invented Linux matrix is deleted), `20e6` land arms with the `3558` cargo matrices, colony tick and Col1 colony flags/SoL latches, BUY `hammers_purchased`, `depletion_counter` wrap, `warehouse_level`/`capitol_level`. Gates: `golden_ai_turns`, `smoke_ai_mid01`/`late01`. What is left is fidelity hardening (step scorer not T3) and the deep `−0x6790` body, still PARKED — [port_plan.md](port_plan.md) per-module table |
 
 ### Win / end sequences

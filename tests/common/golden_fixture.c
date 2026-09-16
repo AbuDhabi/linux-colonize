@@ -3,6 +3,8 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "core/ai.h"
+#include "core/ai_euro.h"
 #include "core/turn.h"
 #include "core/units.h"
 
@@ -16,6 +18,10 @@ bool golden_open(const char* path_in, const char* path_exp, uint32_t rng_seed, G
   col1_save_init(&fx->orig);
   colonies_init(&fx->colonies);
   units_reset(&fx->units);
+  units_reset_hooks();
+  ai_euro_reset();
+  ai_native_reset();
+  turn_reset();
   assets_msg_init(&fx->names);
   fx->europe.cargo_count = 16;
 

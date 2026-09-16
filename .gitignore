@@ -8,8 +8,6 @@ test-saves-col1/
 test-saves-slot-ui/
 test-assets/
 colonize-linux.log
-ripped_sound/
-reference_music/
 dosbox-x-dumps/**/
 *.pyc
 tools/brave_dump/shots
@@ -18,7 +16,6 @@ tools/brave_dump/shots
 original_sources_decompiled/**
 !original_sources_decompiled/*.zip
 !original_sources_decompiled/*.c
-.venv-sound/
 settings.json
 dist/
 build-release/
@@ -29,3 +26,6 @@ deps-container/
 build-windows/
 deps-mingw/
 Testing/
+ripped_sound/
+reference_music/
+.venv-sound/

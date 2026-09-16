@@ -508,7 +508,8 @@ void colony_screen_open_jobs(
   if (view->selected_colonist >= 0 && view->selected_colonist < colony->colonist_count &&
       view->job_count < COLONY_JOB_LIST_MAX) {
     const int prof = colony->colonists[view->selected_colonist].profession;
-    if (prof != 19 && prof != COLONIZE_PROF_INDENTURED && prof != COLONIZE_PROF_CRIMINAL &&
+    if (prof != UNITS_JOB_COLONIST && prof != COLONIZE_PROF_INDENTURED &&
+        prof != COLONIZE_PROF_CRIMINAL &&
         prof != COLONIZE_PROF_CONVERT && prof != COLONIZE_PROF_FREE_COLONIST) {
       view->job_ids[view->job_count++] = COLONY_JOB_CLEAR_SPECIALTY;
     }

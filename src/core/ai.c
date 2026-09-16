@@ -19,6 +19,7 @@
 #include "core/map_gen.h"
 #include "core/new_game.h"
 #include "core/strutil.h"
+#include "core/turn.h"
 #include "platform/diagnostics.h"
 #include "platform/platform.h"
 
@@ -1171,6 +1172,9 @@ bool ai_init_new_game(const AiNewGameParams* params, char* err, size_t err_size)
   ai_goals_reset();
   founding_fathers_reset();
   ai_contact_reset(); /* pending reparations offer + per-tribe cooldowns (#58) */
+  ai_euro_reset();
+  ai_native_reset();
+  turn_reset();
 
   if (!ai_setup_col1_template(params, err, err_size)) {
     return false;
@@ -1485,13 +1489,13 @@ static int ai_indian_152e_spawn_brave(
   /* NAMES pool index == DOS type index for 0x13..0x16 (ai_euro.c k[] map). */
   int type_index = dos_type;
   if (type_index < 0x13) {
-    type_index = 0x13;
+    type_index = UNITS_KIND_BRAVE;
   }
   if (type_index > 0x16) {
-    type_index = 0x16;
+    type_index = UNITS_KIND_MTD_WARRIOR;
   }
   if (type_index >= ctx->units->type_count) {
-    type_index = 0x13; /* small NAMES pools: fall back to plain Brave. */
+    type_index = UNITS_KIND_BRAVE; /* small NAMES pools: fall back to plain Brave. */
     if (type_index >= ctx->units->type_count) {
       return -1;
     }
@@ -1945,7 +1949,7 @@ static void ai_indian_152e_village_growth(
            * roll), +2 for 50 horse-breeding — 0x16 "Mtd. Warrior" when both.
            * (2026-09-06d: it was mis-transcribed as a "cost".)
            */
-          int dos_type = 0x13;
+          int dos_type = UNITS_KIND_BRAVE;
           if ((int8_t)ind->muskets > 0) { /* DOS reads +7 as a signed byte. */
             const int roll = dos_rng_range(rng, 0, (int)col1->head.difficulty);
             if (roll == 0) {
@@ -2345,7 +2349,7 @@ static int ai_native_foreign_euro_pull(
     }
     const ColonizeUnitType* ot = units_type(units, o->type_index);
     stack_cost += ot ? ot->cost : 0;
-    if (o->type_index == 1 || o->type_index == 4 ||
+    if (o->type_index == UNITS_KIND_SOLDIER || o->type_index == UNITS_KIND_DRAGOON ||
         (o->type_index >= 6 && o->type_index <= 9)) {
       stack_military++;
     }
@@ -2367,7 +2371,7 @@ static int ai_native_foreign_euro_pull(
     e8 <<= 1;
     bonus = 1;
   }
-  if (u->type_index == 0xb && !bonus) {
+  if (u->type_index == UNITS_KIND_ARTILLERY && !bonus) {
     e8 = 0;
   }
   if (s_ai_native_col1 && nation_id == (int)s_ai_native_col1->head.crown_nation_id && !bonus &&
@@ -3177,7 +3181,7 @@ static int ai_native_pick_dir_021a(
           if (au->nation_id == nation_id) {
             continue;
           }
-          if (au->type_index != 0x0c) {
+          if (au->type_index != UNITS_KIND_WAGON) {
             continue;
           }
           e = au->nation_id;
@@ -3340,7 +3344,9 @@ static int ai_native_pick_dir_021a(
     /* 0xbb6: own village tile — musket / horse upgrade beacon. */
     int upg = 0;
     if (settle == nation_id && ind) {
-      if ((int8_t)ind->muskets > 0 && (u->type_index == 0x13 || u->type_index == 0x15)) {
+      if ((int8_t)ind->muskets > 0 &&
+          (u->type_index == UNITS_KIND_BRAVE ||
+           u->type_index == UNITS_KIND_MTD_BRAVE)) {
         score += 0x14;
         upg = 1;
       }
@@ -3475,7 +3481,7 @@ static int ai_native_pick_dir_021a(
           if (def_id >= 0) {
             defs = combat_engagement_strength(&sctx, def_id, u->id, NULL);
             const ColonizeUnit* du = units_get_const(units, def_id);
-            if (du && du->type_index == 0xb) {
+            if (du && du->type_index == UNITS_KIND_ARTILLERY) {
               defs >>= 3;
             }
           }
@@ -3485,11 +3491,15 @@ static int ai_native_pick_dir_021a(
               continue;
             }
             switch (su->type_index) {
-              case 0: score += 4; break;
-              case 1: score -= 2; break;
-              case 2: case 3: case 5: score += 8; break;
-              case 4: score -= 1; break;
-              case 0xa: case 0xb: case 0xc: score += 0x10; break;
+              case UNITS_KIND_COLONIST: score += 4; break;
+              case UNITS_KIND_SOLDIER: score -= 2; break;
+              case UNITS_KIND_PIONEER:
+              case UNITS_KIND_MISSIONARY:
+              case UNITS_KIND_SCOUT: score += 8; break;
+              case UNITS_KIND_DRAGOON: score -= 1; break;
+              case UNITS_KIND_TREASURE:
+              case UNITS_KIND_ARTILLERY:
+              case UNITS_KIND_WAGON: score += 0x10; break;
               default: break;
             }
           }
@@ -4166,7 +4176,7 @@ static void ai_native_nation_pulse(
             ai_owner_nibble(map, u->x, u->y) == nation_id) {
           ColonizeCol1Indian* ind = &col1->indian[nation_id - 4];
           if ((int8_t)ind->muskets > 0 &&
-              (u->type_index == 0x13 || u->type_index == 0x15)) {
+              (u->type_index == UNITS_KIND_BRAVE || u->type_index == UNITS_KIND_MTD_BRAVE)) {
             u->type_index++;
             if (ai_rng_range(rng, 0, (int)col1->head.difficulty) == 0) {
               ind->muskets--;
@@ -4607,4 +4617,25 @@ int col1_kill_indian_nation(
   }
 
   return removed;
+}
+
+/*
+ * New-game / load hook (sibling of ai_euro_reset / ai_goals_reset /
+ * founding_fathers_reset / ai_contact_reset): zeroes this module's
+ * per-unit/per-pulse statics that would otherwise leak across a new game
+ * or Load in the same process. Restores each to its declaration-time
+ * initializer (the dangling ctx pointer to NULL; everything else to 0,
+ * matching how these arrays start at program launch).
+ */
+void ai_native_reset(void) {
+  s_ai_seed100_init_pulse = 0;
+  s_ai_seed100_midturn_turn = 0;
+  s_ai_lcg_in_pick = 0;
+  s_ai_lcg_pick_burns = 0;
+  s_ai_lcg_total_nexts = 0;
+  memset(s_brave_origin_x, 0, sizeof(s_brave_origin_x));
+  memset(s_brave_origin_y, 0, sizeof(s_brave_origin_y));
+  memset(s_brave_origin_ok, 0, sizeof(s_brave_origin_ok));
+  s_ai_native_ctx = NULL;
+  memset(s_ai_first_contact_this_turn, 0, sizeof(s_ai_first_contact_this_turn));
 }

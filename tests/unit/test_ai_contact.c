@@ -11,7 +11,7 @@
 #include "core/founding_fathers.h"
 #include "core/map.h"
 #include "core/turn.h"
-#include "core/units.h"
+#include "core/units_move.h"
 #include "core/village_trade_intel.h"
 
 #include <stdio.h>
