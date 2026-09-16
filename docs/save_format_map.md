@@ -219,7 +219,7 @@ Export often **zeros** unnamed colony bytes on rebuild ([savegame.md](savegame.m
 | `capitol_*` / `tech` / `tons` / `alarm_by_player` | — | `mapped` | |
 | `extinct` | 1 bit | `mapped` | bit7 of first unknown31 byte |
 | `lands_bought` | 1 | `mapped` | `FUN_479b_00ca` INC |
-| `unknown31_flags` | 1 | `partial` | Linux contact prelude bit `0x20` |
+| `unknown31_flags` | 1 | `opaque` | Confirmed unread by DOS 2026-09-09 (offset tally, smell #72); old Linux prelude bit `0x20` retired |
 | `muskets` / `horse_herds` | 2 | `mapped` | |
 | `horse_breeding` | 2 | `mapped` | ±0x32 acquire/tick (`FUN_5bfb_*` / `4d56`). Smcol: herds→breeding each turn; cash horses at ≥25; notes a DOS bug where only one tribe breeds and breeding += herds×(non-extinct count) |
 | `unknown31b`/`unknown31c` pads | 2 | `opaque` | Closed as no-reader pads |

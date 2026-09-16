@@ -1148,9 +1148,9 @@ static void write_stuff(FILE* f, const ColonizeCol1Stuff* s) {
   }
   fputc(']', f);
   wh(f, &n, "unknown_ds_947e_hex", s->village_counts_by_continent, sizeof s->village_counts_by_continent);
-  wh(f, &n, "unknown_ds_95f2_hex", s->unknown_ds_95f2, sizeof s->unknown_ds_95f2);
+  wh(f, &n, "unknown_ds_95f2_hex", s->continent_presence_flags, sizeof s->continent_presence_flags);
   wh(f, &n, "unknown_ds_94a6_hex", s->land_unit_counts_by_continent, sizeof s->land_unit_counts_by_continent);
-  wh(f, &n, "unknown_ds_94e6_hex", s->unknown_ds_94e6, sizeof s->unknown_ds_94e6);
+  wh(f, &n, "unknown_ds_94e6_hex", s->colony_counts_by_continent, sizeof s->colony_counts_by_continent);
   wh(f, &n, "unknown_ds_95b2_hex", s->field_combat_strength_by_continent, sizeof s->field_combat_strength_by_continent);
   wh(f, &n, "unknown_ds_9526_hex", s->skilled_unit_counts_by_continent, sizeof s->skilled_unit_counts_by_continent);
   wh(f, &n, "unknown_ds_918c_hex", s->unit_value_sum_by_continent, sizeof s->unit_value_sum_by_continent);
@@ -1204,9 +1204,9 @@ static void read_stuff(const JsonValue* o, ColonizeCol1Stuff* s) {
     }
   }
   json_get_hex(o, "unknown_ds_947e_hex", s->village_counts_by_continent, sizeof s->village_counts_by_continent);
-  json_get_hex(o, "unknown_ds_95f2_hex", s->unknown_ds_95f2, sizeof s->unknown_ds_95f2);
+  json_get_hex(o, "unknown_ds_95f2_hex", s->continent_presence_flags, sizeof s->continent_presence_flags);
   json_get_hex(o, "unknown_ds_94a6_hex", s->land_unit_counts_by_continent, sizeof s->land_unit_counts_by_continent);
-  json_get_hex(o, "unknown_ds_94e6_hex", s->unknown_ds_94e6, sizeof s->unknown_ds_94e6);
+  json_get_hex(o, "unknown_ds_94e6_hex", s->colony_counts_by_continent, sizeof s->colony_counts_by_continent);
   json_get_hex(o, "unknown_ds_95b2_hex", s->field_combat_strength_by_continent, sizeof s->field_combat_strength_by_continent);
   json_get_hex(o, "unknown_ds_9526_hex", s->skilled_unit_counts_by_continent, sizeof s->skilled_unit_counts_by_continent);
   json_get_hex(o, "unknown_ds_918c_hex", s->unit_value_sum_by_continent, sizeof s->unit_value_sum_by_continent);
