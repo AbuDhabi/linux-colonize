@@ -39,7 +39,7 @@ W4.3/W4.4 → deferred; W5.x → D4; W5.5 → D1/D3.
   (the "second-wave" picker) already filters through `colonies_can_found`
   too — no separate AI-side wiring needed. New `unit_colonies` regression
   test locks in the adjacency case distinctly from the occupied-tile case.
-  Full trace: [manual_gap.md](manual_gap.md) "Found colony" row.
+  Full trace: [manual_gap.md](../manual_gap.md) "Found colony" row.
 
 - [x] **W1.3 — Production / EOT formula fidelity — closed 2026-08-29.**
   Every sub-item below had already landed; the one thing still marked
@@ -55,8 +55,8 @@ W4.3/W4.4 → deferred; W5.x → D4; W5.5 → D1/D3.
   row: The economy loop runs
   end-to-end but several formulas are DOS-unconfirmed:
   - Manufacturing tier rates + class scale
-    ([building_production.md](building_production.md)).
-  - [terrain_yields.md](terrain_yields.md) "Still open", **2026-08-24 —
+    ([building_production.md](../building_production.md)).
+  - [terrain_yields.md](../terrain_yields.md) "Still open", **2026-08-24 —
     all 3 sub-items closed statically, golden re-verification still
     pending:**
     - Farmer/Fisherman expert flat `+2` vs `×2`: **confirmed correct as
@@ -79,7 +79,7 @@ W4.3/W4.4 → deferred; W5.x → D4; W5.5 → D1/D3.
       `FUN_15eb_0274()` is already ported as `colony_prod_sol_percent()`.
       `local_1c` is field-for-field `colony_prod_sol_bonus_field()`'s
       return value — not a separate, unnamed term. See
-      [terrain_yields.md](terrain_yields.md) "Field Farmer/Fisherman
+      [terrain_yields.md](../terrain_yields.md) "Field Farmer/Fisherman
       expert formula" for the full trace.
     - **Not independently re-verified against `golden_colony_prod01`/`02`**
       this pass — this worktree has no `COLONIZE/` original-asset
@@ -172,7 +172,7 @@ W4.3/W4.4 → deferred; W5.x → D4; W5.5 → D1/D3.
   (2 starters + 10 `valid-lategame-saves/COLONY*` + 7 `test-saves-ai/TURN*`,
   plus `mapgen/SEED100.SAV` and `tests-save-misc/unit flags error.sav`) are
   byte-identical on read→write — zero drift found. The "not byte-identical"
-  claim in `roadmap.md` (git history)/[savegame.md](savegame.md) dated from
+  claim in `roadmap.md` (git history)/[savegame.md](../savegame.md) dated from
   2026-08-22, 42 minutes *before* the same day's `753662d` "Fix FF + I work"
   commit fixed it (stash/restore of nation `unknown21_pad`
   `FF_POOL_STASH_MARKER` alongside `liberty_bells_last_turn` in
@@ -182,7 +182,7 @@ W4.3/W4.4 → deferred; W5.x → D4; W5.5 → D1/D3.
   coverage now, not just a smoke pass) — `ctest` green (41/42; the one
   failure, `unit_ai_king`, is pre-existing/unrelated, confirmed at baseline
   before this row's changes). No writer-side fix was needed. See
-  [save_format_map.md](save_format_map.md) and [savegame.md](savegame.md)
+  [save_format_map.md](../save_format_map.md) and [savegame.md](../savegame.md)
   Phase 5 for the dated writeup.
 
 - [x] **W1.6 — Mysteries catalog residue (doc/RE wins, low risk).** Worked
@@ -217,7 +217,7 @@ W4.3/W4.4 → deferred; W5.x → D4; W5.5 → D1/D3.
 
 - [x] **W1.7 — Colonist work-plot auto-assign (`FUN_15eb_28c8`) golden +
   wire — closed 2026-08-29, wire landed under W3.1.** RE is complete
-  ([colonist_work_plot_28c8.md](../original_sources_annotated/turn/colonist_work_plot_28c8.md));
+  ([colonist_work_plot_28c8.md](../../original_sources_annotated/turn/colonist_work_plot_28c8.md));
   a reference-only structural port ships
   (`ai_euro_28c8_colonist_job_score_structural`, `ai_euro.c`). Remaining:
   build a small golden fixture for colonist auto-assignment, verify the
@@ -266,7 +266,7 @@ W4.3/W4.4 → deferred; W5.x → D4; W5.5 → D1/D3.
   real work: resolve what `+0x1f`/`+0xb8` are on the colony record, what the
   profession→type selection actually produces as a defender's strength, and
   whether an empty colony can therefore ever repel an attacker. Cite:
-  [combat.md](combat.md) PARKED table.
+  [combat.md](../combat.md) PARKED table.
 
 ---
 
@@ -355,7 +355,7 @@ Verification can happen autonomously; the flip is a user decision
   `colonist_work_plot_28c8.md`). Supporting L2/L3 needs a `colony.h`
   layout change (save-bridge-adjacent) — scope + confirm before touching.
 - [x] **W3.4 (→ P10.3, done 2026-08-29) — Quarantine/remove legacy COLZ save path.**
-  [architecture.md](architecture.md) already sanctions "when convenient";
+  [architecture.md](../architecture.md) already sanctions "when convenient";
   still user-visible surface, so confirm timing.
 
 ---
@@ -365,7 +365,7 @@ Verification can happen autonomously; the flip is a user decision
 **Method note first:** 6 of 8 items ever filed in `ai_port_plan.md`'s Tier 4
 closed *without* a live session via byte-pattern search of the existing
 `dosbox-x-dumps/*` saves. Search those first; only ask the user after coming
-up empty. Live-debug workflow quirks: [dosbox_debugging.md](dosbox_debugging.md).
+up empty. Live-debug workflow quirks: [dosbox_debugging.md](../dosbox_debugging.md).
 
 - [x] **W4.1 — `@TOONEAR` threshold via DOSBox repro — moot, 2026-08-24.**
   Was only needed if W1.2's static trace failed; it didn't (see W1.2).
@@ -387,12 +387,12 @@ up empty. Live-debug workflow quirks: [dosbox_debugging.md](dosbox_debugging.md)
 
 ### (archived) Tier 5 — Polish / chrome (last)
 
-Per [project_goals.md](project_goals.md) acceptance order: never ahead of
+Per [project_goals.md](../project_goals.md) acceptance order: never ahead of
 gameplay/determinism. Most rows need the user's visual-fidelity judgement.
 
 - [ ] **W5.1 — VGA-identical dialog chrome** across the board: meet/diplo/
   king wood frames, chief portraits (`IND*.SS` — shipped but unloaded, see
-  [indians.md](indians.md)), TRADE route editor, FA `3f41` full widget,
+  [indians.md](../indians.md)), TRADE route editor, FA `3f41` full widget,
   Europe `@KISSUP`/`@KISSSORRY` and price rise/fall CHOICE boxes, boycott/
   market pressure chrome.
 - [ ] **W5.2 — Endgame cinematics.** Reworked 2026-08-30; only the demo
@@ -471,7 +471,7 @@ gameplay/determinism. Most rows need the user's visual-fidelity judgement.
     `FUN_41f2_14a8` retire chain (`@RETIRE` confirm → F10 → `0b70`
     exploits → `0f56` Hall of Fame → title) and the peacetime
     `@SCORED`/`@RETIRING`/`@SOONRETIRING` dialogs all landed 2026-08-29,
-    after this row was written. See [manual_gap.md](manual_gap.md)
+    after this row was written. See [manual_gap.md](../manual_gap.md)
     "Hall of Fame" / "Retire → score / HoF".
   - [ ] **Demo autoplay (`130d` tail) — open, needs an attract mode.**
     Traced 2026-08-30 (`viceroy_unpacked.asm:6890-7010`). Gated on the demo
@@ -503,7 +503,7 @@ gameplay/determinism. Most rows need the user's visual-fidelity judgement.
   withheld).
 - ~~**Not planned:** `COLDIG.BIN` digital SFX — settled negative~~ **Retracted
   2026-08-27**: triggers exist (AX-passed event ids, invisible in the
-  decompile); playback wired, see [assets.md](assets.md) "COLDIG.BIN".
+  decompile); playback wired, see [assets.md](../assets.md) "COLDIG.BIN".
 
 ---
 

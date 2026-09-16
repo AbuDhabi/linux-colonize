@@ -536,7 +536,7 @@ int combat_type_is_scout_name(const char* name) {
  * `t->attack > 0` here), nothing else. This is the ONE question DOS asks of
  * the type table:
  *
- *   FUN_5fef_0000 (viceroy_unpacked.c 99190):
+ *   FUN_5fef_0000 (opens at viceroy_unpacked.c 99111; this test at 99190):
  *     if (*(char *)(unit[i].type * 0xe + 0x5236) != '\0') break;   // pick it
  *   FUN_5fef_0352 capture gate (99380): a WINNER may flip a Colonist/Wagon
  *     only when its own 0x5236 byte is non-zero.

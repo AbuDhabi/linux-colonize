@@ -197,7 +197,7 @@ cargo) — it never gates whether the raise happens.
 
 The REF exists from turn 1 and nothing drains it before the declaration
 (`75c2:360b..3643`, `viceroy_unpacked_2.c:112436-112443`). Port:
-[`ai.c`](../src/core/ai.c) `ai_new_game` (wizard path),
+[`ai.c`](../src/core/ai.c) `ai_init_new_game` (wizard path),
 [`game_loop.c`](../src/core/game_loop.c) (save template + a load-time backfill to
 this floor for pre-WoI saves from older builds). `ai_king_do_declare` re-seeds
 **only** when all four pools are still zero — re-seeding at declare would shrink
@@ -293,7 +293,7 @@ Two independent things, neither of which is a difficulty band:
    latch at `:74493`). After that latch, the per-turn free drain
    (`FUN_43f7_2022`, `:75007`) keeps landing forces every turn while
    `backup_force[2]` (the MoW pool) is nonzero. Each landing
-   (`FUN_43f7_10f0`, `:74378-74449`, `ai_king_foreign_intervene_ex`) is spawned
+   (`FUN_43f7_10f0`, `:74378-74449`, `ai_king_10f0_land` and its `ai_king_10f0_*` helpers) is spawned
    for the **human's** nation — the intervention force is player-controlled — and
    is fixed at six land units plus a hull, with no difficulty term:
 
@@ -383,7 +383,7 @@ Harder → more expensive for the human, cheaper for AI.
 
 ### Conquest treasure
 
-[`units_cortes_conquest_treasure_gold`](../src/core/units.c): difficulty clamped to
+[`units_conquest_treasure_gold`](../src/core/units.c): difficulty clamped to
 bands **0..3** (Governor and Viceroy share band 3). Per-band RNG ranges /
 multipliers; final gold = `amount * 100`. Cortes / Spanish / rich-capital modifiers
 layer on top (see function body).

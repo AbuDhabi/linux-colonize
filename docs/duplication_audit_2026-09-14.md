@@ -1,11 +1,15 @@
 # Code duplication audit — 2026-09-14
 
 Inventory of duplicated, near-duplicated, and unused code across `src/`, `tests/`,
-`tools/`, `scripts/` and `CMakeLists.txt`. **No code was changed.** Every row is a
-candidate for a later merge/delete decision; "Suggested action" is the auditor's
-proposal, not a commitment. Fidelity rules in [project_goals.md](project_goals.md)
-still apply: several rows are marked *keep* because the duplication is a
-DOS-literal split that must not be folded.
+`tools/`, `scripts/` and `CMakeLists.txt`. **The inventory below changed no code** —
+every row was a candidate for a later merge/delete decision and "Suggested action" is
+the auditor's proposal, not a commitment. The fix passes that acted on it ran the same
+day and the day after; what actually landed is in
+[Resolution](#resolution--2026-09-14-fix-pass) and
+[Round 2](#round-2--2026-09-15-sweep). **Line/row citations are as of the audit run
+(2026-09-14, pre-fix); many files have since shrunk, so cite by symbol, not by line.**
+Fidelity rules in [project_goals.md](project_goals.md) still apply: several rows are
+marked *keep* because the duplication is a DOS-literal split that must not be folded.
 
 ## Method
 

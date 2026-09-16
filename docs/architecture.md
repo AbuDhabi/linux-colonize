@@ -54,7 +54,7 @@ From [`CMakeLists.txt`](../CMakeLists.txt):
 
 | Target | Contents | Links |
 |--------|----------|-------|
-| **`colonize_core`** (STATIC) | All `src/core/*.c`, `src/data/viceroy_tables.c`, `platform/diagnostics`, `platform/dos_compat` | `m`, `pthread`; optional FluidSynth |
+| **`colonize_core`** (STATIC) | Every `src/core/*.c` **except `ai_contact_link_stubs.c`** (slim-test link stubs only — see the file header), plus `src/data/viceroy_tables.c`, `platform/diagnostics`, `platform/dos_compat` | `m`, `pthread`; optional FluidSynth |
 | **`colonize_linux`** (EXE) | `src/main.c` + `platform/linux_sdl2/sdl_runtime.c` | `colonize_core` + SDL2 |
 | **Tests** | `tests/smoke/` (`smoke_*`), `tests/unit/` (`unit_*`), `tests/golden/` (`golden_*`) | Mostly `colonize_core` (headless); see [`tests/README.md`](../tests/README.md) |
 
@@ -90,7 +90,7 @@ Cluster table (not every file). Paths are under `src/core/` unless noted.
 | **Save / Col1** | `savegame`, `col1_save`, `col1_bridge`, `col1_post_map`, `col1_stuff_census` | DOS `COLONY##.SAV` interop |
 | **Settings** | `settings.c/.h`, `json_min.c/.h` | Port-only `settings.json` preference file (see [settings.md](settings.md)) |
 | **Assets / art** | `assets`, `madspack`, `pik`, `ss`, `ff`, `font`, `debug_atlas` | Catalogs + MADSPACK decode |
-| **UI primitives** | `popup`, `popup_msg`, `ui_button`, `ui_drag`, `ui_colors`, dialogs (`save_load`, `options`, `pick_music`, …) | Wood/list modals |
+| **UI primitives** | `popup`, `popup_msg`, `ui_button`, `ui_drag`, `ui_colors`, dialogs (`save_load_dialog`, `options_dialog`, `pick_music`, …) | Wood/list modals |
 | **Screens** | `new_game`, `pedia`, `reports`, `founding_fathers` | Wizard / advisors / FF |
 | **Audio** | `gsound_vm.c/.h`, `sound.c/.h` | Literal `GSOUND.COL` driver emulation + DOS BGM scheduler, `COLDIG.BIN` SFX mixing, FluidSynth when present |
 | **RNG / util** | `dos_rng`, `strutil`, `version.h` | DOS LCG fidelity |
@@ -235,14 +235,15 @@ greenfield redesign or a mandated `game_loop` rewrite phase.
 
 - **Col1** is the only save path (legacy COLZ removed 2026-08-29).
 - Keep headless smoke/unit suites as architecture checks for simulation
-  regressions. The joint AI golden gate (`golden_ai_joint`) and
-  `golden_ai_turns` under it are **PARKED / DISABLED** as of 2026-08-19 —
-  they chase bit-exact DOS parity against an AI planner that is still only
-  structurally/T0-T1 ported, so a red run means "porting incomplete", not
-  "regression"; see [port_plan.md](port_plan.md) R0. Re-enable
-  them as real architecture checks only once AI transcription is complete.
-  `golden_ai_mid01` / `golden_ai_late01` came back off that list on
-  2026-08-27 and do run as regression gates today.
+  regressions. The AI cluster is **fully live** again: `golden_ai_turns` and
+  the joint smoke pair (`smoke_ai_mid01` / `smoke_ai_late01`, renamed from
+  `golden_ai_*` 2026-09-14) all run in a default `ctest`, and no test carries
+  a `DISABLED` property in [`CMakeLists.txt`](../CMakeLists.txt). The parking
+  that started 2026-08-19 ended 2026-09-05 (port_plan T1.23 / T3.3).
+  `golden_ai_joint` is a **build-only convenience target** that re-runs the
+  six gates in one shot (`cmake --build build/debug --target golden_ai_joint`); it
+  has no `add_test()` registration, because each of the six is already its
+  own ctest test.
 
 ### Explicitly not intended (unless decided elsewhere)
 

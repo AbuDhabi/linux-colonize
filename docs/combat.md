@@ -487,7 +487,7 @@ sitting in it, under its old flag. Nothing is sunk and nothing is seized —
 the `0512` destroy texture belongs to `FUN_43f7_0512` (the crown REF landing
 seizure, `ai_king.c`), not here.
 
-The port could not express that: `units_foreign_at` counted the hull, and an
+The port could not express that: `units_foreign_unit_at` counted the hull, and an
 armed hull (attack > 0) also survives `units_seize_noncombat_at`, so a berthed
 Frigate held the tile "contested" forever and no land force could take the
 port. Both post-win gates now use `units_domain_blocker_at` (`units.c`), which
@@ -713,7 +713,7 @@ spawn + fort VGA chrome.
 | Best defender | Done | `units_best_defender_at` |
 | Colony / village / terrain / fortify site | Done | `015e` |
 | `1b0e` peels | Done | Colony REF +50%; Tory/Rebel support % Done |
-| `1b0e` combat-entry MP surcharge ("ship-slow") | Done | 2026-08-24: `unit+0x3149 += 3` on every attack, win or lose, stacked on the normal step cost — `units_try_move`'s `combat_attack_mp_surcharge`. Land units usually fully drained either way; ships retain leftover MP (genuinely "slowed"). 2026-09-03: the 465b MP overspend ROLL never denies an attack (`(04ca, bVar4)` third clause of the gate is the attack flag) — the port used to roll after the fight, which could beat a colony's defender yet refuse the capturing entry |
+| `1b0e` combat-entry MP charge (full exhaust) | Done | **Re-derived 2026-09-10; there is no "ship-slow".** `FUN_5fef_1b0e` does `spent += 3` at entry (raw 100341-100343) but then calls `FUN_281f_0934` under the same attack flag (100381-100383) → `FUN_1427_155e` writes `spent = FUN_1427_065a(unit)`, the full max allotment (raw 8880-8888), so the `+3` is a dead store. Attacking exhausts the piece — win or lose, ships included. `FUN_465b`'s per-tile step cost and shore-crossing exhaust both sit inside `if (!bVar4)` (raw 75639-75648), so an attacker pays neither. Port: `units_try_move`'s `combat_attack_entry` flag routes all four outcome sites through `units_mp_exhaust`, charged *after* the resolve because the fatigue peel reads entry-remaining. Entry gate (raw 100359-100372): under 3 thirds remaining the attack is refused outright for natives/crown and for any AI-controlled Euro slot; only the interactive human gets the `@HALF` tired-attack CHOICE. 2026-09-03: the 465b MP overspend ROLL never denies an attack (`(04ca, bVar4)` third clause of the gate is the attack flag) |
 | Promote / demote / capture / treasure | Done | Ransom Accept/Refuse Done; wagon/colonist capture Done |
 | Naval damage / sink / plunder | Done | Close-fight escape path Done; Privateer `@SEIZURESEA` |
 | Combat Analysis | Done | Options-gated dual column |
@@ -780,7 +780,7 @@ spawn + fort VGA chrome.
 | `FUN_157e_004a` | `combat_unit_base_x8` |
 | `FUN_157e_015e` | `combat_engagement_strength` |
 | `FUN_157e_0008` / `15eb_038e` | village probe count |
-| `FUN_5fef_1b0e` | `combat_apply_1b0e_peels` + resolve roll shell + `units_try_move`'s combat-entry MP surcharge (ship-slow) |
+| `FUN_5fef_1b0e` | `combat_apply_1b0e_peels` + resolve roll shell + `units_try_move`'s combat-entry full MP exhaust (`combat_attack_entry`) |
 | `FUN_5fef_0000` | `units_best_defender_at` |
 | `FUN_5fef_0352` | `units_apply_land_loss_outcome` |
 | `FUN_5fef_0ec0` | `units_sweep_stack_after_loss` |

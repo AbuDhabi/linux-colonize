@@ -11,6 +11,7 @@ modals (GAME.TXT `@SECTION`s vs port Done/Partial/Missing): [popups.md](popups.m
 | Status | Meaning |
 |--------|---------|
 | Done | Playable roughly as the manual describes |
+| Done thin | Behaviour is there and correct, but the presentation is port-drawn rather than DOS-exact |
 | Partial | Shell, stub, or simplified behavior |
 | Missing | Not meaningfully implemented |
 
@@ -118,7 +119,7 @@ Deep mechanics (expected vs Linux by context): [unit_orders.md](unit_orders.md).
 | Liberty bells / crosses counters | Partial | Accumulators; FF election via `founding_fathers_tick` |
 | Full production formulas, spoilage, boycotts | Partial | SoL/Tory net mod (`colony_prod_sol_bonus`); warehouse spoilage clamp EOT (`colonies_apply_warehouse_spoilage` / FUN_15eb_0a50); boycotts structural diplo |
 | Market prices driven by trade volume | Partial | Buy/sell update `trade_nr` + FUN_38fd_0058 rise/fall; EOT tick byte-exact vs two DOS turn pairs (`golden_market_prices01`, P6.1); `@PRICEUP`/`@PRICEDOWN` are real OK popups (not a status line). Per-cargo residual / VGA box polish still thin — [europe_nation_eot.md](../original_sources_annotated/turn/europe_nation_eot.md) |
-| Turn order: natives first, then EN→FR→SP→DU | Partial | Human-centric; Euro sail + Indian growth/pulse; King/REF structural — [port_plan.md](port_plan.md) |
+| Turn order: natives first, then EN→FR→SP→DU | Done | The manual's "natives first" is **not** what DOS `130d` runs: relative to the human's end of turn it is Euro slots above the human → Indian mid-pass → Euro slots below, then the king. `turn_processor_advance` splits `TURN_PROC_EURO` around `TURN_PROC_INDIAN` the same way, with `TURN_PROC_KING` after FINISH — [turn_between_players.md](turn_between_players.md) |
 
 ### Indians
 
@@ -126,7 +127,7 @@ Topic hub (graphics, units, settlements, alarm, contact): [indians.md](indians.m
 
 | Manual feature | Status | Notes |
 |----------------|--------|-------|
-| Villages on map + Braves | Partial | Map/minimap icons + placement + quiet pulse / growth / residual overlays (R0 partial: t1 empty, ~50 on t2–t6); see [port_plan.md](port_plan.md) |
+| Villages on map + Braves | Done | Map/minimap icons + seed-100 placement + `152e` growth and the `021a` Brave picker, all live gates (`golden_mapgen_seed100`, `golden_ai_turns`). Residue is the six `k_mid_peels` near-tie rows (D3 determinism debt), not missing behaviour — see [port_plan.md](port_plan.md) |
 | Meet menus, trade, teach skills | Partial | Real DOS `@ACTIONS` meet menu with per-unit gating (`FUN_4d56_4528` human arm, `port_plan.md` P8.8, 2026-08-28) — Trade / hostile-village / Speak With Chief / Establish Mission / Denounce / Live Among / Demand Tribute / Attack; village trade rewritten against the clean `2820` recovery 2026-08-29 (real quantities and buy/sell ordering). Deep `2820` haggle / hard-bargain sub-loops PARKED on the T4.4 live capture; VGA chrome PARKED — [port_plan.md](port_plan.md) |
 | Missions / convert / incite | Partial | Adjacent Missionary → `tribe.mission` + crosses; convert UI **Done** structural (`@INDIANSCONVERT` colony name); foreign-mission heresy: the human Denounce menu action uses DOS's real weighted roll (`a594` → `ai_contact_denounce_heresy`, `@HERESY0/1`, 2026-08-28), the AI-side auto pulse is still the invented 50/50 (`ai_contact_missionary_convert`); HELLO1/2 greet **Done** thin; raid surprise/war chrome **Done** thin; incite/WARPATH gold **Done** for both arms (`FUN_4d56_417e` → `ai_contact_apply_incite`, 6th village-meet CHOICE; AI Missionary auto-incite `ai_contact_ai_incite_human` 2026-08-27, `port_plan.md` T4.5; [`indian_incite_417e.md`](../original_sources_annotated/ai/indian_incite_417e.md)) |
 | Alarm, raid, Indian wars | Partial | Structural contact/raids (`ai_contact_*`, `@RAID*` tribe+colony status + ambush WIN1/2 / surprise / war); colony encroachment **Done** thin; player dialog **Done** structural (`ai_popup`); `4528` **Done** 2026-08-27/28 (both arms); deep `2820` haggle still PARKED |
@@ -137,7 +138,7 @@ Topic hub (graphics, units, settlements, alarm, contact): [indians.md](indians.m
 |----------------|--------|-------|
 | Land / naval attack | Done | Playable bar + fort bit7/Drydock + `20e6` combat peels Done thin; the village arm is now the full `4528` action dispatch (P8.8 human menu incl. Attack Village, AI attack via `ai_euro_land_try_adjacent_village_seize`), not the old invented warn CHOICE. Deep −0x6790/VGA/`2820` haggle PARKED — [combat.md](combat.md) |
 | Capture colony | Partial | `colonies_capture` on player enter (empty/cleared foreign Euro) + AI / combat paths; Indian raid abandons — [combat.md](combat.md) |
-| Stockade / fort / fortress defense % | Done | Live land combat via `157e` `local_1a`; coastal Fort/Fortress fire `units_coastal_fort_fire_pulse`. MP ship-slow + close-hit bit7 + Drydock repair Done — [combat.md](combat.md) |
+| Stockade / fort / fortress defense % | Done | Live land combat via `157e` `local_1a`; coastal Fort/Fortress fire `units_coastal_fort_fire_pulse`. Attack MP (full exhaust, 2026-09-10) + close-hit bit7 + Drydock repair Done — [combat.md](combat.md) |
 | Rival war / peace / privateers | Partial | Euro bilateral war/ally/peace + Furs embargo + Privateer spawn (`ai_diplo_*`); Indian×Euro matrix + fuller `153e` **Done** structural (unpark #5); FA `3f41` / 8g prize PARKED |
 
 ### Founding Fathers and independence
@@ -155,7 +156,7 @@ Topic hub (graphics, units, settlements, alarm, contact): [indians.md](indians.m
 | Manual feature | Status | Notes |
 |----------------|--------|-------|
 | Rival starter fleets + sail to landfall | Done | NEW WORLD: `FUN_684c` HS-rim landfalls + Europe exit via landfall goto (`48d3_048e` / `ai_euro_unit_act`); seed-100 early fixture still gated — [port_plan.md](port_plan.md) |
-| Unload, found colonies, combat, colony AI | Partial | **T2 early:** unload/found (`golden_ai_turns`); full-dispatch expand/war/scout/tools/fields thin; mid-game `5d04` ship-buy+war/peace shortage hire past colonies≥6 **Done**; Col1 colony AI/flags (incl. SoL latches) + BUY `hammers_purchased` + `depletion_counter` wrap + `warehouse_level`/`capitol_level` **Done**; land `20e6` arms structurally ported 2026-08-27 (`port_plan.md` T1.18: explorer flag, SCOUT/PATROL, explore-ring scoring, 8-direction wander, epilogue commit — the old "unpark #4" is closed); six thin pieces closed 2026-09-06 (LAB_52aa odds tail, explore-plane site nibble, `−0x6168` rival strength, `0x4c` village arms, colonist labor loop, ship per-cargo unload mask — port_plan.md 20e6 row); deep −0x6790 PARKED |
+| Unload, found colonies, combat, colony AI | Done | Not claimed 1:1. Rival-Euro AI closed at logic level 2026-09-07g (D1): `0a60` goals, `5d04` hire ladder (the invented Linux matrix is deleted), `20e6` land arms with the `3558` cargo matrices, colony tick and Col1 colony flags/SoL latches, BUY `hammers_purchased`, `depletion_counter` wrap, `warehouse_level`/`capitol_level`. Gates: `golden_ai_turns`, `smoke_ai_mid01`/`late01`. What is left is fidelity hardening (step scorer not T3) and the deep `−0x6790` body, still PARKED — [port_plan.md](port_plan.md) per-module table |
 
 ### Win / end sequences
 

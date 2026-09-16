@@ -822,7 +822,7 @@ of several of these thunks is reloc-`0000` garbage):
 | `FUN_281f_0722` | `FUN_137f_02a0` | continent id of (x,y) | `map_continent_id_at` |
 | `FUN_281f_06dc` | `FUN_137f_0200` | tile owner nibble (`0xf` → −1) | `ai_owner_nibble` |
 | `FUN_281f_06d2` | `FUN_137f_0428` | settlement (layer2 `0x02`) **or** unit (`0x01`) at tile | `ai_layer2_at & 3` |
-| `FUN_281f_0704` | `FUN_137f_0228` | stamp tile owner nibble | `ai_set_owner_nibble` |
+| `FUN_281f_0704` | `FUN_137f_0228` | stamp tile owner nibble | `ai_set_owner_nibble_move` |
 | `FUN_281f_0c5e` | `FUN_15eb_0470` | Town-Hall ring tier → `DS:0x329[2..4]` | 8 tiles (P4.2 decision) |
 
 **`152e` — no stubs left.**

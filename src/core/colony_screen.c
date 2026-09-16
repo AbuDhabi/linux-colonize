@@ -1419,7 +1419,6 @@ static void colony_screen_draw_area_overlays(
   const ColonizeWorldMap* map,
   const ColonizeCol1Save* col1,
   const ColonizeFont* font,
-  bool debug_rects,
   ColonizeFramebuffer8* framebuffer
 ) {
   if (!view || !colony || !map || !framebuffer) {
@@ -4557,9 +4556,7 @@ void colony_screen_render(
   colony_screen_fill_wood_tile(view, framebuffer);
   if (colony && map && terrain) {
     colony_screen_render_minimap(map, terrain, phys0, colony->x, colony->y, framebuffer);
-    colony_screen_draw_area_overlays(
-      view, pool, colony, units, map, col1, font, debug_building_rects, framebuffer
-    );
+    colony_screen_draw_area_overlays(view, pool, colony, units, map, col1, font, framebuffer);
   }
   if (view && view->bottom_panel_ok) {
     pik_blit(&view->bottom_panel, framebuffer, 0, COLONY_BOTTOM_PANEL_Y);

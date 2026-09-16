@@ -11580,7 +11580,6 @@ int units_top_on_map_tile(
 
 void units_render_on_map(
   const ColonizeUnitPool* pool,
-  const ColonizeColonyPool* colonies,
   const ColonizeSpriteSheet* nation_sheet,
   const ColonizeFont* font,
   ColonizeFramebuffer8* framebuffer,

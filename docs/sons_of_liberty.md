@@ -237,8 +237,7 @@ Gate is human control (decomp), not WoI / independence.
 ## Score
 
 Manual: +1 Colonization Score per point of rebel sentiment (empire-wide).
-Port: [`reports_rebel_sentiment_pct`](../src/core/reports.c) /
-[`reports_compute_score`](../src/core/reports.c) — reads `nation.
+Port: [`reports_compute_score`](../src/core/reports.c) — reads `nation.
 rebel_sentiment` (nation+0x19) directly (confirmed exact against
 `dutch-reports.SAV`/score.png: 94). A pop-weighted recompute from each
 colony's `rebel_dividend`/`rebel_divisor` was tried first and looked

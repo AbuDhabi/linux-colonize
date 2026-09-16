@@ -139,7 +139,7 @@ stateDiagram-v2
 | Command | When | Expected (DOS) | Linux | Status |
 |---------|------|----------------|-------|--------|
 | Fortify (land) | ORDERS / **F**; `FUN_2b5a_1112` | Order 5; exhaust MP; overnight → 6 (`479b_0b6c`) | `units_order_fortify` + refresh | Done |
-| Anchor (ship) | 2nd Fortify menu / `@SHIPOPTIONS` | Sea unit at own colony or adjacent sea → fortify path | `units_order_anchor` | Done |
+| Anchor (ship) | 2nd Fortify menu / `@SHIPOPTIONS` | Sea unit at own colony or adjacent sea → fortify path | `MAP_MENU_ACTION_ANCHOR` → `game_order_fortify` (same handler as the land row) | Done |
 | Fortified | Overnight | Skip selection until woken; combat defense context-dependent | Skip via `units_orders_skip_turn` (bonus → [combat.md](combat.md)) | Done |
 | Sentry | ORDERS / **S** | Order 1; exhaust MP; skip until wake | `units_order_sentry` | Done |
 | Sentry auto-board | Ship leaves tile | Same-tile Sentry land board to capacity | `units_board_sentries_from_tile` | Done |

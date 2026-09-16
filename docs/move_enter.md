@@ -92,7 +92,7 @@ Village deep `2820` VGA trade, full `465b` foreign diplo/war UI, Euro mid-planne
 `4528` is fully dispatched (human `@ACTIONS` menu P8.8 + AI arm, 2026-08-27/28) — [combat.md](combat.md).
 
 **Playable combat bar Done** — see [combat.md](combat.md) (ransom CHOICE, `@CAPTURED*`/
-`@BURNED*`, unit capture / seizure popups, MP ship-slow).
+`@BURNED*`, unit capture / seizure popups, attack-exhausts-MP).
 
 ## See also
 

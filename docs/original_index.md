@@ -159,12 +159,12 @@ one exists.
 | `FUN_281f_0590` | Fill helper (turn box) | turn indicator draw |
 | `FUN_1984_00aa` | Nation turn-owner 5×3 at (315,197) | [turn.c](../src/core/turn.c) |
 | `FUN_43f7_05f4` | `@COUNTRY` → DS color table | turn / UI colors |
-| `FUN_4d56_152e` | Indian village growth | [ai.c](../src/core/ai.c) (partial); [port_plan.md](port_plan.md) |
+| `FUN_4d56_152e` | Indian village growth | **Done 2026-09-06d** — `ai_indian_152e_village_growth` in [ai.c](../src/core/ai.c) ([port_plan.md](port_plan.md) AI inventory) |
 | `FUN_4d56_1816` | Indian nation turn | **partial** (structural phases + quiet pulse + `ai_contact_*`; `4528` Done 2026-08-27/28, `2820` rewritten 2026-08-29; deep `2820` haggle / VGA PARKED) |
 | `FUN_6a09_0006` | Tribe placement | ai / map gen (T2 seed-100) |
-| `FUN_521d_6d8e` | Euro AI dispatcher | **partial** (`ai_euro.c` skeleton + `ai_euro_early_turn` / `golden_ai_turns`) |
-| `FUN_521d_0a60` / `5d04` | Euro unit goals / planning | **partial** (`0a60` goal-consumption tail + `5d04` hire ladder ported; T3.1 closed 2026-08-27) |
-| `FUN_521d_20e6` / nested `5b66` | Move scoring / unit act | **partial** (land arms structurally ported 2026-08-27; six thin pieces closed 2026-09-06 — LAB_52aa odds tail, site nibble, `−0x6168`, `0x4c` arms, labor loop, ship unload mask; sail matrix / haul tails still thin) |
+| `FUN_521d_6d8e` | Euro AI dispatcher | **Done as a dispatcher** (entry `ai_euro_nation_turn` in `ai.c` → `ai_euro.c` phases; gate `golden_ai_turns`) — not claimed 1:1 ([port_plan.md](port_plan.md) per-module table) |
+| `FUN_521d_0a60` / `5d04` | Euro unit goals / planning | **fully live 2026-09-07d-e** (`0a60` goal-consumption tail; `ai_euro_5d04_hire_ladder_tail` is the only Europe hire economy — the invented Linux matrix is deleted) |
+| `FUN_521d_20e6` / nested `5b66` | Move scoring / unit act | **structurally done, cargo/boarding/census arms live** (land arms 2026-08-27; six thin pieces closed 2026-09-06; `3558` cargo matrices ported 2026-09-08) — step scorer not T3 |
 | `FUN_6a9f_0118` | Map viewport tile loop | [map.c](../src/core/map.c) / map_panel |
 | `FUN_15eb_06d2` | Shared world-map / pedia draw entry | map / pedia |
 | `FUN_1427_065a` | Tile display (reads DS `0x5234`) | [viceroy_tables.md](viceroy_tables.md) |

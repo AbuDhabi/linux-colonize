@@ -11,16 +11,17 @@ Version: **0.5-alpha**.
 Playability tracks P1–P11 closed 2026-09-03. Strong on shell, map art,
 navigation, reports / pedia, Col1 save/load, units / naval passengers, founding
 a colony, Europe buy/sell/recruit/hire/equip, rumours/treasure (incl.
-KINGGALLEON2), structural Indian contact and diplomacy, king/REF, FF election
-(all 25 Fathers), and trade routes. Euro AI is past the structural stage
-(`20e6` land planner + `5d04` mid-planner, August 2026). Music is a literal
-`GSOUND.COL` driver emulator; `COLDIG.BIN` SFX are wired (leftover misfires
-are polish).
+KINGGALLEON2), Indian contact and diplomacy, king/REF, FF election
+(all 25 Fathers), and trade routes. The rival-European and Indian AI tracks
+closed at logic level on 2026-09-07/08 (`0a60`/`5d04`/`20e6` and
+`2820`/`2154`/`4528`/`152e`/`1816`/`021a`); what is left there is fidelity
+hardening, not missing planner arms. Music is a literal `GSOUND.COL` driver
+emulator; `COLDIG.BIN` SFX are wired (leftover misfires are polish).
 
 Remaining work is incoming [bugs.md](bugs.md) nits, production / combat depth
-on the Partial rows in [manual_gap.md](docs/manual_gap.md), and the deferred
-tracks (1:1 rival/Indian AI, seed determinism, pixel-exact dialog chrome,
-SC-55 timbre).
+on the Partial rows in [manual_gap.md](docs/manual_gap.md), and the still-open
+deferred tracks: known-seed determinism residue (D3), pixel-exact dialog
+chrome and VGA meet chrome (D4), SC-55 timbre (D5).
 
 Living status:
 

@@ -88,7 +88,7 @@ when the king runs (bugs.md 400/404/407).
 
 | Step | Linux | DOS |
 |------|-------|-----|
-| King / REF | `turn_run_king_stub` → `ai_king_nation_turn` | `FUN_43f7_2424` via `291f_0a66` **inside** `3844_00f2` |
+| King / REF | `TURN_PROC_KING` step in `turn.c` → `ai_king_nation_turn` | `FUN_43f7_2424` via `291f_0a66` **inside** `3844_00f2` |
 | Year-end chrome | `turn_run_year_end_chrome` | `FUN_3844_0442` section B (thin) |
 | Europe market | `europe_tick_market_prices` + one `@PRICEUP`/`@PRICEDOWN` OK dialog per cargo that crossed | `FUN_38fd_0058` (sibling of nation EOT `38fd_5e52`), phase 4 |
 | Human fog + MP refresh | `turn_reveal_fog_for_nation` + `turn_refresh_moves_for_nation` | Human refresh at act entry |

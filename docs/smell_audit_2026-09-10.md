@@ -4,7 +4,13 @@ Nine-area Opus sweep (units/combat, game_loop/turn, ai_euro, native/king AI, col
 save/bridge, Europe/reports/FF, map/UI/popup, assets/sound/platform — the last never swept
 before). Successor to docs/smell_audit_2026-09-09.md (closed); each section deduped against
 it by substance. Much of the signal is defects created or left behind by the fix waves that
-closed the prior audit. Findings pending user review; nothing fixed. Confidence H/M/L.
+closed the prior audit. Confidence H/M/L.
+
+**Status: CLOSED.** Seven fix waves (2026-09-10) worked every finding and every follow-up
+lead; 109 items carry an inline RESOLVED note and 2 are REFUTED. The "pending user review;
+nothing fixed" framing below was true only on the day of the sweep. The three DEFERRED
+sections near the end are the exception: those are DOS bodies deliberately left unported
+(decision-level, not defect-level), and they stay open as porting work.
 Line numbers as of HEAD 9e1a38f. Finding ids: section letter + local number (e.g. D1).
 Sections also record verified-clean areas and refuted hypotheses so the next sweep skips them.
 
@@ -1516,7 +1522,9 @@ madspack/ss/pik/ff failure paths have no leaks or double frees.
 14. `build/debug/sav_json` still segfaults on every `original_saves/**/*.SAV` tried
     (dutch-campaign/COLONY01 as well as the known COLONY02) — it is now useless as
     a fixture-verification tool, which is why this wave's View-Pieces survey decoded
-    the head bytes by hand. Head offsets for anyone doing the same: DS:0x5380 sits at
+    the head bytes by hand. **RESOLVED since: re-verified 2026-09-16 over all 57
+    `original_saves/**/*.SAV` fixtures — 0 failures.** Note the tool writes its
+    `.json` next to the INPUT file, so copy the save to a scratch directory first. Head offsets for anyone doing the same: DS:0x5380 sits at
     file offset **16**, so `map_mode` +32, `active_unit` +34, `nation_turn` +36,
     `tribe_count` +42, `unit_count` +44, `colony_count` +46, `turn_loop_running` +82,
     `map_modal_active` +84, `no_unit_selected` +86.
@@ -1524,7 +1532,8 @@ madspack/ss/pik/ff failure paths have no leaks or double frees.
     `ai_euro.c:16721` ("99190-99196") and `combat_strength.c:541`, which cites 99190
     as the *function* address — `FUN_5fef_0000` opens at viceroy_unpacked.c:99111 and
     its domain gate is 99186-99195. Left alone this wave to avoid touching files other
-    agents held.
+    agents held. **RESOLVED 2026-09-16** — both comments now name the opening line and
+    the cited range explicitly.
 16. `col1_bridge_capture` now takes `view_pieces_mode`, and `game_apply_col1_save`
     no longer ANDs `head.map_mode` with "nothing selected". That makes
     `view_pieces_mode == true` with `selected_id >= 0` reachable in the port for the

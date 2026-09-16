@@ -1,6 +1,11 @@
 # Mechanics smell audit — 2026-09-08
 
-Eight-subsystem sweep for bug-smells (counter-intuitive logic, doc/DOS contradictions, invented mechanics, asymmetries). Findings pending user review; items marked FIXED are done, rest open. Confidence: H/M/L. Items marked DOC are documentation-only.
+**Status: CLOSED.** Worked off in fix batches 1-11 (2026-09-08 → 2026-09-09); 106 of the 107
+items carry an inline FIXED / REFUTED / WONTFIX note. Kept as the record of what was decided
+and why, not as a work queue. Successor sweeps: [smell_audit_2026-09-09.md](smell_audit_2026-09-09.md),
+[smell_audit_2026-09-10.md](smell_audit_2026-09-10.md).
+
+Eight-subsystem sweep for bug-smells (counter-intuitive logic, doc/DOS contradictions, invented mechanics, asymmetries). Confidence: H/M/L. Items marked DOC are documentation-only. Line numbers are as of the sweep date.
 
 **FIXED 2026-09-08 (batch 1):** cross-cutting inversion, combat #1, #2, #7, Europe #51, FF #82. Details per item below. ctest 60/60 + goldens green after.
 
