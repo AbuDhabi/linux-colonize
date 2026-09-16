@@ -8,7 +8,7 @@
 #include "platform/diagnostics.h"
 
 /*
- * Per-glyph frame counts are DOS literals (FUN_43f7_160a local_520), not a
+ * Per-glyph frame counts are DOS-LITERALS (FUN_43f7_160a local_520), not a
  * function of the sheet: 10 for an upper-case letter or the flourish, 7 for
  * a lower-case one. They line up with the shipped art — DEC-UPP*.SS and
  * DEC-SQIG.SS hold 11 sprites, DEC-LOW*.SS 8, and sprite 0 of every sheet

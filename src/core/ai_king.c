@@ -49,10 +49,10 @@
  *   is unused for this now (was an invented gate, see king_ref.md).
  * 160a: signing cinematic only (core/declaration.c, armed from game_loop on
  *   the KING_LETTER popup). No country rename — "United Colonies" was a port
- *   invention (bugs.md 245); WoI faction labels are Rebels/Tory via
+ *   invention (bugs.md #239); WoI faction labels are Rebels/Tory via
  *   units_combat_nation_label. unknown46[4] endgame latch: 0/1 won/2 lost.
  *   @HOWTOWIN fires at first rebel recapture (units.c), not at declare
- *   (bugs.md 242).
+ *   (bugs.md #236).
  * Congress confirm: head.unknown46[5] + thin 2564 (ai_popup CHOICE from
  *   GAME.TXT @DECLARE Never/Yes when ctx->ai_popups; auto-declare when NULL;
  *   same-turn 1528 may overwrite status).
@@ -649,7 +649,7 @@ static int ai_king_force_total(const uint16_t force[4]) {
  * after it. Every King landing now goes through 10f0's own colony
  * roulette + water-tile scoring + Man-O-War transport, which is what DOS
  * does; a caller-chosen `(hx, hy+1)` could drop troops in the ocean
- * (bugs.md 261). Do not reintroduce it.
+ * (bugs.md #255). Do not reintroduce it.
  */
 
 static void ai_king_set_ref_present(ColonizeCol1Save* col1, int on) {
@@ -814,7 +814,7 @@ int ai_king_sol_percent(const ColonizeTurnContext* ctx, int nation_id) {
    * divide the second by the first. No colonies (or a zero pop sum) returns
    * the untouched accumulator, i.e. 0.
    *
-   * NO `liberty_bells_total / 4` STAND-IN (bugs.md 430, "rival monarchs
+   * NO `liberty_bells_total / 4` STAND-IN (bugs.md #424, "rival monarchs
    * considering granting independence ... in 1530"). That number is not a
    * percentage at all — it is the nation's lifetime bell total, which real
    * DOS saves carry in the MILLIONS (original_saves/valid-lategame-saves/
@@ -1881,7 +1881,7 @@ static void ai_king_do_declare(ColonizeTurnContext* ctx, int human) {
    */
   const int crown_fold = ai_king_crown_nation_col1(ctx->col1_ok ? ctx->col1 : NULL, human);
   /*
-   * bugs.md 234: DOS 1a26 stores the crown slot in DS:0x53d2 and sets its
+   * bugs.md #228: DOS 1a26 stores the crown slot in DS:0x53d2 and sets its
    * control byte to 1 (`*(0x53d2*0x34+0x543f)=1`). The port never wrote
    * head.crown_nation_id, so a save exported mid-WoI reached DOS with
    * 0x53d2 = -1; DOS then picked its own crown — sometimes the very nation
@@ -1890,7 +1890,7 @@ static void ai_king_do_declare(ColonizeTurnContext* ctx, int human) {
    */
   ctx->col1->head.crown_nation_id = (int16_t)crown_fold;
   /*
-   * bugs.md 235: DOS 1a26 zeroes the bell pool (`*(pool+0xc)=0`) — the FF
+   * bugs.md #229: DOS 1a26 zeroes the bell pool (`*(pool+0xc)=0`) — the FF
    * election in progress is cancelled and bells start accruing toward the
    * foreign intervention instead.
    */
@@ -2013,7 +2013,7 @@ static void ai_king_do_declare(ColonizeTurnContext* ctx, int human) {
    * signing animation (DECOIND.PIK + DEC-UPP/LOW/SQIG.SS) is core/declaration.c.
    * DECLARAT.PIK is an unused leftover — no DOS executable references it.
    */
-  /* bugs.md 245: no "United Colonies" rename — DOS 160a is only the signing
+  /* bugs.md #239: no "United Colonies" rename — DOS 160a is only the signing
    * cinematic and never touches country_name. Under the WoI the player
    * faction reads "Rebels" (LABELS 84/101) via units_combat_nation_label. */
   if (ctx->status && ctx->status_size) {
@@ -2048,7 +2048,7 @@ static void ai_king_do_declare(ColonizeTurnContext* ctx, int human) {
       NULL,
       letter
     );
-    /* bugs.md 242: @HOWTOWIN does NOT fire at the declaration. DOS shows it
+    /* bugs.md #236: @HOWTOWIN does NOT fire at the declaration. DOS shows it
      * once at the first colony the rebel recaptures with the REF present
      * (5fef capture tail, DS:0x5386 bit0 latch) — see
      * units_try_capture_foreign_colony. */
@@ -2101,7 +2101,7 @@ static void ai_king_do_declare(ColonizeTurnContext* ctx, int human) {
  */
 static void ai_king_show_declare_choice(ColonizeTurnContext* ctx, int human, int sol) {
   if (ai_king_human_popups(ctx)) {
-    /* bugs.md 241: %STRING0 is the Crown nation ("England"), never the
+    /* bugs.md #235: %STRING0 is the Crown nation ("England"), never the
      * player's new-world country_name ("New England"). NAMES.TXT @COUNTRY. */
     const char* motherland =
       (human >= 0 && human <= 3) ? reports_nation_country_name(human) : "the Crown";
@@ -2634,7 +2634,7 @@ static void ai_king_ref_wave(ColonizeTurnContext* ctx) {
    */
   if ((int)force[0] + (force[1] > 0 ? 1 : 0) + (force[3] > 0 ? 1 : 0) == 0) {
     /*
-     * bugs.md 261 — full FUN_43f7_06a6 Tory uprising (viceroy_unpacked.c
+     * bugs.md #255 — full FUN_43f7_06a6 Tory uprising (viceroy_unpacked.c
      * 73829-73932), replacing the old one-Regular-at-(hx,hy+1) stand-in
      * that could drop Regulars on a WATER tile:
      *   - roll(0, difficulty+1) != 0 to fire at all;
@@ -2965,7 +2965,7 @@ static void ai_king_ref_wave(ColonizeTurnContext* ctx) {
             (void)ai_popup_enqueue_ok_ctx(
               ctx->ai_popups, AI_POPUP_TAG_KING_ARRIVAL, human, crown, 0, NULL, body
             );
-            /* bugs.md 243: the landing popup BLOCKS before the disembark
+            /* bugs.md #237: the landing popup BLOCKS before the disembark
              * slides — popup, then animations, then the rest, in sequence. */
             units_pump_combat_popups();
           }
@@ -3445,7 +3445,7 @@ static void ai_king_10f0_land(
   }
 
   if (landings > 0) {
-    /* bugs.md 258: the declaration names the PARENT countries (DOS 1528
+    /* bugs.md #252: the declaration names the PARENT countries (DOS 1528
      * passes both nations through FUN_291f_0ac8's country-name form —
      * "France declares war on England"), never the new-world colony names.
      * The arrival line uses the nationality adjective ("French Intervention
@@ -3514,7 +3514,7 @@ static void ai_king_10f0_land(
     if (!paid && ai_king_human_popups(ctx)) {
       char body[AI_POPUP_BODY_LEN];
       char fallback[AI_POPUP_BODY_LEN];
-      /* bugs.md 258: the declares-war announcement fires ONCE per game (DOS
+      /* bugs.md #252: the declares-war announcement fires ONCE per game (DOS
        * 1528 latch), the per-landing arrival popup every time. */
       if (ai_king_latch_get(ctx->col1, AI_KING_INTERVENE_ANNOUNCED_BYTE) == 0) {
         ai_king_latch_set(ctx->col1, AI_KING_INTERVENE_ANNOUNCED_BYTE, 1);
@@ -3560,13 +3560,13 @@ static void ai_king_10f0_land(
       );
       sound_set_bgm(3); /* FUN_43f7_10f0 43f7:145b: 281f_0498(3) Independence pool… */
       sound_play(0x3f); /* …then 43f7:1465: intervention tune after @INTERVENE */
-      /* bugs.md 259: the arrival popup BLOCKS before the disembark slides,
-       * same sequencing as the REF landing (bugs.md 243). */
+      /* bugs.md #253: the arrival popup BLOCKS before the disembark slides,
+       * same sequencing as the REF landing (bugs.md #237). */
       units_pump_combat_popups();
     }
   }
 
-  /* bugs.md 259: land troops disembark VISIBLY — spawn on the ship's tile
+  /* bugs.md #253: land troops disembark VISIBLY — spawn on the ship's tile
    * and slide into the colony through units_try_move (fires the move-watch
    * animation), like the REF landing. Unlike normal disembark rules they
    * arrive ready for action: full moves restored after the step. */
@@ -3699,7 +3699,7 @@ static void ai_king_merc_payload_parts(int payload, int* out_hx, int* out_hy, in
  * 10f0's `param_1` is exactly the paid flag. Ported 2026-09-10 (audit D6):
  * this used to be a second implementation that spawned bare "Regular"/
  * "Dragoon"/"Artillery" at (hx, hy+1) with no terrain test at all — the
- * water-spawn class bugs.md 261 fixed for 06a6 — and skipped the colony
+ * water-spawn class bugs.md #255 fixed for 06a6 — and skipped the colony
  * roulette, the Man-O-War transport and the FUN_43f7_0082 type map (which
  * for a rebel human at war yields Cont. Army / Cont. Cav., not colonial
  * Regulars). It now hands 10f0 the mercenary counts DOS keeps at DS:0x9e46
@@ -4647,7 +4647,7 @@ static void ai_king_war_act(ColonizeTurnContext* ctx) {
     }
   }
   const int human = ctx->human_nation;
-  /* bugs.md 256: DOS 2022 runs the mobilization gate BEFORE any other war
+  /* bugs.md #250: DOS 2022 runs the mobilization gate BEFORE any other war
    * beat — the mobilization turn does nothing else (no intervene/merc). The
    * gate block below returns early, so intervene/merc moved after it. */
   const int mobilization_due =
@@ -4683,7 +4683,7 @@ static void ai_king_war_act(ColonizeTurnContext* ctx) {
    * SoL 40..49 "restless" band is status-text only (below), not a promote
    * band in 1eca.
    */
-  /* bugs.md 256 + DOS FUN_43f7_2022: the 1eca mobilization runs exactly ONCE,
+  /* bugs.md #250 + DOS FUN_43f7_2022: the 1eca mobilization runs exactly ONCE,
    * on the first war-act turn after the declaration — gated on nation_flags
    * bit 0x08 (`*(byte*)*[0x84fc] & 8`), set right after, and DOS `return`s so
    * the mobilization turn does nothing else on the war path. */
@@ -4778,7 +4778,7 @@ static void ai_king_war_act(ColonizeTurnContext* ctx) {
                      promoted);
           }
         }
-        /* bugs.md 238: the mustering gets its own dialog per colony —
+        /* bugs.md #232: the mustering gets its own dialog per colony —
          * GAME.TXT @MOBILIZE (one unit, %STRING0 colony / %STRING1 type) or
          * @MOBILIZE2 (%NUMBER0 units). */
         if (promoted > 0 && ai_king_human_popups(ctx)) {
@@ -5316,7 +5316,7 @@ static void ai_king_check_revolution_end(ColonizeTurnContext* ctx) {
     char body[AI_POPUP_BODY_LEN];
     char fallback[AI_POPUP_BODY_LEN];
     /* DOS 3844_0442 win order: victory tune pool (FUN_129f_0318(3)), the
-     * @WINNING announcement, THEN the @KINGLOSE throne audience (bugs.md 264
+     * @WINNING announcement, THEN the @KINGLOSE throne audience (bugs.md #258
      * — the first pass had the two inverted). */
     if (ai_king_human_popups(ctx)) {
       sound_set_bgm(3);

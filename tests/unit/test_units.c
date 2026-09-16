@@ -243,7 +243,7 @@ static int unit_clearcut_lumber(void) {
     assets_msg_free(&names);
     return 1;
   }
-  /* bugs.md 284: @DEFOREST is a dead GAME.TXT section (tag absent from
+  /* bugs.md #278: @DEFOREST is a dead GAME.TXT section (tag absent from
    * VICEROY.EXE) — a chop shows @CLEARCUT alone, never a second popup. */
   for (int i = 0; i < pops.queue_count; ++i) {
     if (strstr(pops.queue[i].body, "Deforestation") != NULL ||
@@ -1189,7 +1189,7 @@ static int unit_sea_lane_entry(void) {
   }
   /* Lanes sit INSIDE the playable board, as on AMER2 (west lane = column 1,
    * east lane = columns 51..56; the outer rim, column 0 / w-1, is plain ocean
-   * a unit may never occupy — DOS FUN_137f_000a, bugs.md 435). */
+   * a unit may never occupy — DOS FUN_137f_000a, bugs.md #429). */
   for (int y = 0; y < 8; ++y) {
     map.terrain[y * 8 + 5] = 26; /* high seas / sea lane */
     map.terrain[y * 8 + 6] = 26;
@@ -1240,7 +1240,7 @@ static int unit_sea_lane_entry(void) {
     rc = 1;
   }
   /*
-   * bugs.md 435: the outer rim is not a playable tile. A ship on the lane may
+   * bugs.md #429: the outer rim is not a playable tile. A ship on the lane may
    * not step onto column w-1 (nor column 0 / row 0 / row h-1) — DOS
    * FUN_137f_000a. Before the fix the port only tested the raw array bounds,
    * so a ship could slide off the west sea lane onto column 0, a tile the
@@ -1280,7 +1280,7 @@ static int unit_sea_lane_entry(void) {
 }
 
 /*
- * bugs.md 427: "Newly bought Merchantman sent to the New World spawned in an
+ * bugs.md #421: "Newly bought Merchantman sent to the New World spawned in an
  * unexplored sea lane tile, and did not even insta-reveal the fog."
  *
  * DOS FUN_48d3_048e (viceroy_unpacked.c:77810) is the Europe->map placement:
@@ -1778,7 +1778,7 @@ static int unit_fog_vis_mask_and_snapshot(void) {
     cu->muskets = 0;
     fprintf(stderr, "convert map sprite ok\n");
 
-    /* bugs.md 269: a mounted Veteran Soldier (profession 0x15) draws with the
+    /* bugs.md #263: a mounted Veteran Soldier (profession 0x15) draws with the
      * Veteran Dragoon art, not the plain grey dragoon. */
     ColonizeUnit* vu = units_get(&cpool, plain);
     vu->profession = UNITS_JOB_SOLDIER;
@@ -1805,7 +1805,7 @@ static int unit_fog_vis_mask_and_snapshot(void) {
     fprintf(stderr, "veteran dragoon chrome ok\n");
 
     /*
-     * bugs.md 426: FUN_112b_0060's tail downgrades a commissioned missionary
+     * bugs.md #420: FUN_112b_0060's tail downgrades a commissioned missionary
      * whose colonist is not a Jesuit (profession != 0x18) to icon 0x4e =
      * sprite 77; the Jesuit keeps the @UNIT icon 106 → sprite 105. And
      * FUN_112b_0002 case 5 gives a Jesuit *working colonist* icon 0x3e =
@@ -3684,7 +3684,7 @@ int main(void) {
     /*
      * Interior tiles only (map_coords_inset / DOS FUN_137f_000a): AMER2 row 0
      * carries land in columns 1..3, but the outer rim is not a playable tile
-     * and no unit may stand there — bugs.md 435. The tests below then step
+     * and no unit may stand there — bugs.md #429. The tests below then step
      * the unit one tile east and want a free water neighbour for the boarding
      * case, so require: (x,y) and (x+1,y) both interior land, and (x+1,y)
      * coastal.
@@ -4352,7 +4352,7 @@ int main(void) {
     int px = -1;
     int py = -1;
     /* Interior tiles only — the 1-tile rim is not playable (map_coords_inset /
-     * DOS FUN_137f_000a; bugs.md 435), so a unit may not stand or step there. */
+     * DOS FUN_137f_000a; bugs.md #429), so a unit may not stand or step there. */
     for (int y = 1; y < 6 && px < 0; ++y) {
       for (int x = 1; x < 6; ++x) {
         if (!map_coords_inset(&tmap, x, y) || !map_coords_inset(&tmap, x + 1, y)) {
@@ -5305,7 +5305,7 @@ int main(void) {
       assets_msg_free(&names);
       return 1;
     }
-    /* bugs.md 249: a land attacker does NOT advance into the vacated tile
+    /* bugs.md #243: a land attacker does NOT advance into the vacated tile
      * (only ships and colony-capturing attacks enter). */
     a = units_get(&pool, aid);
     if (!a || a->x != ax || a->y != ay) {
@@ -5735,7 +5735,7 @@ int main(void) {
     units_set_native_fallout_context(NULL, NULL, -1);
 
     /*
-     * bugs.md 387: conquest treasure is NOT Cortes-gated. Strip Cortes and burn
+     * bugs.md #381: conquest treasure is NOT Cortes-gated. Strip Cortes and burn
      * a village on Conquistador (difficulty 2), where FUN_5fef_31ea's amount is
      * unconditional — (roll 2..6 + 0 Cortes + 0 Spanish) * 10 * 100, i.e.
      * 2000..6000 gold — and a Treasure Train must still appear.
@@ -6387,7 +6387,7 @@ int main(void) {
     const int old_def = pool.types[caravel_ti].defense;
     const int old_hull = pool.types[caravel_ti].hull;
     pool.types[caravel_ti].defense = 2; /* Fort atk 4 >= 2 → fort wins */
-    /* bugs.md 255: fort win rolls damage-vs-sink on the hull (no-rng
+    /* bugs.md #249: fort win rolls damage-vs-sink on the hull (no-rng
      * fallback: hull >= atk → damaged). Hull 0 keeps this check a sink. */
     pool.types[caravel_ti].hull = 0;
 
@@ -6414,7 +6414,7 @@ int main(void) {
       return 1;
     }
 
-    /* bugs.md 255: fort miss leaves the ship UNTOUCHED — no MP drain (DOS
+    /* bugs.md #249: fort miss leaves the ship UNTOUCHED — no MP drain (DOS
      * undoes the temp attacker; the old ship-slow was invented). */
     ai_diplo_declare_war(&fcol1, 0, 1);
     pool.types[caravel_ti].defense = 100; /* fort atk 4 loses */
@@ -6464,7 +6464,7 @@ int main(void) {
       const int old_pdef = pool.types[priv_ti].defense;
       const int old_phull = pool.types[priv_ti].hull;
       pool.types[priv_ti].defense = 2;
-      /* bugs.md 255: fort win now rolls damage-vs-sink on the ship's hull
+      /* bugs.md #249: fort win now rolls damage-vs-sink on the ship's hull
        * (no-rng fallback: hull > fort atk → damaged). Zero the hull so this
        * deterministic check still ends in a sink. */
       pool.types[priv_ti].hull = 0;
@@ -7264,7 +7264,7 @@ int main(void) {
       return 1;
     }
     /*
-     * bugs.md 429: walking aboard from open shore is DOS's 465b_05ca
+     * bugs.md #423: walking aboard from open shore is DOS's 465b_05ca
      * force-to-max — that passenger is spent, so FUN_4720_015c offers it no
      * landfall and the unload is refused until the next turn.
      */
@@ -9109,7 +9109,7 @@ int main(void) {
         fprintf(stderr, "fort miss must not set damaged bit7\n");
         return 1;
       }
-      /* bugs.md 255: a fort miss leaves the ship untouched (no MP drain). */
+      /* bugs.md #249: a fort miss leaves the ship untouched (no MP drain). */
       if (ship->moves_left == 0) {
         fprintf(stderr, "fort miss must NOT drain moves_left (got %d)\n", ship->moves_left);
         return 1;
@@ -9140,7 +9140,7 @@ int main(void) {
         fprintf(stderr, "close fort hit must set damaged bit7\n");
         return 1;
       }
-      /* bugs.md 260: combat damage presets the repair TIMER below the
+      /* bugs.md #254: combat damage presets the repair TIMER below the
        * threshold (fort winner doubles the bill → remaining = full
        * threshold here) and marks repair_pending. */
       if (ship->turns_worked >= 3 || !ship->repair_pending) {
@@ -9428,7 +9428,7 @@ int main(void) {
   }
 
   /*
-   * bugs.md 424: a Go To aimed at an Indian settlement is a move command INTO
+   * bugs.md #418: a Go To aimed at an Indian settlement is a move command INTO
    * the village — on arrival its final step must be dispatched through the
    * normal entry flow (game_loop hands it to game_try_unit_move →
    * FUN_4d56_4528 @ACTIONS), not stopped one tile short. The raw pacer has no
@@ -9465,7 +9465,7 @@ int main(void) {
     }
     wu->nation_id = 0;
     wu->moves_left = units_max_mp(&pool, walker);
-    /* bugs.md 135: the order itself is legal even though the tile is not
+    /* bugs.md #129: the order itself is legal even though the tile is not
      * enterable by a plain settler. */
     if (!units_set_goto(&pool, walker, &map, vx, vy, NULL)) {
       fprintf(stderr, "goto-village: village destination must be accepted\n");
@@ -9501,7 +9501,7 @@ int main(void) {
   }
 
   /*
-   * bugs.md 429 / DOS FUN_4720_015c (viceroy_unpacked.c:76010-76026): landfall
+   * bugs.md #423 / DOS FUN_4720_015c (viceroy_unpacked.c:76010-76026): landfall
    * is offered only to cargo whose spent byte is below its max. A passenger
    * parked at moves_left 0 by boarding is still fresh (DOS spent 0) and may
    * land; one that burnt its allotment this turn stays aboard.

@@ -19,7 +19,7 @@ typedef struct ColonizeCol1Save ColonizeCol1Save;
 #define COLONIZE_PROF_PREACHER 16
 #define COLONIZE_PROF_STATESMAN 17
 #define COLONIZE_PROF_TEACHER 18
-/* bugs.md 294 family: these are the DOS @JOB bytes (0x19/0x1a/0x1b/0x1c) —
+/* bugs.md #288 family: these are the DOS @JOB bytes (0x19/0x1a/0x1b/0x1c) —
  * the port briefly had 29/30 for servant/criminal, which no real colonist
  * ever carries (unit joins, DOS saves, education all use @JOB), so every
  * class check against them was dead. Note the port also uses 19 (@JOB
@@ -229,7 +229,7 @@ int colony_prod_colony_crosses_ff(
  * crumb, which just needs "is a carpenter actually staffed here" (it calls
  * with sol_bonus=0 anyway). The REAL tick debits lumber 1:1 against the
  * sol-ADJUSTED hammer count (turn.c, `hammers` clipped to stock then
- * subtracted) — user-verified on hammers_lumber.SAV (bugs.md 169: two Master
+ * subtracted) — user-verified on hammers_lumber.SAV (bugs.md #163: two Master
  * Carpenters bank +28 hammers and consume 28 lumber, not the sol-free base).
  * Do not "fix" the debit to follow this probe.
  */

@@ -55,7 +55,7 @@ flowchart LR
 | Map event queue | flush immediately from AI/turn | [`ai_popup.c`](../src/core/ai_popup.c) (max 16) |
 | Dedicated UIs | colony `2f2b`, Europe `38fd`, save `7562`, … | `colony_screen`, Europe menus in `game_loop`, `save_load_dialog`, `pick_music`, `unit_stack`, `cheat_list_dialog`, `new_game` |
 
-### The map status line is not a popup (2026-09-04, bugs.md 375)
+### The map status line is not a popup (2026-09-04, bugs.md #369)
 
 DOS has a second, lighter channel that the port kept mistaking for a dialog.
 `DS:0x2d54` is a text buffer; `FUN_0000_035c` repaints the map's top strip
@@ -885,7 +885,7 @@ and the concrete reason in its port note.
 | `@NEEDTOOLS` | Done thin | EOT Phase K tools short but >0 construction ai_popup OK |
 | `@NEEDTOOLS0` | Done thin | EOT Phase K tools-short construction ai_popup OK |
 | `@ALREADYHAVE` | Done thin | construction set refused when already owned → ai_popup OK |
-| `@LOBOTOMIZE` | Done | Clear Specialty confirm `AI_POPUP_TAG_COLONY_CLEARSPEC` (bugs.md 437) |
+| `@LOBOTOMIZE` | Done | Clear Specialty confirm `AI_POPUP_TAG_COLONY_CLEARSPEC` (bugs.md #431) |
 | `@NATION0A` | Done | nation lore pages |
 | `@NATION0B` | Done | nation lore pages |
 | `@NATION1A` | Done | nation lore pages |
@@ -898,8 +898,8 @@ and the concrete reason in its port note.
 | `@CUSTOM` | Done | customize wizard |
 | `@CONTINENTAL` | Done | combat promotion ladder (`units_promote_on_win`, FUN_5fef_172c) — Veteran + WoI mobilization → Cont. Army/Cav, `ai_popup_enqueue_ok` |
 | `@VETERAN` | Done | combat promotion ladder (`units_promote_on_win`) — Free Colonist w/ musket body → Veteran Soldier |
-| `@VALOR` | Done | combat promotion ladder (`units_promote_on_win`) — Criminal/Servant ladder step, %STRING1/2 = old/new @JOB label (bugs.md 271) |
-| `@SCOUTCOLONY` | Done | `AI_POPUP_TAG_SCOUT_COLONY` (FUN_5f7a_000e, bugs.md 444) |
+| `@VALOR` | Done | combat promotion ladder (`units_promote_on_win`) — Criminal/Servant ladder step, %STRING1/2 = old/new @JOB label (bugs.md #265) |
+| `@SCOUTCOLONY` | Done | `AI_POPUP_TAG_SCOUT_COLONY` (FUN_5f7a_000e, bugs.md #438) |
 | `@LOSTOURSCOUTS` | Done | FUN_5f7a_000e infiltrate-fail, human-scout branch — `game_loop.c` AI_POPUP_TAG_SCOUT_COLONY choice 2 |
 | `@LOSTTHEIRSCOUTS` | Partial | FUN_5f7a_000e infiltrate-fail, AI-scout-vs-human-colony branch (raw :98863-98873); unreachable in port — AI unit movement never calls the scout-colony menu (only the human's own `game_try_unit_move` does), so an AI scout can never infiltrate a human colony to trigger it |
 | `@HELLOFIRST` | Done | Euro first-contact land (`ai_diplo_153e_encounter`) |

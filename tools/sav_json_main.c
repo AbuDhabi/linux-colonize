@@ -1,10 +1,7 @@
 /*
  * sav_json: COLONY##.SAV <-> JSON converter.
- *
- *   sav_json COLONY00.SAV COLONY00.json   -- SAV -> JSON
- *   sav_json COLONY00.json COLONY00.SAV   -- JSON -> SAV
- *   sav_json COLONY00.SAV                 -- writes COLONY00.SAV.json
- *   sav_json COLONY00.json                -- writes COLONY00.json.SAV
+ * Usage: sav_json <input> [<output>]  (direction inferred from extension)
+ * External requirements: Built by CMake; no external runtime dependencies
  *
  * Direction is chosen from the input file's extension (case-insensitive
  * ".sav" vs anything else treated as JSON). Output defaults to the input

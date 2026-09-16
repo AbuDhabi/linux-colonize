@@ -46,4 +46,32 @@ cmake --build build/debug --target golden_ai_joint
 
 Most executables expect **repo root** as cwd (`WORKING_DIRECTORY` in CMake).
 
+## Running a single test
+
+Build and run one target directly from repo root (binaries land under
+`build/<preset>/`, and must be run with repo root as cwd — same rule as
+`ctest`):
+
+```
+cmake --build --preset debug --target unit_ff && ./build/debug/unit_ff
+```
+
+Swap `unit_ff` for any target name (`smoke_play`, `golden_mapgen_seed100`,
+...). `golden_ai_joint` is the one exception: it's a build-only convenience
+target, not a `ctest` test (see above), so it must be run explicitly:
+`cmake --build build/debug --target golden_ai_joint`.
+
+## Verifying a fix
+
+1. Build: `cmake --build --preset debug`.
+2. Run the relevant unit/smoke test(s) directly (see above) for a fast signal.
+3. Run the full suite: `ctest --test-dir build/debug`.
+4. If the change touches AI or turn code, also run
+   `cmake --build build/debug --target golden_ai_joint` (not covered by
+   plain `ctest`).
+5. Update the bugs.md row status to FIXED.
+
+Shorthand: `make test` runs build + `ctest` in one step, if a root
+`Makefile` is present.
+
 Architecture overview: [`docs/architecture.md`](../docs/architecture.md).

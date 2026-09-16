@@ -1,16 +1,13 @@
-// Ghidra headless postScript: build a throwaway program that holds every
-// RTLink v2 overlay segment of VICEROY.EXE at its own true DOS load
-// address, each in its own named Ghidra *overlay* address space, instead
-// of trusting rtlink_decode's single flattened relink — see
-// docs/rtlink_decode_v2_gap.md for why that flattening is imperfect for V2.
+// Ghidra headless postScript: build overlay address spaces for each RTLink v2 segment.
+// Usage: analyzeHeadless <proj> <name> -import seg_data_resident.bin -postScript GhidraImportOverlays.java <segDir> [residentAddr]
+// External requirements: Ghidra + Java + extracted segments (from tools/rtlink_overlay_extract.py)
 //
-// Run against a program already imported as raw binary (BinaryLoader,
-// default base 0) from seg_data_resident.bin — this script relocates that
-// base block to its real address and adds one overlay block per overlay
-// segment, loading bytes straight from the .bin files
-// tools/rtlink_overlay_extract.py already produced.
+// Run against a program already imported as raw binary (BinaryLoader, default base 0)
+// from seg_data_resident.bin — this script relocates that base block to its real
+// address and adds one overlay block per overlay segment, loading bytes straight
+// from the .bin files tools/rtlink_overlay_extract.py already produced.
 //
-// Usage (from repo root, after running rtlink_overlay_extract.py):
+// Full usage (from repo root, after running rtlink_overlay_extract.py):
 //   analyzeHeadless <projectDir> <projectName> \
 //     -import /path/to/overlays_extracted/seg_data_resident.bin \
 //     -processor "x86:LE:16:Real Mode" -cspec default \

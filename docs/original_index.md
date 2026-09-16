@@ -4,29 +4,8 @@
 open, how to find a `FUN_*`, what each data file family is for, and which doc owns
 the deep detail.
 
-| Topic | Deep dive |
-|-------|-----------|
-| **Linux code architecture** (present + intended) | [architecture.md](architecture.md) |
-| **Decomp function catalog** (all `FUN_*`, light) | [`../original_sources_annotated/FUNCTION_CATALOG.md`](../original_sources_annotated/FUNCTION_CATALOG.md) · [`MODULE_MAP.md`](../original_sources_annotated/MODULE_MAP.md) |
-| **Data files vs bake-into-code** (dev guide) | [data_vs_hardcoded.md](data_vs_hardcoded.md) |
-| Manual vs port feature gaps | [manual_gap.md](manual_gap.md) |
-| Move-into-tile authority (enter / landfall) | [move_enter.md](move_enter.md) |
-| Combat mechanics (odds / peels / outcomes / coastal fort) | [combat.md](combat.md) |
-| Unit orders (issue / tick / gates / port status) | [unit_orders.md](unit_orders.md) |
-| Project goals / acceptance order | [project_goals.md](project_goals.md) |
-| **Whole-project work queue + deferred AI track** | [port_plan.md](port_plan.md) |
-| Bring-up status, EOT pipeline, map fidelity gaps | [decomp_inventory.md](decomp_inventory.md) |
-| **Between player turns** (full EOT map + Layer D `130d`/`3844`) | [turn_between_players.md](turn_between_players.md) |
-| Formats, UI wiring, map draw order, sound | [assets.md](assets.md) |
-| Terrain / field / town-commons yields | [terrain_yields.md](terrain_yields.md) |
-| Settlement building production / skills | [building_production.md](building_production.md) |
-| Difficulty level effects (0 Discoverer … 4 Viceroy) | [difficulty.md](difficulty.md) |
-| Sons of Liberty / rebel sentiment | [sons_of_liberty.md](sons_of_liberty.md) |
-| **Indians** (graphics / units / settlements / alarm / contact) | [indians.md](indians.md) |
-| Fandom wiki digest (1994 Col only; tier-3) | [fandom_col1994.md](fandom_col1994.md) |
-| Extracted VICEROY DS tables | [viceroy_tables.md](viceroy_tables.md) |
-| `COLONY##.SAV` layout / Col1 bridge | [savegame.md](savegame.md) |
-| Col1 opaque field atlas / RE roadmap | [save_format_map.md](save_format_map.md) |
+Full topic → doc table: see the Authority section in
+[architecture.md](architecture.md#authority).
 
 This file is a **navigation layer**. It does not re-copy compositor algorithms,
 MADSPACK layouts, or full bring-up checklists.

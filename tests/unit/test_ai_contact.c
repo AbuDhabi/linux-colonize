@@ -393,7 +393,7 @@ static int test_prelude_alarm_band(void) {
 }
 
 /*
- * bugs.md 422 — first contact is strictly per Euro nation.
+ * bugs.md #416 — first contact is strictly per Euro nation.
  *
  * DOS FUN_5bfb_3180 hands FUN_5bfb_022e the pair (euro, indian) it actually
  * found adjacent, and 022e only opens the @INDIANWELCOME dialog when THAT
@@ -499,7 +499,7 @@ static int test_ai_only_meet_is_silent_for_human(void) {
 }
 
 /*
- * bugs.md 422 — the layer3 owner nibble is a stamp, not a settlement record.
+ * bugs.md #416 — the layer3 owner nibble is a stamp, not a settlement record.
  *
  * FUN_1427_02ca repaints the nibble of every tile a unit steps onto and
  * FUN_1427_023a leaves it behind when the unit leaves, so a Brave that crossed
@@ -603,7 +603,7 @@ static void take_popup_result(AiPopupState* pop) {
 }
 
 /*
- * bugs.md 433 — two contact chains must not interleave.
+ * bugs.md #427 — two contact chains must not interleave.
  *
  * FUN_5bfb_3180 calls FUN_5bfb_022e / FUN_5bfb_153e inline per neighbour, so a
  * Tupi exchange and a Spanish one are strictly sequential in DOS. The port
@@ -3408,11 +3408,11 @@ int main(void) {
     if (status[0] != '\0') {
       return fail("bystander raid must not write human status (not a party)");
     }
-    /* bugs.md 287: the raid pulse only LOOTS — a pop-1 colony survives a
+    /* bugs.md #281: the raid pulse only LOOTS — a pop-1 colony survives a
      * BURN raid with its owner intact (destruction lives on the combat
      * path, and only when the last colonist falls there). */
     if (!c_fbrn->active || c_fbrn->nation_id != 1) {
-      return fail("raid pulse must not destroy or capture a pop-1 colony (bugs.md 287)");
+      return fail("raid pulse must not destroy or capture a pop-1 colony (bugs.md #281)");
     }
     for (int qi = 0; qi < pop_fbrn.queue_count; ++qi) {
       if (strstr(pop_fbrn.queue[qi].body, "Spies report") != NULL ||
@@ -3420,7 +3420,7 @@ int main(void) {
           strstr(pop_fbrn.queue[qi].body, "march into") != NULL) {
         fprintf(stderr, "unit_ai_contact: raid abandon popup leaked: '%s'\n",
                 pop_fbrn.queue[qi].body);
-        return fail("raid pulse must not emit abandon/capture chrome (bugs.md 287)");
+        return fail("raid pulse must not emit abandon/capture chrome (bugs.md #281)");
       }
     }
     /* Restore neutral baseline for nation 1 so later blocks (which only
@@ -6677,7 +6677,7 @@ int main(void) {
      * it; the once-per-nation-per-turn cadence is ai.c §9's call structure.
      */
     /*
-     * bugs.md 423 ("Indians came to demand Horses very damn quickly, at zero
+     * bugs.md #417 ("Indians came to demand Horses very damn quickly, at zero
      * apparent alarm"). FUN_5bfb_022e is ONE encounter: `bVar6` picks the
      * generous half or the demand half (viceroy_unpacked.c 96723-96731 and
      * the `if (!bVar6)` guard at 96833), never both. At alarm 0 the mood
@@ -6836,7 +6836,7 @@ int main(void) {
       return fail("at war: no prompt");
     }
     /*
-     * bugs.md 388: asymmetric bytes. The peer is at peace with us, we are not
+     * bugs.md #382: asymmetric bytes. The peer is at peace with us, we are not
      * at peace with them — DOS tests the ATTACKER'S own byte
      * (FUN_281f_0a38(attacker, target) & 0x40), the same byte the Foreign
      * Affairs report prints, so no @HAVETREATY prompt may appear here.
@@ -7333,7 +7333,7 @@ int main(void) {
       units_despawn(&units, col_id);
     }
 
-    /* bugs.md 294: an Indentured Servant is a learner like a Free Colonist
+    /* bugs.md #288: an Indentured Servant is a learner like a Free Colonist
      * (DOS a618: profession ∈ {0x19, 0x1c} reaches the LEARNSTAY arm) — it
      * must NOT get the @LEARNCRIMINAL "offend us" refusal nor @LEARNMASTER. */
     {

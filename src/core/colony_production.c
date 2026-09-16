@@ -69,7 +69,7 @@ static bool colony_prod_craft_skill_matches(int profession, int craft_profession
     return true;
   }
   /*
-   * bugs.md 294 family: a legacy "19..27 → skill 9..17" remap lived here,
+   * bugs.md #288 family: a legacy "19..27 → skill 9..17" remap lived here,
    * calibrated against golden_colony_prod01's Montreal (12 rum) — but that
    * total is really 3 workers × (class 3 + SoL latch 1); the remap only
    * "fit" because colony_prod_manufacturing_output used to truncate the
@@ -145,7 +145,7 @@ int colony_prod_manufacturing_output(
   /* DOS folds local_e (the full signed SoL/Tory term, +1 at the sol_50
    * latch) straight into v — no "+2 or nothing" step. The old truncation
    * here silently ate the +1 and was compensated by the bogus 19..24
-   * skill-match rows below (bugs.md 294 family / golden_colony_prod01:
+   * skill-match rows below (bugs.md #288 family / golden_colony_prod01:
    * Montreal's 12 rum is 3 workers x (3+1), not 3+6+3). */
   int out = tag + sol_bonus;
   if (tier == COLONY_PROD_TIER_SHOP || tier == COLONY_PROD_TIER_FACTORY) {
@@ -802,7 +802,7 @@ int colony_prod_colony_hammers(
   /* sol_bonus=0 base-rate tally — a staffed-carpenter DEMAND probe for
    * turn.c's "Need lumber." crumb, not the tick's lumber debit. The live
    * debit is 1:1 with the sol-adjusted hammer count returned below (turn.c;
-   * bugs.md 169, hammers_lumber.SAV: 28 hammers ate 28 lumber). See the
+   * bugs.md #163, hammers_lumber.SAV: 28 hammers ate 28 lumber). See the
    * out_lumber_use note in colony_production.h before changing either. */
   int lumber_total = 0;
   int hammers_total = 0;

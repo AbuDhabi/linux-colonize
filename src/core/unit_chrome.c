@@ -136,7 +136,7 @@ int unit_chrome_rebel_nation(void) {
   return g_chrome_rebel_nation;
 }
 
-/* bugs.md 370: the map's tribe chrome (alarm marks, mission cross) drew
+/* bugs.md #364: the map's tribe chrome (alarm marks, mission cross) drew
  * DS:0x848's raw index — Dutch 13 / 5, which TERRAIN.SS's palette maps to
  * EGA magenta rather than ICONS.SS-native orange. Same nearest-match
  * treatment the unit badges already get. Unlike the colony flag above this

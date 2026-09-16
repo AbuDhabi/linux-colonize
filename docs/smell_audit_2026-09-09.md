@@ -1,5 +1,8 @@
 # Mechanics smell audit — 2026-09-09 (second sweep)
 
+> **STATUS: historical audit dump, fully triaged/closed on 2026-09-09/10;
+> not an authoritative spec; do not treat findings as facts.**
+
 Eight-area Opus sweep (ai_euro, game_loop/turn, units/combat, native/king AI, colony production, save/bridge, Europe/reports, UI/popup/map). Successor to docs/smell_audit_2026-09-08.md (closed); nothing here duplicates that audit. Confidence H/M/L. Line numbers as of commit 313e0c4.
 
 **Status: CLOSED 2026-09-09/10.** The H / M-H tier and then the M tier were worked off in fix
@@ -54,7 +57,7 @@ record of what was looked at, not as a work queue — anything still live was re
 
 21. turn.c:3030 — Section C2 gated on `crown_colonies > 0`, invented; DOS runs C2 whenever `(0x5382&1) && !(0x5382&8)` (rebel-colony loop sits outside the C1 guard, viceroy 58507). Crown wiped on land but fat at sea ⇒ port emits no peace-offer/pressure chrome. M
 
-22. turn.c:126-133 — `turn_refresh_moves_for_nation` re-derives human nation with a first-`control==0` scan (the exact idiom `col1_save_human_nation` replaced after bugs.md 288) and overwrites the authoritative `units_set_combat_human_nation(ctx->human_nation)` set at :3283. M
+22. turn.c:126-133 — `turn_refresh_moves_for_nation` re-derives human nation with a first-`control==0` scan (the exact idiom `col1_save_human_nation` replaced after bugs.md #282) and overwrites the authoritative `units_set_combat_human_nation(ctx->human_nation)` set at :3283. M
 
 23. game_loop.c:10678-10699 vs :10839-10851 — two copies of the same cited FUN_479b_0bd0 sell-then-buy diverged; the in-place copy fires on a high-seas map tile (behavior move_enter.md:157 says was retired), stops at first failed sale where the harbor copy sweeps all slots, and gates on a bare `x >= 200 || y >= 200` sentinel. M
 

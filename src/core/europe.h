@@ -417,7 +417,7 @@ typedef struct EuropeScreen {
    * DOS status-line lines this screen has composed but the game loop has not
    * handed to the strip yet (FUN_38fd_23c4 tail: compose into DS:0x2d54, arm
    * with FUN_38fd_19d8(1, 0x78, 0), repaint). Drained by the Europe frame in
-   * game_loop.c; see bugs.md 382.
+   * game_loop.c; see bugs.md #376.
    */
   char bar_event[EUROPE_BAR_EVENT_MAX][EUROPE_BAR_EVENT_LEN];
   int bar_event_count;
@@ -433,7 +433,7 @@ void europe_reset_campaign_nation(EuropeScreen* eu, int nation);
  * Does not wipe harbor, dock, or gold. nation clamped 0..3. */
 void europe_set_nation(EuropeScreen* eu, int nation, const struct ColonizeMsgCatalog* names);
 
-/* LABELS.TXT used for the sale status line's @CMESSAGE wording (bugs.md 382). */
+/* LABELS.TXT used for the sale status line's @CMESSAGE wording (bugs.md #376). */
 void europe_set_labels(EuropeScreen* eu, const struct ColonizeMsgCatalog* labels);
 
 /*
@@ -644,13 +644,13 @@ int europe_dock_icon_sprite(const ColonizeUnitPool* units, const EuropeDockImmig
 /*
  * ICONS.SS sprite for a Europe-side ship passenger (pool type + profession):
  * colonists get their working portrait, the five kit types go through
- * europe_dock_icon_sprite (bugs.md 458), anything else its @UNIT icon.
+ * europe_dock_icon_sprite (bugs.md #452), anything else its @UNIT icon.
  */
 int europe_passenger_icon_sprite(const ColonizeUnitPool* units, int type_index, int profession);
 
 /*
  * @UNIT type of a transit-box passenger tag: -2 is the Artillery kit, an
- * out-of-range tag falls back to Colonists (bugs.md 458).
+ * out-of-range tag falls back to Colonists (bugs.md #452).
  */
 int europe_pax_type_index(const ColonizeUnitPool* units, int tag);
 

@@ -213,7 +213,7 @@ Lessons worth keeping:
 
 ## The real DOS slot tables (recovered and ported 2026-09-04)
 
-Found while porting the Warehouse Expansion badge (bugs.md 383). All static
+Found while porting the Warehouse Expansion badge (bugs.md #377). All static
 DS data in `VICEROY.EXE` at file offset `121248 + addr`.
 
 `FUN_2f2b_171c` draws the buildings section: **15 slots**, each at

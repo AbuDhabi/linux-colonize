@@ -279,7 +279,7 @@ static int unit_multi_units_pane_roster(void) {
 }
 
 /*
- * bugs.md 436 — every building the colony OWNS must be clickable, and an
+ * bugs.md #430 — every building the colony OWNS must be clickable, and an
  * UNBUILT category's placeholder must never answer a click.
  *
  * DOS FUN_2f2b_44d4 scans slot positions 0..14 and stops at the first whose
@@ -369,7 +369,7 @@ static int unit_building_click_reaches_owned(void) {
     fprintf(
       stderr,
       "building_click: %d pixels resolved to a building the colony does not own "
-      "— DOS's slot scan runs past an unbuilt slot (bugs.md 436)\n",
+      "— DOS's slot scan runs past an unbuilt slot (bugs.md #430)\n",
       unbuilt_hits
     );
     rc = 1;
@@ -384,7 +384,7 @@ static int unit_building_click_reaches_owned(void) {
       fprintf(
         stderr,
         "building_click: owned '%s' reachable on only %d pixels — an overlapping "
-        "slot is swallowing its clicks (bugs.md 436)\n",
+        "slot is swallowing its clicks (bugs.md #430)\n",
         k_owned[i],
         hits[owned_idx[i]]
       );

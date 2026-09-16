@@ -1822,7 +1822,7 @@ int main(void) {
       europe_free(&eu);
       return 1;
     }
-    /* bugs.md 458: a ship passenger of the Pioneers kit type wears the plain
+    /* bugs.md #452: a ship passenger of the Pioneers kit type wears the plain
      * Pioneer pose unless the colonist really is a Hardy Pioneer — in the
      * Europe ship boxes and the naval report alike. */
     const int pioneers_ti = units_find_type(&units, "Pioneers");

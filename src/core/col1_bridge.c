@@ -905,7 +905,7 @@ bool col1_bridge_apply(
     memcpy(colonies->building_types, buildings_backup, sizeof(buildings_backup));
     colonies->building_type_count = building_type_count;
     /*
-     * bugs.md 274: the name counter belongs to the SAVE, not the session —
+     * bugs.md #268: the name counter belongs to the SAVE, not the session —
      * loading must reset it, or names keep advancing across reloads. Base
      * it on player.founded_colonies (what the found paths bump); for legacy
      * saves that never tracked the human's counter, fall back to the
@@ -1963,7 +1963,7 @@ bool col1_bridge_capture(
   save->player[human_nation].control = 0;
   /* DOS 0x543f polarity: 0 = human. A stale save (pre-fix template) can carry
    * a second control==0 on nation 0 — DOS then runs England's turn as a HUMAN
-   * (input stop, fog view flips to England; bugs.md 288). Heal: any other
+   * (input stop, fog view flips to England; bugs.md #282). Heal: any other
    * Euro slot still at 0 becomes AI (1); withdrawn (2) is preserved. */
   for (int n = 0; n < (int)COLONIZE_COL1_NATION_COUNT; ++n) {
     if (n != human_nation && save->player[n].control == 0) {
@@ -1983,7 +1983,7 @@ bool col1_bridge_capture(
   /* DS:0x53a4 SETVIEW override: DOS's turn loop pins the map view to it when
    * >= 0 (`view = 0x5398; if (0x53a4 >= 0) view = 0x53a4`). The port's old
    * zero-filled head locked DOS onto England's fog after the first EOT
-   * (bugs.md 288, still_foggy.SAV). 0xffff = no override, as every DOS save
+   * (bugs.md #282, still_foggy.SAV). 0xffff = no override, as every DOS save
    * carries; heals stale campaigns on re-save. */
   save->head.fixed_nation_map_view = 0xffffu;
   /* DS:0x53a2 show_entire_map: the Complete Map cheat / post-win reveal.
@@ -2006,7 +2006,7 @@ bool col1_bridge_capture(
    */
   save->head.turn_loop_running = 1;
   save->head.map_modal_active = 1;
-  /* bugs.md 234: a WoI save must carry the crown slot (DS:0x53d2) — with -1
+  /* bugs.md #228: a WoI save must carry the crown slot (DS:0x53d2) — with -1
    * DOS picks its own crown at load and can collide with the cached
    * intervention ally (0x53d4), mislabeling the intervention force "Tory".
    * Belt for campaigns declared before ai_king_do_declare stamped it. */
@@ -3142,7 +3142,7 @@ bool col1_contact_adjacent_tribe(
     }
     /*
      * No alarm here. This was the fourth per-step drip of the fandom class
-     * bugs.md 295/297 retired: DOS grows Indian alarm only through the
+     * bugs.md #289/297 retired: DOS grows Indian alarm only through the
      * FUN_4d56_152e threat accumulator (plus the discrete bumps — working
      * claimed land, raids, trade, first contact). The DOS move tail that
      * actually runs on this step, FUN_5bfb_3180 (ported as

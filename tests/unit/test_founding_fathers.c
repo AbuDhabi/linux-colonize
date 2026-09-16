@@ -27,7 +27,7 @@ static void ff_tick(ColonizeTurnContext* ctx) {
     founding_fathers_force_pool_from_total(ctx->col1);
   }
   founding_fathers_tick(ctx);
-  /* bugs.md 440: human election moved to TURN_PROC_FINISH's own call. */
+  /* bugs.md #434: human election moved to TURN_PROC_FINISH's own call. */
   founding_fathers_tick_human_elect(ctx);
 }
 
@@ -1134,7 +1134,7 @@ int main(void) {
       }
       aw = units_get(&upool, aid);
       /* DOS 5fef_172c: veteran status is the PROFESSION (0x15); the unit
-       * type never changes on a veteran promote (bugs.md 254). */
+       * type never changes on a veteran promote (bugs.md #248). */
       if (!aw || aw->type_index != 0) {
         return fail("Washington veteran promote must not swap the unit type");
       }

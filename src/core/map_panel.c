@@ -379,7 +379,7 @@ static const char* map_panel_euro_country(
 static const uint8_t k_map_panel_nation_color[4] = {12u, 9u, 14u, 13u};
 
 /*
- * bugs.md 370 ("Dutch mission cross is pink"): DS:0x848's indices are
+ * bugs.md #364 ("Dutch mission cross is pink"): DS:0x848's indices are
  * ICONS.SS-native, and the map is drawn through TERRAIN.SS's palette, which
  * puts plain EGA magenta back in slots 13 (bright) and 5 (index-8 dark) —
  * the two the Dutch use. Ask unit_chrome for the nearest match to the real
@@ -501,7 +501,7 @@ static void map_panel_draw_tribe_chrome(
     const int owner = (int)(t->mission & COL1_TRIBE_MISSION_NATION_MASK);
     if (owner >= 0 && owner < 4) {
       /* Jesuit = the bright nation shade, plain mission = its dark twin
-       * (DOS's index-8). Palette-adapted: bugs.md 370. */
+       * (DOS's index-8). Palette-adapted: bugs.md #364. */
       const uint8_t color = map_panel_nation_shade(
         owner, active_palette, (t->mission & COL1_TRIBE_MISSION_JESUIT_BIT) == 0
       );
@@ -630,7 +630,7 @@ static const char* map_panel_order_label(const ColonizeMsgCatalog* names, int or
 /* Text column and the indented column beside a 16px unit-chrome icon. */
 #define MAP_PANEL_TEXT_X (MAP_PANEL_X + MAP_PANEL_TEXT_MARGIN)
 #define MAP_PANEL_ICON_INDENT 0x12
-/* First sidebar text row (DOS literal 0x33), just below the minimap frame. */
+/* First sidebar text row (DOS-LITERAL 0x33), just below the minimap frame. */
 #define MAP_PANEL_TEXT_TOP 0x33
 /* One unit-chrome row. */
 #define MAP_PANEL_ROW_H 0x12
@@ -675,7 +675,7 @@ static const char* map_panel_nationality(int nation_id) {
     if (nation_id == unit_chrome_crown_nation()) {
       return "Tory";
     }
-    /* bugs.md 245: rebel side's units read "Rebel" (LABELS 84) during WoI. */
+    /* bugs.md #239: rebel side's units read "Rebel" (LABELS 84) during WoI. */
     if (nation_id == unit_chrome_rebel_nation()) {
       return "Rebel";
     }

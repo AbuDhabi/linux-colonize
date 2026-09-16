@@ -82,7 +82,7 @@ FINISH then **yields** (returns to the frame loop) so every production popup it
 queued is presented and answered — and an elected colony zoom taken — before
 the king moves. That yield is the whole reason for the split; DOS's `3844_00f2`
 dialogs are blocking calls, so its production chrome can never still be pending
-when the king runs (bugs.md 400/404/407).
+when the king runs (bugs.md #394/404/407).
 
 ### `TURN_PROC_KING` (no indicator)
 

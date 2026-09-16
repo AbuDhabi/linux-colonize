@@ -77,7 +77,7 @@ typedef struct ColonizeReportsView {
   bool icons_ok[COLONIZE_REPORT_ICONS_DEST_COUNT];
   /* FONTTINY.FF — every line on every report screen, titles and body alike.
    * The 3f41 overlay only ever loads the FONTTINY font pointer (DS:0x89e);
-   * there is no second report font (bugs.md 434). */
+   * there is no second report font (bugs.md #428). */
   ColonizeFont title_font;
   bool title_font_ok;
   /* Congress is two pages: p1 = REPORT3.PIK (this nation's own desk/study —

@@ -493,7 +493,7 @@ int colonies_indian_land_owner_tribe(
 );
 
 /*
- * Same test as the colony screen actually runs it (bugs.md 372): DOS hoists the
+ * Same test as the colony screen actually runs it (bugs.md #366): DOS hoists the
  * continent lookup out of the 5x5 loop and reads it at the COLONY tile
  * (origin_x, origin_y), and clears every Ocean / Sea Lane cell outright.
  * Also answers the plain "what claims this tile" question with origin ==
@@ -666,7 +666,7 @@ int colonies_admit_unit(
   const ColonizeCol1Save* col1
 );
 
-/* bugs.md 262: assign every job-less colonist a workplace (Town Hall first).
+/* bugs.md #256: assign every job-less colonist a workplace (Town Hall first).
  * DOS never carries idle colonists; runs after admits and each EOT. */
 void colonies_auto_assign_idle(ColonizeColonyPool* pool, int colony_id);
 /*
@@ -917,7 +917,7 @@ int colonies_warehouse_capacity(
 /*
  * Human unload chrome: GAME.TXT @WAREHOUSEFULL when warehouse has no room.
  * cargo_name optional (fallback "cargo"). No-op if ai_popups NULL.
- * @WAREHOUSEFULL's numbers (bugs.md 439): NUMBER0 = what the warehouse
+ * @WAREHOUSEFULL's numbers (bugs.md #433): NUMBER0 = what the warehouse
  * already held BEFORE this deposit, NUMBER1 = capacity, NUMBER2 = the
  * deposit itself. `deposited` = units the player just unloaded (or tried
  * to); `already_included` = how much of that has already been added to

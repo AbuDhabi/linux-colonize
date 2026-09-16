@@ -104,7 +104,7 @@ typedef enum ColonizeTurnProcStep {
   TURN_PROC_FINISH, /* human colony production (indicator on — DOS paints the
                      * turn-owner box at the head of the human's own 00f2) */
   /*
-   * bugs.md 400/404/407: king (REF) + year-end + market + human refresh moved
+   * bugs.md #394/404/407: king (REF) + year-end + market + human refresh moved
    * out of FINISH into their own slice, so every colony popup FINISH queued is
    * presented and ANSWERED (and an elected colony zoom taken) before the
    * king's attacks run — DOS FUN_3844_00f2's dialogs are blocking calls, so

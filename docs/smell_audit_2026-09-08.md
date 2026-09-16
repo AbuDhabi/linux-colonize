@@ -1,5 +1,8 @@
 # Mechanics smell audit — 2026-09-08
 
+> **STATUS: historical audit dump, fully triaged/closed on 2026-09-09;
+> not an authoritative spec; do not treat findings as facts.**
+
 **Status: CLOSED.** Worked off in fix batches 1-11 (2026-09-08 → 2026-09-09); 106 of the 107
 items carry an inline FIXED / REFUTED / WONTFIX note. Kept as the record of what was decided
 and why, not as a work queue. Successor sweeps: [smell_audit_2026-09-09.md](smell_audit_2026-09-09.md),

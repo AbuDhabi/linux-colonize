@@ -129,7 +129,7 @@ int main(void) {
       return 1;
     }
     /*
-     * bugs.md 435: the AMER2 west-coast sea lane IS column 1 (high seas,
+     * bugs.md #429: the AMER2 west-coast sea lane IS column 1 (high seas,
      * rows 33..70) and the east lane runs to column 56 — both must fall
      * inside the playable board and inside the scrolled-to-the-edge viewport.
      * DOS draws exactly columns 1..56 (FUN_6ba1_000c clamps the view origin to
@@ -506,7 +506,7 @@ int main(void) {
     const int complete_map_chrome_ok = memcmp(xpx, cpx, sizeof(cpx)) == 0;
 
     /*
-     * bugs.md 370: the Dutch shade is DS:0x848 index 13, which is ICONS.SS-
+     * bugs.md #364: the Dutch shade is DS:0x848 index 13, which is ICONS.SS-
      * native orange (255,113,0) but plain EGA magenta in every other
      * palette. Given the active palette, the cross must land on whatever
      * index actually holds that orange — here a deliberately relocated slot
@@ -575,7 +575,7 @@ int main(void) {
       return 1;
     }
     if (!dutch_cross_ok) {
-      fprintf(stderr, "Dutch mission cross not palette-adapted (bugs.md 370: pink, not orange)\n");
+      fprintf(stderr, "Dutch mission cross not palette-adapted (bugs.md #364: pink, not orange)\n");
       free(pixels);
       map_free(&map);
       map_panel_free(&panel);

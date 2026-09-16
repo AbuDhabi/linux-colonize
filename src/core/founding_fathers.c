@@ -1499,7 +1499,7 @@ void founding_fathers_tick(ColonizeTurnContext* ctx) {
 
   ColonizeCol1Save* col1 = ctx->col1;
 
-  /* bugs.md 440: the HUMAN's election is NOT run here. DOS checks it inside
+  /* bugs.md #434: the HUMAN's election is NOT run here. DOS checks it inside
    * the human's own FUN_3844_00f2 pass, which 130d runs immediately before
    * that nation's Move Pieces — so the Congress debate belongs to the start
    * of the player's turn (TURN_PROC_FINISH calls

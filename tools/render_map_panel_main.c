@@ -1,5 +1,7 @@
 /*
  * render_map_panel: standalone main-map sidebar renderer for golden comparison.
+ * Usage: render_map_panel <data_dir> <save.SAV> <x> <y> <select_unit:0|1> <out.ppm> [load=...] [buys=...] [sells=...]
+ * External requirements: Built by CMake; outputs 320×200 PPM (convert to PNG with ImageMagick)
  *
  * Loads a Col1 .SAV, bridges it into live map/units/colonies pools the same way
  * the game does on load (col1_bridge_apply), points the panel at a tile (and

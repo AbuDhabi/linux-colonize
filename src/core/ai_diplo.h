@@ -65,7 +65,7 @@ static inline int ai_relation_quartile(int v) {
  * 2026-09-09 to FUN_465b_0000 (viceroy_unpacked.c:75527-75545); the old
  * FUN_4720_049e citation was wrong. DOS sets the real bit 0x80 there
  * (confirmed transient alert, set/cleared elsewhere in FUN_15b3_153e)
- * plus a weaker/stronger follow-up bit, DOS literal "2"/"8".
+ * plus a weaker/stronger follow-up bit, DOS-LITERAL "2"/"8".
  *
  * 2026-08-15, `153e` bit-semantics pass: bit 2 confirmed to genuinely BE
  * `AI_DIPLO_PEACE` after all — the earlier "grudge/pressure, don't reuse"
@@ -193,7 +193,7 @@ int ai_diplo_153e_encounter(ColonizeTurnContext* ctx, int human, int target, int
  * Same talk with DOS param_6 = 1: FUN_5f7a_000e's Meet With Mayor pushes 1
  * (asm `PUSH 0x1` ahead of the 6662_0086 direction arg), so the unmet /
  * 16-turn cooldown gate always opens and the port's per-turn pair latch is
- * skipped. bugs.md 459.
+ * skipped. bugs.md #453.
  */
 int ai_diplo_153e_encounter_forced(ColonizeTurnContext* ctx, int human, int target, int unit_id);
 

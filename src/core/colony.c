@@ -754,14 +754,14 @@ int colonies_indian_land_owner_tribe(
 }
 
 /*
- * bugs.md 290 — DOS FUN_15eb_26e4 (colony screen 5x5 Indian-land table):
+ * bugs.md #284 — DOS FUN_15eb_26e4 (colony screen 5x5 Indian-land table):
  * a tile shows the totem / triggers a work complaint when a village's
  * tech-tier radius covers it, the tribe has been MET (bit 0x20), the land
  * has not been bought (purchase price > 0 also folds in Peter Minuit — the
  * whole table empties with FF 2), and no colony sits on it. Returns the
  * claiming tribe index, or -1.
  *
- * bugs.md 372 — two rules the first port of the table dropped, both visible as
+ * bugs.md #366 — two rules the first port of the table dropped, both visible as
  * totems in the wrong place:
  *  - `FUN_13e4_0074(tile)` clears the slot on terrain index 25/26 (Ocean and
  *    Sea Lane), so a coastal colony never shows a totem out on the water;
@@ -1642,7 +1642,7 @@ int colonies_admit_unit(
       col->building_in_production = -1;
     }
   }
-  /* bugs.md 262: every admit path (AI joins, capture, save import) puts the
+  /* bugs.md #256: every admit path (AI joins, capture, save import) puts the
    * newcomer to work immediately — DOS has no idle colonists, and an idle
    * one made the head count disagree with the visible workers. */
   colonies_auto_assign_idle(pool, colony_id);
@@ -1720,7 +1720,7 @@ int colonies_has_church_or_cathedral(
 
 /*
  * Tools handed to a body being equipped as a Pioneer: whole 20-tool steps,
- * capped at 100. DOS-literal, not a port convenience — verified 2026-09-10
+ * capped at 100. DOS-LITERAL, not a port convenience — verified 2026-09-10
  * (seventh wave, second-wave lead 7, which suspected a deviation):
  *   FUN_15eb_1068, the equip/leave-as applier (viceroy_unpacked.c 11250-11253):
  *     local_8 = colony stock[TOOLS] (+0xb6) / 0x14;
@@ -1733,7 +1733,7 @@ int colonies_has_church_or_cathedral(
  * FUN_15eb_35d0's `min(stock, 100, req)` is a different path — the cargo-hold
  * loader, whose `req` is FUN_15eb_3208's free-hold count * 100 (raw 13375) —
  * i.e. loading 100-lots into a ship/wagon, never equipping a colonist.
- * bugs.md row 362 (a Pioneer legitimately walks with 20/40/60/80/100) is the
+ * bugs.md #356 (a Pioneer legitimately walks with 20/40/60/80/100) is the
  * behaviour this reproduces.
  */
 int colonies_equip_tools_take(int available) {
@@ -3023,7 +3023,7 @@ void colonies_emit_warehouse_full_chrome(
     return;
   }
   const int cap = colonies_warehouse_capacity(pool, colony, cargo_type);
-  /* bugs.md 439: NUMBER0 is the pre-deposit stock; back out whatever part of
+  /* bugs.md #433: NUMBER0 is the pre-deposit stock; back out whatever part of
    * this deposit has already landed in stock[]. */
   int stock = colony->stock[cargo_type] - (already_included > 0 ? already_included : 0);
   if (stock < 0) {

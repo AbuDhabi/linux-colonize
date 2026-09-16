@@ -338,7 +338,7 @@ bool reports_load(ColonizeReportsView* view, const char* data_dir, char* err, si
     view->title_font_ok = true;
     /* FONTINTR is deliberately NOT loaded here: the whole 3f41 report overlay
      * touches only the FONTTINY font pointer (DS:0x89e) — see
-     * reports_render_indian (bugs.md 434). */
+     * reports_render_indian (bugs.md #428). */
   } else {
     diag_warn("Failed to load FONTTINY.FF for reports: %s", font_err);
   }
@@ -1381,7 +1381,7 @@ static void reports_render_congress_page1(
       nat->next_founding_father >= 0 ? reports_ff_name(nat->next_founding_father) : "none"
     );
   } else if (!ref_arrived) {
-    /* bugs.md 235/257: after declaring, FF elections are over — the bell bar
+    /* bugs.md #229/257: after declaring, FF elections are over — the bell bar
      * counts toward the foreign intervention instead. DOS's top header is
      * just "<nation> Intervention:" (@MISC 113); "Intervention Force" (@MISC
      * 111) is the header of the soldier lineup row further down. */
@@ -1528,17 +1528,17 @@ static void reports_render_congress_page1(
    * fixed layout has 10px here, so the counts are drawn as one text line.
    */
   /*
-   * bugs.md 236 / DOS 3f41 (~69774): when the foreign-intervention pool
+   * bugs.md #230 / DOS 3f41 (~69774): when the foreign-intervention pool
    * (DS:0x53e2 = head.backup_force) is non-zero, a second force row appears
    * under the REF lines in the SAME format — icon lineup of regulars,
-   * cavalry, artillery, man-o-wars (bugs.md 270: it gets a full-height band
+   * cavalry, artillery, man-o-wars (bugs.md #264: it gets a full-height band
    * and pushes the Founding Fathers block down).
    */
   int pool_sum = 0;
   for (int i = 0; i < 4; ++i) {
     pool_sum += (int)col1->head.backup_force[i];
   }
-  /* bugs.md 270: the intervention row needs its own full band — when it is
+  /* bugs.md #264: the intervention row needs its own full band — when it is
    * present, the Founding Fathers header (and list) move down below it
    * instead of sharing the fixed 10px gap and overlapping both neighbors. */
   const int interv_row_y = REPORTS_CONGRESS_FORCE_Y + REPORTS_CONGRESS_FORCE_H + 2;
@@ -1552,7 +1552,7 @@ static void reports_render_congress_page1(
     : REPORTS_CONGRESS_FF_HEADER_Y;
   {
     if (pool_sum > 0) {
-      /* bugs.md 257: the intervention lineup is Continental Army /
+      /* bugs.md #251: the intervention lineup is Continental Army /
        * Continental Cavalry (@UNIT icons 129/130), not Regulars/Cavalry,
        * and it carries its own "<Ally> Intervention Force:" header. */
       static const int kForceIndex2[4] = {0, 1, 3, 2};
@@ -3735,7 +3735,7 @@ static void reports_render_indian(
 ) {
   const ColonizeSpriteSheet* icons = reports_icons_for(view, COLONIZE_REPORT_INDIAN);
   /*
-   * bugs.md 434 — EVERY line on this screen is FONTTINY, the tribe name and
+   * bugs.md #428 — EVERY line on this screen is FONTTINY, the tribe name and
    * the tech-level word included. Player-observed in DOS, and the overlay
    * agrees byte for byte: module 104b exposes two hard-wired drawer families,
    * one bound to the FONTTINY far pointer at DS:0x89e (FUN_104b_0216 measure,
@@ -4670,7 +4670,7 @@ void reports_render_hall_of_fame(
 }
 
 void reports_remap_exploits_sheet(const ColonizeReportsView* view, ColonizeSpriteSheet* sheet) {
-  /* bugs.md 408: SCORE<nn>.SS shares WOODPAN2.PIK's low palette block and
+  /* bugs.md #402: SCORE<nn>.SS shares WOODPAN2.PIK's low palette block and
    * carries the painting's own colours in the slots WOODPAN2 leaves black —
    * the reserved-DAC-block pattern (crown-europe batch: merge, never remap).
    * The old nearest-colour remap here crushed the painting into the 115
@@ -4697,7 +4697,7 @@ void reports_render_exploits(
   }
   const ColonizeFont* body_font = (view && view->title_font_ok) ? &view->title_font : font;
   /*
-   * FUN_41f2_0b70 (OVL06 asm 0x3887..0x39d0, bugs.md 408): all inks are
+   * FUN_41f2_0b70 (OVL06 asm 0x3887..0x39d0, bugs.md #402): all inks are
    * WOODPAN2.PIK DAC indices — 0xfc (gold 199,162,32) for the @EXPLOITS
    * headers, the named line and the picked-tier row, 0xfe (green 85,150,52)
    * for the other @SCORE rows. Headers centred full-width from y=5; @SCORE

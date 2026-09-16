@@ -656,7 +656,7 @@ static bool map_procedural_rumour_at(const ColonizeWorldMap* map, int x, int y) 
 
 /*
  * FUN_137f_0598 (FUN_281f_075e thunk) — the Indian move scorer's rumour-tile
- * skip. DOS-literal: prime_resource_seed nonzero, terrain class not arctic /
+ * skip. DOS-LITERAL: prime_resource_seed nonzero, terrain class not arctic /
  * ocean / high seas, layer3 owner nibble unset (FUN_137f_0200 < 0), and the
  * same rumour hash as map_procedural_rumour_at. No cleared-bit test in DOS.
  */
@@ -2063,7 +2063,7 @@ int map_move_cost_step(
   }
   /* Same DOS FA pair rule as map_move_spent_thirds: mask 0x0a = road bit OR
    * settlement bit, so a colony/village tile pairs like a road tile
-   * (bugs.md 352). Keeping road-only here made the two helpers disagree. */
+   * (bugs.md #346). Keeping road-only here made the two helpers disagree. */
   if (map_tile_has_road_art(map, from_x, from_y) && map_tile_has_road_art(map, to_x, to_y)) {
     return 1;
   }
@@ -2188,7 +2188,7 @@ int map_tile_layer_cmds(
   const int plow = map_phys0_plow_sprite_at(map, x, y);
   if (plow >= 0) {
     map_layer_push(out, max, &n, MAP_LAYER_SHEET_PHYS0, 0, plow, 0, 0);
-    /* bugs.md 402: keep the special-resource icon visible — re-blit it
+    /* bugs.md #396: keep the special-resource icon visible — re-blit it
      * above the plow art (phase 2+ peel already hides it). */
     if (hidden_terrain_phase < 2) {
       for (int rl = 0; rl < layers; ++rl) {
