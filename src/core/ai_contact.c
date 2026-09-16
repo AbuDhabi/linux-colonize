@@ -8154,18 +8154,20 @@ __attribute__((constructor)) static void ai_contact_register_raid_repelled(void)
   units_set_colony_raid_repelled(ai_contact_colony_raid_repelled);
 }
 
-int ai_contact_colony_raid_repelled(
-  ColonizeCol1Save* col1,
-  ColonizeColonyPool* colonies,
-  ColonizeUnitPool* units,
-  ColonizeWorldMap* map,
-  ColonizeDosRng* rng,
+int ai_contact_colony_raid_repelled_w(
+  const ColonizeWorld* w,
   int indian_nation,
   int euro_nation,
   int colony_id,
   int home_tribe_id,
   int forced
 ) {
+  ColonizeCol1Save* col1 = w->col1;
+  ColonizeColonyPool* colonies = w->colonies;
+  ColonizeUnitPool* units = w->units;
+  ColonizeWorldMap* map = w->map;
+  ColonizeDosRng* rng = w->rng;
+
   if (!col1 || !colonies || indian_nation < 4 || indian_nation > 11 || euro_nation < 0 ||
       euro_nation > 3) {
     return AI_RAID_NOTHING;
@@ -8226,6 +8228,23 @@ int ai_contact_colony_raid_repelled(
     col1_tribe_attitude_set(&col1->tribe[home_tribe_id], euro_nation, 0);
   }
   return (int)kind;
+}
+
+/* Compat shim: pre-ColonizeWorld signature (see src/core/world.h). */
+int ai_contact_colony_raid_repelled(
+  ColonizeCol1Save* col1,
+  ColonizeColonyPool* colonies,
+  ColonizeUnitPool* units,
+  ColonizeWorldMap* map,
+  ColonizeDosRng* rng,
+  int indian_nation,
+  int euro_nation,
+  int colony_id,
+  int home_tribe_id,
+  int forced
+) {
+  ColonizeWorld w_ = world_make(units, colonies, map, col1, col1 != NULL, rng, NULL);
+  return ai_contact_colony_raid_repelled_w(&w_, indian_nation, euro_nation, colony_id, home_tribe_id, forced);
 }
 
 /*

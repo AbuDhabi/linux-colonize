@@ -2,6 +2,7 @@
 #define COLONIZE_UNITS_CARGO_H
 
 #include "core/units.h"
+#include "core/world.h"
 
 /* Holds, passengers, treasure, boarding: split out of units.h for navigability. */
 
@@ -14,6 +15,11 @@
  * own reveal-radius bonus. europe/human_nation are optional (NULL/-1 to
  * skip the Fountain-of-Youth Europe-dock sync — AI nations have none).
  */
+bool units_resolve_lcr_rumour_w(
+  const ColonizeWorld* w,
+  int unit_id,
+  int human_nation
+);
 bool units_resolve_lcr_rumour(
   ColonizeUnitPool* pool,
   int unit_id,
@@ -98,6 +104,10 @@ int units_tick_drydock_repair(
  * number cashed. Non-Cortes KINGGALLEON2 is
  * `units_king_galleon_offer_coastal_treasures` (FUN_5fef_1908, Done).
  */
+int units_cortes_cash_coastal_treasures_w(
+  const ColonizeWorld* w,
+  int nation_id
+);
 int units_cortes_cash_coastal_treasures(
   ColonizeUnitPool* pool,
   ColonizeColonyPool* colonies,
@@ -155,6 +165,12 @@ int units_ai_treasure_cash_in_colony(
  * of treasures cashed or offered. DOS runs this on the move onto the tile;
  * Linux runs it at human turn end (same place the Cortes auto-cash lived).
  */
+int units_king_galleon_offer_coastal_treasures_w(
+  const ColonizeWorld* w,
+  int nation_id,
+  AiPopupState* popups,
+  const ColonizeMsgCatalog* game_txt
+);
 int units_king_galleon_offer_coastal_treasures(
   ColonizeUnitPool* pool,
   const ColonizeColonyPool* colonies,
@@ -197,6 +213,10 @@ void units_brewster_enqueue_pick(
 bool units_brewster_apply_popup(
   EuropeScreen* europe, AiPopupState* popups, ColonizeUnitPool* units
 );
+bool units_brewster_apply_popup_ex_w(
+  const ColonizeWorld* w,
+  AiPopupState* popups
+);
 bool units_brewster_apply_popup_ex(
   EuropeScreen* europe, AiPopupState* popups, ColonizeUnitPool* units, ColonizeDosRng* rng
 );
@@ -208,6 +228,11 @@ bool units_fountain_youth_apply_popup_ex(
   AiPopupState* popups,
   const ColonizeMsgCatalog* game_txt,
   ColonizeDosRng* rng
+);
+bool units_king_galleon_apply_popup_w(
+  const ColonizeWorld* w,
+  AiPopupState* popups,
+  const ColonizeMsgCatalog* game_txt
 );
 bool units_king_galleon_apply_popup(
   ColonizeUnitPool* pool,
@@ -275,6 +300,12 @@ int units_find_boardable_ship(
  */
 int units_ship_departure_pickup(ColonizeUnitPool* pool, int ship_id, int x, int y);
 /* Unload oldest passenger from ship onto dest (must be enterable land). */
+bool units_unload_w(
+  const ColonizeWorld* w,
+  int ship_id,
+  int dest_x,
+  int dest_y
+);
 bool units_unload(
   ColonizeUnitPool* pool,
   int ship_id,
@@ -284,6 +315,13 @@ bool units_unload(
   const ColonizeColonyPool* colonies
 );
 /* Unload a specific passenger onto dest; charges dest terrain MP (no gift). */
+bool units_unload_passenger_w(
+  const ColonizeWorld* w,
+  int ship_id,
+  int pax_id,
+  int dest_x,
+  int dest_y
+);
 bool units_unload_passenger(
   ColonizeUnitPool* pool,
   int ship_id,
@@ -311,6 +349,14 @@ int units_first_landfall_cargo(const ColonizeUnitPool* pool, int ship_id);
  * Prefers tiles nearer to (prefer_x, prefer_y) when prefer coords are valid;
  * pass prefer_x < 0 to ignore. Returns false if none.
  */
+bool units_pick_landfall_tile_w(
+  const ColonizeWorld* w,
+  int ship_id,
+  int prefer_x,
+  int prefer_y,
+  int* out_x,
+  int* out_y
+);
 bool units_pick_landfall_tile(
   const ColonizeUnitPool* pool,
   int ship_id,
@@ -326,6 +372,12 @@ bool units_pick_landfall_tile(
  * Wakes sentry cargo. Does not change pool->selected_id. Returns count unloaded.
  * AI beachhead helper — human @LANDFALL Make Landfall unloads one unit only.
  */
+int units_landfall_unload_all_w(
+  const ColonizeWorld* w,
+  int ship_id,
+  int dest_x,
+  int dest_y
+);
 int units_landfall_unload_all(
   ColonizeUnitPool* pool,
   int ship_id,

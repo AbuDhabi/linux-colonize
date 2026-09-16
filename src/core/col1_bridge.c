@@ -758,16 +758,18 @@ static int col1_bridge_unit_max_mp(
   return total;
 }
 
-bool col1_bridge_apply(
-  const ColonizeCol1Save* save,
-  ColonizeWorldMap* map,
-  ColonizeUnitPool* units,
-  ColonizeColonyPool* colonies,
-  EuropeScreen* europe,
+bool col1_bridge_apply_w(
+  const ColonizeWorld* w,
   ColonizeCol1BridgeResult* out,
   char* err,
   size_t err_size
 ) {
+  const ColonizeCol1Save* save = w->col1;
+  ColonizeWorldMap* map = w->map;
+  ColonizeUnitPool* units = w->units;
+  ColonizeColonyPool* colonies = w->colonies;
+  EuropeScreen* europe = w->europe;
+
   if (!save || !map || !units || !colonies) {
     COL1_FAIL(err, err_size, "col1_bridge_apply bad args");
   }
@@ -1763,6 +1765,21 @@ bool col1_bridge_apply(
   return true;
 }
 
+/* Compat shim: pre-ColonizeWorld signature (see src/core/world.h). */
+bool col1_bridge_apply(
+  const ColonizeCol1Save* save,
+  ColonizeWorldMap* map,
+  ColonizeUnitPool* units,
+  ColonizeColonyPool* colonies,
+  EuropeScreen* europe,
+  ColonizeCol1BridgeResult* out,
+  char* err,
+  size_t err_size
+) {
+  ColonizeWorld w_ = world_make(units, colonies, map, save, save != NULL, NULL, europe);
+  return col1_bridge_apply_w(&w_, out, err, err_size);
+}
+
 
 
 /*
@@ -1902,12 +1919,8 @@ static void col1_bridge_sanitize_units_for_dos(
   }
 }
 
-bool col1_bridge_capture(
-  ColonizeCol1Save* save,
-  const ColonizeWorldMap* map,
-  ColonizeUnitPool* units,
-  const ColonizeColonyPool* colonies,
-  const EuropeScreen* europe,
+bool col1_bridge_capture_w(
+  const ColonizeWorld* w,
   uint16_t year,
   uint16_t autumn,
   uint32_t turn_number,
@@ -1921,6 +1934,12 @@ bool col1_bridge_capture(
   char* err,
   size_t err_size
 ) {
+  ColonizeCol1Save* save = w->col1;
+  const ColonizeWorldMap* map = w->map;
+  ColonizeUnitPool* units = w->units;
+  const ColonizeColonyPool* colonies = w->colonies;
+  const EuropeScreen* europe = w->europe;
+
   if (!save || !map || !units || !colonies) {
     COL1_FAIL(err, err_size, "col1_bridge_capture bad args");
   }
@@ -3069,6 +3088,30 @@ bool col1_bridge_capture(
     err[0] = '\0';
   }
   return true;
+}
+
+/* Compat shim: pre-ColonizeWorld signature (see src/core/world.h). */
+bool col1_bridge_capture(
+  ColonizeCol1Save* save,
+  const ColonizeWorldMap* map,
+  ColonizeUnitPool* units,
+  const ColonizeColonyPool* colonies,
+  const EuropeScreen* europe,
+  uint16_t year,
+  uint16_t autumn,
+  uint32_t turn_number,
+  int human_nation,
+  int cursor_x,
+  int cursor_y,
+  int view_x,
+  int view_y,
+  int active_unit_id,
+  bool view_pieces_mode,
+  char* err,
+  size_t err_size
+) {
+  ColonizeWorld w_ = world_make(units, colonies, map, save, save != NULL, NULL, europe);
+  return col1_bridge_capture_w(&w_, year, autumn, turn_number, human_nation, cursor_x, cursor_y, view_x, view_y, active_unit_id, view_pieces_mode, err, err_size);
 }
 
 void col1_bridge_mark_new_world_discovered(ColonizeCol1Save* save, int human_nation) {

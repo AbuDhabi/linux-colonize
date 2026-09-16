@@ -9,13 +9,15 @@
 #include "core/founding_fathers.h"
 #include "core/turn.h"
 
-void colony_preview_compute(
-  const ColonizeColonyPool* pool,
+void colony_preview_compute_w(
+  const ColonizeWorld* w,
   const ColonizeColony* colony,
-  const ColonizeWorldMap* map,
-  const ColonizeCol1Save* col1,
   ColonizeColonyPreview* out
 ) {
+  const ColonizeColonyPool* pool = w->colonies;
+  const ColonizeWorldMap* map = w->map;
+  const ColonizeCol1Save* col1 = w->col1;
+
   if (!out) {
     return;
   }
@@ -222,4 +224,16 @@ void colony_preview_compute(
       }
     }
   }
+}
+
+/* Compat shim: pre-ColonizeWorld signature (see src/core/world.h). */
+void colony_preview_compute(
+  const ColonizeColonyPool* pool,
+  const ColonizeColony* colony,
+  const ColonizeWorldMap* map,
+  const ColonizeCol1Save* col1,
+  ColonizeColonyPreview* out
+) {
+  ColonizeWorld w_ = world_make(NULL, pool, map, col1, col1 != NULL, NULL, NULL);
+  colony_preview_compute_w(&w_, colony, out);
 }

@@ -5,6 +5,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "core/world.h"
+
 #include "core/assets.h"
 #include "core/ai_popup.h"
 #include "core/colony.h"
@@ -369,6 +371,10 @@ int units_sight_radius(
  * Returns true when the core ring touched a Pacific-strip water tile
  * (FUN_13f1_0158 DS:0x1e8 arm) — caller decides on the woodcut.
  */
+bool units_reveal_sight_w(
+  const ColonizeWorld* w,
+  const ColonizeUnit* u
+);
 bool units_reveal_sight(
   ColonizeWorldMap* map,
   ColonizeUnitPool* pool,

@@ -3,6 +3,7 @@
 
 #include "core/colony.h"
 #include "core/map.h"
+#include "core/world.h"
 
 typedef struct ColonizeCol1Save ColonizeCol1Save;
 
@@ -71,6 +72,11 @@ typedef struct ColonizeColonyPreview {
   int craft_capacity[COLONIZE_CARGO_COUNT];
 } ColonizeColonyPreview;
 
+void colony_preview_compute_w(
+  const ColonizeWorld* w,
+  const ColonizeColony* colony,
+  ColonizeColonyPreview* out
+);
 void colony_preview_compute(
   const ColonizeColonyPool* pool,
   const ColonizeColony* colony,

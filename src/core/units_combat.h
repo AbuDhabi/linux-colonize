@@ -2,6 +2,7 @@
 #define COLONIZE_UNITS_COMBAT_H
 
 #include "core/units.h"
+#include "core/world.h"
 
 /* Combat, promotion, dissolve, capture: split out of units.h for navigability. */
 
@@ -97,6 +98,14 @@ int units_conquest_treasure_gold(
  * rolls one (no Cortes gate — see bugs.md #381).
  * May adjust Indian relation via ai_diplo helpers when col1 is set.
  */
+bool units_try_native_settlement_fallout_w(
+  const ColonizeWorld* w,
+  int attacker_nation_id,
+  int defender_nation_id,
+  int tile_x,
+  int tile_y,
+  int gold_amount
+);
 bool units_try_native_settlement_fallout(
   ColonizeCol1Save* col1,
   ColonizeUnitPool* units,
@@ -211,6 +220,11 @@ int units_raid_damage_ship(ColonizeUnitPool* pool, int ship_id, const ColonizeCo
  * always upgrade), promote winner name/type like 1eca. col1 may be NULL (no FF
  * promote). Returns true if attacker wins.
  */
+bool units_resolve_land_combat_ff_w(
+  const ColonizeWorld* w,
+  int attacker_id,
+  int defender_id
+);
 bool units_resolve_land_combat_ff(
   ColonizeUnitPool* pool,
   int attacker_id,
@@ -236,6 +250,11 @@ bool units_resolve_land_combat(
  * shape as land; ships only. Winner keeps the tile; loser despawned after hold
  * plunder into winner. Optional Combat Analysis after strengths, before roll.
  */
+bool units_resolve_naval_combat_ff_w(
+  const ColonizeWorld* w,
+  int attacker_id,
+  int defender_id
+);
 bool units_resolve_naval_combat_ff(
   ColonizeUnitPool* pool,
   int attacker_id,
@@ -282,12 +301,22 @@ int units_coastal_fort_attack_strength(
  * at PEACE; a Privateer mover ignores the peace gate. Human mover gets
  * @SHIPSLOW / @SHIPRUN through the combat popup queue. Exposed for tests.
  */
+void units_ship_slow_scan_w(
+  const ColonizeWorld* w,
+  int unit_id
+);
 void units_ship_slow_scan(
   ColonizeUnitPool* pool,
   int unit_id,
   const ColonizeWorldMap* map,
   const ColonizeColonyPool* colonies,
   ColonizeDosRng* rng
+);
+int units_coastal_fort_fire_pulse_w(
+  const ColonizeWorld* w,
+  int human_nation,
+  char* status,
+  size_t status_size
 );
 int units_coastal_fort_fire_pulse(
   ColonizeUnitPool* units,

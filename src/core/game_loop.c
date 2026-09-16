@@ -385,17 +385,19 @@ static void game_blit_unit_in_viewport(
   }
 }
 
-COLONIZE_INTERNAL void game_move_watch(
+COLONIZE_INTERNAL void game_move_watch_w(
+  const ColonizeWorld* w,
   void* user,
-  const ColonizeUnitPool* pool,
-  const ColonizeWorldMap* map,
-  const ColonizeColonyPool* colonies,
   int unit_id,
   int from_x,
   int from_y,
   int to_x,
   int to_y
 ) {
+  const ColonizeUnitPool* pool = w->units;
+  const ColonizeWorldMap* map = w->map;
+  const ColonizeColonyPool* colonies = w->colonies;
+
   ColonizeGameState* game = (ColonizeGameState*)user;
   const ColonizeUnit* unit = pool ? units_get_const(pool, unit_id) : NULL;
   if (!game || !unit || !map || !colonies || !game->platform || !game->col1_ok) {
@@ -545,6 +547,22 @@ COLONIZE_INTERNAL void game_move_watch(
       platform_sleep_ms(fast ? 80u : 100u);
     }
   }
+}
+
+/* Compat shim: pre-ColonizeWorld signature (see src/core/world.h). */
+COLONIZE_INTERNAL void game_move_watch(
+  void* user,
+  const ColonizeUnitPool* pool,
+  const ColonizeWorldMap* map,
+  const ColonizeColonyPool* colonies,
+  int unit_id,
+  int from_x,
+  int from_y,
+  int to_x,
+  int to_y
+) {
+  ColonizeWorld w_ = world_make(pool, colonies, map, NULL, false, NULL, NULL);
+  game_move_watch_w(&w_, user, unit_id, from_x, from_y, to_x, to_y);
 }
 
 /*

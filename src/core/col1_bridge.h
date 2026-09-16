@@ -10,6 +10,7 @@
 #include "core/europe.h"
 #include "core/map.h"
 #include "core/units.h"
+#include "core/world.h"
 
 /*
  * Bridge between original COLONY##.SAV (ColonizeCol1Save) and live bring-up
@@ -35,6 +36,12 @@ typedef struct ColonizeCol1BridgeResult {
   int skipped_europe_units;
 } ColonizeCol1BridgeResult;
 
+bool col1_bridge_apply_w(
+  const ColonizeWorld* w,
+  ColonizeCol1BridgeResult* out,
+  char* err,
+  size_t err_size
+);
 bool col1_bridge_apply(
   const ColonizeCol1Save* save,
   ColonizeWorldMap* map,
@@ -50,6 +57,21 @@ bool col1_bridge_apply(
  * Update *save in place from live state (must already be a valid loaded or
  * template Col1 save with matching map size / allocated sections).
  */
+bool col1_bridge_capture_w(
+  const ColonizeWorld* w,
+  uint16_t year,
+  uint16_t autumn,
+  uint32_t turn_number,
+  int human_nation,
+  int cursor_x,
+  int cursor_y,
+  int view_x,
+  int view_y,
+  int active_unit_id,
+  bool view_pieces_mode,
+  char* err,
+  size_t err_size
+);
 bool col1_bridge_capture(
   ColonizeCol1Save* save,
   const ColonizeWorldMap* map,

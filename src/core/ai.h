@@ -12,6 +12,7 @@
 #include "core/map.h"
 #include "core/turn.h"
 #include "core/units.h"
+#include "core/world.h"
 
 /*
  * European / Indian / King AI (Full T0/T1 surface).
@@ -92,6 +93,12 @@ void ai_native_note_brave_turn_origin(int unit_id, int x, int y);
  * `score/4 + 1` exclamation marks over the village. Cheap enough to call per
  * visible village per frame — it walks a 20-tile ring and the colony list.
  */
+int ai_indian_village_threat_w(
+  const ColonizeWorld* w,
+  int human_nation,
+  int tribe_index,
+  int* out_score
+);
 int ai_indian_village_threat(
   const ColonizeCol1Save* col1,
   const ColonizeWorldMap* map,
@@ -110,6 +117,10 @@ void ai_king_nation_turn(ColonizeTurnContext* ctx);
  * clear map owner nibbles on village tiles, reset indian[N-4] slot.
  * Returns number of villages removed (0 if none / invalid).
  */
+int col1_kill_indian_nation_w(
+  const ColonizeWorld* w,
+  int nation_id
+);
 int col1_kill_indian_nation(
   ColonizeCol1Save* col1,
   ColonizeUnitPool* units,

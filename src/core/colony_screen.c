@@ -216,13 +216,15 @@ void colony_screen_refresh_outside(
   }
 }
 
-void colony_screen_refresh_preview(
+void colony_screen_refresh_preview_w(
+  const ColonizeWorld* w,
   ColonyScreenView* view,
-  const ColonizeColonyPool* pool,
-  const ColonizeColony* colony,
-  const ColonizeWorldMap* map,
-  const ColonizeCol1Save* col1
+  const ColonizeColony* colony
 ) {
+  const ColonizeColonyPool* pool = w->colonies;
+  const ColonizeWorldMap* map = w->map;
+  const ColonizeCol1Save* col1 = w->col1;
+
   if (!view) {
     return;
   }
@@ -232,6 +234,18 @@ void colony_screen_refresh_preview(
   }
   colony_preview_compute(pool, colony, map, col1, &view->preview);
   view->preview_valid = true;
+}
+
+/* Compat shim: pre-ColonizeWorld signature (see src/core/world.h). */
+void colony_screen_refresh_preview(
+  ColonyScreenView* view,
+  const ColonizeColonyPool* pool,
+  const ColonizeColony* colony,
+  const ColonizeWorldMap* map,
+  const ColonizeCol1Save* col1
+) {
+  ColonizeWorld w_ = world_make(NULL, pool, map, col1, col1 != NULL, NULL, NULL);
+  colony_screen_refresh_preview_w(&w_, view, colony);
 }
 
 void colony_screen_set_delta(ColonyScreenView* view, const ColonizeColonyProdDelta* delta) {
@@ -4514,15 +4528,12 @@ ColonyScreenHitResult colony_screen_hit_test(
   return hit;
 }
 
-void colony_screen_render(
+void colony_screen_render_w(
+  const ColonizeWorld* w,
   ColonyScreenView* view,
-  const ColonizeColonyPool* pool,
   const ColonizeColony* colony,
-  const ColonizeUnitPool* units,
-  const ColonizeWorldMap* map,
   const ColonizeSpriteSheet* terrain,
   const ColonizeSpriteSheet* phys0,
-  const ColonizeCol1Save* col1,
   uint16_t game_year,
   uint16_t game_autumn,
   int gold,
@@ -4531,6 +4542,11 @@ void colony_screen_render(
   const ColonizeMsgCatalog* labels,
   ColonizeFramebuffer8* framebuffer
 ) {
+  const ColonizeColonyPool* pool = w->colonies;
+  const ColonizeUnitPool* units = w->units;
+  const ColonizeWorldMap* map = w->map;
+  const ColonizeCol1Save* col1 = w->col1;
+
   if (!framebuffer || !framebuffer->pixels) {
     return;
   }
@@ -4611,5 +4627,27 @@ void colony_screen_render(
       font_draw_text(font, framebuffer, 4, 112, "BUILDING.SS failed to load", 12);
     }
   }
+}
+
+/* Compat shim: pre-ColonizeWorld signature (see src/core/world.h). */
+void colony_screen_render(
+  ColonyScreenView* view,
+  const ColonizeColonyPool* pool,
+  const ColonizeColony* colony,
+  const ColonizeUnitPool* units,
+  const ColonizeWorldMap* map,
+  const ColonizeSpriteSheet* terrain,
+  const ColonizeSpriteSheet* phys0,
+  const ColonizeCol1Save* col1,
+  uint16_t game_year,
+  uint16_t game_autumn,
+  int gold,
+  const ColonizeFont* font,
+  bool debug_building_rects,
+  const ColonizeMsgCatalog* labels,
+  ColonizeFramebuffer8* framebuffer
+) {
+  ColonizeWorld w_ = world_make(units, pool, map, col1, col1 != NULL, NULL, NULL);
+  colony_screen_render_w(&w_, view, colony, terrain, phys0, game_year, game_autumn, gold, font, debug_building_rects, labels, framebuffer);
 }
 

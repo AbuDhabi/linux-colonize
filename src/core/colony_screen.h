@@ -18,6 +18,7 @@
 #include "core/turn.h"
 #include "core/units.h"
 #include "platform/platform.h"
+#include "core/world.h"
 
 /*
  * DOS colony screen layout (320×200):
@@ -442,6 +443,11 @@ void colony_screen_refresh_outside(
   const ColonizeColony* colony
 );
 
+void colony_screen_refresh_preview_w(
+  const ColonizeWorld* w,
+  ColonyScreenView* view,
+  const ColonizeColony* colony
+);
 void colony_screen_refresh_preview(
   ColonyScreenView* view,
   const ColonizeColonyPool* pool,
@@ -472,6 +478,20 @@ int colony_screen_multi_units_layout(
   int max
 );
 
+void colony_screen_render_w(
+  const ColonizeWorld* w,
+  ColonyScreenView* view,
+  const ColonizeColony* colony,
+  const ColonizeSpriteSheet* terrain,
+  const ColonizeSpriteSheet* phys0,
+  uint16_t game_year,
+  uint16_t game_autumn,
+  int gold,
+  const ColonizeFont* font,
+  bool debug_building_rects,
+  const ColonizeMsgCatalog* labels,
+  ColonizeFramebuffer8* framebuffer
+);
 void colony_screen_render(
   ColonyScreenView* view,
   const ColonizeColonyPool* pool,

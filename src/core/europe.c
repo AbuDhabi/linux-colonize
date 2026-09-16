@@ -1,4 +1,5 @@
 #include "core/europe.h"
+#include "core/europe_art.h"
 
 #include <limits.h>
 #include <stdio.h>
@@ -378,7 +379,7 @@ int europe_purchase_price(const char* type_name) {
   return 0;
 }
 
-static void europe_init_purchase_table(EuropeScreen* eu) {
+void europe_init_purchase_table(EuropeScreen* eu) {
   eu->purchase_count = 0;
   for (int i = 0; i < k_purchase_opt_count && eu->purchase_count < EUROPE_PURCHASE_MAX; ++i) {
     eu->purchase[eu->purchase_count++] = k_purchase_opts[i];
@@ -853,7 +854,7 @@ int europe_cargo_burden(int cargo_type) {
   return g_europe_cargo_burden[cargo_type];
 }
 
-static bool europe_load_tables(EuropeScreen* eu, const ColonizeMsgCatalog* names) {
+bool europe_load_tables(EuropeScreen* eu, const ColonizeMsgCatalog* names) {
   eu->cargo_count = 0;
   eu->class_count = 0;
   eu->train_count = 0;
@@ -1125,99 +1126,6 @@ void europe_reset_campaign_nation(EuropeScreen* eu, int nation) {
   eu->boycott_bitmap = 0;
   /* DOS FUN_38fd_6024: recruit pool (+2..+4) filled; docks empty; pressure 0. */
   europe_set_status(eu, "Home port ready. Recruit / Purchase / Train / S Sail.");
-}
-
-bool europe_load(EuropeScreen* eu, const char* data_dir, char* err, size_t err_size) {
-  if (!eu || !data_dir) {
-    snprintf(err, err_size, "europe_load bad args");
-    return false;
-  }
-  memset(eu, 0, sizeof(*eu));
-
-  ColonizeMsgCatalog names;
-  assets_msg_init(&names);
-  char names_path[512];
-  if (!dos_compat_normalize_asset_path(data_dir, "NAMES.TXT", names_path, sizeof(names_path)) ||
-      !assets_msg_load_file(&names, names_path)) {
-    snprintf(err, err_size, "failed to load NAMES.TXT for Europe market");
-    assets_msg_free(&names);
-    return false;
-  }
-  if (!europe_load_tables(eu, &names)) {
-    snprintf(err, err_size, "NAMES.TXT missing usable @CARGO table");
-    assets_msg_free(&names);
-    return false;
-  }
-
-  char pik_path[512];
-  char pik_err[256];
-  if (!dos_compat_normalize_asset_path(data_dir, "EUROPE.PIK", pik_path, sizeof(pik_path))) {
-    snprintf(err, err_size, "EUROPE.PIK path resolve failed");
-    assets_msg_free(&names);
-    return false;
-  }
-  if (!pik_load(pik_path, &eu->background, pik_err, sizeof(pik_err))) {
-    snprintf(err, err_size, "EUROPE.PIK: %s", pik_err);
-    assets_msg_free(&names);
-    return false;
-  }
-  eu->background_ok = true;
-
-  char ss_path[512];
-  char ss_err[256];
-  if (dos_compat_normalize_asset_path(data_dir, "WOODTILE.SS", ss_path, sizeof(ss_path)) &&
-      ss_load(ss_path, &eu->wood_tile, ss_err, sizeof(ss_err))) {
-    if (eu->background.has_palette) {
-      /*
-       * REMAP, not merge: WOODTILE.SS reserves no DAC block of its own (it is
-       * black across 152..251, the same block EUROPE.PIK leaves black, plus
-       * EUROPE's 120..127 water ramp) — the merge rule is for sheets that ship
-       * entries for the host's black block (KING, IND<t>A<n>, MSSn, MYRn, SCORE<nn>).
-       * WOODTILE paints only 11 indices and EUROPE.PIK carries identical RGB
-       * for all 11, so this remap is an identity today; it stays as insurance
-       * against a modded EUROPE.PIK.
-       */
-      assets_sheet_remap_to_palette(&eu->wood_tile, &eu->background.palette);
-    }
-    eu->wood_tile_ok = true;
-  } else {
-    eu->wood_tile_ok = false;
-    diag_warn("Europe WOODTILE.SS unavailable");
-  }
-
-  europe_reset_campaign(eu);
-  europe_set_nation(eu, 0, &names);
-  /* Re-init pool/purchase after reset; train table already from load_tables. */
-  {
-    int train_count = eu->train_count;
-    EuropeTrainOption train_copy[EUROPE_TRAIN_MAX];
-    memcpy(train_copy, eu->train, sizeof(train_copy));
-    europe_reset_campaign(eu);
-    eu->train_count = train_count;
-    memcpy(eu->train, train_copy, sizeof(train_copy));
-    europe_set_nation(eu, 0, &names);
-    europe_init_purchase_table(eu);
-  }
-  assets_msg_free(&names);
-
-  diag_info(
-    "Europe screen loaded (%dx%d, %d cargo, %d train, %d purchase)",
-    eu->background.width,
-    eu->background.height,
-    eu->cargo_count,
-    eu->train_count,
-    eu->purchase_count
-  );
-  return true;
-}
-
-void europe_free(EuropeScreen* eu) {
-  if (!eu) {
-    return;
-  }
-  pik_free(&eu->background);
-  ss_free(&eu->wood_tile);
-  memset(eu, 0, sizeof(*eu));
 }
 
 int europe_compute_recruit_passage(
@@ -2859,13 +2767,15 @@ void europe_apply_volume_price(EuropeScreen* eu, int cargo_type, int amount, int
   europe_apply_trade_volume(eu, NULL, bound, bound, cargo_type, amount, is_buy, 1);
 }
 
-void europe_tick_market_prices(
-  EuropeScreen* eu,
-  struct ColonizeCol1Save* col1,
-  struct ColonizeColonyPool* colonies,
+void europe_tick_market_prices_w(
+  const ColonizeWorld* w,
   int human_nation,
   uint32_t turn
 ) {
+  EuropeScreen* eu = w->europe;
+  struct ColonizeCol1Save* col1 = w->col1;
+  struct ColonizeColonyPool* colonies = w->colonies;
+
   /*
    * FUN_38fd_0058(0, 0xffff) — the human's 5e52 phase-3 call, with nation 0's
    * pass folded in. Validated 2026-08-28 against two real-DOS turn pairs
@@ -3083,12 +2993,26 @@ void europe_tick_market_prices(
   }
 }
 
-int europe_compute_immigration_score(
-  const ColonizeColonyPool* colonies,
-  const ColonizeUnitPool* units,
-  const ColonizeCol1Save* col1,
+/* Compat shim: pre-ColonizeWorld signature (see src/core/world.h). */
+void europe_tick_market_prices(
+  EuropeScreen* eu,
+  struct ColonizeCol1Save* col1,
+  struct ColonizeColonyPool* colonies,
+  int human_nation,
+  uint32_t turn
+) {
+  ColonizeWorld w_ = world_make(NULL, colonies, NULL, col1, col1 != NULL, NULL, eu);
+  europe_tick_market_prices_w(&w_, human_nation, turn);
+}
+
+int europe_compute_immigration_score_w(
+  const ColonizeWorld* w,
   int nation_id
 ) {
+  const ColonizeColonyPool* colonies = w->colonies;
+  const ColonizeUnitPool* units = w->units;
+  const ColonizeCol1Save* col1 = w->col1;
+
   /*
    * FUN_38fd_584a: score ≈ colony pop sum + unit count; <<1 if <4000; +8;
    * cap 4000; AI/non-human ((8-diff)*score)>>3; nation0 *2/3.
@@ -3146,14 +3070,27 @@ int europe_compute_immigration_score(
   return score;
 }
 
-int europe_tick_immigration_pressure(
-  EuropeScreen* eu,
+/* Compat shim: pre-ColonizeWorld signature (see src/core/world.h). */
+int europe_compute_immigration_score(
   const ColonizeColonyPool* colonies,
   const ColonizeUnitPool* units,
   const ColonizeCol1Save* col1,
-  int nation_id,
-  ColonizeDosRng* rng
+  int nation_id
 ) {
+  ColonizeWorld w_ = world_make(units, colonies, NULL, col1, col1 != NULL, NULL, NULL);
+  return europe_compute_immigration_score_w(&w_, nation_id);
+}
+
+int europe_tick_immigration_pressure_w(
+  const ColonizeWorld* w,
+  int nation_id
+) {
+  EuropeScreen* eu = w->europe;
+  const ColonizeColonyPool* colonies = w->colonies;
+  const ColonizeUnitPool* units = w->units;
+  const ColonizeCol1Save* col1 = w->col1;
+  ColonizeDosRng* rng = w->rng;
+
   /*
    * DOS: +0x30 = 584a score (needed_crosses); +0x2e += 2 (and church crosses
    * already applied by caller); spawn when score < pressure. Cite: 5e52 ~68558.
@@ -3237,6 +3174,19 @@ int europe_tick_immigration_pressure(
     }
   }
   return 0;
+}
+
+/* Compat shim: pre-ColonizeWorld signature (see src/core/world.h). */
+int europe_tick_immigration_pressure(
+  EuropeScreen* eu,
+  const ColonizeColonyPool* colonies,
+  const ColonizeUnitPool* units,
+  const ColonizeCol1Save* col1,
+  int nation_id,
+  ColonizeDosRng* rng
+) {
+  ColonizeWorld w_ = world_make(units, colonies, NULL, col1, col1 != NULL, rng, eu);
+  return europe_tick_immigration_pressure_w(&w_, nation_id);
 }
 
 /*
@@ -3776,16 +3726,18 @@ bool europe_custom_house_cargo_enabled(uint16_t custom_house_bits, int cargo_typ
   return europe_custom_house_bit_enabled(custom_house_bits, cargo_type) != 0;
 }
 
-int europe_custom_house_autosell_ex(
-  EuropeScreen* eu,
-  ColonizeColonyPool* pool,
+int europe_custom_house_autosell_ex_w(
+  const ColonizeWorld* w,
   ColonizeColony* colony,
-  ColonizeCol1Save* col1,
   int human_nation,
   EuropeCustomHouseSale* out,
   int out_max,
   int* out_count
 ) {
+  EuropeScreen* eu = w->europe;
+  ColonizeColonyPool* pool = w->colonies;
+  ColonizeCol1Save* col1 = w->col1;
+
   if (out_count) {
     *out_count = 0;
   }
@@ -3944,6 +3896,36 @@ int europe_custom_house_autosell_ex(
   return total;
 }
 
+/* Compat shim: pre-ColonizeWorld signature (see src/core/world.h). */
+int europe_custom_house_autosell_ex(
+  EuropeScreen* eu,
+  ColonizeColonyPool* pool,
+  ColonizeColony* colony,
+  ColonizeCol1Save* col1,
+  int human_nation,
+  EuropeCustomHouseSale* out,
+  int out_max,
+  int* out_count
+) {
+  ColonizeWorld w_ = world_make(NULL, pool, NULL, col1, col1 != NULL, NULL, eu);
+  return europe_custom_house_autosell_ex_w(&w_, colony, human_nation, out, out_max, out_count);
+}
+
+int europe_custom_house_autosell_w(
+  const ColonizeWorld* w,
+  ColonizeColony* colony,
+  int human_nation
+) {
+  EuropeScreen* eu = w->europe;
+  ColonizeColonyPool* pool = w->colonies;
+  ColonizeCol1Save* col1 = w->col1;
+
+  return europe_custom_house_autosell_ex(
+    eu, pool, colony, col1, human_nation, NULL, 0, NULL
+  );
+}
+
+/* Compat shim: pre-ColonizeWorld signature (see src/core/world.h). */
 int europe_custom_house_autosell(
   EuropeScreen* eu,
   ColonizeColonyPool* pool,
@@ -3951,18 +3933,19 @@ int europe_custom_house_autosell(
   ColonizeCol1Save* col1,
   int human_nation
 ) {
-  return europe_custom_house_autosell_ex(
-    eu, pool, colony, col1, human_nation, NULL, 0, NULL
-  );
+  ColonizeWorld w_ = world_make(NULL, pool, NULL, col1, col1 != NULL, NULL, eu);
+  return europe_custom_house_autosell_w(&w_, colony, human_nation);
 }
 
-int europe_ai_colony_dump_sell(
-  EuropeScreen* eu,
-  ColonizeColonyPool* pool,
+int europe_ai_colony_dump_sell_w(
+  const ColonizeWorld* w,
   ColonizeColony* colony,
-  ColonizeCol1Save* col1,
   int human_nation
 ) {
+  EuropeScreen* eu = w->europe;
+  ColonizeColonyPool* pool = w->colonies;
+  ColonizeCol1Save* col1 = w->col1;
+
   /*
    * FUN_364b_0688 phase O: non-human Euro (nation≤3, control≠0) sells warehouse
    * surplus for gold before spoilage. Stock is not reduced here — spoilage clamps.
@@ -4089,13 +4072,27 @@ int europe_ai_colony_dump_sell(
   return total;
 }
 
-int europe_sell_unit_hold(
+/* Compat shim: pre-ColonizeWorld signature (see src/core/world.h). */
+int europe_ai_colony_dump_sell(
   EuropeScreen* eu,
-  struct ColonizeCol1Save* col1,
-  ColonizeUnitPool* units,
+  ColonizeColonyPool* pool,
+  ColonizeColony* colony,
+  ColonizeCol1Save* col1,
+  int human_nation
+) {
+  ColonizeWorld w_ = world_make(NULL, pool, NULL, col1, col1 != NULL, NULL, eu);
+  return europe_ai_colony_dump_sell_w(&w_, colony, human_nation);
+}
+
+int europe_sell_unit_hold_w(
+  const ColonizeWorld* w,
   int unit_id,
   int hold_index
 ) {
+  EuropeScreen* eu = w->europe;
+  struct ColonizeCol1Save* col1 = w->col1;
+  ColonizeUnitPool* units = w->units;
+
   /*
    * Map/transport dump-sell (no harbor chrome). Tax path = europe_sell_proceeds:
    * bid * amount * (100 - eu->tax_percent) / 100 — same Crown cut as
@@ -4136,14 +4133,28 @@ int europe_sell_unit_hold(
   return gained;
 }
 
-int europe_buy_unit_cargo(
+/* Compat shim: pre-ColonizeWorld signature (see src/core/world.h). */
+int europe_sell_unit_hold(
   EuropeScreen* eu,
   struct ColonizeCol1Save* col1,
   ColonizeUnitPool* units,
   int unit_id,
+  int hold_index
+) {
+  ColonizeWorld w_ = world_make(units, NULL, NULL, col1, col1 != NULL, NULL, eu);
+  return europe_sell_unit_hold_w(&w_, unit_id, hold_index);
+}
+
+int europe_buy_unit_cargo_w(
+  const ColonizeWorld* w,
+  int unit_id,
   int cargo_type,
   int amount
 ) {
+  EuropeScreen* eu = w->europe;
+  struct ColonizeCol1Save* col1 = w->col1;
+  ColonizeUnitPool* units = w->units;
+
   /*
    * Map/transport buy (no harbor chrome) — trade-route load list at a Europe
    * stop (DOS FUN_479b_0bd0 → FUN_38fd_1fa2 via FUN_291f_0b42). Flat ask ×
@@ -4188,6 +4199,19 @@ int europe_buy_unit_cargo(
   return loaded;
 }
 
+/* Compat shim: pre-ColonizeWorld signature (see src/core/world.h). */
+int europe_buy_unit_cargo(
+  EuropeScreen* eu,
+  struct ColonizeCol1Save* col1,
+  ColonizeUnitPool* units,
+  int unit_id,
+  int cargo_type,
+  int amount
+) {
+  ColonizeWorld w_ = world_make(units, NULL, NULL, col1, col1 != NULL, NULL, eu);
+  return europe_buy_unit_cargo_w(&w_, unit_id, cargo_type, amount);
+}
+
 int europe_harbor_cargo_room(
   const EuropeScreen* eu,
   const ColonizeUnitPool* units,
@@ -4216,15 +4240,17 @@ int europe_harbor_cargo_room(
   return room;
 }
 
-int europe_buy_cargo(
-  EuropeScreen* eu,
-  struct ColonizeCol1Save* col1,
-  const ColonizeUnitPool* units,
+int europe_buy_cargo_w(
+  const ColonizeWorld* w,
   int buyer_nation,
   int harbor_index,
   int cargo_type,
   int amount
 ) {
+  EuropeScreen* eu = w->europe;
+  struct ColonizeCol1Save* col1 = w->col1;
+  const ColonizeUnitPool* units = w->units;
+
   if (!eu || harbor_index < 0 || harbor_index >= eu->harbor_ships) {
     return 0;
   }
@@ -4310,6 +4336,20 @@ int europe_buy_cargo(
     ask, bought * ask, eu->gold
   );
   return bought;
+}
+
+/* Compat shim: pre-ColonizeWorld signature (see src/core/world.h). */
+int europe_buy_cargo(
+  EuropeScreen* eu,
+  struct ColonizeCol1Save* col1,
+  const ColonizeUnitPool* units,
+  int buyer_nation,
+  int harbor_index,
+  int cargo_type,
+  int amount
+) {
+  ColonizeWorld w_ = world_make(units, NULL, NULL, col1, col1 != NULL, NULL, eu);
+  return europe_buy_cargo_w(&w_, buyer_nation, harbor_index, cargo_type, amount);
 }
 
 int europe_best_sell_hold(const EuropeScreen* eu, int harbor_index) {
@@ -4750,12 +4790,14 @@ void europe_menu_close(EuropeScreen* eu) {
  * and apply it. Row ids are carried per-row because DOS omits the rows it
  * disabled, so the visible index is not the id.
  */
-bool europe_dock_menu_apply_selection_ex(
-  EuropeScreen* eu,
-  ColonizeUnitPool* units,
-  ColonizeCol1Save* col1,
+bool europe_dock_menu_apply_selection_ex_w(
+  const ColonizeWorld* w,
   int nation_id
 ) {
+  EuropeScreen* eu = w->europe;
+  ColonizeUnitPool* units = w->units;
+  ColonizeCol1Save* col1 = w->col1;
+
   if (!eu || eu->menu != EUROPE_MENU_DOCK) {
     return false;
   }
@@ -4771,6 +4813,17 @@ bool europe_dock_menu_apply_selection_ex(
   return europe_apply_dock_menu_row_ex(
     eu, units, col1, nation_id, eu->menu_dock_index, (int)eu->dock_menu_row[sel]
   );
+}
+
+/* Compat shim: pre-ColonizeWorld signature (see src/core/world.h). */
+bool europe_dock_menu_apply_selection_ex(
+  EuropeScreen* eu,
+  ColonizeUnitPool* units,
+  ColonizeCol1Save* col1,
+  int nation_id
+) {
+  ColonizeWorld w_ = world_make(units, NULL, NULL, col1, col1 != NULL, NULL, eu);
+  return europe_dock_menu_apply_selection_ex_w(&w_, nation_id);
 }
 
 static bool europe_dock_menu_apply_selection(

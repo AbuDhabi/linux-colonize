@@ -1611,15 +1611,17 @@ static int ai_indian_tribe_mission_nation(const ColonizeCol1Tribe* t) {
  * Finally the village's own mission rescales the winner: owned by the threat
  * nation → ×3/4 plain, ×1/2 Jesuit; owned by a rival → ×3/2 plain, ×2 Jesuit.
  */
-int ai_indian_village_threat(
-  const ColonizeCol1Save* col1,
-  const ColonizeWorldMap* map,
-  const ColonizeUnitPool* pool,
-  const ColonizeColonyPool* colonies,
+int ai_indian_village_threat_w(
+  const ColonizeWorld* w,
   int human_nation,
   int tribe_index,
   int* out_score
 ) {
+  const ColonizeCol1Save* col1 = w->col1;
+  const ColonizeWorldMap* map = w->map;
+  const ColonizeUnitPool* pool = w->units;
+  const ColonizeColonyPool* colonies = w->colonies;
+
   if (out_score) {
     *out_score = 0;
   }
@@ -1805,6 +1807,20 @@ int ai_indian_village_threat(
     *out_score = best_score;
   }
   return best_nation;
+}
+
+/* Compat shim: pre-ColonizeWorld signature (see src/core/world.h). */
+int ai_indian_village_threat(
+  const ColonizeCol1Save* col1,
+  const ColonizeWorldMap* map,
+  const ColonizeUnitPool* pool,
+  const ColonizeColonyPool* colonies,
+  int human_nation,
+  int tribe_index,
+  int* out_score
+) {
+  ColonizeWorld w_ = world_make(pool, colonies, map, col1, col1 != NULL, NULL, NULL);
+  return ai_indian_village_threat_w(&w_, human_nation, tribe_index, out_score);
 }
 
 /* ColonizeTurnContext adapter for the village tick. */
@@ -4814,12 +4830,14 @@ void ai_indian_nation_turn(ColonizeTurnContext* ctx, int nation_id) {
  * skipping 00e0's per-village horse fold / village-count decrement / @EXTINCT
  * popup (those live in col1_destroy_tribe_at).
  */
-int col1_kill_indian_nation(
-  ColonizeCol1Save* col1,
-  ColonizeUnitPool* units,
-  ColonizeWorldMap* map,
+int col1_kill_indian_nation_w(
+  const ColonizeWorld* w,
   int nation_id
 ) {
+  ColonizeCol1Save* col1 = w->col1;
+  ColonizeUnitPool* units = w->units;
+  ColonizeWorldMap* map = w->map;
+
   if (nation_id < 4 || nation_id > 11) {
     return 0;
   }
@@ -4918,6 +4936,17 @@ int col1_kill_indian_nation(
   }
 
   return removed;
+}
+
+/* Compat shim: pre-ColonizeWorld signature (see src/core/world.h). */
+int col1_kill_indian_nation(
+  ColonizeCol1Save* col1,
+  ColonizeUnitPool* units,
+  ColonizeWorldMap* map,
+  int nation_id
+) {
+  ColonizeWorld w_ = world_make(units, NULL, map, col1, col1 != NULL, NULL, NULL);
+  return col1_kill_indian_nation_w(&w_, nation_id);
 }
 
 /*

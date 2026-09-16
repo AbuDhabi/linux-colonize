@@ -52,71 +52,65 @@ if(PkgConfig_FOUND)
   endif()
 endif()
 
-add_library(colonize_core STATIC
-  src/core/game_loop.c
-  src/core/game_dialogs.c
-  src/core/trade_screen.c
-  src/core/assets.c
-  src/core/fb.c
-  src/core/font.c
-  src/core/ff.c
+# ---------------------------------------------------------------------------
+# Layering: colonize_sim (simulation + shared) and colonize_ui (presentation).
+#
+# The port keeps UI paint in core (docs/architecture.md), but the *direction*
+# of dependency is now enforced by the linker: colonize_ui links colonize_sim,
+# never the reverse. A DOS-logic port that grows a fb_/font_/ss_/pik_/popup_
+# side effect fails the colonize_sim_linkcheck target (below) rather than
+# silently entangling the two halves.
+#
+# Sim -> UI traffic goes through the existing channels only: ai_popup (the
+# popup queue), the units_set_* / combat_analysis_set_presenter / woodcut_set_
+# sound_hooks callback pointers the UI registers at game_create, and diag_*.
+#
+# SHARED (no UI, no game rules) lives in colonize_sim: assets, strutil,
+# settings, json_min, ff/madspack decode, sound, diagnostics, dos_compat,
+# popup_msg (GAME.TXT text templating - measurement/markup only, never paint)
+# and ai_popup (the sim->UI message channel).
+# ---------------------------------------------------------------------------
+
+add_library(colonize_sim STATIC
+  # --- Simulation -----------------------------------------------------------
   src/core/map.c
   src/core/map_gen.c
   src/core/dos_rng.c
-  src/core/strutil.c
-  src/core/map_menu.c
-  src/core/map_panel.c
-  src/core/popup.c
-  src/core/popup_msg.c
-  src/core/ui_button.c
-  src/core/ui_drag.c
-  src/core/pick_music.c
-  src/core/cheat_list_dialog.c
-  src/core/howmuch_dialog.c
-  src/core/name_entry_dialog.c
-  src/core/text_edit.c
-  src/core/options_dialog.c
-  src/core/save_load_dialog.c
-  src/core/unit_stack.c
-  src/core/unit_chrome.c
-  src/core/new_game.c
-  src/core/pedia.c
-  src/core/reports.c
-  src/core/europe.c
-  src/core/colony_screen.c
-  src/core/debug_atlas.c
-  src/core/declaration.c
-  src/core/closing.c
-  src/core/opening.c
-  src/core/woodcut.c
   src/core/units.c
+  src/core/unit_chrome.c
   src/core/village_trade_intel.c
   src/core/colony.c
   src/core/colony_yield.c
   src/core/colony_production.c
   src/core/colony_craft.c
-  src/core/colony_preview.c
   src/core/combat_strength.c
   src/core/combat_analysis.c
   src/core/turn.c
   src/core/founding_fathers.c
+  src/core/europe.c
+  src/core/new_game_scenario.c
+  src/core/reports_names.c
+  src/core/woodcut.c
   src/core/ai.c
   src/core/ai_goals.c
   src/core/ai_euro.c
   src/core/ai_diplo.c
   src/core/ai_contact.c
   src/core/ai_king.c
-  src/core/ai_popup.c
-  src/core/sound.c
-  src/core/gsound_vm.c
-  src/core/madspack.c
-  src/core/pik.c
-  src/core/ss.c
   src/core/savegame.c
   src/core/col1_save.c
   src/core/col1_bridge.c
   src/core/col1_post_map.c
   src/core/col1_stuff_census.c
+  # --- Shared ---------------------------------------------------------------
+  src/core/ai_popup.c
+  src/core/popup_msg.c
+  src/core/assets.c
+  src/core/strutil.c
+  src/core/ff.c
+  src/core/madspack.c
+  src/core/sound.c
+  src/core/gsound_vm.c
   src/core/json_min.c
   src/core/settings.c
   src/data/viceroy_tables.c
@@ -124,38 +118,96 @@ add_library(colonize_core STATIC
   src/platform/dos_compat/dos_compat.c
 )
 
-target_include_directories(colonize_core PUBLIC
+add_library(colonize_ui STATIC
+  src/core/game_loop.c
+  src/core/game_dialogs.c
+  src/core/fb.c
+  src/core/font.c
+  src/core/pik.c
+  src/core/ss.c
+  src/core/popup.c
+  src/core/ui_button.c
+  src/core/ui_drag.c
+  src/core/text_edit.c
+  src/core/map_menu.c
+  src/core/map_panel.c
+  src/core/pick_music.c
+  src/core/cheat_list_dialog.c
+  src/core/howmuch_dialog.c
+  src/core/name_entry_dialog.c
+  src/core/options_dialog.c
+  src/core/save_load_dialog.c
+  src/core/unit_stack.c
+  src/core/unit_chrome_draw.c
+  src/core/units_render.c
+  src/core/new_game.c
+  src/core/pedia.c
+  src/core/reports.c
+  src/core/europe_art.c
+  src/core/colony_screen.c
+  src/core/colony_chrome.c
+  src/core/colony_preview.c
+  src/core/combat_analysis_render.c
+  src/core/ai_popup_render.c
+  src/core/trade_screen.c
+  src/core/debug_atlas.c
+  src/core/declaration.c
+  src/core/closing.c
+  src/core/opening.c
+  src/core/woodcut_present.c
+)
+
+target_link_libraries(colonize_ui PUBLIC colonize_sim)
+
+# Kept so every existing consumer (colonize_linux, all tests/tools) can go on
+# linking one name. INTERFACE, so it contributes no objects of its own.
+add_library(colonize_core INTERFACE)
+target_link_libraries(colonize_core INTERFACE colonize_ui)
+
+# Usage requirements ride on colonize_sim and propagate through colonize_ui's
+# PUBLIC link to colonize_core and every consumer, so there is still exactly
+# one place to edit.
+target_include_directories(colonize_sim PUBLIC
   ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 
-target_compile_options(colonize_core PRIVATE
+target_compile_options(colonize_sim PRIVATE
+  -Wall
+  -Wextra
+  -Wpedantic
+)
+target_compile_options(colonize_ui PRIVATE
   -Wall
   -Wextra
   -Wpedantic
 )
 
-target_link_libraries(colonize_core PUBLIC m pthread)
+target_link_libraries(colonize_sim PUBLIC m pthread)
+
+# colonize_sim objects are reused by the colonize_sim_linkcheck shared probe
+# at the bottom of this section, which needs PIC.
+set_target_properties(colonize_sim PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
 # COLONIZE_TESTING flips the COLONIZE_INTERNAL macro (core/internal.h) from
 # `static` to nothing on the split-stage functions (ai_euro_act_*, game_update_*,
 # game_render_*, game_move_*, ai_contact_raid_*, ai_king_0982_*, ai_021a_*,
 # turn_step_*, turn_year_end_*), so tests/unit/test_stage_seams.c can call one
-# stage directly. colonize_core is built exactly once and linked by every test
+# stage directly. colonize_sim is built exactly once and linked by every test
 # binary (see colonize_add_test below) — there is no separate "test" build of
 # the core lib to scope this to — so the define is applied to the one
-# colonize_core target unconditionally. It only widens symbol linkage; no
+# colonize_sim target unconditionally. It only widens symbol linkage; no
 # stage function's body or call sites change, so this has no effect on
 # program behaviour. See docs/conventions.md "Code conventions".
-target_compile_definitions(colonize_core PUBLIC COLONIZE_TESTING=1)
+target_compile_definitions(colonize_sim PUBLIC COLONIZE_TESTING=1)
 
 if(COLONIZE_DEBUG_MENU)
-  target_compile_definitions(colonize_core PUBLIC COLONIZE_DEBUG_MENU=1)
+  target_compile_definitions(colonize_sim PUBLIC COLONIZE_DEBUG_MENU=1)
 else()
-  target_compile_definitions(colonize_core PUBLIC COLONIZE_DEBUG_MENU=0)
+  target_compile_definitions(colonize_sim PUBLIC COLONIZE_DEBUG_MENU=0)
 endif()
 
 if(COLONIZE_HAS_FLUIDSYNTH)
-  target_include_directories(colonize_core PUBLIC ${FLUIDSYNTH_INCLUDE_DIRS})
+  target_include_directories(colonize_sim PUBLIC ${FLUIDSYNTH_INCLUDE_DIRS})
   if(COLONIZE_STATIC_DEPS)
     # pkg-config --static gives -l names; -l would still pick the .so when both
     # exist, so resolve each dep to its .a explicitly. System runtime libs
@@ -174,11 +226,11 @@ if(COLONIZE_HAS_FLUIDSYNTH)
         endif()
       endif()
     endforeach()
-    target_link_libraries(colonize_core PUBLIC ${_fs_libs})
+    target_link_libraries(colonize_sim PUBLIC ${_fs_libs})
   else()
-    target_link_libraries(colonize_core PUBLIC ${FLUIDSYNTH_LIBRARIES})
+    target_link_libraries(colonize_sim PUBLIC ${FLUIDSYNTH_LIBRARIES})
   endif()
-  target_compile_definitions(colonize_core PUBLIC COLONIZE_HAS_FLUIDSYNTH=1)
+  target_compile_definitions(colonize_sim PUBLIC COLONIZE_HAS_FLUIDSYNTH=1)
   message(STATUS "FluidSynth found — music backend enabled")
 else()
   message(STATUS "FluidSynth not found — music uses square-wave fallback")
@@ -186,12 +238,31 @@ endif()
 
 if(NOT COLONIZE_ENABLE_TSF)
   # sound.c defaults COLONIZE_HAS_TSF to 1; only the opt-out needs a define.
-  target_compile_definitions(colonize_core PUBLIC COLONIZE_HAS_TSF=0)
+  target_compile_definitions(colonize_sim PUBLIC COLONIZE_HAS_TSF=0)
 endif()
 
 if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
-  target_compile_options(colonize_core PRIVATE -Wno-unused-parameter)
+  target_compile_options(colonize_sim PRIVATE -Wno-unused-parameter)
+  target_compile_options(colonize_ui PRIVATE -Wno-unused-parameter)
 endif()
+
+# ---------------------------------------------------------------------------
+# Layering enforcement. Static archives alone cannot make a sim -> UI call
+# fail (the UI archive is on the link line anyway), so the direction is
+# checked by re-linking the simulation objects ALONE into a shared object with
+# -Wl,--no-undefined: every symbol must resolve inside colonize_sim or libc /
+# libm / pthread / FluidSynth. One fb_/font_/ss_/pik_/popup_/game_ reference
+# from a sim file and this fails with an undefined reference, by name.
+#
+# It is a normal ALL target, so `make build` / `make test` enforce it.
+# ---------------------------------------------------------------------------
+add_library(colonize_sim_linkcheck SHARED cmake/sim_linkcheck.c)
+target_link_libraries(colonize_sim_linkcheck PRIVATE colonize_sim)
+target_link_options(colonize_sim_linkcheck PRIVATE
+  -Wl,--no-undefined
+  -Wl,--whole-archive $<TARGET_FILE:colonize_sim> -Wl,--no-whole-archive
+)
+add_dependencies(colonize_sim_linkcheck colonize_sim)
 
 if(SDL2_FOUND)
   add_executable(colonize_linux
@@ -465,23 +536,31 @@ colonize_add_test(NAME unit_map_panel
 # plus the one extra source it needs.
 set(COLONIZE_SLIM_SOURCES
   src/core/units.c
+  src/core/units_render.c
   src/core/village_trade_intel.c
   src/core/reports.c
+  src/core/reports_names.c
   src/core/colony_production.c
   src/core/colony_craft.c
   src/core/woodcut.c
+  src/core/woodcut_present.c
   src/core/combat_strength.c
   src/core/combat_analysis.c
+  src/core/combat_analysis_render.c
   src/core/unit_chrome.c
+  src/core/unit_chrome_draw.c
   src/core/colony.c
+  src/core/colony_chrome.c
   src/core/colony_yield.c
   src/core/founding_fathers.c
   src/core/ai_diplo.c
   src/core/ai_popup.c
+  src/core/ai_popup_render.c
   src/core/popup.c
   src/core/popup_msg.c
   src/core/map_menu.c
   src/core/europe.c
+  src/core/europe_art.c
   src/core/pik.c
   src/core/map.c
   src/core/dos_rng.c
@@ -557,6 +636,7 @@ colonize_add_test(NAME unit_woodcut
   SOURCES
     tests/unit/test_woodcut.c
     src/core/woodcut.c
+  src/core/woodcut_present.c
     src/core/ss.c
     src/core/fb.c
     src/core/font.c

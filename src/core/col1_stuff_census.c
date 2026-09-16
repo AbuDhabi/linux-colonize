@@ -196,12 +196,14 @@ static void col1_stuff_census_write_mean_pop(ColonizeCol1Stuff* stuff) {
   }
 }
 
-void col1_stuff_census_fill_blank(
-  ColonizeCol1Stuff* stuff,
-  const ColonizeUnitPool* units,
-  const ColonizeColonyPool* colonies,
-  const ColonizeCol1Save* col1
+void col1_stuff_census_fill_blank_w(
+  const ColonizeWorld* w,
+  ColonizeCol1Stuff* stuff
 ) {
+  const ColonizeUnitPool* units = w->units;
+  const ColonizeColonyPool* colonies = w->colonies;
+  const ColonizeCol1Save* col1 = w->col1;
+
   if (!stuff) {
     return;
   }
@@ -210,12 +212,25 @@ void col1_stuff_census_fill_blank(
   col1_stuff_census_write_mean_pop(stuff);
 }
 
-void col1_stuff_census_refresh_colony_counts(
+/* Compat shim: pre-ColonizeWorld signature (see src/core/world.h). */
+void col1_stuff_census_fill_blank(
   ColonizeCol1Stuff* stuff,
-  const ColonizeColonyPool* colonies,
   const ColonizeUnitPool* units,
+  const ColonizeColonyPool* colonies,
   const ColonizeCol1Save* col1
 ) {
+  ColonizeWorld w_ = world_make(units, colonies, NULL, col1, col1 != NULL, NULL, NULL);
+  col1_stuff_census_fill_blank_w(&w_, stuff);
+}
+
+void col1_stuff_census_refresh_colony_counts_w(
+  const ColonizeWorld* w,
+  ColonizeCol1Stuff* stuff
+) {
+  const ColonizeColonyPool* colonies = w->colonies;
+  const ColonizeUnitPool* units = w->units;
+  const ColonizeCol1Save* col1 = w->col1;
+
   if (!stuff) {
     return;
   }
@@ -225,4 +240,15 @@ void col1_stuff_census_refresh_colony_counts(
   /* With units: also fold colony pop into census_pop_proxy (fill_blank shape). */
   col1_stuff_census_tally_colonies(stuff, colonies, units != NULL);
   col1_stuff_census_write_mean_pop(stuff);
+}
+
+/* Compat shim: pre-ColonizeWorld signature (see src/core/world.h). */
+void col1_stuff_census_refresh_colony_counts(
+  ColonizeCol1Stuff* stuff,
+  const ColonizeColonyPool* colonies,
+  const ColonizeUnitPool* units,
+  const ColonizeCol1Save* col1
+) {
+  ColonizeWorld w_ = world_make(units, colonies, NULL, col1, col1 != NULL, NULL, NULL);
+  col1_stuff_census_refresh_colony_counts_w(&w_, stuff);
 }

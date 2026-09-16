@@ -5,6 +5,7 @@
 #include "core/combat_strength.h"
 #include "core/founding_fathers.h"
 #include "core/reports.h"
+#include "core/reports_names.h"
 
 #include "core/fb.h"
 #include "core/strutil.h"
@@ -28,187 +29,6 @@ static const char* k_report_files[COLONIZE_REPORT_COUNT] = {
   "WOODPANL.PIK" /* Colonization Score — full-screen wood */
 };
 
-/*
- * `k_ff_names` / `k_job_names` / `k_cargo_names` below are hand-typed copies
- * of NAMES.TXT `@FATHERS` column 0 / `@JOB` column 2 / `@CARGO` column 0 —
- * correct today (byte-checked once, e.g. founding_fathers.md P9.1), but
- * silently stale if the user ever mods NAMES.TXT, since nothing re-read
- * them live. `g_reports_names` is that live source (one NAMES.TXT parse,
- * shared by all three), loaded once in reports_load; reports_ff_name /
- * reports_job_name / reports_cargo_name prefer it and only fall back to
- * the static tables when assets aren't available (tests, missing data dir).
- */
-static ColonizeMsgCatalog g_reports_names;
-static bool g_reports_names_ok = false;
-
-/*
- * `k_report_titles` (below reports_title) is a hand-typed copy of LABELS.TXT
- * `@MISC`'s "<X> ADVISER REPORT" / "CONTINENTAL CONGRESS ACTIVITIES" /
- * "COLONIZATION SCORE" lines — byte-checked correct against the real asset
- * 2026-08-26 (P2.2's earlier "these titles aren't shipped as text anywhere"
- * finding was itself wrong: an earlier grep searched for "Religious
- * Advisor" — American spelling, no "REPORT" suffix — the real asset spells
- * it "RELIGIOUS ADVISER REPORT"). `g_reports_labels` is the live source
- * (one LABELS.TXT parse), loaded once in reports_load; reports_title
- * prefers it and only falls back to `k_report_titles` when assets aren't
- * available (tests, missing data dir) — same shape as `g_reports_names`.
- */
-static ColonizeMsgCatalog g_reports_labels;
-static bool g_reports_labels_ok = false;
-
-static const char* k_report_titles[COLONIZE_REPORT_COUNT] = {
-  "RELIGIOUS ADVISER REPORT",
-  "CONTINENTAL CONGRESS ACTIVITIES",
-  "LABOR ADVISER REPORT",
-  "ECONOMIC ADVISER REPORT",
-  "COLONY ADVISER REPORT",
-  "NAVAL ADVISER REPORT",
-  "FOREIGN AFFAIRS REPORT",
-  "INDIAN ADVISER REPORT",
-  "COLONIZATION SCORE"
-};
-
-/* NAMES.TXT @FATHERS order. */
-static const char* k_ff_names[COLONIZE_COL1_FF_COUNT] = {
-  "Adam Smith",
-  "Jakob Fugger",
-  "Peter Minuit",
-  "Peter Stuyvesant",
-  "Jan de Witt",
-  "Ferdinand Magellan",
-  "Francisco Coronado",
-  "Hernando de Soto",
-  "Henry Hudson",
-  "Sieur De La Salle",
-  "Hernan Cortes",
-  "George Washington",
-  "Paul Revere",
-  "Francis Drake",
-  "John Paul Jones",
-  "Thomas Jefferson",
-  "Pocahontas",
-  "Thomas Paine",
-  "Simon Bolivar",
-  "Benjamin Franklin",
-  "William Brewster",
-  "William Penn",
-  "Jean de Brebeuf",
-  "Juan de Sepulveda",
-  "Bartolome de las Casas"
-};
-
-/* NAMES.TXT @JOB column 2 (recruit / specialty display names). */
-static const char* k_job_names[] = {
-  "Expert Farmers",
-  "Master Sugar Planters",
-  "Master Tobacco Planters",
-  "Master Cotton Planters",
-  "Expert Fur Trappers",
-  "Expert Lumberjacks",
-  "Expert Ore Miners",
-  "Expert Silver Miners",
-  "Expert Fishermen",
-  "Master Distiller",
-  "Master Tobacconists",
-  "Master Weavers",
-  "Master Fur Traders",
-  "Master Carpenters",
-  "Master Blacksmiths",
-  "Master Gunsmiths",
-  "Firebrand Preachers",
-  "Elder Statesmen",
-  "Expert Teachers",
-  "Free Colonists",
-  "Hardy Pioneers",
-  "Veteran Soldiers",
-  "Seasoned Scouts",
-  "Veteran Dragoons",
-  "Jesuit Missionaries",
-  "Indentured Servants",
-  "Petty Criminals",
-  "Indian Converts"
-};
-static const int k_job_count = (int)(sizeof(k_job_names) / sizeof(k_job_names[0]));
-
-static const char* k_cargo_names[COLONIZE_COL1_CARGO_TYPES] = {
-  "Food",
-  "Sugar",
-  "Tobacco",
-  "Cotton",
-  "Furs",
-  "Lumber",
-  "Ore",
-  "Silver",
-  "Horses",
-  "Rum",
-  "Cigars",
-  "Cloth",
-  "Coats",
-  "Trade Goods",
-  "Tools",
-  "Muskets"
-};
-
-/* NAMES.TXT @TRIBES column 0 (plural display name — golden: indian.png
- * "Arawaks:" / "Cherokee:"). Only Inca/Aztec/Arawak actually change in
- * plural; the rest are already the same word. */
-static const char* k_tribe_names[COLONIZE_COL1_INDIAN_COUNT] = {
-  "Incas", "Aztecs", "Arawaks", "Iroquois", "Cherokee", "Apache", "Sioux", "Tupi"
-};
-
-static const char* k_tribe_levels[] = {"Semi-Nomadic", "Agrarian", "Advanced", "Civilized"};
-
-static const char* k_euro_short[COLONIZE_COL1_NATION_COUNT] = {
-  "English", "French", "Spanish", "Dutch"
-};
-
-/*
- * Shared fallback tables for the NAMES.TXT-backed name accessors below.
- * Every one of these was retyped in a dozen other files before the
- * 2026-09-14 duplication pass (audit theme D); the literals here are the
- * shipped COLONIZE/NAMES.TXT rows and are only reached when no catalog is
- * loaded (slim unit-test targets, tools).
- */
-
-/* @COUNTRY column 0. The rows carry a trailing ", <colour>" number that
- * reports_names_field drops with the rest of the line at the first comma.
- * "Netherlands", never "Holland" (turn.c:3025 was the odd one out). */
-static const char* k_euro_country[COLONIZE_COL1_NATION_COUNT] = {
-  "England", "France", "Spain", "Netherlands"
-};
-
-/* @HOMEPORT column 0. France is La Rochelle — new_game.c's "Paris" was
- * wrong (audit SC-7). */
-static const char* k_home_ports[COLONIZE_COL1_NATION_COUNT] = {
-  "London", "La Rochelle", "Seville", "Amsterdam"
-};
-
-/* @DIFFICULTY column 0. */
-static const char* k_difficulty_titles[5] = {
-  "Discoverer", "Explorer", "Conquistador", "Governor", "Viceroy"
-};
-
-/* @TRIBES column 1 (singular). Column 0 is the plural k_tribe_names above. */
-static const char* k_tribe_singular[COLONIZE_COL1_INDIAN_COUNT] = {
-  "Inca", "Aztec", "Arawak", "Iroquois", "Cherokee", "Apache", "Sioux", "Tupi"
-};
-
-/* @BUILDING rows 0..2 column 0 — the fortification chain, low tier first. */
-static const char* k_fort_tier_names[3] = {"Stockade", "Fort", "Fortress"};
-
-/* @UNIT rows 19..22 column 0 — the Indian arms/mounts ladder. The DOS
- * spellings are abbreviated ("Mtd."), and these strings double as
- * units_find_type keys, so they must stay the @UNIT text. */
-#define REPORTS_UNIT_ROW_BRAVES 19
-static const char* k_brave_ladder_names[4] = {
-  "Braves", "Armed Braves", "Mtd. Braves", "Mtd. Warriors"
-};
-
-/* @UNIT rows 0..5 column 0 — the Europe dock immigrant types, in DOS
- * dos_type order (europe.h EUROPE_DOCK_TYPE_*). */
-static const char* k_dock_type_names[6] = {
-  "Colonists", "Soldiers", "Pioneers", "Missionaries", "Dragoons", "Scouts"
-};
 
 void reports_init(ColonizeReportsView* view) {
   if (!view) {
@@ -232,14 +52,7 @@ void reports_free(ColonizeReportsView* view) {
   pik_free(&view->congress_page1_bg);
   pik_free(&view->exploits_bg);
   memset(view, 0, sizeof(*view));
-  if (g_reports_names_ok) {
-    assets_msg_free(&g_reports_names);
-    g_reports_names_ok = false;
-  }
-  if (g_reports_labels_ok) {
-    assets_msg_free(&g_reports_labels);
-    g_reports_labels_ok = false;
-  }
+  reports_names_free_catalogs();
 }
 
 /*
@@ -299,35 +112,8 @@ bool reports_load(ColonizeReportsView* view, const char* data_dir, char* err, si
     return false;
   }
 
-  /* NAMES.TXT @FATHERS live names (reports_ff_name) — best-effort, falls back
-   * to the hand-typed k_ff_names table when missing (tests, old data dirs). */
-  if (g_reports_names_ok) {
-    assets_msg_free(&g_reports_names);
-    g_reports_names_ok = false;
-  }
-  char names_path[512];
-  assets_msg_init(&g_reports_names);
-  if (dos_compat_normalize_asset_path(data_dir, "NAMES.TXT", names_path, sizeof(names_path)) &&
-      assets_msg_load_file(&g_reports_names, names_path)) {
-    g_reports_names_ok = true;
-  } else {
-    assets_msg_free(&g_reports_names);
-  }
+  reports_names_load_catalogs(data_dir);
 
-  /* LABELS.TXT live report titles (reports_title) — same best-effort/
-   * fallback shape as the NAMES.TXT block above. */
-  if (g_reports_labels_ok) {
-    assets_msg_free(&g_reports_labels);
-    g_reports_labels_ok = false;
-  }
-  char labels_path[512];
-  assets_msg_init(&g_reports_labels);
-  if (dos_compat_normalize_asset_path(data_dir, "LABELS.TXT", labels_path, sizeof(labels_path)) &&
-      assets_msg_load_file(&g_reports_labels, labels_path)) {
-    g_reports_labels_ok = true;
-  } else {
-    assets_msg_free(&g_reports_labels);
-  }
 
   /* Report titles use FONTTINY, not the FONTSMAL body/menu font (golden:
    * religious.png / labor.png — bolder, wider-spaced glyphs). */
@@ -404,71 +190,6 @@ bool reports_load(ColonizeReportsView* view, const char* data_dir, char* err, si
   return true;
 }
 
-/*
- * 0-based line index within LABELS.TXT `@MISC` for each report title,
- * `k_report_titles` order (Religious/Congress/Labor/Economic/Colony/Naval/
- * Foreign/Indian/Score). Computed 2026-08-26 by counting non-blank,
- * non-comment `@MISC` lines directly (`COLONIZE/LABELS.TXT`) — re-derive
- * the same way if the asset ever changes.
- */
-static const int k_report_title_labels_index[COLONIZE_REPORT_COUNT] = {
-  30, 37, 49, 50, 51, 52, 93, 29, 114
-};
-
-/*
- * Nth non-blank, non-comment (';') line of `section` in g_reports_labels —
- * LABELS.TXT has no comma columns (unlike NAMES.TXT/reports_names_field),
- * just one string per line. NULL when the live catalog, section, or index
- * isn't available. Static return buffer: use/copy before the next call.
- */
-static const char* reports_labels_field(const char* section, int index) {
-  if (!g_reports_labels_ok || index < 0) {
-    return NULL;
-  }
-  const ColonizeMsgSection* sec = assets_msg_find(&g_reports_labels, section);
-  if (!sec) {
-    return NULL;
-  }
-  int i2 = 0;
-  for (int i = 0; i < sec->line_count; ++i) {
-    const char* line = sec->lines[i];
-    if (!line || line[0] == '\0' || line[0] == ';') {
-      continue;
-    }
-    if (i2 != index) {
-      i2++;
-      continue;
-    }
-    static char live[64];
-    str_copy_trunc(live, sizeof(live), line);
-    return live;
-  }
-  return NULL;
-}
-
-/*
- * `@MISC` word copied into the caller's buffer (so two words can be composed
- * into one line without aliasing reports_labels_field's static buffer);
- * `fallback` when the live catalog isn't loaded.
- */
-static const char* reports_misc_word(int index, const char* fallback, char* out, size_t out_sz) {
-  const char* live = reports_labels_field("MISC", index);
-  str_copy_trunc(out, out_sz, live ? live : fallback);
-  return out;
-}
-
-const char* reports_misc_display_word(int index, const char* fallback) {
-  static char buf[64];
-  return reports_misc_word(index, fallback ? fallback : "", buf, sizeof(buf));
-}
-
-const char* reports_title(ColonizeReportId id) {
-  if (id < 0 || id >= COLONIZE_REPORT_COUNT) {
-    return "REPORT";
-  }
-  const char* live = reports_labels_field("MISC", k_report_title_labels_index[id]);
-  return live ? live : k_report_titles[id];
-}
 
 const char* reports_background_name(ColonizeReportId id) {
   if (id < 0 || id >= COLONIZE_REPORT_COUNT) {
@@ -605,316 +326,6 @@ static int reports_clamp_nation(int human_nation) {
   return human_nation;
 }
 
-/*
- * `col`-th (0-based) comma-separated field of the `row`-th (0-based,
- * comment/blank lines skipped) data line in `section` of g_reports_names.
- * Returns NULL when the live catalog, the section, the row, or the field
- * isn't available — callers fall back to their own static table.
- * Static return buffer: use/copy before the next call (matches the existing
- * ai_contact_tribe_flavor_good idiom — no caller here needs two at once).
- */
-static const char* reports_names_field(const char* section, int row, int col) {
-  if (!g_reports_names_ok || row < 0) {
-    return NULL;
-  }
-  const ColonizeMsgSection* sec = assets_msg_find(&g_reports_names, section);
-  if (!sec) {
-    return NULL;
-  }
-  int r = 0;
-  for (int i = 0; i < sec->line_count; ++i) {
-    const char* line = sec->lines[i];
-    if (!line || line[0] == '\0' || line[0] == ';') {
-      continue;
-    }
-    if (r != row) {
-      r++;
-      continue;
-    }
-    const char* p = line;
-    for (int c = 0; c < col; ++c) {
-      p = strchr(p, ',');
-      if (!p) {
-        return NULL;
-      }
-      ++p;
-    }
-    while (*p == ' ' || *p == '\t') {
-      ++p;
-    }
-    const char* end = strchr(p, ',');
-    size_t n = end ? (size_t)(end - p) : strlen(p);
-    static char live[64];
-    if (n >= sizeof(live)) {
-      n = sizeof(live) - 1;
-    }
-    memcpy(live, p, n);
-    live[n] = '\0';
-    while (n > 0 && (live[n - 1] == ' ' || live[n - 1] == '\t')) {
-      live[--n] = '\0';
-    }
-    return live[0] ? live : NULL;
-  }
-  return NULL;
-}
-
-static const char* reports_job_name(int job) {
-  if (job < 0 || job >= k_job_count) {
-    return "Colonist";
-  }
-  /* @JOB: name(0), expert_name(1), school_tier(2), europe_hire_cost(3). */
-  const char* live = reports_names_field("JOB", job, 1);
-  return live ? live : k_job_names[job];
-}
-
-/*
- * Per-index buffer, same reason as reports_tribe_name below: the village
- * trade dialogs (@BRING, @BADCARGO, @BUYWHICH, @CHIEFHOWDY) fetch three cargo
- * names into one token set before filling the text, and the shared
- * reports_names_field scratch made all three read back the last one
- * ("Cigars, Cigars and Cigars", three "Ore" choice rows). bugs 2026-09-15.
- */
-static const char* reports_cargo_name(int cargo) {
-  static char buf[COLONIZE_COL1_CARGO_TYPES][32];
-  if (cargo < 0 || cargo >= (int)COLONIZE_COL1_CARGO_TYPES) {
-    return "cargo";
-  }
-  const char* live = reports_names_field("CARGO", cargo, 0);
-  snprintf(buf[cargo], sizeof(buf[cargo]), "%s", live ? live : k_cargo_names[cargo]);
-  return buf[cargo];
-}
-
-static const char* reports_ff_name(int idx) {
-  if (idx < 0 || idx >= (int)COLONIZE_COL1_FF_COUNT) {
-    return "(none)";
-  }
-  const char* live = reports_names_field("FATHERS", idx, 0);
-  return live ? live : k_ff_names[idx];
-}
-
-/*
- * NAMES.TXT @TRIBES column 0. Unlike the single-shot ff/job/cargo lookups
- * above (used-immediately, one at a time), the Indian Adviser builds a
- * whole `rows[]` array of these before drawing — reports_names_field's one
- * shared scratch buffer would have every row alias the last tribe parsed.
- * A per-index buffer here keeps each tribe's name independently alive.
- */
-static const char* reports_tribe_name(int t) {
-  static char live[COLONIZE_COL1_INDIAN_COUNT][40];
-  if (t < 0 || t >= (int)COLONIZE_COL1_INDIAN_COUNT) {
-    return "Tribe";
-  }
-  const char* field = reports_names_field("TRIBES", t, 0);
-  if (field) {
-    snprintf(live[t], sizeof(live[t]), "%s", field);
-    return live[t];
-  }
-  return k_tribe_names[t];
-}
-
-const char* reports_ff_display_name(int idx) {
-  return reports_ff_name(idx);
-}
-
-/*
- * NAMES.TXT @FOUNDING (the six category words that sit above @FATHERS in the
- * same file). DOS keeps them as the DS:0x96e8 stride-2 pointer table the
- * Congress debate builder indexes by @FATHERS type column.
- */
-static const char* k_ff_category_names[] = {
-  "Trade", "Exploration", "Military", "Political", "Religious", "Independence"
-};
-
-const char* reports_ff_category_display_name(int type) {
-  static char buf[32];
-  const int count = (int)(sizeof(k_ff_category_names) / sizeof(k_ff_category_names[0]));
-  if (type < 0 || type >= count) {
-    return "";
-  }
-  const char* live = reports_names_field("FOUNDING", type, 0);
-  str_copy_trunc(buf, sizeof(buf), live ? live : k_ff_category_names[type]);
-  return buf;
-}
-
-const char* reports_job_display_name(int job) {
-  return reports_job_name(job);
-}
-
-/*
- * @JOB column 0 — the singular job word ("Distiller"), as opposed to
- * reports_job_display_name's column 1 recruit/specialty plural ("Master
- * Distiller"). colony.c's profession label and the colony-yield field job
- * names are this column; the map panel's unit profession line and the
- * Europe recruit pool are column 1.
- */
-const char* reports_job_short_name(int job) {
-  static char live[32][24];
-  if (job < 0 || job >= k_job_count || job >= 32) {
-    return "";
-  }
-  const char* field = reports_names_field("JOB", job, 0);
-  if (!field) {
-    return "";
-  }
-  snprintf(live[job], sizeof(live[job]), "%s", field);
-  return live[job];
-}
-
-const char* reports_cargo_display_name(int cargo) {
-  return reports_cargo_name(cargo);
-}
-
-const char* reports_tribe_display_name(int t) {
-  return reports_tribe_name(t);
-}
-
-/*
- * Copy one NAMES.TXT field into a caller-owned buffer, falling back to a
- * literal when the catalog is absent. Callers pass a per-index buffer rather
- * than sharing reports_names_field's single scratch one: several of these
- * accessors get called back-to-back while a screen builds a rows[] array
- * (same hazard reports_tribe_name / reports_nation_adjective document).
- */
-static const char* reports_names_or(
-  char* buf, size_t buf_size, const char* section, int row, int col, const char* literal
-) {
-  const char* live = reports_names_field(section, row, col);
-  snprintf(buf, buf_size, "%s", live ? live : literal);
-  return buf;
-}
-
-const char* reports_nation_country_name(int nation) {
-  static char live[COLONIZE_COL1_NATION_COUNT][24];
-  if (nation < 0 || nation >= (int)COLONIZE_COL1_NATION_COUNT) {
-    return "";
-  }
-  return reports_names_or(
-    live[nation], sizeof(live[nation]), "COUNTRY", nation, 0, k_euro_country[nation]
-  );
-}
-
-const char* reports_home_port_name(int nation) {
-  static char live[COLONIZE_COL1_NATION_COUNT][24];
-  if (nation < 0 || nation >= (int)COLONIZE_COL1_NATION_COUNT) {
-    return "";
-  }
-  return reports_names_or(
-    live[nation], sizeof(live[nation]), "HOMEPORT", nation, 0, k_home_ports[nation]
-  );
-}
-
-const char* reports_difficulty_title(int level) {
-  static char live[5][24];
-  if (level < 0 || level > 4) {
-    return "?";
-  }
-  return reports_names_or(
-    live[level], sizeof(live[level]), "DIFFICULTY", level, 0, k_difficulty_titles[level]
-  );
-}
-
-/*
- * @TRIBES column 1 — the singular tribe word ("Inca"), as opposed to
- * reports_tribe_display_name's column 0 plural ("Incas").
- *
- * Which one DOS uses is per-string, and GAME.TXT settles it: the tribe token
- * is substituted into both shapes, e.g. `@INDIANRAID` ("The ^ raid ...", a
- * plural subject) and `@CAPTUREVILLAGE` ("^ village", a singular modifier).
- * The Indian Adviser report's own column heading is plural (golden
- * indian.png "Arawaks:"), while the map panel / cheat list / unit labels
- * name one settlement or one brave and are singular. Only Inca/Aztec/Arawak
- * actually differ between the two columns; the other five rows are the same
- * word twice.
- */
-const char* reports_tribe_singular_name(int t) {
-  static char live[COLONIZE_COL1_INDIAN_COUNT][24];
-  if (t < 0 || t >= (int)COLONIZE_COL1_INDIAN_COUNT) {
-    return "Tribe";
-  }
-  return reports_names_or(live[t], sizeof(live[t]), "TRIBES", t, 1, k_tribe_singular[t]);
-}
-
-/* Fortification chain name, tier 0 = Stockade. NAMES.TXT has no separate
- * "fort tier" list: DOS reads these off the first three @BUILDING rows,
- * which are the chain in order. */
-const char* reports_fort_tier_name(int tier) {
-  static char live[3][24];
-  if (tier < 0 || tier > 2) {
-    return "";
-  }
-  return reports_names_or(
-    live[tier], sizeof(live[tier]), "BUILDING", tier, 0, k_fort_tier_names[tier]
-  );
-}
-
-/* Indian arms/mounts ladder, 0 = Braves … 3 = Mtd. Warriors (@UNIT rows
- * 19..22). Also used as a units_find_type key, so it must stay the @UNIT
- * spelling rather than a prettier "Mounted Warriors". */
-const char* reports_brave_ladder_name(int rank) {
-  static char live[4][24];
-  if (rank < 0 || rank > 3) {
-    return "";
-  }
-  return reports_names_or(
-    live[rank], sizeof(live[rank]), "UNIT", REPORTS_UNIT_ROW_BRAVES + rank, 0,
-    k_brave_ladder_names[rank]
-  );
-}
-
-/* Europe dock immigrant type name, indexed by DOS dos_type 0..5 — which is
- * exactly @UNIT row order for those six rows. */
-const char* reports_dock_type_name(int dos_type) {
-  static char live[6][24];
-  if (dos_type < 0 || dos_type > 5) {
-    return "";
-  }
-  return reports_names_or(
-    live[dos_type], sizeof(live[dos_type]), "UNIT", dos_type, 0, k_dock_type_names[dos_type]
-  );
-}
-
-/*
- * NAMES.TXT @NATIONALITY (row = nation). Dedicated per-nation buffer, not
- * the shared ff/job/cargo scratch one — Foreign Affairs stores this into a
- * `rows[]` array (r->leader / r->adjective, two calls per row) before
- * drawing, same aliasing hazard as reports_tribe_name.
- */
-static const char* reports_nation_adjective(int nation) {
-  static char live[COLONIZE_COL1_NATION_COUNT][20];
-  if (nation < 0 || nation >= (int)COLONIZE_COL1_NATION_COUNT) {
-    return "";
-  }
-  const char* field = reports_names_field("NATIONALITY", nation, 0);
-  if (field) {
-    snprintf(live[nation], sizeof(live[nation]), "%s", field);
-    return live[nation];
-  }
-  return k_euro_short[nation];
-}
-
-/* NAMES.TXT @LEVELS column 0 (row = tech, capped 0..3). Own buffer for the
- * same reason as reports_nation_adjective — used inside the Indian
- * Adviser's rows[] builder alongside reports_tribe_name. */
-static const char* reports_tribe_level(uint8_t tech) {
-  static char live[4][20];
-  if (tech > 3) {
-    tech = 3;
-  }
-  const char* field = reports_names_field("LEVELS", tech, 0);
-  if (field) {
-    snprintf(live[tech], sizeof(live[tech]), "%s", field);
-    return live[tech];
-  }
-  return k_tribe_levels[tech];
-}
-
-const char* reports_nation_adjective_display_name(int nation) {
-  return reports_nation_adjective(nation);
-}
-
-const char* reports_tribe_level_display_name(uint8_t tech) {
-  return reports_tribe_level(tech);
-}
 
 static bool reports_unit_in_europe(int x, int y) {
   return x >= 200 || y >= 200;
@@ -3005,12 +2416,14 @@ static int reports_naval_build_rows(
   return n;
 }
 
-int reports_naval_page_count(
-  int human_nation,
-  const ColonizeUnitPool* units,
-  const ColonizeColonyPool* colonies,
-  const EuropeScreen* europe
+int reports_naval_page_count_w(
+  const ColonizeWorld* w,
+  int human_nation
 ) {
+  const ColonizeUnitPool* units = w->units;
+  const ColonizeColonyPool* colonies = w->colonies;
+  const EuropeScreen* europe = w->europe;
+
   NavalRow rows[REPORTS_NAVAL_ROWS_MAX];
   const int n = reports_naval_build_rows(human_nation, units, colonies, europe, rows, REPORTS_NAVAL_ROWS_MAX);
   int pages = (n + REPORTS_NAVAL_ROWS_PER_PAGE - 1) / REPORTS_NAVAL_ROWS_PER_PAGE;
@@ -3018,6 +2431,17 @@ int reports_naval_page_count(
     pages = 1;
   }
   return pages;
+}
+
+/* Compat shim: pre-ColonizeWorld signature (see src/core/world.h). */
+int reports_naval_page_count(
+  int human_nation,
+  const ColonizeUnitPool* units,
+  const ColonizeColonyPool* colonies,
+  const EuropeScreen* europe
+) {
+  ColonizeWorld w_ = world_make(units, colonies, NULL, NULL, false, NULL, europe);
+  return reports_naval_page_count_w(&w_, human_nation);
 }
 
 /* Column-centered text, e.g. the header row and the Location/Destination
@@ -4101,13 +3525,15 @@ static int reports_score_declare_year(const ColonizeCol1Save* col1) {
          (int)(int8_t)col1->head.king_audience_last_pick;
 }
 
-void reports_compute_score(
+void reports_compute_score_w(
+  const ColonizeWorld* w,
   ColonizeScoreBreakdown* out,
-  const ColonizeCol1Save* col1,
-  int human_nation,
-  const ColonizeColonyPool* colonies,
-  const EuropeScreen* europe
+  int human_nation
 ) {
+  const ColonizeCol1Save* col1 = w->col1;
+  const ColonizeColonyPool* colonies = w->colonies;
+  const EuropeScreen* europe = w->europe;
+
   memset(out, 0, sizeof(*out));
   out->exploits_tier = -1;
   const int human = reports_clamp_nation(human_nation);
@@ -4201,6 +3627,18 @@ void reports_compute_score(
     out->base_total, out->prior_nations, out->independence_achieved
   );
   out->rating = reports_score_rating(out->total, out->difficulty, &out->exploits_tier);
+}
+
+/* Compat shim: pre-ColonizeWorld signature (see src/core/world.h). */
+void reports_compute_score(
+  ColonizeScoreBreakdown* out,
+  const ColonizeCol1Save* col1,
+  int human_nation,
+  const ColonizeColonyPool* colonies,
+  const EuropeScreen* europe
+) {
+  ColonizeWorld w_ = world_make(NULL, colonies, NULL, col1, col1 != NULL, NULL, europe);
+  reports_compute_score_w(&w_, out, human_nation);
 }
 
 /*
@@ -4738,7 +4176,8 @@ void reports_render_exploits(
   }
 }
 
-void reports_render(
+void reports_render_w(
+  const ColonizeWorld* w,
   const ColonizeReportsView* view,
   ColonizeReportId id,
   bool congress_page2,
@@ -4746,11 +4185,6 @@ void reports_render(
   int economic_page,
   int colony_page,
   int naval_page,
-  const ColonizeColonyPool* colonies,
-  const ColonizeUnitPool* units,
-  const ColonizeWorldMap* map,
-  const EuropeScreen* europe,
-  const ColonizeCol1Save* col1,
   int human_nation,
   int cursor_x,
   int cursor_y,
@@ -4758,6 +4192,12 @@ void reports_render(
   const ColonizeFont* font,
   ColonizeFramebuffer8* framebuffer
 ) {
+  const ColonizeColonyPool* colonies = w->colonies;
+  const ColonizeUnitPool* units = w->units;
+  const ColonizeWorldMap* map = w->map;
+  const EuropeScreen* europe = w->europe;
+  const ColonizeCol1Save* col1 = w->col1;
+
   (void)map;
   (void)cursor_x;
   (void)cursor_y;
@@ -4860,4 +4300,29 @@ void reports_render(
   if (id != COLONIZE_REPORT_SCORE) {
     reports_render_ok_button(font, framebuffer);
   }
+}
+
+/* Compat shim: pre-ColonizeWorld signature (see src/core/world.h). */
+void reports_render(
+  const ColonizeReportsView* view,
+  ColonizeReportId id,
+  bool congress_page2,
+  int labor_detail_job,
+  int economic_page,
+  int colony_page,
+  int naval_page,
+  const ColonizeColonyPool* colonies,
+  const ColonizeUnitPool* units,
+  const ColonizeWorldMap* map,
+  const EuropeScreen* europe,
+  const ColonizeCol1Save* col1,
+  int human_nation,
+  int cursor_x,
+  int cursor_y,
+  uint32_t turn_number,
+  const ColonizeFont* font,
+  ColonizeFramebuffer8* framebuffer
+) {
+  ColonizeWorld w_ = world_make(units, colonies, map, col1, col1 != NULL, NULL, europe);
+  reports_render_w(&w_, view, id, congress_page2, labor_detail_job, economic_page, colony_page, naval_page, human_nation, cursor_x, cursor_y, turn_number, font, framebuffer);
 }
