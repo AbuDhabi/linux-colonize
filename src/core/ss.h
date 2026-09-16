@@ -75,6 +75,20 @@ void ss_blit_anchored(
   int add_x,
   int add_y
 );
+/*
+ * Tile sprite 0 of `sheet` (WOODTILE) across the rect, phase-locked to the
+ * rect origin, transparent pixels skipped, clipped to the framebuffer. One
+ * body for popup.c's popup_tile_rect and map_panel_tile_rect (map_menu's
+ * screen-phase variant is a different pattern and stays separate).
+ */
+void ss_tile_rect(
+  const ColonizeSpriteSheet* sheet,
+  int origin_x,
+  int origin_y,
+  int rect_w,
+  int rect_h,
+  ColonizeFramebuffer8* framebuffer
+);
 /* Copy sprite pixels only onto framebuffer cells that currently equal match_color (MAPEDIT masked terrain). */
 void ss_blit_sprite_where_dest(
   const ColonizeSpriteSheet* sheet,

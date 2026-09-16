@@ -2091,3 +2091,128 @@ int map_move_cost_step(
   }
   return spent;
 }
+
+static void map_layer_push(
+  ColonizeMapLayerCmd* out, int max, int* n, int sheet, int into_holes, int sprite, int ox, int oy
+) {
+  if (*n >= max) {
+    return;
+  }
+  ColonizeMapLayerCmd* c = &out[(*n)++];
+  c->sheet = (uint8_t)sheet;
+  c->into_holes = (uint8_t)into_holes;
+  c->offset = 0;
+  c->sprite = (int16_t)sprite;
+  c->ox = (int8_t)ox;
+  c->oy = (int8_t)oy;
+}
+
+int map_tile_layer_cmds(
+  const ColonizeWorldMap* map,
+  int x,
+  int y,
+  int hidden_terrain_phase,
+  ColonizeMapLayerCmd* out,
+  int max
+) {
+  if (!map || !out || max <= 0) {
+    return 0;
+  }
+  int n = 0;
+  const int underlayer = map_coast_underlayer_sprite_at(map, x, y);
+  const int coast_layers = map_phys0_coast_layer_count(map, x, y);
+  int base = (underlayer >= 0) ? underlayer : map_terrain_sprite_at(map, x, y);
+  /* Hidden Terrain phase 3: scrub forest reveals as Desert (its cleared
+   * base type), not the scrub-ground quirk sprite under its canopy. */
+  if (hidden_terrain_phase >= 3 && underlayer < 0 && map_tile_is_scrub_forest(map, x, y)) {
+    base = 1;
+  }
+  map_layer_push(out, max, &n, MAP_LAYER_SHEET_TERRAIN, 0, base, 0, 0);
+
+  /* MAPEDIT: land transitions before forest (FUN_1a47_06da). */
+  if (underlayer < 0) {
+    const int transitions = map_land_transition_count(map, x, y);
+    for (int ti = 0; ti < transitions; ++ti) {
+      const int mask = map_land_transition_mask_sprite_at(map, x, y, ti);
+      const int fill = map_land_transition_fill_terrain_at(map, x, y, ti);
+      if (mask >= 0) {
+        map_layer_push(out, max, &n, MAP_LAYER_SHEET_PHYS0, 0, mask, 0, 0);
+      }
+      if (fill >= 0) {
+        map_layer_push(out, max, &n, MAP_LAYER_SHEET_TERRAIN, 1, fill, 0, 0);
+      }
+    }
+  }
+  /* Hidden Terrain phase 3 removes forest canopy. */
+  const int forest = map_phys0_forest_sprite_at(map, x, y);
+  if (forest >= 0 && hidden_terrain_phase < 3) {
+    map_layer_push(out, max, &n, MAP_LAYER_SHEET_PHYS0, 0, forest, 0, 0);
+  }
+  const int layers = map_phys0_overlay_count(map, x, y);
+  /* MAPEDIT: coast PHYS0, then masked ocean into colour-0 holes, then estuary. */
+  const int coast_end = (underlayer >= 0) ? coast_layers : layers;
+  for (int pass = 0; pass < 2; ++pass) {
+    if (pass == 1) {
+      if (underlayer < 0) {
+        break;
+      }
+      const int ocean = map_terrain_sprite_at(map, x, y);
+      if (ocean >= 0) {
+        map_layer_push(out, max, &n, MAP_LAYER_SHEET_TERRAIN, 1, ocean, 0, 0);
+      }
+    }
+    const int from = (pass == 0) ? 0 : coast_layers;
+    const int to = (pass == 0) ? coast_end : layers;
+    for (int layer = from; layer < to; ++layer) {
+      if (hidden_terrain_phase >= 2) {
+        const ColonizeMapOverlayKind kind = map_phys0_overlay_kind_at(map, x, y, layer);
+        if (kind == MAP_OVERLAY_KIND_RESOURCE || kind == MAP_OVERLAY_KIND_RUMOUR) {
+          continue;
+        }
+        if (hidden_terrain_phase >= 3 && kind == MAP_OVERLAY_KIND_HILL) {
+          continue;
+        }
+      }
+      const int overlay = map_phys0_overlay_sprite_at(map, x, y, layer);
+      if (overlay < 0) {
+        continue;
+      }
+      int ox = 0;
+      int oy = 0;
+      map_phys0_overlay_offset_at(map, x, y, layer, &ox, &oy);
+      map_layer_push(out, max, &n, MAP_LAYER_SHEET_PHYS0, 0, overlay, ox, oy);
+      out[n - 1].offset = 1;
+    }
+  }
+  /* Runtime plow / road: PHYS0 149 / 80-88 after static overlays. */
+  const int plow = map_phys0_plow_sprite_at(map, x, y);
+  if (plow >= 0) {
+    map_layer_push(out, max, &n, MAP_LAYER_SHEET_PHYS0, 0, plow, 0, 0);
+    /* bugs.md 402: keep the special-resource icon visible — re-blit it
+     * above the plow art (phase 2+ peel already hides it). */
+    if (hidden_terrain_phase < 2) {
+      for (int rl = 0; rl < layers; ++rl) {
+        if (map_phys0_overlay_kind_at(map, x, y, rl) != MAP_OVERLAY_KIND_RESOURCE) {
+          continue;
+        }
+        const int rs = map_phys0_overlay_sprite_at(map, x, y, rl);
+        if (rs >= 0) {
+          int rox = 0;
+          int roy = 0;
+          map_phys0_overlay_offset_at(map, x, y, rl, &rox, &roy);
+          map_layer_push(out, max, &n, MAP_LAYER_SHEET_PHYS0, 0, rs, rox, roy);
+          out[n - 1].offset = 1;
+        }
+      }
+    }
+  }
+  /* Hidden Terrain phase 2+: roads aren't in the exempt set. */
+  const int road_n = (hidden_terrain_phase >= 2) ? 0 : map_phys0_road_layer_count(map, x, y);
+  for (int ri = 0; ri < road_n; ++ri) {
+    const int road = map_phys0_road_layer_sprite_at(map, x, y, ri);
+    if (road >= 0) {
+      map_layer_push(out, max, &n, MAP_LAYER_SHEET_PHYS0, 0, road, 0, 0);
+    }
+  }
+  return n;
+}

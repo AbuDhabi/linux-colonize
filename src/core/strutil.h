@@ -35,6 +35,17 @@ bool str_next_int_field(const char** cursor, int* out);
  * "~#" hotkey markers, "{}" emphasis braces, "{}^_" layout directives). */
 void str_strip_chars(char* s, const char* set);
 
+/* Strip one pair of enclosing double quotes in place ("x" -> x). */
+void str_strip_quotes(char* s);
+
+/*
+ * Split a NAMES.TXT-style row in place: drop a ';' comment, cut at the first
+ * ',', trim the name left of it and return the trimmed remainder (NULL when
+ * the row is blank, a comment, or has no comma). One body for the @UNIT,
+ * @BUILDING and @ORDERS loaders.
+ */
+char* str_split_name_row(char* line);
+
 /* Truncate `line` at the first ';' (NAMES/LABELS/GAME.TXT comment marker). */
 void str_strip_comment(char* line);
 

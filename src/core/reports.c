@@ -5,6 +5,8 @@
 #include "core/combat_strength.h"
 #include "core/founding_fathers.h"
 #include "core/reports.h"
+
+#include "core/fb.h"
 #include "core/strutil.h"
 #include "core/unit_chrome.h"
 
@@ -569,6 +571,7 @@ bool reports_ok_button_hit(ColonizeReportId id, bool congress_page2, int mx, int
     my < REPORTS_OK_Y + REPORTS_OK_H;
 }
 
+/* Exclusive-corner outline (x0..x1-1, y0..y1-1). */
 static void reports_draw_rect_outline(
   ColonizeFramebuffer8* fb,
   int x0,
@@ -577,29 +580,7 @@ static void reports_draw_rect_outline(
   int y1,
   uint8_t color
 ) {
-  if (!fb || !fb->pixels) {
-    return;
-  }
-  for (int x = x0; x < x1; ++x) {
-    if (x >= 0 && x < fb->width) {
-      if (y0 >= 0 && y0 < fb->height) {
-        fb->pixels[y0 * fb->width + x] = color;
-      }
-      if (y1 - 1 >= 0 && y1 - 1 < fb->height) {
-        fb->pixels[(y1 - 1) * fb->width + x] = color;
-      }
-    }
-  }
-  for (int y = y0; y < y1; ++y) {
-    if (y >= 0 && y < fb->height) {
-      if (x0 >= 0 && x0 < fb->width) {
-        fb->pixels[y * fb->width + x0] = color;
-      }
-      if (x1 - 1 >= 0 && x1 - 1 < fb->width) {
-        fb->pixels[y * fb->width + x1 - 1] = color;
-      }
-    }
-  }
+  fb_rect_outline(fb, x0, y0, x1 - x0, y1 - y0, color, color);
 }
 
 static void reports_render_ok_button(const ColonizeFont* font, ColonizeFramebuffer8* fb) {
@@ -1758,6 +1739,16 @@ static int reports_labor_normalize_job(int job) {
   return job;
 }
 
+/* Only @UNIT types 0-5 (Colonists, Soldiers, Pioneers, Missionaries,
+ * Dragoons, Scouts — NAMES.TXT @UNIT rows 0-5) are colonist-derived persons
+ * the labor report should ever count; everything else (ships 13-18,
+ * Artillery, Wagon Train, Treasure, Regulars/Cavalry/Continental Army 6-9)
+ * is equipment/vehicles/King's-army units with no colonist behind them, even
+ * though some carry a leftover profession byte. */
+static bool reports_labor_unit_is_person(const ColonizeCol1Unit* u) {
+  return u->type <= 5;
+}
+
 static void reports_labor_job_counts(
   const ColonizeCol1Save* col1,
   int human,
@@ -1791,13 +1782,7 @@ static void reports_labor_job_counts(
       if ((int)u->nation_id != human) {
         continue;
       }
-      /* Only @UNIT types 0-5 (Colonists, Soldiers, Pioneers, Missionaries,
-       * Dragoons, Scouts — NAMES.TXT @UNIT rows 0-5) are colonist-derived
-       * persons the labor report should ever count; everything else (ships
-       * 13-18, Artillery, Wagon Train, Treasure, Regulars/Cavalry/Continental
-       * Army 6-9) is equipment/vehicles/King's-army units with no colonist
-       * behind them, even though some carry a leftover profession byte. */
-      if (u->type > 5) {
+      if (!reports_labor_unit_is_person(u)) {
         continue;
       }
       /* DOS FUN_3f41_10d8 (viceroy_unpacked.c 70113) files a map unit under
@@ -2018,13 +2003,7 @@ static void reports_render_labor_detail(
       if ((int)u->nation_id != human || u->x != c->x || u->y != c->y) {
         continue;
       }
-      /* Only @UNIT types 0-5 (Colonists, Soldiers, Pioneers, Missionaries,
-       * Dragoons, Scouts — NAMES.TXT @UNIT rows 0-5) are colonist-derived
-       * persons the labor report should ever count; everything else (ships
-       * 13-18, Artillery, Wagon Train, Treasure, Regulars/Cavalry/Continental
-       * Army 6-9) is equipment/vehicles/King's-army units with no colonist
-       * behind them, even though some carry a leftover profession byte. */
-      if (u->type > 5) {
+      if (!reports_labor_unit_is_person(u)) {
         continue;
       }
       /* Raw profession byte, no @UNIT-id fallback — see the grid collector
@@ -2067,25 +2046,16 @@ static void reports_render_labor_detail(
 #define REPORTS_ECON_POS_COLOR 10 /* green (85,255,85): net sold (tons/gold >= 0) */
 #define REPORTS_ECON_NEG_COLOR 112 /* red (243,0,0): net bought (tons/gold < 0) */
 
+/* Exclusive-end lines (x0..x1-1 / y0..y1-1). */
 static void reports_draw_hline(ColonizeFramebuffer8* fb, int x0, int x1, int y, uint8_t color) {
-  if (!fb || !fb->pixels || y < 0 || y >= fb->height) {
-    return;
-  }
-  for (int x = x0; x < x1; ++x) {
-    if (x >= 0 && x < fb->width) {
-      fb->pixels[y * fb->width + x] = color;
-    }
+  if (x1 > x0) {
+    fb_hline(fb, y, x0, x1 - 1, color);
   }
 }
 
 static void reports_draw_vline(ColonizeFramebuffer8* fb, int x, int y0, int y1, uint8_t color) {
-  if (!fb || !fb->pixels || x < 0 || x >= fb->width) {
-    return;
-  }
-  for (int y = y0; y < y1; ++y) {
-    if (y >= 0 && y < fb->height) {
-      fb->pixels[y * fb->width + x] = color;
-    }
+  if (y1 > y0) {
+    fb_vline(fb, x, y0, y1 - 1, color);
   }
 }
 
@@ -4264,30 +4234,6 @@ void reports_compute_score(
 #define REPORTS_SCORE_BAR_H 7
 #define REPORTS_SCORE_BAR_MAX 1000 /* fill = min(total,MAX)/MAX of the track — measured 305/1000 on the golden */
 
-static void reports_score_fill_rect(
-  ColonizeFramebuffer8* fb,
-  int x,
-  int y,
-  int w,
-  int h,
-  uint8_t color
-) {
-  if (!fb || !fb->pixels || w <= 0 || h <= 0) {
-    return;
-  }
-  for (int yy = y; yy < y + h; ++yy) {
-    if (yy < 0 || yy >= fb->height) {
-      continue;
-    }
-    for (int xx = x; xx < x + w; ++xx) {
-      if (xx < 0 || xx >= fb->width) {
-        continue;
-      }
-      fb->pixels[yy * fb->width + xx] = color;
-    }
-  }
-}
-
 /* Citizens icon strip: one units_job_icon_sprite() portrait per counted
  * citizen (same job list reports_compute_score sums points from), packed
  * left-to-right at a fixed pitch, wrapping to a new row when a row would
@@ -4578,7 +4524,7 @@ static void reports_render_score(
   /* Bottom progress bar: proportional fill toward a nominal 1000-point
    * score, not toward anything display-labeled — golden's fill measures
    * 76/250px = 30.4% against a Total Score of 305/1000 = 30.5%. */
-  reports_score_fill_rect(
+  fb_fill_rect(
     fb,
     REPORTS_SCORE_BAR_X,
     REPORTS_SCORE_BAR_Y,
@@ -4595,7 +4541,7 @@ static void reports_render_score(
   }
   const int fill_w = (REPORTS_SCORE_BAR_W * fill_total) / REPORTS_SCORE_BAR_MAX;
   if (fill_w > 0) {
-    reports_score_fill_rect(
+    fb_fill_rect(
       fb,
       REPORTS_SCORE_BAR_X,
       REPORTS_SCORE_BAR_Y,

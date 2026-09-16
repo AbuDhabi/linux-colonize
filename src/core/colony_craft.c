@@ -1,5 +1,7 @@
 #include "core/colony_craft.h"
 
+#include "core/strutil.h"
+
 #include <stdio.h>
 #include <string.h>
 
@@ -82,16 +84,6 @@ const ColonizeCraftRecipe* colony_craft_recipe_at(int index) {
     return NULL;
   }
   return &k_recipes[index];
-}
-
-static int colony_craft_clamp(int v) {
-  if (v < 0) {
-    return 0;
-  }
-  if (v > 65535) {
-    return 65535;
-  }
-  return v;
 }
 
 static bool colony_craft_name_matches(const char* name, const char* needle) {
@@ -282,7 +274,7 @@ static void colony_craft_run(
     /* u16 save-format clamp — a near-full warehouse must preview the same
      * figure the tick produces (smell audit #71). */
     colony->stock[rec->out_cargo] =
-      colony_craft_clamp(colony->stock[rec->out_cargo] + actual_out);
+      clamp_int(colony->stock[rec->out_cargo] + actual_out, 0, 65535);
     if (delta) {
       delta->goods[rec->in_cargo] -= actual_in;
       delta->goods[rec->out_cargo] += actual_out;

@@ -28,6 +28,7 @@
 #include "core/gsound_vm.h"
 #include "core/pick_music_ids.h"
 #include "core/sound.h"
+#include "core/strutil.h"
 #include "platform/diagnostics.h"
 
 /* Match GSOUND PIT tick rate used in sound.c (~59.95 Hz). */
@@ -95,34 +96,6 @@ static void dump_titles_init_defaults(void) {
   }
 }
 
-static void dump_strip_quotes(char* text) {
-  if (!text || text[0] != '"') {
-    return;
-  }
-  size_t n = strlen(text);
-  if (n >= 2 && text[n - 1] == '"') {
-    memmove(text, text + 1, n - 2);
-    text[n - 2] = '\0';
-  }
-}
-
-static void dump_trim(char* text) {
-  if (!text) {
-    return;
-  }
-  char* s = text;
-  while (*s && isspace((unsigned char)*s)) {
-    ++s;
-  }
-  if (s != text) {
-    memmove(text, s, strlen(s) + 1);
-  }
-  size_t n = strlen(text);
-  while (n > 0 && isspace((unsigned char)text[n - 1])) {
-    text[--n] = '\0';
-  }
-}
-
 /* Load quoted song labels from a GAME.TXT @SECTION in pick_music order. */
 static void dump_load_section_titles(
   FILE* f,
@@ -141,7 +114,7 @@ static void dump_load_section_titles(
     while (n > 0 && (line[n - 1] == '\r' || line[n - 1] == '\n')) {
       line[--n] = '\0';
     }
-    dump_trim(line);
+    str_trim(line);
     if (line[0] == '@') {
       if (in_section) {
         break;
@@ -163,8 +136,8 @@ static void dump_load_section_titles(
     if (line[0] != '"') {
       continue; /* submenu labels, etc. */
     }
-    dump_strip_quotes(line);
-    dump_trim(line);
+    str_strip_quotes(line);
+    str_trim(line);
     if (song_index < id_count) {
       const int id = ids[song_index++];
       if (id >= 0 && id < 0x40 && line[0]) {

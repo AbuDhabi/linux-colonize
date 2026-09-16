@@ -209,19 +209,10 @@ void unit_chrome_load_orders(const ColonizeMsgCatalog* names) {
   for (int i = 0; i < section->line_count && n < UNIT_CHROME_ORDERS_MAX; ++i) {
     char line[COLONIZE_MSG_LINE_LEN];
     snprintf(line, sizeof(line), "%s", section->lines[i]);
-    if (line[0] == ';' || line[0] == '\0') {
+    const char* letter = str_split_name_row(line);
+    if (!letter) {
       continue;
     }
-    char* semi = strchr(line, ';');
-    if (semi) {
-      *semi = '\0';
-    }
-    char* comma = strchr(line, ',');
-    if (!comma) {
-      continue;
-    }
-    str_trim(comma + 1);
-    const char* letter = comma + 1;
     g_order_letters[n++] = letter[0] ? letter[0] : '-';
   }
 }

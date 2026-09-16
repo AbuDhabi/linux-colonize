@@ -1,6 +1,8 @@
 #include "core/popup_msg.h"
 #include "core/turn.h"
 
+#include "core/strutil.h"
+
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
@@ -251,16 +253,6 @@ bool turn_option_end_of_turn(const ColonizeCol1Save* col1, bool col1_ok) {
 
 static bool turn_option_autosave(const ColonizeCol1Save* col1, bool col1_ok) {
   return col1_ok && col1 && col1->head.game_options.autosave != 0;
-}
-
-static int turn_clamp_stock(int v) {
-  if (v < 0) {
-    return 0;
-  }
-  if (v > 65535) {
-    return 65535;
-  }
-  return v;
 }
 
 /*
@@ -687,7 +679,7 @@ static void turn_produce_one_colony(
     );
     if (tc.food > 0) {
       colony->stock[COLONIZE_CARGO_FOOD] =
-        turn_clamp_stock(colony->stock[COLONIZE_CARGO_FOOD] + tc.food);
+        clamp_int(colony->stock[COLONIZE_CARGO_FOOD] + tc.food, 0, 65535);
       field_food += tc.food;
       if (delta) {
         delta->goods[COLONIZE_CARGO_FOOD] += tc.food;
@@ -696,7 +688,7 @@ static void turn_produce_one_colony(
     if (tc.secondary_amount > 0 && tc.secondary_cargo >= 0 &&
         tc.secondary_cargo < COLONIZE_CARGO_COUNT) {
       colony->stock[tc.secondary_cargo] =
-        turn_clamp_stock(colony->stock[tc.secondary_cargo] + tc.secondary_amount);
+        clamp_int(colony->stock[tc.secondary_cargo] + tc.secondary_amount, 0, 65535);
       if (delta) {
         delta->goods[tc.secondary_cargo] += tc.secondary_amount;
       }
@@ -752,7 +744,7 @@ static void turn_produce_one_colony(
       if (cargo < 0 || cargo >= COLONIZE_CARGO_COUNT) {
         continue;
       }
-      colony->stock[cargo] = turn_clamp_stock(colony->stock[cargo] + add);
+      colony->stock[cargo] = clamp_int(colony->stock[cargo] + add, 0, 65535);
       if (delta) {
         delta->goods[cargo] += add;
       }
@@ -868,7 +860,7 @@ static void turn_produce_one_colony(
     const int ai_food = diff >> 1;
     if (ai_food > 0) {
       colony->stock[COLONIZE_CARGO_FOOD] =
-        turn_clamp_stock(colony->stock[COLONIZE_CARGO_FOOD] + ai_food);
+        clamp_int(colony->stock[COLONIZE_CARGO_FOOD] + ai_food, 0, 65535);
       field_food += ai_food;
       ai_food_subsidy = ai_food;
       if (delta) {
@@ -879,7 +871,7 @@ static void turn_produce_one_colony(
 
   const int consumed = pop * TURN_FOOD_PER_COLONIST;
   colony->stock[COLONIZE_CARGO_FOOD] =
-    turn_clamp_stock(colony->stock[COLONIZE_CARGO_FOOD] - consumed);
+    clamp_int(colony->stock[COLONIZE_CARGO_FOOD] - consumed, 0, 65535);
   if (delta) {
     delta->goods[COLONIZE_CARGO_FOOD] -= consumed;
   }
@@ -953,9 +945,9 @@ static void turn_produce_one_colony(
     );
     if (breed.bred > 0) {
       colony->stock[COLONIZE_CARGO_FOOD] =
-        turn_clamp_stock(colony->stock[COLONIZE_CARGO_FOOD] - breed.bred);
+        clamp_int(colony->stock[COLONIZE_CARGO_FOOD] - breed.bred, 0, 65535);
       colony->stock[COLONIZE_CARGO_HORSES] =
-        turn_clamp_stock(colony->stock[COLONIZE_CARGO_HORSES] + breed.bred);
+        clamp_int(colony->stock[COLONIZE_CARGO_HORSES] + breed.bred, 0, 65535);
       if (delta) {
         delta->goods[COLONIZE_CARGO_FOOD] -= breed.bred;
         delta->goods[COLONIZE_CARGO_HORSES] += breed.bred;
@@ -1242,7 +1234,7 @@ static void turn_produce_one_colony(
     if (colony->stock[COLONIZE_CARGO_FOOD] >= 200 &&
         colony->colonist_count < COLONIZE_COLONY_POP_MAX) {
       colony->stock[COLONIZE_CARGO_FOOD] =
-        turn_clamp_stock(colony->stock[COLONIZE_CARGO_FOOD] - 200);
+        clamp_int(colony->stock[COLONIZE_CARGO_FOOD] - 200, 0, 65535);
       if (delta) {
         delta->goods[COLONIZE_CARGO_FOOD] -= 200;
       }

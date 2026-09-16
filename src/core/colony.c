@@ -274,20 +274,6 @@ static void colony_blit_map_icon(
   colonies_blit_settlement_icon(icons, sprite, framebuffer, px, py, nation_id, active_palette);
 }
 
-static void colony_trim(char* s) {
-  char* start = s;
-  while (*start == ' ' || *start == '\t') {
-    ++start;
-  }
-  if (start != s) {
-    memmove(s, start, strlen(start) + 1);
-  }
-  size_t n = strlen(s);
-  while (n > 0 && (s[n - 1] == ' ' || s[n - 1] == '\t' || s[n - 1] == '\r' || s[n - 1] == '\n')) {
-    s[--n] = '\0';
-  }
-}
-
 void colonies_init(ColonizeColonyPool* pool) {
   if (!pool) {
     return;
@@ -320,7 +306,7 @@ bool colonies_load_names(ColonizeColonyPool* pool, const char* colony_txt_path) 
   char line[128];
   int section = -1; /* 0 English, 1 French, 2 Spanish, 3 Dutch */
   while (fgets(line, sizeof(line), f)) {
-    colony_trim(line);
+    str_trim(line);
     if (line[0] == '@') {
       if (strncmp(line + 1, "ENGLISH", 7) == 0) {
         section = 0;
@@ -346,7 +332,7 @@ bool colonies_load_names(ColonizeColonyPool* pool, const char* colony_txt_path) 
     if (comma) {
       *comma = '\0';
     }
-    colony_trim(line);
+    str_trim(line);
     if (line[0] == '\0') {
       continue;
     }
@@ -386,24 +372,10 @@ bool colonies_load_buildings(ColonizeColonyPool* pool, const ColonizeMsgCatalog*
   for (int i = 0; i < section->line_count && pool->building_type_count < COLONIZE_BUILDING_TYPES_MAX; ++i) {
     char line[COLONIZE_MSG_LINE_LEN];
     snprintf(line, sizeof(line), "%s", section->lines[i]);
-    if (line[0] == ';' || line[0] == '\0') {
+    const char* p = str_split_name_row(line);
+    if (!p || line[0] == '\0') {
       continue;
     }
-    char* semi = strchr(line, ';');
-    if (semi) {
-      *semi = '\0';
-    }
-    char* comma = strchr(line, ',');
-    if (!comma) {
-      continue;
-    }
-    *comma = '\0';
-    colony_trim(line);
-    if (line[0] == '\0') {
-      continue;
-    }
-
-    const char* p = comma + 1;
     int hammers = 0;
     int tools_cost = 0;
     int size = 0;
@@ -1144,15 +1116,7 @@ int colonies_found(
 }
 
 const ColonizeColony* colonies_get(const ColonizeColonyPool* pool, int colony_id) {
-  if (!pool || colony_id < 0) {
-    return NULL;
-  }
-  for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
-    if (pool->colonies[i].active && pool->colonies[i].id == colony_id) {
-      return &pool->colonies[i];
-    }
-  }
-  return NULL;
+  return colonies_get_mut((ColonizeColonyPool*)pool, colony_id);
 }
 
 ColonizeColony* colonies_get_mut(ColonizeColonyPool* pool, int colony_id) {

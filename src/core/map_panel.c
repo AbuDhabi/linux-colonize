@@ -48,36 +48,7 @@ void map_panel_tile_rect(
   int rect_h,
   ColonizeFramebuffer8* framebuffer
 ) {
-  if (!sheet || sheet->sprite_count < 1 || !framebuffer || rect_w <= 0 || rect_h <= 0) {
-    return;
-  }
-  const ColonizeSprite* tile = &sheet->sprites[0];
-  if (!tile->pixels || tile->width <= 0 || tile->height <= 0) {
-    return;
-  }
-  const int x1 = origin_x + rect_w;
-  const int y1 = origin_y + rect_h;
-  for (int y = origin_y; y < y1; y += tile->height) {
-    for (int x = origin_x; x < x1; x += tile->width) {
-      for (int sy = 0; sy < tile->height; ++sy) {
-        const int fy = y + sy;
-        if (fy < origin_y || fy >= y1 || fy < 0 || fy >= framebuffer->height) {
-          continue;
-        }
-        for (int sx = 0; sx < tile->width; ++sx) {
-          const int fx = x + sx;
-          if (fx < origin_x || fx >= x1 || fx < 0 || fx >= framebuffer->width) {
-            continue;
-          }
-          const uint8_t color = tile->pixels[sy * tile->width + sx];
-          if (color == COLONIZE_SS_TRANSPARENT) {
-            continue;
-          }
-          framebuffer->pixels[fy * framebuffer->width + fx] = color;
-        }
-      }
-    }
-  }
+  ss_tile_rect(sheet, origin_x, origin_y, rect_w, rect_h, framebuffer);
 }
 
 static uint8_t map_panel_terrain_color(const ColonizeWorldMap* map, int x, int y) {

@@ -30,10 +30,10 @@
 #include <stdlib.h>
 #include <string.h>
 
-static int fail(const char* msg) {
-  fprintf(stderr, "unit_ai_euro_war: FAIL %s\n", msg);
-  return 1;
-}
+#define TEST_NAME "unit_ai_euro_war"
+#include "../common/ai_fixture.h"
+#include "../common/test_fail.h"
+
 
 static int unit_mid_hire_mil(void) {
   const int nation = 1;
@@ -55,9 +55,7 @@ static int unit_mid_hire_mil(void) {
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
   units.type_count = 4;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Pioneer");
   units.types[0].movement = 3;
@@ -76,8 +74,7 @@ static int unit_mid_hire_mil(void) {
   units.types[3].defense = 2;
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
+  fx_colonies_init(&colonies);
   ColonizeColony* own = &colonies.colonies[0];
   own->id = 0;
   own->active = true;
@@ -118,9 +115,7 @@ static int unit_mid_hire_mil(void) {
   const int sid = units_spawn(&units, 3, 5, 5);
   ColonizeUnit* soldier = units_get(&units, sid);
   if (!soldier) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("spawn soldier");
   }
   soldier->nation_id = nation;
@@ -131,9 +126,7 @@ static int unit_mid_hire_mil(void) {
   const int ship_id = units_spawn_allow_stack(&units, 1, 200, 100);
   ColonizeUnit* ship = units_get(&units, ship_id);
   if (!ship) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("spawn europe ship");
   }
   ship->nation_id = nation;
@@ -155,9 +148,7 @@ static int unit_mid_hire_mil(void) {
   col1.nation[foe].gold = 500;
   ai_diplo_declare_war(&col1, nation, foe);
   if (!ai_diplo_at_war(&col1, nation, foe)) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected war after declare");
   }
   /* Replenish after war sting so hire_cost (200) is affordable. */
@@ -205,16 +196,12 @@ static int unit_mid_hire_mil(void) {
     ai_goals_max_primary_prio(nation, enemy->x, enemy->y, AI_GOAL_MILITARY);
   if (mil_prio < 6) {
     fprintf(stderr, "unit_ai_euro_war: G stance mil_prio=%d (want ≥6)\n", mil_prio);
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected G stance MILITARY prio ≥6 with own≥2 at war");
   }
   if (mil_prio >= 7) {
     fprintf(stderr, "unit_ai_euro_war: G stance mil_prio=%d (own=2 should be 6 not 7)\n", mil_prio);
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("own=2 must not take own≥3 deepen prio 7");
   }
 
@@ -230,15 +217,11 @@ static int unit_mid_hire_mil(void) {
       soldier->goto_x,
       soldier->goto_y
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected MILITARY AI_MOVE or Soldier hire/board");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(
     stderr,
     "unit_ai_euro_war: mid-hire ok (mil_goto=%d boarded=%d gold_spent=%d mil_prio=%d)\n",
@@ -275,9 +258,7 @@ static int unit_naval_war_hunt(void) {
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Frigate");
   units.types[0].movement = 4;
@@ -287,15 +268,12 @@ static int unit_naval_war_hunt(void) {
   units.types[0].cargo = 0;
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
+  fx_colonies_init(&colonies);
 
   const int own_id = units_spawn(&units, 0, own_x, own_y);
   ColonizeUnit* warship = units_get(&units, own_id);
   if (!warship) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("spawn own frigate");
   }
   warship->nation_id = nation;
@@ -305,9 +283,7 @@ static int unit_naval_war_hunt(void) {
   const int foe_id = units_spawn(&units, 0, foe_x, foe_y);
   ColonizeUnit* foe_ship = units_get(&units, foe_id);
   if (!foe_ship) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("spawn foe frigate");
   }
   foe_ship->nation_id = foe;
@@ -330,9 +306,7 @@ static int unit_naval_war_hunt(void) {
   col1.nation[foe].gold = 100;
   ai_diplo_declare_war(&col1, nation, foe);
   if (!ai_diplo_at_war(&col1, nation, foe)) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("naval expected war");
   }
 
@@ -379,15 +353,11 @@ static int unit_naval_war_hunt(void) {
       warship ? warship->y : -1,
       foe_ship && foe_ship->active
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected AI_SAIL toward foe, closer move, or combat");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(
     stderr,
     "unit_ai_euro_war: naval ok (sail=%d closer=%d combat=%d)\n",
@@ -424,9 +394,7 @@ static int unit_naval_flee_fort_fire(void) {
   map.terrain[5 + 5 * 16] = 1;
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Frigate");
   units.types[0].movement = 4;
@@ -435,8 +403,7 @@ static int unit_naval_flee_fort_fire(void) {
   units.types[0].defense = 2;
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
+  fx_colonies_init(&colonies);
   snprintf(colonies.building_types[0].name, sizeof(colonies.building_types[0].name), "Fort");
   colonies.building_type_count = 1;
   ColonizeColony* col = &colonies.colonies[0];
@@ -452,9 +419,7 @@ static int unit_naval_flee_fort_fire(void) {
   const int own_id = units_spawn(&units, 0, 5, 4);
   ColonizeUnit* ship = units_get(&units, own_id);
   if (!ship) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("flee-fort spawn ship");
   }
   ship->nation_id = nation;
@@ -469,9 +434,7 @@ static int unit_naval_flee_fort_fire(void) {
   }
   ai_diplo_declare_war(&col1, nation, foe);
   if (!ai_diplo_at_war(&col1, nation, foe)) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("flee-fort expected war");
   }
 
@@ -491,24 +454,18 @@ static int unit_naval_flee_fort_fire(void) {
 
   ship = units_get(&units, own_id);
   if (!ship || !ship->active) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("flee-fort ship should survive");
   }
   /* Left the battery ring (not adjacent to Fort colony). */
   const int adj = abs(ship->x - 5) <= 1 && abs(ship->y - 5) <= 1 && !(ship->x == 5 && ship->y == 5);
   if (adj) {
     fprintf(stderr, "flee-fort still adjacent at %d,%d\n", ship->x, ship->y);
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected ship to flee Fort battery adjacency");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(stderr, "unit_ai_euro_war: naval flee fort fire ok (%d,%d)\n", ship->x, ship->y);
   return 0;
 }
@@ -542,9 +499,7 @@ static int unit_privateer_war_hunt(void) {
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Privateer");
   units.types[0].movement = 4;
@@ -554,15 +509,12 @@ static int unit_privateer_war_hunt(void) {
   units.types[0].cargo = 2;
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
+  fx_colonies_init(&colonies);
 
   const int own_id = units_spawn(&units, 0, own_x, own_y);
   ColonizeUnit* priv = units_get(&units, own_id);
   if (!priv) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("spawn privateer");
   }
   priv->nation_id = nation;
@@ -577,9 +529,7 @@ static int unit_privateer_war_hunt(void) {
   const int foe_id = units_spawn(&units, 0, foe_x, foe_y);
   ColonizeUnit* foe_ship = units_get(&units, foe_id);
   if (!foe_ship) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("spawn foe privateer");
   }
   foe_ship->nation_id = foe;
@@ -600,9 +550,7 @@ static int unit_privateer_war_hunt(void) {
   col1.nation[foe].gold = 100;
   ai_diplo_declare_war(&col1, nation, foe);
   if (!ai_diplo_at_war(&col1, nation, foe)) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("privateer expected war");
   }
 
@@ -643,15 +591,11 @@ static int unit_privateer_war_hunt(void) {
       priv ? priv->moves_left : -1,
       foe_ship && foe_ship->active
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected busy Privateer to fight the adjacent foe (LAB_52aa pick)");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(stderr, "unit_ai_euro_war: privateer adjacent-foe attack ok (combat=%d)\n", combat_done);
   return 0;
 }
@@ -686,9 +630,7 @@ static int unit_privateer_station_keep_hunt(void) {
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Privateer");
   units.types[0].movement = 4;
@@ -698,15 +640,12 @@ static int unit_privateer_station_keep_hunt(void) {
   units.types[0].cargo = 2;
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
+  fx_colonies_init(&colonies);
 
   const int own_id = units_spawn(&units, 0, own_x, own_y);
   ColonizeUnit* priv = units_get(&units, own_id);
   if (!priv) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("priv-sk spawn");
   }
   priv->nation_id = nation;
@@ -719,9 +658,7 @@ static int unit_privateer_station_keep_hunt(void) {
   const int foe_id = units_spawn(&units, 0, foe_x, foe_y);
   ColonizeUnit* foe_ship = units_get(&units, foe_id);
   if (!foe_ship) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("priv-sk foe spawn");
   }
   foe_ship->nation_id = foe;
@@ -776,15 +713,11 @@ static int unit_privateer_station_keep_hunt(void) {
       priv ? priv->x : -1,
       priv ? priv->y : -1
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected station-keep Privateer to take a wander step");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(stderr, "unit_ai_euro_war: priv-sk wander ok (moved=%d combat=%d)\n", moved, combat_done);
   return 0;
 }
@@ -814,9 +747,7 @@ static int unit_land_war_hunt(void) {
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Soldier");
   units.types[0].movement = 1;
@@ -825,15 +756,12 @@ static int unit_land_war_hunt(void) {
   units.types[0].defense = 2;
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
+  fx_colonies_init(&colonies);
 
   const int own_id = units_spawn(&units, 0, own_x, own_y);
   ColonizeUnit* soldier = units_get(&units, own_id);
   if (!soldier) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("spawn own soldier");
   }
   soldier->nation_id = nation;
@@ -843,9 +771,7 @@ static int unit_land_war_hunt(void) {
   const int foe_id = units_spawn(&units, 0, foe_x, foe_y);
   ColonizeUnit* foe_soldier = units_get(&units, foe_id);
   if (!foe_soldier) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("spawn foe soldier");
   }
   foe_soldier->nation_id = foe;
@@ -868,9 +794,7 @@ static int unit_land_war_hunt(void) {
   col1.nation[foe].gold = 100;
   ai_diplo_declare_war(&col1, nation, foe);
   if (!ai_diplo_at_war(&col1, nation, foe)) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("land expected war");
   }
 
@@ -918,15 +842,11 @@ static int unit_land_war_hunt(void) {
       soldier ? soldier->y : -1,
       foe_soldier && foe_soldier->active
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected AI_MOVE toward foe, closer move, or combat");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(
     stderr,
     "unit_ai_euro_war: land ok (move=%d closer=%d combat=%d)\n",
@@ -946,24 +866,12 @@ static int unit_indian_war_capital_hunt(void) {
   const int indian = 4; /* Arawak */
 
   ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 16, 16, 1, false)) {
     return fail("indian-hunt alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 1;
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
   memset(units.types, 0, sizeof(units.types));
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Soldier");
@@ -973,15 +881,12 @@ static int unit_indian_war_capital_hunt(void) {
   units.types[0].defense = 2;
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
+  fx_colonies_init(&colonies);
 
   const int sid = units_spawn(&units, 0, 2, 2);
   ColonizeUnit* soldier = units_get(&units, sid);
   if (!soldier) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("indian-hunt spawn");
   }
   soldier->nation_id = nation;
@@ -1027,18 +932,14 @@ static int unit_indian_war_capital_hunt(void) {
   ctx.col1_ok = true;
 
   if (!ai_diplo_indian_any_at_war(&col1, nation)) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("indian-hunt expected indian war");
   }
 
   ai_euro_dispatcher_turn(&ctx, nation);
   soldier = units_get(&units, sid);
   if (!soldier || !soldier->active) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("indian-hunt soldier gone");
   }
   const int toward_cap =
@@ -1054,15 +955,11 @@ static int unit_indian_war_capital_hunt(void) {
       soldier->x,
       soldier->y
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected AI_MOVE toward capital tribe (10,2) or east move");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(
     stderr,
     "unit_ai_euro_war: indian capital hunt ok (goto_cap=%d east=%d)\n",
@@ -1086,24 +983,12 @@ static int unit_land_war_hunt_multistep(void) {
   const int foe_y = 3;
 
   ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 16, 16, 1, false)) {
     return fail("land-multistep alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 1;
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Soldier");
   units.types[0].movement = 3;
@@ -1117,9 +1002,7 @@ static int unit_land_war_hunt_multistep(void) {
   const int own_id = units_spawn(&units, 0, own_x, own_y);
   ColonizeUnit* soldier = units_get(&units, own_id);
   if (!soldier) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("land-multistep spawn soldier");
   }
   soldier->nation_id = nation;
@@ -1129,9 +1012,7 @@ static int unit_land_war_hunt_multistep(void) {
   const int foe_id = units_spawn(&units, 0, foe_x, foe_y);
   ColonizeUnit* foe_soldier = units_get(&units, foe_id);
   if (!foe_soldier) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("land-multistep spawn foe");
   }
   foe_soldier->nation_id = foe;
@@ -1174,9 +1055,7 @@ static int unit_land_war_hunt_multistep(void) {
   soldier = units_get(&units, own_id);
   foe_soldier = units_get(&units, foe_id);
   if (!soldier || !soldier->active || !foe_soldier || !foe_soldier->active) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("land-multistep: both soldiers should remain (foe far)");
   }
 
@@ -1195,15 +1074,11 @@ static int unit_land_war_hunt_multistep(void) {
       soldier->goto_x,
       soldier->goto_y
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected land war hunt multi-step (≥2 tiles closer)");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(
     stderr,
     "unit_ai_euro_war: land war-hunt multi-step ok (steps=%d)\n",
@@ -1225,24 +1100,12 @@ static int unit_continental_army_land_hunt(void) {
   const int foe_y = 3;
 
   ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 16, 16, 1, false)) {
     return fail("cont-hunt alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 1;
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Continental Army");
   units.types[0].movement = 3;
@@ -1256,9 +1119,7 @@ static int unit_continental_army_land_hunt(void) {
   const int own_id = units_spawn(&units, 0, own_x, own_y);
   ColonizeUnit* army = units_get(&units, own_id);
   if (!army) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("cont-hunt spawn army");
   }
   army->nation_id = nation;
@@ -1268,9 +1129,7 @@ static int unit_continental_army_land_hunt(void) {
   const int foe_id = units_spawn(&units, 0, foe_x, foe_y);
   ColonizeUnit* foe_army = units_get(&units, foe_id);
   if (!foe_army) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("cont-hunt spawn foe");
   }
   foe_army->nation_id = foe;
@@ -1313,9 +1172,7 @@ static int unit_continental_army_land_hunt(void) {
   army = units_get(&units, own_id);
   foe_army = units_get(&units, foe_id);
   if (!army || !army->active || !foe_army || !foe_army->active) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("cont-hunt: both armys should remain (foe far)");
   }
 
@@ -1334,15 +1191,11 @@ static int unit_continental_army_land_hunt(void) {
       army->goto_x,
       army->goto_y
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected Continental Army land war hunt multi-step (≥2 tiles closer)");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(
     stderr,
     "unit_ai_euro_war: Continental Army land war hunt ok (steps=%d)\n",
@@ -1364,24 +1217,12 @@ static int unit_continental_cavalry_land_hunt(void) {
   const int foe_y = 3;
 
   ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 16, 16, 1, false)) {
     return fail("cont-hunt alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 1;
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Continental Cavalry");
   units.types[0].movement = 3;
@@ -1395,9 +1236,7 @@ static int unit_continental_cavalry_land_hunt(void) {
   const int own_id = units_spawn(&units, 0, own_x, own_y);
   ColonizeUnit* cav = units_get(&units, own_id);
   if (!cav) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("cont-hunt spawn cav");
   }
   cav->nation_id = nation;
@@ -1407,9 +1246,7 @@ static int unit_continental_cavalry_land_hunt(void) {
   const int foe_id = units_spawn(&units, 0, foe_x, foe_y);
   ColonizeUnit* foe_cav = units_get(&units, foe_id);
   if (!foe_cav) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("cont-hunt spawn foe");
   }
   foe_cav->nation_id = foe;
@@ -1452,9 +1289,7 @@ static int unit_continental_cavalry_land_hunt(void) {
   cav = units_get(&units, own_id);
   foe_cav = units_get(&units, foe_id);
   if (!cav || !cav->active || !foe_cav || !foe_cav->active) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("cont-hunt: both cavs should remain (foe far)");
   }
 
@@ -1473,15 +1308,11 @@ static int unit_continental_cavalry_land_hunt(void) {
       cav->goto_x,
       cav->goto_y
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected Continental Cavalry land war hunt multi-step (≥2 tiles closer)");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(
     stderr,
     "unit_ai_euro_war: Continental Cavalry land war hunt ok (steps=%d)\n",
@@ -1503,24 +1334,12 @@ static int unit_sticky_contact_rehunt(void) {
   const int foe_y = 5;
 
   ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 16, 16, 1, false)) {
     return fail("sticky alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 1;
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Soldier");
   units.types[0].movement = 1;
@@ -1529,8 +1348,7 @@ static int unit_sticky_contact_rehunt(void) {
   units.types[0].defense = 1;
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
+  fx_colonies_init(&colonies);
   ColonizeColony* own = &colonies.colonies[0];
   own->id = 0;
   own->active = true;
@@ -1544,9 +1362,7 @@ static int unit_sticky_contact_rehunt(void) {
   const int own_id = units_spawn(&units, 0, own_x, own_y);
   ColonizeUnit* soldier = units_get(&units, own_id);
   if (!soldier) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("sticky spawn soldier");
   }
   soldier->nation_id = nation;
@@ -1556,9 +1372,7 @@ static int unit_sticky_contact_rehunt(void) {
   const int foe_id = units_spawn(&units, 0, foe_x, foe_y);
   ColonizeUnit* foe_u = units_get(&units, foe_id);
   if (!foe_u) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("sticky spawn foe");
   }
   foe_u->nation_id = foe;
@@ -1614,15 +1428,11 @@ static int unit_sticky_contact_rehunt(void) {
       soldier ? soldier->moves_left : -1,
       soldier ? soldier->orders : -1
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("sticky CONTACT re-hunt should attempt combat vs adjacent war foe");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(stderr, "unit_ai_euro_war: sticky CONTACT re-hunt ok\n");
   return 0;
 }
@@ -1637,24 +1447,12 @@ static int unit_land_adjacent_combat_chain(void) {
   const int foe = 2;
 
   ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 16, 16, 1, false)) {
     return fail("combat-chain alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 1;
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Soldier");
   units.types[0].movement = 3;
@@ -1663,8 +1461,7 @@ static int unit_land_adjacent_combat_chain(void) {
   units.types[0].defense = 1;
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
+  fx_colonies_init(&colonies);
   ColonizeColony* own = &colonies.colonies[0];
   own->id = 0;
   own->active = true;
@@ -1679,9 +1476,7 @@ static int unit_land_adjacent_combat_chain(void) {
   const int own_id = units_spawn(&units, 0, 5, 5);
   ColonizeUnit* soldier = units_get(&units, own_id);
   if (!soldier) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("combat-chain spawn soldier");
   }
   soldier->nation_id = nation;
@@ -1693,9 +1488,7 @@ static int unit_land_adjacent_combat_chain(void) {
   const int foe_b = units_spawn(&units, 0, 7, 5);
   ColonizeUnit* fb = units_get(&units, foe_b);
   if (!fa || !fb) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("combat-chain spawn foes");
   }
   fa->nation_id = foe;
@@ -1756,15 +1549,11 @@ static int unit_land_adjacent_combat_chain(void) {
       a_dead,
       b_dead
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("adjacent foe dies, attacker stays put, far foe survives");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(stderr, "unit_ai_euro_war: land adjacent combat (stay-put) ok\n");
   return 0;
 }
@@ -1782,24 +1571,12 @@ static int unit_land_adjacent_colony_seize(void) {
   const int foe = 2;
 
   ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 16, 16, 1, false)) {
     return fail("colony-seize alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 1;
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Soldier");
   units.types[0].movement = 3;
@@ -1808,8 +1585,7 @@ static int unit_land_adjacent_colony_seize(void) {
   units.types[0].defense = 1;
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
+  fx_colonies_init(&colonies);
   ColonizeColony* own = &colonies.colonies[0];
   own->id = 0;
   own->active = true;
@@ -1833,9 +1609,7 @@ static int unit_land_adjacent_colony_seize(void) {
   const int own_id = units_spawn(&units, 0, 5, 5);
   ColonizeUnit* soldier = units_get(&units, own_id);
   if (!soldier) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("colony-seize spawn soldier");
   }
   soldier->nation_id = nation;
@@ -1887,15 +1661,11 @@ static int unit_land_adjacent_colony_seize(void) {
       soldier ? soldier->active : -1,
       seized ? seized->nation_id : -1
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("land unit should walk into and seize an undefended adjacent foe colony");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(stderr, "unit_ai_euro_war: land adjacent undefended colony seize ok\n");
   return 0;
 }
@@ -1912,24 +1682,12 @@ static int unit_land_adjacent_foe_prefer_weak(void) {
   const int own_y = 5;
 
   ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 16, 16, 1, false)) {
     return fail("adj-foe alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 1;
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
   units.type_count = 2;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Soldier");
   units.types[0].movement = 1;
@@ -1943,8 +1701,7 @@ static int unit_land_adjacent_foe_prefer_weak(void) {
   units.types[1].defense = 1;
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
+  fx_colonies_init(&colonies);
   ColonizeColony* own = &colonies.colonies[0];
   own->id = 0;
   own->active = true;
@@ -1958,9 +1715,7 @@ static int unit_land_adjacent_foe_prefer_weak(void) {
   const int own_id = units_spawn(&units, 0, own_x, own_y);
   ColonizeUnit* soldier = units_get(&units, own_id);
   if (!soldier) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("adj-foe spawn soldier");
   }
   soldier->nation_id = nation;
@@ -1971,9 +1726,7 @@ static int unit_land_adjacent_foe_prefer_weak(void) {
   const int strong_id = units_spawn(&units, 0, own_x, own_y - 1);
   ColonizeUnit* strong = units_get(&units, strong_id);
   if (!strong) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("adj-foe spawn strong");
   }
   strong->nation_id = foe_nat;
@@ -1984,9 +1737,7 @@ static int unit_land_adjacent_foe_prefer_weak(void) {
   const int weak_id = units_spawn(&units, 1, own_x, own_y + 1);
   ColonizeUnit* weak = units_get(&units, weak_id);
   if (!weak) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("adj-foe spawn weak");
   }
   weak->nation_id = foe_nat;
@@ -2043,15 +1794,11 @@ static int unit_land_adjacent_foe_prefer_weak(void) {
       weak_dead,
       strong_alive
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected attack on weak colonist, fortified Soldier left alone");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(stderr, "unit_ai_euro_war: adjacent-foe prefer-weak ok\n");
   return 0;
 }
@@ -2067,24 +1814,12 @@ static int unit_land_adjacent_foe_prefer_treasure(void) {
   const int own_y = 5;
 
   ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 16, 16, 1, false)) {
     return fail("adj-treasure alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 1;
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
   units.type_count = 3;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Soldier");
   units.types[0].movement = 1;
@@ -2103,8 +1838,7 @@ static int unit_land_adjacent_foe_prefer_treasure(void) {
   units.types[2].defense = 0;
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
+  fx_colonies_init(&colonies);
   ColonizeColony* own = &colonies.colonies[0];
   own->id = 0;
   own->active = true;
@@ -2118,9 +1852,7 @@ static int unit_land_adjacent_foe_prefer_treasure(void) {
   const int own_id = units_spawn(&units, 0, own_x, own_y);
   ColonizeUnit* soldier = units_get(&units, own_id);
   if (!soldier) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("adj-treasure spawn soldier");
   }
   soldier->nation_id = nation;
@@ -2130,9 +1862,7 @@ static int unit_land_adjacent_foe_prefer_treasure(void) {
   const int scout_id = units_spawn(&units, 1, own_x, own_y - 1); /* N first */
   ColonizeUnit* scout = units_get(&units, scout_id);
   if (!scout) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("adj-treasure spawn scout");
   }
   scout->nation_id = foe_nat;
@@ -2142,9 +1872,7 @@ static int unit_land_adjacent_foe_prefer_treasure(void) {
   const int treasure_id = units_spawn(&units, 2, own_x, own_y + 1); /* S */
   ColonizeUnit* treasure = units_get(&units, treasure_id);
   if (!treasure) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("adj-treasure spawn treasure");
   }
   treasure->nation_id = foe_nat;
@@ -2199,15 +1927,11 @@ static int unit_land_adjacent_foe_prefer_treasure(void) {
       treasure_dead,
       scout_alive
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected attack on Treasure over equal-toughness Scout");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(stderr, "unit_ai_euro_war: adjacent-foe prefer Treasure ok\n");
   return 0;
 }
@@ -2221,24 +1945,12 @@ static int unit_land_hunt_prefer_treasure(void) {
   const int foe_nat = 2;
 
   ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
-  map.width = 20;
-  map.height = 20;
-  map.tile_count = 400;
-  map.terrain = calloc(400, 1);
-  map.layer2 = calloc(400, 1);
-  map.layer3 = calloc(400, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 20, 20, 1, false)) {
     return fail("hunt-treasure alloc map");
-  }
-  for (int i = 0; i < 400; ++i) {
-    map.terrain[i] = 1;
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
   units.type_count = 3;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Soldier");
   units.types[0].movement = 3;
@@ -2257,8 +1969,7 @@ static int unit_land_hunt_prefer_treasure(void) {
   units.types[2].defense = 0;
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
+  fx_colonies_init(&colonies);
   ColonizeColony* own = &colonies.colonies[0];
   own->id = 0;
   own->active = true;
@@ -2272,9 +1983,7 @@ static int unit_land_hunt_prefer_treasure(void) {
   const int own_id = units_spawn(&units, 0, 5, 5);
   ColonizeUnit* soldier = units_get(&units, own_id);
   if (!soldier) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("hunt-treasure spawn soldier");
   }
   soldier->nation_id = nation;
@@ -2284,9 +1993,7 @@ static int unit_land_hunt_prefer_treasure(void) {
   const int scout_id = units_spawn(&units, 1, 7, 5); /* MD=2 */
   ColonizeUnit* scout = units_get(&units, scout_id);
   if (!scout) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("hunt-treasure spawn scout");
   }
   scout->nation_id = foe_nat;
@@ -2296,9 +2003,7 @@ static int unit_land_hunt_prefer_treasure(void) {
   const int treasure_id = units_spawn(&units, 2, 9, 5); /* MD=4 ≤ 2+3 */
   ColonizeUnit* treasure = units_get(&units, treasure_id);
   if (!treasure) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("hunt-treasure spawn treasure");
   }
   treasure->nation_id = foe_nat;
@@ -2338,9 +2043,7 @@ static int unit_land_hunt_prefer_treasure(void) {
 
   soldier = units_get(&units, own_id);
   if (!soldier || !soldier->active) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("hunt-treasure soldier despawned");
   }
   /* Goto or moved toward Treasure x=9 (not stuck on Scout x=7). */
@@ -2357,15 +2060,11 @@ static int unit_land_hunt_prefer_treasure(void) {
       soldier->goto_y,
       soldier->orders
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("Soldier hunt should prefer Treasure over nearer Scout");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(stderr, "unit_ai_euro_war: land hunt prefer Treasure ok\n");
   return 0;
 }
@@ -2379,24 +2078,12 @@ static int unit_land_hunt_prefer_weak(void) {
   const int foe_nat = 2;
 
   ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
-  map.width = 20;
-  map.height = 20;
-  map.tile_count = 400;
-  map.terrain = calloc(400, 1);
-  map.layer2 = calloc(400, 1);
-  map.layer3 = calloc(400, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 20, 20, 1, false)) {
     return fail("hunt-weak alloc map");
-  }
-  for (int i = 0; i < 400; ++i) {
-    map.terrain[i] = 1;
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
   units.type_count = 2;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Soldier");
   units.types[0].movement = 3;
@@ -2410,8 +2097,7 @@ static int unit_land_hunt_prefer_weak(void) {
   units.types[1].defense = 1;
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
+  fx_colonies_init(&colonies);
   ColonizeColony* own = &colonies.colonies[0];
   own->id = 0;
   own->active = true;
@@ -2425,9 +2111,7 @@ static int unit_land_hunt_prefer_weak(void) {
   const int own_id = units_spawn(&units, 0, 5, 5);
   ColonizeUnit* soldier = units_get(&units, own_id);
   if (!soldier) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("hunt-weak spawn soldier");
   }
   soldier->nation_id = nation;
@@ -2437,9 +2121,7 @@ static int unit_land_hunt_prefer_weak(void) {
   const int strong_id = units_spawn(&units, 0, 7, 5); /* MD=2 Soldier */
   ColonizeUnit* strong = units_get(&units, strong_id);
   if (!strong) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("hunt-weak spawn strong");
   }
   strong->nation_id = foe_nat;
@@ -2449,9 +2131,7 @@ static int unit_land_hunt_prefer_weak(void) {
   const int weak_id = units_spawn(&units, 1, 9, 5); /* MD=4 Colonist */
   ColonizeUnit* weak = units_get(&units, weak_id);
   if (!weak) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("hunt-weak spawn weak");
   }
   weak->nation_id = foe_nat;
@@ -2491,9 +2171,7 @@ static int unit_land_hunt_prefer_weak(void) {
 
   soldier = units_get(&units, own_id);
   if (!soldier || !soldier->active) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("hunt-weak soldier despawned");
   }
   const int toward_weak =
@@ -2509,15 +2187,11 @@ static int unit_land_hunt_prefer_weak(void) {
       soldier->goto_y,
       soldier->orders
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("Soldier hunt should prefer weaker Colonist within MD slack");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(stderr, "unit_ai_euro_war: land hunt prefer weak ok\n");
   return 0;
 }
@@ -2534,24 +2208,12 @@ static int unit_land_adjacent_foe_prefer_open_over_stockade(void) {
   const int own_y = 5;
 
   ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 16, 16, 1, false)) {
     return fail("adj-stockade alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 1;
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Soldier");
   units.types[0].movement = 1;
@@ -2560,8 +2222,7 @@ static int unit_land_adjacent_foe_prefer_open_over_stockade(void) {
   units.types[0].defense = 4;
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
+  fx_colonies_init(&colonies);
   snprintf(colonies.building_types[0].name, sizeof(colonies.building_types[0].name), "Stockade");
   colonies.building_type_count = 1;
   ColonizeColony* foe_col = &colonies.colonies[0];
@@ -2586,9 +2247,7 @@ static int unit_land_adjacent_foe_prefer_open_over_stockade(void) {
   const int own_id = units_spawn(&units, 0, own_x, own_y);
   ColonizeUnit* soldier = units_get(&units, own_id);
   if (!soldier) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("adj-stockade spawn soldier");
   }
   soldier->nation_id = nation;
@@ -2599,9 +2258,7 @@ static int unit_land_adjacent_foe_prefer_open_over_stockade(void) {
   const int stock_id = units_spawn(&units, 0, own_x, own_y - 1);
   ColonizeUnit* stock = units_get(&units, stock_id);
   if (!stock) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("adj-stockade spawn stockade foe");
   }
   stock->nation_id = foe_nat;
@@ -2612,9 +2269,7 @@ static int unit_land_adjacent_foe_prefer_open_over_stockade(void) {
   const int open_id = units_spawn(&units, 0, own_x, own_y + 1);
   ColonizeUnit* open = units_get(&units, open_id);
   if (!open) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("adj-stockade spawn open foe");
   }
   open->nation_id = foe_nat;
@@ -2669,15 +2324,11 @@ static int unit_land_adjacent_foe_prefer_open_over_stockade(void) {
       open_dead,
       stock_alive
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected attack on open-field Soldier, Stockade left alone");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(stderr, "unit_ai_euro_war: adjacent-foe prefer open over Stockade ok\n");
   return 0;
 }
@@ -2694,24 +2345,12 @@ static int unit_land_adjacent_foe_prefer_non_veteran(void) {
   const int own_y = 5;
 
   ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 16, 16, 1, false)) {
     return fail("adj-vet alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 1;
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Soldier");
   units.types[0].movement = 1;
@@ -2720,8 +2359,7 @@ static int unit_land_adjacent_foe_prefer_non_veteran(void) {
   units.types[0].defense = 8;
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
+  fx_colonies_init(&colonies);
   ColonizeColony* own = &colonies.colonies[0];
   own->id = 0;
   own->active = true;
@@ -2735,9 +2373,7 @@ static int unit_land_adjacent_foe_prefer_non_veteran(void) {
   const int own_id = units_spawn(&units, 0, own_x, own_y);
   ColonizeUnit* soldier = units_get(&units, own_id);
   if (!soldier) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("adj-vet spawn own");
   }
   soldier->nation_id = nation;
@@ -2749,9 +2385,7 @@ static int unit_land_adjacent_foe_prefer_non_veteran(void) {
   const int vet_id = units_spawn(&units, 0, own_x, own_y - 1);
   ColonizeUnit* vet = units_get(&units, vet_id);
   if (!vet) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("adj-vet spawn veteran");
   }
   vet->nation_id = foe_nat;
@@ -2763,9 +2397,7 @@ static int unit_land_adjacent_foe_prefer_non_veteran(void) {
   const int plain_id = units_spawn(&units, 0, own_x, own_y + 1);
   ColonizeUnit* plain = units_get(&units, plain_id);
   if (!plain) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("adj-vet spawn plain");
   }
   plain->nation_id = foe_nat;
@@ -2819,15 +2451,11 @@ static int unit_land_adjacent_foe_prefer_non_veteran(void) {
       plain_dead,
       vet_alive
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected attack on non-veteran Soldier, veteran left alone");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(stderr, "unit_ai_euro_war: adjacent-foe prefer non-veteran ok\n");
   return 0;
 }
@@ -2860,9 +2488,7 @@ static int unit_naval_adjacent_foe_prefer_non_drake(void) {
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
   units.type_count = 2;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Man-O-War");
   units.types[0].movement = 4;
@@ -2880,15 +2506,12 @@ static int unit_naval_adjacent_foe_prefer_non_drake(void) {
   units.types[1].hull = 12;
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
+  fx_colonies_init(&colonies);
 
   const int own_id = units_spawn(&units, 0, own_x, own_y);
   ColonizeUnit* own = units_get(&units, own_id);
   if (!own) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("adj-drake spawn own");
   }
   own->nation_id = nation;
@@ -2898,9 +2521,7 @@ static int unit_naval_adjacent_foe_prefer_non_drake(void) {
   const int drake_id = units_spawn(&units, 1, own_x, own_y - 1);
   ColonizeUnit* drake_u = units_get(&units, drake_id);
   if (!drake_u) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("adj-drake spawn Drake Privateer");
   }
   drake_u->nation_id = foe_drake;
@@ -2910,9 +2531,7 @@ static int unit_naval_adjacent_foe_prefer_non_drake(void) {
   const int plain_id = units_spawn(&units, 1, own_x, own_y + 1);
   ColonizeUnit* plain = units_get(&units, plain_id);
   if (!plain) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("adj-drake spawn plain Privateer");
   }
   plain->nation_id = foe_plain;
@@ -2967,15 +2586,11 @@ static int unit_naval_adjacent_foe_prefer_non_drake(void) {
       plain_dead,
       drake_alive
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected attack on non-Drake Privateer, Drake Privateer left alone");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(stderr, "unit_ai_euro_war: naval adjacent-foe prefer non-Drake ok\n");
   return 0;
 }
@@ -2992,24 +2607,12 @@ static int unit_artillery_adjacent_prefer_stockade(void) {
   const int own_y = 5;
 
   ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 16, 16, 1, false)) {
     return fail("art-adj alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 1;
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
   units.type_count = 2;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Artillery");
   units.types[0].movement = 1;
@@ -3023,8 +2626,7 @@ static int unit_artillery_adjacent_prefer_stockade(void) {
   units.types[1].defense = 4;
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
+  fx_colonies_init(&colonies);
   snprintf(colonies.building_types[0].name, sizeof(colonies.building_types[0].name), "Stockade");
   colonies.building_type_count = 1;
   ColonizeColony* foe_col = &colonies.colonies[0];
@@ -3049,9 +2651,7 @@ static int unit_artillery_adjacent_prefer_stockade(void) {
   const int own_id = units_spawn(&units, 0, own_x, own_y);
   ColonizeUnit* art = units_get(&units, own_id);
   if (!art) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("art-adj spawn artillery");
   }
   art->nation_id = nation;
@@ -3061,9 +2661,7 @@ static int unit_artillery_adjacent_prefer_stockade(void) {
   const int open_id = units_spawn(&units, 1, own_x, own_y - 1); /* N open */
   ColonizeUnit* open = units_get(&units, open_id);
   if (!open) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("art-adj spawn open");
   }
   open->nation_id = foe_nat;
@@ -3073,9 +2671,7 @@ static int unit_artillery_adjacent_prefer_stockade(void) {
   const int stock_id = units_spawn(&units, 1, own_x, own_y + 1); /* S stockade */
   ColonizeUnit* stock = units_get(&units, stock_id);
   if (!stock) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("art-adj spawn stockade");
   }
   stock->nation_id = foe_nat;
@@ -3127,15 +2723,11 @@ static int unit_artillery_adjacent_prefer_stockade(void) {
       stock_dead,
       open_alive
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("Artillery should attack Stockade foe, leave open Soldier");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(stderr, "unit_ai_euro_war: Artillery adjacent prefer Stockade ok\n");
   return 0;
 }
@@ -3149,24 +2741,12 @@ static int unit_artillery_siege_hunt_prefer_stockade(void) {
   const int foe_nat = 2;
 
   ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
-  map.width = 20;
-  map.height = 20;
-  map.tile_count = 400;
-  map.terrain = calloc(400, 1);
-  map.layer2 = calloc(400, 1);
-  map.layer3 = calloc(400, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 20, 20, 1, false)) {
     return fail("art-hunt alloc map");
-  }
-  for (int i = 0; i < 400; ++i) {
-    map.terrain[i] = 1;
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Artillery");
   units.types[0].movement = 1;
@@ -3175,8 +2755,7 @@ static int unit_artillery_siege_hunt_prefer_stockade(void) {
   units.types[0].defense = 2;
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
+  fx_colonies_init(&colonies);
   snprintf(colonies.building_types[0].name, sizeof(colonies.building_types[0].name), "Stockade");
   colonies.building_type_count = 1;
   /* Near open foe colony at (8,5); Stockade at (10,5) — MD 5 vs 3 from (5,5). */
@@ -3202,9 +2781,7 @@ static int unit_artillery_siege_hunt_prefer_stockade(void) {
   const int own_id = units_spawn(&units, 0, 5, 5);
   ColonizeUnit* art = units_get(&units, own_id);
   if (!art) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("art-hunt spawn");
   }
   art->nation_id = nation;
@@ -3243,9 +2820,7 @@ static int unit_artillery_siege_hunt_prefer_stockade(void) {
 
   art = units_get(&units, own_id);
   if (!art || !art->active) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("art-hunt artillery despawned");
   }
   if (art->goto_x != 10 || art->goto_y != 5) {
@@ -3255,15 +2830,11 @@ static int unit_artillery_siege_hunt_prefer_stockade(void) {
       art->goto_x,
       art->goto_y
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("Artillery siege hunt should prefer Stockade colony");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(stderr, "unit_ai_euro_war: Artillery siege hunt prefer Stockade ok\n");
   return 0;
 }
@@ -3277,24 +2848,12 @@ static int unit_dragoon_hunt_prefer_open(void) {
   const int foe_nat = 2;
 
   ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
-  map.width = 20;
-  map.height = 20;
-  map.tile_count = 400;
-  map.terrain = calloc(400, 1);
-  map.layer2 = calloc(400, 1);
-  map.layer3 = calloc(400, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 20, 20, 1, false)) {
     return fail("dragoon-hunt alloc map");
-  }
-  for (int i = 0; i < 400; ++i) {
-    map.terrain[i] = 1;
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Dragoon");
   units.types[0].movement = 4;
@@ -3303,8 +2862,7 @@ static int unit_dragoon_hunt_prefer_open(void) {
   units.types[0].defense = 4;
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
+  fx_colonies_init(&colonies);
   snprintf(colonies.building_types[0].name, sizeof(colonies.building_types[0].name), "Stockade");
   colonies.building_type_count = 1;
   /* Stockade off the eastbound path (8,8); open at (10,5) — prefer open within slack. */
@@ -3330,9 +2888,7 @@ static int unit_dragoon_hunt_prefer_open(void) {
   const int own_id = units_spawn(&units, 0, 5, 5);
   ColonizeUnit* drag = units_get(&units, own_id);
   if (!drag) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("dragoon-hunt spawn");
   }
   drag->nation_id = nation;
@@ -3371,9 +2927,7 @@ static int unit_dragoon_hunt_prefer_open(void) {
 
   drag = units_get(&units, own_id);
   if (!drag || !drag->active) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("dragoon-hunt despawned");
   }
   if (drag->goto_x != 10 || drag->goto_y != 5) {
@@ -3383,15 +2937,11 @@ static int unit_dragoon_hunt_prefer_open(void) {
       drag->goto_x,
       drag->goto_y
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("Dragoon hunt should prefer open colony over Stockade");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(stderr, "unit_ai_euro_war: Dragoon hunt prefer open ok\n");
   return 0;
 }
@@ -3423,9 +2973,7 @@ static int unit_naval_adjacent_foe_prefer_weak(void) {
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
   units.type_count = 2;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Man-O-War");
   units.types[0].movement = 4;
@@ -3443,15 +2991,12 @@ static int unit_naval_adjacent_foe_prefer_weak(void) {
   units.types[1].hull = 4;
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
+  fx_colonies_init(&colonies);
 
   const int own_id = units_spawn(&units, 0, own_x, own_y);
   ColonizeUnit* own = units_get(&units, own_id);
   if (!own) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("naval-adj spawn own");
   }
   own->nation_id = nation;
@@ -3461,9 +3006,7 @@ static int unit_naval_adjacent_foe_prefer_weak(void) {
   const int strong_id = units_spawn(&units, 0, own_x, own_y - 1);
   ColonizeUnit* strong = units_get(&units, strong_id);
   if (!strong) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("naval-adj spawn strong");
   }
   strong->nation_id = foe_nat;
@@ -3473,9 +3016,7 @@ static int unit_naval_adjacent_foe_prefer_weak(void) {
   const int weak_id = units_spawn(&units, 1, own_x, own_y + 1);
   ColonizeUnit* weak = units_get(&units, weak_id);
   if (!weak) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("naval-adj spawn weak");
   }
   weak->nation_id = foe_nat;
@@ -3530,15 +3071,11 @@ static int unit_naval_adjacent_foe_prefer_weak(void) {
       weak_dead,
       strong_alive
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected naval attack on weak Caravel, strong Man-O-War left alone");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(stderr, "unit_ai_euro_war: naval adjacent-foe prefer-weak ok\n");
   return 0;
 }
@@ -3554,24 +3091,12 @@ static int unit_naval_adjacent_foe_prefer_loaded(void) {
   const int own_y = 5;
 
   ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 16, 16, 25, false)) {
     return fail("naval-holds alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 25;
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Man-O-War");
   units.types[0].movement = 4;
@@ -3590,15 +3115,12 @@ static int unit_naval_adjacent_foe_prefer_loaded(void) {
   units.types[1].hull = 4;
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
+  fx_colonies_init(&colonies);
 
   const int own_id = units_spawn(&units, 0, own_x, own_y);
   ColonizeUnit* own = units_get(&units, own_id);
   if (!own) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("naval-holds spawn own");
   }
   own->nation_id = nation;
@@ -3608,9 +3130,7 @@ static int unit_naval_adjacent_foe_prefer_loaded(void) {
   const int empty_id = units_spawn(&units, 1, own_x, own_y - 1);
   ColonizeUnit* empty = units_get(&units, empty_id);
   if (!empty) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("naval-holds spawn empty");
   }
   empty->nation_id = foe_nat;
@@ -3620,9 +3140,7 @@ static int unit_naval_adjacent_foe_prefer_loaded(void) {
   const int loaded_id = units_spawn(&units, 1, own_x, own_y + 1);
   ColonizeUnit* loaded = units_get(&units, loaded_id);
   if (!loaded) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("naval-holds spawn loaded");
   }
   loaded->nation_id = foe_nat;
@@ -3683,15 +3201,11 @@ static int unit_naval_adjacent_foe_prefer_loaded(void) {
       loaded_dead,
       empty_alive
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected attack on loaded Caravel (holds_occupied), empty left alone");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(stderr, "unit_ai_euro_war: naval adjacent-foe prefer-loaded ok\n");
   return 0;
 }
@@ -3723,9 +3237,7 @@ static int unit_privateer_prefer_cargo_prey(void) {
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
   units.type_count = 3;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Privateer");
   units.types[0].movement = 4;
@@ -3752,15 +3264,12 @@ static int unit_privateer_prefer_cargo_prey(void) {
   units.types[2].hull = 8;
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
+  fx_colonies_init(&colonies);
 
   const int own_id = units_spawn(&units, 0, own_x, own_y);
   ColonizeUnit* own = units_get(&units, own_id);
   if (!own) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("priv-cargo spawn own");
   }
   own->nation_id = nation;
@@ -3771,9 +3280,7 @@ static int unit_privateer_prefer_cargo_prey(void) {
   const int frig_id = units_spawn(&units, 1, own_x, own_y - 1);
   ColonizeUnit* frig = units_get(&units, frig_id);
   if (!frig) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("priv-cargo spawn Frigate");
   }
   frig->nation_id = foe_nat;
@@ -3784,9 +3291,7 @@ static int unit_privateer_prefer_cargo_prey(void) {
   const int merch_id = units_spawn(&units, 2, own_x, own_y + 1);
   ColonizeUnit* merch = units_get(&units, merch_id);
   if (!merch) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("priv-cargo spawn Merchantman");
   }
   merch->nation_id = foe_nat;
@@ -3843,15 +3348,11 @@ static int unit_privateer_prefer_cargo_prey(void) {
       merch_dead,
       frig_alive
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected Privateer to prefer Merchantman cargo over weaker Frigate");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(stderr, "unit_ai_euro_war: privateer prefer cargo prey ok\n");
   return 0;
 }
@@ -3883,9 +3384,7 @@ static int unit_frigate_prefer_warship(void) {
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
   units.type_count = 3;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Frigate");
   units.types[0].movement = 4;
@@ -3913,15 +3412,12 @@ static int unit_frigate_prefer_warship(void) {
   units.types[2].hull = 12;
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
+  fx_colonies_init(&colonies);
 
   const int own_id = units_spawn(&units, 0, own_x, own_y);
   ColonizeUnit* own = units_get(&units, own_id);
   if (!own) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("frig-war spawn own");
   }
   own->nation_id = nation;
@@ -3932,9 +3428,7 @@ static int unit_frigate_prefer_warship(void) {
   const int merch_id = units_spawn(&units, 1, own_x, own_y - 1);
   ColonizeUnit* merch = units_get(&units, merch_id);
   if (!merch) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("frig-war spawn Merchantman");
   }
   merch->nation_id = foe_nat;
@@ -3945,9 +3439,7 @@ static int unit_frigate_prefer_warship(void) {
   const int priv_id = units_spawn(&units, 2, own_x, own_y + 1);
   ColonizeUnit* priv = units_get(&units, priv_id);
   if (!priv) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("frig-war spawn Privateer");
   }
   priv->nation_id = foe_nat;
@@ -4003,15 +3495,11 @@ static int unit_frigate_prefer_warship(void) {
       priv_dead,
       merch_alive
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected Frigate to prefer Privateer warship over weaker Merchantman");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(stderr, "unit_ai_euro_war: frigate prefer warship ok\n");
   return 0;
 }
@@ -4025,24 +3513,12 @@ static int unit_peace_fortify_border_wake(void) {
   const int foe = 2;
 
   ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 16, 16, 1, false)) {
     return fail("peace-border alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 1;
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Soldier");
   units.types[0].movement = 3;
@@ -4051,8 +3527,7 @@ static int unit_peace_fortify_border_wake(void) {
   units.types[0].defense = 2;
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
+  fx_colonies_init(&colonies);
   ColonizeColony* own = &colonies.colonies[0];
   own->id = 0;
   own->active = true;
@@ -4066,9 +3541,7 @@ static int unit_peace_fortify_border_wake(void) {
   const int own_id = units_spawn(&units, 0, 4, 4);
   ColonizeUnit* soldier = units_get(&units, own_id);
   if (!soldier) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("peace-border spawn soldier");
   }
   soldier->nation_id = nation;
@@ -4079,9 +3552,7 @@ static int unit_peace_fortify_border_wake(void) {
   const int foe_id = units_spawn(&units, 0, 6, 4);
   ColonizeUnit* foe_u = units_get(&units, foe_id);
   if (!foe_u) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("peace-border spawn foe");
   }
   foe_u->nation_id = foe;
@@ -4123,9 +3594,7 @@ static int unit_peace_fortify_border_wake(void) {
   soldier = units_get(&units, own_id);
   foe_u = units_get(&units, foe_id);
   if (!soldier || !soldier->active) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     fprintf(stderr, "unit_ai_euro_war: peace-border wake ok (combat despawn)\n");
     return 0;
   }
@@ -4148,15 +3617,11 @@ static int unit_peace_fortify_border_wake(void) {
       soldier->x,
       soldier->y
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected peace-fortified Soldier to wake for MD≤2 border threat");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(stderr, "unit_ai_euro_war: peace fortify border wake ok\n");
   return 0;
 }
@@ -4171,24 +3636,12 @@ static int unit_peace_dragoon_border_wake(void) {
   const int foe = 2;
 
   ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 16, 16, 1, false)) {
     return fail("dragoon-border alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 1;
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Dragoon");
   units.types[0].movement = 4;
@@ -4197,8 +3650,7 @@ static int unit_peace_dragoon_border_wake(void) {
   units.types[0].defense = 2;
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
+  fx_colonies_init(&colonies);
   ColonizeColony* own = &colonies.colonies[0];
   own->id = 0;
   own->active = true;
@@ -4212,9 +3664,7 @@ static int unit_peace_dragoon_border_wake(void) {
   const int own_id = units_spawn(&units, 0, 4, 4);
   ColonizeUnit* dragoon = units_get(&units, own_id);
   if (!dragoon) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("dragoon-border spawn dragoon");
   }
   dragoon->nation_id = nation;
@@ -4224,9 +3674,7 @@ static int unit_peace_dragoon_border_wake(void) {
   const int foe_id = units_spawn(&units, 0, 6, 4);
   ColonizeUnit* foe_u = units_get(&units, foe_id);
   if (!foe_u) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("dragoon-border spawn foe");
   }
   foe_u->nation_id = foe;
@@ -4267,9 +3715,7 @@ static int unit_peace_dragoon_border_wake(void) {
   dragoon = units_get(&units, own_id);
   foe_u = units_get(&units, foe_id);
   if (!dragoon || !dragoon->active) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     fprintf(stderr, "unit_ai_euro_war: dragoon-border wake ok (combat despawn)\n");
     return 0;
   }
@@ -4292,15 +3738,11 @@ static int unit_peace_dragoon_border_wake(void) {
       dragoon->x,
       dragoon->y
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected peace-fortified Dragoon to wake for MD≤2 border threat");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(stderr, "unit_ai_euro_war: peace Dragoon border wake ok\n");
   return 0;
 }
@@ -4315,24 +3757,12 @@ static int unit_peace_artillery_border_wake(void) {
   const int foe = 2;
 
   ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 16, 16, 1, false)) {
     return fail("arty-border alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 1;
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
   units.type_count = 2;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Artillery");
   units.types[0].movement = 1;
@@ -4346,8 +3776,7 @@ static int unit_peace_artillery_border_wake(void) {
   units.types[1].defense = 2;
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
+  fx_colonies_init(&colonies);
   ColonizeColony* own = &colonies.colonies[0];
   own->id = 0;
   own->active = true;
@@ -4361,9 +3790,7 @@ static int unit_peace_artillery_border_wake(void) {
   const int own_id = units_spawn(&units, 0, 4, 4);
   ColonizeUnit* arty = units_get(&units, own_id);
   if (!arty) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("arty-border spawn artillery");
   }
   arty->nation_id = nation;
@@ -4373,9 +3800,7 @@ static int unit_peace_artillery_border_wake(void) {
   const int foe_id = units_spawn(&units, 1, 6, 4);
   ColonizeUnit* foe_u = units_get(&units, foe_id);
   if (!foe_u) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("arty-border spawn foe");
   }
   foe_u->nation_id = foe;
@@ -4416,9 +3841,7 @@ static int unit_peace_artillery_border_wake(void) {
   arty = units_get(&units, own_id);
   foe_u = units_get(&units, foe_id);
   if (!arty || !arty->active) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     fprintf(stderr, "unit_ai_euro_war: peace Artillery border wake ok (combat despawn)\n");
     return 0;
   }
@@ -4438,15 +3861,11 @@ static int unit_peace_artillery_border_wake(void) {
       arty->x,
       arty->y
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected peace-fortified Artillery to wake for MD≤2 border threat");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(stderr, "unit_ai_euro_war: peace Artillery border wake ok\n");
   return 0;
 }
@@ -4460,24 +3879,12 @@ static int unit_peace_regular_border_wake(void) {
   const int foe = 2;
 
   ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 16, 16, 1, false)) {
     return fail("regular-border alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 1;
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
   units.type_count = 2;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Regular");
   units.types[0].movement = 3;
@@ -4491,8 +3898,7 @@ static int unit_peace_regular_border_wake(void) {
   units.types[1].defense = 2;
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
+  fx_colonies_init(&colonies);
   ColonizeColony* own = &colonies.colonies[0];
   own->id = 0;
   own->active = true;
@@ -4506,9 +3912,7 @@ static int unit_peace_regular_border_wake(void) {
   const int own_id = units_spawn(&units, 0, 4, 4);
   ColonizeUnit* reg = units_get(&units, own_id);
   if (!reg) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("regular-border spawn regular");
   }
   reg->nation_id = nation;
@@ -4518,9 +3922,7 @@ static int unit_peace_regular_border_wake(void) {
   const int foe_id = units_spawn(&units, 1, 6, 4);
   ColonizeUnit* foe_u = units_get(&units, foe_id);
   if (!foe_u) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("regular-border spawn foe");
   }
   foe_u->nation_id = foe;
@@ -4561,9 +3963,7 @@ static int unit_peace_regular_border_wake(void) {
   reg = units_get(&units, own_id);
   foe_u = units_get(&units, foe_id);
   if (!reg || !reg->active) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     fprintf(stderr, "unit_ai_euro_war: peace Regular border wake ok (combat despawn)\n");
     return 0;
   }
@@ -4583,15 +3983,11 @@ static int unit_peace_regular_border_wake(void) {
       reg->x,
       reg->y
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected peace-fortified Regular to wake for MD≤2 border threat");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(stderr, "unit_ai_euro_war: peace Regular border wake ok\n");
   return 0;
 }
@@ -4615,24 +4011,12 @@ static int unit_peace_continental_army_border_wake(void) {
   const int foe = 2;
 
   ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 16, 16, 1, false)) {
     return fail("carmy-border alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 1;
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
   units.type_count = 2;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Continental Army");
   units.types[0].movement = 3;
@@ -4646,8 +4030,7 @@ static int unit_peace_continental_army_border_wake(void) {
   units.types[1].defense = 2;
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
+  fx_colonies_init(&colonies);
   ColonizeColony* own = &colonies.colonies[0];
   own->id = 0;
   own->active = true;
@@ -4661,9 +4044,7 @@ static int unit_peace_continental_army_border_wake(void) {
   const int own_id = units_spawn(&units, 0, 4, 4);
   ColonizeUnit* army = units_get(&units, own_id);
   if (!army) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("carmy-border spawn regular");
   }
   army->nation_id = nation;
@@ -4673,9 +4054,7 @@ static int unit_peace_continental_army_border_wake(void) {
   const int foe_id = units_spawn(&units, 1, 6, 4);
   ColonizeUnit* foe_u = units_get(&units, foe_id);
   if (!foe_u) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("carmy-border spawn foe");
   }
   foe_u->nation_id = foe;
@@ -4716,9 +4095,7 @@ static int unit_peace_continental_army_border_wake(void) {
   army = units_get(&units, own_id);
   foe_u = units_get(&units, foe_id);
   if (!army || !army->active) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     fprintf(stderr, "unit_ai_euro_war: peace Continental Army border wake ok (combat despawn)\n");
     return 0;
   }
@@ -4738,15 +4115,11 @@ static int unit_peace_continental_army_border_wake(void) {
       army->x,
       army->y
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected peace-fortified Continental Army to wake for MD≤2 border threat");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(stderr, "unit_ai_euro_war: peace Continental Army border wake ok\n");
   return 0;
 }
@@ -4765,24 +4138,12 @@ static int unit_peace_continental_cavalry_border_wake(void) {
   const int foe = 2;
 
   ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 16, 16, 1, false)) {
     return fail("ccav-border alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 1;
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
   units.type_count = 2;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Continental Cavalry");
   units.types[0].movement = 3;
@@ -4796,8 +4157,7 @@ static int unit_peace_continental_cavalry_border_wake(void) {
   units.types[1].defense = 2;
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
+  fx_colonies_init(&colonies);
   ColonizeColony* own = &colonies.colonies[0];
   own->id = 0;
   own->active = true;
@@ -4811,9 +4171,7 @@ static int unit_peace_continental_cavalry_border_wake(void) {
   const int own_id = units_spawn(&units, 0, 4, 4);
   ColonizeUnit* cav = units_get(&units, own_id);
   if (!cav) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("ccav-border spawn continental cavalry");
   }
   cav->nation_id = nation;
@@ -4823,9 +4181,7 @@ static int unit_peace_continental_cavalry_border_wake(void) {
   const int foe_id = units_spawn(&units, 1, 6, 4);
   ColonizeUnit* foe_u = units_get(&units, foe_id);
   if (!foe_u) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("ccav-border spawn foe");
   }
   foe_u->nation_id = foe;
@@ -4866,9 +4222,7 @@ static int unit_peace_continental_cavalry_border_wake(void) {
   cav = units_get(&units, own_id);
   foe_u = units_get(&units, foe_id);
   if (!cav || !cav->active) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     fprintf(stderr, "unit_ai_euro_war: peace Continental Cavalry border wake ok (combat despawn)\n");
     return 0;
   }
@@ -4888,15 +4242,11 @@ static int unit_peace_continental_cavalry_border_wake(void) {
       cav->x,
       cav->y
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected peace-fortified Continental Cavalry to wake for MD≤2 border threat");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(stderr, "unit_ai_euro_war: peace Continental Cavalry border wake ok\n");
   return 0;
 }
@@ -4910,24 +4260,12 @@ static int unit_fortify_wake_hunt(void) {
   const int foe = 2;
 
   ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 16, 16, 1, false)) {
     return fail("wake-hunt alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 1;
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Soldier");
   units.types[0].movement = 3;
@@ -4936,8 +4274,7 @@ static int unit_fortify_wake_hunt(void) {
   units.types[0].defense = 2;
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
+  fx_colonies_init(&colonies);
   ColonizeColony* own = &colonies.colonies[0];
   own->id = 0;
   own->active = true;
@@ -4961,9 +4298,7 @@ static int unit_fortify_wake_hunt(void) {
   const int own_id = units_spawn(&units, 0, 5, 5);
   ColonizeUnit* soldier = units_get(&units, own_id);
   if (!soldier) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("wake-hunt spawn soldier");
   }
   soldier->nation_id = nation;
@@ -5004,9 +4339,7 @@ static int unit_fortify_wake_hunt(void) {
 
   soldier = units_get(&units, own_id);
   if (!soldier || !soldier->active) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     fprintf(stderr, "unit_ai_euro_war: fortify-wake ok (combat despawn)\n");
     return 0;
   }
@@ -5026,15 +4359,11 @@ static int unit_fortify_wake_hunt(void) {
       soldier->y,
       x0
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected fortified Soldier to wake and hunt at war");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(stderr, "unit_ai_euro_war: fortify-wake hunt ok\n");
   return 0;
 }
@@ -5048,24 +4377,12 @@ static int unit_g_stance_own3_prio7(void) {
   const int foe = 2;
 
   ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 16, 16, 1, false)) {
     return fail("g3 alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 1;
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Soldier");
   units.types[0].movement = 1;
@@ -5074,8 +4391,7 @@ static int unit_g_stance_own3_prio7(void) {
   units.types[0].defense = 2;
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
+  fx_colonies_init(&colonies);
   for (int i = 0; i < 3; ++i) {
     ColonizeColony* own = &colonies.colonies[i];
     own->id = i;
@@ -5104,9 +4420,7 @@ static int unit_g_stance_own3_prio7(void) {
   const int sid = units_spawn(&units, 0, 5, 5);
   ColonizeUnit* soldier = units_get(&units, sid);
   if (!soldier) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("g3 spawn soldier");
   }
   soldier->nation_id = nation;
@@ -5148,15 +4462,11 @@ static int unit_g_stance_own3_prio7(void) {
     ai_goals_max_primary_prio(nation, enemy->x, enemy->y, AI_GOAL_MILITARY);
   if (mil_prio < 7) {
     fprintf(stderr, "unit_ai_euro_war: G own≥3 mil_prio=%d (want ≥7)\n", mil_prio);
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected G stance MILITARY prio ≥7 with own≥3 at war");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(stderr, "unit_ai_euro_war: G own≥3 prio7 ok (mil_prio=%d)\n", mil_prio);
   return 0;
 }
@@ -5170,24 +4480,12 @@ static int unit_g_stance_own4_prio8(void) {
   const int foe = 2;
 
   ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 16, 16, 1, false)) {
     return fail("g4 alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 1;
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Soldier");
   units.types[0].movement = 1;
@@ -5196,8 +4494,7 @@ static int unit_g_stance_own4_prio8(void) {
   units.types[0].defense = 2;
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
+  fx_colonies_init(&colonies);
   for (int i = 0; i < 4; ++i) {
     ColonizeColony* own = &colonies.colonies[i];
     own->id = i;
@@ -5226,9 +4523,7 @@ static int unit_g_stance_own4_prio8(void) {
   const int sid = units_spawn(&units, 0, 5, 5);
   ColonizeUnit* soldier = units_get(&units, sid);
   if (!soldier) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("g4 spawn soldier");
   }
   soldier->nation_id = nation;
@@ -5270,15 +4565,11 @@ static int unit_g_stance_own4_prio8(void) {
     ai_goals_max_primary_prio(nation, enemy->x, enemy->y, AI_GOAL_MILITARY);
   if (mil_prio < 8) {
     fprintf(stderr, "unit_ai_euro_war: G own≥4 mil_prio=%d (want ≥8)\n", mil_prio);
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected G stance MILITARY prio ≥8 with own≥4 at war");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(stderr, "unit_ai_euro_war: G own≥4 prio8 ok (mil_prio=%d)\n", mil_prio);
   return 0;
 }
@@ -5308,9 +4599,7 @@ static int unit_naval_multistep_sail(void) {
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Frigate");
   units.types[0].movement = 4;
@@ -5319,15 +4608,12 @@ static int unit_naval_multistep_sail(void) {
   units.types[0].defense = 2;
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
+  fx_colonies_init(&colonies);
 
   const int own_id = units_spawn(&units, 0, 2, 8);
   ColonizeUnit* warship = units_get(&units, own_id);
   if (!warship) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("naval-ms spawn");
   }
   warship->nation_id = nation;
@@ -5337,9 +4623,7 @@ static int unit_naval_multistep_sail(void) {
   const int foe_id = units_spawn(&units, 0, 14, 8);
   ColonizeUnit* foe_ship = units_get(&units, foe_id);
   if (!foe_ship) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("naval-ms foe");
   }
   foe_ship->nation_id = foe;
@@ -5379,9 +4663,7 @@ static int unit_naval_multistep_sail(void) {
   ai_euro_dispatcher_turn(&ctx, nation);
   warship = units_get(&units, own_id);
   if (!warship || !warship->active) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     /* Combat ate the ship — still proves hunt ran; accept. */
     fprintf(stderr, "unit_ai_euro_war: naval multi-step ok (combat)\n");
     return 0;
@@ -5403,15 +4685,11 @@ static int unit_naval_multistep_sail(void) {
       warship->goto_x,
       warship->goto_y
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected Frigate war-hunt AI_SAIL multi-step (≥2 tiles, spend MP)");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(
     stderr,
     "unit_ai_euro_war: Frigate war-hunt multi-step ok (x %d→%d mp spent %d)\n",
@@ -5452,16 +4730,12 @@ static int unit_soldier_board_empty_transport(void) {
   /* Water west of coastal colony (4,4) — empty Galleon at (3,4). */
   map.terrain[4 * 16 + 3] = 25;
   if (!map_tile_is_coastal(&map, 4, 4)) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("sboard colony should be coastal");
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
   units.type_count = 2;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Soldier");
   units.types[0].movement = 1;
@@ -5474,8 +4748,7 @@ static int unit_soldier_board_empty_transport(void) {
   units.types[1].cargo = 6;
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
+  fx_colonies_init(&colonies);
   ColonizeColony* c = &colonies.colonies[0];
   c->id = 0;
   c->active = true;
@@ -5503,9 +4776,7 @@ static int unit_soldier_board_empty_transport(void) {
   const int uid = units_spawn(&units, 0, 4, 4);
   ColonizeUnit* soldier = units_get(&units, uid);
   if (!soldier) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("sboard spawn soldier");
   }
   soldier->nation_id = nation;
@@ -5516,9 +4787,7 @@ static int unit_soldier_board_empty_transport(void) {
   const int sid = units_spawn(&units, 1, 3, 4);
   ColonizeUnit* galleon = units_get(&units, sid);
   if (!galleon) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("sboard spawn galleon");
   }
   galleon->nation_id = nation;
@@ -5572,15 +4841,11 @@ static int unit_soldier_board_empty_transport(void) {
       soldier ? soldier->orders : -1,
       soldier ? (int)soldier->active : 0
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected idle Soldier to board empty coastal Galleon");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(stderr, "unit_ai_euro_war: Soldier board empty transport ok\n");
   return 0;
 }
@@ -5610,16 +4875,12 @@ static int unit_dragoon_board_empty_transport(void) {
   }
   map.terrain[4 * 16 + 3] = 25;
   if (!map_tile_is_coastal(&map, 4, 4)) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("dboard colony should be coastal");
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
   units.type_count = 2;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Dragoon");
   units.types[0].movement = 4;
@@ -5632,8 +4893,7 @@ static int unit_dragoon_board_empty_transport(void) {
   units.types[1].cargo = 6;
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
+  fx_colonies_init(&colonies);
   ColonizeColony* c = &colonies.colonies[0];
   c->id = 0;
   c->active = true;
@@ -5660,9 +4920,7 @@ static int unit_dragoon_board_empty_transport(void) {
   const int uid = units_spawn(&units, 0, 4, 4);
   ColonizeUnit* dragoon = units_get(&units, uid);
   if (!dragoon) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("dboard spawn dragoon");
   }
   dragoon->nation_id = nation;
@@ -5674,9 +4932,7 @@ static int unit_dragoon_board_empty_transport(void) {
   const int sid = units_spawn(&units, 1, 3, 4);
   ColonizeUnit* galleon = units_get(&units, sid);
   if (!galleon) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("dboard spawn galleon");
   }
   galleon->nation_id = nation;
@@ -5725,15 +4981,11 @@ static int unit_dragoon_board_empty_transport(void) {
       dragoon ? dragoon->x : -1,
       dragoon ? dragoon->y : -1
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected idle Dragoon to board empty coastal Galleon");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(stderr, "unit_ai_euro_war: Dragoon board empty transport ok\n");
   return 0;
 }
@@ -5747,31 +4999,17 @@ static int unit_regular_board_empty_transport(void) {
   const int foe = 2;
 
   ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 16, 16, 1, false)) {
     return fail("rboard alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 1;
   }
   map.terrain[4 * 16 + 3] = 25;
   if (!map_tile_is_coastal(&map, 4, 4)) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("rboard colony should be coastal");
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
   units.type_count = 2;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Regular");
   units.types[0].movement = 1;
@@ -5784,8 +5022,7 @@ static int unit_regular_board_empty_transport(void) {
   units.types[1].cargo = 6;
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
+  fx_colonies_init(&colonies);
   ColonizeColony* c = &colonies.colonies[0];
   c->id = 0;
   c->active = true;
@@ -5812,9 +5049,7 @@ static int unit_regular_board_empty_transport(void) {
   const int uid = units_spawn(&units, 0, 4, 4);
   ColonizeUnit* reg = units_get(&units, uid);
   if (!reg) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("rboard spawn regular");
   }
   reg->nation_id = nation;
@@ -5825,9 +5060,7 @@ static int unit_regular_board_empty_transport(void) {
   const int sid = units_spawn(&units, 1, 3, 4);
   ColonizeUnit* ship = units_get(&units, sid);
   if (!ship) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("rboard spawn ship");
   }
   ship->nation_id = nation;
@@ -5877,15 +5110,11 @@ static int unit_regular_board_empty_transport(void) {
       aboard,
       ship ? ship->cargo_count : -1
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected Regular to board empty coastal transport");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(stderr, "unit_ai_euro_war: Regular board empty transport ok\n");
   return 0;
 }
@@ -5899,31 +5128,17 @@ static int unit_continental_army_board_empty_transport(void) {
   const int foe = 2;
 
   ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 16, 16, 1, false)) {
     return fail("caboard alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 1;
   }
   map.terrain[4 * 16 + 3] = 25;
   if (!map_tile_is_coastal(&map, 4, 4)) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("caboard colony should be coastal");
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
   units.type_count = 2;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Continental Army");
   units.types[0].movement = 1;
@@ -5936,8 +5151,7 @@ static int unit_continental_army_board_empty_transport(void) {
   units.types[1].cargo = 6;
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
+  fx_colonies_init(&colonies);
   ColonizeColony* c = &colonies.colonies[0];
   c->id = 0;
   c->active = true;
@@ -5964,9 +5178,7 @@ static int unit_continental_army_board_empty_transport(void) {
   const int uid = units_spawn(&units, 0, 4, 4);
   ColonizeUnit* reg = units_get(&units, uid);
   if (!reg) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("caboard spawn army");
   }
   reg->nation_id = nation;
@@ -5977,9 +5189,7 @@ static int unit_continental_army_board_empty_transport(void) {
   const int sid = units_spawn(&units, 1, 3, 4);
   ColonizeUnit* ship = units_get(&units, sid);
   if (!ship) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("caboard spawn ship");
   }
   ship->nation_id = nation;
@@ -6029,15 +5239,11 @@ static int unit_continental_army_board_empty_transport(void) {
       aboard,
       ship ? ship->cargo_count : -1
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected Continental Army to board empty coastal transport");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(stderr, "unit_ai_euro_war: Continental Army board empty transport ok\n");
   return 0;
 }
@@ -6057,31 +5263,17 @@ static int unit_continental_cavalry_board_empty_transport(void) {
   const int foe = 2;
 
   ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 16, 16, 1, false)) {
     return fail("ccavboard alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 1;
   }
   map.terrain[4 * 16 + 3] = 25;
   if (!map_tile_is_coastal(&map, 4, 4)) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("ccavboard colony should be coastal");
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
   units.type_count = 2;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Continental Cavalry");
   units.types[0].movement = 1;
@@ -6094,8 +5286,7 @@ static int unit_continental_cavalry_board_empty_transport(void) {
   units.types[1].cargo = 6;
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
+  fx_colonies_init(&colonies);
   ColonizeColony* c = &colonies.colonies[0];
   c->id = 0;
   c->active = true;
@@ -6122,9 +5313,7 @@ static int unit_continental_cavalry_board_empty_transport(void) {
   const int uid = units_spawn(&units, 0, 4, 4);
   ColonizeUnit* cav = units_get(&units, uid);
   if (!cav) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("ccavboard spawn army");
   }
   cav->nation_id = nation;
@@ -6135,9 +5324,7 @@ static int unit_continental_cavalry_board_empty_transport(void) {
   const int sid = units_spawn(&units, 1, 3, 4);
   ColonizeUnit* ship = units_get(&units, sid);
   if (!ship) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("ccavboard spawn ship");
   }
   ship->nation_id = nation;
@@ -6187,15 +5374,11 @@ static int unit_continental_cavalry_board_empty_transport(void) {
       aboard,
       ship ? ship->cargo_count : -1
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected Continental Cavalry to board empty coastal transport");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(stderr, "unit_ai_euro_war: Continental Cavalry board empty transport ok\n");
   return 0;
 }
@@ -6225,16 +5408,12 @@ static int unit_artillery_board_empty_transport(void) {
   }
   map.terrain[4 * 16 + 3] = 25;
   if (!map_tile_is_coastal(&map, 4, 4)) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("aboard colony should be coastal");
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
   units.type_count = 2;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Artillery");
   units.types[0].movement = 1;
@@ -6247,8 +5426,7 @@ static int unit_artillery_board_empty_transport(void) {
   units.types[1].cargo = 6;
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
+  fx_colonies_init(&colonies);
   ColonizeColony* c = &colonies.colonies[0];
   c->id = 0;
   c->active = true;
@@ -6275,9 +5453,7 @@ static int unit_artillery_board_empty_transport(void) {
   const int uid = units_spawn(&units, 0, 4, 4);
   ColonizeUnit* art = units_get(&units, uid);
   if (!art) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("aboard spawn artillery");
   }
   art->nation_id = nation;
@@ -6287,9 +5463,7 @@ static int unit_artillery_board_empty_transport(void) {
   const int sid = units_spawn(&units, 1, 3, 4);
   ColonizeUnit* galleon = units_get(&units, sid);
   if (!galleon) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("aboard spawn galleon");
   }
   galleon->nation_id = nation;
@@ -6339,15 +5513,11 @@ static int unit_artillery_board_empty_transport(void) {
       art ? art->x : -1,
       art ? art->y : -1
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected idle Artillery to board empty coastal Galleon");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(stderr, "unit_ai_euro_war: Artillery board empty transport ok\n");
   return 0;
 }
@@ -6378,16 +5548,12 @@ static int unit_unload_military_threatened(void) {
   /* Water west of coastal colony (4,4) — Galleon at (3,4). */
   map.terrain[4 * 16 + 3] = 25;
   if (!map_tile_is_coastal(&map, 4, 4)) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("munload colony should be coastal");
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
   units.type_count = 2;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Soldier");
   units.types[0].movement = 1;
@@ -6402,30 +5568,17 @@ static int unit_unload_military_threatened(void) {
   units.types[1].defense = 2;
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
-  ColonizeColony* c = &colonies.colonies[0];
-  c->id = 0;
-  c->active = true;
-  c->nation_id = nation;
-  c->x = 4;
-  c->y = 4;
+  fx_colonies_init(&colonies);
   /* Full colony so unload stays as field unit (no admit after mil unload). */
-  c->population = 8;
-  c->colonist_count = 8;
+  ColonizeColony* c = fx_colony_add(&colonies, nation, 4, 4, 8);
   c->stock[COLONIZE_CARGO_FOOD] = 40;
   c->stock[COLONIZE_CARGO_TOOLS] = 40;
-  c->building_in_production = -1;
-  colonies.colony_count = 1;
-  colonies.next_id = 1;
 
   /* Spawn Soldier then board onto Galleon before turn. */
   const int uid = units_spawn(&units, 0, 4, 4);
   ColonizeUnit* soldier = units_get(&units, uid);
   if (!soldier) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("munload spawn soldier");
   }
   soldier->nation_id = nation;
@@ -6436,9 +5589,7 @@ static int unit_unload_military_threatened(void) {
   const int sid = units_spawn(&units, 1, 3, 4);
   ColonizeUnit* galleon = units_get(&units, sid);
   if (!galleon) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("munload spawn galleon");
   }
   galleon->nation_id = nation;
@@ -6447,17 +5598,13 @@ static int unit_unload_military_threatened(void) {
   galleon->cargo_count = 0;
 
   if (!units_board(&units, uid, sid)) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("munload board setup");
   }
   soldier = units_get(&units, uid);
   galleon = units_get(&units, sid);
   if (!soldier || soldier->aboard_ship_id != sid || !galleon || galleon->cargo_count != 1) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("munload expected Soldier aboard before turn");
   }
 
@@ -6465,9 +5612,7 @@ static int unit_unload_military_threatened(void) {
   const int threat_id = units_spawn(&units, 0, 5, 4);
   ColonizeUnit* threat = units_get(&units, threat_id);
   if (!threat) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("munload spawn threat");
   }
   threat->nation_id = foe;
@@ -6517,9 +5662,7 @@ static int unit_unload_military_threatened(void) {
       soldier ? soldier->x : -1,
       soldier ? soldier->y : -1
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected Soldier unloaded at threatened coastal colony");
   }
   /* Unload lands on colony; same-act land war hunt may step onto adjacent threat. */
@@ -6531,21 +5674,15 @@ static int unit_unload_military_threatened(void) {
       soldier->x,
       soldier->y
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected Soldier unloaded near threatened colony");
   }
   if (galleon && galleon->cargo_count != 0) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected Galleon cargo empty after military unload");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(
     stderr,
     "unit_ai_euro_war: military unload threatened colony ok (pos=(%d,%d))\n",
@@ -6564,31 +5701,17 @@ static int unit_unload_sticky_brave_threatened(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 16, 16, 1, false)) {
     return fail("sunload alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 1;
   }
   map.terrain[4 * 16 + 3] = 25;
   if (!map_tile_is_coastal(&map, 4, 4)) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("sunload colony should be coastal");
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
   units.type_count = 3;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Soldier");
   units.types[0].movement = 1;
@@ -6608,28 +5731,15 @@ static int unit_unload_sticky_brave_threatened(void) {
   units.types[2].defense = 1;
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
-  ColonizeColony* c = &colonies.colonies[0];
-  c->id = 0;
-  c->active = true;
-  c->nation_id = nation;
-  c->x = 4;
-  c->y = 4;
-  c->population = 8;
-  c->colonist_count = 8;
+  fx_colonies_init(&colonies);
+  ColonizeColony* c = fx_colony_add(&colonies, nation, 4, 4, 8);
   c->stock[COLONIZE_CARGO_FOOD] = 40;
   c->stock[COLONIZE_CARGO_TOOLS] = 40;
-  c->building_in_production = -1;
-  colonies.colony_count = 1;
-  colonies.next_id = 1;
 
   const int uid = units_spawn(&units, 0, 4, 4);
   ColonizeUnit* soldier = units_get(&units, uid);
   if (!soldier) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("sunload spawn soldier");
   }
   soldier->nation_id = nation;
@@ -6640,9 +5750,7 @@ static int unit_unload_sticky_brave_threatened(void) {
   const int sid = units_spawn(&units, 1, 3, 4);
   ColonizeUnit* galleon = units_get(&units, sid);
   if (!galleon) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("sunload spawn galleon");
   }
   galleon->nation_id = nation;
@@ -6651,18 +5759,14 @@ static int unit_unload_sticky_brave_threatened(void) {
   galleon->cargo_count = 0;
 
   if (!units_board(&units, uid, sid)) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("sunload board setup");
   }
 
   const int brave_id = units_spawn(&units, 2, 5, 4);
   ColonizeUnit* brave = units_get(&units, brave_id);
   if (!brave) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("sunload spawn Brave");
   }
   brave->nation_id = 4;
@@ -6702,9 +5806,7 @@ static int unit_unload_sticky_brave_threatened(void) {
   soldier = units_get(&units, uid);
   galleon = units_get(&units, sid);
   if (ai_diplo_indian_hostility_sticky(&col1, nation) < 2) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("sticky Brave smoke needs hostility_sync to keep sticky≥2");
   }
   if (!soldier || !soldier->active || soldier->aboard_ship_id >= 0) {
@@ -6715,21 +5817,15 @@ static int unit_unload_sticky_brave_threatened(void) {
       soldier ? (int)soldier->active : 0,
       galleon ? galleon->cargo_count : -1
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("sticky Brave threat should unload Soldier");
   }
   if (abs(soldier->x - 4) + abs(soldier->y - 4) > 1) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("sticky munload should land near colony");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(stderr, "unit_ai_euro_war: sticky Brave mil unload ok\n");
   return 0;
 }
@@ -6754,27 +5850,14 @@ static int unit_unload_stance0_no_sticky(void) {
   col1.nation[nation].indian_hostility_sticky = 2;
 
   ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
-  map.width = 8;
-  map.height = 8;
-  map.tile_count = 64;
-  map.terrain = calloc(64, 1);
-  map.layer2 = calloc(64, 1);
-  map.layer3 = calloc(64, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 8, 8, 1, false)) {
     return fail("zunload alloc map");
-  }
-  for (int i = 0; i < 64; ++i) {
-    map.terrain[i] = 1;
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
+  fx_colonies_init(&colonies);
 
   ai_goals_reset();
   uint32_t turn = 12;
@@ -6791,15 +5874,11 @@ static int unit_unload_stance0_no_sticky(void) {
   ai_euro_dispatcher_turn(&ctx, nation);
 
   if (ai_diplo_indian_hostility_sticky(&col1, nation) != 0) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("unmet relations should clear sticky (stance0 / mil path closed)");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(stderr, "unit_ai_euro_war: stance0 sticky-clear skip mil path ok\n");
   return 0;
 }
@@ -6813,31 +5892,17 @@ static int unit_unload_dragoon_threatened(void) {
   const int foe = 2;
 
   ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 16, 16, 1, false)) {
     return fail("dunload alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 1;
   }
   map.terrain[4 * 16 + 3] = 25;
   if (!map_tile_is_coastal(&map, 4, 4)) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("dunload colony should be coastal");
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
   units.type_count = 3;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Dragoon");
   units.types[0].movement = 1; /* after unload, no same-act hunt into threat */
@@ -6857,29 +5922,16 @@ static int unit_unload_dragoon_threatened(void) {
   units.types[2].defense = 1;
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
-  ColonizeColony* c = &colonies.colonies[0];
-  c->id = 0;
-  c->active = true;
-  c->nation_id = nation;
-  c->x = 4;
-  c->y = 4;
+  fx_colonies_init(&colonies);
   /* Full colony so unload stays as field unit (no admit after mil unload). */
-  c->population = 8;
-  c->colonist_count = 8;
+  ColonizeColony* c = fx_colony_add(&colonies, nation, 4, 4, 8);
   c->stock[COLONIZE_CARGO_FOOD] = 40;
   c->stock[COLONIZE_CARGO_TOOLS] = 40;
-  c->building_in_production = -1;
-  colonies.colony_count = 1;
-  colonies.next_id = 1;
 
   const int uid = units_spawn(&units, 0, 4, 4);
   ColonizeUnit* drag = units_get(&units, uid);
   if (!drag) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("dunload spawn dragoon");
   }
   drag->nation_id = nation;
@@ -6891,9 +5943,7 @@ static int unit_unload_dragoon_threatened(void) {
   const int sid = units_spawn(&units, 1, 3, 4);
   ColonizeUnit* galleon = units_get(&units, sid);
   if (!galleon) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("dunload spawn galleon");
   }
   galleon->nation_id = nation;
@@ -6902,18 +5952,14 @@ static int unit_unload_dragoon_threatened(void) {
   galleon->cargo_count = 0;
 
   if (!units_board(&units, uid, sid)) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("dunload board setup");
   }
 
   const int threat_id = units_spawn(&units, 2, 5, 4);
   ColonizeUnit* threat = units_get(&units, threat_id);
   if (!threat) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("dunload spawn threat");
   }
   threat->nation_id = foe;
@@ -6961,22 +6007,16 @@ static int unit_unload_dragoon_threatened(void) {
       drag ? drag->x : -1,
       drag ? drag->y : -1
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected Dragoon unloaded at threatened coastal colony");
   }
   const int near_colony = abs(drag->x - 4) + abs(drag->y - 4) <= 1;
   if (!near_colony) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected Dragoon unloaded near threatened colony");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(stderr, "unit_ai_euro_war: Dragoon unload threatened colony ok\n");
   return 0;
 }
@@ -6990,31 +6030,17 @@ static int unit_unload_regular_threatened(void) {
   const int foe = 2;
 
   ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 16, 16, 1, false)) {
     return fail("runload alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 1;
   }
   map.terrain[4 * 16 + 3] = 25;
   if (!map_tile_is_coastal(&map, 4, 4)) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("runload colony should be coastal");
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
   units.type_count = 3;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Regular");
   units.types[0].movement = 1;
@@ -7034,29 +6060,16 @@ static int unit_unload_regular_threatened(void) {
   units.types[2].defense = 1;
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
-  ColonizeColony* c = &colonies.colonies[0];
-  c->id = 0;
-  c->active = true;
-  c->nation_id = nation;
-  c->x = 4;
-  c->y = 4;
+  fx_colonies_init(&colonies);
   /* Full colony so unload stays as field unit (no admit after mil unload). */
-  c->population = 8;
-  c->colonist_count = 8;
+  ColonizeColony* c = fx_colony_add(&colonies, nation, 4, 4, 8);
   c->stock[COLONIZE_CARGO_FOOD] = 40;
   c->stock[COLONIZE_CARGO_TOOLS] = 40;
-  c->building_in_production = -1;
-  colonies.colony_count = 1;
-  colonies.next_id = 1;
 
   const int uid = units_spawn(&units, 0, 4, 4);
   ColonizeUnit* reg = units_get(&units, uid);
   if (!reg) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("runload spawn regular");
   }
   reg->nation_id = nation;
@@ -7067,9 +6080,7 @@ static int unit_unload_regular_threatened(void) {
   const int sid = units_spawn(&units, 1, 3, 4);
   ColonizeUnit* ship = units_get(&units, sid);
   if (!ship) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("runload spawn ship");
   }
   ship->nation_id = nation;
@@ -7077,18 +6088,14 @@ static int unit_unload_regular_threatened(void) {
   ship->moves_left = 4 * UNITS_MP_PER_TILE;
   ship->cargo_count = 0;
   if (!units_board(&units, uid, sid)) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("runload board regular");
   }
 
   const int tid = units_spawn(&units, 2, 5, 4);
   ColonizeUnit* threat = units_get(&units, tid);
   if (!threat) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("runload spawn threat");
   }
   threat->nation_id = foe;
@@ -7138,21 +6145,15 @@ static int unit_unload_regular_threatened(void) {
       reg ? reg->x : -1,
       reg ? reg->y : -1
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected Regular unloaded at threatened coastal colony");
   }
   if (abs(reg->x - 4) > 1 || abs(reg->y - 4) > 1) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected Regular unloaded near threatened colony");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(stderr, "unit_ai_euro_war: Regular unload threatened colony ok\n");
   return 0;
 }
@@ -7175,31 +6176,17 @@ static int unit_unload_continental_army_threatened(void) {
   const int foe = 2;
 
   ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 16, 16, 1, false)) {
     return fail("carmyunload alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 1;
   }
   map.terrain[4 * 16 + 3] = 25;
   if (!map_tile_is_coastal(&map, 4, 4)) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("carmyunload colony should be coastal");
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
   units.type_count = 3;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Continental Army");
   units.types[0].movement = 1;
@@ -7219,29 +6206,16 @@ static int unit_unload_continental_army_threatened(void) {
   units.types[2].defense = 1;
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
-  ColonizeColony* c = &colonies.colonies[0];
-  c->id = 0;
-  c->active = true;
-  c->nation_id = nation;
-  c->x = 4;
-  c->y = 4;
+  fx_colonies_init(&colonies);
   /* Full colony so unload stays as field unit (no admit after mil unload). */
-  c->population = 8;
-  c->colonist_count = 8;
+  ColonizeColony* c = fx_colony_add(&colonies, nation, 4, 4, 8);
   c->stock[COLONIZE_CARGO_FOOD] = 40;
   c->stock[COLONIZE_CARGO_TOOLS] = 40;
-  c->building_in_production = -1;
-  colonies.colony_count = 1;
-  colonies.next_id = 1;
 
   const int uid = units_spawn(&units, 0, 4, 4);
   ColonizeUnit* army = units_get(&units, uid);
   if (!army) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("carmyunload spawn regular");
   }
   army->nation_id = nation;
@@ -7252,9 +6226,7 @@ static int unit_unload_continental_army_threatened(void) {
   const int sid = units_spawn(&units, 1, 3, 4);
   ColonizeUnit* ship = units_get(&units, sid);
   if (!ship) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("carmyunload spawn ship");
   }
   ship->nation_id = nation;
@@ -7262,18 +6234,14 @@ static int unit_unload_continental_army_threatened(void) {
   ship->moves_left = 4 * UNITS_MP_PER_TILE;
   ship->cargo_count = 0;
   if (!units_board(&units, uid, sid)) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("carmyunload board regular");
   }
 
   const int tid = units_spawn(&units, 2, 5, 4);
   ColonizeUnit* threat = units_get(&units, tid);
   if (!threat) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("carmyunload spawn threat");
   }
   threat->nation_id = foe;
@@ -7323,21 +6291,15 @@ static int unit_unload_continental_army_threatened(void) {
       army ? army->x : -1,
       army ? army->y : -1
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected Continental Army unloaded at threatened coastal colony");
   }
   if (abs(army->x - 4) > 1 || abs(army->y - 4) > 1) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected Continental Army unloaded near threatened colony");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(stderr, "unit_ai_euro_war: Continental Army unload threatened colony ok\n");
   return 0;
 }
@@ -7355,31 +6317,17 @@ static int unit_unload_continental_cavalry_threatened(void) {
   const int foe = 2;
 
   ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 16, 16, 1, false)) {
     return fail("ccavunload alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 1;
   }
   map.terrain[4 * 16 + 3] = 25;
   if (!map_tile_is_coastal(&map, 4, 4)) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("ccavunload colony should be coastal");
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
   units.type_count = 3;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Continental Cavalry");
   units.types[0].movement = 1;
@@ -7399,29 +6347,16 @@ static int unit_unload_continental_cavalry_threatened(void) {
   units.types[2].defense = 1;
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
-  ColonizeColony* c = &colonies.colonies[0];
-  c->id = 0;
-  c->active = true;
-  c->nation_id = nation;
-  c->x = 4;
-  c->y = 4;
+  fx_colonies_init(&colonies);
   /* Full colony so unload stays as field unit (no admit after mil unload). */
-  c->population = 8;
-  c->colonist_count = 8;
+  ColonizeColony* c = fx_colony_add(&colonies, nation, 4, 4, 8);
   c->stock[COLONIZE_CARGO_FOOD] = 40;
   c->stock[COLONIZE_CARGO_TOOLS] = 40;
-  c->building_in_production = -1;
-  colonies.colony_count = 1;
-  colonies.next_id = 1;
 
   const int uid = units_spawn(&units, 0, 4, 4);
   ColonizeUnit* cav = units_get(&units, uid);
   if (!cav) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("ccavunload spawn regular");
   }
   cav->nation_id = nation;
@@ -7432,9 +6367,7 @@ static int unit_unload_continental_cavalry_threatened(void) {
   const int sid = units_spawn(&units, 1, 3, 4);
   ColonizeUnit* ship = units_get(&units, sid);
   if (!ship) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("ccavunload spawn ship");
   }
   ship->nation_id = nation;
@@ -7442,18 +6375,14 @@ static int unit_unload_continental_cavalry_threatened(void) {
   ship->moves_left = 4 * UNITS_MP_PER_TILE;
   ship->cargo_count = 0;
   if (!units_board(&units, uid, sid)) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("ccavunload board regular");
   }
 
   const int tid = units_spawn(&units, 2, 5, 4);
   ColonizeUnit* threat = units_get(&units, tid);
   if (!threat) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("ccavunload spawn threat");
   }
   threat->nation_id = foe;
@@ -7503,21 +6432,15 @@ static int unit_unload_continental_cavalry_threatened(void) {
       cav ? cav->x : -1,
       cav ? cav->y : -1
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected Continental Cavalry unloaded at threatened coastal colony");
   }
   if (abs(cav->x - 4) > 1 || abs(cav->y - 4) > 1) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected Continental Cavalry unloaded near threatened colony");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(stderr, "unit_ai_euro_war: Continental Cavalry unload threatened colony ok\n");
   return 0;
 }
@@ -7541,24 +6464,12 @@ static int unit_garrison_quota_one_fortify(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 16, 16, 1, false)) {
     return fail("garrison-quota alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 1;
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Soldier");
   units.types[0].movement = 1;
@@ -7567,8 +6478,7 @@ static int unit_garrison_quota_one_fortify(void) {
   units.types[0].defense = 2;
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
+  fx_colonies_init(&colonies);
   ColonizeColony* c = &colonies.colonies[0];
   c->id = 0;
   c->active = true;
@@ -7589,9 +6499,7 @@ static int unit_garrison_quota_one_fortify(void) {
   ColonizeUnit* s0 = units_get(&units, uid0);
   ColonizeUnit* s1 = units_get(&units, uid1);
   if (!s0 || !s1) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("garrison-quota spawn");
   }
   s0->nation_id = nation;
@@ -7605,9 +6513,7 @@ static int unit_garrison_quota_one_fortify(void) {
   const int uid2 = units_spawn_allow_stack(&units, 0, 9, 5);
   ColonizeUnit* foe = units_get(&units, uid2);
   if (!foe) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("garrison-quota foe spawn");
   }
   foe->nation_id = 2;
@@ -7674,15 +6580,11 @@ static int unit_garrison_quota_one_fortify(void) {
       joined,
       (unsigned)c->garrison_quota
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected exactly one fortify consuming garrison_quota 1→0");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(stderr, "unit_ai_euro_war: garrison_quota one fortify ok\n");
   return 0;
 }
@@ -7708,24 +6610,12 @@ static int unit_garrison_quota_threat_seed(void) {
   const int indian = 4;
 
   ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 16, 16, 1, false)) {
     return fail("threat-seed alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 1;
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Brave");
   units.types[0].movement = 1;
@@ -7734,8 +6624,7 @@ static int unit_garrison_quota_threat_seed(void) {
   units.types[0].defense = 1;
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
+  fx_colonies_init(&colonies);
   ColonizeColony* c = &colonies.colonies[0];
   c->id = 0;
   c->active = true;
@@ -7756,9 +6645,7 @@ static int unit_garrison_quota_threat_seed(void) {
   ColonizeUnit* b0 = units_get(&units, bid0);
   ColonizeUnit* b1 = units_get(&units, bid1);
   if (!b0 || !b1) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("threat-seed brave spawn");
   }
   b0->nation_id = indian;
@@ -7854,9 +6741,7 @@ static int unit_garrison_quota_threat_seed(void) {
   }
 
   col1.tribe = NULL;
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   if (rc == 0) {
     fprintf(stderr, "unit_ai_euro_war: FUN_5952_035e threat seed ok\n");
   }
@@ -7884,24 +6769,12 @@ static int unit_labor_shortage_and_ai_flags_5952(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 16, 16, 1, false)) {
     return fail("labor-shortage alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 1;
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Soldiers");
   units.types[0].movement = 1;
@@ -7910,21 +6783,10 @@ static int unit_labor_shortage_and_ai_flags_5952(void) {
   units.types[0].defense = 2;
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
-  ColonizeColony* c = &colonies.colonies[0];
-  c->id = 0;
-  c->active = true;
-  c->nation_id = nation;
-  c->x = 5;
-  c->y = 5;
-  c->population = 3;
-  c->colonist_count = 3;
+  fx_colonies_init(&colonies);
+  ColonizeColony* c = fx_colony_add(&colonies, nation, 5, 5, 3);
   c->stock[COLONIZE_CARGO_FOOD] = 40;
   c->stock[COLONIZE_CARGO_TOOLS] = 40;
-  c->building_in_production = -1;
-  colonies.colony_count = 1;
-  colonies.next_id = 1;
 
   ColonizeCol1Save col1;
   col1_save_init(&col1);
@@ -8007,9 +6869,7 @@ static int unit_labor_shortage_and_ai_flags_5952(void) {
     }
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   if (rc == 0) {
     fprintf(stderr, "unit_ai_euro_war: FUN_5952_035e labor_shortage + flag byte ok\n");
   }
@@ -8029,53 +6889,28 @@ static int unit_pioneer_conjures_no_tools(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 16, 16, 1, false)) {
     return fail("no-conjure alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 1;
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Pioneer");
   units.types[0].movement = 1;
   units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
-  ColonizeColony* c = &colonies.colonies[0];
-  c->id = 0;
-  c->active = true;
-  c->nation_id = nation;
-  c->x = 5;
-  c->y = 5;
-  c->population = 3;
-  c->colonist_count = 3;
+  fx_colonies_init(&colonies);
+  ColonizeColony* c = fx_colony_add(&colonies, nation, 5, 5, 3);
   c->stock[COLONIZE_CARGO_FOOD] = 40;
   c->stock[COLONIZE_CARGO_TOOLS] = 0; /* tools_short, and no carrier in sight */
   c->stock[COLONIZE_CARGO_MUSKETS] = 0;
-  c->building_in_production = -1;
-  colonies.colony_count = 1;
-  colonies.next_id = 1;
 
   const int pid = units_spawn(&units, 0, 5, 5);
   ColonizeUnit* p = units_get(&units, pid);
   if (!p) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("no-conjure spawn");
   }
   p->nation_id = nation;
@@ -8118,9 +6953,7 @@ static int unit_pioneer_conjures_no_tools(void) {
     rc = fail("Pioneer on own colony must not create TOOLS out of nothing");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   if (rc == 0) {
     fprintf(stderr, "unit_ai_euro_war: no conjured tools ok\n");
   }
@@ -8142,24 +6975,12 @@ static int unit_peace_tail_does_not_open_war(void) {
   const int foe_nation = 0;
 
   ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 16, 16, 1, false)) {
     return fail("peace-tail alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 1;
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Soldiers");
   units.types[0].movement = 1;
@@ -8168,30 +6989,17 @@ static int unit_peace_tail_does_not_open_war(void) {
   units.types[0].defense = 2;
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
-  ColonizeColony* c = &colonies.colonies[0];
-  c->id = 0;
-  c->active = true;
-  c->nation_id = nation;
-  c->x = 5;
-  c->y = 5;
-  c->population = 3;
-  c->colonist_count = 3;
+  fx_colonies_init(&colonies);
+  ColonizeColony* c = fx_colony_add(&colonies, nation, 5, 5, 3);
   c->stock[COLONIZE_CARGO_FOOD] = 40;
   c->stock[COLONIZE_CARGO_TOOLS] = 40;
-  c->building_in_production = -1;
-  colonies.colony_count = 1;
-  colonies.next_id = 1;
 
   const int mine = units_spawn(&units, 0, 8, 8);
   const int theirs = units_spawn(&units, 0, 9, 8);
   ColonizeUnit* m = units_get(&units, mine);
   ColonizeUnit* t = units_get(&units, theirs);
   if (!m || !t) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("peace-tail spawn");
   }
   m->nation_id = nation;
@@ -8238,9 +7046,7 @@ static int unit_peace_tail_does_not_open_war(void) {
     }
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   if (rc == 0) {
     fprintf(stderr, "unit_ai_euro_war: peace act-tail re-hunt gated ok\n");
   }
@@ -8251,24 +7057,12 @@ static int unit_peace_soldier_fortify_colony(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 16, 16, 1, false)) {
     return fail("peace-fortify alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 1;
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Soldier");
   units.types[0].movement = 1;
@@ -8277,28 +7071,15 @@ static int unit_peace_soldier_fortify_colony(void) {
   units.types[0].defense = 2;
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
-  ColonizeColony* c = &colonies.colonies[0];
-  c->id = 0;
-  c->active = true;
-  c->nation_id = nation;
-  c->x = 5;
-  c->y = 5;
-  c->population = 3;
-  c->colonist_count = 3;
+  fx_colonies_init(&colonies);
+  ColonizeColony* c = fx_colony_add(&colonies, nation, 5, 5, 3);
   c->stock[COLONIZE_CARGO_FOOD] = 40;
   c->stock[COLONIZE_CARGO_TOOLS] = 40;
-  c->building_in_production = -1;
-  colonies.colony_count = 1;
-  colonies.next_id = 1;
 
   const int uid = units_spawn(&units, 0, 5, 5);
   ColonizeUnit* sol = units_get(&units, uid);
   if (!sol) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("peace-fortify spawn");
   }
   sol->nation_id = nation;
@@ -8315,9 +7096,7 @@ static int unit_peace_soldier_fortify_colony(void) {
   const int foe_id = units_spawn_allow_stack(&units, 0, 9, 5);
   ColonizeUnit* foe = units_get(&units, foe_id);
   if (!foe) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("peace-fortify foe spawn");
   }
   foe->nation_id = 2;
@@ -8356,9 +7135,7 @@ static int unit_peace_soldier_fortify_colony(void) {
 
   sol = units_get(&units, uid);
   if (!sol || !sol->active) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("peace-fortify soldier should remain");
   }
   if (sol->orders != UNITS_ORDER_FORTIFY && sol->orders != UNITS_ORDER_FORTIFIED) {
@@ -8369,15 +7146,11 @@ static int unit_peace_soldier_fortify_colony(void) {
       sol->x,
       sol->y
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected idle Soldier on colony to FORTIFY at peace");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(stderr, "unit_ai_euro_war: peace soldier fortify colony ok\n");
   return 0;
 }
@@ -8390,24 +7163,12 @@ static int unit_peace_dragoon_fortify_colony(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 16, 16, 1, false)) {
     return fail("peace-dragoon-fortify alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 1;
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Dragoon");
   units.types[0].movement = 4;
@@ -8416,28 +7177,15 @@ static int unit_peace_dragoon_fortify_colony(void) {
   units.types[0].defense = 2;
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
-  ColonizeColony* c = &colonies.colonies[0];
-  c->id = 0;
-  c->active = true;
-  c->nation_id = nation;
-  c->x = 5;
-  c->y = 5;
-  c->population = 3;
-  c->colonist_count = 3;
+  fx_colonies_init(&colonies);
+  ColonizeColony* c = fx_colony_add(&colonies, nation, 5, 5, 3);
   c->stock[COLONIZE_CARGO_FOOD] = 40;
   c->stock[COLONIZE_CARGO_TOOLS] = 40;
-  c->building_in_production = -1;
-  colonies.colony_count = 1;
-  colonies.next_id = 1;
 
   const int uid = units_spawn(&units, 0, 5, 5);
   ColonizeUnit* drag = units_get(&units, uid);
   if (!drag) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("peace-dragoon-fortify spawn");
   }
   drag->nation_id = nation;
@@ -8450,9 +7198,7 @@ static int unit_peace_dragoon_fortify_colony(void) {
   const int foe_id = units_spawn_allow_stack(&units, 0, 9, 5);
   ColonizeUnit* foe = units_get(&units, foe_id);
   if (!foe) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("peace-dragoon-fortify foe spawn");
   }
   foe->nation_id = 2;
@@ -8490,9 +7236,7 @@ static int unit_peace_dragoon_fortify_colony(void) {
 
   drag = units_get(&units, uid);
   if (!drag || !drag->active) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("peace-fortify dragoon should remain");
   }
   if (drag->orders != UNITS_ORDER_FORTIFY && drag->orders != UNITS_ORDER_FORTIFIED) {
@@ -8503,15 +7247,11 @@ static int unit_peace_dragoon_fortify_colony(void) {
       drag->x,
       drag->y
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected idle Dragoon on colony to FORTIFY at peace");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(stderr, "unit_ai_euro_war: peace dragoon fortify colony ok\n");
   return 0;
 }
@@ -8524,24 +7264,12 @@ static int unit_peace_regular_fortify_colony(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 16, 16, 1, false)) {
     return fail("peace-regular-fortify alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 1;
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Regular");
   units.types[0].movement = 3;
@@ -8550,28 +7278,15 @@ static int unit_peace_regular_fortify_colony(void) {
   units.types[0].defense = 2;
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
-  ColonizeColony* c = &colonies.colonies[0];
-  c->id = 0;
-  c->active = true;
-  c->nation_id = nation;
-  c->x = 5;
-  c->y = 5;
-  c->population = 3;
-  c->colonist_count = 3;
+  fx_colonies_init(&colonies);
+  ColonizeColony* c = fx_colony_add(&colonies, nation, 5, 5, 3);
   c->stock[COLONIZE_CARGO_FOOD] = 40;
   c->stock[COLONIZE_CARGO_TOOLS] = 40;
-  c->building_in_production = -1;
-  colonies.colony_count = 1;
-  colonies.next_id = 1;
 
   const int uid = units_spawn(&units, 0, 5, 5);
   ColonizeUnit* reg = units_get(&units, uid);
   if (!reg) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("peace-regular-fortify spawn");
   }
   reg->nation_id = nation;
@@ -8584,9 +7299,7 @@ static int unit_peace_regular_fortify_colony(void) {
     const int foe_id = units_spawn_allow_stack(&units, 0, 9, 5);
     ColonizeUnit* foe = units_get(&units, foe_id);
     if (!foe) {
-      free(map.terrain);
-      free(map.layer2);
-      free(map.layer3);
+      fx_map_free(&map);
       return fail("peace-regular-fortify foe spawn");
     }
     foe->nation_id = 2;
@@ -8625,9 +7338,7 @@ static int unit_peace_regular_fortify_colony(void) {
 
   reg = units_get(&units, uid);
   if (!reg || !reg->active) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("peace-fortify regular should remain");
   }
   if (reg->orders != UNITS_ORDER_FORTIFY && reg->orders != UNITS_ORDER_FORTIFIED) {
@@ -8638,15 +7349,11 @@ static int unit_peace_regular_fortify_colony(void) {
       reg->x,
       reg->y
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected Regular FORTIFY on own colony");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(stderr, "unit_ai_euro_war: peace Regular fortify colony ok\n");
   return 0;
 }
@@ -8659,24 +7366,12 @@ static int unit_peace_continental_fortify_colony(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 16, 16, 1, false)) {
     return fail("peace-cont-fortify alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 1;
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Continental Army");
   units.types[0].movement = 3;
@@ -8685,28 +7380,15 @@ static int unit_peace_continental_fortify_colony(void) {
   units.types[0].defense = 2;
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
-  ColonizeColony* c = &colonies.colonies[0];
-  c->id = 0;
-  c->active = true;
-  c->nation_id = nation;
-  c->x = 5;
-  c->y = 5;
-  c->population = 3;
-  c->colonist_count = 3;
+  fx_colonies_init(&colonies);
+  ColonizeColony* c = fx_colony_add(&colonies, nation, 5, 5, 3);
   c->stock[COLONIZE_CARGO_FOOD] = 40;
   c->stock[COLONIZE_CARGO_TOOLS] = 40;
-  c->building_in_production = -1;
-  colonies.colony_count = 1;
-  colonies.next_id = 1;
 
   const int uid = units_spawn(&units, 0, 5, 5);
   ColonizeUnit* army = units_get(&units, uid);
   if (!army) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("peace-cont-fortify spawn");
   }
   army->nation_id = nation;
@@ -8719,9 +7401,7 @@ static int unit_peace_continental_fortify_colony(void) {
     const int foe_id = units_spawn_allow_stack(&units, 0, 9, 5);
     ColonizeUnit* foe = units_get(&units, foe_id);
     if (!foe) {
-      free(map.terrain);
-      free(map.layer2);
-      free(map.layer3);
+      fx_map_free(&map);
       return fail("peace-cont-fortify foe spawn");
     }
     foe->nation_id = 2;
@@ -8760,9 +7440,7 @@ static int unit_peace_continental_fortify_colony(void) {
 
   army = units_get(&units, uid);
   if (!army || !army->active) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("peace-fortify continental should remain");
   }
   if (army->orders != UNITS_ORDER_FORTIFY && army->orders != UNITS_ORDER_FORTIFIED) {
@@ -8773,15 +7451,11 @@ static int unit_peace_continental_fortify_colony(void) {
       army->x,
       army->y
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected Continental Army FORTIFY on own colony");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(stderr, "unit_ai_euro_war: peace Continental Army fortify colony ok\n");
   return 0;
 }
@@ -8794,24 +7468,12 @@ static int unit_peace_continental_cavalry_fortify_colony(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 16, 16, 1, false)) {
     return fail("peace-cont-cav-fortify alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 1;
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Continental Cavalry");
   units.types[0].movement = 4;
@@ -8820,28 +7482,15 @@ static int unit_peace_continental_cavalry_fortify_colony(void) {
   units.types[0].defense = 2;
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
-  ColonizeColony* c = &colonies.colonies[0];
-  c->id = 0;
-  c->active = true;
-  c->nation_id = nation;
-  c->x = 5;
-  c->y = 5;
-  c->population = 3;
-  c->colonist_count = 3;
+  fx_colonies_init(&colonies);
+  ColonizeColony* c = fx_colony_add(&colonies, nation, 5, 5, 3);
   c->stock[COLONIZE_CARGO_FOOD] = 40;
   c->stock[COLONIZE_CARGO_TOOLS] = 40;
-  c->building_in_production = -1;
-  colonies.colony_count = 1;
-  colonies.next_id = 1;
 
   const int uid = units_spawn(&units, 0, 5, 5);
   ColonizeUnit* cav = units_get(&units, uid);
   if (!cav) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("peace-cont-cav-fortify spawn");
   }
   cav->nation_id = nation;
@@ -8854,9 +7503,7 @@ static int unit_peace_continental_cavalry_fortify_colony(void) {
     const int foe_id = units_spawn_allow_stack(&units, 0, 9, 5);
     ColonizeUnit* foe = units_get(&units, foe_id);
     if (!foe) {
-      free(map.terrain);
-      free(map.layer2);
-      free(map.layer3);
+      fx_map_free(&map);
       return fail("peace-cont-cav-fortify foe spawn");
     }
     foe->nation_id = 2;
@@ -8895,9 +7542,7 @@ static int unit_peace_continental_cavalry_fortify_colony(void) {
 
   cav = units_get(&units, uid);
   if (!cav || !cav->active) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("peace-fortify continental cavalry should remain");
   }
   if (cav->orders != UNITS_ORDER_FORTIFY && cav->orders != UNITS_ORDER_FORTIFIED) {
@@ -8908,15 +7553,11 @@ static int unit_peace_continental_cavalry_fortify_colony(void) {
       cav->x,
       cav->y
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected Continental Cavalry FORTIFY on own colony");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(stderr, "unit_ai_euro_war: peace Continental Cavalry fortify colony ok\n");
   return 0;
 }
@@ -8929,24 +7570,12 @@ static int unit_peace_artillery_fortify_colony(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 16, 16, 1, false)) {
     return fail("peace-art-fortify alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 1;
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Artillery");
   units.types[0].movement = 1;
@@ -8955,28 +7584,15 @@ static int unit_peace_artillery_fortify_colony(void) {
   units.types[0].defense = 1;
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
-  ColonizeColony* c = &colonies.colonies[0];
-  c->id = 0;
-  c->active = true;
-  c->nation_id = nation;
-  c->x = 5;
-  c->y = 5;
-  c->population = 3;
-  c->colonist_count = 3;
+  fx_colonies_init(&colonies);
+  ColonizeColony* c = fx_colony_add(&colonies, nation, 5, 5, 3);
   c->stock[COLONIZE_CARGO_FOOD] = 40;
   c->stock[COLONIZE_CARGO_TOOLS] = 40;
-  c->building_in_production = -1;
-  colonies.colony_count = 1;
-  colonies.next_id = 1;
 
   const int uid = units_spawn(&units, 0, 5, 5);
   ColonizeUnit* art = units_get(&units, uid);
   if (!art) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("peace-art-fortify spawn");
   }
   art->nation_id = nation;
@@ -8989,9 +7605,7 @@ static int unit_peace_artillery_fortify_colony(void) {
     const int foe_id = units_spawn_allow_stack(&units, 0, 9, 5);
     ColonizeUnit* foe = units_get(&units, foe_id);
     if (!foe) {
-      free(map.terrain);
-      free(map.layer2);
-      free(map.layer3);
+      fx_map_free(&map);
       return fail("peace-art-fortify foe spawn");
     }
     foe->nation_id = 2;
@@ -9030,9 +7644,7 @@ static int unit_peace_artillery_fortify_colony(void) {
 
   art = units_get(&units, uid);
   if (!art || !art->active) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("peace-fortify artillery should remain");
   }
   if (art->orders != UNITS_ORDER_FORTIFY && art->orders != UNITS_ORDER_FORTIFIED) {
@@ -9043,15 +7655,11 @@ static int unit_peace_artillery_fortify_colony(void) {
       art->x,
       art->y
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected Artillery FORTIFY on own colony in peace");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(stderr, "unit_ai_euro_war: peace Artillery fortify colony ok\n");
   return 0;
 }
@@ -9064,24 +7672,12 @@ static int unit_peace_cannon_fortify_colony(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 16, 16, 1, false)) {
     return fail("peace-cannon-fortify alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 1;
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Cannon");
   units.types[0].movement = 1;
@@ -9090,28 +7686,15 @@ static int unit_peace_cannon_fortify_colony(void) {
   units.types[0].defense = 1;
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
-  ColonizeColony* c = &colonies.colonies[0];
-  c->id = 0;
-  c->active = true;
-  c->nation_id = nation;
-  c->x = 5;
-  c->y = 5;
-  c->population = 3;
-  c->colonist_count = 3;
+  fx_colonies_init(&colonies);
+  ColonizeColony* c = fx_colony_add(&colonies, nation, 5, 5, 3);
   c->stock[COLONIZE_CARGO_FOOD] = 40;
   c->stock[COLONIZE_CARGO_TOOLS] = 40;
-  c->building_in_production = -1;
-  colonies.colony_count = 1;
-  colonies.next_id = 1;
 
   const int uid = units_spawn(&units, 0, 5, 5);
   ColonizeUnit* art = units_get(&units, uid);
   if (!art) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("peace-cannon-fortify spawn");
   }
   art->nation_id = nation;
@@ -9124,9 +7707,7 @@ static int unit_peace_cannon_fortify_colony(void) {
     const int foe_id = units_spawn_allow_stack(&units, 0, 9, 5);
     ColonizeUnit* foe = units_get(&units, foe_id);
     if (!foe) {
-      free(map.terrain);
-      free(map.layer2);
-      free(map.layer3);
+      fx_map_free(&map);
       return fail("peace-cannon-fortify foe spawn");
     }
     foe->nation_id = 2;
@@ -9165,9 +7746,7 @@ static int unit_peace_cannon_fortify_colony(void) {
 
   art = units_get(&units, uid);
   if (!art || !art->active) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("peace-fortify cannon should remain");
   }
   if (art->orders != UNITS_ORDER_FORTIFY && art->orders != UNITS_ORDER_FORTIFIED) {
@@ -9178,15 +7757,11 @@ static int unit_peace_cannon_fortify_colony(void) {
       art->x,
       art->y
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected Cannon FORTIFY on own colony in peace");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(stderr, "unit_ai_euro_war: peace Cannon fortify colony ok\n");
   return 0;
 }
@@ -9200,24 +7775,12 @@ static int unit_artillery_fortify_colony(void) {
   const int foe = 2;
 
   ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 16, 16, 1, false)) {
     return fail("art-fortify alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 1;
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Artillery");
   units.types[0].movement = 1;
@@ -9226,28 +7789,15 @@ static int unit_artillery_fortify_colony(void) {
   units.types[0].defense = 1;
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
-  ColonizeColony* c = &colonies.colonies[0];
-  c->id = 0;
-  c->active = true;
-  c->nation_id = nation;
-  c->x = 5;
-  c->y = 5;
-  c->population = 3;
-  c->colonist_count = 3;
+  fx_colonies_init(&colonies);
+  ColonizeColony* c = fx_colony_add(&colonies, nation, 5, 5, 3);
   c->stock[COLONIZE_CARGO_FOOD] = 40;
   c->stock[COLONIZE_CARGO_TOOLS] = 40;
-  c->building_in_production = -1;
-  colonies.colony_count = 1;
-  colonies.next_id = 1;
 
   const int uid = units_spawn(&units, 0, 5, 5);
   ColonizeUnit* art = units_get(&units, uid);
   if (!art) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("art-fortify spawn");
   }
   art->nation_id = nation;
@@ -9260,9 +7810,7 @@ static int unit_artillery_fortify_colony(void) {
     const int foe_id = units_spawn_allow_stack(&units, 0, 9, 5);
     ColonizeUnit* foe = units_get(&units, foe_id);
     if (!foe) {
-      free(map.terrain);
-      free(map.layer2);
-      free(map.layer3);
+      fx_map_free(&map);
       return fail("art-fortify foe spawn");
     }
     foe->nation_id = 2;
@@ -9288,9 +7836,7 @@ static int unit_artillery_fortify_colony(void) {
   col1.nation[foe].gold = 50;
   ai_diplo_declare_war(&col1, nation, foe);
   if (!ai_diplo_at_war(&col1, nation, foe)) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("art-fortify expected war");
   }
 
@@ -9309,9 +7855,7 @@ static int unit_artillery_fortify_colony(void) {
 
   art = units_get(&units, uid);
   if (!art || !art->active) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("art-fortify artillery should remain");
   }
   if (art->orders != UNITS_ORDER_FORTIFY && art->orders != UNITS_ORDER_FORTIFIED) {
@@ -9322,15 +7866,11 @@ static int unit_artillery_fortify_colony(void) {
       art->x,
       art->y
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected idle Artillery on colony to FORTIFY at war");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(stderr, "unit_ai_euro_war: artillery fortify colony ok\n");
   return 0;
 }
@@ -9362,16 +7902,12 @@ static int unit_war_transport_threatened_colony(void) {
   map.terrain[4 * 16 + 5] = 1;
   map.terrain[5 * 16 + 4] = 1;
   if (!map_tile_is_coastal(&map, 4, 4)) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("wtrans colony should be coastal");
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
   units.type_count = 2;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Galleon");
   units.types[0].movement = 4;
@@ -9386,29 +7922,16 @@ static int unit_war_transport_threatened_colony(void) {
   units.types[1].defense = 2;
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
-  ColonizeColony* c = &colonies.colonies[0];
-  c->id = 0;
-  c->active = true;
-  c->nation_id = nation;
-  c->x = 4;
-  c->y = 4;
-  c->population = 2;
-  c->colonist_count = 2;
+  fx_colonies_init(&colonies);
+  ColonizeColony* c = fx_colony_add(&colonies, nation, 4, 4, 2);
   c->stock[COLONIZE_CARGO_FOOD] = 40;
   c->stock[COLONIZE_CARGO_TOOLS] = 40;
-  c->building_in_production = -1;
-  colonies.colony_count = 1;
-  colonies.next_id = 1;
 
   /* Own Galleon far south — closer to threatened colony than to distant foe. */
   const int own_id = units_spawn(&units, 0, 3, 10);
   ColonizeUnit* galleon = units_get(&units, own_id);
   if (!galleon) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("wtrans spawn galleon");
   }
   galleon->nation_id = nation;
@@ -9420,9 +7943,7 @@ static int unit_war_transport_threatened_colony(void) {
   const int threat_id = units_spawn(&units, 1, 5, 4);
   ColonizeUnit* threat = units_get(&units, threat_id);
   if (!threat) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("wtrans spawn threat");
   }
   threat->nation_id = foe;
@@ -9433,9 +7954,7 @@ static int unit_war_transport_threatened_colony(void) {
   const int foe_ship_id = units_spawn(&units, 0, 14, 14);
   ColonizeUnit* foe_ship = units_get(&units, foe_ship_id);
   if (!foe_ship) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("wtrans spawn foe ship");
   }
   foe_ship->nation_id = foe;
@@ -9457,9 +7976,7 @@ static int unit_war_transport_threatened_colony(void) {
   col1.nation[foe].gold = 100;
   ai_diplo_declare_war(&col1, nation, foe);
   if (!ai_diplo_at_war(&col1, nation, foe)) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("wtrans expected war");
   }
 
@@ -9480,9 +7997,7 @@ static int unit_war_transport_threatened_colony(void) {
 
   galleon = units_get(&units, own_id);
   if (!galleon || !galleon->active) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("wtrans galleon should remain");
   }
 
@@ -9506,15 +8021,11 @@ static int unit_war_transport_threatened_colony(void) {
       galleon->x,
       galleon->y
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected Galleon sail toward threatened own coastal colony");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(
     stderr,
     "unit_ai_euro_war: war transport threatened colony ok (near=%d closer=%d)\n",
@@ -9561,16 +8072,12 @@ static int unit_mow_war_transport_threatened(void) {
   map.terrain[4 * 16 + 5] = 1;
   map.terrain[5 * 16 + 4] = 1;
   if (!map_tile_is_coastal(&map, 4, 4)) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("mowtrans colony should be coastal");
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
   units.type_count = 2;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Man-O-War");
   units.types[0].movement = 4;
@@ -9585,29 +8092,16 @@ static int unit_mow_war_transport_threatened(void) {
   units.types[1].defense = 2;
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
-  ColonizeColony* c = &colonies.colonies[0];
-  c->id = 0;
-  c->active = true;
-  c->nation_id = nation;
-  c->x = 4;
-  c->y = 4;
-  c->population = 2;
-  c->colonist_count = 2;
+  fx_colonies_init(&colonies);
+  ColonizeColony* c = fx_colony_add(&colonies, nation, 4, 4, 2);
   c->stock[COLONIZE_CARGO_FOOD] = 40;
   c->stock[COLONIZE_CARGO_TOOLS] = 40;
-  c->building_in_production = -1;
-  colonies.colony_count = 1;
-  colonies.next_id = 1;
 
   /* Own Man-O-War far south — closer to threatened colony than to distant foe. */
   const int own_id = units_spawn(&units, 0, 3, 10);
   ColonizeUnit* mow = units_get(&units, own_id);
   if (!mow) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("mowtrans spawn mow");
   }
   mow->nation_id = nation;
@@ -9619,9 +8113,7 @@ static int unit_mow_war_transport_threatened(void) {
   const int threat_id = units_spawn(&units, 1, 5, 4);
   ColonizeUnit* threat = units_get(&units, threat_id);
   if (!threat) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("mowtrans spawn threat");
   }
   threat->nation_id = foe;
@@ -9632,9 +8124,7 @@ static int unit_mow_war_transport_threatened(void) {
   const int foe_ship_id = units_spawn(&units, 0, 14, 14);
   ColonizeUnit* foe_ship = units_get(&units, foe_ship_id);
   if (!foe_ship) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("mowtrans spawn foe ship");
   }
   foe_ship->nation_id = foe;
@@ -9656,9 +8146,7 @@ static int unit_mow_war_transport_threatened(void) {
   col1.nation[foe].gold = 100;
   ai_diplo_declare_war(&col1, nation, foe);
   if (!ai_diplo_at_war(&col1, nation, foe)) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("mowtrans expected war");
   }
 
@@ -9679,9 +8167,7 @@ static int unit_mow_war_transport_threatened(void) {
 
   mow = units_get(&units, own_id);
   if (!mow || !mow->active) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("mowtrans mow should remain");
   }
 
@@ -9705,15 +8191,11 @@ static int unit_mow_war_transport_threatened(void) {
       mow->x,
       mow->y
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected Man-O-War sail toward threatened own coastal colony");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(
     stderr,
     "unit_ai_euro_war: Man-O-War war transport threatened ok (near=%d closer=%d)\n",
@@ -9750,16 +8232,12 @@ static int unit_frigate_war_transport_threatened(void) {
   map.terrain[4 * 16 + 5] = 1;
   map.terrain[5 * 16 + 4] = 1;
   if (!map_tile_is_coastal(&map, 4, 4)) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("frigtrans colony should be coastal");
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
   units.type_count = 2;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Frigate");
   units.types[0].movement = 4;
@@ -9774,29 +8252,16 @@ static int unit_frigate_war_transport_threatened(void) {
   units.types[1].defense = 2;
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
-  ColonizeColony* c = &colonies.colonies[0];
-  c->id = 0;
-  c->active = true;
-  c->nation_id = nation;
-  c->x = 4;
-  c->y = 4;
-  c->population = 2;
-  c->colonist_count = 2;
+  fx_colonies_init(&colonies);
+  ColonizeColony* c = fx_colony_add(&colonies, nation, 4, 4, 2);
   c->stock[COLONIZE_CARGO_FOOD] = 40;
   c->stock[COLONIZE_CARGO_TOOLS] = 40;
-  c->building_in_production = -1;
-  colonies.colony_count = 1;
-  colonies.next_id = 1;
 
   /* Own Frigate far south — closer to threatened colony than to distant foe. */
   const int own_id = units_spawn(&units, 0, 3, 10);
   ColonizeUnit* frig = units_get(&units, own_id);
   if (!frig) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("frigtrans spawn frig");
   }
   frig->nation_id = nation;
@@ -9808,9 +8273,7 @@ static int unit_frigate_war_transport_threatened(void) {
   const int threat_id = units_spawn(&units, 1, 5, 4);
   ColonizeUnit* threat = units_get(&units, threat_id);
   if (!threat) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("frigtrans spawn threat");
   }
   threat->nation_id = foe;
@@ -9821,9 +8284,7 @@ static int unit_frigate_war_transport_threatened(void) {
   const int foe_ship_id = units_spawn(&units, 0, 14, 14);
   ColonizeUnit* foe_ship = units_get(&units, foe_ship_id);
   if (!foe_ship) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("frigtrans spawn foe ship");
   }
   foe_ship->nation_id = foe;
@@ -9845,9 +8306,7 @@ static int unit_frigate_war_transport_threatened(void) {
   col1.nation[foe].gold = 100;
   ai_diplo_declare_war(&col1, nation, foe);
   if (!ai_diplo_at_war(&col1, nation, foe)) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("frigtrans expected war");
   }
 
@@ -9868,9 +8327,7 @@ static int unit_frigate_war_transport_threatened(void) {
 
   frig = units_get(&units, own_id);
   if (!frig || !frig->active) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("frigtrans frig should remain");
   }
 
@@ -9894,15 +8351,11 @@ static int unit_frigate_war_transport_threatened(void) {
       frig->x,
       frig->y
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected Frigate sail toward threatened own coastal colony");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(
     stderr,
     "unit_ai_euro_war: Frigate war transport threatened ok (near=%d closer=%d)\n",
@@ -9943,9 +8396,7 @@ static int unit_naval_ambush(void) {
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
   units.type_count = 2;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Frigate");
   units.types[0].movement = 5;
@@ -9959,15 +8410,12 @@ static int unit_naval_ambush(void) {
   units.types[1].defense = 8;
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
+  fx_colonies_init(&colonies);
 
   const int own_id = units_spawn(&units, 0, own_x, own_y);
   ColonizeUnit* own = units_get(&units, own_id);
   if (!own) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("naval-ambush spawn own");
   }
   own->nation_id = nation;
@@ -9977,9 +8425,7 @@ static int unit_naval_ambush(void) {
   const int foe_id = units_spawn(&units, 1, own_x, own_y - 1);
   ColonizeUnit* foe = units_get(&units, foe_id);
   if (!foe) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("naval-ambush spawn foe");
   }
   foe->nation_id = foe_nat;
@@ -10030,9 +8476,7 @@ static int unit_naval_ambush(void) {
                  (moves_after == 5 /* no ambush this roll */ ||
                   moves_after == 0 /* ambushed: drain 6 > moves_left 5, floored at 0 */);
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   if (!ok) {
     fprintf(
       stderr,

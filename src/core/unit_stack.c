@@ -55,43 +55,6 @@ bool unit_stack_try_open(
   return true;
 }
 
-/* bugs.md 232: expert-skill label for a row (local resolver — some test
- * binaries link unit_stack.c without map_panel.c). NULL when not an expert. */
-static const char* unit_stack_profession_label(
-  const ColonizeMsgCatalog* names, int type_index, int profession
-) {
-  if (!units_type_has_profession_slot(type_index)) {
-    return NULL;
-  }
-  if (profession < 0 || profession == UNITS_JOB_NONE || profession == 19 ||
-      profession == 25 || profession == 26 || profession == 27) {
-    return NULL;
-  }
-  const ColonizeMsgSection* sec = names ? assets_msg_find(names, "JOB") : NULL;
-  if (!sec || profession >= sec->line_count) {
-    return NULL;
-  }
-  const char* p = strchr(sec->lines[profession], ',');
-  if (!p) {
-    return NULL;
-  }
-  ++p;
-  while (*p == ' ') {
-    ++p;
-  }
-  static char buf[40];
-  size_t n = 0;
-  while (p[n] && p[n] != ',' && n + 1 < sizeof(buf)) {
-    buf[n] = p[n];
-    ++n;
-  }
-  while (n > 0 && buf[n - 1] == ' ') {
-    --n;
-  }
-  buf[n] = '\0';
-  return buf[0] ? buf : NULL;
-}
-
 /* bugs.md 266: one row's full label ("Dragoon (Expert Farmers) (aboard)"). */
 static void unit_stack_row_label(
   const ColonizeUnitPool* pool,
@@ -104,7 +67,7 @@ static void unit_stack_row_label(
   /* bugs.md 232: cross-specialized soldiers/dragoons carry their expert
    * skill in the row name — "Dragoon (Expert Farmers)". */
   const char* prof =
-    (u && names) ? unit_stack_profession_label(names, u->type_index, u->profession) : NULL;
+    (u && names) ? units_profession_label(names, u->type_index, u->profession) : NULL;
   char base[56];
   if (prof && name && strstr(name, prof) == NULL) {
     snprintf(base, sizeof(base), "%s (%s)", name, prof);

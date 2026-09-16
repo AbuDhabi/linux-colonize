@@ -42,17 +42,6 @@ void pick_music_close(PickMusicDialog* dlg) {
   dlg->prompt[0] = '\0';
 }
 
-static void pick_music_strip_quotes(char* text) {
-  if (!text || text[0] != '"') {
-    return;
-  }
-  size_t n = strlen(text);
-  if (n >= 2 && text[n - 1] == '"') {
-    memmove(text, text + 1, n - 2);
-    text[n - 2] = '\0';
-  }
-}
-
 static bool pick_music_is_directive(const char* line) {
   return line && line[0] == '@';
 }
@@ -133,7 +122,7 @@ static bool pick_music_load_section(
     PickMusicOption* opt = &dlg->options[dlg->option_count];
     memset(opt, 0, sizeof(*opt));
     str_copy_trunc(opt->label, sizeof(opt->label), line);
-    pick_music_strip_quotes(opt->label);
+    str_strip_quotes(opt->label);
 
     if (view == PICK_MUSIC_VIEW_MAIN) {
       if (strcmp(opt->label, "Independence Tunes") == 0) {

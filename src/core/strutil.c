@@ -169,3 +169,30 @@ void str_path_join(char* dst, size_t dst_sz, const char* dir, const char* name) 
   }
   dst[i] = '\0';
 }
+
+void str_strip_quotes(char* s) {
+  if (!s || s[0] != '"') {
+    return;
+  }
+  const size_t n = strlen(s);
+  if (n >= 2 && s[n - 1] == '"') {
+    memmove(s, s + 1, n - 2);
+    s[n - 2] = '\0';
+  }
+}
+
+char* str_split_name_row(char* line) {
+  if (!line) {
+    return NULL;
+  }
+  str_strip_comment(line);
+  char* comma = strchr(line, ',');
+  if (!comma) {
+    return NULL;
+  }
+  *comma = '\0';
+  str_trim(line);
+  char* rest = comma + 1;
+  str_trim(rest);
+  return rest;
+}
