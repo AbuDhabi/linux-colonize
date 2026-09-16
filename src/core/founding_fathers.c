@@ -1086,11 +1086,24 @@ static bool ff_find_coastal_water(
   return false;
 }
 
-/* John Paul Jones: free Frigate (Man-O-War fallback). Returns true on spawn. */
+/*
+ * John Paul Jones: free Frigate (Man-O-War fallback). Returns true on spawn.
+ *
+ * bugs.md #467 — DOS FUN_4345_0342 case 0xe (raw 73044ff):
+ *   FUN_281f_095c(0x11, nation, nation - 0x18, nation - 0x18)  spawn a
+ *   Frigate at the nation's OFF-MAP EUROPE slot; then order (+0x314c) = 0,
+ *   goto (+0x314d/e) = the nation's stored Europe landfall tile
+ *   (nation*0x13c - 0x77c6/-0x77c5), counter16 (+0x315a) = 0.
+ * So the ship starts docked in Europe and sails over like any purchase —
+ * it never materialises beside a colony. For the human that is the Europe
+ * harbor; an AI nation keeps the coastal-water stand-in (the port has no
+ * AI Europe model).
+ */
 static bool effect_jones_frigate(
   ColonizeWorldMap* map,
   ColonizeColonyPool* colonies,
   ColonizeUnitPool* units,
+  EuropeScreen* europe,
   int nation_id
 ) {
   if (!units || !map) {
@@ -1102,6 +1115,12 @@ static bool effect_jones_frigate(
   }
   if (ship_ty < 0) {
     return false;
+  }
+  if (europe) {
+    const ColonizeUnitType* ty = units_type(units, ship_ty);
+    return europe_harbor_push(
+      europe, ship_ty, ty && ty->name[0] ? ty->name : "Frigate", NULL, 0, NULL, NULL
+    );
   }
   int sx = 0;
   int sy = 0;
@@ -1244,7 +1263,7 @@ static void apply_effect(
       break;
     case FF_JOHN_PAUL_JONES:
       /* Manual/wiki: free Frigate. No gold fallback. */
-      (void)effect_jones_frigate(map, colonies, units, nation_id);
+      (void)effect_jones_frigate(map, colonies, units, europe, nation_id);
       break;
     case FF_THOMAS_JEFFERSON:
       /* Wiki: liberty bell production of statesmen +50%.
