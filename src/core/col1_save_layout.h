@@ -909,9 +909,12 @@ typedef struct ColonizeCol1Stuff {
    * in tools/col1_json.c kept stable (unchanged "unknown_ds_XXXX_hex"), same
    * convention as the earlier unknown31b/31c_pad rename. */
   uint8_t village_counts_by_continent[16]; /* DS:0x947e */
-  uint8_t unknown_ds_95f2[16]; /* AI flag bytes — FUN_4d56_4528 / 5952_035e */
+  uint8_t continent_presence_flags[16]; /* DS:0x95f2 (−0x6a0e); was unknown_ds_95f2.
+     Per-continent AI presence bits (0x01 own unit, 0x02/0x04 foreign colony);
+     writers FUN_4d56_4528 / FUN_5952_035e, readers in ai_contact.c / ai_euro.c. */
   uint8_t land_unit_counts_by_continent[64]; /* DS:0x94a6 */
-  uint8_t unknown_ds_94e6[64]; /* FUN_5952_035e tallies */
+  uint8_t colony_counts_by_continent[64]; /* DS:0x94e6 (−0x6b1a); was
+     unknown_ds_94e6. [continent + nation*0x10]++ per own colony, FUN_4962_0018. */
   uint8_t field_combat_strength_by_continent[64]; /* DS:0x95b2 */
   uint8_t skilled_unit_counts_by_continent[64]; /* DS:0x9526 */
   uint8_t unit_value_sum_by_continent[64]; /* DS:0x918c */
