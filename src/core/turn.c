@@ -804,13 +804,10 @@ static void turn_produce_one_colony(
    */
   const int sol_b_phase_a = colony_prod_sol_bonus(col1, colony);
   colony_craft_one_colony(pool, colony, delta, sol_b_phase_a);
-  /* Composed here (Phase A), banked at Phase L — DOS `0b50(0x10)`. The
-   * Spring-only gate is a property of the tick, not of the roster, so it
-   * can be read either side; keep it here so the compose is skipped
-   * entirely on an Autumn tick, exactly as the old call site did. */
-  const int hammers_phase_a = (!col1 || col1->head.autumn == 0)
-                                ? colony_prod_colony_hammers(pool, colony, sol_b_phase_a, NULL)
-                                : 0;
+  /* Composed here (Phase A), banked at Phase L — DOS `0b50(0x10)`. Every
+   * tick: the old "Autumn freeze" gate (bugs.md #466) rested on a real-DOS
+   * Spring→Autumn pair in which no colony staffed a carpenter at all. */
+  const int hammers_phase_a = colony_prod_colony_hammers(pool, colony, sol_b_phase_a, NULL);
   /* Bells + crosses composed here too (DOS `0b50(0x12)` / Phase M), stamped
    * for turn_run_nation_ticks — which for AI nations runs after this tick
    * and would otherwise re-tally them off the already-updated SoL latch and
@@ -1418,24 +1415,15 @@ static void turn_produce_one_colony(
    * colony_prod_colony_hammers (matches FUN_15eb_1d4c's Carpenter body —
    * see manufacturing_worker_calc_1d4c.md).
    *
-   * Spring-only (post-1600 biannual calendar, col1_save.h head.autumn):
-   * player-confirmed 2026-08-16 against a real DOS save (colony-prod-tests,
-   * a Spring→Autumn turn) — every one of 13 Dutch colonies, spanning wildly
-   * different populations/buildings/queued projects/worker setups
-   * (including multiple with skilled Carpenters and ample lumber), ended
-   * that Autumn turn with `hammers` byte-for-byte unchanged from Spring.
-   * Regular field/craft goods production is NOT seasonal (stock changed
-   * normally on the same turn) — only hammers freezes on Autumn.
-   *
-   * "Autumn" here is the POST-advance season: EOT advances the calendar
-   * before this runs (TURN setup stamps head.autumn first), so the tick
-   * leaving an Autumn-displayed turn runs as Spring and DOES bank —
-   * real-DOS dutch2-t0 (Autumn 1630) -> t1 (Spring 1631): New Amsterdam
-   * hammers 32->48, Isabella 6->18, etc. (2026-09-08; the user also
-   * confirmed DOS renders the hammers row in Autumn). colony_preview.c
-   * mirrors this next-tick reading.
+   * Not seasonal (bugs.md #466, 2026-09-16): the Spring/Autumn calendar
+   * is display only. The former Autumn-freeze gate came from real-DOS
+   * original_saves/colony-prod-tests COLONY00→01_no-transports (Spring→
+   * Autumn 1680) where hammers stayed put in all 32 colonies — but not one
+   * of those colonies had a carpenter staffed (occupation 13), so the pair
+   * proves nothing; the dutch2 Autumn→Spring pair banks normally, and
+   * FUN_364b_0688 Phase L (raw 57730-57733) reads no season term.
    */
-  if (!col1 || col1->head.autumn == 0) {
+  {
     /* Composed in Phase A (see the composition-boundary comment above);
      * DOS Phase L only reads the scratch word back with `0b50(0x10)`. */
     int hammers_add = hammers_phase_a;
@@ -1605,11 +1593,8 @@ static void turn_produce_one_colony(
      * out_lumber_use is this tick's actual tier-scaled lumber requirement
      * from staffed Carpenter/Lumber Mill workers (sol_bonus-independent —
      * lumber consumption doesn't scale with SoL, see that function). This
-     * intentionally does NOT touch the hammers block's Autumn-freeze gate
-     * above (col1->head.autumn) — whether DOS also silences this specific
-     * message on Autumn ticks is unresolved (the DOS demand word this
-     * mirrors, DS:0x8de8, has no located write site in either decompile
-     * export to confirm one way or the other; see colony_eot_production.md
+     * (The DOS demand word this mirrors, DS:0x8de8, has no located write
+     * site in either decompile export; see colony_eot_production.md
      * Deep K) and left as a separate, still-open question. This fix only
      * replaces the always-wrong "building exists" gate with a strictly more
      * accurate "someone is actually staffed to consume lumber" gate, same
@@ -3966,6 +3951,9 @@ bool turn_processor_advance(ColonizeTurnProcessor* proc, ColonizeTurnContext* ct
   /* AI combat involving the human can enqueue outcome modals. */
   units_set_combat_popups(ctx->ai_popups, ctx->messages);
   units_set_combat_human_nation(ctx->human_nation);
+  /* bugs.md #463: a damaged hull with no repair port leaves for Europe the
+   * instant it loses (FUN_5fef_0352 off-map slot) — units.c needs the screen. */
+  units_set_combat_europe(ctx->europe);
   /* LABELS.TXT wording for the status lines composed deep inside production;
    * threaded as a slice-scoped static because turn_run_colony_production's
    * signature is pinned by ~60 test call sites. */

@@ -14,6 +14,13 @@ close fort win → `col1_unknown15` bit7 damage (not sink) **Done**; Drydock
 repair via `units_tick_drydock_repair` **Done** (bit7 shared with ship-build:
 `turns_worked < defense` = construction, else combat damage). Human
 sank/slowed status **Done** thin; DOS temp-attacker + VGA chrome **PARKED**.
+2026-09-16 (bugs.md #464/#465): the outcome now runs between
+`units_dissolve_notify(0)`/`(1)` so the fizzle that 1b0e presents happens here
+too, and phase 2 takes **one** target per tile — the first ship in the stack,
+skipping the tile outright when that ship is the colony's own — instead of
+every hostile hull on it. The hostility gate stays the stricter WAR-bit
+spelling rather than DOS's literal `(0a38 & 0x40) == 0`; see the note on
+`units_fort_fire_is_hostile`.
 
 ## Call sites / reshape
 

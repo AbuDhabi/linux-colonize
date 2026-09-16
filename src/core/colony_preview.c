@@ -176,30 +176,9 @@ void colony_preview_compute_w(
      * delivered yet, and 0 lumber on hand means 0 hammers, not a free
      * hammers_add. */
     int hammers_add = colony_prod_colony_hammers(pool, colony, sol_b, NULL);
-    /* Spring-only, same gate as turn.c (real-DOS Autumn save: every colony's
-     * hammers byte-for-byte unchanged) — golden_colony_preview01 on the
-     * Autumn fixture showed the preview promising +16 hammers that never
-     * arrive. Whether DOS's own Production tab hides them in Autumn is
-     * unconfirmed; matching the tick is the P4.10 bar. */
     if (hammers_add > 0) {
       out->hammers_capacity = hammers_add;
-      /* The preview predicts the NEXT tick, and the EOT flow advances the
-       * calendar BEFORE production runs (turn.c TURN setup stamps
-       * head.autumn first) — so from an Autumn save the tick runs as Spring
-       * and BANKS hammers (real-DOS dutch2-t0 Autumn 1630 -> t1 Spring
-       * 1631: New Amsterdam 32->48 etc.), while from a post-1600 Spring
-       * save it runs as Autumn and banks nothing (the 2026-08-16
-       * byte-for-byte-unchanged observation). The old gate read the save's
-       * own season and had this exactly backwards. */
-      const bool next_tick_is_autumn =
-        col1 && col1->head.autumn == 0 && col1->head.year >= TURN_BIANNUAL_YEAR;
-      if (next_tick_is_autumn) {
-        /* Frozen tick: `hammers` stays 0; the flag keeps the pane showing
-         * plain potential instead of a bogus red lumber shortfall
-         * (player-reported: the hammers row must appear whenever a
-         * carpenter works the shop, every season). */
-        out->hammers_frozen = true;
-      } else {
+      {
         int hammers = hammers_add;
         /*
          * bugs.md (hammers_lumber.SAV): the REAL tick spends this same turn's

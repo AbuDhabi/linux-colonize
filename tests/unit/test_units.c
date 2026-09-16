@@ -381,6 +381,178 @@ static int unit_useduptools(void) {
 }
 
 /* Helper: Drydock repair emits @REFIT. */
+/*
+ * bugs.md #462/#463/#464/#465 — coastal fort fire (FUN_364b_03f6, raw
+ * 57016-57113) and the damaged-ship tail of FUN_5fef_0352:
+ *
+ *   #465  one salvo per neighbour tile, aimed at the FIRST ship in that
+ *         tile's stack (raw 57068-57076), not at every hull on it.
+ *   #464  the outcome is presented through the 1b0e fizzle, so the
+ *         dissolve hook sees phase 0 then phase 1 around the despawn.
+ *   #463  a damaged hull with no own Drydock/Shipyard colony is placed at
+ *         DOS's off-map Europe slot (asm 5fef:0bc0-5fef:0cf9,
+ *         `loser_nation - 0x14` in both coordinates) on the spot — it does
+ *         not wait on its tile for an end-of-turn router.
+ *   #462  which is also why the sprite is gone by the time the dissolve's
+ *         "after" frame is drawn.
+ */
+static int s_dissolve_phases[8];
+static int s_dissolve_count;
+
+static void unit_test_dissolve_hook(void* user, int phase) {
+  (void)user;
+  if (s_dissolve_count < (int)(sizeof(s_dissolve_phases) / sizeof(s_dissolve_phases[0]))) {
+    s_dissolve_phases[s_dissolve_count++] = phase;
+  }
+}
+
+static int unit_fort_fire_dissolve_and_europe(void) {
+  ColonizeUnitPool pool;
+  memset(&pool, 0, sizeof(pool));
+  pool.type_count = 1;
+  snprintf(pool.types[0].name, sizeof(pool.types[0].name), "Merchantman");
+  pool.types[0].movement = 5;
+  pool.types[0].domain = COLONIZE_UNIT_DOMAIN_SEA;
+  pool.types[0].defense = 2; /* Fort strength 4 >= 2 → the fort wins */
+  pool.types[0].hull = 10;   /* hull >= guns → damaged, not sunk (no-rng) */
+
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  char err[128];
+  if (!map_alloc(&map, 8, 8, err, sizeof(err))) {
+    fprintf(stderr, "fortfire2: map_alloc failed: %s\n", err);
+    return 1;
+  }
+  for (int i = 0; i < 8 * 8; ++i) {
+    map.terrain[i] = 25; /* ocean */
+  }
+  map.terrain[2 * 8 + 2] = 2; /* the colony's own land tile */
+
+  ColonizeColonyPool colonies;
+  colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
+  snprintf(colonies.building_types[0].name, sizeof(colonies.building_types[0].name), "Fort");
+  snprintf(colonies.building_types[1].name, sizeof(colonies.building_types[1].name), "Drydock");
+  colonies.building_type_count = 2;
+  ColonizeColony* col = &colonies.colonies[0];
+  col->active = true;
+  col->id = 0;
+  col->nation_id = 0;
+  col->x = 2;
+  col->y = 2;
+  col->population = 3;
+  col->has_building[0] = true; /* Fort, strength 4, no Drydock anywhere */
+  snprintf(col->name, sizeof(col->name), "Jamestown");
+  colonies.colony_count = 1;
+
+  ColonizeCol1Save c1;
+  memset(&c1, 0, sizeof(c1));
+  for (int i = 0; i < (int)COLONIZE_COL1_FF_COUNT; ++i) {
+    c1.head.founding_father[i] = -1;
+  }
+  ai_diplo_declare_war(&c1, 0, 1);
+
+  /* Two hostile hulls on ONE water tile: DOS fires at the stack's first ship
+   * only. */
+  const int s1 = units_spawn_allow_stack(&pool, 0, 3, 2);
+  const int s2 = units_spawn_allow_stack(&pool, 0, 3, 2);
+  if (s1 < 0 || s2 < 0) {
+    fprintf(stderr, "fortfire2: ship spawn failed\n");
+    map_free(&map);
+    return 1;
+  }
+  units_get(&pool, s1)->nation_id = 1;
+  units_get(&pool, s2)->nation_id = 1;
+
+  EuropeScreen eu;
+  memset(&eu, 0, sizeof(eu));
+  units_set_combat_colonies(&colonies);
+  units_set_combat_human_nation(1); /* the SHIPS are the human's */
+  units_set_combat_europe(&eu);
+  s_dissolve_count = 0;
+  units_set_combat_dissolve(unit_test_dissolve_hook, NULL);
+
+  int rc = 0;
+  char st[96];
+  st[0] = '\0';
+  (void)units_coastal_fort_fire_pulse_w(
+    &(ColonizeWorld){.units = &pool, .colonies = &colonies, .map = &map,
+                     .col1 = &c1, .col1_ok = true, .rng = NULL},
+    1, st, sizeof(st)
+  );
+
+  /* #464: phase 0 then phase 1, exactly one pair (one salvo). */
+  if (s_dissolve_count != 2 || s_dissolve_phases[0] != 0 || s_dissolve_phases[1] != 1) {
+    fprintf(stderr, "fortfire2: want dissolve 0,1 got %d phases (%d,%d)\n",
+            s_dissolve_count, s_dissolve_phases[0], s_dissolve_count > 1 ? s_dissolve_phases[1] : -1);
+    rc = 1;
+  }
+  /* #465: the second hull on the tile was never fired at. */
+  const ColonizeUnit* u2 = units_get(&pool, s2);
+  if (rc == 0 && (!u2 || !u2->active || u2->x != 3 || u2->y != 2)) {
+    fprintf(stderr, "fortfire2: second hull on the tile should be untouched\n");
+    rc = 1;
+  }
+  /* #462/#463: the damaged hull left the map for Europe on the spot. */
+  const ColonizeUnit* u1 = units_get(&pool, s1);
+  if (rc == 0 && u1 && u1->active) {
+    fprintf(stderr, "fortfire2: damaged hull still on the map at (%d,%d)\n", u1->x, u1->y);
+    rc = 1;
+  }
+  if (rc == 0 && eu.expected_ships != 1) {
+    fprintf(stderr, "fortfire2: want 1 Europe-bound hull got %d\n", eu.expected_ships);
+    rc = 1;
+  }
+  if (rc == 0 && eu.expected[0].turns_left < 1) {
+    fprintf(stderr, "fortfire2: repair wait must be at least a turn (got %d)\n",
+            eu.expected[0].turns_left);
+    rc = 1;
+  }
+
+  /* An own Drydock port takes the hull instead — no Europe trip. */
+  if (rc == 0) {
+    col->has_building[1] = true; /* Drydock at Jamestown */
+    colonies.colonies[1] = *col;
+    colonies.colonies[1].id = 1;
+    colonies.colonies[1].x = 6;
+    colonies.colonies[1].y = 6;
+    colonies.colonies[1].nation_id = 1; /* the ships' own repair port */
+    colonies.colonies[1].has_building[0] = false;
+    snprintf(colonies.colonies[1].name, sizeof(colonies.colonies[1].name), "Plymouth");
+    colonies.colony_count = 2;
+    col->has_building[1] = false;
+    map.terrain[6 * 8 + 6] = 2;
+    const int s3 = units_spawn_allow_stack(&pool, 0, 3, 2);
+    units_get(&pool, s3)->nation_id = 1;
+    units_despawn(&pool, s2);
+    (void)units_coastal_fort_fire_pulse_w(
+      &(ColonizeWorld){.units = &pool, .colonies = &colonies, .map = &map,
+                       .col1 = &c1, .col1_ok = true, .rng = NULL},
+      1, st, sizeof(st)
+    );
+    const ColonizeUnit* u3 = units_get(&pool, s3);
+    if (!u3 || !u3->active || u3->x != 6 || u3->y != 6) {
+      fprintf(stderr, "fortfire2: drydock hull should sit at Plymouth, got (%d,%d) active=%d\n",
+              u3 ? u3->x : -1, u3 ? u3->y : -1, u3 ? u3->active : 0);
+      rc = 1;
+    }
+    if (rc == 0 && eu.expected_ships != 1) {
+      fprintf(stderr, "fortfire2: drydock hull must not sail to Europe\n");
+      rc = 1;
+    }
+  }
+
+  units_set_combat_dissolve(NULL, NULL);
+  units_set_combat_europe(NULL);
+  units_set_combat_colonies(NULL);
+  units_set_combat_human_nation(-1);
+  map_free(&map);
+  if (rc == 0) {
+    fprintf(stderr, "unit_units: fort fire dissolve + damaged-to-Europe ok\n");
+  }
+  return rc;
+}
+
 static int unit_refit_drydock(void) {
   ColonizeMsgCatalog names;
   assets_msg_init(&names);
@@ -3440,6 +3612,10 @@ int main(void) {
     return 1;
   }
   if (unit_refit_drydock() != 0) {
+    diag_shutdown();
+    return 1;
+  }
+  if (unit_fort_fire_dissolve_and_europe() != 0) {
     diag_shutdown();
     return 1;
   }
