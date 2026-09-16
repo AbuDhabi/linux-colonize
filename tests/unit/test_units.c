@@ -6613,6 +6613,22 @@ int main(void) {
     }
     units_despawn(&pool, peace_id);
 
+    /* bugs.md #465 (user-observed: Spanish Caravel shot at while F8 showed
+     * Spain at peace): the battery obeys DOS's PEACE bit (0x40, the byte F8
+     * reads), not the Linux WAR bit — a stale WAR bit beside PEACE must not
+     * fire. */
+    ai_diplo_or_both(&fcol1, 0, 1, AI_DIPLO_WAR);
+    const int stale_id = units_spawn_allow_stack(&pool, caravel_ti, wx, wy);
+    foe = units_get(&pool, stale_id);
+    foe->nation_id = 1;
+    if (units_coastal_fort_fire_pulse_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(&colonies), .map=(ColonizeWorldMap*)(&map), .col1=(ColonizeCol1Save*)(&fcol1), .col1_ok=true, .rng=(ColonizeDosRng*)(NULL)}, -1, NULL, 0) != 0) {
+      fprintf(stderr, "Fort with PEACE set (stale WAR bit) must not fire\n");
+      pool.types[caravel_ti].defense = old_def;
+      return 1;
+    }
+    units_despawn(&pool, stale_id);
+    ai_diplo_clear_both(&fcol1, 0, 1, AI_DIPLO_WAR);
+
     const int priv_ti = units_find_type(&pool, "Privateer");
     if (priv_ti >= 0) {
       const int old_pdef = pool.types[priv_ti].defense;

@@ -2643,6 +2643,7 @@ static void ai_talk_resume(ColonizeTurnContext* ctx, int stage, int choice) {
       return;
     case AI_TALK_ST_WORTHY:
       if (choice == 1) {
+        ai_diplo_clear_both(col1, h, t, AI_DIPLO_WAR); /* bugs.md #465: PEACE and the Linux WAR bit must not coexist */
         ai_diplo_or_both(col1, h, t, (uint8_t)(AI_DIPLO_PEACE | AI_DIPLO_MET));
         col1->head.nation_relation[t] = (int16_t)(col1->head.turn + 0x10);
         k->stage = AI_TALK_ST_PEACEMENU;
@@ -2653,6 +2654,7 @@ static void ai_talk_resume(ColonizeTurnContext* ctx, int stage, int choice) {
       return;
     case AI_TALK_ST_GIVECASH:
       if (choice == 1) {
+        ai_diplo_clear_both(col1, h, t, AI_DIPLO_WAR); /* bugs.md #465 */
         ai_diplo_or_both(col1, h, t, (uint8_t)(AI_DIPLO_PEACE | AI_DIPLO_MET));
         ai_talk_gold(ctx, t, h, k->pending_gold);
       } else if (!ai_talk_peace(ctx, h, t)) {
@@ -3270,6 +3272,7 @@ static void ai_diplo_13b0_treaty_tick(ColonizeTurnContext* ctx, int a, int b) {
       char fb[AI_POPUP_BODY_LEN];
       snprintf(fb, sizeof(fb), "The %s and %s have signed a peace treaty.", na, nb);
       popup_msg_fill(ctx->messages, "SIGNTREATY", &tok, fb, body, sizeof(body));
+      ai_diplo_clear_both(col1, a, b, AI_DIPLO_WAR); /* bugs.md #465: a signed treaty ends the war */
       ai_diplo_or_both(col1, a, b, AI_DIPLO_PEACE);
       ai_diplo_wake_border_garrisons(ctx, a, b);
       ai_diplo_wake_border_garrisons(ctx, b, a);
