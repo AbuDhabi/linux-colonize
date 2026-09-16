@@ -3,10 +3,13 @@
  * editing keys the leader-name / colony-name boxes are expected to honour.
  */
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "core/text_edit.h"
 #include "platform/diagnostics.h"
+
+#include "../common/test_runner.h"
 
 static int g_failures;
 
@@ -47,14 +50,12 @@ static ColonizeInputState typed(const char* text) {
   return in;
 }
 
-int main(void) {
-  diag_init(0, NULL);
-
+/* Opens select-all (DOS field bit 0x80): typing replaces the seed name. */
+static void test_select_all_replace(void) {
   char buf[24];
   TextEditState st;
   ColonizeInputState in;
 
-  /* Opens select-all (DOS field bit 0x80): typing replaces the seed name. */
   snprintf(buf, sizeof(buf), "%s", "Walter Raleigh");
   text_edit_reset(&st, buf, true);
   expect_int("select-all lo", text_edit_sel_lo(&st), 0);
@@ -63,15 +64,28 @@ int main(void) {
   text_edit_handle_input(&st, buf, sizeof(buf), &in);
   expect_buf("type over selection", buf, "J");
   expect_int("caret after replace", st.cursor, 1);
+}
 
-  /* Backspace on a full selection wipes it rather than one char. */
+/* Backspace on a full selection wipes it rather than one char. */
+static void test_backspace_over_selection(void) {
+  char buf[24];
+  TextEditState st;
+  ColonizeInputState in;
+
   snprintf(buf, sizeof(buf), "%s", "Jamestown");
   text_edit_reset(&st, buf, true);
   in = key(COLONIZE_KEY_BACKSPACE, false, false);
   text_edit_handle_input(&st, buf, sizeof(buf), &in);
   expect_buf("backspace over selection", buf, "");
+}
 
-  /* Arrows move the caret; Delete removes forward. */
+/* Arrows move the caret, Delete/Backspace remove around it, and insert
+ * lands at the caret rather than the end. */
+static void test_arrows_delete_insert(void) {
+  char buf[24];
+  TextEditState st;
+  ColonizeInputState in;
+
   snprintf(buf, sizeof(buf), "%s", "abcd");
   text_edit_reset(&st, buf, false);
   expect_int("reset caret at end", st.cursor, 4);
@@ -91,8 +105,15 @@ int main(void) {
   text_edit_handle_input(&st, buf, sizeof(buf), &in);
   expect_buf("insert at caret", buf, "aXYd");
   expect_int("caret after insert", st.cursor, 3);
+}
 
-  /* Shift+arrow extends; typing then replaces just that run. */
+/* Shift+arrow extends a selection, typing replaces just that run, and
+ * Home/End/Ctrl+A behave as expected on the result. */
+static void test_shift_select_and_home_end(void) {
+  char buf[24];
+  TextEditState st;
+  ColonizeInputState in;
+
   snprintf(buf, sizeof(buf), "%s", "Plymouth");
   text_edit_reset(&st, buf, false);
   in = key(COLONIZE_KEY_LEFT, true, false);
@@ -121,8 +142,14 @@ int main(void) {
   text_edit_handle_input(&st, buf, sizeof(buf), &in);
   expect_int("ctrl+a lo", text_edit_sel_lo(&st), 0);
   expect_int("ctrl+a hi", text_edit_sel_hi(&st), 8);
+}
 
-  /* Ctrl+Left/Right jump whole words. */
+/* Ctrl+Left/Right jump whole words. */
+static void test_ctrl_arrow_word_jump(void) {
+  char buf[24];
+  TextEditState st;
+  ColonizeInputState in;
+
   snprintf(buf, sizeof(buf), "%s", "New Amsterdam");
   text_edit_reset(&st, buf, false);
   in = key(COLONIZE_KEY_LEFT, false, true);
@@ -131,8 +158,14 @@ int main(void) {
   in = key(COLONIZE_KEY_RIGHT, false, true);
   text_edit_handle_input(&st, buf, sizeof(buf), &in);
   expect_int("ctrl+right to word end", st.cursor, 13);
+}
 
-  /* Cut / paste round-trips through the process-local clipboard. */
+/* Cut / paste round-trips through the process-local clipboard. */
+static void test_cut_paste_clipboard(void) {
+  char buf[24];
+  TextEditState st;
+  ColonizeInputState in;
+
   text_edit_set_clipboard(NULL);
   snprintf(buf, sizeof(buf), "%s", "Quebec");
   text_edit_reset(&st, buf, true);
@@ -144,16 +177,21 @@ int main(void) {
   in = key(COLONIZE_KEY_V, false, true);
   text_edit_handle_input(&st, buf, sizeof(buf), &in);
   expect_buf("ctrl+v pastes", buf, "Fort Quebec");
+}
 
-  /* Insertion stops at capacity instead of running off the buffer. */
+/* Insertion stops at capacity instead of running off the buffer, and
+ * Enter/Esc are reported to the caller rather than swallowed. */
+static void test_capacity_clamp_and_confirm_cancel(void) {
   char small[6];
+  TextEditState st;
+  ColonizeInputState in;
+
   snprintf(small, sizeof(small), "%s", "abcd");
   text_edit_reset(&st, small, false);
   in = typed("XYZ");
   text_edit_handle_input(&st, small, sizeof(small), &in);
   expect_buf("capacity clamp", small, "abcdX");
 
-  /* Enter / Esc are reported, not swallowed. */
   in = key(COLONIZE_KEY_ENTER, false, false);
   expect_int(
     "enter confirms",
@@ -166,11 +204,69 @@ int main(void) {
     (int)text_edit_handle_input(&st, small, sizeof(small), &in),
     (int)TEXT_EDIT_ACTION_CANCEL
   );
+}
 
-  if (g_failures > 0) {
-    fprintf(stderr, "text_edit: %d failure(s)\n", g_failures);
-    return 1;
+/* These cases accumulate into the shared `g_failures` counter via the
+ * expect_int/expect_buf/fail() helpers rather than returning pass/fail
+ * directly; wrap each so the table-driven runner can report per-case
+ * PASS/FAIL. */
+static int case_test_select_all_replace(void) {
+  int before = g_failures;
+  test_select_all_replace();
+  return g_failures != before;
+}
+
+static int case_test_backspace_over_selection(void) {
+  int before = g_failures;
+  test_backspace_over_selection();
+  return g_failures != before;
+}
+
+static int case_test_arrows_delete_insert(void) {
+  int before = g_failures;
+  test_arrows_delete_insert();
+  return g_failures != before;
+}
+
+static int case_test_shift_select_and_home_end(void) {
+  int before = g_failures;
+  test_shift_select_and_home_end();
+  return g_failures != before;
+}
+
+static int case_test_ctrl_arrow_word_jump(void) {
+  int before = g_failures;
+  test_ctrl_arrow_word_jump();
+  return g_failures != before;
+}
+
+static int case_test_cut_paste_clipboard(void) {
+  int before = g_failures;
+  test_cut_paste_clipboard();
+  return g_failures != before;
+}
+
+static int case_test_capacity_clamp_and_confirm_cancel(void) {
+  int before = g_failures;
+  test_capacity_clamp_and_confirm_cancel();
+  return g_failures != before;
+}
+
+static const TestCase k_cases[] = {
+    {"test_select_all_replace", case_test_select_all_replace},
+    {"test_backspace_over_selection", case_test_backspace_over_selection},
+    {"test_arrows_delete_insert", case_test_arrows_delete_insert},
+    {"test_shift_select_and_home_end", case_test_shift_select_and_home_end},
+    {"test_ctrl_arrow_word_jump", case_test_ctrl_arrow_word_jump},
+    {"test_cut_paste_clipboard", case_test_cut_paste_clipboard},
+    {"test_capacity_clamp_and_confirm_cancel", case_test_capacity_clamp_and_confirm_cancel},
+};
+
+int main(void) {
+  diag_init(0, NULL);
+  int rc = tr_run_main(k_cases, (int)(sizeof(k_cases) / sizeof(k_cases[0])));
+  if (rc == 0 && getenv("COLONIZE_TEST_LIST") == NULL) {
+    printf("text_edit OK\n");
   }
-  printf("text_edit OK\n");
-  return 0;
+  return rc;
 }

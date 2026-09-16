@@ -212,16 +212,6 @@ void col1_stuff_census_fill_blank_w(
   col1_stuff_census_write_mean_pop(stuff);
 }
 
-/* Compat shim: pre-ColonizeWorld signature (see src/core/world.h). */
-void col1_stuff_census_fill_blank(
-  ColonizeCol1Stuff* stuff,
-  const ColonizeUnitPool* units,
-  const ColonizeColonyPool* colonies,
-  const ColonizeCol1Save* col1
-) {
-  ColonizeWorld w_ = world_make(units, colonies, NULL, col1, col1 != NULL, NULL, NULL);
-  col1_stuff_census_fill_blank_w(&w_, stuff);
-}
 
 void col1_stuff_census_refresh_colony_counts_w(
   const ColonizeWorld* w,
@@ -242,13 +232,3 @@ void col1_stuff_census_refresh_colony_counts_w(
   col1_stuff_census_write_mean_pop(stuff);
 }
 
-/* Compat shim: pre-ColonizeWorld signature (see src/core/world.h). */
-void col1_stuff_census_refresh_colony_counts(
-  ColonizeCol1Stuff* stuff,
-  const ColonizeColonyPool* colonies,
-  const ColonizeUnitPool* units,
-  const ColonizeCol1Save* col1
-) {
-  ColonizeWorld w_ = world_make(units, colonies, NULL, col1, col1 != NULL, NULL, NULL);
-  col1_stuff_census_refresh_colony_counts_w(&w_, stuff);
-}

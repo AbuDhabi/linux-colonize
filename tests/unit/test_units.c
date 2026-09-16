@@ -180,9 +180,7 @@ static int unit_clearcut_lumber(void) {
 
   char msg[96];
   msg[0] = '\0';
-  if (!units_pioneer_plow(
-        &pool, pid, &map, msg, sizeof(msg), &colonies, &pops, &game_txt
-      )) {
+  if (!units_pioneer_plow_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(&colonies), .map=(ColonizeWorldMap*)(&map)}, pid, msg, sizeof(msg), &pops, &game_txt)) {
     fprintf(stderr, "clearcut: plow start failed (%s)\n", msg);
     assets_msg_free(&game_txt);
     map_free(&map);
@@ -192,9 +190,7 @@ static int unit_clearcut_lumber(void) {
   int guard = 0;
   while (u->orders == UNITS_ORDER_CLEAR_PLOW && guard++ < 16) {
     u->moves_left = 1 * UNITS_MP_PER_TILE;
-    if (!units_pioneer_work_tick(
-          &pool, pid, &map, msg, sizeof(msg), &colonies, &pops, &game_txt
-        )) {
+    if (!units_pioneer_work_tick_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(&colonies), .map=(ColonizeWorldMap*)(&map)}, pid, msg, sizeof(msg), &pops, &game_txt)) {
       fprintf(stderr, "clearcut: work tick failed (%s)\n", msg);
       assets_msg_free(&game_txt);
       map_free(&map);
@@ -339,9 +335,7 @@ static int unit_useduptools(void) {
    */
   for (int tick = 0; tick < 10 && u->orders == UNITS_ORDER_BUILD_ROAD; ++tick) {
     u->moves_left = 1 * UNITS_MP_PER_TILE;
-    if (!units_pioneer_work_tick(
-          &pool, pid, &map, msg, sizeof(msg), NULL, &pops, &game_txt
-        )) {
+    if (!units_pioneer_work_tick_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(NULL), .map=(ColonizeWorldMap*)(&map)}, pid, msg, sizeof(msg), &pops, &game_txt)) {
       fprintf(stderr, "usedup: work tick failed (%s)\n", msg);
       assets_msg_free(&game_txt);
       map_free(&map);
@@ -697,7 +691,7 @@ static int unit_pioneer_case8_tail(void) {
     int guard = 0;
     while (u->orders == UNITS_ORDER_CLEAR_PLOW && guard++ < 24) {
       u->moves_left = 1 * UNITS_MP_PER_TILE;
-      (void)units_pioneer_work_tick(&pool, pid, &map, NULL, 0, &colonies, NULL, NULL);
+      (void)units_pioneer_work_tick_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(&colonies), .map=(ColonizeWorldMap*)(&map)}, pid, NULL, 0, NULL, NULL);
     }
     units_despawn(&pool, pid);
     const int got = (int)col->stock[COLONIZE_CARGO_LUMBER];
@@ -738,7 +732,7 @@ static int unit_pioneer_case8_tail(void) {
     int guard = 0;
     while (u->orders == UNITS_ORDER_CLEAR_PLOW && guard++ < 24) {
       u->moves_left = 1 * UNITS_MP_PER_TILE;
-      (void)units_pioneer_work_tick(&pool, pid, &map, NULL, 0, &colonies, NULL, NULL);
+      (void)units_pioneer_work_tick_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(&colonies), .map=(ColonizeWorldMap*)(&map)}, pid, NULL, 0, NULL, NULL);
     }
     units_despawn(&pool, pid);
     if (col1.indian[0].alarm_by_player[0] != 15) {
@@ -777,7 +771,7 @@ static int unit_pioneer_case8_tail(void) {
     int guard = 0;
     while (u->orders == UNITS_ORDER_CLEAR_PLOW && guard++ < 24) {
       u->moves_left = 1 * UNITS_MP_PER_TILE;
-      (void)units_pioneer_work_tick(&pool, pid, &map, NULL, 0, &colonies, NULL, NULL);
+      (void)units_pioneer_work_tick_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(&colonies), .map=(ColonizeWorldMap*)(&map)}, pid, NULL, 0, NULL, NULL);
     }
     units_despawn(&pool, pid);
     if (col1.indian[0].alarm_by_player[1] != 0) {
@@ -880,9 +874,7 @@ static int unit_pioneer_order_gates(void) {
     cu->moves_left = 1 * UNITS_MP_PER_TILE;
     ai_popup_init(&pops);
     msg[0] = '\0';
-    if (units_pioneer_plow(
-          &pool, cid, &map, msg, sizeof(msg), NULL, &pops, &game_txt
-        )) {
+    if (units_pioneer_plow_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(NULL), .map=(ColonizeWorldMap*)(&map)}, cid, msg, sizeof(msg), &pops, &game_txt)) {
       fprintf(stderr, "ordgate: non-pioneer plow should fail\n");
       assets_msg_free(&game_txt);
       map_free(&map);
@@ -922,9 +914,7 @@ static int unit_pioneer_order_gates(void) {
     pu->moves_left = 1 * UNITS_MP_PER_TILE;
     ai_popup_init(&pops);
     msg[0] = '\0';
-    if (units_pioneer_plow(
-          &pool, pid, &map, msg, sizeof(msg), NULL, &pops, &game_txt
-        )) {
+    if (units_pioneer_plow_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(NULL), .map=(ColonizeWorldMap*)(&map)}, pid, msg, sizeof(msg), &pops, &game_txt)) {
       fprintf(stderr, "ordgate: plowed plow should fail\n");
       assets_msg_free(&game_txt);
       map_free(&map);
@@ -966,7 +956,7 @@ static int unit_pioneer_order_gates(void) {
     pu->moves_left = 1 * UNITS_MP_PER_TILE;
     ai_popup_init(&pops);
     msg[0] = '\0';
-    if (units_pioneer_road(&pool, pid, &map, msg, sizeof(msg), NULL, &pops, &game_txt)) {
+    if (units_pioneer_road_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(NULL), .map=(ColonizeWorldMap*)(&map)}, pid, msg, sizeof(msg), &pops, &game_txt)) {
       fprintf(stderr, "ordgate: existing road should fail\n");
       assets_msg_free(&game_txt);
       map_free(&map);
@@ -1115,7 +1105,7 @@ static int unit_combat_sfx_visibility(void) {
     units_get(&pool, did)->nation_id = 2;
     ColonizeDosRng rng;
     dos_rng_seed(&rng, 7);
-    units_resolve_land_combat_ff(&pool, aid, did, &rng, &col1);
+    units_resolve_land_combat_ff_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .col1=(ColonizeCol1Save*)(&col1), .col1_ok=true, .rng=(ColonizeDosRng*)(&rng)}, aid, did);
     if (g_event_sfx_calls != 0) {
       fprintf(stderr, "combat_sfx: AI-vs-AI played %d event sounds (want 0)\n",
               g_event_sfx_calls);
@@ -1131,7 +1121,7 @@ static int unit_combat_sfx_visibility(void) {
     units_get(&pool, did)->nation_id = 1;
     ColonizeDosRng rng;
     dos_rng_seed(&rng, 8);
-    units_resolve_land_combat_ff(&pool, aid, did, &rng, &col1);
+    units_resolve_land_combat_ff_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .col1=(ColonizeCol1Save*)(&col1), .col1_ok=true, .rng=(ColonizeDosRng*)(&rng)}, aid, did);
     if (g_event_sfx_calls == 0) {
       fprintf(stderr, "combat_sfx: human attack must stay audible\n");
       rc = 1;
@@ -1146,7 +1136,7 @@ static int unit_combat_sfx_visibility(void) {
     units_get(&pool, did)->nation_id = 0;
     ColonizeDosRng rng;
     dos_rng_seed(&rng, 9);
-    units_resolve_land_combat_ff(&pool, aid, did, &rng, &col1);
+    units_resolve_land_combat_ff_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .col1=(ColonizeCol1Save*)(&col1), .col1_ok=true, .rng=(ColonizeDosRng*)(&rng)}, aid, did);
     if (g_event_sfx_calls == 0) {
       fprintf(stderr, "combat_sfx: human defence must stay audible\n");
       rc = 1;
@@ -1206,11 +1196,11 @@ static int unit_sea_lane_entry(void) {
   u->moves_left = 4 * UNITS_MP_PER_TILE;
 
   int rc = 0;
-  if (!units_can_enter(&pool, u->type_index, &map, 5, 3, id, NULL)) {
+  if (!units_can_enter_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(NULL), .map=(ColonizeWorldMap*)(&map)}, u->type_index, 5, 3, id)) {
     fprintf(stderr, "sea_lane: ocean->lane must be allowed\n");
     rc = 1;
   }
-  if (rc == 0 && !units_set_goto(&pool, id, &map, 5, 3, NULL)) {
+  if (rc == 0 && !units_set_goto_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(NULL), .map=(ColonizeWorldMap*)(&map)}, id, 5, 3)) {
     fprintf(stderr, "sea_lane: Go To onto a lane tile must be accepted\n");
     rc = 1;
   }
@@ -1219,7 +1209,7 @@ static int unit_sea_lane_entry(void) {
   u->x = 5;
   u->y = 3;
   u->orders = UNITS_ORDER_NONE;
-  if (rc == 0 && units_can_enter(&pool, u->type_index, &map, 6, 3, id, NULL)) {
+  if (rc == 0 && units_can_enter_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(NULL), .map=(ColonizeWorldMap*)(&map)}, u->type_index, 6, 3, id)) {
     fprintf(stderr, "sea_lane: lane->east without a sail order must be denied\n");
     rc = 1;
   }
@@ -1230,12 +1220,12 @@ static int unit_sea_lane_entry(void) {
   u->orders = UNITS_ORDER_GOTO;
   u->goto_x = 6;
   u->goto_y = 3;
-  if (rc == 0 && !units_can_enter(&pool, u->type_index, &map, 6, 3, id, NULL)) {
+  if (rc == 0 && !units_can_enter_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(NULL), .map=(ColonizeWorldMap*)(&map)}, u->type_index, 6, 3, id)) {
     fprintf(stderr, "sea_lane: lane->east with Go To must be allowed\n");
     rc = 1;
   }
   u->orders = UNITS_ORDER_NONE;
-  if (rc == 0 && !units_can_enter(&pool, u->type_index, &map, 4, 3, id, NULL)) {
+  if (rc == 0 && !units_can_enter_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(NULL), .map=(ColonizeWorldMap*)(&map)}, u->type_index, 4, 3, id)) {
     fprintf(stderr, "sea_lane: lane->west back to ocean must be allowed\n");
     rc = 1;
   }
@@ -1248,7 +1238,7 @@ static int unit_sea_lane_entry(void) {
    */
   u->x = 1;
   u->y = 3;
-  if (rc == 0 && units_can_enter(&pool, u->type_index, &map, 0, 3, id, NULL)) {
+  if (rc == 0 && units_can_enter_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(NULL), .map=(ColonizeWorldMap*)(&map)}, u->type_index, 0, 3, id)) {
     fprintf(stderr, "sea_lane: step onto the west rim column must be denied\n");
     rc = 1;
   }
@@ -1258,13 +1248,13 @@ static int unit_sea_lane_entry(void) {
   }
   u->x = 3;
   u->y = 1;
-  if (rc == 0 && units_can_enter(&pool, u->type_index, &map, 3, 0, id, NULL)) {
+  if (rc == 0 && units_can_enter_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(NULL), .map=(ColonizeWorldMap*)(&map)}, u->type_index, 3, 0, id)) {
     fprintf(stderr, "sea_lane: step onto the north rim row must be denied\n");
     rc = 1;
   }
   u->x = 3;
   u->y = 6;
-  if (rc == 0 && units_can_enter(&pool, u->type_index, &map, 3, 7, id, NULL)) {
+  if (rc == 0 && units_can_enter_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(NULL), .map=(ColonizeWorldMap*)(&map)}, u->type_index, 3, 7, id)) {
     fprintf(stderr, "sea_lane: step onto the south rim row must be denied\n");
     rc = 1;
   }
@@ -1365,7 +1355,7 @@ static int unit_europe_arrival_reveals(void) {
       rc = 1;
     }
     if (rc == 0) {
-      (void)units_reveal_sight(&map, &pool, NULL, u, NULL);
+      (void)units_reveal_sight_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(NULL), .map=(ColonizeWorldMap*)(&map), .col1=(ColonizeCol1Save*)(NULL), .col1_ok=((NULL) != NULL)}, u);
     }
     if (rc == 0 && !map_tile_seen_by(&map, fx, fy, nation)) {
       fprintf(stderr, "arrival: own tile still fogged after reveal\n");
@@ -1437,7 +1427,7 @@ static int unit_combat_music_sting(void) {
   /* No hooks set (default): must not crash. */
   ColonizeDosRng rng0;
   dos_rng_seed(&rng0, 1);
-  units_resolve_land_combat_ff(&pool, aid, did, &rng0, NULL);
+  units_resolve_land_combat_ff_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .col1=(ColonizeCol1Save*)(NULL), .col1_ok=((NULL) != NULL), .rng=(ColonizeDosRng*)(&rng0)}, aid, did);
 
   g_music_sting_play_calls = 0;
   g_music_sting_last_id = -1;
@@ -1450,7 +1440,7 @@ static int unit_combat_music_sting(void) {
   units_get(&pool, did)->nation_id = 1;
   ColonizeDosRng rng1;
   dos_rng_seed(&rng1, 2);
-  units_resolve_land_combat_ff(&pool, aid, did, &rng1, NULL);
+  units_resolve_land_combat_ff_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .col1=(ColonizeCol1Save*)(NULL), .col1_ok=((NULL) != NULL), .rng=(ColonizeDosRng*)(&rng1)}, aid, did);
   if (g_music_sting_play_calls != 1 || g_music_sting_last_id != SOUND_MILITARY_BGM_ID) {
     fprintf(stderr, "combat_music_sting: first engage calls=%d id=%d want 1/0x%02x\n",
             g_music_sting_play_calls, g_music_sting_last_id, SOUND_MILITARY_BGM_ID);
@@ -1465,7 +1455,7 @@ static int unit_combat_music_sting(void) {
   units_get(&pool, did)->nation_id = 1;
   ColonizeDosRng rng2;
   dos_rng_seed(&rng2, 3);
-  units_resolve_land_combat_ff(&pool, aid, did, &rng2, NULL);
+  units_resolve_land_combat_ff_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .col1=(ColonizeCol1Save*)(NULL), .col1_ok=((NULL) != NULL), .rng=(ColonizeDosRng*)(&rng2)}, aid, did);
   if (g_music_sting_play_calls != 1) {
     fprintf(stderr, "combat_music_sting: repeat engage should skip restart, calls=%d\n",
             g_music_sting_play_calls);
@@ -1571,7 +1561,7 @@ static int unit_king_galleon_offer(void) {
   /* Owning a Galleon without Cortes → no offer. */
   const int gid = units_spawn_allow_stack(&pool, galleon_ti, 0, 3);
   units_get(&pool, gid)->nation_id = 0;
-  if (units_king_galleon_offer_coastal_treasures(&pool, &colonies, &map, NULL, &c1, 0, &pops, NULL) != 0 ||
+  if (units_king_galleon_offer_coastal_treasures_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(&colonies), .map=(ColonizeWorldMap*)(&map), .col1=(ColonizeCol1Save*)(&c1), .col1_ok=true, .europe=(EuropeScreen*)(NULL)}, 0, &pops, NULL) != 0 ||
       pops.queue_count != 0) {
     fprintf(stderr, "galleon: own Galleon should suppress the offer\n");
     goto fail;
@@ -1579,14 +1569,14 @@ static int unit_king_galleon_offer(void) {
   units_despawn(&pool, gid);
 
   /* Offer enqueued; Refuse leaves the Treasure. */
-  if (units_king_galleon_offer_coastal_treasures(&pool, &colonies, &map, NULL, &c1, 0, &pops, NULL) != 1 ||
+  if (units_king_galleon_offer_coastal_treasures_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(&colonies), .map=(ColonizeWorldMap*)(&map), .col1=(ColonizeCol1Save*)(&c1), .col1_ok=true, .europe=(EuropeScreen*)(NULL)}, 0, &pops, NULL) != 1 ||
       pops.queue_count != 1 || pops.queue[0].tag != AI_POPUP_TAG_KING_GALLEON ||
       pops.queue[0].payload != tid) {
     fprintf(stderr, "galleon: KINGGALLEON2 CHOICE not enqueued\n");
     goto fail;
   }
   /* Re-running while queued must not stack a duplicate. */
-  (void)units_king_galleon_offer_coastal_treasures(&pool, &colonies, &map, NULL, &c1, 0, &pops, NULL);
+  (void)units_king_galleon_offer_coastal_treasures_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(&colonies), .map=(ColonizeWorldMap*)(&map), .col1=(ColonizeCol1Save*)(&c1), .col1_ok=true, .europe=(EuropeScreen*)(NULL)}, 0, &pops, NULL);
   if (pops.queue_count != 1) {
     fprintf(stderr, "galleon: duplicate offer queued\n");
     goto fail;
@@ -1597,7 +1587,7 @@ static int unit_king_galleon_offer(void) {
   pops.result_payload = tid;
   pops.result_choice_id = 0;
   pops.result_cancelled = false;
-  if (!units_king_galleon_apply_popup(&pool, NULL, &c1, &pops, NULL)) {
+  if (!units_king_galleon_apply_popup_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .col1=(ColonizeCol1Save*)(&c1), .col1_ok=true, .europe=(EuropeScreen*)(NULL)}, &pops, NULL)) {
     fprintf(stderr, "galleon: apply should consume tag\n");
     goto fail;
   }
@@ -1607,7 +1597,7 @@ static int unit_king_galleon_offer(void) {
   }
   /* Accept: 60% share → 600 to royal_money, 400 to gold, Treasure gone. */
   pops.result_choice_id = 1;
-  (void)units_king_galleon_apply_popup(&pool, NULL, &c1, &pops, NULL);
+  (void)units_king_galleon_apply_popup_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .col1=(ColonizeCol1Save*)(&c1), .col1_ok=true, .europe=(EuropeScreen*)(NULL)}, &pops, NULL);
   if (c1.nation[0].gold != 500 || c1.nation[0].royal_money != 600) {
     fprintf(stderr, "galleon: Accept want gold 500 royal 600 got %u/%d\n", c1.nation[0].gold,
             c1.nation[0].royal_money);
@@ -1627,7 +1617,7 @@ static int unit_king_galleon_offer(void) {
   units_get(&pool, tid2)->hold_goods_amount[0] = 200 & 0xff;
   units_get(&pool, tid2)->hold_goods_amount[1] = 0;
   ai_popup_clear(&pops);
-  if (units_king_galleon_offer_coastal_treasures(&pool, &colonies, &map, NULL, &c1, 0, &pops, NULL) != 1 ||
+  if (units_king_galleon_offer_coastal_treasures_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(&colonies), .map=(ColonizeWorldMap*)(&map), .col1=(ColonizeCol1Save*)(&c1), .col1_ok=true, .europe=(EuropeScreen*)(NULL)}, 0, &pops, NULL) != 1 ||
       c1.nation[0].gold != 700 || c1.nation[0].royal_money != 600) {
     fprintf(stderr, "galleon: WoI should cash full value at once (gold %u)\n", c1.nation[0].gold);
     goto fail;
@@ -1688,7 +1678,7 @@ static int unit_fog_vis_mask_and_snapshot(void) {
   units_occupancy_rebuild(&units);
 
   /* Reveal radius 1 from a: b (5,5) is outside, colony (4,3) inside. */
-  (void)units_reveal_sight(&map, &units, &colonies, units_get(&units, a), NULL);
+  (void)units_reveal_sight_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&units), .colonies=(ColonizeColonyPool*)(&colonies), .map=(ColonizeWorldMap*)(&map), .col1=(ColonizeCol1Save*)(NULL), .col1_ok=((NULL) != NULL)}, units_get(&units, a));
   if ((units_get(&units, b)->col1_vis_mask & 1u) != 0) {
     fprintf(stderr, "fog: unit outside sight got viewer bit\n");
     return 1;
@@ -1857,7 +1847,7 @@ static int unit_fog_vis_mask_and_snapshot(void) {
 
   ColonizeCol1Save fog_col1;
   memset(&fog_col1, 0, sizeof(fog_col1));
-  colonies_reveal_founded(&map, &colonies, &fog_col1, 2);
+  colonies_reveal_founded_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&colonies), .map=(ColonizeWorldMap*)(&map), .col1=(ColonizeCol1Save*)(&fog_col1), .col1_ok=true}, 2);
   if (col2->pop_on_map[3] != 0) {
     fprintf(stderr, "fog: founding revealed without Coronado\n");
     return 1;
@@ -1865,7 +1855,7 @@ static int unit_fog_vis_mask_and_snapshot(void) {
 
   fog_col1.nation[3].founding_fathers[FF_FRANCISCO_CORONADO / 8] =
     (uint8_t)(1u << (FF_FRANCISCO_CORONADO % 8));
-  colonies_reveal_founded(&map, &colonies, &fog_col1, 2);
+  colonies_reveal_founded_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&colonies), .map=(ColonizeWorldMap*)(&map), .col1=(ColonizeCol1Save*)(&fog_col1), .col1_ok=true}, 2);
   if (!map_tile_seen_by(&map, 3, 3, 3) || map_tile_seen_by(&map, 1, 9, 3) ||
       col->pop_on_map[3] != 1 || col2->pop_on_map[3] != 1) {
     fprintf(stderr, "fog: founding reveal/seed wrong\n");
@@ -1926,7 +1916,7 @@ static int unit_flood_river_pair_step(void) {
   int rc = 0;
   int nx = -1;
   int ny = -1;
-  if (!units_next_goto_step(&pool, id, &map, NULL, NULL, &nx, &ny)) {
+  if (!units_next_goto_step_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(NULL), .map=(ColonizeWorldMap*)(&map), .rng=(ColonizeDosRng*)(NULL)}, id, &nx, &ny)) {
     fprintf(stderr, "river_pair: no step found\n");
     rc = 1;
   } else if (nx != 3 || ny != 2) {
@@ -1937,7 +1927,7 @@ static int unit_flood_river_pair_step(void) {
   for (int i = 0; i < 5; ++i) {
     map.terrain[k_river[i][1] * 8 + k_river[i][0]] = 2;
   }
-  if (rc == 0 && (!units_next_goto_step(&pool, id, &map, NULL, NULL, &nx, &ny) || nx != 3 || ny != 3)) {
+  if (rc == 0 && (!units_next_goto_step_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(NULL), .map=(ColonizeWorldMap*)(&map), .rng=(ColonizeDosRng*)(NULL)}, id, &nx, &ny) || nx != 3 || ny != 3)) {
     fprintf(stderr, "river_pair: plain map should step (3,3), got (%d,%d)\n", nx, ny);
     rc = 1;
   }
@@ -2024,7 +2014,7 @@ static int unit_wake_passenger_can_land(void) {
     rc = 1;
   }
   if (rc == 0 &&
-      !units_unload_passenger(&pool, ship, pax, &map, 4, 3, NULL)) {
+      !units_unload_passenger_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(NULL), .map=(ColonizeWorldMap*)(&map)}, ship, pax, 4, 3)) {
     fprintf(stderr, "wake_pax: woken passenger must be able to step ashore\n");
     rc = 1;
   }
@@ -2180,7 +2170,7 @@ static int unit_native_tile_attack_alarm(void) {
     units_get(&pool, aid)->nation_id = 0;
     units_get(&pool, aid)->moves_left = UNITS_MP_PER_TILE;
     units_get(&pool, did)->nation_id = 4;
-    units_try_move(&pool, aid, &map, 5, 5, NULL, &rng);
+    units_try_move_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(NULL), .map=(ColonizeWorldMap*)(&map), .rng=(ColonizeDosRng*)(&rng)}, aid, 5, 5);
     if (tribe.alarm[0].attacks != 1) {
       fprintf(stderr, "465b: village attacks=%d (want 1)\n", tribe.alarm[0].attacks);
       rc = 1;
@@ -2199,7 +2189,7 @@ static int unit_native_tile_attack_alarm(void) {
     units_get(&pool, aid)->nation_id = 0;
     units_get(&pool, aid)->moves_left = UNITS_MP_PER_TILE;
     units_get(&pool, did)->nation_id = 4;
-    units_try_move(&pool, aid, &map, 3, 2, NULL, &rng);
+    units_try_move_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(NULL), .map=(ColonizeWorldMap*)(&map), .rng=(ColonizeDosRng*)(&rng)}, aid, 3, 2);
     if (tribe.alarm[0].attacks != 1) {
       fprintf(stderr, "465b: plain-tile bumped attacks=%d\n", tribe.alarm[0].attacks);
       rc = 1;
@@ -2219,7 +2209,7 @@ static int unit_native_tile_attack_alarm(void) {
     units_get(&pool, aid)->nation_id = 0;
     units_get(&pool, aid)->moves_left = UNITS_MP_PER_TILE;
     units_get(&pool, did)->nation_id = 4;
-    units_try_move(&pool, aid, &map, 5, 5, NULL, &rng);
+    units_try_move_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(NULL), .map=(ColonizeWorldMap*)(&map), .rng=(ColonizeDosRng*)(&rng)}, aid, 5, 5);
     if (tribe.alarm[0].attacks != 2 ||
         col1.indian[0].alarm_by_player[0] != before + 42) {
       fprintf(stderr, "465b: capital attacks=%d alarm=%d (want 2 / %d)\n",
@@ -2304,7 +2294,7 @@ static int unit_capture_ring_and_alarm_vent(void) {
     const int aid = units_spawn_allow_stack(&pool, 0, 3, 4);
     units_set_nation(units_get(&pool, aid), 0);
     units_get(&pool, aid)->moves_left = UNITS_MP_PER_TILE;
-    if (!units_try_move(&pool, aid, &map, 4, 4, &colonies, &rng)) {
+    if (!units_try_move_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(&colonies), .map=(ColonizeWorldMap*)(&map), .rng=(ColonizeDosRng*)(&rng)}, aid, 4, 4)) {
       fprintf(stderr, "capture_ring: walk-in move refused\n");
       rc = 1;
     } else if (colonies_get(&colonies, cid)->nation_id != 0) {
@@ -2359,7 +2349,7 @@ static int unit_capture_ring_and_alarm_vent(void) {
     units_set_nation(brave, 4);
     brave->home_tribe_id = 0;
     brave->moves_left = 0; /* natives: SPENT byte — 0 = fresh full allotment */
-    (void)units_try_move(&pool, bid, &map, 4, 4, &colonies, &rng);
+    (void)units_try_move_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(&colonies), .map=(ColonizeWorldMap*)(&map), .rng=(ColonizeDosRng*)(&rng)}, bid, 4, 4);
 
     /* difficulty 3 − 10 = −7 → 40 - 7 = 33. */
     if (col1.indian[0].alarm_by_player[0] != 33) {
@@ -2387,7 +2377,7 @@ static int unit_capture_ring_and_alarm_vent(void) {
       units_set_nation(br2, 4);
       br2->home_tribe_id = 0;
       br2->moves_left = 0; /* spent byte: fresh */
-      (void)units_try_move(&pool, b2, &map, 4, 4, &colonies, &rng);
+      (void)units_try_move_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(&colonies), .map=(ColonizeWorldMap*)(&map), .rng=(ColonizeDosRng*)(&rng)}, b2, 4, 4);
       if (col1.indian[0].alarm_by_player[0] != 40) {
         fprintf(
           stderr, "alarm_vent: at-war alarm %u want 40 (no vent)\n",
@@ -2490,7 +2480,7 @@ static int unit_brave_vs_human_artillery_autoloss(void) {
       /* Small seeds draw small first values (the "tiny-seed RNG fixture" trap
        * in bugs.md); spread them so the 14-vs-240 roll can actually land. */
       dos_rng_seed(&rng, (unsigned)(seed * 9973 + 4271));
-      if (units_resolve_land_combat_ff(&pool, aid, did, &rng, &col1)) {
+      if (units_resolve_land_combat_ff_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .col1=(ColonizeCol1Save*)(&col1), .col1_ok=true, .rng=(ColonizeDosRng*)(&rng)}, aid, did)) {
         fprintf(stderr, "brave_arty: seed %d — Brave beat HUMAN Artillery\n", seed);
         rc = 1;
       }
@@ -2512,7 +2502,7 @@ static int unit_brave_vs_human_artillery_autoloss(void) {
       /* Small seeds draw small first values (the "tiny-seed RNG fixture" trap
        * in bugs.md); spread them so the 14-vs-240 roll can actually land. */
       dos_rng_seed(&rng, (unsigned)(seed * 9973 + 4271));
-      if (units_resolve_land_combat_ff(&pool, aid, did, &rng, &col1)) {
+      if (units_resolve_land_combat_ff_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .col1=(ColonizeCol1Save*)(&col1), .col1_ok=true, .rng=(ColonizeDosRng*)(&rng)}, aid, did)) {
         ++ai_def_wins;
       }
       units_despawn(&pool, aid);
@@ -2540,7 +2530,7 @@ static int unit_brave_vs_human_artillery_autoloss(void) {
       /* Small seeds draw small first values (the "tiny-seed RNG fixture" trap
        * in bugs.md); spread them so the 14-vs-240 roll can actually land. */
       dos_rng_seed(&rng, (unsigned)(seed * 9973 + 4271));
-      if (units_resolve_land_combat_ff(&pool, aid, did, &rng, &col1)) {
+      if (units_resolve_land_combat_ff_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .col1=(ColonizeCol1Save*)(&col1), .col1_ok=true, .rng=(ColonizeDosRng*)(&rng)}, aid, did)) {
         ++armed_wins;
       }
       units_despawn(&pool, aid);
@@ -3015,8 +3005,8 @@ static int unit_1b0e_defender_bonus_live(void) {
         /* Small seeds draw small first values (the "tiny-seed RNG fixture" trap
        * in bugs.md); spread them so the 14-vs-240 roll can actually land. */
       dos_rng_seed(&rng, (unsigned)(seed * 9973 + 4271));
-        won[i] = is_naval ? units_resolve_naval_combat_ff(&pool, aid, did, &rng, &c1)
-                          : units_resolve_land_combat_ff(&pool, aid, did, &rng, &c1);
+        won[i] = is_naval ? units_resolve_naval_combat_ff_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .col1=(ColonizeCol1Save*)(&c1), .col1_ok=true, .rng=(ColonizeDosRng*)(&rng)}, aid, did)
+                          : units_resolve_land_combat_ff_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .col1=(ColonizeCol1Save*)(&c1), .col1_ok=true, .rng=(ColonizeDosRng*)(&rng)}, aid, did);
         wins[i] += won[i] ? 1 : 0;
         units_despawn(&pool, aid);
         units_despawn(&pool, did);
@@ -3131,7 +3121,7 @@ static int unit_smell_audit_2026_09_09(void) {
       /* Small seeds draw small first values (the "tiny-seed RNG fixture" trap
        * in bugs.md); spread them so the 14-vs-240 roll can actually land. */
       dos_rng_seed(&rng, (unsigned)(seed * 9973 + 4271));
-      if (units_resolve_land_combat_ff(&pool, aid, did, &rng, &col1)) {
+      if (units_resolve_land_combat_ff_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .col1=(ColonizeCol1Save*)(&col1), .col1_ok=true, .rng=(ColonizeDosRng*)(&rng)}, aid, did)) {
         fprintf(stderr,
                 "audit#8: seed %d — plain Brave beat HUMAN Artillery on a shuffled roster\n",
                 seed);
@@ -3148,7 +3138,7 @@ static int unit_smell_audit_2026_09_09(void) {
         units_get(&pool, did2)->nation_id = 0;
         ColonizeDosRng rng2;
         dos_rng_seed(&rng2, seed);
-        if (units_resolve_land_combat_ff(&pool, aid2, did2, &rng2, &col1)) {
+        if (units_resolve_land_combat_ff_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .col1=(ColonizeCol1Save*)(&col1), .col1_ok=true, .rng=(ColonizeDosRng*)(&rng2)}, aid2, did2)) {
           ++armed_wins;
         }
         units_despawn(&pool, aid2);
@@ -3299,7 +3289,7 @@ static int unit_smell_audit_2026_09_09(void) {
       /* Small seeds draw small first values (the "tiny-seed RNG fixture" trap
        * in bugs.md); spread them so the 14-vs-240 roll can actually land. */
       dos_rng_seed(&rng, (unsigned)(seed * 9973 + 4271));
-      if (!units_resolve_land_combat_ff(&pool, atk, def, &rng, &col1)) {
+      if (!units_resolve_land_combat_ff_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .col1=(ColonizeCol1Save*)(&col1), .col1_ok=true, .rng=(ColonizeDosRng*)(&rng)}, atk, def)) {
         lost = 1;
       }
       if (units_get(&pool, atk) && units_get(&pool, atk)->active) {
@@ -3762,14 +3752,14 @@ int main(void) {
     return 1;
   }
 
-  if (units_try_move(&pool, starter->id, &map, ocean_x, ocean_y, NULL, NULL)) {
+  if (units_try_move_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(NULL), .map=(ColonizeWorldMap*)(&map), .rng=(ColonizeDosRng*)(NULL)}, starter->id, ocean_x, ocean_y)) {
     fprintf(stderr, "land unit should not enter ocean\n");
     map_free(&map);
     assets_msg_free(&names);
     return 1;
   }
 
-  if (units_try_move(&pool, ship_id, &map, land_x, land_y, NULL, NULL)) {
+  if (units_try_move_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(NULL), .map=(ColonizeWorldMap*)(&map), .rng=(ColonizeDosRng*)(NULL)}, ship_id, land_x, land_y)) {
     fprintf(stderr, "sea unit should not enter land\n");
     map_free(&map);
     assets_msg_free(&names);
@@ -3777,7 +3767,7 @@ int main(void) {
   }
 
   if (land_x + 1 < map.width &&
-      units_try_move(&pool, starter->id, &map, land_x + 1, land_y, NULL, NULL)) {
+      units_try_move_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(NULL), .map=(ColonizeWorldMap*)(&map), .rng=(ColonizeDosRng*)(NULL)}, starter->id, land_x + 1, land_y)) {
     if (starter->x != land_x + 1) {
       fprintf(stderr, "move did not update position\n");
       map_free(&map);
@@ -3795,7 +3785,7 @@ int main(void) {
       assets_msg_free(&names);
       return 1;
     }
-    if (!units_can_enter(&pool, colonist, &map, starter->x, starter->y, stack_id, NULL)) {
+    if (!units_can_enter_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(NULL), .map=(ColonizeWorldMap*)(&map)}, colonist, starter->x, starter->y, stack_id)) {
       fprintf(stderr, "friendly stack should be enterable\n");
       map_free(&map);
       assets_msg_free(&names);
@@ -3907,7 +3897,7 @@ int main(void) {
       assets_msg_free(&names);
       return 1;
     }
-    if (units_try_move(&pool, land_id, &map, land_tile_x, land_tile_y, NULL, NULL)) {
+    if (units_try_move_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(NULL), .map=(ColonizeWorldMap*)(&map), .rng=(ColonizeDosRng*)(NULL)}, land_id, land_tile_x, land_tile_y)) {
       fprintf(stderr, "boarded unit should not move on map\n");
       map_free(&map);
       assets_msg_free(&names);
@@ -3999,7 +3989,7 @@ int main(void) {
         }
         const int tx = returned_ship->x + dx;
         const int ty = returned_ship->y + dy;
-        if (units_can_enter(&pool, pioneer, &map, tx, ty, -1, NULL)) {
+        if (units_can_enter_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(NULL), .map=(ColonizeWorldMap*)(&map)}, pioneer, tx, ty, -1)) {
           ux = tx;
           uy = ty;
           break;
@@ -4027,7 +4017,7 @@ int main(void) {
           }
           const int tx = near_x + dx;
           const int ty = near_y + dy;
-          if (units_can_enter(&pool, pioneer, &map, tx, ty, -1, NULL)) {
+          if (units_can_enter_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(NULL), .map=(ColonizeWorldMap*)(&map)}, pioneer, tx, ty, -1)) {
             ux = tx;
             uy = ty;
             break;
@@ -4035,7 +4025,7 @@ int main(void) {
         }
       }
     }
-    if (ux < 0 || !units_unload(&pool, returned, &map, ux, uy, NULL)) {
+    if (ux < 0 || !units_unload_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(NULL), .map=(ColonizeWorldMap*)(&map)}, returned, ux, uy)) {
       fprintf(stderr, "unload failed\n");
       map_free(&map);
       assets_msg_free(&names);
@@ -4107,7 +4097,7 @@ int main(void) {
     }
     lf_cargo->moves_left = 3 * UNITS_MP_PER_TILE;
     lf_boat->moves_left = 4 * UNITS_MP_PER_TILE;
-    if (units_try_move(&pool, lf_ship, &map, lx, ly, NULL, NULL)) {
+    if (units_try_move_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(NULL), .map=(ColonizeWorldMap*)(&map), .rng=(ColonizeDosRng*)(NULL)}, lf_ship, lx, ly)) {
       fprintf(stderr, "ship must not enter plain land via try_move\n");
       map_free(&map);
       assets_msg_free(&names);
@@ -4121,7 +4111,7 @@ int main(void) {
       assets_msg_free(&names);
       return 1;
     }
-    if (!units_unload_passenger(&pool, lf_ship, lf_pax, &map, lx, ly, NULL)) {
+    if (!units_unload_passenger_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(NULL), .map=(ColonizeWorldMap*)(&map)}, lf_ship, lf_pax, lx, ly)) {
       fprintf(stderr, "landfall unload_passenger failed\n");
       map_free(&map);
       assets_msg_free(&names);
@@ -4174,7 +4164,7 @@ int main(void) {
         assets_msg_free(&names);
         return 1;
       }
-      if (!units_unload_passenger(&pool, lf_ship2, lf_pax2, &map, lx, ly, NULL)) {
+      if (!units_unload_passenger_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(NULL), .map=(ColonizeWorldMap*)(&map)}, lf_ship2, lf_pax2, lx, ly)) {
         fprintf(stderr, "landfall sentry unload failed\n");
         map_free(&map);
         assets_msg_free(&names);
@@ -4292,13 +4282,13 @@ int main(void) {
       assets_msg_free(&names);
       return 1;
     }
-    if (!units_can_enter(&pool, caravel, &map, cx, cy, dock_ship, &colonies)) {
+    if (!units_can_enter_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(&colonies), .map=(ColonizeWorldMap*)(&map)}, caravel, cx, cy, dock_ship)) {
       fprintf(stderr, "ship should enter own colony tile\n");
       map_free(&map);
       assets_msg_free(&names);
       return 1;
     }
-    if (!units_try_move(&pool, dock_ship, &map, cx, cy, &colonies, NULL)) {
+    if (!units_try_move_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(&colonies), .map=(ColonizeWorldMap*)(&map), .rng=(ColonizeDosRng*)(NULL)}, dock_ship, cx, cy)) {
       fprintf(stderr, "ship try_move onto colony failed\n");
       map_free(&map);
       assets_msg_free(&names);
@@ -4419,7 +4409,7 @@ int main(void) {
       return 1;
     }
     pu->moves_left = 1 * UNITS_MP_PER_TILE; /* pioneer max is 1 — full allotment */
-    if (!units_try_move(&pool, pid, &tmap, fx, fy, NULL, NULL) || pu->moves_left != 0) {
+    if (!units_try_move_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(NULL), .map=(ColonizeWorldMap*)(&tmap), .rng=(ColonizeDosRng*)(NULL)}, pid, fx, fy) || pu->moves_left != 0) {
       fprintf(
         stderr,
         "phase7 full-MP forest enter should succeed and exhaust (moves_left=%d)\n",
@@ -4444,7 +4434,7 @@ int main(void) {
     }
     pool.types[pioneer].movement = 2;
     pu_partial->moves_left = 1 * UNITS_MP_PER_TILE;
-    if (units_try_move(&pool, pid_partial, &tmap, fx, fy, NULL, NULL) ||
+    if (units_try_move_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(NULL), .map=(ColonizeWorldMap*)(&tmap), .rng=(ColonizeDosRng*)(NULL)}, pid_partial, fx, fy) ||
         pu_partial->moves_left != 1 * UNITS_MP_PER_TILE) {
       fprintf(
         stderr,
@@ -4463,7 +4453,7 @@ int main(void) {
       dos_rng_seed(&rng, 1u); /* first range(1,2) → 1 → success */
       const int ox = pu_partial->x;
       const int oy = pu_partial->y;
-      if (!units_try_move(&pool, pid_partial, &tmap, fx, fy, NULL, &rng) ||
+      if (!units_try_move_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(NULL), .map=(ColonizeWorldMap*)(&tmap), .rng=(ColonizeDosRng*)(&rng)}, pid_partial, fx, fy) ||
           pu_partial->x != fx || pu_partial->y != fy || pu_partial->moves_left != 0) {
         fprintf(
           stderr,
@@ -4482,7 +4472,7 @@ int main(void) {
       pu_partial->y = oy;
       pu_partial->moves_left = 1 * UNITS_MP_PER_TILE;
       dos_rng_seed(&rng, 5006u); /* first range(1,2) → 2 → fail */
-      if (units_try_move(&pool, pid_partial, &tmap, fx, fy, NULL, &rng) ||
+      if (units_try_move_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(NULL), .map=(ColonizeWorldMap*)(&tmap), .rng=(ColonizeDosRng*)(&rng)}, pid_partial, fx, fy) ||
           pu_partial->x != ox || pu_partial->y != oy || pu_partial->moves_left != 0) {
         fprintf(
           stderr,
@@ -4532,7 +4522,7 @@ int main(void) {
       return 1;
     }
     pu2->moves_left = 2 * UNITS_MP_PER_TILE;
-    if (!units_try_move(&pool, pid2, &tmap, fx, fy, NULL, NULL) ||
+    if (!units_try_move_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(NULL), .map=(ColonizeWorldMap*)(&tmap), .rng=(ColonizeDosRng*)(NULL)}, pid2, fx, fy) ||
         pu2->moves_left != 2 * UNITS_MP_PER_TILE - 1) {
       fprintf(stderr, "phase7 roaded forest move failed (moves_left=%d)\n", pu2->moves_left);
       map_free(&tmap);
@@ -4562,7 +4552,7 @@ int main(void) {
      */
     bool road3_ok = true;
     while (!map_tile_has_road(&tmap, px, py)) {
-      road3_ok = units_pioneer_road(&pool, pid3, &tmap, pmsg, sizeof(pmsg), NULL, NULL, NULL);
+      road3_ok = units_pioneer_road_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(NULL), .map=(ColonizeWorldMap*)(&tmap)}, pid3, pmsg, sizeof(pmsg), NULL, NULL);
       if (!road3_ok) {
         break;
       }
@@ -4618,7 +4608,7 @@ int main(void) {
       pu4->tools = 100;
       bool road4_ok = true;
       while (!map_tile_has_road(&tmap, rx, ry)) {
-        road4_ok = units_pioneer_road(&pool, pid4, &tmap, pmsg, sizeof(pmsg), &colonies_road, NULL, NULL);
+        road4_ok = units_pioneer_road_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(&colonies_road), .map=(ColonizeWorldMap*)(&tmap)}, pid4, pmsg, sizeof(pmsg), NULL, NULL);
         if (!road4_ok) {
           break;
         }
@@ -4650,9 +4640,7 @@ int main(void) {
     pu3->turns_worked = 0;
     const int farm_base = colony_yield_for_tile(&tmap, px, py, COLONIZE_JOB_FARMER);
     /* Plains plow: terr_cost+2 = 3 turns for non-Hardy; drive ticks to completion. */
-    if (!units_pioneer_plow(
-          &pool, pid3, &tmap, pmsg, sizeof(pmsg), NULL, NULL, NULL
-        )) {
+    if (!units_pioneer_plow_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(NULL), .map=(ColonizeWorldMap*)(&tmap)}, pid3, pmsg, sizeof(pmsg), NULL, NULL)) {
       fprintf(stderr, "phase7 plow start failed (%s)\n", pmsg);
       map_free(&tmap);
       map_free(&map);
@@ -4660,9 +4648,7 @@ int main(void) {
       return 1;
     }
     while (pu3->orders == UNITS_ORDER_CLEAR_PLOW) {
-      if (!units_pioneer_work_tick(
-            &pool, pid3, &tmap, pmsg, sizeof(pmsg), NULL, NULL, NULL
-          )) {
+      if (!units_pioneer_work_tick_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(NULL), .map=(ColonizeWorldMap*)(&tmap)}, pid3, pmsg, sizeof(pmsg), NULL, NULL)) {
         fprintf(stderr, "phase7 plow tick failed (%s)\n", pmsg);
         map_free(&tmap);
         map_free(&map);
@@ -4819,9 +4805,9 @@ int main(void) {
       for (int x = 20; x < (int)map.width - 20; ++x) {
         if (map_tile_is_land(&map, x, y) && map_tile_is_land(&map, x + 3, y + 2) &&
             map_tile_is_land(&map, x + 1, y) &&
-            units_can_enter(&pool, pioneer, &map, x, y, -1, NULL) &&
-            units_can_enter(&pool, pioneer, &map, x + 1, y, -1, NULL) &&
-            units_can_enter(&pool, pioneer, &map, x + 3, y + 2, -1, NULL) &&
+            units_can_enter_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(NULL), .map=(ColonizeWorldMap*)(&map)}, pioneer, x, y, -1) &&
+            units_can_enter_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(NULL), .map=(ColonizeWorldMap*)(&map)}, pioneer, x + 1, y, -1) &&
+            units_can_enter_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(NULL), .map=(ColonizeWorldMap*)(&map)}, pioneer, x + 3, y + 2, -1) &&
             map_move_cost_at(&map, x + 1, y) <= 1) {
           lx = x;
           ly = y;
@@ -4847,7 +4833,7 @@ int main(void) {
     }
     const int gx = lx + 3;
     const int gy = ly + 2;
-    if (!units_set_goto(&pool, uid, &map, gx, gy, NULL)) {
+    if (!units_set_goto_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(NULL), .map=(ColonizeWorldMap*)(&map)}, uid, gx, gy)) {
       fprintf(stderr, "units_set_goto failed\n");
       ss_free(&icons);
       map_free(&map);
@@ -4863,7 +4849,7 @@ int main(void) {
     }
     int nx = -1;
     int ny = -1;
-    if (!units_next_goto_step(&pool, uid, &map, NULL, NULL, &nx, &ny)) {
+    if (!units_next_goto_step_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(NULL), .map=(ColonizeWorldMap*)(&map), .rng=(ColonizeDosRng*)(NULL)}, uid, &nx, &ny)) {
       fprintf(stderr, "units_next_goto_step failed\n");
       ss_free(&icons);
       map_free(&map);
@@ -4871,7 +4857,7 @@ int main(void) {
       return 1;
     }
     const int before_mp = walker->moves_left;
-    units_advance_goto(&pool, uid, &map, NULL, NULL);
+    units_advance_goto_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(NULL), .map=(ColonizeWorldMap*)(&map), .rng=(ColonizeDosRng*)(NULL)}, uid);
     walker = units_get(&pool, uid);
     if (!walker || (walker->x == lx && walker->y == ly && walker->moves_left >= before_mp)) {
       fprintf(stderr, "advance_goto made no progress\n");
@@ -4904,7 +4890,7 @@ int main(void) {
       const int refreshed = walker ? walker->moves_left : 0;
       const int px = walker ? walker->x : -1;
       const int py = walker ? walker->y : -1;
-      units_advance_goto(&pool, uid, &map, NULL, NULL);
+      units_advance_goto_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(NULL), .map=(ColonizeWorldMap*)(&map), .rng=(ColonizeDosRng*)(NULL)}, uid);
       walker = units_get(&pool, uid);
       if (!walker) {
         fprintf(stderr, "walker missing after resume\n");
@@ -5234,7 +5220,7 @@ int main(void) {
     mu->moves_left = 1 * UNITS_MP_PER_TILE;
     map_tile_set_road(&map, px, py, true);
     char pmsg[64];
-    if (!units_pillage(&pool, mil, &map, NULL, pmsg, sizeof(pmsg)) ||
+    if (!units_pillage_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(NULL), .map=(ColonizeWorldMap*)(&map)}, mil, pmsg, sizeof(pmsg)) ||
         map_tile_has_road(&map, px, py)) {
       fprintf(stderr, "pillage road failed: %s\n", pmsg);
       ss_free(&icons);
@@ -5291,7 +5277,7 @@ int main(void) {
     d->moves_left = 1 * UNITS_MP_PER_TILE;
     ColonizeDosRng rng;
     dos_rng_seed(&rng, 1);
-    if (!units_try_move(&pool, aid, &map, dx, dy, NULL, &rng)) {
+    if (!units_try_move_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(NULL), .map=(ColonizeWorldMap*)(&map), .rng=(ColonizeDosRng*)(&rng)}, aid, dx, dy)) {
       fprintf(stderr, "combat move failed\n");
       ss_free(&icons);
       map_free(&map);
@@ -5370,7 +5356,7 @@ int main(void) {
       return 1;
     }
     const int ax0 = ua->x;
-    (void)units_advance_follow_one_step(&pool, a, &map, NULL, NULL);
+    (void)units_advance_follow_one_step_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(NULL), .map=(ColonizeWorldMap*)(&map), .rng=(ColonizeDosRng*)(NULL)}, a);
     ua = units_get(&pool, a);
     if (!ua || ua->orders != UNITS_ORDER_FOLLOW || ua->follow_unit_id != b) {
       fprintf(stderr, "follow not retained after step\n");
@@ -5586,7 +5572,7 @@ int main(void) {
       fprintf(stderr, "conquer: villages_burned should start 0\n");
       return 1;
     }
-    if (!units_resolve_land_combat_ff(&pool, sid, bid, &crng, &col1)) {
+    if (!units_resolve_land_combat_ff_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .col1=(ColonizeCol1Save*)(&col1), .col1_ok=true, .rng=(ColonizeDosRng*)(&crng)}, sid, bid)) {
       free(tmap.layer3);
       free(col1.tribe);
       fprintf(stderr, "conquer combat: attacker should win\n");
@@ -5599,9 +5585,7 @@ int main(void) {
       fprintf(stderr, "conquer: tribe should remain after map Brave death\n");
       return 1;
     }
-    if (!units_try_native_settlement_fallout(
-          &col1, &pool, &tmap, 0, 4, 10, 10, -1, &crng
-        )) {
+    if (!units_try_native_settlement_fallout_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .map=(ColonizeWorldMap*)(&tmap), .col1=(ColonizeCol1Save*)(&col1), .col1_ok=true, .rng=(ColonizeDosRng*)(&crng)}, 0, 4, 10, 10, -1)) {
       free(tmap.layer3);
       free(col1.tribe);
       fprintf(stderr, "conquer: fallout should destroy empty dwelling\n");
@@ -5683,15 +5667,13 @@ int main(void) {
     brave->nation_id = 4;
     soldier->nation_id = 0;
     units_set_native_fallout_context(&col1, &tmap, 500);
-    if (!units_resolve_land_combat_ff(&pool, sid2, bid2, NULL, &col1)) {
+    if (!units_resolve_land_combat_ff_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .col1=(ColonizeCol1Save*)(&col1), .col1_ok=true, .rng=(ColonizeDosRng*)(NULL)}, sid2, bid2)) {
       free(tmap.layer3);
       free(col1.tribe);
       fprintf(stderr, "conquer combat2 failed\n");
       return 1;
     }
-    if (!units_try_native_settlement_fallout(
-          &col1, &pool, &tmap, 0, 4, 11, 10, 500, NULL
-        )) {
+    if (!units_try_native_settlement_fallout_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .map=(ColonizeWorldMap*)(&tmap), .col1=(ColonizeCol1Save*)(&col1), .col1_ok=true, .rng=(ColonizeDosRng*)(NULL)}, 0, 4, 11, 10, 500)) {
       free(tmap.layer3);
       free(col1.tribe);
       fprintf(stderr, "conquer fallout2 failed\n");
@@ -5753,9 +5735,7 @@ int main(void) {
     tmap.layer3[10 * 20 + 12] = (uint8_t)((4u << 4) | 1u);
     ColonizeDosRng nrng;
     dos_rng_seed(&nrng, 7);
-    if (!units_try_native_settlement_fallout(
-          &col1, &pool, &tmap, 0, 4, 12, 10, -1, &nrng
-        )) {
+    if (!units_try_native_settlement_fallout_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .map=(ColonizeWorldMap*)(&tmap), .col1=(ColonizeCol1Save*)(&col1), .col1_ok=true, .rng=(ColonizeDosRng*)(&nrng)}, 0, 4, 12, 10, -1)) {
       free(tmap.layer3);
       free(col1.tribe);
       fprintf(stderr, "no-Cortes conquer: fallout should destroy dwelling\n");
@@ -5851,15 +5831,13 @@ int main(void) {
     ColonizeDosRng crng;
     dos_rng_seed(&crng, 1);
     units_set_native_fallout_context(&col1, &tmap, -1);
-    if (!units_resolve_land_combat_ff(&pool, sid, bid, &crng, &col1)) {
+    if (!units_resolve_land_combat_ff_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .col1=(ColonizeCol1Save*)(&col1), .col1_ok=true, .rng=(ColonizeDosRng*)(&crng)}, sid, bid)) {
       free(tmap.layer3);
       free(col1.tribe);
       fprintf(stderr, "convert-join combat: attacker should win\n");
       return 1;
     }
-    if (!units_try_native_settlement_fallout(
-          &col1, &pool, &tmap, 2, 5, 12, 12, -1, &crng
-        )) {
+    if (!units_try_native_settlement_fallout_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .map=(ColonizeWorldMap*)(&tmap), .col1=(ColonizeCol1Save*)(&col1), .col1_ok=true, .rng=(ColonizeDosRng*)(&crng)}, 2, 5, 12, 12, -1)) {
       free(tmap.layer3);
       free(col1.tribe);
       fprintf(stderr, "convert-join fallout failed\n");
@@ -5898,7 +5876,7 @@ int main(void) {
     brave->nation_id = 5;
     soldier->nation_id = 2;
     dos_rng_seed(&crng, 1);
-    if (!units_resolve_land_combat_ff(&pool, sid2, bid2, &crng, &col1)) {
+    if (!units_resolve_land_combat_ff_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .col1=(ColonizeCol1Save*)(&col1), .col1_ok=true, .rng=(ColonizeDosRng*)(&crng)}, sid2, bid2)) {
       free(tmap.layer3);
       free(col1.tribe);
       fprintf(stderr, "convert-join no-mission combat failed\n");
@@ -6040,7 +6018,7 @@ int main(void) {
     col->has_building[2] = false;
     units_set_combat_colonies(&colonies);
     /* FUN_157e_015e Stockade local_1a=4 → ((4+4)*16)>>2=32 > atk ((0+4)*16>>2)*3>>1=24. */
-    if (units_resolve_land_combat_ff(&pool, atk_id, def_id, NULL, NULL)) {
+    if (units_resolve_land_combat_ff_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .col1=(ColonizeCol1Save*)(NULL), .col1_ok=((NULL) != NULL), .rng=(ColonizeDosRng*)(NULL)}, atk_id, def_id)) {
       fprintf(stderr, "Stockade defense should beat attack 2 vs base 2\n");
       return 1;
     }
@@ -6272,7 +6250,7 @@ int main(void) {
     loot->hold_goods_amount[1] = (200 >> 8) & 0xff;
     pool.types[soldier_ti].attack = 5;
     pool.types[use_ti].defense = 1;
-    if (!units_resolve_land_combat_ff(&pool, capturer, loot_id, NULL, &tcol1)) {
+    if (!units_resolve_land_combat_ff_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .col1=(ColonizeCol1Save*)(&tcol1), .col1_ok=true, .rng=(ColonizeDosRng*)(NULL)}, capturer, loot_id)) {
       fprintf(stderr, "treasure capture combat should win\n");
       return 1;
     }
@@ -6402,7 +6380,7 @@ int main(void) {
     char fort_status[80];
     fort_status[0] = '\0';
     const int sunk =
-      units_coastal_fort_fire_pulse(&pool, &colonies, &map, &fcol1, NULL, 0, fort_status, sizeof(fort_status));
+      units_coastal_fort_fire_pulse_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(&colonies), .map=(ColonizeWorldMap*)(&map), .col1=(ColonizeCol1Save*)(&fcol1), .col1_ok=true, .rng=(ColonizeDosRng*)(NULL)}, 0, fort_status, sizeof(fort_status));
     if (sunk < 1 || (units_get(&pool, foe_id) && units_get(&pool, foe_id)->active)) {
       fprintf(stderr, "Fort at war should sink adjacent enemy ship (sunk=%d)\n", sunk);
       pool.types[caravel_ti].defense = old_def;
@@ -6427,7 +6405,7 @@ int main(void) {
     }
     foe->nation_id = 1;
     foe->moves_left = 4 * UNITS_MP_PER_TILE;
-    if (units_coastal_fort_fire_pulse(&pool, &colonies, &map, &fcol1, NULL, -1, NULL, 0) != 0) {
+    if (units_coastal_fort_fire_pulse_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(&colonies), .map=(ColonizeWorldMap*)(&map), .col1=(ColonizeCol1Save*)(&fcol1), .col1_ok=true, .rng=(ColonizeDosRng*)(NULL)}, -1, NULL, 0) != 0) {
       fprintf(stderr, "ship-slow: fort should miss high-def ship\n");
       pool.types[caravel_ti].defense = old_def;
       return 1;
@@ -6452,7 +6430,7 @@ int main(void) {
     const int peace_id = units_spawn_allow_stack(&pool, caravel_ti, wx, wy);
     foe = units_get(&pool, peace_id);
     foe->nation_id = 1;
-    if (units_coastal_fort_fire_pulse(&pool, &colonies, &map, &fcol1, NULL, -1, NULL, 0) != 0) {
+    if (units_coastal_fort_fire_pulse_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(&colonies), .map=(ColonizeWorldMap*)(&map), .col1=(ColonizeCol1Save*)(&fcol1), .col1_ok=true, .rng=(ColonizeDosRng*)(NULL)}, -1, NULL, 0) != 0) {
       fprintf(stderr, "Fort at peace should not sink Caravel\n");
       pool.types[caravel_ti].defense = old_def;
       return 1;
@@ -6472,7 +6450,7 @@ int main(void) {
       ColonizeUnit* pr = units_get(&pool, pid);
       pr->nation_id = 1;
       const int psunk =
-        units_coastal_fort_fire_pulse(&pool, &colonies, &map, &fcol1, NULL, -1, NULL, 0);
+        units_coastal_fort_fire_pulse_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(&colonies), .map=(ColonizeWorldMap*)(&map), .col1=(ColonizeCol1Save*)(&fcol1), .col1_ok=true, .rng=(ColonizeDosRng*)(NULL)}, -1, NULL, 0);
       if (psunk < 1 || (units_get(&pool, pid) && units_get(&pool, pid)->active)) {
         fprintf(stderr, "Fort should sink Privateer at peace\n");
         pool.types[priv_ti].defense = old_pdef;
@@ -6512,7 +6490,7 @@ int main(void) {
       return 1;
     }
     scout->nation_id = 0;
-    if (!units_resolve_lcr_rumour(&pool, scid, &map, &lcol1, NULL, NULL, -1)) {
+    if (!units_resolve_lcr_rumour_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .map=(ColonizeWorldMap*)(&map), .col1=(ColonizeCol1Save*)(&lcol1), .col1_ok=true, .rng=(ColonizeDosRng*)(NULL), .europe=(EuropeScreen*)(NULL)}, scid, -1)) {
       fprintf(stderr, "LCR resolve without de Soto failed\n");
       return 1;
     }
@@ -6549,7 +6527,7 @@ int main(void) {
     const int scid2 = units_spawn_allow_stack(&pool, scout_ti, 9, 15);
     scout = units_get(&pool, scid2);
     scout->nation_id = 0;
-    if (!units_resolve_lcr_rumour(&pool, scid2, &lmap, &lcol1, NULL, NULL, -1)) {
+    if (!units_resolve_lcr_rumour_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .map=(ColonizeWorldMap*)(&lmap), .col1=(ColonizeCol1Save*)(&lcol1), .col1_ok=true, .rng=(ColonizeDosRng*)(NULL), .europe=(EuropeScreen*)(NULL)}, scid2, -1)) {
       map_free(&lmap);
       fprintf(stderr, "LCR resolve with de Soto failed\n");
       return 1;
@@ -6635,7 +6613,7 @@ int main(void) {
       return 1;
     }
     u1->nation_id = 0;
-    if (!units_resolve_lcr_rumour(&pool, sc1, &map, &c5col1, &rng1, NULL, 0)) {
+    if (!units_resolve_lcr_rumour_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .map=(ColonizeWorldMap*)(&map), .col1=(ColonizeCol1Save*)(&c5col1), .col1_ok=true, .rng=(ColonizeDosRng*)(&rng1), .europe=(EuropeScreen*)(NULL)}, sc1, 0)) {
       fprintf(stderr, "case5 latch first resolve failed\n");
       return 1;
     }
@@ -6653,7 +6631,7 @@ int main(void) {
       return 1;
     }
     u2->nation_id = 0;
-    if (!units_resolve_lcr_rumour(&pool, sc2, &map, &c5col1, &rng2, NULL, 0)) {
+    if (!units_resolve_lcr_rumour_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .map=(ColonizeWorldMap*)(&map), .col1=(ColonizeCol1Save*)(&c5col1), .col1_ok=true, .rng=(ColonizeDosRng*)(&rng2), .europe=(EuropeScreen*)(NULL)}, sc2, 0)) {
       fprintf(stderr, "case5 latch second resolve failed\n");
       return 1;
     }
@@ -6719,7 +6697,7 @@ int main(void) {
           colonist_before++;
         }
       }
-      if (!units_resolve_lcr_rumour(&pool, uid, &map, &pcol1, &prng, NULL, 0)) {
+      if (!units_resolve_lcr_rumour_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .map=(ColonizeWorldMap*)(&map), .col1=(ColonizeCol1Save*)(&pcol1), .col1_ok=true, .rng=(ColonizeDosRng*)(&prng), .europe=(EuropeScreen*)(NULL)}, uid, 0)) {
         fprintf(stderr, "de Soto gate test: resolve failed (pass %d)\n", pass);
         return 1;
       }
@@ -6819,7 +6797,7 @@ int main(void) {
             continue;
           }
           su->nation_id = 0;
-          if (!units_resolve_lcr_rumour(&pool, sid, &map, &dcol1, &drng, &eu, 0)) {
+          if (!units_resolve_lcr_rumour_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .map=(ColonizeWorldMap*)(&map), .col1=(ColonizeCol1Save*)(&dcol1), .col1_ok=true, .rng=(ColonizeDosRng*)(&drng), .europe=(EuropeScreen*)(&eu)}, sid, 0)) {
             fprintf(stderr, "LCR dispatch: resolve failed at (%d,%d)\n", x, y);
             europe_free(&eu);
             return 1;
@@ -6924,8 +6902,8 @@ int main(void) {
       ua->nation_id = 0;
       ub->nation_id = 0;
       const ColonizeEnterReason r =
-        units_enter_probe(&pool, ub->type_index, &map, ax, ay, b, NULL);
-      if (r != COLONIZE_ENTER_OK || !units_can_enter(&pool, ub->type_index, &map, ax, ay, b, NULL)) {
+        units_enter_probe_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(NULL), .map=(ColonizeWorldMap*)(&map)}, ub->type_index, ax, ay, b);
+      if (r != COLONIZE_ENTER_OK || !units_can_enter_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(NULL), .map=(ColonizeWorldMap*)(&map)}, ub->type_index, ax, ay, b)) {
         fprintf(stderr, "enter-probe friendly expected OK got %d\n", (int)r);
         return 1;
       }
@@ -6947,12 +6925,12 @@ int main(void) {
       br->nation_id = 4;
       p->moves_left = 3 * UNITS_MP_PER_TILE;
       const ColonizeEnterReason r =
-        units_enter_probe(&pool, p->type_index, &map, dx, dy, pid, NULL);
+        units_enter_probe_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(NULL), .map=(ColonizeWorldMap*)(&map)}, p->type_index, dx, dy, pid);
       if (r != COLONIZE_ENTER_BOUNCE_FOREIGN) {
         fprintf(stderr, "enter-probe pioneer bounce expected got %d\n", (int)r);
         return 1;
       }
-      if (units_try_move(&pool, pid, &map, dx, dy, NULL, NULL)) {
+      if (units_try_move_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(NULL), .map=(ColonizeWorldMap*)(&map), .rng=(ColonizeDosRng*)(NULL)}, pid, dx, dy)) {
         fprintf(stderr, "enter-probe pioneer should not enter Brave tile\n");
         return 1;
       }
@@ -6978,12 +6956,12 @@ int main(void) {
       br->nation_id = 4;
       s->moves_left = 3 * UNITS_MP_PER_TILE;
       const ColonizeEnterReason r =
-        units_enter_probe(&pool, s->type_index, &map, dx, dy, sid, NULL);
+        units_enter_probe_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(NULL), .map=(ColonizeWorldMap*)(&map)}, s->type_index, dx, dy, sid);
       if (r != COLONIZE_ENTER_COMBAT_LAND) {
         fprintf(stderr, "enter-probe combat land expected got %d\n", (int)r);
         return 1;
       }
-      if (units_can_enter(&pool, s->type_index, &map, dx, dy, sid, NULL)) {
+      if (units_can_enter_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(NULL), .map=(ColonizeWorldMap*)(&map)}, s->type_index, dx, dy, sid)) {
         fprintf(stderr, "enter-probe can_enter should be false for combat dest\n");
         return 1;
       }
@@ -7011,7 +6989,7 @@ int main(void) {
         if (p) {
           p->nation_id = 0;
           const ColonizeEnterReason r =
-            units_enter_probe(&pool, p->type_index, &map, ox, oy, pid, NULL);
+            units_enter_probe_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(NULL), .map=(ColonizeWorldMap*)(&map)}, p->type_index, ox, oy, pid);
           if (r != COLONIZE_ENTER_BLOCKED_DOMAIN) {
             fprintf(stderr, "enter-probe domain deny expected got %d\n", (int)r);
             return 1;
@@ -7050,7 +7028,7 @@ int main(void) {
       }
       s->nation_id = 0;
       s->moves_left = 5 * UNITS_MP_PER_TILE;
-      if (!units_try_move(&pool, sid, &map, dx, dy, &colonies, NULL)) {
+      if (!units_try_move_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(&colonies), .map=(ColonizeWorldMap*)(&map), .rng=(ColonizeDosRng*)(NULL)}, sid, dx, dy)) {
         fprintf(stderr, "enter-probe capture move failed reason=%d\n", (int)units_last_enter_reason());
         return 1;
       }
@@ -7103,7 +7081,7 @@ int main(void) {
        * type below to exercise the actual-combat path.
        */
       const ColonizeEnterReason unarmed_r =
-        units_enter_probe(&pool, ua->type_index, &map, wx2, wy2, a, NULL);
+        units_enter_probe_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(NULL), .map=(ColonizeWorldMap*)(&map)}, ua->type_index, wx2, wy2, a);
       if (unarmed_r != COLONIZE_ENTER_BOUNCE_FOREIGN) {
         fprintf(stderr, "enter-probe unarmed naval bounce expected got %d\n", (int)unarmed_r);
         return 1;
@@ -7115,12 +7093,12 @@ int main(void) {
        * tile and the move-through completes. */
       pool.types[caravel_t].guns = 99;
       const ColonizeEnterReason r =
-        units_enter_probe(&pool, ua->type_index, &map, wx2, wy2, a, NULL);
+        units_enter_probe_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(NULL), .map=(ColonizeWorldMap*)(&map)}, ua->type_index, wx2, wy2, a);
       if (r != COLONIZE_ENTER_COMBAT_NAVAL) {
         fprintf(stderr, "enter-probe naval combat expected got %d\n", (int)r);
         return 1;
       }
-      if (!units_try_move(&pool, a, &map, wx2, wy2, NULL, NULL)) {
+      if (!units_try_move_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(NULL), .map=(ColonizeWorldMap*)(&map), .rng=(ColonizeDosRng*)(NULL)}, a, wx2, wy2)) {
         fprintf(stderr, "enter-probe naval move combat failed\n");
         return 1;
       }
@@ -7156,7 +7134,7 @@ int main(void) {
       sua->nation_id = 0;
       sub->nation_id = 1;
       sua->moves_left = 8 * UNITS_MP_PER_TILE;
-      if (!units_try_move(&pool, sa, &map, wx2, wy2, NULL, NULL)) {
+      if (!units_try_move_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(NULL), .map=(ColonizeWorldMap*)(&map), .rng=(ColonizeDosRng*)(NULL)}, sa, wx2, wy2)) {
         fprintf(stderr, "attack-exhaust move combat failed\n");
         return 1;
       }
@@ -7243,16 +7221,16 @@ int main(void) {
     ship->moves_left = 4 * UNITS_MP_PER_TILE;
 
     const ColonizeEnterReason br =
-      units_enter_probe(&pool, land->type_index, &map, wx, wy, land_id, NULL);
+      units_enter_probe_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(NULL), .map=(ColonizeWorldMap*)(&map)}, land->type_index, wx, wy, land_id);
     if (br != COLONIZE_ENTER_BOARD) {
       fprintf(stderr, "board-enter probe expected BOARD got %d\n", (int)br);
       return 1;
     }
-    if (units_can_enter(&pool, land->type_index, &map, wx, wy, land_id, NULL)) {
+    if (units_can_enter_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(NULL), .map=(ColonizeWorldMap*)(&map)}, land->type_index, wx, wy, land_id)) {
       fprintf(stderr, "board-enter can_enter should stay false (goto)\n");
       return 1;
     }
-    if (!units_try_move(&pool, land_id, &map, wx, wy, NULL, NULL)) {
+    if (!units_try_move_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(NULL), .map=(ColonizeWorldMap*)(&map), .rng=(ColonizeDosRng*)(NULL)}, land_id, wx, wy)) {
       fprintf(stderr, "board-enter try_move failed\n");
       return 1;
     }
@@ -7277,7 +7255,7 @@ int main(void) {
       fprintf(stderr, "board-enter: spent pax must not be landfall-eligible\n");
       return 1;
     }
-    if (units_unload_passenger(&pool, ship_id, land_id, &map, lx, ly, NULL)) {
+    if (units_unload_passenger_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(NULL), .map=(ColonizeWorldMap*)(&map)}, ship_id, land_id, lx, ly)) {
       fprintf(stderr, "board-enter: spent pax must not make landfall\n");
       return 1;
     }
@@ -7289,7 +7267,7 @@ int main(void) {
       fprintf(stderr, "board-enter: fresh parked pax must be landfall-eligible\n");
       return 1;
     }
-    if (!units_unload_passenger(&pool, ship_id, land_id, &map, lx, ly, NULL)) {
+    if (!units_unload_passenger_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(NULL), .map=(ColonizeWorldMap*)(&map)}, ship_id, land_id, lx, ly)) {
       fprintf(stderr, "board-enter unload failed\n");
       return 1;
     }
@@ -7307,7 +7285,7 @@ int main(void) {
     ship->x = wx;
     ship->y = wy;
     ship->moves_left = 4 * UNITS_MP_PER_TILE;
-    if (!units_try_move(&pool, ship_id, &map, wx2, wy2, NULL, NULL)) {
+    if (!units_try_move_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(NULL), .map=(ColonizeWorldMap*)(&map), .rng=(ColonizeDosRng*)(NULL)}, ship_id, wx2, wy2)) {
       fprintf(stderr, "sentry-board ship move failed reason=%d\n", (int)units_last_enter_reason());
       return 1;
     }
@@ -7359,12 +7337,12 @@ int main(void) {
       boat->moves_left = 4 * UNITS_MP_PER_TILE;
       /* Loaded or empty: village must not become landfall. */
       const ColonizeEnterReason vr =
-        units_enter_probe(&pool, boat->type_index, &map, vx, vy, sid, NULL);
+        units_enter_probe_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(NULL), .map=(ColonizeWorldMap*)(&map)}, boat->type_index, vx, vy, sid);
       if (vr != COLONIZE_ENTER_VILLAGE_SHIP) {
         fprintf(stderr, "village-ship expected VILLAGE_SHIP got %d\n", (int)vr);
         return 1;
       }
-      if (units_try_move(&pool, sid, &map, vx, vy, NULL, NULL)) {
+      if (units_try_move_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(NULL), .map=(ColonizeWorldMap*)(&map), .rng=(ColonizeDosRng*)(NULL)}, sid, vx, vy)) {
         fprintf(stderr, "village-ship try_move should deny\n");
         return 1;
       }
@@ -7793,7 +7771,7 @@ int main(void) {
       pool.types[sol].attack = 8;
       pool.types[fc].attack = 0;
       pool.types[fc].defense = 1;
-      if (!units_resolve_land_combat_ff(&pool, aid, did, NULL, &c1)) {
+      if (!units_resolve_land_combat_ff_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .col1=(ColonizeCol1Save*)(&c1), .col1_ok=true, .rng=(ColonizeDosRng*)(NULL)}, aid, did)) {
         fprintf(stderr, "phase2 capture combat should win\n");
         return 1;
       }
@@ -7851,7 +7829,7 @@ int main(void) {
         }
         a->nation_id = 4;
         d->nation_id = 0;
-        if (!units_resolve_land_combat_ff(&pool, aid, did, NULL, &c1)) {
+        if (!units_resolve_land_combat_ff_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .col1=(ColonizeCol1Save*)(&c1), .col1_ok=true, .rng=(ColonizeDosRng*)(NULL)}, aid, did)) {
           fprintf(stderr, "phase2 native should beat pioneer\n");
           return 1;
         }
@@ -7873,7 +7851,7 @@ int main(void) {
         }
         a->nation_id = 4;
         d->nation_id = 0;
-        if (!units_resolve_land_combat_ff(&pool, aid, did, NULL, &c1)) {
+        if (!units_resolve_land_combat_ff_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .col1=(ColonizeCol1Save*)(&c1), .col1_ok=true, .rng=(ColonizeDosRng*)(NULL)}, aid, did)) {
           fprintf(stderr, "phase2 native should beat soldier\n");
           return 1;
         }
@@ -7917,7 +7895,7 @@ int main(void) {
       }
       a->nation_id = 0;
       d->nation_id = 1;
-      if (!units_resolve_naval_combat_ff(&pool, aid, did, NULL, NULL)) {
+      if (!units_resolve_naval_combat_ff_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .col1=(ColonizeCol1Save*)(NULL), .col1_ok=((NULL) != NULL), .rng=(ColonizeDosRng*)(NULL)}, aid, did)) {
         fprintf(stderr, "phase2 naval should win\n");
         return 1;
       }
@@ -7959,7 +7937,7 @@ int main(void) {
       memset(&c1, 0, sizeof(c1));
       c1.player[0].control = 0;
       c1.player[1].control = 1;
-      if (!units_resolve_land_combat_ff(&pool, aid, did, NULL, &c1)) {
+      if (!units_resolve_land_combat_ff_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .col1=(ColonizeCol1Save*)(&c1), .col1_ok=true, .rng=(ColonizeDosRng*)(NULL)}, aid, did)) {
         fprintf(stderr, "phase2 popup combat should win\n");
         assets_msg_free(&game_txt);
         return 1;
@@ -8066,7 +8044,7 @@ int main(void) {
       const int raid_mp_before = a->moves_left;
 
       /* First empty-village attack: temp Brave, pop 3→2, dwelling remains. */
-      if (!units_try_move(&pool, aid, &map, vx, vy, NULL, NULL)) {
+      if (!units_try_move_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(NULL), .map=(ColonizeWorldMap*)(&map), .rng=(ColonizeDosRng*)(NULL)}, aid, vx, vy)) {
         fprintf(
           stderr,
           "village-temp try_move should engage (enter=%d combat=%d)\n",
@@ -8129,7 +8107,7 @@ int main(void) {
         return 1;
       }
       a->moves_left = 3 * UNITS_MP_PER_TILE;
-      if (!units_try_move(&pool, aid, &map, vx, vy, NULL, NULL) ||
+      if (!units_try_move_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(NULL), .map=(ColonizeWorldMap*)(&map), .rng=(ColonizeDosRng*)(NULL)}, aid, vx, vy) ||
           units_last_combat_outcome() <= 0) {
         fprintf(stderr, "village-temp second attack failed\n");
         free(c1.tribe);
@@ -8147,7 +8125,7 @@ int main(void) {
         return 1;
       }
       a->moves_left = 3 * UNITS_MP_PER_TILE;
-      if (!units_try_move(&pool, aid, &map, vx, vy, NULL, NULL) ||
+      if (!units_try_move_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(NULL), .map=(ColonizeWorldMap*)(&map), .rng=(ColonizeDosRng*)(NULL)}, aid, vx, vy) ||
           units_last_combat_outcome() <= 0) {
         fprintf(stderr, "village-temp destroy attack failed\n");
         free(c1.tribe);
@@ -8238,7 +8216,7 @@ int main(void) {
       units_set_combat_human_nation(0);
       units_set_occupancy_map(&map);
 
-      if (!units_try_move(&pool, aid, &map, cx, cy, &colonies, NULL)) {
+      if (!units_try_move_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(&colonies), .map=(ColonizeWorldMap*)(&map), .rng=(ColonizeDosRng*)(NULL)}, aid, cx, cy)) {
         fprintf(
           stderr,
           "colony-temp-defender attack should win (enter=%d combat=%d)\n",
@@ -8383,7 +8361,7 @@ int main(void) {
       }
       mil_a->nation_id = 0;
       mil_a->moves_left = 5 * UNITS_MP_PER_TILE;
-      (void)units_try_move(&pool, mil_aid, &map, mx, my, &mcols, NULL);
+      (void)units_try_move_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(&mcols), .map=(ColonizeWorldMap*)(&map), .rng=(ColonizeDosRng*)(NULL)}, mil_aid, mx, my);
       if (units_last_combat_outcome() <= 0) {
         fprintf(
           stderr,
@@ -8461,7 +8439,7 @@ int main(void) {
         ColonizeDosRng mrng;
         dos_rng_seed(&mrng, seed);
         const uint32_t start_state = mrng.state;
-        (void)units_try_move(&pool, lid, &map, mx, my, &mcols, &mrng);
+        (void)units_try_move_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(&mcols), .map=(ColonizeWorldMap*)(&map), .rng=(ColonizeDosRng*)(&mrng)}, lid, mx, my);
         if (units_last_combat_outcome() >= 0) {
           if (units_get(&pool, lid)) {
             (void)units_despawn(&pool, lid);
@@ -8609,7 +8587,7 @@ int main(void) {
       }
       sa->nation_id = 0;
       sa->moves_left = 5 * UNITS_MP_PER_TILE;
-      if (units_try_move(&pool, shield_atk, &map, sx, sy, &scol, NULL)) {
+      if (units_try_move_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(&scol), .map=(ColonizeWorldMap*)(&map), .rng=(ColonizeDosRng*)(NULL)}, shield_atk, sx, sy)) {
         fprintf(stderr, "beginner-shield: Discoverer attacker must not take the town\n");
         units_set_ff_col1(NULL);
         return 1;
@@ -8657,7 +8635,7 @@ int main(void) {
       }
       ha->nation_id = 0;
       ha->moves_left = 5 * UNITS_MP_PER_TILE;
-      if (!units_try_move(&pool, hard_atk, &map, sx, sy, &scol, NULL)) {
+      if (!units_try_move_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(&scol), .map=(ColonizeWorldMap*)(&map), .rng=(ColonizeDosRng*)(NULL)}, hard_atk, sx, sy)) {
         fprintf(
           stderr,
           "beginner-shield: above Discoverer the same attack should win (enter=%d combat=%d)\n",
@@ -8764,7 +8742,7 @@ int main(void) {
       units_set_combat_human_nation(0);
       units_set_occupancy_map(&map);
 
-      if (!units_try_move(&pool, aid, &map, cx, cy, &colonies, NULL)) {
+      if (!units_try_move_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(&colonies), .map=(ColonizeWorldMap*)(&map), .rng=(ColonizeDosRng*)(NULL)}, aid, cx, cy)) {
         fprintf(
           stderr,
           "1b0e-port-ship attack should win (enter=%d combat=%d)\n",
@@ -8829,7 +8807,7 @@ int main(void) {
         v->nation_id = 1;
         pool.types[brave3].attack = 8;
         pool.types[soldier3].defense = 1;
-        if (!units_resolve_land_combat_ff(&pool, bid, vid, NULL, &c1)) {
+        if (!units_resolve_land_combat_ff_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .col1=(ColonizeCol1Save*)(&c1), .col1_ok=true, .rng=(ColonizeDosRng*)(NULL)}, bid, vid)) {
           fprintf(stderr, "1b0e-tension brave should win on open ground\n");
           units_set_ff_col1(NULL);
           return 1;
@@ -8864,7 +8842,7 @@ int main(void) {
         v->nation_id = 1;
         pool.types[brave3].attack = 0;
         pool.types[soldier3].defense = 8;
-        if (units_resolve_land_combat_ff(&pool, bid, vid, NULL, &c1)) {
+        if (units_resolve_land_combat_ff_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .col1=(ColonizeCol1Save*)(&c1), .col1_ok=true, .rng=(ColonizeDosRng*)(NULL)}, bid, vid)) {
           fprintf(stderr, "1b0e-tension brave should lose at the colony\n");
           units_set_ff_col1(NULL);
           return 1;
@@ -8914,7 +8892,7 @@ int main(void) {
       d->hold_goods_amount[1] = 0;
       pool.types[sol].attack = 8;
       pool.types[use_ti].defense = 1;
-      if (!units_resolve_land_combat_ff(&pool, aid, did, NULL, &c1)) {
+      if (!units_resolve_land_combat_ff_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .col1=(ColonizeCol1Save*)(&c1), .col1_ok=true, .rng=(ColonizeDosRng*)(NULL)}, aid, did)) {
         fprintf(stderr, "ransom combat should win\n");
         return 1;
       }
@@ -9019,7 +8997,7 @@ int main(void) {
       memset(&c1, 0, sizeof(c1));
       c1.player[0].control = 0;
       c1.player[1].control = 1;
-      if (!units_resolve_naval_combat_ff(&pool, aid, did, NULL, &c1)) {
+      if (!units_resolve_naval_combat_ff_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .col1=(ColonizeCol1Save*)(&c1), .col1_ok=true, .rng=(ColonizeDosRng*)(NULL)}, aid, did)) {
         fprintf(stderr, "seizure naval should win\n");
         return 1;
       }
@@ -9097,9 +9075,7 @@ int main(void) {
         return 1;
       }
       char st[64];
-      (void)units_coastal_fort_fire_pulse(
-        &pool, &colonies, &map, &c1, NULL, -1, st, sizeof(st)
-      );
+      (void)units_coastal_fort_fire_pulse_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(&colonies), .map=(ColonizeWorldMap*)(&map), .col1=(ColonizeCol1Save*)(&c1), .col1_ok=true, .rng=(ColonizeDosRng*)(NULL)}, -1, st, sizeof(st));
       ship = units_get(&pool, sid_miss);
       if (!ship || !ship->active) {
         fprintf(stderr, "fort miss should leave ship alive\n");
@@ -9128,9 +9104,7 @@ int main(void) {
        * (4): keep hull clear of it so this asserts the damaged path and not
        * the guns == hull coin flip. See units_ship_damage_vs_sink. */
       pool.types[car].hull = 8;
-      (void)units_coastal_fort_fire_pulse(
-        &pool, &colonies, &map, &c1, NULL, -1, st, sizeof(st)
-      );
+      (void)units_coastal_fort_fire_pulse_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(&colonies), .map=(ColonizeWorldMap*)(&map), .col1=(ColonizeCol1Save*)(&c1), .col1_ok=true, .rng=(ColonizeDosRng*)(NULL)}, -1, st, sizeof(st));
       ship = units_get(&pool, sid_hit);
       if (!ship || !ship->active) {
         fprintf(stderr, "close fort hit should damage not sink\n");
@@ -9413,13 +9387,13 @@ int main(void) {
     const size_t li = (size_t)ly * (size_t)map.width + (size_t)lx;
     const uint8_t saved_seen = map.seen[li];
     map.seen[li] = 0; /* fog the land tile for everyone */
-    if (!units_set_goto(&pool, ship, &map, lx, ly, NULL)) {
+    if (!units_set_goto_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(NULL), .map=(ColonizeWorldMap*)(&map)}, ship, lx, ly)) {
       fprintf(stderr, "fog goto: order onto an unseen tile must be accepted\n");
       return 1;
     }
     units_clear_orders(&pool, ship);
     map.seen[li] = saved_seen; /* fully explored again */
-    if (units_set_goto(&pool, ship, &map, lx, ly, NULL)) {
+    if (units_set_goto_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(NULL), .map=(ColonizeWorldMap*)(&map)}, ship, lx, ly)) {
       fprintf(stderr, "fog goto: a SEEN land tile must still refuse a ship goto\n");
       return 1;
     }
@@ -9467,11 +9441,11 @@ int main(void) {
     wu->moves_left = units_max_mp(&pool, walker);
     /* bugs.md #129: the order itself is legal even though the tile is not
      * enterable by a plain settler. */
-    if (!units_set_goto(&pool, walker, &map, vx, vy, NULL)) {
+    if (!units_set_goto_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(NULL), .map=(ColonizeWorldMap*)(&map)}, walker, vx, vy)) {
       fprintf(stderr, "goto-village: village destination must be accepted\n");
       return 1;
     }
-    if (!units_goto_dest_is_village_entry(&pool, walker, &map, NULL)) {
+    if (!units_goto_dest_is_village_entry_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(NULL), .map=(ColonizeWorldMap*)(&map)}, walker)) {
       fprintf(stderr, "goto-village: adjacent arrival must dispatch the entry step\n");
       return 1;
     }
@@ -9481,7 +9455,7 @@ int main(void) {
     wu->orders = UNITS_ORDER_GOTO;
     wu->goto_x = (uint8_t)vx;
     wu->goto_y = (uint8_t)vy;
-    if (units_goto_dest_is_village_entry(&pool, walker, &map, NULL)) {
+    if (units_goto_dest_is_village_entry_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(NULL), .map=(ColonizeWorldMap*)(&map)}, walker)) {
       fprintf(stderr, "goto-village: en-route step must not dispatch the entry\n");
       return 1;
     }
@@ -9491,7 +9465,7 @@ int main(void) {
     wu->y = uy;
     wu->goto_x = (uint8_t)ux;
     wu->goto_y = (uint8_t)(uy + 2);
-    if (units_goto_dest_is_village_entry(&pool, walker, &map, NULL)) {
+    if (units_goto_dest_is_village_entry_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(NULL), .map=(ColonizeWorldMap*)(&map)}, walker)) {
       fprintf(stderr, "goto-village: only the ORDERED village tile dispatches\n");
       return 1;
     }
@@ -9562,7 +9536,7 @@ int main(void) {
       fprintf(stderr, "landfall-spent: offer must skip to the fresh passenger\n");
       return 1;
     }
-    if (units_unload_passenger(&pool, boat, spent_pax, &map, lx, ly, NULL)) {
+    if (units_unload_passenger_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(NULL), .map=(ColonizeWorldMap*)(&map)}, boat, spent_pax, lx, ly)) {
       fprintf(stderr, "landfall-spent: spent pax must not be put ashore\n");
       return 1;
     }
@@ -9570,7 +9544,7 @@ int main(void) {
       fprintf(stderr, "landfall-spent: refused pax must stay on the ship\n");
       return 1;
     }
-    if (!units_unload_passenger(&pool, boat, fresh_pax, &map, lx, ly, NULL)) {
+    if (!units_unload_passenger_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(NULL), .map=(ColonizeWorldMap*)(&map)}, boat, fresh_pax, lx, ly)) {
       fprintf(stderr, "landfall-spent: parked-fresh pax must be able to land\n");
       return 1;
     }

@@ -241,7 +241,7 @@ static int test_euro_census_4962_0018(void) {
   units_get(&units, u_hum)->col1_ai_plan = 'X';
 
   memset(&col1.stuff, 0, sizeof(col1.stuff));
-  col1_stuff_census_fill_blank(&col1.stuff, &units, &colonies, &col1);
+  col1_stuff_census_fill_blank_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&units), .colonies=(ColonizeColonyPool*)(&colonies), .col1=(ColonizeCol1Save*)(&col1), .col1_ok=true}, &col1.stuff);
 
   int want0 = 0;
   int want1 = 0;
@@ -433,7 +433,7 @@ int main(void) {
   memset(&europe, 0, sizeof(europe));
   europe.cargo_count = 16;
   ColonizeCol1BridgeResult br;
-  if (!col1_bridge_apply(&save, &map, &units, &colonies, &europe, &br, err, sizeof(err))) {
+  if (!col1_bridge_apply_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&units), .colonies=(ColonizeColonyPool*)(&colonies), .map=(ColonizeWorldMap*)(&map), .col1=(ColonizeCol1Save*)(&save), .col1_ok=true, .europe=(EuropeScreen*)(&europe)}, &br, err, sizeof(err))) {
     fprintf(stderr, "bridge apply: %s\n", err);
     return 1;
   }

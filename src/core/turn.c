@@ -47,7 +47,7 @@ static void turn_reveal_fog_for_nation(ColonizeTurnContext* ctx, int nation_id) 
     if (!u->active || u->nation_id != nation_id || !units_is_on_map(u)) {
       continue;
     }
-    (void)units_reveal_sight(ctx->map, ctx->units, ctx->colonies, u, ctx->col1_ok ? ctx->col1 : NULL);
+    (void)units_reveal_sight_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(ctx->units), .colonies=(ColonizeColonyPool*)(ctx->colonies), .map=(ColonizeWorldMap*)(ctx->map), .col1=(ColonizeCol1Save*)(ctx->col1_ok ? ctx->col1 : NULL), .col1_ok=((ctx->col1_ok ? ctx->col1 : NULL) != NULL)}, u);
   }
 }
 
@@ -143,9 +143,7 @@ void turn_refresh_moves_for_nation_w(
     if (map &&
         (u->orders == UNITS_ORDER_CLEAR_PLOW || u->orders == UNITS_ORDER_BUILD_ROAD)) {
       u->moves_left = units_max_mp(pool, u->id);
-      (void)units_pioneer_work_tick(
-        pool, u->id, map, NULL, 0, colonies, ai_popups, messages
-      );
+      (void)units_pioneer_work_tick_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(pool), .colonies=(ColonizeColonyPool*)(colonies), .map=(ColonizeWorldMap*)(map)}, u->id, NULL, 0, ai_popups, messages);
       continue;
     }
     if (units_orders_skip_turn(u)) {
@@ -178,20 +176,6 @@ void turn_refresh_moves_for_nation_w(
       }
     }
   }
-}
-
-/* Compat shim: pre-ColonizeWorld signature (see src/core/world.h). */
-void turn_refresh_moves_for_nation(
-  ColonizeUnitPool* pool,
-  int nation_id,
-  const ColonizeCol1Save* col1,
-  ColonizeWorldMap* map,
-  ColonizeColonyPool* colonies,
-  AiPopupState* ai_popups,
-  const ColonizeMsgCatalog* messages
-) {
-  ColonizeWorld w_ = world_make(pool, colonies, map, col1, col1 != NULL, NULL, NULL);
-  turn_refresh_moves_for_nation_w(&w_, nation_id, ai_popups, messages);
 }
 
 bool turn_select_next_unit(ColonizeUnitPool* pool, int human_nation) {
@@ -1709,9 +1693,7 @@ static void turn_produce_one_colony(
   if (europe) {
     EuropeCustomHouseSale ch_sales[COLONIZE_CARGO_COUNT];
     int ch_sale_count = 0;
-    const int ch_total = europe_custom_house_autosell_ex(
-      europe, pool, colony, col1, human_nation, ch_sales, COLONIZE_CARGO_COUNT, &ch_sale_count
-    );
+    const int ch_total = europe_custom_house_autosell_ex_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(pool), .col1=(ColonizeCol1Save*)(col1), .col1_ok=((col1) != NULL), .europe=(EuropeScreen*)(europe)}, colony, human_nation, ch_sales, COLONIZE_CARGO_COUNT, &ch_sale_count);
     for (int si = 0; si < ch_sale_count; ++si) {
       if (ch_sales[si].cargo >= 0 && ch_sales[si].cargo < COLONIZE_CARGO_COUNT) {
         ch_sold[ch_sales[si].cargo] += ch_sales[si].amount;
@@ -1796,7 +1778,7 @@ static void turn_produce_one_colony(
 
   if (europe) {
     /* Phase O: AI dump-sell surplus for gold before spoilage clamp. */
-    (void)europe_ai_colony_dump_sell(europe, pool, colony, col1, human_nation);
+    (void)europe_ai_colony_dump_sell_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(pool), .col1=(ColonizeCol1Save*)(col1), .col1_ok=((col1) != NULL), .europe=(EuropeScreen*)(europe)}, colony, human_nation);
   }
   /* Spoilage after Custom House / AI dump-sell (wiki Custom House before spoilage). */
   {
@@ -2170,21 +2152,6 @@ void turn_run_colony_production_w(
   }
 }
 
-/* Compat shim: pre-ColonizeWorld signature (see src/core/world.h). */
-void turn_run_colony_production(
-  ColonizeColonyPool* pool,
-  const ColonizeWorldMap* map,
-  ColonizeCol1Save* col1,
-  EuropeScreen* europe,
-  int human_nation,
-  ColonizeTurnResult* out,
-  AiPopupState* ai_popups,
-  const ColonizeMsgCatalog* messages,
-  ColonizeDosRng* rng
-) {
-  ColonizeWorld w_ = world_make(NULL, pool, map, col1, col1 != NULL, rng, europe);
-  turn_run_colony_production_w(&w_, human_nation, out, ai_popups, messages);
-}
 
 static void turn_run_colony_unit_construction(ColonizeTurnContext* ctx) {
   if (!ctx || !ctx->colonies || !ctx->units) {
@@ -2264,17 +2231,7 @@ static void turn_run_colony_building_completion(ColonizeTurnContext* ctx) {
  */
 static void turn_run_colony_eot(ColonizeTurnContext* ctx, ColonizeTurnResult* out) {
   turn_set_birth_units_pool(ctx->units);
-  turn_run_colony_production(
-    ctx->colonies,
-    ctx->map,
-    ctx->col1_ok ? ctx->col1 : NULL,
-    ctx->europe,
-    ctx->human_nation,
-    out,
-    ctx->ai_popups,
-    ctx->messages,
-    ctx->rng
-  );
+  turn_run_colony_production_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(ctx->colonies), .map=(ColonizeWorldMap*)(ctx->map), .col1=(ColonizeCol1Save*)(ctx->col1_ok ? ctx->col1 : NULL), .col1_ok=((ctx->col1_ok ? ctx->col1 : NULL) != NULL), .rng=(ColonizeDosRng*)(ctx->rng), .europe=(EuropeScreen*)(ctx->europe)}, ctx->human_nation, out, ctx->ai_popups, ctx->messages);
   turn_set_birth_units_pool(NULL);
   turn_run_colony_unit_construction(ctx);
   turn_run_colony_building_completion(ctx);
@@ -2284,16 +2241,7 @@ static int turn_run_coastal_fort_fire(ColonizeTurnContext* ctx) {
   if (!ctx || !ctx->units || !ctx->colonies || !ctx->map) {
     return 0;
   }
-  return units_coastal_fort_fire_pulse(
-    ctx->units,
-    ctx->colonies,
-    ctx->map,
-    ctx->col1_ok ? ctx->col1 : NULL,
-    ctx->rng,
-    ctx->human_nation,
-    ctx->status,
-    ctx->status_size
-  );
+  return units_coastal_fort_fire_pulse_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(ctx->units), .colonies=(ColonizeColonyPool*)(ctx->colonies), .map=(ColonizeWorldMap*)(ctx->map), .col1=(ColonizeCol1Save*)(ctx->col1_ok ? ctx->col1 : NULL), .col1_ok=((ctx->col1_ok ? ctx->col1 : NULL) != NULL), .rng=(ColonizeDosRng*)(ctx->rng)}, ctx->human_nation, ctx->status, ctx->status_size);
 }
 
 void turn_colony_free_production(
@@ -2465,10 +2413,7 @@ void turn_run_nation_ticks(ColonizeTurnContext* ctx, ColonizeTurnResult* out) {
       ctx->europe->pool_force_expert = ((turn & 3u) == 0u);
     }
     const int imm = woi_now ? 0
-                            : europe_tick_immigration_pressure(
-                                ctx->europe, ctx->colonies, ctx->units,
-                                ctx->col1_ok ? ctx->col1 : NULL, ctx->human_nation, ctx->rng
-                              );
+                            : europe_tick_immigration_pressure_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(ctx->units), .colonies=(ColonizeColonyPool*)(ctx->colonies), .col1=(ColonizeCol1Save*)(ctx->col1_ok ? ctx->col1 : NULL), .col1_ok=((ctx->col1_ok ? ctx->col1 : NULL) != NULL), .rng=(ColonizeDosRng*)(ctx->rng), .europe=(EuropeScreen*)(ctx->europe)}, ctx->human_nation);
     if (imm == 2) {
       /* Brewster: player picks from the pool (@RECRUITCHOOSE); applied via
        * units_brewster_apply_popup in game_loop, crosses kept until then. */
@@ -2548,9 +2493,7 @@ void turn_run_nation_ticks(ColonizeTurnContext* ctx, ColonizeTurnResult* out) {
        * Cite: nation_ticks_bells_ff.md; TURN1–7 goldens (needed≈14 early).
        */
       if (n != ctx->human_nation) {
-        const int score = europe_compute_immigration_score(
-          ctx->colonies, ctx->units, ctx->col1, n
-        );
+        const int score = europe_compute_immigration_score_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(ctx->units), .colonies=(ColonizeColonyPool*)(ctx->colonies), .col1=(ColonizeCol1Save*)(ctx->col1), .col1_ok=((ctx->col1) != NULL)}, n);
         int need = score > 0 ? score : TURN_AI_DEFAULT_NEEDED_CROSSES;
         if (need > 65535) {
           need = 65535;
@@ -3702,12 +3645,7 @@ COLONIZE_INTERNAL void turn_step_setup(ColonizeTurnProcessor* proc, ColonizeTurn
       ctx->profession_tally_ok = true;
       /* Live census peel: colony + unit/combat tallies (FUN_4962_0018). */
       if (ctx->col1_ok && ctx->col1) {
-        col1_stuff_census_refresh_colony_counts(
-          &ctx->col1->stuff,
-          ctx->colonies,
-          ctx->units,
-          ctx->col1
-        );
+        col1_stuff_census_refresh_colony_counts_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(ctx->units), .colonies=(ColonizeColonyPool*)(ctx->colonies), .col1=(ColonizeCol1Save*)(ctx->col1), .col1_ok=((ctx->col1) != NULL)}, &ctx->col1->stuff);
       }
       /*
        * DOS order relative to the human's end-of-turn (see
@@ -3740,15 +3678,7 @@ COLONIZE_INTERNAL void turn_step_euro(ColonizeTurnProcessor* proc, ColonizeTurnC
         turn_reveal_fog_for_nation(ctx, n);
       }
       if (ctx->units) {
-        turn_refresh_moves_for_nation(
-          ctx->units,
-          n,
-          ctx->col1_ok ? ctx->col1 : NULL,
-          ctx->map,
-          ctx->colonies,
-          ctx->ai_popups,
-          ctx->messages
-        );
+        turn_refresh_moves_for_nation_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(ctx->units), .colonies=(ColonizeColonyPool*)(ctx->colonies), .map=(ColonizeWorldMap*)(ctx->map), .col1=(ColonizeCol1Save*)(ctx->col1_ok ? ctx->col1 : NULL), .col1_ok=((ctx->col1_ok ? ctx->col1 : NULL) != NULL)}, n, ctx->ai_popups, ctx->messages);
         if (n >= 0 && n < 4) {
           (void)units_tick_treasure_outside_colony(
             ctx->units,
@@ -3826,15 +3756,7 @@ COLONIZE_INTERNAL void turn_step_indian(ColonizeTurnProcessor* proc, ColonizeTur
         units_occupancy_rebuild(ctx->units);
       }
       if (ctx->units) {
-        turn_refresh_moves_for_nation(
-          ctx->units,
-          n,
-          ctx->col1_ok ? ctx->col1 : NULL,
-          ctx->map,
-          ctx->colonies,
-          ctx->ai_popups,
-          ctx->messages
-        );
+        turn_refresh_moves_for_nation_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(ctx->units), .colonies=(ColonizeColonyPool*)(ctx->colonies), .map=(ColonizeWorldMap*)(ctx->map), .col1=(ColonizeCol1Save*)(ctx->col1_ok ? ctx->col1 : NULL), .col1_ok=((ctx->col1_ok ? ctx->col1 : NULL) != NULL)}, n, ctx->ai_popups, ctx->messages);
       }
       /*
        * FUN_4d56_1b3a phase 2 (raw viceroy_unpacked.c:81709-81715):
@@ -3926,10 +3848,7 @@ COLONIZE_INTERNAL void turn_step_king(ColonizeTurnProcessor* proc, ColonizeTurnC
       turn_run_year_end_chrome(ctx, &proc->result);
       /* FUN_38fd_0058 EOT market attrition / rise-fall for Europe screen. */
       if (ctx->europe) {
-        europe_tick_market_prices(
-          ctx->europe, ctx->col1_ok ? ctx->col1 : NULL, ctx->colonies, ctx->human_nation,
-          ctx->turn_number ? *ctx->turn_number : 0u
-        );
+        europe_tick_market_prices_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(ctx->colonies), .col1=(ColonizeCol1Save*)(ctx->col1_ok ? ctx->col1 : NULL), .col1_ok=((ctx->col1_ok ? ctx->col1 : NULL) != NULL), .europe=(EuropeScreen*)(ctx->europe)}, ctx->human_nation, ctx->turn_number ? *ctx->turn_number : 0u);
         /* FUN_38fd_0058 phase 4: 0xfa8 @PRICEUP / 0xfb0 @PRICEDOWN OK dialog
          * (FUN_281f_0652(tag, 2)) for the human nation only. DOS calls this
          * inline once per cargo that crosses threshold — a turn where two
@@ -3965,15 +3884,7 @@ COLONIZE_INTERNAL void turn_step_king(ColonizeTurnProcessor* proc, ColonizeTurnC
       ai_king_peacetime_merc_offer(ctx);
       turn_set_active_nation(ctx, ctx->human_nation);
       turn_reveal_fog_for_nation(ctx, ctx->human_nation);
-      turn_refresh_moves_for_nation(
-        ctx->units,
-        ctx->human_nation,
-        ctx->col1_ok ? ctx->col1 : NULL,
-        ctx->map,
-        ctx->colonies,
-        ctx->ai_popups,
-        ctx->messages
-      );
+      turn_refresh_moves_for_nation_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(ctx->units), .colonies=(ColonizeColonyPool*)(ctx->colonies), .map=(ColonizeWorldMap*)(ctx->map), .col1=(ColonizeCol1Save*)(ctx->col1_ok ? ctx->col1 : NULL), .col1_ok=((ctx->col1_ok ? ctx->col1 : NULL) != NULL)}, ctx->human_nation, ctx->ai_popups, ctx->messages);
       if (ctx->human_nation >= 0 && ctx->human_nation < 4) {
         (void)units_tick_treasure_outside_colony(
           ctx->units,
@@ -4011,16 +3922,7 @@ COLONIZE_INTERNAL void turn_step_king(ColonizeTurnProcessor* proc, ColonizeTurnC
         }
         if (ctx->col1_ok && ctx->col1) {
           /* FUN_465b_0000 → FUN_5fef_1908 King's Galleon offer (human only). */
-          (void)units_king_galleon_offer_coastal_treasures(
-            ctx->units,
-            ctx->colonies,
-            ctx->map,
-            ctx->europe,
-            ctx->col1,
-            ctx->human_nation,
-            ctx->ai_popups,
-            ctx->messages
-          );
+          (void)units_king_galleon_offer_coastal_treasures_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(ctx->units), .colonies=(ColonizeColonyPool*)(ctx->colonies), .map=(ColonizeWorldMap*)(ctx->map), .col1=(ColonizeCol1Save*)(ctx->col1), .col1_ok=((ctx->col1) != NULL), .europe=(EuropeScreen*)(ctx->europe)}, ctx->human_nation, ctx->ai_popups, ctx->messages);
         }
       }
       /* Go-To resumes at 10 steps/sec in game_update so the player can watch.

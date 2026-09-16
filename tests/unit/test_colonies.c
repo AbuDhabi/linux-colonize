@@ -15,6 +15,7 @@
 #include "core/units_cargo.h"
 #include "platform/diagnostics.h"
 #include "platform/platform.h"
+#include "../common/test_runner.h"
 
 static int failures = 0;
 
@@ -719,6 +720,7 @@ static int unit_needschool_chrome(void) {
  * the captor, rebel dividend ×2/3, colony/pop tallies move, WAR set.
  */
 static int unit_capture_col1_effects(void) {
+  const int failures_before = failures;
   ColonizeColonyPool pool;
   colonies_init(&pool);
   colonies_set_occupancy_map(NULL);
@@ -782,10 +784,20 @@ static int unit_capture_col1_effects(void) {
   CHECK(col1.nation[0].gold == 600, "woi: loser gold untouched");
   CHECK(col1.head.game_options.ref_unit_threshold == 1, "woi crown capture sets 0x5382|0x40");
   colonies_set_col1_context(NULL);
-  return failures ? 1 : 0;
+  return failures != failures_before ? 1 : 0;
 }
 
-int main(void) {
+/*
+ * The rest of the original hand-written main(): one long narrative that
+ * threads a single map/pool/cid/names/units fixture through founding,
+ * assignment, ejection, buildable-list, abandon and trade-stop coverage.
+ * It is not split into independent cases: state built in one section
+ * (colony id, tile coordinates, loaded building/name tables) is consumed
+ * many sections later, so pulling any piece out on its own would just
+ * duplicate the setup. Kept as a single TEST_MAIN case.
+ */
+static int case_colonies_core(void) {
+  const int failures_before = failures;
   diag_init(0, NULL);
 
   ColonizeWorldMap map;
@@ -1005,7 +1017,8 @@ int main(void) {
     if (ou && before) {
       ou->nation_id = before->nation_id;
     }
-    const int admitted = colonies_admit_unit(&pool, cid, &units, uid, NULL);
+    ColonizeWorld w_admit = world_make(&units, &pool, NULL, NULL, false, NULL, NULL);
+    const int admitted = colonies_admit_unit_w(&w_admit, cid, uid);
     CHECK(admitted == pop0, "admit returns new colonist index");
     CHECK(colonies_get(&pool, cid)->colonist_count == pop0 + 1, "pop +1 after admit");
     {
@@ -1035,7 +1048,7 @@ int main(void) {
       if (ou2 && col) {
         ou2->nation_id = col->nation_id;
       }
-      const int ad2 = colonies_admit_unit(&pool, cid, &units, uid2, NULL);
+      const int ad2 = colonies_admit_unit_w(&w_admit, cid, uid2);
       CHECK(ad2 >= 0, "admit before pioneer eject");
       CHECK(colonies_get(&pool, cid)->stock[COLONIZE_CARGO_TOOLS] >= 100, "tools in stock after admit");
       const int pej =
@@ -1070,7 +1083,7 @@ int main(void) {
       if (oup && col) {
         oup->nation_id = col->nation_id;
       }
-      const int adp = colonies_admit_unit(&pool, cid, &units, uidp, NULL);
+      const int adp = colonies_admit_unit_w(&w_admit, cid, uidp);
       CHECK(adp >= 0, "admit before partial-tools eject");
       int roles[COLONIZE_EJECT_ROLE_COUNT];
       const int nrp = colonies_list_eject_roles(&pool, cid, adp, roles, COLONIZE_EJECT_ROLE_COUNT);
@@ -1102,7 +1115,7 @@ int main(void) {
         ou3->nation_id = col->nation_id;
         ou3->profession = UNITS_JOB_PIONEER;
       }
-      const int ad3 = colonies_admit_unit(&pool, cid, &units, uid3, NULL);
+      const int ad3 = colonies_admit_unit_w(&w_admit, cid, uid3);
       CHECK(ad3 >= 0, "admit hardy pioneer");
       CHECK(
         colonies_get(&pool, cid)->colonists[ad3].profession == UNITS_JOB_PIONEER,
@@ -1126,7 +1139,7 @@ int main(void) {
         units_map_sprite(&units, sej) == UNITS_ICON_SOLDIER,
         "hardy+muskets uses non-veteran soldier icon"
       );
-      const int ad4 = colonies_admit_unit(&pool, cid, &units, sej, NULL);
+      const int ad4 = colonies_admit_unit_w(&w_admit, cid, sej);
       CHECK(ad4 >= 0, "re-admit armed hardy");
       CHECK(
         colonies_get(&pool, cid)->colonists[ad4].profession == UNITS_JOB_PIONEER,
@@ -1167,7 +1180,7 @@ int main(void) {
       if (oum && col) {
         oum->nation_id = col->nation_id;
       }
-      const int adm = colonies_admit_unit(&pool, cid, &units, uidm, NULL);
+      const int adm = colonies_admit_unit_w(&w_admit, cid, uidm);
       CHECK(adm >= 0, "admit before missionary eject");
       const int n1 = colonies_list_eject_roles(&pool, cid, adm, roles, COLONIZE_EJECT_ROLE_COUNT);
       has_miss = 0;
@@ -1864,43 +1877,26 @@ int main(void) {
     }
   }
 
-  if (failures == 0) {
+  if (failures == failures_before) {
     printf("unit_colonies: all checks passed\n");
-    if (unit_found_chrome() != 0) {
-      return 1;
-    }
-    if (unit_full_chrome() != 0) {
-      return 1;
-    }
-    if (unit_alreadyhave_chrome() != 0) {
-      return 1;
-    }
-    if (unit_noteacher_chrome() != 0) {
-      return 1;
-    }
-    if (unit_more_than_three_chrome() != 0) {
-      return 1;
-    }
-    if (unit_needschool_chrome() != 0) {
-      return 1;
-    }
-    if (unit_capture_col1_effects() != 0) {
-      return 1;
-    }
-    if (unit_hammers_purchased_buy() != 0) {
-      return 1;
-    }
-    if (unit_warehouse_capitol_levels() != 0) {
-      return 1;
-    }
-    if (unit_build_complete_latch() != 0) {
-      return 1;
-    }
-    if (unit_craft_preview_clamps() != 0) {
-      return 1;
-    }
     return 0;
   }
-  fprintf(stderr, "unit_colonies: %d failure(s)\n", failures);
+  fprintf(stderr, "unit_colonies: %d failure(s)\n", failures - failures_before);
   return 1;
 }
+
+static const TestCase k_cases[] = {
+    {"unit_colonies_core", case_colonies_core},
+    {"unit_found_chrome", unit_found_chrome},
+    {"unit_full_chrome", unit_full_chrome},
+    {"unit_alreadyhave_chrome", unit_alreadyhave_chrome},
+    {"unit_noteacher_chrome", unit_noteacher_chrome},
+    {"unit_more_than_three_chrome", unit_more_than_three_chrome},
+    {"unit_needschool_chrome", unit_needschool_chrome},
+    {"unit_capture_col1_effects", unit_capture_col1_effects},
+    {"unit_hammers_purchased_buy", unit_hammers_purchased_buy},
+    {"unit_warehouse_capitol_levels", unit_warehouse_capitol_levels},
+    {"unit_build_complete_latch", unit_build_complete_latch},
+    {"unit_craft_preview_clamps", unit_craft_preview_clamps},
+};
+TEST_MAIN(k_cases)

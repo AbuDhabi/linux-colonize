@@ -9,7 +9,10 @@
 #include "core/popup_msg.h"
 #include "core/ss.h"
 #include "core/units.h"
+#include "core/world.h"
 #include "platform/diagnostics.h"
+
+#include "../common/test_runner.h"
 
 /* BUYME1 body tokens + Never mind / Complete it choices. */
 static int unit_buyme1_tokens(void) {
@@ -400,25 +403,21 @@ static int unit_building_click_reaches_owned(void) {
   return rc;
 }
 
-int main(void) {
+/*
+ * The rest of the original hand-written main() is one continuous narrative:
+ * a single ColonyScreenView/pool/units/map/terrain/colony rig is built up
+ * once and progressively mutated (found colony -> assign fields -> render
+ * variants -> hit-tests -> construction popup -> warehouse transfer -> buy
+ * construction), with later sections depending on state left by earlier
+ * ones (the founded colony id, the assigned field colonist, the docked
+ * ship, etc). Splitting it into independent TestCase entries would mean
+ * either re-deriving all of that setup per case or introducing a shared
+ * fixture with its own reset semantics that the original code never had;
+ * per tests/README.md guidance this is the "truly one continuous narrative
+ * mutating shared state" case, so it stays a single case function.
+ */
+static int case_colony_screen_render_workflow(void) {
   diag_init(0, NULL);
-
-  if (unit_buyme1_tokens() != 0) {
-    diag_shutdown();
-    return 1;
-  }
-  if (unit_building_click_reaches_owned() != 0) {
-    diag_shutdown();
-    return 1;
-  }
-  if (unit_dock_orders_menu() != 0) {
-    diag_shutdown();
-    return 1;
-  }
-  if (unit_multi_units_pane_roster() != 0) {
-    diag_shutdown();
-    return 1;
-  }
 
   ColonyScreenView view;
   char err[256];
@@ -632,15 +631,13 @@ int main(void) {
 
   uint8_t pixels[320 * 200];
   ColonizeFramebuffer8 fb = {.width = 320, .height = 200, .pixels = pixels};
-  colony_screen_render(
+    ColonizeWorld w_scr1_ = world_make(&units, &pool, &map, NULL, false, NULL, NULL);
+  colony_screen_render_w(
+    &w_scr1_,
     &view,
-    &pool,
     sample,
-    &units,
-    &map,
     &terrain,
     phys0_ok ? &phys0 : NULL,
-    NULL,
     1492,
     0,
     1000,
@@ -846,15 +843,13 @@ int main(void) {
       ou->nation_id = col->nation_id;
     }
     memset(pixels, 0, sizeof(pixels));
-    colony_screen_render(
+        ColonizeWorld w_scr2_ = world_make(&units, &pool, &map, NULL, false, NULL, NULL);
+    colony_screen_render_w(
+      &w_scr2_,
       &view,
-      &pool,
       col,
-      &units,
-      &map,
       &terrain,
       phys0_ok ? &phys0 : NULL,
-      NULL,
       1492,
       0,
       1000,
@@ -1261,7 +1256,8 @@ int main(void) {
         return 1;
       }
       ColonizeColonyPreview prev;
-      colony_preview_compute(&pool, colonies_get(&pool, cid), &map, NULL, &prev);
+      ColonizeWorld w_prev_ = world_make(NULL, &pool, &map, NULL, false, NULL, NULL);
+      colony_preview_compute_w(&w_prev_, colonies_get(&pool, cid), &prev);
       if (prev.food_fish <= 0 || prev.food_fish > prev.food_produced ||
           prev.goods[COLONIZE_CARGO_FOOD] != prev.food_produced) {
         fprintf(
@@ -1302,15 +1298,13 @@ int main(void) {
       }
     }
     memset(pixels, 0, sizeof(pixels));
-    colony_screen_render(
+        ColonizeWorld w_scr3_ = world_make(&units, &pool, &map, NULL, false, NULL, NULL);
+    colony_screen_render_w(
+      &w_scr3_,
       &view,
-      &pool,
       col,
-      &units,
-      &map,
       &terrain,
       phys0_ok ? &phys0 : NULL,
-      NULL,
       1492,
       0,
       1000,
@@ -1391,15 +1385,13 @@ int main(void) {
       const int8_t saved_slot = col->tiles[dup_slot];
       col->tiles[dup_slot] = col->tiles[0]; /* same colonist, second slot */
       memset(pixels, 0, sizeof(pixels));
-      colony_screen_render(
+            ColonizeWorld w_scr4_ = world_make(&units, &pool, &map, NULL, false, NULL, NULL);
+      colony_screen_render_w(
+        &w_scr4_,
         &view,
-        &pool,
         col,
-        &units,
-        &map,
         &terrain,
         phys0_ok ? &phys0 : NULL,
-        NULL,
         1492,
         0,
         1000,
@@ -1468,15 +1460,13 @@ int main(void) {
     view.preview.food_fish = 2;
     view.preview.hammers = 9; /* included as a production slot */
     memset(pixels, 0, sizeof(pixels));
-    colony_screen_render(
+        ColonizeWorld w_scr5_ = world_make(&units, &pool, &map, NULL, false, NULL, NULL);
+    colony_screen_render_w(
+      &w_scr5_,
       &view,
-      &pool,
       col,
-      &units,
-      &map,
       &terrain,
       phys0_ok ? &phys0 : NULL,
-      NULL,
       1492,
       0,
       1000,
@@ -1517,15 +1507,13 @@ int main(void) {
     }
     view.multi_mode = COLONY_MULTI_CONSTRUCTION;
     memset(pixels, 0, sizeof(pixels));
-    colony_screen_render(
+        ColonizeWorld w_scr6_ = world_make(&units, &pool, &map, NULL, false, NULL, NULL);
+    colony_screen_render_w(
+      &w_scr6_,
       &view,
-      &pool,
       col,
-      &units,
-      &map,
       &terrain,
       phys0_ok ? &phys0 : NULL,
-      NULL,
       1492,
       0,
       1000,
@@ -2310,3 +2298,13 @@ int main(void) {
   diag_shutdown();
   return 0;
 }
+
+static const TestCase k_cases[] = {
+    {"unit_buyme1_tokens", unit_buyme1_tokens},
+    {"unit_building_click_reaches_owned", unit_building_click_reaches_owned},
+    {"unit_dock_orders_menu", unit_dock_orders_menu},
+    {"unit_multi_units_pane_roster", unit_multi_units_pane_roster},
+    {"case_colony_screen_render_workflow", case_colony_screen_render_workflow},
+};
+
+TEST_MAIN(k_cases)

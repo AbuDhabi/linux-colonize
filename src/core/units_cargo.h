@@ -20,15 +20,6 @@ bool units_resolve_lcr_rumour_w(
   int unit_id,
   int human_nation
 );
-bool units_resolve_lcr_rumour(
-  ColonizeUnitPool* pool,
-  int unit_id,
-  ColonizeWorldMap* map,
-  ColonizeCol1Save* col1,
-  ColonizeDosRng* rng,
-  EuropeScreen* europe,
-  int human_nation
-);
 
 
 /*
@@ -108,14 +99,6 @@ int units_cortes_cash_coastal_treasures_w(
   const ColonizeWorld* w,
   int nation_id
 );
-int units_cortes_cash_coastal_treasures(
-  ColonizeUnitPool* pool,
-  ColonizeColonyPool* colonies,
-  ColonizeWorldMap* map,
-  EuropeScreen* europe,
-  ColonizeCol1Save* col1,
-  int nation_id
-);
 
 /*
  * FUN_5fef_1908 Crown share % for the King's Galleon transport offer:
@@ -171,16 +154,6 @@ int units_king_galleon_offer_coastal_treasures_w(
   AiPopupState* popups,
   const ColonizeMsgCatalog* game_txt
 );
-int units_king_galleon_offer_coastal_treasures(
-  ColonizeUnitPool* pool,
-  const ColonizeColonyPool* colonies,
-  const ColonizeWorldMap* map,
-  EuropeScreen* europe,
-  ColonizeCol1Save* col1,
-  int nation_id,
-  AiPopupState* popups,
-  const ColonizeMsgCatalog* game_txt
-);
 
 /*
  * Apply the pending AI_POPUP_TAG_KING_GALLEON result: choice 1 → Crown share
@@ -217,9 +190,6 @@ bool units_brewster_apply_popup_ex_w(
   const ColonizeWorld* w,
   AiPopupState* popups
 );
-bool units_brewster_apply_popup_ex(
-  EuropeScreen* europe, AiPopupState* popups, ColonizeUnitPool* units, ColonizeDosRng* rng
-);
 bool units_fountain_youth_apply_popup(
   EuropeScreen* europe, AiPopupState* popups, const ColonizeMsgCatalog* game_txt
 );
@@ -231,13 +201,6 @@ bool units_fountain_youth_apply_popup_ex(
 );
 bool units_king_galleon_apply_popup_w(
   const ColonizeWorld* w,
-  AiPopupState* popups,
-  const ColonizeMsgCatalog* game_txt
-);
-bool units_king_galleon_apply_popup(
-  ColonizeUnitPool* pool,
-  EuropeScreen* europe,
-  ColonizeCol1Save* col1,
   AiPopupState* popups,
   const ColonizeMsgCatalog* game_txt
 );
@@ -306,14 +269,6 @@ bool units_unload_w(
   int dest_x,
   int dest_y
 );
-bool units_unload(
-  ColonizeUnitPool* pool,
-  int ship_id,
-  const ColonizeWorldMap* map,
-  int dest_x,
-  int dest_y,
-  const ColonizeColonyPool* colonies
-);
 /* Unload a specific passenger onto dest; charges dest terrain MP (no gift). */
 bool units_unload_passenger_w(
   const ColonizeWorld* w,
@@ -321,15 +276,6 @@ bool units_unload_passenger_w(
   int pax_id,
   int dest_x,
   int dest_y
-);
-bool units_unload_passenger(
-  ColonizeUnitPool* pool,
-  int ship_id,
-  int pax_id,
-  const ColonizeWorldMap* map,
-  int dest_x,
-  int dest_y,
-  const ColonizeColonyPool* colonies
 );
 /*
  * DOS FUN_4720_015c landfall eligibility: the passenger's spent byte must be
@@ -357,16 +303,6 @@ bool units_pick_landfall_tile_w(
   int* out_x,
   int* out_y
 );
-bool units_pick_landfall_tile(
-  const ColonizeUnitPool* pool,
-  int ship_id,
-  const ColonizeWorldMap* map,
-  const ColonizeColonyPool* colonies,
-  int prefer_x,
-  int prefer_y,
-  int* out_x,
-  int* out_y
-);
 /*
  * Unload every passenger onto dest (must be enterable land adjacent/same).
  * Wakes sentry cargo. Does not change pool->selected_id. Returns count unloaded.
@@ -377,14 +313,6 @@ int units_landfall_unload_all_w(
   int ship_id,
   int dest_x,
   int dest_y
-);
-int units_landfall_unload_all(
-  ColonizeUnitPool* pool,
-  int ship_id,
-  const ColonizeWorldMap* map,
-  int dest_x,
-  int dest_y,
-  const ColonizeColonyPool* colonies
 );
 /*
  * Colony dock: remove all passengers from the ship onto (x,y), clear sentry.

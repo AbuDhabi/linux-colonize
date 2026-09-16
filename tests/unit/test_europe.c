@@ -10,7 +10,21 @@
 #include "core/units.h"
 #include "platform/diagnostics.h"
 
-int main(void) {
+#include "../common/test_runner.h"
+
+/*
+ * The entire body below is one continuous narrative on a single EuropeScreen
+ * fixture `eu`: recruit -> harbor push/pop -> sell/buy/tax -> boycott ->
+ * voyages -> disembark -> treasure cash-in -> pool refill, each section
+ * depending on state (gold, dock/harbor/bound contents, recruit_count,
+ * boycott bitmap, RNG streams, ...) left behind by the sections before it.
+ * There are no separate named test functions to begin with (unlike
+ * test_colony_screen.c's four helpers) - splitting this would mean
+ * re-deriving the whole history per case. Per tests/README.md guidance this
+ * is the "truly one continuous narrative mutating shared state" case, so it
+ * stays a single TestCase.
+ */
+static int case_europe_workflow(void) {
   diag_init(0, NULL);
 
   EuropeScreen eu;
@@ -264,7 +278,8 @@ int main(void) {
   eu.tax_percent = 50;
   const int trade_ask = eu.cargo[COLONIZE_CARGO_TRADE_GOODS].ask;
   const int gold_pre_buy = eu.gold;
-  const int bought = europe_buy_cargo(&eu, NULL, NULL, -1, 0, COLONIZE_CARGO_TRADE_GOODS, 100);
+  ColonizeWorld buy_w1 = world_make(NULL, NULL, NULL, NULL, false, NULL, &eu);
+  const int bought = europe_buy_cargo_w(&buy_w1, -1, 0, COLONIZE_CARGO_TRADE_GOODS, 100);
   if (bought != 100 || eu.gold != gold_pre_buy - 100 * trade_ask ||
       eu.harbor[0].hold_goods_amount[0] != 100 ||
       eu.harbor[0].hold_goods_type[0] != COLONIZE_CARGO_TRADE_GOODS) {
@@ -426,7 +441,8 @@ int main(void) {
       europe_free(&eu);
       return 1;
     }
-    const int blocked_buy = europe_buy_cargo(&eu, NULL, NULL, -1, 0, COLONIZE_CARGO_FURS, 50);
+    ColonizeWorld buy_w2 = world_make(NULL, NULL, NULL, NULL, false, NULL, &eu);
+    const int blocked_buy = europe_buy_cargo_w(&buy_w2, -1, 0, COLONIZE_CARGO_FURS, 50);
     if (blocked_buy != 0 || eu.gold != gold_before) {
       fprintf(stderr, "boycotted buy should be refused, got %d\n", blocked_buy);
       europe_free(&eu);
@@ -1079,7 +1095,8 @@ int main(void) {
     const int sugar_bid = eu.cargo[COLONIZE_CARGO_SUGAR].bid;
     const int expect = europe_net_after_tax((sugar_bid - 1) * 50, 50);
     const int gold0 = eu.gold;
-    const int gained = europe_sell_unit_hold(&eu, NULL, &units, sid, 0);
+    ColonizeWorld sell_w1 = world_make(&units, NULL, NULL, NULL, false, NULL, &eu);
+    const int gained = europe_sell_unit_hold_w(&sell_w1, sid, 0);
     if (gained != expect || eu.gold != gold0 + expect ||
         ship->hold_goods_amount[0] != 0 || ship->hold_goods_type[0] != 0) {
       fprintf(
@@ -1096,8 +1113,10 @@ int main(void) {
       europe_free(&eu);
       return 1;
     }
-    if (europe_sell_unit_hold(&eu, NULL, &units, sid, 0) != 0 ||
-        europe_sell_unit_hold(NULL, NULL, &units, sid, 0) != 0) {
+    ColonizeWorld sell_w2 = world_make(&units, NULL, NULL, NULL, false, NULL, &eu);
+    ColonizeWorld sell_w3 = world_make(&units, NULL, NULL, NULL, false, NULL, NULL);
+    if (europe_sell_unit_hold_w(&sell_w2, sid, 0) != 0 ||
+        europe_sell_unit_hold_w(&sell_w3, sid, 0) != 0) {
       fprintf(stderr, "sell_unit_hold should no-op on empty/null\n");
       assets_msg_free(&names);
       europe_free(&eu);
@@ -1187,9 +1206,10 @@ int main(void) {
     const int ore_ask = cap.cargo[COLONIZE_CARGO_ORE].ask;
     const int cloth_ask = cap.cargo[COLONIZE_CARGO_CLOTH].ask;
     (void)cloth_ask;
+    ColonizeWorld cap_w = world_make(&cap_units, NULL, NULL, NULL, false, NULL, &cap);
     const int b1 =
-      europe_buy_cargo(&cap, NULL, &cap_units, -1, 0, COLONIZE_CARGO_TOOLS, 100);
-    const int b2 = europe_buy_cargo(&cap, NULL, &cap_units, -1, 0, COLONIZE_CARGO_ORE, 100);
+      europe_buy_cargo_w(&cap_w, -1, 0, COLONIZE_CARGO_TOOLS, 100);
+    const int b2 = europe_buy_cargo_w(&cap_w, -1, 0, COLONIZE_CARGO_ORE, 100);
     if (b1 != 100 || b2 != 100 || cap.harbor[0].hold_goods_amount[0] != 100 ||
         cap.harbor[0].hold_goods_amount[1] != 100) {
       fprintf(
@@ -1216,7 +1236,7 @@ int main(void) {
       europe_free(&eu);
       return 1;
     }
-    const int b3 = europe_buy_cargo(&cap, NULL, &cap_units, -1, 0, COLONIZE_CARGO_CLOTH, 100);
+    const int b3 = europe_buy_cargo_w(&cap_w, -1, 0, COLONIZE_CARGO_CLOTH, 100);
     if (b3 != 0 || cap.gold != gold_full || cap.harbor[0].hold_goods_amount[2] != 0) {
       fprintf(
         stderr,
@@ -1250,7 +1270,7 @@ int main(void) {
       return 1;
     }
     const int gold_pre_topup = cap.gold;
-    const int b4 = europe_buy_cargo(&cap, NULL, &cap_units, -1, 0, COLONIZE_CARGO_ORE, 100);
+    const int b4 = europe_buy_cargo_w(&cap_w, -1, 0, COLONIZE_CARGO_ORE, 100);
     if (b4 != 60 || cap.harbor[0].hold_goods_amount[1] != 100 ||
         cap.gold != gold_pre_topup - 60 * ore_ask) {
       fprintf(
@@ -1290,7 +1310,7 @@ int main(void) {
     const int pax_idx = cap.harbor_ships - 1;
     const int gold_pax = cap.gold;
     if (europe_harbor_cargo_room(&cap, &cap_units, pax_idx, COLONIZE_CARGO_CLOTH) != 0 ||
-        europe_buy_cargo(&cap, NULL, &cap_units, -1, pax_idx, COLONIZE_CARGO_CLOTH, 100) != 0 ||
+        europe_buy_cargo_w(&cap_w, -1, pax_idx, COLONIZE_CARGO_CLOTH, 100) != 0 ||
         cap.gold != gold_pax || cap.harbor[pax_idx].hold_goods_amount[1] != 0) {
       fprintf(
         stderr,
@@ -1604,7 +1624,8 @@ int main(void) {
     europe_apply_volume_price(&tick, tg, 50, 0);
     const int nr1 = tick.trade_nr[tg];
     const int attr = tick.cargo[tg].attrition;
-    europe_tick_market_prices(&tick, NULL, NULL, 0, 0u);
+    ColonizeWorld tick_w = world_make(NULL, NULL, NULL, NULL, false, NULL, &tick);
+    europe_tick_market_prices_w(&tick_w, 0, 0u);
     if (tick.trade_nr[tg] != (int16_t)(nr1 + attr)) {
       fprintf(
         stderr,
@@ -1634,7 +1655,7 @@ int main(void) {
     tick.cargo[tg].attrition = 0;
     tick.trade_nr[tg] = 100; /* ≥ fall*100 → bid−1 */
     tick.status[0] = '\0';
-    europe_tick_market_prices(&tick, NULL, NULL, 0, 0u);
+    europe_tick_market_prices_w(&tick_w, 0, 0u);
     /* Real DOS wording, GAME.TXT @PRICEDOWN (COLONIZE/GAME.TXT:1687-1689):
        "The price of {cargo} in {port} has fallen to {bid}." */
     if (tick.cargo[tg].bid != 9 || strstr(tick.status, "has fallen to 9") == NULL ||
@@ -1679,7 +1700,8 @@ int main(void) {
     EuropeScreen tick;
     memset(&tick, 0, sizeof(tick));
     tick.cargo_count = COLONIZE_CARGO_COUNT;
-    europe_tick_market_prices(&tick, &col1, &pool, 0, 0u);
+    ColonizeWorld tick_w2 = world_make(NULL, &pool, NULL, &col1, true, NULL, &tick);
+    europe_tick_market_prices_w(&tick_w2, 0, 0u);
     if (col1.head.price_group_state[COLONIZE_CARGO_FOOD] != 8) {
       fprintf(
         stderr,
@@ -1726,7 +1748,8 @@ int main(void) {
     /* Sugar bid 50 >> ratio → +mid (4, no *100). */
     tick.cargo[COLONIZE_CARGO_SUGAR].bid = 50;
 
-    europe_tick_market_prices(&tick, &col1, NULL, 0, 0u);
+    ColonizeWorld tick_w3 = world_make(NULL, NULL, NULL, &col1, true, NULL, &tick);
+    europe_tick_market_prices_w(&tick_w3, 0, 0u);
     /* Phase2 ±400 then phase4 rise/fall absorbs ±(mid*100) into bid. */
     if (tick.cargo[COLONIZE_CARGO_RUM].bid != 19 || tick.trade_nr[COLONIZE_CARGO_RUM] != 0) {
       fprintf(
@@ -1891,7 +1914,8 @@ int main(void) {
      * it to gold. DOS reads the derived sell table DS:0x84BC (-0x7b44),
      * which is euro_price − 1 by construction (viceroy 57834-57835).
      */
-    const int gained = europe_ai_colony_dump_sell(&dseu, &pool, ai, &dscol1, 0);
+    ColonizeWorld ds_w = world_make(NULL, &pool, NULL, &dscol1, true, NULL, &dseu);
+    const int gained = europe_ai_colony_dump_sell_w(&ds_w, ai, 0);
     if (gained != 880) {
       fprintf(stderr, "dump-sell untaxed gross want 880 got %d\n", gained);
       europe_free(&eu);
@@ -1951,7 +1975,7 @@ int main(void) {
     }
     ai->stock[COLONIZE_CARGO_TOBACCO] = 180;
     dseu.cargo[COLONIZE_CARGO_TOBACCO].bid = 3;
-    if (europe_ai_colony_dump_sell(&dseu, &pool, ai, &dscol1, 0) != 160 ||
+    if (europe_ai_colony_dump_sell_w(&ds_w, ai, 0) != 160 ||
         dscol1.nation[1].gold != 160u) {
       fprintf(
         stderr,
@@ -2134,3 +2158,9 @@ int main(void) {
   diag_shutdown();
   return 0;
 }
+
+static const TestCase k_cases[] = {
+    {"case_europe_workflow", case_europe_workflow},
+};
+
+TEST_MAIN(k_cases)

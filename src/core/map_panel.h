@@ -121,47 +121,6 @@ void map_panel_render_w(
   bool end_turn_blink_white,
   ColonizeFramebuffer8* framebuffer
 );
-void map_panel_render(
-  const MapPanel* panel,
-  const ColonizeWorldMap* map,
-  const ColonizeUnitPool* units,
-  const ColonizeColonyPool* colonies,
-  const ColonizeSpriteSheet* icons,
-  const ColonizeFont* font,
-  const ColonizeMsgCatalog* names,
-  const ColonizeMsgCatalog* labels,
-  const ColonizeCol1Save* col1,
-  int view_x,
-  int view_y,
-  int view_cols,
-  int view_rows,
-  int cursor_x,
-  int cursor_y,
-  int selected_unit_id,
-  /* The fog view nation, not the player: −1 under Complete Map, a foreign
-   * nation under SETVIEW. map_panel_render resolves the real human itself for
-   * the few "is this mine?" questions — do not use this for those. */
-  int fog_nation,
-  uint16_t game_year,
-  uint16_t game_autumn,
-  int gold,
-  int tax_percent,
-  const char* nation_name,
-  const ColonizePalette* active_palette,
-  /*
-   * "End of Turn" (LABELS @MISC) — DOS draws it whenever DS:0x53c6 is set,
-   * i.e. once the unit cycle has run dry, in the running text flow rather
-   * than pinned to the panel foot (clamped to 0xc6 minus one text line).
-   * end_turn_active: false whenever the prompt shouldn't show at all
-   * (units still pending, a dialog is up, ...). end_turn_blink_white:
-   * while active, alternates the text between white (15) and black (0);
-   * DOS shares DS:0x929c with the map's tile cursor, so pass that phase.
-   */
-  bool end_turn_active,
-  bool end_turn_blink_white,
-  ColonizeFramebuffer8* framebuffer
-);
-
 /* Indian village markers on the main map viewport (ICONS.SS #10–13 by tech). */
 void map_panel_render_tribes_on_map_w(
   const ColonizeWorld* w,
@@ -175,24 +134,6 @@ void map_panel_render_tribes_on_map_w(
   int tile_h,
   int origin_x,
   int origin_y,
-  int fog_nation,
-  const ColonizePalette* active_palette
-);
-void map_panel_render_tribes_on_map(
-  const ColonizeCol1Save* col1,
-  const ColonizeUnitPool* units,
-  const ColonizeColonyPool* colonies,
-  const ColonizeSpriteSheet* icons,
-  ColonizeFramebuffer8* framebuffer,
-  int view_x,
-  int view_y,
-  int view_cols,
-  int view_rows,
-  int tile_w,
-  int tile_h,
-  int origin_x,
-  int origin_y,
-  const ColonizeWorldMap* fog_map,
   int fog_nation,
   /* Active output palette (TERRAIN.SS for the map): the mission cross and
    * the other-European alarm mark are drawn in nation shades whose raw DOS

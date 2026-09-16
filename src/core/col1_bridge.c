@@ -1765,20 +1765,6 @@ bool col1_bridge_apply_w(
   return true;
 }
 
-/* Compat shim: pre-ColonizeWorld signature (see src/core/world.h). */
-bool col1_bridge_apply(
-  const ColonizeCol1Save* save,
-  ColonizeWorldMap* map,
-  ColonizeUnitPool* units,
-  ColonizeColonyPool* colonies,
-  EuropeScreen* europe,
-  ColonizeCol1BridgeResult* out,
-  char* err,
-  size_t err_size
-) {
-  ColonizeWorld w_ = world_make(units, colonies, map, save, save != NULL, NULL, europe);
-  return col1_bridge_apply_w(&w_, out, err, err_size);
-}
 
 
 
@@ -1880,7 +1866,7 @@ static void col1_bridge_sanitize_units_for_dos(
           if (colonies && colonies_id_at(colonies, nx, ny) >= 0) {
             continue;
           }
-          if (!units_can_enter(units, land->type_index, map, nx, ny, land->id, colonies)) {
+          if (!units_can_enter_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(units), .colonies=(ColonizeColonyPool*)(colonies), .map=(ColonizeWorldMap*)(map)}, land->type_index, nx, ny, land->id)) {
             continue;
           }
           dest_x = nx;
@@ -3078,7 +3064,7 @@ bool col1_bridge_capture_w(
 
   /* Blank-template census only — never freshen mid-campaign lag. */
   if (col1_stuff_census_window_is_blank(&save->stuff)) {
-    col1_stuff_census_fill_blank(&save->stuff, units, colonies, save);
+    col1_stuff_census_fill_blank_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(units), .colonies=(ColonizeColonyPool*)(colonies), .col1=(ColonizeCol1Save*)(save), .col1_ok=((save) != NULL)}, &save->stuff);
   }
 
   /* Mid-campaign: do not leave discovery unset for DOS woodcut re-fire. */
@@ -3090,29 +3076,6 @@ bool col1_bridge_capture_w(
   return true;
 }
 
-/* Compat shim: pre-ColonizeWorld signature (see src/core/world.h). */
-bool col1_bridge_capture(
-  ColonizeCol1Save* save,
-  const ColonizeWorldMap* map,
-  ColonizeUnitPool* units,
-  const ColonizeColonyPool* colonies,
-  const EuropeScreen* europe,
-  uint16_t year,
-  uint16_t autumn,
-  uint32_t turn_number,
-  int human_nation,
-  int cursor_x,
-  int cursor_y,
-  int view_x,
-  int view_y,
-  int active_unit_id,
-  bool view_pieces_mode,
-  char* err,
-  size_t err_size
-) {
-  ColonizeWorld w_ = world_make(units, colonies, map, save, save != NULL, NULL, europe);
-  return col1_bridge_capture_w(&w_, year, autumn, turn_number, human_nation, cursor_x, cursor_y, view_x, view_y, active_unit_id, view_pieces_mode, err, err_size);
-}
 
 void col1_bridge_mark_new_world_discovered(ColonizeCol1Save* save, int human_nation) {
   if (!save || human_nation < 0 || human_nation > 3) {

@@ -628,7 +628,7 @@ int main(void) {
       map_free(&map);
       return fail("deep Magellan bumped land unit");
     }
-    turn_refresh_moves_for_nation(&units, 0, &deep_col1, NULL, NULL, NULL, NULL);
+    turn_refresh_moves_for_nation_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&units), .colonies=(ColonizeColonyPool*)(NULL), .map=(ColonizeWorldMap*)(NULL), .col1=(ColonizeCol1Save*)(&deep_col1), .col1_ok=true}, 0, NULL, NULL);
     if (caravel->moves_left != units_type_max_mp(&units.types[2]) + UNITS_MP_PER_TILE) {
       free(deep_col1.colony);
       map_free(&map);
@@ -898,7 +898,7 @@ int main(void) {
       ColonizeUnit* walker = units_get(&units, walker_id);
       walker->nation_id = 0;
 
-      const int admitted = colonies_admit_unit(&colonies, 2, &units, walker_id, &deep_col1);
+      const int admitted = colonies_admit_unit_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&units), .colonies=(ColonizeColonyPool*)(&colonies), .col1=(ColonizeCol1Save*)(&deep_col1), .col1_ok=true}, 2, walker_id);
       if (admitted < 0) {
         free(deep_col1.colony);
         map_free(&map);
@@ -1129,7 +1129,7 @@ int main(void) {
       dw->nation_id = 1;
       dw->profession = UNITS_JOB_NONE;
       /* Equal attack/defense; NULL rng → attacker wins when attack >= defense. */
-      if (!units_resolve_land_combat_ff(&upool, aid, did, NULL, &ccol1)) {
+      if (!units_resolve_land_combat_ff_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&upool), .col1=(ColonizeCol1Save*)(&ccol1), .col1_ok=true, .rng=(ColonizeDosRng*)(NULL)}, aid, did)) {
         return fail("Washington land combat attacker should win");
       }
       aw = units_get(&upool, aid);
@@ -1155,7 +1155,7 @@ int main(void) {
       aw->nation_id = 0;
       aw->profession = UNITS_JOB_SOLDIER;
       dw->nation_id = 1;
-      if (!units_resolve_land_combat_ff(&upool, aid, did, NULL, &ccol1)) {
+      if (!units_resolve_land_combat_ff_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&upool), .col1=(ColonizeCol1Save*)(&ccol1), .col1_ok=true, .rng=(ColonizeDosRng*)(NULL)}, aid, did)) {
         return fail("Washington vet combat should win");
       }
       aw = units_get(&upool, aid);
@@ -1176,7 +1176,7 @@ int main(void) {
       aw->nation_id = 0;
       aw->profession = UNITS_JOB_NONE;
       dw->nation_id = 1;
-      if (!units_resolve_land_combat_ff(&upool, aid, did, NULL, &ccol1)) {
+      if (!units_resolve_land_combat_ff_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&upool), .col1=(ColonizeCol1Save*)(&ccol1), .col1_ok=true, .rng=(ColonizeDosRng*)(NULL)}, aid, did)) {
         return fail("Washington Dragoon combat should win");
       }
       aw = units_get(&upool, aid);
@@ -1202,7 +1202,7 @@ int main(void) {
       aw->profession = UNITS_JOB_NONE;
       dw->nation_id = 1;
       units_set_ff_col1(NULL);
-      if (!units_resolve_land_combat_ff(&upool, aid, did, NULL, NULL)) {
+      if (!units_resolve_land_combat_ff_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&upool), .col1=(ColonizeCol1Save*)(NULL), .col1_ok=((NULL) != NULL), .rng=(ColonizeDosRng*)(NULL)}, aid, did)) {
         return fail("NULL-col1 land combat should win");
       }
       aw = units_get(&upool, aid);
@@ -1279,7 +1279,7 @@ int main(void) {
           return fail("Drake defender Privateer +50% must raise def strength");
         }
       }
-      if (!units_resolve_naval_combat_ff(&upool, atk1, def1, NULL, &ccol1)) {
+      if (!units_resolve_naval_combat_ff_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&upool), .col1=(ColonizeCol1Save*)(&ccol1), .col1_ok=true, .rng=(ColonizeDosRng*)(NULL)}, atk1, def1)) {
         return fail("equal Privateers with attack bonus: deterministic tie goes to attacker");
       }
       /*
@@ -1307,7 +1307,7 @@ int main(void) {
       a2->nation_id = 1;
       d2->nation_id = 0;
       /* No col1 → no Drake bonus → attack 8 >= def 8 → attacker wins. */
-      if (!units_resolve_naval_combat_ff(&upool, atk2, def2, NULL, NULL)) {
+      if (!units_resolve_naval_combat_ff_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&upool), .col1=(ColonizeCol1Save*)(NULL), .col1_ok=((NULL) != NULL), .rng=(ColonizeDosRng*)(NULL)}, atk2, def2)) {
         return fail("without Drake bonus equal Privateers: attacker should win");
       }
       {
@@ -1329,7 +1329,7 @@ int main(void) {
       ColonizeUnit* d3 = units_get(&upool, def3);
       a3->nation_id = 0;
       d3->nation_id = 1;
-      if (!units_resolve_naval_combat_ff(&upool, atk3, def3, NULL, &ccol1)) {
+      if (!units_resolve_naval_combat_ff_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&upool), .col1=(ColonizeCol1Save*)(&ccol1), .col1_ok=true, .rng=(ColonizeDosRng*)(NULL)}, atk3, def3)) {
         return fail("Drake attacker Privateer +50% should win vs equal foe");
       }
       (void)no_drake;
@@ -1446,7 +1446,7 @@ int main(void) {
 
       units_set_ff_col1(&ccol1);
       /* Deterministic: atk 4×8=32 >= bare-colony def ((2+4)*16)>>2=24 → win. */
-      if (!units_try_move(&upool, atk, &rmap, 6, 6, &rcol, NULL)) {
+      if (!units_try_move_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&upool), .colonies=(ColonizeColonyPool*)(&rcol), .map=(ColonizeWorldMap*)(&rmap), .rng=(ColonizeDosRng*)(NULL)}, atk, 6, 6)) {
         units_set_ff_col1(NULL);
         map_free(&rmap);
         return fail("Revere try_move should win vs auto-armed defender");
@@ -1511,7 +1511,7 @@ int main(void) {
         ra3->nation_id = 1;
         ra3->moves_left = 3 * UNITS_MP_PER_TILE;
         units_set_ff_col1(&ccol1);
-        const bool moved = units_try_move(&upool, atk3, &rmap, 6, 6, &rcol, NULL);
+        const bool moved = units_try_move_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&upool), .colonies=(ColonizeColonyPool*)(&rcol), .map=(ColonizeWorldMap*)(&rmap), .rng=(ColonizeDosRng*)(NULL)}, atk3, 6, 6);
         units_set_ff_col1(NULL);
         if (moved) {
           map_free(&rmap);
@@ -1551,7 +1551,7 @@ int main(void) {
       ra2->nation_id = 1;
       ra2->moves_left = 3 * UNITS_MP_PER_TILE;
       units_set_ff_col1(NULL);
-      if (!units_try_move(&upool, atk2, &rmap, 6, 6, &rcol, NULL)) {
+      if (!units_try_move_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&upool), .colonies=(ColonizeColonyPool*)(&rcol), .map=(ColonizeWorldMap*)(&rmap), .rng=(ColonizeDosRng*)(NULL)}, atk2, 6, 6)) {
         map_free(&rmap);
         return fail("without Revere context move onto empty colony should work");
       }
@@ -1836,7 +1836,7 @@ int main(void) {
     colonies_set_occupancy_map(NULL);
     uint32_t gold_pay = mnat->gold;
     const int cid_pay =
-      colonies_found_with_indian_land(&mpool, &mmap, &mcol1, &gold_pay, fx, fy, 0, -1, -1, 0, 0, 0);
+      colonies_found_with_indian_land_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&mpool), .map=(ColonizeWorldMap*)(&mmap), .col1=(ColonizeCol1Save*)(&mcol1), .col1_ok=true}, &gold_pay, fx, fy, 0, -1, -1, 0, 0, 0);
     if (cid_pay < 0) {
       map_free(&mmap);
       return fail("Minuit: found without FF should succeed when gold enough");
@@ -1869,9 +1869,7 @@ int main(void) {
     const uint32_t gold_before_free = gold_pay;
     colonies_init(&mpool);
     colonies_set_occupancy_map(NULL);
-    const int cid_free = colonies_found_with_indian_land(
-      &mpool, &mmap, &mcol1, &gold_pay, 6, 5, 0, -1, -1, 0, 0, 0
-    );
+    const int cid_free = colonies_found_with_indian_land_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&mpool), .map=(ColonizeWorldMap*)(&mmap), .col1=(ColonizeCol1Save*)(&mcol1), .col1_ok=true}, &gold_pay, 6, 5, 0, -1, -1, 0, 0, 0);
     if (cid_free < 0) {
       map_free(&mmap);
       return fail("Minuit: free found on homeland failed");
@@ -1898,7 +1896,7 @@ int main(void) {
     colonies_init(&mpool);
     colonies_set_occupancy_map(NULL);
     const int cid_poor =
-      colonies_found_with_indian_land(&mpool, &mmap, &mcol1, &poor, fx, fy, 0, -1, -1, 0, 0, 0);
+      colonies_found_with_indian_land_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&mpool), .map=(ColonizeWorldMap*)(&mmap), .col1=(ColonizeCol1Save*)(&mcol1), .col1_ok=true}, &poor, fx, fy, 0, -1, -1, 0, 0, 0);
     if (cid_poor >= 0 || poor != 10u) {
       map_free(&mmap);
       return fail("Minuit: short gold must block found and not debit");
@@ -2106,18 +2104,14 @@ int main(void) {
     ship->nation_id = 0; /* English */
 
     /* Without FF: refuse. */
-    if (colonies_de_witt_transfer_from_colony(
-          &pool, 0, &units, uid, COLONIZE_CARGO_SUGAR, 10, &dcol1
-        ) != 0) {
+    if (colonies_de_witt_transfer_from_colony_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&units), .colonies=(ColonizeColonyPool*)(&pool), .col1=(ColonizeCol1Save*)(&dcol1), .col1_ok=true}, 0, uid, COLONIZE_CARGO_SUGAR, 10) != 0) {
       return fail("de Witt transfer must refuse without FF");
     }
 
     dcol1.head.founding_father[FF_JAN_DE_WITT] = 0;
     dcol1.nation[0].founding_fathers[FF_JAN_DE_WITT / 8] |=
       (uint8_t)(1u << (FF_JAN_DE_WITT % 8));
-    const int moved = colonies_de_witt_transfer_from_colony(
-      &pool, 0, &units, uid, COLONIZE_CARGO_SUGAR, 10, &dcol1
-    );
+    const int moved = colonies_de_witt_transfer_from_colony_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&units), .colonies=(ColonizeColonyPool*)(&pool), .col1=(ColonizeCol1Save*)(&dcol1), .col1_ok=true}, 0, uid, COLONIZE_CARGO_SUGAR, 10);
     if (moved != 10 || home->stock[COLONIZE_CARGO_SUGAR] != 30) {
       fprintf(stderr, "de Witt from_colony moved=%d stock=%d\n", moved, home->stock[COLONIZE_CARGO_SUGAR]);
       return fail("de Witt with FF should load sugar from foreign colony");
@@ -2133,18 +2127,14 @@ int main(void) {
     if (hold < 0) {
       return fail("de Witt ship should hold sugar");
     }
-    const int back = colonies_de_witt_transfer_to_colony(
-      &pool, 0, &units, uid, hold, &dcol1, NULL
-    );
+    const int back = colonies_de_witt_transfer_to_colony_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&units), .colonies=(ColonizeColonyPool*)(&pool), .col1=(ColonizeCol1Save*)(&dcol1), .col1_ok=true}, 0, uid, hold, NULL);
     if (back != 10 || home->stock[COLONIZE_CARGO_SUGAR] != 40) {
       return fail("de Witt to_colony should unload sugar into foreign stock");
     }
     /* At war: refuse. */
     ai_diplo_declare_war(&dcol1, 0, 1);
     home->stock[COLONIZE_CARGO_SUGAR] = 40;
-    if (colonies_de_witt_transfer_from_colony(
-          &pool, 0, &units, uid, COLONIZE_CARGO_SUGAR, 5, &dcol1
-        ) != 0) {
+    if (colonies_de_witt_transfer_from_colony_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&units), .colonies=(ColonizeColonyPool*)(&pool), .col1=(ColonizeCol1Save*)(&dcol1), .col1_ok=true}, 0, uid, COLONIZE_CARGO_SUGAR, 5) != 0) {
       return fail("de Witt transfer must refuse while at war");
     }
   }
@@ -2207,12 +2197,12 @@ int main(void) {
     ship->nation_id = 0;
 
     units_set_ff_col1(&dcol1);
-    if (!units_can_enter(&units, 0, &dmap, 3, 3, uid, &pool)) {
+    if (!units_can_enter_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&units), .colonies=(ColonizeColonyPool*)(&pool), .map=(ColonizeWorldMap*)(&dmap)}, 0, 3, 3, uid)) {
       map_free(&dmap);
       return fail("de Witt ship should enter foreign dock at peace");
     }
     ai_diplo_declare_war(&dcol1, 0, 1);
-    if (units_can_enter(&units, 0, &dmap, 3, 3, uid, &pool)) {
+    if (units_can_enter_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&units), .colonies=(ColonizeColonyPool*)(&pool), .map=(ColonizeWorldMap*)(&dmap)}, 0, 3, 3, uid)) {
       map_free(&dmap);
       return fail("de Witt ship must not enter foreign dock at war");
     }
@@ -2290,7 +2280,7 @@ int main(void) {
       map_free(&lmap);
       return fail("de Soto LCR fixture tile should have rumour");
     }
-    if (!units_resolve_lcr_rumour(&upool, uid, &lmap, &gcol1, NULL, NULL, -1)) {
+    if (!units_resolve_lcr_rumour_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&upool), .map=(ColonizeWorldMap*)(&lmap), .col1=(ColonizeCol1Save*)(&gcol1), .col1_ok=true, .rng=(ColonizeDosRng*)(NULL), .europe=(EuropeScreen*)(NULL)}, uid, -1)) {
       map_free(&lmap);
       return fail("units_resolve_lcr_rumour de Soto path");
     }
@@ -2381,7 +2371,7 @@ int main(void) {
 
     ColonizeDosRng rng;
     dos_rng_seed(&rng, 7);
-    turn_refresh_moves_for_nation(&upool, 0, &ccol1, &cmap, NULL, NULL, NULL);
+    turn_refresh_moves_for_nation_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&upool), .colonies=(ColonizeColonyPool*)(NULL), .map=(ColonizeWorldMap*)(&cmap), .col1=(ColonizeCol1Save*)(&ccol1), .col1_ok=true}, 0, NULL, NULL);
     units_set_native_fallout_context(&ccol1, &cmap, -1);
     if (!units_resolve_land_combat(&upool, sid, bid, &rng)) {
       free(ccol1.tribe);
@@ -2389,9 +2379,7 @@ int main(void) {
       return fail("Cortes AI combat should win");
     }
     /* Dwelling remains after map Brave death; empty-village fallout peels gold. */
-    if (!units_try_native_settlement_fallout(
-          &ccol1, &upool, &cmap, 0, 4, 5, 5, -1, &rng
-        )) {
+    if (!units_try_native_settlement_fallout_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&upool), .map=(ColonizeWorldMap*)(&cmap), .col1=(ColonizeCol1Save*)(&ccol1), .col1_ok=true, .rng=(ColonizeDosRng*)(&rng)}, 0, 4, 5, 5, -1)) {
       free(ccol1.tribe);
       map_free(&cmap);
       return fail("Cortes AI fallout should destroy empty dwelling");
@@ -2753,10 +2741,7 @@ int main(void) {
     EuropeScreen bridge_europe;
     memset(&bridge_europe, 0, sizeof(bridge_europe));
     ColonizeCol1BridgeResult bridge_br;
-    if (!col1_bridge_apply(
-          &loaded, &bridge_map, &bridge_units, &bridge_colonies, &bridge_europe, &bridge_br, err,
-          sizeof(err)
-        )) {
+    if (!col1_bridge_apply_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&bridge_units), .colonies=(ColonizeColonyPool*)(&bridge_colonies), .map=(ColonizeWorldMap*)(&bridge_map), .col1=(ColonizeCol1Save*)(&loaded), .col1_ok=true, .europe=(EuropeScreen*)(&bridge_europe)}, &bridge_br, err, sizeof(err))) {
       free(enc);
       col1_save_free(&blob_save);
       col1_save_free(&loaded);

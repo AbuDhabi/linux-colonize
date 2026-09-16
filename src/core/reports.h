@@ -222,12 +222,6 @@ int reports_naval_page_count_w(
   const ColonizeWorld* w,
   int human_nation
 );
-int reports_naval_page_count(
-  int human_nation,
-  const ColonizeUnitPool* units,
-  const ColonizeColonyPool* colonies,
-  const EuropeScreen* europe
-);
 
 /*
  * Indian Adviser (F9) per-tribe row gate — DOS FUN_3f41_010a:
@@ -292,13 +286,6 @@ void reports_compute_score_w(
   ColonizeScoreBreakdown* out,
   int human_nation
 );
-void reports_compute_score(
-  ColonizeScoreBreakdown* out,
-  const ColonizeCol1Save* col1,
-  int human_nation,
-  const ColonizeColonyPool* colonies,
-  const EuropeScreen* europe
-);
 
 /* DOS FUN_41f2_0092 tail: total after the foreign-recognition multiplier. */
 int reports_score_apply_recognition(int base_total, int prior_nations, bool achieved);
@@ -334,26 +321,6 @@ void reports_render_w(
   int economic_page,
   int colony_page,
   int naval_page,
-  int human_nation,
-  int cursor_x,
-  int cursor_y,
-  uint32_t turn_number,
-  const ColonizeFont* font,
-  ColonizeFramebuffer8* framebuffer
-);
-void reports_render(
-  const ColonizeReportsView* view,
-  ColonizeReportId id,
-  bool congress_page2,
-  int labor_detail_job,
-  int economic_page,
-  int colony_page,
-  int naval_page,
-  const ColonizeColonyPool* colonies,
-  const ColonizeUnitPool* units,
-  const ColonizeWorldMap* map,
-  const EuropeScreen* europe,
-  const ColonizeCol1Save* col1,
   int human_nation,
   int cursor_x,
   int cursor_y,

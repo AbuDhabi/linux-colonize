@@ -4,6 +4,7 @@
 
 #include "tests/common/col1_compare.h"
 #include "tests/common/golden_fixture.h"
+#include "tests/common/test_runner.h"
 
 /*
  * Colony production golden #2: COLONY00-dutch2-t0.SAV -> one turn_end() ->
@@ -123,15 +124,16 @@ static int run_pair(const char* path_in, const char* path_exp, const char* label
   return 0;
 }
 
-int main(void) {
-  const int rc = run_pair(
+static int case_dutch_colony00_01(void) {
+  return run_pair(
     "original_saves/colony-prod-tests/COLONY00-dutch2-t0.SAV",
     "original_saves/colony-prod-tests/COLONY01-dutch2-t1.SAV",
     "colony_prod02 COLONY00->01 (Dutch)"
   );
-  if (rc != 0) {
-    return rc;
-  }
-  printf("golden_colony_prod02: Dutch colony production ok\n");
-  return 0;
 }
+
+static const TestCase k_cases[] = {
+    {"case_dutch_colony00_01", case_dutch_colony00_01},
+};
+
+TEST_MAIN(k_cases)

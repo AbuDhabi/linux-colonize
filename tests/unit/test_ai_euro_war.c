@@ -8464,7 +8464,10 @@ static int unit_naval_ambush(void) {
   for (uint32_t seed = 1000; seed < 60000; seed += 1777) {
     dos_rng_seed(&rng, seed);
     own->moves_left = full;
-    units_ship_slow_scan(&units, own_id, &map, &colonies, &rng);
+    {
+      ColonizeWorld w_ = fx_world(&units, &colonies, &map, NULL, &rng, NULL);
+      units_ship_slow_scan_w(&w_, own_id);
+    }
     const int d = full - own->moves_left;
     if (d != 0 && d != 4 && d != 8) {
       fx_map_free(&map);
@@ -8484,7 +8487,10 @@ static int unit_naval_ambush(void) {
   for (uint32_t seed = 1000; seed < 60000; seed += 1777) {
     dos_rng_seed(&rng, seed);
     own->moves_left = full;
-    units_ship_slow_scan(&units, own_id, &map, &colonies, &rng);
+    {
+      ColonizeWorld w_ = fx_world(&units, &colonies, &map, NULL, &rng, NULL);
+      units_ship_slow_scan_w(&w_, own_id);
+    }
     if (own->moves_left != full) {
       fx_map_free(&map);
       return fail("ship-slow: PEACE pair must not be slowed");
@@ -8496,7 +8502,10 @@ static int unit_naval_ambush(void) {
   for (uint32_t seed = 1000; seed < 60000; seed += 1777) {
     dos_rng_seed(&rng, seed);
     own->moves_left = full;
-    units_ship_slow_scan(&units, own_id, &map, &colonies, &rng);
+    {
+      ColonizeWorld w_ = fx_world(&units, &colonies, &map, NULL, &rng, NULL);
+      units_ship_slow_scan_w(&w_, own_id);
+    }
     slowed += own->moves_left != full;
   }
   if (!slowed) {
@@ -8511,28 +8520,40 @@ static int unit_naval_ambush(void) {
   ColonizeColony* col = fx_colony_add(&colonies, foe_nat, own_x - 1, own_y, 1);
   dos_rng_seed(&rng, 1);
   own->moves_left = full;
-  units_ship_slow_scan(&units, own_id, &map, &colonies, &rng);
+  {
+    ColonizeWorld w_ = fx_world(&units, &colonies, &map, NULL, &rng, NULL);
+    units_ship_slow_scan_w(&w_, own_id);
+  }
   if (own->moves_left != full) {
     fx_map_free(&map);
     return fail("ship-slow: PEACE colony must not slow");
   }
   ai_diplo_clear_both(&col1, nation, foe_nat, AI_DIPLO_PEACE);
   own->moves_left = full;
-  units_ship_slow_scan(&units, own_id, &map, &colonies, &rng);
+  {
+    ColonizeWorld w_ = fx_world(&units, &colonies, &map, NULL, &rng, NULL);
+    units_ship_slow_scan_w(&w_, own_id);
+  }
   if (own->moves_left != full) {
     fx_map_free(&map);
     return fail("ship-slow: bare colony must not slow");
   }
   col->has_building[0] = true; /* Stockade: nothing */
   own->moves_left = full;
-  units_ship_slow_scan(&units, own_id, &map, &colonies, &rng);
+  {
+    ColonizeWorld w_ = fx_world(&units, &colonies, &map, NULL, &rng, NULL);
+    units_ship_slow_scan_w(&w_, own_id);
+  }
   if (own->moves_left != full) {
     fx_map_free(&map);
     return fail("ship-slow: Stockade must not slow");
   }
   col->has_building[1] = true; /* Fort: +2 spent */
   own->moves_left = full;
-  units_ship_slow_scan(&units, own_id, &map, &colonies, &rng);
+  {
+    ColonizeWorld w_ = fx_world(&units, &colonies, &map, NULL, &rng, NULL);
+    units_ship_slow_scan_w(&w_, own_id);
+  }
   if (own->moves_left != full - 2) {
     fx_map_free(&map);
     fprintf(stderr, "ship-slow: fort left %d\n", own->moves_left);
@@ -8540,7 +8561,10 @@ static int unit_naval_ambush(void) {
   }
   col->has_building[2] = true; /* Fortress: dead stop */
   own->moves_left = full;
-  units_ship_slow_scan(&units, own_id, &map, &colonies, &rng);
+  {
+    ColonizeWorld w_ = fx_world(&units, &colonies, &map, NULL, &rng, NULL);
+    units_ship_slow_scan_w(&w_, own_id);
+  }
   if (own->moves_left != 0) {
     fx_map_free(&map);
     return fail("ship-slow: Fortress must exhaust the ship");

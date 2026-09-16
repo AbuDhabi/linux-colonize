@@ -678,19 +678,7 @@ static int ai_euro_06ae_first_colony_from_landfall(
     *out_y = fy;
     return 1;
   }
-  return ai_goals_pick_founding_tile_ex(
-    map,
-    colonies,
-    /*col1=*/NULL,
-    units,
-    nation_id,
-    fx,
-    fy,
-    /*score_extras=*/0,
-    /*wagon_filter=*/0,
-    out_x,
-    out_y
-  );
+  return ai_goals_pick_founding_tile_ex_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(units), .colonies=(ColonizeColonyPool*)(colonies), .map=(ColonizeWorldMap*)(map), .col1=(ColonizeCol1Save*)(NULL), .col1_ok=((NULL) != NULL)}, nation_id, fx, fy, 0, 0, out_x, out_y);
 }
 
 /*
@@ -809,7 +797,7 @@ static int ai_euro_pick_unload_land(
     if (nx == avoid_x && ny == avoid_y) {
       continue;
     }
-    if (!units_can_enter(ctx->units, pax->type_index, ctx->map, nx, ny, pax_id, ctx->colonies)) {
+    if (!units_can_enter_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(ctx->units), .colonies=(ColonizeColonyPool*)(ctx->colonies), .map=(ColonizeWorldMap*)(ctx->map)}, pax->type_index, nx, ny, pax_id)) {
       continue;
     }
     int d = 0;
@@ -845,9 +833,7 @@ static int ai_euro_unload_pax_at(
   if (!ctx || !ctx->units || !ship || !pax) {
     return 0;
   }
-  if (!units_unload_passenger(
-        ctx->units, ship->id, pax->id, ctx->map, dest_x, dest_y, ctx->colonies
-      )) {
+  if (!units_unload_passenger_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(ctx->units), .colonies=(ColonizeColonyPool*)(ctx->colonies), .map=(ColonizeWorldMap*)(ctx->map)}, ship->id, pax->id, dest_x, dest_y)) {
     return 0;
   }
   pax = units_get(ctx->units, pax->id);
@@ -2324,19 +2310,7 @@ static int ai_euro_pick_founding_tile(
   int* out_x,
   int* out_y
 ) {
-  return ai_goals_pick_founding_tile_ex(
-    map,
-    colonies,
-    col1,
-    units,
-    nation_id,
-    x,
-    y,
-    /*score_extras=*/1,
-    /*wagon_filter=*/0,
-    out_x,
-    out_y
-  );
+  return ai_goals_pick_founding_tile_ex_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(units), .colonies=(ColonizeColonyPool*)(colonies), .map=(ColonizeWorldMap*)(map), .col1=(ColonizeCol1Save*)(col1), .col1_ok=((col1) != NULL)}, nation_id, x, y, 1, 0, out_x, out_y);
 }
 
 /* Nearest primary MILITARY goal (Manhattan); 1 if found. */
@@ -3040,9 +3014,7 @@ static int ai_euro_try_field_assign(
     return 0;
   }
   if (u->x == bx && u->y == by) {
-    const int idx = colonies_admit_unit(
-      ctx->colonies, best_cid, ctx->units, u->id, ctx->col1_ok ? ctx->col1 : NULL
-    );
+    const int idx = colonies_admit_unit_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(ctx->units), .colonies=(ColonizeColonyPool*)(ctx->colonies), .col1=(ColonizeCol1Save*)(ctx->col1_ok ? ctx->col1 : NULL), .col1_ok=((ctx->col1_ok ? ctx->col1 : NULL) != NULL)}, best_cid, u->id);
     if (idx < 0) {
       return 0;
     }
@@ -3712,7 +3684,7 @@ static int ai_euro_try_expert_workplace_assign(
     return 0;
   }
   if (u->x == bx && u->y == by) {
-    const int idx = colonies_admit_unit(ctx->colonies, best_cid, ctx->units, u->id, ctx->col1_ok ? ctx->col1 : NULL);
+    const int idx = colonies_admit_unit_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(ctx->units), .colonies=(ColonizeColonyPool*)(ctx->colonies), .col1=(ColonizeCol1Save*)(ctx->col1_ok ? ctx->col1 : NULL), .col1_ok=((ctx->col1_ok ? ctx->col1 : NULL) != NULL)}, best_cid, u->id);
     if (idx < 0) {
       return 0;
     }
@@ -3979,9 +3951,7 @@ static int ai_euro_try_cortes_king_galleon_cash(
   }
   /* Cash all coastal Treasures for nation (includes this unit when eligible). */
   const int before = treasure->id;
-  const int n = units_cortes_cash_coastal_treasures(
-    ctx->units, ctx->colonies, ctx->map, ctx->europe, ctx->col1, nation_id
-  );
+  const int n = units_cortes_cash_coastal_treasures_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(ctx->units), .colonies=(ColonizeColonyPool*)(ctx->colonies), .map=(ColonizeWorldMap*)(ctx->map), .col1=(ColonizeCol1Save*)(ctx->col1), .col1_ok=((ctx->col1) != NULL), .europe=(EuropeScreen*)(ctx->europe)}, nation_id);
   if (n <= 0) {
     return 0;
   }
@@ -4898,9 +4868,7 @@ static int ai_euro_try_de_witt_foreign_trade(
         return 0;
       }
       if (has_cap && ai_euro_de_witt_trade_goods_surplus(c)) {
-        const int moved = colonies_de_witt_transfer_from_colony(
-          ctx->colonies, cid, ctx->units, wagon->id, COLONIZE_CARGO_TRADE_GOODS, 10, ctx->col1
-        );
+        const int moved = colonies_de_witt_transfer_from_colony_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(ctx->units), .colonies=(ColonizeColonyPool*)(ctx->colonies), .col1=(ColonizeCol1Save*)(ctx->col1), .col1_ok=((ctx->col1) != NULL)}, cid, wagon->id, COLONIZE_CARGO_TRADE_GOODS, 10);
         if (moved > 0) {
           held_tg = ai_euro_unit_trade_goods_held(ctx->units, wagon);
           int hx = 0;
@@ -5126,19 +5094,13 @@ static int ai_euro_try_pioneer_improve(
     char err[64];
     int worked = 0;
     if (want_plow) {
-      if (units_pioneer_plow(
-            ctx->units, u->id, ctx->map, err, sizeof(err), ctx->colonies, NULL, NULL
-          )) {
+      if (units_pioneer_plow_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(ctx->units), .colonies=(ColonizeColonyPool*)(ctx->colonies), .map=(ColonizeWorldMap*)(ctx->map)}, u->id, err, sizeof(err), NULL, NULL)) {
         worked = 1;
       } else if (ai_euro_pioneer_tile_can_road(ctx->map, tx, ty) &&
-                 units_pioneer_road(
-                   ctx->units, u->id, ctx->map, err, sizeof(err), ctx->colonies, NULL, NULL
-                 )) {
+                 units_pioneer_road_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(ctx->units), .colonies=(ColonizeColonyPool*)(ctx->colonies), .map=(ColonizeWorldMap*)(ctx->map)}, u->id, err, sizeof(err), NULL, NULL)) {
         worked = 1;
       }
-    } else if (units_pioneer_road(
-                 ctx->units, u->id, ctx->map, err, sizeof(err), ctx->colonies, NULL, NULL
-               )) {
+    } else if (units_pioneer_road_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(ctx->units), .colonies=(ColonizeColonyPool*)(ctx->colonies), .map=(ColonizeWorldMap*)(ctx->map)}, u->id, err, sizeof(err), NULL, NULL)) {
       worked = 1;
     }
     if (worked && ctx->colonies) {
@@ -5221,20 +5183,7 @@ static void ai_euro_found_with_unit(ColonizeTurnContext* ctx, ColonizeUnit* foun
         horses
       );
     } else {
-      cid = colonies_found_with_indian_land(
-        ctx->colonies,
-        ctx->map,
-        ctx->col1,
-        gold,
-        founder->x,
-        founder->y,
-        nation_id,
-        founder->type_index,
-        founder->profession,
-        tools,
-        muskets,
-        horses
-      );
+      cid = colonies_found_with_indian_land_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(ctx->colonies), .map=(ColonizeWorldMap*)(ctx->map), .col1=(ColonizeCol1Save*)(ctx->col1), .col1_ok=((ctx->col1) != NULL)}, gold, founder->x, founder->y, nation_id, founder->type_index, founder->profession, tools, muskets, horses);
     }
   } else {
     cid = colonies_found(
@@ -5251,8 +5200,7 @@ static void ai_euro_found_with_unit(ColonizeTurnContext* ctx, ColonizeUnit* foun
     );
   }
   if (cid >= 0) {
-    colonies_reveal_founded(
-    ctx->map, ctx->colonies, ctx->col1_ok ? ctx->col1 : NULL, cid); /* FUN_364b_1dd6 Coronado */
+    colonies_reveal_founded_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(ctx->colonies), .map=(ColonizeWorldMap*)(ctx->map), .col1=(ColonizeCol1Save*)(ctx->col1_ok ? ctx->col1 : NULL), .col1_ok=((ctx->col1_ok ? ctx->col1 : NULL) != NULL)}, cid); /* FUN_364b_1dd6 Coronado */
     const int founded_x = founder->x;
     const int founded_y = founder->y;
     if (cid >= 0 && cid < COLONIZE_COLONIES_MAX) {
@@ -5375,7 +5323,7 @@ static void ai_euro_join_colony(ColonizeTurnContext* ctx, ColonizeUnit* u, int c
   if (!ctx || !ctx->colonies || !u) {
     return;
   }
-  (void)colonies_admit_unit(ctx->colonies, colony_id, ctx->units, u->id, ctx->col1_ok ? ctx->col1 : NULL);
+  (void)colonies_admit_unit_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(ctx->units), .colonies=(ColonizeColonyPool*)(ctx->colonies), .col1=(ColonizeCol1Save*)(ctx->col1_ok ? ctx->col1 : NULL), .col1_ok=((ctx->col1_ok ? ctx->col1 : NULL) != NULL)}, colony_id, u->id);
 }
 
 /*
@@ -5608,7 +5556,7 @@ static int ai_euro_try_transport_europe_sell(
     if (ctype < 16 && (nat->boycott_bitmap & (uint16_t)(1u << ctype)) != 0) {
       continue;
     }
-    const int g = europe_sell_unit_hold(eu, ctx->col1, ctx->units, transport->id, h);
+    const int g = europe_sell_unit_hold_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(ctx->units), .col1=(ColonizeCol1Save*)(ctx->col1), .col1_ok=((ctx->col1) != NULL), .europe=(EuropeScreen*)(eu)}, transport->id, h);
     if (g > 0) {
       sold += g;
     }
@@ -8105,10 +8053,7 @@ static void ai_euro_0a60_unit_housekeeping(ColonizeTurnContext* ctx, int nation_
           st->act_state = 0;
         }
         int side = 0;
-        if (ai_goals_probe_adjacent_contact_claim(
-              ctx->map, ctx->colonies, ctx->units, ctx->col1_ok ? ctx->col1 : NULL, ux, uy,
-              nation_id, 1, &side
-            ) >= 0) {
+        if (ai_goals_probe_adjacent_contact_claim_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(ctx->units), .colonies=(ColonizeColonyPool*)(ctx->colonies), .map=(ColonizeWorldMap*)(ctx->map), .col1=(ColonizeCol1Save*)(ctx->col1_ok ? ctx->col1 : NULL), .col1_ok=((ctx->col1_ok ? ctx->col1 : NULL) != NULL)}, ux, uy, nation_id, 1, &side) >= 0) {
           st->act_state = 10; /* on-site at a contact claim: no new goal */
         }
         const int on_water = map_tile_is_water(ctx->map, ux, uy) ||
@@ -10329,7 +10274,7 @@ static int ai_euro_score_move(
     if (nx < 0 || ny < 0 || nx >= ctx->map->width || ny >= ctx->map->height) {
       continue;
     }
-    if (!units_can_enter(ctx->units, u->type_index, ctx->map, nx, ny, u->id, ctx->colonies)) {
+    if (!units_can_enter_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(ctx->units), .colonies=(ColonizeColonyPool*)(ctx->colonies), .map=(ColonizeWorldMap*)(ctx->map)}, u->type_index, nx, ny, u->id)) {
       const int foe = units_id_at(ctx->units, nx, ny);
       if (foe < 0) {
         continue;
@@ -11043,9 +10988,7 @@ static int ai_euro_20e6_stack_combat_0b(ColonizeTurnContext* ctx, int x, int y) 
 /* FUN_OVL14_L0000__0072d6 → FUN_521d_0906 probe, ≥0 = adjacent foreign claim. */
 static int ai_euro_20e6_probe_adjacent(const ColonizeTurnContext* ctx, int x, int y, int nation) {
   int side = -1;
-  return ai_goals_probe_adjacent_contact_claim(
-    ctx->map, ctx->colonies, ctx->units, ctx->col1_ok ? ctx->col1 : NULL, x, y, nation, 0, &side
-  );
+  return ai_goals_probe_adjacent_contact_claim_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(ctx->units), .colonies=(ColonizeColonyPool*)(ctx->colonies), .map=(ColonizeWorldMap*)(ctx->map), .col1=(ColonizeCol1Save*)(ctx->col1_ok ? ctx->col1 : NULL), .col1_ok=((ctx->col1_ok ? ctx->col1 : NULL) != NULL)}, x, y, nation, 0, &side);
 }
 
 /*
@@ -11068,7 +11011,7 @@ static void ai_euro_20e6_explorer_flag(ColonizeTurnContext* ctx, const ColonizeU
         ex = 1;
       }
     }
-    if (ai_goals_colony_balance_flags(ctx->map, ctx->colonies, ctx->col1, s->nation, s->cid) > 2) {
+    if (ai_goals_colony_balance_flags_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(ctx->colonies), .map=(ColonizeWorldMap*)(ctx->map), .col1=(ColonizeCol1Save*)(ctx->col1), .col1_ok=((ctx->col1) != NULL)}, s->nation, s->cid) > 2) {
       ex = 1;
     }
     if (ai_euro_20e6_probe_adjacent(ctx, u->x, u->y, s->nation) >= 0) {
@@ -11104,10 +11047,7 @@ static void ai_euro_20e6_explorer_flag(ColonizeTurnContext* ctx, const ColonizeU
   }
   /* FUN_521d_0600 composite priority must be non-zero (iStack_14). */
   if (ex) {
-    const int prio = ai_goals_composite_unit_priority(
-      ctx->map, ctx->colonies, ctx->col1, s->nation, u->x, u->y, t, u->profession,
-      s->turn, colonies_count_for_nation(ctx->colonies, s->nation)
-    );
+    const int prio = ai_goals_composite_unit_priority_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(ctx->colonies), .map=(ColonizeWorldMap*)(ctx->map), .col1=(ColonizeCol1Save*)(ctx->col1), .col1_ok=((ctx->col1) != NULL)}, s->nation, u->x, u->y, t, u->profession, s->turn, colonies_count_for_nation(ctx->colonies, s->nation));
     if (prio == 0) {
       ex = 0;
     }
@@ -11352,7 +11292,7 @@ static int ai_euro_20e6_labor_arm(ColonizeTurnContext* ctx, ColonizeUnit* u, Ai2
       return 0;
     }
     if (u->x == c->x && u->y == c->y) {
-      (void)colonies_admit_unit(ctx->colonies, best, ctx->units, u->id, ctx->col1_ok ? ctx->col1 : NULL);
+      (void)colonies_admit_unit_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(ctx->units), .colonies=(ColonizeColonyPool*)(ctx->colonies), .col1=(ColonizeCol1Save*)(ctx->col1_ok ? ctx->col1 : NULL), .col1_ok=((ctx->col1_ok ? ctx->col1 : NULL) != NULL)}, best, u->id);
       return 2; /* FUN_1000_9b94 join; unit consumed either way (8b24) */
     }
     ai_euro_set_goto(u, UNITS_ORDER_AI_MOVE, c->x, c->y);
@@ -14232,11 +14172,7 @@ static int ai_euro_20e6_ship_berth_arrival(
     const int cid = ctx->map ? map_continent_id_at(ctx->map, c->x, c->y) : -1;
     const int stance = ai_euro_continent_stance_at(nation_id, cid);
     const int turn = (ctx->turn_number && *ctx->turn_number) ? (int)*ctx->turn_number : 0;
-    const int ship_prio = ai_goals_composite_unit_priority(
-      ctx->map, ctx->colonies, ctx->col1_ok ? ctx->col1 : NULL, nation_id, ship->x, ship->y,
-      arrival_dos_type, ship->profession, turn,
-      colonies_count_for_nation(ctx->colonies, nation_id)
-    );
+    const int ship_prio = ai_goals_composite_unit_priority_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(ctx->colonies), .map=(ColonizeWorldMap*)(ctx->map), .col1=(ColonizeCol1Save*)(ctx->col1_ok ? ctx->col1 : NULL), .col1_ok=((ctx->col1_ok ? ctx->col1 : NULL) != NULL)}, nation_id, ship->x, ship->y, arrival_dos_type, ship->profession, turn, colonies_count_for_nation(ctx->colonies, nation_id));
     for (int ui = 0; ui < COLONIZE_UNITS_MAX; ++ui) {
       if (s_0a60_work_registered[nation_id] >= 0x19) {
         break;
@@ -14847,9 +14783,7 @@ static int ai_euro_try_de_witt_ship_trade(
     if (c && c->active && c->nation_id >= 0 && c->nation_id <= 3 &&
         c->nation_id != nation_id && !ai_diplo_at_war(ctx->col1, nation_id, c->nation_id)) {
       if (has_cap && ai_euro_de_witt_trade_goods_surplus(c)) {
-        const int moved = colonies_de_witt_transfer_from_colony(
-          ctx->colonies, cid, ctx->units, ship->id, COLONIZE_CARGO_TRADE_GOODS, 10, ctx->col1
-        );
+        const int moved = colonies_de_witt_transfer_from_colony_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(ctx->units), .colonies=(ColonizeColonyPool*)(ctx->colonies), .col1=(ColonizeCol1Save*)(ctx->col1), .col1_ok=((ctx->col1) != NULL)}, cid, ship->id, COLONIZE_CARGO_TRADE_GOODS, 10);
         if (moved > 0) {
           return 1;
         }
@@ -15074,8 +15008,7 @@ static int ai_euro_try_unload_military_threatened(
   if (dest_x < 0) {
     return 0;
   }
-  if (!units_unload_passenger(
-        ctx->units, ship->id, pax_id, ctx->map, dest_x, dest_y, ctx->colonies)) {
+  if (!units_unload_passenger_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(ctx->units), .colonies=(ColonizeColonyPool*)(ctx->colonies), .map=(ColonizeWorldMap*)(ctx->map)}, ship->id, pax_id, dest_x, dest_y)) {
     return 0;
   }
   return 1;
@@ -15153,7 +15086,7 @@ static int ai_euro_naval_try_flee_fort_fire(ColonizeTurnContext* ctx, ColonizeUn
     if (ai_euro_tile_under_enemy_fort_fire(ctx, u->nation_id, nx, ny)) {
       continue;
     }
-    if (!units_can_enter(ctx->units, u->type_index, ctx->map, nx, ny, u->id, ctx->colonies)) {
+    if (!units_can_enter_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(ctx->units), .colonies=(ColonizeColonyPool*)(ctx->colonies), .map=(ColonizeWorldMap*)(ctx->map)}, u->type_index, nx, ny, u->id)) {
       continue;
     }
     /* Prefer step that increases distance from nearest fort colony. */
@@ -16138,7 +16071,7 @@ static int ai_euro_20e6_unload_mask(ColonizeTurnContext* ctx, ColonizeUnit* ship
      * `cmp type,2` — DOS founds with Pioneers; the flag-count reading that
      * admitted plain Colonists here is retired). */
     if (pioneers != 0) {
-      if (ai_goals_colony_balance_flags(ctx->map, ctx->colonies, ctx->col1, nation, cid) > 0) {
+      if (ai_goals_colony_balance_flags_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(ctx->colonies), .map=(ColonizeWorldMap*)(ctx->map), .col1=(ColonizeCol1Save*)(ctx->col1), .col1_ok=((ctx->col1) != NULL)}, nation, cid) > 0) {
         mask |= 0x40;
       }
       if (own_units == 0) {
@@ -16232,10 +16165,7 @@ static int ai_euro_20e6_unload_by_mask(
   if (mask & 0x40) {
     int fx = 0;
     int fy = 0;
-    if (ai_goals_pick_founding_tile(
-          ctx->map, ctx->colonies, ctx->col1_ok ? ctx->col1 : NULL, nation, ship->x, ship->y,
-          &fx, &fy
-        )) {
+    if (ai_goals_pick_founding_tile_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(ctx->colonies), .map=(ColonizeWorldMap*)(ctx->map), .col1=(ColonizeCol1Save*)(ctx->col1_ok ? ctx->col1 : NULL), .col1_ok=((ctx->col1_ok ? ctx->col1 : NULL) != NULL)}, nation, ship->x, ship->y, &fx, &fy)) {
       found_x = fx;
       found_y = fy;
     }
@@ -16572,9 +16502,7 @@ static void ai_euro_unload_settle_first_landfall(
     if (stuck_goto) {
       int wx = 0;
       int wy = 0;
-      if (ai_goals_nearest_landing_water(
-            ctx->map, ctx->units, ctx->colonies, ship->x, ship->y, 24, &wx, &wy
-          ) &&
+      if (ai_goals_nearest_landing_water_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(ctx->units), .colonies=(ColonizeColonyPool*)(ctx->colonies), .map=(ColonizeWorldMap*)(ctx->map)}, ship->x, ship->y, 24, &wx, &wy) &&
           (wx != ship->x || wy != ship->y)) {
         ai_euro_set_goto(ship, UNITS_ORDER_AI_SAIL, wx, wy);
       }
@@ -16856,30 +16784,18 @@ static void ai_euro_unload_settle(ColonizeTurnContext* ctx, ColonizeUnit* ship, 
       colonies_can_found(ctx->colonies, ctx->map, fx, fy)) {
     dest_x = fx;
     dest_y = fy;
-  } else if (!ai_goals_pick_founding_tile(
-               ctx->map,
-               ctx->colonies,
-               ctx->col1_ok ? ctx->col1 : NULL,
-               nation_id,
-               ship->x,
-               ship->y,
-               &dest_x,
-               &dest_y)) {
-    if (!units_pick_landfall_tile(
-          ctx->units, ship->id, ctx->map, ctx->colonies, -1, -1, &dest_x, &dest_y)) {
+  } else if (!ai_goals_pick_founding_tile_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(ctx->colonies), .map=(ColonizeWorldMap*)(ctx->map), .col1=(ColonizeCol1Save*)(ctx->col1_ok ? ctx->col1 : NULL), .col1_ok=((ctx->col1_ok ? ctx->col1 : NULL) != NULL)}, nation_id, ship->x, ship->y, &dest_x, &dest_y)) {
+    if (!units_pick_landfall_tile_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(ctx->units), .colonies=(ColonizeColonyPool*)(ctx->colonies), .map=(ColonizeWorldMap*)(ctx->map)}, ship->id, -1, -1, &dest_x, &dest_y)) {
       return;
     }
   }
 
-  if (!units_unload_passenger(
-        ctx->units, ship->id, best_id, ctx->map, dest_x, dest_y, ctx->colonies)) {
+  if (!units_unload_passenger_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(ctx->units), .colonies=(ColonizeColonyPool*)(ctx->colonies), .map=(ColonizeWorldMap*)(ctx->map)}, ship->id, best_id, dest_x, dest_y)) {
     /* Try adjacent landfall if goal tile not adjacent. */
-    if (!units_pick_landfall_tile(
-          ctx->units, ship->id, ctx->map, ctx->colonies, dest_x, dest_y, &dest_x, &dest_y)) {
+    if (!units_pick_landfall_tile_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(ctx->units), .colonies=(ColonizeColonyPool*)(ctx->colonies), .map=(ColonizeWorldMap*)(ctx->map)}, ship->id, dest_x, dest_y, &dest_x, &dest_y)) {
       return;
     }
-    if (!units_unload_passenger(
-          ctx->units, ship->id, best_id, ctx->map, dest_x, dest_y, ctx->colonies)) {
+    if (!units_unload_passenger_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(ctx->units), .colonies=(ColonizeColonyPool*)(ctx->colonies), .map=(ColonizeWorldMap*)(ctx->map)}, ship->id, best_id, dest_x, dest_y)) {
       return;
     }
   }
@@ -16892,15 +16808,7 @@ static void ai_euro_unload_settle(ColonizeTurnContext* ctx, ColonizeUnit* ship, 
   if (colonies_count_for_nation(ctx->colonies, nation_id) < 6) {
     int fx2 = pax->x;
     int fy2 = pax->y;
-    if (ai_goals_pick_founding_tile(
-          ctx->map,
-          ctx->colonies,
-          ctx->col1_ok ? ctx->col1 : NULL,
-          nation_id,
-          pax->x,
-          pax->y,
-          &fx2,
-          &fy2)) {
+    if (ai_goals_pick_founding_tile_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(ctx->colonies), .map=(ColonizeWorldMap*)(ctx->map), .col1=(ColonizeCol1Save*)(ctx->col1_ok ? ctx->col1 : NULL), .col1_ok=((ctx->col1_ok ? ctx->col1 : NULL) != NULL)}, nation_id, pax->x, pax->y, &fx2, &fy2)) {
       if (fx2 != pax->x || fy2 != pax->y) {
         ai_euro_set_goto(pax, UNITS_ORDER_AI_MOVE, fx2, fy2);
         return;
@@ -17011,16 +16919,7 @@ static int ai_euro_resolve_first_found_tile(
       }
     }
   }
-  return ai_goals_pick_founding_tile(
-    ctx->map,
-    ctx->colonies,
-    ctx->col1_ok ? ctx->col1 : NULL,
-    nation_id,
-    u->x,
-    u->y,
-    out_x,
-    out_y
-  );
+  return ai_goals_pick_founding_tile_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(ctx->colonies), .map=(ColonizeWorldMap*)(ctx->map), .col1=(ColonizeCol1Save*)(ctx->col1_ok ? ctx->col1 : NULL), .col1_ok=((ctx->col1_ok ? ctx->col1 : NULL) != NULL)}, nation_id, u->x, u->y, out_x, out_y);
 }
 
 /* Landfall recovered from the first own ship that yields one; *lf_x and *lf_y
@@ -18551,7 +18450,7 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_ship_sail(struct ai_euro_act_ctx* 
         if (u->id >= 0 && u->id < COLONIZE_UNITS_MAX) {
           s_euro_ship_route_latch[u->id] = 1;
         }
-        if (!units_next_goto_step(ctx->units, u->id, ctx->map, ctx->colonies, ctx->rng, &px, &py)) {
+        if (!units_next_goto_step_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(ctx->units), .colonies=(ColonizeColonyPool*)(ctx->colonies), .map=(ColonizeWorldMap*)(ctx->map), .rng=(ColonizeDosRng*)(ctx->rng)}, u->id, &px, &py)) {
           /* Pathfinder agrees the goal is unreachable from here — drop the
            * goto so next act re-aims instead of resuming the same grind
            * (the cross-turn A↔B wiggle). */
@@ -18793,15 +18692,7 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_land_hunt_scout(struct ai_euro_act
    * Cite: units_resolve_lcr_rumour; Colonization.pdf Lost City Rumours.
    */
   if (ctx->map && map_tile_has_rumour(ctx->map, u->x, u->y)) {
-    if (units_resolve_lcr_rumour(
-          ctx->units,
-          u->id,
-          ctx->map,
-          ctx->col1_ok ? ctx->col1 : NULL,
-          ctx->rng,
-          NULL,
-          -1
-        )) {
+    if (units_resolve_lcr_rumour_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(ctx->units), .map=(ColonizeWorldMap*)(ctx->map), .col1=(ColonizeCol1Save*)(ctx->col1_ok ? ctx->col1 : NULL), .col1_ok=((ctx->col1_ok ? ctx->col1 : NULL) != NULL), .rng=(ColonizeDosRng*)(ctx->rng), .europe=(EuropeScreen*)(NULL)}, u->id, -1)) {
       scout_explored = 1;
     }
     /* Vanish / hostile-burial outcomes may have despawned the scout. */
@@ -20296,9 +20187,7 @@ static void ai_euro_dispatcher_turn_plan(ColonizeTurnContext* ctx, int nation_id
     }
     (void)ai_euro_try_cash_treasure_europe(ctx, nation_id, u);
   }
-  (void)units_cortes_cash_coastal_treasures(
-    ctx->units, ctx->colonies, ctx->map, ctx->europe, ctx->col1, nation_id
-  );
+  (void)units_cortes_cash_coastal_treasures_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(ctx->units), .colonies=(ColonizeColonyPool*)(ctx->colonies), .map=(ColonizeWorldMap*)(ctx->map), .col1=(ColonizeCol1Save*)(ctx->col1), .col1_ok=((ctx->col1) != NULL), .europe=(EuropeScreen*)(ctx->europe)}, nation_id);
 }
 
 /* Step 7 of ai_euro_dispatcher_turn: the FUN_521d_6d8e wave/drain unit-act

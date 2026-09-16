@@ -96,7 +96,7 @@ int main(void) {
   memset(&europe, 0, sizeof(europe));
   europe.cargo_count = 16;
   ColonizeCol1BridgeResult br;
-  if (!col1_bridge_apply(&save, &map, &units, &colonies, &europe, &br, err, sizeof(err))) {
+  if (!col1_bridge_apply_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&units), .colonies=(ColonizeColonyPool*)(&colonies), .map=(ColonizeWorldMap*)(&map), .col1=(ColonizeCol1Save*)(&save), .col1_ok=true, .europe=(EuropeScreen*)(&europe)}, &br, err, sizeof(err))) {
     fprintf(stderr, "bridge: %s\n", err);
     return 1;
   }

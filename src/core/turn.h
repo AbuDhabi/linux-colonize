@@ -193,17 +193,6 @@ void turn_run_colony_production_w(
   AiPopupState* ai_popups,
   const ColonizeMsgCatalog* messages
 );
-void turn_run_colony_production(
-  ColonizeColonyPool* pool,
-  const ColonizeWorldMap* map,
-  ColonizeCol1Save* col1,
-  EuropeScreen* europe,
-  int human_nation,
-  ColonizeTurnResult* out,
-  AiPopupState* ai_popups,
-  const ColonizeMsgCatalog* messages,
-  ColonizeDosRng* rng
-);
 
 /* Crosses → dock immigrant; liberty bells counters (human + AI Euro Col1). */
 void turn_run_nation_ticks(ColonizeTurnContext* ctx, ColonizeTurnResult* out);
@@ -259,16 +248,6 @@ void turn_refresh_moves_for_nation_w(
   AiPopupState* ai_popups,
   const ColonizeMsgCatalog* messages
 );
-void turn_refresh_moves_for_nation(
-  ColonizeUnitPool* pool,
-  int nation_id,
-  const ColonizeCol1Save* col1,
-  ColonizeWorldMap* map,
-  ColonizeColonyPool* colonies,
-  AiPopupState* ai_popups,
-  const ColonizeMsgCatalog* messages
-);
-
 /* Select next human unit with moves_left > 0; centers not done here. */
 bool turn_select_next_unit(ColonizeUnitPool* pool, int human_nation);
 

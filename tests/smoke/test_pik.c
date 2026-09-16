@@ -3,13 +3,31 @@
 #include "core/pik.h"
 #include "platform/diagnostics.h"
 
-int main(void) {
+#include "../common/test_runner.h"
+
+static const char* const kPath = "COLONIZE/OPENMENU.PIK";
+
+static int case_pik_load_succeeds(void) {
   diag_init(0, NULL);
 
   ColonizePikImage image;
   char err[256];
-  const char* path = "COLONIZE/OPENMENU.PIK";
-  if (!pik_load(path, &image, err, sizeof(err))) {
+  if (!pik_load(kPath, &image, err, sizeof(err))) {
+    fprintf(stderr, "pik_load failed: %s\n", err);
+    diag_shutdown();
+    return 1;
+  }
+  pik_free(&image);
+  diag_shutdown();
+  return 0;
+}
+
+static int case_pik_dimensions(void) {
+  diag_init(0, NULL);
+
+  ColonizePikImage image;
+  char err[256];
+  if (!pik_load(kPath, &image, err, sizeof(err))) {
     fprintf(stderr, "pik_load failed: %s\n", err);
     diag_shutdown();
     return 1;
@@ -23,8 +41,14 @@ int main(void) {
   }
 
   fprintf(stderr, "loaded %s as %dx%d palette=%d\n",
-    path, image.width, image.height, image.has_palette ? 1 : 0);
+    kPath, image.width, image.height, image.has_palette ? 1 : 0);
   pik_free(&image);
   diag_shutdown();
   return 0;
 }
+
+static const TestCase k_cases[] = {
+    {"case_pik_load_succeeds", case_pik_load_succeeds},
+    {"case_pik_dimensions", case_pik_dimensions},
+};
+TEST_MAIN(k_cases)

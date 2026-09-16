@@ -2,15 +2,20 @@
 #include "core/col1_save.h"
 #include "core/map.h"
 #include "core/units.h"
+#include "core/world.h"
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
+#include "../common/test_runner.h"
+
 /*
- * Smoke: col1_kill_indian_nation removes villages + units for one native nation.
+ * Smoke: col1_kill_indian_nation removes villages + units for one native
+ * nation. Single narrative case: fixture build -> one call -> many checks
+ * on its combined effect, so it stays one case rather than being split.
  */
-int main(void) {
+static int case_kill_indian_nation(void) {
   ColonizeCol1Save col1;
   col1_save_init(&col1);
   col1.head.tribe_count = 3;
@@ -67,7 +72,8 @@ int main(void) {
   u1->nation_id = 5;
   u1->home_tribe_id = 1;
 
-  const int removed = col1_kill_indian_nation(&col1, &units, &map, 4);
+  ColonizeWorld w = world_make(&units, NULL, &map, &col1, true, NULL, NULL);
+  const int removed = col1_kill_indian_nation_w(&w, 4);
   if (removed != 2) {
     fprintf(stderr, "expected 2 villages removed, got %d\n", removed);
     free(map.layer3);
@@ -114,6 +120,11 @@ int main(void) {
 
   free(map.layer3);
   col1_save_free(&col1);
-  printf("unit_kill_indians ok\n");
   return 0;
 }
+
+static const TestCase k_cases[] = {
+    {"case_kill_indian_nation", case_kill_indian_nation},
+};
+
+TEST_MAIN(k_cases)

@@ -4,6 +4,8 @@
 #include "core/col1_save.h"
 #include "core/units.h"
 
+#include "../common/test_runner.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -13,7 +15,7 @@ static int fail(const char* msg) {
   return 1;
 }
 
-int main(void) {
+static int case_upsert_priority_promote(void) {
   ai_goals_reset();
 
   /* Upsert priority-ordered: higher prio inserts before lower. */
@@ -69,6 +71,11 @@ int main(void) {
   if (saw_old_found) {
     return fail("promote should clear old primaries first");
   }
+  return 0;
+}
+
+static int case_work_queue_score_order(void) {
+  ai_goals_reset();
 
   /* Work queue 16 slots, score-ordered. */
   ai_goals_clear_work_queue();
@@ -82,6 +89,11 @@ int main(void) {
   if (AI_WORK_SLOTS != 16) {
     return fail("work slots must be 16");
   }
+  return 0;
+}
+
+static int case_work_consume_4393_tail(void) {
+  ai_goals_reset();
 
   /*
    * FUN_521d_4393 queue-decrement tail (ai_goals_work_consume), decoded
@@ -113,16 +125,25 @@ int main(void) {
   if (!wc || wc->id >= 0 || wc->loads != 0) {
     return fail("4393 tail: freed slot must stay freed");
   }
+  return 0;
+}
+
+static int case_work_consume_zero_load_gate(void) {
+  ai_goals_reset();
+
   /* loads == 0 is DOS's "no work here" gate — a live id with zero loads is
    * left untouched rather than decremented past zero. */
   ai_goals_clear_work_queue();
   ai_goals_upsert_work(3, 90, /*loads=*/0, /*military=*/0);
   ai_goals_work_consume(0, 2);
-  wc = ai_goals_work(0);
+  const AiWorkSlot* wc = ai_goals_work(0);
   if (!wc || wc->id != 3 || wc->score != 90 || wc->loads != 0) {
     return fail("4393 tail: zero-load slot must be left alone");
   }
+  return 0;
+}
 
+static int case_stack_settler_pick(void) {
   /*
    * FUN_521d_0656 (the `a654` thunk 20e6's cargo goal fold calls), decoded
    * byte-exact from OVL14_L0000:0656 on 2026-09-06e: walk the chain and keep
@@ -130,34 +151,35 @@ int main(void) {
    * 5 Scout); ships (0x81/0x82/0xa2) never qualify, so an empty transport
    * returns -1 — the gate the fold reads as "no settler aboard".
    */
-  {
-    ColonizeCol1Unit chain[4];
-    memset(chain, 0, sizeof(chain));
-    chain[0].type = 0x0d; /* Caravel — no 0x40 bit */
-    chain[0].transport_chain.next_unit_idx = 1;
-    chain[1].type = 0x00; /* Colonist */
-    chain[1].transport_chain.next_unit_idx = 2;
-    chain[2].type = 0x02; /* Pioneer — highest 0x40 type in the chain */
-    chain[2].transport_chain.next_unit_idx = 3;
-    chain[3].type = 0x01; /* Soldier — 0x1c, not settler-capable */
-    chain[3].transport_chain.next_unit_idx = -1;
-    if (ai_goals_stack_settler_pick(chain, 4, 0) != 2) {
-      return fail("0656: highest settler-capable member must win");
-    }
-    chain[2].type = 0x05; /* Scout outranks the Pioneer */
-    if (ai_goals_stack_settler_pick(chain, 4, 0) != 2) {
-      return fail("0656: Scout is settler-capable too");
-    }
-    chain[1].type = 0x01;
-    chain[2].type = 0x01;
-    if (ai_goals_stack_settler_pick(chain, 4, 0) != -1) {
-      return fail("0656: a ship carrying no settler must return -1");
-    }
-    if (ai_goals_stack_settler_pick(chain, 4, -1) != -1) {
-      return fail("0656: negative start index must return -1");
-    }
+  ColonizeCol1Unit chain[4];
+  memset(chain, 0, sizeof(chain));
+  chain[0].type = 0x0d; /* Caravel — no 0x40 bit */
+  chain[0].transport_chain.next_unit_idx = 1;
+  chain[1].type = 0x00; /* Colonist */
+  chain[1].transport_chain.next_unit_idx = 2;
+  chain[2].type = 0x02; /* Pioneer — highest 0x40 type in the chain */
+  chain[2].transport_chain.next_unit_idx = 3;
+  chain[3].type = 0x01; /* Soldier — 0x1c, not settler-capable */
+  chain[3].transport_chain.next_unit_idx = -1;
+  if (ai_goals_stack_settler_pick(chain, 4, 0) != 2) {
+    return fail("0656: highest settler-capable member must win");
   }
+  chain[2].type = 0x05; /* Scout outranks the Pioneer */
+  if (ai_goals_stack_settler_pick(chain, 4, 0) != 2) {
+    return fail("0656: Scout is settler-capable too");
+  }
+  chain[1].type = 0x01;
+  chain[2].type = 0x01;
+  if (ai_goals_stack_settler_pick(chain, 4, 0) != -1) {
+    return fail("0656: a ship carrying no settler must return -1");
+  }
+  if (ai_goals_stack_settler_pick(chain, 4, -1) != -1) {
+    return fail("0656: negative start index must return -1");
+  }
+  return 0;
+}
 
+static int case_goal_fold_urgency(void) {
   /*
    * The predicate 20e6's cargo goal fold branches on (raw 1750):
    *   urgency = FUN_521d_052c(rep unit) + FUN_521d_03d0(nation)
@@ -170,48 +192,49 @@ int main(void) {
    * negative result returns 0). Pinning both halves keeps the demote arm
    * reachable-by-construction rather than dead.
    */
-  {
-    ai_goals_reset();
-    const int colonist_type = 0;
-    const int pioneer_type = 2;
-    if (ai_goals_founding_expansion_urgency(1, 0) != 8) {
-      return fail("03d0: default plan scratch must give urgency 8");
-    }
-    const int promote_pio =
-      ai_goals_unit_desirability_score(NULL, NULL, 1, 5, 5, pioneer_type, 0, 0, 5, 0) +
-      ai_goals_founding_expansion_urgency(1, 0);
-    const int promote_col =
-      ai_goals_unit_desirability_score(NULL, NULL, 1, 5, 5, colonist_type, 0, 0, 5, 0) +
-      ai_goals_founding_expansion_urgency(1, 0);
-    if (promote_pio < 1 || promote_col < 1) {
-      return fail("goal fold: default scratch must take the promote arm");
-    }
-    /*
-     * FUN_281f_0c9a → FUN_15eb_0002: profession 0x13 / 0x19..0x1c score -2,
-     * everything else -4. Profession 0 (Free Colonist) must take the -4 arm.
-     */
-    if (ai_goals_unit_desirability_score(NULL, NULL, 1, 5, 5, colonist_type, 0, 0, 5, 0) !=
-        ai_goals_unit_desirability_score(NULL, NULL, 1, 5, 5, colonist_type, 0x1a, 0, 5, 0) - 2) {
-      return fail("052c: 0c9a profession gate must split -4 (generic) vs -2 (0x19..0x1c)");
-    }
-    AiNationPlanScratch* p = ai_goals_plan_scratch(1);
-    if (!p) {
-      return fail("plan scratch");
-    }
-    p->colony_count = 1;
-    p->colonies_wanting_colonists = 1;
-    if (ai_goals_founding_expansion_urgency(1, 0) != 0) {
-      return fail("03d0: colony+wanting scratch must give urgency 0");
-    }
-    const int stale =
-      ai_goals_unit_desirability_score(NULL, NULL, 1, 5, 5, pioneer_type, 0, 0, 5, 0) +
-      ai_goals_founding_expansion_urgency(1, 0);
-    if (stale >= 1) {
-      return fail("goal fold: zero expansion urgency must take the demote arm");
-    }
-    ai_goals_reset();
+  ai_goals_reset();
+  const int colonist_type = 0;
+  const int pioneer_type = 2;
+  if (ai_goals_founding_expansion_urgency(1, 0) != 8) {
+    return fail("03d0: default plan scratch must give urgency 8");
   }
+  const int promote_pio =
+    ai_goals_unit_desirability_score(NULL, NULL, 1, 5, 5, pioneer_type, 0, 0, 5, 0) +
+    ai_goals_founding_expansion_urgency(1, 0);
+  const int promote_col =
+    ai_goals_unit_desirability_score(NULL, NULL, 1, 5, 5, colonist_type, 0, 0, 5, 0) +
+    ai_goals_founding_expansion_urgency(1, 0);
+  if (promote_pio < 1 || promote_col < 1) {
+    return fail("goal fold: default scratch must take the promote arm");
+  }
+  /*
+   * FUN_281f_0c9a → FUN_15eb_0002: profession 0x13 / 0x19..0x1c score -2,
+   * everything else -4. Profession 0 (Free Colonist) must take the -4 arm.
+   */
+  if (ai_goals_unit_desirability_score(NULL, NULL, 1, 5, 5, colonist_type, 0, 0, 5, 0) !=
+      ai_goals_unit_desirability_score(NULL, NULL, 1, 5, 5, colonist_type, 0x1a, 0, 5, 0) - 2) {
+    return fail("052c: 0c9a profession gate must split -4 (generic) vs -2 (0x19..0x1c)");
+  }
+  AiNationPlanScratch* p = ai_goals_plan_scratch(1);
+  if (!p) {
+    return fail("plan scratch");
+  }
+  p->colony_count = 1;
+  p->colonies_wanting_colonists = 1;
+  if (ai_goals_founding_expansion_urgency(1, 0) != 0) {
+    return fail("03d0: colony+wanting scratch must give urgency 0");
+  }
+  const int stale =
+    ai_goals_unit_desirability_score(NULL, NULL, 1, 5, 5, pioneer_type, 0, 0, 5, 0) +
+    ai_goals_founding_expansion_urgency(1, 0);
+  if (stale >= 1) {
+    return fail("goal fold: zero expansion urgency must take the demote arm");
+  }
+  ai_goals_reset();
+  return 0;
+}
 
+static int case_indian_hostility_gate(void) {
   /*
    * FUN_521d_0896 — the Indian hostility gate (viceroy_unpacked.c
    * 87319-87340), wired 2026-09-08. Euro owners pass straight through;
@@ -219,82 +242,90 @@ int main(void) {
    * DS:0x5b1c) or the tile unit's DS:0x54f6 grudge slot > 0x7f. Both reads
    * were parked at 0 before, so no native could ever raise a claim.
    */
-  {
-    ColonizeCol1Save gt;
-    col1_save_init(&gt);
-    gt.head.tribe_count = 2;
-    /* DS:0x54f6 = the settlement record's own attitude[euro] word
-     * (tribe.alarm[euro] = {friction, attacks}) — no parallel array. */
-    ColonizeCol1Tribe tribes[2];
-    memset(tribes, 0, sizeof(tribes));
-    tribes[0].nation_id = 5;
-    tribes[1].nation_id = 5;
-    gt.tribe = tribes;
-    gt.owned = false; /* stack fixture; nothing to free */
+  ColonizeCol1Save gt;
+  col1_save_init(&gt);
+  gt.head.tribe_count = 2;
+  /* DS:0x54f6 = the settlement record's own attitude[euro] word
+   * (tribe.alarm[euro] = {friction, attacks}) — no parallel array. */
+  ColonizeCol1Tribe tribes[2];
+  memset(tribes, 0, sizeof(tribes));
+  tribes[0].nation_id = 5;
+  tribes[1].nation_id = 5;
+  gt.tribe = tribes;
+  gt.owned = false; /* stack fixture; nothing to free */
 
-    ColonizeUnitPool pool;
-    memset(&pool, 0, sizeof(pool));
-    pool.units[0].active = true;
-    pool.units[0].id = 0;
-    pool.units[0].home_tribe_id = 1; /* village 1 of the tribe array */
+  ColonizeUnitPool pool;
+  memset(&pool, 0, sizeof(pool));
+  pool.units[0].active = true;
+  pool.units[0].id = 0;
+  pool.units[0].home_tribe_id = 1; /* village 1 of the tribe array */
 
-    const int me = 2;    /* acting Euro nation */
-    const int them = 5;  /* Indian nation id 5 -> col1->indian[1] */
+  const int me = 2;    /* acting Euro nation */
+  const int them = 5;  /* Indian nation id 5 -> col1->indian[1] */
 
-    /* Euro owner id (<= 3): the >3 gate never fires, value passes through. */
-    if (ai_goals_filter_profession_by_distance_wealth(&gt, &pool, me, 3, 0, -1) != 3) {
-      return fail("0896: Euro owner id must pass through untouched");
-    }
-    /* has_context 0 (the 20e6 explorer probe) rejects every native. */
-    if (ai_goals_filter_profession_by_distance_wealth(&gt, &pool, me, them, 0, 0) != -1) {
-      return fail("0896: has_context 0 must reject a native outright");
-    }
-    /* Cool nation, zero tension -> no claim. */
-    if (ai_goals_filter_profession_by_distance_wealth(&gt, &pool, me, them, 1, 0) != -1) {
-      return fail("0896: cool nation with zero tension must not claim");
-    }
-    /* Alarm arm: DOS compares `0x4a < alarm`, so 74 is still cool. */
-    gt.indian[1].alarm_by_player[me] = 74;
-    if (ai_goals_filter_profession_by_distance_wealth(&gt, &pool, me, them, 1, 0) != -1) {
-      return fail("0896: alarm 0x4a must not open the gate (strict >)");
-    }
-    gt.indian[1].alarm_by_player[me] = 75;
-    if (ai_goals_filter_profession_by_distance_wealth(&gt, &pool, me, them, 1, -1) != them) {
-      return fail("0896: alarm 75 must open the gate with no unit on the tile");
-    }
-
-    /* Tension arm, alarm back to cool: DOS compares `0x7f < tension`. */
-    gt.indian[1].alarm_by_player[me] = 0;
-    col1_tribe_attitude_set(&tribes[1], me, 0x7f); /* friction 0x7f, 0 attacks */
-    if (ai_goals_filter_profession_by_distance_wealth(&gt, &pool, me, them, 1, 0) != -1) {
-      return fail("0896: tension 0x7f must not open the gate (strict >)");
-    }
-    col1_tribe_attitude_set(&tribes[1], me, 0x80);
-    if (ai_goals_filter_profession_by_distance_wealth(&gt, &pool, me, them, 1, 0) != them) {
-      return fail("0896: tension 0x80 must open the gate");
-    }
-    /* One recorded trespass (attacks = 1, friction 0) is the same word 0x100
-     * and opens the gate on its own — the high byte counts. */
-    tribes[1].alarm[me].friction = 0;
-    tribes[1].alarm[me].attacks = 1;
-    if (ai_goals_filter_profession_by_distance_wealth(&gt, &pool, me, them, 1, 0) != them) {
-      return fail("0896: one attack (word 0x100) must open the gate");
-    }
-    col1_tribe_attitude_set(&tribes[1], me, 0x80);
-    /* Keyed by the tile unit's home village — no unit index, no read. */
-    if (ai_goals_filter_profession_by_distance_wealth(&gt, &pool, me, them, 1, -1) != -1) {
-      return fail("0896: tension is only read through the tile unit (unit_index >= 0)");
-    }
-    /* ...and by the acting nation: another Euro's column stays shut. */
-    if (ai_goals_filter_profession_by_distance_wealth(&gt, &pool, 1, them, 1, 0) != -1) {
-      return fail("0896: tension slot is per acting Euro nation");
-    }
-    /* No col1 = the pre-2026-09-08 parked behaviour (both reads answer 0). */
-    if (ai_goals_filter_profession_by_distance_wealth(NULL, &pool, me, them, 1, 0) != -1) {
-      return fail("0896: NULL col1 must fall back to the parked identity");
-    }
+  /* Euro owner id (<= 3): the >3 gate never fires, value passes through. */
+  if (ai_goals_filter_profession_by_distance_wealth(&gt, &pool, me, 3, 0, -1) != 3) {
+    return fail("0896: Euro owner id must pass through untouched");
+  }
+  /* has_context 0 (the 20e6 explorer probe) rejects every native. */
+  if (ai_goals_filter_profession_by_distance_wealth(&gt, &pool, me, them, 0, 0) != -1) {
+    return fail("0896: has_context 0 must reject a native outright");
+  }
+  /* Cool nation, zero tension -> no claim. */
+  if (ai_goals_filter_profession_by_distance_wealth(&gt, &pool, me, them, 1, 0) != -1) {
+    return fail("0896: cool nation with zero tension must not claim");
+  }
+  /* Alarm arm: DOS compares `0x4a < alarm`, so 74 is still cool. */
+  gt.indian[1].alarm_by_player[me] = 74;
+  if (ai_goals_filter_profession_by_distance_wealth(&gt, &pool, me, them, 1, 0) != -1) {
+    return fail("0896: alarm 0x4a must not open the gate (strict >)");
+  }
+  gt.indian[1].alarm_by_player[me] = 75;
+  if (ai_goals_filter_profession_by_distance_wealth(&gt, &pool, me, them, 1, -1) != them) {
+    return fail("0896: alarm 75 must open the gate with no unit on the tile");
   }
 
-  printf("unit_ai_goals: ok\n");
+  /* Tension arm, alarm back to cool: DOS compares `0x7f < tension`. */
+  gt.indian[1].alarm_by_player[me] = 0;
+  col1_tribe_attitude_set(&tribes[1], me, 0x7f); /* friction 0x7f, 0 attacks */
+  if (ai_goals_filter_profession_by_distance_wealth(&gt, &pool, me, them, 1, 0) != -1) {
+    return fail("0896: tension 0x7f must not open the gate (strict >)");
+  }
+  col1_tribe_attitude_set(&tribes[1], me, 0x80);
+  if (ai_goals_filter_profession_by_distance_wealth(&gt, &pool, me, them, 1, 0) != them) {
+    return fail("0896: tension 0x80 must open the gate");
+  }
+  /* One recorded trespass (attacks = 1, friction 0) is the same word 0x100
+   * and opens the gate on its own — the high byte counts. */
+  tribes[1].alarm[me].friction = 0;
+  tribes[1].alarm[me].attacks = 1;
+  if (ai_goals_filter_profession_by_distance_wealth(&gt, &pool, me, them, 1, 0) != them) {
+    return fail("0896: one attack (word 0x100) must open the gate");
+  }
+  col1_tribe_attitude_set(&tribes[1], me, 0x80);
+  /* Keyed by the tile unit's home village — no unit index, no read. */
+  if (ai_goals_filter_profession_by_distance_wealth(&gt, &pool, me, them, 1, -1) != -1) {
+    return fail("0896: tension is only read through the tile unit (unit_index >= 0)");
+  }
+  /* ...and by the acting nation: another Euro's column stays shut. */
+  if (ai_goals_filter_profession_by_distance_wealth(&gt, &pool, 1, them, 1, 0) != -1) {
+    return fail("0896: tension slot is per acting Euro nation");
+  }
+  /* No col1 = the pre-2026-09-08 parked behaviour (both reads answer 0). */
+  if (ai_goals_filter_profession_by_distance_wealth(NULL, &pool, me, them, 1, 0) != -1) {
+    return fail("0896: NULL col1 must fall back to the parked identity");
+  }
   return 0;
 }
+
+static const TestCase k_cases[] = {
+    {"case_upsert_priority_promote", case_upsert_priority_promote},
+    {"case_work_queue_score_order", case_work_queue_score_order},
+    {"case_work_consume_4393_tail", case_work_consume_4393_tail},
+    {"case_work_consume_zero_load_gate", case_work_consume_zero_load_gate},
+    {"case_stack_settler_pick", case_stack_settler_pick},
+    {"case_goal_fold_urgency", case_goal_fold_urgency},
+    {"case_indian_hostility_gate", case_indian_hostility_gate},
+};
+
+TEST_MAIN(k_cases)

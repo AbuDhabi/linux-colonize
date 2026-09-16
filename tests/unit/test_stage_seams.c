@@ -136,10 +136,4 @@ static const TestCase k_cases[] = {
     {"test_game_render_select_palette", test_game_render_select_palette},
 };
 
-int main(void) {
-  int rc = tr_run_main(k_cases, (int)(sizeof(k_cases) / sizeof(k_cases[0])));
-  if (rc == 0 && getenv("COLONIZE_TEST_LIST") == NULL) {
-    printf("unit_stage_seams: OK\n");
-  }
-  return rc;
-}
+TEST_MAIN(k_cases)

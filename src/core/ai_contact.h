@@ -431,18 +431,6 @@ int ai_contact_colony_raid_repelled_w(
   int home_tribe_id,
   int forced
 );
-int ai_contact_colony_raid_repelled(
-  ColonizeCol1Save* col1,
-  ColonizeColonyPool* colonies,
-  ColonizeUnitPool* units,
-  ColonizeWorldMap* map,
-  ColonizeDosRng* rng,
-  int indian_nation,
-  int euro_nation,
-  int colony_id,
-  int home_tribe_id,
-  int forced
-);
 
 /* Apply human choice from map AI popup (welcome / meet / teach / gift|demand). */
 void ai_contact_apply_popup_result(ColonizeTurnContext* ctx, const AiPopupState* popup);

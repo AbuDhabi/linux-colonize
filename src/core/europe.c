@@ -2993,18 +2993,6 @@ void europe_tick_market_prices_w(
   }
 }
 
-/* Compat shim: pre-ColonizeWorld signature (see src/core/world.h). */
-void europe_tick_market_prices(
-  EuropeScreen* eu,
-  struct ColonizeCol1Save* col1,
-  struct ColonizeColonyPool* colonies,
-  int human_nation,
-  uint32_t turn
-) {
-  ColonizeWorld w_ = world_make(NULL, colonies, NULL, col1, col1 != NULL, NULL, eu);
-  europe_tick_market_prices_w(&w_, human_nation, turn);
-}
-
 int europe_compute_immigration_score_w(
   const ColonizeWorld* w,
   int nation_id
@@ -3070,16 +3058,6 @@ int europe_compute_immigration_score_w(
   return score;
 }
 
-/* Compat shim: pre-ColonizeWorld signature (see src/core/world.h). */
-int europe_compute_immigration_score(
-  const ColonizeColonyPool* colonies,
-  const ColonizeUnitPool* units,
-  const ColonizeCol1Save* col1,
-  int nation_id
-) {
-  ColonizeWorld w_ = world_make(units, colonies, NULL, col1, col1 != NULL, NULL, NULL);
-  return europe_compute_immigration_score_w(&w_, nation_id);
-}
 
 int europe_tick_immigration_pressure_w(
   const ColonizeWorld* w,
@@ -3108,7 +3086,7 @@ int europe_tick_immigration_pressure_w(
     }
     eu->difficulty = (uint8_t)diff;
   }
-  const int score = europe_compute_immigration_score(colonies, units, col1, nation_id);
+  const int score = europe_compute_immigration_score_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(units), .colonies=(ColonizeColonyPool*)(colonies), .col1=(ColonizeCol1Save*)(col1), .col1_ok=((col1) != NULL)}, nation_id);
   int need = score;
   if (need < 0) {
     need = 0;
@@ -3176,18 +3154,6 @@ int europe_tick_immigration_pressure_w(
   return 0;
 }
 
-/* Compat shim: pre-ColonizeWorld signature (see src/core/world.h). */
-int europe_tick_immigration_pressure(
-  EuropeScreen* eu,
-  const ColonizeColonyPool* colonies,
-  const ColonizeUnitPool* units,
-  const ColonizeCol1Save* col1,
-  int nation_id,
-  ColonizeDosRng* rng
-) {
-  ColonizeWorld w_ = world_make(units, colonies, NULL, col1, col1 != NULL, rng, eu);
-  return europe_tick_immigration_pressure_w(&w_, nation_id);
-}
 
 /*
  * The nation `eu->gold` is the purse of: DS:0x9e12, set by FUN_38fd_0000
@@ -3896,20 +3862,6 @@ int europe_custom_house_autosell_ex_w(
   return total;
 }
 
-/* Compat shim: pre-ColonizeWorld signature (see src/core/world.h). */
-int europe_custom_house_autosell_ex(
-  EuropeScreen* eu,
-  ColonizeColonyPool* pool,
-  ColonizeColony* colony,
-  ColonizeCol1Save* col1,
-  int human_nation,
-  EuropeCustomHouseSale* out,
-  int out_max,
-  int* out_count
-) {
-  ColonizeWorld w_ = world_make(NULL, pool, NULL, col1, col1 != NULL, NULL, eu);
-  return europe_custom_house_autosell_ex_w(&w_, colony, human_nation, out, out_max, out_count);
-}
 
 int europe_custom_house_autosell_w(
   const ColonizeWorld* w,
@@ -3920,22 +3872,9 @@ int europe_custom_house_autosell_w(
   ColonizeColonyPool* pool = w->colonies;
   ColonizeCol1Save* col1 = w->col1;
 
-  return europe_custom_house_autosell_ex(
-    eu, pool, colony, col1, human_nation, NULL, 0, NULL
-  );
+  return europe_custom_house_autosell_ex_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(pool), .col1=(ColonizeCol1Save*)(col1), .col1_ok=((col1) != NULL), .europe=(EuropeScreen*)(eu)}, colony, human_nation, NULL, 0, NULL);
 }
 
-/* Compat shim: pre-ColonizeWorld signature (see src/core/world.h). */
-int europe_custom_house_autosell(
-  EuropeScreen* eu,
-  ColonizeColonyPool* pool,
-  ColonizeColony* colony,
-  ColonizeCol1Save* col1,
-  int human_nation
-) {
-  ColonizeWorld w_ = world_make(NULL, pool, NULL, col1, col1 != NULL, NULL, eu);
-  return europe_custom_house_autosell_w(&w_, colony, human_nation);
-}
 
 int europe_ai_colony_dump_sell_w(
   const ColonizeWorld* w,
@@ -4072,18 +4011,6 @@ int europe_ai_colony_dump_sell_w(
   return total;
 }
 
-/* Compat shim: pre-ColonizeWorld signature (see src/core/world.h). */
-int europe_ai_colony_dump_sell(
-  EuropeScreen* eu,
-  ColonizeColonyPool* pool,
-  ColonizeColony* colony,
-  ColonizeCol1Save* col1,
-  int human_nation
-) {
-  ColonizeWorld w_ = world_make(NULL, pool, NULL, col1, col1 != NULL, NULL, eu);
-  return europe_ai_colony_dump_sell_w(&w_, colony, human_nation);
-}
-
 int europe_sell_unit_hold_w(
   const ColonizeWorld* w,
   int unit_id,
@@ -4131,18 +4058,6 @@ int europe_sell_unit_hold_w(
     amt, cname, unit_id, europe_sell_price(eu, ctype), eu->tax_percent, gained, eu->gold
   );
   return gained;
-}
-
-/* Compat shim: pre-ColonizeWorld signature (see src/core/world.h). */
-int europe_sell_unit_hold(
-  EuropeScreen* eu,
-  struct ColonizeCol1Save* col1,
-  ColonizeUnitPool* units,
-  int unit_id,
-  int hold_index
-) {
-  ColonizeWorld w_ = world_make(units, NULL, NULL, col1, col1 != NULL, NULL, eu);
-  return europe_sell_unit_hold_w(&w_, unit_id, hold_index);
 }
 
 int europe_buy_unit_cargo_w(
@@ -4199,18 +4114,6 @@ int europe_buy_unit_cargo_w(
   return loaded;
 }
 
-/* Compat shim: pre-ColonizeWorld signature (see src/core/world.h). */
-int europe_buy_unit_cargo(
-  EuropeScreen* eu,
-  struct ColonizeCol1Save* col1,
-  ColonizeUnitPool* units,
-  int unit_id,
-  int cargo_type,
-  int amount
-) {
-  ColonizeWorld w_ = world_make(units, NULL, NULL, col1, col1 != NULL, NULL, eu);
-  return europe_buy_unit_cargo_w(&w_, unit_id, cargo_type, amount);
-}
 
 int europe_harbor_cargo_room(
   const EuropeScreen* eu,
@@ -4336,20 +4239,6 @@ int europe_buy_cargo_w(
     ask, bought * ask, eu->gold
   );
   return bought;
-}
-
-/* Compat shim: pre-ColonizeWorld signature (see src/core/world.h). */
-int europe_buy_cargo(
-  EuropeScreen* eu,
-  struct ColonizeCol1Save* col1,
-  const ColonizeUnitPool* units,
-  int buyer_nation,
-  int harbor_index,
-  int cargo_type,
-  int amount
-) {
-  ColonizeWorld w_ = world_make(units, NULL, NULL, col1, col1 != NULL, NULL, eu);
-  return europe_buy_cargo_w(&w_, buyer_nation, harbor_index, cargo_type, amount);
 }
 
 int europe_best_sell_hold(const EuropeScreen* eu, int harbor_index) {
@@ -4815,23 +4704,13 @@ bool europe_dock_menu_apply_selection_ex_w(
   );
 }
 
-/* Compat shim: pre-ColonizeWorld signature (see src/core/world.h). */
-bool europe_dock_menu_apply_selection_ex(
-  EuropeScreen* eu,
-  ColonizeUnitPool* units,
-  ColonizeCol1Save* col1,
-  int nation_id
-) {
-  ColonizeWorld w_ = world_make(units, NULL, NULL, col1, col1 != NULL, NULL, eu);
-  return europe_dock_menu_apply_selection_ex_w(&w_, nation_id);
-}
 
 static bool europe_dock_menu_apply_selection(
   EuropeScreen* eu,
   ColonizeUnitPool* units,
   int nation_id
 ) {
-  return europe_dock_menu_apply_selection_ex(eu, units, NULL, nation_id);
+  return europe_dock_menu_apply_selection_ex_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(units), .col1=(ColonizeCol1Save*)(NULL), .col1_ok=((NULL) != NULL), .europe=(EuropeScreen*)(eu)}, nation_id);
 }
 
 bool europe_menu_confirm(EuropeScreen* eu) {

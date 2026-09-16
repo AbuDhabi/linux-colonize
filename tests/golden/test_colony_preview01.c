@@ -75,7 +75,7 @@ static int run_fixture(const char* path) {
   memset(&europe, 0, sizeof(europe));
   europe.cargo_count = 16;
   ColonizeCol1BridgeResult br;
-  if (!col1_bridge_apply(&save, &map, &units, &colonies, &europe, &br, err, sizeof(err))) {
+  if (!col1_bridge_apply_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&units), .colonies=(ColonizeColonyPool*)(&colonies), .map=(ColonizeWorldMap*)(&map), .col1=(ColonizeCol1Save*)(&save), .col1_ok=true, .europe=(EuropeScreen*)(&europe)}, &br, err, sizeof(err))) {
     fprintf(stderr, "bridge: %s\n", err);
     return 1;
   }
@@ -88,7 +88,7 @@ static int run_fixture(const char* path) {
       continue;
     }
     Snapshot* s = &snap[i];
-    colony_preview_compute(&colonies, col, &map, &save, &s->preview);
+    colony_preview_compute_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&colonies), .map=(ColonizeWorldMap*)(&map), .col1=(ColonizeCol1Save*)(&save), .col1_ok=true}, col, &s->preview);
     memcpy(s->stock, col->stock, sizeof(s->stock));
     for (int c = 0; c < COLONIZE_CARGO_COUNT; ++c) {
       s->cap[c] = colonies_warehouse_capacity(&colonies, col, c);
@@ -114,7 +114,7 @@ static int run_fixture(const char* path) {
   ColonizeTurnResult out;
   memset(&out, 0, sizeof(out));
   /* europe=NULL: no Custom House auto-sell, no status popups. */
-  turn_run_colony_production(&colonies, &map, &save, NULL, 3, &out, NULL, NULL, &rng);
+  turn_run_colony_production_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&colonies), .map=(ColonizeWorldMap*)(&map), .col1=(ColonizeCol1Save*)(&save), .col1_ok=true, .rng=(ColonizeDosRng*)(&rng), .europe=(EuropeScreen*)(NULL)}, 3, &out, NULL, NULL);
 
   int mismatches = 0;
   for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {

@@ -445,7 +445,7 @@ static void map_panel_draw_tribe_chrome(
 
   int score = 0;
   const int threat =
-    ai_indian_village_threat(col1, map, units, colonies, mark_nation, tribe_index, &score);
+    ai_indian_village_threat_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(units), .colonies=(ColonizeColonyPool*)(colonies), .map=(ColonizeWorldMap*)(map), .col1=(ColonizeCol1Save*)(col1), .col1_ok=((col1) != NULL)}, mark_nation, tribe_index, &score);
   if (threat >= 0) {
     uint8_t color;
     uint8_t surround;
@@ -580,29 +580,6 @@ void map_panel_render_tribes_on_map_w(
       col1, fog_map, units, colonies, framebuffer, (int)i, t, fog_nation, tile_px, tile_py,
       active_palette);
   }
-}
-
-/* Compat shim: pre-ColonizeWorld signature (see src/core/world.h). */
-void map_panel_render_tribes_on_map(
-  const ColonizeCol1Save* col1,
-  const ColonizeUnitPool* units,
-  const ColonizeColonyPool* colonies,
-  const ColonizeSpriteSheet* icons,
-  ColonizeFramebuffer8* framebuffer,
-  int view_x,
-  int view_y,
-  int view_cols,
-  int view_rows,
-  int tile_w,
-  int tile_h,
-  int origin_x,
-  int origin_y,
-  const ColonizeWorldMap* fog_map,
-  int fog_nation,
-  const ColonizePalette* active_palette
-) {
-  ColonizeWorld w_ = world_make(units, colonies, fog_map, col1, col1 != NULL, NULL, NULL);
-  map_panel_render_tribes_on_map_w(&w_, icons, framebuffer, view_x, view_y, view_cols, view_rows, tile_w, tile_h, origin_x, origin_y, fog_nation, active_palette);
 }
 
 /*
@@ -1700,35 +1677,3 @@ void map_panel_render_w(
   }
 }
 
-/* Compat shim: pre-ColonizeWorld signature (see src/core/world.h). */
-void map_panel_render(
-  const MapPanel* panel,
-  const ColonizeWorldMap* map,
-  const ColonizeUnitPool* units,
-  const ColonizeColonyPool* colonies,
-  const ColonizeSpriteSheet* icons,
-  const ColonizeFont* font,
-  const ColonizeMsgCatalog* names,
-  const ColonizeMsgCatalog* labels,
-  const ColonizeCol1Save* col1,
-  int view_x,
-  int view_y,
-  int view_cols,
-  int view_rows,
-  int cursor_x,
-  int cursor_y,
-  int selected_unit_id,
-  int fog_nation,
-  uint16_t game_year,
-  uint16_t game_autumn,
-  int gold,
-  int tax_percent,
-  const char* nation_name,
-  const ColonizePalette* active_palette,
-  bool end_turn_active,
-  bool end_turn_blink_white,
-  ColonizeFramebuffer8* framebuffer
-) {
-  ColonizeWorld w_ = world_make(units, colonies, map, col1, col1 != NULL, NULL, NULL);
-  map_panel_render_w(&w_, panel, icons, font, names, labels, view_x, view_y, view_cols, view_rows, cursor_x, cursor_y, selected_unit_id, fog_nation, game_year, game_autumn, gold, tax_percent, nation_name, active_palette, end_turn_active, end_turn_blink_white, framebuffer);
-}

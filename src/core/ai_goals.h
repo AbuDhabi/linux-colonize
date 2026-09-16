@@ -151,16 +151,6 @@ int ai_goals_nearest_landing_water_w(
   int* out_x,
   int* out_y
 );
-int ai_goals_nearest_landing_water(
-  const ColonizeWorldMap* map,
-  const ColonizeUnitPool* units,
-  const ColonizeColonyPool* colonies,
-  int from_x,
-  int from_y,
-  int max_radius,
-  int* out_x,
-  int* out_y
-);
 /* Same, but tie-broken by distance from (from_x, from_y) and preferring
  * the landmass that point sits on. Pass from_x < 0 for the plain scan. */
 int ai_goals_best_found_tile_near(
@@ -296,18 +286,6 @@ int ai_goals_composite_unit_priority_w(
   int turn,
   int total_colony_count
 );
-int ai_goals_composite_unit_priority(
-  const ColonizeWorldMap* map,
-  const ColonizeColonyPool* colonies,
-  const ColonizeCol1Save* col1,
-  int nation_id,
-  int unit_x,
-  int unit_y,
-  int unit_type,
-  int unit_profession,
-  int turn,
-  int total_colony_count
-);
 
 /*
  * FUN_521d_0656 — stack_settler_pick (was "walk_unit_stack_to_end", a
@@ -378,17 +356,6 @@ int ai_goals_probe_adjacent_contact_claim_w(
   int profession,
   int* out_side_claim
 );
-int ai_goals_probe_adjacent_contact_claim(
-  const ColonizeWorldMap* map,
-  const ColonizeColonyPool* colonies,
-  const struct ColonizeUnitPool* units,
-  const ColonizeCol1Save* col1,
-  int x,
-  int y,
-  int nation_id,
-  int profession,
-  int* out_side_claim
-);
 
 AiEuroInventory* ai_goals_inventory(int nation_id);
 void ai_goals_inventory_clear(int nation_id);
@@ -400,13 +367,6 @@ void ai_goals_inventory_clear(int nation_id);
  */
 int ai_goals_colony_balance_flags_w(
   const ColonizeWorld* w,
-  int nation_id,
-  int continent_id
-);
-int ai_goals_colony_balance_flags(
-  const ColonizeWorldMap* map,
-  const ColonizeColonyPool* colonies,
-  const ColonizeCol1Save* col1,
   int nation_id,
   int continent_id
 );
@@ -430,35 +390,12 @@ int ai_goals_pick_founding_tile_ex_w(
   int* out_x,
   int* out_y
 );
-int ai_goals_pick_founding_tile_ex(
-  const ColonizeWorldMap* map,
-  const ColonizeColonyPool* colonies,
-  const ColonizeCol1Save* col1,
-  const struct ColonizeUnitPool* units, /* optional: DOS 06ae occupant rule */
-  int nation_id,
-  int x,
-  int y,
-  int score_extras,
-  int wagon_filter,
-  int* out_x,
-  int* out_y
-);
 
 /*
  * FUN_521d_06ae with score_extras=1, wagon_filter=0 (0a60 FOUND writer default).
  */
 int ai_goals_pick_founding_tile_w(
   const ColonizeWorld* w,
-  int nation_id,
-  int x,
-  int y,
-  int* out_x,
-  int* out_y
-);
-int ai_goals_pick_founding_tile(
-  const ColonizeWorldMap* map,
-  const ColonizeColonyPool* colonies,
-  const ColonizeCol1Save* col1,
   int nation_id,
   int x,
   int y,

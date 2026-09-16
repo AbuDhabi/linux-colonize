@@ -12,6 +12,7 @@
 #include "core/col1_save.h"
 
 #include "tests/common/golden_fixture.h"
+#include "../common/test_runner.h"
 
 #define AI_TURNS_VR_SEED 100u
 
@@ -306,26 +307,30 @@ static int run_step(int from_turn) {
   return 0;
 }
 
-int main(void) {
-  /* AI_TURNS_ALL=1: keep going past a failing step (diagnostic overview). */
-  const int run_all = getenv("AI_TURNS_ALL") != NULL;
-  /* AI_TURNS_ONLY=t: run just TURNt→t+1 (diagnostic). */
-  const int only = getenv("AI_TURNS_ONLY") ? atoi(getenv("AI_TURNS_ONLY")) : 0;
-  int failed = 0;
-  for (int t = 1; t <= 6; ++t) {
-    if (only && t != only) {
-      continue;
-    }
-    if (run_step(t) != 0) {
-      failed = 1;
-      if (!run_all) {
-        return 1;
-      }
-    }
-  }
-  if (failed) {
-    return 1;
-  }
-  printf("golden_ai_turns: all TURN1→TURN7 steps ok\n");
-  return 0;
-}
+/*
+ * Each step loads its own fresh TURNt.SAV/TURN(t+1).SAV pair via
+ * golden_open/golden_close (see golden_fixture.h: "safe to call at any
+ * stage"), so the six steps carry no state between them and convert
+ * mechanically to one case per turn transition. The old AI_TURNS_ALL /
+ * AI_TURNS_ONLY diagnostic env vars are superseded by the shared runner's
+ * COLONIZE_TEST_ONLY (run one step) — the runner already always runs every
+ * case and reports which failed, i.e. AI_TURNS_ALL's behaviour is now the
+ * only behaviour.
+ */
+static int case_turn1(void) { return run_step(1); }
+static int case_turn2(void) { return run_step(2); }
+static int case_turn3(void) { return run_step(3); }
+static int case_turn4(void) { return run_step(4); }
+static int case_turn5(void) { return run_step(5); }
+static int case_turn6(void) { return run_step(6); }
+
+static const TestCase k_cases[] = {
+    {"TURN1_to_2", case_turn1},
+    {"TURN2_to_3", case_turn2},
+    {"TURN3_to_4", case_turn3},
+    {"TURN4_to_5", case_turn4},
+    {"TURN5_to_6", case_turn5},
+    {"TURN6_to_7", case_turn6},
+};
+
+TEST_MAIN(k_cases)

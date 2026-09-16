@@ -41,9 +41,19 @@ COLONIZE_INTERNAL void game_move_watch_w(
   int to_x,
   int to_y
 );
-void game_move_watch(
-  void* user, const ColonizeUnitPool* pool, const ColonizeWorldMap* map,
-  const ColonizeColonyPool* colonies, int unit_id, int from_x, int from_y, int to_x, int to_y
+/* Compat shim: kept — registered by name as the ColonizeUnitsMoveWatchFn
+ * callback (units_set_move_watch), so its signature is fixed by that
+ * typedef and cannot move to ColonizeWorld. */
+COLONIZE_INTERNAL void game_move_watch(
+  void* user,
+  const ColonizeUnitPool* pool,
+  const ColonizeWorldMap* map,
+  const ColonizeColonyPool* colonies,
+  int unit_id,
+  int from_x,
+  int from_y,
+  int to_x,
+  int to_y
 );
 void game_render_modal_overlays(
   const ColonizeGameState* game, const ColonizeFont* last_resort,
