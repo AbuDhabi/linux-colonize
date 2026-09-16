@@ -1010,6 +1010,20 @@ int units_coastal_fort_attack_strength(
  * sink ship (no hold plunder). Fort loss → ship stopped (moves_left=0).
  * Optional human status line. Returns ships sunk. Cite: FUN_364b_03f6.
  */
+/*
+ * FUN_5bfb_3180 naval half, run by units_try_move after every committed
+ * ship step: an adjacent foreign warship (rolled, drain by its type 4/6/8)
+ * or Fort (+2) / Fortress (dead stop) eats remaining MP unless the pair is
+ * at PEACE; a Privateer mover ignores the peace gate. Human mover gets
+ * @SHIPSLOW / @SHIPRUN through the combat popup queue. Exposed for tests.
+ */
+void units_ship_slow_scan(
+  ColonizeUnitPool* pool,
+  int unit_id,
+  const ColonizeWorldMap* map,
+  const ColonizeColonyPool* colonies,
+  ColonizeDosRng* rng
+);
 int units_coastal_fort_fire_pulse(
   ColonizeUnitPool* units,
   const ColonizeColonyPool* colonies,

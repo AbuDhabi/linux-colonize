@@ -774,10 +774,10 @@ graphs:
         note: TURN2/TURN5 goldens; COL1 export maps AI_MOVE@self → moves spent 0.
       - id: ambush
         kind: step
-        label: Naval ambush — warship ending adjacent to a foreign ship may lose remaining MP
-        fn: ai_euro.c:ai_euro_naval_try_ambush
-        dos: FUN_5bfb_3180 (thin)
-        status: thin
+        label: Ship-slow — every ship step next to a foreign warship / Fort / Fortress may lose MP (inside units_try_move)
+        fn: units.c:units_ship_slow_scan
+        dos: FUN_5bfb_3180 naval half (98519-98624)
+        status: dos
       - id: end
         kind: end
         label: return

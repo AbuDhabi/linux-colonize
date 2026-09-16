@@ -6151,6 +6151,203 @@ static bool units_fort_vs_ship(
   return false;
 }
 
+/*
+ * FUN_5bfb_3180 ship-slow (decomp 98519-98624), the naval half of the
+ * post-step 8-neighbour scan that 465b's commit tail runs for every mover,
+ * human or AI, per STEP. Two independent branches, each gated on: mover is
+ * a ship (type 0x0d..0x12), mover still has MP (`spent < 090c max`), and the
+ * pair is not at PEACE (`0a38 & 0x40 == 0`) OR the mover is a Privateer
+ * (0x10) — so a Privateer is slowed by everyone and, via the neighbour's
+ * own scan, slows everyone.
+ *
+ *   A. Foreign ship on an adjacent WATER tile (0768 != 0; a ship docked in
+ *      a colony is on land and falls to B): for each unit in that tile's
+ *      stack that is a ship, drain = by the NEIGHBOUR's type — Privateer 4,
+ *      Frigate 6, Man-O-War 8; other hulls 0 (skipped). Roll
+ *      `04d4(1, 312e(mover) + 312e(neighbour) + 2)`: roll < mover power →
+ *      no slow (+ @SHIPRUN "slips past" if either side is human), roll ==
+ *      power → half drain, else full. Slow → `spent += drain`, @SHIPSLOW
+ *      (0x1a51) when the mover is human. Loop stops once the mover is out
+ *      of MP.
+ *   B. Foreign colony adjacent (07be >= 0): no roll. Fortress (09fc(2)) →
+ *      `spent += 50` (dead stop), else Fort (09fc(1)) → `spent += 2`,
+ *      Stockade/none → nothing. @SHIPSLOW (0x1a5a) with the building name
+ *      when the mover is human. Independent of fort fire (that is the
+ *      end-of-turn 5fef_1b0e temp-attacker path; bugs.md 255).
+ *
+ * 312e power = max MP thirds + 3, ×2 for a Privateer (0x10), +3 for a
+ * Galleon (0x0f), −4 per hold in use, floor 1. Type ids: 13 Caravel .. 18
+ * Man-O-War (docs/units.md). Port keeps Euro ships' countdown in
+ * moves_left, so `spent += n` is `moves_left -= n` floored at 0.
+ */
+static int units_ship_slow_power(const ColonizeUnitPool* pool, const ColonizeUnit* u) {
+  int power = units_max_mp(pool, u->id) + 3;
+  const ColonizeUnitKind k = units_name_kind(units_display_name(pool, u));
+  if (k == UNITS_KIND_PRIVATEER) {
+    power *= 2;
+  } else if (k == UNITS_KIND_GALLEON) {
+    power += 3;
+  }
+  power -= 4 * u->cargo_count;
+  return power < 1 ? 1 : power;
+}
+
+static int units_ship_slow_drain_for(ColonizeUnitKind k) {
+  switch (k) {
+    case UNITS_KIND_PRIVATEER: return 4;
+    case UNITS_KIND_FRIGATE: return 6;
+    case UNITS_KIND_MAN_O_WAR: return 8;
+    default: return 0;
+  }
+}
+
+static void units_ship_slow_popup(
+  const ColonizeUnitPool* pool,
+  const ColonizeUnit* mover,
+  const char* tag,
+  int other_nation,
+  const char* other_thing,
+  const char* other_thing2
+) {
+  if (!g_units_combat_popups || !g_units_combat_game_txt) {
+    return;
+  }
+  const ColonizeCol1Save* col1 = g_units_fallout_col1;
+  PopupMsgTokens tok;
+  memset(&tok, 0, sizeof(tok));
+  char body[AI_POPUP_BODY_LEN];
+  body[0] = '\0';
+  const char* mover_name = units_display_name(pool, mover);
+  const char* other_adj = units_combat_nation_label(col1, other_nation);
+  if (strcmp(tag, "SHIPRUN") == 0) {
+    /* {%STRING2 %STRING0} slips past {%STRING1 %STRING3}! */
+    tok.string0 = mover_name;
+    tok.string1 = other_adj;
+    tok.string2 = units_combat_nation_label(col1, mover->nation_id);
+    tok.string3 = other_thing;
+  } else {
+    /* {%STRING0}'s progress slowed by presence of {%STRING1 %STRING2}. */
+    tok.string0 = mover_name;
+    tok.string1 = other_adj;
+    tok.string2 = other_thing;
+  }
+  (void)other_thing2;
+  popup_msg_fill(g_units_combat_game_txt, tag, &tok, "", body, sizeof(body));
+  if (body[0]) {
+    ai_popup_enqueue_ok(g_units_combat_popups, AI_POPUP_TAG_INFO, NULL, body);
+  }
+}
+
+static int units_ship_slow_gate(const ColonizeCol1Save* col1, int mover_nation, int other_nation,
+                                ColonizeUnitKind mover_kind) {
+  if (mover_kind == UNITS_KIND_PRIVATEER) {
+    return 1;
+  }
+  if (!col1) {
+    return 1; /* no relation table: nobody is at PEACE (bit 0x40 clear) */
+  }
+  return (ai_diplo_read(col1, mover_nation, other_nation) & AI_DIPLO_PEACE) == 0;
+}
+
+void units_ship_slow_scan(
+  ColonizeUnitPool* pool,
+  int unit_id,
+  const ColonizeWorldMap* map,
+  const ColonizeColonyPool* colonies,
+  ColonizeDosRng* rng
+) {
+  ColonizeUnit* u = units_get(pool, unit_id);
+  if (!u || !u->active || !map || !units_is_on_map(u) || !units_is_sea(pool, unit_id) ||
+      u->nation_id < 0 || u->nation_id > 3) {
+    return;
+  }
+  /* local_36: branch A needs the mover itself on water; B does not. */
+  const int mover_on_water = map_tile_is_water(map, u->x, u->y);
+  const ColonizeCol1Save* col1 = g_units_fallout_col1;
+  const ColonizeUnitKind mover_kind = units_name_kind(units_display_name(pool, u));
+  const int mover_human = units_combat_human_involved(col1, u->nation_id, -1);
+  for (int d = 0; d < 8; ++d) {
+    const int nx = u->x + MAP_DIR8_DX[d];
+    const int ny = u->y + MAP_DIR8_DY[d];
+    if (nx < 0 || ny < 0 || nx >= map->width || ny >= map->height) {
+      continue;
+    }
+    /* Branch A: foreign ship stack on an adjacent water tile. */
+    const int top = units_id_at(pool, nx, ny);
+    const ColonizeUnit* topu = top >= 0 ? units_get_const(pool, top) : NULL;
+    if (mover_on_water && topu && topu->active && topu->nation_id != u->nation_id &&
+        map_tile_is_water(map, nx, ny) &&
+        units_ship_slow_gate(col1, u->nation_id, topu->nation_id, mover_kind)) {
+      const int other_nation = topu->nation_id;
+      for (int i = 0; i < COLONIZE_UNITS_MAX && u->moves_left > 0; ++i) {
+        const ColonizeUnit* f = &pool->units[i];
+        if (!f->active || f->x != nx || f->y != ny || f->nation_id != other_nation ||
+            !units_is_sea(pool, f->id)) {
+          continue;
+        }
+        const char* fname = units_display_name(pool, f);
+        int drain = units_ship_slow_drain_for(units_name_kind(fname));
+        if (drain == 0) {
+          continue;
+        }
+        const int self_power = units_ship_slow_power(pool, u);
+        const int foe_power = units_ship_slow_power(pool, f) + 2;
+        const int roll = rng ? dos_rng_range(rng, 1, self_power + foe_power) : self_power + foe_power;
+        if (roll < self_power) {
+          drain = 0;
+        } else if (roll == self_power) {
+          drain >>= 1;
+        }
+        if (drain == 0) {
+          if (mover_human || units_combat_human_involved(col1, other_nation, -1)) {
+            units_ship_slow_popup(pool, u, "SHIPRUN", other_nation, fname, NULL);
+          }
+          continue;
+        }
+        u->moves_left -= drain;
+        if (u->moves_left < 0) {
+          u->moves_left = 0;
+        }
+        if (diag_info_enabled()) {
+          diag_info("SHIPSLOW unit %d by %s (%d) drain %d -> %d", unit_id, fname, f->id, drain, u->moves_left);
+        }
+        if (mover_human) {
+          units_ship_slow_popup(pool, u, "SHIPSLOW", other_nation, fname, NULL);
+        }
+      }
+    }
+    /* Branch B: foreign colony with a Fort / Fortress. */
+    const int cid = colonies ? colonies_id_at(colonies, nx, ny) : -1;
+    const ColonizeColony* col = cid >= 0 ? colonies_get(colonies, cid) : NULL;
+    if (col && col->active && col->nation_id != u->nation_id && u->moves_left > 0 &&
+        units_ship_slow_gate(col1, u->nation_id, col->nation_id, mover_kind)) {
+      const int fortress = colonies_find_building(colonies, "Fortress");
+      const int fort = colonies_find_building(colonies, "Fort");
+      const char* bname = NULL;
+      int drain = 0;
+      if (fortress >= 0 && col->has_building[fortress]) {
+        drain = 50;
+        bname = "Fortress";
+      } else if (fort >= 0 && col->has_building[fort]) {
+        drain = 2;
+        bname = "Fort";
+      }
+      if (drain > 0) {
+        u->moves_left -= drain;
+        if (u->moves_left < 0) {
+          u->moves_left = 0;
+        }
+        if (diag_info_enabled()) {
+          diag_info("SHIPSLOW unit %d by %s %s drain %d -> %d", unit_id, col->name, bname, drain, u->moves_left);
+        }
+        if (mover_human) {
+          units_ship_slow_popup(pool, u, "SHIPSLOW", col->nation_id, bname, NULL);
+        }
+      }
+    }
+  }
+}
+
 int units_coastal_fort_fire_pulse(
   ColonizeUnitPool* units,
   const ColonizeColonyPool* colonies,
@@ -7785,6 +7982,10 @@ combat_entry_resolved:
     units_log_ident(pool, unit_id, who, sizeof(who));
     diag_info("MOVE %s: (%d,%d) -> (%d,%d)", who, ox, oy, unit->x, unit->y);
   }
+  /* FUN_5bfb_3180 naval half: adjacent foreign warship / Fort / Fortress
+   * may eat the mover's remaining MP (see units_ship_slow_scan). */
+  units_ship_slow_scan(pool, unit_id, map, colonies, rng);
+  unit = units_get(pool, unit_id);
   if (g_units_move_watch && units_is_on_map(unit)) {
     g_units_move_watch(
       g_units_move_watch_user,

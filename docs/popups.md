@@ -842,8 +842,8 @@ work.
 | `@CCONT` | Done | customize wizard |
 | `@CTEMP` | Done | customize wizard |
 | `@CCLIM` | Done | customize wizard |
-| `@SHIPSLOW` | Partial | order/gate — status or bounce; no modal |
-| `@SHIPRUN` | Partial | order/gate — status or bounce; no modal |
+| `@SHIPSLOW` | Done | `units_ship_slow_scan` (FUN_5bfb_3180 naval half): human mover slowed by adjacent foreign warship (0x1a51) or Fort/Fortress (0x1a5a) |
+| `@SHIPRUN` | Done | `units_ship_slow_scan`: roll beat the adjacent warship, either side human |
 | `@FORTFIRE` | Partial | order/gate — status or bounce; no modal |
 | `@EUROPEARM` | Done | Europe dock / arm chrome |
 | `@EUROPESHIPCLICK` | Done | Europe dock / arm chrome |
