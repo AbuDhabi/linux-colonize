@@ -59,15 +59,32 @@ behavior ([project_goals.md](project_goals.md)).
 flowchart TB
   main[main.c]
   plat[platform SDL2]
-  core[colonize_core]
+  ui["colonize_ui&nbsp;&mdash;&nbsp;screens, dialogs, painters"]
+  sim["colonize_sim&nbsp;&mdash;&nbsp;simulation + shared"]
   dataDir[COLONIZE data]
   baked[src/data tables]
   main --> plat
-  main --> core
-  core --> plat
-  core --> dataDir
-  core --> baked
+  main --> ui
+  ui --> sim
+  sim --> plat
+  sim --> dataDir
+  sim --> baked
+  ui --> dataDir
+  sim -. "ai_popup queue<br/>registered hooks<br/>diag_*" .-> ui
 ```
+
+`colonize_ui` depends on `colonize_sim`; **the reverse edge does not exist and
+is enforced by the linker** (see [Layering enforcement](#layering-enforcement)).
+The dotted edge is not a link dependency: the simulation reaches the player
+only through channels the UI registers or drains —
+
+- **`ai_popup`** — the popup/woodcut queue. Sim enqueues (`ai_popup_enqueue_*`,
+  `woodcut_fire`); the UI drains and paints it. This is the sim→UI message bus.
+- **Registered callbacks** — `units_set_*` context/hooks,
+  `units_set_combat_music_hooks`, `combat_analysis_set_presenter`,
+  `woodcut_set_sound_hooks`, `europe`'s sound hook. The UI installs these at
+  `game_create`; sim holds only function pointers.
+- **`diag_*`** — logging, from `platform/diagnostics` (shared).
 
 ### CMake targets
 
@@ -75,18 +92,112 @@ From [`CMakeLists.txt`](../CMakeLists.txt):
 
 | Target | Contents | Links |
 |--------|----------|-------|
-| **`colonize_core`** (STATIC) | Every `src/core/*.c` **except `ai_contact_link_stubs.c`** (slim-test link stubs only — see the file header), plus `src/data/viceroy_tables.c`, `platform/diagnostics`, `platform/dos_compat` | `m`, `pthread`; optional FluidSynth |
+| **`colonize_sim`** (STATIC) | Simulation: `map*`, `units`, `unit_chrome` (colour/flag lookups), `colony*` (less screen/chrome), `combat_*` (less render), `turn`, `europe`, `founding_fathers`, `ai*` incl. `ai_popup`, `col1_*`, `savegame`, `reports_names`, `new_game_scenario`, `woodcut` (queue), `dos_rng`. Shared: `assets`, `strutil`, `ff`, `madspack`, `popup_msg`, `sound`, `gsound_vm`, `settings`, `json_min`, `src/data/viceroy_tables.c`, `platform/diagnostics`, `platform/dos_compat` | `m`, `pthread`; optional FluidSynth |
+| **`colonize_ui`** (STATIC) | Presentation: `fb`, `font`, `pik`, `ss`, `popup`, `ui_*`, `text_edit`, every `*_dialog`, `game_loop`, `game_dialogs`, `map_menu`, `map_panel`, `unit_stack`, `unit_chrome_draw`, `units_render`, `colony_screen`, `colony_chrome`, `colony_preview`, `europe_art`, `reports`, `pedia`, `new_game`, `trade_screen`, `combat_analysis_render`, `ai_popup_render`, `woodcut_present`, `declaration`, `opening`, `closing`, `debug_atlas` | **`colonize_sim`** (PUBLIC) |
+| **`colonize_core`** (INTERFACE) | No objects of its own — the one name every consumer still links | `colonize_ui` (hence `colonize_sim`) |
+| **`colonize_sim_linkcheck`** (SHARED) | `cmake/sim_linkcheck.c` + all of `colonize_sim` under `-Wl,--no-undefined`; builds with ALL | `colonize_sim` |
 | **`colonize_linux`** (EXE) | `src/main.c` + `platform/linux_sdl2/sdl_runtime.c` | `colonize_core` + SDL2 |
 | **Tests** | `tests/smoke/` (`smoke_*`), `tests/unit/` (`unit_*`), `tests/golden/` (`golden_*`) | Mostly `colonize_core` (headless); see [`tests/README.md`](../tests/README.md) |
 
+`ai_contact_link_stubs.c` is in no library — slim tests only (see its header).
+
 Include root is `src/` (`#include "core/…"`, `#include "platform/…"`).
+
+### Layering enforcement
+
+Two static archives cannot enforce a direction on their own: the UI archive is
+on the link line anyway, so a sim→UI call would just resolve. The direction is
+therefore checked by **re-linking the simulation objects alone** into
+`libcolonize_sim_linkcheck.so` with `-Wl,--no-undefined`. Every symbol must
+resolve inside `colonize_sim` or libc / libm / pthread / FluidSynth, so one
+`fb_` / `font_` / `ss_` / `pik_` / `popup_` / `game_` / report-render reference
+from a simulation file fails the build with a named undefined reference. The
+probe is an ALL target: `make build`, `make test` and `make golden` all run it.
+
+If a new DOS port needs to reach the player: enqueue through `ai_popup`, or add
+a hook pointer the UI registers at `game_create` and call it where the direct
+call would have been. If the thing you need is a lookup or a text measurement
+rather than paint, move that helper to the shared half (`reports_names`,
+`popup_msg`, `unit_chrome`) instead of hooking.
+
+### Files split by half
+
+Eleven files carry a `_<half>` sibling because logic and paint used to
+cohabit. Every split was a **pure move** (2026-09-16) — bodies unchanged, only
+`static` removed where the other half still calls in, via a small internal
+header (`*_render.h` / `*_draw.h` / `*_art.h` / `reports_names.h`).
+
+| Sim / shared half | UI half |
+|---|---|
+| `reports_names.c` (NAMES/LABELS.TXT display names) | `reports.c` (F2–F10 screens) |
+| `unit_chrome.c` (nation colours, flags, crown/rebel) | `unit_chrome_draw.c` (+ `turn_draw_owner_indicator`) |
+| `units.c` | `units_render.c` (`units_render_on_map`) |
+| `colony.c` | `colony_chrome.c` (settlement icon, map markers) |
+| `europe.c` (market, pool, docks, voyages) | `europe_art.c` (`europe_load` / `europe_free`) |
+| `combat_analysis.c` (`should_show`, `log_engagement`, presenter hook) | `combat_analysis_render.c` |
+| `woodcut.c` (once-only bits, pending queue, `woodcut_fire`) | `woodcut_present.c` |
+| `ai_popup.c` (queue, enqueue, appliers) | `ai_popup_render.c` (geometry, portrait sheets, painter, input) |
+| `new_game_scenario.c` (`@SCENARIO` start tiles) | `new_game.c` (wizard) |
+
+### The context object: `ColonizeWorld`
+
+`src/core/world.h` (2026-09-16). Long simulation chains used to thread the same
+four to six pointers by hand — `units`, `colonies`, `map`, `col1`, `rng`,
+`europe` — so 183 prototypes took a `ColonizeUnitPool*`, 143 a
+`ColonizeColonyPool*`, and adding one piece of state meant editing dozens of
+signatures plus every call site. `ColonizeWorld` bundles them once:
+
+```c
+typedef struct ColonizeWorld {
+  ColonizeUnitPool* units;   ColonizeColonyPool* colonies;
+  ColonizeWorldMap* map;     ColonizeCol1Save*   col1;   bool col1_ok;
+  ColonizeDosRng*   rng;     EuropeScreen*       europe;
+} ColonizeWorld;
+```
+
+Rules:
+
+- **View struct, no ownership.** It allocates nothing and frees nothing. Build
+  one on the stack and pass its address. Callees take `const ColonizeWorld* w`
+  — the *view* is immutable, the pools it points at are not — so `w->map` keeps
+  whatever constness the callee's own local declares.
+- **Forward declarations only.** `world.h` forward-declares the six struct tags
+  instead of including their headers, so it sits *under* `units.h`,
+  `colony.h`, `map.h` … and any of them can include it to declare a
+  `ColonizeWorld`-taking entry point with no include cycle.
+- **Field names match `ColonizeTurnContext`'s**, which is the de-facto world
+  struct already: `world_from_turn_ctx()` (in `turn.h`) is a field-for-field
+  copy, and a migrated body keeps its original spelling through one alias line
+  (`ColonizeUnitPool* pool = w->units;`).
+- **Three constructors.** `world_from_turn_ctx(ctx)` for anything holding a
+  turn context; `world_make(...)` for call sites that have only loose pointers
+  (`game_dialogs`, UI screens); `fx_world(...)` in `tests/common/ai_fixture.h`
+  for tests, which pass NULL for the pieces the call under test never reads.
+- **`col1_ok`** mirrors `ColonizeTurnContext.col1_ok`. `world_make` callers
+  that have no such flag pass `col1 != NULL`; no migrated body reads it yet.
+
+**Migration shape (68 signatures, 2026-09-16).** Each converted function keeps
+its body byte-for-byte; the world pointers move out of the parameter list into
+alias locals at the top, and the pre-world signature survives as a `_w`-less
+**compat shim** that builds a `ColonizeWorld` and forwards. Callers therefore
+needed no edits, and no DOS-LITERAL logic moved. The canonical entry point is
+the `_w` one; the shim is scaffolding to be retired call site by call site.
+Inside a chain the shims are already gone — `units_advance_goto_w` →
+`units_advance_goto_one_step_w` → `units_next_goto_step_w` /
+`units_try_move_w` → `units_can_enter_w` passes `w` straight through.
+
+Migrated modules: `units` (movement/goto/pioneer, combat, cargo, sight),
+`colony`, `europe`, `ai` / `ai_goals` / `ai_contact`, `col1_bridge`,
+`col1_stuff_census`, `colony_preview`, `turn`, and the UI renderers
+`reports`, `map_panel`, `colony_screen`, `game_loop`'s move watch.
 
 ### Layer responsibilities (present)
 
 | Layer | Responsibility |
 |-------|----------------|
 | **Platform** | Window, 320×200 present, input, ticks, sleep, mouse cursor, audio device, DOS path/port stubs |
-| **Core** | Game state, simulation, screens, asset decode, sound *logic*, save codec — **UI paint lives here** (no `src/ui/`) |
+| **Core / sim** | Game state, simulation, save codec, DOS tables and display-name lookups, asset decode, sound *logic* — no framebuffer writes |
+| **Core / UI** | Screens, dialogs, sprite and font painting — **UI paint still lives in core** (no `src/ui/`), but only on the `colonize_ui` side |
 | **Data (baked)** | EXE-only lookup tables extracted into `src/data/` |
 | **Data (runtime)** | Original `COLONIZE/` catalogs, art, maps, sound — via `--data-dir` / `<exe>/COLONIZE` |
 
@@ -128,8 +239,10 @@ Cluster table (not every file). Paths are under `src/core/` unless noted.
   functions. Modal input gate (before parent hotkeys): pick_music → save_load →
   options → name_entry → howmuch → cheat_list → **ai_popups** → unit_stack — see
   [popups.md](popups.md) Architecture.
-- UI and simulation **cohabit** in `colonize_core`; that is the present design,
-  not an accidental leak from platform.
+- UI and simulation still **cohabit in `src/core/`** (there is no `src/ui/`),
+  but since 2026-09-16 they are two link targets: `colonize_sim` and
+  `colonize_ui`. `colonize_core` is now an INTERFACE alias for both, so no
+  consumer changed. See [Layering enforcement](#layering-enforcement).
 - Session hooks such as `units_set_*` context pointers exist for bring-up
   wiring; treat them as present concentration, not a public API surface.
 

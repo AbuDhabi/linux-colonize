@@ -833,14 +833,16 @@ int units_tick_drydock_repair(
 
 static int g_units_combat_human_nation;
 
-int units_cortes_cash_coastal_treasures(
-  ColonizeUnitPool* pool,
-  ColonizeColonyPool* colonies,
-  ColonizeWorldMap* map,
-  EuropeScreen* europe,
-  ColonizeCol1Save* col1,
+int units_cortes_cash_coastal_treasures_w(
+  const ColonizeWorld* w,
   int nation_id
 ) {
+  ColonizeUnitPool* pool = w->units;
+  ColonizeColonyPool* colonies = w->colonies;
+  ColonizeWorldMap* map = w->map;
+  EuropeScreen* europe = w->europe;
+  ColonizeCol1Save* col1 = w->col1;
+
   if (!pool || !colonies || !map || !europe || !col1 || nation_id < 0 || nation_id > 3) {
     return 0;
   }
@@ -914,6 +916,19 @@ int units_cortes_cash_coastal_treasures(
     europe->tax_percent = saved_tax;
   }
   return cashed;
+}
+
+/* Compat shim: pre-ColonizeWorld signature (see src/core/world.h). */
+int units_cortes_cash_coastal_treasures(
+  ColonizeUnitPool* pool,
+  ColonizeColonyPool* colonies,
+  ColonizeWorldMap* map,
+  EuropeScreen* europe,
+  ColonizeCol1Save* col1,
+  int nation_id
+) {
+  ColonizeWorld w_ = world_make(pool, colonies, map, col1, col1 != NULL, NULL, europe);
+  return units_cortes_cash_coastal_treasures_w(&w_, nation_id);
 }
 
 static const char* units_combat_nation_label(const ColonizeCol1Save* col1, int nation_id);
@@ -1130,16 +1145,18 @@ int units_ai_treasure_cash_in_colony(
   return value;
 }
 
-int units_king_galleon_offer_coastal_treasures(
-  ColonizeUnitPool* pool,
-  const ColonizeColonyPool* colonies,
-  const ColonizeWorldMap* map,
-  EuropeScreen* europe,
-  ColonizeCol1Save* col1,
+int units_king_galleon_offer_coastal_treasures_w(
+  const ColonizeWorld* w,
   int nation_id,
   AiPopupState* popups,
   const ColonizeMsgCatalog* game_txt
 ) {
+  ColonizeUnitPool* pool = w->units;
+  const ColonizeColonyPool* colonies = w->colonies;
+  const ColonizeWorldMap* map = w->map;
+  EuropeScreen* europe = w->europe;
+  ColonizeCol1Save* col1 = w->col1;
+
   if (!pool || !colonies || !map || !col1 || nation_id < 0 || nation_id > 3) {
     return 0;
   }
@@ -1233,6 +1250,21 @@ int units_king_galleon_offer_coastal_treasures(
     handled++;
   }
   return handled;
+}
+
+/* Compat shim: pre-ColonizeWorld signature (see src/core/world.h). */
+int units_king_galleon_offer_coastal_treasures(
+  ColonizeUnitPool* pool,
+  const ColonizeColonyPool* colonies,
+  const ColonizeWorldMap* map,
+  EuropeScreen* europe,
+  ColonizeCol1Save* col1,
+  int nation_id,
+  AiPopupState* popups,
+  const ColonizeMsgCatalog* game_txt
+) {
+  ColonizeWorld w_ = world_make(pool, colonies, map, col1, col1 != NULL, NULL, europe);
+  return units_king_galleon_offer_coastal_treasures_w(&w_, nation_id, popups, game_txt);
 }
 
 void units_fountain_youth_enqueue_pick(
@@ -1347,9 +1379,14 @@ bool units_brewster_apply_popup(
   return units_brewster_apply_popup_ex(europe, popups, units, NULL);
 }
 
-bool units_brewster_apply_popup_ex(
-  EuropeScreen* europe, AiPopupState* popups, ColonizeUnitPool* units, ColonizeDosRng* rng
+bool units_brewster_apply_popup_ex_w(
+  const ColonizeWorld* w,
+  AiPopupState* popups
 ) {
+  EuropeScreen* europe = w->europe;
+  ColonizeUnitPool* units = w->units;
+  ColonizeDosRng* rng = w->rng;
+
   if (!popups || popups->result_tag != AI_POPUP_TAG_BREWSTER_PICK) {
     return false;
   }
@@ -1381,13 +1418,26 @@ bool units_brewster_apply_popup_ex(
   return true;
 }
 
-bool units_king_galleon_apply_popup(
-  ColonizeUnitPool* pool,
+/* Compat shim: pre-ColonizeWorld signature (see src/core/world.h). */
+bool units_brewster_apply_popup_ex(
   EuropeScreen* europe,
-  ColonizeCol1Save* col1,
+  AiPopupState* popups,
+  ColonizeUnitPool* units,
+  ColonizeDosRng* rng
+) {
+  ColonizeWorld w_ = world_make(units, NULL, NULL, NULL, false, rng, europe);
+  return units_brewster_apply_popup_ex_w(&w_, popups);
+}
+
+bool units_king_galleon_apply_popup_w(
+  const ColonizeWorld* w,
   AiPopupState* popups,
   const ColonizeMsgCatalog* game_txt
 ) {
+  ColonizeUnitPool* pool = w->units;
+  EuropeScreen* europe = w->europe;
+  ColonizeCol1Save* col1 = w->col1;
+
   if (!popups || popups->result_tag != AI_POPUP_TAG_KING_GALLEON) {
     return false;
   }
@@ -1403,6 +1453,18 @@ bool units_king_galleon_apply_popup(
     units_king_galleon_share_pct(col1, nation), popups, game_txt
   );
   return true;
+}
+
+/* Compat shim: pre-ColonizeWorld signature (see src/core/world.h). */
+bool units_king_galleon_apply_popup(
+  ColonizeUnitPool* pool,
+  EuropeScreen* europe,
+  ColonizeCol1Save* col1,
+  AiPopupState* popups,
+  const ColonizeMsgCatalog* game_txt
+) {
+  ColonizeWorld w_ = world_make(pool, NULL, NULL, col1, col1 != NULL, NULL, europe);
+  return units_king_galleon_apply_popup_w(&w_, popups, game_txt);
 }
 /* ===================== Tile occupancy/sight/vision, combat hook registration & context setters (units_is_on_map .. units_enter_reason_status) ===================== */
 
@@ -1624,13 +1686,15 @@ static void units_reveal_tile_effects(void* vctx, int x, int y, bool outer) {
   }
 }
 
-bool units_reveal_sight(
-  ColonizeWorldMap* map,
-  ColonizeUnitPool* pool,
-  ColonizeColonyPool* colonies,
-  const ColonizeUnit* u,
-  const ColonizeCol1Save* col1
+bool units_reveal_sight_w(
+  const ColonizeWorld* w,
+  const ColonizeUnit* u
 ) {
+  ColonizeWorldMap* map = w->map;
+  ColonizeUnitPool* pool = w->units;
+  ColonizeColonyPool* colonies = w->colonies;
+  const ColonizeCol1Save* col1 = w->col1;
+
   if (!map || !pool || !u || !units_is_on_map(u) || u->nation_id < 0 || u->nation_id > 3) {
     return false;
   }
@@ -1646,6 +1710,18 @@ bool units_reveal_sight(
     &ctx
   );
   return ctx.pacific;
+}
+
+/* Compat shim: pre-ColonizeWorld signature (see src/core/world.h). */
+bool units_reveal_sight(
+  ColonizeWorldMap* map,
+  ColonizeUnitPool* pool,
+  ColonizeColonyPool* colonies,
+  const ColonizeUnit* u,
+  const ColonizeCol1Save* col1
+) {
+  ColonizeWorld w_ = world_make(pool, colonies, map, col1, col1 != NULL, NULL, NULL);
+  return units_reveal_sight_w(&w_, u);
 }
 
 uint8_t units_vis_mask_for_tile(const ColonizeWorldMap* map, int x, int y, int mover_nation) {
@@ -4445,17 +4521,19 @@ static int units_spawn_subjugated_convert(
   return id;
 }
 
-bool units_try_native_settlement_fallout(
-  ColonizeCol1Save* col1,
-  ColonizeUnitPool* units,
-  ColonizeWorldMap* map,
+bool units_try_native_settlement_fallout_w(
+  const ColonizeWorld* w,
   int attacker_nation_id,
   int defender_nation_id,
   int tile_x,
   int tile_y,
-  int gold_amount,
-  ColonizeDosRng* rng
+  int gold_amount
 ) {
+  ColonizeCol1Save* col1 = w->col1;
+  ColonizeUnitPool* units = w->units;
+  ColonizeWorldMap* map = w->map;
+  ColonizeDosRng* rng = w->rng;
+
   /*
    * Post-win fallout for FUN_5fef_31ea (structural): destroy native village
    * when explicitly conquering an empty dwelling (caller: village temp Brave
@@ -4650,6 +4728,22 @@ bool units_try_native_settlement_fallout(
     }
   }
   return true;
+}
+
+/* Compat shim: pre-ColonizeWorld signature (see src/core/world.h). */
+bool units_try_native_settlement_fallout(
+  ColonizeCol1Save* col1,
+  ColonizeUnitPool* units,
+  ColonizeWorldMap* map,
+  int attacker_nation_id,
+  int defender_nation_id,
+  int tile_x,
+  int tile_y,
+  int gold_amount,
+  ColonizeDosRng* rng
+) {
+  ColonizeWorld w_ = world_make(units, NULL, map, col1, col1 != NULL, rng, NULL);
+  return units_try_native_settlement_fallout_w(&w_, attacker_nation_id, defender_nation_id, tile_x, tile_y, gold_amount);
 }
 
 /*
@@ -4928,15 +5022,17 @@ static void units_lcr_roll_outcome(
   }
 }
 
-bool units_resolve_lcr_rumour(
-  ColonizeUnitPool* pool,
+bool units_resolve_lcr_rumour_w(
+  const ColonizeWorld* w,
   int unit_id,
-  ColonizeWorldMap* map,
-  ColonizeCol1Save* col1,
-  ColonizeDosRng* rng,
-  EuropeScreen* europe,
   int human_nation
 ) {
+  ColonizeUnitPool* pool = w->units;
+  ColonizeWorldMap* map = w->map;
+  ColonizeCol1Save* col1 = w->col1;
+  ColonizeDosRng* rng = w->rng;
+  EuropeScreen* europe = w->europe;
+
   /*
    * FUN_65dd_0004: any land unit standing on a procedural rumour tile
    * clears it and rolls one of the manual-documented outcomes (treasure /
@@ -5216,6 +5312,20 @@ bool units_resolve_lcr_rumour(
   return true;
 }
 
+/* Compat shim: pre-ColonizeWorld signature (see src/core/world.h). */
+bool units_resolve_lcr_rumour(
+  ColonizeUnitPool* pool,
+  int unit_id,
+  ColonizeWorldMap* map,
+  ColonizeCol1Save* col1,
+  ColonizeDosRng* rng,
+  EuropeScreen* europe,
+  int human_nation
+) {
+  ColonizeWorld w_ = world_make(pool, NULL, map, col1, col1 != NULL, rng, europe);
+  return units_resolve_lcr_rumour_w(&w_, unit_id, human_nation);
+}
+
 static ColonizeSoundPlayFn g_units_combat_sound_play = NULL;
 static ColonizeSoundActiveIdFn g_units_combat_sound_active_id = NULL;
 static ColonizeSoundPlayFn g_units_set_bgm = NULL;
@@ -5454,13 +5564,15 @@ static void units_combat_present_and_roll(
   }
 }
 
-bool units_resolve_land_combat_ff(
-  ColonizeUnitPool* pool,
+bool units_resolve_land_combat_ff_w(
+  const ColonizeWorld* w,
   int attacker_id,
-  int defender_id,
-  ColonizeDosRng* rng,
-  const ColonizeCol1Save* col1
+  int defender_id
 ) {
+  ColonizeUnitPool* pool = w->units;
+  ColonizeDosRng* rng = w->rng;
+  const ColonizeCol1Save* col1 = w->col1;
+
   g_units_last_combat = 0;
   ColonizeUnit* atk = units_get(pool, attacker_id);
   ColonizeUnit* def = units_get(pool, defender_id);
@@ -5803,6 +5915,18 @@ bool units_resolve_land_combat_ff(
   return false;
 }
 
+/* Compat shim: pre-ColonizeWorld signature (see src/core/world.h). */
+bool units_resolve_land_combat_ff(
+  ColonizeUnitPool* pool,
+  int attacker_id,
+  int defender_id,
+  ColonizeDosRng* rng,
+  const ColonizeCol1Save* col1
+) {
+  ColonizeWorld w_ = world_make(pool, NULL, NULL, col1, col1 != NULL, rng, NULL);
+  return units_resolve_land_combat_ff_w(&w_, attacker_id, defender_id);
+}
+
 static int units_plunder_ship_holds(ColonizeUnitPool* pool, int winner_id, int loser_id) {
   if (!pool || winner_id < 0 || loser_id < 0 || winner_id == loser_id) {
     return 0;
@@ -5856,13 +5980,15 @@ bool units_resolve_naval_combat(
   return units_resolve_naval_combat_ff(pool, attacker_id, defender_id, rng, g_units_ff_col1);
 }
 
-bool units_resolve_naval_combat_ff(
-  ColonizeUnitPool* pool,
+bool units_resolve_naval_combat_ff_w(
+  const ColonizeWorld* w,
   int attacker_id,
-  int defender_id,
-  ColonizeDosRng* rng,
-  const ColonizeCol1Save* col1
+  int defender_id
 ) {
+  ColonizeUnitPool* pool = w->units;
+  ColonizeDosRng* rng = w->rng;
+  const ColonizeCol1Save* col1 = w->col1;
+
   g_units_last_combat = 0;
   ColonizeUnit* atk = units_get(pool, attacker_id);
   ColonizeUnit* def = units_get(pool, defender_id);
@@ -6041,6 +6167,18 @@ bool units_resolve_naval_combat_ff(
   units_dissolve_notify(1);
   units_combat_pump_popups();
   return false;
+}
+
+/* Compat shim: pre-ColonizeWorld signature (see src/core/world.h). */
+bool units_resolve_naval_combat_ff(
+  ColonizeUnitPool* pool,
+  int attacker_id,
+  int defender_id,
+  ColonizeDosRng* rng,
+  const ColonizeCol1Save* col1
+) {
+  ColonizeWorld w_ = world_make(pool, NULL, NULL, col1, col1 != NULL, rng, NULL);
+  return units_resolve_naval_combat_ff_w(&w_, attacker_id, defender_id);
 }
 /* ===================== Coastal fort fire, ship-slowing & foreign-colony capture setup (units_coastal_fort_attack_strength .. units_capture_claim_ring) ===================== */
 
@@ -6355,13 +6493,15 @@ static int units_ship_slow_gate(const ColonizeCol1Save* col1, int mover_nation, 
   return (ai_diplo_read(col1, mover_nation, other_nation) & AI_DIPLO_PEACE) == 0;
 }
 
-void units_ship_slow_scan(
-  ColonizeUnitPool* pool,
-  int unit_id,
-  const ColonizeWorldMap* map,
-  const ColonizeColonyPool* colonies,
-  ColonizeDosRng* rng
+void units_ship_slow_scan_w(
+  const ColonizeWorld* w,
+  int unit_id
 ) {
+  ColonizeUnitPool* pool = w->units;
+  const ColonizeWorldMap* map = w->map;
+  const ColonizeColonyPool* colonies = w->colonies;
+  ColonizeDosRng* rng = w->rng;
+
   ColonizeUnit* u = units_get(pool, unit_id);
   if (!u || !u->active || !map || !units_is_on_map(u) || !units_is_sea(pool, unit_id) ||
       u->nation_id < 0 || u->nation_id > 3) {
@@ -6454,16 +6594,30 @@ void units_ship_slow_scan(
   }
 }
 
-int units_coastal_fort_fire_pulse(
-  ColonizeUnitPool* units,
-  const ColonizeColonyPool* colonies,
+/* Compat shim: pre-ColonizeWorld signature (see src/core/world.h). */
+void units_ship_slow_scan(
+  ColonizeUnitPool* pool,
+  int unit_id,
   const ColonizeWorldMap* map,
-  const ColonizeCol1Save* col1,
-  ColonizeDosRng* rng,
+  const ColonizeColonyPool* colonies,
+  ColonizeDosRng* rng
+) {
+  ColonizeWorld w_ = world_make(pool, colonies, map, NULL, false, rng, NULL);
+  units_ship_slow_scan_w(&w_, unit_id);
+}
+
+int units_coastal_fort_fire_pulse_w(
+  const ColonizeWorld* w,
   int human_nation,
   char* status,
   size_t status_size
 ) {
+  ColonizeUnitPool* units = w->units;
+  const ColonizeColonyPool* colonies = w->colonies;
+  const ColonizeWorldMap* map = w->map;
+  const ColonizeCol1Save* col1 = w->col1;
+  ColonizeDosRng* rng = w->rng;
+
   if (!units || !colonies || !map) {
     return 0;
   }
@@ -6549,6 +6703,21 @@ int units_coastal_fort_fire_pulse(
     }
   }
   return sunk;
+}
+
+/* Compat shim: pre-ColonizeWorld signature (see src/core/world.h). */
+int units_coastal_fort_fire_pulse(
+  ColonizeUnitPool* units,
+  const ColonizeColonyPool* colonies,
+  const ColonizeWorldMap* map,
+  const ColonizeCol1Save* col1,
+  ColonizeDosRng* rng,
+  int human_nation,
+  char* status,
+  size_t status_size
+) {
+  ColonizeWorld w_ = world_make(units, colonies, map, col1, col1 != NULL, rng, NULL);
+  return units_coastal_fort_fire_pulse_w(&w_, human_nation, status, status_size);
 }
 
 /*
@@ -7019,15 +7188,17 @@ int units_find_boardable_ship(
   const ColonizeUnitPool* pool, int x, int y, int nation_id, bool require_galleon
 );
 
-ColonizeEnterReason units_enter_probe(
-  const ColonizeUnitPool* pool,
+ColonizeEnterReason units_enter_probe_w(
+  const ColonizeWorld* w,
   int type_index,
-  const ColonizeWorldMap* map,
   int x,
   int y,
-  int mover_id,
-  const ColonizeColonyPool* colonies
+  int mover_id
 ) {
+  const ColonizeUnitPool* pool = w->units;
+  const ColonizeWorldMap* map = w->map;
+  const ColonizeColonyPool* colonies = w->colonies;
+
   g_units_last_enter_reason = COLONIZE_ENTER_BLOCKED;
   if (!pool || type_index < 0 || type_index >= pool->type_count || !map) {
     return g_units_last_enter_reason;
@@ -7258,6 +7429,37 @@ ColonizeEnterReason units_enter_probe(
   return g_units_last_enter_reason;
 }
 
+/* Compat shim: pre-ColonizeWorld signature (see src/core/world.h). */
+ColonizeEnterReason units_enter_probe(
+  const ColonizeUnitPool* pool,
+  int type_index,
+  const ColonizeWorldMap* map,
+  int x,
+  int y,
+  int mover_id,
+  const ColonizeColonyPool* colonies
+) {
+  ColonizeWorld w_ = world_make(pool, colonies, map, NULL, false, NULL, NULL);
+  return units_enter_probe_w(&w_, type_index, x, y, mover_id);
+}
+
+bool units_can_enter_w(
+  const ColonizeWorld* w,
+  int type_index,
+  int x,
+  int y,
+  int mover_id
+) {
+  const ColonizeUnitPool* pool = w->units;
+  const ColonizeWorldMap* map = w->map;
+  const ColonizeColonyPool* colonies = w->colonies;
+
+  const ColonizeEnterReason r =
+    units_enter_probe(pool, type_index, map, x, y, mover_id, colonies);
+  return r == COLONIZE_ENTER_OK || r == COLONIZE_ENTER_DOCK;
+}
+
+/* Compat shim: pre-ColonizeWorld signature (see src/core/world.h). */
 bool units_can_enter(
   const ColonizeUnitPool* pool,
   int type_index,
@@ -7267,9 +7469,8 @@ bool units_can_enter(
   int mover_id,
   const ColonizeColonyPool* colonies
 ) {
-  const ColonizeEnterReason r =
-    units_enter_probe(pool, type_index, map, x, y, mover_id, colonies);
-  return r == COLONIZE_ENTER_OK || r == COLONIZE_ENTER_DOCK;
+  ColonizeWorld w_ = world_make(pool, colonies, map, NULL, false, NULL, NULL);
+  return units_can_enter_w(&w_, type_index, x, y, mover_id);
 }
 
 int units_type_max_mp(const ColonizeUnitType* type) {
@@ -7610,15 +7811,17 @@ static bool units_revere_defend_colony_tile(
 /* ===================== Unit movement, orders & basic order commands (units_try_move .. units_order_trade_route) ===================== */
 
 
-bool units_try_move(
-  ColonizeUnitPool* pool,
+bool units_try_move_w(
+  const ColonizeWorld* w,
   int unit_id,
-  const ColonizeWorldMap* map,
   int dest_x,
-  int dest_y,
-  const ColonizeColonyPool* colonies,
-  ColonizeDosRng* rng
+  int dest_y
 ) {
+  ColonizeUnitPool* pool = w->units;
+  const ColonizeWorldMap* map = w->map;
+  const ColonizeColonyPool* colonies = w->colonies;
+  ColonizeDosRng* rng = w->rng;
+
   g_units_last_combat = 0;
   g_units_last_enter_reason = COLONIZE_ENTER_BLOCKED;
   ColonizeUnit* unit = units_get(pool, unit_id);
@@ -8159,6 +8362,20 @@ combat_entry_resolved:
   return true;
 }
 
+/* Compat shim: pre-ColonizeWorld signature (see src/core/world.h). */
+bool units_try_move(
+  ColonizeUnitPool* pool,
+  int unit_id,
+  const ColonizeWorldMap* map,
+  int dest_x,
+  int dest_y,
+  const ColonizeColonyPool* colonies,
+  ColonizeDosRng* rng
+) {
+  ColonizeWorld w_ = world_make(pool, colonies, map, NULL, false, rng, NULL);
+  return units_try_move_w(&w_, unit_id, dest_x, dest_y);
+}
+
 static int units_sign_i(int v) {
   if (v < 0) {
     return -1;
@@ -8403,14 +8620,16 @@ int units_dump_cargo_overboard(
   return units_unload_goods_hold(pool, unit_id, hold, out_cargo_type, out_amount);
 }
 
-bool units_pillage(
-  ColonizeUnitPool* pool,
+bool units_pillage_w(
+  const ColonizeWorld* w,
   int unit_id,
-  ColonizeWorldMap* map,
-  ColonizeColonyPool* colonies,
   char* err,
   size_t err_size
 ) {
+  ColonizeUnitPool* pool = w->units;
+  ColonizeWorldMap* map = w->map;
+  ColonizeColonyPool* colonies = w->colonies;
+
   ColonizeUnit* u = units_get(pool, unit_id);
   if (!u || !u->active || !units_is_on_map(u) || !map) {
     if (err && err_size) {
@@ -8490,6 +8709,19 @@ bool units_pillage(
     snprintf(err, err_size, "Pillaged improvements");
   }
   return true;
+}
+
+/* Compat shim: pre-ColonizeWorld signature (see src/core/world.h). */
+bool units_pillage(
+  ColonizeUnitPool* pool,
+  int unit_id,
+  ColonizeWorldMap* map,
+  ColonizeColonyPool* colonies,
+  char* err,
+  size_t err_size
+) {
+  ColonizeWorld w_ = world_make(pool, colonies, map, NULL, false, NULL, NULL);
+  return units_pillage_w(&w_, unit_id, err, err_size);
 }
 
 bool units_disband(ColonizeUnitPool* pool, int unit_id) {
@@ -8577,14 +8809,16 @@ bool units_wake(ColonizeUnitPool* pool, int unit_id) {
          prev == UNITS_ORDER_FORTIFIED || prev == UNITS_ORDER_GOTO;
 }
 
-bool units_set_goto(
-  ColonizeUnitPool* pool,
+bool units_set_goto_w(
+  const ColonizeWorld* w,
   int unit_id,
-  const ColonizeWorldMap* map,
   int dest_x,
-  int dest_y,
-  const ColonizeColonyPool* colonies
+  int dest_y
 ) {
+  ColonizeUnitPool* pool = w->units;
+  const ColonizeWorldMap* map = w->map;
+  const ColonizeColonyPool* colonies = w->colonies;
+
   ColonizeUnit* u = units_get(pool, unit_id);
   /* A passenger aboard a ship never carries a lasting Go To: its only legal
    * step is one tile ashore, and a one-tile Go To is an ordinary move (the
@@ -8635,6 +8869,19 @@ bool units_set_goto(
   return true;
 }
 
+/* Compat shim: pre-ColonizeWorld signature (see src/core/world.h). */
+bool units_set_goto(
+  ColonizeUnitPool* pool,
+  int unit_id,
+  const ColonizeWorldMap* map,
+  int dest_x,
+  int dest_y,
+  const ColonizeColonyPool* colonies
+) {
+  ColonizeWorld w_ = world_make(pool, colonies, map, NULL, false, NULL, NULL);
+  return units_set_goto_w(&w_, unit_id, dest_x, dest_y);
+}
+
 /*
  * bugs.md #418: is this unit's NEXT goto step the final one, onto an Indian
  * settlement it was explicitly ordered to? DOS runs every goto step through
@@ -8648,12 +8895,14 @@ bool units_set_goto(
  * the ordered destination and is adjacent — never for a village the path
  * merely brushes past.
  */
-bool units_goto_dest_is_village_entry(
-  const ColonizeUnitPool* pool,
-  int unit_id,
-  const ColonizeWorldMap* map,
-  const ColonizeColonyPool* colonies
+bool units_goto_dest_is_village_entry_w(
+  const ColonizeWorld* w,
+  int unit_id
 ) {
+  const ColonizeUnitPool* pool = w->units;
+  const ColonizeWorldMap* map = w->map;
+  const ColonizeColonyPool* colonies = w->colonies;
+
   const ColonizeUnit* u = units_get_const(pool, unit_id);
   if (!u || !u->active || !map || !units_is_on_map(u)) {
     return false;
@@ -8676,6 +8925,17 @@ bool units_goto_dest_is_village_entry(
     return false;
   }
   return !colonies || colonies_id_at(colonies, gx, gy) < 0;
+}
+
+/* Compat shim: pre-ColonizeWorld signature (see src/core/world.h). */
+bool units_goto_dest_is_village_entry(
+  const ColonizeUnitPool* pool,
+  int unit_id,
+  const ColonizeWorldMap* map,
+  const ColonizeColonyPool* colonies
+) {
+  ColonizeWorld w_ = world_make(pool, colonies, map, NULL, false, NULL, NULL);
+  return units_goto_dest_is_village_entry_w(&w_, unit_id);
 }
 
 bool units_follow_unit(ColonizeUnitPool* pool, int unit_id, int target_unit_id) {
@@ -8706,13 +8966,12 @@ bool units_follow_unit(ColonizeUnitPool* pool, int unit_id, int target_unit_id) 
   return true;
 }
 
-bool units_advance_follow_one_step(
-  ColonizeUnitPool* pool,
-  int unit_id,
-  const ColonizeWorldMap* map,
-  const ColonizeColonyPool* colonies,
-  ColonizeDosRng* rng
+bool units_advance_follow_one_step_w(
+  const ColonizeWorld* w,
+  int unit_id
 ) {
+  ColonizeUnitPool* pool = w->units;
+
   ColonizeUnit* u = units_get(pool, unit_id);
   if (!u || !u->active || u->orders != UNITS_ORDER_FOLLOW) {
     return false;
@@ -8736,7 +8995,7 @@ bool units_advance_follow_one_step(
   u->orders = UNITS_ORDER_GOTO;
   u->goto_x = t->x;
   u->goto_y = t->y;
-  const bool stepped = units_advance_goto_one_step(pool, unit_id, map, colonies, rng);
+  const bool stepped = units_advance_goto_one_step_w(w, unit_id);
   u = units_get(pool, unit_id);
   if (!u || !u->active) {
     return false;
@@ -8747,6 +9006,18 @@ bool units_advance_follow_one_step(
   u->goto_x = t->x;
   u->goto_y = t->y;
   return stepped;
+}
+
+/* Compat shim: pre-ColonizeWorld signature (see src/core/world.h). */
+bool units_advance_follow_one_step(
+  ColonizeUnitPool* pool,
+  int unit_id,
+  const ColonizeWorldMap* map,
+  const ColonizeColonyPool* colonies,
+  ColonizeDosRng* rng
+) {
+  ColonizeWorld w_ = world_make(pool, colonies, map, NULL, false, rng, NULL);
+  return units_advance_follow_one_step_w(&w_, unit_id);
 }
 
 #define UNITS_FLOOD_W 16
@@ -9793,15 +10064,17 @@ static int units_coarse_waypoint(
   return 1;
 }
 
-bool units_next_goto_step(
-  const ColonizeUnitPool* pool,
+bool units_next_goto_step_w(
+  const ColonizeWorld* w,
   int unit_id,
-  const ColonizeWorldMap* map,
-  const ColonizeColonyPool* colonies,
-  ColonizeDosRng* rng,
   int* out_x,
   int* out_y
 ) {
+  const ColonizeUnitPool* pool = w->units;
+  const ColonizeWorldMap* map = w->map;
+  const ColonizeColonyPool* colonies = w->colonies;
+  ColonizeDosRng* rng = w->rng;
+
   const ColonizeUnit* u = units_get_const(pool, unit_id);
   /* Aboard passengers path from their ship's tile (x/y stay synced). */
   if (!u || !u->active || !map || !out_x || !out_y ||
@@ -9832,7 +10105,7 @@ bool units_next_goto_step(
   if (units_chebyshev(u->x, u->y, gx, gy) < 2) {
     const int nx = u->x + units_sign_i(gx - u->x);
     const int ny = u->y + units_sign_i(gy - u->y);
-    if (units_can_enter(pool, u->type_index, map, nx, ny, unit_id, colonies)) {
+    if (units_can_enter_w(w, u->type_index, nx, ny, unit_id)) {
       *out_x = nx;
       *out_y = ny;
       return true;
@@ -9914,13 +10187,28 @@ bool units_next_goto_step(
   return units_greedy_next_step(pool, unit_id, map, colonies, rng, gx, gy, out_x, out_y);
 }
 
-bool units_advance_goto_one_step(
-  ColonizeUnitPool* pool,
+/* Compat shim: pre-ColonizeWorld signature (see src/core/world.h). */
+bool units_next_goto_step(
+  const ColonizeUnitPool* pool,
   int unit_id,
   const ColonizeWorldMap* map,
   const ColonizeColonyPool* colonies,
-  ColonizeDosRng* rng
+  ColonizeDosRng* rng,
+  int* out_x,
+  int* out_y
 ) {
+  ColonizeWorld w_ = world_make(pool, colonies, map, NULL, false, rng, NULL);
+  return units_next_goto_step_w(&w_, unit_id, out_x, out_y);
+}
+
+bool units_advance_goto_one_step_w(
+  const ColonizeWorld* w,
+  int unit_id
+) {
+  ColonizeUnitPool* pool = w->units;
+  const ColonizeWorldMap* map = w->map;
+  const ColonizeColonyPool* colonies = w->colonies;
+
   ColonizeUnit* u = units_get(pool, unit_id);
   if (!u || !u->active || !map) {
     return false;
@@ -9953,7 +10241,7 @@ bool units_advance_goto_one_step(
   const int oy = u->y;
   int nx = -1;
   int ny = -1;
-  if (!units_next_goto_step(pool, unit_id, map, colonies, rng, &nx, &ny)) {
+  if (!units_next_goto_step_w(w, unit_id, &nx, &ny)) {
     return false;
   }
   /*
@@ -10015,7 +10303,7 @@ bool units_advance_goto_one_step(
       }
     }
   }
-  if (!units_try_move(pool, unit_id, map, nx, ny, colonies, rng)) {
+  if (!units_try_move_w(w, unit_id, nx, ny)) {
     return false;
   }
   u = units_get(pool, unit_id);
@@ -10032,6 +10320,31 @@ bool units_advance_goto_one_step(
   return true;
 }
 
+/* Compat shim: pre-ColonizeWorld signature (see src/core/world.h). */
+bool units_advance_goto_one_step(
+  ColonizeUnitPool* pool,
+  int unit_id,
+  const ColonizeWorldMap* map,
+  const ColonizeColonyPool* colonies,
+  ColonizeDosRng* rng
+) {
+  ColonizeWorld w_ = world_make(pool, colonies, map, NULL, false, rng, NULL);
+  return units_advance_goto_one_step_w(&w_, unit_id);
+}
+
+bool units_advance_goto_w(
+  const ColonizeWorld* w,
+  int unit_id
+) {
+
+  bool moved = false;
+  while (units_advance_goto_one_step_w(w, unit_id)) {
+    moved = true;
+  }
+  return moved;
+}
+
+/* Compat shim: pre-ColonizeWorld signature (see src/core/world.h). */
 bool units_advance_goto(
   ColonizeUnitPool* pool,
   int unit_id,
@@ -10039,11 +10352,8 @@ bool units_advance_goto(
   const ColonizeColonyPool* colonies,
   ColonizeDosRng* rng
 ) {
-  bool moved = false;
-  while (units_advance_goto_one_step(pool, unit_id, map, colonies, rng)) {
-    moved = true;
-  }
-  return moved;
+  ColonizeWorld w_ = world_make(pool, colonies, map, NULL, false, rng, NULL);
+  return units_advance_goto_w(&w_, unit_id);
 }
 /* ===================== Pioneer work: plow/road/clear tick & tool wear (units_is_pioneer .. units_pioneer_road) ===================== */
 
@@ -10287,16 +10597,18 @@ static void units_pioneer_emit_order_gate(
   ai_popup_enqueue_ok(ai_popups, AI_POPUP_TAG_INFO, NULL, body);
 }
 
-bool units_pioneer_work_tick(
-  ColonizeUnitPool* pool,
+bool units_pioneer_work_tick_w(
+  const ColonizeWorld* w,
   int unit_id,
-  ColonizeWorldMap* map,
   char* err,
   size_t err_size,
-  ColonizeColonyPool* colonies,
   AiPopupState* ai_popups,
   const ColonizeMsgCatalog* messages
 ) {
+  ColonizeUnitPool* pool = w->units;
+  ColonizeWorldMap* map = w->map;
+  ColonizeColonyPool* colonies = w->colonies;
+
   ColonizeUnit* u = units_get(pool, unit_id);
   if (!u || !map || !u->active || !units_is_on_map(u)) {
     return false;
@@ -10537,6 +10849,21 @@ bool units_pioneer_work_tick(
   return true;
 }
 
+/* Compat shim: pre-ColonizeWorld signature (see src/core/world.h). */
+bool units_pioneer_work_tick(
+  ColonizeUnitPool* pool,
+  int unit_id,
+  ColonizeWorldMap* map,
+  char* err,
+  size_t err_size,
+  ColonizeColonyPool* colonies,
+  AiPopupState* ai_popups,
+  const ColonizeMsgCatalog* messages
+) {
+  ColonizeWorld w_ = world_make(pool, colonies, map, NULL, false, NULL, NULL);
+  return units_pioneer_work_tick_w(&w_, unit_id, err, err_size, ai_popups, messages);
+}
+
 /*
  * Shared head of units_pioneer_plow / units_pioneer_road (UN-9): the pioneer
  * gate + @ONLYPIO refusal, the moves gate (skipped while the order is already
@@ -10576,16 +10903,18 @@ static ColonizeUnit* units_pioneer_begin_order(
   return u;
 }
 
-bool units_pioneer_plow(
-  ColonizeUnitPool* pool,
+bool units_pioneer_plow_w(
+  const ColonizeWorld* w,
   int unit_id,
-  ColonizeWorldMap* map,
   char* err,
   size_t err_size,
-  ColonizeColonyPool* colonies,
   AiPopupState* ai_popups,
   const ColonizeMsgCatalog* messages
 ) {
+  ColonizeUnitPool* pool = w->units;
+  ColonizeWorldMap* map = w->map;
+  ColonizeColonyPool* colonies = w->colonies;
+
   ColonizeUnit* u = units_pioneer_begin_order(
     pool, unit_id, map, UNITS_ORDER_CLEAR_PLOW, err, err_size, ai_popups, messages
   );
@@ -10626,7 +10955,8 @@ bool units_pioneer_plow(
   );
 }
 
-bool units_pioneer_road(
+/* Compat shim: pre-ColonizeWorld signature (see src/core/world.h). */
+bool units_pioneer_plow(
   ColonizeUnitPool* pool,
   int unit_id,
   ColonizeWorldMap* map,
@@ -10636,6 +10966,22 @@ bool units_pioneer_road(
   AiPopupState* ai_popups,
   const ColonizeMsgCatalog* messages
 ) {
+  ColonizeWorld w_ = world_make(pool, colonies, map, NULL, false, NULL, NULL);
+  return units_pioneer_plow_w(&w_, unit_id, err, err_size, ai_popups, messages);
+}
+
+bool units_pioneer_road_w(
+  const ColonizeWorld* w,
+  int unit_id,
+  char* err,
+  size_t err_size,
+  AiPopupState* ai_popups,
+  const ColonizeMsgCatalog* messages
+) {
+  ColonizeUnitPool* pool = w->units;
+  ColonizeWorldMap* map = w->map;
+  ColonizeColonyPool* colonies = w->colonies;
+
   ColonizeUnit* u = units_pioneer_begin_order(
     pool, unit_id, map, UNITS_ORDER_BUILD_ROAD, err, err_size, ai_popups, messages
   );
@@ -10667,6 +11013,21 @@ bool units_pioneer_road(
   return units_pioneer_work_tick(
     pool, unit_id, map, err, err_size, colonies, ai_popups, messages
   );
+}
+
+/* Compat shim: pre-ColonizeWorld signature (see src/core/world.h). */
+bool units_pioneer_road(
+  ColonizeUnitPool* pool,
+  int unit_id,
+  ColonizeWorldMap* map,
+  char* err,
+  size_t err_size,
+  ColonizeColonyPool* colonies,
+  AiPopupState* ai_popups,
+  const ColonizeMsgCatalog* messages
+) {
+  ColonizeWorld w_ = world_make(pool, colonies, map, NULL, false, NULL, NULL);
+  return units_pioneer_road_w(&w_, unit_id, err, err_size, ai_popups, messages);
 }
 
 static bool units_adjacent(int ax, int ay, int bx, int by) {
@@ -11051,15 +11412,17 @@ int units_ship_departure_pickup(ColonizeUnitPool* pool, int ship_id, int x, int 
   return taken;
 }
 
-bool units_unload_passenger(
-  ColonizeUnitPool* pool,
+bool units_unload_passenger_w(
+  const ColonizeWorld* w,
   int ship_id,
   int pax_id,
-  const ColonizeWorldMap* map,
   int dest_x,
-  int dest_y,
-  const ColonizeColonyPool* colonies
+  int dest_y
 ) {
+  ColonizeUnitPool* pool = w->units;
+  const ColonizeWorldMap* map = w->map;
+  const ColonizeColonyPool* colonies = w->colonies;
+
   ColonizeUnit* ship = units_get(pool, ship_id);
   ColonizeUnit* pax = units_get(pool, pax_id);
   if (!ship || !pax || !map || !units_is_sea(pool, ship_id)) {
@@ -11124,6 +11487,40 @@ bool units_unload_passenger(
   return true;
 }
 
+/* Compat shim: pre-ColonizeWorld signature (see src/core/world.h). */
+bool units_unload_passenger(
+  ColonizeUnitPool* pool,
+  int ship_id,
+  int pax_id,
+  const ColonizeWorldMap* map,
+  int dest_x,
+  int dest_y,
+  const ColonizeColonyPool* colonies
+) {
+  ColonizeWorld w_ = world_make(pool, colonies, map, NULL, false, NULL, NULL);
+  return units_unload_passenger_w(&w_, ship_id, pax_id, dest_x, dest_y);
+}
+
+bool units_unload_w(
+  const ColonizeWorld* w,
+  int ship_id,
+  int dest_x,
+  int dest_y
+) {
+  ColonizeUnitPool* pool = w->units;
+  const ColonizeWorldMap* map = w->map;
+  const ColonizeColonyPool* colonies = w->colonies;
+
+  ColonizeUnit* ship = units_get(pool, ship_id);
+  if (!ship || ship->cargo_count <= 0) {
+    return false;
+  }
+  return units_unload_passenger(
+    pool, ship_id, ship->cargo_ids[0], map, dest_x, dest_y, colonies
+  );
+}
+
+/* Compat shim: pre-ColonizeWorld signature (see src/core/world.h). */
 bool units_unload(
   ColonizeUnitPool* pool,
   int ship_id,
@@ -11132,13 +11529,8 @@ bool units_unload(
   int dest_y,
   const ColonizeColonyPool* colonies
 ) {
-  ColonizeUnit* ship = units_get(pool, ship_id);
-  if (!ship || ship->cargo_count <= 0) {
-    return false;
-  }
-  return units_unload_passenger(
-    pool, ship_id, ship->cargo_ids[0], map, dest_x, dest_y, colonies
-  );
+  ColonizeWorld w_ = world_make(pool, colonies, map, NULL, false, NULL, NULL);
+  return units_unload_w(&w_, ship_id, dest_x, dest_y);
 }
 
 /*
@@ -11186,16 +11578,18 @@ int units_first_landfall_cargo(const ColonizeUnitPool* pool, int ship_id) {
   return -1;
 }
 
-bool units_pick_landfall_tile(
-  const ColonizeUnitPool* pool,
+bool units_pick_landfall_tile_w(
+  const ColonizeWorld* w,
   int ship_id,
-  const ColonizeWorldMap* map,
-  const ColonizeColonyPool* colonies,
   int prefer_x,
   int prefer_y,
   int* out_x,
   int* out_y
 ) {
+  const ColonizeUnitPool* pool = w->units;
+  const ColonizeWorldMap* map = w->map;
+  const ColonizeColonyPool* colonies = w->colonies;
+
   const ColonizeUnit* ship = units_get_const(pool, ship_id);
   if (!pool || !ship || !map || !out_x || !out_y || !units_is_sea(pool, ship_id)) {
     return false;
@@ -11250,14 +11644,31 @@ bool units_pick_landfall_tile(
   return true;
 }
 
-int units_landfall_unload_all(
-  ColonizeUnitPool* pool,
+/* Compat shim: pre-ColonizeWorld signature (see src/core/world.h). */
+bool units_pick_landfall_tile(
+  const ColonizeUnitPool* pool,
   int ship_id,
   const ColonizeWorldMap* map,
-  int dest_x,
-  int dest_y,
-  const ColonizeColonyPool* colonies
+  const ColonizeColonyPool* colonies,
+  int prefer_x,
+  int prefer_y,
+  int* out_x,
+  int* out_y
 ) {
+  ColonizeWorld w_ = world_make(pool, colonies, map, NULL, false, NULL, NULL);
+  return units_pick_landfall_tile_w(&w_, ship_id, prefer_x, prefer_y, out_x, out_y);
+}
+
+int units_landfall_unload_all_w(
+  const ColonizeWorld* w,
+  int ship_id,
+  int dest_x,
+  int dest_y
+) {
+  ColonizeUnitPool* pool = w->units;
+  const ColonizeWorldMap* map = w->map;
+  const ColonizeColonyPool* colonies = w->colonies;
+
   ColonizeUnit* ship = units_get(pool, ship_id);
   if (!pool || !ship || !map || !units_is_sea(pool, ship_id) || ship->cargo_count <= 0) {
     return 0;
@@ -11286,6 +11697,19 @@ int units_landfall_unload_all(
   }
   pool->selected_id = saved_sel;
   return n;
+}
+
+/* Compat shim: pre-ColonizeWorld signature (see src/core/world.h). */
+int units_landfall_unload_all(
+  ColonizeUnitPool* pool,
+  int ship_id,
+  const ColonizeWorldMap* map,
+  int dest_x,
+  int dest_y,
+  const ColonizeColonyPool* colonies
+) {
+  ColonizeWorld w_ = world_make(pool, colonies, map, NULL, false, NULL, NULL);
+  return units_landfall_unload_all_w(&w_, ship_id, dest_x, dest_y);
 }
 
 int units_disembark_all(ColonizeUnitPool* pool, int ship_id, int x, int y) {
@@ -11959,111 +12383,7 @@ int units_top_on_map_tile(
   return top;
 }
 
-void units_render_on_map(
-  const ColonizeUnitPool* pool,
-  const ColonizeSpriteSheet* nation_sheet,
-  const ColonizeFont* font,
-  ColonizeFramebuffer8* framebuffer,
-  int view_x,
-  int view_y,
-  int view_cols,
-  int view_rows,
-  int tile_w,
-  int tile_h,
-  int origin_x,
-  int origin_y,
-  bool selected_visible,
-  const ColonizeWorldMap* fog_map,
-  int fog_nation,
-  const ColonizePalette* active_palette
-) {
-  if (!pool || !nation_sheet || !framebuffer) {
-    return;
-  }
-
-  /* One sprite per tile (top unit); stack chrome when more share the tile. */
-  bool visited[COLONIZE_UNITS_MAX];
-  memset(visited, 0, sizeof(visited));
-
-  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-    const ColonizeUnit* unit = &pool->units[i];
-    if (!units_is_on_map(unit) || visited[i]) {
-      continue;
-    }
-    if (fog_map && !map_tile_seen_by(fog_map, unit->x, unit->y, fog_nation)) {
-      continue;
-    }
-    const int sx = unit->x - view_x;
-    const int sy = unit->y - view_y;
-    if (sx < 0 || sy < 0 || sx >= view_cols || sy >= view_rows) {
-      continue;
-    }
-
-    /* Mark all on-map units on this tile visited. */
-    for (int j = 0; j < COLONIZE_UNITS_MAX; ++j) {
-      const ColonizeUnit* u = &pool->units[j];
-      if (units_is_on_map(u) && u->x == unit->x && u->y == unit->y) {
-        visited[j] = true;
-      }
-    }
-
-    const int top_id = units_top_on_map_tile(pool, unit->x, unit->y, selected_visible, fog_map);
-    if (top_id < 0) {
-      continue;
-    }
-    const ColonizeUnit* top = units_get_const(pool, top_id);
-    if (!top) {
-      continue;
-    }
-    /*
-     * DOS map draw (FUN_2f2b_6372): a unit shows only while the viewer's vis
-     * bit is set on it — set when the viewer's sight reveals its tile, reset
-     * to "who watches this tile" on every move. Explored-but-unwatched ground
-     * shows terrain (fog_map check above) but not who's moving on it now.
-     */
-    if (top->nation_id != fog_nation && fog_nation >= 0 && fog_nation <= 3 &&
-        (top->col1_vis_mask & (1u << fog_nation)) == 0) {
-      continue;
-    }
-
-    const int sprite = units_map_sprite(pool, top->id);
-    if (sprite < 0 || sprite >= nation_sheet->sprite_count) {
-      continue;
-    }
-
-    const int px = origin_x + sx * tile_w;
-    const int py = origin_y + sy * tile_h;
-    const int dtype = units_display_type_index(pool, top->id);
-    /*
-     * "More units here" covers passengers as well. DOS decides it with
-     * FUN_1427_0002/004a — "is there another unit after this one in the
-     * chain" (112b:01de..01fa) — and that chain is the same next/prev pair
-     * that links a ship to the units riding in it, not just the units
-     * standing on the tile. A loaded transport carries the tab (bugs.md).
-     */
-    const bool stacked = units_map_stack_chrome(pool, top->id);
-    /* Chrome's 4th badge arm is Artillery + the damaged bit (+0x3148 bit7),
-     * not "aboard a ship" — unit_chrome_corner_for_type. */
-    const bool damaged = (top->col1_unknown15 & 0x80u) != 0;
-
-    unit_chrome_blit_unit_for_palette(
-      framebuffer,
-      font,
-      nation_sheet,
-      sprite,
-      px,
-      py,
-      dtype,
-      top->nation_id,
-      top->orders,
-      stacked,
-      damaged,
-      active_palette
-    );
-  }
-}
 /* ===================== New-world start placement & colonist deployment (units_spawn_euro_starter_fleet .. units_deploy_colonist) ===================== */
-
 
 int units_spawn_euro_starter_fleet(
   ColonizeUnitPool* pool,

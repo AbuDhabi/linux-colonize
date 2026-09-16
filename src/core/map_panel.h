@@ -14,6 +14,7 @@
 #include "core/ss.h"
 #include "core/units.h"
 #include "platform/platform.h"
+#include "core/world.h"
 
 /*
  * Main-map right sidebar + scrolling 1:1-tile minimap (DOS layout).
@@ -95,6 +96,31 @@ bool map_panel_minimap_click(
   int* out_tile_y
 );
 
+void map_panel_render_w(
+  const ColonizeWorld* w,
+  const MapPanel* panel,
+  const ColonizeSpriteSheet* icons,
+  const ColonizeFont* font,
+  const ColonizeMsgCatalog* names,
+  const ColonizeMsgCatalog* labels,
+  int view_x,
+  int view_y,
+  int view_cols,
+  int view_rows,
+  int cursor_x,
+  int cursor_y,
+  int selected_unit_id,
+  int fog_nation,
+  uint16_t game_year,
+  uint16_t game_autumn,
+  int gold,
+  int tax_percent,
+  const char* nation_name,
+  const ColonizePalette* active_palette,
+  bool end_turn_active,
+  bool end_turn_blink_white,
+  ColonizeFramebuffer8* framebuffer
+);
 void map_panel_render(
   const MapPanel* panel,
   const ColonizeWorldMap* map,
@@ -137,6 +163,21 @@ void map_panel_render(
 );
 
 /* Indian village markers on the main map viewport (ICONS.SS #10–13 by tech). */
+void map_panel_render_tribes_on_map_w(
+  const ColonizeWorld* w,
+  const ColonizeSpriteSheet* icons,
+  ColonizeFramebuffer8* framebuffer,
+  int view_x,
+  int view_y,
+  int view_cols,
+  int view_rows,
+  int tile_w,
+  int tile_h,
+  int origin_x,
+  int origin_y,
+  int fog_nation,
+  const ColonizePalette* active_palette
+);
 void map_panel_render_tribes_on_map(
   const ColonizeCol1Save* col1,
   const ColonizeUnitPool* units,

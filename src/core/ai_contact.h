@@ -2,6 +2,7 @@
 #define COLONIZE_AI_CONTACT_H
 
 #include "core/turn.h"
+#include "core/world.h"
 
 /*
  * Indian contact / missions / trade / raids — partial structural port.
@@ -422,6 +423,14 @@ void ai_contact_indian_raids(ColonizeTurnContext* ctx, int nation_id);
  * `home_tribe_id` is the raider's `+0x314a` origin (the DS:0x54f6 row key).
  * Returns the AiRaidKind applied (AI_RAID_NOTHING = 0 when nothing happened).
  */
+int ai_contact_colony_raid_repelled_w(
+  const ColonizeWorld* w,
+  int indian_nation,
+  int euro_nation,
+  int colony_id,
+  int home_tribe_id,
+  int forced
+);
 int ai_contact_colony_raid_repelled(
   ColonizeCol1Save* col1,
   ColonizeColonyPool* colonies,

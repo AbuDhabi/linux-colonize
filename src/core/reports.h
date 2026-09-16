@@ -14,6 +14,7 @@
 #include "core/ss.h"
 #include "core/units.h"
 #include "platform/platform.h"
+#include "core/world.h"
 
 /*
  * DOS report screens (MENU.TXT @REPORTS / F2–F10).
@@ -106,6 +107,7 @@ const char* reports_background_name(ColonizeReportId id);
  * reports_load; falls back to a hand-typed static table otherwise (no
  * assets loaded, e.g. tests).
  */
+void reports_names_load_catalogs(const char* data_dir);
 const char* reports_ff_display_name(int idx);
 const char* reports_job_display_name(int job);
 const char* reports_cargo_display_name(int cargo);
@@ -216,6 +218,10 @@ int reports_colony_page_count(const ColonizeCol1Save* col1, int human_nation);
  * above its ship's row). Mirrors reports_render's own row builder, so this
  * always agrees with what actually paginates.
  */
+int reports_naval_page_count_w(
+  const ColonizeWorld* w,
+  int human_nation
+);
 int reports_naval_page_count(
   int human_nation,
   const ColonizeUnitPool* units,
@@ -281,6 +287,11 @@ typedef struct ColonizeScoreBreakdown {
   int exploits_tier; /* -1 none, else 0..23 = @SCORE lines shown - 1 */
 } ColonizeScoreBreakdown;
 
+void reports_compute_score_w(
+  const ColonizeWorld* w,
+  ColonizeScoreBreakdown* out,
+  int human_nation
+);
 void reports_compute_score(
   ColonizeScoreBreakdown* out,
   const ColonizeCol1Save* col1,
@@ -314,6 +325,22 @@ int reports_score_rating(int total, int difficulty, int* tier_out);
  * naval_page: page index into the Naval report (F7), 7 rows per page.
  * Ignored for every id but COLONIZE_REPORT_NAVAL — see
  * reports_naval_page_count for how many pages exist. */
+void reports_render_w(
+  const ColonizeWorld* w,
+  const ColonizeReportsView* view,
+  ColonizeReportId id,
+  bool congress_page2,
+  int labor_detail_job,
+  int economic_page,
+  int colony_page,
+  int naval_page,
+  int human_nation,
+  int cursor_x,
+  int cursor_y,
+  uint32_t turn_number,
+  const ColonizeFont* font,
+  ColonizeFramebuffer8* framebuffer
+);
 void reports_render(
   const ColonizeReportsView* view,
   ColonizeReportId id,

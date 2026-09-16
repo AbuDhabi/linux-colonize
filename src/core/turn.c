@@ -51,26 +51,6 @@ static void turn_reveal_fog_for_nation(ColonizeTurnContext* ctx, int nation_id) 
   }
 }
 
-void turn_draw_owner_indicator(ColonizeFramebuffer8* framebuffer, int nation_id) {
-  if (!framebuffer || !framebuffer->pixels || framebuffer->width <= 0 || framebuffer->height <= 0) {
-    return;
-  }
-  const uint8_t color = unit_chrome_nation_color(nation_id);
-  const int x0 = TURN_OWNER_INDICATOR_X;
-  const int y0 = TURN_OWNER_INDICATOR_Y;
-  for (int y = y0; y < y0 + TURN_OWNER_INDICATOR_H; ++y) {
-    if (y < 0 || y >= framebuffer->height) {
-      continue;
-    }
-    for (int x = x0; x < x0 + TURN_OWNER_INDICATOR_W; ++x) {
-      if (x < 0 || x >= framebuffer->width) {
-        continue;
-      }
-      framebuffer->pixels[y * framebuffer->width + x] = color;
-    }
-  }
-}
-
 void turn_advance_calendar(uint16_t* year, uint16_t* autumn, uint32_t* turn_number) {
   if (!year || !autumn || !turn_number) {
     return;
@@ -106,15 +86,17 @@ void turn_format_date(uint16_t year, uint16_t autumn, char* out, size_t out_size
   snprintf(out, out_size, "%s %u", autumn ? "Autumn" : "Spring", (unsigned)year);
 }
 
-void turn_refresh_moves_for_nation(
-  ColonizeUnitPool* pool,
+void turn_refresh_moves_for_nation_w(
+  const ColonizeWorld* w,
   int nation_id,
-  const ColonizeCol1Save* col1,
-  ColonizeWorldMap* map,
-  ColonizeColonyPool* colonies,
   AiPopupState* ai_popups,
   const ColonizeMsgCatalog* messages
 ) {
+  ColonizeUnitPool* pool = w->units;
+  const ColonizeCol1Save* col1 = w->col1;
+  ColonizeWorldMap* map = w->map;
+  ColonizeColonyPool* colonies = w->colonies;
+
   if (!pool) {
     return;
   }
@@ -196,6 +178,20 @@ void turn_refresh_moves_for_nation(
       }
     }
   }
+}
+
+/* Compat shim: pre-ColonizeWorld signature (see src/core/world.h). */
+void turn_refresh_moves_for_nation(
+  ColonizeUnitPool* pool,
+  int nation_id,
+  const ColonizeCol1Save* col1,
+  ColonizeWorldMap* map,
+  ColonizeColonyPool* colonies,
+  AiPopupState* ai_popups,
+  const ColonizeMsgCatalog* messages
+) {
+  ColonizeWorld w_ = world_make(pool, colonies, map, col1, col1 != NULL, NULL, NULL);
+  turn_refresh_moves_for_nation_w(&w_, nation_id, ai_popups, messages);
 }
 
 bool turn_select_next_unit(ColonizeUnitPool* pool, int human_nation) {
@@ -2123,17 +2119,19 @@ static bool turn_prod_nation_in_scope(int nation_id) {
   return true;
 }
 
-void turn_run_colony_production(
-  ColonizeColonyPool* pool,
-  const ColonizeWorldMap* map,
-  ColonizeCol1Save* col1,
-  EuropeScreen* europe,
+void turn_run_colony_production_w(
+  const ColonizeWorld* w,
   int human_nation,
   ColonizeTurnResult* out,
   AiPopupState* ai_popups,
-  const ColonizeMsgCatalog* messages,
-  ColonizeDosRng* rng
+  const ColonizeMsgCatalog* messages
 ) {
+  ColonizeColonyPool* pool = w->colonies;
+  const ColonizeWorldMap* map = w->map;
+  ColonizeCol1Save* col1 = w->col1;
+  EuropeScreen* europe = w->europe;
+  ColonizeDosRng* rng = w->rng;
+
   if (!pool) {
     return;
   }
@@ -2170,6 +2168,22 @@ void turn_run_colony_production(
       );
     }
   }
+}
+
+/* Compat shim: pre-ColonizeWorld signature (see src/core/world.h). */
+void turn_run_colony_production(
+  ColonizeColonyPool* pool,
+  const ColonizeWorldMap* map,
+  ColonizeCol1Save* col1,
+  EuropeScreen* europe,
+  int human_nation,
+  ColonizeTurnResult* out,
+  AiPopupState* ai_popups,
+  const ColonizeMsgCatalog* messages,
+  ColonizeDosRng* rng
+) {
+  ColonizeWorld w_ = world_make(NULL, pool, map, col1, col1 != NULL, rng, europe);
+  turn_run_colony_production_w(&w_, human_nation, out, ai_popups, messages);
 }
 
 static void turn_run_colony_unit_construction(ColonizeTurnContext* ctx) {

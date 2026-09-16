@@ -8,6 +8,7 @@
 #include "core/assets.h"
 #include "core/map.h"
 #include "core/ss.h"
+#include "core/world.h"
 
 /* Forward declaration to avoid pulling in font headers. */
 typedef struct ColonizeFont ColonizeFont;
@@ -454,6 +455,10 @@ int colonies_found(
  * founding reveals nothing beyond the founder's own unit sight. col1 may be
  * NULL (then nobody has Coronado and this is a no-op), as may map.
  */
+void colonies_reveal_founded_w(
+  const ColonizeWorld* w,
+  int colony_id
+);
 void colonies_reveal_founded(
   ColonizeWorldMap* map,
   ColonizeColonyPool* pool,
@@ -500,6 +505,14 @@ int colonies_indian_land_owner_tribe(
  * the queried tile (the thin colonies_indian_claim_tribe wrapper that used
  * to spell that was deleted 2026-09-14, audit CO-22 — it had no callers).
  */
+int colonies_indian_claim_tribe_from_w(
+  const ColonizeWorld* w,
+  int viewer_nation,
+  int origin_x,
+  int origin_y,
+  int x,
+  int y
+);
 int colonies_indian_claim_tribe_from(
   const ColonizeCol1Save* col1,
   const ColonizeWorldMap* map,
@@ -549,6 +562,18 @@ int colonies_indian_land_purchase_gold(
  * Deducts from *gold; fails (−1) if short. Minuit → free. col1/gold NULL →
  * same as colonies_found (plain found still does not charge).
  */
+int colonies_found_with_indian_land_w(
+  const ColonizeWorld* w,
+  uint32_t* gold,
+  int x,
+  int y,
+  int nation_id,
+  int founder_type_index,
+  int founder_profession,
+  int tools,
+  int muskets,
+  int horses
+);
 int colonies_found_with_indian_land(
   ColonizeColonyPool* pool,
   const ColonizeWorldMap* map,
@@ -658,6 +683,11 @@ typedef struct ColonizeUnitPool ColonizeUnitPool;
  * `col1` is optional: when non-NULL, also runs the La Salle immediate-Stockade
  * check (founding_fathers_la_salle_check) if this join crosses pop 3.
  */
+int colonies_admit_unit_w(
+  const ColonizeWorld* w,
+  int colony_id,
+  int unit_id
+);
 int colonies_admit_unit(
   ColonizeColonyPool* pool,
   int colony_id,
@@ -1041,6 +1071,13 @@ int colonies_transfer_from_unit_amount(
  * unit on the colony tile, foreign Euro owner, and !ai_diplo_at_war.
  * Cite: docs/fandom_col1994.md Jan de Witt. AI wagon/ship act in ai_euro §2d4.
  */
+int colonies_de_witt_transfer_from_colony_w(
+  const ColonizeWorld* w,
+  int foreign_colony_id,
+  int unit_id,
+  int cargo_type,
+  int amount
+);
 int colonies_de_witt_transfer_from_colony(
   ColonizeColonyPool* pool,
   int foreign_colony_id,
@@ -1049,6 +1086,13 @@ int colonies_de_witt_transfer_from_colony(
   int cargo_type,
   int amount,
   const ColonizeCol1Save* col1
+);
+int colonies_de_witt_transfer_to_colony_w(
+  const ColonizeWorld* w,
+  int foreign_colony_id,
+  int unit_id,
+  int hold_index,
+  bool* out_warehouse_full
 );
 int colonies_de_witt_transfer_to_colony(
   ColonizeColonyPool* pool,

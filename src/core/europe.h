@@ -8,6 +8,7 @@
 #include "core/pik.h"
 #include "core/ss.h"
 #include "core/units_cargo.h"
+#include "core/world.h"
 
 #define EUROPE_CARGO_MAX 16
 /* Europe status-line ring (DOS DS:0x2d54 lines produced by a sale). */
@@ -1020,6 +1021,11 @@ void europe_apply_volume_price(EuropeScreen* eu, int cargo_type, int amount, int
  * nr += attrition per cargo and rise/fall ±1 within [low,high].
  * Cite: viceroy_unpacked.c FUN_38fd_0058; turn/europe_nation_eot.md.
  */
+void europe_tick_market_prices_w(
+  const ColonizeWorld* w,
+  int human_nation,
+  uint32_t turn
+);
 void europe_tick_market_prices(
   EuropeScreen* eu,
   struct ColonizeCol1Save* col1,
@@ -1031,6 +1037,10 @@ void europe_tick_market_prices(
  * FUN_38fd_584a score: (pop+units)<<1 if <4000, +8, cap 4000;
  * AI ((8-diff)*score)>>3; English (nation 0) *2/3.
  */
+int europe_compute_immigration_score_w(
+  const ColonizeWorld* w,
+  int nation_id
+);
 int europe_compute_immigration_score(
   const struct ColonizeColonyPool* colonies,
   const ColonizeUnitPool* units,
@@ -1046,6 +1056,10 @@ int europe_compute_immigration_score(
 /* Returns 1 when an immigrant was moved to the docks, 2 when Brewster is
  * owned and the caller must offer the @RECRUITCHOOSE pick instead
  * (units_brewster_enqueue_pick / europe_brewster_pick_from_pool), else 0. */
+int europe_tick_immigration_pressure_w(
+  const ColonizeWorld* w,
+  int nation_id
+);
 int europe_tick_immigration_pressure(
   EuropeScreen* eu,
   const struct ColonizeColonyPool* colonies,
@@ -1063,6 +1077,11 @@ int europe_tick_immigration_pressure(
  * `nation+0x22 += tax`); `col1` may be NULL. Smell audit #51.
  * Returns gold credited (0 if empty/invalid).
  */
+int europe_sell_unit_hold_w(
+  const ColonizeWorld* w,
+  int unit_id,
+  int hold_index
+);
 int europe_sell_unit_hold(
   EuropeScreen* eu,
   struct ColonizeCol1Save* col1,
@@ -1086,6 +1105,11 @@ struct ColonizeDosRng;
  * col1->nation[n].gold; also eu->gold when n==human_nation.
  * Returns total gold credited. PARK: per-cargo UI chrome (FUN_15eb_0326).
  */
+int europe_custom_house_autosell_w(
+  const ColonizeWorld* w,
+  ColonizeColony* colony,
+  int human_nation
+);
 int europe_custom_house_autosell(
   EuropeScreen* eu,
   struct ColonizeColonyPool* pool,
@@ -1110,6 +1134,14 @@ typedef struct EuropeCustomHouseSale {
  * per-cargo numbers, not just the total. `out_count` may exceed `out_max`
  * only in the sense that extra sales are simply not recorded.
  */
+int europe_custom_house_autosell_ex_w(
+  const ColonizeWorld* w,
+  ColonizeColony* colony,
+  int human_nation,
+  EuropeCustomHouseSale* out,
+  int out_max,
+  int* out_count
+);
 int europe_custom_house_autosell_ex(
   EuropeScreen* eu,
   struct ColonizeColonyPool* pool,
@@ -1134,6 +1166,11 @@ int europe_custom_house_autosell_ex(
  * thin sells full surplus (counter PARKED). Returns total gold credited.
  * Cite: viceroy_unpacked.c ~57806–57848; turn/colony_eot_production.md.
  */
+int europe_ai_colony_dump_sell_w(
+  const ColonizeWorld* w,
+  ColonizeColony* colony,
+  int human_nation
+);
 int europe_ai_colony_dump_sell(
   EuropeScreen* eu,
   struct ColonizeColonyPool* pool,
@@ -1176,6 +1213,13 @@ int europe_harbor_cargo_room(
 /* Harbor buy; col1+buyer_nation feed the 1d80 nation trade ledger (smell
  * audit #50) — NULL col1 keeps the price move but skips the ledger. `units`
  * resolves the ship's hold capacity (smell audit #83); NULL = six holds. */
+int europe_buy_cargo_w(
+  const ColonizeWorld* w,
+  int buyer_nation,
+  int harbor_index,
+  int cargo_type,
+  int amount
+);
 int europe_buy_cargo(
   EuropeScreen* eu,
   struct ColonizeCol1Save* col1,
@@ -1191,6 +1235,12 @@ int europe_buy_cargo(
  * boycott gated. Cite: DOS FUN_479b_0bd0 load phase → FUN_38fd_1fa2.
  * Returns units bought (0 = no gold / boycott / no room).
  */
+int europe_buy_unit_cargo_w(
+  const ColonizeWorld* w,
+  int unit_id,
+  int cargo_type,
+  int amount
+);
 int europe_buy_unit_cargo(
   EuropeScreen* eu,
   struct ColonizeCol1Save* col1,
@@ -1231,6 +1281,10 @@ bool europe_menu_confirm_ex(EuropeScreen* eu, struct ColonizeDosRng* rng);
 
 /* Same, plus the col1 save the arm buy/sell rows book their trade ledger into
  * — see europe_apply_dock_menu_row_ex. The game loop should call this form. */
+bool europe_dock_menu_apply_selection_ex_w(
+  const ColonizeWorld* w,
+  int nation_id
+);
 bool europe_dock_menu_apply_selection_ex(
   EuropeScreen* eu,
   ColonizeUnitPool* units,

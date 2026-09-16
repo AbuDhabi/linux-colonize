@@ -53,6 +53,12 @@ not specs.
 - Every new modal popup joins `game_modal_open` (all popups block all sim).
 - Gold: read `europe_nation_gold`, write `europe_nation_gold_add` (europe.h). Never
   assign one gold store from the other.
+- Layering: `colonize_sim` (units/colony/turn/ai/save/map + shared text helpers) must
+  not call `colonize_ui` (fb/font/screens/dialogs/renderers). `colonize_sim_linkcheck`
+  fails the build if it does. Sim talks to UI only via ai_popup queue + hooks.
+- Stage functions of split DOS bodies are declared in `*_internal.h` (COLONIZE_INTERNAL);
+  tests may call them directly. Cross-stage DOS locals live in the ctx struct and must be
+  written back on every stage exit (docs/conventions.md "Ctx write-back trap").
 - Slim test targets only: `ai_contact_link_stubs.c` (guarded by `COLONIZE_SLIM_TEST`).
 - Big files: `game_loop.c`, `ai_euro.c`, `units.c`, `ai_contact.c` have `Sections:`
   indexes at the top and `/* ===== ... ===== */` banners. Grep the banner, do not

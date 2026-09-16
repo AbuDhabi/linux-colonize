@@ -13,6 +13,7 @@
 
 #include "core/game_dialogs.h"
 #include "core/internal.h"
+#include "core/world.h"
 
 typedef enum GameMoveStep {
   GAME_MOVE_CONTINUE = 0,  /* fall through to the next stage of game_try_unit_move */
@@ -30,6 +31,15 @@ typedef enum GameUpdateStep {
 bool game_move_is_near_human(
   const ColonizeGameState* game, const ColonizeUnit* mover, const ColonizeWorldMap* map,
   int x, int y
+);
+COLONIZE_INTERNAL void game_move_watch_w(
+  const ColonizeWorld* w,
+  void* user,
+  int unit_id,
+  int from_x,
+  int from_y,
+  int to_x,
+  int to_y
 );
 void game_move_watch(
   void* user, const ColonizeUnitPool* pool, const ColonizeWorldMap* map,

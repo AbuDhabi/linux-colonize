@@ -6,6 +6,7 @@
 #include "core/colony.h"
 #include "core/col1_save.h"
 #include "core/map.h"
+#include "core/world.h"
 
 /*
  * Linux port of FUN_521d_0000…0906 goal tables (annotated euro_goals.c).
@@ -142,6 +143,14 @@ int ai_goals_best_found_tile(int nation_id, int* out_x, int* out_y);
  * that has a foundable land neighbour -- the map-agnostic landing target for a
  * loaded transport with no landfall of its own. Ties break westward.
  */
+int ai_goals_nearest_landing_water_w(
+  const ColonizeWorld* w,
+  int from_x,
+  int from_y,
+  int max_radius,
+  int* out_x,
+  int* out_y
+);
 int ai_goals_nearest_landing_water(
   const ColonizeWorldMap* map,
   const ColonizeUnitPool* units,
@@ -277,6 +286,16 @@ int ai_goals_unit_desirability_score(
  * Thunk identities resolved via arg-shape match (2a1f_053c=052c,
  * 2a1f_04d0=0492, 2a1f_0494=03d0); see docs/port_plan.md.
  */
+int ai_goals_composite_unit_priority_w(
+  const ColonizeWorld* w,
+  int nation_id,
+  int unit_x,
+  int unit_y,
+  int unit_type,
+  int unit_profession,
+  int turn,
+  int total_colony_count
+);
 int ai_goals_composite_unit_priority(
   const ColonizeWorldMap* map,
   const ColonizeColonyPool* colonies,
@@ -351,6 +370,14 @@ int ai_goals_filter_profession_by_distance_wealth(
  * 0896's tribe arm is live since 2026-09-08 (alarm + DS:0x54f6 tension);
  * `col1` feeds it and may be NULL.
  */
+int ai_goals_probe_adjacent_contact_claim_w(
+  const ColonizeWorld* w,
+  int x,
+  int y,
+  int nation_id,
+  int profession,
+  int* out_side_claim
+);
 int ai_goals_probe_adjacent_contact_claim(
   const ColonizeWorldMap* map,
   const ColonizeColonyPool* colonies,
@@ -371,6 +398,11 @@ void ai_goals_inventory_clear(int nation_id);
  * Live nation×continent colony counts + post_map.continent_tally_b/12 target.
  * Cite: viceroy_unpacked.c ~87098; DS:0x85c8 / 0x947e / 0x94e6.
  */
+int ai_goals_colony_balance_flags_w(
+  const ColonizeWorld* w,
+  int nation_id,
+  int continent_id
+);
 int ai_goals_colony_balance_flags(
   const ColonizeWorldMap* map,
   const ColonizeColonyPool* colonies,
@@ -388,6 +420,16 @@ int ai_goals_colony_balance_flags(
  * see the body for why the port keeps a failure signal).
  */
 struct ColonizeUnitPool;
+int ai_goals_pick_founding_tile_ex_w(
+  const ColonizeWorld* w,
+  int nation_id,
+  int x,
+  int y,
+  int score_extras,
+  int wagon_filter,
+  int* out_x,
+  int* out_y
+);
 int ai_goals_pick_founding_tile_ex(
   const ColonizeWorldMap* map,
   const ColonizeColonyPool* colonies,
@@ -405,6 +447,14 @@ int ai_goals_pick_founding_tile_ex(
 /*
  * FUN_521d_06ae with score_extras=1, wagon_filter=0 (0a60 FOUND writer default).
  */
+int ai_goals_pick_founding_tile_w(
+  const ColonizeWorld* w,
+  int nation_id,
+  int x,
+  int y,
+  int* out_x,
+  int* out_y
+);
 int ai_goals_pick_founding_tile(
   const ColonizeWorldMap* map,
   const ColonizeColonyPool* colonies,

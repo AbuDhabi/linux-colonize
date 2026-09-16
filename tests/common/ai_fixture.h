@@ -19,6 +19,7 @@
 #include "core/map.h"
 #include "core/turn.h"
 #include "core/units.h"
+#include "core/world.h"
 
 static inline bool fx_map_alloc(
   ColonizeWorldMap* map, int w, int h, int terrain_fill, bool with_seen
@@ -87,6 +88,22 @@ static inline ColonizeColony* fx_colony_add(
   colonies->colony_count++;
   colonies->next_id = colonies->colony_count;
   return c;
+}
+
+/*
+ * Stack view over the fixture's pools (see src/core/world.h). Pass whichever
+ * pieces the call under test needs and leave the rest NULL — ColonizeWorld
+ * owns nothing, so there is no matching free.
+ */
+static inline ColonizeWorld fx_world(
+  ColonizeUnitPool* units,
+  ColonizeColonyPool* colonies,
+  ColonizeWorldMap* map,
+  ColonizeCol1Save* col1,
+  ColonizeDosRng* rng,
+  EuropeScreen* europe
+) {
+  return world_make(units, colonies, map, col1, col1 != NULL, rng, europe);
 }
 
 #endif /* COLONIZE_TESTS_COMMON_AI_FIXTURE_H */

@@ -2,6 +2,7 @@
 #define COLONIZE_UNITS_MOVE_H
 
 #include "core/units.h"
+#include "core/world.h"
 
 /* Movement, pathing, goto, orders, MP: split out of units.h for navigability. */
 
@@ -38,6 +39,13 @@ typedef enum ColonizeEnterReason {
   COLONIZE_ENTER_LANDFIRST = 16 /* ship → enemy-occupied land, must unload first; @LANDFIRST */
 } ColonizeEnterReason;
 
+ColonizeEnterReason units_enter_probe_w(
+  const ColonizeWorld* w,
+  int type_index,
+  int x,
+  int y,
+  int mover_id
+);
 ColonizeEnterReason units_enter_probe(
   const ColonizeUnitPool* pool,
   int type_index,
@@ -52,6 +60,13 @@ ColonizeEnterReason units_last_enter_reason(void);
 /* Short player status for a probe reason (never NULL). */
 const char* units_enter_reason_status(ColonizeEnterReason reason);
 
+bool units_can_enter_w(
+  const ColonizeWorld* w,
+  int type_index,
+  int x,
+  int y,
+  int mover_id
+);
 bool units_can_enter(
   const ColonizeUnitPool* pool,
   int type_index,
@@ -87,6 +102,12 @@ int units_move_cost(
   const ColonizeUnitPool* pool,
   int unit_id,
   const ColonizeWorldMap* map,
+  int dest_x,
+  int dest_y
+);
+bool units_try_move_w(
+  const ColonizeWorld* w,
+  int unit_id,
   int dest_x,
   int dest_y
 );
@@ -165,6 +186,12 @@ bool units_disband(ColonizeUnitPool* pool, int unit_id);
  * with plow/road → clear those improvements. Spends remaining MP.
  * Cite: MENU.TXT @ORDERS Pillage; full 2b5a mega-dispatch body still thin.
  */
+bool units_pillage_w(
+  const ColonizeWorld* w,
+  int unit_id,
+  char* err,
+  size_t err_size
+);
 bool units_pillage(
   ColonizeUnitPool* pool,
   int unit_id,
@@ -179,6 +206,12 @@ bool units_wake(ColonizeUnitPool* pool, int unit_id);
 bool units_orders_skip_turn(const ColonizeUnit* unit);
 
 /* Set Go-To order (does not move); returns false if unit/dest invalid. */
+bool units_set_goto_w(
+  const ColonizeWorld* w,
+  int unit_id,
+  int dest_x,
+  int dest_y
+);
 bool units_set_goto(
   ColonizeUnitPool* pool,
   int unit_id,
@@ -193,6 +226,10 @@ bool units_set_goto(
  * dispatched through the normal entry flow (FUN_4d56_4528: woodcut 7 +
  * @ACTIONS menu), not silently paced or dropped. bugs.md #418.
  */
+bool units_goto_dest_is_village_entry_w(
+  const ColonizeWorld* w,
+  int unit_id
+);
 bool units_goto_dest_is_village_entry(
   const ColonizeUnitPool* pool,
   int unit_id,
@@ -210,6 +247,10 @@ bool units_follow_unit(ColonizeUnitPool* pool, int unit_id, int target_unit_id);
  * One step toward the follow target's current tile (retarget each call).
  * Clears FOLLOW if target missing/inactive. rng may be NULL.
  */
+bool units_advance_follow_one_step_w(
+  const ColonizeWorld* w,
+  int unit_id
+);
 bool units_advance_follow_one_step(
   ColonizeUnitPool* pool,
   int unit_id,
@@ -231,6 +272,12 @@ void units_note_goto_step(int unit_id, int dx, int dy);
  * NULL (disables the anti-backtrack wiggle reroll; deterministic geometry
  * still runs).
  */
+bool units_next_goto_step_w(
+  const ColonizeWorld* w,
+  int unit_id,
+  int* out_x,
+  int* out_y
+);
 bool units_next_goto_step(
   const ColonizeUnitPool* pool,
   int unit_id,
@@ -241,6 +288,10 @@ bool units_next_goto_step(
   int* out_y
 );
 /* One adjacent step toward goto (or clear orders if arrived). rng may be NULL. */
+bool units_advance_goto_one_step_w(
+  const ColonizeWorld* w,
+  int unit_id
+);
 bool units_advance_goto_one_step(
   ColonizeUnitPool* pool,
   int unit_id,
@@ -249,6 +300,10 @@ bool units_advance_goto_one_step(
   ColonizeDosRng* rng
 );
 /* Walk until MP exhausted, arrived, or blocked. Clears orders on arrival. */
+bool units_advance_goto_w(
+  const ColonizeWorld* w,
+  int unit_id
+);
 bool units_advance_goto(
   ColonizeUnitPool* pool,
   int unit_id,
@@ -266,6 +321,14 @@ bool units_is_pioneer(const ColonizeUnitPool* pool, int unit_id);
  * First call sets orders + one work-tick; further ticks via
  * units_pioneer_work_tick / turn_refresh.
  */
+bool units_pioneer_plow_w(
+  const ColonizeWorld* w,
+  int unit_id,
+  char* err,
+  size_t err_size,
+  AiPopupState* ai_popups,
+  const ColonizeMsgCatalog* messages
+);
 bool units_pioneer_plow(
   ColonizeUnitPool* pool,
   int unit_id,
@@ -273,6 +336,14 @@ bool units_pioneer_plow(
   char* err,
   size_t err_size,
   ColonizeColonyPool* colonies,
+  AiPopupState* ai_popups,
+  const ColonizeMsgCatalog* messages
+);
+bool units_pioneer_road_w(
+  const ColonizeWorld* w,
+  int unit_id,
+  char* err,
+  size_t err_size,
   AiPopupState* ai_popups,
   const ColonizeMsgCatalog* messages
 );
@@ -289,6 +360,14 @@ bool units_pioneer_road(
 /* One work-tick for CLEAR_PLOW / BUILD_ROAD orders. Returns true if unit still
  * has that order (in progress or just started). colonies/ai_popups/messages
  * optional — clear-forest completion grants lumber + @CLEARCUT when set. */
+bool units_pioneer_work_tick_w(
+  const ColonizeWorld* w,
+  int unit_id,
+  char* err,
+  size_t err_size,
+  AiPopupState* ai_popups,
+  const ColonizeMsgCatalog* messages
+);
 bool units_pioneer_work_tick(
   ColonizeUnitPool* pool,
   int unit_id,

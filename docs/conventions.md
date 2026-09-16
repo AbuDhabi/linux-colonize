@@ -67,6 +67,15 @@ the verification loop. It does **not** own feature status — that stays in the
   PHYS0 blit indices are 1-based; LABELS/NAMES section line indices are 0-based
   over non-blank, non-`;` lines.
 
+- **New sim functions take `ColonizeWorld*`, not pool triples.** Anything that
+  would need three or more of `units` / `colonies` / `map` / `col1` / `rng` /
+  `europe` takes `const ColonizeWorld* w` (`src/core/world.h`) and reads
+  `w->units`, so adding state never churns a signature again. Build the view
+  with `world_from_turn_ctx(ctx)`, `world_make(...)`, or `fx_world(...)` in
+  tests. The pre-world `foo(pool, map, colonies, rng, …)` spellings that remain
+  are **compat shims** forwarding to `foo_w` — call `foo_w` from new code, and
+  delete a shim once its last caller is gone.
+
 ### Porting rules
 
 - **Never invent a constant.** Read the decomp. Invented numbers have been the
@@ -254,8 +263,8 @@ invented mechanics. Never port from it without a DOS trace.
 | **`caseD_10` grep** | Ghidra names some thunks `switchD_2000:da9f::caseD_10`. Grepping the `FUN_` name misses every call site — grep the `caseD_*` name. | `ai-residues-closeout-2026-09-08` |
 | **Extract-and-ndisasm switch bodies** | Ghidra leaves switch bodies as `??` bytes (e.g. `FUN_4d56_021a`, 4836 bytes). Extract the range and `ndisasm -b16` it at the right origin. | `popup-ids-are-ds-tag-addresses` |
 | **Boundary-first second pass** | A `completed=true` decompile can carry corruption inlined from a callee, and Ghidra can silently pull in *wrong but plausible* content. Check the cited address falls inside the function's own boundary before declaring corruption. | `docs/port_plan.md` "Method notes" |
-| **Offline render + PPM cmp** | `tools/render_report`, `render_colony`, `render_map_panel` link `libcolonize_core.a` and dump PPMs; compare against a `git archive HEAD` build. No PPM goldens exist in tests. | `duplication-audit-2026-09-14` |
-| **Headless driver on a real save** | For "does X work end to end", write a scratch driver (gcc against `build/debug/libcolonize_core.a`, `-I src`) that loads a real `.SAV`, loops `turn_end`, and prints counters — then promote it to a `golden_*` test. Attach a popup queue (`ctx.ai_popups`) or the King auto-declares independence on turn 1. | `woi-headless-sim-and-unknown46`, `ai-ship-wiggle-fix` |
+| **Offline render + PPM cmp** | `tools/render_report`, `render_colony`, `render_map_panel` link `libcolonize_ui.a` + `libcolonize_sim.a` (in that order — `colonize_core` is an INTERFACE target since 2026-09-16) and dump PPMs; compare against a `git archive HEAD` build. No PPM goldens exist in tests. | `duplication-audit-2026-09-14` |
+| **Headless driver on a real save** | For "does X work end to end", write a scratch driver (gcc against `build/debug/libcolonize_ui.a build/debug/libcolonize_sim.a`, `-I src`) that loads a real `.SAV`, loops `turn_end`, and prints counters — then promote it to a `golden_*` test. Attach a popup queue (`ctx.ai_popups`) or the King auto-declares independence on turn 1. | `woi-headless-sim-and-unknown46`, `ai-ship-wiggle-fix` |
 
 ---
 

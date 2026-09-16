@@ -12,6 +12,7 @@
 #include "core/europe.h"
 #include "core/map.h"
 #include "core/units_move.h"
+#include "core/world.h"
 #include "platform/platform.h"
 
 /*
@@ -73,6 +74,25 @@ typedef struct ColonizeTurnContext {
   uint8_t profession_tally[4][32];
   bool profession_tally_ok;
 } ColonizeTurnContext;
+
+/*
+ * View of the world pointers a turn context already carries (see world.h).
+ * Field-for-field copy; no allocation, no ownership. Use it to call sim
+ * entry points that take `const ColonizeWorld*` from code holding a ctx:
+ *   ColonizeWorld w = world_from_turn_ctx(ctx);
+ *   units_try_move_w(&w, id, dx, dy);
+ */
+static inline ColonizeWorld world_from_turn_ctx(const ColonizeTurnContext* ctx) {
+  ColonizeWorld w;
+  w.units = ctx->units;
+  w.colonies = ctx->colonies;
+  w.map = ctx->map;
+  w.col1 = ctx->col1;
+  w.col1_ok = ctx->col1_ok;
+  w.rng = ctx->rng;
+  w.europe = ctx->europe;
+  return w;
+}
 
 typedef struct ColonizeTurnResult {
   bool advanced;
@@ -166,6 +186,13 @@ void turn_colony_free_production(
 );
 
 /* Production for every active colony (used by turn_end). map/col1/europe may be NULL. */
+void turn_run_colony_production_w(
+  const ColonizeWorld* w,
+  int human_nation,
+  ColonizeTurnResult* out,
+  AiPopupState* ai_popups,
+  const ColonizeMsgCatalog* messages
+);
 void turn_run_colony_production(
   ColonizeColonyPool* pool,
   const ColonizeWorldMap* map,
@@ -226,6 +253,12 @@ void turn_run_year_end_chrome(ColonizeTurnContext* ctx, ColonizeTurnResult* out)
  * map may be NULL; when non-NULL with col1, arms native settlement fallout
  * (FUN_5fef_31ea-shaped; conquest gold unknown → -1, no invent).
  */
+void turn_refresh_moves_for_nation_w(
+  const ColonizeWorld* w,
+  int nation_id,
+  AiPopupState* ai_popups,
+  const ColonizeMsgCatalog* messages
+);
 void turn_refresh_moves_for_nation(
   ColonizeUnitPool* pool,
   int nation_id,
