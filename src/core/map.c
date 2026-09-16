@@ -2111,7 +2111,7 @@ int map_tile_layer_cmds(
   const ColonizeWorldMap* map,
   int x,
   int y,
-  int hidden_terrain_phase,
+  int terrain_peel_phase,
   ColonizeMapLayerCmd* out,
   int max
 ) {
@@ -2124,7 +2124,7 @@ int map_tile_layer_cmds(
   int base = (underlayer >= 0) ? underlayer : map_terrain_sprite_at(map, x, y);
   /* Hidden Terrain phase 3: scrub forest reveals as Desert (its cleared
    * base type), not the scrub-ground quirk sprite under its canopy. */
-  if (hidden_terrain_phase >= 3 && underlayer < 0 && map_tile_is_scrub_forest(map, x, y)) {
+  if (terrain_peel_phase >= 3 && underlayer < 0 && map_tile_is_scrub_forest(map, x, y)) {
     base = 1;
   }
   map_layer_push(out, max, &n, MAP_LAYER_SHEET_TERRAIN, 0, base, 0, 0);
@@ -2145,7 +2145,7 @@ int map_tile_layer_cmds(
   }
   /* Hidden Terrain phase 3 removes forest canopy. */
   const int forest = map_phys0_forest_sprite_at(map, x, y);
-  if (forest >= 0 && hidden_terrain_phase < 3) {
+  if (forest >= 0 && terrain_peel_phase < 3) {
     map_layer_push(out, max, &n, MAP_LAYER_SHEET_PHYS0, 0, forest, 0, 0);
   }
   const int layers = map_phys0_overlay_count(map, x, y);
@@ -2164,12 +2164,12 @@ int map_tile_layer_cmds(
     const int from = (pass == 0) ? 0 : coast_layers;
     const int to = (pass == 0) ? coast_end : layers;
     for (int layer = from; layer < to; ++layer) {
-      if (hidden_terrain_phase >= 2) {
+      if (terrain_peel_phase >= 2) {
         const ColonizeMapOverlayKind kind = map_phys0_overlay_kind_at(map, x, y, layer);
         if (kind == MAP_OVERLAY_KIND_RESOURCE || kind == MAP_OVERLAY_KIND_RUMOUR) {
           continue;
         }
-        if (hidden_terrain_phase >= 3 && kind == MAP_OVERLAY_KIND_HILL) {
+        if (terrain_peel_phase >= 3 && kind == MAP_OVERLAY_KIND_HILL) {
           continue;
         }
       }
@@ -2190,7 +2190,7 @@ int map_tile_layer_cmds(
     map_layer_push(out, max, &n, MAP_LAYER_SHEET_PHYS0, 0, plow, 0, 0);
     /* bugs.md #396: keep the special-resource icon visible — re-blit it
      * above the plow art (phase 2+ peel already hides it). */
-    if (hidden_terrain_phase < 2) {
+    if (terrain_peel_phase < 2) {
       for (int rl = 0; rl < layers; ++rl) {
         if (map_phys0_overlay_kind_at(map, x, y, rl) != MAP_OVERLAY_KIND_RESOURCE) {
           continue;
@@ -2207,7 +2207,7 @@ int map_tile_layer_cmds(
     }
   }
   /* Hidden Terrain phase 2+: roads aren't in the exempt set. */
-  const int road_n = (hidden_terrain_phase >= 2) ? 0 : map_phys0_road_layer_count(map, x, y);
+  const int road_n = (terrain_peel_phase >= 2) ? 0 : map_phys0_road_layer_count(map, x, y);
   for (int ri = 0; ri < road_n; ++ri) {
     const int road = map_phys0_road_layer_sprite_at(map, x, y, ri);
     if (road >= 0) {

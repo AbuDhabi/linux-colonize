@@ -753,7 +753,7 @@ void game_trade_begin_route(ColonizeGameState* game, int route) {
     const ColonizeUnit* pu = units_get_const(&game->units, sid);
     if (pu && pu->active && pu->orders == UNITS_ORDER_TRADE_ROUTE &&
         pu->follow_unit_id == route) {
-      preselect = pu->turns_worked;
+      preselect = pu->col1_counter16;
     }
     game_trade_open_stop_picker(game, route, preselect);
     return;
@@ -777,7 +777,7 @@ void game_trade_begin_at_stop(ColonizeGameState* game, int route, int stop_i) {
     return;
   }
   u->follow_unit_id = route;
-  u->turns_worked = 0;
+  u->col1_counter16 = 0;
   if (game_trade_route_aim_stop(game, u, stop_i)) {
     snprintf(
       game->status,
@@ -2001,7 +2001,7 @@ static bool game_apply_popup_voyage(ColonizeGameState* game) {
           {
             ColonizeUnit* pax = units_get(&game->units, pax_id);
             if (pax) {
-              pax->moves_left = 0;
+              pax->moves = 0;
             }
           }
           game->units.selected_id = pax_id;
@@ -2311,7 +2311,7 @@ static bool game_apply_popup_diplo_and_scout(ColonizeGameState* game) {
      * the pacer (or the next keypress) re-fired @SCOUTCOLONY at once.
      */
     if (choice != 3) {
-      u->moves_left = 0;
+      u->moves = 0;
       if (units_orders_follow_goto(u->orders)) {
         units_clear_orders(&game->units, unit_id);
       }
@@ -2421,7 +2421,7 @@ static bool game_apply_popup_combat_and_gifts(ColonizeGameState* game) {
      * declining ends its turn either way.
      */
     if (u) {
-      u->moves_left = 0;
+      u->moves = 0;
     }
     set_status(game, "The men rest.", NULL);
     ai_popup_consume_result(&game->ai_popups);

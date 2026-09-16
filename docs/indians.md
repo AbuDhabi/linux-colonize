@@ -84,7 +84,7 @@ the truth is the 15-entry JMPF stub table at `4d56:4c22..4c6c`,
   only: `dir = FUN_4d56_021a(unit)`; `dir != 8` → `FUN_2a1f_0150` (→ `465b`
   step); else `FUN_281f_0934` (exhaust MP — the guarding `dir >= 0` test is
   dead). `021a` already exhausts on its own `dir == 8` exit (`021a:14e6`), so
-  the Linux `moves_left = max_mp` covers both writes.
+  the Linux `moves = max_mp` covers both writes.
 - The residue behind the old "partial (T2 quiet)" label is the **callee**:
   `FUN_4d56_021a` (`4d56:021a..14fd`, 4836 bytes, one function) — the Indian
   unit decision routine Ghidra emitted as raw `??` bytes, reached from `14fe`
@@ -103,10 +103,10 @@ the truth is the 15-entry JMPF stub table at `4d56:4c22..4c6c`,
   (thresholds `0x31`/`0x32` there) and is the DOS source for the "nation stocks
   feed equipment upgrades" line above.
 - Caller-side (`1816` §7/§8) deltas, report-only because
-  `tests/golden/test_ai_turns.c:195` compares Brave `moves`/`turns_worked`: DOS
-  increments the act counter `+0x315a` (= `turns_worked`) once per **attempt**
+  `tests/golden/test_ai_turns.c:195` compares Brave `moves`/`col1_counter16`: DOS
+  increments the act counter `+0x315a` (= `col1_counter16`) once per **attempt**
   before calling `14fe` (`4d56:1af3`), caps at `0x14` then exhausts and zeroes
-  it; the Linux pulse bumps `turns_worked` only after a committed step. Gate is
+  it; the Linux pulse bumps `col1_counter16` only after a committed step. Gate is
   `FUN_281f_097a` → `FUN_1427_13b0` (AX-register arg): index in range, `+0x3144`
   ≥ 0, nation nibble == `DS:0x5394`, `(+0x3148 & 0x80) == 0 || type == 0x0b`,
   and `+0x3149` spent < max MP.

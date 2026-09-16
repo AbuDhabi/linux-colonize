@@ -227,7 +227,7 @@ typedef struct ColonizeCol1Head {
                                        each REF wave lands post-independence */
   uint16_t backup_force[4];
   /*
-   * DS:0x53ea — DOS uint16 price_group_state[16] (FUN_38fd_0058).
+   * DS:0x53ea — DOS uint16 market_demand_pool[16] (FUN_38fd_0058).
    * Linux king latches used to overlay the first bytes of this array — moved
    * 2026-08-28 to game_options bits + the human nation's unknown23_pad (see
    * ai_king_latch_get in ai_king.h); nothing but the market tick writes here now.
@@ -252,8 +252,8 @@ typedef struct ColonizeCol1Head {
    * through a formula not traced this pass).
    */
   union {
-    uint8_t unknown46[32];
-    uint16_t price_group_state[16];
+    uint8_t market_demand_pool_raw[32]; /* was unknown46 (old King latch home) */
+    uint16_t market_demand_pool[16]; /* was price_group_state; JSON key market_demand_pool (old key still read) */
   };
   ColonizeCol1EventFlags event;
   /*
@@ -494,7 +494,7 @@ typedef struct ColonizeCol1Unit {
   uint8_t cargo_item_4 : 4;
   uint8_t cargo_item_5 : 4;
   uint8_t cargo_hold[6];
-  uint8_t turns_worked;
+  uint8_t col1_counter16;
   uint8_t profession; /* Treasure (type 0x0a): gold/100 — FUN_48d3_06ba / smcol */
   ColonizeCol1TransportChain transport_chain;
 } ColonizeCol1Unit;

@@ -248,7 +248,7 @@ void turn_refresh_moves_for_nation_w(
   AiPopupState* ai_popups,
   const ColonizeMsgCatalog* messages
 );
-/* Select next human unit with moves_left > 0; centers not done here. */
+/* Select next human unit with moves > 0; centers not done here. */
 bool turn_select_next_unit(ColonizeUnitPool* pool, int human_nation);
 
 /*

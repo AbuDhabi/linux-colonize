@@ -220,7 +220,7 @@ typedef struct EuropeHarborShip {
    * verified) — the departure itself happens inside the same end-of-turn
    * pass that has already run its FUN_48d3_03d0 decrement step, so the
    * counter's first tick lands on the *next* turn. Modelling that here
-   * keeps turns_left holding DOS's own 1/2 for the save's turns_worked
+   * keeps turns_left holding DOS's own 1/2 for the save's col1_counter16
    * byte instead of inflating it. Runtime only; a save taken between the
    * order and the next tick reloads without the grace turn.
    */
@@ -1016,7 +1016,7 @@ void europe_apply_trade_volume(
 void europe_apply_volume_price(EuropeScreen* eu, int cargo_type, int amount, int is_buy);
 /*
  * FUN_38fd_0058 EOT peel (param_2 < 0): optional col1/colonies apply colony
- * ledger → price_group_state half (DS:0x53ea); phases 2–3 nudge trade_nr
+ * ledger → market_demand_pool half (DS:0x53ea); phases 2–3 nudge trade_nr
  * (Europe +0x5c pressure) for cargos 9..12 (*100) and 1..4 (no *100); then
  * nr += attrition per cargo and rise/fall ±1 within [low,high].
  * Cite: viceroy_unpacked.c FUN_38fd_0058; turn/europe_nation_eot.md.
@@ -1073,7 +1073,7 @@ struct ColonizeDosRng;
  * Requires Custom House building. Per cargo: mask (0=all eligible) +
  * FUN_364b_0636 denylist (not Food/Lumber/Horses/Tools/Muskets) + stock>99
  * → sell stock-50 (leave 50). Boycott does not block. Tax via eu tax /
- * nation tax_rate unless WoI (col1 head.unknown46[0]). Credits
+ * nation tax_rate unless WoI (col1 head.market_demand_pool_raw[0]). Credits
  * col1->nation[n].gold; also eu->gold when n==human_nation.
  * Returns total gold credited. PARK: per-cargo UI chrome (FUN_15eb_0326).
  */

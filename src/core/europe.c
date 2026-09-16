@@ -1612,7 +1612,7 @@ int europe_spawn_dock_mirror_unit(
   u->profession = profession;
   u->goto_x = 0;
   u->goto_y = 0;
-  u->moves_left = 0;
+  u->moves = 0;
   europe_apply_dock_unit_kit(u, dos_type);
   return id;
 }
@@ -2807,7 +2807,7 @@ void europe_tick_market_prices_w(
   if (col1) {
     const bool nation0_active = col1->player[0].control != 2;
     for (int c = 0; c < 16; ++c) {
-      long s = (long)(int16_t)col1->head.price_group_state[c];
+      long s = (long)(int16_t)col1->head.market_demand_pool[c];
       for (int n = 0; n < (int)COLONIZE_COL1_NATION_COUNT; ++n) {
         const int32_t t = col1->nation[n].trade.tons2[c];
         if (t > 0) {
@@ -2817,8 +2817,8 @@ void europe_tick_market_prices_w(
       if (nation0_active) {
         /* Nation 0 decays in its own pass; a later human pass sees the
          * decayed pool, nation 0 itself (as human) the pre-decay copy. */
-        const long decayed = (long)(int16_t)col1->head.price_group_state[c] - (s >> 7);
-        col1->head.price_group_state[c] = (uint16_t)(int16_t)decayed;
+        const long decayed = (long)(int16_t)col1->head.market_demand_pool[c] - (s >> 7);
+        col1->head.market_demand_pool[c] = (uint16_t)(int16_t)decayed;
         if (human_nation != 0) {
           s -= (s >> 7);
         }

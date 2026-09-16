@@ -187,22 +187,22 @@ Full opaque-field inventory and RE phases: **[save_format_map.md](save_format_ma
   that byte (unit `+0x17` = DS:`0x315b`) as the route cursor — low nibble =
   `trade_route[]` slot (`FUN_1427_0f64`/`0f74`), high nibble = stop index
   (`FUN_1427_0f8e`/`0fa0`), which `FUN_479b_0bd0` reads to bind the route before
-  servicing a stop. The port unpacks it into `follow_unit_id` / `turns_worked`
+  servicing a stop. The port unpacks it into `follow_unit_id` / `col1_counter16`
   on import and repacks it on export (2026-09-04; before that the slot was never
   written to the file and every reload dropped the unit off its route). Idle on-map fleets export `goto==xy`; ships/aboard export `moves`
   as **moves_spent** (0 when full MP). Stale landfall with `orders=0` made DOS
   peel the caravel out of `transport_chain` (sidebar unloaded, land units left
   behind). 2026-08-29: `moves` is DOS spent thirds for every Euro unit —
-  import `moves_left = max_mp − moves`, export `max_mp − moves_left`, with
+  import `moves = max_mp − moves`, export `max_mp − moves`, with
   exhausted land units exporting their full allotment (DOS clears the
   `DS:0x3149` spent bytes once at the top of a calendar tick — year_loop.c:140 —
   never at a nation's day end; DOS mid-turn saves like COLONY02.SAV show acted
   AI land units at full-or-overspent thirds. The earlier "export 0" rule came
   from AI-turn goldens captured after the day ended and refunded MP on reload,
   2026-09-09. Overnight Sentry/Fortified parks with `park_nights>0` still
-  export 0 — their zeroed `moves_left` is a port-only skip flag, not DOS
+  export 0 — their zeroed `moves` is a port-only skip flag, not DOS
   spent). Natives still round-trip the
-  literal byte (the Brave engine keeps DOS spent in `moves_left`, max 3).
+  literal byte (the Brave engine keeps DOS spent in `moves`, max 3).
   Euro unit tiles stamp `map.path` / layer3 **owner** high nibble (`FUN_1427_02ca`
   / `FUN_137f_0228`) on spawn/move and capture — unowned ocean under a human
   fleet (`path=fx`) peels cargo on DOS select/move; COLONY00 / working patch F
@@ -219,7 +219,7 @@ Full opaque-field inventory and RE phases: **[save_format_map.md](save_format_ma
   the nation's Europe sentinel diagonal (`FUN_48d3_007a` sail-to-Europe,
   `0346` sail-from-Europe, `03d0` per-turn tick): `228+n` in port,
   `232+n` sailing to the New World (`goto` = landfall), `244+n` sailing to
-  Europe (`goto` = exit tile); unit `+0x16` (`turns_worked`) = voyage
+  Europe (`goto` = exit tile); unit `+0x16` (`col1_counter16`) = voyage
   turns left; passengers chained `pax0→…→ship` with the same x/y/goto/turns,
   `orders=1`; Treasure `profession` = gold/100. Capture writes all three
   lanes that way (harbor passengers are already dock immigrants with their
@@ -243,7 +243,7 @@ Full opaque-field inventory and RE phases: **[save_format_map.md](save_format_ma
 
 - Stuff late `unknown_ds_*` / `tribe_dwellings_91cc` (save I/O only in unpacked;
   blank dwellings → DOS “0 Villages” speech — still not rebuilt from `tribe[]`)
-- `other[24]`, king / `price_group_state` overlay discipline (human prices only)
+- `other[24]`, king / `market_demand_pool` overlay discipline (human prices only)
 - Full mid-campaign AI nation blobs beyond fields AI already mutates in-place
 
 **Fixture probe** (`tests-save-misc/unit flags error.sav`): occupancy orphans

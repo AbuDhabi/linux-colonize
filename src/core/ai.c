@@ -356,7 +356,7 @@ static bool ai_setup_col1_template(const AiNewGameParams* p, char* err, size_t e
   p->col1->head.autumn = 0;
   p->col1->head.turn = 0;
   /*
-   * FUN_75c2_235c: price_group_state[16] = FUN_281f_04d4(600, 1000) each.
+   * FUN_75c2_235c: market_demand_pool[16] = FUN_281f_04d4(600, 1000) each.
    * Without this the EOT market ledger (FUN_38fd_0058 phases 2-3) clamps
    * every group to 1, the target ratio collapses to 3 and Rum..Coats lose a
    * point of price every turn from 1492. A private LCG keeps the campaign
@@ -366,7 +366,7 @@ static bool ai_setup_col1_template(const AiNewGameParams* p, char* err, size_t e
     ColonizeDosRng pg_rng;
     dos_rng_seed(&pg_rng, p->rng_seed ? p->rng_seed ^ 0x53eau : 0x53eau);
     for (int c = 0; c < 16; ++c) {
-      p->col1->head.price_group_state[c] = (uint16_t)dos_rng_range(&pg_rng, 600, 1000);
+      p->col1->head.market_demand_pool[c] = (uint16_t)dos_rng_range(&pg_rng, 600, 1000);
     }
   }
   /*
@@ -1288,7 +1288,7 @@ bool ai_init_new_game(const AiNewGameParams* params, char* err, size_t err_size)
     for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
       ColonizeUnit* u = &params->units->units[i];
       if (u->active && u->nation_id >= 4) {
-        u->moves_left = 0;
+        u->moves = 0;
       }
     }
     const uint32_t pulse_seed = ai_new_game_seed(params);
@@ -1512,7 +1512,7 @@ static int ai_indian_152e_spawn_brave(
   u->nation_id = (int)t->nation_id;
   u->home_tribe_id = tribe_index; /* DOS +0x314a, stamped by 152e itself. */
   /*
-   * DOS +0x3149 = 0. Careful: for a native unit `moves_left` carries DOS
+   * DOS +0x3149 = 0. Careful: for a native unit `moves` carries DOS
    * SPENT-thirds semantics (turn.c:186 sets natives to 0 at every refresh,
    * decomp ~6357), so 0 means "nothing spent" — the fresh Brave is free to
    * act on the turn it is born, which is what DOS does. The old comment here
@@ -1520,8 +1520,8 @@ static int ai_indian_152e_spawn_brave(
    * ("created spent, acts next turn"); the code was right, the comment was a
    * trap (smell #55, 2026-09-09).
    */
-  u->moves_left = 0;
-  u->turns_worked = 0;
+  u->moves = 0;
+  u->col1_counter16 = 0;
   return id;
 }
 
@@ -3876,7 +3876,7 @@ static int ai_native_021a_tail(
   const int hostile = flags & 0x04;
   if (flags & 0x0a) {
     /* 021a:12f8 — a contact/attack step needs a full move left. */
-    if (units_max_mp(units, u->id) - u->moves_left < 3) {
+    if (units_max_mp(units, u->id) - u->moves < 3) {
       return 8;
     }
   }
@@ -3947,7 +3947,7 @@ static int ai_native_021a_tail(
     }
   }
   /* 021a:14ca — quiet step onto foreign-owned land only with a fresh allotment. */
-  if ((flags & 0x1a) == 0 && (flags & 0x01) && u->moves_left != 0) {
+  if ((flags & 0x1a) == 0 && (flags & 0x01) && u->moves != 0) {
     return 8;
   }
   return dir;
@@ -4089,7 +4089,7 @@ static void ai_native_post_first_brave_burns(AiRng* rng, int nation_id) {
  *
  *   §7  4d56:1a6c..1a8a  for u in 0..DS:0x539c: if (u+0x3147 & 0xf) ==
  *       DS:0x5394 -> u+0x315a = 0.  (+0x315a = COL1 unit +0x16 =
- *       `turns_worked`, the per-unit act counter.)
+ *       `col1_counter16`, the per-unit act counter.)
  *   §8  4d56:1a8c..1b1a
  *         do { ui_pump(281f:0470); acted = 0;
  *              for (i = 0; !acted && i < DS:0x539c; ) {
@@ -4113,7 +4113,7 @@ static void ai_native_post_first_brave_burns(AiRng* rng, int nation_id) {
  *         else if (dir >= 0) FUN_281f_0934(unit)  // exhaust MP; test is dead,
  *                                                 // dir is 8 on that arm
  *       FUN_4d56_021a already exhausts on its own dir == 8 exit (021a:14e6),
- *       so the single `moves_left = max_mp` below covers both writes.
+ *       so the single `moves = max_mp` below covers both writes.
  *
  * The four 021a/§8 deltas above the pulse loop (per-attempt act counter +
  * 0x14 cap, full-byte facing write incl. stay=8, homeless despawn, in-field
@@ -4295,7 +4295,7 @@ static AiNativeStepStatus ai_native_brave_step(
   /* FUN_281f_097a / 1427_13b0: act while moves_spent < max_mp (=3).
    * River/fa cost=1 steps keep spent < 3 so the inner loop continues —
    * that is the multi-step path (not a second act after spent >= max). */
-  const int spent = u->moves_left;
+  const int spent = u->moves;
   if (spent >= max_mp) {
     return AI_NATIVE_STEP_STOP;
   }
@@ -4304,10 +4304,10 @@ static AiNativeStepStatus ai_native_brave_step(
    * before 021a runs — a Brave that only stays still ends its turn at 1.
    * Past 0x14 the unit is exhausted and the counter zeroed, no act.
    */
-  u->turns_worked++;
-  if (u->turns_worked > 0x14) {
-    u->moves_left = max_mp;
-    u->turns_worked = 0;
+  u->col1_counter16++;
+  if (u->col1_counter16 > 0x14) {
+    u->moves = max_mp;
+    u->col1_counter16 = 0;
     return AI_NATIVE_STEP_STOP;
   }
   /*
@@ -4323,7 +4323,7 @@ static AiNativeStepStatus ai_native_brave_step(
   }
   /* Alarmed dispatch stand-in — see ai_native_brave_grudge_hold. */
   if (ai_native_brave_grudge_hold(units, s_ai_native_colonies, col1, u)) {
-    u->turns_worked--;
+    u->col1_counter16--;
     return AI_NATIVE_STEP_STOP;
   }
   if (ai_lcg_audit_enabled() && seed100_init_burns) {
@@ -4353,7 +4353,7 @@ static AiNativeStepStatus ai_native_brave_step(
         stderr,
         "AI_021A_ACT t=%d n=%d idx=%d xy=(%d,%d) facing=%d spent=%d tw=%d pick=%d flags=%02x dir=%d\n",
         s_ai_seed100_midturn_turn, nation_id, brave_index, u->x, u->y, last_dir,
-        u->moves_left, u->turns_worked, picked, pick.flags, dir
+        u->moves, u->col1_counter16, picked, pick.flags, dir
       );
     }
   }
@@ -4403,7 +4403,7 @@ static AiNativeStepStatus ai_native_brave_step(
         ind->horse_breeding -= 0x19;
       }
     }
-    u->moves_left = max_mp;
+    u->moves = max_mp;
     return AI_NATIVE_STEP_STOP;
   }
   const int nx = u->x + k_ai_dir8_dx[dir];
@@ -4433,7 +4433,7 @@ static AiNativeStepStatus ai_native_brave_step(
       );
     }
     if (roll > max_mp - spent) {
-      u->moves_left = spent + cost;
+      u->moves = spent + cost;
       u->last_dir = dir;
       u->col1_facing_pad = 0;
       if (u->orders == UNITS_ORDER_FORTIFY || u->orders == UNITS_ORDER_FORTIFIED) {
@@ -4457,7 +4457,7 @@ static AiNativeStepStatus ai_native_brave_step(
       ny,
       cost,
       spent,
-      u->turns_worked,
+      u->col1_counter16,
       *steps
     );
   }
@@ -4471,7 +4471,7 @@ static AiNativeStepStatus ai_native_brave_step(
      * (FUN_281f_08da / 084e / 07fe) on every step — braves included. */
     units_vis_mask_after_move(units, map, u->id, nx, ny);
   }
-  u->moves_left = spent + cost;
+  u->moves = spent + cost;
   /*
    * FUN_465b LAB_465b_05ca: ocean/HS flag change AND
    * euro_settlement_owner(from) < 0 AND euro_settlement_owner(dest) < 0
@@ -4487,7 +4487,7 @@ static AiNativeStepStatus ai_native_brave_step(
       ((ai_layer2_at(map, nx, ny) & 2u) != 0 && ai_owner_nibble(map, nx, ny) >= 0 &&
        ai_owner_nibble(map, nx, ny) < 4);
     if (!from_euro_set && !to_euro_set) {
-      u->moves_left = max_mp;
+      u->moves = max_mp;
     }
   }
   /* 021a:11b9 full-byte facing write (pad cleared on a real dir), and
@@ -4499,7 +4499,7 @@ static AiNativeStepStatus ai_native_brave_step(
   }
   ai_set_owner_nibble_move(map, nx, ny, nation_id);
   if (!seed100_init_burns && ai_native_step_first_contact(units, map, col1, u, nation_id)) {
-    u->moves_left = max_mp; /* LAB_5bfb_1005: FUN_281f_0934 on the Indian mover */
+    u->moves = max_mp; /* LAB_5bfb_1005: FUN_281f_0934 on the Indian mover */
     (*steps)++;
     return AI_NATIVE_STEP_STOP;
   }
@@ -4522,7 +4522,7 @@ static AiNativeStepStatus ai_native_brave_step(
     ai_native_post_first_brave_burns(rng, nation_id);
   }
   /*
-   * The DOS 0x14 act cap now trips on `turns_worked` at the attempt top
+   * The DOS 0x14 act cap now trips on `col1_counter16` at the attempt top
    * (4d56:1af7). `cost <= 0` stays as a Linux-only belt (DOS has no such
    * break — it keeps acting until the counter or MP gate trips).
    */
@@ -4568,11 +4568,11 @@ static void ai_native_nation_pulse(
     );
   }
 
-  /* Clear turns_worked for this nation's Braves (DOS 1816 ~81630). */
+  /* Clear col1_counter16 for this nation's Braves (DOS 1816 ~81630). */
   for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
     ColonizeUnit* u = &units->units[i];
     if (u->active && u->nation_id == nation_id) {
-      u->turns_worked = 0;
+      u->col1_counter16 = 0;
     }
   }
 

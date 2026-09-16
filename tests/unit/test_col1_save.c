@@ -2300,11 +2300,11 @@ int main(void) {
     w->nation_id = 0;
     w->orders = UNITS_ORDER_TRADE_ROUTE;
     w->follow_unit_id = 2;
-    w->turns_worked = 1;
+    w->col1_counter16 = 1;
     sv->nation_id = 0;
     sv->orders = UNITS_ORDER_TRADE_ROUTE;
     sv->follow_unit_id = 3; /* route with no stops */
-    sv->turns_worked = 0;
+    sv->col1_counter16 = 0;
     const int wagon_x = w->x;
     const int wagon_y = w->y;
     const int stray_x = sv->x;
@@ -2387,13 +2387,13 @@ int main(void) {
       }
     }
     if (!w2 || w2->orders != UNITS_ORDER_TRADE_ROUTE || w2->follow_unit_id != 2 ||
-        w2->turns_worked != 1) {
+        w2->col1_counter16 != 1) {
       fprintf(
         stderr,
         "trade-route cursor: apply gave orders=%d route=%d stop=%d (want 2/2/1)\n",
         w2 ? w2->orders : -1,
         w2 ? w2->follow_unit_id : -1,
-        w2 ? w2->turns_worked : -1
+        w2 ? w2->col1_counter16 : -1
       );
       rc = 1;
     }
@@ -2901,7 +2901,7 @@ int main(void) {
    * land unit refunded a whole turn of movement on save+reload.
    *
    * Sentry/Fortified held from a previous night are the one legitimate 0:
-   * turn.c zeroes moves_left as a "skip this unit" flag, and units_wake
+   * turn.c zeroes moves as a "skip this unit" flag, and units_wake
    * hands the allotment back (park_nights > 0).
    */
   {
@@ -2970,7 +2970,7 @@ int main(void) {
       int x;
       int type;
       int orders;
-      int moves_left;
+      int moves;
       uint8_t park_nights;
       int want_spent;
       const char* what;
@@ -3000,7 +3000,7 @@ int main(void) {
       }
       u->nation_id = 0;
       u->orders = cases[c].orders;
-      u->moves_left = cases[c].moves_left;
+      u->moves = cases[c].moves;
       u->park_nights = cases[c].park_nights;
     }
 
@@ -3091,10 +3091,10 @@ int main(void) {
         rc = 1;
         continue;
       }
-      if (u->moves_left != want_left) {
+      if (u->moves != want_left) {
         fprintf(
-          stderr, "moves_spent export: %s reloaded with moves_left=%d want %d\n",
-          cases[c].what, u->moves_left, want_left
+          stderr, "moves_spent export: %s reloaded with moves=%d want %d\n",
+          cases[c].what, u->moves, want_left
         );
         rc = 1;
       }

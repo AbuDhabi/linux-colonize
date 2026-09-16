@@ -131,7 +131,7 @@ int main(void) {
 
   /* Market pool words must not be the king's scratch space any more. */
   uint16_t market_before[16];
-  memcpy(market_before, save.head.price_group_state, sizeof(market_before));
+  memcpy(market_before, save.head.market_demand_pool, sizeof(market_before));
 
   for (unsigned i = 0; i < save.head.colony_count; ++i) {
     if (save.colony[i].nation_id == human) {
@@ -153,8 +153,8 @@ int main(void) {
             count_colonies(&colonies, crown));
     return 1;
   }
-  if (memcmp(market_before, save.head.price_group_state, sizeof(market_before)) != 0) {
-    fprintf(stderr, "declare wrote into price_group_state (old unknown46 king bytes)\n");
+  if (memcmp(market_before, save.head.market_demand_pool, sizeof(market_before)) != 0) {
+    fprintf(stderr, "declare wrote into market_demand_pool (old market_demand_pool_raw king bytes)\n");
     return 1;
   }
   if (ai_king_latch_get(&save, AI_KING_ENDGAME_BYTE) != AI_KING_ENDGAME_NONE) {
@@ -178,7 +178,7 @@ int main(void) {
           for (int k = 0; k < COLONIZE_UNITS_MAX; ++k) {
             const ColonizeUnit* u = &units.units[k];
             if (u->active && u->aboard_ship_id < 0 && abs(u->x - c->x) <= 2 && abs(u->y - c->y) <= 2) {
-              fprintf(stderr, "    near: id=%d n=%d %s (%d,%d) ord=%d mv=%d\n", u->id, u->nation_id, units_display_name(&units, u), u->x, u->y, u->orders, u->moves_left);
+              fprintf(stderr, "    near: id=%d n=%d %s (%d,%d) ord=%d mv=%d\n", u->id, u->nation_id, units_display_name(&units, u), u->x, u->y, u->orders, u->moves);
             }
           }
         }

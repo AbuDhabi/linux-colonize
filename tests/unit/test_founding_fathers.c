@@ -24,7 +24,7 @@ static int fail(const char* msg) {
 
 static void ff_tick(ColonizeTurnContext* ctx) {
   if (ctx && ctx->col1) {
-    founding_fathers_force_pool_from_total(ctx->col1);
+    founding_fathers_test_force_pool_from_total(ctx->col1);
   }
   founding_fathers_tick(ctx);
   /* bugs.md #434: human election moved to TURN_PROC_FINISH's own call. */
@@ -191,7 +191,7 @@ int main(void) {
     return fail("Fugger did not clear all boycott bits");
   }
   if (ai_king_latch_get(&col1, 2) != 0) {
-    return fail("Fugger did not clear human unknown46[2] king refuse");
+    return fail("Fugger did not clear human market_demand_pool_raw[2] king refuse");
   }
 
   /* Brewster: pool filter flag; no crosses / free-colonist spawn fiction. */
@@ -519,7 +519,7 @@ int main(void) {
     }
     ColonizeUnit* land = units_get(&units, land_id);
     land->nation_id = 0;
-    land->moves_left = 1 * UNITS_MP_PER_TILE;
+    land->moves = 1 * UNITS_MP_PER_TILE;
 
     const int sol_id = units_spawn_allow_stack(&units, 3, 6, 6);
     if (sol_id < 0) {
@@ -528,7 +528,7 @@ int main(void) {
     }
     ColonizeUnit* soldier = units_get(&units, sol_id);
     soldier->nation_id = 0;
-    soldier->moves_left = 1 * UNITS_MP_PER_TILE;
+    soldier->moves = 1 * UNITS_MP_PER_TILE;
     const int soldier_type = soldier->type_index;
 
     const int car_id = units_spawn_allow_stack(&units, 2, 4, 5);
@@ -538,7 +538,7 @@ int main(void) {
     }
     ColonizeUnit* caravel = units_get(&units, car_id);
     caravel->nation_id = 0;
-    caravel->moves_left = 4 * UNITS_MP_PER_TILE;
+    caravel->moves = 4 * UNITS_MP_PER_TILE;
 
     deep_col1.head.colony_count = 1;
     deep_col1.colony = calloc(1, sizeof(ColonizeCol1Colony));
@@ -602,10 +602,10 @@ int main(void) {
       return fail("deep Coronado revealed beyond radius 5");
     }
 
-    /* Magellan: +1 moves_left now; refresh keeps permanent +1. */
+    /* Magellan: +1 moves now; refresh keeps permanent +1. */
     dnat->liberty_bells_total = 161;
     dnat->next_founding_father = 5;
-    const int car_moves = caravel->moves_left;
+    const int car_moves = caravel->moves;
     const uint32_t gold_pre_mag = dnat->gold;
     ff_tick(&deep_ctx);
     if (deep_col1.head.founding_father[5] != 0 || dnat->founding_father_count != 2) {
@@ -613,7 +613,7 @@ int main(void) {
       map_free(&map);
       return fail("deep Magellan not elected");
     }
-    if (caravel->moves_left != car_moves + UNITS_MP_PER_TILE) {
+    if (caravel->moves != car_moves + UNITS_MP_PER_TILE) {
       free(deep_col1.colony);
       map_free(&map);
       return fail("deep Magellan sea moves +1 missing");
@@ -623,13 +623,13 @@ int main(void) {
       map_free(&map);
       return fail("deep Magellan should not gold-fallback");
     }
-    if (land->moves_left != 1 * UNITS_MP_PER_TILE) {
+    if (land->moves != 1 * UNITS_MP_PER_TILE) {
       free(deep_col1.colony);
       map_free(&map);
       return fail("deep Magellan bumped land unit");
     }
     turn_refresh_moves_for_nation_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&units), .colonies=(ColonizeColonyPool*)(NULL), .map=(ColonizeWorldMap*)(NULL), .col1=(ColonizeCol1Save*)(&deep_col1), .col1_ok=true}, 0, NULL, NULL);
-    if (caravel->moves_left != units_type_max_mp(&units.types[2]) + UNITS_MP_PER_TILE) {
+    if (caravel->moves != units_type_max_mp(&units.types[2]) + UNITS_MP_PER_TILE) {
       free(deep_col1.colony);
       map_free(&map);
       return fail("deep Magellan permanent refresh +1 missing");
@@ -756,14 +756,14 @@ int main(void) {
     /* Drake: no sea-moves bump. */
     dnat->liberty_bells_total = 641;
     dnat->next_founding_father = 13;
-    const int car_moves_pre_drake = caravel->moves_left;
+    const int car_moves_pre_drake = caravel->moves;
     ff_tick(&deep_ctx);
     if (deep_col1.head.founding_father[13] != 0 || dnat->founding_father_count != 8) {
       free(deep_col1.colony);
       map_free(&map);
       return fail("deep Drake not elected");
     }
-    if (caravel->moves_left != car_moves_pre_drake) {
+    if (caravel->moves != car_moves_pre_drake) {
       free(deep_col1.colony);
       map_free(&map);
       return fail("deep Drake must not bump sea moves");
@@ -994,7 +994,7 @@ int main(void) {
       return fail("AI Fugger did not clear all boycott bits");
     }
     if (ai_king_latch_get(&ai_col1, 2) != 1) {
-      return fail("AI Fugger cleared human unknown46[2]");
+      return fail("AI Fugger cleared human market_demand_pool_raw[2]");
     }
   }
 
@@ -1442,7 +1442,7 @@ int main(void) {
       }
       ColonizeUnit* ra = units_get(&upool, atk);
       ra->nation_id = 1;
-      ra->moves_left = 3 * UNITS_MP_PER_TILE;
+      ra->moves = 3 * UNITS_MP_PER_TILE;
 
       units_set_ff_col1(&ccol1);
       /* Deterministic: atk 4×8=32 >= bare-colony def ((2+4)*16)>>2=24 → win. */
@@ -1509,7 +1509,7 @@ int main(void) {
         }
         ColonizeUnit* ra3 = units_get(&upool, atk3);
         ra3->nation_id = 1;
-        ra3->moves_left = 3 * UNITS_MP_PER_TILE;
+        ra3->moves = 3 * UNITS_MP_PER_TILE;
         units_set_ff_col1(&ccol1);
         const bool moved = units_try_move_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&upool), .colonies=(ColonizeColonyPool*)(&rcol), .map=(ColonizeWorldMap*)(&rmap), .rng=(ColonizeDosRng*)(NULL)}, atk3, 6, 6);
         units_set_ff_col1(NULL);
@@ -1549,7 +1549,7 @@ int main(void) {
       }
       ColonizeUnit* ra2 = units_get(&upool, atk2);
       ra2->nation_id = 1;
-      ra2->moves_left = 3 * UNITS_MP_PER_TILE;
+      ra2->moves = 3 * UNITS_MP_PER_TILE;
       units_set_ff_col1(NULL);
       if (!units_try_move_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&upool), .colonies=(ColonizeColonyPool*)(&rcol), .map=(ColonizeWorldMap*)(&rmap), .rng=(ColonizeDosRng*)(NULL)}, atk2, 6, 6)) {
         map_free(&rmap);
@@ -2619,7 +2619,7 @@ int main(void) {
     rt.nation[0].liberty_bells_last_turn = 99;
     founding_fathers_reset();
     rt.nation[0].liberty_bells_total = 13;
-    founding_fathers_force_pool_from_total(&rt);
+    founding_fathers_test_force_pool_from_total(&rt);
     rt.nation[0].liberty_bells_total = 55;
     if (founding_fathers_bells_since_last_elect(0) != 13u) {
       return fail("pool setup before stash");
@@ -2897,7 +2897,7 @@ int main(void) {
     wnat->liberty_bells_total = 5000;
     wnat->next_founding_father = FF_ADAM_SMITH;
     wnat->founding_father_count = 0;
-    founding_fathers_force_pool_from_total(&wcol1);
+    founding_fathers_test_force_pool_from_total(&wcol1);
 
     AiPopupState wpop;
     ai_popup_init(&wpop);

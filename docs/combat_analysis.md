@@ -171,8 +171,8 @@ The pre-2026-09-16 port had only an AI-only end-of-act "naval ambush" keyed on t
 | Pulse | `units_coastal_fort_fire_pulse` — all Fort/Fortress colonies, 8 ocean dirs |
 | Hostile | at war (Euro/Indian) **or** Privateer |
 | Resolve | `units_fort_vs_ship`: fort atk vs ship defense (Drake scales Privateer); Combat Analysis is presented first when a human is involved (bugs.md #261), then `roll(1, atk+def) <= atk` |
-| Fort wins | bugs.md #249 — the same outcomes as a naval fight: holds lost, then the DOS `0352` damage-vs-sink roll with the fort's strength standing in for the winner's guns column. Damaged → `col1_flags15` bit7, `moves_left=0`, `repair_pending=2`, relocate to the nearest own Drydock colony with the DOS repair timer doubled (non-ship winner), `@SHIPDAMAGE`; a WoI human with no repair port sinks instead. Undamaged → sink, `@SHIPSUNK`, no plunder |
-| Fort loses | bugs.md #249 — **nothing happens**: DOS undoes the temp attacker and the ship sails on. The old `moves_left=0` ship-slow here was invented; the real MP drain is the separate per-step `FUN_5bfb_3180` branch, see "Ship-slow" below |
+| Fort wins | bugs.md #249 — the same outcomes as a naval fight: holds lost, then the DOS `0352` damage-vs-sink roll with the fort's strength standing in for the winner's guns column. Damaged → `col1_flags15` bit7, `moves=0`, `repair_pending=2`, relocate to the nearest own Drydock colony with the DOS repair timer doubled (non-ship winner), `@SHIPDAMAGE`; a WoI human with no repair port sinks instead. Undamaged → sink, `@SHIPSUNK`, no plunder |
+| Fort loses | bugs.md #249 — **nothing happens**: DOS undoes the temp attacker and the ship sails on. The old `moves=0` ship-slow here was invented; the real MP drain is the separate per-step `FUN_5bfb_3180` branch, see "Ship-slow" below |
 | Repair | `units_tick_drydock_repair` clears combat bit7 for finished ships on own Drydock colony (EOT after ship-build tick); human `@REFIT` ai_popup OK |
 | Turn | `turn_run_coastal_fort_fire` after colony production |
 | AI | `ai_euro_tile_under_enemy_fort_fire` / flee |
@@ -180,7 +180,7 @@ The pre-2026-09-16 port had only an AI-only end-of-act "naval ambush" keyed on t
 Deep DOS notes: [`coastal_fort_fire.md`](../original_sources_annotated/turn/coastal_fort_fire.md).
 
 **Bit7 collision:** same latch as ship construction. Distinguisher:
-`turns_worked < type.defense` → construction (`units_tick_ship_build_ready`);
+`col1_counter16 < type.defense` → construction (`units_tick_ship_build_ready`);
 `>=` → combat damage (fort/naval), repaired only by Drydock.
 
 **Analysis (bugs.md #261):** `units_fort_vs_ship` presents Combat Analysis

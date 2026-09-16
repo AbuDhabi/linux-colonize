@@ -119,7 +119,11 @@ typedef struct ColonizeUnit {
   int type_index;
   int x;
   int y;
-  int moves_left; /* thirds remaining (UNITS_MP_PER_TILE per plains tile) */
+  /* MP gauge in thirds (UNITS_MP_PER_TILE per plains tile). Euro units: thirds
+   * REMAINING. Native units (nation_id >= 4): DOS SPENT byte, counting up to
+   * max — go through units_mp_charge / units_move.h helpers, never compare
+   * raw across the two domains. Was moves_left. */
+  int moves;
   bool active;
   int nation_id; /* 0..3 European, 4..11 native tribes (COL1) */
   int aboard_ship_id; /* -1 = on map; else id of carrying ship */
@@ -137,19 +141,22 @@ typedef struct ColonizeUnit {
   int muskets; /* 0 or 50 when armed */
   int horses; /* 0 or 50 when mounted */
   int home_tribe_id; /* DOS unit+0x06 / DS:314a; -1 = none */
-  int turns_worked; /* COL1 unit+0x16; Brave pulse / labor counter */
+  /* COL1 unit+0x16, DOS multi-purpose counter: Brave labor pulse, treasure
+   * clock, ship repair timer, trade-route stop index, cower timer, Europe
+   * voyage turns. Was turns_worked. */
+  int col1_counter16;
   /*
    * Port-only nights-parked counter for the units_wake MP refund (DOS derives
    * wake MP from the spent byte alone; +0x16 is the shared treasure-clock /
    * repair-timer / route-stop / cower counter and must not be borrowed for
    * this). Not serialized: a freshly loaded parked unit imports its real
-   * moves_left, so no refund is needed before the first turn refresh.
+   * moves, so no refund is needed before the first turn refresh.
    */
   uint8_t park_nights;
   /*
    * Port-only "this zero is a SPEND, not a park" flag for units whose
-   * moves_left the port zeroes for bookkeeping reasons. Boarding parks a
-   * passenger at moves_left 0 while DOS's spent byte (+0x3149) may hold
+   * moves the port zeroes for bookkeeping reasons. Boarding parks a
+   * passenger at moves 0 while DOS's spent byte (+0x3149) may hold
    * either 0 (loaded in port) or max_mp (walked aboard from open shore —
    * the 465b_05ca ocean force-to-max), and the two cases behave
    * differently: FUN_4720_015c only offers landfall to cargo whose
@@ -157,7 +164,7 @@ typedef struct ColonizeUnit {
    * the port zeroes an allotment that DOS would have spent; cleared by the
    * per-turn refresh (DOS clears every spent byte at the day top, viceroy
    * 6355-6357). Not serialized — a reloaded unit imports its real
-   * moves_left / spent byte.
+   * moves / spent byte.
    */
   uint8_t mp_spent_turn;
   int last_dir; /* DOS unit facing / Col1 facing; 0..7 for AI scoring */

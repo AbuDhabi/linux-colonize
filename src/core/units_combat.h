@@ -262,7 +262,7 @@ int units_coastal_fort_attack_strength(
 /*
  * EOT pulse: each Fort/Fortress colony fires on adjacent ocean ships that are
  * at war with the colony owner, or Privateers (peace ignored). Fort win →
- * sink ship (no hold plunder). Fort loss → ship stopped (moves_left=0).
+ * sink ship (no hold plunder). Fort loss → ship stopped (moves=0).
  * Optional human status line. Returns ships sunk. Cite: FUN_364b_03f6.
  */
 /*

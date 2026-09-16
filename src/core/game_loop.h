@@ -106,9 +106,9 @@ uint32_t game_turn_number(const ColonizeGameState* game);
 int game_colony_count(const ColonizeGameState* game);
 bool game_colony_pos(const ColonizeGameState* game, int index, int* x, int* y);
 int game_selected_unit(const ColonizeGameState* game);
-/* False when id is not an active unit. is_sea/moves_left/x/y may be NULL. */
+/* False when id is not an active unit. is_sea/moves/x/y may be NULL. */
 bool game_unit_info(
-  const ColonizeGameState* game, int unit_id, int* x, int* y, bool* is_sea, int* moves_left
+  const ColonizeGameState* game, int unit_id, int* x, int* y, bool* is_sea, int* moves
 );
 
 #endif

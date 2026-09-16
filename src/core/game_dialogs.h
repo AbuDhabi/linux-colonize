@@ -177,7 +177,7 @@ struct ColonizeGameState {
    * settlements; non-exempt land PHYS; hills+forest). Auto-advances on a
    * timer, then holds at 3 until any click/keypress cancels back to 0.
    */
-  int hidden_terrain_phase;
+  int terrain_peel_phase;
   uint32_t hidden_terrain_phase_ms; /* elapsed_ms when the current phase started */
   bool in_menu;
   NewGameWizard new_game;

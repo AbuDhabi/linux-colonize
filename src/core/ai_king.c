@@ -26,7 +26,7 @@
  *
  * WoI: the latch is head.game_options.woi (DOS 0x5382 bit0, mapped in col1_save.h);
  *   ai_king_latch_set(AI_KING_WOI_BYTE) writes that same field. The old
- *   unknown46[] mirror is gone (unknown46[0..5] alias price_group_state on DOS
+ *   market_demand_pool_raw[] mirror is gone (market_demand_pool_raw[0..5] alias market_demand_pool on DOS
  *   saves, so it was never a safe home).
  * REF-present: head.game_options.ref_present (0x5382 bit1).
  * Tax audience (ported 2026-08-19, real formula — see ai_king_audience_roll /
@@ -37,33 +37,33 @@
  *   village-goods popup (Accept "kiss the ring" keeps it / Refuse "tea
  *   party" REVERTS the just-applied hike + boycotts one roulette-picked
  *   cargo) — there is no DOS gate on whether the hike itself happens.
- *   head.unknown46[2] is now presentation-only (boycott-active flag +
+ *   head.market_demand_pool_raw[2] is now presentation-only (boycott-active flag +
  *   Fugger sync), no longer gates the audience interval.
  *   Follow-up OK is GAME.TXT @TEAPARTY (KING_TAX; thin 3dc8 stock dump +
  *   tokens). Cargo freeze: nation.boycott_bitmap. Fugger/diplo bitmap
- *   clear → drop unknown46[2] when bitmap==0 (king sync; do not touch FF).
+ *   clear → drop market_demand_pool_raw[2] when bitmap==0 (king sync; do not touch FF).
  * Rebel troop-gift purchase (FUN_43f7_2022 rebel branch, real port
  *   2026-08-14): recurring per-turn 1-in-3 roll while REF absent or
  *   Artillery backup pool empty; ai_popup CHOICE Hire/Decline when
  *   ctx->ai_popups (auto-accept when NULL); unaffordable → silently
- *   skipped (no DOS status/dialog). No once-per-war flag — head.unknown46[3]
+ *   skipped (no DOS status/dialog). No once-per-war flag — head.market_demand_pool_raw[3]
  *   is unused for this now (was an invented gate, see king_ref.md).
  * 160a: signing cinematic only (core/declaration.c, armed from game_loop on
  *   the KING_LETTER popup). No country rename — "United Colonies" was a port
  *   invention (bugs.md #239); WoI faction labels are Rebels/Tory via
- *   units_combat_nation_label. unknown46[4] endgame latch: 0/1 won/2 lost.
+ *   units_combat_nation_label. market_demand_pool_raw[4] endgame latch: 0/1 won/2 lost.
  *   @HOWTOWIN fires at first rebel recapture (units.c), not at declare
  *   (bugs.md #236).
- * Congress confirm: head.unknown46[5] + thin 2564 (ai_popup CHOICE from
+ * Congress confirm: head.market_demand_pool_raw[5] + thin 2564 (ai_popup CHOICE from
  *   GAME.TXT @DECLARE Never/Yes when ctx->ai_popups; auto-declare when NULL;
  *   same-turn 1528 may overwrite status).
  * Mid-war @WARN%d: ONE digit-patch selector per turn (raw 58506-58534, twin
  *   of @LOSING%d), precedence colonies<3 (2) > share ≥80% (3) > ports<3 (1);
- *   the selected warn keeps a port-side episode latch — unknown46[6]/[7]/[10]
+ *   the selected warn keeps a port-side episode latch — market_demand_pool_raw[6]/[7]/[10]
  *   for @WARN1/2/3 — each cleared when its own band is left, so a relapse
  *   re-fires. @LOSING3 takes the turn instead when share ≥90%.
- * Calendar @SOONRETIRING0 (1790 spring peacetime): head.unknown46[8] once.
- * Calendar @SOONRETIRING1 (1840 WoI): head.unknown46[9] once.
+ * Calendar @SOONRETIRING0 (1790 spring peacetime): head.market_demand_pool_raw[8] once.
+ * Calendar @SOONRETIRING1 (1840 WoI): head.market_demand_pool_raw[9] once.
  * Revolution end (raw 58470-58556): lose on one @LOSING%d selector, DOS
  *   precedence 0 colonies (2) > share ≥90% (3) > 0 coastal ports (1); win on
  *   the C1 triple with NO year gate; @RETIRING2 on year 1850 alone.
@@ -115,7 +115,7 @@
  * MoW hold fill uses real ship capacity (units_ship_capacity / type->cargo,
  * capped at COLONIZE_UNIT_CARGO_MAX=6). Cite: fandom REF “man-o-war with 6
  * units”; units_board_stacked. Coastal unload dumps multiple cargo_ids per
- * war_act beat up to min(moves_left, capacity) (1 MP/pax); full unload with
+ * war_act beat up to min(moves, capacity) (1 MP/pax); full unload with
  * moves left → AI_SAIL next human coast; after that sail step, if still
  * carrying and now adjacent to the next colony → unload same beat.
  * PARK: full embark UI chrome; dump-goods boycott modal
@@ -212,7 +212,7 @@ int ai_king_pick_dump_goods_cargo(
 /*
  * Comma-separated @CARGO names set in boycott_bitmap (presentation only).
  * Returns 1 if any bit set. Cite: king_ref refuse/holds chrome; Fugger partial
- * clear may leave a subset of bits while unknown46[2] still holds.
+ * clear may leave a subset of bits while market_demand_pool_raw[2] still holds.
  */
 static int ai_king_format_boycott_cargos(char* buf, size_t buf_size, uint16_t bitmap) {
   if (!buf || buf_size == 0) {
@@ -672,7 +672,7 @@ static void ai_king_set_boycott(ColonizeCol1Save* col1, int on) {
  * Sync tax-refuse stand-in when cargo boycotts were cleared externally
  * (Jakob Fugger / diplo peace lift — do not touch FF here).
  * Source: fandom Jakob Fugger “all boycotts forgiven”; king_ref refuse +
- * nation.boycott_bitmap. When bitmap==0, clear unknown46[2] so tax may resume.
+ * nation.boycott_bitmap. When bitmap==0, clear market_demand_pool_raw[2] so tax may resume.
  */
 static void ai_king_sync_boycott_refuse(ColonizeCol1Save* col1, int human) {
   if (!col1 || human < 0 || human >= 4) {
@@ -907,8 +907,8 @@ static int ai_king_colony_sol_at(const ColonizeTurnContext* ctx, int nation_id, 
 
 /*
  * DOS 0x5382 bit0 (head.game_options.woi) is the real WoI latch — read that,
- * not the unknown46[0] stand-in: unknown46[0..5] alias DOS price_group_state
- * words 0–2 (col1_save.h), so on a real DOS-authored save unknown46[0] holds
+ * not the market_demand_pool_raw[0] stand-in: market_demand_pool_raw[0..5] alias DOS market_demand_pool
+ * words 0–2 (col1_save.h), so on a real DOS-authored save market_demand_pool_raw[0] holds
  * live price data, not a war flag, and is nonzero almost every game. A save
  * never touched by ai_king_set_independence (i.e. every save that didn't
  * come out of this port's own turn_end) would misreport WoI as declared.
@@ -929,7 +929,7 @@ static void ai_king_set_independence(ColonizeCol1Save* col1, int on) {
   /* game_options.woi IS the latch — ai_king_latch_set(AI_KING_WOI_BYTE)
    * writes this same field and returns, so the "legacy Linux mirror" call
    * that used to precede this line was writing it twice (deleted 2026-09-14
-   * with the unknown46[] mirror it referred to, which no longer exists). */
+   * with the market_demand_pool_raw[] mirror it referred to, which no longer exists). */
   col1->head.game_options.woi = on ? 1 : 0;
   if (on) {
     col1->head.event.colony_burning = 1; /* chrome hint */
@@ -1385,7 +1385,7 @@ static void ai_king_apply_dump_goods_choice(ColonizeTurnContext* ctx, int human,
  * not gate whether the raise happens in the first place.
  *
  * The per-cargo boycott-holds-future-hikes behavior from the old design
- * (unknown46[2] gating this function) is not real DOS (5be8/3dc8 never
+ * (market_demand_pool_raw[2] gating this function) is not real DOS (5be8/3dc8 never
  * check it) and has been dropped; nation.boycott_bitmap / the tea-party
  * flag are still set/read for presentation and for the Fugger-clears-
  * boycotts sync, just no longer block the audience interval gate.
@@ -1796,7 +1796,7 @@ static void ai_king_succession(ColonizeTurnContext* ctx) {
  * FUN_43f7_1a26 declare body (after 2564 confirm / auto).
  * Fallback-seeds REF by difficulty only when it is still all zero; seeds the
  * 10f0 foreign-intervention pools via ai_king_seed_backup_force_1a26;
- * withdraws other Euros; thin 160a rename; unknown46[5] congress.
+ * withdraws other Euros; thin 160a rename; market_demand_pool_raw[5] congress.
  */
 static void ai_king_do_declare(ColonizeTurnContext* ctx, int human) {
   if (!ctx || !ctx->col1_ok || !ctx->col1 || human < 0 || human >= 4) {
@@ -1809,7 +1809,7 @@ static void ai_king_do_declare(ColonizeTurnContext* ctx, int human) {
    * SoL>49 trigger never fired, so the King borrows an EMPTY slot instead of
    * inheriting a live nation's colonies and ships (bugs.md follow-up). */
   ai_king_succession(ctx);
-  ai_king_set_independence(ctx->col1, 1); /* WoI: unknown46[0] if not already */
+  ai_king_set_independence(ctx->col1, 1); /* WoI: market_demand_pool_raw[0] if not already */
   ai_king_write_rival_nation_slots(ctx->col1, human);
   /* FUN_43f7_2564 congress-confirm stand-in. */
   ai_king_latch_set(ctx->col1, AI_KING_CONGRESS_BYTE, 1);
@@ -1987,7 +1987,7 @@ static void ai_king_do_declare(ColonizeTurnContext* ctx, int human) {
     for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
       ColonizeUnit* u = &ctx->units->units[i];
       if (u->active && u->nation_id == human) {
-        u->moves_left = 0;
+        u->moves = 0;
       }
     }
   }
@@ -2570,7 +2570,7 @@ COLONIZE_INTERNAL int ai_king_0982_spawn_pool_unit(ColonizeTurnContext* ctx, int
    * turn — the old AI_MOVE+goto=self stamp read as a committed goto to its
    * own tile and froze the wave once the king-side hunt was retired (D1). */
   /* 0982: the landed unit's moves are spent this beat (02d0 animate + 0948). */
-  u->moves_left = 0;
+  u->moves = 0;
   /* bugs.md: landings are in plain sight — stamp watcher vis bits so the
    * wave draws immediately instead of after its first move. */
   if (ctx->map) {
@@ -2715,7 +2715,7 @@ static void ai_king_ref_tory_uprising(ColonizeTurnContext* ctx, int crown, int h
            * turn spent — the war-act loop runs this same beat and must not
            * march them into the colony the moment they appear (the crown
            * move pass ran before the king block in DOS). */
-          nu->moves_left = 0;
+          nu->moves = 0;
           if ((remaining & 1) != 0 &&
               dos_rng_range(ctx->rng, 0, (int)ctx->col1->head.difficulty + 1) != 0) {
             nu->profession = UNITS_JOB_SOLDIER; /* Veteran */
@@ -2886,7 +2886,7 @@ COLONIZE_INTERNAL void ai_king_0982_land_troops(
       /* One step's worth of MP for the walk ashore (spawn parks at 0). */
       ColonizeUnit* lu = units_get(ctx->units, uid);
       if (lu) {
-        lu->moves_left = 3;
+        lu->moves = 3;
         lu->goto_x = cx[slot];
         lu->goto_y = cy[slot];
       }
@@ -2905,7 +2905,7 @@ COLONIZE_INTERNAL void ai_king_0982_land_troops(
     {
       ColonizeUnit* lu = units_get(ctx->units, uid);
       if (lu) {
-        lu->moves_left = 0; /* landing consumes the turn */
+        lu->moves = 0; /* landing consumes the turn */
         if (ctx->map) {
           lu->col1_vis_mask |=
             units_vis_mask_for_tile(ctx->map, lu->x, lu->y, crown);
@@ -3080,7 +3080,7 @@ COLONIZE_INTERNAL void ai_king_0982_invasion(struct ai_king_0982_ctx* w) {
         ship->orders = UNITS_ORDER_AI_SAIL;
         ship->goto_x = lx;
         ship->goto_y = ly;
-        ship->turns_worked = 0;
+        ship->col1_counter16 = 0;
         /* bugs.md: the invasion fleet is in plain sight of the colony —
          * stamp watcher vis bits like a real move (the land units get
          * theirs in ai_king_0982_spawn_pool_unit). */
@@ -3152,11 +3152,11 @@ static void ai_king_ref_wave(ColonizeTurnContext* ctx) {
 
   /*
    * (2026-09-07) The "emptied Man-O-War sails home" stand-in that used to sit
-   * here — despawn any idle empty crown MoW with turns_worked > 0, bump
-   * turns_worked otherwise — is retired. The real DOS beat is the
+   * here — despawn any idle empty crown MoW with col1_counter16 > 0, bump
+   * col1_counter16 otherwise — is retired. The real DOS beat is the
    * FUN_521d_20e6 ship-band tail (raw 89717-89720), ported as
    * ai_king_mow_sail_home_20e6 and run from the MoW's own act in war_act; see
-   * that function's header. It also frees turns_worked, which DOS uses on AI
+   * that function's header. It also frees col1_counter16, which DOS uses on AI
    * units as the 20e6 cower byte (+0x315a), from a king-side second meaning.
    */
 
@@ -3519,7 +3519,7 @@ static void ai_king_10f0_disembark(
       }
       ColonizeUnit* lu = units_get(ctx->units, uid);
       if (lu) {
-        lu->moves_left = 3;
+        lu->moves = 3;
         lu->goto_x = hx;
         lu->goto_y = hy;
       }
@@ -3536,7 +3536,7 @@ static void ai_king_10f0_disembark(
       }
       lu = units_get(ctx->units, uid);
       if (lu) {
-        lu->moves_left = units_max_mp(ctx->units, uid);
+        lu->moves = units_max_mp(ctx->units, uid);
         lu->orders = UNITS_ORDER_NONE;
         lu->goto_x = UNITS_GOTO_NONE;
         lu->goto_y = UNITS_GOTO_NONE;
@@ -3836,7 +3836,7 @@ static int ai_king_do_merc_hire_at(ColonizeTurnContext* ctx, int human, int hx, 
  * This function now ports 2022's rebel branch faithfully: recurring
  * per-turn 1-in-3 roll while REF is absent or the Artillery backup pool
  * is empty; on a hit, roll quantity/price and offer a CHOICE (or
- * auto-accept without ai_popups). unknown46[3] is no longer a gate —
+ * auto-accept without ai_popups). market_demand_pool_raw[3] is no longer a gate —
  * DOS has no once-per-war flag here — kept only as a "pending offer
  * already queued" guard so a re-roll can't stack a second CHOICE while
  * one is unanswered.
@@ -4102,7 +4102,7 @@ static int ai_king_frigate_spawn(ColonizeTurnContext* ctx, int nation) {
   const int dur = europe_voyage_turns_roll(
     ctx->rng, magellan, turn_voyage_ship_count(ctx, nation)
   );
-  u->turns_worked = (uint8_t)dur;
+  u->col1_counter16 = (uint8_t)dur;
   return id;
 }
 
@@ -4631,7 +4631,7 @@ static int ai_king_crown_ships_in_europe_lane(const ColonizeTurnContext* ctx, in
  * crown's own Europe dock. The port models no crown dock, so a crown MoW
  * standing on the high-seas tile it was sent to leaves the map here — the
  * same net effect (hull gone, no pool credit) the old stand-in produced, but
- * now on the DOS trigger instead of a turns_worked counter.
+ * now on the DOS trigger instead of a col1_counter16 counter.
  */
 int ai_king_mow_sail_home_20e6(ColonizeTurnContext* ctx, ColonizeUnit* u, int crown) {
   if (!ctx || !ctx->units || !ctx->map || !ctx->col1_ok || !ctx->col1 || !u) {
@@ -4671,7 +4671,7 @@ int ai_king_mow_sail_home_20e6(ColonizeTurnContext* ctx, ColonizeUnit* u, int cr
   u->orders = UNITS_ORDER_AI_SAIL; /* +0x314b = 0x45 */
   u->goto_x = hx;
   u->goto_y = hy;
-  if (u->moves_left > 0) {
+  if (u->moves > 0) {
     const int sdx = (hx > u->x) - (hx < u->x);
     const int sdy = (hy > u->y) - (hy < u->y);
     const int nx = u->x + sdx;
@@ -4964,7 +4964,7 @@ void ai_king_ref_pre_euro_beat(ColonizeTurnContext* ctx) {
  *     wins — shown only when neither the win nor the lose dialog took the
  *     turn, so at most one @WARN%d per turn.
  *   Wartime calendar stop: exact year 1850 (raw 58630) → @RETIRING2.
- * Latches unknown46[4]; score reads won/lost.
+ * Latches market_demand_pool_raw[4]; score reads won/lost.
  */
 static int ai_king_human_coastal_ports(const ColonizeTurnContext* ctx, int human) {
   if (!ctx || human < 0 || human > 3) {
@@ -5813,7 +5813,7 @@ void ai_king_nation_turn(ColonizeTurnContext* ctx) {
     /*
      * Thin pre-declare SoL chrome:
      * SoL AI_KING_RESTLESS_SOL_MIN..(DECLARE_MIN-1) → restless status line
-     * before the auto-declare gate. unknown46 consistency: do not set WoI[0] /
+     * before the auto-declare gate. market_demand_pool_raw consistency: do not set WoI[0] /
      * congress[5] here (declare only). Optional tax mention when tax_rate
      * already in the refuse band (≥20) — reads existing tax_rate; no invented
      * tax formula. Do not clobber thin 38fd_5be8 tax audience / hike status

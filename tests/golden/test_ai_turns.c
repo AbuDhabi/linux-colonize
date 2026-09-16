@@ -30,7 +30,7 @@ static void print_unit(const char* tag, unsigned i, const ColonizeCol1Unit* u) {
     (unsigned)u->goto_x,
     (unsigned)u->goto_y,
     (unsigned)u->moves,
-    (unsigned)u->turns_worked
+    (unsigned)u->col1_counter16
   );
 }
 
@@ -178,7 +178,7 @@ static bool compare_ai_state(
       used[gi] = true;
       const ColonizeCol1Unit* g = &got->unit[gi];
       if (g->orders != e->orders || g->goto_x != e->goto_x || g->goto_y != e->goto_y ||
-          (e->type == 19 && (g->moves != e->moves || g->turns_worked != e->turns_worked))) {
+          (e->type == 19 && (g->moves != e->moves || g->col1_counter16 != e->col1_counter16))) {
         fprintf(stderr, "%s unit field mismatch:\n", step_label);
         print_unit("got", (unsigned)gi, g);
         print_unit("exp", i, e);

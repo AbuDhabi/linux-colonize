@@ -1011,7 +1011,7 @@ int main(void) {
   }
   ColonizeUnit* u = units_get(&units, uid);
   u->nation_id = 0;
-  u->moves_left = 0;
+  u->moves = 0;
 
   EuropeScreen europe;
   memset(&europe, 0, sizeof(europe));
@@ -1044,8 +1044,8 @@ int main(void) {
     );
     return 1;
   }
-  if (u->moves_left != 4 * UNITS_MP_PER_TILE) {
-    fprintf(stderr, "human MP not refreshed got %d\n", u->moves_left);
+  if (u->moves != 4 * UNITS_MP_PER_TILE) {
+    fprintf(stderr, "human MP not refreshed got %d\n", u->moves);
     return 1;
   }
   if (strstr(status, "1495") == NULL) {
@@ -1057,8 +1057,8 @@ int main(void) {
   const int uid2 = units_spawn_allow_stack(&units, 0, 6, 6);
   ColonizeUnit* u2 = units_get(&units, uid2);
   u2->nation_id = 0;
-  u2->moves_left = 2 * UNITS_MP_PER_TILE;
-  u->moves_left = 0;
+  u2->moves = 2 * UNITS_MP_PER_TILE;
+  u->moves = 0;
   units.selected_id = uid;
   if (!turn_select_next_unit(&units, 0) || units.selected_id != uid2) {
     fprintf(stderr, "wait-next failed selected=%d\n", units.selected_id);
@@ -1074,7 +1074,7 @@ int main(void) {
     const int uid3 = units_spawn_allow_stack(&units, 0, 7, 7);
     ColonizeUnit* u3 = units_get(&units, uid3);
     u3->nation_id = 0;
-    u3->moves_left = 2 * UNITS_MP_PER_TILE;
+    u3->moves = 2 * UNITS_MP_PER_TILE;
     /* uid2 fortified, uid3 free: the skip must land on uid3, not uid2. */
     u2->orders = UNITS_ORDER_FORTIFIED;
     units.selected_id = uid;
@@ -5661,7 +5661,7 @@ int main(void) {
   }
 
   /*
-   * Ship-build ready (00f2): types 0x0d..0x12 + bit7; +1/+2 turns_worked;
+   * Ship-build ready (00f2): types 0x0d..0x12 + bit7; +1/+2 col1_counter16;
    * clear bit7 at threshold (type.defense = DOS 0x5235 / NAMES combat).
    */
   {
@@ -5695,29 +5695,29 @@ int main(void) {
     }
     units_set_nation(u, 0);
     u->col1_flags15 = 0x80;
-    u->turns_worked = 0;
+    u->col1_counter16 = 0;
 
     char status[128];
     status[0] = '\0';
     int want_eu = 0;
     /* On colony: +2/tick → need 2 ticks to reach threshold 4. */
     (void)units_tick_ship_build_ready(&units, &colonies, 0, 0, status, sizeof(status), &want_eu);
-    if ((u->col1_flags15 & 0x80u) == 0 || u->turns_worked != 2) {
+    if ((u->col1_flags15 & 0x80u) == 0 || u->col1_counter16 != 2) {
       fprintf(
         stderr,
         "ship-build mid: bit=%u tw=%d want bit set tw=2\n",
         (unsigned)(u->col1_flags15 & 0x80u),
-        u->turns_worked
+        u->col1_counter16
       );
       return 1;
     }
     (void)units_tick_ship_build_ready(&units, &colonies, 0, 0, status, sizeof(status), &want_eu);
-    if ((u->col1_flags15 & 0x80u) != 0 || u->turns_worked < 4) {
+    if ((u->col1_flags15 & 0x80u) != 0 || u->col1_counter16 < 4) {
       fprintf(
         stderr,
         "ship-build done: bit=%u tw=%d want clear tw≥4\n",
         (unsigned)(u->col1_flags15 & 0x80u),
-        u->turns_worked
+        u->col1_counter16
       );
       return 1;
     }
@@ -5731,16 +5731,16 @@ int main(void) {
     }
     /* Real Caravel combat=2 completes in one colony tick. */
     u->col1_flags15 = 0x80;
-    u->turns_worked = 0;
+    u->col1_counter16 = 0;
     units.types[0xd].defense = 2;
     status[0] = '\0';
     (void)units_tick_ship_build_ready(&units, &colonies, 0, 0, status, sizeof(status), &want_eu);
-    if ((u->col1_flags15 & 0x80u) != 0 || u->turns_worked != 2) {
+    if ((u->col1_flags15 & 0x80u) != 0 || u->col1_counter16 != 2) {
       fprintf(
         stderr,
         "ship-build combat2: bit=%u tw=%d want clear tw=2\n",
         (unsigned)(u->col1_flags15 & 0x80u),
-        u->turns_worked
+        u->col1_counter16
       );
       return 1;
     }

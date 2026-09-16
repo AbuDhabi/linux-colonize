@@ -328,7 +328,7 @@ static void write_head(FILE* f, const ColonizeCol1Head* h) {
   wi(f, &n, "sol_pct_last_notified", h->sol_pct_last_notified);
   W_U16ARR(f, &n, "expeditionary_force", h->expeditionary_force, 4);
   W_U16ARR(f, &n, "backup_force", h->backup_force, 4);
-  W_U16ARR(f, &n, "price_group_state", h->price_group_state, 16);
+  W_U16ARR(f, &n, "market_demand_pool", h->market_demand_pool, 16);
   jkey(f, &n, "event");
   write_event_flags(f, &h->event);
   wh(f, &n, "unknown05_hex", h->unknown05, sizeof h->unknown05);
@@ -407,11 +407,12 @@ static void read_head(const JsonValue* o, ColonizeCol1Head* h) {
       if (it && it->type == JV_NUM) h->backup_force[i2] = (uint16_t)it->num;
     }
   }
-  JsonValue* pg = json_obj_get(o, "price_group_state");
+  JsonValue* pg = json_obj_get(o, "market_demand_pool");
+  if (!pg) pg = json_obj_get(o, "price_group_state"); /* pre-2026-09-16 key */
   if (pg && pg->type == JV_ARR) {
     for (size_t i2 = 0; i2 < 16 && i2 < json_arr_len(pg); ++i2) {
       JsonValue* it = json_arr_at(pg, i2);
-      if (it && it->type == JV_NUM) h->price_group_state[i2] = (uint16_t)it->num;
+      if (it && it->type == JV_NUM) h->market_demand_pool[i2] = (uint16_t)it->num;
     }
   }
   sub = json_obj_get(o, "event");
@@ -755,7 +756,7 @@ static void write_unit(FILE* f, const ColonizeCol1Unit* u) {
     u->cargo_item_5
   );
   W_U8ARR(f, &n, "cargo_hold", u->cargo_hold, sizeof u->cargo_hold);
-  wi(f, &n, "turns_worked", u->turns_worked);
+  wi(f, &n, "col1_counter16", u->col1_counter16);
   wi(f, &n, "profession", u->profession);
   jkey(f, &n, "transport_chain");
   fprintf(
@@ -817,7 +818,7 @@ static void read_unit(const JsonValue* o, ColonizeCol1Unit* u) {
       if (it && it->type == JV_NUM) u->cargo_hold[i] = (uint8_t)it->num;
     }
   }
-  if (json_get_u64(o, "turns_worked", &v)) u->turns_worked = (uint8_t)v;
+  if (json_get_u64(o, "col1_counter16", &v) || json_get_u64(o, "turns_worked", &v)) u->col1_counter16 = (uint8_t)v; /* old key */
   if (json_get_u64(o, "profession", &v)) u->profession = (uint8_t)v;
   JsonValue* tc = json_obj_get(o, "transport_chain");
   if (tc) {

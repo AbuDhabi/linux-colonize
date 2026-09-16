@@ -1674,7 +1674,7 @@ static int case_europe_workflow(void) {
     europe_free(&tick);
   }
 
-  /* Colony → price_group_state half peel (0058 / DS:0x53ea). */
+  /* Colony → market_demand_pool half peel (0058 / DS:0x53ea). */
   {
     ColonizeColonyPool pool;
     colonies_init(&pool);
@@ -1690,7 +1690,7 @@ static int case_europe_workflow(void) {
 
     ColonizeCol1Save col1;
     memset(&col1, 0, sizeof(col1));
-    col1.head.price_group_state[COLONIZE_CARGO_FOOD] = 10;
+    col1.head.market_demand_pool[COLONIZE_CARGO_FOOD] = 10;
     /* DOS 0058 phase 1 (2026-08-28, golden_market_prices01): ledger = pool +
      * Σ max(0, nation tons2); decay = ledger >> 7 in nation 0's pass. Colony
      * stock is not part of it. 10 + 246 = 256 >> 7 = 2. */
@@ -1702,11 +1702,11 @@ static int case_europe_workflow(void) {
     tick.cargo_count = COLONIZE_CARGO_COUNT;
     ColonizeWorld tick_w2 = world_make(NULL, &pool, NULL, &col1, true, NULL, &tick);
     europe_tick_market_prices_w(&tick_w2, 0, 0u);
-    if (col1.head.price_group_state[COLONIZE_CARGO_FOOD] != 8) {
+    if (col1.head.market_demand_pool[COLONIZE_CARGO_FOOD] != 8) {
       fprintf(
         stderr,
         "price_group decay want 8 got %u\n",
-        (unsigned)col1.head.price_group_state[COLONIZE_CARGO_FOOD]
+        (unsigned)col1.head.market_demand_pool[COLONIZE_CARGO_FOOD]
       );
       return 1;
     }
@@ -1723,13 +1723,13 @@ static int case_europe_workflow(void) {
     col1.head.year = 1492;
     /* Ledgers: rum-group all 10 → sum=40, ratio=(40*3)/10=12. */
     for (int c = 9; c <= 12; ++c) {
-      col1.head.price_group_state[c] = 10;
+      col1.head.market_demand_pool[c] = 10;
     }
     /* Sugar ledger 10; half food 0 + sugar..tobacco → sum for phase3. */
-    col1.head.price_group_state[COLONIZE_CARGO_SUGAR] = 10;
-    col1.head.price_group_state[COLONIZE_CARGO_TOBACCO] = 10;
-    col1.head.price_group_state[COLONIZE_CARGO_COTTON] = 10;
-    col1.head.price_group_state[COLONIZE_CARGO_FURS] = 20; /* halved → 10 */
+    col1.head.market_demand_pool[COLONIZE_CARGO_SUGAR] = 10;
+    col1.head.market_demand_pool[COLONIZE_CARGO_TOBACCO] = 10;
+    col1.head.market_demand_pool[COLONIZE_CARGO_COTTON] = 10;
+    col1.head.market_demand_pool[COLONIZE_CARGO_FURS] = 20; /* halved → 10 */
 
     EuropeScreen tick;
     memset(&tick, 0, sizeof(tick));

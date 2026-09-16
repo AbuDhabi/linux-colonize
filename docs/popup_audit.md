@@ -90,8 +90,8 @@ choices from data where a real `@SECTION` exists.
 | Colonial Era Ends OK | — | Invented → status | Demoted |
 | Peacetime 1800 score CHOICE | `@SCORED` | Authentic | That's all / Keep playing; retire on That's all |
 | Peacetime retire prose | `@RETIRING` | Authentic | That's all apply → estate near richest colony |
-| Anniversary soon-retire (1790) | `@SOONRETIRING0` | Authentic | Spring peacetime; `unknown46[8]` |
-| Anniversary soon-retire (1840) | `@SOONRETIRING1` | Authentic | wartime WoI; `unknown46[9]` |
+| Anniversary soon-retire (1790) | `@SOONRETIRING0` | Authentic | Spring peacetime; `market_demand_pool_raw[8]` |
+| Anniversary soon-retire (1840) | `@SOONRETIRING1` | Authentic | wartime WoI; `market_demand_pool_raw[9]` |
 | WoI begins / restless | various | Invented → status | Restless demoted to status-only |
 | REF capture | `@CAPTURED3` | Authentic | REF take without plunder |
 | Foreign intervene | `@INTERVENTION` / `@INTERVENE` | Authentic | declare + landing ARRIVAL |
@@ -100,9 +100,9 @@ choices from data where a real `@SECTION` exists.
 | Revolution stalemate (1850) | `@RETIRING2` | Authentic | year≥1850 + crown still alive |
 | Revolution lose (ports) | `@LOSING1` | Authentic | all coastal ports lost (inland may remain) |
 | Revolution lose (colonies) | `@LOSING2` | Authentic | all colonies lost |
-| Mid-war port warn | `@WARN1` | Authentic | ports<3; lowest arm of the one-per-turn selector; `unknown46[6]` episode |
-| Mid-war colony warn | `@WARN2` | Authentic | colonies<3; wins the selector (last write, raw 58530); `unknown46[7]` episode |
-| Mid-war pop warn | `@WARN3` | Authentic | crown pop share ≥80% (<90%); `unknown46[10]` |
+| Mid-war port warn | `@WARN1` | Authentic | ports<3; lowest arm of the one-per-turn selector; `market_demand_pool_raw[6]` episode |
+| Mid-war colony warn | `@WARN2` | Authentic | colonies<3; wins the selector (last write, raw 58530); `market_demand_pool_raw[7]` episode |
+| Mid-war pop warn | `@WARN3` | Authentic | crown pop share ≥80% (<90%); `market_demand_pool_raw[10]` |
 | Revolution lose (pop) | `@LOSING3` | Authentic | crown pop share ≥90% |
 
 ## Remediation completed in this pass

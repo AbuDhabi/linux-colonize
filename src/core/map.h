@@ -346,7 +346,7 @@ int map_coast_underlayer_sprite_at(const ColonizeWorldMap* map, int x, int y);
  * MAPEDIT FUN_1a47_06da): base terrain (or coast underlayer), land-edge
  * masks + neighbour fills, forest, PHYS0 overlays, masked ocean + estuary for
  * coast composites, then the runtime plow (+ resource re-blit) and road
- * layers. Fog is NOT included — it is a viewer decision. `hidden_terrain_phase`
+ * layers. Fog is NOT included — it is a viewer decision. `terrain_peel_phase`
  * applies the VIEW ~Hidden Terrain peel (0 = nothing peeled). cmds[0] is
  * always the base tile (sprite may be -1 when the map has none). The map
  * viewport and the colony minimap both draw from this list with their own
@@ -366,7 +366,7 @@ int map_tile_layer_cmds(
   const ColonizeWorldMap* map,
   int x,
   int y,
-  int hidden_terrain_phase,
+  int terrain_peel_phase,
   ColonizeMapLayerCmd* out,
   int max
 );
