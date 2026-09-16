@@ -1008,10 +1008,12 @@ static void ai_diplo_status_human_pair(
  * with a more specific status line when applicable (thin 102a/1092 stand-in;
  * full FA 3f41 dialog remains PARKED).
  */
-static void ai_diplo_status_declare_war(
+static void ai_diplo_status_pair_line(
   ColonizeTurnContext* ctx,
   int nation_a,
-  int nation_b
+  int nation_b,
+  const char* tag,
+  const char* fallback
 ) {
   if (!ctx || !ctx->col1 || !ctx->status || ctx->status_size == 0) {
     return;
@@ -1022,12 +1024,14 @@ static void ai_diplo_status_declare_war(
   PopupMsgTokens tok = {0};
   tok.string0 = ai_diplo_rival_name(ctx->col1, nation_a);
   tok.string1 = ai_diplo_rival_name(ctx->col1, nation_b);
-  popup_msg_fill(
-    ctx->messages, "DECLAREWAR", &tok,
-    "The %STRING0 and %STRING1 are now at war.",
-    ctx->status, ctx->status_size
-  );
+  popup_msg_fill(ctx->messages, tag, &tok, fallback, ctx->status, ctx->status_size);
   popup_msg_strip_markup(ctx->status); /* status line: no {} coloring */
+}
+
+static void ai_diplo_status_declare_war(ColonizeTurnContext* ctx, int nation_a, int nation_b) {
+  ai_diplo_status_pair_line(
+    ctx, nation_a, nation_b, "DECLAREWAR", "The %STRING0 and %STRING1 are now at war."
+  );
 }
 
 /*
@@ -1037,26 +1041,11 @@ static void ai_diplo_status_declare_war(
  * default with the more specific line when applicable (thin 102a/1092
  * stand-in; full FA 3f41 dialog remains PARKED).
  */
-static void ai_diplo_status_sign_treaty(
-  ColonizeTurnContext* ctx,
-  int nation_a,
-  int nation_b
-) {
-  if (!ctx || !ctx->col1 || !ctx->status || ctx->status_size == 0) {
-    return;
-  }
-  if (!ai_diplo_involves_human(ctx, nation_a, nation_b)) {
-    return;
-  }
-  PopupMsgTokens tok = {0};
-  tok.string0 = ai_diplo_rival_name(ctx->col1, nation_a);
-  tok.string1 = ai_diplo_rival_name(ctx->col1, nation_b);
-  popup_msg_fill(
-    ctx->messages, "SIGNTREATY", &tok,
-    "The %STRING0 and %STRING1 have signed a peace treaty.",
-    ctx->status, ctx->status_size
+static void ai_diplo_status_sign_treaty(ColonizeTurnContext* ctx, int nation_a, int nation_b) {
+  ai_diplo_status_pair_line(
+    ctx, nation_a, nation_b, "SIGNTREATY",
+    "The %STRING0 and %STRING1 have signed a peace treaty."
   );
-  popup_msg_strip_markup(ctx->status); /* status line: no {} coloring */
 }
 
 /* Full wartime 16-bit embargo mask (lift leftover bits; declare no longer sets). */

@@ -2,12 +2,7 @@
 
 #include <string.h>
 
-static void ui_button_put(ColonizeFramebuffer8* fb, int x, int y, uint8_t color) {
-  if (!fb || !fb->pixels || x < 0 || y < 0 || x >= fb->width || y >= fb->height) {
-    return;
-  }
-  fb->pixels[y * fb->width + x] = color;
-}
+#include "core/fb.h"
 
 void ui_button_draw_frame(
   ColonizeFramebuffer8* framebuffer,
@@ -24,12 +19,12 @@ void ui_button_draw_frame(
   const int x1 = x + w - 1;
   const int y1 = y + h - 1;
   for (int px = x; px <= x1; ++px) {
-    ui_button_put(framebuffer, px, y, dark);
-    ui_button_put(framebuffer, px, y1, light);
+    fb_put(framebuffer, px, y, dark);
+    fb_put(framebuffer, px, y1, light);
   }
   for (int py = y; py <= y1; ++py) {
-    ui_button_put(framebuffer, x, py, dark);
-    ui_button_put(framebuffer, x1, py, light);
+    fb_put(framebuffer, x, py, dark);
+    fb_put(framebuffer, x1, py, light);
   }
 }
 

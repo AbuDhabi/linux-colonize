@@ -16,6 +16,19 @@
 #include "core/units.h"
 #include "platform/diagnostics.h"
 
+/* Nibble slot gi (0..5) of a COL1 unit's cargo_item_0..5. */
+static void col1_unit_set_cargo_item(ColonizeCol1Unit* dst, int gi, int t) {
+  switch (gi) {
+    case 0: dst->cargo_item_0 = (uint8_t)t; break;
+    case 1: dst->cargo_item_1 = (uint8_t)t; break;
+    case 2: dst->cargo_item_2 = (uint8_t)t; break;
+    case 3: dst->cargo_item_3 = (uint8_t)t; break;
+    case 4: dst->cargo_item_4 = (uint8_t)t; break;
+    case 5: dst->cargo_item_5 = (uint8_t)t; break;
+    default: break;
+  }
+}
+
 static int col1_mask_is_water_mp(uint8_t mp_terrain) {
   const uint8_t t = (uint8_t)(mp_terrain & 0x1fu);
   return t == T_OCEAN || t == T_HIGH_SEAS;
@@ -2620,28 +2633,7 @@ bool col1_bridge_capture(
             t = 15;
           }
           dst->cargo_hold[gi] = (uint8_t)amt;
-          switch (gi) {
-            case 0:
-              dst->cargo_item_0 = (uint8_t)t;
-              break;
-            case 1:
-              dst->cargo_item_1 = (uint8_t)t;
-              break;
-            case 2:
-              dst->cargo_item_2 = (uint8_t)t;
-              break;
-            case 3:
-              dst->cargo_item_3 = (uint8_t)t;
-              break;
-            case 4:
-              dst->cargo_item_4 = (uint8_t)t;
-              break;
-            case 5:
-              dst->cargo_item_5 = (uint8_t)t;
-              break;
-            default:
-              break;
-          }
+          col1_unit_set_cargo_item(dst, gi, t);
           gi++;
         }
         /* Empty-hold sentinel: DOS starters carry 255 on Euro units only —
@@ -2990,14 +2982,7 @@ bool col1_bridge_capture(
                 t = 15;
               }
               dst->cargo_hold[gi] = (uint8_t)(amt > 255 ? 255 : amt);
-              switch (gi) {
-                case 0: dst->cargo_item_0 = (uint8_t)t; break;
-                case 1: dst->cargo_item_1 = (uint8_t)t; break;
-                case 2: dst->cargo_item_2 = (uint8_t)t; break;
-                case 3: dst->cargo_item_3 = (uint8_t)t; break;
-                case 4: dst->cargo_item_4 = (uint8_t)t; break;
-                default: dst->cargo_item_5 = (uint8_t)t; break;
-              }
+              col1_unit_set_cargo_item(dst, gi, t);
               gi++;
             }
             dst->holds_occupied = (uint8_t)gi;

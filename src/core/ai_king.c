@@ -3621,6 +3621,25 @@ static int ai_king_merc_offer_pending(const AiPopupState* st) {
   return st->open && st->current.tag == AI_POPUP_TAG_KING_MERC;
 }
 
+/* @MERCENARIES body + token-filled choice rows; returns the choice count. */
+static int ai_king_merc_fill_dialog(
+  ColonizeTurnContext* ctx,
+  const PopupMsgTokens* tok,
+  const char* fallback,
+  char* body,
+  char choice_buf[AI_POPUP_CHOICE_MAX][AI_POPUP_CHOICE_LEN]
+) {
+  popup_msg_fill(ctx->messages, "MERCENARIES", tok, fallback, body, AI_POPUP_BODY_LEN);
+  const ColonizeMsgSection* sec = assets_msg_find(ctx->messages, "MERCENARIES");
+  const int nch = popup_msg_choices(sec, choice_buf, AI_POPUP_CHOICE_MAX);
+  for (int i = 0; i < nch; ++i) {
+    char filled[AI_POPUP_CHOICE_LEN];
+    popup_msg_apply_tokens(filled, sizeof(filled), choice_buf[i], tok);
+    str_copy_trunc(choice_buf[i], sizeof(choice_buf[i]), filled);
+  }
+  return nch;
+}
+
 static void ai_king_merc_offer(ColonizeTurnContext* ctx) {
   if (!ctx || !ctx->col1_ok || !ctx->col1 || !ctx->units || !ctx->rng) {
     return;
@@ -3718,15 +3737,8 @@ static void ai_king_merc_offer(ColonizeTurnContext* ctx) {
       price
     );
     char body[AI_POPUP_BODY_LEN];
-    popup_msg_fill(ctx->messages, "MERCENARIES", &tok, fallback, body, sizeof(body));
     char choice_buf[AI_POPUP_CHOICE_MAX][AI_POPUP_CHOICE_LEN];
-    const ColonizeMsgSection* sec = assets_msg_find(ctx->messages, "MERCENARIES");
-    int nch = popup_msg_choices(sec, choice_buf, AI_POPUP_CHOICE_MAX);
-    for (int i = 0; i < nch; ++i) {
-      char filled[AI_POPUP_CHOICE_LEN];
-      popup_msg_apply_tokens(filled, sizeof(filled), choice_buf[i], &tok);
-      str_copy_trunc(choice_buf[i], sizeof(choice_buf[i]), filled);
-    }
+    const int nch = ai_king_merc_fill_dialog(ctx, &tok, fallback, body, choice_buf);
     /* GAME.TXT: No thank you. / Pay $ — map to Decline / Hire. */
     const char* labels[2];
     const int ids[] = {AI_KING_CHOICE_DECLINE, AI_KING_CHOICE_HIRE};
@@ -4111,15 +4123,8 @@ void ai_king_peacetime_merc_offer(ColonizeTurnContext* ctx) {
     seller_name, merc_list, price
   );
   char body[AI_POPUP_BODY_LEN];
-  popup_msg_fill(ctx->messages, "MERCENARIES", &tok, fallback, body, sizeof(body));
   char choice_buf[AI_POPUP_CHOICE_MAX][AI_POPUP_CHOICE_LEN];
-  const ColonizeMsgSection* sec = assets_msg_find(ctx->messages, "MERCENARIES");
-  int nch = popup_msg_choices(sec, choice_buf, AI_POPUP_CHOICE_MAX);
-  for (int i = 0; i < nch; ++i) {
-    char filled[AI_POPUP_CHOICE_LEN];
-    popup_msg_apply_tokens(filled, sizeof(filled), choice_buf[i], &tok);
-    str_copy_trunc(choice_buf[i], sizeof(choice_buf[i]), filled);
-  }
+  const int nch = ai_king_merc_fill_dialog(ctx, &tok, fallback, body, choice_buf);
   /* GAME.TXT: No thank you. / Pay {%NUMBER0$}. — DOS choice 2 = Pay. */
   const char* labels[2];
   char pay_fallback[32];

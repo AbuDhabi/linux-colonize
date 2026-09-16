@@ -131,21 +131,10 @@ bool units_load_types(ColonizeUnitPool* pool, const ColonizeMsgCatalog* names) {
   for (int i = 0; i < section->line_count && pool->type_count < COLONIZE_UNIT_TYPES_MAX; ++i) {
     char line[COLONIZE_MSG_LINE_LEN];
     snprintf(line, sizeof(line), "%s", section->lines[i]);
-    if (line[0] == ';' || line[0] == '\0') {
+    const char* p = str_split_name_row(line);
+    if (!p) {
       continue;
     }
-    char* semi = strchr(line, ';');
-    if (semi) {
-      *semi = '\0';
-    }
-    char* comma = strchr(line, ',');
-    if (!comma) {
-      continue;
-    }
-    *comma = '\0';
-    str_trim(line);
-
-    const char* p = comma + 1;
     int icon = 0;
     int movement = 0;
     int attack = 0;

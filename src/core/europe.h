@@ -649,6 +649,39 @@ int europe_dock_icon_sprite(const ColonizeUnitPool* units, const EuropeDockImmig
 int europe_passenger_icon_sprite(const ColonizeUnitPool* units, int type_index, int profession);
 
 /*
+ * @UNIT type of a transit-box passenger tag: -2 is the Artillery kit, an
+ * out-of-range tag falls back to Colonists (bugs.md 458).
+ */
+int europe_pax_type_index(const ColonizeUnitPool* units, int tag);
+
+/*
+ * Left-to-right, top-to-bottom icon flow inside an Expected / Bound / Loading
+ * water box (ships, each followed by its passengers). One layout for the
+ * hit test and the renderer so a click lands on the icon that was drawn
+ * (duplication audit round 2: the hit test used to skip passengers and so
+ * disagreed with the draw once any ship carried one).
+ */
+typedef struct EuropeIconFlow {
+  int box_x;
+  int box_y;
+  int box_w;
+  int box_h;
+  int x; /* top-left of the icon most recently placed */
+  int y;
+  int row_h;
+} EuropeIconFlow;
+/* False when the box has no room for a ship row under its two header lines. */
+bool europe_icon_flow_begin(
+  EuropeIconFlow* f, int box_x, int box_y, int box_w, int box_h, int line_h
+);
+/* Place the next w×h icon (wrapping rows); false when it would leave the box. */
+bool europe_icon_flow_place(EuropeIconFlow* f, int w, int h);
+/* Step past the icon just placed. */
+void europe_icon_flow_advance(EuropeIconFlow* f, int w);
+/* Sprite size with the 14×16 fallback the transit boxes always used. */
+void europe_icon_flow_size(const ColonizeSpriteSheet* icons, int sprite, int* w, int* h);
+
+/*
  * @UNIT display type for a dock entry, for unit_chrome's box corner. Reads
  * dos_type (what @ARMOPTIONS moves around), not the profession name, so an
  * armed/mounted immigrant gets its own corner. -1 only without a pool.

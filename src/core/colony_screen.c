@@ -1368,20 +1368,6 @@ static void colony_screen_blit_scaled_15_where_dest(
   }
 }
 
-/* Unconditional 1.5x blit — the "match any destination" sentinel. */
-static void colony_screen_blit_scaled_15(
-  const ColonizeSpriteSheet* sheet,
-  int sprite_index,
-  ColonizeFramebuffer8* framebuffer,
-  int dst_x,
-  int dst_y
-) {
-  colony_screen_blit_scaled_15_where_dest(
-    sheet, sprite_index, framebuffer, dst_x, dst_y, -1
-  );
-}
-
-
 static void colony_screen_debug_building_rect(
   const ColonyScreenView* view, ColonizeFramebuffer8* framebuffer, int sprite, int x, int y
 );
@@ -1655,95 +1641,19 @@ static void colony_screen_render_minimap(
       const int my = colony_y + dy;
       const int tile_x = origin_x + (dx + half) * tile;
       const int tile_y = origin_y + (dy + half) * tile;
-      const int underlayer = map_coast_underlayer_sprite_at(map, mx, my);
-      const int coast_layers = map_phys0_coast_layer_count(map, mx, my);
-      const int sprite = (underlayer >= 0) ? underlayer : map_terrain_sprite_at(map, mx, my);
-      if (sprite >= 0 && sprite < terrain->sprite_count) {
-        colony_screen_blit_scaled_15(terrain, sprite, framebuffer, tile_x, tile_y);
-      }
-      if (!phys0) {
-        continue;
-      }
-      if (underlayer < 0) {
-        const int transitions = map_land_transition_count(map, mx, my);
-        for (int ti = 0; ti < transitions; ++ti) {
-          const int mask = map_land_transition_mask_sprite_at(map, mx, my, ti);
-          const int fill = map_land_transition_fill_terrain_at(map, mx, my, ti);
-          if (mask >= 0 && mask < phys0->sprite_count) {
-            colony_screen_blit_scaled_15(phys0, mask, framebuffer, tile_x, tile_y);
-          }
-          if (fill >= 0 && fill < terrain->sprite_count) {
-            colony_screen_blit_scaled_15_where_dest(terrain, fill, framebuffer, tile_x, tile_y, 0);
-          }
-        }
-      }
-      const int forest = map_phys0_forest_sprite_at(map, mx, my);
-      if (forest >= 0 && forest < phys0->sprite_count) {
-        colony_screen_blit_scaled_15(phys0, forest, framebuffer, tile_x, tile_y);
-      }
-      const int layers = map_phys0_overlay_count(map, mx, my);
-      const int coast_end = (underlayer >= 0) ? coast_layers : layers;
-      for (int layer = 0; layer < coast_end; ++layer) {
-        const int overlay = map_phys0_overlay_sprite_at(map, mx, my, layer);
-        if (overlay < 0 || overlay >= phys0->sprite_count) {
+      ColonizeMapLayerCmd cmds[MAP_LAYER_CMDS_MAX];
+      const int ncmd = map_tile_layer_cmds(map, mx, my, 0, cmds, MAP_LAYER_CMDS_MAX);
+      for (int ci = 0; ci < ncmd; ++ci) {
+        const ColonizeMapLayerCmd* cmd = &cmds[ci];
+        const ColonizeSpriteSheet* sheet =
+          (cmd->sheet == MAP_LAYER_SHEET_TERRAIN) ? terrain : phys0;
+        if (!sheet || cmd->sprite < 0 || cmd->sprite >= sheet->sprite_count) {
           continue;
         }
-        int ox = 0;
-        int oy = 0;
-        map_phys0_overlay_offset_at(map, mx, my, layer, &ox, &oy);
-        colony_screen_blit_scaled_15(
-          phys0, overlay, framebuffer, tile_x + (ox * 3) / 2, tile_y + (oy * 3) / 2
+        colony_screen_blit_scaled_15_where_dest(
+          sheet, cmd->sprite, framebuffer, tile_x + (cmd->ox * 3) / 2,
+          tile_y + (cmd->oy * 3) / 2, cmd->into_holes ? 0 : -1
         );
-      }
-      if (underlayer >= 0) {
-        const int ocean_sprite = map_terrain_sprite_at(map, mx, my);
-        if (ocean_sprite >= 0 && ocean_sprite < terrain->sprite_count) {
-          colony_screen_blit_scaled_15_where_dest(
-            terrain, ocean_sprite, framebuffer, tile_x, tile_y, 0
-          );
-        }
-        for (int layer = coast_layers; layer < layers; ++layer) {
-          const int overlay = map_phys0_overlay_sprite_at(map, mx, my, layer);
-          if (overlay < 0 || overlay >= phys0->sprite_count) {
-            continue;
-          }
-          int ox = 0;
-          int oy = 0;
-          map_phys0_overlay_offset_at(map, mx, my, layer, &ox, &oy);
-          colony_screen_blit_scaled_15(
-            phys0, overlay, framebuffer, tile_x + (ox * 3) / 2, tile_y + (oy * 3) / 2
-          );
-        }
-      }
-      /* Runtime plow / road overlays after static MAPEDIT layers. */
-      {
-        const int plow = map_phys0_plow_sprite_at(map, mx, my);
-        if (plow >= 0 && plow < phys0->sprite_count) {
-          colony_screen_blit_scaled_15(phys0, plow, framebuffer, tile_x, tile_y);
-          /* bugs.md 402: special-resource icon re-blitted above plow art. */
-          const int rn = map_phys0_overlay_count(map, mx, my);
-          for (int rl = 0; rl < rn; ++rl) {
-            if (map_phys0_overlay_kind_at(map, mx, my, rl) != MAP_OVERLAY_KIND_RESOURCE) {
-              continue;
-            }
-            const int rs = map_phys0_overlay_sprite_at(map, mx, my, rl);
-            if (rs >= 0 && rs < phys0->sprite_count) {
-              int rox = 0;
-              int roy = 0;
-              map_phys0_overlay_offset_at(map, mx, my, rl, &rox, &roy);
-              colony_screen_blit_scaled_15(
-                phys0, rs, framebuffer, tile_x + (rox * 3) / 2, tile_y + (roy * 3) / 2
-              );
-            }
-          }
-        }
-        const int road_n = map_phys0_road_layer_count(map, mx, my);
-        for (int ri = 0; ri < road_n; ++ri) {
-          const int road = map_phys0_road_layer_sprite_at(map, mx, my, ri);
-          if (road >= 0 && road < phys0->sprite_count) {
-            colony_screen_blit_scaled_15(phys0, road, framebuffer, tile_x, tile_y);
-          }
-        }
       }
     }
   }
@@ -3093,6 +3003,25 @@ static void colony_screen_draw_people(
   );
 }
 
+typedef struct ColonyProdSlot {
+  int icon0;
+  int amount0;
+  uint8_t color0;
+  int icon1; /* < 0 => single value, cases 1/2 */
+  int amount1;
+  uint8_t color1;
+} ColonyProdSlot;
+
+/* "used + stored" white pair in one cell (Lumber->Hammers, craft inputs). */
+static void colony_screen_prod_slot_split(ColonyProdSlot* s, int c, int used, int stored) {
+  s->icon0 = COLONY_CARGO_ICON_BASE + c;
+  s->amount0 = used;
+  s->color0 = 15;
+  s->icon1 = COLONY_CARGO_ICON_BASE + c;
+  s->amount1 = stored;
+  s->color1 = 15;
+}
+
 static void colony_screen_draw_multifunction(
   ColonyScreenView* view,
   const ColonizeColonyPool* pool,
@@ -3148,14 +3077,6 @@ static void colony_screen_draw_multifunction(
      * improvement, this pane only, not a "we got DOS wrong" fix.
      */
     const ColonizeColonyPreview* p = &view->preview;
-    typedef struct ColonyProdSlot {
-      int icon0;
-      int amount0;
-      uint8_t color0;
-      int icon1; /* < 0 => single value, cases 1/2 */
-      int amount1;
-      uint8_t color1;
-    } ColonyProdSlot;
     ColonyProdSlot slots[COLONIZE_CARGO_COUNT + 1];
     int slot_count = 0;
     /* Food is shown on the People band's fish/grain meter, not repeated
@@ -3205,13 +3126,7 @@ static void colony_screen_draw_multifunction(
         }
         const int stored = produced - used;
         if (stored > 0) {
-          ColonyProdSlot* s = &slots[slot_count++];
-          s->icon0 = COLONY_CARGO_ICON_BASE + c;
-          s->amount0 = used;
-          s->color0 = 15;
-          s->icon1 = COLONY_CARGO_ICON_BASE + c;
-          s->amount1 = stored;
-          s->color1 = 15;
+          colony_screen_prod_slot_split(&slots[slot_count++], c, used, stored);
           continue;
         }
       }
@@ -3232,13 +3147,7 @@ static void colony_screen_draw_multifunction(
         const int used = produced - p->goods[c];
         const int stored = p->goods[c];
         if (used > 0 && stored > 0) {
-          ColonyProdSlot* s = &slots[slot_count++];
-          s->icon0 = COLONY_CARGO_ICON_BASE + c;
-          s->amount0 = used;
-          s->color0 = 15;
-          s->icon1 = COLONY_CARGO_ICON_BASE + c;
-          s->amount1 = stored;
-          s->color1 = 15;
+          colony_screen_prod_slot_split(&slots[slot_count++], c, used, stored);
           continue;
         }
       }

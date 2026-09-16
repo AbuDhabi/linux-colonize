@@ -15,6 +15,7 @@
 #include "platform/diagnostics.h"
 #include "core/ss.h"
 #include "core/strutil.h"
+#include "core/ui_button.h"
 #include "core/units.h"
 
 /* Sound hook (unit tests build europe.c without sound.c — same shape as
@@ -82,20 +83,6 @@ static int europe_pool_tier_roll(EuropePoolRng* r, int lo, int hi) {
 /* DOS's per-nation LFSR stand-in: 0..hi inclusive, no shared-stream draw. */
 static int europe_pool_expert_roll(EuropePoolRng* r, int hi) {
   return (int)(europe_rng_next(r->local) % (unsigned)(hi + 1));
-}
-
-static void europe_trim(char* s) {
-  char* start = s;
-  while (*start == ' ' || *start == '\t') {
-    ++start;
-  }
-  if (start != s) {
-    memmove(s, start, strlen(start) + 1);
-  }
-  size_t n = strlen(s);
-  while (n > 0 && (s[n - 1] == ' ' || s[n - 1] == '\t' || s[n - 1] == '\r')) {
-    s[--n] = '\0';
-  }
 }
 
 static bool europe_parse_int_field(const char** cursor, int* out) {
@@ -880,7 +867,7 @@ static bool europe_load_tables(EuropeScreen* eu, const ColonizeMsgCatalog* names
         continue;
       }
       *comma = '\0';
-      europe_trim(line);
+      str_trim(line);
       if (line[0] == '\0') {
         continue;
       }
@@ -948,7 +935,7 @@ static bool europe_load_tables(EuropeScreen* eu, const ColonizeMsgCatalog* names
         continue;
       }
       *comma = '\0';
-      europe_trim(line);
+      str_trim(line);
       const char* p = comma + 1;
       int cost = 0;
       if (!europe_parse_int_field(&p, &cost) || cost <= 0 || line[0] == '\0') {
@@ -975,7 +962,7 @@ static bool europe_load_tables(EuropeScreen* eu, const ColonizeMsgCatalog* names
         continue;
       }
       *c1 = '\0';
-      europe_trim(line);
+      str_trim(line);
       char* c2 = strchr(c1 + 1, ',');
       if (!c2) {
         ++job_index;
@@ -984,7 +971,7 @@ static bool europe_load_tables(EuropeScreen* eu, const ColonizeMsgCatalog* names
       *c2 = '\0';
       char expert[40];
       snprintf(expert, sizeof(expert), "%s", c1 + 1);
-      europe_trim(expert);
+      str_trim(expert);
       const char* p = c2 + 1;
       int tier = 0;
       int cost = 0;
@@ -1034,7 +1021,7 @@ void europe_set_nation(EuropeScreen* eu, int nation, const ColonizeMsgCatalog* n
     if (home && nation >= 0 && nation < home->line_count) {
       char line[COLONIZE_MSG_LINE_LEN];
       snprintf(line, sizeof(line), "%s", home->lines[nation]);
-      europe_trim(line);
+      str_trim(line);
       if (line[0] && line[0] != ';') {
         str_copy_trunc(eu->port_city, sizeof(eu->port_city), line);
       } else {
@@ -1046,7 +1033,7 @@ void europe_set_nation(EuropeScreen* eu, int nation, const ColonizeMsgCatalog* n
     if (reg && nation >= 0 && nation < reg->line_count) {
       char line[COLONIZE_MSG_LINE_LEN];
       snprintf(line, sizeof(line), "%s", reg->lines[nation]);
-      europe_trim(line);
+      str_trim(line);
       if (line[0] && line[0] != ';') {
         str_copy_trunc(eu->colony_region, sizeof(eu->colony_region), line);
       } else {
@@ -2725,6 +2712,23 @@ static int europe_1d44_term(int amount, int seller_is_human, int difficulty) {
   return (k * 16 * amount) / 100;
 }
 
+/* Clamp bid into @CARGO [low, high] (only when both were loaded), floor at 0,
+ * re-derive ask = bid + burden. Shared by the player-move and EOT tickers. */
+static void europe_quote_settle(EuropeCargoQuote* q) {
+  if (q->high > q->low) {
+    if (q->bid < q->low) {
+      q->bid = q->low;
+    }
+    if (q->bid > q->high) {
+      q->bid = q->high;
+    }
+  }
+  if (q->bid < 0) {
+    q->bid = 0;
+  }
+  q->ask = q->bid + q->burden;
+}
+
 void europe_apply_trade_volume(
   EuropeScreen* eu,
   struct ColonizeCol1Save* col1,
@@ -2820,18 +2824,7 @@ void europe_apply_trade_volume(
   }
   nr -= attrition;
   /* Only clamp when @CARGO low/high were loaded (high > low). */
-  if (q->high > q->low) {
-    if (q->bid < q->low) {
-      q->bid = q->low;
-    }
-    if (q->bid > q->high) {
-      q->bid = q->high;
-    }
-  }
-  if (q->bid < 0) {
-    q->bid = 0;
-  }
-  q->ask = q->bid + q->burden;
+  europe_quote_settle(q);
   /* bugs.md 231: a player transaction that moved the price gets the same
    * @PRICEUP/@PRICEDOWN dialog the EOT market tick shows — record the event;
    * game_loop drains it into a popup right after the sell/buy. */
@@ -3045,18 +3038,7 @@ void europe_tick_market_prices(
         }
       }
     }
-    if (q->high > q->low) {
-      if (q->bid < q->low) {
-        q->bid = q->low;
-      }
-      if (q->bid > q->high) {
-        q->bid = q->high;
-      }
-    }
-    if (q->bid < 0) {
-      q->bid = 0;
-    }
-    q->ask = q->bid + q->burden;
+    europe_quote_settle(q);
     if (nr < -32768) {
       nr = -32768;
     }
@@ -4352,7 +4334,7 @@ int europe_best_sell_hold(const EuropeScreen* eu, int harbor_index) {
 }
 
 static bool europe_in_rect(int mx, int my, int x, int y, int w, int h) {
-  return mx >= x && my >= y && mx < x + w && my < y + h;
+  return ui_rect_hit(x, y, w, h, mx, my);
 }
 
 static int europe_ship_icon_sprite(const ColonizeUnitPool* units, const EuropeHarborShip* ship) {
@@ -4365,6 +4347,62 @@ static int europe_ship_icon_sprite(const ColonizeUnitPool* units, const EuropeHa
   }
   const ColonizeUnitType* ut = units_type(units, ti);
   return ut ? ut->icon_sprite : -1;
+}
+
+int europe_pax_type_index(const ColonizeUnitPool* units, int tag) {
+  if (tag == -2) {
+    const int t = units_find_type(units, "Artillery");
+    return t >= 0 ? t : 0;
+  }
+  if (!units || tag < 0 || tag >= units->type_count) {
+    const int t = units_find_type(units, "Colonists");
+    return t >= 0 ? t : 0;
+  }
+  return tag;
+}
+
+bool europe_icon_flow_begin(
+  EuropeIconFlow* f, int box_x, int box_y, int box_w, int box_h, int line_h
+) {
+  if (!f) {
+    return false;
+  }
+  line_h = line_h > 0 ? line_h : 8;
+  const int header_h = EUROPE_TRANSIT_HEADER_LINES * line_h;
+  f->box_x = box_x;
+  f->box_y = box_y;
+  f->box_w = box_w;
+  f->box_h = box_h;
+  f->x = box_x + 3;
+  f->y = box_y + 2 + header_h + 10;
+  f->row_h = 0;
+  const int ship_area_h = box_y + box_h - f->y - 1;
+  return ship_area_h >= 8;
+}
+
+bool europe_icon_flow_place(EuropeIconFlow* f, int w, int h) {
+  if (f->x + w > f->box_x + f->box_w - 2) {
+    f->x = f->box_x + 3;
+    f->y += f->row_h + 1;
+    f->row_h = 0;
+    if (f->y + h > f->box_y + f->box_h - 1) {
+      return false;
+    }
+  }
+  if (h > f->row_h) {
+    f->row_h = h;
+  }
+  return true;
+}
+
+void europe_icon_flow_advance(EuropeIconFlow* f, int w) {
+  f->x += w + 2;
+}
+
+void europe_icon_flow_size(const ColonizeSpriteSheet* icons, int sprite, int* w, int* h) {
+  const ColonizeSprite* sp = &icons->sprites[sprite];
+  *w = sp->width > 0 ? sp->width : 14;
+  *h = sp->height > 0 ? sp->height : 16;
 }
 
 static int europe_transit_ship_at(
@@ -4383,40 +4421,46 @@ static int europe_transit_ship_at(
   if (!ships || count <= 0 || !units || !unit_icons || !europe_in_rect(mx, my, box_x, box_y, box_w, box_h)) {
     return -1;
   }
-  const int line_h = transit_line_h > 0 ? transit_line_h : 8;
-  const int header_h = EUROPE_TRANSIT_HEADER_LINES * line_h;
-  const int ship_y0 = box_y + 2 + header_h + 10;
-  const int ship_area_h = box_y + box_h - ship_y0 - 1;
-  if (ship_area_h < 8) {
+  EuropeIconFlow f;
+  if (!europe_icon_flow_begin(&f, box_x, box_y, box_w, box_h, transit_line_h)) {
     return -1;
   }
-
-  int x = box_x + 3;
-  int y = ship_y0;
-  int row_h = 0;
   for (int i = 0; i < count; ++i) {
     const int sprite = europe_ship_icon_sprite(units, &ships[i]);
     if (sprite < 0 || sprite >= unit_icons->sprite_count) {
       continue;
     }
-    const ColonizeSprite* sp = &unit_icons->sprites[sprite];
-    const int sw = sp->width > 0 ? sp->width : 14;
-    const int sh = sp->height > 0 ? sp->height : 16;
-    if (x + sw > box_x + box_w - 2) {
-      x = box_x + 3;
-      y += row_h + 1;
-      row_h = 0;
-      if (y + sh > box_y + box_h - 1) {
-        break;
-      }
+    int sw = 0;
+    int sh = 0;
+    europe_icon_flow_size(unit_icons, sprite, &sw, &sh);
+    if (!europe_icon_flow_place(&f, sw, sh)) {
+      break;
     }
-    if (sh > row_h) {
-      row_h = sh;
-    }
-    if (mx >= x && my >= y && mx < x + sw && my < y + sh) {
+    if (europe_in_rect(mx, my, f.x, f.y, sw, sh)) {
       return i;
     }
-    x += sw + 2;
+    europe_icon_flow_advance(&f, sw);
+    /* Passengers ride along after their ship (see the renderer); a click on
+     * one selects the ship — they are cargo, the ship is what the player
+     * clicks. */
+    for (int c = 0; c < ships[i].cargo_count && c < EUROPE_SHIP_CARGO_MAX; ++c) {
+      const int pax_type = europe_pax_type_index(units, ships[i].cargo_types[c]);
+      const int pax_sprite =
+        europe_passenger_icon_sprite(units, pax_type, ships[i].cargo_professions[c]);
+      if (pax_sprite < 0 || pax_sprite >= unit_icons->sprite_count) {
+        continue;
+      }
+      int pw = 0;
+      int ph = 0;
+      europe_icon_flow_size(unit_icons, pax_sprite, &pw, &ph);
+      if (!europe_icon_flow_place(&f, pw, ph)) {
+        break;
+      }
+      if (europe_in_rect(mx, my, f.x, f.y, pw, ph)) {
+        return i;
+      }
+      europe_icon_flow_advance(&f, pw);
+    }
   }
   /* Clicked the box but not an icon — use first ship. */
   return count > 0 ? 0 : -1;

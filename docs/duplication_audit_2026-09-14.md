@@ -989,3 +989,65 @@ TT-1..5 (test_ai_euro_expand/war boilerplate — needs re-baselining), TT-17/18 
 - In a shared tree, a red test or a pixel diff is more often another agent's in-flight edit than your own; A/B against a `git archive HEAD` build before root-causing, and confirm the binary actually relinked.
 - `colony_craft.c/h` are CRLF too (not in the earlier CRLF list); `turn.h` is LF.
 - Adding a call from a `COLONIZE_SLIM_SOURCES` file to a symbol outside that list breaks the four slim unit targets at link (hit twice: `colony_craft_recipe_for_building`, `map_panel_tile_rect_screen_phase`).
+
+## Round 2 — 2026-09-15 sweep
+
+Method: `jscpd --min-lines 12 --min-tokens 70` over `src/core` + `tools` (44 clones, 0.44 %
+of lines at HEAD) plus a normalised-body scan for identical functions across files and a
+grep for the private fb-family copies the fb.h migration table listed. Result after the pass:
+22 clones / 0.22 %; `git diff --stat` 24 files, +1231 / −1574. ctest 61/61 Debug and
+Release; the 16 render-tool PPMs (report ×11, colony ×3, panel ×2) are byte-identical to the
+HEAD build.
+
+### Merged
+
+| Leftover | Now |
+|---|---|
+| `unit_stack.c` private `unit_stack_profession_label` (units.c's comment already claimed it was folded) | `units_profession_label` (units.c is in `COLONIZE_SLIM_SOURCES`, so the link excuse was stale) |
+| `popup.c` `popup_put/_hline/_vline/_fill_rect`, `ui_button.c` `ui_button_put`, `reports.c` `reports_draw_hline/_vline/_rect_outline/_score_fill_rect` — the last private copies from the fb.h table | `fb_*`; reports.c keeps three 3-line exclusive-end adapters, popup.c one inclusive-corner adapter |
+| `popup_tile_rect` ≡ `map_panel_tile_rect` (origin-phase WOODTILE tiling) | `ss_tile_rect` in ss.c; `map_panel_tile_rect` is a wrapper. `map_menu_tile_rect_screen_phase` is a different pattern (screen-phase modulo) and stays |
+| `colony_trim`, `europe_trim` | `str_trim` |
+| `colony_craft_clamp`, `turn_clamp_stock` (0..65535) | `clamp_int(v, 0, 65535)` |
+| `pick_music_strip_quotes` ≡ `dump_gsound_wav.c dump_strip_quotes`; `dump_trim` | `str_strip_quotes` (new), `str_trim` |
+| NAMES row parse prologue in `units_load_types`, `colonies_load_names` (@BUILDING), `unit_chrome_load_orders` (copy, `;` strip, cut at `,`, trim) | `str_split_name_row` (new) |
+| `europe_in_rect` | one-liner over `ui_rect_hit` |
+| europe.c bid clamp + `ask = bid + burden` in the player-move ticker and the EOT ticker | `europe_quote_settle` |
+| game_loop.c Shift+drag @HOWMUCH4 block ≡ `game_europe_open_buy_prompt` | `game_europe_open_buy_prompt_for(game, hidx, cargo)`; the no-arg form wraps it |
+| game_loop.c @HOWMUCH1 prompt (colony drag path and keyboard `+`) | `game_colony_open_load_prompt` |
+| map_gen.c blob-label union (north-neighbour and east-neighbour arms) | `map_gen_label_merge` |
+| ai_euro.c 20e6 hold-load loop (berth-arrival arm and hauler-pickup arm) | `ai_euro_20e6_load_holds` |
+| ai_euro.c landfall-from-any-own-ship scan (three sites) | `ai_euro_recover_nation_landfall` |
+| ai_euro.c pioneer-on-found-tile scan (two sites) | `ai_euro_pioneer_ashore_at` |
+| ai_euro.c goto-then-drain-then-park (two sites) | `ai_euro_drain_goto` |
+| `ai_euro_nation_settler_aboard` / `_pioneer_aboard` | one `ai_euro_nation_aboard(ctx, n, or_soldier)` |
+| `ai_diplo_status_declare_war` / `_sign_treaty` | `ai_diplo_status_pair_line(tag, fallback)` |
+| ai_king.c @MERCENARIES body + choice-fill (WoI offer and peacetime offer) | `ai_king_merc_fill_dialog` |
+| colony_screen.c production "used + stored" slot pair (Lumber→Hammers and craft-input cases) | `colony_screen_prod_slot_split`; `ColonyProdSlot` hoisted to file scope |
+| reports.c labor-report "@UNIT type ≤ 5 is a person" filter + comment (grid and detail collectors) | `reports_labor_unit_is_person` |
+| `colonies_get` body ≡ `colonies_get_mut` | const form calls the mutable one |
+| col1_bridge.c `cargo_item_0..5` switch (unit export and Europe-ship export) | `col1_unit_set_cargo_item` |
+
+### Kept split (round 2)
+
+- `cheat_list_render` / `pick_music_render`, `howmuch_render` / `name_entry_render`: thin
+  wrappers over `popup_list_render` / `popup_prompt_frame`; the "duplicate" is the argument list.
+- `combat_land_engage` / `combat_naval_engage`, `units_resolve_land_combat_ff` / `_naval_`:
+  DOS bodies with a shared 8-line preamble.
+- `ai_king_independence_declared` ≡ `combat_woi_active`: combat_strength.c is a slim-target
+  source and ai_king.c is stubbed there; both are 5 lines with distinct DOS citations.
+- map_gen.c humidity tail in the L→R and R→L passes, `MAPGEN_STAGE_DIAG` blocks: generator
+  is DOS-literal and golden-locked.
+- `ai_contact_speak_with_chief` / `_demand_tribute`, `ai_contact_missionary_*`: loop skeletons
+  around different bodies.
+
+### Round 2b — the three leads, closed the same day
+
+| Lead | Now |
+|---|---|
+| Europe transit icon flow: `europe_transit_ship_at` (hit test) vs `europe_render_transit_box` (draw) | `EuropeIconFlow` + `europe_icon_flow_begin/place/advance/size` in europe.c; `europe_pax_type_index` moved out of game_loop.c and exported. **Behaviour fix:** the hit test never stepped over passengers, so once a ship carried one every later ship's click box sat left of its drawn icon; the hit test now walks the same sequence and a click on a passenger selects its ship. |
+| IN-18 terrain compositing (game_loop viewport vs colony minimap) | `map_tile_layer_cmds(map, x, y, hidden_terrain_phase, out, max)` in map.c emits the paint-ordered layer list (base, land-edge mask + fill, forest, overlays with offsets, masked ocean + estuary, plow + resource re-blit, roads; peel phases applied). game_loop dispatches on `sheet` / `into_holes` / `offset` to its three blitters, the minimap to its 1.5× blitter with `into_holes ? 0 : -1`. `game_draw_overlay_layers` and `colony_screen_blit_scaled_15` retired. Fog stays viewer-side. colony PPMs identical; the viewport has no render tool — reviewed as a transcription (the `offset` flag preserves the centred-vs-offset blit split). |
+| TT-1..5 test boilerplate | `tests/common/ai_fixture.h`: `fx_map_alloc(map, w, h, fill, with_seen)`, `fx_map_free`, `fx_units_init`, `fx_colonies_init`, `fx_colony_add(pool, nation, x, y, pop)`; both files now use `test_fail.h` with `TEST_NAME`. Regex pass: 149 map blocks, 194 unit inits, 190 colony inits, 54 standard single-colony blocks, 780 free trios. test_ai_euro_expand.c 17824 → 15169 lines, test_ai_euro_war.c 10256 → 8700. No re-baseline was needed: bodies are byte-identical, ctest 61/61 Debug + Release, both binaries valgrind-clean. |
+
+Not converted: colony blocks that deviate from the standard shape (multi-colony loops, enemy
+colonies, `own`/`enemy` pairs without `building_in_production`), and 23 lone
+`free(map.terrain);` sites (maps without the other planes).

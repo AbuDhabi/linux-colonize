@@ -1661,6 +1661,33 @@ static void map_gen_assign_euro_landfalls(
   map->euro_landfalls_ok = 1;
 }
 
+/* Union two blob labels: the lower id absorbs the higher (counts folded,
+ * every cell relabelled through row y). Returns the surviving label. */
+static uint16_t map_gen_label_merge(
+  uint16_t* labels, int* counts, int w, int n, int y, uint16_t a, uint16_t b
+) {
+  uint16_t hi = b;
+  uint16_t lo = a;
+  if ((int)b < (int)a) {
+    hi = a;
+    lo = b;
+  }
+  counts[lo] += counts[hi];
+  counts[hi] = 0;
+  for (int yy = 1; yy <= y; ++yy) {
+    for (int xx = 1; xx <= w; ++xx) {
+      const int j = yy * w + xx;
+      if (j >= n) {
+        continue;
+      }
+      if (labels[j] == hi) {
+        labels[j] = lo;
+      }
+    }
+  }
+  return lo;
+}
+
 /*
  * FUN_67bf_0000 — connected components for water (pass 1) then land (pass 0).
  * Scan y=1..h-2, x=w-2..1 (RTL). Northern 3 neighbours + prior-in-scan reuse
@@ -1713,26 +1740,7 @@ static void map_gen_assign_continents(ColonizeWorldMap* map) {
             continue;
           }
           if (cur != 0 && nb != cur) {
-            uint16_t hi = nb;
-            uint16_t lo = cur;
-            if ((int)nb < (int)cur) {
-              hi = cur;
-              lo = nb;
-            }
-            counts[lo] += counts[hi];
-            counts[hi] = 0;
-            for (int yy = 1; yy <= y; ++yy) {
-              for (int xx = 1; xx <= w; ++xx) {
-                const int j = yy * w + xx;
-                if (j >= n) {
-                  continue;
-                }
-                if (labels[j] == hi) {
-                  labels[j] = lo;
-                }
-              }
-            }
-            cur = lo;
+            cur = map_gen_label_merge(labels, counts, w, n, y, cur, nb);
           } else {
             cur = nb;
           }
@@ -1749,26 +1757,7 @@ static void map_gen_assign_continents(ColonizeWorldMap* map) {
             if (cur == 0) {
               cur = east;
             } else if (east != cur) {
-              uint16_t hi = east;
-              uint16_t lo = cur;
-              if ((int)east < (int)cur) {
-                hi = cur;
-                lo = east;
-              }
-              counts[lo] += counts[hi];
-              counts[hi] = 0;
-              for (int yy = 1; yy <= y; ++yy) {
-                for (int xx = 1; xx <= w; ++xx) {
-                  const int j = yy * w + xx;
-                  if (j >= n) {
-                    continue;
-                  }
-                  if (labels[j] == hi) {
-                    labels[j] = lo;
-                  }
-                }
-              }
-              cur = lo;
+              cur = map_gen_label_merge(labels, counts, w, n, y, cur, east);
             }
           }
         }

@@ -29,10 +29,10 @@
 #include <stdlib.h>
 #include <string.h>
 
-static int fail(const char* msg) {
-  fprintf(stderr, "unit_ai_euro_expand: FAIL %s\n", msg);
-  return 1;
-}
+#define TEST_NAME "unit_ai_euro_expand"
+#include "../common/ai_fixture.h"
+#include "../common/test_fail.h"
+
 
 /*
  * NAMES.TXT @CARGO start_lo column — the bid every nation's
@@ -100,36 +100,21 @@ static int unit_scout_explore(void) {
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Scout");
   units.types[0].movement = 4;
   units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
-  ColonizeColony* c = &colonies.colonies[0];
-  c->id = 0;
-  c->active = true;
-  c->nation_id = nation;
-  c->x = 4;
-  c->y = 4;
-  c->population = 3;
-  c->colonist_count = 3;
+  fx_colonies_init(&colonies);
+  ColonizeColony* c = fx_colony_add(&colonies, nation, 4, 4, 3);
   c->stock[COLONIZE_CARGO_FOOD] = 40;
-  c->building_in_production = -1;
-  colonies.colony_count = 1;
-  colonies.next_id = 1;
 
   const int sid = units_spawn(&units, 0, 5, 5);
   ColonizeUnit* scout = units_get(&units, sid);
   if (!scout) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("spawn scout");
   }
   scout->nation_id = nation;
@@ -148,9 +133,7 @@ static int unit_scout_explore(void) {
   col1.head.tribe_count = 1;
   col1.tribe = calloc(1, sizeof(ColonizeCol1Tribe));
   if (!col1.tribe) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("alloc tribe");
   }
   col1.tribe[0].x = (uint8_t)tribe_x;
@@ -213,16 +196,12 @@ static int unit_scout_explore(void) {
       ring_md
     );
     free(col1.tribe);
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected Scout AI_MOVE toward CONTACT ring (MD 2–4) around tribe");
   }
 
   free(col1.tribe);
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(
     stderr,
     "unit_ai_euro_expand: CONTACT scout-ring ok (goto=(%d,%d) pos=(%d,%d) ring_md=%d)\n",
@@ -258,37 +237,22 @@ static int unit_pioneer_tools_delivery(void) {
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Pioneer");
   units.types[0].movement = 3;
   units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
-  ColonizeColony* c = &colonies.colonies[0];
-  c->id = 0;
-  c->active = true;
-  c->nation_id = nation;
-  c->x = 4;
-  c->y = 4;
-  c->population = 3;
-  c->colonist_count = 3;
+  fx_colonies_init(&colonies);
+  ColonizeColony* c = fx_colony_add(&colonies, nation, 4, 4, 3);
   c->stock[COLONIZE_CARGO_TOOLS] = 5; /* < 20 → tools_short */
   c->stock[COLONIZE_CARGO_FOOD] = 40;
-  c->building_in_production = -1;
-  colonies.colony_count = 1;
-  colonies.next_id = 1;
 
   const int pid = units_spawn(&units, 0, 4, 4); /* on colony tile */
   ColonizeUnit* pioneer = units_get(&units, pid);
   if (!pioneer) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("spawn pioneer on colony");
   }
   pioneer->nation_id = nation;
@@ -318,15 +282,11 @@ static int unit_pioneer_tools_delivery(void) {
       tools_before,
       tools_after
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected Pioneer tools delivery +10");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(
     stderr,
     "unit_ai_euro_expand: tools-delivery ok (tools %d→%d)\n",
@@ -351,19 +311,8 @@ static int unit_scout_fog_prefer_unseen(void) {
   const int tribe_y = 10;
 
   ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  map.seen = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3 || !map.seen) {
+  if (!fx_map_alloc(&map, 16, 16, 1, true)) {
     return fail("fog-scout alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 1;
   }
 
   /* Mark toward-scout ring tiles (closer to scout at 5,5) as seen; leave
@@ -387,37 +336,21 @@ static int unit_scout_fog_prefer_unseen(void) {
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Scout");
   units.types[0].movement = 4;
   units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
-  ColonizeColony* c = &colonies.colonies[0];
-  c->id = 0;
-  c->active = true;
-  c->nation_id = nation;
-  c->x = 4;
-  c->y = 4;
-  c->population = 3;
-  c->colonist_count = 3;
+  fx_colonies_init(&colonies);
+  ColonizeColony* c = fx_colony_add(&colonies, nation, 4, 4, 3);
   c->stock[COLONIZE_CARGO_FOOD] = 40;
-  c->building_in_production = -1;
-  colonies.colony_count = 1;
-  colonies.next_id = 1;
 
   const int sid = units_spawn(&units, 0, 5, 5);
   ColonizeUnit* scout = units_get(&units, sid);
   if (!scout) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
-    free(map.seen);
+    fx_map_free(&map);
     return fail("fog-scout spawn");
   }
   scout->nation_id = nation;
@@ -436,10 +369,7 @@ static int unit_scout_fog_prefer_unseen(void) {
   col1.head.tribe_count = 1;
   col1.tribe = calloc(1, sizeof(ColonizeCol1Tribe));
   if (!col1.tribe) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
-    free(map.seen);
+    fx_map_free(&map);
     return fail("fog-scout tribe");
   }
   col1.tribe[0].x = (uint8_t)tribe_x;
@@ -491,18 +421,12 @@ static int unit_scout_fog_prefer_unseen(void) {
       ok_ring ? (int)map_tile_seen_by(&map, contact_x, contact_y, nation) : -1
     );
     free(col1.tribe);
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
-    free(map.seen);
+    fx_map_free(&map);
     return fail("expected CONTACT ring on unseen FoW tile");
   }
 
   free(col1.tribe);
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
-  free(map.seen);
+  fx_map_free(&map);
   fprintf(
     stderr,
     "unit_ai_euro_expand: fog CONTACT prefer-unseen ok (goto=(%d,%d))\n",
@@ -521,24 +445,12 @@ static int unit_multistep_military(void) {
   const int foe = 2;
 
   ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 16, 16, 1, false)) {
     return fail("multistep alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 1;
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Soldier");
   units.types[0].movement = 4;
@@ -547,8 +459,7 @@ static int unit_multistep_military(void) {
   units.types[0].defense = 2;
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
+  fx_colonies_init(&colonies);
   ColonizeColony* c = &colonies.colonies[0];
   c->id = 0;
   c->active = true;
@@ -575,9 +486,7 @@ static int unit_multistep_military(void) {
   const int sid = units_spawn(&units, 0, 4, 2);
   ColonizeUnit* soldier = units_get(&units, sid);
   if (!soldier) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("multistep spawn soldier");
   }
   soldier->nation_id = nation;
@@ -618,9 +527,7 @@ static int unit_multistep_military(void) {
   ai_euro_dispatcher_turn(&ctx, nation);
   soldier = units_get(&units, sid);
   if (!soldier || !soldier->active) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("multistep soldier inactive");
   }
   const int advanced = soldier->x - x0;
@@ -634,15 +541,11 @@ static int unit_multistep_military(void) {
       soldier->goto_x,
       soldier->goto_y
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected MILITARY MP-drain advance of ≥3 tiles");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(
     stderr,
     "unit_ai_euro_expand: MILITARY MP-drain ok (x %d→%d)\n",
@@ -661,24 +564,12 @@ static int unit_de_witt_wagon_foreign_trade(void) {
   const int foreign = 1;
 
   ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
-  map.width = 12;
-  map.height = 12;
-  map.tile_count = 144;
-  map.terrain = calloc(144, 1);
-  map.layer2 = calloc(144, 1);
-  map.layer3 = calloc(144, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 12, 12, 1, false)) {
     return fail("de Witt wagon alloc map");
-  }
-  for (int i = 0; i < 144; ++i) {
-    map.terrain[i] = 1;
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
   memset(units.types, 0, sizeof(units.types));
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Wagon Train");
@@ -687,8 +578,7 @@ static int unit_de_witt_wagon_foreign_trade(void) {
   units.types[0].cargo = 2;
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
+  fx_colonies_init(&colonies);
   ColonizeColony* home = &colonies.colonies[0];
   home->id = 0;
   home->active = true;
@@ -717,9 +607,7 @@ static int unit_de_witt_wagon_foreign_trade(void) {
   const int wid = units_spawn(&units, 0, 5, 5);
   ColonizeUnit* wagon = units_get(&units, wid);
   if (!wagon) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("de Witt wagon spawn");
   }
   wagon->nation_id = nation;
@@ -753,9 +641,7 @@ static int unit_de_witt_wagon_foreign_trade(void) {
   ai_goals_reset();
   ai_euro_dispatcher_turn(&ctx, nation);
   if (fr->stock[COLONIZE_CARGO_TRADE_GOODS] != 40) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("de Witt wagon must not load without FF");
   }
 
@@ -765,9 +651,7 @@ static int unit_de_witt_wagon_foreign_trade(void) {
     (uint8_t)(1u << (FF_JAN_DE_WITT % 8));
   wagon = units_get(&units, wid);
   if (!wagon) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("de Witt wagon despawned");
   }
   wagon->x = 5;
@@ -787,9 +671,7 @@ static int unit_de_witt_wagon_foreign_trade(void) {
       }
     }
     if (got != 10 || fr->stock[COLONIZE_CARGO_TRADE_GOODS] != 30) {
-      free(map.terrain);
-      free(map.layer2);
-      free(map.layer3);
+      fx_map_free(&map);
       fprintf(
         stderr,
         "de Witt wagon got=%d foreign_stock=%d\n",
@@ -813,9 +695,7 @@ static int unit_de_witt_wagon_foreign_trade(void) {
   wagon = units_get(&units, wid);
   if (!wagon || wagon->orders != UNITS_ORDER_AI_MOVE || wagon->goto_x != 2 ||
       wagon->goto_y != 2) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     fprintf(
       stderr,
       "de Witt delivery goto orders=%d goto=(%d,%d)\n",
@@ -844,9 +724,7 @@ static int unit_de_witt_wagon_foreign_trade(void) {
       }
     }
     if (left != 0 || home->stock[COLONIZE_CARGO_TRADE_GOODS] != home_tg_before + 10) {
-      free(map.terrain);
-      free(map.layer2);
-      free(map.layer3);
+      fx_map_free(&map);
       fprintf(
         stderr,
         "de Witt unload left=%d home_tg=%d (want +10 from %d)\n",
@@ -858,9 +736,7 @@ static int unit_de_witt_wagon_foreign_trade(void) {
     }
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(stderr, "unit_ai_euro_expand: de Witt wagon foreign TRADE_GOODS + deliver ok\n");
   return 0;
 }
@@ -879,24 +755,12 @@ static int unit_5d04_buy_caravel_colonies_ge6(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 16, 16, 1, false)) {
     return fail("buy-caravel-ge6 alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 1;
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
   units.type_count = 2;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Pioneer");
   units.types[0].movement = 3;
@@ -907,8 +771,7 @@ static int unit_5d04_buy_caravel_colonies_ge6(void) {
   units.types[1].cargo = 2;
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
+  fx_colonies_init(&colonies);
   for (int i = 0; i < 6; ++i) {
     ColonizeColony* c = &colonies.colonies[i];
     c->id = i;
@@ -990,15 +853,11 @@ static int unit_5d04_buy_caravel_colonies_ge6(void) {
       any_pax,
       gold
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected Europe Caravel buy at colonies>=6 (no settle hire)");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(
     stderr, "unit_ai_euro_expand: 5d04 buy-caravel-colonies-ge6 ok (gold=%u)\n", gold
   );
@@ -1009,24 +868,12 @@ static int unit_5d04_buy_caravel_no_ship(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 16, 16, 1, false)) {
     return fail("buy-caravel alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 1;
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
   units.type_count = 2;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Pioneer");
   units.types[0].movement = 3;
@@ -1037,21 +884,10 @@ static int unit_5d04_buy_caravel_no_ship(void) {
   units.types[1].cargo = 2;
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
-  ColonizeColony* c = &colonies.colonies[0];
-  c->id = 0;
-  c->active = true;
-  c->nation_id = nation;
-  c->x = 4;
-  c->y = 4;
-  c->population = 2;
-  c->colonist_count = 2;
+  fx_colonies_init(&colonies);
+  ColonizeColony* c = fx_colony_add(&colonies, nation, 4, 4, 2);
   c->stock[COLONIZE_CARGO_FOOD] = 40;
   c->stock[COLONIZE_CARGO_TOOLS] = 30; /* no tools-cargo pressure */
-  c->building_in_production = -1;
-  colonies.colony_count = 1;
-  colonies.next_id = 1;
 
   /* No ships — planning must purchase Caravel before hire matrix can run. */
 
@@ -1123,15 +959,11 @@ static int unit_5d04_buy_caravel_no_ship(void) {
       any_pax,
       gold
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected one Europe Caravel purchase, no hire pax");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(
     stderr, "unit_ai_euro_expand: 5d04 buy-caravel-no-ship ok (gold=%u)\n", gold
   );
@@ -1147,24 +979,12 @@ static int unit_5d04_buy_frigate_at_war(void) {
   const int foe = 2;
 
   ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 16, 16, 1, false)) {
     return fail("buy-frigate alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 1;
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
   units.type_count = 5;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Pioneer");
   units.types[0].movement = 3;
@@ -1187,8 +1007,7 @@ static int unit_5d04_buy_frigate_at_war(void) {
   units.types[4].cargo = 4;
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
+  fx_colonies_init(&colonies);
   for (int i = 0; i < 3; ++i) {
     ColonizeColony* c = &colonies.colonies[i];
     c->id = i;
@@ -1272,15 +1091,11 @@ static int unit_5d04_buy_frigate_at_war(void) {
       other_ship,
       gold
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected Frigate purchase when at war with gold>=5000");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(stderr, "unit_ai_euro_expand: 5d04 buy-frigate-at-war ok (gold=%u)\n", gold);
   return 0;
 }
@@ -1294,24 +1109,12 @@ static int unit_5d04_buy_galleon_at_war(void) {
   const int foe = 2;
 
   ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 16, 16, 1, false)) {
     return fail("buy-galleon alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 1;
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
   units.type_count = 4;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Pioneer");
   units.types[0].movement = 3;
@@ -1330,8 +1133,7 @@ static int unit_5d04_buy_galleon_at_war(void) {
   units.types[3].cargo = 6;
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
+  fx_colonies_init(&colonies);
   for (int i = 0; i < 3; ++i) {
     ColonizeColony* c = &colonies.colonies[i];
     c->id = i;
@@ -1414,15 +1216,11 @@ static int unit_5d04_buy_galleon_at_war(void) {
       other_ship,
       gold
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected Galleon purchase when at war");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(stderr, "unit_ai_euro_expand: 5d04 buy-galleon-at-war ok (gold=%u)\n", gold);
   return 0;
 }
@@ -1435,24 +1233,12 @@ static int unit_5d04_buy_merchantman_cargo_pressure(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 16, 16, 1, false)) {
     return fail("buy-merchantman alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 1;
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
   units.type_count = 3;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Pioneer");
   units.types[0].movement = 3;
@@ -1467,8 +1253,7 @@ static int unit_5d04_buy_merchantman_cargo_pressure(void) {
   units.types[2].cargo = 4;
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
+  fx_colonies_init(&colonies);
   for (int i = 0; i < 3; ++i) {
     ColonizeColony* c = &colonies.colonies[i];
     c->id = i;
@@ -1544,15 +1329,11 @@ static int unit_5d04_buy_merchantman_cargo_pressure(void) {
       caravel_n,
       gold
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected Merchantman purchase under cargo pressure");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(
     stderr, "unit_ai_euro_expand: 5d04 buy-merchantman-cargo ok (gold=%u)\n", gold
   );
@@ -1567,24 +1348,12 @@ static int unit_5d04_buy_caravel_ship_full(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 16, 16, 1, false)) {
     return fail("buy-caravel-full alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 1;
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
   units.type_count = 2;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Pioneer");
   units.types[0].movement = 3;
@@ -1595,8 +1364,7 @@ static int unit_5d04_buy_caravel_ship_full(void) {
   units.types[1].cargo = 1; /* one pax → full after boarding one */
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
+  fx_colonies_init(&colonies);
   /* tools_short high so hire wants a Pioneer after second Caravel buy. */
   for (int i = 0; i < 3; ++i) {
     ColonizeColony* c = &colonies.colonies[i];
@@ -1617,9 +1385,7 @@ static int unit_5d04_buy_caravel_ship_full(void) {
   const int full_id = units_spawn_allow_stack(&units, 1, 200, 100);
   ColonizeUnit* full = units_get(&units, full_id);
   if (!full) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("buy-caravel-full spawn ship");
   }
   full->nation_id = nation;
@@ -1629,9 +1395,7 @@ static int unit_5d04_buy_caravel_ship_full(void) {
     const int pax_id = units_spawn_allow_stack(&units, 0, 200, 100);
     ColonizeUnit* pax = units_get(&units, pax_id);
     if (!pax || !units_board_stacked(&units, pax_id, full_id)) {
-      free(map.terrain);
-      free(map.layer2);
-      free(map.layer3);
+      fx_map_free(&map);
       return fail("buy-caravel-full board filler");
     }
     pax->nation_id = nation;
@@ -1701,15 +1465,11 @@ static int unit_5d04_buy_caravel_ship_full(void) {
       (unsigned)col1.nation[nation].gold,
       full->cargo_count
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected second Europe Caravel purchase (5c3c ladder)");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(stderr, "unit_ai_euro_expand: 5d04 buy-caravel-ship-full ok\n");
   return 0;
 }
@@ -1721,24 +1481,12 @@ static int unit_treasury_skip_hire(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 16, 16, 1, false)) {
     return fail("treasury alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 1;
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
   units.type_count = 2;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Pioneer");
   units.types[0].movement = 3;
@@ -1749,8 +1497,7 @@ static int unit_treasury_skip_hire(void) {
   units.types[1].cargo = 2;
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
+  fx_colonies_init(&colonies);
   for (int i = 0; i < 3; ++i) {
     ColonizeColony* c = &colonies.colonies[i];
     c->id = i;
@@ -1770,9 +1517,7 @@ static int unit_treasury_skip_hire(void) {
   const int sid = units_spawn(&units, 1, 200, 200);
   ColonizeUnit* ship = units_get(&units, sid);
   if (!ship) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("treasury spawn ship");
   }
   ship->nation_id = nation;
@@ -1814,15 +1559,11 @@ static int unit_treasury_skip_hire(void) {
       ship->cargo_count,
       (unsigned)col1.nation[nation].gold
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected no Europe hire when gold < hire_cost");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(stderr, "unit_ai_euro_expand: treasury skip-hire ok\n");
   return 0;
 }
@@ -1858,9 +1599,7 @@ static int unit_transport_europe_sell_trade_goods(void) {
   map.terrain[8 * 16 + 14] = 25;
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Merchantman");
   units.types[0].movement = 4;
@@ -1868,15 +1607,12 @@ static int unit_transport_europe_sell_trade_goods(void) {
   units.types[0].cargo = 4;
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
+  fx_colonies_init(&colonies);
 
   const int sid = units_spawn(&units, 0, 200, 200);
   ColonizeUnit* ship = units_get(&units, sid);
   if (!ship) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("eu-sell spawn ship");
   }
   ship->nation_id = nation;
@@ -1935,41 +1671,31 @@ static int unit_transport_europe_sell_trade_goods(void) {
 
   ship = units_get(&units, sid);
   if (!ship || !ship->active) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("eu-sell ship should remain");
   }
   if (ship->hold_goods_amount[0] != 0) {
     fprintf(stderr, "unit_ai_euro_expand: hold amt=%d after sell\n",
             ship->hold_goods_amount[0]);
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("eu-sell should clear TRADE_GOODS hold");
   }
   const uint32_t gold_after = col1.nation[nation].gold;
   if (gold_after < gold_before + (uint32_t)expect) {
     fprintf(stderr, "unit_ai_euro_expand: gold %u→%u want +%d\n",
             (unsigned)gold_before, (unsigned)gold_after, expect);
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("eu-sell should credit untaxed TRADE_GOODS proceeds");
   }
 
   if (europe.tax_percent != human_tax || europe.gold != human_gold) {
     fprintf(stderr, "unit_ai_euro_expand: human Europe left at gold=%d tax=%d%%\n",
             europe.gold, europe.tax_percent);
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("eu-sell must restore the human's borrowed Europe gold/tax");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(stderr, "unit_ai_euro_expand: transport Europe sell ok\n");
   return 0;
 }
@@ -1987,25 +1713,13 @@ static int unit_privateer_europe_sell_silver(void) {
   const int expect = (bid - 1) * amt;
 
   ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 16, 16, 25, false)) {
     return fail("priv-eu-sell alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 25;
   }
   map.terrain[8 * 16 + 14] = 25;
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Privateer");
   units.types[0].movement = 8;
@@ -2013,15 +1727,12 @@ static int unit_privateer_europe_sell_silver(void) {
   units.types[0].cargo = 2;
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
+  fx_colonies_init(&colonies);
 
   const int sid = units_spawn(&units, 0, 200, 200);
   ColonizeUnit* ship = units_get(&units, sid);
   if (!ship) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("priv-eu-sell spawn");
   }
   ship->nation_id = nation;
@@ -2071,32 +1782,24 @@ static int unit_privateer_europe_sell_silver(void) {
 
   ship = units_get(&units, sid);
   if (!ship || !ship->active) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("priv-eu-sell ship should remain");
   }
   if (ship->hold_goods_amount[0] != 0) {
     fprintf(stderr, "unit_ai_euro_expand: priv hold amt=%d after sell\n",
             ship->hold_goods_amount[0]);
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("priv-eu-sell should clear SILVER hold");
   }
   const uint32_t gold_after = col1.nation[nation].gold;
   if (gold_after < gold_before + (uint32_t)expect) {
     fprintf(stderr, "unit_ai_euro_expand: priv gold %u→%u want +%d\n",
             (unsigned)gold_before, (unsigned)gold_after, expect);
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("priv-eu-sell should credit SILVER proceeds");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(stderr, "unit_ai_euro_expand: Privateer Europe sell silver ok\n");
   return 0;
 }
@@ -2118,24 +1821,12 @@ static int unit_transport_europe_sell_multi_cargo(void) {
     europe_net_after_tax((bid_tobacco - 1) * tobacco_amt, tax);
 
   ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 16, 16, 25, false)) {
     return fail("eu-multi-sell alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 25;
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Merchantman");
   units.types[0].movement = 4;
@@ -2143,15 +1834,12 @@ static int unit_transport_europe_sell_multi_cargo(void) {
   units.types[0].cargo = 4;
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
+  fx_colonies_init(&colonies);
 
   const int sid = units_spawn(&units, 0, 200, 200);
   ColonizeUnit* ship = units_get(&units, sid);
   if (!ship) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("eu-multi-sell spawn ship");
   }
   ship->nation_id = nation;
@@ -2205,9 +1893,7 @@ static int unit_transport_europe_sell_multi_cargo(void) {
 
   ship = units_get(&units, sid);
   if (!ship || !ship->active) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("eu-multi-sell ship should remain");
   }
   if (ship->hold_goods_amount[0] != 0 || ship->hold_goods_amount[1] != 0) {
@@ -2217,9 +1903,7 @@ static int unit_transport_europe_sell_multi_cargo(void) {
       ship->hold_goods_amount[0],
       ship->hold_goods_amount[1]
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("eu-multi-sell should clear both holds");
   }
   const uint32_t gold_after = col1.nation[nation].gold;
@@ -2231,15 +1915,11 @@ static int unit_transport_europe_sell_multi_cargo(void) {
       (unsigned)gold_after,
       expect
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("eu-multi-sell should credit tax-adjusted proceeds");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(stderr, "unit_ai_euro_expand: transport Europe multi-cargo sell ok\n");
   return 0;
 }
@@ -2260,24 +1940,12 @@ static int unit_transport_europe_sell_skip_boycott(void) {
   const int expect_sugar = europe_net_after_tax((bid_sugar - 1) * sugar_amt, tax);
 
   ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 16, 16, 25, false)) {
     return fail("eu-boycott-sell alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 25;
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Merchantman");
   units.types[0].movement = 4;
@@ -2285,15 +1953,12 @@ static int unit_transport_europe_sell_skip_boycott(void) {
   units.types[0].cargo = 4;
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
+  fx_colonies_init(&colonies);
 
   const int sid = units_spawn(&units, 0, 200, 200);
   ColonizeUnit* ship = units_get(&units, sid);
   if (!ship) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("eu-boycott-sell spawn ship");
   }
   ship->nation_id = nation;
@@ -2349,9 +2014,7 @@ static int unit_transport_europe_sell_skip_boycott(void) {
 
   ship = units_get(&units, sid);
   if (!ship || !ship->active) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("eu-boycott-sell ship should remain");
   }
   if (ship->hold_goods_amount[0] != sugar_amt ||
@@ -2362,17 +2025,13 @@ static int unit_transport_europe_sell_skip_boycott(void) {
       ship->hold_goods_type[0],
       ship->hold_goods_amount[0]
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("eu-boycott-sell must leave boycotted SUGAR hold");
   }
   if (ship->hold_goods_amount[1] != 0) {
     fprintf(stderr, "unit_ai_euro_expand: tobacco amt=%d after sell\n",
             ship->hold_goods_amount[1]);
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("eu-boycott-sell should clear non-boycotted TOBACCO");
   }
   const uint32_t gold_after = col1.nation[nation].gold;
@@ -2386,9 +2045,7 @@ static int unit_transport_europe_sell_skip_boycott(void) {
       (unsigned)gold_after,
       expect_tobacco
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("eu-boycott-sell should credit tobacco proceeds");
   }
   if (gold_after >= gold_before + (uint32_t)(expect_tobacco + expect_sugar)) {
@@ -2399,15 +2056,11 @@ static int unit_transport_europe_sell_skip_boycott(void) {
       (unsigned)gold_after,
       expect_tobacco + expect_sugar
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("eu-boycott-sell must not credit boycotted SUGAR");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(stderr, "unit_ai_euro_expand: Europe sell skip boycott ok\n");
   return 0;
 }
@@ -2458,24 +2111,12 @@ static int unit_cargo_produced_mask_haul_prefer(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 16, 16, 1, false)) {
     return fail("produced-mask alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 1;
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Wagon Train");
   units.types[0].movement = 2;
@@ -2483,8 +2124,7 @@ static int unit_cargo_produced_mask_haul_prefer(void) {
   units.types[0].cargo = 2;
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
+  fx_colonies_init(&colonies);
   ColonizeColony* supply = &colonies.colonies[0];
   supply->id = 0;
   supply->active = true;
@@ -2522,9 +2162,7 @@ static int unit_cargo_produced_mask_haul_prefer(void) {
   const int wid = units_spawn(&units, 0, 4, 4);
   ColonizeUnit* wagon = units_get(&units, wid);
   if (!wagon) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("produced-mask spawn wagon");
   }
   wagon->nation_id = nation;
@@ -2587,15 +2225,11 @@ static int unit_cargo_produced_mask_haul_prefer(void) {
       wagon ? (int)wagon->active : -1, wagon ? wagon->x : -1, wagon ? wagon->y : -1,
       colonies.colonies[0].stock[COLONIZE_CARGO_ORE],
       colonies.colonies[1].stock[COLONIZE_CARGO_ORE]);
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected wagon to load ORE, never Lumber or produced Tools");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(stderr, "unit_ai_euro_expand: cargo_produced_mask haul prefer ok\n");
   return 0;
 }
@@ -2604,24 +2238,12 @@ static int unit_specialty_cargo_haul_prefer(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 16, 16, 1, false)) {
     return fail("specialty alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 1;
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
   units.type_count = 2;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Wagon Train");
   units.types[0].movement = 2;
@@ -2632,8 +2254,7 @@ static int unit_specialty_cargo_haul_prefer(void) {
   units.types[1].domain = COLONIZE_UNIT_DOMAIN_LAND;
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
+  fx_colonies_init(&colonies);
   ColonizeColony* supply = &colonies.colonies[0];
   supply->id = 0;
   supply->active = true;
@@ -2669,9 +2290,7 @@ static int unit_specialty_cargo_haul_prefer(void) {
   const int wid = units_spawn(&units, 0, 4, 4);
   ColonizeUnit* wagon = units_get(&units, wid);
   if (!wagon) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("specialty spawn wagon");
   }
   wagon->nation_id = nation;
@@ -2731,9 +2350,7 @@ static int unit_specialty_cargo_haul_prefer(void) {
       (unsigned)colonies.colonies[0].specialty_cargo,
       colonies.colonies[0].stock[COLONIZE_CARGO_TOOLS]
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected wagon to load matrix ORE, not the LUMBER specialty");
   }
 
@@ -2743,15 +2360,11 @@ static int unit_specialty_cargo_haul_prefer(void) {
   c0->stock[COLONIZE_CARGO_LUMBER] = colonies_warehouse_capacity(&colonies, c0, COLONIZE_CARGO_LUMBER);
   colonies_specialty_cargo_update(&colonies, c0, COLONIZE_CARGO_LUMBER, 1, 0);
   if (c0->specialty_cargo != 0xff) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected specialty clear when stock >= warehouse cap");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(stderr, "unit_ai_euro_expand: specialty_cargo haul prefer ok\n");
   return 0;
 }
@@ -2792,18 +2405,8 @@ static int unit_specialty_flag_a_haul_match(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 16, 16, 1, false)) {
     return fail("flag_a alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 1;
   }
 
   /* Ocean row y=1: the ship consumer lives there; both colonies at y=2 are
@@ -2813,9 +2416,7 @@ static int unit_specialty_flag_a_haul_match(void) {
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Caravel");
   units.types[0].movement = 4;
@@ -2823,8 +2424,7 @@ static int unit_specialty_flag_a_haul_match(void) {
   units.types[0].cargo = 2;
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
+  fx_colonies_init(&colonies);
   /* Equal MD=4 (same `(d>>2)+1` bucket) from the ship at (5,1). Inventory
    * refreshes specialty from surplus: A lumber surplus → specialty LUMBER;
    * B tools surplus → specialty TOOLS. Both hold 80 RUM so both register on
@@ -2866,18 +2466,14 @@ static int unit_specialty_flag_a_haul_match(void) {
   const int wid = units_spawn(&units, 0, 5, 1);
   ColonizeUnit* wagon = units_get(&units, wid);
   if (!wagon) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("flag_a spawn ship");
   }
   wagon->nation_id = nation;
   wagon->moves_left = 4 * UNITS_MP_PER_TILE;
   wagon->orders = 0;
   if (units_load_goods(&units, wid, COLONIZE_CARGO_LUMBER, 20) <= 0) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("flag_a load lumber");
   }
 
@@ -2929,15 +2525,11 @@ static int unit_specialty_flag_a_haul_match(void) {
       (unsigned)colonies.colonies[0].specialty_cargo,
       (unsigned)colonies.colonies[1].specialty_cargo
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected ship goto specialty-matching lumber colony");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(stderr, "unit_ai_euro_expand: specialty flag_a haul match ok\n");
   return 0;
 }
@@ -2960,18 +2552,8 @@ static int unit_cargo_idle_turns_haul_prefer(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 16, 16, 1, false)) {
     return fail("cargo-idle alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 1;
   }
 
   /* 2026-09-07b: ships-only 4393 — ocean row y=1, ship consumer at (5,1). */
@@ -2980,9 +2562,7 @@ static int unit_cargo_idle_turns_haul_prefer(void) {
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Caravel");
   units.types[0].movement = 4;
@@ -2990,8 +2570,7 @@ static int unit_cargo_idle_turns_haul_prefer(void) {
   units.types[0].cargo = 2;
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
+  fx_colonies_init(&colonies);
   /* Equal MD from the ship at (5,1): A idle=0, B idle=20. */
   ColonizeColony* a = &colonies.colonies[0];
   a->id = 0;
@@ -3028,9 +2607,7 @@ static int unit_cargo_idle_turns_haul_prefer(void) {
   const int wid = units_spawn(&units, 0, 5, 1);
   ColonizeUnit* wagon = units_get(&units, wid);
   if (!wagon) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("cargo-idle spawn ship");
   }
   wagon->nation_id = nation;
@@ -3083,17 +2660,13 @@ static int unit_cargo_idle_turns_haul_prefer(void) {
       (unsigned)colonies.colonies[0].cargo_idle_turns,
       (unsigned)colonies.colonies[1].cargo_idle_turns
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected ship goto the higher cargo_idle registered colony");
   }
   /* Inventory INC both shorts (cap 0x7f). */
   if (colonies.colonies[0].cargo_idle_turns < 1 ||
       colonies.colonies[1].cargo_idle_turns < 21) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected cargo_idle INC during inventory");
   }
 
@@ -3105,9 +2678,7 @@ static int unit_cargo_idle_turns_haul_prefer(void) {
   wagon->y = 4;
   dest->cargo_idle_turns = 30;
   if (units_load_goods(&units, wid, COLONIZE_CARGO_TOOLS, 20) <= 0) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("cargo-idle load tools for unload check");
   }
   const int moved =
@@ -3119,15 +2690,11 @@ static int unit_cargo_idle_turns_haul_prefer(void) {
       moved,
       (unsigned)dest->cargo_idle_turns
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected goods unload to clear cargo_idle_turns");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(stderr, "unit_ai_euro_expand: cargo_idle_turns haul prefer ok\n");
   return 0;
 }
@@ -3136,32 +2703,19 @@ static int unit_labor_shortage_join(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 16, 16, 1, false)) {
     return fail("labor-shortage alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 1;
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Free Colonist");
   units.types[0].movement = 1;
   units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
+  fx_colonies_init(&colonies);
   ColonizeColony* c = &colonies.colonies[0];
   c->id = 0;
   c->active = true;
@@ -3192,9 +2746,7 @@ static int unit_labor_shortage_join(void) {
   const int uid = units_spawn(&units, 0, 4, 4);
   ColonizeUnit* col = units_get(&units, uid);
   if (!col) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("labor-shortage spawn colonist");
   }
   col->nation_id = nation;
@@ -3242,15 +2794,11 @@ static int unit_labor_shortage_join(void) {
       c->population,
       (unsigned)c->labor_shortage
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected join consuming the tick-stamped labor_shortage 1→0");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(stderr, "unit_ai_euro_expand: labor_shortage join ok\n");
   return 0;
 }
@@ -3259,52 +2807,27 @@ static int unit_labor_bind_food_short(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 16, 16, 1, false)) {
     return fail("labor-bind alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 1;
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Free Colonist");
   units.types[0].movement = 1;
   units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
-  ColonizeColony* c = &colonies.colonies[0];
-  c->id = 0;
-  c->active = true;
-  c->nation_id = nation;
-  c->x = 4;
-  c->y = 4;
-  c->population = 3;
-  c->colonist_count = 3;
+  fx_colonies_init(&colonies);
+  ColonizeColony* c = fx_colony_add(&colonies, nation, 4, 4, 3);
   c->stock[COLONIZE_CARGO_FOOD] = 0; /* food_short vs pop*2 */
   c->stock[COLONIZE_CARGO_TOOLS] = 40;
-  c->building_in_production = -1;
-  colonies.colony_count = 1;
-  colonies.next_id = 1;
 
   const int uid = units_spawn(&units, 0, 5, 4);
   ColonizeUnit* col = units_get(&units, uid);
   if (!col) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("labor-bind spawn colonist");
   }
   col->nation_id = nation;
@@ -3363,16 +2886,12 @@ static int unit_labor_bind_food_short(void) {
       pop_before,
       c->population
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected LABOR bind toward food-short colony, not FOUND yank");
   }
   (void)labor_goal;
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(stderr, "unit_ai_euro_expand: LABOR bind food-short ok\n");
   return 0;
 }
@@ -3385,24 +2904,12 @@ static int unit_wagon_tools_delivery(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 16, 16, 1, false)) {
     return fail("wagon-tools alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 1;
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Wagon Train");
   units.types[0].movement = 2;
@@ -3410,28 +2917,15 @@ static int unit_wagon_tools_delivery(void) {
   units.types[0].cargo = 2;
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
-  ColonizeColony* c = &colonies.colonies[0];
-  c->id = 0;
-  c->active = true;
-  c->nation_id = nation;
-  c->x = 4;
-  c->y = 4;
-  c->population = 3;
-  c->colonist_count = 3;
+  fx_colonies_init(&colonies);
+  ColonizeColony* c = fx_colony_add(&colonies, nation, 4, 4, 3);
   c->stock[COLONIZE_CARGO_TOOLS] = 5;
   c->stock[COLONIZE_CARGO_FOOD] = 40;
-  c->building_in_production = -1;
-  colonies.colony_count = 1;
-  colonies.next_id = 1;
 
   const int wid = units_spawn(&units, 0, 4, 4);
   ColonizeUnit* wagon = units_get(&units, wid);
   if (!wagon) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("wagon-tools spawn");
   }
   wagon->nation_id = nation;
@@ -3490,15 +2984,11 @@ static int unit_wagon_tools_delivery(void) {
       tools_after,
       hold_left
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected wagon TOOLS transfer into short colony");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(
     stderr,
     "unit_ai_euro_expand: wagon-tools delivery ok (tools %d→%d)\n",
@@ -3532,32 +3022,19 @@ static int unit_colony_flags_starvation_labor(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 16, 16, 1, false)) {
     return fail("colony-flags alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 1;
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Free Colonist");
   units.types[0].movement = 1;
   units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
+  fx_colonies_init(&colonies);
   ColonizeColony* c = &colonies.colonies[0];
   c->id = 0;
   c->active = true;
@@ -3577,9 +3054,7 @@ static int unit_colony_flags_starvation_labor(void) {
   const int uid = units_spawn(&units, 0, 4, 4);
   ColonizeUnit* col = units_get(&units, uid);
   if (!col) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("colony-flags spawn");
   }
   col->nation_id = nation;
@@ -3623,22 +3098,16 @@ static int unit_colony_flags_starvation_labor(void) {
       (c->colonist_count > 0 ? c->colonist_count : c->population) * 2) {
     fprintf(stderr, "unit_ai_euro_expand: colony_flags=0x%02x food=%d\n",
             (unsigned)c->colony_flags, c->stock[COLONIZE_CARGO_FOOD]);
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected a food-short colony");
   }
   const int joined = (col == NULL || !col->active) && c->population == pop_before + 1;
   if (!joined) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected LABOR join from starvation flag");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(stderr, "unit_ai_euro_expand: colony_flags starvation LABOR ok\n");
   return 0;
 }
@@ -3678,17 +3147,14 @@ static int unit_colony_ai_flags_pioneer_clear(void) {
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Free Colonist");
   units.types[0].movement = 1;
   units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
+  fx_colonies_init(&colonies);
   ColonizeColony* forest = &colonies.colonies[0];
   forest->id = 0;
   forest->active = true;
@@ -3768,9 +3234,7 @@ static int unit_colony_ai_flags_pioneer_clear(void) {
     rc = 1;
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   if (rc != 0) {
     return fail("expected +0x1b 0xa0 pair only on the forest-locked colony");
   }
@@ -3842,9 +3306,7 @@ static int unit_0a60_work_military_ai_plan_gate(void) {
     const int sid = units_spawn(&units, 0, 2, 6);
     ColonizeUnit* sol = units_get(&units, sid);
     if (!sol) {
-      free(map.terrain);
-      free(map.layer2);
-      free(map.layer3);
+      fx_map_free(&map);
       return fail("0a60 ai_plan spawn Soldier");
     }
     sol->nation_id = nation;
@@ -3893,9 +3355,7 @@ static int unit_0a60_work_military_ai_plan_gate(void) {
       rc = 1;
     }
 
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
   }
 
   if (rc != 0) {
@@ -3925,9 +3385,7 @@ static int unit_colony_ai_flags_mow_colony_alt(void) {
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
   units.type_count = 1;
   /* DOS census: bit 0x02 = FRIGATE nearby (type 0x11 literal check), not
    * Man-O-War — census_tally.md 2026-08-19 correction, probe live 2026-09-07. */
@@ -3938,8 +3396,7 @@ static int unit_colony_ai_flags_mow_colony_alt(void) {
   units.types[0].cargo = 6;
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
+  fx_colonies_init(&colonies);
   ColonizeColony* c = &colonies.colonies[0];
   c->id = 0;
   c->active = true;
@@ -3959,9 +3416,7 @@ static int unit_colony_ai_flags_mow_colony_alt(void) {
   const int sid = units_spawn(&units, 0, 1, 6);
   ColonizeUnit* ship = units_get(&units, sid);
   if (!ship) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("ai-flags spawn Frigate");
   }
   ship->nation_id = foe;
@@ -3998,9 +3453,7 @@ static int unit_colony_ai_flags_mow_colony_alt(void) {
   if ((c->ai_flags & COLONIZE_COLONY_AI_NEARBY_FRIGATE) == 0) {
     fprintf(stderr, "unit_ai_euro_expand: ai_flags=0x%02x (want MoW bit)\n",
             (unsigned)c->ai_flags);
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected nearby_man_o_war ai_flags bit");
   }
   int found_alt = 0;
@@ -4012,15 +3465,11 @@ static int unit_colony_ai_flags_mow_colony_alt(void) {
     }
   }
   if (!found_alt) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected COLONY_ALT prio 8 at colony under MoW pressure");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(stderr, "unit_ai_euro_expand: colony ai_flags MoW COLONY_ALT ok\n");
   return 0;
 }
@@ -4054,9 +3503,7 @@ static int unit_human_census_ship_pressure_refresh(void) {
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Frigate");
   units.types[0].movement = 4;
@@ -4065,8 +3512,7 @@ static int unit_human_census_ship_pressure_refresh(void) {
   units.types[0].cargo = 6;
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
+  fx_colonies_init(&colonies);
   ColonizeColony* c = &colonies.colonies[0];
   c->id = 0;
   c->active = true;
@@ -4085,9 +3531,7 @@ static int unit_human_census_ship_pressure_refresh(void) {
   const int sid = units_spawn(&units, 0, 1, 6);
   ColonizeUnit* ship = units_get(&units, sid);
   if (!ship) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("human census spawn Frigate");
   }
   ship->nation_id = foe;
@@ -4119,9 +3563,7 @@ static int unit_human_census_ship_pressure_refresh(void) {
   if ((c->ai_flags & COLONIZE_COLONY_AI_NEARBY_FRIGATE) == 0) {
     fprintf(stderr, "unit_ai_euro_expand: human ai_flags=0x%02x (want frigate bit)\n",
             (unsigned)c->ai_flags);
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected human nearby_frigate ai_flags bit");
   }
 
@@ -4140,22 +3582,16 @@ static int unit_human_census_ship_pressure_refresh(void) {
                       COLONIZE_COLONY_AI_NEARBY_FRIGATE)) != 0) {
     fprintf(stderr, "unit_ai_euro_expand: human ai_flags=0x%02x (want blockade pair clear)\n",
             (unsigned)c->ai_flags);
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected stale human blockade bits cleared");
   }
   /* Raw 78259 clears +0x1b &= 0xfc only — the rest of the byte survives. */
   if ((c->ai_flags & COLONIZE_COLONY_AI_NEEDS_COLONISTS) == 0) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("census probe clobbered unrelated ai_flags bits");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(stderr, "unit_ai_euro_expand: human census ship pressure refresh ok\n");
   return 0;
 }
@@ -4164,32 +3600,19 @@ static int unit_build_ai_flags_wants_construction(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 16, 16, 1, false)) {
     return fail("build-ai-flags alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 1;
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Free Colonist");
   units.types[0].movement = 1;
   units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
+  fx_colonies_init(&colonies);
   ColonizeColony* c = &colonies.colonies[0];
   c->id = 0;
   c->active = true;
@@ -4209,9 +3632,7 @@ static int unit_build_ai_flags_wants_construction(void) {
   const int uid = units_spawn(&units, 0, 4, 4);
   ColonizeUnit* col = units_get(&units, uid);
   if (!col) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("build-ai-flags spawn");
   }
   col->nation_id = nation;
@@ -4254,9 +3675,7 @@ static int unit_build_ai_flags_wants_construction(void) {
       "unit_ai_euro_expand: build-ai joined=%d pop=%d→%d flags=0x%02x labor=%u active=%d\n",
       joined, pop_before, c->population, (unsigned)c->build_ai_flags,
       (unsigned)c->labor_shortage, col && col->active);
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected LABOR join from build_ai_flags wants_construction");
   }
 
@@ -4266,15 +3685,11 @@ static int unit_build_ai_flags_wants_construction(void) {
   colonies_clear_construction(&colonies, c->id);
   if ((c->build_ai_flags & COLONIZE_BUILD_AI_WANTS_CONSTRUCTION) != 0 ||
       c->building_in_production != -1) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected clear_construction to drop wants_construction bit");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(stderr, "unit_ai_euro_expand: build_ai_flags wants_construction ok\n");
   return 0;
 }
@@ -4283,32 +3698,19 @@ static int unit_construction_labor_stockade(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 16, 16, 1, false)) {
     return fail("construction alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 1;
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Pioneer");
   units.types[0].movement = 3;
   units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
+  fx_colonies_init(&colonies);
   snprintf(colonies.building_types[0].name, sizeof(colonies.building_types[0].name), "Stockade");
   colonies.building_types[0].hammers = 64;
   colonies.building_type_count = 1;
@@ -4331,9 +3733,7 @@ static int unit_construction_labor_stockade(void) {
   const int uid = units_spawn(&units, 0, 4, 4);
   ColonizeUnit* pioneer = units_get(&units, uid);
   if (!pioneer) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("construction spawn pioneer");
   }
   pioneer->nation_id = nation;
@@ -4403,15 +3803,11 @@ static int unit_construction_labor_stockade(void) {
       colonies.colony_count > 1 ? colonies.colonies[1].x : -1,
       colonies.colony_count > 1 ? colonies.colonies[1].y : -1
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected Pioneer stay/LABOR for Stockade construction");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(
     stderr,
     "unit_ai_euro_expand: construction Stockade LABOR ok (joined=%d)\n",
@@ -4429,32 +3825,19 @@ static int unit_master_carpenter_construction_labor(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 16, 16, 1, false)) {
     return fail("carpenter-labor alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 1;
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Master Carpenter");
   units.types[0].movement = 3;
   units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
+  fx_colonies_init(&colonies);
   snprintf(colonies.building_types[0].name, sizeof(colonies.building_types[0].name), "Stockade");
   colonies.building_types[0].hammers = 64;
   colonies.building_type_count = 1;
@@ -4477,9 +3860,7 @@ static int unit_master_carpenter_construction_labor(void) {
   const int uid = units_spawn(&units, 0, 4, 4);
   ColonizeUnit* carpenter = units_get(&units, uid);
   if (!carpenter) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("carpenter-labor spawn");
   }
   carpenter->nation_id = nation;
@@ -4547,15 +3928,11 @@ static int unit_master_carpenter_construction_labor(void) {
       carpenter ? carpenter->orders : -1,
       ai_goals_max_primary_prio(nation, 4, 4, AI_GOAL_LABOR)
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected Master Carpenter stay/LABOR for Stockade construction");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(
     stderr,
     "unit_ai_euro_expand: Master Carpenter construction LABOR ok (joined=%d)\n",
@@ -4574,32 +3951,19 @@ static int unit_lumberjack_warehouse_labor(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 16, 16, 1, false)) {
     return fail("lumberjack-labor alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 1;
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Expert Lumberjack");
   units.types[0].movement = 3;
   units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
+  fx_colonies_init(&colonies);
   snprintf(colonies.building_types[0].name, sizeof(colonies.building_types[0].name), "Warehouse");
   colonies.building_types[0].hammers = 80;
   colonies.building_type_count = 1;
@@ -4622,9 +3986,7 @@ static int unit_lumberjack_warehouse_labor(void) {
   const int uid = units_spawn(&units, 0, 4, 4);
   ColonizeUnit* lumber = units_get(&units, uid);
   if (!lumber) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("lumberjack-labor spawn");
   }
   lumber->nation_id = nation;
@@ -4690,15 +4052,11 @@ static int unit_lumberjack_warehouse_labor(void) {
       lumber ? lumber->goto_y : -1,
       ai_goals_max_primary_prio(nation, 4, 4, AI_GOAL_LABOR)
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected Expert Lumberjack stay/LABOR for Warehouse");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(
     stderr,
     "unit_ai_euro_expand: Lumberjack Warehouse LABOR ok (joined=%d)\n",
@@ -4717,24 +4075,12 @@ static int unit_stockade_threat_labor(void) {
   const int foe = 2;
 
   ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 16, 16, 1, false)) {
     return fail("threat-stockade alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 1;
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
   units.type_count = 2;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Free Colonist");
   units.types[0].movement = 3;
@@ -4746,8 +4092,7 @@ static int unit_stockade_threat_labor(void) {
   units.types[1].defense = 2;
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
+  fx_colonies_init(&colonies);
   snprintf(colonies.building_types[0].name, sizeof(colonies.building_types[0].name), "Stockade");
   colonies.building_types[0].hammers = 64;
   colonies.building_type_count = 1;
@@ -4771,9 +4116,7 @@ static int unit_stockade_threat_labor(void) {
   const int uid = units_spawn(&units, 0, 6, 4);
   ColonizeUnit* colonist = units_get(&units, uid);
   if (!colonist) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("threat-stockade spawn colonist");
   }
   colonist->nation_id = nation;
@@ -4784,9 +4127,7 @@ static int unit_stockade_threat_labor(void) {
   const int fid = units_spawn(&units, 1, 4, 6);
   ColonizeUnit* foe_u = units_get(&units, fid);
   if (!foe_u) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("threat-stockade spawn foe");
   }
   foe_u->nation_id = foe;
@@ -4870,15 +4211,11 @@ static int unit_stockade_threat_labor(void) {
       colonist ? colonist->goto_x : -1,
       colonist ? colonist->goto_y : -1
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected Free Colonist LABOR toward threatened Stockade, not FOUND");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(
     stderr,
     "unit_ai_euro_expand: threatened Stockade LABOR ok (prio=%d toward=%d joined=%d)\n",
@@ -4901,52 +4238,27 @@ static int unit_scout_sticky_closer_ring(void) {
   const int tribe_y = 12;
 
   ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 16, 16, 1, false)) {
     return fail("sticky-ring alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 1;
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Scout");
   units.types[0].movement = 4;
   units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
-  ColonizeColony* c = &colonies.colonies[0];
-  c->id = 0;
-  c->active = true;
-  c->nation_id = nation;
-  c->x = 2;
-  c->y = 2;
-  c->population = 3;
-  c->colonist_count = 3;
+  fx_colonies_init(&colonies);
+  ColonizeColony* c = fx_colony_add(&colonies, nation, 2, 2, 3);
   c->stock[COLONIZE_CARGO_FOOD] = 40;
-  c->building_in_production = -1;
-  colonies.colony_count = 1;
-  colonies.next_id = 1;
 
   /* On the tribe column north — md=4 tile (12,8) is nearer than md=2 (12,10). */
   const int sid = units_spawn(&units, 0, 12, 8);
   ColonizeUnit* scout = units_get(&units, sid);
   if (!scout) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("sticky-ring spawn scout");
   }
   scout->nation_id = nation;
@@ -4967,17 +4279,13 @@ static int unit_scout_sticky_closer_ring(void) {
    * counter that sits at +0x48. */
   col1.nation[nation].indian_hostility_sticky = 2; /* sticky very-low deepen */
   if (ai_diplo_indian_hostility_sticky(&col1, nation) < 2) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("sticky-ring expected sticky≥2");
   }
   col1.head.tribe_count = 1;
   col1.tribe = calloc(1, sizeof(ColonizeCol1Tribe));
   if (!col1.tribe) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("sticky-ring alloc tribe");
   }
   col1.tribe[0].x = (uint8_t)tribe_x;
@@ -5014,9 +4322,7 @@ static int unit_scout_sticky_closer_ring(void) {
   }
   free(col1.tribe);
   if (contact_x < 0) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("sticky-ring expected CONTACT goal");
   }
   const int ring_md = abs(contact_x - tribe_x) + abs(contact_y - tribe_y);
@@ -5028,15 +4334,11 @@ static int unit_scout_sticky_closer_ring(void) {
       contact_y,
       ring_md
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected sticky≥2 to prefer CONTACT ring md=2");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(
     stderr,
     "unit_ai_euro_expand: sticky CONTACT closer-ring ok (goto=(%d,%d) md=%d)\n",
@@ -5056,19 +4358,8 @@ static int unit_scout_fog_explore_no_contact(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  map.seen = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3 || !map.seen) {
+  if (!fx_map_alloc(&map, 16, 16, 1, true)) {
     return fail("fog-explore alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 1;
   }
   /* Reveal around scout at (5,5); leave (5,9) unseen at MD 4. */
   for (int dy = -2; dy <= 2; ++dy) {
@@ -5078,37 +4369,21 @@ static int unit_scout_fog_explore_no_contact(void) {
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Scout");
   units.types[0].movement = 4;
   units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
-  ColonizeColony* c = &colonies.colonies[0];
-  c->id = 0;
-  c->active = true;
-  c->nation_id = nation;
-  c->x = 4;
-  c->y = 4;
-  c->population = 3;
-  c->colonist_count = 3;
+  fx_colonies_init(&colonies);
+  ColonizeColony* c = fx_colony_add(&colonies, nation, 4, 4, 3);
   c->stock[COLONIZE_CARGO_FOOD] = 40;
-  c->building_in_production = -1;
-  colonies.colony_count = 1;
-  colonies.next_id = 1;
 
   const int sid = units_spawn(&units, 0, 5, 5);
   ColonizeUnit* scout = units_get(&units, sid);
   if (!scout) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
-    free(map.seen);
+    fx_map_free(&map);
     return fail("fog-explore spawn");
   }
   scout->nation_id = nation;
@@ -5177,17 +4452,11 @@ static int unit_scout_fog_explore_no_contact(void) {
       scout ? scout->goto_y : -1,
       has_contact
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
-    free(map.seen);
+    fx_map_free(&map);
     return fail("expected Scout AI_MOVE to unseen MD≤8 without CONTACT");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
-  free(map.seen);
+  fx_map_free(&map);
   fprintf(
     stderr,
     "unit_ai_euro_expand: fog-explore no-CONTACT ok (goto=(%d,%d))\n",
@@ -5206,19 +4475,8 @@ static int unit_seasoned_scout_deeper_fog(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  map.seen = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3 || !map.seen) {
+  if (!fx_map_alloc(&map, 16, 16, 1, true)) {
     return fail("seasoned-fog alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 1;
   }
   /* Reveal all MD≤8 around (5,5) except (5,8) MD=3 and (5,12) MD=7. */
   for (int dy = -8; dy <= 8; ++dy) {
@@ -5237,37 +4495,21 @@ static int unit_seasoned_scout_deeper_fog(void) {
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Scout");
   units.types[0].movement = 4;
   units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
-  ColonizeColony* c = &colonies.colonies[0];
-  c->id = 0;
-  c->active = true;
-  c->nation_id = nation;
-  c->x = 4;
-  c->y = 4;
-  c->population = 3;
-  c->colonist_count = 3;
+  fx_colonies_init(&colonies);
+  ColonizeColony* c = fx_colony_add(&colonies, nation, 4, 4, 3);
   c->stock[COLONIZE_CARGO_FOOD] = 40;
-  c->building_in_production = -1;
-  colonies.colony_count = 1;
-  colonies.next_id = 1;
 
   const int sid = units_spawn(&units, 0, 5, 5);
   ColonizeUnit* scout = units_get(&units, sid);
   if (!scout) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
-    free(map.seen);
+    fx_map_free(&map);
     return fail("seasoned-fog spawn");
   }
   scout->nation_id = nation;
@@ -5323,17 +4565,11 @@ static int unit_seasoned_scout_deeper_fog(void) {
       deep_md,
       scout ? units_display_name(&units, scout) : "?"
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
-    free(map.seen);
+    fx_map_free(&map);
     return fail("expected Seasoned Scout AI_MOVE to deeper unseen MD=7 not MD=3");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
-  free(map.seen);
+  fx_map_free(&map);
   fprintf(stderr, "unit_ai_euro_expand: Seasoned Scout deeper fog ok\n");
   return 0;
 }
@@ -5356,32 +4592,15 @@ static int unit_scout_fog_prefer_rumour(void) {
   const int rum_y = 11; /* MD=7, procedural rumour */
 
   ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  map.seen = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3 || !map.seen) {
+  if (!fx_map_alloc(&map, 16, 16, 1, true)) {
     return fail("rumour-fog alloc map");
   }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 1;
-  }
   if (!map_tile_has_rumour(&map, rum_x, rum_y)) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
-    free(map.seen);
+    fx_map_free(&map);
     return fail("rumour-fog fixture (4,11) should have rumour");
   }
   if (map_tile_has_rumour(&map, plain_x, plain_y)) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
-    free(map.seen);
+    fx_map_free(&map);
     return fail("rumour-fog fixture (5,8) must be plain unseen");
   }
   /* Reveal all MD≤8 except plain MD=3 and rumour MD=7. */
@@ -5401,37 +4620,21 @@ static int unit_scout_fog_prefer_rumour(void) {
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Scout");
   units.types[0].movement = 4;
   units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
-  ColonizeColony* c = &colonies.colonies[0];
-  c->id = 0;
-  c->active = true;
-  c->nation_id = nation;
-  c->x = 4;
-  c->y = 4;
-  c->population = 3;
-  c->colonist_count = 3;
+  fx_colonies_init(&colonies);
+  ColonizeColony* c = fx_colony_add(&colonies, nation, 4, 4, 3);
   c->stock[COLONIZE_CARGO_FOOD] = 40;
-  c->building_in_production = -1;
-  colonies.colony_count = 1;
-  colonies.next_id = 1;
 
   const int sid = units_spawn(&units, 0, scout_x, scout_y);
   ColonizeUnit* scout = units_get(&units, sid);
   if (!scout) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
-    free(map.seen);
+    fx_map_free(&map);
     return fail("rumour-fog spawn");
   }
   scout->nation_id = nation;
@@ -5479,17 +4682,11 @@ static int unit_scout_fog_prefer_rumour(void) {
       rum_x,
       rum_y
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
-    free(map.seen);
+    fx_map_free(&map);
     return fail("expected Scout AI_MOVE to rumour over nearer plain unseen");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
-  free(map.seen);
+  fx_map_free(&map);
   fprintf(stderr, "unit_ai_euro_expand: Scout fog prefer rumour ok\n");
   return 0;
 }
@@ -5518,44 +4715,27 @@ static int unit_treasure_coast(void) {
   /* Ocean adjacent west of coastal colony at (4,4). */
   map.terrain[4 * 16 + 3] = 25; /* water at (3,4) */
   if (!map_tile_is_coastal(&map, 4, 4)) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("treasure colony should be coastal");
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Treasure");
   units.types[0].movement = 1;
   units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
-  ColonizeColony* c = &colonies.colonies[0];
-  c->id = 0;
-  c->active = true;
-  c->nation_id = nation;
-  c->x = 4;
-  c->y = 4;
-  c->population = 2;
-  c->colonist_count = 2;
+  fx_colonies_init(&colonies);
+  ColonizeColony* c = fx_colony_add(&colonies, nation, 4, 4, 2);
   c->stock[COLONIZE_CARGO_FOOD] = 40;
-  c->building_in_production = -1;
-  colonies.colony_count = 1;
-  colonies.next_id = 1;
 
   /* Inland Treasure — not on coast. */
   const int tid = units_spawn(&units, 0, 10, 10);
   ColonizeUnit* treasure = units_get(&units, tid);
   if (!treasure) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("treasure spawn");
   }
   treasure->nation_id = nation;
@@ -5594,9 +4774,7 @@ static int unit_treasure_coast(void) {
 
   treasure = units_get(&units, tid);
   if (!treasure || !treasure->active) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("treasure should remain active");
   }
   if (treasure->orders != UNITS_ORDER_AI_MOVE || treasure->goto_x != 4 ||
@@ -5610,15 +4788,11 @@ static int unit_treasure_coast(void) {
       treasure->x,
       treasure->y
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected Treasure AI_MOVE toward coastal colony (4,4)");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(
     stderr,
     "unit_ai_euro_expand: treasure coast ok (goto=(%d,%d))\n",
@@ -5640,58 +4814,31 @@ static int unit_cortes_king_galleon_cash(void) {
   const int expect_credit = (treasure_value * (100 - tax)) / 100;
 
   ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 16, 16, 1, false)) {
     return fail("cortes-cash alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 1;
   }
   map.terrain[4 * 16 + 3] = 25;
   if (!map_tile_is_coastal(&map, 4, 4)) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("cortes-cash colony should be coastal");
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Treasure");
   units.types[0].movement = 1;
   units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
-  ColonizeColony* c = &colonies.colonies[0];
-  c->id = 0;
-  c->active = true;
-  c->nation_id = nation;
-  c->x = 4;
-  c->y = 4;
-  c->population = 2;
-  c->colonist_count = 2;
+  fx_colonies_init(&colonies);
+  ColonizeColony* c = fx_colony_add(&colonies, nation, 4, 4, 2);
   c->stock[COLONIZE_CARGO_FOOD] = 40;
-  c->building_in_production = -1;
-  colonies.colony_count = 1;
-  colonies.next_id = 1;
 
   const int tid = units_spawn(&units, 0, 4, 4);
   ColonizeUnit* treasure = units_get(&units, tid);
   if (!treasure) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("cortes-cash spawn treasure");
   }
   treasure->nation_id = nation;
@@ -5733,9 +4880,7 @@ static int unit_cortes_king_galleon_cash(void) {
   ai_euro_dispatcher_turn(&ctx, nation);
   treasure = units_get(&units, tid);
   if (!treasure || !treasure->active) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("without Cortes treasure should remain on coast");
   }
   const uint32_t gold_mid = col1.nation[nation].gold;
@@ -5767,15 +4912,11 @@ static int unit_cortes_king_galleon_cash(void) {
       delta,
       expect_credit
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected Cortes coastal king-galleon cash + despawn");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(
     stderr,
     "unit_ai_euro_expand: Cortes king-galleon coastal cash ok (delta=%u credit=%d)\n",
@@ -5795,51 +4936,26 @@ static int unit_missionary_contact(void) {
   const int tribe_y = 12;
 
   ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 16, 16, 1, false)) {
     return fail("missionary alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 1;
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Jesuit Missionary");
   units.types[0].movement = 2;
   units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
-  ColonizeColony* c = &colonies.colonies[0];
-  c->id = 0;
-  c->active = true;
-  c->nation_id = nation;
-  c->x = 4;
-  c->y = 4;
-  c->population = 2;
-  c->colonist_count = 2;
+  fx_colonies_init(&colonies);
+  ColonizeColony* c = fx_colony_add(&colonies, nation, 4, 4, 2);
   c->stock[COLONIZE_CARGO_FOOD] = 40;
-  c->building_in_production = -1;
-  colonies.colony_count = 1;
-  colonies.next_id = 1;
 
   const int mid = units_spawn(&units, 0, 6, 6);
   ColonizeUnit* miss = units_get(&units, mid);
   if (!miss) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("missionary spawn");
   }
   miss->nation_id = nation;
@@ -5862,9 +4978,7 @@ static int unit_missionary_contact(void) {
   col1.head.tribe_count = 2;
   col1.tribe = calloc(2, sizeof(ColonizeCol1Tribe));
   if (!col1.tribe) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("missionary alloc tribe");
   }
   /* Farther tribe already has a mission — prefer unmissioned nearer. */
@@ -5914,9 +5028,7 @@ static int unit_missionary_contact(void) {
       tribe_x,
       tribe_y
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     free(col1.tribe);
     return fail("expected CONTACT at unmissioned tribe");
   }
@@ -5929,16 +5041,12 @@ static int unit_missionary_contact(void) {
       miss ? miss->goto_x : -1,
       miss ? miss->goto_y : -1
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     free(col1.tribe);
     return fail("expected Missionary AI_MOVE toward unmissioned tribe");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   free(col1.tribe);
   fprintf(
     stderr,
@@ -5956,51 +5064,26 @@ static int unit_missionary_flee_skip(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 16, 16, 1, false)) {
     return fail("miss-flee alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 1;
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Missionary");
   units.types[0].movement = 2;
   units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
-  ColonizeColony* c = &colonies.colonies[0];
-  c->id = 0;
-  c->active = true;
-  c->nation_id = nation;
-  c->x = 2;
-  c->y = 2;
-  c->population = 2;
-  c->colonist_count = 2;
-  c->building_in_production = -1;
-  colonies.colony_count = 1;
-  colonies.next_id = 1;
+  fx_colonies_init(&colonies);
+  ColonizeColony* c = fx_colony_add(&colonies, nation, 2, 2, 2);
 
   /* Adjacent to alarmed tribe at (8,8). */
   const int mid = units_spawn(&units, 0, 8, 9);
   ColonizeUnit* miss = units_get(&units, mid);
   if (!miss) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("miss-flee spawn");
   }
   miss->nation_id = nation;
@@ -6018,9 +5101,7 @@ static int unit_missionary_flee_skip(void) {
   col1.head.tribe_count = 2;
   col1.tribe = calloc(2, sizeof(ColonizeCol1Tribe));
   if (!col1.tribe) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("miss-flee alloc tribe");
   }
   col1.tribe[0].x = 8;
@@ -6060,17 +5141,13 @@ static int unit_missionary_flee_skip(void) {
         g->x,
         g->y
       );
-      free(map.terrain);
-      free(map.layer2);
-      free(map.layer3);
+      fx_map_free(&map);
       free(col1.tribe);
       return fail("fleeing Missionary should not upsert CONTACT");
     }
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   free(col1.tribe);
   fprintf(stderr, "unit_ai_euro_expand: missionary flee-skip CONTACT ok\n");
   return 0;
@@ -6084,53 +5161,28 @@ static int unit_food_emergency_labor(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 16, 16, 1, false)) {
     return fail("food-emerg alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 1;
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Pioneer");
   units.types[0].movement = 3;
   units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
-  ColonizeColony* c = &colonies.colonies[0];
-  c->id = 0;
-  c->active = true;
-  c->nation_id = nation;
-  c->x = 4;
-  c->y = 4;
-  c->population = 4;
-  c->colonist_count = 4;
+  fx_colonies_init(&colonies);
+  ColonizeColony* c = fx_colony_add(&colonies, nation, 4, 4, 4);
   c->stock[COLONIZE_CARGO_FOOD] = 0; /* food_short = 8 ≥ 4 */
   c->stock[COLONIZE_CARGO_TOOLS] = 40;
-  c->building_in_production = -1;
-  colonies.colony_count = 1;
-  colonies.next_id = 1;
 
   /* Pioneer at MD 5 — beyond adjacent LABOR bind. */
   const int pid = units_spawn(&units, 0, 9, 4);
   ColonizeUnit* pioneer = units_get(&units, pid);
   if (!pioneer) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("food-emerg spawn");
   }
   pioneer->nation_id = nation;
@@ -6193,15 +5245,11 @@ static int unit_food_emergency_labor(void) {
       pioneer ? pioneer->x : -1,
       pioneer ? pioneer->y : -1
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected food-emergency LABOR bind for distant Pioneer");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(stderr, "unit_ai_euro_expand: food-emergency LABOR ok\n");
   return 0;
 }
@@ -6215,24 +5263,12 @@ static int unit_expert_farmer_food_labor(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 16, 16, 1, false)) {
     return fail("expert-farmer alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 1;
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Expert Farmer");
   units.types[0].movement = 3;
@@ -6241,29 +5277,16 @@ static int unit_expert_farmer_food_labor(void) {
   units.types[0].defense = 1;
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
-  ColonizeColony* c = &colonies.colonies[0];
-  c->id = 0;
-  c->active = true;
-  c->nation_id = nation;
-  c->x = 4;
-  c->y = 4;
-  c->population = 4;
-  c->colonist_count = 4;
+  fx_colonies_init(&colonies);
+  ColonizeColony* c = fx_colony_add(&colonies, nation, 4, 4, 4);
   c->stock[COLONIZE_CARGO_FOOD] = 0; /* food_short = 8 ≥ 4 */
   c->stock[COLONIZE_CARGO_TOOLS] = 40;
-  c->building_in_production = -1;
-  colonies.colony_count = 1;
-  colonies.next_id = 1;
 
   /* Expert Farmer at MD 5. */
   const int fid = units_spawn(&units, 0, 9, 4);
   ColonizeUnit* farmer = units_get(&units, fid);
   if (!farmer) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expert-farmer spawn");
   }
   farmer->nation_id = nation;
@@ -6327,15 +5350,11 @@ static int unit_expert_farmer_food_labor(void) {
       farmer ? farmer->y : -1,
       labor_bound
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected Expert Farmer food-short LABOR bind");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(stderr, "unit_ai_euro_expand: Expert Farmer food LABOR ok\n");
   return 0;
 }
@@ -6349,24 +5368,12 @@ static int unit_free_colonist_food_labor(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 16, 16, 1, false)) {
     return fail("fc-food alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 1;
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Free Colonist");
   units.types[0].movement = 3;
@@ -6375,29 +5382,16 @@ static int unit_free_colonist_food_labor(void) {
   units.types[0].defense = 1;
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
-  ColonizeColony* c = &colonies.colonies[0];
-  c->id = 0;
-  c->active = true;
-  c->nation_id = nation;
-  c->x = 4;
-  c->y = 4;
-  c->population = 1;
-  c->colonist_count = 1;
+  fx_colonies_init(&colonies);
+  ColonizeColony* c = fx_colony_add(&colonies, nation, 4, 4, 1);
   c->stock[COLONIZE_CARGO_FOOD] = 0; /* food_short = 2 (not emergency ≥4) */
   c->stock[COLONIZE_CARGO_TOOLS] = 40;
-  c->building_in_production = -1;
-  colonies.colony_count = 1;
-  colonies.next_id = 1;
 
   /* Free Colonist at MD 5 — beyond adjacent; needs food-short MD≤8 bind. */
   const int fid = units_spawn(&units, 0, 9, 4);
   ColonizeUnit* col = units_get(&units, fid);
   if (!col) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("fc-food spawn");
   }
   col->nation_id = nation;
@@ -6458,15 +5452,11 @@ static int unit_free_colonist_food_labor(void) {
       col ? col->y : -1,
       labor_bound
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected Free Colonist food-short LABOR bind (non-Farmer)");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(stderr, "unit_ai_euro_expand: Free Colonist food LABOR ok\n");
   return 0;
 }
@@ -6479,53 +5469,28 @@ static int unit_tools_short_pioneer_labor(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 16, 16, 1, false)) {
     return fail("tools-labor alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 1;
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Pioneer");
   units.types[0].movement = 3;
   units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
-  ColonizeColony* c = &colonies.colonies[0];
-  c->id = 0;
-  c->active = true;
-  c->nation_id = nation;
-  c->x = 4;
-  c->y = 4;
-  c->population = 3;
-  c->colonist_count = 3;
+  fx_colonies_init(&colonies);
+  ColonizeColony* c = fx_colony_add(&colonies, nation, 4, 4, 3);
   c->stock[COLONIZE_CARGO_FOOD] = 40; /* not food emergency */
   c->stock[COLONIZE_CARGO_TOOLS] = 5; /* tools_short = 15 */
-  c->building_in_production = -1;
-  colonies.colony_count = 1;
-  colonies.next_id = 1;
 
   /* Pioneer at MD 5 — beyond adjacent LABOR; tools deepen extends to MD≤8. */
   const int pid = units_spawn(&units, 0, 9, 4);
   ColonizeUnit* pioneer = units_get(&units, pid);
   if (!pioneer) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("tools-labor spawn");
   }
   pioneer->nation_id = nation;
@@ -6588,15 +5553,11 @@ static int unit_tools_short_pioneer_labor(void) {
       pioneer ? pioneer->y : -1,
       labor
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected tools-short LABOR bind for distant Pioneer");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(stderr, "unit_ai_euro_expand: tools-short Pioneer LABOR ok\n");
   return 0;
 }
@@ -6614,25 +5575,13 @@ static int unit_treasure_board_sail(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 16, 16, 1, false)) {
     return fail("treasure-sail alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 1;
   }
   /* Water west of coastal colony (4,4) — ship sits at (3,4). */
   map.terrain[4 * 16 + 3] = 25;
   if (!map_tile_is_coastal(&map, 4, 4)) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("treasure-sail colony should be coastal");
   }
   /* More eastern water for Europe-sail target. */
@@ -6642,9 +5591,7 @@ static int unit_treasure_board_sail(void) {
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
   units.type_count = 2;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Treasure");
   units.types[0].movement = 1;
@@ -6655,27 +5602,14 @@ static int unit_treasure_board_sail(void) {
   units.types[1].cargo = 6;
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
-  ColonizeColony* c = &colonies.colonies[0];
-  c->id = 0;
-  c->active = true;
-  c->nation_id = nation;
-  c->x = 4;
-  c->y = 4;
-  c->population = 2;
-  c->colonist_count = 2;
+  fx_colonies_init(&colonies);
+  ColonizeColony* c = fx_colony_add(&colonies, nation, 4, 4, 2);
   c->stock[COLONIZE_CARGO_FOOD] = 40;
-  c->building_in_production = -1;
-  colonies.colony_count = 1;
-  colonies.next_id = 1;
 
   const int tid = units_spawn(&units, 0, 4, 4);
   ColonizeUnit* treasure = units_get(&units, tid);
   if (!treasure) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("treasure-sail spawn treasure");
   }
   treasure->nation_id = nation;
@@ -6687,9 +5621,7 @@ static int unit_treasure_board_sail(void) {
   const int sid = units_spawn(&units, 1, 3, 4);
   ColonizeUnit* ship = units_get(&units, sid);
   if (!ship) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("treasure-sail spawn ship");
   }
   ship->nation_id = nation;
@@ -6728,9 +5660,7 @@ static int unit_treasure_board_sail(void) {
   treasure = units_get(&units, tid);
   ship = units_get(&units, sid);
   if (!ship || !ship->active) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("treasure-sail ship missing after turn");
   }
   /* LAB_OVL14_L0000__0047b9: the cash-in destroys the Treasure on the spot. */
@@ -6742,15 +5672,11 @@ static int unit_treasure_board_sail(void) {
       treasure->x,
       treasure->y
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected in-colony Treasure cashed + destroyed (DOS 20e6)");
   }
   if (ship->cargo_count != 0) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("Galleon must stay empty — DOS never ships an AI Treasure");
   }
   /* nation+0x2a += +0x315b * 100, no Crown cut. */
@@ -6765,15 +5691,11 @@ static int unit_treasure_board_sail(void) {
       (unsigned)gold_after,
       gold_delta
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected full-value in-colony Treasure cash-in");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(
     stderr,
     "unit_ai_euro_expand: treasure in-colony cash-in ok (gold_delta=%u)\n",
@@ -6794,24 +5716,12 @@ static int unit_treasure_europe_cash(void) {
   const int expect_credit = (treasure_value * (100 - tax)) / 100;
 
   ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 16, 16, 1, false)) {
     return fail("treasure-cash alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 1;
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
   units.type_count = 2;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Treasure");
   units.types[0].movement = 1;
@@ -6822,15 +5732,12 @@ static int unit_treasure_europe_cash(void) {
   units.types[1].cargo = 6;
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
+  fx_colonies_init(&colonies);
 
   const int sid = units_spawn(&units, 1, 200, 200);
   ColonizeUnit* ship = units_get(&units, sid);
   if (!ship) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("treasure-cash spawn ship");
   }
   ship->nation_id = nation;
@@ -6840,9 +5747,7 @@ static int unit_treasure_europe_cash(void) {
   const int tid = units_spawn_allow_stack(&units, 0, 200, 200);
   ColonizeUnit* treasure = units_get(&units, tid);
   if (!treasure) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("treasure-cash spawn treasure");
   }
   treasure->nation_id = nation;
@@ -6852,9 +5757,7 @@ static int unit_treasure_europe_cash(void) {
   treasure->hold_goods_amount[0] = treasure_value & 0xff;
   treasure->hold_goods_amount[1] = (treasure_value >> 8) & 0xff;
   if (!units_board_stacked(&units, tid, sid)) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("treasure-cash board setup");
   }
 
@@ -6914,15 +5817,11 @@ static int unit_treasure_europe_cash(void) {
       expect_credit,
       tax
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected Treasure Europe cash-in + despawn");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(
     stderr,
     "unit_ai_euro_expand: treasure Europe cash ok (gold %u→%u delta=%u credit=%d)\n",
@@ -6942,24 +5841,12 @@ static int unit_wagon_haul_tools_short(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 16, 16, 1, false)) {
     return fail("wagon-haul alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 1;
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Wagon Train");
   units.types[0].movement = 2;
@@ -6967,29 +5854,16 @@ static int unit_wagon_haul_tools_short(void) {
   units.types[0].cargo = 2;
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
-  ColonizeColony* short_c = &colonies.colonies[0];
-  short_c->id = 0;
-  short_c->active = true;
-  short_c->nation_id = nation;
-  short_c->x = 4;
-  short_c->y = 4;
-  short_c->population = 3;
-  short_c->colonist_count = 3;
+  fx_colonies_init(&colonies);
+  ColonizeColony* short_c = fx_colony_add(&colonies, nation, 4, 4, 3);
   short_c->stock[COLONIZE_CARGO_TOOLS] = 5;
   short_c->stock[COLONIZE_CARGO_FOOD] = 40;
-  short_c->building_in_production = -1;
-  colonies.colony_count = 1;
-  colonies.next_id = 1;
 
   /* Idle empty wagon inland — capacity only, no TOOLS yet. */
   const int wid = units_spawn(&units, 0, 10, 10);
   ColonizeUnit* wagon = units_get(&units, wid);
   if (!wagon) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("wagon-haul spawn");
   }
   wagon->nation_id = nation;
@@ -7027,9 +5901,7 @@ static int unit_wagon_haul_tools_short(void) {
 
   wagon = units_get(&units, wid);
   if (!wagon || !wagon->active) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("wagon-haul should remain active");
   }
   if (wagon->orders != UNITS_ORDER_AI_MOVE || wagon->goto_x != 4 || wagon->goto_y != 4) {
@@ -7042,15 +5914,11 @@ static int unit_wagon_haul_tools_short(void) {
       wagon->x,
       wagon->y
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected Wagon AI_MOVE toward tools-short colony (4,4)");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(stderr, "unit_ai_euro_expand: wagon haul tools-short ok\n");
   return 0;
 }
@@ -7065,19 +5933,8 @@ static int unit_scout_sticky_fog_deeper_unseen(void) {
   const int tribe_y = 10;
 
   ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  map.seen = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3 || !map.seen) {
+  if (!fx_map_alloc(&map, 16, 16, 1, true)) {
     return fail("sticky-fog alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 1;
   }
   /* Reveal all md=2 ring; leave md=4 unseen so sticky+fog picks deeper. */
   for (int dy = -4; dy <= 4; ++dy) {
@@ -7095,37 +5952,21 @@ static int unit_scout_sticky_fog_deeper_unseen(void) {
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Scout");
   units.types[0].movement = 4;
   units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
-  ColonizeColony* c = &colonies.colonies[0];
-  c->id = 0;
-  c->active = true;
-  c->nation_id = nation;
-  c->x = 2;
-  c->y = 2;
-  c->population = 3;
-  c->colonist_count = 3;
+  fx_colonies_init(&colonies);
+  ColonizeColony* c = fx_colony_add(&colonies, nation, 2, 2, 3);
   c->stock[COLONIZE_CARGO_FOOD] = 40;
-  c->building_in_production = -1;
-  colonies.colony_count = 1;
-  colonies.next_id = 1;
 
   const int sid = units_spawn(&units, 0, 5, 5);
   ColonizeUnit* scout = units_get(&units, sid);
   if (!scout) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
-    free(map.seen);
+    fx_map_free(&map);
     return fail("sticky-fog spawn scout");
   }
   scout->nation_id = nation;
@@ -7145,10 +5986,7 @@ static int unit_scout_sticky_fog_deeper_unseen(void) {
   col1.head.tribe_count = 1;
   col1.tribe = calloc(1, sizeof(ColonizeCol1Tribe));
   if (!col1.tribe) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
-    free(map.seen);
+    fx_map_free(&map);
     return fail("sticky-fog alloc tribe");
   }
   col1.tribe[0].x = (uint8_t)tribe_x;
@@ -7185,10 +6023,7 @@ static int unit_scout_sticky_fog_deeper_unseen(void) {
   }
   free(col1.tribe);
   if (contact_x < 0) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
-    free(map.seen);
+    fx_map_free(&map);
     return fail("sticky-fog expected CONTACT goal");
   }
   const int ring_md = abs(contact_x - tribe_x) + abs(contact_y - tribe_y);
@@ -7203,17 +6038,11 @@ static int unit_scout_sticky_fog_deeper_unseen(void) {
       ring_md,
       (int)map_tile_seen_by(&map, contact_x, contact_y, nation)
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
-    free(map.seen);
+    fx_map_free(&map);
     return fail("expected sticky+fog deeper unseen ring md=4");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
-  free(map.seen);
+  fx_map_free(&map);
   fprintf(stderr, "unit_ai_euro_expand: sticky+fog deeper unseen ring ok\n");
   return 0;
 }
@@ -7229,34 +6058,20 @@ static int unit_ship_trade_haul_tools_short(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 16, 16, 1, false)) {
     return fail("ship-haul alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 1;
   }
   /* Water corridor: colony (4,4) coastal via (3,4); ship starts at (3,10). */
   for (int y = 0; y < 16; ++y) {
     map.terrain[y * 16 + 3] = 25;
   }
   if (!map_tile_is_coastal(&map, 4, 4)) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("ship-haul colony should be coastal");
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Caravel");
   units.types[0].movement = 4;
@@ -7264,29 +6079,16 @@ static int unit_ship_trade_haul_tools_short(void) {
   units.types[0].cargo = 2;
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
-  ColonizeColony* c = &colonies.colonies[0];
-  c->id = 0;
-  c->active = true;
-  c->nation_id = nation;
-  c->x = 4;
-  c->y = 4;
-  c->population = 3;
-  c->colonist_count = 3;
+  fx_colonies_init(&colonies);
+  ColonizeColony* c = fx_colony_add(&colonies, nation, 4, 4, 3);
   c->stock[COLONIZE_CARGO_TOOLS] = 5; /* tools-short */
   c->stock[COLONIZE_CARGO_FOOD] = 40;
   c->stock[COLONIZE_CARGO_RUM] = 80; /* 80 > 0x4a → bVar5 registers the colony */
-  c->building_in_production = -1;
-  colonies.colony_count = 1;
-  colonies.next_id = 1;
 
   const int sid = units_spawn(&units, 0, 3, 10);
   ColonizeUnit* ship = units_get(&units, sid);
   if (!ship) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("ship-haul spawn");
   }
   ship->nation_id = nation;
@@ -7325,9 +6127,7 @@ static int unit_ship_trade_haul_tools_short(void) {
 
   ship = units_get(&units, sid);
   if (!ship || !ship->active) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("ship-haul should remain active");
   }
   /* Expect sail toward water near (4,4) — typically (3,4). */
@@ -7348,15 +6148,11 @@ static int unit_ship_trade_haul_tools_short(void) {
       ship->x,
       ship->y
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected Caravel AI_SAIL toward tools-short coastal colony");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(stderr, "unit_ai_euro_expand: ship trade haul tools-short ok\n");
   return 0;
 }
@@ -7369,33 +6165,19 @@ static int unit_ship_trade_haul_muskets_short(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 16, 16, 1, false)) {
     return fail("ship-muskets alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 1;
   }
   for (int y = 0; y < 16; ++y) {
     map.terrain[y * 16 + 3] = 25;
   }
   if (!map_tile_is_coastal(&map, 4, 4)) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("ship-muskets colony should be coastal");
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Caravel");
   units.types[0].movement = 4;
@@ -7403,29 +6185,16 @@ static int unit_ship_trade_haul_muskets_short(void) {
   units.types[0].cargo = 2;
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
-  ColonizeColony* c = &colonies.colonies[0];
-  c->id = 0;
-  c->active = true;
-  c->nation_id = nation;
-  c->x = 4;
-  c->y = 4;
-  c->population = 3;
-  c->colonist_count = 3;
+  fx_colonies_init(&colonies);
+  ColonizeColony* c = fx_colony_add(&colonies, nation, 4, 4, 3);
   c->stock[COLONIZE_CARGO_TOOLS] = 40;
   c->stock[COLONIZE_CARGO_FOOD] = 40;
   c->stock[COLONIZE_CARGO_MUSKETS] = 2; /* muskets-short */
-  c->building_in_production = -1;
-  colonies.colony_count = 1;
-  colonies.next_id = 1;
 
   const int sid = units_spawn(&units, 0, 3, 10);
   ColonizeUnit* ship = units_get(&units, sid);
   if (!ship) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("ship-muskets spawn");
   }
   ship->nation_id = nation;
@@ -7465,9 +6234,7 @@ static int unit_ship_trade_haul_muskets_short(void) {
 
   ship = units_get(&units, sid);
   if (!ship || !ship->active) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("ship-muskets should remain active");
   }
   const int near_colony =
@@ -7488,15 +6255,11 @@ static int unit_ship_trade_haul_muskets_short(void) {
       ship->y,
       c->stock[COLONIZE_CARGO_MUSKETS]
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected Caravel AI_SAIL toward muskets-short coastal colony");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(stderr, "unit_ai_euro_expand: ship trade haul muskets-short ok\n");
   return 0;
 }
@@ -7510,24 +6273,12 @@ static int unit_ship_europe_export_silver(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 16, 16, 1, false)) {
     return fail("ship-export alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 1;
   }
   map.terrain[4 * 16 + 3] = 25;
   if (!map_tile_is_coastal(&map, 4, 4)) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("ship-export colony should be coastal");
   }
   for (int y = 0; y < 16; ++y) {
@@ -7536,9 +6287,7 @@ static int unit_ship_europe_export_silver(void) {
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Caravel");
   units.types[0].movement = 4;
@@ -7546,8 +6295,7 @@ static int unit_ship_europe_export_silver(void) {
   units.types[0].cargo = 2;
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
+  fx_colonies_init(&colonies);
   ColonizeColony* c = &colonies.colonies[0];
   c->id = 0;
   c->active = true;
@@ -7571,9 +6319,7 @@ static int unit_ship_europe_export_silver(void) {
   const int sid = units_spawn(&units, 0, 3, 4);
   ColonizeUnit* ship = units_get(&units, sid);
   if (!ship) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("ship-export spawn");
   }
   ship->nation_id = nation;
@@ -7613,9 +6359,7 @@ static int unit_ship_europe_export_silver(void) {
 
   ship = units_get(&units, sid);
   if (!ship || !ship->active) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("ship-export should remain active");
   }
   const int sailed_east =
@@ -7630,15 +6374,11 @@ static int unit_ship_europe_export_silver(void) {
       ship->x,
       ship->y
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected Caravel AI_SAIL eastward with SILVER (Europe export)");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(stderr, "unit_ai_euro_expand: ship Europe export silver ok\n");
   return 0;
 }
@@ -7671,9 +6411,7 @@ static int unit_privateer_europe_loot_sail(void) {
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Privateer");
   units.types[0].movement = 8;
@@ -7681,15 +6419,12 @@ static int unit_privateer_europe_loot_sail(void) {
   units.types[0].cargo = 2;
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
+  fx_colonies_init(&colonies);
 
   const int sid = units_spawn(&units, 0, 3, 4);
   ColonizeUnit* ship = units_get(&units, sid);
   if (!ship) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("priv-loot-sail spawn");
   }
   ship->nation_id = nation;
@@ -7729,9 +6464,7 @@ static int unit_privateer_europe_loot_sail(void) {
 
   ship = units_get(&units, sid);
   if (!ship || !ship->active) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("priv-loot-sail should remain active");
   }
   const int sailed_east =
@@ -7746,15 +6479,11 @@ static int unit_privateer_europe_loot_sail(void) {
       ship->x,
       ship->y
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected Privateer AI_SAIL eastward with SILVER loot");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(stderr, "unit_ai_euro_expand: Privateer Europe loot sail ok\n");
   return 0;
 }
@@ -7767,24 +6496,12 @@ static int unit_ship_europe_export_load_silver(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 16, 16, 1, false)) {
     return fail("ship-export-load alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 1;
   }
   map.terrain[4 * 16 + 3] = 25;
   if (!map_tile_is_coastal(&map, 4, 4)) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("ship-export-load colony should be coastal");
   }
   for (int y = 0; y < 16; ++y) {
@@ -7793,9 +6510,7 @@ static int unit_ship_europe_export_load_silver(void) {
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Caravel");
   units.types[0].movement = 4;
@@ -7803,16 +6518,8 @@ static int unit_ship_europe_export_load_silver(void) {
   units.types[0].cargo = 2;
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
-  ColonizeColony* c = &colonies.colonies[0];
-  c->id = 0;
-  c->active = true;
-  c->nation_id = nation;
-  c->x = 4;
-  c->y = 4;
-  c->population = 3;
-  c->colonist_count = 3;
+  fx_colonies_init(&colonies);
+  ColonizeColony* c = fx_colony_add(&colonies, nation, 4, 4, 3);
   c->stock[COLONIZE_CARGO_TOOLS] = 25;
   c->stock[COLONIZE_CARGO_LUMBER] = 25;
   c->stock[COLONIZE_CARGO_ORE] = 25;
@@ -7820,16 +6527,11 @@ static int unit_ship_europe_export_load_silver(void) {
   c->stock[COLONIZE_CARGO_HORSES] = 15;
   c->stock[COLONIZE_CARGO_FOOD] = 8;
   c->stock[COLONIZE_CARGO_SILVER] = 150;
-  c->building_in_production = -1;
-  colonies.colony_count = 1;
-  colonies.next_id = 1;
 
   const int sid = units_spawn(&units, 0, 3, 4);
   ColonizeUnit* ship = units_get(&units, sid);
   if (!ship) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("ship-export-load spawn");
   }
   ship->nation_id = nation;
@@ -7869,9 +6571,7 @@ static int unit_ship_europe_export_load_silver(void) {
 
   ship = units_get(&units, sid);
   if (!ship || !ship->active) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("ship-export-load should remain active");
   }
   /*
@@ -7901,15 +6601,11 @@ static int unit_ship_europe_export_load_silver(void) {
       ship->goto_x,
       ship->goto_y
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected load SILVER leave 50 + AI_SAIL Europe");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(stderr, "unit_ai_euro_expand: ship Europe export load silver ok\n");
   return 0;
 }
@@ -7928,24 +6624,12 @@ static int unit_galleon_europe_export_load_silver(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 16, 16, 1, false)) {
     return fail("galleon-export-load alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 1;
   }
   map.terrain[4 * 16 + 3] = 25;
   if (!map_tile_is_coastal(&map, 4, 4)) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("galleon-export-load colony should be coastal");
   }
   for (int y = 0; y < 16; ++y) {
@@ -7954,9 +6638,7 @@ static int unit_galleon_europe_export_load_silver(void) {
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Galleon");
   units.types[0].movement = 4;
@@ -7964,16 +6646,8 @@ static int unit_galleon_europe_export_load_silver(void) {
   units.types[0].cargo = 2;
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
-  ColonizeColony* c = &colonies.colonies[0];
-  c->id = 0;
-  c->active = true;
-  c->nation_id = nation;
-  c->x = 4;
-  c->y = 4;
-  c->population = 3;
-  c->colonist_count = 3;
+  fx_colonies_init(&colonies);
+  ColonizeColony* c = fx_colony_add(&colonies, nation, 4, 4, 3);
   c->stock[COLONIZE_CARGO_TOOLS] = 25;
   c->stock[COLONIZE_CARGO_LUMBER] = 25;
   c->stock[COLONIZE_CARGO_ORE] = 25;
@@ -7981,16 +6655,11 @@ static int unit_galleon_europe_export_load_silver(void) {
   c->stock[COLONIZE_CARGO_HORSES] = 15;
   c->stock[COLONIZE_CARGO_FOOD] = 8;
   c->stock[COLONIZE_CARGO_SILVER] = 150;
-  c->building_in_production = -1;
-  colonies.colony_count = 1;
-  colonies.next_id = 1;
 
   const int sid = units_spawn(&units, 0, 3, 4);
   ColonizeUnit* ship = units_get(&units, sid);
   if (!ship) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("galleon-export-load spawn");
   }
   ship->nation_id = nation;
@@ -8030,9 +6699,7 @@ static int unit_galleon_europe_export_load_silver(void) {
 
   ship = units_get(&units, sid);
   if (!ship || !ship->active) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("galleon-export-load should remain active");
   }
   /*
@@ -8062,15 +6729,11 @@ static int unit_galleon_europe_export_load_silver(void) {
       ship->goto_x,
       ship->goto_y
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected load SILVER leave 50 + AI_SAIL Europe");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(stderr, "unit_ai_euro_expand: galleon Europe export load silver ok\n");
   return 0;
 }
@@ -8089,24 +6752,12 @@ static int unit_merchantman_europe_export_load_silver(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 16, 16, 1, false)) {
     return fail("mm-export-load alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 1;
   }
   map.terrain[4 * 16 + 3] = 25;
   if (!map_tile_is_coastal(&map, 4, 4)) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("mm-export-load colony should be coastal");
   }
   for (int y = 0; y < 16; ++y) {
@@ -8115,9 +6766,7 @@ static int unit_merchantman_europe_export_load_silver(void) {
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Merchantman");
   units.types[0].movement = 4;
@@ -8125,16 +6774,8 @@ static int unit_merchantman_europe_export_load_silver(void) {
   units.types[0].cargo = 2;
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
-  ColonizeColony* c = &colonies.colonies[0];
-  c->id = 0;
-  c->active = true;
-  c->nation_id = nation;
-  c->x = 4;
-  c->y = 4;
-  c->population = 3;
-  c->colonist_count = 3;
+  fx_colonies_init(&colonies);
+  ColonizeColony* c = fx_colony_add(&colonies, nation, 4, 4, 3);
   c->stock[COLONIZE_CARGO_TOOLS] = 25;
   c->stock[COLONIZE_CARGO_LUMBER] = 25;
   c->stock[COLONIZE_CARGO_ORE] = 25;
@@ -8142,16 +6783,11 @@ static int unit_merchantman_europe_export_load_silver(void) {
   c->stock[COLONIZE_CARGO_HORSES] = 15;
   c->stock[COLONIZE_CARGO_FOOD] = 8;
   c->stock[COLONIZE_CARGO_SILVER] = 150;
-  c->building_in_production = -1;
-  colonies.colony_count = 1;
-  colonies.next_id = 1;
 
   const int sid = units_spawn(&units, 0, 3, 4);
   ColonizeUnit* ship = units_get(&units, sid);
   if (!ship) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("mm-export-load spawn");
   }
   ship->nation_id = nation;
@@ -8191,9 +6827,7 @@ static int unit_merchantman_europe_export_load_silver(void) {
 
   ship = units_get(&units, sid);
   if (!ship || !ship->active) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("mm-export-load should remain active");
   }
   /*
@@ -8223,15 +6857,11 @@ static int unit_merchantman_europe_export_load_silver(void) {
       ship->goto_x,
       ship->goto_y
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected load SILVER leave 50 + AI_SAIL Europe");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(stderr, "unit_ai_euro_expand: merchantman Europe export load silver ok\n");
   return 0;
 }
@@ -8245,33 +6875,19 @@ static int unit_galleon_trade_haul_tools_short(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 16, 16, 1, false)) {
     return fail("galleon-haul alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 1;
   }
   for (int y = 0; y < 16; ++y) {
     map.terrain[y * 16 + 3] = 25;
   }
   if (!map_tile_is_coastal(&map, 4, 4)) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("galleon-haul colony should be coastal");
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Galleon");
   units.types[0].movement = 4;
@@ -8279,29 +6895,16 @@ static int unit_galleon_trade_haul_tools_short(void) {
   units.types[0].cargo = 6;
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
-  ColonizeColony* c = &colonies.colonies[0];
-  c->id = 0;
-  c->active = true;
-  c->nation_id = nation;
-  c->x = 4;
-  c->y = 4;
-  c->population = 3;
-  c->colonist_count = 3;
+  fx_colonies_init(&colonies);
+  ColonizeColony* c = fx_colony_add(&colonies, nation, 4, 4, 3);
   c->stock[COLONIZE_CARGO_TOOLS] = 5;
   c->stock[COLONIZE_CARGO_FOOD] = 40;
   c->stock[COLONIZE_CARGO_RUM] = 80; /* 2026-09-07b: bVar5 registers the colony */
-  c->building_in_production = -1;
-  colonies.colony_count = 1;
-  colonies.next_id = 1;
 
   const int sid = units_spawn(&units, 0, 3, 10);
   ColonizeUnit* ship = units_get(&units, sid);
   if (!ship) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("galleon-haul spawn");
   }
   ship->nation_id = nation;
@@ -8339,9 +6942,7 @@ static int unit_galleon_trade_haul_tools_short(void) {
 
   ship = units_get(&units, sid);
   if (!ship || !ship->active) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("galleon-haul should remain active");
   }
   const int near_colony =
@@ -8360,15 +6961,11 @@ static int unit_galleon_trade_haul_tools_short(void) {
       ship->x,
       ship->y
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected Galleon AI_SAIL toward tools-short coastal colony");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(stderr, "unit_ai_euro_expand: galleon trade haul tools-short ok\n");
   return 0;
 }
@@ -8403,17 +7000,14 @@ static int unit_improve_timer_pioneer_gate(void) {
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Pioneer");
   units.types[0].movement = 1;
   units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
+  fx_colonies_init(&colonies);
   ColonizeColony* c = &colonies.colonies[0];
   c->id = 0;
   c->active = true;
@@ -8434,10 +7028,7 @@ static int unit_improve_timer_pioneer_gate(void) {
   const int pid = units_spawn(&units, 0, 4, 4);
   ColonizeUnit* pioneer = units_get(&units, pid);
   if (!pioneer) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
-    free(map.improve);
+    fx_map_free(&map);
     return fail("improve-timer spawn");
   }
   pioneer->nation_id = nation;
@@ -8473,17 +7064,11 @@ static int unit_improve_timer_pioneer_gate(void) {
 
   ai_euro_dispatcher_turn(&ctx, nation);
   if (map_tile_is_plowed(&map, 4, 3)) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
-    free(map.improve);
+    fx_map_free(&map);
     return fail("expected improve_timer gate to block plow");
   }
   if (colonies.colonies[0].improve_timer < 1) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
-    free(map.improve);
+    fx_map_free(&map);
     return fail("expected improve_timer INC");
   }
 
@@ -8491,10 +7076,7 @@ static int unit_improve_timer_pioneer_gate(void) {
   colonies.colonies[0].improve_timer = 2;
   pioneer = units_get(&units, pid);
   if (!pioneer || !pioneer->active) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
-    free(map.improve);
+    fx_map_free(&map);
     return fail("improve-timer pioneer gone before unblock");
   }
   pioneer->x = 4;
@@ -8529,26 +7111,17 @@ static int unit_improve_timer_pioneer_gate(void) {
     }
   }
   if (!any_plow) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
-    free(map.improve);
+    fx_map_free(&map);
     return fail("expected plow after improve_timer meets gate");
   }
   if (colonies.colonies[0].improve_timer != 0) {
     fprintf(stderr, "improve_timer after plow=%u\n",
             (unsigned)colonies.colonies[0].improve_timer);
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
-    free(map.improve);
+    fx_map_free(&map);
     return fail("expected improve_timer clear on plow");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
-  free(map.improve);
+  fx_map_free(&map);
   fprintf(stderr, "unit_ai_euro_expand: improve_timer pioneer gate ok\n");
   return 0;
 }
@@ -8573,17 +7146,14 @@ static int unit_pioneer_plow_improve(void) {
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Pioneer");
   units.types[0].movement = 1;
   units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
+  fx_colonies_init(&colonies);
   ColonizeColony* c = &colonies.colonies[0];
   c->id = 0;
   c->active = true;
@@ -8603,10 +7173,7 @@ static int unit_pioneer_plow_improve(void) {
   const int pid = units_spawn(&units, 0, 4, 3);
   ColonizeUnit* pioneer = units_get(&units, pid);
   if (!pioneer) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
-    free(map.improve);
+    fx_map_free(&map);
     return fail("pioneer-plow spawn");
   }
   pioneer->nation_id = nation;
@@ -8680,17 +7247,11 @@ static int unit_pioneer_plow_improve(void) {
       pioneer ? pioneer->x : -1,
       pioneer ? pioneer->y : -1
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
-    free(map.improve);
+    fx_map_free(&map);
     return fail("expected Hardy Pioneer plow or improve goto on colony surround");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
-  free(map.improve);
+  fx_map_free(&map);
   fprintf(
     stderr,
     "unit_ai_euro_expand: pioneer plow ok (plowed=%d tools_spent=%d improving=%d)\n",
@@ -8727,17 +7288,14 @@ static int unit_lumberjack_field_assign(void) {
   map.terrain[3 * 16 + 4] = 10; /* mixed forest */
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Expert Lumberjack");
   units.types[0].movement = 3;
   units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
+  fx_colonies_init(&colonies);
   ColonizeColony* c = &colonies.colonies[0];
   c->id = 0;
   c->active = true;
@@ -8761,9 +7319,7 @@ static int unit_lumberjack_field_assign(void) {
   const int uid = units_spawn(&units, 0, 4, 4);
   ColonizeUnit* lumber = units_get(&units, uid);
   if (!lumber) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("lumber-field spawn");
   }
   lumber->nation_id = nation;
@@ -8846,15 +7402,11 @@ static int unit_lumberjack_field_assign(void) {
       lumber ? (int)lumber->active : 0,
       (int)c->tiles[0]
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected Expert Lumberjack admit + forest field assign");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(stderr, "unit_ai_euro_expand: Lumberjack forest field-assign ok\n");
   return 0;
 }
@@ -8930,9 +7482,7 @@ static int unit_indian_land_found(void) {
   unit_indian_land_seed_colony(&colonies, nation);
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Pioneer");
   units.types[0].movement = 3;
@@ -8965,9 +7515,7 @@ static int unit_indian_land_found(void) {
   tribe.y = (uint8_t)fy;
   const int cost = colonies_indian_land_purchase_gold(&col1, &map, fx, fy, nation);
   if (cost <= 0) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("indian-land: expected homeland purchase gold > 0");
   }
 
@@ -8991,9 +7539,7 @@ static int unit_indian_land_found(void) {
     const int uid = units_spawn(&units, 0, fx, fy);
     ColonizeUnit* founder = units_get(&units, uid);
     if (!founder) {
-      free(map.terrain);
-      free(map.layer2);
-      free(map.layer3);
+      fx_map_free(&map);
       return fail("indian-land spawn pay");
     }
     founder->nation_id = nation;
@@ -9021,9 +7567,7 @@ static int unit_indian_land_found(void) {
         fx,
         fy
       );
-      free(map.terrain);
-      free(map.layer2);
-      free(map.layer3);
+      fx_map_free(&map);
       return fail("indian-land: expected found + despawn when gold enough");
     }
     /* gold_after == gold0 + bump - cost; bump small (≤80). */
@@ -9037,9 +7581,7 @@ static int unit_indian_land_found(void) {
           col1.nation[nation].gold,
           cost
         );
-        free(map.terrain);
-        free(map.layer2);
-        free(map.layer3);
+        fx_map_free(&map);
         return fail("indian-land: unexpected gold after homeland found");
       }
     }
@@ -9073,9 +7615,7 @@ static int unit_indian_land_found(void) {
     const int uid = units_spawn(&units, 0, fx, fy);
     ColonizeUnit* founder = units_get(&units, uid);
     if (!founder) {
-      free(map.terrain);
-      free(map.layer2);
-      free(map.layer3);
+      fx_map_free(&map);
       return fail("indian-land spawn poor");
     }
     founder->nation_id = nation;
@@ -9096,22 +7636,16 @@ static int unit_indian_land_found(void) {
 
     founder = units_get(&units, uid);
     if (count_nation_colonies(&colonies, nation) != 1 || !founder || !founder->active) {
-      free(map.terrain);
-      free(map.layer2);
-      free(map.layer3);
+      fx_map_free(&map);
       return fail("indian-land: short gold must PARK found");
     }
     if (col1.nation[nation].gold >= (uint32_t)cost) {
-      free(map.terrain);
-      free(map.layer2);
-      free(map.layer3);
+      fx_map_free(&map);
       return fail("indian-land: PARK case gold unexpectedly covers cost");
     }
     if (strstr(status, "Not enough gold") == NULL) {
       fprintf(stderr, "unit_ai_euro_expand: indian-land status=%s\n", status);
-      free(map.terrain);
-      free(map.layer2);
-      free(map.layer3);
+      fx_map_free(&map);
       return fail("indian-land: short gold should set human status");
     }
     ctx.status = NULL;
@@ -9136,15 +7670,11 @@ static int unit_indian_land_found(void) {
     col1.nation[nation].founding_fathers[FF_PETER_MINUIT / 8] |=
       (uint8_t)(1u << (FF_PETER_MINUIT % 8));
     if (!founding_fathers_nation_has(&col1, nation, FF_PETER_MINUIT)) {
-      free(map.terrain);
-      free(map.layer2);
-      free(map.layer3);
+      fx_map_free(&map);
       return fail("indian-land: Minuit elect bit helper");
     }
     if (colonies_indian_land_purchase_gold(&col1, &map, fx, fy, nation) != 0) {
-      free(map.terrain);
-      free(map.layer2);
-      free(map.layer3);
+      fx_map_free(&map);
       return fail("indian-land: Minuit must zero purchase gold");
     }
 
@@ -9152,9 +7682,7 @@ static int unit_indian_land_found(void) {
     const int uid = units_spawn(&units, 0, fx, fy);
     ColonizeUnit* founder = units_get(&units, uid);
     if (!founder) {
-      free(map.terrain);
-      free(map.layer2);
-      free(map.layer3);
+      fx_map_free(&map);
       return fail("indian-land spawn Minuit");
     }
     founder->nation_id = nation;
@@ -9168,9 +7696,7 @@ static int unit_indian_land_found(void) {
 
     founder = units_get(&units, uid);
     if (count_nation_colonies(&colonies, nation) != 2 || (founder && founder->active)) {
-      free(map.terrain);
-      free(map.layer2);
-      free(map.layer3);
+      fx_map_free(&map);
       return fail("indian-land: Minuit free found failed");
     }
     if (col1.nation[nation].gold < gold0 || col1.nation[nation].gold > gold0 + 80u) {
@@ -9180,16 +7706,12 @@ static int unit_indian_land_found(void) {
         gold0,
         col1.nation[nation].gold
       );
-      free(map.terrain);
-      free(map.layer2);
-      free(map.layer3);
+      fx_map_free(&map);
       return fail("indian-land: Minuit free found must not spend land gold");
     }
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(stderr, "unit_ai_euro_expand: indian-land FOUND charge/Minuit ok\n");
   return 0;
 }
@@ -9220,17 +7742,14 @@ static int unit_ore_miner_field_assign(void) {
   map.terrain[3 * 16 + 4] = 0x20u;
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Expert Ore Miner");
   units.types[0].movement = 3;
   units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
+  fx_colonies_init(&colonies);
   ColonizeColony* c = &colonies.colonies[0];
   c->id = 0;
   c->active = true;
@@ -9254,9 +7773,7 @@ static int unit_ore_miner_field_assign(void) {
   const int uid = units_spawn(&units, 0, 4, 4);
   ColonizeUnit* miner = units_get(&units, uid);
   if (!miner) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("ore-field spawn");
   }
   miner->nation_id = nation;
@@ -9313,15 +7830,11 @@ static int unit_ore_miner_field_assign(void) {
       pop0,
       c->population
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected Expert Ore Miner admit + hills field assign");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(stderr, "unit_ai_euro_expand: Ore Miner hills field-assign ok\n");
   return 0;
 }
@@ -9353,17 +7866,14 @@ static int unit_silver_miner_field_assign(void) {
   map.terrain[3 * 16 + 4] = 0xa0u;
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Expert Silver Miner");
   units.types[0].movement = 3;
   units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
+  fx_colonies_init(&colonies);
   ColonizeColony* c = &colonies.colonies[0];
   c->id = 0;
   c->active = true;
@@ -9387,9 +7897,7 @@ static int unit_silver_miner_field_assign(void) {
   const int uid = units_spawn(&units, 0, 4, 4);
   ColonizeUnit* miner = units_get(&units, uid);
   if (!miner) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("silver-field spawn");
   }
   miner->nation_id = nation;
@@ -9447,15 +7955,11 @@ static int unit_silver_miner_field_assign(void) {
   }
 
   if (!joined || !field_ok) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected Expert Silver Miner admit + field assign");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(stderr, "unit_ai_euro_expand: Silver Miner mountains field-assign ok\n");
   return 0;
 }
@@ -9484,17 +7988,14 @@ static int unit_farmer_field_assign(void) {
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Expert Farmer");
   units.types[0].movement = 3;
   units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
+  fx_colonies_init(&colonies);
   ColonizeColony* c = &colonies.colonies[0];
   c->id = 0;
   c->active = true;
@@ -9518,9 +8019,7 @@ static int unit_farmer_field_assign(void) {
   const int uid = units_spawn(&units, 0, 4, 4);
   ColonizeUnit* farmer = units_get(&units, uid);
   if (!farmer) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("farmer-field spawn");
   }
   farmer->nation_id = nation;
@@ -9577,15 +8076,11 @@ static int unit_farmer_field_assign(void) {
       pop0,
       c->population
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected Expert Farmer admit + food field assign");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(stderr, "unit_ai_euro_expand: Farmer food field-assign ok\n");
   return 0;
 }
@@ -9617,17 +8112,14 @@ static int unit_pioneer_road_on_plowed(void) {
   map_tile_set_plowed(&map, 4, 3, true);
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Pioneer");
   units.types[0].movement = 1;
   units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
+  fx_colonies_init(&colonies);
   ColonizeColony* c = &colonies.colonies[0];
   c->id = 0;
   c->active = true;
@@ -9646,10 +8138,7 @@ static int unit_pioneer_road_on_plowed(void) {
   const int pid = units_spawn(&units, 0, 4, 3);
   ColonizeUnit* pioneer = units_get(&units, pid);
   if (!pioneer) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
-    free(map.improve);
+    fx_map_free(&map);
     return fail("pioneer-road spawn");
   }
   pioneer->nation_id = nation;
@@ -9717,17 +8206,11 @@ static int unit_pioneer_road_on_plowed(void) {
       pioneer ? pioneer->goto_x : -1,
       pioneer ? pioneer->goto_y : -1
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
-    free(map.improve);
+    fx_map_free(&map);
     return fail("expected Hardy Pioneer road on already-plowed surround");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
-  free(map.improve);
+  fx_map_free(&map);
   fprintf(stderr, "unit_ai_euro_expand: pioneer road-on-plowed ok\n");
   return 0;
 }
@@ -9759,17 +8242,14 @@ static int unit_fisherman_field_assign(void) {
   map.terrain[4 * 16 + 3] = 25;
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Expert Fisherman");
   units.types[0].movement = 3;
   units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
+  fx_colonies_init(&colonies);
   ColonizeColony* c = &colonies.colonies[0];
   c->id = 0;
   c->active = true;
@@ -9793,9 +8273,7 @@ static int unit_fisherman_field_assign(void) {
   const int uid = units_spawn(&units, 0, 4, 4);
   ColonizeUnit* fisher = units_get(&units, uid);
   if (!fisher) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("fisherman-field spawn");
   }
   fisher->nation_id = nation;
@@ -9853,15 +8331,11 @@ static int unit_fisherman_field_assign(void) {
       c->population,
       map_pedia_terrain_index_at(&map, 3, 4)
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected Expert Fisherman admit + coastal fish field assign");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(stderr, "unit_ai_euro_expand: Fisherman coastal field-assign ok\n");
   return 0;
 }
@@ -9892,17 +8366,14 @@ static int unit_sugar_planter_field_assign(void) {
   map.terrain[3 * 16 + 4] = 5;
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Expert Sugar Planter");
   units.types[0].movement = 3;
   units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
+  fx_colonies_init(&colonies);
   ColonizeColony* c = &colonies.colonies[0];
   c->id = 0;
   c->active = true;
@@ -9926,9 +8397,7 @@ static int unit_sugar_planter_field_assign(void) {
   const int uid = units_spawn(&units, 0, 4, 4);
   ColonizeUnit* planter = units_get(&units, uid);
   if (!planter) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("sugar-field spawn");
   }
   planter->nation_id = nation;
@@ -9986,15 +8455,11 @@ static int unit_sugar_planter_field_assign(void) {
       pop0,
       c->population
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected Expert Sugar Planter admit + savannah field assign");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(stderr, "unit_ai_euro_expand: Sugar Planter field-assign ok\n");
   return 0;
 }
@@ -10025,17 +8490,14 @@ static int unit_tobacco_planter_field_assign(void) {
   map.terrain[3 * 16 + 4] = 4;
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Expert Tobacco Planter");
   units.types[0].movement = 3;
   units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
+  fx_colonies_init(&colonies);
   ColonizeColony* c = &colonies.colonies[0];
   c->id = 0;
   c->active = true;
@@ -10059,9 +8521,7 @@ static int unit_tobacco_planter_field_assign(void) {
   const int uid = units_spawn(&units, 0, 4, 4);
   ColonizeUnit* planter = units_get(&units, uid);
   if (!planter) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("tobacco-field spawn");
   }
   planter->nation_id = nation;
@@ -10119,15 +8579,11 @@ static int unit_tobacco_planter_field_assign(void) {
       pop0,
       c->population
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected Expert Tobacco Planter admit + grassland field assign");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(stderr, "unit_ai_euro_expand: Tobacco Planter field-assign ok\n");
   return 0;
 }
@@ -10158,17 +8614,14 @@ static int unit_cotton_planter_field_assign(void) {
   map.terrain[3 * 16 + 4] = 3;
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Expert Cotton Planter");
   units.types[0].movement = 3;
   units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
+  fx_colonies_init(&colonies);
   ColonizeColony* c = &colonies.colonies[0];
   c->id = 0;
   c->active = true;
@@ -10192,9 +8645,7 @@ static int unit_cotton_planter_field_assign(void) {
   const int uid = units_spawn(&units, 0, 4, 4);
   ColonizeUnit* planter = units_get(&units, uid);
   if (!planter) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("cotton-field spawn");
   }
   planter->nation_id = nation;
@@ -10252,15 +8703,11 @@ static int unit_cotton_planter_field_assign(void) {
       pop0,
       c->population
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected Expert Cotton Planter admit + prairie field assign");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(stderr, "unit_ai_euro_expand: Cotton Planter field-assign ok\n");
   return 0;
 }
@@ -10291,17 +8738,14 @@ static int unit_fur_trapper_field_assign(void) {
   map.terrain[3 * 16 + 4] = 10;
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Expert Fur Trapper");
   units.types[0].movement = 3;
   units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
+  fx_colonies_init(&colonies);
   ColonizeColony* c = &colonies.colonies[0];
   c->id = 0;
   c->active = true;
@@ -10325,9 +8769,7 @@ static int unit_fur_trapper_field_assign(void) {
   const int uid = units_spawn(&units, 0, 4, 4);
   ColonizeUnit* trapper = units_get(&units, uid);
   if (!trapper) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("fur-field spawn");
   }
   trapper->nation_id = nation;
@@ -10385,15 +8827,11 @@ static int unit_fur_trapper_field_assign(void) {
       pop0,
       c->population
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected Expert Fur Trapper admit + forest field assign");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(stderr, "unit_ai_euro_expand: Fur Trapper field-assign ok\n");
   return 0;
 }
@@ -10422,13 +8860,10 @@ static int unit_peace_construction_stockade(void) {
   map.terrain[4 * 16 + 3] = 25; /* ocean west → coastal (Docks also buildable) */
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
+  fx_colonies_init(&colonies);
   snprintf(colonies.building_types[0].name, sizeof(colonies.building_types[0].name), "Stockade");
   colonies.building_types[0].hammers = 64;
   colonies.building_types[0].min_population = 3;
@@ -10495,15 +8930,11 @@ static int unit_peace_construction_stockade(void) {
       "unit_ai_euro_expand: peace construct bip=%d (want Stockade=0)\n",
       c->building_in_production
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected idle colony to prefer Stockade over Warehouse/Docks");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(stderr, "unit_ai_euro_expand: peace construction Stockade prefer ok\n");
   return 0;
 }
@@ -10516,29 +8947,16 @@ static int unit_peace_construction_fort(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 16, 16, 1, false)) {
     return fail("peace-fort alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 1;
   }
   map.terrain[4 * 16 + 3] = 25;
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
+  fx_colonies_init(&colonies);
   snprintf(colonies.building_types[0].name, sizeof(colonies.building_types[0].name), "Stockade");
   colonies.building_types[0].hammers = 64;
   colonies.building_types[0].min_population = 3;
@@ -10608,15 +9026,11 @@ static int unit_peace_construction_fort(void) {
       "unit_ai_euro_expand: fort prefer bip=%d (want Fort=1)\n",
       c->building_in_production
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected Stockade colony to prefer Fort over Warehouse/Docks");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(stderr, "unit_ai_euro_expand: peace construction Fort prefer ok\n");
   return 0;
 }
@@ -10629,29 +9043,16 @@ static int unit_peace_construction_fortress(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 16, 16, 1, false)) {
     return fail("peace-fortress alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 1;
   }
   map.terrain[4 * 16 + 3] = 25;
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
+  fx_colonies_init(&colonies);
   snprintf(colonies.building_types[0].name, sizeof(colonies.building_types[0].name), "Fort");
   colonies.building_types[0].hammers = 120;
   colonies.building_types[0].min_population = 4;
@@ -10720,15 +9121,11 @@ static int unit_peace_construction_fortress(void) {
       "unit_ai_euro_expand: fortress prefer bip=%d (want Fortress=1)\n",
       c->building_in_production
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected Fort colony to prefer Fortress over Warehouse/Docks");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(stderr, "unit_ai_euro_expand: peace construction Fortress prefer ok\n");
   return 0;
 }
@@ -10741,29 +9138,16 @@ static int unit_peace_construction_warehouse(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 16, 16, 1, false)) {
     return fail("peace-warehouse alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 1;
   }
   map.terrain[4 * 16 + 3] = 25; /* coastal — Docks buildable but lower priority */
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
+  fx_colonies_init(&colonies);
   snprintf(colonies.building_types[0].name, sizeof(colonies.building_types[0].name), "Stockade");
   colonies.building_types[0].hammers = 64;
   colonies.building_types[0].min_population = 3;
@@ -10830,15 +9214,11 @@ static int unit_peace_construction_warehouse(void) {
       "unit_ai_euro_expand: peace warehouse bip=%d (want Warehouse=1)\n",
       c->building_in_production
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected Stockade-owned idle colony to prefer Warehouse over Docks");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(stderr, "unit_ai_euro_expand: peace construction Warehouse prefer ok\n");
   return 0;
 }
@@ -10852,29 +9232,16 @@ static int unit_peace_construction_warehouse_expansion(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 16, 16, 1, false)) {
     return fail("peace-whe alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 1;
   }
   map.terrain[4 * 16 + 3] = 25; /* coastal — Docks buildable but lower priority */
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
+  fx_colonies_init(&colonies);
   snprintf(colonies.building_types[0].name, sizeof(colonies.building_types[0].name), "Stockade");
   colonies.building_types[0].hammers = 64;
   colonies.building_types[0].min_population = 3;
@@ -10949,15 +9316,11 @@ static int unit_peace_construction_warehouse_expansion(void) {
       "unit_ai_euro_expand: Warehouse Expansion bip=%d (want Expansion=2)\n",
       c->building_in_production
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected near-cap Warehouse colony to prefer Expansion over Docks");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(stderr, "unit_ai_euro_expand: peace Warehouse Expansion prefer ok\n");
   return 0;
 }
@@ -10970,29 +9333,16 @@ static int unit_peace_construction_docks(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 16, 16, 1, false)) {
     return fail("peace-docks alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 1;
   }
   map.terrain[4 * 16 + 3] = 25; /* ocean west → coastal */
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
+  fx_colonies_init(&colonies);
   snprintf(colonies.building_types[0].name, sizeof(colonies.building_types[0].name), "Stockade");
   colonies.building_types[0].hammers = 64;
   colonies.building_types[0].min_population = 3;
@@ -11059,15 +9409,11 @@ static int unit_peace_construction_docks(void) {
       "unit_ai_euro_expand: peace docks bip=%d (want Docks=2)\n",
       c->building_in_production
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected coastal Stockade+Warehouse colony to queue Docks");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(stderr, "unit_ai_euro_expand: peace construction Docks prefer ok\n");
   return 0;
 }
@@ -11097,13 +9443,10 @@ static int unit_coastal_drydock_prefer(void) {
   map.terrain[4 * 16 + 3] = 25; /* ocean west of colony → coastal */
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
+  fx_colonies_init(&colonies);
   snprintf(colonies.building_types[0].name, sizeof(colonies.building_types[0].name), "Docks");
   colonies.building_types[0].hammers = 52;
   colonies.building_types[0].min_population = 1;
@@ -11167,15 +9510,11 @@ static int unit_coastal_drydock_prefer(void) {
       "unit_ai_euro_expand: drydock prefer bip=%d (want Drydock=1)\n",
       c->building_in_production
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected idle coastal Docks colony to queue Drydock");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(stderr, "unit_ai_euro_expand: coastal Drydock prefer ok\n");
   return 0;
 }
@@ -11205,13 +9544,10 @@ static int unit_coastal_shipyard_prefer(void) {
   map.terrain[4 * 16 + 3] = 25; /* ocean west of colony → coastal */
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
+  fx_colonies_init(&colonies);
   snprintf(colonies.building_types[0].name, sizeof(colonies.building_types[0].name), "Drydock");
   colonies.building_types[0].hammers = 80;
   colonies.building_types[0].tools_cost = 50;
@@ -11276,15 +9612,11 @@ static int unit_coastal_shipyard_prefer(void) {
       "unit_ai_euro_expand: shipyard prefer bip=%d (want Shipyard=1)\n",
       c->building_in_production
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected idle coastal Drydock colony to queue Shipyard");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(stderr, "unit_ai_euro_expand: coastal Shipyard prefer ok\n");
   return 0;
 }
@@ -11315,13 +9647,10 @@ static int unit_stuyvesant_custom_house_prefer(void) {
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
+  fx_colonies_init(&colonies);
   snprintf(colonies.building_types[0].name, sizeof(colonies.building_types[0].name), "Custom House");
   colonies.building_types[0].hammers = 160;
   colonies.building_types[0].tools_cost = 50;
@@ -11365,9 +9694,7 @@ static int unit_stuyvesant_custom_house_prefer(void) {
   col1.nation[nation].founding_fathers[FF_PETER_STUYVESANT / 8] |=
     (uint8_t)(1u << (FF_PETER_STUYVESANT % 8));
   if (!founding_fathers_nation_has(&col1, nation, FF_PETER_STUYVESANT)) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("custom house prefer: Stuyvesant elect bit helper");
   }
 
@@ -11390,15 +9717,11 @@ static int unit_stuyvesant_custom_house_prefer(void) {
       "unit_ai_euro_expand: custom house prefer bip=%d (want Custom House=0)\n",
       c->building_in_production
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected idle Stuyvesant colony to queue Custom House");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(stderr, "unit_ai_euro_expand: Stuyvesant Custom House prefer ok\n");
   return 0;
 }
@@ -11427,13 +9750,10 @@ static int unit_peace_church_prefer(void) {
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
+  fx_colonies_init(&colonies);
   snprintf(colonies.building_types[0].name, sizeof(colonies.building_types[0].name), "Stockade");
   colonies.building_types[0].hammers = 64;
   colonies.building_types[0].min_population = 3;
@@ -11500,15 +9820,11 @@ static int unit_peace_church_prefer(void) {
       "unit_ai_euro_expand: peace Church bip=%d (want Church=2)\n",
       c->building_in_production
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected idle Stockade+Warehouse colony to prefer Church");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(stderr, "unit_ai_euro_expand: peace Church prefer ok\n");
   return 0;
 }
@@ -11523,28 +9839,15 @@ static int unit_war_armory_prefer(void) {
   const int foe = 2;
 
   ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 16, 16, 1, false)) {
     return fail("war-armory alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 1;
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
+  fx_colonies_init(&colonies);
   snprintf(colonies.building_types[0].name, sizeof(colonies.building_types[0].name), "Stockade");
   colonies.building_types[0].hammers = 64;
   colonies.building_types[0].min_population = 3;
@@ -11594,9 +9897,7 @@ static int unit_war_armory_prefer(void) {
   col1.stuff.ship_counts[nation] = 1;
   ai_diplo_declare_war(&col1, nation, foe);
   if (!ai_diplo_at_war(&col1, nation, foe)) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("war-armory setup: expected at war");
   }
 
@@ -11619,15 +9920,11 @@ static int unit_war_armory_prefer(void) {
       "unit_ai_euro_expand: war Armory bip=%d (want Armory=2, Church would be 1)\n",
       c->building_in_production
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected at-war Stockade colony to prefer Armory over Church");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(stderr, "unit_ai_euro_expand: war Armory prefer ok\n");
   return 0;
 }
@@ -11640,28 +9937,15 @@ static int unit_peace_printing_press_prefer(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 16, 16, 1, false)) {
     return fail("peace-press alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 1;
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
+  fx_colonies_init(&colonies);
   snprintf(colonies.building_types[0].name, sizeof(colonies.building_types[0].name), "Stockade");
   colonies.building_types[0].hammers = 64;
   colonies.building_types[0].min_population = 3;
@@ -11728,15 +10012,11 @@ static int unit_peace_printing_press_prefer(void) {
       "unit_ai_euro_expand: peace Press bip=%d (want Printing Press=2)\n",
       c->building_in_production
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected idle Stockade+Church colony to prefer Printing Press");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(stderr, "unit_ai_euro_expand: peace Printing Press prefer ok\n");
   return 0;
 }
@@ -11749,28 +10029,15 @@ static int unit_peace_schoolhouse_prefer(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 16, 16, 1, false)) {
     return fail("peace-school alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 1;
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
+  fx_colonies_init(&colonies);
   snprintf(colonies.building_types[0].name, sizeof(colonies.building_types[0].name), "Stockade");
   colonies.building_types[0].hammers = 64;
   colonies.building_types[0].min_population = 3;
@@ -11841,15 +10108,11 @@ static int unit_peace_schoolhouse_prefer(void) {
       "unit_ai_euro_expand: peace Schoolhouse bip=%d (want Schoolhouse=3)\n",
       c->building_in_production
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected idle educated colony to prefer Schoolhouse");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(stderr, "unit_ai_euro_expand: peace Schoolhouse prefer ok\n");
   return 0;
 }
@@ -11863,28 +10126,15 @@ static int unit_war_magazine_prefer(void) {
   const int foe = 2;
 
   ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 16, 16, 1, false)) {
     return fail("war-magazine alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 1;
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
+  fx_colonies_init(&colonies);
   snprintf(colonies.building_types[0].name, sizeof(colonies.building_types[0].name), "Stockade");
   colonies.building_types[0].hammers = 64;
   colonies.building_types[0].min_population = 3;
@@ -11953,15 +10203,11 @@ static int unit_war_magazine_prefer(void) {
       "unit_ai_euro_expand: war Magazine bip=%d (want Magazine=2)\n",
       c->building_in_production
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected at-war Armory colony to prefer Magazine");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(stderr, "unit_ai_euro_expand: war Magazine prefer ok\n");
   return 0;
 }
@@ -11973,28 +10219,15 @@ static int unit_peace_newspaper_prefer(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 16, 16, 1, false)) {
     return fail("peace-newspaper alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 1;
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
+  fx_colonies_init(&colonies);
   snprintf(colonies.building_types[0].name, sizeof(colonies.building_types[0].name), "Stockade");
   colonies.building_types[0].hammers = 64;
   colonies.building_types[0].min_population = 3;
@@ -12061,15 +10294,11 @@ static int unit_peace_newspaper_prefer(void) {
       "unit_ai_euro_expand: peace Newspaper bip=%d (want Newspaper=2)\n",
       c->building_in_production
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected idle Press colony to prefer Newspaper");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(stderr, "unit_ai_euro_expand: peace Newspaper prefer ok\n");
   return 0;
 }
@@ -12081,28 +10310,15 @@ static int unit_peace_college_prefer(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 16, 16, 1, false)) {
     return fail("peace-college alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 1;
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
+  fx_colonies_init(&colonies);
   snprintf(colonies.building_types[0].name, sizeof(colonies.building_types[0].name), "Stockade");
   colonies.building_types[0].hammers = 64;
   colonies.building_types[0].min_population = 3;
@@ -12169,15 +10385,11 @@ static int unit_peace_college_prefer(void) {
       "unit_ai_euro_expand: peace College bip=%d (want College=2)\n",
       c->building_in_production
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected idle Schoolhouse colony to prefer College");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(stderr, "unit_ai_euro_expand: peace College prefer ok\n");
   return 0;
 }
@@ -12189,28 +10401,15 @@ static int unit_peace_cathedral_prefer(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 16, 16, 1, false)) {
     return fail("peace-cathedral alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 1;
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
+  fx_colonies_init(&colonies);
   snprintf(colonies.building_types[0].name, sizeof(colonies.building_types[0].name), "Stockade");
   colonies.building_types[0].hammers = 64;
   colonies.building_types[0].min_population = 3;
@@ -12277,15 +10476,11 @@ static int unit_peace_cathedral_prefer(void) {
       "unit_ai_euro_expand: peace Cathedral bip=%d (want Cathedral=2)\n",
       c->building_in_production
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected idle Church colony to prefer Cathedral");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(stderr, "unit_ai_euro_expand: peace Cathedral prefer ok\n");
   return 0;
 }
@@ -12300,28 +10495,15 @@ static int unit_war_arsenal_prefer(void) {
   const int foe = 2;
 
   ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 16, 16, 1, false)) {
     return fail("war-arsenal alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 1;
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
+  fx_colonies_init(&colonies);
   snprintf(colonies.building_types[0].name, sizeof(colonies.building_types[0].name), "Stockade");
   colonies.building_types[0].hammers = 64;
   colonies.building_types[0].min_population = 3;
@@ -12396,15 +10578,11 @@ static int unit_war_arsenal_prefer(void) {
       "unit_ai_euro_expand: war Arsenal bip=%d (want Arsenal=3)\n",
       c->building_in_production
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected at-war Magazine+AdamSmith colony to prefer Arsenal");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(stderr, "unit_ai_euro_expand: war Arsenal prefer ok\n");
   return 0;
 }
@@ -12416,28 +10594,15 @@ static int unit_peace_university_prefer(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 16, 16, 1, false)) {
     return fail("peace-university alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 1;
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
+  fx_colonies_init(&colonies);
   snprintf(colonies.building_types[0].name, sizeof(colonies.building_types[0].name), "Stockade");
   colonies.building_types[0].hammers = 64;
   colonies.building_types[0].min_population = 3;
@@ -12508,15 +10673,11 @@ static int unit_peace_university_prefer(void) {
       "unit_ai_euro_expand: peace University bip=%d (want University=3)\n",
       c->building_in_production
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected idle College colony to prefer University");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(stderr, "unit_ai_euro_expand: peace University prefer ok\n");
   return 0;
 }
@@ -12528,28 +10689,15 @@ static int unit_stable_prefer(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 16, 16, 1, false)) {
     return fail("stable alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 1;
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
+  fx_colonies_init(&colonies);
   snprintf(colonies.building_types[0].name, sizeof(colonies.building_types[0].name), "Stockade");
   colonies.building_types[0].hammers = 64;
   colonies.building_types[0].min_population = 3;
@@ -12612,15 +10760,11 @@ static int unit_stable_prefer(void) {
       "unit_ai_euro_expand: Stable bip=%d (want Stable=1)\n",
       c->building_in_production
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected fortified colony to prefer Stable");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(stderr, "unit_ai_euro_expand: Stable prefer ok\n");
   return 0;
 }
@@ -12633,28 +10777,15 @@ static int unit_carpenters_shop_prefer(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 16, 16, 1, false)) {
     return fail("carp-shop alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 1;
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
+  fx_colonies_init(&colonies);
   snprintf(colonies.building_types[0].name, sizeof(colonies.building_types[0].name), "Stockade");
   colonies.building_types[0].hammers = 64;
   colonies.building_types[0].min_population = 3;
@@ -12719,15 +10850,11 @@ static int unit_carpenters_shop_prefer(void) {
       "unit_ai_euro_expand: Carpenter's Shop bip=%d (want=1)\n",
       c->building_in_production
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected Stockade colony to prefer Carpenter's Shop");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(stderr, "unit_ai_euro_expand: Carpenter's Shop prefer ok\n");
   return 0;
 }
@@ -12739,28 +10866,15 @@ static int unit_lumber_mill_prefer(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 16, 16, 1, false)) {
     return fail("lumber-mill alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 1;
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
+  fx_colonies_init(&colonies);
   snprintf(colonies.building_types[0].name, sizeof(colonies.building_types[0].name), "Stockade");
   colonies.building_types[0].hammers = 64;
   colonies.building_types[0].min_population = 3;
@@ -12829,15 +10943,11 @@ static int unit_lumber_mill_prefer(void) {
       "unit_ai_euro_expand: Lumber Mill bip=%d (want Lumber Mill=2)\n",
       c->building_in_production
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected Carpenter's Shop colony to prefer Lumber Mill");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(stderr, "unit_ai_euro_expand: Lumber Mill prefer ok\n");
   return 0;
 }
@@ -12850,28 +10960,15 @@ static int unit_blacksmiths_house_prefer(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 16, 16, 1, false)) {
     return fail("bsmith-house alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 1;
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
+  fx_colonies_init(&colonies);
   snprintf(colonies.building_types[0].name, sizeof(colonies.building_types[0].name), "Stockade");
   colonies.building_types[0].hammers = 64;
   colonies.building_types[0].min_population = 3;
@@ -12937,15 +11034,11 @@ static int unit_blacksmiths_house_prefer(void) {
       "unit_ai_euro_expand: Blacksmith's House bip=%d (want=1)\n",
       c->building_in_production
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected ore surplus colony to prefer Blacksmith's House");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(stderr, "unit_ai_euro_expand: Blacksmith's House prefer ok\n");
   return 0;
 }
@@ -12958,28 +11051,15 @@ static int unit_blacksmiths_shop_prefer(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 16, 16, 1, false)) {
     return fail("bsmith-shop alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 1;
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
+  fx_colonies_init(&colonies);
   snprintf(colonies.building_types[0].name, sizeof(colonies.building_types[0].name), "Stockade");
   colonies.building_types[0].hammers = 64;
   colonies.building_types[0].min_population = 3;
@@ -13050,15 +11130,11 @@ static int unit_blacksmiths_shop_prefer(void) {
       "unit_ai_euro_expand: Blacksmith's Shop bip=%d (want=2)\n",
       c->building_in_production
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected Blacksmith's House colony to prefer Blacksmith's Shop");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(stderr, "unit_ai_euro_expand: Blacksmith's Shop prefer ok\n");
   return 0;
 }
@@ -13070,28 +11146,15 @@ static int unit_iron_works_prefer(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 16, 16, 1, false)) {
     return fail("iron-works alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 1;
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
+  fx_colonies_init(&colonies);
   snprintf(colonies.building_types[0].name, sizeof(colonies.building_types[0].name), "Stockade");
   colonies.building_types[0].hammers = 64;
   colonies.building_types[0].min_population = 3;
@@ -13162,15 +11225,11 @@ static int unit_iron_works_prefer(void) {
       "unit_ai_euro_expand: Iron Works bip=%d (want Iron Works=2)\n",
       c->building_in_production
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected AdamSmith+Shop colony to prefer Iron Works");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(stderr, "unit_ai_euro_expand: Iron Works prefer ok\n");
   return 0;
 }
@@ -13183,28 +11242,15 @@ static int unit_craft_distillers_house_prefer(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 16, 16, 1, false)) {
     return fail("craft-house alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 1;
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
+  fx_colonies_init(&colonies);
   snprintf(colonies.building_types[0].name, sizeof(colonies.building_types[0].name), "Stockade");
   colonies.building_types[0].hammers = 64;
   colonies.building_types[0].min_population = 3;
@@ -13272,15 +11318,11 @@ static int unit_craft_distillers_house_prefer(void) {
       "unit_ai_euro_expand: Distiller's House bip=%d (want=1)\n",
       c->building_in_production
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected sugar surplus colony to prefer Rum Distiller's House");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(stderr, "unit_ai_euro_expand: Rum Distiller's House prefer ok\n");
   return 0;
 }
@@ -13293,28 +11335,15 @@ static int unit_craft_weavers_house_prefer(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 16, 16, 1, false)) {
     return fail("weaver-house alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 1;
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
+  fx_colonies_init(&colonies);
   snprintf(colonies.building_types[0].name, sizeof(colonies.building_types[0].name), "Stockade");
   colonies.building_types[0].hammers = 64;
   colonies.building_types[0].min_population = 3;
@@ -13378,15 +11407,11 @@ static int unit_craft_weavers_house_prefer(void) {
       "unit_ai_euro_expand: Weaver's House bip=%d (want=1)\n",
       c->building_in_production
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected cotton surplus colony to prefer Weaver's House");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(stderr, "unit_ai_euro_expand: Weaver's House prefer ok\n");
   return 0;
 }
@@ -13398,28 +11423,15 @@ static int unit_craft_tobacconists_house_prefer(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 16, 16, 1, false)) {
     return fail("toba-house alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 1;
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
+  fx_colonies_init(&colonies);
   snprintf(colonies.building_types[0].name, sizeof(colonies.building_types[0].name), "Stockade");
   colonies.building_types[0].hammers = 64;
   colonies.building_types[0].min_population = 3;
@@ -13487,15 +11499,11 @@ static int unit_craft_tobacconists_house_prefer(void) {
       "unit_ai_euro_expand: Tobacconist's House bip=%d (want=1)\n",
       c->building_in_production
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected tobacco surplus colony to prefer Tobacconist's House");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(stderr, "unit_ai_euro_expand: Tobacconist's House prefer ok\n");
   return 0;
 }
@@ -13507,28 +11515,15 @@ static int unit_craft_fur_traders_house_prefer(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 16, 16, 1, false)) {
     return fail("fur-house alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 1;
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
+  fx_colonies_init(&colonies);
   snprintf(colonies.building_types[0].name, sizeof(colonies.building_types[0].name), "Stockade");
   colonies.building_types[0].hammers = 64;
   colonies.building_types[0].min_population = 3;
@@ -13594,15 +11589,11 @@ static int unit_craft_fur_traders_house_prefer(void) {
       "unit_ai_euro_expand: Fur Trader's House bip=%d (want=1)\n",
       c->building_in_production
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected furs surplus colony to prefer Fur Trader's House");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(stderr, "unit_ai_euro_expand: Fur Trader's House prefer ok\n");
   return 0;
 }
@@ -13614,28 +11605,15 @@ static int unit_craft_distillery_prefer(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 16, 16, 1, false)) {
     return fail("craft-distillery alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 1;
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
+  fx_colonies_init(&colonies);
   snprintf(colonies.building_types[0].name, sizeof(colonies.building_types[0].name), "Stockade");
   colonies.building_types[0].hammers = 64;
   colonies.building_types[0].min_population = 3;
@@ -13709,15 +11687,11 @@ static int unit_craft_distillery_prefer(void) {
       "unit_ai_euro_expand: Rum Distillery bip=%d (want=2)\n",
       c->building_in_production
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected sugar+House colony to prefer Rum Distillery");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(stderr, "unit_ai_euro_expand: Rum Distillery prefer ok\n");
   return 0;
 }
@@ -13730,28 +11704,15 @@ static int unit_craft_weavers_shop_prefer(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 16, 16, 1, false)) {
     return fail("craft-weaver alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 1;
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
+  fx_colonies_init(&colonies);
   snprintf(colonies.building_types[0].name, sizeof(colonies.building_types[0].name), "Stockade");
   colonies.building_types[0].hammers = 64;
   colonies.building_types[0].min_population = 3;
@@ -13824,15 +11785,11 @@ static int unit_craft_weavers_shop_prefer(void) {
       "unit_ai_euro_expand: Weaver's Shop bip=%d (want=2)\n",
       c->building_in_production
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected cotton+House colony to prefer Weaver's Shop");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(stderr, "unit_ai_euro_expand: Weaver's Shop prefer ok\n");
   return 0;
 }
@@ -13845,28 +11802,15 @@ static int unit_craft_tobacconist_shop_prefer(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 16, 16, 1, false)) {
     return fail("craft-tobacco alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 1;
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
+  fx_colonies_init(&colonies);
   snprintf(colonies.building_types[0].name, sizeof(colonies.building_types[0].name), "Stockade");
   colonies.building_types[0].hammers = 64;
   colonies.building_types[0].min_population = 3;
@@ -13943,15 +11887,11 @@ static int unit_craft_tobacconist_shop_prefer(void) {
       "unit_ai_euro_expand: Tobacconist's Shop bip=%d (want=2)\n",
       c->building_in_production
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected tobacco+House colony to prefer Tobacconist's Shop");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(stderr, "unit_ai_euro_expand: Tobacconist's Shop prefer ok\n");
   return 0;
 }
@@ -13964,28 +11904,15 @@ static int unit_craft_fur_trading_post_prefer(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 16, 16, 1, false)) {
     return fail("craft-fur-post alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 1;
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
+  fx_colonies_init(&colonies);
   snprintf(colonies.building_types[0].name, sizeof(colonies.building_types[0].name), "Stockade");
   colonies.building_types[0].hammers = 64;
   colonies.building_types[0].min_population = 3;
@@ -14062,15 +11989,11 @@ static int unit_craft_fur_trading_post_prefer(void) {
       "unit_ai_euro_expand: Fur Trading Post bip=%d (want=2)\n",
       c->building_in_production
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected furs+House colony to prefer Fur Trading Post");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(stderr, "unit_ai_euro_expand: Fur Trading Post prefer ok\n");
   return 0;
 }
@@ -14082,28 +12005,15 @@ static int unit_craft_rum_factory_prefer(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 16, 16, 1, false)) {
     return fail("craft-factory alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 1;
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
+  fx_colonies_init(&colonies);
   snprintf(colonies.building_types[0].name, sizeof(colonies.building_types[0].name), "Stockade");
   colonies.building_types[0].hammers = 64;
   colonies.building_types[0].min_population = 3;
@@ -14183,15 +12093,11 @@ static int unit_craft_rum_factory_prefer(void) {
       "unit_ai_euro_expand: Rum Factory bip=%d (want=3)\n",
       c->building_in_production
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected AdamSmith+Distillery to prefer Rum Factory");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(stderr, "unit_ai_euro_expand: Rum Factory prefer ok\n");
   return 0;
 }
@@ -14204,28 +12110,15 @@ static int unit_craft_textile_mill_prefer(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 16, 16, 1, false)) {
     return fail("textile-mill alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 1;
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
+  fx_colonies_init(&colonies);
   snprintf(colonies.building_types[0].name, sizeof(colonies.building_types[0].name), "Stockade");
   colonies.building_types[0].hammers = 64;
   colonies.building_types[0].min_population = 3;
@@ -14299,15 +12192,11 @@ static int unit_craft_textile_mill_prefer(void) {
       "unit_ai_euro_expand: Textile Mill bip=%d (want=3)\n",
       c->building_in_production
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected AdamSmith+Weaver's Shop to prefer Textile Mill");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(stderr, "unit_ai_euro_expand: Textile Mill prefer ok\n");
   return 0;
 }
@@ -14319,28 +12208,15 @@ static int unit_craft_cigar_factory_prefer(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 16, 16, 1, false)) {
     return fail("cigar-factory alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 1;
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
+  fx_colonies_init(&colonies);
   snprintf(colonies.building_types[0].name, sizeof(colonies.building_types[0].name), "Stockade");
   colonies.building_types[0].hammers = 64;
   colonies.building_types[0].min_population = 3;
@@ -14422,15 +12298,11 @@ static int unit_craft_cigar_factory_prefer(void) {
       "unit_ai_euro_expand: Cigar Factory bip=%d (want=3)\n",
       c->building_in_production
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected AdamSmith+Tobacconist's Shop to prefer Cigar Factory");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(stderr, "unit_ai_euro_expand: Cigar Factory prefer ok\n");
   return 0;
 }
@@ -14442,28 +12314,15 @@ static int unit_craft_fur_factory_prefer(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 16, 16, 1, false)) {
     return fail("fur-factory alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 1;
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
+  fx_colonies_init(&colonies);
   snprintf(colonies.building_types[0].name, sizeof(colonies.building_types[0].name), "Stockade");
   colonies.building_types[0].hammers = 64;
   colonies.building_types[0].min_population = 3;
@@ -14543,15 +12402,11 @@ static int unit_craft_fur_factory_prefer(void) {
       "unit_ai_euro_expand: Fur Factory bip=%d (want=3)\n",
       c->building_in_production
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected AdamSmith+Fur Trading Post to prefer Fur Factory");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(stderr, "unit_ai_euro_expand: Fur Factory prefer ok\n");
   return 0;
 }
@@ -14565,28 +12420,15 @@ static int unit_capitol_prefer(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 16, 16, 1, false)) {
     return fail("capitol alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 1;
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
+  fx_colonies_init(&colonies);
   snprintf(colonies.building_types[0].name, sizeof(colonies.building_types[0].name), "Stockade");
   colonies.building_types[0].hammers = 64;
   colonies.building_types[0].min_population = 3;
@@ -14649,15 +12491,11 @@ static int unit_capitol_prefer(void) {
       "unit_ai_euro_expand: Capitol bip=%d (want anything but Capitol=1)\n",
       c->building_in_production
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("Capitol is unbuildable in DOS; AI must never start one");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(stderr, "unit_ai_euro_expand: Capitol never built ok\n");
   return 0;
 }
@@ -14670,28 +12508,15 @@ static int unit_capitol_expansion_prefer(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 16, 16, 1, false)) {
     return fail("capitol-exp alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 1;
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
+  fx_colonies_init(&colonies);
   snprintf(colonies.building_types[0].name, sizeof(colonies.building_types[0].name), "Capitol");
   colonies.building_types[0].hammers = 80;
   colonies.building_types[0].min_population = 1;
@@ -14758,15 +12583,11 @@ static int unit_capitol_expansion_prefer(void) {
       "unit_ai_euro_expand: Capitol Expansion bip=%d (want anything but Expansion=1)\n",
       c->building_in_production
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("Capitol Expansion is unbuildable in DOS; AI must never start one");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(stderr, "unit_ai_euro_expand: Capitol Expansion never built ok\n");
   return 0;
 }
@@ -14787,24 +12608,12 @@ static int unit_wagon_haul_muskets_short(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 16, 16, 1, false)) {
     return fail("wagon-muskets alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 1;
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Wagon Train");
   units.types[0].movement = 2;
@@ -14812,30 +12621,17 @@ static int unit_wagon_haul_muskets_short(void) {
   units.types[0].cargo = 2;
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
-  ColonizeColony* short_c = &colonies.colonies[0];
-  short_c->id = 0;
-  short_c->active = true;
-  short_c->nation_id = nation;
-  short_c->x = 4;
-  short_c->y = 4;
-  short_c->population = 3;
-  short_c->colonist_count = 3;
+  fx_colonies_init(&colonies);
+  ColonizeColony* short_c = fx_colony_add(&colonies, nation, 4, 4, 3);
   short_c->stock[COLONIZE_CARGO_TOOLS] = 40; /* not tools-short */
   short_c->stock[COLONIZE_CARGO_MUSKETS] = 2; /* muskets-short */
   short_c->stock[COLONIZE_CARGO_FOOD] = 40;
   short_c->stock[COLONIZE_CARGO_RUM] = 80; /* 80 > 0x4a → bVar5 registers work */
-  short_c->building_in_production = -1;
-  colonies.colony_count = 1;
-  colonies.next_id = 1;
 
   const int wid = units_spawn(&units, 0, 10, 10);
   ColonizeUnit* wagon = units_get(&units, wid);
   if (!wagon) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("wagon-muskets spawn");
   }
   wagon->nation_id = nation;
@@ -14843,9 +12639,7 @@ static int unit_wagon_haul_muskets_short(void) {
   wagon->orders = 0;
   /* Prefill MUSKETS cargo so haul prefers muskets-short colony. */
   if (units_load_goods(&units, wid, COLONIZE_CARGO_MUSKETS, 10) <= 0) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("wagon-muskets load");
   }
 
@@ -14880,9 +12674,7 @@ static int unit_wagon_haul_muskets_short(void) {
 
   wagon = units_get(&units, wid);
   if (!wagon || !wagon->active) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("wagon-muskets should remain active");
   }
   if (wagon->orders != UNITS_ORDER_AI_MOVE || wagon->goto_x != 4 || wagon->goto_y != 4) {
@@ -14895,15 +12687,11 @@ static int unit_wagon_haul_muskets_short(void) {
       wagon->x,
       wagon->y
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected Wagon AI_MOVE toward muskets-short colony (4,4)");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(stderr, "unit_ai_euro_expand: wagon haul muskets-short ok\n");
   return 0;
 }
@@ -14916,24 +12704,12 @@ static int unit_wagon_haul_lumber_short(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 16, 16, 1, false)) {
     return fail("wagon-lumber alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 1;
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Wagon Train");
   units.types[0].movement = 2;
@@ -14941,39 +12717,24 @@ static int unit_wagon_haul_lumber_short(void) {
   units.types[0].cargo = 2;
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
-  ColonizeColony* short_c = &colonies.colonies[0];
-  short_c->id = 0;
-  short_c->active = true;
-  short_c->nation_id = nation;
-  short_c->x = 4;
-  short_c->y = 4;
-  short_c->population = 3;
-  short_c->colonist_count = 3;
+  fx_colonies_init(&colonies);
+  ColonizeColony* short_c = fx_colony_add(&colonies, nation, 4, 4, 3);
   short_c->stock[COLONIZE_CARGO_TOOLS] = 40;
   short_c->stock[COLONIZE_CARGO_LUMBER] = 5; /* lumber-short */
   short_c->stock[COLONIZE_CARGO_FOOD] = 40;
   short_c->stock[COLONIZE_CARGO_RUM] = 80; /* 80 > 0x4a → bVar5 registers work */
-  short_c->building_in_production = -1;
-  colonies.colony_count = 1;
-  colonies.next_id = 1;
 
   const int wid = units_spawn(&units, 0, 10, 10);
   ColonizeUnit* wagon = units_get(&units, wid);
   if (!wagon) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("wagon-lumber spawn");
   }
   wagon->nation_id = nation;
   wagon->moves_left = 2 * UNITS_MP_PER_TILE;
   wagon->orders = 0;
   if (units_load_goods(&units, wid, COLONIZE_CARGO_LUMBER, 20) <= 0) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("wagon-lumber load");
   }
 
@@ -15008,9 +12769,7 @@ static int unit_wagon_haul_lumber_short(void) {
 
   wagon = units_get(&units, wid);
   if (!wagon || !wagon->active) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("wagon-lumber should remain active");
   }
   if (wagon->orders != UNITS_ORDER_AI_MOVE || wagon->goto_x != 4 || wagon->goto_y != 4) {
@@ -15023,15 +12782,11 @@ static int unit_wagon_haul_lumber_short(void) {
       wagon->x,
       wagon->y
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected Wagon AI_MOVE toward lumber-short colony (4,4)");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(stderr, "unit_ai_euro_expand: wagon haul lumber-short ok\n");
   return 0;
 }
@@ -15044,24 +12799,12 @@ static int unit_wagon_haul_ore_short(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 16, 16, 1, false)) {
     return fail("wagon-ore alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 1;
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Wagon Train");
   units.types[0].movement = 2;
@@ -15069,39 +12812,24 @@ static int unit_wagon_haul_ore_short(void) {
   units.types[0].cargo = 2;
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
-  ColonizeColony* short_c = &colonies.colonies[0];
-  short_c->id = 0;
-  short_c->active = true;
-  short_c->nation_id = nation;
-  short_c->x = 4;
-  short_c->y = 4;
-  short_c->population = 3;
-  short_c->colonist_count = 3;
+  fx_colonies_init(&colonies);
+  ColonizeColony* short_c = fx_colony_add(&colonies, nation, 4, 4, 3);
   short_c->stock[COLONIZE_CARGO_TOOLS] = 40;
   short_c->stock[COLONIZE_CARGO_ORE] = 5; /* ore-short */
   short_c->stock[COLONIZE_CARGO_FOOD] = 40;
   short_c->stock[COLONIZE_CARGO_RUM] = 80; /* 80 > 0x4a → bVar5 registers work */
-  short_c->building_in_production = -1;
-  colonies.colony_count = 1;
-  colonies.next_id = 1;
 
   const int wid = units_spawn(&units, 0, 10, 10);
   ColonizeUnit* wagon = units_get(&units, wid);
   if (!wagon) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("wagon-ore spawn");
   }
   wagon->nation_id = nation;
   wagon->moves_left = 2 * UNITS_MP_PER_TILE;
   wagon->orders = 0;
   if (units_load_goods(&units, wid, COLONIZE_CARGO_ORE, 20) <= 0) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("wagon-ore load");
   }
 
@@ -15136,9 +12864,7 @@ static int unit_wagon_haul_ore_short(void) {
 
   wagon = units_get(&units, wid);
   if (!wagon || !wagon->active) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("wagon-ore should remain active");
   }
   if (wagon->orders != UNITS_ORDER_AI_MOVE || wagon->goto_x != 4 || wagon->goto_y != 4) {
@@ -15151,15 +12877,11 @@ static int unit_wagon_haul_ore_short(void) {
       wagon->x,
       wagon->y
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected Wagon AI_MOVE toward ore-short colony (4,4)");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(stderr, "unit_ai_euro_expand: wagon haul ore-short ok\n");
   return 0;
 }
@@ -15178,24 +12900,12 @@ static int unit_wagon_haul_food_short(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 16, 16, 1, false)) {
     return fail("wagon-food-haul alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 1;
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Wagon Train");
   units.types[0].movement = 2;
@@ -15203,39 +12913,24 @@ static int unit_wagon_haul_food_short(void) {
   units.types[0].cargo = 2;
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
-  ColonizeColony* short_c = &colonies.colonies[0];
-  short_c->id = 0;
-  short_c->active = true;
-  short_c->nation_id = nation;
-  short_c->x = 4;
-  short_c->y = 4;
-  short_c->population = 4;
-  short_c->colonist_count = 4;
+  fx_colonies_init(&colonies);
+  ColonizeColony* short_c = fx_colony_add(&colonies, nation, 4, 4, 4);
   short_c->stock[COLONIZE_CARGO_TOOLS] = 40; /* not tools-short */
   short_c->stock[COLONIZE_CARGO_MUSKETS] = 20;
   short_c->stock[COLONIZE_CARGO_HORSES] = 20;
   short_c->stock[COLONIZE_CARGO_FOOD] = 2; /* food-short vs pop*2=8 */
-  short_c->building_in_production = -1;
-  colonies.colony_count = 1;
-  colonies.next_id = 1;
 
   const int wid = units_spawn(&units, 0, 10, 10);
   ColonizeUnit* wagon = units_get(&units, wid);
   if (!wagon) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("wagon-food-haul spawn");
   }
   wagon->nation_id = nation;
   wagon->moves_left = 2 * UNITS_MP_PER_TILE;
   wagon->orders = 0;
   if (units_load_goods(&units, wid, COLONIZE_CARGO_FOOD, 8) <= 0) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("wagon-food-haul load");
   }
 
@@ -15270,9 +12965,7 @@ static int unit_wagon_haul_food_short(void) {
 
   wagon = units_get(&units, wid);
   if (!wagon || !wagon->active) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("wagon-food-haul should remain active");
   }
   if (wagon->orders != UNITS_ORDER_AI_MOVE || wagon->goto_x != 4 || wagon->goto_y != 4) {
@@ -15285,15 +12978,11 @@ static int unit_wagon_haul_food_short(void) {
       wagon->x,
       wagon->y
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected Wagon AI_MOVE toward food-short colony (4,4)");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(stderr, "unit_ai_euro_expand: wagon haul food-short ok\n");
   return 0;
 }
@@ -15306,24 +12995,12 @@ static int unit_wagon_food_delivery(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 16, 16, 1, false)) {
     return fail("wagon-food-deliv alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 1;
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Wagon Train");
   units.types[0].movement = 2;
@@ -15331,28 +13008,15 @@ static int unit_wagon_food_delivery(void) {
   units.types[0].cargo = 2;
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
-  ColonizeColony* c = &colonies.colonies[0];
-  c->id = 0;
-  c->active = true;
-  c->nation_id = nation;
-  c->x = 4;
-  c->y = 4;
-  c->population = 4;
-  c->colonist_count = 4;
+  fx_colonies_init(&colonies);
+  ColonizeColony* c = fx_colony_add(&colonies, nation, 4, 4, 4);
   c->stock[COLONIZE_CARGO_TOOLS] = 40;
   c->stock[COLONIZE_CARGO_FOOD] = 2; /* food-short */
-  c->building_in_production = -1;
-  colonies.colony_count = 1;
-  colonies.next_id = 1;
 
   const int wid = units_spawn(&units, 0, 4, 4);
   ColonizeUnit* wagon = units_get(&units, wid);
   if (!wagon) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("wagon-food-deliv spawn");
   }
   wagon->nation_id = nation;
@@ -15408,15 +13072,11 @@ static int unit_wagon_food_delivery(void) {
       food_after,
       hold_left
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected wagon FOOD transfer into food-short colony");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(
     stderr,
     "unit_ai_euro_expand: wagon-food delivery ok (food %d→%d)\n",
@@ -15448,24 +13108,12 @@ static int unit_wagon_food_load_haul(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 16, 16, 1, false)) {
     return fail("wagon-food-load alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 1;
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Wagon Train");
   units.types[0].movement = 2;
@@ -15473,8 +13121,7 @@ static int unit_wagon_food_load_haul(void) {
   units.types[0].cargo = 2;
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
+  fx_colonies_init(&colonies);
   /* Surplus FOOD at wagon tile. */
   ColonizeColony* surplus = &colonies.colonies[0];
   surplus->id = 0;
@@ -15508,9 +13155,7 @@ static int unit_wagon_food_load_haul(void) {
   const int wid = units_spawn(&units, 0, 10, 10);
   ColonizeUnit* wagon = units_get(&units, wid);
   if (!wagon) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("wagon-food-load spawn");
   }
   wagon->nation_id = nation;
@@ -15581,15 +13226,11 @@ static int unit_wagon_food_load_haul(void) {
       wagon ? wagon->goto_x : -1,
       wagon ? wagon->goto_y : -1
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected wagon FOOD load + park at bound colony (DOS 457e)");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(
     stderr,
     "unit_ai_euro_expand: wagon food load+haul ok (aboard=%d)\n",
@@ -15616,24 +13257,12 @@ static int unit_wagon_food_prefer_over_tools(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 16, 16, 1, false)) {
     return fail("wagon-food-prefer alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 1;
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Wagon Train");
   units.types[0].movement = 2;
@@ -15641,8 +13270,7 @@ static int unit_wagon_food_prefer_over_tools(void) {
   units.types[0].cargo = 2;
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
+  fx_colonies_init(&colonies);
   ColonizeColony* surplus = &colonies.colonies[0];
   surplus->id = 0;
   surplus->active = true;
@@ -15673,9 +13301,7 @@ static int unit_wagon_food_prefer_over_tools(void) {
   const int wid = units_spawn(&units, 0, 10, 10);
   ColonizeUnit* wagon = units_get(&units, wid);
   if (!wagon) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("wagon-food-prefer spawn");
   }
   wagon->nation_id = nation;
@@ -15734,15 +13360,11 @@ static int unit_wagon_food_prefer_over_tools(void) {
       tools_aboard,
       wagon ? wagon->orders : -1
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected FOOD prefer over tools when food_short>20");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(stderr, "unit_ai_euro_expand: wagon food prefer over tools ok\n");
   return 0;
 }
@@ -15756,33 +13378,19 @@ static int unit_ship_food_delivery(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 16, 16, 1, false)) {
     return fail("ship-food alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 1;
   }
   for (int y = 0; y < 16; ++y) {
     map.terrain[y * 16 + 3] = 25;
   }
   if (!map_tile_is_coastal(&map, 4, 4)) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("ship-food colony should be coastal");
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Caravel");
   units.types[0].movement = 4;
@@ -15790,28 +13398,15 @@ static int unit_ship_food_delivery(void) {
   units.types[0].cargo = 2;
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
-  ColonizeColony* c = &colonies.colonies[0];
-  c->id = 0;
-  c->active = true;
-  c->nation_id = nation;
-  c->x = 4;
-  c->y = 4;
-  c->population = 4;
-  c->colonist_count = 4;
+  fx_colonies_init(&colonies);
+  ColonizeColony* c = fx_colony_add(&colonies, nation, 4, 4, 4);
   c->stock[COLONIZE_CARGO_TOOLS] = 40; /* not tools-short */
   c->stock[COLONIZE_CARGO_FOOD] = 1; /* food-short */
-  c->building_in_production = -1;
-  colonies.colony_count = 1;
-  colonies.next_id = 1;
 
   const int sid = units_spawn(&units, 0, 3, 4); /* adjacent water */
   ColonizeUnit* ship = units_get(&units, sid);
   if (!ship) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("ship-food spawn");
   }
   ship->nation_id = nation;
@@ -15867,15 +13462,11 @@ static int unit_ship_food_delivery(void) {
       food_after,
       hold_left
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected ship FOOD unload into food-short coastal colony");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(stderr, "unit_ai_euro_expand: ship food delivery ok\n");
   return 0;
 }
@@ -15889,32 +13480,19 @@ static int unit_blacksmith_workplace_assign(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 16, 16, 1, false)) {
     return fail("blacksmith-wp alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 1;
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Master Blacksmith");
   units.types[0].movement = 3;
   units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
+  fx_colonies_init(&colonies);
   snprintf(
     colonies.building_types[0].name,
     sizeof(colonies.building_types[0].name),
@@ -15947,9 +13525,7 @@ static int unit_blacksmith_workplace_assign(void) {
   const int uid = units_spawn(&units, 0, 4, 4);
   ColonizeUnit* smith = units_get(&units, uid);
   if (!smith) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("blacksmith-wp spawn");
   }
   smith->nation_id = nation;
@@ -15988,9 +13564,7 @@ static int unit_blacksmith_workplace_assign(void) {
 
   smith = units_get(&units, uid);
   if (smith && smith->active) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected Master Blacksmith admitted into colony");
   }
   const ColonizeColony* after = &colonies.colonies[0];
@@ -16008,15 +13582,11 @@ static int unit_blacksmith_workplace_assign(void) {
       after->colonist_count,
       found_wp
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected Blacksmith workplace assign after admit");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(stderr, "unit_ai_euro_expand: Master Blacksmith workplace ok\n");
   return 0;
 }
@@ -16030,32 +13600,19 @@ static int unit_gunsmith_workplace_assign(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 16, 16, 1, false)) {
     return fail("gunsmith-wp alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 1;
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Master Gunsmith");
   units.types[0].movement = 3;
   units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
+  fx_colonies_init(&colonies);
   snprintf(colonies.building_types[0].name, sizeof(colonies.building_types[0].name), "Armory");
   colonies.building_types[0].hammers = 52;
   colonies.building_type_count = 1;
@@ -16084,9 +13641,7 @@ static int unit_gunsmith_workplace_assign(void) {
   const int uid = units_spawn(&units, 0, 4, 4);
   ColonizeUnit* gun = units_get(&units, uid);
   if (!gun) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("gunsmith-wp spawn");
   }
   gun->nation_id = nation;
@@ -16125,9 +13680,7 @@ static int unit_gunsmith_workplace_assign(void) {
 
   gun = units_get(&units, uid);
   if (gun && gun->active) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected Master Gunsmith admitted into colony");
   }
   const ColonizeColony* after = &colonies.colonies[0];
@@ -16145,15 +13698,11 @@ static int unit_gunsmith_workplace_assign(void) {
       after->colonist_count,
       found_wp
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected Gunsmith workplace assign after admit");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(stderr, "unit_ai_euro_expand: Master Gunsmith workplace ok\n");
   return 0;
 }
@@ -16167,32 +13716,19 @@ static int unit_fur_trader_workplace_assign(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 16, 16, 1, false)) {
     return fail("fur-trader-wp alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 1;
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Master Fur Trader");
   units.types[0].movement = 3;
   units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
+  fx_colonies_init(&colonies);
   snprintf(
     colonies.building_types[0].name,
     sizeof(colonies.building_types[0].name),
@@ -16225,9 +13761,7 @@ static int unit_fur_trader_workplace_assign(void) {
   const int uid = units_spawn(&units, 0, 4, 4);
   ColonizeUnit* trader = units_get(&units, uid);
   if (!trader) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("fur-trader-wp spawn");
   }
   trader->nation_id = nation;
@@ -16266,9 +13800,7 @@ static int unit_fur_trader_workplace_assign(void) {
 
   trader = units_get(&units, uid);
   if (trader && trader->active) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected Master Fur Trader admitted into colony");
   }
   const ColonizeColony* after = &colonies.colonies[0];
@@ -16286,15 +13818,11 @@ static int unit_fur_trader_workplace_assign(void) {
       after->colonist_count,
       found_wp
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected Fur Trader workplace assign after admit");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(stderr, "unit_ai_euro_expand: Master Fur Trader workplace ok\n");
   return 0;
 }
@@ -16307,32 +13835,19 @@ static int unit_distiller_workplace_assign(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 16, 16, 1, false)) {
     return fail("distiller-wp alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 1;
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Master Distiller");
   units.types[0].movement = 3;
   units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
+  fx_colonies_init(&colonies);
   snprintf(
     colonies.building_types[0].name,
     sizeof(colonies.building_types[0].name),
@@ -16366,9 +13881,7 @@ static int unit_distiller_workplace_assign(void) {
   const int uid = units_spawn(&units, 0, 4, 4);
   ColonizeUnit* distiller = units_get(&units, uid);
   if (!distiller) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("distiller-wp spawn");
   }
   distiller->nation_id = nation;
@@ -16407,9 +13920,7 @@ static int unit_distiller_workplace_assign(void) {
 
   distiller = units_get(&units, uid);
   if (distiller && distiller->active) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected Master Distiller admitted into colony");
   }
   const ColonizeColony* after = &colonies.colonies[0];
@@ -16427,15 +13938,11 @@ static int unit_distiller_workplace_assign(void) {
       after->colonist_count,
       found_wp
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected Distiller workplace assign after admit");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(stderr, "unit_ai_euro_expand: Master Distiller workplace ok\n");
   return 0;
 }
@@ -16448,32 +13955,19 @@ static int unit_weaver_workplace_assign(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 16, 16, 1, false)) {
     return fail("weaver-wp alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 1;
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Master Weaver");
   units.types[0].movement = 3;
   units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
+  fx_colonies_init(&colonies);
   snprintf(
     colonies.building_types[0].name, sizeof(colonies.building_types[0].name), "Weaver's House"
   );
@@ -16505,9 +13999,7 @@ static int unit_weaver_workplace_assign(void) {
   const int uid = units_spawn(&units, 0, 4, 4);
   ColonizeUnit* weaver = units_get(&units, uid);
   if (!weaver) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("weaver-wp spawn");
   }
   weaver->nation_id = nation;
@@ -16546,9 +14038,7 @@ static int unit_weaver_workplace_assign(void) {
 
   weaver = units_get(&units, uid);
   if (weaver && weaver->active) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected Master Weaver admitted into colony");
   }
   const ColonizeColony* after = &colonies.colonies[0];
@@ -16566,15 +14056,11 @@ static int unit_weaver_workplace_assign(void) {
       after->colonist_count,
       found_wp
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected Weaver workplace assign after admit");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(stderr, "unit_ai_euro_expand: Master Weaver workplace ok\n");
   return 0;
 }
@@ -16587,32 +14073,19 @@ static int unit_tobacconist_workplace_assign(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 16, 16, 1, false)) {
     return fail("tobacconist-wp alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 1;
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Master Tobacconist");
   units.types[0].movement = 3;
   units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
+  fx_colonies_init(&colonies);
   snprintf(
     colonies.building_types[0].name,
     sizeof(colonies.building_types[0].name),
@@ -16646,9 +14119,7 @@ static int unit_tobacconist_workplace_assign(void) {
   const int uid = units_spawn(&units, 0, 4, 4);
   ColonizeUnit* tob = units_get(&units, uid);
   if (!tob) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("tobacconist-wp spawn");
   }
   tob->nation_id = nation;
@@ -16687,9 +14158,7 @@ static int unit_tobacconist_workplace_assign(void) {
 
   tob = units_get(&units, uid);
   if (tob && tob->active) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected Master Tobacconist admitted into colony");
   }
   const ColonizeColony* after = &colonies.colonies[0];
@@ -16707,15 +14176,11 @@ static int unit_tobacconist_workplace_assign(void) {
       after->colonist_count,
       found_wp
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected Tobacconist workplace assign after admit");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(stderr, "unit_ai_euro_expand: Master Tobacconist workplace ok\n");
   return 0;
 }
@@ -16728,32 +14193,19 @@ static int unit_statesman_workplace_assign(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 16, 16, 1, false)) {
     return fail("statesman-wp alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 1;
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Elder Statesman");
   units.types[0].movement = 3;
   units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
+  fx_colonies_init(&colonies);
   snprintf(colonies.building_types[0].name, sizeof(colonies.building_types[0].name), "Town Hall");
   colonies.building_types[0].hammers = 0;
   colonies.building_type_count = 1;
@@ -16782,9 +14234,7 @@ static int unit_statesman_workplace_assign(void) {
   const int uid = units_spawn(&units, 0, 4, 4);
   ColonizeUnit* statesman = units_get(&units, uid);
   if (!statesman) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("statesman-wp spawn");
   }
   statesman->nation_id = nation;
@@ -16823,9 +14273,7 @@ static int unit_statesman_workplace_assign(void) {
 
   statesman = units_get(&units, uid);
   if (statesman && statesman->active) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected Elder Statesman admitted into colony");
   }
   const ColonizeColony* after = &colonies.colonies[0];
@@ -16843,15 +14291,11 @@ static int unit_statesman_workplace_assign(void) {
       after->colonist_count,
       found_wp
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected Town Hall workplace assign after admit");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(stderr, "unit_ai_euro_expand: Elder Statesman workplace ok\n");
   return 0;
 }
@@ -16864,32 +14308,19 @@ static int unit_preacher_workplace_assign(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 16, 16, 1, false)) {
     return fail("preacher-wp alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 1;
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Firebrand Preacher");
   units.types[0].movement = 3;
   units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
+  fx_colonies_init(&colonies);
   snprintf(colonies.building_types[0].name, sizeof(colonies.building_types[0].name), "Church");
   colonies.building_types[0].hammers = 0;
   colonies.building_type_count = 1;
@@ -16918,9 +14349,7 @@ static int unit_preacher_workplace_assign(void) {
   const int uid = units_spawn(&units, 0, 4, 4);
   ColonizeUnit* preacher = units_get(&units, uid);
   if (!preacher) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("preacher-wp spawn");
   }
   preacher->nation_id = nation;
@@ -16959,9 +14388,7 @@ static int unit_preacher_workplace_assign(void) {
 
   preacher = units_get(&units, uid);
   if (preacher && preacher->active) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected Firebrand Preacher admitted into colony");
   }
   const ColonizeColony* after = &colonies.colonies[0];
@@ -16979,15 +14406,11 @@ static int unit_preacher_workplace_assign(void) {
       after->colonist_count,
       found_wp
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected Church workplace assign after admit");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(stderr, "unit_ai_euro_expand: Firebrand Preacher workplace ok\n");
   return 0;
 }
@@ -17002,32 +14425,19 @@ static int unit_teacher_workplace_assign(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 16, 16, 1, false)) {
     return fail("teacher-wp alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 1;
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Expert Teacher");
   units.types[0].movement = 3;
   units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
+  fx_colonies_init(&colonies);
   snprintf(
     colonies.building_types[0].name,
     sizeof(colonies.building_types[0].name),
@@ -17060,9 +14470,7 @@ static int unit_teacher_workplace_assign(void) {
   const int uid = units_spawn(&units, 0, 4, 4);
   ColonizeUnit* teacher = units_get(&units, uid);
   if (!teacher) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("teacher-wp spawn");
   }
   teacher->nation_id = nation;
@@ -17101,9 +14509,7 @@ static int unit_teacher_workplace_assign(void) {
 
   teacher = units_get(&units, uid);
   if (teacher && teacher->active) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected Expert Teacher admitted into colony");
   }
   const ColonizeColony* after = &colonies.colonies[0];
@@ -17125,15 +14531,11 @@ static int unit_teacher_workplace_assign(void) {
       after->colonist_count,
       school_workers
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("admit ok but Schoolhouse must stay empty (level-4 prof, no sweep seat)");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(stderr, "unit_ai_euro_expand: Expert Teacher workplace ok\n");
   return 0;
 }
@@ -17146,32 +14548,19 @@ static int unit_carpenter_workplace_assign(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
+  if (!fx_map_alloc(&map, 16, 16, 1, false)) {
     return fail("carpenter-wp alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 1;
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Master Carpenter");
   units.types[0].movement = 3;
   units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
+  fx_colonies_init(&colonies);
   snprintf(
     colonies.building_types[0].name,
     sizeof(colonies.building_types[0].name),
@@ -17205,9 +14594,7 @@ static int unit_carpenter_workplace_assign(void) {
   const int uid = units_spawn(&units, 0, 4, 4);
   ColonizeUnit* carpenter = units_get(&units, uid);
   if (!carpenter) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("carpenter-wp spawn");
   }
   carpenter->nation_id = nation;
@@ -17246,9 +14633,7 @@ static int unit_carpenter_workplace_assign(void) {
 
   carpenter = units_get(&units, uid);
   if (carpenter && carpenter->active) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected Master Carpenter admitted into colony");
   }
   const ColonizeColony* after = &colonies.colonies[0];
@@ -17266,15 +14651,11 @@ static int unit_carpenter_workplace_assign(void) {
       after->colonist_count,
       found_wp
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
+    fx_map_free(&map);
     return fail("expected Carpenter's Shop workplace assign after admit");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
+  fx_map_free(&map);
   fprintf(stderr, "unit_ai_euro_expand: Master Carpenter workplace ok\n");
   return 0;
 }
@@ -17288,19 +14669,8 @@ static int unit_seasoned_sticky_fog_deepen(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  map.seen = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3 || !map.seen) {
+  if (!fx_map_alloc(&map, 16, 16, 1, true)) {
     return fail("seasoned-sticky alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 1;
   }
   /* Reveal all MD≤8 around (5,5) except (5,8) MD=3 and (5,12) MD=7. */
   for (int dy = -8; dy <= 8; ++dy) {
@@ -17319,37 +14689,21 @@ static int unit_seasoned_sticky_fog_deepen(void) {
   }
 
   ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
+  fx_units_init(&units);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Scout");
   units.types[0].movement = 4;
   units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
 
   ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
-  ColonizeColony* c = &colonies.colonies[0];
-  c->id = 0;
-  c->active = true;
-  c->nation_id = nation;
-  c->x = 4;
-  c->y = 4;
-  c->population = 3;
-  c->colonist_count = 3;
+  fx_colonies_init(&colonies);
+  ColonizeColony* c = fx_colony_add(&colonies, nation, 4, 4, 3);
   c->stock[COLONIZE_CARGO_FOOD] = 40;
-  c->building_in_production = -1;
-  colonies.colony_count = 1;
-  colonies.next_id = 1;
 
   const int sid = units_spawn(&units, 0, 5, 5);
   ColonizeUnit* scout = units_get(&units, sid);
   if (!scout) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
-    free(map.seen);
+    fx_map_free(&map);
     return fail("seasoned-sticky spawn");
   }
   scout->nation_id = nation;
@@ -17394,10 +14748,7 @@ static int unit_seasoned_sticky_fog_deepen(void) {
   ctx.rng_seed = 42;
 
   if (ai_diplo_indian_hostility_sticky(&col1, nation) < 2) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
-    free(map.seen);
+    fx_map_free(&map);
     return fail("seasoned-sticky expected sticky≥2");
   }
 
@@ -17418,17 +14769,11 @@ static int unit_seasoned_sticky_fog_deepen(void) {
       scout ? units_display_name(&units, scout) : "?",
       (unsigned)ai_diplo_indian_hostility_sticky(&col1, nation)
     );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
-    free(map.seen);
+    fx_map_free(&map);
     return fail("expected Seasoned+sticky re-aim fog to deeper MD=7");
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
-  free(map.seen);
+  fx_map_free(&map);
   fprintf(stderr, "unit_ai_euro_expand: Seasoned+sticky fog deepen ok\n");
   return 0;
 }

@@ -6,6 +6,7 @@
 
 #include <stdio.h>
 
+#include "core/fb.h"
 #include "core/font.h"
 #include "core/map_menu.h"
 #include "core/popup_msg.h"
@@ -72,102 +73,11 @@ void popup_colors_remap(
   );
 }
 
-static void popup_put(ColonizeFramebuffer8* fb, int x, int y, uint8_t color) {
-  if (!fb || !fb->pixels || x < 0 || y < 0 || x >= fb->width || y >= fb->height) {
-    return;
-  }
-  fb->pixels[y * fb->width + x] = color;
-}
-
-static void popup_hline(ColonizeFramebuffer8* fb, int y, int x0, int x1, uint8_t color) {
-  if (x0 > x1) {
-    const int t = x0;
-    x0 = x1;
-    x1 = t;
-  }
-  for (int x = x0; x <= x1; ++x) {
-    popup_put(fb, x, y, color);
-  }
-}
-
-static void popup_vline(ColonizeFramebuffer8* fb, int x, int y0, int y1, uint8_t color) {
-  if (y0 > y1) {
-    const int t = y0;
-    y0 = y1;
-    y1 = t;
-  }
-  for (int y = y0; y <= y1; ++y) {
-    popup_put(fb, x, y, color);
-  }
-}
-
+/* Inclusive-corner fill (x0..x1, y0..y1) over the shared clipped primitive. */
 static void popup_fill_rect(
   ColonizeFramebuffer8* fb, int x0, int y0, int x1, int y1, uint8_t color
 ) {
-  if (!fb || !fb->pixels) {
-    return;
-  }
-  if (x0 < 0) {
-    x0 = 0;
-  }
-  if (y0 < 0) {
-    y0 = 0;
-  }
-  if (x1 >= fb->width) {
-    x1 = fb->width - 1;
-  }
-  if (y1 >= fb->height) {
-    y1 = fb->height - 1;
-  }
-  if (x0 > x1 || y0 > y1) {
-    return;
-  }
-  for (int y = y0; y <= y1; ++y) {
-    uint8_t* row = fb->pixels + y * fb->width;
-    for (int x = x0; x <= x1; ++x) {
-      row[x] = color;
-    }
-  }
-}
-
-static void popup_tile_rect(
-  const ColonizeSpriteSheet* sheet,
-  int ox,
-  int oy,
-  int rw,
-  int rh,
-  ColonizeFramebuffer8* fb
-) {
-  if (!sheet || sheet->sprite_count < 1 || !fb || !fb->pixels || rw <= 0 || rh <= 0) {
-    return;
-  }
-  const ColonizeSprite* tile = &sheet->sprites[0];
-  if (!tile->pixels || tile->width <= 0 || tile->height <= 0) {
-    return;
-  }
-  const int x1 = ox + rw;
-  const int y1 = oy + rh;
-  for (int ty = oy; ty < y1; ty += tile->height) {
-    for (int tx = ox; tx < x1; tx += tile->width) {
-      for (int sy = 0; sy < tile->height; ++sy) {
-        const int fy = ty + sy;
-        if (fy < oy || fy >= y1 || fy < 0 || fy >= fb->height) {
-          continue;
-        }
-        for (int sx = 0; sx < tile->width; ++sx) {
-          const int fx = tx + sx;
-          if (fx < ox || fx >= x1 || fx < 0 || fx >= fb->width) {
-            continue;
-          }
-          const uint8_t color = tile->pixels[sy * tile->width + sx];
-          if (color == COLONIZE_SS_TRANSPARENT) {
-            continue;
-          }
-          fb->pixels[fy * fb->width + fx] = color;
-        }
-      }
-    }
-  }
+  fb_fill_rect(fb, x0, y0, x1 - x0 + 1, y1 - y0 + 1, color);
 }
 
 void popup_draw(
@@ -207,7 +117,7 @@ void popup_draw(
   }
 
   if (tile && tile->sprite_count > 0) {
-    popup_tile_rect(tile, x, y, w, h, framebuffer);
+    ss_tile_rect(tile, x, y, w, h, framebuffer);
   } else {
     popup_fill_rect(framebuffer, x, y, x + w - 1, y + h - 1, POPUP_FALLBACK_FILL);
   }
@@ -216,10 +126,10 @@ void popup_draw(
   const int y1 = y + h - 1;
 
   /* Layer 1: outer black. */
-  popup_hline(framebuffer, y, x, x1, colors->outer);
-  popup_hline(framebuffer, y1, x, x1, colors->outer);
-  popup_vline(framebuffer, x, y, y1, colors->outer);
-  popup_vline(framebuffer, x1, y, y1, colors->outer);
+  fb_hline(framebuffer, y, x, x1, colors->outer);
+  fb_hline(framebuffer, y1, x, x1, colors->outer);
+  fb_vline(framebuffer, x, y, y1, colors->outer);
+  fb_vline(framebuffer, x1, y, y1, colors->outer);
 
   if (w >= 3 && h >= 3) {
     /* Layer 2: mid brown, inset 1. */
@@ -227,10 +137,10 @@ void popup_draw(
     const int my0 = y + 1;
     const int mx1 = x1 - 1;
     const int my1 = y1 - 1;
-    popup_hline(framebuffer, my0, mx0, mx1, colors->mid);
-    popup_hline(framebuffer, my1, mx0, mx1, colors->mid);
-    popup_vline(framebuffer, mx0, my0, my1, colors->mid);
-    popup_vline(framebuffer, mx1, my0, my1, colors->mid);
+    fb_hline(framebuffer, my0, mx0, mx1, colors->mid);
+    fb_hline(framebuffer, my1, mx0, mx1, colors->mid);
+    fb_vline(framebuffer, mx0, my0, my1, colors->mid);
+    fb_vline(framebuffer, mx1, my0, my1, colors->mid);
   }
 
   if (w >= 5 && h >= 5) {
@@ -250,10 +160,10 @@ void popup_draw(
     const int by0 = y + 2;
     const int bx1 = x1 - 2;
     const int by1 = y1 - 2;
-    popup_vline(framebuffer, bx0, by0, by1, colors->dark); /* left */
-    popup_vline(framebuffer, bx1, by0, by1, colors->light); /* right */
-    popup_hline(framebuffer, by0, bx0, bx1, colors->light); /* top */
-    popup_hline(framebuffer, by1, bx0, bx1, colors->dark); /* bottom */
+    fb_vline(framebuffer, bx0, by0, by1, colors->dark); /* left */
+    fb_vline(framebuffer, bx1, by0, by1, colors->light); /* right */
+    fb_hline(framebuffer, by0, bx0, bx1, colors->light); /* top */
+    fb_hline(framebuffer, by1, bx0, bx1, colors->dark); /* bottom */
   }
 
   if (w > POPUP_FRAME_INSET * 2 && h > POPUP_FRAME_INSET * 2) {

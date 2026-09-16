@@ -332,6 +332,36 @@ int map_phys0_coast_layer_count(const ColonizeWorldMap* map, int x, int y);
  */
 int map_coast_underlayer_sprite_at(const ColonizeWorldMap* map, int x, int y);
 
+/*
+ * One tile's full static layer stack in paint order (DOS FUN_6ba1_0938 /
+ * MAPEDIT FUN_1a47_06da): base terrain (or coast underlayer), land-edge
+ * masks + neighbour fills, forest, PHYS0 overlays, masked ocean + estuary for
+ * coast composites, then the runtime plow (+ resource re-blit) and road
+ * layers. Fog is NOT included — it is a viewer decision. `hidden_terrain_phase`
+ * applies the VIEW ~Hidden Terrain peel (0 = nothing peeled). cmds[0] is
+ * always the base tile (sprite may be -1 when the map has none). The map
+ * viewport and the colony minimap both draw from this list with their own
+ * blitters (duplication audit IN-18).
+ */
+typedef struct ColonizeMapLayerCmd {
+  uint8_t sheet;      /* MAP_LAYER_SHEET_* */
+  uint8_t into_holes; /* 1: paint only where the destination pixel is colour 0 */
+  uint8_t offset;     /* 1: ox/oy are an explicit PHYS0 fragment offset (no centring) */
+  int16_t sprite;
+  int8_t ox;          /* pixel offset inside the 16x16 tile */
+  int8_t oy;
+} ColonizeMapLayerCmd;
+enum { MAP_LAYER_SHEET_TERRAIN = 0, MAP_LAYER_SHEET_PHYS0 = 1 };
+#define MAP_LAYER_CMDS_MAX 48
+int map_tile_layer_cmds(
+  const ColonizeWorldMap* map,
+  int x,
+  int y,
+  int hidden_terrain_phase,
+  ColonizeMapLayerCmd* out,
+  int max
+);
+
 /* MAPEDIT land-land edge blends (FUN_1a47_06da): PHYS0 104+q then neighbour TERRAIN fill. */
 int map_land_transition_count(const ColonizeWorldMap* map, int x, int y);
 int map_land_transition_mask_sprite_at(const ColonizeWorldMap* map, int x, int y, int index);

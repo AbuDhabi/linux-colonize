@@ -1183,6 +1183,11 @@ static bool game_save_col1_slot(ColonizeGameState* game, int slot, char* err, si
 static void game_do_buy_construction(ColonizeGameState* game, int colony_id);
 static void game_request_buy_construction_confirm(ColonizeGameState* game);
 static void game_europe_sail_harbor(ColonizeGameState* game, int hidx);
+static void game_europe_open_buy_prompt(ColonizeGameState* game);
+static void game_europe_open_buy_prompt_for(ColonizeGameState* game, int hidx, int cargo);
+static void game_colony_open_load_prompt(
+  ColonizeGameState* game, const ColonizeColony* colony, int cargo
+);
 
 typedef struct BeginMenuLayout {
   int dialog_x;
@@ -4821,62 +4826,6 @@ static void blit_map_sprite(
 }
 
 /*
- * One PHYS0 overlay-layer pass over [layer_from, layer_to) for map tile
- * (mx, my): peel-phase kind filter, then sprite + its per-layer offset.
- *
- * Audit GL-22: this loop was written out twice in game_render — once for the
- * ordinary tile and once for the coast-underlayer tile — and the two had
- * drifted, the phase-3 HILL filter living only in the first. The filter is a
- * property of the overlay KIND, not of which pass drew it, so it belongs in
- * both. It cannot change a pixel either way: map_phys0_overlay_kind_at only
- * ever answers HILL on a non-ocean tile (map.c:1539), while the underlayer
- * pass runs only when map_coast_underlayer_sprite_at found one, which
- * requires the tile to BE ocean — so the missing arm was unreachable.
- *
- * Hidden Terrain phases 2/3 (VIEW ~Hidden Terrain): resource/rumour markers
- * drop at phase 2, hills also at phase 3; river / mountain stay exempt
- * through phase 3, and coast/estuary are water and are never peeled.
- */
-static void game_draw_overlay_layers(
-  const ColonizeGameState* game,
-  ColonizeFramebuffer8* framebuffer,
-  int mx,
-  int my,
-  int layer_from,
-  int layer_to,
-  int sx,
-  int sy,
-  int tile_w,
-  int tile_h,
-  int map_origin_x,
-  int map_origin_y
-) {
-  for (int layer = layer_from; layer < layer_to; ++layer) {
-    if (game->hidden_terrain_phase >= 2) {
-      const ColonizeMapOverlayKind kind =
-        map_phys0_overlay_kind_at(&game->world_map, mx, my, layer);
-      if (kind == MAP_OVERLAY_KIND_RESOURCE || kind == MAP_OVERLAY_KIND_RUMOUR) {
-        continue;
-      }
-      if (game->hidden_terrain_phase >= 3 && kind == MAP_OVERLAY_KIND_HILL) {
-        continue;
-      }
-    }
-    const int overlay_sprite = map_phys0_overlay_sprite_at(&game->world_map, mx, my, layer);
-    if (overlay_sprite < 0) {
-      continue;
-    }
-    int ox = 0;
-    int oy = 0;
-    map_phys0_overlay_offset_at(&game->world_map, mx, my, layer, &ox, &oy);
-    blit_map_sprite_offset(
-      &game->phys0, overlay_sprite, framebuffer, sx, sy, tile_w, tile_h, map_origin_x,
-      map_origin_y, ox, oy
-    );
-  }
-}
-
-/*
  * VIEW Zoom In/Out/Level N (FUN_2b5a_0f92: DS:0x184 clamped 0..3). DOS redraws
  * the viewport at 16>>zoom px/tile so 15<<zoom × 12<<zoom tiles fit the same
  * 240×192 area (FUN_6ba1_000c: view_w=0xf<<zoom, view_h=0xc<<zoom, tile_px=
@@ -5675,23 +5624,6 @@ static void europe_draw_box_border(
   fb_rect_outline(fb, x, y, w, h, color, color);
 }
 
-/*
- * Passenger riding in an Expected/Bound ship's hold: same icon rule the dock
- * queue uses (profession sprite for a plain Colonists-type unit, the @UNIT
- * icon otherwise).
- */
-static int europe_pax_type_index(const ColonizeUnitPool* units, int tag) {
-  if (tag == -2) {
-    const int t = units_find_type(units, "Artillery");
-    return t >= 0 ? t : 0;
-  }
-  if (!units || tag < 0 || tag >= units->type_count) {
-    const int t = units_find_type(units, "Colonists");
-    return t >= 0 ? t : 0;
-  }
-  return tag;
-}
-
 /* Two-line header + ship icons inside an Expected/Bound/Loading water box. */
 /*
  * @UNIT type for unit_chrome's orders-box corner (bugs.md 425). Must use the
@@ -5740,54 +5672,43 @@ static void europe_render_transit_box(
     return;
   }
   const int line_h = font ? (font->max_height > 0 ? (int)font->max_height + 2 : 8) : 8;
-  const int header_h = EUROPE_TRANSIT_HEADER_LINES * line_h;
   font_draw_text(font, framebuffer, box_x + 2, box_y + 2, header, EUROPE_TEXT_GREEN);
 
   if (!game || !game->unit_icons_ok || !game->units_ok || count <= 0 || !ships) {
     return;
   }
-
-  const int ship_y0 = box_y + 2 + header_h + 10;
-  const int ship_area_h = box_y + box_h - ship_y0 - 1;
-  if (ship_area_h < 8) {
+  EuropeIconFlow f;
+  if (!europe_icon_flow_begin(&f, box_x, box_y, box_w, box_h, line_h)) {
     return;
   }
+  const ColonizePalette* pal =
+    (game->europe_ok && game->europe.background.has_palette) ? &game->europe.background.palette
+                                                              : NULL;
 
-  int x = box_x + 3;
-  int y = ship_y0;
-  int row_h = 0;
   for (int i = 0; i < count; ++i) {
     const int sprite = europe_ship_icon_sprite(&game->units, &ships[i]);
     if (sprite < 0 || sprite >= game->unit_icons.sprite_count) {
       continue;
     }
-    const ColonizeSprite* sp = &game->unit_icons.sprites[sprite];
-    const int sw = sp->width > 0 ? sp->width : 14;
-    const int sh = sp->height > 0 ? sp->height : 16;
-    if (x + sw > box_x + box_w - 2) {
-      x = box_x + 3;
-      y += row_h + 1;
-      row_h = 0;
-      if (y + sh > box_y + box_h - 1) {
-        break;
-      }
-    }
-    if (sh > row_h) {
-      row_h = sh;
+    int sw = 0;
+    int sh = 0;
+    europe_icon_flow_size(&game->unit_icons, sprite, &sw, &sh);
+    if (!europe_icon_flow_place(&f, sw, sh)) {
+      break;
     }
     unit_chrome_blit_unit_for_palette(
       framebuffer,
       font,
       &game->unit_icons,
       sprite,
-      x,
-      y,
+      f.x,
+      f.y,
       europe_ship_display_type(&game->units, &ships[i]),
       game->human_nation,
       UNITS_ORDER_NONE,
       ships[i].cargo_count > 0,
       false,
-      (game->europe_ok && game->europe.background.has_palette) ? &game->europe.background.palette : NULL
+      pal
     );
     if (i == selected_index) {
       /* bugs.md: same fixed 18x18 cell frame as every other unit selection. */
@@ -5795,10 +5716,10 @@ static void europe_render_transit_box(
       int fy = 0;
       int fw = 0;
       int fh = 0;
-      unit_chrome_selection_frame(x, y, sw, sh, &fx, &fy, &fw, &fh);
+      unit_chrome_selection_frame(f.x, f.y, sw, sh, &fx, &fy, &fw, &fh);
       europe_draw_box_border(framebuffer, fx, fy, fw, fh, 14);
     }
-    x += sw + 2;
+    europe_icon_flow_advance(&f, sw);
 
     /*
      * Everyone riding along shows next to their ship — bugs.md: "Colonists
@@ -5816,37 +5737,27 @@ static void europe_render_transit_box(
       if (pax_sprite < 0 || pax_sprite >= game->unit_icons.sprite_count) {
         continue;
       }
-      const ColonizeSprite* psp = &game->unit_icons.sprites[pax_sprite];
-      const int pw = psp->width > 0 ? psp->width : 14;
-      const int ph = psp->height > 0 ? psp->height : 16;
-      if (x + pw > box_x + box_w - 2) {
-        x = box_x + 3;
-        y += row_h + 1;
-        row_h = 0;
-        if (y + ph > box_y + box_h - 1) {
-          break;
-        }
-      }
-      if (ph > row_h) {
-        row_h = ph;
+      int pw = 0;
+      int ph = 0;
+      europe_icon_flow_size(&game->unit_icons, pax_sprite, &pw, &ph);
+      if (!europe_icon_flow_place(&f, pw, ph)) {
+        break;
       }
       unit_chrome_blit_unit_for_palette(
         framebuffer,
         font,
         &game->unit_icons,
         pax_sprite,
-        x,
-        y,
+        f.x,
+        f.y,
         pax_type,
         game->human_nation,
         UNITS_ORDER_SENTRY,
         false,
         false,
-        (game->europe_ok && game->europe.background.has_palette)
-          ? &game->europe.background.palette
-          : NULL
+        pal
       );
-      x += pw + 2;
+      europe_icon_flow_advance(&f, pw);
     }
   }
 }
@@ -9582,23 +9493,7 @@ static bool game_colony_drag_drop(
       }
       if (tid >= 0 && game->units_ok && shift) {
         /* Shift+drag: @HOWMUCH1 amount entry instead of the whole slot. */
-        const int cargo = drag->index;
-        const int max_amt = colony->stock[cargo] < 100 ? colony->stock[cargo] : 100;
-        if (max_amt > 0) {
-          char prompt[AI_POPUP_BODY_LEN];
-          PopupMsgTokens tok;
-          memset(&tok, 0, sizeof(tok));
-          tok.string0 = (game->europe_ok && cargo < game->europe.cargo_count)
-                          ? game->europe.cargo[cargo].name
-                          : "cargo";
-          tok.string1 = "ship";
-          tok.number0 = max_amt;
-          tok.has_number0 = true;
-          popup_msg_fill(
-            &game->messages, "HOWMUCH1", &tok, "How much should be loaded?", prompt, sizeof(prompt)
-          );
-          howmuch_open(&game->howmuch, HOWMUCH_KIND_LOAD, prompt, max_amt, max_amt, cargo, 0);
-        }
+        game_colony_open_load_prompt(game, colony, drag->index);
         game_ui_drag_clear(game);
         return true;
       }
@@ -9794,30 +9689,9 @@ static bool game_europe_drag_drop(ColonizeGameState* game, int mx, int my, bool 
         eu->selected_harbor = 0;
       }
       if (hidx >= 0 && shift) {
-        /* Shift+drag: @HOWMUCH4 amount entry instead of a full 100 load.
-         * DOS FUN_38fd_1fa2 sizes the prompt from the ship's free room
-         * (FUN_281f_0b96), clamped to 100, and shows the no-room popup
-         * instead when there is none (smell audit #83). */
-        const int cargo = drag->index;
-        const int room = europe_harbor_cargo_room(eu, &game->units, hidx, cargo);
-        const int max_amt = room < 100 ? room : 100;
-        char prompt[AI_POPUP_BODY_LEN];
-        PopupMsgTokens tok;
-        memset(&tok, 0, sizeof(tok));
-        tok.string0 = (cargo >= 0 && cargo < eu->cargo_count) ? eu->cargo[cargo].name : "cargo";
-        tok.string1 = "ship";
-        tok.number0 = max_amt;
-        tok.has_number0 = true;
-        tok.number1 = europe_buy_price(eu, cargo);
-        tok.has_number1 = true;
-        popup_msg_fill(
-          &game->messages, "HOWMUCH4", &tok, "How much to purchase?", prompt, sizeof(prompt)
-        );
-        if (max_amt <= 0) {
-          snprintf(eu->status, sizeof(eu->status), "%s", "No empty hold.");
-        } else {
-          howmuch_open(&game->howmuch, HOWMUCH_KIND_BUY, prompt, max_amt, max_amt, cargo, 0);
-        }
+        /* Shift+drag: @HOWMUCH4 amount entry instead of a full 100 load
+         * (same prompt as the keyboard path). */
+        game_europe_open_buy_prompt_for(game, hidx, drag->index);
       } else if (hidx >= 0) {
         europe_buy_cargo(
           eu, &game->col1, &game->units, game->human_nation, hidx, drag->index,
@@ -12361,6 +12235,34 @@ static bool game_service_popup_queue(ColonizeGameState* game, bool zoom_blocked_
   return false;
 }
 
+/* @HOWMUCH1 amount entry for loading `cargo` from the colony warehouse onto
+ * the selected transport; a no-op when the stock is empty (keyboard '+'
+ * guards that itself; the drag path relied on the same check). */
+static void game_colony_open_load_prompt(
+  ColonizeGameState* game, const ColonizeColony* colony, int cargo
+) {
+  if (!game || !colony || cargo < 0 || cargo >= COLONIZE_CARGO_COUNT) {
+    return;
+  }
+  const int max_amt = colony->stock[cargo] < 100 ? colony->stock[cargo] : 100;
+  if (max_amt <= 0) {
+    return;
+  }
+  char prompt[AI_POPUP_BODY_LEN];
+  PopupMsgTokens tok;
+  memset(&tok, 0, sizeof(tok));
+  tok.string0 = (game->europe_ok && cargo < game->europe.cargo_count)
+                  ? game->europe.cargo[cargo].name
+                  : "cargo";
+  tok.string1 = "ship";
+  tok.number0 = max_amt;
+  tok.has_number0 = true;
+  popup_msg_fill(
+    &game->messages, "HOWMUCH1", &tok, "How much should be loaded?", prompt, sizeof(prompt)
+  );
+  howmuch_open(&game->howmuch, HOWMUCH_KIND_LOAD, prompt, max_amt, max_amt, cargo, 0);
+}
+
 /*
  * European Status buy prompt: the @HOWMUCH4 amount dialog for the selected
  * market cargo, sized by the selected ship's free room (DOS FUN_38fd_1fa2,
@@ -12368,10 +12270,9 @@ static bool game_service_popup_queue(ColonizeGameState* game, bool zoom_blocked_
  * thirty lines twice. Both call sites have already checked that a ship is
  * selected.
  */
-static void game_europe_open_buy_prompt(ColonizeGameState* game) {
+static void game_europe_open_buy_prompt_for(ColonizeGameState* game, int hidx, int cargo) {
   EuropeScreen* eu = &game->europe;
-  const int cargo = eu->selected_market;
-  const int room = europe_harbor_cargo_room(eu, &game->units, eu->selected_harbor, cargo);
+  const int room = europe_harbor_cargo_room(eu, &game->units, hidx, cargo);
   const int max_amt = room < 100 ? room : 100;
   char prompt[AI_POPUP_BODY_LEN];
   PopupMsgTokens tok;
@@ -12390,6 +12291,10 @@ static void game_europe_open_buy_prompt(ColonizeGameState* game) {
   } else {
     howmuch_open(&game->howmuch, HOWMUCH_KIND_BUY, prompt, max_amt, max_amt, cargo, 0);
   }
+}
+
+static void game_europe_open_buy_prompt(ColonizeGameState* game) {
+  game_europe_open_buy_prompt_for(game, game->europe.selected_harbor, game->europe.selected_market);
 }
 
 /*
@@ -13412,28 +13317,7 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
           const int want = colony->stock[cargo] < 100 ? colony->stock[cargo] : 100;
           game_colony_load_hold(game, csv->transport_unit_id, cargo, want);
         } else {
-          const int cargo = csv->selected_cargo;
-          const int max_amt = colony->stock[cargo] < 100 ? colony->stock[cargo] : 100;
-          char prompt[AI_POPUP_BODY_LEN];
-          PopupMsgTokens tok;
-          memset(&tok, 0, sizeof(tok));
-          tok.string0 = (game->europe_ok && cargo < game->europe.cargo_count)
-                          ? game->europe.cargo[cargo].name
-                          : "cargo";
-          tok.string1 = "ship";
-          tok.number0 = max_amt;
-          tok.has_number0 = true;
-          popup_msg_fill(
-            &game->messages,
-            "HOWMUCH1",
-            &tok,
-            "How much should be loaded?",
-            prompt,
-            sizeof(prompt)
-          );
-          howmuch_open(
-            &game->howmuch, HOWMUCH_KIND_LOAD, prompt, max_amt, max_amt, cargo, 0
-          );
+          game_colony_open_load_prompt(game, colony, csv->selected_cargo);
         }
         colony_screen_set_status(csv, game->status);
         return true;
@@ -15719,8 +15603,8 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
     for (int sy = 0; sy < view_rows; ++sy) {
       for (int sx = 0; sx < view_cols; ++sx) {
         int base_sprite;
-        int underlayer = -1;
-        int coast_layers = 0;
+        ColonizeMapLayerCmd cmds[MAP_LAYER_CMDS_MAX];
+        int ncmd = 0;
         if (game->world_map_ok) {
           const int mx = view_x + sx;
           const int my = view_y + sy;
@@ -15763,15 +15647,10 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
             }
             continue;
           }
-          underlayer = map_coast_underlayer_sprite_at(&game->world_map, mx, my);
-          coast_layers = map_phys0_coast_layer_count(&game->world_map, mx, my);
-          base_sprite = (underlayer >= 0) ? underlayer : map_terrain_sprite_at(&game->world_map, mx, my);
-          /* Hidden Terrain phase 3: scrub forest reveals as Desert (its cleared
-           * base type), not the scrub-ground quirk sprite under its canopy. */
-          if (game->hidden_terrain_phase >= 3 && underlayer < 0 &&
-              map_tile_is_scrub_forest(&game->world_map, mx, my)) {
-            base_sprite = 1;
-          }
+          ncmd = map_tile_layer_cmds(
+            &game->world_map, mx, my, game->hidden_terrain_phase, cmds, MAP_LAYER_CMDS_MAX
+          );
+          base_sprite = ncmd > 0 ? cmds[0].sprite : -1;
         } else {
           base_sprite = (view_x + sx + view_y + sy + (int)game->map_seed) % game->terrain.sprite_count;
         }
@@ -15785,109 +15664,27 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
         if (game->phys0_ok && game->world_map_ok) {
           const int mx = view_x + sx;
           const int my = view_y + sy;
-          /* MAPEDIT: land transitions before forest (FUN_1a47_06da). */
-          if (underlayer < 0) {
-            const int transitions = map_land_transition_count(&game->world_map, mx, my);
-            for (int ti = 0; ti < transitions; ++ti) {
-              const int mask = map_land_transition_mask_sprite_at(&game->world_map, mx, my, ti);
-              const int fill = map_land_transition_fill_terrain_at(&game->world_map, mx, my, ti);
-              if (mask >= 0) {
-                blit_map_sprite(
-                  &game->phys0, mask, framebuffer, sx, sy, tile_w, tile_h, map_origin_x, map_origin_y
-                );
-              }
-              if (fill >= 0 && fill < game->terrain.sprite_count) {
-                blit_map_sprite_where_dest(
-                  &game->terrain,
-                  fill,
-                  framebuffer,
-                  sx,
-                  sy,
-                  tile_w,
-                  tile_h,
-                  map_origin_x,
-                  map_origin_y,
-                  0
-                );
-              }
+          for (int ci = 1; ci < ncmd; ++ci) {
+            const ColonizeMapLayerCmd* cmd = &cmds[ci];
+            const ColonizeSpriteSheet* sheet =
+              (cmd->sheet == MAP_LAYER_SHEET_TERRAIN) ? &game->terrain : &game->phys0;
+            if (cmd->sprite < 0 || cmd->sprite >= sheet->sprite_count) {
+              continue;
             }
-          }
-          const int forest_sprite = map_phys0_forest_sprite_at(&game->world_map, mx, my);
-          /* Hidden Terrain phase 3 removes forest canopy. */
-          if (forest_sprite >= 0 && game->hidden_terrain_phase < 3) {
-            blit_map_sprite(
-              &game->phys0, forest_sprite, framebuffer, sx, sy, tile_w, tile_h, map_origin_x, map_origin_y
-            );
-          }
-          const int overlay_layers = map_phys0_overlay_count(&game->world_map, mx, my);
-          /* MAPEDIT: coast PHYS0, then masked ocean into colour-0 holes, then estuary. */
-          const int coast_end = (underlayer >= 0) ? coast_layers : overlay_layers;
-          game_draw_overlay_layers(
-            game, framebuffer, mx, my, 0, coast_end, sx, sy, tile_w, tile_h, map_origin_x,
-            map_origin_y
-          );
-          if (underlayer >= 0) {
-            const int ocean_sprite = map_terrain_sprite_at(&game->world_map, mx, my);
-            if (ocean_sprite >= 0 && ocean_sprite < game->terrain.sprite_count) {
+            if (cmd->into_holes) {
               blit_map_sprite_where_dest(
-                &game->terrain,
-                ocean_sprite,
-                framebuffer,
-                sx,
-                sy,
-                tile_w,
-                tile_h,
-                map_origin_x,
-                map_origin_y,
-                0
+                sheet, cmd->sprite, framebuffer, sx, sy, tile_w, tile_h, map_origin_x,
+                map_origin_y, 0
               );
-            }
-            game_draw_overlay_layers(
-              game, framebuffer, mx, my, coast_layers, overlay_layers, sx, sy, tile_w, tile_h,
-              map_origin_x, map_origin_y
-            );
-          }
-          /* Runtime plow / road: PHYS0 149 / 80–88 after static overlays, before fog. */
-          {
-            const int plow = map_phys0_plow_sprite_at(&game->world_map, mx, my);
-            if (plow >= 0 && plow < game->phys0.sprite_count) {
+            } else if (cmd->offset) {
+              blit_map_sprite_offset(
+                sheet, cmd->sprite, framebuffer, sx, sy, tile_w, tile_h, map_origin_x,
+                map_origin_y, cmd->ox, cmd->oy
+              );
+            } else {
               blit_map_sprite(
-                &game->phys0, plow, framebuffer, sx, sy, tile_w, tile_h, map_origin_x, map_origin_y
+                sheet, cmd->sprite, framebuffer, sx, sy, tile_w, tile_h, map_origin_x, map_origin_y
               );
-              /* bugs.md 402: keep the special-resource icon visible — re-blit
-               * it above the plow art (phase 2+ peel already hides it). */
-              if (game->hidden_terrain_phase < 2) {
-                const int rn = map_phys0_overlay_count(&game->world_map, mx, my);
-                for (int rl = 0; rl < rn; ++rl) {
-                  if (map_phys0_overlay_kind_at(&game->world_map, mx, my, rl) !=
-                      MAP_OVERLAY_KIND_RESOURCE) {
-                    continue;
-                  }
-                  const int rs = map_phys0_overlay_sprite_at(&game->world_map, mx, my, rl);
-                  if (rs >= 0) {
-                    int rox = 0;
-                    int roy = 0;
-                    map_phys0_overlay_offset_at(&game->world_map, mx, my, rl, &rox, &roy);
-                    blit_map_sprite_offset(
-                      &game->phys0, rs, framebuffer, sx, sy, tile_w, tile_h, map_origin_x,
-                      map_origin_y, rox, roy
-                    );
-                  }
-                }
-              }
-            }
-            /* Hidden Terrain phase 2+: roads aren't in the exempt set. */
-            const int road_n =
-              (game->hidden_terrain_phase >= 2) ? 0 : map_phys0_road_layer_count(&game->world_map, mx, my);
-            for (int ri = 0; ri < road_n; ++ri) {
-              const int road =
-                map_phys0_road_layer_sprite_at(&game->world_map, mx, my, ri);
-              if (road >= 0 && road < game->phys0.sprite_count) {
-                blit_map_sprite(
-                  &game->phys0, road, framebuffer, sx, sy, tile_w, tile_h, map_origin_x,
-                  map_origin_y
-                );
-              }
             }
           }
           /* Fog transitional edges toward unseen: PHYS0 104-107 mask, then —
