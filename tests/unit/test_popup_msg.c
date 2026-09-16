@@ -24,6 +24,8 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "../common/test_runner.h"
+
 static int fail(const char* msg) {
   fprintf(stderr, "unit_popup_msg: FAIL %s\n", msg);
   return 1;
@@ -71,11 +73,26 @@ static const char* const k_used_sections[] = {
   "WHICHFREEDOM",  "WINNING",
 };
 
-int main(void) {
-  ColonizeMsgCatalog catalog;
-  assets_msg_init(&catalog);
-  if (!assets_msg_load_file(&catalog, "COLONIZE/GAME.TXT")) {
+/* Catalog is read-only after load, so one process-wide load is safe to
+ * share across cases (no reset needed between cases). */
+static ColonizeMsgCatalog g_catalog;
+static int g_catalog_ready = 0;
+
+static int ensure_catalog(void) {
+  if (g_catalog_ready) {
+    return 0;
+  }
+  assets_msg_init(&g_catalog);
+  if (!assets_msg_load_file(&g_catalog, "COLONIZE/GAME.TXT")) {
     fprintf(stderr, "unit_popup_msg: GAME.TXT load failed (run from repo root)\n");
+    return 1;
+  }
+  g_catalog_ready = 1;
+  return 0;
+}
+
+static int case_token_substitution(void) {
+  if (ensure_catalog() != 0) {
     return 1;
   }
 
@@ -101,7 +118,7 @@ int main(void) {
   for (size_t i = 0; i < n; ++i) {
     const char* name = k_used_sections[i];
     char body[2048];
-    popup_msg_fill(&catalog, name, &tok, sentinel, body, sizeof(body));
+    popup_msg_fill(&g_catalog, name, &tok, sentinel, body, sizeof(body));
     if (strcmp(body, sentinel) == 0) {
       fprintf(stderr, "unit_popup_msg: @%s not found / empty in GAME.TXT\n", name);
       rc = fail("wired section missing from GAME.TXT");
@@ -115,16 +132,29 @@ int main(void) {
     ++checked;
   }
 
-  /*
-   * bugs.md (King galleon / Euro diplomacy: "the options are appended in the
-   * text"): DOS FUN_6f74_32a4 is a blank-line state machine — state 1 body,
-   * state 2 choices, state 3 done — so no choice row may ever appear in the
-   * body. Sweep every section in the shipped GAME.TXT, not just the wired
-   * ones, so a newly wired dialog cannot regress silently.
-   */
+  if (rc != 0) {
+    return rc;
+  }
+  fprintf(stderr, "unit_popup_msg: ok (%d/%zu sections clean)\n", checked, n);
+  return 0;
+}
+
+/*
+ * bugs.md (King galleon / Euro diplomacy: "the options are appended in the
+ * text"): DOS FUN_6f74_32a4 is a blank-line state machine — state 1 body,
+ * state 2 choices, state 3 done — so no choice row may ever appear in the
+ * body. Sweep every section in the shipped GAME.TXT, not just the wired
+ * ones, so a newly wired dialog cannot regress silently.
+ */
+static int case_choice_leak_sweep(void) {
+  if (ensure_catalog() != 0) {
+    return 1;
+  }
+
+  int rc = 0;
   int swept = 0;
-  for (int s = 0; s < catalog.section_count; ++s) {
-    const ColonizeMsgSection* sec = &catalog.sections[s];
+  for (int s = 0; s < g_catalog.section_count; ++s) {
+    const ColonizeMsgSection* sec = &g_catalog.sections[s];
     /* @TAXOPTIONS is not a dialog: DOS reads its two rows line-by-line
      * (38fd:40a9 FUN_291f_0928 + 091c) and appends them to the @KINGTAX box,
      * so it has no body/choice split of its own. */
@@ -148,26 +178,35 @@ int main(void) {
     ++swept;
   }
 
-  /* @ABANDON: DOS 2f2b caseD_a shows it through the normal compositor with
-   * @default=2 pre-selected ("Never! That would be folly."). */
-  {
-    const ColonizeMsgSection* ab = assets_msg_find(&catalog, "ABANDON");
-    if (!ab || popup_msg_section_default(ab) != 2) {
-      rc = fail("@ABANDON lost its @default=2");
-    }
-    if (popup_msg_mss_index_for_section("ABANDON") != 5 ||
-        popup_msg_mss_index_for_section("ABANDON2") != 5) {
-      rc = fail("@ABANDON/@ABANDON2 lost the MSS5 figure");
-    }
-  }
-
-  assets_msg_free(&catalog);
   if (rc != 0) {
     return rc;
   }
-  fprintf(
-    stderr, "unit_popup_msg: ok (%d/%zu sections clean, %d swept for choice leaks)\n", checked, n,
-    swept
-  );
+  fprintf(stderr, "unit_popup_msg: ok (%d swept for choice leaks)\n", swept);
   return 0;
 }
+
+/* @ABANDON: DOS 2f2b caseD_a shows it through the normal compositor with
+ * @default=2 pre-selected ("Never! That would be folly."). */
+static int case_abandon_default(void) {
+  if (ensure_catalog() != 0) {
+    return 1;
+  }
+
+  int rc = 0;
+  const ColonizeMsgSection* ab = assets_msg_find(&g_catalog, "ABANDON");
+  if (!ab || popup_msg_section_default(ab) != 2) {
+    rc = fail("@ABANDON lost its @default=2");
+  }
+  if (popup_msg_mss_index_for_section("ABANDON") != 5 ||
+      popup_msg_mss_index_for_section("ABANDON2") != 5) {
+    rc = fail("@ABANDON/@ABANDON2 lost the MSS5 figure");
+  }
+  return rc;
+}
+
+static const TestCase k_cases[] = {
+    {"unit_popup_msg_token_substitution", case_token_substitution},
+    {"unit_popup_msg_choice_leak_sweep", case_choice_leak_sweep},
+    {"unit_popup_msg_abandon_default", case_abandon_default},
+};
+TEST_MAIN(k_cases)

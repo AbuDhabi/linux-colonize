@@ -498,7 +498,7 @@ static bool ai_spawn_euro_fleet(
   if (p && p->use_tribe_txt && sx == landfall_x && sy == landfall_y) {
     int wx = 0;
     int wy = 0;
-    if (ai_goals_nearest_landing_water(map, units, NULL, sx, sy, 24, &wx, &wy)) {
+    if (ai_goals_nearest_landing_water_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(units), .colonies=(ColonizeColonyPool*)(NULL), .map=(ColonizeWorldMap*)(map)}, sx, sy, 24, &wx, &wy)) {
       goto_x = wx;
       goto_y = wy;
     }
@@ -1809,19 +1809,6 @@ int ai_indian_village_threat_w(
   return best_nation;
 }
 
-/* Compat shim: pre-ColonizeWorld signature (see src/core/world.h). */
-int ai_indian_village_threat(
-  const ColonizeCol1Save* col1,
-  const ColonizeWorldMap* map,
-  const ColonizeUnitPool* pool,
-  const ColonizeColonyPool* colonies,
-  int human_nation,
-  int tribe_index,
-  int* out_score
-) {
-  ColonizeWorld w_ = world_make(pool, colonies, map, col1, col1 != NULL, NULL, NULL);
-  return ai_indian_village_threat_w(&w_, human_nation, tribe_index, out_score);
-}
 
 /* ColonizeTurnContext adapter for the village tick. */
 static int ai_indian_152e_best_threat_nation(
@@ -1835,8 +1822,7 @@ static int ai_indian_152e_best_threat_nation(
   if (!ctx || !ctx->col1_ok) {
     return -1;
   }
-  return ai_indian_village_threat(
-    ctx->col1, ctx->map, ctx->units, ctx->colonies, ctx->human_nation, tribe_index, out_score);
+  return ai_indian_village_threat_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(ctx->units), .colonies=(ColonizeColonyPool*)(ctx->colonies), .map=(ColonizeWorldMap*)(ctx->map), .col1=(ColonizeCol1Save*)(ctx->col1), .col1_ok=((ctx->col1) != NULL)}, ctx->human_nation, tribe_index, out_score);
 }
 
 /*
@@ -2743,9 +2729,7 @@ static int ai_native_pick_dir_asm(
   int fog_enable = 1;
   {
     int side = -1;
-    if (ai_goals_probe_adjacent_contact_claim(
-          map, s_ai_native_colonies, units, s_ai_native_col1, x, y, nation_id, 0,
-          &side) >= 0) {
+    if (ai_goals_probe_adjacent_contact_claim_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(units), .colonies=(ColonizeColonyPool*)(s_ai_native_colonies), .map=(ColonizeWorldMap*)(map), .col1=(ColonizeCol1Save*)(s_ai_native_col1), .col1_ok=((s_ai_native_col1) != NULL)}, x, y, nation_id, 0, &side) >= 0) {
       fog_enable = 0;
     }
   }
@@ -3938,7 +3922,7 @@ static int ai_native_021a_tail(
           int sx = 0;
           int sy = 0;
           const bool ok =
-            units_next_goto_step(units, u->id, map, s_ai_native_colonies, rng, &sx, &sy);
+            units_next_goto_step_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(units), .colonies=(ColonizeColonyPool*)(s_ai_native_colonies), .map=(ColonizeWorldMap*)(map), .rng=(ColonizeDosRng*)(rng)}, u->id, &sx, &sy);
           u->goto_x = save_gx;
           u->goto_y = save_gy;
           if (ok) {
@@ -4936,17 +4920,6 @@ int col1_kill_indian_nation_w(
   }
 
   return removed;
-}
-
-/* Compat shim: pre-ColonizeWorld signature (see src/core/world.h). */
-int col1_kill_indian_nation(
-  ColonizeCol1Save* col1,
-  ColonizeUnitPool* units,
-  ColonizeWorldMap* map,
-  int nation_id
-) {
-  ColonizeWorld w_ = world_make(units, NULL, map, col1, col1 != NULL, NULL, NULL);
-  return col1_kill_indian_nation_w(&w_, nation_id);
 }
 
 /*

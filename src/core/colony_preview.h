@@ -77,12 +77,4 @@ void colony_preview_compute_w(
   const ColonizeColony* colony,
   ColonizeColonyPreview* out
 );
-void colony_preview_compute(
-  const ColonizeColonyPool* pool,
-  const ColonizeColony* colony,
-  const ColonizeWorldMap* map,
-  const ColonizeCol1Save* col1,
-  ColonizeColonyPreview* out
-);
-
 #endif

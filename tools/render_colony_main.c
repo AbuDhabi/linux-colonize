@@ -77,7 +77,7 @@ int main(int argc, char** argv) {
 
   colony_screen_refresh_transports(&view, &rs.units, colony);
   colony_screen_refresh_outside(&view, &rs.units, colony);
-  colony_screen_refresh_preview(&view, &rs.colonies, colony, &rs.map, &rs.save);
+  colony_screen_refresh_preview_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&rs.colonies), .map=(ColonizeWorldMap*)(&rs.map), .col1=(ColonizeCol1Save*)(&rs.save), .col1_ok=true}, &view, colony);
 
   ColonizeSpriteSheet terrain;
   const bool terrain_ok = render_load_sheet(data_dir, "TERRAIN.SS", &terrain);
@@ -94,23 +94,8 @@ int main(int argc, char** argv) {
   ColonizeFramebuffer8 fb;
   render_fb_init(&fb, pixels);
 
-  colony_screen_render(
-    &view,
-    &rs.colonies,
-    colony,
-    &rs.units,
-    &rs.map,
-    terrain_ok ? &terrain : NULL,
-    phys0_ok ? &phys0 : NULL,
-    &rs.save,
-    rs.bridge.year,
-    rs.bridge.autumn,
-    (int)nat->gold,
-    font_ok ? &font : NULL,
-    debug_rects,
-    NULL, /* LABELS.TXT not loaded here; fallback text is byte-identical to the live text */
-    &fb
-  );
+  colony_screen_render_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&rs.units), .colonies=(ColonizeColonyPool*)(&rs.colonies), .map=(ColonizeWorldMap*)(&rs.map), .col1=(ColonizeCol1Save*)(&rs.save), .col1_ok=true}, &view, colony, terrain_ok ? &terrain : NULL, phys0_ok ? &phys0 : NULL, rs.bridge.year, rs.bridge.autumn, (int)nat->gold, font_ok ? &font : NULL, debug_rects, NULL, /* LABELS.TXT not loaded here; fallback text is byte-identical to the live text */
+    &fb);
 
   ColonizePalette pal = (ColonizePalette){0};
   if (view.frame_ok && view.frame.has_palette) {

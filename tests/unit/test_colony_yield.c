@@ -6,6 +6,8 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "../common/test_runner.h"
+
 /*
  * Town-commons secondary is base_for_pedia(job) + river(0/1/2) + SoL latch
  * bits (+1 SOL_50, +1 SOL_100), asm-confirmed against FUN_15eb_1f72
@@ -14,7 +16,24 @@
  * own comment) — see docs/terrain_yields.md "Town commons". No plow, no
  * flat road (an earlier reading of this file's own fixtures assumed both;
  * superseded 2026-08-18).
+ *
+ * Every case below allocates its own fresh 32x32 map rather than sharing
+ * one across cases: several original blocks reused a tile another block
+ * had just set up (e.g. the SoL-latch checks reuse the "Hills" tile from
+ * the preceding block), which would be an order dependency once split into
+ * independent cases. Each case now sets up whatever terrain/tiles it needs
+ * on its own fresh map instead.
  */
+
+static int map_new(ColonizeWorldMap* map) {
+  char err[256];
+  memset(map, 0, sizeof(*map));
+  if (!map_alloc(map, 32, 32, err, sizeof(err))) {
+    fprintf(stderr, "map_alloc failed: %s\n", err);
+    return 1;
+  }
+  return 0;
+}
 
 static int find_resource_tile(
   ColonizeWorldMap* map,
@@ -77,40 +96,33 @@ static int check_commons_flags(
 #define check_commons_sol(map, x, y, cargo, amt, flags, label) \
   check_commons_flags((map), (x), (y), -1, (cargo), (amt), (flags), (label))
 
-int main(void) {
-  char err[256];
+/*
+ * Town-commons food is a flat +2 regardless of terrain (plus
+ * plow/river/resource on top) — golden_colony_prod01 (a real single DOS
+ * turn across 14 Dutch colonies) rules out a per-terrain "cleared-parent
+ * Farmer + 2" formula: it over-produced food by 1-4 in nearly every
+ * colony. See colony_yield_town_commons_food_base's comment.
+ */
+
+/* Scrub forest (pedia 9) — food class 1 (Desert/Scrub special case, see
+ * colony_yield_town_commons_food_base), no special/river/latch. */
+static int case_commons_scrub(void) {
   ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
-  if (!map_alloc(&map, 32, 32, err, sizeof(err))) {
-    fprintf(stderr, "map_alloc failed: %s\n", err);
+  if (map_new(&map) != 0) {
     return 1;
   }
-
-  /*
-   * Town-commons food is a flat +2 regardless of terrain (plus
-   * plow/river/resource on top) — golden_colony_prod01 (a real single DOS
-   * turn across 14 Dutch colonies) rules out a per-terrain "cleared-parent
-   * Farmer + 2" formula: it over-produced food by 1-4 in nearly every
-   * colony. See colony_yield_town_commons_food_base's comment.
-   */
-
-  /* Scrub forest (pedia 9) — food class 1 (Desert/Scrub special case, see
-   * colony_yield_town_commons_food_base), no special/river/latch. */
   map.terrain[0] = 9;
-  if (check_commons(
-        &map,
-        0,
-        0,
-        1,
-        COLONIZE_CARGO_FURS,
-        2,
-        "scrub"
-      )) {
-    map_free(&map);
+  const int rc = check_commons(&map, 0, 0, 1, COLONIZE_CARGO_FURS, 2, "scrub");
+  map_free(&map);
+  return rc;
+}
+
+/* Hills (bit 0x20). */
+static int case_commons_hills_base(void) {
+  ColonizeWorldMap map;
+  if (map_new(&map) != 0) {
     return 1;
   }
-
-  /* Hills (bit 0x20). */
   map.terrain[1] = (uint8_t)(0x20u);
   if (map_pedia_terrain_index_at(&map, 1, 0) != 28) {
     fprintf(stderr, "hills pedia expected 28 got %d\n", map_pedia_terrain_index_at(&map, 1, 0));
@@ -122,22 +134,29 @@ int main(void) {
    * sets prime_resource_seed) — not something this fixture set out to
    * test, just a side effect of the 2026-08-18 coordinate-hash fix on this
    * exact coordinate. */
-  if (check_commons(&map, 1, 0, 2, COLONIZE_CARGO_ORE, 6, "hills")) {
-    map_free(&map);
+  const int rc = check_commons(&map, 1, 0, 2, COLONIZE_CARGO_ORE, 6, "hills");
+  map_free(&map);
+  return rc;
+}
+
+/*
+ * SoL latch bits on town-commons secondary — asm-confirmed 2026-08-18
+ * against FUN_15eb_1f72 (viceroy_unpacked.c ~12474): +1 if
+ * COLONIZE_COLONY_FLAG_SOL_50 is set, +1 if _SOL_100 is set (up to +2
+ * total). Player-confirmed 2026-08-18 by two real, zero-free-parameter
+ * captures (see colony_yield_town_commons's own comment): Curacao
+ * (golden_colony_prod02, town commons its only furs source, flat ground,
+ * full latch) and Paramaribo (golden_colony_prod01, town commons its
+ * only sugar source net of its Rum Distiller's consumption, full latch).
+ * Reuses the Hills tile shape from case_commons_hills_base (base 4, +2
+ * Prime Ore already covered there).
+ */
+static int case_commons_hills_sol_latch(void) {
+  ColonizeWorldMap map;
+  if (map_new(&map) != 0) {
     return 1;
   }
-
-  /*
-   * SoL latch bits on town-commons secondary — asm-confirmed 2026-08-18
-   * against FUN_15eb_1f72 (viceroy_unpacked.c ~12474): +1 if
-   * COLONIZE_COLONY_FLAG_SOL_50 is set, +1 if _SOL_100 is set (up to +2
-   * total). Player-confirmed 2026-08-18 by two real, zero-free-parameter
-   * captures (see colony_yield_town_commons's own comment): Curacao
-   * (golden_colony_prod02, town commons its only furs source, flat ground,
-   * full latch) and Paramaribo (golden_colony_prod01, town commons its
-   * only sugar source net of its Rum Distiller's consumption, full latch).
-   * Reuses the Hills tile above (base 4, +2 Prime Ore already covered).
-   */
+  map.terrain[1] = (uint8_t)(0x20u);
   if (check_commons_sol(&map, 1, 0, COLONIZE_CARGO_ORE, 6, 0, "hills, no SoL latch")) {
     map_free(&map);
     return 1;
@@ -160,15 +179,28 @@ int main(void) {
     map_free(&map);
     return 1;
   }
+  map_free(&map);
+  return 0;
+}
 
-  /* Broadleaf forest (pedia 11). base(2), no river/latch. */
-  map.terrain[2] = 11;
-  if (check_commons(&map, 2, 0, 2, COLONIZE_CARGO_FURS, 2, "broadleaf")) {
-    map_free(&map);
+/* Broadleaf forest (pedia 11). base(2), no river/latch. */
+static int case_commons_broadleaf(void) {
+  ColonizeWorldMap map;
+  if (map_new(&map) != 0) {
     return 1;
   }
+  map.terrain[2] = 11;
+  const int rc = check_commons(&map, 2, 0, 2, COLONIZE_CARGO_FURS, 2, "broadleaf");
+  map_free(&map);
+  return rc;
+}
 
-  /* Prairie (3) + minor river (0x40). */
+/* Prairie (3) + minor river (0x40). */
+static int case_commons_prairie_minor_river(void) {
+  ColonizeWorldMap map;
+  if (map_new(&map) != 0) {
+    return 1;
+  }
   map.terrain[3] = (uint8_t)(3u | 0x40u);
   if (!map_tile_has_river(&map, 3, 0) || map_tile_has_major_river(&map, 3, 0)) {
     fprintf(stderr, "prairie tile should be minor river only\n");
@@ -179,626 +211,692 @@ int main(void) {
    * food has NO river term (FUN_15eb_1f72 reads only the runtime plow bit;
    * the river value feeds the secondary alone — see colony_yield.c,
    * 2026-09-03, the Fort Orange plow+river double-count). */
-  if (check_commons(&map, 3, 0, 3, COLONIZE_CARGO_COTTON, 4, "prairie+minor river")) {
+  const int rc = check_commons(&map, 3, 0, 3, COLONIZE_CARGO_COTTON, 4, "prairie+minor river");
+  map_free(&map);
+  return rc;
+}
+
+/* Broadleaf + Game (resource type 9). Find a procedural hit. */
+static int case_commons_broadleaf_game(void) {
+  ColonizeWorldMap map;
+  if (map_new(&map) != 0) {
+    return 1;
+  }
+  int gx = -1;
+  int gy = -1;
+  if (!find_resource_tile(&map, 11, 9, &gx, &gy)) {
+    fprintf(stderr, "no broadleaf+Game procedural tile found on 32x32\n");
+    map_free(&map);
+    return 1;
+  }
+  /* amt=4: base(Broadleaf,Fur)=2 + Game(+2). */
+  if (check_commons(&map, gx, gy, 4, COLONIZE_CARGO_FURS, 4, "broadleaf+Game")) {
+    map_free(&map);
+    return 1;
+  }
+  /* Settlement bit hides the resource *sprite*, but NOT its yield — a
+   * colony's own town square always carries this bit, and DOS's
+   * FUN_15eb_1f72 resource read (FUN_137f_04b0) has no settlement gate.
+   * Player-confirmed 2026-09-03 (farming saves / golden_colony_prod03):
+   * a Swamp town square with Minerals makes 5 ore per turn. So commons
+   * food/secondary keep the Game bonus under the settlement bit. */
+  map.layer2[gy * map.width + gx] = (uint8_t)(map.layer2[gy * map.width + gx] | 2u);
+  if (map_resource_type_at(&map, gx, gy) >= 0) {
+    fprintf(stderr, "settlement bit should hide resource sprite lookup\n");
+    map_free(&map);
+    return 1;
+  }
+  if (map_resource_type_for_yield(&map, gx, gy) != 9) {
+    fprintf(stderr, "yield lookup should still see Game under settlement bit\n");
+    map_free(&map);
+    return 1;
+  }
+  /* amt=4: base(Broadleaf,Fur)=2 + Game(+2), unchanged by settlement bit. */
+  const int rc = check_commons(&map, gx, gy, 4, COLONIZE_CARGO_FURS, 4,
+    "broadleaf+Game (settlement bit)");
+  map_free(&map);
+  return rc;
+}
+
+/* Field river: prairie cotton +1 with minor river. */
+static int case_field_river_cotton(void) {
+  ColonizeWorldMap map;
+  if (map_new(&map) != 0) {
+    return 1;
+  }
+  map.terrain[5] = 3;
+  const int cotton_dry = colony_yield_for_tile(&map, 5, 0, COLONIZE_JOB_COTTON_PLANTER);
+  map.terrain[5] = (uint8_t)(3u | 0x40u);
+  const int cotton_river = colony_yield_for_tile(&map, 5, 0, COLONIZE_JOB_COTTON_PLANTER);
+  map_free(&map);
+  if (cotton_dry != 3 || cotton_river != 4) {
+    fprintf(
+      stderr,
+      "field prairie cotton dry=%d river=%d expected 3/4\n",
+      cotton_dry,
+      cotton_river
+    );
+    return 1;
+  }
+  return 0;
+}
+
+/*
+ * Fisherman + major river, player-confirmed 2026-08-15 (Viceroy
+ * difficulty): Lake with a major river, free colonist, no sentiment
+ * bonus = 6 food. Ocean base fish 3, +1 coastal distance mod (few ocean
+ * neighbors, matching the "sometimes 6" coastal observation), +2 major
+ * river (base 1 × 2, same bucket as Farmer/Ore/Silver) = 6. Previously
+ * colony_yield_river_bonus's `default: return 0` silently dropped
+ * Fisherman from any river bonus — this is the regression check for that
+ * fix (colony_yield.c). Uses colony_yield_for_tile (job-only, matches
+ * this test binary's link set) rather than colony_yield_for_worker — no
+ * profession/docks gating needed since a free colonist has no skill-match
+ * bonus and this check is about the river term specifically.
+ */
+static int case_fisherman_major_river(void) {
+  ColonizeWorldMap map;
+  if (map_new(&map) != 0) {
+    return 1;
+  }
+  const int fx = 20;
+  const int fy = 20;
+  map.terrain[fy * map.width + fx] = (uint8_t)(25u | 0x40u | 0x80u); /* Ocean, major river */
+  if (!map_tile_has_river(&map, fx, fy) || !map_tile_has_major_river(&map, fx, fy)) {
+    fprintf(stderr, "fisherman tile should be major river ocean\n");
+    map_free(&map);
+    return 1;
+  }
+  const int fish = colony_yield_for_tile(&map, fx, fy, COLONIZE_JOB_FISHERMAN);
+  map_free(&map);
+  if (fish != 6) {
+    fprintf(stderr, "fisherman+major river want 6 got %d\n", fish);
+    return 1;
+  }
+  return 0;
+}
+
+/*
+ * Expert Ore Miner on Hills+road+sentiment. This regression check still
+ * covers (a) a positive sol_bonus folding in *before* expert doubling,
+ * not as a flat add after, and (b) the road/river unit size doubling for
+ * a matching non-food/fish expert (colony_yield_pipeline, colony_yield.c):
+ *   free:   base(4) +sol(1)=5,                +road(u=1)=6
+ *   expert: base(4) +sol(1)=5, <<=1(expert)=10, +road(u=2)=12
+ * Hills Ore base=4 — player-confirmed 2026-08-18 via colony_prod02's Fort
+ * Orange: expert Ore Miner, Hills, sentiment +2, no road/river/resource,
+ * single colonist (no confound) -> 12 ore = (4+2)x2, and its paired
+ * non-specialist Blacksmith's Shop -> 8 tools/8 ore, independently
+ * confirming the manufacturing side. A base=3 reading was tried after
+ * golden_colony_prod01's synthetic Bahia fixture seemed to need it, but
+ * Bahia's terrain there is entirely hand-fabricated (not loaded from a
+ * real save) and carried an unconfirmed "+road" guess; base=3 only
+ * "worked" by coincidentally cancelling that guess's error. Fixed:
+ * Bahia's road flag dropped instead (see test_colony_prod01.c).
+ */
+static int case_expert_ore_miner_hills_road_sol(void) {
+  ColonizeWorldMap map;
+  if (map_new(&map) != 0) {
+    return 1;
+  }
+  const int hx = 21;
+  const int hy = 20;
+  map.terrain[hy * map.width + hx] = (uint8_t)(0x20u); /* Hills, no forest/river */
+  map_tile_set_road(&map, hx, hy, true);
+  const int free_ore = colony_yield_for_worker(
+    &map, hx, hy, COLONIZE_JOB_ORE_MINER, COLONIZE_PROF_FREE_COLONIST, /*has_docks=*/true, 1, 0,
+    false
+  );
+  if (free_ore != 6) {
+    fprintf(stderr, "free colonist ore+road+sol want 6 got %d\n", free_ore);
+    map_free(&map);
+    return 1;
+  }
+  const int expert_ore = colony_yield_for_worker(
+    &map, hx, hy, COLONIZE_JOB_ORE_MINER, COLONIZE_JOB_ORE_MINER, /*has_docks=*/true, 1, 0,
+    false
+  );
+  map_free(&map);
+  if (expert_ore != 12) {
+    fprintf(stderr, "expert ore miner+road+sol want 12 got %d\n", expert_ore);
+    return 1;
+  }
+  return 0;
+}
+
+/*
+ * Expert Fur Trapper on Mixed Forest+road+sentiment, player-confirmed
+ * 2026-08-15 (Viceroy): 28 furs with Henry Hudson owned, vs. 14 for a
+ * Free Colonist — vs. 12/24 the port would have given before this fix.
+ * Ruled out a special resource explaining the gap (player-confirmed
+ * none present); solved instead to fur/lumber's road bonus needing the
+ * same base-2 magnitude bucket river already has (was flat 1 for every
+ * road job). This checks that piece alone, via colony_yield_for_worker:
+ *   free:   base(3) +sol(2)=5,                +road(u=1,base=2)=7
+ *   expert: base(3) +sol(2)=5, <<=1(expert)=10, +road(u=2,base=2)=14
+ * Hudson's x2 is now the pipeline's own `has_hudson` step (DOS
+ * FUN_15eb_18ec 11970-11973, smell audit #60), so the 14/28 the player
+ * observed comes straight out of these same calls — asserted below.
+ *
+ * Kept as one case: every sub-assertion reuses the same resource-free
+ * Mixed Forest tile the scan at the top finds, building up progressively
+ * more elaborate calls (plain -> Hudson -> Convert -> Tory -> non-fur
+ * control) rather than independent checks.
+ */
+static int case_expert_fur_trapper_hudson(void) {
+  ColonizeWorldMap map;
+  if (map_new(&map) != 0) {
+    return 1;
+  }
+  /* Resources are procedurally derived from (terrain, x, y), not stored
+   * data — scan for a resource-free Mixed forest cell rather than assume
+   * a fixed coordinate has none (an earlier fixed pick landed on one by
+   * coincidence, inflating the result and catching this comment's own
+   * claim of "no resource involved" out — good, that's what the scan is
+   * for). */
+  int mx = -1;
+  int my = -1;
+  for (int y = 0; y < (int)map.height && mx < 0; ++y) {
+    for (int x = 0; x < (int)map.width && mx < 0; ++x) {
+      map.terrain[y * map.width + x] = 10; /* Mixed forest, pedia 8+2, no river */
+      if (map_resource_type_for_yield(&map, x, y) < 0) {
+        mx = x;
+        my = y;
+      }
+    }
+  }
+  if (mx < 0) {
+    fprintf(stderr, "no resource-free Mixed forest tile found on 32x32\n");
+    map_free(&map);
+    return 1;
+  }
+  map_tile_set_road(&map, mx, my, true);
+  const int free_fur = colony_yield_for_worker(
+    &map, mx, my, COLONIZE_JOB_FUR_TRAPPER, COLONIZE_PROF_FREE_COLONIST, /*has_docks=*/true, 2, 0,
+    false
+  );
+  if (free_fur != 7) {
+    fprintf(stderr, "free colonist fur+road+sol want 7 got %d\n", free_fur);
+    map_free(&map);
+    return 1;
+  }
+  const int expert_fur = colony_yield_for_worker(
+    &map, mx, my, COLONIZE_JOB_FUR_TRAPPER, COLONIZE_JOB_FUR_TRAPPER, /*has_docks=*/true, 2, 0,
+    false
+  );
+  if (expert_fur != 14) {
+    fprintf(stderr, "expert fur trapper+road+sol want 14 got %d\n", expert_fur);
     map_free(&map);
     return 1;
   }
 
-  /* Broadleaf + Game (resource type 9). Find a procedural hit. */
-  {
-    int gx = -1;
-    int gy = -1;
-    if (!find_resource_tile(&map, 11, 9, &gx, &gy)) {
-      fprintf(stderr, "no broadleaf+Game procedural tile found on 32x32\n");
-      map_free(&map);
-      return 1;
-    }
-    /* amt=4: base(Broadleaf,Fur)=2 + Game(+2). */
-    if (check_commons(&map, gx, gy, 4, COLONIZE_CARGO_FURS, 4, "broadleaf+Game")) {
-      map_free(&map);
-      return 1;
-    }
-    /* Settlement bit hides the resource *sprite*, but NOT its yield — a
-     * colony's own town square always carries this bit, and DOS's
-     * FUN_15eb_1f72 resource read (FUN_137f_04b0) has no settlement gate.
-     * Player-confirmed 2026-09-03 (farming saves / golden_colony_prod03):
-     * a Swamp town square with Minerals makes 5 ore per turn. So commons
-     * food/secondary keep the Game bonus under the settlement bit. */
-    map.layer2[gy * map.width + gx] = (uint8_t)(map.layer2[gy * map.width + gx] | 2u);
-    if (map_resource_type_at(&map, gx, gy) >= 0) {
-      fprintf(stderr, "settlement bit should hide resource sprite lookup\n");
-      map_free(&map);
-      return 1;
-    }
-    if (map_resource_type_for_yield(&map, gx, gy) != 9) {
-      fprintf(stderr, "yield lookup should still see Game under settlement bit\n");
-      map_free(&map);
-      return 1;
-    }
-    /* amt=4: base(Broadleaf,Fur)=2 + Game(+2), unchanged by settlement bit. */
-    if (check_commons(
-          &map,
-          gx,
-          gy,
-          4,
-          COLONIZE_CARGO_FURS,
-          4,
-          "broadleaf+Game (settlement bit)"
-        )) {
-      map_free(&map);
-      return 1;
-    }
-  }
-
-  /* Field river: prairie cotton +1 with minor river. */
-  {
-    map.terrain[5] = 3;
-    const int cotton_dry = colony_yield_for_tile(&map, 5, 0, COLONIZE_JOB_COTTON_PLANTER);
-    map.terrain[5] = (uint8_t)(3u | 0x40u);
-    const int cotton_river = colony_yield_for_tile(&map, 5, 0, COLONIZE_JOB_COTTON_PLANTER);
-    if (cotton_dry != 3 || cotton_river != 4) {
-      fprintf(
-        stderr,
-        "field prairie cotton dry=%d river=%d expected 3/4\n",
-        cotton_dry,
-        cotton_river
-      );
-      map_free(&map);
-      return 1;
-    }
-  }
-
   /*
-   * Fisherman + major river, player-confirmed 2026-08-15 (Viceroy
-   * difficulty): Lake with a major river, free colonist, no sentiment
-   * bonus = 6 food. Ocean base fish 3, +1 coastal distance mod (few ocean
-   * neighbors, matching the "sometimes 6" coastal observation), +2 major
-   * river (base 1 × 2, same bucket as Farmer/Ore/Silver) = 6. Previously
-   * colony_yield_river_bonus's `default: return 0` silently dropped
-   * Fisherman from any river bonus — this is the regression check for that
-   * fix (colony_yield.c). Uses colony_yield_for_tile (job-only, matches
-   * this test binary's link set) rather than colony_yield_for_worker — no
-   * profession/docks gating needed since a free colonist has no skill-match
-   * bonus and this check is about the river term specifically.
+   * Henry Hudson (smell audit #60) — DOS doubles the Fur Trapper yield
+   * INSIDE FUN_15eb_18ec (11970-11973), between the improvement stack and
+   * both the Convert +1 and the negative-SoL subtraction. The port used to
+   * apply it at four call sites *after* the whole pipeline, giving
+   * `2·(base+1)` / `2·(base−2)` where DOS gives `2·base + 1` /
+   * `2·base − 2`.
+   *   plain:   7 → 14 and 14 → 28 (the 2026-08-15 player capture)
+   *   convert: base 3 +fur-road 1 +stack road 1 = 5, ×2 = 10, +1 = 11
+   *            (old post-hoc order: (5+1)×2 = 12)
+   *   tory:    same 5, ×2 = 10, sol −2 = 8
+   *            (old post-hoc order: (5−2)×2 = 6)
    */
-  {
-    const int fx = 20;
-    const int fy = 20;
-    map.terrain[fy * map.width + fx] = (uint8_t)(25u | 0x40u | 0x80u); /* Ocean, major river */
-    if (!map_tile_has_river(&map, fx, fy) || !map_tile_has_major_river(&map, fx, fy)) {
-      fprintf(stderr, "fisherman tile should be major river ocean\n");
-      map_free(&map);
-      return 1;
-    }
-    const int fish = colony_yield_for_tile(&map, fx, fy, COLONIZE_JOB_FISHERMAN);
-    if (fish != 6) {
-      fprintf(stderr, "fisherman+major river want 6 got %d\n", fish);
-      map_free(&map);
-      return 1;
-    }
+  const int free_fur_hudson = colony_yield_for_worker(
+    &map, mx, my, COLONIZE_JOB_FUR_TRAPPER, COLONIZE_PROF_FREE_COLONIST, /*has_docks=*/true, 2, 0,
+    true
+  );
+  const int expert_fur_hudson = colony_yield_for_worker(
+    &map, mx, my, COLONIZE_JOB_FUR_TRAPPER, COLONIZE_JOB_FUR_TRAPPER, /*has_docks=*/true, 2, 0,
+    true
+  );
+  if (free_fur_hudson != 14 || expert_fur_hudson != 28) {
+    fprintf(
+      stderr,
+      "Hudson fur+road+sol want 14/28 got %d/%d\n",
+      free_fur_hudson,
+      expert_fur_hudson
+    );
+    map_free(&map);
+    return 1;
   }
-
-  /*
-   * Expert Ore Miner on Hills+road+sentiment. This regression check still
-   * covers (a) a positive sol_bonus folding in *before* expert doubling,
-   * not as a flat add after, and (b) the road/river unit size doubling for
-   * a matching non-food/fish expert (colony_yield_pipeline, colony_yield.c):
-   *   free:   base(4) +sol(1)=5,                +road(u=1)=6
-   *   expert: base(4) +sol(1)=5, <<=1(expert)=10, +road(u=2)=12
-   * Hills Ore base=4 — player-confirmed 2026-08-18 via colony_prod02's Fort
-   * Orange: expert Ore Miner, Hills, sentiment +2, no road/river/resource,
-   * single colonist (no confound) -> 12 ore = (4+2)x2, and its paired
-   * non-specialist Blacksmith's Shop -> 8 tools/8 ore, independently
-   * confirming the manufacturing side. A base=3 reading was tried after
-   * golden_colony_prod01's synthetic Bahia fixture seemed to need it, but
-   * Bahia's terrain there is entirely hand-fabricated (not loaded from a
-   * real save) and carried an unconfirmed "+road" guess; base=3 only
-   * "worked" by coincidentally cancelling that guess's error. Fixed:
-   * Bahia's road flag dropped instead (see test_colony_prod01.c).
-   */
-  {
-    const int hx = 21;
-    const int hy = 20;
-    map.terrain[hy * map.width + hx] = (uint8_t)(0x20u); /* Hills, no forest/river */
-    map_tile_set_road(&map, hx, hy, true);
-    const int free_ore = colony_yield_for_worker(
-      &map, hx, hy, COLONIZE_JOB_ORE_MINER, COLONIZE_PROF_FREE_COLONIST, /*has_docks=*/true, 1, 0,
-      false
+  const int convert_fur_hudson = colony_yield_for_worker(
+    &map, mx, my, COLONIZE_JOB_FUR_TRAPPER, COLONIZE_PROF_CONVERT, /*has_docks=*/true, 0, 0, true
+  );
+  if (convert_fur_hudson != 11) {
+    fprintf(
+      stderr,
+      "Hudson+Convert fur want 11 (2*base+1) got %d\n",
+      convert_fur_hudson
     );
-    if (free_ore != 6) {
-      fprintf(stderr, "free colonist ore+road+sol want 6 got %d\n", free_ore);
-      map_free(&map);
-      return 1;
-    }
-    const int expert_ore = colony_yield_for_worker(
-      &map, hx, hy, COLONIZE_JOB_ORE_MINER, COLONIZE_JOB_ORE_MINER, /*has_docks=*/true, 1, 0,
-      false
-    );
-    if (expert_ore != 12) {
-      fprintf(stderr, "expert ore miner+road+sol want 12 got %d\n", expert_ore);
-      map_free(&map);
-      return 1;
-    }
+    map_free(&map);
+    return 1;
   }
-
-  /*
-   * Expert Fur Trapper on Mixed Forest+road+sentiment, player-confirmed
-   * 2026-08-15 (Viceroy): 28 furs with Henry Hudson owned, vs. 14 for a
-   * Free Colonist — vs. 12/24 the port would have given before this fix.
-   * Ruled out a special resource explaining the gap (player-confirmed
-   * none present); solved instead to fur/lumber's road bonus needing the
-   * same base-2 magnitude bucket river already has (was flat 1 for every
-   * road job). This checks that piece alone, via colony_yield_for_worker:
-   *   free:   base(3) +sol(2)=5,                +road(u=1,base=2)=7
-   *   expert: base(3) +sol(2)=5, <<=1(expert)=10, +road(u=2,base=2)=14
-   * Hudson's x2 is now the pipeline's own `has_hudson` step (DOS
-   * FUN_15eb_18ec 11970-11973, smell audit #60), so the 14/28 the player
-   * observed comes straight out of these same calls — asserted below.
-   */
-  {
-    /* Resources are procedurally derived from (terrain, x, y), not stored
-     * data — scan for a resource-free Mixed forest cell rather than assume
-     * a fixed coordinate has none (an earlier fixed pick landed on one by
-     * coincidence, inflating the result and catching this comment's own
-     * claim of "no resource involved" out — good, that's what the scan is
-     * for). */
-    int mx = -1;
-    int my = -1;
-    for (int y = 0; y < (int)map.height && mx < 0; ++y) {
-      for (int x = 0; x < (int)map.width && mx < 0; ++x) {
-        map.terrain[y * map.width + x] = 10; /* Mixed forest, pedia 8+2, no river */
-        if (map_resource_type_for_yield(&map, x, y) < 0) {
-          mx = x;
-          my = y;
-        }
-      }
-    }
-    if (mx < 0) {
-      fprintf(stderr, "no resource-free Mixed forest tile found on 32x32\n");
-      map_free(&map);
-      return 1;
-    }
-    map_tile_set_road(&map, mx, my, true);
-    const int free_fur = colony_yield_for_worker(
-      &map, mx, my, COLONIZE_JOB_FUR_TRAPPER, COLONIZE_PROF_FREE_COLONIST, /*has_docks=*/true, 2, 0,
-      false
+  const int tory_fur_hudson = colony_yield_for_worker(
+    &map, mx, my, COLONIZE_JOB_FUR_TRAPPER, COLONIZE_PROF_FREE_COLONIST, /*has_docks=*/true, -2, 0,
+    true
+  );
+  if (tory_fur_hudson != 8) {
+    fprintf(
+      stderr,
+      "Hudson+negative SoL fur want 8 (2*base-2) got %d\n",
+      tory_fur_hudson
     );
-    if (free_fur != 7) {
-      fprintf(stderr, "free colonist fur+road+sol want 7 got %d\n", free_fur);
-      map_free(&map);
-      return 1;
-    }
-    const int expert_fur = colony_yield_for_worker(
-      &map, mx, my, COLONIZE_JOB_FUR_TRAPPER, COLONIZE_JOB_FUR_TRAPPER, /*has_docks=*/true, 2, 0,
-      false
-    );
-    if (expert_fur != 14) {
-      fprintf(stderr, "expert fur trapper+road+sol want 14 got %d\n", expert_fur);
-      map_free(&map);
-      return 1;
-    }
-
-    /*
-     * Henry Hudson (smell audit #60) — DOS doubles the Fur Trapper yield
-     * INSIDE FUN_15eb_18ec (11970-11973), between the improvement stack and
-     * both the Convert +1 and the negative-SoL subtraction. The port used to
-     * apply it at four call sites *after* the whole pipeline, giving
-     * `2·(base+1)` / `2·(base−2)` where DOS gives `2·base + 1` /
-     * `2·base − 2`.
-     *   plain:   7 → 14 and 14 → 28 (the 2026-08-15 player capture)
-     *   convert: base 3 +fur-road 1 +stack road 1 = 5, ×2 = 10, +1 = 11
-     *            (old post-hoc order: (5+1)×2 = 12)
-     *   tory:    same 5, ×2 = 10, sol −2 = 8
-     *            (old post-hoc order: (5−2)×2 = 6)
-     */
-    const int free_fur_hudson = colony_yield_for_worker(
-      &map, mx, my, COLONIZE_JOB_FUR_TRAPPER, COLONIZE_PROF_FREE_COLONIST, /*has_docks=*/true, 2, 0,
-      true
-    );
-    const int expert_fur_hudson = colony_yield_for_worker(
-      &map, mx, my, COLONIZE_JOB_FUR_TRAPPER, COLONIZE_JOB_FUR_TRAPPER, /*has_docks=*/true, 2, 0,
-      true
-    );
-    if (free_fur_hudson != 14 || expert_fur_hudson != 28) {
-      fprintf(
-        stderr,
-        "Hudson fur+road+sol want 14/28 got %d/%d\n",
-        free_fur_hudson,
-        expert_fur_hudson
-      );
-      map_free(&map);
-      return 1;
-    }
-    const int convert_fur_hudson = colony_yield_for_worker(
-      &map, mx, my, COLONIZE_JOB_FUR_TRAPPER, COLONIZE_PROF_CONVERT, /*has_docks=*/true, 0, 0, true
-    );
-    if (convert_fur_hudson != 11) {
-      fprintf(
-        stderr,
-        "Hudson+Convert fur want 11 (2*base+1) got %d\n",
-        convert_fur_hudson
-      );
-      map_free(&map);
-      return 1;
-    }
-    const int tory_fur_hudson = colony_yield_for_worker(
-      &map, mx, my, COLONIZE_JOB_FUR_TRAPPER, COLONIZE_PROF_FREE_COLONIST, /*has_docks=*/true, -2, 0,
-      true
-    );
-    if (tory_fur_hudson != 8) {
-      fprintf(
-        stderr,
-        "Hudson+negative SoL fur want 8 (2*base-2) got %d\n",
-        tory_fur_hudson
-      );
-      map_free(&map);
-      return 1;
-    }
-    /* Non-fur jobs must be untouched by the flag. */
-    const int hudson_lumber = colony_yield_for_worker(
-      &map, mx, my, COLONIZE_JOB_LUMBERJACK, COLONIZE_PROF_FREE_COLONIST, /*has_docks=*/true, 0, 0,
-      true
-    );
-    const int plain_lumber = colony_yield_for_worker(
-      &map, mx, my, COLONIZE_JOB_LUMBERJACK, COLONIZE_PROF_FREE_COLONIST, /*has_docks=*/true, 0, 0,
-      false
-    );
-    if (hudson_lumber != plain_lumber) {
-      fprintf(
-        stderr,
-        "Hudson must not touch Lumberjack: %d vs %d\n",
-        hudson_lumber,
-        plain_lumber
-      );
-      map_free(&map);
-      return 1;
-    }
+    map_free(&map);
+    return 1;
   }
-
-  /*
-   * Expert Farmer gets flat +2 (not ×2) on skill match, plus the colony's
-   * SoL latch bits re-added a second time (0 here, no colony context) —
-   * asm-confirmed 2026-08-18, see colony_yield_pipeline. Its own resource
-   * bonus is deferred past that step and doubled separately, matching the
-   * real asm order (not "double the whole accumulated base").
-   *   free:   base(1) +farmer(+1, unconditional) +resource(free,+2)      = 4
-   *   expert: base(1) +flat(2) +resource(+2 x2 expert) +farmer(+1)       = 8
-   * 2026-09-03: the farmer +1 applies to experts too (skill-blind
-   * improvement stack, asm 15eb:1c32-1c40) — this exact tile shape is the
-   * DOS-save-confirmed farming/case3 value (golden_colony_prod03).
-   */
-  {
-    int gx = -1;
-    int gy = -1;
-    if (!find_resource_tile(&map, 11, 9, &gx, &gy)) {
-      fprintf(stderr, "no broadleaf+Game procedural tile found for expert-resource test\n");
-      map_free(&map);
-      return 1;
-    }
-    const int free_game = colony_yield_for_worker(
-      &map, gx, gy, COLONIZE_JOB_FARMER, COLONIZE_PROF_FREE_COLONIST, /*has_docks=*/true, 0, 0,
-      false
-    );
-    if (free_game != 4) {
-      fprintf(stderr, "free colonist farmer+Game want 4 got %d\n", free_game);
-      map_free(&map);
-      return 1;
-    }
-    const int expert_game = colony_yield_for_worker(
-      &map, gx, gy, COLONIZE_JOB_FARMER, COLONIZE_JOB_FARMER, /*has_docks=*/true, 0, 0,
-      false
-    );
-    if (expert_game != 8) {
-      fprintf(stderr, "expert farmer+Game want 8 got %d\n", expert_game);
-      map_free(&map);
-      return 1;
-    }
-  }
-
-  /*
-   * 2026-08-24 fix regression: the Farmer/Fisherman expert's second SoL/
-   * Tory re-add (colony_yield_pipeline's `is_expert_food_fish` branch) must
-   * re-add `sol_bonus` itself, not a value reconstructed from the colony's
-   * SoL latch bits (`colony_flags`) — direct read of FUN_15eb_18ec
-   * (~11866-11899) shows the re-added variable (`local_1c`) is the *same*
-   * one already folded in once earlier in the function (the `sol_bonus`
-   * parameter this port already threads through), computed from colonist
-   * count/SoL% (byte+0x1f / FUN_15eb_0274, already ported as
-   * colony_prod_sol_percent), not freshly derived from latch bits alone.
-   * The two only coincide when the formula's Tory-penalty term is exactly
-   * 0 (every other test in this file happens to hit that case); this test
-   * uses a nonzero sol_bonus with colony_flags=0 (no latch bits) to prove
-   * the re-add tracks sol_bonus, not the latch reconstruction the old code
-   * used (which would have re-added 0 here instead of 3).
-   *   expert: base(2) +sol_fold(3)=5, +flat(2)=7, +sol_readd(3)=10,
-   *           +farmer(1, skill-blind improvement stack, 2026-09-03)=11
-   */
-  /*
-   * Hills Farmer — DOS-save-confirmed 2026-09-03 (farming/case3 turn3:
-   * expert Farmer on a bare Hill = 4 food; asserted here statically since
-   * the player moved the farmer mid-pair, so no golden turn covers it).
-   * Pins Hills farmer base back to NAMES.TXT's 1 — the old table 2 was
-   * base 1 + the unconditional farmer +1 read into the base — and the
-   * skill-blind farmer term: free colonist same tile = 2 (1 + farmer 1),
-   * expert = 4 (1 + expert flat 2 + farmer 1).
-   */
-  {
-    int hx = -1;
-    int hy = -1;
-    for (int y = 0; y < (int)map.height && hx < 0; ++y) {
-      for (int x = 0; x < (int)map.width && hx < 0; ++x) {
-        map.terrain[y * map.width + x] = 0x20u; /* Hills */
-        if (map_resource_type_for_yield(&map, x, y) < 0) {
-          hx = x;
-          hy = y;
-        }
-      }
-    }
-    if (hx < 0) {
-      fprintf(stderr, "no resource-free Hills tile found on 32x32\n");
-      map_free(&map);
-      return 1;
-    }
-    const int free_hill = colony_yield_for_worker(
-      &map, hx, hy, COLONIZE_JOB_FARMER, COLONIZE_PROF_FREE_COLONIST, true, 0, 0,
-      false
-    );
-    const int expert_hill = colony_yield_for_worker(
-      &map, hx, hy, COLONIZE_JOB_FARMER, COLONIZE_JOB_FARMER, true, 0, 0,
-      false
-    );
-    if (free_hill != 2 || expert_hill != 4) {
-      fprintf(stderr, "hills farmer want free=2 expert=4 got %d/%d\n", free_hill, expert_hill);
-      map_free(&map);
-      return 1;
-    }
-  }
-
-  {
-    int tx = -1;
-    int ty = -1;
-    for (int y = 0; y < (int)map.height && tx < 0; ++y) {
-      for (int x = 0; x < (int)map.width && tx < 0; ++x) {
-        map.terrain[y * map.width + x] = 0; /* Tundra, unforested pedia 0 */
-        if (map_resource_type_for_yield(&map, x, y) < 0) {
-          tx = x;
-          ty = y;
-        }
-      }
-    }
-    if (tx < 0) {
-      fprintf(stderr, "no resource-free Tundra tile found on 32x32\n");
-      map_free(&map);
-      return 1;
-    }
-    const int expert_farmer_sol = colony_yield_for_worker(
-      &map, tx, ty, COLONIZE_JOB_FARMER, COLONIZE_JOB_FARMER, /*has_docks=*/true, /*sol_bonus=*/3,
-      /*colony_flags=*/0,
-      false
-    );
-    if (expert_farmer_sol != 11) {
-      fprintf(
-        stderr,
-        "expert farmer, sol_bonus=3 colony_flags=0 want 11 got %d\n",
-        expert_farmer_sol
-      );
-      map_free(&map);
-      return 1;
-    }
-  }
-
-  /*
-   * Silver Miner collapse on a deposit-less tile — FUN_15eb_18ec's job==7
-   * block (viceroy_unpacked.c 11925-11941, smell audit #61). No resource
-   * AND runtime mask 0x04 (MAP_LAYER2_SUPPRESS) CLEAR ⇒ a nonzero yield
-   * becomes 1 when the tile has road/settlement or the worker is a
-   * matching expert, else 0, and the whole improvement stack is skipped.
-   * Suppress set (a mined-out mountain) leaves the branch entirely and the
-   * ordinary base + expert + road stack applies.
-   */
-  {
-    int mx = -1;
-    int my = -1;
-    for (int y = 0; y < (int)map.height && mx < 0; ++y) {
-      for (int x = 0; x < (int)map.width && mx < 0; ++x) {
-        map.terrain[y * map.width + x] = 0xa0u; /* Mountains (pedia 27) */
-        map.improve[y * map.width + x] = 0;
-        map.layer2[y * map.width + x] = 0;
-        if (map_resource_type_for_yield(&map, x, y) < 0) {
-          mx = x;
-          my = y;
-        }
-      }
-    }
-    if (mx < 0) {
-      fprintf(stderr, "no resource-free Mountains tile found on 32x32\n");
-      map_free(&map);
-      return 1;
-    }
-    if (map_pedia_terrain_index_at(&map, mx, my) != 27) {
-      fprintf(
-        stderr, "mountain pedia expected 27 got %d\n", map_pedia_terrain_index_at(&map, mx, my)
-      );
-      map_free(&map);
-      return 1;
-    }
-
-    /* Bare rock, no road: free colonist 0, expert 1 (base 1 would have paid
-     * 1 and 2 respectively, plus the stack, before the collapse was ported). */
-    const int bare_free = colony_yield_for_worker(
-      &map, mx, my, COLONIZE_JOB_SILVER_MINER, COLONIZE_PROF_FREE_COLONIST, true, 0, 0,
-      false
-    );
-    const int bare_expert = colony_yield_for_worker(
-      &map, mx, my, COLONIZE_JOB_SILVER_MINER, COLONIZE_JOB_SILVER_MINER, true, 0, 0,
-      false
-    );
-    if (bare_free != 0 || bare_expert != 1) {
-      fprintf(
-        stderr, "bare mountain silver want free=0 expert=1 got %d/%d\n", bare_free, bare_expert
-      );
-      map_free(&map);
-      return 1;
-    }
-    /* A positive SoL bonus cannot escape the collapse either — DOS folds it
-     * in before this branch, which then overwrites the total outright. */
-    if (colony_yield_for_worker(
-          &map, mx, my, COLONIZE_JOB_SILVER_MINER, COLONIZE_JOB_SILVER_MINER, true, 3, 0,
-          false
-        ) != 1) {
-      fprintf(stderr, "bare mountain silver, expert + sol 3, want 1\n");
-      map_free(&map);
-      return 1;
-    }
-
-    /* Road: collapse target is 1 for anyone, and the road's own stack add
-     * is suppressed with the rest of the stack (so the expert stays 1). */
-    map.improve[my * map.width + mx] |= MAP_IMPROVE_ROAD;
-    const int road_free = colony_yield_for_worker(
-      &map, mx, my, COLONIZE_JOB_SILVER_MINER, COLONIZE_PROF_FREE_COLONIST, true, 0, 0,
-      false
-    );
-    const int road_expert = colony_yield_for_worker(
-      &map, mx, my, COLONIZE_JOB_SILVER_MINER, COLONIZE_JOB_SILVER_MINER, true, 0, 0,
-      false
-    );
-    if (road_free != 1 || road_expert != 1) {
-      fprintf(
-        stderr, "roaded bare mountain silver want free=1 expert=1 got %d/%d\n",
-        road_free, road_expert
-      );
-      map_free(&map);
-      return 1;
-    }
-
-    /* Suppress bit set (mined-out mountain): branch not entered, full
-     * pipeline — free 1 + road 1 = 2, expert (1 x2) + road u2 = 4. This is
-     * the shape golden_colony_prod01's Vlissingen silver tile needs
-     * (with sol_bonus 2: (1+2)x2 + 2 = 8). */
-    map.layer2[my * map.width + mx] |= MAP_LAYER2_SUPPRESS;
-    const int depl_free = colony_yield_for_worker(
-      &map, mx, my, COLONIZE_JOB_SILVER_MINER, COLONIZE_PROF_FREE_COLONIST, true, 0, 0,
-      false
-    );
-    const int depl_expert = colony_yield_for_worker(
-      &map, mx, my, COLONIZE_JOB_SILVER_MINER, COLONIZE_JOB_SILVER_MINER, true, 0, 0,
-      false
-    );
-    const int depl_expert_sol = colony_yield_for_worker(
-      &map, mx, my, COLONIZE_JOB_SILVER_MINER, COLONIZE_JOB_SILVER_MINER, true, 2, 0,
-      false
-    );
-    if (depl_free != 2 || depl_expert != 4 || depl_expert_sol != 8) {
-      fprintf(
-        stderr,
-        "suppressed mountain silver want free=2 expert=4 expert+sol2=8 got %d/%d/%d\n",
-        depl_free, depl_expert, depl_expert_sol
-      );
-      map_free(&map);
-      return 1;
-    }
-    map.layer2[my * map.width + mx] = 0;
-    map.improve[my * map.width + mx] = 0;
-
-    /* A real Silver Deposit (resource 12) also keeps the branch out — the
-     * tile has a resource, so the ordinary base + effect + expert math runs:
-     * free 1 + 2 = 3, expert (1 x2) + (2 x2) = 6. */
-    int sx = -1;
-    int sy = -1;
-    if (!find_resource_tile(&map, 0xa0u, 12, &sx, &sy)) {
-      fprintf(stderr, "no Mountains tile with a Silver Deposit found on 32x32\n");
-      map_free(&map);
-      return 1;
-    }
-    map.improve[sy * map.width + sx] = 0;
-    map.layer2[sy * map.width + sx] = 0;
-    const int dep_free = colony_yield_for_worker(
-      &map, sx, sy, COLONIZE_JOB_SILVER_MINER, COLONIZE_PROF_FREE_COLONIST, true, 0, 0,
-      false
-    );
-    const int dep_expert = colony_yield_for_worker(
-      &map, sx, sy, COLONIZE_JOB_SILVER_MINER, COLONIZE_JOB_SILVER_MINER, true, 0, 0,
-      false
-    );
-    if (dep_free != 3 || dep_expert != 6) {
-      fprintf(
-        stderr, "silver deposit mountain want free=3 expert=6 got %d/%d\n", dep_free, dep_expert
-      );
-      map_free(&map);
-      return 1;
-    }
-
-    /* Other mined goods are untouched: the DOS branch tests job == 7 only,
-     * so an Ore Miner on the same bare rock keeps base 4 (+expert, +road). */
-    map.terrain[my * map.width + mx] = 0xa0u;
-    const int ore_free = colony_yield_for_worker(
-      &map, mx, my, COLONIZE_JOB_ORE_MINER, COLONIZE_PROF_FREE_COLONIST, true, 0, 0,
-      false
-    );
-    const int ore_expert = colony_yield_for_worker(
-      &map, mx, my, COLONIZE_JOB_ORE_MINER, COLONIZE_JOB_ORE_MINER, true, 0, 0,
-      false
-    );
-    if (ore_free != 4 || ore_expert != 8) {
-      fprintf(
-        stderr, "bare mountain ore want free=4 expert=8 got %d/%d\n", ore_free, ore_expert
-      );
-      map_free(&map);
-      return 1;
-    }
-  }
-
-  /*
-   * Smell audit #66: the town-commons plow term is unconditional in DOS
-   * (FUN_15eb_1f72, viceroy_unpacked.c 12525-12529 — `FUN_137f_0142(x,y) &
-   * 0x40` then `+1`, no terrain test). The port carried an invented
-   * `pedia >= 0 && pedia <= 7` cleared-land gate, so a plowed forest/hills
-   * commons silently lost the +1. Pin the DOS behaviour on a forest tile.
-   */
-  {
-    int fx = -1;
-    int fy = -1;
-    for (int b = 0; b < 256 && fx < 0; ++b) {
-      for (int y = 0; y < (int)map.height && fx < 0; ++y) {
-        for (int x = 0; x < (int)map.width && fx < 0; ++x) {
-          map.terrain[y * map.width + x] = (uint8_t)b;
-          map.improve[y * map.width + x] = 0;
-          map.layer2[y * map.width + x] = 0;
-          const int pedia = map_pedia_terrain_index_at(&map, x, y);
-          if (pedia >= 8 && pedia <= 23 && map_resource_type_for_yield(&map, x, y) < 0) {
-            fx = x;
-            fy = y;
-          }
-        }
-      }
-    }
-    if (fx < 0) {
-      fprintf(stderr, "no resource-free forest tile found for the commons plow check\n");
-      map_free(&map);
-      return 1;
-    }
-    ColonizeTownCommonsYield dry;
-    colony_yield_town_commons(&map, fx, fy, 0, 2, &dry);
-    map.improve[fy * map.width + fx] |= MAP_IMPROVE_PLOWED;
-    ColonizeTownCommonsYield wet;
-    colony_yield_town_commons(&map, fx, fy, 0, 2, &wet);
-    map.improve[fy * map.width + fx] = 0;
-    if (dry.food != 2 || wet.food != dry.food + 1) {
-      fprintf(
-        stderr,
-        "forest commons plow: expected food %d then %d, got %d then %d (pedia %d)\n",
-        2,
-        3,
-        dry.food,
-        wet.food,
-        map_pedia_terrain_index_at(&map, fx, fy)
-      );
-      map_free(&map);
-      return 1;
-    }
-  }
-
+  /* Non-fur jobs must be untouched by the flag. */
+  const int hudson_lumber = colony_yield_for_worker(
+    &map, mx, my, COLONIZE_JOB_LUMBERJACK, COLONIZE_PROF_FREE_COLONIST, /*has_docks=*/true, 0, 0,
+    true
+  );
+  const int plain_lumber = colony_yield_for_worker(
+    &map, mx, my, COLONIZE_JOB_LUMBERJACK, COLONIZE_PROF_FREE_COLONIST, /*has_docks=*/true, 0, 0,
+    false
+  );
   map_free(&map);
-  printf("colony_yield town commons tests ok\n");
+  if (hudson_lumber != plain_lumber) {
+    fprintf(
+      stderr,
+      "Hudson must not touch Lumberjack: %d vs %d\n",
+      hudson_lumber,
+      plain_lumber
+    );
+    return 1;
+  }
   return 0;
 }
+
+/*
+ * Expert Farmer gets flat +2 (not ×2) on skill match, plus the colony's
+ * SoL latch bits re-added a second time (0 here, no colony context) —
+ * asm-confirmed 2026-08-18, see colony_yield_pipeline. Its own resource
+ * bonus is deferred past that step and doubled separately, matching the
+ * real asm order (not "double the whole accumulated base").
+ *   free:   base(1) +farmer(+1, unconditional) +resource(free,+2)      = 4
+ *   expert: base(1) +flat(2) +resource(+2 x2 expert) +farmer(+1)       = 8
+ * 2026-09-03: the farmer +1 applies to experts too (skill-blind
+ * improvement stack, asm 15eb:1c32-1c40) — this exact tile shape is the
+ * DOS-save-confirmed farming/case3 value (golden_colony_prod03).
+ */
+static int case_expert_farmer_game_resource(void) {
+  ColonizeWorldMap map;
+  if (map_new(&map) != 0) {
+    return 1;
+  }
+  int gx = -1;
+  int gy = -1;
+  if (!find_resource_tile(&map, 11, 9, &gx, &gy)) {
+    fprintf(stderr, "no broadleaf+Game procedural tile found for expert-resource test\n");
+    map_free(&map);
+    return 1;
+  }
+  const int free_game = colony_yield_for_worker(
+    &map, gx, gy, COLONIZE_JOB_FARMER, COLONIZE_PROF_FREE_COLONIST, /*has_docks=*/true, 0, 0,
+    false
+  );
+  if (free_game != 4) {
+    fprintf(stderr, "free colonist farmer+Game want 4 got %d\n", free_game);
+    map_free(&map);
+    return 1;
+  }
+  const int expert_game = colony_yield_for_worker(
+    &map, gx, gy, COLONIZE_JOB_FARMER, COLONIZE_JOB_FARMER, /*has_docks=*/true, 0, 0,
+    false
+  );
+  map_free(&map);
+  if (expert_game != 8) {
+    fprintf(stderr, "expert farmer+Game want 8 got %d\n", expert_game);
+    return 1;
+  }
+  return 0;
+}
+
+/*
+ * Hills Farmer — DOS-save-confirmed 2026-09-03 (farming/case3 turn3:
+ * expert Farmer on a bare Hill = 4 food; asserted here statically since
+ * the player moved the farmer mid-pair, so no golden turn covers it).
+ * Pins Hills farmer base back to NAMES.TXT's 1 — the old table 2 was
+ * base 1 + the unconditional farmer +1 read into the base — and the
+ * skill-blind farmer term: free colonist same tile = 2 (1 + farmer 1),
+ * expert = 4 (1 + expert flat 2 + farmer 1).
+ */
+static int case_hills_farmer(void) {
+  ColonizeWorldMap map;
+  if (map_new(&map) != 0) {
+    return 1;
+  }
+  int hx = -1;
+  int hy = -1;
+  for (int y = 0; y < (int)map.height && hx < 0; ++y) {
+    for (int x = 0; x < (int)map.width && hx < 0; ++x) {
+      map.terrain[y * map.width + x] = 0x20u; /* Hills */
+      if (map_resource_type_for_yield(&map, x, y) < 0) {
+        hx = x;
+        hy = y;
+      }
+    }
+  }
+  if (hx < 0) {
+    fprintf(stderr, "no resource-free Hills tile found on 32x32\n");
+    map_free(&map);
+    return 1;
+  }
+  const int free_hill = colony_yield_for_worker(
+    &map, hx, hy, COLONIZE_JOB_FARMER, COLONIZE_PROF_FREE_COLONIST, true, 0, 0,
+    false
+  );
+  const int expert_hill = colony_yield_for_worker(
+    &map, hx, hy, COLONIZE_JOB_FARMER, COLONIZE_JOB_FARMER, true, 0, 0,
+    false
+  );
+  map_free(&map);
+  if (free_hill != 2 || expert_hill != 4) {
+    fprintf(stderr, "hills farmer want free=2 expert=4 got %d/%d\n", free_hill, expert_hill);
+    return 1;
+  }
+  return 0;
+}
+
+/*
+ * 2026-08-24 fix regression: the Farmer/Fisherman expert's second SoL/
+ * Tory re-add (colony_yield_pipeline's `is_expert_food_fish` branch) must
+ * re-add `sol_bonus` itself, not a value reconstructed from the colony's
+ * SoL latch bits (`colony_flags`) — direct read of FUN_15eb_18ec
+ * (~11866-11899) shows the re-added variable (`local_1c`) is the *same*
+ * one already folded in once earlier in the function (the `sol_bonus`
+ * parameter this port already threads through), computed from colonist
+ * count/SoL% (byte+0x1f / FUN_15eb_0274, already ported as
+ * colony_prod_sol_percent), not freshly derived from latch bits alone.
+ * The two only coincide when the formula's Tory-penalty term is exactly
+ * 0 (every other test in this file happens to hit that case); this test
+ * uses a nonzero sol_bonus with colony_flags=0 (no latch bits) to prove
+ * the re-add tracks sol_bonus, not the latch reconstruction the old code
+ * used (which would have re-added 0 here instead of 3).
+ *   expert: base(2) +sol_fold(3)=5, +flat(2)=7, +sol_readd(3)=10,
+ *           +farmer(1, skill-blind improvement stack, 2026-09-03)=11
+ */
+static int case_tundra_farmer_sol_readd(void) {
+  ColonizeWorldMap map;
+  if (map_new(&map) != 0) {
+    return 1;
+  }
+  int tx = -1;
+  int ty = -1;
+  for (int y = 0; y < (int)map.height && tx < 0; ++y) {
+    for (int x = 0; x < (int)map.width && tx < 0; ++x) {
+      map.terrain[y * map.width + x] = 0; /* Tundra, unforested pedia 0 */
+      if (map_resource_type_for_yield(&map, x, y) < 0) {
+        tx = x;
+        ty = y;
+      }
+    }
+  }
+  if (tx < 0) {
+    fprintf(stderr, "no resource-free Tundra tile found on 32x32\n");
+    map_free(&map);
+    return 1;
+  }
+  const int expert_farmer_sol = colony_yield_for_worker(
+    &map, tx, ty, COLONIZE_JOB_FARMER, COLONIZE_JOB_FARMER, /*has_docks=*/true, /*sol_bonus=*/3,
+    /*colony_flags=*/0,
+    false
+  );
+  map_free(&map);
+  if (expert_farmer_sol != 11) {
+    fprintf(
+      stderr,
+      "expert farmer, sol_bonus=3 colony_flags=0 want 11 got %d\n",
+      expert_farmer_sol
+    );
+    return 1;
+  }
+  return 0;
+}
+
+/*
+ * Silver Miner collapse on a deposit-less tile — FUN_15eb_18ec's job==7
+ * block (viceroy_unpacked.c 11925-11941, smell audit #61). No resource
+ * AND runtime mask 0x04 (MAP_LAYER2_SUPPRESS) CLEAR ⇒ a nonzero yield
+ * becomes 1 when the tile has road/settlement or the worker is a
+ * matching expert, else 0, and the whole improvement stack is skipped.
+ * Suppress set (a mined-out mountain) leaves the branch entirely and the
+ * ordinary base + expert + road stack applies.
+ *
+ * Kept as one case: a single mountain tile is progressively re-improved
+ * (bare -> +sol -> +road -> +suppress -> reset+deposit -> +other job),
+ * each stage's assertion depending on the previous stage's map edits.
+ */
+static int case_silver_miner_collapse(void) {
+  ColonizeWorldMap map;
+  if (map_new(&map) != 0) {
+    return 1;
+  }
+  int mx = -1;
+  int my = -1;
+  for (int y = 0; y < (int)map.height && mx < 0; ++y) {
+    for (int x = 0; x < (int)map.width && mx < 0; ++x) {
+      map.terrain[y * map.width + x] = 0xa0u; /* Mountains (pedia 27) */
+      map.improve[y * map.width + x] = 0;
+      map.layer2[y * map.width + x] = 0;
+      if (map_resource_type_for_yield(&map, x, y) < 0) {
+        mx = x;
+        my = y;
+      }
+    }
+  }
+  if (mx < 0) {
+    fprintf(stderr, "no resource-free Mountains tile found on 32x32\n");
+    map_free(&map);
+    return 1;
+  }
+  if (map_pedia_terrain_index_at(&map, mx, my) != 27) {
+    fprintf(
+      stderr, "mountain pedia expected 27 got %d\n", map_pedia_terrain_index_at(&map, mx, my)
+    );
+    map_free(&map);
+    return 1;
+  }
+
+  /* Bare rock, no road: free colonist 0, expert 1 (base 1 would have paid
+   * 1 and 2 respectively, plus the stack, before the collapse was ported). */
+  const int bare_free = colony_yield_for_worker(
+    &map, mx, my, COLONIZE_JOB_SILVER_MINER, COLONIZE_PROF_FREE_COLONIST, true, 0, 0,
+    false
+  );
+  const int bare_expert = colony_yield_for_worker(
+    &map, mx, my, COLONIZE_JOB_SILVER_MINER, COLONIZE_JOB_SILVER_MINER, true, 0, 0,
+    false
+  );
+  if (bare_free != 0 || bare_expert != 1) {
+    fprintf(
+      stderr, "bare mountain silver want free=0 expert=1 got %d/%d\n", bare_free, bare_expert
+    );
+    map_free(&map);
+    return 1;
+  }
+  /* A positive SoL bonus cannot escape the collapse either — DOS folds it
+   * in before this branch, which then overwrites the total outright. */
+  if (colony_yield_for_worker(
+        &map, mx, my, COLONIZE_JOB_SILVER_MINER, COLONIZE_JOB_SILVER_MINER, true, 3, 0,
+        false
+      ) != 1) {
+    fprintf(stderr, "bare mountain silver, expert + sol 3, want 1\n");
+    map_free(&map);
+    return 1;
+  }
+
+  /* Road: collapse target is 1 for anyone, and the road's own stack add
+   * is suppressed with the rest of the stack (so the expert stays 1). */
+  map.improve[my * map.width + mx] |= MAP_IMPROVE_ROAD;
+  const int road_free = colony_yield_for_worker(
+    &map, mx, my, COLONIZE_JOB_SILVER_MINER, COLONIZE_PROF_FREE_COLONIST, true, 0, 0,
+    false
+  );
+  const int road_expert = colony_yield_for_worker(
+    &map, mx, my, COLONIZE_JOB_SILVER_MINER, COLONIZE_JOB_SILVER_MINER, true, 0, 0,
+    false
+  );
+  if (road_free != 1 || road_expert != 1) {
+    fprintf(
+      stderr, "roaded bare mountain silver want free=1 expert=1 got %d/%d\n",
+      road_free, road_expert
+    );
+    map_free(&map);
+    return 1;
+  }
+
+  /* Suppress bit set (mined-out mountain): branch not entered, full
+   * pipeline — free 1 + road 1 = 2, expert (1 x2) + road u2 = 4. This is
+   * the shape golden_colony_prod01's Vlissingen silver tile needs
+   * (with sol_bonus 2: (1+2)x2 + 2 = 8). */
+  map.layer2[my * map.width + mx] |= MAP_LAYER2_SUPPRESS;
+  const int depl_free = colony_yield_for_worker(
+    &map, mx, my, COLONIZE_JOB_SILVER_MINER, COLONIZE_PROF_FREE_COLONIST, true, 0, 0,
+    false
+  );
+  const int depl_expert = colony_yield_for_worker(
+    &map, mx, my, COLONIZE_JOB_SILVER_MINER, COLONIZE_JOB_SILVER_MINER, true, 0, 0,
+    false
+  );
+  const int depl_expert_sol = colony_yield_for_worker(
+    &map, mx, my, COLONIZE_JOB_SILVER_MINER, COLONIZE_JOB_SILVER_MINER, true, 2, 0,
+    false
+  );
+  if (depl_free != 2 || depl_expert != 4 || depl_expert_sol != 8) {
+    fprintf(
+      stderr,
+      "suppressed mountain silver want free=2 expert=4 expert+sol2=8 got %d/%d/%d\n",
+      depl_free, depl_expert, depl_expert_sol
+    );
+    map_free(&map);
+    return 1;
+  }
+  map.layer2[my * map.width + mx] = 0;
+  map.improve[my * map.width + mx] = 0;
+
+  /* A real Silver Deposit (resource 12) also keeps the branch out — the
+   * tile has a resource, so the ordinary base + effect + expert math runs:
+   * free 1 + 2 = 3, expert (1 x2) + (2 x2) = 6. */
+  int sx = -1;
+  int sy = -1;
+  if (!find_resource_tile(&map, 0xa0u, 12, &sx, &sy)) {
+    fprintf(stderr, "no Mountains tile with a Silver Deposit found on 32x32\n");
+    map_free(&map);
+    return 1;
+  }
+  map.improve[sy * map.width + sx] = 0;
+  map.layer2[sy * map.width + sx] = 0;
+  const int dep_free = colony_yield_for_worker(
+    &map, sx, sy, COLONIZE_JOB_SILVER_MINER, COLONIZE_PROF_FREE_COLONIST, true, 0, 0,
+    false
+  );
+  const int dep_expert = colony_yield_for_worker(
+    &map, sx, sy, COLONIZE_JOB_SILVER_MINER, COLONIZE_JOB_SILVER_MINER, true, 0, 0,
+    false
+  );
+  if (dep_free != 3 || dep_expert != 6) {
+    fprintf(
+      stderr, "silver deposit mountain want free=3 expert=6 got %d/%d\n", dep_free, dep_expert
+    );
+    map_free(&map);
+    return 1;
+  }
+
+  /* Other mined goods are untouched: the DOS branch tests job == 7 only,
+   * so an Ore Miner on the same bare rock keeps base 4 (+expert, +road). */
+  map.terrain[my * map.width + mx] = 0xa0u;
+  const int ore_free = colony_yield_for_worker(
+    &map, mx, my, COLONIZE_JOB_ORE_MINER, COLONIZE_PROF_FREE_COLONIST, true, 0, 0,
+    false
+  );
+  const int ore_expert = colony_yield_for_worker(
+    &map, mx, my, COLONIZE_JOB_ORE_MINER, COLONIZE_JOB_ORE_MINER, true, 0, 0,
+    false
+  );
+  map_free(&map);
+  if (ore_free != 4 || ore_expert != 8) {
+    fprintf(
+      stderr, "bare mountain ore want free=4 expert=8 got %d/%d\n", ore_free, ore_expert
+    );
+    return 1;
+  }
+  return 0;
+}
+
+/*
+ * Smell audit #66: the town-commons plow term is unconditional in DOS
+ * (FUN_15eb_1f72, viceroy_unpacked.c 12525-12529 — `FUN_137f_0142(x,y) &
+ * 0x40` then `+1`, no terrain test). The port carried an invented
+ * `pedia >= 0 && pedia <= 7` cleared-land gate, so a plowed forest/hills
+ * commons silently lost the +1. Pin the DOS behaviour on a forest tile.
+ */
+static int case_commons_plow_unconditional(void) {
+  ColonizeWorldMap map;
+  if (map_new(&map) != 0) {
+    return 1;
+  }
+  int fx = -1;
+  int fy = -1;
+  for (int b = 0; b < 256 && fx < 0; ++b) {
+    for (int y = 0; y < (int)map.height && fx < 0; ++y) {
+      for (int x = 0; x < (int)map.width && fx < 0; ++x) {
+        map.terrain[y * map.width + x] = (uint8_t)b;
+        map.improve[y * map.width + x] = 0;
+        map.layer2[y * map.width + x] = 0;
+        const int pedia = map_pedia_terrain_index_at(&map, x, y);
+        if (pedia >= 8 && pedia <= 23 && map_resource_type_for_yield(&map, x, y) < 0) {
+          fx = x;
+          fy = y;
+        }
+      }
+    }
+  }
+  if (fx < 0) {
+    fprintf(stderr, "no resource-free forest tile found for the commons plow check\n");
+    map_free(&map);
+    return 1;
+  }
+  ColonizeTownCommonsYield dry;
+  colony_yield_town_commons(&map, fx, fy, 0, 2, &dry);
+  map.improve[fy * map.width + fx] |= MAP_IMPROVE_PLOWED;
+  ColonizeTownCommonsYield wet;
+  colony_yield_town_commons(&map, fx, fy, 0, 2, &wet);
+  map.improve[fy * map.width + fx] = 0;
+  const int pedia = map_pedia_terrain_index_at(&map, fx, fy);
+  map_free(&map);
+  if (dry.food != 2 || wet.food != dry.food + 1) {
+    fprintf(
+      stderr,
+      "forest commons plow: expected food %d then %d, got %d then %d (pedia %d)\n",
+      2,
+      3,
+      dry.food,
+      wet.food,
+      pedia
+    );
+    return 1;
+  }
+  return 0;
+}
+
+static const TestCase k_cases[] = {
+  {"commons_scrub", case_commons_scrub},
+  {"commons_hills_base", case_commons_hills_base},
+  {"commons_hills_sol_latch", case_commons_hills_sol_latch},
+  {"commons_broadleaf", case_commons_broadleaf},
+  {"commons_prairie_minor_river", case_commons_prairie_minor_river},
+  {"commons_broadleaf_game", case_commons_broadleaf_game},
+  {"field_river_cotton", case_field_river_cotton},
+  {"fisherman_major_river", case_fisherman_major_river},
+  {"expert_ore_miner_hills_road_sol", case_expert_ore_miner_hills_road_sol},
+  {"expert_fur_trapper_hudson", case_expert_fur_trapper_hudson},
+  {"expert_farmer_game_resource", case_expert_farmer_game_resource},
+  {"hills_farmer", case_hills_farmer},
+  {"tundra_farmer_sol_readd", case_tundra_farmer_sol_readd},
+  {"silver_miner_collapse", case_silver_miner_collapse},
+  {"commons_plow_unconditional", case_commons_plow_unconditional},
+};
+
+TEST_MAIN(k_cases)

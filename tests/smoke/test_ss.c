@@ -3,9 +3,10 @@
 #include "core/ss.h"
 #include "platform/diagnostics.h"
 
-int main(void) {
-  diag_init(0, NULL);
+#include "../common/test_runner.h"
 
+static int case_terrain_ss(void) {
+  diag_init(0, NULL);
   ColonizeSpriteSheet terrain;
   char err[256];
   if (!ss_load("COLONIZE/TERRAIN.SS", &terrain, err, sizeof(err))) {
@@ -17,28 +18,36 @@ int main(void) {
     fprintf(stderr, "terrain[%d]=%dx%d\n", i, terrain.sprites[i].width, terrain.sprites[i].height);
   }
 
+  ss_free(&terrain);
+  return 0;
+}
+
+static int case_cursor_ss(void) {
+  diag_init(0, NULL);
   ColonizeSpriteSheet cursor;
+  char err[256];
   if (!ss_load("COLONIZE/CURSOR.SS", &cursor, err, sizeof(err))) {
     fprintf(stderr, "cursor load failed: %s\n", err);
-    ss_free(&terrain);
     return 1;
   }
   for (int i = 0; i < cursor.sprite_count; ++i) {
     fprintf(stderr, "cursor[%d]=%dx%d\n", i, cursor.sprites[i].width, cursor.sprites[i].height);
   }
+  ss_free(&cursor);
+  return 0;
+}
 
+static int case_phys0_ss(void) {
+  diag_init(0, NULL);
   ColonizeSpriteSheet phys0;
+  char err[256];
   if (!ss_load("COLONIZE/PHYS0.SS", &phys0, err, sizeof(err))) {
     fprintf(stderr, "phys0 load failed: %s\n", err);
-    ss_free(&cursor);
-    ss_free(&terrain);
     return 1;
   }
   if (phys0.sprite_count < 107) {
     fprintf(stderr, "phys0 expected >=107 sprites, got %d\n", phys0.sprite_count);
     ss_free(&phys0);
-    ss_free(&cursor);
-    ss_free(&terrain);
     return 1;
   }
   fprintf(stderr, "phys0 sprites=%d overlay101=%dx%d\n",
@@ -47,8 +56,13 @@ int main(void) {
     phys0.sprites[101].height);
 
   ss_free(&phys0);
-  ss_free(&cursor);
-  ss_free(&terrain);
   diag_shutdown();
   return 0;
 }
+
+static const TestCase k_cases[] = {
+    {"case_terrain_ss", case_terrain_ss},
+    {"case_cursor_ss", case_cursor_ss},
+    {"case_phys0_ss", case_phys0_ss},
+};
+TEST_MAIN(k_cases)

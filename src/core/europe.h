@@ -1026,25 +1026,12 @@ void europe_tick_market_prices_w(
   int human_nation,
   uint32_t turn
 );
-void europe_tick_market_prices(
-  EuropeScreen* eu,
-  struct ColonizeCol1Save* col1,
-  struct ColonizeColonyPool* colonies,
-  int human_nation,
-  uint32_t turn
-);
 /*
  * FUN_38fd_584a score: (pop+units)<<1 if <4000, +8, cap 4000;
  * AI ((8-diff)*score)>>3; English (nation 0) *2/3.
  */
 int europe_compute_immigration_score_w(
   const ColonizeWorld* w,
-  int nation_id
-);
-int europe_compute_immigration_score(
-  const struct ColonizeColonyPool* colonies,
-  const ColonizeUnitPool* units,
-  const struct ColonizeCol1Save* col1,
   int nation_id
 );
 /*
@@ -1060,14 +1047,6 @@ int europe_tick_immigration_pressure_w(
   const ColonizeWorld* w,
   int nation_id
 );
-int europe_tick_immigration_pressure(
-  EuropeScreen* eu,
-  const struct ColonizeColonyPool* colonies,
-  const ColonizeUnitPool* units,
-  const struct ColonizeCol1Save* col1,
-  int nation_id,
-  struct ColonizeDosRng* rng
-);
 /*
  * Sell one commodity hold from a map/transport ColonizeUnit into eu->gold.
  * No harbor UI — proceeds via europe_sell_proceeds (bid × amount × (100−tax)/100).
@@ -1079,13 +1058,6 @@ int europe_tick_immigration_pressure(
  */
 int europe_sell_unit_hold_w(
   const ColonizeWorld* w,
-  int unit_id,
-  int hold_index
-);
-int europe_sell_unit_hold(
-  EuropeScreen* eu,
-  struct ColonizeCol1Save* col1,
-  ColonizeUnitPool* units,
   int unit_id,
   int hold_index
 );
@@ -1108,13 +1080,6 @@ struct ColonizeDosRng;
 int europe_custom_house_autosell_w(
   const ColonizeWorld* w,
   ColonizeColony* colony,
-  int human_nation
-);
-int europe_custom_house_autosell(
-  EuropeScreen* eu,
-  struct ColonizeColonyPool* pool,
-  struct ColonizeColony* colony,
-  struct ColonizeCol1Save* col1,
   int human_nation
 );
 
@@ -1142,16 +1107,6 @@ int europe_custom_house_autosell_ex_w(
   int out_max,
   int* out_count
 );
-int europe_custom_house_autosell_ex(
-  EuropeScreen* eu,
-  struct ColonizeColonyPool* pool,
-  struct ColonizeColony* colony,
-  struct ColonizeCol1Save* col1,
-  int human_nation,
-  EuropeCustomHouseSale* out,
-  int out_max,
-  int* out_count
-);
 
 /*
  * FUN_364b_0688 phase O — AI / non-human Euro dump-sell before spoilage.
@@ -1169,13 +1124,6 @@ int europe_custom_house_autosell_ex(
 int europe_ai_colony_dump_sell_w(
   const ColonizeWorld* w,
   ColonizeColony* colony,
-  int human_nation
-);
-int europe_ai_colony_dump_sell(
-  EuropeScreen* eu,
-  struct ColonizeColonyPool* pool,
-  struct ColonizeColony* colony,
-  struct ColonizeCol1Save* col1,
   int human_nation
 );
 
@@ -1220,15 +1168,6 @@ int europe_buy_cargo_w(
   int cargo_type,
   int amount
 );
-int europe_buy_cargo(
-  EuropeScreen* eu,
-  struct ColonizeCol1Save* col1,
-  const ColonizeUnitPool* units,
-  int buyer_nation,
-  int harbor_index,
-  int cargo_type,
-  int amount
-);
 /*
  * Trade-route load list at a Europe stop: buy up to `amount` (≤100) of
  * cargo_type straight into a map/transport unit's holds. Flat ask price,
@@ -1237,14 +1176,6 @@ int europe_buy_cargo(
  */
 int europe_buy_unit_cargo_w(
   const ColonizeWorld* w,
-  int unit_id,
-  int cargo_type,
-  int amount
-);
-int europe_buy_unit_cargo(
-  EuropeScreen* eu,
-  struct ColonizeCol1Save* col1,
-  ColonizeUnitPool* units,
   int unit_id,
   int cargo_type,
   int amount
@@ -1283,12 +1214,6 @@ bool europe_menu_confirm_ex(EuropeScreen* eu, struct ColonizeDosRng* rng);
  * — see europe_apply_dock_menu_row_ex. The game loop should call this form. */
 bool europe_dock_menu_apply_selection_ex_w(
   const ColonizeWorld* w,
-  int nation_id
-);
-bool europe_dock_menu_apply_selection_ex(
-  EuropeScreen* eu,
-  ColonizeUnitPool* units,
-  struct ColonizeCol1Save* col1,
   int nation_id
 );
 

@@ -459,12 +459,6 @@ void colonies_reveal_founded_w(
   const ColonizeWorld* w,
   int colony_id
 );
-void colonies_reveal_founded(
-  ColonizeWorldMap* map,
-  ColonizeColonyPool* pool,
-  const ColonizeCol1Save* col1,
-  int colony_id
-);
 /*
  * Coronado's elect-time sweep: FUN_4345_0342 case `param_2 == 6`
  * (viceroy_unpacked.c 73155-73159) walks every colony index 0..colony_count
@@ -513,16 +507,6 @@ int colonies_indian_claim_tribe_from_w(
   int x,
   int y
 );
-int colonies_indian_claim_tribe_from(
-  const ColonizeCol1Save* col1,
-  const ColonizeWorldMap* map,
-  const ColonizeColonyPool* pool,
-  int viewer_nation,
-  int origin_x,
-  int origin_y,
-  int x,
-  int y
-);
 
 /*
  * Pay for tribal land at (x,y): debit *gold by cost (when gold non-NULL),
@@ -564,20 +548,6 @@ int colonies_indian_land_purchase_gold(
  */
 int colonies_found_with_indian_land_w(
   const ColonizeWorld* w,
-  uint32_t* gold,
-  int x,
-  int y,
-  int nation_id,
-  int founder_type_index,
-  int founder_profession,
-  int tools,
-  int muskets,
-  int horses
-);
-int colonies_found_with_indian_land(
-  ColonizeColonyPool* pool,
-  const ColonizeWorldMap* map,
-  ColonizeCol1Save* col1,
   uint32_t* gold,
   int x,
   int y,
@@ -687,13 +657,6 @@ int colonies_admit_unit_w(
   const ColonizeWorld* w,
   int colony_id,
   int unit_id
-);
-int colonies_admit_unit(
-  ColonizeColonyPool* pool,
-  int colony_id,
-  ColonizeUnitPool* units,
-  int unit_id,
-  const ColonizeCol1Save* col1
 );
 
 /* bugs.md #256: assign every job-less colonist a workplace (Town Hall first).
@@ -1078,29 +1041,11 @@ int colonies_de_witt_transfer_from_colony_w(
   int cargo_type,
   int amount
 );
-int colonies_de_witt_transfer_from_colony(
-  ColonizeColonyPool* pool,
-  int foreign_colony_id,
-  ColonizeUnitPool* units,
-  int unit_id,
-  int cargo_type,
-  int amount,
-  const ColonizeCol1Save* col1
-);
 int colonies_de_witt_transfer_to_colony_w(
   const ColonizeWorld* w,
   int foreign_colony_id,
   int unit_id,
   int hold_index,
-  bool* out_warehouse_full
-);
-int colonies_de_witt_transfer_to_colony(
-  ColonizeColonyPool* pool,
-  int foreign_colony_id,
-  ColonizeUnitPool* units,
-  int unit_id,
-  int hold_index,
-  const ColonizeCol1Save* col1,
   bool* out_warehouse_full
 );
 

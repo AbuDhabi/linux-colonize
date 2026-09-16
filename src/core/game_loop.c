@@ -549,7 +549,9 @@ COLONIZE_INTERNAL void game_move_watch_w(
   }
 }
 
-/* Compat shim: pre-ColonizeWorld signature (see src/core/world.h). */
+/* Compat shim: pre-ColonizeWorld signature (see src/core/world.h). Kept:
+ * registered by name as the ColonizeUnitsMoveWatchFn callback
+ * (units_set_move_watch), so its signature is fixed by that typedef. */
 COLONIZE_INTERNAL void game_move_watch(
   void* user,
   const ColonizeUnitPool* pool,
@@ -564,6 +566,8 @@ COLONIZE_INTERNAL void game_move_watch(
   ColonizeWorld w_ = world_make(pool, colonies, map, NULL, false, NULL, NULL);
   game_move_watch_w(&w_, user, unit_id, from_x, from_y, to_x, to_y);
 }
+
+
 
 /*
  * bugs.md: combat "bump" — the attacker's sprite travels toward the defender
@@ -975,12 +979,7 @@ static void game_apply_kill_indians(ColonizeGameState* game, int nation_id, cons
       }
     }
   }
-  const int removed = col1_kill_indian_nation(
-    &game->col1,
-    game->units_ok ? &game->units : NULL,
-    game->world_map_ok ? &game->world_map : NULL,
-    nation_id
-  );
+  const int removed = col1_kill_indian_nation_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(game->units_ok ? &game->units : NULL), .map=(ColonizeWorldMap*)(game->world_map_ok ? &game->world_map : NULL), .col1=(ColonizeCol1Save*)(&game->col1), .col1_ok=true}, nation_id);
   if (removed <= 0 && unit_n <= 0) {
     set_status(game, "No Indians of that tribe", label);
   } else if (label && label[0]) {
@@ -2324,16 +2323,7 @@ static bool game_apply_col1_save(ColonizeGameState* game, ColonizeCol1Save* load
   ai_native_reset();
   turn_reset();
   units_reset_state(); /* goto anti-backtrack shadow, indexed by reused unit_id */
-  if (!col1_bridge_apply(
-        loaded,
-        &game->world_map,
-        &game->units,
-        &game->colonies,
-        &game->europe,
-        &result,
-        err,
-        err_size
-      )) {
+  if (!col1_bridge_apply_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&game->units), .colonies=(ColonizeColonyPool*)(&game->colonies), .map=(ColonizeWorldMap*)(&game->world_map), .col1=(ColonizeCol1Save*)(loaded), .col1_ok=((loaded) != NULL), .europe=(EuropeScreen*)(&game->europe)}, &result, err, err_size)) {
     return false;
   }
   game->world_map_ok = true;
@@ -2582,25 +2572,7 @@ bool game_save_col1_slot(ColonizeGameState* game, int slot, char* err, size_t er
       game->game_year = 1492;
     }
   }
-  if (!col1_bridge_capture(
-        &game->col1,
-        &game->world_map,
-        &game->units,
-        &game->colonies,
-        &game->europe,
-        game->game_year,
-        game->game_autumn,
-        game->turn_number,
-        game->human_nation,
-        game->map_cursor_x,
-        game->map_cursor_y,
-        game->map_view_x,
-        game->map_view_y,
-        game->units.selected_id,
-        game->view_pieces_mode,
-        err,
-        err_size
-      )) {
+  if (!col1_bridge_capture_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&game->units), .colonies=(ColonizeColonyPool*)(&game->colonies), .map=(ColonizeWorldMap*)(&game->world_map), .col1=(ColonizeCol1Save*)(&game->col1), .col1_ok=true, .europe=(EuropeScreen*)(&game->europe)}, game->game_year, game->game_autumn, game->turn_number, game->human_nation, game->map_cursor_x, game->map_cursor_y, game->map_view_x, game->map_view_y, game->units.selected_id, game->view_pieces_mode, err, err_size)) {
     return false;
   }
   return savegame_write_col1(game->config.save_dir, slot, &game->col1, err, err_size);
@@ -2797,7 +2769,7 @@ static void game_retire_after_score(ColonizeGameState* game) {
     return;
   }
   ColonizeScoreBreakdown sc;
-  reports_compute_score(&sc, &game->col1, game->human_nation, &game->colonies, &game->europe);
+  reports_compute_score_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&game->colonies), .col1=(ColonizeCol1Save*)(&game->col1), .col1_ok=true, .europe=(EuropeScreen*)(&game->europe)}, &sc, game->human_nation);
   /* DOS LAB_3844_0b4a / main-loop 0x104 block: 0x5382 |= 0x10 once the score
    * chain has run — "scoring complete" (also gates the WON auto-retire). */
   game->col1.head.game_options.calendar_latch = 1;
@@ -3191,10 +3163,7 @@ static bool game_europe_menu_confirm(ColonizeGameState* game) {
   }
   EuropeScreen* eu = &game->europe;
   if (eu->menu == EUROPE_MENU_DOCK) {
-    const bool ok = europe_dock_menu_apply_selection_ex(
-      eu, game->units_ok ? &game->units : NULL,
-      game->col1_ok ? &game->col1 : NULL, game->human_nation
-    );
+    const bool ok = europe_dock_menu_apply_selection_ex_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(game->units_ok ? &game->units : NULL), .col1=(ColonizeCol1Save*)(game->col1_ok ? &game->col1 : NULL), .col1_ok=((game->col1_ok ? &game->col1 : NULL) != NULL), .europe=(EuropeScreen*)(eu)}, game->human_nation);
     if (ok) {
       europe_menu_close(eu);
     }
@@ -4143,23 +4112,7 @@ static void render_colony_screen(const ColonizeGameState* game, ColonizeFramebuf
     ? &game->colony_font
     : (game->menu_font_ok ? &game->menu_font : NULL);
   /* View is mutated for UI scratch (deltas / highlight); game pointer stays const. */
-  colony_screen_render(
-    game->colony_screen_ok ? (ColonyScreenView*)&game->colony_screen : NULL,
-    &game->colonies,
-    colony,
-    game->units_ok ? &game->units : NULL,
-    game->world_map_ok ? &game->world_map : NULL,
-    game->terrain_ok ? &game->terrain : NULL,
-    game->phys0_ok ? &game->phys0 : NULL,
-    game->col1_ok ? &game->col1 : NULL,
-    game->game_year,
-    game->game_autumn,
-    game->europe.gold,
-    font,
-    game->debug_building_rects,
-    game->labels_ok ? &game->labels : NULL,
-    framebuffer
-  );
+  colony_screen_render_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(game->units_ok ? &game->units : NULL), .colonies=(ColonizeColonyPool*)(&game->colonies), .map=(ColonizeWorldMap*)(game->world_map_ok ? &game->world_map : NULL), .col1=(ColonizeCol1Save*)(game->col1_ok ? &game->col1 : NULL), .col1_ok=((game->col1_ok ? &game->col1 : NULL) != NULL)}, game->colony_screen_ok ? (ColonyScreenView*)&game->colony_screen : NULL, colony, game->terrain_ok ? &game->terrain : NULL, game->phys0_ok ? &game->phys0 : NULL, game->game_year, game->game_autumn, game->europe.gold, font, game->debug_building_rects, game->labels_ok ? &game->labels : NULL, framebuffer);
   game_render_modal_overlays(game, font, framebuffer);
 }
 
@@ -5071,9 +5024,7 @@ static void game_commit_new_campaign(ColonizeGameState* game) {
         if (!u->active || u->nation_id != game->human_nation || !units_is_on_map(u)) {
           continue;
         }
-        (void)units_reveal_sight(
-          &game->world_map, &game->units, &game->colonies, u, game->col1_ok ? &game->col1 : NULL
-        );
+        (void)units_reveal_sight_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&game->units), .colonies=(ColonizeColonyPool*)(&game->colonies), .map=(ColonizeWorldMap*)(&game->world_map), .col1=(ColonizeCol1Save*)(game->col1_ok ? &game->col1 : NULL), .col1_ok=((game->col1_ok ? &game->col1 : NULL) != NULL)}, u);
       }
       for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
         const ColonizeColony* c = &game->colonies.colonies[i];
@@ -5328,9 +5279,7 @@ bool game_commit_sea_lane_step(ColonizeGameState* game, int sid, int dest_x, int
   u->orders = UNITS_ORDER_GOTO;
   u->goto_x = dest_x;
   u->goto_y = dest_y;
-  const bool ok = units_try_move(
-    &game->units, sid, &game->world_map, dest_x, dest_y, &game->colonies, &game->move_rng
-  );
+  const bool ok = units_try_move_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&game->units), .colonies=(ColonizeColonyPool*)(&game->colonies), .map=(ColonizeWorldMap*)(&game->world_map), .rng=(ColonizeDosRng*)(&game->move_rng)}, sid, dest_x, dest_y);
   u = units_get(&game->units, sid);
   if (u) {
     u->orders = prev_orders;
@@ -5368,9 +5317,7 @@ COLONIZE_INTERNAL GameMoveStep game_move_passenger_unload(
       return GAME_MOVE_RETURN_FALSE;
     }
     const int ship_id = selected->aboard_ship_id;
-    if (!units_unload_passenger(
-          &game->units, ship_id, sid, &game->world_map, dest_x, dest_y, colonies
-        )) {
+    if (!units_unload_passenger_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&game->units), .colonies=(ColonizeColonyPool*)(colonies), .map=(ColonizeWorldMap*)(&game->world_map)}, ship_id, sid, dest_x, dest_y)) {
       set_status(game, "Cannot disembark here", NULL);
       return GAME_MOVE_RETURN_FALSE;
     }
@@ -5399,9 +5346,7 @@ COLONIZE_INTERNAL GameMoveStep game_move_sea_unit(
      * fires instead and the step still commits (DS:0x5382 bit0 gate).
      */
     if (dest_water &&
-        units_enter_probe(
-          &game->units, selected->type_index, &game->world_map, dest_x, dest_y, sid, colonies
-        ) == COLONIZE_ENTER_BLOCKED_HS_SAIL) {
+        units_enter_probe_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&game->units), .colonies=(ColonizeColonyPool*)(colonies), .map=(ColonizeWorldMap*)(&game->world_map)}, selected->type_index, dest_x, dest_y, sid) == COLONIZE_ENTER_BLOCKED_HS_SAIL) {
       if (game->col1_ok && game->col1.head.game_options.woi) {
         char body[AI_POPUP_BODY_LEN];
         popup_msg_fill(
@@ -5449,9 +5394,7 @@ COLONIZE_INTERNAL GameMoveStep game_move_sea_unit(
       /* units_try_move puts passengers ashore on docking (bugs.md), so count
        * them before the move to report what came off. */
       const int n = selected->cargo_count;
-      if (!units_try_move(
-            &game->units, sid, &game->world_map, dest_x, dest_y, colonies, &game->move_rng
-          )) {
+      if (!units_try_move_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&game->units), .colonies=(ColonizeColonyPool*)(colonies), .map=(ColonizeWorldMap*)(&game->world_map), .rng=(ColonizeDosRng*)(&game->move_rng)}, sid, dest_x, dest_y)) {
         set_status(game, units_enter_reason_status(units_last_enter_reason()), NULL);
         return GAME_MOVE_RETURN_FALSE;
       }
@@ -5465,9 +5408,7 @@ COLONIZE_INTERNAL GameMoveStep game_move_sea_unit(
       return GAME_MOVE_RETURN_TRUE;
     }
     if (dest_land && !dest_water) {
-      const ColonizeEnterReason landfall = units_enter_probe(
-        &game->units, selected->type_index, &game->world_map, dest_x, dest_y, sid, colonies
-      );
+      const ColonizeEnterReason landfall = units_enter_probe_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&game->units), .colonies=(ColonizeColonyPool*)(colonies), .map=(ColonizeWorldMap*)(&game->world_map)}, selected->type_index, dest_x, dest_y, sid);
       /* Native village: FUN_4d56_4528 ship abort — never @LANDFALL. */
       if (landfall == COLONIZE_ENTER_VILLAGE_SHIP) {
         if (game->col1_ok) {
@@ -5533,9 +5474,7 @@ COLONIZE_INTERNAL GameMoveStep game_move_sea_unit(
               ids,
               2
             )) {
-          if (!units_unload_passenger(
-                &game->units, sid, pax_ready, &game->world_map, dest_x, dest_y, colonies
-              )) {
+          if (!units_unload_passenger_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&game->units), .colonies=(ColonizeColonyPool*)(colonies), .map=(ColonizeWorldMap*)(&game->world_map)}, sid, pax_ready, dest_x, dest_y)) {
             set_status(game, "Move blocked", NULL);
             return GAME_MOVE_RETURN_FALSE;
           }
@@ -5820,9 +5759,7 @@ COLONIZE_INTERNAL GameMoveStep game_move_commit(
 ) {
   {
     const int mp_before = selected->moves_left;
-    if (!units_try_move(
-          &game->units, sid, &game->world_map, dest_x, dest_y, colonies, &game->move_rng
-        )) {
+    if (!units_try_move_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&game->units), .colonies=(ColonizeColonyPool*)(colonies), .map=(ColonizeWorldMap*)(&game->world_map), .rng=(ColonizeDosRng*)(&game->move_rng)}, sid, dest_x, dest_y)) {
       if (units_last_combat_outcome() < 0) {
         set_status(game, "Combat lost", NULL);
         game_after_unit_action(game);
@@ -5919,16 +5856,7 @@ bool game_try_unit_move(ColonizeGameState* game, int dest_x, int dest_y) {
     const int cid = colonies_id_at(&game->colonies, selected->x, selected->y);
     const ColonizeColony* col = colonies_get(&game->colonies, cid);
     if (col && col->active && col->nation_id == selected->nation_id) {
-      (void)units_king_galleon_offer_coastal_treasures(
-        &game->units,
-        &game->colonies,
-        &game->world_map,
-        game->europe_ok ? &game->europe : NULL,
-        &game->col1,
-        selected->nation_id,
-        &game->ai_popups,
-        &game->messages
-      );
+      (void)units_king_galleon_offer_coastal_treasures_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&game->units), .colonies=(ColonizeColonyPool*)(&game->colonies), .map=(ColonizeWorldMap*)(&game->world_map), .col1=(ColonizeCol1Save*)(&game->col1), .col1_ok=true, .europe=(EuropeScreen*)(game->europe_ok ? &game->europe : NULL)}, selected->nation_id, &game->ai_popups, &game->messages);
     }
   }
   snprintf(game->status, sizeof(game->status), "Moved unit to (%d,%d)", dest_x, dest_y);
@@ -5971,7 +5899,7 @@ static int game_issue_goto(ColonizeGameState* game, int uid, int dest_x, int des
     game->units.selected_id = uid;
     return game_try_unit_move(game, dest_x, dest_y) ? 1 : -1;
   }
-  return units_set_goto(&game->units, uid, &game->world_map, dest_x, dest_y, &game->colonies)
+  return units_set_goto_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&game->units), .colonies=(ColonizeColonyPool*)(&game->colonies), .map=(ColonizeWorldMap*)(&game->world_map)}, uid, dest_x, dest_y)
     ? 0
     : -1;
 }
@@ -5986,9 +5914,7 @@ void game_reveal_sight_for_unit(ColonizeGameState* game, const ColonizeUnit* u) 
   if (!game || !u || !game->world_map_ok || !units_is_on_map(u)) {
     return;
   }
-  const bool pacific = units_reveal_sight(
-    &game->world_map, &game->units, &game->colonies, u, game->col1_ok ? &game->col1 : NULL
-  );
+  const bool pacific = units_reveal_sight_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&game->units), .colonies=(ColonizeColonyPool*)(&game->colonies), .map=(ColonizeWorldMap*)(&game->world_map), .col1=(ColonizeCol1Save*)(game->col1_ok ? &game->col1 : NULL), .col1_ok=((game->col1_ok ? &game->col1 : NULL) != NULL)}, u);
   if (!game->col1_ok || u->nation_id != game->human_nation) {
     return;
   }
@@ -6019,15 +5945,7 @@ void game_after_unit_action(ColonizeGameState* game) {
   /* LCR: Scout on rumour clears + rolls a manual outcome (Fountain of Youth,
    * Cibola, treasure, burial mounds, …); de Soto keeps outcomes positive. */
   if (game->world_map_ok && units_is_on_map(u) && map_tile_has_rumour(&game->world_map, u->x, u->y)) {
-    (void)units_resolve_lcr_rumour(
-      &game->units,
-      u->id,
-      &game->world_map,
-      game->col1_ok ? &game->col1 : NULL,
-      &game->move_rng,
-      game->europe_ok ? &game->europe : NULL,
-      game->human_nation
-    );
+    (void)units_resolve_lcr_rumour_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&game->units), .map=(ColonizeWorldMap*)(&game->world_map), .col1=(ColonizeCol1Save*)(game->col1_ok ? &game->col1 : NULL), .col1_ok=((game->col1_ok ? &game->col1 : NULL) != NULL), .rng=(ColonizeDosRng*)(&game->move_rng), .europe=(EuropeScreen*)(game->europe_ok ? &game->europe : NULL)}, u->id, game->human_nation);
   }
   /*
    * First contact / village friction: land units only. Natives do not hail
@@ -6356,9 +6274,7 @@ static void game_join_colony_order(ColonizeGameState* game) {
         colonies_emit_full_chrome(col, &game->ai_popups, &game->messages);
         return;
       }
-      const int ci = colonies_admit_unit(
-        &game->colonies, cid, &game->units, sid, game->col1_ok ? &game->col1 : NULL
-      );
+      const int ci = colonies_admit_unit_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&game->units), .colonies=(ColonizeColonyPool*)(&game->colonies), .col1=(ColonizeCol1Save*)(game->col1_ok ? &game->col1 : NULL), .col1_ok=((game->col1_ok ? &game->col1 : NULL) != NULL)}, cid, sid);
       if (ci >= 0) {
         game_auto_assign_new_colonist(game, cid, ci);
         game->units.selected_id = -1;
@@ -6390,10 +6306,7 @@ static int game_colony_selected_colonist(ColonizeGameState* game) {
   if (csv->selected_outside_unit < 0 || !game->units_ok) {
     return -1;
   }
-  const int ci = colonies_admit_unit(
-    &game->colonies, game->colony_view_id, &game->units, csv->selected_outside_unit,
-    game->col1_ok ? &game->col1 : NULL
-  );
+  const int ci = colonies_admit_unit_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&game->units), .colonies=(ColonizeColonyPool*)(&game->colonies), .col1=(ColonizeCol1Save*)(game->col1_ok ? &game->col1 : NULL), .col1_ok=((game->col1_ok ? &game->col1 : NULL) != NULL)}, game->colony_view_id, csv->selected_outside_unit);
   if (ci < 0) {
     return -1;
   }
@@ -6791,9 +6704,7 @@ static void game_colony_indian_land_worked(
   const int x = colony->x + dx;
   const int y = colony->y + dy;
   ColonizeCol1Save* col1 = &game->col1;
-  const int ti = colonies_indian_claim_tribe_from(
-    col1, &game->world_map, &game->colonies, colony->nation_id, colony->x, colony->y, x, y
-  );
+  const int ti = colonies_indian_claim_tribe_from_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&game->colonies), .map=(ColonizeWorldMap*)(&game->world_map), .col1=(ColonizeCol1Save*)(col1), .col1_ok=((col1) != NULL)}, colony->nation_id, colony->x, colony->y, x, y);
   if (ti < 0 || !col1->tribe) {
     return;
   }
@@ -7294,10 +7205,7 @@ static bool game_europe_drag_drop(ColonizeGameState* game, int mx, int my, bool 
          * (same prompt as the keyboard path). */
         game_europe_open_buy_prompt_for(game, hidx, drag->index);
       } else if (hidx >= 0) {
-        europe_buy_cargo(
-          eu, &game->col1, &game->units, game->human_nation, hidx, drag->index,
-          drag->amount > 0 ? drag->amount : 100
-        );
+        europe_buy_cargo_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&game->units), .col1=(ColonizeCol1Save*)(&game->col1), .col1_ok=true, .europe=(EuropeScreen*)(eu)}, game->human_nation, hidx, drag->index, drag->amount > 0 ? drag->amount : 100);
         game_europe_drain_price_events(game);
       } else {
         snprintf(eu->status, sizeof(eu->status), "%s", "Select a ship first.");
@@ -8724,13 +8632,13 @@ static void game_trade_route_service_stop(ColonizeGameState* game, ColonizeUnit*
         for (int h = 0; h < hold_max; ++h) {
           if (u->hold_goods_amount[h] > 0 && u->hold_goods_amount[h] < 255 &&
               u->hold_goods_type[h] == want) {
-            (void)europe_sell_unit_hold(&game->europe, &game->col1, &game->units, u->id, h);
+            (void)europe_sell_unit_hold_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&game->units), .col1=(ColonizeCol1Save*)(&game->col1), .col1_ok=true, .europe=(EuropeScreen*)(&game->europe)}, u->id, h);
           }
         }
       }
       for (int i = 0; i < (int)st->load_count && i < 6; ++i) {
         const int ct = col1_trade_nibble_cargo(st->load_cargo_nibbles, i);
-        (void)europe_buy_unit_cargo(&game->europe, &game->col1, &game->units, u->id, ct, 100);
+        (void)europe_buy_unit_cargo_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&game->units), .col1=(ColonizeCol1Save*)(&game->col1), .col1_ok=true, .europe=(EuropeScreen*)(&game->europe)}, u->id, ct, 100);
       }
       game_europe_drain_price_events(game); /* sells/buys now stamp the record themselves (G3) */
     }
@@ -8880,7 +8788,7 @@ void game_europe_service_trade_harbor(ColonizeGameState* game) {
     }
     for (int c = 0; c < (int)st->load_count && c < 6; ++c) {
       const int ct = col1_trade_nibble_cargo(st->load_cargo_nibbles, c);
-      (void)europe_buy_cargo(eu, &game->col1, &game->units, game->human_nation, i, ct, 100);
+      (void)europe_buy_cargo_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&game->units), .col1=(ColonizeCol1Save*)(&game->col1), .col1_ok=true, .europe=(EuropeScreen*)(eu)}, game->human_nation, i, ct, 100);
     }
     game_europe_drain_price_events(game); /* sells/buys now stamp the record themselves (G3) */
     const int next = (si + 1) % (int)r->dest_count;
@@ -8960,10 +8868,7 @@ static void game_order_unload(ColonizeGameState* game) {
   }
   const ColonizeUnit* ship = units_get_const(&game->units, sid);
   const int pax_id = (ship && ship->cargo_count > 0) ? ship->cargo_ids[0] : -1;
-  if (!units_unload(
-        &game->units, sid, &game->world_map, game->map_cursor_x, game->map_cursor_y,
-        &game->colonies
-      )) {
+  if (!units_unload_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&game->units), .colonies=(ColonizeColonyPool*)(&game->colonies), .map=(ColonizeWorldMap*)(&game->world_map)}, sid, game->map_cursor_x, game->map_cursor_y)) {
     set_status(game, "Cannot unload (need adjacent free land)", NULL);
     return;
   }
@@ -9330,16 +9235,7 @@ static GameMenuActionStatus game_menu_action_orders(ColonizeGameState* game, Map
         }
       }
       if (!game->world_map_ok || !game->units_ok ||
-          !units_pioneer_plow(
-            &game->units,
-            sid,
-            &game->world_map,
-            msg,
-            sizeof(msg),
-            &game->colonies,
-            &game->ai_popups,
-            &game->messages
-          )) {
+          !units_pioneer_plow_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&game->units), .colonies=(ColonizeColonyPool*)(&game->colonies), .map=(ColonizeWorldMap*)(&game->world_map)}, sid, msg, sizeof(msg), &game->ai_popups, &game->messages)) {
         set_status(game, msg[0] ? msg : "Cannot plow", NULL);
       } else {
         set_status(game, msg, NULL);
@@ -9362,16 +9258,7 @@ static GameMenuActionStatus game_menu_action_orders(ColonizeGameState* game, Map
         }
       }
       if (!game->world_map_ok || !game->units_ok ||
-          !units_pioneer_road(
-            &game->units,
-            sid,
-            &game->world_map,
-            msg,
-            sizeof(msg),
-            &game->colonies,
-            &game->ai_popups,
-            &game->messages
-          )) {
+          !units_pioneer_road_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&game->units), .colonies=(ColonizeColonyPool*)(&game->colonies), .map=(ColonizeWorldMap*)(&game->world_map)}, sid, msg, sizeof(msg), &game->ai_popups, &game->messages)) {
         set_status(game, msg[0] ? msg : "Cannot build road", NULL);
       } else {
         set_status(game, msg, NULL);
@@ -9384,9 +9271,7 @@ static GameMenuActionStatus game_menu_action_orders(ColonizeGameState* game, Map
       char msg[96];
       msg[0] = '\0';
       if (!game->world_map_ok || !game->units_ok ||
-          !units_pillage(
-            &game->units, sid, &game->world_map, &game->colonies, msg, sizeof(msg)
-          )) {
+          !units_pillage_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&game->units), .colonies=(ColonizeColonyPool*)(&game->colonies), .map=(ColonizeWorldMap*)(&game->world_map)}, sid, msg, sizeof(msg))) {
         set_status(game, msg[0] ? msg : "Cannot pillage", NULL);
       } else {
         set_status(game, msg, NULL);
@@ -10070,12 +9955,10 @@ void game_europe_open_buy_prompt(ColonizeGameState* game) {
  * the wider set is the same test with fewer ways to drift.
  */
 typedef bool (*GamePioneerOrderFn)(
-  ColonizeUnitPool*,
+  const ColonizeWorld*,
   int,
-  ColonizeWorldMap*,
   char*,
   size_t,
-  ColonizeColonyPool*,
   AiPopupState*,
   const ColonizeMsgCatalog*
 );
@@ -10090,10 +9973,10 @@ static bool game_key_pioneer_order(ColonizeGameState* game, GamePioneerOrderFn f
     return false;
   }
   char msg[96];
-  fn(
-    &game->units, sid, &game->world_map, msg, sizeof(msg), &game->colonies, &game->ai_popups,
-    &game->messages
+  ColonizeWorld w = world_make(
+    &game->units, &game->colonies, &game->world_map, NULL, false, NULL, NULL
   );
+  fn(&w, sid, msg, sizeof(msg), &game->ai_popups, &game->messages);
   set_status(game, msg, NULL);
   return true;
 }
@@ -10393,9 +10276,7 @@ static GameUpdateStep game_pacer_goto_step(
    * cleared BEFORE dispatching — otherwise the pacer would re-fire the
    * @ACTIONS menu on every frame the unit sat next to the village.
    */
-  if (units_goto_dest_is_village_entry(
-        &game->units, active->id, &game->world_map, &game->colonies
-      )) {
+  if (units_goto_dest_is_village_entry_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&game->units), .colonies=(ColonizeColonyPool*)(&game->colonies), .map=(ColonizeWorldMap*)(&game->world_map)}, active->id)) {
     const int aid = active->id;
     const int gx = active->goto_x;
     const int gy = active->goto_y;
@@ -10490,9 +10371,7 @@ static GameUpdateStep game_pacer_goto_step(
       units_is_sea(&game->units, active_id) && game->europe_ok &&
       active->goto_x < UNITS_GOTO_NONE && active->goto_y < UNITS_GOTO_NONE &&
       map_tile_is_high_seas(&game->world_map, goto_dest_x, goto_dest_y);
-    const bool stepped = units_advance_goto_one_step(
-      &game->units, active_id, &game->world_map, &game->colonies, &game->move_rng
-    );
+    const bool stepped = units_advance_goto_one_step_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&game->units), .colonies=(ColonizeColonyPool*)(&game->colonies), .map=(ColonizeWorldMap*)(&game->world_map), .rng=(ColonizeDosRng*)(&game->move_rng)}, active_id);
     ColonizeUnit* again = units_get(&game->units, active_id);
     const bool sailed_for_europe =
       goto_ship_to_lane && again && again->active && units_is_on_map(again) &&
@@ -10775,10 +10654,7 @@ COLONIZE_INTERNAL GameUpdateStep game_update_report_screen(ColonizeGameState* ga
       /* Naval report is a single paginated ship/passenger table — same
        * OK/Esc/Enter page-advance shape as Economic/Colony above. */
       if (game->report_id == COLONIZE_REPORT_NAVAL) {
-        const int page_count = reports_naval_page_count(
-          game->human_nation, game->units_ok ? &game->units : NULL, &game->colonies,
-          game->europe_ok ? &game->europe : NULL
-        );
+        const int page_count = reports_naval_page_count_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(game->units_ok ? &game->units : NULL), .colonies=(ColonizeColonyPool*)(&game->colonies), .europe=(EuropeScreen*)(game->europe_ok ? &game->europe : NULL)}, game->human_nation);
         if (game->naval_page + 1 < page_count) {
           game->naval_page++;
           return GAME_UPDATE_RETURN_TRUE;
@@ -11758,10 +11634,7 @@ static GameUpdateStep game_europe_screen_keys(
       return GAME_UPDATE_RETURN_TRUE;
     }
     if (ch == '+' && eu->selected_harbor >= 0) {
-      europe_buy_cargo(
-        eu, &game->col1, &game->units, game->human_nation, eu->selected_harbor,
-        eu->selected_market, 1
-      );
+      europe_buy_cargo_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&game->units), .col1=(ColonizeCol1Save*)(&game->col1), .col1_ok=true, .europe=(EuropeScreen*)(eu)}, game->human_nation, eu->selected_harbor, eu->selected_market, 1);
       game_europe_drain_price_events(game);
       return GAME_UPDATE_RETURN_TRUE;
     }
@@ -12918,7 +12791,7 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
   }
 
   if (input->last_key == COLONIZE_KEY_P) {
-    if (game_key_pioneer_order(game, units_pioneer_plow)) {
+    if (game_key_pioneer_order(game, units_pioneer_plow_w)) {
       return true;
     }
     game_open_pedia_list(game, PEDIA_CAT_CARGO);
@@ -12926,7 +12799,7 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
   }
 
   if (input->last_key == COLONIZE_KEY_R) {
-    if (game_key_pioneer_order(game, units_pioneer_road)) {
+    if (game_key_pioneer_order(game, units_pioneer_road_w)) {
       return true;
     }
   }
@@ -13346,26 +13219,7 @@ COLONIZE_INTERNAL bool game_render_screen(
 
   if (game->in_report) {
     const ColonizeFont* font = game->menu_font_ok ? &game->menu_font : NULL;
-    reports_render(
-      game->reports_ok ? &game->reports : NULL,
-      game->report_id,
-      game->congress_page2,
-      game->labor_detail_job,
-      game->economic_page,
-      game->colony_page,
-      game->naval_page,
-      &game->colonies,
-      game->units_ok ? &game->units : NULL,
-      game->world_map_ok ? &game->world_map : NULL,
-      game->europe_ok ? &game->europe : NULL,
-      game->col1_ok ? &game->col1 : NULL,
-      game->human_nation,
-      game->map_cursor_x,
-      game->map_cursor_y,
-      game->turn_number,
-      font,
-      framebuffer
-    );
+    reports_render_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(game->units_ok ? &game->units : NULL), .colonies=(ColonizeColonyPool*)(&game->colonies), .map=(ColonizeWorldMap*)(game->world_map_ok ? &game->world_map : NULL), .col1=(ColonizeCol1Save*)(game->col1_ok ? &game->col1 : NULL), .col1_ok=((game->col1_ok ? &game->col1 : NULL) != NULL), .europe=(EuropeScreen*)(game->europe_ok ? &game->europe : NULL)}, game->reports_ok ? &game->reports : NULL, game->report_id, game->congress_page2, game->labor_detail_job, game->economic_page, game->colony_page, game->naval_page, game->human_nation, game->map_cursor_x, game->map_cursor_y, game->turn_number, font, framebuffer);
     return true;
   }
 
@@ -13745,24 +13599,7 @@ COLONIZE_INTERNAL void game_render_map_composite(
   }
 
   if (game->hidden_terrain_phase == 0 && game->col1_ok && game->unit_icons_ok) {
-    map_panel_render_tribes_on_map(
-      &game->col1,
-      game->units_ok ? &game->units : NULL,
-      &game->colonies,
-      &game->unit_icons,
-      framebuffer,
-      view_x,
-      view_y,
-      view_cols,
-      view_rows,
-      tile_w,
-      tile_h,
-      map_origin_x,
-      map_origin_y,
-      game->world_map_ok ? &game->world_map : NULL,
-      game_fog_nation(game),
-      game->map_palette_ok ? &game->map_palette : NULL
-    );
+    map_panel_render_tribes_on_map_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(game->units_ok ? &game->units : NULL), .colonies=(ColonizeColonyPool*)(&game->colonies), .map=(ColonizeWorldMap*)(game->world_map_ok ? &game->world_map : NULL), .col1=(ColonizeCol1Save*)(&game->col1), .col1_ok=true}, &game->unit_icons, framebuffer, view_x, view_y, view_cols, view_rows, tile_w, tile_h, map_origin_x, map_origin_y, game_fog_nation(game), game->map_palette_ok ? &game->map_palette : NULL);
   }
 
   if (game->hidden_terrain_phase == 0 && game->units_ok && game->unit_icons_ok) {
@@ -13930,37 +13767,7 @@ COLONIZE_INTERNAL void game_render_map_panel(
   if (game->map_panel_ok) {
     const ColonizeFont* panel_font = game->colony_font_ok ? &game->colony_font :
                                      (game->menu_font_ok ? &game->menu_font : NULL);
-    map_panel_render(
-      &game->map_panel,
-      game->world_map_ok ? &game->world_map : NULL,
-      game->units_ok ? &game->units : NULL,
-      game->colonies_ok || game->colonies.colony_count > 0 ? &game->colonies : NULL,
-      game->unit_icons_ok ? &game->unit_icons : NULL,
-      panel_font,
-      game->names_ok ? &game->names : NULL,
-      game->labels_ok ? &game->labels : NULL,
-      game->col1_ok ? &game->col1 : NULL,
-      view_x,
-      view_y,
-      view_cols,
-      view_rows,
-      game->map_cursor_x,
-      game->map_cursor_y,
-      game->units.selected_id,
-      game_fog_nation(game),
-      game->game_year,
-      game->game_autumn,
-      game->europe.gold,
-      game->europe.tax_percent,
-      game->europe.nation_name,
-      game->map_palette_ok ? &game->map_palette : NULL,
-      /* DOS drives the End of Turn text off DS:0x929c — the same flag
-       * FUN_1984_010a toggles for the map's tile cursor, so the two blink
-       * together (250ms half-period here). */
-      game_end_turn_prompt_active(game),
-      !game_map_blink_running(game) || (game->elapsed_ms / 250u) % 2u == 0u,
-      framebuffer
-    );
+    map_panel_render_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(game->units_ok ? &game->units : NULL), .colonies=(ColonizeColonyPool*)(game->colonies_ok || game->colonies.colony_count > 0 ? &game->colonies : NULL), .map=(ColonizeWorldMap*)(game->world_map_ok ? &game->world_map : NULL), .col1=(ColonizeCol1Save*)(game->col1_ok ? &game->col1 : NULL), .col1_ok=((game->col1_ok ? &game->col1 : NULL) != NULL)}, &game->map_panel, game->unit_icons_ok ? &game->unit_icons : NULL, panel_font, game->names_ok ? &game->names : NULL, game->labels_ok ? &game->labels : NULL, view_x, view_y, view_cols, view_rows, game->map_cursor_x, game->map_cursor_y, game->units.selected_id, game_fog_nation(game), game->game_year, game->game_autumn, game->europe.gold, game->europe.tax_percent, game->europe.nation_name, game->map_palette_ok ? &game->map_palette : NULL, game_end_turn_prompt_active(game), !game_map_blink_running(game) || (game->elapsed_ms / 250u) % 2u == 0u, framebuffer);
   }
 }
 

@@ -61,6 +61,7 @@
 #include "core/map.h"
 #include "core/turn.h"
 #include "core/units_move.h"
+#include "../common/test_runner.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -331,13 +332,8 @@ static int test_king_noncombat_never_attacks(void) {
   return 0;
 }
 
-int main(void) {
-  if (test_king_new_war_event() != 0) {
-    return 1;
-  }
-  if (test_king_noncombat_never_attacks() != 0) {
-    return 1;
-  }
+
+static int case_king_narrative(void) {
   ColonizeCol1Save col1;
   col1_save_init(&col1);
   col1.head.difficulty = 0;
@@ -2866,8 +2862,161 @@ int main(void) {
     ctx.ai_popups = NULL;
   }
 
-  /* Revolution lose @LOSING2: WoI + REF + zero colonies → unknown46[4]=2. */
+  /*
+   * FUN_43f7_2244 — peacetime @MERCENARIES offer to the HUMAN
+   * (ai_king_peacetime_merc_offer, re-premised 2026-09-15: DOS calls it from
+   * the control==0 arm of the year loop, raw 6418, never for AI nations).
+   * Gate 1-in-21 + seller RNG(0,3) must be the human or at peace with it, so
+   * the seed is probed. Pay → gold debited by the rolled price and the 10f0
+   * paid landing puts Dragoons/Artillery ashore (Man-O-War despawned).
+   */
   {
+    AiPopupState mpop;
+    ai_popup_init(&mpop);
+    AiPopupState* saved_pops = ctx.ai_popups;
+    ctx.ai_popups = &mpop;
+    ai_king_latch_set(&col1, 0, 0); /* peacetime */
+    col1.head.game_options.woi = 0;
+    ColonizeDosRng merc_rng;
+    ctx.rng = &merc_rng;
+    /* The human purse is the Europe mirror (europe_nation_gold); keep both
+     * in step or the accessor debits the stale mirror value. */
+    col1.nation[0].gold = 1000000;
+    europe.gold = 1000000;
+    colonies.colonies[0].active = true;
+    colonies.colonies[0].nation_id = 0;
+    colonies.colonies[0].population = 3;
+    /* 10f0's water scan (281f_0682) refuses a tile holding another nation's
+     * units; earlier subtests parked nation-0 hulls on both ocean tiles
+     * beside (5,5). Clear them so the paid landing has a scored tile. */
+    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+      ColonizeUnit* wu2 = &units.units[i];
+      if (wu2->active && wu2->y == 5 && (wu2->x == 4 || wu2->x == 6)) {
+        wu2->active = false;
+      }
+    }
+    const uint32_t merc_gold_before = europe_nation_gold(ctx.europe, &col1, 0);
+    const int merc_units_before = count_nation(&units, 0);
+    int merc_seed = -1;
+    int merc_payload = 0;
+    for (unsigned sd = 1; sd < 2000 && merc_seed < 0; ++sd) {
+      dos_rng_seed(&merc_rng, sd);
+      ai_popup_clear(&mpop);
+      ai_king_peacetime_merc_offer(&ctx);
+      for (int i = 0; i < mpop.queue_count; ++i) {
+        if (mpop.queue[i].tag == AI_POPUP_TAG_KING_MERC_PEACE &&
+            mpop.queue[i].kind == AI_POPUP_KIND_CHOICE) {
+          merc_seed = (int)sd;
+          merc_payload = mpop.queue[i].payload;
+          break;
+        }
+      }
+    }
+    if (merc_seed < 0) {
+      return fail("2244 should enqueue @MERCENARIES for some seed < 2000");
+    }
+    if (europe_nation_gold(ctx.europe, &col1, 0) != merc_gold_before) {
+      return fail("2244 offer must not spend before Pay");
+    }
+    const int merc_price = merc_payload & 0xffff;
+    const int merc_regular = (merc_payload >> 20) & 0xf;
+    if (merc_price <= 0 || merc_regular < 1 || merc_regular > 4) {
+      return fail("2244 payload should carry price and 1..4 regulars");
+    }
+    mpop.has_result = true;
+    mpop.result_cancelled = false;
+    mpop.result_choice_id = 1; /* Pay */
+    mpop.result_tag = AI_POPUP_TAG_KING_MERC_PEACE;
+    mpop.result_nation_a = 0;
+    mpop.result_nation_b = (int)col1.head.rival_nation_slot_2;
+    mpop.result_payload = merc_payload;
+    ai_king_apply_popup_result(&ctx, &mpop);
+    ai_popup_consume_result(&mpop);
+    if (europe_nation_gold(ctx.europe, &col1, 0) != merc_gold_before - (uint32_t)merc_price) {
+      fprintf(stderr, "unit_ai_king: gold after Pay=%u want=%u (price=%d)\n",
+              (unsigned)europe_nation_gold(ctx.europe, &col1, 0),
+              (unsigned)(merc_gold_before - (uint32_t)merc_price), merc_price);
+      return fail("2244 Pay should spend the rolled price");
+    }
+    if (count_nation(&units, 0) < merc_units_before + merc_regular) {
+      return fail("2244 Pay should land the rolled Dragoons");
+    }
+    fprintf(stderr, "unit_ai_king: 2244 peacetime @MERCENARIES (seed=%d) ok\n", merc_seed);
+
+    /* Post-WoI: must no-op even on the same hit-shaped seed. */
+    ai_king_latch_set(&col1, 0, 1);
+    col1.head.game_options.woi = 1;
+    dos_rng_seed(&merc_rng, (unsigned)merc_seed);
+    ai_popup_clear(&mpop);
+    ai_king_peacetime_merc_offer(&ctx);
+    for (int i = 0; i < mpop.queue_count; ++i) {
+      if (mpop.queue[i].tag == AI_POPUP_TAG_KING_MERC_PEACE) {
+        return fail("2244 must no-op once WoI is declared");
+      }
+    }
+    ai_king_latch_set(&col1, 0, 0);
+    col1.head.game_options.woi = 0;
+    ctx.ai_popups = saved_pops;
+    ctx.rng = NULL; /* restore — later code in this test assumes no RNG */
+  }
+
+  /* FUN_4345_0a22 wartime spend: bell pool → intervention when REF absent. */
+  {
+    founding_fathers_reset();
+    col1.head.game_options.woi = 1;
+    col1.head.game_options.ref_present = 0;
+    /* Fresh scenario: DOS 0a22 spends once per game (0x5382 bit2) — earlier
+     * subtests already announced; reset the latch. */
+    ai_king_latch_set(&col1, AI_KING_INTERVENE_ANNOUNCED_BYTE, 0);
+    col1.head.difficulty = 2;
+    memset(col1.head.expeditionary_force, 0, sizeof(col1.head.expeditionary_force));
+    col1.head.backup_force[0] = 3;
+    col1.head.backup_force[1] = 2;
+    col1.head.backup_force[2] = 0;
+    col1.head.backup_force[3] = 0;
+    colonies.colonies[0].nation_id = 0;
+    founding_fathers_accrue_bells(0, 2u * 0x5dcu + 2000u);
+
+    const int intervene_before = count_nation(&units, 0);
+    const unsigned pool_before = founding_fathers_bells_since_last_elect(0);
+    if (pool_before < founding_fathers_bells_needed(&col1, 0)) {
+      return fail("WoI bell spend setup pool below threshold");
+    }
+    if (!ai_king_spend_woi_bell_pool(&ctx, 0)) {
+      return fail("ai_king_spend_woi_bell_pool should succeed when REF absent");
+    }
+    founding_fathers_consume_woi_bell_pool(0);
+    if (founding_fathers_bells_since_last_elect(0) != 0u) {
+      return fail("consume_woi_bell_pool must zero side-table pool");
+    }
+    if (count_nation(&units, 0) <= intervene_before) {
+      return fail("WoI bell spend should spawn foreign intervention");
+    }
+    col1.head.game_options.woi = 0;
+    col1.head.game_options.ref_present = 0;
+    memset(col1.head.backup_force, 0, sizeof(col1.head.backup_force));
+    founding_fathers_reset();
+    fprintf(stderr, "unit_ai_king: WoI bell pool intervention spend ok\n");
+  }
+
+  const uint8_t tax_final = col1.nation[0].tax_rate;
+  const int crown_final = count_nation(&units, 1);
+  const int intervene_final = count_nation(&units, 2);
+  const int boycott_final = ai_king_latch_get(&col1, 2);
+  const int merc_final = ai_king_latch_get(&col1, 3);
+  free(map.terrain);
+  free(map.layer2);
+  free(map.layer3);
+  col1_save_free(&col1);
+  fprintf(stderr,
+          "unit_ai_king: ok (sol=%d tax=%u crown=%d intervene=%d boycott=%d merc=%d "
+          "1eca=colony-SoL popups)\n",
+          sol, tax_final, crown_final, intervene_final, boycott_final, merc_final);
+  return 0;
+  return 0;
+}
+
+static int case_revolution_lose2_no_colonies(void) {
     ColonizeCol1Save end;
     col1_save_init(&end);
     ai_king_latch_set(&end, 0, 1);
@@ -2975,10 +3124,10 @@ int main(void) {
     free(emap.layer2);
     free(emap.layer3);
     fprintf(stderr, "unit_ai_king: revolution lose2 (no colonies) ok\n");
-  }
+  return 0;
+}
 
-  /* Revolution lose @LOSING1: WoI + REF + inland colony only (ports==0) → lost. */
-  {
+static int case_revolution_lose1_no_ports(void) {
     ColonizeCol1Save end;
     col1_save_init(&end);
     ai_king_latch_set(&end, 0, 1);
@@ -3095,15 +3244,10 @@ int main(void) {
     free(emap.layer2);
     free(emap.layer3);
     fprintf(stderr, "unit_ai_king: revolution lose1 (no ports, inland left) ok\n");
-  }
+  return 0;
+}
 
-  /*
-   * Mid-war @WARN%d: WoI + exactly one coastal colony. DOS patches ONE digit
-   * into the warn tag and the colonies test overwrites the ports test (raw
-   * 58506-58534), so this fixture shows @WARN2 alone — unknown46[7] latches,
-   * unknown46[6] stays clear — and the episode clears when colonies >= 3.
-   */
-  {
+static int case_revolution_warn_one_colony(void) {
     ColonizeCol1Save end;
     col1_save_init(&end);
     ai_king_latch_set(&end, 0, 1);
@@ -3362,10 +3506,10 @@ int main(void) {
     free(emap.layer2);
     free(emap.layer3);
     fprintf(stderr, "unit_ai_king: revolution warn selector (one colony) ok\n");
-  }
+  return 0;
+}
 
-  /* Mid-war @WARN3: crown pop share 80–89%; unknown46[10] episode. */
-  {
+static int case_revolution_warn3_pop_share(void) {
     ColonizeCol1Save end;
     col1_save_init(&end);
     ai_king_latch_set(&end, 0, 1);
@@ -3589,10 +3733,10 @@ int main(void) {
     free(emap.layer2);
     free(emap.layer3);
     fprintf(stderr, "unit_ai_king: revolution warn3 (pop share) ok\n");
-  }
+  return 0;
+}
 
-  /* Revolution lose @LOSING3: crown pop share ≥90%. */
-  {
+static int case_revolution_lose3_pop_share(void) {
     ColonizeCol1Save end;
     col1_save_init(&end);
     ai_king_latch_set(&end, 0, 1);
@@ -3731,11 +3875,10 @@ int main(void) {
     free(emap.layer2);
     free(emap.layer3);
     fprintf(stderr, "unit_ai_king: revolution lose3 (pop share) ok\n");
-  }
+  return 0;
+}
 
-  /* Revolution win: WoI + year≥1850 + no crown units → unknown46[4]=1.
-   * GAME.TXT @WINNING when messages + ai_popups attached. */
-  {
+static int case_revolution_win_1850(void) {
     ColonizeCol1Save end;
     col1_save_init(&end);
     ai_king_latch_set(&end, 0, 1);
@@ -3888,10 +4031,10 @@ int main(void) {
     free(emap.layer2);
     free(emap.layer3);
     fprintf(stderr, "unit_ai_king: revolution win (1850) ok\n");
-  }
+  return 0;
+}
 
-  /* Wartime 1850 stalemate: crown still alive → @RETIRING2 + unknown46[4]=2. */
-  {
+static int case_revolution_retiring2_1850_stalemate(void) {
     ColonizeCol1Save end;
     col1_save_init(&end);
     ai_king_latch_set(&end, 0, 1);
@@ -4030,10 +4173,10 @@ int main(void) {
     free(emap.layer2);
     free(emap.layer3);
     fprintf(stderr, "unit_ai_king: revolution retiring2 (1850 stalemate) ok\n");
-  }
+  return 0;
+}
 
-  /* Peacetime year≥1800: latch PEACE_1800 + @SCORED CHOICE; That's all → @RETIRING. */
-  {
+static int case_peacetime_scored_retiring_1800(void) {
     ColonizeCol1Save end;
     col1_save_init(&end);
     ai_king_latch_set(&end, 0, 0);
@@ -4155,10 +4298,10 @@ int main(void) {
     }
     assets_msg_free(&game_txt);
     fprintf(stderr, "unit_ai_king: peacetime @SCORED/@RETIRING (1800) ok\n");
-  }
+  return 0;
+}
 
-  /* Peacetime Spring 1790: @SOONRETIRING0 once (unknown46[8]). */
-  {
+static int case_peacetime_soonretiring0_1790(void) {
     ColonizeCol1Save end;
     col1_save_init(&end);
     ai_king_latch_set(&end, 0, 0);
@@ -4248,10 +4391,10 @@ int main(void) {
     }
     assets_msg_free(&game_txt);
     fprintf(stderr, "unit_ai_king: peacetime @SOONRETIRING0 (1790) ok\n");
-  }
+  return 0;
+}
 
-  /* Wartime 1840: @SOONRETIRING1 once (unknown46[9]). */
-  {
+static int case_wartime_soonretiring1_1840(void) {
     ColonizeCol1Save end;
     col1_save_init(&end);
     ai_king_latch_set(&end, 0, 1);
@@ -4397,157 +4540,22 @@ int main(void) {
     free(emap.layer2);
     free(emap.layer3);
     fprintf(stderr, "unit_ai_king: wartime @SOONRETIRING1 (1840) ok\n");
-  }
-
-  /*
-   * FUN_43f7_2244 — peacetime @MERCENARIES offer to the HUMAN
-   * (ai_king_peacetime_merc_offer, re-premised 2026-09-15: DOS calls it from
-   * the control==0 arm of the year loop, raw 6418, never for AI nations).
-   * Gate 1-in-21 + seller RNG(0,3) must be the human or at peace with it, so
-   * the seed is probed. Pay → gold debited by the rolled price and the 10f0
-   * paid landing puts Dragoons/Artillery ashore (Man-O-War despawned).
-   */
-  {
-    AiPopupState mpop;
-    ai_popup_init(&mpop);
-    AiPopupState* saved_pops = ctx.ai_popups;
-    ctx.ai_popups = &mpop;
-    ai_king_latch_set(&col1, 0, 0); /* peacetime */
-    col1.head.game_options.woi = 0;
-    ColonizeDosRng merc_rng;
-    ctx.rng = &merc_rng;
-    /* The human purse is the Europe mirror (europe_nation_gold); keep both
-     * in step or the accessor debits the stale mirror value. */
-    col1.nation[0].gold = 1000000;
-    europe.gold = 1000000;
-    colonies.colonies[0].active = true;
-    colonies.colonies[0].nation_id = 0;
-    colonies.colonies[0].population = 3;
-    /* 10f0's water scan (281f_0682) refuses a tile holding another nation's
-     * units; earlier subtests parked nation-0 hulls on both ocean tiles
-     * beside (5,5). Clear them so the paid landing has a scored tile. */
-    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-      ColonizeUnit* wu2 = &units.units[i];
-      if (wu2->active && wu2->y == 5 && (wu2->x == 4 || wu2->x == 6)) {
-        wu2->active = false;
-      }
-    }
-    const uint32_t merc_gold_before = europe_nation_gold(ctx.europe, &col1, 0);
-    const int merc_units_before = count_nation(&units, 0);
-    int merc_seed = -1;
-    int merc_payload = 0;
-    for (unsigned sd = 1; sd < 2000 && merc_seed < 0; ++sd) {
-      dos_rng_seed(&merc_rng, sd);
-      ai_popup_clear(&mpop);
-      ai_king_peacetime_merc_offer(&ctx);
-      for (int i = 0; i < mpop.queue_count; ++i) {
-        if (mpop.queue[i].tag == AI_POPUP_TAG_KING_MERC_PEACE &&
-            mpop.queue[i].kind == AI_POPUP_KIND_CHOICE) {
-          merc_seed = (int)sd;
-          merc_payload = mpop.queue[i].payload;
-          break;
-        }
-      }
-    }
-    if (merc_seed < 0) {
-      return fail("2244 should enqueue @MERCENARIES for some seed < 2000");
-    }
-    if (europe_nation_gold(ctx.europe, &col1, 0) != merc_gold_before) {
-      return fail("2244 offer must not spend before Pay");
-    }
-    const int merc_price = merc_payload & 0xffff;
-    const int merc_regular = (merc_payload >> 20) & 0xf;
-    if (merc_price <= 0 || merc_regular < 1 || merc_regular > 4) {
-      return fail("2244 payload should carry price and 1..4 regulars");
-    }
-    mpop.has_result = true;
-    mpop.result_cancelled = false;
-    mpop.result_choice_id = 1; /* Pay */
-    mpop.result_tag = AI_POPUP_TAG_KING_MERC_PEACE;
-    mpop.result_nation_a = 0;
-    mpop.result_nation_b = (int)col1.head.rival_nation_slot_2;
-    mpop.result_payload = merc_payload;
-    ai_king_apply_popup_result(&ctx, &mpop);
-    ai_popup_consume_result(&mpop);
-    if (europe_nation_gold(ctx.europe, &col1, 0) != merc_gold_before - (uint32_t)merc_price) {
-      fprintf(stderr, "unit_ai_king: gold after Pay=%u want=%u (price=%d)\n",
-              (unsigned)europe_nation_gold(ctx.europe, &col1, 0),
-              (unsigned)(merc_gold_before - (uint32_t)merc_price), merc_price);
-      return fail("2244 Pay should spend the rolled price");
-    }
-    if (count_nation(&units, 0) < merc_units_before + merc_regular) {
-      return fail("2244 Pay should land the rolled Dragoons");
-    }
-    fprintf(stderr, "unit_ai_king: 2244 peacetime @MERCENARIES (seed=%d) ok\n", merc_seed);
-
-    /* Post-WoI: must no-op even on the same hit-shaped seed. */
-    ai_king_latch_set(&col1, 0, 1);
-    col1.head.game_options.woi = 1;
-    dos_rng_seed(&merc_rng, (unsigned)merc_seed);
-    ai_popup_clear(&mpop);
-    ai_king_peacetime_merc_offer(&ctx);
-    for (int i = 0; i < mpop.queue_count; ++i) {
-      if (mpop.queue[i].tag == AI_POPUP_TAG_KING_MERC_PEACE) {
-        return fail("2244 must no-op once WoI is declared");
-      }
-    }
-    ai_king_latch_set(&col1, 0, 0);
-    col1.head.game_options.woi = 0;
-    ctx.ai_popups = saved_pops;
-    ctx.rng = NULL; /* restore — later code in this test assumes no RNG */
-  }
-
-  /* FUN_4345_0a22 wartime spend: bell pool → intervention when REF absent. */
-  {
-    founding_fathers_reset();
-    col1.head.game_options.woi = 1;
-    col1.head.game_options.ref_present = 0;
-    /* Fresh scenario: DOS 0a22 spends once per game (0x5382 bit2) — earlier
-     * subtests already announced; reset the latch. */
-    ai_king_latch_set(&col1, AI_KING_INTERVENE_ANNOUNCED_BYTE, 0);
-    col1.head.difficulty = 2;
-    memset(col1.head.expeditionary_force, 0, sizeof(col1.head.expeditionary_force));
-    col1.head.backup_force[0] = 3;
-    col1.head.backup_force[1] = 2;
-    col1.head.backup_force[2] = 0;
-    col1.head.backup_force[3] = 0;
-    colonies.colonies[0].nation_id = 0;
-    founding_fathers_accrue_bells(0, 2u * 0x5dcu + 2000u);
-
-    const int intervene_before = count_nation(&units, 0);
-    const unsigned pool_before = founding_fathers_bells_since_last_elect(0);
-    if (pool_before < founding_fathers_bells_needed(&col1, 0)) {
-      return fail("WoI bell spend setup pool below threshold");
-    }
-    if (!ai_king_spend_woi_bell_pool(&ctx, 0)) {
-      return fail("ai_king_spend_woi_bell_pool should succeed when REF absent");
-    }
-    founding_fathers_consume_woi_bell_pool(0);
-    if (founding_fathers_bells_since_last_elect(0) != 0u) {
-      return fail("consume_woi_bell_pool must zero side-table pool");
-    }
-    if (count_nation(&units, 0) <= intervene_before) {
-      return fail("WoI bell spend should spawn foreign intervention");
-    }
-    col1.head.game_options.woi = 0;
-    col1.head.game_options.ref_present = 0;
-    memset(col1.head.backup_force, 0, sizeof(col1.head.backup_force));
-    founding_fathers_reset();
-    fprintf(stderr, "unit_ai_king: WoI bell pool intervention spend ok\n");
-  }
-
-  const uint8_t tax_final = col1.nation[0].tax_rate;
-  const int crown_final = count_nation(&units, 1);
-  const int intervene_final = count_nation(&units, 2);
-  const int boycott_final = ai_king_latch_get(&col1, 2);
-  const int merc_final = ai_king_latch_get(&col1, 3);
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
-  col1_save_free(&col1);
-  fprintf(stderr,
-          "unit_ai_king: ok (sol=%d tax=%u crown=%d intervene=%d boycott=%d merc=%d "
-          "1eca=colony-SoL popups)\n",
-          sol, tax_final, crown_final, intervene_final, boycott_final, merc_final);
   return 0;
 }
+
+static const TestCase k_cases[] = {
+    {"test_king_new_war_event", test_king_new_war_event},
+    {"test_king_noncombat_never_attacks", test_king_noncombat_never_attacks},
+    {"case_king_narrative", case_king_narrative},
+    {"case_revolution_lose2_no_colonies", case_revolution_lose2_no_colonies},
+    {"case_revolution_lose1_no_ports", case_revolution_lose1_no_ports},
+    {"case_revolution_warn_one_colony", case_revolution_warn_one_colony},
+    {"case_revolution_warn3_pop_share", case_revolution_warn3_pop_share},
+    {"case_revolution_lose3_pop_share", case_revolution_lose3_pop_share},
+    {"case_revolution_win_1850", case_revolution_win_1850},
+    {"case_revolution_retiring2_1850_stalemate", case_revolution_retiring2_1850_stalemate},
+    {"case_peacetime_scored_retiring_1800", case_peacetime_scored_retiring_1800},
+    {"case_peacetime_soonretiring0_1790", case_peacetime_soonretiring0_1790},
+    {"case_wartime_soonretiring1_1840", case_wartime_soonretiring1_1840},
+};
+TEST_MAIN(k_cases)

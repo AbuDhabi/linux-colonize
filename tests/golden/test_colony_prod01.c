@@ -10,6 +10,8 @@
 #include "tests/common/col1_compare.h"
 #include "tests/common/golden_fixture.h"
 
+#include "../common/test_runner.h"
+
 /*
  * Colony production golden: COLONY00_no-transports.SAV -> one turn_end() ->
  * compare against COLONY01_no-transports.SAV, a save produced by running
@@ -823,7 +825,18 @@ static int run_pair(const char* path_in, const char* path_exp, const char* label
   return 0;
 }
 
-int main(void) {
+/*
+ * Only one meaningful case: run_pair() drives a single golden turn
+ * (COLONY00 -> turn_end() -> compare against the real-DOS COLONY01) with
+ * one large, deliberately hand-tuned fixture of per-colony/per-tile
+ * patches. There is nothing here to split into independent cases — every
+ * patch above feeds the same one turn_end() call and the same single
+ * col1_compare_nation_colonies() assertion at the end of run_pair(), so
+ * this is the "genuinely indivisible sequential narrative" case the test
+ * runner's own docs call out: kept as one TEST_MAIN case rather than
+ * forced into artificial pieces.
+ */
+static int case_colony_prod01_dutch(void) {
   const int rc = run_pair(
     "original_saves/colony-prod-tests/COLONY00_no-transports.SAV",
     "original_saves/colony-prod-tests/COLONY01_no-transports.SAV",
@@ -835,3 +848,9 @@ int main(void) {
   printf("golden_colony_prod01: Dutch colony production ok\n");
   return 0;
 }
+
+static const TestCase k_cases[] = {
+  {"colony_prod01_dutch", case_colony_prod01_dutch},
+};
+
+TEST_MAIN(k_cases)

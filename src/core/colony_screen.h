@@ -448,13 +448,6 @@ void colony_screen_refresh_preview_w(
   ColonyScreenView* view,
   const ColonizeColony* colony
 );
-void colony_screen_refresh_preview(
-  ColonyScreenView* view,
-  const ColonizeColonyPool* pool,
-  const ColonizeColony* colony,
-  const ColonizeWorldMap* map,
-  const ColonizeCol1Save* col1
-);
 
 ColonyScreenHitResult colony_screen_hit_test(
   const ColonyScreenView* view,
@@ -492,22 +485,4 @@ void colony_screen_render_w(
   const ColonizeMsgCatalog* labels,
   ColonizeFramebuffer8* framebuffer
 );
-void colony_screen_render(
-  ColonyScreenView* view,
-  const ColonizeColonyPool* pool,
-  const ColonizeColony* colony,
-  const ColonizeUnitPool* units,
-  const ColonizeWorldMap* map,
-  const ColonizeSpriteSheet* terrain,
-  const ColonizeSpriteSheet* phys0,
-  const ColonizeCol1Save* col1,
-  uint16_t game_year,
-  uint16_t game_autumn,
-  int gold,
-  const ColonizeFont* font,
-  bool debug_building_rects, /* DEBUG menu "Building Rects": violet outline on every building sprite */
-  const ColonizeMsgCatalog* labels, /* LABELS.TXT, optional — NULL falls back to hardcoded English */
-  ColonizeFramebuffer8* framebuffer
-);
-
 #endif

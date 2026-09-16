@@ -232,21 +232,10 @@ void colony_screen_refresh_preview_w(
     view->preview_valid = false;
     return;
   }
-  colony_preview_compute(pool, colony, map, col1, &view->preview);
+  colony_preview_compute_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(pool), .map=(ColonizeWorldMap*)(map), .col1=(ColonizeCol1Save*)(col1), .col1_ok=((col1) != NULL)}, colony, &view->preview);
   view->preview_valid = true;
 }
 
-/* Compat shim: pre-ColonizeWorld signature (see src/core/world.h). */
-void colony_screen_refresh_preview(
-  ColonyScreenView* view,
-  const ColonizeColonyPool* pool,
-  const ColonizeColony* colony,
-  const ColonizeWorldMap* map,
-  const ColonizeCol1Save* col1
-) {
-  ColonizeWorld w_ = world_make(NULL, pool, map, col1, col1 != NULL, NULL, NULL);
-  colony_screen_refresh_preview_w(&w_, view, colony);
-}
 
 void colony_screen_set_delta(ColonyScreenView* view, const ColonizeColonyProdDelta* delta) {
   if (!view) {
@@ -1612,10 +1601,7 @@ static void colony_screen_draw_area_overlays(
             continue; /* worked tile — DOS clears the claim slot */
           }
         }
-        if (colonies_indian_claim_tribe_from(
-              col1, map, pool, colony->nation_id, colony->x, colony->y,
-              colony->x + dx, colony->y + dy
-            ) < 0) {
+        if (colonies_indian_claim_tribe_from_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(pool), .map=(ColonizeWorldMap*)(map), .col1=(ColonizeCol1Save*)(col1), .col1_ok=((col1) != NULL)}, colony->nation_id, colony->x, colony->y, colony->x + dx, colony->y + dy) < 0) {
           continue;
         }
         const int tx = origin_x + (dx + half) * tile;
@@ -4561,7 +4547,7 @@ void colony_screen_render_w(
     colony_screen_refresh_outside(view, units, colony);
   }
   if (view && pool && colony) {
-    colony_screen_refresh_preview(view, pool, colony, map, col1);
+    colony_screen_refresh_preview_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(pool), .map=(ColonizeWorldMap*)(map), .col1=(ColonizeCol1Save*)(col1), .col1_ok=((col1) != NULL)}, view, colony);
   }
 
   colony_screen_fill_top_bar_wood(view, framebuffer);
@@ -4627,27 +4613,5 @@ void colony_screen_render_w(
       font_draw_text(font, framebuffer, 4, 112, "BUILDING.SS failed to load", 12);
     }
   }
-}
-
-/* Compat shim: pre-ColonizeWorld signature (see src/core/world.h). */
-void colony_screen_render(
-  ColonyScreenView* view,
-  const ColonizeColonyPool* pool,
-  const ColonizeColony* colony,
-  const ColonizeUnitPool* units,
-  const ColonizeWorldMap* map,
-  const ColonizeSpriteSheet* terrain,
-  const ColonizeSpriteSheet* phys0,
-  const ColonizeCol1Save* col1,
-  uint16_t game_year,
-  uint16_t game_autumn,
-  int gold,
-  const ColonizeFont* font,
-  bool debug_building_rects,
-  const ColonizeMsgCatalog* labels,
-  ColonizeFramebuffer8* framebuffer
-) {
-  ColonizeWorld w_ = world_make(units, pool, map, col1, col1 != NULL, NULL, NULL);
-  colony_screen_render_w(&w_, view, colony, terrain, phys0, game_year, game_autumn, gold, font, debug_building_rects, labels, framebuffer);
 }
 

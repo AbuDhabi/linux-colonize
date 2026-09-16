@@ -5,32 +5,70 @@
 #include "core/reports.h"
 #include "platform/diagnostics.h"
 
-int main(void) {
-  diag_init(0, NULL);
+#include "../common/test_runner.h"
 
-  ColonizeReportsView view;
-  memset(&view, 0, sizeof(view)); /* reports_load frees prior contents */
+/* Shared read-only fixture: the asset-backed ColonizeReportsView, loaded
+ * once. Every case that reads live names/backgrounds/titles through it
+ * treats it as read-only; case_post_free_fallback below is the one
+ * exception — see its own comment for why it must restore g_view/the
+ * module-level name globals before returning. */
+static ColonizeReportsView g_view;
+static int g_view_ready = 0; /* 0 = untried, 1 = ok, -1 = failed */
+static int g_view_atexit_registered = 0;
+
+static void free_g_view(void) {
+  if (g_view_ready == 1) {
+    reports_free(&g_view);
+    g_view_ready = 0;
+  }
+}
+
+static int load_g_view(void) {
+  diag_init(0, NULL);
+  memset(&g_view, 0, sizeof(g_view)); /* reports_load frees prior contents */
   char err[256];
-  if (!reports_load(&view, "COLONIZE", err, sizeof(err))) {
+  if (!reports_load(&g_view, "COLONIZE", err, sizeof(err))) {
     fprintf(stderr, "reports_load failed: %s\n", err);
+    g_view_ready = -1;
     return 1;
   }
-
-  /*
-   * Live NAMES.TXT cargo names must not alias: the village trade dialogs
-   * hold three at once ("Cigars, Cigars and Cigars" bug, 2026-09-15).
-   */
-  {
-    const char* c0 = reports_cargo_display_name(4);
-    const char* c1 = reports_cargo_display_name(8);
-    const char* c2 = reports_cargo_display_name(12);
-    if (strcmp(c0, c1) == 0 || strcmp(c1, c2) == 0 || strcmp(c0, c2) == 0) {
-      fprintf(stderr, "cargo names alias: '%s' '%s' '%s'\n", c0, c1, c2);
-      reports_free(&view);
-      return 1;
-    }
+  g_view_ready = 1;
+  if (!g_view_atexit_registered) {
+    atexit(free_g_view);
+    g_view_atexit_registered = 1;
   }
+  return 0;
+}
 
+static int ensure_view(void) {
+  if (g_view_ready != 0) {
+    return g_view_ready == 1 ? 0 : 1;
+  }
+  return load_g_view();
+}
+
+/*
+ * Live NAMES.TXT cargo names must not alias: the village trade dialogs
+ * hold three at once ("Cigars, Cigars and Cigars" bug, 2026-09-15).
+ */
+static int case_cargo_names_no_alias(void) {
+  if (ensure_view() != 0) {
+    return 1;
+  }
+  const char* c0 = reports_cargo_display_name(4);
+  const char* c1 = reports_cargo_display_name(8);
+  const char* c2 = reports_cargo_display_name(12);
+  if (strcmp(c0, c1) == 0 || strcmp(c1, c2) == 0 || strcmp(c0, c2) == 0) {
+    fprintf(stderr, "cargo names alias: '%s' '%s' '%s'\n", c0, c1, c2);
+    return 1;
+  }
+  return 0;
+}
+
+static int case_report_backgrounds(void) {
+  if (ensure_view() != 0) {
+    return 1;
+  }
   static const struct {
     ColonizeReportId id;
     const char* file;
@@ -47,9 +85,8 @@ int main(void) {
   };
 
   for (size_t i = 0; i < sizeof(expect) / sizeof(expect[0]); ++i) {
-    if (!view.background_ok[expect[i].id]) {
+    if (!g_view.background_ok[expect[i].id]) {
       fprintf(stderr, "missing background for %s\n", expect[i].file);
-      reports_free(&view);
       return 1;
     }
     if (strcmp(reports_background_name(expect[i].id), expect[i].file) != 0) {
@@ -60,23 +97,27 @@ int main(void) {
         reports_background_name(expect[i].id),
         expect[i].file
       );
-      reports_free(&view);
       return 1;
     }
-    if (view.backgrounds[expect[i].id].width != 320 ||
-        view.backgrounds[expect[i].id].height != 200) {
+    if (g_view.backgrounds[expect[i].id].width != 320 ||
+        g_view.backgrounds[expect[i].id].height != 200) {
       fprintf(stderr, "%s bad size\n", expect[i].file);
-      reports_free(&view);
       return 1;
     }
   }
+  return 0;
+}
 
-  /*
-   * reports_title live LABELS.TXT resolution (2026-08-26 fix): each id's
-   * title should now come from the real asset, not just the hardcoded
-   * k_report_titles fallback (which happens to already match byte-for-byte,
-   * so this only proves the live path, not just that the fallback exists).
-   */
+/*
+ * reports_title live LABELS.TXT resolution (2026-08-26 fix): each id's
+ * title should now come from the real asset, not just the hardcoded
+ * k_report_titles fallback (which happens to already match byte-for-byte,
+ * so this only proves the live path, not just that the fallback exists).
+ */
+static int case_report_titles(void) {
+  if (ensure_view() != 0) {
+    return 1;
+  }
   static const struct {
     ColonizeReportId id;
     const char* title;
@@ -101,49 +142,54 @@ int main(void) {
         got ? got : "(null)",
         expect_title[i].title
       );
-      reports_free(&view);
       return 1;
     }
   }
   /* Out-of-range id still falls back safely. */
   if (strcmp(reports_title((ColonizeReportId)999), "REPORT") != 0) {
     fprintf(stderr, "reports_title out-of-range should return \"REPORT\"\n");
-    reports_free(&view);
     return 1;
   }
+  return 0;
+}
 
+static int case_report_id_from_fkey(void) {
+  if (ensure_view() != 0) {
+    return 1;
+  }
   ColonizeReportId mapped = COLONIZE_REPORT_COUNT;
   if (reports_id_from_fkey(1, &mapped)) {
     fprintf(stderr, "F1 should not map to a report plate\n");
-    reports_free(&view);
     return 1;
   }
   if (!reports_id_from_fkey(8, &mapped) || mapped != COLONIZE_REPORT_FOREIGN) {
     fprintf(stderr, "F8 should map to foreign affairs\n");
-    reports_free(&view);
     return 1;
   }
   if (!reports_id_from_fkey(10, &mapped) || mapped != COLONIZE_REPORT_SCORE) {
     fprintf(stderr, "F10 should map to score\n");
-    reports_free(&view);
     return 1;
   }
+  return 0;
+}
 
-  /*
-   * Founding Father names now resolve live from NAMES.TXT @FATHERS after
-   * reports_load (2026-08-26 fix — was a hand-typed static table only).
-   * Check first/last rows against the real asset text.
-   */
+/*
+ * Founding Father names now resolve live from NAMES.TXT @FATHERS after
+ * reports_load (2026-08-26 fix — was a hand-typed static table only).
+ * Check first/last rows against the real asset text.
+ */
+static int case_ff_names_and_categories(void) {
+  if (ensure_view() != 0) {
+    return 1;
+  }
   if (strcmp(reports_ff_display_name(0), "Adam Smith") != 0) {
     fprintf(stderr, "FF 0 want 'Adam Smith' got '%s'\n", reports_ff_display_name(0));
-    reports_free(&view);
     return 1;
   }
   if (strcmp(reports_ff_display_name(24), "Bartolome de las Casas") != 0) {
     fprintf(
       stderr, "FF 24 want 'Bartolome de las Casas' got '%s'\n", reports_ff_display_name(24)
     );
-    reports_free(&view);
     return 1;
   }
   /*
@@ -159,69 +205,70 @@ int main(void) {
       reports_ff_category_display_name(0), reports_ff_category_display_name(4),
       reports_ff_category_display_name(5)
     );
-    reports_free(&view);
     return 1;
   }
   if (reports_ff_category_display_name(-1)[0] != '\0' ||
       reports_ff_category_display_name(6)[0] != '\0') {
     fprintf(stderr, "@FOUNDING out-of-range should be empty, not NULL/garbage\n");
-    reports_free(&view);
     return 1;
   }
   if (strcmp(reports_misc_display_word(103, "Adviser"), "Adviser") != 0) {
     fprintf(
       stderr, "@MISC 103 want 'Adviser' got '%s'\n", reports_misc_display_word(103, "Adviser")
     );
-    reports_free(&view);
     return 1;
   }
   if (reports_ff_display_name(-1) == NULL || reports_ff_display_name(25) == NULL) {
     fprintf(stderr, "FF name out-of-range should return a placeholder, not NULL\n");
-    reports_free(&view);
     return 1;
   }
+  return 0;
+}
 
-  /* Job expert names now resolve live from NAMES.TXT @JOB column 2. */
+/* Job expert names now resolve live from NAMES.TXT @JOB column 2, and
+ * cargo names from @CARGO column 0. */
+static int case_job_and_cargo_names(void) {
+  if (ensure_view() != 0) {
+    return 1;
+  }
   if (strcmp(reports_job_display_name(0), "Expert Farmers") != 0) {
     fprintf(
       stderr, "job 0 want 'Expert Farmers' got '%s'\n", reports_job_display_name(0)
     );
-    reports_free(&view);
     return 1;
   }
   if (strcmp(reports_job_display_name(27), "Indian Converts") != 0) {
     fprintf(
       stderr, "job 27 want 'Indian Converts' got '%s'\n", reports_job_display_name(27)
     );
-    reports_free(&view);
     return 1;
   }
-
-  /* Cargo names now resolve live from NAMES.TXT @CARGO column 0. */
   if (strcmp(reports_cargo_display_name(0), "Food") != 0) {
     fprintf(stderr, "cargo 0 want 'Food' got '%s'\n", reports_cargo_display_name(0));
-    reports_free(&view);
     return 1;
   }
   if (strcmp(reports_cargo_display_name(15), "Muskets") != 0) {
     fprintf(
       stderr, "cargo 15 want 'Muskets' got '%s'\n", reports_cargo_display_name(15)
     );
-    reports_free(&view);
     return 1;
   }
+  return 0;
+}
 
-  /* Tribe names now resolve live from NAMES.TXT @TRIBES column 0 — a
-   * separate per-index buffer (not the shared ff/job/cargo scratch one),
-   * since the Indian Adviser stores several of these into rows[] at once. */
+/* Tribe names and nation adjectives now resolve live from NAMES.TXT — each
+ * a separate per-index buffer (not the shared ff/job/cargo scratch one),
+ * since the Indian/Foreign Affairs advisers store several at once. */
+static int case_tribe_and_nation_names(void) {
+  if (ensure_view() != 0) {
+    return 1;
+  }
   if (strcmp(reports_tribe_display_name(0), "Incas") != 0) {
     fprintf(stderr, "tribe 0 want 'Incas' got '%s'\n", reports_tribe_display_name(0));
-    reports_free(&view);
     return 1;
   }
   if (strcmp(reports_tribe_display_name(7), "Tupi") != 0) {
     fprintf(stderr, "tribe 7 want 'Tupi' got '%s'\n", reports_tribe_display_name(7));
-    reports_free(&view);
     return 1;
   }
   /* Both must stay correct at once — proves the per-index buffer isn't
@@ -230,58 +277,61 @@ int main(void) {
   const char* t7 = reports_tribe_display_name(7);
   if (strcmp(t0, "Incas") != 0 || strcmp(t7, "Tupi") != 0) {
     fprintf(stderr, "tribe names 0/7 aliased: got '%s'/'%s'\n", t0, t7);
-    reports_free(&view);
     return 1;
   }
 
-  /* Nation adjectives now resolve live from NAMES.TXT @NATIONALITY —
-   * same per-index-buffer aliasing check as tribe names (Foreign Affairs
-   * stores this into rows[] too). */
   if (strcmp(reports_nation_adjective_display_name(0), "English") != 0) {
     fprintf(
       stderr,
       "nation 0 want 'English' got '%s'\n",
       reports_nation_adjective_display_name(0)
     );
-    reports_free(&view);
     return 1;
   }
   if (strcmp(reports_nation_adjective_display_name(3), "Dutch") != 0) {
     fprintf(
       stderr, "nation 3 want 'Dutch' got '%s'\n", reports_nation_adjective_display_name(3)
     );
-    reports_free(&view);
     return 1;
   }
   const char* n0 = reports_nation_adjective_display_name(0);
   const char* n3 = reports_nation_adjective_display_name(3);
   if (strcmp(n0, "English") != 0 || strcmp(n3, "Dutch") != 0) {
     fprintf(stderr, "nation adjectives 0/3 aliased: got '%s'/'%s'\n", n0, n3);
-    reports_free(&view);
     return 1;
   }
+  return 0;
+}
 
-  /* Tribe tech levels now resolve live from NAMES.TXT @LEVELS column 0. */
+/* Tribe tech levels now resolve live from NAMES.TXT @LEVELS column 0. */
+static int case_tribe_levels(void) {
+  if (ensure_view() != 0) {
+    return 1;
+  }
   if (strcmp(reports_tribe_level_display_name(0), "Semi-Nomadic") != 0) {
     fprintf(
       stderr,
       "level 0 want 'Semi-Nomadic' got '%s'\n",
       reports_tribe_level_display_name(0)
     );
-    reports_free(&view);
     return 1;
   }
   if (strcmp(reports_tribe_level_display_name(3), "Civilized") != 0) {
     fprintf(
       stderr, "level 3 want 'Civilized' got '%s'\n", reports_tribe_level_display_name(3)
     );
-    reports_free(&view);
     return 1;
   }
+  return 0;
+}
 
-  /* Body words resolve live from LABELS.TXT @MISC (P2.2 residue, 2026-08-28):
-   * #86 "Rebels" / #87 "Tories" (Foreign Affairs), #56 labor zoom hint,
-   * #112 congress header, #121 score total; out-of-range → fallback. */
+/* Body words resolve live from LABELS.TXT @MISC (P2.2 residue, 2026-08-28):
+ * #86 "Rebels" / #87 "Tories" (Foreign Affairs), #56 labor zoom hint,
+ * #112 congress header, #121 score total; out-of-range → fallback. */
+static int case_misc_words(void) {
+  if (ensure_view() != 0) {
+    return 1;
+  }
   if (strcmp(reports_misc_display_word(86, "x"), "Rebels") != 0 ||
       strcmp(reports_misc_display_word(87, "x"), "Tories") != 0 ||
       strcmp(reports_misc_display_word(56, "x"), "(Click on item to zoom)") != 0 ||
@@ -295,99 +345,72 @@ int main(void) {
       reports_misc_display_word(87, "x"),
       reports_misc_display_word(56, "x")
     );
-    reports_free(&view);
+    return 1;
+  }
+  return 0;
+}
+
+static int case_render_congress_and_score(void) {
+  if (ensure_view() != 0) {
+    return 1;
+  }
+  uint8_t pixels[320 * 200];
+  ColonizeFramebuffer8 fb = {.width = 320, .height = 200, .pixels = pixels};
+  {
+    ColonizeWorld w_ = world_make(NULL, NULL, NULL, NULL, false, NULL, NULL);
+    reports_render_w(
+      &w_, &g_view, COLONIZE_REPORT_CONGRESS, false, -1, 0, 0, 0,
+      0, 0, 0, 1, NULL, &fb
+    );
+  }
+  if (pixels[0] == 0 && pixels[160 + 100 * 320] == 0) {
+    fprintf(stderr, "congress render looks empty\n");
+    return 1;
+  }
+
+  memset(pixels, 0, sizeof(pixels));
+  {
+    ColonizeWorld w_ = world_make(NULL, NULL, NULL, NULL, false, NULL, NULL);
+    reports_render_w(
+      &w_, &g_view, COLONIZE_REPORT_SCORE, false, -1, 0, 0, 0,
+      0, 0, 0, 1, NULL, &fb
+    );
+  }
+  if (pixels[0] == 0 && pixels[160 + 100 * 320] == 0) {
+    fprintf(stderr, "score/wood render looks empty\n");
+    return 1;
+  }
+  return 0;
+}
+
+/* Renders every report id against a real Col1 save and checks the tribe
+ * count/crosses fields it exposes. Loads its own col1 rather than sharing
+ * one with the other COLONY01-based cases below, so each case is
+ * independent of load/free ordering. */
+static int case_colony01_reports_render_and_fields(void) {
+  if (ensure_view() != 0) {
+    return 1;
+  }
+  char err[256];
+  ColonizeCol1Save col1;
+  col1_save_init(&col1);
+  if (!col1_save_read_file("original_saves/COLONY01.SAV", &col1, err, sizeof(err))) {
+    fprintf(stderr, "col1 load failed: %s\n", err);
     return 1;
   }
 
   uint8_t pixels[320 * 200];
   ColonizeFramebuffer8 fb = {.width = 320, .height = 200, .pixels = pixels};
-  reports_render(
-    &view,
-    COLONIZE_REPORT_CONGRESS,
-    false,
-    -1,
-    0,
-    0,
-    0,
-    NULL,
-    NULL,
-    NULL,
-    NULL,
-    NULL,
-    0,
-    0,
-    0,
-    1,
-    NULL,
-    &fb
-  );
-  if (pixels[0] == 0 && pixels[160 + 100 * 320] == 0) {
-    fprintf(stderr, "congress render looks empty\n");
-    reports_free(&view);
-    return 1;
-  }
-
-  memset(pixels, 0, sizeof(pixels));
-  reports_render(
-    &view,
-    COLONIZE_REPORT_SCORE,
-    false,
-    -1,
-    0,
-    0,
-    0,
-    NULL,
-    NULL,
-    NULL,
-    NULL,
-    NULL,
-    0,
-    0,
-    0,
-    1,
-    NULL,
-    &fb
-  );
-  if (pixels[0] == 0 && pixels[160 + 100 * 320] == 0) {
-    fprintf(stderr, "score/wood render looks empty\n");
-    reports_free(&view);
-    return 1;
-  }
-
-  ColonizeCol1Save col1;
-  col1_save_init(&col1);
-  if (!col1_save_read_file("original_saves/COLONY01.SAV", &col1, err, sizeof(err))) {
-    fprintf(stderr, "col1 load failed: %s\n", err);
-    reports_free(&view);
-    return 1;
-  }
-
   for (int id = 0; id < COLONIZE_REPORT_COUNT; ++id) {
     memset(pixels, 0, sizeof(pixels));
-    reports_render(
-      &view,
-      (ColonizeReportId)id,
-      false,
-      -1,
-      0,
-      0,
-      0,
-      NULL,
-      NULL,
-      NULL,
-      NULL,
-      &col1,
-      0,
-      0,
-      0,
-      col1.head.turn,
-      NULL,
-      &fb
+    ColonizeWorld w_ = world_make(NULL, NULL, NULL, &col1, true, NULL, NULL);
+    reports_render_w(
+      &w_, &g_view, (ColonizeReportId)id, false, -1, 0, 0, 0,
+      0, 0, 0, col1.head.turn, NULL, &fb
     );
     if (pixels[0] == 0 && pixels[160 + 100 * 320] == 0) {
       fprintf(stderr, "report id %d empty with Col1 data\n", id);
       col1_save_free(&col1);
-      reports_free(&view);
       return 1;
     }
   }
@@ -400,25 +423,39 @@ int main(void) {
       (unsigned)col1.nation[0].needed_crosses
     );
     col1_save_free(&col1);
-    reports_free(&view);
     return 1;
   }
   if (col1.head.tribe_count == 0) {
     fprintf(stderr, "COLONY01 should have tribes for Indian report\n");
     col1_save_free(&col1);
-    reports_free(&view);
     return 1;
   }
+  col1_save_free(&col1);
+  return 0;
+}
 
+/*
+ * COLONY01: Soldier(+4, profession byte 21 is a genuine assigned job) +
+ * gold 1000(+1); no colonies/FF/rebels. The Pioneer here carries the DOS
+ * "no expert" sentinel (profession byte 28) with no colony slot behind
+ * it, so it does NOT contribute — see reports_score_collect_citizen_jobs'
+ * comment (confirmed against dutch-reports.SAV/score.png: a type-based
+ * fallback for map/Europe units overcounts the golden by exactly the
+ * amount its own unscored units would add).
+ */
+static int case_colony01_score(void) {
+  char err[256];
+  ColonizeCol1Save col1;
+  col1_save_init(&col1);
+  if (!col1_save_read_file("original_saves/COLONY01.SAV", &col1, err, sizeof(err))) {
+    fprintf(stderr, "col1 load failed: %s\n", err);
+    return 1;
+  }
   ColonizeScoreBreakdown score;
-  reports_compute_score(&score, &col1, 0, NULL, NULL);
-  /* COLONY01: Soldier(+4, profession byte 21 is a genuine assigned job) +
-   * gold 1000(+1); no colonies/FF/rebels. The Pioneer here carries the DOS
-   * "no expert" sentinel (profession byte 28) with no colony slot behind
-   * it, so it does NOT contribute — see reports_score_collect_citizen_jobs'
-   * comment (confirmed against dutch-reports.SAV/score.png: a type-based
-   * fallback for map/Europe units overcounts the golden by exactly the
-   * amount its own unscored units would add). */
+  {
+    ColonizeWorld w_ = world_make(NULL, NULL, NULL, &col1, true, NULL, NULL);
+    reports_compute_score_w(&w_, &score, 0);
+  }
   if (score.citizens != 4 || score.treasury != 1 || score.congress != 0 ||
       score.rebel_sentiment != 0 || score.villages_penalty != 0 || score.total != 5) {
     fprintf(
@@ -433,516 +470,547 @@ int main(void) {
       score.total
     );
     col1_save_free(&col1);
-    reports_free(&view);
     return 1;
   }
   if (score.foreign_recognition_pct != 0 || score.early_revolution_pts != 0 ||
       score.bells_pts != 0 || score.rating != 0 || score.exploits_tier != -1) {
     fprintf(stderr, "COLONY01 should have no independence bonuses yet\n");
     col1_save_free(&col1);
-    reports_free(&view);
+    return 1;
+  }
+  col1_save_free(&col1);
+  return 0;
+}
+
+/* Village penalty: -(difficulty+1) * burned. Formula-only, so a zeroed
+ * synthetic Col1Save is enough (no need for a real save's other fields). */
+static int case_village_penalty_formula(void) {
+  ColonizeCol1Save c;
+  memset(&c, 0, sizeof(c));
+  ColonizeScoreBreakdown pen;
+  {
+    ColonizeWorld w_ = world_make(NULL, NULL, NULL, &c, true, NULL, NULL);
+    reports_compute_score_w(&w_, &pen, 0);
+  }
+  pen.difficulty = 2;
+  pen.villages_burned = 12;
+  pen.villages_penalty = -(pen.difficulty + 1) * pen.villages_burned;
+  if (pen.villages_penalty != -36) {
+    fprintf(stderr, "village penalty formula wrong: %d\n", pen.villages_penalty);
+    return 1;
+  }
+  return 0;
+}
+
+/* FUN_41f2_0092 tail: recognition multiplier (8 + (8 >> prior)) / 8 —
+ * x2, x1.5, x1.25, x1.125, x1 for 0..4 prior nations; none unless achieved. */
+static int case_recognition_multiplier(void) {
+  static const int want[5] = {200, 150, 125, 112, 100};
+  for (int prior = 0; prior < 5; ++prior) {
+    const int got = reports_score_apply_recognition(100, prior, true);
+    if (got != want[prior]) {
+      fprintf(stderr, "recognition prior=%d got %d want %d\n", prior, got, want[prior]);
+      return 1;
+    }
+  }
+  if (reports_score_apply_recognition(100, 0, false) != 100) {
+    fprintf(stderr, "recognition applied without achievement\n");
+    return 1;
+  }
+  return 0;
+}
+
+/* FUN_41f2_0b70 rating: mult {4,5,6,8,10}, ((mult*total)/100)>>1; tier =
+ * largest n-1 with n*n/3 < (mult*total)/100 over n=1..24, cap 23. */
+static int case_rating_tiers(void) {
+  int tier = 99;
+  if (reports_score_rating(1000, 4, &tier) != 50 || tier != 16) {
+    fprintf(stderr, "rating(1000, Viceroy) wrong: tier=%d\n", tier);
+    return 1;
+  }
+  if (reports_score_rating(1000, 0, &tier) != 20 || tier != 9) {
+    fprintf(stderr, "rating(1000, Discoverer) wrong: tier=%d\n", tier);
+    return 1;
+  }
+  if (reports_score_rating(5, 0, &tier) != 0 || tier != -1) {
+    fprintf(stderr, "rating(5) should give no exploits tier (got %d)\n", tier);
+    return 1;
+  }
+  if (reports_score_rating(20000, 4, &tier) != 1000 || tier != 23) {
+    fprintf(stderr, "rating tier cap 23 broken (got %d)\n", tier);
+    return 1;
+  }
+  return 0;
+}
+
+/* Full composer on a synthetic post-independence state: achieved, declared
+ * 1776 (latched 0x53a7/0x53a8), one prior nation, REF present with 250
+ * bells since declaring, 2 villages burned at Conquistador. */
+static int case_synthetic_independence_score(void) {
+  ColonizeCol1Save c;
+  memset(&c, 0, sizeof(c));
+  memset(c.head.founding_father, 0xff, sizeof(c.head.founding_father)); /* none elected */
+  c.head.year = 1790;
+  c.head.difficulty = 2;
+  c.head.game_options.woi = 1;
+  c.head.game_options.ref_present = 1;
+  c.head.game_options.independence_chrome = 1;
+  c.head.king_audience_streak = 17;
+  c.head.king_audience_last_pick = 76;
+  c.head.rebel_sentiment_report = 60;
+  c.nation[0].gold = 2500;
+  c.nation[0].liberty_bells_total = 250;
+  c.nation[0].villages_burned = 2;
+  c.nation[1].nation_flags = 0x04;
+  ColonizeScoreBreakdown sc;
+  {
+    ColonizeWorld w_ = world_make(NULL, NULL, NULL, &c, true, NULL, NULL);
+    reports_compute_score_w(&w_, &sc, 0);
+  }
+  /* early (1780-1776)*2=8, gold 2, rebel 60, bells 2, villages -6 = 66;
+   * x1.5 (one prior) = 99; rating Conquistador mult 6: 5>>1 = 2, tier 2. */
+  if (sc.declare_year != 1776 || sc.early_revolution_pts != 8 || sc.treasury != 2 ||
+      sc.bells_pts != 2 || sc.villages_penalty != -6 || sc.prior_nations != 1 ||
+      sc.foreign_recognition_pct != 50 || sc.base_total != 66 || sc.total != 99 ||
+      sc.rating != 2 || sc.exploits_tier != 2) {
+    fprintf(
+      stderr,
+      "synthetic independence score wrong: dy=%d early=%d gold=%d bells=%d vil=%d prior=%d "
+      "pct=%d base=%d total=%d rating=%d tier=%d\n",
+      sc.declare_year, sc.early_revolution_pts, sc.treasury, sc.bells_pts, sc.villages_penalty,
+      sc.prior_nations, sc.foreign_recognition_pct, sc.base_total, sc.total, sc.rating,
+      sc.exploits_tier
+    );
+    return 1;
+  }
+  c.head.game_options.calendar_latch = 1; /* 0x5382|0x10 SCORING COMPLETE */
+  {
+    ColonizeWorld w_ = world_make(NULL, NULL, NULL, &c, true, NULL, NULL);
+    reports_compute_score_w(&w_, &sc, 0);
+  }
+  if (!sc.scoring_complete || sc.total != 0) {
+    fprintf(stderr, "scoring-complete latch should zero the composer\n");
+    return 1;
+  }
+  return 0;
+}
+
+/*
+ * Smell audit #86 — Congress points and the FF name grid must be the SAME
+ * test. DOS FUN_41f2_0092 (viceroy_unpacked.c 71217-71233) runs one loop
+ * over 25 slots where `FUN_281f_07b4(nation, i)` decides both `+5` and
+ * whether the name is drawn, and that predicate (FUN_15eb_3960, 13832) is
+ * purely the per-nation bitmask. So neither nation.founding_father_count
+ * nor head.founding_father[] (the first-claimer array) may move the score.
+ */
+static int case_congress_ff_bitmask(void) {
+  ColonizeCol1Save c;
+  memset(&c, 0, sizeof(c));
+  c.head.year = 1600;
+  c.head.difficulty = 2;
+  /* Bitmask: FF 0, 9 and 17 elected = 3 fathers = 15 points. */
+  c.nation[0].founding_fathers[0] = 0x01;
+  c.nation[0].founding_fathers[1] = 0x02;
+  c.nation[0].founding_fathers[2] = 0x02;
+  /* Decoys that the removed fallbacks would have read instead. */
+  c.nation[0].founding_father_count = 11;
+  memset(c.head.founding_father, 0xff, sizeof(c.head.founding_father));
+  for (int i = 0; i < 7; ++i) {
+    c.head.founding_father[i] = 0; /* nation 0 is first claimer of 7 */
+  }
+  ColonizeScoreBreakdown sc;
+  {
+    ColonizeWorld w_ = world_make(NULL, NULL, NULL, &c, true, NULL, NULL);
+    reports_compute_score_w(&w_, &sc, 0);
+  }
+  if (sc.congress != 15) {
+    fprintf(stderr, "congress should be 5 x bitmask popcount, got %d\n", sc.congress);
+    return 1;
+  }
+  /* Empty bitmask scores zero however loud the decoys are. */
+  memset(c.nation[0].founding_fathers, 0, sizeof(c.nation[0].founding_fathers));
+  {
+    ColonizeWorld w_ = world_make(NULL, NULL, NULL, &c, true, NULL, NULL);
+    reports_compute_score_w(&w_, &sc, 0);
+  }
+  if (sc.congress != 0) {
+    fprintf(
+      stderr, "empty FF bitmask must score 0 congress, got %d\n", sc.congress
+    );
+    return 1;
+  }
+  return 0;
+}
+
+/*
+ * Indian Adviser (F9) row gate — DOS FUN_3f41_010a:
+ *   ((FUN_281f_0a38(human, tribe) & 0x20) != 0) || (([0x8d4e+3] & 0x80) != 0)
+ * met OR extinct, never "euro_diplo != 0" (smell audit #85). euro_diplo also
+ * carries 0x02 war / 0x04 attack-confirmed / 0x40 peace, and DOS can leave
+ * those set on a tribe the viewing nation has never met.
+ */
+static int case_indian_tribe_listed_gate(void) {
+  if (ensure_view() != 0) { /* only for the @MISC 130 check below */
+    return 1;
+  }
+  ColonizeCol1Save c;
+  memset(&c, 0, sizeof(c));
+  const int human = 0;
+
+  /* tribe 0: met (0x20) → listed. */
+  c.indian[0].euro_diplo[human] = COL1_INDIAN_MET_BIT;
+  /* tribe 1: met + at peace → listed. */
+  c.indian[1].euro_diplo[human] = (uint8_t)(COL1_INDIAN_MET_BIT | COL1_INDIAN_PEACE_BIT);
+  /* tribe 2: stray war bit only, never met → NOT listed. */
+  c.indian[2].euro_diplo[human] = COL1_INDIAN_WAR_BIT;
+  /* tribe 3: stray war + attack-confirmed, never met → NOT listed. */
+  c.indian[3].euro_diplo[human] =
+    (uint8_t)(COL1_INDIAN_WAR_BIT | COL1_INDIAN_ATTACK_CONFIRMED_BIT);
+  /* tribe 4: extinct with a fully zero euro_diplo → listed anyway. */
+  c.indian[4].extinct = 1;
+  /* tribe 5: extinct AND met → listed. */
+  c.indian[5].extinct = 1;
+  c.indian[5].euro_diplo[human] = COL1_INDIAN_MET_BIT;
+  /* tribe 6: untouched (all zero) → NOT listed. */
+  /* tribe 7: met by a DIFFERENT nation only → NOT listed for `human`. */
+  c.indian[7].euro_diplo[1] = COL1_INDIAN_MET_BIT;
+
+  static const int want[COLONIZE_COL1_INDIAN_COUNT] = {1, 1, 0, 0, 1, 1, 0, 0};
+  for (int t = 0; t < (int)COLONIZE_COL1_INDIAN_COUNT; ++t) {
+    const int got = reports_indian_tribe_listed(&c, t, human) ? 1 : 0;
+    if (got != want[t]) {
+      fprintf(
+        stderr,
+        "indian gate tribe %d: got %d want %d (euro_diplo=0x%02x extinct=%d)\n",
+        t,
+        got,
+        want[t],
+        (unsigned)c.indian[t].euro_diplo[human],
+        (int)c.indian[t].extinct
+      );
+      return 1;
+    }
+    /* Tribe 7 is met by nation 1, so that viewer must see it. */
+    if (t == 7 && !reports_indian_tribe_listed(&c, t, 1)) {
+      fprintf(stderr, "indian gate tribe 7 should list for nation 1\n");
+      return 1;
+    }
+  }
+  /* Out-of-range guards. */
+  if (reports_indian_tribe_listed(NULL, 0, 0) ||
+      reports_indian_tribe_listed(&c, -1, 0) ||
+      reports_indian_tribe_listed(&c, (int)COLONIZE_COL1_INDIAN_COUNT, 0) ||
+      reports_indian_tribe_listed(&c, 0, -1) ||
+      reports_indian_tribe_listed(&c, 0, (int)COLONIZE_COL1_NATION_COUNT)) {
+    fprintf(stderr, "indian gate should reject out-of-range args\n");
+    return 1;
+  }
+  /* @MISC #130 is the "Extinct" word DOS appends (DS:0x2ebe). */
+  if (strcmp(reports_misc_display_word(130, "Extinct"), "Extinct") != 0) {
+    fprintf(
+      stderr,
+      "misc word 130 want 'Extinct' got '%s'\n",
+      reports_misc_display_word(130, "Extinct")
+    );
+    return 1;
+  }
+  return 0;
+}
+
+/* Foreign Affairs report (F8) golden: dutch-reports.SAV / foreign.png —
+ * locks in the census-based Rebels/Tories formula and the euro_relation
+ * War/Peace reading (see reports.c's reports_render_foreign comment). */
+static int case_foreign_affairs_golden(void) {
+  if (ensure_view() != 0) {
+    return 1;
+  }
+  char err[256];
+  ColonizeCol1Save fcol1;
+  col1_save_init(&fcol1);
+  if (!col1_save_read_file(
+        "original_saves/report-screen-goldens/dutch-reports.SAV", &fcol1, err, sizeof(err)
+      )) {
+    fprintf(stderr, "dutch-reports.SAV load failed: %s\n", err);
     return 1;
   }
 
-  /* Village penalty: -(difficulty+1) * burned */
-  {
-    ColonizeScoreBreakdown pen;
-    reports_compute_score(&pen, &col1, 0, NULL, NULL);
-    pen.difficulty = 2;
-    pen.villages_burned = 12;
-    pen.villages_penalty = -(pen.difficulty + 1) * pen.villages_burned;
-    if (pen.villages_penalty != -36) {
-      fprintf(stderr, "village penalty formula wrong: %d\n", pen.villages_penalty);
-      col1_save_free(&col1);
-      reports_free(&view);
-      return 1;
-    }
-  }
-
-  /* FUN_41f2_0092 tail: recognition multiplier (8 + (8 >> prior)) / 8 —
-   * x2, x1.5, x1.25, x1.125, x1 for 0..4 prior nations; none unless achieved. */
-  {
-    static const int want[5] = {200, 150, 125, 112, 100};
-    for (int prior = 0; prior < 5; ++prior) {
-      const int got = reports_score_apply_recognition(100, prior, true);
-      if (got != want[prior]) {
-        fprintf(stderr, "recognition prior=%d got %d want %d\n", prior, got, want[prior]);
-        col1_save_free(&col1);
-        reports_free(&view);
-        return 1;
-      }
-    }
-    if (reports_score_apply_recognition(100, 0, false) != 100) {
-      fprintf(stderr, "recognition applied without achievement\n");
-      col1_save_free(&col1);
-      reports_free(&view);
-      return 1;
-    }
-  }
-
-  /* FUN_41f2_0b70 rating: mult {4,5,6,8,10}, ((mult*total)/100)>>1; tier =
-   * largest n-1 with n*n/3 < (mult*total)/100 over n=1..24, cap 23. */
-  {
-    int tier = 99;
-    if (reports_score_rating(1000, 4, &tier) != 50 || tier != 16) {
-      fprintf(stderr, "rating(1000, Viceroy) wrong: tier=%d\n", tier);
-      col1_save_free(&col1);
-      reports_free(&view);
-      return 1;
-    }
-    if (reports_score_rating(1000, 0, &tier) != 20 || tier != 9) {
-      fprintf(stderr, "rating(1000, Discoverer) wrong: tier=%d\n", tier);
-      col1_save_free(&col1);
-      reports_free(&view);
-      return 1;
-    }
-    if (reports_score_rating(5, 0, &tier) != 0 || tier != -1) {
-      fprintf(stderr, "rating(5) should give no exploits tier (got %d)\n", tier);
-      col1_save_free(&col1);
-      reports_free(&view);
-      return 1;
-    }
-    if (reports_score_rating(20000, 4, &tier) != 1000 || tier != 23) {
-      fprintf(stderr, "rating tier cap 23 broken (got %d)\n", tier);
-      col1_save_free(&col1);
-      reports_free(&view);
-      return 1;
-    }
-  }
-
-  /* Full composer on a synthetic post-independence state: achieved, declared
-   * 1776 (latched 0x53a7/0x53a8), one prior nation, REF present with 250
-   * bells since declaring, 2 villages burned at Conquistador. */
-  {
-    ColonizeCol1Save c;
-    memset(&c, 0, sizeof(c));
-    memset(c.head.founding_father, 0xff, sizeof(c.head.founding_father)); /* none elected */
-    c.head.year = 1790;
-    c.head.difficulty = 2;
-    c.head.game_options.woi = 1;
-    c.head.game_options.ref_present = 1;
-    c.head.game_options.independence_chrome = 1;
-    c.head.king_audience_streak = 17;
-    c.head.king_audience_last_pick = 76;
-    c.head.rebel_sentiment_report = 60;
-    c.nation[0].gold = 2500;
-    c.nation[0].liberty_bells_total = 250;
-    c.nation[0].villages_burned = 2;
-    c.nation[1].nation_flags = 0x04;
-    ColonizeScoreBreakdown sc;
-    reports_compute_score(&sc, &c, 0, NULL, NULL);
-    /* early (1780-1776)*2=8, gold 2, rebel 60, bells 2, villages -6 = 66;
-     * x1.5 (one prior) = 99; rating Conquistador mult 6: 5>>1 = 2, tier 2. */
-    if (sc.declare_year != 1776 || sc.early_revolution_pts != 8 || sc.treasury != 2 ||
-        sc.bells_pts != 2 || sc.villages_penalty != -6 || sc.prior_nations != 1 ||
-        sc.foreign_recognition_pct != 50 || sc.base_total != 66 || sc.total != 99 ||
-        sc.rating != 2 || sc.exploits_tier != 2) {
+  /* census_pop_proxy + rebel_sentiment reproduce foreign.png's exact
+   * Rebels/Tories numbers for all 3 surviving nations. */
+  static const struct {
+    int nation;
+    int rebels;
+    int tories;
+  } want_pop[] = {
+    {0, 21, 54}, /* English */
+    {1, 24, 21}, /* French */
+    {3, 50, 4}, /* Dutch */
+  };
+  for (size_t i = 0; i < sizeof(want_pop) / sizeof(want_pop[0]); ++i) {
+    const int n = want_pop[i].nation;
+    const int total = fcol1.stuff.census_pop_proxy[n];
+    const int rebels = (total * (int)fcol1.nation[n].rebel_sentiment) / 100;
+    const int tories = total - rebels;
+    if (rebels != want_pop[i].rebels || tories != want_pop[i].tories) {
       fprintf(
         stderr,
-        "synthetic independence score wrong: dy=%d early=%d gold=%d bells=%d vil=%d prior=%d "
-        "pct=%d base=%d total=%d rating=%d tier=%d\n",
-        sc.declare_year, sc.early_revolution_pts, sc.treasury, sc.bells_pts, sc.villages_penalty,
-        sc.prior_nations, sc.foreign_recognition_pct, sc.base_total, sc.total, sc.rating,
-        sc.exploits_tier
-      );
-      col1_save_free(&col1);
-      reports_free(&view);
-      return 1;
-    }
-    c.head.game_options.calendar_latch = 1; /* 0x5382|0x10 SCORING COMPLETE */
-    reports_compute_score(&sc, &c, 0, NULL, NULL);
-    if (!sc.scoring_complete || sc.total != 0) {
-      fprintf(stderr, "scoring-complete latch should zero the composer\n");
-      col1_save_free(&col1);
-      reports_free(&view);
-      return 1;
-    }
-  }
-
-  /*
-   * Smell audit #86 — Congress points and the FF name grid must be the SAME
-   * test. DOS FUN_41f2_0092 (viceroy_unpacked.c 71217-71233) runs one loop
-   * over 25 slots where `FUN_281f_07b4(nation, i)` decides both `+5` and
-   * whether the name is drawn, and that predicate (FUN_15eb_3960, 13832) is
-   * purely the per-nation bitmask. So neither nation.founding_father_count
-   * nor head.founding_father[] (the first-claimer array) may move the score.
-   */
-  {
-    ColonizeCol1Save c;
-    memset(&c, 0, sizeof(c));
-    c.head.year = 1600;
-    c.head.difficulty = 2;
-    /* Bitmask: FF 0, 9 and 17 elected = 3 fathers = 15 points. */
-    c.nation[0].founding_fathers[0] = 0x01;
-    c.nation[0].founding_fathers[1] = 0x02;
-    c.nation[0].founding_fathers[2] = 0x02;
-    /* Decoys that the removed fallbacks would have read instead. */
-    c.nation[0].founding_father_count = 11;
-    memset(c.head.founding_father, 0xff, sizeof(c.head.founding_father));
-    for (int i = 0; i < 7; ++i) {
-      c.head.founding_father[i] = 0; /* nation 0 is first claimer of 7 */
-    }
-    ColonizeScoreBreakdown sc;
-    reports_compute_score(&sc, &c, 0, NULL, NULL);
-    if (sc.congress != 15) {
-      fprintf(stderr, "congress should be 5 x bitmask popcount, got %d\n", sc.congress);
-      col1_save_free(&col1);
-      reports_free(&view);
-      return 1;
-    }
-    /* Empty bitmask scores zero however loud the decoys are. */
-    memset(c.nation[0].founding_fathers, 0, sizeof(c.nation[0].founding_fathers));
-    reports_compute_score(&sc, &c, 0, NULL, NULL);
-    if (sc.congress != 0) {
-      fprintf(
-        stderr, "empty FF bitmask must score 0 congress, got %d\n", sc.congress
-      );
-      col1_save_free(&col1);
-      reports_free(&view);
-      return 1;
-    }
-  }
-
-  col1_save_free(&col1);
-
-  /*
-   * Indian Adviser (F9) row gate — DOS FUN_3f41_010a:
-   *   ((FUN_281f_0a38(human, tribe) & 0x20) != 0) || (([0x8d4e+3] & 0x80) != 0)
-   * met OR extinct, never "euro_diplo != 0" (smell audit #85). euro_diplo also
-   * carries 0x02 war / 0x04 attack-confirmed / 0x40 peace, and DOS can leave
-   * those set on a tribe the viewing nation has never met.
-   */
-  {
-    ColonizeCol1Save c;
-    memset(&c, 0, sizeof(c));
-    const int human = 0;
-
-    /* tribe 0: met (0x20) → listed. */
-    c.indian[0].euro_diplo[human] = COL1_INDIAN_MET_BIT;
-    /* tribe 1: met + at peace → listed. */
-    c.indian[1].euro_diplo[human] = (uint8_t)(COL1_INDIAN_MET_BIT | COL1_INDIAN_PEACE_BIT);
-    /* tribe 2: stray war bit only, never met → NOT listed. */
-    c.indian[2].euro_diplo[human] = COL1_INDIAN_WAR_BIT;
-    /* tribe 3: stray war + attack-confirmed, never met → NOT listed. */
-    c.indian[3].euro_diplo[human] =
-      (uint8_t)(COL1_INDIAN_WAR_BIT | COL1_INDIAN_ATTACK_CONFIRMED_BIT);
-    /* tribe 4: extinct with a fully zero euro_diplo → listed anyway. */
-    c.indian[4].extinct = 1;
-    /* tribe 5: extinct AND met → listed. */
-    c.indian[5].extinct = 1;
-    c.indian[5].euro_diplo[human] = COL1_INDIAN_MET_BIT;
-    /* tribe 6: untouched (all zero) → NOT listed. */
-    /* tribe 7: met by a DIFFERENT nation only → NOT listed for `human`. */
-    c.indian[7].euro_diplo[1] = COL1_INDIAN_MET_BIT;
-
-    static const int want[COLONIZE_COL1_INDIAN_COUNT] = {1, 1, 0, 0, 1, 1, 0, 0};
-    for (int t = 0; t < (int)COLONIZE_COL1_INDIAN_COUNT; ++t) {
-      const int got = reports_indian_tribe_listed(&c, t, human) ? 1 : 0;
-      if (got != want[t]) {
-        fprintf(
-          stderr,
-          "indian gate tribe %d: got %d want %d (euro_diplo=0x%02x extinct=%d)\n",
-          t,
-          got,
-          want[t],
-          (unsigned)c.indian[t].euro_diplo[human],
-          (int)c.indian[t].extinct
-        );
-        reports_free(&view);
-        return 1;
-      }
-      /* Tribe 7 is met by nation 1, so that viewer must see it. */
-      if (t == 7 && !reports_indian_tribe_listed(&c, t, 1)) {
-        fprintf(stderr, "indian gate tribe 7 should list for nation 1\n");
-        reports_free(&view);
-        return 1;
-      }
-    }
-    /* Out-of-range guards. */
-    if (reports_indian_tribe_listed(NULL, 0, 0) ||
-        reports_indian_tribe_listed(&c, -1, 0) ||
-        reports_indian_tribe_listed(&c, (int)COLONIZE_COL1_INDIAN_COUNT, 0) ||
-        reports_indian_tribe_listed(&c, 0, -1) ||
-        reports_indian_tribe_listed(&c, 0, (int)COLONIZE_COL1_NATION_COUNT)) {
-      fprintf(stderr, "indian gate should reject out-of-range args\n");
-      reports_free(&view);
-      return 1;
-    }
-    /* @MISC #130 is the "Extinct" word DOS appends (DS:0x2ebe). */
-    if (strcmp(reports_misc_display_word(130, "Extinct"), "Extinct") != 0) {
-      fprintf(
-        stderr,
-        "misc word 130 want 'Extinct' got '%s'\n",
-        reports_misc_display_word(130, "Extinct")
-      );
-      reports_free(&view);
-      return 1;
-    }
-  }
-
-  /* Foreign Affairs report (F8) golden: dutch-reports.SAV / foreign.png —
-   * locks in the census-based Rebels/Tories formula and the euro_relation
-   * War/Peace reading (see reports.c's reports_render_foreign comment). */
-  {
-    ColonizeCol1Save fcol1;
-    col1_save_init(&fcol1);
-    if (!col1_save_read_file(
-          "original_saves/report-screen-goldens/dutch-reports.SAV", &fcol1, err, sizeof(err)
-        )) {
-      fprintf(stderr, "dutch-reports.SAV load failed: %s\n", err);
-      reports_free(&view);
-      return 1;
-    }
-
-    /* census_pop_proxy + rebel_sentiment reproduce foreign.png's exact
-     * Rebels/Tories numbers for all 3 surviving nations. */
-    static const struct {
-      int nation;
-      int rebels;
-      int tories;
-    } want_pop[] = {
-      {0, 21, 54}, /* English */
-      {1, 24, 21}, /* French */
-      {3, 50, 4}, /* Dutch */
-    };
-    for (size_t i = 0; i < sizeof(want_pop) / sizeof(want_pop[0]); ++i) {
-      const int n = want_pop[i].nation;
-      const int total = fcol1.stuff.census_pop_proxy[n];
-      const int rebels = (total * (int)fcol1.nation[n].rebel_sentiment) / 100;
-      const int tories = total - rebels;
-      if (rebels != want_pop[i].rebels || tories != want_pop[i].tories) {
-        fprintf(
-          stderr,
-          "foreign rebels/tories mismatch nation=%d got=%d/%d want=%d/%d\n",
-          n,
-          rebels,
-          tories,
-          want_pop[i].rebels,
-          want_pop[i].tories
-        );
-        col1_save_free(&fcol1);
-        reports_free(&view);
-        return 1;
-      }
-    }
-
-    /* Spain is the Crown's slot (head.crown_nation_id, DS:0x53d2) — that is
-     * DOS's actual gate for the centered "(Withdrawn from New World)" block,
-     * not player.control. This save has both, which is why the earlier
-     * control==2 reading fit the golden. */
-    if (fcol1.head.crown_nation_id != 2 || fcol1.player[2].control != 2) {
-      fprintf(
-        stderr,
-        "dutch-reports.SAV Spain should be the crown slot: crown=%d control=%d\n",
-        (int)fcol1.head.crown_nation_id,
-        (int)fcol1.player[2].control
+        "foreign rebels/tories mismatch nation=%d got=%d/%d want=%d/%d\n",
+        n,
+        rebels,
+        tories,
+        want_pop[i].rebels,
+        want_pop[i].tories
       );
       col1_save_free(&fcol1);
-      reports_free(&view);
       return 1;
     }
+  }
 
-    /* French/Dutch are at war (golden: red "War"); English/French (and every
-     * other visible pair) is at peace. DOS reads one byte, one direction:
-     * nation[a].euro_relation[b] bit 0x20 = met, bit 0x40 = at peace
-     * (FUN_3f41_2548, 3f41:2867..2896). */
-    static const struct {
-      int a;
-      int b;
-      bool met;
-      bool war;
-    } want_rel[] = {
-      {1, 3, true, true}, /* French sees the Dutch: met, at war */
-      {3, 1, true, true}, /* and the Dutch sees the French the same way */
-      {0, 1, true, false}, /* English/French at peace */
-      {0, 3, true, false}, {3, 0, true, false},
-      {0, 2, false, false}, /* nobody ever met the crown slot */
-    };
-    for (size_t i = 0; i < sizeof(want_rel) / sizeof(want_rel[0]); ++i) {
-      const uint8_t rel = fcol1.nation[want_rel[i].a].euro_relation[want_rel[i].b];
-      const bool met = (rel & 0x20u) != 0;
-      const bool war = met && (rel & 0x40u) == 0;
-      if (met != want_rel[i].met || war != want_rel[i].war) {
-        fprintf(
-          stderr,
-          "dutch-reports.SAV euro_relation[%d][%d]=0x%02x met=%d war=%d want met=%d war=%d\n",
-          want_rel[i].a, want_rel[i].b, rel, met, war, want_rel[i].met, want_rel[i].war
-        );
-        col1_save_free(&fcol1);
-        reports_free(&view);
-        return 1;
-      }
-    }
-
-    /* Jan de Witt detail grid (FUN_3f41_2548's reveal block, 3f41:25e2..27e4):
-     * the six cells read straight off the DOS census block. Values checked
-     * against dutch-reports.SAV for every nation the report draws. */
-    static const struct {
-      int nation;
-      int colonies;
-      int avg_colony;
-      int population;
-      int military;
-      int naval;
-      int merchant;
-    } want_detail[] = {
-      {0, 6, 6, 75, 171, 24, 36}, /* English */
-      {1, 4, 4, 45, 112, 24, 26}, /* French */
-      {3, 7, 6, 54, 45, 8, 8}, /* Dutch */
-    };
-    for (size_t i = 0; i < sizeof(want_detail) / sizeof(want_detail[0]); ++i) {
-      const int n = want_detail[i].nation;
-      const ColonizeCol1Stuff* st = &fcol1.stuff;
-      const int avg =
-        (int)((unsigned)st->avg_colony_pop[n * 2] | ((unsigned)st->avg_colony_pop[n * 2 + 1] << 8));
-      const int naval =
-        ((int)st->unit_type_counts[n][16] + (int)st->unit_type_counts[n][17]) * 8;
-      if (st->colony_counts[n] != want_detail[i].colonies || avg != want_detail[i].avg_colony ||
-          st->census_pop_proxy[n] != want_detail[i].population ||
-          (int)(st->land_combat_strength[n] >> 3) != want_detail[i].military ||
-          naval != want_detail[i].naval ||
-          st->ship_cargo_totals[n] != want_detail[i].merchant) {
-        fprintf(
-          stderr,
-          "de Witt detail nation=%d got %d/%d/%d/%d/%d/%d\n",
-          n, st->colony_counts[n], avg, st->census_pop_proxy[n],
-          (int)(st->land_combat_strength[n] >> 3), naval, st->ship_cargo_totals[n]
-        );
-        col1_save_free(&fcol1);
-        reports_free(&view);
-        return 1;
-      }
-    }
-
-    /* The Dutch (the viewer) do NOT own de Witt in this save, which is what
-     * keeps the golden render free of the detail grid. */
-    if ((fcol1.nation[3].founding_fathers[0] >> 4) & 1) {
-      fprintf(stderr, "dutch-reports.SAV viewer should not own Jan de Witt\n");
-      col1_save_free(&fcol1);
-      reports_free(&view);
-      return 1;
-    }
-
-    memset(pixels, 0, sizeof(pixels));
-    reports_render(
-      &view,
-      COLONIZE_REPORT_FOREIGN,
-      false,
-      -1,
-      0,
-      0,
-      0,
-      NULL,
-      NULL,
-      NULL,
-      NULL,
-      &fcol1,
-      fcol1.head.human_player,
-      0,
-      0,
-      fcol1.head.turn,
-      NULL,
-      &fb
+  /* Spain is the Crown's slot (head.crown_nation_id, DS:0x53d2) — that is
+   * DOS's actual gate for the centered "(Withdrawn from New World)" block,
+   * not player.control. This save has both, which is why the earlier
+   * control==2 reading fit the golden. */
+  if (fcol1.head.crown_nation_id != 2 || fcol1.player[2].control != 2) {
+    fprintf(
+      stderr,
+      "dutch-reports.SAV Spain should be the crown slot: crown=%d control=%d\n",
+      (int)fcol1.head.crown_nation_id,
+      (int)fcol1.player[2].control
     );
-    if (pixels[0] == 0 && pixels[160 + 100 * 320] == 0) {
-      fprintf(stderr, "foreign affairs render looks empty for dutch-reports.SAV\n");
+    col1_save_free(&fcol1);
+    return 1;
+  }
+
+  /* French/Dutch are at war (golden: red "War"); English/French (and every
+   * other visible pair) is at peace. DOS reads one byte, one direction:
+   * nation[a].euro_relation[b] bit 0x20 = met, bit 0x40 = at peace
+   * (FUN_3f41_2548, 3f41:2867..2896). */
+  static const struct {
+    int a;
+    int b;
+    bool met;
+    bool war;
+  } want_rel[] = {
+    {1, 3, true, true}, /* French sees the Dutch: met, at war */
+    {3, 1, true, true}, /* and the Dutch sees the French the same way */
+    {0, 1, true, false}, /* English/French at peace */
+    {0, 3, true, false}, {3, 0, true, false},
+    {0, 2, false, false}, /* nobody ever met the crown slot */
+  };
+  for (size_t i = 0; i < sizeof(want_rel) / sizeof(want_rel[0]); ++i) {
+    const uint8_t rel = fcol1.nation[want_rel[i].a].euro_relation[want_rel[i].b];
+    const bool met = (rel & 0x20u) != 0;
+    const bool war = met && (rel & 0x40u) == 0;
+    if (met != want_rel[i].met || war != want_rel[i].war) {
+      fprintf(
+        stderr,
+        "dutch-reports.SAV euro_relation[%d][%d]=0x%02x met=%d war=%d want met=%d war=%d\n",
+        want_rel[i].a, want_rel[i].b, rel, met, war, want_rel[i].met, want_rel[i].war
+      );
       col1_save_free(&fcol1);
-      reports_free(&view);
       return 1;
     }
+  }
 
-    /* Electing Jan de Witt for the viewer must light up the detail grid: the
-     * first block's row A lands on block_top+10 (y=20), which is blank
-     * without the FF. Compare that scanline band before/after. */
+  /* Jan de Witt detail grid (FUN_3f41_2548's reveal block, 3f41:25e2..27e4):
+   * the six cells read straight off the DOS census block. Values checked
+   * against dutch-reports.SAV for every nation the report draws. */
+  static const struct {
+    int nation;
+    int colonies;
+    int avg_colony;
+    int population;
+    int military;
+    int naval;
+    int merchant;
+  } want_detail[] = {
+    {0, 6, 6, 75, 171, 24, 36}, /* English */
+    {1, 4, 4, 45, 112, 24, 26}, /* French */
+    {3, 7, 6, 54, 45, 8, 8}, /* Dutch */
+  };
+  for (size_t i = 0; i < sizeof(want_detail) / sizeof(want_detail[0]); ++i) {
+    const int n = want_detail[i].nation;
+    const ColonizeCol1Stuff* st = &fcol1.stuff;
+    const int avg =
+      (int)((unsigned)st->avg_colony_pop[n * 2] | ((unsigned)st->avg_colony_pop[n * 2 + 1] << 8));
+    const int naval =
+      ((int)st->unit_type_counts[n][16] + (int)st->unit_type_counts[n][17]) * 8;
+    if (st->colony_counts[n] != want_detail[i].colonies || avg != want_detail[i].avg_colony ||
+        st->census_pop_proxy[n] != want_detail[i].population ||
+        (int)(st->land_combat_strength[n] >> 3) != want_detail[i].military ||
+        naval != want_detail[i].naval ||
+        st->ship_cargo_totals[n] != want_detail[i].merchant) {
+      fprintf(
+        stderr,
+        "de Witt detail nation=%d got %d/%d/%d/%d/%d/%d\n",
+        n, st->colony_counts[n], avg, st->census_pop_proxy[n],
+        (int)(st->land_combat_strength[n] >> 3), naval, st->ship_cargo_totals[n]
+      );
+      col1_save_free(&fcol1);
+      return 1;
+    }
+  }
+
+  /* The Dutch (the viewer) do NOT own de Witt in this save, which is what
+   * keeps the golden render free of the detail grid. */
+  if ((fcol1.nation[3].founding_fathers[0] >> 4) & 1) {
+    fprintf(stderr, "dutch-reports.SAV viewer should not own Jan de Witt\n");
+    col1_save_free(&fcol1);
+    return 1;
+  }
+
+  uint8_t pixels[320 * 200];
+  ColonizeFramebuffer8 fb = {.width = 320, .height = 200, .pixels = pixels};
+  memset(pixels, 0, sizeof(pixels));
+  {
+    ColonizeWorld w_ = world_make(NULL, NULL, NULL, &fcol1, true, NULL, NULL);
+    reports_render_w(
+      &w_, &g_view, COLONIZE_REPORT_FOREIGN, false, -1, 0, 0, 0,
+      fcol1.head.human_player, 0, 0, fcol1.head.turn, NULL, &fb
+    );
+  }
+  if (pixels[0] == 0 && pixels[160 + 100 * 320] == 0) {
+    fprintf(stderr, "foreign affairs render looks empty for dutch-reports.SAV\n");
+    col1_save_free(&fcol1);
+    return 1;
+  }
+
+  /* Electing Jan de Witt for the viewer must light up the detail grid: the
+   * first block's row A lands on block_top+10 (y=20), which is blank
+   * without the FF. Compare that scanline band before/after. */
+  {
+    uint8_t before[320 * 14];
+    memcpy(before, &pixels[20 * 320], sizeof(before));
+    fcol1.nation[3].founding_fathers[0] |= (uint8_t)(1u << 4); /* FF_JAN_DE_WITT */
+    memset(pixels, 0, sizeof(pixels));
     {
-      uint8_t before[320 * 14];
-      memcpy(before, &pixels[20 * 320], sizeof(before));
-      fcol1.nation[3].founding_fathers[0] |= (uint8_t)(1u << 4); /* FF_JAN_DE_WITT */
-      memset(pixels, 0, sizeof(pixels));
-      reports_render(
-        &view, COLONIZE_REPORT_FOREIGN, false, -1, 0, 0, 0, NULL, NULL, NULL, NULL, &fcol1,
+      ColonizeWorld w_ = world_make(NULL, NULL, NULL, &fcol1, true, NULL, NULL);
+      reports_render_w(
+        &w_, &g_view, COLONIZE_REPORT_FOREIGN, false, -1, 0, 0, 0,
         fcol1.head.human_player, 0, 0, fcol1.head.turn, NULL, &fb
       );
-      if (memcmp(before, &pixels[20 * 320], sizeof(before)) == 0) {
-        fprintf(stderr, "Jan de Witt should add the Foreign Affairs detail grid\n");
-        col1_save_free(&fcol1);
-        reports_free(&view);
-        return 1;
-      }
-      /* And the Rebels/Tories line must still fit inside the 45px block: it
-       * moves down exactly two line steps, to block_top+31 (y=41). */
-      bool rebels_row_drawn = false;
-      for (int x = 0; x < 320; ++x) {
-        if (pixels[41 * 320 + x] == 145) {
-          rebels_row_drawn = true;
-          break;
-        }
-      }
-      if (!rebels_row_drawn) {
-        fprintf(stderr, "de Witt block should push Rebels/Tories to y=41, still inside the block\n");
-        col1_save_free(&fcol1);
-        reports_free(&view);
-        return 1;
-      }
-      fcol1.nation[3].founding_fathers[0] &= (uint8_t)~(1u << 4);
     }
-
-    col1_save_free(&fcol1);
+    if (memcmp(before, &pixels[20 * 320], sizeof(before)) == 0) {
+      fprintf(stderr, "Jan de Witt should add the Foreign Affairs detail grid\n");
+      col1_save_free(&fcol1);
+      return 1;
+    }
+    /* And the Rebels/Tories line must still fit inside the 45px block: it
+     * moves down exactly two line steps, to block_top+31 (y=41). */
+    bool rebels_row_drawn = false;
+    for (int x = 0; x < 320; ++x) {
+      if (pixels[41 * 320 + x] == 145) {
+        rebels_row_drawn = true;
+        break;
+      }
+    }
+    if (!rebels_row_drawn) {
+      fprintf(stderr, "de Witt block should push Rebels/Tories to y=41, still inside the block\n");
+      col1_save_free(&fcol1);
+      return 1;
+    }
+    fcol1.nation[3].founding_fathers[0] &= (uint8_t)~(1u << 4);
   }
 
-  fprintf(stderr, "report screens ok (%d backgrounds + Col1 data + score)\n", COLONIZE_REPORT_COUNT);
-  reports_free(&view);
+  col1_save_free(&fcol1);
+  return 0;
+}
 
-  /* After free (no assets loaded), names must still resolve — the
-   * hand-typed static table fallback, not a stale/dangling live pointer. */
+/* After free (no assets loaded), names must still resolve — the
+ * hand-typed static table fallback, not a stale/dangling live pointer.
+ *
+ * reports_ff_display_name() & co. read module-level globals in
+ * reports_names.c (g_reports_names/g_reports_labels), not per-view state,
+ * and reports_load()/reports_free() both touch those same globals — so
+ * this case freeing "a" view really clears state every other case's
+ * ensure_view()-loaded g_view also depends on. To stay order-independent
+ * under COLONIZE_TEST_SHUFFLE/REVERSE/ONLY, this case therefore reloads
+ * g_view once it's done, restoring the live globals for whichever cases
+ * run after it (or before it, since load_g_view() is idempotent to call
+ * again — reports_load() itself starts with reports_free()). */
+static int case_post_free_fallback(void) {
+  if (load_g_view() != 0) {
+    return 1;
+  }
+  reports_free(&g_view);
+  g_view_ready = 0;
+
+  int rc = 0;
   if (strcmp(reports_ff_display_name(0), "Adam Smith") != 0) {
     fprintf(
       stderr, "FF 0 after reports_free want 'Adam Smith' got '%s'\n", reports_ff_display_name(0)
     );
-    return 1;
+    rc = 1;
   }
-  if (strcmp(reports_job_display_name(0), "Expert Farmers") != 0) {
+  if (rc == 0 && strcmp(reports_job_display_name(0), "Expert Farmers") != 0) {
     fprintf(
       stderr,
       "job 0 after reports_free want 'Expert Farmers' got '%s'\n",
       reports_job_display_name(0)
     );
-    return 1;
+    rc = 1;
   }
-  if (strcmp(reports_cargo_display_name(0), "Food") != 0) {
+  if (rc == 0 && strcmp(reports_cargo_display_name(0), "Food") != 0) {
     fprintf(
       stderr, "cargo 0 after reports_free want 'Food' got '%s'\n", reports_cargo_display_name(0)
     );
-    return 1;
+    rc = 1;
   }
-  if (strcmp(reports_tribe_display_name(0), "Incas") != 0) {
+  if (rc == 0 && strcmp(reports_tribe_display_name(0), "Incas") != 0) {
     fprintf(
       stderr, "tribe 0 after reports_free want 'Incas' got '%s'\n", reports_tribe_display_name(0)
     );
-    return 1;
+    rc = 1;
   }
-  if (strcmp(reports_nation_adjective_display_name(0), "English") != 0) {
+  if (rc == 0 && strcmp(reports_nation_adjective_display_name(0), "English") != 0) {
     fprintf(
       stderr,
       "nation 0 after reports_free want 'English' got '%s'\n",
       reports_nation_adjective_display_name(0)
     );
-    return 1;
+    rc = 1;
   }
-  if (strcmp(reports_tribe_level_display_name(0), "Semi-Nomadic") != 0) {
+  if (rc == 0 && strcmp(reports_tribe_level_display_name(0), "Semi-Nomadic") != 0) {
     fprintf(
       stderr,
       "level 0 after reports_free want 'Semi-Nomadic' got '%s'\n",
       reports_tribe_level_display_name(0)
     );
-    return 1;
+    rc = 1;
   }
-
-  if (strcmp(reports_misc_display_word(86, "Rebels"), "Rebels") != 0) {
+  if (rc == 0 && strcmp(reports_misc_display_word(86, "Rebels"), "Rebels") != 0) {
     fprintf(stderr, "misc word 86 after reports_free should fall back to 'Rebels'\n");
-    return 1;
+    rc = 1;
   }
 
-  diag_shutdown();
-  return 0;
+  /* Restore the shared view/globals so any case running after this one
+   * (any order) still sees live NAMES.TXT/LABELS.TXT data. */
+  if (load_g_view() != 0) {
+    return 1;
+  }
+  return rc;
 }
+
+static const TestCase k_cases[] = {
+  {"cargo_names_no_alias", case_cargo_names_no_alias},
+  {"report_backgrounds", case_report_backgrounds},
+  {"report_titles", case_report_titles},
+  {"report_id_from_fkey", case_report_id_from_fkey},
+  {"ff_names_and_categories", case_ff_names_and_categories},
+  {"job_and_cargo_names", case_job_and_cargo_names},
+  {"tribe_and_nation_names", case_tribe_and_nation_names},
+  {"tribe_levels", case_tribe_levels},
+  {"misc_words", case_misc_words},
+  {"render_congress_and_score", case_render_congress_and_score},
+  {"colony01_reports_render_and_fields", case_colony01_reports_render_and_fields},
+  {"colony01_score", case_colony01_score},
+  {"village_penalty_formula", case_village_penalty_formula},
+  {"recognition_multiplier", case_recognition_multiplier},
+  {"rating_tiers", case_rating_tiers},
+  {"synthetic_independence_score", case_synthetic_independence_score},
+  {"congress_ff_bitmask", case_congress_ff_bitmask},
+  {"indian_tribe_listed_gate", case_indian_tribe_listed_gate},
+  {"foreign_affairs_golden", case_foreign_affairs_golden},
+  {"post_free_fallback", case_post_free_fallback},
+};
+
+TEST_MAIN(k_cases)

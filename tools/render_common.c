@@ -73,10 +73,7 @@ bool render_load_save(const char* data_dir, const char* save_path, RenderSaveBun
   out->europe.harbor_ships = 0;
   out->europe.dock_count = 0;
 
-  if (!col1_bridge_apply(
-        &out->save, &out->map, &out->units, &out->colonies, &out->europe, &out->bridge, err,
-        sizeof(err)
-      )) {
+  if (!col1_bridge_apply_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&out->units), .colonies=(ColonizeColonyPool*)(&out->colonies), .map=(ColonizeWorldMap*)(&out->map), .col1=(ColonizeCol1Save*)(&out->save), .col1_ok=true, .europe=(EuropeScreen*)(&out->europe)}, &out->bridge, err, sizeof(err))) {
     fprintf(stderr, "col1_bridge_apply failed: %s\n", err);
     return false;
   }

@@ -512,7 +512,7 @@ list, not from the inventory.
   found). Tooling: `AI_021A_TRACE=1` (per act / gamble / visit roll),
   `AI_SCORE_AT`, `AI_PEEL_AUDIT=1`. Trap: `golden_ai_turns` steps leak state
   across TURN steps inside one process (ALL mode) — audit one turn at a time
-  (`AI_TURNS_ONLY=t`). Second trap: save offset 612 is NOT
+  (`COLONIZE_TEST_ONLY=TURN<t>_to_<t+1>`; was `AI_TURNS_ONLY=t`). Second trap: save offset 612 is NOT
   `prime_resource_seed` (it changes across TURN saves); DS:0x190 is the
   post_map word (365 on seed 100).
 - [x] **Human-colony `5952_035e` tick** — **REFUTED 2026-09-08d, no work.**
@@ -654,7 +654,7 @@ helpers; every helper had a live twin in ai_euro.c/ai.c).
 ### Open queue (all that remains of the old T-tiers)
 
 - [x] **T1.23 — Brave residue in `golden_ai_turns`.** Closed 2026-09-05:
-  all six TURN steps green (`AI_TURNS_ALL=1` clean run). The 3 residual
+  all six TURN steps green (full `golden_ai_turns` clean run). The 3 residual
   diffs (TURN4→5 n=9 (36,52)→W, n=10 (48,41)→SE step2, TURN5→6 n=7
   (43,52)→S) were scoring holdouts of the same class as the existing
   mid-turn peel table — golden dir unambiguous from the TURN multiset +
@@ -688,7 +688,7 @@ helpers; every helper had a live twin in ai_euro.c/ai.c).
 - [x] **T3.3 — Re-enable `golden_ai_turns` / `golden_ai_joint`.** Closed
   2026-09-05 (user-confirmed): both DISABLED flips removed from
   CMakeLists.txt; full `ctest` now 57/57 with both gates green. Harness:
-  `AI_TURNS_ALL=1` runs past a failing step, `AI_TURNS_ONLY=t` runs one
+  the runner (`COLONIZE_TEST_ONLY`, see tests/README.md) runs one
   step.
 - [x] **T4.6 — `VR_B465X` hang dump.** Closed **2026-09-08 statically — no
   hang capture needed**. The "unlabeled writer after the 465b ADD" is

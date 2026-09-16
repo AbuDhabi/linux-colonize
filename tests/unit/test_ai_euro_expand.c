@@ -639,7 +639,7 @@ static int unit_de_witt_wagon_foreign_trade(void) {
   ctx.colonies = &colonies;
 
   /* Without FF: refuse load (API already smoked); act must not strip foreign stock. */
-  turn_refresh_moves_for_nation(&units, nation, &col1, &map, NULL, NULL, NULL);
+  { ColonizeWorld w_ = world_make(&units, NULL, &map, &col1, true, NULL, NULL); turn_refresh_moves_for_nation_w(&w_, nation, NULL, NULL); }
   ai_goals_reset();
   ai_euro_dispatcher_turn(&ctx, nation);
   if (fr->stock[COLONIZE_CARGO_TRADE_GOODS] != 40) {
@@ -661,7 +661,7 @@ static int unit_de_witt_wagon_foreign_trade(void) {
   wagon->orders = 0;
   wagon->goto_x = UNITS_GOTO_NONE;
   wagon->goto_y = UNITS_GOTO_NONE;
-  turn_refresh_moves_for_nation(&units, nation, &col1, &map, NULL, NULL, NULL);
+  { ColonizeWorld w_ = world_make(&units, NULL, &map, &col1, true, NULL, NULL); turn_refresh_moves_for_nation_w(&w_, nation, NULL, NULL); }
   ai_euro_dispatcher_turn(&ctx, nation);
   wagon = units_get(&units, wid);
   {
@@ -692,7 +692,7 @@ static int unit_de_witt_wagon_foreign_trade(void) {
   wagon->goto_x = UNITS_GOTO_NONE;
   wagon->goto_y = UNITS_GOTO_NONE;
   wagon->moves_left = 3 * UNITS_MP_PER_TILE;
-  turn_refresh_moves_for_nation(&units, nation, &col1, &map, NULL, NULL, NULL);
+  { ColonizeWorld w_ = world_make(&units, NULL, &map, &col1, true, NULL, NULL); turn_refresh_moves_for_nation_w(&w_, nation, NULL, NULL); }
   ai_euro_dispatcher_turn(&ctx, nation);
   wagon = units_get(&units, wid);
   if (!wagon || wagon->orders != UNITS_ORDER_AI_MOVE || wagon->goto_x != 2 ||
@@ -714,7 +714,7 @@ static int unit_de_witt_wagon_foreign_trade(void) {
   wagon->goto_y = UNITS_GOTO_NONE;
   wagon->moves_left = 3 * UNITS_MP_PER_TILE;
   const int home_tg_before = home->stock[COLONIZE_CARGO_TRADE_GOODS];
-  turn_refresh_moves_for_nation(&units, nation, &col1, &map, NULL, NULL, NULL);
+  { ColonizeWorld w_ = world_make(&units, NULL, &map, &col1, true, NULL, NULL); turn_refresh_moves_for_nation_w(&w_, nation, NULL, NULL); }
   ai_euro_dispatcher_turn(&ctx, nation);
   wagon = units_get(&units, wid);
   {

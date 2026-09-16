@@ -132,7 +132,7 @@ static int run_mid01_to_mid02(void) {
   memset(&europe, 0, sizeof(europe));
   europe.cargo_count = 16;
   ColonizeCol1BridgeResult br;
-  if (!col1_bridge_apply(&mid01, &map, &units, &colonies, &europe, &br, err, sizeof(err))) {
+  if (!col1_bridge_apply_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&units), .colonies=(ColonizeColonyPool*)(&colonies), .map=(ColonizeWorldMap*)(&map), .col1=(ColonizeCol1Save*)(&mid01), .col1_ok=true, .europe=(EuropeScreen*)(&europe)}, &br, err, sizeof(err))) {
     fprintf(stderr, "bridge apply MID01: %s\n", err);
     map_free(&map);
     assets_msg_free(&names);
@@ -163,25 +163,7 @@ static int run_mid01_to_mid02(void) {
 
   turn_end(&ctx);
 
-  if (!col1_bridge_capture(
-        &mid01,
-        &map,
-        &units,
-        &colonies,
-        &europe,
-        year,
-        autumn,
-        turn_number,
-        br.human_nation,
-        br.cursor_x,
-        br.cursor_y,
-        br.view_x,
-        br.view_y,
-        units.selected_id,
-        units.selected_id < 0,
-        err,
-        sizeof(err)
-      )) {
+  if (!col1_bridge_capture_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&units), .colonies=(ColonizeColonyPool*)(&colonies), .map=(ColonizeWorldMap*)(&map), .col1=(ColonizeCol1Save*)(&mid01), .col1_ok=true, .europe=(EuropeScreen*)(&europe)}, year, autumn, turn_number, br.human_nation, br.cursor_x, br.cursor_y, br.view_x, br.view_y, units.selected_id, units.selected_id < 0, err, sizeof(err))) {
     fprintf(stderr, "bridge capture MID02: %s\n", err);
     map_free(&map);
     assets_msg_free(&names);

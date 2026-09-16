@@ -106,17 +106,6 @@ bool units_try_native_settlement_fallout_w(
   int tile_y,
   int gold_amount
 );
-bool units_try_native_settlement_fallout(
-  ColonizeCol1Save* col1,
-  ColonizeUnitPool* units,
-  ColonizeWorldMap* map,
-  int attacker_nation_id,
-  int defender_nation_id,
-  int tile_x,
-  int tile_y,
-  int gold_amount,
-  ColonizeDosRng* rng
-);
 
 
 /* bugs.md: combat "bump" animation hook — called once as an engagement is
@@ -160,11 +149,7 @@ void units_set_combat_dissolve(ColonizeUnitsDissolveFn fn, void* user);
  * plain death (the pre-port behavior) everywhere else.
  */
 typedef int (*ColonizeUnitsRaidRepelledFn)(
-  ColonizeCol1Save* col1,
-  ColonizeColonyPool* colonies,
-  ColonizeUnitPool* units,
-  ColonizeWorldMap* map,
-  ColonizeDosRng* rng,
+  const ColonizeWorld* w,
   int indian_nation,
   int euro_nation,
   int colony_id,
@@ -225,13 +210,6 @@ bool units_resolve_land_combat_ff_w(
   int attacker_id,
   int defender_id
 );
-bool units_resolve_land_combat_ff(
-  ColonizeUnitPool* pool,
-  int attacker_id,
-  int defender_id,
-  ColonizeDosRng* rng,
-  const ColonizeCol1Save* col1
-);
 
 /*
  * AI/contact wrapper: same as units_resolve_land_combat_ff with col1 from
@@ -254,13 +232,6 @@ bool units_resolve_naval_combat_ff_w(
   const ColonizeWorld* w,
   int attacker_id,
   int defender_id
-);
-bool units_resolve_naval_combat_ff(
-  ColonizeUnitPool* pool,
-  int attacker_id,
-  int defender_id,
-  ColonizeDosRng* rng,
-  const ColonizeCol1Save* col1
 );
 
 /*
@@ -305,25 +276,8 @@ void units_ship_slow_scan_w(
   const ColonizeWorld* w,
   int unit_id
 );
-void units_ship_slow_scan(
-  ColonizeUnitPool* pool,
-  int unit_id,
-  const ColonizeWorldMap* map,
-  const ColonizeColonyPool* colonies,
-  ColonizeDosRng* rng
-);
 int units_coastal_fort_fire_pulse_w(
   const ColonizeWorld* w,
-  int human_nation,
-  char* status,
-  size_t status_size
-);
-int units_coastal_fort_fire_pulse(
-  ColonizeUnitPool* units,
-  const ColonizeColonyPool* colonies,
-  const ColonizeWorldMap* map,
-  const ColonizeCol1Save* col1,
-  ColonizeDosRng* rng,
   int human_nation,
   char* status,
   size_t status_size

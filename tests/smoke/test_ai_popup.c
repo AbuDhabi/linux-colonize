@@ -3,18 +3,25 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "../common/test_runner.h"
+
 static int fail(const char* msg) {
   fprintf(stderr, "smoke_ai_popup: %s\n", msg);
   return 1;
 }
 
-int main(void) {
+static int case_fresh_idle(void) {
   AiPopupState st;
   ai_popup_init(&st);
-
   if (ai_popup_busy(&st)) {
     return fail("fresh state should be idle");
   }
+  return 0;
+}
+
+static int case_enqueue_and_present_info(void) {
+  AiPopupState st;
+  ai_popup_init(&st);
   if (!ai_popup_enqueue_ok(&st, AI_POPUP_TAG_INFO, "Title", "Hello body")) {
     return fail("enqueue_ok failed");
   }
@@ -33,8 +40,20 @@ int main(void) {
   if (st.current.choice_count != 0) {
     return fail("info dialog must not invent OK choice rows");
   }
+  return 0;
+}
 
-  /* Body-only dismiss: Enter (any click / Esc / Space same path). */
+/* Body-only dismiss: Enter (any click / Esc / Space same path). */
+static int case_dismiss_result(void) {
+  AiPopupState st;
+  ai_popup_init(&st);
+  if (!ai_popup_enqueue_ok(&st, AI_POPUP_TAG_INFO, "Title", "Hello body")) {
+    return fail("enqueue_ok failed");
+  }
+  if (!ai_popup_try_present_next(&st) || !st.open) {
+    return fail("present_next failed");
+  }
+
   ColonizeInputState in;
   memset(&in, 0, sizeof(in));
   in.last_key = COLONIZE_KEY_ENTER;
@@ -48,6 +67,12 @@ int main(void) {
     return fail("tag mismatch");
   }
   ai_popup_consume_result(&st);
+  return 0;
+}
+
+static int case_choice_flow(void) {
+  AiPopupState st;
+  ai_popup_init(&st);
 
   const char* labels[] = {"Accept", "Refuse"};
   const int ids[] = {1, 2};
@@ -66,6 +91,7 @@ int main(void) {
     return fail("enqueue_choice failed");
   }
   ai_popup_try_present_next(&st);
+  ColonizeInputState in;
   memset(&in, 0, sizeof(in));
   in.last_key = COLONIZE_KEY_DOWN;
   ai_popup_handle_input(&st, &in);
@@ -75,8 +101,13 @@ int main(void) {
     return fail("Refuse choice result expected");
   }
   ai_popup_consume_result(&st);
+  return 0;
+}
 
-  /* Queue overflow safety: fill then one more fails. */
+/* Queue overflow safety: fill then one more fails. */
+static int case_queue_overflow(void) {
+  AiPopupState st;
+  ai_popup_init(&st);
   ai_popup_clear(&st);
   for (int i = 0; i < AI_POPUP_QUEUE_MAX; ++i) {
     if (!ai_popup_enqueue_ok(&st, AI_POPUP_TAG_INFO, NULL, "x")) {
@@ -86,8 +117,13 @@ int main(void) {
   if (ai_popup_enqueue_ok(&st, AI_POPUP_TAG_INFO, NULL, "overflow")) {
     return fail("overflow should fail");
   }
+  return 0;
+}
 
-  /* Presentation tags: FA / King letter / Congress FF (chrome only). */
+/* Presentation tags: FA / King letter / Congress FF (chrome only). */
+static int case_chrome_tags(void) {
+  AiPopupState st;
+  ai_popup_init(&st);
   ai_popup_clear(&st);
   if (!ai_popup_enqueue_ok_ctx(
         &st, AI_POPUP_TAG_DIPLO_FA, 0, 1, 0, "Foreign Affairs", "Alliance holds.")) {
@@ -109,7 +145,16 @@ int main(void) {
       st.queue[2].tag != AI_POPUP_TAG_FF_CONGRESS) {
     return fail("chrome tag values");
   }
-
-  fprintf(stderr, "smoke_ai_popup: ok\n");
   return 0;
 }
+
+static const TestCase k_cases[] = {
+    {"case_fresh_idle", case_fresh_idle},
+    {"case_enqueue_and_present_info", case_enqueue_and_present_info},
+    {"case_dismiss_result", case_dismiss_result},
+    {"case_choice_flow", case_choice_flow},
+    {"case_queue_overflow", case_queue_overflow},
+    {"case_chrome_tags", case_chrome_tags},
+};
+
+TEST_MAIN(k_cases)

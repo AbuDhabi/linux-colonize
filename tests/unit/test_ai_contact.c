@@ -14,6 +14,8 @@
 #include "core/units_move.h"
 #include "core/village_trade_intel.h"
 
+#include "../common/test_runner.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -697,22 +699,17 @@ static int test_contact_chains_do_not_interleave(void) {
     }                                                            \
   } while (0)
 
-int main(void) {
-  if (test_ai_only_meet_is_silent_for_human() != 0) {
-    return 1;
-  }
-  if (test_encounter_scan_ignores_stale_owner_stamp() != 0) {
-    return 1;
-  }
-  if (test_contact_chains_do_not_interleave() != 0) {
-    return 1;
-  }
-  if (test_colony_tick_war_5952() != 0) {
-    return 1;
-  }
-  if (test_prelude_alarm_band() != 0) {
-    return 1;
-  }
+/*
+ * The rest of this file's original main() body is one continuous narrative:
+ * a single shared fixture (col1/map/units/ctx/pop) is built once and then
+ * mutated and re-checked across many scenario beats (meet, raid, incite,
+ * trade, mission, wagon, ...) all the way to the teardown at the very end.
+ * There is no point at which the fixture is reset and the remaining checks
+ * become independent of everything before it, so per tests/README.md this
+ * stays as ONE case rather than being split into fake, order-dependent
+ * pieces.
+ */
+static int case_full_contact_scenario(void) {
   ColonizeCol1Save col1;
   col1_save_init(&col1);
   col1.head.difficulty = 2;
@@ -936,8 +933,9 @@ int main(void) {
      * 0f14 clears the WHOLE word, both bytes. */
     col1.tribe[0].alarm[0].attacks = 2;
     const int alarm_rep_pre = (int)ind->alarm_by_player[0];
-    const int kind_rep = ai_contact_colony_raid_repelled(
-      &col1, &colonies, &units, &map, &raid_rng, 4, 0, c->id, 0, 1
+    ColonizeWorld w_rep = world_make(&units, &colonies, &map, &col1, true, &raid_rng, NULL);
+    const int kind_rep = ai_contact_colony_raid_repelled_w(
+      &w_rep, 4, 0, c->id, 0, 1
     );
     int expect_rep = 0;
     if (kind_rep == AI_RAID_STORES) {
@@ -7560,3 +7558,13 @@ int main(void) {
 
   return 0;
 }
+
+static const TestCase k_cases[] = {
+    {"test_ai_only_meet_is_silent_for_human", test_ai_only_meet_is_silent_for_human},
+    {"test_encounter_scan_ignores_stale_owner_stamp", test_encounter_scan_ignores_stale_owner_stamp},
+    {"test_contact_chains_do_not_interleave", test_contact_chains_do_not_interleave},
+    {"test_colony_tick_war_5952", test_colony_tick_war_5952},
+    {"test_prelude_alarm_band", test_prelude_alarm_band},
+    {"case_full_contact_scenario", case_full_contact_scenario},
+};
+TEST_MAIN(k_cases)

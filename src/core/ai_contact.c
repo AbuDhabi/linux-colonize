@@ -4390,7 +4390,7 @@ static int ai_contact_step_tile_ok(
   if (units_id_at(ctx->units, nx, ny) >= 0) {
     return 0;
   }
-  return units_can_enter(ctx->units, u->type_index, ctx->map, nx, ny, u->id, ctx->colonies)
+  return units_can_enter_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(ctx->units), .colonies=(ColonizeColonyPool*)(ctx->colonies), .map=(ColonizeWorldMap*)(ctx->map)}, u->type_index, nx, ny, u->id)
            ? 1
            : 0;
 }
@@ -8151,7 +8151,7 @@ COLONIZE_INTERNAL void ai_contact_raid_alarm_tail(
  * back to the plain pre-port death.
  */
 __attribute__((constructor)) static void ai_contact_register_raid_repelled(void) {
-  units_set_colony_raid_repelled(ai_contact_colony_raid_repelled);
+  units_set_colony_raid_repelled(ai_contact_colony_raid_repelled_w);
 }
 
 int ai_contact_colony_raid_repelled_w(
@@ -8228,23 +8228,6 @@ int ai_contact_colony_raid_repelled_w(
     col1_tribe_attitude_set(&col1->tribe[home_tribe_id], euro_nation, 0);
   }
   return (int)kind;
-}
-
-/* Compat shim: pre-ColonizeWorld signature (see src/core/world.h). */
-int ai_contact_colony_raid_repelled(
-  ColonizeCol1Save* col1,
-  ColonizeColonyPool* colonies,
-  ColonizeUnitPool* units,
-  ColonizeWorldMap* map,
-  ColonizeDosRng* rng,
-  int indian_nation,
-  int euro_nation,
-  int colony_id,
-  int home_tribe_id,
-  int forced
-) {
-  ColonizeWorld w_ = world_make(units, colonies, map, col1, col1 != NULL, rng, NULL);
-  return ai_contact_colony_raid_repelled_w(&w_, indian_nation, euro_nation, colony_id, home_tribe_id, forced);
 }
 
 /*
@@ -9198,16 +9181,12 @@ void ai_contact_indian_raids(ColonizeTurnContext* ctx, int nation_id) {
       const int lead =
         ai_contact_escort_pick_lead(ctx, ind, nation_id, brave->id, brave);
       if (lead >= 0 && units_follow_unit(ctx->units, brave->id, lead)) {
-        (void)units_advance_follow_one_step(
-          ctx->units, brave->id, ctx->map, ctx->colonies, ctx->rng
-        );
+        (void)units_advance_follow_one_step_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(ctx->units), .colonies=(ColonizeColonyPool*)(ctx->colonies), .map=(ColonizeWorldMap*)(ctx->map), .rng=(ColonizeDosRng*)(ctx->rng)}, brave->id);
         continue;
       }
     }
     if (brave->orders == UNITS_ORDER_FOLLOW) {
-      (void)units_advance_follow_one_step(
-        ctx->units, brave->id, ctx->map, ctx->colonies, ctx->rng
-      );
+      (void)units_advance_follow_one_step_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(ctx->units), .colonies=(ColonizeColonyPool*)(ctx->colonies), .map=(ColonizeWorldMap*)(ctx->map), .rng=(ColonizeDosRng*)(ctx->rng)}, brave->id);
       continue;
     }
     int target_euro = -1;

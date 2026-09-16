@@ -35,8 +35,6 @@ comparing golden output.
 | `AI_20E6_SHIP_DUMP_TRACE` | `src/core/ai_euro.c:13838` | trace | Logs AI warehouse dump-sell via ship | off |
 | `AI_20E6_SAIL_TRACE` | `src/core/ai_euro.c:16512` | trace | Logs sail/depart decisions | off |
 | `AI_6D8E_DOS_LOOP` | `src/core/ai_euro.c:19546` | **behaviour** | `=0` disables the DOS-literal re-act-until-exhausted loop order for the Euro nation-turn dispatch loop | on (`1`, DOS loop order) |
-| `AI_TURNS_ALL` | `tests/golden/test_ai_turns.c:311` | test-only | Keeps `golden_ai_turns` going past a failing step instead of stopping, for a full diagnostic overview | off |
-| `AI_TURNS_ONLY` | `tests/golden/test_ai_turns.c:313` | test-only | `=t` runs only the TURN t→t+1 step of `golden_ai_turns` | unset (all steps) |
 | `WOI_DEBUG` | `tests/golden/test_woi_ref01.c:172` | test-only | Prints per-turn WoI status line during `golden_woi_ref01` | off |
 
 `diag_init` also reads `HOME` / `XDG_DATA_HOME` (`src/platform/diagnostics.c:181-182`)

@@ -8,12 +8,14 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "../common/test_runner.h"
+
 static int fail(const char* msg) {
   fprintf(stderr, "smoke_popup_dialogs: %s\n", msg);
   return 1;
 }
 
-int main(void) {
+static int case_token_apply(void) {
   PopupMsgTokens tok;
   memset(&tok, 0, sizeof(tok));
   tok.string0 = "Jamestown";
@@ -27,7 +29,10 @@ int main(void) {
       strstr(out, "Sugar") == NULL) {
     return fail("token apply");
   }
+  return 0;
+}
 
+static int case_howmuch(void) {
   HowmuchDialog hm;
   if (!howmuch_open(&hm, HOWMUCH_KIND_BUY, "How much?", 100, 50, 3, 0)) {
     return fail("howmuch_open");
@@ -39,7 +44,10 @@ int main(void) {
   if (!hm.has_result || hm.result_cancelled || hm.result_amount != 50) {
     return fail("howmuch confirm");
   }
+  return 0;
+}
 
+static int case_options(void) {
   OptionsDialog od;
   ColonizeCol1GameOptions opts;
   memset(&opts, 0, sizeof(opts));
@@ -54,6 +62,7 @@ int main(void) {
   if (od.option_count < 8) {
     return fail("options count");
   }
+  ColonizeInputState in;
   memset(&in, 0, sizeof(in));
   in.last_key = COLONIZE_KEY_SPACE;
   options_dialog_handle_input(&od, &in);
@@ -77,7 +86,10 @@ int main(void) {
       od.values[6] != 1 || od.values[7] != 1) {
     return fail("options reopen round-trip");
   }
+  return 0;
+}
 
+static int case_name_entry(void) {
   NameEntryDialog ne;
   if (!name_entry_open(&ne, NAME_ENTRY_KIND_FOUND, "What shall we name this colony?", "Jamestown", 1)) {
     return fail("name_entry found open");
@@ -85,6 +97,7 @@ int main(void) {
   if (strstr(ne.prompt, "Land Ho") != NULL) {
     return fail("found colony must not use Land Ho prompt");
   }
+  ColonizeInputState in;
   memset(&in, 0, sizeof(in));
   in.last_key = COLONIZE_KEY_ENTER;
   name_entry_handle_input(&ne, &in);
@@ -100,102 +113,117 @@ int main(void) {
   if (!ne.has_result || !ne.result_cancelled || strcmp(ne.result_name, "New England") != 0) {
     return fail("landho cancel should keep @COLONYNAME seed");
   }
-
-  /* Authenticity: wired sections must fill from GAME.TXT when present. */
-  ColonizeMsgCatalog game_txt;
-  assets_msg_init(&game_txt);
-  if (assets_msg_load_file(&game_txt, "COLONIZE/GAME.TXT")) {
-    static const char* wired[] = {
-      "LANDFALL",
-      "KEEPSTOCKADE",
-      "ABANDON",
-      "DONTKNOWSHIPS",
-      "MADATSHIPS",
-      "INDIANCOMMENT",
-      "WHICHFREEDOM",
-      "FREEDOM",
-      "KINGTAX",
-      "MERCENARIES",
-      "MERCS",
-    };
-    PopupMsgTokens fill_tok;
-    memset(&fill_tok, 0, sizeof(fill_tok));
-    fill_tok.string0 = "Sioux";
-    fill_tok.string1 = "Jamestown";
-    fill_tok.number0 = 5;
-    fill_tok.has_number0 = true;
-    for (size_t i = 0; i < sizeof(wired) / sizeof(wired[0]); i++) {
-      char body[512];
-      popup_msg_fill(&game_txt, wired[i], &fill_tok, "FALLBACK", body, sizeof(body));
-      if (strcmp(body, "FALLBACK") == 0 || body[0] == '\0') {
-        fprintf(stderr, "smoke_popup_dialogs: %s fell back\n", wired[i]);
-        assets_msg_free(&game_txt);
-        return fail("popup_msg_fill must use GAME.TXT section");
-      }
-    }
-    char landfall_choices[4][POPUP_MSG_CHOICE_LEN];
-    const ColonizeMsgSection* landfall = assets_msg_find(&game_txt, "LANDFALL");
-    int n = popup_msg_choices(landfall, landfall_choices, 4);
-    if (n < 2) {
-      assets_msg_free(&game_txt);
-      return fail("LANDFALL must expose Stay/Landfall choices");
-    }
-    char tax_choices[4][POPUP_MSG_CHOICE_LEN];
-    const ColonizeMsgSection* taxopt = assets_msg_find(&game_txt, "TAXOPTIONS");
-    n = popup_msg_choices(taxopt, tax_choices, 4);
-    if (n < 2) {
-      assets_msg_free(&game_txt);
-      return fail("TAXOPTIONS must expose Kiss/Party choices");
-    }
-    /* @DECLARE Never… is 53 chars — must fit POPUP_MSG_CHOICE_LEN without cut. */
-    char declare_choices[4][POPUP_MSG_CHOICE_LEN];
-    const ColonizeMsgSection* decl = assets_msg_find(&game_txt, "DECLARE");
-    n = popup_msg_choices(decl, declare_choices, 4);
-    if (n < 2) {
-      assets_msg_free(&game_txt);
-      return fail("DECLARE must expose Never/Yes choices");
-    }
-    if (!strstr(declare_choices[0], "God save the King")) {
-      fprintf(stderr, "smoke_popup_dialogs: DECLARE Never truncated: '%s'\n",
-              declare_choices[0]);
-      assets_msg_free(&game_txt);
-      return fail("DECLARE Never choice must keep 'God save the King'");
-    }
-    assets_msg_free(&game_txt);
-  }
-
-  /* P11.3: GAME.TXT @width rides popup_msg_fill's side-channel into the next
-   * ai_popup enqueue (RECRUITCHOOSE is one of the 99 @width=220 sections;
-   * a fallback-only fill leaves the default). */
-  {
-    ColonizeMsgCatalog wtxt;
-    assets_msg_init(&wtxt);
-    if (assets_msg_load_file(&wtxt, "COLONIZE/GAME.TXT")) {
-      const ColonizeMsgSection* rc = assets_msg_find(&wtxt, "RECRUITCHOOSE");
-      if (!rc || popup_msg_section_width(rc) != 220) {
-        return fail("RECRUITCHOOSE @width should parse as 220");
-      }
-      char body[256];
-      PopupMsgTokens wtok;
-      memset(&wtok, 0, sizeof(wtok));
-      wtok.string0 = "Amsterdam";
-      popup_msg_fill(&wtxt, "RECRUITCHOOSE", &wtok, "fb", body, sizeof(body));
-      AiPopupState wst;
-      ai_popup_init(&wst);
-      if (!ai_popup_enqueue_ok(&wst, AI_POPUP_TAG_INFO, NULL, body) || wst.queue[0].width != 220) {
-        return fail("enqueue after fill should carry @width=220");
-      }
-      if (!ai_popup_enqueue_ok(&wst, AI_POPUP_TAG_INFO, NULL, "plain") || wst.queue[1].width != 0) {
-        return fail("second enqueue without a fill should take the default width");
-      }
-      popup_msg_fill(&wtxt, "NOSUCHSECTION_XYZ", &wtok, "fb", body, sizeof(body));
-      if (popup_msg_take_pending_width() != 0) {
-        return fail("fallback fill must clear the pending width");
-      }
-      assets_msg_free(&wtxt);
-    }
-  }
-
-  printf("smoke_popup_dialogs ok\n");
   return 0;
 }
+
+/* Authenticity: wired sections must fill from GAME.TXT when present. */
+static int case_game_txt_wired_sections(void) {
+  ColonizeMsgCatalog game_txt;
+  assets_msg_init(&game_txt);
+  if (!assets_msg_load_file(&game_txt, "COLONIZE/GAME.TXT")) {
+    return 0;
+  }
+  static const char* wired[] = {
+    "LANDFALL",
+    "KEEPSTOCKADE",
+    "ABANDON",
+    "DONTKNOWSHIPS",
+    "MADATSHIPS",
+    "INDIANCOMMENT",
+    "WHICHFREEDOM",
+    "FREEDOM",
+    "KINGTAX",
+    "MERCENARIES",
+    "MERCS",
+  };
+  PopupMsgTokens fill_tok;
+  memset(&fill_tok, 0, sizeof(fill_tok));
+  fill_tok.string0 = "Sioux";
+  fill_tok.string1 = "Jamestown";
+  fill_tok.number0 = 5;
+  fill_tok.has_number0 = true;
+  for (size_t i = 0; i < sizeof(wired) / sizeof(wired[0]); i++) {
+    char body[512];
+    popup_msg_fill(&game_txt, wired[i], &fill_tok, "FALLBACK", body, sizeof(body));
+    if (strcmp(body, "FALLBACK") == 0 || body[0] == '\0') {
+      fprintf(stderr, "smoke_popup_dialogs: %s fell back\n", wired[i]);
+      assets_msg_free(&game_txt);
+      return fail("popup_msg_fill must use GAME.TXT section");
+    }
+  }
+  char landfall_choices[4][POPUP_MSG_CHOICE_LEN];
+  const ColonizeMsgSection* landfall = assets_msg_find(&game_txt, "LANDFALL");
+  int n = popup_msg_choices(landfall, landfall_choices, 4);
+  if (n < 2) {
+    assets_msg_free(&game_txt);
+    return fail("LANDFALL must expose Stay/Landfall choices");
+  }
+  char tax_choices[4][POPUP_MSG_CHOICE_LEN];
+  const ColonizeMsgSection* taxopt = assets_msg_find(&game_txt, "TAXOPTIONS");
+  n = popup_msg_choices(taxopt, tax_choices, 4);
+  if (n < 2) {
+    assets_msg_free(&game_txt);
+    return fail("TAXOPTIONS must expose Kiss/Party choices");
+  }
+  /* @DECLARE Never… is 53 chars — must fit POPUP_MSG_CHOICE_LEN without cut. */
+  char declare_choices[4][POPUP_MSG_CHOICE_LEN];
+  const ColonizeMsgSection* decl = assets_msg_find(&game_txt, "DECLARE");
+  n = popup_msg_choices(decl, declare_choices, 4);
+  if (n < 2) {
+    assets_msg_free(&game_txt);
+    return fail("DECLARE must expose Never/Yes choices");
+  }
+  if (!strstr(declare_choices[0], "God save the King")) {
+    fprintf(stderr, "smoke_popup_dialogs: DECLARE Never truncated: '%s'\n",
+            declare_choices[0]);
+    assets_msg_free(&game_txt);
+    return fail("DECLARE Never choice must keep 'God save the King'");
+  }
+  assets_msg_free(&game_txt);
+  return 0;
+}
+
+/* P11.3: GAME.TXT @width rides popup_msg_fill's side-channel into the next
+ * ai_popup enqueue (RECRUITCHOOSE is one of the 99 @width=220 sections;
+ * a fallback-only fill leaves the default). */
+static int case_recruitchoose_width(void) {
+  ColonizeMsgCatalog wtxt;
+  assets_msg_init(&wtxt);
+  if (!assets_msg_load_file(&wtxt, "COLONIZE/GAME.TXT")) {
+    return 0;
+  }
+  const ColonizeMsgSection* rc = assets_msg_find(&wtxt, "RECRUITCHOOSE");
+  if (!rc || popup_msg_section_width(rc) != 220) {
+    return fail("RECRUITCHOOSE @width should parse as 220");
+  }
+  char body[256];
+  PopupMsgTokens wtok;
+  memset(&wtok, 0, sizeof(wtok));
+  wtok.string0 = "Amsterdam";
+  popup_msg_fill(&wtxt, "RECRUITCHOOSE", &wtok, "fb", body, sizeof(body));
+  AiPopupState wst;
+  ai_popup_init(&wst);
+  if (!ai_popup_enqueue_ok(&wst, AI_POPUP_TAG_INFO, NULL, body) || wst.queue[0].width != 220) {
+    return fail("enqueue after fill should carry @width=220");
+  }
+  if (!ai_popup_enqueue_ok(&wst, AI_POPUP_TAG_INFO, NULL, "plain") || wst.queue[1].width != 0) {
+    return fail("second enqueue without a fill should take the default width");
+  }
+  popup_msg_fill(&wtxt, "NOSUCHSECTION_XYZ", &wtok, "fb", body, sizeof(body));
+  if (popup_msg_take_pending_width() != 0) {
+    return fail("fallback fill must clear the pending width");
+  }
+  assets_msg_free(&wtxt);
+  return 0;
+}
+
+static const TestCase k_cases[] = {
+    {"token_apply", case_token_apply},
+    {"howmuch", case_howmuch},
+    {"options", case_options},
+    {"name_entry", case_name_entry},
+    {"game_txt_wired_sections", case_game_txt_wired_sections},
+    {"recruitchoose_width", case_recruitchoose_width},
+};
+
+TEST_MAIN(k_cases)

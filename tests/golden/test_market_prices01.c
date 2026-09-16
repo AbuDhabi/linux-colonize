@@ -66,13 +66,13 @@ static int run_pair(const PairSpec* ps) {
     return 1;
   }
   ColonizeCol1BridgeResult br;
-  if (!col1_bridge_apply(&a, &map, &units, &colonies, &europe, &br, err, sizeof(err))) {
+  if (!col1_bridge_apply_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&units), .colonies=(ColonizeColonyPool*)(&colonies), .map=(ColonizeWorldMap*)(&map), .col1=(ColonizeCol1Save*)(&a), .col1_ok=true, .europe=(EuropeScreen*)(&europe)}, &br, err, sizeof(err))) {
     fprintf(stderr, "bridge: %s\n", err);
     return 1;
   }
   const int human = br.human_nation;
   /* DOS increments the turn before the nation passes run. */
-  europe_tick_market_prices(&europe, &a, &colonies, human, (uint32_t)a.head.turn + 1u);
+  europe_tick_market_prices_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&colonies), .col1=(ColonizeCol1Save*)(&a), .col1_ok=true, .europe=(EuropeScreen*)(&europe)}, human, (uint32_t)a.head.turn + 1u);
 
   int rc = 0;
   for (int c = 0; c < 16; ++c) {

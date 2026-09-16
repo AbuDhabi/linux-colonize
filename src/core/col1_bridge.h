@@ -42,16 +42,6 @@ bool col1_bridge_apply_w(
   char* err,
   size_t err_size
 );
-bool col1_bridge_apply(
-  const ColonizeCol1Save* save,
-  ColonizeWorldMap* map,
-  ColonizeUnitPool* units,
-  ColonizeColonyPool* colonies,
-  EuropeScreen* europe,
-  ColonizeCol1BridgeResult* out,
-  char* err,
-  size_t err_size
-);
 
 /*
  * Update *save in place from live state (must already be a valid loaded or
@@ -68,29 +58,6 @@ bool col1_bridge_capture_w(
   int view_x,
   int view_y,
   int active_unit_id,
-  bool view_pieces_mode,
-  char* err,
-  size_t err_size
-);
-bool col1_bridge_capture(
-  ColonizeCol1Save* save,
-  const ColonizeWorldMap* map,
-  ColonizeUnitPool* units,
-  const ColonizeColonyPool* colonies,
-  const EuropeScreen* europe,
-  uint16_t year,
-  uint16_t autumn,
-  uint32_t turn_number,
-  int human_nation,
-  int cursor_x, /* DS:0x8540/0x853e focus tile (map cursor) */
-  int cursor_y,
-  int view_x, /* DS:0x17c/0x17e camera centre */
-  int view_y,
-  int active_unit_id,
-  /* DS:0x5390 map_mode — the live View Pieces toggle, NOT a function of the
-   * selection: the View Pieces command (raw 42112) sets 0x5390 = 1 without
-   * touching 0x5392, and two DOS fixtures carry mode 1 with an active unit
-   * (original_saves/COLONY01, french-campaign/COLONY09). */
   bool view_pieces_mode,
   char* err,
   size_t err_size

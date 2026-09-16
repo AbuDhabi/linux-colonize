@@ -361,20 +361,6 @@ int ai_goals_nearest_landing_water_w(
   return 0;
 }
 
-/* Compat shim: pre-ColonizeWorld signature (see src/core/world.h). */
-int ai_goals_nearest_landing_water(
-  const ColonizeWorldMap* map,
-  const ColonizeUnitPool* units,
-  const ColonizeColonyPool* colonies,
-  int from_x,
-  int from_y,
-  int max_radius,
-  int* out_x,
-  int* out_y
-) {
-  ColonizeWorld w_ = world_make(units, colonies, map, NULL, false, NULL, NULL);
-  return ai_goals_nearest_landing_water_w(&w_, from_x, from_y, max_radius, out_x, out_y);
-}
 
 int ai_goals_best_found_tile(int nation_id, int* out_x, int* out_y) {
   /* Position-free query (CHEAT colony-site overlay): no distance tiebreak. */
@@ -543,17 +529,6 @@ int ai_goals_colony_balance_flags_w(
   return flags;
 }
 
-/* Compat shim: pre-ColonizeWorld signature (see src/core/world.h). */
-int ai_goals_colony_balance_flags(
-  const ColonizeWorldMap* map,
-  const ColonizeColonyPool* colonies,
-  const ColonizeCol1Save* col1,
-  int nation_id,
-  int continent_id
-) {
-  ColonizeWorld w_ = world_make(NULL, colonies, map, col1, col1 != NULL, NULL, NULL);
-  return ai_goals_colony_balance_flags_w(&w_, nation_id, continent_id);
-}
 
 /* Defined with the 0906 probes below; DOS FUN_281f_0682 / 06be. */
 static int ai_goals_tile_layer2_owner(const ColonizeWorldMap* map, int x, int y, unsigned bit);
@@ -729,7 +704,7 @@ int ai_goals_pick_founding_tile_ex_w(
     if (score_extras) {
       /* Decomp: 0492(nation, continent_of_candidate) once per empty neighbor. */
       const int cand_cid = map_continent_id_at(map, nx, ny);
-      const int bal = ai_goals_colony_balance_flags(map, colonies, col1, nation_id, cand_cid);
+      const int bal = ai_goals_colony_balance_flags_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(colonies), .map=(ColonizeWorldMap*)(map), .col1=(ColonizeCol1Save*)(col1), .col1_ok=((col1) != NULL)}, nation_id, cand_cid);
       for (int nd = 0; nd < 8; ++nd) {
         const int hx = nx + k_dir8_dx[nd];
         const int hy = ny + k_dir8_dy[nd];
@@ -825,23 +800,6 @@ int ai_goals_pick_founding_tile_ex_w(
   return 1;
 }
 
-/* Compat shim: pre-ColonizeWorld signature (see src/core/world.h). */
-int ai_goals_pick_founding_tile_ex(
-  const ColonizeWorldMap* map,
-  const ColonizeColonyPool* colonies,
-  const ColonizeCol1Save* col1,
-  const struct ColonizeUnitPool* units,
-  int nation_id,
-  int x,
-  int y,
-  int score_extras,
-  int wagon_filter,
-  int* out_x,
-  int* out_y
-) {
-  ColonizeWorld w_ = world_make(units, colonies, map, col1, col1 != NULL, NULL, NULL);
-  return ai_goals_pick_founding_tile_ex_w(&w_, nation_id, x, y, score_extras, wagon_filter, out_x, out_y);
-}
 
 int ai_goals_pick_founding_tile_w(
   const ColonizeWorld* w,
@@ -855,35 +813,9 @@ int ai_goals_pick_founding_tile_w(
   const ColonizeColonyPool* colonies = w->colonies;
   const ColonizeCol1Save* col1 = w->col1;
 
-  return ai_goals_pick_founding_tile_ex(
-    map,
-    colonies,
-    col1,
-    /*units=*/NULL,
-    nation_id,
-    x,
-    y,
-    /*score_extras=*/1,
-    /*wagon_filter=*/0,
-    out_x,
-    out_y
-  );
+  return ai_goals_pick_founding_tile_ex_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(NULL), .colonies=(ColonizeColonyPool*)(colonies), .map=(ColonizeWorldMap*)(map), .col1=(ColonizeCol1Save*)(col1), .col1_ok=((col1) != NULL)}, nation_id, x, y, 1, 0, out_x, out_y);
 }
 
-/* Compat shim: pre-ColonizeWorld signature (see src/core/world.h). */
-int ai_goals_pick_founding_tile(
-  const ColonizeWorldMap* map,
-  const ColonizeColonyPool* colonies,
-  const ColonizeCol1Save* col1,
-  int nation_id,
-  int x,
-  int y,
-  int* out_x,
-  int* out_y
-) {
-  ColonizeWorld w_ = world_make(NULL, colonies, map, col1, col1 != NULL, NULL, NULL);
-  return ai_goals_pick_founding_tile_w(&w_, nation_id, x, y, out_x, out_y);
-}
 
 /* Test-only accessor (tests/unit/test_ai_goals.c): production refills the
  * scratch through ai_goals_plan_scratch_refresh and reads it in-module. */
@@ -1167,7 +1099,7 @@ int ai_goals_composite_unit_priority_w(
     map, colonies, nation_id, unit_x, unit_y, unit_type, unit_profession,
     continent, turn, total_colony_count
   );
-  const int balance = ai_goals_colony_balance_flags(map, colonies, col1, nation_id, continent);
+  const int balance = ai_goals_colony_balance_flags_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(colonies), .map=(ColonizeWorldMap*)(map), .col1=(ColonizeCol1Save*)(col1), .col1_ok=((col1) != NULL)}, nation_id, continent);
   const int urgency = ai_goals_founding_expansion_urgency(nation_id, total_colony_count);
   int total = desirability + balance + urgency;
   if (total < 0) {
@@ -1176,22 +1108,6 @@ int ai_goals_composite_unit_priority_w(
   return total;
 }
 
-/* Compat shim: pre-ColonizeWorld signature (see src/core/world.h). */
-int ai_goals_composite_unit_priority(
-  const ColonizeWorldMap* map,
-  const ColonizeColonyPool* colonies,
-  const ColonizeCol1Save* col1,
-  int nation_id,
-  int unit_x,
-  int unit_y,
-  int unit_type,
-  int unit_profession,
-  int turn,
-  int total_colony_count
-) {
-  ColonizeWorld w_ = world_make(NULL, colonies, map, col1, col1 != NULL, NULL, NULL);
-  return ai_goals_composite_unit_priority_w(&w_, nation_id, unit_x, unit_y, unit_type, unit_profession, turn, total_colony_count);
-}
 
 /*
  * FUN_521d_0656 — stack_settler_pick. The canonical decompile
@@ -1466,18 +1382,3 @@ int ai_goals_probe_adjacent_contact_claim_w(
   return claim;
 }
 
-/* Compat shim: pre-ColonizeWorld signature (see src/core/world.h). */
-int ai_goals_probe_adjacent_contact_claim(
-  const ColonizeWorldMap* map,
-  const ColonizeColonyPool* colonies,
-  const struct ColonizeUnitPool* units,
-  const ColonizeCol1Save* col1,
-  int x,
-  int y,
-  int nation_id,
-  int profession,
-  int* out_side_claim
-) {
-  ColonizeWorld w_ = world_make(units, colonies, map, col1, col1 != NULL, NULL, NULL);
-  return ai_goals_probe_adjacent_contact_claim_w(&w_, x, y, nation_id, profession, out_side_claim);
-}

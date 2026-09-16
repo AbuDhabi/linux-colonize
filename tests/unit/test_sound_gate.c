@@ -17,7 +17,9 @@
 
 #include "core/sound.h"
 
-static int g_fail = 0;
+#include "../common/test_runner.h"
+
+static int g_fail;
 
 static void check(bool cond, const char* what) {
   if (!cond) {
@@ -34,30 +36,43 @@ static ColonizeSoundOptions mk(bool bgm, bool ev, bool sfx) {
   return o;
 }
 
-int main(void) {
-  const ColonizeSoundOptions all_on = mk(true, true, true);
+/* System ids (< 0x10): unconditional, BX = 1 at 12d8:001c. */
+static int case_system_ids(void) {
   const ColonizeSoundOptions all_off = mk(false, false, false);
-
-  /* System ids (< 0x10): unconditional, BX = 1 at 12d8:001c. */
+  g_fail = 0;
   for (int id = 0; id < 0x10; ++id) {
     check(sound_id_gate_allows(id, all_off), "system id forwarded with every option off");
   }
+  return g_fail;
+}
 
-  /* Song class 0x20..0x3f follows Event Music, not Background Music. */
+/* Song class 0x20..0x3f follows Event Music, not Background Music. */
+static int case_song_class(void) {
+  const ColonizeSoundOptions all_on = mk(true, true, true);
+  g_fail = 0;
   for (int id = 0x20; id <= 0x3f; ++id) {
     check(sound_id_gate_allows(id, all_on), "song plays with all options on");
     check(sound_id_gate_allows(id, mk(false, true, false)), "song plays on event_music alone");
     check(!sound_id_gate_allows(id, mk(true, false, true)), "song silent when event_music off");
   }
+  return g_fail;
+}
 
-  /* Event class 0x40..0x5c follows Sound Effects, not Event Music. */
+/* Event class 0x40..0x5c follows Sound Effects, not Event Music. */
+static int case_event_class(void) {
+  const ColonizeSoundOptions all_on = mk(true, true, true);
+  g_fail = 0;
   for (int id = 0x40; id <= 0x5c; ++id) {
     check(sound_id_gate_allows(id, all_on), "event id plays with all options on");
     check(sound_id_gate_allows(id, mk(false, false, true)), "event id plays on sound_effects alone");
     check(!sound_id_gate_allows(id, mk(true, true, false)), "event id silent when sfx off");
   }
+  return g_fail;
+}
 
-  /* Background Music never reaches this gate in either direction. */
+/* Background Music never reaches this gate in either direction. */
+static int case_bgm_does_not_gate(void) {
+  g_fail = 0;
   check(
     sound_id_gate_allows(0x21, mk(false, true, false)) ==
       sound_id_gate_allows(0x21, mk(true, true, false)),
@@ -68,26 +83,41 @@ int main(void) {
       sound_id_gate_allows(0x45, mk(true, false, true)),
     "background_music does not gate event ids"
   );
+  return g_fail;
+}
 
-  /* Chord stings: negative as int16 => BX = 1 => ungated. */
+/* Chord stings: negative as int16 => BX = 1 => ungated. */
+static int case_chord_stings(void) {
+  const ColonizeSoundOptions all_off = mk(false, false, false);
+  g_fail = 0;
   check(sound_id_gate_allows(0x8020, all_off), "0x8020 war-declaration chord ungated");
   check(sound_id_gate_allows(0x8024, all_off), "0x8024 assign-colonist chord ungated");
   check(sound_id_gate_allows(0x8026, all_off), "0x8026 chord ungated");
   check(sound_id_gate_allows(0x8000, all_off), "first negative id ungated");
+  return g_fail;
+}
 
-  /* An id in [0x10,0x1f] carries neither bit: the OR chain drops it. */
+/* An id in [0x10,0x1f] carries neither bit: the OR chain drops it. The two
+ * class checks are an OR chain (12d8:002f-0045), not two vetoes: an id with
+ * both bits plays when either option is on. */
+static int case_class_or_chain(void) {
+  const ColonizeSoundOptions all_on = mk(true, true, true);
+  g_fail = 0;
   check(!sound_id_gate_allows(0x10, all_on), "0x10 carries neither class bit, dropped");
   check(!sound_id_gate_allows(0x1f, all_on), "0x1f carries neither class bit, dropped");
-
-  /* The two class checks are an OR chain (12d8:002f-0045), not two vetoes:
-   * an id with both bits plays when either option is on. */
   check(sound_id_gate_allows(0x60, mk(false, true, false)), "0x60 plays on event_music");
   check(sound_id_gate_allows(0x60, mk(false, false, true)), "0x60 plays on sound_effects");
   check(!sound_id_gate_allows(0x60, mk(true, false, false)), "0x60 silent with both off");
-
-  if (g_fail) {
-    return 1;
-  }
-  fprintf(stderr, "sound gate tests ok\n");
-  return 0;
+  return g_fail;
 }
+
+static const TestCase k_cases[] = {
+    {"case_system_ids", case_system_ids},
+    {"case_song_class", case_song_class},
+    {"case_event_class", case_event_class},
+    {"case_bgm_does_not_gate", case_bgm_does_not_gate},
+    {"case_chord_stings", case_chord_stings},
+    {"case_class_or_chain", case_class_or_chain},
+};
+
+TEST_MAIN(k_cases)

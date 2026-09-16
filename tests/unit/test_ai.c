@@ -15,6 +15,7 @@
 #include "core/units.h"
 #include "platform/diagnostics.h"
 #include "platform/platform.h"
+#include "../common/test_runner.h"
 
 static int count_nation_ships_europe(const ColonizeUnitPool* units, int nation) {
   int n = 0;
@@ -816,7 +817,8 @@ static int run_init_and_turns(
         assets_msg_free(&names);
         return 1;
       }
-      turn_refresh_moves_for_nation(&units, rival, NULL, NULL, NULL, NULL, NULL);
+      ColonizeWorld w820 = world_make(&units, NULL, NULL, NULL, false, NULL, NULL);
+      turn_refresh_moves_for_nation_w(&w820, rival, NULL, NULL);
       ai_euro_nation_turn(&ctx, rival);
       if (units.selected_id != human_sel) {
         fprintf(
@@ -847,7 +849,8 @@ static int run_init_and_turns(
             continue;
           }
           while (sh->cargo_count > 0) {
-            if (!units_unload(&units, sh->id, &map, land_x, land_y, &colonies)) {
+            ColonizeWorld w_unload = world_make(&units, &colonies, &map, NULL, false, NULL, NULL);
+            if (!units_unload_w(&w_unload, sh->id, land_x, land_y)) {
               break;
             }
           }
@@ -1327,26 +1330,22 @@ static int run_152e_mission_nibble_out_of_domain(void) {
   return 0;
 }
 
-int main(void) {
+static int case_new_world(void) {
   diag_init(0, NULL);
-  const char* data = "COLONIZE";
-  if (run_init_and_turns(data, false, 0, "NEW_WORLD") != 0) {
-    return 1;
-  }
-  if (run_init_and_turns(data, true, 2, "AMERICA") != 0) {
-    return 1;
-  }
-  if (run_village_threat_alarm() != 0) {
-    return 1;
-  }
-  if (run_152e_mission_attitude_word() != 0) {
-    return 1;
-  }
-  if (run_152e_alarm_escalation() != 0) {
-    return 1;
-  }
-  if (run_152e_mission_nibble_out_of_domain() != 0) {
-    return 1;
-  }
-  return 0;
+  return run_init_and_turns("COLONIZE", false, 0, "NEW_WORLD");
 }
+
+static int case_america(void) {
+  diag_init(0, NULL);
+  return run_init_and_turns("COLONIZE", true, 2, "AMERICA");
+}
+
+static const TestCase k_cases[] = {
+    {"case_new_world", case_new_world},
+    {"case_america", case_america},
+    {"run_village_threat_alarm", run_village_threat_alarm},
+    {"run_152e_mission_attitude_word", run_152e_mission_attitude_word},
+    {"run_152e_alarm_escalation", run_152e_alarm_escalation},
+    {"run_152e_mission_nibble_out_of_domain", run_152e_mission_nibble_out_of_domain},
+};
+TEST_MAIN(k_cases)

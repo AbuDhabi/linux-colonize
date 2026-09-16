@@ -8,6 +8,8 @@
 #include "core/pik.h"
 #include "platform/diagnostics.h"
 
+#include "../common/test_runner.h"
+
 static int expect_preview(
   int index,
   int terrain_sprite,
@@ -64,9 +66,7 @@ static int expect_preview(
   return 0;
 }
 
-int main(void) {
-  diag_init(0, NULL);
-
+static int case_terrain_preview_sprites(void) {
   static const int coast_phys0[] = {150, 151, 152, 153};
   static const int forest8[] = {70};
   static const int forest13[] = {69};
@@ -85,171 +85,215 @@ int main(void) {
     fprintf(stderr, "%s\n", err);
     return 1;
   }
+  return 0;
+}
 
-  ColonizeMsgCatalog catalog;
-  assets_msg_init(&catalog);
-  if (!assets_msg_load_file(&catalog, "COLONIZE/PEDIA.TXT")) {
+/*
+ * PEDIA.TXT / NAMES.TXT are read-only message catalogs — every remaining case
+ * only reads them, so a single process-lifetime load (never mutated, never
+ * freed until exit) is order-independent by construction. This mirrors the
+ * original main()'s single load-then-use-many-times structure without a
+ * per-case reset hook, since there is nothing case-run can mutate.
+ */
+static ColonizeMsgCatalog s_catalog;
+static ColonizeMsgCatalog s_names;
+static int s_loaded = 0;
+static int s_load_ok = 0;
+
+static int fixture_ensure(void) {
+  if (s_loaded) {
+    return s_load_ok ? 0 : 1;
+  }
+  s_loaded = 1;
+  assets_msg_init(&s_catalog);
+  if (!assets_msg_load_file(&s_catalog, "COLONIZE/PEDIA.TXT")) {
     fprintf(stderr, "failed to load PEDIA.TXT\n");
+    s_load_ok = 0;
     return 1;
   }
-
-  ColonizeMsgCatalog names;
-  assets_msg_init(&names);
-  if (!assets_msg_load_file(&names, "COLONIZE/NAMES.TXT")) {
+  assets_msg_init(&s_names);
+  if (!assets_msg_load_file(&s_names, "COLONIZE/NAMES.TXT")) {
     fprintf(stderr, "failed to load NAMES.TXT\n");
-    assets_msg_free(&catalog);
+    assets_msg_free(&s_catalog);
+    s_load_ok = 0;
     return 1;
   }
+  s_load_ok = 1;
+  return 0;
+}
 
+static int case_load_catalogs(void) {
+  return fixture_ensure();
+}
+
+static int case_terrain_pages(void) {
+  if (fixture_ensure() != 0) {
+    return 1;
+  }
   PediaPage page;
-  if (!pedia_terrain_page(&catalog, 0, &page)) {
+  if (!pedia_terrain_page(&s_catalog, 0, &page)) {
     fprintf(stderr, "failed to build TERRAIN0 page\n");
-    assets_msg_free(&catalog);
-    assets_msg_free(&names);
     return 1;
   }
   if (strcmp(page.title, "TUNDRA") != 0) {
     fprintf(stderr, "TERRAIN0 title expected TUNDRA got '%s'\n", page.title);
-    assets_msg_free(&catalog);
-    assets_msg_free(&names);
     return 1;
   }
   if (page.body_line_count < 1) {
     fprintf(stderr, "TERRAIN0 expected body text\n");
-    assets_msg_free(&catalog);
-    assets_msg_free(&names);
     return 1;
   }
-
-  if (!pedia_terrain_page(&catalog, 27, &page) || strcmp(page.title, "MOUNTAINS") != 0) {
+  if (!pedia_terrain_page(&s_catalog, 27, &page) || strcmp(page.title, "MOUNTAINS") != 0) {
     fprintf(stderr, "TERRAIN27 title expected MOUNTAINS got '%s'\n", page.title);
-    assets_msg_free(&catalog);
-    assets_msg_free(&names);
     return 1;
   }
+  return 0;
+}
 
-  if (!pedia_page(&catalog, &names, PEDIA_CAT_CARGO, 0, &page) ||
+static int case_cargo_page(void) {
+  if (fixture_ensure() != 0) {
+    return 1;
+  }
+  PediaPage page;
+  if (!pedia_page(&s_catalog, &s_names, PEDIA_CAT_CARGO, 0, &page) ||
       strstr(page.title, "FOOD") == NULL) {
     fprintf(stderr, "CARGO0 title expected FOOD got '%s'\n", page.title);
-    assets_msg_free(&catalog);
-    assets_msg_free(&names);
     return 1;
   }
   if (page.preview_kind != PEDIA_PREVIEW_ICON || page.icon_sprite != 22) {
     fprintf(stderr, "CARGO0 icon expected 22\n");
-    assets_msg_free(&catalog);
-    assets_msg_free(&names);
     return 1;
   }
+  return 0;
+}
 
-  if (!pedia_page(&catalog, &names, PEDIA_CAT_JOB, 12, &page)) {
+static int case_job_page(void) {
+  if (fixture_ensure() != 0) {
+    return 1;
+  }
+  PediaPage page;
+  if (!pedia_page(&s_catalog, &s_names, PEDIA_CAT_JOB, 12, &page)) {
     fprintf(stderr, "JOB12 page failed (section name trim?)\n");
-    assets_msg_free(&catalog);
-    assets_msg_free(&names);
     return 1;
   }
   if (page.body_line_count < 1) {
     fprintf(stderr, "JOB12 expected body\n");
-    assets_msg_free(&catalog);
-    assets_msg_free(&names);
     return 1;
   }
+  return 0;
+}
 
-  if (!pedia_page(&catalog, &names, PEDIA_CAT_FATHER, 0, &page) ||
+static int case_father_page(void) {
+  if (fixture_ensure() != 0) {
+    return 1;
+  }
+  PediaPage page;
+  if (!pedia_page(&s_catalog, &s_names, PEDIA_CAT_FATHER, 0, &page) ||
       strstr(page.title, "Adam Smith") == NULL) {
     fprintf(stderr, "FATHER0 title expected Adam Smith got '%s'\n", page.title);
-    assets_msg_free(&catalog);
-    assets_msg_free(&names);
     return 1;
   }
   if (page.preview_kind != PEDIA_PREVIEW_FATHER || page.father_index != 0) {
     fprintf(stderr, "FATHER0 preview kind/index wrong\n");
-    assets_msg_free(&catalog);
-    assets_msg_free(&names);
     return 1;
   }
+  return 0;
+}
 
-  if (!pedia_page(&catalog, &names, PEDIA_CAT_MISC, 9, &page) ||
+static int case_misc_page(void) {
+  if (fixture_ensure() != 0) {
+    return 1;
+  }
+  PediaPage page;
+  if (!pedia_page(&s_catalog, &s_names, PEDIA_CAT_MISC, 9, &page) ||
       strcmp(page.title, "Liberty Bells") != 0) {
     fprintf(stderr, "MISC Liberty Bells failed got '%s'\n", page.title);
-    assets_msg_free(&catalog);
-    assets_msg_free(&names);
     return 1;
   }
+  return 0;
+}
 
+static int case_caret_flags(void) {
+  if (fixture_ensure() != 0) {
+    return 1;
+  }
   /*
    * Caret prefixes follow DOS FUN_6f74_0c32: "^^" = flag 1 (centred own line),
    * a single "^" = flag 2 (own line, LEFT-aligned) — the brace that follows a
    * heading caret says nothing about alignment.
    */
-  {
-    const char* rest = NULL;
-    struct {
-      const char* line;
-      int flags;
-      const char* rest;
-    } cases[] = {
-      {"^{Adam Smith (1723-1790)}", PEDIA_CARET_OWN_LINE, "{Adam Smith (1723-1790)}"},
-      {"^", PEDIA_CARET_OWN_LINE, ""},
-      {"^^Centred", PEDIA_CARET_CENTER, "Centred"},
-      {"^^{Centred heading}", PEDIA_CARET_CENTER, "{Centred heading}"},
-      {"Ordinary prose.", 0, "Ordinary prose."},
-      {"{brace} but no caret", 0, "{brace} but no caret"},
-    };
-    for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); ++i) {
-      const int got = pedia_caret_flags(cases[i].line, &rest);
-      if (got != cases[i].flags || strcmp(rest, cases[i].rest) != 0) {
-        fprintf(
-          stderr,
-          "caret '%s' expected flags=%d rest='%s' got flags=%d rest='%s'\n",
-          cases[i].line,
-          cases[i].flags,
-          cases[i].rest,
-          got,
-          rest
-        );
-        assets_msg_free(&catalog);
-        assets_msg_free(&names);
-        return 1;
-      }
-    }
-    /* Shipped PEDIA.TXT carries only single carets, so no heading centres. */
-    int caret_rows = 0;
-    int centred_rows = 0;
-    for (int s = 0; s < catalog.section_count; ++s) {
-      const ColonizeMsgSection* sec = &catalog.sections[s];
-      for (int i = 0; i < sec->line_count; ++i) {
-        const int f = pedia_caret_flags(sec->lines[i], NULL);
-        if (f != 0) {
-          caret_rows++;
-        }
-        if (f == PEDIA_CARET_CENTER) {
-          centred_rows++;
-        }
-      }
-    }
-    if (caret_rows == 0 || centred_rows != 0) {
+  const char* rest = NULL;
+  struct {
+    const char* line;
+    int flags;
+    const char* rest;
+  } cases[] = {
+    {"^{Adam Smith (1723-1790)}", PEDIA_CARET_OWN_LINE, "{Adam Smith (1723-1790)}"},
+    {"^", PEDIA_CARET_OWN_LINE, ""},
+    {"^^Centred", PEDIA_CARET_CENTER, "Centred"},
+    {"^^{Centred heading}", PEDIA_CARET_CENTER, "{Centred heading}"},
+    {"Ordinary prose.", 0, "Ordinary prose."},
+    {"{brace} but no caret", 0, "{brace} but no caret"},
+  };
+  for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); ++i) {
+    const int got = pedia_caret_flags(cases[i].line, &rest);
+    if (got != cases[i].flags || strcmp(rest, cases[i].rest) != 0) {
       fprintf(
         stderr,
-        "PEDIA.TXT caret rows=%d centred=%d (expected many, none centred)\n",
-        caret_rows,
-        centred_rows
+        "caret '%s' expected flags=%d rest='%s' got flags=%d rest='%s'\n",
+        cases[i].line,
+        cases[i].flags,
+        cases[i].rest,
+        got,
+        rest
       );
-      assets_msg_free(&catalog);
-      assets_msg_free(&names);
       return 1;
     }
   }
-
-  char title[PEDIA_TITLE_LEN];
-  if (!pedia_entry_title(&catalog, &names, PEDIA_CAT_CARGO, 0, title, sizeof(title)) ||
-      strstr(title, "FOOD") == NULL) {
-    fprintf(stderr, "list title CARGO0 expected FOOD got '%s'\n", title);
-    assets_msg_free(&catalog);
-    assets_msg_free(&names);
+  /* Shipped PEDIA.TXT carries only single carets, so no heading centres. */
+  int caret_rows = 0;
+  int centred_rows = 0;
+  for (int s = 0; s < s_catalog.section_count; ++s) {
+    const ColonizeMsgSection* sec = &s_catalog.sections[s];
+    for (int i = 0; i < sec->line_count; ++i) {
+      const int f = pedia_caret_flags(sec->lines[i], NULL);
+      if (f != 0) {
+        caret_rows++;
+      }
+      if (f == PEDIA_CARET_CENTER) {
+        centred_rows++;
+      }
+    }
+  }
+  if (caret_rows == 0 || centred_rows != 0) {
+    fprintf(
+      stderr,
+      "PEDIA.TXT caret rows=%d centred=%d (expected many, none centred)\n",
+      caret_rows,
+      centred_rows
+    );
     return 1;
   }
+  return 0;
+}
 
+static int case_entry_title(void) {
+  if (fixture_ensure() != 0) {
+    return 1;
+  }
+  char title[PEDIA_TITLE_LEN];
+  if (!pedia_entry_title(&s_catalog, &s_names, PEDIA_CAT_CARGO, 0, title, sizeof(title)) ||
+      strstr(title, "FOOD") == NULL) {
+    fprintf(stderr, "list title CARGO0 expected FOOD got '%s'\n", title);
+    return 1;
+  }
+  return 0;
+}
+
+static int case_list_render_and_hits(void) {
+  if (fixture_ensure() != 0) {
+    return 1;
+  }
   /* Encyclopedia list: wood background, header, Exit, green entry links. */
   ColonizePikImage wood;
   memset(&wood, 0, sizeof(wood));
@@ -262,84 +306,83 @@ int main(void) {
   const bool font_ok = ff_load("COLONIZE/FONTTINY.FF", &font, ff_err, sizeof(ff_err));
   const ColonizeFont* f = font_ok ? &font : NULL;
 
+  int rc = 0;
   uint8_t pixels[320 * 200];
   memset(pixels, 0, sizeof(pixels));
   ColonizeFramebuffer8 fb = {.width = 320, .height = 200, .pixels = pixels};
   pedia_list_render(
-    &catalog, &names, PEDIA_CAT_TERRAIN, wood_ok ? &wood : NULL, f, -1, &fb
+    &s_catalog, &s_names, PEDIA_CAT_TERRAIN, wood_ok ? &wood : NULL, f, -1, &fb
   );
   if (pixels[8 + 4 * 320] == 0 && pixels[20 * 320 + 8] == 0) {
     fprintf(stderr, "pedia list render produced empty pixels\n");
-    if (wood_ok) {
-      pik_free(&wood);
-    }
-    if (font_ok) {
-      ff_free(&font);
-    }
-    assets_msg_free(&catalog);
-    assets_msg_free(&names);
-    return 1;
+    rc = 1;
+    goto done;
   }
 
-  PediaListHit hit = pedia_list_hit(&catalog, &names, PEDIA_CAT_TERRAIN, f, 310, 4);
-  if (hit.kind != PEDIA_LIST_HIT_EXIT) {
-    fprintf(stderr, "expected Exit hit near top-right, got kind=%d\n", (int)hit.kind);
-    if (wood_ok) {
-      pik_free(&wood);
+  {
+    PediaListHit hit = pedia_list_hit(&s_catalog, &s_names, PEDIA_CAT_TERRAIN, f, 310, 4);
+    if (hit.kind != PEDIA_LIST_HIT_EXIT) {
+      fprintf(stderr, "expected Exit hit near top-right, got kind=%d\n", (int)hit.kind);
+      rc = 1;
+      goto done;
     }
-    if (font_ok) {
-      ff_free(&font);
+    hit = pedia_list_hit(&s_catalog, &s_names, PEDIA_CAT_TERRAIN, f, 10, 22);
+    if (hit.kind != PEDIA_LIST_HIT_ENTRY || hit.entry_index != 0) {
+      fprintf(
+        stderr,
+        "expected entry 0 hit, got kind=%d index=%d\n",
+        (int)hit.kind,
+        hit.entry_index
+      );
+      rc = 1;
+      goto done;
     }
-    assets_msg_free(&catalog);
-    assets_msg_free(&names);
-    return 1;
-  }
-  hit = pedia_list_hit(&catalog, &names, PEDIA_CAT_TERRAIN, f, 10, 22);
-  if (hit.kind != PEDIA_LIST_HIT_ENTRY || hit.entry_index != 0) {
-    fprintf(
-      stderr,
-      "expected entry 0 hit, got kind=%d index=%d\n",
-      (int)hit.kind,
-      hit.entry_index
-    );
-    if (wood_ok) {
-      pik_free(&wood);
-    }
-    if (font_ok) {
-      ff_free(&font);
-    }
-    assets_msg_free(&catalog);
-    assets_msg_free(&names);
-    return 1;
   }
 
-  if (assets_msg_find(&catalog, "JOB12") == NULL) {
-    fprintf(stderr, "JOB12 section should be trimmed of trailing space\n");
-    if (wood_ok) {
-      pik_free(&wood);
-    }
-    if (font_ok) {
-      ff_free(&font);
-    }
-    assets_msg_free(&catalog);
-    assets_msg_free(&names);
-    return 1;
-  }
-
-  fprintf(
-    stderr,
-    "pedia tests ok (categories=%d terrain=%d)\n",
-    (int)PEDIA_CAT_COUNT,
-    PEDIA_TERRAIN_COUNT
-  );
+done:
   if (wood_ok) {
     pik_free(&wood);
   }
   if (font_ok) {
     ff_free(&font);
   }
-  assets_msg_free(&catalog);
-  assets_msg_free(&names);
-  diag_shutdown();
+  return rc;
+}
+
+static int case_job12_section_trimmed(void) {
+  if (fixture_ensure() != 0) {
+    return 1;
+  }
+  if (assets_msg_find(&s_catalog, "JOB12") == NULL) {
+    fprintf(stderr, "JOB12 section should be trimmed of trailing space\n");
+    return 1;
+  }
+  fprintf(
+    stderr,
+    "pedia tests ok (categories=%d terrain=%d)\n",
+    (int)PEDIA_CAT_COUNT,
+    PEDIA_TERRAIN_COUNT
+  );
   return 0;
+}
+
+static const TestCase k_cases[] = {
+    {"case_terrain_preview_sprites", case_terrain_preview_sprites},
+    {"case_load_catalogs", case_load_catalogs},
+    {"case_terrain_pages", case_terrain_pages},
+    {"case_cargo_page", case_cargo_page},
+    {"case_job_page", case_job_page},
+    {"case_father_page", case_father_page},
+    {"case_misc_page", case_misc_page},
+    {"case_caret_flags", case_caret_flags},
+    {"case_entry_title", case_entry_title},
+    {"case_list_render_and_hits", case_list_render_and_hits},
+    {"case_job12_section_trimmed", case_job12_section_trimmed},
+};
+
+int main(void) {
+  diag_init(0, NULL);
+  int rc = tr_run_main(k_cases, (int)(sizeof(k_cases) / sizeof(k_cases[0])));
+  diag_shutdown();
+  return rc;
 }

@@ -7,6 +7,8 @@
 #include "platform/diagnostics.h"
 #include "platform/platform.h"
 
+#include "../common/test_runner.h"
+
 static int text_right_extent(const ColonizeFont* font, const char* text) {
   ColonizeFramebuffer8 fb;
   fb.width = 64;
@@ -50,13 +52,14 @@ static int assert_slash_widens(const ColonizeFont* font, const char* label) {
   return 1;
 }
 
-int main(void) {
+static int case_fontsmal(void) {
   diag_init(0, NULL);
 
   ColonizeFont font;
   char err[256];
   if (!ff_load("COLONIZE/FONTSMAL.FF", &font, err, sizeof(err))) {
     fprintf(stderr, "ff load failed: %s\n", err);
+    diag_shutdown();
     return 1;
   }
 
@@ -69,32 +72,46 @@ int main(void) {
   if (font.char_widths['A'] == 0 || font.char_offsets['A'] >= font.section_size) {
     fprintf(stderr, "invalid glyph A metadata\n");
     ff_free(&font);
+    diag_shutdown();
     return 1;
   }
 
   if (font.char_widths['/'] != 0) {
     fprintf(stderr, "expected FONTSMAL '/' width 0, got %u\n", font.char_widths['/']);
     ff_free(&font);
+    diag_shutdown();
     return 1;
   }
   if (!assert_slash_widens(&font, "FONTSMAL")) {
     ff_free(&font);
+    diag_shutdown();
     return 1;
   }
 
   ff_free(&font);
+  diag_shutdown();
+  return 0;
+}
 
+static int case_fonttiny(void) {
+  diag_init(0, NULL);
+
+  ColonizeFont font;
+  char err[256];
   if (!ff_load("COLONIZE/FONTTINY.FF", &font, err, sizeof(err))) {
     fprintf(stderr, "FONTTINY load failed: %s\n", err);
+    diag_shutdown();
     return 1;
   }
   if (font.char_widths['/'] == 0) {
     fprintf(stderr, "expected FONTTINY '/' glyph\n");
     ff_free(&font);
+    diag_shutdown();
     return 1;
   }
   if (!assert_slash_widens(&font, "FONTTINY")) {
     ff_free(&font);
+    diag_shutdown();
     return 1;
   }
   ff_free(&font);
@@ -102,3 +119,10 @@ int main(void) {
   diag_shutdown();
   return 0;
 }
+
+static const TestCase k_cases[] = {
+    {"case_fontsmal", case_fontsmal},
+    {"case_fonttiny", case_fonttiny},
+};
+
+TEST_MAIN(k_cases)

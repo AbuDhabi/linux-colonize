@@ -292,8 +292,8 @@ cmake --build build/debug --target golden_ai_joint         # when AI or turn ord
   memory `ai-ship-wiggle-fix`.
 - Debug switches are catalogued in **[debug_env_vars.md](debug_env_vars.md)**
   (note which ones *change behaviour*). Quick picks: `DOS_RNG_TRACE`,
-  `AI_SCORE_AT="n:x:y"`, `AI_PEEL_AUDIT=1`, `AI_TURNS_ONLY=t`,
-  `AI_TURNS_ALL=1`, `AI_SHIP_TRACE=1`, `AI_SET_GOTO_TRACE=1`. `debug.logs` is a
+  `AI_SCORE_AT="n:x:y"`, `AI_PEEL_AUDIT=1`, `COLONIZE_TEST_ONLY=<case>` (any test binary),
+  `AI_SHIP_TRACE=1`, `AI_SET_GOTO_TRACE=1`. `debug.logs` is a
   `settings.json` / DEBUG-menu toggle, not an env var (categories table in
   `docs/settings.md`; context stamped by `diag_set_context` / `game_track_screen`).
 - Finally: annotate the `bugs.md` row. Status meanings there —

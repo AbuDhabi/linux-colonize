@@ -180,16 +180,6 @@ void colonies_reveal_founded_w(
   }
 }
 
-/* Compat shim: pre-ColonizeWorld signature (see src/core/world.h). */
-void colonies_reveal_founded(
-  ColonizeWorldMap* map,
-  ColonizeColonyPool* pool,
-  const ColonizeCol1Save* col1,
-  int colony_id
-) {
-  ColonizeWorld w_ = world_make(NULL, pool, map, col1, col1 != NULL, NULL, NULL);
-  colonies_reveal_founded_w(&w_, colony_id);
-}
 
 void colonies_init(ColonizeColonyPool* pool) {
   if (!pool) {
@@ -729,20 +719,6 @@ int colonies_indian_claim_tribe_from_w(
   return ti;
 }
 
-/* Compat shim: pre-ColonizeWorld signature (see src/core/world.h). */
-int colonies_indian_claim_tribe_from(
-  const ColonizeCol1Save* col1,
-  const ColonizeWorldMap* map,
-  const ColonizeColonyPool* pool,
-  int viewer_nation,
-  int origin_x,
-  int origin_y,
-  int x,
-  int y
-) {
-  ColonizeWorld w_ = world_make(NULL, pool, map, col1, col1 != NULL, NULL, NULL);
-  return colonies_indian_claim_tribe_from_w(&w_, viewer_nation, origin_x, origin_y, x, y);
-}
 
 void colonies_indian_land_pay(
   ColonizeCol1Save* col1,
@@ -816,24 +792,6 @@ int colonies_found_with_indian_land_w(
   );
 }
 
-/* Compat shim: pre-ColonizeWorld signature (see src/core/world.h). */
-int colonies_found_with_indian_land(
-  ColonizeColonyPool* pool,
-  const ColonizeWorldMap* map,
-  ColonizeCol1Save* col1,
-  uint32_t* gold,
-  int x,
-  int y,
-  int nation_id,
-  int founder_type_index,
-  int founder_profession,
-  int tools,
-  int muskets,
-  int horses
-) {
-  ColonizeWorld w_ = world_make(NULL, pool, map, col1, col1 != NULL, NULL, NULL);
-  return colonies_found_with_indian_land_w(&w_, gold, x, y, nation_id, founder_type_index, founder_profession, tools, muskets, horses);
-}
 
 /*
  * Live occupancy map for the settlement bit. layer2's MAP_OCCUPANCY_HAS_CITY
@@ -1604,18 +1562,6 @@ int colonies_admit_unit_w(
    * one made the head count disagree with the visible workers. */
   colonies_auto_assign_idle(pool, colony_id);
   return idx;
-}
-
-/* Compat shim: pre-ColonizeWorld signature (see src/core/world.h). */
-int colonies_admit_unit(
-  ColonizeColonyPool* pool,
-  int colony_id,
-  ColonizeUnitPool* units,
-  int unit_id,
-  const ColonizeCol1Save* col1
-) {
-  ColonizeWorld w_ = world_make(units, pool, NULL, col1, col1 != NULL, NULL, NULL);
-  return colonies_admit_unit_w(&w_, colony_id, unit_id);
 }
 
 void colonies_auto_assign_idle(ColonizeColonyPool* pool, int colony_id) {
@@ -3378,19 +3324,6 @@ int colonies_de_witt_transfer_from_colony_w(
   return colonies_transfer_to_unit(pool, foreign_colony_id, units, unit_id, cargo_type, amount);
 }
 
-/* Compat shim: pre-ColonizeWorld signature (see src/core/world.h). */
-int colonies_de_witt_transfer_from_colony(
-  ColonizeColonyPool* pool,
-  int foreign_colony_id,
-  ColonizeUnitPool* units,
-  int unit_id,
-  int cargo_type,
-  int amount,
-  const ColonizeCol1Save* col1
-) {
-  ColonizeWorld w_ = world_make(units, pool, NULL, col1, col1 != NULL, NULL, NULL);
-  return colonies_de_witt_transfer_from_colony_w(&w_, foreign_colony_id, unit_id, cargo_type, amount);
-}
 
 int colonies_de_witt_transfer_to_colony_w(
   const ColonizeWorld* w,
@@ -3414,19 +3347,6 @@ int colonies_de_witt_transfer_to_colony_w(
   );
 }
 
-/* Compat shim: pre-ColonizeWorld signature (see src/core/world.h). */
-int colonies_de_witt_transfer_to_colony(
-  ColonizeColonyPool* pool,
-  int foreign_colony_id,
-  ColonizeUnitPool* units,
-  int unit_id,
-  int hold_index,
-  const ColonizeCol1Save* col1,
-  bool* out_warehouse_full
-) {
-  ColonizeWorld w_ = world_make(units, pool, NULL, col1, col1 != NULL, NULL, NULL);
-  return colonies_de_witt_transfer_to_colony_w(&w_, foreign_colony_id, unit_id, hold_index, out_warehouse_full);
-}
 
 static int colonies_trade_surplus_load_amount(const ColonizeColony* c, int ct) {
   int amt = 20;

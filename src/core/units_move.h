@@ -46,15 +46,6 @@ ColonizeEnterReason units_enter_probe_w(
   int y,
   int mover_id
 );
-ColonizeEnterReason units_enter_probe(
-  const ColonizeUnitPool* pool,
-  int type_index,
-  const ColonizeWorldMap* map,
-  int x,
-  int y,
-  int mover_id,
-  const ColonizeColonyPool* colonies
-);
 /* Last reason from units_enter_probe / units_try_move (0 if none). */
 ColonizeEnterReason units_last_enter_reason(void);
 /* Short player status for a probe reason (never NULL). */
@@ -66,15 +57,6 @@ bool units_can_enter_w(
   int x,
   int y,
   int mover_id
-);
-bool units_can_enter(
-  const ColonizeUnitPool* pool,
-  int type_index,
-  const ColonizeWorldMap* map,
-  int x,
-  int y,
-  int mover_id,
-  const ColonizeColonyPool* colonies
 );
 
 /*
@@ -110,15 +92,6 @@ bool units_try_move_w(
   int unit_id,
   int dest_x,
   int dest_y
-);
-bool units_try_move(
-  ColonizeUnitPool* pool,
-  int unit_id,
-  const ColonizeWorldMap* map,
-  int dest_x,
-  int dest_y,
-  const ColonizeColonyPool* colonies,
-  ColonizeDosRng* rng /* nullable; required for partial overspend / combat rolls */
 );
 
 /*
@@ -192,14 +165,6 @@ bool units_pillage_w(
   char* err,
   size_t err_size
 );
-bool units_pillage(
-  ColonizeUnitPool* pool,
-  int unit_id,
-  ColonizeWorldMap* map,
-  ColonizeColonyPool* colonies,
-  char* err,
-  size_t err_size
-);
 /* Wake sentry/fortified/fortify-in-progress and restore full MP. */
 bool units_wake(ColonizeUnitPool* pool, int unit_id);
 /* True if unit skips selection until woken (sentry or fortified). */
@@ -212,14 +177,6 @@ bool units_set_goto_w(
   int dest_x,
   int dest_y
 );
-bool units_set_goto(
-  ColonizeUnitPool* pool,
-  int unit_id,
-  const ColonizeWorldMap* map,
-  int dest_x,
-  int dest_y,
-  const ColonizeColonyPool* colonies
-);
 /*
  * True when the unit stands adjacent to a Go To destination that is an Indian
  * settlement tile — its final step is a move INTO the village and must be
@@ -229,12 +186,6 @@ bool units_set_goto(
 bool units_goto_dest_is_village_entry_w(
   const ColonizeWorld* w,
   int unit_id
-);
-bool units_goto_dest_is_village_entry(
-  const ColonizeUnitPool* pool,
-  int unit_id,
-  const ColonizeWorldMap* map,
-  const ColonizeColonyPool* colonies
 );
 /*
  * Order unit to stick to target_unit_id (UNITS_ORDER_FOLLOW).
@@ -250,13 +201,6 @@ bool units_follow_unit(ColonizeUnitPool* pool, int unit_id, int target_unit_id);
 bool units_advance_follow_one_step_w(
   const ColonizeWorld* w,
   int unit_id
-);
-bool units_advance_follow_one_step(
-  ColonizeUnitPool* pool,
-  int unit_id,
-  const ColonizeWorldMap* map,
-  const ColonizeColonyPool* colonies,
-  ColonizeDosRng* rng
 );
 /*
  * Record a committed goto step (dx,dy in -1..1) for the FUN_6662 anti-backtrack
@@ -278,38 +222,15 @@ bool units_next_goto_step_w(
   int* out_x,
   int* out_y
 );
-bool units_next_goto_step(
-  const ColonizeUnitPool* pool,
-  int unit_id,
-  const ColonizeWorldMap* map,
-  const ColonizeColonyPool* colonies,
-  ColonizeDosRng* rng,
-  int* out_x,
-  int* out_y
-);
 /* One adjacent step toward goto (or clear orders if arrived). rng may be NULL. */
 bool units_advance_goto_one_step_w(
   const ColonizeWorld* w,
   int unit_id
 );
-bool units_advance_goto_one_step(
-  ColonizeUnitPool* pool,
-  int unit_id,
-  const ColonizeWorldMap* map,
-  const ColonizeColonyPool* colonies,
-  ColonizeDosRng* rng
-);
 /* Walk until MP exhausted, arrived, or blocked. Clears orders on arrival. */
 bool units_advance_goto_w(
   const ColonizeWorld* w,
   int unit_id
-);
-bool units_advance_goto(
-  ColonizeUnitPool* pool,
-  int unit_id,
-  const ColonizeWorldMap* map,
-  const ColonizeColonyPool* colonies,
-  ColonizeDosRng* rng
 );
 
 bool units_is_pioneer(const ColonizeUnitPool* pool, int unit_id);
@@ -329,31 +250,11 @@ bool units_pioneer_plow_w(
   AiPopupState* ai_popups,
   const ColonizeMsgCatalog* messages
 );
-bool units_pioneer_plow(
-  ColonizeUnitPool* pool,
-  int unit_id,
-  ColonizeWorldMap* map,
-  char* err,
-  size_t err_size,
-  ColonizeColonyPool* colonies,
-  AiPopupState* ai_popups,
-  const ColonizeMsgCatalog* messages
-);
 bool units_pioneer_road_w(
   const ColonizeWorld* w,
   int unit_id,
   char* err,
   size_t err_size,
-  AiPopupState* ai_popups,
-  const ColonizeMsgCatalog* messages
-);
-bool units_pioneer_road(
-  ColonizeUnitPool* pool,
-  int unit_id,
-  ColonizeWorldMap* map,
-  char* err,
-  size_t err_size,
-  ColonizeColonyPool* colonies,
   AiPopupState* ai_popups,
   const ColonizeMsgCatalog* messages
 );
@@ -365,16 +266,6 @@ bool units_pioneer_work_tick_w(
   int unit_id,
   char* err,
   size_t err_size,
-  AiPopupState* ai_popups,
-  const ColonizeMsgCatalog* messages
-);
-bool units_pioneer_work_tick(
-  ColonizeUnitPool* pool,
-  int unit_id,
-  ColonizeWorldMap* map,
-  char* err,
-  size_t err_size,
-  ColonizeColonyPool* colonies,
   AiPopupState* ai_popups,
   const ColonizeMsgCatalog* messages
 );

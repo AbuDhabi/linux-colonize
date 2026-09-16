@@ -375,13 +375,6 @@ bool units_reveal_sight_w(
   const ColonizeWorld* w,
   const ColonizeUnit* u
 );
-bool units_reveal_sight(
-  ColonizeWorldMap* map,
-  ColonizeUnitPool* pool,
-  ColonizeColonyPool* colonies,
-  const ColonizeUnit* u,
-  const ColonizeCol1Save* col1
-);
 /*
  * FUN_1427_0c9a: vis mask a unit of mover_nation acquires by standing on
  * (x,y): tile owner nibble's bit (Euro movers only) | every nation watching

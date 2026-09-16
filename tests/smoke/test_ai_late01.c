@@ -96,7 +96,7 @@ static int run_late01_turn(ColonizeCol1Save* pre_snap) {
   memset(&europe, 0, sizeof(europe));
   europe.cargo_count = 16;
   ColonizeCol1BridgeResult br;
-  if (!col1_bridge_apply(&late, &map, &units, &colonies, &europe, &br, err, sizeof(err))) {
+  if (!col1_bridge_apply_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&units), .colonies=(ColonizeColonyPool*)(&colonies), .map=(ColonizeWorldMap*)(&map), .col1=(ColonizeCol1Save*)(&late), .col1_ok=true, .europe=(EuropeScreen*)(&europe)}, &br, err, sizeof(err))) {
     fprintf(stderr, "bridge apply LATE01: %s\n", err);
     map_free(&map);
     assets_msg_free(&names);
@@ -218,25 +218,7 @@ static int run_late01_turn(ColonizeCol1Save* pre_snap) {
     (post_food != pre_food) || (post_pop != pre_pop) || (post_attacks != pre_attacks) ||
     (post_friction != pre_friction) || (post_rel != pre_rel);
 
-  if (!col1_bridge_capture(
-        &late,
-        &map,
-        &units,
-        &colonies,
-        &europe,
-        year,
-        autumn,
-        turn_number,
-        br.human_nation,
-        br.cursor_x,
-        br.cursor_y,
-        br.view_x,
-        br.view_y,
-        units.selected_id,
-        units.selected_id < 0,
-        err,
-        sizeof(err)
-      )) {
+  if (!col1_bridge_capture_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&units), .colonies=(ColonizeColonyPool*)(&colonies), .map=(ColonizeWorldMap*)(&map), .col1=(ColonizeCol1Save*)(&late), .col1_ok=true, .europe=(EuropeScreen*)(&europe)}, year, autumn, turn_number, br.human_nation, br.cursor_x, br.cursor_y, br.view_x, br.view_y, units.selected_id, units.selected_id < 0, err, sizeof(err))) {
     fprintf(stderr, "bridge capture LATE01 post: %s\n", err);
     map_free(&map);
     assets_msg_free(&names);

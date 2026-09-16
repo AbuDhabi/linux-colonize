@@ -10,6 +10,8 @@
 #include "core/units.h"
 #include "platform/diagnostics.h"
 
+#include "../common/test_runner.h"
+
 static int find_section(const MapMenuBar* bar, const char* section) {
   for (int i = 0; i < bar->menu_count; ++i) {
     if (strcmp(bar->menus[i].section_name, section) == 0) {
@@ -19,197 +21,251 @@ static int find_section(const MapMenuBar* bar, const char* section) {
   return -1;
 }
 
-int main(void) {
-  diag_init(0, NULL);
+/* Each case builds its own MENU.TXT-backed bar via fixture_init/fixture_free
+ * rather than sharing one across cases: several cases mutate bar state
+ * (open a dropdown, toggle CHEAT visibility, click an item), and re-parsing
+ * MENU.TXT is cheap, so per-case isolation is simpler than tracking a
+ * shared-then-reset fixture. diag_init/diag_shutdown are idempotent-enough
+ * to call once via a static latch. */
+static int g_diag_ready = 0;
 
+typedef struct Fixture {
   ColonizeMsgCatalog menu_txt;
-  assets_msg_init(&menu_txt);
-  if (!assets_msg_load_file(&menu_txt, "COLONIZE/MENU.TXT")) {
+  MapMenuBar bar;
+} Fixture;
+
+static int fixture_init(Fixture* fx) {
+  if (!g_diag_ready) {
+    diag_init(0, NULL);
+    g_diag_ready = 1;
+  }
+  assets_msg_init(&fx->menu_txt);
+  if (!assets_msg_load_file(&fx->menu_txt, "COLONIZE/MENU.TXT")) {
     fprintf(stderr, "Failed to load MENU.TXT\n");
     return 1;
   }
-
-  MapMenuBar bar;
-  map_menu_init(&bar);
-  if (!map_menu_load(&bar, &menu_txt, true)) {
+  map_menu_init(&fx->bar);
+  if (!map_menu_load(&fx->bar, &fx->menu_txt, true)) {
     fprintf(stderr, "map_menu_load failed\n");
-    assets_msg_free(&menu_txt);
+    assets_msg_free(&fx->menu_txt);
     return 1;
   }
+  return 0;
+}
+
+static void fixture_free(Fixture* fx) {
+  map_menu_free(&fx->bar);
+  assets_msg_free(&fx->menu_txt);
+}
+
+static int case_menu_counts_and_titles(void) {
+  Fixture fx;
+  if (fixture_init(&fx) != 0) {
+    return 1;
+  }
+  MapMenuBar* bar = &fx.bar;
 
   const int expected_menus = COLONIZE_DEBUG_MENU ? 8 : 7;
-  if (bar.menu_count != expected_menus) {
-    fprintf(stderr, "expected %d menus, got %d\n", expected_menus, bar.menu_count);
-    map_menu_free(&bar);
-    assets_msg_free(&menu_txt);
+  if (bar->menu_count != expected_menus) {
+    fprintf(stderr, "expected %d menus, got %d\n", expected_menus, bar->menu_count);
+    fixture_free(&fx);
     return 1;
   }
 
-  const int game_i = find_section(&bar, "GAME");
-  const int view_i = find_section(&bar, "VIEW");
-  const int cup_i = find_section(&bar, "CUP");
-  const int pedia_i = find_section(&bar, "PEDIA");
-  const int debug_i = find_section(&bar, "DEBUG");
+  const int game_i = find_section(bar, "GAME");
+  const int view_i = find_section(bar, "VIEW");
+  const int cup_i = find_section(bar, "CUP");
+  const int pedia_i = find_section(bar, "PEDIA");
   if (game_i < 0 || view_i < 0 || cup_i < 0 || pedia_i < 0) {
     fprintf(stderr, "missing GAME/VIEW/CUP/PEDIA sections\n");
-    map_menu_free(&bar);
-    assets_msg_free(&menu_txt);
+    fixture_free(&fx);
     return 1;
   }
-  if (strcmp(bar.menus[game_i].title, "~GAME") != 0 ||
-      strcmp(bar.menus[view_i].title, "~VIEW") != 0 ||
-      strcmp(bar.menus[pedia_i].title, "~COLONIZOPEDIA") != 0) {
+  if (strcmp(bar->menus[game_i].title, "~GAME") != 0 ||
+      strcmp(bar->menus[view_i].title, "~VIEW") != 0 ||
+      strcmp(bar->menus[pedia_i].title, "~COLONIZOPEDIA") != 0) {
     fprintf(
       stderr,
       "unexpected titles: '%s' '%s' ... '%s'\n",
-      bar.menus[game_i].title,
-      bar.menus[view_i].title,
-      bar.menus[pedia_i].title
+      bar->menus[game_i].title,
+      bar->menus[view_i].title,
+      bar->menus[pedia_i].title
     );
-    map_menu_free(&bar);
-    assets_msg_free(&menu_txt);
+    fixture_free(&fx);
     return 1;
   }
+  fixture_free(&fx);
+  return 0;
+}
+
+static int case_cheat_items(void) {
+  Fixture fx;
+  if (fixture_init(&fx) != 0) {
+    return 1;
+  }
+  MapMenuBar* bar = &fx.bar;
+  const int cup_i = find_section(bar, "CUP");
 
   /* CHEAT is loaded but hidden until unlock. */
-  if (bar.cheat_visible || bar.menus[cup_i].visible) {
+  if (bar->cheat_visible || bar->menus[cup_i].visible) {
     fprintf(stderr, "CHEAT should start hidden\n");
-    map_menu_free(&bar);
-    assets_msg_free(&menu_txt);
+    fixture_free(&fx);
     return 1;
   }
-  if (bar.menus[cup_i].item_count < 11) {
-    fprintf(stderr, "CHEAT expected >=11 items, got %d\n", bar.menus[cup_i].item_count);
-    map_menu_free(&bar);
-    assets_msg_free(&menu_txt);
+  if (bar->menus[cup_i].item_count < 11) {
+    fprintf(stderr, "CHEAT expected >=11 items, got %d\n", bar->menus[cup_i].item_count);
+    fixture_free(&fx);
     return 1;
   }
-  for (int i = 0; i < bar.menus[cup_i].item_count; ++i) {
-    const MapMenuAction a = bar.menus[cup_i].items[i].action;
-    if (bar.menus[cup_i].items[i].separator) {
+  for (int i = 0; i < bar->menus[cup_i].item_count; ++i) {
+    const MapMenuAction a = bar->menus[cup_i].items[i].action;
+    if (bar->menus[cup_i].items[i].separator) {
       continue;
     }
     /* All 11 CHEAT items are implemented (game_loop.c MAP_MENU_ACTION_CHEAT_*). */
     const bool should_enable = true;
-    if (bar.menus[cup_i].items[i].enabled != should_enable) {
+    if (bar->menus[cup_i].items[i].enabled != should_enable) {
       fprintf(
         stderr,
         "CHEAT item %d enabled=%d expected %d (%s)\n",
         i,
-        bar.menus[cup_i].items[i].enabled ? 1 : 0,
+        bar->menus[cup_i].items[i].enabled ? 1 : 0,
         should_enable ? 1 : 0,
-        bar.menus[cup_i].items[i].label
+        bar->menus[cup_i].items[i].label
       );
-      map_menu_free(&bar);
-      assets_msg_free(&menu_txt);
+      fixture_free(&fx);
       return 1;
     }
     if (a == MAP_MENU_ACTION_UNIMPLEMENTED) {
-      fprintf(stderr, "CHEAT item %d unclassified (%s)\n", i, bar.menus[cup_i].items[i].label);
-      map_menu_free(&bar);
-      assets_msg_free(&menu_txt);
+      fprintf(stderr, "CHEAT item %d unclassified (%s)\n", i, bar->menus[cup_i].items[i].label);
+      fixture_free(&fx);
       return 1;
     }
   }
+  fixture_free(&fx);
+  return 0;
+}
+
+static int case_view_pieces_hotkeys(void) {
+  Fixture fx;
+  if (fixture_init(&fx) != 0) {
+    return 1;
+  }
+  MapMenuBar* bar = &fx.bar;
+  const int view_i = find_section(bar, "VIEW");
 
   /* VIEW ~Move Pieces / ~View Pieces: classified + M/V hotkeys wired. */
-  {
-    bool found_move = false;
-    bool found_view = false;
-    for (int i = 0; i < bar.menus[view_i].item_count; ++i) {
-      const MapMenuItem* it = &bar.menus[view_i].items[i];
-      if (it->action == MAP_MENU_ACTION_MOVE_PIECES) {
-        found_move = true;
-        if (!it->enabled || it->hotkey != 'M') {
-          fprintf(
-            stderr, "Move Pieces enabled=%d hotkey=%c\n", it->enabled, it->hotkey ? it->hotkey : '?'
-          );
-          map_menu_free(&bar);
-          assets_msg_free(&menu_txt);
-          return 1;
-        }
-      }
-      if (it->action == MAP_MENU_ACTION_VIEW_PIECES) {
-        found_view = true;
-        if (!it->enabled || it->hotkey != 'V') {
-          fprintf(
-            stderr, "View Pieces enabled=%d hotkey=%c\n", it->enabled, it->hotkey ? it->hotkey : '?'
-          );
-          map_menu_free(&bar);
-          assets_msg_free(&menu_txt);
-          return 1;
-        }
+  bool found_move = false;
+  bool found_view = false;
+  for (int i = 0; i < bar->menus[view_i].item_count; ++i) {
+    const MapMenuItem* it = &bar->menus[view_i].items[i];
+    if (it->action == MAP_MENU_ACTION_MOVE_PIECES) {
+      found_move = true;
+      if (!it->enabled || it->hotkey != 'M') {
+        fprintf(
+          stderr, "Move Pieces enabled=%d hotkey=%c\n", it->enabled, it->hotkey ? it->hotkey : '?'
+        );
+        fixture_free(&fx);
+        return 1;
       }
     }
-    if (!found_move || !found_view) {
-      fprintf(stderr, "VIEW menu missing Move Pieces / View Pieces items\n");
-      map_menu_free(&bar);
-      assets_msg_free(&menu_txt);
-      return 1;
-    }
-    if (map_menu_view_hotkey(&bar, 'M') != MAP_MENU_ACTION_MOVE_PIECES ||
-        map_menu_view_hotkey(&bar, 'V') != MAP_MENU_ACTION_VIEW_PIECES) {
-      fprintf(stderr, "map_menu_view_hotkey M/V did not resolve to Move/View Pieces\n");
-      map_menu_free(&bar);
-      assets_msg_free(&menu_txt);
-      return 1;
+    if (it->action == MAP_MENU_ACTION_VIEW_PIECES) {
+      found_view = true;
+      if (!it->enabled || it->hotkey != 'V') {
+        fprintf(
+          stderr, "View Pieces enabled=%d hotkey=%c\n", it->enabled, it->hotkey ? it->hotkey : '?'
+        );
+        fixture_free(&fx);
+        return 1;
+      }
     }
   }
+  if (!found_move || !found_view) {
+    fprintf(stderr, "VIEW menu missing Move Pieces / View Pieces items\n");
+    fixture_free(&fx);
+    return 1;
+  }
+  if (map_menu_view_hotkey(bar, 'M') != MAP_MENU_ACTION_MOVE_PIECES ||
+      map_menu_view_hotkey(bar, 'V') != MAP_MENU_ACTION_VIEW_PIECES) {
+    fprintf(stderr, "map_menu_view_hotkey M/V did not resolve to Move/View Pieces\n");
+    fixture_free(&fx);
+    return 1;
+  }
+  fixture_free(&fx);
+  return 0;
+}
+
+static int case_debug_menu(void) {
+  Fixture fx;
+  if (fixture_init(&fx) != 0) {
+    return 1;
+  }
+  MapMenuBar* bar = &fx.bar;
+  const int cup_i = find_section(bar, "CUP");
+  const int debug_i = find_section(bar, "DEBUG");
 
 #if COLONIZE_DEBUG_MENU
   if (debug_i < 0 || debug_i != cup_i + 1) {
     fprintf(stderr, "DEBUG should sit immediately after CHEAT (cup=%d debug=%d)\n", cup_i, debug_i);
-    map_menu_free(&bar);
-    assets_msg_free(&menu_txt);
+    fixture_free(&fx);
     return 1;
   }
-  if (!bar.menus[debug_i].visible || bar.menus[debug_i].item_count != 4) {
+  if (!bar->menus[debug_i].visible || bar->menus[debug_i].item_count != 4) {
     fprintf(stderr, "DEBUG menu malformed\n");
-    map_menu_free(&bar);
-    assets_msg_free(&menu_txt);
+    fixture_free(&fx);
     return 1;
   }
-  if (!bar.menus[debug_i].items[0].enabled ||
-      bar.menus[debug_i].items[0].action != MAP_MENU_ACTION_DEBUG_SPRITE_VIEWER ||
-      !bar.menus[debug_i].items[1].enabled ||
-      bar.menus[debug_i].items[1].action != MAP_MENU_ACTION_DEBUG_TOGGLE_MOUSE_COORDS ||
-      !bar.menus[debug_i].items[2].enabled ||
-      bar.menus[debug_i].items[2].action != MAP_MENU_ACTION_DEBUG_BUILDING_RECTS ||
-      !bar.menus[debug_i].items[3].enabled ||
-      bar.menus[debug_i].items[3].action != MAP_MENU_ACTION_DEBUG_LOGS) {
+  if (!bar->menus[debug_i].items[0].enabled ||
+      bar->menus[debug_i].items[0].action != MAP_MENU_ACTION_DEBUG_SPRITE_VIEWER ||
+      !bar->menus[debug_i].items[1].enabled ||
+      bar->menus[debug_i].items[1].action != MAP_MENU_ACTION_DEBUG_TOGGLE_MOUSE_COORDS ||
+      !bar->menus[debug_i].items[2].enabled ||
+      bar->menus[debug_i].items[2].action != MAP_MENU_ACTION_DEBUG_BUILDING_RECTS ||
+      !bar->menus[debug_i].items[3].enabled ||
+      bar->menus[debug_i].items[3].action != MAP_MENU_ACTION_DEBUG_LOGS) {
     fprintf(stderr, "DEBUG items unexpected\n");
-    map_menu_free(&bar);
-    assets_msg_free(&menu_txt);
+    fixture_free(&fx);
     return 1;
   }
 #else
   (void)debug_i;
 #endif
+  fixture_free(&fx);
+  return 0;
+}
+
+static int case_reports_and_game_options(void) {
+  Fixture fx;
+  if (fixture_init(&fx) != 0) {
+    return 1;
+  }
+  MapMenuBar* bar = &fx.bar;
+  const int game_i = find_section(bar, "GAME");
 
   /* REPORTS items are enabled (open report screens). */
   bool found_save = false;
   bool found_pick_music = false;
   bool found_game_options = false;
   bool found_report = false;
-  for (int i = 0; i < bar.menus[game_i].item_count; ++i) {
-    if (bar.menus[game_i].items[i].action == MAP_MENU_ACTION_SAVE &&
-        bar.menus[game_i].items[i].enabled) {
+  for (int i = 0; i < bar->menus[game_i].item_count; ++i) {
+    if (bar->menus[game_i].items[i].action == MAP_MENU_ACTION_SAVE &&
+        bar->menus[game_i].items[i].enabled) {
       found_save = true;
     }
-    if (bar.menus[game_i].items[i].action == MAP_MENU_ACTION_PICK_MUSIC &&
-        bar.menus[game_i].items[i].enabled) {
+    if (bar->menus[game_i].items[i].action == MAP_MENU_ACTION_PICK_MUSIC &&
+        bar->menus[game_i].items[i].enabled) {
       found_pick_music = true;
     }
-    if (bar.menus[game_i].items[i].action == MAP_MENU_ACTION_OPTIONS &&
-        strcmp(bar.menus[game_i].items[i].label, "Game Options") == 0 &&
-        bar.menus[game_i].items[i].enabled) {
+    if (bar->menus[game_i].items[i].action == MAP_MENU_ACTION_OPTIONS &&
+        strcmp(bar->menus[game_i].items[i].label, "Game Options") == 0 &&
+        bar->menus[game_i].items[i].enabled) {
       found_game_options = true;
     }
   }
-  const int reports_i = find_section(&bar, "REPORTS");
-  for (int i = 0; i < bar.menus[reports_i].item_count; ++i) {
-    if (bar.menus[reports_i].items[i].action == MAP_MENU_ACTION_REPORT_CONGRESS &&
-        bar.menus[reports_i].items[i].enabled) {
+  const int reports_i = find_section(bar, "REPORTS");
+  for (int i = 0; i < bar->menus[reports_i].item_count; ++i) {
+    if (bar->menus[reports_i].items[i].action == MAP_MENU_ACTION_REPORT_CONGRESS &&
+        bar->menus[reports_i].items[i].enabled) {
       found_report = true;
     }
   }
@@ -223,64 +279,82 @@ int main(void) {
       found_pick_music ? 1 : 0,
       found_report ? 1 : 0
     );
-    map_menu_free(&bar);
-    assets_msg_free(&menu_txt);
+    fixture_free(&fx);
     return 1;
   }
+  fixture_free(&fx);
+  return 0;
+}
+
+static int case_pedia_categories(void) {
+  Fixture fx;
+  if (fixture_init(&fx) != 0) {
+    return 1;
+  }
+  MapMenuBar* bar = &fx.bar;
+  const int pedia_i = find_section(bar, "PEDIA");
 
   /*
    * COLONIZOPEDIA — 7 categories + divider after Terrain Types (DOS) +
    * divider before Miscellaneous (port addition, user-requested).
    */
-  if (bar.menus[pedia_i].item_count != 9) {
+  if (bar->menus[pedia_i].item_count != 9) {
     fprintf(
-      stderr, "pedia menu expected 9 items (7 + 2 separators) got %d\n", bar.menus[pedia_i].item_count
+      stderr, "pedia menu expected 9 items (7 + 2 separators) got %d\n",
+      bar->menus[pedia_i].item_count
     );
-    map_menu_free(&bar);
-    assets_msg_free(&menu_txt);
+    fixture_free(&fx);
     return 1;
   }
   bool found_sep = false;
-  for (int i = 0; i < bar.menus[pedia_i].item_count; ++i) {
-    if (bar.menus[pedia_i].items[i].separator) {
+  for (int i = 0; i < bar->menus[pedia_i].item_count; ++i) {
+    if (bar->menus[pedia_i].items[i].separator) {
       found_sep = true;
-      if (bar.menus[pedia_i].items[i].enabled ||
-          bar.menus[pedia_i].items[i].action != MAP_MENU_ACTION_SEPARATOR) {
+      if (bar->menus[pedia_i].items[i].enabled ||
+          bar->menus[pedia_i].items[i].action != MAP_MENU_ACTION_SEPARATOR) {
         fprintf(stderr, "pedia separator item %d malformed\n", i);
-        map_menu_free(&bar);
-        assets_msg_free(&menu_txt);
+        fixture_free(&fx);
         return 1;
       }
       const bool after_terrain = i >= 1 &&
-        strcmp(bar.menus[pedia_i].items[i - 1].label, "Terrain Types") == 0 &&
-        i + 1 < bar.menus[pedia_i].item_count &&
-        strcmp(bar.menus[pedia_i].items[i + 1].label, "Colonist Skills") == 0;
+        strcmp(bar->menus[pedia_i].items[i - 1].label, "Terrain Types") == 0 &&
+        i + 1 < bar->menus[pedia_i].item_count &&
+        strcmp(bar->menus[pedia_i].items[i + 1].label, "Colonist Skills") == 0;
       const bool before_misc = i >= 1 &&
-        strcmp(bar.menus[pedia_i].items[i - 1].label, "Founding Fathers") == 0 &&
-        i + 1 < bar.menus[pedia_i].item_count &&
-        strcmp(bar.menus[pedia_i].items[i + 1].label, "Miscellaneous") == 0;
+        strcmp(bar->menus[pedia_i].items[i - 1].label, "Founding Fathers") == 0 &&
+        i + 1 < bar->menus[pedia_i].item_count &&
+        strcmp(bar->menus[pedia_i].items[i + 1].label, "Miscellaneous") == 0;
       if (!after_terrain && !before_misc) {
         fprintf(stderr, "pedia separator %d not at an expected spot\n", i);
-        map_menu_free(&bar);
-        assets_msg_free(&menu_txt);
+        fixture_free(&fx);
         return 1;
       }
       continue;
     }
-    if (!bar.menus[pedia_i].items[i].enabled ||
-        bar.menus[pedia_i].items[i].action == MAP_MENU_ACTION_UNIMPLEMENTED) {
-      fprintf(stderr, "pedia item %d still stubbed (%s)\n", i, bar.menus[pedia_i].items[i].label);
-      map_menu_free(&bar);
-      assets_msg_free(&menu_txt);
+    if (!bar->menus[pedia_i].items[i].enabled ||
+        bar->menus[pedia_i].items[i].action == MAP_MENU_ACTION_UNIMPLEMENTED) {
+      fprintf(stderr, "pedia item %d still stubbed (%s)\n", i, bar->menus[pedia_i].items[i].label);
+      fixture_free(&fx);
       return 1;
     }
   }
   if (!found_sep) {
     fprintf(stderr, "pedia menu missing separator\n");
-    map_menu_free(&bar);
-    assets_msg_free(&menu_txt);
+    fixture_free(&fx);
     return 1;
   }
+  fixture_free(&fx);
+  return 0;
+}
+
+static int case_render_title_position(void) {
+  Fixture fx;
+  if (fixture_init(&fx) != 0) {
+    return 1;
+  }
+  MapMenuBar* bar = &fx.bar;
+  const int game_i = find_section(bar, "GAME");
+  const int pedia_i = find_section(bar, "PEDIA");
 
   ColonizeFont font;
   memset(&font, 0, sizeof(font));
@@ -291,34 +365,32 @@ int main(void) {
   uint8_t pixels[320 * 200];
   memset(pixels, 0, sizeof(pixels));
   ColonizeFramebuffer8 fb = {.width = 320, .height = 200, .pixels = pixels};
-  map_menu_render(&bar, f, NULL, &fb);
-  if (bar.menus[game_i].title_x != 12) {
-    fprintf(stderr, "GAME title_x expected 12, got %d\n", bar.menus[game_i].title_x);
+  map_menu_render(bar, f, NULL, &fb);
+  if (bar->menus[game_i].title_x != 12) {
+    fprintf(stderr, "GAME title_x expected 12, got %d\n", bar->menus[game_i].title_x);
     if (font_ok) {
       ff_free(&font);
     }
-    map_menu_free(&bar);
-    assets_msg_free(&menu_txt);
+    fixture_free(&fx);
     return 1;
   }
   const int inner_x0 = MAP_PANEL_X + 2;
   const int inner_w = 319 - inner_x0 + 1;
   const int mx = inner_x0 + (inner_w - MAP_PANEL_MINIMAP_W) / 2;
   const int minimap_cx = mx + MAP_PANEL_MINIMAP_W / 2;
-  const int title_cx = bar.menus[pedia_i].title_x + bar.menus[pedia_i].title_w / 2;
+  const int title_cx = bar->menus[pedia_i].title_x + bar->menus[pedia_i].title_w / 2;
   if (title_cx < minimap_cx - 12 || title_cx > minimap_cx + 12) {
     fprintf(
       stderr,
       "COLONIZOPEDIA should be centered over minimap (title_cx=%d minimap_cx=%d title_x=%d)\n",
       title_cx,
       minimap_cx,
-      bar.menus[pedia_i].title_x
+      bar->menus[pedia_i].title_x
     );
     if (font_ok) {
       ff_free(&font);
     }
-    map_menu_free(&bar);
-    assets_msg_free(&menu_txt);
+    fixture_free(&fx);
     return 1;
   }
   if (pixels[2] == 0 && pixels[320 * 2 + 10] == 0) {
@@ -326,75 +398,129 @@ int main(void) {
     if (font_ok) {
       ff_free(&font);
     }
-    map_menu_free(&bar);
-    assets_msg_free(&menu_txt);
+    fixture_free(&fx);
     return 1;
   }
 
+  if (font_ok) {
+    ff_free(&font);
+  }
+  fixture_free(&fx);
+  return 0;
+}
+
+static int case_cheat_visible_toggle(void) {
+  Fixture fx;
+  if (fixture_init(&fx) != 0) {
+    return 1;
+  }
+  MapMenuBar* bar = &fx.bar;
+  const int cup_i = find_section(bar, "CUP");
+  const int debug_i = find_section(bar, "DEBUG");
+
+  ColonizeFont font;
+  memset(&font, 0, sizeof(font));
+  char err[128];
+  const bool font_ok = ff_load("COLONIZE/FONTSMAL.FF", &font, err, sizeof(err));
+  const ColonizeFont* f = font_ok ? &font : NULL;
+
+  uint8_t pixels[320 * 200];
+  memset(pixels, 0, sizeof(pixels));
+  ColonizeFramebuffer8 fb = {.width = 320, .height = 200, .pixels = pixels};
+
 #if COLONIZE_DEBUG_MENU
   /* Fixed DEBUG slot: revealing CHEAT must not move DEBUG. */
-  const int debug_x_hidden = bar.menus[debug_i].title_x;
-  map_menu_set_cheat_visible(&bar, true);
-  map_menu_render(&bar, f, NULL, &fb);
-  if (!bar.menus[cup_i].visible || !bar.cheat_visible) {
+  map_menu_render(bar, f, NULL, &fb);
+  const int debug_x_hidden = bar->menus[debug_i].title_x;
+  map_menu_set_cheat_visible(bar, true);
+  map_menu_render(bar, f, NULL, &fb);
+  if (!bar->menus[cup_i].visible || !bar->cheat_visible) {
     fprintf(stderr, "map_menu_set_cheat_visible(true) failed\n");
     if (font_ok) {
       ff_free(&font);
     }
-    map_menu_free(&bar);
-    assets_msg_free(&menu_txt);
+    fixture_free(&fx);
     return 1;
   }
-  if (bar.menus[debug_i].title_x != debug_x_hidden) {
+  if (bar->menus[debug_i].title_x != debug_x_hidden) {
     fprintf(
       stderr,
       "DEBUG title_x shifted when CHEAT revealed (%d -> %d)\n",
       debug_x_hidden,
-      bar.menus[debug_i].title_x
+      bar->menus[debug_i].title_x
     );
     if (font_ok) {
       ff_free(&font);
     }
-    map_menu_free(&bar);
-    assets_msg_free(&menu_txt);
+    fixture_free(&fx);
     return 1;
   }
-  map_menu_set_cheat_visible(&bar, false);
+  map_menu_set_cheat_visible(bar, false);
 #else
-  map_menu_set_cheat_visible(&bar, true);
-  if (!bar.cheat_visible || !bar.menus[cup_i].visible) {
+  (void)debug_i;
+  map_menu_set_cheat_visible(bar, true);
+  if (!bar->cheat_visible || !bar->menus[cup_i].visible) {
     fprintf(stderr, "map_menu_set_cheat_visible(true) failed\n");
     if (font_ok) {
       ff_free(&font);
     }
-    map_menu_free(&bar);
-    assets_msg_free(&menu_txt);
+    fixture_free(&fx);
     return 1;
   }
-  map_menu_set_cheat_visible(&bar, false);
+  map_menu_set_cheat_visible(bar, false);
 #endif
+
+  if (font_ok) {
+    ff_free(&font);
+  }
+  fixture_free(&fx);
+  return 0;
+}
+
+/* Click-driven narrative: open GAME via a click, verify the dropdown chrome,
+ * then click the Save Game entry inside it. Kept as one case because each
+ * step's input coordinates depend on the bar state the previous click left
+ * behind (open_index, dropdown geometry) — splitting would just re-run the
+ * same click to get back to that state. */
+static int case_click_open_and_save(void) {
+  Fixture fx;
+  if (fixture_init(&fx) != 0) {
+    return 1;
+  }
+  MapMenuBar* bar = &fx.bar;
+  const int game_i = find_section(bar, "GAME");
+
+  ColonizeFont font;
+  memset(&font, 0, sizeof(font));
+  char err[128];
+  const bool font_ok = ff_load("COLONIZE/FONTSMAL.FF", &font, err, sizeof(err));
+  const ColonizeFont* f = font_ok ? &font : NULL;
+
+  uint8_t pixels[320 * 200];
+  memset(pixels, 0, sizeof(pixels));
+  ColonizeFramebuffer8 fb = {.width = 320, .height = 200, .pixels = pixels};
+  map_menu_render(bar, f, NULL, &fb);
 
   ColonizeInputState input;
   memset(&input, 0, sizeof(input));
   input.mouse_left_clicked = true;
-  input.mouse_x = bar.menus[game_i].title_x + 2;
+  input.mouse_x = bar->menus[game_i].title_x + 2;
   input.mouse_y = 2;
-  MapMenuAction action = map_menu_handle_input(&bar, &input, f, false);
-  if (action != MAP_MENU_ACTION_NONE || bar.open_index != game_i) {
-    fprintf(stderr, "expected GAME menu to open (action=%d open=%d)\n", (int)action, bar.open_index);
+  MapMenuAction action = map_menu_handle_input(bar, &input, f, false);
+  if (action != MAP_MENU_ACTION_NONE || bar->open_index != game_i) {
+    fprintf(stderr, "expected GAME menu to open (action=%d open=%d)\n", (int)action, bar->open_index);
     if (font_ok) {
       ff_free(&font);
     }
-    map_menu_free(&bar);
-    assets_msg_free(&menu_txt);
+    fixture_free(&fx);
     return 1;
   }
 
   /* Chrome: 1px gap under bar rule, black dropdown outline. */
   memset(pixels, 7, sizeof(pixels)); /* non-black sentinel in gap row */
-  map_menu_render(&bar, f, NULL, &fb);
+  map_menu_render(bar, f, NULL, &fb);
   {
-    const int dx = bar.menus[game_i].title_x;
+    const int dx = bar->menus[game_i].title_x;
     const int gap_y = MAP_MENU_BAR_H;
     const int drop_y = MAP_MENU_BAR_H + 1;
     if (pixels[gap_y * 320 + dx + 4] == 0) {
@@ -402,8 +528,7 @@ int main(void) {
       if (font_ok) {
         ff_free(&font);
       }
-      map_menu_free(&bar);
-      assets_msg_free(&menu_txt);
+      fixture_free(&fx);
       return 1;
     }
     if (pixels[drop_y * 320 + dx + 4] != 0) {
@@ -411,16 +536,15 @@ int main(void) {
       if (font_ok) {
         ff_free(&font);
       }
-      map_menu_free(&bar);
-      assets_msg_free(&menu_txt);
+      fixture_free(&fx);
       return 1;
     }
   }
 
   /* Save Game is item index 4 under GAME. */
   int save_index = -1;
-  for (int i = 0; i < bar.menus[game_i].item_count; ++i) {
-    if (bar.menus[game_i].items[i].action == MAP_MENU_ACTION_SAVE) {
+  for (int i = 0; i < bar->menus[game_i].item_count; ++i) {
+    if (bar->menus[game_i].items[i].action == MAP_MENU_ACTION_SAVE) {
       save_index = i;
       break;
     }
@@ -430,18 +554,17 @@ int main(void) {
     if (font_ok) {
       ff_free(&font);
     }
-    map_menu_free(&bar);
-    assets_msg_free(&menu_txt);
+    fixture_free(&fx);
     return 1;
   }
 
   const int item_h = f ? (f->max_height + 2 < 8 ? 8 : f->max_height + 2) : 8;
   /* Dropdown sits 1px below the bar rule (MAP_MENU_BAR_H + 1). */
   const int dropdown_y = MAP_MENU_BAR_H + 1;
-  input.mouse_x = bar.menus[game_i].title_x + 8;
+  input.mouse_x = bar->menus[game_i].title_x + 8;
   input.mouse_y = dropdown_y + 2 + save_index * item_h + 1;
   input.mouse_left_clicked = true;
-  action = map_menu_handle_input(&bar, &input, f, false);
+  action = map_menu_handle_input(bar, &input, f, false);
   if (action != MAP_MENU_ACTION_SAVE) {
     fprintf(
       stderr,
@@ -450,155 +573,180 @@ int main(void) {
       map_menu_action_name(action),
       input.mouse_x,
       input.mouse_y,
-      bar.open_index
+      bar->open_index
     );
     if (font_ok) {
       ff_free(&font);
     }
-    map_menu_free(&bar);
-    assets_msg_free(&menu_txt);
+    fixture_free(&fx);
     return 1;
-  }
-
-  /* Hidden CHEAT title must not be clickable. */
-  map_menu_handle_input(&bar, &input, f, true);
-  input.mouse_x = bar.menus[cup_i].title_x + 2;
-  input.mouse_y = 2;
-  input.mouse_left_clicked = true;
-  action = map_menu_handle_input(&bar, &input, f, false);
-  if (bar.open_index == cup_i) {
-    fprintf(stderr, "hidden CHEAT title should not open\n");
-    if (font_ok) {
-      ff_free(&font);
-    }
-    map_menu_free(&bar);
-    assets_msg_free(&menu_txt);
-    return 1;
-  }
-  (void)action;
-
-  /*
-   * ORDERS Clear/Plow terrain gating — FUN_2b5a_0b34 (viceroy_unpacked.c
-   * 42219-42225). Non-forest hides Clear, forest hides Plow, and ONLY class
-   * 0x1b/0x1c (mountains/hills) hides both. Arctic keeps Plow visible: the
-   * arctic arm the port used to carry was invented (smell_audit #101).
-   */
-  {
-    ColonizeMsgCatalog names;
-    assets_msg_init(&names);
-    if (!assets_msg_load_file(&names, "COLONIZE/NAMES.TXT")) {
-      fprintf(stderr, "orders gating: NAMES.TXT load failed\n");
-      if (font_ok) {
-        ff_free(&font);
-      }
-      map_menu_free(&bar);
-      assets_msg_free(&menu_txt);
-      return 1;
-    }
-    ColonizeUnitPool pool;
-    memset(&pool, 0, sizeof(pool));
-    if (!units_load_types(&pool, &names)) {
-      fprintf(stderr, "orders gating: units_load_types failed\n");
-      assets_msg_free(&names);
-      if (font_ok) {
-        ff_free(&font);
-      }
-      map_menu_free(&bar);
-      assets_msg_free(&menu_txt);
-      return 1;
-    }
-    const int pioneer = units_find_type(&pool, "Pioneers");
-    ColonizeWorldMap omap;
-    memset(&omap, 0, sizeof(omap)); /* map_alloc frees the old buffers first */
-    char oerr[128];
-    if (pioneer < 0 || !map_alloc(&omap, 8, 8, oerr, sizeof(oerr))) {
-      fprintf(stderr, "orders gating: setup failed\n");
-      assets_msg_free(&names);
-      if (font_ok) {
-        ff_free(&font);
-      }
-      map_menu_free(&bar);
-      assets_msg_free(&menu_txt);
-      return 1;
-    }
-    for (int i = 0; i < 8 * 8; ++i) {
-      omap.terrain[i] = 2; /* plains */
-    }
-    ColonizeColonyPool ocol;
-    colonies_init(&ocol);
-    colonies_set_occupancy_map(NULL);
-
-    const int opid = units_spawn(&pool, pioneer, 3, 3);
-    ColonizeUnit* ou = units_get(&pool, opid);
-    ou->nation_id = 0;
-    ou->tools = 100;
-
-    MapMenuOrdersContext octx;
-    memset(&octx, 0, sizeof(octx));
-    octx.units = &pool;
-    octx.map = &omap;
-    octx.colonies = &ocol;
-    octx.selected_id = opid;
-    octx.cursor_x = 3;
-    octx.cursor_y = 3;
-    octx.human_nation = 0;
-
-    const int orders_i = find_section(&bar, "ORDERS");
-    struct {
-      uint8_t terrain;
-      const char* name;
-      bool want_clear;
-      bool want_plow;
-    } cases[] = {
-      {2, "plains", false, true},        /* not forest → Clear hidden */
-      {10, "mixed forest", true, false}, /* forest → Plow hidden */
-      {24, "arctic", false, true},       /* DOS has no arctic arm */
-      {2 | 0xa0u, "mountains", false, false}, /* class 0x1b → both hidden */
-      {2 | 0x20u, "hills", false, false},     /* class 0x1c → both hidden */
-    };
-    int gating_ok = orders_i >= 0;
-    for (size_t ci = 0; gating_ok && ci < sizeof(cases) / sizeof(cases[0]); ++ci) {
-      omap.terrain[3 * omap.width + 3] = cases[ci].terrain;
-      map_menu_refresh(&bar, &octx);
-      bool clear_vis = false;
-      bool plow_vis = false;
-      for (int i = 0; i < bar.menus[orders_i].item_count; ++i) {
-        const MapMenuItem* it = &bar.menus[orders_i].items[i];
-        if (it->action == MAP_MENU_ACTION_CLEAR_FOREST) {
-          clear_vis = it->visible;
-        }
-        if (it->action == MAP_MENU_ACTION_PLOW_FIELDS) {
-          plow_vis = it->visible;
-        }
-      }
-      if (clear_vis != cases[ci].want_clear || plow_vis != cases[ci].want_plow) {
-        fprintf(
-          stderr,
-          "orders gating on %s: Clear=%d Plow=%d, expected %d/%d\n",
-          cases[ci].name, (int)clear_vis, (int)plow_vis,
-          (int)cases[ci].want_clear, (int)cases[ci].want_plow
-        );
-        gating_ok = 0;
-      }
-    }
-    map_free(&omap);
-    assets_msg_free(&names);
-    if (!gating_ok) {
-      if (font_ok) {
-        ff_free(&font);
-      }
-      map_menu_free(&bar);
-      assets_msg_free(&menu_txt);
-      return 1;
-    }
   }
 
   if (font_ok) {
     ff_free(&font);
   }
-  map_menu_free(&bar);
-  assets_msg_free(&menu_txt);
-  fprintf(stderr, "map menu tests ok (menus=%d debug=%d)\n", expected_menus, COLONIZE_DEBUG_MENU);
-  diag_shutdown();
+  fixture_free(&fx);
   return 0;
 }
+
+static int case_hidden_cheat_click_blocked(void) {
+  Fixture fx;
+  if (fixture_init(&fx) != 0) {
+    return 1;
+  }
+  MapMenuBar* bar = &fx.bar;
+  const int cup_i = find_section(bar, "CUP");
+
+  ColonizeFont font;
+  memset(&font, 0, sizeof(font));
+  char err[128];
+  const bool font_ok = ff_load("COLONIZE/FONTSMAL.FF", &font, err, sizeof(err));
+  const ColonizeFont* f = font_ok ? &font : NULL;
+
+  ColonizeInputState input;
+  memset(&input, 0, sizeof(input));
+
+  /* Hidden CHEAT title must not be clickable. */
+  map_menu_handle_input(bar, &input, f, true);
+  input.mouse_x = bar->menus[cup_i].title_x + 2;
+  input.mouse_y = 2;
+  input.mouse_left_clicked = true;
+  MapMenuAction action = map_menu_handle_input(bar, &input, f, false);
+  if (bar->open_index == cup_i) {
+    fprintf(stderr, "hidden CHEAT title should not open\n");
+    if (font_ok) {
+      ff_free(&font);
+    }
+    fixture_free(&fx);
+    return 1;
+  }
+  (void)action;
+
+  if (font_ok) {
+    ff_free(&font);
+  }
+  fixture_free(&fx);
+  return 0;
+}
+
+/*
+ * ORDERS Clear/Plow terrain gating — FUN_2b5a_0b34 (viceroy_unpacked.c
+ * 42219-42225). Non-forest hides Clear, forest hides Plow, and ONLY class
+ * 0x1b/0x1c (mountains/hills) hides both. Arctic keeps Plow visible: the
+ * arctic arm the port used to carry was invented (smell_audit #101).
+ * Self-contained: builds its own units/map/colonies fixture on top of the
+ * menu bar, so it does not need the shared Fixture helper's font/bar reuse.
+ */
+static int case_orders_gating(void) {
+  Fixture fx;
+  if (fixture_init(&fx) != 0) {
+    return 1;
+  }
+  MapMenuBar* bar = &fx.bar;
+
+  ColonizeMsgCatalog names;
+  assets_msg_init(&names);
+  if (!assets_msg_load_file(&names, "COLONIZE/NAMES.TXT")) {
+    fprintf(stderr, "orders gating: NAMES.TXT load failed\n");
+    fixture_free(&fx);
+    return 1;
+  }
+  ColonizeUnitPool pool;
+  memset(&pool, 0, sizeof(pool));
+  if (!units_load_types(&pool, &names)) {
+    fprintf(stderr, "orders gating: units_load_types failed\n");
+    assets_msg_free(&names);
+    fixture_free(&fx);
+    return 1;
+  }
+  const int pioneer = units_find_type(&pool, "Pioneers");
+  ColonizeWorldMap omap;
+  memset(&omap, 0, sizeof(omap)); /* map_alloc frees the old buffers first */
+  char oerr[128];
+  if (pioneer < 0 || !map_alloc(&omap, 8, 8, oerr, sizeof(oerr))) {
+    fprintf(stderr, "orders gating: setup failed\n");
+    assets_msg_free(&names);
+    fixture_free(&fx);
+    return 1;
+  }
+  for (int i = 0; i < 8 * 8; ++i) {
+    omap.terrain[i] = 2; /* plains */
+  }
+  ColonizeColonyPool ocol;
+  colonies_init(&ocol);
+  colonies_set_occupancy_map(NULL);
+
+  const int opid = units_spawn(&pool, pioneer, 3, 3);
+  ColonizeUnit* ou = units_get(&pool, opid);
+  ou->nation_id = 0;
+  ou->tools = 100;
+
+  MapMenuOrdersContext octx;
+  memset(&octx, 0, sizeof(octx));
+  octx.units = &pool;
+  octx.map = &omap;
+  octx.colonies = &ocol;
+  octx.selected_id = opid;
+  octx.cursor_x = 3;
+  octx.cursor_y = 3;
+  octx.human_nation = 0;
+
+  const int orders_i = find_section(bar, "ORDERS");
+  struct {
+    uint8_t terrain;
+    const char* name;
+    bool want_clear;
+    bool want_plow;
+  } cases[] = {
+    {2, "plains", false, true},        /* not forest → Clear hidden */
+    {10, "mixed forest", true, false}, /* forest → Plow hidden */
+    {24, "arctic", false, true},       /* DOS has no arctic arm */
+    {2 | 0xa0u, "mountains", false, false}, /* class 0x1b → both hidden */
+    {2 | 0x20u, "hills", false, false},     /* class 0x1c → both hidden */
+  };
+  int gating_ok = orders_i >= 0;
+  for (size_t ci = 0; gating_ok && ci < sizeof(cases) / sizeof(cases[0]); ++ci) {
+    omap.terrain[3 * omap.width + 3] = cases[ci].terrain;
+    map_menu_refresh(bar, &octx);
+    bool clear_vis = false;
+    bool plow_vis = false;
+    for (int i = 0; i < bar->menus[orders_i].item_count; ++i) {
+      const MapMenuItem* it = &bar->menus[orders_i].items[i];
+      if (it->action == MAP_MENU_ACTION_CLEAR_FOREST) {
+        clear_vis = it->visible;
+      }
+      if (it->action == MAP_MENU_ACTION_PLOW_FIELDS) {
+        plow_vis = it->visible;
+      }
+    }
+    if (clear_vis != cases[ci].want_clear || plow_vis != cases[ci].want_plow) {
+      fprintf(
+        stderr,
+        "orders gating on %s: Clear=%d Plow=%d, expected %d/%d\n",
+        cases[ci].name, (int)clear_vis, (int)plow_vis,
+        (int)cases[ci].want_clear, (int)cases[ci].want_plow
+      );
+      gating_ok = 0;
+    }
+  }
+  map_free(&omap);
+  assets_msg_free(&names);
+  fixture_free(&fx);
+  return gating_ok ? 0 : 1;
+}
+
+static const TestCase k_cases[] = {
+  {"menu_counts_and_titles", case_menu_counts_and_titles},
+  {"cheat_items", case_cheat_items},
+  {"view_pieces_hotkeys", case_view_pieces_hotkeys},
+  {"debug_menu", case_debug_menu},
+  {"reports_and_game_options", case_reports_and_game_options},
+  {"pedia_categories", case_pedia_categories},
+  {"render_title_position", case_render_title_position},
+  {"cheat_visible_toggle", case_cheat_visible_toggle},
+  {"click_open_and_save", case_click_open_and_save},
+  {"hidden_cheat_click_blocked", case_hidden_cheat_click_blocked},
+  {"orders_gating", case_orders_gating},
+};
+
+TEST_MAIN(k_cases)

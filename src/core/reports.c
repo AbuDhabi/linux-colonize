@@ -2433,16 +2433,6 @@ int reports_naval_page_count_w(
   return pages;
 }
 
-/* Compat shim: pre-ColonizeWorld signature (see src/core/world.h). */
-int reports_naval_page_count(
-  int human_nation,
-  const ColonizeUnitPool* units,
-  const ColonizeColonyPool* colonies,
-  const EuropeScreen* europe
-) {
-  ColonizeWorld w_ = world_make(units, colonies, NULL, NULL, false, NULL, europe);
-  return reports_naval_page_count_w(&w_, human_nation);
-}
 
 /* Column-centered text, e.g. the header row and the Location/Destination
  * cells (golden: both header and body text sit centered in their column,
@@ -3629,18 +3619,6 @@ void reports_compute_score_w(
   out->rating = reports_score_rating(out->total, out->difficulty, &out->exploits_tier);
 }
 
-/* Compat shim: pre-ColonizeWorld signature (see src/core/world.h). */
-void reports_compute_score(
-  ColonizeScoreBreakdown* out,
-  const ColonizeCol1Save* col1,
-  int human_nation,
-  const ColonizeColonyPool* colonies,
-  const EuropeScreen* europe
-) {
-  ColonizeWorld w_ = world_make(NULL, colonies, NULL, col1, col1 != NULL, NULL, europe);
-  reports_compute_score_w(&w_, out, human_nation);
-}
-
 /*
  * Geometry below is measured directly off score.png (native = golden/2, per
  * report_screens.md's golden-measurement recipe), not derived from the
@@ -3741,7 +3719,7 @@ static void reports_render_score(
 ) {
   (void)turn_number;
   ColonizeScoreBreakdown sc;
-  reports_compute_score(&sc, col1, human, colonies, europe);
+  reports_compute_score_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(colonies), .col1=(ColonizeCol1Save*)(col1), .col1_ok=((col1) != NULL), .europe=(EuropeScreen*)(europe)}, &sc, human);
 
   const ColonizeFont* body_font = (view && view->title_font_ok) ? &view->title_font : font;
 
@@ -4302,27 +4280,3 @@ void reports_render_w(
   }
 }
 
-/* Compat shim: pre-ColonizeWorld signature (see src/core/world.h). */
-void reports_render(
-  const ColonizeReportsView* view,
-  ColonizeReportId id,
-  bool congress_page2,
-  int labor_detail_job,
-  int economic_page,
-  int colony_page,
-  int naval_page,
-  const ColonizeColonyPool* colonies,
-  const ColonizeUnitPool* units,
-  const ColonizeWorldMap* map,
-  const EuropeScreen* europe,
-  const ColonizeCol1Save* col1,
-  int human_nation,
-  int cursor_x,
-  int cursor_y,
-  uint32_t turn_number,
-  const ColonizeFont* font,
-  ColonizeFramebuffer8* framebuffer
-) {
-  ColonizeWorld w_ = world_make(units, colonies, map, col1, col1 != NULL, NULL, europe);
-  reports_render_w(&w_, view, id, congress_page2, labor_detail_job, economic_page, colony_page, naval_page, human_nation, cursor_x, cursor_y, turn_number, font, framebuffer);
-}

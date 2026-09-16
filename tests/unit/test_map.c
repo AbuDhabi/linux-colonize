@@ -5,6 +5,8 @@
 #include "core/map.h"
 #include "platform/diagnostics.h"
 
+#include "../common/test_runner.h"
+
 #define MAP_FIXTURE_PHYS0_MAX 8
 
 typedef struct MapTileExpectation {
@@ -98,32 +100,73 @@ static int check_tile(
   return 0;
 }
 
-int main(void) {
+/* Shared fixture: all cases below are read-only lookups against the same
+ * loaded AMER2 map, so it is loaded once lazily and never mutated by any
+ * case (each case that needs its own mutable map builds a small local one
+ * instead: see case_plow_road_overlay / case_fog_edges). That read-only
+ * property is what makes it safe to share across cases run in any order
+ * (reverse/shuffle/only). */
+static ColonizeWorldMap g_map;
+static int g_map_ready = 0; /* 0 = not attempted, 1 = ok, -1 = failed */
+
+static void free_g_map(void) {
+  if (g_map_ready == 1) {
+    map_free(&g_map);
+  }
+}
+
+static int ensure_map(void) {
+  if (g_map_ready != 0) {
+    return g_map_ready == 1 ? 0 : 1;
+  }
   diag_init(0, NULL);
-
-  ColonizeWorldMap map;
   char err[256];
-  if (!map_load_mp("COLONIZE/AMER2.MP", &map, err, sizeof(err))) {
+  if (!map_load_mp("COLONIZE/AMER2.MP", &g_map, err, sizeof(err))) {
     fprintf(stderr, "map load failed: %s\n", err);
+    g_map_ready = -1;
+    return 1;
+  }
+  g_map_ready = 1;
+  atexit(free_g_map);
+  return 0;
+}
+
+static int run_fixture_array(const MapTileExpectation* arr, size_t n, const char* label) {
+  char err[256];
+  if (ensure_map() != 0) {
+    return 1;
+  }
+  for (size_t i = 0; i < n; ++i) {
+    if (check_tile(&g_map, &arr[i], err, sizeof(err)) != 0) {
+      fprintf(stderr, "%s: %s\n", label, err);
+      return 1;
+    }
+  }
+  return 0;
+}
+
+static int case_map_load_and_ocean(void) {
+  if (ensure_map() != 0) {
+    return 1;
+  }
+  if (g_map.width != 58 || g_map.height != 72 || g_map.tile_count != 58u * 72u) {
+    fprintf(stderr, "unexpected map size %ux%u (%zu tiles)\n", g_map.width, g_map.height,
+      g_map.tile_count);
     return 1;
   }
 
-  if (map.width != 58 || map.height != 72 || map.tile_count != 58u * 72u) {
-    fprintf(stderr, "unexpected map size %ux%u (%zu tiles)\n", map.width, map.height, map.tile_count);
-    map_free(&map);
-    return 1;
-  }
-
-  const uint8_t ocean = map_get_terrain(&map, 0, 0);
-  if ((ocean & 0x1f) != 25 || map_terrain_sprite_at(&map, 0, 0) != 10) {
+  const uint8_t ocean = map_get_terrain(&g_map, 0, 0);
+  if ((ocean & 0x1f) != 25 || map_terrain_sprite_at(&g_map, 0, 0) != 10) {
     fprintf(stderr, "ocean tile expected index 25 sprite 10, got 0x%02x sprite %d\n",
-      ocean, map_terrain_sprite_at(&map, 0, 0));
-    map_free(&map);
+      ocean, map_terrain_sprite_at(&g_map, 0, 0));
     return 1;
   }
+  return 0;
+}
 
+static int case_amer2_fixtures(void) {
+  /* Shared connectivity: base + mask (N=8,S=4,W=2,E=1); 0-based PHYS0 indices. */
   static const MapTileExpectation amer2_fixtures[] = {
-    /* Shared connectivity: base + mask (N=8,S=4,W=2,E=1); 0-based PHYS0 indices. */
     {1, 1, 0, 2, {69, 48}},
     {2, 11, 4, 1, {32}},
     {43, 68, 0, 0, {0}}, /* one-tile island: layer3 0x0e is continent id 14, not a peak */
@@ -145,15 +188,11 @@ int main(void) {
     {9, 26, 1, 1, {48}},
     {16, 3, 0, 2, {78, 21}},
   };
+  return run_fixture_array(amer2_fixtures, sizeof(amer2_fixtures) / sizeof(amer2_fixtures[0]),
+    "amer2 fixture");
+}
 
-  for (size_t i = 0; i < sizeof(amer2_fixtures) / sizeof(amer2_fixtures[0]); ++i) {
-    if (check_tile(&map, &amer2_fixtures[i], err, sizeof(err)) != 0) {
-      fprintf(stderr, "%s\n", err);
-      map_free(&map);
-      return 1;
-    }
-  }
-
+static int case_coast_overlays(void) {
 #if MAP_COAST_OVERLAYS_ENABLED
   /*
    * MAPEDIT coast masks; corners 150–153; fragments 108+4*m+q (MAPEDIT 0x6d − 1).
@@ -169,13 +208,9 @@ int main(void) {
     {8, 26, 10, 5, {132, 129, 114, 111, 96}},
     {34, 7, 10, 4, {128, 121, 118, 127}},
   };
-
-  for (size_t i = 0; i < sizeof(amer2_coast_fixtures) / sizeof(amer2_coast_fixtures[0]); ++i) {
-    if (check_tile(&map, &amer2_coast_fixtures[i], err, sizeof(err)) != 0) {
-      fprintf(stderr, "coast regression: %s\n", err);
-      map_free(&map);
-      return 1;
-    }
+  if (run_fixture_array(amer2_coast_fixtures,
+        sizeof(amer2_coast_fixtures) / sizeof(amer2_coast_fixtures[0]), "coast regression") != 0) {
+    return 1;
   }
 
   /* MAPEDIT land underlayer (last cardinal land neighbour TERRAIN sprite). */
@@ -193,8 +228,11 @@ int main(void) {
       {0, 0, 0}, /* coastal: land to the E on tundra row → underlayer 0 */
       {29, 0, -1}, /* open ocean */
     };
+    if (ensure_map() != 0) {
+      return 1;
+    }
     for (size_t i = 0; i < sizeof(under) / sizeof(under[0]); ++i) {
-      const int got = map_coast_underlayer_sprite_at(&map, under[i].x, under[i].y);
+      const int got = map_coast_underlayer_sprite_at(&g_map, under[i].x, under[i].y);
       if (got != under[i].underlayer) {
         fprintf(
           stderr,
@@ -204,11 +242,11 @@ int main(void) {
           under[i].underlayer,
           got
         );
-        map_free(&map);
         return 1;
       }
     }
   }
+  return 0;
 #else
   /* Coast overlays stubbed off — shore tiles should have TERRAIN only. */
   static const MapTileExpectation amer2_coast_disabled[] = {
@@ -216,23 +254,22 @@ int main(void) {
     {23, 2, 10, 0, {0}},
     {1, 3, 10, 0, {0}},
   };
-
-  for (size_t i = 0; i < sizeof(amer2_coast_disabled) / sizeof(amer2_coast_disabled[0]); ++i) {
-    if (check_tile(&map, &amer2_coast_disabled[i], err, sizeof(err)) != 0) {
-      fprintf(stderr, "coast disabled regression: %s\n", err);
-      map_free(&map);
-      return 1;
-    }
-  }
+  return run_fixture_array(amer2_coast_disabled,
+    sizeof(amer2_coast_disabled) / sizeof(amer2_coast_disabled[0]), "coast disabled regression");
 #endif
+}
 
+static int case_scrub_forest(void) {
   /* Scrub forest: only terrain indices 9 and 17 use TERRAIN sprite 8 (no PHYS0). */
+  if (ensure_map() != 0) {
+    return 1;
+  }
   int scrub_sprite8_tiles = 0;
-  for (int y = 0; y < (int)map.height; ++y) {
-    for (int x = 0; x < (int)map.width; ++x) {
-      const uint8_t byte = map_get_terrain(&map, x, y);
+  for (int y = 0; y < (int)g_map.height; ++y) {
+    for (int x = 0; x < (int)g_map.width; ++x) {
+      const uint8_t byte = map_get_terrain(&g_map, x, y);
       const int terrain_index = (int)(byte & 0x1fu);
-      const int terrain_sprite = map_terrain_sprite_at(&map, x, y);
+      const int terrain_sprite = map_terrain_sprite_at(&g_map, x, y);
       if (terrain_sprite != 8) {
         continue;
       }
@@ -246,129 +283,132 @@ int main(void) {
           terrain_index,
           byte
         );
-        map_free(&map);
         return 1;
       }
-      if (map_phys0_forest_sprite_at(&map, x, y) >= 0) {
+      if (map_phys0_forest_sprite_at(&g_map, x, y) >= 0) {
         fprintf(stderr, "scrub regression: (%d,%d) must not have PHYS0 forest overlay\n", x, y);
-        map_free(&map);
         return 1;
       }
     }
   }
   if (scrub_sprite8_tiles != 81) {
-    fprintf(stderr, "scrub regression: expected 81 TERRAIN-8 tiles on AMER2, got %d\n", scrub_sprite8_tiles);
-    map_free(&map);
+    fprintf(stderr, "scrub regression: expected 81 TERRAIN-8 tiles on AMER2, got %d\n",
+      scrub_sprite8_tiles);
     return 1;
   }
+  return 0;
+}
 
+static int case_land_transitions(void) {
   /* Land-land transitions (MAPEDIT 06da): PHYS0 104+q then neighbour TERRAIN fill. */
+  if (ensure_map() != 0) {
+    return 1;
+  }
+  const int n = map_land_transition_count(&g_map, 4, 18);
+  if (n != 3) {
+    fprintf(stderr, "transition count (4,18) expected 3 got %d\n", n);
+    return 1;
+  }
+  if (map_land_transition_mask_sprite_at(&g_map, 4, 18, 0) != 104 ||
+      map_land_transition_fill_terrain_at(&g_map, 4, 18, 0) != 3 ||
+      map_land_transition_mask_sprite_at(&g_map, 4, 18, 1) != 105 ||
+      map_land_transition_fill_terrain_at(&g_map, 4, 18, 1) != 1 ||
+      map_land_transition_mask_sprite_at(&g_map, 4, 18, 2) != 106 ||
+      map_land_transition_fill_terrain_at(&g_map, 4, 18, 2) != 8) {
+    fprintf(stderr, "transition sprites (4,18) mismatch\n");
+    return 1;
+  }
+  /* (2,15) conifer vs ocean (2,16) filled from prairie (3,16). */
   {
-    const int n = map_land_transition_count(&map, 4, 18);
-    if (n != 3) {
-      fprintf(stderr, "transition count (4,18) expected 3 got %d\n", n);
-      map_free(&map);
-      return 1;
-    }
-    if (map_land_transition_mask_sprite_at(&map, 4, 18, 0) != 104 ||
-        map_land_transition_fill_terrain_at(&map, 4, 18, 0) != 3 ||
-        map_land_transition_mask_sprite_at(&map, 4, 18, 1) != 105 ||
-        map_land_transition_fill_terrain_at(&map, 4, 18, 1) != 1 ||
-        map_land_transition_mask_sprite_at(&map, 4, 18, 2) != 106 ||
-        map_land_transition_fill_terrain_at(&map, 4, 18, 2) != 8) {
-      fprintf(stderr, "transition sprites (4,18) mismatch\n");
-      map_free(&map);
-      return 1;
-    }
-    /* (2,15) conifer vs ocean (2,16) filled from prairie (3,16). */
-    {
-      int found = 0;
-      const int tn = map_land_transition_count(&map, 2, 15);
-      for (int i = 0; i < tn; ++i) {
-        if (map_land_transition_mask_sprite_at(&map, 2, 15, i) == 106 &&
-            map_land_transition_fill_terrain_at(&map, 2, 15, i) == 3) {
-          found = 1;
-        }
+    int found = 0;
+    const int tn = map_land_transition_count(&g_map, 2, 15);
+    for (int i = 0; i < tn; ++i) {
+      if (map_land_transition_mask_sprite_at(&g_map, 2, 15, i) == 106 &&
+          map_land_transition_fill_terrain_at(&g_map, 2, 15, i) == 3) {
+        found = 1;
       }
-      if (!found) {
-        fprintf(stderr, "transition (2,15)→ocean corner: expected S mask 106 fill prairie 3\n");
-        map_free(&map);
-        return 1;
-      }
+    }
+    if (!found) {
+      fprintf(stderr, "transition (2,15)→ocean corner: expected S mask 106 fill prairie 3\n");
+      return 1;
     }
   }
+  return 0;
+}
 
+static int case_resources_rumours(void) {
   /* Procedural resources / rumours (MAPEDIT 0458 / 0540, seed 100). */
-  {
-    int resources = 0;
-    int rumours = 0;
-    int fish = 0;
-    int bad_gems = 0;
-    for (int y = 0; y < (int)map.height; ++y) {
-      for (int x = 0; x < (int)map.width; ++x) {
-        const int n = map_phys0_overlay_count(&map, x, y);
-        for (int i = 0; i < n; ++i) {
-          const int s = map_phys0_overlay_sprite_at(&map, x, y, i);
-          if (s >= 89 && s <= 102) {
-            ++resources;
+  if (ensure_map() != 0) {
+    return 1;
+  }
+  int resources = 0;
+  int rumours = 0;
+  int fish = 0;
+  int bad_gems = 0;
+  for (int y = 0; y < (int)g_map.height; ++y) {
+    for (int x = 0; x < (int)g_map.width; ++x) {
+      const int n = map_phys0_overlay_count(&g_map, x, y);
+      for (int i = 0; i < n; ++i) {
+        const int s = map_phys0_overlay_sprite_at(&g_map, x, y, i);
+        if (s >= 89 && s <= 102) {
+          ++resources;
+        }
+        if (s == 96) {
+          ++fish;
+        }
+        if (s == 95) {
+          /* Table value 6: tundra/marsh/swamp and wetland/rain forests. */
+          const int idx = map_get_terrain(&g_map, x, y) & 0x1f;
+          if (idx != 0 && idx != 6 && idx != 7 && idx != 14 && idx != 15 && idx != 22 &&
+              idx != 23) {
+            ++bad_gems;
           }
-          if (s == 96) {
-            ++fish;
-          }
-          if (s == 95) {
-            /* Table value 6: tundra/marsh/swamp and wetland/rain forests. */
-            const int idx = map_get_terrain(&map, x, y) & 0x1f;
-            if (idx != 0 && idx != 6 && idx != 7 && idx != 14 && idx != 15 && idx != 22 &&
-                idx != 23) {
-              ++bad_gems;
-            }
-          }
-          if (s == 103) {
-            ++rumours;
-          }
+        }
+        if (s == 103) {
+          ++rumours;
         }
       }
     }
-    /* 420 -> 421: map_resource_type_at_ex's forest-range check
-     * (FUN_12ab_0458 local_4) only covered pedia 8-15, missing pedia
-     * 16-23 (the other forest half, same 8 types via &7) — asm-confirmed
-     * against mapedit.c's decompile. One AMER2 tile (pedia 19, forest) was
-     * silently dropping its resource because of it; fixed in map.c.
-     * 421 -> 425: two more fixes, player-confirmed 2026-08-18 via
-     * colony_prod02's New Holland (real single-turn DOS capture): (1) the
-     * coordinate hash's `+1` ("DOS is 1-based") was never actually in
-     * FUN_12ab_0458 itself, just this port's unverified guess about its
-     * caller — dropping it moves the whole resource pattern by one tile
-     * in every direction; (2) the hash-match gate was wrongly skipped
-     * whenever a `_for_yield` (settlement-transparent) call landed on a
-     * tile that also had the settlement bit set — every colony center —
-     * so centers always reported a match regardless of the real hash.
-     * Rumours 40 -> 38 (2026-09-09, smell_audit #98): map_procedural_rumour_at
-     * still carried the same unverified `+1` after the resource hash dropped
-     * it, even though mapedit.c:9406/9410 hand FUN_12ab_0458 and
-     * FUN_12ab_0540 the identical coordinate pair, so both hashes must share
-     * a coordinate space. The hash lattice is unchanged, but each lattice
-     * point is now terrain-tested one tile SE of where it used to be, and two
-     * points moved onto terrain 0540 skips (ocean / high seas / arctic). */
-    if (resources != 425 || rumours != 38) {
-      fprintf(stderr, "resource/rumour count expected 425/38 got %d/%d\n", resources, rumours);
-      map_free(&map);
-      return 1;
-    }
-    /* 267, not 275 — same 2026-08-18 coordinate-hash fixes as the
-     * resource/rumour count above shifted which tiles match. */
-    if (fish != 267) {
-      fprintf(stderr, "fish resource count expected 267 got %d\n", fish);
-      map_free(&map);
-      return 1;
-    }
-    if (bad_gems != 0) {
-      fprintf(stderr, "minerals/gems (95) on unexpected terrain (%d tiles)\n", bad_gems);
-      map_free(&map);
-      return 1;
-    }
   }
+  /* 420 -> 421: map_resource_type_at_ex's forest-range check
+   * (FUN_12ab_0458 local_4) only covered pedia 8-15, missing pedia
+   * 16-23 (the other forest half, same 8 types via &7) — asm-confirmed
+   * against mapedit.c's decompile. One AMER2 tile (pedia 19, forest) was
+   * silently dropping its resource because of it; fixed in map.c.
+   * 421 -> 425: two more fixes, player-confirmed 2026-08-18 via
+   * colony_prod02's New Holland (real single-turn DOS capture): (1) the
+   * coordinate hash's `+1` ("DOS is 1-based") was never actually in
+   * FUN_12ab_0458 itself, just this port's unverified guess about its
+   * caller — dropping it moves the whole resource pattern by one tile
+   * in every direction; (2) the hash-match gate was wrongly skipped
+   * whenever a `_for_yield` (settlement-transparent) call landed on a
+   * tile that also had the settlement bit set — every colony center —
+   * so centers always reported a match regardless of the real hash.
+   * Rumours 40 -> 38 (2026-09-09, smell_audit #98): map_procedural_rumour_at
+   * still carried the same unverified `+1` after the resource hash dropped
+   * it, even though mapedit.c:9406/9410 hand FUN_12ab_0458 and
+   * FUN_12ab_0540 the identical coordinate pair, so both hashes must share
+   * a coordinate space. The hash lattice is unchanged, but each lattice
+   * point is now terrain-tested one tile SE of where it used to be, and two
+   * points moved onto terrain 0540 skips (ocean / high seas / arctic). */
+  if (resources != 425 || rumours != 38) {
+    fprintf(stderr, "resource/rumour count expected 425/38 got %d/%d\n", resources, rumours);
+    return 1;
+  }
+  /* 267, not 275 — same 2026-08-18 coordinate-hash fixes as the
+   * resource/rumour count above shifted which tiles match. */
+  if (fish != 267) {
+    fprintf(stderr, "fish resource count expected 267 got %d\n", fish);
+    return 1;
+  }
+  if (bad_gems != 0) {
+    fprintf(stderr, "minerals/gems (95) on unexpected terrain (%d tiles)\n", bad_gems);
+    return 1;
+  }
+  return 0;
+}
 
+static int case_river_chain(void) {
   /*
    * Minor-river chain on AMER2 (~14,22)–(18,25): shared mask → PHYS0 16–31.
    * Forest tiles may also report a canopy sprite ahead of the river overlay.
@@ -390,15 +430,11 @@ int main(void) {
     {48, 46, 5, 1, {24}},
     {50, 49, 5, 3, {79, 24, 99}},
   };
+  return run_fixture_array(amer2_river_chain,
+    sizeof(amer2_river_chain) / sizeof(amer2_river_chain[0]), "river chain regression");
+}
 
-  for (size_t i = 0; i < sizeof(amer2_river_chain) / sizeof(amer2_river_chain[0]); ++i) {
-    if (check_tile(&map, &amer2_river_chain[i], err, sizeof(err)) != 0) {
-      fprintf(stderr, "river chain regression: %s\n", err);
-      map_free(&map);
-      return 1;
-    }
-  }
-
+static int case_river_north(void) {
   /* Minor-river segment on AMER2 (~6,19)–(8,16). Resource sprite shifted
    * from (7,17) to (6,19) with the 2026-08-18 coordinate-hash fix — see
    * the whole-map resource count comment above. */
@@ -410,15 +446,11 @@ int main(void) {
     {7, 16, 1, 1, {21}},
     {8, 16, 8, 1, {18}},
   };
+  return run_fixture_array(amer2_river_north,
+    sizeof(amer2_river_north) / sizeof(amer2_river_north[0]), "river north regression");
+}
 
-  for (size_t i = 0; i < sizeof(amer2_river_north) / sizeof(amer2_river_north[0]); ++i) {
-    if (check_tile(&map, &amer2_river_north[i], err, sizeof(err)) != 0) {
-      fprintf(stderr, "river north regression: %s\n", err);
-      map_free(&map);
-      return 1;
-    }
-  }
-
+static int case_river_major(void) {
   /* Major/minor junction on AMER2 (~21,18)–(22,20), minor fork at (21,20). */
   static const MapTileExpectation amer2_river_major[] = {
     {21, 18, 3, 2, {69, 11}},
@@ -428,15 +460,11 @@ int main(void) {
     {29, 15, 3, 2, {79, 28}},
     {29, 14, 2, 2, {79, 20}},
   };
+  return run_fixture_array(amer2_river_major,
+    sizeof(amer2_river_major) / sizeof(amer2_river_major[0]), "river major regression");
+}
 
-  for (size_t i = 0; i < sizeof(amer2_river_major) / sizeof(amer2_river_major[0]); ++i) {
-    if (check_tile(&map, &amer2_river_major[i], err, sizeof(err)) != 0) {
-      fprintf(stderr, "river major regression: %s\n", err);
-      map_free(&map);
-      return 1;
-    }
-  }
-
+static int case_river_estuary(void) {
   /*
    * River estuaries (MAPEDIT 0x8d+q → 0-based 140–147 after coast).
    */
@@ -449,14 +477,8 @@ int main(void) {
     {13, 8, 10, 6, {136, 137, 114, 135, 145, 147}},
     {25, 15, 10, 5, {132, 129, 138, 123, 141}},
   };
-
-  for (size_t i = 0; i < sizeof(amer2_river_estuary) / sizeof(amer2_river_estuary[0]); ++i) {
-    if (check_tile(&map, &amer2_river_estuary[i], err, sizeof(err)) != 0) {
-      fprintf(stderr, "river estuary regression: %s\n", err);
-      map_free(&map);
-      return 1;
-    }
-  }
+  return run_fixture_array(amer2_river_estuary,
+    sizeof(amer2_river_estuary) / sizeof(amer2_river_estuary[0]), "river estuary regression");
 #else
 #if !MAP_COAST_OVERLAYS_ENABLED
   /* Estuary + coast both off — ocean+river tiles draw TERRAIN only. */
@@ -466,248 +488,241 @@ int main(void) {
     {23, 22, 10, 0, {0}},
     {46, 39, 10, 0, {0}},
   };
-
-  for (size_t i = 0; i < sizeof(amer2_estuary_disabled) / sizeof(amer2_estuary_disabled[0]); ++i) {
-    if (check_tile(&map, &amer2_estuary_disabled[i], err, sizeof(err)) != 0) {
-      fprintf(stderr, "estuary disabled regression: %s\n", err);
-      map_free(&map);
-      return 1;
-    }
-  }
+  return run_fixture_array(amer2_estuary_disabled,
+    sizeof(amer2_estuary_disabled) / sizeof(amer2_estuary_disabled[0]),
+    "estuary disabled regression");
+#else
+  return 0;
 #endif
 #endif
+}
 
-  /* Runtime plow overlay: PHYS0 149 when MAP_IMPROVE_PLOWED set. */
-  {
-    ColonizeWorldMap plow_map;
-    memset(&plow_map, 0, sizeof(plow_map));
-    plow_map.width = 4;
-    plow_map.height = 4;
-    plow_map.tile_count = 16;
-    plow_map.terrain = calloc(16, 1);
-    plow_map.layer2 = calloc(16, 1);
-    plow_map.layer3 = calloc(16, 1);
-    plow_map.improve = calloc(16, 1);
-    plow_map.seen = calloc(16, 1);
-    if (!plow_map.terrain || !plow_map.layer2 || !plow_map.layer3 || !plow_map.improve ||
-        !plow_map.seen) {
-      fprintf(stderr, "plow overlay alloc failed\n");
-      map_free(&plow_map);
-      map_free(&map);
-      return 1;
-    }
-    plow_map.terrain[0] = 1; /* plains */
-    if (map_phys0_plow_sprite_at(&plow_map, 0, 0) != -1) {
-      fprintf(stderr, "plow overlay expected -1 before set\n");
-      map_free(&plow_map);
-      map_free(&map);
-      return 1;
-    }
-    map_tile_set_plowed(&plow_map, 0, 0, true);
-    if (map_phys0_plow_sprite_at(&plow_map, 0, 0) != 149) {
-      fprintf(
-        stderr,
-        "plow overlay expected PHYS0 149 got %d\n",
-        map_phys0_plow_sprite_at(&plow_map, 0, 0)
-      );
-      map_free(&plow_map);
-      map_free(&map);
-      return 1;
-    }
-    if (map_phys0_road_layer_sprite_at(&plow_map, 0, 0, 0) != -1) {
-      fprintf(stderr, "road overlay expected -1 before set\n");
-      map_free(&plow_map);
-      map_free(&map);
-      return 1;
-    }
-    map_tile_set_road(&plow_map, 0, 0, true);
-    if (map_phys0_road_layer_count(&plow_map, 0, 0) != 1 ||
-        map_phys0_road_layer_sprite_at(&plow_map, 0, 0, 0) != 80) {
-      fprintf(
-        stderr,
-        "road overlay expected isolated PHYS0 80 (count=%d sprite=%d)\n",
-        map_phys0_road_layer_count(&plow_map, 0, 0),
-        map_phys0_road_layer_sprite_at(&plow_map, 0, 0, 0)
-      );
-      map_free(&plow_map);
-      map_free(&map);
-      return 1;
-    }
-    /* N neighbor → stub 81 only (FUN_6ba1_0938 multi-blit; no isolated 80). */
-    map_tile_set_road(&plow_map, 0, 1, true); /* center (0,1) + north (0,0) */
-    if (map_phys0_road_layer_count(&plow_map, 0, 1) != 1 ||
-        map_phys0_road_layer_sprite_at(&plow_map, 0, 1, 0) != 81) {
-      fprintf(
-        stderr,
-        "road N-connect expected PHYS0 81 (count=%d sprite=%d)\n",
-        map_phys0_road_layer_count(&plow_map, 0, 1),
-        map_phys0_road_layer_sprite_at(&plow_map, 0, 1, 0)
-      );
-      map_free(&plow_map);
-      map_free(&map);
-      return 1;
-    }
-    /* Add S neighbor of (0,1) at (0,2) → stubs 81 (N) + 85 (S). */
-    map_tile_set_road(&plow_map, 0, 2, true);
-    if (map_phys0_road_layer_count(&plow_map, 0, 1) != 2 ||
-        map_phys0_road_layer_sprite_at(&plow_map, 0, 1, 0) != 81 ||
-        map_phys0_road_layer_sprite_at(&plow_map, 0, 1, 1) != 85) {
-      fprintf(
-        stderr,
-        "road N+S expected 81,85 (count=%d a=%d b=%d)\n",
-        map_phys0_road_layer_count(&plow_map, 0, 1),
-        map_phys0_road_layer_sprite_at(&plow_map, 0, 1, 0),
-        map_phys0_road_layer_sprite_at(&plow_map, 0, 1, 1)
-      );
-      map_free(&plow_map);
-      map_free(&map);
-      return 1;
-    }
-    /*
-     * bugs.md: a settlement tile carries road art (DOS FA mask 0x0a). Put a
-     * colony at (1,1), diagonally NE of (0,2): (0,2) must gain that stub, and
-     * the colony tile itself must render as a road tile.
-     */
-    plow_map.layer2[1 * plow_map.width + 1] |= MAP_OCCUPANCY_HAS_CITY;
-    if (map_phys0_road_layer_count(&plow_map, 1, 1) <= 0) {
-      fprintf(stderr, "colony tile should carry road art\n");
-      map_free(&plow_map);
-      map_free(&map);
-      return 1;
-    }
-    {
-      int saw_ne = 0;
-      const int n = map_phys0_road_layer_count(&plow_map, 0, 2);
-      for (int i = 0; i < n; ++i) {
-        if (map_phys0_road_layer_sprite_at(&plow_map, 0, 2, i) == 82) {
-          saw_ne = 1; /* PHYS0 81 + dir 1 (NE) */
-        }
-      }
-      if (!saw_ne) {
-        fprintf(stderr, "road should stub NE into the colony tile (count=%d)\n", n);
-        map_free(&plow_map);
-        map_free(&map);
-        return 1;
-      }
-    }
+static int case_plow_road_overlay(void) {
+  /* Runtime plow overlay: PHYS0 149 when MAP_IMPROVE_PLOWED set. Uses its
+   * own small local map: this exercises mutation (map_tile_set_plowed /
+   * map_tile_set_road), so it must not share g_map with the read-only
+   * cases above. */
+  ColonizeWorldMap plow_map;
+  memset(&plow_map, 0, sizeof(plow_map));
+  plow_map.width = 4;
+  plow_map.height = 4;
+  plow_map.tile_count = 16;
+  plow_map.terrain = calloc(16, 1);
+  plow_map.layer2 = calloc(16, 1);
+  plow_map.layer3 = calloc(16, 1);
+  plow_map.improve = calloc(16, 1);
+  plow_map.seen = calloc(16, 1);
+  if (!plow_map.terrain || !plow_map.layer2 || !plow_map.layer3 || !plow_map.improve ||
+      !plow_map.seen) {
+    fprintf(stderr, "plow overlay alloc failed\n");
     map_free(&plow_map);
-    fprintf(stderr, "plow overlay PHYS0 149 ok; road connectivity + colony stubs ok\n");
+    return 1;
   }
-
-  /* bugs.md fog edges: VICEROY FUN_6ba1_06e0 mask+fill pairs across the
-   * seen/unseen boundary. 5x5 board: plains everywhere, ocean at (3,2);
-   * only (2,2) seen by nation 0. */
+  plow_map.terrain[0] = 1; /* plains */
+  if (map_phys0_plow_sprite_at(&plow_map, 0, 0) != -1) {
+    fprintf(stderr, "plow overlay expected -1 before set\n");
+    map_free(&plow_map);
+    return 1;
+  }
+  map_tile_set_plowed(&plow_map, 0, 0, true);
+  if (map_phys0_plow_sprite_at(&plow_map, 0, 0) != 149) {
+    fprintf(
+      stderr,
+      "plow overlay expected PHYS0 149 got %d\n",
+      map_phys0_plow_sprite_at(&plow_map, 0, 0)
+    );
+    map_free(&plow_map);
+    return 1;
+  }
+  if (map_phys0_road_layer_sprite_at(&plow_map, 0, 0, 0) != -1) {
+    fprintf(stderr, "road overlay expected -1 before set\n");
+    map_free(&plow_map);
+    return 1;
+  }
+  map_tile_set_road(&plow_map, 0, 0, true);
+  if (map_phys0_road_layer_count(&plow_map, 0, 0) != 1 ||
+      map_phys0_road_layer_sprite_at(&plow_map, 0, 0, 0) != 80) {
+    fprintf(
+      stderr,
+      "road overlay expected isolated PHYS0 80 (count=%d sprite=%d)\n",
+      map_phys0_road_layer_count(&plow_map, 0, 0),
+      map_phys0_road_layer_sprite_at(&plow_map, 0, 0, 0)
+    );
+    map_free(&plow_map);
+    return 1;
+  }
+  /* N neighbor → stub 81 only (FUN_6ba1_0938 multi-blit; no isolated 80). */
+  map_tile_set_road(&plow_map, 0, 1, true); /* center (0,1) + north (0,0) */
+  if (map_phys0_road_layer_count(&plow_map, 0, 1) != 1 ||
+      map_phys0_road_layer_sprite_at(&plow_map, 0, 1, 0) != 81) {
+    fprintf(
+      stderr,
+      "road N-connect expected PHYS0 81 (count=%d sprite=%d)\n",
+      map_phys0_road_layer_count(&plow_map, 0, 1),
+      map_phys0_road_layer_sprite_at(&plow_map, 0, 1, 0)
+    );
+    map_free(&plow_map);
+    return 1;
+  }
+  /* Add S neighbor of (0,1) at (0,2) → stubs 81 (N) + 85 (S). */
+  map_tile_set_road(&plow_map, 0, 2, true);
+  if (map_phys0_road_layer_count(&plow_map, 0, 1) != 2 ||
+      map_phys0_road_layer_sprite_at(&plow_map, 0, 1, 0) != 81 ||
+      map_phys0_road_layer_sprite_at(&plow_map, 0, 1, 1) != 85) {
+    fprintf(
+      stderr,
+      "road N+S expected 81,85 (count=%d a=%d b=%d)\n",
+      map_phys0_road_layer_count(&plow_map, 0, 1),
+      map_phys0_road_layer_sprite_at(&plow_map, 0, 1, 0),
+      map_phys0_road_layer_sprite_at(&plow_map, 0, 1, 1)
+    );
+    map_free(&plow_map);
+    return 1;
+  }
+  /*
+   * bugs.md: a settlement tile carries road art (DOS FA mask 0x0a). Put a
+   * colony at (1,1), diagonally NE of (0,2): (0,2) must gain that stub, and
+   * the colony tile itself must render as a road tile.
+   */
+  plow_map.layer2[1 * plow_map.width + 1] |= MAP_OCCUPANCY_HAS_CITY;
+  if (map_phys0_road_layer_count(&plow_map, 1, 1) <= 0) {
+    fprintf(stderr, "colony tile should carry road art\n");
+    map_free(&plow_map);
+    return 1;
+  }
   {
-    ColonizeWorldMap fog_map;
-    char err2[128];
-    memset(&fog_map, 0, sizeof(fog_map)); /* map_alloc map_free()s the struct first */
-    memset(err2, 0, sizeof(err2));
-    if (!map_alloc(&fog_map, 5, 5, err2, sizeof(err2))) {
-      fprintf(stderr, "fog: map_alloc failed: %s\n", err2);
-      return 1;
-    }
-    for (int i = 0; i < 25; ++i) {
-      fog_map.terrain[i] = 2; /* plains */
-    }
-    fog_map.terrain[2 * 5 + 3] = 25; /* ocean at (3,2) */
-    memset(fog_map.seen, 0, fog_map.tile_count);
-    memset(fog_map.layer2, 0, fog_map.tile_count);
-    memset(fog_map.layer3, 0, fog_map.tile_count);
-    memset(fog_map.improve, 0, fog_map.tile_count);
-    fog_map.seen[2 * 5 + 2] = MAP_SEEN_NATION_BIT(0);
-    /* Seen tile (2,2): 4 unseen neighbours → 4 mask+fill pairs. */
-    if (map_fog_edge_count(&fog_map, 2, 2, 0) != 4) {
-      fprintf(stderr, "fog: seen tile should have 4 fog edges\n");
-      return 1;
-    }
-    if (map_fog_edge_fill_sprite_at(&fog_map, 2, 2, 0, 0) != 2) {
-      fprintf(stderr, "fog: north edge should fill with plains sprite\n");
-      return 1;
-    }
-    /*
-     * smell #96 / FUN_6ba1_06e0: the ocean resolve is gated on param_2 == 0
-     * (the DRAWN tile is land) alone, never on the neighbour's visibility, so
-     * the SEEN side rescans an ocean neighbour just like the fog side does.
-     * (3,2) is ocean; its W cardinal is the land tile (2,2) itself, so the
-     * east edge dithers plains (2), not the ocean sprite (10).
-     */
-    if (map_fog_edge_mask_sprite_at(&fog_map, 2, 2, 0, 1) != 105 ||
-        map_fog_edge_fill_sprite_at(&fog_map, 2, 2, 0, 1) != 2) {
-      fprintf(stderr, "fog: east edge should be mask 105 + rescanned land fill\n");
-      return 1;
-    }
-    /* Unseen land tile (2,1): one seen neighbour to the south → mask 106 +
-     * that neighbour's plains dither. */
-    if (map_fog_reveal_edge_count(&fog_map, 2, 1, 0) != 1 ||
-        map_fog_reveal_edge_mask_sprite_at(&fog_map, 2, 1, 0, 0) != 106 ||
-        map_fog_reveal_edge_fill_sprite_at(&fog_map, 2, 1, 0, 0) != 2) {
-      fprintf(stderr, "fog: unseen tile should dither the seen neighbour in\n");
-      return 1;
-    }
-    /*
-     * Same (2,2)/(3,2) land/ocean pair, fog flipped: the fog LAND tile with a
-     * seen ocean neighbour resolves via the neighbour's W/S/E/N cardinals.
-     * Both directions must agree — that agreement is the point of #96.
-     */
-    {
-      const int seen_side = map_fog_edge_fill_sprite_at(&fog_map, 2, 2, 0, 1);
-      fog_map.seen[2 * 5 + 2] = 0;
-      fog_map.seen[2 * 5 + 3] = MAP_SEEN_NATION_BIT(0); /* the ocean is seen */
-      if (map_fog_reveal_edge_count(&fog_map, 2, 2, 0) != 1 ||
-          map_fog_reveal_edge_mask_sprite_at(&fog_map, 2, 2, 0, 0) != 105 ||
-          map_fog_reveal_edge_fill_sprite_at(&fog_map, 2, 2, 0, 0) != 2) {
-        fprintf(stderr, "fog: ocean neighbour should resolve to a land cardinal fill\n");
-        return 1;
-      }
-      if (map_fog_reveal_edge_fill_sprite_at(&fog_map, 2, 2, 0, 0) != seen_side) {
-        fprintf(stderr, "fog: seen→fog and fog→seen edges must agree (%d vs %d)\n",
-          seen_side, map_fog_reveal_edge_fill_sprite_at(&fog_map, 2, 2, 0, 0));
-        return 1;
+    int saw_ne = 0;
+    const int n = map_phys0_road_layer_count(&plow_map, 0, 2);
+    for (int i = 0; i < n; ++i) {
+      if (map_phys0_road_layer_sprite_at(&plow_map, 0, 2, i) == 82) {
+        saw_ne = 1; /* PHYS0 81 + dir 1 (NE) */
       }
     }
-    /*
-     * param_2 == 1 (the drawn tile is itself ocean): no rescan, the ocean
-     * neighbour's art is taken as-is on both sides. Make (2,2) ocean too.
-     */
-    fog_map.terrain[2 * 5 + 2] = 25;
-    fog_map.seen[2 * 5 + 3] = 0;
-    fog_map.seen[2 * 5 + 2] = MAP_SEEN_NATION_BIT(0);
-    if (map_fog_edge_count(&fog_map, 2, 2, 0) != 4 ||
-        map_fog_edge_fill_sprite_at(&fog_map, 2, 2, 0, 1) != 10) {
-      fprintf(stderr, "fog: ocean tile should take the ocean neighbour art as-is\n");
+    if (!saw_ne) {
+      fprintf(stderr, "road should stub NE into the colony tile (count=%d)\n", n);
+      map_free(&plow_map);
       return 1;
     }
-    fog_map.seen[2 * 5 + 2] = 0;
-    fog_map.seen[2 * 5 + 3] = MAP_SEEN_NATION_BIT(0);
-    if (map_fog_reveal_edge_fill_sprite_at(&fog_map, 2, 2, 0, 0) != 10) {
-      fprintf(stderr, "fog: fog ocean tile should take the ocean neighbour art as-is\n");
-      return 1;
-    }
-    map_free(&fog_map);
-    fprintf(stderr, "fog edge mask+fill ok\n");
   }
-
-  fprintf(stderr,
-    "map tests ok (%zu amer2 fixtures, %d scrub, %zu + %zu + %zu river tiles%s%s)\n",
-    sizeof(amer2_fixtures) / sizeof(amer2_fixtures[0]),
-    scrub_sprite8_tiles,
-    sizeof(amer2_river_chain) / sizeof(amer2_river_chain[0]),
-    sizeof(amer2_river_north) / sizeof(amer2_river_north[0]),
-    sizeof(amer2_river_major) / sizeof(amer2_river_major[0]),
-#if MAP_COAST_OVERLAYS_ENABLED
-    ", coast enabled"
-#else
-    ", coast disabled"
-#endif
-    ,
-#if MAP_ESTUARY_OVERLAYS_ENABLED
-    ", estuary enabled"
-#else
-    ", estuary disabled"
-#endif
-  );
-
-  map_free(&map);
-  diag_shutdown();
+  map_free(&plow_map);
   return 0;
 }
+
+static int case_fog_edges(void) {
+  /* bugs.md fog edges: VICEROY FUN_6ba1_06e0 mask+fill pairs across the
+   * seen/unseen boundary. 5x5 board: plains everywhere, ocean at (3,2);
+   * only (2,2) seen by nation 0. Uses its own local map (mutated in
+   * place), independent of g_map. */
+  ColonizeWorldMap fog_map;
+  char err2[128];
+  memset(&fog_map, 0, sizeof(fog_map)); /* map_alloc map_free()s the struct first */
+  memset(err2, 0, sizeof(err2));
+  if (!map_alloc(&fog_map, 5, 5, err2, sizeof(err2))) {
+    fprintf(stderr, "fog: map_alloc failed: %s\n", err2);
+    return 1;
+  }
+  for (int i = 0; i < 25; ++i) {
+    fog_map.terrain[i] = 2; /* plains */
+  }
+  fog_map.terrain[2 * 5 + 3] = 25; /* ocean at (3,2) */
+  memset(fog_map.seen, 0, fog_map.tile_count);
+  memset(fog_map.layer2, 0, fog_map.tile_count);
+  memset(fog_map.layer3, 0, fog_map.tile_count);
+  memset(fog_map.improve, 0, fog_map.tile_count);
+  fog_map.seen[2 * 5 + 2] = MAP_SEEN_NATION_BIT(0);
+  /* Seen tile (2,2): 4 unseen neighbours → 4 mask+fill pairs. */
+  if (map_fog_edge_count(&fog_map, 2, 2, 0) != 4) {
+    fprintf(stderr, "fog: seen tile should have 4 fog edges\n");
+    map_free(&fog_map);
+    return 1;
+  }
+  if (map_fog_edge_fill_sprite_at(&fog_map, 2, 2, 0, 0) != 2) {
+    fprintf(stderr, "fog: north edge should fill with plains sprite\n");
+    map_free(&fog_map);
+    return 1;
+  }
+  /*
+   * smell #96 / FUN_6ba1_06e0: the ocean resolve is gated on param_2 == 0
+   * (the DRAWN tile is land) alone, never on the neighbour's visibility, so
+   * the SEEN side rescans an ocean neighbour just like the fog side does.
+   * (3,2) is ocean; its W cardinal is the land tile (2,2) itself, so the
+   * east edge dithers plains (2), not the ocean sprite (10).
+   */
+  if (map_fog_edge_mask_sprite_at(&fog_map, 2, 2, 0, 1) != 105 ||
+      map_fog_edge_fill_sprite_at(&fog_map, 2, 2, 0, 1) != 2) {
+    fprintf(stderr, "fog: east edge should be mask 105 + rescanned land fill\n");
+    map_free(&fog_map);
+    return 1;
+  }
+  /* Unseen land tile (2,1): one seen neighbour to the south → mask 106 +
+   * that neighbour's plains dither. */
+  if (map_fog_reveal_edge_count(&fog_map, 2, 1, 0) != 1 ||
+      map_fog_reveal_edge_mask_sprite_at(&fog_map, 2, 1, 0, 0) != 106 ||
+      map_fog_reveal_edge_fill_sprite_at(&fog_map, 2, 1, 0, 0) != 2) {
+    fprintf(stderr, "fog: unseen tile should dither the seen neighbour in\n");
+    map_free(&fog_map);
+    return 1;
+  }
+  /*
+   * Same (2,2)/(3,2) land/ocean pair, fog flipped: the fog LAND tile with a
+   * seen ocean neighbour resolves via the neighbour's W/S/E/N cardinals.
+   * Both directions must agree — that agreement is the point of #96.
+   */
+  {
+    const int seen_side = map_fog_edge_fill_sprite_at(&fog_map, 2, 2, 0, 1);
+    fog_map.seen[2 * 5 + 2] = 0;
+    fog_map.seen[2 * 5 + 3] = MAP_SEEN_NATION_BIT(0); /* the ocean is seen */
+    if (map_fog_reveal_edge_count(&fog_map, 2, 2, 0) != 1 ||
+        map_fog_reveal_edge_mask_sprite_at(&fog_map, 2, 2, 0, 0) != 105 ||
+        map_fog_reveal_edge_fill_sprite_at(&fog_map, 2, 2, 0, 0) != 2) {
+      fprintf(stderr, "fog: ocean neighbour should resolve to a land cardinal fill\n");
+      map_free(&fog_map);
+      return 1;
+    }
+    if (map_fog_reveal_edge_fill_sprite_at(&fog_map, 2, 2, 0, 0) != seen_side) {
+      fprintf(stderr, "fog: seen→fog and fog→seen edges must agree (%d vs %d)\n",
+        seen_side, map_fog_reveal_edge_fill_sprite_at(&fog_map, 2, 2, 0, 0));
+      map_free(&fog_map);
+      return 1;
+    }
+  }
+  /*
+   * param_2 == 1 (the drawn tile is itself ocean): no rescan, the ocean
+   * neighbour's art is taken as-is on both sides. Make (2,2) ocean too.
+   */
+  fog_map.terrain[2 * 5 + 2] = 25;
+  fog_map.seen[2 * 5 + 3] = 0;
+  fog_map.seen[2 * 5 + 2] = MAP_SEEN_NATION_BIT(0);
+  if (map_fog_edge_count(&fog_map, 2, 2, 0) != 4 ||
+      map_fog_edge_fill_sprite_at(&fog_map, 2, 2, 0, 1) != 10) {
+    fprintf(stderr, "fog: ocean tile should take the ocean neighbour art as-is\n");
+    map_free(&fog_map);
+    return 1;
+  }
+  fog_map.seen[2 * 5 + 2] = 0;
+  fog_map.seen[2 * 5 + 3] = MAP_SEEN_NATION_BIT(0);
+  if (map_fog_reveal_edge_fill_sprite_at(&fog_map, 2, 2, 0, 0) != 10) {
+    fprintf(stderr, "fog: fog ocean tile should take the ocean neighbour art as-is\n");
+    map_free(&fog_map);
+    return 1;
+  }
+  map_free(&fog_map);
+  return 0;
+}
+
+static const TestCase k_cases[] = {
+  {"map_load_and_ocean", case_map_load_and_ocean},
+  {"amer2_fixtures", case_amer2_fixtures},
+  {"coast_overlays", case_coast_overlays},
+  {"scrub_forest", case_scrub_forest},
+  {"land_transitions", case_land_transitions},
+  {"resources_rumours", case_resources_rumours},
+  {"river_chain", case_river_chain},
+  {"river_north", case_river_north},
+  {"river_major", case_river_major},
+  {"river_estuary", case_river_estuary},
+  {"plow_road_overlay", case_plow_road_overlay},
+  {"fog_edges", case_fog_edges},
+};
+
+TEST_MAIN(k_cases)
