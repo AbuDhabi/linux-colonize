@@ -2891,9 +2891,8 @@ COLONIZE_INTERNAL void ai_king_0982_land_troops(
         lu->goto_y = cy[slot];
       }
     }
-    if (!units_try_move(
-          ctx->units, uid, ctx->map, cx[slot], cy[slot], ctx->colonies, ctx->rng
-        )) {
+    ColonizeWorld w_ = world_make(ctx->units, ctx->colonies, ctx->map, NULL, false, ctx->rng, NULL);
+    if (!units_try_move_w(&w_, uid, cx[slot], cy[slot])) {
       ColonizeUnit* lu = units_get(ctx->units, uid);
       if (lu) {
         const int sx0 = lu->x;
@@ -3524,7 +3523,8 @@ static void ai_king_10f0_disembark(
         lu->goto_x = hx;
         lu->goto_y = hy;
       }
-      if (!units_try_move(ctx->units, uid, ctx->map, hx, hy, ctx->colonies, ctx->rng)) {
+      ColonizeWorld w_ = world_make(ctx->units, ctx->colonies, ctx->map, NULL, false, ctx->rng, NULL);
+      if (!units_try_move_w(&w_, uid, hx, hy)) {
         lu = units_get(ctx->units, uid);
         if (lu) {
           const int ox = lu->x;
@@ -4678,7 +4678,10 @@ int ai_king_mow_sail_home_20e6(ColonizeTurnContext* ctx, ColonizeUnit* u, int cr
     const int ny = u->y + sdy;
     if ((sdx != 0 || sdy != 0) && map_tile_is_water(ctx->map, nx, ny) &&
         units_id_at(ctx->units, nx, ny) < 0) {
-      units_try_move(ctx->units, u->id, ctx->map, nx, ny, ctx->colonies, ctx->rng);
+      {
+      ColonizeWorld w_ = world_make(ctx->units, ctx->colonies, ctx->map, NULL, false, ctx->rng, NULL);
+      units_try_move_w(&w_, u->id, nx, ny);
+    }
     }
     if (u->active && map_tile_is_high_seas(ctx->map, u->x, u->y)) {
       (void)units_despawn(ctx->units, u->id);

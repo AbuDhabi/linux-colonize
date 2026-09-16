@@ -10,6 +10,8 @@
 #include "core/map.h"
 #include "core/units.h"
 
+#include "../common/test_runner.h"
+
 #include <stdio.h>
 #include <string.h>
 
@@ -352,19 +354,11 @@ static int test_woi_crown_ship_bombards_colony(void) {
   return 0;
 }
 
-int main(void) {
-  if (test_missing_foe_keeps_terrain() != 0) {
-    return 1;
-  }
-  if (test_woi_sol_needs_a_colony_record() != 0) {
-    return 1;
-  }
-  if (test_fatigue_applies_at_sea() != 0) {
-    return 1;
-  }
-  if (test_woi_crown_ship_bombards_colony() != 0) {
-    return 1;
-  }
-  printf("unit_combat_strength: OK\n");
-  return 0;
-}
+static const TestCase k_cases[] = {
+  {"test_missing_foe_keeps_terrain", test_missing_foe_keeps_terrain},
+  {"test_woi_sol_needs_a_colony_record", test_woi_sol_needs_a_colony_record},
+  {"test_fatigue_applies_at_sea", test_fatigue_applies_at_sea},
+  {"test_woi_crown_ship_bombards_colony", test_woi_crown_ship_bombards_colony},
+};
+
+TEST_MAIN(k_cases)

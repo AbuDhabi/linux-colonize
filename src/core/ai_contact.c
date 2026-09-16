@@ -8629,7 +8629,10 @@ COLONIZE_INTERNAL void ai_contact_raid_stage_combat(struct ai_contact_raid_ctx* 
           seized_horses = 1;
         }
       }
-      units_try_move(ctx->units, brave->id, ctx->map, nx, ny, ctx->colonies, rng);
+      {
+        ColonizeWorld w_ = world_make(ctx->units, ctx->colonies, ctx->map, NULL, false, rng, NULL);
+        units_try_move_w(&w_, brave->id, nx, ny);
+      }
     }
     /*
      * GAME.TXT @INDIANWIN0/1/2 / @INDIANLOSE:
@@ -9009,9 +9012,10 @@ COLONIZE_INTERNAL AiRaidStatus ai_contact_raid_stage_colony(struct ai_contact_ra
          */
         int sdx = (c->x > brave->x) - (c->x < brave->x);
         int sdy = (c->y > brave->y) - (c->y < brave->y);
-        units_try_move(
-          ctx->units, brave->id, ctx->map, brave->x + sdx, brave->y + sdy, ctx->colonies, rng
-        );
+        {
+          ColonizeWorld w_ = world_make(ctx->units, ctx->colonies, ctx->map, NULL, false, rng, NULL);
+          units_try_move_w(&w_, brave->id, brave->x + sdx, brave->y + sdy);
+        }
       }
     }
   }

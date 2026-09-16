@@ -16,6 +16,7 @@
 #include "core/turn_internal.h"
 
 #include "../common/ai_fixture.h"
+#include "../common/test_runner.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -128,16 +129,17 @@ static int test_game_render_select_palette(void) {
   return 0;
 }
 
+static const TestCase k_cases[] = {
+    {"test_turn_year_end_rival_rebels", test_turn_year_end_rival_rebels},
+    {"test_ai_contact_raid_alarm_delta", test_ai_contact_raid_alarm_delta},
+    {"test_ai_021a_dir_tile", test_ai_021a_dir_tile},
+    {"test_game_render_select_palette", test_game_render_select_palette},
+};
+
 int main(void) {
-  int failures = 0;
-  failures += test_turn_year_end_rival_rebels();
-  failures += test_ai_contact_raid_alarm_delta();
-  failures += test_ai_021a_dir_tile();
-  failures += test_game_render_select_palette();
-  if (failures) {
-    fprintf(stderr, "unit_stage_seams: %d test(s) failed\n", failures);
-    return 1;
+  int rc = tr_run_main(k_cases, (int)(sizeof(k_cases) / sizeof(k_cases[0])));
+  if (rc == 0 && getenv("COLONIZE_TEST_LIST") == NULL) {
+    printf("unit_stage_seams: OK\n");
   }
-  printf("unit_stage_seams: OK\n");
-  return 0;
+  return rc;
 }
