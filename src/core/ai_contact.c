@@ -1750,7 +1750,7 @@ static int ai_contact_is_jesuit_grade(
   if (name && strstr(name, "Jesuit") != NULL) {
     return 1;
   }
-  if (u->profession == 24) { /* NAMES @JOB Jesuit Missionaries */
+  if (u->profession == UNITS_JOB_MISSIONARY) { /* NAMES @JOB Jesuit Missionaries */
     return 1;
   }
   if (col1 && founding_fathers_brebeuf_missionaries_are_experts(col1, u->nation_id) &&
@@ -8910,7 +8910,16 @@ void ai_contact_indian_raids(ColonizeTurnContext* ctx, int nation_id) {
                 pre = pre_buf;
               }
               if (pre) {
-                snprintf(raid_full, sizeof(raid_full), "%s  %s", pre, raid_body);
+                /* Explicit tail bound: `pre` (<=223) + the two spaces always fit,
+                 * so only a pathologically long body is clipped. */
+                const int raid_pre_len = (int)strlen(pre);
+                int raid_room = (int)sizeof(raid_full) - raid_pre_len - 3;
+                if (raid_room < 0) {
+                  raid_room = 0;
+                }
+                snprintf(
+                  raid_full, sizeof(raid_full), "%s  %.*s", pre, raid_room, raid_body
+                );
                 raid_body = raid_full;
               }
             }

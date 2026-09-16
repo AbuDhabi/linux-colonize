@@ -3,7 +3,7 @@
 
 #include <stdbool.h>
 
-#include "core/col1_save.h"
+#include "core/col1_save_layout.h"
 #include "core/map.h"
 
 /*

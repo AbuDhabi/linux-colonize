@@ -12,7 +12,7 @@
 #include "core/map.h"
 #include "core/popup_msg.h"
 #include "core/ss.h"
-#include "core/units.h"
+#include "core/units_cargo.h"
 #include "platform/diagnostics.h"
 #include "platform/platform.h"
 

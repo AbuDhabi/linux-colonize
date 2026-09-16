@@ -3192,7 +3192,7 @@ static int ai_king_10f0_spawn_unit(ColonizeTurnContext* ctx, int human, int k, i
     if (k != 2) {
       u->profession = UNITS_JOB_SOLDIER; /* DOS unit+0x15 = 0x15 Veteran Soldier */
     }
-    u->orders = 0; /* player-controlled: no AI orders */
+    u->orders = UNITS_ORDER_NONE; /* player-controlled: no AI orders */
   }
   return uid;
 }
@@ -3600,7 +3600,7 @@ static void ai_king_10f0_land(
       lu = units_get(ctx->units, uid);
       if (lu) {
         lu->moves_left = units_max_mp(ctx->units, uid);
-        lu->orders = 0;
+        lu->orders = UNITS_ORDER_NONE;
         lu->goto_x = UNITS_GOTO_NONE;
         lu->goto_y = UNITS_GOTO_NONE;
         if (ctx->map) {

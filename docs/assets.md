@@ -663,11 +663,7 @@ Closest practical playback: FluidSynth + an SC-55-character SoundFont.
 GPL-3+ bank by deemster; see [`COPYRIGHT.Roland_SC-55`](../data/soundfonts/COPYRIGHT.Roland_SC-55))
 → system SC-55 / GeneralUser GS → FluidR3 / distro defaults. For an alternate SC-55
 character, point `sound_options.soundfont` at [Trevor0402’s SC-55 SoundFont](https://github.com/trevor0402/SC55Soundfont).
-Gold A/B reference: `original_music_dumps/jine_the_cavalry.wav` (DOSBox-X capture) and
-`reference_music/wav/*` (OST rips, verified identical to DOSBox timing). Run
-`build/dump_gsound_wav --ab && .venv-sound/bin/python3 tools/compare_music_ab.py`
-(2026-08-27: dtw 0.04 / 0.09 / 0.15 / 0.17, drift ≤ 1.1 s). `build/dump_gsound_wav --midi`
-writes every BGM id to `ripped_sound/` as WAV + Type-0 MIDI.
+Sound tooling retired 2026-09-16 (music complete): `tools/dump_gsound_wav.c`, `tools/compare_music_ab.py`, `original_music_dumps/jine_the_cavalry.wav` are in git history only. Historical A/B verification (2026-08-27): gold reference was `original_music_dumps/jine_the_cavalry.wav` (DOSBox-X capture) and `reference_music/wav/*` (OST rips, verified identical to DOSBox timing); tool output showed dtw 0.04 / 0.09 / 0.15 / 0.17, drift ≤ 1.1 s.
 AdLib / MT-32 drivers remain out of scope. `COLDIG.BIN` SFX are in (see below).
 
 Song names for the Pick Music UI are only in `GAME.TXT` `@PICKMUSIC` (plus Independence /
@@ -706,8 +702,7 @@ sample N, 16-slot ring, played back to back) and then starts a short MIDI sting 
 7/8. Sample table is static in the driver image at `0x1C7B` (`offset32,len32`, 35 entries,
 exactly covering the 993 755-byte file); samples 0–4 play at 11025 Hz, 5–34 at 19050 Hz,
 unsigned 8-bit. Stream opcode `C3 n` is the same trigger. `sound.c` loads the file, the VM
-callback queues samples, and `sound_render_s16` mixes them after the synth. Dump with
-`build/dump_gsound_wav --sfx` → `ripped_sound/sfx/sfxNN.wav`.
+callback queues samples, and `sound_render_s16` mixes them after the synth.
 
 Sample contents (user listen test 2026-08-27): 0–4 single shots/fireworks; 5–7 screaming +
 shots; 8, 19 burning; 9 cheering; 10, 15 cheering + fireworks; 11 screaming + shooting;

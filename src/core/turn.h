@@ -11,7 +11,7 @@
 #include "core/dos_rng.h"
 #include "core/europe.h"
 #include "core/map.h"
-#include "core/units.h"
+#include "core/units_move.h"
 #include "platform/platform.h"
 
 /*
@@ -269,5 +269,14 @@ bool turn_option_end_of_turn(const ColonizeCol1Save* col1, bool col1_ok);
 #define TURN_OWNER_INDICATOR_H 3
 
 void turn_draw_owner_indicator(ColonizeFramebuffer8* framebuffer, int nation_id);
+
+/*
+ * New-game / load hook (sibling of ai_euro_reset / ai_native_reset /
+ * ai_goals_reset / founding_fathers_reset / ai_contact_reset): clears this
+ * module's production-scope debug filters and the birth-units pool pointer
+ * so a stale pointer from a previous campaign's units pool can't survive
+ * into a new one.
+ */
+void turn_reset(void);
 
 #endif

@@ -4,7 +4,7 @@
 #include "core/colony.h"
 #include "core/col1_save.h"
 #include "core/map.h"
-#include "core/units.h"
+#include "core/units_cargo.h"
 
 #include <limits.h>
 #include <stdlib.h>

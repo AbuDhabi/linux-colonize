@@ -125,4 +125,11 @@ void ai_coarse_fog_euro_restamp(
 /* Set when a Brave step of this pulse opened first contact with euro_nation (3180 on the Indian mover). */
 int ai_native_first_contact_this_turn(int nation_id, int euro_nation);
 
+/*
+ * New-game / load hook (sibling of ai_euro_reset / ai_goals_reset /
+ * founding_fathers_reset / ai_contact_reset): clears this module's
+ * per-unit brave-origin/first-contact/seed-100/lcg statics.
+ */
+void ai_native_reset(void);
+
 #endif

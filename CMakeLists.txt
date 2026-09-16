@@ -54,6 +54,7 @@ endif()
 
 add_library(colonize_core STATIC
   src/core/game_loop.c
+  src/core/game_dialogs.c
   src/core/trade_screen.c
   src/core/assets.c
   src/core/fb.c
@@ -817,20 +818,6 @@ colonize_add_test(NAME smoke_sound
   LIBS m pthread ${FLUIDSYNTH_LIBRARIES}
   INCLUDE_DIRS ${FLUIDSYNTH_INCLUDE_DIRS}
   COMPILE_DEFS ${_fs_defs}
-)
-
-colonize_add_test(NAME dump_gsound_wav
-  SOURCES
-    tools/dump_gsound_wav.c
-    src/core/sound.c
-    src/core/gsound_vm.c
-    src/platform/diagnostics.c
-    src/core/strutil.c
-    src/platform/dos_compat/dos_compat.c
-  LIBS m pthread ${FLUIDSYNTH_LIBRARIES}
-  INCLUDE_DIRS ${FLUIDSYNTH_INCLUDE_DIRS}
-  COMPILE_DEFS ${_fs_defs}
-  NO_CTEST
 )
 
 colonize_add_test(NAME smoke_play

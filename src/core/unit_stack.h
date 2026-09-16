@@ -6,7 +6,7 @@
 
 #include "core/popup.h"
 #include "core/ss.h"
-#include "core/units.h"
+#include "core/units_cargo.h"
 #include "platform/platform.h"
 
 typedef struct ColonizeFont ColonizeFont;

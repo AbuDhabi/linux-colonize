@@ -43,7 +43,7 @@ compiles these files.
 | [`original_sources_annotated/`](../original_sources_annotated/) `ai/` + [`SYMBOL_MAP.md`](../original_sources_annotated/SYMBOL_MAP.md) | Deep AI / accessor slices | growing | Prefer when the symbol is deeply mapped |
 | [`viceroy_unpacked.c`](../original_sources_decompiled/viceroy_unpacked.c) / [`.asm`](../original_sources_decompiled/viceroy_unpacked.asm) | Unpacked `VICEROY.EXE` | ~125k / ~305k lines | Raw export — full game logic, RTLink overlays, map gen, UI |
 | [`mapedit.c`](../original_sources_decompiled/mapedit.c) | `MAPEDIT.EXE` | ~23k lines | Static world-map **feature art** (coasts, transitions, forest/hill/river masks) |
-| [`gsound.c`](../original_sources_decompiled/gsound.c) / [`.asm`](../original_sources_decompiled/gsound.asm) | `GSOUND.COL` | ~2.3k / ~43k lines | GM MIDI driver + voice bytecode interpreter |
+| `gsound.c.zip` / [`.asm`](../original_sources_decompiled/gsound.asm) | `GSOUND.COL` | ~2.3k / ~43k lines | GM MIDI driver + voice bytecode interpreter |
 | `COLONIZE/VICEROY.EXE` | Shipped binary | ~483 KB | Table extraction, file byte offsets (`scripts/extract_viceroy_tables.py`) |
 | `COLONIZE/MAPEDIT.EXE` | Shipped binary | — | Authority for static map compositor rules |
 
@@ -151,7 +151,7 @@ one exists.
 | `FUN_2059_000a` | Sound driver jump table | sound.c |
 | `FUN_129f_*` | BGM helpers (e.g. `0008`, `00f6`, `0300`) | sound.c |
 
-### GSOUND (`original_sources_decompiled/gsound.c`)
+### GSOUND (`original_sources_decompiled/gsound.c.zip`; unzip to read)
 
 | Symbol | Role | Linux / notes |
 |--------|------|---------------|

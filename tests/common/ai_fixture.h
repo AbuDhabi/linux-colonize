@@ -13,8 +13,11 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "core/ai.h"
+#include "core/ai_euro.h"
 #include "core/colony.h"
 #include "core/map.h"
+#include "core/turn.h"
 #include "core/units.h"
 
 static inline bool fx_map_alloc(
@@ -56,6 +59,10 @@ static inline void fx_units_init(ColonizeUnitPool* units) {
   memset(units, 0, sizeof(*units));
   units_reset(units);
   units_set_occupancy_map(NULL);
+  units_reset_hooks();
+  ai_euro_reset();
+  ai_native_reset();
+  turn_reset();
 }
 
 static inline void fx_colonies_init(ColonizeColonyPool* colonies) {

@@ -100,14 +100,14 @@ Cluster table (not every file). Paths are under `src/core/` unless noted.
 
 | Cluster | Key paths | Role |
 |---------|-----------|------|
-| **Shell** | `game_loop.c/.h` | `ColonizeGameState` hub; mode flags; input routing; render |
+| **Shell** | `game_loop.c/.h`, `game_dialogs.c/.h` | `ColonizeGameState` hub; mode flags; input routing; render; dialog wiring + modal input handling |
 | **Turn** | `turn.c/.h` | EOT processor (`TURN_PROC_*`); production / nation ticks |
 | **Map** | `map`, `map_gen`, `map_panel`, `map_menu` | `.MP` layers, fog/seen, compositor helpers, panel UI |
-| **Units / combat** | `units`, `unit_stack`, `unit_chrome`, `combat_strength`, `combat_analysis` | Move/orders, combat, chrome |
+| **Units / combat** | `units.h` (umbrella) + `units_move.h`, `units_combat.h`, `units_cargo.h`, `unit_stack`, `unit_chrome`, `combat_strength`, `combat_analysis` | Move/orders, combat, cargo; split by concern for bring-up (pool lifecycle in `units.h`, modular specialization in the three) |
 | **Colonies** | `colony*`, `colony_screen`, `colony_yield`, `colony_production`, `colony_craft`, `colony_preview` | Logic + colony screen |
 | **Europe / economy** | `europe.c/.h` | Market, sail, recruit/hire |
 | **AI** | `ai`, `ai_euro`, `ai_contact`, `ai_diplo`, `ai_king`, `ai_goals`, `ai_popup` | Init + nation-turn entry; split planners |
-| **Save / Col1** | `savegame`, `col1_save`, `col1_bridge`, `col1_post_map`, `col1_stuff_census` | DOS `COLONY##.SAV` interop |
+| **Save / Col1** | `savegame`, `col1_save` (API) + `col1_save_layout.h` (on-disk), `col1_bridge`, `col1_post_map`, `col1_stuff_census` | DOS `COLONY##.SAV` interop; layout split from API |
 | **Settings** | `settings.c/.h`, `json_min.c/.h` | Port-only `settings.json` preference file (see [settings.md](settings.md)) |
 | **Assets / art** | `assets`, `madspack`, `pik`, `ss`, `ff`, `font`, `debug_atlas` | Catalogs + MADSPACK decode |
 | **UI primitives** | `popup`, `popup_msg`, `ui_button`, `ui_drag`, `ui_colors`, dialogs (`save_load_dialog`, `options_dialog`, `pick_music`, …) | Wood/list modals |
@@ -119,10 +119,13 @@ Cluster table (not every file). Paths are under `src/core/` unless noted.
 
 ### Present shape facts
 
-- **`game_loop.c` is a large orchestrator** owning mode flags (`in_menu`,
-  `in_europe`, `in_colony`, `in_pedia`, `in_report`, …) and modal priority.
-  Modal input gate (before parent hotkeys): pick_music → save_load → options →
-  name_entry → howmuch → cheat_list → **ai_popups** → unit_stack — see
+- **`game_loop.c` + `game_dialogs.c` orchestrate UI flow.** `game_loop.c` owns
+  mode flags (`in_menu`, `in_europe`, `in_colony`, `in_pedia`, `in_report`, …)
+  and modal priority; `game_dialogs.c` contains dialog wiring (game_request_*/
+  game_open_*/game_apply_*_result), modal input handling, and AI popup result
+  appliers. `game_update` is now a ~157-line dispatcher over `game_update_<screen>`
+  functions. Modal input gate (before parent hotkeys): pick_music → save_load →
+  options → name_entry → howmuch → cheat_list → **ai_popups** → unit_stack — see
   [popups.md](popups.md) Architecture.
 - UI and simulation **cohabit** in `colonize_core`; that is the present design,
   not an accidental leak from platform.

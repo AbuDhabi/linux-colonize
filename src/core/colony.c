@@ -17,7 +17,7 @@
 #include "core/ss.h"
 #include "core/strutil.h"
 #include "core/unit_chrome.h"
-#include "core/units.h"
+#include "core/units_cargo.h"
 #include "platform/diagnostics.h"
 
 /* ICONS.SS #0–3: European colonies by fortification (none / stockade / fort / fortress). */
@@ -1293,15 +1293,15 @@ static const char* colonies_profession_name_fallback(int profession) {
     return "Statesman";
   case COLONIZE_PROF_TEACHER:
     return "Teacher";
-  case 20:
+  case UNITS_JOB_PIONEER:
     return "Pioneer";
-  case 21:
+  case UNITS_JOB_SOLDIER:
     return "Soldier";
-  case 22:
+  case UNITS_JOB_SCOUT:
     return "Scout";
-  case 23:
+  case UNITS_JOB_DRAGOON:
     return "Dragoon";
-  case 24:
+  case UNITS_JOB_MISSIONARY:
     return "Missionary";
   default:
     return "profession";

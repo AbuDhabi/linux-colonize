@@ -2507,11 +2507,11 @@ bool col1_bridge_capture(
         }
       }
       if (src->aboard_ship_id >= 0) {
-        dst->orders = 1; /* sentry if aboard */
-      } else if (src->orders != 0) {
+        dst->orders = UNITS_ORDER_SENTRY; /* sentry if aboard */
+      } else if (src->orders != UNITS_ORDER_NONE) {
         dst->orders = (uint8_t)src->orders;
       } else {
-        dst->orders = 0;
+        dst->orders = UNITS_ORDER_NONE;
       }
       /*
        * Goto: idle on-map ships must use goto==xy (COLONY00). Human starter
@@ -2571,7 +2571,7 @@ bool col1_bridge_capture(
              * state (FUN_647e_1486 clears order 2 off units whose route is
              * deleted), so writing the idle unit is the DOS-consistent
              * outcome, and it is exactly what apply would have produced. */
-            dst->orders = 0;
+            dst->orders = UNITS_ORDER_NONE;
           }
         }
       }
@@ -2846,7 +2846,7 @@ bool col1_bridge_capture(
         dst->vis_mask = 0; /* Europe sentinel units carry vis 0 in DOS saves */
         dst->ai_plan = COL1_UNIT_UNKNOWN16_HI_DEFAULT;
         dst->origin = 0xff; /* home-colony byte can't survive the Europe screen */
-        dst->orders = 1; /* dock immigrants sentry — DOS +0x314c = 1 */
+        dst->orders = UNITS_ORDER_SENTRY; /* dock immigrants sentry — DOS +0x314c = 1 */
         dst->profession = (uint8_t)(row->profession < 0 ? UNITS_JOB_NONE : row->profession);
         dst->transport_chain.prev_unit_idx = -1;
         dst->transport_chain.next_unit_idx = -1;
@@ -2928,7 +2928,7 @@ bool col1_bridge_capture(
             px->vis_mask = 0; /* Europe sentinel units carry vis 0 in DOS saves */
             px->ai_plan = COL1_UNIT_UNKNOWN16_HI_DEFAULT;
             px->origin = 0xff;
-            px->orders = 1; /* sentry aboard */
+            px->orders = UNITS_ORDER_SENTRY; /* sentry aboard */
             px->goto_x = gx;
             px->goto_y = gy;
             px->turns_worked = turns;

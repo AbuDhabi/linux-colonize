@@ -510,7 +510,7 @@ static void units_slot_reset_defaults(
   memset(slot->cargo_ids, 0, sizeof(slot->cargo_ids));
   memset(slot->hold_goods_type, 0, sizeof(slot->hold_goods_type));
   memset(slot->hold_goods_amount, 0, sizeof(slot->hold_goods_amount));
-  slot->orders = 0;
+  slot->orders = UNITS_ORDER_NONE;
   slot->goto_x = 0xFF;
   slot->goto_y = 0xFF;
   slot->follow_unit_id = -1;
@@ -1462,7 +1462,7 @@ static void units_clear_slot(ColonizeUnit* unit) {
   memset(unit->cargo_ids, 0, sizeof(unit->cargo_ids));
   memset(unit->hold_goods_type, 0, sizeof(unit->hold_goods_type));
   memset(unit->hold_goods_amount, 0, sizeof(unit->hold_goods_amount));
-  unit->orders = 0;
+  unit->orders = UNITS_ORDER_NONE;
   unit->goto_x = 0xFF;
   unit->goto_y = 0xFF;
   unit->profession = UNITS_JOB_NONE;
@@ -3525,7 +3525,7 @@ static void units_ship_enter_repair(
   const ColonizeUnitType* lt = units_type(pool, lose->type_index);
   lose->col1_unknown15 |= 0x80u;
   lose->moves_left = 0;
-  lose->orders = 0; /* DOS zeroes +0x314c */
+  lose->orders = UNITS_ORDER_NONE; /* DOS zeroes +0x314c */
   lose->repair_pending = 2; /* 2 = damaged this turn; see the repair tick */
   {
     const int thresh = lt && lt->defense > 0 ? lt->defense : 4;
@@ -4441,7 +4441,7 @@ static int units_spawn_subjugated_convert(
     return -1;
   }
   units_set_nation(u, nation_id);
-  u->profession = 27; /* NAMES @JOB Convert / COLONIZE_PROF_CONVERT */
+  u->profession = UNITS_JOB_CONVERT; /* NAMES @JOB Convert / COLONIZE_PROF_CONVERT */
   return id;
 }
 
@@ -5233,6 +5233,24 @@ void units_set_combat_music_hooks(
 ) {
   g_units_combat_sound_play = play_fn;
   g_units_combat_sound_active_id = active_id_fn;
+}
+
+/* See units.h. Puts every process-global callback hook back to its
+ * unregistered (NULL) initial value; units_reset(pool) touches pool state
+ * only and does not clear these. */
+void units_reset_hooks(void) {
+  g_units_move_watch = NULL;
+  g_units_move_watch_user = NULL;
+  g_units_combat_watch = NULL;
+  g_units_combat_watch_user = NULL;
+  g_units_dissolve = NULL;
+  g_units_dissolve_user = NULL;
+  g_units_raid_repelled = NULL;
+  g_units_popup_pump = NULL;
+  g_units_popup_pump_user = NULL;
+  g_units_set_bgm = NULL;
+  g_units_combat_sound_play = NULL;
+  g_units_combat_sound_active_id = NULL;
 }
 
 /*
@@ -6175,7 +6193,7 @@ static bool units_fort_vs_ship(
     if (damaged) {
       def->col1_unknown15 |= 0x80u;
       def->moves_left = 0;
-      def->orders = 0;
+      def->orders = UNITS_ORDER_NONE;
       def->repair_pending = 2; /* 2 = damaged this turn; see the repair tick */
       {
         const int thresh = dt->defense > 0 ? dt->defense : 4;
@@ -10849,7 +10867,7 @@ bool units_board_stacked(ColonizeUnitPool* pool, int land_unit_id, int ship_id) 
    * stay in one space.
    */
   land->moves_left = 0;
-  land->orders = 1; /* sentry aboard */
+  land->orders = UNITS_ORDER_SENTRY; /* sentry aboard */
   ship->cargo_ids[ship->cargo_count++] = land_unit_id;
   return true;
 }
@@ -11061,7 +11079,7 @@ bool units_unload_passenger(
   pax->x = dest_x;
   pax->y = dest_y;
   units_occupancy_refresh_tile(pool, dest_x, dest_y, -1);
-  pax->orders = 0;
+  pax->orders = UNITS_ORDER_NONE;
   /*
    * Shore-step MP (FUN_465b ADD). Aboard sentry often has moves_left==0 as a
    * skip-select flag while DOS spent is still 0 (full allotment) — restore
@@ -11245,8 +11263,8 @@ int units_landfall_unload_all(
       continue;
     }
     /* Wake sentry so unload does not leave orders=1 ashore. */
-    if (pax->orders == 1) {
-      pax->orders = 0;
+    if (pax->orders == UNITS_ORDER_SENTRY) {
+      pax->orders = UNITS_ORDER_NONE;
     }
     if (units_unload_passenger(pool, ship_id, ids[i], map, dest_x, dest_y, colonies)) {
       n++;
@@ -11272,7 +11290,7 @@ int units_disembark_all(ColonizeUnitPool* pool, int ship_id, int x, int y) {
       pax->aboard_ship_id = -1;
       pax->x = x;
       pax->y = y;
-      pax->orders = 0;
+      pax->orders = UNITS_ORDER_NONE;
       /*
        * Restore the allotment, don't just clear the order. Boarding parks a
        * passenger at moves_left 0 as a "don't offer this one" flag while
@@ -11471,7 +11489,7 @@ static int units_spawn_aboard(ColonizeUnitPool* pool, int type_index, ColonizeUn
   slot->moves_left = 0;
   units_set_nation(slot, ship->nation_id);
   slot->aboard_ship_id = ship->id;
-  slot->orders = 1; /* sentry aboard */
+  slot->orders = UNITS_ORDER_SENTRY; /* sentry aboard */
   slot->profession = UNITS_JOB_NONE;
   ship->cargo_ids[ship->cargo_count++] = slot->id;
   pool->unit_count++;
@@ -11688,8 +11706,9 @@ const char* units_profession_label(
   if (!units_type_has_profession_slot(type_index)) {
     return NULL;
   }
-  if (profession < 0 || profession == UNITS_JOB_NONE || profession == 19 || profession == 25 ||
-      profession == 26 || profession == 27) {
+  if (profession < 0 || profession == UNITS_JOB_NONE ||
+      profession == UNITS_JOB_COLONIST || profession == UNITS_JOB_SERVANT ||
+      profession == UNITS_JOB_CRIMINAL || profession == UNITS_JOB_CONVERT) {
     return NULL;
   }
   const ColonizeMsgSection* sec = names ? assets_msg_find(names, "JOB") : NULL;
@@ -12102,7 +12121,7 @@ int units_spawn_euro_starter_fleet(
     }
     units_set_nation(pax, nation_id);
     pax->profession = cargo_jobs[i];
-    pax->orders = 1; /* sentry aboard */
+    pax->orders = UNITS_ORDER_SENTRY; /* sentry aboard */
     pax->goto_x = goto_x >= 0 ? goto_x : 0xFF;
     pax->goto_y = goto_y >= 0 ? goto_y : 0xFF;
   }
@@ -12396,7 +12415,7 @@ void units_new_world_start(
    */
   ColonizeUnit* ship = units_get(pool, ship_id);
   if (ship) {
-    ship->orders = 0;
+    ship->orders = UNITS_ORDER_NONE;
     ship->goto_x = ship->x;
     ship->goto_y = ship->y;
     for (int c = 0; c < ship->cargo_count; ++c) {

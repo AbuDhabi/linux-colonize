@@ -7,7 +7,7 @@
 #include "core/map.h"
 #include "core/strutil.h"
 #include "core/unit_chrome.h"
-#include "core/units.h"
+#include "core/units_move.h"
 #include "data/viceroy_tables.h"
 
 static const char* k_category_labels[PEDIA_CAT_COUNT] = {
@@ -1634,7 +1634,7 @@ static int pedia_article_job(
   const int icon_y = top + dy1;
 
   int job_sprite = 81 + job;
-  if (job == 27) {
+  if (job == UNITS_JOB_CONVERT) {
     job_sprite = 66; /* Indian Convert */
   }
   pedia_blit(a->icons, job_sprite, fb, 10, icon_y);
@@ -1728,7 +1728,7 @@ static int pedia_article_building(
   int x = 10 + w + 3 + font_text_width_skip(a->font, bname, FONT_SKIP_NONE) + 24;
 
   int job = (b >= 0 && b < PEDIA_BUILDING_COUNT) ? k_pedia_building_job[b] : -1;
-  if (job == 18 || job == 21) {
+  if (job == 18 || job == UNITS_JOB_SOLDIER) {
     job = -1; /* Teacher / Soldier rows are not shown (DOS 1ba8) */
   }
   if (job >= 0) {

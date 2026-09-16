@@ -3866,10 +3866,10 @@ static bool reports_unit_type_is_scored_colonist(int type) {
 
 /* Manual schedule: criminal/servant +1, free/convert +2, skilled +4. */
 static int reports_citizen_points_for_job(int job) {
-  if (job == 25 || job == 26) {
+  if (job == UNITS_JOB_SERVANT || job == UNITS_JOB_CRIMINAL) {
     return 1; /* Indentured Servants, Petty Criminals */
   }
-  if (job == 19 || job == 27) {
+  if (job == UNITS_JOB_COLONIST || job == UNITS_JOB_CONVERT) {
     return 2; /* Free Colonists, Indian Converts */
   }
   if (job >= 0 && job < k_job_count) {

@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "core/col1_save.h"
+#include "core/col1_save_layout.h"
 #include "core/settings.h"
 
 static int g_failures = 0;
