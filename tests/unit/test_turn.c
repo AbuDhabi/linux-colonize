@@ -210,18 +210,10 @@ static int unit_century_cargoready(void) {
 
 /*
  * bugs.md #466: "hammer capacity > lumber income, lumber fell one turn then
- * returned to maximum the next". Locks the two halves of the real rule:
- *
- *  - Pre-1600 (one turn/year, head.autumn always 0) every tick banks hammers
- *    and debits lumber 1:1, so the stock falls on BOTH consecutive turns.
- *  - Post-1600 the Spring/Autumn alternation freezes hammers (and therefore
- *    the lumber debit) on Autumn ticks — real-DOS
- *    original_saves/colony-prod-tests/COLONY00_no-transports.SAV (Spring 1680,
- *    turn 268) -> COLONY01_no-transports.SAV (Autumn 1680, turn 269): all 32
- *    colonies end the Autumn tick with `hammers` byte-for-byte unchanged and
- *    lumber only rising (New Amsterdam 74 -> 98, Vlissingen 70 -> 82).
- *    FUN_364b_0688's own Phase L (raw 57730-57733) has no season term, so the
- *    freeze is composed upstream, but the observed DOS turn is the authority.
+ * returned to maximum the next". Every tick banks hammers and debits lumber
+ * 1:1, in every season — the Spring/Autumn calendar is display only (the
+ * old Autumn-freeze gate rested on a real-DOS pair with no carpenter staffed
+ * anywhere). Lumber must fall on both consecutive turns, pre- and post-1600.
  */
 static int unit_hammers_lumber_two_turns(void) {
   ColonizeColonyPool pool;
@@ -283,7 +275,7 @@ static int unit_hammers_lumber_two_turns(void) {
     return 1;
   }
 
-  /* Post-1600: Spring tick spends, Autumn tick is frozen (real-DOS pair). */
+  /* Post-1600: both the Spring and the Autumn tick spend. */
   save.head.year = 1680;
   col->hammers = 0;
   col->stock[COLONIZE_CARGO_LUMBER] = 40;
@@ -299,17 +291,16 @@ static int unit_hammers_lumber_two_turns(void) {
       0, &prod, NULL, NULL
     );
     const int now = col->stock[COLONIZE_CARGO_LUMBER];
-    const int want = (turn == 0) ? before - 6 : before;
-    if (now != want) {
+    if (now != before - 6) {
       fprintf(
         stderr, "#466 post-1600 %s lumber want %d got %d\n",
-        turn == 0 ? "Spring" : "Autumn", want, now
+        turn == 0 ? "Spring" : "Autumn", before - 6, now
       );
       return 1;
     }
   }
-  if (col->hammers != 6) {
-    fprintf(stderr, "#466 post-1600 hammers want 6 (Autumn frozen) got %d\n", col->hammers);
+  if (col->hammers != 12) {
+    fprintf(stderr, "#466 post-1600 hammers want 12 got %d\n", col->hammers);
     return 1;
   }
   fprintf(stderr, "#466 hammers/lumber two-turn drain ok\n");

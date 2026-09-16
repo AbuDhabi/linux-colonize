@@ -2137,6 +2137,7 @@ static bool game_apply_popup_contact(ColonizeGameState* game) {
       colonies_set_col1_context(game->col1_ok ? &game->col1 : NULL);
       units_set_combat_human_nation(game->human_nation);
       units_set_combat_popups(&game->ai_popups, &game->messages);
+      units_set_combat_europe(&game->europe);
       units_set_occupancy_map(&game->world_map);
       colonies_set_occupancy_map(&game->world_map);
       units_set_combat_colonies(&game->colonies);
@@ -2499,6 +2500,7 @@ static bool game_apply_popup_village_attack(ColonizeGameState* game) {
       colonies_set_col1_context(game->col1_ok ? &game->col1 : NULL);
       units_set_combat_human_nation(game->human_nation);
       units_set_combat_popups(&game->ai_popups, &game->messages);
+      units_set_combat_europe(&game->europe);
       units_set_occupancy_map(&game->world_map);
       colonies_set_occupancy_map(&game->world_map);
       units_set_combat_colonies(&game->colonies);

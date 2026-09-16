@@ -26,14 +26,11 @@ typedef struct ColonizeColonyPreview {
    * as the hammer shortfall and `capacity - lumber produced` as the lumber
    * shortfall (player-reported: a carpenter running on stored lumber must
    * still flag the missing lumber production, and a starved carpenter must
-   * flag both). Set whenever a carpenter is staffed, every season. When the
-   * NEXT tick runs as Autumn (post-1600, viewing a Spring turn — EOT
-   * advances the calendar before production) the tick banks nothing:
-   * `hammers` stays 0, `hammers_frozen` is set, and the Production tab
-   * shows plain potential instead of a red shortfall.
+   * flag both). Set whenever a carpenter is staffed; the calendar season
+   * plays no part (bugs.md #466: the Autumn hammers freeze was an artefact
+   * of a carpenter-less fixture).
    */
   int hammers_capacity;
-  bool hammers_frozen; /* carpenter staffed but the coming (Autumn) tick banks nothing */
   int goods[COLONIZE_CARGO_COUNT];     /* net field+craft before food eat */
   int shortfall[COLONIZE_CARGO_COUNT]; /* craft wanted beyond available raw */
   /*

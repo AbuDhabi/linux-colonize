@@ -3528,6 +3528,47 @@ static const char* units_home_port_name(const ColonizeCol1Save* col1, int nation
  * `winner_nation` is the @SHIPDAMAGE popup's nation_b; the raid arm has no
  * winner unit and passes -1.
  */
+/*
+ * DOS's off-map Europe slot for a damaged ship with no repair port (see
+ * units_ship_enter_repair): FUN_5fef_0352 places the hull at
+ * (nation-0x14, nation-0x14) and leaves the repair counter (+0x315a)
+ * running. The port has no off-map unit slots, so the equivalent is the
+ * Europe harbor's Expected lane with the DOS repair timer as the wait —
+ * the ship leaves the map NOW (that is what makes it pixelate away under
+ * the combat dissolve) and comes back when the timer is out.
+ * Europe is the human's screen only; an AI hull with no port keeps the old
+ * stay-on-tile behaviour, which turn_route_damaged_ships still owns.
+ */
+static void units_ship_damaged_to_europe(ColonizeUnitPool* pool, ColonizeUnit* lose) {
+  EuropeScreen* eu = g_units_combat_europe;
+  const ColonizeCol1Save* col1 = g_units_fallout_col1;
+  if (!eu || !lose || !pool) {
+    return;
+  }
+  if (g_units_combat_human_nation < 0 || lose->nation_id != g_units_combat_human_nation) {
+    return;
+  }
+  if (col1 && col1->head.game_options.woi) {
+    return; /* no friendly Europe during the WoI (DOS raw 85139 sinks her) */
+  }
+  const ColonizeUnitType* lt = units_type(pool, lose->type_index);
+  int turns = (int)lose->col1_counter16;
+  if (turns < 1) {
+    turns = 1;
+  }
+  const bool east =
+    g_units_fallout_map ? (lose->x >= (int)g_units_fallout_map->width / 2) : true;
+  if (europe_enqueue_expected(
+        eu, lose->type_index, lt && lt->name[0] ? lt->name : "Ship", NULL, NULL, 0,
+        lose->hold_goods_type, lose->hold_goods_amount, lose->x, lose->y, east, turns
+      )) {
+    /* The Europe wait IS the repair (same rule turn_route_damaged_ships
+     * used): she docks seaworthy. */
+    lose->col1_flags15 = (uint8_t)(lose->col1_flags15 & 0x7fu);
+    units_despawn(pool, lose->id);
+  }
+}
+
 static void units_ship_enter_repair(
   ColonizeUnitPool* pool,
   ColonizeUnit* lose,
@@ -3554,10 +3595,18 @@ static void units_ship_enter_repair(
     lose->col1_counter16 = (uint8_t)worked;
   }
   /*
-   * With no Drydock/Shipyard colony the ship is Europe-bound: it stays on
-   * its tile this turn and turn_route_damaged_ships hands it to the Europe
-   * lane at end of turn (that voyage IS the repair). Only a repair port
-   * teleports it. bugs.md: it must not simply park at the nearest colony.
+   * bugs.md #462/#463: BOTH arms teleport, on the spot. The decompile drops
+   * the register args of the FUN_281f_0812 (unlink from tile) /
+   * FUN_281f_0844 (place on tile) pair at raw 99643-99644; the asm
+   * (5fef:0ceb-5fef:0cf9, ndisasm-literal read) loads them from local_28 /
+   * local_2c, which the colony scan at 5fef:0b4e-5fef:0bac fills with the
+   * winning colony's x/y (DS 0x5d46/0x5d47) and, when the scan finds
+   * nothing (local_20 == 0x3e7, 5fef:0bc0-5fef:0bcb), with
+   * `loser_nation - 0x14` in BOTH coordinates — DOS's off-map Europe slot.
+   * So a damaged ship with no repair port is in Europe the instant it
+   * loses, on the repair timer; it does not linger on its tile waiting for
+   * an end-of-turn router, and it does not sail a voyage (the old port
+   * behaviour, which also left the sprite standing under the dissolve).
    */
   if (home && (home->x != lose->x || home->y != lose->y)) {
     const int old_x = lose->x;
@@ -3582,6 +3631,9 @@ static void units_ship_enter_repair(
     units_combat_enqueue_tok(
       AI_POPUP_TAG_COMBAT_SHIP, "SHIPDAMAGE", lose->nation_id, winner_nation, 0, &tok, fb
     );
+  }
+  if (!home) {
+    units_ship_damaged_to_europe(pool, lose);
   }
 }
 
@@ -6117,6 +6169,22 @@ int units_coastal_fort_attack_strength(
   return 4 * tier * (1 + arty);
 }
 
+/*
+ * bugs.md #465. DOS's own gate (FUN_364b_03f6, raw 57082-57083) is
+ *
+ *     rel = FUN_281f_0a38(colony_nation, ship_nation);
+ *     if ((rel & 0x40) == 0 || ship_type == 0x10) { fire; }
+ *
+ * i.e. "the PEACE bit is clear, OR the target is a Privateer" — DOS shoots at
+ * anyone it has not signed a treaty with, an unmet or cancelled-treaty
+ * neighbour included, and at every Privateer regardless of treaty. The port
+ * keeps the stricter WAR-bit spelling below deliberately: it is a subset of
+ * DOS's rule (a declare clears PEACE and sets WAR), it never fires on a
+ * nation the player has a treaty with, and the port's PEACE bit is stamped
+ * on fewer paths than DOS's (13b0 only), so the literal reading would open
+ * fire on every merely-met neighbour. Privateers are fair game either way,
+ * exactly as in DOS.
+ */
 static int units_fort_fire_is_hostile(
   const ColonizeCol1Save* col1,
   int owner_nation,
@@ -6222,49 +6290,17 @@ static bool units_fort_vs_ship(
         damaged = 0; /* WoI human with no drydock port: she goes down */
       }
     }
+    /* bugs.md #464: 364b_03f6 resolves through the real combat resolver
+     * (FUN_291f_0a14 = FUN_5fef_1b0e, raw 57095), so the fort's kill gets
+     * 1b0e's own outcome redraw — the FUN_281f_03ea fizzle. Snapshot the
+     * "before" frame while the ship is still on its tile. */
+    units_dissolve_notify(0);
     if (damaged) {
-      def->col1_flags15 |= 0x80u;
-      def->moves = 0;
-      def->orders = UNITS_ORDER_NONE;
-      def->repair_pending = 2; /* 2 = damaged this turn; see the repair tick */
-      {
-        const int thresh = dt->defense > 0 ? dt->defense : 4;
-        int wstr = attack_str << 1; /* non-ship winner doubles the bill */
-        int worked = (wstr < thresh) ? thresh - wstr : 0;
-        if (strcmp(dt->name, "Frigate") == 0 && worked < 4) {
-          worked = 4;
-        }
-        if (strcmp(dt->name, "Man-O-War") == 0 && worked < 8) {
-          worked = 8;
-        }
-        def->col1_counter16 = (uint8_t)worked;
-      }
-      /* No repair port: Europe-bound, stays put until the EOT router (see
-       * the naval-loss arm for the same rule). */
-      if (home && (home->x != def->x || home->y != def->y)) {
-        const int old_x = def->x;
-        const int old_y = def->y;
-        def->x = home->x;
-        def->y = home->y;
-        units_occupancy_refresh_tile(pool, old_x, old_y, -1);
-        units_occupancy_refresh_tile(pool, home->x, home->y, -1);
-      }
-      if (human) {
-        PopupMsgTokens tok;
-        memset(&tok, 0, sizeof(tok));
-        tok.string0 = units_combat_nation_label(col1, def->nation_id);
-        tok.string1 = dt->name;
-        tok.string2 = (home && home->name[0]) ? home->name
-                                              : units_home_port_name(col1, def->nation_id);
-        char fb[AI_POPUP_BODY_LEN];
-        snprintf(
-          fb, sizeof(fb), "%s %s damaged! Ship returns to %s for repairs.",
-          tok.string0, tok.string1, tok.string2
-        );
-        units_combat_enqueue_tok(
-          AI_POPUP_TAG_COMBAT_SHIP, "SHIPDAMAGE", def->nation_id, -1, 0, &tok, fb
-        );
-      }
+      /* One repair path for both call sites: the fort has no unit of its own,
+       * so DOS's "winner is not a ship" doubling of the @UNIT combat column
+       * (0352 raw 99626-99628) is applied to the battery strength here. */
+      units_ship_enter_repair(pool, def, attack_str << 1, home, col1, human, fort_nation);
+      units_dissolve_notify(1);
       return false; /* ship survives damaged */
     }
     if (human) {
@@ -6282,6 +6318,7 @@ static bool units_fort_vs_ship(
       units_play_event_sound(0x57);
     }
     units_despawn(pool, defender_id);
+    units_dissolve_notify(1);
     return true;
   }
   /* bugs.md #249: fort loses the exchange → NOTHING happens (DOS undoes the
@@ -6530,8 +6567,16 @@ int units_coastal_fort_fire_pulse_w(
       if (!map_tile_is_water(map, nx, ny)) {
         continue;
       }
-      /* Snapshot ids: combat may despawn mid-scan. */
-      int targets[COLONIZE_UNITS_MAX];
+      /*
+       * bugs.md #465: ONE shot per neighbour tile, at the first SHIP in that
+       * tile's stack — FUN_364b_03f6 (raw 57068-57076) walks the stack with
+       * FUN_281f_02e4 only until the type byte lands in 0x0d..0x12, then
+       * tests that one unit's nation nibble and fires. A tile whose stack
+       * head is a ship of the colony's own nation is skipped entirely; the
+       * port used to snapshot every hostile hull on the tile and fire at all
+       * of them, so a fleet took one salvo per hull per turn.
+       */
+      int targets[1];
       int n_tg = 0;
       int slot_b = 0;
       for (const ColonizeUnit* u = units_next_on_tile_const(units, nx, ny, &slot_b); u != NULL;
@@ -6540,10 +6585,10 @@ int units_coastal_fort_fire_pulse_w(
           continue;
         }
         const ColonizeUnitType* st = units_type(units, u->type_index);
-        if (!units_fort_fire_is_hostile(col1, col->nation_id, u, st)) {
-          continue;
+        if (units_fort_fire_is_hostile(col1, col->nation_id, u, st)) {
+          targets[n_tg++] = u->id;
         }
-        targets[n_tg++] = u->id;
+        break; /* first ship in the stack, hostile or not */
       }
       for (int t = 0; t < n_tg; ++t) {
         const ColonizeUnit* before = units_get(units, targets[t]);

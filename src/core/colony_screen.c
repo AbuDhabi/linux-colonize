@@ -3095,7 +3095,7 @@ static void colony_screen_draw_multifunction(
         (c == COLONIZE_CARGO_HORSES) ? p->goods[c] : (p->field_gross[c] + p->craft_gross[c]);
       const int short_amt = p->shortfall[c];
 
-      if (c == COLONIZE_CARGO_LUMBER && short_amt <= 0 && !p->hammers_frozen &&
+      if (c == COLONIZE_CARGO_LUMBER && short_amt <= 0 &&
           p->hammers_capacity > produced) {
         /* Player-reported (bugs.md): a carpenter demanding more lumber than
          * this tick *produces* is a lumber shortage — even when warehouse
@@ -3181,18 +3181,7 @@ static void colony_screen_draw_multifunction(
        * the same one-cell pairing the cargo shortfalls use. */
       ColonyProdSlot* s = &slots[slot_count++];
       const int short_h = p->hammers_capacity - p->hammers;
-      if (p->hammers_frozen) {
-        /* The coming tick runs as Autumn (calendar advances before
-         * production) and banks nothing — show the carpenter's plain white
-         * potential, not a red shortfall (the missing hammers aren't a
-         * lumber problem). */
-        s->icon0 = COLONY_ICON_HAMMER;
-        s->amount0 = p->hammers_capacity;
-        s->color0 = 15;
-        s->icon1 = -1;
-        s->amount1 = 0;
-        s->color1 = 0;
-      } else {
+      {
         s->icon0 = p->hammers > 0 ? COLONY_ICON_HAMMER : -1;
         s->amount0 = p->hammers;
         s->color0 = 15;

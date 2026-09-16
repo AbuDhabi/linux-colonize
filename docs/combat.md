@@ -43,7 +43,7 @@ site / FF / difficulty live in [save_format_map.md](save_format_map.md).
 | King / REF | `ai_king.c` | Land / naval resolve on invasion paths |
 | Indian raid | `ai_contact.c` raid pulse | Adjacent `units_resolve_land_combat` → seize / move / abandon |
 | Paul Revere | `units_revere_defend_colony_tile` | Empty foreign colony + muskets → auto-arm → land combat |
-| Coastal fort | `turn_run_coastal_fort_fire` → `units_coastal_fort_fire_pulse` | EOT battery vs adjacent hostile ships |
+| Coastal fort | `turn_run_coastal_fort_fire` → `units_coastal_fort_fire_pulse` | EOT battery vs adjacent hostile ships; **one** salvo per neighbour tile, at the stack's first ship (`FUN_364b_03f6` raw 57068-57076), resolved between the two dissolve phases |
 
 Globals for resolve: `units_set_ff_col1`, `units_set_combat_colonies`,
 `units_set_combat_human_nation`, `units_set_combat_popups`,
@@ -381,12 +381,23 @@ Combat loss remaps **unit type** (not merely profession). Cite:
   same file uses for the other DOS `roll(1, X+Y) <= X` decision. `guns == hull`
   is a genuine coin flip in DOS, so no fixture should sit on it (smell audit
   #12: the two copies used to break the tie in opposite directions).
-- **No repair port → Europe** (2026-09-04, bugs.md): DOS's colony scan tests
-  feature bit 7 only, and when it finds nothing substitutes the nation's
-  home-port name (`DS -0x7c74`, crown slot borrowing the human's) into
-  `%STRING2`. The ship stays on its tile and `turn_route_damaged_ships` hands
-  it to the Europe lane at end of turn — that voyage IS the repair. WoI human
-  keeps the DOS `goto`-to-sunk (no friendly Europe).
+- **No repair port → Europe, on the spot** (bugs.md #462/#463): DOS's colony
+  scan tests feature bit 7 only, and when it finds nothing substitutes the
+  nation's home-port name (`DS -0x7c74`, crown slot borrowing the human's)
+  into `%STRING2`. BOTH arms then unlink the hull from its tile
+  (`FUN_281f_0812`) and re-place it (`FUN_281f_0844`) — the decompile drops
+  those register args at raw 99643-99644, the asm at `5fef:0ceb-5fef:0cf9`
+  loads them from `local_28`/`local_2c`: the winning colony's x/y
+  (`0x5d46`/`0x5d47`) when the scan found a port, else `loser_nation - 0x14`
+  in **both** coordinates, DOS's off-map Europe slot (`5fef:0bc0-5fef:0bcb`).
+  So a damaged ship is in Europe the instant it loses, on the repair timer;
+  it never lingers on its tile (which also left the sprite standing under the
+  combat dissolve). `units_ship_enter_repair` does the teleport for both call
+  sites; the port's equivalent of the off-map slot is the Europe Expected lane
+  with the repair timer as the wait (`units_set_combat_europe` supplies the
+  screen; without it — headless — the hull stays put and
+  `turn_route_damaged_ships` remains the fallback). WoI human keeps the DOS
+  `goto`-to-sunk (no friendly Europe).
 - **Repair timer** (`0x5235` column): `col1_counter16` preset to
   `max(0, loser.combat - winner.combat)`, the winner's value doubled when it
   is not a ship (fort fire), Frigate floor 4 / Man-O-War floor 8; the EOT ship
@@ -403,9 +414,10 @@ Combat loss remaps **unit type** (not merely profession). Cite:
   actually taken (sunk), not when it escapes damaged.
 - Unported DOS residue: AI fleet-pool keep/lose biases, crown-MoW forced-
   damage exemption, late-game (turn>0x4f) forced Caravel sink, the
-  and the per-nation stored-port *coords* (`DS -0x77c6`, written to the
-  loser's goal fields +0x314d/e — Linux routes through the Europe lane
-  instead).
+  and the per-nation stored-port *coords* (`DS -0x77c6` = the Europe landfall
+  tile, written to the loser's goto fields +0x314d/e so DOS's repaired hull
+  knows where to come back to — the Linux Europe lane carries its own exit
+  tile instead).
 
 ### Artillery: two different settlement gates — 2026-09-04
 
