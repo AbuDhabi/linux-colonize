@@ -18,6 +18,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "../common/test_runner.h"
+
 static int fail(const char* msg) {
   fprintf(stderr, "unit_ai_euro_20e6: FAIL %s\n", msg);
   return 1;
@@ -37,6 +39,20 @@ typedef struct Fixture {
 
 static int fixture_init(Fixture* f, int nation) {
   memset(f, 0, sizeof(*f));
+  /* This file builds its own Fixture per case rather than going through
+   * tests/common/ai_fixture.h, so it must reset ai_goals.c's own
+   * per-nation statics (s_goals/s_work/s_inv/s_plan, all keyed by
+   * `nation`) itself. All cases here use nation=1, so without this an
+   * earlier case's queued goal/work-slot state for nation 1 survives
+   * into the next case and can steer its AI dispatcher call down a
+   * different arm than the one under test. Root-caused via
+   * COLONIZE_TEST_SHUFFLE=1: unit_wagon_errand_dead_end_destroyed run
+   * immediately before unit_patrol_returns_to_colony made the PATROL arm
+   * fall through to wander/ring-hop instead of heading the soldier home.
+   * ai_euro_reset()/units_reset_state()/turn_reset()/ai_native_reset()
+   * do NOT touch ai_goals.c's statics; ai_goals_reset() is the one call
+   * that does. */
+  ai_goals_reset();
   f->map.width = 16;
   f->map.height = 16;
   f->map.tile_count = 256;
@@ -1645,67 +1661,27 @@ static int unit_treasure_outside_colony_not_cashed(void) {
   return 0;
 }
 
-int main(void) {
-  if (unit_treasure_in_colony_cash_in() != 0) {
-    return 1;
-  }
-  if (unit_treasure_cash_in_silent_under_woi() != 0) {
-    return 1;
-  }
-  if (unit_treasure_outside_colony_not_cashed() != 0) {
-    return 1;
-  }
-  if (unit_wander_step_is_adjacent() != 0) {
-    return 1;
-  }
-  if (unit_patrol_returns_to_colony() != 0) {
-    return 1;
-  }
-  if (unit_ring_hop_commits_far_goto() != 0) {
-    return 1;
-  }
-  if (unit_explorer_clears_explore_goal_on_its_tile() != 0) {
-    return 1;
-  }
-  if (unit_colony_sail_targets_needy_colony() != 0) {
-    return 1;
-  }
-  if (unit_wagon_dead_end_destroyed() != 0) {
-    return 1;
-  }
-  if (unit_wagon_with_target_survives() != 0) {
-    return 1;
-  }
-  if (unit_empty_ship_hs_cadence() != 0) {
-    return 1;
-  }
-  if (unit_delivery_matrix_skips_full_producer() != 0) {
-    return 1;
-  }
-  if (unit_delivery_sell_tail_dumps_cargo() != 0) {
-    return 1;
-  }
-  if (unit_load_matrix_picks_priced_cargo() != 0) {
-    return 1;
-  }
-  if (unit_ship_berth_dumps_whole_hull() != 0) {
-    return 1;
-  }
-  if (unit_berth_marks_then_assembles_passenger() != 0) {
-    return 1;
-  }
-  if (unit_work_queue_pickup_aims_at_goods_colony() != 0) {
-    return 1;
-  }
-  if (unit_wagon_load_matrix_starts_village_errand() != 0) {
-    return 1;
-  }
-  if (unit_wagon_errand_trades_at_village() != 0) {
-    return 1;
-  }
-  if (unit_wagon_errand_dead_end_destroyed() != 0) {
-    return 1;
-  }
-  printf("unit_ai_euro_20e6: OK\n");
-  return 0;
-}
+static const TestCase k_cases[] = {
+    {"unit_treasure_in_colony_cash_in", unit_treasure_in_colony_cash_in},
+    {"unit_treasure_cash_in_silent_under_woi", unit_treasure_cash_in_silent_under_woi},
+    {"unit_treasure_outside_colony_not_cashed", unit_treasure_outside_colony_not_cashed},
+    {"unit_wander_step_is_adjacent", unit_wander_step_is_adjacent},
+    {"unit_patrol_returns_to_colony", unit_patrol_returns_to_colony},
+    {"unit_ring_hop_commits_far_goto", unit_ring_hop_commits_far_goto},
+    {"unit_explorer_clears_explore_goal_on_its_tile", unit_explorer_clears_explore_goal_on_its_tile},
+    {"unit_colony_sail_targets_needy_colony", unit_colony_sail_targets_needy_colony},
+    {"unit_wagon_dead_end_destroyed", unit_wagon_dead_end_destroyed},
+    {"unit_wagon_with_target_survives", unit_wagon_with_target_survives},
+    {"unit_empty_ship_hs_cadence", unit_empty_ship_hs_cadence},
+    {"unit_delivery_matrix_skips_full_producer", unit_delivery_matrix_skips_full_producer},
+    {"unit_delivery_sell_tail_dumps_cargo", unit_delivery_sell_tail_dumps_cargo},
+    {"unit_load_matrix_picks_priced_cargo", unit_load_matrix_picks_priced_cargo},
+    {"unit_ship_berth_dumps_whole_hull", unit_ship_berth_dumps_whole_hull},
+    {"unit_berth_marks_then_assembles_passenger", unit_berth_marks_then_assembles_passenger},
+    {"unit_work_queue_pickup_aims_at_goods_colony", unit_work_queue_pickup_aims_at_goods_colony},
+    {"unit_wagon_load_matrix_starts_village_errand", unit_wagon_load_matrix_starts_village_errand},
+    {"unit_wagon_errand_trades_at_village", unit_wagon_errand_trades_at_village},
+    {"unit_wagon_errand_dead_end_destroyed", unit_wagon_errand_dead_end_destroyed},
+};
+
+TEST_MAIN(k_cases)

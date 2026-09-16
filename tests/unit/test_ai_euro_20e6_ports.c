@@ -38,6 +38,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "../common/test_runner.h"
+
 static int fail(const char* msg) {
   fprintf(stderr, "unit_ai_euro_20e6_ports: FAIL %s\n", msg);
   return 1;
@@ -853,34 +855,16 @@ static int sell_tail_falls_through_to_work_queue(void) {
  *     passengers on every berth act, so the totals match.)
  */
 
-int main(void) {
-  if (assemble_boards_whole_reserved_hull() != 0) {
-    return 1;
-  }
-  if (assemble_ignores_empty_hold_sentinel() != 0) {
-    return 1;
-  }
-  if (assemble_refuses_oversize_passenger() != 0) {
-    return 1;
-  }
-  if (assemble_ignores_unmarked_stack_member() != 0) {
-    return 1;
-  }
-  if (wagon_binds_and_parks_at_own_colony() != 0) {
-    return 1;
-  }
-  if (wagon_walks_home_to_bound_colony() != 0) {
-    return 1;
-  }
-  if (wagon_off_landmass_is_destroyed() != 0) {
-    return 1;
-  }
-  if (sell_tail_untaxed_credit_and_double_book() != 0) {
-    return 1;
-  }
-  if (sell_tail_falls_through_to_work_queue() != 0) {
-    return 1;
-  }
-  printf("unit_ai_euro_20e6_ports: OK\n");
-  return 0;
-}
+static const TestCase k_cases[] = {
+    {"assemble_boards_whole_reserved_hull", assemble_boards_whole_reserved_hull},
+    {"assemble_ignores_empty_hold_sentinel", assemble_ignores_empty_hold_sentinel},
+    {"assemble_refuses_oversize_passenger", assemble_refuses_oversize_passenger},
+    {"assemble_ignores_unmarked_stack_member", assemble_ignores_unmarked_stack_member},
+    {"wagon_binds_and_parks_at_own_colony", wagon_binds_and_parks_at_own_colony},
+    {"wagon_walks_home_to_bound_colony", wagon_walks_home_to_bound_colony},
+    {"wagon_off_landmass_is_destroyed", wagon_off_landmass_is_destroyed},
+    {"sell_tail_untaxed_credit_and_double_book", sell_tail_untaxed_credit_and_double_book},
+    {"sell_tail_falls_through_to_work_queue", sell_tail_falls_through_to_work_queue},
+};
+
+TEST_MAIN(k_cases)

@@ -5,6 +5,8 @@
 #include "core/closing.h"
 #include "platform/diagnostics.h"
 
+#include "../common/test_runner.h"
+
 static int failures = 0;
 
 static void check(bool cond, const char* what) {
@@ -180,15 +182,36 @@ static void test_sounds(void) {
   closing_set_sound_hooks(NULL, NULL, NULL);
 }
 
+/* These cases accumulate into the shared `failures` counter via check()
+ * rather than returning pass/fail directly; wrap each so the table-driven
+ * runner can report per-case PASS/FAIL. */
+static int case_test_timeline(void) {
+  int before = failures;
+  test_timeline();
+  return failures != before;
+}
+
+static int case_test_open_and_skip(void) {
+  int before = failures;
+  test_open_and_skip();
+  return failures != before;
+}
+
+static int case_test_sounds(void) {
+  int before = failures;
+  test_sounds();
+  return failures != before;
+}
+
+static const TestCase k_cases[] = {
+    {"test_timeline", case_test_timeline},
+    {"test_open_and_skip", case_test_open_and_skip},
+    {"test_sounds", case_test_sounds},
+};
+
 int main(void) {
   diag_init(0, NULL);
-  test_timeline();
-  test_open_and_skip();
-  test_sounds();
+  int rc = tr_run_main(k_cases, (int)(sizeof(k_cases) / sizeof(k_cases[0])));
   diag_shutdown();
-  if (failures) {
-    fprintf(stderr, "%d failure(s)\n", failures);
-    return 1;
-  }
-  return 0;
+  return rc;
 }

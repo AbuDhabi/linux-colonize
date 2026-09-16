@@ -1,9 +1,12 @@
 #include <stdbool.h>
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
 
 #include "core/declaration.h"
 #include "platform/diagnostics.h"
+
+#include "../common/test_runner.h"
 
 /*
  * FUN_43f7_160a Declaration-of-Independence signing cinematic: DECOIND.PIK
@@ -133,17 +136,46 @@ static void test_missing_assets(void) {
   check(!d.open, "failed open leaves the cinematic closed");
 }
 
+/* These cases accumulate into the shared `failures` counter via check()
+ * rather than returning pass/fail directly; wrap each so the table-driven
+ * runner can report per-case PASS/FAIL. */
+static int case_test_title_case(void) {
+  int before = failures;
+  test_title_case();
+  return failures != before;
+}
+
+static int case_test_run_layout(void) {
+  int before = failures;
+  test_run_layout();
+  return failures != before;
+}
+
+static int case_test_animation_and_skip(void) {
+  int before = failures;
+  test_animation_and_skip();
+  return failures != before;
+}
+
+static int case_test_missing_assets(void) {
+  int before = failures;
+  test_missing_assets();
+  return failures != before;
+}
+
+static const TestCase k_cases[] = {
+    {"test_title_case", case_test_title_case},
+    {"test_run_layout", case_test_run_layout},
+    {"test_animation_and_skip", case_test_animation_and_skip},
+    {"test_missing_assets", case_test_missing_assets},
+};
+
 int main(void) {
   diag_init(0, NULL);
-  test_title_case();
-  test_run_layout();
-  test_animation_and_skip();
-  test_missing_assets();
+  int rc = tr_run_main(k_cases, (int)(sizeof(k_cases) / sizeof(k_cases[0])));
   diag_shutdown();
-  if (failures) {
-    fprintf(stderr, "%d check(s) failed\n", failures);
-    return 1;
+  if (rc == 0 && getenv("COLONIZE_TEST_LIST") == NULL) {
+    printf("ok\n");
   }
-  printf("ok\n");
-  return 0;
+  return rc;
 }

@@ -42,6 +42,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "../common/test_runner.h"
+
 #define MAP_W 16
 #define MAP_H 16
 
@@ -283,13 +285,9 @@ static int unit_full_matrix_sticky_doubling(void) {
   return 0;
 }
 
-int main(void) {
-  if (unit_penalty_scoped_to_generalist_jobs() != 0) {
-    return 1;
-  }
-  if (unit_full_matrix_sticky_doubling() != 0) {
-    return 1;
-  }
-  fprintf(stderr, "unit_ai_euro_28c8_job_score: ok\n");
-  return 0;
-}
+static const TestCase k_cases[] = {
+    {"unit_penalty_scoped_to_generalist_jobs", unit_penalty_scoped_to_generalist_jobs},
+    {"unit_full_matrix_sticky_doubling", unit_full_matrix_sticky_doubling},
+};
+
+TEST_MAIN(k_cases)

@@ -5,6 +5,8 @@
 #include "core/opening.h"
 #include "platform/diagnostics.h"
 
+#include "../common/test_runner.h"
+
 static int failures = 0;
 
 static void check(bool cond, const char* what) {
@@ -302,18 +304,57 @@ static void test_timed_run_reaches_end(void) {
   opening_close(&o);
 }
 
+/* These cases accumulate into the shared `failures` counter via check()
+ * rather than returning pass/fail directly; wrap each so the table-driven
+ * runner can report per-case PASS/FAIL. */
+static int case_test_timeline(void) {
+  int before = failures;
+  test_timeline();
+  return failures != before;
+}
+
+static int case_test_credits_and_path(void) {
+  int before = failures;
+  test_credits_and_path();
+  return failures != before;
+}
+
+static int case_test_open_skip_and_motion(void) {
+  int before = failures;
+  test_open_skip_and_motion();
+  return failures != before;
+}
+
+static int case_test_logo_and_credit_layout(void) {
+  int before = failures;
+  test_logo_and_credit_layout();
+  return failures != before;
+}
+
+static int case_test_guy_idle_loops(void) {
+  int before = failures;
+  test_guy_idle_loops();
+  return failures != before;
+}
+
+static int case_test_timed_run_reaches_end(void) {
+  int before = failures;
+  test_timed_run_reaches_end();
+  return failures != before;
+}
+
+static const TestCase k_cases[] = {
+    {"test_timeline", case_test_timeline},
+    {"test_credits_and_path", case_test_credits_and_path},
+    {"test_open_skip_and_motion", case_test_open_skip_and_motion},
+    {"test_logo_and_credit_layout", case_test_logo_and_credit_layout},
+    {"test_guy_idle_loops", case_test_guy_idle_loops},
+    {"test_timed_run_reaches_end", case_test_timed_run_reaches_end},
+};
+
 int main(void) {
   diag_init(0, NULL);
-  test_timeline();
-  test_credits_and_path();
-  test_open_skip_and_motion();
-  test_logo_and_credit_layout();
-  test_guy_idle_loops();
-  test_timed_run_reaches_end();
+  int rc = tr_run_main(k_cases, (int)(sizeof(k_cases) / sizeof(k_cases[0])));
   diag_shutdown();
-  if (failures) {
-    fprintf(stderr, "%d failure(s)\n", failures);
-    return 1;
-  }
-  return 0;
+  return rc;
 }

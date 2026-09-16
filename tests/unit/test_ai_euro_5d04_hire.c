@@ -47,6 +47,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "../common/test_runner.h"
+
 static int fail(const char* msg) {
   fprintf(stderr, "unit_ai_euro_5d04_hire: FAIL %s\n", msg);
   return 1;
@@ -736,31 +738,15 @@ static int needs_colonists_latch_matches_5952(void) {
   return 0;
 }
 
-int main(void) {
-  if (departing_ship_buys_wanted_cargo() != 0) {
-    return 1;
-  }
-  if (afloat_cargo_cancels_colony_demand() != 0) {
-    return 1;
-  }
-  if (europe_dock_queue_raises_cargo_bar() != 0) {
-    return 1;
-  }
-  if (recruit_swap_follows_colonies_wanting_colonists() != 0) {
-    return 1;
-  }
-  if (pioneer_training_skipped_past_turn_99() != 0) {
-    return 1;
-  }
-  if (dos_type_table_is_names_txt_unit_order() != 0) {
-    return 1;
-  }
-  if (hull_budget_space_uses_translated_type() != 0) {
-    return 1;
-  }
-  if (needs_colonists_latch_matches_5952() != 0) {
-    return 1;
-  }
-  printf("unit_ai_euro_5d04_hire: OK\n");
-  return 0;
-}
+static const TestCase k_cases[] = {
+    {"departing_ship_buys_wanted_cargo", departing_ship_buys_wanted_cargo},
+    {"afloat_cargo_cancels_colony_demand", afloat_cargo_cancels_colony_demand},
+    {"europe_dock_queue_raises_cargo_bar", europe_dock_queue_raises_cargo_bar},
+    {"recruit_swap_follows_colonies_wanting_colonists", recruit_swap_follows_colonies_wanting_colonists},
+    {"pioneer_training_skipped_past_turn_99", pioneer_training_skipped_past_turn_99},
+    {"dos_type_table_is_names_txt_unit_order", dos_type_table_is_names_txt_unit_order},
+    {"hull_budget_space_uses_translated_type", hull_budget_space_uses_translated_type},
+    {"needs_colonists_latch_matches_5952", needs_colonists_latch_matches_5952},
+};
+
+TEST_MAIN(k_cases)

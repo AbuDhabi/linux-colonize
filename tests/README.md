@@ -61,6 +61,56 @@ Swap `unit_ff` for any target name (`smoke_play`, `golden_mapgen_seed100`,
 target, not a `ctest` test (see above), so it must be run explicitly:
 `cmake --build build/debug --target golden_ai_joint`.
 
+## Test runner
+
+Many `tests/unit/*.c`, `tests/smoke/*.c` and `tests/golden/*.c` binaries used
+to be a hand-written `int main` calling case functions in a fixed sequence —
+easy to grow an accidental order dependency (a case that only passes because
+an earlier case left some static/global set). `tests/common/test_runner.h`
+replaces that boilerplate with a small table-driven harness:
+
+```c
+static const TestCase k_cases[] = {
+    {"unit_mid_hire_mil", unit_mid_hire_mil},
+    {"unit_soldier_board_empty_transport", unit_soldier_board_empty_transport},
+};
+TEST_MAIN(k_cases)
+```
+
+`TEST_MAIN` expands to a full `main()`. Default execution order is always the
+declared order, so plain `ctest` behaviour is unchanged. It honours four env
+vars (also in [`docs/debug_env_vars.md`](../docs/debug_env_vars.md)):
+
+- `COLONIZE_TEST_LIST=1` — print case names, one per line, exit 0.
+- `COLONIZE_TEST_ONLY=<name>` — run exactly one named case.
+- `COLONIZE_TEST_REVERSE=1` — run cases in reverse declared order.
+- `COLONIZE_TEST_SHUFFLE=<seed>` — deterministic Fisher-Yates shuffle.
+
+Each case is `int (*)(void)`, returning 0 on pass; the runner prints
+`PASS <name>` / `FAIL <name>` per case. A file whose main does real work
+between/around case calls (loops over a fixture array, env-var-driven
+branches, inline assertions not in a separate named function, or a
+`check()`/shared-`failures`-counter style — see `tests/common/test_fail.h`)
+either keeps its own `main`, or wraps each void case
+(`int case_foo(void) { int before = failures; foo(); return failures !=
+before; }`) so it still fits the table; not every file in `tests/` uses this
+harness.
+
+**Hunting order dependencies**: for a converted binary, run it with
+`COLONIZE_TEST_REVERSE=1`, a few `COLONIZE_TEST_SHUFFLE=<seed>` values, and
+each case alone via `COLONIZE_TEST_ONLY` (enumerate names with
+`COLONIZE_TEST_LIST=1`) — from repo root, same cwd rule as `ctest`. A case
+that fails in any of those but passes in declared order depends on state an
+earlier case left behind. Two examples found and fixed this way (both were
+missing a reset call in the test's own fixture setup, not production bugs):
+`tests/unit/test_ai_euro_20e6.c`'s `fixture_init` was missing
+`ai_goals_reset()` (ai_goals.c's per-nation `s_goals`/`s_work`/`s_inv`/
+`s_plan` statics leaked between cases sharing nation 1), and
+`tests/unit/test_ai_euro_expand.c`'s `unit_0a60_work_military_ai_plan_gate`
+hand-built its fixture instead of going through `tests/common/ai_fixture.h`'s
+`fx_units_init()`, so it skipped `ai_euro_reset()`/`ai_native_reset()`/
+`turn_reset()`/`units_reset_state()`/`units_set_occupancy_map(NULL)`.
+
 ## Verifying a fix
 
 1. Build: `cmake --build --preset debug`.

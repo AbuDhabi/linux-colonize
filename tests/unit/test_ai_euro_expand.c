@@ -15,6 +15,7 @@
  * golden_ai_late01), which stayed byte-green across the swap.
  */
 #include "core/ai_diplo.h"
+#include "core/ai.h"
 #include "core/ai_euro.h"
 #include "core/ai_goals.h"
 #include "core/col1_save.h"
@@ -32,6 +33,7 @@
 #define TEST_NAME "unit_ai_euro_expand"
 #include "../common/ai_fixture.h"
 #include "../common/test_fail.h"
+#include "../common/test_runner.h"
 
 
 /*
@@ -3275,6 +3277,17 @@ static int unit_0a60_work_military_ai_plan_gate(void) {
     memset(&units, 0, sizeof(units));
     units_reset(&units);
     units_set_occupancy_map(NULL);
+    /* Every other case in this file resets through fx_units_init(), but
+     * this one hand-builds its pool; without units_reset_hooks() /
+     * units_reset_state() / ai_euro_reset() / ai_native_reset() /
+     * turn_reset() it can inherit ai_euro.c's per-unit-id or per-nation
+     * statics from whichever case ran immediately before it under
+     * COLONIZE_TEST_SHUFFLE (seeds 5 and 7 reproduce it). */
+    units_reset_hooks();
+    units_reset_state();
+    ai_euro_reset();
+    ai_native_reset();
+    turn_reset();
     units.type_count = 1;
     snprintf(units.types[0].name, sizeof(units.types[0].name), "Soldier");
     units.types[0].movement = 1;
@@ -14778,392 +14791,135 @@ static int unit_seasoned_sticky_fog_deepen(void) {
   return 0;
 }
 
-int main(void) {
-  /* Series R before known Seasoned+sticky early-exit (pre-existing). */
-  if (unit_specialty_flag_a_haul_match() != 0) {
-    return 1;
-  }
-  if (unit_scout_explore() != 0) {
-    return 1;
-  }
-  if (unit_scout_fog_prefer_unseen() != 0) {
-    return 1;
-  }
-  if (unit_scout_sticky_closer_ring() != 0) {
-    return 1;
-  }
-  if (unit_scout_sticky_fog_deeper_unseen() != 0) {
-    return 1;
-  }
-  if (unit_scout_fog_explore_no_contact() != 0) {
-    return 1;
-  }
-  if (unit_seasoned_scout_deeper_fog() != 0) {
-    return 1;
-  }
-  if (unit_scout_fog_prefer_rumour() != 0) {
-    return 1;
-  }
-  if (unit_seasoned_sticky_fog_deepen() != 0) {
-    return 1;
-  }
-  if (unit_treasure_coast() != 0) {
-    return 1;
-  }
-  if (unit_treasure_board_sail() != 0) {
-    return 1;
-  }
-  if (unit_treasure_europe_cash() != 0) {
-    return 1;
-  }
-  if (unit_cortes_king_galleon_cash() != 0) {
-    return 1;
-  }
-  if (unit_missionary_contact() != 0) {
-    return 1;
-  }
-  if (unit_missionary_flee_skip() != 0) {
-    return 1;
-  }
-  if (unit_pioneer_tools_delivery() != 0) {
-    return 1;
-  }
-  if (unit_wagon_tools_delivery() != 0) {
-    return 1;
-  }
-  if (unit_wagon_haul_tools_short() != 0) {
-    return 1;
-  }
-  if (unit_wagon_haul_muskets_short() != 0) {
-    return 1;
-  }
-  if (unit_wagon_haul_lumber_short() != 0) {
-    return 1;
-  }
-  if (unit_wagon_haul_ore_short() != 0) {
-    return 1;
-  }
-  if (unit_wagon_haul_food_short() != 0) {
-    return 1;
-  }
-  if (unit_wagon_food_delivery() != 0) {
-    return 1;
-  }
-  if (unit_wagon_food_load_haul() != 0) {
-    return 1;
-  }
-  if (unit_wagon_food_prefer_over_tools() != 0) {
-    return 1;
-  }
-  if (unit_ship_trade_haul_tools_short() != 0) {
-    return 1;
-  }
-  if (unit_ship_trade_haul_muskets_short() != 0) {
-    return 1;
-  }
-  if (unit_ship_europe_export_silver() != 0) {
-    return 1;
-  }
-  if (unit_privateer_europe_loot_sail() != 0) {
-    return 1;
-  }
-  if (unit_ship_europe_export_load_silver() != 0) {
-    return 1;
-  }
-  if (unit_galleon_europe_export_load_silver() != 0) {
-    return 1;
-  }
-  if (unit_merchantman_europe_export_load_silver() != 0) {
-    return 1;
-  }
-  if (unit_galleon_trade_haul_tools_short() != 0) {
-    return 1;
-  }
-  if (unit_ship_food_delivery() != 0) {
-    return 1;
-  }
-  if (unit_cargo_produced_mask_haul_prefer() != 0) {
-    return 1;
-  }
-  if (unit_specialty_cargo_haul_prefer() != 0) {
-    return 1;
-  }
-  if (unit_cargo_idle_turns_haul_prefer() != 0) {
-    return 1;
-  }
-  if (unit_labor_shortage_join() != 0) {
-    return 1;
-  }
-  if (unit_labor_bind_food_short() != 0) {
-    return 1;
-  }
-  if (unit_food_emergency_labor() != 0) {
-    return 1;
-  }
-  if (unit_expert_farmer_food_labor() != 0) {
-    return 1;
-  }
-  if (unit_free_colonist_food_labor() != 0) {
-    return 1;
-  }
-  if (unit_tools_short_pioneer_labor() != 0) {
-    return 1;
-  }
-  if (unit_colony_flags_starvation_labor() != 0) {
-    return 1;
-  }
-  if (unit_colony_ai_flags_mow_colony_alt() != 0) {
-    return 1;
-  }
-  if (unit_colony_ai_flags_pioneer_clear() != 0) {
-    return 1;
-  }
-  if (unit_0a60_work_military_ai_plan_gate() != 0) {
-    return 1;
-  }
-  if (unit_human_census_ship_pressure_refresh() != 0) {
-    return 1;
-  }
-  if (unit_build_ai_flags_wants_construction() != 0) {
-    return 1;
-  }
-  if (unit_construction_labor_stockade() != 0) {
-    return 1;
-  }
-  if (unit_master_carpenter_construction_labor() != 0) {
-    return 1;
-  }
-  if (unit_lumberjack_warehouse_labor() != 0) {
-    return 1;
-  }
-  if (unit_lumberjack_field_assign() != 0) {
-    return 1;
-  }
-  if (unit_ore_miner_field_assign() != 0) {
-    return 1;
-  }
-  if (unit_silver_miner_field_assign() != 0) {
-    return 1;
-  }
-  if (unit_farmer_field_assign() != 0) {
-    return 1;
-  }
-  if (unit_fisherman_field_assign() != 0) {
-    return 1;
-  }
-  if (unit_sugar_planter_field_assign() != 0) {
-    return 1;
-  }
-  if (unit_tobacco_planter_field_assign() != 0) {
-    return 1;
-  }
-  if (unit_cotton_planter_field_assign() != 0) {
-    return 1;
-  }
-  if (unit_fur_trapper_field_assign() != 0) {
-    return 1;
-  }
-  if (unit_blacksmith_workplace_assign() != 0) {
-    return 1;
-  }
-  if (unit_gunsmith_workplace_assign() != 0) {
-    return 1;
-  }
-  if (unit_fur_trader_workplace_assign() != 0) {
-    return 1;
-  }
-  if (unit_distiller_workplace_assign() != 0) {
-    return 1;
-  }
-  if (unit_weaver_workplace_assign() != 0) {
-    return 1;
-  }
-  if (unit_tobacconist_workplace_assign() != 0) {
-    return 1;
-  }
-  if (unit_statesman_workplace_assign() != 0) {
-    return 1;
-  }
-  if (unit_preacher_workplace_assign() != 0) {
-    return 1;
-  }
-  if (unit_teacher_workplace_assign() != 0) {
-    return 1;
-  }
-  if (unit_carpenter_workplace_assign() != 0) {
-    return 1;
-  }
-  if (unit_peace_construction_stockade() != 0) {
-    return 1;
-  }
-  if (unit_peace_construction_fort() != 0) {
-    return 1;
-  }
-  if (unit_peace_construction_fortress() != 0) {
-    return 1;
-  }
-  if (unit_peace_construction_warehouse() != 0) {
-    return 1;
-  }
-  if (unit_peace_construction_warehouse_expansion() != 0) {
-    return 1;
-  }
-  if (unit_peace_construction_docks() != 0) {
-    return 1;
-  }
-  if (unit_coastal_drydock_prefer() != 0) {
-    return 1;
-  }
-  if (unit_coastal_shipyard_prefer() != 0) {
-    return 1;
-  }
-  if (unit_stuyvesant_custom_house_prefer() != 0) {
-    return 1;
-  }
-  if (unit_peace_church_prefer() != 0) {
-    return 1;
-  }
-  if (unit_war_armory_prefer() != 0) {
-    return 1;
-  }
-  if (unit_peace_printing_press_prefer() != 0) {
-    return 1;
-  }
-  if (unit_peace_schoolhouse_prefer() != 0) {
-    return 1;
-  }
-  if (unit_war_magazine_prefer() != 0) {
-    return 1;
-  }
-  if (unit_peace_newspaper_prefer() != 0) {
-    return 1;
-  }
-  if (unit_peace_college_prefer() != 0) {
-    return 1;
-  }
-  if (unit_peace_cathedral_prefer() != 0) {
-    return 1;
-  }
-  if (unit_war_arsenal_prefer() != 0) {
-    return 1;
-  }
-  if (unit_peace_university_prefer() != 0) {
-    return 1;
-  }
-  if (unit_stable_prefer() != 0) {
-    return 1;
-  }
-  if (unit_carpenters_shop_prefer() != 0) {
-    return 1;
-  }
-  if (unit_lumber_mill_prefer() != 0) {
-    return 1;
-  }
-  if (unit_blacksmiths_house_prefer() != 0) {
-    return 1;
-  }
-  if (unit_blacksmiths_shop_prefer() != 0) {
-    return 1;
-  }
-  if (unit_iron_works_prefer() != 0) {
-    return 1;
-  }
-  if (unit_craft_distillers_house_prefer() != 0) {
-    return 1;
-  }
-  if (unit_craft_weavers_house_prefer() != 0) {
-    return 1;
-  }
-  if (unit_craft_tobacconists_house_prefer() != 0) {
-    return 1;
-  }
-  if (unit_craft_fur_traders_house_prefer() != 0) {
-    return 1;
-  }
-  if (unit_craft_distillery_prefer() != 0) {
-    return 1;
-  }
-  if (unit_craft_weavers_shop_prefer() != 0) {
-    return 1;
-  }
-  if (unit_craft_tobacconist_shop_prefer() != 0) {
-    return 1;
-  }
-  if (unit_craft_fur_trading_post_prefer() != 0) {
-    return 1;
-  }
-  if (unit_craft_rum_factory_prefer() != 0) {
-    return 1;
-  }
-  if (unit_craft_textile_mill_prefer() != 0) {
-    return 1;
-  }
-  if (unit_craft_cigar_factory_prefer() != 0) {
-    return 1;
-  }
-  if (unit_craft_fur_factory_prefer() != 0) {
-    return 1;
-  }
-  if (unit_capitol_prefer() != 0) {
-    return 1;
-  }
-  if (unit_capitol_expansion_prefer() != 0) {
-    return 1;
-  }
-  if (unit_indian_land_found() != 0) {
-    return 1;
-  }
-  if (unit_improve_timer_pioneer_gate() != 0) {
-    return 1;
-  }
-  if (unit_pioneer_plow_improve() != 0) {
-    return 1;
-  }
-  if (unit_pioneer_road_on_plowed() != 0) {
-    return 1;
-  }
-  if (unit_stockade_threat_labor() != 0) {
-    return 1;
-  }
-  if (unit_multistep_military() != 0) {
-    return 1;
-  }
-  if (unit_de_witt_wagon_foreign_trade() != 0) {
-    return 1;
-  }
-  if (unit_treasury_skip_hire() != 0) {
-    return 1;
-  }
-  if (unit_5d04_buy_caravel_colonies_ge6() != 0) {
-    return 1;
-  }
-  if (unit_5d04_buy_caravel_no_ship() != 0) {
-    return 1;
-  }
-  if (unit_5d04_buy_merchantman_cargo_pressure() != 0) {
-    return 1;
-  }
-  if (unit_5d04_buy_galleon_at_war() != 0) {
-    return 1;
-  }
-  if (unit_5d04_buy_frigate_at_war() != 0) {
-    return 1;
-  }
-  if (unit_5d04_buy_caravel_ship_full() != 0) {
-    return 1;
-  }
-  if (unit_transport_europe_sell_trade_goods() != 0) {
-    return 1;
-  }
-  if (unit_privateer_europe_sell_silver() != 0) {
-    return 1;
-  }
-  if (unit_transport_europe_sell_multi_cargo() != 0) {
-    return 1;
-  }
-  if (unit_transport_europe_sell_skip_boycott() != 0) {
-    return 1;
-  }
-  fprintf(stderr, "unit_ai_euro_expand: ok\n");
-  return 0;
-}
+static const TestCase k_cases[] = {
+    {"unit_specialty_flag_a_haul_match", unit_specialty_flag_a_haul_match},
+    {"unit_scout_explore", unit_scout_explore},
+    {"unit_scout_fog_prefer_unseen", unit_scout_fog_prefer_unseen},
+    {"unit_scout_sticky_closer_ring", unit_scout_sticky_closer_ring},
+    {"unit_scout_sticky_fog_deeper_unseen", unit_scout_sticky_fog_deeper_unseen},
+    {"unit_scout_fog_explore_no_contact", unit_scout_fog_explore_no_contact},
+    {"unit_seasoned_scout_deeper_fog", unit_seasoned_scout_deeper_fog},
+    {"unit_scout_fog_prefer_rumour", unit_scout_fog_prefer_rumour},
+    {"unit_seasoned_sticky_fog_deepen", unit_seasoned_sticky_fog_deepen},
+    {"unit_treasure_coast", unit_treasure_coast},
+    {"unit_treasure_board_sail", unit_treasure_board_sail},
+    {"unit_treasure_europe_cash", unit_treasure_europe_cash},
+    {"unit_cortes_king_galleon_cash", unit_cortes_king_galleon_cash},
+    {"unit_missionary_contact", unit_missionary_contact},
+    {"unit_missionary_flee_skip", unit_missionary_flee_skip},
+    {"unit_pioneer_tools_delivery", unit_pioneer_tools_delivery},
+    {"unit_wagon_tools_delivery", unit_wagon_tools_delivery},
+    {"unit_wagon_haul_tools_short", unit_wagon_haul_tools_short},
+    {"unit_wagon_haul_muskets_short", unit_wagon_haul_muskets_short},
+    {"unit_wagon_haul_lumber_short", unit_wagon_haul_lumber_short},
+    {"unit_wagon_haul_ore_short", unit_wagon_haul_ore_short},
+    {"unit_wagon_haul_food_short", unit_wagon_haul_food_short},
+    {"unit_wagon_food_delivery", unit_wagon_food_delivery},
+    {"unit_wagon_food_load_haul", unit_wagon_food_load_haul},
+    {"unit_wagon_food_prefer_over_tools", unit_wagon_food_prefer_over_tools},
+    {"unit_ship_trade_haul_tools_short", unit_ship_trade_haul_tools_short},
+    {"unit_ship_trade_haul_muskets_short", unit_ship_trade_haul_muskets_short},
+    {"unit_ship_europe_export_silver", unit_ship_europe_export_silver},
+    {"unit_privateer_europe_loot_sail", unit_privateer_europe_loot_sail},
+    {"unit_ship_europe_export_load_silver", unit_ship_europe_export_load_silver},
+    {"unit_galleon_europe_export_load_silver", unit_galleon_europe_export_load_silver},
+    {"unit_merchantman_europe_export_load_silver", unit_merchantman_europe_export_load_silver},
+    {"unit_galleon_trade_haul_tools_short", unit_galleon_trade_haul_tools_short},
+    {"unit_ship_food_delivery", unit_ship_food_delivery},
+    {"unit_cargo_produced_mask_haul_prefer", unit_cargo_produced_mask_haul_prefer},
+    {"unit_specialty_cargo_haul_prefer", unit_specialty_cargo_haul_prefer},
+    {"unit_cargo_idle_turns_haul_prefer", unit_cargo_idle_turns_haul_prefer},
+    {"unit_labor_shortage_join", unit_labor_shortage_join},
+    {"unit_labor_bind_food_short", unit_labor_bind_food_short},
+    {"unit_food_emergency_labor", unit_food_emergency_labor},
+    {"unit_expert_farmer_food_labor", unit_expert_farmer_food_labor},
+    {"unit_free_colonist_food_labor", unit_free_colonist_food_labor},
+    {"unit_tools_short_pioneer_labor", unit_tools_short_pioneer_labor},
+    {"unit_colony_flags_starvation_labor", unit_colony_flags_starvation_labor},
+    {"unit_colony_ai_flags_mow_colony_alt", unit_colony_ai_flags_mow_colony_alt},
+    {"unit_colony_ai_flags_pioneer_clear", unit_colony_ai_flags_pioneer_clear},
+    {"unit_0a60_work_military_ai_plan_gate", unit_0a60_work_military_ai_plan_gate},
+    {"unit_human_census_ship_pressure_refresh", unit_human_census_ship_pressure_refresh},
+    {"unit_build_ai_flags_wants_construction", unit_build_ai_flags_wants_construction},
+    {"unit_construction_labor_stockade", unit_construction_labor_stockade},
+    {"unit_master_carpenter_construction_labor", unit_master_carpenter_construction_labor},
+    {"unit_lumberjack_warehouse_labor", unit_lumberjack_warehouse_labor},
+    {"unit_lumberjack_field_assign", unit_lumberjack_field_assign},
+    {"unit_ore_miner_field_assign", unit_ore_miner_field_assign},
+    {"unit_silver_miner_field_assign", unit_silver_miner_field_assign},
+    {"unit_farmer_field_assign", unit_farmer_field_assign},
+    {"unit_fisherman_field_assign", unit_fisherman_field_assign},
+    {"unit_sugar_planter_field_assign", unit_sugar_planter_field_assign},
+    {"unit_tobacco_planter_field_assign", unit_tobacco_planter_field_assign},
+    {"unit_cotton_planter_field_assign", unit_cotton_planter_field_assign},
+    {"unit_fur_trapper_field_assign", unit_fur_trapper_field_assign},
+    {"unit_blacksmith_workplace_assign", unit_blacksmith_workplace_assign},
+    {"unit_gunsmith_workplace_assign", unit_gunsmith_workplace_assign},
+    {"unit_fur_trader_workplace_assign", unit_fur_trader_workplace_assign},
+    {"unit_distiller_workplace_assign", unit_distiller_workplace_assign},
+    {"unit_weaver_workplace_assign", unit_weaver_workplace_assign},
+    {"unit_tobacconist_workplace_assign", unit_tobacconist_workplace_assign},
+    {"unit_statesman_workplace_assign", unit_statesman_workplace_assign},
+    {"unit_preacher_workplace_assign", unit_preacher_workplace_assign},
+    {"unit_teacher_workplace_assign", unit_teacher_workplace_assign},
+    {"unit_carpenter_workplace_assign", unit_carpenter_workplace_assign},
+    {"unit_peace_construction_stockade", unit_peace_construction_stockade},
+    {"unit_peace_construction_fort", unit_peace_construction_fort},
+    {"unit_peace_construction_fortress", unit_peace_construction_fortress},
+    {"unit_peace_construction_warehouse", unit_peace_construction_warehouse},
+    {"unit_peace_construction_warehouse_expansion", unit_peace_construction_warehouse_expansion},
+    {"unit_peace_construction_docks", unit_peace_construction_docks},
+    {"unit_coastal_drydock_prefer", unit_coastal_drydock_prefer},
+    {"unit_coastal_shipyard_prefer", unit_coastal_shipyard_prefer},
+    {"unit_stuyvesant_custom_house_prefer", unit_stuyvesant_custom_house_prefer},
+    {"unit_peace_church_prefer", unit_peace_church_prefer},
+    {"unit_war_armory_prefer", unit_war_armory_prefer},
+    {"unit_peace_printing_press_prefer", unit_peace_printing_press_prefer},
+    {"unit_peace_schoolhouse_prefer", unit_peace_schoolhouse_prefer},
+    {"unit_war_magazine_prefer", unit_war_magazine_prefer},
+    {"unit_peace_newspaper_prefer", unit_peace_newspaper_prefer},
+    {"unit_peace_college_prefer", unit_peace_college_prefer},
+    {"unit_peace_cathedral_prefer", unit_peace_cathedral_prefer},
+    {"unit_war_arsenal_prefer", unit_war_arsenal_prefer},
+    {"unit_peace_university_prefer", unit_peace_university_prefer},
+    {"unit_stable_prefer", unit_stable_prefer},
+    {"unit_carpenters_shop_prefer", unit_carpenters_shop_prefer},
+    {"unit_lumber_mill_prefer", unit_lumber_mill_prefer},
+    {"unit_blacksmiths_house_prefer", unit_blacksmiths_house_prefer},
+    {"unit_blacksmiths_shop_prefer", unit_blacksmiths_shop_prefer},
+    {"unit_iron_works_prefer", unit_iron_works_prefer},
+    {"unit_craft_distillers_house_prefer", unit_craft_distillers_house_prefer},
+    {"unit_craft_weavers_house_prefer", unit_craft_weavers_house_prefer},
+    {"unit_craft_tobacconists_house_prefer", unit_craft_tobacconists_house_prefer},
+    {"unit_craft_fur_traders_house_prefer", unit_craft_fur_traders_house_prefer},
+    {"unit_craft_distillery_prefer", unit_craft_distillery_prefer},
+    {"unit_craft_weavers_shop_prefer", unit_craft_weavers_shop_prefer},
+    {"unit_craft_tobacconist_shop_prefer", unit_craft_tobacconist_shop_prefer},
+    {"unit_craft_fur_trading_post_prefer", unit_craft_fur_trading_post_prefer},
+    {"unit_craft_rum_factory_prefer", unit_craft_rum_factory_prefer},
+    {"unit_craft_textile_mill_prefer", unit_craft_textile_mill_prefer},
+    {"unit_craft_cigar_factory_prefer", unit_craft_cigar_factory_prefer},
+    {"unit_craft_fur_factory_prefer", unit_craft_fur_factory_prefer},
+    {"unit_capitol_prefer", unit_capitol_prefer},
+    {"unit_capitol_expansion_prefer", unit_capitol_expansion_prefer},
+    {"unit_indian_land_found", unit_indian_land_found},
+    {"unit_improve_timer_pioneer_gate", unit_improve_timer_pioneer_gate},
+    {"unit_pioneer_plow_improve", unit_pioneer_plow_improve},
+    {"unit_pioneer_road_on_plowed", unit_pioneer_road_on_plowed},
+    {"unit_stockade_threat_labor", unit_stockade_threat_labor},
+    {"unit_multistep_military", unit_multistep_military},
+    {"unit_de_witt_wagon_foreign_trade", unit_de_witt_wagon_foreign_trade},
+    {"unit_treasury_skip_hire", unit_treasury_skip_hire},
+    {"unit_5d04_buy_caravel_colonies_ge6", unit_5d04_buy_caravel_colonies_ge6},
+    {"unit_5d04_buy_caravel_no_ship", unit_5d04_buy_caravel_no_ship},
+    {"unit_5d04_buy_merchantman_cargo_pressure", unit_5d04_buy_merchantman_cargo_pressure},
+    {"unit_5d04_buy_galleon_at_war", unit_5d04_buy_galleon_at_war},
+    {"unit_5d04_buy_frigate_at_war", unit_5d04_buy_frigate_at_war},
+    {"unit_5d04_buy_caravel_ship_full", unit_5d04_buy_caravel_ship_full},
+    {"unit_transport_europe_sell_trade_goods", unit_transport_europe_sell_trade_goods},
+    {"unit_privateer_europe_sell_silver", unit_privateer_europe_sell_silver},
+    {"unit_transport_europe_sell_multi_cargo", unit_transport_europe_sell_multi_cargo},
+    {"unit_transport_europe_sell_skip_boycott", unit_transport_europe_sell_skip_boycott},
+};
+
+TEST_MAIN(k_cases)

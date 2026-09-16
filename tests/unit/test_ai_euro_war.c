@@ -33,6 +33,7 @@
 #define TEST_NAME "unit_ai_euro_war"
 #include "../common/ai_fixture.h"
 #include "../common/test_fail.h"
+#include "../common/test_runner.h"
 
 
 static int unit_mid_hire_mil(void) {
@@ -8551,208 +8552,74 @@ static int unit_naval_ambush(void) {
   return 0;
 }
 
-int main(void) {
-  if (unit_mid_hire_mil() != 0) {
-    return 1;
-  }
-  if (unit_soldier_board_empty_transport() != 0) {
-    return 1;
-  }
-  if (unit_dragoon_board_empty_transport() != 0) {
-    return 1;
-  }
-  if (unit_regular_board_empty_transport() != 0) {
-    return 1;
-  }
-  if (unit_continental_army_board_empty_transport() != 0) {
-    return 1;
-  }
-  if (unit_continental_cavalry_board_empty_transport() != 0) {
-    return 1;
-  }
-  if (unit_artillery_board_empty_transport() != 0) {
-    return 1;
-  }
-  if (unit_unload_military_threatened() != 0) {
-    return 1;
-  }
-  if (unit_unload_sticky_brave_threatened() != 0) {
-    return 1;
-  }
-  if (unit_unload_stance0_no_sticky() != 0) {
-    return 1;
-  }
-  if (unit_unload_dragoon_threatened() != 0) {
-    return 1;
-  }
-  if (unit_unload_regular_threatened() != 0) {
-    return 1;
-  }
-  if (unit_unload_continental_army_threatened() != 0) {
-    return 1;
-  }
-  if (unit_unload_continental_cavalry_threatened() != 0) {
-    return 1;
-  }
-  if (unit_fortify_wake_hunt() != 0) {
-    return 1;
-  }
-  if (unit_garrison_quota_threat_seed() != 0) {
-    return 1;
-  }
-  if (unit_garrison_quota_one_fortify() != 0) {
-    return 1;
-  }
-  if (unit_labor_shortage_and_ai_flags_5952() != 0) {
-    return 1;
-  }
-  if (unit_pioneer_conjures_no_tools() != 0) {
-    return 1;
-  }
-  if (unit_peace_tail_does_not_open_war() != 0) {
-    return 1;
-  }
-  if (unit_peace_soldier_fortify_colony() != 0) {
-    return 1;
-  }
-  if (unit_peace_dragoon_fortify_colony() != 0) {
-    return 1;
-  }
-  if (unit_peace_regular_fortify_colony() != 0) {
-    return 1;
-  }
-  if (unit_peace_continental_fortify_colony() != 0) {
-    return 1;
-  }
-  if (unit_peace_continental_cavalry_fortify_colony() != 0) {
-    return 1;
-  }
-  if (unit_peace_artillery_fortify_colony() != 0) {
-    return 1;
-  }
-  if (unit_peace_cannon_fortify_colony() != 0) {
-    return 1;
-  }
-  if (unit_artillery_fortify_colony() != 0) {
-    return 1;
-  }
-  if (unit_war_transport_threatened_colony() != 0) {
-    return 1;
-  }
-  if (unit_mow_war_transport_threatened() != 0) {
-    return 1;
-  }
-  if (unit_frigate_war_transport_threatened() != 0) {
-    return 1;
-  }
-  if (unit_g_stance_own3_prio7() != 0) {
-    return 1;
-  }
-  if (unit_g_stance_own4_prio8() != 0) {
-    return 1;
-  }
-  if (unit_naval_war_hunt() != 0) {
-    return 1;
-  }
-  if (unit_naval_flee_fort_fire() != 0) {
-    return 1;
-  }
-  if (unit_privateer_war_hunt() != 0) {
-    return 1;
-  }
-  if (unit_privateer_station_keep_hunt() != 0) {
-    return 1;
-  }
-  if (unit_naval_multistep_sail() != 0) {
-    return 1;
-  }
-  if (unit_land_war_hunt() != 0) {
-    return 1;
-  }
-  if (unit_indian_war_capital_hunt() != 0) {
-    return 1;
-  }
-  if (unit_land_war_hunt_multistep() != 0) {
-    return 1;
-  }
-  if (unit_continental_army_land_hunt() != 0) {
-    return 1;
-  }
-  if (unit_continental_cavalry_land_hunt() != 0) {
-    return 1;
-  }
-  if (unit_sticky_contact_rehunt() != 0) {
-    return 1;
-  }
-  if (unit_land_adjacent_combat_chain() != 0) {
-    return 1;
-  }
-  if (unit_land_adjacent_colony_seize() != 0) {
-    return 1;
-  }
-  if (unit_land_adjacent_foe_prefer_weak() != 0) {
-    return 1;
-  }
-  if (unit_land_adjacent_foe_prefer_treasure() != 0) {
-    return 1;
-  }
-  if (unit_land_hunt_prefer_treasure() != 0) {
-    return 1;
-  }
-  if (unit_land_hunt_prefer_weak() != 0) {
-    return 1;
-  }
-  if (unit_land_adjacent_foe_prefer_open_over_stockade() != 0) {
-    return 1;
-  }
-  if (unit_land_adjacent_foe_prefer_non_veteran() != 0) {
-    return 1;
-  }
-  if (unit_artillery_adjacent_prefer_stockade() != 0) {
-    return 1;
-  }
-  if (unit_artillery_siege_hunt_prefer_stockade() != 0) {
-    return 1;
-  }
-  if (unit_dragoon_hunt_prefer_open() != 0) {
-    return 1;
-  }
-  if (unit_naval_adjacent_foe_prefer_weak() != 0) {
-    return 1;
-  }
-  if (unit_naval_ambush() != 0) {
-    return 1;
-  }
-  if (unit_naval_adjacent_foe_prefer_loaded() != 0) {
-    return 1;
-  }
-  if (unit_naval_adjacent_foe_prefer_non_drake() != 0) {
-    return 1;
-  }
-  if (unit_privateer_prefer_cargo_prey() != 0) {
-    return 1;
-  }
-  if (unit_frigate_prefer_warship() != 0) {
-    return 1;
-  }
-  if (unit_peace_fortify_border_wake() != 0) {
-    return 1;
-  }
-  if (unit_peace_dragoon_border_wake() != 0) {
-    return 1;
-  }
-  if (unit_peace_artillery_border_wake() != 0) {
-    return 1;
-  }
-  if (unit_peace_regular_border_wake() != 0) {
-    return 1;
-  }
-  if (unit_peace_continental_army_border_wake() != 0) {
-    return 1;
-  }
-  if (unit_peace_continental_cavalry_border_wake() != 0) {
-    return 1;
-  }
-  fprintf(stderr, "unit_ai_euro_war: ok\n");
-  return 0;
-}
+static const TestCase k_cases[] = {
+  {"unit_mid_hire_mil", unit_mid_hire_mil},
+  {"unit_soldier_board_empty_transport", unit_soldier_board_empty_transport},
+  {"unit_dragoon_board_empty_transport", unit_dragoon_board_empty_transport},
+  {"unit_regular_board_empty_transport", unit_regular_board_empty_transport},
+  {"unit_continental_army_board_empty_transport", unit_continental_army_board_empty_transport},
+  {"unit_continental_cavalry_board_empty_transport", unit_continental_cavalry_board_empty_transport},
+  {"unit_artillery_board_empty_transport", unit_artillery_board_empty_transport},
+  {"unit_unload_military_threatened", unit_unload_military_threatened},
+  {"unit_unload_sticky_brave_threatened", unit_unload_sticky_brave_threatened},
+  {"unit_unload_stance0_no_sticky", unit_unload_stance0_no_sticky},
+  {"unit_unload_dragoon_threatened", unit_unload_dragoon_threatened},
+  {"unit_unload_regular_threatened", unit_unload_regular_threatened},
+  {"unit_unload_continental_army_threatened", unit_unload_continental_army_threatened},
+  {"unit_unload_continental_cavalry_threatened", unit_unload_continental_cavalry_threatened},
+  {"unit_fortify_wake_hunt", unit_fortify_wake_hunt},
+  {"unit_garrison_quota_threat_seed", unit_garrison_quota_threat_seed},
+  {"unit_garrison_quota_one_fortify", unit_garrison_quota_one_fortify},
+  {"unit_labor_shortage_and_ai_flags_5952", unit_labor_shortage_and_ai_flags_5952},
+  {"unit_pioneer_conjures_no_tools", unit_pioneer_conjures_no_tools},
+  {"unit_peace_tail_does_not_open_war", unit_peace_tail_does_not_open_war},
+  {"unit_peace_soldier_fortify_colony", unit_peace_soldier_fortify_colony},
+  {"unit_peace_dragoon_fortify_colony", unit_peace_dragoon_fortify_colony},
+  {"unit_peace_regular_fortify_colony", unit_peace_regular_fortify_colony},
+  {"unit_peace_continental_fortify_colony", unit_peace_continental_fortify_colony},
+  {"unit_peace_continental_cavalry_fortify_colony", unit_peace_continental_cavalry_fortify_colony},
+  {"unit_peace_artillery_fortify_colony", unit_peace_artillery_fortify_colony},
+  {"unit_peace_cannon_fortify_colony", unit_peace_cannon_fortify_colony},
+  {"unit_artillery_fortify_colony", unit_artillery_fortify_colony},
+  {"unit_war_transport_threatened_colony", unit_war_transport_threatened_colony},
+  {"unit_mow_war_transport_threatened", unit_mow_war_transport_threatened},
+  {"unit_frigate_war_transport_threatened", unit_frigate_war_transport_threatened},
+  {"unit_g_stance_own3_prio7", unit_g_stance_own3_prio7},
+  {"unit_g_stance_own4_prio8", unit_g_stance_own4_prio8},
+  {"unit_naval_war_hunt", unit_naval_war_hunt},
+  {"unit_naval_flee_fort_fire", unit_naval_flee_fort_fire},
+  {"unit_privateer_war_hunt", unit_privateer_war_hunt},
+  {"unit_privateer_station_keep_hunt", unit_privateer_station_keep_hunt},
+  {"unit_naval_multistep_sail", unit_naval_multistep_sail},
+  {"unit_land_war_hunt", unit_land_war_hunt},
+  {"unit_indian_war_capital_hunt", unit_indian_war_capital_hunt},
+  {"unit_land_war_hunt_multistep", unit_land_war_hunt_multistep},
+  {"unit_continental_army_land_hunt", unit_continental_army_land_hunt},
+  {"unit_continental_cavalry_land_hunt", unit_continental_cavalry_land_hunt},
+  {"unit_sticky_contact_rehunt", unit_sticky_contact_rehunt},
+  {"unit_land_adjacent_combat_chain", unit_land_adjacent_combat_chain},
+  {"unit_land_adjacent_colony_seize", unit_land_adjacent_colony_seize},
+  {"unit_land_adjacent_foe_prefer_weak", unit_land_adjacent_foe_prefer_weak},
+  {"unit_land_adjacent_foe_prefer_treasure", unit_land_adjacent_foe_prefer_treasure},
+  {"unit_land_hunt_prefer_treasure", unit_land_hunt_prefer_treasure},
+  {"unit_land_hunt_prefer_weak", unit_land_hunt_prefer_weak},
+  {"unit_land_adjacent_foe_prefer_open_over_stockade", unit_land_adjacent_foe_prefer_open_over_stockade},
+  {"unit_land_adjacent_foe_prefer_non_veteran", unit_land_adjacent_foe_prefer_non_veteran},
+  {"unit_artillery_adjacent_prefer_stockade", unit_artillery_adjacent_prefer_stockade},
+  {"unit_artillery_siege_hunt_prefer_stockade", unit_artillery_siege_hunt_prefer_stockade},
+  {"unit_dragoon_hunt_prefer_open", unit_dragoon_hunt_prefer_open},
+  {"unit_naval_adjacent_foe_prefer_weak", unit_naval_adjacent_foe_prefer_weak},
+  {"unit_naval_ambush", unit_naval_ambush},
+  {"unit_naval_adjacent_foe_prefer_loaded", unit_naval_adjacent_foe_prefer_loaded},
+  {"unit_naval_adjacent_foe_prefer_non_drake", unit_naval_adjacent_foe_prefer_non_drake},
+  {"unit_privateer_prefer_cargo_prey", unit_privateer_prefer_cargo_prey},
+  {"unit_frigate_prefer_warship", unit_frigate_prefer_warship},
+  {"unit_peace_fortify_border_wake", unit_peace_fortify_border_wake},
+  {"unit_peace_dragoon_border_wake", unit_peace_dragoon_border_wake},
+  {"unit_peace_artillery_border_wake", unit_peace_artillery_border_wake},
+  {"unit_peace_regular_border_wake", unit_peace_regular_border_wake},
+  {"unit_peace_continental_army_border_wake", unit_peace_continental_army_border_wake},
+  {"unit_peace_continental_cavalry_border_wake", unit_peace_continental_cavalry_border_wake},
+};
+TEST_MAIN(k_cases)
+

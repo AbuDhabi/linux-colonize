@@ -13,6 +13,10 @@ comparing golden output.
 | `AI_SCORE_AT` | `src/core/ai.c:195` | trace | `"n:x:y[,n:x:y...]"` — extra `pick_dir` score-dump targets for the given nation/tile | unset |
 | `AI_STEP_AUDIT` | `src/core/ai.c:224` | trace | Logs mid-turn Brave step paths (phase 13 multi-step) | off |
 | `AI_PEEL_AUDIT` | `src/core/ai.c:239` | trace | Classifies each firing peel row against both branch scorers | off |
+| `COLONIZE_TEST_ONLY` | `tests/common/test_runner.h` | test-only | Table-driven test binaries (see `tests/README.md` "Test runner"): run exactly one case by name | unset (run all) |
+| `COLONIZE_TEST_REVERSE` | `tests/common/test_runner.h` | test-only | Run cases in reverse declared order | off |
+| `COLONIZE_TEST_SHUFFLE` | `tests/common/test_runner.h` | test-only | `<seed>` — run cases in a deterministic Fisher-Yates shuffle | unset (declared order) |
+| `COLONIZE_TEST_LIST` | `tests/common/test_runner.h` | test-only | Print case names, one per line, and exit 0 without running anything | off |
 | `AI_NO_BRAVE_PEELS` | `src/core/ai.c:261` | **behaviour** | Skips seed-100 dir peels entirely, to audit how many "quiet" misses remain without them | off (peels run) |
 | `AI_021A_WATCH` | `src/core/ai.c:3071` | trace | `"x:y"` — prints that tile's layer2/layer3 at every Brave act | unset |
 | `AI_021A_TRACE` | `src/core/ai.c:3673` | trace | One line per Brave act: pick, flags, final direction | off |
