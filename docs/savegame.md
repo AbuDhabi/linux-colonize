@@ -10,7 +10,7 @@ Three layers — do not conflate them:
 
 | Layer | Status | What it proves |
 |-------|--------|----------------|
-| **Codec** (`col1_save_read` ↔ `write`) | Strong | Byte-identical round-trip of original 3.0 fixtures |
+| **Codec** (`col1_save_read_file` / `_memory` ↔ `col1_save_write_file`) | Strong | Byte-identical round-trip of original 3.0 fixtures |
 | **Linux import** (`col1_bridge_apply`) | Strong for mapped fields | Originals load and play in the port |
 | **Linux→DOS export** (`col1_bridge_capture`) | Strong for templates | Occupancy + density + blank census + colony levels; late `unknown_ds_*` / `other` stay zero/RMW |
 
@@ -98,7 +98,7 @@ reads stop at NUL). Verified byte-identical round-trip on
 `original_saves/COLONY00.SAV`/`COLONY01.SAV` and `mapgen/SEED100.SAV`; on
 lategame fixtures the only diffs are that trailing-garbage-after-NUL case.
 Implementation: `tools/col1_json.c` (struct↔JSON mapping) +
-`tools/json_min.c` (generic JSON parser/writer).
+`src/core/json_min.c` (generic JSON parser/writer).
 
 ## Runtime game state mapping
 

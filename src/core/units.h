@@ -1544,6 +1544,14 @@ int units_map_sprite(const ColonizeUnitPool* pool, int unit_id);
 /* Col1 @UNIT index after equipment remap (Scout/Soldier/Dragoon/Pioneer). */
 int units_display_type_index(const ColonizeUnitPool* pool, int unit_id);
 /*
+ * "More units here" tab state for a unit's map chrome: another piece shares its
+ * tile, or it is carrying (DOS decides it from the unit's own chain,
+ * FUN_1427_0002/004a behind FUN_112b_01ba). Shared so the move slide and combat
+ * lunge wear the same chrome as the standing draw (bugs.md 371).
+ */
+bool units_map_stack_chrome(const ColonizeUnitPool* pool, int unit_id);
+
+/*
  * Which unit (if any) draws on the map at (x,y): prefers the selected unit
  * (subject to selected_visible's blink-off hide), else highest id — except
  * on a colony tile (map_tile_has_city), which never shows a non-selected
@@ -1552,14 +1560,6 @@ int units_display_type_index(const ColonizeUnitPool* pool, int unit_id);
  * units_render_on_map) so this rule is directly testable without a
  * framebuffer/sprite sheet.
  */
-/*
- * "More units here" tab state for a unit's map chrome: another piece shares its
- * tile, or it is carrying (DOS decides it from the unit's own chain,
- * FUN_1427_0002/004a behind FUN_112b_01ba). Shared so the move slide and combat
- * lunge wear the same chrome as the standing draw (bugs.md 371).
- */
-bool units_map_stack_chrome(const ColonizeUnitPool* pool, int unit_id);
-
 int units_top_on_map_tile(
   const ColonizeUnitPool* pool,
   int x,
@@ -1571,7 +1571,6 @@ int units_top_on_map_tile(
 /* selected_visible: when false, hide the selected unit (blink off frame). */
 void units_render_on_map(
   const ColonizeUnitPool* pool,
-  const ColonizeColonyPool* colonies,
   const ColonizeSpriteSheet* nation_sheet,
   const ColonizeFont* font,
   ColonizeFramebuffer8* framebuffer,

@@ -6892,10 +6892,8 @@ int ai_contact_ai_wagon_village_trade(
 }
 
 static int ai_contact_auto_trade(
-  ColonizeTurnContext* ctx, ColonizeCol1Indian* ind, int nation_id, int e, ColonizeUnit* unit,
-  int forced_price
+  ColonizeTurnContext* ctx, ColonizeCol1Indian* ind, int nation_id, int e, ColonizeUnit* unit
 ) {
-  (void)forced_price;
   if (!ctx || !ctx->col1_ok || !ctx->col1 || !ind || !unit || unit->nation_id != e) {
     return 0;
   }
@@ -7124,10 +7122,12 @@ void ai_contact_indian_meet_trade(ColonizeTurnContext* ctx, int nation_id) {
       }
 
       /*
-       * 3. Peaceful auto-trade (nested 2bbc AI buy stand-in).
-       * PARK deep FUN_4d56_2820 (~1.4k; thunk 2a1f_044c) — thin path only.
+       * 3. Peaceful auto-trade. This routes into the ported FUN_4d56_2820
+       * body (`ai_contact_2820_begin` / `_begin_slot`, rewritten 2026-08-29 —
+       * see its banner above), with `ai_contact_auto_buy_2e92` as the
+       * empty-hold AI buy arm. Nothing about 2820 is parked here any more.
        */
-      ai_contact_auto_trade(ctx, ind, nation_id, e, other, -1);
+      ai_contact_auto_trade(ctx, ind, nation_id, e, other);
 
       /* 4. Gift / demand stand-in (5bfb_102a / 1092; AI silent). */
       ai_contact_gift_or_demand(ctx, ind, nation_id, e, other, brave->x, brave->y);
@@ -8248,13 +8248,13 @@ void ai_contact_indian_raids(ColonizeTurnContext* ctx, int nation_id) {
    *  1 gate → 2 adjacent combat → 3 colony approach → 4 @RAID* loot →
    *  5 capture → 6 scout 359c displace/despawn.
    *
-   * PARK deep FUN_4d56_2820 (~1.4k; thunk 2a1f_044c): meet/raid decision
-   * matrix that DOS reaches before settlement enter — nested 2aac…311e trade
-   * helpers (dispatch / AI buy / hard-bargain / demand) and alarmed act pick
-   * live there, not in this post-pulse path. Do not port 2820 body here.
-   * Human `4528` `@ACTIONS` arm is ported (P8.8). This pulse stays on the
-   * thin @RAID* / combat / 359c path; `4528` VGA meet chrome + deep mid-body
-   * remain PARKED.
+   * FUN_4d56_2820 (~1.4k; thunk 2a1f_044c) is the meet/raid decision matrix
+   * DOS reaches before settlement enter. Its trade half is ported elsewhere
+   * in this file (`ai_contact_2820_begin`, 2026-08-29 rewrite) and the AI
+   * pulse reaches it through `ai_contact_auto_trade` — do NOT re-port the
+   * body here; this post-pulse path keeps the thin @RAID* / combat / 359c
+   * arms. Human `4528` `@ACTIONS` arm is ported (P8.8); `4528` VGA meet
+   * chrome and the alarmed act-pick mid-body remain PARKED.
    * Linux stays on thin @RAID* / combat / 359c + equal-dist mil/tools/silver
    * approach. Widgets Done structural (ai_popup); VGA PARKED. Mid-friction prefers non-mission
    * villages (below). Cite: indian_raid_outcomes.md §10; indian_contact.md

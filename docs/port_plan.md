@@ -857,7 +857,7 @@ function headers.
 | `2154` / `2820` bodies | **Done**; `4528` **Done logic** (2026-09-06 audit; all 9 human arms + AI arms 1/3/4/5/6/7/9 live — stale "thin/partial" corrected 2026-09-07f), VGA meet chrome open (T5.1) — not T3 |
 | Alarmed Indian unit-act | Escort peel + smoke; `021a` four deltas wired 2026-09-08 (turns_worked bump, facing, homeless despawn, in-field arm/mount) — not T3 |
 | King / REF | **Done 2026-09-06** (all `43f7_*` symbols ported; short documented-divergence list in king_ref.md; WoI battle path battle-hardened via bugs.md batches) |
-| Mid / late joint goldens | all four are live ctest gates — `golden_ai_mid01`/`late01`, and `golden_ai_turns`/`joint` re-enabled 2026-09-05 (T3.3; no `DISABLED` property anywhere in `CMakeLists.txt` — `:1177`, `:1293-1297`) |
+| Mid / late joint goldens | live gates — `smoke_ai_mid01`/`late01` (renamed from `golden_ai_*` 2026-09-14, TT-13) and `golden_ai_turns` are ctest tests; `golden_ai_joint` is a build-only convenience target that re-runs the six (its duplicate `add_test` was dropped 2026-09-14, TT-14). No `DISABLED` property anywhere in `CMakeLists.txt` |
 
 ### Evidence, gates and tests
 
@@ -870,12 +870,13 @@ function headers.
 | `COLONIZE/VR_SEED.EXE`, `VR_BRAVE*.EXE` | Seed-locked RE probes (not runtime) |
 | `original_memory_dumps/`, `dosbox-x-dumps/` | RAM images for byte-pattern search (see method notes) |
 | `tests/unit/test_ai*.c`, `test_founding_fathers.c` | Module units |
-| `tests/golden/test_ai_turns.c` / `test_ai_mid01.c` / `test_ai_late01.c` | Joint field-diff gates |
+| `tests/golden/test_ai_turns.c`, `tests/smoke/test_ai_mid01.c` / `test_ai_late01.c` | Joint field-diff gates |
 
 ```bash
-cmake --build build --target golden_ai_joint
-./build/golden_mapgen_seed100   # cwd = repo root
-./build/golden_ai_turns         # TURN1→7 joint gate (live ctest gate since 2026-09-05)
+# Preset trees are build/debug and build/release — `cmake --build build` has no cache.
+cmake --build build/debug --target golden_ai_joint
+./build/debug/golden_mapgen_seed100   # cwd = repo root
+./build/debug/golden_ai_turns         # TURN1→7 joint gate (live ctest gate since 2026-09-05)
 ```
 
 Size sense: Linux `ai.c` + `ai_*.c` ≈ 3.5k + modules; DOS Euro planner ≈

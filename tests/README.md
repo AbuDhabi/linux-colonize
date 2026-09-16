@@ -25,24 +25,24 @@ Exercise one subsystem (or a tight cluster) with concrete expected outcomes.
 
 Examples: `golden_mapgen_seed100`, `golden_colony_prod01`/`02`.
 
-**AI goldens partly re-enabled (2026-08-27).** `golden_ai_mid01` and
-`golden_ai_late01` pass again after the Indian alarm-store consolidation and
-the `5d04` live wire, and are back on as regression gates — they run in a
-default `ctest`. Only `golden_ai_turns` and the aggregate `golden_ai_joint`
-(which depends on it) are still `DISABLED` in CMake; `golden_ai_turns` fails
-on 3 TURN1→2 Braves, the parked seed-100 quiet-pulse divergence
-(history in [`docs/port_plan.md`](../docs/port_plan.md) T1.23), not a planner
-regression. The parking rationale below still applies to those two: they chase
-turn-for-turn DOS parity
-against an AI planner that is still only structurally/T0-T1 ported (not T3
-1:1); every remaining unported/stubbed callee is a guaranteed future diff,
-so a red run there means "AI transcription incomplete", not "regression".
-See [`docs/port_plan.md`](../docs/port_plan.md) R0. Run them
-explicitly if you need to look (`ctest -R golden_ai_turns
---force-new-ctest-process`, or `cmake --build build --target
-golden_ai_joint`); do not chase them to green piecemeal — re-enable
-(`set_tests_properties(... DISABLED FALSE)` in `CMakeLists.txt`) only once
-the AI port is actually complete.
+**AI gates are all live (since 2026-09-05).** Nothing in `CMakeLists.txt`
+carries a `DISABLED` property. The cluster was parked 2026-08-19 while the AI
+transcription was still structural; `smoke_ai_mid01` / `smoke_ai_late01`
+(renamed from `golden_ai_*` 2026-09-14, because they generate their own
+fixture and assert self-consistency rather than a DOS-derived expectation)
+came back 2026-08-27, and `golden_ai_turns` came back 2026-09-05 once all six
+TURN steps went green (history in [`docs/port_plan.md`](../docs/port_plan.md)
+T1.23 / T3.3).
+
+`golden_ai_joint` is a **build-only convenience target**, not a ctest test: it
+re-runs `golden_mapgen_seed100`, `golden_ai_turns`, `unit_ai_contact`,
+`unit_ai_diplo`, `smoke_ai_mid01` and `smoke_ai_late01` in one shot. Registering
+it as a test made a plain `ctest` run all six twice, so the `add_test()` was
+dropped 2026-09-14 (duplication audit TT-14). Run it explicitly:
+
+```
+cmake --build build/debug --target golden_ai_joint
+```
 
 Most executables expect **repo root** as cwd (`WORKING_DIRECTORY` in CMake).
 

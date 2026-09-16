@@ -6490,9 +6490,8 @@ static void render_europe_screen(const ColonizeGameState* game, ColonizeFramebuf
 
   if (eu->selected_harbor >= 0 && eu->selected_harbor < eu->harbor_ships) {
     snprintf(line, sizeof(line), "Loading:\n%s", eu->harbor[eu->selected_harbor].name);
-  } else if (eu->harbor_ships > 0) {
-    snprintf(line, sizeof(line), "%s", "Loading:\n");
   } else {
+    /* No selection: bare header, whether or not ships sit in the harbor. */
     snprintf(line, sizeof(line), "%s", "Loading:\n");
   }
   europe_render_transit_box(
@@ -8856,8 +8855,9 @@ static void game_colony_finish_eject(
     colonies_abandon(&game->colonies, game->colony_view_id);
     game->in_colony = false;
     game->colony_view_id = -1;
-    snprintf(game->status, sizeof(game->status), "Colony abandoned");
-    set_status(game, game->status, NULL);
+    /* One write: set_status(game, game->status, ...) would snprintf the
+     * buffer onto itself (overlapping copy, UB — gcc -Wrestrict). */
+    set_status(game, "Colony abandoned", NULL);
     return;
   }
   snprintf(
@@ -10090,7 +10090,11 @@ static void game_fill_turn_context(ColonizeGameState* game, ColonizeTurnContext*
   ctx->active_turn_nation = &game->active_turn_nation;
   ctx->units = game->units_ok ? &game->units : NULL;
   ctx->colonies = &game->colonies;
-  ctx->europe = game->europe_ok ? &game->europe : &game->europe;
+  /* Always the live screen: europe_load memsets the struct before it can
+   * fail, so a !europe_ok game still hands the sim a zeroed-but-valid
+   * EuropeScreen rather than NULL (the ternary here used to pretend to
+   * gate on europe_ok and returned the same pointer on both arms). */
+  ctx->europe = &game->europe;
   ctx->map = game->world_map_ok ? &game->world_map : NULL;
   ctx->col1 = game->col1_ok ? &game->col1 : NULL;
   ctx->col1_ok = game->col1_ok;
@@ -15778,7 +15782,6 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
     const ColonizeFont* chrome_font = game_chrome_font(game);
     units_render_on_map(
       &game->units,
-      game->colonies_ok || game->colonies.colony_count > 0 ? &game->colonies : NULL,
       &game->unit_icons,
       chrome_font,
       framebuffer,

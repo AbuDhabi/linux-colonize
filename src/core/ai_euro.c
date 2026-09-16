@@ -15447,7 +15447,7 @@ static int ai_euro_land_try_adjacent_colony_seize(ColonizeTurnContext* ctx, Colo
       );
       /* Berthed foreign warships are left alone: FUN_5fef_1b0e sinks and
        * seizes nothing on capture, and the 5fef_0000 domain gate (raw
-       * 99190-99196, units_domain_blocker_at) means a hull neither defends
+       * 99186-99195 domain gate inside FUN_5fef_0000, units_domain_blocker_at) means a hull neither defends
        * nor blocks a land walk-in — units_try_move applies that gate. */
     }
     int plunder = 0;

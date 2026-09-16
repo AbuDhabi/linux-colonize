@@ -2447,6 +2447,19 @@ static int ai_native_apply_seed100_peels(
             unit_seen_by_any
           );
         }
+        if (dump) {
+          /* Keep the LCG trace honest: the peel below overrides the dir the
+           * scored walk just printed. */
+          fprintf(
+            stderr,
+            "AI_PEEL n=%d xy=(%d,%d) dir %d -> %d\n",
+            nation_id,
+            x,
+            y,
+            best_dir,
+            k_mid_peels[i].dir
+          );
+        }
         best_dir = k_mid_peels[i].dir;
         break;
       }

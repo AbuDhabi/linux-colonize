@@ -145,6 +145,7 @@ static int ai_diplo_franklin_pair(const ColonizeCol1Save* col1, int nation_a, in
 }
 
 static uint8_t* ai_diplo_timer_byte(ColonizeCol1Save* col1, int nation, int peer);
+static uint16_t ai_diplo_wartime_boycott_mask(void);
 static void ai_diplo_popup_ok(
   ColonizeTurnContext* ctx,
   AiPopupTag tag,
@@ -168,22 +169,8 @@ static void ai_diplo_war_embargo_lift_if_peace(ColonizeCol1Save* col1, int natio
   if (!col1) {
     return;
   }
-  const uint16_t lift = (uint16_t)(AI_DIPLO_WAR_FOOD_EMBARGO_BIT |
-                                   AI_DIPLO_WAR_EMBARGO_CARGO_BIT |
-                                   AI_DIPLO_WAR_TOBACCO_EMBARGO_BIT |
-                                   AI_DIPLO_WAR_SUGAR_EMBARGO_BIT |
-                                   AI_DIPLO_WAR_COTTON_EMBARGO_BIT |
-                                   AI_DIPLO_WAR_LUMBER_EMBARGO_BIT |
-                                   AI_DIPLO_WAR_HORSES_EMBARGO_BIT |
-                                   AI_DIPLO_WAR_RUM_EMBARGO_BIT |
-                                   AI_DIPLO_WAR_CIGARS_EMBARGO_BIT |
-                                   AI_DIPLO_WAR_CLOTH_EMBARGO_BIT |
-                                   AI_DIPLO_WAR_COATS_EMBARGO_BIT |
-                                   AI_DIPLO_WAR_ORE_EMBARGO_BIT |
-                                   AI_DIPLO_WAR_SILVER_EMBARGO_BIT |
-                                   AI_DIPLO_WAR_TRADE_GOODS_EMBARGO_BIT |
-                                   AI_DIPLO_WAR_MUSKETS_EMBARGO_BIT |
-                                   AI_DIPLO_WAR_TOOLS_EMBARGO_BIT);
+  /* One definition of the 16-bit mask — see ai_diplo_wartime_boycott_mask. */
+  const uint16_t lift = ai_diplo_wartime_boycott_mask();
   for (int i = 0; i < 2; ++i) {
     const int n = (i == 0) ? nation_a : nation_b;
     if (n < 0 || n >= 4) {
