@@ -4,6 +4,7 @@ Rules:
 3. Be more terse than normal. By all means tell the user what he needs to know, but the user does not need to know every technical detail unless it's actually needed to make executive decisions.
 4. When the user tells you to continue autonomously under some conditions, do that, and don't forget it between prompts. Still, apply common sense when to stop.
 5. When it will not affect the end result, try to surgically edit a file rather than rewrite the entire thing.
+6. When using high-level, expensive models (Fable, Opus) use lesser subagents where it will save on usage credits.
 
 ## What this is
 
