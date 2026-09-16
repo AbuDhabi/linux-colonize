@@ -328,8 +328,8 @@ int main(void) {
           u->nation_id,
           u->x,
           u->y,
-          u->moves_left,
-          u->turns_worked,
+          u->moves,
+          u->col1_counter16,
           u->last_dir
         );
       }

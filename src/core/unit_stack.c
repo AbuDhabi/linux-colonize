@@ -136,14 +136,14 @@ static void unit_stack_activate_row(UnitStackPopup* dlg, ColonizeUnitPool* pool,
   if (u->orders != UNITS_ORDER_NONE) {
     /*
      * First pick cancels orders only. Wake through units_wake, not a bare
-     * orders=0: boarding parks a passenger at moves_left 0 as a "skip this
+     * orders=0: boarding parks a passenger at moves 0 as a "skip this
      * one" flag while DOS's own spent byte is still zero, and standing
      * orders parked on a previous turn refund the allotment.
      */
     (void)units_wake(pool, uid);
     return;
   }
-  /* Spent-aware: moves_left holds REMAINING for Euro units but the DOS SPENT
+  /* Spent-aware: moves holds REMAINING for Euro units but the DOS SPENT
    * byte for natives, so a raw `<= 0` reads a fresh Brave as exhausted
    * (smell audit 2026-09-09 #6). */
   if (units_remaining_mp(pool, uid) <= 0) {

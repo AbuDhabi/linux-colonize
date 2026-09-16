@@ -406,7 +406,7 @@ Appendices and exhaustive `@SECTION` reference for [popups.md](popups.md).
 | `@INTERVENTION` / `@INTERVENE` | Done thin | `10f0` ally declare + landing ARRIVAL |
 | `@TOOTORY` | Done | `ai_king_menu_declare_independence` (FUN_43f7_2564 tail, sol<50 branch) — OK notice via `ai_popup_enqueue_ok_ctx` |
 | `@DECLARE` | Done thin | ai_popup CHOICE body+labels via `popup_msg_*`; VGA PARKED |
-| `@DEADCONVERTS` | Missing | real DOS site: the per-unit tick `FUN_3844_0002` case 0x1a (viceroy_unpacked.c 58287-58299, tag 0xee2) — a Convert standing on open map outside a colony ages a counter at unit +0x16 and is removed on the 9th turn. Neither the expiry nor the popup is ported; the port's `turns_worked` byte is already multiplexed for voyages / trade-route stops, so this needs its own field decision |
+| `@DEADCONVERTS` | Missing | real DOS site: the per-unit tick `FUN_3844_0002` case 0x1a (viceroy_unpacked.c 58287-58299, tag 0xee2) — a Convert standing on open map outside a colony ages a counter at unit +0x16 and is removed on the 9th turn. Neither the expiry nor the popup is ported; the port's `col1_counter16` byte is already multiplexed for voyages / trade-route stops, so this needs its own field decision |
 | `@TOOMANYUNITS` | n/a | dead text: no DS string in VICEROY.EXE (absent from popup_tag_ids.md) |
 | `@TOOMANYCOLONIES` | n/a | dead text: no DS string in VICEROY.EXE (absent from popup_tag_ids.md) |
 | `@PICKMUSIC` | Done | slot / music dialogs |
@@ -437,11 +437,11 @@ Appendices and exhaustive `@SECTION` reference for [popups.md](popups.md).
 | `@EXPLOITS` | Done thin | `FUN_41f2_0b70` retire Colonization Rating screen — `game_build_exploits` renders the real header (`%NUMBER0`=rating, `%STRING0`=nation) at `game_loop.c:5289`; VGA/SS art shown, HoF-plate chrome thin |
 | `@SCORE` | Done thin | same chain — first `tier+1` `@SCORE` rows split at the comma (category / `%STRING0`=leader surname), `game_loop.c:5324` |
 | `@LOSING1` | Done thin | WoI lose all ports — `ai_king_check_revolution_end` |
-| `@WARN1` | Done | WoI ports<3, lowest-priority selector arm — `ai_king_check_revolution_end` (`unknown46[6]`) |
+| `@WARN1` | Done | WoI ports<3, lowest-priority selector arm — `ai_king_check_revolution_end` (`market_demand_pool_raw[6]`) |
 | `@LOSING2` | Done thin | WoI lose all colonies — `ai_king_check_revolution_end` |
-| `@WARN2` | Done | WoI colonies<3, wins the selector — `ai_king_check_revolution_end` (`unknown46[7]`) |
+| `@WARN2` | Done | WoI colonies<3, wins the selector — `ai_king_check_revolution_end` (`market_demand_pool_raw[7]`) |
 | `@LOSING3` | Done thin | WoI crown pop share ≥90% — `ai_king_check_revolution_end` |
-| `@WARN3` | Done | WoI crown pop share ≥80% (below the 90% `@LOSING3`), outranked by colonies<3 — `unknown46[10]` episode |
+| `@WARN3` | Done | WoI crown pop share ≥80% (below the 90% `@LOSING3`), outranked by colonies<3 — `market_demand_pool_raw[10]` episode |
 | `@WINNING` | Done | WoI win — `ai_king_check_revolution_end`; precedes the `@KINGLOSE` throne audience then the CLOSING.EXE cinematic; win tune pool 3 |
 | `@OTHERGRANTED` | Done thin | `FUN_3844_0442` §D rival-nation independence (raw 58596-58611, ids `0xf4b`/`0xf3f` NAMES/INDEPENDENT dual-load resolve to the republic rename) — `turn.c:3340` `turn_year_end_rival_popup`; renames the nation and clears war/ally bits toward every other power; VGA PARKED |
 | `@OTHERMIGHT` | Done thin | `FUN_3844_0442` §D rising SoL pressure on a rival (raw 58570-58582, id `0xf5e`) — `turn.c:3322`; hysteresis band ported (`thresh-20`/cache) |
@@ -469,8 +469,8 @@ Appendices and exhaustive `@SECTION` reference for [popups.md](popups.md).
 | `@INDIANWARPATH2` | Done | the pay confirm DOS shows after the target pick (`ai_contact_enqueue_incite_confirm`, tag 0x16c1): real body + `Pay`/`Never mind.` rows; `@NOCONTACT` before the quote, `@UNFORTUNATE` / `@ALREADYSMITE` after it 2026-09-16. Was merged into the menu labels |
 | `@INDIANWARFARE` | Done | Incite announcement at `FUN_4d56_417e` LAB_4499 (tag 0x16e9) — real GAME.TXT body via `popup_msg_fill`, fires for both the human incite and the AI missionary auto-incite. Confirmed 2026-09-16 |
 | `@LOSENOCOLONIES` | Done thin | Section B zero-colony defeat OK + `ENDGAME_LOST` latch (`turn_run_year_end_chrome`) |
-| `@SOONRETIRING0` | Done thin | peacetime Spring 1790 — `ai_king_nation_turn` (`unknown46[8]`) |
-| `@SOONRETIRING1` | Done thin | wartime 1840 — `ai_king_nation_turn` (`unknown46[9]`) |
+| `@SOONRETIRING0` | Done thin | peacetime Spring 1790 — `ai_king_nation_turn` (`market_demand_pool_raw[8]`) |
+| `@SOONRETIRING1` | Done thin | wartime 1840 — `ai_king_nation_turn` (`market_demand_pool_raw[9]`) |
 | `@RETIRING` | Done thin | peacetime `@SCORED` That's all → `ai_king_apply_popup_result` |
 | `@RETIRING2` | Done thin | WoI year≥1850 + crown alive — `ai_king_check_revolution_end` |
 | `@HOWTOWIN` | Done thin | after declare — `ai_king_do_declare` INFO (invent WoI-begins demoted) |

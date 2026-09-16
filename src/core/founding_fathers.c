@@ -24,7 +24,7 @@
  * No invented treasury/crosses/tools fiction when the real rule is known.
  */
 
-/* King tax-refuse stand-in byte (ai_king unknown46[2]). */
+/* King tax-refuse stand-in byte (ai_king market_demand_pool_raw[2]). */
 
 /* DOS nation+0xc — bells since last FF elect; not stored in ColonizeCol1Nation. */
 static uint16_t s_ff_bells_since_elect[COLONIZE_COL1_NATION_COUNT];
@@ -186,7 +186,7 @@ void founding_fathers_sync_from_col1_after_load(const ColonizeCol1Save* col1) {
  * Test helper: treat liberty_bells_total as the since-last-elect pool (legacy
  * unit-test convention). Live play uses turn accrual + sync_from_col1_after_load.
  */
-void founding_fathers_force_pool_from_total(const ColonizeCol1Save* col1) {
+void founding_fathers_test_force_pool_from_total(const ColonizeCol1Save* col1) {
   if (!col1) {
     return;
   }
@@ -855,7 +855,7 @@ static void effect_coronado_reveal(
 }
 
 /*
- * Magellan: permanent naval +1 — bump current sea moves_left once on elect;
+ * Magellan: permanent naval +1 — bump current sea moves once on elect;
  * turn_refresh_moves_for_nation adds +1 each turn while owned (see turn.c).
  * FUN_48d3_0002 (europe_voyage_turns_roll): every Europe crossing is 1 turn,
  * or 2 when RNG(1,100)>89 && ship_counts[nation]>2 && !Magellan — Magellan
@@ -875,8 +875,8 @@ static int effect_magellan_sea_moves(ColonizeUnitPool* units, int nation_id) {
     if (!units_is_sea(units, u->id)) {
       continue;
     }
-    if (u->moves_left < 0x7fffffff - UNITS_MP_PER_TILE) {
-      u->moves_left += UNITS_MP_PER_TILE;
+    if (u->moves < 0x7fffffff - UNITS_MP_PER_TILE) {
+      u->moves += UNITS_MP_PER_TILE;
     }
     bumped++;
   }

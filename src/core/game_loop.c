@@ -1754,8 +1754,8 @@ void game_apply_trade_dest(ColonizeGameState* game, int id) {
         ColonizeUnit* u = &game->units.units[i];
         if (u->active && u->orders == UNITS_ORDER_TRADE_ROUTE &&
             u->follow_unit_id == game->trade_screen.route &&
-            u->turns_worked >= stop_i) {
-          u->turns_worked = u->turns_worked > 0 ? u->turns_worked - 1 : 0;
+            u->col1_counter16 >= stop_i) {
+          u->col1_counter16 = u->col1_counter16 > 0 ? u->col1_counter16 - 1 : 0;
         }
       }
     }
@@ -5176,7 +5176,7 @@ static void game_select_tile(ColonizeGameState* game, int x, int y) {
 
 /* On-map, or awake passenger (orders cleared) with moves remaining. */
 static bool game_unit_selectable(const ColonizeGameState* game, const ColonizeUnit* u) {
-  if (!game || !u || !u->active || u->nation_id != game->human_nation || u->moves_left <= 0) {
+  if (!game || !u || !u->active || u->nation_id != game->human_nation || u->moves <= 0) {
     return false;
   }
   if (units_is_on_map(u)) {
@@ -5479,10 +5479,10 @@ COLONIZE_INTERNAL GameMoveStep game_move_sea_unit(
             return GAME_MOVE_RETURN_FALSE;
           }
           /* Ship spends the coastal order; passenger charged in unload. */
-          if (selected->moves_left > 0) {
-            selected->moves_left -= UNITS_MP_PER_TILE;
-            if (selected->moves_left < 0) {
-              selected->moves_left = 0;
+          if (selected->moves > 0) {
+            selected->moves -= UNITS_MP_PER_TILE;
+            if (selected->moves < 0) {
+              selected->moves = 0;
             }
           }
           game->units.selected_id = pax_ready;
@@ -5551,9 +5551,9 @@ COLONIZE_INTERNAL GameMoveStep game_move_native_prompts(
         if (!combatish) {
           /* Peaceful Meet from adjacent — spend a step, stay put. */
           const int cost = units_move_cost(&game->units, sid, &game->world_map, dest_x, dest_y);
-          selected->moves_left -= cost > 0 ? cost : 1;
-          if (selected->moves_left < 0) {
-            selected->moves_left = 0;
+          selected->moves -= cost > 0 ? cost : 1;
+          if (selected->moves < 0) {
+            selected->moves = 0;
           }
         }
         set_status(game, "Village…", NULL);
@@ -5758,12 +5758,12 @@ COLONIZE_INTERNAL GameMoveStep game_move_commit(
   int dest_x, int dest_y
 ) {
   {
-    const int mp_before = selected->moves_left;
+    const int mp_before = selected->moves;
     if (!units_try_move_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&game->units), .colonies=(ColonizeColonyPool*)(colonies), .map=(ColonizeWorldMap*)(&game->world_map), .rng=(ColonizeDosRng*)(&game->move_rng)}, sid, dest_x, dest_y)) {
       if (units_last_combat_outcome() < 0) {
         set_status(game, "Combat lost", NULL);
         game_after_unit_action(game);
-      } else if (selected->moves_left < mp_before) {
+      } else if (selected->moves < mp_before) {
         /* DOS charges MP on failed partial-overspend rolls even when the unit stays. */
         set_status(game, "Move failed", NULL);
         game_after_unit_action(game);
@@ -5792,7 +5792,7 @@ bool game_try_unit_move(ColonizeGameState* game, int dest_x, int dest_y) {
   }
   const int sid = game->units.selected_id;
   ColonizeUnit* selected = units_get(&game->units, sid);
-  if (!selected || selected->moves_left <= 0) {
+  if (!selected || selected->moves <= 0) {
     return false;
   }
   /* FF + native settlement fallout for human combat (same as turn_refresh). */
@@ -5894,7 +5894,7 @@ static int game_issue_goto(ColonizeGameState* game, int uid, int dest_x, int des
    */
   const bool lane_sail = game->europe_ok && units_is_sea(&game->units, uid) &&
     map_tile_is_high_seas(&game->world_map, dest_x, dest_y);
-  if (!lane_sail && u->moves_left > 0 &&
+  if (!lane_sail && u->moves > 0 &&
       dx >= -1 && dx <= 1 && dy >= -1 && dy <= 1 && (dx != 0 || dy != 0)) {
     game->units.selected_id = uid;
     return game_try_unit_move(game, dest_x, dest_y) ? 1 : -1;
@@ -6030,7 +6030,7 @@ void game_after_unit_action(ColonizeGameState* game) {
   game->map_cursor_x = u->x;
   game->map_cursor_y = u->y;
   game_set_view_center(game, u->x, u->y);
-  if (u->moves_left > 0) {
+  if (u->moves > 0) {
     return;
   }
   /* The reveal / LCR / first-contact work above can raise a popup (@LANDHO
@@ -6056,7 +6056,7 @@ void game_after_unit_action(ColonizeGameState* game) {
     return;
   }
   game_select_tile(game, exhausted_x, exhausted_y);
-  /* Not a plain moves_left>0 exhaustion test (turn.c once exported one): a
+  /* Not a plain moves>0 exhaustion test (turn.c once exported one): a
    * colony full of Fortified units (never offered for selection) reports
    * "not exhausted" forever and the auto-end never fires — see
    * game_units_pending_orders, which every other site already uses. */
@@ -6128,7 +6128,7 @@ static int game_owned_unit_at(const ColonizeGameState* game, int x, int y) {
     if (!units_is_on_map(u) || u->x != x || u->y != y) {
       continue;
     }
-    if (u->nation_id != game->human_nation || u->moves_left <= 0) {
+    if (u->nation_id != game->human_nation || u->moves <= 0) {
       continue;
     }
     return u->id;
@@ -7408,11 +7408,11 @@ static bool game_colony_apply_outside_role(
    * and reports for orders rather than staying dug in as whatever it was.
    * (It has no moves left, so it is only offered next turn.) The type test
    * carries the bless, the one row that changes the unit without moving a
-   * single crate; the inside twin's ejected body starts with moves_left = 0
+   * single crate; the inside twin's ejected body starts with moves = 0
    * whichever row it took. */
   if (u->type_index != prev_type || u->tools != prev_tools || u->muskets != prev_muskets ||
       u->horses != prev_horses) {
-    u->moves_left = 0;
+    u->moves = 0;
     units_clear_orders(units, u->id);
   }
   return true;
@@ -7797,12 +7797,12 @@ bool game_ship_sail_to_europe(ColonizeGameState* game, int sid) {
   /*
    * "Expected Soon" capacity is a PORT artifact, not a DOS rule: DOS keeps a
    * ship crossing to Europe as a live unit parked on its nation's sentinel
-   * diagonal (`244+n`, `turns_worked` = voyage turns left — the P10.1 lane
+   * diagonal (`244+n`, `col1_counter16` = voyage turns left — the P10.1 lane
    * decode in col1_bridge), so it has no arrivals array to fill and never
    * refuses a departure for want of a slot. EUROPE_HARBOR_MAX is only this
    * port's array bound, so test it BEFORE the despawn and refuse cleanly:
    * the ship then stays exactly as it stood, with its id, orders, goto,
-   * follow_unit_id (= the trade-route index) and turns_worked (= the route's
+   * follow_unit_id (= the trade-route index) and col1_counter16 (= the route's
    * current stop) intact.
    *
    * The old shape despawned first and, on a full lane, rebuilt the ship with
@@ -8226,12 +8226,12 @@ static void game_do_end_turn(ColonizeGameState* game) {
 
 /*
  * Non-mutating "does any human unit still need orders" check — same intent
- * as turn_select_next_unit's own scan (moves_left>0, on-map, human-owned)
+ * as turn_select_next_unit's own scan (moves>0, on-map, human-owned)
  * plus the guard loop's standing-order skip (Fortified/Sentry/etc. —
  * units_orders_skip_turn), but without turn_select_next_unit's side effect
  * of actually changing pool->selected_id, and without turn_human_units_
- * exhausted's mismatch: that one only checks moves_left>0, so a colony full
- * of Fortified units (moves_left>0, never actually offered for selection)
+ * exhausted's mismatch: that one only checks moves>0, so a colony full
+ * of Fortified units (moves>0, never actually offered for selection)
  * makes it report "not exhausted" forever — exactly the case player-
  * reported as "End Turn text not present when it should be".
  */
@@ -8241,7 +8241,7 @@ static bool game_units_pending_orders(const ColonizeGameState* game) {
   }
   for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
     const ColonizeUnit* u = &game->units.units[i];
-    if (!u->active || u->nation_id != game->human_nation || u->moves_left <= 0) {
+    if (!u->active || u->nation_id != game->human_nation || u->moves <= 0) {
       continue;
     }
     if (!units_is_on_map(u)) {
@@ -8549,7 +8549,7 @@ static int game_trade_stop_coords(
 
 /*
  * Aim TRADE_ROUTE unit at stop index. Linux stand-in: follow_unit_id = route
- * slot (0..11); turns_worked = stop index. Load/unload nibbles still thin.
+ * slot (0..11); col1_counter16 = stop index. Load/unload nibbles still thin.
  */
 int game_trade_route_aim_stop(ColonizeGameState* game, ColonizeUnit* u, int stop_i) {
   if (!game || !game->col1_ok || !u || u->orders != UNITS_ORDER_TRADE_ROUTE) {
@@ -8574,7 +8574,7 @@ int game_trade_route_aim_stop(ColonizeGameState* game, ColonizeUnit* u, int stop
   }
   u->goto_x = tx;
   u->goto_y = ty;
-  u->turns_worked = si;
+  u->col1_counter16 = si;
   return 1;
 }
 
@@ -8593,7 +8593,7 @@ static void game_trade_route_service_stop(ColonizeGameState* game, ColonizeUnit*
     return;
   }
   const ColonizeCol1TradeRoute* r = &game->col1.trade_route[route];
-  const int si = u->turns_worked;
+  const int si = u->col1_counter16;
   if (si < 0 || si >= (int)r->dest_count) {
     return;
   }
@@ -8689,7 +8689,7 @@ static void game_trade_route_retarget(ColonizeGameState* game, ColonizeUnit* u) 
    * Lane full → fall through to the old service-in-place fallback.
    */
   {
-    const int si_here = u->turns_worked;
+    const int si_here = u->col1_counter16;
     if (game->col1_ok && game->europe_ok && si_here >= 0 && si_here < (int)r->dest_count &&
         r->stop[si_here].colony_index == 999 && units_is_sea(&game->units, u->id) &&
         map_tile_is_high_seas(&game->world_map, u->x, u->y)) {
@@ -8735,10 +8735,10 @@ static void game_trade_route_retarget(ColonizeGameState* game, ColonizeUnit* u) 
     );
     popup_msg_fill(&game->messages, "ROUTELOOP", &tok, fb, body, sizeof(body));
     ai_popup_enqueue_ok(&game->ai_popups, AI_POPUP_TAG_INFO, NULL, body);
-    u->moves_left = 0;
+    u->moves = 0;
     return;
   }
-  const int next = (u->turns_worked + 1) % (int)r->dest_count;
+  const int next = (u->col1_counter16 + 1) % (int)r->dest_count;
   (void)game_trade_route_aim_stop(game, u, next);
 }
 
@@ -9143,7 +9143,7 @@ static GameMenuActionStatus game_menu_action_view(ColonizeGameState* game, MapMe
       return GAME_MENU_ACTION_DONE;
     }
     case MAP_MENU_ACTION_VIEW_HIDDEN_TERRAIN:
-      game->hidden_terrain_phase = 1;
+      game->terrain_peel_phase = 1;
       game->hidden_terrain_phase_ms = game->elapsed_ms;
       set_status(game, "Hidden Terrain: units and settlements hidden", NULL);
       return GAME_MENU_ACTION_DONE;
@@ -9392,7 +9392,7 @@ static GameMenuActionStatus game_menu_action_goto_and_cargo(ColonizeGameState* g
        * physical Space press (map_menu_orders_hotkey resolves plain Space
        * to this action before the plain-map COLONIZE_KEY_SPACE check ever
        * runs). Space means "done with this unit for the turn": spend its
-       * remaining moves (so turn_select_next_unit's moves_left>0 filter
+       * remaining moves (so turn_select_next_unit's moves>0 filter
        * won't offer it again until next turn's refresh), then advance to
        * the next unit needing orders, ending the turn once none remain.
        * This is distinct from W/MAP_MENU_ACTION_WAIT_UNIT, which defers
@@ -9402,7 +9402,7 @@ static GameMenuActionStatus game_menu_action_goto_and_cargo(ColonizeGameState* g
       ColonizeUnit* u =
         game->units.selected_id >= 0 ? units_get(&game->units, game->units.selected_id) : NULL;
       if (u) {
-        u->moves_left = 0;
+        u->moves = 0;
       }
       game_wait_next_unit(game);
       return GAME_MENU_ACTION_DONE;
@@ -9565,7 +9565,7 @@ static bool game_apply_map_menu_action(ColonizeGameState* game, MapMenuAction ac
         sel->id,
         sel->x,
         sel->y,
-        sel->moves_left
+        sel->moves
       );
     } else {
       diag_info("COMMAND %s", map_menu_action_name(action));
@@ -9610,7 +9610,7 @@ void game_click_activate_unit(ColonizeGameState* game, int unit_id) {
   /*
    * units_wake is overnight-safe now (bugs.md): it refills the allotment
    * only for hold passengers and for standing orders parked on a PREVIOUS
-   * turn (turns_worked nights counter) — a unit that moved and dug in this
+   * turn (col1_counter16 nights counter) — a unit that moved and dug in this
    * turn keeps its spent moves, so the old free-turn hazard is gone and a
    * long-fortified unit can march the turn you rouse it.
    */
@@ -9969,7 +9969,7 @@ static bool game_key_pioneer_order(ColonizeGameState* game, GamePioneerOrderFn f
   }
   const int sid = game->units.selected_id;
   const ColonizeUnit* su = units_get_const(&game->units, sid);
-  if (!su || !units_is_pioneer(&game->units, sid) || su->moves_left <= 0) {
+  if (!su || !units_is_pioneer(&game->units, sid) || su->moves <= 0) {
     return false;
   }
   char msg[96];
@@ -10297,7 +10297,7 @@ static GameUpdateStep game_pacer_goto_step(
   if (active->orders == UNITS_ORDER_GOTO && active->goto_x < UNITS_GOTO_NONE &&
       active->goto_y < UNITS_GOTO_NONE &&
       map_tiles_adjacent(active->x, active->y, active->goto_x, active->goto_y, false) &&
-      active->moves_left > 0) {
+      active->moves > 0) {
     const int gx = active->goto_x;
     const int gy = active->goto_y;
     const int foe_id = units_id_at(&game->units, gx, gy);
@@ -10322,7 +10322,7 @@ static GameUpdateStep game_pacer_goto_step(
         } else {
           /* Refused without a prompt (cost, domain…): park like a
            * blocked step (bugs.md #363) so the pacer doesn't spin. */
-          after->moves_left = 0;
+          after->moves = 0;
           units_clear_orders(&game->units, aid);
         }
       }
@@ -10424,8 +10424,8 @@ static GameUpdateStep game_pacer_goto_step(
        */
       ColonizeUnit* stalled = units_get(&game->units, active_id);
       if (stalled && stalled->active && units_orders_follow_goto(stalled->orders) &&
-          stalled->moves_left > 0) {
-        stalled->moves_left = 0;
+          stalled->moves > 0) {
+        stalled->moves = 0;
       }
       if (game_select_next_unit_awaiting_orders(game)) {
         game->view_pieces_mode = false;
@@ -10502,7 +10502,7 @@ COLONIZE_INTERNAL GameUpdateStep game_update_unit_pacer(ColonizeGameState* game,
     ColonizeUnit* active =
       game->units.selected_id >= 0 ? units_get(&game->units, game->units.selected_id) : NULL;
     const bool active_on_map_with_moves = active && active->active &&
-      active->nation_id == game->human_nation && units_is_on_map(active) && active->moves_left > 0;
+      active->nation_id == game->human_nation && units_is_on_map(active) && active->moves > 0;
     const bool active_pending =
       active_on_map_with_moves && units_orders_follow_goto(active->orders);
     /* A standing order (Fortified/Sentry/Clear-Forest.../Build-Road —
@@ -10510,7 +10510,7 @@ COLONIZE_INTERNAL GameUpdateStep game_update_unit_pacer(ColonizeGameState* game,
      * per-turn move refresh uses) doesn't need player attention either,
      * even though it isn't a goto. Without this, a mid-turn-loaded save
      * (whose Fortified/Sentried units haven't had this turn's refresh
-     * zero their moves_left yet) demanded the player's input on every
+     * zero their moves yet) demanded the player's input on every
      * garrisoned unit in turn — player-reported alongside the Merchantman
      * destination bug. */
     /*
@@ -10523,7 +10523,7 @@ COLONIZE_INTERNAL GameUpdateStep game_update_unit_pacer(ColonizeGameState* game,
      */
     const bool active_pax_awaiting = active && active->active &&
       active->nation_id == game->human_nation && active->aboard_ship_id >= 0 &&
-      active->moves_left > 0 && !units_orders_skip_turn(active);
+      active->moves > 0 && !units_orders_skip_turn(active);
     const bool active_awaiting_player =
       (active_on_map_with_moves && !active_pending && !units_orders_skip_turn(active)) ||
       active_pax_awaiting;
@@ -12207,19 +12207,19 @@ COLONIZE_INTERNAL GameUpdateStep game_update_map_menu_bar(ColonizeGameState* gam
      * Simplification vs. DOS: any input during the brief auto-peel (not just
      * once resting at 3) also cancels — equivalent information, less state.
      */
-    if (game->hidden_terrain_phase != 0) {
+    if (game->terrain_peel_phase != 0) {
       const bool any_input = input->mouse_left_clicked || input->mouse_right_clicked ||
         input->last_key != COLONIZE_KEY_NONE;
       if (any_input) {
-        game->hidden_terrain_phase = 0;
+        game->terrain_peel_phase = 0;
         set_status(game, "Hidden Terrain view off", NULL);
         return GAME_UPDATE_RETURN_TRUE;
       }
-      if (game->hidden_terrain_phase < 3 &&
+      if (game->terrain_peel_phase < 3 &&
           game->elapsed_ms - game->hidden_terrain_phase_ms >= HIDDEN_TERRAIN_STEP_MS) {
-        game->hidden_terrain_phase++;
+        game->terrain_peel_phase++;
         game->hidden_terrain_phase_ms = game->elapsed_ms;
-        if (game->hidden_terrain_phase == 2) {
+        if (game->terrain_peel_phase == 2) {
           set_status(game, "Hidden Terrain: roads, resources hidden", NULL);
         } else {
           set_status(game, "Hidden Terrain: hills and forest hidden", NULL);
@@ -12443,7 +12443,7 @@ COLONIZE_INTERNAL GameUpdateStep game_update_map_keys(ColonizeGameState* game, c
     ColonizeUnit* u =
       game->units.selected_id >= 0 ? units_get(&game->units, game->units.selected_id) : NULL;
     if (u) {
-      u->moves_left = 0;
+      u->moves = 0;
     }
     game_wait_next_unit(game);
     return GAME_UPDATE_RETURN_TRUE;
@@ -12593,7 +12593,7 @@ COLONIZE_INTERNAL GameUpdateStep game_update_map_keys(ColonizeGameState* game, c
     if (game_key_move_delta(input->last_key, &dx, &dy)) {
       if (game->units.selected_id >= 0 && game->world_map_ok && game->units_ok) {
         ColonizeUnit* selected = units_get(&game->units, game->units.selected_id);
-        if (selected && selected->moves_left > 0) {
+        if (selected && selected->moves > 0) {
           const int dest_x = selected->x + dx;
           const int dest_y = selected->y + dy;
           game_try_unit_move(game, dest_x, dest_y);
@@ -13497,7 +13497,7 @@ COLONIZE_INTERNAL void game_render_map_composite(
             continue;
           }
           ncmd = map_tile_layer_cmds(
-            &game->world_map, mx, my, game->hidden_terrain_phase, cmds, MAP_LAYER_CMDS_MAX
+            &game->world_map, mx, my, game->terrain_peel_phase, cmds, MAP_LAYER_CMDS_MAX
           );
           base_sprite = ncmd > 0 ? cmds[0].sprite : -1;
         } else {
@@ -13577,7 +13577,7 @@ COLONIZE_INTERNAL void game_render_map_composite(
   }
 
   /* Hidden Terrain phase 1+ (VIEW ~Hidden Terrain): units/settlements peeled first, stay off. */
-  if (game->hidden_terrain_phase == 0 && (game->colonies_ok || game->colonies.colony_count > 0)) {
+  if (game->terrain_peel_phase == 0 && (game->colonies_ok || game->colonies.colony_count > 0)) {
     colonies_render_on_map(
       &game->colonies,
       game->unit_icons_ok ? &game->unit_icons : NULL,
@@ -13598,11 +13598,11 @@ COLONIZE_INTERNAL void game_render_map_composite(
     );
   }
 
-  if (game->hidden_terrain_phase == 0 && game->col1_ok && game->unit_icons_ok) {
+  if (game->terrain_peel_phase == 0 && game->col1_ok && game->unit_icons_ok) {
     map_panel_render_tribes_on_map_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(game->units_ok ? &game->units : NULL), .colonies=(ColonizeColonyPool*)(&game->colonies), .map=(ColonizeWorldMap*)(game->world_map_ok ? &game->world_map : NULL), .col1=(ColonizeCol1Save*)(&game->col1), .col1_ok=true}, &game->unit_icons, framebuffer, view_x, view_y, view_cols, view_rows, tile_w, tile_h, map_origin_x, map_origin_y, game_fog_nation(game), game->map_palette_ok ? &game->map_palette : NULL);
   }
 
-  if (game->hidden_terrain_phase == 0 && game->units_ok && game->unit_icons_ok) {
+  if (game->terrain_peel_phase == 0 && game->units_ok && game->unit_icons_ok) {
     /* Half-period 500ms → full blink cycle 1s (was 250ms / 500ms cycle).
      * Frozen on while the map's input loop is not the thing running. */
     const bool blink_on =
@@ -14240,7 +14240,7 @@ int game_selected_unit(const ColonizeGameState* game) {
 }
 
 bool game_unit_info(
-  const ColonizeGameState* game, int unit_id, int* x, int* y, bool* is_sea, int* moves_left
+  const ColonizeGameState* game, int unit_id, int* x, int* y, bool* is_sea, int* moves
 ) {
   if (!game || !game->units_ok) {
     return false;
@@ -14258,8 +14258,8 @@ bool game_unit_info(
   if (is_sea) {
     *is_sea = units_is_sea(&game->units, unit_id);
   }
-  if (moves_left) {
-    *moves_left = u->moves_left;
+  if (moves) {
+    *moves = u->moves;
   }
   return true;
 }

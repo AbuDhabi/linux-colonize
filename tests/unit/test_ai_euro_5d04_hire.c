@@ -199,7 +199,7 @@ static ColonizeColony* fixture_ore_colony(Fixture* f, int nation, int population
   return c;
 }
 
-/* A ship parked on the Europe dock. moves_left = 0 so the dispatcher's unit
+/* A ship parked on the Europe dock. moves = 0 so the dispatcher's unit
  * act (which would sail it and re-run the 20e6 band on the new hull) skips
  * it: what the hull holds after the call is exactly what 5d04 did to it. */
 static int spawn_europe_ship(Fixture* f, int nation) {
@@ -209,7 +209,7 @@ static int spawn_europe_ship(Fixture* f, int nation) {
     return -1;
   }
   units_set_nation(u, nation);
-  u->moves_left = 0;
+  u->moves = 0;
   u->orders = 0;
   u->col1_origin = 0xff;
   return id;
@@ -222,7 +222,7 @@ static int spawn_europe_colonist(Fixture* f, int nation, int type_index, int pro
     return -1;
   }
   units_set_nation(u, nation);
-  u->moves_left = 0;
+  u->moves = 0;
   u->orders = 0;
   u->profession = (uint8_t)profession;
   return id;

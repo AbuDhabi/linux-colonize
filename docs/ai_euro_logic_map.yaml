@@ -197,7 +197,7 @@ graphs:
         label: Skip? (inactive / other nation / aboard ship / land in wave 0)
       - id: no_mp
         kind: decision
-        label: moves_left <= 0?
+        label: moves <= 0?
       - id: wake_elig
         kind: decision
         label: First-colony sentry wake eligible? (no colonies yet, Pioneer/Soldier, found-approach conditions)
@@ -607,7 +607,7 @@ graphs:
         note: Wakes sentry units; SP/FR/DU staging tips hard-coded from goldens (e.g. landfall 53,56).
       - id: no_mp
         kind: decision
-        label: moves_left <= 0?
+        label: moves <= 0?
       - id: notify
         kind: step
         label: Territorial notify + treasure tension bump
@@ -828,7 +828,7 @@ graphs:
         note: Kill switch AI_20E6_SHIP_DUMP=0.
       - id: cower
         kind: decision
-        label: Cargo ship ≤ Merchantman at a NEARBY_FRIGATE colony and turns_worked < 10 − capacity?
+        label: Cargo ship ≤ Merchantman at a NEARBY_FRIGATE colony and col1_counter16 < 10 − capacity?
         dos: raw 3018-3023 → LAB_5899 park
         status: dos
       - id: load

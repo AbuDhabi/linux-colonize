@@ -7268,12 +7268,12 @@ void ai_contact_indian_meet_trade(ColonizeTurnContext* ctx, int nation_id) {
         /*
          * FUN_5bfb_022e tail (LAB_5bfb_1005): a first-contact ceremony ends
          * the Indian-side unit's turn — spent := max MP (0934 → 1427_155e;
-         * natives keep the DOS spent byte in moves_left). This is the writer
+         * natives keep the DOS spent byte in moves). This is the writer
          * behind the seed-100 TURN2→3 "spent 9/6 → 3" Brave rows: DOS runs
          * this chain from 465b's own commit tail (0984 → 0192 → 3180 → 022e)
          * when the Brave's step lands adjacent to an unmet Euro land unit.
          */
-        brave->moves_left = units_max_mp(ctx->units, brave->id);
+        brave->moves = units_max_mp(ctx->units, brave->id);
         continue; /* DOS first-contact arm ends; no gift/trade this pulse */
       }
 
@@ -9145,7 +9145,7 @@ void ai_contact_indian_raids(ColonizeTurnContext* ctx, int nation_id) {
   a.nation_id = nation_id;
   for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
     ColonizeUnit* brave = &ctx->units->units[i];
-    /* Natives keep the DOS SPENT byte in moves_left — gate on remaining MP
+    /* Natives keep the DOS SPENT byte in moves — gate on remaining MP
      * via the accessor, not the raw byte (audit: raw read skipped FRESH
      * braves and admitted exhausted ones). */
     if (!brave->active || brave->nation_id != nation_id ||
@@ -10954,7 +10954,7 @@ static void ai_contact_apply_popup_result_menu(
    */
   if (menu_unit && popup->result_choice_id != AI_CONTACT_CHOICE_ATTACK_VILLAGE &&
       popup->result_choice_id != AI_CONTACT_CHOICE_MISSION) {
-    menu_unit->moves_left = 0;
+    menu_unit->moves = 0;
   }
 
   switch (popup->result_choice_id) {

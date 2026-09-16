@@ -49,8 +49,8 @@
 
 
 /*
- * King latch storage (2026-08-28). These used to live in head.unknown46[],
- * which is really DOS price_group_state[16] (the Europe market pool words,
+ * King latch storage (2026-08-28). These used to live in head.market_demand_pool_raw[],
+ * which is really DOS market_demand_pool[16] (the Europe market pool words,
  * rewritten every EOT by europe_tick_market_prices) — on any real DOS save
  * byte 4 held live market data, so the endgame latch read as "already
  * ended" and every WoI end-check bailed. WoI / REF-present use their real

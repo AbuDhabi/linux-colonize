@@ -23,9 +23,9 @@ record of what was looked at, not as a work queue — anything still live was re
 
 5. units.c:7044-7050 — village-raid arm rolls the 465b MP-overspend gamble that its sibling at :7130-7140 says DOS never applies to an attack ("attack flag ⇒ never denied"), and the denial fires after the fight already drained the dwelling; also burns an extra RNG draw. M
 
-6. units.c:7666 and :7422 — `units_wake` / `units_set_orders` write `moves_left` raw (restore = max, park = 0), inverted for natives under spent-byte semantics. Latent (reached from human/Euro paths only) but no restore-side spent-aware helper exists. Same class: unit_stack.c:177 reads raw `moves_left <= 0`. M-L
+6. units.c:7666 and :7422 — `units_wake` / `units_set_orders` write `moves` raw (restore = max, park = 0), inverted for natives under spent-byte semantics. Latent (reached from human/Euro paths only) but no restore-side spent-aware helper exists. Same class: unit_stack.c:177 reads raw `moves <= 0`. M-L
 
-7. units.c:2098 — `units_spawn_village_temp_defender` writes `moves_left = 0` on a unit just given a native nation_id = full movement under spent semantics; intended write is `units_mp_exhaust`. Inert today (nothing reads phantom MP). L
+7. units.c:2098 — `units_spawn_village_temp_defender` writes `moves = 0` on a unit just given a native nation_id = full movement under spent semantics; intended write is `units_mp_exhaust`. Inert today (nothing reads phantom MP). L
 
 8. units.c:4944 — `units_combat_brave_vs_human_arty` matches raw `type_index == 0x13/0x0b`, while combat_strength.c:78-81 says name-match is the family rule because pool index ≠ DOS @UNIT id in synthetic fixtures; the auto-loss silently no-ops on non-stock rosters. M-L
 

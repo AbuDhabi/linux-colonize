@@ -141,7 +141,7 @@ void founding_fathers_sync_from_col1(const ColonizeCol1Save* col1);
 void founding_fathers_sync_from_col1_after_load(const ColonizeCol1Save* col1);
 
 /* Unit tests: liberty_bells_total doubles as pool input (not cumulative). */
-void founding_fathers_force_pool_from_total(const ColonizeCol1Save* col1);
+void founding_fathers_test_force_pool_from_total(const ColonizeCol1Save* col1);
 
 void founding_fathers_stash_pools_into_col1(
   ColonizeCol1Save* col1,

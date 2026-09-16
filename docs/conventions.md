@@ -44,7 +44,7 @@ the verification loop. It does **not** own feature status — that stays in the
 | **GAME.TXT `^` / `^^`** | A leading caret is a **layout directive, not text**: `^` = draw this line verbatim on its own row, `^^` = same but centred. DOS eats exactly two carets (no loop). `_` stands in for a leading space. Shared helper: `popup_msg_caret_flags()`. |
 | **`{}` emphasis** | Popup markup: `{` turns on hilite, `}` off, `~` escapes, `|` terminates. `popup_msg_apply_tokens` **keeps** the braces — renderers use `popup_draw_text_markup`, plain sinks call `popup_msg_strip_markup`. |
 | **Two tick clocks** | `DS:0x8338` = **608.77 Hz** (every IRQ0); `DS:0x92e8` = **60.877 Hz** (the clock most game timers read, via `FUN_1c0c_0006`). Conflating them makes any ported timing 10× fast. |
-| **MP thirds** | `moves_left` is in **thirds** (`UNITS_MP_PER_TILE`); a plain tile costs 3. |
+| **MP thirds** | `moves` is in **thirds** (`UNITS_MP_PER_TILE`); a plain tile costs 3. |
 
 ---
 
@@ -144,7 +144,7 @@ the verification loop. It does **not** own feature status — that stays in the
 | **MP on native units** routes through `units_mp_charge` / `units_mp_exhaust` (`units.c`): Euro units store thirds remaining, Braves store thirds **spent** (max 3). | `smell-batch1-2026-09-08` |
 | **No per-turn "drip" effects without a DOS trace.** Indian alarm grows only through `FUN_4d56_152e` → `ai_contact_alarm_delta_00f2`. Discrete-event bumps are safe; recurring drips compound into order-of-magnitude divergence. | `alarm-fandom-drips-retired` |
 | **Don't re-merge "kept split on DOS grounds"** rows from `docs/duplication_audit_2026-09-14.md`; use the shared helpers listed in its Resolution table. | `duplication-round2-2026-09-15` |
-| **Never store port-only state in a `head.unknown*` field** without checking `save_format_map.md` for its real DOS meaning (`unknown46` is the market pool and is rewritten every EOT). | `woi-headless-sim-and-unknown46` |
+| **Never store port-only state in a `head.unknown*` field** without checking `save_format_map.md` for its real DOS meaning (`market_demand_pool_raw` is the market pool and is rewritten every EOT). | `woi-headless-sim-and-market_demand_pool_raw` |
 | **Expert Teacher (@JOB 18) was cut before release** — never port DOS code that creates or hires one. Existing arms are save tolerance only. | `expert-teacher-cut-type` |
 
 ---
@@ -174,7 +174,7 @@ These have each cost a session. Check them before blaming the code.
 - **Latch-before-check.** Tests that read a bonus straight from live SoL% without
   first calling `colony_prod_refresh_sol_flags` encode the bug, not the rule.
 - **Native fixture flip.** ~40 native fixtures were written against the inverted
-  MP gates (`moves_left = 3` meaning "ready"). Any old branch touching native MP
+  MP gates (`moves = 3` meaning "ready"). Any old branch touching native MP
   fixtures carries that inversion.
 - **`layer3 = 0xf0` / calloc'd layer3.** A calloc'd layer3 reads as all-lake
   (low nibble 0 != 1); stamp `layer3 = 1` for ocean tiles.
@@ -264,7 +264,7 @@ invented mechanics. Never port from it without a DOS trace.
 | **Extract-and-ndisasm switch bodies** | Ghidra leaves switch bodies as `??` bytes (e.g. `FUN_4d56_021a`, 4836 bytes). Extract the range and `ndisasm -b16` it at the right origin. | `popup-ids-are-ds-tag-addresses` |
 | **Boundary-first second pass** | A `completed=true` decompile can carry corruption inlined from a callee, and Ghidra can silently pull in *wrong but plausible* content. Check the cited address falls inside the function's own boundary before declaring corruption. | `docs/port_plan.md` "Method notes" |
 | **Offline render + PPM cmp** | `tools/render_report`, `render_colony`, `render_map_panel` link `libcolonize_ui.a` + `libcolonize_sim.a` (in that order — `colonize_core` is an INTERFACE target since 2026-09-16) and dump PPMs; compare against a `git archive HEAD` build. No PPM goldens exist in tests. | `duplication-audit-2026-09-14` |
-| **Headless driver on a real save** | For "does X work end to end", write a scratch driver (gcc against `build/debug/libcolonize_ui.a build/debug/libcolonize_sim.a`, `-I src`) that loads a real `.SAV`, loops `turn_end`, and prints counters — then promote it to a `golden_*` test. Attach a popup queue (`ctx.ai_popups`) or the King auto-declares independence on turn 1. | `woi-headless-sim-and-unknown46`, `ai-ship-wiggle-fix` |
+| **Headless driver on a real save** | For "does X work end to end", write a scratch driver (gcc against `build/debug/libcolonize_ui.a build/debug/libcolonize_sim.a`, `-I src`) that loads a real `.SAV`, loops `turn_end`, and prints counters — then promote it to a `golden_*` test. Attach a popup queue (`ctx.ai_popups`) or the King auto-declares independence on turn 1. | `woi-headless-sim-and-market_demand_pool_raw`, `ai-ship-wiggle-fix` |
 
 ---
 

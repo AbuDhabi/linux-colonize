@@ -178,7 +178,7 @@ static int run_late01_turn(ColonizeCol1Save* pre_snap) {
         hunt_signal = 1;
       }
     } else if (u->nation_id >= 4 && u->nation_id <= 11) {
-      if (u->moves_left <= 0 || u->orders != UNITS_ORDER_NONE) {
+      if (u->moves <= 0 || u->orders != UNITS_ORDER_NONE) {
         brave_spent = 1;
       }
     }

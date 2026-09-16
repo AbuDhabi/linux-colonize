@@ -478,7 +478,7 @@ int units_spawn(ColonizeUnitPool* pool, int type_index, int x, int y) {
  * Field-for-field slot init shared by units_spawn_allow_stack and
  * units_spawn_aboard (UN-2). Everything here is what both DOS spawn paths
  * agree on; the aboard path then overrides the three fields FUN_1427_10be
- * differs on (moves_left 0, orders 1 = sentry aboard, profession always
+ * differs on (moves 0, orders 1 = sentry aboard, profession always
  * UNITS_JOB_NONE because a passenger holds no colony job) and stamps
  * aboard_ship_id itself — the helper deliberately does NOT touch
  * aboard_ship_id, because units_set_nation reads it (through units_is_on_map)
@@ -496,7 +496,7 @@ static void units_slot_reset_defaults(
   slot->type_index = type_index;
   slot->x = x;
   slot->y = y;
-  slot->moves_left = units_type_max_mp(type);
+  slot->moves = units_type_max_mp(type);
   slot->active = true;
   slot->nation_id = 0;
   slot->col1_vis_mask = 0; /* FUN_1427_0992: owner bit via units_set_nation */
@@ -518,7 +518,7 @@ static void units_slot_reset_defaults(
   slot->muskets = 0;
   slot->horses = 0;
   slot->home_tribe_id = -1;
-  slot->turns_worked = 0;
+  slot->col1_counter16 = 0;
   slot->park_nights = 0;
   slot->mp_spent_turn = 0;
   slot->last_dir = 0;
@@ -644,14 +644,14 @@ int units_tick_treasure_outside_colony(
       }
     }
     if (on_own_colony) {
-      u->turns_worked = 0;
+      u->col1_counter16 = 0;
       continue;
     }
     /* FUN_3844_0004: unit+0x16++; remove when > 8. */
-    if (u->turns_worked < 255) {
-      u->turns_worked++;
+    if (u->col1_counter16 < 255) {
+      u->col1_counter16++;
     }
-    if (u->turns_worked <= 8) {
+    if (u->col1_counter16 <= 8) {
       continue;
     }
     (void)units_despawn(pool, u->id);
@@ -702,13 +702,13 @@ int units_tick_ship_build_ready(
      */
     int threshold = ty && ty->defense > 0 ? ty->defense : 4;
     /*
-     * bugs.md #254: combat damage presets turns_worked BELOW threshold (DOS
+     * bugs.md #254: combat damage presets col1_counter16 BELOW threshold (DOS
      * repair timer) and this same tick counts it up — construction and
      * repair share the loop like DOS. At/past threshold with bit7 still set
      * (legacy save parked by the old drydock model): leave for
      * units_tick_drydock_repair to clear this EOT.
      */
-    if (u->turns_worked >= threshold) {
+    if (u->col1_counter16 >= threshold) {
       continue;
     }
     /*
@@ -724,17 +724,17 @@ int units_tick_ship_build_ready(
       u->repair_pending = 1;
       continue;
     }
-    if (u->turns_worked < 255) {
-      u->turns_worked++;
+    if (u->col1_counter16 < 255) {
+      u->col1_counter16++;
     }
     int on_colony = 0;
     if (colonies && colonies_id_at(colonies, u->x, u->y) >= 0) {
       on_colony = 1;
-      if (u->turns_worked < 255) {
-        u->turns_worked++;
+      if (u->col1_counter16 < 255) {
+        u->col1_counter16++;
       }
     }
-    if (u->turns_worked < threshold) {
+    if (u->col1_counter16 < threshold) {
       continue;
     }
     if (u->repair_pending) {
@@ -755,7 +755,7 @@ int units_tick_ship_build_ready(
 
 /*
  * Repair completion (bugs.md #254): combat-damage bit7 clears when the repair
- * TIMER (turns_worked, counted by units_tick_ship_build_ready, double speed
+ * TIMER (col1_counter16, counted by units_tick_ship_build_ready, double speed
  * in port) reaches the type threshold — DOS's model; no Drydock building
  * required. Also clears legacy-save ships parked at/past threshold by the
  * old instant-drydock model. Construction ships (repair_pending==0 below
@@ -786,7 +786,7 @@ int units_tick_drydock_repair(
     const ColonizeUnitType* ty = units_type(pool, u->type_index);
     const int threshold = ty && ty->defense > 0 ? ty->defense : 4;
     /* Timer still running (construction OR repair) — build tick owns bit7. */
-    if (u->turns_worked < threshold) {
+    if (u->col1_counter16 < threshold) {
       continue;
     }
     /* repair_pending ships arrive here at threshold; legacy-save damaged
@@ -1464,7 +1464,7 @@ static void units_clear_slot(ColonizeUnit* unit) {
   unit->type_index = -1;
   unit->x = 0;
   unit->y = 0;
-  unit->moves_left = 0;
+  unit->moves = 0;
   unit->nation_id = 0;
   unit->aboard_ship_id = -1;
   unit->cargo_count = 0;
@@ -1479,7 +1479,7 @@ static void units_clear_slot(ColonizeUnit* unit) {
   unit->muskets = 0;
   unit->horses = 0;
   unit->home_tribe_id = -1;
-  unit->turns_worked = 0;
+  unit->col1_counter16 = 0;
   unit->park_nights = 0;
   unit->mp_spent_turn = 0;
   unit->last_dir = 0;
@@ -2442,7 +2442,7 @@ int units_spawn_village_temp_defender(
   }
   u->nation_id = indian_nation;
   u->home_tribe_id = tribe_index;
-  /* The nation_id just written is native, so moves_left is the DOS SPENT byte
+  /* The nation_id just written is native, so moves is the DOS SPENT byte
    * here: a raw 0 would mean "full allotment", not "cannot act". The phantom
    * must never be able to move (smell audit 2026-09-09 #7). */
   units_mp_exhaust(pool, u);
@@ -3083,7 +3083,7 @@ static int units_demote_combat_type(
         loser->muskets = 0;
       }
       loser->orders = UNITS_ORDER_NONE;
-      loser->moves_left = 0;
+      loser->moves = 0;
       if (human_facing) {
         PopupMsgTokens tok;
         memset(&tok, 0, sizeof(tok));
@@ -3113,7 +3113,7 @@ static int units_demote_combat_type(
   const ColonizeUnitType* nt = units_type(pool, tgt);
   units_sync_equip_after_type_change(loser, nt);
   loser->orders = UNITS_ORDER_NONE;
-  loser->moves_left = 0;
+  loser->moves = 0;
   if (human_facing) {
     PopupMsgTokens tok;
     memset(&tok, 0, sizeof(tok));
@@ -3182,7 +3182,7 @@ static void units_capture_to_winner(
 ) {
   units_set_nation(lose, win->nation_id);
   lose->orders = UNITS_ORDER_NONE;
-  lose->moves_left = 0;
+  lose->moves = 0;
   units_capture_relocate_to_winner(pool, lose, win);
 }
 
@@ -3230,7 +3230,7 @@ static int units_apply_land_loss_outcome(
     tok.string1 = lt->name;
     if ((lose->col1_flags15 & 0x80u) == 0) {
       lose->col1_flags15 |= 0x80u;
-      lose->moves_left = 0;
+      lose->moves = 0;
       if (human) {
         units_combat_enqueue_tok(
           AI_POPUP_TAG_COMBAT_SHIP,
@@ -3514,11 +3514,11 @@ static const char* units_home_port_name(const ColonizeCol1Save* col1, int nation
 /*
  * DOS FUN_5fef_0352 damage tail (overlays.c 85117-85186), shared by the naval
  * loss outcome and the FUN_5fef_0f14 raid (UN-7): repair is a TIMER, not a
- * drydock flash — bit7 + turns_worked preset so the normal EOT ship tick
+ * drydock flash — bit7 + col1_counter16 preset so the normal EOT ship tick
  * (+1/turn, +1 extra on a colony tile) counts up to the 0x5235-column
  * threshold. Remaining turns = winner's combat strength (already doubled by
  * the caller for a non-ship winner), clamped to the own threshold; Frigate
- * presets turns_worked >= 4, Man-O-War >= 8 (repair-time cap).
+ * presets col1_counter16 >= 4, Man-O-War >= 8 (repair-time cap).
  *
  * `winner_nation` is the @SHIPDAMAGE popup's nation_b; the raid arm has no
  * winner unit and passes -1.
@@ -3534,7 +3534,7 @@ static void units_ship_enter_repair(
 ) {
   const ColonizeUnitType* lt = units_type(pool, lose->type_index);
   lose->col1_flags15 |= 0x80u;
-  lose->moves_left = 0;
+  lose->moves = 0;
   lose->orders = UNITS_ORDER_NONE; /* DOS zeroes +0x314c */
   lose->repair_pending = 2; /* 2 = damaged this turn; see the repair tick */
   {
@@ -3546,7 +3546,7 @@ static void units_ship_enter_repair(
     if (units_type_is_man_o_war(lt) && worked < 8) {
       worked = 8;
     }
-    lose->turns_worked = (uint8_t)worked;
+    lose->col1_counter16 = (uint8_t)worked;
   }
   /*
    * With no Drydock/Shipyard colony the ship is Europe-bound: it stays on
@@ -6219,7 +6219,7 @@ static bool units_fort_vs_ship(
     }
     if (damaged) {
       def->col1_flags15 |= 0x80u;
-      def->moves_left = 0;
+      def->moves = 0;
       def->orders = UNITS_ORDER_NONE;
       def->repair_pending = 2; /* 2 = damaged this turn; see the repair tick */
       {
@@ -6232,7 +6232,7 @@ static bool units_fort_vs_ship(
         if (strcmp(dt->name, "Man-O-War") == 0 && worked < 8) {
           worked = 8;
         }
-        def->turns_worked = (uint8_t)worked;
+        def->col1_counter16 = (uint8_t)worked;
       }
       /* No repair port: Europe-bound, stays put until the EOT router (see
        * the naval-loss arm for the same rule). */
@@ -6311,7 +6311,7 @@ static bool units_fort_vs_ship(
  * 312e power = max MP thirds + 3, ×2 for a Privateer (0x10), +3 for a
  * Galleon (0x0f), −4 per hold in use, floor 1. Type ids: 13 Caravel .. 18
  * Man-O-War (docs/units.md). Port keeps Euro ships' countdown in
- * moves_left, so `spent += n` is `moves_left -= n` floored at 0.
+ * moves, so `spent += n` is `moves -= n` floored at 0.
  */
 static int units_ship_slow_power(const ColonizeUnitPool* pool, const ColonizeUnit* u) {
   int power = units_max_mp(pool, u->id) + 3;
@@ -6414,7 +6414,7 @@ void units_ship_slow_scan_w(
         map_tile_is_water(map, nx, ny) &&
         units_ship_slow_gate(col1, u->nation_id, topu->nation_id, mover_kind)) {
       const int other_nation = topu->nation_id;
-      for (int i = 0; i < COLONIZE_UNITS_MAX && u->moves_left > 0; ++i) {
+      for (int i = 0; i < COLONIZE_UNITS_MAX && u->moves > 0; ++i) {
         const ColonizeUnit* f = &pool->units[i];
         if (!f->active || f->x != nx || f->y != ny || f->nation_id != other_nation ||
             !units_is_sea(pool, f->id)) {
@@ -6439,12 +6439,12 @@ void units_ship_slow_scan_w(
           }
           continue;
         }
-        u->moves_left -= drain;
-        if (u->moves_left < 0) {
-          u->moves_left = 0;
+        u->moves -= drain;
+        if (u->moves < 0) {
+          u->moves = 0;
         }
         if (diag_info_enabled()) {
-          diag_info("SHIPSLOW unit %d by %s (%d) drain %d -> %d", unit_id, fname, f->id, drain, u->moves_left);
+          diag_info("SHIPSLOW unit %d by %s (%d) drain %d -> %d", unit_id, fname, f->id, drain, u->moves);
         }
         if (mover_human) {
           units_ship_slow_popup(pool, u, "SHIPSLOW", other_nation, fname, NULL);
@@ -6454,7 +6454,7 @@ void units_ship_slow_scan_w(
     /* Branch B: foreign colony with a Fort / Fortress. */
     const int cid = colonies ? colonies_id_at(colonies, nx, ny) : -1;
     const ColonizeColony* col = cid >= 0 ? colonies_get(colonies, cid) : NULL;
-    if (col && col->active && col->nation_id != u->nation_id && u->moves_left > 0 &&
+    if (col && col->active && col->nation_id != u->nation_id && u->moves > 0 &&
         units_ship_slow_gate(col1, u->nation_id, col->nation_id, mover_kind)) {
       const int fortress = colonies_find_building(colonies, "Fortress");
       const int fort = colonies_find_building(colonies, "Fort");
@@ -6468,12 +6468,12 @@ void units_ship_slow_scan_w(
         bname = "Fort";
       }
       if (drain > 0) {
-        u->moves_left -= drain;
-        if (u->moves_left < 0) {
-          u->moves_left = 0;
+        u->moves -= drain;
+        if (u->moves < 0) {
+          u->moves = 0;
         }
         if (diag_info_enabled()) {
-          diag_info("SHIPSLOW unit %d by %s %s drain %d -> %d", unit_id, col->name, bname, drain, u->moves_left);
+          diag_info("SHIPSLOW unit %d by %s %s drain %d -> %d", unit_id, col->name, bname, drain, u->moves);
         }
         if (mover_human) {
           units_ship_slow_popup(pool, u, "SHIPSLOW", col->nation_id, bname, NULL);
@@ -7317,7 +7317,7 @@ int units_type_max_mp(const ColonizeUnitType* type) {
 
 /*
  * DOS `uVar15 = unit_max_mp(u) - u->moves_spent` (FUN_5fef_1b0e ~100340) in
- * the port's own units: Euro units keep REMAINING thirds in moves_left, while
+ * the port's own units: Euro units keep REMAINING thirds in moves, while
  * native units keep the DOS SPENT byte there (turn.c's refresh and the COL1
  * bridge both say so), so the two have to be read differently.
  */
@@ -7328,17 +7328,17 @@ int units_remaining_mp(const ColonizeUnitPool* pool, int unit_id) {
   }
   if (u->nation_id >= 4) {
     const int max_mp = units_max_mp(pool, unit_id);
-    const int rem = max_mp - u->moves_left;
+    const int rem = max_mp - u->moves;
     return rem < 0 ? 0 : rem;
   }
-  return u->moves_left < 0 ? 0 : u->moves_left;
+  return u->moves < 0 ? 0 : u->moves;
 }
 
 /*
  * Writer counterparts of units_remaining_mp — every MP charge/exhaust on a
  * unit that may be native has to go through these, since natives grow the
  * SPENT byte toward max while Euros shrink REMAINING toward 0 (smell audit
- * 2026-09-08 cross-cutting item: raw moves_left writes inverted the charge
+ * 2026-09-08 cross-cutting item: raw moves writes inverted the charge
  * for natives — a drain became a refresh).
  */
 static void units_mp_charge(const ColonizeUnitPool* pool, ColonizeUnit* u, int cost) {
@@ -7347,14 +7347,14 @@ static void units_mp_charge(const ColonizeUnitPool* pool, ColonizeUnit* u, int c
   }
   const int max_mp = units_max_mp(pool, u->id);
   if (u->nation_id >= 4) {
-    u->moves_left += cost;
-    if (u->moves_left > max_mp) {
-      u->moves_left = max_mp;
+    u->moves += cost;
+    if (u->moves > max_mp) {
+      u->moves = max_mp;
     }
   } else {
-    u->moves_left -= cost;
-    if (u->moves_left < 0) {
-      u->moves_left = 0;
+    u->moves -= cost;
+    if (u->moves < 0) {
+      u->moves = 0;
     }
   }
 }
@@ -7363,13 +7363,13 @@ static void units_mp_exhaust(const ColonizeUnitPool* pool, ColonizeUnit* u) {
   if (!u) {
     return;
   }
-  u->moves_left = (u->nation_id >= 4) ? units_max_mp(pool, u->id) : 0;
+  u->moves = (u->nation_id >= 4) ? units_max_mp(pool, u->id) : 0;
 }
 
 /*
  * Restore side of the same inversion (smell audit 2026-09-09 #6): "this unit
- * has its whole allotment again" is moves_left = max for a Euro unit but
- * moves_left = 0 (nothing SPENT) for a native one. A raw `= units_max_mp()`
+ * has its whole allotment again" is moves = max for a Euro unit but
+ * moves = 0 (nothing SPENT) for a native one. A raw `= units_max_mp()`
  * therefore reads as *fully spent* on a Brave. Every park/refund site goes
  * through this so the trap cannot come back by copy-paste.
  */
@@ -7377,7 +7377,7 @@ static void units_mp_restore(const ColonizeUnitPool* pool, ColonizeUnit* u) {
   if (!u) {
     return;
   }
-  u->moves_left = (u->nation_id >= 4) ? 0 : units_max_mp(pool, u->id);
+  u->moves = (u->nation_id >= 4) ? 0 : units_max_mp(pool, u->id);
 }
 
 int units_max_mp(const ColonizeUnitPool* pool, int unit_id) {
@@ -7754,7 +7754,7 @@ bool units_try_move_w(
      * with no colony on either end, so moves_spent is forced to max_mp — the
      * passenger is done for the turn and FUN_4720_015c will not offer it
      * landfall (spent < max_mp test, viceroy_unpacked.c:76014-76017).
-     * units_board zeroes moves_left as a park flag, which cannot tell that
+     * units_board zeroes moves as a park flag, which cannot tell that
      * spend apart from a fresh in-port load; mark it explicitly.
      * bugs.md #423.
      *
@@ -8066,7 +8066,7 @@ combat_entry_resolved:
     /*
      * DOS FUN_465b gate (~75643): `(cost <= left) || (spent == 0) ||
      * (04ca(seed), bVar4)` — the third clause is the attack flag itself, so
-     * an attack is never denied by the MP overspend roll (moves_left > 0 was
+     * an attack is never denied by the MP overspend roll (moves > 0 was
      * already required to act). Rolling here after the fight had already
      * resolved could capture a colony's defender yet refuse the entry that
      * seizes the colony (bugs: scout beat a Spanish colony's colonist,
@@ -8333,7 +8333,7 @@ static void units_log_ident(
   }
   snprintf(
     out, out_size, "%s id=%d nation=%d at (%d,%d) mp=%d",
-    units_display_name(pool, u), unit_id, u->nation_id, u->x, u->y, u->moves_left
+    units_display_name(pool, u), unit_id, u->nation_id, u->x, u->y, u->moves
   );
 }
 
@@ -8368,7 +8368,7 @@ bool units_set_orders(ColonizeUnitPool* pool, int unit_id, int orders) {
   u->orders = orders;
   if (orders == UNITS_ORDER_SENTRY || orders == UNITS_ORDER_FORTIFY ||
       orders == UNITS_ORDER_FORTIFIED) {
-    /* Park = "no moves left this turn": spent-aware, since moves_left holds
+    /* Park = "no moves left this turn": spent-aware, since moves holds
      * REMAINING for Euros and SPENT for natives (audit #6). */
     units_mp_exhaust(pool, u);
     /* Fresh park: no overnight yet, so a same-turn wake refunds nothing. */
@@ -8394,7 +8394,7 @@ bool units_order_fortify(ColonizeUnitPool* pool, int unit_id) {
   if (ok) {
     units_play_event_sound(UNITS_SFX_ORDER_FORTIFY);
     /* FUN_2b5a_1112's own tail also zeroes the unit's +0x315a counter. */
-    u->turns_worked = 0;
+    u->col1_counter16 = 0;
   }
   return ok;
 }
@@ -8421,7 +8421,7 @@ bool units_order_trade_route(ColonizeUnitPool* pool, int unit_id) {
   u->follow_unit_id = -1;
   u->orders = UNITS_ORDER_TRADE_ROUTE;
   /* Same park-as-spent rule units_set_orders uses (:7782): spent-aware, since
-   * moves_left is REMAINING for Euros and SPENT for natives (audit A9). */
+   * moves is REMAINING for Euros and SPENT for natives (audit A9). */
   units_mp_exhaust(pool, u);
   return true;
 }
@@ -8474,7 +8474,7 @@ bool units_pillage_w(
     }
     return false;
   }
-  /* Spent-aware read (audit A9): moves_left is REMAINING for Euros but the
+  /* Spent-aware read (audit A9): moves is REMAINING for Euros but the
    * DOS SPENT byte for natives, so ask the accessor, not the field. */
   if (units_remaining_mp(pool, unit_id) <= 0) {
     if (err && err_size) {
@@ -8579,7 +8579,7 @@ bool units_wake(ColonizeUnitPool* pool, int unit_id) {
   units_clear_orders(pool, unit_id);
   /*
    * Restore the allotment only where the zero was a PARK, not a spend:
-   * boarding parks a passenger at moves_left 0, and Sentry/Fortify(ed)
+   * boarding parks a passenger at moves 0, and Sentry/Fortify(ed)
    * zero it as their "skip this unit" flag while DOS's own spent byte
    * stays 0. A unit with no standing order (None, or mid-Go-To) genuinely
    * spent its moves — Activate Unit picks who is controlled, it does not
@@ -8594,7 +8594,7 @@ bool units_wake(ColonizeUnitPool* pool, int unit_id) {
    * DOS FUN_479b_0b6c spends the allotment on promotion (viceroy
    * 77146-77153), so no refund that turn either. Hold passengers restore
    * as before. DOS's activate handler writes the order byte only (viceroy
-   * 42717/42781), so turns_worked (the shared +0x16 repair-timer /
+   * 42717/42781), so col1_counter16 (the shared +0x16 repair-timer /
    * treasure-clock / route-stop counter) is left alone here.
    */
   /* mp_spent_turn: the aboard zero is a real DOS spend — walked aboard from
@@ -10364,7 +10364,7 @@ bool units_pioneer_work_tick_w(
   }
   if (!units_is_pioneer(pool, unit_id) || u->tools < UNITS_PIONEER_TOOL_COST) {
     u->orders = UNITS_ORDER_NONE;
-    u->turns_worked = 0;
+    u->col1_counter16 = 0;
     if (err && err_size) {
       snprintf(err, err_size, "Need tools");
     }
@@ -10375,7 +10375,7 @@ bool units_pioneer_work_tick_w(
     if (!map_tile_is_land(map, u->x, u->y) || map_tile_is_high_seas(map, u->x, u->y) ||
         map_tile_has_road(map, u->x, u->y)) {
       u->orders = UNITS_ORDER_NONE;
-      u->turns_worked = 0;
+      u->col1_counter16 = 0;
       if (err && err_size) {
         snprintf(err, err_size, "Cannot build road here");
       }
@@ -10385,7 +10385,7 @@ bool units_pioneer_work_tick_w(
     bool clearing = false;
     if (!units_pioneer_tile_can_clear_or_plow(map, u->x, u->y, &clearing)) {
       u->orders = UNITS_ORDER_NONE;
-      u->turns_worked = 0;
+      u->col1_counter16 = 0;
       if (err && err_size) {
         snprintf(err, err_size, "Cannot plow here");
       }
@@ -10396,14 +10396,14 @@ bool units_pioneer_work_tick_w(
 
   /* FUN_281f_0934 stand-in: exhaust MP for this act (spent-aware, audit A9). */
   units_mp_exhaust(pool, u);
-  if (u->turns_worked < 255) {
-    u->turns_worked++;
+  if (u->col1_counter16 < 255) {
+    u->col1_counter16++;
   }
   const int needed = units_pioneer_work_needed(u, map, road);
-  if (u->turns_worked < needed) {
+  if (u->col1_counter16 < needed) {
     if (err && err_size) {
       if (road) {
-        snprintf(err, err_size, "Building road (%d/%d)", u->turns_worked, needed);
+        snprintf(err, err_size, "Building road (%d/%d)", u->col1_counter16, needed);
       } else {
         bool clearing = false;
         (void)units_pioneer_tile_can_clear_or_plow(map, u->x, u->y, &clearing);
@@ -10411,7 +10411,7 @@ bool units_pioneer_work_tick_w(
           err,
           err_size,
           clearing ? "Clearing forest (%d/%d)" : "Plowing (%d/%d)",
-          u->turns_worked,
+          u->col1_counter16,
           needed
         );
       }
@@ -10419,7 +10419,7 @@ bool units_pioneer_work_tick_w(
     return true;
   }
 
-  u->turns_worked = 0;
+  u->col1_counter16 = 0;
   u->orders = UNITS_ORDER_NONE;
   if (road) {
     map_tile_set_road(map, u->x, u->y, true);
@@ -10618,7 +10618,7 @@ static ColonizeUnit* units_pioneer_begin_order(
     units_pioneer_emit_order_gate(u, ai_popups, messages, "ONLYPIO", "Only pioneers can do that.");
     return NULL;
   }
-  if (u->orders != order && u->moves_left <= 0) {
+  if (u->orders != order && u->moves <= 0) {
     if (err && err_size) {
       snprintf(err, err_size, "No moves left");
     }
@@ -10665,7 +10665,7 @@ bool units_pioneer_plow_w(
     return false;
   }
   if (u->orders != UNITS_ORDER_CLEAR_PLOW) {
-    u->turns_worked = 0;
+    u->col1_counter16 = 0;
     u->orders = UNITS_ORDER_CLEAR_PLOW;
     if (diag_info_enabled()) {
       char who[96];
@@ -10715,7 +10715,7 @@ bool units_pioneer_road_w(
     return false;
   }
   if (u->orders != UNITS_ORDER_BUILD_ROAD) {
-    u->turns_worked = 0;
+    u->col1_counter16 = 0;
     u->orders = UNITS_ORDER_BUILD_ROAD;
     if (diag_info_enabled()) {
       char who[96];
@@ -10937,7 +10937,7 @@ bool units_board_stacked(ColonizeUnitPool* pool, int land_unit_id, int ship_id) 
    * (the boardable-ship pick matches nations), so the sentinel and its readers
    * stay in one space.
    */
-  land->moves_left = 0;
+  land->moves = 0;
   land->orders = UNITS_ORDER_SENTRY; /* sentry aboard */
   ship->cargo_ids[ship->cargo_count++] = land_unit_id;
   return true;
@@ -11154,13 +11154,13 @@ bool units_unload_passenger_w(
   units_occupancy_refresh_tile(pool, dest_x, dest_y, -1);
   pax->orders = UNITS_ORDER_NONE;
   /*
-   * Shore-step MP (FUN_465b ADD). Aboard sentry often has moves_left==0 as a
+   * Shore-step MP (FUN_465b ADD). Aboard sentry often has moves==0 as a
    * skip-select flag while DOS spent is still 0 (full allotment) — restore
    * type movement for the charge only, then spend dest terrain cost. Never
    * leave a free full refill. Cite: 4720_015c; move_spent.c.
    */
   {
-    int remaining = pax->moves_left;
+    int remaining = pax->moves;
     if (remaining <= 0) {
       remaining = units_max_mp(pool, pax_id);
     }
@@ -11168,7 +11168,7 @@ bool units_unload_passenger_w(
     if (cost < 1) {
       cost = 1;
     }
-    pax->moves_left = remaining > cost ? remaining - cost : 0;
+    pax->moves = remaining > cost ? remaining - cost : 0;
     /*
      * bugs.md: a landfall onto bare coast is DOS's 465b_05ca shore crossing —
      * water tile to land tile with no colony on either end — so the whole
@@ -11176,7 +11176,7 @@ bool units_unload_passenger_w(
      * ship is standing on the colony tile) keeps the cheap charge.
      */
     if (units_move_crosses_shore(map, colonies, ship->x, ship->y, dest_x, dest_y)) {
-      pax->moves_left = 0;
+      pax->moves = 0;
     }
   }
   diag_info("Unloaded unit %d from ship %d to (%d,%d)", pax_id, ship_id, dest_x, dest_y);
@@ -11208,8 +11208,8 @@ bool units_unload_w(
  * landfall reason (2/3) is never written and the whole move is refused — a
  * passenger that already burnt its allotment this turn stays aboard.
  *
- * Port mapping: moves_left holds REMAINING, and the port zeroes it when a
- * passenger boards (park flag). So "spent < max" is `moves_left > 0` for a
+ * Port mapping: moves holds REMAINING, and the port zeroes it when a
+ * passenger boards (park flag). So "spent < max" is `moves > 0` for a
  * normal unit, and for the parked zero it is `!mp_spent_turn` — the flag the
  * board path sets when DOS would have forced spent to max (bugs.md #423).
  */
@@ -11233,7 +11233,7 @@ int units_first_landfall_cargo(const ColonizeUnitPool* pool, int ship_id) {
    * parked-but-unspent one. Both tiers honour the DOS spent test. */
   for (int i = 0; i < ship->cargo_count; ++i) {
     const ColonizeUnit* pax = units_get_const(pool, ship->cargo_ids[i]);
-    if (pax && pax->moves_left > 0 && units_cargo_can_landfall(pool, pax->id)) {
+    if (pax && pax->moves > 0 && units_cargo_can_landfall(pool, pax->id)) {
       return pax->id;
     }
   }
@@ -11373,7 +11373,7 @@ int units_disembark_all(ColonizeUnitPool* pool, int ship_id, int x, int y) {
       pax->orders = UNITS_ORDER_NONE;
       /*
        * Restore the allotment, don't just clear the order. Boarding parks a
-       * passenger at moves_left 0 as a "don't offer this one" flag while
+       * passenger at moves 0 as a "don't offer this one" flag while
        * DOS's own spent byte is still zero — a full allotment — so a
        * passenger put ashore in a colony was landing unable to move at all
        * until the next turn (bugs.md: "possibly with moves if they had any
@@ -11566,7 +11566,7 @@ static int units_spawn_aboard(ColonizeUnitPool* pool, int type_index, ColonizeUn
    * the extraction — the helper leaves that field alone so the ordering (and
    * with it whether set_nation stamps the tile owner nibble) is unchanged.
    */
-  slot->moves_left = 0;
+  slot->moves = 0;
   units_set_nation(slot, ship->nation_id);
   slot->aboard_ship_id = ship->id;
   slot->orders = UNITS_ORDER_SENTRY; /* sentry aboard */

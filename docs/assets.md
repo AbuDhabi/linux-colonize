@@ -389,7 +389,7 @@ invented east-2 / west-4 table is gone (P9.2 / bugs.md 2026-08-31).
 | **U** / `-` / `_` | Sell best hold / all / some |
 | `]` / `[` | Cheat +1000 gold / −1% tax |
 
-Market bid/ask from `NAMES.TXT` `@CARGO` (ask = bid + burden + 1). Sale proceeds `floor(bid × amount × (100 − tax) / 100)`. Volume-price T0 via `europe_apply_volume_price` (**Done thin**; EOT attrition + half `price_group_state`); boycotts **Partial** structural; pressure/bid chrome PARKED — [manual_gap.md](manual_gap.md).
+Market bid/ask from `NAMES.TXT` `@CARGO` (ask = bid + burden + 1). Sale proceeds `floor(bid × amount × (100 − tax) / 100)`. Volume-price T0 via `europe_apply_volume_price` (**Done thin**; EOT attrition + half `market_demand_pool`); boycotts **Partial** structural; pressure/bid chrome PARKED — [manual_gap.md](manual_gap.md).
 
 ### Colony screen bring-up
 
@@ -461,7 +461,7 @@ Terrain move costs (plains 1, forest/hills 2, mountains 3; road/river halves) fo
 
 Ship→**native village**: never landfall — unmet `@DONTKNOWSHIPS`, met/angry `@MADATSHIPS` (DOS `4528` ship abort). Ship→**non-colony bare land** with cargo: **landfall CHOICE** (`@LANDFALL` Stay With Ships / Make Landfall); prefers a passenger with moves, but aboard **sentry** cargo is still eligible (DOS spent==0). Make Landfall unloads **one** passenger, charges dest terrain MP from their allotment (or remaining moves), and **−1** ship MP; ship stays at sea. Ship→**own colony** land: dock and **disembark all** (clear sentry). Land→ocean with an own ship that has room: **board**. Sentry land units on a ship's tile **auto-board** when that ship leaves (colony or ocean stack). Multi-unit tile click opens a wood **stack popup** — first click wakes sentry cargo, second selects; awake cargo can walk onto land to disembark. **O**/**U** remain. Enter rules: [move_enter.md](move_enter.md).
 
-Selected units **blink** (sprite on/off), except while executing **Go-To** (always drawn so pathing stays visible). The tile cursor is shown only when no unit is selected. Units with `moves_left == 0` cannot be selected (tile under them is selected instead). Awake passengers (sentry cleared) with moves can be selected from the stack popup. When the active unit spends its last move, the next human unit with moves is selected; if none remain, tile-select mode resumes.
+Selected units **blink** (sprite on/off), except while executing **Go-To** (always drawn so pathing stays visible). The tile cursor is shown only when no unit is selected. Units with `moves == 0` cannot be selected (tile under them is selected instead). Awake passengers (sentry cleared) with moves can be selected from the stack popup. When the active unit spends its last move, the next human unit with moves is selected; if none remain, tile-select mode resumes.
 
 **Go-To:** drag from a blinking unit to a destination tile (CURSOR.SS #1 appears after ≥1 logical pixel of drag; pathfinding uses DOS-style destination cost flood nearby, BFS farther), or ORDERS **Go to Place** (click destination) / **Go to Port** (next owned colony). The unit walks at **10 steps/sec** until out of moves and resumes after end of turn; **Fast Piece Slide** shortens the interval to 80ms (12.5 steps/sec). During interactive AI turns, **Show Indian Moves** / **Show Foreign Moves** present nearby AI tile steps using the same pacing. Sub-pixel slide animation remains final polish. Order byte is `@ORDERS` index 3.
 

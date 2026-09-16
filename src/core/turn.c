@@ -131,7 +131,7 @@ void turn_refresh_moves_for_nation_w(
     /* Fortify completes overnight → Fortified; stay asleep until woken. */
     if (u->orders == UNITS_ORDER_FORTIFY) {
       u->orders = UNITS_ORDER_FORTIFIED;
-      u->moves_left = 0;
+      u->moves = 0;
       continue;
     }
     /* Pioneer clear/plow/road: overnight work-tick (FUN_479b_01a6 / 0526).
@@ -142,7 +142,7 @@ void turn_refresh_moves_for_nation_w(
      * full allotment. */
     if (map &&
         (u->orders == UNITS_ORDER_CLEAR_PLOW || u->orders == UNITS_ORDER_BUILD_ROAD)) {
-      u->moves_left = units_max_mp(pool, u->id);
+      u->moves = units_max_mp(pool, u->id);
       (void)units_pioneer_work_tick_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(pool), .colonies=(ColonizeColonyPool*)(colonies), .map=(ColonizeWorldMap*)(map)}, u->id, NULL, 0, ai_popups, messages);
       continue;
     }
@@ -150,13 +150,13 @@ void turn_refresh_moves_for_nation_w(
       /* bugs.md: count the nights parked — a unit fortified/sentried on a
        * PREVIOUS turn wakes with its full allotment (units_wake checks
        * park_nights > 0); one dug in this turn does not get its spent
-       * moves back. park_nights is port-only: bumping turns_worked here
+       * moves back. park_nights is port-only: bumping col1_counter16 here
        * double-counted the DOS +0x16 clocks (treasure despawned in ~4
        * turns not 8, anchored ships repaired ~2x fast — smell #39). */
       if (u->park_nights < 255) {
         u->park_nights++;
       }
-      u->moves_left = 0;
+      u->moves = 0;
       continue;
     }
     const ColonizeUnitType* type = units_type(pool, u->type_index);
@@ -167,11 +167,11 @@ void turn_refresh_moves_for_nation_w(
        * Europeans: remaining MP = @UNIT movement (+ Magellan sea +1).
        */
       if (nation_id >= 4) {
-        u->moves_left = 0;
+        u->moves = 0;
       } else {
-        u->moves_left = units_type_max_mp(type);
+        u->moves = units_type_max_mp(type);
         if (magellan && units_is_sea(pool, u->id)) {
-          u->moves_left += UNITS_MP_PER_TILE;
+          u->moves += UNITS_MP_PER_TILE;
         }
       }
     }
@@ -187,7 +187,7 @@ bool turn_select_next_unit(ColonizeUnitPool* pool, int human_nation) {
   int best_any = -1;
   for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
     const ColonizeUnit* u = &pool->units[i];
-    if (!u->active || u->nation_id != human_nation || u->moves_left <= 0) {
+    if (!u->active || u->nation_id != human_nation || u->moves <= 0) {
       continue;
     }
     if (!units_is_on_map(u)) {
@@ -2777,7 +2777,7 @@ static void turn_route_damaged_ships(ColonizeTurnContext* ctx, int nation) {
     const ColonizeUnitType* ty = units_type(ctx->units, u->type_index);
     /*
      * bit7 is shared by "under construction" and "combat damaged"; only the
-     * latter sets repair_pending, so that — not the turns_worked/threshold
+     * latter sets repair_pending, so that — not the col1_counter16/threshold
      * comparison — is what separates them. The old threshold test never let
      * a damaged ship through: units_tick_drydock_repair, which runs first,
      * clears bit7 the moment the timer completes, so the Europe fallback
@@ -2833,7 +2833,7 @@ static void turn_route_damaged_ships(ColonizeTurnContext* ctx, int nation) {
        * invasion. DOS FUN_43f7_0982 opens with "MoW pool empty and the crown
        * owns no Man-O-War -> put one back, land nothing this turn", so the
        * fleet cadence is driven by when the last hull leaves the map. An
-       * emptied hull needs one wave tick to raise turns_worked before the
+       * emptied hull needs one wave tick to raise col1_counter16 before the
        * ship act takes it home, so the normal cycle is land / hold / refill /
        * land. Deleting a damaged hull mid-turn skipped that tick, and the
        * refill (and the next landing) arrived a full turn EARLIER than if the

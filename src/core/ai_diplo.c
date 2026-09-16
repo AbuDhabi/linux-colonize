@@ -1948,7 +1948,7 @@ static void ai_talk_unit_to_europe(ColonizeTurnContext* ctx, int unit_id) {
   u->orders = UNITS_ORDER_NONE;
   u->goto_x = UNITS_GOTO_NONE;
   u->goto_y = UNITS_GOTO_NONE;
-  u->moves_left = 0;
+  u->moves = 0;
 }
 
 /* raw :98001-98032 / :98328-98358: military land units of `who` adjacent to

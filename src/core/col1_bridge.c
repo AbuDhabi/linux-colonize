@@ -1203,7 +1203,7 @@ bool col1_bridge_apply_w(
           }
         }
       }
-      const int turns = src->turns_worked > 0 ? (int)src->turns_worked : 1;
+      const int turns = src->col1_counter16 > 0 ? (int)src->col1_counter16 : 1;
       const int exit_x = (int)src->goto_x;
       const int exit_y = (int)src->goto_y;
       const bool exit_east = map->width > 0 ? exit_x >= map->width / 2 : true;
@@ -1370,7 +1370,7 @@ bool col1_bridge_apply_w(
             mu->last_dir = (int)(src->facing | ((unsigned)src->facing_pad << 3));
             mu->goto_x = 0;
             mu->goto_y = 0;
-            mu->moves_left = 0;
+            mu->moves = 0;
             europe_apply_dock_unit_kit(mu, dos_type);
             if (id_by_index) {
               id_by_index[i] = id;
@@ -1394,17 +1394,17 @@ bool col1_bridge_apply_w(
       u->nation_id = src->nation_id;
       /*
        * Col1 +0x05 = DOS moves_spent in thirds (FUN_465b_0000). Euro units:
-       * moves_left = max_mp - spent (0 = full refresh). Natives keep the
-       * literal byte — ai.c's Brave engine tracks DOS spent in moves_left
+       * moves = max_mp - spent (0 = full refresh). Natives keep the
+       * literal byte — ai.c's Brave engine tracks DOS spent in moves
        * itself (max 3), matching the TURN goldens.
        */
       const ColonizeUnitType* ut = units_type(units, ti);
       if (src->nation_id <= 3) {
         const int total = col1_bridge_unit_max_mp(ut, (int)src->nation_id, save);
         const int spent = (int)src->moves;
-        u->moves_left = total > spent ? total - spent : 0;
+        u->moves = total > spent ? total - spent : 0;
       } else {
-        u->moves_left = (int)src->moves;
+        u->moves = (int)src->moves;
       }
       u->orders = (int)src->orders;
       /*
@@ -1420,7 +1420,7 @@ bool col1_bridge_apply_w(
         u->goto_y = (int)src->goto_y;
       }
       u->profession = (int)src->profession;
-      u->turns_worked = (int)src->turns_worked;
+      u->col1_counter16 = (int)src->col1_counter16;
       /*
        * Trade-route cursor: DOS packs it into the profession byte a
        * route-running unit does not otherwise use (see the capture side and
@@ -1440,7 +1440,7 @@ bool col1_bridge_apply_w(
          * capture enforced it (and for DOS saves, which enforce nothing). */
         if (col1_bridge_trade_cursor_valid(save, route, unit_sea)) {
           u->follow_unit_id = route;
-          u->turns_worked = col1_bridge_trade_cursor_stop(save, route, stop);
+          u->col1_counter16 = col1_bridge_trade_cursor_stop(save, route, stop);
           u->profession = UNITS_JOB_NONE;
         } else {
           u->orders = UNITS_ORDER_NONE;
@@ -2443,9 +2443,9 @@ bool col1_bridge_capture_w(
       {
         /*
          * Col1 +0x05 = moves_spent in thirds. Euro units export
-         * max_mp - moves_left (units aboard a ship always 0, like COLONY00);
+         * max_mp - moves (units aboard a ship always 0, like COLONY00);
          * natives export the literal byte (Brave engine keeps DOS spent in
-         * moves_left).
+         * moves).
          */
         const ColonizeUnitType* ut = units_type(units, src->type_index);
         const bool transport = ut && ut->cargo > 0;
@@ -2463,7 +2463,7 @@ bool col1_bridge_capture_w(
           ) {
             /* Station-keep tip (TURN5 FR 52,43): COL1 moves spent = 0. */
             spent = 0;
-          } else if (src->moves_left <= 0) {
+          } else if (src->moves <= 0) {
             /*
              * Transports follow exactly the same ladder as land units. The
              * arm that used to sit above this one — "any transport whose
@@ -2493,7 +2493,7 @@ bool col1_bridge_capture_w(
              * unit on save+reload (smell #75).
              *
              * The one zero that is a PARK, not a spend: Sentry/Fortified held
-             * from a previous night. turn.c zeroes moves_left as its "skip
+             * from a previous night. turn.c zeroes moves as its "skip
              * this unit" flag while DOS's spent byte stays 0, and units_wake
              * hands those their allotment back (park_nights > 0). Same-turn
              * Fortify / the Fortified promotion night DO spend (viceroy
@@ -2503,12 +2503,12 @@ bool col1_bridge_capture_w(
               (src->orders == UNITS_ORDER_SENTRY || src->orders == UNITS_ORDER_FORTIFIED) &&
               src->park_nights > 0;
             spent = overnight_park ? 0 : max_mp;
-          } else if (src->moves_left < max_mp) {
-            spent = max_mp - src->moves_left;
+          } else if (src->moves < max_mp) {
+            spent = max_mp - src->moves;
           }
           dst->moves = (uint8_t)(spent < 0 ? 0 : (spent > 255 ? 255 : spent));
         } else {
-          dst->moves = (uint8_t)(src->moves_left < 0 ? 0 : src->moves_left);
+          dst->moves = (uint8_t)(src->moves < 0 ? 0 : src->moves);
         }
       }
       if (src->aboard_ship_id >= 0) {
@@ -2558,7 +2558,7 @@ bool col1_bridge_capture_w(
          * and FUN_1427_0f8e/0fa0 the high nibble (stop index), which is what
          * FUN_479b_0bd0 reads to bind DS:0x9e14/0x9e18 before servicing a
          * stop. The port keeps the pair unpacked at runtime (follow_unit_id =
-         * slot, turns_worked = stop); without this the slot was never written
+         * slot, col1_counter16 = stop); without this the slot was never written
          * to the file at all, so every reload dropped the wagon/ship off its
          * route and it just sat in the activation queue (bugs.md
          * trade_route_wagon.SAV).
@@ -2567,7 +2567,7 @@ bool col1_bridge_capture_w(
           const bool unit_sea = ut && ut->domain == COLONIZE_UNIT_DOMAIN_SEA;
           if (col1_bridge_trade_cursor_valid(save, src->follow_unit_id, unit_sea)) {
             const int stop =
-              col1_bridge_trade_cursor_stop(save, src->follow_unit_id, src->turns_worked);
+              col1_bridge_trade_cursor_stop(save, src->follow_unit_id, src->col1_counter16);
             dst->profession = (uint8_t)(((stop & 0xf) << 4) | (src->follow_unit_id & 0xf));
           } else {
             /* Symmetry with apply: a cursor the decoder would reject must not
@@ -2580,8 +2580,8 @@ bool col1_bridge_capture_w(
           }
         }
       }
-      dst->turns_worked =
-        (uint8_t)(src->turns_worked < 0 ? 0 : (src->turns_worked > 255 ? 255 : src->turns_worked));
+      dst->col1_counter16 =
+        (uint8_t)(src->col1_counter16 < 0 ? 0 : (src->col1_counter16 > 255 ? 255 : src->col1_counter16));
       /* Unpack col1_flags15's raw byte into the 8 named single-bit fields
        * (was one unknown15_lo:7 blob; see col1_save.h). */
       dst->unknown15_bit0 = (src->col1_flags15 & 0x01u) != 0 ? 1u : 0u;
@@ -2865,7 +2865,7 @@ bool col1_bridge_capture_w(
      *   228+n  in port (harbor)
      *   232+n  sailing to the New World (Bound), goto = landfall
      *   244+n  sailing to Europe (Expected), goto = the exit tile
-     * with `turns_worked` (+0x16) = voyage turns left and passengers chained
+     * with `col1_counter16` (+0x16) = voyage turns left and passengers chained
      * pax0→pax1→…→ship, sharing x/y/goto/turns. Harbor passengers were
      * already disembarked to the docks on arrival (their (236,236) mirror
      * units are in the pool), so only Expected/Bound carry cargo here.
@@ -2936,7 +2936,7 @@ bool col1_bridge_capture_w(
             px->orders = UNITS_ORDER_SENTRY; /* sentry aboard */
             px->goto_x = gx;
             px->goto_y = gy;
-            px->turns_worked = turns;
+            px->col1_counter16 = turns;
             {
               const ColonizeUnitType* put = units_type(units, pti);
               const bool treasure = put && strcmp(put->name, "Treasure") == 0;
@@ -2971,7 +2971,7 @@ bool col1_bridge_capture_w(
           }
           dst->goto_x = gx;
           dst->goto_y = gy;
-          dst->turns_worked = turns;
+          dst->col1_counter16 = turns;
           {
             int gi = 0;
             for (int h = 0; h < EUROPE_SHIP_CARGO_MAX && gi < 6; ++h) {

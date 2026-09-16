@@ -40,7 +40,7 @@ int units_spawn_treasure_train(
 
 /*
  * FUN_3844_0004 EOT treasure tick: Treasure on map not on own Euro colony
- * increments turns_worked (COL1 unit+0x16); after >8 turns despawn. On own
+ * increments col1_counter16 (COL1 unit+0x16); after >8 turns despawn. On own
  * colony tile resets counter to 0. Returns number of Treasures removed.
  * Optional status receives a short line when any despawn. Cite:
  * FUNCTION_CATALOG FUN_3844_0004; Colonization.pdf Treasure Trains.
@@ -56,7 +56,7 @@ int units_tick_treasure_outside_colony(
 /*
  * FUN_3844_00f2 ship-build ready: Col1 types 0x0d..0x12 with +0x3148 bit7
  * (Linux col1_flags15 bit7; same bit as ship_damaged for Frigate 0x0b —
- * construction gate excludes 0x0b). +1 turns_worked (+2 on any colony tile);
+ * construction gate excludes 0x0b). +1 col1_counter16 (+2 on any colony tile);
  * threshold = type.defense (DOS 0x5235 = NAMES @UNIT combat).
  * Clears bit7 on complete; human status line; *want_europe_open=1 if finished
  * off-colony. Returns ships completed. Cite: nation_eot_ship_spawn.md §A.
@@ -73,7 +73,7 @@ int units_tick_ship_build_ready(
 
 /*
  * Drydock repair: clear combat-damage bit7 for finished ships on own Drydock
- * colony. Construction (turns_worked < defense thresh) stays on ship-build tick.
+ * colony. Construction (col1_counter16 < defense thresh) stays on ship-build tick.
  * Returns ships repaired. ai_popups/messages optional — human repair emits @REFIT.
  * Cite: building_production.md; combat.md fort bit7.
  */
@@ -279,14 +279,14 @@ bool units_unload_passenger_w(
 );
 /*
  * DOS FUN_4720_015c landfall eligibility: the passenger's spent byte must be
- * BELOW its max MP. An aboard sentry parked at moves_left 0 still qualifies
+ * BELOW its max MP. An aboard sentry parked at moves 0 still qualifies
  * (DOS spent == 0); one that burnt its allotment this turn (mp_spent_turn)
  * does not — it stays on the ship (bugs.md #423).
  */
 bool units_cargo_can_landfall(const ColonizeUnitPool* pool, int unit_id);
 /*
  * Landfall passenger pick (FUN_4720_015c): first eligible cargo, preferring
- * one with live moves_left. −1 = nobody may land this turn (DOS then refuses
+ * one with live moves. −1 = nobody may land this turn (DOS then refuses
  * the move outright instead of raising @LANDFALL).
  */
 int units_first_landfall_cargo(const ColonizeUnitPool* pool, int ship_id);

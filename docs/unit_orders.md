@@ -97,7 +97,7 @@ flowchart TD
 
 | Phase | When | What |
 |-------|------|------|
-| Issue | Menu / key / mouse / AI | Set `orders` (+ optional `goto_*` / `follow_unit_id`); often `moves_left = 0` |
+| Issue | Menu / key / mouse / AI | Set `orders` (+ optional `goto_*` / `follow_unit_id`); often `moves = 0` |
 | Frame tick | Human map `game_update` (~10 Hz) | `units_advance_goto_one_step` for goto-followers; trade retarget at stop |
 | Nation refresh | `turn_refresh_moves_for_nation` | FORTIFY→FORTIFIED; pioneer `units_pioneer_work_tick`; skip-turn units stay at 0 MP; others restore allotment |
 | Wake / clear | Activate, stack wake, replace order, arrival, player Go-To cancel | `units_wake` / `units_clear_orders` |

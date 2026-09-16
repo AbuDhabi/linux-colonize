@@ -1932,7 +1932,7 @@ int colonies_eject_colonist(
     u->horses = horses_take;
     /* bugs.md: a freshly ejected/armed/horsed unit starts with no moves —
      * it acts from next turn's refresh. */
-    u->moves_left = 0;
+    u->moves = 0;
   }
   return uid;
 }

@@ -184,7 +184,7 @@ pinned to the sidebar bottom, flashing white(15)/black(0)
 that isn't a minimap hit confirms via `game_do_end_turn`. Pending check is
 `game_units_pending_orders` — a non-mutating mirror of
 `turn_select_next_unit` incl. standing-order skips (the older
-exhausted-units test looked only at `moves_left`, so it wrongly counted
+exhausted-units test looked only at `moves`, so it wrongly counted
 Fortified/Sentried units as pending).
 
 ### Debug: Building Rects

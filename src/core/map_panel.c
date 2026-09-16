@@ -1314,7 +1314,7 @@ void map_panel_render_w(
     int side_y = icon_y + 2;
     char line[72];
     char mp_text[16];
-    units_format_mp(selected->moves_left, mp_text, sizeof(mp_text));
+    units_format_mp(selected->moves, mp_text, sizeof(mp_text));
     snprintf(line, sizeof(line), "%s %s", panel ? panel->label_moves : "Moves:", mp_text);
     map_panel_draw_line(font, framebuffer, indent_x, &side_y, line_h, y_limit, line, MAP_PANEL_COL_TEXT);
     snprintf(

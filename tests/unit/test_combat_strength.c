@@ -238,7 +238,7 @@ static int test_fatigue_applies_at_sea(void) {
   ColonizeCombatEngageResult rested;
   combat_naval_engage(&ctx, atk, def, &rested);
 
-  units_get(&pool, atk)->moves_left = 2; /* 2 of 3 thirds left */
+  units_get(&pool, atk)->moves = 2; /* 2 of 3 thirds left */
   ColonizeCombatEngageResult tired;
   combat_naval_engage(&ctx, atk, def, &tired);
 

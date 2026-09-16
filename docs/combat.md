@@ -211,8 +211,8 @@ nothing. Pinned by `tests/unit/test_combat_strength.c`
 
 Crown nation = DS:`0x53d2` (Linux: peer of human Euro slot, same as
 `ai_king_crown_nation`). WoI / `ref_present` read the real `game_options`
-bits (the old `unknown46[0]/[1]` stand-ins were retired 2026-08-28 — that
-array is DOS `price_group_state`, see king_ref.md).
+bits (the old `market_demand_pool_raw[0]/[1]` stand-ins were retired 2026-08-28 — that
+array is DOS `market_demand_pool`, see king_ref.md).
 
 **`bVar28` and the difficulty-handicap group (2026-09-08).** `bVar28` is
 1b0e's "I built this defender myself" flag, set by **both** auto-spawn arms of
@@ -387,7 +387,7 @@ Combat loss remaps **unit type** (not merely profession). Cite:
   `%STRING2`. The ship stays on its tile and `turn_route_damaged_ships` hands
   it to the Europe lane at end of turn — that voyage IS the repair. WoI human
   keeps the DOS `goto`-to-sunk (no friendly Europe).
-- **Repair timer** (`0x5235` column): `turns_worked` preset to
+- **Repair timer** (`0x5235` column): `col1_counter16` preset to
   `max(0, loser.combat - winner.combat)`, the winner's value doubled when it
   is not a ship (fort fire), Frigate floor 4 / Man-O-War floor 8; the EOT ship
   tick counts +1, +2 on a colony tile. The damage turn itself does not count
@@ -454,7 +454,7 @@ artillery clauses. `combat_naval_engage` calls the same
 Linux: `ai_contact_try_tired_attack_confirm` + `AI_POPUP_TAG_COMBAT_HALF`
 (the last of `game_try_unit_move`'s pre-move confirms, matching 1b0e's own
 order), `units_remaining_mp` (native units keep DOS's spent byte in
-`moves_left`; Europeans keep the remainder).
+`moves`; Europeans keep the remainder).
 
 **Unported residue:** DOS also calls `unit_exhaust_mp` on the attacker after
 the prompt, so a DOS attack always ends the unit's turn; the port still drains

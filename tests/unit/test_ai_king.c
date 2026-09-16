@@ -3,8 +3,8 @@
  * 0982 wave composition (MoW-per-beat / pool caps / Regular-heavy),
  * 10f0 intervention (dual + small pools + nation pick), 2244 merc hire /
  * Decline, 1eca Continental mobilization (colony-SoL bias, SoL=50 band edge,
- * Cont. Army abbrev skip, Veteran/own-tile gates), congress unknown46[5] on
- * declare, WoI unknown46[0] only when SoL≥50, Refuse→@TEAPARTY OK (thin 3dc8
+ * Cont. Army abbrev skip, Veteran/own-tile gates), congress market_demand_pool_raw[5] on
+ * declare, WoI market_demand_pool_raw[0] only when SoL≥50, Refuse→@TEAPARTY OK (thin 3dc8
  * stock dump), revolution end ladder (@LOSING1/2/3, @WARN1/2/3, @WINNING,
  * @RETIRING2, @SCORED, @SOONRETIRING0/1), 20e6 MoW sail-home, 0a22 bell-pool
  * spend. 160a letter cinematic Done (declaration.c). PARK: dump-goods CHOICE
@@ -320,7 +320,7 @@ static int test_king_noncombat_never_attacks(void) {
       fprintf(stderr, "unit_ai_king: Tory wagon moved to (%d,%d)\n", w->x, w->y);
       return fail("crown Wagon Train must not join the REF hunt");
     }
-    w->moves_left = units_max_mp(&units, wagon);
+    w->moves = units_max_mp(&units, wagon);
   }
 
   colonies_init(&colonies);
@@ -993,15 +993,15 @@ static int case_king_narrative(void) {
     return fail("SoL 45 should not declare WoI");
   }
   if (ai_king_latch_get(&col1, 5) != 0) {
-    return fail("SoL 45 should not set congress confirm unknown46[5]");
+    return fail("SoL 45 should not set congress confirm market_demand_pool_raw[5]");
   }
   if (!strstr(status, "Sons of Liberty") || !strstr(status, "45")) {
     fprintf(stderr, "unit_ai_king: SoL chrome status: '%s'\n", status);
     return fail("SoL 40-49 should set restless status line");
   }
-  /* unknown46 consistency: restless chrome must not set WoI or congress. */
+  /* market_demand_pool_raw consistency: restless chrome must not set WoI or congress. */
   if (ai_king_latch_get(&col1, 0) != 0 || ai_king_latch_get(&col1, 5) != 0) {
-    return fail("restless SoL chrome must leave WoI/congress unknown46 clear");
+    return fail("restless SoL chrome must leave WoI/congress market_demand_pool_raw clear");
   }
   /* Optional tax mention when tax_rate already in refuse band (≥20). */
   if (col1.nation[0].tax_rate >= 20 &&
@@ -1043,7 +1043,7 @@ static int case_king_narrative(void) {
   }
 
   /*
-   * WoI unknown46[0] SoL gate (FUN_43f7_2564 / fandom total SoL ≥ 50%):
+   * WoI market_demand_pool_raw[0] SoL gate (FUN_43f7_2564 / fandom total SoL ≥ 50%):
    * SoL 49 must NOT declare regardless of liberty bells.
    */
   {
@@ -1062,10 +1062,10 @@ static int case_king_narrative(void) {
     }
     ai_king_nation_turn(&ctx);
     if (ai_king_latch_get(&col1, 0) != 0) {
-      return fail("SoL 49 must not set WoI unknown46[0]");
+      return fail("SoL 49 must not set WoI market_demand_pool_raw[0]");
     }
     if (ai_king_latch_get(&col1, 5) != 0) {
-      return fail("SoL 49 must not set congress unknown46[5]");
+      return fail("SoL 49 must not set congress market_demand_pool_raw[5]");
     }
   }
 
@@ -1098,10 +1098,10 @@ static int case_king_narrative(void) {
 
   ai_king_nation_turn(&ctx);
   if (ai_king_latch_get(&col1, 0) == 0) {
-    return fail("declare should set WoI flag unknown46[0]");
+    return fail("declare should set WoI flag market_demand_pool_raw[0]");
   }
   if (ai_king_latch_get(&col1, 5) == 0) {
-    return fail("declare should set congress confirm unknown46[5]");
+    return fail("declare should set congress confirm market_demand_pool_raw[5]");
   }
   /* bugs.md #239: NO rename — DOS 160a is only the signing cinematic;
    * "United Colonies" was a port invention. The faction reads Rebels/Tory
@@ -1252,7 +1252,7 @@ static int case_king_narrative(void) {
   }
   /* Pools seeded on declare then drained; still expect REF-present stand-in. */
   if (ai_king_latch_get(&col1, 1) == 0) {
-    return fail("wave should set REF-present unknown46[1]");
+    return fail("wave should set REF-present market_demand_pool_raw[1]");
   }
   /* Declare should seed thin backup_force (10f0 stand-in). */
   if (col1.head.backup_force[0] == 0 && col1.head.backup_force[1] == 0 &&
@@ -1416,7 +1416,7 @@ static int case_king_narrative(void) {
       if (u->active && u->nation_id == 1 && units_is_sea(&units, u->id)) {
         u->active = false;
       } else if (u->active && u->nation_id == 1) {
-        u->moves_left = 0;
+        u->moves = 0;
         if (u->x == 5 && u->y == 5) {
           u->x = 1;
           u->y = 1;
@@ -1449,7 +1449,7 @@ static int case_king_narrative(void) {
           art_units_before++;
         }
         if (u->active && u->nation_id == 1) {
-          units.units[i].moves_left = 0;
+          units.units[i].moves = 0;
         }
       }
       ai_king_ref_pre_euro_beat(&ctx);
@@ -1512,7 +1512,7 @@ static int case_king_narrative(void) {
     }
     mow->nation_id = 1;
     mow->cargo_count = 0;
-    mow->moves_left = 4 * UNITS_MP_PER_TILE;
+    mow->moves = 4 * UNITS_MP_PER_TILE;
     mow->orders = UNITS_ORDER_NONE;
     mow->goto_x = -1;
     mow->goto_y = -1;
@@ -1579,7 +1579,7 @@ static int case_king_narrative(void) {
   for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
     ColonizeUnit* u = &units.units[i];
     if (u->active && u->nation_id == 1) {
-      u->moves_left = 0;
+      u->moves = 0;
     }
   }
   const int sid = units_spawn_allow_stack(&units, ty_soldier, 5, 5);
@@ -1693,7 +1693,7 @@ static int case_king_narrative(void) {
   for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
     ColonizeUnit* u = &units.units[i];
     if (u->active && u->nation_id == 1) {
-      u->moves_left = 0;
+      u->moves = 0;
     }
   }
   const int sid2 = units_spawn_allow_stack(&units, ty_soldier, 5, 5);
@@ -1763,7 +1763,7 @@ static int case_king_narrative(void) {
   for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
     ColonizeUnit* u = &units.units[i];
     if (u->active && u->nation_id == 1) {
-      u->moves_left = 0;
+      u->moves = 0;
     }
   }
   {
@@ -1794,7 +1794,7 @@ static int case_king_narrative(void) {
       su->orders = UNITS_ORDER_FORTIFIED;
       du->orders = UNITS_ORDER_FORTIFIED;
       ca->orders = UNITS_ORDER_FORTIFIED;
-      ca->moves_left = 0; /* hold — only assert type skip, not rally */
+      ca->moves = 0; /* hold — only assert type skip, not rally */
       su->profession = UNITS_JOB_SOLDIER; /* Veteran gate, see 1eca note above */
       du->profession = UNITS_JOB_SOLDIER; /* eligible by type/profession; cap==1 still skips it */
     }
@@ -1882,7 +1882,7 @@ static int case_king_narrative(void) {
   for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
     ColonizeUnit* u = &units.units[i];
     if (u->active && u->nation_id == 1) {
-      u->moves_left = 0;
+      u->moves = 0;
     }
   }
   const int sid_hi = units_spawn_allow_stack(&units, ty_soldier, 11, 5);
@@ -1956,19 +1956,19 @@ static int case_king_narrative(void) {
         return fail("Cont. no-auto-play unit lookup");
       }
       ca->nation_id = 0;
-      ca->moves_left = 2 * UNITS_MP_PER_TILE;
+      ca->moves = 2 * UNITS_MP_PER_TILE;
       ca->orders = UNITS_ORDER_NONE;
       ca->goto_x = -1;
       ca->goto_y = -1;
       cav->nation_id = 0;
-      cav->moves_left = 2 * UNITS_MP_PER_TILE;
+      cav->moves = 2 * UNITS_MP_PER_TILE;
       cav->orders = UNITS_ORDER_NONE;
       cav->goto_x = -1;
       cav->goto_y = -1;
       /* On the founding capital and dug in — the old code re-fortified this
        * one; nothing may touch it either way. */
       fort->nation_id = 0;
-      fort->moves_left = 2 * UNITS_MP_PER_TILE;
+      fort->moves = 2 * UNITS_MP_PER_TILE;
       fort->orders = UNITS_ORDER_FORTIFIED;
       fort->goto_x = -1;
       fort->goto_y = -1;
@@ -2011,7 +2011,7 @@ static int case_king_narrative(void) {
       ca->orders = UNITS_ORDER_GOTO;
       ca->goto_x = 14;
       ca->goto_y = 14;
-      ca->moves_left = 2 * UNITS_MP_PER_TILE;
+      ca->moves = 2 * UNITS_MP_PER_TILE;
       ai_king_ref_pre_euro_beat(&ctx);
       ai_king_nation_turn(&ctx);
       ca = units_get(&units, ca_id);
@@ -2054,7 +2054,7 @@ static int case_king_narrative(void) {
       if (u->active && u->nation_id == 1 && units_is_sea(&units, u->id)) {
         u->active = false;
       } else if (u->active && u->nation_id == 1) {
-        u->moves_left = 0;
+        u->moves = 0;
         if (u->x == 5 && u->y == 5) {
           u->x = 1;
           u->y = 1;
@@ -2102,7 +2102,7 @@ static int case_king_narrative(void) {
       if (u->active && u->nation_id == 1 && units_is_sea(&units, u->id)) {
         u->active = false;
       } else if (u->active && u->nation_id == 1) {
-        u->moves_left = 0;
+        u->moves = 0;
         if (u->x == 5 && u->y == 5) {
           u->x = 1;
           u->y = 1;
@@ -2173,7 +2173,7 @@ static int case_king_narrative(void) {
       if (u->active && u->nation_id == 1 && units_is_sea(&units, u->id)) {
         u->active = false;
       } else if (u->active && u->nation_id == 1) {
-        u->moves_left = 0;
+        u->moves = 0;
         if (u->x == 5 && u->y == 5) {
           u->x = 1;
           u->y = 1;
@@ -2491,7 +2491,7 @@ static int case_king_narrative(void) {
     ai_popup_consume_result(&pop);
     if (ai_king_latch_get(&col1, 0) == 0 || ai_king_latch_get(&col1, 5) == 0) {
       assets_msg_free(&game_txt);
-      return fail("apply Confirm should declare WoI + congress unknown46[5]");
+      return fail("apply Confirm should declare WoI + congress market_demand_pool_raw[5]");
     }
     /* R2: Confirm chain → @INDEPENDENCE letter OK. bugs.md #236: NO @HOWTOWIN
      * at declare — it fires at the first rebel recapture (units.c). */
@@ -2592,13 +2592,13 @@ static int case_king_narrative(void) {
     col1.head.backup_force[3] = 0;
     /* Park crown far from the port so same-beat war_act combat/capture
      * cannot re-take it before the popup apply reads it back
-     * (weakest_port needs it human). moves_left=0 alone wasn't enough —
+     * (weakest_port needs it human). moves=0 alone wasn't enough —
      * a crown unit already standing on/adjacent to the tile can still
      * capture on presence; move them away entirely. */
     for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
       ColonizeUnit* u = &units.units[i];
       if (u->active && u->nation_id == 1) {
-        u->moves_left = 0;
+        u->moves = 0;
         u->x = 0;
         u->y = 0;
       }
@@ -2685,7 +2685,7 @@ static int case_king_narrative(void) {
       for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
         ColonizeUnit* u = &units.units[i];
         if (u->active && u->nation_id == 1) {
-          u->moves_left = 0;
+          u->moves = 0;
           u->x = 0;
           u->y = 0;
         }
@@ -3357,14 +3357,14 @@ static int case_revolution_warn_one_colony(void) {
       free(emap.terrain);
       free(emap.layer2);
       free(emap.layer3);
-      return fail("colonies<3 outranks ports<3: unknown46[6] must stay clear");
+      return fail("colonies<3 outranks ports<3: market_demand_pool_raw[6] must stay clear");
     }
     if (ai_king_latch_get(&end, 7) != 1) {
       assets_msg_free(&game_txt);
       free(emap.terrain);
       free(emap.layer2);
       free(emap.layer3);
-      return fail("warn2 should set unknown46[7] episode latch");
+      return fail("warn2 should set market_demand_pool_raw[7] episode latch");
     }
     if (!strstr(estatus, "all but 1") || !strstr(estatus, "lose the war")) {
       fprintf(stderr, "unit_ai_king: warn2 status: '%s'\n", estatus);
@@ -3646,7 +3646,7 @@ static int case_revolution_warn3_pop_share(void) {
       free(emap.terrain);
       free(emap.layer2);
       free(emap.layer3);
-      return fail("warn3 should set unknown46[10] episode latch");
+      return fail("warn3 should set market_demand_pool_raw[10] episode latch");
     }
     {
       int found = 0;
@@ -4350,7 +4350,7 @@ static int case_peacetime_soonretiring0_1790(void) {
     ai_king_nation_turn(&ectx);
     if (ai_king_latch_get(&end, 8) != 1) {
       assets_msg_free(&game_txt);
-      return fail("1790 spring should set unknown46[8] @SOONRETIRING0 latch");
+      return fail("1790 spring should set market_demand_pool_raw[8] @SOONRETIRING0 latch");
     }
     if (!strstr(estatus, "retire in 1800")) {
       fprintf(stderr, "unit_ai_king: soon0 status: '%s'\n", estatus);
@@ -4487,7 +4487,7 @@ static int case_wartime_soonretiring1_1840(void) {
       free(emap.terrain);
       free(emap.layer2);
       free(emap.layer3);
-      return fail("1840 WoI should set unknown46[9] @SOONRETIRING1 latch");
+      return fail("1840 WoI should set market_demand_pool_raw[9] @SOONRETIRING1 latch");
     }
     if (!strstr(estatus, "weary of this long war") && !strstr(estatus, "1850")) {
       fprintf(stderr, "unit_ai_king: soon1 status: '%s'\n", estatus);

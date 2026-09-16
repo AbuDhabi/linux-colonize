@@ -2,7 +2,7 @@
  * port_plan P6.1: FUN_38fd_0058 EOT market tick vs two real-DOS turn pairs.
  * Loads the "before" save, runs europe_tick_market_prices once (the human's
  * 5e52 phase-3 call, with nation 0's pool decay folded in), and compares:
- *   - head.price_group_state[16] against the "after" save, all 16 slots
+ *   - head.market_demand_pool[16] against the "after" save, all 16 slots
  *     (decay = (pool + Σ max(0, nation tons2)) >> 7, only while nation 0 is
  *     not withdrawn — the no-transports pair has nation 0 at control 2 and
  *     its pool is byte-identical across the turn, the dutch2 pair decays);
@@ -76,10 +76,10 @@ static int run_pair(const PairSpec* ps) {
 
   int rc = 0;
   for (int c = 0; c < 16; ++c) {
-    if (a.head.price_group_state[c] != b.head.price_group_state[c]) {
+    if (a.head.market_demand_pool[c] != b.head.market_demand_pool[c]) {
       fprintf(
-        stderr, "%s: price_group_state[%d] want %u got %u\n", ps->before, c,
-        b.head.price_group_state[c], a.head.price_group_state[c]
+        stderr, "%s: market_demand_pool[%d] want %u got %u\n", ps->before, c,
+        b.head.market_demand_pool[c], a.head.market_demand_pool[c]
       );
       rc = 1;
     }

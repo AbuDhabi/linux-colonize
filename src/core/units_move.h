@@ -63,8 +63,8 @@ bool units_can_enter_w(
  * Movement points are DOS thirds (FUN_465b_0000 cost head; DS:0x5234 unit
  * table = @UNIT movement * 3, ships +3 with Magellan): a plains step costs
  * 3, a road/colony pair or cardinal minor-river pair costs 1, an ocean tile
- * costs 3. `moves_left` holds thirds remaining. Native Braves (ai.c) keep
- * their own bookkeeping (moves_left = DOS spent thirds, max 3).
+ * costs 3. `moves` holds thirds remaining. Native Braves (ai.c) keep
+ * their own bookkeeping (moves = DOS spent thirds, max 3).
  */
 #define UNITS_MP_PER_TILE 3
 /* @UNIT movement * 3 (DOS FUN_1427_065a base). */
@@ -73,7 +73,7 @@ int units_type_max_mp(const ColonizeUnitType* type);
 int units_max_mp(const ColonizeUnitPool* pool, int unit_id);
 /*
  * Movement thirds the unit still has. Euro units store that directly in
- * moves_left; native units store DOS's spent byte there, so this is the only
+ * moves; native units store DOS's spent byte there, so this is the only
  * safe way to ask "how much is left" across both.
  */
 int units_remaining_mp(const ColonizeUnitPool* pool, int unit_id);
@@ -141,7 +141,7 @@ static inline bool units_orders_is_follow(int orders) {
 void units_clear_orders(ColonizeUnitPool* pool, int unit_id);
 /*
  * Set sentry / fortify / fortified. Clears goto. Land units only for fortify.
- * Sentry/fortify spend remaining MP (moves_left = 0). Returns false if invalid.
+ * Sentry/fortify spend remaining MP (moves = 0). Returns false if invalid.
  */
 bool units_set_orders(ColonizeUnitPool* pool, int unit_id, int orders);
 /* Fortify: orders=FORTIFY, spend MP; next nation refresh → FORTIFIED. */

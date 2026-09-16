@@ -235,17 +235,17 @@ static int assemble_boards_whole_reserved_hull(void) {
     return fail("spawn assemble units");
   }
   ship->nation_id = nation;
-  ship->moves_left = 4 * UNITS_MP_PER_TILE;
+  ship->moves = 4 * UNITS_MP_PER_TILE;
   ship->orders = 0;
   a->nation_id = nation;
-  /* moves_left = 0 keeps the land act loop off these two (the dispatcher
+  /* moves = 0 keeps the land act loop off these two (the dispatcher
    * skips a spent unit once the nation owns a colony), so the only thing that
    * can move them this turn is the ship's own berth act. The raw 3024-3051
    * scan does not look at movement points. */
-  a->moves_left = 0;
+  a->moves = 0;
   a->orders = 0;
   b->nation_id = nation;
-  b->moves_left = 0;
+  b->moves = 0;
   b->orders = 0;
 
   ai_euro_dispatcher_turn(&f.ctx, nation);
@@ -264,7 +264,7 @@ static int assemble_boards_whole_reserved_hull(void) {
    * LAB_4d2e step, and the later acts of the same turn may run the unload
    * arm on the passengers it just boarded. What the fixture proves is that
    * the whole reserved hull was assembled by the ship's berth act — the two
-   * Pioneers had moves_left 0, so only the ship could move them off (11,4):
+   * Pioneers had moves 0, so only the ship could move them off (11,4):
    * each is still aboard, or has since been put ashore / absorbed by it.
    */
   const int a_moved = !a || a->aboard_ship_id == ship_id || a->x != 11 || a->y != 4;
@@ -314,15 +314,15 @@ static int assemble_ignores_empty_hold_sentinel(void) {
     return fail("spawn sentinel-hull units");
   }
   ship->nation_id = nation;
-  ship->moves_left = 4 * UNITS_MP_PER_TILE;
+  ship->moves = 4 * UNITS_MP_PER_TILE;
   ship->orders = 0;
   ship->hold_goods_type[0] = 0;
   ship->hold_goods_amount[0] = 255; /* COL1 empty-hold sentinel */
   a->nation_id = nation;
-  a->moves_left = 0;
+  a->moves = 0;
   a->orders = 0;
   b->nation_id = nation;
-  b->moves_left = 0;
+  b->moves = 0;
   b->orders = 0;
 
   ai_euro_dispatcher_turn(&f.ctx, nation);
@@ -331,7 +331,7 @@ static int assemble_ignores_empty_hold_sentinel(void) {
   b = units_get(&f.units, p2);
   /* Same reading as case 1a: since the ship wander port the hull leaves the
    * berth after boarding and later acts may put a passenger ashore; both
-   * Pioneers (moves_left 0) can only have left (11,4) through the ship. */
+   * Pioneers (moves 0) can only have left (11,4) through the ship. */
   const int a_moved = !a || a->aboard_ship_id == ship_id || a->x != 11 || a->y != 4;
   const int b_moved = !b || b->aboard_ship_id == ship_id || b->x != 11 || b->y != 4;
   if (!a_moved || !b_moved) {
@@ -373,10 +373,10 @@ static int assemble_refuses_oversize_passenger(void) {
     return fail("spawn oversize units");
   }
   ship->nation_id = nation;
-  ship->moves_left = 4 * UNITS_MP_PER_TILE;
+  ship->moves = 4 * UNITS_MP_PER_TILE;
   ship->orders = 0;
   p->nation_id = nation;
-  p->moves_left = 0; /* see the note in the two-passenger case */
+  p->moves = 0; /* see the note in the two-passenger case */
   p->orders = 0;
 
   ai_euro_dispatcher_turn(&f.ctx, nation);
@@ -434,10 +434,10 @@ static int assemble_ignores_unmarked_stack_member(void) {
     return fail("spawn unmarked stack member");
   }
   ship->nation_id = nation;
-  ship->moves_left = 4 * UNITS_MP_PER_TILE;
+  ship->moves = 4 * UNITS_MP_PER_TILE;
   ship->orders = 0;
   col->nation_id = nation;
-  col->moves_left = 0; /* the land act loop skips it; the mark scan does not care */
+  col->moves = 0; /* the land act loop skips it; the mark scan does not care */
   col->orders = 0;
 
   ai_euro_dispatcher_turn(&f.ctx, nation);
@@ -487,7 +487,7 @@ static int wagon_binds_and_parks_at_own_colony(void) {
     return fail("spawn wagon");
   }
   w->nation_id = nation;
-  w->moves_left = 2 * UNITS_MP_PER_TILE;
+  w->moves = 2 * UNITS_MP_PER_TILE;
   w->orders = 0;
   w->col1_origin = 0xff; /* unbound */
 
@@ -557,7 +557,7 @@ static int wagon_walks_home_to_bound_colony(void) {
     return fail("spawn wagon");
   }
   w->nation_id = nation;
-  w->moves_left = 2 * UNITS_MP_PER_TILE;
+  w->moves = 2 * UNITS_MP_PER_TILE;
   w->orders = 0;
   w->col1_origin = 0; /* bound to the FAR colony */
 
@@ -627,7 +627,7 @@ static int wagon_off_landmass_is_destroyed(void) {
     return fail("spawn wagon");
   }
   w->nation_id = nation;
-  w->moves_left = 2 * UNITS_MP_PER_TILE;
+  w->moves = 2 * UNITS_MP_PER_TILE;
   w->orders = 0;
   w->col1_origin = 0xff; /* unbound */
 
@@ -722,7 +722,7 @@ static int sell_tail_untaxed_credit_and_double_book(void) {
     return fail("spawn ship");
   }
   ship->nation_id = nation;
-  ship->moves_left = 4 * UNITS_MP_PER_TILE;
+  ship->moves = 4 * UNITS_MP_PER_TILE;
   ship->orders = 0;
   if (units_load_goods(&f.units, ship_id, COLONIZE_CARGO_TOOLS, 100) <= 0) {
     free(eu);
@@ -798,7 +798,7 @@ static int sell_tail_falls_through_to_work_queue(void) {
     return fail("spawn ship");
   }
   ship->nation_id = nation;
-  ship->moves_left = 4 * UNITS_MP_PER_TILE;
+  ship->moves = 4 * UNITS_MP_PER_TILE;
   ship->orders = 0;
   if (units_load_goods(&f.units, ship_id, COLONIZE_CARGO_TOOLS, 100) <= 0) {
     fixture_free(&f);

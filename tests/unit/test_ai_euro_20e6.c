@@ -153,7 +153,7 @@ static int unit_wander_step_is_adjacent(void) {
     return fail("spawn soldier");
   }
   s->nation_id = nation;
-  s->moves_left = 1 * UNITS_MP_PER_TILE;
+  s->moves = 1 * UNITS_MP_PER_TILE;
   s->orders = 0;
 
   ai_euro_dispatcher_turn(&f.ctx, nation);
@@ -207,7 +207,7 @@ static int unit_patrol_returns_to_colony(void) {
     return fail("spawn soldier");
   }
   s->nation_id = nation;
-  s->moves_left = 1 * UNITS_MP_PER_TILE;
+  s->moves = 1 * UNITS_MP_PER_TILE;
   s->orders = 0;
   const int before = cheb(8, 8, 4, 4);
 
@@ -263,7 +263,7 @@ static int unit_ring_hop_commits_far_goto(void) {
     return fail("spawn soldier");
   }
   s->nation_id = nation;
-  s->moves_left = 1 * UNITS_MP_PER_TILE;
+  s->moves = 1 * UNITS_MP_PER_TILE;
   s->orders = 0;
 
   ai_euro_dispatcher_turn(&f.ctx, nation);
@@ -328,7 +328,7 @@ static int unit_explorer_clears_explore_goal_on_its_tile(void) {
     return fail("spawn explorer");
   }
   s->nation_id = nation;
-  s->moves_left = 1 * UNITS_MP_PER_TILE;
+  s->moves = 1 * UNITS_MP_PER_TILE;
   s->orders = 0;
 
   ai_goals_reset();
@@ -412,7 +412,7 @@ static int unit_colony_sail_targets_needy_colony(void) {
     return fail("spawn ship/pax");
   }
   ship->nation_id = nation;
-  ship->moves_left = 4 * UNITS_MP_PER_TILE;
+  ship->moves = 4 * UNITS_MP_PER_TILE;
   ship->orders = 0;
   pax->nation_id = nation;
   scout->nation_id = nation;
@@ -462,7 +462,7 @@ static int unit_wagon_dead_end_destroyed(void) {
     return fail("spawn wagon");
   }
   w->nation_id = nation;
-  w->moves_left = 2 * UNITS_MP_PER_TILE;
+  w->moves = 2 * UNITS_MP_PER_TILE;
   w->orders = 0;
 
   ai_euro_dispatcher_turn(&f.ctx, nation);
@@ -505,7 +505,7 @@ static int unit_wagon_with_target_survives(void) {
     return fail("spawn wagon");
   }
   w->nation_id = nation;
-  w->moves_left = 2 * UNITS_MP_PER_TILE;
+  w->moves = 2 * UNITS_MP_PER_TILE;
   w->orders = 0;
 
   ai_euro_dispatcher_turn(&f.ctx, nation);
@@ -561,7 +561,7 @@ static int unit_empty_ship_hs_cadence(void) {
     return fail("spawn ship");
   }
   ship->nation_id = nation;
-  ship->moves_left = 4 * UNITS_MP_PER_TILE;
+  ship->moves = 4 * UNITS_MP_PER_TILE;
   ship->orders = 0;
   /* ((char)id + (char)turn) & 0x1f == 0 */
   f.turn = (uint32_t)(32 - (ship_id % 32));
@@ -640,7 +640,7 @@ static int unit_delivery_matrix_skips_full_producer(void) {
     return fail("spawn ship");
   }
   ship->nation_id = nation;
-  ship->moves_left = 4 * UNITS_MP_PER_TILE;
+  ship->moves = 4 * UNITS_MP_PER_TILE;
   ship->orders = 0;
   if (units_load_goods(&f.units, ship_id, COLONIZE_CARGO_TOOLS, 100) <= 0) {
     fixture_free(&f);
@@ -722,7 +722,7 @@ static int unit_delivery_sell_tail_dumps_cargo(void) {
     return fail("spawn ship");
   }
   ship->nation_id = nation;
-  ship->moves_left = 4 * UNITS_MP_PER_TILE;
+  ship->moves = 4 * UNITS_MP_PER_TILE;
   ship->orders = 0;
   if (units_load_goods(&f.units, ship_id, COLONIZE_CARGO_TOOLS, 100) <= 0) {
     fixture_free(&f);
@@ -808,7 +808,7 @@ static int unit_load_matrix_picks_priced_cargo(void) {
     return fail("spawn ship");
   }
   ship->nation_id = nation;
-  ship->moves_left = 4 * UNITS_MP_PER_TILE;
+  ship->moves = 4 * UNITS_MP_PER_TILE;
   ship->orders = 0;
 
   ai_euro_dispatcher_turn(&f.ctx, nation);
@@ -928,7 +928,7 @@ static int unit_ship_berth_dumps_whole_hull(void) {
       return fail("spawn ship");
     }
     ship->nation_id = nation;
-    ship->moves_left = 4 * UNITS_MP_PER_TILE;
+    ship->moves = 4 * UNITS_MP_PER_TILE;
     ship->orders = 0;
     if (units_load_goods(&f.units, ship_id, COLONIZE_CARGO_ORE, 80) <= 0 ||
         units_load_goods(&f.units, ship_id, COLONIZE_CARGO_FURS, 40) <= 0) {
@@ -1066,10 +1066,10 @@ static int unit_berth_marks_then_assembles_passenger(void) {
     return fail("spawn berth boarding units");
   }
   ship->nation_id = nation;
-  ship->moves_left = 4 * UNITS_MP_PER_TILE;
+  ship->moves = 4 * UNITS_MP_PER_TILE;
   ship->orders = 0;
   sol->nation_id = nation;
-  sol->moves_left = UNITS_MP_PER_TILE;
+  sol->moves = UNITS_MP_PER_TILE;
   sol->orders = 0;
 
   ai_euro_dispatcher_turn(&f.ctx, nation);
@@ -1165,10 +1165,10 @@ static int unit_work_queue_pickup_aims_at_goods_colony(void) {
     return fail("spawn pickup ship/wagon");
   }
   sh->nation_id = nation;
-  sh->moves_left = 4 * UNITS_MP_PER_TILE;
+  sh->moves = 4 * UNITS_MP_PER_TILE;
   sh->orders = 0;
   w->nation_id = nation;
-  w->moves_left = 2 * UNITS_MP_PER_TILE;
+  w->moves = 2 * UNITS_MP_PER_TILE;
   w->orders = 0;
 
   ai_euro_dispatcher_turn(&f.ctx, nation);
@@ -1253,7 +1253,7 @@ static int unit_wagon_load_matrix_starts_village_errand(void) {
     return fail("spawn errand wagon");
   }
   w->nation_id = nation;
-  w->moves_left = 2 * UNITS_MP_PER_TILE;
+  w->moves = 2 * UNITS_MP_PER_TILE;
   w->orders = 0;
 
   ai_euro_dispatcher_turn(&f.ctx, nation);
@@ -1332,7 +1332,7 @@ static int unit_wagon_errand_trades_at_village(void) {
     return fail("spawn trading wagon");
   }
   w->nation_id = nation;
-  w->moves_left = 2 * UNITS_MP_PER_TILE;
+  w->moves = 2 * UNITS_MP_PER_TILE;
   w->orders = 0;
 
   /* Beat 1: load + latch + goto the village. */
@@ -1346,7 +1346,7 @@ static int unit_wagon_errand_trades_at_village(void) {
   /* Walk it adjacent by hand; beat 2 is the arrival. */
   w->x = 7;
   w->y = 4;
-  w->moves_left = 2 * UNITS_MP_PER_TILE;
+  w->moves = 2 * UNITS_MP_PER_TILE;
   const uint32_t gold_before = f.col1.nation[nation].gold;
   f.turn += 1;
 
@@ -1377,7 +1377,7 @@ static int unit_wagon_errand_trades_at_village(void) {
     fixture_free(&f);
     return fail("accepted sale should credit Euro gold");
   }
-  if (w->moves_left != 0) {
+  if (w->moves != 0) {
     f.col1.tribe = NULL;
     fixture_free(&f);
     return fail("4528 return forfeits the wagon's MP");
@@ -1437,7 +1437,7 @@ static int unit_wagon_errand_dead_end_destroyed(void) {
     return fail("spawn stranded wagon");
   }
   w->nation_id = nation;
-  w->moves_left = 2 * UNITS_MP_PER_TILE;
+  w->moves = 2 * UNITS_MP_PER_TILE;
   w->orders = 0;
 
   ai_euro_dispatcher_turn(&f.ctx, nation);
@@ -1511,7 +1511,7 @@ static int unit_treasure_in_colony_cash_in(void) {
     return fail("spawn treasure");
   }
   t->nation_id = nation;
-  t->moves_left = 1 * UNITS_MP_PER_TILE;
+  t->moves = 1 * UNITS_MP_PER_TILE;
   t->orders = 0;
   t->profession = 9; /* DOS +0x315b: gold/100 → 900 */
 
@@ -1522,7 +1522,7 @@ static int unit_treasure_in_colony_cash_in(void) {
     return fail("spawn human treasure");
   }
   h->nation_id = f.ctx.human_nation;
-  h->moves_left = 1 * UNITS_MP_PER_TILE;
+  h->moves = 1 * UNITS_MP_PER_TILE;
   h->orders = 0;
   h->profession = 5;
 
@@ -1596,7 +1596,7 @@ static int unit_treasure_cash_in_silent_under_woi(void) {
     return fail("spawn treasure (woi)");
   }
   t->nation_id = nation;
-  t->moves_left = 1 * UNITS_MP_PER_TILE;
+  t->moves = 1 * UNITS_MP_PER_TILE;
   t->orders = 0;
   t->profession = 4; /* 400 */
 
@@ -1641,7 +1641,7 @@ static int unit_treasure_outside_colony_not_cashed(void) {
     return fail("spawn treasure (outside)");
   }
   t->nation_id = nation;
-  t->moves_left = 1 * UNITS_MP_PER_TILE;
+  t->moves = 1 * UNITS_MP_PER_TILE;
   t->orders = 0;
   t->profession = 9;
 
