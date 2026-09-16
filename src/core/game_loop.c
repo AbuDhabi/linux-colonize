@@ -2383,6 +2383,7 @@ static bool game_apply_col1_save(ColonizeGameState* game, ColonizeCol1Save* load
   game->col1 = *loaded;
   memset(loaded, 0, sizeof(*loaded));
   game->col1_ok = true;
+  ai_diplo_talk_reset(); /* the outgoing game's 153e talk died with its popups */
   /* Repair invented wartime all-cargo embargo on the live save (const apply
    * cannot touch the snapshot). europe.boycott_bitmap already mapped 0xFFFF→0. */
   for (int n = 0; n < 4; ++n) {
@@ -4349,6 +4350,7 @@ static void game_create_reset_fields(ColonizeGameState* game, const ColonizeGame
   game->trade_begin_route_pending = -1;
   game->goto_port_pending_unit = -1;
   ai_popup_init(&game->ai_popups);
+  ai_diplo_talk_reset();
   save_load_init(&game->save_load);
   new_game_init(&game->new_game);
   units_reset(&game->units);
