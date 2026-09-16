@@ -698,6 +698,7 @@ int main(void) {
     dnat->liberty_bells_total = 401;
     dnat->next_founding_father = 14;
     const int units_before = units.unit_count;
+    const int harbor_before = europe.harbor_ships;
     const uint32_t gold_pre_jones = dnat->gold;
     ff_tick(&deep_ctx);
     if (deep_col1.head.founding_father[14] != 0 || dnat->founding_father_count != 5) {
@@ -710,10 +711,13 @@ int main(void) {
       map_free(&map);
       return fail("deep Jones should not gold-fallback");
     }
-    if (units.unit_count != units_before + 1) {
+    /* bugs.md #467: DOS FUN_4345_0342 case 0xe spawns the Frigate in the
+     * nation's Europe slot — the human's ship docks in the Europe harbor,
+     * nothing appears on the map. */
+    if (units.unit_count != units_before || europe.harbor_ships != harbor_before + 1) {
       free(deep_col1.colony);
       map_free(&map);
-      return fail("deep Jones did not spawn ship");
+      return fail("deep Jones must dock a Frigate in Europe, not spawn on the map");
     }
 
     /* Washington: no mass promote. */

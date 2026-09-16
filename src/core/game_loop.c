@@ -10317,7 +10317,23 @@ static GameUpdateStep game_pacer_goto_step(
       game->units.selected_id = aid;
       (void)game_try_unit_move(game, gx, gy);
       ColonizeUnit* after = units_get(&game->units, aid);
-      if (after && after->active && units_orders_follow_goto(after->orders) &&
+      /*
+       * bugs.md #469: a refusal that DOS shows as a blocking dialog
+       * (@CANNOTATTACK / @SHIPCOMBAT / @SHIPLAKE / @LANDFIRST) leaves the
+       * INFO popup queued, and the old "no popup pending" guard then kept
+       * the Go To armed — the pacer re-fired the same dialog every frame
+       * and the player could never proceed. Those reasons are final for
+       * the order: park and clear regardless of the popup.
+       */
+      const ColonizeEnterReason why = units_last_enter_reason();
+      const bool dialog_refusal =
+        after && after->active && (after->x != gx || after->y != gy) &&
+        (why == COLONIZE_ENTER_BOUNCE_FOREIGN || why == COLONIZE_ENTER_LAKE_BLOCKED ||
+         why == COLONIZE_ENTER_LANDFIRST || why == COLONIZE_ENTER_BLOCKED_DOMAIN);
+      if (dialog_refusal && units_orders_follow_goto(after->orders)) {
+        after->moves = 0;
+        units_clear_orders(&game->units, aid);
+      } else if (after && after->active && units_orders_follow_goto(after->orders) &&
           !game->ai_popups.open && game->ai_popups.queue_count == 0) {
         if (after->x == gx && after->y == gy) {
           /* Arrived (capture / entry went through): plain arrival. */

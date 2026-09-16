@@ -869,11 +869,21 @@ void ai_diplo_declare_war(ColonizeCol1Save* col1, int nation_a, int nation_b) {
 }
 
 /* Rival label for thin status: player.country_name or "rival". */
+/*
+ * bugs.md #468: DOS fills every diplomacy %STRING with FUN_281f_09a4 →
+ * FUN_15b3_01e0, the NAMES.TXT @NATIONALITY adjective ("Dutch", "Spanish";
+ * independence remap inside) — never the New World country name
+ * ("New Netherlands"), which the old spelling here returned.
+ */
 const char* ai_diplo_rival_name(const ColonizeCol1Save* col1, int nation) {
-  if (!col1 || nation < 0 || nation >= 4) {
+  if (nation < 0 || nation >= 4) {
     return "rival";
   }
-  if (col1->player[nation].country_name[0] != '\0') {
+  const char* adj = reports_nation_adjective_display_name(nation);
+  if (adj && adj[0] != '\0') {
+    return adj;
+  }
+  if (col1 && col1->player[nation].country_name[0] != '\0') {
     return col1->player[nation].country_name;
   }
   return "rival";

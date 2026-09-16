@@ -462,7 +462,7 @@ static int case_declare_peace_narrative(void) {
       }
       col1.nation[1].indian_hostility_sticky = 0;
       ai_diplo_euro_balance(&ctx_pr, 1);
-      if (strcmp(status_pr, "Privateer prize from England") != 0) {
+      if (strcmp(status_pr, "Privateer prize from English") != 0) {
         fprintf(stderr, "unit_ai_diplo: privateer status '%s'\n", status_pr);
         return fail("euro_balance privateer should status when human is a party");
       }
@@ -988,7 +988,7 @@ static int case_war_peace_status_chrome(void) {
     if (!ai_diplo_at_war(&st, 0, 1)) {
       return fail("declare_war_ctx should set WAR");
     }
-    if (strcmp(status, "The France and rival are now at war.") != 0) {
+    if (strcmp(status, "The French and English are now at war.") != 0) {
       fprintf(stderr, "unit_ai_diplo: war status '%s'\n", status);
       return fail("declare_war_ctx should use @DECLAREWAR line (no wartime boycott)");
     }
@@ -1003,7 +1003,7 @@ static int case_war_peace_status_chrome(void) {
     if (ai_diplo_at_war(&st, 0, 1)) {
       return fail("make_peace_ctx should clear WAR");
     }
-    if (strcmp(status, "The rival and France have signed a peace treaty.") != 0) {
+    if (strcmp(status, "The English and French have signed a peace treaty.") != 0) {
       fprintf(stderr, "unit_ai_diplo: peace status '%s'\n", status);
       return fail("make_peace_ctx should use @SIGNTREATY when no Tools embargo");
     }
@@ -1027,7 +1027,7 @@ static int case_war_peace_status_chrome(void) {
     if ((st.nation[0].boycott_bitmap & AI_DIPLO_SMOKE_FOOD_BIT) != 0) {
       return fail("declare_war_ctx must not OR Food onto existing king boycotts");
     }
-    if (strcmp(status, "The rival and rival are now at war.") != 0) {
+    if (strcmp(status, "The English and Spanish are now at war.") != 0) {
       fprintf(stderr, "unit_ai_diplo: first-cargo status '%s'\n", status);
       return fail("declare_war_ctx should use war line when no new boycott bits");
     }
@@ -1044,7 +1044,7 @@ static int case_war_peace_status_chrome(void) {
     st.nation[0].boycott_bitmap = (uint16_t)AI_DIPLO_SMOKE_WARTIME_MASK;
     status[0] = '\0';
     ai_diplo_declare_war_ctx(&ctx_st, 0, 2);
-    if (strcmp(status, "The rival and rival are now at war.") != 0) {
+    if (strcmp(status, "The English and Spanish are now at war.") != 0) {
       fprintf(stderr, "unit_ai_diplo: rival status '%s'\n", status);
       return fail("declare_war_ctx should fall back to @DECLAREWAR war line when full wartime mask set");
     }
@@ -1075,7 +1075,7 @@ static int case_war_peace_status_chrome(void) {
       ctx_st.messages = NULL;
       assets_msg_free(&game_txt);
     }
-    if (strcmp(status, "The Spain and Holland are now at war.") != 0) {
+    if (strcmp(status, "The English and Spanish are now at war.") != 0) {
       fprintf(stderr, "unit_ai_diplo: named war status '%s'\n", status);
       return fail("declare_war_ctx should render authentic @DECLAREWAR with both country names");
     }
@@ -1334,7 +1334,7 @@ static int case_r2_war_fatigue_tools(void) {
       }
       if (!ai_diplo_at_war(&wf, 0, 1)) {
         peaced = 1;
-        if (strcmp(status_wf, "The rival and England have signed a peace treaty.") != 0) {
+        if (strcmp(status_wf, "The English and French have signed a peace treaty.") != 0) {
           fprintf(stderr, "unit_ai_diplo: war-fatigue status '%s'\n", status_wf);
           return fail("war-fatigue make_peace_ctx should status @SIGNTREATY for human");
         }
@@ -1410,7 +1410,7 @@ static int case_r2_war_fatigue_tools(void) {
         }
         if (!ai_diplo_at_war(&wf2, 0, 1)) {
           peaced_peer = 1;
-          if (strcmp(status_peer, "The France and England have signed a peace treaty.") != 0) {
+          if (strcmp(status_peer, "The French and English have signed a peace treaty.") != 0) {
             fprintf(stderr, "unit_ai_diplo: war-fatigue peer status '%s'\n",
                     status_peer);
             return fail("war-fatigue make_peace_ctx should status @SIGNTREATY when human is peer");
@@ -1426,7 +1426,7 @@ static int case_r2_war_fatigue_tools(void) {
       wf2.nation[0].boycott_bitmap = 0;
       wf2.nation[1].boycott_bitmap = 0;
       ai_diplo_make_peace_ctx(&ctx_peer, 1, 0);
-      if (strcmp(status_peer, "The France and England have signed a peace treaty.") != 0) {
+      if (strcmp(status_peer, "The French and English have signed a peace treaty.") != 0) {
         fprintf(stderr, "unit_ai_diplo: Peace concluded status '%s'\n", status_peer);
         return fail("make_peace_ctx should status @SIGNTREATY when Tools already clear");
       }
@@ -1465,7 +1465,7 @@ static int case_r2_war_fatigue_tools(void) {
       free(ts.colony);
       return fail("Tools status setup: colony-gap must not set Tools bit");
     }
-    if (strcmp(status, "The rival and Spain are now at war.") != 0) {
+    if (strcmp(status, "The English and French are now at war.") != 0) {
       fprintf(stderr, "unit_ai_diplo: Tools set status '%s'\n", status);
       free(ts.colony);
       return fail("declare_war_ctx should use war line (no wartime boycott)");
@@ -1475,7 +1475,7 @@ static int case_r2_war_fatigue_tools(void) {
       free(ts.colony);
       return fail("make_peace_ctx should leave Tools bit clear");
     }
-    if (strcmp(status, "The rival and Spain have signed a peace treaty.") != 0) {
+    if (strcmp(status, "The English and French have signed a peace treaty.") != 0) {
       fprintf(stderr, "unit_ai_diplo: Tools lift status '%s'\n", status);
       free(ts.colony);
       return fail("make_peace_ctx should status @SIGNTREATY when Tools never set");
@@ -1664,7 +1664,7 @@ static int case_r3_r4_sugar_rum_cigars_boycott(void) {
     if ((st.nation[0].boycott_bitmap & AI_DIPLO_SMOKE_TOOLS_BIT) != 0) {
       return fail("declare_war must not OR Tools boycott");
     }
-    if (strcmp(status_st, "The rival and France are now at war.") != 0) {
+    if (strcmp(status_st, "The English and French are now at war.") != 0) {
       fprintf(stderr, "unit_ai_diplo: Sugar/Tobacco/Tools status '%s'\n", status_st);
       return fail("declare_war_ctx should use war line (no wartime boycott)");
     }
@@ -1879,7 +1879,7 @@ static int case_declare_war_popup_unpark(void) {
     if (!ai_diplo_at_war(&pop, 0, 1)) {
       return fail("popup smoke: declare_war_ctx should set WAR");
     }
-    if (strcmp(status_pop, "The France and rival are now at war.") != 0) {
+    if (strcmp(status_pop, "The French and English are now at war.") != 0) {
       fprintf(stderr, "unit_ai_diplo: popup war status '%s'\n", status_pop);
       return fail("popup smoke: status line is @DECLAREWAR (no wartime boycott)");
     }
@@ -2050,7 +2050,7 @@ static int case_declare_war_popup_unpark(void) {
       if (!ai_diplo_at_war(&w2, 0, 1)) {
         return fail("R2 peace: Refuse must leave WAR");
       }
-      if (strcmp(status_w2, "Peace refused with France") != 0) {
+      if (strcmp(status_w2, "Peace refused with French") != 0) {
         fprintf(stderr, "unit_ai_diplo: peace refuse status '%s'\n", status_w2);
         return fail("R2 peace: Refuse should status Peace refused");
       }
@@ -2100,7 +2100,7 @@ static int case_declare_war_popup_unpark(void) {
         ctx_pr3.status_size = sizeof(status_pr3);
         ctx_pr3.ai_popups = &pop_pr3;
         ai_diplo_euro_balance(&ctx_pr3, 1);
-        if (strcmp(status_pr3, "Privateer prize from England") != 0) {
+        if (strcmp(status_pr3, "Privateer prize from English") != 0) {
           fprintf(stderr, "unit_ai_diplo: R3 privateer status '%s'\n", status_pr3);
           return fail("R3 privateer: status Privateer prize from England");
         }
@@ -2247,7 +2247,7 @@ static int case_marathon2_privateer_spawn(void) {
       free(map.layer3);
       return fail("M2R1: unknown26[9] peer bit should arm after spawn");
     }
-    if (strcmp(status, "Privateer commissioned against France") != 0) {
+    if (strcmp(status, "Privateer commissioned against French") != 0) {
       fprintf(stderr, "unit_ai_diplo: M2R1 spawn status '%s'\n", status);
       free(map.terrain);
       free(map.layer2);
@@ -2458,7 +2458,7 @@ static int case_marathon2_ai_declare_choice(void) {
     if (ai_diplo_at_war(&w3, 0, 1)) {
       return fail("M2R3 war: Refuse must leave peace");
     }
-    if (strcmp(status_w3, "War refused with France") != 0) {
+    if (strcmp(status_w3, "War refused with French") != 0) {
       fprintf(stderr, "unit_ai_diplo: war refuse status '%s'\n", status_w3);
       return fail("M2R3 war: Refuse should status War refused");
     }
@@ -2530,7 +2530,7 @@ static int case_cancelpeace_authentic_prompt(void) {
         pop_cp.queue[0].kind != AI_POPUP_KIND_CHOICE) {
       return fail("@CANCELPEACE: expected DIPLO_WAR CHOICE");
     }
-    if (strcmp(pop_cp.queue[0].body, "{France} cancel peace treaty with {England}.") != 0) {
+    if (strcmp(pop_cp.queue[0].body, "{French} cancel peace treaty with {English}.") != 0) {
       fprintf(stderr, "unit_ai_diplo: CANCELPEACE body '%s'\n", pop_cp.queue[0].body);
       return fail("@CANCELPEACE: CHOICE body should be authentic GAME.TXT line");
     }
@@ -2682,7 +2682,7 @@ static int case_marathon3_franklin_peace_gate(void) {
       return fail("M3R4 Franklin: at-war peace must skip upkeep and PARK prize");
     }
     /* Marathon3 R2: human chrome when Franklin concludes peace (make_peace_ctx). */
-    if (strcmp(status_fr, "The England and France have signed a peace treaty.") != 0) {
+    if (strcmp(status_fr, "The English and French have signed a peace treaty.") != 0) {
       fprintf(stderr, "unit_ai_diplo: M3R2 Franklin peace status '%s'\n", status_fr);
       return fail("M3R2 Franklin: human party should status @SIGNTREATY with France");
     }
