@@ -43,7 +43,7 @@ site / FF / difficulty live in [save_format_map.md](save_format_map.md).
 | King / REF | `ai_king.c` | Land / naval resolve on invasion paths |
 | Indian raid | `ai_contact.c` raid pulse | Adjacent `units_resolve_land_combat` → seize / move / abandon |
 | Paul Revere | `units_revere_defend_colony_tile` | Empty foreign colony + muskets → auto-arm → land combat |
-| Coastal fort | `turn_run_coastal_fort_fire` → `units_coastal_fort_fire_pulse` | EOT battery vs adjacent hostile ships; **one** salvo per neighbour tile, at the stack's first ship (`FUN_364b_03f6` raw 57068-57076), resolved between the two dissolve phases |
+| Coastal fort | `turn_run_coastal_fort_fire` → `units_coastal_fort_fire_pulse` | EOT battery vs adjacent ships whose PEACE bit (0x40, the byte F8 reads) is clear, or any Privateer (raw 57082, bugs.md #465); **one** salvo per neighbour tile, at the stack's first ship (`FUN_364b_03f6` raw 57068-57076), resolved between the two dissolve phases |
 
 Globals for resolve: `units_set_ff_col1`, `units_set_combat_colonies`,
 `units_set_combat_human_nation`, `units_set_combat_popups`,

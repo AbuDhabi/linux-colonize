@@ -6170,20 +6170,18 @@ int units_coastal_fort_attack_strength(
 }
 
 /*
- * bugs.md #465. DOS's own gate (FUN_364b_03f6, raw 57082-57083) is
+ * bugs.md #465. DOS-LITERAL FUN_364b_03f6 raw 57082-57083:
  *
  *     rel = FUN_281f_0a38(colony_nation, ship_nation);
  *     if ((rel & 0x40) == 0 || ship_type == 0x10) { fire; }
  *
- * i.e. "the PEACE bit is clear, OR the target is a Privateer" — DOS shoots at
- * anyone it has not signed a treaty with, an unmet or cancelled-treaty
- * neighbour included, and at every Privateer regardless of treaty. The port
- * keeps the stricter WAR-bit spelling below deliberately: it is a subset of
- * DOS's rule (a declare clears PEACE and sets WAR), it never fires on a
- * nation the player has a treaty with, and the port's PEACE bit is stamped
- * on fewer paths than DOS's (13b0 only), so the literal reading would open
- * fire on every merely-met neighbour. Privateers are fair game either way,
- * exactly as in DOS.
+ * "the PEACE bit is clear, OR the target is a Privateer". The F8 Foreign
+ * Affairs report reads the very same byte and bit (reports.c
+ * REPORTS_FOREIGN_PEACE_BIT), so what the player sees as Peace/War there is
+ * exactly what the battery obeys. The earlier port spelling gated on the
+ * Linux WAR bit (0x02) instead: a treaty writer that set PEACE without
+ * clearing WAR left a pair reading "peace" in F8 while the fort still fired
+ * (user-observed: Spanish Caravel shot at while F8 showed Spain at peace).
  */
 static int units_fort_fire_is_hostile(
   const ColonizeCol1Save* col1,
@@ -6201,7 +6199,7 @@ static int units_fort_fire_is_hostile(
     return 0;
   }
   if (ship->nation_id >= 0 && ship->nation_id <= 3) {
-    return ai_diplo_at_war(col1, owner_nation, ship->nation_id);
+    return (ai_diplo_read(col1, owner_nation, ship->nation_id) & AI_DIPLO_PEACE) == 0;
   }
   if (ship->nation_id >= 4 && ship->nation_id <= 11) {
     return ai_diplo_indian_at_war(col1, owner_nation, ship->nation_id - 4);

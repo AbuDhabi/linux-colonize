@@ -18,8 +18,8 @@ sank/slowed status **Done** thin; DOS temp-attacker + VGA chrome **PARKED**.
 `units_dissolve_notify(0)`/`(1)` so the fizzle that 1b0e presents happens here
 too, and phase 2 takes **one** target per tile — the first ship in the stack,
 skipping the tile outright when that ship is the colony's own — instead of
-every hostile hull on it. The hostility gate stays the stricter WAR-bit
-spelling rather than DOS's literal `(0a38 & 0x40) == 0`; see the note on
+every hostile hull on it. The hostility gate is DOS's literal
+`(0a38 & 0x40) == 0` since 2026-09-16 (bugs.md #465; same byte F8 reads); see the note on
 `units_fort_fire_is_hostile`.
 
 ## Call sites / reshape
