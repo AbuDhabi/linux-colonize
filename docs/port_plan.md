@@ -146,7 +146,7 @@ Remaining SFX misfires are polish. Details: [assets.md](assets.md).
   Pick Music entry n ≠ `0x20+n` (DOS `2b5a:264c` maps 9–12 → `0x39,0x38,
   0x3a,0x3b`, sublists to `0x29..`/`0x2e..`/`0x32/33/35/36`). Replaced
   hand-written decoder with literal driver emulator (`gsound_vm.c`) + DOS
-  BGM scheduler. Details: assets.md "Music / sound".
+  BGM scheduler. Details: assets_sound.md.
 - [x] P3.7 [auto] closed 2026-08-29 — COLDIG event ids wired: typed combat
   ids `0x3b + attacker type` (`5fef:2271`), raid/tax/wagon/sunk ids, chords
   `0x8020`/`0x8024` (driver table `0x2AB6`). Ids `0x4c`/`0x50`/`0x51`/

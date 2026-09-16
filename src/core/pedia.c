@@ -1192,7 +1192,7 @@ static void pedia_cargo_row(
 ) {
   int x = 10;
   int sprite = 22 + cargo;
-  if (cargo == 16) {
+  if (cargo == COLONIZE_CARGO_COUNT) {
     sprite = 54; /* Hammers */
   }
   char name[64];
@@ -1234,35 +1234,35 @@ static int pedia_article_cargo(
   int rows_cargo[3];
   int rows_job[3];
   int n = 0;
-  if (c == 0) {
+  if (c == COLONIZE_CARGO_FOOD) {
     rows_cargo[0] = 0;
     rows_job[0] = 0;
     rows_cargo[1] = -1;
     rows_job[1] = -1;
     n = 2;
-  } else if (c == 8 || c == 13) {
+  } else if (c == COLONIZE_CARGO_HORSES || c == COLONIZE_CARGO_TRADE_GOODS) {
     rows_cargo[0] = c;
     rows_job[0] = -1;
     n = 1;
-  } else if (c == 7) {
-    rows_cargo[0] = 7;
-    rows_job[0] = 7;
+  } else if (c == COLONIZE_CARGO_SILVER) {
+    rows_cargo[0] = COLONIZE_CARGO_SILVER;
+    rows_job[0] = COLONIZE_CARGO_SILVER;
     n = 1;
-  } else if (c == 6 || c == 14 || c == 15) {
-    rows_cargo[0] = 6;
-    rows_job[0] = 6;
-    rows_cargo[1] = 14;
-    rows_job[1] = 14;
-    rows_cargo[2] = 15;
-    rows_job[2] = 15;
+  } else if (c == COLONIZE_CARGO_ORE || c == COLONIZE_CARGO_TOOLS || c == COLONIZE_CARGO_MUSKETS) {
+    rows_cargo[0] = COLONIZE_CARGO_ORE;
+    rows_job[0] = COLONIZE_CARGO_ORE;
+    rows_cargo[1] = COLONIZE_CARGO_TOOLS;
+    rows_job[1] = COLONIZE_CARGO_TOOLS;
+    rows_cargo[2] = COLONIZE_CARGO_MUSKETS;
+    rows_job[2] = COLONIZE_CARGO_MUSKETS;
     n = 3;
-  } else if (c == 5) {
-    rows_cargo[0] = 5;
-    rows_job[0] = 5;
-    rows_cargo[1] = 16;
+  } else if (c == COLONIZE_CARGO_LUMBER) {
+    rows_cargo[0] = COLONIZE_CARGO_LUMBER;
+    rows_job[0] = COLONIZE_CARGO_LUMBER;
+    rows_cargo[1] = COLONIZE_CARGO_COUNT;
     rows_job[1] = 13;
     n = 2;
-  } else if (c < 8) {
+  } else if (c < COLONIZE_CARGO_HORSES) {
     rows_cargo[0] = c;
     rows_job[0] = c;
     rows_cargo[1] = c + 8;

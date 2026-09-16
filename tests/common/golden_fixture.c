@@ -19,6 +19,7 @@ bool golden_open(const char* path_in, const char* path_exp, uint32_t rng_seed, G
   colonies_init(&fx->colonies);
   units_reset(&fx->units);
   units_reset_hooks();
+  units_reset_state();
   ai_euro_reset();
   ai_native_reset();
   turn_reset();

@@ -115,4 +115,4 @@ choices from data where a real `@SECTION` exists.
 `@SIGNTREATY` body — the invented "<cargo> boycott imposed." / "Tools embargo
 lifted." overrides were dead or port chrome and now touch only the status
 line (`DIPLO_BOYCOTT` has no producer). Every remaining Partial row in
-[popups.md](popups.md) Appendix A names its DOS site and blocker.
+[popups_catalog.md](popups_catalog.md) Appendix A names its DOS site and blocker.

@@ -24,13 +24,14 @@ lives](#where-detail-lives)).
 | Euro AI control flow (machine-readable map + flowchart) | [ai_euro_logic_map.yaml](ai_euro_logic_map.yaml), rendered by `tools/ai_logic_map.py` to [diagrams/ai_euro_logic.html](diagrams/ai_euro_logic.html) |
 | Decomp / data navigation | [original_index.md](original_index.md) |
 | Feature Done / Partial / Missing | [manual_gap.md](manual_gap.md) |
-| Popup inventory / authenticity | [popups.md](popups.md), [popup_audit.md](popup_audit.md) |
-| Combat mechanics | [combat.md](combat.md) |
+| Popup inventory / authenticity | [popups.md](popups.md), [popups_catalog.md](popups_catalog.md), [popup_audit.md](popup_audit.md) |
+| Combat mechanics | [combat.md](combat.md), [combat_analysis.md](combat_analysis.md) |
 | Report screens (F2–F10 + HoF) | [reports.md](reports.md), [report_screens.md](report_screens.md) |
 | SoL / independence | [sons_of_liberty.md](sons_of_liberty.md) |
-| Indians | [indians.md](indians.md) |
+| Indians | [indians.md](indians.md), [indians_port.md](indians_port.md) |
 | Production formulas | [building_production.md](building_production.md), [terrain_yields.md](terrain_yields.md) |
-| Music / sound | [assets.md](assets.md) "Music / sound" |
+| Asset formats, graphics, map | [assets.md](assets.md) |
+| Music / sound | [assets_sound.md](assets_sound.md) |
 | `COLONY##.SAV` layout / Col1 bridge | [savegame.md](savegame.md), [save_format_map.md](save_format_map.md) |
 | Conventions, jargon, fixture traps, verification loop | [conventions.md](conventions.md) |
 | Debug env vars / `debug.logs` categories | [debug_env_vars.md](debug_env_vars.md) |

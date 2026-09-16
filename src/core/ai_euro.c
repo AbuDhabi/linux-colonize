@@ -1,3 +1,4 @@
+#include "core/internal.h"
 #include "core/ai_euro.h"
 
 #include "core/ai.h"
@@ -9112,7 +9113,7 @@ static void ai_euro_colony_threat_seed_5952(
 
 /* --- 0a60 colony goals: stage helpers ---------------------------------- */
 
-static void ai_euro_colony_goals_unit_contact(
+COLONIZE_INTERNAL void ai_euro_colony_goals_unit_contact(
   ColonizeTurnContext* ctx, int nation_id
 ) {
   /* B: own units — CONTACT from adjacent foreign; work queue only for bindable. */
@@ -9150,7 +9151,7 @@ static void ai_euro_colony_goals_unit_contact(
   }
 }
 
-static void ai_euro_colony_goals_colony_labor(
+COLONIZE_INTERNAL void ai_euro_colony_goals_colony_labor(
   ColonizeTurnContext* ctx, int nation_id, ColonizeColony* c,
   AiEuroInventory* inv, int urgency
 ) {
@@ -9232,7 +9233,7 @@ static void ai_euro_colony_goals_colony_labor(
   }
 }
 
-static void ai_euro_colony_goals_colony_work(
+COLONIZE_INTERNAL void ai_euro_colony_goals_colony_work(
   ColonizeTurnContext* ctx, int nation_id, ColonizeColony* c
 ) {
   /*
@@ -9529,7 +9530,7 @@ static void ai_euro_colony_goals_colony_work(
   }
 }
 
-static void ai_euro_colony_goals_colony_garrison(
+COLONIZE_INTERNAL void ai_euro_colony_goals_colony_garrison(
   ColonizeTurnContext* ctx, int nation_id, ColonizeColony* c
 ) {
   /*
@@ -9597,7 +9598,7 @@ static void ai_euro_colony_goals_colony_garrison(
   }
 }
 
-static void ai_euro_colony_goals_foreign_colonies(
+COLONIZE_INTERNAL void ai_euro_colony_goals_foreign_colonies(
   ColonizeTurnContext* ctx, int nation_id, AiEuroInventory* inv
 ) {
   /* E: foreign colonies MILITARY if at war; thin bind one idle Soldier/Dragoon.
@@ -9710,7 +9711,7 @@ static void ai_euro_colony_goals_foreign_colonies(
   }
 }
 
-static void ai_euro_colony_goals_food_emergency(
+COLONIZE_INTERNAL void ai_euro_colony_goals_food_emergency(
   ColonizeTurnContext* ctx, int nation_id, AiEuroInventory* inv
 ) {
   /*
@@ -9782,7 +9783,7 @@ static void ai_euro_colony_goals_food_emergency(
   }
 }
 
-static void ai_euro_colony_goals_tribe_seeds(
+COLONIZE_INTERNAL void ai_euro_colony_goals_tribe_seeds(
   ColonizeTurnContext* ctx, int nation_id
 ) {
   /* F: tribe-adjacent FOUND prio 2; alarmed → MILITARY. Never FOUND on village. */
@@ -9815,7 +9816,7 @@ static void ai_euro_colony_goals_tribe_seeds(
   }
 }
 
-static void ai_euro_colony_goals_producers(
+COLONIZE_INTERNAL void ai_euro_colony_goals_producers(
   ColonizeTurnContext* ctx, int nation_id, AiEuroInventory* inv,
   int urgency
 ) {
@@ -9980,7 +9981,7 @@ static void ai_euro_colony_goals_producers(
   }
 }
 
-static void ai_euro_colony_goals_ship_found(
+COLONIZE_INTERNAL void ai_euro_colony_goals_ship_found(
   ColonizeTurnContext* ctx, int nation_id, AiEuroInventory* inv,
   int urgency
 ) {
@@ -10029,7 +10030,7 @@ static void ai_euro_colony_goals_ship_found(
   }
 }
 
-static void ai_euro_colony_goals_bind_founders(
+COLONIZE_INTERNAL void ai_euro_colony_goals_bind_founders(
   ColonizeTurnContext* ctx, int nation_id
 ) {
   /* H: light bind — idle land founders → primary FOUND (do not steal Soldiers). */
@@ -17667,52 +17668,14 @@ static void ai_euro_first_colony_ship_course(
  * caller, so an early bail still ends the act exactly where it did before.
  * ======================================================================== */
 
-typedef enum {
-  AI_EURO_ACT_CONTINUE = 0, /* stage fell through — run the next one */
-  AI_EURO_ACT_RETURN = 1    /* stage ended the act (was a bare `return;`) */
-} AiEuroActStatus;
-
-/* Act-local state shared between the stages of one ai_euro_unit_act call. */
-struct ai_euro_act_ctx {
-  ColonizeTurnContext* ctx;
-  ColonizeUnit* u; /* re-read after every call that can free/replace the unit */
-  int nation_id;
-  int is_ship;
-  /* ship band */
-  int exited_europe;
-  int at_war;
-  int treasure_aboard;
-  /* land band */
-  const char* uname;
-  int is_land_hunter;
-  int is_scout;
-  int is_treasure;
-  int is_missionary;
-  int at_war_land;
-  int land_war_hunted;
-  int scout_explored;
-  int treasure_routed;
-  int missionary_contacted;
-  int peace_border_hunted;
-  int wagon_hauled;
-  int pioneer_improved;
-  int lumberjack_fielded;
-  int miner_fielded;
-  int farmer_fielded;
-  int fisherman_fielded;
-  int planter_fielded;
-  int workplace_assigned;
-  int goal_x;
-  int goal_y;
-  int goal_code;
-};
+#include "core/ai_euro_internal.h" /* AiEuroActStatus, struct ai_euro_act_ctx */
 
 /*
  * Stage: Pioneer FR tip corridor + colony tools/muskets equip arm
  * (FUN_5952_035e absorb+equip pair, raw 94256-94352). Extracted verbatim
  * from ai_euro_unit_act.
  */
-static AiEuroActStatus ai_euro_act_pioneer_corridor(struct ai_euro_act_ctx* a) {
+COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_pioneer_corridor(struct ai_euro_act_ctx* a) {
   ColonizeTurnContext* const ctx = a->ctx;
   ColonizeUnit* u = a->u;
   const int nation_id = a->nation_id;
@@ -17899,7 +17862,7 @@ static AiEuroActStatus ai_euro_act_pioneer_corridor(struct ai_euro_act_ctx* a) {
  * Stage: SP post-found soldier staging corridor. Extracted verbatim
  * from ai_euro_unit_act.
  */
-static AiEuroActStatus ai_euro_act_soldier_staging(struct ai_euro_act_ctx* a) {
+COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_soldier_staging(struct ai_euro_act_ctx* a) {
   ColonizeTurnContext* const ctx = a->ctx;
   ColonizeUnit* u = a->u;
   const int nation_id = a->nation_id;
@@ -17957,7 +17920,7 @@ static AiEuroActStatus ai_euro_act_soldier_staging(struct ai_euro_act_ctx* a) {
  * Ship stage 1: Europe treasure cash-in / dump-sell, then FUN_48d3_048e
  * Europe->map exit and its first scored ocean leg.
  */
-static AiEuroActStatus ai_euro_act_ship_europe_exit(struct ai_euro_act_ctx* a) {
+COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_ship_europe_exit(struct ai_euro_act_ctx* a) {
   ColonizeTurnContext* const ctx = a->ctx;
   ColonizeUnit* u = a->u;
   const int nation_id = a->nation_id;
@@ -18128,7 +18091,7 @@ static AiEuroActStatus ai_euro_act_ship_europe_exit(struct ai_euro_act_ctx* a) {
  * Ship stage 2: pre-first-colony staging retarget / beachhead hold, and
  * the post-found coast retarget once the first colony exists.
  */
-static AiEuroActStatus ai_euro_act_ship_first_colony_course(struct ai_euro_act_ctx* a) {
+COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_ship_first_colony_course(struct ai_euro_act_ctx* a) {
   ColonizeTurnContext* const ctx = a->ctx;
   ColonizeUnit* u = a->u;
   const int nation_id = a->nation_id;
@@ -18307,7 +18270,7 @@ static AiEuroActStatus ai_euro_act_ship_first_colony_course(struct ai_euro_act_c
  * (LAB_521d_457e cadence included), threatened unload, adjacent naval
  * attack, and the first-colony course re-assert.
  */
-static AiEuroActStatus ai_euro_act_ship_war_trade(struct ai_euro_act_ctx* a) {
+COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_ship_war_trade(struct ai_euro_act_ctx* a) {
   ColonizeTurnContext* const ctx = a->ctx;
   ColonizeUnit* u = a->u;
   const int nation_id = a->nation_id;
@@ -18444,7 +18407,7 @@ static AiEuroActStatus ai_euro_act_ship_war_trade(struct ai_euro_act_ctx* a) {
  * Ship stage 4: raw 90210-90219 LAB_4d2e idle wander, then the case 0x0b
  * sail loop (scored step, pathfinder fallback, route latch).
  */
-static AiEuroActStatus ai_euro_act_ship_sail(struct ai_euro_act_ctx* a) {
+COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_ship_sail(struct ai_euro_act_ctx* a) {
   ColonizeTurnContext* const ctx = a->ctx;
   ColonizeUnit* u = a->u;
   const int nation_id = a->nation_id;
@@ -18597,7 +18560,7 @@ static AiEuroActStatus ai_euro_act_ship_sail(struct ai_euro_act_ctx* a) {
  * unload, Europe/HS treasure cash, unload_settle, first-colony hold /
  * cruise-tip parking.
  */
-static AiEuroActStatus ai_euro_act_ship_arrival(struct ai_euro_act_ctx* a) {
+COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_ship_arrival(struct ai_euro_act_ctx* a) {
   ColonizeTurnContext* const ctx = a->ctx;
   ColonizeUnit* u = a->u;
   const int nation_id = a->nation_id;
@@ -18765,7 +18728,7 @@ static AiEuroActStatus ai_euro_act_ship_arrival(struct ai_euro_act_ctx* a) {
  * Land stage 1: LCR on entry, land-war engage/hunt, peace-border hunt,
  * scout exploration.
  */
-static AiEuroActStatus ai_euro_act_land_hunt_scout(struct ai_euro_act_ctx* a) {
+COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_land_hunt_scout(struct ai_euro_act_ctx* a) {
   ColonizeTurnContext* const ctx = a->ctx;
   ColonizeUnit* u = a->u;
   const int nation_id = a->nation_id;
@@ -18955,7 +18918,7 @@ static AiEuroActStatus ai_euro_act_land_hunt_scout(struct ai_euro_act_ctx* a) {
  * Land stage 2: Treasure Train routing (coast / board / cash) and the
  * 20e6 47b9 dead-end bail.
  */
-static AiEuroActStatus ai_euro_act_land_treasure(struct ai_euro_act_ctx* a) {
+COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_land_treasure(struct ai_euro_act_ctx* a) {
   ColonizeTurnContext* const ctx = a->ctx;
   ColonizeUnit* u = a->u;
   const int nation_id = a->nation_id;
@@ -19021,7 +18984,7 @@ static AiEuroActStatus ai_euro_act_land_treasure(struct ai_euro_act_ctx* a) {
  * Land stage 3: wagon haul, Pioneer improve job, the six field-expert
  * admit/assign arms, and the indoor expert workplace assign.
  */
-static AiEuroActStatus ai_euro_act_land_roles(struct ai_euro_act_ctx* a) {
+COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_land_roles(struct ai_euro_act_ctx* a) {
   ColonizeTurnContext* const ctx = a->ctx;
   ColonizeUnit* u = a->u;
   const int nation_id = a->nation_id;
@@ -19218,7 +19181,7 @@ static AiEuroActStatus ai_euro_act_land_roles(struct ai_euro_act_ctx* a) {
  * Land stage 4: peace fortify / colonist admit, Artillery siege hunt and
  * Artillery fortify, Missionary CONTACT.
  */
-static AiEuroActStatus ai_euro_act_land_fortify(struct ai_euro_act_ctx* a) {
+COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_land_fortify(struct ai_euro_act_ctx* a) {
   ColonizeTurnContext* const ctx = a->ctx;
   ColonizeUnit* u = a->u;
   const int nation_id = a->nation_id;
@@ -19372,7 +19335,7 @@ static AiEuroActStatus ai_euro_act_land_fortify(struct ai_euro_act_ctx* a) {
  * Land stage 5: FUN_521d_0a60 goal-consumption tail — read the committed
  * primary-goal pick back, else run the founder/labor fallback scan.
  */
-static AiEuroActStatus ai_euro_act_land_goal_consume(struct ai_euro_act_ctx* a) {
+COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_land_goal_consume(struct ai_euro_act_ctx* a) {
   ColonizeTurnContext* const ctx = a->ctx;
   ColonizeUnit* u = a->u;
   const int nation_id = a->nation_id;
@@ -19635,7 +19598,7 @@ static AiEuroActStatus ai_euro_act_land_goal_consume(struct ai_euro_act_ctx* a) 
  * sell, LABOR/COLONY admit, MILITARY/CONTACT engage, goto commit + move
  * drain, and the adjacent seize/attack tail.
  */
-static AiEuroActStatus ai_euro_act_land_goal_dispatch(struct ai_euro_act_ctx* a) {
+COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_land_goal_dispatch(struct ai_euro_act_ctx* a) {
   ColonizeTurnContext* const ctx = a->ctx;
   ColonizeUnit* u = a->u;
   const int nation_id = a->nation_id;
@@ -19898,7 +19861,7 @@ static AiEuroActStatus ai_euro_act_land_goal_dispatch(struct ai_euro_act_ctx* a)
  * Ship band driver (FUN_521d_20e6 ship arms, raw 89717-90219). Runs the
  * five ship stages in DOS order; any stage may end the act.
  */
-static void ai_euro_act_ship(struct ai_euro_act_ctx* a) {
+COLONIZE_INTERNAL void ai_euro_act_ship(struct ai_euro_act_ctx* a) {
   if (ai_euro_act_ship_europe_exit(a) == AI_EURO_ACT_RETURN) {
     return;
   }
@@ -19925,7 +19888,7 @@ static void ai_euro_act_ship(struct ai_euro_act_ctx* a) {
  * Land band driver (case 0x0b). Binds the per-unit role flags the stages
  * share, then runs the six land stages in DOS order.
  */
-static void ai_euro_act_land(struct ai_euro_act_ctx* a) {
+COLONIZE_INTERNAL void ai_euro_act_land(struct ai_euro_act_ctx* a) {
   ColonizeTurnContext* const ctx = a->ctx;
   ColonizeUnit* u = a->u;
   const int nation_id = a->nation_id;

@@ -1,3 +1,4 @@
+#include "core/internal.h"
 #include "core/ai.h"
 #include "core/combat_strength.h"
 
@@ -15,6 +16,7 @@
 #include "core/col1_bridge.h"
 #include "core/colony.h"
 #include "core/colony_production.h"
+#include "core/ai_internal.h"
 #include "core/dos_rng.h"
 #include "core/map_gen.h"
 #include "core/new_game.h"
@@ -80,8 +82,6 @@ static const struct {
   {"SIOUX", 10},
   {"TUPI", 11},
 };
-
-typedef ColonizeDosRng AiRng;
 
 /*
  * DOS coarse fog / tribe-region plane (DS:0x9faa, size 0x10e).
@@ -1175,6 +1175,7 @@ bool ai_init_new_game(const AiNewGameParams* params, char* err, size_t err_size)
   ai_euro_reset();
   ai_native_reset();
   turn_reset();
+  units_reset_state(); /* goto anti-backtrack shadow, indexed by reused unit_id */
 
   if (!ai_setup_col1_template(params, err, err_size)) {
     return false;
@@ -2079,7 +2080,7 @@ static void ai_indian_152e_village_growth(
   }
 }
 
-static int ai_021a_trace_enabled(void);
+COLONIZE_INTERNAL int ai_021a_trace_enabled(void);
 
 static void ai_grow_villages(ColonizeTurnContext* ctx, int nation_id) {
   if (!ctx || !ctx->col1_ok || !ctx->col1 || !ctx->col1->tribe) {
@@ -2861,7 +2862,7 @@ static int ai_native_pick_dir_asm(
  * ===========================================================================
  */
 
-static int ai_021a_settle_owner(const ColonizeWorldMap* map, int x, int y) {
+COLONIZE_INTERNAL int ai_021a_settle_owner(const ColonizeWorldMap* map, int x, int y) {
   /* FUN_281f_06be -> FUN_137f_03e4: layer2 bit 0x02 then the owner nibble. */
   if (!map || !map->layer2 || !map_coords_inset(map, x, y)) {
     return -1;
@@ -2872,7 +2873,7 @@ static int ai_021a_settle_owner(const ColonizeWorldMap* map, int x, int y) {
   return ai_owner_nibble(map, x, y);
 }
 
-static int ai_021a_colony_at(const ColonizeColonyPool* colonies, int x, int y) {
+COLONIZE_INTERNAL int ai_021a_colony_at(const ColonizeColonyPool* colonies, int x, int y) {
   /* FUN_15eb_0a76: colony index at tile (pool order == COL1 order). */
   if (!colonies) {
     return -1;
@@ -2886,16 +2887,16 @@ static int ai_021a_colony_at(const ColonizeColonyPool* colonies, int x, int y) {
   return -1;
 }
 
-static int ai_021a_type_attack(const ColonizeUnitPool* units, int type_index) {
+COLONIZE_INTERNAL int ai_021a_type_attack(const ColonizeUnitPool* units, int type_index) {
   const ColonizeUnitType* t = units_type(units, type_index);
   return t ? t->attack : 0;
 }
 
 /* FUN_1427_0fec / 0fc0 — armed / mounted type sets. */
-static int ai_021a_type_armed(int t) {
+COLONIZE_INTERNAL int ai_021a_type_armed(int t) {
   return t == 1 || t == 4 || t == 0xb || t == 0x14 || t == 0x16;
 }
-static int ai_021a_type_mounted(int t) {
+COLONIZE_INTERNAL int ai_021a_type_mounted(int t) {
   return t == 4 || t == 5 || t == 0x15 || t == 0x16;
 }
 
@@ -2908,7 +2909,7 @@ static int ai_021a_type_mounted(int t) {
  */
 static int s_021a_adj_fx = -1;
 static int s_021a_adj_fy = -1;
-static int ai_021a_adjacent_foreign(
+COLONIZE_INTERNAL int ai_021a_adjacent_foreign(
   const ColonizeWorldMap* map, int x, int y, int nation_id, int settlement_first
 ) {
   const int medium = ai_is_ocean_hs(map, x, y);
@@ -2946,14 +2947,14 @@ static int ai_021a_adjacent_foreign(
   return found;
 }
 
-static int ai_021a_visit_turn(const ColonizeUnit* u) {
+COLONIZE_INTERNAL int ai_021a_visit_turn(const ColonizeUnit* u) {
   if (!u->col1_hold_raw_valid) {
     return 0;
   }
   return (int)(int16_t)((unsigned)u->col1_hold_raw[6] | ((unsigned)u->col1_hold_raw[7] << 8));
 }
 
-static void ai_021a_set_visit_turn(ColonizeUnit* u, int turn) {
+COLONIZE_INTERNAL void ai_021a_set_visit_turn(ColonizeUnit* u, int turn) {
   u->col1_hold_raw[6] = (uint8_t)(turn & 0xff);
   u->col1_hold_raw[7] = (uint8_t)((turn >> 8) & 0xff);
   u->col1_hold_raw_valid = 1;
@@ -2965,47 +2966,21 @@ typedef struct Ai021aResult {
 } Ai021aResult;
 
 /* FUN_15dc_00a2 alarm tier: <25 0, <50 1, <75 2, else 3. */
-static int ai_021a_alarm_tier(int alarm) {
+COLONIZE_INTERNAL int ai_021a_alarm_tier(int alarm) {
   if (alarm < 0x19) return 0;
   if (alarm < 0x32) return 1;
   if (alarm < 0x4b) return 2;
   return 3;
 }
 
-/* Per-direction and per-act state shared by the FUN_4d56_021a scorer stages. */
-struct ai_021a_ctx {
-  AiRng* rng;
-  const ColonizeWorldMap* map;
-  const ColonizeUnitPool* units;
-  const ColonizeCol1Save* col1;
-  const ColonizeColonyPool* colonies;
-  const ColonizeUnit* u;
-  int nation_id, x, y, indian, turn_w, cool, unit_fa, unit_river, home, dump;
-  int adj_foreign, adj_nation, continent, col_dist, col_idx;
-  const ColonizeColony* col;
-  const ColonizeCol1Tribe* village;
-  int vx, vy, home_reach, encroach, threat, threat_nation, angry, visit_turn;
-  int self_stack, lone;
-  const ColonizeCol1Indian* ind;
-  int tech, facing;
-  /* carried across directions */
-  int grudge, best, best_dir, best_flags;
-  /* per-direction */
-  int d, nx, ny, score, flags, terr, owner, presence, settle, dfa, driver, dres;
-  int hostile, att, occ, visit_nation, visit_val, vdist, attack_intent, alarm, upg;
-};
-
-typedef enum {
-  AI_021A_DIR_OK = 0,  /* stage fell through — run the next one */
-  AI_021A_DIR_SKIP = 1 /* direction rejected (was a bare `continue;`) */
-} Ai021aDirStatus;
+/* struct ai_021a_ctx / Ai021aDirStatus now live in ai_internal.h. */
 
 /*
  * 021a:0x59a-0x8f7 — tile facts, owner/grudge, occupancy, the adjacent-visit
  * scan and the encroachment pull. Extracted verbatim from
  * ai_native_pick_dir_021a.
  */
-static Ai021aDirStatus ai_021a_dir_tile(struct ai_021a_ctx* c) {
+COLONIZE_INTERNAL Ai021aDirStatus ai_021a_dir_tile(struct ai_021a_ctx* c) {
   const ColonizeWorldMap* const map = c->map;
   const ColonizeUnitPool* const units = c->units;
   const ColonizeCol1Save* const col1 = c->col1;
@@ -3177,7 +3152,7 @@ static Ai021aDirStatus ai_021a_dir_tile(struct ai_021a_ctx* c) {
 }
 
 /* 021a:0x8f8-0xbb5 — occupied-destination attack intent / alarm arms. */
-static Ai021aDirStatus ai_021a_dir_occupant(struct ai_021a_ctx* c) {
+COLONIZE_INTERNAL Ai021aDirStatus ai_021a_dir_occupant(struct ai_021a_ctx* c) {
   AiRng* const rng = c->rng;
   const ColonizeUnitPool* const units = c->units;
   const ColonizeCol1Save* const col1 = c->col1;
@@ -3330,7 +3305,7 @@ static Ai021aDirStatus ai_021a_dir_occupant(struct ai_021a_ctx* c) {
 }
 
 /* 021a:0xbb6-0xd5b — upgrade beacon, facing/road/river bias, home tether. */
-static Ai021aDirStatus ai_021a_dir_terrain(struct ai_021a_ctx* c) {
+COLONIZE_INTERNAL Ai021aDirStatus ai_021a_dir_terrain(struct ai_021a_ctx* c) {
   AiRng* const rng = c->rng;
   const ColonizeWorldMap* const map = c->map;
   const ColonizeUnitPool* const units = c->units;
@@ -3470,7 +3445,7 @@ static Ai021aDirStatus ai_021a_dir_terrain(struct ai_021a_ctx* c) {
 }
 
 /* 021a:0xeba-0x1157 — the quiet / angry destination bands. */
-static Ai021aDirStatus ai_021a_dir_angry(struct ai_021a_ctx* c) {
+COLONIZE_INTERNAL Ai021aDirStatus ai_021a_dir_angry(struct ai_021a_ctx* c) {
   const ColonizeWorldMap* const map = c->map;
   const ColonizeUnitPool* const units = c->units;
   const ColonizeCol1Save* const col1 = c->col1;
@@ -3575,7 +3550,7 @@ static Ai021aDirStatus ai_021a_dir_angry(struct ai_021a_ctx* c) {
 }
 
 /* One direction: the four scoring stages plus the 021a:0x1158 roll/pick tail. */
-static void ai_021a_score_dir(struct ai_021a_ctx* c) {
+COLONIZE_INTERNAL void ai_021a_score_dir(struct ai_021a_ctx* c) {
   if (ai_021a_dir_tile(c) == AI_021A_DIR_SKIP) {
     return;
   }
@@ -3979,7 +3954,7 @@ static int ai_native_021a_tail(
 }
 
 /* AI_021A_TRACE=1 — one line per Brave act (pick, flags, final dir). */
-static int ai_021a_trace_enabled(void) {
+COLONIZE_INTERNAL int ai_021a_trace_enabled(void) {
   static int cached = -1;
   if (cached < 0) {
     const char* e = getenv("AI_021A_TRACE");

@@ -416,6 +416,17 @@ void units_founder_loot(
  */
 void units_reset_hooks(void);
 
+/*
+ * Per-unit-id shadow state that outlives units_reset(pool) because it is
+ * indexed by unit_id rather than owned by the pool: the goto anti-backtrack
+ * shadow (s_units_goto_last_dir). Unit ids are reused by a fresh pool on New
+ * Game / Load, so without this a slot's stale direction from the outgoing
+ * campaign could false-positive the anti-backtrack check for a unrelated
+ * unit that happens to reuse the same id. Call at the same point as the
+ * other new-game/load resets (ai_init_new_game, game_apply_col1_save).
+ */
+void units_reset_state(void);
+
 
 
 

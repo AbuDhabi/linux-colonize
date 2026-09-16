@@ -1,3 +1,4 @@
+#include "core/internal.h"
 #include "core/game_loop.h"
 
 /*
@@ -293,7 +294,7 @@ void game_set_view_center(ColonizeGameState* game, int x, int y);
  * no "tile explored" test; the port used map_tile_seen_by here, so every move
  * on once-seen ground was watched with nobody nearby.
  */
-static bool game_move_is_near_human(
+COLONIZE_INTERNAL bool game_move_is_near_human(
   const ColonizeGameState* game,
   const ColonizeUnit* mover,
   const ColonizeWorldMap* map,
@@ -384,7 +385,7 @@ static void game_blit_unit_in_viewport(
   }
 }
 
-static void game_move_watch(
+COLONIZE_INTERNAL void game_move_watch(
   void* user,
   const ColonizeUnitPool* pool,
   const ColonizeWorldMap* map,
@@ -2304,6 +2305,7 @@ static bool game_apply_col1_save(ColonizeGameState* game, ColonizeCol1Save* load
   ai_euro_reset();
   ai_native_reset();
   turn_reset();
+  units_reset_state(); /* goto anti-backtrack shadow, indexed by reused unit_id */
   if (!col1_bridge_apply(
         loaded,
         &game->world_map,
@@ -3734,7 +3736,7 @@ static int europe_harbor_open_holds(const ColonizeUnitPool* units, const EuropeH
  * howmuch and name_entry are never open at the same time (each opener closes
  * the other modal), so the draw order between them is not observable.
  */
-static void game_render_modal_overlays(
+COLONIZE_INTERNAL void game_render_modal_overlays(
   const ColonizeGameState* game,
   const ColonizeFont* last_resort,
   ColonizeFramebuffer8* framebuffer
@@ -5329,11 +5331,7 @@ bool game_commit_sea_lane_step(ColonizeGameState* game, int sid, int dest_x, int
  * Move selected unit to dest: ship landfall unload, colony dock disembark,
  * awake passenger walking ashore, or normal try_move.
  */
-typedef enum GameMoveStep {
-  GAME_MOVE_CONTINUE = 0,  /* fall through to the next stage of game_try_unit_move */
-  GAME_MOVE_RETURN_TRUE,   /* game_try_unit_move returns true immediately */
-  GAME_MOVE_RETURN_FALSE   /* game_try_unit_move returns false immediately */
-} GameMoveStep;
+#include "core/game_loop_internal.h" /* GameMoveStep */
 
 /*
  * game_try_unit_move stages, in DOS order: each returns a GameMoveStep the
@@ -5341,7 +5339,7 @@ typedef enum GameMoveStep {
  */
 
 /* Awake passenger aboard a ship stepping onto adjacent land. */
-static GameMoveStep game_move_passenger_unload(
+COLONIZE_INTERNAL GameMoveStep game_move_passenger_unload(
   ColonizeGameState* game, ColonizeUnit* selected, int sid, const ColonizeColonyPool* colonies,
   int dest_x, int dest_y
 ) {
@@ -5367,7 +5365,7 @@ static GameMoveStep game_move_passenger_unload(
 }
 
 /* Ship moves: water steps, colony docking, Europe lanes and naval combat. */
-static GameMoveStep game_move_sea_unit(
+COLONIZE_INTERNAL GameMoveStep game_move_sea_unit(
   ColonizeGameState* game, ColonizeUnit* selected, int sid, const ColonizeColonyPool* colonies,
   int dest_x, int dest_y
 ) {
@@ -5545,7 +5543,7 @@ static GameMoveStep game_move_sea_unit(
 
 /* Pre-move native interceptions: village entry, @WHACKINDIANS and the
  * @INDIANLAND land-demand prompt. */
-static GameMoveStep game_move_native_prompts(
+COLONIZE_INTERNAL GameMoveStep game_move_native_prompts(
   ColonizeGameState* game, ColonizeUnit* selected, int sid, int dest_x, int dest_y
 ) {
   /*
@@ -5687,7 +5685,7 @@ static GameMoveStep game_move_native_prompts(
 
 /* Pre-move colony / combat interceptions: the attack confirms and the
  * combat-analysis prompts. */
-static GameMoveStep game_move_colony_prompts(
+COLONIZE_INTERNAL GameMoveStep game_move_colony_prompts(
   ColonizeGameState* game, ColonizeUnit* selected, int sid, int dest_x, int dest_y
 ) {
   /*
@@ -5798,7 +5796,7 @@ static GameMoveStep game_move_colony_prompts(
 }
 
 /* The move itself (units_try_move) and its immediate outcomes. */
-static GameMoveStep game_move_commit(
+COLONIZE_INTERNAL GameMoveStep game_move_commit(
   ColonizeGameState* game, ColonizeUnit* selected, int sid, const ColonizeColonyPool* colonies,
   int dest_x, int dest_y
 ) {
@@ -10104,17 +10102,13 @@ static bool game_service_opening(
   return true;
 }
 
-typedef enum GameUpdateStep {
-  GAME_UPDATE_CONTINUE = 0, /* fall through to the next step of game_update */
-  GAME_UPDATE_RETURN_TRUE, /* game_update returns true immediately */
-  GAME_UPDATE_RETURN_FALSE /* game_update returns false immediately (quit) */
-} GameUpdateStep;
+/* GameUpdateStep now lives in game_loop_internal.h. */
 
 /*
  * Per-frame services: clocks, watches, turn-processor slices, popup /
  * woodcut / status-line pumps and the deferred Europe + declaration opens.
  */
-static GameUpdateStep game_update_services(ColonizeGameState* game, const ColonizeInputState* input, uint32_t dt_ms) {
+COLONIZE_INTERNAL GameUpdateStep game_update_services(ColonizeGameState* game, const ColonizeInputState* input, uint32_t dt_ms) {
   game->elapsed_ms += dt_ms;
   game_track_screen(game);
   sound_service();
@@ -10559,7 +10553,7 @@ static GameUpdateStep game_pacer_goto_step(
   return GAME_UPDATE_CONTINUE;
 }
 
-static GameUpdateStep game_update_unit_pacer(ColonizeGameState* game, const ColonizeInputState* input, uint32_t dt_ms) {
+COLONIZE_INTERNAL GameUpdateStep game_update_unit_pacer(ColonizeGameState* game, const ColonizeInputState* input, uint32_t dt_ms) {
   /*
    * Turn activation queue (minimal): DOS gives control to exactly one
    * human unit at a time, in a fixed deterministic order (turn_select_
@@ -10696,7 +10690,7 @@ static GameUpdateStep game_update_unit_pacer(ColonizeGameState* game, const Colo
 }
 
 /* Reports screen input. */
-static GameUpdateStep game_update_report_screen(ColonizeGameState* game, const ColonizeInputState* input) {
+COLONIZE_INTERNAL GameUpdateStep game_update_report_screen(ColonizeGameState* game, const ColonizeInputState* input) {
   if (game->in_report) {
     /* Labor report grid: a click on a profession cell zooms to its detail
      * view (golden: labor_detail.png) instead of anything OK/Esc-related. */
@@ -11502,7 +11496,7 @@ static GameUpdateStep game_colony_screen_cargo_keys(
   return GAME_UPDATE_CONTINUE;
 }
 
-static GameUpdateStep game_update_colony_screen(ColonizeGameState* game, const ColonizeInputState* input) {
+COLONIZE_INTERNAL GameUpdateStep game_update_colony_screen(ColonizeGameState* game, const ColonizeInputState* input) {
   if (game->in_colony) {
     ColonizeColony* colony = colonies_get_mut(&game->colonies, game->colony_view_id);
     ColonyScreenView* csv = &game->colony_screen;
@@ -11893,7 +11887,7 @@ static GameUpdateStep game_europe_screen_mouse(
   return GAME_UPDATE_CONTINUE;
 }
 
-static GameUpdateStep game_update_europe_screen(ColonizeGameState* game, const ColonizeInputState* input) {
+COLONIZE_INTERNAL GameUpdateStep game_update_europe_screen(ColonizeGameState* game, const ColonizeInputState* input) {
   if (game->in_europe) {
     EuropeScreen* eu = &game->europe;
     europe_refresh_harbor_selection(eu);
@@ -11945,7 +11939,7 @@ static GameUpdateStep game_update_europe_screen(ColonizeGameState* game, const C
 }
 
 /* Pedia screen input. */
-static GameUpdateStep game_update_pedia_screen(ColonizeGameState* game, const ColonizeInputState* input) {
+COLONIZE_INTERNAL GameUpdateStep game_update_pedia_screen(ColonizeGameState* game, const ColonizeInputState* input) {
   if (game->in_pedia) {
     const ColonizeFont* font = game_pedia_font(game);
     if (game->pedia_view == PEDIA_VIEW_LIST) {
@@ -12011,7 +12005,7 @@ static GameUpdateStep game_update_pedia_screen(ColonizeGameState* game, const Co
 }
 
 /* Sprite atlas debug screen input. */
-static GameUpdateStep game_update_debug_atlas_screen(ColonizeGameState* game, const ColonizeInputState* input) {
+COLONIZE_INTERNAL GameUpdateStep game_update_debug_atlas_screen(ColonizeGameState* game, const ColonizeInputState* input) {
   if (game->in_debug_atlas) {
     if (input->last_key == COLONIZE_KEY_ESCAPE || input->last_key == COLONIZE_KEY_TILDE) {
       game->in_debug_atlas = false;
@@ -12041,7 +12035,7 @@ static GameUpdateStep game_update_debug_atlas_screen(ColonizeGameState* game, co
 }
 
 /* Title menu input. */
-static GameUpdateStep game_update_title_menu(ColonizeGameState* game, const ColonizeInputState* input) {
+COLONIZE_INTERNAL GameUpdateStep game_update_title_menu(ColonizeGameState* game, const ColonizeInputState* input) {
   if (game->in_menu) {
     if (!game->ai_popups.open && !game->ai_popups.has_result) {
       ai_popup_try_present_next(&game->ai_popups);
@@ -12312,7 +12306,7 @@ static GameUpdateStep game_map_mouse_click(
   return GAME_UPDATE_CONTINUE;
 }
 
-static GameUpdateStep game_update_map_menu_bar(ColonizeGameState* game, const ColonizeInputState* input) {
+COLONIZE_INTERNAL GameUpdateStep game_update_map_menu_bar(ColonizeGameState* game, const ColonizeInputState* input) {
   /* Map-screen menu bar (MENU.TXT pull-downs) + mouse map click. */
   if (!game->in_colony && !game->in_europe && !game->in_pedia && !game->in_debug_atlas &&
       !game->in_report) {
@@ -12520,7 +12514,7 @@ static GameUpdateStep game_update_map_menu_bar(ColonizeGameState* game, const Co
 }
 
 /* Map-screen keyboard commands (cursor, orders, hotkeys). */
-static GameUpdateStep game_update_map_keys(ColonizeGameState* game, const ColonizeInputState* input) {
+COLONIZE_INTERNAL GameUpdateStep game_update_map_keys(ColonizeGameState* game, const ColonizeInputState* input) {
   if (input->last_key == COLONIZE_KEY_ESCAPE) {
     if (game->map_goto_place_mode) {
       game->map_goto_place_mode = false;
@@ -13055,7 +13049,7 @@ int begin_menu_option_at_xy(const BeginMenuLayout* layout, int mx, int my) {
   return idx;
 }
 
-static void game_render_begin_menu(
+COLONIZE_INTERNAL void game_render_begin_menu(
   const ColonizeGameState* game,
   ColonizeFramebuffer8* framebuffer
 ) {
@@ -13166,7 +13160,7 @@ static bool game_map_blink_running(const ColonizeGameState* game) {
  * game_render_screen paints one of the full-screen views and reports
  * whether it did, and game_render_map paints the overland map otherwise.
  */
-static bool game_render_fullscreen_takeover(
+COLONIZE_INTERNAL bool game_render_fullscreen_takeover(
   const ColonizeGameState* game, ColonizeFramebuffer8* framebuffer, ColonizePalette* palette
 ) {
   /* OPENING.EXE owns the whole screen (OPENING.PIK palette). */
@@ -13217,7 +13211,7 @@ static bool game_render_fullscreen_takeover(
 
 /* Screen palette cascade + the reserved-DAC-block merges the open popup /
  * Europe menu / exploits sheets need (merge, never remap). */
-static void game_render_select_palette(
+COLONIZE_INTERNAL void game_render_select_palette(
   const ColonizeGameState* game, const ColonizeFramebuffer8* framebuffer, ColonizePalette* palette,
   uint32_t render_log_counter
 ) {
@@ -13295,7 +13289,7 @@ static void game_render_select_palette(
 /* One of the full-screen views (Europe, reports, exploits, hall of fame,
  * colony, pedia, debug atlas, new-game wizard, title menu). Returns true
  * when it painted one — the map path is then skipped. */
-static bool game_render_screen(
+COLONIZE_INTERNAL bool game_render_screen(
   const ColonizeGameState* game, ColonizeFramebuffer8* framebuffer, ColonizePalette* palette
 ) {
   if (game->in_europe) {
@@ -13556,7 +13550,7 @@ static bool game_render_screen(
 
 /* Terrain / fog / colonies / tribes / units composited at native 16px per
  * tile into the offscreen zoom buffer, then decimated to the 240x192 view. */
-static void game_render_map_composite(
+COLONIZE_INTERNAL void game_render_map_composite(
   const ColonizeGameState* game, ColonizeFramebuffer8* framebuffer, int map_zoom, int view_x,
   int view_y, int view_cols, int view_rows
 ) {
@@ -13804,7 +13798,7 @@ static void game_render_map_composite(
 
 /* Post-decimation map overlays: the blinking tile cursor and the two CHEAT
  * debug layers (Show Strategy, Show Colony Sites). */
-static void game_render_map_overlays(
+COLONIZE_INTERNAL void game_render_map_overlays(
   const ColonizeGameState* game, ColonizeFramebuffer8* framebuffer, int view_x, int view_y,
   int view_cols, int view_rows, int screen_tile_px
 ) {
@@ -13911,7 +13905,7 @@ static void game_render_map_overlays(
 }
 
 /* Right-hand info panel (map_panel_render). */
-static void game_render_map_panel(
+COLONIZE_INTERNAL void game_render_map_panel(
   const ColonizeGameState* game, ColonizeFramebuffer8* framebuffer, int view_x, int view_y,
   int view_cols, int view_rows
 ) {
@@ -13953,7 +13947,7 @@ static void game_render_map_panel(
 }
 
 /* Map menu bar and every dialog that floats over the overland map. */
-static void game_render_map_dialogs(
+COLONIZE_INTERNAL void game_render_map_dialogs(
   const ColonizeGameState* game, ColonizeFramebuffer8* framebuffer, ColonizePalette* palette
 ) {
   const ColonizeFont* hud_font = game->colony_font_ok ? &game->colony_font :
@@ -14112,7 +14106,7 @@ static void game_render_map_dialogs(
 }
 
 /* Overland map view: geometry, then composite / overlays / panel / dialogs. */
-static void game_render_map(
+COLONIZE_INTERNAL void game_render_map(
   const ColonizeGameState* game, ColonizeFramebuffer8* framebuffer, ColonizePalette* palette
 ) {
   /* Map view: scrollable world map (15<<zoom × 12<<zoom tiles) left of the right info panel. */

@@ -1,3 +1,4 @@
+#include "core/internal.h"
 #include "core/ai_contact.h"
 
 /*
@@ -7493,7 +7494,7 @@ static int ai_contact_colony_has_burn_target(
  * the port is fair game. Returns the unit id, or −1 when the port is empty
  * (DOS's `goto LAB_5fef_123a`, which collapses the raid to kind 0).
  */
-static int ai_contact_raid_port_ship(ColonizeTurnContext* ctx, const ColonizeColony* c) {
+COLONIZE_INTERNAL int ai_contact_raid_port_ship(ColonizeTurnContext* ctx, const ColonizeColony* c) {
   if (!ctx || !ctx->units || !c) {
     return -1;
   }
@@ -7622,7 +7623,7 @@ static AiRaidKind ai_contact_pick_raid_kind(
 }
 
 /* Apply 5fef_0f14-shaped difficulty/year/building demote after primary pick. */
-static AiRaidKind ai_contact_raid_kind_demote(
+COLONIZE_INTERNAL AiRaidKind ai_contact_raid_kind_demote(
   ColonizeTurnContext* ctx,
   ColonizeColony* c,
   AiRaidKind kind
@@ -7683,7 +7684,7 @@ static AiRaidKind ai_contact_raid_kind_demote(
  *  - High friction (≥80): also drain tools (−1) when stock present.
  * Full 5fef_0f14 / 4528 dialog PARKED.
  */
-static void ai_contact_raid_secondary_loot(
+COLONIZE_INTERNAL void ai_contact_raid_secondary_loot(
   ColonizeTurnContext* ctx,
   ColonizeColony* c,
   int target_euro,
@@ -7728,7 +7729,7 @@ static void ai_contact_raid_secondary_loot(
  * prefer at-war, tie-break lower relation. Cite: indian_raid_outcomes.md §1
  * gate. No per-nation term — see the band comment below (smell #76).
  */
-static int ai_contact_raid_gate_target(
+COLONIZE_INTERNAL int ai_contact_raid_gate_target(
   ColonizeTurnContext* ctx,
   ColonizeCol1Indian* ind,
   int nation_id,
@@ -8106,7 +8107,7 @@ static void ai_contact_apply_raid_loot(
  *                  SCALP got the 16 and SHIP was lumped with gold's 8.)
  *   4 gold      -> AI_RAID_GOLD (treasury drain)
  */
-static int ai_contact_raid_alarm_delta(AiRaidKind kind) {
+COLONIZE_INTERNAL int ai_contact_raid_alarm_delta(AiRaidKind kind) {
   switch (kind) {
     case AI_RAID_STORES:
       return -4;
@@ -8123,7 +8124,7 @@ static int ai_contact_raid_alarm_delta(AiRaidKind kind) {
   }
 }
 
-static void ai_contact_raid_alarm_tail(
+COLONIZE_INTERNAL void ai_contact_raid_alarm_tail(
   ColonizeTurnContext* ctx, int indian_nation, int euro, AiRaidKind kind
 ) {
   if (!ctx || !ctx->col1 || indian_nation < 4 || indian_nation > 11 || euro < 0 || euro > 3) {
@@ -8391,7 +8392,7 @@ static const AiRaidChrome k_raid_chrome_generic = {
   -1, -1, AI_RAID_TOK_NONE, 0
 };
 
-static const AiRaidChrome* ai_contact_raid_chrome_row(AiRaidKind kind, int have_burn_building) {
+COLONIZE_INTERNAL const AiRaidChrome* ai_contact_raid_chrome_row(AiRaidKind kind, int have_burn_building) {
   if (kind == AI_RAID_BURN) {
     return have_burn_building ? &k_raid_chrome_burn_named : &k_raid_chrome_burn_thin;
   }
@@ -8409,7 +8410,7 @@ static const AiRaidChrome* ai_contact_raid_chrome_row(AiRaidKind kind, int have_
  * @INDIANWIN0/1/2 / @INDIANLOSE ambush chrome for a human victim of the
  * adjacent-unit arm. Extracted verbatim from ai_contact_indian_raids.
  */
-static void ai_contact_raid_ambush_chrome(
+COLONIZE_INTERNAL void ai_contact_raid_ambush_chrome(
   ColonizeTurnContext* ctx, int nation_id, int target_euro, int brave_won,
   int seized_muskets, int seized_horses, const char* foe_unit_name,
   const char* foe_nation_label, const char* place, int foe_type
@@ -8499,28 +8500,13 @@ static void ai_contact_raid_ambush_chrome(
   }
 }
 
-typedef enum {
-  AI_RAID_CONTINUE = 0,  /* stage fell through — run the next one */
-  AI_RAID_NEXT_BRAVE = 1 /* stage ended this Brave (was a bare `continue;`) */
-} AiRaidStatus;
-
-/* Per-Brave state shared between the stages of one ai_contact_indian_raids pass. */
-struct ai_contact_raid_ctx {
-  ColonizeTurnContext* ctx;
-  ColonizeCol1Indian* ind;
-  ColonizeDosRng* rng;
-  int nation_id;
-  ColonizeUnit* brave; /* re-read after any call that can free/replace it */
-  int target_euro;
-  int max_alarm;
-  int attacked;
-};
+#include "core/ai_contact_internal.h" /* AiRaidStatus, struct ai_contact_raid_ctx */
 
 /*
  * Stage 2: adjacent unit combat (FUN_4d56_4528 arm 2). Extracted verbatim
  * from ai_contact_indian_raids; sets a->attacked for the colony stage.
  */
-static void ai_contact_raid_stage_combat(struct ai_contact_raid_ctx* a) {
+COLONIZE_INTERNAL void ai_contact_raid_stage_combat(struct ai_contact_raid_ctx* a) {
   ColonizeTurnContext* const ctx = a->ctx;
   ColonizeUnit* brave = a->brave;
   ColonizeDosRng* const rng = a->rng;
@@ -8652,7 +8638,7 @@ static void ai_contact_raid_stage_combat(struct ai_contact_raid_ctx* a) {
  * Stage 3 pick: nearest raidable colony of the gated Euro. Extracted
  * verbatim from ai_contact_indian_raids.
  */
-static int ai_contact_raid_pick_colony(struct ai_contact_raid_ctx* a) {
+COLONIZE_INTERNAL int ai_contact_raid_pick_colony(struct ai_contact_raid_ctx* a) {
   ColonizeTurnContext* const ctx = a->ctx;
   const ColonizeUnit* const brave = a->brave;
   const int target_euro = a->target_euro;
@@ -8716,7 +8702,7 @@ static int ai_contact_raid_pick_colony(struct ai_contact_raid_ctx* a) {
  * @RAID* / @INDIANWAR / @INDIANSURPRISE chrome for a human raid victim.
  * Extracted verbatim from ai_contact_indian_raids.
  */
-static void ai_contact_raid_human_chrome(
+COLONIZE_INTERNAL void ai_contact_raid_human_chrome(
   ColonizeTurnContext* ctx, const ColonizeColony* c, int nation_id, int target_euro,
   AiRaidKind kind, int max_alarm, int had_peace, int eff_at_war
 ) {
@@ -8860,7 +8846,7 @@ static void ai_contact_raid_human_chrome(
  * Stages 4-5: on-tile loot resolve (FUN_5fef_0f14) + its alarm tail and the
  * raider discharge. Extracted verbatim from ai_contact_indian_raids.
  */
-static void ai_contact_raid_resolve_on_tile(
+COLONIZE_INTERNAL void ai_contact_raid_resolve_on_tile(
   struct ai_contact_raid_ctx* a, ColonizeColony* c
 ) {
   ColonizeTurnContext* const ctx = a->ctx;
@@ -8977,7 +8963,7 @@ static void ai_contact_raid_resolve_on_tile(
 /*
  * Stage 3-5 driver: colony approach / loot / capture band.
  */
-static AiRaidStatus ai_contact_raid_stage_colony(struct ai_contact_raid_ctx* a) {
+COLONIZE_INTERNAL AiRaidStatus ai_contact_raid_stage_colony(struct ai_contact_raid_ctx* a) {
   ColonizeTurnContext* const ctx = a->ctx;
   ColonizeUnit* brave = a->brave;
   ColonizeDosRng* const rng = a->rng;
@@ -9017,7 +9003,7 @@ static AiRaidStatus ai_contact_raid_stage_colony(struct ai_contact_raid_ctx* a) 
  * Stage 6: FUN_4d56_359c scout displace/despawn sweep. Extracted verbatim
  * from ai_contact_indian_raids.
  */
-static void ai_contact_raid_scout_displace(
+COLONIZE_INTERNAL void ai_contact_raid_scout_displace(
   ColonizeTurnContext* ctx, const ColonizeCol1Indian* ind, int nation_id,
   ColonizeDosRng* rng
 ) {

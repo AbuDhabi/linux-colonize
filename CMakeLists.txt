@@ -136,6 +136,18 @@ target_compile_options(colonize_core PRIVATE
 
 target_link_libraries(colonize_core PUBLIC m pthread)
 
+# COLONIZE_TESTING flips the COLONIZE_INTERNAL macro (core/internal.h) from
+# `static` to nothing on the split-stage functions (ai_euro_act_*, game_update_*,
+# game_render_*, game_move_*, ai_contact_raid_*, ai_king_0982_*, ai_021a_*,
+# turn_step_*, turn_year_end_*), so tests/unit/test_stage_seams.c can call one
+# stage directly. colonize_core is built exactly once and linked by every test
+# binary (see colonize_add_test below) — there is no separate "test" build of
+# the core lib to scope this to — so the define is applied to the one
+# colonize_core target unconditionally. It only widens symbol linkage; no
+# stage function's body or call sites change, so this has no effect on
+# program behaviour. See docs/conventions.md "Code conventions".
+target_compile_definitions(colonize_core PUBLIC COLONIZE_TESTING=1)
+
 if(COLONIZE_DEBUG_MENU)
   target_compile_definitions(colonize_core PUBLIC COLONIZE_DEBUG_MENU=1)
 else()
@@ -669,6 +681,11 @@ colonize_add_test(NAME unit_ai_diplo
 # this formula port; that gap is closed.
 colonize_add_test(NAME unit_ai_king
   SOURCES tests/unit/test_ai_king.c
+  LIBS colonize_core
+)
+
+colonize_add_test(NAME unit_stage_seams
+  SOURCES tests/unit/test_stage_seams.c tests/common/platform_cursor_stubs.c
   LIBS colonize_core
 )
 

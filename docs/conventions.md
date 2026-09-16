@@ -105,6 +105,22 @@ the verification loop. It does **not** own feature status — that stays in the
   catches. Stage order = DOS order; the dispatcher is the asm reading order.
   Every function over 300 lines was split 2026-09-16 except `gsound_vm.c`
   `voice_tick` (driver emulator, verbatim).
+- **Internal-header test seam.** A stage function from the big-function-rule
+  split stays `static` in production but is reachable from tests via
+  `<module>_internal.h` + `core/internal.h`'s `COLONIZE_INTERNAL` macro
+  (`static` normally, external linkage when `COLONIZE_TESTING` is defined).
+  The macro is defined once on the shared `colonize_core` target in
+  `CMakeLists.txt` — colonize_core is built exactly once and linked by every
+  test binary, so there is no separate "test build" to scope the define to;
+  applying it to the one target only widens symbol visibility; it changes no
+  function body or call site. A module's `<module>_internal.h` moves the
+  stage's ctx struct / status enum out of the `.c` file (needed unconditionally,
+  so a test can build one) and declares the stage prototypes gated behind
+  `#ifdef COLONIZE_TESTING` (not needed by production, which never calls them
+  across a translation unit). See `src/core/ai_euro_internal.h`,
+  `ai_contact_internal.h`, `ai_king_internal.h`, `ai_internal.h`,
+  `turn_internal.h`, `game_loop_internal.h` and
+  `tests/unit/test_stage_seams.c`. (2026-09-16)
 
 ### Structural invariants
 

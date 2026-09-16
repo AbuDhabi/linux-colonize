@@ -1,5 +1,7 @@
+#include "core/internal.h"
 #include "core/popup_msg.h"
 #include "core/turn.h"
+#include "core/turn_internal.h"
 
 #include "core/strutil.h"
 
@@ -2951,7 +2953,7 @@ static bool turn_euro_nation_is_ref(const ColonizeTurnContext* ctx, int n) {
  * i.e. it is the nation's colonist head count (already saved, already
  * written by col1_stuff_census — see docs/save_format_map.md row 244).
  */
-static int turn_year_end_rival_rebels(const ColonizeCol1Save* col1, int rival) {
+COLONIZE_INTERNAL int turn_year_end_rival_rebels(const ColonizeCol1Save* col1, int rival) {
   if (!col1 || rival < 0 || rival >= (int)COLONIZE_COL1_NATION_COUNT) {
     return 0;
   }
@@ -2965,7 +2967,7 @@ static int turn_year_end_rival_rebels(const ColonizeCol1Save* col1, int rival) {
  * the nation's country_name (DS nation*0x34+0x5426 = player[n].country_name)
  * when its King grants independence — raw 58598-58603.
  */
-static const char* turn_year_end_independent_name(int nation) {
+COLONIZE_INTERNAL const char* turn_year_end_independent_name(int nation) {
   static const char* k[COLONIZE_COL1_NATION_COUNT] = {
     "United States of America",
     "Republic of Quebec",
@@ -2978,7 +2980,7 @@ static const char* turn_year_end_independent_name(int nation) {
 /* player[n].country_name (DS 0x5426) with NAMES.TXT @COUNTRY as fallback.
  * The private table this replaced said "Holland"; @COUNTRY row 3 is
  * "Netherlands" (audit theme D). */
-static const char* turn_year_end_country_name(const ColonizeCol1Save* col1, int nation) {
+COLONIZE_INTERNAL const char* turn_year_end_country_name(const ColonizeCol1Save* col1, int nation) {
   if (nation < 0 || nation >= (int)COLONIZE_COL1_NATION_COUNT) {
     return "";
   }
@@ -2989,7 +2991,7 @@ static const char* turn_year_end_country_name(const ColonizeCol1Save* col1, int 
 }
 
 /* player[n].name (DS 0x540e) with the nationality adjective as fallback. */
-static const char* turn_year_end_leader_name(const ColonizeCol1Save* col1, int nation) {
+COLONIZE_INTERNAL const char* turn_year_end_leader_name(const ColonizeCol1Save* col1, int nation) {
   if (nation < 0 || nation >= (int)COLONIZE_COL1_NATION_COUNT) {
     return "";
   }
@@ -3000,7 +3002,7 @@ static const char* turn_year_end_leader_name(const ColonizeCol1Save* col1, int n
 }
 
 /* §D popup: fill `tag` from GAME.TXT with DOS's substitutions, enqueue OK. */
-static void turn_year_end_rival_popup(
+COLONIZE_INTERNAL void turn_year_end_rival_popup(
   ColonizeTurnContext* ctx,
   const char* tag,
   const PopupMsgTokens* tok,
@@ -3012,7 +3014,7 @@ static void turn_year_end_rival_popup(
   popup_chrome_ok(ctx->ai_popups, ctx->messages, tag, tok, fallback);
 }
 
-static void turn_year_end_anniversary(
+COLONIZE_INTERNAL void turn_year_end_anniversary(
   ColonizeTurnContext* ctx, ColonizeTurnResult* out, uint16_t year, int splash_done,
   int woi_latched
 ) {
@@ -3051,7 +3053,7 @@ static void turn_year_end_anniversary(
   }
 }
 
-static void turn_year_end_era_end(
+COLONIZE_INTERNAL void turn_year_end_era_end(
   ColonizeTurnContext* ctx, ColonizeTurnResult* out, uint16_t year, int splash_done,
   int woi_latched
 ) {
@@ -3126,7 +3128,7 @@ static void turn_year_end_era_end(
 /* Returns true when this section already fired the WoI victory latch —
  * caller must return immediately, matching the original function's mid-body
  * `return;` at that point. */
-static bool turn_year_end_woi_chrome(
+COLONIZE_INTERNAL bool turn_year_end_woi_chrome(
   ColonizeTurnContext* ctx, ColonizeTurnResult* out, int woi_latched
 ) {
   const int woi = woi_latched;
@@ -3242,7 +3244,7 @@ static bool turn_year_end_woi_chrome(
   return false;
 }
 
-static void turn_year_end_rival_independence(
+COLONIZE_INTERNAL void turn_year_end_rival_independence(
   ColonizeTurnContext* ctx, ColonizeTurnResult* out, int woi
 ) {
   /*
@@ -3374,7 +3376,7 @@ static void turn_year_end_rival_independence(
   }
 }
 
-static void turn_year_end_defeat_check(
+COLONIZE_INTERNAL void turn_year_end_defeat_check(
   ColonizeTurnContext* ctx, ColonizeTurnResult* out, uint16_t year, int woi
 ) {
   int human_colonies = 0;
@@ -3599,7 +3601,7 @@ bool turn_processor_show_indicator(const ColonizeTurnProcessor* proc) {
   return proc && proc->show_indicator;
 }
 
-static void turn_step_setup(ColonizeTurnProcessor* proc, ColonizeTurnContext* ctx) {
+COLONIZE_INTERNAL void turn_step_setup(ColonizeTurnProcessor* proc, ColonizeTurnContext* ctx) {
       diag_info(
         "TURN setup: turn=%u year=%u autumn=%u human=%d",
         (unsigned)*ctx->turn_number, (unsigned)*ctx->game_year,
@@ -3711,7 +3713,7 @@ static void turn_step_setup(ColonizeTurnProcessor* proc, ColonizeTurnContext* ct
       }
 }
 
-static void turn_step_euro(ColonizeTurnProcessor* proc, ColonizeTurnContext* ctx) {
+COLONIZE_INTERNAL void turn_step_euro(ColonizeTurnProcessor* proc, ColonizeTurnContext* ctx) {
       const int n = proc->nation_cursor;
       diag_info("TURN european nation %d%s", n, n == ctx->human_nation ? " (human)" : "");
       proc->show_indicator = true;
@@ -3797,7 +3799,7 @@ static void turn_step_euro(ColonizeTurnProcessor* proc, ColonizeTurnContext* ctx
       }
 }
 
-static void turn_step_indian(ColonizeTurnProcessor* proc, ColonizeTurnContext* ctx) {
+COLONIZE_INTERNAL void turn_step_indian(ColonizeTurnProcessor* proc, ColonizeTurnContext* ctx) {
       const int n = proc->nation_cursor;
       diag_info("TURN native nation %d", n);
       proc->show_indicator = true;
@@ -3860,7 +3862,7 @@ static void turn_step_indian(ColonizeTurnProcessor* proc, ColonizeTurnContext* c
 }
 
 /* Body of TURN_PROC_FINISH up to its early `return true;`. */
-static void turn_step_finish(ColonizeTurnProcessor* proc, ColonizeTurnContext* ctx) {
+COLONIZE_INTERNAL void turn_step_finish(ColonizeTurnProcessor* proc, ColonizeTurnContext* ctx) {
       /*
        * Indicator ON for this slice. FUN_3844_00f2's very first act (raw
        * 58323) is FUN_281f_0590(nation_color[DS:0x5394]) → FUN_1984_00aa, and
@@ -3903,7 +3905,7 @@ static void turn_step_finish(ColonizeTurnProcessor* proc, ColonizeTurnContext* c
 }
 
 /* Body of TURN_PROC_KING up to its terminal `return false;`. */
-static void turn_step_king(ColonizeTurnProcessor* proc, ColonizeTurnContext* ctx) {
+COLONIZE_INTERNAL void turn_step_king(ColonizeTurnProcessor* proc, ColonizeTurnContext* ctx) {
       proc->show_indicator = false;
       turn_set_active_nation(ctx, ctx->human_nation);
       ai_king_nation_turn(ctx);

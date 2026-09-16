@@ -94,6 +94,14 @@ extern const int MAP_RING20_DY[20];
  */
 #define MAP_LAYER2_PLOWED 0x40u
 
+/*
+ * layer3 high nibble = owner (0..14, 0xf = none), low nibble = continent id.
+ * Never fog (docs/savegame.md line 36-37; COLONYFLAG village-owner-nibble rule).
+ */
+#define MAP_L3_CONTINENT_MASK 0x0fu
+#define MAP_L3_OWNER_SHIFT 4u
+#define MAP_L3_OWNER_MASK 0x0fu
+
 typedef struct ColonizeWorldMap {
   uint8_t width;
   uint8_t height;
