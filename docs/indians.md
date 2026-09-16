@@ -456,7 +456,9 @@ ported in `units.c`** (closes the "left open" note; raw =
 | Site | Raw | DOS gate | Index cleared | Linux |
 |------|-----|----------|---------------|-------|
 | combat discharge | 101039-101041 | attacker nation ≥ 4 **and** defender nation < 4, **and** (`local_10 < 0` ∥ `DS:0x8db8 != 0` ∥ attacker won). `local_10` = `FUN_281f_0614(x, y, -1, -1)` nearest-colony scan on the **defender's** tile, `0x8db8` = that scan's distance output, so the two leading terms together read "the fight was not on a colony tile". The `else` limb is DOS's handoff to `FUN_5fef_0f14`, which carries its own clear. | `tribe[attacker.+0x314a].alarm[defender_nation]`, whole word | `units_indian_attack_tension_clear`, called from both arms of `units_resolve_land_combat_ff` |
-| capital razed | 101289-101298 | `local_c != 0` (dwelling destroyed) **and** `local_ce != 0` (record +3 bit 2, capital). Same block first clamps alarm **down** to 15 when above (`FUN_281f_030c` → `FUN_281f_0d6c(-(alarm-15))`) and then draws `@INDIANDEAD` (0x1cd7). The `0d6c` delta lands in `FUN_4cc6_00f2`, whose negative arm clears the WAR bit **both ways** whenever the new alarm is < 0x4b (the clamp lands at 15, so always) — this war-clear side effect, not any peace-bit store, is DOS's forced peace on capital razing; the port routes the clamp through `ai_diplo_indian_alarm_delta` so the same clear fires. | walks the whole DS:0x539a settlement array, zeroing every record whose `+2` type byte (= owner nation − 4, `settlement_record_8d4a.md`) equals the bound nation index at DS:0x8d52 — nation-wide, not just the razed settlement. In the port: `tribe[ti].alarm[attacker_nation]` zeroed for every tribe of that nation | the `rich_capital` arm of `units.c`'s village-destroy path, beside `ai_diplo_indian_capital_surrender` (which models the alarm half) |
+| capital razed | 101289-101298 | `local_c != 0` (dwelling destroyed) **and** `local_ce != 0` (record +3 bit 2, capital). Same block first clamps alarm **down** to 15 when above (`FUN_281f_030c` → `FUN_281f_0d6c(-(alarm-15))`) and then draws `@INDIANBOW` (0x1cd7 — the DS string at 121248+0x1cd7 is
+`INDIANBOW`, not `INDIANDEAD`; corrected 2026-09-16, and the popup is now
+wired in the port's `rich_capital` arm). The `0d6c` delta lands in `FUN_4cc6_00f2`, whose negative arm clears the WAR bit **both ways** whenever the new alarm is < 0x4b (the clamp lands at 15, so always) — this war-clear side effect, not any peace-bit store, is DOS's forced peace on capital razing; the port routes the clamp through `ai_diplo_indian_alarm_delta` so the same clear fires. | walks the whole DS:0x539a settlement array, zeroing every record whose `+2` type byte (= owner nation − 4, `settlement_record_8d4a.md`) equals the bound nation index at DS:0x8d52 — nation-wide, not just the razed settlement. In the port: `tribe[ti].alarm[attacker_nation]` zeroed for every tribe of that nation | the `rich_capital` arm of `units.c`'s village-destroy path, beside `ai_diplo_indian_capital_surrender` (which models the alarm half) |
 
 Net rule for the combat site: **every** resolved native-vs-European land
 fight discharges the raiding tribe's tension toward that European, except a
@@ -635,8 +637,11 @@ flowchart TD
 ### Meet menu (already met)
 
 Village tile / synthetic apply: Trade / Gift / Demand / Teach / Leave
-(`ai_contact_try_village_meet`). Greet `@INDIANHELLO1` / `HELLO2` by cool/hot
-alarm. Deep bargain matrix `FUN_4d56_2820` is **ported**, not parked (stale
+(`ai_contact_try_village_meet`). The greeting body is the `@VILLAGE*` band
+section picked from alarm (`VILLAGEHAPPY/SAVAGE/MEDIUM/BAD/WAR`, built in DOS
+from the DS `"VILLAGE"` stem + suffix). `@INDIANHELLO1` / `HELLO2` are **dead
+GAME.TXT**: 2026-09-16 scan of `VICEROY.EXE` DS finds no `INDIANHELLO` tag
+string at all, so DOS never shows them. Deep bargain matrix `FUN_4d56_2820` is **ported**, not parked (stale
 row corrected 2026-09-07f): `ai_contact.c:4882-5400` — hold pick, throttle
 table `k_2820_throttle` (`:5066`), want-sort (`:5050`), haggle, gift,
 post-sale buy. Verification rewrite 2026-08-29,
@@ -721,6 +726,11 @@ met target, `@UNFORTUNATE` 0x16d0 treasury, `@ALREADYSMITE` 0x16dc tribe
 already in the war band with target) and the shared `@INDIANWARFARE`
 (0x16e9) War Council announce — the annotation's old "0x16e9 =
 WARPATH2" was off by a tag (0x16c1 is WARPATH2, the pay confirm).
+2026-09-16: the dialog is now the DOS **two-step** — `@INDIANWARPATH`
+(0x16a9) target menu whose rows are plain nation names and are *not* filtered
+by affordability, then the `@INDIANWARPATH2` pay confirm quoting the price
+("Pay …" / "Never mind."); the treasury test happens after that confirm, as
+`@UNFORTUNATE`. Both bodies now come from GAME.TXT.
 Mode-1 target set = the other Euros minus `head.crown_nation_id`; once
 `game_options.woi` is set the target is fixed to the Crown (DOS
 `0x5382` bit0 — the WoI latch, not an "AMERICA scenario" flag). See
@@ -757,8 +767,8 @@ Aligned with [manual_gap.md](manual_gap.md) §Indians — no new fidelity claims
 | Villages on map + Braves | Done to golden | Placement + icons; quiet pulse / growth — T1.23 **closed 2026-09-05**, `golden_ai_turns` TURN1→7 all green ([port_plan.md](port_plan.md)) |
 | First contact WELCOME | Done structural | `ai_contact_*`; thin land grant |
 | Meet / trade / gift / teach | Partial | Village trade `2820` **Done structural** (2026-08-29: hold pick, sell/haggle/gift, `@BADCARGO`/`@BRING`, post-sale buy); gift/teach widgets thin; VGA chrome PARKED |
-| Missions / convert / heresy | Partial | Structural; incite/WARPATH **Done both modes byte-faithful** 2026-09-06 (`indian_incite_417e.md`) |
-| Alarm / raids / wars | Partial | Structural `@RAID*`; village enter warn→Attack Done thin (`2820` itself is ported — `ai_contact.c:4882`) |
+| Missions / convert / heresy | Done | `@MISSION0-3` / `@HERESY0-1` / `@INDIANSCONVERT` / `@TEACHCONVERT` all render the real GAME.TXT bodies (re-verified 2026-09-16); incite/WARPATH **Done both modes byte-faithful** 2026-09-06 (`indian_incite_417e.md`), two-step dialog 2026-09-16. Still missing: `@DEADCONVERTS` — the DOS Convert expiry tick (`FUN_3844_0002` case 0x1a, raw 58287) is unported |
+| Alarm / raids / wars | Partial | Structural `@RAID*`; village enter warn→Attack Done thin (`2820` itself is ported — `ai_contact.c:4882`). 2026-09-16: `@INDIANSURPRISE` (deniable raid while at peace), `@INDIANSLAVES` (convert from a razed mission village), `@INDIANBOW` (capital razed) and `@INDIANGRUDGE` (WoI Tory defection) now use their real GAME.TXT bodies; `@INDIANWAR` is dead text (no DS tag string) |
 | Capital surrender / Cortes treasure | Done thin | `ai_diplo_*` / `units_*` fallout |
 | Indian×Euro diplo matrix | Done structural | Fuller `153e` unpark; FA UI **PARKED** |
 | `IND*.SS` meet chrome | Done | Loaded 2026-08-29, placement DOS-literal 2026-09-07e — `ai_popup.c:1020` (`"IND%dA%d.SS"`), `:1259`; see the `IND0A0.SS` row above. (Stale "Missing / not loaded" corrected 2026-09-07f.) |

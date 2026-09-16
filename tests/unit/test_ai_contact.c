@@ -18,6 +18,37 @@
 #include <stdlib.h>
 #include <string.h>
 
+/*
+ * FUN_4d56_417e is a two-step dialog: the target menu (@INDIANWARPATH) is
+ * answered with a nation id, which enqueues the @INDIANWARPATH2 pay confirm;
+ * only "Pay" on THAT popup charges the treasury. The live harness feeds each
+ * answered popup's own payload back as result_payload, so replicate both hops
+ * here.
+ */
+static void test_incite_confirm_pay(
+  ColonizeTurnContext* ctx,
+  AiPopupState* pop,
+  int inciter,
+  int nation_id
+) {
+  if (pop->queue_count < 1 ||
+      pop->queue[pop->queue_count - 1].kind != AI_POPUP_KIND_CHOICE ||
+      pop->queue[pop->queue_count - 1].tag != AI_POPUP_TAG_CONTACT_INCITE) {
+    return;
+  }
+  const int payload = pop->queue[pop->queue_count - 1].payload;
+  const int pay_id = pop->queue[pop->queue_count - 1].choice_ids[0];
+  ai_popup_clear(pop);
+  pop->has_result = true;
+  pop->result_cancelled = false;
+  pop->result_choice_id = pay_id;
+  pop->result_tag = AI_POPUP_TAG_CONTACT_INCITE;
+  pop->result_nation_a = inciter;
+  pop->result_nation_b = nation_id;
+  pop->result_payload = payload;
+  ai_contact_apply_popup_result(ctx, pop);
+}
+
 static int fail(const char* msg) {
   fprintf(stderr, "unit_ai_contact: FAIL %s\n", msg);
   return 1;
@@ -5035,6 +5066,13 @@ int main(void) {
       pop.result_nation_b = 4;
       st_pop[0] = '\0';
       ai_contact_apply_popup_result(&ctx, &pop);
+      if (pop.queue_count < 1 ||
+          pop.queue[pop.queue_count - 1].kind != AI_POPUP_KIND_CHOICE ||
+          pop.queue[pop.queue_count - 1].tag != AI_POPUP_TAG_CONTACT_INCITE ||
+          pop.queue[pop.queue_count - 1].choice_count != 2) {
+        return fail("picking a target should enqueue the @INDIANWARPATH2 pay confirm");
+      }
+      test_incite_confirm_pay(&ctx, &pop, 0, 4);
       if (col1.nation[0].gold >= 5000u || col1.nation[0].gold > 4500u) {
         return fail("Incite should drain at least 500 gold from the inciter");
       }
@@ -5066,10 +5104,35 @@ int main(void) {
       col1.nation[1].gold = 0;
       st_pop[0] = '\0';
       ai_contact_apply_popup_result(&ctx, &pop);
-      if (pop.queue_count >= 1 &&
-          pop.queue[pop.queue_count - 1].kind == AI_POPUP_KIND_CHOICE &&
-          pop.queue[pop.queue_count - 1].tag == AI_POPUP_TAG_CONTACT_INCITE) {
-        return fail("broke inciter should not see an incite target CHOICE");
+      /*
+       * DOS does NOT filter the target menu by affordability (viceroy 83600):
+       * a broke inciter still sees the rows and still gets quoted a price —
+       * the refusal is @UNFORTUNATE after the pay confirm, and no gold moves.
+       */
+      if (pop.queue_count < 1 ||
+          pop.queue[pop.queue_count - 1].kind != AI_POPUP_KIND_CHOICE ||
+          pop.queue[pop.queue_count - 1].tag != AI_POPUP_TAG_CONTACT_INCITE) {
+        return fail("incite target CHOICE should not be gold-filtered");
+      }
+      {
+        const int broke_payload = pop.queue[pop.queue_count - 1].payload;
+        const int broke_target = pop.queue[pop.queue_count - 1].choice_ids[0];
+        ai_popup_clear(&pop);
+        pop.has_result = true;
+        pop.result_cancelled = false;
+        pop.result_choice_id = broke_target;
+        pop.result_tag = AI_POPUP_TAG_CONTACT_INCITE;
+        pop.result_nation_a = 1;
+        pop.result_nation_b = 4;
+        pop.result_payload = broke_payload;
+        ai_contact_apply_popup_result(&ctx, &pop);
+        test_incite_confirm_pay(&ctx, &pop, 1, 4);
+        if (col1.nation[1].gold != 0u) {
+          return fail("broke inciter must not be charged for an incite");
+        }
+        /* (The @UNFORTUNATE OK itself only draws for a human inciter;
+         * nation 1 is AI-run in this fixture, so only the no-charge
+         * invariant is asserted here.) */
       }
     }
 
@@ -5122,6 +5185,7 @@ int main(void) {
        * since this test drives apply_popup_result directly. */
       pop.result_payload = meet_payload1;
       ai_contact_apply_popup_result(&ctx, &pop);
+      test_incite_confirm_pay(&ctx, &pop, 0, 4);
       const uint32_t price_no_discount = gold_before1 - col1.nation[0].gold;
 
       col1.nation[0].gold = 1000000;
@@ -5152,6 +5216,7 @@ int main(void) {
       pop.result_nation_b = 4;
       pop.result_payload = meet_payload2;
       ai_contact_apply_popup_result(&ctx, &pop);
+      test_incite_confirm_pay(&ctx, &pop, 0, 4);
       const uint32_t price_discounted = gold_before2 - col1.nation[0].gold;
 
       if (price_discounted + 1900u > price_no_discount) {

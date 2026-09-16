@@ -946,20 +946,6 @@ static void ai_diplo_popup_ok(
   );
 }
 
-/* Tag from final human status after war/peace preference chain. */
-static AiPopupTag ai_diplo_tag_from_status(const char* status, AiPopupTag fallback) {
-  if (!status || status[0] == '\0') {
-    return fallback;
-  }
-  if (strstr(status, "boycott") != NULL || strstr(status, "embargo") != NULL) {
-    return AI_POPUP_TAG_DIPLO_BOYCOTT;
-  }
-  if (strstr(status, "Natives") != NULL || strstr(status, "Native ") != NULL) {
-    return AI_POPUP_TAG_INFO;
-  }
-  return fallback;
-}
-
 /*
  * Thin 102a/1092 status when human is a party (Contact/King ctx->status pattern).
  * Full multi-line dialog widgets PARKED.
@@ -1059,13 +1045,8 @@ void ai_diplo_declare_war_ctx(ColonizeTurnContext* ctx, int nation_a, int nation
   }
   const int already = ai_diplo_at_war(ctx->col1, nation_a, nation_b);
   const int human = ctx->human_nation;
-  /* Boycott chrome tracks full wartime @CARGO mask (all 16). */
-  const uint16_t boycott_mask = ai_diplo_wartime_boycott_mask();
-  uint16_t boycott_before = 0;
   uint8_t sticky_before = AI_DIPLO_STICKY_CLEAR;
   if (human >= 0 && human < 4) {
-    boycott_before =
-      (uint16_t)(ctx->col1->nation[human].boycott_bitmap & boycott_mask);
     sticky_before = ai_diplo_indian_hostility_sticky(ctx->col1, human);
   }
   ai_diplo_declare_war(ctx->col1, nation_a, nation_b);
@@ -1079,47 +1060,18 @@ void ai_diplo_declare_war_ctx(ColonizeTurnContext* ctx, int nation_a, int nation
     }
     ai_diplo_status_declare_war(ctx, nation_a, nation_b);
     /*
-     * Wartime boycott human chrome (102a/1092 stand-in): prefer Sugar/Tobacco/
-     * Tools combined lines when those bits are newly OR'd; else name the first
-     * newly boycotted @CARGO (colony.h / NAMES.TXT) over the war line. Else if
-     * Indian sticky newly rose from the −5 war-hit, prefer "Natives grow
-     * hostile." Widgets PARKED. Source: thin 153e trade deepen + Contact/King
-     * status; Indians dislike Euro×Euro war (fandom / euro_diplo.md).
-     * Also enqueue AI OK popup (FUN_15b3 / 5bfb); FA 3f41 full UI PARKED.
+     * The OK popup is the real @DECLAREWAR body (FUN_15b3 / 5bfb). The old
+     * "<cargo> boycott imposed." overrides were dead (declaring war no longer
+     * sets embargo bits) and the "Natives grow hostile." line is port chrome,
+     * so it stays on the status line only and never replaces the DOS text.
      */
     if (human >= 0 && human < 4 && (nation_a == human || nation_b == human) &&
         ctx->status && ctx->status_size > 0) {
-      const uint16_t boycott_after =
-        (uint16_t)(ctx->col1->nation[human].boycott_bitmap & boycott_mask);
-      const uint16_t newly = (uint16_t)(boycott_after & (uint16_t)~boycott_before);
-      if (newly & AI_DIPLO_WAR_TOOLS_EMBARGO_BIT) {
-        snprintf(ctx->status, ctx->status_size, "Sugar/Tobacco/Tools boycott imposed.");
-      } else if (newly &
-                 (uint16_t)(AI_DIPLO_WAR_SUGAR_EMBARGO_BIT | AI_DIPLO_WAR_TOBACCO_EMBARGO_BIT)) {
-        snprintf(ctx->status, ctx->status_size, "Sugar/Tobacco boycott imposed.");
-      } else if (newly != 0) {
-        /* First newly OR'd wartime cargo by @CARGO index (Food..Muskets). */
-        for (int c = 0; c < COLONIZE_CARGO_COUNT; ++c) {
-          if (newly & (uint16_t)(1u << c)) {
-            snprintf(ctx->status, ctx->status_size, "%s boycott imposed.",
-                     reports_cargo_display_name(c));
-            break;
-          }
-        }
-      } else {
-        const uint8_t sticky_after = ai_diplo_indian_hostility_sticky(ctx->col1, human);
-        if (sticky_before == AI_DIPLO_STICKY_CLEAR &&
-            sticky_after != AI_DIPLO_STICKY_CLEAR) {
-          snprintf(ctx->status, ctx->status_size, "Natives grow hostile.");
-        }
+      ai_diplo_popup_ok(ctx, AI_POPUP_TAG_DIPLO_WAR, nation_a, nation_b, ctx->status);
+      const uint8_t sticky_after = ai_diplo_indian_hostility_sticky(ctx->col1, human);
+      if (sticky_before == AI_DIPLO_STICKY_CLEAR && sticky_after != AI_DIPLO_STICKY_CLEAR) {
+        snprintf(ctx->status, ctx->status_size, "Natives grow hostile.");
       }
-      ai_diplo_popup_ok(
-        ctx,
-        ai_diplo_tag_from_status(ctx->status, AI_POPUP_TAG_DIPLO_WAR),
-        nation_a,
-        nation_b,
-        ctx->status
-      );
     }
   }
 }
@@ -1189,17 +1141,13 @@ void ai_diplo_make_peace_ctx(ColonizeTurnContext* ctx, int nation_a, int nation_
     if (human >= 0 && human < 4 && (nation_a == human || nation_b == human)) {
       const uint16_t tools_after =
         (uint16_t)(ctx->col1->nation[human].boycott_bitmap & AI_DIPLO_WAR_TOOLS_EMBARGO_BIT);
+      /* The OK popup is the real @SIGNTREATY body; the Tools-lift line is
+       * port chrome and stays on the status line only. */
+      if (ctx->status && ctx->status[0] != '\0') {
+        ai_diplo_popup_ok(ctx, AI_POPUP_TAG_DIPLO_PEACE, nation_a, nation_b, ctx->status);
+      }
       if (tools_before != 0 && tools_after == 0 && ctx->status && ctx->status_size > 0) {
         snprintf(ctx->status, ctx->status_size, "Tools embargo lifted.");
-      }
-      if (ctx->status && ctx->status[0] != '\0') {
-        ai_diplo_popup_ok(
-          ctx,
-          ai_diplo_tag_from_status(ctx->status, AI_POPUP_TAG_DIPLO_PEACE),
-          nation_a,
-          nation_b,
-          ctx->status
-        );
       }
     }
   }
@@ -2715,6 +2663,9 @@ static void ai_talk_resume(ColonizeTurnContext* ctx, int stage, int choice) {
           ai_talk_gold(ctx, t, h, g);
         }
       } else if (choice == 4) {
+        /* Military Assistance pick (raw :98330-98333, 5bfb:2d59): shows
+         * @MILITARY before the ally-target menu. */
+        ai_talk_ok(ctx, "MILITARY", &tok, "\"You must attack the infidel . . .\"");
         k->stage = AI_TALK_ST_ALLY_PICK;
         ai_talk_advance(ctx);
         return;

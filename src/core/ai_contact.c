@@ -2425,6 +2425,18 @@ static int ai_contact_enqueue_incite_target_choice(
   const int woi_fixed =
     ctx->col1->head.game_options.woi && crown >= 0 && crown <= 3 && crown != e;
 
+  (void)gold;
+  (void)ind;
+
+  /*
+   * DOS row set (viceroy_unpacked.c 83600-83607): every Euro nation except
+   * the inciter and the Crown, listed by plain nation name — there is no
+   * affordability filter here. A target the treasury cannot pay for is
+   * still offered and answered with @UNFORTUNATE after the confirm, which
+   * is why the price never appears on these rows (it belongs to the
+   * @INDIANWARPATH2 confirm below). The port used to filter by gold and
+   * print "Incite against the X (N gold)"; both were Linux inventions.
+   */
   const char* labels[3];
   char label_buf[3][48];
   int ids[3];
@@ -2436,18 +2448,7 @@ static int ai_contact_enqueue_incite_target_choice(
     if (woi_fixed ? (target != crown) : (target == crown)) {
       continue;
     }
-    const uint32_t price =
-      ai_contact_incite_price(ctx, ind, nation_id, e, target, is_missionary, is_capital);
-    if (gold < price) {
-      continue;
-    }
-    snprintf(
-      label_buf[n],
-      sizeof(label_buf[n]),
-      "Incite against the %s (%u gold)",
-      ai_contact_euro_name(target),
-      (unsigned)price
-    );
+    snprintf(label_buf[n], sizeof(label_buf[n]), "%s", ai_contact_euro_name(target));
     labels[n] = label_buf[n];
     ids[n] = target;
     n++;
@@ -2455,13 +2456,19 @@ static int ai_contact_enqueue_incite_target_choice(
   if (n == 0) {
     return 0;
   }
-  char body[AI_POPUP_BODY_LEN];
+  PopupMsgTokens tok;
+  memset(&tok, 0, sizeof(tok));
+  tok.string0 = ai_contact_tribe_name(nation_id);
+  char fb[AI_POPUP_BODY_LEN];
   snprintf(
-    body,
-    sizeof(body),
-    "The %s tribe is ready to go on the warpath. Whom would you like us to attack?",
-    ai_contact_tribe_name(nation_id)
+    fb,
+    sizeof(fb),
+    "\"The %s tribe is ready to go on the warpath. Whom would you like us "
+    "to attack?\"",
+    tok.string0
   );
+  char body[AI_POPUP_BODY_LEN];
+  popup_msg_fill(ctx->messages, "INDIANWARPATH", &tok, fb, body, sizeof(body));
   /* Carry the offer-time-captured discount flags through to apply time
    * (bit0=is_missionary, bit1=is_capital) — see ai_contact_incite_price. */
   const int payload = (is_missionary ? 1 : 0) | (is_capital ? 2 : 0);
@@ -2479,6 +2486,86 @@ static int ai_contact_enqueue_incite_target_choice(
          )
            ? 1
            : 0;
+}
+
+/*
+ * @INDIANWARPATH2 (0x16c1), the second step of FUN_4d56_417e Mode 1
+ * (viceroy_unpacked.c 83626-83633): once the player has named a target the
+ * tribe quotes its price and asks for the money. DOS runs the @NOCONTACT
+ * gate (0a38 & 0x20) BEFORE the quote, so a tribe that never met the target
+ * says so instead of naming a price; the treasury check comes after the
+ * confirm, as @UNFORTUNATE. The confirm rides the same CONTACT_INCITE tag
+ * as the target menu, with payload bit 2 marking the second stage and the
+ * chosen target in bits 3-4, so no extra queue tag is needed.
+ */
+#define AI_CONTACT_INCITE_STAGE_CONFIRM 4
+#define AI_CONTACT_INCITE_PAY 1
+#define AI_CONTACT_INCITE_NEVERMIND 0
+
+static void ai_contact_enqueue_incite_confirm(
+  ColonizeTurnContext* ctx,
+  ColonizeCol1Indian* ind,
+  int nation_id,
+  int e,
+  int target,
+  int is_missionary,
+  int is_capital
+) {
+  if (!ctx || !ctx->ai_popups || !ind || e < 0 || e > 3 || target < 0 || target > 3 ||
+      target == e) {
+    return;
+  }
+  PopupMsgTokens tok;
+  memset(&tok, 0, sizeof(tok));
+  tok.string0 = ai_contact_euro_name(target);
+  if ((ind->euro_diplo[target] & COL1_INDIAN_MET_BIT) == 0) {
+    /* @NOCONTACT (0x16b7): the tribe has never met the named nation. */
+    char nb[AI_POPUP_BODY_LEN];
+    char nfb[AI_POPUP_BODY_LEN];
+    snprintf(nfb, sizeof(nfb), "\"We have no contact with the %s.\"", tok.string0);
+    popup_msg_fill(ctx->messages, "NOCONTACT", &tok, nfb, nb, sizeof(nb));
+    ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_INCITE, nation_id, "Incite", nb);
+    return;
+  }
+  const uint32_t price =
+    ai_contact_incite_price(ctx, ind, nation_id, e, target, is_missionary, is_capital);
+  tok.number0 = (int)price;
+  tok.has_number0 = true;
+  char fb[AI_POPUP_BODY_LEN];
+  snprintf(
+    fb,
+    sizeof(fb),
+    "\"We will gladly drive the %s from our ancestral lands in exchange for "
+    "%u.\"",
+    tok.string0,
+    (unsigned)price
+  );
+  char body[AI_POPUP_BODY_LEN];
+  popup_msg_fill(ctx->messages, "INDIANWARPATH2", &tok, fb, body, sizeof(body));
+  char pay_fb[POPUP_MSG_CHOICE_LEN];
+  snprintf(pay_fb, sizeof(pay_fb), "Pay %u.", (unsigned)price);
+  char row_buf[2][POPUP_MSG_CHOICE_LEN];
+  const char* labels[2];
+  (void)popup_msg_section_labels(
+    ctx->messages, "INDIANWARPATH2", &tok, pay_fb, "Never mind.", row_buf, labels
+  );
+  int ids[2];
+  ids[0] = AI_CONTACT_INCITE_PAY;
+  ids[1] = AI_CONTACT_INCITE_NEVERMIND;
+  const int payload = (is_missionary ? 1 : 0) | (is_capital ? 2 : 0) |
+                      AI_CONTACT_INCITE_STAGE_CONFIRM | (target << 3);
+  (void)ai_popup_enqueue_choice_ctx(
+    ctx->ai_popups,
+    AI_POPUP_TAG_CONTACT_INCITE,
+    e,
+    nation_id,
+    payload,
+    NULL,
+    body,
+    labels,
+    ids,
+    2
+  );
 }
 
 /*
@@ -4515,6 +4602,38 @@ void ai_contact_indian_woi_defect(ColonizeTurnContext* ctx, int nation_id) {
       t->mission = COL1_TRIBE_MISSION_NONE;
       missions_cleared = 1;
     }
+  }
+
+  /*
+   * @INDIANGRUDGE (0x14f6) — the popup DOS actually shows here, found
+   * 2026-09-16: FUN_4d56_1816 item 2 loads subst slots 0 and 1 with the
+   * tribe's two name forms (281f_09a4 / 281f_0a1a) and flushes the dialog
+   * with BX = 0x14f6 right before the ±100 alarm pair
+   * (viceroy_unpacked.asm 136388). The port had only a status line here
+   * because the tag id was unresolved. The mission-clear note keeps riding
+   * the status line, since DOS's own mission-clear popup is the separate
+   * @INDIANBURN inside FUN_4cc6_0000.
+   */
+  {
+    ai_contact_bind_names(ctx);
+    PopupMsgTokens gtok;
+    memset(&gtok, 0, sizeof(gtok));
+    gtok.string0 = ai_contact_tribe_name(nation_id);
+    gtok.string1 = gtok.string0;
+    char gfb[AI_POPUP_BODY_LEN];
+    snprintf(
+      gfb,
+      sizeof(gfb),
+      "%s nation holds War Council! %s enter the War of Independence on the "
+      "Tory side!",
+      gtok.string0,
+      gtok.string1
+    );
+    char gbody[AI_POPUP_BODY_LEN];
+    popup_msg_fill(ctx->messages, "INDIANGRUDGE", &gtok, gfb, gbody, sizeof(gbody));
+    ai_contact_human_chrome(
+      ctx, human, AI_POPUP_TAG_CONTACT_RAID, nation_id, "War Council", gbody
+    );
   }
 
   if (ctx->status && ctx->status_size > 0) {
@@ -8705,21 +8824,44 @@ void ai_contact_indian_raids(ColonizeTurnContext* ctx, int nation_id) {
             char raid_full[AI_POPUP_BODY_LEN];
             if (raid_body && kind != AI_RAID_NOTHING) {
               const char* pre = NULL;
-              char pre_buf[160];
+              char pre_buf[224];
               if (had_peace && max_alarm >= 55) {
-                /* GAME.TXT @INDIANWAR thin — provocations break the treaty. */
+                /*
+                 * Linux war notice. It used to be labelled "@INDIANWAR thin",
+                 * but @INDIANWAR is dead GAME.TXT text: no NUL-terminated
+                 * "INDIANWAR" tag string exists anywhere in VICEROY.EXE's DS
+                 * (only "INDIANWARPATH"/"INDIANWARPATH2"/"INDIANWARFARE"), so
+                 * DOS can never ask the dialog engine for that section
+                 * (2026-09-16). The sentence stays as port chrome, no longer
+                 * claiming to be a GAME.TXT body.
+                 */
                 snprintf(
                   pre_buf, sizeof(pre_buf), "The %s declare war! Prepare for WAR!", tribe
                 );
                 pre = pre_buf;
               } else if (!eff_at_war) {
-                /* GAME.TXT @INDIANSURPRISE thin — a raid while NOT at war is
-                 * deniable (indian_raid_outcomes.md §8). */
+                /*
+                 * @INDIANSURPRISE (0x14dc) — real GAME.TXT body, filled with
+                 * DOS's own three slots (tribe, the colony the raid happened
+                 * near, tribe again) as the OVL13 brave-move site loads them
+                 * (viceroy_overlays.c 76958-76970). A raid while NOT at war is
+                 * deniable (indian_raid_outcomes.md §8).
+                 */
+                PopupMsgTokens stok;
+                memset(&stok, 0, sizeof(stok));
+                stok.string0 = tribe;
+                stok.string1 = c->name[0] ? c->name : "";
+                stok.string2 = tribe;
+                char sfb[160];
                 snprintf(
-                  pre_buf,
-                  sizeof(pre_buf),
-                  "The %s make a surprise raid! Their chief denies involvement.",
-                  tribe
+                  sfb,
+                  sizeof(sfb),
+                  "%s make surprise raid near %s!  Colonists frightened.  %s "
+                  "chief denies involvement.",
+                  tribe, stok.string1, tribe
+                );
+                popup_msg_fill(
+                  ctx->messages, "INDIANSURPRISE", &stok, sfb, pre_buf, sizeof(pre_buf)
                 );
                 pre = pre_buf;
               }
@@ -10517,12 +10659,25 @@ void ai_contact_apply_popup_result(ColonizeTurnContext* ctx, const AiPopupState*
   if (popup->result_tag == AI_POPUP_TAG_CONTACT_INCITE) {
     /* Unpack the offer-time discount flags packed by
      * ai_contact_enqueue_incite_target_choice (bit0=is_missionary,
-     * bit1=is_capital). */
+     * bit1=is_capital); bit2 marks the @INDIANWARPATH2 pay confirm, whose
+     * target rides in bits 3-4. */
     const int is_missionary = popup->result_payload & 1;
     const int is_capital = (popup->result_payload >> 1) & 1;
-    ai_contact_apply_incite(
-      ctx, ind, nation_id, e, popup->result_choice_id, is_missionary, is_capital
-    );
+    if (popup->result_payload & AI_CONTACT_INCITE_STAGE_CONFIRM) {
+      const int target = (popup->result_payload >> 3) & 3;
+      if (!popup->result_cancelled &&
+          popup->result_choice_id == AI_CONTACT_INCITE_PAY) {
+        ai_contact_apply_incite(
+          ctx, ind, nation_id, e, target, is_missionary, is_capital
+        );
+      }
+      return;
+    }
+    if (!popup->result_cancelled) {
+      ai_contact_enqueue_incite_confirm(
+        ctx, ind, nation_id, e, popup->result_choice_id, is_missionary, is_capital
+      );
+    }
     return;
   }
 
@@ -10716,7 +10871,9 @@ void ai_contact_apply_popup_result(ColonizeTurnContext* ctx, const AiPopupState*
   case AI_CONTACT_CHOICE_INCITE: {
     /*
      * FUN_4d56_417e Mode 1: show the "whom would you like us to attack"
-     * target-nation CHOICE. No affordable/eligible target → refuse OK.
+     * target-nation CHOICE. No eligible target (every other Euro nation is
+     * the Crown, or the inciter itself) → refuse OK; affordability is NOT a
+     * row filter in DOS, it is the @UNFORTUNATE answer after the confirm.
      * Re-unpack the same is_missionary/is_capital bits the Meet CHOICE
      * itself was enqueued with (ai_contact_enqueue_village_meet) and carry
      * them into the target-choice's own payload.

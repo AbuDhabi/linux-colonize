@@ -212,6 +212,31 @@ bool cheat_list_open_trade_dest(
   );
 }
 
+bool cheat_list_open_goto_port(
+  CheatListDialog* dlg,
+  const char* prompt,
+  const char* const* labels,
+  const int* dest_ids,
+  int count
+) {
+  return cheat_list_open_simple_list(
+    dlg, CHEAT_LIST_KIND_GOTO_PORT, prompt, labels, dest_ids, count, 190
+  );
+}
+
+void cheat_list_set_selection(CheatListDialog* dlg, int index) {
+  if (!dlg || !dlg->open || dlg->option_count <= 0) {
+    return;
+  }
+  if (index < 0) {
+    index = 0;
+  }
+  if (index >= dlg->option_count) {
+    index = dlg->option_count - 1;
+  }
+  dlg->selection = index;
+}
+
 bool cheat_list_open_trade_cargo_one(
   CheatListDialog* dlg,
   const char* prompt,

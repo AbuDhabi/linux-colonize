@@ -957,6 +957,64 @@ static void ai_king_teaparty_payload_parts(int payload, int* out_applied, int* o
 static int ai_king_human_colonies(const ColonizeTurnContext* ctx, int human);
 
 /*
+ * FUN_38fd_5be8 does not pick one message: every rung of its ladder names its
+ * own GAME.TXT section and (for three of them) a %STRING2 flavour noun. The
+ * port used to show an invented English line for cuts and @KINGTAX for the
+ * hike, so the King never mentioned his wedding, his war or the Stamp Act.
+ *
+ * Section per rung (viceroy_unpacked.asm 38fd:5d2d-5e2f, the PUSHed DS tag
+ * ids resolved through docs/popup_tag_ids.md):
+ *   cut         @KINGVICTORY  0x113f, %STRING2 = @COUNTRIES[war country - 1]
+ *   +1          @KINGWIFE     0x1155, %STRING2 = @ORDINAL[wives - 1]
+ *   +2          @KINGWAR      0x1166, %STRING2 = @COUNTRIES[new country - 1]
+ *   +3..4       @KINGNAVACT   0x1178, no %STRING2
+ *   +5..8       @KINGSTAMPACT 0x1183, %STRING2 = player's New World name
+ * %STRING0 / %STRING1 are the same for all five: the difficulty title from
+ * DS:0x8394[difficulty] and the player's name (38fd:5cdd FUN_281f_0438(0,..)
+ * then FUN_281f_0416(1, nation*0x34 + 0x540e)) — the @KINGNEWWAR convention.
+ */
+typedef struct AiKingAudienceFlavor {
+  const char* section;
+  char string2[COLONIZE_MSG_LINE_LEN];
+  bool has_string2;
+} AiKingAudienceFlavor;
+
+/*
+ * One entry of a plain GAME.TXT list section (@COUNTRIES, @ORDINAL) — DOS
+ * FUN_281f_0422(0x87c, tag, index) renders line `index` of the section into
+ * the %STRING2 scratch buffer at DS:0x833c. A missing section or an
+ * out-of-range index yields the empty string, which is DOS's "missing
+ * sections show nothing".
+ */
+static void ai_king_msg_list_entry(
+  const ColonizeMsgCatalog* catalog,
+  const char* section_name,
+  int index,
+  char* out,
+  size_t out_size
+) {
+  if (out && out_size) {
+    out[0] = '\0';
+  }
+  const ColonizeMsgSection* sec = assets_msg_find(catalog, section_name);
+  if (!sec || index < 0 || !out || !out_size) {
+    return;
+  }
+  int seen = 0;
+  for (int i = 0; i < sec->line_count; ++i) {
+    const char* line = sec->lines[i];
+    if (!line[0] || popup_msg_is_directive(line)) {
+      continue;
+    }
+    if (seen == index) {
+      str_copy_trunc(out, out_size, line);
+      return;
+    }
+    ++seen;
+  }
+}
+
+/*
  * FUN_38fd_5be8: King-audience favor-score ladder → signed tax-rate delta.
  * Real DOS gating/formula (no invented Accept/Refuse-whether-it-happens
  * gate here — see divergence note above ai_king_tax_event for history).
@@ -986,8 +1044,16 @@ static int ai_king_human_colonies(const ColonizeTurnContext* ctx, int human);
  * (covers 650..949, and the streak≥30 fallback out of the +1 band).
  * Returns 1 and writes king_audience_tax_delta + *out_delta when an event
  * fires; 0 (no state touched) when the gate fails or the cut degenerates.
+ * *out_flavor receives the rung's GAME.TXT section and %STRING2 — see
+ * AiKingAudienceFlavor above; the rungs are not interchangeable text, each
+ * names its own section in DOS.
  */
-static int ai_king_audience_roll(ColonizeTurnContext* ctx, int human, int* out_delta) {
+static int ai_king_audience_roll(
+  ColonizeTurnContext* ctx,
+  int human,
+  int* out_delta,
+  AiKingAudienceFlavor* out_flavor
+) {
   if (!ctx || !ctx->col1_ok || !ctx->col1 || !ctx->rng || human < 0 || human >= 4) {
     return 0;
   }
@@ -1047,6 +1113,11 @@ static int ai_king_audience_roll(ColonizeTurnContext* ctx, int human, int* out_d
     (int)col1->stuff.census_pop_proxy[human] +
     (int)(turn / 30);
 
+  AiKingAudienceFlavor flavor;
+  memset(&flavor, 0, sizeof(flavor));
+  flavor.section = "KINGTAX";
+  const ColonizeMsgCatalog* msgs = ctx->messages;
+
   int delta;
   if (score < 100) {
     const int roll = dos_rng_range(ctx->rng, 2, 5);
@@ -1055,22 +1126,67 @@ static int ai_king_audience_roll(ColonizeTurnContext* ctx, int human, int* out_d
       return 0; /* DOS: no audience event when tax is already 0% */
     }
     delta = -cut;
+    /* 38fd:5d2d — @KINGVICTORY, "our recent victory over %STRING2": the
+     * country the King is currently at war with (DS:0x53a8, 1-based into
+     * @COUNTRIES), left exactly as the last @KINGWAR rung set it. */
+    flavor.section = "KINGVICTORY";
+    ai_king_msg_list_entry(
+      msgs, "COUNTRIES", (int)col1->head.king_audience_last_pick - 1,
+      flavor.string2, sizeof(flavor.string2)
+    );
+    flavor.has_string2 = true;
   } else if (score < 650 && col1->head.king_audience_streak < 30) {
     delta = 1;
+    /* 38fd:5d64 — @KINGWIFE. DS:0x53a7 is the King's wife counter, not a
+     * generic streak: it is bumped here (floored at 1, the branch itself
+     * gated at < 30) and names the ordinal in "our %STRING2 wife". */
     if (col1->head.king_audience_streak < 255) {
       col1->head.king_audience_streak++;
     }
+    if (col1->head.king_audience_streak < 1) {
+      col1->head.king_audience_streak = 1;
+    }
+    flavor.section = "KINGWIFE";
+    ai_king_msg_list_entry(
+      msgs, "ORDINAL", (int)col1->head.king_audience_streak - 1,
+      flavor.string2, sizeof(flavor.string2)
+    );
+    flavor.has_string2 = true;
   } else if (score > 949) {
-    delta = (score < 1100) ? dos_rng_range(ctx->rng, 3, 4) : dos_rng_range(ctx->rng, 5, 8);
+    if (score < 1100) {
+      delta = dos_rng_range(ctx->rng, 3, 4);
+      /* 38fd:5de2 — @KINGNAVACT, a new Navigation Act; no %STRING2. */
+      flavor.section = "KINGNAVACT";
+    } else {
+      delta = dos_rng_range(ctx->rng, 5, 8);
+      /* 38fd:5dfe — @KINGSTAMPACT, "the colonists in {%STRING2}": the
+       * player's New World name (nation*0x34 + 0x5426 = player.country_name). */
+      flavor.section = "KINGSTAMPACT";
+      str_copy_trunc(flavor.string2, sizeof(flavor.string2),
+                     col1->player[human].country_name[0]
+                       ? col1->player[human].country_name
+                       : "the colonies");
+      flavor.has_string2 = true;
+    }
   } else {
     delta = 2;
-    /* Narrative-line reroll only (avoid repeating the last text pick);
-     * no numeric effect on delta. */
+    /* 38fd:5d9e — @KINGWAR. DS:0x53a8 is the country the crown is warring
+     * with, rerolled 1..8 until it differs from the last one; it also feeds
+     * the @KINGVICTORY rung above, so this is a state write, not just a
+     * text anti-repeat. */
     int pick;
     do {
       pick = dos_rng_range(ctx->rng, 1, 8);
     } while (pick == col1->head.king_audience_last_pick);
     col1->head.king_audience_last_pick = (uint8_t)pick;
+    flavor.section = "KINGWAR";
+    ai_king_msg_list_entry(
+      msgs, "COUNTRIES", pick - 1, flavor.string2, sizeof(flavor.string2)
+    );
+    flavor.has_string2 = true;
+  }
+  if (out_flavor) {
+    *out_flavor = flavor;
   }
 
   nat->king_audience_tax_delta = (int16_t)delta;
@@ -1273,7 +1389,12 @@ static void ai_king_apply_dump_goods_choice(ColonizeTurnContext* ctx, int human,
  * flag are still set/read for presentation and for the Fugger-clears-
  * boycotts sync, just no longer block the audience interval gate.
  */
-static void ai_king_tax_hike_apply(ColonizeTurnContext* ctx, int human, int delta);
+static void ai_king_tax_hike_apply(
+  ColonizeTurnContext* ctx,
+  int human,
+  int delta,
+  const AiKingAudienceFlavor* flavor
+);
 
 static void ai_king_tax_event(ColonizeTurnContext* ctx) {
   if (!ctx || !ctx->col1_ok || !ctx->col1) {
@@ -1287,10 +1408,12 @@ static void ai_king_tax_event(ColonizeTurnContext* ctx) {
   ai_king_sync_boycott_refuse(ctx->col1, human);
 
   int delta = 0;
-  if (!ai_king_audience_roll(ctx, human, &delta)) {
+  AiKingAudienceFlavor flavor;
+  memset(&flavor, 0, sizeof(flavor));
+  if (!ai_king_audience_roll(ctx, human, &delta, &flavor)) {
     return; /* no audience this turn: interval gate, or degenerate 0% cut */
   }
-  ai_king_tax_hike_apply(ctx, human, delta);
+  ai_king_tax_hike_apply(ctx, human, delta, &flavor);
 }
 
 /*
@@ -1320,10 +1443,26 @@ static void ai_king_tax_commit(ColonizeTurnContext* ctx, int human, int delta) {
    * audiences. */
 }
 
-static void ai_king_tax_hike_apply(ColonizeTurnContext* ctx, int human, int delta) {
+static void ai_king_tax_hike_apply(
+  ColonizeTurnContext* ctx,
+  int human,
+  int delta,
+  const AiKingAudienceFlavor* flavor
+) {
   if (!ctx || !ctx->col1_ok || !ctx->col1 || human < 0 || human >= 4) {
     return;
   }
+  /* The audience passes the rung's own section (@KINGVICTORY / @KINGWIFE /
+   * @KINGWAR / @KINGNAVACT / @KINGSTAMPACT); the @KINGFRIGATE acceptance
+   * calls 3dc8 with @KINGTAX and no flavour noun. */
+  const char* section = (flavor && flavor->section) ? flavor->section : "KINGTAX";
+  const char* flavor_string2 =
+    (flavor && flavor->has_string2 && flavor->string2[0]) ? flavor->string2 : NULL;
+  const int difficulty = (int)ctx->col1->head.difficulty;
+  const char* king_title =
+    reports_difficulty_title(difficulty >= 0 && difficulty < 5 ? difficulty : 0);
+  const char* king_addressee =
+    ctx->col1->player[human].name[0] ? ctx->col1->player[human].name : "Governor";
   ColonizeCol1Nation* nat = &ctx->col1->nation[human];
   /*
    * bugs.md: DOS's 3dc8 applies the delta and then offers keep-vs-revert, so
@@ -1344,9 +1483,23 @@ static void ai_king_tax_hike_apply(ColonizeTurnContext* ctx, int human, int delt
                "Audience: the King lowers taxes to %u%%.", nat->tax_rate);
     }
     if (ai_king_human_popups(ctx)) {
-      char body[AI_POPUP_BODY_LEN];
-      snprintf(body, sizeof(body),
+      /* @KINGVICTORY: "To celebrate our recent victory over %STRING2, we have
+       * magnanimously decided to LOWER your tax rate by {%NUMBER0%%}. The tax
+       * rate is now {%NUMBER1%%}." */
+      PopupMsgTokens tok;
+      memset(&tok, 0, sizeof(tok));
+      tok.string0 = king_title;
+      tok.string1 = king_addressee;
+      tok.string2 = flavor_string2;
+      tok.number0 = -applied;
+      tok.has_number0 = true;
+      tok.number1 = (int)nat->tax_rate;
+      tok.has_number1 = true;
+      char fallback[AI_POPUP_BODY_LEN];
+      snprintf(fallback, sizeof(fallback),
                "The King, moved by your poverty, lowers taxes to %u%%.", nat->tax_rate);
+      char body[AI_POPUP_BODY_LEN];
+      popup_msg_fill(ctx->messages, section, &tok, fallback, body, sizeof(body));
       if (ai_popup_enqueue_ok_ctx(ctx->ai_popups, AI_POPUP_TAG_KING_TAX, human,
                                   ai_king_crown_nation_col1(ctx->col1_ok ? ctx->col1 : NULL, human), (int)nat->tax_rate,
                                   NULL, body)) {
@@ -1392,8 +1545,21 @@ static void ai_king_tax_hike_apply(ColonizeTurnContext* ctx, int human, int delt
                "Audience: the King raises taxes to %u%%.", nat->tax_rate);
     }
     if (ai_king_human_popups(ctx)) {
+      /* Same rung section as the choice arm below, just without the
+       * tea-party rows DOS has nothing to offer here. */
+      PopupMsgTokens tok;
+      memset(&tok, 0, sizeof(tok));
+      tok.string0 = king_title;
+      tok.string1 = king_addressee;
+      tok.string2 = flavor_string2;
+      tok.number0 = applied;
+      tok.has_number0 = true;
+      tok.number1 = (int)nat->tax_rate;
+      tok.has_number1 = true;
+      char fallback[AI_POPUP_BODY_LEN];
+      snprintf(fallback, sizeof(fallback), "The King raises taxes to %u%%.", nat->tax_rate);
       char body[AI_POPUP_BODY_LEN];
-      snprintf(body, sizeof(body), "The King raises taxes to %u%%.", nat->tax_rate);
+      popup_msg_fill(ctx->messages, section, &tok, fallback, body, sizeof(body));
       sound_play(0x56); /* FUN_38fd_3dc8 tax raise (COLDIG 9 cheering) */
       if (ai_popup_enqueue_ok_ctx(ctx->ai_popups, AI_POPUP_TAG_KING_TAX, human,
                                   ai_king_crown_nation_col1(ctx->col1_ok ? ctx->col1 : NULL, human), (int)nat->tax_rate,
@@ -1418,9 +1584,13 @@ static void ai_king_tax_hike_apply(ColonizeTurnContext* ctx, int human, int delt
      * come to. The rate itself is still the old one until Accept. */
     tok.number1 = proposed;
     tok.has_number1 = true;
-    char picked_nm[32];
-    str_copy_trunc(picked_nm, sizeof(picked_nm), reports_cargo_display_name(picked));
-    tok.string0 = picked_nm;
+    /* The rung sections open with "%STRING0 %STRING1." — the difficulty title
+     * and the player's name — and three of them name a flavour noun in
+     * %STRING2. @KINGTAX itself uses neither, so the same token block serves
+     * every section 3dc8 can be handed. */
+    tok.string0 = king_title;
+    tok.string1 = king_addressee;
+    tok.string2 = flavor_string2;
     /* @TAXOPTIONS "Hold '{%STRING3 Party}.'" — DOS names it after the colony
      * that will be raided plus the boycotted cargo, not "Tea". */
     char party[96];
@@ -1430,7 +1600,7 @@ static void ai_king_tax_hike_apply(ColonizeTurnContext* ctx, int human, int delt
     char body[AI_POPUP_BODY_LEN];
     popup_msg_fill(
       ctx->messages,
-      "KINGTAX",
+      section,
       &tok,
       "The King raises taxes. Kiss pinky ring, or hold a tea party and boycott a good?",
       body,
@@ -3862,7 +4032,7 @@ static void ai_king_frigate_accept(ColonizeTurnContext* ctx, int nation) {
     if (ctx->status && ctx->status_size) {
       snprintf(ctx->status, ctx->status_size, "A Royal Frigate sails for the New World.");
     }
-    ai_king_tax_hike_apply(ctx, nation, 10);
+    ai_king_tax_hike_apply(ctx, nation, 10, NULL);
   }
 }
 

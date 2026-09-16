@@ -3600,7 +3600,30 @@ bool turn_processor_advance(ColonizeTurnProcessor* proc, ColonizeTurnContext* ct
       turn_set_active_nation(ctx, ctx->human_nation);
       proc->show_indicator = false;
       proc->year_before = *ctx->game_year;
-      turn_advance_calendar(ctx->game_year, ctx->game_autumn, ctx->turn_number);
+      {
+        const uint16_t autumn_before = *ctx->game_autumn;
+        turn_advance_calendar(ctx->game_year, ctx->game_autumn, ctx->turn_number);
+        /*
+         * @TIMECHANGE (raw 6444-6449, FUN_130d_0290): `LEA BX,[0x141]` right
+         * before `CALLF FUN_281f_03fe` — Ghidra drops the LEA-loaded tag arg,
+         * but the asm shows it (0x141 = DS string "TIMECHANGE", GAME.TXT
+         * @TIMECHANGE Calendar-help). Fires exactly once, the instant the
+         * calendar crosses from one-turn-per-year to the Spring/Autumn
+         * biannual split: year==1600 AND season(0x538c)==0, i.e. the single
+         * turn_advance_calendar() call where year was already 1600 and
+         * autumn flips 0→1. No tutorial-hints gate on this one (that gate
+         * covers a different call a few lines up in the same function).
+         */
+        if (proc->year_before == TURN_BIANNUAL_YEAR && autumn_before == 0 &&
+            *ctx->game_autumn == 1) {
+          popup_chrome_ok(
+            ctx->ai_popups, ctx->messages, "TIMECHANGE", NULL,
+            "Colonization Help: Time Scale\n\nIn 1600, the time scale changes "
+            "from one turn per year to two turns per year. Henceforth there "
+            "will be a Spring and a Fall turn in each year."
+          );
+        }
+      }
       proc->result.advanced = true;
       if (ctx->col1_ok && ctx->col1) {
         ctx->col1->head.turn =

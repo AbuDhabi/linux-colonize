@@ -111,4 +111,8 @@ choices from data where a real `@SECTION` exists.
 - Wired: `@LANDFALL`, `@ABANDON`/`@ABANDON2`, `@KEEPSTOCKADE`, `@MORETHANTHREE`, `@DONTKNOWSHIPS`, `@MADATSHIPS`, `@INDIANCOMMENT`, `@WHICHFREEDOM`, `@FREEDOM`, `@KINGTAX`+`@TAXOPTIONS`, `@MERCENARIES`, `@MERCS`, `@LOSTCITY1`-`9`/`@BURIAL1`-`3`/`@SCREWED`, `@DECLAREWAR`, `@SIGNTREATY`, `@CANCELPEACE`, `@LEARNMAD`, `@LEARNMASTER`, `@BURNED3`, `@LOOTCASH`
 - Demoted invented INFO OKs: Privateer prize, war upkeep, FA gift/holds, diplo refuse follow-ups, colonial-era end, merc decline/cannot-afford
 
-Still Partial/PARKED: diplo Accept/Refuse CHOICE bodies (FA `3f41`), many contact teach/raid OKs, some king WoI chrome.
+2026-09-16 wave: the war/peace OK popups now always carry the `@DECLAREWAR` /
+`@SIGNTREATY` body — the invented "<cargo> boycott imposed." / "Tools embargo
+lifted." overrides were dead or port chrome and now touch only the status
+line (`DIPLO_BOYCOTT` has no producer). Every remaining Partial row in
+[popups.md](popups.md) Appendix A names its DOS site and blocker.

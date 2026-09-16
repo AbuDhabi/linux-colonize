@@ -84,7 +84,7 @@ flowchart TD
 | Alt+letter menus | Open bar menus | `map_menu_open_alt_hotkey` | Done |
 | Hardcoded F / S / Shift+D | Fortify / Sentry / Disband | `game_loop` key paths | Done |
 | Mouse Go-To drag | Path then order 3 | `UI_DRAG_MAP_GOTO` → `units_set_goto` | Done |
-| Go to Place / Port | Click dest / next owned colony | Place mode + `units_set_goto` | Done |
+| Go to Place / Port | Click dest (Place) / `@SAILPORT` colony+Europe picker (Port) | Place mode + `units_set_goto`; Port → `game_open_goto_port_picker` (2026-09-16) | Done |
 | Activate / Wait | Stack picker / next unit with MP | `unit_stack` + Wait | Done |
 | AI | Sets order bytes + goto / follow | `ai_euro` / `ai_king` / `ai_contact` | Done (structural) |
 | Colony docked units | `FUN_2f2b_5746` sentry/fortify/… popup | Second click on the selected icon → wood popup (`colony_screen_open_dock_orders`), from either the Transport strip (ships/wagons) or the Multifunction Units tab (land units + Artillery, DOS `FUN_2f2b_1e46`/`59a0`) | Done thin |
@@ -151,7 +151,7 @@ stateDiagram-v2
 |---------|------|----------------|-------|--------|
 | Go to Place | Land ORDERS / drag | Order 3; path `6662`; walk until MP out; resume next turn; no MP gamble | Drag / Place → `game_issue_goto`: adjacent destination = arrow-key move (`game_try_unit_move`), longer trip = `units_set_goto`; 10 steps/sec | Done |
 | One-tile Go To | Drag / Place / Port onto a neighbour tile | No separate go-to mover: order 3's tick commits through the ordinary move routine, so it is an arrow-key step (landfall off a ship, village `@ACTIONS`, `@SAILHOME`, combat) and no order is left | `game_issue_goto` moves at once when the unit has MP; a 0-MP unit keeps order 3 and walks next turn | Done (2026-09-04) |
-| Go to Port | Ship ORDERS | Goto next owned colony (`479b_0bd0` tails) | Next owned colony dest | Done |
+| Go to Port | Ship ORDERS | `@SAILPORT` destination-colony picker (DOS `FUN_647e_01c6`/`FUN_2b5a_1dfc`): own coastal colonies + Europe (999); pick → order 3 / `game_ship_sail_to_europe` | `game_open_goto_port_picker` + `cheat_list` GOTO_PORT → `game_apply_goto_port` (2026-09-16; was a "jump to next owned colony" shortcut with no picker) | Done |
 | Goto tick | Frame / AI | Next adjacent step; clear on arrival | `units_advance_goto_one_step` | Done |
 | Cancel Go-To | Player (active path) | Clear order 3; unit selectable again | Activate → `units_wake`; replace order; same-tile `units_set_goto` | Done |
 | Abort Place / drag | Esc / right-click before dest set | Cancel destination picking only | `map_goto_place_mode` / `UI_DRAG_MAP_GOTO` clear | Done |
