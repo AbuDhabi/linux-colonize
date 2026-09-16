@@ -195,7 +195,7 @@ void units_reset(ColonizeUnitPool* pool) {
   memset(pool->units, 0, sizeof(pool->units));
   pool->unit_count = 0;
   pool->selected_id = -1;
-  pool->board_first_id = -1;
+  pool->board_first_slot = -1;
   pool->next_id = 1;
 }
 
@@ -525,7 +525,7 @@ static void units_slot_reset_defaults(
   /* COL1 +0x06 origin: DOS leaves it unbound at create; 0xff is the "no
    * home colony / tribe" sentinel every DOS reader tests as < 0. */
   slot->col1_origin = 0xff;
-  slot->col1_unknown15 = 0;
+  slot->col1_flags15 = 0;
   slot->col1_ai_plan = COL1_UNIT_UNKNOWN16_HI_DEFAULT;
   slot->repair_pending = 0;
   units_sync_equip_after_type_change(slot, type);
@@ -692,7 +692,7 @@ int units_tick_ship_build_ready(
     if (u->type_index <= 0x0c || u->type_index >= 0x13) {
       continue;
     }
-    if ((u->col1_unknown15 & 0x80u) == 0) {
+    if ((u->col1_flags15 & 0x80u) == 0) {
       continue;
     }
     const ColonizeUnitType* ty = units_type(pool, u->type_index);
@@ -740,7 +740,7 @@ int units_tick_ship_build_ready(
     if (u->repair_pending) {
       continue; /* repair completion (bit7 clear + @REFIT) is the repair tick's */
     }
-    u->col1_unknown15 = (uint8_t)(u->col1_unknown15 & 0x7fu);
+    u->col1_flags15 = (uint8_t)(u->col1_flags15 & 0x7fu);
     completed++;
     if (nation_id == human_nation && status && status_size > 0) {
       const char* name = (ty && ty->name[0]) ? ty->name : "Ship";
@@ -780,7 +780,7 @@ int units_tick_drydock_repair(
     if (!u->active || u->nation_id != nation_id || u->aboard_ship_id >= 0) {
       continue;
     }
-    if (!units_is_sea(pool, u->id) || (u->col1_unknown15 & 0x80u) == 0) {
+    if (!units_is_sea(pool, u->id) || (u->col1_flags15 & 0x80u) == 0) {
       continue;
     }
     const ColonizeUnitType* ty = units_type(pool, u->type_index);
@@ -795,7 +795,7 @@ int units_tick_drydock_repair(
      * tick clears it at threshold). */
     const ColonizeColony* col =
       colonies ? colonies_get(colonies, colonies_id_at(colonies, u->x, u->y)) : NULL;
-    u->col1_unknown15 = (uint8_t)(u->col1_unknown15 & 0x7fu);
+    u->col1_flags15 = (uint8_t)(u->col1_flags15 & 0x7fu);
     u->repair_pending = 0;
     repaired++;
     if (nation_id == human_nation) {
@@ -1484,7 +1484,7 @@ static void units_clear_slot(ColonizeUnit* unit) {
   unit->mp_spent_turn = 0;
   unit->last_dir = 0;
   unit->col1_origin = 0xff;
-  unit->col1_unknown15 = 0;
+  unit->col1_flags15 = 0;
   unit->col1_ai_plan = 0;
   unit->col1_vis_mask = 0;
 }
@@ -3228,8 +3228,8 @@ static int units_apply_land_loss_outcome(
     memset(&tok, 0, sizeof(tok));
     tok.string0 = units_combat_nation_label(col1, lose->nation_id);
     tok.string1 = lt->name;
-    if ((lose->col1_unknown15 & 0x80u) == 0) {
-      lose->col1_unknown15 |= 0x80u;
+    if ((lose->col1_flags15 & 0x80u) == 0) {
+      lose->col1_flags15 |= 0x80u;
       lose->moves_left = 0;
       if (human) {
         units_combat_enqueue_tok(
@@ -3533,7 +3533,7 @@ static void units_ship_enter_repair(
   int winner_nation
 ) {
   const ColonizeUnitType* lt = units_type(pool, lose->type_index);
-  lose->col1_unknown15 |= 0x80u;
+  lose->col1_flags15 |= 0x80u;
   lose->moves_left = 0;
   lose->orders = UNITS_ORDER_NONE; /* DOS zeroes +0x314c */
   lose->repair_pending = 2; /* 2 = damaged this turn; see the repair tick */
@@ -6218,7 +6218,7 @@ static bool units_fort_vs_ship(
       }
     }
     if (damaged) {
-      def->col1_unknown15 |= 0x80u;
+      def->col1_flags15 |= 0x80u;
       def->moves_left = 0;
       def->orders = UNITS_ORDER_NONE;
       def->repair_pending = 2; /* 2 = damaged this turn; see the repair tick */
@@ -10479,7 +10479,7 @@ bool units_pioneer_work_tick_w(
        * carries the city bit, so in DOS that bump always lands (the road half
        * of the test is dead there) — kept as an unconditional +1 rather than
        * a Linux layer2 read, because Linux's layer2 bit 0x08 is
-       * MAP_LAYER2_RUMOUR_CLEARED, not Col1's road bit.
+       * MAP_LAYER2_LCR_CONSUMED, not Col1's road bit.
        */
       int lumber_add = 0;
       ColonizeColony* near = NULL;
@@ -11050,11 +11050,11 @@ int units_ship_departure_pickup(ColonizeUnitPool* pool, int ship_id, int x, int 
   /* "Move to front" (bugs.md): the flagged unit is first in line. */
   int order[COLONIZE_UNITS_MAX];
   int on = 0;
-  if (pool->board_first_id >= 0 && pool->board_first_id < COLONIZE_UNITS_MAX) {
-    order[on++] = pool->board_first_id;
+  if (pool->board_first_slot >= 0 && pool->board_first_slot < COLONIZE_UNITS_MAX) {
+    order[on++] = pool->board_first_slot;
   }
   for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-    if (i != pool->board_first_id) {
+    if (i != pool->board_first_slot) {
       order[on++] = i;
     }
   }
@@ -11662,7 +11662,7 @@ const char* units_display_name(const ColonizeUnitPool* pool, const ColonizeUnit*
     return ut->name;
   }
   /* bugs.md: damaged artillery (bit7, −2 combat) reads "Damaged Artillery". */
-  if (ut && combat_type_is_artillery_name(ut->name) && (unit->col1_unknown15 & 0x80u) != 0) {
+  if (ut && combat_type_is_artillery_name(ut->name) && (unit->col1_flags15 & 0x80u) != 0) {
     snprintf(buf, sizeof(buf), "Damaged %s", ut->name);
     return buf;
   }
@@ -11868,7 +11868,7 @@ int units_map_sprite(const ColonizeUnitPool* pool, int unit_id) {
   /* bugs.md: damaged artillery has its own art — DOS FUN_112b icon pick:
    * type 0xb + damage bit7 -> icon 0x42, i.e. this port's sprite 65 (same
    * 1-based offset as the Scout/Dragoon poses in that function). */
-  if (combat_type_is_artillery_name(type->name) && (unit->col1_unknown15 & 0x80u) != 0) {
+  if (combat_type_is_artillery_name(type->name) && (unit->col1_flags15 & 0x80u) != 0) {
     return UNITS_ICON_DAMAGED_ARTILLERY;
   }
   /*

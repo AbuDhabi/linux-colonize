@@ -3467,7 +3467,7 @@ static int unit_colony_ai_flags_mow_colony_alt(void) {
     fprintf(stderr, "unit_ai_euro_expand: ai_flags=0x%02x (want MoW bit)\n",
             (unsigned)c->ai_flags);
     fx_map_free(&map);
-    return fail("expected nearby_man_o_war ai_flags bit");
+    return fail("expected nearby_frigate ai_flags bit");
   }
   int found_alt = 0;
   for (int i = 0; i < 16; ++i) {

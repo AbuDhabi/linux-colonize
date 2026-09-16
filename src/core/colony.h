@@ -256,9 +256,8 @@ typedef struct ColonizeColony {
  *   local_74 = wanted defenders, local_82 = defenders present
  *   local_82 < local_74                            -> set 0x08 (short of want)
  *   local_74 + (local_74 > 1) < local_82           -> set 0x04 (surplus)
- * So 0x08 is the "needs military" side and 0x04 the "has spare military" side;
- * the 0x04 name below is historical and semantically inverted, but it is kept
- * because every site that reads it really does test bit 4. Two Linux readers
+ * So 0x08 is the "short of defenders" side and 0x04 the "has spare military"
+ * side. (0x04 was named NEEDS_MILITARY until 2026-09-16 — inverted.) Two Linux readers
  * now (both DOS's own, see the consumer audit below):
  * ai_euro_20e6_surplus_recall_arm (the read-and-clear recall) and
  * ai_euro_20e6_wander_step's flag ladder. Grep the macro rather than trusting
@@ -300,7 +299,7 @@ typedef struct ColonizeColony {
  *     0x15 Soldiers here". Full decode in docs/smell_audit_2026-09-10.md,
  *     "FUN_5952_035e building / expert passes".
  */
-#define COLONIZE_COLONY_AI_NEEDS_MILITARY 0x04u
+#define COLONIZE_COLONY_AI_MILITARY_SURPLUS 0x04u
 #define COLONIZE_COLONY_AI_SHORT_DEFENDERS 0x08u
 #define COLONIZE_COLONY_AI_NEEDS_COLONISTS 0x10u
 /*

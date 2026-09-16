@@ -568,7 +568,7 @@ static int unit_privateer_war_hunt(void) {
   ctx.col1_ok = true;
   ctx.rng_seed = 42;
 
-  const int foe_hp0 = (int)(foe_ship->col1_unknown15 & 0x80u);
+  const int foe_hp0 = (int)(foe_ship->col1_flags15 & 0x80u);
   ai_euro_dispatcher_turn(&ctx, nation);
 
   priv = units_get(&units, own_id);
@@ -576,7 +576,7 @@ static int unit_privateer_war_hunt(void) {
 
   const int combat_done =
     (priv == NULL || !priv->active) || (foe_ship == NULL || !foe_ship->active) ||
-    (foe_ship && (int)(foe_ship->col1_unknown15 & 0x80u) != foe_hp0) || (priv && (priv->col1_unknown15 & 0x80u) != 0);
+    (foe_ship && (int)(foe_ship->col1_flags15 & 0x80u) != foe_hp0) || (priv && (priv->col1_flags15 & 0x80u) != 0);
   /* A naval resolve spends the whole allotment (ai_euro_try_attack). */
   const int fought = combat_done || (priv && priv->moves_left == 0 && priv->x == own_x && priv->y == own_y);
   const int sailed_west = priv && priv->active && priv->x < own_x;

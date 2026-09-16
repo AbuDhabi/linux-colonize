@@ -35,22 +35,22 @@ static void uppercase_copy(char* out, size_t out_size, const char* in) {
 
 bool dos_compat_normalize_asset_path(
   const char* data_dir,
-  const char* legacy_name,
+  const char* dos_asset_name,
   char* out_path,
   size_t out_path_size
 ) {
   struct stat st;
   char upper[256];
-  if (!data_dir || !legacy_name || !out_path || out_path_size == 0) {
+  if (!data_dir || !dos_asset_name || !out_path || out_path_size == 0) {
     return false;
   }
 
-  snprintf(out_path, out_path_size, "%s/%s", data_dir, legacy_name);
+  snprintf(out_path, out_path_size, "%s/%s", data_dir, dos_asset_name);
   if (stat(out_path, &st) == 0) {
     return true;
   }
 
-  uppercase_copy(upper, sizeof(upper), legacy_name);
+  uppercase_copy(upper, sizeof(upper), dos_asset_name);
   snprintf(out_path, out_path_size, "%s/%s", data_dir, upper);
   if (stat(out_path, &st) == 0) {
     return true;

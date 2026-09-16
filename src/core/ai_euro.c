@@ -7270,7 +7270,7 @@ static void ai_euro_5d04_hire_tail_departing_ships(Ai5d04HireTail* t) {
     while (!matched && idx2 >= 0) {
       int next2 = idx2;
       const ColonizeUnit* ship2 = ai_euro_5d04_cb_unit(idx2);
-      const int flags3148 = (ship2 && ship2->col1_unknown15 & 0x80) ? 0x80 : 0; /* damaged */
+      const int flags3148 = (ship2 && ship2->col1_flags15 & 0x80) ? 0x80 : 0; /* damaged */
       const int dispatch2 = ai_euro_5d04_cb_unit_dispatch_byte(idx2);
       if (!departed[idx2] && ((flags3148 & 0x80) == 0 || dispatch2 == 0x0b) &&
           dispatch2 > 0xc && dispatch2 < 0x13) {
@@ -8934,7 +8934,7 @@ static void ai_euro_5952_ai_flags(
     c->ai_flags |= COLONIZE_COLONY_AI_SHORT_DEFENDERS; /* raw 94194-94196 */
   }
   if (wanted + (wanted > 1 ? 1 : 0) < homed_mil) {
-    c->ai_flags |= COLONIZE_COLONY_AI_NEEDS_MILITARY; /* raw 94197-94199 */
+    c->ai_flags |= COLONIZE_COLONY_AI_MILITARY_SURPLUS; /* raw 94197-94199 */
   }
 }
 
@@ -11137,7 +11137,7 @@ static int ai_euro_20e6_surplus_recall_arm(
   if (!hc->active || hc->nation_id != s->nation) {
     return 0;
   }
-  if ((hc->ai_flags & COLONIZE_COLONY_AI_NEEDS_MILITARY) == 0) {
+  if ((hc->ai_flags & COLONIZE_COLONY_AI_MILITARY_SURPLUS) == 0) {
     return 0;
   }
   if (hc->garrison_quota == 0 && ai_euro_20e6_dos_type(ctx->units, u) == 4) {
@@ -11146,7 +11146,7 @@ static int ai_euro_20e6_surplus_recall_arm(
   if (map_continent_id_at(ctx->map, hc->x, hc->y) != s->cid) {
     return 0;
   }
-  hc->ai_flags = (uint8_t)(hc->ai_flags & (uint8_t)~COLONIZE_COLONY_AI_NEEDS_MILITARY);
+  hc->ai_flags = (uint8_t)(hc->ai_flags & (uint8_t)~COLONIZE_COLONY_AI_MILITARY_SURPLUS);
   if (hc->garrison_quota != 0) {
     hc->garrison_quota--;
   }
@@ -11841,7 +11841,7 @@ static int ai_euro_20e6_wander_step(ColonizeTurnContext* ctx, ColonizeUnit* u, A
           const int af = c ? (int)c->ai_flags : 0;
           if (af & COLONIZE_COLONY_AI_NEEDS_GARRISON) {
             score += 10;
-          } else if (af & COLONIZE_COLONY_AI_NEEDS_MILITARY) {
+          } else if (af & COLONIZE_COLONY_AI_MILITARY_SURPLUS) {
             score += 6;
           } else if (af & COLONIZE_COLONY_AI_NEEDS_COLONISTS) {
             score += 3;
@@ -16244,8 +16244,8 @@ static int ai_euro_20e6_unit_col5(int dos_type) {
  * Non-coastal colonies are skipped (the raw 8804(...,0xfffe) reachability
  * probe for the +0x1c bit-0x40-clear case — a ship can't reach them).
  * Commit threshold (raw 2031): peace best > −999, war-cargo best > 0.
- * DOS bit 0x08 of +0x1b has no decoded writer; NEEDS_MILITARY (0x04) is
- * this port's closest live flag and stands in.
+ * +0x1b bit 0x08 (SHORT_DEFENDERS) is written by ai_euro_colony_threat_seed_5952;
+ * bit 0x04 (MILITARY_SURPLUS) is the opposite side of that pair.
  */
 static int ai_euro_20e6_colony_sail_pick(
   ColonizeTurnContext* ctx, const ColonizeUnit* ship, int nation, int mil, int pioneers_b4,

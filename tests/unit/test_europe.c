@@ -131,7 +131,7 @@ static int case_europe_workflow(void) {
 
   const int gold_before = eu.gold;
   const int dock_before = eu.dock_count;
-  if (!europe_recruit(&eu) || eu.menu != EUROPE_MENU_RECRUIT) {
+  if (!europe_open_recruit_menu(&eu) || eu.menu != EUROPE_MENU_RECRUIT) {
     fprintf(stderr, "recruit menu open failed: %s\n", eu.status);
     europe_free(&eu);
     return 1;

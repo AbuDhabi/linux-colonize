@@ -100,7 +100,7 @@ strengths — fixed 2026-09-09, smell audit #11.)
 ### Base ×8 (`FUN_157e_004a` / `combat_unit_base_x8`)
 
 1. `type.defense` (mode 0) or `type.attack` (mode 1)
-2. Artillery (@UNIT type 0x0b) + `col1_unknown15` bit7 (damaged) → −2 —
+2. Artillery (@UNIT type 0x0b) + `col1_flags15` bit7 (damaged) → −2 —
    Artillery only (viceroy 8936-8938); ships never take this peel
 3. ×8
 4. Veteran Soldier/Dragoon → +50%. DOS gate (viceroy 8942-8944): @UNIT **type

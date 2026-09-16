@@ -3881,17 +3881,17 @@ static int ai_native_021a_tail(
     }
   }
   if ((flags & 0x0a) || hostile) {
-    u->col1_unknown15 &= (uint8_t)~0x08u;
+    u->col1_flags15 &= (uint8_t)~0x08u;
     flags &= 0x7f;
   }
-  if (u->col1_unknown15 & 0x08u) {
+  if (u->col1_flags15 & 0x08u) {
     /* 021a:13cc — pending encounter at own tile resolves, unit stays. */
-    u->col1_unknown15 &= (uint8_t)~0x08u;
+    u->col1_flags15 &= (uint8_t)~0x08u;
     return 8;
   }
   if (flags & 0x80) {
     ai_021a_set_visit_turn(u, turn_w);
-    u->col1_unknown15 |= 0x08u;
+    u->col1_flags15 |= 0x08u;
   }
   if ((flags & 0x8a) == 0 && s_ai_native_colonies) {
     /* 021a:1419 — march on an encroaching colony after the long cooldown. */
@@ -3963,8 +3963,8 @@ COLONIZE_INTERNAL int ai_021a_trace_enabled(void) {
   return cached;
 }
 
-/* AI_BRAVE_PICK=20e6 — fall back to the retired 20e6-shaped quiet scorer. */
-static int ai_brave_pick_legacy(void) {
+/* AI_BRAVE_PICK=20e6 — live opt-in fallback to the retired 20e6-shaped quiet scorer. */
+static int ai_brave_pick_20e6_fallback(void) {
   static int cached = -1;
   if (cached < 0) {
     const char* e = getenv("AI_BRAVE_PICK");
@@ -3985,7 +3985,7 @@ static int ai_native_pick_dir(
 ) {
   res->dir = 8;
   res->flags = 0;
-  if (ai_brave_pick_legacy() || !col1) {
+  if (ai_brave_pick_20e6_fallback() || !col1) {
     res->dir = ai_native_pick_dir_asm(rng, map, units, u->x, u->y, nation_id, last_dir);
     return res->dir;
   }
@@ -4194,7 +4194,7 @@ static int ai_native_step_first_contact(
      * the mover carries the pending-encounter bit, stands on an Indian
      * settlement tile (FUN_137f_0392 >= 0), or has no home village.
      */
-    if (fired || (u->col1_unknown15 & 0x08u) || ai_021a_settle_owner(map, u->x, u->y) >= 4 ||
+    if (fired || (u->col1_flags15 & 0x08u) || ai_021a_settle_owner(map, u->x, u->y) >= 4 ||
         u->home_tribe_id < 0) {
       continue;
     }
@@ -4345,7 +4345,7 @@ static AiNativeStepStatus ai_native_brave_step(
   (void)tech;
   Ai021aResult pick;
   int dir = ai_native_pick_dir(rng, map, units, col1, u, nation_id, last_dir, &pick);
-  if (!ai_brave_pick_legacy() && col1) {
+  if (!ai_brave_pick_20e6_fallback() && col1) {
     const int picked = dir;
     dir = ai_native_021a_tail(units, map, col1, rng, u, nation_id, dir, pick.flags);
     if (ai_021a_trace_enabled()) {

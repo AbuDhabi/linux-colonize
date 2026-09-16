@@ -180,7 +180,7 @@ int combat_unit_base_x8(
    * Privateer arm was invented (smell #4).
    */
   if (combat_type_is_artillery_name(t->name) &&
-      (u->col1_unknown15 & 0x80u) != 0) {
+      (u->col1_flags15 & 0x80u) != 0) {
     local_8 -= 2;
     if (local_8 < 0) {
       local_8 = 0;

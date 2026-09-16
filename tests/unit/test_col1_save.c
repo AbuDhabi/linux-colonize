@@ -2076,7 +2076,7 @@ int main(void) {
    * purely procedural (map_procedural_rumour_at, a hash of position + seed)
    * with no dedicated "already explored" bit in the Col1 format itself —
    * map_clear_rumour only ever sets our own runtime-only layer2 bit
-   * (MAP_LAYER2_RUMOUR_CLEARED), which starts zero on every fresh import.
+   * (MAP_LAYER2_LCR_CONSUMED), which starts zero on every fresh import.
    * Fix: col1_bridge_apply now also seeds that bit from the Col1 `path`
    * field's own visitor-history nibble (0xf = nobody has ever occupied this
    * tile) — resolving a rumour always means a unit physically stood on it,

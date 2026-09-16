@@ -1292,7 +1292,7 @@ int main(void) {
        */
       {
         const ColonizeUnit* d_after = units_get(&upool, def1);
-        if (!d_after || (d_after->col1_unknown15 & 0x80u) == 0 || !units_get(&upool, atk1)) {
+        if (!d_after || (d_after->col1_flags15 & 0x80u) == 0 || !units_get(&upool, atk1)) {
           return fail("tie-goes-to-attacker: defender damaged, attacker survives");
         }
       }
@@ -1314,7 +1314,7 @@ int main(void) {
         /* Same guns == hull coin flip as above: no-RNG ties damage. */
         const ColonizeUnit* d2_after = units_get(&upool, def2);
         if (!units_get(&upool, atk2) || !d2_after ||
-            (d2_after->col1_unknown15 & 0x80u) == 0) {
+            (d2_after->col1_flags15 & 0x80u) == 0) {
           return fail("NULL-col1 naval: attacker survives, defender damaged");
         }
       }
@@ -1360,7 +1360,7 @@ int main(void) {
       units_set_ff_col1(NULL);
       /* Same guns == hull coin flip as spawn A: no-RNG ties damage. */
       const ColonizeUnit* d_after = units_get(&upool, def);
-      if (!d_after || (d_after->col1_unknown15 & 0x80u) == 0 || !units_get(&upool, atk)) {
+      if (!d_after || (d_after->col1_flags15 & 0x80u) == 0 || !units_get(&upool, atk)) {
         return fail("Drake wrapper tie: defender damaged, attacker survives");
       }
     }

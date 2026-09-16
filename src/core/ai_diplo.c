@@ -746,7 +746,7 @@ uint8_t ai_diplo_read(const ColonizeCol1Save* col1, int nation_a, int nation_b) 
      * leaves 0). Kept because live callers read "self is at peace/allied"
      * off it; ai_goals.c's 20e6 land-claim gate deliberately bypasses this
      * accessor for the byte-faithful read. */
-    return AI_DIPLO_PEACE | AI_DIPLO_ALLY;
+    return AI_DIPLO_PEACE | AI_DIPLO_ATTACK_CONFIRMED;
   }
   const uint8_t* f = ai_diplo_flag_byte_const(col1, nation_a, nation_b);
   if (!f) {

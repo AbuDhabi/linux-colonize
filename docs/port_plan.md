@@ -544,7 +544,7 @@ list, not from the inventory.
   `TURN_PROC_FINISH` after building completion (DOS position). Bit meanings
   corrected in `col1_save.h`/`save_format_map.md`: bit 0x02 = Frigate (0x11
   literal) ONLY, bit 0x01 = any other armed ship incl. Man-O-War
-  (`nearby_man_o_war` stays as a frozen fixture JSON key). 60/60 green.
+  (JSON key renamed `nearby_frigate` 2026-09-16; old key still read). 60/60 green.
 - [x] **1b0e beginner-handicap siblings** — closed 2026-09-08. All three
   siblings plus the diff-0 human-attacker doubling ported as
   `combat_apply_1b0e_resolve_handicaps` (raw 100534-100556); resolve-only

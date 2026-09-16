@@ -55,7 +55,7 @@ int units_tick_treasure_outside_colony(
 
 /*
  * FUN_3844_00f2 ship-build ready: Col1 types 0x0d..0x12 with +0x3148 bit7
- * (Linux col1_unknown15 bit7; same bit as ship_damaged for Frigate 0x0b —
+ * (Linux col1_flags15 bit7; same bit as ship_damaged for Frigate 0x0b —
  * construction gate excludes 0x0b). +1 turns_worked (+2 on any colony tile);
  * threshold = type.defense (DOS 0x5235 = NAMES @UNIT combat).
  * Clears bit7 on complete; human status line; *want_europe_open=1 if finished

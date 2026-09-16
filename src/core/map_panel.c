@@ -1007,7 +1007,7 @@ static void map_panel_draw_stack_row(
       false, /* DOS passes 0 here: every unit in the stack gets its own row */
       /* DOS's 4th badge arm is Artillery + damaged (+0x3148 bit7), not
        * "aboard a ship" — unit_chrome_corner_for_type. */
-      (u->col1_unknown15 & 0x80u) != 0,
+      (u->col1_flags15 & 0x80u) != 0,
       active_palette
     );
   }
@@ -1306,7 +1306,7 @@ void map_panel_render_w(
         selected->nation_id,
         selected->orders,
         false,
-        (selected->col1_unknown15 & 0x80u) != 0,
+        (selected->col1_flags15 & 0x80u) != 0,
         active_palette
       );
     }
@@ -1594,7 +1594,7 @@ void map_panel_render_w(
               top->nation_id,
               top->orders,
               stack_n > 1,
-              (top->col1_unknown15 & 0x80u) != 0,
+              (top->col1_flags15 & 0x80u) != 0,
               active_palette
             );
           }

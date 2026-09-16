@@ -5694,7 +5694,7 @@ int main(void) {
       return 1;
     }
     units_set_nation(u, 0);
-    u->col1_unknown15 = 0x80;
+    u->col1_flags15 = 0x80;
     u->turns_worked = 0;
 
     char status[128];
@@ -5702,21 +5702,21 @@ int main(void) {
     int want_eu = 0;
     /* On colony: +2/tick → need 2 ticks to reach threshold 4. */
     (void)units_tick_ship_build_ready(&units, &colonies, 0, 0, status, sizeof(status), &want_eu);
-    if ((u->col1_unknown15 & 0x80u) == 0 || u->turns_worked != 2) {
+    if ((u->col1_flags15 & 0x80u) == 0 || u->turns_worked != 2) {
       fprintf(
         stderr,
         "ship-build mid: bit=%u tw=%d want bit set tw=2\n",
-        (unsigned)(u->col1_unknown15 & 0x80u),
+        (unsigned)(u->col1_flags15 & 0x80u),
         u->turns_worked
       );
       return 1;
     }
     (void)units_tick_ship_build_ready(&units, &colonies, 0, 0, status, sizeof(status), &want_eu);
-    if ((u->col1_unknown15 & 0x80u) != 0 || u->turns_worked < 4) {
+    if ((u->col1_flags15 & 0x80u) != 0 || u->turns_worked < 4) {
       fprintf(
         stderr,
         "ship-build done: bit=%u tw=%d want clear tw≥4\n",
-        (unsigned)(u->col1_unknown15 & 0x80u),
+        (unsigned)(u->col1_flags15 & 0x80u),
         u->turns_worked
       );
       return 1;
@@ -5730,16 +5730,16 @@ int main(void) {
       return 1;
     }
     /* Real Caravel combat=2 completes in one colony tick. */
-    u->col1_unknown15 = 0x80;
+    u->col1_flags15 = 0x80;
     u->turns_worked = 0;
     units.types[0xd].defense = 2;
     status[0] = '\0';
     (void)units_tick_ship_build_ready(&units, &colonies, 0, 0, status, sizeof(status), &want_eu);
-    if ((u->col1_unknown15 & 0x80u) != 0 || u->turns_worked != 2) {
+    if ((u->col1_flags15 & 0x80u) != 0 || u->turns_worked != 2) {
       fprintf(
         stderr,
         "ship-build combat2: bit=%u tw=%d want clear tw=2\n",
-        (unsigned)(u->col1_unknown15 & 0x80u),
+        (unsigned)(u->col1_flags15 & 0x80u),
         u->turns_worked
       );
       return 1;

@@ -87,7 +87,7 @@ int unit_chrome_crown_nation(void);
 
 /*
  * DOS @UNIT type id → badge corner. `damaged` is the unit's DOS +0x3148
- * bit7 (Linux col1_unknown15 & 0x80); it only matters for Artillery
+ * bit7 (Linux col1_flags15 & 0x80); it only matters for Artillery
  * (@UNIT 0x0b), whose damaged form takes the y+2 box (DOS FUN_112b_01ba
  * raw 2109-2111 / 2253-2254). It is NOT "aboard a ship" — that was the
  * port's own reading until the 2026-09-10 seventh fix wave.

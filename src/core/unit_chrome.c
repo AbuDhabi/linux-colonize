@@ -305,7 +305,7 @@ UnitChromeCorner unit_chrome_corner_for_type(int dos_unit_type_id, bool damaged)
      * raw 2109-2111 is `bVar1 == 0xb && (*(byte *)(local_2c + 0x3148) & 0x80)`
      * → local_14 = 4 (the y+2 box at raw 2253-2254). The port used to pass
      * `aboard_ship_id >= 0` here; every caller now passes the unit's real
-     * damaged bit (Linux col1_unknown15 & 0x80, the same +0x3148 bit7 the
+     * damaged bit (Linux col1_flags15 & 0x80, the same +0x3148 bit7 the
      * damaged-Artillery combat gates read at units.c:11130/11294).
      */
     if (t == 11 && damaged) {

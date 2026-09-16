@@ -162,7 +162,7 @@ void dos_compat_init(void);
 void dos_compat_shutdown(void);
 bool dos_compat_normalize_asset_path(
   const char* data_dir,
-  const char* legacy_name,
+  const char* dos_asset_name,
   char* out_path,
   size_t out_path_size
 );

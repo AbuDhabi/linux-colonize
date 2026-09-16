@@ -426,7 +426,7 @@ static int unit_refit_drydock(void) {
     return 1;
   }
   ship->nation_id = 0;
-  ship->col1_unknown15 = 0x80u;
+  ship->col1_flags15 = 0x80u;
   ship->turns_worked = 99; /* past construction thresh */
   pool.types[caravel].defense = 4;
 
@@ -445,9 +445,9 @@ static int unit_refit_drydock(void) {
     &pool, &colonies, 0, 0, st, sizeof(st), &pops, &game_txt
   );
   ship = units_get(&pool, sid);
-  if (repaired != 1 || !ship || (ship->col1_unknown15 & 0x80u) != 0) {
+  if (repaired != 1 || !ship || (ship->col1_flags15 & 0x80u) != 0) {
     fprintf(stderr, "refit: repair failed repaired=%d bit7=%02x\n", repaired,
-            ship ? (unsigned)ship->col1_unknown15 : 0xffu);
+            ship ? (unsigned)ship->col1_flags15 : 0xffu);
     assets_msg_free(&game_txt);
     assets_msg_free(&names);
     return 1;
@@ -3307,7 +3307,7 @@ static int unit_smell_audit_2026_09_09(void) {
     if (rc == 0 && (!h || !h->active)) {
       fprintf(stderr, "0352-hull: berthed Caravel was destroyed by the land sweep\n");
       rc = 1;
-    } else if (rc == 0 && (h->col1_unknown15 & 0x80u) == 0) {
+    } else if (rc == 0 && (h->col1_flags15 & 0x80u) == 0) {
       fprintf(stderr, "0352-hull: damaged bit7 (+0x3148|0x80) not set\n");
       rc = 1;
     } else if (rc == 0 && h->repair_pending == 0) {
@@ -6621,7 +6621,7 @@ int main(void) {
       fprintf(stderr, "case5 latch must set lcr_case5_bonus_used\n");
       return 1;
     }
-    map.layer2[ry2 * map.width + rx2] &= (uint8_t)~MAP_LAYER2_RUMOUR_CLEARED;
+    map.layer2[ry2 * map.width + rx2] &= (uint8_t)~MAP_LAYER2_LCR_CONSUMED;
     ColonizeDosRng rng2;
     dos_rng_seed(&rng2, trespass_seed);
     const int sc2 = units_spawn_allow_stack(&pool, case5_ti, rx2, ry2);
@@ -6714,7 +6714,7 @@ int main(void) {
       if (!vanished[pass]) {
         units_despawn(&pool, uid);
       }
-      map.layer2[rty * map.width + rtx] &= (uint8_t)~MAP_LAYER2_RUMOUR_CLEARED;
+      map.layer2[rty * map.width + rtx] &= (uint8_t)~MAP_LAYER2_LCR_CONSUMED;
     }
     if (vanished[0] != vanished[1] || gold_delta[0] != gold_delta[1] ||
         colonist_delta[0] != colonist_delta[1]) {
@@ -6830,7 +6830,7 @@ int main(void) {
           units_despawn(&pool, sid);
         }
         /* Re-arm for the next pass over the same tile set (test-only). */
-        map.layer2[y * map.width + x] &= (uint8_t)~MAP_LAYER2_RUMOUR_CLEARED;
+        map.layer2[y * map.width + x] &= (uint8_t)~MAP_LAYER2_LCR_CONSUMED;
         }
       }
     }
@@ -7900,7 +7900,7 @@ int main(void) {
         return 1;
       }
       d = units_get(&pool, did);
-      if (!d || !d->active || (d->col1_unknown15 & 0x80u) == 0) {
+      if (!d || !d->active || (d->col1_flags15 & 0x80u) == 0) {
         fprintf(stderr, "phase2 weaker ship should survive damaged\n");
         return 1;
       }
@@ -9059,7 +9059,7 @@ int main(void) {
       ColonizeUnit* ship = units_get(&pool, sid_miss);
       ship->nation_id = 1;
       ship->moves_left = 4 * UNITS_MP_PER_TILE;
-      ship->col1_unknown15 = 0;
+      ship->col1_flags15 = 0;
       ship->turns_worked = 0;
       /* Fort atk=4 (tier1, 0 arty); ship defense 99 → fort miss, MP drain only. */
       pool.types[car].attack = 2;
@@ -9081,7 +9081,7 @@ int main(void) {
         fprintf(stderr, "fort miss should leave ship alive\n");
         return 1;
       }
-      if ((ship->col1_unknown15 & 0x80u) != 0) {
+      if ((ship->col1_flags15 & 0x80u) != 0) {
         fprintf(stderr, "fort miss must not set damaged bit7\n");
         return 1;
       }
@@ -9097,7 +9097,7 @@ int main(void) {
       ship = units_get(&pool, sid_hit);
       ship->nation_id = 1;
       ship->moves_left = 4 * UNITS_MP_PER_TILE;
-      ship->col1_unknown15 = 0;
+      ship->col1_flags15 = 0;
       ship->turns_worked = 0;
       pool.types[car].defense = 3; /* fort atk 4 wins the fight */
       /* Damage-vs-sink uses the loser's @UNIT hull against the fort's strength
@@ -9110,7 +9110,7 @@ int main(void) {
         fprintf(stderr, "close fort hit should damage not sink\n");
         return 1;
       }
-      if ((ship->col1_unknown15 & 0x80u) == 0) {
+      if ((ship->col1_flags15 & 0x80u) == 0) {
         fprintf(stderr, "close fort hit must set damaged bit7\n");
         return 1;
       }
@@ -9128,7 +9128,7 @@ int main(void) {
         &pool, &colonies, 1, -1, st, sizeof(st), NULL
       );
       ship = units_get(&pool, sid_hit);
-      if (!ship || (ship->col1_unknown15 & 0x80u) == 0) {
+      if (!ship || (ship->col1_flags15 & 0x80u) == 0) {
         fprintf(stderr, "ship-build must leave combat bit7 set\n");
         return 1;
       }
@@ -9145,7 +9145,7 @@ int main(void) {
         );
       }
       ship = units_get(&pool, sid_hit);
-      if (repaired != 1 || !ship || (ship->col1_unknown15 & 0x80u) != 0) {
+      if (repaired != 1 || !ship || (ship->col1_flags15 & 0x80u) != 0) {
         fprintf(stderr, "repair timer should clear combat bit7 (repaired=%d)\n", repaired);
         return 1;
       }

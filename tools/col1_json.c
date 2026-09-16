@@ -37,6 +37,10 @@ static void wb(FILE* f, int* n, const char* k, bool v) {
   jkey(f, n, k);
   fputs(v ? "true" : "false", f);
 }
+/* Read `key`, falling back to a pre-rename `old_key` for older JSON fixtures. */
+static bool json_get_bool2(const JsonValue* o, const char* key, const char* old_key, bool* out) {
+  return json_get_bool(o, key, out) || json_get_bool(o, old_key, out);
+}
 static void ws(FILE* f, int* n, const char* k, const char* buf, size_t fixed_len) {
   jkey(f, n, k);
   json_write_escaped_string(f, buf, col1_json_strnlen(buf, fixed_len));
@@ -531,9 +535,9 @@ static void write_colony_ai_flags(FILE* f, const ColonizeCol1ColonyAiFlags* a) {
   int n = 0;
   fputc('{', f);
   wb(f, &n, "nearby_armed_ship", a->nearby_armed_ship);
-  wb(f, &n, "nearby_man_o_war", a->nearby_man_o_war);
-  wb(f, &n, "needs_military", a->needs_military);
-  wb(f, &n, "defense_surplus", a->defense_surplus);
+  wb(f, &n, "nearby_frigate", a->nearby_frigate);
+  wb(f, &n, "military_surplus", a->military_surplus);
+  wb(f, &n, "short_defenders", a->short_defenders);
   wb(f, &n, "needs_colonists", a->needs_colonists);
   wb(f, &n, "specialist_pressure", a->specialist_pressure);
   wb(f, &n, "needs_garrison", a->needs_garrison);
@@ -543,9 +547,10 @@ static void write_colony_ai_flags(FILE* f, const ColonizeCol1ColonyAiFlags* a) {
 static void read_colony_ai_flags(const JsonValue* o, ColonizeCol1ColonyAiFlags* a) {
   bool v;
   if (json_get_bool(o, "nearby_armed_ship", &v)) a->nearby_armed_ship = v;
-  if (json_get_bool(o, "nearby_man_o_war", &v)) a->nearby_man_o_war = v;
-  if (json_get_bool(o, "needs_military", &v)) a->needs_military = v;
-  if (json_get_bool(o, "defense_surplus", &v)) a->defense_surplus = v;
+  /* Renamed 2026-09-16 (bits 0x02/0x04/0x08 were misnamed); old keys still read. */
+  if (json_get_bool2(o, "nearby_frigate", "nearby_man_o_war", &v)) a->nearby_frigate = v;
+  if (json_get_bool2(o, "military_surplus", "needs_military", &v)) a->military_surplus = v;
+  if (json_get_bool2(o, "short_defenders", "defense_surplus", &v)) a->short_defenders = v;
   if (json_get_bool(o, "needs_colonists", &v)) a->needs_colonists = v;
   if (json_get_bool(o, "specialist_pressure", &v)) a->specialist_pressure = v;
   if (json_get_bool(o, "needs_garrison", &v)) a->needs_garrison = v;

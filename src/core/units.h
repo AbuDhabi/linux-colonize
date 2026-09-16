@@ -161,7 +161,7 @@ typedef struct ColonizeUnit {
    */
   uint8_t mp_spent_turn;
   int last_dir; /* DOS unit facing / Col1 facing; 0..7 for AI scoring */
-  uint8_t col1_unknown15; /* round-trip; bit7 = ship damaged */
+  uint8_t col1_flags15; /* DOS unit+0x15 flag byte (bits named in ColonizeCol1Unit); bit7 = ship damaged. Was col1_unknown15. */
   /*
    * DOS unit+0x07 / Col1 ai_plan. Starter saves use 0x58 ('X') on essentially
    * every unit; spawn defaults to COL1_UNIT_UNKNOWN16_HI_DEFAULT.
@@ -195,9 +195,10 @@ typedef struct ColonizeUnitPool {
   ColonizeUnit units[COLONIZE_UNITS_MAX];
   int unit_count;
   int selected_id;
-  /* bugs.md "Move to front": this unit boards departing ships first and
-   * heads the colony rosters (-1 = none; DOS reorders its unit chain). */
-  int board_first_id;
+  /* bugs.md "Move to front": the unit in this pool SLOT (units[i], NOT a
+   * unit id) boards departing ships first and heads the colony rosters
+   * (-1 = none; DOS reorders its unit chain). Was board_first_id. */
+  int board_first_slot;
   int next_id;
 } ColonizeUnitPool;
 

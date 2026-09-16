@@ -1399,7 +1399,7 @@ bool europe_purchase(EuropeScreen* eu, int purchase_index) {
   return true;
 }
 
-bool europe_recruit(EuropeScreen* eu) {
+bool europe_open_recruit_menu(EuropeScreen* eu) {
   if (!eu) {
     return false;
   }

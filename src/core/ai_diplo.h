@@ -47,7 +47,7 @@ static inline int ai_relation_quartile(int v) {
  * while bit 0x08 is up; cleared by 465b after the attack), 0x10 crown-arms
  * event (FUN_38fd_5930). Same encoding as indian.euro_diplo. Real saves show
  * 00/20/22/60/a0/e0/e2/e8 and the bits are directional (a→b ≠ b→a).
- * AI_DIPLO_ALLY (0x04) is never SET on Euro pairs (DOS uses 0x04 only on
+ * AI_DIPLO_ATTACK_CONFIRMED (0x04, ex-ALLY) is never SET on Euro pairs (DOS uses 0x04 only on
  * Indian pairs as "attack-village confirmed"; the Linux-only alliance
  * machinery that set it was retired T2.4 2026-09-06). Readers left: the
  * self-pair virtual in ai_diplo_read, and ai_king 2244's byte-faithful
@@ -56,7 +56,9 @@ static inline int ai_relation_quartile(int v) {
  */
 #define AI_DIPLO_WAR 0x02
 #define AI_DIPLO_PEACE 0x40
-#define AI_DIPLO_ALLY 0x04
+/* 0x04: DOS sets it only on Indian pairs ("attack-village confirmed"); the
+ * self-pair virtual in ai_diplo_read still returns it. Was AI_DIPLO_ALLY. */
+#define AI_DIPLO_ATTACK_CONFIRMED 0x04
 #define AI_DIPLO_MET 0x20
 #define AI_DIPLO_WAR_INTENT 0x01
 #define AI_DIPLO_CROWN_ARMED 0x10 /* FUN_38fd_5930 @KINGNEWWAR: Crown cancelled our peace with this peer */

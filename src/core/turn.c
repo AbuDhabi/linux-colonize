@@ -2771,7 +2771,7 @@ static void turn_route_damaged_ships(ColonizeTurnContext* ctx, int nation) {
     if (!u->active || u->nation_id != nation || u->aboard_ship_id >= 0) {
       continue;
     }
-    if (!units_is_sea(ctx->units, u->id) || (u->col1_unknown15 & 0x80u) == 0) {
+    if (!units_is_sea(ctx->units, u->id) || (u->col1_flags15 & 0x80u) == 0) {
       continue;
     }
     const ColonizeUnitType* ty = units_type(ctx->units, u->type_index);
@@ -2873,7 +2873,7 @@ static void turn_route_damaged_ships(ColonizeTurnContext* ctx, int nation) {
             ty && ty->name[0] ? ty->name : "Damaged ship"
           );
         }
-        u->col1_unknown15 = (uint8_t)(u->col1_unknown15 & 0x7fu); /* repaired abroad */
+        u->col1_flags15 = (uint8_t)(u->col1_flags15 & 0x7fu); /* repaired abroad */
         units_despawn(ctx->units, u->id);
       }
     }

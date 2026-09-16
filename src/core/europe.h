@@ -1220,7 +1220,7 @@ bool europe_dock_menu_apply_selection_ex_w(
 void europe_cheat_add_gold(EuropeScreen* eu, int amount);
 void europe_cheat_adjust_tax(EuropeScreen* eu, int delta);
 
-/* Legacy name — opens recruit menu. */
-bool europe_recruit(EuropeScreen* eu);
+/* Opens the Recruit menu (was europe_recruit). */
+bool europe_open_recruit_menu(EuropeScreen* eu);
 
 #endif
