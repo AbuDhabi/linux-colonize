@@ -6,6 +6,11 @@
  *  - Construction & Europe boycott/buy dialogs (~line 914)
  *  - Modal input handling & AI popup result appliers (~line 1623)
  *
+ * game_apply_ai_popup_result is a dispatcher over the game_apply_popup_*
+ * stages directly above it (map_and_colony / voyage / contact /
+ * diplo_and_scout / combat_and_gifts / village_attack), each returning true
+ * when it recognised and consumed the result tag.
+ *
  * Split out of game_loop.c (which still owns the screens, the map and the
  * per-frame update); the shared ColonizeGameState definition and the
  * cross-file helper prototypes are in game_dialogs.h.
@@ -1923,13 +1928,18 @@ static void game_apply_howmuch_result(ColonizeGameState* game) {
   }
 }
 
-void game_apply_ai_popup_result(ColonizeGameState* game) {
-  if (!game || !game->ai_popups.has_result) {
-    return;
-  }
+/*
+ * game_apply_ai_popup_result stages. Each returns true when it recognised
+ * and consumed the result tag, and the applier returns immediately; false
+ * falls through to the next stage. Grouped by subject, in the DOS order the
+ * original if-chain tested them.
+ */
+/* Map confirm, trade-route wizard type, and the colony-screen dialogs
+ * (event zoom, abandon, Clear Specialty). */
+static bool game_apply_popup_map_and_colony(ColonizeGameState* game) {
   if (game->ai_popups.result_tag == AI_POPUP_TAG_MAP_CONFIRM) {
     game_apply_map_confirm(game);
-    return;
+  return true;
   }
   if (game->ai_popups.result_tag == AI_POPUP_TAG_TRADE_TYPE) {
     /* @TRADETYPE (create wizard stage 2): choice 1 = Sea, 0 = Land (DOS). */
@@ -1938,12 +1948,12 @@ void game_apply_ai_popup_result(ColonizeGameState* game) {
     ai_popup_consume_result(&game->ai_popups);
     if (cancelled || game->trade_create_stage != 2) {
       game->trade_create_stage = 0;
-      return;
+  return true;
     }
     game->trade_create_sea = (choice == 1) ? 1u : 0u;
     game->trade_create_stage = 3;
     game_trade_wizard_open_name(game);
-    return;
+  return true;
   }
   if (game->ai_popups.result_tag == AI_POPUP_TAG_COLONY_EVENT) {
     /* Choice 2 = "Zoom to colony." (DOS FUN_364b_0000 result 2 → DS:0xa898);
@@ -1953,7 +1963,7 @@ void game_apply_ai_popup_result(ColonizeGameState* game) {
       ai_popup_colony_zoom_elect(&game->ai_popups, game->ai_popups.result_payload);
     }
     ai_popup_consume_result(&game->ai_popups);
-    return;
+  return true;
   }
   if (game->ai_popups.result_tag == AI_POPUP_TAG_COLONY_ABANDON) {
     /* DOS 2f2b: `DEC AX; JZ` — only choice 1 abandons; 2 / Esc keeps it. */
@@ -1965,7 +1975,7 @@ void game_apply_ai_popup_result(ColonizeGameState* game) {
       colony_screen_close_eject(&game->colony_screen);
       game_colony_finish_eject(game, who, role);
     }
-    return;
+  return true;
   }
   if (game->ai_popups.result_tag == AI_POPUP_TAG_COLONY_CLEARSPEC) {
     /* @LOBOTOMIZE: only choice 1 clears — FUN_281f_0cae(colonist, 0x1c). */
@@ -1980,8 +1990,13 @@ void game_apply_ai_popup_result(ColonizeGameState* game) {
         colony_screen_set_status(&game->colony_screen, game->status);
       }
     }
-    return;
+  return true;
   }
+  return false;
+}
+
+/* Ship dialogs: @LANDFALL disembark choice and @SAILHOME. */
+static bool game_apply_popup_voyage(ColonizeGameState* game) {
   if (game->ai_popups.result_tag == AI_POPUP_TAG_LANDFALL) {
     if (!game->ai_popups.result_cancelled) {
       const int ship_id = game->ai_popups.result_nation_a;
@@ -2018,7 +2033,7 @@ void game_apply_ai_popup_result(ColonizeGameState* game) {
       }
     }
     ai_popup_consume_result(&game->ai_popups);
-    return;
+  return true;
   }
   if (game->ai_popups.result_tag == AI_POPUP_TAG_SAILHOME) {
     const bool cancelled = game->ai_popups.result_cancelled;
@@ -2047,8 +2062,14 @@ void game_apply_ai_popup_result(ColonizeGameState* game) {
         }
       }
     }
-    return;
+  return true;
   }
+  return false;
+}
+
+/* Native contact: land demand, the village raid warn, the "whack" prompt
+ * and the European war declaration. */
+static bool game_apply_popup_contact(ColonizeGameState* game) {
   /*
    * @INDIANLAND / @INDIANFOREST / @INDIANROAD result (DOS 1-based): 1 respect
    * → cancel the order; 2 offer gold → colonies_indian_land_pay + @INDIANBRIBE,
@@ -2064,7 +2085,7 @@ void game_apply_ai_popup_result(ColonizeGameState* game) {
     ai_popup_consume_result(&game->ai_popups);
     if (choice == GAME_INDIAN_LAND_RESPECT) {
       set_status(game, "We respect their wishes", NULL);
-      return;
+  return true;
     }
     const int hn = game->human_nation;
     if (choice == GAME_INDIAN_LAND_OFFER && game->col1_ok && hn >= 0 && hn < 4) {
@@ -2118,7 +2139,7 @@ void game_apply_ai_popup_result(ColonizeGameState* game) {
       default:
         break;
     }
-    return;
+  return true;
   }
   /*
    * FUN_4d56_4528 village raid warn: Leave aborts; Attack opens hostilities then
@@ -2170,7 +2191,7 @@ void game_apply_ai_popup_result(ColonizeGameState* game) {
       set_status(game, "Left the village alone", NULL);
     }
     ai_popup_consume_result(&game->ai_popups);
-    return;
+  return true;
   }
   if (game->ai_popups.result_tag == AI_POPUP_TAG_CONTACT_WHACK) {
     const int unit_id = game->ai_popups.result_nation_a;
@@ -2190,7 +2211,7 @@ void game_apply_ai_popup_result(ColonizeGameState* game) {
         game->units.selected_id = unit_id;
         ai_popup_consume_result(&game->ai_popups);
         (void)game_try_unit_move(game, dest_x, dest_y);
-        return;
+  return true;
       }
     } else {
       /* Smell #105: a goto-delegated confirm must not re-fire next frame —
@@ -2202,7 +2223,7 @@ void game_apply_ai_popup_result(ColonizeGameState* game) {
       set_status(game, "Attack called off", NULL);
     }
     ai_popup_consume_result(&game->ai_popups);
-    return;
+  return true;
   }
   if (game->ai_popups.result_tag == AI_POPUP_TAG_CONTACT_EURO_WAR) {
     const int unit_id = game->ai_popups.result_nation_a;
@@ -2225,7 +2246,7 @@ void game_apply_ai_popup_result(ColonizeGameState* game) {
         game->colony_attack_ok_payload = dest_x | (dest_y << 8);
         (void)game_try_unit_move(game, dest_x, dest_y);
         game->colony_attack_ok_unit = -1;
-        return;
+  return true;
       }
     } else {
       /* Smell #105: see the WHACK cancel above. */
@@ -2236,15 +2257,20 @@ void game_apply_ai_popup_result(ColonizeGameState* game) {
       set_status(game, "Attack called off", NULL);
     }
     ai_popup_consume_result(&game->ai_popups);
-    return;
+  return true;
   }
+  return false;
+}
+
+/* Europe kiss-up, the colony attack confirm and the @SCOUTCOLONY menu. */
+static bool game_apply_popup_diplo_and_scout(ColonizeGameState* game) {
   if (game->ai_popups.result_tag == AI_POPUP_TAG_EUROPE_KISSUP) {
     const int cargo_type = game->ai_popups.result_nation_b;
     const int cost = game->ai_popups.result_payload;
     const bool pay = !game->ai_popups.result_cancelled && game->ai_popups.result_choice_id == 1;
     ai_popup_consume_result(&game->ai_popups);
     if (!pay || !game->europe_ok || !game->col1_ok) {
-      return;
+  return true;
     }
     EuropeScreen* eu = &game->europe;
     if (eu->gold < cost) {
@@ -2263,10 +2289,10 @@ void game_apply_ai_popup_result(ColonizeGameState* game) {
       popup_msg_fill(&game->messages, "KISSSORRY", &tok, fallback, body, sizeof(body));
       ai_popup_enqueue_ok(&game->ai_popups, AI_POPUP_TAG_INFO, NULL, body);
       (void)ai_popup_present_now(&game->ai_popups, AI_POPUP_TAG_INFO);
-      return;
+  return true;
     }
     (void)europe_buyback_boycott(eu, &game->col1, game->human_nation, cargo_type);
-    return;
+  return true;
   }
   if (game->ai_popups.result_tag == AI_POPUP_TAG_COLONY_ATTACK) {
     const int unit_id = game->ai_popups.result_nation_a;
@@ -2282,13 +2308,13 @@ void game_apply_ai_popup_result(ColonizeGameState* game) {
       game->colony_attack_ok_payload = payload;
       (void)game_try_unit_move(game, dest_x, dest_y);
       game->colony_attack_ok_unit = -1;
-      return;
+  return true;
     }
     if (u && u->active && units_orders_follow_goto(u->orders)) {
       units_clear_orders(&game->units, unit_id);
     }
     set_status(game, "Attack called off", NULL);
-    return;
+  return true;
   }
   if (game->ai_popups.result_tag == AI_POPUP_TAG_SCOUT_COLONY) {
     const int unit_id = game->ai_popups.result_nation_a;
@@ -2301,7 +2327,7 @@ void game_apply_ai_popup_result(ColonizeGameState* game) {
     ColonizeUnit* u = units_get(&game->units, unit_id);
     ColonizeColony* col = colonies_get_mut(&game->colonies, cid);
     if (!u || !u->active || !col || !col->active) {
-      return;
+  return true;
     }
     /*
      * bugs.md #453/460: every outcome that ends the move — Meet (000e returns
@@ -2334,7 +2360,7 @@ void game_apply_ai_popup_result(ColonizeGameState* game) {
         (void)ai_diplo_153e_encounter_forced(&ctx, u->nation_id, col->nation_id, unit_id);
       }
       game_after_unit_action(game);
-      return;
+  return true;
     }
     if (choice == 2) {
       /* Infiltrate — DOS roll: threshold = (fortification-chain count + 6)*2,
@@ -2379,7 +2405,7 @@ void game_apply_ai_popup_result(ColonizeGameState* game) {
         units_despawn(&game->units, unit_id);
         game_after_unit_action(game);
       }
-      return;
+  return true;
     }
     if (choice == 3) {
       /* Attack Colony: rejoin the ordinary attack path (443 confirm already
@@ -2389,11 +2415,17 @@ void game_apply_ai_popup_result(ColonizeGameState* game) {
       game->colony_attack_ok_payload = payload;
       (void)game_try_unit_move(game, dest_x, dest_y);
       game->colony_attack_ok_unit = -1;
-      return;
+  return true;
     }
     set_status(game, "The scouts hold their ground", NULL);
-    return;
+  return true;
   }
+  return false;
+}
+
+/* Combat half/ransom prompts, the Brewster pick, Fountain of Youth and the
+ * King's galleon offer. */
+static bool game_apply_popup_combat_and_gifts(ColonizeGameState* game) {
   if (game->ai_popups.result_tag == AI_POPUP_TAG_COMBAT_HALF) {
     const int unit_id = game->ai_popups.result_nation_a;
     const int dest_x = game->ai_popups.result_payload & 0xff;
@@ -2407,7 +2439,7 @@ void game_apply_ai_popup_result(ColonizeGameState* game) {
       (void)game_try_unit_move(game, dest_x, dest_y);
       game->tired_ok_unit = -1;
   game->colony_attack_ok_unit = -1;
-      return;
+  return true;
     }
     /*
      * "Then let them rest." DOS has already added the attack's 3 thirds by
@@ -2420,14 +2452,14 @@ void game_apply_ai_popup_result(ColonizeGameState* game) {
     set_status(game, "The men rest.", NULL);
     ai_popup_consume_result(&game->ai_popups);
     game_after_unit_action(game);
-    return;
+  return true;
   }
   if (game->ai_popups.result_tag == AI_POPUP_TAG_COMBAT_RANSOM) {
     if (game->col1_ok) {
       (void)units_combat_apply_ransom_popup(&game->col1, &game->ai_popups);
     }
     ai_popup_consume_result(&game->ai_popups);
-    return;
+  return true;
   }
   if (game->ai_popups.result_tag == AI_POPUP_TAG_BREWSTER_PICK) {
     (void)units_brewster_apply_popup_ex(
@@ -2435,7 +2467,7 @@ void game_apply_ai_popup_result(ColonizeGameState* game) {
       game->units_ok ? &game->units : NULL, &game->move_rng
     );
     ai_popup_consume_result(&game->ai_popups);
-    return;
+  return true;
   }
   if (game->ai_popups.result_tag == AI_POPUP_TAG_FOUNTAIN_YOUTH) {
     (void)units_fountain_youth_apply_popup_ex(
@@ -2443,7 +2475,7 @@ void game_apply_ai_popup_result(ColonizeGameState* game) {
       &game->move_rng
     );
     ai_popup_consume_result(&game->ai_popups);
-    return;
+  return true;
   }
   if (game->ai_popups.result_tag == AI_POPUP_TAG_KING_GALLEON) {
     if (game->col1_ok && game->units_ok) {
@@ -2456,8 +2488,13 @@ void game_apply_ai_popup_result(ColonizeGameState* game) {
       );
     }
     ai_popup_consume_result(&game->ai_popups);
-    return;
+  return true;
   }
+  return false;
+}
+
+/* Village menu "Attack Village" (@ACTIONS row 9). */
+static bool game_apply_popup_village_attack(ColonizeGameState* game) {
   /*
    * Village menu "Attack Village" (@ACTIONS row 9): commit the deferred move
    * onto the adjacent village tile — same path as the old Attack/Leave warn.
@@ -2515,6 +2552,31 @@ void game_apply_ai_popup_result(ColonizeGameState* game) {
       }
     }
     /* Result already consumed above (before the move). */
+  return true;
+  }
+  return false;
+}
+
+void game_apply_ai_popup_result(ColonizeGameState* game) {
+  if (!game || !game->ai_popups.has_result) {
+    return;
+  }
+  if (game_apply_popup_map_and_colony(game)) {
+    return;
+  }
+  if (game_apply_popup_voyage(game)) {
+    return;
+  }
+  if (game_apply_popup_contact(game)) {
+    return;
+  }
+  if (game_apply_popup_diplo_and_scout(game)) {
+    return;
+  }
+  if (game_apply_popup_combat_and_gifts(game)) {
+    return;
+  }
+  if (game_apply_popup_village_attack(game)) {
     return;
   }
   ColonizeTurnContext ctx;

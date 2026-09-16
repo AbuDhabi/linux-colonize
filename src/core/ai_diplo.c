@@ -2078,9 +2078,398 @@ static void ai_talk_peace_offer(ColonizeTurnContext* ctx) {
   );
 }
 
+/* ai_talk_advance is a state machine over Ai153eTalk stages; each stage below
+ * mirrors one `case` arm from the original monolithic switch, split out for
+ * the big-function rule. A helper returns AI_TALK_STEP_RETURN where the
+ * original case body executed `return;` (a popup was queued) and
+ * AI_TALK_STEP_CONTINUE where it executed `break;` (fall through to the next
+ * stage in the same guarded loop iteration). No logic moved or reordered. */
+typedef enum {
+  AI_TALK_STEP_CONTINUE = 0,
+  AI_TALK_STEP_RETURN,
+} AiTalkStepStatus;
+
+static AiTalkStepStatus ai_talk_stage_third(
+  ColonizeTurnContext* ctx, Ai153eTalk* k, const PopupMsgTokens* tok, int h, int t
+) {
+  k->stage = AI_TALK_ST_PIRACY;
+  /* raw :97662: `(-1 < iStack_ca) && (uStack_9e == 0)` — the crown-armed
+   * marker suppresses the third-party demand too. */
+  if (k->third >= 0 && !k->crown_armed && ai_talk_met(ctx, h, k->third)) {
+    PopupMsgTokens t3 = *tok;
+    t3.string0 = ai_talk_name(ctx, k->third);
+    t3.string1 = k->third >= 4 ? ai_talk_name(ctx, k->third) : (k->manly ? "demand" : "request");
+    static const char* const lab_a[2] = {"Never! They are our friends!", "Yes! We shall crush them together!"};
+    if (k->third < 4) {
+      ai_talk_choice(
+        ctx, "APOSTATES", &t3,
+        "\"We note that you have signed a treaty with the %STRING0. We %STRING1 that you cancel it at once.\"",
+        lab_a, 2, AI_TALK_ST_THIRD
+      );
+    } else {
+      ai_talk_choice(
+        ctx, "HEATHEN", &t3,
+        "\"We are subduing the heathen %STRING1 tribe. Will you join us in this holy task?\"",
+        lab_a, 2, AI_TALK_ST_THIRD
+      );
+    }
+    return AI_TALK_STEP_RETURN;
+  }
+  return AI_TALK_STEP_CONTINUE;
+}
+
+static AiTalkStepStatus ai_talk_stage_piracy(
+  ColonizeTurnContext* ctx, Ai153eTalk* k, const PopupMsgTokens* tok, int h, int t
+) {
+  ColonizeCol1Save* col1 = ctx->col1;
+  k->stage = AI_TALK_ST_SIEGES;
+  const int alert = (ai_diplo_read(col1, t, h) & AI_DIPLO_TREASURE_ALERT) != 0;
+  if (alert && !k->crown_armed && col1->stuff.unit_type_counts[h][16] != 0) {
+    static const char* const lab[2] = {"What pirates? We have NEVER condoned piracy!", "Very well, we shall withdraw our privateers to Europe."};
+    ai_talk_choice(
+      ctx, "PIRACY", tok,
+      "\"%STRING0 is most displeased with the %STRING1 pirates lying in wait off our coast. We %STRING3 that you withdraw all privateers immediately.\"",
+      lab, 2, AI_TALK_ST_PIRACY
+    );
+    return AI_TALK_STEP_RETURN;
+  }
+  return AI_TALK_STEP_CONTINUE;
+}
+
+static AiTalkStepStatus ai_talk_stage_sieges(
+  ColonizeTurnContext* ctx, Ai153eTalk* k, const PopupMsgTokens* tok, int h, int t
+) {
+  ColonizeCol1Save* col1 = ctx->col1;
+  k->stage = AI_TALK_ST_TRIBUTE;
+  if (!k->crown_armed) {
+    const int quarter = (int)col1->stuff.colony_pop_totals[t] >> 2;
+    int ask = k->own_border >= quarter;
+    if (!ask && k->own_border > 12 && ai_talk_rng(ctx, 0, 4) == 0) {
+      ask = 1;
+    }
+    if (ask) {
+      static const char* const lab[2] = {"Our forces protect valid interests and shall stay.", "Very well, we shall withdraw our forces to Europe."};
+      ai_talk_choice(
+        ctx, "SIEGES", tok,
+        "\"%STRING0 is disturbed by the large %STRING1 forces lurking outside our colonies. We %STRING3 that you withdraw all military units adjacent to our colonies immediately.\"",
+        lab, 2, AI_TALK_ST_SIEGES
+      );
+      return AI_TALK_STEP_RETURN;
+    }
+  }
+  return AI_TALK_STEP_CONTINUE;
+}
+
+static AiTalkStepStatus ai_talk_stage_tribute(
+  ColonizeTurnContext* ctx, Ai153eTalk* k, const PopupMsgTokens* tok, int h, int t
+) {
+  k->stage = AI_TALK_ST_WANTSTUFF;
+  if (k->score != 0 && k->manly &&
+      europe_nation_gold(ctx->europe, ctx->col1, h) >= (uint32_t)k->score) {
+    PopupMsgTokens tt = *tok;
+    tt.number0 = k->score;
+    tt.has_number0 = true;
+    static const char* const lab[2] = {"Not a penny for those heretic swine!", "We will gladly donate %NUMBER0$ to such a worthy cause."};
+    ai_talk_choice(
+      ctx, "TRIBUTE", &tt,
+      "\"%STRING0 has told us to drive all %STRING1 from these shores. We might overlook this in exchange for a donation of %NUMBER0$.\"",
+      lab, 2, AI_TALK_ST_TRIBUTE
+    );
+    return AI_TALK_STEP_RETURN;
+  }
+  return AI_TALK_STEP_CONTINUE;
+}
+
+static AiTalkStepStatus ai_talk_stage_wantstuff(
+  ColonizeTurnContext* ctx, Ai153eTalk* k, const PopupMsgTokens* tok, int h, int t
+) {
+  /*
+   * @WANTSTUFF (raw :97896-97930, msg ids 0x191e LEADER2 + 0x1926):
+   * gate = manly && score != 999 (tribute dialog not shown — raw sets
+   * uStack_68 = 999 unconditionally after TRIBUTE) && a cargo was
+   * picked in the encounter's demand phase (only armed when the
+   * encounter's moving unit belongs to `target`). Tokens: NUMBER0 =
+   * amount, STRING1 = the picked @CARGO name, STRING2 = target.
+   */
+  k->stage = AI_TALK_ST_WORTHY;
+  if (k->manly && k->score != 999 && k->want_cargo >= 0 && ctx->colonies) {
+    PopupMsgTokens tw = *tok;
+    tw.number0 = k->want_amount;
+    tw.has_number0 = true;
+    /* reports_cargo_display_name hands back reports.c's shared NAMES
+     * scratch and ai_talk_name looks a name up too, so copy first. */
+    char want_nm[32];
+    str_copy_trunc(want_nm, sizeof(want_nm), reports_cargo_display_name(k->want_cargo));
+    tw.string1 = want_nm;
+    tw.string2 = ai_talk_name(ctx, t);
+    static const char* const lab[2] = {
+      "We laugh at your puny threats.",
+      "We gladly share %NUMBER0 %STRING1 with our %STRING2 brothers."
+    };
+    ai_talk_choice(
+      ctx, "WANTSTUFF", &tw,
+      "\"We are displeased that you continue to befoul lands that are "
+      "rightfully ours by order of %STRING0.  We demand %NUMBER0 %STRING1 "
+      "as reparations.\"",
+      lab, 2, AI_TALK_ST_WANTSTUFF
+    );
+    return AI_TALK_STEP_RETURN;
+  }
+  return AI_TALK_STEP_CONTINUE;
+}
+
+static AiTalkStepStatus ai_talk_stage_worthy(
+  ColonizeTurnContext* ctx, Ai153eTalk* k, const PopupMsgTokens* tok, int h, int t
+) {
+  ColonizeCol1Save* col1 = ctx->col1;
+  /* raw :98047-98062 provoke; then the peace negotiation for !worthy. */
+  /*
+   * Benjamin Franklin — "Europeans in the New World always offer peace
+   * in negotiations" (docs/fandom_col1994.md). This is where that rule
+   * belongs: with Franklin on either side the provoke arm is skipped
+   * and the peace offer is made even to a "worthy" (threatening)
+   * counterpart. It used to be an unsolicited Accept/Refuse popup in
+   * the euro-balance tick, which was invented whole (bugs.md).
+   */
+  if (k->worthy && ai_diplo_franklin_pair(col1, h, t) && k->at_war) {
+    if (ai_talk_peace(ctx, h, t)) {
+      k->stage = AI_TALK_ST_PEACEMENU;
+      return AI_TALK_STEP_CONTINUE;
+    }
+    ai_talk_peace_offer(ctx);
+    if (k->stage == AI_TALK_ST_WORTHY) {
+      return AI_TALK_STEP_RETURN; /* CHOICE queued */
+    }
+    return AI_TALK_STEP_CONTINUE;
+  }
+  if (k->worthy) {
+    /*
+     * The three-leg "worthy" cascade, raw :97954-97982 (cross-checked
+     * against the OVL16 listing, `LAB_OVL16_L0040__0029fc`, in
+     * euro_diplo_153e_full.md:1313-1340). Ghidra inverts the guard
+     * (`if (local_a8 == 0) { if (local_a8 != 0) ... }`); the real shape
+     * is:
+     *   if (worthy && at_peace && score >= 0x65)  -> @PROVOKE, war
+     *   else if (worthy && score == 999)          -> @WARMANLY, war
+     *   else if (worthy)                          -> @RID, no war
+     * Only the @PROVOKE leg was ported before 2026-09-08, so a worthy
+     * AI that had run a @TRIBUTE dialog (which latches score = 999)
+     * silently skipped its war declaration and @RID never fired at all.
+     *
+     * Tokens for the two new legs, from the DOS operands:
+     *   %STRING0 = FUN_2a1f_0618(0, "LEADER2", target) = @GREATLEADER2
+     *              line for the target ("the King", ...)
+     *   %STRING1 = FUN_281f_0416(1, target*0x34 + 0x5426) = the TARGET's
+     *              player.country_name. DS players base is 0x540e
+     *              (player.name; the greeting appends
+     *              param_2*0x34 + 0x540e at raw :97700) and country_name
+     *              sits at +0x18 = 0x5426; anchored independently on
+     *              unknown06 at nation*0x34 + 0x543e (col1_save.h) and
+     *              on COLONY00.SAV (head 158 bytes, players at file
+     *              0x9e, country_name at 0xb6, DS base 0x5370).
+     *              ai_diplo_rival_name already returns country_name.
+     */
+    const char* leader2 = ai_talk_great_line(ctx, "GREATLEADER2", t);
+    PopupMsgTokens tr = *tok;
+    tr.string0 = leader2 ? leader2 : ai_talk_name(ctx, t);
+    tr.string1 = ai_talk_name(ctx, t);
+    if (ai_talk_peace(ctx, h, t) && k->score >= 0x65) {
+      ai_talk_ok(ctx, "PROVOKE", tok, "\"We can no longer tolerate your foul provocations. Prepare for WAR!\"");
+      ai_diplo_clear_both(col1, h, t, AI_DIPLO_PEACE);
+    } else if (k->score == 999) {
+      /*
+       * Post-@TRIBUTE war declaration. DOS pushes the literal DS tag
+       * 0x1940 "WARMANLY" here — no MEEK variant and no +USA suffix,
+       * unlike the WAR+tone site in the @GIVECASH tail.
+       */
+      ai_talk_ok(
+        ctx, "WARMANLY", &tr,
+        "\"You reject our generous offer? Then in the name of %STRING0 we shall wipe "
+        "you from the face of the New World. Prepare for WAR!\""
+      );
+      ai_diplo_clear_both(col1, h, t, AI_DIPLO_PEACE);
+    } else {
+      /*
+       * @RID (+ "USA" when the target has declared independence — the
+       * USA text variants are the machine-wide documented delta, see
+       * the file header; 153e also bails on head.game_options.woi, so
+       * the suffix is unreachable in the port).  Ultimatum only: DOS
+       * changes no relation bit on this leg.
+       */
+      ai_talk_ok(
+        ctx, "RID", &tr,
+        "\"In the name of %STRING0, we order you to leave %STRING1 immediately. "
+        "If you do not, we shall drive you into the sea.\""
+      );
+    }
+    k->stage = AI_TALK_ST_PEACEMENU;
+    return AI_TALK_STEP_CONTINUE;
+  }
+  if (ai_talk_peace(ctx, h, t)) {
+    k->stage = AI_TALK_ST_PEACEMENU;
+    return AI_TALK_STEP_CONTINUE;
+  }
+  ai_talk_peace_offer(ctx);
+  if (k->stage == AI_TALK_ST_WORTHY) {
+    return AI_TALK_STEP_RETURN; /* CHOICE queued */
+  }
+  return AI_TALK_STEP_CONTINUE;
+}
+
+static AiTalkStepStatus ai_talk_stage_givecash(
+  ColonizeTurnContext* ctx, Ai153eTalk* k, const PopupMsgTokens* tok, int h, int t
+) {
+  /* reached only via a "No" to WORTHY: offer cash when not at war. */
+  k->stage = AI_TALK_ST_PEACEMENU;
+  if (!k->at_war) {
+    int offer = (k->dominance - 2) * 2;
+    const int cap = (int)(europe_nation_gold(ctx->europe, ctx->col1, t) / 100u);
+    if (offer < 0) offer = 0;
+    if (offer > cap) offer = cap;
+    offer *= 100;
+    if (offer > 0) {
+      PopupMsgTokens tt = *tok;
+      tt.number0 = offer;
+      tt.has_number0 = true;
+      k->pending_gold = offer;
+      static const char* const lab[2] = {"Very well, you shall be spared.", "Alas, it is God's will."};
+      ai_talk_choice(
+        ctx, "GIVECASH", &tt,
+        "\"Please spare our settlement from destruction. We will give you %NUMBER0$ if you agree not to attack us.\"",
+        lab, 2, AI_TALK_ST_GIVECASH
+      );
+      return AI_TALK_STEP_RETURN;
+    }
+  }
+  if (!ai_talk_peace(ctx, h, t)) {
+    /*
+     * WAR+tone tail, raw :98040-98047. DOS pushes the same operand pair
+     * as the @RID/@WARMANLY legs above — 0618(0,"LEADER2",target) and
+     * 0416(1, target*0x34 + 0x5426) — so %STRING1 is the TARGET's
+     * country_name ("...drive you from the shores of {%STRING1}"), not
+     * the human's (which is what the shared `tok` carries). Fixed
+     * 2026-09-08 with the cascade port.
+     */
+    const char* wl2 = ai_talk_great_line(ctx, "GREATLEADER2", t);
+    PopupMsgTokens tw = *tok;
+    tw.string0 = wl2 ? wl2 : ai_talk_name(ctx, t);
+    tw.string1 = ai_talk_name(ctx, t);
+    ai_talk_ok(ctx, k->manly ? "WARMANLY" : "WARMEEK", &tw, "\"Then prepare for WAR!\"");
+  }
+  return AI_TALK_STEP_CONTINUE;
+}
+
+static AiTalkStepStatus ai_talk_stage_peacemenu(
+  ColonizeTurnContext* ctx, Ai153eTalk* k, const PopupMsgTokens* tok, int h, int t
+) {
+  k->stage = AI_TALK_ST_DONE;
+  if (ai_talk_peace(ctx, h, t)) {
+    ai_diplo_wake_border_garrisons(ctx, h, t);
+    ai_diplo_wake_border_garrisons(ctx, t, h);
+    if (!k->worthy) {
+      const char* tag = k->at_war ? (k->manly ? "PEACEMANLY" : "PEACEMEEK")
+                                 : (k->manly ? "OLDPEACEMANLY" : "OLDPEACEMEEK");
+      static const char* const lab[4] = {
+        "Go in peace, %STRING1 brothers.",
+        "First you must withdraw your forces from our colonies!",
+        "How much do you value your worthless lives, heathen swine?",
+        "We suggest an alliance."
+      };
+      ai_talk_choice(
+        ctx, tag, tok,
+        "\"We welcome the friendship of our brothers the %STRING0.\"", lab, 4,
+        AI_TALK_ST_PEACEMENU
+      );
+      return AI_TALK_STEP_RETURN;
+    }
+  }
+  return AI_TALK_STEP_CONTINUE;
+}
+
+static AiTalkStepStatus ai_talk_stage_ally_pick(
+  ColonizeTurnContext* ctx, Ai153eTalk* k, const PopupMsgTokens* tok, int h, int t
+) {
+  ColonizeCol1Save* col1 = ctx->col1;
+  (void)tok;
+  k->stage = AI_TALK_ST_DONE;
+  /* FUN_291f_0182 list: nations/tribes the human has met. */
+  const char* labels[AI_POPUP_CHOICE_MAX];
+  int picks[AI_POPUP_CHOICE_MAX];
+  int n = 0;
+  for (int p = 0; p < 12 && n < AI_POPUP_CHOICE_MAX; ++p) {
+    if (p == h || p == t) {
+      continue;
+    }
+    if (p >= 4 && p <= 11 &&
+        (col1->tribe == NULL || (col1->indian[p - 4].euro_diplo[h] & COL1_INDIAN_MET_BIT) == 0)) {
+      continue;
+    }
+    if (p < 4 && !ai_talk_met(ctx, h, p)) {
+      continue;
+    }
+    labels[n] = ai_talk_name(ctx, p);
+    picks[n] = p + 1;
+    n++;
+  }
+  if (n == 0) {
+    return AI_TALK_STEP_CONTINUE;
+  }
+  (void)ai_popup_enqueue_choice_ctx(
+    ctx->ai_popups, AI_POPUP_TAG_DIPLO_TALK, h, t, AI_TALK_ST_ALLY_PICK,
+    NULL, "\"Against whom shall we ally?\"", labels, picks, n
+  );
+  ai_popup_set_last_graphic_myr(ctx->ai_popups, t);
+  return AI_TALK_STEP_RETURN;
+}
+
+static AiTalkStepStatus ai_talk_stage_ally_pay(
+  ColonizeTurnContext* ctx, Ai153eTalk* k, const PopupMsgTokens* tok, int h, int t
+) {
+  ColonizeCol1Save* col1 = ctx->col1;
+  k->stage = AI_TALK_ST_DONE;
+  const int p = k->ally_pick;
+  if (p < 0) {
+    return AI_TALK_STEP_CONTINUE;
+  }
+  PopupMsgTokens tp = *tok;
+  tp.string0 = ai_talk_name(ctx, p);
+  if (!ai_talk_met(ctx, t, p)) {
+    ai_talk_ok(ctx, "NOCONTACT", &tp, "\"We have no contact with the %STRING0.\"");
+    return AI_TALK_STEP_CONTINUE;
+  }
+  const int t_peace_p = (p < 4) ? ai_talk_peace(ctx, t, p)
+                                : (col1->indian[p - 4].euro_diplo[t] & COL1_INDIAN_PEACE_BIT) != 0;
+  if (!t_peace_p) {
+    ai_talk_ok(ctx, "ALREADYSMITE", &tp, "\"We are already at war with the %STRING0.\"");
+    return AI_TALK_STEP_CONTINUE;
+  }
+  long base;
+  const long gold50 = (long)(europe_nation_gold(ctx->europe, col1, h) / 50u);
+  if (p < 4) {
+    base = ((long)col1->stuff.field_combat_totals[p] + (long)col1->stuff.land_combat_strength[p]) * gold50 / 50;
+  } else {
+    base = (long)col1->stuff.tribe_data_9184[p - 4] * gold50 * 3 / 50; /* -0x6e7c */
+  }
+  if (base < 10) base = 10;
+  if (base > 200) base = 200;
+  int cost = (int)base * 50;
+  if (ai_talk_franklin(ctx, h)) {
+    cost >>= 1;
+  }
+  k->ally_cost = cost;
+  tp.number0 = cost;
+  tp.has_number0 = true;
+  static const char* const lab[2] = {"We shall gladly pay %NUMBER0$.", "Never mind."};
+  ai_talk_choice(
+    ctx, p < 4 ? "SMITEEUROPE" : "SMITEINDIANS", &tp,
+    "\"We would gladly smite the %STRING0 for a consideration of %NUMBER0$.\"", lab, 2,
+    AI_TALK_ST_ALLY_PAY
+  );
+  return AI_TALK_STEP_RETURN;
+}
+
 static void ai_talk_advance(ColonizeTurnContext* ctx) {
   Ai153eTalk* k = &s_talk;
-  ColonizeCol1Save* col1 = ctx->col1;
   const int h = k->self;
   const int t = k->target;
   PopupMsgTokens tok;
@@ -2091,353 +2480,40 @@ static void ai_talk_advance(ColonizeTurnContext* ctx) {
   tok.string3 = k->manly ? "demand" : "request"; /* @MEEKNESS */
   for (int guard = 0; guard < 16; ++guard) {
     switch (k->stage) {
-      case AI_TALK_ST_THIRD: {
-        k->stage = AI_TALK_ST_PIRACY;
-        /* raw :97662: `(-1 < iStack_ca) && (uStack_9e == 0)` — the crown-armed
-         * marker suppresses the third-party demand too. */
-        if (k->third >= 0 && !k->crown_armed && ai_talk_met(ctx, h, k->third)) {
-          PopupMsgTokens t3 = tok;
-          t3.string0 = ai_talk_name(ctx, k->third);
-          t3.string1 = k->third >= 4 ? ai_talk_name(ctx, k->third) : (k->manly ? "demand" : "request");
-          static const char* const lab_a[2] = {"Never! They are our friends!", "Yes! We shall crush them together!"};
-          if (k->third < 4) {
-            ai_talk_choice(
-              ctx, "APOSTATES", &t3,
-              "\"We note that you have signed a treaty with the %STRING0. We %STRING1 that you cancel it at once.\"",
-              lab_a, 2, AI_TALK_ST_THIRD
-            );
-          } else {
-            ai_talk_choice(
-              ctx, "HEATHEN", &t3,
-              "\"We are subduing the heathen %STRING1 tribe. Will you join us in this holy task?\"",
-              lab_a, 2, AI_TALK_ST_THIRD
-            );
-          }
-          return;
-        }
+      case AI_TALK_ST_THIRD:
+        if (ai_talk_stage_third(ctx, k, &tok, h, t) == AI_TALK_STEP_RETURN) return;
         break;
-      }
-      case AI_TALK_ST_PIRACY: {
-        k->stage = AI_TALK_ST_SIEGES;
-        const int alert = (ai_diplo_read(col1, t, h) & AI_DIPLO_TREASURE_ALERT) != 0;
-        if (alert && !k->crown_armed && col1->stuff.unit_type_counts[h][16] != 0) {
-          static const char* const lab[2] = {"What pirates? We have NEVER condoned piracy!", "Very well, we shall withdraw our privateers to Europe."};
-          ai_talk_choice(
-            ctx, "PIRACY", &tok,
-            "\"%STRING0 is most displeased with the %STRING1 pirates lying in wait off our coast. We %STRING3 that you withdraw all privateers immediately.\"",
-            lab, 2, AI_TALK_ST_PIRACY
-          );
-          return;
-        }
+      case AI_TALK_ST_PIRACY:
+        if (ai_talk_stage_piracy(ctx, k, &tok, h, t) == AI_TALK_STEP_RETURN) return;
         break;
-      }
-      case AI_TALK_ST_SIEGES: {
-        k->stage = AI_TALK_ST_TRIBUTE;
-        if (!k->crown_armed) {
-          const int quarter = (int)col1->stuff.colony_pop_totals[t] >> 2;
-          int ask = k->own_border >= quarter;
-          if (!ask && k->own_border > 12 && ai_talk_rng(ctx, 0, 4) == 0) {
-            ask = 1;
-          }
-          if (ask) {
-            static const char* const lab[2] = {"Our forces protect valid interests and shall stay.", "Very well, we shall withdraw our forces to Europe."};
-            ai_talk_choice(
-              ctx, "SIEGES", &tok,
-              "\"%STRING0 is disturbed by the large %STRING1 forces lurking outside our colonies. We %STRING3 that you withdraw all military units adjacent to our colonies immediately.\"",
-              lab, 2, AI_TALK_ST_SIEGES
-            );
-            return;
-          }
-        }
+      case AI_TALK_ST_SIEGES:
+        if (ai_talk_stage_sieges(ctx, k, &tok, h, t) == AI_TALK_STEP_RETURN) return;
         break;
-      }
-      case AI_TALK_ST_TRIBUTE: {
-        k->stage = AI_TALK_ST_WANTSTUFF;
-        if (k->score != 0 && k->manly &&
-            europe_nation_gold(ctx->europe, col1, h) >= (uint32_t)k->score) {
-          PopupMsgTokens tt = tok;
-          tt.number0 = k->score;
-          tt.has_number0 = true;
-          static const char* const lab[2] = {"Not a penny for those heretic swine!", "We will gladly donate %NUMBER0$ to such a worthy cause."};
-          ai_talk_choice(
-            ctx, "TRIBUTE", &tt,
-            "\"%STRING0 has told us to drive all %STRING1 from these shores. We might overlook this in exchange for a donation of %NUMBER0$.\"",
-            lab, 2, AI_TALK_ST_TRIBUTE
-          );
-          return;
-        }
+      case AI_TALK_ST_TRIBUTE:
+        if (ai_talk_stage_tribute(ctx, k, &tok, h, t) == AI_TALK_STEP_RETURN) return;
         break;
-      }
-      case AI_TALK_ST_WANTSTUFF: {
-        /*
-         * @WANTSTUFF (raw :97896-97930, msg ids 0x191e LEADER2 + 0x1926):
-         * gate = manly && score != 999 (tribute dialog not shown — raw sets
-         * uStack_68 = 999 unconditionally after TRIBUTE) && a cargo was
-         * picked in the encounter's demand phase (only armed when the
-         * encounter's moving unit belongs to `target`). Tokens: NUMBER0 =
-         * amount, STRING1 = the picked @CARGO name, STRING2 = target.
-         */
-        k->stage = AI_TALK_ST_WORTHY;
-        if (k->manly && k->score != 999 && k->want_cargo >= 0 && ctx->colonies) {
-          PopupMsgTokens tw = tok;
-          tw.number0 = k->want_amount;
-          tw.has_number0 = true;
-          /* reports_cargo_display_name hands back reports.c's shared NAMES
-           * scratch and ai_talk_name looks a name up too, so copy first. */
-          char want_nm[32];
-          str_copy_trunc(want_nm, sizeof(want_nm), reports_cargo_display_name(k->want_cargo));
-          tw.string1 = want_nm;
-          tw.string2 = ai_talk_name(ctx, t);
-          static const char* const lab[2] = {
-            "We laugh at your puny threats.",
-            "We gladly share %NUMBER0 %STRING1 with our %STRING2 brothers."
-          };
-          ai_talk_choice(
-            ctx, "WANTSTUFF", &tw,
-            "\"We are displeased that you continue to befoul lands that are "
-            "rightfully ours by order of %STRING0.  We demand %NUMBER0 %STRING1 "
-            "as reparations.\"",
-            lab, 2, AI_TALK_ST_WANTSTUFF
-          );
-          return;
-        }
+      case AI_TALK_ST_WANTSTUFF:
+        if (ai_talk_stage_wantstuff(ctx, k, &tok, h, t) == AI_TALK_STEP_RETURN) return;
         break;
-      }
-      case AI_TALK_ST_WORTHY: {
-        /* raw :98047-98062 provoke; then the peace negotiation for !worthy. */
-        /*
-         * Benjamin Franklin — "Europeans in the New World always offer peace
-         * in negotiations" (docs/fandom_col1994.md). This is where that rule
-         * belongs: with Franklin on either side the provoke arm is skipped
-         * and the peace offer is made even to a "worthy" (threatening)
-         * counterpart. It used to be an unsolicited Accept/Refuse popup in
-         * the euro-balance tick, which was invented whole (bugs.md).
-         */
-        if (k->worthy && ai_diplo_franklin_pair(col1, h, t) && k->at_war) {
-          if (ai_talk_peace(ctx, h, t)) {
-            k->stage = AI_TALK_ST_PEACEMENU;
-            break;
-          }
-          ai_talk_peace_offer(ctx);
-          if (k->stage == AI_TALK_ST_WORTHY) {
-            return; /* CHOICE queued */
-          }
-          break;
-        }
-        if (k->worthy) {
-          /*
-           * The three-leg "worthy" cascade, raw :97954-97982 (cross-checked
-           * against the OVL16 listing, `LAB_OVL16_L0040__0029fc`, in
-           * euro_diplo_153e_full.md:1313-1340). Ghidra inverts the guard
-           * (`if (local_a8 == 0) { if (local_a8 != 0) ... }`); the real shape
-           * is:
-           *   if (worthy && at_peace && score >= 0x65)  -> @PROVOKE, war
-           *   else if (worthy && score == 999)          -> @WARMANLY, war
-           *   else if (worthy)                          -> @RID, no war
-           * Only the @PROVOKE leg was ported before 2026-09-08, so a worthy
-           * AI that had run a @TRIBUTE dialog (which latches score = 999)
-           * silently skipped its war declaration and @RID never fired at all.
-           *
-           * Tokens for the two new legs, from the DOS operands:
-           *   %STRING0 = FUN_2a1f_0618(0, "LEADER2", target) = @GREATLEADER2
-           *              line for the target ("the King", ...)
-           *   %STRING1 = FUN_281f_0416(1, target*0x34 + 0x5426) = the TARGET's
-           *              player.country_name. DS players base is 0x540e
-           *              (player.name; the greeting appends
-           *              param_2*0x34 + 0x540e at raw :97700) and country_name
-           *              sits at +0x18 = 0x5426; anchored independently on
-           *              unknown06 at nation*0x34 + 0x543e (col1_save.h) and
-           *              on COLONY00.SAV (head 158 bytes, players at file
-           *              0x9e, country_name at 0xb6, DS base 0x5370).
-           *              ai_diplo_rival_name already returns country_name.
-           */
-          const char* leader2 = ai_talk_great_line(ctx, "GREATLEADER2", t);
-          PopupMsgTokens tr = tok;
-          tr.string0 = leader2 ? leader2 : ai_talk_name(ctx, t);
-          tr.string1 = ai_talk_name(ctx, t);
-          if (ai_talk_peace(ctx, h, t) && k->score >= 0x65) {
-            ai_talk_ok(ctx, "PROVOKE", &tok, "\"We can no longer tolerate your foul provocations. Prepare for WAR!\"");
-            ai_diplo_clear_both(col1, h, t, AI_DIPLO_PEACE);
-          } else if (k->score == 999) {
-            /*
-             * Post-@TRIBUTE war declaration. DOS pushes the literal DS tag
-             * 0x1940 "WARMANLY" here — no MEEK variant and no +USA suffix,
-             * unlike the WAR+tone site in the @GIVECASH tail.
-             */
-            ai_talk_ok(
-              ctx, "WARMANLY", &tr,
-              "\"You reject our generous offer? Then in the name of %STRING0 we shall wipe "
-              "you from the face of the New World. Prepare for WAR!\""
-            );
-            ai_diplo_clear_both(col1, h, t, AI_DIPLO_PEACE);
-          } else {
-            /*
-             * @RID (+ "USA" when the target has declared independence — the
-             * USA text variants are the machine-wide documented delta, see
-             * the file header; 153e also bails on head.game_options.woi, so
-             * the suffix is unreachable in the port).  Ultimatum only: DOS
-             * changes no relation bit on this leg.
-             */
-            ai_talk_ok(
-              ctx, "RID", &tr,
-              "\"In the name of %STRING0, we order you to leave %STRING1 immediately. "
-              "If you do not, we shall drive you into the sea.\""
-            );
-          }
-          k->stage = AI_TALK_ST_PEACEMENU;
-          break;
-        }
-        if (ai_talk_peace(ctx, h, t)) {
-          k->stage = AI_TALK_ST_PEACEMENU;
-          break;
-        }
-        ai_talk_peace_offer(ctx);
-        if (k->stage == AI_TALK_ST_WORTHY) {
-          return; /* CHOICE queued */
-        }
+      case AI_TALK_ST_WORTHY:
+        if (ai_talk_stage_worthy(ctx, k, &tok, h, t) == AI_TALK_STEP_RETURN) return;
         break;
-      }
-      case AI_TALK_ST_GIVECASH: {
-        /* reached only via a "No" to WORTHY: offer cash when not at war. */
-        k->stage = AI_TALK_ST_PEACEMENU;
-        if (!k->at_war) {
-          int offer = (k->dominance - 2) * 2;
-          const int cap = (int)(europe_nation_gold(ctx->europe, col1, t) / 100u);
-          if (offer < 0) offer = 0;
-          if (offer > cap) offer = cap;
-          offer *= 100;
-          if (offer > 0) {
-            PopupMsgTokens tt = tok;
-            tt.number0 = offer;
-            tt.has_number0 = true;
-            k->pending_gold = offer;
-            static const char* const lab[2] = {"Very well, you shall be spared.", "Alas, it is God's will."};
-            ai_talk_choice(
-              ctx, "GIVECASH", &tt,
-              "\"Please spare our settlement from destruction. We will give you %NUMBER0$ if you agree not to attack us.\"",
-              lab, 2, AI_TALK_ST_GIVECASH
-            );
-            return;
-          }
-        }
-        if (!ai_talk_peace(ctx, h, t)) {
-          /*
-           * WAR+tone tail, raw :98040-98047. DOS pushes the same operand pair
-           * as the @RID/@WARMANLY legs above — 0618(0,"LEADER2",target) and
-           * 0416(1, target*0x34 + 0x5426) — so %STRING1 is the TARGET's
-           * country_name ("...drive you from the shores of {%STRING1}"), not
-           * the human's (which is what the shared `tok` carries). Fixed
-           * 2026-09-08 with the cascade port.
-           */
-          const char* wl2 = ai_talk_great_line(ctx, "GREATLEADER2", t);
-          PopupMsgTokens tw = tok;
-          tw.string0 = wl2 ? wl2 : ai_talk_name(ctx, t);
-          tw.string1 = ai_talk_name(ctx, t);
-          ai_talk_ok(ctx, k->manly ? "WARMANLY" : "WARMEEK", &tw, "\"Then prepare for WAR!\"");
-        }
+      case AI_TALK_ST_GIVECASH:
+        if (ai_talk_stage_givecash(ctx, k, &tok, h, t) == AI_TALK_STEP_RETURN) return;
         break;
-      }
-      case AI_TALK_ST_PEACEMENU: {
-        k->stage = AI_TALK_ST_DONE;
-        if (ai_talk_peace(ctx, h, t)) {
-          ai_diplo_wake_border_garrisons(ctx, h, t);
-          ai_diplo_wake_border_garrisons(ctx, t, h);
-          if (!k->worthy) {
-            const char* tag = k->at_war ? (k->manly ? "PEACEMANLY" : "PEACEMEEK")
-                                       : (k->manly ? "OLDPEACEMANLY" : "OLDPEACEMEEK");
-            static const char* const lab[4] = {
-              "Go in peace, %STRING1 brothers.",
-              "First you must withdraw your forces from our colonies!",
-              "How much do you value your worthless lives, heathen swine?",
-              "We suggest an alliance."
-            };
-            ai_talk_choice(
-              ctx, tag, &tok,
-              "\"We welcome the friendship of our brothers the %STRING0.\"", lab, 4,
-              AI_TALK_ST_PEACEMENU
-            );
-            return;
-          }
-        }
+      case AI_TALK_ST_PEACEMENU:
+        if (ai_talk_stage_peacemenu(ctx, k, &tok, h, t) == AI_TALK_STEP_RETURN) return;
         break;
-      }
       case AI_TALK_ST_WITHDRAW: {
         k->stage = AI_TALK_ST_DONE;
         break;
       }
-      case AI_TALK_ST_ALLY_PICK: {
-        k->stage = AI_TALK_ST_DONE;
-        /* FUN_291f_0182 list: nations/tribes the human has met. */
-        const char* labels[AI_POPUP_CHOICE_MAX];
-        int picks[AI_POPUP_CHOICE_MAX];
-        int n = 0;
-        for (int p = 0; p < 12 && n < AI_POPUP_CHOICE_MAX; ++p) {
-          if (p == h || p == t) {
-            continue;
-          }
-          if (p >= 4 && p <= 11 &&
-              (col1->tribe == NULL || (col1->indian[p - 4].euro_diplo[h] & COL1_INDIAN_MET_BIT) == 0)) {
-            continue;
-          }
-          if (p < 4 && !ai_talk_met(ctx, h, p)) {
-            continue;
-          }
-          labels[n] = ai_talk_name(ctx, p);
-          picks[n] = p + 1;
-          n++;
-        }
-        if (n == 0) {
-          break;
-        }
-        (void)ai_popup_enqueue_choice_ctx(
-          ctx->ai_popups, AI_POPUP_TAG_DIPLO_TALK, h, t, AI_TALK_ST_ALLY_PICK,
-          NULL, "\"Against whom shall we ally?\"", labels, picks, n
-        );
-        ai_popup_set_last_graphic_myr(ctx->ai_popups, t);
-        return;
-      }
-      case AI_TALK_ST_ALLY_PAY: {
-        k->stage = AI_TALK_ST_DONE;
-        const int p = k->ally_pick;
-        if (p < 0) {
-          break;
-        }
-        PopupMsgTokens tp = tok;
-        tp.string0 = ai_talk_name(ctx, p);
-        if (!ai_talk_met(ctx, t, p)) {
-          ai_talk_ok(ctx, "NOCONTACT", &tp, "\"We have no contact with the %STRING0.\"");
-          break;
-        }
-        const int t_peace_p = (p < 4) ? ai_talk_peace(ctx, t, p)
-                                      : (col1->indian[p - 4].euro_diplo[t] & COL1_INDIAN_PEACE_BIT) != 0;
-        if (!t_peace_p) {
-          ai_talk_ok(ctx, "ALREADYSMITE", &tp, "\"We are already at war with the %STRING0.\"");
-          break;
-        }
-        long base;
-        const long gold50 = (long)(europe_nation_gold(ctx->europe, col1, h) / 50u);
-        if (p < 4) {
-          base = ((long)col1->stuff.field_combat_totals[p] + (long)col1->stuff.land_combat_strength[p]) * gold50 / 50;
-        } else {
-          base = (long)col1->stuff.tribe_data_9184[p - 4] * gold50 * 3 / 50; /* -0x6e7c */
-        }
-        if (base < 10) base = 10;
-        if (base > 200) base = 200;
-        int cost = (int)base * 50;
-        if (ai_talk_franklin(ctx, h)) {
-          cost >>= 1;
-        }
-        k->ally_cost = cost;
-        tp.number0 = cost;
-        tp.has_number0 = true;
-        static const char* const lab[2] = {"We shall gladly pay %NUMBER0$.", "Never mind."};
-        ai_talk_choice(
-          ctx, p < 4 ? "SMITEEUROPE" : "SMITEINDIANS", &tp,
-          "\"We would gladly smite the %STRING0 for a consideration of %NUMBER0$.\"", lab, 2,
-          AI_TALK_ST_ALLY_PAY
-        );
-        return;
-      }
+      case AI_TALK_ST_ALLY_PICK:
+        if (ai_talk_stage_ally_pick(ctx, k, &tok, h, t) == AI_TALK_STEP_RETURN) return;
+        break;
+      case AI_TALK_ST_ALLY_PAY:
+        if (ai_talk_stage_ally_pay(ctx, k, &tok, h, t) == AI_TALK_STEP_RETURN) return;
+        break;
       case AI_TALK_ST_DONE:
       default:
         ai_talk_finish(ctx);

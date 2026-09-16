@@ -4594,8 +4594,29 @@ static int unit_naval_multistep_sail(void) {
   if (!map.terrain || !map.layer2 || !map.layer3) {
     return fail("naval-ms alloc map");
   }
+  /*
+   * All-ocean geometry left every one of the 8 wander directions equally
+   * legal at spawn, so the very first internal step (before any goto is
+   * committed) was a dead tie the AI could only break via the momentum
+   * bias in s_euro_last_dir[] (unit+0x314f) — a file-local latch this
+   * binary never resets between tests, so the assertion only held because
+   * an *earlier* test happened to leave that slot biased eastward. DOS
+   * itself has no distant naval hunt (ai_euro_act_ship_war_trade only
+   * fights an adjacent foe; the far pursuit ran through the plain 20e6
+   * wander scorer), so a truly fresh ship's very first move is a genuine
+   * coin flip in DOS too — asserting it always heads toward a foe 12
+   * tiles away was never a load-bearing DOS fact, just an artifact of
+   * cross-test global-state bleed in this binary.
+   * Fix: wall the row so east is the *only* legal wander step (land on
+   * every other one of the 8 neighbor tiles from spawn) — the test is now
+   * deterministic and self-contained, independent of last_dir/RNG state
+   * carried over from whichever test happened to run before it.
+   */
   for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 25; /* ocean */
+    map.terrain[i] = 1; /* plains land */
+  }
+  for (int x = 0; x < 16; ++x) {
+    map.terrain[x + 8 * 16] = 25; /* ocean corridor along y=8 */
   }
 
   ColonizeUnitPool units;

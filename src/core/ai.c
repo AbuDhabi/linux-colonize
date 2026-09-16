@@ -2472,6 +2472,193 @@ static int ai_native_apply_seed100_peels(
   return best_dir;
 }
 
+/* Sentinel for a direction the ASM scorer rejected outright (was `continue;`). */
+#define AI_ASM_DIR_REJECTED (-0x7fffffff)
+
+/*
+ * One direction of the quiet FUN_4d56_4753 ASM scorer. Extracted verbatim
+ * from ai_native_pick_dir_asm; returns AI_ASM_DIR_REJECTED for a tile the
+ * scan drops.
+ */
+static int ai_native_asm_score_dir(
+  AiRng* rng, const ColonizeWorldMap* map, const ColonizeUnitPool* units,
+  int x, int y, int nation_id, int last_dir, int unit_fa, int unit_river,
+  int fog_enable, int unit_seen_by_any, int dump, int d,
+  int* accepted, int* rejected, int audit_seen[8], int audit_unseen[8]
+) {
+  const int nx = x + k_ai_dir8_dx[d];
+  const int ny = y + k_ai_dir8_dy[d];
+  if (!map_coords_inset(map, nx, ny)) {
+    (*rejected)++;
+    return AI_ASM_DIR_REJECTED;
+  }
+  const int terr_raw = (int)(map_get_terrain_or(map, nx, ny, 25) & 0x1fu);
+  if (terr_raw == 0x19 || terr_raw == 0x1a || terr_raw >= 0x18) {
+    (*rejected)++;
+    return AI_ASM_DIR_REJECTED;
+  }
+  if (ai_is_ocean_hs(map, nx, ny)) {
+    (*rejected)++;
+    return AI_ASM_DIR_REJECTED;
+  }
+  /*
+   * DOS FUN_281f_06d2 tribe_or_presence: settlement owner (layer2 bit 0x02)
+   * else the nation of a unit standing there (bit 0x01) — never the bare
+   * layer3 nibble, which DOS leaves behind after a unit moves on (seed-100
+   * TURN4: the Dutch ship's whole route still reads 3). Only correct now
+   * that every mover keeps the presence bit exact
+   * (units_occupancy_notify_moved / units_occupancy_rebuild).
+   */
+  const int own = map_tile_tribe_or_presence(map, nx, ny);
+  const int foreign_euro_pull =
+    own >= 0 && own != nation_id &&
+    ai_native_foreign_euro_pull_open(map, units, x, y, nation_id, nx, ny, own);
+  if (own >= 0 && own != nation_id && !foreign_euro_pull) {
+    (*rejected)++;
+    return AI_ASM_DIR_REJECTED;
+  }
+  (*accepted)++;
+
+  /*
+   * FUN_521d_20e6 outer branch (2026-08-13 seed-100 finding,
+   * "Root cause candidate"): quiet Brave scoring splits on whether *this*
+   * unit has been seen by any Euro nation yet — DOS unit+0x3147 high
+   * nibble, bit (0x10<<nation), same convention as MAP_SEEN_NATION_BIT.
+   * Not previously implemented; always took the "unseen" branch below.
+   * Approximated here via map->seen at the unit's own (x,y) — the DOS
+   * field is very likely just a cached mirror of that same fog-of-war
+   * plane (same bit layout), not independently verified byte-for-byte.
+   */
+  int base;
+  int score;
+  int terr_delta = 0;
+  /* One raw 15-bit draw feeds either branch's range map (same LCG burn
+   * either way — lets AI_PEEL_AUDIT score both branches per dir). */
+  const uint32_t rraw = ai_rng_next_counted(rng);
+  if (s_ai_lcg_in_pick) {
+    s_ai_lcg_pick_burns++;
+  }
+  /* Unseen branch: RNG(1,3); river/fa pair +1, else -terr cost. */
+  int score_unseen = 1 + (int)((3u * rraw) >> 15);
+  int terr_unseen = 0;
+  {
+    const int dest_river = (int)(map_get_terrain_or(map, nx, ny, 25) & 0x40u) != 0;
+    const int dest_fa = ai_mask_fa_flags(map, nx, ny) != 0;
+    const int cardinal = (d & 1) == 0;
+    if ((unit_river && dest_river && cardinal) || (unit_fa && dest_fa)) {
+      terr_unseen = 1;
+    } else {
+      const int terr = ai_dos_terr_class(map, nx, ny) & 31;
+      terr_unseen = -map_dos_terr_cost_byte(terr);
+    }
+    score_unseen += terr_unseen;
+  }
+  /*
+   * "Seen" branch (RNG(1,5), not RNG(1,3)) — real DOS table read
+   * confirmed live (map_dos_terr_found_score_byte / DS:0x2f77, same
+   * stride-16 records map_dos_terr_cost_byte already uses at +0).
+   * Gate (FUN_1000_89d0 / FUN_1000_88cc traced 2026-08-13): add the
+   * scaled table term unless dest already holds a unit AND is owned by
+   * this same nation (own-tile stacking discouragement); the outer
+   * ownership reject above already excludes foreign-owned dest tiles,
+   * so in practice this reduces to "dest is unowned" for anything that
+   * reaches here.
+   */
+  int score_seen = 1 + (int)((5u * rraw) >> 15);
+  int terr_seen = 0;
+  {
+    const int dest_has_unit = units_id_at(units, nx, ny) >= 0;
+    if (!dest_has_unit || own != nation_id) {
+      const int terr = ai_dos_terr_class(map, nx, ny) & 31;
+      terr_seen = map_dos_terr_found_score_byte(terr) << 2;
+      score_seen += terr_seen;
+    }
+  }
+  if (!unit_seen_by_any) {
+    base = 1 + (int)((3u * rraw) >> 15);
+    score = score_unseen;
+    terr_delta = terr_unseen;
+  } else {
+    base = 1 + (int)((5u * rraw) >> 15);
+    score = score_seen;
+    terr_delta = terr_seen;
+  }
+  const int score_pre_gate = score;
+  int gate = 0;
+  int face_delta = 0;
+  int fog_p8 = 0;
+  int fog_m2 = 0;
+  if (foreign_euro_pull) {
+    /* LAB_521d_52aa arm (T1.9) — replaces the 54f5 facing/fog terms. */
+    score = ai_native_foreign_euro_pull(map, units, x, y, nation_id, nx, ny, score);
+  } else if (ai_lab_54f5_gate(map, units, nx, ny, nation_id)) {
+    gate = 1;
+    /* 521d:54f5 facing guard: the unit byte +0x314f enters the term only
+     * when 0 <= v < 8 — the value 8 is written on every stay (521d:5899)
+     * and means "no facing bias", it is NOT direction 0. */
+    if (last_dir >= 0 && last_dir <= 7) {
+      int diff = last_dir - d;
+      if (diff < 1) {
+        diff = ~diff + 1;
+      }
+      if (diff > 4) {
+        diff = -(diff - 8);
+      }
+      face_delta = diff * diff * -2;
+      score += face_delta;
+    }
+    if (fog_enable) {
+      score = ai_quiet_fog_explore_ex(
+        map, score, x, y, d, nation_id, &fog_p8, &fog_m2
+      );
+    }
+  }
+  {
+    /* Post-branch delta (face/fog/pull) applies to either branch total. */
+    const int post = score - score_pre_gate;
+    audit_unseen[d] = score_unseen + post;
+    audit_seen[d] = score_seen + post;
+  }
+  if (dump) {
+    const int far_x = x + k_ai_dir8_dx[d] * 4;
+    const int far_y = y + k_ai_dir8_dy[d] * 4;
+    fprintf(
+      stderr,
+      "AI_SCORE_DUMP asm d=%d dest=(%d,%d) base=%d terr=%+d gate=%d face=%+d "
+      "fog8=%+d fogm2=%+d total=%d far=(%d,%d) far_ocean=%d far_inset=%d "
+      "l2u=%02x l2d=%02x tu=%02x td=%02x b3=%d b5=%d tU=%+d tS=%+d own=%d dhu=%d "
+      "ownnib=%d pull=%d\n",
+      d,
+      nx,
+      ny,
+      base,
+      terr_delta,
+      gate,
+      face_delta,
+      fog_p8,
+      fog_m2,
+      score,
+      far_x,
+      far_y,
+      ai_is_ocean_hs(map, far_x, far_y),
+      map_coords_inset(map, far_x, far_y),
+      ai_layer2_at(map, x, y),
+      ai_layer2_at(map, nx, ny),
+      map_get_terrain_or(map, x, y, 25),
+      map_get_terrain_or(map, nx, ny, 25),
+      1 + (int)((3u * rraw) >> 15),
+      1 + (int)((5u * rraw) >> 15),
+      terr_unseen,
+      terr_seen,
+      own,
+      units_id_at(units, nx, ny) >= 0,
+      ai_owner_nibble(map, nx, ny),
+      foreign_euro_pull
+    );
+  }
+  return score;
+}
+
 static int ai_native_pick_dir_asm(
   AiRng* rng,
   const ColonizeWorldMap* map,
@@ -2572,175 +2759,12 @@ static int ai_native_pick_dir_asm(
   }
 
   for (int d = 0; d < 8; ++d) {
-    const int nx = x + k_ai_dir8_dx[d];
-    const int ny = y + k_ai_dir8_dy[d];
-    if (!map_coords_inset(map, nx, ny)) {
-      rejected++;
+    const int score = ai_native_asm_score_dir(
+      rng, map, units, x, y, nation_id, last_dir, unit_fa, unit_river, fog_enable,
+      unit_seen_by_any, dump, d, &accepted, &rejected, audit_seen, audit_unseen
+    );
+    if (score == AI_ASM_DIR_REJECTED) {
       continue;
-    }
-    const int terr_raw = (int)(map_get_terrain_or(map, nx, ny, 25) & 0x1fu);
-    if (terr_raw == 0x19 || terr_raw == 0x1a || terr_raw >= 0x18) {
-      rejected++;
-      continue;
-    }
-    if (ai_is_ocean_hs(map, nx, ny)) {
-      rejected++;
-      continue;
-    }
-    /*
-     * DOS FUN_281f_06d2 tribe_or_presence: settlement owner (layer2 bit 0x02)
-     * else the nation of a unit standing there (bit 0x01) — never the bare
-     * layer3 nibble, which DOS leaves behind after a unit moves on (seed-100
-     * TURN4: the Dutch ship's whole route still reads 3). Only correct now
-     * that every mover keeps the presence bit exact
-     * (units_occupancy_notify_moved / units_occupancy_rebuild).
-     */
-    const int own = map_tile_tribe_or_presence(map, nx, ny);
-    const int foreign_euro_pull =
-      own >= 0 && own != nation_id &&
-      ai_native_foreign_euro_pull_open(map, units, x, y, nation_id, nx, ny, own);
-    if (own >= 0 && own != nation_id && !foreign_euro_pull) {
-      rejected++;
-      continue;
-    }
-    accepted++;
-
-    /*
-     * FUN_521d_20e6 outer branch (2026-08-13 seed-100 finding,
-     * "Root cause candidate"): quiet Brave scoring splits on whether *this*
-     * unit has been seen by any Euro nation yet — DOS unit+0x3147 high
-     * nibble, bit (0x10<<nation), same convention as MAP_SEEN_NATION_BIT.
-     * Not previously implemented; always took the "unseen" branch below.
-     * Approximated here via map->seen at the unit's own (x,y) — the DOS
-     * field is very likely just a cached mirror of that same fog-of-war
-     * plane (same bit layout), not independently verified byte-for-byte.
-     */
-    int base;
-    int score;
-    int terr_delta = 0;
-    /* One raw 15-bit draw feeds either branch's range map (same LCG burn
-     * either way — lets AI_PEEL_AUDIT score both branches per dir). */
-    const uint32_t rraw = ai_rng_next_counted(rng);
-    if (s_ai_lcg_in_pick) {
-      s_ai_lcg_pick_burns++;
-    }
-    /* Unseen branch: RNG(1,3); river/fa pair +1, else -terr cost. */
-    int score_unseen = 1 + (int)((3u * rraw) >> 15);
-    int terr_unseen = 0;
-    {
-      const int dest_river = (int)(map_get_terrain_or(map, nx, ny, 25) & 0x40u) != 0;
-      const int dest_fa = ai_mask_fa_flags(map, nx, ny) != 0;
-      const int cardinal = (d & 1) == 0;
-      if ((unit_river && dest_river && cardinal) || (unit_fa && dest_fa)) {
-        terr_unseen = 1;
-      } else {
-        const int terr = ai_dos_terr_class(map, nx, ny) & 31;
-        terr_unseen = -map_dos_terr_cost_byte(terr);
-      }
-      score_unseen += terr_unseen;
-    }
-    /*
-     * "Seen" branch (RNG(1,5), not RNG(1,3)) — real DOS table read
-     * confirmed live (map_dos_terr_found_score_byte / DS:0x2f77, same
-     * stride-16 records map_dos_terr_cost_byte already uses at +0).
-     * Gate (FUN_1000_89d0 / FUN_1000_88cc traced 2026-08-13): add the
-     * scaled table term unless dest already holds a unit AND is owned by
-     * this same nation (own-tile stacking discouragement); the outer
-     * ownership reject above already excludes foreign-owned dest tiles,
-     * so in practice this reduces to "dest is unowned" for anything that
-     * reaches here.
-     */
-    int score_seen = 1 + (int)((5u * rraw) >> 15);
-    int terr_seen = 0;
-    {
-      const int dest_has_unit = units_id_at(units, nx, ny) >= 0;
-      if (!dest_has_unit || own != nation_id) {
-        const int terr = ai_dos_terr_class(map, nx, ny) & 31;
-        terr_seen = map_dos_terr_found_score_byte(terr) << 2;
-        score_seen += terr_seen;
-      }
-    }
-    if (!unit_seen_by_any) {
-      base = 1 + (int)((3u * rraw) >> 15);
-      score = score_unseen;
-      terr_delta = terr_unseen;
-    } else {
-      base = 1 + (int)((5u * rraw) >> 15);
-      score = score_seen;
-      terr_delta = terr_seen;
-    }
-    const int score_pre_gate = score;
-    int gate = 0;
-    int face_delta = 0;
-    int fog_p8 = 0;
-    int fog_m2 = 0;
-    if (foreign_euro_pull) {
-      /* LAB_521d_52aa arm (T1.9) — replaces the 54f5 facing/fog terms. */
-      score = ai_native_foreign_euro_pull(map, units, x, y, nation_id, nx, ny, score);
-    } else if (ai_lab_54f5_gate(map, units, nx, ny, nation_id)) {
-      gate = 1;
-      /* 521d:54f5 facing guard: the unit byte +0x314f enters the term only
-       * when 0 <= v < 8 — the value 8 is written on every stay (521d:5899)
-       * and means "no facing bias", it is NOT direction 0. */
-      if (last_dir >= 0 && last_dir <= 7) {
-        int diff = last_dir - d;
-        if (diff < 1) {
-          diff = ~diff + 1;
-        }
-        if (diff > 4) {
-          diff = -(diff - 8);
-        }
-        face_delta = diff * diff * -2;
-        score += face_delta;
-      }
-      if (fog_enable) {
-        score = ai_quiet_fog_explore_ex(
-          map, score, x, y, d, nation_id, &fog_p8, &fog_m2
-        );
-      }
-    }
-    {
-      /* Post-branch delta (face/fog/pull) applies to either branch total. */
-      const int post = score - score_pre_gate;
-      audit_unseen[d] = score_unseen + post;
-      audit_seen[d] = score_seen + post;
-    }
-    if (dump) {
-      const int far_x = x + k_ai_dir8_dx[d] * 4;
-      const int far_y = y + k_ai_dir8_dy[d] * 4;
-      fprintf(
-        stderr,
-        "AI_SCORE_DUMP asm d=%d dest=(%d,%d) base=%d terr=%+d gate=%d face=%+d "
-        "fog8=%+d fogm2=%+d total=%d far=(%d,%d) far_ocean=%d far_inset=%d "
-        "l2u=%02x l2d=%02x tu=%02x td=%02x b3=%d b5=%d tU=%+d tS=%+d own=%d dhu=%d "
-        "ownnib=%d pull=%d\n",
-        d,
-        nx,
-        ny,
-        base,
-        terr_delta,
-        gate,
-        face_delta,
-        fog_p8,
-        fog_m2,
-        score,
-        far_x,
-        far_y,
-        ai_is_ocean_hs(map, far_x, far_y),
-        map_coords_inset(map, far_x, far_y),
-        ai_layer2_at(map, x, y),
-        ai_layer2_at(map, nx, ny),
-        map_get_terrain_or(map, x, y, 25),
-        map_get_terrain_or(map, nx, ny, 25),
-        1 + (int)((3u * rraw) >> 15),
-        1 + (int)((5u * rraw) >> 15),
-        terr_unseen,
-        terr_seen,
-        own,
-        units_id_at(units, nx, ny) >= 0,
-        ai_owner_nibble(map, nx, ny),
-        foreign_euro_pull
-      );
     }
     if (score > best_score) {
       best_score = score;
@@ -2948,6 +2972,690 @@ static int ai_021a_alarm_tier(int alarm) {
   return 3;
 }
 
+/* Per-direction and per-act state shared by the FUN_4d56_021a scorer stages. */
+struct ai_021a_ctx {
+  AiRng* rng;
+  const ColonizeWorldMap* map;
+  const ColonizeUnitPool* units;
+  const ColonizeCol1Save* col1;
+  const ColonizeColonyPool* colonies;
+  const ColonizeUnit* u;
+  int nation_id, x, y, indian, turn_w, cool, unit_fa, unit_river, home, dump;
+  int adj_foreign, adj_nation, continent, col_dist, col_idx;
+  const ColonizeColony* col;
+  const ColonizeCol1Tribe* village;
+  int vx, vy, home_reach, encroach, threat, threat_nation, angry, visit_turn;
+  int self_stack, lone;
+  const ColonizeCol1Indian* ind;
+  int tech, facing;
+  /* carried across directions */
+  int grudge, best, best_dir, best_flags;
+  /* per-direction */
+  int d, nx, ny, score, flags, terr, owner, presence, settle, dfa, driver, dres;
+  int hostile, att, occ, visit_nation, visit_val, vdist, attack_intent, alarm, upg;
+};
+
+typedef enum {
+  AI_021A_DIR_OK = 0,  /* stage fell through — run the next one */
+  AI_021A_DIR_SKIP = 1 /* direction rejected (was a bare `continue;`) */
+} Ai021aDirStatus;
+
+/*
+ * 021a:0x59a-0x8f7 — tile facts, owner/grudge, occupancy, the adjacent-visit
+ * scan and the encroachment pull. Extracted verbatim from
+ * ai_native_pick_dir_021a.
+ */
+static Ai021aDirStatus ai_021a_dir_tile(struct ai_021a_ctx* c) {
+  const ColonizeWorldMap* const map = c->map;
+  const ColonizeUnitPool* const units = c->units;
+  const ColonizeCol1Save* const col1 = c->col1;
+  const int nation_id = c->nation_id;
+  const int x = c->x;
+  const int y = c->y;
+  const int cool = c->cool;
+  const int dump = c->dump;
+  const ColonizeColony* const col = c->col;
+  const ColonizeCol1Tribe* const village = c->village;
+  const int vx = c->vx;
+  const int vy = c->vy;
+  const int encroach = c->encroach;
+  const int threat_nation = c->threat_nation;
+  const int visit_turn = c->visit_turn;
+  const int d = c->d;
+  int grudge = c->grudge;
+
+  const int nx = x + (d < 8 ? k_ai_dir8_dx[d] : 0);
+  const int ny = y + (d < 8 ? k_ai_dir8_dy[d] : 0);
+  int score = 200;
+  int flags = 0;
+  const int terr = ai_dos_terr_class(map, nx, ny);
+  if (terr == 0x19 || terr == 0x1a) {
+    if (dump) fprintf(stderr, "AI_021A d=%d skip water\n", d);
+    c->grudge = grudge; /* the grudge latch outlives the skip */
+    return AI_021A_DIR_SKIP;
+  }
+  if (map_dos_0598_rumour_tile(map, nx, ny)) {
+    if (dump) fprintf(stderr, "AI_021A d=%d skip rumour dest=(%d,%d)\n", d, nx, ny);
+    c->grudge = grudge; /* the grudge latch outlives the skip */
+    return AI_021A_DIR_SKIP;
+  }
+  if (terr == 0x18) {
+    if (dump) fprintf(stderr, "AI_021A d=%d skip arctic\n", d);
+    c->grudge = grudge; /* the grudge latch outlives the skip */
+    return AI_021A_DIR_SKIP;
+  }
+  const int owner = ai_owner_nibble(map, nx, ny);
+  const int presence = map_tile_owner_or_presence(map, nx, ny);
+  const int settle = ai_021a_settle_owner(map, nx, ny);
+  const int dfa = ai_mask_fa_flags(map, nx, ny) & 0x0a;
+  const int driver = (int)(map_get_terrain_or(map, nx, ny, 25) & 0x40u);
+  const int dres = map_resource_type_at(map, nx, ny) >= 0;
+  int hostile = 0;
+  int att = 0;
+  if (owner < 0 || owner == nation_id) {
+    hostile = 0;
+    grudge = 0;
+    att = 0;
+  } else {
+    flags |= 1;
+    att = (owner < 4 && village) ? col1_tribe_attitude(village, owner) : 0;
+    if (owner >= 4) {
+      hostile = 0;
+    } else {
+      grudge = att >= 0x80;
+      hostile = ai_diplo_indian_alarm(col1, nation_id, owner) >= 0x4b;
+      if (hostile) {
+        grudge = 1;
+      }
+      if (owner == threat_nation) {
+        grudge = 1;
+      }
+    }
+    if (hostile) {
+      flags |= 4;
+    }
+    if (grudge) {
+      flags |= 0x40;
+    }
+  }
+  int occ = 0;
+  {
+    int t = presence >= 0 ? presence : settle;
+    if (t == nation_id) {
+      t = -1;
+    }
+    if (t >= 0) {
+      flags |= 2;
+      occ = 1;
+    }
+  }
+  int visit_nation = -1;
+  int visit_val = -1;
+  if (!occ) {
+    for (int n = 0; n < 8; ++n) {
+      const int ax = nx + k_ai_dir8_dx[n];
+      const int ay = ny + k_ai_dir8_dy[n];
+      if (ax == x && ay == y) {
+        continue;
+      }
+      int val = 100;
+      int e = ai_021a_settle_owner(map, ax, ay);
+      if (e < 0) {
+        const int ui = ai_unit_index_on_tile(units, ax, ay);
+        if (ui < 0) {
+          continue;
+        }
+        const ColonizeUnit* au = &units->units[ui];
+        if (au->nation_id == nation_id) {
+          continue;
+        }
+        if (au->type_index != UNITS_KIND_WAGON) {
+          continue;
+        }
+        e = au->nation_id;
+        val >>= 1;
+      }
+      if (e < 0 || e >= 4) {
+        continue;
+      }
+      val += ai_diplo_indian_alarm(col1, nation_id, e) >> 1;
+      if (val >= visit_val) {
+        visit_val = val;
+        visit_nation = e;
+      }
+    }
+  }
+  const int vdist = map_dos_dist(nx - vx, ny - vy);
+  if (visit_nation >= 0) {
+    att = village ? col1_tribe_attitude(village, visit_nation) : 0;
+    grudge = att >= 0x80;
+    hostile = ai_diplo_indian_alarm(col1, nation_id, visit_nation) >= 0x4b;
+    if (!grudge && !hostile) {
+      if (cool - visit_turn < vdist * 2 + 5) {
+        if (dump) fprintf(stderr, "AI_021A d=%d skip visit-cooldown\n", d);
+        c->grudge = grudge; /* the grudge latch outlives the skip */
+        return AI_021A_DIR_SKIP;
+      }
+    }
+    visit_val += (cool - visit_turn) * 2;
+    score += visit_val;
+    if (!hostile) {
+      flags |= 0x80;
+    }
+  }
+  if (!occ && visit_nation < 0 && encroach >= 0 && col) {
+    const int cn = col->nation_id;
+    const int census = (cn >= 0 && cn < 4) ? (int)col1->stuff.census_pop_proxy[cn] : 0;
+    const int cx = (census >> 3) + encroach * 2 + 5;
+    if (cx <= cool - visit_turn) {
+      const int dcol = map_dos_dist(col->x - nx, col->y - ny);
+      if (dcol < 12) {
+        score += (12 - dcol) * 10;
+      }
+    }
+  }
+
+  c->nx = nx;
+  c->ny = ny;
+  c->score = score;
+  c->flags = flags;
+  c->terr = terr;
+  c->owner = owner;
+  c->presence = presence;
+  c->settle = settle;
+  c->dfa = dfa;
+  c->driver = driver;
+  c->dres = dres;
+  c->hostile = hostile;
+  c->att = att;
+  c->occ = occ;
+  c->visit_nation = visit_nation;
+  c->visit_val = visit_val;
+  c->vdist = vdist;
+  c->grudge = grudge;
+  return AI_021A_DIR_OK;
+}
+
+/* 021a:0x8f8-0xbb5 — occupied-destination attack intent / alarm arms. */
+static Ai021aDirStatus ai_021a_dir_occupant(struct ai_021a_ctx* c) {
+  AiRng* const rng = c->rng;
+  const ColonizeUnitPool* const units = c->units;
+  const ColonizeCol1Save* const col1 = c->col1;
+  const int nation_id = c->nation_id;
+  const int dump = c->dump;
+  const int threat = c->threat;
+  const int lone = c->lone;
+  const int d = c->d;
+  const int nx = c->nx;
+  const int ny = c->ny;
+  const int terr = c->terr;
+  const int owner = c->owner;
+  const int presence = c->presence;
+  const int settle = c->settle;
+  const int att = c->att;
+  const int occ = c->occ;
+  const int vdist = c->vdist;
+  int grudge = c->grudge;
+  int score = c->score;
+  int flags = c->flags;
+
+  int attack_intent = 0;
+  int alarm = 0;
+  if (occ) {
+    if (owner >= 4) {
+      if (dump) fprintf(stderr, "AI_021A d=%d skip other-tribe\n", d);
+      c->grudge = grudge; /* the grudge latch outlives the skip */
+      return AI_021A_DIR_SKIP;
+    }
+    alarm = ai_diplo_indian_alarm(col1, nation_id, owner);
+    if (alarm > 100) {
+      alarm = 100;
+    }
+    if (presence < 0 && settle < 0) {
+      score -= 50 - alarm;
+    } else {
+      int loot = 0;
+      int want = 0;
+      int treasure = 0;
+      if (presence >= 0) {
+        score += map_dos_terr_found_score_byte(terr & 31) << 2;
+        for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+          const ColonizeUnit* su = &units->units[i];
+          if (!su->active || su->aboard_ship_id >= 0 || su->x != nx || su->y != ny) {
+            continue;
+          }
+          const int st = su->type_index;
+          switch (st) {
+            case 0:
+              score += 5;
+              loot = lone; /* 0xa42 -> 0xa4c */
+              break;
+            case 1:
+            case 4:
+              if (vdist <= 1) {
+                score += (threat + 5) * 4;
+              }
+              break;
+            case 2:
+              score += 10;
+              loot = lone; /* 0xa48 -> 0xa4c */
+              break;
+            case 5:
+              score += 10;
+              break;
+            case 0xa:
+              if (lone) {
+                score += 50;
+                loot = 1;
+              }
+              treasure = 1;
+              break;
+            case 0xb:
+              score += 35;
+              want = 1;
+              loot = lone;
+              break;
+            case 0xc: {
+              score += 2;
+              int holds = 0;
+              for (int h = 0; h < COLONIZE_UNIT_CARGO_MAX; ++h) {
+                if (su->hold_goods_amount[h] > 0 && su->hold_goods_amount[h] < 255) {
+                  holds++;
+                }
+              }
+              if (holds != 0) {
+                want = 1;
+                flags |= 0x10;
+                score += 8;
+              }
+              if (!want) {
+                if (ai_rng_range(rng, 50, 100) >= alarm) {
+                  break;
+                }
+              }
+              /* +0x315c/+0x315e both negative: not in a transport chain. */
+              if (su->aboard_ship_id < 0) {
+                score += 10;
+                want = 1;
+                loot = 1; /* 0xaa8: ax=1 -> [bp-0x20] */
+              }
+              break;
+            }
+            default:
+              break;
+          }
+        }
+      }
+      if (settle >= 0) {
+        if (alarm >= 0x4b) {
+          score += 0x14;
+        }
+        if (alarm >= 0x32) {
+          score += 10;
+        }
+      }
+      if (alarm <= 0x19 && !grudge) {
+        if (!loot) {
+          c->grudge = grudge; /* the grudge latch outlives the skip */
+          return AI_021A_DIR_SKIP;
+        }
+        if (!treasure) {
+          c->grudge = grudge; /* the grudge latch outlives the skip */
+          return AI_021A_DIR_SKIP;
+        }
+        if (ai_rng_range(rng, 0, 7) != 0) {
+          c->grudge = grudge; /* the grudge latch outlives the skip */
+          return AI_021A_DIR_SKIP;
+        }
+      }
+      if (settle < 0 && att >= 0x20) {
+        grudge = 1;
+      }
+      score -= 0x32 - alarm;
+      if (!loot && !grudge) {
+        c->grudge = grudge; /* the grudge latch outlives the skip */
+        return AI_021A_DIR_SKIP;
+      }
+      flags |= 8;
+      attack_intent = 1;
+    }
+  }
+
+  c->score = score;
+  c->flags = flags;
+  c->attack_intent = attack_intent;
+  c->alarm = alarm;
+  c->grudge = grudge;
+  return AI_021A_DIR_OK;
+}
+
+/* 021a:0xbb6-0xd5b — upgrade beacon, facing/road/river bias, home tether. */
+static Ai021aDirStatus ai_021a_dir_terrain(struct ai_021a_ctx* c) {
+  AiRng* const rng = c->rng;
+  const ColonizeWorldMap* const map = c->map;
+  const ColonizeUnitPool* const units = c->units;
+  const ColonizeCol1Save* const col1 = c->col1;
+  const ColonizeUnit* const u = c->u;
+  const int nation_id = c->nation_id;
+  const int unit_fa = c->unit_fa;
+  const int unit_river = c->unit_river;
+  const int dump = c->dump;
+  const int adj_foreign = c->adj_foreign;
+  const int adj_nation = c->adj_nation;
+  const int vx = c->vx;
+  const int vy = c->vy;
+  const int home_reach = c->home_reach;
+  const int angry = c->angry;
+  const int self_stack = c->self_stack;
+  const ColonizeCol1Indian* const ind = c->ind;
+  const int tech = c->tech;
+  const int facing = c->facing;
+  const int d = c->d;
+  const int nx = c->nx;
+  const int ny = c->ny;
+  const int presence = c->presence;
+  const int settle = c->settle;
+  const int dfa = c->dfa;
+  const int driver = c->driver;
+  const int attack_intent = c->attack_intent;
+  int score = c->score;
+
+  /* 0xbb6: own village tile — musket / horse upgrade beacon. */
+  int upg = 0;
+  if (settle == nation_id && ind) {
+    if ((int8_t)ind->muskets > 0 &&
+        (u->type_index == UNITS_KIND_BRAVE ||
+         u->type_index == UNITS_KIND_MTD_BRAVE)) {
+      score += 0x14;
+      upg = 1;
+    }
+    if (ind->horse_breeding >= 0x19 && units_max_mp(units, u->id) <= 3) {
+      score += 0x14;
+      upg = 1;
+    }
+  }
+  /* 0xc0b */
+  if (d != 8) {
+    if (presence >= 0 && presence == nation_id) {
+      if (units_count_at(units, nx, ny) >= 2 && settle < 0) {
+        if (dump) fprintf(stderr, "AI_021A d=%d skip own-stack\n", d);
+        return AI_021A_DIR_SKIP;
+      }
+      score -= 0x28;
+    }
+  } else {
+    score += (1 - self_stack) * 0x28;
+    if (attack_intent) {
+      score -= 0x19;
+    } else if (ai_rng_range(rng, 0, (tech + 1) * 4) == 0) {
+      score -= 0x19;
+    }
+  }
+  /* 0xc82: facing / road / river */
+  if (d != 8) {
+    if (facing == d) {
+      score += 4;
+    } else if (((facing + 1) & 7) == d || ((facing - 1) & 7) == d) {
+      score += 3;
+    } else if (((facing ^ 4) & 0xff) == d) {
+      score -= 6;
+    }
+    if (dfa && unit_fa) {
+      score += 4;
+    } else if ((d & 1) == 0 && driver && unit_river) {
+      score += 4;
+    }
+  } else {
+    /* 0xdf6: stay-only arms */
+    if (!angry) {
+      if (adj_foreign) {
+        if (adj_nation < 4) {
+          const int a = ai_diplo_indian_alarm(col1, nation_id, adj_nation);
+          if (ai_021a_alarm_tier(a) > 0) {
+            score += ((a - 0x32) >> 1) + 8;
+          }
+        }
+      } else if (!upg) {
+        if (dump) fprintf(stderr, "AI_021A d=8 skip stay (tech roll drawn)\n");
+        return AI_021A_DIR_SKIP;
+      }
+    } else if (adj_foreign && adj_nation < 4) {
+      const int a = ai_diplo_indian_alarm(col1, nation_id, adj_nation);
+      if (a >= 0x5f) {
+        score += 0x10;
+      } else if (ai_021a_alarm_tier(a) > 0) {
+        score += ((a - 0x32) >> 1) + 5;
+      }
+    }
+  }
+  /* 0xcea: home tether */
+  if (home_reach >= 0) {
+    const int hd = map_dos_dist(nx - vx, ny - vy);
+    if (hd > 2) {
+      int t = hd * 3;
+      if (angry) {
+        t >>= 1;
+      }
+      if (ai_021a_type_armed(u->type_index)) {
+        t >>= 1;
+      }
+      if (ai_021a_type_mounted(u->type_index)) {
+        t >>= 2;
+      }
+      score -= t;
+    }
+  }
+  /* 0xd5c: FUN_1427_09dc adjacent foreign at dest */
+  {
+    const int fn = ai_021a_adjacent_foreign(map, nx, ny, nation_id, 1);
+    if (fn >= 0) {
+      if (fn < 4) {
+        const uint8_t rel = ai_diplo_read(col1, nation_id, fn);
+        if ((rel & 0x20) == 0) {
+          score += 0x32;
+        }
+        const int a = ai_diplo_indian_alarm(col1, nation_id, fn);
+        if (ai_021a_alarm_tier(a) > 0) {
+          score += (a - 0x32) >> 2;
+        }
+      } else {
+        score -= 0x19;
+      }
+    }
+  }
+
+  c->score = score;
+  c->upg = upg;
+  return AI_021A_DIR_OK;
+}
+
+/* 021a:0xeba-0x1157 — the quiet / angry destination bands. */
+static Ai021aDirStatus ai_021a_dir_angry(struct ai_021a_ctx* c) {
+  const ColonizeWorldMap* const map = c->map;
+  const ColonizeUnitPool* const units = c->units;
+  const ColonizeCol1Save* const col1 = c->col1;
+  const ColonizeColonyPool* const colonies = c->colonies;
+  const ColonizeUnit* const u = c->u;
+  const int nation_id = c->nation_id;
+  const int continent = c->continent;
+  const ColonizeColony* const col = c->col;
+  const int angry = c->angry;
+  const int grudge = c->grudge;
+  const int nx = c->nx;
+  const int ny = c->ny;
+  const int owner = c->owner;
+  const int presence = c->presence;
+  const int settle = c->settle;
+  const int dres = c->dres;
+  const int hostile = c->hostile;
+  int score = c->score;
+
+  /* 0xeba */
+  if (!angry) {
+    if (owner < 0) {
+      score += 5;
+    }
+    if (col && ai_continent_id(map, nx, ny) == continent) {
+      const int dcol = map_dos_dist(col->x - nx, col->y - ny);
+      const int a = ai_diplo_indian_alarm(col1, nation_id, col->nation_id);
+      if (dcol < 12) {
+        score += ((ai_021a_alarm_tier(a) + 1) * (12 - dcol)) >> 2;
+      }
+    }
+  } else {
+    if (!grudge && !hostile) {
+      if (settle >= 0) {
+        return AI_021A_DIR_SKIP;
+      }
+    } else {
+      score += 5;
+      if (dres) {
+        score += 10;
+      }
+      const int ci = ai_021a_colony_at(colonies, nx, ny);
+      if (ci >= 0) {
+        score += 500;
+      } else if (presence >= 0) {
+        ColonizeCombatStrengthCtx sctx;
+        sctx.units = units;
+        sctx.map = map;
+        sctx.colonies = colonies;
+        sctx.col1 = col1;
+        const int def_id = units_best_defender_at(units, col1, nx, ny, u->id, -1);
+        const int atk = (combat_unit_base_x8(&sctx, u->id, 1, NULL) * 3) >> 1;
+        int defs = 0;
+        if (def_id >= 0) {
+          defs = combat_engagement_strength(&sctx, def_id, u->id, NULL);
+          const ColonizeUnit* du = units_get_const(units, def_id);
+          if (du && du->type_index == UNITS_KIND_ARTILLERY) {
+            defs >>= 3;
+          }
+        }
+        for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+          const ColonizeUnit* su = &units->units[i];
+          if (!su->active || su->aboard_ship_id >= 0 || su->x != nx || su->y != ny) {
+            continue;
+          }
+          switch (su->type_index) {
+            case UNITS_KIND_COLONIST: score += 4; break;
+            case UNITS_KIND_SOLDIER: score -= 2; break;
+            case UNITS_KIND_PIONEER:
+            case UNITS_KIND_MISSIONARY:
+            case UNITS_KIND_SCOUT: score += 8; break;
+            case UNITS_KIND_DRAGOON: score -= 1; break;
+            case UNITS_KIND_TREASURE:
+            case UNITS_KIND_ARTILLERY:
+            case UNITS_KIND_WAGON: score += 0x10; break;
+            default: break;
+          }
+        }
+        if (defs <= atk) {
+          score += (atk - defs) + 0x1e;
+        } else {
+          score += (atk - defs) * 2;
+        }
+      }
+    }
+    if (col && ai_continent_id(map, nx, ny) == continent) {
+      const int dcol = map_dos_dist(col->x - nx, col->y - ny);
+      const uint8_t rel = ai_diplo_read(col1, nation_id, col->nation_id);
+      const int a = ai_diplo_indian_alarm(col1, nation_id, col->nation_id);
+      if (a >= 0x4b) {
+        if (rel & 0x20) {
+          score -= dcol * 2;
+        }
+      } else if (dcol < 12) {
+        score += ((ai_021a_alarm_tier(a) + 1) * (12 - dcol)) >> 2;
+      }
+    }
+  }
+
+  c->score = score;
+  return AI_021A_DIR_OK;
+}
+
+/* One direction: the four scoring stages plus the 021a:0x1158 roll/pick tail. */
+static void ai_021a_score_dir(struct ai_021a_ctx* c) {
+  if (ai_021a_dir_tile(c) == AI_021A_DIR_SKIP) {
+    return;
+  }
+  if (ai_021a_dir_occupant(c) == AI_021A_DIR_SKIP) {
+    return;
+  }
+  if (ai_021a_dir_terrain(c) == AI_021A_DIR_SKIP) {
+    return;
+  }
+  if (ai_021a_dir_angry(c) == AI_021A_DIR_SKIP) {
+    return;
+  }
+
+  AiRng* const rng = c->rng;
+  const ColonizeWorldMap* const map = c->map;
+  const ColonizeUnitPool* const units = c->units;
+  const int nation_id = c->nation_id;
+  const int unit_fa = c->unit_fa;
+  const int unit_river = c->unit_river;
+  const int dump = c->dump;
+  const int vx = c->vx;
+  const int vy = c->vy;
+  const int d = c->d;
+  const int nx = c->nx;
+  const int ny = c->ny;
+  const int flags = c->flags;
+  const int terr = c->terr;
+  const int owner = c->owner;
+  const int presence = c->presence;
+  const int settle = c->settle;
+  const int dfa = c->dfa;
+  const int driver = c->driver;
+  const int dres = c->dres;
+  const int occ = c->occ;
+  const int visit_nation = c->visit_nation;
+  const int visit_val = c->visit_val;
+  const int vdist = c->vdist;
+  int score = c->score;
+  int best = c->best;
+  int best_dir = c->best_dir;
+  int best_flags = c->best_flags;
+
+  /* 0x1158 */
+  const int roll = ai_rng_range(rng, 1, 5);
+  score += roll;
+  if (score < 0) {
+    score = 0;
+  }
+  if (dump) {
+    fprintf(
+      stderr,
+      "AI_021A d=%d dest=(%d,%d) score=%d roll=%d flags=%02x terr=%02x own=%d pres=%d set=%d "
+      "fa=%d/%d riv=%d/%d res=%d vdist=%d adjf=%d visit=%d/%d occ=%d rum=%d hd=%d cont=%d\n",
+      d, nx, ny, score, roll, flags, terr, owner, presence, settle, unit_fa, dfa,
+      unit_river != 0, driver != 0, dres, vdist,
+      ai_021a_adjacent_foreign(map, nx, ny, nation_id, 1), visit_nation, visit_val, occ,
+      map_dos_0598_rumour_tile(map, nx, ny), map_dos_dist(nx - vx, ny - vy),
+      ai_continent_id(map, nx, ny)
+    );
+    if (s_021a_adj_fx >= 0) {
+      fprintf(
+        stderr, "AI_021A   adjf tile=(%d,%d) l2=%02x l3=%02x unit=%d\n", s_021a_adj_fx,
+        s_021a_adj_fy, ai_layer2_at(map, s_021a_adj_fx, s_021a_adj_fy),
+        map_get_layer3(map, s_021a_adj_fx, s_021a_adj_fy),
+        ai_unit_index_on_tile(units, s_021a_adj_fx, s_021a_adj_fy)
+      );
+    }
+  }
+  if (score > best) {
+    best = score;
+    best_dir = d;
+    best_flags = flags;
+  }
+
+  c->score = score;
+  c->best = best;
+  c->best_dir = best_dir;
+  c->best_flags = best_flags;
+}
+
 static int ai_native_pick_dir_021a(
   AiRng* rng,
   const ColonizeWorldMap* map,
@@ -3098,463 +3806,57 @@ static int ai_native_pick_dir_021a(
   int best_dir = 8;
   int best_flags = 0;
   int grudge = 0; /* [bp-0x14] — NOT reset on the other-tribe owner arm (DOS) */
+
+  struct ai_021a_ctx c;
+  memset(&c, 0, sizeof(c));
+  c.rng = rng;
+  c.map = map;
+  c.units = units;
+  c.col1 = col1;
+  c.colonies = colonies;
+  c.u = u;
+  c.nation_id = nation_id;
+  c.x = x;
+  c.y = y;
+  c.indian = indian;
+  c.turn_w = turn_w;
+  c.cool = cool;
+  c.unit_fa = unit_fa;
+  c.unit_river = unit_river;
+  c.home = home;
+  c.dump = dump;
+  c.adj_foreign = adj_foreign;
+  c.adj_nation = adj_nation;
+  c.continent = continent;
+  c.col_dist = col_dist;
+  c.col_idx = col_idx;
+  c.col = col;
+  c.village = village;
+  c.vx = vx;
+  c.vy = vy;
+  c.home_reach = home_reach;
+  c.encroach = encroach;
+  c.threat = threat;
+  c.threat_nation = threat_nation;
+  c.angry = angry;
+  c.visit_turn = visit_turn;
+  c.self_stack = self_stack;
+  c.lone = lone;
+  c.ind = ind;
+  c.tech = tech;
+  c.facing = facing;
+  c.grudge = grudge;
+  c.best = best;
+  c.best_dir = best_dir;
+  c.best_flags = best_flags;
+
   for (int d = 0; d < 9; ++d) {
-    const int nx = x + (d < 8 ? k_ai_dir8_dx[d] : 0);
-    const int ny = y + (d < 8 ? k_ai_dir8_dy[d] : 0);
-    int score = 200;
-    int flags = 0;
-    const int terr = ai_dos_terr_class(map, nx, ny);
-    if (terr == 0x19 || terr == 0x1a) {
-      if (dump) fprintf(stderr, "AI_021A d=%d skip water\n", d);
-      continue;
-    }
-    if (map_dos_0598_rumour_tile(map, nx, ny)) {
-      if (dump) fprintf(stderr, "AI_021A d=%d skip rumour dest=(%d,%d)\n", d, nx, ny);
-      continue;
-    }
-    if (terr == 0x18) {
-      if (dump) fprintf(stderr, "AI_021A d=%d skip arctic\n", d);
-      continue;
-    }
-    const int owner = ai_owner_nibble(map, nx, ny);
-    const int presence = map_tile_owner_or_presence(map, nx, ny);
-    const int settle = ai_021a_settle_owner(map, nx, ny);
-    const int dfa = ai_mask_fa_flags(map, nx, ny) & 0x0a;
-    const int driver = (int)(map_get_terrain_or(map, nx, ny, 25) & 0x40u);
-    const int dres = map_resource_type_at(map, nx, ny) >= 0;
-    int hostile = 0;
-    int att = 0;
-    if (owner < 0 || owner == nation_id) {
-      hostile = 0;
-      grudge = 0;
-      att = 0;
-    } else {
-      flags |= 1;
-      att = (owner < 4 && village) ? col1_tribe_attitude(village, owner) : 0;
-      if (owner >= 4) {
-        hostile = 0;
-      } else {
-        grudge = att >= 0x80;
-        hostile = ai_diplo_indian_alarm(col1, nation_id, owner) >= 0x4b;
-        if (hostile) {
-          grudge = 1;
-        }
-        if (owner == threat_nation) {
-          grudge = 1;
-        }
-      }
-      if (hostile) {
-        flags |= 4;
-      }
-      if (grudge) {
-        flags |= 0x40;
-      }
-    }
-    int occ = 0;
-    {
-      int t = presence >= 0 ? presence : settle;
-      if (t == nation_id) {
-        t = -1;
-      }
-      if (t >= 0) {
-        flags |= 2;
-        occ = 1;
-      }
-    }
-    int visit_nation = -1;
-    int visit_val = -1;
-    if (!occ) {
-      for (int n = 0; n < 8; ++n) {
-        const int ax = nx + k_ai_dir8_dx[n];
-        const int ay = ny + k_ai_dir8_dy[n];
-        if (ax == x && ay == y) {
-          continue;
-        }
-        int val = 100;
-        int e = ai_021a_settle_owner(map, ax, ay);
-        if (e < 0) {
-          const int ui = ai_unit_index_on_tile(units, ax, ay);
-          if (ui < 0) {
-            continue;
-          }
-          const ColonizeUnit* au = &units->units[ui];
-          if (au->nation_id == nation_id) {
-            continue;
-          }
-          if (au->type_index != UNITS_KIND_WAGON) {
-            continue;
-          }
-          e = au->nation_id;
-          val >>= 1;
-        }
-        if (e < 0 || e >= 4) {
-          continue;
-        }
-        val += ai_diplo_indian_alarm(col1, nation_id, e) >> 1;
-        if (val >= visit_val) {
-          visit_val = val;
-          visit_nation = e;
-        }
-      }
-    }
-    const int vdist = map_dos_dist(nx - vx, ny - vy);
-    if (visit_nation >= 0) {
-      att = village ? col1_tribe_attitude(village, visit_nation) : 0;
-      grudge = att >= 0x80;
-      hostile = ai_diplo_indian_alarm(col1, nation_id, visit_nation) >= 0x4b;
-      if (!grudge && !hostile) {
-        if (cool - visit_turn < vdist * 2 + 5) {
-          if (dump) fprintf(stderr, "AI_021A d=%d skip visit-cooldown\n", d);
-          continue;
-        }
-      }
-      visit_val += (cool - visit_turn) * 2;
-      score += visit_val;
-      if (!hostile) {
-        flags |= 0x80;
-      }
-    }
-    if (!occ && visit_nation < 0 && encroach >= 0 && col) {
-      const int cn = col->nation_id;
-      const int census = (cn >= 0 && cn < 4) ? (int)col1->stuff.census_pop_proxy[cn] : 0;
-      const int cx = (census >> 3) + encroach * 2 + 5;
-      if (cx <= cool - visit_turn) {
-        const int dcol = map_dos_dist(col->x - nx, col->y - ny);
-        if (dcol < 12) {
-          score += (12 - dcol) * 10;
-        }
-      }
-    }
-    int attack_intent = 0;
-    int alarm = 0;
-    if (occ) {
-      if (owner >= 4) {
-        if (dump) fprintf(stderr, "AI_021A d=%d skip other-tribe\n", d);
-        continue;
-      }
-      alarm = ai_diplo_indian_alarm(col1, nation_id, owner);
-      if (alarm > 100) {
-        alarm = 100;
-      }
-      if (presence < 0 && settle < 0) {
-        score -= 50 - alarm;
-      } else {
-        int loot = 0;
-        int want = 0;
-        int treasure = 0;
-        if (presence >= 0) {
-          score += map_dos_terr_found_score_byte(terr & 31) << 2;
-          for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-            const ColonizeUnit* su = &units->units[i];
-            if (!su->active || su->aboard_ship_id >= 0 || su->x != nx || su->y != ny) {
-              continue;
-            }
-            const int st = su->type_index;
-            switch (st) {
-              case 0:
-                score += 5;
-                loot = lone; /* 0xa42 -> 0xa4c */
-                break;
-              case 1:
-              case 4:
-                if (vdist <= 1) {
-                  score += (threat + 5) * 4;
-                }
-                break;
-              case 2:
-                score += 10;
-                loot = lone; /* 0xa48 -> 0xa4c */
-                break;
-              case 5:
-                score += 10;
-                break;
-              case 0xa:
-                if (lone) {
-                  score += 50;
-                  loot = 1;
-                }
-                treasure = 1;
-                break;
-              case 0xb:
-                score += 35;
-                want = 1;
-                loot = lone;
-                break;
-              case 0xc: {
-                score += 2;
-                int holds = 0;
-                for (int h = 0; h < COLONIZE_UNIT_CARGO_MAX; ++h) {
-                  if (su->hold_goods_amount[h] > 0 && su->hold_goods_amount[h] < 255) {
-                    holds++;
-                  }
-                }
-                if (holds != 0) {
-                  want = 1;
-                  flags |= 0x10;
-                  score += 8;
-                }
-                if (!want) {
-                  if (ai_rng_range(rng, 50, 100) >= alarm) {
-                    break;
-                  }
-                }
-                /* +0x315c/+0x315e both negative: not in a transport chain. */
-                if (su->aboard_ship_id < 0) {
-                  score += 10;
-                  want = 1;
-                  loot = 1; /* 0xaa8: ax=1 -> [bp-0x20] */
-                }
-                break;
-              }
-              default:
-                break;
-            }
-          }
-        }
-        if (settle >= 0) {
-          if (alarm >= 0x4b) {
-            score += 0x14;
-          }
-          if (alarm >= 0x32) {
-            score += 10;
-          }
-        }
-        if (alarm <= 0x19 && !grudge) {
-          if (!loot) {
-            continue;
-          }
-          if (!treasure) {
-            continue;
-          }
-          if (ai_rng_range(rng, 0, 7) != 0) {
-            continue;
-          }
-        }
-        if (settle < 0 && att >= 0x20) {
-          grudge = 1;
-        }
-        score -= 0x32 - alarm;
-        if (!loot && !grudge) {
-          continue;
-        }
-        flags |= 8;
-        attack_intent = 1;
-      }
-    }
-    /* 0xbb6: own village tile — musket / horse upgrade beacon. */
-    int upg = 0;
-    if (settle == nation_id && ind) {
-      if ((int8_t)ind->muskets > 0 &&
-          (u->type_index == UNITS_KIND_BRAVE ||
-           u->type_index == UNITS_KIND_MTD_BRAVE)) {
-        score += 0x14;
-        upg = 1;
-      }
-      if (ind->horse_breeding >= 0x19 && units_max_mp(units, u->id) <= 3) {
-        score += 0x14;
-        upg = 1;
-      }
-    }
-    /* 0xc0b */
-    if (d != 8) {
-      if (presence >= 0 && presence == nation_id) {
-        if (units_count_at(units, nx, ny) >= 2 && settle < 0) {
-          if (dump) fprintf(stderr, "AI_021A d=%d skip own-stack\n", d);
-          continue;
-        }
-        score -= 0x28;
-      }
-    } else {
-      score += (1 - self_stack) * 0x28;
-      if (attack_intent) {
-        score -= 0x19;
-      } else if (ai_rng_range(rng, 0, (tech + 1) * 4) == 0) {
-        score -= 0x19;
-      }
-    }
-    /* 0xc82: facing / road / river */
-    if (d != 8) {
-      if (facing == d) {
-        score += 4;
-      } else if (((facing + 1) & 7) == d || ((facing - 1) & 7) == d) {
-        score += 3;
-      } else if (((facing ^ 4) & 0xff) == d) {
-        score -= 6;
-      }
-      if (dfa && unit_fa) {
-        score += 4;
-      } else if ((d & 1) == 0 && driver && unit_river) {
-        score += 4;
-      }
-    } else {
-      /* 0xdf6: stay-only arms */
-      if (!angry) {
-        if (adj_foreign) {
-          if (adj_nation < 4) {
-            const int a = ai_diplo_indian_alarm(col1, nation_id, adj_nation);
-            if (ai_021a_alarm_tier(a) > 0) {
-              score += ((a - 0x32) >> 1) + 8;
-            }
-          }
-        } else if (!upg) {
-          if (dump) fprintf(stderr, "AI_021A d=8 skip stay (tech roll drawn)\n");
-          continue;
-        }
-      } else if (adj_foreign && adj_nation < 4) {
-        const int a = ai_diplo_indian_alarm(col1, nation_id, adj_nation);
-        if (a >= 0x5f) {
-          score += 0x10;
-        } else if (ai_021a_alarm_tier(a) > 0) {
-          score += ((a - 0x32) >> 1) + 5;
-        }
-      }
-    }
-    /* 0xcea: home tether */
-    if (home_reach >= 0) {
-      const int hd = map_dos_dist(nx - vx, ny - vy);
-      if (hd > 2) {
-        int t = hd * 3;
-        if (angry) {
-          t >>= 1;
-        }
-        if (ai_021a_type_armed(u->type_index)) {
-          t >>= 1;
-        }
-        if (ai_021a_type_mounted(u->type_index)) {
-          t >>= 2;
-        }
-        score -= t;
-      }
-    }
-    /* 0xd5c: FUN_1427_09dc adjacent foreign at dest */
-    {
-      const int fn = ai_021a_adjacent_foreign(map, nx, ny, nation_id, 1);
-      if (fn >= 0) {
-        if (fn < 4) {
-          const uint8_t rel = ai_diplo_read(col1, nation_id, fn);
-          if ((rel & 0x20) == 0) {
-            score += 0x32;
-          }
-          const int a = ai_diplo_indian_alarm(col1, nation_id, fn);
-          if (ai_021a_alarm_tier(a) > 0) {
-            score += (a - 0x32) >> 2;
-          }
-        } else {
-          score -= 0x19;
-        }
-      }
-    }
-    /* 0xeba */
-    if (!angry) {
-      if (owner < 0) {
-        score += 5;
-      }
-      if (col && ai_continent_id(map, nx, ny) == continent) {
-        const int dcol = map_dos_dist(col->x - nx, col->y - ny);
-        const int a = ai_diplo_indian_alarm(col1, nation_id, col->nation_id);
-        if (dcol < 12) {
-          score += ((ai_021a_alarm_tier(a) + 1) * (12 - dcol)) >> 2;
-        }
-      }
-    } else {
-      if (!grudge && !hostile) {
-        if (settle >= 0) {
-          continue;
-        }
-      } else {
-        score += 5;
-        if (dres) {
-          score += 10;
-        }
-        const int ci = ai_021a_colony_at(colonies, nx, ny);
-        if (ci >= 0) {
-          score += 500;
-        } else if (presence >= 0) {
-          ColonizeCombatStrengthCtx sctx;
-          sctx.units = units;
-          sctx.map = map;
-          sctx.colonies = colonies;
-          sctx.col1 = col1;
-          const int def_id = units_best_defender_at(units, col1, nx, ny, u->id, -1);
-          const int atk = (combat_unit_base_x8(&sctx, u->id, 1, NULL) * 3) >> 1;
-          int defs = 0;
-          if (def_id >= 0) {
-            defs = combat_engagement_strength(&sctx, def_id, u->id, NULL);
-            const ColonizeUnit* du = units_get_const(units, def_id);
-            if (du && du->type_index == UNITS_KIND_ARTILLERY) {
-              defs >>= 3;
-            }
-          }
-          for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-            const ColonizeUnit* su = &units->units[i];
-            if (!su->active || su->aboard_ship_id >= 0 || su->x != nx || su->y != ny) {
-              continue;
-            }
-            switch (su->type_index) {
-              case UNITS_KIND_COLONIST: score += 4; break;
-              case UNITS_KIND_SOLDIER: score -= 2; break;
-              case UNITS_KIND_PIONEER:
-              case UNITS_KIND_MISSIONARY:
-              case UNITS_KIND_SCOUT: score += 8; break;
-              case UNITS_KIND_DRAGOON: score -= 1; break;
-              case UNITS_KIND_TREASURE:
-              case UNITS_KIND_ARTILLERY:
-              case UNITS_KIND_WAGON: score += 0x10; break;
-              default: break;
-            }
-          }
-          if (defs <= atk) {
-            score += (atk - defs) + 0x1e;
-          } else {
-            score += (atk - defs) * 2;
-          }
-        }
-      }
-      if (col && ai_continent_id(map, nx, ny) == continent) {
-        const int dcol = map_dos_dist(col->x - nx, col->y - ny);
-        const uint8_t rel = ai_diplo_read(col1, nation_id, col->nation_id);
-        const int a = ai_diplo_indian_alarm(col1, nation_id, col->nation_id);
-        if (a >= 0x4b) {
-          if (rel & 0x20) {
-            score -= dcol * 2;
-          }
-        } else if (dcol < 12) {
-          score += ((ai_021a_alarm_tier(a) + 1) * (12 - dcol)) >> 2;
-        }
-      }
-    }
-    /* 0x1158 */
-    const int roll = ai_rng_range(rng, 1, 5);
-    score += roll;
-    if (score < 0) {
-      score = 0;
-    }
-    if (dump) {
-      fprintf(
-        stderr,
-        "AI_021A d=%d dest=(%d,%d) score=%d roll=%d flags=%02x terr=%02x own=%d pres=%d set=%d "
-        "fa=%d/%d riv=%d/%d res=%d vdist=%d adjf=%d visit=%d/%d occ=%d rum=%d hd=%d cont=%d\n",
-        d, nx, ny, score, roll, flags, terr, owner, presence, settle, unit_fa, dfa,
-        unit_river != 0, driver != 0, dres, vdist,
-        ai_021a_adjacent_foreign(map, nx, ny, nation_id, 1), visit_nation, visit_val, occ,
-        map_dos_0598_rumour_tile(map, nx, ny), map_dos_dist(nx - vx, ny - vy),
-        ai_continent_id(map, nx, ny)
-      );
-      if (s_021a_adj_fx >= 0) {
-        fprintf(
-          stderr, "AI_021A   adjf tile=(%d,%d) l2=%02x l3=%02x unit=%d\n", s_021a_adj_fx,
-          s_021a_adj_fy, ai_layer2_at(map, s_021a_adj_fx, s_021a_adj_fy),
-          map_get_layer3(map, s_021a_adj_fx, s_021a_adj_fy),
-          ai_unit_index_on_tile(units, s_021a_adj_fx, s_021a_adj_fy)
-        );
-      }
-    }
-    if (score > best) {
-      best = score;
-      best_dir = d;
-      best_flags = flags;
-    }
+    c.d = d;
+    ai_021a_score_dir(&c);
   }
+  best = c.best;
+  best_dir = c.best_dir;
+  best_flags = c.best_flags;
   if (dump) {
     fprintf(stderr, "AI_021A best=%d score=%d flags=%02x\n", best_dir, best, best_flags);
   }
@@ -4000,6 +4302,261 @@ static bool ai_native_brave_grudge_hold(
   }
   return false;
 }
+typedef enum {
+  AI_NATIVE_STEP_MORE = 0, /* the Brave may act again (loop continues) */
+  AI_NATIVE_STEP_STOP = 1  /* the Brave is done this turn (was a bare `break;`) */
+} AiNativeStepStatus;
+
+/*
+ * One FUN_1427_13b0 act for one Brave: MP gate, grudge hold, 021a direction
+ * pick, the partial-MP gamble and the commit. Extracted verbatim from
+ * ai_native_nation_pulse.
+ */
+static AiNativeStepStatus ai_native_brave_step(
+  ColonizeUnitPool* units, ColonizeWorldMap* map, ColonizeCol1Save* col1, AiRng* rng,
+  int nation_id, bool seed100_init_burns, ColonizeUnit* u, int hx, int hy, int tech,
+  int max_mp, int brave_index, int* steps
+) {
+  /* FUN_281f_097a / 1427_13b0: act while moves_spent < max_mp (=3).
+   * River/fa cost=1 steps keep spent < 3 so the inner loop continues —
+   * that is the multi-step path (not a second act after spent >= max). */
+  const int spent = u->moves_left;
+  if (spent >= max_mp) {
+    return AI_NATIVE_STEP_STOP;
+  }
+  /*
+   * 1816 §8 (4d56:1af3..1b1a): the act counter bumps once per ATTEMPT,
+   * before 021a runs — a Brave that only stays still ends its turn at 1.
+   * Past 0x14 the unit is exhausted and the counter zeroed, no act.
+   */
+  u->turns_worked++;
+  if (u->turns_worked > 0x14) {
+    u->moves_left = max_mp;
+    u->turns_worked = 0;
+    return AI_NATIVE_STEP_STOP;
+  }
+  /*
+   * 021a:0337..0365 — a unit whose home village slot is out of range
+   * (u+0x314a < 0 or >= DS:0x539a) is destroyed (FUN_281f_0808), not
+   * re-homed; 021a returns -1 and 14fe's "step" lands on the freed slot.
+   */
+  if (col1 &&
+      (u->home_tribe_id < 0 ||
+       u->home_tribe_id >= (int)col1->head.tribe_count)) {
+    units_despawn(units, u->id);
+    return AI_NATIVE_STEP_STOP;
+  }
+  /* Alarmed dispatch stand-in — see ai_native_brave_grudge_hold. */
+  if (ai_native_brave_grudge_hold(units, s_ai_native_colonies, col1, u)) {
+    u->turns_worked--;
+    return AI_NATIVE_STEP_STOP;
+  }
+  if (ai_lcg_audit_enabled() && seed100_init_burns) {
+    fprintf(
+      stderr,
+      "AI_LCG_AUDIT brave_begin n=%d idx=%d xy=(%d,%d) spent=%d step=%d\n",
+      nation_id,
+      brave_index,
+      u->x,
+      u->y,
+      spent,
+      *steps
+    );
+  }
+  /* DOS reads unit+0x314f raw; values outside 0..7 (8 = stayed last
+   * act) legitimately disable the facing term — do NOT clamp to 0. */
+  const int last_dir = u->last_dir;
+  s_ai_native_home_dist = map_dos_dist(u->x - hx, u->y - hy); /* DS:0x8db8 */
+  (void)tech;
+  Ai021aResult pick;
+  int dir = ai_native_pick_dir(rng, map, units, col1, u, nation_id, last_dir, &pick);
+  if (!ai_brave_pick_legacy() && col1) {
+    const int picked = dir;
+    dir = ai_native_021a_tail(units, map, col1, rng, u, nation_id, dir, pick.flags);
+    if (ai_021a_trace_enabled()) {
+      fprintf(
+        stderr,
+        "AI_021A_ACT t=%d n=%d idx=%d xy=(%d,%d) facing=%d spent=%d tw=%d pick=%d flags=%02x dir=%d\n",
+        s_ai_seed100_midturn_turn, nation_id, brave_index, u->x, u->y, last_dir,
+        u->moves_left, u->turns_worked, picked, pick.flags, dir
+      );
+    }
+  }
+  if (dir < 0 || dir > 7) {
+    /*
+     * Stay (dir == 8). 021a:11b9 writes the picked dir into the facing
+     * byte (COL1 +0x0b) unconditionally — the full byte value 8 (facing
+     * bits 0 + pad bit0 in the save split). Keep last_dir = 8 in memory:
+     * 521d:54f5 skips the facing term for any byte >= 8.
+     */
+    u->last_dir = 8;
+    u->col1_facing_pad = 1;
+    /*
+     * 021a:11cd orders latch: stay -> 5 (FORTIFY), repeat stay -> 6
+     * (FORTIFIED) — the DOS byte values equal the port enum. DOS stomps
+     * any orders byte; the port latches only over NONE/FORTIFY/FORTIFIED
+     * so the Linux-side FOLLOW/GOTO escort machinery survives (DOS
+     * escorts exit 021a through the raid dispatch, never this tail).
+     */
+    if (u->orders == UNITS_ORDER_NONE || u->orders == UNITS_ORDER_FORTIFY ||
+        u->orders == UNITS_ORDER_FORTIFIED) {
+      u->orders = (u->orders == UNITS_ORDER_NONE) ? UNITS_ORDER_FORTIFY
+                                                  : UNITS_ORDER_FORTIFIED;
+    }
+    /*
+     * 021a:11ef..126c in-field arm/mount, gated on standing on a
+     * settlement tile owned by this nation (FUN_281f_06be
+     * tile_tribe_owner == nation): type 0x13/0x15 with tribe muskets > 0
+     * (signed byte) -> ++type, musket spent on rng(0, difficulty) == 0;
+     * then horse_breeding >= 0x19 with max MP <= 3 (FUN_281f_090c, read
+     * AFTER the musket arm) -> type += 2, horse_breeding -= 0x19.
+     * (Field-upgrade path; the 152e spawn path uses 0x31/0x32.)
+     */
+    if (col1 && nation_id >= 4 && nation_id <= 11 &&
+        map_tile_has_city(map, u->x, u->y) &&
+        ai_owner_nibble(map, u->x, u->y) == nation_id) {
+      ColonizeCol1Indian* ind = &col1->indian[nation_id - 4];
+      if ((int8_t)ind->muskets > 0 &&
+          (u->type_index == UNITS_KIND_BRAVE || u->type_index == UNITS_KIND_MTD_BRAVE)) {
+        u->type_index++;
+        if (ai_rng_range(rng, 0, (int)col1->head.difficulty) == 0) {
+          ind->muskets--;
+        }
+      }
+      if (ind->horse_breeding >= 0x19 && units_max_mp(units, u->id) <= 3) {
+        u->type_index += 2;
+        ind->horse_breeding -= 0x19;
+      }
+    }
+    u->moves_left = max_mp;
+    return AI_NATIVE_STEP_STOP;
+  }
+  const int nx = u->x + k_ai_dir8_dx[dir];
+  const int ny = u->y + k_ai_dir8_dy[dir];
+  const int cost = ai_dos_move_spent(map, u->x, u->y, nx, ny, dir);
+  const int from_x = u->x;
+  const int from_y = u->y;
+  /*
+   * FUN_465b_0000 cost gate (viceroy_unpacked.c 75643-75647 + the
+   * `else` at :75820): `(cost <= left) || (spent == 0) || (04ca(timer),
+   * attack)`; a quiet step that overspends with MP already spent RESEEDS
+   * the LCG from the timer word (= the fixed seed under VR_SEED / --seed)
+   * and then rolls RNG(1, cost) — only `roll <= left` moves. The denied
+   * unit stays put with `spent += cost` already booked at :75617, its
+   * facing already stamped by 021a. Seed-100 TURN2: the Arawak Brave's
+   * river second step (spent 1, cost 9) is exactly this roll, and every
+   * later Arawak act reads the restarted stream.
+   */
+  if (spent != 0 && cost > max_mp - spent) {
+    dos_rng_seed(rng, ai_turn_seed(s_ai_native_ctx));
+    const int roll = ai_rng_range(rng, 1, cost);
+    if (ai_021a_trace_enabled()) {
+      fprintf(
+        stderr, "AI_021A_GAMBLE n=%d xy=(%d,%d) dir=%d cost=%d left=%d roll=%d -> %s\n",
+        nation_id, u->x, u->y, dir, cost, max_mp - spent, roll,
+        roll <= max_mp - spent ? "move" : "denied"
+      );
+    }
+    if (roll > max_mp - spent) {
+      u->moves_left = spent + cost;
+      u->last_dir = dir;
+      u->col1_facing_pad = 0;
+      if (u->orders == UNITS_ORDER_FORTIFY || u->orders == UNITS_ORDER_FORTIFIED) {
+        u->orders = UNITS_ORDER_NONE;
+      }
+      (*steps)++;
+      return AI_NATIVE_STEP_STOP;
+    }
+  }
+  if (ai_step_audit_enabled() && s_ai_seed100_midturn_turn > 0) {
+    fprintf(
+      stderr,
+      "AI_STEP_AUDIT t=%d n=%d from=(%d,%d) dir=%d to=(%d,%d) cost=%d spent_before=%d "
+      "tw=%d step=%d\n",
+      s_ai_seed100_midturn_turn,
+      nation_id,
+      from_x,
+      from_y,
+      dir,
+      nx,
+      ny,
+      cost,
+      spent,
+      u->turns_worked,
+      *steps
+    );
+  }
+  {
+    const int step_ox = u->x;
+    const int step_oy = u->y;
+    u->x = nx;
+    u->y = ny;
+    units_occupancy_notify_moved(units, step_ox, step_oy, nx, ny);
+    /* 465b commit tail clears+recomputes unit+0x3147's observed nibble
+     * (FUN_281f_08da / 084e / 07fe) on every step — braves included. */
+    units_vis_mask_after_move(units, map, u->id, nx, ny);
+  }
+  u->moves_left = spent + cost;
+  /*
+   * FUN_465b LAB_465b_05ca: ocean/HS flag change AND
+   * euro_settlement_owner(from) < 0 AND euro_settlement_owner(dest) < 0
+   * → spent = max_mp (FUN_281f_090c).
+   * euro_settlement = tribe bit + Euro owner 0..3 (FUN_137f_0358).
+   */
+  if (ai_is_ocean_hs(map, from_x, from_y) != ai_is_ocean_hs(map, nx, ny)) {
+    const int from_euro_set =
+      ((ai_layer2_at(map, from_x, from_y) & 2u) != 0 &&
+       ai_owner_nibble(map, from_x, from_y) >= 0 &&
+       ai_owner_nibble(map, from_x, from_y) < 4);
+    const int to_euro_set =
+      ((ai_layer2_at(map, nx, ny) & 2u) != 0 && ai_owner_nibble(map, nx, ny) >= 0 &&
+       ai_owner_nibble(map, nx, ny) < 4);
+    if (!from_euro_set && !to_euro_set) {
+      u->moves_left = max_mp;
+    }
+  }
+  /* 021a:11b9 full-byte facing write (pad cleared on a real dir), and
+   * 021a:126e — any move resets the stay latch (guarded as above). */
+  u->last_dir = dir;
+  u->col1_facing_pad = 0;
+  if (u->orders == UNITS_ORDER_FORTIFY || u->orders == UNITS_ORDER_FORTIFIED) {
+    u->orders = UNITS_ORDER_NONE;
+  }
+  ai_set_owner_nibble_move(map, nx, ny, nation_id);
+  if (!seed100_init_burns && ai_native_step_first_contact(units, map, col1, u, nation_id)) {
+    u->moves_left = max_mp; /* LAB_5bfb_1005: FUN_281f_0934 on the Indian mover */
+    (*steps)++;
+    return AI_NATIVE_STEP_STOP;
+  }
+  if (ai_lcg_audit_enabled() && seed100_init_burns) {
+    fprintf(
+      stderr,
+      "AI_AB step n=%d idx=%d from=(%d,%d) dir=%d to=(%d,%d) cost=%d\n",
+      nation_id,
+      brave_index,
+      from_x,
+      from_y,
+      dir,
+      nx,
+      ny,
+      cost
+    );
+  }
+  (*steps)++;
+  if (seed100_init_burns && brave_index == 0 && *steps == 1) {
+    ai_native_post_first_brave_burns(rng, nation_id);
+  }
+  /*
+   * The DOS 0x14 act cap now trips on `turns_worked` at the attempt top
+   * (4d56:1af7). `cost <= 0` stays as a Linux-only belt (DOS has no such
+   * break — it keeps acting until the counter or MP gate trips).
+   */
+  if (cost <= 0) {
+    return AI_NATIVE_STEP_STOP;
+  }
+  return AI_NATIVE_STEP_MORE;
+}
+
 
 static void ai_native_nation_pulse(
   ColonizeUnitPool* units,
@@ -4076,241 +4633,10 @@ static void ai_native_nation_pulse(
     }
     int steps = 0;
     for (;;) {
-      /* FUN_281f_097a / 1427_13b0: act while moves_spent < max_mp (=3).
-       * River/fa cost=1 steps keep spent < 3 so the inner loop continues —
-       * that is the multi-step path (not a second act after spent >= max). */
-      const int spent = u->moves_left;
-      if (spent >= max_mp) {
-        break;
-      }
-      /*
-       * 1816 §8 (4d56:1af3..1b1a): the act counter bumps once per ATTEMPT,
-       * before 021a runs — a Brave that only stays still ends its turn at 1.
-       * Past 0x14 the unit is exhausted and the counter zeroed, no act.
-       */
-      u->turns_worked++;
-      if (u->turns_worked > 0x14) {
-        u->moves_left = max_mp;
-        u->turns_worked = 0;
-        break;
-      }
-      /*
-       * 021a:0337..0365 — a unit whose home village slot is out of range
-       * (u+0x314a < 0 or >= DS:0x539a) is destroyed (FUN_281f_0808), not
-       * re-homed; 021a returns -1 and 14fe's "step" lands on the freed slot.
-       */
-      if (col1 &&
-          (u->home_tribe_id < 0 ||
-           u->home_tribe_id >= (int)col1->head.tribe_count)) {
-        units_despawn(units, u->id);
-        break;
-      }
-      /* Alarmed dispatch stand-in — see ai_native_brave_grudge_hold. */
-      if (ai_native_brave_grudge_hold(units, s_ai_native_colonies, col1, u)) {
-        u->turns_worked--;
-        break;
-      }
-      if (ai_lcg_audit_enabled() && seed100_init_burns) {
-        fprintf(
-          stderr,
-          "AI_LCG_AUDIT brave_begin n=%d idx=%d xy=(%d,%d) spent=%d step=%d\n",
-          nation_id,
-          brave_index,
-          u->x,
-          u->y,
-          spent,
-          steps
-        );
-      }
-      /* DOS reads unit+0x314f raw; values outside 0..7 (8 = stayed last
-       * act) legitimately disable the facing term — do NOT clamp to 0. */
-      const int last_dir = u->last_dir;
-      s_ai_native_home_dist = map_dos_dist(u->x - hx, u->y - hy); /* DS:0x8db8 */
-      (void)tech;
-      Ai021aResult pick;
-      int dir = ai_native_pick_dir(rng, map, units, col1, u, nation_id, last_dir, &pick);
-      if (!ai_brave_pick_legacy() && col1) {
-        const int picked = dir;
-        dir = ai_native_021a_tail(units, map, col1, rng, u, nation_id, dir, pick.flags);
-        if (ai_021a_trace_enabled()) {
-          fprintf(
-            stderr,
-            "AI_021A_ACT t=%d n=%d idx=%d xy=(%d,%d) facing=%d spent=%d tw=%d pick=%d flags=%02x dir=%d\n",
-            s_ai_seed100_midturn_turn, nation_id, brave_index, u->x, u->y, last_dir,
-            u->moves_left, u->turns_worked, picked, pick.flags, dir
-          );
-        }
-      }
-      if (dir < 0 || dir > 7) {
-        /*
-         * Stay (dir == 8). 021a:11b9 writes the picked dir into the facing
-         * byte (COL1 +0x0b) unconditionally — the full byte value 8 (facing
-         * bits 0 + pad bit0 in the save split). Keep last_dir = 8 in memory:
-         * 521d:54f5 skips the facing term for any byte >= 8.
-         */
-        u->last_dir = 8;
-        u->col1_facing_pad = 1;
-        /*
-         * 021a:11cd orders latch: stay -> 5 (FORTIFY), repeat stay -> 6
-         * (FORTIFIED) — the DOS byte values equal the port enum. DOS stomps
-         * any orders byte; the port latches only over NONE/FORTIFY/FORTIFIED
-         * so the Linux-side FOLLOW/GOTO escort machinery survives (DOS
-         * escorts exit 021a through the raid dispatch, never this tail).
-         */
-        if (u->orders == UNITS_ORDER_NONE || u->orders == UNITS_ORDER_FORTIFY ||
-            u->orders == UNITS_ORDER_FORTIFIED) {
-          u->orders = (u->orders == UNITS_ORDER_NONE) ? UNITS_ORDER_FORTIFY
-                                                      : UNITS_ORDER_FORTIFIED;
-        }
-        /*
-         * 021a:11ef..126c in-field arm/mount, gated on standing on a
-         * settlement tile owned by this nation (FUN_281f_06be
-         * tile_tribe_owner == nation): type 0x13/0x15 with tribe muskets > 0
-         * (signed byte) -> ++type, musket spent on rng(0, difficulty) == 0;
-         * then horse_breeding >= 0x19 with max MP <= 3 (FUN_281f_090c, read
-         * AFTER the musket arm) -> type += 2, horse_breeding -= 0x19.
-         * (Field-upgrade path; the 152e spawn path uses 0x31/0x32.)
-         */
-        if (col1 && nation_id >= 4 && nation_id <= 11 &&
-            map_tile_has_city(map, u->x, u->y) &&
-            ai_owner_nibble(map, u->x, u->y) == nation_id) {
-          ColonizeCol1Indian* ind = &col1->indian[nation_id - 4];
-          if ((int8_t)ind->muskets > 0 &&
-              (u->type_index == UNITS_KIND_BRAVE || u->type_index == UNITS_KIND_MTD_BRAVE)) {
-            u->type_index++;
-            if (ai_rng_range(rng, 0, (int)col1->head.difficulty) == 0) {
-              ind->muskets--;
-            }
-          }
-          if (ind->horse_breeding >= 0x19 && units_max_mp(units, u->id) <= 3) {
-            u->type_index += 2;
-            ind->horse_breeding -= 0x19;
-          }
-        }
-        u->moves_left = max_mp;
-        break;
-      }
-      const int nx = u->x + k_ai_dir8_dx[dir];
-      const int ny = u->y + k_ai_dir8_dy[dir];
-      const int cost = ai_dos_move_spent(map, u->x, u->y, nx, ny, dir);
-      const int from_x = u->x;
-      const int from_y = u->y;
-      /*
-       * FUN_465b_0000 cost gate (viceroy_unpacked.c 75643-75647 + the
-       * `else` at :75820): `(cost <= left) || (spent == 0) || (04ca(timer),
-       * attack)`; a quiet step that overspends with MP already spent RESEEDS
-       * the LCG from the timer word (= the fixed seed under VR_SEED / --seed)
-       * and then rolls RNG(1, cost) — only `roll <= left` moves. The denied
-       * unit stays put with `spent += cost` already booked at :75617, its
-       * facing already stamped by 021a. Seed-100 TURN2: the Arawak Brave's
-       * river second step (spent 1, cost 9) is exactly this roll, and every
-       * later Arawak act reads the restarted stream.
-       */
-      if (spent != 0 && cost > max_mp - spent) {
-        dos_rng_seed(rng, ai_turn_seed(s_ai_native_ctx));
-        const int roll = ai_rng_range(rng, 1, cost);
-        if (ai_021a_trace_enabled()) {
-          fprintf(
-            stderr, "AI_021A_GAMBLE n=%d xy=(%d,%d) dir=%d cost=%d left=%d roll=%d -> %s\n",
-            nation_id, u->x, u->y, dir, cost, max_mp - spent, roll,
-            roll <= max_mp - spent ? "move" : "denied"
-          );
-        }
-        if (roll > max_mp - spent) {
-          u->moves_left = spent + cost;
-          u->last_dir = dir;
-          u->col1_facing_pad = 0;
-          if (u->orders == UNITS_ORDER_FORTIFY || u->orders == UNITS_ORDER_FORTIFIED) {
-            u->orders = UNITS_ORDER_NONE;
-          }
-          steps++;
-          break;
-        }
-      }
-      if (ai_step_audit_enabled() && s_ai_seed100_midturn_turn > 0) {
-        fprintf(
-          stderr,
-          "AI_STEP_AUDIT t=%d n=%d from=(%d,%d) dir=%d to=(%d,%d) cost=%d spent_before=%d "
-          "tw=%d step=%d\n",
-          s_ai_seed100_midturn_turn,
-          nation_id,
-          from_x,
-          from_y,
-          dir,
-          nx,
-          ny,
-          cost,
-          spent,
-          u->turns_worked,
-          steps
-        );
-      }
-      {
-        const int step_ox = u->x;
-        const int step_oy = u->y;
-        u->x = nx;
-        u->y = ny;
-        units_occupancy_notify_moved(units, step_ox, step_oy, nx, ny);
-        /* 465b commit tail clears+recomputes unit+0x3147's observed nibble
-         * (FUN_281f_08da / 084e / 07fe) on every step — braves included. */
-        units_vis_mask_after_move(units, map, u->id, nx, ny);
-      }
-      u->moves_left = spent + cost;
-      /*
-       * FUN_465b LAB_465b_05ca: ocean/HS flag change AND
-       * euro_settlement_owner(from) < 0 AND euro_settlement_owner(dest) < 0
-       * → spent = max_mp (FUN_281f_090c).
-       * euro_settlement = tribe bit + Euro owner 0..3 (FUN_137f_0358).
-       */
-      if (ai_is_ocean_hs(map, from_x, from_y) != ai_is_ocean_hs(map, nx, ny)) {
-        const int from_euro_set =
-          ((ai_layer2_at(map, from_x, from_y) & 2u) != 0 &&
-           ai_owner_nibble(map, from_x, from_y) >= 0 &&
-           ai_owner_nibble(map, from_x, from_y) < 4);
-        const int to_euro_set =
-          ((ai_layer2_at(map, nx, ny) & 2u) != 0 && ai_owner_nibble(map, nx, ny) >= 0 &&
-           ai_owner_nibble(map, nx, ny) < 4);
-        if (!from_euro_set && !to_euro_set) {
-          u->moves_left = max_mp;
-        }
-      }
-      /* 021a:11b9 full-byte facing write (pad cleared on a real dir), and
-       * 021a:126e — any move resets the stay latch (guarded as above). */
-      u->last_dir = dir;
-      u->col1_facing_pad = 0;
-      if (u->orders == UNITS_ORDER_FORTIFY || u->orders == UNITS_ORDER_FORTIFIED) {
-        u->orders = UNITS_ORDER_NONE;
-      }
-      ai_set_owner_nibble_move(map, nx, ny, nation_id);
-      if (!seed100_init_burns && ai_native_step_first_contact(units, map, col1, u, nation_id)) {
-        u->moves_left = max_mp; /* LAB_5bfb_1005: FUN_281f_0934 on the Indian mover */
-        steps++;
-        break;
-      }
-      if (ai_lcg_audit_enabled() && seed100_init_burns) {
-        fprintf(
-          stderr,
-          "AI_AB step n=%d idx=%d from=(%d,%d) dir=%d to=(%d,%d) cost=%d\n",
-          nation_id,
-          brave_index,
-          from_x,
-          from_y,
-          dir,
-          nx,
-          ny,
-          cost
-        );
-      }
-      steps++;
-      if (seed100_init_burns && brave_index == 0 && steps == 1) {
-        ai_native_post_first_brave_burns(rng, nation_id);
-      }
-      /*
-       * The DOS 0x14 act cap now trips on `turns_worked` at the attempt top
-       * (4d56:1af7). `cost <= 0` stays as a Linux-only belt (DOS has no such
-       * break — it keeps acting until the counter or MP gate trips).
-       */
-      if (cost <= 0) {
+      if (ai_native_brave_step(
+            units, map, col1, rng, nation_id, seed100_init_burns, u, hx, hy, tech,
+            max_mp, brave_index, &steps
+          ) == AI_NATIVE_STEP_STOP) {
         break;
       }
     }
