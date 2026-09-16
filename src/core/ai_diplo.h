@@ -328,5 +328,8 @@ void ai_diplo_indian_capital_surrender(
  * cancelled, or OK (choice_id 0). FUN_5bfb / 15b3 / 10ec / war-fatigue;
  * FA 3f41 full UI PARKED. (Alliance CHOICE arms retired T2.4.) */
 void ai_diplo_apply_popup_result(ColonizeTurnContext* ctx, const AiPopupState* popup);
+/* Drop any in-flight 153e talk (new game / load: its popups are gone with the
+ * old queue, and a stuck talk blocks every later encounter). */
+void ai_diplo_talk_reset(void);
 
 #endif

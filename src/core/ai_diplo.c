@@ -3676,8 +3676,26 @@ uint8_t ai_diplo_indian_relation(
   return (uint8_t)(100 - ai_diplo_indian_alarm(col1, indian_nation, euro_nation));
 }
 
+void ai_diplo_talk_reset(void) {
+  s_talk.active = 0;
+}
+
 void ai_diplo_apply_popup_result(ColonizeTurnContext* ctx, const AiPopupState* popup) {
-  if (!ctx || !popup || !popup->has_result || popup->result_cancelled) {
+  if (!ctx || !popup || !popup->has_result) {
+    return;
+  }
+  if (popup->result_cancelled) {
+    /*
+     * bugs.md #462: an Esc on any 153e talk popup left s_talk.active set, so
+     * every later encounter (adjacent step, Meet With Mayor) returned 0
+     * without a word until the process restarted. Esc ends the talk the same
+     * way the last stage does (DOS FUN_5bfb_153e has no abort path; a
+     * cancelled menu falls out of the dialog into the finish block).
+     */
+    if (popup->result_tag == AI_POPUP_TAG_DIPLO_TALK && s_talk.active && ctx->col1) {
+      s_talk.stage = AI_TALK_ST_DONE;
+      ai_talk_finish(ctx);
+    }
     return;
   }
   /*
