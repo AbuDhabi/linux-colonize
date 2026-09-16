@@ -8,6 +8,7 @@
 #include "core/assets.h"
 #include "core/col1_save.h"
 #include "core/colony.h"
+#include "core/colony_production.h"
 #include "core/dos_rng.h"
 #include "core/founding_fathers.h"
 #include "core/popup_msg.h"
@@ -474,13 +475,13 @@ static const char* europe_pool_job_name(int profession) {
  */
 static int europe_pool_remap(int job) {
   switch (job) {
-    case 0x12: return 0x0d;
-    case UNITS_JOB_COLONIST: return 0x16;
-    case 0x01: return 0x08;
-    case 0x02: return 0x05;
-    case 0x03: return 0x00;
-    case 0x04: return 0x06;
-    case UNITS_JOB_DRAGOON: return 0x0d;
+    case COLONIZE_PROF_TEACHER: return COLONIZE_PROF_CARPENTER;
+    case UNITS_JOB_COLONIST: return UNITS_JOB_SCOUT;
+    case COLONIZE_PROF_SUGAR_PLANTER: return COLONIZE_PROF_FISHERMAN;
+    case COLONIZE_PROF_TOBACCO_PLANTER: return COLONIZE_PROF_LUMBERJACK;
+    case COLONIZE_PROF_COTTON_PLANTER: return COLONIZE_PROF_FARMER;
+    case COLONIZE_PROF_FUR_TRAPPER: return COLONIZE_PROF_ORE_MINER;
+    case UNITS_JOB_DRAGOON: return COLONIZE_PROF_CARPENTER;
     default: return job;
   }
 }
@@ -727,7 +728,9 @@ void europe_seed_pool(EuropeScreen* eu, int difficulty, bool human) {
     europe_refill_pool_slot_impl(eu, 2, true, NULL, &rng);
   }
   if (human && difficulty <= 1) {
-    static const int k_easy[3] = {0x0d, 0x00, 0x16};
+    static const int k_easy[3] = {
+      COLONIZE_PROF_CARPENTER, COLONIZE_PROF_FARMER, UNITS_JOB_SCOUT
+    };
     for (int i = (difficulty == 0) ? 0 : 1; i < EUROPE_POOL_SIZE && i < 3; ++i) {
       snprintf(eu->pool[i].name, sizeof(eu->pool[i].name), "%s", europe_pool_job_name(k_easy[i]));
       eu->pool[i].profession = k_easy[i];

@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "core/colony_production.h"
 #include "core/fb.h"
 #include "core/map.h"
 #include "core/strutil.h"
@@ -779,20 +780,20 @@ static const signed char k_pedia_terrain_resource[PEDIA_TERRAIN_COUNT] = {
 #define PEDIA_RES_DOUBLE (-1)
 static int pedia_resource_effect(int resource, int job) {
   int v = 0;
-  if (resource == 9 && job == 0) v = 2;
-  if (resource == 1 && job == 0) v += 2;
-  if (resource == 2 && job == 0) v += 2;
-  if (resource == 9 && job == 4) v += 2;
-  if (resource == 8 && job == 4) v += 2;
-  if (resource == 3 && job == 3) v = PEDIA_RES_DOUBLE;
-  if (resource == 4 && job == 2) v = PEDIA_RES_DOUBLE;
-  if (resource == 5 && job == 1) v = PEDIA_RES_DOUBLE;
-  if (resource == 10 && job == 5) v += 2;
-  if (resource == 6 && job == 6) v += 3;
-  if (resource == 13 && job == 6) v += 2;
-  if (resource == 6 && job == 7) v += 1;
-  if (resource == 12 && job == 7) v += 2;
-  if (resource == 7 && job == 8) v += 3;
+  if (resource == 9 && job == COLONIZE_PROF_FARMER) v = 2;
+  if (resource == 1 && job == COLONIZE_PROF_FARMER) v += 2;
+  if (resource == 2 && job == COLONIZE_PROF_FARMER) v += 2;
+  if (resource == 9 && job == COLONIZE_PROF_FUR_TRAPPER) v += 2;
+  if (resource == 8 && job == COLONIZE_PROF_FUR_TRAPPER) v += 2;
+  if (resource == 3 && job == COLONIZE_PROF_COTTON_PLANTER) v = PEDIA_RES_DOUBLE;
+  if (resource == 4 && job == COLONIZE_PROF_TOBACCO_PLANTER) v = PEDIA_RES_DOUBLE;
+  if (resource == 5 && job == COLONIZE_PROF_SUGAR_PLANTER) v = PEDIA_RES_DOUBLE;
+  if (resource == 10 && job == COLONIZE_PROF_LUMBERJACK) v += 2;
+  if (resource == 6 && job == COLONIZE_PROF_ORE_MINER) v += 3;
+  if (resource == 13 && job == COLONIZE_PROF_ORE_MINER) v += 2;
+  if (resource == 6 && job == COLONIZE_PROF_SILVER_MINER) v += 1;
+  if (resource == 12 && job == COLONIZE_PROF_SILVER_MINER) v += 2;
+  if (resource == 7 && job == COLONIZE_PROF_FISHERMAN) v += 3;
   return v;
 }
 
@@ -1197,7 +1198,7 @@ static void pedia_cargo_row(
   char name[64];
   if (cargo < 0) {
     sprite = 57; /* Fish */
-    job = 8;
+    job = COLONIZE_PROF_FISHERMAN;
     snprintf(name, sizeof(name), "%s", pedia_label(a->labels, 177, "Fish"));
   } else {
     pedia_cargo_display_name(a->names, cargo, name, sizeof(name));
@@ -1671,24 +1672,24 @@ static int pedia_article_job(
   if (job < 19) {
     int cargo_sprite = 22 + job;
     int cargo_name_id = job;
-    if (job == 8) {
+    if (job == COLONIZE_PROF_FISHERMAN) {
       cargo_sprite = 57;
     }
-    if (job == 13) {
+    if (job == COLONIZE_PROF_CARPENTER) {
       cargo_sprite = 54;
       cargo_name_id = 16;
     }
-    if (job == 16) {
+    if (job == COLONIZE_PROF_PREACHER) {
       cargo_sprite = 56;
       cargo_name_id = 17;
     }
-    if (job == 17) {
+    if (job == COLONIZE_PROF_STATESMAN) {
       cargo_sprite = 62;
       cargo_name_id = 18;
     }
     pedia_blit(a->icons, cargo_sprite, fb, prod_x, icon_y + 2);
     char cname[64];
-    if (job == 8) {
+    if (job == COLONIZE_PROF_FISHERMAN) {
       snprintf(cname, sizeof(cname), "%s", pedia_label(a->labels, 177, "Fish"));
     } else {
       pedia_cargo_display_name(a->names, cargo_name_id, cname, sizeof(cname));
@@ -1728,7 +1729,7 @@ static int pedia_article_building(
   int x = 10 + w + 3 + font_text_width_skip(a->font, bname, FONT_SKIP_NONE) + 24;
 
   int job = (b >= 0 && b < PEDIA_BUILDING_COUNT) ? k_pedia_building_job[b] : -1;
-  if (job == 18 || job == UNITS_JOB_SOLDIER) {
+  if (job == COLONIZE_PROF_TEACHER || job == UNITS_JOB_SOLDIER) {
     job = -1; /* Teacher / Soldier rows are not shown (DOS 1ba8) */
   }
   if (job >= 0) {
@@ -1740,15 +1741,15 @@ static int pedia_article_building(
 
     int cargo_sprite = 22 + job;
     int cargo_name_id = job;
-    if (job == 13) {
+    if (job == COLONIZE_PROF_CARPENTER) {
       cargo_sprite = 54;
       cargo_name_id = 16;
     }
-    if (job == 16) {
+    if (job == COLONIZE_PROF_PREACHER) {
       cargo_sprite = 56;
       cargo_name_id = 17;
     }
-    if (job == 17) {
+    if (job == COLONIZE_PROF_STATESMAN) {
       cargo_sprite = 62;
       cargo_name_id = 18;
     }

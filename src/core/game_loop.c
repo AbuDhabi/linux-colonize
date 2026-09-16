@@ -2,18 +2,18 @@
 
 /*
  * Sections:
- *  - Screen tracking & move/combat watch presentation (~line 128)
- *  - Cheat menu, trade-route wizard, cheat-list & save/load popups (~line 890)
- *  - Map sprite blitting & zoom helpers (~line 2046)
- *  - Save/load slot IO, reports/score/pedia menus (~line 2260)
- *  - Europe screen rendering (~line 2984)
- *  - Colony screen render, asset/palette loading, game_create/destroy (~line 4064)
- *  - Unit selection & movement dispatch (~line 5085)
- *  - Colony UI: enter colony, drag & drop, job/building assignment (~line 6023)
- *  - Europe voyages, colony roles, dock orders (~line 7014)
- *  - End-of-turn flow, trade-route servicing, map menu actions (~line 7486)
- *  - Woodcuts/intro/popup queue servicing & main per-frame update (~line 9556)
- *  - Begin menu, full-screen render & public accessor API (~line 12610)
+ *  - Screen tracking & move/combat watch presentation (~line 148)
+ *  - Cheat menu, trade-route wizard, cheat-list & save/load popups (~line 910)
+ *  - Map sprite blitting & zoom helpers (~line 2066)
+ *  - Save/load slot IO, reports/score/pedia menus (~line 2280)
+ *  - Europe screen rendering (~line 3007)
+ *  - Colony screen render, asset/palette loading, game_create/destroy (~line 4117)
+ *  - Unit selection & movement dispatch (~line 5172)
+ *  - Colony UI: enter colony, drag & drop, job/building assignment (~line 6184)
+ *  - Europe voyages, colony roles, dock orders (~line 7175)
+ *  - End-of-turn flow, trade-route servicing, map menu actions (~line 7647)
+ *  - Woodcuts/intro/popup queue servicing & main per-frame update (~line 9800)
+ *  - Begin menu, full-screen render & public accessor API (~line 12945)
  *
  * The dialog-wiring family (game_request_* / game_open_* / game_apply_*_result
  * and the confirm / name-entry / how-much helpers) lives in game_dialogs.c;
@@ -23,6 +23,25 @@
  * game_update is a dispatcher: its per-screen / per-phase steps are the
  * game_update_* statics just above it, each returning a GameUpdateStep the
  * dispatcher honours (CONTINUE = fall through to the next step).
+ *
+ * Per the big-function rule, the other long routines are split the same way,
+ * each stage static sitting directly above its dispatcher:
+ *  - render_europe_screen   -> render_europe_chrome / _holds_and_dock /
+ *                              _market_and_buttons
+ *  - game_create            -> game_create_reset_fields / _resolve_data_dir /
+ *                              _load_text_assets / _load_menu_art /
+ *                              _load_sheets / _load_screens
+ *  - game_try_unit_move     -> game_move_* stages (GameMoveStep)
+ *  - game_apply_map_menu_action -> game_menu_action_* case clusters
+ *                              (GameMenuActionStatus)
+ *  - game_update_unit_pacer -> game_pacer_goto_step
+ *  - game_update_colony_screen -> game_colony_screen_keys / _cargo_keys
+ *                              (alongside the older _key_enter / _mouse_click)
+ *  - game_update_europe_screen -> game_europe_screen_menu_keys / _keys / _mouse
+ *  - game_render            -> game_render_fullscreen_takeover /
+ *                              _select_palette / _screen / _map (which in turn
+ *                              calls _map_composite / _overlays / _panel /
+ *                              _dialogs)
  */
 
 #include <stdbool.h>
@@ -3744,39 +3763,17 @@ static void game_render_modal_overlays(
   }
 }
 
-static void render_europe_screen(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffer) {
-  memset(framebuffer->pixels, 0, (size_t)framebuffer->width * (size_t)framebuffer->height);
-  /* Main Europe chrome uses FONTTINY; the list popups use FONTINTR, DOS's own
-   * dialog default (see europe_menu_font). */
-  const ColonizeFont* font = game->colony_font_ok ? &game->colony_font
-    : (game->menu_font_ok ? &game->menu_font : NULL);
-  EuropeScreen* eu_mut = game->europe_ok ? (EuropeScreen*)&game->europe : NULL;
-  const EuropeScreen* eu = &game->europe;
-  if (eu_mut) {
-    europe_refresh_harbor_selection(eu_mut);
-    /* Render-only mirror for chrome (market colour, @ARMOPTIONS rows): the
-     * trade gates read the nation word itself through
-     * europe_cargo_boycotted_ex (audit G6). ai_king.c tea-party / ai_diplo.c
-     * embargo write game->col1.nation[human].boycott_bitmap directly; europe.c
-     * has no col1 pointer, so refresh the UI-side copy every render (screen is
-     * always rendered at least once before the player can act on it). */
-    if (game->col1_ok && game->human_nation >= 0 &&
-        game->human_nation < (int)COLONIZE_COL1_NATION_COUNT) {
-      /* Keep the import's 0xFFFF heal (col1_bridge_apply): a nation word that
-       * still carries the removed all-cargo-embargo fingerprint must not be
-       * mirrored back over the healed UI copy on the first frame. */
-      const uint16_t nat_boycott = game->col1.nation[game->human_nation].boycott_bitmap;
-      eu_mut->boycott_bitmap = (nat_boycott == 0xFFFFu) ? 0u : nat_boycott;
-      /* bugs.md: Brewster bans criminals/servants from the pool the moment
-       * he is owned — reroll stale slots so Recruit and dock agree with the
-       * Brewster pick dialog. */
-      europe_apply_brewster(
-        eu_mut,
-        founding_fathers_nation_has(&game->col1, game->human_nation, FF_WILLIAM_BREWSTER)
-      );
-    }
-  }
+/*
+ * render_europe_screen stages, painted in DOS order: chrome, then the
+ * ship holds and dock, then the market row and the three menu buttons.
+ */
 
+/* EUROPE.PIK background, the wood top bar with the year/season line, and the
+ * three transit boxes (outbound / in-port / inbound). */
+static void render_europe_chrome(
+  const ColonizeGameState* game, ColonizeFramebuffer8* framebuffer, const ColonizeFont* font,
+  const EuropeScreen* eu
+) {
   if (game->europe_ok && eu->background_ok) {
     pik_blit(&eu->background, framebuffer, 0, 0);
   }
@@ -3886,6 +3883,13 @@ static void render_europe_screen(const ColonizeGameState* game, ColonizeFramebuf
     eu->selected_harbor
   );
 
+}
+
+/* The selected ship's commodity holds and the two dock-colonist quay rows. */
+static void render_europe_holds_and_dock(
+  const ColonizeGameState* game, ColonizeFramebuffer8* framebuffer, const ColonizeFont* font,
+  const EuropeScreen* eu
+) {
   /* Commodity holds — same closed/open cover behavior as colony transport pane. */
   {
     const EuropeHarborShip* ship = NULL;
@@ -3991,7 +3995,14 @@ static void render_europe_screen(const ColonizeGameState* game, ColonizeFramebuf
       }
     }
   }
+}
 
+/* The 20x20 market cells and the RECRUIT / PURCHASE / TRAIN buttons. */
+static void render_europe_market_and_buttons(
+  const ColonizeGameState* game, ColonizeFramebuffer8* framebuffer, const ColonizeFont* font,
+  const EuropeScreen* eu
+) {
+  char line[192];
   /* Market: 20x20 cells sharing borders; selection lights the cell. */
   for (int i = 0; i < eu->cargo_count && i < EUROPE_CARGO_MAX; ++i) {
     const int mx = EUROPE_MARKET_X + i * EUROPE_MARKET_PITCH;
@@ -4056,6 +4067,44 @@ static void render_europe_screen(const ColonizeGameState* game, ColonizeFramebuf
       );
     }
   }
+}
+
+static void render_europe_screen(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffer) {
+  memset(framebuffer->pixels, 0, (size_t)framebuffer->width * (size_t)framebuffer->height);
+  /* Main Europe chrome uses FONTTINY; the list popups use FONTINTR, DOS's own
+   * dialog default (see europe_menu_font). */
+  const ColonizeFont* font = game->colony_font_ok ? &game->colony_font
+    : (game->menu_font_ok ? &game->menu_font : NULL);
+  EuropeScreen* eu_mut = game->europe_ok ? (EuropeScreen*)&game->europe : NULL;
+  const EuropeScreen* eu = &game->europe;
+  if (eu_mut) {
+    europe_refresh_harbor_selection(eu_mut);
+    /* Render-only mirror for chrome (market colour, @ARMOPTIONS rows): the
+     * trade gates read the nation word itself through
+     * europe_cargo_boycotted_ex (audit G6). ai_king.c tea-party / ai_diplo.c
+     * embargo write game->col1.nation[human].boycott_bitmap directly; europe.c
+     * has no col1 pointer, so refresh the UI-side copy every render (screen is
+     * always rendered at least once before the player can act on it). */
+    if (game->col1_ok && game->human_nation >= 0 &&
+        game->human_nation < (int)COLONIZE_COL1_NATION_COUNT) {
+      /* Keep the import's 0xFFFF heal (col1_bridge_apply): a nation word that
+       * still carries the removed all-cargo-embargo fingerprint must not be
+       * mirrored back over the healed UI copy on the first frame. */
+      const uint16_t nat_boycott = game->col1.nation[game->human_nation].boycott_bitmap;
+      eu_mut->boycott_bitmap = (nat_boycott == 0xFFFFu) ? 0u : nat_boycott;
+      /* bugs.md: Brewster bans criminals/servants from the pool the moment
+       * he is owned — reroll stale slots so Recruit and dock agree with the
+       * Brewster pick dialog. */
+      europe_apply_brewster(
+        eu_mut,
+        founding_fathers_nation_has(&game->col1, game->human_nation, FF_WILLIAM_BREWSTER)
+      );
+    }
+  }
+
+  render_europe_chrome(game, framebuffer, font, eu);
+  render_europe_holds_and_dock(game, framebuffer, font, eu);
+  render_europe_market_and_buttons(game, framebuffer, font, eu);
 
   europe_render_menu_popup(game, framebuffer);
 
@@ -4245,12 +4294,15 @@ static void game_water_cycle_tick(ColonizeGameState* game) {
   }
 }
 
-ColonizeGameState* game_create(const ColonizeGameConfig* config) {
-  ColonizeGameState* game = calloc(1, sizeof(*game));
-  if (!game || !config) {
-    free(game);
-    return NULL;
-  }
+/*
+ * game_create stages, in load order. Each takes the freshly calloc'd state
+ * and fills in one family of fields or assets; failures are recorded in the
+ * matching *_ok flags rather than aborting (game_create never fails past the
+ * allocation).
+ */
+
+/* Field defaults and the subsystem init calls (dialogs, pools, atlas). */
+static void game_create_reset_fields(ColonizeGameState* game, const ColonizeGameConfig* config) {
   game->config = *config;
   game->ff_pedia_after_report = -1;
   game->found_open_colony_id = -1;
@@ -4329,7 +4381,10 @@ ColonizeGameState* game_create(const ColonizeGameConfig* config) {
   units_reset(&game->units);
   colonies_init(&game->colonies);
   debug_atlas_init(&game->debug_atlas);
+}
 
+/* Data-dir resolution, required-file validation, VICEROY.PAL and GAME.TXT. */
+static void game_create_resolve_data_dir(ColonizeGameState* game, const ColonizeGameConfig* config) {
   if (!assets_resolve_data_dir(config->data_dir, game->resolved_data_dir, sizeof(game->resolved_data_dir))) {
     /* Keep resolved path even if missing so errors remain actionable. */
   }
@@ -4362,7 +4417,11 @@ ColonizeGameState* game_create(const ColonizeGameConfig* config) {
     }
   }
   load_begin_menu(game);
+}
 
+/* MENU.TXT / LABELS.TXT / DEBUG.TXT / NAMES.TXT / COLONY.TXT / PEDIA.TXT and
+ * the map sidebar panel. */
+static void game_create_load_text_assets(ColonizeGameState* game, const ColonizeGameConfig* config) {
   char menu_txt[512];
   if (dos_compat_normalize_asset_path(game->resolved_data_dir, "MENU.TXT", menu_txt, sizeof(menu_txt))) {
     if (assets_msg_load_file(&game->map_menu_txt, menu_txt)) {
@@ -4452,7 +4511,11 @@ ColonizeGameState* game_create(const ColonizeGameConfig* config) {
       diag_warn("Failed to parse PEDIA.TXT");
     }
   }
+}
 
+/* OPENMENU / WOODPANL PIKs and the RGB-matched @COLORS remap for the title
+ * menu (OPENMENU.PIK embeds a different palette than WOODPANL). */
+static void game_create_load_menu_art(ColonizeGameState* game) {
   game->menu_bg_ok = false;
   game->pedia_wood_ok = false;
   char pik_path[512];
@@ -4544,7 +4607,10 @@ ColonizeGameState* game_create(const ColonizeGameConfig* config) {
       (unsigned)game->menu_popup_colors.dark
     );
   }
+}
 
+/* MADSPACK samples, the .SS sprite sheets and the .FF fonts. */
+static void game_create_load_sheets(ColonizeGameState* game) {
   /* Log MADSPACK samples for bring-up. */
   static const char* packed_samples[] = {"WOODPANL.PIK", "COLONY.PIK", "BUILDING.SS"};
   for (size_t i = 0; i < sizeof(packed_samples) / sizeof(packed_samples[0]); ++i) {
@@ -4599,7 +4665,10 @@ ColonizeGameState* game_create(const ColonizeGameConfig* config) {
   if (game_load_ff_asset(game, "FONTTINY.FF", &game->colony_font, "colony font")) {
     game->colony_font_ok = true;
   }
+}
 
+/* AMER2.MP plus the Europe / colony / reports screen assets. */
+static void game_create_load_screens(ColonizeGameState* game) {
   char mp_path[512];
   char mp_err[256];
   if (dos_compat_normalize_asset_path(game->resolved_data_dir, "AMER2.MP", mp_path, sizeof(mp_path))) {
@@ -4666,6 +4735,20 @@ ColonizeGameState* game_create(const ColonizeGameConfig* config) {
       game->pedia_buildings_ok = false;
     }
   }
+}
+
+ColonizeGameState* game_create(const ColonizeGameConfig* config) {
+  ColonizeGameState* game = calloc(1, sizeof(*game));
+  if (!game || !config) {
+    free(game);
+    return NULL;
+  }
+  game_create_reset_fields(game, config);
+  game_create_resolve_data_dir(game, config);
+  game_create_load_text_assets(game, config);
+  game_create_load_menu_art(game);
+  game_create_load_sheets(game);
+  game_create_load_screens(game);
 
   diag_info("Game config save_dir=%s", config->save_dir ? config->save_dir : "(null)");
   dos_compat_init();
@@ -5246,46 +5329,48 @@ bool game_commit_sea_lane_step(ColonizeGameState* game, int sid, int dest_x, int
  * Move selected unit to dest: ship landfall unload, colony dock disembark,
  * awake passenger walking ashore, or normal try_move.
  */
-bool game_try_unit_move(ColonizeGameState* game, int dest_x, int dest_y) {
-  if (!game || !game->units_ok || !game->world_map_ok) {
-    return false;
-  }
-  const int sid = game->units.selected_id;
-  ColonizeUnit* selected = units_get(&game->units, sid);
-  if (!selected || selected->moves_left <= 0) {
-    return false;
-  }
-  /* FF + native settlement fallout for human combat (same as turn_refresh). */
-  units_set_ff_col1(game->col1_ok ? &game->col1 : NULL);
-      colonies_set_col1_context(game->col1_ok ? &game->col1 : NULL);
-  units_set_combat_human_nation(game->human_nation);
-  units_set_combat_popups(&game->ai_popups, &game->messages);
-  units_set_occupancy_map(&game->world_map);
-  colonies_set_occupancy_map(&game->world_map);
-  units_set_native_fallout_context(
-    game->col1_ok ? &game->col1 : NULL, &game->world_map, -1
-  );
-  const ColonizeColonyPool* colonies = &game->colonies;
+typedef enum GameMoveStep {
+  GAME_MOVE_CONTINUE = 0,  /* fall through to the next stage of game_try_unit_move */
+  GAME_MOVE_RETURN_TRUE,   /* game_try_unit_move returns true immediately */
+  GAME_MOVE_RETURN_FALSE   /* game_try_unit_move returns false immediately */
+} GameMoveStep;
 
+/*
+ * game_try_unit_move stages, in DOS order: each returns a GameMoveStep the
+ * dispatcher honours (CONTINUE = the stage did not claim the move).
+ */
+
+/* Awake passenger aboard a ship stepping onto adjacent land. */
+static GameMoveStep game_move_passenger_unload(
+  ColonizeGameState* game, ColonizeUnit* selected, int sid, const ColonizeColonyPool* colonies,
+  int dest_x, int dest_y
+) {
   /* Awake passenger: walk onto adjacent land → unload. */
   if (selected->aboard_ship_id >= 0) {
     if (selected->orders == UNITS_ORDER_SENTRY) {
       set_status(game, "Wake unit from stack first", NULL);
-      return false;
+      return GAME_MOVE_RETURN_FALSE;
     }
     const int ship_id = selected->aboard_ship_id;
     if (!units_unload_passenger(
           &game->units, ship_id, sid, &game->world_map, dest_x, dest_y, colonies
         )) {
       set_status(game, "Cannot disembark here", NULL);
-      return false;
+      return GAME_MOVE_RETURN_FALSE;
     }
     game->units.selected_id = sid;
     snprintf(game->status, sizeof(game->status), "Disembarked to (%d,%d)", dest_x, dest_y);
     game_after_unit_action(game);
-    return true;
+    return GAME_MOVE_RETURN_TRUE;
   }
+  return GAME_MOVE_CONTINUE;
+}
 
+/* Ship moves: water steps, colony docking, Europe lanes and naval combat. */
+static GameMoveStep game_move_sea_unit(
+  ColonizeGameState* game, ColonizeUnit* selected, int sid, const ColonizeColonyPool* colonies,
+  int dest_x, int dest_y
+) {
   if (units_is_sea(&game->units, sid)) {
     const bool dest_water = map_tile_is_water(&game->world_map, dest_x, dest_y);
     const bool dest_land = map_tile_is_land(&game->world_map, dest_x, dest_y);
@@ -5310,10 +5395,10 @@ bool game_try_unit_move(ColonizeGameState* game, int dest_x, int dest_y) {
         );
         ai_popup_enqueue_ok(&game->ai_popups, AI_POPUP_TAG_INFO, NULL, body);
         if (!game_commit_sea_lane_step(game, sid, dest_x, dest_y)) {
-          return false;
+          return GAME_MOVE_RETURN_FALSE;
         }
         game_after_unit_action(game);
-        return true;
+        return GAME_MOVE_RETURN_TRUE;
       }
       if (game->europe_ok) {
         char body[AI_POPUP_BODY_LEN];
@@ -5334,15 +5419,15 @@ bool game_try_unit_move(ColonizeGameState* game, int dest_x, int dest_y) {
               labels, ids, 2
             )) {
           set_status(game, "Sail for Europe?", NULL);
-          return true;
+          return GAME_MOVE_RETURN_TRUE;
         }
       }
       /* No Europe screen (or queue full): just commit the step, DOS "No". */
       if (!game_commit_sea_lane_step(game, sid, dest_x, dest_y)) {
-        return false;
+        return GAME_MOVE_RETURN_FALSE;
       }
       game_after_unit_action(game);
-      return true;
+      return GAME_MOVE_RETURN_TRUE;
     }
     if (dest_land && game_friendly_colony_at(game, dest_x, dest_y)) {
       /* units_try_move puts passengers ashore on docking (bugs.md), so count
@@ -5352,7 +5437,7 @@ bool game_try_unit_move(ColonizeGameState* game, int dest_x, int dest_y) {
             &game->units, sid, &game->world_map, dest_x, dest_y, colonies, &game->move_rng
           )) {
         set_status(game, units_enter_reason_status(units_last_enter_reason()), NULL);
-        return false;
+        return GAME_MOVE_RETURN_FALSE;
       }
       game->units.selected_id = sid;
       if (n > 0) {
@@ -5361,7 +5446,7 @@ bool game_try_unit_move(ColonizeGameState* game, int dest_x, int dest_y) {
         snprintf(game->status, sizeof(game->status), "Moved to colony (%d,%d)", dest_x, dest_y);
       }
       game_after_unit_action(game);
-      return true;
+      return GAME_MOVE_RETURN_TRUE;
     }
     if (dest_land && !dest_water) {
       const ColonizeEnterReason landfall = units_enter_probe(
@@ -5373,15 +5458,15 @@ bool game_try_unit_move(ColonizeGameState* game, int dest_x, int dest_y) {
           ColonizeTurnContext ctx;
           game_fill_turn_context(game, &ctx);
           if (ai_contact_try_ship_village_unit(&ctx, selected->nation_id, dest_x, dest_y, sid)) {
-            return true;
+            return GAME_MOVE_RETURN_TRUE;
           }
         }
         set_status(game, units_enter_reason_status(landfall), NULL);
-        return false;
+        return GAME_MOVE_RETURN_FALSE;
       }
       if (landfall != COLONIZE_ENTER_LANDFALL) {
         game_report_enter_reason(game, sid, landfall);
-        return false;
+        return GAME_MOVE_RETURN_FALSE;
       }
       const int pax_ready = units_first_landfall_cargo(&game->units, sid);
       if (pax_ready < 0) {
@@ -5394,7 +5479,7 @@ bool game_try_unit_move(ColonizeGameState* game, int dest_x, int dest_y) {
                                       "No unit ready to disembark",
           NULL
         );
-        return false;
+        return GAME_MOVE_RETURN_FALSE;
       }
       {
         /* GAME.TXT @LANDFALL / @LANDFALL2: Stay With Ships / Make Landfall.
@@ -5436,7 +5521,7 @@ bool game_try_unit_move(ColonizeGameState* game, int dest_x, int dest_y) {
                 &game->units, sid, pax_ready, &game->world_map, dest_x, dest_y, colonies
               )) {
             set_status(game, "Move blocked", NULL);
-            return false;
+            return GAME_MOVE_RETURN_FALSE;
           }
           /* Ship spends the coastal order; passenger charged in unload. */
           if (selected->moves_left > 0) {
@@ -5448,14 +5533,21 @@ bool game_try_unit_move(ColonizeGameState* game, int dest_x, int dest_y) {
           game->units.selected_id = pax_ready;
           snprintf(game->status, sizeof(game->status), "Landfall at (%d,%d)", dest_x, dest_y);
           game_after_unit_action(game);
-          return true;
+          return GAME_MOVE_RETURN_TRUE;
         }
       }
       set_status(game, "Landfall…", NULL);
-      return true;
+      return GAME_MOVE_RETURN_TRUE;
     }
   }
+  return GAME_MOVE_CONTINUE;
+}
 
+/* Pre-move native interceptions: village entry, @WHACKINDIANS and the
+ * @INDIANLAND land-demand prompt. */
+static GameMoveStep game_move_native_prompts(
+  ColonizeGameState* game, ColonizeUnit* selected, int sid, int dest_x, int dest_y
+) {
   /*
    * FUN_4d56_4528: combatish land unit → village tile gets Attack/Leave warn
    * before enter (defers move). Non-combat → Meet from adjacent (no enter).
@@ -5498,7 +5590,7 @@ bool game_try_unit_move(ColonizeGameState* game, int dest_x, int dest_y) {
           )) {
         /* Unmet / at-war tribe: the menu is refused, keep the warn CHOICE. */
         set_status(game, "Village…", NULL);
-        return true;
+        return GAME_MOVE_RETURN_TRUE;
       }
       if (ai_contact_meet_pending_for_unit(&game->ai_popups, sid)) {
         if (!combatish) {
@@ -5511,7 +5603,7 @@ bool game_try_unit_move(ColonizeGameState* game, int dest_x, int dest_y) {
         }
         set_status(game, "Village…", NULL);
         game_after_unit_action(game);
-        return true;
+        return GAME_MOVE_RETURN_TRUE;
       }
       break;
     }
@@ -5527,7 +5619,7 @@ bool game_try_unit_move(ColonizeGameState* game, int dest_x, int dest_y) {
       game_fill_turn_context(game, &ctx);
       if (ai_contact_try_whack_confirm(&ctx, selected->nation_id, foe->nation_id, sid, dest_x, dest_y)) {
         set_status(game, "Attack?", NULL);
-        return true;
+        return GAME_MOVE_RETURN_TRUE;
       }
     }
   }
@@ -5556,7 +5648,7 @@ bool game_try_unit_move(ColonizeGameState* game, int dest_x, int dest_y) {
         }
         if (pending) {
           set_status(game, "Scouts…", NULL);
-          return true;
+          return GAME_MOVE_RETURN_TRUE;
         }
         PopupMsgTokens tok;
         memset(&tok, 0, sizeof(tok));
@@ -5585,11 +5677,19 @@ bool game_try_unit_move(ColonizeGameState* game, int dest_x, int dest_y) {
             )) {
           (void)ai_popup_present_now(&game->ai_popups, AI_POPUP_TAG_SCOUT_COLONY);
           set_status(game, "Scouts…", NULL);
-          return true;
+          return GAME_MOVE_RETURN_TRUE;
         }
       }
     }
   }
+  return GAME_MOVE_CONTINUE;
+}
+
+/* Pre-move colony / combat interceptions: the attack confirms and the
+ * combat-analysis prompts. */
+static GameMoveStep game_move_colony_prompts(
+  ColonizeGameState* game, ColonizeUnit* selected, int sid, int dest_x, int dest_y
+) {
   /*
    * bugs.md #437: attacking a foreign EURO COLONY — armed or not, at war or
    * not — always asks first. One-shot latch (colony_attack_ok) so the Yes
@@ -5613,7 +5713,7 @@ bool game_try_unit_move(ColonizeGameState* game, int dest_x, int dest_y) {
       }
       if (pending) {
         set_status(game, "Attack?", NULL);
-        return true;
+        return GAME_MOVE_RETURN_TRUE;
       }
       char body[AI_POPUP_BODY_LEN];
       snprintf(
@@ -5629,7 +5729,7 @@ bool game_try_unit_move(ColonizeGameState* game, int dest_x, int dest_y) {
           )) {
         (void)ai_popup_present_now(&game->ai_popups, AI_POPUP_TAG_COLONY_ATTACK);
         set_status(game, "Attack?", NULL);
-        return true;
+        return GAME_MOVE_RETURN_TRUE;
       }
     }
   }
@@ -5661,7 +5761,7 @@ bool game_try_unit_move(ColonizeGameState* game, int dest_x, int dest_y) {
             &ctx, selected->nation_id, target_nation, sid, dest_x, dest_y
           )) {
         set_status(game, "Attack?", NULL);
-        return true;
+        return GAME_MOVE_RETURN_TRUE;
       }
     }
   }
@@ -5690,11 +5790,18 @@ bool game_try_unit_move(ColonizeGameState* game, int dest_x, int dest_y) {
       game_fill_turn_context(game, &ctx);
       if (ai_contact_try_tired_attack_confirm(&ctx, sid, dest_x, dest_y)) {
         set_status(game, "These men are tired…", NULL);
-        return true;
+        return GAME_MOVE_RETURN_TRUE;
       }
     }
   }
+  return GAME_MOVE_CONTINUE;
+}
 
+/* The move itself (units_try_move) and its immediate outcomes. */
+static GameMoveStep game_move_commit(
+  ColonizeGameState* game, ColonizeUnit* selected, int sid, const ColonizeColonyPool* colonies,
+  int dest_x, int dest_y
+) {
   {
     const int mp_before = selected->moves_left;
     if (!units_try_move(
@@ -5710,19 +5817,69 @@ bool game_try_unit_move(ColonizeGameState* game, int dest_x, int dest_y) {
       } else {
         game_report_enter_reason(game, sid, units_last_enter_reason());
       }
-      return false;
+      return GAME_MOVE_RETURN_FALSE;
     }
     if (units_last_enter_reason() == COLONIZE_ENTER_BOARD) {
       set_status(game, "Boarded ship", NULL);
       game_after_unit_action(game);
-      return true;
+      return GAME_MOVE_RETURN_TRUE;
     }
     if (units_last_combat_outcome() > 0) {
       snprintf(game->status, sizeof(game->status), "Combat won at (%d,%d)", dest_x, dest_y);
       game_after_unit_action(game);
-      return true;
+      return GAME_MOVE_RETURN_TRUE;
     }
   }
+  return GAME_MOVE_CONTINUE;
+}
+
+bool game_try_unit_move(ColonizeGameState* game, int dest_x, int dest_y) {
+  if (!game || !game->units_ok || !game->world_map_ok) {
+    return false;
+  }
+  const int sid = game->units.selected_id;
+  ColonizeUnit* selected = units_get(&game->units, sid);
+  if (!selected || selected->moves_left <= 0) {
+    return false;
+  }
+  /* FF + native settlement fallout for human combat (same as turn_refresh). */
+  units_set_ff_col1(game->col1_ok ? &game->col1 : NULL);
+      colonies_set_col1_context(game->col1_ok ? &game->col1 : NULL);
+  units_set_combat_human_nation(game->human_nation);
+  units_set_combat_popups(&game->ai_popups, &game->messages);
+  units_set_occupancy_map(&game->world_map);
+  colonies_set_occupancy_map(&game->world_map);
+  units_set_native_fallout_context(
+    game->col1_ok ? &game->col1 : NULL, &game->world_map, -1
+  );
+  const ColonizeColonyPool* colonies = &game->colonies;
+  GameMoveStep step;
+
+  step = game_move_passenger_unload(game, selected, sid, colonies, dest_x, dest_y);
+  if (step != GAME_MOVE_CONTINUE) {
+    return step == GAME_MOVE_RETURN_TRUE;
+  }
+
+  step = game_move_sea_unit(game, selected, sid, colonies, dest_x, dest_y);
+  if (step != GAME_MOVE_CONTINUE) {
+    return step == GAME_MOVE_RETURN_TRUE;
+  }
+
+  step = game_move_native_prompts(game, selected, sid, dest_x, dest_y);
+  if (step != GAME_MOVE_CONTINUE) {
+    return step == GAME_MOVE_RETURN_TRUE;
+  }
+
+  step = game_move_colony_prompts(game, selected, sid, dest_x, dest_y);
+  if (step != GAME_MOVE_CONTINUE) {
+    return step == GAME_MOVE_RETURN_TRUE;
+  }
+
+  step = game_move_commit(game, selected, sid, colonies, dest_x, dest_y);
+  if (step != GAME_MOVE_CONTINUE) {
+    return step == GAME_MOVE_RETURN_TRUE;
+  }
+
   if (selected->type_index >= 0 && selected->type_index < game->units.type_count &&
       strcmp(game->units.types[selected->type_index].name, "Wagon Train") == 0) {
     /* bugs.md #440: the wheels (COLDIG 12, event 0x52) roll only when the
@@ -8900,45 +9057,41 @@ void game_apply_goto_port(ColonizeGameState* game, int id) {
   }
 }
 
-static bool game_apply_map_menu_action(ColonizeGameState* game, MapMenuAction action) {
-  if (diag_info_enabled() && action != MAP_MENU_ACTION_NONE &&
-      action != MAP_MENU_ACTION_SEPARATOR) {
-    const ColonizeUnit* sel = units_get_const(&game->units, game->units.selected_id);
-    if (sel && sel->active) {
-      diag_info(
-        "COMMAND %s (unit %s id=%d at (%d,%d) mp=%d)",
-        map_menu_action_name(action),
-        units_display_name(&game->units, sel),
-        sel->id,
-        sel->x,
-        sel->y,
-        sel->moves_left
-      );
-    } else {
-      diag_info("COMMAND %s", map_menu_action_name(action));
-    }
-  }
+typedef enum GameMenuActionStatus {
+  GAME_MENU_ACTION_UNHANDLED = 0, /* not this group's action — try the next stage */
+  GAME_MENU_ACTION_DONE           /* handled; game_apply_map_menu_action returns true */
+} GameMenuActionStatus;
+
+/*
+ * game_apply_map_menu_action stages: one switch arm cluster each, in the
+ * DOS menu order of the original single switch. A stage that does not
+ * recognise the action returns UNHANDLED and the dispatcher tries the next.
+ */
+
+/* Game menu: save / load / declare independence / retire / exit and the
+ * options dialogs. */
+static GameMenuActionStatus game_menu_action_system(ColonizeGameState* game, MapMenuAction action) {
   switch (action) {
     case MAP_MENU_ACTION_NONE:
-      return true;
+      return GAME_MENU_ACTION_DONE;
     case MAP_MENU_ACTION_SEPARATOR:
-      return true;
+      return GAME_MENU_ACTION_DONE;
     case MAP_MENU_ACTION_UNIMPLEMENTED:
       set_status(game, "Not implemented yet", NULL);
-      return true;
+      return GAME_MENU_ACTION_DONE;
     case MAP_MENU_ACTION_SAVE: {
       game_open_save_load(game, SAVE_LOAD_MODE_SAVE);
-      return true;
+      return GAME_MENU_ACTION_DONE;
     }
     case MAP_MENU_ACTION_LOAD: {
       game_open_save_load(game, SAVE_LOAD_MODE_LOAD);
-      return true;
+      return GAME_MENU_ACTION_DONE;
     }
     case MAP_MENU_ACTION_DECLARE_INDEPENDENCE: {
       ColonizeTurnContext ctx;
       game_fill_turn_context(game, &ctx);
       ai_king_menu_declare_independence(&ctx);
-      return true;
+      return GAME_MENU_ACTION_DONE;
     }
     case MAP_MENU_ACTION_RETIRE: {
       ColonizeInputState empty;
@@ -8952,13 +9105,13 @@ static bool game_apply_map_menu_action(ColonizeGameState* game, MapMenuAction ac
         "Do you really want to quit?",
         NULL
       );
-      return true;
+      return GAME_MENU_ACTION_DONE;
     }
     case MAP_MENU_ACTION_EXIT: {
       game_enqueue_yes_no(
         game, GAME_MAP_CONFIRM_QUIT, -1, "DOS", "Exit to DOS?", NULL
       );
-      return true;
+      return GAME_MENU_ACTION_DONE;
     }
     case MAP_MENU_ACTION_PICK_MUSIC:
       if (!pick_music_open(&game->pick_music, &game->messages)) {
@@ -8966,7 +9119,7 @@ static bool game_apply_map_menu_action(ColonizeGameState* game, MapMenuAction ac
       } else {
         set_status(game, "Pick Music", "Esc closes");
       }
-      return true;
+      return GAME_MENU_ACTION_DONE;
     case MAP_MENU_ACTION_OPTIONS:
       if (!game->col1_ok) {
         set_status(game, "Options need a loaded game", NULL);
@@ -8975,7 +9128,7 @@ static bool game_apply_map_menu_action(ColonizeGameState* game, MapMenuAction ac
                  )) {
         set_status(game, "Options unavailable", NULL);
       }
-      return true;
+      return GAME_MENU_ACTION_DONE;
     case MAP_MENU_ACTION_COLONY_OPTIONS:
       if (!game->col1_ok) {
         set_status(game, "Options need a loaded game", NULL);
@@ -8986,7 +9139,7 @@ static bool game_apply_map_menu_action(ColonizeGameState* game, MapMenuAction ac
                  )) {
         set_status(game, "Colony options unavailable", NULL);
       }
-      return true;
+      return GAME_MENU_ACTION_DONE;
     case MAP_MENU_ACTION_SOUND_OPTIONS: {
       ColonizeSoundOptions so = sound_get_options();
       if (!options_dialog_open_sound(
@@ -8998,43 +9151,53 @@ static bool game_apply_map_menu_action(ColonizeGameState* game, MapMenuAction ac
           )) {
         set_status(game, "Sound options unavailable", NULL);
       }
-      return true;
+      return GAME_MENU_ACTION_DONE;
     }
+    default:
+      break;
+  }
+  return GAME_MENU_ACTION_UNHANDLED;
+}
+
+/* View menu: Europe, Find Colony, the zoom tiers, Center View and the
+ * View/Move Pieces + Hidden Terrain modes. */
+static GameMenuActionStatus game_menu_action_view(ColonizeGameState* game, MapMenuAction action) {
+  switch (action) {
     case MAP_MENU_ACTION_EUROPE:
       (void)game_try_enter_europe(game);
-      return true;
+      return GAME_MENU_ACTION_DONE;
     case MAP_MENU_ACTION_FIND_COLONY:
       game_open_find_colony_picker(game);
-      return true;
+      return GAME_MENU_ACTION_DONE;
     case MAP_MENU_ACTION_ZOOM_IN:
       /* In = toward 15×12 (level 0, most detail); Out = toward 120×96. */
       game_map_zoom_set(game, game->map_zoom - 1);
-      return true;
+      return GAME_MENU_ACTION_DONE;
     case MAP_MENU_ACTION_ZOOM_OUT:
       game_map_zoom_set(game, game->map_zoom + 1);
-      return true;
+      return GAME_MENU_ACTION_DONE;
     case MAP_MENU_ACTION_ZOOM_LEVEL_120X96:
       game_map_zoom_set(game, 3);
-      return true;
+      return GAME_MENU_ACTION_DONE;
     case MAP_MENU_ACTION_ZOOM_LEVEL_60X48:
       game_map_zoom_set(game, 2);
-      return true;
+      return GAME_MENU_ACTION_DONE;
     case MAP_MENU_ACTION_ZOOM_LEVEL_30X24:
       game_map_zoom_set(game, 1);
-      return true;
+      return GAME_MENU_ACTION_DONE;
     case MAP_MENU_ACTION_ZOOM_LEVEL_15X12:
       game_map_zoom_set(game, 0);
-      return true;
+      return GAME_MENU_ACTION_DONE;
     case MAP_MENU_ACTION_CENTER_VIEW:
       game_center_on_selected_unit(game);
-      return true;
+      return GAME_MENU_ACTION_DONE;
     case MAP_MENU_ACTION_VIEW_PIECES:
       /* Deselect whatever's controlled (if anything) and drop into the
        * blinking tile cursor at its current spot — matches a right-click,
        * just without needing a target tile. */
       game_select_tile(game, game->map_cursor_x, game->map_cursor_y);
       set_status(game, "Viewing map", NULL);
-      return true;
+      return GAME_MENU_ACTION_DONE;
     case MAP_MENU_ACTION_MOVE_PIECES: {
       /* Hand control to the control-queue unit at/after the current
        * cursor position, same cycle Wait/Space walks, but without Wait's
@@ -9042,12 +9205,12 @@ static bool game_apply_map_menu_action(ColonizeGameState* game, MapMenuAction ac
        * job (turn_activation queue picks it up next frame regardless). */
       if (game->units_ok && game->units.selected_id >= 0) {
         game_center_on_selected_unit(game);
-        return true;
+        return GAME_MENU_ACTION_DONE;
       }
       const bool found = game_select_next_unit_awaiting_orders(game);
       if (!found) {
         set_status(game, "No units awaiting orders", NULL);
-        return true;
+        return GAME_MENU_ACTION_DONE;
       }
       game->view_pieces_mode = false;
       game_center_on_selected_unit(game);
@@ -9056,13 +9219,23 @@ static bool game_apply_map_menu_action(ColonizeGameState* game, MapMenuAction ac
         game->status, sizeof(game->status), "Selected %s",
         next ? units_display_name(&game->units, next) : "unit"
       );
-      return true;
+      return GAME_MENU_ACTION_DONE;
     }
     case MAP_MENU_ACTION_VIEW_HIDDEN_TERRAIN:
       game->hidden_terrain_phase = 1;
       game->hidden_terrain_phase_ms = game->elapsed_ms;
       set_status(game, "Hidden Terrain: units and settlements hidden", NULL);
-      return true;
+      return GAME_MENU_ACTION_DONE;
+    default:
+      break;
+  }
+  return GAME_MENU_ACTION_UNHANDLED;
+}
+
+/* Unit orders: activate / wait / fortify / anchor / sentry / disband, the
+ * colony and terrain-improvement orders, and Pillage. */
+static GameMenuActionStatus game_menu_action_orders(ColonizeGameState* game, MapMenuAction action) {
+  switch (action) {
     case MAP_MENU_ACTION_ACTIVATE_UNIT: {
       /*
        * units_id_at only sees units standing on the map, so a passenger in a
@@ -9088,23 +9261,23 @@ static bool game_apply_map_menu_action(ColonizeGameState* game, MapMenuAction ac
         const ColonizeUnitType* ut = u ? units_type(&game->units, u->type_index) : NULL;
         snprintf(game->status, sizeof(game->status), "Activated %s", ut ? ut->name : "unit");
       }
-      return true;
+      return GAME_MENU_ACTION_DONE;
     }
     case MAP_MENU_ACTION_WAIT_UNIT:
       game_wait_next_unit(game);
-      return true;
+      return GAME_MENU_ACTION_DONE;
     case MAP_MENU_ACTION_FORTIFY: {
       if (game_order_fortify(game, game->units.selected_id)) {
         game_wait_next_unit(game);
       }
-      return true;
+      return GAME_MENU_ACTION_DONE;
     }
     case MAP_MENU_ACTION_ANCHOR: {
       /* The ship half of the same MENU.TXT pair — see game_order_fortify. */
       if (game_order_fortify(game, game->units.selected_id)) {
         game_wait_next_unit(game);
       }
-      return true;
+      return GAME_MENU_ACTION_DONE;
     }
     case MAP_MENU_ACTION_SENTRY: {
       const int uid = game->units.selected_id;
@@ -9114,18 +9287,18 @@ static bool game_apply_map_menu_action(ColonizeGameState* game, MapMenuAction ac
         set_status(game, "Sentry", NULL);
         game_wait_next_unit(game);
       }
-      return true;
+      return GAME_MENU_ACTION_DONE;
     }
     case MAP_MENU_ACTION_DISBAND: {
       game_request_disband_confirm(game);
-      return true;
+      return GAME_MENU_ACTION_DONE;
     }
     case MAP_MENU_ACTION_BUILD_COLONY:
       (void)game_try_found_colony_at_cursor(game);
-      return true;
+      return GAME_MENU_ACTION_DONE;
     case MAP_MENU_ACTION_JOIN_COLONY:
       game_join_colony_order(game);
-      return true;
+      return GAME_MENU_ACTION_DONE;
     case MAP_MENU_ACTION_CLEAR_FOREST:
     case MAP_MENU_ACTION_PLOW_FIELDS: {
       const int sid = game->units.selected_id;
@@ -9137,7 +9310,7 @@ static bool game_apply_map_menu_action(ColonizeGameState* game, MapMenuAction ac
         if (pu && pu->active && pu->orders != UNITS_ORDER_CLEAR_PLOW &&
             units_is_pioneer(&game->units, sid) && pu->tools >= 20 &&
             game_request_indian_land_choice(game, GAME_INDIAN_LAND_FOREST, sid, pu->x, pu->y)) {
-          return true;
+          return GAME_MENU_ACTION_DONE;
         }
       }
       if (!game->world_map_ok || !game->units_ok ||
@@ -9156,7 +9329,7 @@ static bool game_apply_map_menu_action(ColonizeGameState* game, MapMenuAction ac
         set_status(game, msg, NULL);
         game_wait_next_unit(game);
       }
-      return true;
+      return GAME_MENU_ACTION_DONE;
     }
     case MAP_MENU_ACTION_BUILD_ROAD: {
       const int sid = game->units.selected_id;
@@ -9169,7 +9342,7 @@ static bool game_apply_map_menu_action(ColonizeGameState* game, MapMenuAction ac
             units_is_pioneer(&game->units, sid) && pu->tools >= 20 &&
             !map_tile_has_road(&game->world_map, pu->x, pu->y) &&
             game_request_indian_land_choice(game, GAME_INDIAN_LAND_ROAD, sid, pu->x, pu->y)) {
-          return true;
+          return GAME_MENU_ACTION_DONE;
         }
       }
       if (!game->world_map_ok || !game->units_ok ||
@@ -9188,7 +9361,7 @@ static bool game_apply_map_menu_action(ColonizeGameState* game, MapMenuAction ac
         set_status(game, msg, NULL);
         game_wait_next_unit(game);
       }
-      return true;
+      return GAME_MENU_ACTION_DONE;
     }
     case MAP_MENU_ACTION_PILLAGE: {
       const int sid = game->units.selected_id;
@@ -9203,8 +9376,17 @@ static bool game_apply_map_menu_action(ColonizeGameState* game, MapMenuAction ac
         set_status(game, msg, NULL);
         game_wait_next_unit(game);
       }
-      return true;
+      return GAME_MENU_ACTION_DONE;
     }
+    default:
+      break;
+  }
+  return GAME_MENU_ACTION_UNHANDLED;
+}
+
+/* Goto orders, the trade-route menu family and the cargo orders. */
+static GameMenuActionStatus game_menu_action_goto_and_cargo(ColonizeGameState* game, MapMenuAction action) {
+  switch (action) {
     case MAP_MENU_ACTION_GOTO_PORT: {
       const int sid = game->units.selected_id;
       const ColonizeUnit* u = units_get_const(&game->units, sid);
@@ -9213,7 +9395,7 @@ static bool game_apply_map_menu_action(ColonizeGameState* game, MapMenuAction ac
       } else {
         game_open_goto_port_picker(game, sid);
       }
-      return true;
+      return GAME_MENU_ACTION_DONE;
     }
     case MAP_MENU_ACTION_GOTO_PLACE: {
       const int sid = game->units.selected_id;
@@ -9224,21 +9406,21 @@ static bool game_apply_map_menu_action(ColonizeGameState* game, MapMenuAction ac
         game->map_goto_place_mode = true;
         set_status(game, "Go to Place: click destination (Esc cancels)", NULL);
       }
-      return true;
+      return GAME_MENU_ACTION_DONE;
     }
     case MAP_MENU_ACTION_TRADE_ROUTE: {
       const int sid = game->units.selected_id;
       if (sid < 0 || !units_is_transport(&game->units, sid)) {
         set_status(game, "Select a ship or wagon", NULL);
-        return true;
+        return GAME_MENU_ACTION_DONE;
       }
       game_open_trade_route_picker(game, 1); /* begin */
-      return true;
+      return GAME_MENU_ACTION_DONE;
     }
     case MAP_MENU_ACTION_TRADE_CREATE: {
       if (!game->col1_ok) {
         set_status(game, "No save data for trade routes", NULL);
-        return true;
+        return GAME_MENU_ACTION_DONE;
       }
       /* DOS OVL19: 12-route cap → @TRADEMANY {%NUMBER0}. */
       if (game_trade_route_count(game) >= (int)COLONIZE_COL1_TRADE_ROUTE_COUNT) {
@@ -9254,55 +9436,55 @@ static bool game_apply_map_menu_action(ColonizeGameState* game, MapMenuAction ac
           body, sizeof(body)
         );
         ai_popup_enqueue_ok(&game->ai_popups, AI_POPUP_TAG_INFO, NULL, body);
-        return true;
+        return GAME_MENU_ACTION_DONE;
       }
       game_trade_wizard_open_dest(game, 1);
-      return true;
+      return GAME_MENU_ACTION_DONE;
     }
     case MAP_MENU_ACTION_TRADE_EDIT: {
       if (!game->col1_ok) {
         set_status(game, "No save data for trade routes", NULL);
-        return true;
+        return GAME_MENU_ACTION_DONE;
       }
       game_open_trade_route_picker(game, 2); /* edit */
-      return true;
+      return GAME_MENU_ACTION_DONE;
     }
     case MAP_MENU_ACTION_TRADE_DELETE: {
       if (!game->col1_ok) {
         set_status(game, "No save data for trade routes", NULL);
-        return true;
+        return GAME_MENU_ACTION_DONE;
       }
       game_open_trade_route_picker(game, 3); /* delete */
-      return true;
+      return GAME_MENU_ACTION_DONE;
     }
     case MAP_MENU_ACTION_DUMP_OVERBOARD: {
       game_request_overboard_confirm(game);
-      return true;
+      return GAME_MENU_ACTION_DONE;
     }
     case MAP_MENU_ACTION_LOAD_CARGO: {
       if (!game->world_map_ok || !game->units_ok) {
         set_status(game, "Cannot load cargo", NULL);
-        return true;
+        return GAME_MENU_ACTION_DONE;
       }
       game_order_board(game);
-      return true;
+      return GAME_MENU_ACTION_DONE;
     }
     case MAP_MENU_ACTION_UNLOAD_CARGO: {
       if (!game->world_map_ok || !game->units_ok) {
         set_status(game, "Select a ship to unload", NULL);
-        return true;
+        return GAME_MENU_ACTION_DONE;
       }
       game_order_unload(game);
-      return true;
+      return GAME_MENU_ACTION_DONE;
     }
     case MAP_MENU_ACTION_RETURN_EUROPE: {
       /* Same rules as key H. */
       if (!game->world_map_ok || !game->units_ok || !game->europe_ok) {
         set_status(game, "Cannot return to Europe", NULL);
-        return true;
+        return GAME_MENU_ACTION_DONE;
       }
       game_order_return_europe(game);
-      return true;
+      return GAME_MENU_ACTION_DONE;
     }
     case MAP_MENU_ACTION_NO_ORDERS: {
       /* "No Orders (space bar)" — this is the *actual* reachable path for a
@@ -9322,62 +9504,80 @@ static bool game_apply_map_menu_action(ColonizeGameState* game, MapMenuAction ac
         u->moves_left = 0;
       }
       game_wait_next_unit(game);
-      return true;
+      return GAME_MENU_ACTION_DONE;
     }
+    default:
+      break;
+  }
+  return GAME_MENU_ACTION_UNHANDLED;
+}
+
+/* Colonizopedia entries and the report screens. */
+static GameMenuActionStatus game_menu_action_pedia_and_reports(ColonizeGameState* game, MapMenuAction action) {
+  switch (action) {
     case MAP_MENU_ACTION_PEDIA_CARGO:
       game_open_pedia_list(game, PEDIA_CAT_CARGO);
-      return true;
+      return GAME_MENU_ACTION_DONE;
     case MAP_MENU_ACTION_PEDIA_UNIT:
       game_open_pedia_list(game, PEDIA_CAT_UNIT);
-      return true;
+      return GAME_MENU_ACTION_DONE;
     case MAP_MENU_ACTION_PEDIA_TERRAIN:
       game_open_pedia_list(game, PEDIA_CAT_TERRAIN);
-      return true;
+      return GAME_MENU_ACTION_DONE;
     case MAP_MENU_ACTION_PEDIA_JOB:
       game_open_pedia_list(game, PEDIA_CAT_JOB);
-      return true;
+      return GAME_MENU_ACTION_DONE;
     case MAP_MENU_ACTION_PEDIA_BUILDING:
       game_open_pedia_list(game, PEDIA_CAT_BUILDING);
-      return true;
+      return GAME_MENU_ACTION_DONE;
     case MAP_MENU_ACTION_PEDIA_FATHER:
       game_open_pedia_list(game, PEDIA_CAT_FATHER);
-      return true;
+      return GAME_MENU_ACTION_DONE;
     case MAP_MENU_ACTION_PEDIA_MISC:
       game_open_pedia_list(game, PEDIA_CAT_MISC);
-      return true;
+      return GAME_MENU_ACTION_DONE;
     case MAP_MENU_ACTION_REPORT_TERRAIN:
       game_open_terrain_pedia_at_cursor(game);
-      return true;
+      return GAME_MENU_ACTION_DONE;
     case MAP_MENU_ACTION_REPORT_RELIGIOUS:
       game_open_report(game, COLONIZE_REPORT_RELIGIOUS);
-      return true;
+      return GAME_MENU_ACTION_DONE;
     case MAP_MENU_ACTION_REPORT_CONGRESS:
       game_open_report(game, COLONIZE_REPORT_CONGRESS);
-      return true;
+      return GAME_MENU_ACTION_DONE;
     case MAP_MENU_ACTION_REPORT_LABOR:
       game_open_report(game, COLONIZE_REPORT_LABOR);
-      return true;
+      return GAME_MENU_ACTION_DONE;
     case MAP_MENU_ACTION_REPORT_ECONOMIC:
       game_open_report(game, COLONIZE_REPORT_ECONOMIC);
-      return true;
+      return GAME_MENU_ACTION_DONE;
     case MAP_MENU_ACTION_REPORT_COLONY:
       game_open_report(game, COLONIZE_REPORT_COLONY);
-      return true;
+      return GAME_MENU_ACTION_DONE;
     case MAP_MENU_ACTION_REPORT_NAVAL:
       game_open_report(game, COLONIZE_REPORT_NAVAL);
-      return true;
+      return GAME_MENU_ACTION_DONE;
     case MAP_MENU_ACTION_REPORT_FOREIGN:
       game_open_report(game, COLONIZE_REPORT_FOREIGN);
-      return true;
+      return GAME_MENU_ACTION_DONE;
     case MAP_MENU_ACTION_REPORT_INDIAN:
       game_open_report(game, COLONIZE_REPORT_INDIAN);
-      return true;
+      return GAME_MENU_ACTION_DONE;
     case MAP_MENU_ACTION_REPORT_SCORE:
       game_open_report(game, COLONIZE_REPORT_SCORE);
-      return true;
+      return GAME_MENU_ACTION_DONE;
+    default:
+      break;
+  }
+  return GAME_MENU_ACTION_UNHANDLED;
+}
+
+/* Debug tools and the CHEAT menu; also the catch-all default. */
+static GameMenuActionStatus game_menu_action_debug_and_cheat(ColonizeGameState* game, MapMenuAction action) {
+  switch (action) {
     case MAP_MENU_ACTION_DEBUG_SPRITE_VIEWER:
       game_open_debug_atlas(game);
-      return true;
+      return GAME_MENU_ACTION_DONE;
     case MAP_MENU_ACTION_DEBUG_TOGGLE_MOUSE_COORDS:
       game->debug_show_mouse_coords = !game->debug_show_mouse_coords;
       snprintf(
@@ -9387,7 +9587,7 @@ static bool game_apply_map_menu_action(ColonizeGameState* game, MapMenuAction ac
         game->debug_show_mouse_coords ? "on" : "off"
       );
       game_persist_debug_hud(game);
-      return true;
+      return GAME_MENU_ACTION_DONE;
     case MAP_MENU_ACTION_DEBUG_BUILDING_RECTS:
       game->debug_building_rects = !game->debug_building_rects;
       snprintf(
@@ -9397,7 +9597,7 @@ static bool game_apply_map_menu_action(ColonizeGameState* game, MapMenuAction ac
         game->debug_building_rects ? "on" : "off"
       );
       game_persist_debug_hud(game);
-      return true;
+      return GAME_MENU_ACTION_DONE;
     case MAP_MENU_ACTION_DEBUG_LOGS:
       game->debug_logs = !game->debug_logs;
       diag_set_info_enabled(game->debug_logs);
@@ -9411,44 +9611,84 @@ static bool game_apply_map_menu_action(ColonizeGameState* game, MapMenuAction ac
         diag_info("Debug logs enabled");
       }
       game_persist_debug_hud(game);
-      return true;
+      return GAME_MENU_ACTION_DONE;
     case MAP_MENU_ACTION_CHEAT_REVEAL_MAP:
       game_open_cheat_setview(game);
-      return true;
+      return GAME_MENU_ACTION_DONE;
     case MAP_MENU_ACTION_CHEAT_KILL_INDIANS:
       game_open_cheat_kill_indians(game);
-      return true;
+      return GAME_MENU_ACTION_DONE;
     case MAP_MENU_ACTION_CHEAT_CREATE_UNIT:
       game_open_cheat_create_unit(game);
-      return true;
+      return GAME_MENU_ACTION_DONE;
     case MAP_MENU_ACTION_CHEAT_DEBUG_FLAGS:
       game_open_cheat_debug_flags(game);
-      return true;
+      return GAME_MENU_ACTION_DONE;
     case MAP_MENU_ACTION_CHEAT_SET_HUMAN:
       game_open_cheat_set_human(game);
-      return true;
+      return GAME_MENU_ACTION_DONE;
     case MAP_MENU_ACTION_CHEAT_ADVANCE_REVOLUTION:
       game_cheat_advance_revolution(game);
-      return true;
+      return GAME_MENU_ACTION_DONE;
     case MAP_MENU_ACTION_CHEAT_SOUND_TEST:
       game_open_cheat_sound_test(game);
-      return true;
+      return GAME_MENU_ACTION_DONE;
     case MAP_MENU_ACTION_CHEAT_MEMORY_CHECK:
       game_cheat_memory_check(game);
-      return true;
+      return GAME_MENU_ACTION_DONE;
     case MAP_MENU_ACTION_CHEAT_SHOW_STRATEGY:
       game_cheat_toggle_strategy(game);
-      return true;
+      return GAME_MENU_ACTION_DONE;
     case MAP_MENU_ACTION_CHEAT_SHOW_COLONY_SITES:
       game_cheat_toggle_colony_sites(game);
-      return true;
+      return GAME_MENU_ACTION_DONE;
     case MAP_MENU_ACTION_CHEAT_TEST_ROUTINE:
       game_cheat_test_routine(game);
-      return true;
+      return GAME_MENU_ACTION_DONE;
     default:
       set_status(game, "Not implemented yet", NULL);
-      return true;
+      return GAME_MENU_ACTION_DONE;
   }
+  return GAME_MENU_ACTION_UNHANDLED;
+}
+
+static bool game_apply_map_menu_action(ColonizeGameState* game, MapMenuAction action) {
+  if (diag_info_enabled() && action != MAP_MENU_ACTION_NONE &&
+      action != MAP_MENU_ACTION_SEPARATOR) {
+    const ColonizeUnit* sel = units_get_const(&game->units, game->units.selected_id);
+    if (sel && sel->active) {
+      diag_info(
+        "COMMAND %s (unit %s id=%d at (%d,%d) mp=%d)",
+        map_menu_action_name(action),
+        units_display_name(&game->units, sel),
+        sel->id,
+        sel->x,
+        sel->y,
+        sel->moves_left
+      );
+    } else {
+      diag_info("COMMAND %s", map_menu_action_name(action));
+    }
+  }
+  if (game_menu_action_system(game, action) == GAME_MENU_ACTION_DONE) {
+    return true;
+  }
+  if (game_menu_action_view(game, action) == GAME_MENU_ACTION_DONE) {
+    return true;
+  }
+  if (game_menu_action_orders(game, action) == GAME_MENU_ACTION_DONE) {
+    return true;
+  }
+  if (game_menu_action_goto_and_cargo(game, action) == GAME_MENU_ACTION_DONE) {
+    return true;
+  }
+  if (game_menu_action_pedia_and_reports(game, action) == GAME_MENU_ACTION_DONE) {
+    return true;
+  }
+  if (game_menu_action_debug_and_cheat(game, action) == GAME_MENU_ACTION_DONE) {
+    return true;
+  }
+  return true;
 }
 
 /*
@@ -10121,6 +10361,204 @@ static GameUpdateStep game_update_services(ColonizeGameState* game, const Coloni
 }
 
 /* Turn activation queue: paces the selected unit's queued go-to order. */
+/* The active unit's pending Go To: the village-entry guard, the goto-step
+ * pacing clock and the step itself (bugs.md #418 routing). */
+static GameUpdateStep game_pacer_goto_step(
+  ColonizeGameState* game, ColonizeUnit* active, uint32_t dt_ms
+) {
+  /*
+   * bugs.md #418: a Go To AIMED at an Indian settlement executes its final
+   * step INTO the village. DOS routes every goto step through
+   * FUN_465b_0000, so arriving next to the dwelling with the village as
+   * the ordered destination raises exactly what an arrow-key step raises
+   * (FUN_4d56_4528: woodcut 7 + the NAMES.TXT @ACTIONS menu, or the
+   * unmet-tribe warn) — the order was a move command into the village.
+   * Earlier this branch stopped one tile short and handed control back
+   * (bugs.md #287), which left the player to repeat the step by hand.
+   *
+   * The order is spent either way: a peaceful meet is conducted from the
+   * adjacent tile (the unit never stands ON the village), so the goto is
+   * cleared BEFORE dispatching — otherwise the pacer would re-fire the
+   * @ACTIONS menu on every frame the unit sat next to the village.
+   */
+  if (units_goto_dest_is_village_entry(
+        &game->units, active->id, &game->world_map, &game->colonies
+      )) {
+    const int aid = active->id;
+    const int gx = active->goto_x;
+    const int gy = active->goto_y;
+    units_clear_orders(&game->units, aid);
+    game->units.selected_id = aid;
+    (void)game_try_unit_move(game, gx, gy);
+    game_center_on_selected_unit(game);
+    return GAME_UPDATE_RETURN_TRUE;
+  }
+  /*
+   * Smell #105: DOS routes every goto step through FUN_465b_0000, so a
+   * Go To ENDING on a Euro peer's tile — a defending unit or an even
+   * empty foreign colony — gets the same @WHACKINDIANS / @HAVETREATY /
+   * @HALF confirms as an arrow-key move (prompt at viceroy 75545).
+   * When the next step is the destination and it is hostile, hand the
+   * step to the manual-move handler instead of the silent pacer.
+   */
+  if (active->orders == UNITS_ORDER_GOTO && active->goto_x < UNITS_GOTO_NONE &&
+      active->goto_y < UNITS_GOTO_NONE &&
+      map_tiles_adjacent(active->x, active->y, active->goto_x, active->goto_y, false) &&
+      active->moves_left > 0) {
+    const int gx = active->goto_x;
+    const int gy = active->goto_y;
+    const int foe_id = units_id_at(&game->units, gx, gy);
+    const ColonizeUnit* foe =
+      foe_id >= 0 ? units_get_const(&game->units, foe_id) : NULL;
+    bool hostile = foe && foe->nation_id != active->nation_id;
+    if (!hostile && !units_is_sea(&game->units, active->id)) {
+      const int cid = colonies_id_at(&game->colonies, gx, gy);
+      const ColonizeColony* col = colonies_get(&game->colonies, cid);
+      hostile = col && col->active && col->nation_id != active->nation_id;
+    }
+    if (hostile) {
+      const int aid = active->id;
+      game->units.selected_id = aid;
+      (void)game_try_unit_move(game, gx, gy);
+      ColonizeUnit* after = units_get(&game->units, aid);
+      if (after && after->active && units_orders_follow_goto(after->orders) &&
+          !game->ai_popups.open && game->ai_popups.queue_count == 0) {
+        if (after->x == gx && after->y == gy) {
+          /* Arrived (capture / entry went through): plain arrival. */
+          units_clear_orders(&game->units, aid);
+        } else {
+          /* Refused without a prompt (cost, domain…): park like a
+           * blocked step (bugs.md #363) so the pacer doesn't spin. */
+          after->moves_left = 0;
+          units_clear_orders(&game->units, aid);
+        }
+      }
+      return GAME_UPDATE_RETURN_TRUE;
+    }
+  }
+  game->goto_step_accum_ms += dt_ms;
+  const uint32_t goto_step_ms =
+    (game->col1_ok && game->col1.head.game_options.fast_piece_slide) ? 80u : 100u;
+  if (game->goto_step_accum_ms >= goto_step_ms) {
+    game->goto_step_accum_ms -= goto_step_ms;
+    if (game->goto_step_accum_ms > 200u) {
+      game->goto_step_accum_ms = 0; /* drop backlog after hitch */
+    }
+    const int active_id = active->id;
+    if (active->orders == UNITS_ORDER_TRADE_ROUTE) {
+      game_trade_route_retarget(game, active);
+      /* A Europe stop just sailed the ship off the map (despawned into
+       * the Atlantic lane) — hand the queue to the next unit. */
+      active = units_get(&game->units, active_id);
+      if (!active || !active->active) {
+        if (game_select_next_unit_awaiting_orders(game)) {
+          game->view_pieces_mode = false;
+        }
+        return GAME_UPDATE_RETURN_TRUE;
+      }
+    }
+    /* Sea-lane destination: a ship whose Go To ends on a high-seas tile
+     * sails for Europe when it reaches THAT tile (bugs.md). Manual
+     * arrow-key steps onto the lane deliberately do NOT — only a queued
+     * order does, same as DOS's `0x314c == 2/3` sail intent.
+     *
+     * Only the ordered destination counts, not the first lane tile the
+     * path happens to cross: DOS's reason-5 sail prompt (FUN_4720_015c,
+     * viceroy_unpacked.c 76047-76052) is suppressed outright while the
+     * order byte +0x314c is 3 (Go To) or 2 (Trade Route), so a DOS ship
+     * under orders crosses high-seas tiles without sailing; its only
+     * order-3 Europe departure is the goto menu's own "Europe" entry
+     * (destination 999 → FUN_2b5a_1dfc, viceroy_unpacked.c 42798-42819),
+     * which sails immediately from wherever the ship stands. Arbitrary
+     * map-tile Go To is a port extension, so the port convention is the
+     * closest analogue: the destination tile is the sail intent. */
+    const int goto_dest_x = (int)active->goto_x;
+    const int goto_dest_y = (int)active->goto_y;
+    const bool goto_ship_to_lane = active->orders == UNITS_ORDER_GOTO &&
+      units_is_sea(&game->units, active_id) && game->europe_ok &&
+      active->goto_x < UNITS_GOTO_NONE && active->goto_y < UNITS_GOTO_NONE &&
+      map_tile_is_high_seas(&game->world_map, goto_dest_x, goto_dest_y);
+    const bool stepped = units_advance_goto_one_step(
+      &game->units, active_id, &game->world_map, &game->colonies, &game->move_rng
+    );
+    ColonizeUnit* again = units_get(&game->units, active_id);
+    const bool sailed_for_europe =
+      goto_ship_to_lane && again && again->active && units_is_on_map(again) &&
+      again->x == goto_dest_x && again->y == goto_dest_y;
+    if (sailed_for_europe) {
+      /* A refused crossing (War of Independence — the shared tail asks
+       * @EUROPENOTLEAVE) leaves the ship standing on the lane tile it
+       * was ordered to, so it still gets the ordinary arrival tail
+       * instead of an unconditional hand-off. */
+      if (game_ship_sail_to_europe(game, active_id)) {
+        if (game_select_next_unit_awaiting_orders(game)) {
+          game->view_pieces_mode = false;
+        }
+      } else if (stepped) {
+        game_after_unit_action(game);
+      }
+    } else if (stepped) {
+      if (again && again->orders == UNITS_ORDER_TRADE_ROUTE) {
+        game_trade_route_retarget(game, again);
+      }
+      /* game_after_unit_action already does fog reveal / Land Ho! /
+       * LCR / first-contact / view centering / next-unit-when-
+       * exhausted — the same tail a player-driven move gets. */
+      game_after_unit_action(game);
+    } else {
+      /* Arrived (orders cleared), ran out of moves this step, or
+       * genuinely stuck (blocked path) — none of those should freeze
+       * the activation cycle here; move on to the next unit. Sync
+       * view_pieces_mode either way: found → stay in Move Pieces;
+       * none left → drop into View Pieces at the unit's last tile
+       * (game_select_tile) instead of leaving a moves-exhausted
+       * "ghost" selection this loop would otherwise re-poll forever. */
+      /*
+       * bugs.md #363 (trade-routed wagon sat in the control queue and
+       * only moved after the turn ended): a unit whose order is STILL
+       * a goto/trade route after a failed step did not arrive — it is
+       * blocked (foreign unit or native village on the next tile) or
+       * cannot afford any neighbouring step with its partial MP
+       * (units_next_goto_step drops every candidate whose
+       * units_move_cost it cannot pay, which only the full-allotment
+       * bypass would have let through). Both stay false for the rest
+       * of the turn, so leaving MP on the unit made
+       * turn_select_next_unit keep handing it back — with no other
+       * human unit left with moves it re-picked the same wagon every
+       * frame, holding the cursor on a piece that never stepped.
+       * Park it for the turn instead; next turn's full allotment
+       * clears the affordability case and re-runs the block check.
+       * Arrival is untouched (orders already cleared there), so a
+       * finished Go To still hands the player its leftover MP.
+       */
+      ColonizeUnit* stalled = units_get(&game->units, active_id);
+      if (stalled && stalled->active && units_orders_follow_goto(stalled->orders) &&
+          stalled->moves_left > 0) {
+        stalled->moves_left = 0;
+      }
+      if (game_select_next_unit_awaiting_orders(game)) {
+        game->view_pieces_mode = false;
+        const ColonizeUnit* next = units_get_const(&game->units, game->units.selected_id);
+        if (next) {
+          game->map_cursor_x = next->x;
+          game->map_cursor_y = next->y;
+          game_set_view_center(game, next->x, next->y);
+          snprintf(
+            game->status, sizeof(game->status), "Selected %s",
+            units_display_name(&game->units, next)
+          );
+        }
+      } else {
+        const ColonizeUnit* stuck = units_get_const(&game->units, active_id);
+        game_select_tile(
+          game, stuck ? stuck->x : game->map_cursor_x, stuck ? stuck->y : game->map_cursor_y
+        );
+      }
+    }
+  }
+  return GAME_UPDATE_CONTINUE;
+}
+
 static GameUpdateStep game_update_unit_pacer(ColonizeGameState* game, const ColonizeInputState* input, uint32_t dt_ms) {
   /*
    * Turn activation queue (minimal): DOS gives control to exactly one
@@ -10200,195 +10638,9 @@ static GameUpdateStep game_update_unit_pacer(ColonizeGameState* game, const Colo
       active_pax_awaiting;
 
     if (active_pending) {
-      /*
-       * bugs.md #418: a Go To AIMED at an Indian settlement executes its final
-       * step INTO the village. DOS routes every goto step through
-       * FUN_465b_0000, so arriving next to the dwelling with the village as
-       * the ordered destination raises exactly what an arrow-key step raises
-       * (FUN_4d56_4528: woodcut 7 + the NAMES.TXT @ACTIONS menu, or the
-       * unmet-tribe warn) — the order was a move command into the village.
-       * Earlier this branch stopped one tile short and handed control back
-       * (bugs.md #287), which left the player to repeat the step by hand.
-       *
-       * The order is spent either way: a peaceful meet is conducted from the
-       * adjacent tile (the unit never stands ON the village), so the goto is
-       * cleared BEFORE dispatching — otherwise the pacer would re-fire the
-       * @ACTIONS menu on every frame the unit sat next to the village.
-       */
-      if (units_goto_dest_is_village_entry(
-            &game->units, active->id, &game->world_map, &game->colonies
-          )) {
-        const int aid = active->id;
-        const int gx = active->goto_x;
-        const int gy = active->goto_y;
-        units_clear_orders(&game->units, aid);
-        game->units.selected_id = aid;
-        (void)game_try_unit_move(game, gx, gy);
-        game_center_on_selected_unit(game);
-        return GAME_UPDATE_RETURN_TRUE;
-      }
-      /*
-       * Smell #105: DOS routes every goto step through FUN_465b_0000, so a
-       * Go To ENDING on a Euro peer's tile — a defending unit or an even
-       * empty foreign colony — gets the same @WHACKINDIANS / @HAVETREATY /
-       * @HALF confirms as an arrow-key move (prompt at viceroy 75545).
-       * When the next step is the destination and it is hostile, hand the
-       * step to the manual-move handler instead of the silent pacer.
-       */
-      if (active->orders == UNITS_ORDER_GOTO && active->goto_x < UNITS_GOTO_NONE &&
-          active->goto_y < UNITS_GOTO_NONE &&
-          map_tiles_adjacent(active->x, active->y, active->goto_x, active->goto_y, false) &&
-          active->moves_left > 0) {
-        const int gx = active->goto_x;
-        const int gy = active->goto_y;
-        const int foe_id = units_id_at(&game->units, gx, gy);
-        const ColonizeUnit* foe =
-          foe_id >= 0 ? units_get_const(&game->units, foe_id) : NULL;
-        bool hostile = foe && foe->nation_id != active->nation_id;
-        if (!hostile && !units_is_sea(&game->units, active->id)) {
-          const int cid = colonies_id_at(&game->colonies, gx, gy);
-          const ColonizeColony* col = colonies_get(&game->colonies, cid);
-          hostile = col && col->active && col->nation_id != active->nation_id;
-        }
-        if (hostile) {
-          const int aid = active->id;
-          game->units.selected_id = aid;
-          (void)game_try_unit_move(game, gx, gy);
-          ColonizeUnit* after = units_get(&game->units, aid);
-          if (after && after->active && units_orders_follow_goto(after->orders) &&
-              !game->ai_popups.open && game->ai_popups.queue_count == 0) {
-            if (after->x == gx && after->y == gy) {
-              /* Arrived (capture / entry went through): plain arrival. */
-              units_clear_orders(&game->units, aid);
-            } else {
-              /* Refused without a prompt (cost, domain…): park like a
-               * blocked step (bugs.md #363) so the pacer doesn't spin. */
-              after->moves_left = 0;
-              units_clear_orders(&game->units, aid);
-            }
-          }
-          return GAME_UPDATE_RETURN_TRUE;
-        }
-      }
-      game->goto_step_accum_ms += dt_ms;
-      const uint32_t goto_step_ms =
-        (game->col1_ok && game->col1.head.game_options.fast_piece_slide) ? 80u : 100u;
-      if (game->goto_step_accum_ms >= goto_step_ms) {
-        game->goto_step_accum_ms -= goto_step_ms;
-        if (game->goto_step_accum_ms > 200u) {
-          game->goto_step_accum_ms = 0; /* drop backlog after hitch */
-        }
-        const int active_id = active->id;
-        if (active->orders == UNITS_ORDER_TRADE_ROUTE) {
-          game_trade_route_retarget(game, active);
-          /* A Europe stop just sailed the ship off the map (despawned into
-           * the Atlantic lane) — hand the queue to the next unit. */
-          active = units_get(&game->units, active_id);
-          if (!active || !active->active) {
-            if (game_select_next_unit_awaiting_orders(game)) {
-              game->view_pieces_mode = false;
-            }
-            return GAME_UPDATE_RETURN_TRUE;
-          }
-        }
-        /* Sea-lane destination: a ship whose Go To ends on a high-seas tile
-         * sails for Europe when it reaches THAT tile (bugs.md). Manual
-         * arrow-key steps onto the lane deliberately do NOT — only a queued
-         * order does, same as DOS's `0x314c == 2/3` sail intent.
-         *
-         * Only the ordered destination counts, not the first lane tile the
-         * path happens to cross: DOS's reason-5 sail prompt (FUN_4720_015c,
-         * viceroy_unpacked.c 76047-76052) is suppressed outright while the
-         * order byte +0x314c is 3 (Go To) or 2 (Trade Route), so a DOS ship
-         * under orders crosses high-seas tiles without sailing; its only
-         * order-3 Europe departure is the goto menu's own "Europe" entry
-         * (destination 999 → FUN_2b5a_1dfc, viceroy_unpacked.c 42798-42819),
-         * which sails immediately from wherever the ship stands. Arbitrary
-         * map-tile Go To is a port extension, so the port convention is the
-         * closest analogue: the destination tile is the sail intent. */
-        const int goto_dest_x = (int)active->goto_x;
-        const int goto_dest_y = (int)active->goto_y;
-        const bool goto_ship_to_lane = active->orders == UNITS_ORDER_GOTO &&
-          units_is_sea(&game->units, active_id) && game->europe_ok &&
-          active->goto_x < UNITS_GOTO_NONE && active->goto_y < UNITS_GOTO_NONE &&
-          map_tile_is_high_seas(&game->world_map, goto_dest_x, goto_dest_y);
-        const bool stepped = units_advance_goto_one_step(
-          &game->units, active_id, &game->world_map, &game->colonies, &game->move_rng
-        );
-        ColonizeUnit* again = units_get(&game->units, active_id);
-        const bool sailed_for_europe =
-          goto_ship_to_lane && again && again->active && units_is_on_map(again) &&
-          again->x == goto_dest_x && again->y == goto_dest_y;
-        if (sailed_for_europe) {
-          /* A refused crossing (War of Independence — the shared tail asks
-           * @EUROPENOTLEAVE) leaves the ship standing on the lane tile it
-           * was ordered to, so it still gets the ordinary arrival tail
-           * instead of an unconditional hand-off. */
-          if (game_ship_sail_to_europe(game, active_id)) {
-            if (game_select_next_unit_awaiting_orders(game)) {
-              game->view_pieces_mode = false;
-            }
-          } else if (stepped) {
-            game_after_unit_action(game);
-          }
-        } else if (stepped) {
-          if (again && again->orders == UNITS_ORDER_TRADE_ROUTE) {
-            game_trade_route_retarget(game, again);
-          }
-          /* game_after_unit_action already does fog reveal / Land Ho! /
-           * LCR / first-contact / view centering / next-unit-when-
-           * exhausted — the same tail a player-driven move gets. */
-          game_after_unit_action(game);
-        } else {
-          /* Arrived (orders cleared), ran out of moves this step, or
-           * genuinely stuck (blocked path) — none of those should freeze
-           * the activation cycle here; move on to the next unit. Sync
-           * view_pieces_mode either way: found → stay in Move Pieces;
-           * none left → drop into View Pieces at the unit's last tile
-           * (game_select_tile) instead of leaving a moves-exhausted
-           * "ghost" selection this loop would otherwise re-poll forever. */
-          /*
-           * bugs.md #363 (trade-routed wagon sat in the control queue and
-           * only moved after the turn ended): a unit whose order is STILL
-           * a goto/trade route after a failed step did not arrive — it is
-           * blocked (foreign unit or native village on the next tile) or
-           * cannot afford any neighbouring step with its partial MP
-           * (units_next_goto_step drops every candidate whose
-           * units_move_cost it cannot pay, which only the full-allotment
-           * bypass would have let through). Both stay false for the rest
-           * of the turn, so leaving MP on the unit made
-           * turn_select_next_unit keep handing it back — with no other
-           * human unit left with moves it re-picked the same wagon every
-           * frame, holding the cursor on a piece that never stepped.
-           * Park it for the turn instead; next turn's full allotment
-           * clears the affordability case and re-runs the block check.
-           * Arrival is untouched (orders already cleared there), so a
-           * finished Go To still hands the player its leftover MP.
-           */
-          ColonizeUnit* stalled = units_get(&game->units, active_id);
-          if (stalled && stalled->active && units_orders_follow_goto(stalled->orders) &&
-              stalled->moves_left > 0) {
-            stalled->moves_left = 0;
-          }
-          if (game_select_next_unit_awaiting_orders(game)) {
-            game->view_pieces_mode = false;
-            const ColonizeUnit* next = units_get_const(&game->units, game->units.selected_id);
-            if (next) {
-              game->map_cursor_x = next->x;
-              game->map_cursor_y = next->y;
-              game_set_view_center(game, next->x, next->y);
-              snprintf(
-                game->status, sizeof(game->status), "Selected %s",
-                units_display_name(&game->units, next)
-              );
-            }
-          } else {
-            const ColonizeUnit* stuck = units_get_const(&game->units, active_id);
-            game_select_tile(
-              game, stuck ? stuck->x : game->map_cursor_x, stuck ? stuck->y : game->map_cursor_y
-            );
-          }
-        }
+      const GameUpdateStep sub = game_pacer_goto_step(game, active, dt_ms);
+      if (sub != GAME_UPDATE_CONTINUE) {
+        return sub;
       }
     } else if (active_awaiting_player) {
       /* bugs.md: the unit awaiting orders must be on screen — whatever path
@@ -10909,6 +11161,347 @@ static GameUpdateStep game_colony_screen_key_enter(
   return GAME_UPDATE_CONTINUE;
 }
 
+/* Colony-screen keyboard: Escape / Enter, the C construction toggle, the
+ * 1/2/3/M/N tab keys and the open sub-panel's own navigation keys. */
+static GameUpdateStep game_colony_screen_keys(
+  ColonizeGameState* game, const ColonizeInputState* input, ColonizeColony* colony,
+  ColonyScreenView* csv, const ColonizeWorldMap* cmap
+) {
+  if (input->last_key == COLONIZE_KEY_ESCAPE) {
+    if (ui_drag_active(&game->ui_drag)) {
+      game_ui_drag_clear(game);
+      return GAME_UPDATE_RETURN_TRUE;
+    }
+    /* Sub-panel cascade: Escape dismisses the topmost open panel and only
+     * leaves the colony once none is up. Priority order is shared verbatim
+     * with the Enter cascade below (message, jobs, eject, dock orders,
+     * Custom House, construction); the six can never actually be open at
+     * once — colony_screen_close_subpanels runs from every opener — so the
+     * order is a tie-break the two keys must not spell differently. */
+    if (csv->message_kind != COLONY_MSG_NONE) {
+      colony_screen_close_message(csv);
+      return GAME_UPDATE_RETURN_TRUE;
+    }
+    if (csv->jobs_open) {
+      colony_screen_close_jobs(csv);
+      return GAME_UPDATE_RETURN_TRUE;
+    }
+    if (csv->eject_open) {
+      colony_screen_close_eject(csv);
+      return GAME_UPDATE_RETURN_TRUE;
+    }
+    if (csv->dock_orders_open) {
+      colony_screen_close_dock_orders(csv);
+      return GAME_UPDATE_RETURN_TRUE;
+    }
+    /* The Custom House checklist is a sub-panel like the rest: Escape has
+     * to close IT before the colony screen. Without this row Escape left
+     * the panel flagged open and walked straight out of the colony (the
+     * next entry then self-healed it in colony_screen_reset), and the
+     * panel meanwhile suppressed the area-tile right-click pedia below. */
+    if (csv->custom_house_open) {
+      colony_screen_close_custom_house(csv);
+      return GAME_UPDATE_RETURN_TRUE;
+    }
+    if (csv->construction_open) {
+      colony_screen_close_construction(csv);
+      return GAME_UPDATE_RETURN_TRUE;
+    }
+    game->in_colony = false;
+    sound_set_bgm(1); /* back on the map: DOS FUN_281f_0498(1) tune pool */
+    game->colony_view_id = -1;
+    diag_info("Left colony screen.");
+    return GAME_UPDATE_RETURN_TRUE;
+  }
+  {
+    const GameUpdateStep sub = game_colony_screen_key_enter(game, input, colony, csv, cmap);
+    if (sub != GAME_UPDATE_CONTINUE) {
+      return sub;
+    }
+  }
+
+  /* C = Construction Change (tech-supp). Toggle: down when Construction is
+   * already up, otherwise every other sub-panel closes first so the new one
+   * cannot open underneath a still-open eject / dock-orders / Custom House
+   * list (colony_screen_open_construction closes them too — this states the
+   * hotkey's own "one panel at a time" contract next to the toggle). */
+  if (input->last_key == COLONIZE_KEY_C) {
+    if (csv->construction_open) {
+      colony_screen_close_construction(csv);
+    } else {
+      colony_screen_close_subpanels(csv);
+      {
+        ColoniesBuildableOpts bopts = game_colony_buildable_opts(game);
+        colony_screen_open_construction(
+          csv, &game->colonies, game->colony_view_id, &bopts
+        );
+      }
+      csv->multi_mode = COLONY_MULTI_CONSTRUCTION;
+    }
+    return GAME_UPDATE_RETURN_TRUE;
+  }
+
+  /* 1/2/3 = multifunction tabs; M cycles; N toggles production numbers; =/+ load. */
+  for (int ti = 0; ti < input->text_input_len; ++ti) {
+    const char ch = input->text_input[ti];
+    if (ch == '1') {
+      csv->multi_mode = COLONY_MULTI_PRODUCTION;
+      return GAME_UPDATE_RETURN_TRUE;
+    }
+    if (ch == '2') {
+      csv->multi_mode = COLONY_MULTI_UNITS;
+      return GAME_UPDATE_RETURN_TRUE;
+    }
+    if (ch == '3') {
+      csv->multi_mode = COLONY_MULTI_CONSTRUCTION;
+      return GAME_UPDATE_RETURN_TRUE;
+    }
+    if (ch == 'm' || ch == 'M') {
+      csv->multi_mode = (ColonyMultiMode)(((int)csv->multi_mode + 1) % 3);
+      return GAME_UPDATE_RETURN_TRUE;
+    }
+    if (ch == 'n' || ch == 'N') {
+      csv->show_production_numbers = !csv->show_production_numbers;
+      return GAME_UPDATE_RETURN_TRUE;
+    }
+    if ((ch == '=' || ch == '+') && colony && game->units_ok && !csv->jobs_open &&
+        !csv->construction_open) {
+      if (csv->transport_unit_id < 0) {
+        set_status(game, "Select a ship first", NULL);
+      } else if (csv->selected_cargo < 0 || csv->selected_cargo >= COLONIZE_CARGO_COUNT ||
+                 colony->stock[csv->selected_cargo] <= 0) {
+        set_status(game, "Select warehouse cargo", NULL);
+      } else if (ch == '+') {
+        const int cargo = csv->selected_cargo;
+        const int want = colony->stock[cargo] < 100 ? colony->stock[cargo] : 100;
+        game_colony_load_hold(game, csv->transport_unit_id, cargo, want);
+      } else {
+        game_colony_open_load_prompt(game, colony, csv->selected_cargo);
+      }
+      colony_screen_set_status(csv, game->status);
+      return GAME_UPDATE_RETURN_TRUE;
+    }
+    if ((ch == 'r' || ch == 'R') && colony && !csv->jobs_open && !csv->construction_open &&
+        csv->message_kind == COLONY_MSG_NONE) {
+      char prompt[AI_POPUP_BODY_LEN];
+      popup_msg_fill(
+        &game->messages,
+        "RENAMECOLONY",
+        NULL,
+        "What shall we rename this colony?",
+        prompt,
+        sizeof(prompt)
+      );
+      name_entry_open(
+        &game->name_entry,
+        NAME_ENTRY_KIND_RENAME,
+        prompt,
+        colony->name,
+        game->colony_view_id
+      );
+      return GAME_UPDATE_RETURN_TRUE;
+    }
+  }
+
+  if (csv->jobs_open) {
+    if (colonize_key_up(input->last_key) && csv->jobs_selection > 0) {
+      csv->jobs_selection--;
+      return GAME_UPDATE_RETURN_TRUE;
+    }
+    if (colonize_key_down(input->last_key) && csv->jobs_selection < csv->job_count) {
+      csv->jobs_selection++;
+      return GAME_UPDATE_RETURN_TRUE;
+    }
+  } else if (csv->message_kind != COLONY_MSG_NONE) {
+    const int max_sel = (csv->message_kind == COLONY_MSG_CONFIRM) ? 1 : 0;
+    if (colonize_key_up(input->last_key) && csv->message_selection > 0) {
+      csv->message_selection--;
+      return GAME_UPDATE_RETURN_TRUE;
+    }
+    if (colonize_key_down(input->last_key) && csv->message_selection < max_sel) {
+      csv->message_selection++;
+      return GAME_UPDATE_RETURN_TRUE;
+    }
+  } else if (csv->eject_open) {
+    /* Greyed rows (FUN_15eb_3454 → 0xffff) are drawn but never land under
+     * the highlight — step over them the way a DOS disabled listbox row is
+     * stepped over, and stay put if there is nothing enabled beyond. */
+    if (colonize_key_up(input->last_key) && csv->eject_selection > 0) {
+      int sel = csv->eject_selection - 1;
+      while (sel > 0 && !csv->eject_role_enabled[sel]) {
+        --sel;
+      }
+      if (csv->eject_role_enabled[sel]) {
+        csv->eject_selection = sel;
+      }
+      return GAME_UPDATE_RETURN_TRUE;
+    }
+    if (colonize_key_down(input->last_key) &&
+        csv->eject_selection + 1 < csv->eject_role_count) {
+      int sel = csv->eject_selection + 1;
+      while (sel + 1 < csv->eject_role_count && !csv->eject_role_enabled[sel]) {
+        ++sel;
+      }
+      if (csv->eject_role_enabled[sel]) {
+        csv->eject_selection = sel;
+      }
+      return GAME_UPDATE_RETURN_TRUE;
+    }
+  } else if (csv->dock_orders_open) {
+    if (colonize_key_up(input->last_key) && csv->dock_orders_selection > 0) {
+      csv->dock_orders_selection--;
+      return GAME_UPDATE_RETURN_TRUE;
+    }
+    if (colonize_key_down(input->last_key) &&
+        csv->dock_orders_selection + 1 < csv->dock_orders_count) {
+      csv->dock_orders_selection++;
+      return GAME_UPDATE_RETURN_TRUE;
+    }
+  } else if (csv->construction_open) {
+    const int max_sel = csv->buildable_count;
+    if (colonize_key_up(input->last_key) && csv->construction_selection > 0) {
+      csv->construction_selection--;
+      return GAME_UPDATE_RETURN_TRUE;
+    }
+    if (colonize_key_down(input->last_key) && csv->construction_selection < max_sel) {
+      csv->construction_selection++;
+      return GAME_UPDATE_RETURN_TRUE;
+    }
+  } else {
+    if (colonize_key_up(input->last_key) && colony && csv->selected_colonist > 0) {
+      game_colony_select_colonist(game, csv->selected_colonist - 1);
+      return GAME_UPDATE_RETURN_TRUE;
+    }
+    if (colonize_key_down(input->last_key) && colony &&
+        csv->selected_colonist + 1 < colony->colonist_count) {
+      game_colony_select_colonist(game, csv->selected_colonist + 1);
+      return GAME_UPDATE_RETURN_TRUE;
+    }
+  }
+
+  /* B = buy remaining construction with gold + warehouse tools. */
+  if (input->last_key == COLONIZE_KEY_B && colony &&
+      colony->building_in_production >= 0) {
+    game_request_buy_construction_confirm(game);
+    return GAME_UPDATE_RETURN_TRUE;
+  }
+  return GAME_UPDATE_CONTINUE;
+}
+
+/* Colony-screen cargo and production keys: L / U on the docked transport
+ * and SPACE (one production tick). */
+static GameUpdateStep game_colony_screen_cargo_keys(
+  ColonizeGameState* game, const ColonizeInputState* input, ColonizeColony* colony,
+  ColonyScreenView* csv, const ColonizeWorldMap* cmap
+) {
+  /* L = load highest-value cargo; U = unload first non-empty hold. */
+  if (!csv->jobs_open && !csv->construction_open && colony && game->units_ok) {
+    if (input->last_key == COLONIZE_KEY_L) {
+      if (csv->transport_unit_id < 0) {
+        set_status(game, "Select a ship first", NULL);
+      } else {
+        const int cargo = colonies_best_load_cargo(colony);
+        if (cargo < 0) {
+          set_status(game, "Nothing to load", NULL);
+        } else {
+          const int want = colony->stock[cargo] < 100 ? colony->stock[cargo] : 100;
+          game_colony_load_hold(game, csv->transport_unit_id, cargo, want);
+        }
+      }
+      colony_screen_set_status(csv, game->status);
+      return GAME_UPDATE_RETURN_TRUE;
+    }
+    if (input->last_key == COLONIZE_KEY_U) {
+      if (csv->transport_unit_id < 0) {
+        set_status(game, "Select a ship first", NULL);
+      } else {
+        const int hold = units_first_goods_hold(&game->units, csv->transport_unit_id);
+        if (hold < 0) {
+          set_status(game, "Hold empty", NULL);
+        } else {
+          game_colony_unload_hold(game, csv->transport_unit_id, hold, "Cannot unload");
+        }
+      }
+      colony_screen_set_status(csv, game->status);
+      return GAME_UPDATE_RETURN_TRUE;
+    }
+  }
+
+  if (input->last_key == COLONIZE_KEY_SPACE) {
+    if (colony) {
+      ColonizeTurnResult prod;
+      ColonizeColonyProdDelta delta;
+      memset(&prod, 0, sizeof(prod));
+      turn_colony_free_production(&game->colonies, colony, cmap, &prod, &delta);
+      colony_screen_set_delta(csv, &delta);
+      {
+        static const struct {
+          int cargo;
+          const char* tag;
+        } k_craft[] = {
+          {COLONIZE_CARGO_RUM, "Rum"},
+          {COLONIZE_CARGO_CIGARS, "Cigar"},
+          {COLONIZE_CARGO_CLOTH, "Cloth"},
+          {COLONIZE_CARGO_COATS, "Coat"},
+          {COLONIZE_CARGO_TOOLS, "Tool"},
+          {COLONIZE_CARGO_MUSKETS, "Gun"},
+        };
+        char craft[48];
+        craft[0] = '\0';
+        size_t cn = 0;
+        for (size_t ci = 0; ci < sizeof(k_craft) / sizeof(k_craft[0]); ++ci) {
+          const int g = delta.goods[k_craft[ci].cargo];
+          if (g <= 0) {
+            continue;
+          }
+          const int wrote = snprintf(
+            craft + cn,
+            sizeof(craft) - cn,
+            "%s%s%+d",
+            cn > 0 ? " " : "",
+            k_craft[ci].tag,
+            g
+          );
+          if (wrote > 0) {
+            cn += (size_t)wrote;
+          }
+          if (cn >= sizeof(craft)) {
+            break;
+          }
+        }
+        if (craft[0]) {
+          snprintf(
+            game->status,
+            sizeof(game->status),
+            "Food%+d L%+d H%+d %s",
+            delta.goods[COLONIZE_CARGO_FOOD],
+            delta.goods[COLONIZE_CARGO_LUMBER],
+            delta.hammers_added,
+            craft
+          );
+        } else {
+          snprintf(
+            game->status,
+            sizeof(game->status),
+            "Food%+d Lumber%+d Ore%+d H%+d",
+            delta.goods[COLONIZE_CARGO_FOOD],
+            delta.goods[COLONIZE_CARGO_LUMBER],
+            delta.goods[COLONIZE_CARGO_ORE],
+            delta.hammers_added
+          );
+        }
+      }
+      if (delta.building_completed) {
+        snprintf(game->status, sizeof(game->status), "Building completed!");
+      }
+      colony_screen_set_status(csv, game->status);
+      diag_info("Colony free production id=%d", colony->id);
+    }
+    return GAME_UPDATE_RETURN_TRUE;
+  }
+  return GAME_UPDATE_CONTINUE;
+}
+
 static GameUpdateStep game_update_colony_screen(ColonizeGameState* game, const ColonizeInputState* input) {
   if (game->in_colony) {
     ColonizeColony* colony = colonies_get_mut(&game->colonies, game->colony_view_id);
@@ -10918,329 +11511,19 @@ static GameUpdateStep game_update_colony_screen(ColonizeGameState* game, const C
       colony_screen_refresh_transports(csv, &game->units, colony);
     }
 
-    if (input->last_key == COLONIZE_KEY_ESCAPE) {
-      if (ui_drag_active(&game->ui_drag)) {
-        game_ui_drag_clear(game);
-        return GAME_UPDATE_RETURN_TRUE;
-      }
-      /* Sub-panel cascade: Escape dismisses the topmost open panel and only
-       * leaves the colony once none is up. Priority order is shared verbatim
-       * with the Enter cascade below (message, jobs, eject, dock orders,
-       * Custom House, construction); the six can never actually be open at
-       * once — colony_screen_close_subpanels runs from every opener — so the
-       * order is a tie-break the two keys must not spell differently. */
-      if (csv->message_kind != COLONY_MSG_NONE) {
-        colony_screen_close_message(csv);
-        return GAME_UPDATE_RETURN_TRUE;
-      }
-      if (csv->jobs_open) {
-        colony_screen_close_jobs(csv);
-        return GAME_UPDATE_RETURN_TRUE;
-      }
-      if (csv->eject_open) {
-        colony_screen_close_eject(csv);
-        return GAME_UPDATE_RETURN_TRUE;
-      }
-      if (csv->dock_orders_open) {
-        colony_screen_close_dock_orders(csv);
-        return GAME_UPDATE_RETURN_TRUE;
-      }
-      /* The Custom House checklist is a sub-panel like the rest: Escape has
-       * to close IT before the colony screen. Without this row Escape left
-       * the panel flagged open and walked straight out of the colony (the
-       * next entry then self-healed it in colony_screen_reset), and the
-       * panel meanwhile suppressed the area-tile right-click pedia below. */
-      if (csv->custom_house_open) {
-        colony_screen_close_custom_house(csv);
-        return GAME_UPDATE_RETURN_TRUE;
-      }
-      if (csv->construction_open) {
-        colony_screen_close_construction(csv);
-        return GAME_UPDATE_RETURN_TRUE;
-      }
-      game->in_colony = false;
-      sound_set_bgm(1); /* back on the map: DOS FUN_281f_0498(1) tune pool */
-      game->colony_view_id = -1;
-      diag_info("Left colony screen.");
-      return GAME_UPDATE_RETURN_TRUE;
-    }
     {
-      const GameUpdateStep sub = game_colony_screen_key_enter(game, input, colony, csv, cmap);
+      const GameUpdateStep sub = game_colony_screen_keys(game, input, colony, csv, cmap);
       if (sub != GAME_UPDATE_CONTINUE) {
         return sub;
       }
     }
 
-    /* C = Construction Change (tech-supp). Toggle: down when Construction is
-     * already up, otherwise every other sub-panel closes first so the new one
-     * cannot open underneath a still-open eject / dock-orders / Custom House
-     * list (colony_screen_open_construction closes them too — this states the
-     * hotkey's own "one panel at a time" contract next to the toggle). */
-    if (input->last_key == COLONIZE_KEY_C) {
-      if (csv->construction_open) {
-        colony_screen_close_construction(csv);
-      } else {
-        colony_screen_close_subpanels(csv);
-        {
-          ColoniesBuildableOpts bopts = game_colony_buildable_opts(game);
-          colony_screen_open_construction(
-            csv, &game->colonies, game->colony_view_id, &bopts
-          );
-        }
-        csv->multi_mode = COLONY_MULTI_CONSTRUCTION;
+    {
+      const GameUpdateStep sub =
+        game_colony_screen_cargo_keys(game, input, colony, csv, cmap);
+      if (sub != GAME_UPDATE_CONTINUE) {
+        return sub;
       }
-      return GAME_UPDATE_RETURN_TRUE;
-    }
-
-    /* 1/2/3 = multifunction tabs; M cycles; N toggles production numbers; =/+ load. */
-    for (int ti = 0; ti < input->text_input_len; ++ti) {
-      const char ch = input->text_input[ti];
-      if (ch == '1') {
-        csv->multi_mode = COLONY_MULTI_PRODUCTION;
-        return GAME_UPDATE_RETURN_TRUE;
-      }
-      if (ch == '2') {
-        csv->multi_mode = COLONY_MULTI_UNITS;
-        return GAME_UPDATE_RETURN_TRUE;
-      }
-      if (ch == '3') {
-        csv->multi_mode = COLONY_MULTI_CONSTRUCTION;
-        return GAME_UPDATE_RETURN_TRUE;
-      }
-      if (ch == 'm' || ch == 'M') {
-        csv->multi_mode = (ColonyMultiMode)(((int)csv->multi_mode + 1) % 3);
-        return GAME_UPDATE_RETURN_TRUE;
-      }
-      if (ch == 'n' || ch == 'N') {
-        csv->show_production_numbers = !csv->show_production_numbers;
-        return GAME_UPDATE_RETURN_TRUE;
-      }
-      if ((ch == '=' || ch == '+') && colony && game->units_ok && !csv->jobs_open &&
-          !csv->construction_open) {
-        if (csv->transport_unit_id < 0) {
-          set_status(game, "Select a ship first", NULL);
-        } else if (csv->selected_cargo < 0 || csv->selected_cargo >= COLONIZE_CARGO_COUNT ||
-                   colony->stock[csv->selected_cargo] <= 0) {
-          set_status(game, "Select warehouse cargo", NULL);
-        } else if (ch == '+') {
-          const int cargo = csv->selected_cargo;
-          const int want = colony->stock[cargo] < 100 ? colony->stock[cargo] : 100;
-          game_colony_load_hold(game, csv->transport_unit_id, cargo, want);
-        } else {
-          game_colony_open_load_prompt(game, colony, csv->selected_cargo);
-        }
-        colony_screen_set_status(csv, game->status);
-        return GAME_UPDATE_RETURN_TRUE;
-      }
-      if ((ch == 'r' || ch == 'R') && colony && !csv->jobs_open && !csv->construction_open &&
-          csv->message_kind == COLONY_MSG_NONE) {
-        char prompt[AI_POPUP_BODY_LEN];
-        popup_msg_fill(
-          &game->messages,
-          "RENAMECOLONY",
-          NULL,
-          "What shall we rename this colony?",
-          prompt,
-          sizeof(prompt)
-        );
-        name_entry_open(
-          &game->name_entry,
-          NAME_ENTRY_KIND_RENAME,
-          prompt,
-          colony->name,
-          game->colony_view_id
-        );
-        return GAME_UPDATE_RETURN_TRUE;
-      }
-    }
-
-    if (csv->jobs_open) {
-      if (colonize_key_up(input->last_key) && csv->jobs_selection > 0) {
-        csv->jobs_selection--;
-        return GAME_UPDATE_RETURN_TRUE;
-      }
-      if (colonize_key_down(input->last_key) && csv->jobs_selection < csv->job_count) {
-        csv->jobs_selection++;
-        return GAME_UPDATE_RETURN_TRUE;
-      }
-    } else if (csv->message_kind != COLONY_MSG_NONE) {
-      const int max_sel = (csv->message_kind == COLONY_MSG_CONFIRM) ? 1 : 0;
-      if (colonize_key_up(input->last_key) && csv->message_selection > 0) {
-        csv->message_selection--;
-        return GAME_UPDATE_RETURN_TRUE;
-      }
-      if (colonize_key_down(input->last_key) && csv->message_selection < max_sel) {
-        csv->message_selection++;
-        return GAME_UPDATE_RETURN_TRUE;
-      }
-    } else if (csv->eject_open) {
-      /* Greyed rows (FUN_15eb_3454 → 0xffff) are drawn but never land under
-       * the highlight — step over them the way a DOS disabled listbox row is
-       * stepped over, and stay put if there is nothing enabled beyond. */
-      if (colonize_key_up(input->last_key) && csv->eject_selection > 0) {
-        int sel = csv->eject_selection - 1;
-        while (sel > 0 && !csv->eject_role_enabled[sel]) {
-          --sel;
-        }
-        if (csv->eject_role_enabled[sel]) {
-          csv->eject_selection = sel;
-        }
-        return GAME_UPDATE_RETURN_TRUE;
-      }
-      if (colonize_key_down(input->last_key) &&
-          csv->eject_selection + 1 < csv->eject_role_count) {
-        int sel = csv->eject_selection + 1;
-        while (sel + 1 < csv->eject_role_count && !csv->eject_role_enabled[sel]) {
-          ++sel;
-        }
-        if (csv->eject_role_enabled[sel]) {
-          csv->eject_selection = sel;
-        }
-        return GAME_UPDATE_RETURN_TRUE;
-      }
-    } else if (csv->dock_orders_open) {
-      if (colonize_key_up(input->last_key) && csv->dock_orders_selection > 0) {
-        csv->dock_orders_selection--;
-        return GAME_UPDATE_RETURN_TRUE;
-      }
-      if (colonize_key_down(input->last_key) &&
-          csv->dock_orders_selection + 1 < csv->dock_orders_count) {
-        csv->dock_orders_selection++;
-        return GAME_UPDATE_RETURN_TRUE;
-      }
-    } else if (csv->construction_open) {
-      const int max_sel = csv->buildable_count;
-      if (colonize_key_up(input->last_key) && csv->construction_selection > 0) {
-        csv->construction_selection--;
-        return GAME_UPDATE_RETURN_TRUE;
-      }
-      if (colonize_key_down(input->last_key) && csv->construction_selection < max_sel) {
-        csv->construction_selection++;
-        return GAME_UPDATE_RETURN_TRUE;
-      }
-    } else {
-      if (colonize_key_up(input->last_key) && colony && csv->selected_colonist > 0) {
-        game_colony_select_colonist(game, csv->selected_colonist - 1);
-        return GAME_UPDATE_RETURN_TRUE;
-      }
-      if (colonize_key_down(input->last_key) && colony &&
-          csv->selected_colonist + 1 < colony->colonist_count) {
-        game_colony_select_colonist(game, csv->selected_colonist + 1);
-        return GAME_UPDATE_RETURN_TRUE;
-      }
-    }
-
-    /* B = buy remaining construction with gold + warehouse tools. */
-    if (input->last_key == COLONIZE_KEY_B && colony &&
-        colony->building_in_production >= 0) {
-      game_request_buy_construction_confirm(game);
-      return GAME_UPDATE_RETURN_TRUE;
-    }
-
-    /* L = load highest-value cargo; U = unload first non-empty hold. */
-    if (!csv->jobs_open && !csv->construction_open && colony && game->units_ok) {
-      if (input->last_key == COLONIZE_KEY_L) {
-        if (csv->transport_unit_id < 0) {
-          set_status(game, "Select a ship first", NULL);
-        } else {
-          const int cargo = colonies_best_load_cargo(colony);
-          if (cargo < 0) {
-            set_status(game, "Nothing to load", NULL);
-          } else {
-            const int want = colony->stock[cargo] < 100 ? colony->stock[cargo] : 100;
-            game_colony_load_hold(game, csv->transport_unit_id, cargo, want);
-          }
-        }
-        colony_screen_set_status(csv, game->status);
-        return GAME_UPDATE_RETURN_TRUE;
-      }
-      if (input->last_key == COLONIZE_KEY_U) {
-        if (csv->transport_unit_id < 0) {
-          set_status(game, "Select a ship first", NULL);
-        } else {
-          const int hold = units_first_goods_hold(&game->units, csv->transport_unit_id);
-          if (hold < 0) {
-            set_status(game, "Hold empty", NULL);
-          } else {
-            game_colony_unload_hold(game, csv->transport_unit_id, hold, "Cannot unload");
-          }
-        }
-        colony_screen_set_status(csv, game->status);
-        return GAME_UPDATE_RETURN_TRUE;
-      }
-    }
-
-    if (input->last_key == COLONIZE_KEY_SPACE) {
-      if (colony) {
-        ColonizeTurnResult prod;
-        ColonizeColonyProdDelta delta;
-        memset(&prod, 0, sizeof(prod));
-        turn_colony_free_production(&game->colonies, colony, cmap, &prod, &delta);
-        colony_screen_set_delta(csv, &delta);
-        {
-          static const struct {
-            int cargo;
-            const char* tag;
-          } k_craft[] = {
-            {COLONIZE_CARGO_RUM, "Rum"},
-            {COLONIZE_CARGO_CIGARS, "Cigar"},
-            {COLONIZE_CARGO_CLOTH, "Cloth"},
-            {COLONIZE_CARGO_COATS, "Coat"},
-            {COLONIZE_CARGO_TOOLS, "Tool"},
-            {COLONIZE_CARGO_MUSKETS, "Gun"},
-          };
-          char craft[48];
-          craft[0] = '\0';
-          size_t cn = 0;
-          for (size_t ci = 0; ci < sizeof(k_craft) / sizeof(k_craft[0]); ++ci) {
-            const int g = delta.goods[k_craft[ci].cargo];
-            if (g <= 0) {
-              continue;
-            }
-            const int wrote = snprintf(
-              craft + cn,
-              sizeof(craft) - cn,
-              "%s%s%+d",
-              cn > 0 ? " " : "",
-              k_craft[ci].tag,
-              g
-            );
-            if (wrote > 0) {
-              cn += (size_t)wrote;
-            }
-            if (cn >= sizeof(craft)) {
-              break;
-            }
-          }
-          if (craft[0]) {
-            snprintf(
-              game->status,
-              sizeof(game->status),
-              "Food%+d L%+d H%+d %s",
-              delta.goods[COLONIZE_CARGO_FOOD],
-              delta.goods[COLONIZE_CARGO_LUMBER],
-              delta.hammers_added,
-              craft
-            );
-          } else {
-            snprintf(
-              game->status,
-              sizeof(game->status),
-              "Food%+d Lumber%+d Ore%+d H%+d",
-              delta.goods[COLONIZE_CARGO_FOOD],
-              delta.goods[COLONIZE_CARGO_LUMBER],
-              delta.goods[COLONIZE_CARGO_ORE],
-              delta.hammers_added
-            );
-          }
-        }
-        if (delta.building_completed) {
-          snprintf(game->status, sizeof(game->status), "Building completed!");
-        }
-        colony_screen_set_status(csv, game->status);
-        diag_info("Colony free production id=%d", colony->id);
-      }
-      return GAME_UPDATE_RETURN_TRUE;
     }
 
     if (input->mouse_right_clicked && ui_drag_active(&game->ui_drag)) {
@@ -11293,6 +11576,323 @@ static GameUpdateStep game_update_colony_screen(ColonizeGameState* game, const C
 }
 
 /* Europe screen input. */
+/*
+ * game_update_europe_screen stages: the open list popup first (it owns all
+ * input), then the screen hotkeys, then the mouse.
+ */
+
+/* Keys and clicks while a Europe list popup (Recruit / Purchase / Train /
+ * the @ARMOPTIONS rows) is up — it swallows the screen's own input. */
+static GameUpdateStep game_europe_screen_menu_keys(
+  ColonizeGameState* game, const ColonizeInputState* input, EuropeScreen* eu
+) {
+  if (eu->menu != EUROPE_MENU_NONE) {
+    if (ui_drag_active(&game->ui_drag)) {
+      game_ui_drag_clear(game);
+    }
+    if (input->last_key == COLONIZE_KEY_ESCAPE) {
+      europe_menu_close(eu);
+      return GAME_UPDATE_RETURN_TRUE;
+    }
+    /*
+     * Mouse: a click on a row picks it and confirms in one go (the same
+     * pair the keyboard needs Up/Down + Enter for), a click anywhere else
+     * inside the screen closes the menu, and a right-click cancels — the
+     * arrangement every other list in this port uses. Without this the
+     * branch swallowed the click and Recruit/Purchase/Train were
+     * keyboard-only (bugs.md).
+     */
+    if (input->mouse_right_clicked) {
+      europe_menu_close(eu);
+      return GAME_UPDATE_RETURN_TRUE;
+    }
+    if (input->mouse_left_clicked) {
+      const int row = europe_menu_row_at(game, input->mouse_x, input->mouse_y);
+      if (row >= 0) {
+        eu->menu_selection = row;
+        game_europe_menu_confirm(game);
+      } else {
+        europe_menu_close(eu);
+      }
+      return GAME_UPDATE_RETURN_TRUE;
+    }
+    int max_sel = 0;
+    switch (eu->menu) {
+      case EUROPE_MENU_RECRUIT:
+        max_sel = EUROPE_POOL_SIZE;
+        break;
+      case EUROPE_MENU_TRAIN:
+        max_sel = eu->train_count;
+        break;
+      case EUROPE_MENU_PURCHASE:
+        max_sel = eu->purchase_count;
+        break;
+      case EUROPE_MENU_DOCK:
+        max_sel = eu->dock_menu_count > 0 ? eu->dock_menu_count - 1 : 0;
+        break;
+      default:
+        break;
+    }
+    if (colonize_key_up(input->last_key) && eu->menu_selection > 0) {
+      eu->menu_selection--;
+    } else if (colonize_key_down(input->last_key) && eu->menu_selection < max_sel) {
+      eu->menu_selection++;
+    } else if (input->last_key == COLONIZE_KEY_ENTER) {
+      game_europe_menu_confirm(game);
+    }
+    return GAME_UPDATE_RETURN_TRUE;
+  }
+  return GAME_UPDATE_CONTINUE;
+}
+
+/* Europe screen hotkeys: Escape/E exit, R/P/T menus, L/U cargo, S sail and
+ * the dock/hold selection keys. */
+static GameUpdateStep game_europe_screen_keys(
+  ColonizeGameState* game, const ColonizeInputState* input, EuropeScreen* eu
+) {
+  if (input->last_key == COLONIZE_KEY_ESCAPE || input->last_key == COLONIZE_KEY_E) {
+    if (ui_drag_active(&game->ui_drag)) {
+      game_ui_drag_clear(game);
+      if (input->last_key == COLONIZE_KEY_ESCAPE) {
+        return GAME_UPDATE_RETURN_TRUE;
+      }
+    }
+    game_ui_drag_clear(game);
+    game->in_europe = false;
+    game_europe_deliver_bound_ships(game);
+    diag_info("Left Europe screen.");
+    return GAME_UPDATE_RETURN_TRUE;
+  }
+
+  if (input->last_key == COLONIZE_KEY_R) {
+    europe_menu_open(eu, EUROPE_MENU_RECRUIT);
+    return GAME_UPDATE_RETURN_TRUE;
+  }
+  if (input->last_key == COLONIZE_KEY_P) {
+    europe_menu_open(eu, EUROPE_MENU_PURCHASE);
+    return GAME_UPDATE_RETURN_TRUE;
+  }
+  if (input->last_key == COLONIZE_KEY_T) {
+    europe_menu_open(eu, EUROPE_MENU_TRAIN);
+    return GAME_UPDATE_RETURN_TRUE;
+  }
+  for (int ti = 0; ti < input->text_input_len; ++ti) {
+    const char ch = input->text_input[ti];
+    if (ch == '1') {
+      europe_menu_open(eu, EUROPE_MENU_RECRUIT);
+      return GAME_UPDATE_RETURN_TRUE;
+    }
+    if (ch == '2') {
+      europe_menu_open(eu, EUROPE_MENU_PURCHASE);
+      return GAME_UPDATE_RETURN_TRUE;
+    }
+    if (ch == '3') {
+      europe_menu_open(eu, EUROPE_MENU_TRAIN);
+      return GAME_UPDATE_RETURN_TRUE;
+    }
+  }
+
+  /* L / '=' : howmuch buy. U : sell howmuch / best hold. */
+  if (input->last_key == COLONIZE_KEY_L) {
+    if (eu->selected_harbor < 0) {
+      snprintf(eu->status, sizeof(eu->status), "%s", "Select a ship first.");
+    } else {
+      game_europe_open_buy_prompt(game);
+    }
+    return GAME_UPDATE_RETURN_TRUE;
+  }
+  if (input->last_key == COLONIZE_KEY_U) {
+    /* bugs.md: DOS's U on the European Status unloads (sells) the selected
+     * ship's WHOLE cargo, hold by hold — no amount prompt. */
+    if (eu->selected_harbor < 0) {
+      snprintf(eu->status, sizeof(eu->status), "%s", "Select a ship first.");
+    } else {
+      int sold = 0;
+      const int gold_before = eu->gold;
+      for (int guard = 0; guard < EUROPE_SHIP_CARGO_MAX; ++guard) {
+        const int hold = europe_best_sell_hold(eu, eu->selected_harbor);
+        if (hold < 0) {
+          break;
+        }
+        europe_sell_hold(eu, &game->col1, game->human_nation, eu->selected_harbor, hold);
+        sold++;
+      }
+      game_europe_drain_price_events(game);
+      if (sold == 0) {
+        snprintf(eu->status, sizeof(eu->status), "%s", "Nothing to sell.");
+      } else {
+        snprintf(
+          eu->status, sizeof(eu->status), "Unloaded %d hold%s for %d$.", sold,
+          sold == 1 ? "" : "s", eu->gold - gold_before
+        );
+      }
+    }
+    return GAME_UPDATE_RETURN_TRUE;
+  }
+  if (input->last_key == COLONIZE_KEY_S) {
+    /* DOS: S sails the selected ship for the New World. */
+    if (eu->selected_harbor >= 0) {
+      game_europe_request_sail(game, eu->selected_harbor);
+    } else {
+      snprintf(eu->status, sizeof(eu->status), "%s", "Select a ship first.");
+    }
+    return GAME_UPDATE_RETURN_TRUE;
+  }
+  for (int ti = 0; ti < input->text_input_len; ++ti) {
+    const char ch = input->text_input[ti];
+    if (ch == '=' && eu->selected_harbor >= 0) {
+      /* Same as key L. */
+      game_europe_open_buy_prompt(game);
+      return GAME_UPDATE_RETURN_TRUE;
+    }
+    if (ch == '+' && eu->selected_harbor >= 0) {
+      europe_buy_cargo(
+        eu, &game->col1, &game->units, game->human_nation, eu->selected_harbor,
+        eu->selected_market, 1
+      );
+      game_europe_drain_price_events(game);
+      return GAME_UPDATE_RETURN_TRUE;
+    }
+    if ((ch == '-' || ch == '_') && eu->selected_harbor >= 0) {
+      EuropeHarborShip* ship = &eu->harbor[eu->selected_harbor];
+      int hold = -1;
+      for (int hi = 0; hi < EUROPE_SHIP_CARGO_MAX; ++hi) {
+        if (ship->hold_goods_amount[hi] > 0 && ship->hold_goods_amount[hi] < 255 &&
+            ship->hold_goods_type[hi] == eu->selected_market) {
+          hold = hi;
+          break;
+        }
+      }
+      if (hold < 0) {
+        hold = europe_best_sell_hold(eu, eu->selected_harbor);
+      }
+      if (hold < 0) {
+        snprintf(eu->status, sizeof(eu->status), "%s", "Nothing to sell.");
+      } else if (ship->hold_goods_amount[hold] > 1) {
+        europe_sell_hold_partial(
+          eu, &game->col1, game->human_nation, eu->selected_harbor, hold, 1
+        );
+      } else {
+        europe_sell_hold(eu, &game->col1, game->human_nation, eu->selected_harbor, hold);
+      }
+      game_europe_drain_price_events(game);
+      return GAME_UPDATE_RETURN_TRUE;
+    }
+  }
+  return GAME_UPDATE_CONTINUE;
+}
+
+/* Europe screen mouse: drag cancel/drop and the left-click hit test over the
+ * holds, dock, market cells and the three buttons. */
+static GameUpdateStep game_europe_screen_mouse(
+  ColonizeGameState* game, const ColonizeInputState* input, EuropeScreen* eu
+) {
+  if (input->mouse_right_clicked && ui_drag_active(&game->ui_drag)) {
+    game_ui_drag_clear(game);
+    return GAME_UPDATE_RETURN_TRUE;
+  }
+
+  if (ui_drag_active(&game->ui_drag) && input->mouse_left_released) {
+    game_europe_drag_drop(game, input->mouse_x, input->mouse_y, input->shift_held);
+    return GAME_UPDATE_RETURN_TRUE;
+  }
+
+  if (input->mouse_left_clicked) {
+    if (ui_drag_active(&game->ui_drag)) {
+      return GAME_UPDATE_RETURN_TRUE;
+    }
+    const EuropeHitResult hit = game_europe_hit(game, input->mouse_x, input->mouse_y);
+    switch (hit.kind) {
+    case EUROPE_HIT_EXIT:
+      game_ui_drag_clear(game);
+      game->in_europe = false;
+      game_europe_deliver_bound_ships(game);
+      diag_info("Left Europe screen (Exit).");
+      break;
+    case EUROPE_HIT_HARBOR_SHIP:
+      eu->selected_harbor = hit.index;
+      snprintf(eu->status, sizeof(eu->status), "Selected %s.", eu->harbor[hit.index].name);
+      ui_drag_begin(&game->ui_drag, UI_DRAG_EUROPE_HARBOR_SHIP, hit.index, -1, 0);
+      if (game->units_ok && game_icons(game)) {
+        const int sprite = europe_ship_icon_sprite(&game->units, &eu->harbor[hit.index]);
+        game_ui_drag_set_icon(game, sprite);
+      }
+      break;
+    case EUROPE_HIT_HOLD:
+      if (eu->selected_harbor >= 0) {
+        EuropeHarborShip* ship = &eu->harbor[eu->selected_harbor];
+        if (hit.index >= 0 && hit.index < EUROPE_SHIP_CARGO_MAX &&
+            ship->hold_goods_amount[hit.index] > 0 &&
+            ship->hold_goods_amount[hit.index] < 255) {
+          const int ctype = ship->hold_goods_type[hit.index];
+          ui_drag_begin(&game->ui_drag, UI_DRAG_EUROPE_HOLD, hit.index, -1, 0);
+          if (ctype >= 0) {
+            game_ui_drag_set_icon(game, EUROPE_CARGO_ICON_BASE + ctype);
+          }
+        }
+      }
+      break;
+    case EUROPE_HIT_MARKET:
+      eu->selected_market = hit.index;
+      if (europe_cargo_boycotted_ex(
+            eu, game->col1_ok ? &game->col1 : NULL, game->human_nation, hit.index
+          )) {
+        /* GAME.TXT @SOMEBOYCOTT: "...click on the cargo type in question"
+         * to ask that the boycott be lifted -- pay-back-taxes buyback,
+         * not the normal buy/sell flow. DOS (FUN_38fd_2dfe) asks first with
+         * the @KISSUP two-row CHOICE and only pays on its second row; see
+         * game_europe_ask_boycott_buyback. */
+        if (game->col1_ok && game->human_nation >= 0) {
+          game_europe_ask_boycott_buyback(game, hit.index);
+        }
+      } else if (eu->selected_harbor < 0) {
+        snprintf(eu->status, sizeof(eu->status), "%s", "Select a ship first.");
+      } else {
+        ui_drag_begin(&game->ui_drag, UI_DRAG_EUROPE_MARKET, hit.index, -1, 100);
+        game_ui_drag_set_icon(game, EUROPE_CARGO_ICON_BASE + hit.index);
+      }
+      break;
+    case EUROPE_HIT_BTN_RECRUIT:
+      europe_menu_open(eu, EUROPE_MENU_RECRUIT);
+      break;
+    case EUROPE_HIT_BTN_PURCHASE:
+      europe_menu_open(eu, EUROPE_MENU_PURCHASE);
+      break;
+    case EUROPE_HIT_BTN_TRAIN:
+      europe_menu_open(eu, EUROPE_MENU_TRAIN);
+      break;
+    case EUROPE_HIT_DOCK:
+      eu->menu_dock_index = hit.index;
+      europe_build_dock_menu(eu, &game->messages, hit.index);
+      europe_menu_open(eu, EUROPE_MENU_DOCK);
+      break;
+    case EUROPE_HIT_EXPECTED:
+      if (hit.index >= 0 && hit.index < eu->expected_ships) {
+        ui_drag_begin(&game->ui_drag, UI_DRAG_EUROPE_EXPECTED_SHIP, hit.index, -1, 0);
+        if (game->units_ok && game_icons(game)) {
+          const int sprite =
+            europe_ship_icon_sprite(&game->units, &eu->expected[hit.index]);
+          game_ui_drag_set_icon(game, sprite);
+        }
+      }
+      break;
+    case EUROPE_HIT_BOUND:
+      if (hit.index >= 0 && hit.index < eu->bound_ships) {
+        ui_drag_begin(&game->ui_drag, UI_DRAG_EUROPE_BOUND_SHIP, hit.index, -1, 0);
+        if (game->units_ok && game_icons(game)) {
+          const int sprite = europe_ship_icon_sprite(&game->units, &eu->bound[hit.index]);
+          game_ui_drag_set_icon(game, sprite);
+        }
+      }
+      break;
+    default:
+      break;
+    }
+    return GAME_UPDATE_RETURN_TRUE;
+  }
+  return GAME_UPDATE_CONTINUE;
+}
+
 static GameUpdateStep game_update_europe_screen(ColonizeGameState* game, const ColonizeInputState* input) {
   if (game->in_europe) {
     EuropeScreen* eu = &game->europe;
@@ -11307,296 +11907,27 @@ static GameUpdateStep game_update_europe_screen(ColonizeGameState* game, const C
       }
     }
 
-    if (eu->menu != EUROPE_MENU_NONE) {
-      if (ui_drag_active(&game->ui_drag)) {
-        game_ui_drag_clear(game);
-      }
-      if (input->last_key == COLONIZE_KEY_ESCAPE) {
-        europe_menu_close(eu);
-        return GAME_UPDATE_RETURN_TRUE;
-      }
-      /*
-       * Mouse: a click on a row picks it and confirms in one go (the same
-       * pair the keyboard needs Up/Down + Enter for), a click anywhere else
-       * inside the screen closes the menu, and a right-click cancels — the
-       * arrangement every other list in this port uses. Without this the
-       * branch swallowed the click and Recruit/Purchase/Train were
-       * keyboard-only (bugs.md).
-       */
-      if (input->mouse_right_clicked) {
-        europe_menu_close(eu);
-        return GAME_UPDATE_RETURN_TRUE;
-      }
-      if (input->mouse_left_clicked) {
-        const int row = europe_menu_row_at(game, input->mouse_x, input->mouse_y);
-        if (row >= 0) {
-          eu->menu_selection = row;
-          game_europe_menu_confirm(game);
-        } else {
-          europe_menu_close(eu);
-        }
-        return GAME_UPDATE_RETURN_TRUE;
-      }
-      int max_sel = 0;
-      switch (eu->menu) {
-        case EUROPE_MENU_RECRUIT:
-          max_sel = EUROPE_POOL_SIZE;
-          break;
-        case EUROPE_MENU_TRAIN:
-          max_sel = eu->train_count;
-          break;
-        case EUROPE_MENU_PURCHASE:
-          max_sel = eu->purchase_count;
-          break;
-        case EUROPE_MENU_DOCK:
-          max_sel = eu->dock_menu_count > 0 ? eu->dock_menu_count - 1 : 0;
-          break;
-        default:
-          break;
-      }
-      if (colonize_key_up(input->last_key) && eu->menu_selection > 0) {
-        eu->menu_selection--;
-      } else if (colonize_key_down(input->last_key) && eu->menu_selection < max_sel) {
-        eu->menu_selection++;
-      } else if (input->last_key == COLONIZE_KEY_ENTER) {
-        game_europe_menu_confirm(game);
-      }
-      return GAME_UPDATE_RETURN_TRUE;
-    }
-
-    if (input->last_key == COLONIZE_KEY_ESCAPE || input->last_key == COLONIZE_KEY_E) {
-      if (ui_drag_active(&game->ui_drag)) {
-        game_ui_drag_clear(game);
-        if (input->last_key == COLONIZE_KEY_ESCAPE) {
-          return GAME_UPDATE_RETURN_TRUE;
-        }
-      }
-      game_ui_drag_clear(game);
-      game->in_europe = false;
-      game_europe_deliver_bound_ships(game);
-      diag_info("Left Europe screen.");
-      return GAME_UPDATE_RETURN_TRUE;
-    }
-
-    if (input->last_key == COLONIZE_KEY_R) {
-      europe_menu_open(eu, EUROPE_MENU_RECRUIT);
-      return GAME_UPDATE_RETURN_TRUE;
-    }
-    if (input->last_key == COLONIZE_KEY_P) {
-      europe_menu_open(eu, EUROPE_MENU_PURCHASE);
-      return GAME_UPDATE_RETURN_TRUE;
-    }
-    if (input->last_key == COLONIZE_KEY_T) {
-      europe_menu_open(eu, EUROPE_MENU_TRAIN);
-      return GAME_UPDATE_RETURN_TRUE;
-    }
-    for (int ti = 0; ti < input->text_input_len; ++ti) {
-      const char ch = input->text_input[ti];
-      if (ch == '1') {
-        europe_menu_open(eu, EUROPE_MENU_RECRUIT);
-        return GAME_UPDATE_RETURN_TRUE;
-      }
-      if (ch == '2') {
-        europe_menu_open(eu, EUROPE_MENU_PURCHASE);
-        return GAME_UPDATE_RETURN_TRUE;
-      }
-      if (ch == '3') {
-        europe_menu_open(eu, EUROPE_MENU_TRAIN);
-        return GAME_UPDATE_RETURN_TRUE;
+    {
+      const GameUpdateStep sub = game_europe_screen_menu_keys(game, input, eu);
+      if (sub != GAME_UPDATE_CONTINUE) {
+        return sub;
       }
     }
 
-    /* L / '=' : howmuch buy. U : sell howmuch / best hold. */
-    if (input->last_key == COLONIZE_KEY_L) {
-      if (eu->selected_harbor < 0) {
-        snprintf(eu->status, sizeof(eu->status), "%s", "Select a ship first.");
-      } else {
-        game_europe_open_buy_prompt(game);
-      }
-      return GAME_UPDATE_RETURN_TRUE;
-    }
-    if (input->last_key == COLONIZE_KEY_U) {
-      /* bugs.md: DOS's U on the European Status unloads (sells) the selected
-       * ship's WHOLE cargo, hold by hold — no amount prompt. */
-      if (eu->selected_harbor < 0) {
-        snprintf(eu->status, sizeof(eu->status), "%s", "Select a ship first.");
-      } else {
-        int sold = 0;
-        const int gold_before = eu->gold;
-        for (int guard = 0; guard < EUROPE_SHIP_CARGO_MAX; ++guard) {
-          const int hold = europe_best_sell_hold(eu, eu->selected_harbor);
-          if (hold < 0) {
-            break;
-          }
-          europe_sell_hold(eu, &game->col1, game->human_nation, eu->selected_harbor, hold);
-          sold++;
-        }
-        game_europe_drain_price_events(game);
-        if (sold == 0) {
-          snprintf(eu->status, sizeof(eu->status), "%s", "Nothing to sell.");
-        } else {
-          snprintf(
-            eu->status, sizeof(eu->status), "Unloaded %d hold%s for %d$.", sold,
-            sold == 1 ? "" : "s", eu->gold - gold_before
-          );
-        }
-      }
-      return GAME_UPDATE_RETURN_TRUE;
-    }
-    if (input->last_key == COLONIZE_KEY_S) {
-      /* DOS: S sails the selected ship for the New World. */
-      if (eu->selected_harbor >= 0) {
-        game_europe_request_sail(game, eu->selected_harbor);
-      } else {
-        snprintf(eu->status, sizeof(eu->status), "%s", "Select a ship first.");
-      }
-      return GAME_UPDATE_RETURN_TRUE;
-    }
-    for (int ti = 0; ti < input->text_input_len; ++ti) {
-      const char ch = input->text_input[ti];
-      if (ch == '=' && eu->selected_harbor >= 0) {
-        /* Same as key L. */
-        game_europe_open_buy_prompt(game);
-        return GAME_UPDATE_RETURN_TRUE;
-      }
-      if (ch == '+' && eu->selected_harbor >= 0) {
-        europe_buy_cargo(
-          eu, &game->col1, &game->units, game->human_nation, eu->selected_harbor,
-          eu->selected_market, 1
-        );
-        game_europe_drain_price_events(game);
-        return GAME_UPDATE_RETURN_TRUE;
-      }
-      if ((ch == '-' || ch == '_') && eu->selected_harbor >= 0) {
-        EuropeHarborShip* ship = &eu->harbor[eu->selected_harbor];
-        int hold = -1;
-        for (int hi = 0; hi < EUROPE_SHIP_CARGO_MAX; ++hi) {
-          if (ship->hold_goods_amount[hi] > 0 && ship->hold_goods_amount[hi] < 255 &&
-              ship->hold_goods_type[hi] == eu->selected_market) {
-            hold = hi;
-            break;
-          }
-        }
-        if (hold < 0) {
-          hold = europe_best_sell_hold(eu, eu->selected_harbor);
-        }
-        if (hold < 0) {
-          snprintf(eu->status, sizeof(eu->status), "%s", "Nothing to sell.");
-        } else if (ship->hold_goods_amount[hold] > 1) {
-          europe_sell_hold_partial(
-            eu, &game->col1, game->human_nation, eu->selected_harbor, hold, 1
-          );
-        } else {
-          europe_sell_hold(eu, &game->col1, game->human_nation, eu->selected_harbor, hold);
-        }
-        game_europe_drain_price_events(game);
-        return GAME_UPDATE_RETURN_TRUE;
+    {
+      const GameUpdateStep sub = game_europe_screen_keys(game, input, eu);
+      if (sub != GAME_UPDATE_CONTINUE) {
+        return sub;
       }
     }
 
-    if (input->mouse_right_clicked && ui_drag_active(&game->ui_drag)) {
-      game_ui_drag_clear(game);
-      return GAME_UPDATE_RETURN_TRUE;
+    {
+      const GameUpdateStep sub = game_europe_screen_mouse(game, input, eu);
+      if (sub != GAME_UPDATE_CONTINUE) {
+        return sub;
+      }
     }
 
-    if (ui_drag_active(&game->ui_drag) && input->mouse_left_released) {
-      game_europe_drag_drop(game, input->mouse_x, input->mouse_y, input->shift_held);
-      return GAME_UPDATE_RETURN_TRUE;
-    }
-
-    if (input->mouse_left_clicked) {
-      if (ui_drag_active(&game->ui_drag)) {
-        return GAME_UPDATE_RETURN_TRUE;
-      }
-      const EuropeHitResult hit = game_europe_hit(game, input->mouse_x, input->mouse_y);
-      switch (hit.kind) {
-      case EUROPE_HIT_EXIT:
-        game_ui_drag_clear(game);
-        game->in_europe = false;
-        game_europe_deliver_bound_ships(game);
-        diag_info("Left Europe screen (Exit).");
-        break;
-      case EUROPE_HIT_HARBOR_SHIP:
-        eu->selected_harbor = hit.index;
-        snprintf(eu->status, sizeof(eu->status), "Selected %s.", eu->harbor[hit.index].name);
-        ui_drag_begin(&game->ui_drag, UI_DRAG_EUROPE_HARBOR_SHIP, hit.index, -1, 0);
-        if (game->units_ok && game_icons(game)) {
-          const int sprite = europe_ship_icon_sprite(&game->units, &eu->harbor[hit.index]);
-          game_ui_drag_set_icon(game, sprite);
-        }
-        break;
-      case EUROPE_HIT_HOLD:
-        if (eu->selected_harbor >= 0) {
-          EuropeHarborShip* ship = &eu->harbor[eu->selected_harbor];
-          if (hit.index >= 0 && hit.index < EUROPE_SHIP_CARGO_MAX &&
-              ship->hold_goods_amount[hit.index] > 0 &&
-              ship->hold_goods_amount[hit.index] < 255) {
-            const int ctype = ship->hold_goods_type[hit.index];
-            ui_drag_begin(&game->ui_drag, UI_DRAG_EUROPE_HOLD, hit.index, -1, 0);
-            if (ctype >= 0) {
-              game_ui_drag_set_icon(game, EUROPE_CARGO_ICON_BASE + ctype);
-            }
-          }
-        }
-        break;
-      case EUROPE_HIT_MARKET:
-        eu->selected_market = hit.index;
-        if (europe_cargo_boycotted_ex(
-              eu, game->col1_ok ? &game->col1 : NULL, game->human_nation, hit.index
-            )) {
-          /* GAME.TXT @SOMEBOYCOTT: "...click on the cargo type in question"
-           * to ask that the boycott be lifted -- pay-back-taxes buyback,
-           * not the normal buy/sell flow. DOS (FUN_38fd_2dfe) asks first with
-           * the @KISSUP two-row CHOICE and only pays on its second row; see
-           * game_europe_ask_boycott_buyback. */
-          if (game->col1_ok && game->human_nation >= 0) {
-            game_europe_ask_boycott_buyback(game, hit.index);
-          }
-        } else if (eu->selected_harbor < 0) {
-          snprintf(eu->status, sizeof(eu->status), "%s", "Select a ship first.");
-        } else {
-          ui_drag_begin(&game->ui_drag, UI_DRAG_EUROPE_MARKET, hit.index, -1, 100);
-          game_ui_drag_set_icon(game, EUROPE_CARGO_ICON_BASE + hit.index);
-        }
-        break;
-      case EUROPE_HIT_BTN_RECRUIT:
-        europe_menu_open(eu, EUROPE_MENU_RECRUIT);
-        break;
-      case EUROPE_HIT_BTN_PURCHASE:
-        europe_menu_open(eu, EUROPE_MENU_PURCHASE);
-        break;
-      case EUROPE_HIT_BTN_TRAIN:
-        europe_menu_open(eu, EUROPE_MENU_TRAIN);
-        break;
-      case EUROPE_HIT_DOCK:
-        eu->menu_dock_index = hit.index;
-        europe_build_dock_menu(eu, &game->messages, hit.index);
-        europe_menu_open(eu, EUROPE_MENU_DOCK);
-        break;
-      case EUROPE_HIT_EXPECTED:
-        if (hit.index >= 0 && hit.index < eu->expected_ships) {
-          ui_drag_begin(&game->ui_drag, UI_DRAG_EUROPE_EXPECTED_SHIP, hit.index, -1, 0);
-          if (game->units_ok && game_icons(game)) {
-            const int sprite =
-              europe_ship_icon_sprite(&game->units, &eu->expected[hit.index]);
-            game_ui_drag_set_icon(game, sprite);
-          }
-        }
-        break;
-      case EUROPE_HIT_BOUND:
-        if (hit.index >= 0 && hit.index < eu->bound_ships) {
-          ui_drag_begin(&game->ui_drag, UI_DRAG_EUROPE_BOUND_SHIP, hit.index, -1, 0);
-          if (game->units_ok && game_icons(game)) {
-            const int sprite = europe_ship_icon_sprite(&game->units, &eu->bound[hit.index]);
-            game_ui_drag_set_icon(game, sprite);
-          }
-        }
-        break;
-      default:
-        break;
-      }
-      return GAME_UPDATE_RETURN_TRUE;
-    }
 
     /* (No `S` row here: the harbour-sail handler above this block already
      * returns for every S, so this duplicate was dead — and its
@@ -12829,33 +13160,36 @@ static bool game_map_blink_running(const ColonizeGameState* game) {
   return true;
 }
 
-void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffer, ColonizePalette* palette) {
-  static uint32_t render_log_counter = 0;
-  if (!game || !framebuffer || !palette || !framebuffer->pixels) {
-    return;
-  }
-
+/*
+ * game_render stages. The full-screen owners (opening / woodcut /
+ * declaration / closing / throne audience) short-circuit everything;
+ * game_render_screen paints one of the full-screen views and reports
+ * whether it did, and game_render_map paints the overland map otherwise.
+ */
+static bool game_render_fullscreen_takeover(
+  const ColonizeGameState* game, ColonizeFramebuffer8* framebuffer, ColonizePalette* palette
+) {
   /* OPENING.EXE owns the whole screen (OPENING.PIK palette). */
   if (game->opening.open) {
     opening_render(&game->opening, framebuffer, palette);
-    return;
+    return true;
   }
 
   /* A woodcut owns the whole screen (and its own WDCUTnn palette). */
   if (game->woodcut.open) {
     woodcut_render(&game->woodcut, framebuffer, palette);
-    return;
+    return true;
   }
 
   /* Signing cinematic owns the whole screen (and its own DECOIND palette). */
   if (game->declaration.open) {
     declaration_render(&game->declaration, framebuffer, palette);
-    return;
+    return true;
   }
 
   if (game->closing.open) {
     closing_render(&game->closing, framebuffer, palette);
-    return;
+    return true;
   }
 
   /* War-end throne audience owns the whole screen (KINGLSS palette): the
@@ -12876,9 +13210,17 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
       framebuffer,
       palette
     );
-    return;
+    return true;
   }
+  return false;
+}
 
+/* Screen palette cascade + the reserved-DAC-block merges the open popup /
+ * Europe menu / exploits sheets need (merge, never remap). */
+static void game_render_select_palette(
+  const ColonizeGameState* game, const ColonizeFramebuffer8* framebuffer, ColonizePalette* palette,
+  uint32_t render_log_counter
+) {
   *palette = (game->in_menu && !game->in_debug_atlas && !game->in_pedia && !game->in_europe &&
               !game->in_colony && !game->in_report && !game->in_hall_of_fame && !game->in_exploits)
     ? game->palette
@@ -12948,7 +13290,14 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
       game->palette_ok ? "VICEROY.PAL" : "fallback"
     );
   }
+}
 
+/* One of the full-screen views (Europe, reports, exploits, hall of fame,
+ * colony, pedia, debug atlas, new-game wizard, title menu). Returns true
+ * when it painted one — the map path is then skipped. */
+static bool game_render_screen(
+  const ColonizeGameState* game, ColonizeFramebuffer8* framebuffer, ColonizePalette* palette
+) {
   if (game->in_europe) {
     render_europe_screen(game, framebuffer);
     /*
@@ -12980,7 +13329,7 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
         framebuffer
       );
     }
-    goto render_log_sample;
+    return true;
   }
 
   if (game->in_report) {
@@ -13005,7 +13354,7 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
       font,
       framebuffer
     );
-    goto render_log_sample;
+    return true;
   }
 
   if (game->in_exploits) {
@@ -13013,7 +13362,7 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
     reports_render_exploits(
       game->reports_ok ? &game->reports : NULL, &game->exploits, font, framebuffer
     );
-    goto render_log_sample;
+    return true;
   }
 
   if (game->in_hall_of_fame) {
@@ -13036,7 +13385,7 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
     reports_render_hall_of_fame(
       game->reports_ok ? &game->reports : NULL, rows, count, font, framebuffer
     );
-    goto render_log_sample;
+    return true;
   }
 
   if (game->in_colony) {
@@ -13076,18 +13425,18 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
         framebuffer
       );
     }
-    goto render_log_sample;
+    return true;
   }
 
   if (game->in_pedia) {
     render_pedia_screen(game, framebuffer);
-    goto render_log_sample;
+    return true;
   }
 
   if (game->in_debug_atlas) {
     const ColonizeFont* font = game->menu_font_ok ? &game->menu_font : NULL;
     debug_atlas_render(&game->debug_atlas, font, framebuffer);
-    goto render_log_sample;
+    return true;
   }
 
   if (new_game_active(&game->new_game)) {
@@ -13149,7 +13498,7 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
       hilite,
       select
     );
-    goto render_log_sample;
+    return true;
   }
 
   if (game->in_menu) {
@@ -13200,37 +13549,21 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
         );
       }
     }
-    goto render_log_sample;
+    return true;
   }
+  return false;
+}
 
-  /* Map view: scrollable world map (15<<zoom × 12<<zoom tiles) left of the right info panel. */
-  memset(framebuffer->pixels, 0, (size_t)framebuffer->width * (size_t)framebuffer->height);
-
-  const int map_zoom = game_map_zoom_clamp(game->map_zoom);
+/* Terrain / fog / colonies / tribes / units composited at native 16px per
+ * tile into the offscreen zoom buffer, then decimated to the 240x192 view. */
+static void game_render_map_composite(
+  const ColonizeGameState* game, ColonizeFramebuffer8* framebuffer, int map_zoom, int view_x,
+  int view_y, int view_cols, int view_rows
+) {
   const int tile_w = MAP_ZOOM_NATIVE_TILE; /* offscreen compositing stays native 16px/tile */
   const int tile_h = MAP_ZOOM_NATIVE_TILE;
   const int map_origin_x = 0;
   const int map_origin_y = 0;
-  int view_cols = 0;
-  int view_rows = 0;
-  game_map_zoom_view_size(map_zoom, &view_cols, &view_rows);
-  const int screen_tile_px = game_map_zoom_tile_px(map_zoom);
-
-  int view_x = 0;
-  int view_y = 0;
-  if (game->world_map_ok) {
-    map_panel_clamp_view_origin(
-      (int)game->world_map.width,
-      (int)game->world_map.height,
-      game->map_view_x,
-      game->map_view_y,
-      view_cols,
-      view_rows,
-      &view_x,
-      &view_y
-    );
-  }
-
   /*
    * DOS redraws the viewport at 16>>zoom px/tile per FUN_6ba1_000c. This port
    * instead reuses the zoom-0 tile compositor unchanged, drawing the wider
@@ -13467,7 +13800,14 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
       }
     }
   }
+}
 
+/* Post-decimation map overlays: the blinking tile cursor and the two CHEAT
+ * debug layers (Show Strategy, Show Colony Sites). */
+static void game_render_map_overlays(
+  const ColonizeGameState* game, ColonizeFramebuffer8* framebuffer, int view_x, int view_y,
+  int view_cols, int view_rows, int screen_tile_px
+) {
   /*
    * Map tile cursor: blinking white outline only in tile-select mode (no unit selected).
    * CURSOR.SS is the OS mouse pointer, not a tile overlay. Drawn post-decimation at
@@ -13568,7 +13908,13 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
       }
     }
   }
+}
 
+/* Right-hand info panel (map_panel_render). */
+static void game_render_map_panel(
+  const ColonizeGameState* game, ColonizeFramebuffer8* framebuffer, int view_x, int view_y,
+  int view_cols, int view_rows
+) {
   if (game->map_panel_ok) {
     const ColonizeFont* panel_font = game->colony_font_ok ? &game->colony_font :
                                      (game->menu_font_ok ? &game->menu_font : NULL);
@@ -13604,7 +13950,12 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
       framebuffer
     );
   }
+}
 
+/* Map menu bar and every dialog that floats over the overland map. */
+static void game_render_map_dialogs(
+  const ColonizeGameState* game, ColonizeFramebuffer8* framebuffer, ColonizePalette* palette
+) {
   const ColonizeFont* hud_font = game->colony_font_ok ? &game->colony_font :
                                  (game->menu_font_ok ? &game->menu_font : NULL);
   if (!game_screen_owns_display(game)) {
@@ -13758,8 +14109,60 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
       );
     }
   }
+}
 
-render_log_sample:
+/* Overland map view: geometry, then composite / overlays / panel / dialogs. */
+static void game_render_map(
+  const ColonizeGameState* game, ColonizeFramebuffer8* framebuffer, ColonizePalette* palette
+) {
+  /* Map view: scrollable world map (15<<zoom × 12<<zoom tiles) left of the right info panel. */
+  memset(framebuffer->pixels, 0, (size_t)framebuffer->width * (size_t)framebuffer->height);
+
+  const int map_zoom = game_map_zoom_clamp(game->map_zoom);
+  int view_cols = 0;
+  int view_rows = 0;
+  game_map_zoom_view_size(map_zoom, &view_cols, &view_rows);
+  const int screen_tile_px = game_map_zoom_tile_px(map_zoom);
+
+  int view_x = 0;
+  int view_y = 0;
+  if (game->world_map_ok) {
+    map_panel_clamp_view_origin(
+      (int)game->world_map.width,
+      (int)game->world_map.height,
+      game->map_view_x,
+      game->map_view_y,
+      view_cols,
+      view_rows,
+      &view_x,
+      &view_y
+    );
+  }
+
+  game_render_map_composite(game, framebuffer, map_zoom, view_x, view_y, view_cols, view_rows);
+  game_render_map_overlays(
+    game, framebuffer, view_x, view_y, view_cols, view_rows, screen_tile_px
+  );
+  game_render_map_panel(game, framebuffer, view_x, view_y, view_cols, view_rows);
+  game_render_map_dialogs(game, framebuffer, palette);
+}
+
+void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffer, ColonizePalette* palette) {
+  static uint32_t render_log_counter = 0;
+  if (!game || !framebuffer || !palette || !framebuffer->pixels) {
+    return;
+  }
+
+  if (game_render_fullscreen_takeover(game, framebuffer, palette)) {
+    return;
+  }
+
+  game_render_select_palette(game, framebuffer, palette, render_log_counter);
+
+  if (!game_render_screen(game, framebuffer, palette)) {
+    game_render_map(game, framebuffer, palette);
+  }
+
   /* Whose-turn box lives on the map sidebar only — never over a full-screen
    * view (colony, Europe, reports, pedia, ...) that covers the sidebar. */
   if (!game_screen_owns_display(game) && turn_processor_show_indicator(&game->turn_proc)) {

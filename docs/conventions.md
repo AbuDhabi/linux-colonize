@@ -95,6 +95,16 @@ the verification loop. It does **not** own feature status — that stays in the
   shared context struct (`ai_euro_act_ctx`, `game_update_ctx`, etc.). Pattern:
   `FUN_` with complex control flow → dispatcher over `ai_euro_act_*` stages with
   `ai_euro_reset()` lifecycle hook for stateful iterators. (2026-09-16)
+- **Ctx write-back trap (split DOS functions).** DOS locals that survive across
+  stages (`grudge` in `ai_021a_*`, `local_8`/`bVar10`/`mask_found` in the 5d04
+  hire tail) now live in the ctx struct. Each stage aliases them on entry and
+  **writes them back at every exit, including early `return SKIP/RETURN` paths**
+  (see `ai_021a_dir_tile`). When porting a new DOS branch that touches such a
+  local: add the field to the ctx, alias it, and write it back on every exit of
+  that stage; a missed write-back is a silent divergence that only a golden
+  catches. Stage order = DOS order; the dispatcher is the asm reading order.
+  Every function over 300 lines was split 2026-09-16 except `gsound_vm.c`
+  `voice_tick` (driver emulator, verbatim).
 
 ### Structural invariants
 

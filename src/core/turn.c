@@ -3012,36 +3012,10 @@ static void turn_year_end_rival_popup(
   popup_chrome_ok(ctx->ai_popups, ctx->messages, tag, tok, fallback);
 }
 
-void turn_run_year_end_chrome(ColonizeTurnContext* ctx, ColonizeTurnResult* out) {
-  /*
-   * FUN_3844_0442 thin peels:
-   *   B — peacetime, year≥1600, zero human colonies → defeat latch
-   *   C1 — WoI + zero crown colonies → victory (fleet + REF pool thin)
-   *   E — anniversary years 1790/1840 status (dialogs PARKED)
-   * Cite: viceroy_unpacked.c ~58430+; turn/year_end_chrome.md.
-   */
-  if (!ctx || !out) {
-    return;
-  }
-  const uint16_t year =
-    (ctx->game_year) ? *ctx->game_year
-                     : (ctx->col1_ok && ctx->col1) ? ctx->col1->head.year : 0;
-
-  /* Anniversary chrome stops once scoring completed OR the war already
-   * resolved (the WON latch no longer implies calendar_latch — that bit is
-   * now set by the retire-score chain, as DOS's 0x5382|0x10 is). */
-  const int splash_done =
-    ctx->col1_ok && ctx->col1 &&
-    (ctx->col1->head.game_options.calendar_latch ||
-     ai_king_latch_get(ctx->col1, AI_KING_ENDGAME_BYTE) != AI_KING_ENDGAME_NONE);
-
-  /* DOS 0x5382 bit0 = the WoI latch. raw :58620/:58630 gate the *early*
-   * calendar pair (1790 warning / 1800 era end) on `(0x5382 & 1) == 0`: once
-   * independence is declared the war extends the game to the late pair
-   * (1840/1850), which carries no war gate. */
-  const int woi_latched =
-    ctx->col1_ok && ctx->col1 && ctx->col1->head.game_options.woi != 0;
-
+static void turn_year_end_anniversary(
+  ColonizeTurnContext* ctx, ColonizeTurnResult* out, uint16_t year, int splash_done,
+  int woi_latched
+) {
   /* Section E anniversary (0x6fe=1790, 0x730=1840) — status only; gate 5382|0x10.
    * Spring-only: DOS wraps the block in `*(int *)0x538c == 0` (raw :58619).
    * `((year==0x6fe && !woi) || year==0x730)` is raw :58620 verbatim. */
@@ -3075,6 +3049,12 @@ void turn_run_year_end_chrome(ColonizeTurnContext* ctx, ColonizeTurnResult* out)
       );
     }
   }
+}
+
+static void turn_year_end_era_end(
+  ColonizeTurnContext* ctx, ColonizeTurnResult* out, uint16_t year, int splash_done,
+  int woi_latched
+) {
   /* Section E game-over years (0x708=1800, 0x73a=1850) — status; HoF PARKED.
    * raw :58630 `((0x538a == 0x708) && ((0x5382 & 1) == 0)) || (0x538a == 0x73a)`:
    * 1800 does NOT end a game in which independence has been declared, so the
@@ -3141,7 +3121,14 @@ void turn_run_year_end_chrome(ColonizeTurnContext* ctx, ColonizeTurnResult* out)
       ctx->col1->head.turn_loop_running = 0;
     }
   }
+}
 
+/* Returns true when this section already fired the WoI victory latch —
+ * caller must return immediately, matching the original function's mid-body
+ * `return;` at that point. */
+static bool turn_year_end_woi_chrome(
+  ColonizeTurnContext* ctx, ColonizeTurnResult* out, int woi_latched
+) {
   const int woi = woi_latched;
   /* Endgame latch WON = independence achieved (reports); also skip re-fire. */
   const int already_won =
@@ -3218,7 +3205,7 @@ void turn_run_year_end_chrome(ColonizeTurnContext* ctx, ColonizeTurnResult* out)
       if (ctx->status && ctx->status_size > 0) {
         snprintf(ctx->status, ctx->status_size, "Victory: independence won.");
       }
-      return;
+      return true;
     }
 
     /*
@@ -3252,7 +3239,12 @@ void turn_run_year_end_chrome(ColonizeTurnContext* ctx, ColonizeTurnResult* out)
       }
     }
   }
+  return false;
+}
 
+static void turn_year_end_rival_independence(
+  ColonizeTurnContext* ctx, ColonizeTurnResult* out, int woi
+) {
   /*
    * Section D — rival European nations winning their OWN independence
    * (viceroy_unpacked.c 58558-58617, inside thunked FUN_3844_0442).
@@ -3380,7 +3372,11 @@ void turn_run_year_end_chrome(ColonizeTurnContext* ctx, ColonizeTurnResult* out)
       }
     }
   }
+}
 
+static void turn_year_end_defeat_check(
+  ColonizeTurnContext* ctx, ColonizeTurnResult* out, uint16_t year, int woi
+) {
   int human_colonies = 0;
   if (ctx->colonies) {
     for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
@@ -3467,6 +3463,45 @@ void turn_run_year_end_chrome(ColonizeTurnContext* ctx, ColonizeTurnResult* out)
   if (ctx->status && ctx->status_size > 0) {
     snprintf(ctx->status, ctx->status_size, "Defeat: no colonies remain.");
   }
+}
+
+void turn_run_year_end_chrome(ColonizeTurnContext* ctx, ColonizeTurnResult* out) {
+  /*
+   * FUN_3844_0442 thin peels:
+   *   B — peacetime, year≥1600, zero human colonies → defeat latch
+   *   C1 — WoI + zero crown colonies → victory (fleet + REF pool thin)
+   *   E — anniversary years 1790/1840 status (dialogs PARKED)
+   * Cite: viceroy_unpacked.c ~58430+; turn/year_end_chrome.md.
+   */
+  if (!ctx || !out) {
+    return;
+  }
+  const uint16_t year =
+    (ctx->game_year) ? *ctx->game_year
+                     : (ctx->col1_ok && ctx->col1) ? ctx->col1->head.year : 0;
+
+  /* Anniversary chrome stops once scoring completed OR the war already
+   * resolved (the WON latch no longer implies calendar_latch — that bit is
+   * now set by the retire-score chain, as DOS's 0x5382|0x10 is). */
+  const int splash_done =
+    ctx->col1_ok && ctx->col1 &&
+    (ctx->col1->head.game_options.calendar_latch ||
+     ai_king_latch_get(ctx->col1, AI_KING_ENDGAME_BYTE) != AI_KING_ENDGAME_NONE);
+
+  /* DOS 0x5382 bit0 = the WoI latch. raw :58620/:58630 gate the *early*
+   * calendar pair (1790 warning / 1800 era end) on `(0x5382 & 1) == 0`: once
+   * independence is declared the war extends the game to the late pair
+   * (1840/1850), which carries no war gate. */
+  const int woi_latched =
+    ctx->col1_ok && ctx->col1 && ctx->col1->head.game_options.woi != 0;
+
+  turn_year_end_anniversary(ctx, out, year, splash_done, woi_latched);
+  turn_year_end_era_end(ctx, out, year, splash_done, woi_latched);
+  if (turn_year_end_woi_chrome(ctx, out, woi_latched)) {
+    return;
+  }
+  turn_year_end_rival_independence(ctx, out, woi_latched);
+  turn_year_end_defeat_check(ctx, out, year, woi_latched);
 }
 
 static bool turn_euro_ai_should_run(const ColonizeTurnContext* ctx, int nation_id) {
@@ -3564,26 +3599,7 @@ bool turn_processor_show_indicator(const ColonizeTurnProcessor* proc) {
   return proc && proc->show_indicator;
 }
 
-bool turn_processor_advance(ColonizeTurnProcessor* proc, ColonizeTurnContext* ctx) {
-  if (!proc || !ctx || proc->step == TURN_PROC_IDLE) {
-    return false;
-  }
-  if (!ctx->turn_number || !ctx->game_year || !ctx->game_autumn) {
-    proc->step = TURN_PROC_IDLE;
-    proc->show_indicator = false;
-    return false;
-  }
-
-  /* AI combat involving the human can enqueue outcome modals. */
-  units_set_combat_popups(ctx->ai_popups, ctx->messages);
-  units_set_combat_human_nation(ctx->human_nation);
-  /* LABELS.TXT wording for the status lines composed deep inside production;
-   * threaded as a slice-scoped static because turn_run_colony_production's
-   * signature is pinned by ~60 test call sites. */
-  s_turn_labels = ctx->labels;
-
-  switch (proc->step) {
-    case TURN_PROC_SETUP: {
+static void turn_step_setup(ColonizeTurnProcessor* proc, ColonizeTurnContext* ctx) {
       diag_info(
         "TURN setup: turn=%u year=%u autumn=%u human=%d",
         (unsigned)*ctx->turn_number, (unsigned)*ctx->game_year,
@@ -3693,9 +3709,9 @@ bool turn_processor_advance(ColonizeTurnProcessor* proc, ColonizeTurnContext* ct
           proc->step = TURN_PROC_INDIAN;
         }
       }
-      break;
-    }
-    case TURN_PROC_EURO: {
+}
+
+static void turn_step_euro(ColonizeTurnProcessor* proc, ColonizeTurnContext* ctx) {
       const int n = proc->nation_cursor;
       diag_info("TURN european nation %d%s", n, n == ctx->human_nation ? " (human)" : "");
       proc->show_indicator = true;
@@ -3779,9 +3795,9 @@ bool turn_processor_advance(ColonizeTurnProcessor* proc, ColonizeTurnContext* ct
           }
         }
       }
-      break;
-    }
-    case TURN_PROC_INDIAN: {
+}
+
+static void turn_step_indian(ColonizeTurnProcessor* proc, ColonizeTurnContext* ctx) {
       const int n = proc->nation_cursor;
       diag_info("TURN native nation %d", n);
       proc->show_indicator = true;
@@ -3841,9 +3857,10 @@ bool turn_processor_advance(ColonizeTurnProcessor* proc, ColonizeTurnContext* ct
           proc->step = TURN_PROC_FINISH;
         }
       }
-      break;
-    }
-    case TURN_PROC_FINISH: {
+}
+
+/* Body of TURN_PROC_FINISH up to its early `return true;`. */
+static void turn_step_finish(ColonizeTurnProcessor* proc, ColonizeTurnContext* ctx) {
       /*
        * Indicator ON for this slice. FUN_3844_00f2's very first act (raw
        * 58323) is FUN_281f_0590(nation_color[DS:0x5394]) → FUN_1984_00aa, and
@@ -3883,9 +3900,10 @@ bool turn_processor_advance(ColonizeTurnProcessor* proc, ColonizeTurnContext* ct
        * above are answered (and an elected colony zoom taken) before the
        * king's REF beats run in TURN_PROC_KING — see turn.h. */
       proc->step = TURN_PROC_KING;
-      return true;
-    }
-    case TURN_PROC_KING: {
+}
+
+/* Body of TURN_PROC_KING up to its terminal `return false;`. */
+static void turn_step_king(ColonizeTurnProcessor* proc, ColonizeTurnContext* ctx) {
       proc->show_indicator = false;
       turn_set_active_nation(ctx, ctx->human_nation);
       ai_king_nation_turn(ctx);
@@ -4015,8 +4033,42 @@ bool turn_processor_advance(ColonizeTurnProcessor* proc, ColonizeTurnContext* ct
         proc->result.immigrants_arrived
       );
       proc->step = TURN_PROC_IDLE;
+}
+
+bool turn_processor_advance(ColonizeTurnProcessor* proc, ColonizeTurnContext* ctx) {
+  if (!proc || !ctx || proc->step == TURN_PROC_IDLE) {
+    return false;
+  }
+  if (!ctx->turn_number || !ctx->game_year || !ctx->game_autumn) {
+    proc->step = TURN_PROC_IDLE;
+    proc->show_indicator = false;
+    return false;
+  }
+
+  /* AI combat involving the human can enqueue outcome modals. */
+  units_set_combat_popups(ctx->ai_popups, ctx->messages);
+  units_set_combat_human_nation(ctx->human_nation);
+  /* LABELS.TXT wording for the status lines composed deep inside production;
+   * threaded as a slice-scoped static because turn_run_colony_production's
+   * signature is pinned by ~60 test call sites. */
+  s_turn_labels = ctx->labels;
+
+  switch (proc->step) {
+    case TURN_PROC_SETUP:
+      turn_step_setup(proc, ctx);
+      break;
+    case TURN_PROC_EURO:
+      turn_step_euro(proc, ctx);
+      break;
+    case TURN_PROC_INDIAN:
+      turn_step_indian(proc, ctx);
+      break;
+    case TURN_PROC_FINISH:
+      turn_step_finish(proc, ctx);
+      return true;
+    case TURN_PROC_KING:
+      turn_step_king(proc, ctx);
       return false;
-    }
     case TURN_PROC_IDLE:
     default:
       proc->step = TURN_PROC_IDLE;

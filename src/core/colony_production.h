@@ -9,6 +9,15 @@
 typedef struct ColonizeCol1Save ColonizeCol1Save;
 
 /* NAMES.TXT @JOB indices (settlement skills and colonist classes). */
+#define COLONIZE_PROF_FARMER 0          /* Farmer */
+#define COLONIZE_PROF_SUGAR_PLANTER 1   /* Sugar Planter */
+#define COLONIZE_PROF_TOBACCO_PLANTER 2 /* Tobacco Planter */
+#define COLONIZE_PROF_COTTON_PLANTER 3  /* Cotton Planter */
+#define COLONIZE_PROF_FUR_TRAPPER 4     /* Fur Trapper */
+#define COLONIZE_PROF_LUMBERJACK 5      /* Lumberjack */
+#define COLONIZE_PROF_ORE_MINER 6       /* Ore Miner */
+#define COLONIZE_PROF_SILVER_MINER 7    /* Silver Miner */
+#define COLONIZE_PROF_FISHERMAN 8       /* Fisherman */
 #define COLONIZE_PROF_DISTILLER 9
 #define COLONIZE_PROF_TOBACCONIST 10
 #define COLONIZE_PROF_WEAVER 11
