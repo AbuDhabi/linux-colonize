@@ -56,6 +56,44 @@ struct ai_euro_act_ctx {
   int goal_code;
 };
 
+/*
+ * FUN_5952_035e indoor-workplace want-weight scorer (raw 94784-94860, asm
+ * 5952:1ef7-5952:2193). Every field is one DOS read the weight arms make, so
+ * the scorer itself is a pure function a unit test can drive. Ledger slots
+ * are DOS's 20-word scratch arrays (16 cargos + hammers 16 / crosses 17 /
+ * bells 18); see colony_craft.c's DS:0x8dc8 / DS:0x8e0a header.
+ */
+#define AI_EURO_5952_LEDGER_SLOTS 20
+#define AI_EURO_5952_HAMMERS 16
+#define AI_EURO_5952_CROSSES 17
+#define AI_EURO_5952_BELLS 18
+
+typedef struct AiEuro5952Want {
+  int gross[AI_EURO_5952_LEDGER_SLOTS]; /* DS:0x8dc8, -0x7238 */
+  int owner_nation;                     /* colony +0x1a */
+  int human_nation;                     /* DS:0x5398 */
+  unsigned char wealth_rank[4];         /* DS:0x917c, 0 = richest */
+  int year;                             /* DS:0x538a */
+  int turn;                             /* DS:0x538e */
+  int independence;                     /* DS:0x5382 & 1 */
+  int jefferson;                        /* FUN_281f_07b4(owner, 0x0f) */
+  int nation_flag_bit4;                 /* *(byte*)DS:0x84fc & 4 */
+  int tories;                           /* (pop*(100-SoL%)+50)/100, 0 under WoI */
+  int capitol_level;                    /* colony +0x96 */
+  int population;                       /* colony +0x1f */
+  int wants_construction;               /* colony +0x1d & 0x80 */
+  int press_chain_count;                /* FUN_281f_0ab0(0x13) */
+  unsigned char sell_price[64];         /* DS:0x84bc, nation*0x10 + cargo */
+} AiEuro5952Want;
+
+COLONIZE_INTERNAL int ai_euro_5952_want_weight(const AiEuro5952Want* w, int job, int out_cargo);
+COLONIZE_INTERNAL int ai_euro_5952_fallback_job(
+  int has_church, int lumber_surplus, int preacher_count
+);
+COLONIZE_INTERNAL int ai_euro_5952_job_score(
+  const AiEuro5952Want* w, int job, int out_cargo, int qty
+);
+
 #ifdef COLONIZE_TESTING
 void ai_euro_colony_goals_unit_contact(ColonizeTurnContext* ctx, int nation_id);
 void ai_euro_colony_goals_colony_labor(
@@ -83,6 +121,7 @@ void ai_euro_colony_goals_ship_found(
 );
 void ai_euro_colony_goals_bind_founders(ColonizeTurnContext* ctx, int nation_id);
 
+int ai_euro_5952_indoor_pass_enabled(void);
 AiEuroActStatus ai_euro_act_pioneer_corridor(struct ai_euro_act_ctx* a);
 AiEuroActStatus ai_euro_act_soldier_staging(struct ai_euro_act_ctx* a);
 AiEuroActStatus ai_euro_act_ship_europe_exit(struct ai_euro_act_ctx* a);
