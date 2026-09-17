@@ -134,15 +134,6 @@
 #define AI_DIPLO_STICKY_CLEAR 0u
 #define AI_DIPLO_STICKY_AT_WAR 1u
 #define AI_DIPLO_STICKY_DEEP 2u
-/*
- * Franklin NW peace: either Euro in the pair owns Benjamin Franklin.
- * Source: docs/fandom_col1994.md — king's European wars no longer affect NW
- * relations; Europeans always offer peace in negotiations.
- */
-static int ai_diplo_franklin_pair(const ColonizeCol1Save* col1, int nation_a, int nation_b) {
-  return founding_fathers_franklin_keeps_nw_peace(col1, nation_a) ||
-         founding_fathers_franklin_keeps_nw_peace(col1, nation_b);
-}
 
 static uint8_t* ai_diplo_timer_byte(ColonizeCol1Save* col1, int nation, int peer);
 static uint16_t ai_diplo_wartime_boycott_mask(void);
@@ -837,14 +828,12 @@ int ai_diplo_at_war_with_any(const ColonizeCol1Save* col1, int nation) {
 
 void ai_diplo_declare_war(ColonizeCol1Save* col1, int nation_a, int nation_b) {
   /*
-   * Franklin: refuse NW Euro×Euro declare so king/Euro war spillover and
-   * opportunistic pressure cannot poison peer relations (war-hit / embargo /
-   * sting stay gated with this no-op). Source: docs/fandom_col1994.md
-   * Benjamin Franklin. Combat/player callers share this gate for thin port.
+   * No Franklin gate here (bugs.md #472): DOS tests FF 0x13 at exactly eight
+   * sites -- the @KINGNEWWAR crown declaration FUN_38fd_5930 (raw 68336,
+   * ai_king.c) and seven arms of the FUN_5bfb_153e negotiation (raw 97524-
+   * 98422). No attack/declare site (5fef_1b0e, 465b, 684c_08c0, 6cb2_24b8)
+   * reads it; the old refusal here was a fandom-sourced invention.
    */
-  if (ai_diplo_franklin_pair(col1, nation_a, nation_b)) {
-    return;
-  }
   const int already = ai_diplo_at_war(col1, nation_a, nation_b);
   /* DOS attack/declare sites (5fef_1b0e, 684c_08c0, 6cb2_24b8): DS:0x53c8[a]=[b]=0. */
   if (nation_a >= 0 && nation_a < 4 && nation_b >= 0 && nation_b < 4) {
@@ -2233,25 +2222,9 @@ static AiTalkStepStatus ai_talk_stage_worthy(
 ) {
   ColonizeCol1Save* col1 = ctx->col1;
   /* raw :98047-98062 provoke; then the peace negotiation for !worthy. */
-  /*
-   * Benjamin Franklin — "Europeans in the New World always offer peace
-   * in negotiations" (docs/fandom_col1994.md). This is where that rule
-   * belongs: with Franklin on either side the provoke arm is skipped
-   * and the peace offer is made even to a "worthy" (threatening)
-   * counterpart. It used to be an unsolicited Accept/Refuse popup in
-   * the euro-balance tick, which was invented whole (bugs.md).
-   */
-  if (k->worthy && ai_diplo_franklin_pair(col1, h, t) && k->at_war) {
-    if (ai_talk_peace(ctx, h, t)) {
-      k->stage = AI_TALK_ST_PEACEMENU;
-      return AI_TALK_STEP_CONTINUE;
-    }
-    ai_talk_peace_offer(ctx);
-    if (k->stage == AI_TALK_ST_WORTHY) {
-      return AI_TALK_STEP_RETURN; /* CHOICE queued */
-    }
-    return AI_TALK_STEP_CONTINUE;
-  }
+  /* Franklin: DOS tests FF 0x13 on param_2 only (raw 97524 zeroes worthy for
+   * the owner, ported in the kernel); the old "either side" peace arm here
+   * was invented (bugs.md #472). */
   if (k->worthy) {
     /*
      * The three-leg "worthy" cascade, raw :97954-97982 (cross-checked
@@ -3351,8 +3324,7 @@ void ai_diplo_euro_balance(ColonizeTurnContext* ctx, int nation_id) {
    *    stings it used to carry are all retired (smells #47/#49, follow-up A)
    *  + Indian matrix: feeler (skip sticky2 / any Euro war) + sticky sync/pressure
    *    sticky2 also refuses new treaties
-   *  + Franklin (fandom): NW pair with FF → always offer/conclude peace; skip
-   *    10ec declare pressure (king Euro wars must not poison NW peers)
+   *  (No Franklin arm: DOS reads FF 0x13 only in 38fd_5930 + 153e, bugs.md #472.)
    */
   ai_diplo_indian_matrix_tick(ctx, nation_id);
   const int self = ai_diplo_military_score(ctx, nation_id);
@@ -3363,32 +3335,8 @@ void ai_diplo_euro_balance(ColonizeTurnContext* ctx, int nation_id) {
     }
     const int other = ai_diplo_military_score(ctx, peer);
     const uint8_t bits = ai_diplo_read(ctx->col1, nation_id, peer);
-    const int franklin = ai_diplo_franklin_pair(ctx->col1, nation_id, peer);
 
     if (bits & AI_DIPLO_WAR) {
-      /*
-       * Franklin: Europeans in the New World always offer peace (fandom).
-       * Conclude peace for AI↔AI / human-as-actor; AI→human enqueues CHOICE.
-       * Skips upkeep/privateer for this peer — negotiations stay peaceful.
-       * Source: docs/fandom_col1994.md Benjamin Franklin; FA 3f41 UI PARKED.
-       */
-      if (franklin) {
-        /*
-         * bugs.md: the "<nation> offers peace." Accept/Refuse toast that used
-         * to sit here was invented — body, labels and all. DOS never puts an
-         * unsolicited peace dialog in front of the player; peace with a
-         * European peer is settled in the FUN_5bfb_153e encounter
-         * negotiation, which this file already ports in full (@WORTHY →
-         * @PEACEMANLY / @PEACEMEEK). Franklin's "Europeans in the New World
-         * always offer peace" is a rule about NEGOTIATIONS, so it now lives
-         * there (see AI_TALK_ST_WORTHY) as well. The treaty itself still
-         * concludes here and is announced with DOS's own @SIGNTREATY line,
-         * which ai_diplo_make_peace_ctx already emits — that is a real
-         * GAME.TXT string, not a hand-written dialog.
-         */
-        ai_diplo_make_peace_ctx(ctx, nation_id, peer);
-        continue;
-      }
       /* Thin ongoing 153e friction: 5 gold/turn while gold>0 (per war peer). */
       /* uint32: the nation gold word is 32-bit (col1_save.h +0x2a/+0x2c). A
        * uint16 here read 0 at exactly 65536/131072/… and silently swallowed
@@ -3441,7 +3389,7 @@ void ai_diplo_euro_balance(ColonizeTurnContext* ctx, int nation_id) {
           abs(self - other) < AI_DIPLO_STRENGTH_PARITY) {
         uint8_t* t = ai_diplo_timer_byte(ctx->col1, nation_id, peer);
         if (t && *t == 0 && ctx->rng && dos_rng_range(ctx->rng, 1, 30) == 1) {
-          /* Same as the Franklin arm above (bugs.md): no invented peace
+          /* bugs.md: no invented peace
            * toast. The treaty is concluded and announced with DOS's own
            * @SIGNTREATY line, which ai_diplo_make_peace_ctx already emits. */
           ai_diplo_make_peace_ctx(ctx, nation_id, peer);
@@ -3457,14 +3405,6 @@ void ai_diplo_euro_balance(ColonizeTurnContext* ctx, int nation_id) {
 
     /* 10ec war eligibility. */
     if (self > other * 2 + AI_DIPLO_STRENGTH_EDGE && self > AI_DIPLO_STRENGTH_WAR_MIN) {
-      /*
-       * Franklin: skip declare-war pressure against NW Euro peers (fandom —
-       * king's European wars / opportunistic war must not poison NW relations).
-       * Source: docs/fandom_col1994.md Benjamin Franklin.
-       */
-      if (franklin) {
-        continue;
-      }
       if (ctx->rng && dos_rng_range(ctx->rng, 1, 20) == 1) {
         /*
          * AI→human (FUN_5bfb / 15b3): enqueue CHOICE Accept/Refuse; apply calls

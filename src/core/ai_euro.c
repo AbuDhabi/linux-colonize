@@ -13002,6 +13002,16 @@ static void ai_euro_try_attack(ColonizeTurnContext* ctx, ColonizeUnit* u, int tx
   if (ctx->col1_ok && ctx->col1 && f->nation_id >= 0 && f->nation_id < 4) {
     if (!ai_diplo_at_war(ctx->col1, u->nation_id, f->nation_id)) {
       /*
+       * bugs.md #472: the signed-treaty bit 0x40 gates every Euro target
+       * (same DOS rule as ai_euro_land_best_adjacent_foe, smell #106). The
+       * goal / goto / peace-border-garrison callers reach here without that
+       * check and attacked treaty partners. Privateers fly no flag.
+       */
+      if ((ai_diplo_read(ctx->col1, u->nation_id, f->nation_id) & AI_DIPLO_PEACE) != 0 &&
+          !units_type_is_privateer(units_type(ctx->units, u->type_index))) {
+        return;
+      }
+      /*
        * @SNEAK ("Sneak attack by the treacherous {attacker}!") — confirmed
        * real, 2026-08-14, via live user testimony (euro_diplo.md "FA
        * negotiation screen"): AI Euro nations can attack outright, with
@@ -13017,6 +13027,11 @@ static void ai_euro_try_attack(ColonizeTurnContext* ctx, ColonizeUnit* u, int tx
        * declaration.
        */
       ai_diplo_declare_war_ctx(ctx, u->nation_id, f->nation_id);
+      /* Declare refused (Franklin no-op): no warless attack. */
+      if (!ai_diplo_at_war(ctx->col1, u->nation_id, f->nation_id) &&
+          !units_type_is_privateer(units_type(ctx->units, u->type_index))) {
+        return;
+      }
       if (ctx->human_nation >= 0 && ctx->human_nation < 4 &&
           (u->nation_id == ctx->human_nation || f->nation_id == ctx->human_nation) &&
           ctx->status && ctx->status_size > 0) {
