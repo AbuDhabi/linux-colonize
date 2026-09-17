@@ -569,12 +569,99 @@ list, not from the inventory.
   Combat Analysis and AI scoring never see it) — called from the land and
   naval resolvers after the analysis popup, before the roll. The port's
   wrong-side "Discoverer damper" deleted. 60/60 green.
+- [ ] **`5952_035e` indoor-workplace pass + its want-weight scorer (raw
+  94784-94860, asm `5952:1ef7`-`5952:2193`) — OPEN, spec'd below.** The port
+  has no DOS-derived weight source for indoor jobs: `ai_euro_try_expert_
+  workplace_assign` (name-matched craft chains) and the 28c8 "leftovers"
+  stand-in (`ai_euro.c`) cover the ground with invented heuristics. Landing
+  it retires both, which is decision-level and golden-moving — same class as
+  the build-decision cascade deferred in `smell_audit_2026-09-10.md`.
+  Prerequisites: `FUN_281f_0cd6` (per-job producible quantity + output-cargo
+  out-param) and `FUN_281f_0c36` (set colonist job; normalises `0x17→0x15`)
+  have no Linux equivalents yet. Spec: "5952 indoor-workplace pass" below.
 - Deliberate documented divergences (decision needed before "work"):
   king_ref.md short list, 5d04 past-the-end read kept 0 + musket-scratch
   collision as price×100, `@HELLOUSA` not modeled, per-act (vs DOS
   per-step) encounter granularity, `4720_049e` thin approximations.
   These are *documented substitutions*, not open work, unless the bar
   moves to T3.
+
+#### Spec — 5952 indoor-workplace pass (raw 94784-94860, asm `5952:1ef7`-`5952:2193`)
+
+Last placement arm of the AI colony tick, after the field passes. For each
+still-unplaced colonist slot it elects one indoor job and assigns it.
+Clean decomp: `original_sources_annotated/ai/colony_tick_5952_035e.md:1260-1355`
+(Ghidra drops the far-call args — read `viceroy_unpacked.asm:159660-159900`).
+Thunks (`FUN_1000_X = FUN_281f_(X−0x81f0)`): `0c36` set job (`15eb_0e8c`),
+`0cd6` producible qty, out-param = **output** cargo, `0ab0` building-chain
+count, `09fc` has-building, `0d08` unknown bool(5), `0b6e` = 28c8 field probe,
+`0c04` ledger refresh, `035c` = `clamp(v, lo, hi)`.
+Scratch arrays (already named in `colony_craft.c:25-27`): `DS:0x8dc8` gross
+production (`-0x7238`), `DS:0x8e0a` demand (`-0x71f6`), both 20 words by cargo.
+Colony record `DS:0x8542`: `+0x9a+2c` stock, `+0x1f` population, `+0x96`
+`capitol_level`, `+0x1d` bit `0x80` wants-construction, `+0x1a` owner nation.
+
+```
+best = 0; best_job = 0xd                      ; 5952:1ef7
+for job in 9..0x12:
+  if (!job_available[job] || job == 0x12 || placed_count[job] >= 3) continue
+  0c36(slot, job)                             ; bind, so 0cd6 sees the job
+  in = byte[DS:0x2b6 + job]                   ; job->INPUT cargo, 0xff = none
+  if (job == 0x0f) in = 0x0e                  ; Gunsmith <- Tools
+  if (job == 0x0d) in = 0x05                  ; Carpenter <- Lumber
+  if (in >= 0) {
+    avail = stock[in] - demand[in] + gross[in]
+    if (avail < 0) continue                   ; 5952:1f71
+    if (avail == 0) avail = 1
+  }
+  qty = 0cd6(slot, &out); if (in >= 0 && qty > avail) qty = avail
+  if (out < 0x10) { ... euro price-row weight arm, asm 5952:1e72 ... }
+  else {
+    w = 3
+    if (job == 0x11) {                        ; Elder Statesman -> Bells
+      w = 0ab0(0x13)*4 + tories + 7 + capitol_level*4   ; 5952:1fb2
+      if (tories >= 10)              w *= 2             ; tories = round(pop*(100-SoL%)/100), 0 after independence (raw 294-296)
+      if (07b4(owner, 0x0f))         w <<= 1            ; FF 15 JEFFERSON, 5952:1fe4
+      if (DS:0x538a <  0x604)        w  = 0             ; year < 1540
+      if (DS:0x538a >  0x640)        w <<= 1            ; year > 1600
+      if (DS:0x538a >  0x6a4)        w <<= 1            ; year > 1700
+      if (DS:0x5382 & 1)             w  = 0             ; independence declared
+      if (pop <= 3)                  w >>= 1
+      if (pop <  6)                  w >>= 1
+      if (byte[human+0x917c] <  byte[owner+0x917c]) w >>= 1
+      if (byte[human+0x917c] >  byte[owner+0x917c]) w <<= 1
+      if (*(byte*)DS:0x84fc & 4)     w >>= 1
+      w = clamp(w - gross[out], 1, 100)                 ; 035c, 5952:2080
+    }
+    if (job == 0x0d) {                        ; Carpenter -> Hammers, 5952:20a1
+      w = 5 - gross[out]/3                    ; unsigned DIV, then NEG
+      if (+0x1d & 0x80)              w >>= 1
+      if (w < 1) w = 1
+    }
+    if (job == 0x10) {                        ; Preacher -> Crosses, 5952:20e5
+      w -= (gross[out] >> 1) + DS:0x538e/100 - 6
+      if (w < 1) w = 1
+    }
+  }
+  score = (qty*8 + 5) * w                     ; 5952:1ed1 tail
+  if (score > best) { best = score; best_job = job }   ; DOS: `!= && <=`
+0c36(slot, 0x12)                              ; 0x12 = idle sentinel, 5952:2116
+if (DS:0x8dc0 < best) goto commit
+0b6e(slot, -1)                                ; 28c8 field probe
+if (DS:0x8dbe != 0) goto next_slot            ; took a field plot instead
+best_job = 0xd
+if (09fc(0x25) && 0d08(5) && preacher_count < 3) best_job = 0x10
+commit: 0c36(slot, best_job); placed_count[best_job]++
+0c04()                                        ; refresh the ledgers
+```
+
+Unresolved before a port: `DS:0x8dc0` / `DS:0x8dbe` (28c8 result words),
+`DS:0x917c` per-nation byte, `DS:0x84fc` pointer + bit 4, building index
+`0x25`, `FUN_281f_0d08(5)`, and the `out < 0x10` price arm's `-0x7b44` /
+`-0x7b4c` rows (the `0xe`/`0xf` Tools/Muskets +4 and difficulty ×2 sub-arm).
+**Do not** reuse the ×1.5 Jefferson/Paine bells bonus from
+`colony_production.c:428` here: this site is a **×2** on an AI want-weight,
+a different rule at a different offset (`2f2b:37cd` vs `5952:1fe4`).
 
 ### Fidelity tiers
 

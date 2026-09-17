@@ -1,6 +1,6 @@
 This is a user-maintained list of bugs. User puts reports in. Agents may annotate with a resolution (Status FIXED + one-sentence resolution). User verifies, then rows are moved to [docs/archive/bugs_closed.md](docs/archive/bugs_closed.md).
 
-IDs in the `#` column are permanent and never reused; the archive holds #1-#455. **Next free ID: 478.** Cite rows as `bugs.md #NNN`.
+IDs in the `#` column are permanent and never reused; the archive holds #1-#455. **Next free ID: 479.** Cite rows as `bugs.md #NNN`.
 
 Status: OPEN = no resolution yet. FIXED = agent claims a fix, awaiting user verification. CLOSED / REFUTED = verified, archived.
 
@@ -23,3 +23,4 @@ Status: OPEN = no resolution yet. FIXED = agent claims a fix, awaiting user veri
 | 475 | FIXED | Jan de Witt foreign-colony trade was a fandom-sourced invention (unit docks in foreign colony and transfers cargo; AI wagons/ships did the same). | Replaced with the DOS flow `FUN_5f7a_020e` (raw 98885ff): human wagon/ship bumping a foreign colony gets @TRADEATWAR / @TRADEMERCANTILISM / @TRADENOCARGO / @TRADEWHICH / @TRADEWITH, never enters, spends all MP; AI de Witt trade deleted (DOS is human-only) — docs/foreign_colony_trade.md. |
 | 476 | FIXED | Founding Father elect effects invented from wiki text: Franklin elect-time make-peace, Magellan elect-time moves bump, La Salle per-turn stockade re-sweep, Fugger King-boycott-latch clear. | Removed; `FUN_4345_0342` (raw 73044) has cases only for FF 1/6/9/0xe/0x10/0x12/0x14/0x16/0x18. La Salle stays elect sweep + admit-time grant (raw 11312), now also on the EOT birth path. |
 | 477 | FIXED | Founding Father elect effects missing vs DOS `FUN_4345_0342`: Bolivar +20 to DS:0x53d0 rebel sentiment (human, cap 100); Brebeuf upgrade of existing missions (bit 0x10); Las Casas map-unit type==0 filter; Pocahontas reset not routed through the alarm delta. | All four ported DOS-literal in `founding_fathers.c`. |
+| 478 | FIXED | AI nations owning Cortes lost treasure value: an invented AI "free King's galleon" sweep cashed coastal-colony treasures with the tax cut applied. | Removed (`FUN_465b_0000` raw 75798 gates the whole King-galleon/Cortes offer on the human control byte); AI treasure cashes only through the `FUN_521d_20e6` in-colony band at full value. |

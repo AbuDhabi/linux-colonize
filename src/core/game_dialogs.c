@@ -2306,16 +2306,17 @@ static bool game_apply_popup_diplo_and_scout(ColonizeGameState* game) {
   }
   /*
    * FUN_5f7a_020e offer (@TRADEWITH): 1 = take the goods, 2 = take the gold,
-   * 3 = refuse. DOS's FUN_2a1f_0688 returns 0 on no-choice and falls into the
-   * gold arm; the port maps Esc to refuse instead of paying for a cancel.
+   * 3 = refuse. DOS-LITERAL raw 99024: `if (r < 3) { if (r == 1) goods; else
+   * gold; }` -- FUN_2a1f_0688's no-choice return (Esc) is < 3 and != 1, so an
+   * Esc takes the gold, same as DOS.
    */
   if (game->ai_popups.result_tag == AI_POPUP_TAG_FOREIGN_TRADE_OFFER) {
     const int unit_id = game->ai_popups.result_nation_a;
     const int cid = game->ai_popups.result_nation_b;
     const int hold = game->ai_popups.result_payload;
-    const int choice = game->ai_popups.result_cancelled ? 3 : game->ai_popups.result_choice_id;
+    const int choice = game->ai_popups.result_cancelled ? 0 : game->ai_popups.result_choice_id;
     ai_popup_consume_result(&game->ai_popups);
-    if (choice <= 2 && game->foreign_trade_unit == unit_id &&
+    if (choice < 3 && game->foreign_trade_unit == unit_id &&
         game->foreign_trade_colony == cid && game->foreign_trade_hold == hold) {
       ColonizeWorld w = world_make(
         &game->units, &game->colonies, &game->world_map, &game->col1, game->col1_ok, NULL, NULL

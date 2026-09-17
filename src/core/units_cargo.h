@@ -89,18 +89,6 @@ int units_tick_drydock_repair(
 );
 
 /*
- * Cortes free king galleon stand-in: each Treasure of nation on an own coastal
- * colony → europe_cash_treasure (tax = Crown share) + despawn. Cite: fandom
- * Hernan Cortes; GAME.TXT @KINGGALLEON3. Syncs col1 nation gold. Returns
- * number cashed. Non-Cortes KINGGALLEON2 is
- * `units_king_galleon_offer_coastal_treasures` (FUN_5fef_1908, Done).
- */
-int units_cortes_cash_coastal_treasures_w(
-  const ColonizeWorld* w,
-  int nation_id
-);
-
-/*
  * FUN_5fef_1908 Crown share % for the King's Galleon transport offer:
  * Cortes (FF 10) → current tax rate; otherwise max((difficulty+10)*5, 2*tax);
  * both capped at 90. DS strings "KINGGALLEON"+"3"/"2" at 0x1bed/0x1bf9/0x1bfb.
