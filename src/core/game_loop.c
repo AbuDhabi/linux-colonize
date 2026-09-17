@@ -5586,8 +5586,9 @@ COLONIZE_INTERNAL GameMoveStep game_move_native_prompts(
    * Attack Colony / Nothing) instead of a bare attack. The colony_attack_ok
    * latch doubles as the "Attack Colony" pass-through.
    */
+  /* A garrisoned colony still gets the menu: no empty-tile test here, or the
+   * step fell through to the @HAVETREATY confirm. */
   if (game->col1_ok && !units_is_sea(&game->units, sid) &&
-      units_id_at(&game->units, dest_x, dest_y) < 0 &&
       !(game->colony_attack_ok_unit == sid &&
         game->colony_attack_ok_payload == (dest_x | (dest_y << 8)))) {
     const ColonizeUnitType* sty = units_type(&game->units, selected->type_index);
