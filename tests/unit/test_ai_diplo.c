@@ -2632,8 +2632,9 @@ static int case_marathon3_franklin_peace_gate(void) {
     const uint16_t gold1 = fr.nation[1].gold;
     const uint8_t rel0 = ai_diplo_indian_relation(&fr, 4 + (0), 0);
     ai_diplo_declare_war(&fr, 0, 1);
-    if (ai_diplo_at_war(&fr, 0, 1)) {
-      return fail("M3R1 Franklin: declare_war must no-op when pair has Franklin");
+    /* bugs.md #472: no DOS declare site reads Franklin -- war sticks. */
+    if (!ai_diplo_at_war(&fr, 0, 1)) {
+      return fail("M3R1 Franklin: declare_war must stick (no DOS Franklin gate)");
     }
     if (fr.nation[0].gold != gold0 || fr.nation[1].gold != gold1) {
       return fail("M3R1 Franklin: declare no-op must not drain war gold sting");
@@ -2645,63 +2646,9 @@ static int case_marathon3_franklin_peace_gate(void) {
       return fail("M3R1 Franklin: declare no-op must skip wartime embargo");
     }
 
-    /* Force WAR bytes then euro_balance should conclude peace (AI↔AI). */
-    ai_diplo_or_both(&fr, 0, 1, (uint8_t)(AI_DIPLO_WAR | AI_DIPLO_MET));
-    ai_diplo_clear_both(&fr, 0, 1, AI_DIPLO_PEACE);
-    if (!ai_diplo_at_war(&fr, 0, 1)) {
-      return fail("M3R1 Franklin setup: forced WAR bytes");
-    }
-    ColonizeDosRng rng_fr;
-    dos_rng_seed(&rng_fr, 7);
-    uint32_t turn_fr = 1;
-    char status_fr[128];
-    status_fr[0] = '\0';
-    ColonizeTurnContext ctx_fr;
-    memset(&ctx_fr, 0, sizeof(ctx_fr));
-    ctx_fr.col1 = &fr;
-    ctx_fr.col1_ok = true;
-    ctx_fr.rng = &rng_fr;
-    ctx_fr.turn_number = &turn_fr;
-    ctx_fr.human_nation = 0;
-    ctx_fr.status = status_fr;
-    ctx_fr.status_size = sizeof(status_fr);
-    ai_diplo_euro_balance(&ctx_fr, 0);
-    if (ai_diplo_at_war(&fr, 0, 1)) {
-      return fail("M3R1 Franklin: euro_balance at-war must make_peace");
-    }
-    if ((ai_diplo_read(&fr, 0, 1) & AI_DIPLO_PEACE) == 0) {
-      return fail("M3R1 Franklin: after peace, PEACE bit should be set");
-    }
-    /*
-     * Marathon3 R4 defensive: Franklin peace path skips upkeep (−5) and PARK
-     * 8g prize (null-units would otherwise transfer). Gold stays 400/50.
-     */
-    if (fr.nation[0].gold != 400 || fr.nation[1].gold != 50) {
-      fprintf(stderr, "unit_ai_diplo: M3R4 Franklin gold %u/%u (want 400/50)\n",
-              (unsigned)fr.nation[0].gold, (unsigned)fr.nation[1].gold);
-      return fail("M3R4 Franklin: at-war peace must skip upkeep and PARK prize");
-    }
-    /* Marathon3 R2: human chrome when Franklin concludes peace (make_peace_ctx). */
-    if (strcmp(status_fr, "The English and French have signed a peace treaty.") != 0) {
-      fprintf(stderr, "unit_ai_diplo: M3R2 Franklin peace status '%s'\n", status_fr);
-      return fail("M3R2 Franklin: human party should status @SIGNTREATY with France");
-    }
-
-    /*
-     * 10ec declare pressure: military self ≫ peer must not declare when
-     * Franklin protects the pair (many RNG rolls).
-     */
-    fr.nation[0].gold = 5000; /* score boost */
-    fr.nation[1].gold = 0;
-    for (int seed = 1; seed < 80; ++seed) {
-      dos_rng_seed(&rng_fr, (uint32_t)seed);
-      ai_diplo_euro_balance(&ctx_fr, 0);
-      if (ai_diplo_at_war(&fr, 0, 1)) {
-        return fail("M3R1 Franklin: euro_balance must skip 10ec declare pressure");
-      }
-    }
-
-    /* Peer owns Franklin: nation 1 protected — nation 0 declare still no-ops. */
+    /* bugs.md #472: the euro_balance Franklin auto-peace / no-pressure arms
+     * were invented (DOS reads FF 0x13 only in 38fd_5930 + 153e); removed. */
+    /* Peer owns Franklin: declare still sticks. */
     ColonizeCol1Save fr2;
     col1_save_init(&fr2);
     memset(fr2.nation, 0, sizeof(fr2.nation));
@@ -2714,8 +2661,8 @@ static int case_marathon3_franklin_peace_gate(void) {
     fr2.nation[1].founding_fathers[FF_BENJAMIN_FRANKLIN / 8] |=
       (uint8_t)(1u << (FF_BENJAMIN_FRANKLIN % 8));
     ai_diplo_declare_war(&fr2, 0, 1);
-    if (ai_diplo_at_war(&fr2, 0, 1)) {
-      return fail("M3R1 Franklin: peer ownership must also block declare_war");
+    if (!ai_diplo_at_war(&fr2, 0, 1)) {
+      return fail("M3R1 Franklin: peer ownership must not block declare_war");
     }
 
     /* Elect effect: forced WAR then founding_fathers_tick elect clears it. */
