@@ -35,7 +35,8 @@ Status: **Done** / **Partial** / **Missing** / **PARKED**.
 | Land | Land (clear/forest/hills/mtn) | Cost `terr_cost[class]*3`; enter if afford / full MP / gamble | DOS `terr_cost` table via `map_move_cost_*` (NAMES MP scale; Brave keeps `*3`); road/river pair→1; full-MP + `range(1,cost)` | Done (unit MP = DOS thirds for every unit, `UNITS_MP_PER_TILE = 3`; the `*3`-scale PARK closed 2026-08-29 with T1.8) |
 | Land | Road pair (both FA `&0x0a`) | Cost **1** | `map_move_cost_step` both roads → 1; else dest road still halves | Done |
 | Land | River both + cardinal | Cost **1** | Both river + axis → 1; else dest river still halves | Done |
-| Land | Ocean / HS (25/26) | Embark if own ship has room (`4720`); else domain deny | `BOARD` via `units_find_boardable_ship`; else domain deny | Done |
+| Land | Ocean / HS (25/26) | Embark if own ship has room for the boarder's `@UNIT` **size** (`4720_00e0`) | `BOARD` via `units_find_boardable_ship(..., need_space)`; else domain deny | Done |
+| Land **aboard a ship** | Land occupied by another nation | Reason **9** = `@LANDFIRST` — no amphibious assault | `COLONIZE_ENTER_LANDFIRST` (bugs.md #485) | Done |
 | Ship | Ocean / HS | OK (`4720`); **already on HS** + eastward without sail order → reason **5** | Same (`units_can_enter`); entering the lane from ocean is always legal, and a Go To may target a lane tile → `game_ship_sail_to_europe` on arrival | Done |
 | Ship | Map edge | Reason **4** | Out-of-bounds → edge | Partial |
 | Ship | Own colony land | Dock | `can_enter` + disembark | Done |
@@ -121,6 +122,46 @@ is why loading and unloading in port stays cheap; an Indian village does not
 `units_move_crosses_shore`, applied in `units_try_move` and
 `units_unload_passenger` (bugs.md: "dragoons should have their entire movement
 spent from stepping off a ship onto land").
+
+## Hold charge = `@UNIT` size, and no amphibious assault — 2026-09-17
+
+`FUN_4720_00e0` (viceroy_unpacked_2.c raw 74628-74665) is the "does this
+tile's stack fit on these ships" pass and the authority on hold accounting:
+
+```
+for each ship on tile:  room[i] = 0x5237[type] - unit[+0x3150]   /* cargo cap - goods holds */
+for each non-ship unit on tile with 0x5238[type] < 99:
+    first ship with size <= room[i]:  room[i] -= size            /* else the stack does not fit */
+return (param_2 <= room)                                          /* candidate's own size */
+```
+
+So a passenger costs its **size** column, not one slot. `@UNIT` sizes: land
+units 1, **Treasure 6**, ships + Wagon Train 99 (the cannot-board sentinel,
+bugs.md #482). With cargo capacities Caravel 2 / Merchantman 4 / Galleon 6 /
+Privateer 2 / Frigate 4 / Man-O-War 6, only a Galleon (or a Man-O-War) can
+ever lift a Treasure, and it then has no room for anything else — the
+manual's "treasure needs a Galleon" is that arithmetic, not a type check
+(bugs.md #484). Col1 interop is untouched: `holds_occupied` is goods-only and
+riders travel on the aboard link chain, so DOS recomputes the size charges
+itself.
+
+`FUN_4720_015c` reason **9** (raw 74720-74728) fires when a land unit whose
+own tile is ocean/high-seas — i.e. one riding a ship — steps onto a tile
+whose `tile_tribe_or_presence` owner is another nation: enemy stack, native
+village, or an empty enemy colony alike. The `FUN_4720_049e` jump table at
+`4720:060a` maps reason 9 to `push 0x1429` = **@LANDFIRST**, "Land units
+cannot enter an enemy occupied square from on board a ship." There is no
+amphibious assault in DOS and no shipboard walk-in capture (bugs.md #485).
+The port keeps `@LANDFIRST` on the *ship*-mover direction too as a stand-in;
+DOS refuses that step with no reason word and shows nothing (bugs.md #486).
+
+Ship **sight radius** is not a `@UNIT` column either: `FUN_13f1_02f8`
+(`CODE_17:13f1:02f8-0356`) builds it in DI from hardcoded type compares —
+1 by default, 2 for types `0xf/0x10/0x11` (Galleon / Privateer / Frigate),
+2 for any non-ship under de Soto (`FUN_15eb_3960(nation, 7)`), +1 for type
+5 (Scouts) — and passes it to `FUN_13f1_02b4` in DX, which only derives the
+ship/land flag. Man-O-War (`0x12`) is deliberately absent: radius 1. The
+port's `units_sight_radius` already matched; the citation now names the asm.
 
 ## Sea lane (high seas) — corrected 2026-08-28
 

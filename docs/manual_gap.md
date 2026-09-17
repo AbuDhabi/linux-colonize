@@ -77,6 +77,8 @@ Deep mechanics (expected vs Linux by context): [unit_orders.md](unit_orders.md).
 | Colony auto-disembark when ship enters settlement | Done | Dock + `units_disembark_all` |
 | Sentry auto-board when ship leaves tile | Done | Same-tile Sentry land → departing ship to capacity (colony + ocean stack) |
 | Wagon Train cannot board a ship | Done | bugs.md #482, 2026-09-17: DOS gates boarding on the `@UNIT` **size** column (`DS:0x5238`) being `< 99` — `FUN_4720_00e0` (raw 74644-74648) and the `FUN_4720_015c` candidate walk (raw 74739). Wagon Train's size is the 99 sentinel, so it is skipped; ported in `units_board_stacked` (covers `units_board` and every move-onto-ship path) |
+| Treasure Train needs a Galleon | Done | bugs.md #484, 2026-09-17: emergent, not a type rule — a passenger is charged its `@UNIT` size column (Treasure 6) against `cargo capacity − goods holds` (`FUN_4720_00e0` raw 74628-74665), and only Galleon / Man-O-War have 6 holds. One Treasure fills a Galleon; six no longer fit — [move_enter.md](move_enter.md) |
+| No amphibious assault | Done | bugs.md #485, 2026-09-17: a land unit aboard a ship cannot enter any square occupied by another nation (unit stack, village, or empty enemy colony) — `FUN_4720_015c` reason 9 → `@LANDFIRST` (`FUN_4720_049e` table at `4720:060a`, tag `0x1429`). Must unload onto an empty or friendly square first |
 | Landfall confirm (one unit ashore) | Done | Ship→bare land: `@LANDFALL` Stay / Make Landfall; passenger pays dest terrain MP + ship −1 MP; ship stays at sea — [move_enter.md](move_enter.md) |
 | Ship→native village | Done | `@DONTKNOWSHIPS` / `@MADATSHIPS` (not landfall); [move_enter.md](move_enter.md) |
 | Stack picker for partial unload | Done | `unit_stack.c` (wake sentry → select) |

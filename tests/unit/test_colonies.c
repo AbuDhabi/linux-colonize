@@ -2162,6 +2162,95 @@ static int unit_ship_construction(void) {
   return 1;
 }
 
+/*
+ * DOS-LITERAL FUN_15eb_3650 raw 13736-13740 / FUN_364b_0114 raw 56926-56933:
+ * wagons < colonies per nation, read off the census window; plus the literal
+ * Artillery gate has_building(3) = the Armory bit alone (FUN_15eb_035e tests
+ * one bit; FUN_15eb_1030 never clears the tier below on upgrade).
+ */
+static int unit_wagon_cap_and_armory_gate(void) {
+  const int failures_before = failures;
+  ColonizeMsgCatalog names;
+  assets_msg_init(&names);
+  if (!assets_msg_load_file(&names, "COLONIZE/NAMES.TXT")) {
+    fprintf(stderr, "wagon cap: load NAMES.TXT failed\n");
+    return 1;
+  }
+  ColonizeColonyPool pool;
+  colonies_init(&pool);
+  colonies_set_occupancy_map(NULL);
+  if (!colonies_load_buildings(&pool, &names)) {
+    fprintf(stderr, "wagon cap: load @BUILDING failed\n");
+    return 1;
+  }
+  ColonizeColony* c = &pool.colonies[0];
+  memset(c, 0, sizeof(*c));
+  c->id = 0;
+  c->active = true;
+  c->nation_id = 1;
+  c->population = 3;
+  c->colonist_count = 3;
+  c->building_in_production = -1;
+  pool.colony_count = 1;
+
+  static ColonizeCol1Save col1;
+  memset(&col1, 0, sizeof(col1));
+  col1.stuff.colony_counts[1] = 3;
+  col1.stuff.unit_type_counts[1][12] = 2;
+
+  ColoniesBuildableOpts bopts;
+  memset(&bopts, 0, sizeof(bopts));
+  bopts.col1 = &col1;
+
+  CHECK(!colonies_wagon_cap_reached(&col1, 1), "2 wagons < 3 colonies: cap open");
+  CHECK(colonies_nation_colony_count_census(&col1, 1) == 3, "%NUMBER0 = colony count");
+  CHECK(
+    colonies_set_construction_ex(&pool, 0, COLONIZE_UNIT_BUILD_WAGON_TRAIN, &bopts),
+    "Wagon Train accepted under the cap"
+  );
+  col1.stuff.unit_type_counts[1][12] = 3;
+  CHECK(colonies_wagon_cap_reached(&col1, 1), "3 wagons vs 3 colonies: cap reached (<=)");
+  CHECK(
+    !colonies_set_construction_ex(&pool, 0, COLONIZE_UNIT_BUILD_WAGON_TRAIN, &bopts),
+    "Wagon Train refused at the cap"
+  );
+  int buildable[64];
+  int n = colonies_list_buildable(&pool, 0, buildable, 64, &bopts);
+  bool saw_wagon = false;
+  for (int i = 0; i < n; ++i) {
+    if (buildable[i] == COLONIZE_UNIT_BUILD_WAGON_TRAIN) {
+      saw_wagon = true;
+    }
+  }
+  CHECK(!saw_wagon, "Wagon Train dropped from the list at the cap");
+  CHECK(!colonies_wagon_cap_reached(NULL, 1), "no census = no cap");
+
+  /* Artillery gate: the Armory bit only, never a Magazine/Arsenal fold. */
+  const int armory = colonies_find_building(&pool, "Armory");
+  const int magazine = colonies_find_building(&pool, "Magazine");
+  CHECK(armory >= 0 && magazine >= 0, "Armory / Magazine rows exist");
+  CHECK(
+    !colonies_set_construction_ex(&pool, 0, COLONIZE_UNIT_BUILD_ARTILLERY, &bopts),
+    "Artillery refused with no Armory"
+  );
+  c->has_building[magazine] = true;
+  CHECK(
+    !colonies_set_construction_ex(&pool, 0, COLONIZE_UNIT_BUILD_ARTILLERY, &bopts),
+    "a pillaged Magazine without the Armory bit still refuses Artillery"
+  );
+  c->has_building[armory] = true;
+  CHECK(
+    colonies_set_construction_ex(&pool, 0, COLONIZE_UNIT_BUILD_ARTILLERY, &bopts),
+    "Artillery accepted with the Armory bit"
+  );
+
+  if (failures == failures_before) {
+    printf("unit_colonies: wagon cap + Armory gate ok\n");
+    return 0;
+  }
+  return 1;
+}
+
 static const TestCase k_cases[] = {
     {"unit_colonies_core", case_colonies_core},
     {"unit_found_chrome", unit_found_chrome},
@@ -2177,5 +2266,6 @@ static const TestCase k_cases[] = {
     {"unit_craft_preview_clamps", unit_craft_preview_clamps},
     {"unit_foreign_colony_trade", unit_foreign_colony_trade},
     {"unit_ship_construction", unit_ship_construction},
+    {"unit_wagon_cap_and_armory_gate", unit_wagon_cap_and_armory_gate},
 };
 TEST_MAIN(k_cases)

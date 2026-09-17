@@ -1442,6 +1442,114 @@ static int unit_sea_lane_entry(void) {
 }
 
 /*
+ * @LANDFIRST / no amphibious assault. DOS FUN_4720_015c reason 9 (raw
+ * 74720-74728, tag DS:0x1429 via the FUN_4720_049e jump table at 4720:060a):
+ * a land unit whose own tile is ocean/high-seas — i.e. one riding a ship —
+ * may not enter a square occupied by another nation. GAME.TXT: "Land units
+ * cannot enter an enemy occupied square from on board a ship. You must first
+ * unload them into an empty or friendly-occupied square."
+ */
+static int unit_amphibious_landfirst(void) {
+  ColonizeUnitPool pool;
+  memset(&pool, 0, sizeof(pool));
+  pool.type_count = 2;
+  snprintf(pool.types[0].name, sizeof(pool.types[0].name), "Caravel");
+  pool.types[0].movement = 4;
+  pool.types[0].cargo = 2;
+  pool.types[0].space = 99;
+  pool.types[0].domain = COLONIZE_UNIT_DOMAIN_SEA;
+  snprintf(pool.types[1].name, sizeof(pool.types[1].name), "Soldiers");
+  pool.types[1].movement = 1;
+  pool.types[1].attack = 2;
+  pool.types[1].defense = 2;
+  pool.types[1].space = 1;
+  pool.types[1].domain = COLONIZE_UNIT_DOMAIN_LAND;
+
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  char err[128];
+  if (!map_alloc(&map, 8, 8, err, sizeof(err))) {
+    fprintf(stderr, "amphib: map_alloc failed: %s\n", err);
+    return 1;
+  }
+  for (int i = 0; i < 8 * 8; ++i) {
+    map.terrain[i] = 25; /* ocean */
+    map.layer3[i] = 1;   /* region 1 = the main sea, not a lake */
+  }
+  map.terrain[3 * 8 + 4] = 1; /* one land tile east of the ship */
+  units_set_occupancy_map(NULL);
+
+  const ColonizeWorld w = {
+    .units = &pool, .colonies = NULL, .map = &map
+  };
+
+  const int ship = units_spawn_allow_stack(&pool, 0, 3, 3);
+  const int pax = units_spawn_allow_stack(&pool, 1, 3, 3);
+  const int foe = units_spawn_allow_stack(&pool, 1, 4, 3);
+  ColonizeUnit* su = units_get(&pool, ship);
+  ColonizeUnit* pu = units_get(&pool, pax);
+  ColonizeUnit* fu = units_get(&pool, foe);
+  int rc = 0;
+  if (!su || !pu || !fu) {
+    fprintf(stderr, "amphib: spawn failed\n");
+    map_free(&map);
+    return 1;
+  }
+  su->nation_id = 0;
+  pu->nation_id = 0;
+  fu->nation_id = 1;
+  if (!units_board_stacked(&pool, pax, ship)) {
+    fprintf(stderr, "amphib: passenger failed to board\n");
+    map_free(&map);
+    return 1;
+  }
+  pu = units_get(&pool, pax);
+  pu->moves = UNITS_MP_PER_TILE;
+
+  units_enter_probe_w(&w, pu->type_index, 4, 3, pax);
+  if (units_last_enter_reason() != COLONIZE_ENTER_LANDFIRST) {
+    fprintf(
+      stderr, "amphib: shipboard attack must be @LANDFIRST, got %d\n",
+      (int)units_last_enter_reason()
+    );
+    rc = 1;
+  }
+  /* Same tile, own nation: friendly-occupied is allowed (landfall). */
+  fu = units_get(&pool, foe);
+  fu->nation_id = 0;
+  if (rc == 0) {
+    units_enter_probe_w(&w, pu->type_index, 4, 3, pax);
+    if (units_last_enter_reason() == COLONIZE_ENTER_LANDFIRST) {
+      fprintf(stderr, "amphib: friendly-occupied square must not be blocked\n");
+      rc = 1;
+    }
+  }
+  /* Ashore, the same attack is ordinary land combat. */
+  if (rc == 0) {
+    fu->nation_id = 1;
+    pu = units_get(&pool, pax);
+    units_unload_passenger_w(&w, ship, pax, 4, 3);
+    pu = units_get(&pool, pax);
+    pu->x = 4;
+    pu->y = 4;
+    map.terrain[4 * 8 + 4] = 1;
+    pu->aboard_ship_id = -1;
+    pu->moves = UNITS_MP_PER_TILE;
+    units_enter_probe_w(&w, pu->type_index, 4, 3, pax);
+    const ColonizeEnterReason r = units_last_enter_reason();
+    if (r == COLONIZE_ENTER_LANDFIRST) {
+      fprintf(stderr, "amphib: a unit standing on land must not see @LANDFIRST\n");
+      rc = 1;
+    }
+  }
+  map_free(&map);
+  if (rc == 0) {
+    fprintf(stderr, "unit_units: amphibious @LANDFIRST gate ok\n");
+  }
+  return rc;
+}
+
+/*
  * bugs.md #421: "Newly bought Merchantman sent to the New World spawned in an
  * unexplored sea lane tile, and did not even insta-reveal the fog."
  *
@@ -3667,6 +3775,10 @@ int main(void) {
     diag_shutdown();
     return 1;
   }
+  if (unit_amphibious_landfirst() != 0) {
+    diag_shutdown();
+    return 1;
+  }
   if (unit_europe_arrival_reveals() != 0) {
     diag_shutdown();
     return 1;
@@ -5701,9 +5813,12 @@ int main(void) {
   }
 
   /*
-   * P7.3: Treasure Trains may only board a Galleon, not any ship
-   * (Colonization.pdf). units_find_boardable_ship's require_galleon param
-   * (2026-08-26 fix — was unconditional, any ship with room qualified).
+   * A Treasure only boards a hull with six free holds. That is the DOS rule
+   * (FUN_4720_00e0 raw 74637-74665: room = 0x5237[hull] − goods, charged
+   * 0x5238[type] per passenger, candidate accepted on `size <= room`), and
+   * the manual's "Treasure needs a Galleon" is its emergent form — @UNIT
+   * cargo is Caravel 2, Merchantman 4, Galleon 6. The old test asserted a
+   * type-name `require_galleon` flag that DOS does not have.
    */
   {
     const int caravel_t = units_find_type(&pool, "Caravel");
@@ -5719,13 +5834,13 @@ int main(void) {
       return 1;
     }
     caravel->nation_id = 1;
-    /* Only a Caravel present: plain search finds it, Galleon-only search does not. */
-    if (units_find_boardable_ship(&pool, 20, 20, 1, false) != caravel_id) {
+    /* Only a Caravel present: a size-1 unit finds it, a size-6 Treasure does not. */
+    if (units_find_boardable_ship(&pool, 20, 20, 1, 1) != caravel_id) {
       fprintf(stderr, "boardable-ship: plain search should find the Caravel\n");
       return 1;
     }
-    if (units_find_boardable_ship(&pool, 20, 20, 1, true) >= 0) {
-      fprintf(stderr, "boardable-ship: Galleon-only search must reject a Caravel\n");
+    if (units_find_boardable_ship(&pool, 20, 20, 1, 6) >= 0) {
+      fprintf(stderr, "boardable-ship: Treasure-size search must reject a Caravel\n");
       return 1;
     }
     const int galleon_id = units_spawn_allow_stack(&pool, galleon_t, 20, 20);
@@ -5735,10 +5850,50 @@ int main(void) {
       return 1;
     }
     galleon->nation_id = 1;
-    if (units_find_boardable_ship(&pool, 20, 20, 1, true) != galleon_id) {
-      fprintf(stderr, "boardable-ship: Galleon-only search should now find the Galleon\n");
+    if (units_find_boardable_ship(&pool, 20, 20, 1, 6) != galleon_id) {
+      fprintf(stderr, "boardable-ship: size-6 search should now find the Galleon\n");
       return 1;
     }
+    /*
+     * Hold charge: one Treasure fills a Galleon (6 of 6). Six used to fit.
+     */
+    const int tr_t = units_find_type(&pool, "Treasure");
+    if (tr_t < 0) {
+      fprintf(stderr, "boardable-ship: Treasure type missing\n");
+      return 1;
+    }
+    const int tr1 = units_spawn_allow_stack(&pool, tr_t, 20, 20);
+    const int tr2 = units_spawn_allow_stack(&pool, tr_t, 20, 20);
+    ColonizeUnit* t1 = units_get(&pool, tr1);
+    ColonizeUnit* t2 = units_get(&pool, tr2);
+    if (!t1 || !t2) {
+      fprintf(stderr, "boardable-ship: Treasure spawn failed\n");
+      return 1;
+    }
+    t1->nation_id = 1;
+    t2->nation_id = 1;
+    if (units_ship_free_passenger_slots(&pool, galleon_id) != 6) {
+      fprintf(stderr, "boardable-ship: empty Galleon should show 6 free holds\n");
+      return 1;
+    }
+    if (!units_board_stacked(&pool, tr1, galleon_id)) {
+      fprintf(stderr, "boardable-ship: first Treasure must board the Galleon\n");
+      return 1;
+    }
+    if (units_ship_free_passenger_slots(&pool, galleon_id) != 0) {
+      fprintf(
+        stderr,
+        "boardable-ship: Treasure aboard must cost 6 holds (free=%d)\n",
+        units_ship_free_passenger_slots(&pool, galleon_id)
+      );
+      return 1;
+    }
+    if (units_board_stacked(&pool, tr2, galleon_id)) {
+      fprintf(stderr, "boardable-ship: second Treasure must not fit\n");
+      return 1;
+    }
+    units_despawn(&pool, tr1);
+    units_despawn(&pool, tr2);
     units_despawn(&pool, caravel_id);
     units_despawn(&pool, galleon_id);
   }

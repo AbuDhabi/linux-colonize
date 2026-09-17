@@ -2160,9 +2160,55 @@ static void turn_run_colony_unit_construction(ColonizeTurnContext* ctx) {
     if (!colonies_unit_build_info(col->building_in_production, &name, NULL, NULL)) {
       continue;
     }
+    const int uidx = units_build_code_to_index(col->building_in_production);
+    /*
+     * DOS-LITERAL FUN_364b_0114 wagon arm (raw 56926-56933): before spawning,
+     * a Wagon Train project whose nation already owns as many wagons as
+     * colonies is refused — %NUMBER0 = colony_counts[n], popup @NOMOREWAGONS,
+     * +0x1c |= 0x80, and `return`: the project is NOT cleared and the hammers
+     * are NOT zeroed, so it re-fires every turn until a new colony is founded.
+     */
+    if (uidx == COLONIZE_UNIT_INDEX_WAGON_TRAIN &&
+        colonies_wagon_cap_reached(ctx->col1_ok ? ctx->col1 : NULL, col->nation_id)) {
+      int hammers_need = 0;
+      if (colonies_unit_build_info(col->building_in_production, NULL, &hammers_need, NULL) &&
+          hammers_need > 0 && col->hammers >= hammers_need) {
+        col->colony_flags =
+          (uint8_t)(col->colony_flags | COLONIZE_COLONY_FLAG_BUILD_COMPLETE);
+        if (col->nation_id == ctx->human_nation && ctx->ai_popups) {
+          char body[AI_POPUP_BODY_LEN];
+          PopupMsgTokens tok;
+          memset(&tok, 0, sizeof(tok));
+          tok.string0 = col->name[0] ? col->name : "colony";
+          tok.number0 =
+            colonies_nation_colony_count_census(ctx->col1_ok ? ctx->col1 : NULL, col->nation_id);
+          tok.has_number0 = true;
+          popup_msg_fill(
+            ctx->messages, "NOMOREWAGONS", &tok,
+            "We are not allowed to have more wagon trains than we have colonies.",
+            body, sizeof(body)
+          );
+          ai_popup_enqueue_colony_event(ctx->ai_popups, col->id, body);
+        }
+      }
+      continue;
+    }
     const int uid = colonies_try_complete_unit_construction(ctx->colonies, col->id, ctx->units);
     if (uid < 0) {
       continue;
+    }
+    /*
+     * FUN_364b_0114 raw 56938: ++unit_type_counts[nation][unit_index]
+     * (DS:0x924c, stride 0x13) on every spawn. Without it two wagons finished
+     * in the same EOT both pass the cap, which reads the census window the
+     * EOT refresh only rewrites later.
+     */
+    if (ctx->col1_ok && ctx->col1 && uidx >= 0 && uidx < 19 && col->nation_id >= 0 &&
+        col->nation_id < 4) {
+      uint8_t* slot = &ctx->col1->stuff.unit_type_counts[col->nation_id][uidx];
+      if (*slot < 0xffu) {
+        *slot = (uint8_t)(*slot + 1u);
+      }
     }
     if (ctx->europe && col->nation_id == ctx->human_nation) {
       snprintf(ctx->europe->status, sizeof(ctx->europe->status), "%s completed.", name);

@@ -832,7 +832,35 @@ typedef struct ColoniesBuildableOpts {
   const ColonizeWorldMap* map; /* docks / drydock / shipyard need a coastal colony */
   bool has_adam_smith;         /* factory-tier buildings */
   bool has_peter_stuyvesant;   /* Custom House */
+  /*
+   * DOS FUN_15eb_3650 wagon arm reads colony_counts[nation] (DS:0x9298) and
+   * unit_type_counts[nation][12] (DS:0x924c + n*0x13 + 12) straight out of the
+   * census window; NULL simply skips the cap.
+   */
+  const ColonizeCol1Save* col1;
 } ColoniesBuildableOpts;
+
+/*
+ * DOS-LITERAL FUN_15eb_3650 (raw 13736-13740) / FUN_364b_0114 (raw 56926-56933):
+ * a nation may not own more Wagon Trains than colonies —
+ * `colony_counts[n] <= unit_type_counts[n][12]` blocks the project and, at
+ * completion, pops @NOMOREWAGONS. Both counters are the FUN_4962_0018 census
+ * window, refreshed every EOT. False when `col1` is NULL.
+ */
+bool colonies_wagon_cap_reached(const ColonizeCol1Save* col1, int nation_id);
+/*
+ * colonies_set_construction with the FUN_15eb_3650 side conditions a bare pool
+ * cannot answer (the Wagon Train cap needs the census counters). `opts` may be
+ * NULL, which reproduces the pre-cap behaviour for callers with no census.
+ */
+bool colonies_set_construction_ex(
+  ColonizeColonyPool* pool,
+  int colony_id,
+  int building_type,
+  const ColoniesBuildableOpts* opts
+);
+/* Colony count DOS shows as @NOMOREWAGONS %NUMBER0, or 0 with no census. */
+int colonies_nation_colony_count_census(const ColonizeCol1Save* col1, int nation_id);
 
 /* Fill out_ids with buildable @BUILDING indices (prerequisites applied); returns count. */
 int colonies_list_buildable(

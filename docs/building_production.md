@@ -299,8 +299,8 @@ can ever fire, since `cost_col * 32` never lands in 40..51.
 
 | Code | `@UNIT` | Name | Ham | Tools | Gate (`FUN_15eb_3650` raw 13714-13735) |
 |-----:|--------:|------|----:|------:|---|
-| 42 | 11 | Artillery | 192 | 40 | `has_building(3)` = **Armory** |
-| 43 | 12 | Wagon Train | 40 | 0 | none — but a per-nation cap (see below) |
+| 42 | 11 | Artillery | 192 | 40 | `has_building(3)` = **Armory bit, literally** |
+| 43 | 12 | Wagon Train | 40 | 0 | per-nation cap only (see below) |
 | 44 | 13 | Caravel | 128 | 40 | `has_building(8)` = **Shipyard** |
 | 45 | 14 | Merchantman | 192 | 80 | Shipyard |
 | 46 | 15 | Galleon | 320 | 100 | Shipyard |
@@ -321,17 +321,56 @@ tile, ships included — bumps `unit_count[nation][unit_index]` (`DS:0x924c`,
 stride 0x13), raises `colony+0x1c | 0x80` and zeroes `colony+0x92` (hammers).
 DOS never clears `building_in_production` on completion.
 
-**Not ported:** DOS's per-nation Wagon Train cap. `FUN_15eb_3650` and
-`FUN_364b_0114` both compare `colony_count[nation]` (`DS:0x9298 + nation`)
-against `wagon_count[nation]` (`DS:0x924c + nation*0x13 + 12`) and, when
-colonies ≤ wagons, drop the project and pop `@NOMOREWAGONS` (raw 56933). The
-port's buildable-list signature carries no unit pool to count wagons with.
+#### Building bits are cumulative — `has_building` is one bit
+
+Asked because the Artillery gate looked like it wanted an Armory/Magazine/
+Arsenal fold. It does not:
+
+* `FUN_15eb_035e` (raw 9545) is a plain single-bit test —
+  `bits[n>>3] & 1<<(n&7)` over the colony's `+0x84` bitfield. No chain fold.
+  (`FUN_15eb_039e` / `03d6` exist and *do* walk the chain via the `@BUILDING`
+  predecessor byte `DS:0x8f85 + idx*0xc`, but they **count** tiers and are
+  used elsewhere, not by any gate.)
+* the completion writer `FUN_15eb_1030(idx, 1)` (raw 11182) only ORs the new
+  bit in — **it never clears the tier below**.
+* `FUN_15eb_3650`'s building arm refuses an upgrade whose predecessor byte is
+  set but not owned, so you cannot reach Magazine without an Armory.
+
+So bits are **cumulative** and a normally-grown Arsenal colony still has the
+Armory bit: `has_building(3)` and the chain fold agree. Real saves confirm —
+over 977 colonies in `original_saves` the `armory` mask is only ever 0/1/3 and
+`docks` only 0/1/3/7. They disagree only where a lone upper bit is real, which
+**does** happen: pillage clears one tier's bit on its own, and those saves
+carry `carpenters_shop` = 2 (×16), `printing_press` = 2 (×14), `church` = 2
+(×2) — see `save_format_map.md`. DOS refuses Artillery in such a colony, so
+the port now gates on the Armory bit literally (2026-09-17). Import/export
+were already bit-exact and cumulative, chain position *i* = bit *i*; no save
+change. Same reading covers the Shipyard gate (`has_building(8)`), which never
+consults Docks/Drydock.
+
+#### Wagon Train per-nation cap (ported 2026-09-17)
+
+`FUN_15eb_3650` (raw 13736-13740) and `FUN_364b_0114` (raw 56926-56933) both
+compare `colony_counts[nation]` (`DS:0x9298 + n`) against
+`unit_type_counts[nation][12]` (`DS:0x924c + n*0x13 + 12`) — both the
+`FUN_4962_0018` census window, i.e. **wagons < colonies**. The listing site
+just drops the project; the completion site is louder: `FUN_281f_09ae(0,
+colony_count)` fills `%NUMBER0`, pops `@NOMOREWAGONS` (tag `0xd62`), ORs
+`+0x1c | 0x80`, and **returns** — the project is *not* cleared and the hammers
+are *not* zeroed, so a capped colony re-pops the message every turn until a
+new colony is founded. `FUN_364b_0114` also `++unit_type_counts[n][idx]` on
+every spawn (raw 56938), which is what stops two wagons finishing in one EOT.
 
 Port map: `units_build_code_to_index` / `units_build_project_info`
-(`units.c`), `colonies_unit_project_available` / `colonies_list_buildable` /
-`colonies_set_construction` / `colonies_try_complete_unit_construction`
-(`colony.c`), `turn_run_colony_unit_construction` (`turn.c`). Test:
-`unit_colonies` case `unit_ship_construction`.
+(`units.c`), `colonies_wagon_cap_reached` /
+`colonies_nation_colony_count_census` / `colonies_unit_project_available` /
+`colonies_list_buildable` / `colonies_set_construction_ex` /
+`colonies_try_complete_unit_construction` (`colony.c`),
+`turn_run_colony_unit_construction` (`turn.c`). `ColoniesBuildableOpts.col1`
+carries the census to the gate. Tests: `unit_colonies` cases
+`unit_ship_construction`, `unit_wagon_cap_and_armory_gate`.
+
+**Still not ported:** the AI's own unit-project picks — see `bugs.md` #483.
 
 Manual chart often listed shop min-pop **4** and Church hammers **52** — **wrong vs NAMES** (shops min-pop **1**; Church **64**).
 
