@@ -601,6 +601,44 @@ list, not from the inventory.
   it places *map units* walking into a colony, which this pass (colonists
   already inside a colony) does not cover; that is a separate DOS site.
   `make test` 63/63 and `make golden` green with the pass on.
+- [x] **`5952_035e` construction-project cascade (asm `5952:21d4`-`5952:274b`)
+  — LANDED 2026-09-17, bugs.md #483.** `ai_euro_5952_build_cascade` in
+  `ai_euro.c` (seam in `ai_euro_internal.h`, 12 cases in
+  `tests/unit/test_ai_euro_5952_build.c`, trace `AI_5952_BUILD_TRACE=1`).
+  DOS has exactly ONE AI construction picker and it ends in five **unit**
+  projects; the port's nineteen-row `ai_euro_prefer_*` table plus the craft
+  house/shop/factory pass were name-keyed inventions and are **deleted**.
+  All 21 `FUN_5952_0214` arguments arrive in AX (which is why Ghidra dropped
+  them) and were recovered from `viceroy_overlays.asm:145550-146167`.
+  New resolutions: `FUN_5952_0214` is **recursive** on the `DS:0x8f85`
+  @BUILDING predecessor (return 1 = keep scanning, 0 = stop); `DS:0x864` =
+  six {root @BUILDING, @JOB, input @CARGO} craft-chain rows read off the
+  image at file offset 121248 + 0x864; `DS:0x8ea6` stride 8 = the NAMES.TXT
+  @JOB **column 3** (loader raw 121044-121053), so `% 4` is the 1..4 class
+  that selects Schoolhouse/College/University; `byte[n*0x10 + 0x84cb]` =
+  `DS:0x84bc` + cargo 0xf = the per-nation Europe Muskets row;
+  `aiStack_68` is based at **BP-0x66** (`LEA AX,[BP-0x66]` at asm
+  `5952:0bb8`) and indexed by PROFESSION, so the `[BP-0x48]`/`[BP-0x46]`
+  gates are Master Gunsmith / Firebrand Preacher counts (Armory / Church);
+  `FUN_1000_8d90` = `FUN_15eb_0410` walks the **successor** column
+  `DS:0x8f86` to a chain's deepest tier, `FUN_1000_8ca0` = `FUN_15eb_039e`
+  counts owned tiers downward; `FUN_1000_8d72`/`8de0` = `FUN_15eb_1376`/
+  `13ac`, colonist counts by JOB / by PROFESSION; `uStack_a2` =
+  `byte[0x329 + tech_tier]` = {0,4,8,12,20}, so a Euro colony's ring is 8.
+  `FUN_5952_02f4` writes `code = row + 0x1f` with **no** availability gate,
+  so the Wagon cap in `FUN_15eb_3650` (the human build MENU's gate) is not
+  in this path by design.
+  DIVERGENCES: `iStack_22` (the ring-1 European threat that gates the Wagon
+  Train) comes from `ai_euro_colony_threat_seed_5952`, a different port pass
+  of the same DOS body, through a per-colony stash; the cascade therefore
+  runs right after `ai_euro_colony_goals` instead of inside the 28c8 body;
+  and the Wagon arm's `FUN_1000_84fc(DS:0x8d52, nation)` alarm reads the
+  tribe of `ai_euro_20e6_nearest_village` (the bind five lines above it).
+  Golden impact: **zero** — the unit band needs a finished craft chain plus
+  a coastal pop-8+ colony, which no golden fixture reaches (verified with
+  `AI_5952_BUILD_TRACE=1` on `golden_ai_turns` / `golden_ai_joint` /
+  `smoke_ai_mid01` / `smoke_ai_late01`: no unit pick fires). `make test`
+  64/64, `make golden` green.
 - Deliberate documented divergences (decision needed before "work"):
   king_ref.md short list, 5d04 past-the-end read kept 0 + musket-scratch
   collision as price×100, `@HELLOUSA` not modeled, per-act (vs DOS

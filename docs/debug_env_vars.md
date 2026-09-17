@@ -37,6 +37,7 @@ comparing golden output.
 | `AI_20E6_SAIL_TRACE` | `src/core/ai_euro.c:16512` | trace | Logs sail/depart decisions | off |
 | `AI_6D8E_DOS_LOOP` | `src/core/ai_euro.c:19546` | **behaviour** | `=0` disables the DOS-literal re-act-until-exhausted loop order for the Euro nation-turn dispatch loop | on (`1`, DOS loop order) |
 | `AI_5952_INDOOR` | `src/core/ai_euro.c` (`ai_euro_5952_indoor_pass_enabled`) | **behaviour** | `=0` disables the DOS-literal `FUN_5952_035e` indoor-workplace pass (raw 94784-94860) in the AI colony tick and restores the pre-2026-09-17 "leftovers" field stand-in | on (DOS pass) |
+| `AI_5952_BUILD_TRACE` | `src/core/ai_euro.c` (`ai_euro_5952_set_unit_project`) | trace | `=1` prints every UNIT project the `FUN_5952_035e` construction cascade picks (Wagon Train / Galleon / Privateer / Frigate / Artillery) with its raw code | off |
 | `WOI_DEBUG` | `tests/golden/test_woi_ref01.c:172` | test-only | Prints per-turn WoI status line during `golden_woi_ref01` | off |
 
 `diag_init` also reads `HOME` / `XDG_DATA_HOME` (`src/platform/diagnostics.c:181-182`)

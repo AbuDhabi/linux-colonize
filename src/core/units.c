@@ -7261,14 +7261,12 @@ ColonizeEnterReason units_enter_probe_w(
     }
     if (sea != foe_sea) {
       /*
-       * DOS OVL08_L0040 @LANDFIRST (0x1429): a ship approaching a
-       * land tile held by a foreign land unit cannot fight from shipboard —
-       * the land unit must be unloaded first. A land mover meeting a sea foe
-       * (e.g. attacking a docked hull) keeps the generic domain-blocked
-       * reading; DOS has no distinct tag for that direction.
+       * FUN_4720_015c raw 75989-76032: reason 9 (@LANDFIRST, 0x1429) is only
+       * reachable for a land-type mover standing on water (handled above).
+       * A ship (type 0xd..0x12) bumping foreign-held land falls through with
+       * no reason word: silent refusal (bugs.md #486).
        */
-      g_units_last_enter_reason =
-        (sea && !foe_sea) ? COLONIZE_ENTER_LANDFIRST : COLONIZE_ENTER_BLOCKED_DOMAIN;
+      g_units_last_enter_reason = COLONIZE_ENTER_BLOCKED_DOMAIN;
       return g_units_last_enter_reason;
     }
     /* Land × land foreign. */
