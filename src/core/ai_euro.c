@@ -3930,37 +3930,6 @@ static int ai_euro_cash_one_treasure(
 }
 
 /*
- * Cortes free king galleon: Treasure on own coastal colony → europe_cash_treasure
- * via units_cortes_cash_coastal_treasures (shared human/AI). Cite: fandom
- * Hernan Cortes; GAME.TXT @KINGGALLEON3.
- */
-static int ai_euro_try_cortes_king_galleon_cash(
-  ColonizeTurnContext* ctx,
-  int nation_id,
-  ColonizeUnit* treasure
-) {
-  if (!ctx || !ctx->units || !treasure || !treasure->active ||
-      treasure->nation_id != nation_id) {
-    return 0;
-  }
-  if (!founding_fathers_cortes_free_king_galleon(ctx->col1_ok ? ctx->col1 : NULL, nation_id)) {
-    return 0;
-  }
-  if (!ai_euro_is_treasure_name(units_display_name(ctx->units, treasure))) {
-    return 0;
-  }
-  /* Cash all coastal Treasures for nation (includes this unit when eligible). */
-  const int before = treasure->id;
-  const int n = units_cortes_cash_coastal_treasures_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(ctx->units), .colonies=(ColonizeColonyPool*)(ctx->colonies), .map=(ColonizeWorldMap*)(ctx->map), .col1=(ColonizeCol1Save*)(ctx->col1), .col1_ok=((ctx->col1) != NULL), .europe=(EuropeScreen*)(ctx->europe)}, nation_id);
-  if (n <= 0) {
-    return 0;
-  }
-  /* This unit was consumed if still matching id is gone. */
-  const ColonizeUnit* u = units_get(ctx->units, before);
-  return (!u || !u->active) ? 1 : 0;
-}
-
-/*
  * Treasure (aboard ship or land) at Europe (x/y≥200) or ship on high seas →
  * europe_cash_treasure + despawn. AI stand-in for Expected→Harbor cash-in when
  * ctx->europe is present (R1 API). Cite: Colonization.pdf Treasure Trains.
@@ -18568,19 +18537,23 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_land_treasure(struct ai_euro_act_c
     /*
      * DOS precedence: FUN_521d_20e6's treasure band checks the in-colony
      * cash-in (iStack_2e == 0) before every other treasure arm, so it runs
-     * ahead of the Cortes / board / coast chain below — none of which has a
+     * ahead of the board / coast chain below — neither of which has a
      * counterpart in the raw band. An AI Treasure that reaches any own colony
      * is cashed at face value and destroyed on the spot.
+     *
+     * No Cortes/King-galleon fallback here: FUN_465b_0000 (raw 75798,
+     * `unit+0x3146=='\n' Treasure && nation<4 && nation*0x34-0x543f==0`
+     * human-control gate) shows the whole King-galleon/Cortes transport
+     * offer (FUN_2a1f_0186 -> FUN_5fef_1908) is human-only in DOS; AI
+     * treasure cash-in is exclusively the unconditional, untaxed 20e6 band
+     * above. Calling the Cortes stand-in for AI (removed 2026-09-17) shorted
+     * AI treasuries by the tax rate on coastal colonies for no DOS reason.
      */
     if (ai_euro_20e6_treasure_cash_in(ctx, u, nation_id)) {
       return AI_EURO_ACT_RETURN;
     }
     if (ai_euro_try_cash_treasure_europe(ctx, nation_id, u)) {
       return AI_EURO_ACT_RETURN;
-    }
-    if (ai_euro_try_cortes_king_galleon_cash(ctx, nation_id, u)) {
-      treasure_routed = 1;
-      return AI_EURO_ACT_RETURN; /* cashed via free king galleon stand-in */
     }
     if (ai_euro_try_treasure_board_sail(ctx, nation_id, u)) {
       treasure_routed = 1;
@@ -19871,8 +19844,12 @@ static void ai_euro_dispatcher_turn_plan(ColonizeTurnContext* ctx, int nation_id
   }
 
   /* Treasure → Europe gold: Expected→Harbor due ships + live Europe/HS units
-   * (moves may be 0 on Europe dock ships). Cortes coastal king-galleon
-   * cash (shared units_cortes_cash_coastal_treasures). Cite: Treasure Trains. */
+   * (moves may be 0 on Europe dock ships). No Cortes/King-galleon call here
+   * — that machinery is human-only in DOS (FUN_465b_0000 raw 75798 gates the
+   * whole colony-arrival King-galleon/Cortes offer on the mover's nation
+   * control byte == 0); AI treasure cash-in is the unconditional 20e6
+   * in-colony band (ai_euro_act_land_treasure) plus this Europe/high-seas
+   * landfall sweep. Cite: Treasure Trains. */
   ai_euro_try_expected_treasure_harbor(ctx, nation_id);
   for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
     ColonizeUnit* u = &ctx->units->units[i];
@@ -19881,7 +19858,6 @@ static void ai_euro_dispatcher_turn_plan(ColonizeTurnContext* ctx, int nation_id
     }
     (void)ai_euro_try_cash_treasure_europe(ctx, nation_id, u);
   }
-  (void)units_cortes_cash_coastal_treasures_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(ctx->units), .colonies=(ColonizeColonyPool*)(ctx->colonies), .map=(ColonizeWorldMap*)(ctx->map), .col1=(ColonizeCol1Save*)(ctx->col1), .col1_ok=((ctx->col1) != NULL), .europe=(EuropeScreen*)(ctx->europe)}, nation_id);
 }
 
 /* Step 7 of ai_euro_dispatcher_turn: the FUN_521d_6d8e wave/drain unit-act

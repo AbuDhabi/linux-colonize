@@ -978,7 +978,7 @@ graphs:
       - id: lcr
         kind: decision
         label: Standing on a Lost City Rumour?
-        fn: units.c:units_resolve_lcr_rumour
+        fn: units.c:units_resolve_lcr_rumour_w
         dos: FUN_65dd_0004
         status: dos
       - id: war_hunt

@@ -5694,8 +5694,8 @@ bool game_foreign_trade_open(
         game_foreign_trade_price_hold(game, unit_id, colony_id, only_hold);
         break;
       }
-      /* PARK: DOS's cancel row text is DS:0x2dfa, a runtime string slot. */
-      snprintf(labels_buf[rows], sizeof(labels_buf[rows]), "Never mind.");
+      /* Cancel row text = DS:0x2dfa = LABELS @MISC[32] ((0x2dfa-0x2dba)/2). */
+      snprintf(labels_buf[rows], sizeof(labels_buf[rows]), "Nothing");
       labels[rows] = labels_buf[rows];
       ids[rows] = 99; /* raw 98957: id 99 = cancel */
       rows++;

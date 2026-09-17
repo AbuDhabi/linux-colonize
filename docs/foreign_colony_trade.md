@@ -107,9 +107,6 @@ Both accepting arms then do `colony.stock[sold] += qty`.
   `AI_POPUP_TAG_FOREIGN_TRADE_WHICH` / `_OFFER`; results are applied in
   `game_dialogs.c`. Both sit in the shared `ai_popups` queue, so
   `game_modal_open` already covers them.
-* Deviation, marked in the code: the port maps an Esc/cancel on `@TRADEWITH` to
-  "refuse". DOS's `FUN_2a1f_0688` returns 0 there and falls into the gold arm;
-  the 1-based dialog almost certainly cannot return 0 for a three-choice menu,
-  and porting it would pay gold for a cancel.
-* PARK: `@TRADEWHICH`'s cancel row text comes from `DS:0x2dfa`, a runtime string
-  slot that is not recoverable statically; the port uses LABELS "Never mind."
+* Esc on `@TRADEWITH` is DOS-literal (raw 99024): any result `< 3` other than 1
+  takes the gold arm, so Esc sells for gold.
+* `@TRADEWHICH`'s cancel row text `DS:0x2dfa` = LABELS `@MISC[32]` = "Nothing".

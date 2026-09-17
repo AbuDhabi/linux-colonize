@@ -377,13 +377,19 @@ bool founding_fathers_cortes_free_king_galleon(const ColonizeCol1Save* col1, int
    * docs/fandom_col1994.md Hernan Cortes — king's galleons transport treasure
    * free. GAME.TXT @KINGGALLEON3: Crown share = current tax rate (already
    * europe_cash_treasure); "for no extra charge" — do NOT invent KINGGALLEON2
-   * non-Cortes royal-galleon extra %. AI/human stand-in: coastal own-colony
-   * Treasure → europe_cash_treasure via units_cortes_cash_coastal_treasures.
+   * non-Cortes royal-galleon extra %.
    * KINGGALLEON2 resolved 2026-08-27: FUN_5fef_1908 builds "KINGGALLEON"+"2"/"3"
    * at runtime (DS 0x1bed/0x1bfb/0x1bf9); non-Cortes share =
    * max((difficulty+10)*5, 2*tax) cap 90 — see units_king_galleon_share_pct.
-   * This Cortes-only auto-cash stays for the AI callers; the human path is
-   * units_king_galleon_offer_coastal_treasures (CHOICE, DOS-shaped).
+   * Human-only: `units_king_galleon_offer_coastal_treasures` (CHOICE,
+   * DOS-shaped) is the sole caller — FUN_465b_0000 raw 75798 gates the whole
+   * colony-arrival King-galleon/Cortes offer on the mover's nation being
+   * human-controlled (`nation*0x34-0x543f == 0`), so AI never reaches it; an
+   * AI-side "auto-cash via Cortes" stand-in (removed 2026-09-17,
+   * units_cortes_cash_coastal_treasures) had no DOS counterpart and shorted
+   * AI treasuries by the tax rate on coastal colonies for nothing — AI
+   * treasure cash-in is the unconditional, untaxed FUN_521d_20e6 in-colony
+   * band (units_ai_treasure_cash_in_colony).
    */
   return founding_fathers_nation_has(col1, nation, FF_HERNAN_CORTES);
 }

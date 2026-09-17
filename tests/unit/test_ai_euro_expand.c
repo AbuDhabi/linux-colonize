@@ -4634,20 +4634,30 @@ static int unit_treasure_coast(void) {
  * europe_cash_treasure (tax cut) + despawn without boarding a ship.
  * Cite: fandom Hernan Cortes; GAME.TXT @KINGGALLEON3; founding_fathers_cortes_*.
  */
-static int unit_cortes_king_galleon_cash(void) {
+/*
+ * AI Treasure cash-in is FUN_521d_20e6's unconditional in-colony band
+ * (units_ai_treasure_cash_in_colony, raw ~2315-2331): any Treasure standing
+ * in ANY own colony (not just coastal) cashes at full face value, no tax
+ * and no FF gate. The King-galleon offer / Cortes "free transport" tax
+ * mechanic (FUN_465b_0000 raw 75798, FUN_2a1f_0186 -> FUN_5fef_1908) is
+ * gated on the mover's nation being human-controlled
+ * (nation*0x34-0x543f == 0) and never runs for AI — confirmed 2026-09-17;
+ * an earlier AI-side Cortes stand-in (removed) taxed AI treasuries for no
+ * DOS reason. This test asserts the real band: full value, Cortes or not.
+ */
+static int unit_ai_treasure_colony_cash(void) {
   const int nation = 1;
   const int treasure_value = 1000;
   const int tax = 20;
-  const int expect_credit = (treasure_value * (100 - tax)) / 100;
 
   ColonizeWorldMap map;
   if (!fx_map_alloc(&map, 16, 16, 1, false)) {
-    return fail("cortes-cash alloc map");
+    return fail("ai-treasure-cash alloc map");
   }
   map.terrain[4 * 16 + 3] = 25;
   if (!map_tile_is_coastal(&map, 4, 4)) {
     fx_map_free(&map);
-    return fail("cortes-cash colony should be coastal");
+    return fail("ai-treasure-cash colony should be coastal");
   }
 
   ColonizeUnitPool units;
@@ -4666,10 +4676,10 @@ static int unit_cortes_king_galleon_cash(void) {
   ColonizeUnit* treasure = units_get(&units, tid);
   if (!treasure) {
     fx_map_free(&map);
-    return fail("cortes-cash spawn treasure");
+    return fail("ai-treasure-cash spawn treasure");
   }
   treasure->nation_id = nation;
-  treasure->moves = 0;
+  treasure->moves = 1; /* idle with moves left: eligible to act this turn */
   treasure->orders = 0;
   treasure->hold_goods_amount[0] = treasure_value & 0xff;
   treasure->hold_goods_amount[1] = (treasure_value >> 8) & 0xff;
@@ -4690,6 +4700,10 @@ static int unit_cortes_king_galleon_cash(void) {
    * ladder / recruit / Artillery buys naturally inert (blank census). */
   col1.stuff.ship_counts[nation] = 1;
   col1.nation[nation].tax_rate = (uint8_t)tax;
+  /* Cortes owned — must make no difference to the AI band (no tax gate). */
+  col1.head.founding_father[FF_HERNAN_CORTES] = 0;
+  col1.nation[nation].founding_fathers[FF_HERNAN_CORTES / 8] |=
+    (uint8_t)(1u << (FF_HERNAN_CORTES % 8));
 
   ai_goals_reset();
   uint32_t turn = 50;
@@ -4704,51 +4718,34 @@ static int unit_cortes_king_galleon_cash(void) {
   ctx.europe = &europe;
   ctx.rng_seed = 7;
 
-  ai_euro_dispatcher_turn(&ctx, nation);
-  treasure = units_get(&units, tid);
-  if (!treasure || !treasure->active) {
-    fx_map_free(&map);
-    return fail("without Cortes treasure should remain on coast");
-  }
-  const uint32_t gold_mid = col1.nation[nation].gold;
-
-  col1.head.founding_father[FF_HERNAN_CORTES] = 0;
-  col1.nation[nation].founding_fathers[FF_HERNAN_CORTES / 8] |=
-    (uint8_t)(1u << (FF_HERNAN_CORTES % 8));
-  treasure->x = 4;
-  treasure->y = 4;
-  treasure->orders = 0;
-  treasure->moves = 0;
+  const uint32_t gold_before = col1.nation[nation].gold;
   ai_euro_dispatcher_turn(&ctx, nation);
 
   treasure = units_get(&units, tid);
   const int treasure_gone = (!treasure || !treasure->active);
   const uint32_t gold_after = col1.nation[nation].gold;
   const unsigned delta =
-    gold_after >= gold_mid ? (unsigned)(gold_after - gold_mid) : 0u;
-  const int cash_ok =
-    treasure_gone && delta >= (unsigned)expect_credit &&
-    (delta - (unsigned)expect_credit) <= 80u;
+    gold_after >= gold_before ? (unsigned)(gold_after - gold_before) : 0u;
+  const int cash_ok = treasure_gone && delta == (unsigned)treasure_value;
   if (!cash_ok) {
     fprintf(
       stderr,
-      "unit_ai_euro_expand: cortes cash gone=%d gold mid=%u after=%u delta=%u want +%d\n",
+      "unit_ai_euro_expand: ai treasure cash gone=%d gold before=%u after=%u delta=%u want +%d\n",
       treasure_gone,
-      (unsigned)gold_mid,
+      (unsigned)gold_before,
       (unsigned)gold_after,
       delta,
-      expect_credit
+      treasure_value
     );
     fx_map_free(&map);
-    return fail("expected Cortes coastal king-galleon cash + despawn");
+    return fail("expected AI in-colony treasure cash at full value, no tax");
   }
 
   fx_map_free(&map);
   fprintf(
     stderr,
-    "unit_ai_euro_expand: Cortes king-galleon coastal cash ok (delta=%u credit=%d)\n",
-    delta,
-    expect_credit
+    "unit_ai_euro_expand: AI in-colony treasure cash ok (delta=%u, full value, Cortes owned but irrelevant)\n",
+    delta
   );
   return 0;
 }
@@ -14618,7 +14615,7 @@ static const TestCase k_cases[] = {
     {"unit_treasure_coast", unit_treasure_coast},
     {"unit_treasure_board_sail", unit_treasure_board_sail},
     {"unit_treasure_europe_cash", unit_treasure_europe_cash},
-    {"unit_cortes_king_galleon_cash", unit_cortes_king_galleon_cash},
+    {"unit_ai_treasure_colony_cash", unit_ai_treasure_colony_cash},
     {"unit_missionary_contact", unit_missionary_contact},
     {"unit_missionary_flee_skip", unit_missionary_flee_skip},
     {"unit_pioneer_tools_delivery", unit_pioneer_tools_delivery},
