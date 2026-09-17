@@ -1980,7 +1980,10 @@ static void ai_indian_152e_village_growth(
   /* Friction-roll loop, gated on !WoI (DS:0x5382 bit0). */
   if (!ai_king_independence_declared(col1)) {
     for (int e = 0; e < 4; ++e) {
-      if (!(ind->euro_diplo[e] & COL1_INDIAN_MET_BIT)) {
+      /* raw 81454: FUN_281f_0a38(e, *0x8d50) = FUN_15b3_0004(e, tribe+4), i.e.
+       * the EURO-side byte nation[e].relation_by_indian[n-4], not the
+       * Indian-side euro_diplo[e]. Same bit, other quadrant (2026-09-17). */
+      if (!(ai_diplo_read(col1, e, nation_id) & AI_DIPLO_MET)) {
         continue;
       }
       const int alarm = ai_diplo_indian_alarm(col1, nation_id, e); /* FUN_281f_030c */
