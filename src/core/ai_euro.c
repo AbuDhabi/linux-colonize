@@ -10099,7 +10099,7 @@ static void ai_euro_colony_goals(ColonizeTurnContext* ctx, int nation_id) {
 
 static int ai_euro_tile_under_enemy_fort_fire(
   ColonizeTurnContext* ctx,
-  int viewer_nation,
+  const ColonizeUnit* viewer,
   int x,
   int y
 );
@@ -10184,7 +10184,7 @@ static int ai_euro_ocean_score_step(
       score += 6; /* HS east-Europe: prefer eastward HS tiles */
     }
     /* Avoid enemy Fort/Fortress batteries (FUN_364b_03f6). */
-    if (ai_euro_tile_under_enemy_fort_fire(ctx, u->nation_id, nx, ny)) {
+    if (ai_euro_tile_under_enemy_fort_fire(ctx, u, nx, ny)) {
       score -= 800;
     }
     /* Thin combat: prefer closing on weaker adjacent foe ships. */
@@ -15031,22 +15031,30 @@ static int ai_euro_try_unload_military_threatened(
  */
 static int ai_euro_tile_under_enemy_fort_fire(
   ColonizeTurnContext* ctx,
-  int viewer_nation,
+  const ColonizeUnit* viewer,
   int x,
   int y
 ) {
-  if (!ctx || !ctx->colonies || !ctx->units || !ctx->col1_ok || !ctx->col1 || !ctx->map) {
+  if (!ctx || !viewer || !ctx->colonies || !ctx->units || !ctx->col1_ok || !ctx->col1 ||
+      !ctx->map) {
     return 0;
   }
   if (!map_tile_is_water(ctx->map, x, y)) {
     return 0;
   }
+  const int viewer_nation = viewer->nation_id;
+  const int privateer = units_type_is_privateer(units_type(ctx->units, viewer->type_index));
   for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
     const ColonizeColony* c = &ctx->colonies->colonies[i];
     if (!c->active || c->nation_id == viewer_nation || c->nation_id < 0 || c->nation_id > 3) {
       continue;
     }
-    if (!ai_diplo_at_war(ctx->col1, viewer_nation, c->nation_id)) {
+    /* Same gate the battery itself obeys (FUN_364b_03f6 raw 57082-57083,
+     * units_fort_fire_is_hostile): it fires whenever the PEACE bit is clear
+     * or the hull is a Privateer, not only at declared war. Gating on the WAR bit left hulls loitering
+     * under a no-treaty fort until it sank them. */
+    if (!privateer &&
+        (ai_diplo_read(ctx->col1, c->nation_id, viewer_nation) & AI_DIPLO_PEACE) != 0) {
       continue;
     }
     if (units_coastal_fort_attack_strength(ctx->colonies, c, ctx->units) <= 0) {
@@ -15072,7 +15080,7 @@ static int ai_euro_naval_try_flee_fort_fire(ColonizeTurnContext* ctx, ColonizeUn
   if (!units_is_sea(ctx->units, u->id) || ai_euro_in_europe(u->x, u->y)) {
     return 0;
   }
-  if (!ai_euro_tile_under_enemy_fort_fire(ctx, u->nation_id, u->x, u->y)) {
+  if (!ai_euro_tile_under_enemy_fort_fire(ctx, u, u->x, u->y)) {
     return 0;
   }
   int best_d = -1;
@@ -15083,7 +15091,7 @@ static int ai_euro_naval_try_flee_fort_fire(ColonizeTurnContext* ctx, ColonizeUn
     if (!map_tile_is_water(ctx->map, nx, ny)) {
       continue;
     }
-    if (ai_euro_tile_under_enemy_fort_fire(ctx, u->nation_id, nx, ny)) {
+    if (ai_euro_tile_under_enemy_fort_fire(ctx, u, nx, ny)) {
       continue;
     }
     if (!units_can_enter_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(ctx->units), .colonies=(ColonizeColonyPool*)(ctx->colonies), .map=(ColonizeWorldMap*)(ctx->map)}, u->type_index, nx, ny, u->id)) {
@@ -15116,6 +15124,13 @@ static int ai_euro_naval_try_flee_fort_fire(ColonizeTurnContext* ctx, ColonizeUn
   const int ty = u->y + MAP_DIR8_DY[best_d];
   ColonizeWorld w_ = world_make(ctx->units, ctx->colonies, ctx->map, NULL, false, ctx->rng, NULL);
   if (units_try_move_w(&w_, u->id, tx, ty)) {
+    /* A goto that still points under the battery would sail the hull straight
+     * back in on the same act (seen: Privateer shuttling (34,8)<->(33,9) off
+     * Quebec three times a turn). Drop it; the next act re-aims. */
+    ColonizeUnit* m = units_get(ctx->units, u->id);
+    if (m && m->active && ai_euro_tile_under_enemy_fort_fire(ctx, m, m->goto_x, m->goto_y)) {
+      ai_euro_set_goto(m, m->orders, m->x, m->y);
+    }
     return 1;
   }
   return 0;
@@ -18260,18 +18275,20 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_ship_war_trade(struct ai_euro_act_
     /* Drop Soldier at threatened own coastal colony (war or sticky mil). */
     (void)ai_euro_try_unload_military_threatened(ctx, nation_id, u);
   }
+  /* Leave enemy Fort/Fortress battery tiles before hunt/attack. Not war-gated:
+   * the battery fires on any hull without a PEACE treaty (bugs.md #465). */
+  if (!ai_euro_in_europe(u->x, u->y) && !treasure_aboard &&
+      ai_euro_naval_try_flee_fort_fire(ctx, u)) {
+    u = units_get(ctx->units, u->id);
+    if (!u || !u->active) {
+      return AI_EURO_ACT_RETURN;
+    }
+  }
   if (at_war && !ai_euro_in_europe(u->x, u->y) && !treasure_aboard) {
     /* The war-cargo colony-sail call that sat here is retired (smell audit
      * sweep-3 area C #6): it was a second entry into LAB_521d_3558 with an
      * invented scorer, running before this act's sail loop and so overriding
      * the structural pick that ai_euro_unload_settle makes below. */
-    /* Leave enemy Fort/Fortress battery tiles before hunt/attack. */
-    if (ai_euro_naval_try_flee_fort_fire(ctx, u)) {
-      u = units_get(ctx->units, u->id);
-      if (!u || !u->active) {
-        return AI_EURO_ACT_RETURN;
-      }
-    }
     ai_euro_naval_try_adjacent_attack(ctx, u);
     if (!u->active) {
       return AI_EURO_ACT_RETURN;
