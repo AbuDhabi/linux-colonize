@@ -2385,8 +2385,13 @@ static AiTalkStepStatus ai_talk_stage_peacemenu(
         "How much do you value your worthless lives, heathen swine?",
         "We suggest an alliance."
       };
+      /* raw :98071-98074: 0438(0, 09a4(self)), 0438(1, 09a4(target)) — the
+       * reverse of the shared tok ("Go in peace, {target} brothers"). */
+      PopupMsgTokens tp = *tok;
+      tp.string0 = ai_talk_name(ctx, h);
+      tp.string1 = ai_talk_name(ctx, t);
       ai_talk_choice(
-        ctx, tag, tok,
+        ctx, tag, &tp,
         "\"We welcome the friendship of our brothers the %STRING0.\"", lab, 4,
         AI_TALK_ST_PEACEMENU
       );
