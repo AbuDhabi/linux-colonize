@@ -140,11 +140,14 @@ are open Father-effect work.
 
 ## Known unported
 
-- **Jefferson bells weight in AI colony demand scoring:** DOS's colony
-  demand scorer `FUN_5952_035e` (asm `5952:1fe4`) doubles the AI's
-  want-weight for Liberty Bells when Jefferson is owned. Not ported — the
-  scorer itself is unported (see `ai_euro_logic_map.yaml`); tracked as a
-  gap, not claimed **Done** anywhere in row 15's table entry above.
+- ~~**Jefferson bells weight in AI colony demand scoring**~~ — **ported
+  2026-09-17**. DOS's colony demand scorer `FUN_5952_035e` (asm `5952:1fe4`)
+  doubles the AI's want-weight for Liberty Bells when Jefferson is owned;
+  that is now `ai_euro_5952_want_weight`'s `w.jefferson` arm (`ai_euro.c`,
+  covered by `tests/unit/test_ai_euro_5952_indoor.c`
+  `bells_base_and_jefferson`). Note it is a **×2** on an AI want-weight, a
+  different rule from the colony screen's ×1.5 statesman bells bonus at
+  `2f2b:37cd` — do not merge the two.
 
 ## Cross-check against port_plan.md P9's own claims
 

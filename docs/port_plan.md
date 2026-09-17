@@ -569,16 +569,25 @@ list, not from the inventory.
   Combat Analysis and AI scoring never see it) — called from the land and
   naval resolvers after the analysis popup, before the roll. The port's
   wrong-side "Discoverer damper" deleted. 60/60 green.
-- [ ] **`5952_035e` indoor-workplace pass + its want-weight scorer (raw
-  94784-94860, asm `5952:1ef7`-`5952:2193`) — OPEN, spec'd below.** The port
-  has no DOS-derived weight source for indoor jobs: `ai_euro_try_expert_
-  workplace_assign` (name-matched craft chains) and the 28c8 "leftovers"
-  stand-in (`ai_euro.c`) cover the ground with invented heuristics. Landing
-  it retires both, which is decision-level and golden-moving — same class as
-  the build-decision cascade deferred in `smell_audit_2026-09-10.md`.
-  Prerequisites: `FUN_281f_0cd6` (per-job producible quantity + output-cargo
-  out-param) and `FUN_281f_0c36` (set colonist job; normalises `0x17→0x15`)
-  have no Linux equivalents yet. Spec: "5952 indoor-workplace pass" below.
+- [x] **`5952_035e` indoor-workplace pass + its want-weight scorer (raw
+  94784-94860, asm `5952:1ef7`-`5952:2193`) — LANDED 2026-09-17**, default ON
+  (`AI_5952_INDOOR=0` restores the stand-in; `docs/debug_env_vars.md`).
+  `ai_euro_5952_indoor_pass` / `ai_euro_5952_want_weight` /
+  `ai_euro_5952_job_score` / `ai_euro_5952_fallback_job` in `ai_euro.c`, seams
+  in `ai_euro_internal.h`, unit cover in
+  `tests/unit/test_ai_euro_5952_indoor.c` (10 cases, every expected number
+  recomputed from the asm). It retires the 28c8 "leftovers" stand-in, which
+  now runs only behind `AI_5952_INDOOR=0`.
+  Prerequisites resolved rather than re-ported: `FUN_281f_0cd6` →
+  `FUN_15eb_1d4c` is already ported per-body in `colony_production.c`
+  (`colony_prod_manufacturing_output` / `_hammers_worker` / `_crosses_worker`
+  / `_bells_worker`), so only the 15eb:1f44 jump-table dispatcher was new
+  (`ai_euro_5952_producible`); `FUN_281f_0c36` → `FUN_15eb_1068` is
+  `colonies_assign_workplace`, reached through the job→chain map below.
+  STILL a stand-in, deliberately: `ai_euro_try_expert_workplace_assign` —
+  it places *map units* walking into a colony, which this pass (colonists
+  already inside a colony) does not cover; that is a separate DOS site.
+  `make test` 63/63 and `make golden` green with the pass on.
 - Deliberate documented divergences (decision needed before "work"):
   king_ref.md short list, 5d04 past-the-end read kept 0 + musket-scratch
   collision as price×100, `@HELLOUSA` not modeled, per-act (vs DOS
@@ -655,10 +664,30 @@ commit: 0c36(slot, best_job); placed_count[best_job]++
 0c04()                                        ; refresh the ledgers
 ```
 
-Unresolved before a port: `DS:0x8dc0` / `DS:0x8dbe` (28c8 result words),
-`DS:0x917c` per-nation byte, `DS:0x84fc` pointer + bit 4, building index
-`0x25`, `FUN_281f_0d08(5)`, and the `out < 0x10` price arm's `-0x7b44` /
-`-0x7b4c` rows (the `0xe`/`0xf` Tools/Muskets +4 and difficulty ×2 sub-arm).
+Resolved 2026-09-17 (was "Unresolved before a port"):
+
+| Symbol | Meaning |
+|---|---|
+| `DS:0x8dc0` / `DS:0x8dbe` | the 28c8 winner's **score** and **raw tile yield** — already the `score` / `yield` fields of `AiEuro28c8JobCandidate` (`ai_euro.h`). The pass's own `FUN_1000_8d5e(slot, 0xfffe)` at raw 94785 is what fills them, so the `*0x8dc0 < best` test is "best indoor score beats this slot's best plot", not a stale word. |
+| `DS:0x917c` | the Euro-nation **wealth-rank** byte table (0 = richest), already named in `viceroy_globals.h` and live in the port as `ColonizeTurnContext.euro_power_rank[]`. |
+| `DS:0x84fc` + bit 4 | `*(int*)0x84fc` is the current **nation record** pointer (stride `0x13c`); byte `+0` is `ColonizeCol1Nation.nation_flags`, and bit `0x04` is "this nation has achieved independence from its King" (`col1_save_layout.h`). |
+| building `0x25` | **Church** — @BUILDING row 37 (0-based) of `NAMES.TXT`, the base tier of `COLONIES_CHAIN_CHURCH`. |
+| `FUN_281f_0d08(5)` | → `FUN_15eb_0c52(cargo)` = `demand[cargo] < stock[cargo] + gross[cargo]`, i.e. **"is there a live surplus of cargo 5 (Lumber)"**. |
+| `-0x7b44` | `DS:0x84bc`, the per-nation **SELL price** row (`euro_price − 1`, clamped at 0), `nation*0x10 + cargo` — the same table `FUN_5f7a_020e` uses. |
+| `-0x7b4c` | `DS:0x84b4`, the **same index eight bytes earlier**. Confirmed against the asm (`5952:1e8f MOV CL,[BX+0x84b4]`) — it is the only read of that address in the whole binary and has no writer, so for every index ≥ 8 it is the price table itself read back shifted by eight. |
+| `FUN_281f_0cd6` out-param | the **output ledger slot**: a cargo index for the six craft jobs, else hammers 16 / crosses 17 / bells 18 (`DS:0x2a2`/`DS:0x2b6` tables, VICEROY.EXE `121248 + addr`). |
+| `DS:0x2b6` | @JOB → **input** cargo byte table; `DS:0x2f4` is @JOB → base @BUILDING (`FUN_15eb_0aec`). Both dumped from the image and transcribed into `ai_euro.c`. |
+| `DS:0x538e` | the **turn** counter (save_format_map.md's "current turn word") — the `>= 0x32` Tools/Muskets gate and the Preacher `turn/100` term. |
+
+Two modelled unknowns remain, both stated in the code:
+
+- the first eight bytes of the `-0x7b4c` row (the global immediately ahead of
+  `DS:0x84bc`, which nothing else in the binary touches) are read as 0;
+- DOS's `iStack_78` (the input `avail` clamp) is a never-initialised
+  function-level local that later jobs inherit from earlier ones. The
+  carry-over is ported literally; only its garbage seed is replaced (by "no
+  clamp").
+
 **Do not** reuse the ×1.5 Jefferson/Paine bells bonus from
 `colony_production.c:428` here: this site is a **×2** on an AI want-weight,
 a different rule at a different offset (`2f2b:37cd` vs `5952:1fe4`).

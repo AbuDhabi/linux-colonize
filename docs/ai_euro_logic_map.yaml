@@ -1326,6 +1326,13 @@ graphs:
         label: Expert workplace fix-ups; origin refresh
         fn: ai_euro.c:ai_euro_5952_job_is_expert
         status: dos
+      - id: indoor
+        kind: loop
+        label: Indoor-workplace pass — elect one indoor @JOB per still-unplaced slot
+        fn: ai_euro.c:ai_euro_5952_indoor_pass
+        dos: FUN_5952_035e raw 94784-94860, asm 5952:1ef7-5952:2193
+        status: dos
+        note: "Per unplaced slot: 28c8 mode-2 probe (DS:0x8dc0/0x8dbe) for the best plot, then score every available indoor job 9..0x11 as (producible*8+5)*want_weight (ai_euro_5952_want_weight / ai_euro_5952_job_score; producible = ai_euro_5952_producible, the 15eb:1f44 dispatcher over colony_production.c's ported 1d4c bodies). Indoor winner beats the plot score -> assign the workplace; else commit the plot; else ai_euro_5952_fallback_job (Carpenter, or Preacher on Church + lumber surplus + <3 preachers). AI_5952_INDOOR=0 restores the pre-2026-09-17 leftovers field stand-in."
       - id: end
         kind: end
         label: return
@@ -1333,5 +1340,6 @@ graphs:
       - [loop, pass1, "each colony"]
       - [pass1, pass2]
       - [pass2, expert]
-      - [expert, loop, "next colony"]
+      - [expert, indoor]
+      - [indoor, loop, "next colony"]
       - [loop, end, "done"]
