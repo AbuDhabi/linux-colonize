@@ -2101,36 +2101,14 @@ bool colonies_capture(ColonizeColonyPool* pool, int colony_id, int new_nation_id
 }
 
 bool colonies_unit_build_info(int raw_code, const char** name, int* hammers, int* tools_cost) {
-  if (raw_code == COLONIZE_UNIT_BUILD_ARTILLERY) {
-    /* Golden-confirmed (New Amsterdam, dutch-reports.SAV): hammers=192 the
-     * one time this port shows an Artillery project — @UNIT's own row
-     * (NAMES.TXT) doesn't carry a hammers/tools construction cost field at
-     * all (that's a purchase-price row, Europe money not colony hammers),
-     * so this pair isn't independently cross-checked against NAMES.TXT. */
-    if (name) {
-      *name = "Artillery";
-    }
-    if (hammers) {
-      *hammers = 192;
-    }
-    if (tools_cost) {
-      *tools_cost = 40;
-    }
-    return true;
-  }
-  if (raw_code == COLONIZE_UNIT_BUILD_WAGON_TRAIN) {
-    if (name) {
-      *name = "Wagon Train";
-    }
-    if (hammers) {
-      *hammers = 40;
-    }
-    if (tools_cost) {
-      *tools_cost = 0;
-    }
-    return true;
-  }
-  return false;
+  /*
+   * DOS FUN_15eb_33aa kind-2 arm (raw 13489-13504) reads the @UNIT cost/tools
+   * columns; units_build_project_info owns that arithmetic. The golden
+   * Artillery pair (192/40, New Amsterdam, dutch-reports.SAV) and the
+   * long-standing Wagon Train 40/0 both fall out of it, which is what pinned
+   * the ×32 / ×10 scale factors.
+   */
+  return units_build_project_info(raw_code, name, hammers, tools_cost);
 }
 
 /* Armory or an upgrade (Magazine/Arsenal) — player-requested Artillery
@@ -2141,27 +2119,62 @@ static bool colonies_has_armory_chain(const ColonizeColonyPool* pool, const Colo
          colonies_has_building_named(pool, col, "Arsenal");
 }
 
-bool colonies_set_construction(ColonizeColonyPool* pool, int colony_id, int building_type) {
-  ColonizeColony* col = colonies_get_mut(pool, colony_id);
-  if (building_type == COLONIZE_UNIT_BUILD_ARTILLERY) {
-    if (!col || !colonies_has_armory_chain(pool, col)) {
-      return false;
-    }
-    col->building_in_production = building_type;
-    col->colony_flags =
-      (uint8_t)(col->colony_flags & (uint8_t)~COLONIZE_COLONY_FLAG_BUILD_COMPLETE);
-    diag_info("COLONY %s: building Artillery", col->name[0] ? col->name : "colony");
+/*
+ * Unit-project availability — DOS-LITERAL FUN_15eb_3650 kind-2 arm
+ * (viceroy_unpacked.c raw 13714-13735):
+ *
+ *   avail = 1;
+ *   if (idx < 0xd || idx > 0x12) {             // not a ship row
+ *     if (idx != 0xc) {                        // not Wagon Train
+ *       if (idx != 0xb) { gate = 0x24; goto check; }
+ *       avail = has_building(3);               // Artillery <- Armory
+ *     }
+ *   } else { gate = 8; check: if (!has_building(gate)) avail = 0; }
+ *
+ * So every ship row (Caravel..Frigate) needs @BUILDING index 8 = Shipyard —
+ * not Docks, not Drydock, and there is no population or coastal test of its
+ * own (the Shipyard's own @BUILDING row carries the coastal requirement).
+ * Wagon Train has no building gate. DOS's Artillery gate is has_building(3)
+ * literally; this port keeps its wider Armory/Magazine/Arsenal chain, which
+ * only differs for a captured colony that owns an upgrade but not the Armory.
+ *
+ * NOT ported here: DOS's per-nation wagon cap (idx 0xc and
+ * colony_count[nation] <= wagon_count[nation] -> unavailable, @NOMOREWAGONS
+ * at raw 56933) — it needs a unit-pool count this signature does not carry.
+ */
+static bool colonies_unit_project_available(
+  const ColonizeColonyPool* pool, const ColonizeColony* col, int raw_code
+) {
+  const int idx = units_build_code_to_index(raw_code);
+  if (idx < 0 || !col) {
+    return false;
+  }
+  if (idx >= COLONIZE_UNIT_INDEX_SHIP_FIRST && idx <= COLONIZE_UNIT_INDEX_SHIP_LAST) {
+    return colonies_has_building_named(pool, col, "Shipyard");
+  }
+  if (idx == COLONIZE_UNIT_INDEX_ARTILLERY) {
+    return colonies_has_armory_chain(pool, col);
+  }
+  if (idx == COLONIZE_UNIT_INDEX_WAGON_TRAIN) {
     return true;
   }
-  if (building_type == COLONIZE_UNIT_BUILD_WAGON_TRAIN) {
-    /* Buildable anywhere, no building gate. */
-    if (!col) {
+  return false;
+}
+
+bool colonies_set_construction(ColonizeColonyPool* pool, int colony_id, int building_type) {
+  ColonizeColony* col = colonies_get_mut(pool, colony_id);
+  if (units_build_code_to_index(building_type) >= 0) {
+    const char* uname = NULL;
+    if (!col || !colonies_unit_project_available(pool, col, building_type)) {
       return false;
     }
+    colonies_unit_build_info(building_type, &uname, NULL, NULL);
     col->building_in_production = building_type;
     col->colony_flags =
       (uint8_t)(col->colony_flags & (uint8_t)~COLONIZE_COLONY_FLAG_BUILD_COMPLETE);
-    diag_info("COLONY %s: building Wagon Train", col->name[0] ? col->name : "colony");
+    diag_info(
+      "COLONY %s: building %s", col->name[0] ? col->name : "colony", uname ? uname : "unit"
+    );
     return true;
   }
   if (!col || !pool) {
@@ -2853,17 +2866,20 @@ int colonies_list_buildable(
       out_ids[n++] = i;
     }
   }
-  /* Artillery (colonies_unit_build_info) — player-requested: buildable with
-   * an Armory or an upgrade. Not a real @BUILDING row so it's never "owned"
-   * (no has_building[] dedup — the colony can queue another one right after
-   * the last one spawns, same as any other repeatable unit purchase). */
-  if (n < out_max && colonies_has_armory_chain(pool, col)) {
-    out_ids[n++] = COLONIZE_UNIT_BUILD_ARTILLERY;
-  }
-  /* Wagon Train (colonies_unit_build_info) — player-requested: buildable in
-   * any colony, no gate, same no-dedup reasoning as Artillery above. */
-  if (n < out_max) {
-    out_ids[n++] = COLONIZE_UNIT_BUILD_WAGON_TRAIN;
+  /*
+   * The seven unit projects, in DOS's own code order — FUN_15eb_38e8
+   * (viceroy_unpacked.c raw 13773) walks codes -1..0x30 and keeps whatever
+   * FUN_15eb_3650 calls available, so Artillery, Wagon Train and the five
+   * buildable ships follow the @BUILDING rows in that order. None of them is
+   * a real @BUILDING row, so none is ever "owned": no has_building[] dedup,
+   * and the colony can queue another one the moment the last one spawns.
+   */
+  for (int code = COLONIZE_UNIT_BUILD_CODE_FIRST;
+       code < COLONIZE_UNIT_BUILD_CODE_FIRST + COLONIZE_UNIT_BUILD_CODE_COUNT && n < out_max;
+       ++code) {
+    if (colonies_unit_project_available(pool, col, code)) {
+      out_ids[n++] = code;
+    }
   }
   return n;
 }
