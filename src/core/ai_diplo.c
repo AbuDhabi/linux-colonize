@@ -3059,9 +3059,10 @@ static int ai_diplo_153e_encounter_gated(
       k->score = 0;
     }
   }
-  if (!k->worthy && k->dominance != 0 && peace_ht) {
+  if (!forced_gate && !k->worthy && k->dominance != 0 && peace_ht) {
     k->active = 0;
-    return 0; /* raw :97655: nothing to say */
+    return 0; /* raw :97679: nothing to say — param_6 == 0 only, a forced
+               * (Meet With Mayor) encounter always talks */
   }
   if (k->worthy && peace_ht &&
       (k->at_war || col1->stuff.land_combat_strength[target] < col1->stuff.land_combat_strength[human])) {
