@@ -943,6 +943,25 @@ int founding_fathers_la_salle_check(
  * Brewster: no Petty Criminals / Indentured Servants in Europe recruit pool
  * or dock. (Pick-among-pool arrival lives in europe.c / units.c.)
  */
+/*
+ * DOS FUN_4345_0342 case 0x14 (raw 73160-73168): nation+2..+4 (recruit[3])
+ * bytes 0x19 (Indentured Servant) / 0x1a (Petty Criminal) -> 0x1c, for
+ * WHICHEVER nation elects Brewster -- no human gate. Keep the save-side
+ * recruit[] live for every nation; the human EuropeScreen mirror is a
+ * separate write (effect_brewster_filter_pool below).
+ */
+static void effect_brewster_filter_recruit(ColonizeCol1Save* col1, int nation_id) {
+  if (!col1 || nation_id < 0 || nation_id >= 4) {
+    return;
+  }
+  ColonizeCol1Nation* nat = &col1->nation[nation_id];
+  for (int i = 0; i < 3; ++i) {
+    if (nat->recruit[i] == 0x19 || nat->recruit[i] == 0x1a) {
+      nat->recruit[i] = 0x1c;
+    }
+  }
+}
+
 static void effect_brewster_filter_pool(EuropeScreen* europe) {
   if (!europe) {
     return;
@@ -1338,16 +1357,16 @@ static void apply_effect(
        * euro_balance / war-hit (no gold fiction). FA 3f41 UI PARKED. */
       break;
     case FF_WILLIAM_BREWSTER:
-      /* PEDIA @FATHER20: no criminals/servants on docks + recruit pool
-       * (effect_brewster_filter_pool); pick-among-pool = 5e52's Brewster
-       * branch → FUN_38fd_4884(0,1) @RECRUITCHOOSE, ported as
-       * europe_tick_immigration_pressure()==2 + units_brewster_enqueue_pick.
-       * DOS gates on no owner test (any elector's `pool bytes 0x19/0x1a ->
-       * 0x1c` in their own +0x13c nation record). The port has only ONE
-       * EuropeScreen instance (human's dock/pool) — no AI Europe model
-       * exists to apply this to (docs/architecture.md; grep confirms no
-       * per-nation EuropeScreen array) — so the human-only gate here is a
-       * port modelling limit, not a DOS mismatch; left as-is. */
+      /* PEDIA @FATHER20: no criminals/servants on docks + recruit pool.
+       * DOS FUN_4345_0342 case 0x14 (raw 73160-73168) rewrites the
+       * ELECTING nation's own recruit[3] bytes (0x19/0x1a -> 0x1c) with no
+       * human gate — real for AI electors too. effect_brewster_filter_recruit
+       * ports that for any nation_id. The human EuropeScreen (dock/pool
+       * mirror + @RECRUITCHOOSE pick, europe_tick_immigration_pressure()==2
+       * + units_brewster_enqueue_pick) is a separate, human-only UI model —
+       * no per-nation EuropeScreen exists (docs/architecture.md) — so that
+       * mirror still applies only when nation_id == human_nation. */
+      effect_brewster_filter_recruit(col1, nation_id);
       if (nation_id == human_nation) {
         effect_brewster_filter_pool(europe);
       }

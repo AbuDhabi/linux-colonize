@@ -63,6 +63,25 @@ static int count_braves(const ColonizeUnitPool* units) {
   return n;
 }
 
+/* Land units of `nation` parked in the port's Europe limbo — where DOS
+ * FUN_38fd_0718 puts a crosses immigrant (europe_nation_immigration_tick_w). */
+static int ai_europe_land_count(const ColonizeUnitPool* units, int nation) {
+  int n = 0;
+  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    const ColonizeUnit* u = &units->units[i];
+    if (!u->active || u->nation_id != nation || u->aboard_ship_id >= 0) {
+      continue;
+    }
+    if (u->x < 200 && u->y < 200) {
+      continue;
+    }
+    if (!units_is_sea(units, u->id)) {
+      n++;
+    }
+  }
+  return n;
+}
+
 static int ai_ship_dist_sum(const ColonizeUnitPool* units, int nation) {
   int sum = 0;
   int n = 0;
@@ -639,6 +658,7 @@ static int run_init_and_turns(
   const int dist0 = america ? ai_ship_dist_sum(&units, human_nation == 1 ? 0 : 1) : -1;
   const int pop0 = tribe_pop_sum(&col1);
   const uint16_t crosses0 = col1.nation[human_nation == 1 ? 0 : 1].current_crosses;
+  const int dock0 = ai_europe_land_count(&units, human_nation == 1 ? 0 : 1);
 
   uint32_t turn_number = 0;
   uint16_t year = 1492;
@@ -736,6 +756,7 @@ static int run_init_and_turns(
   const int dist1 = america ? ai_ship_dist_sum(&units, human_nation == 1 ? 0 : 1) : -1;
   const int pop1 = tribe_pop_sum(&col1);
   const uint16_t crosses1 = col1.nation[human_nation == 1 ? 0 : 1].current_crosses;
+  const int dock1 = ai_europe_land_count(&units, human_nation == 1 ? 0 : 1);
 
   if (america) {
     if (dist0 >= 0 && dist1 >= 0 && dist1 > dist0) {
@@ -754,8 +775,14 @@ static int run_init_and_turns(
       return 1;
     }
   }
-  if (crosses1 <= crosses0) {
-    fprintf(stderr, "%s: AI crosses did not advance (%u -> %u)\n", label, crosses0, crosses1);
+  /* DOS FUN_38fd_5e52 runs for AI nations too: the meter either climbs or it
+   * was zeroed by an arrival, which leaves a new colonist in the Europe limbo.
+   * Asserting only "crosses climb" was an artefact of the parked stub. */
+  if (crosses1 <= crosses0 && dock1 <= dock0) {
+    fprintf(
+      stderr, "%s: AI crosses did not advance and no immigrant arrived (%u -> %u, dock %d -> %d)\n",
+      label, crosses0, crosses1, dock0, dock1
+    );
     map_free(&map);
     col1_save_free(&col1);
     assets_msg_free(&names);

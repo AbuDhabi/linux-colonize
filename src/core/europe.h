@@ -1047,6 +1047,27 @@ int europe_tick_immigration_pressure_w(
   const ColonizeWorld* w,
   int nation_id
 );
+
+/*
+ * The same DOS FUN_38fd_5e52 tick for a nation with no EuropeScreen — i.e.
+ * every AI nation, whose pool is its own `ColonizeCol1Nation.recruit[3]`
+ * (nation+2..+4) and whose "docks" are the port's (200,100) Europe limbo.
+ * DOS runs 5e52 for every nation from the nation EOT FUN_3844_00f2 (:58375)
+ * and gates only the popups/sound on control == 0. Accrues the 584a tick,
+ * rewrites needed_crosses, and on a crossing empties one pool slot into a
+ * real unit record (FUN_38fd_0718), refills it (FUN_38fd_46d4) and zeroes
+ * the crosses. Returns 1 when an immigrant was created, else 0.
+ */
+int europe_nation_immigration_tick_w(const ColonizeWorld* w, int nation_id);
+
+/* FUN_38fd_46d4 on a nation record's pool byte; returns the @JOB stored. */
+int europe_nation_refill_pool_slot(
+  struct ColonizeCol1Save* col1, int nation_id, int slot, bool force_expert,
+  struct ColonizeDosRng* rng
+);
+
+/* FUN_38fd_0718 for a nation record: unit id parked in the Europe limbo, or -1. */
+int europe_nation_harbor_spawn(const ColonizeWorld* w, int nation_id, int profession);
 /*
  * Sell one commodity hold from a map/transport ColonizeUnit into eu->gold.
  * No harbor UI — proceeds via europe_sell_proceeds (bid × amount × (100−tax)/100).

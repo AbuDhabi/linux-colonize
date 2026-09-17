@@ -495,6 +495,33 @@ static bool europe_job_is_expert(int job) {
 }
 
 /*
+ * The three pool-slot bytes `FUN_38fd_46d4` reads (nation+2..+4 = DS:0x84fc+2)
+ * plus the two scalars it consults (DS:0x53a6 difficulty — substituted with 1
+ * for a non-human bound nation — and FF 0x14 ownership). The human Europe
+ * screen and the raw `ColonizeCol1Nation.recruit[3]` of an AI nation both
+ * project onto this, so the roll below is shared instead of duplicated.
+ */
+typedef struct EuropePoolView {
+  int job[EUROPE_POOL_SIZE];
+  bool filled[EUROPE_POOL_SIZE];
+  int difficulty;
+  bool brewster;
+} EuropePoolView;
+
+static void europe_pool_view_from_screen(EuropePoolView* v, const EuropeScreen* eu) {
+  memset(v, 0, sizeof(*v));
+  if (!eu) {
+    return;
+  }
+  for (int i = 0; i < EUROPE_POOL_SIZE; ++i) {
+    v->job[i] = eu->pool[i].profession;
+    v->filled[i] = eu->pool[i].filled;
+  }
+  v->difficulty = (int)eu->difficulty;
+  v->brewster = eu->brewster_no_criminals;
+}
+
+/*
  * `FUN_38fd_46d4(force_expert)` (viceroy_unpacked.c:64554-64694) — the
  * profession a recruit-pool slot is refilled with. Two halves:
  *
@@ -525,17 +552,18 @@ static bool europe_job_is_expert(int job) {
  * differs. The tier rolls above are the real `04d4` stream draws.
  */
 static int europe_roll_pool_profession(
-  const EuropeScreen* eu, int slot, bool force_expert, EuropePoolRng* st
+  const EuropePoolView* v, int slot, bool force_expert, EuropePoolRng* st
 ) {
   if (!force_expert) {
-    /* DS:0x53a6 for the human nation; AI nations use 1. The port's Europe
-     * screen caches the human's difficulty (eu->difficulty). */
-    const int threshold = ((eu ? (int)eu->difficulty : 0) + 3) >> 1;
+    /* DS:0x53a6 for the human nation; AI nations use 1 (46d4 64627-64633).
+     * The port's Europe screen caches the human's difficulty (eu->difficulty);
+     * the nation-record view fills the same field. */
+    const int threshold = ((v ? v->difficulty : 0) + 3) >> 1;
     if (europe_pool_tier_roll(st, 1, 15) <= threshold) {
-      return (eu && eu->brewster_no_criminals) ? 0x13 : 0x1a; /* Petty Criminals */
+      return (v && v->brewster) ? 0x13 : 0x1a; /* Petty Criminals */
     }
     if (europe_pool_tier_roll(st, 1, 10) <= threshold) {
-      return (eu && eu->brewster_no_criminals) ? 0x13 : 0x19; /* Indentured Servants */
+      return (v && v->brewster) ? 0x13 : 0x19; /* Indentured Servants */
     }
     if (europe_pool_tier_roll(st, 1, 8) <= threshold) {
       return 0x13; /* Free Colonists (DOS 0x1c, drawn as Free Colonists) */
@@ -545,7 +573,7 @@ static int europe_roll_pool_profession(
   for (int tries = 0;;) {
     bool any_non_expert = false;
     for (int i = 0; i < EUROPE_POOL_SIZE; ++i) {
-      if (!eu->pool[i].filled || !europe_job_is_expert(eu->pool[i].profession)) {
+      if (!v->filled[i] || !europe_job_is_expert(v->job[i])) {
         any_non_expert = true;
       }
     }
@@ -561,7 +589,7 @@ static int europe_roll_pool_profession(
       /* DOS compares against all three slots — the one being refilled still
        * holds its outgoing profession at this point, so the class that just
        * left the pool is not immediately redrawn. */
-      if (eu->pool[i].filled && eu->pool[i].profession == job) {
+      if (v->filled[i] && v->job[i] == job) {
         duplicate = true;
       }
     }
@@ -626,7 +654,9 @@ static void europe_refill_pool_slot_impl(
   EuropePoolRng st;
   st.dos = dos;
   st.local = rng_state ? rng_state : &local;
-  const int job = europe_roll_pool_profession(eu, slot, force_expert, &st);
+  EuropePoolView view;
+  europe_pool_view_from_screen(&view, eu);
+  const int job = europe_roll_pool_profession(&view, slot, force_expert, &st);
   EuropePoolSlot* p = &eu->pool[slot];
   snprintf(p->name, sizeof(p->name), "%s", europe_pool_job_name(job));
   p->profession = job;
@@ -3154,6 +3184,215 @@ int europe_tick_immigration_pressure_w(
   return 0;
 }
 
+
+/* ===== AI-nation immigration (DOS FUN_38fd_5e52, control != 0) ===== */
+
+/*
+ * DOS runs the whole immigration tick per nation from the nation EOT
+ * FUN_3844_00f2 (viceroy_unpacked.c:58375, `FUN_291f_0a90(nation)` =
+ * FUN_38fd_5e52), for every nation slot — 5e52 gates only its *chrome* on
+ * `player[n].control == 0` (68563, 68590, 68603). An AI nation therefore
+ * accrues crosses, crosses the same 584a threshold, empties one of its own
+ * `recruit[3]` pool bytes into a real unit record parked in Europe
+ * (FUN_38fd_0718, spawned at the Europe sentinel tile), refills that slot
+ * with FUN_38fd_46d4 and zeroes its crosses — all silently. The port used to
+ * stop at the +2 accrual, so no AI immigrant ever existed.
+ */
+
+/* View over an AI nation's own pool bytes (nation+2..+4 = recruit[3]). */
+static void europe_pool_view_from_nation(
+  EuropePoolView* v, const ColonizeCol1Save* col1, int nation_id
+) {
+  memset(v, 0, sizeof(*v));
+  if (!col1 || nation_id < 0 || nation_id >= (int)COLONIZE_COL1_NATION_COUNT) {
+    return;
+  }
+  const ColonizeCol1Nation* nat = &col1->nation[nation_id];
+  for (int i = 0; i < EUROPE_POOL_SIZE && i < 3; ++i) {
+    v->job[i] = (int)nat->recruit[i];
+    /* 0x1c = job NONE; col1_bridge reads that byte as "slot empty". */
+    v->filled[i] = nat->recruit[i] != UNITS_JOB_NONE;
+  }
+  /* 46d4 64627-64633: DS:0x53a6 only when the bound nation is the human's;
+   * every AI nation substitutes 1. */
+  v->difficulty = (col1->player[nation_id].control == 0) ? (int)col1->head.difficulty : 1;
+  v->brewster = founding_fathers_nation_has(col1, nation_id, FF_WILLIAM_BREWSTER);
+}
+
+int europe_nation_refill_pool_slot(
+  ColonizeCol1Save* col1, int nation_id, int slot, bool force_expert, ColonizeDosRng* rng
+) {
+  if (!col1 || nation_id < 0 || nation_id >= (int)COLONIZE_COL1_NATION_COUNT) {
+    return -1;
+  }
+  if (slot < 0 || slot >= 3) {
+    return -1;
+  }
+  ColonizeCol1Nation* nat = &col1->nation[nation_id];
+  EuropePoolView view;
+  europe_pool_view_from_nation(&view, col1, nation_id);
+  unsigned local = rng ? (rng->state | 1u)
+                       : 1u + (unsigned)(nat->gold + nat->recruit_count + slot * 17);
+  EuropePoolRng st;
+  st.dos = rng;
+  st.local = &local;
+  const int job = europe_roll_pool_profession(&view, slot, force_expert, &st);
+  nat->recruit[slot] = (uint8_t)job;
+  return job;
+}
+
+/*
+ * FUN_38fd_0718 (viceroy_unpacked.c:59098-59147) for an AI nation: the @UNIT
+ * type comes from the @JOB byte (europe_dock_unit_dos_type is that same
+ * mapping, Dragoon roll included), the record is parked at the port's Europe
+ * sentinel tile (the (200,100) limbo `ai_euro_in_europe` tests for, where
+ * 5d04's own 0718 spawn already puts purchased units), and the profession
+ * byte is stored verbatim — 0718 writes +0x315b = param_1 with no 0x1c swap.
+ * Pioneers get the 100 tools of 59134.
+ */
+int europe_nation_harbor_spawn(const ColonizeWorld* w, int nation_id, int profession) {
+  if (!w || !w->units || !w->col1 || nation_id < 0 ||
+      nation_id >= (int)COLONIZE_COL1_NATION_COUNT) {
+    return -1;
+  }
+  const bool human = w->col1->player[nation_id].control == 0;
+  const int dos_type = europe_dock_unit_dos_type(
+    profession, (int)w->col1->head.difficulty, human, w->rng
+  );
+  const int lt = europe_dock_unit_type_index_ex(w->units, dos_type, true);
+  if (lt < 0) {
+    return -1;
+  }
+  const int id = units_spawn_allow_stack(w->units, lt, 200, 100);
+  if (id < 0) {
+    return -1;
+  }
+  ColonizeUnit* u = units_get(w->units, id);
+  if (!u) {
+    return -1;
+  }
+  units_set_nation(u, nation_id);
+  u->moves = 0;
+  u->profession = profession;
+  if (dos_type == 2) {
+    u->tools = 100; /* 59134: local_4 == 2 -> +0x3159 = 100 */
+  } else if (dos_type == 1) {
+    u->muskets = 50;
+  } else if (dos_type == 4) {
+    u->muskets = 50;
+    u->horses = 50;
+  }
+  return id;
+}
+
+/*
+ * FUN_38fd_584a's *param_2 (viceroy_unpacked.c:68256-68281) for a nation
+ * record: +2 a turn, flipped negative once the nation's 0x40 latch is up by
+ * every colonist-class unit of that nation still parked in Europe (DOS: unit
+ * x == nation - 0x14, i.e. the Europe sentinel; port: the (200,100) limbo).
+ */
+static int europe_nation_crosses_delta(const ColonizeWorld* w, int nation_id) {
+  int delta = 2;
+  const ColonizeCol1Save* col1 = w->col1;
+  if (!col1 || !w->units) {
+    return delta;
+  }
+  if ((col1->nation[nation_id].nation_flags & 0x40u) == 0u) {
+    return delta;
+  }
+  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    const ColonizeUnit* u = &w->units->units[i];
+    if (!u->active || u->nation_id != nation_id) {
+      continue;
+    }
+    if (u->x < 200 && u->y < 200) {
+      continue;
+    }
+    if (!units_type_has_profession_slot(u->type_index)) {
+      continue; /* FUN_281f_0b78(unit) >= 0 */
+    }
+    delta = (delta < 1) ? delta - 2 : -2;
+  }
+  return delta;
+}
+
+int europe_nation_immigration_tick_w(const ColonizeWorld* w, int nation_id) {
+  if (!w || !w->col1 || nation_id < 0 || nation_id >= (int)COLONIZE_COL1_NATION_COUNT) {
+    return 0;
+  }
+  ColonizeCol1Save* col1 = w->col1;
+  /* 68551: the whole routine is skipped once independence is declared. */
+  if (col1->head.game_options.woi) {
+    return 0;
+  }
+  ColonizeCol1Nation* nat = &col1->nation[nation_id];
+  /* 68554: nation flags &= 0xdf on entry. */
+  nat->nation_flags = (uint8_t)(nat->nation_flags & 0xdfu);
+
+  /* 68557-68562: +0x30 = 584a score, +0x2e += the tick, clamped at 0. */
+  int need = europe_compute_immigration_score_w(w, nation_id);
+  if (need < 0) {
+    need = 0;
+  }
+  if (need > 65535) {
+    need = 65535;
+  }
+  nat->needed_crosses = (uint16_t)need;
+  int cur = (int)nat->current_crosses + europe_nation_crosses_delta(w, nation_id);
+  if (cur < 0) {
+    cur = 0;
+  }
+  if (cur > 65535) {
+    cur = 65535;
+  }
+  nat->current_crosses = (uint16_t)cur;
+  if (need >= cur) {
+    return 0; /* 68563: `if (local_6 < iVar3)` */
+  }
+
+  /*
+   * 68570-68577: Brewster (FF 0x14) owned -> FUN_38fd_4884(0,1) — which for a
+   * non-human bound nation takes local_58 = 1 (64744: the list pick is human
+   * chrome; everyone else gets slot 1), costs nothing (param_2 != 0 zeroes the
+   * passage at 64692), zeroes +0x2e (param_1 == 0, 64763), refills the emptied
+   * slot with 46d4(0) — not the season-quad force-expert roll — and does NOT
+   * bump recruit_count (+6, gated param_1 == 0 && param_2 == 0). No 0x40 latch
+   * on this path either: 68601 is inside the non-Brewster branch only.
+   */
+  const bool brewster = founding_fathers_nation_has(col1, nation_id, FF_WILLIAM_BREWSTER);
+  int slot;
+  bool force_expert;
+  if (brewster) {
+    slot = 1;
+    force_expert = false;
+  } else {
+    /* 68575-68583: crosses zeroed, 04d4(0,2) picks the slot, the slot is
+     * refilled with 46d4((turn & 3) == 0) before the unit is created. */
+    nat->current_crosses = 0;
+    slot = w->rng ? dos_rng_range(w->rng, 0, 2) : 0;
+    force_expert = ((int)col1->head.turn & 3) == 0;
+  }
+  const int profession = (int)nat->recruit[slot];
+  if (brewster) {
+    /* 4884 tail order (64763-64775): zero +0x2e, create the unit, and only
+     * then refill the emptied slot. 5e52's own branch refills first (68581
+     * before 68585), so the two paths differ in draw order — DOS-literal. */
+    nat->current_crosses = 0;
+    const int id = europe_nation_harbor_spawn(w, nation_id, profession);
+    if (id < 0) {
+      return 0;
+    }
+    europe_nation_refill_pool_slot(col1, nation_id, slot, false, w->rng);
+    return 1;
+  }
+  europe_nation_refill_pool_slot(col1, nation_id, slot, force_expert, w->rng);
+  const int id = europe_nation_harbor_spawn(w, nation_id, profession);
+  if (id < 0) {
+    return 0;
+  }
+  nat->nation_flags = (uint8_t)(nat->nation_flags | 0x40u); /* 68601 */
+  return 1;
+}
 
 /*
  * The nation `eu->gold` is the purse of: DS:0x9e12, set by FUN_38fd_0000
