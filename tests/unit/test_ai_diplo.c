@@ -2665,7 +2665,8 @@ static int case_marathon3_franklin_peace_gate(void) {
       return fail("M3R1 Franklin: peer ownership must not block declare_war");
     }
 
-    /* Elect effect: forced WAR then founding_fathers_tick elect clears it. */
+    /* Elect: FUN_4345_0342 (raw 73044) has no case 0x13 -- electing Franklin
+     * touches no relation, so a standing WAR survives the elect. */
     ColonizeCol1Save fr3;
     col1_save_init(&fr3);
     memset(fr3.nation, 0, sizeof(fr3.nation));
@@ -2707,8 +2708,8 @@ static int case_marathon3_franklin_peace_gate(void) {
     if (!founding_fathers_nation_has(&fr3, 0, FF_BENJAMIN_FRANKLIN)) {
       return fail("M3R1 Franklin elect: should own Benjamin Franklin");
     }
-    if (ai_diplo_at_war(&fr3, 0, 1)) {
-      return fail("M3R1 Franklin elect: should make_peace with Euro peers");
+    if (!ai_diplo_at_war(&fr3, 0, 1)) {
+      return fail("M3R1 Franklin elect: must not make_peace (no DOS elect case)");
     }
   return 0;
 }

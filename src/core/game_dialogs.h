@@ -171,6 +171,16 @@ struct ColonizeGameState {
   /* bugs.md #437: same one-shot latch shape for the attack-a-colony confirm. */
   int colony_attack_ok_unit;
   int colony_attack_ok_payload;
+  /*
+   * FUN_5f7a_020e foreign-colony trade: the priced deal, held across the
+   * @TRADEWITH choice popup (the gold offer costs one RNG draw, so it cannot be
+   * recomputed at apply time). unit -1 = nothing pending.
+   * See docs/foreign_colony_trade.md.
+   */
+  int foreign_trade_unit;
+  int foreign_trade_colony;
+  int foreign_trade_hold;
+  ColonizeForeignTradeDeal foreign_trade_deal;
   int map_zoom; /* 0..3 — VIEW Zoom In/Out/Level N. FUN_2b5a_0f92 DS:0x184; 0 = 15×12 native. */
   /*
    * VIEW ~Hidden Terrain (H): 0 = off; 1..3 = DOS's three peel passes (units/
@@ -431,6 +441,14 @@ typedef enum GameIndianLandKind {
 void activate_menu_selection(ColonizeGameState* game);
 int begin_menu_option_at_xy(const BeginMenuLayout* layout, int mx, int my);
 void game_after_unit_action(ColonizeGameState* game);
+
+/* Foreign-colony trade (FUN_5f7a_020e) — docs/foreign_colony_trade.md. */
+bool game_foreign_trade_open(
+  ColonizeGameState* game, int unit_id, int colony_id, int dest_x, int dest_y
+);
+void game_foreign_trade_price_hold(
+  ColonizeGameState* game, int unit_id, int colony_id, int hold
+);
 void game_apply_cheat_list_result(ColonizeGameState* game);
 void game_apply_goto_port(ColonizeGameState* game, int id);
 void game_apply_save_load_result(ColonizeGameState* game);

@@ -4281,6 +4281,7 @@ static void game_create_reset_fields(ColonizeGameState* game, const ColonizeGame
   game->ff_pedia_after_report = -1;
   game->found_open_colony_id = -1;
   game->tired_ok_unit = -1;
+  game->foreign_trade_unit = -1;
   game->view_pan_hold_unit = -1;
   game->turn_number = 1;
   game->map_seed = 73;
@@ -5500,6 +5501,223 @@ COLONIZE_INTERNAL GameMoveStep game_move_sea_unit(
   return GAME_MOVE_CONTINUE;
 }
 
+/* ===== Foreign-colony trade (FUN_5f7a_020e) — docs/foreign_colony_trade.md ===== */
+
+/*
+ * @GREATLEADER2 line `nation` ("the Queen" / "the King" / …) — the %STRING0 of
+ * @TRADEMERCANTILISM (FUN_2a1f_0618(0, DS:0x1aab "LEADER2", owner), raw 98931).
+ */
+static const char* game_foreign_trade_leader2(const ColonizeGameState* game, int nation) {
+  const ColonizeMsgSection* sec =
+    (nation >= 0 && nation < 4) ? assets_msg_find(&game->messages, "GREATLEADER2") : NULL;
+  int idx = 0;
+  for (int i = 0; sec && i < sec->line_count; ++i) {
+    const char* line = sec->lines[i];
+    if (!line || line[0] == '\0' || line[0] == ';' || line[0] == '@') {
+      continue;
+    }
+    if (idx == nation) {
+      return line;
+    }
+    idx++;
+  }
+  return ai_diplo_rival_name(&game->col1, nation);
+}
+
+static ColonizeWorld game_foreign_trade_world(ColonizeGameState* game) {
+  return world_make(
+    &game->units, &game->colonies, &game->world_map, &game->col1, game->col1_ok,
+    &game->move_rng, NULL
+  );
+}
+
+/* A plain GAME.TXT refusal popup (raw 98924-98936 all land here). */
+static void game_foreign_trade_refuse(
+  ColonizeGameState* game, const char* tag, const PopupMsgTokens* tok, const char* fallback
+) {
+  char body[AI_POPUP_BODY_LEN];
+  popup_msg_fill(&game->messages, tag, tok, fallback, body, sizeof(body));
+  ai_popup_enqueue_ok(&game->ai_popups, AI_POPUP_TAG_INFO, NULL, body);
+  (void)ai_popup_present_now(&game->ai_popups, AI_POPUP_TAG_INFO);
+}
+
+/*
+ * raw 98993-99018: price the hold, then either @TRADENOWANT or the @TRADEWITH
+ * counter-offer CHOICE. The priced deal is latched on the game state because
+ * the gold offer costs one draw off the move rng.
+ */
+void game_foreign_trade_price_hold(
+  ColonizeGameState* game, int unit_id, int colony_id, int hold
+) {
+  ColonizeWorld w = game_foreign_trade_world(game);
+  ColonizeForeignTradeDeal deal;
+  if (!colonies_foreign_trade_prepare(&w, &game->move_rng, colony_id, unit_id, hold, &deal)) {
+    return;
+  }
+  PopupMsgTokens tok;
+  memset(&tok, 0, sizeof(tok));
+  tok.string1 = reports_cargo_display_name(deal.sold_cargo);
+  tok.number1 = deal.sold_qty;
+  /* @TRADENOWANT prints the refused cargo as %NUMBER0 %STRING0 (raw 99042-99048). */
+  tok.string0 = tok.string1;
+  tok.number0 = deal.sold_qty;
+  if (deal.offer_cargo < 0) {
+    game_foreign_trade_refuse(
+      game, "TRADENOWANT", &tok,
+      "\"We are not interested in your {%NUMBER0 %STRING0}.  Come back when "
+      "you have something better to offer.\"");
+    return;
+  }
+  tok.string0 = reports_cargo_display_name(deal.offer_cargo);
+  tok.number0 = deal.offer_qty;
+  tok.number2 = deal.gold;
+  char body[AI_POPUP_BODY_LEN];
+  popup_msg_fill(
+    &game->messages, "TRADEWITH", &tok,
+    "\"We will give you {%NUMBER0 %STRING0} in exchange for your %NUMBER1 %STRING1.  "
+    "Or, if you like, we are willing to give you {%NUMBER2$}.  Is this satisfactory?\"",
+    body, sizeof(body)
+  );
+  char choices[AI_POPUP_CHOICE_MAX][AI_POPUP_CHOICE_LEN];
+  const ColonizeMsgSection* sec = assets_msg_find(&game->messages, "TRADEWITH");
+  const int nch = popup_msg_choices(sec, choices, AI_POPUP_CHOICE_MAX);
+  char c0[AI_POPUP_CHOICE_LEN];
+  char c1[AI_POPUP_CHOICE_LEN];
+  popup_msg_apply_tokens(
+    c0, sizeof(c0), nch >= 1 ? choices[0] : "We'll take the {%NUMBER0 %STRING0}.", &tok
+  );
+  popup_msg_apply_tokens(
+    c1, sizeof(c1), nch >= 2 ? choices[1] : "Just give us the {%NUMBER2$}.", &tok
+  );
+  const char* labels[3] = {c0, c1, nch >= 3 ? choices[2] : "Do you take us for fools?"};
+  const int ids[3] = {1, 2, 3};
+  if (ai_popup_enqueue_choice_ctx(
+        &game->ai_popups, AI_POPUP_TAG_FOREIGN_TRADE_OFFER, unit_id, colony_id, hold, NULL,
+        body, labels, ids, 3
+      )) {
+    game->foreign_trade_unit = unit_id;
+    game->foreign_trade_colony = colony_id;
+    game->foreign_trade_hold = hold;
+    game->foreign_trade_deal = deal;
+    (void)ai_popup_present_now(&game->ai_popups, AI_POPUP_TAG_FOREIGN_TRADE_OFFER);
+  }
+}
+
+/*
+ * FUN_5f7a_020e head. Returns true when the step is consumed (DOS: 020e always
+ * returns 1, so the unit never enters and loses its whole allotment).
+ */
+bool game_foreign_trade_open(
+  ColonizeGameState* game, int unit_id, int colony_id, int dest_x, int dest_y
+) {
+  ColonizeWorld w = game_foreign_trade_world(game);
+  const ColonizeForeignTradeGate gate =
+    colonies_foreign_trade_gate(&w, colony_id, unit_id);
+  if (gate == COLONIZE_FTRADE_NONE) {
+    return false;
+  }
+  /* Already asking about this unit — hold the step, do not stack a second menu. */
+  for (int qi = -1; qi < game->ai_popups.queue_count; ++qi) {
+    const AiPopupRequest* r = qi < 0 ? &game->ai_popups.current : &game->ai_popups.queue[qi];
+    if (qi < 0 && !game->ai_popups.open) {
+      continue;
+    }
+    if ((r->tag == AI_POPUP_TAG_FOREIGN_TRADE_WHICH ||
+         r->tag == AI_POPUP_TAG_FOREIGN_TRADE_OFFER) &&
+        r->nation_a == unit_id) {
+      set_status(game, "Trading…", NULL);
+      return true;
+    }
+  }
+  ColonizeUnit* u = units_get(&game->units, unit_id);
+  const ColonizeColony* col = colonies_get(&game->colonies, colony_id);
+  if (!u || !col) {
+    return false;
+  }
+  /* The move is over either way (FUN_281f_0934 spends the whole allotment). */
+  u->moves = 0;
+  if (units_orders_follow_goto(u->orders)) {
+    units_clear_orders(&game->units, unit_id);
+  }
+  (void)dest_x;
+  (void)dest_y;
+  PopupMsgTokens tok;
+  memset(&tok, 0, sizeof(tok));
+  switch (gate) {
+    case COLONIZE_FTRADE_ATWAR:
+      game_foreign_trade_refuse(
+        game, "TRADEATWAR", NULL,
+        "Ships and wagon trains cannot enter the colonies of foreign powers "
+        "with whom you are at war or with whom you have not yet established contact.");
+      break;
+    case COLONIZE_FTRADE_MERCANTILISM:
+      /* %STRING0 = @LEADER2[owner] (FUN_2a1f_0618(0, 0x1aab, owner), raw 98931). */
+      tok.string0 = game_foreign_trade_leader2(game, col->nation_id);
+      game_foreign_trade_refuse(
+        game, "TRADEMERCANTILISM", &tok,
+        "\"In the interests of {Mercantilism}, %STRING0 has ordered us not to trade "
+        "with foreign merchants.  We must therefore ask you to go away please.\"");
+      break;
+    case COLONIZE_FTRADE_NOCARGO:
+      game_foreign_trade_refuse(
+        game, "TRADENOCARGO", NULL,
+        "\"You have brought nothing with you to trade with us.  Please come back "
+        "when you have something useful to offer.\"");
+      break;
+    case COLONIZE_FTRADE_OK:
+    default: {
+      /* raw 98938-98962: one hold deals straight through; several ask which. */
+      const int holds = units_goods_hold_count(&game->units, unit_id);
+      int rows = 0;
+      char labels_buf[AI_POPUP_CHOICE_MAX][AI_POPUP_CHOICE_LEN];
+      const char* labels[AI_POPUP_CHOICE_MAX];
+      int ids[AI_POPUP_CHOICE_MAX];
+      int only_hold = -1;
+      for (int h = 0; h < holds && rows < AI_POPUP_CHOICE_MAX - 1; ++h) {
+        const int amt = units_hold_amount(&game->units, unit_id, h);
+        if (amt <= 0) {
+          continue;
+        }
+        only_hold = h;
+        snprintf(
+          labels_buf[rows], sizeof(labels_buf[rows]), "%d %s", amt,
+          reports_cargo_display_name(u->hold_goods_type[h])
+        );
+        labels[rows] = labels_buf[rows];
+        ids[rows] = h + 1; /* DOS rows are 1-based (raw 98953) */
+        rows++;
+      }
+      if (rows <= 0) {
+        break;
+      }
+      if (rows == 1) {
+        game_foreign_trade_price_hold(game, unit_id, colony_id, only_hold);
+        break;
+      }
+      /* PARK: DOS's cancel row text is DS:0x2dfa, a runtime string slot. */
+      snprintf(labels_buf[rows], sizeof(labels_buf[rows]), "Never mind.");
+      labels[rows] = labels_buf[rows];
+      ids[rows] = 99; /* raw 98957: id 99 = cancel */
+      rows++;
+      char body[AI_POPUP_BODY_LEN];
+      popup_msg_fill(
+        &game->messages, "TRADEWHICH", NULL,
+        "Which cargo shall we offer to trade, Your Excellency?", body, sizeof(body)
+      );
+      if (ai_popup_enqueue_choice_ctx(
+            &game->ai_popups, AI_POPUP_TAG_FOREIGN_TRADE_WHICH, unit_id, colony_id,
+            dest_x | (dest_y << 8), NULL, body, labels, ids, rows
+          )) {
+        (void)ai_popup_present_now(&game->ai_popups, AI_POPUP_TAG_FOREIGN_TRADE_WHICH);
+      }
+      break;
+    }
+  }
+  set_status(game, "Trading…", NULL);
+  game_after_unit_action(game);
+  return true;
+}
+
 /* Pre-move native interceptions: village entry, @WHACKINDIANS and the
  * @INDIANLAND land-demand prompt. */
 COLONIZE_INTERNAL GameMoveStep game_move_native_prompts(
@@ -5638,6 +5856,54 @@ COLONIZE_INTERNAL GameMoveStep game_move_native_prompts(
           return GAME_MOVE_RETURN_TRUE;
         }
       }
+    }
+  }
+  /*
+   * FUN_5f7a_0662's second arm (raw 99060-99062): a unit whose @UNIT cargo
+   * column (DS:0x5237) is non-zero — every Wagon Train and every ship — bumping
+   * a foreign Euro colony runs FUN_5f7a_020e instead of entering.
+   * docs/foreign_colony_trade.md.
+   */
+  if (game->col1_ok) {
+    const ColonizeUnitType* tty = units_type(&game->units, selected->type_index);
+    const bool is_scout = tty && strcmp(tty->name, "Scouts") == 0; /* DOS type 5 → 000e */
+    const int cid = colonies_id_at(&game->colonies, dest_x, dest_y);
+    const ColonizeColony* col = colonies_get(&game->colonies, cid);
+    if (!is_scout && col && col->active && col->nation_id >= 0 && col->nation_id <= 3 &&
+        col->nation_id != selected->nation_id &&
+        units_goods_hold_count(&game->units, sid) > 0 &&
+        game_foreign_trade_open(game, sid, cid, dest_x, dest_y)) {
+      return GAME_MOVE_RETURN_TRUE;
+    }
+  }
+  /*
+   * FUN_5f7a_0662 tail (raw 99069-99080): during the War of Independence a
+   * human-controlled Euro unit may not step onto the colony of a Euro power
+   * that is neither human-controlled nor the Crown — @NOWARSDURINGREV
+   * (DS:0x1af3), abort, full allotment spent.
+   */
+  if (game->col1_ok && game->col1.head.game_options.woi && selected->nation_id >= 0 &&
+      selected->nation_id <= 3 && game->col1.player[selected->nation_id].control == 0) {
+    const int cid = colonies_id_at(&game->colonies, dest_x, dest_y);
+    const ColonizeColony* col = colonies_get(&game->colonies, cid);
+    const int owner = col && col->active ? col->nation_id : -1;
+    if (owner >= 0 && owner != selected->nation_id &&
+        !(owner <= 3 && game->col1.player[owner].control == 0) &&
+        owner != (int)game->col1.head.crown_nation_id) {
+      char body[AI_POPUP_BODY_LEN];
+      popup_msg_fill(
+        &game->messages, "NOWARSDURINGREV", NULL,
+        "Foreign colonies cannot be attacked during the {War of Independence}.",
+        body, sizeof(body)
+      );
+      ai_popup_enqueue_ok(&game->ai_popups, AI_POPUP_TAG_INFO, NULL, body);
+      (void)ai_popup_present_now(&game->ai_popups, AI_POPUP_TAG_INFO);
+      selected->moves = 0;
+      if (units_orders_follow_goto(selected->orders)) {
+        units_clear_orders(&game->units, sid);
+      }
+      game_after_unit_action(game);
+      return GAME_MOVE_RETURN_TRUE;
     }
   }
   return GAME_MOVE_CONTINUE;

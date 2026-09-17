@@ -7284,12 +7284,13 @@ ColonizeEnterReason units_enter_probe_w(
         g_units_last_enter_reason = COLONIZE_ENTER_DOCK;
         return g_units_last_enter_reason;
       }
-      if (col && col->active && col->nation_id >= 0 && col->nation_id <= 3 && g_units_ff_col1 &&
-          founding_fathers_de_witt_allows_foreign_colony_trade(g_units_ff_col1, mover_nation) &&
-          !ai_diplo_at_war(g_units_ff_col1, mover_nation, col->nation_id)) {
-        g_units_last_enter_reason = COLONIZE_ENTER_DOCK;
-        return g_units_last_enter_reason;
-      }
+      /*
+       * A foreign colony is NEVER enterable, Jan de Witt or not: DOS
+       * FUN_465b_0000 (raw 75491-75500) hands the step to FUN_5f7a_0662,
+       * which trades from outside and aborts the move. The "de Witt docks in
+       * a foreign port" arm that used to sit here was a fandom invention.
+       * See docs/foreign_colony_trade.md.
+       */
       if (col && col->active) {
         g_units_last_enter_reason = COLONIZE_ENTER_BLOCKED;
         return g_units_last_enter_reason;

@@ -238,7 +238,7 @@ Appendices and exhaustive `@SECTION` reference for [popups.md](popups.md).
 | `@BRING` | Done (structural) | `2820` `LAB_002e92` entry: sold good not in the top-2 asks (or empty-handed unit) → "we are in need of X and Y" (2026-08-29) |
 | `@DEFICIT` | Missing | deep village trade 2820 PARKED |
 | `@BUYWHICH` | Done (structural) | `2820` `LAB_002e92` human pick of 3 tribe goods → `ai_contact_enqueue_buywhich`; only after a completed sale, qty = the sold hold's amount (2026-08-29) |
-| `@TRADEWHICH` | Missing | deep village trade 2820 PARKED |
+| `@TRADEWHICH` | Done | two DS ids share the name: `0x1556` (village trade 2820, PARKED) and `0x1ad2`, the foreign-colony hold pick of `FUN_5f7a_020e` — `AI_POPUP_TAG_FOREIGN_TRADE_WHICH` (game_loop.c), docs/foreign_colony_trade.md |
 | `@BUY0` | Done (structural) | `2820` `LAB_002e92` Accept / fairer / Never mind → `ai_contact_apply_buywhich`/`apply_buy0`; treasury shown in the accept row (2026-08-29) |
 | `@BUY1` | Done (structural) | `2820` buy-side haggle re-ask (tag built at runtime `"BUY"+digit`) (2026-08-27) |
 | `@NOTENOUGH` | Done (structural) | `2820` `LAB_002e92` can't-afford line on Accept, alarm +1 (2026-08-29) |
@@ -421,7 +421,7 @@ Appendices and exhaustive `@SECTION` reference for [popups.md](popups.md).
 | `@EUROPENOTAVAIL` | Done | 2026-09-16: `game_try_enter_europe` (`game_loop.c`) now renders the real GAME.TXT body + `AI_POPUP_TAG_INFO` OK popup on WoI-blocked entry, same pattern as `@FOREIGNNOTAVAIL`/`game_open_report`; previously only set a bare status string |
 | `@FOREIGNNOTAVAIL` | Done | F8 Foreign Affairs is withdrawn once the WoI has begun — `FUN_3f41_2548` raw :70792 (`0x5382 & 1`); `reports_is_available` + the `game_open_report` popup, 2026-09-08 |
 | `@EUROPENOTLEAVE` | Done | DOS site confirmed 2026-09-16: `viceroy_overlays.asm` OVL08_L0040 raw :0x13fd LEA gated by `TEST byte[0x5382],1` (WoI bit) — same bit the port tests in `game_ship_sail_to_europe`/lane-entry gates (`game_loop.c` ~10263-10389), `"EUROPENOTLEAVE"` `popup_msg_fill` sites |
-| `@NOWARSDURINGREV` | Partial | FUN_5f7a_0662 (raw :99053+, asm 5f7a:06c8), the shared wrapper FUN_465b_0000 calls when ANY unit steps onto a foreign colony tile during WoI and the meet/infiltrate call did nothing — gates the general move-onto-colony dispatch, not just the Scout menu; unported (large subsystem: FUN_465b_0000's colony-tile branch isn't wired to call the 5f7a meet/infiltrate pair for non-Scout units at all) |
+| `@NOWARSDURINGREV` | Done | `FUN_5f7a_0662` tail (raw 99069-99080, asm 5f7a:06c8): during the WoI a human-controlled Euro unit stepping onto the colony of a Euro power that is neither human-controlled nor the Crown is refused, abort + full allotment spent. Wired in `game_move_native_prompts` (game_loop.c) alongside the foreign-trade dispatch, docs/foreign_colony_trade.md |
 | `@NOCOLONIESEITHER` | n/a | no asm PUSH/LEA site found for this id (absent from `docs/popup_tag_ids.md`'s asm-scanned table, unlike its GAME.TXT neighbor `@NOWARSDURINGREV` at 0x1af3); dead text in GAME.TXT |
 | `@NOMAYORSDURINGREV` | Done | FUN_5f7a_000e Meet-With-Mayor WoI refusal (raw :98838) — `game_loop.c` AI_POPUP_TAG_SCOUT_COLONY choice 1 |
 | `@HOWMUCH1` | Done | howmuch colony load |
@@ -449,11 +449,11 @@ Appendices and exhaustive `@SECTION` reference for [popups.md](popups.md).
 | `@SCORED` | Done thin | peacetime year≥1800 — `AI_POPUP_TAG_KING_SCORED`; That's all opens retire score |
 | `@TORYUPRISING` | Done thin | `FUN_43f7_06a6` — `ai_king.c:2597` `popup_msg_fill("TORYUPRISING", …)` with colony name; VGA PARKED |
 | `@CANNOTATTACK` | Done | `game_report_enter_reason` (`game_loop.c`) — real OK popup on `COLONIZE_ENTER_BOUNCE_FOREIGN` when the mover is land (non-combat land unit attacking) |
-| `@TRADEMERCANTILISM` | Missing | deep village trade 2820 PARKED |
-| `@TRADEATWAR` | Missing | deep village trade 2820 PARKED |
-| `@TRADENOCARGO` | Missing | deep village trade 2820 PARKED |
-| `@TRADENOWANT` | Missing | deep village trade 2820 PARKED |
-| `@TRADEWITH` | Missing | deep village trade 2820 PARKED |
+| `@TRADEMERCANTILISM` | Done | `FUN_5f7a_020e` raw 98928-98934 — no Jan de Witt (FF 4); %STRING0 = @GREATLEADER2[owner]. docs/foreign_colony_trade.md |
+| `@TRADEATWAR` | Done | `FUN_5f7a_020e` raw 98924-98927 — no peace treaty with the colony's owner (`FUN_281f_0a38 & 0x40`). docs/foreign_colony_trade.md |
+| `@TRADENOCARGO` | Done | `FUN_5f7a_020e` raw 98935-98936 — transport with no goods holds occupied. docs/foreign_colony_trade.md |
+| `@TRADENOWANT` | Done | `FUN_5f7a_020e` raw 99042-99048 — the colony's warehouse has no affordable counter-offer. docs/foreign_colony_trade.md |
+| `@TRADEWITH` | Done | `FUN_5f7a_020e` raw 99013-99018 — the counter-offer CHOICE (goods / gold / refuse); `AI_POPUP_TAG_FOREIGN_TRADE_OFFER`. docs/foreign_colony_trade.md |
 | `@EXTINCT` | Done | last village razed → `units.c` `col1_destroy_tribe_at` tail (`FUN_4d56_00e0`, tag 0x14d4) — real GAME.TXT body. Confirmed 2026-09-16 |
 | `@MERCENARIES` | Done | ai_popup CHOICE structural |
 | `@MERCS` | Done | ai_popup CHOICE structural |

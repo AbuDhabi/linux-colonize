@@ -2293,6 +2293,41 @@ static bool game_apply_popup_diplo_and_scout(ColonizeGameState* game) {
     set_status(game, "Attack called off", NULL);
   return true;
   }
+  /* FUN_5f7a_020e hold pick (@TRADEWHICH): id 99 / cancel = never mind. */
+  if (game->ai_popups.result_tag == AI_POPUP_TAG_FOREIGN_TRADE_WHICH) {
+    const int unit_id = game->ai_popups.result_nation_a;
+    const int cid = game->ai_popups.result_nation_b;
+    const int choice = game->ai_popups.result_cancelled ? 99 : game->ai_popups.result_choice_id;
+    ai_popup_consume_result(&game->ai_popups);
+    if (choice > 0 && choice != 99) {
+      game_foreign_trade_price_hold(game, unit_id, cid, choice - 1); /* raw 98961 */
+    }
+    return true;
+  }
+  /*
+   * FUN_5f7a_020e offer (@TRADEWITH): 1 = take the goods, 2 = take the gold,
+   * 3 = refuse. DOS's FUN_2a1f_0688 returns 0 on no-choice and falls into the
+   * gold arm; the port maps Esc to refuse instead of paying for a cancel.
+   */
+  if (game->ai_popups.result_tag == AI_POPUP_TAG_FOREIGN_TRADE_OFFER) {
+    const int unit_id = game->ai_popups.result_nation_a;
+    const int cid = game->ai_popups.result_nation_b;
+    const int hold = game->ai_popups.result_payload;
+    const int choice = game->ai_popups.result_cancelled ? 3 : game->ai_popups.result_choice_id;
+    ai_popup_consume_result(&game->ai_popups);
+    if (choice <= 2 && game->foreign_trade_unit == unit_id &&
+        game->foreign_trade_colony == cid && game->foreign_trade_hold == hold) {
+      ColonizeWorld w = world_make(
+        &game->units, &game->colonies, &game->world_map, &game->col1, game->col1_ok, NULL, NULL
+      );
+      (void)colonies_foreign_trade_apply(
+        &w, cid, unit_id, hold, &game->foreign_trade_deal, choice == 1
+      );
+    }
+    game->foreign_trade_unit = -1;
+    set_status(game, "Trade concluded", NULL);
+    return true;
+  }
   if (game->ai_popups.result_tag == AI_POPUP_TAG_SCOUT_COLONY) {
     const int unit_id = game->ai_popups.result_nation_a;
     const int cid = game->ai_popups.result_nation_b;

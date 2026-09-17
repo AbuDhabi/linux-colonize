@@ -420,37 +420,39 @@ bool founding_fathers_revere_should_auto_arm(
  */
 
 /*
- * Franklin elect: clear Euro×Euro WAR with all New World peers (make_peace).
- * Source: docs/fandom_col1994.md — king's European wars no longer affect NW
- * relations; ongoing gate lives in ai_diplo declare / euro_balance.
+ * Pocahontas elect: all native tension → content for this European nation.
+ * DOS FUN_4345_0342 case 0x10 (raw 73093-73113) is TWO separate loops, not
+ * one uniform zero:
+ *   - 8 ColonizeCol1Indian records (0a42 selects DS:0x8d4e base): delta =
+ *     -(alarm_by_player[nation]); when negative, routed through
+ *     FUN_281f_0d6c -> FUN_4cc6_00f2 (ai_diplo_indian_alarm_delta) rather
+ *     than stored directly, so the war/attack-confirmed bit clears and the
+ *     tension-tier update runs exactly as any other alarm cooling would.
+ *     (ai_diplo_indian_alarm_delta only halves POSITIVE deltas — see its own
+ *     comment — so this negative reset always lands the field at exactly 0
+ *     regardless of whether Pocahontas's own FF bit is already set, which it
+ *     is here since elect_commit writes it before apply_effect runs.)
+ *   - tribe_count ColonizeCol1Tribe records (0a4c selects DS:0x8d4a base,
+ *     field +10 = alarm[nation]): unconditional hard zero, no delta call.
  */
-static void effect_franklin_nw_peace(ColonizeCol1Save* col1, int nation_id) {
-  if (!col1 || nation_id < 0 || nation_id >= 4) {
-    return;
-  }
-  for (int peer = 0; peer < 4; ++peer) {
-    if (peer == nation_id) {
-      continue;
-    }
-    if (ai_diplo_at_war(col1, nation_id, peer)) {
-      ai_diplo_make_peace(col1, nation_id, peer);
-    }
-  }
-}
-
-/* Pocahontas elect: all native tension → content for this European nation. */
 static void effect_pocahontas_reset_alarm(ColonizeCol1Save* col1, int nation_id) {
   if (!col1 || nation_id < 0 || nation_id > 3) {
     return;
+  }
+  for (int ind = 0; ind < 8; ++ind) {
+    const int old_v = (int)col1->indian[ind].alarm_by_player[nation_id];
+    if (old_v > 0) {
+      /* ai_diplo_indian_alarm_delta's `indian_nation` is the DOS player-slot
+       * id (4..11), not the 0..7 record index — ai_diplo_indian_slot
+       * subtracts 4 back off. */
+      ai_diplo_indian_alarm_delta(col1, ind + 4, nation_id, -old_v);
+    }
   }
   if (col1->tribe) {
     for (uint16_t i = 0; i < col1->head.tribe_count; ++i) {
       col1->tribe[i].alarm[nation_id].friction = 0;
       col1->tribe[i].alarm[nation_id].attacks = 0;
     }
-  }
-  for (int ind = 0; ind < 8; ++ind) {
-    col1->indian[ind].alarm_by_player[nation_id] = 0;
   }
 }
 
@@ -854,35 +856,6 @@ static void effect_coronado_reveal(
   colonies_reveal_all_for_nation(map, colonies, nation_id);
 }
 
-/*
- * Magellan: permanent naval +1 — bump current sea moves once on elect;
- * turn_refresh_moves_for_nation adds +1 each turn while owned (see turn.c).
- * FUN_48d3_0002 (europe_voyage_turns_roll): every Europe crossing is 1 turn,
- * or 2 when RNG(1,100)>89 && ship_counts[nation]>2 && !Magellan — Magellan
- * removes the delay. The DOS x<3 "west edge" branch only burns RNG + an FF
- * test and discards both, so PEDIA's west-edge wording has no separate code.
- */
-static int effect_magellan_sea_moves(ColonizeUnitPool* units, int nation_id) {
-  if (!units) {
-    return 0;
-  }
-  int bumped = 0;
-  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-    ColonizeUnit* u = &units->units[i];
-    if (!u->active || u->nation_id != nation_id) {
-      continue;
-    }
-    if (!units_is_sea(units, u->id)) {
-      continue;
-    }
-    if (u->moves < 0x7fffffff - UNITS_MP_PER_TILE) {
-      u->moves += UNITS_MP_PER_TILE;
-    }
-    bumped++;
-  }
-  return bumped;
-}
-
 /* La Salle: Stockade when colony population >= 3 (wiki / manual). */
 static int effect_la_salle_stockades(ColonizeColonyPool* colonies, int nation_id) {
   if (!colonies) {
@@ -908,6 +881,34 @@ static int effect_la_salle_stockades(ColonizeColonyPool* colonies, int nation_id
     }
   }
   return touched;
+}
+
+/*
+ * Brebeuf elect: DOS FUN_4345_0342 case 0x16 (raw 73113-73121) sweeps every
+ * village record (0a4c/DS:0x8d4a, tribe_count) and, where mission byte +5 is
+ * present (>=0, i.e. not COL1_TRIBE_MISSION_NONE) and its low nibble equals
+ * this nation, ORs in bit 0x10 (Jesuit-grade). Existing missions upgrade in
+ * place at election; the ongoing per-establish gate
+ * (founding_fathers_brebeuf_missionaries_are_experts, consumed by
+ * ai_contact_is_jesuit_grade) is separately real — confirmed at the mission-
+ * establish site itself, viceroy_overlays.c raw ~75863-75867:
+ * `if (profession==0x18 (Jesuit) || FUN_1000_89a4(nation, 0x16) != 0)` sets
+ * the +5 bit0x10, i.e. DOS tests FF 0x16 (Brebeuf) right there. Both sites
+ * are real and independent; neither substitutes for the other.
+ */
+static void effect_brebeuf_grade_missions(ColonizeCol1Save* col1, int nation_id) {
+  if (!col1 || !col1->tribe || nation_id < 0 || nation_id > 3) {
+    return;
+  }
+  for (uint16_t i = 0; i < col1->head.tribe_count; ++i) {
+    ColonizeCol1Tribe* t = &col1->tribe[i];
+    if ((int8_t)t->mission < 0) {
+      continue;
+    }
+    if ((int)(t->mission & COL1_TRIBE_MISSION_NATION_MASK) == nation_id) {
+      t->mission |= COL1_TRIBE_MISSION_JESUIT_BIT;
+    }
+  }
 }
 
 /*
@@ -1007,13 +1008,29 @@ static int effect_las_casas_assimilate(
       if (!u->active || u->nation_id != nation_id) {
         continue;
       }
+      /*
+       * DOS FUN_4345_0342 case 0x18 map-unit half (raw 73123-73125) gates on
+       * THREE tests together: owner nibble (+0x3147 & 0xf) == nation,
+       * unit TYPE byte (+0x3146) == 0 (the base "Colonists" @UNIT code —
+       * an actual Indian Convert on the map is still type 0, just with
+       * profession 0x1b; a Soldier/Dragoon/etc carrying profession 0x1b as
+       * a former-Convert veteran is NOT touched), and profession (+0x315b)
+       * == 0x1b. Without the type==0 gate this loop reassigned profession
+       * on any unit kind that happened to carry job 27.
+       */
+      const ColonizeUnitType* ut = units_type(units, u->type_index);
       bool changed = false;
-      if (u->profession == COLONIZE_PROF_CONVERT) {
+      if (u->profession == COLONIZE_PROF_CONVERT && units_type_is_colonist(ut)) {
         u->profession = COLONIZE_PROF_FREE_COLONIST;
         changed = true;
       }
-      /* Name-based type swap when a Convert/@JOB display type was used. */
-      const ColonizeUnitType* ut = units_type(units, u->type_index);
+      /*
+       * Name-based type swap when a Convert/@JOB display type was used. Not
+       * itself a DOS field (docs/founding_fathers.c comment above: DOS has
+       * no separate @UNIT "Convert" — Converts are always base Colonists
+       * type + profession 0x1b), so it stays ungated by type==0: it exists
+       * only for synthetic fixtures/content that name a type "Convert".
+       */
       if (ut && free_ty >= 0 &&
           (strstr(ut->name, "Indian Convert") != NULL ||
            strcmp(ut->name, "Convert") == 0 ||
@@ -1177,9 +1194,12 @@ static void apply_effect(
         if (europe) {
           europe->boycott_bitmap = 0;
         }
-        if (col1) {
-          ai_king_latch_set(col1, AI_KING_BOYCOTT_BYTE, 0);
-        }
+        /* No DOS write ties the king's tax-refuse latch (AI_KING_BOYCOTT_BYTE,
+         * a Linux-only bit) to Fugger's elect case — FUN_4345_0342 case 1
+         * (raw 73079-73081) only ever zeroes nation+0x20. The latch
+         * self-clears next king tick via ai_king_sync_boycott_refuse once it
+         * observes boycott_bitmap==0 (ai_king.c), so an explicit clear here
+         * would only race that, not port real behaviour. */
       }
       break;
     case FF_PETER_MINUIT:
@@ -1204,8 +1224,12 @@ static void apply_effect(
        * (stock only; no gold invent). */
       break;
     case FF_FERDINAND_MAGELLAN:
-      /* Manual/wiki: all naval vessels +1 movement (permanent). */
-      (void)effect_magellan_sea_moves(units, nation_id);
+      /* Manual/wiki: all naval vessels +1 movement (permanent). DOS
+       * FUN_4345_0342 (raw 73044-73160) has no `param_2 == 5` case — electing
+       * Magellan bumps nothing by itself. The ongoing per-turn refresh
+       * (turn_refresh_moves_for_nation, turn.c) is the only real site; the
+       * one-shot elect-time bump here was a fandom-sourced invention and is
+       * removed (matches the Franklin/de Soto pattern above). */
       break;
     case FF_FRANCISCO_CORONADO:
       /* Manual/wiki: "all existing colonies and the area around them become
@@ -1283,22 +1307,41 @@ static void apply_effect(
        * Ownership bit; applied in colony_prod_colony_bells_ff via turn nation ticks. */
       break;
     case FF_SIMON_BOLIVAR:
-      /* FUN_15eb_0274: SoL +20% on every read while owned (human).
-       * Display-time via founding_fathers_bolivar_sol_bonus — no storage bump. */
+      /* FUN_15eb_0274: SoL +20% on every read while owned (human) — display-
+       * time via founding_fathers_bolivar_sol_bonus, no storage bump there.
+       * DOS FUN_4345_0342 case 0x12 (raw 73101-73108) is a SEPARATE elect
+       * write: nation<4 && human-controlled (nation*0x34+0x543f)=='\0' ->
+       * rebel_sentiment_report (DS:0x53d0) += 20, clamp <=100. Both are real
+       * and additive (this is a global report field, not per-nation SoL). */
+      if (col1 && nation_id >= 0 && nation_id < 4 &&
+          col1->player[nation_id].control == 0) {
+        int v = (int)col1->head.rebel_sentiment_report + 20;
+        if (v > 100) {
+          v = 100;
+        }
+        col1->head.rebel_sentiment_report = (int16_t)v;
+      }
       break;
     case FF_BENJAMIN_FRANKLIN:
       /* docs/fandom_col1994.md: king's European wars no longer affect NW
        * relations; Europeans in the New World always offer peace.
-       * Elect: make_peace with all Euro peers. Ongoing: ownership gate via
+       * DOS FUN_4345_0342 (raw 73044-73160) has no `param_2 == 19` case at
+       * all — the elect-time make_peace sweep was a fandom-sourced
+       * invention and is removed. Ongoing: ownership gate via
        * founding_fathers_franklin_keeps_nw_peace → ai_diplo declare /
        * euro_balance / war-hit (no gold fiction). FA 3f41 UI PARKED. */
-      effect_franklin_nw_peace(col1, nation_id);
       break;
     case FF_WILLIAM_BREWSTER:
       /* PEDIA @FATHER20: no criminals/servants on docks + recruit pool
        * (effect_brewster_filter_pool); pick-among-pool = 5e52's Brewster
        * branch → FUN_38fd_4884(0,1) @RECRUITCHOOSE, ported as
-       * europe_tick_immigration_pressure()==2 + units_brewster_enqueue_pick. */
+       * europe_tick_immigration_pressure()==2 + units_brewster_enqueue_pick.
+       * DOS gates on no owner test (any elector's `pool bytes 0x19/0x1a ->
+       * 0x1c` in their own +0x13c nation record). The port has only ONE
+       * EuropeScreen instance (human's dock/pool) — no AI Europe model
+       * exists to apply this to (docs/architecture.md; grep confirms no
+       * per-nation EuropeScreen array) — so the human-only gate here is a
+       * port modelling limit, not a DOS mismatch; left as-is. */
       if (nation_id == human_nation) {
         effect_brewster_filter_pool(europe);
       }
@@ -1309,9 +1352,13 @@ static void apply_effect(
       break;
     case FF_JEAN_DE_BREBEUF:
       /* docs/fandom_col1994.md: all missionaries function as experts.
-       * Ownership bit only — no elect crosses fiction. Ongoing gate:
+       * DOS FUN_4345_0342 case 0x16: elect-time sweep upgrades every
+       * existing mission of this nation to Jesuit-grade (bit 0x10) —
+       * effect_brebeuf_grade_missions. Ongoing gate (real, confirmed at the
+       * mission-establish site, see that function's comment):
        * founding_fathers_brebeuf_missionaries_are_experts → ai_contact
        * Jesuit-grade mid convert for plain Missionary. */
+      effect_brebeuf_grade_missions(col1, nation_id);
       break;
     case FF_JUAN_DE_SEPULVEDA:
       /* PEDIA @FATHER23 / fandom: higher chance subjugated Indians convert/join.
@@ -1547,18 +1594,17 @@ void founding_fathers_tick(ColonizeTurnContext* ctx) {
    * quietly costing those colonies yield. The elect-time one-shot stays.
    */
 
-  /* La Salle ownership tick: PEDIA says "existing AND future" colonies get a
-   * Stockade at population 3+. The elect-time sweep (apply_effect) only
-   * catches colonies that already exist at election; re-sweep every turn
-   * while owned so a colony founded later, or one that grows into pop 3
-   * later, still gets the free Stockade (same re-tick shape as Las Casas
-   * above — docs/founding_fathers.md Open item 2). */
-  for (int n = 0; n < (int)COLONIZE_COL1_NATION_COUNT; ++n) {
-    if (!founding_fathers_nation_has(col1, n, FF_SIEUR_DE_LA_SALLE)) {
-      continue;
-    }
-    (void)effect_la_salle_stockades(ctx->colonies, n);
-  }
+  /*
+   * No La Salle ownership tick either. DOS FUN_4345_0342's `param_2 == 9`
+   * sweep runs only once, at elect (raw 73084-73092: owner+pop>2 -> stockade
+   * over every existing colony). Future growth across pop 3, or a colony
+   * founded after election, gets the grant from the admit-time body instead
+   * (FUN_15eb, raw ~11312: pop>2 && !WoI && FF 9 on a Join/birth admit) — see
+   * founding_fathers_la_salle_check's callers in colony.c and turn.c. There
+   * is no per-turn re-sweep site in the decomp; the old one here was a
+   * PEDIA-wording invention (same defect class as the retired Las Casas tick
+   * above) and is removed.
+   */
 }
 
 void founding_fathers_tick_human_elect(ColonizeTurnContext* ctx) {

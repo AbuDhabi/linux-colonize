@@ -29,7 +29,7 @@
  * (starve/spoil/built/…) before the blocking presenter can drain any of it —
  * a large empire overflows 16 and enqueue drops the popup silently. */
 #define AI_POPUP_QUEUE_MAX 32
-#define AI_POPUP_CHOICE_MAX 6
+#define AI_POPUP_CHOICE_MAX 8 /* @TRADEWHICH: up to 6 holds + "never mind" */
 #define AI_POPUP_BODY_LEN 512
 #define AI_POPUP_TITLE_LEN 64
 /* Keep ≥ POPUP_MSG_CHOICE_LEN (GAME.TXT @DECLARE Never… is 53 chars). */
@@ -162,7 +162,16 @@ typedef enum AiPopupTag {
                                  * 1 = "Pay {%NUMBER0$}." (DOS row 2), 2 / Esc =
                                  * "This is taxation without representation! Unfair!".
                                  * nation_a = human nation, nation_b = cargo type,
-                                 * payload = back-tax cost in gold. */
+                                 * payload = back-tax cost in gold. */,
+  AI_POPUP_TAG_FOREIGN_TRADE_WHICH = 67, /* FUN_5f7a_020e @TRADEWHICH (DS:0x1ad2): which
+                                 * hold to offer a foreign colony. nation_a = unit id,
+                                 * nation_b = colony id, payload = dest tile (x | y<<8);
+                                 * choice ids are hold_index + 1, 99 = never mind. */
+  AI_POPUP_TAG_FOREIGN_TRADE_OFFER = 68 /* FUN_5f7a_020e @TRADEWITH (DS:0x1ae9): the
+                                 * colony's counter-offer. 1 = take the goods, 2 = take
+                                 * the gold, 3 / Esc = refuse. nation_a = unit id,
+                                 * nation_b = colony id, payload = hold index. The deal
+                                 * itself rides ColonizeGameState.foreign_trade. */
 } AiPopupTag;
 
 typedef struct AiPopupRequest {
