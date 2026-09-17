@@ -227,6 +227,8 @@ void game_emit_warehouse_full(
     &game->colonies, col, cargo_type, cargo_name, deposited, already_included, &game->ai_popups,
     &game->messages
   );
+  /* Raised from inside the colony screen: open on the spot, not at close. */
+  game_colony_present_now(game, AI_POPUP_TAG_INFO);
 }
 
 /*
