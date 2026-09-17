@@ -808,8 +808,10 @@ int ai_contact_try_first_welcome(ColonizeTurnContext* ctx, int euro_nation, int 
     return 0;
   }
   /* DOS OR bit 0x20 before dialog; accept ORs PEACE 0x40 → euro_diplo 0x60
-   * (96 in seed-100 TURN3+ goldens). Relation set by accept (96) / reject (1). */
-  ind->euro_diplo[euro_nation] = (uint8_t)(ind->euro_diplo[euro_nation] | 0x20u);
+   * (96 in seed-100 TURN3+ goldens). Relation set by accept (96) / reject (1).
+   * raw 96619: `caseD_10(euro, indian, 0x20)` = FUN_15b3_0066 or_both, so the
+   * Euro-side row gets MET here too, reject or not (2026-09-17). */
+  ai_diplo_or_both(ctx->col1, indian_nation, euro_nation, COL1_INDIAN_MET_BIT);
 
   if (ai_contact_euro_is_human(ctx, euro_nation) && ctx->ai_popups) {
     ai_contact_enqueue_welcome(ctx, euro_nation, indian_nation);
