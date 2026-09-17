@@ -235,6 +235,50 @@ int main(void) {
       (eu_brew.pool[0].profession == 26 || strstr(eu_brew.pool[0].name, "Criminal"))) {
     return fail("Brewster left criminal in pool");
   }
+  /* AI elector: DOS FUN_4345_0342 case 0x14 (raw 73160-73168) rewrites the
+   * ELECTING nation's own recruit[3] bytes with no human gate. Elect
+   * Brewster for an AI nation (id 1) and check recruit[] substitution;
+   * the human's EuropeScreen pool (nation 0) must be untouched. */
+  {
+    ColonizeCol1Save acol1;
+    col1_save_init(&acol1);
+    for (int i = 0; i < (int)COLONIZE_COL1_FF_COUNT; ++i) {
+      acol1.head.founding_father[i] = -1;
+    }
+    ColonizeCol1Nation* ai_nat = &acol1.nation[1];
+    memset(ai_nat, 0, sizeof(*ai_nat));
+    ff_test_calendar(&acol1);
+    acol1.player[1].control = 1; /* AI-controlled */
+    ai_nat->liberty_bells_total = 48;
+    ai_nat->next_founding_father = FF_WILLIAM_BREWSTER;
+    ai_nat->recruit[0] = 0x19; /* Indentured Servant */
+    ai_nat->recruit[1] = 0x1a; /* Petty Criminal */
+    ai_nat->recruit[2] = 0x18; /* Jesuit Missionaries - untouched */
+    EuropeScreen eu_human;
+    memset(&eu_human, 0, sizeof(eu_human));
+    eu_human.pool[0].profession = 26;
+    eu_human.pool[0].filled = true;
+    ColonizeTurnContext actx;
+    memset(&actx, 0, sizeof(actx));
+    actx.human_nation = 0;
+    actx.col1 = &acol1;
+    actx.col1_ok = true;
+    actx.europe = &eu_human;
+    ff_tick(&actx);
+    if (!founding_fathers_nation_has(&acol1, 1, FF_WILLIAM_BREWSTER)) {
+      return fail("Brewster AI elect");
+    }
+    if (ai_nat->recruit[0] != 0x1c || ai_nat->recruit[1] != 0x1c) {
+      return fail("Brewster AI recruit[] not substituted to 0x1c");
+    }
+    if (ai_nat->recruit[2] != 0x18) {
+      return fail("Brewster AI recruit[] touched a non-servant/criminal slot");
+    }
+    if (eu_human.brewster_no_criminals) {
+      return fail("Brewster AI elect must not touch human EuropeScreen mirror");
+    }
+  }
+
   /* Dock Indentured → Free Colonists (starters may predate elect). */
   {
     EuropeScreen eu_dock;

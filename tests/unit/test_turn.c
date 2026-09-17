@@ -4635,9 +4635,11 @@ int main(void) {
   }
 
   /*
-   * AI Euro crosses: +2 /turn; threshold → Free Colonist spawn PARKED
-   * (seed-100 TURN goldens sit at needed without convert).
-   * Cite: turn.c nation ticks; nation_ticks_bells_ff.md.
+   * AI Euro crosses: the DOS FUN_38fd_5e52 tick runs for AI nations too —
+   * +2 a turn, and on `needed < current` one recruit[] slot becomes a real
+   * unit parked in the Europe limbo (FUN_38fd_0718), the slot is refilled
+   * (FUN_38fd_46d4), crosses are zeroed and nation_flags 0x40 latches.
+   * Cite: europe.c europe_nation_immigration_tick_w; viceroy 68539-68620.
    */
   {
     ColonizeUnitPool units;
@@ -4664,26 +4666,47 @@ int main(void) {
 
     ColonizeTurnResult out;
     memset(&out, 0, sizeof(out));
+    col1.nation[1].recruit[0] = UNITS_JOB_COLONIST;
+    col1.nation[1].recruit[1] = UNITS_JOB_COLONIST;
+    col1.nation[1].recruit[2] = UNITS_JOB_COLONIST;
     turn_run_nation_ticks(&ctx, &out);
-    /* PARKED spawn: no immigrant; crosses still get AI +2 → 10/8. */
-    if (out.immigrants_arrived != 0) {
+    /* 8 + 2 > 8 → arrival: crosses zeroed, 0x40 latched, one unit in limbo. */
+    if (col1.nation[1].needed_crosses != 8 || col1.nation[1].current_crosses != 0) {
       fprintf(
         stderr,
-        "AI immigrant PARKED: want 0 arrived got %d\n",
-        out.immigrants_arrived
-      );
-      return 1;
-    }
-    if (col1.nation[1].needed_crosses != 8 || col1.nation[1].current_crosses != 10) {
-      fprintf(
-        stderr,
-        "AI crosses want 10/8 got %u/%u\n",
+        "AI crosses want 0/8 got %u/%u\n",
         (unsigned)col1.nation[1].current_crosses,
         (unsigned)col1.nation[1].needed_crosses
       );
       return 1;
     }
-    fprintf(stderr, "AI crosses +2 (immigrant spawn PARKED) ok\n");
+    if ((col1.nation[1].nation_flags & 0x40u) == 0u) {
+      fprintf(stderr, "AI immigrant: nation_flags 0x40 not latched\n");
+      return 1;
+    }
+    int in_limbo = 0;
+    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+      const ColonizeUnit* u = &units.units[i];
+      if (u->active && u->nation_id == 1 && (u->x >= 200 || u->y >= 200)) {
+        in_limbo++;
+      }
+    }
+    if (in_limbo != 1) {
+      fprintf(stderr, "AI immigrant: want 1 unit in Europe limbo got %d\n", in_limbo);
+      return 1;
+    }
+    /* Second tick: the drain rule (584a *param_2) now sees that colonist. */
+    const uint16_t before = col1.nation[1].current_crosses;
+    turn_run_nation_ticks(&ctx, &out);
+    if (col1.nation[1].current_crosses != before) {
+      fprintf(
+        stderr,
+        "AI crosses drain: want %u got %u\n",
+        (unsigned)before, (unsigned)col1.nation[1].current_crosses
+      );
+      return 1;
+    }
+    fprintf(stderr, "AI crosses immigrant arrival + dock drain ok\n");
   }
 
   /* 5e52 phase 4 immigration pressure thin. */

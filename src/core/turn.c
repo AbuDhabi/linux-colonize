@@ -2474,31 +2474,31 @@ void turn_run_nation_ticks(ColonizeTurnContext* ctx, ColonizeTurnResult* out) {
       if (nb > 0) {
         founding_fathers_accrue_bells(n, (unsigned)nb);
       }
+      /*
+       * AI Euro: the full DOS FUN_38fd_5e52 tick (584a needed + the +2/-2
+       * crosses tick, and on a crossing a real immigrant out of the nation's
+       * own recruit[3] pool, parked in the Europe limbo for the AI's own
+       * 5d04/ship logic to load). Silent — every popup in 5e52 is gated on
+       * control == 0. Was a flat "+2, spawn PARKED" stub.
+       *
+       * Order matters and is DOS's: FUN_3844_00f2 calls 5e52 (FUN_291f_0a90,
+       * :58375) BEFORE the per-colony tick FUN_291f_0950 (:58384), so the
+       * threshold test sees last turn's crosses plus only the 584a +2 — this
+       * turn's church output lands after it. test-saves-ai TURN6→7 nation[3]
+       * 12 → 14 (14 < 14 is false, no arrival) → 15 with the colony cross;
+       * adding the colony crosses first would have spawned an immigrant DOS
+       * did not spawn (and did spawn, in the first cut of this port).
+       */
+      if (n != ctx->human_nation) {
+        const ColonizeWorld w = world_from_turn_ctx(ctx);
+        (void)europe_nation_immigration_tick_w(&w, n);
+      }
       {
         unsigned cur = (unsigned)nat->current_crosses + (unsigned)nc;
         if (cur > 65535u) {
           cur = 65535u;
         }
         nat->current_crosses = (uint16_t)cur;
-      }
-      /*
-       * AI Euro: same 584a needed +2 as human (Free Colonist spawn PARKED).
-       * Cite: nation_ticks_bells_ff.md; TURN1–7 goldens (needed≈14 early).
-       */
-      if (n != ctx->human_nation) {
-        const int score = europe_compute_immigration_score_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(ctx->units), .colonies=(ColonizeColonyPool*)(ctx->colonies), .col1=(ColonizeCol1Save*)(ctx->col1), .col1_ok=((ctx->col1) != NULL)}, n);
-        int need = score > 0 ? score : TURN_AI_DEFAULT_NEEDED_CROSSES;
-        if (need > 65535) {
-          need = 65535;
-        }
-        nat->needed_crosses = (uint16_t)need;
-        {
-          unsigned cur = (unsigned)nat->current_crosses + 2u;
-          if (cur > 65535u) {
-            cur = 65535u;
-          }
-          nat->current_crosses = (uint16_t)cur;
-        }
       }
       /* Human Europe screen is authoritative for human nation counters. */
       if (n == ctx->human_nation && ctx->europe) {

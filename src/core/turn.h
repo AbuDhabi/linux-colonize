@@ -30,8 +30,6 @@
 #define TURN_BIANNUAL_YEAR 1600
 #define TURN_FOOD_PER_COLONIST 2
 #define TURN_DEFAULT_NEEDED_CROSSES 9
-/* AI Euro immigrant threshold seed (ai_euro_nation_turn / Col1 rivals). */
-#define TURN_AI_DEFAULT_NEEDED_CROSSES 14
 
 typedef struct ColonizeTurnContext {
   uint32_t* turn_number;

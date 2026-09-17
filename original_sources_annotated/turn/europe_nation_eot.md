@@ -123,6 +123,28 @@ first dock immigrant (TURN5–7 stay 0 without churches); church crosses add to
 `current` before the tick; spawn when `current > needed`. Separate
 `immigration_pressure` fields are mirrors only.
 
+**AI nations (2026-09-17).** `00f2` calls `0a90` = `5e52` for every nation with
+`control != 2` (**6392-6394**), and every gate inside `5e52` that mentions
+`control == 0` is chrome (sound **68563**, `@…` popup **68590**, the 0x14c
+follow-up **68603**) — so an AI nation runs the whole tick silently:
+`europe_nation_immigration_tick_w` (`src/core/europe.c`), driven from
+`turn_run_nation_ticks`. Its pool is the nation record's own `recruit[3]`
+(nation+2..+4), refilled by `europe_nation_refill_pool_slot` (= `46d4`, which
+substitutes difficulty 1 for a non-human bound nation, **64627-64633**), and the
+immigrant is a real unit record parked in the port's Europe limbo by
+`europe_nation_harbor_spawn` (= `0718`, **59098-59147**) — the same limbo
+5d04's purchases use, so the AI's existing ship logic picks it up. Brewster
+(FF 0x14) routes to `4884(0,1)`, which for a non-human nation takes **slot 1**
+(**64750**), costs nothing, zeroes `+0x2e`, refills with `46d4(0)` and neither
+bumps `recruit_count` nor latches `nation_flags` 0x40.
+
+**Order trap:** `00f2` runs `5e52` **before** the per-colony tick `0950`
+(:58375 vs :58384), so the threshold test sees last turn's crosses plus only
+`584a`'s +2 — this turn's church output lands afterwards. `test-saves-ai`
+TURN6→7 nation[3] proves it: 12 → 14 (`14 < 14` false, **no** arrival, pool and
+`nation_flags` untouched, unit count 43) → 15 once the colony cross is added.
+Adding colony crosses first spawns an immigrant DOS did not spawn.
+
 ### Phase 5 — dock immigrant vs Recruit
 
 Gate: **`+0x30 < +0x2e`** (**68568**).

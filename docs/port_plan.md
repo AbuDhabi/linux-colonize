@@ -471,6 +471,19 @@ list, not from the inventory.
 
 ### Residual punch list (all that is genuinely open AI-side, 2026-09-08)
 
+- [x] **AI cross-driven immigration** — ported 2026-09-17. DOS `3844_00f2`
+  runs `5e52` for every `control != 2` nation (raw 6392-6394) and gates only
+  its chrome on `control == 0`, so AI nations do get immigrants: the port's
+  flat "+2, spawn PARKED" stub in `turn.c` is now
+  `europe_nation_immigration_tick_w` (europe.c) — `584a` needed + tick, pool =
+  the nation record's own `recruit[3]`, refill = `46d4`
+  (`europe_nation_refill_pool_slot`, shared roll with the human screen via an
+  `EuropePoolView`), arrival = `0718` (`europe_nation_harbor_spawn`) parking a
+  real unit in the Europe limbo the AI's 5d04/ship logic already services.
+  Brewster takes slot 1, free, no `recruit_count` bump, no 0x40 latch.
+  Order is DOS's: `5e52` **before** the colony tick `0950` — proven by
+  test-saves-ai TURN6→7 nation[3] 12 → 14 (no arrival) → 15.
+
 - [x] **Brave vs human-Artillery auto-loss** — ported 2026-09-08c
   (`units_combat_brave_vs_human_arty`, units.c; the raid-handoff `param_4`
   latch replaced an over-broad name match). See combat.md.
