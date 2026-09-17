@@ -1027,25 +1027,68 @@ int colonies_transfer_from_unit_amount(
 );
 
 /*
- * Jan de Witt: transfer cargo between a transport and a *foreign* European
- * colony (stock only — no gold/price). Requires
- * founding_fathers_de_witt_allows_foreign_colony_trade for the unit's nation,
- * unit on the colony tile, foreign Euro owner, and !ai_diplo_at_war.
- * Cite: docs/fandom_col1994.md Jan de Witt. AI wagon/ship act in ai_euro §2d4.
+ * Foreign-colony trade — DOS FUN_5f7a_020e (raw 98885-99051). The Jan de Witt
+ * (FF 4) mechanic, and the ONLY one: a human-controlled Euro nation's cargo
+ * unit bumping a foreign Euro colony haggles one hold away for gold or barter,
+ * never enters, and always loses its whole MP allotment.
+ * Spec: docs/foreign_colony_trade.md.
  */
-int colonies_de_witt_transfer_from_colony_w(
+typedef enum ColonizeForeignTradeGate {
+  COLONIZE_FTRADE_NONE = 0,     /* not a trade situation — no dialog at all */
+  COLONIZE_FTRADE_ATWAR,        /* @TRADEATWAR — no peace treaty (rel & 0x40 clear) */
+  COLONIZE_FTRADE_MERCANTILISM, /* @TRADEMERCANTILISM — no Jan de Witt */
+  COLONIZE_FTRADE_NOCARGO,      /* @TRADENOCARGO — unit +0x3150 == 0 */
+  COLONIZE_FTRADE_OK            /* pick a hold and deal */
+} ColonizeForeignTradeGate;
+
+/*
+ * raw 98915-98936. `unit_id` must stand on / be stepping onto the tile of
+ * `foreign_colony_id`; the caller (the move handler) owns that test, as DOS's
+ * FUN_465b_0000 does.
+ */
+ColonizeForeignTradeGate colonies_foreign_trade_gate(
   const ColonizeWorld* w,
   int foreign_colony_id,
-  int unit_id,
-  int cargo_type,
-  int amount
+  int unit_id
 );
-int colonies_de_witt_transfer_to_colony_w(
+
+typedef struct ColonizeForeignTradeDeal {
+  int sold_cargo;  /* @CARGO index in the chosen hold */
+  int sold_qty;
+  int gold;        /* the gold offer (>= 1) */
+  int offer_cargo; /* counter-offer @CARGO index, -1 = none → @TRADENOWANT */
+  int offer_qty;
+} ColonizeForeignTradeDeal;
+
+/*
+ * raw 98963-99012: price the hold and find the colony's best counter-offer.
+ * Draws once from `rng` (FUN_281f_04d4(10, (difficulty+1)*12)) unless the WoI
+ * intervention-ally arm applies. Returns 0 (and leaves *out zeroed) when the
+ * gate is not OK or the hold is empty.
+ */
+int colonies_foreign_trade_prepare(
+  const ColonizeWorld* w,
+  ColonizeDosRng* rng,
+  int foreign_colony_id,
+  int unit_id,
+  int hold_index,
+  ColonizeForeignTradeDeal* out
+);
+
+/*
+ * raw 99014-99049. `take_goods` != 0 → the hold becomes (offer_cargo,
+ * offer_qty) (FUN_281f_0cea/0ca4); else the hold is emptied (FUN_281f_0aec)
+ * and `deal->gold` is credited to the unit's nation. Both arms then do
+ * `colony.stock[sold_cargo] += sold_qty` — DOS never debits the colony's stock
+ * of the goods it hands over. Returns 1 when applied.
+ */
+int colonies_foreign_trade_apply(
   const ColonizeWorld* w,
   int foreign_colony_id,
   int unit_id,
   int hold_index,
-  bool* out_warehouse_full
+  const ColonizeForeignTradeDeal* deal,
+  int take_goods
 );
 
 /* Best cargo type for L-key load (excludes horses/tools/muskets); -1 if none. */

@@ -228,11 +228,10 @@ bool founding_fathers_de_soto_lcr_always_positive(
 );
 
 /*
- * Jan de Witt (docs/fandom_col1994.md Trade):
- * Trade with foreign colonies allowed; FA report more revealing.
- * Ownership gate for foreign-colony trade. FA detailed strength already peeks
- * head.founding_father[4] in reports.c. Cargo: colonies_de_witt_transfer_*;
- * AI wagon/ship trade act in ai_euro (stock only; no gold invent).
+ * Jan de Witt (FF 4). DOS reads the bit in two places only: FUN_5f7a_020e
+ * (raw 98928, human foreign-colony trade menu; @TRADEMERCANTILISM refusal
+ * without him -- docs/foreign_colony_trade.md) and the Foreign Affairs
+ * report FUN_3f41_2548. The AI never trades this way.
  */
 bool founding_fathers_de_witt_allows_foreign_colony_trade(
   const ColonizeCol1Save* col1,

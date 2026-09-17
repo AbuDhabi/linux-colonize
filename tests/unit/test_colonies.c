@@ -8,6 +8,7 @@
 #include "core/colony.h"
 #include "core/colony_craft.h"
 #include "core/colony_production.h"
+#include "core/europe.h"
 #include "core/founding_fathers.h"
 #include "core/map.h"
 #include "core/popup_msg.h"
@@ -1885,6 +1886,133 @@ static int case_colonies_core(void) {
   return 1;
 }
 
+/*
+ * FUN_5f7a_020e foreign-colony trade (docs/foreign_colony_trade.md): the gates,
+ * the price, the counter-offer search and both accept arms.
+ */
+static int unit_foreign_colony_trade(void) {
+  const int failures_before = failures;
+
+  ColonizeColonyPool pool;
+  colonies_init(&pool);
+  colonies_set_occupancy_map(NULL);
+  ColonizeColony* c = &pool.colonies[0];
+  memset(c, 0, sizeof(*c));
+  c->active = true;
+  c->id = 0;
+  c->nation_id = 1; /* French */
+  c->x = 4;
+  c->y = 4;
+  c->building_in_production = -1;
+  c->stock[COLONIZE_CARGO_CIGARS] = 60;
+  c->stock[COLONIZE_CARGO_RUM] = 5;
+  pool.colony_count = 1;
+
+  ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
+  units_reset(&units);
+  units_set_occupancy_map(NULL);
+  units.type_count = 1;
+  snprintf(units.types[0].name, sizeof(units.types[0].name), "Wagon Train");
+  units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  units.types[0].cargo = 2;
+  units.types[0].movement = 2;
+  const int uid = units_spawn(&units, 0, 4, 4);
+  ColonizeUnit* u = units_get(&units, uid);
+  if (!u) {
+    fprintf(stderr, "FAIL: foreign trade wagon spawn\n");
+    failures++;
+    return 1;
+  }
+  u->nation_id = 0; /* English, human */
+
+  ColonizeCol1Save col1;
+  memset(&col1, 0, sizeof(col1));
+  col1.head.difficulty = 2;
+  col1.head.rival_nation_slot_1 = 3;
+  col1.head.crown_nation_id = -1;
+  col1.player[0].control = 0;
+  col1.player[1].control = 1;
+  /* DS:0x84bc byte = euro_price - 1: Sugar 6, Cigars 4. */
+  col1.nation[1].trade.euro_price[COLONIZE_CARGO_SUGAR] = 7;
+  col1.nation[1].trade.euro_price[COLONIZE_CARGO_CIGARS] = 5;
+  col1.nation[1].tax_rate = 10;
+
+  ColonizeWorld w = world_make(&units, &pool, NULL, &col1, true, NULL, NULL);
+
+  /* No peace treaty yet → @TRADEATWAR (raw 98924-98927). */
+  CHECK(
+    colonies_foreign_trade_gate(&w, 0, uid) == COLONIZE_FTRADE_ATWAR,
+    "no peace treaty refuses with TRADEATWAR"
+  );
+  ai_diplo_write(&col1, 0, 1, (uint8_t)(ai_diplo_read(&col1, 0, 1) | AI_DIPLO_PEACE));
+  CHECK(
+    colonies_foreign_trade_gate(&w, 0, uid) == COLONIZE_FTRADE_MERCANTILISM,
+    "no Jan de Witt refuses with TRADEMERCANTILISM"
+  );
+  col1.nation[0].founding_fathers[FF_JAN_DE_WITT / 8] |=
+    (uint8_t)(1u << (FF_JAN_DE_WITT % 8));
+  CHECK(
+    colonies_foreign_trade_gate(&w, 0, uid) == COLONIZE_FTRADE_NOCARGO,
+    "empty transport refuses with TRADENOCARGO"
+  );
+  /* An AI-controlled actor never gets a dialog at all (raw 98921-98923). */
+  u->nation_id = 1;
+  c->nation_id = 0;
+  CHECK(
+    colonies_foreign_trade_gate(&w, 0, uid) == COLONIZE_FTRADE_NONE,
+    "AI-controlled nation never trades with a foreign colony"
+  );
+  u->nation_id = 0;
+  c->nation_id = 1;
+
+  CHECK(units_load_goods(&units, uid, COLONIZE_CARGO_SUGAR, 20) == 20, "sugar loaded");
+  CHECK(
+    colonies_foreign_trade_gate(&w, 0, uid) == COLONIZE_FTRADE_OK, "loaded transport may trade"
+  );
+
+  /* rng NULL → the 10% floor of the haggle band, so the price is exact. */
+  ColonizeForeignTradeDeal deal;
+  CHECK(colonies_foreign_trade_prepare(&w, NULL, 0, uid, 0, &deal) == 1, "deal prepared");
+  /* gross = 6*20 = 120; −10% tax = 108; −10% haggle = 108 + (10*108)/-100 = 98. */
+  CHECK(deal.sold_cargo == COLONIZE_CARGO_SUGAR && deal.sold_qty == 20, "deal sells the hold");
+  CHECK(deal.gold == 98, "gold = gross − tax − haggle");
+  /* Cigars at 4 each: 60 in stock is 240 > 120, walked down to 30 (= 120). */
+  CHECK(
+    deal.offer_cargo == COLONIZE_CARGO_CIGARS && deal.offer_qty == 30,
+    "counter-offer is the most valuable affordable stock"
+  );
+
+  /* Take the goods: the hold is overwritten, the colony banks the sugar. */
+  ColonizeForeignTradeDeal goods_deal = deal;
+  CHECK(colonies_foreign_trade_apply(&w, 0, uid, 0, &goods_deal, 1) == 1, "barter applied");
+  CHECK(
+    u->hold_goods_type[0] == COLONIZE_CARGO_CIGARS && u->hold_goods_amount[0] == 30,
+    "hold becomes the offered cargo"
+  );
+  CHECK(c->stock[COLONIZE_CARGO_SUGAR] == 20, "colony banks the sold cargo");
+  CHECK(c->stock[COLONIZE_CARGO_CIGARS] == 60, "DOS never debits the offered cargo");
+
+  /* Take the gold: hold emptied, purse credited. */
+  ColonizeUnit* u2 = units_get(&units, uid);
+  u2->hold_goods_type[0] = COLONIZE_CARGO_SUGAR;
+  u2->hold_goods_amount[0] = 20;
+  c->stock[COLONIZE_CARGO_SUGAR] = 0;
+  const uint32_t gold0 = europe_nation_gold(NULL, &col1, 0);
+  CHECK(colonies_foreign_trade_apply(&w, 0, uid, 0, &deal, 0) == 1, "gold sale applied");
+  CHECK(units_hold_amount(&units, uid, 0) == 0, "hold emptied on a gold sale");
+  CHECK(
+    europe_nation_gold(NULL, &col1, 0) == gold0 + (uint32_t)deal.gold, "gold credited"
+  );
+  CHECK(c->stock[COLONIZE_CARGO_SUGAR] == 20, "colony banks the sold cargo on a gold sale");
+
+  if (failures == failures_before) {
+    printf("unit_colonies: foreign-colony trade ok\n");
+    return 0;
+  }
+  return 1;
+}
+
 static const TestCase k_cases[] = {
     {"unit_colonies_core", case_colonies_core},
     {"unit_found_chrome", unit_found_chrome},
@@ -1898,5 +2026,6 @@ static const TestCase k_cases[] = {
     {"unit_warehouse_capitol_levels", unit_warehouse_capitol_levels},
     {"unit_build_complete_latch", unit_build_complete_latch},
     {"unit_craft_preview_clamps", unit_craft_preview_clamps},
+    {"unit_foreign_colony_trade", unit_foreign_colony_trade},
 };
 TEST_MAIN(k_cases)

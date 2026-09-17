@@ -17,7 +17,7 @@ Status: **Done** / **Partial** / **Missing** / **PARKED**.
 | Code | Meaning |
 |------|---------|
 | `OK` | Enter / stack; charge MP |
-| `DOCK` | Ship onto own (or de Witt peace) colony land |
+| `DOCK` | Ship onto own colony land |
 | `LANDFALL` | Ship → bare coastal land → unload **one** passenger (ship stays) |
 | `BOARD` | Land → ocean/HS with own ship that has room → embark |
 | `VILLAGE_SHIP` | Ship → native village → `@DONTKNOWSHIPS` / `@MADATSHIPS` (not landfall) |
@@ -39,7 +39,7 @@ Status: **Done** / **Partial** / **Missing** / **PARKED**.
 | Ship | Ocean / HS | OK (`4720`); **already on HS** + eastward without sail order → reason **5** | Same (`units_can_enter`); entering the lane from ocean is always legal, and a Go To may target a lane tile → `game_ship_sail_to_europe` on arrival | Done |
 | Ship | Map edge | Reason **4** | Out-of-bounds → edge | Partial |
 | Ship | Own colony land | Dock | `can_enter` + disembark | Done |
-| Ship | Foreign Euro dock | Peace / de Witt | de Witt peace berth | Partial |
+| Ship / Wagon | Foreign Euro colony | — | Never enters: `FUN_5f7a_0662` → `FUN_5f7a_020e` trades from outside and spends the whole allotment ([foreign_colony_trade.md](foreign_colony_trade.md)) | Done |
 | Ship | Bare land | Landfall UI reasons 2/3 | `@LANDFALL` Stay / Make Landfall (one unit; sentry cargo OK); passenger spends its **whole** allotment (465b_05ca shore crossing, 2026-09-04); ship −1 MP on Make Landfall | Done |
 | Ship | Native village | `4528` ship abort (`@DONTKNOWSHIPS` / `@MADATSHIPS`) | `VILLAGE_SHIP` + `ai_contact_try_ship_village` | Done |
 

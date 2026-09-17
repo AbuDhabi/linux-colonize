@@ -6,6 +6,7 @@
 
 #include "core/ai_popup.h"
 #include "core/col1_save.h"
+#include "core/dos_rng.h"
 #include "core/font.h"
 #include "core/founding_fathers.h"
 #include "core/ai_diplo.h"
@@ -3275,81 +3276,225 @@ int colonies_transfer_from_unit_amount(
   return amount;
 }
 
-static int colonies_de_witt_trade_ok(
-  const ColonizeColonyPool* pool,
-  int foreign_colony_id,
-  const ColonizeUnitPool* units,
-  int unit_id,
-  const ColonizeCol1Save* col1
-) {
-  /*
-   * Jan de Witt foreign-colony trade gate. Cite: fandom Jan de Witt;
-   * founding_fathers_de_witt_allows_foreign_colony_trade.
-   */
-  if (!pool || !units || !col1) {
+/* ===== Foreign-colony trade (FUN_5f7a_020e) — docs/foreign_colony_trade.md ===== */
+
+/*
+ * DS:0x84bc[nation*0x10 + cargo]. Every writer of that byte stores
+ * `nation[n].trade.euro_price[cargo] - 1` clamped at 0 (viceroy_unpacked.c
+ * 6316-6320 / 51962-51966 / 58996-59000) — the same derivation europe.c's
+ * dump-sell arm cites.
+ */
+static int colonies_ftrade_price_byte(const ColonizeCol1Save* col1, int nation, int cargo) {
+  if (!col1 || nation < 0 || nation >= (int)COLONIZE_COL1_NATION_COUNT || cargo < 0 ||
+      cargo >= (int)COLONIZE_COL1_CARGO_TYPES) {
     return 0;
   }
-  const ColonizeColony* col = colonies_get(pool, foreign_colony_id);
-  const ColonizeUnit* u = units_get_const(units, unit_id);
-  if (!col || !col->active || !u || !u->active || !units_is_on_map(u)) {
-    return 0;
-  }
-  if (u->nation_id < 0 || u->nation_id > 3 || col->nation_id < 0 || col->nation_id > 3) {
-    return 0;
-  }
-  if (col->nation_id == u->nation_id) {
-    return 0; /* own colony uses normal transfer APIs */
-  }
-  if (u->x != col->x || u->y != col->y) {
-    return 0;
-  }
-  if (!founding_fathers_de_witt_allows_foreign_colony_trade(col1, u->nation_id)) {
-    return 0;
-  }
-  if (ai_diplo_at_war(col1, u->nation_id, col->nation_id)) {
-    return 0;
-  }
-  return 1;
+  const int p = (int)col1->nation[nation].trade.euro_price[cargo] - 1;
+  return p > 0 ? p : 0;
 }
 
-int colonies_de_witt_transfer_from_colony_w(
+/* The two units the trade dialog needs, plus the DOS nation ids. */
+static int colonies_ftrade_bind(
   const ColonizeWorld* w,
   int foreign_colony_id,
   int unit_id,
-  int cargo_type,
-  int amount
+  const ColonizeColony** out_col,
+  const ColonizeUnit** out_unit
 ) {
-  ColonizeColonyPool* pool = w->colonies;
-  ColonizeUnitPool* units = w->units;
-  const ColonizeCol1Save* col1 = w->col1;
-
-  if (!colonies_de_witt_trade_ok(pool, foreign_colony_id, units, unit_id, col1)) {
+  if (!w || !w->colonies || !w->units || !w->col1_ok || !w->col1) {
     return 0;
   }
-  return colonies_transfer_to_unit(pool, foreign_colony_id, units, unit_id, cargo_type, amount);
+  const ColonizeColony* col = colonies_get(w->colonies, foreign_colony_id);
+  const ColonizeUnit* u = units_get_const(w->units, unit_id);
+  if (!col || !col->active || !u || !u->active) {
+    return 0;
+  }
+  if (col->nation_id < 0 || col->nation_id > 3) {
+    return 0;
+  }
+  const int actor = u->nation_id;
+  /* raw 98915-98921: nibble > 3 (natives) leaves without a word. */
+  if (actor < 0 || actor > 3 || actor == col->nation_id) {
+    return 0;
+  }
+  *out_col = col;
+  *out_unit = u;
+  return 1;
 }
 
+ColonizeForeignTradeGate colonies_foreign_trade_gate(
+  const ColonizeWorld* w,
+  int foreign_colony_id,
+  int unit_id
+) {
+  const ColonizeColony* col = NULL;
+  const ColonizeUnit* u = NULL;
+  if (!colonies_ftrade_bind(w, foreign_colony_id, unit_id, &col, &u)) {
+    return COLONIZE_FTRADE_NONE;
+  }
+  const ColonizeCol1Save* col1 = w->col1;
+  const int actor = u->nation_id;
+  /*
+   * raw 98921-98923: `player[actor].control != 0` returns before any dialog.
+   * The AI never trades with a foreign colony in DOS — FF 4 is read in exactly
+   * two places in VICEROY, here and the Foreign Affairs report.
+   */
+  if (col1->player[actor].control != 0) {
+    return COLONIZE_FTRADE_NONE;
+  }
+  /* raw 98924-98927: FUN_281f_0a38(actor, owner) & 0x40 = peace treaty. */
+  if ((ai_diplo_read(col1, actor, col->nation_id) & AI_DIPLO_PEACE) == 0) {
+    return COLONIZE_FTRADE_ATWAR;
+  }
+  /* raw 98928-98934: FUN_281f_07b4(actor, 4) = Jan de Witt. */
+  if (!founding_fathers_de_witt_allows_foreign_colony_trade(col1, actor)) {
+    return COLONIZE_FTRADE_MERCANTILISM;
+  }
+  /* raw 98935-98936: unit +0x3150 (goods holds occupied). */
+  if (units_holds_used(w->units, unit_id) <= 0) {
+    return COLONIZE_FTRADE_NOCARGO;
+  }
+  return COLONIZE_FTRADE_OK;
+}
 
-int colonies_de_witt_transfer_to_colony_w(
+int colonies_foreign_trade_prepare(
+  const ColonizeWorld* w,
+  ColonizeDosRng* rng,
+  int foreign_colony_id,
+  int unit_id,
+  int hold_index,
+  ColonizeForeignTradeDeal* out
+) {
+  if (!out) {
+    return 0;
+  }
+  memset(out, 0, sizeof(*out));
+  out->offer_cargo = -1;
+  if (colonies_foreign_trade_gate(w, foreign_colony_id, unit_id) != COLONIZE_FTRADE_OK) {
+    return 0;
+  }
+  const ColonizeColony* col = NULL;
+  const ColonizeUnit* u = NULL;
+  if (!colonies_ftrade_bind(w, foreign_colony_id, unit_id, &col, &u)) {
+    return 0;
+  }
+  if (hold_index < 0 || hold_index >= COLONIZE_UNIT_CARGO_MAX) {
+    return 0;
+  }
+  const ColonizeCol1Save* col1 = w->col1;
+  const int actor = u->nation_id;
+  const int owner = col->nation_id;
+  const int sold = u->hold_goods_type[hold_index];
+  const int qty = units_hold_amount(w->units, unit_id, hold_index);
+  if (qty <= 0 || sold < 0 || sold >= COLONIZE_CARGO_COUNT) {
+    return 0;
+  }
+  const bool woi = col1->head.game_options.woi;
+  const int ally = (int)col1->head.rival_nation_slot_1; /* DS:0x53d4 */
+  const int difficulty = (int)col1->head.difficulty;   /* DS:0x53a6 */
+
+  /* raw 98963-98968: gross, then the owner's tax withheld. */
+  const int gross = colonies_ftrade_price_byte(col1, owner, sold) * qty;
+  int gold = europe_net_after_tax(gross, (int)col1->nation[owner].tax_rate);
+  /* raw 98969-98972: at war (rel & 2) outside the WoI — half. */
+  if (!woi && (ai_diplo_read(col1, actor, owner) & AI_DIPLO_WAR) != 0) {
+    gold >>= 1;
+  }
+  /* raw 98973-98983: haggle. The WoI intervention ally shaves only 5+d %. */
+  if (!woi || owner != ally) {
+    const int pct = rng ? dos_rng_range(rng, 10, (difficulty + 1) * 12) : 10;
+    gold += (pct * gold) / -100;
+  } else {
+    gold += ((-5 - difficulty) * gold) / 100;
+  }
+  if (gold < 1) {
+    gold = 1; /* raw 98984-98986 */
+  }
+
+  /* raw 98987-99012: best counter-offer out of the colony's warehouse. */
+  int best_val = -1;
+  int best_cargo = -1;
+  int best_qty = 0;
+  for (int c = 0; c < 0x10 && c < COLONIZE_CARGO_COUNT; ++c) {
+    if (!woi && (c == 0x0f || c == 0x0e || c == 0 || c == 5)) {
+      continue; /* Muskets / Tools / Food / Lumber are off the table at peace */
+    }
+    if (c == sold) {
+      continue;
+    }
+    int avail = (int)col->stock[c];
+    if (avail > 100) {
+      avail = 100;
+    }
+    if (woi && (sold == 0x0f || sold == 8)) {
+      if (owner == ally) {
+        avail = 100;
+      } else if (avail < 0x32) {
+        avail = 0x32;
+      }
+    }
+    const int unit_price = colonies_ftrade_price_byte(col1, owner, c);
+    int val = unit_price * avail;
+    while (val > gross) {
+      avail--;
+      val -= unit_price;
+    }
+    if (avail > 0 && val > best_val) {
+      best_val = val;
+      best_qty = avail;
+      best_cargo = c;
+    }
+  }
+
+  out->sold_cargo = sold;
+  out->sold_qty = qty;
+  out->gold = gold;
+  out->offer_cargo = best_val >= 0 ? best_cargo : -1;
+  out->offer_qty = best_val >= 0 ? best_qty : 0;
+  return 1;
+}
+
+int colonies_foreign_trade_apply(
   const ColonizeWorld* w,
   int foreign_colony_id,
   int unit_id,
   int hold_index,
-  bool* out_warehouse_full
+  const ColonizeForeignTradeDeal* deal,
+  int take_goods
 ) {
-  ColonizeColonyPool* pool = w->colonies;
-  ColonizeUnitPool* units = w->units;
-  const ColonizeCol1Save* col1 = w->col1;
-
-  if (!colonies_de_witt_trade_ok(pool, foreign_colony_id, units, unit_id, col1)) {
-    if (out_warehouse_full) {
-      *out_warehouse_full = false;
-    }
+  if (!deal || !w || !w->colonies || !w->units || !w->col1_ok || !w->col1) {
     return 0;
   }
-  return colonies_transfer_from_unit(
-    pool, foreign_colony_id, units, unit_id, hold_index, out_warehouse_full
-  );
+  ColonizeColony* col = colonies_get_mut(w->colonies, foreign_colony_id);
+  ColonizeUnit* u = units_get(w->units, unit_id);
+  if (!col || !col->active || !u || !u->active) {
+    return 0;
+  }
+  if (hold_index < 0 || hold_index >= COLONIZE_UNIT_CARGO_MAX) {
+    return 0;
+  }
+  if (deal->sold_cargo < 0 || deal->sold_cargo >= COLONIZE_CARGO_COUNT) {
+    return 0;
+  }
+  if (take_goods) {
+    if (deal->offer_cargo < 0 || deal->offer_cargo >= COLONIZE_CARGO_COUNT) {
+      return 0;
+    }
+    /* raw 99019-99021: FUN_281f_0cea/0ca4 overwrite the hold in place. */
+    u->hold_goods_type[hold_index] = deal->offer_cargo;
+    u->hold_goods_amount[hold_index] = deal->offer_qty;
+  } else {
+    /* raw 99022-99030: FUN_281f_0aec empties the hold, then gold to the purse. */
+    (void)units_unload_goods_hold(w->units, unit_id, hold_index, NULL, NULL);
+    europe_nation_gold_add(NULL, w->col1, u->nation_id, (long)deal->gold);
+  }
+  /*
+   * raw 99031-99033: the colony gains what it bought. DOS does NOT debit the
+   * stock of the cargo it hands over in the barter arm — transcribed, not fixed.
+   */
+  col->stock[deal->sold_cargo] += deal->sold_qty;
+  col->cargo_idle_turns = 0;
+  return 1;
 }
 
 

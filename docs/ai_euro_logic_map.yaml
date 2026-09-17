@@ -1006,7 +1006,7 @@ graphs:
         note: DOS AI treasure always insta-cashes at any own colony; ship/Cortes chain effectively unreachable.
       - id: wagon
         kind: step
-        label: Wagon — de Witt foreign trade, else haul (load matrix, 457e origin walk, village errand, 47b9)
+        label: Wagon — haul (load matrix, 457e origin walk, village errand, 47b9)
         fn: ai_euro.c:ai_euro_try_wagon_haul
         dos: 20e6 wagon arms (iStack_34==0), LAB_457e origin walk, 8d4a village errand
         status: dos

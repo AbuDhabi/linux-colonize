@@ -190,8 +190,16 @@ int main(void) {
   if (nat->boycott_bitmap != 0) {
     return fail("Fugger did not clear all boycott bits");
   }
-  if (ai_king_latch_get(&col1, 2) != 0) {
-    return fail("Fugger did not clear human market_demand_pool_raw[2] king refuse");
+  /*
+   * DOS FUN_4345_0342 case 1 (raw 73079-73081) only ever zeroes nation+0x20
+   * (boycott_bitmap, asserted above) — nothing there touches the Linux-only
+   * king tax-refuse latch. That latch self-clears on the NEXT king tick via
+   * ai_king_sync_boycott_refuse once it observes boycott_bitmap==0
+   * (ai_king.c), not synchronously inside the elect. See docs discussion
+   * in founding_fathers.c FF_JAKOB_FUGGER.
+   */
+  if (ai_king_latch_get(&col1, 2) != 1) {
+    return fail("Fugger elect should not itself touch the king boycott-refuse latch");
   }
 
   /* Brewster: pool filter flag; no crosses / free-colonist spawn fiction. */
@@ -343,17 +351,26 @@ int main(void) {
     }
   }
 
-  /* Bolivar without Col1 colonies: elect only, no bells fiction. */
+  /*
+   * Bolivar without Col1 colonies: elect only, no bells fiction. Also DOS
+   * FUN_4345_0342 case 0x12 (raw 73101-73108): nation<4 && human-controlled
+   * -> rebel_sentiment_report (DS:0x53d0) += 20, clamp 100. col1.player[0]
+   * is set human-controlled (control==0) above, so this must fire.
+   */
   nat->liberty_bells_total = 801;
   nat->next_founding_father = 18;
   {
     const uint16_t b0 = nat->liberty_bells_total;
+    col1.head.rebel_sentiment_report = 90;
     ff_tick(&ctx);
     if (col1.head.founding_father[18] != 0 || nat->founding_father_count != 10) {
       return fail("Bolivar not elected via next");
     }
     if (nat->liberty_bells_total != b0) {
       return fail("Bolivar must not invent bells");
+    }
+    if (col1.head.rebel_sentiment_report != 100) {
+      return fail("Bolivar elect must bump+clamp rebel_sentiment_report to 100");
     }
   }
 
@@ -602,7 +619,13 @@ int main(void) {
       return fail("deep Coronado revealed beyond radius 5");
     }
 
-    /* Magellan: +1 moves now; refresh keeps permanent +1. */
+    /*
+     * Magellan: DOS FUN_4345_0342 (raw 73044-73160) has no `param_2 == 5`
+     * case, so electing Magellan bumps no unit's moves by itself — only the
+     * ongoing per-turn refresh (turn_refresh_moves_for_nation) grants the
+     * permanent +1 while owned. The old elect-time bump here was a fandom
+     * invention; removed along with its port counterpart.
+     */
     dnat->liberty_bells_total = 161;
     dnat->next_founding_father = 5;
     const int car_moves = caravel->moves;
@@ -613,10 +636,10 @@ int main(void) {
       map_free(&map);
       return fail("deep Magellan not elected");
     }
-    if (caravel->moves != car_moves + UNITS_MP_PER_TILE) {
+    if (caravel->moves != car_moves) {
       free(deep_col1.colony);
       map_free(&map);
-      return fail("deep Magellan sea moves +1 missing");
+      return fail("deep Magellan must not bump moves at elect (no DOS case 5)");
     }
     if (dnat->gold != gold_pre_mag) {
       free(deep_col1.colony);
@@ -836,10 +859,17 @@ int main(void) {
       }
     }
 
-    /* La Salle ownership tick (fixed 2026-08-26): PEDIA says "existing AND
-     * future" colonies get the free Stockade at pop 3. A colony founded
-     * after La Salle's election (or one that only grows into pop 3 later)
-     * must still get it on a later turn tick, without re-electing. */
+    /*
+     * No La Salle ownership tick. DOS FUN_4345_0342's `param_2 == 9` sweep
+     * (raw 73084-73092) runs exactly once, at elect, over colonies that
+     * already exist. A colony founded later, or one that only grows into
+     * pop 3 on a later turn, gets the grant from the admit-time body
+     * instead (FUN_15eb, raw ~11312) — exercised by the "immediate grant"
+     * case right below (colony.c join path) and by the turn.c EOT-birth
+     * admit path. There is no per-turn re-sweep site in the decomp; the
+     * old test here covered a port invention that has been removed
+     * (founding_fathers.c founding_fathers_tick).
+     */
     {
       ColonizeColony* future = &colonies.colonies[1];
       memset(future, 0, sizeof(*future));
@@ -848,30 +878,25 @@ int main(void) {
       future->nation_id = 0;
       future->x = 6;
       future->y = 6;
-      future->population = 2; /* below La Salle's pop-3 threshold */
+      future->population = 3; /* at/above the pop-3 threshold, pre-existing */
       colonies.colony_count = 2;
 
-      /* No FF due this tick — isolate the ownership sweep from debate/elect. */
+      /* No FF due this tick — isolate from debate/elect. */
       dnat->liberty_bells_total = 0;
       dnat->liberty_bells_last_turn = 0;
       ff_tick(&deep_ctx);
       if (future->has_building[0]) {
         free(deep_col1.colony);
         map_free(&map);
-        return fail("La Salle ownership tick must not grant Stockade below pop 3");
+        return fail(
+          "La Salle must not re-sweep every turn: a colony that only reaches "
+          "pop 3 without an admit/birth event should not get the Stockade"
+        );
       }
       if (dnat->founding_father_count != 11) {
         free(deep_col1.colony);
         map_free(&map);
-        return fail("La Salle ownership tick must not invent extra elects");
-      }
-
-      future->population = 3; /* grows into the threshold on a later turn */
-      ff_tick(&deep_ctx);
-      if (!future->has_building[0]) {
-        free(deep_col1.colony);
-        map_free(&map);
-        return fail("La Salle ownership tick must grant Stockade once colony reaches pop 3");
+        return fail("La Salle no-op tick must not invent extra elects");
       }
     }
 
@@ -2068,151 +2093,6 @@ int main(void) {
         founding_fathers_cortes_free_king_galleon(&ccol1, 1)) {
       return fail("Cortes gates must not leak to other nation");
     }
-  }
-
-  /* de Witt foreign-colony cargo transfer (stock only; no gold). */
-  {
-    ColonizeCol1Save dcol1;
-    col1_save_init(&dcol1);
-    seed_unclaimed(&dcol1);
-    ff_test_calendar(&dcol1);
-
-    ColonizeColonyPool pool;
-    colonies_init(&pool);
-    colonies_set_occupancy_map(NULL);
-    ColonizeColony* home = &pool.colonies[0];
-    memset(home, 0, sizeof(*home));
-    home->active = true;
-    home->id = 0;
-    home->nation_id = 1; /* foreign French */
-    home->x = 3;
-    home->y = 3;
-    home->building_in_production = -1;
-    home->stock[COLONIZE_CARGO_SUGAR] = 40;
-    pool.colony_count = 1;
-
-    ColonizeUnitPool units;
-    memset(&units, 0, sizeof(units));
-    units_reset(&units);
-    units_set_occupancy_map(NULL);
-    units.type_count = 1;
-    snprintf(units.types[0].name, sizeof(units.types[0].name), "Merchantman");
-    units.types[0].domain = COLONIZE_UNIT_DOMAIN_SEA;
-    units.types[0].cargo = 4;
-    units.types[0].movement = 4;
-    const int uid = units_spawn(&units, 0, 3, 3);
-    ColonizeUnit* ship = units_get(&units, uid);
-    if (!ship) {
-      return fail("de Witt ship spawn");
-    }
-    ship->nation_id = 0; /* English */
-
-    /* Without FF: refuse. */
-    if (colonies_de_witt_transfer_from_colony_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&units), .colonies=(ColonizeColonyPool*)(&pool), .col1=(ColonizeCol1Save*)(&dcol1), .col1_ok=true}, 0, uid, COLONIZE_CARGO_SUGAR, 10) != 0) {
-      return fail("de Witt transfer must refuse without FF");
-    }
-
-    dcol1.head.founding_father[FF_JAN_DE_WITT] = 0;
-    dcol1.nation[0].founding_fathers[FF_JAN_DE_WITT / 8] |=
-      (uint8_t)(1u << (FF_JAN_DE_WITT % 8));
-    const int moved = colonies_de_witt_transfer_from_colony_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&units), .colonies=(ColonizeColonyPool*)(&pool), .col1=(ColonizeCol1Save*)(&dcol1), .col1_ok=true}, 0, uid, COLONIZE_CARGO_SUGAR, 10);
-    if (moved != 10 || home->stock[COLONIZE_CARGO_SUGAR] != 30) {
-      fprintf(stderr, "de Witt from_colony moved=%d stock=%d\n", moved, home->stock[COLONIZE_CARGO_SUGAR]);
-      return fail("de Witt with FF should load sugar from foreign colony");
-    }
-    /* Unload back into foreign warehouse. */
-    int hold = -1;
-    for (int h = 0; h < COLONIZE_UNIT_CARGO_MAX; ++h) {
-      if (ship->hold_goods_amount[h] > 0 && ship->hold_goods_type[h] == COLONIZE_CARGO_SUGAR) {
-        hold = h;
-        break;
-      }
-    }
-    if (hold < 0) {
-      return fail("de Witt ship should hold sugar");
-    }
-    const int back = colonies_de_witt_transfer_to_colony_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&units), .colonies=(ColonizeColonyPool*)(&pool), .col1=(ColonizeCol1Save*)(&dcol1), .col1_ok=true}, 0, uid, hold, NULL);
-    if (back != 10 || home->stock[COLONIZE_CARGO_SUGAR] != 40) {
-      return fail("de Witt to_colony should unload sugar into foreign stock");
-    }
-    /* At war: refuse. */
-    ai_diplo_declare_war(&dcol1, 0, 1);
-    home->stock[COLONIZE_CARGO_SUGAR] = 40;
-    if (colonies_de_witt_transfer_from_colony_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&units), .colonies=(ColonizeColonyPool*)(&pool), .col1=(ColonizeCol1Save*)(&dcol1), .col1_ok=true}, 0, uid, COLONIZE_CARGO_SUGAR, 5) != 0) {
-      return fail("de Witt transfer must refuse while at war");
-    }
-  }
-
-  /* de Witt: ships may enter foreign Euro colony dock at peace (units_can_enter). */
-  {
-    ColonizeCol1Save dcol1;
-    col1_save_init(&dcol1);
-    seed_unclaimed(&dcol1);
-    ff_test_calendar(&dcol1);
-    dcol1.head.founding_father[FF_JAN_DE_WITT] = 0;
-    dcol1.nation[0].founding_fathers[FF_JAN_DE_WITT / 8] |=
-      (uint8_t)(1u << (FF_JAN_DE_WITT % 8));
-
-    ColonizeWorldMap dmap;
-    memset(&dmap, 0, sizeof(dmap));
-    dmap.width = 8;
-    dmap.height = 8;
-    dmap.tile_count = 64;
-    dmap.terrain = calloc(64, 1);
-    dmap.layer2 = calloc(64, 1);
-    dmap.layer3 = calloc(64, 1);
-    if (!dmap.terrain || !dmap.layer2 || !dmap.layer3) {
-      return fail("de Witt dock map alloc");
-    }
-    for (int i = 0; i < 64; ++i) {
-      dmap.terrain[i] = 25; /* ocean */
-    }
-    dmap.terrain[3 * 8 + 3] = 1; /* colony land */
-
-    ColonizeColonyPool pool;
-    colonies_init(&pool);
-    colonies_set_occupancy_map(NULL);
-    ColonizeColony* foreign = &pool.colonies[0];
-    memset(foreign, 0, sizeof(*foreign));
-    foreign->active = true;
-    foreign->id = 0;
-    foreign->nation_id = 1;
-    foreign->x = 3;
-    foreign->y = 3;
-    foreign->building_in_production = -1;
-    pool.colony_count = 1;
-
-    ColonizeUnitPool units;
-    memset(&units, 0, sizeof(units));
-    units_reset(&units);
-    units_set_occupancy_map(NULL);
-    memset(units.types, 0, sizeof(units.types));
-    units.type_count = 1;
-    snprintf(units.types[0].name, sizeof(units.types[0].name), "Merchantman");
-    units.types[0].domain = COLONIZE_UNIT_DOMAIN_SEA;
-    units.types[0].cargo = 4;
-    units.types[0].movement = 4;
-    const int uid = units_spawn(&units, 0, 3, 2);
-    ColonizeUnit* ship = units_get(&units, uid);
-    if (!ship) {
-      map_free(&dmap);
-      return fail("de Witt dock ship spawn");
-    }
-    ship->nation_id = 0;
-
-    units_set_ff_col1(&dcol1);
-    if (!units_can_enter_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&units), .colonies=(ColonizeColonyPool*)(&pool), .map=(ColonizeWorldMap*)(&dmap)}, 0, 3, 3, uid)) {
-      map_free(&dmap);
-      return fail("de Witt ship should enter foreign dock at peace");
-    }
-    ai_diplo_declare_war(&dcol1, 0, 1);
-    if (units_can_enter_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&units), .colonies=(ColonizeColonyPool*)(&pool), .map=(ColonizeWorldMap*)(&dmap)}, 0, 3, 3, uid)) {
-      map_free(&dmap);
-      return fail("de Witt ship must not enter foreign dock at war");
-    }
-    units_set_ff_col1(NULL);
-    map_free(&dmap);
-    fprintf(stderr, "unit_founding_fathers: de Witt ship foreign dock enter ok\n");
   }
 
   /* Sepulveda / de Soto LCR / de Witt — ownership gates; de Soto LCR wired. */
