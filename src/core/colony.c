@@ -2438,6 +2438,11 @@ int colonies_try_complete_unit_construction(
   ColonizeUnit* u = units_get(units, uid);
   if (u) {
     units_set_nation(u, col->nation_id);
+    /* Player request: freshly built Artillery heads the colony's Units-
+     * Present / Military row (same "front" slot as the Move-to-front order). */
+    if (units_type_is_artillery(units_type(units, type_index))) {
+      units->board_first_slot = (int)(u - units->units);
+    }
   }
   if (tools_cost > 0) {
     col->stock[COLONIZE_CARGO_TOOLS] -= tools_cost;

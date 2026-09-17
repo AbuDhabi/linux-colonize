@@ -157,6 +157,18 @@ void colony_screen_refresh_outside(
     }
     view->outside_unit_ids[view->outside_unit_count++] = stack[i];
   }
+  /* The pool's "front" unit (Move to front / freshly built Artillery) heads
+   * the row. */
+  if (units->board_first_slot >= 0 && units->board_first_slot < COLONIZE_UNITS_MAX) {
+    const int front_id = units->units[units->board_first_slot].id;
+    for (int i = 1; i < view->outside_unit_count; ++i) {
+      if (view->outside_unit_ids[i] == front_id) {
+        memmove(&view->outside_unit_ids[1], &view->outside_unit_ids[0], (size_t)i * sizeof(view->outside_unit_ids[0]));
+        view->outside_unit_ids[0] = front_id;
+        break;
+      }
+    }
+  }
   if (view->selected_outside_unit >= 0) {
     bool still = false;
     for (int i = 0; i < view->outside_unit_count; ++i) {
