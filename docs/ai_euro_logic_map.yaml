@@ -1333,6 +1333,13 @@ graphs:
         dos: FUN_5952_035e raw 94784-94860, asm 5952:1ef7-5952:2193
         status: dos
         note: "Per unplaced slot: 28c8 mode-2 probe (DS:0x8dc0/0x8dbe) for the best plot, then score every available indoor job 9..0x11 as (producible*8+5)*want_weight (ai_euro_5952_want_weight / ai_euro_5952_job_score; producible = ai_euro_5952_producible, the 15eb:1f44 dispatcher over colony_production.c's ported 1d4c bodies). Indoor winner beats the plot score -> assign the workplace; else commit the plot; else ai_euro_5952_fallback_job (Carpenter, or Preacher on Church + lumber surplus + <3 preachers). AI_5952_INDOOR=0 restores the pre-2026-09-17 leftovers field stand-in."
+      - id: build
+        kind: loop
+        label: Construction-project cascade — one ordered chain of FUN_5952_0214 tries ending in five unit projects
+        fn: ai_euro.c:ai_euro_5952_build_cascade
+        dos: FUN_5952_035e asm 5952:21d4-5952:274b (viceroy_overlays.asm:145550-146167); FUN_5952_0214 / 0280 / 02f4
+        status: dos
+        note: "bugs.md #483. Prologue clears +0x1d bit 0x80 and sets +0x94 = 0xff, then tries @BUILDING ids in DOS order — 6, 0, 0x11, [pop<4 stop], 0x10, 0x12, {unit 0xc Wagon Train}, 0xc, 3, 0x25, 0x24, 1, 0x28, 0x10, 0x14, 0x14, 0xd, [pop<8 stop], 0xe, 0x25, 2, then the naval band (full craft chain + COASTAL: 8, then unit 0xf Galleon / 0x10 Privateer / 0x11 Frigate from the census), the Artillery arm (unit 0xb), the six-chain FUN_5952_0280 upgrade loop, 0x26, the 26e4 ship arms, the +0x1c 0x10 SMALL_AI writer and the unit-0xb tail. FUN_5952_0214 recurses on the DS:0x8f85 predecessor; FUN_5952_02f4 writes code = row + 0x1f with no gate of its own. Trace AI_5952_BUILD_TRACE=1. POSITION: the port runs it right after ai_euro_colony_goals (which produces the ring-1 threat count it reads), not in the 28c8 body."
       - id: end
         kind: end
         label: return
@@ -1341,5 +1348,6 @@ graphs:
       - [pass1, pass2]
       - [pass2, expert]
       - [expert, indoor]
-      - [indoor, loop, "next colony"]
+      - [indoor, build]
+      - [build, loop, "next colony"]
       - [loop, end, "done"]

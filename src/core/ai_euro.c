@@ -1856,205 +1856,12 @@ static void ai_euro_cancel_stale_zero_hammer_builds(ColonizeTurnContext* ctx, in
 }
 
 /*
- * Table-driven construction preference (5d04 / colony planning). Audit AE-3:
- * nineteen ~50-line `ai_euro_prefer_<building>` functions were the same
- * template — resolve building ids by name, then per own colony with an idle
- * queue check prereqs / already-owned / pop / stock gates, confirm the target
- * is in colonies_list_buildable, and colonies_set_construction it. The rows
- * below carry every axis that differed between them, in the original call
- * order, so the pass still reaches the buildings in the same sequence.
- *
- * Axes, each diffed out of the old bodies one at a time:
- *  - `war`: PEACE rows returned early while at war with a Euro peer (the
- *    wartime Armory chain owns the queue then), WAR rows required it, ANY
- *    rows ran in both. The two spellings differed on a missing col1: the
- *    peace test was `col1_ok && col1 && at_war`, the war test
- *    `!col1_ok || !col1 || !at_war`, both preserved.
- *  - `ff` / `ff_needs_col1_ok`: Custom House needs Peter Stuyvesant and
- *    tested `ctx->col1` only; Arsenal / Iron Works need Adam Smith and also
- *    require col1_ok. The matching ColoniesBuildableOpts flag is set exactly
- *    as before (game_loop game_colony_buildable_opts mirror).
- *  - `prereq_required`: the "hard" rows (Drydock..Iron Works chains) named
- *    their prerequisite in the entry guard, so a pool without that building
- *    type made the whole pass a no-op; the "soft" rows (Stockade / Church
- *    gates) skipped the check instead and allowed the colony through.
- *  - `prereq_any`: only Stable, whose gate is Stockade OR Fort OR Fortress.
- *  - `excludes`: later tiers of the same chain, so a colony that already has
- *    the upgrade is not sent back to build the lower tier.
- *  - `min_pop` (Schoolhouse 4 / College 8 / University 10 / Cathedral 8) and
- *    `ore_stock` (Blacksmith's House 20) are the two numeric gates.
- *
- * Citations from the merged bodies, unchanged: fandom_col1994.md Naval
- * Docks→Drydock→Shipyard and Peter Stuyvesant→Custom House; building_
- * production.md Drydock 80h / Shipyard 240h / Church→Crosses / Armory
- * Tools→Muskets / Magazine / Arsenal (Adam Smith) / Printing Press +50% and
- * Newspaper +100% bells / Schoolhouse-College-University faculty 1-2-3 /
- * Cathedral / Stable 64h / Carpenter's Shop / Lumber Mill / Ore→Tools
- * Blacksmith's House-Shop-Iron Works; Colonization.pdf Defending a Colony,
- * Education, Liberty Bells. Carpenter LABOR still binds through
- * ai_euro_colony_wants_construction_labor. No invented hammer or gold rates.
+ * bugs.md #483: the nineteen-row `ai_euro_prefer_*` table and the craft
+ * house/shop/factory pass that used to live here were name-keyed inventions.
+ * DOS has exactly one AI construction picker — the FUN_5952_035e cascade,
+ * ported as ai_euro_5952_build_cascade below (its craft-chain arm is
+ * FUN_5952_0280 + FUN_1000_8d90 at asm 5952:268e). Deleted 2026-09-17.
  */
-#define AI_EURO_PREFER_LIST_MAX 3
-
-typedef struct AiEuroPreferRule {
-  const char* target;
-  const char* prereq[AI_EURO_PREFER_LIST_MAX];     /* all of these owned */
-  const char* prereq_any[AI_EURO_PREFER_LIST_MAX]; /* at least one owned */
-  const char* excludes[AI_EURO_PREFER_LIST_MAX];   /* none of these owned */
-  int prereq_required; /* 1 = a missing prereq TYPE makes the pass a no-op */
-  int war;             /* -1 any, 0 peace only, 1 war only */
-  int ff;              /* -1 none, else the FF_* the nation must own */
-  int ff_needs_col1_ok;
-  int min_pop;
-  int ore_stock;
-} AiEuroPreferRule;
-
-static const AiEuroPreferRule k_prefer_rules[] = {
-  {"Drydock", {"Docks"}, {NULL}, {NULL}, 1, -1, -1, 0, 0, 0},
-  {"Shipyard", {"Drydock"}, {NULL}, {NULL}, 1, -1, -1, 0, 0, 0},
-  {"Custom House", {NULL}, {NULL}, {NULL}, 0, -1, FF_PETER_STUYVESANT, 0, 0, 0},
-  {"Church", {"Stockade"}, {NULL}, {"Cathedral"}, 0, 0, -1, 0, 0, 0},
-  {"Printing Press", {"Stockade", "Church"}, {NULL}, {"Newspaper"}, 0, 0, -1, 0, 0, 0},
-  {"Schoolhouse", {"Stockade"}, {NULL}, {"College", "University"}, 0, 0, -1, 0, 4, 0},
-  {"Newspaper", {"Printing Press"}, {NULL}, {NULL}, 1, 0, -1, 0, 0, 0},
-  {"College", {"Schoolhouse"}, {NULL}, {"University"}, 1, 0, -1, 0, 8, 0},
-  {"University", {"College"}, {NULL}, {NULL}, 1, 0, -1, 0, 10, 0},
-  {"Cathedral", {"Church"}, {NULL}, {NULL}, 1, 0, -1, 0, 8, 0},
-  {"Armory", {"Stockade"}, {NULL}, {"Magazine", "Arsenal"}, 0, 1, -1, 0, 0, 0},
-  {"Magazine", {"Armory"}, {NULL}, {"Arsenal"}, 1, 1, -1, 0, 0, 0},
-  {"Arsenal", {"Magazine"}, {NULL}, {NULL}, 1, 1, FF_ADAM_SMITH, 1, 0, 0},
-  {"Stable", {NULL}, {"Stockade", "Fort", "Fortress"}, {NULL}, 0, -1, -1, 0, 0, 0},
-  {"Carpenter's Shop", {NULL}, {NULL}, {"Lumber Mill"}, 0, -1, -1, 0, 0, 0},
-  {"Lumber Mill", {"Carpenter's Shop"}, {NULL}, {NULL}, 1, -1, -1, 0, 0, 0},
-  {"Blacksmith's House",
-   {NULL},
-   {NULL},
-   {"Blacksmith's Shop", "Iron Works"},
-   0, -1, -1, 0, 0, 20},
-  {"Blacksmith's Shop", {"Blacksmith's House"}, {NULL}, {"Iron Works"}, 1, -1, -1, 0, 0, 0},
-  {"Iron Works", {"Blacksmith's Shop"}, {NULL}, {NULL}, 1, -1, FF_ADAM_SMITH, 1, 0, 0},
-};
-
-/* Owned test that tolerates a building type the loaded pool does not carry. */
-static int ai_euro_colony_owns_id(const ColonizeColony* c, int id) {
-  return id >= 0 && id < COLONIZE_BUILDING_TYPES_MAX && c->has_building[id];
-}
-
-static void ai_euro_prefer_building(
-  ColonizeTurnContext* ctx, int nation_id, const AiEuroPreferRule* r
-) {
-  if (!ctx || !ctx->colonies || !ctx->map || nation_id < 0 || nation_id >= 4) {
-    return;
-  }
-  if (r->war == 0) {
-    if (ctx->col1_ok && ctx->col1 && ai_euro_at_war_any_peer(ctx->col1, nation_id)) {
-      return;
-    }
-  } else if (r->war == 1) {
-    if (!ctx->col1_ok || !ctx->col1 || !ai_euro_at_war_any_peer(ctx->col1, nation_id)) {
-      return;
-    }
-  }
-  if (r->ff >= 0) {
-    if (r->ff_needs_col1_ok && !ctx->col1_ok) {
-      return;
-    }
-    if (!ctx->col1 || !founding_fathers_nation_has(ctx->col1, nation_id, r->ff)) {
-      return;
-    }
-  }
-  const int target_id = colonies_find_building(ctx->colonies, r->target);
-  if (target_id < 0) {
-    return;
-  }
-  int prereq_id[AI_EURO_PREFER_LIST_MAX];
-  int any_id[AI_EURO_PREFER_LIST_MAX];
-  int exclude_id[AI_EURO_PREFER_LIST_MAX];
-  int n_prereq = 0;
-  int n_any = 0;
-  int n_exclude = 0;
-  for (int i = 0; i < AI_EURO_PREFER_LIST_MAX; ++i) {
-    if (r->prereq[i]) {
-      prereq_id[n_prereq] = colonies_find_building(ctx->colonies, r->prereq[i]);
-      if (r->prereq_required && prereq_id[n_prereq] < 0) {
-        return; /* the chain's parent is not in this pool at all */
-      }
-      n_prereq++;
-    }
-    if (r->prereq_any[i]) {
-      any_id[n_any++] = colonies_find_building(ctx->colonies, r->prereq_any[i]);
-    }
-    if (r->excludes[i]) {
-      exclude_id[n_exclude++] = colonies_find_building(ctx->colonies, r->excludes[i]);
-    }
-  }
-  ColoniesBuildableOpts opts;
-  memset(&opts, 0, sizeof(opts));
-  opts.map = ctx->map;
-  opts.col1 = (ctx->col1_ok && ctx->col1) ? ctx->col1 : NULL;
-  if (r->ff == FF_PETER_STUYVESANT) {
-    opts.has_peter_stuyvesant = true;
-  } else if (r->ff == FF_ADAM_SMITH) {
-    opts.has_adam_smith = true;
-  }
-  for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
-    ColonizeColony* c = &ctx->colonies->colonies[i];
-    if (!c->active || c->nation_id != nation_id) {
-      continue;
-    }
-    if (c->building_in_production >= 0) {
-      continue; /* idle/empty queue only — do not yank an active project */
-    }
-    if (r->min_pop > 0 && c->population < r->min_pop) {
-      continue;
-    }
-    if (r->ore_stock > 0 && c->stock[COLONIZE_CARGO_ORE] < r->ore_stock) {
-      continue;
-    }
-    if (ai_euro_colony_owns_id(c, target_id)) {
-      continue;
-    }
-    int blocked = 0;
-    for (int k = 0; k < n_prereq && !blocked; ++k) {
-      blocked = prereq_id[k] >= 0 && !ai_euro_colony_owns_id(c, prereq_id[k]);
-    }
-    for (int k = 0; k < n_exclude && !blocked; ++k) {
-      blocked = ai_euro_colony_owns_id(c, exclude_id[k]);
-    }
-    if (!blocked && n_any > 0) {
-      int any_ok = 0;
-      for (int k = 0; k < n_any && !any_ok; ++k) {
-        any_ok = ai_euro_colony_owns_id(c, any_id[k]);
-      }
-      blocked = !any_ok;
-    }
-    if (blocked) {
-      continue;
-    }
-    int buildable[COLONIZE_BUILDING_TYPES_MAX];
-    const int n =
-      colonies_list_buildable(ctx->colonies, c->id, buildable, COLONIZE_BUILDING_TYPES_MAX, &opts);
-    int target_ok = 0;
-    for (int b = 0; b < n; ++b) {
-      if (buildable[b] == target_id) {
-        target_ok = 1;
-        break;
-      }
-    }
-    if (!target_ok) {
-      continue;
-    }
-    (void)colonies_set_construction_ex(ctx->colonies, c->id, target_id, &opts);
-  }
-}
-
-/* Run every construction preference row, in the DOS-ordered sequence the
- * nineteen separate passes were called in (audit AE-3). */
-static void ai_euro_prefer_all_buildings(ColonizeTurnContext* ctx, int nation_id) {
-  for (size_t i = 0; i < sizeof(k_prefer_rules) / sizeof(k_prefer_rules[0]); ++i) {
-    ai_euro_prefer_building(ctx, nation_id, &k_prefer_rules[i]);
-  }
-}
 
 /*
  * DOS has no Capitol construction preference to port: FUN_15eb_3650 refuses
@@ -2064,90 +1871,6 @@ static void ai_euro_prefer_all_buildings(ColonizeTurnContext* ctx, int nation_id
  * port's two Capitol prefer passes are gone with it.
  */
 
-/*
- * Craft house/shop/factory prefer (5d04): House→Shop→Factory for rum/cotton/
- * tobacco/fur when raw stock≥20. Factories need Adam Smith. Cite:
- * building_production craft chains; dock craft hire stock≥20 gate. After
- * Iron Works.
- */
-static void ai_euro_prefer_craft_upgrades(ColonizeTurnContext* ctx, int nation_id) {
-  if (!ctx || !ctx->colonies || !ctx->map || nation_id < 0 || nation_id >= 4) {
-    return;
-  }
-  typedef struct {
-    const char* house;
-    const char* shop;
-    const char* factory;
-    int cargo;
-  } CraftChain;
-  static const CraftChain chains[] = {
-    {"Rum Distiller's House", "Rum Distillery", "Rum Factory", COLONIZE_CARGO_SUGAR},
-    {"Weaver's House", "Weaver's Shop", "Textile Mill", COLONIZE_CARGO_COTTON},
-    {"Tobacconist's House", "Tobacconist's Shop", "Cigar Factory", COLONIZE_CARGO_TOBACCO},
-    {"Fur Trader's House", "Fur Trading Post", "Fur Factory", COLONIZE_CARGO_FURS},
-  };
-  const int has_adam =
-    ctx->col1_ok && ctx->col1 &&
-    founding_fathers_nation_has(ctx->col1, nation_id, FF_ADAM_SMITH);
-  ColoniesBuildableOpts opts;
-  memset(&opts, 0, sizeof(opts));
-  opts.map = ctx->map;
-  opts.col1 = (ctx->col1_ok && ctx->col1) ? ctx->col1 : NULL;
-  opts.has_adam_smith = has_adam;
-  for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
-    ColonizeColony* c = &ctx->colonies->colonies[i];
-    if (!c->active || c->nation_id != nation_id) {
-      continue;
-    }
-    if (c->building_in_production >= 0) {
-      continue;
-    }
-    int buildable[COLONIZE_BUILDING_TYPES_MAX];
-    const int n =
-      colonies_list_buildable(ctx->colonies, c->id, buildable, COLONIZE_BUILDING_TYPES_MAX, &opts);
-    for (size_t ci = 0; ci < sizeof(chains) / sizeof(chains[0]); ++ci) {
-      const CraftChain* ch = &chains[ci];
-      if (c->stock[ch->cargo] < 20) {
-        continue;
-      }
-      const int house_id = colonies_find_building(ctx->colonies, ch->house);
-      const int shop_id = colonies_find_building(ctx->colonies, ch->shop);
-      const int factory_id = colonies_find_building(ctx->colonies, ch->factory);
-      int want = -1;
-      if (house_id >= 0 && house_id < COLONIZE_BUILDING_TYPES_MAX && !c->has_building[house_id]) {
-        want = house_id;
-      } else if (
-        house_id >= 0 && house_id < COLONIZE_BUILDING_TYPES_MAX && c->has_building[house_id] &&
-        shop_id >= 0 && shop_id < COLONIZE_BUILDING_TYPES_MAX && !c->has_building[shop_id] &&
-        (factory_id < 0 || factory_id >= COLONIZE_BUILDING_TYPES_MAX ||
-         !c->has_building[factory_id])
-      ) {
-        want = shop_id;
-      } else if (
-        has_adam && shop_id >= 0 && shop_id < COLONIZE_BUILDING_TYPES_MAX &&
-        c->has_building[shop_id] && factory_id >= 0 && factory_id < COLONIZE_BUILDING_TYPES_MAX &&
-        !c->has_building[factory_id]
-      ) {
-        want = factory_id;
-      }
-      if (want < 0) {
-        continue;
-      }
-      int ok = 0;
-      for (int b = 0; b < n; ++b) {
-        if (buildable[b] == want) {
-          ok = 1;
-          break;
-        }
-      }
-      if (!ok) {
-        continue;
-      }
-      (void)colonies_set_construction_ex(ctx->colonies, c->id, want, &opts);
-      break;
-    }
-  }
-}
 
 /*
  * Expert Lumberjack LABOR when incomplete Warehouse or Lumber Mill and that
@@ -3861,6 +3584,648 @@ static void ai_euro_5952_indoor_pass(
  * per-slot eligibility test between FUN_281f_0c9a (expert) and profession
  * 0x1b (Indian Convert).
  */
+static int ai_euro_20e6_nearest_village(
+  const ColonizeTurnContext* ctx, int x, int y, int* out_dist
+);
+
+/* ===== FUN_5952_035e construction-project cascade (asm 5952:21d4-5952:2747) ===== */
+
+/*
+ * The AI colony tick's build-decision tail, transcribed from
+ * `viceroy_overlays.asm:145550-146167` (`OVL15_L0000` = `5952`) with the
+ * clean recovery `original_sources_annotated/ai/colony_tick_5952_035e.md`
+ * md:1394-1600 as the control-flow cross-check. Every `FUN_5952_0214(id)`
+ * argument arrives in **AX**, which is why Ghidra dropped it at all 21 call
+ * sites; each one is the `MOV AX,imm` immediately ahead of
+ * `CALL FUN_OVL15_L0000__002a6e`, and `002a6e` / `002a73` / `002a78` are the
+ * overlay thunks for `FUN_5952_0214` / `FUN_5952_0280` / `FUN_5952_02f4`
+ * (`JMPF 0000:0214 / 0280 / 02f4` behind the loader stub at `1000:a7a3+`).
+ *
+ * This replaces the nineteen-row `ai_euro_prefer_*` stand-in table, which was
+ * a name-keyed invention: DOS has exactly one ordered cascade and it ends in
+ * five UNIT projects (bugs.md #483).
+ *
+ * Resolutions this port needed, none of them previously on record:
+ *  - `FUN_5952_0214` is **recursive**: when the candidate is not owned and
+ *    not buildable it retries the @BUILDING predecessor byte
+ *    (`DS:0x8f85 + id*0xc`, the chain parent `docs/building_production.md`
+ *    already names). Return 1 = "keep scanning", 0 = "stop" (either a project
+ *    was set or the chain dead-ended); on 0 it clears colony `+0x1c` bit 0x80.
+ *  - `DS:0x864` = six 4-byte craft-chain rows, read straight off the image
+ *    (`VICEROY.EXE` offset 121248 + 0x864):
+ *      03 0f 0e | 27 0e 06 | 20 0c 04 | 1b 09 01 | 18 0a 02 | 15 0b 03
+ *    i.e. {root @BUILDING, @JOB, input @CARGO} = Armory/Gunsmith/Tools,
+ *    Blacksmith's House/Blacksmith/Ore, Fur Trader's House/Fur Trader/Furs,
+ *    Rum Distiller's House/Distiller/Sugar, Tobacconist's House/Tobacconist/
+ *    Tobacco, Weaver's House/Weaver/Cotton. (The 4th byte repeats the @JOB.)
+ *  - `DS:0x8ea6` (stride 8, indexed by @JOB) is the **third @JOB column of
+ *    NAMES.TXT** — the loader at raw 121044-121053 reads section 0x224e into
+ *    {name, plural, col3, col4} records, so `0x8ea6[job] % 4` is that 1..4
+ *    class with Teacher/Colonist/Servant/Criminal/Convert (4) folding to 0.
+ *    Classes 1/2/3 are exactly the Schoolhouse/College/University tiers the
+ *    cascade then asks for (0xc/0xd/0xe).
+ *  - `byte[nation*0x10 + 0x84cb]` = `DS:0x84bc` + cargo 0xf, i.e. the
+ *    per-nation Europe SELL row for **Muskets** (europe.h's `euro_price − 1`).
+ *  - `aiStack_68` is based at **BP-0x66** (`LEA AX,[BP-0x66]` ahead of the
+ *    0x32-byte memset at asm 5952:0bb8) and is indexed by the colonist's
+ *    PROFESSION with every non-expert folded to 0x13, so the asm's
+ *    `[BP-0x48]` / `[BP-0x46]` gates are counts of **Master Gunsmiths** and
+ *    **Firebrand Preachers** — which is why they guard the Armory and the
+ *    Church. (The clean recovery's `iStack_4a`/`iStack_48` names are shifted
+ *    one word against the overlay listing's frame; the asm is authoritative.)
+ *  - `FUN_1000_8d90` = `FUN_281f_0ba0` -> `FUN_15eb_0410`, which walks the
+ *    SUCCESSOR column `DS:0x8f86` to the deepest tier of a chain, and
+ *    `FUN_1000_8ca0` = `FUN_281f_0ab0` -> `FUN_15eb_039e` counts owned tiers
+ *    from its argument downward (so `== 3` means a full craft chain).
+ *  - `FUN_1000_8d72(job)` / `FUN_1000_8de0(prof)` = `FUN_15eb_1376` /
+ *    `FUN_15eb_13ac`, per-colony counts of colonists by JOB and by
+ *    PROFESSION.
+ *  - `uStack_a2` = `byte[0x329 + tech_tier]` = {0,4,8,12,20}; a European
+ *    colony's tier is 2, so the ring is the port's 8 field tiles.
+ *
+ * DIVERGENCES, deliberate and minimal:
+ *  - `iStack_22` (the ring-1 European threat count that gates the Wagon
+ *    Train) is produced by `ai_euro_colony_threat_seed_5952`, a different
+ *    port pass of the same DOS body; it is stashed per colony in
+ *    `s_5952_ring1` (fresh every nation turn, DOS order: the seed runs in
+ *    `ai_euro_colony_goals`, before this tail).
+ *  - the Wagon Train arm's alarm read is `FUN_1000_84fc(DS:0x8d52, nation)`,
+ *    where `DS:0x8d52` is the tribe the tick last bound. The bind is the
+ *    nearest-village lookup `FUN_1000_8f74` five lines above it (md:298-302),
+ *    so the port reads the alarm of `ai_euro_20e6_nearest_village`'s tribe.
+ *  - `FUN_5952_02f4` assigns the unit code with **no** availability gate of
+ *    its own (it only clears `+0x1c` bit 0x80 and returns `arg + 0x1f`), so
+ *    this path deliberately bypasses `colonies_unit_project_available`: the
+ *    Shipyard / Armory requirements are carried by the cascade's own
+ *    `try(8)` / `try(3)` steps, and the per-nation Wagon cap in
+ *    `FUN_15eb_3650` is the human build MENU's gate, never reached here.
+ */
+
+/* iStack_22 — see the header note. */
+static int s_5952_ring1[COLONIZE_COLONIES_MAX];
+
+/* Test seam: the threat-seed pass is what fills this in production. */
+COLONIZE_INTERNAL void ai_euro_5952_set_ring1_threat(int colony_id, int ring1) {
+  if (colony_id >= 0 && colony_id < COLONIZE_COLONIES_MAX) {
+    s_5952_ring1[colony_id] = ring1;
+  }
+}
+
+/* DS:0x864, 6 rows of {root @BUILDING, @JOB, input @CARGO}. */
+typedef struct AiEuro5952Craft {
+  int root;  /* DOS @BUILDING index */
+  int chain; /* COLONIES_CHAIN_* */
+  int cargo; /* input @CARGO */
+} AiEuro5952Craft;
+
+static const AiEuro5952Craft k_5952_craft[6] = {
+  {0x03, COLONIES_CHAIN_ARMORY, COLONIZE_CARGO_TOOLS},
+  {0x27, COLONIES_CHAIN_BLACKSMITH, COLONIZE_CARGO_ORE},
+  {0x20, COLONIES_CHAIN_FUR, COLONIZE_CARGO_FURS},
+  {0x1b, COLONIES_CHAIN_RUM, COLONIZE_CARGO_SUGAR},
+  {0x18, COLONIES_CHAIN_TOBACCONIST, COLONIZE_CARGO_TOBACCO},
+  {0x15, COLONIES_CHAIN_WEAVER, COLONIZE_CARGO_COTTON},
+};
+
+/*
+ * @BUILDING index -> NAMES.TXT row name, for the ids this cascade names.
+ * The predecessor column is `DS:0x8f85 + id*0xc`; it is the same chain
+ * parent colonies_building_chain() already models, so the table carries it
+ * directly (−1 = chain root). Town Hall (9..0xb) and Capitol (0x1e/0x1f) are
+ * absent because the cascade never asks for them and DOS refuses both.
+ */
+typedef struct AiEuro5952Bld {
+  const char* name;
+  int pred;
+} AiEuro5952Bld;
+
+static const AiEuro5952Bld k_5952_bld[0x2a] = {
+  {"Stockade", -1},              {"Fort", 0x00},
+  {"Fortress", 0x01},            {"Armory", -1},
+  {"Magazine", 0x03},            {"Arsenal", 0x04},
+  {"Docks", -1},                 {"Drydock", 0x06},
+  {"Shipyard", 0x07},            {NULL, -1},
+  {NULL, -1},                    {NULL, -1},
+  {"Schoolhouse", -1},           {"College", 0x0c},
+  {"University", 0x0d},          {"Warehouse", -1},
+  {"Warehouse Expansion", 0x0f}, {"Stable", -1},
+  {"Custom House", -1},          {"Printing Press", -1},
+  {"Newspaper", 0x13},           {"Weaver's House", -1},
+  {"Weaver's Shop", 0x15},       {"Textile Mill", 0x16},
+  {"Tobacconist's House", -1},   {"Tobacconist's Shop", 0x18},
+  {"Cigar Factory", 0x19},       {"Rum Distiller's House", -1},
+  {"Rum Distillery", 0x1b},      {"Rum Factory", 0x1c},
+  {NULL, -1},                    {NULL, -1},
+  {"Fur Trader's House", -1},    {"Fur Trading Post", 0x20},
+  {"Fur Factory", 0x21},         {"Carpenter's Shop", -1},
+  {"Lumber Mill", 0x23},         {"Church", -1},
+  {"Cathedral", 0x25},           {"Blacksmith's House", -1},
+  {"Blacksmith's Shop", 0x27},   {"Iron Works", 0x28},
+};
+
+typedef struct AiEuro5952Cascade {
+  ColonizeTurnContext* ctx;
+  ColonizeColonyPool* pool;
+  ColonizeColony* col;
+  const ColonizeCol1Save* col1;
+  int nation;
+  int buildable[COLONIZE_BUILDING_TYPES_MAX];
+  int n_buildable;
+} AiEuro5952Cascade;
+
+static int ai_euro_5952_bld_index(const ColonizeColonyPool* pool, int dos_id) {
+  if (dos_id < 0 || dos_id >= 0x2a || !k_5952_bld[dos_id].name) {
+    return -1;
+  }
+  return colonies_find_building(pool, k_5952_bld[dos_id].name);
+}
+
+/* FUN_281f_0b8c -> FUN_15eb_3650, via the port's own gate. */
+static bool ai_euro_5952_can_build(const AiEuro5952Cascade* s, int idx) {
+  for (int i = 0; i < s->n_buildable; ++i) {
+    if (s->buildable[i] == idx) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/* DOS-LITERAL FUN_5952_0214 (asm 5952:0214-5952:027e, raw 93686-93716). */
+static int ai_euro_5952_try_build(AiEuro5952Cascade* s, int dos_id) {
+  int ret = 1;
+  if (dos_id >= 0) {
+    const int idx = ai_euro_5952_bld_index(s->pool, dos_id);
+    const bool owned =
+      idx >= 0 && idx < COLONIZE_BUILDING_TYPES_MAX && s->col->has_building[idx];
+    if (!owned) {
+      ret = 0;
+      if (idx >= 0 && ai_euro_5952_can_build(s, idx)) {
+        s->col->building_in_production = idx; /* asm 5952:0248 `+0x94 = id` */
+      } else if (ai_euro_5952_try_build(s, k_5952_bld[dos_id].pred) != 0) {
+        ret = 1;
+      }
+    }
+  }
+  if (ret == 0) {
+    s->col->colony_flags =
+      (uint8_t)(s->col->colony_flags & (uint8_t)~COLONIZE_COLONY_FLAG_BUILD_COMPLETE);
+  }
+  return ret;
+}
+
+/* DOS-LITERAL FUN_5952_02f4 (raw 93749-93755): clear +0x1c bit 0x80, code = row + 0x1f. */
+static void ai_euro_5952_set_unit_project(AiEuro5952Cascade* s, int unit_row) {
+  s->col->colony_flags =
+    (uint8_t)(s->col->colony_flags & (uint8_t)~COLONIZE_COLONY_FLAG_BUILD_COMPLETE);
+  s->col->building_in_production = unit_row + 0x1f;
+  if (getenv("AI_5952_BUILD_TRACE")) {
+    const char* uname = NULL;
+    colonies_unit_build_info(unit_row + 0x1f, &uname, NULL, NULL);
+    fprintf(
+      stderr, "[5952] %s -> unit project %s (code %d)\n",
+      s->col->name[0] ? s->col->name : "colony", uname ? uname : "?", unit_row + 0x1f
+    );
+  }
+}
+
+/* DOS-LITERAL FUN_5952_0280 (asm 5952:0280-5952:02f2): is this craft chain
+ * short of the tier its input supply justifies? */
+static int ai_euro_5952_chain_short(
+  const AiEuro5952Cascade* s, const int* gross, int chain_row
+) {
+  const AiEuro5952Craft* r = &k_5952_craft[chain_row];
+  const int owned = ai_euro_5952_chain_owned(s->pool, s->col, r->chain, NULL, NULL);
+  int want = 0;
+  if (gross[r->cargo] >= 3) {
+    want = 2;
+  }
+  if (gross[r->cargo] >= 8) {
+    want = 3;
+  }
+  if (s->col->stock[r->cargo] >= 100) {
+    want = 3;
+  }
+  return owned < want ? 1 : 0;
+}
+
+/* FUN_1000_8d90 -> FUN_15eb_0410: deepest tier of the chain rooted at `row`. */
+static int ai_euro_5952_chain_top(int chain_row) {
+  const int chain = k_5952_craft[chain_row].chain;
+  const char* const* names = colonies_building_chain(chain);
+  int last = k_5952_craft[chain_row].root;
+  int n = 0;
+  while (names && names[n]) {
+    ++n;
+  }
+  /* The DOS ids of a chain are consecutive (see k_5952_bld), so the deepest
+   * tier is root + (length − 1); Armory's chain is 3/4/5, Weaver's 0x15/16/17. */
+  if (n > 0) {
+    last = k_5952_craft[chain_row].root + (n - 1);
+  }
+  return last;
+}
+
+/*
+ * `DS:0x8ea6[job] % 4` — NAMES.TXT @JOB column 3 (the loader at raw
+ * 121044-121053 stores it as the 3rd word of each stride-8 record), read off
+ * the shipped COLONIZE/NAMES.TXT @JOB block. Class 4 (Teacher, Colonist,
+ * Ind. Servant, Criminal, Convert) folds to 0 under DOS's `% 4`.
+ */
+static const signed char k_5952_job_class[28] = {
+  1, 2, 2, 2, 1, 1, 1, 1, 1, 2, 2, 2, 2, 1,
+  2, 2, 3, 3, 0, 0, 1, 2, 1, 2, 3, 0, 0, 0
+};
+
+static int ai_euro_5952_job_class(int job) {
+  return (job >= 0 && job < 28) ? (int)k_5952_job_class[job] : 0;
+}
+
+/*
+ * DOS-LITERAL FUN_5952_035e build-decision cascade, asm 5952:21d4-5952:274b.
+ * Runs at the tail of the AI colony tick, once per own colony.
+ */
+COLONIZE_INTERNAL void ai_euro_5952_build_cascade(
+  ColonizeTurnContext* ctx, ColonizeColony* col
+) {
+  if (!ctx || !ctx->colonies || !ctx->map || !col || !col->active) {
+    return;
+  }
+  if (ctx->colonies->building_type_count <= 0) {
+    /* Port-side guard, not a DOS gate: a real game always carries the 42
+     * @BUILDING rows, so DOS never runs this cascade with nothing to build.
+     * Slim unit fixtures do, and every try() would dead-end straight into the
+     * `+0x1d |= 0x80` wants-construction latch. */
+    return;
+  }
+  AiEuro5952Cascade s;
+  memset(&s, 0, sizeof s);
+  s.ctx = ctx;
+  s.pool = ctx->colonies;
+  s.col = col;
+  s.col1 = (ctx->col1_ok && ctx->col1) ? ctx->col1 : NULL;
+  s.nation = (col->nation_id >= 0 && col->nation_id < 4) ? col->nation_id : 0;
+
+  ColoniesBuildableOpts opts;
+  memset(&opts, 0, sizeof opts);
+  opts.map = ctx->map;
+  opts.col1 = s.col1;
+  if (s.col1) {
+    opts.has_adam_smith = founding_fathers_nation_has(s.col1, s.nation, FF_ADAM_SMITH);
+    opts.has_peter_stuyvesant =
+      founding_fathers_nation_has(s.col1, s.nation, FF_PETER_STUYVESANT);
+  }
+  s.n_buildable = colonies_list_buildable(
+    s.pool, col->id, s.buildable, COLONIZE_BUILDING_TYPES_MAX, &opts
+  );
+
+  int gross[AI_EURO_5952_LEDGER_SLOTS];
+  int demand[AI_EURO_5952_LEDGER_SLOTS];
+  {
+    const ColonizeWorld world = world_from_turn_ctx(ctx);
+    ai_euro_5952_ledgers(&world, s.pool, col, s.col1, gross, demand);
+  }
+
+  const int pop = col->population;
+  const int human = (ctx->human_nation >= 0 && ctx->human_nation < 4) ? ctx->human_nation : 0;
+  const int turn = s.col1 ? (int)s.col1->head.turn : 0;
+  const int year = s.col1 ? (int)s.col1->head.year : 0;
+  const int difficulty = s.col1 ? (int)s.col1->head.difficulty : 4;
+  const int musket_price =
+    s.col1 ? ((int)s.col1->nation[s.nation].trade.euro_price[COLONIZE_CARGO_MUSKETS] - 1) : 0;
+  const int ring1 = (col->id >= 0 && col->id < COLONIZE_COLONIES_MAX) ? s_5952_ring1[col->id] : 0;
+
+  /* asm 5952:21d4 — iVar12 = colonists working @JOB 0 (Farmer) + 8 (Fisherman). */
+  int food_workers = 0;
+  int prof_count[28];
+  memset(prof_count, 0, sizeof prof_count);
+  for (int i = 0; i < col->colonist_count && i < COLONIZE_COLONY_POP_MAX; ++i) {
+    const ColonizeColonist* c = &col->colonists[i];
+    if (!c->active) {
+      continue;
+    }
+    if (c->field_job == COLONIZE_JOB_FARMER || c->field_job == COLONIZE_JOB_FISHERMAN) {
+      ++food_workers;
+    }
+    if (c->profession >= 0 && c->profession < 28) {
+      ++prof_count[c->profession];
+    }
+  }
+
+  /* asm 5952:21f6-5952:21fe — the prologue clears the "wants construction"
+   * latch and the project slot, so "nothing picked" is a real outcome. */
+  col->build_ai_flags =
+    (uint8_t)(col->build_ai_flags & (uint8_t)~COLONIZE_BUILD_AI_WANTS_CONSTRUCTION);
+  col->building_in_production = -1;
+
+  /* asm 5952:222c-5952:2294 — walk the pop slots and then the on-tile units
+   * (DS:0x8d72), counting experts and the deepest @JOB class among them. */
+  int experts = 0;
+  int tier_max = 0;
+  for (int i = 0; i < col->colonist_count && i < COLONIZE_COLONY_POP_MAX; ++i) {
+    const ColonizeColonist* c = &col->colonists[i];
+    if (!c->active || !ai_euro_5952_job_is_expert(c->profession)) {
+      continue;
+    }
+    ++experts;
+    const int t = ai_euro_5952_job_class(c->profession) % 4;
+    if (t > tier_max) {
+      tier_max = t;
+    }
+  }
+  int arty_on_tile = 0; /* iStack_92, asm 5952:2642 */
+  if (ctx->units) {
+    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+      const ColonizeUnit* u = &ctx->units->units[i];
+      if (!u->active || !units_is_on_map(u) || u->x != col->x || u->y != col->y) {
+        continue;
+      }
+      if (u->nation_id != col->nation_id) {
+        continue;
+      }
+      const int dtype = ai_euro_20e6_dos_type(ctx->units, u);
+      if (dtype == 0x0b) {
+        ++arty_on_tile;
+      }
+      if (dtype >= 0x0d && dtype <= 0x12) {
+        continue; /* ships are not colony slots */
+      }
+      if (ai_euro_5952_job_is_expert(u->profession)) {
+        ++experts;
+        const int t = ai_euro_5952_job_class(u->profession) % 4;
+        if (t > tier_max) {
+          tier_max = t;
+        }
+      }
+    }
+  }
+
+  /* asm 5952:2296-5952:22b8 — iStack_a0, the food-pressure latch. */
+  int hungry = 0;
+  if ((pop >> 1) < food_workers && food_workers > 1) {
+    hungry = 1;
+  }
+  if (col->stock[COLONIZE_CARGO_FOOD] + gross[COLONIZE_CARGO_FOOD] <
+      demand[COLONIZE_CARGO_FOOD]) {
+    hungry = 1; /* DS:0x8e5a != 0 (unmet[food]) */
+  }
+
+  /* uStack_a2 / iStack_142 — the 8-tile ring and how much of it is not land
+   * (off-map, Ocean 0x19 or High Seas 0x1a), asm 5952:1150 loop. */
+  const int ring = COLONIZE_COLONY_FIELD_TILES;
+  int ring_nonland = 0;
+  for (int d = 0; d < ring; ++d) {
+    const int tx = col->x + MAP_DIR8_DX[d];
+    const int ty = col->y + MAP_DIR8_DY[d];
+    if (tx < 0 || ty < 0 || tx >= (int)ctx->map->width || ty >= (int)ctx->map->height) {
+      ++ring_nonland;
+      continue;
+    }
+    if (map_tile_is_water(ctx->map, tx, ty) || map_tile_is_high_seas(ctx->map, tx, ty)) {
+      ++ring_nonland;
+    }
+  }
+
+  /* iStack_2c, asm 5952:2583 — some craft chain is complete (three tiers). */
+  int factory = 0;
+  for (int i = 5; i >= 0; --i) {
+    if (ai_euro_5952_chain_owned(s.pool, col, k_5952_craft[i].chain, NULL, NULL) == 3) {
+      factory = 1;
+    }
+  }
+
+  const int shipyard = ai_euro_5952_bld_index(s.pool, 0x08);
+  const bool has_shipyard =
+    shipyard >= 0 && shipyard < COLONIZE_BUILDING_TYPES_MAX && col->has_building[shipyard];
+
+  /* --- the cascade proper ------------------------------------------------ */
+
+  if ((ring - ring_nonland) <= pop || (ring_nonland != 0 && hungry != 0)) {
+    if (ai_euro_5952_try_build(&s, 0x06) == 0) { /* asm 22da: Docks */
+      return;
+    }
+  }
+  if (ai_euro_5952_try_build(&s, 0x00) == 0) { /* 22ec: Stockade */
+    return;
+  }
+  if (col->stock[COLONIZE_CARGO_HORSES] >= 2) {
+    if (ai_euro_5952_try_build(&s, 0x11) == 0) { /* 22f9: Stable */
+      return;
+    }
+  }
+  if (pop < 4) {
+    goto wants;
+  }
+  {
+    const int wl_want = pop / 6; /* iStack_16c */
+    if (col->warehouse_level < (unsigned)wl_want && col->warehouse_level == 0) {
+      if (ai_euro_5952_try_build(&s, 0x10) == 0) { /* 231f: Warehouse Expansion */
+        return;
+      }
+    }
+    if (pop >= 6) {
+      int want_custom = (col->ai_flags & 0x03u) != 0;
+      if (!want_custom && s.col1) {
+        want_custom = ((int)s.col1->stuff.armed_ship_counts[human] - 2) >
+                      (int)s.col1->stuff.armed_ship_counts[s.nation];
+      }
+      if (!want_custom && pop >= 0x0c) {
+        want_custom = 1;
+      }
+      if (want_custom && ai_euro_5952_try_build(&s, 0x12) == 0) { /* 2347: Custom House */
+        return;
+      }
+    }
+
+    /* 2385 — the Wagon Train unit project. */
+    if (!(col->colony_flags & COLONIZE_COLONY_FLAG_WAGON_TRAIN) && year < 0x640) {
+      const int cont = map_continent_id_at(ctx->map, col->x, col->y);
+      const int presence =
+        cont >= 0 ? ai_contact_continent_presence_4962(ctx, s.nation, cont) : 0;
+      if ((presence & 1) != 0 && ring1 == 0) {
+        int vd = 0;
+        const int vi = ai_euro_20e6_nearest_village(ctx, col->x, col->y, &vd);
+        int alarm = 0;
+        if (vi >= 0 && s.col1 && s.col1->tribe) {
+          alarm = ai_diplo_indian_alarm(s.col1, (int)s.col1->tribe[vi].nation_id, s.nation);
+        }
+        if (alarm < 0x32) {
+          ai_euro_5952_set_unit_project(&s, 0x0c);
+          return;
+        }
+      }
+    }
+
+    if (tier_max >= 1 && (pop + experts) >= 4) {
+      if (ai_euro_5952_try_build(&s, 0x0c) == 0) { /* 23d0: Schoolhouse */
+        return;
+      }
+    }
+    if (pop < 6) { /* 23f6 */
+      col->build_ai_flags =
+        (uint8_t)(col->build_ai_flags | COLONIZE_BUILD_AI_WANTS_CONSTRUCTION);
+    }
+    {
+      /* 2404: Armory — musket price / turn band, or a Master Gunsmith. */
+      int want_armory = 0;
+      if ((musket_price + (difficulty >> 1)) >= 4 || turn > 0x50) {
+        if (pop >= 6 &&
+            (col->stock[COLONIZE_CARGO_TOOLS] >= 0x28 || gross[COLONIZE_CARGO_TOOLS] != 0)) {
+          want_armory = 1;
+        }
+      }
+      if (!want_armory && prof_count[COLONIZE_PROF_GUNSMITH] != 0) {
+        want_armory = 1;
+      }
+      if (want_armory && ai_euro_5952_try_build(&s, 0x03) == 0) {
+        return;
+      }
+    }
+    if (prof_count[COLONIZE_PROF_PREACHER] != 0) {
+      if (ai_euro_5952_try_build(&s, 0x25) == 0) { /* 2453: Church */
+        return;
+      }
+    }
+    if (ai_euro_5952_try_build(&s, 0x24) == 0) { /* 2467: Lumber Mill */
+      return;
+    }
+    if (ai_euro_5952_try_build(&s, 0x01) == 0) { /* 2475: Fort */
+      return;
+    }
+    if (musket_price >= 4 && pop >= 4 &&
+        (col->stock[COLONIZE_CARGO_ORE] >= 0x28 || gross[COLONIZE_CARGO_ORE] != 0)) {
+      if (ai_euro_5952_try_build(&s, 0x28) == 0) { /* 24a9: Blacksmith's Shop */
+        return;
+      }
+    }
+    if (col->warehouse_level < (unsigned)wl_want) {
+      if (ai_euro_5952_try_build(&s, 0x10) == 0) { /* 24b7 */
+        return;
+      }
+    }
+    if (gross[AI_EURO_5952_BELLS] >= 0x18) {
+      if (ai_euro_5952_try_build(&s, 0x14) == 0) { /* 24d3: Newspaper */
+        return;
+      }
+    }
+    if (gross[AI_EURO_5952_BELLS] >= 4) {
+      if (ai_euro_5952_try_build(&s, 0x14) == 0) { /* 24e8 */
+        return;
+      }
+    }
+    if (tier_max >= 2 && (pop + experts) >= 0x0a) {
+      if (ai_euro_5952_try_build(&s, 0x0d) == 0) { /* 24fd: College */
+        return;
+      }
+    }
+    if (pop < 8) {
+      goto wants;
+    }
+    if (tier_max >= 3 && (pop + experts) >= 0x10) {
+      if (ai_euro_5952_try_build(&s, 0x0e) == 0) { /* 2530: University */
+        return;
+      }
+    }
+    if (ai_euro_5952_try_build(&s, 0x25) == 0) { /* 2552: Church again */
+      return;
+    }
+    if (pop >= 0x0a) {
+      if (ai_euro_5952_try_build(&s, 0x02) == 0) { /* 2560: Fortress */
+        return;
+      }
+    }
+
+    /* 25a3 — the naval band: a finished craft chain plus a coastal colony. */
+    if (factory != 0 && (col->colony_flags & COLONIZE_COLONY_FLAG_COASTAL) != 0) {
+      if (ai_euro_5952_try_build(&s, 0x08) == 0) { /* 25b9: Shipyard */
+        return;
+      }
+      if (has_shipyard && s.col1) {
+        const ColonizeCol1Stuff* st = &s.col1->stuff;
+        if (((int)st->census_pop_proxy[s.nation] >> 1) + (int)st->colony_counts[s.nation] >=
+            (int)st->ship_cargo_totals[s.nation]) {
+          ai_euro_5952_set_unit_project(&s, 0x0f); /* 25f1: Galleon */
+          return;
+        }
+        const int frigates = (int)st->unit_type_counts[s.nation][0x11];
+        const int armed = (int)st->armed_ship_counts[s.nation];
+        if (frigates != 0 || armed == 0) {
+          if (armed < 4) {
+            ai_euro_5952_set_unit_project(&s, 0x10); /* 260b: Privateer */
+            return;
+          }
+        }
+        if (frigates < 1) {
+          ai_euro_5952_set_unit_project(&s, 0x11); /* 2626: Frigate */
+          return;
+        }
+      }
+    }
+
+    /* 262c */
+    if (factory == 0 || (arty_on_tile != 0 && col->labor_shortage != 0)) {
+      goto chain_upgrades;
+    }
+    if (col->stock[COLONIZE_CARGO_TOOLS] != 0) { /* 2670 */
+      if (ai_euro_5952_try_build(&s, 0x03) == 0) {
+        return;
+      }
+    }
+    ai_euro_5952_set_unit_project(&s, 0x0b); /* 2689: Artillery */
+    return;
+
+  chain_upgrades:
+    /* 268e — walk the six craft chains, highest row first, and upgrade any
+     * whose tier is short of what its input supply justifies. */
+    for (int i = 5; i >= 0; --i) {
+      if (ai_euro_5952_chain_short(&s, gross, i) != 0) {
+        if (ai_euro_5952_try_build(&s, ai_euro_5952_chain_top(i)) == 0) {
+          return;
+        }
+      }
+    }
+    if (ai_euro_5952_try_build(&s, 0x26) == 0) { /* 26c4: Cathedral */
+      return;
+    }
+    if (has_shipyard && s.col1) {
+      const ColonizeCol1Stuff* st = &s.col1->stuff;
+      const int armed = (int)st->armed_ship_counts[s.nation];
+      const int cap = armed < 8 ? armed : 8; /* asm 26e9 SUB/SBB/AND/ADD = min(armed,8) */
+      if ((int)st->unit_type_counts[s.nation][0x0f] < cap) {
+        ai_euro_5952_set_unit_project(&s, 0x0f); /* Galleon */
+        return;
+      }
+      if (armed < 8) {
+        ai_euro_5952_set_unit_project(&s, 0x11); /* Frigate */
+        return;
+      }
+    }
+    if (pop < 0x0a) { /* 270d — the SMALL_AI writer */
+      col->colony_flags = (uint8_t)(col->colony_flags | COLONIZE_COLONY_FLAG_SMALL_AI);
+    }
+    if (arty_on_tile >= 3) { /* 273e */
+      col->building_in_production = -1;
+      goto wants;
+    }
+    if (ai_euro_5952_try_build(&s, 0x03) == 0) { /* 2724: Armory */
+      return;
+    }
+    if (gross[COLONIZE_CARGO_MUSKETS] == 0) { /* DS:0x8de6 */
+      ai_euro_5952_set_unit_project(&s, 0x0b); /* Artillery */
+      return;
+    }
+    if (ai_euro_5952_try_build(&s, 0x05) == 0) { /* 2737: Arsenal */
+      return;
+    }
+    ai_euro_5952_set_unit_project(&s, 0x0b); /* Artillery */
+    return;
+  }
+
+wants:
+  /* 2747 */
+  col->build_ai_flags =
+    (uint8_t)(col->build_ai_flags | COLONIZE_BUILD_AI_WANTS_CONSTRUCTION);
+}
+
 static void ai_euro_colony_tick_28c8_reassign(ColonizeTurnContext* ctx, int nation_id) {
   if (!ctx || !ctx->colonies || !ctx->map || nation_id == ctx->human_nation) {
     return;
@@ -5622,9 +5987,17 @@ static void ai_euro_found_with_unit(ColonizeTurnContext* ctx, ColonizeUnit* foun
       }
     }
   }
-  /* DOS: a new AI town already carries its first project in the same turn
-   * (seed-100 TURN4–6 saves: Docks). Idle-queue-only pick, so re-running it
-   * here after the planning-phase call is harmless for existing towns. */
+  /*
+   * DOS: a new AI town already carries its first project in the same turn
+   * (seed-100 TURN4-6 saves: Docks). Idle-queue-only pick, so re-running it
+   * here after the planning-phase call is harmless for existing towns.
+   * This is the LAST surviving `ai_euro_prefer_*` pass (bugs.md #483 deleted
+   * the other twenty): the FUN_5952_035e cascade runs in the nation's
+   * planning phase, which a colony founded mid-act has already missed, and
+   * the golden's founding-turn Docks is what this stands in for. Retiring it
+   * means finding DOS's own founding-turn project writer, not moving the
+   * cascade.
+   */
   ai_euro_prefer_peace_construction(ctx, nation_id);
 }
 
@@ -9369,6 +9742,12 @@ static void ai_euro_colony_threat_seed_5952(
   int n = 0;
   int want = 0;
   int homed_mil = 0;
+  /* iStack_22 also gates the build cascade's Wagon Train arm, which the port
+   * runs from a different pass of this same DOS body — stash it. */
+  if (c->id >= 0 && c->id < COLONIZE_COLONIES_MAX) {
+    s_5952_ring1[c->id] = ring1;
+  }
+
   ai_euro_5952_labor_demand(ctx, nation_id, c, col1, quota, ring1, &n, &want, &homed_mil);
 
   ai_euro_5952_ai_flags(ctx, nation_id, c, n, want, homed_mil);
@@ -20410,13 +20789,25 @@ static void ai_euro_dispatcher_turn_plan(ColonizeTurnContext* ctx, int nation_id
   ai_euro_nation_planning(ctx, nation_id);
   ai_goals_promote_secondary_to_primary(nation_id);
   ai_euro_cancel_stale_zero_hammer_builds(ctx, nation_id);
-  /* Peace Stockade→Fort→Fortress→Warehouse→Docks, coastal Drydock→Shipyard,
-   * then Stuyvesant Custom House, then Church (after Stockade); before LABOR. */
-  ai_euro_prefer_peace_construction(ctx, nation_id);
-  ai_euro_prefer_all_buildings(ctx, nation_id);
-  ai_euro_prefer_craft_upgrades(ctx, nation_id);
   ai_euro_clear_pre_stockade_build_queue(ctx, nation_id);
   ai_euro_colony_goals(ctx, nation_id);
+  /*
+   * bugs.md #483 — DOS's ONE construction picker, FUN_5952_035e's tail. It
+   * replaces the three invented preference passes that used to stand here
+   * (ai_euro_prefer_peace_construction / _all_buildings / _craft_upgrades).
+   * DOS runs it inside the colony tick, the AI turn's first phase; the port
+   * runs it immediately after ai_euro_colony_goals because that pass is the
+   * other half of the same DOS body and is what produces the ring-1 threat
+   * count (iStack_22) the Wagon Train arm reads.
+   */
+  if (ctx->colonies) {
+    for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+      ColonizeColony* c = &ctx->colonies->colonies[i];
+      if (c->active && c->nation_id == nation_id) {
+        ai_euro_5952_build_cascade(ctx, c);
+      }
+    }
+  }
   /* FUN_521d_0a60 goal-consumption tail (structural port) — picks each
    * idle unit's next goal into the s_0a60_pilot_state shadow; consumed by
    * ai_euro_unit_act below. See the function's header comment for scope. */
@@ -20732,6 +21123,7 @@ void ai_euro_dispatcher_turn(ColonizeTurnContext* ctx, int nation_id) {
 void ai_euro_reset(void) {
   s_sticky_unit = -1;
   s_sticky_count = 0;
+  memset(s_5952_ring1, 0, sizeof(s_5952_ring1));
   memset(s_deferred_found, 0, sizeof(s_deferred_found));
   memset(s_unloaded_this_turn, 0, sizeof(s_unloaded_this_turn));
   /*

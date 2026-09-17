@@ -122,6 +122,12 @@ void ai_euro_colony_goals_ship_found(
 void ai_euro_colony_goals_bind_founders(ColonizeTurnContext* ctx, int nation_id);
 
 int ai_euro_5952_indoor_pass_enabled(void);
+
+/* FUN_5952_035e construction-project cascade (bugs.md #483). */
+COLONIZE_INTERNAL void ai_euro_5952_build_cascade(
+  ColonizeTurnContext* ctx, ColonizeColony* col
+);
+COLONIZE_INTERNAL void ai_euro_5952_set_ring1_threat(int colony_id, int ring1);
 AiEuroActStatus ai_euro_act_pioneer_corridor(struct ai_euro_act_ctx* a);
 AiEuroActStatus ai_euro_act_soldier_staging(struct ai_euro_act_ctx* a);
 AiEuroActStatus ai_euro_act_ship_europe_exit(struct ai_euro_act_ctx* a);
