@@ -5061,28 +5061,12 @@ static int ai_contact_2820_remove_slot(ColonizeUnit* unit, int slot) {
 }
 
 /*
- * FUN_1000_8f48 → FUN_0000_8f68: merge into a matching slot or open a new one.
- * NOT units.c's goods_pack_into_holds (audit AC-33): that one ports
- * FUN_15eb_30b8, the colony/Europe loader, which tops holds up to 100 and
- * spills into further slots. 8f68 has no such cap in the decompile
- * (original_sources_annotated/ai/indian_trade_2820.md: "adds/merges quantity
- * into a matching cargo-hold slot ... or creates one if room"), so capping
- * here would be an invented rule. Kept literal.
+ * FUN_1000_8f48 → FUN_0000_8f68 = FUN_15eb_30b8 (tools/address_mapping.csv):
+ * the same loader the colony/Europe screens use — tops a matching hold up to
+ * 100 and spills the rest into a free hold (bugs.md #471).
  */
-static void ai_contact_2e92_give_goods(ColonizeUnit* unit, int cargo, int qty) {
-  for (int i = 0; i < COLONIZE_UNIT_CARGO_MAX; ++i) {
-    if (unit->hold_goods_amount[i] > 0 && unit->hold_goods_type[i] == cargo) {
-      unit->hold_goods_amount[i] += qty;
-      return;
-    }
-  }
-  for (int i = 0; i < COLONIZE_UNIT_CARGO_MAX; ++i) {
-    if (unit->hold_goods_amount[i] <= 0) {
-      unit->hold_goods_type[i] = cargo;
-      unit->hold_goods_amount[i] = qty;
-      return;
-    }
-  }
+static void ai_contact_2e92_give_goods(ColonizeTurnContext* ctx, ColonizeUnit* unit, int cargo, int qty) {
+  (void)units_load_goods(ctx->units, unit->id, cargo, qty);
 }
 
 /*
@@ -6383,7 +6367,7 @@ static int ai_contact_2e92_settle(
     t->last_sold = (uint8_t)(cargo == 9 ? 0xff : cargo); /* literal `if (cargo == 9) +9 = 0xff` */
   }
   ind->tons[cargo & 15] = (int16_t)(ind->tons[cargo & 15] - qty);
-  ai_contact_2e92_give_goods(unit, cargo, qty);
+  ai_contact_2e92_give_goods(ctx, unit, cargo, qty);
   ai_contact_alarm_delta_00f2(ctx, nation_id, e, price / 0x19 + 1);
   return 1;
 }
