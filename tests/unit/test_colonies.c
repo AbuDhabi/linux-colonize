@@ -2013,6 +2013,155 @@ static int unit_foreign_colony_trade(void) {
   return 1;
 }
 
+/*
+ * bugs.md #481 — colony ship construction. Pins the FUN_15eb_32f8 raw-code
+ * decode (42..48 = @UNIT 11..17, Man-O-War excluded), the FUN_15eb_33aa cost
+ * arithmetic (@UNIT cost x 0x20 with the 0x28 floor, tools x 10) and the
+ * FUN_15eb_3650 Shipyard gate, then spawns a Frigate through the EOT path.
+ */
+static int unit_ship_construction(void) {
+  ColonizeMsgCatalog names;
+  assets_msg_init(&names);
+  if (!assets_msg_load_file(&names, "COLONIZE/NAMES.TXT")) {
+    fprintf(stderr, "ship construction: load NAMES.TXT failed\n");
+    return 1;
+  }
+  ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
+  units_reset(&units);
+  units_set_occupancy_map(NULL);
+  if (!units_load_types(&units, &names)) {
+    fprintf(stderr, "ship construction: load @UNIT failed\n");
+    return 1;
+  }
+  ColonizeColonyPool pool;
+  colonies_init(&pool);
+  colonies_set_occupancy_map(NULL);
+  if (!colonies_load_buildings(&pool, &names)) {
+    fprintf(stderr, "ship construction: load @BUILDING failed\n");
+    return 1;
+  }
+  int failures = 0;
+  const int failures_before = failures;
+
+  /* Decode: codes 42..48 only; @BUILDING has exactly 42 rows. */
+  CHECK(pool.building_type_count == 42, "@BUILDING has 0x2a rows (the code base)");
+  CHECK(colonies_find_building(&pool, "Shipyard") == 8, "Shipyard is @BUILDING index 8");
+  CHECK(units_build_code_to_index(41) < 0, "code 41 is still a building");
+  CHECK(units_build_code_to_index(42) == 11, "code 42 -> @UNIT 11 (Artillery)");
+  CHECK(units_build_code_to_index(48) == 17, "code 48 -> @UNIT 17 (Frigate)");
+  CHECK(units_build_code_to_index(49) < 0, "code 49 (Man-O-War) is not buildable");
+
+  /* Costs straight out of the @UNIT cost/tools columns. */
+  struct {
+    int code;
+    const char* name;
+    int hammers;
+    int tools;
+  } expect[] = {
+    {COLONIZE_UNIT_BUILD_ARTILLERY, "Artillery", 192, 40},
+    {COLONIZE_UNIT_BUILD_WAGON_TRAIN, "Wagon Train", 40, 0},
+    {COLONIZE_UNIT_BUILD_CARAVEL, "Caravel", 128, 40},
+    {COLONIZE_UNIT_BUILD_MERCHANTMAN, "Merchantman", 192, 80},
+    {COLONIZE_UNIT_BUILD_GALLEON, "Galleon", 320, 100},
+    {COLONIZE_UNIT_BUILD_PRIVATEER, "Privateer", 256, 120},
+    {COLONIZE_UNIT_BUILD_FRIGATE, "Frigate", 512, 200}
+  };
+  for (int i = 0; i < (int)(sizeof(expect) / sizeof(expect[0])); ++i) {
+    const char* nm = NULL;
+    int h = -1;
+    int t = -1;
+    CHECK(colonies_unit_build_info(expect[i].code, &nm, &h, &t), "unit build info resolves");
+    CHECK(nm && strcmp(nm, expect[i].name) == 0, "unit build name matches @UNIT");
+    CHECK(h == expect[i].hammers, "unit build hammers = cost * 0x20 (0x28 floor)");
+    CHECK(t == expect[i].tools, "unit build tools = tools column * 10");
+  }
+
+  ColonizeColony* c = &pool.colonies[0];
+  memset(c, 0, sizeof(*c));
+  c->id = 0;
+  c->active = true;
+  c->nation_id = 0;
+  c->population = 3;
+  c->colonist_count = 3;
+  c->x = 5;
+  c->y = 5;
+  c->building_in_production = -1;
+  pool.colony_count = 1;
+
+  int buildable[64];
+  ColoniesBuildableOpts bopts;
+  memset(&bopts, 0, sizeof(bopts));
+  int n = colonies_list_buildable(&pool, 0, buildable, 64, &bopts);
+  bool saw_ship = false;
+  bool saw_wagon = false;
+  bool saw_manowar = false;
+  for (int i = 0; i < n; ++i) {
+    if (buildable[i] >= COLONIZE_UNIT_BUILD_CARAVEL && buildable[i] <= COLONIZE_UNIT_BUILD_FRIGATE) {
+      saw_ship = true;
+    }
+    if (buildable[i] == COLONIZE_UNIT_BUILD_WAGON_TRAIN) {
+      saw_wagon = true;
+    }
+    if (buildable[i] == 49) {
+      saw_manowar = true;
+    }
+  }
+  CHECK(!saw_ship, "ships hidden without a Shipyard");
+  CHECK(saw_wagon, "Wagon Train has no building gate");
+  CHECK(!saw_manowar, "Man-O-War never listed");
+  CHECK(
+    !colonies_set_construction(&pool, 0, COLONIZE_UNIT_BUILD_FRIGATE),
+    "Frigate refused without a Shipyard"
+  );
+
+  c->has_building[colonies_find_building(&pool, "Shipyard")] = true;
+  n = colonies_list_buildable(&pool, 0, buildable, 64, &bopts);
+  int ship_codes = 0;
+  for (int i = 0; i < n; ++i) {
+    if (buildable[i] >= COLONIZE_UNIT_BUILD_CARAVEL && buildable[i] <= COLONIZE_UNIT_BUILD_FRIGATE) {
+      ship_codes++;
+    }
+  }
+  CHECK(ship_codes == 5, "all five buildable ships listed with a Shipyard");
+  CHECK(
+    colonies_set_construction(&pool, 0, COLONIZE_UNIT_BUILD_FRIGATE),
+    "Frigate accepted with a Shipyard"
+  );
+  CHECK(c->building_in_production == 48, "raw code 48 stored verbatim");
+
+  /* Completion: hammers + tools gate, then the ship spawns at the colony. */
+  c->hammers = 511;
+  c->stock[COLONIZE_CARGO_TOOLS] = 200;
+  CHECK(
+    colonies_try_complete_unit_construction(&pool, 0, &units) < 0,
+    "one hammer short does not complete"
+  );
+  c->hammers = 512;
+  c->stock[COLONIZE_CARGO_TOOLS] = 199;
+  CHECK(
+    colonies_try_complete_unit_construction(&pool, 0, &units) < 0,
+    "one tool short does not complete"
+  );
+  c->stock[COLONIZE_CARGO_TOOLS] = 210;
+  const int uid = colonies_try_complete_unit_construction(&pool, 0, &units);
+  CHECK(uid > 0, "Frigate completes");
+  const ColonizeUnit* ship = units_get_const(&units, uid);
+  CHECK(ship && ship->active, "Frigate unit active");
+  CHECK(ship && ship->x == 5 && ship->y == 5, "Frigate spawns on the colony tile");
+  CHECK(ship && ship->nation_id == 0, "Frigate takes the colony's nation");
+  CHECK(ship && units_is_sea(&units, ship->id), "Frigate is a sea unit");
+  CHECK(c->stock[COLONIZE_CARGO_TOOLS] == 10, "200 tools debited");
+  CHECK(c->hammers == 0, "hammers reset (FUN_364b_0114 raw 56964: +0x92 = 0)");
+  CHECK(c->building_in_production == 48, "DOS never clears the project on completion");
+
+  if (failures == failures_before) {
+    printf("unit_colonies: ship construction ok\n");
+    return 0;
+  }
+  return 1;
+}
+
 static const TestCase k_cases[] = {
     {"unit_colonies_core", case_colonies_core},
     {"unit_found_chrome", unit_found_chrome},
@@ -2027,5 +2176,6 @@ static const TestCase k_cases[] = {
     {"unit_build_complete_latch", unit_build_complete_latch},
     {"unit_craft_preview_clamps", unit_craft_preview_clamps},
     {"unit_foreign_colony_trade", unit_foreign_colony_trade},
+    {"unit_ship_construction", unit_ship_construction},
 };
 TEST_MAIN(k_cases)

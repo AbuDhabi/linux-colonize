@@ -793,22 +793,26 @@ int colonies_list_eject_roles(
 const char* colonies_eject_role_name(int role);
 
 /*
- * Col1 also stores a couple of buildable *units* as `building_in_production`
- * raw codes past the real @BUILDING table's range — NAMES.TXT's @BUILDING
- * section never lists them (Artillery lives in @UNIT instead), so
- * colonies_building_type() returns NULL for these. Artillery (player-
- * requested: buildable with an Armory or an upgrade) and Wagon Train
- * (player-requested: buildable in any colony, no gate) are modeled.
+ * Col1 stores buildable *units* as `building_in_production` raw codes past the
+ * real @BUILDING table's range — NAMES.TXT's @BUILDING section never lists
+ * them (they live in @UNIT instead), so colonies_building_type() returns NULL
+ * for these. FUN_15eb_32f8 (viceroy_unpacked.c raw 13423) decodes exactly
+ * seven of them, 42..48 = @UNIT rows 11..17; see units.h
+ * (COLONIZE_UNIT_BUILD_CODE_*) for the decode and the cost arithmetic.
+ * Man-O-War is @UNIT row 18 and deliberately out of range.
  */
 #define COLONIZE_UNIT_BUILD_ARTILLERY 42
 #define COLONIZE_UNIT_BUILD_WAGON_TRAIN 43
+#define COLONIZE_UNIT_BUILD_CARAVEL 44
+#define COLONIZE_UNIT_BUILD_MERCHANTMAN 45
+#define COLONIZE_UNIT_BUILD_GALLEON 46
+#define COLONIZE_UNIT_BUILD_PRIVATEER 47
+#define COLONIZE_UNIT_BUILD_FRIGATE 48
 
 /*
- * True + fills name/hammers/tools_cost if raw_code is a known unit-type
- * construction project (192 hammers / 40 tools for Artillery — golden-
- * confirmed, New Amsterdam; 40 hammers / 0 tools for Wagon Train — the
- * well-known DOS value, not independently re-derived); false for a real
- * building_type index or anything else.
+ * True + fills name/hammers/tools_cost if raw_code is a unit-type
+ * construction project; false for a real building_type index or anything
+ * else. Thin wrapper over units_build_project_info (DOS FUN_15eb_33aa).
  */
 bool colonies_unit_build_info(int raw_code, const char** name, int* hammers, int* tools_cost);
 

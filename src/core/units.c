@@ -130,6 +130,78 @@ static void units_cache_nationality(const ColonizeMsgCatalog* names) {
   units_cache_names_rows(names, "HOMEPORT", g_units_homeport, k_port);
 }
 
+/*
+ * @UNIT construction rows (indices 11..17), cached so the raw-code decoders
+ * below need no pool. Seeded with the shipped NAMES.TXT "cost"/"tools"
+ * columns so a headless fixture that never loads a catalog still answers
+ * DOS's numbers; units_load_types overwrites them from the real file.
+ */
+typedef struct UnitsBuildRow {
+  char name[32];
+  int cost_col;  /* DS:0x5239 */
+  int tools_col; /* DS:0x523a */
+} UnitsBuildRow;
+
+static UnitsBuildRow g_units_build_rows[COLONIZE_UNIT_BUILD_CODE_COUNT] = {
+  {"Artillery", 6, 4},    /* @UNIT 11 -> code 42: 192 hammers / 40 tools */
+  {"Wagon Train", 1, 0},  /* @UNIT 12 -> code 43: 32 -> clamped to 40 / 0 */
+  {"Caravel", 4, 4},      /* @UNIT 13 -> code 44: 128 / 40 */
+  {"Merchantman", 6, 8},  /* @UNIT 14 -> code 45: 192 / 80 */
+  {"Galleon", 10, 10},    /* @UNIT 15 -> code 46: 320 / 100 */
+  {"Privateer", 8, 12},   /* @UNIT 16 -> code 47: 256 / 120 */
+  {"Frigate", 16, 20}     /* @UNIT 17 -> code 48: 512 / 200 */
+};
+
+int units_build_code_to_index(int raw_code) {
+  /* DOS-LITERAL FUN_15eb_32f8 raw 13423-13448. */
+  if (raw_code < COLONIZE_UNIT_BUILD_CODE_FIRST) {
+    return -1;
+  }
+  if (raw_code - COLONIZE_UNIT_BUILD_CODE_FIRST >= COLONIZE_UNIT_BUILD_CODE_COUNT) {
+    return -1;
+  }
+  return raw_code - COLONIZE_UNIT_BUILD_CODE_BIAS;
+}
+
+bool units_build_project_info(int raw_code, const char** name, int* hammers, int* tools_cost) {
+  const int idx = units_build_code_to_index(raw_code);
+  if (idx < 0) {
+    return false;
+  }
+  const UnitsBuildRow* row = &g_units_build_rows[idx - COLONIZE_UNIT_INDEX_ARTILLERY];
+  if (name) {
+    *name = row->name;
+  }
+  if (hammers) {
+    /* DOS-LITERAL FUN_15eb_33aa raw 13489-13497. The two clamps are DOS's
+     * own and only the 0x28 arm ever fires (cost*32 is never 40..51). */
+    int h = row->cost_col * 0x20;
+    if (h < 0x28) {
+      h = 0x28;
+    } else if (h < 0x34) {
+      h = 0x34;
+    }
+    *hammers = h;
+  }
+  if (tools_cost) {
+    *tools_cost = row->tools_col * 10; /* raw 13504: uVar2 * 10 */
+  }
+  return true;
+}
+
+static void units_cache_build_rows(const ColonizeUnitPool* pool) {
+  for (int i = 0; i < COLONIZE_UNIT_BUILD_CODE_COUNT; ++i) {
+    const int type_index = COLONIZE_UNIT_INDEX_ARTILLERY + i;
+    if (type_index >= pool->type_count) {
+      break;
+    }
+    const ColonizeUnitType* t = &pool->types[type_index];
+    str_copy_trunc(g_units_build_rows[i].name, sizeof(g_units_build_rows[i].name), t->name);
+    g_units_build_rows[i].cost_col = t->cost;
+    g_units_build_rows[i].tools_col = t->tools;
+  }
+}
+
 bool units_load_types(ColonizeUnitPool* pool, const ColonizeMsgCatalog* names) {
   if (!pool || !names) {
     return false;
@@ -167,8 +239,6 @@ bool units_load_types(ColonizeUnitPool* pool, const ColonizeMsgCatalog* names) {
         !str_next_int_field(&p, &guns) || !str_next_int_field(&p, &hull)) {
       continue;
     }
-    (void)tools;
-
     ColonizeUnitType* t = &pool->types[pool->type_count++];
     str_copy_trunc(t->name, sizeof(t->name), line);
     /* NAMES.TXT @UNIT icon is 1-based (DOS / MAPEDIT style); ICONS.SS blit is 0-based. */
@@ -178,6 +248,7 @@ bool units_load_types(ColonizeUnitPool* pool, const ColonizeMsgCatalog* names) {
     t->defense = defense;
     t->cargo = cargo;
     t->cost = cost;
+    t->tools = tools;
     t->space = size;
     t->guns = guns;
     t->hull = hull;
@@ -185,6 +256,7 @@ bool units_load_types(ColonizeUnitPool* pool, const ColonizeMsgCatalog* names) {
   }
 
   diag_info("Loaded %d unit types from NAMES.TXT @UNIT", pool->type_count);
+  units_cache_build_rows(pool);
   return pool->type_count > 0;
 }
 
@@ -10882,6 +10954,22 @@ bool units_board_stacked(ColonizeUnitPool* pool, int land_unit_id, int ship_id) 
   }
   if (land->aboard_ship_id >= 0 || ship->aboard_ship_id >= 0) {
     return false;
+  }
+  /*
+   * bugs.md #482 — DOS-LITERAL boarding size gate. FUN_4720_00e0
+   * (viceroy_unpacked_2.c raw 74644-74648), the "does this tile's stack fit on
+   * these ships" pass, only considers a non-ship unit when
+   *   `*(byte *)(type * 0xe + 0x5238) < 99`
+   * i.e. its @UNIT "size" column is under the 99 sentinel; the same `< 99`
+   * test guards the move-onto-ship candidate walk in FUN_4720_015c (raw
+   * 74739). Wagon Train's @UNIT size is 99 (as is every ship's), so DOS can
+   * never load one aboard — the sentinel is the gate, not a type name.
+   */
+  {
+    const ColonizeUnitType* lt = units_type(pool, land->type_index);
+    if (lt && lt->space >= 99) {
+      return false;
+    }
   }
   if (units_ship_capacity(pool, ship_id) <= 0 ||
       units_ship_free_passenger_slots(pool, ship_id) <= 0) {

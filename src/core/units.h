@@ -117,7 +117,8 @@ typedef struct ColonizeUnitType {
   int attack;
   int defense;
   int cargo;
-  int cost; /* NAMES.TXT @UNIT cost field (Europe purchase uses screenshot gold table) */
+  int cost; /* NAMES.TXT @UNIT cost column (DOS 0x5239): colony hammers/32 — FUN_15eb_33aa */
+  int tools; /* NAMES.TXT @UNIT tools column (DOS 0x523a): colony tools/10 — FUN_15eb_33aa */
   int space; /* NAMES.TXT @UNIT "size" column (DOS 0x5238): ship slots this unit takes; 99 = cannot board */
   int guns; /* NAMES.TXT @UNIT guns column (DOS 0x523b): naval sink power */
   int hull; /* NAMES.TXT @UNIT hull column (DOS 0x523c): naval survive-as-damaged weight */
@@ -223,6 +224,56 @@ bool units_load_types(ColonizeUnitPool* pool, const ColonizeMsgCatalog* names);
 void units_reset(ColonizeUnitPool* pool);
 
 int units_find_type(const ColonizeUnitPool* pool, const char* name);
+
+/*
+ * Colony construction raw-code decode — DOS-LITERAL FUN_15eb_32f8
+ * (viceroy_unpacked.c raw 13423-13448), reached from the colony EOT via
+ * FUN_281f_0cc2 -> FUN_364b_0114 (raw 56897):
+ *
+ *   code < 0       -> kind 0 (no project)
+ *   code < 0x2a    -> kind 1, @BUILDING index = code
+ *   code - 0x2a < 7 -> kind 2, @UNIT index = code - 0x1f
+ *
+ * @BUILDING has exactly 0x2a = 42 rows, so the seven unit codes 42..48 map to
+ * @UNIT rows 11..17: Artillery, Wagon Train, Caravel, Merchantman, Galleon,
+ * Privateer, Frigate. Man-O-War is @UNIT row 18 and is NOT reachable — the
+ * `< 7` bound is what excludes it (FUN_15eb_38ba/38e8 likewise stop the
+ * build-menu walk at code 0x30).
+ */
+#define COLONIZE_UNIT_BUILD_CODE_FIRST 42 /* 0x2a */
+#define COLONIZE_UNIT_BUILD_CODE_COUNT 7
+#define COLONIZE_UNIT_BUILD_CODE_BIAS 31 /* 0x1f */
+
+/* @UNIT row index for a construction raw code, or -1 if the code is not a
+ * unit project (FUN_15eb_32f8 kind != 2). */
+int units_build_code_to_index(int raw_code);
+
+/* @UNIT row indices the decode above can yield. */
+#define COLONIZE_UNIT_INDEX_ARTILLERY 11
+#define COLONIZE_UNIT_INDEX_WAGON_TRAIN 12
+#define COLONIZE_UNIT_INDEX_SHIP_FIRST 13 /* Caravel */
+#define COLONIZE_UNIT_INDEX_SHIP_LAST 18  /* Man-O-War (gate range, not buildable) */
+
+/*
+ * Name + colony cost of a unit construction project — DOS-LITERAL
+ * FUN_15eb_33aa kind-2 arm (viceroy_unpacked.c raw 13482-13509), thunked as
+ * FUN_281f_0ac4 and read by the colony EOT at raw 57742:
+ *
+ *   hammers = 0x5239[idx] * 0x20;
+ *   if (hammers < 0x28) hammers = 0x28; else if (hammers < 0x34) hammers = 0x34;
+ *   tools   = 0x523a[idx] * 10;
+ *
+ * 0x5239 / 0x523a are the @UNIT "cost" / "tools" columns (stride 0xe from
+ * DS:0x5230, the same record `space` reads at 0x5238). Artillery = 6*32 = 192
+ * hammers / 4*10 = 40 tools (golden-confirmed); Wagon Train = 1*32 = 32, which
+ * the first clamp lifts to 40.
+ *
+ * The table is cached by units_load_types, so this takes no pool (the UI, the
+ * turn loop and the dialogs all resolve raw codes without one). Falls back to
+ * the shipped NAMES.TXT columns when no catalog has been loaded (tests).
+ * Returns false for anything that is not a unit project code.
+ */
+bool units_build_project_info(int raw_code, const char** name, int* hammers, int* tools_cost);
 
 /*
  * Destination @UNIT type name for a COLONIZE_EJECT_* equipment change applied

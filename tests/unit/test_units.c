@@ -4458,6 +4458,65 @@ int main(void) {
       assets_msg_free(&names);
       return 1;
     }
+    /*
+     * bugs.md #482 — a Wagon Train may never board. DOS-LITERAL
+     * FUN_4720_00e0 (viceroy_unpacked_2.c raw 74644-74648) only considers a
+     * non-ship unit whose @UNIT size column (DS:0x5238) is `< 99`; Wagon
+     * Train's column is 99, so the fit pass skips it outright (same `< 99`
+     * test in the FUN_4720_015c candidate walk, raw 74739).
+     */
+    {
+      const int wagon_type = units_find_type(&pool, "Wagon Train");
+      if (wagon_type < 0) {
+        fprintf(stderr, "Wagon Train @UNIT type missing\n");
+        map_free(&map);
+        assets_msg_free(&names);
+        return 1;
+      }
+      const ColonizeUnitType* wt = units_type(&pool, wagon_type);
+      if (!wt || wt->space != 99) {
+        fprintf(stderr, "Wagon Train @UNIT size should be the 99 sentinel\n");
+        map_free(&map);
+        assets_msg_free(&names);
+        return 1;
+      }
+      const int wagon = units_spawn_allow_stack(&pool, wagon_type, cx, cy);
+      ColonizeUnit* wu = units_get(&pool, wagon);
+      if (wagon < 0 || !wu) {
+        fprintf(stderr, "wagon spawn failed\n");
+        map_free(&map);
+        assets_msg_free(&names);
+        return 1;
+      }
+      wu->nation_id = 0;
+      const int wagon_ship = units_spawn_allow_stack(&pool, caravel, cx, cy);
+      ColonizeUnit* wsu = units_get(&pool, wagon_ship);
+      if (wagon_ship < 0 || !wsu) {
+        fprintf(stderr, "wagon-test ship spawn failed\n");
+        map_free(&map);
+        assets_msg_free(&names);
+        return 1;
+      }
+      wsu->nation_id = 0;
+      if (units_board_stacked(&pool, wagon, wagon_ship) ||
+          units_board(&pool, wagon, wagon_ship)) {
+        fprintf(stderr, "Wagon Train must not be able to board a ship\n");
+        map_free(&map);
+        assets_msg_free(&names);
+        return 1;
+      }
+      wu = units_get(&pool, wagon);
+      wsu = units_get(&pool, wagon_ship);
+      if (!wu || wu->aboard_ship_id >= 0 || !wsu || wsu->cargo_count != 0) {
+        fprintf(stderr, "refused wagon boarding must leave both units untouched\n");
+        map_free(&map);
+        assets_msg_free(&names);
+        return 1;
+      }
+      (void)units_despawn(&pool, wagon);
+      (void)units_despawn(&pool, wagon_ship);
+    }
+
     if (!units_can_enter_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(&colonies), .map=(ColonizeWorldMap*)(&map)}, caravel, cx, cy, dock_ship)) {
       fprintf(stderr, "ship should enter own colony tile\n");
       map_free(&map);

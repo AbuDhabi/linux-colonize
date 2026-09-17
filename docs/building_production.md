@@ -272,6 +272,67 @@ arm stay ported — the field is real, it just never grows.
 
 Starter colonies grant several houses / Carpenter’s Shop / Town Hall without spending the chart cost at founding; `NAMES` costs apply if rebuilt later.
 
+### Unit projects (construction codes 42–48)
+
+`building_in_production` doubles as a *unit* project slot. `FUN_15eb_32f8`
+(`viceroy_unpacked.c` raw 13423) decodes the raw code: `< 0` = none,
+`< 0x2a` = `@BUILDING` index (the table has exactly 0x2a = 42 rows), and
+`code − 0x2a < 7` = `@UNIT` index `code − 0x1f`. That is **seven** codes,
+42–48 → `@UNIT` rows 11–17. Man-O-War is `@UNIT` row 18 and the `< 7` bound
+is what excludes it (`FUN_15eb_38ba`/`38e8` likewise stop the build-menu walk
+at code 0x30).
+
+Cost comes from the `@UNIT` **cost** / **tools** columns (`DS:0x5239` /
+`0x523a`, stride 0xe from `DS:0x5230` — the same record `space` reads at
+`0x5238`) via `FUN_15eb_33aa` (raw 13489-13504, thunk `FUN_281f_0ac4`):
+
+```
+hammers = cost_col * 0x20;
+if (hammers < 0x28) hammers = 0x28; else if (hammers < 0x34) hammers = 0x34;
+tools   = tools_col * 10;
+```
+
+The ×32 / ×10 scale is pinned by Artillery (6 → 192 hammers, 4 → 40 tools,
+golden-confirmed at New Amsterdam) and Wagon Train (1 → 32, lifted to 40 by
+the first clamp — the long-quoted DOS value, now derived). Only the `0x28` arm
+can ever fire, since `cost_col * 32` never lands in 40..51.
+
+| Code | `@UNIT` | Name | Ham | Tools | Gate (`FUN_15eb_3650` raw 13714-13735) |
+|-----:|--------:|------|----:|------:|---|
+| 42 | 11 | Artillery | 192 | 40 | `has_building(3)` = **Armory** |
+| 43 | 12 | Wagon Train | 40 | 0 | none — but a per-nation cap (see below) |
+| 44 | 13 | Caravel | 128 | 40 | `has_building(8)` = **Shipyard** |
+| 45 | 14 | Merchantman | 192 | 80 | Shipyard |
+| 46 | 15 | Galleon | 320 | 100 | Shipyard |
+| 47 | 16 | Privateer | 256 | 120 | Shipyard |
+| 48 | 17 | Frigate | 512 | 200 | Shipyard |
+| — | 18 | Man-O-War | — | — | **not buildable** (out of decode range) |
+
+Ships need the Shipyard and *nothing else*: no Docks, no Drydock, no
+population test and no coastal test of their own (the Shipyard's own
+`@BUILDING` row carries the coastal requirement and min pop 8).
+
+Completion is `FUN_364b_0114` (raw 56897), reached from the colony EOT at raw
+57742 once `hammers >= need`: the tools deficit warning fires first (a human
+sees popup id `0xea1`; an **AI nation simply has its tools stock set to the
+requirement**), tools are debited, then kind 2 spawns the unit via
+`FUN_281f_095c(unit_index, colony_nation, colony_x, colony_y)` — on the colony
+tile, ships included — bumps `unit_count[nation][unit_index]` (`DS:0x924c`,
+stride 0x13), raises `colony+0x1c | 0x80` and zeroes `colony+0x92` (hammers).
+DOS never clears `building_in_production` on completion.
+
+**Not ported:** DOS's per-nation Wagon Train cap. `FUN_15eb_3650` and
+`FUN_364b_0114` both compare `colony_count[nation]` (`DS:0x9298 + nation`)
+against `wagon_count[nation]` (`DS:0x924c + nation*0x13 + 12`) and, when
+colonies ≤ wagons, drop the project and pop `@NOMOREWAGONS` (raw 56933). The
+port's buildable-list signature carries no unit pool to count wagons with.
+
+Port map: `units_build_code_to_index` / `units_build_project_info`
+(`units.c`), `colonies_unit_project_available` / `colonies_list_buildable` /
+`colonies_set_construction` / `colonies_try_complete_unit_construction`
+(`colony.c`), `turn_run_colony_unit_construction` (`turn.c`). Test:
+`unit_colonies` case `unit_ship_construction`.
+
 Manual chart often listed shop min-pop **4** and Church hammers **52** — **wrong vs NAMES** (shops min-pop **1**; Church **64**).
 
 ---
