@@ -1548,7 +1548,18 @@ int units_sight_radius(
   }
   int radius = 1;
   const bool ship = units_unit_is_sea(pool, u);
-  /* 13f1:030e — @UNIT rows 0xf/0x10/0x11 (Galleon, Privateer, Frigate). */
+  /*
+   * DOS-LITERAL FUN_13f1_02f8 (viceroy_unpacked.c raw 7226-7238; asm
+   * CODE_17:13f1:02f8-0356). The radius is NOT a @UNIT column — 02f8 builds
+   * it in DI from three hardcoded type compares and hands it to
+   * FUN_13f1_02b4 in DX (02b4 itself only turns type 0xd..0x12 into the
+   * ship/land flag for the reveal loop, which is why it looks radius-free):
+   *   MOV DI,1                                  ; default
+   *   CMP [BX+0x3146],0xf / 0x10 / 0x11 -> DI=2 ; Galleon/Privateer/Frigate
+   *   FUN_15eb_3960(nation, 7) && !ship -> DI=2 ; de Soto
+   *   CMP [BX+0x3146],0x5 -> INC DI             ; Scouts
+   * Man-O-War is type 0x12 and is deliberately NOT in the list: radius 1.
+   */
   if (u->type_index == units_find_type(pool, "Galleon") ||
       u->type_index == units_find_type(pool, "Privateer") ||
       u->type_index == units_find_type(pool, "Frigate")) {
@@ -7082,7 +7093,7 @@ void units_seize_noncombat_at(
 
 /* Boarding helpers are defined later; enter_probe needs the embark probe. */
 int units_find_boardable_ship(
-  const ColonizeUnitPool* pool, int x, int y, int nation_id, bool require_galleon
+  const ColonizeUnitPool* pool, int x, int y, int nation_id, int need_space
 );
 
 ColonizeEnterReason units_enter_probe_w(
@@ -7143,6 +7154,63 @@ ColonizeEnterReason units_enter_probe_w(
    * (the walk-in capture gate re-applies the same test). Open ground keeps
    * the old first-found semantics.
    */
+  /*
+   * DOS-LITERAL FUN_4720_015c reason 9 = @LANDFIRST (DS tag 0x1429; the UI
+   * dispatcher FUN_4720_049e's jump table at 4720:060a maps reason 9 to
+   * `push 0x1429`, viceroy_unpacked_2.asm 4720:05f0). Decomp raw
+   * 74720-74728:
+   *   if (dest not ocean/HS && mover type < 0xd|| > 0x12       // land unit
+   *       && (origin terrain class == 0x19 || 0x1a)            // stands on water
+   *       && tile_tribe_or_presence(dest) >= 0                 // occupied
+   *       && (mover nation & 0xf) != that owner)               // by a foreigner
+   *       { reason = 9; move invalid; }
+   * GAME.TXT says it in words: "Land units cannot enter an enemy occupied
+   * square from on board a ship. You must first unload them into an empty or
+   * friendly-occupied square." So there is no amphibious assault in DOS —
+   * neither on a unit stack, nor on a village, nor a walk-in capture of an
+   * empty enemy colony. The port used to route a passenger's step onto an
+   * occupied tile into COMBAT_LAND and let it fight from the deck.
+   *
+   * DOS reads the layer2 presence/tribe bit plus the layer3 owner nibble;
+   * the port asks the live pools instead, because many fixtures never run the
+   * occupancy sync (col1_bridge_sync_map_occupancy) and would silently lose
+   * the gate.
+   */
+  if (mover && !sea && land && map_tile_is_water(map, mover->x, mover->y)) {
+    int occupant_owner = -1;
+    int slot_a = 0;
+    for (const ColonizeUnit* u = units_next_on_tile_const(pool, x, y, &slot_a); u != NULL;
+         u = units_next_on_tile_const(pool, x, y, &slot_a)) {
+      if (u->id == mover_id || u->aboard_ship_id >= 0) {
+        continue;
+      }
+      occupant_owner = u->nation_id;
+      break;
+    }
+    if (occupant_owner < 0 && colonies) {
+      const ColonizeColony* col = colonies_get(colonies, colonies_id_at(colonies, x, y));
+      if (col && col->active) {
+        occupant_owner = col->nation_id;
+      }
+    }
+    if (occupant_owner < 0 && map->layer2) {
+      /* Native village = HAS_CITY with no colony record; its owner is the
+       * layer3 high nibble (COLONYFLAG invariant, docs/conventions.md). */
+      const size_t vidx = (size_t)y * (size_t)map->width + (size_t)x;
+      if (vidx < (size_t)map->width * (size_t)map->height &&
+          (map->layer2[vidx] & MAP_OCCUPANCY_HAS_CITY) != 0) {
+        occupant_owner = (int)((map_get_layer3(map, x, y) >> 4) & 0x0fu);
+        if (occupant_owner > 11) {
+          occupant_owner = -1; /* 0xf = unowned */
+        }
+      }
+    }
+    if (occupant_owner >= 0 && occupant_owner != mover_nation) {
+      g_units_last_enter_reason = COLONIZE_ENTER_LANDFIRST;
+      return g_units_last_enter_reason;
+    }
+  }
+
   int foe = -1;
   {
     int foe_mismatch = -1;
@@ -7310,9 +7378,10 @@ ColonizeEnterReason units_enter_probe_w(
      * Land → ocean/HS: embark if own ship on dest has room (FUN_4720_015c /
      * 0006). Otherwise domain deny.
      */
-    const bool board_needs_galleon = units_type_is_treasure(type);
+    /* FUN_4720_00e0's param_2 = the boarder's own @UNIT size (DS:0x5238). */
+    const int board_need = type->space > 0 ? type->space : 1;
     if (mover_nation >= 0 &&
-        units_find_boardable_ship(pool, x, y, mover_nation, board_needs_galleon) >= 0) {
+        units_find_boardable_ship(pool, x, y, mover_nation, board_need) >= 0) {
       g_units_last_enter_reason = COLONIZE_ENTER_BOARD;
       return g_units_last_enter_reason;
     }
@@ -7766,10 +7835,9 @@ bool units_try_move_w(
       village_temp = -1;
     }
     const ColonizeUnitType* mover_ty = units_type(pool, unit->type_index);
-    const bool board_needs_galleon =
-      units_type_is_treasure(mover_ty);
+    const int board_need = (mover_ty && mover_ty->space > 0) ? mover_ty->space : 1;
     const int ship_id =
-      units_find_boardable_ship(pool, dest_x, dest_y, unit->nation_id, board_needs_galleon);
+      units_find_boardable_ship(pool, dest_x, dest_y, unit->nation_id, board_need);
     if (ship_id < 0) {
       g_units_last_enter_reason = COLONIZE_ENTER_BLOCKED_DOMAIN;
       return false;
@@ -10920,9 +10988,21 @@ int units_unload_goods_hold(
 }
 
 /*
- * Passenger slots left in a ship's hold: total capacity minus passengers
- * already riding minus holds occupied by GOODS — cargo shares the same
- * slots passengers go into (bugs.md; DOS's one per-hold array holds both).
+ * Passenger slots left in a ship's hold: total capacity minus the @UNIT
+ * "size" column (DS:0x5238) of every passenger already riding, minus holds
+ * occupied by GOODS — cargo shares the same slots passengers go into
+ * (bugs.md; DOS's one per-hold array holds both).
+ *
+ * DOS-LITERAL FUN_4720_00e0 (viceroy_unpacked_2.c raw 74628-74665). The
+ * "does this stack fit on these ships" pass seeds each hull's room with
+ *   `*(char *)(type * 0xe + 0x5237) - *(char *)(unit * 0x1c + 0x3150)`
+ * (capacity column − goods holds in use) and then, for every non-ship unit
+ * on the tile whose size is under the 99 sentinel, first-fits it into a hull
+ * with `size <= room` and does `room -= size`. So a passenger costs its own
+ * size, not one slot: a Treasure (@UNIT size 6) fills a Galleon's whole hold
+ * (cargo 6) on its own, and no Caravel/Merchantman/Privateer/Frigate (cargo
+ * 2/4/2/4) can ever take one. That is where the manual's "treasure needs a
+ * Galleon" rule actually comes from — there is no type-name check in DOS.
  */
 int units_ship_free_passenger_slots(const ColonizeUnitPool* pool, int ship_id) {
   const ColonizeUnit* ship = units_get_const(pool, ship_id);
@@ -10939,7 +11019,14 @@ int units_ship_free_passenger_slots(const ColonizeUnitPool* pool, int ship_id) {
       goods++;
     }
   }
-  int free_slots = cap - ship->cargo_count - goods;
+  /* Σ 0x5238[type] over the riders, not the rider count (raw 74655-74661). */
+  int pax_size = 0;
+  for (int i = 0; i < ship->cargo_count && i < COLONIZE_UNIT_CARGO_MAX; ++i) {
+    const ColonizeUnit* pax = units_get_const(pool, ship->cargo_ids[i]);
+    const ColonizeUnitType* pt = pax ? units_type(pool, pax->type_index) : NULL;
+    pax_size += (pt && pt->space > 0) ? pt->space : 1;
+  }
+  int free_slots = cap - pax_size - goods;
   return free_slots > 0 ? free_slots : 0;
 }
 
@@ -10970,10 +11057,16 @@ bool units_board_stacked(ColonizeUnitPool* pool, int land_unit_id, int ship_id) 
     if (lt && lt->space >= 99) {
       return false;
     }
-  }
-  if (units_ship_capacity(pool, ship_id) <= 0 ||
-      units_ship_free_passenger_slots(pool, ship_id) <= 0) {
-    return false;
+    /*
+     * ...and the hold charge is that same size column, not a flat 1
+     * (raw 74655-74661): `if (size <= room) room -= size;`. Six Treasures
+     * used to fit one Galleon.
+     */
+    const int need = (lt && lt->space > 0) ? lt->space : 1;
+    if (units_ship_capacity(pool, ship_id) <= 0 ||
+        units_ship_free_passenger_slots(pool, ship_id) < need) {
+      return false;
+    }
   }
   land->aboard_ship_id = ship_id;
   land->x = ship->x;
@@ -11020,10 +11113,13 @@ bool units_board(ColonizeUnitPool* pool, int land_unit_id, int ship_id) {
 }
 
 int units_find_boardable_ship(
-  const ColonizeUnitPool* pool, int x, int y, int nation_id, bool require_galleon
+  const ColonizeUnitPool* pool, int x, int y, int nation_id, int need_space
 ) {
   if (!pool || nation_id < 0) {
     return -1;
+  }
+  if (need_space < 1) {
+    need_space = 1;
   }
   for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
     const ColonizeUnit* ship = &pool->units[i];
@@ -11036,13 +11132,6 @@ int units_find_boardable_ship(
     if (ship->x != x || ship->y != y) {
       continue;
     }
-    if (require_galleon) {
-      /* Treasure Trains may only board a Galleon (Colonization.pdf; P7.3). */
-      const ColonizeUnitType* sty = units_type(pool, ship->type_index);
-      if (!units_type_is_galleon(sty)) {
-        continue;
-      }
-    }
     /*
      * Room test must be the one units_board applies, not the passenger count
      * alone: goods share the hold array with passengers, so a hull whose holds
@@ -11053,8 +11142,14 @@ int units_find_boardable_ship(
      * move_scoring_20e6_full.md, 2026-09-08 section). Counting passengers only
      * made units_enter_probe answer BOARD where units_board then refused, and
      * the move surfaced as a bogus domain block.
+     *
+     * need_space is the candidate's own @UNIT size column (DS:0x5238), the
+     * `param_2 <= room` test FUN_4720_00e0 ends on (raw 74637-74644): a
+     * Treasure (size 6) therefore matches only a hull with 6 free holds,
+     * which is the real form of the "Treasure needs a Galleon" rule. The old
+     * `require_galleon` type-name check is gone — DOS has no such test.
      */
-    if (units_ship_free_passenger_slots(pool, ship->id) > 0) {
+    if (units_ship_free_passenger_slots(pool, ship->id) >= need_space) {
       return ship->id;
     }
   }
@@ -11087,16 +11182,15 @@ static bool units_remove_from_cargo(ColonizeUnit* ship, int pax_id) {
  * first served. The rest stay with the remaining ship(s). The port keeps an
  * explicit aboard_ship_id, so the departure pass walks one ascending-id
  * sweep over BOTH groups: sentried land units standing on the departure
- * tile, and passengers riding other own ships still standing there. A
- * Treasure Train never hops to a non-Galleon (its boarding rule, P7.3).
+ * tile, and passengers riding other own ships still standing there. Each
+ * pickup is charged the rider's @UNIT size column, so a Treasure only ever
+ * hops to a hull with six free holds (FUN_4720_00e0).
  */
 int units_ship_departure_pickup(ColonizeUnitPool* pool, int ship_id, int x, int y) {
   ColonizeUnit* ship = units_get(pool, ship_id);
   if (!pool || !ship || !units_is_sea(pool, ship_id)) {
     return 0;
   }
-  const ColonizeUnitType* sty = units_type(pool, ship->type_index);
-  const bool is_galleon = units_type_is_galleon(sty);
   int taken = 0;
   /* "Move to front" (bugs.md): the flagged unit is first in line. */
   int order[COLONIZE_UNITS_MAX];
@@ -11120,11 +11214,16 @@ int units_ship_departure_pickup(ColonizeUnitPool* pool, int ship_id, int x, int 
         u->nation_id != ship->nation_id || u->aboard_ship_id == ship_id) {
       continue;
     }
-    if (!is_galleon) {
-      const ColonizeUnitType* ut = units_type(pool, u->type_index);
-      if (units_type_is_treasure(ut)) {
-        continue;
-      }
+    /*
+     * Size charge, not a type-name rule: the pickup can only take a unit
+     * whose @UNIT size column fits the room left (FUN_4720_00e0, raw
+     * 74655-74661), which is what keeps a Treasure (size 6) off every hull
+     * but a Galleon / Man-O-War (cargo 6). Sentinel types (99) never board.
+     */
+    const ColonizeUnitType* ut = units_type(pool, u->type_index);
+    const int need = (ut && ut->space > 0) ? ut->space : 1;
+    if (need >= 99 || units_ship_free_passenger_slots(pool, ship_id) < need) {
+      continue;
     }
     if (u->aboard_ship_id >= 0) {
       /* Riding another own ship that is still on the departure tile. Only a

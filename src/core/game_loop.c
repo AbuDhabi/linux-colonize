@@ -6422,6 +6422,8 @@ static ColoniesBuildableOpts game_colony_buildable_opts(const ColonizeGameState*
   const ColonizeCol1Save* col1 = game->col1_ok ? &game->col1 : NULL;
   opts.has_adam_smith = founding_fathers_nation_has(col1, nation, 0);
   opts.has_peter_stuyvesant = founding_fathers_nation_has(col1, nation, 3);
+  /* FUN_15eb_3650 wagon arm reads the census counters (DS:0x9298 / 0x924c). */
+  opts.col1 = col1;
   return opts;
 }
 
@@ -7080,7 +7082,8 @@ static void game_colony_area_tile_drop(
  */
 static void game_colony_commit_construction(ColonizeGameState* game, int bid) {
   ColonyScreenView* csv = &game->colony_screen;
-  if (colonies_set_construction(&game->colonies, game->colony_view_id, bid)) {
+  const ColoniesBuildableOpts bopts = game_colony_buildable_opts(game);
+  if (colonies_set_construction_ex(&game->colonies, game->colony_view_id, bid, &bopts)) {
     const ColonizeBuildingType* bt = colonies_building_type(&game->colonies, bid);
     const char* uname = NULL;
     if (!bt) {

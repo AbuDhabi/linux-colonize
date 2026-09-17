@@ -235,19 +235,22 @@ bool units_board(ColonizeUnitPool* pool, int land_unit_id, int ship_id);
 /* Board without adjacency check (COL1 import; passenger already stacked on ship tile). */
 bool units_board_stacked(ColonizeUnitPool* pool, int land_unit_id, int ship_id);
 /*
- * Own ship on (x,y) with free passenger capacity, or -1.
- * Cite: FUN_4720_0006 / 015c land→ocean embark probe.
- * require_galleon: Treasure Trains may only board a Galleon (Colonization.pdf
- * / P7.3) — pass true when the boarding unit's type name contains "Treasure".
+ * Own ship on (x,y) with room for `need_space` holds, or -1.
+ * Cite: FUN_4720_0006 / 015c land→ocean embark probe; the room test is
+ * FUN_4720_00e0's `param_2 <= room` (raw 74637-74644).
+ * need_space = the boarding unit's @UNIT size column (DS:0x5238) — 1 for a
+ * plain land unit, 6 for a Treasure (which is why only a Galleon-sized hold
+ * takes one; DOS has no type-name rule). Values < 1 are treated as 1.
  */
 int units_find_boardable_ship(
-  const ColonizeUnitPool* pool, int x, int y, int nation_id, bool require_galleon
+  const ColonizeUnitPool* pool, int x, int y, int nation_id, int need_space
 );
 /*
  * Departure pickup (DOS ship-switch quirk): one ascending-id first-come-
  * first-served sweep boarding sentried land units on (x,y) AND passengers
  * riding other own ships still on (x,y), until the departing ship is full.
- * Treasure Trains never transfer to a non-Galleon. Returns units taken.
+ * Each rider is charged its @UNIT size column, so a Treasure only transfers
+ * to a hull with six free holds. Returns units taken.
  */
 int units_ship_departure_pickup(ColonizeUnitPool* pool, int ship_id, int x, int y);
 /* Unload oldest passenger from ship onto dest (must be enterable land). */
@@ -326,8 +329,9 @@ int units_collect_tile_stack(
 
 int units_ship_capacity(const ColonizeUnitPool* pool, int ship_id);
 
-/* Passenger slots left: capacity − passengers − holds occupied by goods
- * (goods share the slots passengers ride in). */
+/* Passenger slots left: capacity − Σ @UNIT size of the riders − holds
+ * occupied by goods (goods share the slots passengers ride in).
+ * DOS-LITERAL FUN_4720_00e0, raw 74628-74665. */
 int units_ship_free_passenger_slots(const ColonizeUnitPool* pool, int ship_id);
 
 /* Ships and wagon trains that can carry commodity holds. */

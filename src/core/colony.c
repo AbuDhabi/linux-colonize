@@ -2111,12 +2111,22 @@ bool colonies_unit_build_info(int raw_code, const char** name, int* hammers, int
   return units_build_project_info(raw_code, name, hammers, tools_cost);
 }
 
-/* Armory or an upgrade (Magazine/Arsenal) — player-requested Artillery
- * construction gate. */
-static bool colonies_has_armory_chain(const ColonizeColonyPool* pool, const ColonizeColony* col) {
-  return colonies_has_building_named(pool, col, "Armory") ||
-         colonies_has_building_named(pool, col, "Magazine") ||
-         colonies_has_building_named(pool, col, "Arsenal");
+int colonies_nation_colony_count_census(const ColonizeCol1Save* col1, int nation_id) {
+  if (!col1 || nation_id < 0 || nation_id >= 4) {
+    return 0;
+  }
+  return (int)col1->stuff.colony_counts[nation_id];
+}
+
+bool colonies_wagon_cap_reached(const ColonizeCol1Save* col1, int nation_id) {
+  if (!col1 || nation_id < 0 || nation_id >= 4) {
+    return false;
+  }
+  /* DOS-LITERAL FUN_15eb_3650 raw 13736-13740:
+   *   colony_counts[n] <= unit_type_counts[n][12]  ->  unavailable.
+   * `<=` makes the cap exactly "wagons < colonies". */
+  return (int)col1->stuff.colony_counts[nation_id] <=
+         (int)col1->stuff.unit_type_counts[nation_id][12];
 }
 
 /*
@@ -2134,16 +2144,26 @@ static bool colonies_has_armory_chain(const ColonizeColonyPool* pool, const Colo
  * So every ship row (Caravel..Frigate) needs @BUILDING index 8 = Shipyard —
  * not Docks, not Drydock, and there is no population or coastal test of its
  * own (the Shipyard's own @BUILDING row carries the coastal requirement).
- * Wagon Train has no building gate. DOS's Artillery gate is has_building(3)
- * literally; this port keeps its wider Armory/Magazine/Arsenal chain, which
- * only differs for a captured colony that owns an upgrade but not the Armory.
  *
- * NOT ported here: DOS's per-nation wagon cap (idx 0xc and
- * colony_count[nation] <= wagon_count[nation] -> unavailable, @NOMOREWAGONS
- * at raw 56933) — it needs a unit-pool count this signature does not carry.
+ * The Artillery gate is has_building(3) = the Armory bit **literally**, not an
+ * Armory/Magazine/Arsenal fold: FUN_15eb_035e tests one bit
+ * (`bits[n>>3] & 1<<(n&7)` at colony +0x84), the completion writer
+ * FUN_15eb_1030(idx, 1) only ORs the new bit in and never clears the tier
+ * below, and FUN_15eb_3650's building arm refuses an upgrade whose
+ * predecessor byte (DS:0x8f85 + idx*0xc) is not owned. So a normally-grown
+ * Arsenal colony still has the Armory bit set and the two readings agree —
+ * confirmed over 977 colonies in `original_saves` (armory mask is only ever
+ * 0/1/3). They differ only where a lone upper bit is real, i.e. after a
+ * pillage clears one tier (`docs/save_format_map.md` records real lone-upper
+ * carpenters_shop / printing_press / church masks), and there DOS says no.
+ *
+ * Wagon Train's only gate is the per-nation cap (raw 13736-13740).
  */
 static bool colonies_unit_project_available(
-  const ColonizeColonyPool* pool, const ColonizeColony* col, int raw_code
+  const ColonizeColonyPool* pool,
+  const ColonizeColony* col,
+  int raw_code,
+  const ColoniesBuildableOpts* opts
 ) {
   const int idx = units_build_code_to_index(raw_code);
   if (idx < 0 || !col) {
@@ -2153,19 +2173,28 @@ static bool colonies_unit_project_available(
     return colonies_has_building_named(pool, col, "Shipyard");
   }
   if (idx == COLONIZE_UNIT_INDEX_ARTILLERY) {
-    return colonies_has_armory_chain(pool, col);
+    return colonies_has_building_named(pool, col, "Armory");
   }
   if (idx == COLONIZE_UNIT_INDEX_WAGON_TRAIN) {
-    return true;
+    return !colonies_wagon_cap_reached(opts ? opts->col1 : NULL, col->nation_id);
   }
   return false;
 }
 
 bool colonies_set_construction(ColonizeColonyPool* pool, int colony_id, int building_type) {
+  return colonies_set_construction_ex(pool, colony_id, building_type, NULL);
+}
+
+bool colonies_set_construction_ex(
+  ColonizeColonyPool* pool,
+  int colony_id,
+  int building_type,
+  const ColoniesBuildableOpts* opts
+) {
   ColonizeColony* col = colonies_get_mut(pool, colony_id);
   if (units_build_code_to_index(building_type) >= 0) {
     const char* uname = NULL;
-    if (!col || !colonies_unit_project_available(pool, col, building_type)) {
+    if (!col || !colonies_unit_project_available(pool, col, building_type, opts)) {
       return false;
     }
     colonies_unit_build_info(building_type, &uname, NULL, NULL);
@@ -2877,7 +2906,7 @@ int colonies_list_buildable(
   for (int code = COLONIZE_UNIT_BUILD_CODE_FIRST;
        code < COLONIZE_UNIT_BUILD_CODE_FIRST + COLONIZE_UNIT_BUILD_CODE_COUNT && n < out_max;
        ++code) {
-    if (colonies_unit_project_available(pool, col, code)) {
+    if (colonies_unit_project_available(pool, col, code, opts)) {
       out_ids[n++] = code;
     }
   }

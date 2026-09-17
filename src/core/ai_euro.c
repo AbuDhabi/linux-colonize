@@ -1748,6 +1748,7 @@ static void ai_euro_prefer_peace_construction(ColonizeTurnContext* ctx, int nati
   ColoniesBuildableOpts opts;
   memset(&opts, 0, sizeof(opts));
   opts.map = ctx->map;
+  opts.col1 = (ctx->col1_ok && ctx->col1) ? ctx->col1 : NULL;
   for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
     ColonizeColony* c = &ctx->colonies->colonies[i];
     if (!c->active || c->nation_id != nation_id) {
@@ -1795,7 +1796,7 @@ static void ai_euro_prefer_peace_construction(ColonizeTurnContext* ctx, int nati
       }
     }
     if (pick >= 0) {
-      (void)colonies_set_construction(ctx->colonies, c->id, pick);
+      (void)colonies_set_construction_ex(ctx->colonies, c->id, pick, &opts);
     }
   }
 }
@@ -1990,6 +1991,7 @@ static void ai_euro_prefer_building(
   ColoniesBuildableOpts opts;
   memset(&opts, 0, sizeof(opts));
   opts.map = ctx->map;
+  opts.col1 = (ctx->col1_ok && ctx->col1) ? ctx->col1 : NULL;
   if (r->ff == FF_PETER_STUYVESANT) {
     opts.has_peter_stuyvesant = true;
   } else if (r->ff == FF_ADAM_SMITH) {
@@ -2042,7 +2044,7 @@ static void ai_euro_prefer_building(
     if (!target_ok) {
       continue;
     }
-    (void)colonies_set_construction(ctx->colonies, c->id, target_id);
+    (void)colonies_set_construction_ex(ctx->colonies, c->id, target_id, &opts);
   }
 }
 
@@ -2090,6 +2092,7 @@ static void ai_euro_prefer_craft_upgrades(ColonizeTurnContext* ctx, int nation_i
   ColoniesBuildableOpts opts;
   memset(&opts, 0, sizeof(opts));
   opts.map = ctx->map;
+  opts.col1 = (ctx->col1_ok && ctx->col1) ? ctx->col1 : NULL;
   opts.has_adam_smith = has_adam;
   for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
     ColonizeColony* c = &ctx->colonies->colonies[i];
@@ -2140,7 +2143,7 @@ static void ai_euro_prefer_craft_upgrades(ColonizeTurnContext* ctx, int nation_i
       if (!ok) {
         continue;
       }
-      (void)colonies_set_construction(ctx->colonies, c->id, want);
+      (void)colonies_set_construction_ex(ctx->colonies, c->id, want, &opts);
       break;
     }
   }
