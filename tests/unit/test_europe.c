@@ -2327,8 +2327,97 @@ static int case_europe_workflow(void) {
   return 0;
 }
 
+/*
+ * bugs.md #508/#509a — DOS FUN_38fd_0718 (raw 59117-59128) rolls
+ * `04d4(0, bound + 4) == 0` -> Dragoons for a Soldier-profession dock
+ * arrival, and FUN_38fd_3694 (raw 61190-61195) captions the dock row
+ * "<@NATIONALITY> <@UNIT plural> (<@JOB singular>)".
+ */
+static int case_europe_dragoon_roll_and_caption(void) {
+  EuropeScreen eu;
+  char err[256];
+  if (!europe_load(&eu, "COLONIZE", err, sizeof(err))) {
+    fprintf(stderr, "dragoon roll: europe_load failed: %s\n", err);
+    return 1;
+  }
+  int tr = -1;
+  for (int i = 0; i < eu.train_count; ++i) {
+    if (eu.train[i].job_index == UNITS_JOB_SOLDIER) {
+      tr = i;
+      break;
+    }
+  }
+  if (tr < 0) {
+    fprintf(stderr, "dragoon roll: no Veteran Soldier train row\n");
+    europe_free(&eu);
+    return 1;
+  }
+  /* rng = NULL keeps plain Soldiers (the compat form). */
+  eu.gold = 100000;
+  eu.dock_count = 0;
+  memset(eu.dock, 0, sizeof(eu.dock));
+  if (!europe_train(&eu, tr) || eu.dock[0].dos_type != EUROPE_DOCK_TYPE_SOLDIERS) {
+    fprintf(stderr, "dragoon roll: no-rng train dos_type=%d\n", eu.dock[0].dos_type);
+    europe_free(&eu);
+    return 1;
+  }
+  /* With a live stream the roll must fire sometimes and Soldiers stay the
+   * common case; bound = difficulty for the bound human nation. */
+  eu.difficulty = 0;
+  eu.bound_human = true;
+  int dragoons = 0;
+  int soldiers = 0;
+  for (int seed = 1; seed <= 200; ++seed) {
+    ColonizeDosRng rng;
+    dos_rng_seed(&rng, (unsigned)seed * 12345u);
+    eu.gold = 100000;
+    eu.dock_count = 0;
+    memset(eu.dock, 0, sizeof(eu.dock));
+    if (!europe_train_ex(&eu, tr, &rng)) {
+      fprintf(stderr, "dragoon roll: train_ex failed seed=%d\n", seed);
+      europe_free(&eu);
+      return 1;
+    }
+    if (eu.dock[0].dos_type == EUROPE_DOCK_TYPE_DRAGOONS) {
+      dragoons++;
+    } else if (eu.dock[0].dos_type == EUROPE_DOCK_TYPE_SOLDIERS) {
+      soldiers++;
+    } else {
+      fprintf(stderr, "dragoon roll: unexpected dos_type=%d\n", eu.dock[0].dos_type);
+      europe_free(&eu);
+      return 1;
+    }
+  }
+  if (dragoons == 0 || soldiers == 0) {
+    fprintf(stderr, "dragoon roll: dragoons=%d soldiers=%d\n", dragoons, soldiers);
+    europe_free(&eu);
+    return 1;
+  }
+  fprintf(stderr, "Europe Veteran Soldier Dragoon roll ok (%d/200)\n", dragoons);
+
+  /* Caption: dock row 0 is a Soldiers/Dragoons row with a real profession. */
+  char cap[128];
+  if (!europe_dock_caption(&eu, 0, cap, sizeof(cap)) || !strchr(cap, '(') ||
+      !strchr(cap, ')')) {
+    fprintf(stderr, "dock caption: '%s'\n", cap);
+    europe_free(&eu);
+    return 1;
+  }
+  eu.dock[0].profession = UNITS_JOB_NONE; /* DOS 0x1c skips the parenthetical */
+  char cap2[128];
+  if (!europe_dock_caption(&eu, 0, cap2, sizeof(cap2)) || strchr(cap2, '(')) {
+    fprintf(stderr, "dock caption (0x1c): '%s'\n", cap2);
+    europe_free(&eu);
+    return 1;
+  }
+  fprintf(stderr, "Europe dock caption '%s' / '%s' ok\n", cap, cap2);
+  europe_free(&eu);
+  return 0;
+}
+
 static const TestCase k_cases[] = {
     {"case_europe_workflow", case_europe_workflow},
+    {"case_europe_dragoon_roll_and_caption", case_europe_dragoon_roll_and_caption},
 };
 
 TEST_MAIN(k_cases)

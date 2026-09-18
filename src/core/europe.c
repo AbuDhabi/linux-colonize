@@ -14,6 +14,7 @@
 #include "core/founding_fathers.h"
 #include "core/popup_msg.h"
 #include "core/reports.h"
+#include "core/reports_names.h"
 #include "platform/diagnostics.h"
 #include "core/ss.h"
 #include "core/strutil.h"
@@ -1142,6 +1143,7 @@ void europe_reset_campaign_nation(EuropeScreen* eu, int nation) {
   memset(eu->dock, 0, sizeof(eu->dock));
   eu->recruit_count = 0;
   eu->difficulty = 0; /* first EOT tick caches the real col1 difficulty */
+  eu->bound_human = true; /* the port binds the screen to the human nation */
   europe_refresh_recruit_passage(eu);
   europe_init_pool(eu);
   europe_init_purchase_table(eu);
@@ -1201,7 +1203,30 @@ static void europe_bump_recruit_count(EuropeScreen* eu) {
   europe_refresh_recruit_passage(eu);
 }
 
-static bool europe_recruit_from_pool_ex(EuropeScreen* eu, int pool_index, ColonizeDosRng* rng) {
+/*
+ * DOS FUN_38fd_0718 (raw 59098-59140) is the ONE harbor-spawn behind every
+ * dock arrival — recruit (64432/64768), the crosses immigrant (68585) and
+ * the AI hires (90665/92616) all reach it through thunk_FUN_291f_0b26 — so
+ * the Soldier->Dragoon roll happens on every one of them, off the shared
+ * stream. europe_dock_type_for's name lookup stays in front of it (the port
+ * files purchases by @UNIT name, which DOS spawns by a different path).
+ */
+static int europe_dock_type_roll(
+  const EuropeScreen* eu, const char* name, int profession, ColonizeDosRng* rng
+) {
+  if (name && name[0]) {
+    for (int i = 0; i < EUROPE_DOCK_TYPE_COUNT; ++i) {
+      if (strcmp(name, reports_dock_type_name(i)) == 0) {
+        return i;
+      }
+    }
+  }
+  return europe_dock_unit_dos_type(
+    profession, eu ? (int)eu->difficulty : 0, eu ? eu->bound_human : true, rng
+  );
+}
+
+bool europe_recruit_from_pool_ex(EuropeScreen* eu, int pool_index, ColonizeDosRng* rng) {
   if (!eu || pool_index < 0 || pool_index >= EUROPE_POOL_SIZE) {
     return false;
   }
@@ -1230,7 +1255,7 @@ static bool europe_recruit_from_pool_ex(EuropeScreen* eu, int pool_index, Coloni
   slot->profession = eu->pool[pool_index].profession;
   slot->present = true;
   slot->sentry = true;
-  slot->dos_type = europe_dock_type_for(slot->name, slot->profession);
+  slot->dos_type = europe_dock_type_roll(eu, slot->name, slot->profession, rng);
   snprintf(
     eu->status,
     sizeof(eu->status),
@@ -1278,7 +1303,7 @@ bool europe_recruit_free_from_pool_ex(
   slot->profession = eu->pool[pool_index].profession;
   slot->present = true;
   slot->sentry = true;
-  slot->dos_type = europe_dock_type_for(slot->name, slot->profession);
+  slot->dos_type = europe_dock_type_roll(eu, slot->name, slot->profession, rng);
   snprintf(eu->status, sizeof(eu->status), "%s joins the docks.", slot->name);
   europe_refill_pool_slot_rng(eu, pool_index, false, rng);
   return true;
@@ -1333,7 +1358,7 @@ bool europe_immigrant_from_pool(EuropeScreen* eu, ColonizeDosRng* rng) {
   d->profession = eu->pool[slot].profession;
   d->present = true;
   d->sentry = true;
-  d->dos_type = europe_dock_type_for(d->name, d->profession);
+  d->dos_type = europe_dock_type_roll(eu, d->name, d->profession, rng);
   /* DOS 0718 harbor-spawn does NOT bump Europe+6 — only 4884's own real
    * Recruit-click tail does (see europe_compute_recruit_passage). */
   /* 68583: this refill is `46d4((turn & 3) == 0)`, not `46d4(0)` — and it
@@ -1344,6 +1369,10 @@ bool europe_immigrant_from_pool(EuropeScreen* eu, ColonizeDosRng* rng) {
 }
 
 bool europe_train(EuropeScreen* eu, int train_index) {
+  return europe_train_ex(eu, train_index, NULL);
+}
+
+bool europe_train_ex(EuropeScreen* eu, int train_index, ColonizeDosRng* rng) {
   if (!eu || train_index < 0 || train_index >= eu->train_count) {
     return false;
   }
@@ -1363,7 +1392,7 @@ bool europe_train(EuropeScreen* eu, int train_index) {
   slot->profession = t->job_index;
   slot->present = true;
   slot->sentry = true;
-  slot->dos_type = europe_dock_type_for(slot->name, slot->profession);
+  slot->dos_type = europe_dock_type_roll(eu, slot->name, slot->profession, rng);
   snprintf(eu->status, sizeof(eu->status), "Trained %s (-%d$).", t->expert_name, t->cost);
   diag_info("EUROPE trained %s for %d$ (gold=%d)", t->expert_name, t->cost, eu->gold);
   return true;
@@ -1383,6 +1412,10 @@ int europe_purchase_cost(const EuropeScreen* eu, int purchase_index) {
 }
 
 bool europe_purchase(EuropeScreen* eu, int purchase_index) {
+  return europe_purchase_ex(eu, purchase_index, NULL);
+}
+
+bool europe_purchase_ex(EuropeScreen* eu, int purchase_index, ColonizeDosRng* rng) {
   if (!eu || purchase_index < 0 || purchase_index >= eu->purchase_count) {
     return false;
   }
@@ -1423,7 +1456,7 @@ bool europe_purchase(EuropeScreen* eu, int purchase_index) {
   slot->profession = -1;
   slot->present = true;
   slot->sentry = true;
-  slot->dos_type = europe_dock_type_for(slot->name, slot->profession);
+  slot->dos_type = europe_dock_type_roll(eu, slot->name, slot->profession, rng);
   snprintf(eu->status, sizeof(eu->status), "Purchased %s (-%d$).", p->name, cost);
   diag_info("EUROPE purchased %s for %d$ (gold=%d)", p->name, cost, eu->gold);
   return true;
@@ -1466,6 +1499,34 @@ int europe_dock_type_for(const char* name, int profession) {
     }
   }
   return europe_dock_unit_dos_type(profession, 0, true, NULL);
+}
+
+/*
+ * FUN_38fd_3694 (raw 61183-61197): the dock caption on the status line —
+ * 0056(1) opens the line, 0074 appends the @NATIONALITY adjective of the
+ * bound nation (DS -0x72f6) and the @UNIT plural of the immigrant's type
+ * (0x5230 + type*0xe); then, only when +0x315b (profession) != 0x1c, it
+ * appends " (" + the @JOB singular (-0x715e + prof*8) + ")".
+ */
+bool europe_dock_caption(const EuropeScreen* eu, int dock_index, char* out, size_t cap) {
+  if (!eu || !out || cap == 0) {
+    return false;
+  }
+  out[0] = 0;
+  if (dock_index < 0 || dock_index >= eu->dock_count || dock_index >= EUROPE_DOCK_MAX) {
+    return false;
+  }
+  const EuropeDockImmigrant* d = &eu->dock[dock_index];
+  const char* adj = reports_nation_adjective_display_name((int)eu->bound_nation);
+  const char* type_name = reports_dock_type_name(d->dos_type);
+  const int prof = d->profession;
+  const char* job_name = (prof >= 0 && prof != UNITS_JOB_NONE) ? reports_job_name(prof) : NULL;
+  if (job_name && job_name[0]) {
+    snprintf(out, cap, "%s %s (%s)", adj ? adj : "", type_name ? type_name : "", job_name);
+  } else {
+    snprintf(out, cap, "%s %s", adj ? adj : "", type_name ? type_name : "");
+  }
+  return true;
 }
 
 static int europe_dock_type_tools(int dos_type) {
@@ -2830,6 +2891,10 @@ void europe_tick_market_prices_w(
   eu->price_event_count = 0;
   if (col1) {
     eu->difficulty = col1->head.difficulty > 8 ? 8 : col1->head.difficulty;
+    /* FUN_38fd_0718 raw 59120-59122: the 0x543f control byte of the bound
+     * nation picks the Dragoon-roll bound. */
+    eu->bound_human = eu->bound_nation < COLONIZE_COL1_NATION_COUNT &&
+                      col1->player[eu->bound_nation].control == 0;
   }
 
   /* Phase 1 — pool decay + ledger. */
@@ -3115,6 +3180,8 @@ int europe_tick_immigration_pressure_w(
       diff = 8;
     }
     eu->difficulty = (uint8_t)diff;
+    eu->bound_human = nation_id < (int)COLONIZE_COL1_NATION_COUNT &&
+                      col1->player[nation_id].control == 0;
   }
   const int score = europe_compute_immigration_score_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(units), .colonies=(ColonizeColonyPool*)(colonies), .col1=(ColonizeCol1Save*)(col1), .col1_ok=((col1) != NULL)}, nation_id);
   int need = score;
@@ -4843,7 +4910,14 @@ void europe_menu_open(EuropeScreen* eu, EuropeMenu menu) {
   } else if (menu == EUROPE_MENU_PURCHASE) {
     europe_set_status(eu, "Purchase. Esc cancels.");
   } else if (menu == EUROPE_MENU_DOCK) {
-    europe_set_status(eu, "Dock orders. Esc cancels.");
+    /* FUN_38fd_3694 (raw 61180-61197): the dock-unit click builds the
+     * "<nation> <unit> (<job>)" caption on the status strip. */
+    char caption[96];
+    if (europe_dock_caption(eu, eu->menu_dock_index, caption, sizeof caption)) {
+      europe_set_status(eu, caption);
+    } else {
+      europe_set_status(eu, "Dock orders. Esc cancels.");
+    }
   }
   if (diag_info_enabled()) {
     char rows[512];
@@ -4989,12 +5063,12 @@ bool europe_menu_confirm_ex(EuropeScreen* eu, ColonizeDosRng* rng) {
     return ok;
   }
   if (m == EUROPE_MENU_TRAIN) {
-    const bool ok = europe_train(eu, sel - 1);
+    const bool ok = europe_train_ex(eu, sel - 1, rng);
     europe_menu_close(eu);
     return ok;
   }
   if (m == EUROPE_MENU_PURCHASE) {
-    const bool ok = europe_purchase(eu, sel - 1);
+    const bool ok = europe_purchase_ex(eu, sel - 1, rng);
     europe_menu_close(eu);
     return ok;
   }

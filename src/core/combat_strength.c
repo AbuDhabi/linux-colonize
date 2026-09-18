@@ -193,13 +193,16 @@ int combat_unit_base_x8(
   int local_4 = local_8 * 8;
 
   /*
-   * Veteran Soldier/Dragoon: veteran profession → +50%. DOS grants the peel
-   * to both veteran professions — 0x15 Veteran Soldiers and 0x17 Veteran
-   * Dragoons (a Veteran Dragoon carries profession 0x17, never 0x15), so the
-   * old 0x15-only test silently dropped the bonus for every veteran dragoon.
+   * Veteran peel +50%. DOS-LITERAL FUN_157e_004a raw 8942-8944: the test is
+   * `type == 1 || type == 4` AND `unit+0x315b == 0x15` — profession 0x15
+   * (Veteran Soldiers) ONLY. A veteran dragoon body is type 4 carrying
+   * profession 0x15; 0x17 (`@JOB` "Veteran Dragoons") is never written to a
+   * unit by DOS — no writer of 0x17 to +0x315b exists in either decompiled
+   * export, and none of the 60 original/interop `.SAV` fixtures carries a
+   * unit with profession 23 (bugs.md #503). The earlier "0x17 too" peel was
+   * invented. Sprite/name rules for 0x17 (bugs.md #263/#265/#318) stay.
    */
-  if (combat_type_is_soldier_or_dragoon(t) &&
-      (u->profession == UNITS_JOB_SOLDIER || u->profession == UNITS_JOB_DRAGOON)) {
+  if (combat_type_is_soldier_or_dragoon(t) && u->profession == UNITS_JOB_SOLDIER) {
     local_4 = local_4 + (local_4 >> 1);
     if (out_flags) {
       out_flags->flags |= COMBAT_FLAG_VETERAN;

@@ -74,16 +74,18 @@ typedef struct ColonizeColonist {
   int building_type;   /* workplace @BUILDING index, or -1 */
   int field_job;       /* @JOB field index 0..8, or -1 */
   bool active;
-  /* FUN_364b_0688 education: turns in current workplace (DOS 0d1c counter). */
-  uint8_t turns_in_job;
   /*
-   * Raw DOS specialty nibble (colony +0x60 pair array) for this colonist.
-   * DOS data contradicts the old "profession & 0xf" export formula: AI
-   * colonies store 0, human colonies store 15 with occasional low values
-   * (likely learning state). 0xff = colonist created in the port (no DOS
-   * byte to preserve); capture then falls back to the observed defaults.
+   * FUN_364b_0688 education: turns in current workplace. This IS the DOS
+   * colony record's per-colonist nibble at +0x60 (`FUN_15eb_0c7a` read /
+   * `FUN_15eb_0cbc` write, raw 10202-10240) — reached as `FUN_281f_0d1c` /
+   * `FUN_281f_0a7e`. The teaching loop (raw 57503-57539) reads it, adds 1
+   * and writes it back for EVERY colonist each turn, and the writer clamps
+   * at 15, so ordinary long-serving workers saturate at 15 — exactly what
+   * DOS campaign saves show. `FUN_15eb_1068` (raw 11256-11258) zeroes it on
+   * a real job change. Persisted through col1_bridge (permuted with the
+   * canonical colonist reorder, DOS raw 47225/47241).
    */
-  uint8_t col1_specialty;
+  uint8_t turns_in_job;
 } ColonizeColonist;
 
 typedef struct ColonizeColony {

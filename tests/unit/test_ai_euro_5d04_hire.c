@@ -493,6 +493,77 @@ static int recruit_swap_follows_colonies_wanting_colonists(void) {
 }
 
 /*
+ * bugs.md #509 + #510 — what FUN_38fd_0718 / FUN_38fd_46d4 leave behind when
+ * the 5d04 recruit-slot swap empties a pool slot:
+ *   #509: 0718 writes `+0x314c = 1` (raw 59133) — the fresh recruit is parked
+ *         SENTRY in the harbour, not with a blank order byte.
+ *   #510: the emptied slot is refilled by 46d4's difficulty-scaled tier roll
+ *         (raw 64554-64694, europe_nation_refill_pool_slot), so the byte left
+ *         behind is a real @JOB from the pool's own remap table — never the
+ *         flat `RNG(0, 0x1b)` draw the port used to make, which could leave
+ *         professions 46d4 explicitly remaps away (Expert Teacher 0x12,
+ *         Veteran Dragoon 0x17, 0x01..0x04) in the pool.
+ */
+static int recruit_swap_spawns_sentry_and_refills_pool(void) {
+  const int nation = 1;
+  Fixture f;
+  if (fixture_init(&f, nation, 5, 100) != 0) {
+    return 1;
+  }
+  ColonizeColony* c = fixture_ore_colony(&f, nation, 3);
+  c->ai_flags = COLONIZE_COLONY_AI_NEEDS_COLONISTS;
+  f.col1.nation[nation].trade.euro_price[COLONIZE_CARGO_ORE] = 200;
+  f.col1.nation[nation].gold = 300;
+  if (spawn_europe_ship(&f, nation) < 0) {
+    fixture_free(&f);
+    return fail("spawn europe ship");
+  }
+
+  ai_euro_dispatcher_turn(&f.ctx, nation);
+
+  if (europe_land_unit_count(&f, nation) != 1) {
+    fixture_free(&f);
+    return fail("expected the recruit-slot swap to put one land unit on the dock");
+  }
+  const ColonizeUnit* dock = NULL;
+  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    const ColonizeUnit* u = &f.units.units[i];
+    if (u->active && u->nation_id == nation && u->x >= 200 &&
+        !units_is_sea(&f.units, u->id)) {
+      dock = u;
+      break;
+    }
+  }
+  if (!dock) {
+    fixture_free(&f);
+    return fail("dock recruit not found");
+  }
+  if (dock->orders != UNITS_ORDER_SENTRY) {
+    fprintf(stderr, "dock recruit orders=%d want SENTRY(%d)\n", dock->orders,
+            (int)UNITS_ORDER_SENTRY);
+    fixture_free(&f);
+    return fail("FUN_38fd_0718 +0x314c = 1 (sentry) not applied");
+  }
+
+  for (int i = 0; i < 3; ++i) {
+    const int job = (int)f.col1.nation[nation].recruit[i];
+    if (job > 0x1c) {
+      fprintf(stderr, "pool slot %d = 0x%02x\n", i, job);
+      fixture_free(&f);
+      return fail("pool slot holds a job outside the @JOB range");
+    }
+    if (job == 0x12 || job == 0x17 || (job >= 0x01 && job <= 0x04)) {
+      fprintf(stderr, "pool slot %d = 0x%02x (46d4 remaps this away)\n", i, job);
+      fixture_free(&f);
+      return fail("pool refill did not go through FUN_38fd_46d4");
+    }
+  }
+
+  fixture_free(&f);
+  return 0;
+}
+
+/*
  * Case 3e — the turn > 99 Pioneer-training skip (raw 92745-92748). The arm
  * trains a dock colonist into a Pioneer (dispatch byte 2) for
  * price(Tools) * 100; past turn 99 DOS first rolls RNG(0,2) and SKIPS the arm
@@ -758,6 +829,7 @@ static const TestCase k_cases[] = {
     {"afloat_cargo_cancels_colony_demand", afloat_cargo_cancels_colony_demand},
     {"europe_dock_queue_raises_cargo_bar", europe_dock_queue_raises_cargo_bar},
     {"recruit_swap_follows_colonies_wanting_colonists", recruit_swap_follows_colonies_wanting_colonists},
+    {"recruit_swap_spawns_sentry_and_refills_pool", recruit_swap_spawns_sentry_and_refills_pool},
     {"pioneer_training_skipped_past_turn_99", pioneer_training_skipped_past_turn_99},
     {"dos_type_table_is_names_txt_unit_order", dos_type_table_is_names_txt_unit_order},
     {"hull_budget_space_uses_translated_type", hull_budget_space_uses_translated_type},

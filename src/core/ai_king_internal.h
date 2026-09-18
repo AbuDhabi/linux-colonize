@@ -33,6 +33,8 @@ void ai_king_0982_land_troops(
   int continent, int garrison_raw, int need, int lx, int ly
 );
 void ai_king_0982_invasion(struct ai_king_0982_ctx* w);
+/* FUN_43f7_0082 unit pick + spawn for the 10f0 intervention (bugs.md #505). */
+int ai_king_10f0_spawn_unit(ColonizeTurnContext* ctx, int human, int k, int x, int y);
 #endif /* COLONIZE_TESTING */
 
 #endif /* COLONIZE_CORE_AI_KING_INTERNAL_H */

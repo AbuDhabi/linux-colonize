@@ -582,6 +582,15 @@ static void turn_emit_built_chrome(
   ai_popup_enqueue_colony_event(ai_popups, colony->id, body);
 }
 
+/*
+ * On-the-job learning latch (raw 57595-57605): DOS keeps a DS byte per field
+ * job at -0x6bd0, tested for 0 before the roll and bumped on a success, and
+ * FUN_4962_0018 (raw 78140) clears that block for a nation at its turn
+ * boundary — so at most one colonist per job per nation per turn graduates.
+ * Indexed [nation][job 1..4]; cleared at the top of each production pass.
+ */
+static uint8_t s_otj_latch[COLONIZE_COL1_NATION_COUNT][COLONIZE_JOB_FUR_TRAPPER + 1];
+
 static void turn_produce_one_colony(
   ColonizeColonyPool* pool,
   ColonizeColony* colony,
@@ -985,8 +994,10 @@ static void turn_produce_one_colony(
       if (!c->active) {
         continue;
       }
-      /* DOS 0d1c/0a7e: the turn counter ticks for every colonist. */
-      if (c->turns_in_job < 255) {
+      /* DOS 0d1c/0a7e (raw 57505-57538): the +0x60 counter ticks for every
+       * colonist; the writer FUN_15eb_0cbc clamps at 15 (raw 10231-10233),
+       * so it saturates there instead of running on. */
+      if (c->turns_in_job < 15) {
         c->turns_in_job++;
       }
       const int prof = c->profession;
@@ -1144,13 +1155,28 @@ static void turn_produce_one_colony(
         discover_denom = 299;
       } else if (c->profession != COLONIZE_PROF_FREE_COLONIST &&
                  c->profession != UNITS_JOB_COLONIST /* @JOB 19 free alias */ &&
+                 c->profession != UNITS_JOB_NONE /* DOS 0x1c, raw 9300-9303 */ &&
                  c->profession >= 0) {
         continue;
       }
-      if (c->field_job < 0 || c->field_job > COLONIZE_JOB_FUR_TRAPPER) {
+      /* raw 57595: `0 < local_c2 && local_c2 < 5` — Farmer (job 0) never
+       * learns on the job, and only the four cash-crop field jobs 1..4 do. */
+      if (c->field_job < 1 || c->field_job > COLONIZE_JOB_FUR_TRAPPER) {
+        continue;
+      }
+      /* raw 57596/57605: the per-job DS byte at -0x6bd0 must be 0, and a
+       * success bumps it — one on-the-job graduation per job per nation per
+       * turn (FUN_4962_0018 raw 78140 clears that block per nation at the
+       * turn boundary). */
+      const int latch_n =
+        (colony->nation_id >= 0 && colony->nation_id < (int)COLONIZE_COL1_NATION_COUNT)
+          ? colony->nation_id
+          : 0;
+      if (s_otj_latch[latch_n][c->field_job] != 0) {
         continue;
       }
       if (dos_rng_range(rng, 0, discover_denom) == 0) {
+        s_otj_latch[latch_n][c->field_job]++;
         c->profession = c->field_job;
         c->turns_in_job = 0;
         if (europe && colony->nation_id == human_nation && turn_report_ok_trained(col1)) {
@@ -2110,6 +2136,9 @@ void turn_run_colony_production_w(
   if (!pool) {
     return;
   }
+  /* FUN_4962_0018 (raw 78140) clears the on-the-job learning latch block at
+   * each nation's turn boundary; one production pass = one turn here. */
+  memset(s_otj_latch, 0, sizeof(s_otj_latch));
   for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
     if (pool->colonies[i].active && turn_prod_nation_in_scope(pool->colonies[i].nation_id)) {
       /* bugs.md #256: DOS never carries an idle colonist — sweep any
@@ -4059,6 +4088,7 @@ ColonizeTurnResult turn_end(ColonizeTurnContext* ctx) {
  * units pool pointer must not survive into a different campaign's pool.
  */
 void turn_reset(void) {
+  memset(s_otj_latch, 0, sizeof(s_otj_latch));
   s_turn_birth_units = NULL;
   s_prod_only_nation = -1;
   s_prod_only_set = false;
