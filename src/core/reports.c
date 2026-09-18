@@ -3278,13 +3278,14 @@ static bool reports_unit_type_is_scored_colonist(int type) {
   return reports_profession_from_unit_type(type) >= 0;
 }
 
-/* Manual schedule: criminal/servant +1, free/convert +2, skilled +4. */
+/* FUN_41f2_0092 raw 71188-71198: profession 0x1c +2; 0x19/0x1a/0x1b
+ * (servant/criminal/convert) +1; anything else +4. */
 static int reports_citizen_points_for_job(int job) {
-  if (job == UNITS_JOB_SERVANT || job == UNITS_JOB_CRIMINAL) {
-    return 1; /* Indentured Servants, Petty Criminals */
+  if (job == UNITS_JOB_SERVANT || job == UNITS_JOB_CRIMINAL || job == UNITS_JOB_CONVERT) {
+    return 1; /* Indentured Servants, Petty Criminals, Indian Converts */
   }
-  if (job == UNITS_JOB_COLONIST || job == UNITS_JOB_CONVERT) {
-    return 2; /* Free Colonists, Indian Converts */
+  if (job == UNITS_JOB_COLONIST) {
+    return 2; /* Free Colonists (port alias of 0x1c) */
   }
   if (job >= 0 && job < k_job_count) {
     return 4; /* specialists / veterans / teachers / etc. */

@@ -648,9 +648,9 @@ graphs:
         note: Dutch Isabella TURN4→5.
       - id: corridors
         kind: step
-        label: First-colony staging corridors (Pioneer found+1 → SW coast; Soldier SE+1→SE+2→SE+3); on-tile equip arm
+        label: First-colony staging corridors (Pioneer found+1 → SW coast; Soldier SE+1→SE+2→SE+3); on-tile absorb+equip pair
         status: golden
-        note: Geometric offsets from town fitted to TURN4–7 goldens; equip arm cites raw 94304-94306.
+        note: Geometric offsets from town fitted to TURN4–7 goldens. On the town tile the FUN_5952_035e pair is ported as a pair (2026-09-18) — absorption of the on-tile Pioneer (raw 94257-94263, job 0x12, tools refunded) then the equip arm (raw 94289-94352) scoring a colonist (ai_euro_5952_equip_pick) and ejecting it as Soldier/Dragoon; population gates are DOS-literal `> 1` / `> 10`.
       - id: is_ship
         kind: decision
         label: Ship?
@@ -1309,6 +1309,13 @@ graphs:
         kind: loop
         label: Pass 2 ×2 — everyone else, best job wins (raw 94613-94614 stop)
         status: dos
+      - id: carpenter
+        kind: loop
+        label: Carpenter-staffing arm — four passes for one Carpenter's House worker when the colony has lumber but no hammers
+        fn: ai_euro.c:ai_euro_5952_carpenter_pick
+        dos: FUN_5952_035e raw 94690-94740, asm 5952:1ac7-5952:1be2
+        status: dos
+        note: "Gated on +0x1d bit 0x80 clear and stock[lumber] + prod[lumber] > 1; loops while prod[hammers] == 0, so the ledger refresh (FUN_281f_0c04) after the first assignment ends it. Passes: profession 0x0d, 0x1c, 0x19, anyone. A chosen Servant/Criminal is rewritten to Free Colonist (FUN_281f_0cae(slot, 0x1c)); a non-expert in a colony with no Master Carpenter and pop > 5 may be handed the Master Carpenter specialty on a FUN_281f_04d4(0, 0x10 - difficulty) == 0 roll. UPSTREAM UNPORTED: the same block's forced-lumberjack pass (raw 94659-94679) and the 200-gold/100-lumber AI purchase (raw 94680-94689)."
       - id: expert
         kind: step
         label: Expert workplace fix-ups; origin refresh
@@ -1334,7 +1341,8 @@ graphs:
     edges:
       - [loop, pass1, "each colony"]
       - [pass1, pass2]
-      - [pass2, expert]
+      - [pass2, carpenter]
+      - [carpenter, expert]
       - [expert, indoor]
       - [indoor, build]
       - [build, loop, "next colony"]
