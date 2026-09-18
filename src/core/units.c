@@ -12041,14 +12041,23 @@ const char* units_profession_label(
   return buf[0] ? buf : NULL;
 }
 
-bool units_type_has_profession_slot(int type_index) {
-  /* DS:0x30e, one signed byte per @UNIT type; -1 = no profession slot. */
+int units_type_default_job(int type_index) {
+  /* DS:0x30e, one signed byte per @UNIT type; -1 = no profession slot.
+   * This is the value FUN_15eb_0902 returns, i.e. the `local_ee` that
+   * FUN_15eb_0e18 (= FUN_1000_8dfe) hands back for a colony slot index past
+   * the population — the on-tile stack. Value accessor added 2026-09-18 for
+   * the re-hosted FUN_5952_035e absorption arm (smell audit 2026-09-10
+   * "DEFERRED — raw 94247" asked for exactly this). */
   static const signed char k_default_job[] = {19, 21, 20, 24, 23, 22, -1, 23, -1, 21, -1, -1,
                                               -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 0};
   if (type_index < 0 || type_index >= (int)(sizeof(k_default_job) / sizeof(k_default_job[0]))) {
-    return false;
+    return -1;
   }
-  return k_default_job[type_index] >= 0;
+  return (int)k_default_job[type_index];
+}
+
+bool units_type_has_profession_slot(int type_index) {
+  return units_type_default_job(type_index) >= 0;
 }
 
 int units_job_icon_sprite(int profession) {

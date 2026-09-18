@@ -37,7 +37,43 @@ Ghidra shows without an initialiser — `iStack_4e` = `[BP-0x4c]` =
 `iStack_42` = `[BP-0x40]` = `[0x13]`, `iStack_3e` = `[BP-0x3c]` = `[0x15]`.
 The absorption arm's Soldier/Dragoon gate reads `CMP word ptr [BP-0x40],0x0`
 / `[BP-0x3c],0x0` verbatim, and its decrement pair `DEC [BP-0x3c]` /
-`DEC [BP-0x40]`. Ported 2026-09-18 in `ai_euro_act_colony_absorb`.
+`DEC [BP-0x40]`. Ported 2026-09-18.
+
+**Absorption + equip hosting (2026-09-18).** Both arms — the tile-stack
+absorption loop (md:594-639, raw 94231-94272) and the equip arm
+(md:640-719, raw 94276-94352) — are ported as `ai_euro_5952_absorb_equip`
+in `src/core/ai_euro.c`, called from `ai_euro_colony_goals_colony_labor`
+right after `ai_euro_refresh_colony_ai_flags`. That is DOS's position: after
+every `+0x1b` flag write and the by-profession census, before the
+build-preference / construction cascade. They previously ran from the
+arriving unit's act (`ai_euro_act_colony_absorb`, since deleted, and the
+on-tile block of `ai_euro_act_pioneer_corridor`); the two structural
+divergences that hosting had to document — one case per arriving unit
+instead of a re-scan, and a `iStack_76++` nobody could see — are closed.
+The port reproduces DOS's loop shape literally: outer gate `DS:0x8d72 != 0
+&& (+0x1b & 0x10)` once, at most one take-in per pass (`iStack_32`) then
+restart from the top, `+0x1f < 0x20` re-read at every loop test.
+
+`local_ee` is `FUN_1000_8dfe` = `FUN_15eb_0e18`, which for a slot past
+`+0x1f` returns `FUN_15eb_0902(unit)` = `DS:0x30e[@UNIT type]` — the type's
+**default @JOB**, so 0x13/0x14/0x15/0x16/0x17 are @JOB values, not @UNIT
+codes (Cont. Army folds to 0x15, Cont. Cav to 0x17). Port accessor:
+`units_type_default_job` (`units.c`).
+
+`local_16` is a real tick-local, seeded from `0x13 < +0xb6` at md:298 and
+latched by the Pioneer case at md:625. `iStack_76` is likewise carried as a
+tick-local from `ai_euro_5952_labor_demand`'s post-military-walk `want` —
+NOT the `+0x8e` byte, which DOS writes once at md:405 and never again.
+
+REMAINING DIVERGENCES for this pair:
+  - the two `iStack_76` readers at md:746 / md:758
+    (`FUN_OVL15_L0000__002a82(0x181f, 0xf, …)`, the build-preference arms)
+    are not modelled at all, so the absorption's `++` is observable only
+    through the dead disjunct (a) at md:604;
+  - the equip arm's other two `local_136` targets — the Scout arm
+    (md:644-654) and the Pioneer arm (md:664-668, needs `local_10` =
+    `func_0x0001a684` and the `-0x6db2` per-nation row) — are unported;
+    only the Soldier/Dragoon target (md:669-677) is live.
 
 **Callers / nation gating (resolved 2026-09-08d — AI nations ONLY).** The
 tick has exactly one call site in the EXE: `FUN_521d_6d8e`'s own-colony loop

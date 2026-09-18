@@ -133,6 +133,12 @@ COLONIZE_INTERNAL void ai_euro_5952_set_ring1_threat(int colony_id, int ring1);
 COLONIZE_INTERNAL void ai_euro_5952_set_absorb_census(
   int colony_id, int nonexpert, int vet_soldier
 );
+/* FUN_5952_035e absorption + equip arms (raw 94231-94352), hosted in the
+ * colony tick as a tile re-scan. `labor_running` is the tick-local iStack_76
+ * the Soldier case increments. */
+COLONIZE_INTERNAL void ai_euro_5952_absorb_equip(
+  ColonizeTurnContext* ctx, int nation_id, ColonizeColony* c, int* labor_running
+);
 /* FUN_5952_035e equip-arm candidate scorer (raw 94318-94345). */
 COLONIZE_INTERNAL int ai_euro_5952_equip_pick(const ColonizeColony* c, int target);
 /* FUN_5952_035e carpenter-staffing arm, per-pass election (raw 94690-94740). */
@@ -148,7 +154,6 @@ COLONIZE_INTERNAL void ai_euro_5952_lumber_purchase(
   struct EuropeScreen* eu, struct ColonizeCol1Save* col1, ColonizeColony* col, int turn,
   bool lumber_producer_placed
 );
-AiEuroActStatus ai_euro_act_colony_absorb(struct ai_euro_act_ctx* a);
 AiEuroActStatus ai_euro_act_pioneer_corridor(struct ai_euro_act_ctx* a);
 AiEuroActStatus ai_euro_act_soldier_staging(struct ai_euro_act_ctx* a);
 AiEuroActStatus ai_euro_act_ship_europe_exit(struct ai_euro_act_ctx* a);

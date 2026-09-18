@@ -707,6 +707,70 @@ list, not from the inventory.
   census is stashed per colony (`s_5952_census_*`) the way `s_5952_ring1`
   already is, since DOS builds it inside the tick just before the loop.
   `make test` 67/67, `make golden` green.
+- [x] **`5952_035e` absorption + equip arms RE-HOSTED into the colony tick
+  (raw 94231-94352) — LANDED 2026-09-18.** The two structural divergences the
+  entry above documented are closed: DOS runs both arms inside
+  `FUN_5952_035e` itself, at one fixed position — after every `+0x1b` flag
+  write and the by-profession census, before the build-preference /
+  construction cascade — as a **re-scan of the units standing on the colony
+  tile**, not once per arriving unit. New `ai_euro_5952_absorb_equip`
+  (`ai_euro.c`, seam in `ai_euro_internal.h`), called from
+  `ai_euro_colony_goals_colony_labor` immediately after
+  `ai_euro_refresh_colony_ai_flags` — the port splits DOS's `+0x1b` writers
+  across `ai_euro_colony_threat_seed_5952` (raw 94142-94199) and that refresh
+  (raw 94200-94210), so "after every flag write" is that call site.
+  `ai_euro_act_colony_absorb` is deleted and
+  `ai_euro_act_pioneer_corridor`'s on-tile block is gone; a DOS unit act does
+  nothing else for an AI unit standing on its own colony (20e6 move scoring +
+  the 0a60 goal consumption are the whole of it), so nothing is dropped or
+  double-handled.
+  - **Loop semantics, verbatim:** outer gate `DS:0x8d72 != 0 && (+0x1b &
+    0x10)` evaluated once; inner scan over the colony slots past `+0x1f`,
+    with `+0x1f < 0x20` re-read at every loop test; at most **one** take-in
+    per pass (`iStack_32`) and then restart from the top, so several units on
+    the tile are all absorbed in one tick and every later pass sees the new
+    population, the consumed census cell, the cleared `+0x1b` bit 2 and the
+    raised tools latch.
+  - **`local_ee` corrected:** `FUN_1000_8dfe` = `FUN_15eb_0e18`, which for a
+    slot past the population returns `FUN_15eb_0902(unit)` =
+    `DS:0x30e[@UNIT type]`, the type's **default @JOB** — 0x13/0x14/0x15/
+    0x16/0x17 are @JOB values, NOT @UNIT codes (Cont. Army also folds to
+    0x15, Cont. Cav to 0x17). New value accessor `units_type_default_job`
+    (`units.c`), which `units_type_has_profession_slot` now wraps — the
+    accessor the 2026-09-10 smell audit's "DEFERRED — raw 94247" row asked
+    for.
+  - **`iStack_76` now flows:** it is the `want` that
+    `ai_euro_5952_labor_demand` leaves *after* the on-tile military walk (not
+    the `+0x8e` byte — DOS writes that once, before the walk, and never
+    again in the tick). `ai_euro_colony_threat_seed_5952` hands it out
+    through a new `out_labor_running` parameter and the Soldier case `++`s it
+    in place. Its in-tick readers are the dead disjunct (a) and the two
+    build-preference arms at md:746 / md:758
+    (`FUN_OVL15_L0000__002a82(0x181f, 0xf, …)`), which this port does not
+    model at all — so the increment is honest but currently observable only
+    through (a). **Remaining divergence:** those two `002a82` arms.
+  - **`local_16` is now a real tick-local** seeded from `0x13 < +0xb6` and
+    latched to 1 by the Pioneer case, which retires the "Pioneer carrying
+    < 20 tools" residual the unit-act hosting had to document.
+  - **RNG order:** `local_90`'s `dos_rng_range(0, 3)` draw is DOS's third
+    conjunct and is now drawn **once per AI colony per turn**, inside the
+    colony tick, instead of only when a Pioneer happened to stand on the
+    tile during the unit wave. That is DOS's position in the shared LCG
+    stream; `golden_ai_turns` TURN1→7 stays byte-green with it.
+  - **Still unported (unchanged by the re-hosting):** DOS's other two
+    `local_136` equip targets — the Scout arm (raw 94277-94285, horses >
+    0x65) and the Pioneer arm (raw 94300-94303, which needs `local_10` =
+    `func_0x0001a684` and the `DS:-0x6db2` per-nation row). Only the
+    Soldier/Dragoon target (raw 94304-94312) is modelled.
+  - Tests: `tests/unit/test_stage_seams.c` cases renamed to
+    `test_ai_euro_5952_absorb_colonist` / `_soldier` and re-pointed at the
+    colony-side seam, with new assertions for the re-scan (two colonists
+    absorbed in one call) and for the `iStack_76` increment. Two 20e6 berth
+    fixtures had a colony at population 3 carrying a stale
+    "no NEEDS_COLONISTS" comment from the pre-2026-09-09 `pop < 3` rule;
+    raised to 12 (= wanted_size 8 + 2×tier 2) so the tick cannot swallow the
+    berth passenger before the ship acts. `make test` 67/67, `make golden`
+    green, `golden_ai_turns` 6/6.
 - Deliberate documented divergences (decision needed before "work"):
   king_ref.md short list, 5d04 past-the-end read kept 0 + musket-scratch
   collision as price×100, `@HELLOUSA` not modeled, per-act (vs DOS
