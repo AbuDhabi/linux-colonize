@@ -132,11 +132,12 @@ static int test_game_render_select_palette(void) {
 
 
 /*
- * ai_euro_act_colony_absorb — FUN_5952_035e's absorption arm, Colonist case
+ * ai_euro_5952_absorb_equip — FUN_5952_035e's absorption arm, Colonist case
  * (raw 94271-94274, an unconditional take-in) and its shared outer gate
- * `+0x1b & 0x10` (NEEDS_COLONISTS, raw 94231).
+ * `+0x1b & 0x10` (NEEDS_COLONISTS, raw 94231). Hosted in the colony tick as
+ * a tile re-scan since 2026-09-18, so the seam is colony-side, not unit-side.
  */
-static int test_ai_euro_act_colony_absorb(void) {
+static int test_ai_euro_5952_absorb_colonist(void) {
   ColonizeWorldMap map;
   if (!fx_map_alloc(&map, 8, 8, /*terrain_fill=*/0, /*with_seen=*/true)) {
     return fail("absorb map alloc");
@@ -158,7 +159,7 @@ static int test_ai_euro_act_colony_absorb(void) {
   ctx.colonies = &colonies;
   ctx.map = &map;
 
-  const int uid = units_spawn(&units, 0, 4, 4);
+  const int uid = units_spawn_allow_stack(&units, 0, 4, 4);
   ColonizeUnit* u = units_get(&units, uid);
   if (!u) {
     fx_map_free(&map);
@@ -167,18 +168,10 @@ static int test_ai_euro_act_colony_absorb(void) {
   u->nation_id = 1;
   u->moves = UNITS_MP_PER_TILE;
 
-  struct ai_euro_act_ctx a;
-  memset(&a, 0, sizeof(a));
-  a.ctx = &ctx;
-  a.u = u;
-  a.nation_id = 1;
-
+  int labor = 0;
   /* Gate closed: the colony does not want colonists -> nothing happens. */
   c->ai_flags = 0;
-  if (ai_euro_act_colony_absorb(&a) != AI_EURO_ACT_CONTINUE) {
-    fx_map_free(&map);
-    return fail("absorb must not fire without NEEDS_COLONISTS");
-  }
+  ai_euro_5952_absorb_equip(&ctx, 1, c, &labor);
   if ((int)c->population != 2 || !units_get(&units, uid)) {
     fx_map_free(&map);
     return fail("absorb changed state with the outer gate closed");
@@ -186,32 +179,53 @@ static int test_ai_euro_act_colony_absorb(void) {
 
   /* Gate open: the Colonist case has no test of its own. */
   c->ai_flags = COLONIZE_COLONY_AI_NEEDS_COLONISTS;
-  a.u = units_get(&units, uid);
-  if (ai_euro_act_colony_absorb(&a) != AI_EURO_ACT_RETURN) {
-    fx_map_free(&map);
-    return fail("an arriving Free Colonist must always be absorbed");
-  }
+  ai_euro_5952_absorb_equip(&ctx, 1, c, &labor);
   const int pop_after = (int)colonies.colonies[0].population;
   const ColonizeUnit* gone = units_get(&units, uid);
-  fx_map_free(&map);
   if (pop_after != 3) {
+    fx_map_free(&map);
     return fail("absorption must add the colonist to the colony");
   }
   if (gone && gone->active) {
+    fx_map_free(&map);
     return fail("the absorbed unit must leave the map");
+  }
+  if (labor != 0) {
+    fx_map_free(&map);
+    return fail("only the Soldier case touches iStack_76");
+  }
+
+  /* DOS re-scans the tile stack after every absorption (iStack_32), so two
+   * colonists standing on the tile are BOTH taken in by one tick. */
+  const int a1 = units_spawn_allow_stack(&units, 0, 4, 4);
+  const int a2 = units_spawn_allow_stack(&units, 0, 4, 4);
+  for (int i = 0; i < 2; ++i) {
+    ColonizeUnit* w = units_get(&units, i == 0 ? a1 : a2);
+    if (!w) {
+      fx_map_free(&map);
+      return fail("absorb spawn pair");
+    }
+    w->nation_id = 1;
+    w->moves = UNITS_MP_PER_TILE;
+  }
+  ai_euro_5952_absorb_equip(&ctx, 1, c, &labor);
+  const int pop2 = (int)colonies.colonies[0].population;
+  fx_map_free(&map);
+  if (pop2 != 5) {
+    return fail("the tile re-scan must absorb every eligible unit in one tick");
   }
   return 0;
 }
 
 /*
- * ai_euro_act_colony_absorb — the Soldier/Dragoon case (raw 94239-94256).
+ * ai_euro_5952_absorb_equip — the Soldier/Dragoon case (raw 94239-94256).
  * Gate disjuncts: (b) the arriving unit is a specialist other than a Veteran
  * Soldier AND one of the two census cells aiStack_68[0x13]/[0x15] is non-zero,
  * (c) +0x1b bit 2 (MILITARY_SURPLUS). Absorbing clears bit 2, refunds the
- * muskets to the colony stock, keeps the profession, and consumes one census
- * cell ([0x15] first, else [0x13]).
+ * muskets to the colony stock, keeps the profession, consumes one census cell
+ * ([0x15] first, else [0x13]) and increments the tick-local iStack_76.
  */
-static int test_ai_euro_act_colony_absorb_soldier(void) {
+static int test_ai_euro_5952_absorb_soldier(void) {
   ColonizeWorldMap map;
   if (!fx_map_alloc(&map, 8, 8, /*terrain_fill=*/0, /*with_seen=*/true)) {
     return fail("absorb-soldier map alloc");
@@ -235,16 +249,11 @@ static int test_ai_euro_act_colony_absorb_soldier(void) {
   ctx.colonies = &colonies;
   ctx.map = &map;
 
-  struct ai_euro_act_ctx a;
-  memset(&a, 0, sizeof(a));
-  a.ctx = &ctx;
-  a.nation_id = 1;
-
   /* Census: one ordinary colonist to spare, no Veteran Soldier. */
   ai_euro_5952_set_absorb_census(c->id, /*nonexpert=*/1, /*vet_soldier=*/0);
 
   /* A Veteran Soldier (profession 0x15) is excluded from disjunct (b). */
-  const int vid = units_spawn(&units, 0, 4, 4);
+  const int vid = units_spawn_allow_stack(&units, 0, 4, 4);
   ColonizeUnit* v = units_get(&units, vid);
   if (!v) {
     fx_map_free(&map);
@@ -253,9 +262,9 @@ static int test_ai_euro_act_colony_absorb_soldier(void) {
   v->nation_id = 1;
   v->profession = UNITS_JOB_SOLDIER;
   v->muskets = 50;
-  a.u = v;
-  if (ai_euro_act_colony_absorb(&a) != AI_EURO_ACT_CONTINUE ||
-      (int)c->population != 2) {
+  int labor = 0;
+  ai_euro_5952_absorb_equip(&ctx, 1, c, &labor);
+  if ((int)c->population != 2) {
     fx_map_free(&map);
     return fail("a Veteran Soldier must not be absorbed through disjunct (b)");
   }
@@ -263,11 +272,7 @@ static int test_ai_euro_act_colony_absorb_soldier(void) {
   /* MILITARY_SURPLUS (disjunct c) takes the same unit in, clears the bit,
    * refunds the muskets and keeps the profession. */
   c->ai_flags |= COLONIZE_COLONY_AI_MILITARY_SURPLUS;
-  a.u = units_get(&units, vid);
-  if (ai_euro_act_colony_absorb(&a) != AI_EURO_ACT_RETURN) {
-    fx_map_free(&map);
-    return fail("MILITARY_SURPLUS must absorb an arriving soldier");
-  }
+  ai_euro_5952_absorb_equip(&ctx, 1, c, &labor);
   if ((int)c->population != 3 ||
       (c->ai_flags & COLONIZE_COLONY_AI_MILITARY_SURPLUS) != 0 ||
       c->stock[COLONIZE_CARGO_MUSKETS] != 50 ||
@@ -275,15 +280,20 @@ static int test_ai_euro_act_colony_absorb_soldier(void) {
     fx_map_free(&map);
     return fail("surplus absorption must clear bit 2, refund muskets, keep profession");
   }
+  if (labor != 1) {
+    fx_map_free(&map);
+    return fail("the Soldier case must increment the tick-local iStack_76");
+  }
 
   /* That absorption consumed a census cell too (raw 94248-94255), so re-seed
    * one before exercising disjunct (b). */
   ai_euro_5952_set_absorb_census(c->id, /*nonexpert=*/1, /*vet_soldier=*/0);
 
   /* Disjunct (b): a Hardy Pioneer carrying muskets, with census[0x13] = 1.
-   * The absorption consumes that cell, so the next one is refused. */
+   * The absorption consumes that cell, so the second one on the tile stays
+   * out even though DOS's re-scan sees it in the same tick. */
   for (int round = 0; round < 2; ++round) {
-    const int pid = units_spawn(&units, 0, 4, 4);
+    const int pid = units_spawn_allow_stack(&units, 0, 4, 4);
     ColonizeUnit* p = units_get(&units, pid);
     if (!p) {
       fx_map_free(&map);
@@ -292,17 +302,15 @@ static int test_ai_euro_act_colony_absorb_soldier(void) {
     p->nation_id = 1;
     p->profession = UNITS_JOB_PIONEER; /* expert, != 0x15 */
     p->muskets = 50;
-    a.u = p;
-    const AiEuroActStatus st = ai_euro_act_colony_absorb(&a);
-    const int want_pop = round == 0 ? 4 : 4;
-    if (round == 0 && (st != AI_EURO_ACT_RETURN || (int)c->population != want_pop)) {
-      fx_map_free(&map);
-      return fail("a specialist must be absorbed while a census cell is free");
-    }
-    if (round == 1 && (st != AI_EURO_ACT_CONTINUE || (int)c->population != want_pop)) {
-      fx_map_free(&map);
-      return fail("the census cell must be consumed by the first absorption");
-    }
+  }
+  ai_euro_5952_absorb_equip(&ctx, 1, c, &labor);
+  if ((int)c->population != 4) {
+    fx_map_free(&map);
+    return fail("exactly one specialist must be absorbed per free census cell");
+  }
+  if (labor != 2) {
+    fx_map_free(&map);
+    return fail("the specialist absorption must also bump iStack_76");
   }
   fx_map_free(&map);
   return 0;
@@ -313,8 +321,8 @@ static const TestCase k_cases[] = {
     {"test_ai_contact_raid_alarm_delta", test_ai_contact_raid_alarm_delta},
     {"test_ai_021a_dir_tile", test_ai_021a_dir_tile},
     {"test_game_render_select_palette", test_game_render_select_palette},
-    {"test_ai_euro_act_colony_absorb", test_ai_euro_act_colony_absorb},
-    {"test_ai_euro_act_colony_absorb_soldier", test_ai_euro_act_colony_absorb_soldier},
+    {"test_ai_euro_5952_absorb_colonist", test_ai_euro_5952_absorb_colonist},
+    {"test_ai_euro_5952_absorb_soldier", test_ai_euro_5952_absorb_soldier},
 };
 
 TEST_MAIN(k_cases)

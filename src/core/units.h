@@ -599,6 +599,9 @@ int units_job_icon_sprite(int profession);
  * profession byte, to decide who is a person: the census population count
  * (FUN_4962_0018 → DS:0x9410) and the sidebar profession line both gate on it.
  */
+/* DS:0x30e[@UNIT type] — the type's default @JOB, or -1 for no profession
+ * slot (FUN_15eb_0902). */
+int units_type_default_job(int type_index);
 bool units_type_has_profession_slot(int type_index);
 /*
  * Expert-skill label for a unit row: the plural NAMES @JOB field, or NULL for

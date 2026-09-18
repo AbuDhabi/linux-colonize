@@ -9797,11 +9797,243 @@ static void ai_euro_5952_ai_flags(
   }
 }
 
+/* ===== FUN_5952_035e absorption + equip arm (raw 94231-94352) ===========
+ *
+ * RE-HOSTED 2026-09-18. Both arms used to run from the arriving unit's act
+ * (`ai_euro_act_colony_absorb` / the on-tile block of
+ * `ai_euro_act_pioneer_corridor`). DOS runs them inside the COLONY tick, at
+ * this exact position — after the +0x1b flag writes and the by-profession
+ * census (raw 94219-94229) and before the build-preference / construction
+ * cascade — as a re-scan of the units standing on the colony tile. The
+ * unit-act hosting got the ordering, the turn, the multi-unit case and the
+ * RNG position all wrong; this is the DOS host.
+ *
+ * DOS shape, raw 94231-94272:
+ *   if (DS:0x8d72 != 0 && (+0x1b & 0x10)) do {
+ *     iStack_32 = 0;
+ *     for (ac = +0x1f; !iStack_32 && ac < +0x1f + DS:0x8d72 && +0x1f < 0x20; ac++)
+ *         { one case per @UNIT type; an absorption sets iStack_32 }
+ *   } while (iStack_32);
+ * i.e. absorb at most one unit per pass and restart the scan from the top —
+ * every later pass sees the new population, the consumed census cell, the
+ * cleared MILITARY_SURPLUS bit and the raised tools latch. `+0x1f` is
+ * re-read at every loop test, so the pop < 0x20 cap tracks the absorptions.
+ *
+ * `local_16` (uStack_16) RESOLVED: the tick seeds it at its top from
+ * `0x13 < colony[+0xb6]` ("already holds more than 19 TOOLS", +0xb6 = +0x9a
+ * + 2*14) and the Pioneer case then latches it to 1 so no SECOND Pioneer is
+ * absorbed through that disjunct in the same tick. It is a real tick-local:
+ * DOS never re-reads the stock word, so the absorbed Pioneer's own tools
+ * refund does not move the gate. Carried here as `tools_latch`, which
+ * retires the "residual divergence" the unit-act hosting had to document.
+ *
+ * `iStack_76` is the tick's running labor/garrison demand — the value
+ * `ai_euro_5952_labor_demand` leaves in `want` after the on-tile military
+ * walk, NOT the `+0x8e` byte (DOS writes +0x8e once, before that walk, and
+ * never again in the tick). It is passed in by address and the Soldier case
+ * `++`s it. In-tick readers of the post-absorption value: the dead disjunct
+ * (a) below, and the two build-preference arms at md:746 / md:758
+ * (`FUN_OVL15_L0000__002a82(0x181f, 0xf, ...)`), which this port does not
+ * model at all — so the increment is honest but currently observable only
+ * through (a). Documented in docs/port_plan.md.
+ */
+static int ai_euro_5952_tile_stack(
+  const ColonizeTurnContext* ctx, const ColonizeColony* c, int* ids, int max
+) {
+  int n = 0;
+  if (!ctx->units) {
+    return 0;
+  }
+  /* DS:0x8d72 (FUN_15eb_09c0 raw 10014-10034) — the same predicate
+   * ai_euro_5952_labor_demand counts `outside` with. Slot walk: `i` is an
+   * array index, not a unit id. */
+  for (int i = 0; i < COLONIZE_UNITS_MAX && n < max; ++i) {
+    const ColonizeUnit* u = &ctx->units->units[i];
+    if (!u->active || u->aboard_ship_id >= 0 || u->x != c->x || u->y != c->y) {
+      continue;
+    }
+    if (!units_type_has_profession_slot(ai_euro_20e6_dos_type(ctx->units, u))) {
+      continue;
+    }
+    ids[n++] = u->id;
+  }
+  return n;
+}
+
+COLONIZE_INTERNAL void ai_euro_5952_absorb_equip(
+  ColonizeTurnContext* ctx, int nation_id, ColonizeColony* c, int* labor_running
+) {
+  if (!ctx || !ctx->units || !ctx->colonies || !c) {
+    return;
+  }
+  const int cont = map_continent_id_at(ctx->map, c->x, c->y);
+  const int stance = ai_euro_continent_stance_at(nation_id, cont); /* local_2a */
+  /* local_16, seeded at the tick's top from +0xb6 (md:298). */
+  int tools_latch = (int)(c->stock[COLONIZE_CARGO_TOOLS] > 0x13);
+  const int idx = (c->id >= 0 && c->id < COLONIZE_COLONIES_MAX) ? c->id : -1;
+
+  /* ---- absorption arm, raw 94231-94272 -------------------------------- */
+  int ids[COLONIZE_UNITS_MAX];
+  if ((c->ai_flags & COLONIZE_COLONY_AI_NEEDS_COLONISTS) != 0 &&
+      ai_euro_5952_tile_stack(ctx, c, ids, COLONIZE_UNITS_MAX) != 0) {
+    int restart = 1;
+    int guard = 0;
+    while (restart && guard++ <= COLONIZE_UNITS_MAX) {
+      restart = 0;
+      const int n = ai_euro_5952_tile_stack(ctx, c, ids, COLONIZE_UNITS_MAX);
+      for (int k = 0; k < n && !restart; ++k) {
+        if ((int)c->population >= 0x20) {
+          break; /* raw 94235-94236, re-read every loop test */
+        }
+        ColonizeUnit* u = units_get(ctx->units, ids[k]);
+        if (!u || !u->active) {
+          continue;
+        }
+        /*
+         * local_ee = FUN_1000_8dfe(slot) = FUN_15eb_0e18; for a slot past the
+         * population it is FUN_15eb_0902(unit) = DS:0x30e[@UNIT type], the
+         * type's DEFAULT @JOB — 0x13 Colonist / 0x14 Pioneer / 0x15 Soldier /
+         * 0x16 Scout / 0x17 Dragoon (and Cont. Army → 0x15, Cont. Cav →
+         * 0x17). NOT the @UNIT code. (smell audit 2026-09-10, "DEFERRED —
+         * raw 94247".)
+         */
+        const int dtype =
+          units_type_default_job(ai_euro_20e6_dos_type(ctx->units, u)); /* local_ee */
+        const int prof = u->profession; /* local_1a, FUN_281f_0c54 */
+        int take = 0;
+        int is_mil = 0;
+        int is_pioneer = 0;
+        /* The four DOS cases are disjoint on local_ee, so the raw's chain of
+         * bare `if`s is spelled as an else-chain here. */
+        if (dtype == 0x15 || dtype == 0x17) { /* Soldier / Dragoon, raw 94239 */
+          is_mil = 1;
+          const int census13 = idx >= 0 ? s_5952_census_nonexpert[idx] : 0;
+          const int census15 = idx >= 0 ? s_5952_census_vet_soldier[idx] : 0;
+          /* (a) DOS-LITERAL dead branch: iStack_76 is clamped >= 0 by the
+           * labor formula and only ever ++/--s under `!= 0`, so it is never
+           * negative here. Now that the running total is real, the branch is
+           * spelled against it rather than against a hard 0. */
+          const int dead_shortage_arm =
+            (*labor_running < 0 &&
+             (c->ai_flags & COLONIZE_COLONY_AI_SHORT_DEFENDERS) == 0);
+          const int specialist_arm =
+            ai_euro_5952_job_is_expert(prof) && prof != UNITS_JOB_SOLDIER &&
+            (census13 != 0 || census15 != 0);
+          const int surplus_arm =
+            (c->ai_flags & COLONIZE_COLONY_AI_MILITARY_SURPLUS) != 0;
+          take = dead_shortage_arm || specialist_arm || surplus_arm;
+        } else if (dtype == 0x14) { /* Pioneer, raw 94257-94263 */
+          is_pioneer = 1;
+          take = ((c->ai_flags & COLONIZE_COLONY_AI_WANTS_PIONEER_WORK) != 0 &&
+                  tools_latch == 0) ||
+                 stance == 0;
+        } else if (dtype == 0x16) { /* Scout, raw 94264-94270 */
+          take = (stance == 0 || c->stock[COLONIZE_CARGO_HORSES] < 0x34);
+        } else if (dtype == 0x13) { /* Free Colonist, raw 94271-94274 */
+          take = 1;
+        }
+        if (!take) {
+          continue;
+        }
+        /* FUN_1000_8e26(slot, 0x12) = FUN_281f_0c36 = FUN_15eb_1068 with the
+         * idle-sentinel job: the refund loop (raw 11234-11248) banks the
+         * unit's gear into stock and the colonist keeps its profession. */
+        ColonizeWorld w = world_from_turn_ctx(ctx);
+        if (colonies_admit_unit_w(&w, c->id, u->id) < 0) {
+          continue;
+        }
+        restart = 1; /* iStack_32 */
+        if (is_mil) {
+          /* raw 94247-94255 */
+          (*labor_running)++;
+          c->ai_flags =
+            (uint8_t)(c->ai_flags & (uint8_t)~COLONIZE_COLONY_AI_MILITARY_SURPLUS);
+          if (idx >= 0) {
+            if (s_5952_census_vet_soldier[idx] != 0) {
+              s_5952_census_vet_soldier[idx]--;
+            } else if (s_5952_census_nonexpert[idx] != 0) {
+              s_5952_census_nonexpert[idx]--;
+            }
+          }
+        } else if (is_pioneer) {
+          tools_latch = 1; /* raw 94261 `local_16 = 1` */
+        }
+      }
+    }
+  }
+
+  /* ---- equip arm, raw 94276-94352 ------------------------------------- *
+   * `if (+0x1f < 2) goto LAB_5952_0f7c` skips the whole block. Both
+   * population reads are DOS's own spelling and see the post-absorption
+   * population, which is why this must be hosted here.
+   *
+   * STILL UNPORTED (pre-existing, unchanged by the re-hosting): DOS's other
+   * two `local_136` targets — the Scout arm (raw 94277-94285, horses > 0x65)
+   * and the Pioneer arm (raw 94300-94303, which needs `local_10` =
+   * func_0x0001a684 and the DS:-0x6db2 per-nation row). Only the
+   * Soldier/Dragoon target (raw 94304-94312) is modelled.
+   */
+  const int equip_pop = (int)c->population;
+  if (equip_pop < 2) {
+    return;
+  }
+  /*
+   * local_90, raw 94292-94299, all four conjuncts in DOS's order. The
+   * FUN_281f_04d4 = dos_rng_range(0, 3) draw is the THIRD conjunct, so the
+   * stance and population tests must gate it or the shared LCG stream
+   * shifts. Hosting this in the colony tick draws it once per AI colony per
+   * turn, which is DOS; the unit-act hosting drew it only when a Pioneer
+   * happened to stand on the tile.
+   */
+  int local_90 = 0;
+  if (stance == 0 && equip_pop > 10 && dos_rng_range(ctx->rng, 0, 3) == 0 &&
+      (c->ai_flags & COLONIZE_COLONY_AI_NEEDS_COLONISTS) == 0) {
+    local_90 = 1;
+  }
+  /* raw 94304-94306: `((+0x1b & 0x48) != 0 || local_90 != 0) && 0x31 < +0xb8` */
+  const int equip_demand =
+    (c->ai_flags &
+     (COLONIZE_COLONY_AI_NEEDS_GARRISON | COLONIZE_COLONY_AI_SHORT_DEFENDERS)) != 0 ||
+    local_90;
+  if (!equip_demand || c->stock[COLONIZE_CARGO_MUSKETS] <= 0x31) {
+    return;
+  }
+  /* raw 94307-94312: local_8e = 0x15, upgraded to 0x17 on horses > 0x33. */
+  const int mounted = c->stock[COLONIZE_CARGO_HORSES] > 0x33;
+  /* raw 94314-94317: local_1b4 = local_8e, with 0x17 mapped to 0x15. */
+  const int pick = ai_euro_5952_equip_pick(c, UNITS_JOB_SOLDIER);
+  if (pick < 0) {
+    return;
+  }
+  /*
+   * raw 94347-94350, DOS-LITERAL: the expert strip reads FUN_281f_0c9a with
+   * iStack_18 still holding the LAST loop iteration's profession, not the
+   * picked colonist's — the scorer's loop variable leaks out of the loop.
+   */
+  const int last_prof = (int)c->colonists[equip_pop - 1].profession;
+  if (ai_euro_5952_job_is_expert(last_prof) && UNITS_JOB_SOLDIER != last_prof) {
+    /* FUN_1000_8e9e(colony, pick, 0x1c) = FUN_281f_0cae, clear specialty. */
+    c->colonists[pick].profession = COLONIZE_PROF_FREE_COLONIST;
+  }
+  /* FUN_1000_8e26(colony, pick, local_8e) = FUN_15eb_1068 case 2: the
+   * colonist leaves as a Soldier/Dragoon on the colony tile keeping its
+   * profession byte, orders byte (+0x314c) zeroed, gear charged off the
+   * stock (raw 11318-11329). */
+  (void)colonies_eject_colonist(
+    ctx->colonies, c->id, pick, ctx->units,
+    mounted ? COLONIZE_EJECT_DRAGOON : COLONIZE_EJECT_SOLDIER
+  );
+}
+
 static void ai_euro_colony_threat_seed_5952(
   ColonizeTurnContext* ctx,
   int nation_id,
-  ColonizeColony* c
+  ColonizeColony* c,
+  int* out_labor_running
 ) {
+  if (out_labor_running) {
+    *out_labor_running = 0;
+  }
   if (!ctx || !ctx->units || !ctx->map || !c) {
     return;
   }
@@ -9950,6 +10182,20 @@ static void ai_euro_colony_threat_seed_5952(
     }
     ai_euro_5952_set_absorb_census(c->id, nonexpert, vet_soldier);
   }
+
+  /*
+   * `want` is DOS's `iStack_76` at this point in the tick (post on-tile
+   * military walk, NOT the +0x8e byte — DOS writes that once, before the
+   * walk). It is handed to the caller so the absorption arm at raw
+   * 94231-94272 can `++` it as its own tick-local; see
+   * ai_euro_5952_absorb_equip, which the caller runs once the port's SECOND
+   * half of DOS's +0x1b writers (ai_euro_refresh_colony_ai_flags, raw
+   * 94200-94210) has also run — DOS emits every flag write before the
+   * absorption.
+   */
+  if (out_labor_running) {
+    *out_labor_running = want;
+  }
 }
 
 /* --- 0a60 colony goals: stage helpers ---------------------------------- */
@@ -10001,7 +10247,8 @@ COLONIZE_INTERNAL void ai_euro_colony_goals_colony_labor(
    * the quota write happens BEFORE the tick's ai_flags bit writes, so the
    * refresh below reads this turn's quota (it used to read last turn's).
    */
-  ai_euro_colony_threat_seed_5952(ctx, nation_id, c);
+  int labor_running = 0; /* iStack_76, carried into the absorption arm */
+  ai_euro_colony_threat_seed_5952(ctx, nation_id, c, &labor_running);
   /* FUN_5952_035e raw 94170-94190 — the tick's Indian war-declare block
    * (or_both(nation, tribe+4, 2)); lives in ai_contact.c. DOS runs it in
    * the same per-colony body, between the expansion-appetite math and the
@@ -10009,6 +10256,12 @@ COLONIZE_INTERNAL void ai_euro_colony_goals_colony_labor(
    * cannot shift a stream. */
   ai_contact_colony_tick_war_5952(ctx, nation_id, c->x, c->y);
   ai_euro_refresh_colony_ai_flags(ctx, nation_id, c);
+  /*
+   * raw 94231-94352: the tile re-scan absorption arm and the equip arm, at
+   * DOS's position — after every +0x1b flag write and the by-profession
+   * census, before the build-preference / construction cascade.
+   */
+  ai_euro_5952_absorb_equip(ctx, nation_id, c, &labor_running);
   /*
    * `|| c->labor_shortage > 0` used to be a third disjunct here. It was
    * calibrated against the retired thin latch (0 unless something set
@@ -18440,143 +18693,6 @@ COLONIZE_INTERNAL int ai_euro_5952_equip_pick(const ColonizeColony* c, int targe
 }
 
 /*
- * Stage: FUN_5952_035e absorption arm, the two cases outside the Pioneer
- * pair below — raw 94264-94270 (Scout, @UNIT 0x16) and raw 94271-94274
- * (Colonist, @UNIT 0x13); annotated colony_tick_5952_035e.md:606-620.
- *
- * DOS runs this as a colony-side loop over the units STANDING ON the colony
- * tile (`DS:0x8d72`, the tile stack count; the loop walks the colonist array
- * past `+0x1f` into them), restarting from the top after every absorption
- * (`iStack_32`). The port has no such colony-side tile pass, so — exactly as
- * the Pioneer case one function below already does — each arriving unit
- * applies its own case during its act. That is the same set of absorptions in
- * the same order for any tile that gains one unit per act; the difference is
- * only DOS's re-scan, which matters solely when several units sit on the tile
- * at once and the earlier ones changed a gate.
- *
- * Outer gates, shared with the Pioneer case (raw 94231-94237): the colony
- * must have `+0x1b & 0x10` (NEEDS_COLONISTS) and population < 0x20, and the
- * unit must stand on the town tile.
- * Per-case gates, verbatim:
- *   Scout    `local_2a == 0 || colony[+0xaa] < 0x34` — continent G-stance 0
- *            (ai_euro_continent_stance_at) or fewer than 52 HORSES
- *            (+0xaa = +0x9a + 2*8, cargo 8 = Horses; the same word the tick's
- *            "wants a Scout" arm tests against 0x65 at raw 94279).
- *   Colonist no gate at all — an arriving Free Colonist is always taken in.
- * Absorption itself is `FUN_1000_8e26(slot, 0x12)` = FUN_281f_0c36 =
- * FUN_15eb_1068 with job 0x12 (the idle sentinel), i.e. colonies_admit_unit_w
- * — whose refund loop (viceroy_unpacked.c 11234-11248) banks the unit's
- * equipment back into the colony stock, and which keeps the colonist's
- * profession, so an Indentured Servant (0x19) or Petty Criminal (0x1a)
- * walking in stays one. No profession is rewritten anywhere in this arm.
- *
- * Soldier/Dragoon case (@UNIT 0x15/0x17), raw 94239-94256 — ported
- * 2026-09-18, once its three unresolved locals were pinned off the overlay
- * disassembly (see the s_5952_census_* note above for the frame rule and
- * the `[BP-0x40]`/`[BP-0x3c]` evidence). DOS-LITERAL gate, all three
- * disjuncts:
- *   (a) `iStack_76 < 0 && (+0x1b & 8) == 0`
- *       `iStack_76` is the tick's own labor_shortage running total (+0x8e),
- *       which this port has carried since 2026-09-09 in
- *       ai_euro_5952_labor_demand. It is UNREACHABLE: the formula clamps it
- *       up to `quota >= 0` and only ever `++`s, or `--`s under `!= 0`, so it
- *       is never negative by the time this loop runs. Transcribed as the
- *       dead branch it is (DOS-LITERAL: not repaired, not deleted).
- *   (b) `is_expert(unit @JOB) && @JOB != 0x15 && (census[0x13] || census[0x15])`
- *       i.e. take in a specialist (but never a Veteran Soldier) as long as
- *       the colony still holds an ordinary colonist or a Veteran Soldier to
- *       spare. `FUN_1000_8e8a` = FUN_281f_0c9a = the expert test, called on
- *       the ARRIVING unit's profession (asm: the value FUN_1000_8e44 just
- *       returned is still in AX at the PUSH).
- *   (c) `(+0x1b & 4) != 0` — MILITARY_SURPLUS: more homed military than the
- *       colony wants, so any soldier walking in is put to work.
- * On absorption, verbatim: `FUN_1000_8e26(slot, 0x12)` (= colonies_admit_unit_w,
- * whose FUN_15eb_1068 refund arm banks the unit's muskets and horses into
- * stock and keeps the colonist's profession, so an Indentured Servant 0x19 /
- * Petty Criminal 0x1a stays one), `iStack_76++`, `+0x1b &= 0xfb` (clear
- * MILITARY_SURPLUS), then `census[0x15]--` if non-zero, else `census[0x13]--`.
- *
- * Divergences, both structural and pre-existing for this whole stage:
- * `iStack_76++` is a tick-local increment whose only readers are later in the
- * same tick body, which the port has already run by the time an arriving unit
- * acts; the port therefore does not write it back (colonies_admit_unit_w's own
- * `labor_shortage--` comes from a different DOS site, ~87701, and is left
- * alone). And DOS re-scans the tile stack from the top after each absorption;
- * the port applies one case per arriving unit.
- */
-COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_colony_absorb(struct ai_euro_act_ctx* a) {
-  ColonizeTurnContext* const ctx = a->ctx;
-  ColonizeUnit* u = a->u;
-
-  if (a->is_ship || !u || !u->active || !ctx->colonies || !ctx->units) {
-    return AI_EURO_ACT_CONTINUE;
-  }
-  const ColonizeUnitKind kind = units_name_kind(units_display_name(ctx->units, u));
-  if (kind != UNITS_KIND_SCOUT && kind != UNITS_KIND_COLONIST &&
-      kind != UNITS_KIND_SOLDIER && kind != UNITS_KIND_DRAGOON) {
-    return AI_EURO_ACT_CONTINUE;
-  }
-  for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
-    ColonizeColony* c = &ctx->colonies->colonies[i];
-    if (!c->active || c->nation_id != a->nation_id || c->x != u->x || c->y != u->y) {
-      continue;
-    }
-    if ((int)c->population >= 0x20 ||
-        (c->ai_flags & COLONIZE_COLONY_AI_NEEDS_COLONISTS) == 0) {
-      return AI_EURO_ACT_CONTINUE; /* raw 94231/94237 */
-    }
-    if (kind == UNITS_KIND_SCOUT) {
-      const int stance =
-        ai_euro_continent_stance_at(a->nation_id, map_continent_id_at(ctx->map, c->x, c->y));
-      if (stance != 0 && c->stock[COLONIZE_CARGO_HORSES] >= 0x34) {
-        return AI_EURO_ACT_CONTINUE; /* raw 94264 */
-      }
-    }
-    const int is_mil = (kind == UNITS_KIND_SOLDIER || kind == UNITS_KIND_DRAGOON);
-    if (is_mil) {
-      /* raw 94239-94243, the three gate disjuncts; see the header note. */
-      const int idx = (c->id >= 0 && c->id < COLONIZE_COLONIES_MAX) ? c->id : -1;
-      const int census13 = idx >= 0 ? s_5952_census_nonexpert[idx] : 0;
-      const int census15 = idx >= 0 ? s_5952_census_vet_soldier[idx] : 0;
-      const int prof = u->profession;
-      /* iStack_76 at this point in the tick: provably never negative, so
-       * disjunct (a) is dead. Kept spelled out, DOS-LITERAL. */
-      const int labor_shortage_running = 0;
-      const int dead_shortage_arm =
-        (labor_shortage_running < 0 &&
-         (c->ai_flags & COLONIZE_COLONY_AI_SHORT_DEFENDERS) == 0);
-      const int specialist_arm =
-        ai_euro_5952_job_is_expert(prof) && prof != UNITS_JOB_SOLDIER &&
-        (census13 != 0 || census15 != 0);
-      const int surplus_arm = (c->ai_flags & COLONIZE_COLONY_AI_MILITARY_SURPLUS) != 0;
-      if (!dead_shortage_arm && !specialist_arm && !surplus_arm) {
-        return AI_EURO_ACT_CONTINUE;
-      }
-    }
-    ColonizeWorld w = world_from_turn_ctx(ctx);
-    if (colonies_admit_unit_w(&w, c->id, u->id) >= 0) {
-      if (is_mil) {
-        /* raw 94247-94255 */
-        c->ai_flags =
-          (uint8_t)(c->ai_flags & (uint8_t)~COLONIZE_COLONY_AI_MILITARY_SURPLUS);
-        const int idx = (c->id >= 0 && c->id < COLONIZE_COLONIES_MAX) ? c->id : -1;
-        if (idx >= 0) {
-          if (s_5952_census_vet_soldier[idx] != 0) {
-            s_5952_census_vet_soldier[idx]--;
-          } else if (s_5952_census_nonexpert[idx] != 0) {
-            s_5952_census_nonexpert[idx]--;
-          }
-        }
-      }
-      a->u = NULL;
-      return AI_EURO_ACT_RETURN;
-    }
-    return AI_EURO_ACT_CONTINUE;
-  }
-  return AI_EURO_ACT_CONTINUE;
-}
-
-/*
  * Stage: Pioneer FR tip corridor + colony tools/muskets equip arm
  * (FUN_5952_035e absorb+equip pair, raw 94257-94352). Extracted verbatim
  * from ai_euro_unit_act.
@@ -18643,157 +18759,14 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_pioneer_corridor(struct ai_euro_ac
         return AI_EURO_ACT_RETURN;
       }
       /*
-       * On town tile: the DOS PAIR out of the colony tick FUN_5952_035e, now
-       * ported as the pair it is (was one compressed step on the arriving
-       * Pioneer itself — smell audit #40; ported 2026-09-18):
-       *   raw 94257-94263  the absorption arm's Pioneer case (annotated
-       *                    colony_tick_5952_035e.md:606-611): the on-tile
-       *                    Pioneer becomes a colonist with job 0x12 through
-       *                    FUN_1000_8e26 = FUN_15eb_1068, whose refund loop
-       *                    (viceroy_unpacked.c 11234-11248) banks the unit's
-       *                    +0x3159 tools byte into stock[TOOLS];
-       *   raw 94289-94352  the equip arm then picks a COLONIST by score and
-       *                    re-types it through the same FUN_15eb_1068, which
-       *                    spawns the unit outside (case 2, raw 11279-11291),
-       *                    zeroes the orders byte (+0x314c) and charges the
-       *                    new gear off the stock (raw 11318-11329).
-       * Net over the pair: colony population unchanged, tools banked, 50
-       * muskets spent, a soldier standing on the tile.
-       *
-       * The absorption gates are DOS's: the outer loop (raw 94222-94227) runs
-       * only while `DS:0x8d72 != 0` (units standing on the tile — this arm is
-       * reached with the Pioneer on it), `+0x1b & 0x10` (NEEDS_COLONISTS) is
-       * set and population < 0x20; the Pioneer case adds
-       * `((+0x1b & 0x80) != 0 && local_16 == 0) || local_2a == 0`, i.e.
-       * WANTS_PIONEER_WORK with `local_16` clear, or continent stance 0.
-       *
-       * `local_16` RESOLVED 2026-09-18 (md:283): it is NOT a per-act latch —
-       * the tick seeds it `uStack_16 = (0x13 < colony[+0xb6])`, i.e. "this
-       * colony already holds more than 19 TOOLS" (+0xb6 = +0x9a + 2*14,
-       * cargo 14 = Tools), and the Pioneer case then sets it so no SECOND
-       * Pioneer is absorbed through that disjunct in the same tick. Both
-       * halves are read live here: the gate is `stock[TOOLS] <= 19`, and the
-       * absorption's own refund (FUN_15eb_1068 banks the Pioneer's +0x3159
-       * tools byte into stock[TOOLS]) pushes a 100-tool Pioneer's colony past
-       * 19 by itself, which is DOS's `uStack_16 = 1` write in port terms.
-       * Residual divergence, documented: a Pioneer carrying fewer than 20
-       * tools into a colony holding none leaves the port's gate open where
-       * DOS's latch would have closed it.
-       *
-       * The equip gates are DOS's, from raw 94289-94311: population > 1;
-       * demand = (ai_flags & 0x48) or the "big settled town" path (population
-       * > 10 and NOT wanting colonists); muskets > 0x31; horses > 0x33
-       * upgrades the target to Dragoon. Both population reads are DOS's own
-       * spelling now that the absorption is explicit and has already added
-       * the Pioneer — the former `+1 compensation` (`> 0` / `> 9`) is gone.
+       * The FUN_5952_035e absorption + equip PAIR used to run here, on the
+       * Pioneer standing on its own town tile. RE-HOSTED 2026-09-18 into the
+       * colony tick itself (ai_euro_5952_absorb_equip), which is where DOS
+       * runs it — as a tile re-scan at raw 94231-94352, before the build
+       * cascade, not from the arriving unit. FUN_521d_20e6 / the 0a60 goal
+       * consumption are all a DOS unit act does for an AI unit standing on
+       * its own colony, so nothing replaces it here.
        */
-      const int on_tile = (u->x == c->x && u->y == c->y);
-      int absorbed = 0;
-      if (on_tile && (int)c->population < 0x20 &&
-          (c->ai_flags & COLONIZE_COLONY_AI_NEEDS_COLONISTS) != 0 &&
-          (((c->ai_flags & COLONIZE_COLONY_AI_WANTS_PIONEER_WORK) != 0 &&
-            c->stock[COLONIZE_CARGO_TOOLS] <= 0x13) ||
-           ai_euro_continent_stance_at(
-             nation_id, map_continent_id_at(ctx->map, c->x, c->y)
-           ) == 0)) {
-        ColonizeWorld w = world_from_turn_ctx(ctx);
-        if (colonies_admit_unit_w(&w, c->id, u->id) >= 0) {
-          absorbed = 1;
-          u = NULL;
-          a->u = NULL;
-        }
-      }
-      const int equip_pop = (int)c->population;
-      /*
-       * DOS's `local_90`, the "big settled town" disjunct, verbatim (raw
-       * 94292-94299; the annotated dump keeps the far-call arguments the
-       * decompiler dropped, colony_tick_5952_035e.md:641-648):
-       *   local_90 = (local_2a == 0) && ('\n' < +0x1f) &&
-       *              (FUN_1000_86c4(0x181f, 0, 3) == 0) && ((+0x1b & 0x10) == 0)
-       * All four conjuncts, in DOS's order:
-       *   local_2a = *(byte *)(nation * 0x10 + continent + -0x6790), the
-       *     colony continent's G-stance — ai_euro_continent_stance_at, the
-       *     port's mirror of that table. Stance 0 is "no plan assigned", so
-       *     DOS suppresses this arm on exactly the war/expansion continents.
-       *   FUN_1000_86c4 = FUN_281f_04d4 = dos_rng_range
-       *     (address_mapping.csv:844; same identification as
-       *     ai_euro_20e6_load_pick above), so the third conjunct is a plain
-       *     1-in-4 roll. It is the THIRD conjunct, i.e. `&&`-guarded by the
-       *     stance and population tests — the draw must not happen unless
-       *     those hold, or the shared LCG stream shifts. It is also inside
-       *     `on_tile` here so that walking this file's per-colony loop does
-       *     not draw once per colony of the nation.
-       *   (+0x1b & 0x10) == 0 is the NEEDS_COLONISTS test the port already had.
-       * Two of the four (stance, roll) used to be missing, so every pop>11
-       * colony with 50 muskets re-typed arriving Pioneers unconditionally
-       * (smell audit 2026-09-10 C2).
-       *
-       * Both population gates (raw 94276 `+0x1f < 2` → bail and raw 94290
-       * `'\n' < +0x1f`) read the SAME colony byte +0x1f at the same point in
-       * FUN_5952_035e — after the absorption arm above. Now that the port
-       * absorbs explicitly, both keep DOS's literal spelling (`> 1`, `> 10`);
-       * the old `+1 compensation` (`> 0` / `> 9`) is retired.
-       * dos_rng_range returns `lo` for a NULL rng, so a context without an
-       * RNG (fixtures) passes the roll — the pre-fix behaviour.
-       */
-      int equip_local_90 = 0;
-      if (on_tile && ai_euro_continent_stance_at(
-                       nation_id, map_continent_id_at(ctx->map, c->x, c->y)) == 0 &&
-          equip_pop > 10 && dos_rng_range(ctx->rng, 0, 3) == 0 &&
-          (c->ai_flags & COLONIZE_COLONY_AI_NEEDS_COLONISTS) == 0) {
-        equip_local_90 = 1;
-      }
-      /* raw 94304-94306: `((+0x1b & 0x48) != 0 || local_90 != 0) && 0x31 < +0xb8` */
-      const int equip_demand =
-        (c->ai_flags &
-         (COLONIZE_COLONY_AI_NEEDS_GARRISON | COLONIZE_COLONY_AI_SHORT_DEFENDERS)) != 0 ||
-        equip_local_90;
-      if (on_tile && equip_pop > 1 && equip_demand &&
-          c->stock[COLONIZE_CARGO_MUSKETS] > 0x31) {
-        /* raw 94307-94312: local_8e = 0x15, upgraded to 0x17 on horses. */
-        const int mounted = c->stock[COLONIZE_CARGO_HORSES] > 0x33;
-        const int arm_job = mounted ? UNITS_JOB_DRAGOON : UNITS_JOB_SOLDIER;
-        /* raw 94314-94317: local_1b4 = local_8e, with 0x17 mapped to 0x15. */
-        const int pick = ai_euro_5952_equip_pick(c, UNITS_JOB_SOLDIER);
-        if (pick >= 0) {
-          /*
-           * raw 94347-94350, DOS-LITERAL: the expert strip reads
-           * FUN_1000_8e8a(iStack_18) with iStack_18 still holding the LAST
-           * loop iteration's profession, not the picked colonist's — the
-           * scorer's loop variable leaks out of the loop. Transcribed as
-           * such: the test is on colonist population-1.
-           */
-          const int last_prof = (int)c->colonists[equip_pop - 1].profession;
-          if (ai_euro_5952_job_is_expert(last_prof) && UNITS_JOB_SOLDIER != last_prof) {
-            /* FUN_1000_8e9e(colony, pick, 0x1c) = FUN_281f_0cae, clear specialty. */
-            c->colonists[pick].profession = COLONIZE_PROF_FREE_COLONIST;
-          }
-          /* FUN_1000_8e26(colony, pick, local_8e) = FUN_15eb_1068 case 2:
-           * the colonist leaves as a Soldier/Dragoon on the colony tile,
-           * keeping its profession byte, and the gear is charged off the
-           * stock (raw 11318-11329). colonies_eject_colonist is the port's
-           * spelling of that path (it also zeroes moves, DOS's +0x314c). */
-          const int uid = colonies_eject_colonist(
-            ctx->colonies, c->id, pick, ctx->units,
-            arm_job == UNITS_JOB_DRAGOON ? COLONIZE_EJECT_DRAGOON : COLONIZE_EJECT_SOLDIER
-          );
-          if (uid >= 0) {
-            if (absorbed) {
-              return AI_EURO_ACT_RETURN;
-            }
-            /* Not absorbed: the Pioneer still stands here and its act is
-             * spent on this colony visit, as it was before the pair split. */
-            if (u) {
-              ai_euro_set_goto(u, UNITS_ORDER_NONE, 0, 0);
-              u->moves = 0;
-            }
-            return AI_EURO_ACT_RETURN;
-          }
-        }
-      }
-      if (absorbed) {
-        return AI_EURO_ACT_RETURN;
-      }
     }
   }
 
@@ -21044,11 +21017,8 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
   a.nation_id = nation_id;
   a.is_ship = is_ship;
 
-  /* FUN_5952_035e absorption arm, Scout + Colonist cases (raw 94264-94274) —
-   * ahead of the Pioneer pair, which is the same arm's 0x14 case. */
-  if (ai_euro_act_colony_absorb(&a) == AI_EURO_ACT_RETURN) {
-    return;
-  }
+  /* FUN_5952_035e's absorption + equip arms are NOT a unit act: they run in
+   * the colony tick (ai_euro_5952_absorb_equip), re-hosted 2026-09-18. */
   if (ai_euro_act_pioneer_corridor(&a) == AI_EURO_ACT_RETURN) {
     return;
   }

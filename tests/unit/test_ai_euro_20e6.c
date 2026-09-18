@@ -1179,8 +1179,12 @@ static int unit_berth_marks_then_assembles_passenger(void) {
   c->nation_id = nation;
   c->x = 11;
   c->y = 4;
-  c->population = 3;
-  c->colonist_count = 3;
+  /* Population 12 = wanted_size(8) + 2*tier(2), so
+   * ai_euro_colony_needs_colonists_5952 returns 0 and the colony tick's
+   * re-hosted FUN_5952_035e absorption arm (raw 94231, gate `+0x1b & 0x10`)
+   * cannot swallow the berth passenger before the ship acts. */
+  c->population = 12;
+  c->colonist_count = 12;
   c->stock[COLONIZE_CARGO_FOOD] = 200;   /* no shortage → no labor admission */
   c->stock[COLONIZE_CARGO_SILVER] = 60;  /* the load matrix's only candidate */
   c->building_in_production = -1;
