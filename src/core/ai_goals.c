@@ -276,11 +276,11 @@ const AiWorkSlot* ai_goals_work(int slot) {
 /*
  * Nearest water tile a loaded transport can actually land settlers from.
  *
- * Scenario maps (@SCENARIO) start each Euro fleet on the Atlantic high-seas
- * rim with no landfall target of its own, and the seed-100 landfall tables the
- * Euro planner keys most of its first-colony geometry off do not resolve
- * anywhere else. Without a target the ship sits on its spawn tile with the
- * colonists aboard forever. This is the map-agnostic fallback: ring-scan out
+ * A loaded transport whose goto resolves to the high-seas tile it already
+ * occupies (or to nothing at all) would sit on its spawn tile with the
+ * colonists aboard forever; the seed-100 landfall tables the Euro planner keys
+ * most of its first-colony geometry off do not resolve anywhere else. This is
+ * the map-agnostic fallback: ring-scan out
  * from `from` for a water/high-seas tile that is free and has a land neighbour
  * a colony could be founded on. Nearest ring wins; inside a ring prefer the
  * westward tile (America lies west of every Atlantic start), then the one

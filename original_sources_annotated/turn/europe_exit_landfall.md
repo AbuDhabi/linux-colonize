@@ -96,6 +96,18 @@ the **human fleet already on the landfall tile** (`goto` restamped to that same
 tile) with only the three AI nations still at 229/230/231. That is exactly what
 `units_new_world_start` produces, so nothing changed in the sim.
 
+**`FUN_75c2_235c` is path-independent (#490, fixed 2026-09-18).** The bootstrap
+runs the same `FUN_281f_095c(type, nation, nation-0x1c, nation-0x1c)` create for
+a generated map, CUSTOMIZE and an AMERICA / TRIBE.TXT scenario alike: fleet on
+`228+n`, counter 0, `+0x314d/e` = the nation landfall tile. The port used to put
+the three AI fleets of a scenario start straight on their `@SCENARIO` tiles and
+then aim the goto at the nearest landing water, because a goto equal to the tile
+the hull already stood on never put the colonists ashore. That workaround is
+gone: `ai_spawn_euro_fleet` now always uses `228+n` / counter 0 / goto =
+landfall, and the first `06ba` tick lands each fleet on the `048e` ring around
+its own `@SCENARIO` tile — the same shape the generated path already had.
+Covered by `unit_ai` (`case_america`, `case_new_world`).
+
 What *was* wrong was the save-lane mapping: the port wrote its harbor at
 `228+n` and Bound at `232+n`. Now `236+n` / `228+n` / `244+n`
 (`col1_bridge.c`), which also explains the old "unresolved fifth family" at

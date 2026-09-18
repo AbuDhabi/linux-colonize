@@ -3,6 +3,7 @@
 #include <string.h>
 
 #include "core/ai.h"
+#include "core/ai_euro.h"
 #include "core/assets.h"
 #include "core/col1_save.h"
 #include "core/colony.h"
@@ -532,15 +533,7 @@ static int run_init_and_turns(
     if (n == human_nation) {
       continue;
     }
-    if (america) {
-      if (count_nation_ships_on_map(&units, &map, n) < 1) {
-        fprintf(stderr, "%s: missing on-map AI fleet for nation %d\n", label, n);
-        map_free(&map);
-        col1_save_free(&col1);
-        assets_msg_free(&names);
-        return 1;
-      }
-    } else if (count_nation_ships_europe(&units, n) < 1) {
+    if (count_nation_ships_europe(&units, n) < 1) {
       fprintf(stderr, "%s: missing Europe AI fleet for nation %d\n", label, n);
       map_free(&map);
       col1_save_free(&col1);
@@ -555,6 +548,77 @@ static int run_init_and_turns(
     col1_save_free(&col1);
     assets_msg_free(&names);
     return 1;
+  }
+
+  /*
+   * bugs.md #490: FUN_75c2_235c is path-independent — an AMERICA / TRIBE.TXT
+   * start must look exactly like a generated one: fleet on the westbound
+   * sentinel (228+n, 228+n), voyage counter 0, goto = the nation's landfall
+   * tile (@SCENARIO raw 121035: AMER2 = (34,20) (39,10) (47,61) (50,33)), and
+   * the first Atlantic tick lands it on the ring around that tile.
+   */
+  int ai_landfall_x[4];
+  int ai_landfall_y[4];
+  {
+    for (int n = 0; n < 4; ++n) {
+      ai_landfall_x[n] = -1;
+      ai_landfall_y[n] = -1;
+      if (n == human_nation) {
+        continue;
+      }
+      int lx = -1;
+      int ly = -1;
+      if (america) {
+        new_game_scenario_start(&names, "AMER2", n, &lx, &ly);
+      } else if (!map_gen_euro_landfall(&map, n, &lx, &ly)) {
+        continue; /* generated-map fallback pick — no fixed expectation */
+      }
+      ai_landfall_x[n] = lx;
+      ai_landfall_y[n] = ly;
+
+      const ColonizeUnit* ship = NULL;
+      for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+        const ColonizeUnit* u = &units.units[i];
+        if (!u->active || u->nation_id != n || u->aboard_ship_id >= 0) {
+          continue;
+        }
+        if (units_is_sea(&units, u->id)) {
+          ship = u;
+          break;
+        }
+      }
+      if (!ship || ship->x != 228 + n || ship->y != 228 + n) {
+        fprintf(
+          stderr, "%s: nation %d fleet not on sentinel 228+n, got (%d,%d)\n", label, n,
+          ship ? ship->x : -1, ship ? ship->y : -1
+        );
+        map_free(&map);
+        col1_save_free(&col1);
+        assets_msg_free(&names);
+        return 1;
+      }
+      if (ship->col1_counter16 != 0) {
+        fprintf(
+          stderr, "%s: nation %d fleet voyage counter %d, expected 0\n", label, n,
+          (int)ship->col1_counter16
+        );
+        map_free(&map);
+        col1_save_free(&col1);
+        assets_msg_free(&names);
+        return 1;
+      }
+      if (ship->goto_x != lx || ship->goto_y != ly) {
+        fprintf(
+          stderr, "%s: nation %d landfall goto (%d,%d), expected (%d,%d)\n", label, n,
+          ship->goto_x, ship->goto_y, lx, ly
+        );
+        map_free(&map);
+        col1_save_free(&col1);
+        assets_msg_free(&names);
+        return 1;
+      }
+    }
+
   }
 
   /* Human fleet: ship on high seas with cargo; nation_id matches. */
@@ -694,7 +758,47 @@ static int run_init_and_turns(
   ctx.col1 = &col1;
   ctx.col1_ok = true;
 
-  for (int t = 0; t < 12; ++t) {
+  /*
+   * bugs.md #490: the first EOT is the fleets' Atlantic tick — counter 0 means
+   * FUN_48d3_03d0 hands them to FUN_48d3_048e at once, so every AI fleet must
+   * leave the 228+n lane and land on the ring around its own landfall tile,
+   * whatever the map source. The generated-map fallback pick has no fixed
+   * landfall, so only bound nations are checked.
+   */
+  turn_end(&ctx);
+  for (int n = 0; n < 4; ++n) {
+    if (n == human_nation || ai_landfall_x[n] < 0) {
+      continue;
+    }
+    if (count_nation_ships_on_map(&units, &map, n) < 1) {
+      fprintf(stderr, "%s: nation %d fleet still at sea after its first tick\n", label, n);
+      map_free(&map);
+      col1_save_free(&col1);
+      assets_msg_free(&names);
+      return 1;
+    }
+    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+      const ColonizeUnit* u = &units.units[i];
+      if (!u->active || u->nation_id != n || u->aboard_ship_id >= 0 ||
+          !units_is_sea(&units, u->id)) {
+        continue;
+      }
+      /* 048e ring + one scored ocean leg — never a map-wide scan (#487 put the
+       * Spanish AMER2 fleet 18 tiles west of (47,61)). */
+      if (abs(u->x - ai_landfall_x[n]) > 12 || abs(u->y - ai_landfall_y[n]) > 12) {
+        fprintf(
+          stderr, "%s: nation %d landed at (%d,%d), far from landfall (%d,%d)\n", label, n, u->x,
+          u->y, ai_landfall_x[n], ai_landfall_y[n]
+        );
+        map_free(&map);
+        col1_save_free(&col1);
+        assets_msg_free(&names);
+        return 1;
+      }
+      break;
+    }
+  }
+  for (int t = 1; t < 12; ++t) {
     turn_end(&ctx);
   }
 
