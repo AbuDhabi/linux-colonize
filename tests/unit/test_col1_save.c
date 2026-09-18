@@ -1488,7 +1488,7 @@ int main(void) {
         assets_msg_free(&names);
         return 1;
       }
-      const int ship_id = units_spawn_euro_starter_fleet(&units, 0, 0, 40, 30, 45, 30);
+      const int ship_id = units_spawn_euro_starter_fleet(&units, 0, 0, true, 40, 30, 45, 30);
       if (ship_id < 0) {
         fprintf(stderr, "fleet export: starter fleet failed\n");
         units_set_occupancy_map(NULL);

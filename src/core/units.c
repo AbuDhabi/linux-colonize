@@ -11767,14 +11767,23 @@ int units_spawn_ship_with_cargo(
 }
 
 /*
- * Match DOS COLONY00 starters: French→Hardy Pioneer (prof 20); Discoverer/Explorer
- * English get Veteran Soldier (21) but plain pioneer (28). Spanish→Veteran Soldier.
- * (Old: hardy=easy||French wrongly set English Discoverer pioneer to 20.)
+ * DOS-LITERAL FUN_75c2_235c raw 121637-121647.
+ *   Pioneers (type 2): `if (local_8 == 1) +0x315b = 0x14`  — French only, no
+ *     difficulty term.
+ *   Soldiers (type 1): `if ((bVar1 && *(byte*)0x53a6 < 2) || local_8 == 2)
+ *     +0x315b = 0x15`, where `bVar1 = (*(char*)(local_8*0x34 + 0x543f) == 0)`
+ *     i.e. **this nation's player record is the human** (control byte 0), and
+ *     0x53a6 is the difficulty. So the Discoverer/Explorer Veteran Soldier is a
+ *     human-only handicap: AI Europeans never get it (bugs.md #488).
+ * @JOB is 0-based: 0x14 = Pioneer (Hardy Pioneers), 0x15 = Soldier (Veteran
+ * Soldiers). Nations: 0 English, 1 French, 2 Spanish, 3 Dutch.
  */
-static void units_starter_skills(int nation_id, int difficulty, int* pioneer_job, int* soldier_job) {
+static void units_starter_skills(
+  int nation_id, int difficulty, bool is_human, int* pioneer_job, int* soldier_job
+) {
   const bool easy = difficulty <= 1;
   const bool hardy = nation_id == 1;
-  const bool veteran = easy || nation_id == 2;
+  const bool veteran = (is_human && easy) || nation_id == 2;
   if (pioneer_job) {
     *pioneer_job = hardy ? UNITS_JOB_PIONEER : UNITS_JOB_NONE;
   }
@@ -12179,6 +12188,7 @@ int units_spawn_euro_starter_fleet(
   ColonizeUnitPool* pool,
   int nation_id,
   int difficulty,
+  bool is_human,
   int x,
   int y,
   int goto_x,
@@ -12228,7 +12238,7 @@ int units_spawn_euro_starter_fleet(
 
   int pioneer_job = UNITS_JOB_NONE;
   int soldier_job = UNITS_JOB_NONE;
-  units_starter_skills(nation_id, difficulty, &pioneer_job, &soldier_job);
+  units_starter_skills(nation_id, difficulty, is_human, &pioneer_job, &soldier_job);
 
   const int cargo_types[2] = {pioneer_type, soldier_type >= 0 ? soldier_type : pioneer_type};
   const int cargo_jobs[2] = {pioneer_job, soldier_type >= 0 ? soldier_job : pioneer_job};
@@ -12423,9 +12433,26 @@ bool units_spiral_place_hs_near(
 }
 
 /*
- * Eastern high-seas scan (UN-18): one loop for both the western-rim pass and
- * the "any eastern high seas" fallback. Closer latitude wins; tie-break
- * westward (smaller x).
+ * Eastern high-seas scan (UN-18). **No DOS counterpart — port-only, and it is
+ * NOT a placement rule.** Audited 2026-09-17 against the whole 48d3 Atlantic
+ * module: every DOS appearance of a ship coming out of Europe is
+ * FUN_48d3_048e's ring hunt (units_spiral_place_hs_near) around the unit's own
+ * saved tile `+0x314d/+0x314e`, and that tile is only ever written from the
+ * nation's landfall tile (nation record `-0x77c6/-0x77c5`) or from where the
+ * ship itself left the map (FUN_48d3_007a, raw 77604-77607 — every departure
+ * restamps the nation tile, so "no saved exit tile" only happens at new-game
+ * time, where @SCENARIO / LAB_684c_1b4c seeds it). REF Man-O-Wars and Europe
+ * purchases inherit the same nation tile (raw 99622, 107547, 112448, 114391).
+ * So this function survives only as a *navigation target* helper — "which
+ * Atlantic tile should a ship steer for to reach Europe" — where DOS has no
+ * table at all because the human steers by hand and FUN_48d3_015e simply
+ * accepts whatever High Seas tile the ship reaches. Remaining callers, all
+ * target-picking: game_loop.c (trade-route Europe stop), ai_euro.c
+ * (treasure sail target, last-resort Europe-exit fallback). Placement callers
+ * were converted to the 048e ring hunt 2026-09-17.
+ *
+ * One loop serves both the western-rim pass and the "any eastern high seas"
+ * fallback. Closer latitude wins; tie-break westward (smaller x).
  */
 static bool units_scan_eastern_high_seas(
   const ColonizeUnitPool* pool,
@@ -12520,14 +12547,26 @@ void units_new_world_start(
     nation_id = 0;
   }
 
+  /*
+   * DOS-LITERAL FUN_48d3_048e (raw 77810-77896) + FUN_48d3_0434 (raw 77779).
+   * DOS never scans the eastern half of the map for a starting tile: the
+   * nation's landfall tile (nation record `-0x77c6/-0x77c5`, seeded from
+   * @SCENARIO at raw 121035 or from LAB_684c_1b4c's HS-rim walk on generated
+   * maps) is copied into the new ship's `+0x314d/+0x314e` (raw 121627), and the
+   * Atlantic arrival tick runs the 048e expanding-ring hunt from exactly that
+   * tile, taking the first High Seas tile that is empty or holds our own unit.
+   * The @SCENARIO tiles are themselves High Seas, so the ring hits at e=0 and
+   * the fleet starts on the scenario tile. The old eastern-half scan put the
+   * Spanish AMER2 fleet on (29,61) instead of (47,61). (bugs.md #487)
+   */
   int sx = start_x;
   int sy = start_y;
-  if (!units_find_eastern_high_seas_tile(pool, map, start_y, &sx, &sy)) {
+  if (!units_spiral_place_hs_near(pool, map, start_x, start_y, nation_id, &sx, &sy)) {
     return;
   }
 
   const int ship_id = units_spawn_euro_starter_fleet(
-    pool, nation_id, difficulty, sx, sy, start_x, start_y
+    pool, nation_id, difficulty, true, sx, sy, start_x, start_y
   );
   if (ship_id < 0) {
     return;

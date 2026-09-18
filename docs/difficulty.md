@@ -38,7 +38,7 @@ Save field: `ColonizeCol1Head.difficulty` (`uint8_t`, clamp 0..4). Runtime:
 | System | Effect | Port |
 |--------|--------|------|
 | Human starting gold | Discoverer **1000**, Explorer **300**, Conquistador+ **0** | **Wired** 2026-08-28 (`ai_starting_gold`, `ai.c`) |
-| Starter skills | Easy → Veteran Soldier; French Hardy always; Spanish Veteran always | Wired |
+| Starter skills | Human on Discoverer/Explorer → Veteran Soldier; French Hardy Pioneer always; Spanish Veteran always; AI nations plain | Wired |
 | FF liberty-bell thresholds | Harder → higher human need, lower AI need; WoI `diff*1500+2000` | Wired |
 | King tax cadence | Audience interval `band − 2*(diff−2)`, band 18/15/12/9 by year; turn ≥ 30 | Wired |
 | REF seed / growth | New-game pools `8*diff+15` / `5*(diff+1)` / `3*diff+2` / `6*diff+2`; purse `diff*8+10` per peacetime turn | Wired |
@@ -88,20 +88,33 @@ the new-game path overwrites it; loaded saves take gold from the save.
 
 [`units_starter_skills`](../src/core/units.c):
 
+DOS-LITERAL `FUN_75c2_235c` raw 121612-121647. The new-game bootstrap spawns, per
+Euro nation `local_8` whose player control byte (`0x543f + local_8*0x34`) is not
+`2`: type `0xd` Caravel (type `0xe` Merchantman for `local_8 == 3`, the Dutch),
+then type `2` Pioneers, then type `1` Soldiers — nothing else. No starting goods,
+no tools/muskets writes; the Soldier's equipment is implicit in its `@UNIT` type.
+
 ```
-easy = difficulty <= 1
-hardy  = (nation == French)          // always, all difficulties
-veteran = easy || (nation == Spanish)
+bVar1   = (player_control[nation] == 0)      // raw 121607: THIS nation is the human
+hardy   = (nation == 1)                      // French; raw 121637, no difficulty term
+veteran = (bVar1 && difficulty < 2) || (nation == 2)   // raw 121644-121647
 ```
+
+`+0x315b` (the profession byte) takes `@JOB` **0x14 = Pioneer → Hardy Pioneer**
+and **0x15 = Soldier → Veteran Soldier** (`@JOB` is 0-based).
 
 | Nation | Discoverer / Explorer | Conquistador+ |
 |--------|-----------------------|---------------|
-| English / Dutch | Veteran Soldier; plain Pioneer | Plain Pioneer + Soldier |
-| French | Hardy Pioneer + Veteran Soldier | Hardy Pioneer; plain Soldier |
+| English / Dutch, human | Veteran Soldier; plain Pioneer | Plain Pioneer + Soldier |
+| French, human | Hardy Pioneer + Veteran Soldier | Hardy Pioneer; plain Soldier |
 | Spanish | Veteran Soldier; plain Pioneer | Veteran Soldier; plain Pioneer |
+| Any AI nation except Spain | **Plain** Pioneer + Soldier | Plain Pioneer + Soldier |
 
 Hardy Pioneer is **French-only** on every difficulty (matches DOS `COLONY00` /
-[savegame.md](savegame.md); not “both experts on easy”).
+[savegame.md](savegame.md); not "both experts on easy"). The easy-difficulty
+Veteran Soldier is **human-only** — `bVar1` is the acting nation's own control
+byte, so AI Europeans never get it (bugs.md #488, fixed 2026-09-17; the port had
+a bare `difficulty <= 1`).
 
 ---
 
@@ -480,7 +493,7 @@ Combat odds **are** difficulty-sensitive for human Euro sides
 | First tax year | Fandom **1534**; port doc's old `1536-diff` | Neither: `FUN_38fd_5be8` has no year gate at all — turn ≥ 30 + a turn-modulo interval |
 | REF pool seed | Old doc `8+diff*4` / `4+diff*2` / `2+diff` at declare | `75c2:360b` at **new game**: `8*diff+15` / `5*(diff+1)` / `3*diff+2` / `6*diff+2` |
 | REF pool growth | "grows on each tax event" | `FUN_43f7_1d42` royal purse, per peacetime turn |
-| Easy starters | Both Hardy + Veteran for all ([assets.md](assets.md) old prose) | Hardy **French-only**; easy grants Veteran broadly |
+| Easy starters | Both Hardy + Veteran for all ([assets.md](assets.md) old prose) | Hardy **French-only**; easy Veteran **human-only** (`FUN_75c2_235c` raw 121644) |
 | Tory caps 10…6 | — | Decomp `10-diff` + manual (fandom matched) |
 | Starting gold | Port always **1000** (fixed 2026-08-28) | `FUN_38fd_6024`: **1000 / 300 / 0** |
 
