@@ -4347,9 +4347,7 @@ int europe_sell_unit_hold_w(
   if (amt <= 0 || amt >= 255) {
     return 0;
   }
-  /* Seller = the hold's owner, which keeps the AI borrow path
-   * (ai_euro_try_transport_europe_sell swaps eu->gold/tax for the AI
-   * nation) crediting the right purse. */
+  /* Seller = the hold's owner, so an AI-owned hold credits the AI purse. */
   const int gained = europe_sell_commit(
     eu, col1, (int)u->nation_id, &u->hold_goods_type[hold_index],
     &u->hold_goods_amount[hold_index], amt

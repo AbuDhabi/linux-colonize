@@ -45,12 +45,6 @@ struct ai_euro_act_ctx {
   int peace_border_hunted;
   int wagon_hauled;
   int pioneer_improved;
-  int lumberjack_fielded;
-  int miner_fielded;
-  int farmer_fielded;
-  int fisherman_fielded;
-  int planter_fielded;
-  int workplace_assigned;
   int goal_x;
   int goal_y;
   int goal_code;
