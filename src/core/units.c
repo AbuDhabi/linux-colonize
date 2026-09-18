@@ -5222,7 +5222,20 @@ bool units_resolve_lcr_rumour_w(
     /* Case 9 (103718-103723): spawn unit type 0 (Colonist) on the tile,
      * nation name substituted (FUN_291f_0ac8). NAMES.TXT @COUNTRY — the
      * Crown nation ("England"), NOT the player's new-world country_name
-     * ("New England"): survivors swear allegiance to the nation (bugs.md). */
+     * ("New England"): survivors swear allegiance to the nation (bugs.md).
+     *
+     * raw 103591 `*(byte *)0x9cd2 = 0` (asm 65dd: `MOV byte [0x9cd2],0`):
+     * DS:0x9cd2 is the base of the popup **%STRING substitution array** —
+     * 64-byte slots, slot n at `0x9cd2 + (n << 6)`; the setter is
+     * `FUN_6f74_03d0(slot, src)` = `strcpy(0x9cd2 + slot*64, src)`
+     * (`SHL AX,6; ADD AX,0x9cd2; CALLF FUN_1d1d_117e` = strcpy), and the
+     * `%STRING` token expander in FUN_6f74 (token table DS:0x1fa4 "STRING")
+     * reads the same base. So the write truncates slot 0 to "" so no stale
+     * string from a previous popup can leak, immediately before
+     * `FUN_291f_0ac8(.,0,0,nation)` refills slot 0 with the nation name.
+     * The port composes each popup from a freshly `memset` AiPopupTokens and
+     * always assigns `tok.string0` here, so the clear has no port-visible
+     * effect and is deliberately not transcribed. */
     const int ct = units_find_type(pool, "Colonists");
     if (ct >= 0) {
       const int nid = units_spawn_allow_stack(pool, ct, x, y);

@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "core/assets.h"
@@ -2152,6 +2153,173 @@ static int case_europe_workflow(void) {
       return 1;
     }
     fprintf(stderr, "pool refill rolls on the shared DOS stream ok\n");
+  }
+
+  /*
+   * bugs.md #498 follow-up: every human route out of Europe that yields a
+   * Scout-type unit must land it as @UNIT row 5 ("Scouts") carrying the 50
+   * Horses the port models kit with (DOS FUN_38fd_0718 writes only the
+   * Pioneer tools — mounted state rides on the type byte, raw 59133-59142).
+   * Covered here: Recruit a 0x16 pool entry, Train "Seasoned Scouts", the
+   * (236,236) dock mirror, boarding a ship, and the nation harbor spawn the
+   * AI/FoY arm uses.
+   */
+  {
+    ColonizeMsgCatalog names;
+    ColonizeUnitPool units;
+    memset(&units, 0, sizeof(units));
+    memset(&names, 0, sizeof(names));
+    units_reset(&units);
+    units_set_occupancy_map(NULL);
+    if (!assets_msg_load_file(&names, "COLONIZE/NAMES.TXT") ||
+        !units_load_types(&units, &names)) {
+      fprintf(stderr, "scout kit: load NAMES/units failed\n");
+      assets_msg_free(&names);
+      europe_free(&eu);
+      return 1;
+    }
+    const int scout_ti = units_find_type(&units, "Scouts");
+    if (scout_ti < 0) {
+      fprintf(stderr, "scout kit: @UNIT row 5 'Scouts' missing\n");
+      assets_msg_free(&names);
+      europe_free(&eu);
+      return 1;
+    }
+
+    /* 1. Human Recruit of a 0x16 pool entry (the real menu path). */
+    eu.dock_count = 0;
+    memset(eu.dock, 0, sizeof(eu.dock));
+    eu.harbor_ships = 0;
+    eu.bound_ships = 0;
+    eu.gold = 5000;
+    eu.pool[0].filled = true;
+    eu.pool[0].profession = UNITS_JOB_SCOUT;
+    snprintf(eu.pool[0].name, sizeof(eu.pool[0].name), "Seasoned Scouts");
+    europe_open_recruit_menu(&eu);
+    eu.menu_selection = 1;
+    if (!europe_menu_confirm_ex(&eu, NULL) || eu.dock_count != 1) {
+      fprintf(stderr, "scout kit: recruit of the 0x16 pool entry failed\n");
+      assets_msg_free(&names);
+      europe_free(&eu);
+      return 1;
+    }
+    if (eu.dock[0].dos_type != EUROPE_DOCK_TYPE_SCOUTS) {
+      fprintf(
+        stderr, "scout kit: recruited dock dos_type=%d want %d\n",
+        eu.dock[0].dos_type, EUROPE_DOCK_TYPE_SCOUTS
+      );
+      assets_msg_free(&names);
+      europe_free(&eu);
+      return 1;
+    }
+
+    /* 2. The (236,236) mirror unit behind that dock row. */
+    const int mid = europe_spawn_dock_mirror_unit(
+      &units, 0, UNITS_JOB_SCOUT, 3, true, NULL
+    );
+    const ColonizeUnit* mu = units_get(&units, mid);
+    if (!mu || mu->type_index != scout_ti || mu->horses != UNITS_EQUIP_HORSES ||
+        mu->muskets != 0) {
+      fprintf(
+        stderr, "scout kit: dock mirror type=%d horses=%d muskets=%d\n",
+        mu ? mu->type_index : -1, mu ? mu->horses : -1, mu ? mu->muskets : -1
+      );
+      assets_msg_free(&names);
+      europe_free(&eu);
+      return 1;
+    }
+
+    /* 3. Boarding: the passenger sails as the Scouts type, not Colonists. */
+    eu.harbor_ships = 1;
+    memset(&eu.harbor[0], 0, sizeof(eu.harbor[0]));
+    eu.harbor[0].type_index = units_find_type(&units, "Caravel");
+    snprintf(eu.harbor[0].name, sizeof(eu.harbor[0].name), "Caravel");
+    if (!europe_set_sail_from_harbor(&eu, 0, 2, &units, 0) || eu.bound_ships != 1) {
+      fprintf(stderr, "scout kit: set sail failed\n");
+      assets_msg_free(&names);
+      europe_free(&eu);
+      return 1;
+    }
+    if (eu.bound[0].cargo_count != 1 || eu.bound[0].cargo_types[0] != scout_ti ||
+        eu.bound[0].cargo_professions[0] != UNITS_JOB_SCOUT) {
+      fprintf(
+        stderr, "scout kit: boarded as type=%d prof=%d want %d/%d\n",
+        eu.bound[0].cargo_count ? eu.bound[0].cargo_types[0] : -1,
+        eu.bound[0].cargo_count ? eu.bound[0].cargo_professions[0] : -1,
+        scout_ti, UNITS_JOB_SCOUT
+      );
+      assets_msg_free(&names);
+      europe_free(&eu);
+      return 1;
+    }
+    /* Arrival re-spawns from that type index — units_spawn kits from the
+     * type (units_sync_equip_after_type_change), so the Scout steps ashore
+     * mounted without any per-site write. */
+    {
+      const int aid = units_spawn_allow_stack(&units, scout_ti, 5, 5);
+      const ColonizeUnit* au = units_get(&units, aid);
+      if (!au || au->horses != UNITS_EQUIP_HORSES) {
+        fprintf(stderr, "scout kit: landed Scout horses=%d\n", au ? au->horses : -1);
+        assets_msg_free(&names);
+        europe_free(&eu);
+        return 1;
+      }
+    }
+
+    /* 4. Train "Seasoned Scouts" also types the dock row as Scouts. */
+    if (eu.train_count > 0) {
+      int tr = -1;
+      for (int i = 0; i < eu.train_count; ++i) {
+        if (eu.train[i].job_index == UNITS_JOB_SCOUT) {
+          tr = i;
+          break;
+        }
+      }
+      if (tr >= 0) {
+        eu.gold = 5000;
+        eu.dock_count = 0;
+        memset(eu.dock, 0, sizeof(eu.dock));
+        if (!europe_train(&eu, tr) || eu.dock[0].dos_type != EUROPE_DOCK_TYPE_SCOUTS) {
+          fprintf(
+            stderr, "scout kit: trained scout dos_type=%d\n", eu.dock[0].dos_type
+          );
+          assets_msg_free(&names);
+          europe_free(&eu);
+          return 1;
+        }
+      }
+    }
+
+    /* 5. europe_nation_harbor_spawn (AI hire, immigration tick, FoY arm). */
+    {
+      ColonizeCol1Save* col1 = (ColonizeCol1Save*)calloc(1, sizeof(*col1));
+      if (!col1) {
+        fprintf(stderr, "scout kit: col1 alloc failed\n");
+        assets_msg_free(&names);
+        europe_free(&eu);
+        return 1;
+      }
+      col1->player[1].control = 1; /* AI nation */
+      ColonizeWorld hw = world_make(&units, NULL, NULL, col1, true, NULL, &eu);
+      const int hid = europe_nation_harbor_spawn(&hw, 1, UNITS_JOB_SCOUT);
+      const ColonizeUnit* hu = units_get(&units, hid);
+      const bool ok = hu && hu->type_index == scout_ti &&
+                      hu->horses == UNITS_EQUIP_HORSES && hu->muskets == 0 &&
+                      hu->profession == UNITS_JOB_SCOUT;
+      if (!ok) {
+        fprintf(
+          stderr, "scout kit: harbor spawn type=%d horses=%d prof=%d\n",
+          hu ? hu->type_index : -1, hu ? hu->horses : -1, hu ? hu->profession : -1
+        );
+        free(col1);
+        assets_msg_free(&names);
+        europe_free(&eu);
+        return 1;
+      }
+      free(col1);
+    }
+    assets_msg_free(&names);
+    fprintf(stderr, "Europe Scout routes all land type 5 + 50 horses ok\n");
   }
 
   europe_free(&eu);
