@@ -622,11 +622,6 @@ graphs:
         label: Roam-abort — idle-wander goto cleared when a MET foreign unit is adjacent
         dos: 20e6 epilogue unit+0x314c==5 clear (raw ~2213-2275)
         status: structural
-      - id: mil_unload
-        kind: step
-        label: Ship not in Europe — drop Soldier at threatened coastal colony
-        fn: ai_euro.c:ai_euro_try_unload_military_threatened
-        status: thin
       - id: mow_home
         kind: decision
         label: WoI crown Man-O-War → sail home once pool spent?
@@ -678,8 +673,7 @@ graphs:
       - [no_mp, end, "yes"]
       - [no_mp, notify, "no"]
       - [notify, roam_abort]
-      - [roam_abort, mil_unload]
-      - [mil_unload, mow_home]
+      - [roam_abort, mow_home]
       - [mow_home, end, "sailed"]
       - [mow_home, gate_q, "no"]
       - [gate_q, gate, "yes"]
@@ -739,10 +733,11 @@ graphs:
         fn: ai_euro.c:ai_euro_try_ship_trade_haul
       - id: war_naval
         kind: step
-        label: War — flee fort fire, adjacent attack (the distant "nearest foe / enemy port" hunt aim was a port invention, retired 2026-09-15)
-        fn: ai_euro.c:ai_euro_naval_try_adjacent_attack
-        status: thin
-        note: Deep 20e6 naval combat scoring PARKED; Galleon/Frigate prefer threatened own coastal colony.
+        label: Flee enemy Fort/Fortress battery water (not war-gated — the battery fires without a PEACE treaty)
+        fn: ai_euro.c:ai_euro_naval_try_flee_fort_fire
+        dos: FUN_364b_03f6
+        status: structural
+        note: The act-level adjacent-foe attack picker, the war-cargo colony-sail entry and the distant "nearest foe / enemy port" hunt aim were all port inventions, retired 2026-09-15/2026-09-18. A hull fights only through the LAB_4d2e wander scorer (node `sail`).
       - id: reassert
         kind: step
         label: Re-assert first-colony ship course (post-beachhead only)
@@ -756,9 +751,9 @@ graphs:
         status: structural
       - id: post
         kind: step
-        label: After sail — adjacent attack (war), mil unload, cash treasure at HS/Europe
-        fn: ai_euro.c:ai_euro_naval_try_adjacent_attack
-        status: thin
+        label: After sail — cash Treasure passengers at HS/Europe
+        fn: ai_euro.c:ai_euro_try_cash_treasure_europe
+        status: structural
       - id: unload
         kind: sub
         label: Settle unload (passengers → landfall / FOUND)
@@ -789,8 +784,8 @@ graphs:
       - [at_war, peace_haul, "no, and no useful goto"]
       - [at_war, war_naval, "yes"]
       - [peace_haul, haul, "no coast cruise"]
-      - [haul, reassert]
-      - [peace_haul, reassert, "cruise set"]
+      - [haul, war_naval]
+      - [peace_haul, war_naval, "cruise set"]
       - [war_naval, reassert]
       - [reassert, sail]
       - [sail, post]
@@ -811,6 +806,7 @@ graphs:
         fn: ai_euro.c:ai_euro_20e6_ship_berth_arrival
         dos: raw 1691 gate (capacity_table[type] != 0, iStack_2e == 0)
         status: dos
+        note: Hull test is DOS's own — any type 0x0d..0x12 with holds, Privateer/Frigate/Man-O-War included (widened from a Caravel/Merchantman/Galleon name list 2026-09-18).
       - id: clear_marks
         kind: step
         label: Clear stale board marks on the berth stack
@@ -869,10 +865,11 @@ graphs:
         status: dos
       - id: queue
         kind: step
-        label: Work-queue pickup pick (ships only) → AI_SAIL to queue tip; proportional score write-back on consume
+        label: Work-queue pickup pick (cargo hulls only) → AI_SAIL to queue tip; proportional score write-back on consume
         fn: ai_euro.c:ai_euro_4393_work_queue_haul_pick
         dos: LAB_004393; ai_goals_work_consume
         status: dos
+        note: bVar17 (raw ~1284-1306) removes Man-O-War and narrows Privateer/Frigate by unresolved globals — the peel keeps the cargo-hull list rather than guess.
       - id: cadence
         kind: step
         label: Empty untasked ship — High Seas cadence
@@ -1008,11 +1005,6 @@ graphs:
         fn: ai_euro.c:ai_euro_try_pioneer_improve
         dos: 5b66 cases 8/9 bodies FUN_479b_*
         status: dos
-      - id: field
-        kind: step
-        label: Expert field assign — Lumberjack / Miner / Farmer / Fisherman / Planter / craft workplace
-        fn: ai_euro.c:ai_euro_try_field_assign
-        status: linux
       - id: fortify
         kind: step
         label: "Peace fortify — armed land unit (DS:0x5236[type] > 1, type outside 0xd..0x12) on own colony → FORTIFY; Artillery fortify"
@@ -1049,14 +1041,17 @@ graphs:
         fn: ai_goals.c:ai_goals_best_found_tile_near
       - id: on_colony
         kind: step
-        label: Own colony arrival — wagon/pioneer TOOLS delivery, wagon Europe sell (no join)
-        fn: ai_euro.c:ai_euro_try_wagon_tools_delivery
+        label: Own colony arrival — no unit-act outcome (join/TOOLS-delivery arms deleted)
+        fn: ai_euro.c:ai_euro_act_land_goal_dispatch
         dos: >-
           No unit-act join: 20e6's +0x314b vocabulary (raw 88266-89800) has no
           join outcome, 0a60's own-colony block only marks 'A' (raw
           87683-87756), and absorption is FUN_5952_035e's tile re-scan (raw
-          94231-94274, ai_euro_5952_absorb_equip).
-        status: structural
+          94231-94274, ai_euro_5952_absorb_equip). The wagon/pioneer TOOLS
+          delivery and wagon Europe dump-sell arms were manual-cited
+          inventions, deleted 2026-09-18; DOS wagon delivery is the 20e6
+          arrival block (raw 3007-3012) in ai_euro_try_wagon_haul.
+        status: dos
       - id: mil_contact
         kind: step
         label: MILITARY / CONTACT goal — adjacent foe → try_attack; at goal colony → resolve
@@ -1093,8 +1088,7 @@ graphs:
       - [treasure, end, "cashed / destroyed / boarded"]
       - [treasure, wagon, "not treasure"]
       - [wagon, pioneer]
-      - [pioneer, field]
-      - [field, fortify]
+      - [pioneer, fortify]
       - [fortify, missionary]
       - [missionary, pilot]
       - [pilot, labor]
@@ -1307,7 +1301,7 @@ graphs:
         fn: ai_euro.c:ai_euro_colony_tick_28c8_reassign
         dos: FUN_5952_035e via 2a1f_0530 → 521d_5cf6 → 2a1f_05a8 — raw 93119, inside the PRELUDE colony loop
         status: dos
-        note: "ORDER DIVERGES: DOS runs the tick per colony in the 6d8e prelude (before 5d04 / 0342 / 0a60 and before any unit acts), so planning reads post-tick colony state. The port runs it last on purpose (w31-28c8 2026-08-29: the Linux expert field-assign arm needs a free tile first). Body is DOS; position is Linux."
+        note: "ORDER DIVERGES: DOS runs the tick per colony in the 6d8e prelude (before 5d04 / 0342 / 0a60 and before any unit acts), so planning reads post-tick colony state. The port runs it last on purpose (w31-28c8 2026-08-29: the Linux expert field-assign arm needed a free tile first; that arm was deleted 2026-09-18 as invented, the position note is kept for the remaining ordering divergence). Body is DOS; position is Linux."
       - id: pass1
         kind: loop
         label: "Pass 1 — food: re-score the slots that were feeding the colony until food_have ≥ food_need"
