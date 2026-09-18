@@ -5139,96 +5139,6 @@ static void ai_euro_try_expected_treasure_harbor(ColonizeTurnContext* ctx, int n
   }
 }
 
-/*
- * At war: idle garrison (Soldier/Dragoon/Regular/Continental) or Artillery/
- * Cannon on own coastal colony boards an empty transport with passenger space
- * (units_board / units_board_stacked). Complements war-transport
- * sail-to-threatened-port. Skip embark when the colony is already threatened
- * (stay to defend; unload drops troops there). Artillery boards before
- * on-colony fortify (same early act arm). Cite: Colonization.pdf naval
- * transport / Defending a Colony ("fortify soldiers, dragoons, army, cavalry,
- * or artillery"); euro_unit_act §2b2 / §2d3 ship board; existing Treasure board
- * APIs. Empty = cargo_count==0.
- */
-static int ai_euro_try_soldier_board_transport(
-  ColonizeTurnContext* ctx,
-  int nation_id,
-  ColonizeUnit* soldier
-) {
-  if (!ctx || !ctx->units || !ctx->map || !ctx->colonies || !soldier || !soldier->active) {
-    return 0;
-  }
-  if (!ctx->col1_ok || !ctx->col1 || !ai_euro_at_war_any_peer(ctx->col1, nation_id)) {
-    return 0;
-  }
-  const char* name = units_display_name(ctx->units, soldier);
-  if (!name ||
-      (!ai_euro_is_military_name(name) && !ai_euro_is_artillery_name(name))) {
-    return 0;
-  }
-  if (soldier->aboard_ship_id >= 0 || ai_euro_land_is_fortified(soldier)) {
-    return 0;
-  }
-  /* Prefer board over hunt: allow even when planning set MILITARY goto. */
-  const int cid = colonies_id_at(ctx->colonies, soldier->x, soldier->y);
-  if (cid < 0) {
-    return 0;
-  }
-  const ColonizeColony* c = colonies_get(ctx->colonies, cid);
-  if (!c || !c->active || c->nation_id != nation_id) {
-    return 0;
-  }
-  if (!map_tile_is_coastal(ctx->map, c->x, c->y)) {
-    return 0;
-  }
-  /* Do not embark from a threatened port — stay to defend; unload drops
-   * troops onto threatened colonies. Cite: Colonization.pdf Defending a Colony. */
-  if (ai_euro_colony_threatened_by_war(ctx, nation_id, c)) {
-    return 0;
-  }
-  /* Prefer empty transport (no passengers yet) with free capacity. */
-  int best = -1;
-  int best_d = -1;
-  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-    ColonizeUnit* s = &ctx->units->units[i];
-    if (!s->active || s->nation_id != nation_id) {
-      continue;
-    }
-    if (!ai_euro_is_ship_type(ctx->units, s->id) || ai_euro_in_europe(s->x, s->y)) {
-      continue;
-    }
-    if (s->cargo_count != 0) {
-      continue; /* empty transport only */
-    }
-    const int cap = units_ship_capacity(ctx->units, s->id);
-    if (cap <= 0) {
-      continue;
-    }
-    if (!ai_euro_tiles_near(soldier->x, soldier->y, s->x, s->y)) {
-      continue;
-    }
-    const int d = abs(s->x - soldier->x) + abs(s->y - soldier->y);
-    if (best_d < 0 || d < best_d) {
-      best_d = d;
-      best = s->id;
-    }
-  }
-  if (best < 0) {
-    return 0;
-  }
-  ColonizeUnit* ship = units_get(ctx->units, best);
-  if (!ship) {
-    return 0;
-  }
-  int boarded = 0;
-  if (ship->x == soldier->x && ship->y == soldier->y) {
-    boarded = units_board_stacked(ctx->units, soldier->id, best) ? 1 : 0;
-  } else {
-    boarded = units_board(ctx->units, soldier->id, best) ? 1 : 0;
-  }
-  return boarded;
-}
-
 /* True when wagon still has free goods-hold capacity (cargo field). */
 static int ai_euro_wagon_has_hold_capacity(const ColonizeUnitPool* units, const ColonizeUnit* w) {
   if (!units || !w) {
@@ -20390,28 +20300,13 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_land_fortify(struct ai_euro_act_ct
   }
 
   /*
-   * Artillery siege hunt (thin 20e6 / king_ref mirror): at war, off own colony,
-   * prefer fortified foreign Euro colonies (Stockade+). On own colony → FORTIFY
-   * garrison below. Cite: Colonization.pdf Artillery; king_ref Artillery siege.
+   * No Artillery-specific siege hunt. DOS has no artillery target band: in
+   * FUN_521d_20e6 type 0x0b appears exactly once in the shared tile scorer
+   * (raw 88911-88913) as a score *modifier* — `type == 0x0b && no colony and
+   * no village on the tile -> score = 0` — and FUN_465b_0000 (raw 75417) is
+   * type-agnostic. The "Artillery siege hunt" arm that used to sit here cited
+   * only Colonization.pdf / king_ref and was deleted (bugs.md #513).
    */
-  if (at_war_land && ai_euro_is_artillery_name(uname) && !land_war_hunted &&
-      !ai_euro_land_is_fortified(u) && u->orders != UNITS_ORDER_SENTRY) {
-    int on_own = 0;
-    if (ctx->colonies) {
-      const int cid = colonies_id_at(ctx->colonies, u->x, u->y);
-      if (cid >= 0) {
-        const ColonizeColony* c = colonies_get(ctx->colonies, cid);
-        if (c && c->active && c->nation_id == nation_id) {
-          on_own = 1;
-        }
-      }
-    }
-    if (!on_own) {
-      if (!ai_euro_land_engage_then_hunt(ctx, u, nation_id, 1, 0, &land_war_hunted)) {
-        return AI_EURO_ACT_RETURN;
-      }
-    }
-  }
 
   /*
    * Artillery fortify (case 0x0b fortify arm): idle Artillery on own colony →
@@ -21185,20 +21080,14 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
   }
 
   /*
-   * At-war Soldier/Dragoon/Artillery coastal embark — before move-scoring gate /
-   * hunt yank / Artillery on-colony fortify. Soldier, Dragoon, or Artillery/
-   * Cannon on coastal own colony boards empty transport (may override MILITARY
-   * goto from E deepen). Cite: Colonization.pdf naval transport / Defending a
-   * Colony; units_board; euro_unit_act §2d3.
+   * No land-unit-initiated embark arm here. DOS boarding is ship-side only:
+   * FUN_1427_10be (raw 8606-8679) runs over the SHIP, walks the unit list at
+   * the ship's tile and stamps +0x314c = 1 on each land unit whose @UNIT size
+   * (0x5238) still fits the ship's remaining hold; FUN_521d_20e6's land bands
+   * (types 1/4/0xb) never touch +0x314c. The "at-war coastal embark" arm that
+   * used to sit here cited only Colonization.pdf and was deleted (bugs.md
+   * #513).
    */
-  if (!is_ship && ctx->col1_ok && ctx->col1 && ai_euro_at_war_any_peer(ctx->col1, nation_id)) {
-    const char* board_name = units_display_name(ctx->units, u);
-    if (board_name &&
-        (ai_euro_is_military_name(board_name) || ai_euro_is_artillery_name(board_name)) &&
-        ai_euro_try_soldier_board_transport(ctx, nation_id, u)) {
-      return;
-    }
-  }
 
   /*
    * War / peacetime-sticky mil unload — before move-scoring gate. Galleon/Frigate
@@ -21267,24 +21156,16 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
   }
 
   /*
-   * On own colony with no fortify quota: admit Soldier as colonist before
-   * later FOUND/explore arms yank them (Isabella TURN4→5). Cite: TURN4–5.
+   * No quota-0 "admit garrison as colonist" arm here. FUN_521d_20e6 has no
+   * join-colony outcome at all: its complete +0x314b vocabulary over the whole
+   * body (raw 88266-89800) is 0x39/0x3d/0x40/0x42/0x46/0x47/0x4c/0x56/0x65 —
+   * 0x46 = fortify (the 'F' arm, raw 89011-89031, which takes every attack>1
+   * non-ship type on an own colony tile and spends no garrison quota) and
+   * 0x4c = enter village (raw 89068). Absorbing a unit into a colony as a
+   * colonist is FUN_5952_035e's colony-tick arm (ai_euro_5952_absorb_equip),
+   * not a unit act. The garrison_quota == 0 admit that used to sit here cited
+   * only test-saves-ai/TURN4–5 and was deleted (sibling of bugs.md #512).
    */
-  if (!is_ship && ctx->colonies && !ai_euro_land_is_fortified(u)) {
-    const char* join_name = units_display_name(ctx->units, u);
-    if (join_name && ai_euro_is_military_name(join_name)) {
-      const int early_cid = colonies_id_at(ctx->colonies, u->x, u->y);
-      if (early_cid >= 0) {
-        ColonizeColony* ec = colonies_get_mut(ctx->colonies, early_cid);
-        if (ec && ec->active && ec->nation_id == nation_id && ec->garrison_quota == 0 &&
-            (ec->population < 3 ||
-             (ec->ai_flags & COLONIZE_COLONY_AI_NEEDS_COLONISTS) != 0)) {
-          ai_euro_join_colony(ctx, u, early_cid);
-          return;
-        }
-      }
-    }
-  }
 
   struct ai_euro_act_ctx a;
   memset(&a, 0, sizeof(a));

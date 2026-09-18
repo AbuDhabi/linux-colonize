@@ -622,11 +622,6 @@ graphs:
         label: Roam-abort — idle-wander goto cleared when a MET foreign unit is adjacent
         dos: 20e6 epilogue unit+0x314c==5 clear (raw ~2213-2275)
         status: structural
-      - id: war_embark
-        kind: decision
-        label: At war, land Soldier/Dragoon/Artillery on coastal own colony → board empty transport?
-        fn: ai_euro.c:ai_euro_try_soldier_board_transport
-        status: thin
       - id: mil_unload
         kind: step
         label: Ship not in Europe — drop Soldier at threatened coastal colony
@@ -683,9 +678,7 @@ graphs:
       - [no_mp, end, "yes"]
       - [no_mp, notify, "no"]
       - [notify, roam_abort]
-      - [roam_abort, war_embark]
-      - [war_embark, end, "boarded"]
-      - [war_embark, mil_unload, "no"]
+      - [roam_abort, mil_unload]
       - [mil_unload, mow_home]
       - [mow_home, end, "sailed"]
       - [mow_home, gate_q, "no"]
@@ -1022,7 +1015,7 @@ graphs:
         status: linux
       - id: fortify
         kind: step
-        label: "Peace fortify — armed land unit (DS:0x5236[type] > 1, type outside 0xd..0x12) on own colony → FORTIFY; Artillery siege hunt (war) / fortify"
+        label: "Peace fortify — armed land unit (DS:0x5236[type] > 1, type outside 0xd..0x12) on own colony → FORTIFY; Artillery fortify"
         fn: ai_euro.c:ai_euro_act_land_fortify
         dos: FUN_521d_20e6 raw 89011-89013 (the 'F' = 0x46 arm's unit test)
         status: structural
