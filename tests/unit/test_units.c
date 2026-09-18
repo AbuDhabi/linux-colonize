@@ -7313,6 +7313,207 @@ int main(void) {
     fprintf(stderr, "unit_units: LCR outcome dispatch ok (%d trials)\n", trials);
   }
 
+  /*
+   * bugs.md #496: Fountain of Youth runs the eight FUN_291f_0d2c(1,0) picks
+   * for an AI nation too (raw 103725-103731 sits outside the `local_a != 0`
+   * human gate; 4884 just takes pool slot 1 for a non-human bound nation).
+   * The eight land in the Europe limbo (200,100), never on the human dock.
+   */
+  {
+    EuropeScreen eu;
+    char eerr[256];
+    if (!europe_load(&eu, "COLONIZE", eerr, sizeof(eerr))) {
+      fprintf(stderr, "LCR AI FoY: europe_load failed: %s\n", eerr);
+      return 1;
+    }
+    const int scout_ti = units_find_type(&pool, "Scouts");
+    bool foy_was_active[COLONIZE_UNITS_MAX];
+    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+      foy_was_active[i] = pool.units[i].active;
+    }
+    ColonizeCol1Save acol1;
+    memset(&acol1, 0, sizeof(acol1));
+    for (int i = 0; i < COLONIZE_COL1_FF_COUNT; ++i) {
+      acol1.head.founding_father[i] = -1; /* zeroed FF[] = "nation 0 has FF 0" */
+    }
+    acol1.player[0].control = 0; /* human */
+    acol1.player[1].control = 1; /* the AI explorer's nation */
+    acol1.stuff.census_pop_proxy[1] = 20;
+    acol1.stuff.colony_counts[1] = 3;
+    for (int s = 0; s < 3; ++s) {
+      acol1.nation[1].recruit[s] = 0x13; /* Free Colonist in every pool slot */
+    }
+    ColonizeDosRng arng;
+    dos_rng_seed(&arng, 12345 * 7);
+    int trials = 0;
+    bool saw_ai_fountain = false;
+    const int dock_before_all = eu.dock_count;
+    for (int pass = 0; pass < 15 && trials < 400 && !saw_ai_fountain; ++pass) {
+      for (int y = 0; y < (int)map.height && trials < 400 && !saw_ai_fountain; ++y) {
+        for (int x = 0; x < (int)map.width && trials < 400 && !saw_ai_fountain; ++x) {
+          if (!map_tile_has_rumour(&map, x, y)) {
+            continue;
+          }
+          trials++;
+          int limbo_before = 0;
+          for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+            if (pool.units[i].active && pool.units[i].nation_id == 1 &&
+                pool.units[i].x == 200 && pool.units[i].y == 100) {
+              limbo_before++;
+            }
+          }
+          const int sid = units_spawn_allow_stack(&pool, scout_ti, x, y);
+          ColonizeUnit* su = units_get(&pool, sid);
+          if (!su) {
+            continue;
+          }
+          su->nation_id = 1;
+          if (!units_resolve_lcr_rumour_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .map=(ColonizeWorldMap*)(&map), .col1=(ColonizeCol1Save*)(&acol1), .col1_ok=true, .rng=(ColonizeDosRng*)(&arng), .europe=(EuropeScreen*)(&eu)}, sid, 0)) {
+            fprintf(stderr, "LCR AI FoY: resolve failed at (%d,%d)\n", x, y);
+            europe_free(&eu);
+            return 1;
+          }
+          int limbo_after = 0;
+          bool scout_active = false;
+          for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+            if (!pool.units[i].active) continue;
+            if (pool.units[i].nation_id == 1 && pool.units[i].x == 200 &&
+                pool.units[i].y == 100) {
+              limbo_after++;
+            }
+            if (pool.units[i].id == sid) scout_active = true;
+          }
+          if (limbo_after >= limbo_before + 8) {
+            saw_ai_fountain = true;
+          } else if (limbo_after != limbo_before) {
+            fprintf(
+              stderr, "LCR AI FoY: partial limbo spawn %d -> %d\n", limbo_before, limbo_after
+            );
+            europe_free(&eu);
+            return 1;
+          }
+          if (scout_active) {
+            units_despawn(&pool, sid);
+          }
+          map.layer2[y * map.width + x] &= (uint8_t)~MAP_LAYER2_LCR_CONSUMED;
+        }
+      }
+    }
+    const int dock_after_all = eu.dock_count;
+    europe_free(&eu);
+    if (!saw_ai_fountain) {
+      fprintf(stderr, "LCR AI FoY: no AI Fountain over %d trials\n", trials);
+      return 1;
+    }
+    if (dock_after_all != dock_before_all) {
+      fprintf(stderr, "LCR AI FoY: AI picks leaked onto the human dock\n");
+      return 1;
+    }
+    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+      if (pool.units[i].active && !foy_was_active[i]) {
+        units_despawn(&pool, pool.units[i].id); /* limbo immigrants, treasures */
+      }
+    }
+    fprintf(stderr, "unit_units: LCR AI Fountain of Youth picks ok (%d trials)\n", trials);
+  }
+
+  /*
+   * bugs.md #497: case-8 burial trespass only stands (and only costs
+   * relation) when the village's tribe has MET the explorer's nation
+   * (FUN_281f_0a38 & 0x20, raw 103563-103565); unmet falls to "Nothing".
+   * `lcr_case5_bonus_used` is pre-latched so the once-per-nation burial arm
+   * (the only other alarm source in this routine) never fires: every alarm
+   * point below is a trespass hit.
+   */
+  {
+    const int scout_ti = units_find_type(&pool, "Scouts");
+    bool tre_was_active[COLONIZE_UNITS_MAX];
+    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+      tre_was_active[i] = pool.units[i].active;
+    }
+    AiPopupState pops;
+    ai_popup_init(&pops);
+    units_set_combat_popups(&pops, NULL);
+    int trespass_popups[2] = {0, 0};
+    int trial_count[2] = {0, 0};
+    for (int met = 0; met < 2; ++met) {
+      ColonizeCol1Save tcol1;
+      memset(&tcol1, 0, sizeof(tcol1));
+      for (int i = 0; i < COLONIZE_COL1_FF_COUNT; ++i) {
+        tcol1.head.founding_father[i] = -1;
+      }
+      tcol1.stuff.census_pop_proxy[0] = 20;
+      tcol1.stuff.colony_counts[0] = 3;
+      ColonizeCol1Tribe tribes[1];
+      memset(tribes, 0, sizeof(tribes));
+      tribes[0].nation_id = 4;
+      tcol1.tribe = tribes;
+      tcol1.head.tribe_count = 1;
+      tcol1.indian[0].euro_diplo[0] = met ? COL1_INDIAN_MET_BIT : 0;
+      ColonizeDosRng trng;
+      dos_rng_seed(&trng, 12345 * 11);
+      int trials = 0;
+      for (int pass = 0; pass < 8 && trials < 200; ++pass) {
+        for (int y = 0; y < (int)map.height && trials < 200; ++y) {
+          for (int x = 0; x < (int)map.width && trials < 200; ++x) {
+            if (!map_tile_has_rumour(&map, x, y)) {
+              continue;
+            }
+            trials++;
+            /* Village on the rumour tile: distance 0, so every case-8 roll
+             * reaches the met gate. */
+            tribes[0].x = (uint8_t)x;
+            tribes[0].y = (uint8_t)y;
+            const int sid = units_spawn_allow_stack(&pool, scout_ti, x, y);
+            ColonizeUnit* su = units_get(&pool, sid);
+            if (!su) {
+              continue;
+            }
+            su->nation_id = 0;
+            pops.queue_count = 0;
+            if (!units_resolve_lcr_rumour_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .map=(ColonizeWorldMap*)(&map), .col1=(ColonizeCol1Save*)(&tcol1), .col1_ok=true, .rng=(ColonizeDosRng*)(&trng), .europe=(EuropeScreen*)(NULL)}, sid, 0)) {
+              fprintf(stderr, "LCR trespass: resolve failed at (%d,%d)\n", x, y);
+              units_set_combat_popups(NULL, NULL);
+              return 1;
+            }
+            for (int q = 0; q < pops.queue_count; ++q) {
+              if (strstr(pops.queue[q].body, "trespassing") != NULL) {
+                trespass_popups[met]++;
+              }
+            }
+            if (units_get(&pool, sid)) {
+              units_despawn(&pool, sid);
+            }
+            map.layer2[y * map.width + x] &= (uint8_t)~MAP_LAYER2_LCR_CONSUMED;
+          }
+        }
+      }
+      trial_count[met] = trials;
+      tcol1.tribe = NULL;
+      tcol1.head.tribe_count = 0;
+    }
+    pops.queue_count = 0;
+    units_set_combat_popups(NULL, NULL);
+    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+      if (pool.units[i].active && !tre_was_active[i]) {
+        units_despawn(&pool, pool.units[i].id);
+      }
+    }
+    if (trespass_popups[0] != 0 || trespass_popups[1] <= 0) {
+      fprintf(
+        stderr,
+        "LCR trespass: met gate not applied (unmet %d, met %d over %d/%d trials)\n",
+        trespass_popups[0], trespass_popups[1], trial_count[0], trial_count[1]
+      );
+      return 1;
+    }
+    fprintf(
+      stderr,
+      "unit_units: LCR case-8 met gate ok (unmet %d, met %d @LOSTCITY8 over %d trials)\n",
+      trespass_popups[0], trespass_popups[1], trial_count[1]
+    );
+  }
+
   /* Enter-probe matrix: bounce / domain / land combat / naval / capture. */
   {
     const int pioneer_t = pioneer;

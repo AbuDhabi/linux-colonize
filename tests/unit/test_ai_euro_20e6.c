@@ -230,6 +230,139 @@ static int unit_patrol_returns_to_colony(void) {
 }
 
 /*
+ * bugs.md #493: DOS re-enters FUN_521d_20e6 for a unit that already carries
+ * a goto. The gate at raw 90551 is
+ *   if (unit+0x3149 == 0 || unit+0x314c != 0x0b) call 20e6
+ * — "no MP spent yet this turn" OR "not on a goto" — and 20e6's own early
+ * bail (raw 88395-88398) lets orders 0x0b through. The port used to call the
+ * gate only when the unit had no goto, so a Scout that had once been given an
+ * AI_MOVE course never re-scored again; the invented scout arm existed to
+ * paper over that. A Scout standing on its own stale goto at a full
+ * allotment must re-enter the gate and get a fresh course.
+ */
+static int unit_stale_goto_rescored_at_full_mp(void) {
+  const int nation = 1;
+  Fixture f;
+  if (fixture_init(&f, nation) != 0) {
+    return 1;
+  }
+  f.units.type_count = 5;
+  snprintf(f.units.types[4].name, sizeof(f.units.types[4].name), "Scout");
+  f.units.types[4].movement = 4;
+  f.units.types[4].attack = 1;
+  f.units.types[4].defense = 1;
+  f.units.types[4].domain = COLONIZE_UNIT_DOMAIN_LAND;
+
+  const int sid = units_spawn(&f.units, 4, 8, 8);
+  ColonizeUnit* s = units_get(&f.units, sid);
+  if (!s) {
+    fixture_free(&f);
+    return fail("spawn scout");
+  }
+  s->nation_id = nation;
+  s->moves = 4 * UNITS_MP_PER_TILE;
+  /* Arrived on an earlier course: orders still say goto, target == own tile. */
+  s->orders = UNITS_ORDER_AI_MOVE;
+  s->goto_x = 8;
+  s->goto_y = 8;
+
+  ai_euro_dispatcher_turn(&f.ctx, nation);
+
+  s = units_get(&f.units, sid);
+  if (!s || !s->active) {
+    fixture_free(&f);
+    return fail("scout vanished");
+  }
+  const int moved = s->x != 8 || s->y != 8;
+  const int re_aimed =
+    units_orders_follow_goto(s->orders) && (s->goto_x != 8 || s->goto_y != 8) &&
+    s->goto_x < 200;
+  if (!moved && !re_aimed) {
+    fprintf(stderr, "pos=(%d,%d) orders=%d goto=(%d,%d)\n", s->x, s->y, s->orders, s->goto_x,
+            s->goto_y);
+    fixture_free(&f);
+    return fail("stale goto at full MP must re-enter the 20e6 gate");
+  }
+  fixture_free(&f);
+  return 0;
+}
+
+/*
+ * bugs.md #494: the 20e6 type-5 band carries no war term. Its pre-gate (raw
+ * 88514-88530), patrol 0x56 arm (raw 89047-89059) and village 0x4c arm (raw
+ * 89064-89068) read the G-table, continent ids and the village record, never
+ * a per-peer relation byte. The port had Scouts in ai_euro_is_land_war_hunter,
+ * so at war they skipped the gate entirely and ran the combat hunt arm; a
+ * Scout beside an unvisited village never spoke to the chief. At war with a
+ * Euro peer, the village arm must still fire.
+ */
+static int unit_scout_visits_village_at_war(void) {
+  const int nation = 1;
+  Fixture f;
+  if (fixture_init(&f, nation) != 0) {
+    return 1;
+  }
+  f.units.type_count = 5;
+  snprintf(f.units.types[4].name, sizeof(f.units.types[4].name), "Scout");
+  f.units.types[4].movement = 4;
+  f.units.types[4].attack = 1;
+  f.units.types[4].defense = 1;
+  f.units.types[4].domain = COLONIZE_UNIT_DOMAIN_LAND;
+
+  ColonizeColony* own = &f.colonies.colonies[0];
+  own->id = 0;
+  own->active = true;
+  own->nation_id = nation;
+  own->x = 3;
+  own->y = 3;
+  own->population = 3;
+  own->colonist_count = 3;
+  own->stock[COLONIZE_CARGO_FOOD] = 60;
+  own->building_in_production = -1;
+  f.colonies.colony_count = 1;
+  f.colonies.next_id = 1;
+
+  static ColonizeCol1Tribe tribe;
+  memset(&tribe, 0, sizeof(tribe));
+  tribe.x = 9;
+  tribe.y = 8;
+  tribe.nation_id = 4;
+  tribe.population = 5;
+  f.col1.tribe = &tribe;
+  f.col1.head.tribe_count = 1;
+  f.col1.indian[0].euro_diplo[nation] = 1;
+  f.col1.indian[0].alarm_by_player[nation] = 0;
+
+  /* Euro peer war — the term the port used to let short-circuit the gate. */
+  ai_diplo_declare_war(&f.col1, nation, 0);
+
+  const int sid = units_spawn(&f.units, 4, 8, 8);
+  ColonizeUnit* s = units_get(&f.units, sid);
+  if (!s) {
+    f.col1.tribe = NULL;
+    fixture_free(&f);
+    return fail("spawn scout");
+  }
+  s->nation_id = nation;
+  s->moves = 4 * UNITS_MP_PER_TILE;
+  s->orders = 0;
+
+  ai_euro_dispatcher_turn(&f.ctx, nation);
+
+  const int visited = tribe.state.scouted != 0;
+  f.col1.tribe = NULL;
+  if (!visited) {
+    s = units_get(&f.units, sid);
+    fprintf(stderr, "scout pos=(%d,%d) orders=%d\n", s ? s->x : -1, s ? s->y : -1,
+            s ? s->orders : -1);
+    fixture_free(&f);
+    return fail("war must not divert the type-5 village arm");
+  }
+  fixture_free(&f);
+  return 0;
+}
+
+/*
  * Ring-hop latch (unit+0x3155/+0x3156, raw 2416-2458): explorer on a big
  * landlocked plain — the ring scan finds no coastal site (best_nib 0), so
  * the hop arm rolls a ring20 slot and commits a 4-tiles-out goto (Chebyshev
@@ -1667,6 +1800,8 @@ static const TestCase k_cases[] = {
     {"unit_treasure_outside_colony_not_cashed", unit_treasure_outside_colony_not_cashed},
     {"unit_wander_step_is_adjacent", unit_wander_step_is_adjacent},
     {"unit_patrol_returns_to_colony", unit_patrol_returns_to_colony},
+    {"unit_stale_goto_rescored_at_full_mp", unit_stale_goto_rescored_at_full_mp},
+    {"unit_scout_visits_village_at_war", unit_scout_visits_village_at_war},
     {"unit_ring_hop_commits_far_goto", unit_ring_hop_commits_far_goto},
     {"unit_explorer_clears_explore_goal_on_its_tile", unit_explorer_clears_explore_goal_on_its_tile},
     {"unit_colony_sail_targets_needy_colony", unit_colony_sail_targets_needy_colony},

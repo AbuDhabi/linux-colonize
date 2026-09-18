@@ -1106,36 +1106,42 @@ static void ai_contact_enqueue_village_meet(
   if (u) {
     AiContactUnitClass cls;
     ai_contact_classify_unit(ctx->units, u, &cls);
-    if (cls.is_wagon || cls.is_ship) {
-      AI_CONTACT_MENU_ADD(alarm < 0x4b ? 0 : 1, alarm < 0x4b ? AI_CONTACT_CHOICE_TRADE : AI_CONTACT_CHOICE_ENTER_HOSTILE);
+    /*
+     * DOS-LITERAL FUN_4d56_4528 overlay 13 (asm 0x486b..0x4ad0): the @ACTIONS
+     * CHOICE is built by walking the ten fixed rows in order and enabling each
+     * (FUN_1000_8212(row) + LAB_1000_9365), so the visible order is always
+     * 1 Trade, 2 Enter Hostile, 3 Mission, 4 Heresy, 5 Live Among, 6 Chief,
+     * 7 Incite, 8 Demand, 9 Attack, 10 Cancel — never the order the port used
+     * to emit them in (bugs.md #501; indian_actions_menu.md "Row enabling").
+     * `ai_contact_action_label` takes the 0-based row, so rows are 0..9 here.
+     */
+    if ((cls.is_wagon || cls.is_ship) && alarm < 0x4b) {
+      AI_CONTACT_MENU_ADD(0, AI_CONTACT_CHOICE_TRADE); /* row 1 */
+    }
+    if ((cls.is_wagon || cls.is_ship) && alarm >= 0x4b) {
+      AI_CONTACT_MENU_ADD(1, AI_CONTACT_CHOICE_ENTER_HOSTILE); /* row 2 */
+    }
+    if (met && cls.is_missionary && foreign_owner < 0) {
+      AI_CONTACT_MENU_ADD(2, AI_CONTACT_CHOICE_MISSION); /* row 3 */
+    }
+    if (met && cls.is_missionary && foreign_owner >= 0 && foreign_owner != e) {
+      AI_CONTACT_MENU_ADD(3, AI_CONTACT_CHOICE_HERESY); /* row 4 */
+    }
+    if (met && !cls.is_missionary && cls.can_live_among) {
+      AI_CONTACT_MENU_ADD(4, AI_CONTACT_CHOICE_TEACH); /* row 5 */
     }
     if (cls.is_scout) {
-      AI_CONTACT_MENU_ADD(5, AI_CONTACT_CHOICE_CHIEF);
+      AI_CONTACT_MENU_ADD(5, AI_CONTACT_CHOICE_CHIEF); /* row 6 */
     }
-    int attack_listed = 0;
-    if (!cls.is_ship && cls.attack > 1) {
+    if (met && cls.is_missionary) {
+      AI_CONTACT_MENU_ADD(6, AI_CONTACT_CHOICE_INCITE); /* row 7 */
+    }
+    if (met && !cls.is_missionary && cls.attack != 0 && !cls.is_ship) {
+      AI_CONTACT_MENU_ADD(7, AI_CONTACT_CHOICE_DEMAND); /* row 8 */
+    }
+    /* row 9: land unit with attack > 1; also (met) any attack != 0. */
+    if (!cls.is_ship && (cls.attack > 1 || (met && cls.attack != 0))) {
       AI_CONTACT_MENU_ADD(8, AI_CONTACT_CHOICE_ATTACK_VILLAGE);
-      attack_listed = 1;
-    }
-    if (met) {
-      if (cls.is_missionary) {
-        if (foreign_owner < 0) {
-          AI_CONTACT_MENU_ADD(2, AI_CONTACT_CHOICE_MISSION);
-        } else if (foreign_owner != e) {
-          AI_CONTACT_MENU_ADD(3, AI_CONTACT_CHOICE_HERESY);
-        }
-        AI_CONTACT_MENU_ADD(6, AI_CONTACT_CHOICE_INCITE);
-      } else {
-        if (cls.can_live_among) {
-          AI_CONTACT_MENU_ADD(4, AI_CONTACT_CHOICE_TEACH);
-        }
-        if (cls.attack != 0 && !cls.is_ship) {
-          AI_CONTACT_MENU_ADD(7, AI_CONTACT_CHOICE_DEMAND);
-        }
-      }
-      if (!attack_listed && cls.attack != 0 && !cls.is_ship) {
-        AI_CONTACT_MENU_ADD(8, AI_CONTACT_CHOICE_ATTACK_VILLAGE);
-      }
     }
   } else {
     AI_CONTACT_MENU_ADD(0, AI_CONTACT_CHOICE_TRADE);
@@ -4370,7 +4376,7 @@ static void ai_contact_missionary_convert(ColonizeTurnContext* ctx, int nation_i
  */
 /*
  * Shared "can this unit step onto (nx,ny)?" filter and the move commit tail
- * behind ai_contact_flee_one_tile and ai_contact_displace_scout (audit
+ * behind ai_contact_flee_one_tile (audit
  * AC-26). Only these two halves are byte-identical between the pair: the
  * tile pickers are NOT merged, because they walk different orders (flee
  * scans ring 1 in MAP_DIR8 order, displace rasters a 5x5 and scores
@@ -8217,73 +8223,6 @@ int ai_contact_colony_raid_repelled_w(
 }
 
 /*
- * FUN_4d56_359c thin displace: nudge Scout onto free land 1–2 tiles from
- * current tile, preferring greater Chebyshev distance from (away_x,away_y)
- * (Brave / tribe contact). Sets AI_MOVE goto at the flee tile. Returns 1 if
- * moved, 0 if no free land tile (caller may despawn).
- */
-static int ai_contact_displace_scout(
-  ColonizeTurnContext* ctx,
-  ColonizeUnit* scout,
-  int away_x,
-  int away_y
-) {
-  if (!ctx || !ctx->units || !ctx->map || !scout || !scout->active) {
-    return 0;
-  }
-  const int ox = scout->x;
-  const int oy = scout->y;
-  const int dist0 = map_chebyshev(ox, oy, away_x, away_y);
-  int best_x = -1;
-  int best_y = -1;
-  int best_score = -1;
-  int fallback_x = -1;
-  int fallback_y = -1;
-  int fallback_score = -1;
-
-  for (int dy = -2; dy <= 2; ++dy) {
-    for (int dx = -2; dx <= 2; ++dx) {
-      const int adx = dx < 0 ? -dx : dx;
-      const int ady = dy < 0 ? -dy : dy;
-      const int cheb = adx > ady ? adx : ady;
-      if (cheb < 1 || cheb > 2) {
-        continue;
-      }
-      const int nx = ox + dx;
-      const int ny = oy + dy;
-      if (!ai_contact_step_tile_ok(ctx, scout, nx, ny)) {
-        continue;
-      }
-      const int d = map_chebyshev(nx, ny, away_x, away_y);
-      const int score = d * 10 + cheb;
-      if (score > fallback_score) {
-        fallback_score = score;
-        fallback_x = nx;
-        fallback_y = ny;
-      }
-      if (d < dist0) {
-        continue;
-      }
-      if (score > best_score) {
-        best_score = score;
-        best_x = nx;
-        best_y = ny;
-      }
-    }
-  }
-
-  if (best_x < 0) {
-    best_x = fallback_x;
-    best_y = fallback_y;
-  }
-  if (best_x < 0) {
-    return 0;
-  }
-  ai_contact_step_commit(ctx, scout, best_x, best_y);
-  return 1;
-}
-
-/*
  * A Brave carrying its own village's refused-demand grudge (attitude word
  * > 0x7f, LAB_5bfb_0ff2) must not be diverted into the escort/follow arm —
  * it is here to answer the refusal. Same row FUN_521d_0906 reads.
@@ -8991,106 +8930,6 @@ COLONIZE_INTERNAL AiRaidStatus ai_contact_raid_stage_colony(struct ai_contact_ra
   return AI_RAID_CONTINUE;
 }
 
-/*
- * Stage 6: FUN_4d56_359c scout displace/despawn sweep. Extracted verbatim
- * from ai_contact_indian_raids.
- */
-COLONIZE_INTERNAL void ai_contact_raid_scout_displace(
-  ColonizeTurnContext* ctx, const ColonizeCol1Indian* ind, int nation_id,
-  ColonizeDosRng* rng
-) {
-/* 6. FUN_4d56_359c: high alarm vs Scouts → prefer displace; despawn if blocked. */
-for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-  ColonizeUnit* brave = &ctx->units->units[i];
-  if (!brave->active || brave->nation_id != nation_id) {
-    continue;
-  }
-  for (int e = 0; e < 4; ++e) {
-    if (ind->alarm_by_player[e] < 90) {
-      continue;
-    }
-    for (int d = 0; d < 8; ++d) {
-      const int foe = units_id_at(ctx->units, brave->x + MAP_DIR8_DX[d], brave->y + MAP_DIR8_DY[d]);
-      if (foe < 0) {
-        continue;
-      }
-      ColonizeUnit* f = units_get(ctx->units, foe);
-      if (!f || f->nation_id != e) {
-        continue;
-      }
-      const char* name = units_display_name(ctx->units, f);
-      if (!name || !strstr(name, "Scout")) {
-        continue;
-      }
-      /*
-       * FUN_4d56_359c: prefer displace 1–2 tiles away from the Brave.
-       * When displaced (not despawned) and status buffer present → human
-       * warn line. Dialog warn widgets Done structural (ai_popup); VGA PARKED.
-       *
-       * Thin RNG kill-with-flee (unpark): at very-high alarm (≥95), ~1/4
-       * chance kill even when a flee tile exists (DOS 359c kill/warn/displace
-       * stand-in). Alarm 90..94 keeps prefer-displace (smoke). Blocked-path
-       * despawn remains. Cite: indian_raid_outcomes.md §9.
-       */
-      {
-        int killed = 0;
-        char scout_fb[AI_POPUP_BODY_LEN];
-        snprintf(
-          scout_fb,
-          sizeof(scout_fb),
-          "The %s kill your Scout.",
-          ai_contact_tribe_name(nation_id)
-        );
-        if (ind->alarm_by_player[e] >= 95) {
-          const int roll = dos_rng_range(rng, 0, 99);
-          if (roll < 25) {
-            units_despawn(ctx->units, foe);
-            ai_contact_human_chrome(
-              ctx,
-              e,
-              AI_POPUP_TAG_CONTACT_RAID,
-              nation_id,
-              "Scout",
-              scout_fb
-            );
-            killed = 1;
-          }
-        }
-        if (!killed) {
-          if (ai_contact_displace_scout(ctx, f, brave->x, brave->y)) {
-            char warn_fb[AI_POPUP_BODY_LEN];
-            snprintf(
-              warn_fb,
-              sizeof(warn_fb),
-              "The %s warn your Scout away from their village.",
-              ai_contact_tribe_name(nation_id)
-            );
-            ai_contact_human_chrome(
-              ctx,
-              e,
-              AI_POPUP_TAG_CONTACT_RAID,
-              nation_id,
-              "Scout",
-              warn_fb
-            );
-          } else {
-            units_despawn(ctx->units, foe);
-            ai_contact_human_chrome(
-              ctx,
-              e,
-              AI_POPUP_TAG_CONTACT_RAID,
-              nation_id,
-              "Scout",
-              scout_fb
-            );
-          }
-        }
-      }
-    }
-  }
-}
-}
-
 void ai_contact_indian_raids(ColonizeTurnContext* ctx, int nation_id) {
   if (!ctx || !ctx->units || !ctx->map || !ctx->col1_ok || !ctx->col1) {
     return;
@@ -9109,16 +8948,20 @@ void ai_contact_indian_raids(ColonizeTurnContext* ctx, int nation_id) {
   /*
    * FUN_4d56_4528 / 5fef_0f14-shaped arms (thin):
    *  1 gate → 2 adjacent combat → 3 colony approach → 4 @RAID* loot →
-   *  5 capture → 6 scout 359c displace/despawn.
+   *  5 capture. (The old "stage 6 scout 359c displace/despawn" arm was
+   *  deleted 2026-09-18, bugs.md #499: FUN_4d56_359c is not an anti-Scout
+   *  sweep at all — raw 83481-83505 is the Enter-Hostile-Village wagon
+   *  outcome (@KILLWAGONS / @MADATWAGONS / @GRUDGEWAGONS), already ported as
+   *  ai_contact_enter_hostile_village. The arm's alarm 90/95 gates, 1/4 kill
+   *  roll and display-name Scout match had no DOS source.)
    *
    * FUN_4d56_2820 (~1.4k; thunk 2a1f_044c) is the meet/raid decision matrix
    * DOS reaches before settlement enter. Its trade half is ported elsewhere
    * in this file (`ai_contact_2820_begin`, 2026-08-29 rewrite) and the AI
    * pulse reaches it through `ai_contact_auto_trade` — do NOT re-port the
-   * body here; this post-pulse path keeps the thin @RAID* / combat / 359c
-   * arms. Human `4528` `@ACTIONS` arm is ported (P8.8); `4528` VGA meet
+   * body here; this post-pulse path keeps the thin @RAID* / combat arms. Human `4528` `@ACTIONS` arm is ported (P8.8); `4528` VGA meet
    * chrome and the alarmed act-pick mid-body remain PARKED.
-   * Linux stays on thin @RAID* / combat / 359c + equal-dist mil/tools/silver
+   * Linux stays on thin @RAID* / combat + equal-dist mil/tools/silver
    * approach. Widgets Done structural (ai_popup); VGA PARKED. Mid-friction prefers non-mission
    * villages (below). Cite: indian_raid_outcomes.md §10; indian_contact.md
    * PORT DEBT; docs/port_plan.md FUN_4d56_2820; Marathon2 R6 PARK.
@@ -9190,8 +9033,6 @@ void ai_contact_indian_raids(ColonizeTurnContext* ctx, int nation_id) {
       continue;
     }
   }
-
-  ai_contact_raid_scout_displace(ctx, ind, nation_id, rng);
 }
 
 
@@ -10029,12 +9870,10 @@ static void ai_contact_speak_with_chief(
   ColonizeDosRng local;
   ColonizeDosRng* rng = ai_contact_action_rng(ctx, nation_id, &local);
   ColonizeCol1Save* col1 = ctx->col1;
-  /* FUN_4d56_2820 4d56:2855: a human visitor rolls 04d4(0,3); on 0 the
-   * tribe's tune pool takes over — 5 (Natives), Inca → 7 (Pizarro at
-   * Cuzco), Aztec → 6 (Tenochtitlan). */
-  if (ai_contact_euro_is_human(ctx, e) && dos_rng_range(rng, 0, 2) == 0) {
-    sound_set_bgm(nation_id == 0 ? 7 : (nation_id == 1 ? 6 : 5));
-  }
+  /* bugs.md #491: no music/RNG draw here. thunk_FUN_1000_a60c (overlay 13,
+   * OVL13:0x3a00..) opens straight on FUN_1000_84fc(alarm) — the village tune
+   * pool is switched once by the FUN_4d56_4528 menu head (alarm >= 0x32), which
+   * this file already does in ai_contact_enqueue_village_meet. */
   ColonizeCol1Indian* ind = &col1->indian[nation_id - 4];
   const int human = ai_contact_euro_is_human(ctx, e);
   const int seasoned = u->profession == UNITS_JOB_SCOUT;
@@ -10113,6 +9952,10 @@ static void ai_contact_speak_with_chief(
               snprintf(fb, sizeof(fb), "\"We gladly welcome you to our %s. In honor of the strange tales you have shared with us, the %s shall provide you with guides to aid your passage through our lands.\"", tok.string1, tribe);
               popup_msg_fill(ctx->messages, "CHIEFGUIDES", &tok, fb, body, sizeof(body));
               ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_MEET, nation_id, "Chief", body);
+              /* OVL13:0x003c2b `PUSH 1 / CALLF FUN_1000_900c` between
+               * @CHIEFGUIDES and @WELLSEASONED is FUN_281f_0e1c →
+               * FUN_6b7e_00c0, the map-viewport repaint — not a sound cue
+               * (bugs.md #502). The port repaints every frame; nothing to do. */
               popup_msg_fill(ctx->messages, "WELLSEASONED", NULL, "Our Scouts have improved to Seasoned status.", body, sizeof(body));
               ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_MEET, nation_id, "Chief", body);
             }
@@ -10143,16 +9986,15 @@ static void ai_contact_speak_with_chief(
             ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_MEET, nation_id, "Chief", body);
           }
           if (ctx->map) {
-            /* FUN_1000_8986 → FUN_13f1_02b4(unit, DX = 6): 13x13 reveal. */
-            for (int dy = -6; dy <= 6; ++dy) {
-              for (int dx = -6; dx <= 6; ++dx) {
-                const int rx = u->x + dx;
-                const int ry = u->y + dy;
-                if (map_coords_inset(ctx->map, rx, ry)) {
-                  map_reveal_tile(ctx->map, rx, ry, e);
-                }
-              }
-            }
+            /*
+             * DOS-LITERAL FUN_13f1_0158 raw 7133-7199 (reached via
+             * FUN_1000_8986 → FUN_13f1_02b4(unit, DX = 6)): the inner 3x3
+             * ring (|dx| <= 1 && |dy| <= 1, local_c == 0) is revealed
+             * unconditionally; every outer tile is revealed only when
+             * FUN_13e4_0074 (continent id) matches the unit's own — so ocean
+             * and other landmasses stay dark. map_reveal_sight is that walk.
+             */
+            map_reveal_sight(ctx->map, u->x, u->y, e, 6, false);
           }
           return;
         }
@@ -10167,6 +10009,12 @@ static void ai_contact_speak_with_chief(
   }
   /* LAB_3a22: kill unless FF 6 (Coronado) is owned. */
   if (!founding_fathers_nation_has(col1, e, FF_FRANCISCO_CORONADO)) {
+    if (human) {
+      /* OVL13:0x003dc9 `MOV AX,0x55 / CALLF FUN_1000_86b0` (= FUN_281f_04c0 →
+       * FUN_12d8_000e, the sound dispatcher) fires only on the human branch,
+       * immediately before @CHIEFKILL (DS:0x1668). bugs.md #502. */
+      sound_play(0x55);
+    }
     snprintf(fb, sizeof(fb), "\"You have broken sacred taboos of the %s tribe! We shall tie you up for target practice.\"", tribe);
     popup_msg_fill(ctx->messages, "CHIEFKILL", &tok, fb, body, sizeof(body));
     ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_MEET, nation_id, "Chief", body);

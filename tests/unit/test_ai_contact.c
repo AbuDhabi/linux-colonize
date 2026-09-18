@@ -2083,97 +2083,48 @@ static int case_full_contact_scenario(void) {
   }
 
   /*
-   * FUN_4d56_359c: high alarm + Scout adjacent → prefer displace (still active,
-   * moved 1–2 tiles). The Brave is exhausted (native SPENT byte at max 3) so
-   * the combat arm skips before 359c; arm 6 has no MP gate and still runs.
+   * bugs.md #499: the "FUN_4d56_359c anti-Scout displace/kill" raid arm was
+   * deleted 2026-09-18. FUN_4d56_359c (raw 83481-83505) is the Enter-Hostile-
+   * Village wagon outcome (@KILLWAGONS / @MADATWAGONS / @GRUDGEWAGONS), ported
+   * as ai_contact_enter_hostile_village; no DOS body harasses Scouts on the
+   * Indian move pulse. A Scout adjacent to an alarmed Brave must now be left
+   * alone by ai_contact_indian_raids.
    */
   units.type_count = 4;
   snprintf(units.types[3].name, sizeof(units.types[3].name), "Scout");
   units.types[3].movement = 4;
   units.types[3].attack = 0;
   units.types[3].defense = 1;
-  const int scout_spawn = units_spawn_allow_stack(&units, 3, 6, 5);
-  int scout_id = scout_spawn;
-  ColonizeUnit* scout = units_get(&units, scout_id);
-  if (!scout) {
-    return fail("spawn scout");
+  {
+    const int scout_id = units_spawn_allow_stack(&units, 3, 6, 5);
+    ColonizeUnit* scout = units_get(&units, scout_id);
+    if (!scout) {
+      return fail("spawn scout");
+    }
+    scout->nation_id = 0;
+    scout->horses = 50;
+    euro->x = 10;
+    euro->y = 10;
+    brave->x = 5;
+    brave->y = 5;
+    brave->moves = 3; /* spent byte at max = exhausted (combat arm skips) */
+    ind->alarm_by_player[0] = 95;
+    col1.tribe[0].alarm[0].friction = 95;
+    status[0] = 0;
+    const int sx0 = scout->x;
+    const int sy0 = scout->y;
+    RUN_INDIAN_RAIDS();
+    scout = units_get(&units, scout_id);
+    if (!scout || !scout->active) {
+      return fail("#499: raids must not despawn an adjacent Scout");
+    }
+    if (scout->x != sx0 || scout->y != sy0) {
+      return fail("#499: raids must not displace an adjacent Scout");
+    }
+    units_despawn(&units, scout_id);
   }
-  scout->nation_id = 0;
-  scout->horses = 50;
-  euro->x = 10;
-  euro->y = 10;
-  brave->x = 5;
-  brave->y = 5;
-  brave->moves = 3; /* spent byte at max = exhausted (combat arm skips) */
   ind->alarm_by_player[0] = 90;
   col1.tribe[0].alarm[0].friction = 90;
-  status[0] = '\0';
-  const int sx0 = scout->x;
-  const int sy0 = scout->y;
-  RUN_INDIAN_RAIDS();
-  scout = units_get(&units, scout_id);
-  if (!scout || !scout->active) {
-    return fail("359c should displace Scout when free land exists");
-  }
-  if (scout->x == sx0 && scout->y == sy0) {
-    return fail("359c should move Scout 1–2 tiles away");
-  }
-  if (strstr(status, "Scout warned") == NULL && strstr(status, "warn your Scout") == NULL &&
-      strstr(status, "village") == NULL) {
-    return fail("359c displace should set status warn line");
-  }
-
-  /*
-   * Thin 359c RNG kill-with-flee (alarm ≥95): even with free land, ~1/4 kill.
-   * Sweep turn seeds until kill fires (deterministic local RNG). Cite:
-   * indian_raid_outcomes.md §9; FUN_4d56_359c.
-   */
-  {
-    int killed = 0;
-    for (uint32_t tseed = 1; tseed < 80 && !killed; ++tseed) {
-      turn = tseed;
-      /* Respawn scout next to brave with free land around. */
-      for (int i = 0; i < 256; ++i) {
-        map.terrain[i] = 1;
-      }
-      scout = units_get(&units, scout_id);
-      if (!scout || !scout->active) {
-        const int sid = units_spawn_allow_stack(&units, 3, 6, 5);
-        scout = units_get(&units, sid);
-        if (!scout) {
-          return fail("359c RNG kill respawn");
-        }
-      }
-      scout->active = true;
-      scout->x = 6;
-      scout->y = 5;
-      scout->nation_id = 0;
-      scout->horses = 50;
-      brave->x = 5;
-      brave->y = 5;
-      brave->moves = 3; /* spent byte at max = exhausted (combat arm skips) */
-      euro->x = 10;
-      euro->y = 10;
-      ind->alarm_by_player[0] = 95;
-      col1.tribe[0].alarm[0].friction = 95;
-      status[0] = '\0';
-      const int sid = scout->id;
-      RUN_INDIAN_RAIDS();
-      scout = units_get(&units, sid);
-      if (!scout || !scout->active) {
-        if (strstr(status, "kill") == NULL) {
-          return fail("359c RNG kill should set kill status");
-        }
-        killed = 1;
-      }
-    }
-    if (!killed) {
-      return fail("359c RNG kill-with-flee should fire for some turn seed");
-    }
-    /* Restore alarm band used by later blocked-despawn arm. */
-    ind->alarm_by_player[0] = 90;
-    col1.tribe[0].alarm[0].friction = 90;
-  }
 
   /*
    * Thin alarmed refuse-talk: human Brave adjacency must not spam refuse chrome
@@ -2230,44 +2181,6 @@ static int case_full_contact_scenario(void) {
     if (status[0] != '\0') {
       return fail("human Brave adjacency must not chrome gift refuse");
     }
-  }
-
-  /*
-   * Blocked displace → despawn: isolate Scout on a land islet (ocean around).
-   */
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 25; /* ocean */
-  }
-  map.terrain[5 * 16 + 5] = 1; /* brave */
-  map.terrain[6 * 16 + 5] = 1; /* scout */
-  scout = units_get(&units, scout_id);
-  if (!scout || !scout->active) {
-    scout_id = units_spawn_allow_stack(&units, 3, 6, 5);
-    scout = units_get(&units, scout_id);
-    if (!scout) {
-      return fail("359c blocked respawn");
-    }
-    scout->nation_id = 0;
-    scout->horses = 50;
-  }
-  scout->x = 6;
-  scout->y = 5;
-  scout->active = true;
-  brave->x = 5;
-  brave->y = 5;
-  brave->moves = 3; /* spent byte at max = exhausted (combat arm skips) */
-  euro->x = 10; /* clear scout tile */
-  euro->y = 10;
-  ind->alarm_by_player[0] = 90; /* 359c gate */
-  col1.tribe[0].alarm[0].friction = 90;
-  status[0] = '\0';
-  RUN_INDIAN_RAIDS();
-  scout = units_get(&units, scout_id);
-  if (scout && scout->active) {
-    return fail("359c should despawn Scout when displace is blocked");
-  }
-  if (strstr(status, "kill") == NULL) {
-    return fail("359c despawn should set status kill line");
   }
 
   /*
@@ -7241,6 +7154,106 @@ static int case_full_contact_scenario(void) {
         return fail("chief: not scouted → @CHIEFBORED");
       }
       units_despawn(&units, scout_id);
+    }
+
+    /*
+     * bugs.md #492: the @CHIEFAREA "tales of nearby lands" reveal is
+     * FUN_13f1_0158-filtered (map_reveal_sight), not a raw 13x13 square: the
+     * inner 3x3 is unconditional, every outer tile only when its continent
+     * matches the Scout's. Sweep turn seeds until the r == 2 tales arm fires,
+     * then check an outer-ring ocean tile stayed dark while an outer-ring
+     * land tile was revealed.
+     */
+    {
+      const uint32_t turn_save = turn;
+      int saw_tales = 0;
+      map.seen = calloc(256, 1); /* fixture leaves fog unallocated */
+      if (!map.seen) {
+        return fail("#492: alloc seen");
+      }
+      map.terrain[5 * 16 + 10] = 25; /* ocean at (10,5): |dx| = 4 from (6,5) */
+      for (uint32_t t = 1; t < 200 && !saw_tales; ++t) {
+        turn = t;
+        col1.tribe[0].state.scouted = 0;
+        memset(map.seen, 0, 256);
+        st_menu[0] = '\0';
+        const int sid = units_spawn_allow_stack(&units, 2, 6, 5);
+        ColonizeUnit* su = units_get(&units, sid);
+        if (!su) {
+          return fail("#492: spawn scout");
+        }
+        su->nation_id = 0;
+        su->profession = UNITS_JOB_NONE;
+        ai_popup_clear(&pop);
+        if (!ai_contact_try_village_meet_unit(&ctx, 0, 4, 0, 0, sid)) {
+          return fail("#492: meet should enqueue");
+        }
+        AiPopupState r2;
+        ai_popup_init(&r2);
+        r2.has_result = true;
+        r2.result_cancelled = false;
+        r2.result_choice_id = 9; /* CHIEF */
+        r2.result_tag = AI_POPUP_TAG_CONTACT_MEET;
+        r2.result_nation_a = 0;
+        r2.result_nation_b = 4;
+        r2.result_payload = pop.queue[0].payload;
+        ai_popup_clear(&pop);
+        st_menu[0] = '\0';
+        ai_contact_apply_popup_result(&ctx, &r2);
+        if (strstr(st_menu, "tales") != NULL) {
+          saw_tales = 1;
+          if (map_tile_seen_by(&map, 10, 5, 0)) {
+            return fail("#492: tales reveal must skip ocean / off-continent outer tiles");
+          }
+          if (!map_tile_seen_by(&map, 9, 5, 0)) {
+            return fail("#492: tales reveal must reveal same-continent outer tiles");
+          }
+          if (!map_tile_seen_by(&map, 6, 6, 0)) {
+            return fail("#492: tales reveal must reveal the inner ring");
+          }
+        }
+        units_despawn(&units, sid);
+      }
+      if (!saw_tales) {
+        return fail("#492: @CHIEFAREA tales arm never fired over 200 turn seeds");
+      }
+      map.terrain[5 * 16 + 10] = 1;
+      free(map.seen);
+      map.seen = NULL;
+      turn = turn_save;
+      col1.tribe[0].state.scouted = 0;
+    }
+
+    /*
+     * bugs.md #501: rows must come out in the DOS fixed order (1 Trade,
+     * 2 Enter Hostile, 3 Mission, 4 Heresy, 5 Live Among, 6 Chief, 7 Incite,
+     * 8 Demand, 9 Attack, 10 Cancel). A Soldier (attack 2, met) discriminates:
+     * the old builder emitted Attack Village before Demand Tribute.
+     */
+    {
+      const int sold_id = units_spawn_allow_stack(&units, 3, 6, 5);
+      ColonizeUnit* soldier = units_get(&units, sold_id);
+      if (!soldier) {
+        return fail("menu: spawn soldier");
+      }
+      soldier->nation_id = 0;
+      soldier->profession = UNITS_JOB_NONE;
+      ai_popup_clear(&pop);
+      if (!ai_contact_try_village_meet_unit(&ctx, 0, 4, 0, 0, sold_id)) {
+        return fail("menu: soldier meet should enqueue");
+      }
+      const AiPopupRequest* q = &pop.queue[0];
+      if (q->choice_count != 3 || q->choice_ids[0] != 3 /* Demand */ ||
+          q->choice_ids[1] != AI_CONTACT_CHOICE_ATTACK ||
+          q->choice_ids[2] != 5 /* Cancel */) {
+        fprintf(stderr, "unit_ai_contact: soldier rows %d: %d %d %d\n", q->choice_count,
+                q->choice_count > 0 ? q->choice_ids[0] : -1,
+                q->choice_count > 1 ? q->choice_ids[1] : -1,
+                q->choice_count > 2 ? q->choice_ids[2] : -1);
+        return fail("menu: DOS row order is Demand(8) then Attack(9) then Cancel(10)");
+      }
+      ai_popup_clear(&pop);
+      units_despawn(&units, sold_id);
     }
 
     /* Free Colonist → Live Among The Natives + Cancel only; Live Among → @LEARNSTAY CHOICE. */
