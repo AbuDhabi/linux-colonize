@@ -648,11 +648,11 @@ graphs:
         note: Dutch Isabella TURN4→5.
       - id: absorb
         kind: step
-        label: Absorption arm — Scout and Colonist cases of FUN_5952_035e's on-tile take-in
+        label: Absorption arm — Scout, Colonist and Soldier/Dragoon cases of FUN_5952_035e's on-tile take-in
         fn: ai_euro.c:ai_euro_act_colony_absorb
-        dos: FUN_5952_035e raw 94264-94274 (annotated colony_tick_5952_035e.md:606-620)
+        dos: FUN_5952_035e raw 94239-94274 (annotated colony_tick_5952_035e.md:589-620)
         status: dos
-        note: "Outer gate +0x1b & 0x10 (NEEDS_COLONISTS) and population < 0x20. Scout (@UNIT 0x16): continent G-stance 0 or stock[horses] < 0x34. Colonist (@UNIT 0x13): unconditional. Admission is colonies_admit_unit_w (FUN_15eb_1068 job 0x12), which refunds equipment to the colony stock and keeps the profession, so Servants/Criminals stay themselves. UNPORTED: the Soldier/Dragoon case (raw 94240-94256) — its gate reads DOS's unported labor_shortage formula plus two locals with no initialiser in the body."
+        note: "Outer gate +0x1b & 0x10 (NEEDS_COLONISTS) and population < 0x20. Scout (@UNIT 0x16): continent G-stance 0 or stock[horses] < 0x34. Colonist (@UNIT 0x13): unconditional. Admission is colonies_admit_unit_w (FUN_15eb_1068 job 0x12), which refunds equipment to the colony stock and keeps the profession, so Servants/Criminals stay themselves. Soldier/Dragoon (@UNIT 0x15/0x17, raw 94239-94256, ported 2026-09-18): absorbed when (a) iStack_76 < 0 && !(+0x1b & 8) — a dead branch, the labor_shortage running total is never negative — or (b) the arriving unit is an expert other than @JOB 0x15 and census aiStack_68[0x13]/[0x15] is non-zero, or (c) +0x1b & 4 (MILITARY_SURPLUS). Absorption clears bit 2 and consumes one census cell ([0x15] first). iStack_42/iStack_3e pinned off the overlay disassembly as those two census cells ([BP-0x40]/[BP-0x3c], array base [BP-0x66], int[25])."
       - id: corridors
         kind: step
         label: First-colony staging corridors (Pioneer found+1 → SW coast; Soldier SE+1→SE+2→SE+3); on-tile absorb+equip pair

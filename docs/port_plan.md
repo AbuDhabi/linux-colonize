@@ -691,14 +691,22 @@ list, not from the inventory.
   which the absorption's own 100-tool refund latches exactly as DOS's
   `uStack_16 = 1` does. Residual: a Pioneer carrying < 20 tools into an
   empty-tooled colony leaves the port's gate open where DOS's would close it.
-  STILL UNPORTED, deliberately: the Soldier/Dragoon case (raw 94240-94256).
-  Its gate needs `iStack_76`, DOS's unported `labor_shortage` FORMULA (the
-  port keeps a thin latch in `+0x8e`, so its sign is not DOS's), and
-  `iStack_42`/`iStack_3e`, which have no initialiser anywhere in the 1577-line
-  body; the carpenter arm's frame rule would make them `aiStack_68[0x13]` /
-  `[0x15]`, but that is inference from one prior data point. Since that case
-  is also the only absorption that WRITES colony state (clears `+0x1b` bit 2),
-  it is left out rather than guessed. `make test` 67/67, `make golden` green.
+  Soldier/Dragoon case (raw 94239-94256) PORTED 2026-09-18. `iStack_42` /
+  `iStack_3e` resolved off the OVL15 disassembly as `aiStack_68[0x13]` /
+  `[0x15]` of the by-profession census: Ghidra's `*Stack_NN` labels sit one
+  word below the real BP offsets in this frame (`iStack_76` → `[BP-0x74]`),
+  the array is based at `[BP-0x66]` and is `int[25]` (`LEA [BP-0x66]` +
+  `PUSH 0x32` memset; store `INC word [BP+SI-0x66]`, `SI = 2*@JOB`), and the
+  gate/decrement pair reads `[BP-0x40]` / `[BP-0x3c]` = indices 0x13 / 0x15.
+  The three gate disjuncts are `iStack_76 < 0 && !(+0x1b & 8)` (dead — the
+  labor_shortage running total, live in `ai_euro_5952_labor_demand` since
+  2026-09-09, is never negative there; transcribed as the dead branch it is),
+  `is_expert(@JOB) && @JOB != 0x15 && (census[0x13] || census[0x15])`, and
+  `+0x1b & 4`. Absorption clears `+0x1b` bit 2, refunds muskets/horses via
+  `colonies_admit_unit_w` and consumes one census cell (`[0x15]` first). The
+  census is stashed per colony (`s_5952_census_*`) the way `s_5952_ring1`
+  already is, since DOS builds it inside the tick just before the loop.
+  `make test` 67/67, `make golden` green.
 - Deliberate documented divergences (decision needed before "work"):
   king_ref.md short list, 5d04 past-the-end read kept 0 + musket-scratch
   collision as price×100, `@HELLOUSA` not modeled, per-act (vs DOS

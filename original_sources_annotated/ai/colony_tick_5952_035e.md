@@ -19,10 +19,25 @@ precedes the `+0x1b` ai_flags writes). Resolved call targets, via
 | `FUN_1000_8560` | `FUN_281f_0370` → `124c_0040` | `dos_dist(dx, dy)` | `ai_euro_dos_dist` |
 | `FUN_1000_8ca0(0)` | `FUN_281f_0ab0` → `15eb_039e` | owned buildings along parent chain | Stockade/Fort/Fortress count |
 
-Still unported from the same loop (deliberate, separate scope): the
-`iStack_22` ring-1 counter and the `iStack_76` `labor_shortage` (+0x8e)
-formula it feeds — the port keeps its own thin labor latch. Test:
+The `iStack_22` ring-1 counter and the `iStack_76` `labor_shortage` (+0x8e)
+formula it feeds were parked in that first pass; both have been live since
+2026-09-09 (`ai_euro_5952_labor_demand`, `s_5952_ring1`). Test:
 `tests/unit/test_ai_euro_war.c:unit_garrison_quota_threat_seed`.
+
+**Frame rule (2026-09-18, from the OVL15 disassembly).** Ghidra's
+`*Stack_NN` labels in this function sit exactly one WORD below the real BP
+offsets: the four entry zero stores are `[BP-0x22]` / `[BP-0x8a]` /
+`[BP-0x80]` / `[BP-0x90]` for `uStack_24` / `iStack_8c` / `iStack_82` /
+`iStack_92`, and `iStack_76` is `[BP-0x74]`. So `aiStack_68` is based at
+`[BP-0x66]`, and it is `int[25]` (@JOB 0..0x18), not `int[13]`: the memset
+is `LEA AX,[BP-0x66]` + `PUSH 0x32` (50 bytes) and the census store is
+`INC word ptr [BP+SI-0x66]` with `SI = 2*@JOB`. That resolves the locals
+Ghidra shows without an initialiser — `iStack_4e` = `[BP-0x4c]` =
+`aiStack_68[0x0d]`, `iStack_4a` = `[0x0f]`, `iStack_48` = `[0x10]`,
+`iStack_42` = `[BP-0x40]` = `[0x13]`, `iStack_3e` = `[BP-0x3c]` = `[0x15]`.
+The absorption arm's Soldier/Dragoon gate reads `CMP word ptr [BP-0x40],0x0`
+/ `[BP-0x3c],0x0` verbatim, and its decrement pair `DEC [BP-0x3c]` /
+`DEC [BP-0x40]`. Ported 2026-09-18 in `ai_euro_act_colony_absorb`.
 
 **Callers / nation gating (resolved 2026-09-08d — AI nations ONLY).** The
 tick has exactly one call site in the EXE: `FUN_521d_6d8e`'s own-colony loop

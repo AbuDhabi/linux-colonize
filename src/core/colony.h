@@ -288,16 +288,17 @@ typedef struct ColonizeColony {
  *     which is what the single-shot clear buys.
  *   - raw 94247: FUN_5952_035e's join-colonist loop (units standing on the
  *     colony tile fold into the population). 0x04 is one of three disjuncts
- *     that admit a Soldier/Dragoon; the arm then clears it. That whole loop
- *     is UNPORTED — the port has no 5952 stack-absorption pass at all — so
- *     this clear is documented debt, not a port defect. Wiring it needs the
- *     loop (DS:0x8d72 stack count, local_42/local_3e expert budgets,
- *     labor_shortage sign) first. 2026-09-10: local_42/local_3e are NOT
- *     independent locals — aiStack_68 is memset for 0x32 bytes, so they are
- *     aiStack_68[19] and aiStack_68[21] of the per-@JOB head-count buckets
- *     (non-experts bucket as 0x13), i.e. "plain colonists here" and "@JOB
- *     0x15 Soldiers here". Full decode in docs/smell_audit_2026-09-10.md,
- *     "FUN_5952_035e building / expert passes".
+ *     that admit a Soldier/Dragoon; the arm then clears it. PORTED
+ *     2026-09-18 in ai_euro_act_colony_absorb (the port runs the case from
+ *     the arriving unit's act instead of DOS's colony-side tile pass).
+ *     local_42/local_3e are NOT independent locals — aiStack_68 is memset
+ *     for 0x32 bytes, so they are aiStack_68[19] and aiStack_68[21] of the
+ *     per-@JOB head-count buckets (non-experts bucket as 0x13), i.e. "plain
+ *     colonists here" and "@JOB 0x15 Soldiers here"; confirmed 2026-09-18
+ *     against the OVL15 disassembly ([BP-0x40]/[BP-0x3c] off the array base
+ *     [BP-0x66]). The third disjunct's `labor_shortage < 0` test is dead in
+ *     DOS. Full decode in docs/smell_audit_2026-09-10.md, "FUN_5952_035e
+ *     building / expert passes", and colony_tick_5952_035e.md's frame rule.
  */
 #define COLONIZE_COLONY_AI_MILITARY_SURPLUS 0x04u
 #define COLONIZE_COLONY_AI_SHORT_DEFENDERS 0x08u
