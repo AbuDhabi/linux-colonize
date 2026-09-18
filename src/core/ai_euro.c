@@ -6076,12 +6076,13 @@ static void ai_euro_found_with_unit(ColonizeTurnContext* ctx, ColonizeUnit* foun
   ai_euro_prefer_peace_construction(ctx, nation_id);
 }
 
-static void ai_euro_join_colony(ColonizeTurnContext* ctx, ColonizeUnit* u, int colony_id) {
-  if (!ctx || !ctx->colonies || !u) {
-    return;
-  }
-  (void)colonies_admit_unit_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(ctx->units), .colonies=(ColonizeColonyPool*)(ctx->colonies), .col1=(ColonizeCol1Save*)(ctx->col1_ok ? ctx->col1 : NULL), .col1_ok=((ctx->col1_ok ? ctx->col1 : NULL) != NULL)}, colony_id, u->id);
-}
+/*
+ * `ai_euro_join_colony` (the bare colonies_admit_unit_w wrapper) is gone with
+ * its last caller, the invented LABOR/COLONY arrival join. Every surviving
+ * admission goes through the arm that owns it: FUN_5952_035e's colony-tick
+ * tile re-scan (ai_euro_5952_absorb_equip, raw 94231-94274) and the expert
+ * field/workplace assign arms, which admit *and* seat the colonist.
+ */
 
 /*
  * Thin 5b66 case 7 economy: Pioneer/Hardy tools delivery — body after wagon
@@ -20736,27 +20737,24 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_land_goal_dispatch(struct ai_euro_
     }
   }
 
-  if ((goal_code == AI_GOAL_LABOR || goal_code == AI_GOAL_COLONY ||
-       goal_code == AI_GOAL_COLONY_ALT) &&
-      ctx->colonies) {
-    const int cid = colonies_id_at(ctx->colonies, goal_x, goal_y);
-    if (cid >= 0 && u->x == goal_x && u->y == goal_y) {
-      /*
-       * Garrison/Artillery stay for fortify quota — do not admit as LABOR
-       * while quota remains. Quota 0 (early Isabella): admit Soldier as
-       * colonist (TURN4→5 pop 1→2). Cite: test-saves-ai/TURN4–5.
-       */
-      int admit = !ai_euro_is_artillery_name(uname);
-      if (admit && ai_euro_is_military_name(uname)) {
-        const ColonizeColony* jc = colonies_get(ctx->colonies, cid);
-        admit = jc && jc->garrison_quota == 0;
-      }
-      if (admit) {
-        ai_euro_join_colony(ctx, u, cid);
-        return AI_EURO_ACT_RETURN;
-      }
-    }
-  }
+  /*
+   * No LABOR/COLONY "arrive on the colony tile → join as a colonist" arm.
+   * DOS has no such unit-act outcome: FUN_521d_20e6's complete +0x314b
+   * vocabulary over raw 88266-89800 is 0x39/0x3d/0x40/0x42/0x46/0x47/0x4c/
+   * 0x56/0x65 (no join), and FUN_521d_0a60's own-colony block only marks
+   * standing military 'A' (0x41) — raw 87683-87756, ported as
+   * ai_euro_colony_goals_colony_garrison. That mark is bookkeeping: it
+   * decrements labor_shortage (+0x8e) and garrison_quota (+0x1e) and hides
+   * the unit from this turn's goal scan; it never moves it into a colonist
+   * slot. Note the DOS polarity — garrison_quota is a COUNTER the admission
+   * spends, never a `== 0` gate. The actual absorption of a unit standing
+   * on its own colony tile is FUN_5952_035e's colony-tick tile re-scan
+   * (raw 94231-94274, ported as ai_euro_5952_absorb_equip and called from
+   * ai_euro_colony_goals_colony_labor), which owns both the per-type gates
+   * and the NEEDS_COLONISTS (+0x1b bit 0x10) precondition. The
+   * `garrison_quota == 0` admit that used to sit here cited only
+   * test-saves-ai/TURN4-5 and was deleted (sibling of bugs.md #512/#515).
+   */
   if (goal_code == AI_GOAL_MILITARY || goal_code == AI_GOAL_CONTACT) {
     if (abs(u->x - goal_x) <= 1 && abs(u->y - goal_y) <= 1) {
       /* Exclude self: a stale goal can point at a tile the unit itself now

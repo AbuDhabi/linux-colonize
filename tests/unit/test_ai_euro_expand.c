@@ -6858,6 +6858,21 @@ static int unit_silver_miner_field_assign(void) {
   }
   /* North surround mountains (0xa0): silver yield. */
   map.terrain[3 * 16 + 4] = 0xa0u;
+  /*
+   * Road on the mountain: plain no-resource mountains yield 0 silver
+   * (colony_yield.c, `(road || expert) ? 1 : 0` — the AI-side
+   * colony_yield_for_tile has no worker context, so it is the road that
+   * makes the plot worth working). Without it the free-field scan finds
+   * nothing and the role never fires; the fixture used to reach pop 2→3
+   * through the generic LABOR/COLONY join instead — an invented arm, now
+   * deleted (bugs.md #515 sibling).
+   */
+  map.improve = calloc(256, 1);
+  if (!map.improve) {
+    fx_map_free(&map);
+    return fail("silver-field alloc improve");
+  }
+  map.improve[3 * 16 + 4] = MAP_IMPROVE_ROAD;
 
   ColonizeUnitPool units;
   fx_units_init(&units);
@@ -7234,6 +7249,13 @@ static int unit_fisherman_field_assign(void) {
   }
   /* West surround ocean (pedia 25) — Fisherman food yield. */
   map.terrain[4 * 16 + 3] = 25;
+  /*
+   * Docks: DOS FUN_15eb_038e(6) zeroes every Fisherman yield in a dockless
+   * colony, so the expert-Fisherman field-assign role is `needs_docks` and
+   * cannot fire without one. The fixture used to reach pop 2→3 through the
+   * generic LABOR/COLONY join instead — an invented arm, now deleted
+   * (bugs.md #515 sibling) — which made this a test of the wrong path.
+   */
 
   ColonizeUnitPool units;
   fx_units_init(&units);
@@ -7261,6 +7283,11 @@ static int unit_fisherman_field_assign(void) {
   c->stock[COLONIZE_CARGO_FOOD] = 40;
   c->stock[COLONIZE_CARGO_TOOLS] = 40;
   c->building_in_production = -1;
+  snprintf(
+    colonies.building_types[0].name, sizeof(colonies.building_types[0].name), "Docks"
+  );
+  colonies.building_type_count = 1;
+  c->has_building[0] = true;
   colonies.colony_count = 1;
   colonies.next_id = 1;
 

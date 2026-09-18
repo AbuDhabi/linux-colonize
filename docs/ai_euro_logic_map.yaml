@@ -1049,8 +1049,13 @@ graphs:
         fn: ai_goals.c:ai_goals_best_found_tile_near
       - id: on_colony
         kind: step
-        label: Own colony arrival — admit / LABOR / COLONY join; wagon Europe sell
-        fn: ai_euro.c:ai_euro_join_colony
+        label: Own colony arrival — wagon/pioneer TOOLS delivery, wagon Europe sell (no join)
+        fn: ai_euro.c:ai_euro_try_wagon_tools_delivery
+        dos: >-
+          No unit-act join: 20e6's +0x314b vocabulary (raw 88266-89800) has no
+          join outcome, 0a60's own-colony block only marks 'A' (raw
+          87683-87756), and absorption is FUN_5952_035e's tile re-scan (raw
+          94231-94274, ai_euro_5952_absorb_equip).
         status: structural
       - id: mil_contact
         kind: step
