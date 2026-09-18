@@ -3931,6 +3931,9 @@ static int unit_ai_treasure_colony_cash(void) {
   fx_colonies_init(&colonies);
   ColonizeColony* c = fx_colony_add(&colonies, nation, 4, 4, 2);
   c->stock[COLONIZE_CARGO_FOOD] = 40;
+  /* Closes FUN_5952_035e's emergency lumber buy (raw 94680: stock < 2), which
+   * would otherwise take 200 gold off this nation on turn 0. */
+  c->stock[COLONIZE_CARGO_LUMBER] = 25;
 
   const int tid = units_spawn(&units, 0, 4, 4);
   ColonizeUnit* treasure = units_get(&units, tid);
@@ -4689,6 +4692,9 @@ static int unit_treasure_board_sail(void) {
   fx_colonies_init(&colonies);
   ColonizeColony* c = fx_colony_add(&colonies, nation, 4, 4, 2);
   c->stock[COLONIZE_CARGO_FOOD] = 40;
+  /* Closes FUN_5952_035e's emergency lumber buy (raw 94680: stock < 2), which
+   * would otherwise take 200 gold off this nation on turn 0. */
+  c->stock[COLONIZE_CARGO_LUMBER] = 25;
 
   const int tid = units_spawn(&units, 0, 4, 4);
   ColonizeUnit* treasure = units_get(&units, tid);
@@ -6403,6 +6409,9 @@ static void unit_indian_land_seed_colony(ColonizeColonyPool* colonies, int natio
   c->colonist_count = 3;
   c->stock[COLONIZE_CARGO_FOOD] = 80;
   c->stock[COLONIZE_CARGO_TOOLS] = 40;
+  /* Closes FUN_5952_035e's emergency lumber buy (raw 94680: stock < 2), which
+   * would otherwise take 200 gold off this nation on turn 0. */
+  c->stock[COLONIZE_CARGO_LUMBER] = 25;
   c->building_in_production = -1;
   colonies->colony_count = 1;
   colonies->next_id = 1;

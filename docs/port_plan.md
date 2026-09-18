@@ -611,9 +611,7 @@ list, not from the inventory.
   — the by-profession Master Carpenter census, not an uninitialised local;
   `FUN_281f_0cae(slot, 0x1c)` is the profession writer (bugs.md #431), so a
   chosen Servant/Criminal becomes a Free Colonist; the RNG is
-  `FUN_281f_04d4(0, 0x10 - DS:0x53a6)`. STILL UNPORTED in the same block: the
-  forced-lumberjack pass (raw 94659-94679) and the 200-gold/100-lumber AI
-  purchase (raw 94680-94689), which only ever widen this arm's gate. Golden
+  `FUN_281f_04d4(0, 0x10 - DS:0x53a6)`. Golden
   impact zero (traced: the arm is reached on every AI colony, and every
   golden colony fails the lumber gate). `make test` 66/66, `make golden` green.
 - [x] **`5952_035e` construction-project cascade (asm `5952:21d4`-`5952:274b`)
@@ -654,6 +652,53 @@ list, not from the inventory.
   `AI_5952_BUILD_TRACE=1` on `golden_ai_turns` / `golden_ai_joint` /
   `smoke_ai_mid01` / `smoke_ai_late01`: no unit pick fires). `make test`
   64/64, `make golden` green.
+- [x] **`5952_035e` forced-lumberjack pass + AI emergency lumber buy (raw
+  94659-94689, md:1074-1112) — LANDED 2026-09-18.**
+  `ai_euro_5952_lumberjack_pick` / `ai_euro_5952_forced_lumberjack` /
+  `ai_euro_5952_lumber_purchase` in `ai_euro.c` (seams in
+  `ai_euro_internal.h`, `tests/unit/test_ai_euro_5952_lumber.c`). Both run
+  inside the `(+0x1d & 0x80) == 0` block immediately ahead of the carpenter
+  arm, so that arm now sees the bought lumber as DOS does. Resolutions:
+  colony `+0xa4` = `+0x9a + 2*5` = the Lumber stock word; `DS:0x8dd2` =
+  gross production[Lumber]; the three passes are profession 5 / any
+  non-expert (`FUN_281f_0c9a == 0`) / anyone, with NO `0cae` profession
+  rewrite (unlike the carpenter arm); `FUN_1000_8d5e(slot, 5)` is the 28c8
+  call with a real job index, i.e. `ai_euro_28c8_score_job(.., restrict 5)`.
+  `iStack_8c` is always 0 on entry — its only other writer is the
+  LAB_5952_17a9 leftovers election the port already proved dead. The
+  purchase is DOS-asymmetric and kept so: the colony gains 100 lumber
+  unconditionally, the 200 gold comes off only a purse holding ≥ 200, read
+  with `europe_nation_gold` and written with `europe_nation_gold_add` on the
+  colony owner's record (`DS:0x84fc + 0x2a/0x2c`). `DS:0x538e` is
+  `ctx->turn_number`. Test fallout: seven AI-turn fixtures that assert exact
+  gold deltas now stock the fixture colony with 25 lumber to close the buy's
+  `stock < 2` gate (comment at each site); no expectation was moved.
+  `make test` 67/67, `make golden` green.
+- [x] **`5952_035e` absorption arm — Scout + Colonist cases and the `local_16`
+  resolution (raw 94264-94274) — LANDED 2026-09-18.**
+  `ai_euro_act_colony_absorb` in `ai_euro.c` (seam in `ai_euro_internal.h`,
+  case in `tests/unit/test_stage_seams.c`), run in `ai_euro_unit_act` just
+  ahead of `ai_euro_act_pioneer_corridor` (the same arm's 0x14 case).
+  Scout (@UNIT 0x16): continent G-stance 0 or `colony+0xaa` (cargo 8 =
+  Horses) `< 0x34`. Colonist (@UNIT 0x13): unconditional. Both under the
+  shared outer gate `+0x1b & 0x10` and population `< 0x20`; admission is
+  `colonies_admit_unit_w` (`FUN_15eb_1068` job 0x12), which refunds the
+  unit's equipment into the colony stock and keeps the profession, so
+  Indentured Servant 0x19 / Petty Criminal 0x1a survive intact.
+  `local_16` RESOLVED (md:283): it is seeded `uStack_16 = (0x13 < +0xb6)` —
+  "this colony already holds more than 19 TOOLS" — not a per-tick latch, so
+  the Pioneer case's gate is now `WANTS_PIONEER_WORK && stock[TOOLS] <= 19`,
+  which the absorption's own 100-tool refund latches exactly as DOS's
+  `uStack_16 = 1` does. Residual: a Pioneer carrying < 20 tools into an
+  empty-tooled colony leaves the port's gate open where DOS's would close it.
+  STILL UNPORTED, deliberately: the Soldier/Dragoon case (raw 94240-94256).
+  Its gate needs `iStack_76`, DOS's unported `labor_shortage` FORMULA (the
+  port keeps a thin latch in `+0x8e`, so its sign is not DOS's), and
+  `iStack_42`/`iStack_3e`, which have no initialiser anywhere in the 1577-line
+  body; the carpenter arm's frame rule would make them `aiStack_68[0x13]` /
+  `[0x15]`, but that is inference from one prior data point. Since that case
+  is also the only absorption that WRITES colony state (clears `+0x1b` bit 2),
+  it is left out rather than guessed. `make test` 67/67, `make golden` green.
 - Deliberate documented divergences (decision needed before "work"):
   king_ref.md short list, 5d04 past-the-end read kept 0 + musket-scratch
   collision as price×100, `@HELLOUSA` not modeled, per-act (vs DOS

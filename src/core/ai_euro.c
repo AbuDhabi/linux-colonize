@@ -3377,6 +3377,148 @@ static void ai_euro_5952_indoor_pass(
   }
 }
 
+/* ===== FUN_5952_035e forced-lumberjack pass + lumber buy (raw 94659-94689) ===== */
+
+/*
+ * DOS-LITERAL FUN_5952_035e raw 94659-94679 (annotated
+ * colony_tick_5952_035e.md:1074-1099) — per-pass slot election of the
+ * forced-lumberjack arm.
+ *
+ * DOS's three passes (`iStack_e6` 0..2) over the still-unplaced slots, on the
+ * cached profession array `aiStack_12e`:
+ *   0: profession == 5 (an existing Expert Lumberjack)
+ *   1: `FUN_1000_8e8a(prof) == 0` = FUN_281f_0c9a, i.e. NOT an expert —
+ *      @JOB 0x13 and 0x19..0x1c (Free Colonist, Servant, Criminal, Convert)
+ *   2: no test at all — the DOS `else if (iStack_e6 == 1)` chain falls
+ *      straight through to the 28c8 call for every remaining pass value.
+ * Unlike the carpenter arm there is NO profession rewrite here: DOS never
+ * calls 0cae in this arm, so an Indentured Servant (0x19) or Petty Criminal
+ * (0x1a) sent to the woods keeps its identity.
+ */
+COLONIZE_INTERNAL int ai_euro_5952_lumberjack_pick(
+  const ColonizeColony* c, const bool* placed, int n, int pass, int start
+) {
+  if (!c || !placed) {
+    return -1;
+  }
+  for (int s = start < 0 ? 0 : start; s < n && s < COLONIZE_COLONY_POP_MAX; ++s) {
+    if (placed[s] || !c->colonists[s].active) {
+      continue;
+    }
+    const int prof = (int)c->colonists[s].profession;
+    if (pass == 0 && prof != COLONIZE_PROF_LUMBERJACK) {
+      continue; /* raw 94665 */
+    }
+    if (pass == 1 && ai_euro_5952_job_is_expert(prof)) {
+      continue; /* raw 94670 */
+    }
+    return s;
+  }
+  return -1;
+}
+
+/*
+ * DOS-LITERAL FUN_5952_035e raw 94680-94689 (md:1101-1112) — the AI's
+ * emergency lumber purchase, the arm that feeds the carpenter arm's gate.
+ *
+ * Gates, all three: no lumberjack was placed this tick (`iStack_8c == 0`),
+ * the colony holds fewer than 2 lumber (`colony+0xa4 < 2`; +0xa4 = +0x9a +
+ * 2*5 = the Lumber stock word) and the turn counter `DS:0x538e & 7 == 0`,
+ * i.e. one turn in eight.
+ *
+ * What it does — and the order matters: the colony is credited 100 lumber
+ * UNCONDITIONALLY (`*piVar3 = *piVar3 + 100`), and only THEN is the bound
+ * nation record's 32-bit purse (`DS:0x84fc + 0x2a` low word, `+0x2c` high
+ * word) debited 200, gated on `high >= 0 && (high > 0 || low > 199)` — plain
+ * "signed gold >= 200". A broke AI therefore still gets its 100 lumber free;
+ * that asymmetry is DOS, not a port shortcut. The debit is a delta, so it
+ * goes through europe_nation_gold_add and the read through
+ * europe_nation_gold (europe.h single-treasury rule); 0x84fc is the colony
+ * owner's record, the nation the tick is bound to.
+ */
+COLONIZE_INTERNAL void ai_euro_5952_lumber_purchase(
+  struct EuropeScreen* eu, struct ColonizeCol1Save* col1, ColonizeColony* col, int turn,
+  bool lumber_producer_placed
+) {
+  if (!col || lumber_producer_placed) {
+    return;
+  }
+  if (col->stock[COLONIZE_CARGO_LUMBER] >= 2 || (turn & 7) != 0) {
+    return;
+  }
+  col->stock[COLONIZE_CARGO_LUMBER] += 100; /* raw 94683-94684 */
+  const int nation = col->nation_id;
+  if (nation < 0 || nation >= 4) {
+    return;
+  }
+  const long gold = (long)(int32_t)europe_nation_gold(eu, col1, nation);
+  if (gold >= 200) { /* raw 94686-94687 */
+    europe_nation_gold_add(eu, col1, nation, -200);
+  }
+}
+
+/*
+ * The forced-lumberjack arm itself, raw 94659-94679. Runs inside the same
+ * `(colony+0x1d & 0x80) == 0` block as the carpenter arm and immediately
+ * before it, gated on `iStack_8c == 0 && colony+0xa4 < 10` — under 10 lumber
+ * in stock and nobody chopping.
+ *
+ * `iStack_8c` is seeded 0 at raw 94257 and has exactly two writers: this arm
+ * (raw 94676) and the LAB_5952_17a9 leftovers election at raw 94657 — which
+ * the port has already proved dead (its `1 < DS:0x8dbe` threshold can never
+ * hold after a mode −2 probe; see the AI_5952_INDOOR=0 stand-in's comment).
+ * So on entry it is always 0, and the flag's only live role is the gate on
+ * the purchase arm below it, which this function returns.
+ *
+ * The while-guard is `DS:0x8dd2 == 0` = gross production[Lumber], refreshed
+ * by FUN_281f_0c04 after each assignment, so in practice the arm seats
+ * exactly ONE lumberjack and every remaining pass finds the guard already
+ * false. The 28c8 call is `FUN_1000_8d5e(0x181f, slot, 5)` — the third
+ * argument is a real job index, so the search is confined to Lumberjack and
+ * only the best TILE for it is elected.
+ */
+static bool ai_euro_5952_forced_lumberjack(
+  ColonizeTurnContext* ctx, ColonizeColony* col, bool* placed, int n
+) {
+  ColonizeColonyPool* pool = ctx->colonies;
+  const ColonizeCol1Save* col1 = (ctx->col1_ok && ctx->col1) ? ctx->col1 : NULL;
+  const ColonizeWorld world = world_from_turn_ctx(ctx);
+  int gross[AI_EURO_5952_LEDGER_SLOTS];
+  int demand[AI_EURO_5952_LEDGER_SLOTS];
+  bool any = false;
+
+  if (col->stock[COLONIZE_CARGO_LUMBER] >= 10) {
+    return false; /* raw 94661 */
+  }
+  ai_euro_5952_ledgers(&world, pool, col, col1, gross, demand);
+
+  for (int pass = 0; pass < 3; ++pass) {
+    int from = 0;
+    while (gross[COLONIZE_CARGO_LUMBER] == 0) {
+      const int s = ai_euro_5952_lumberjack_pick(col, placed, n, pass, from);
+      if (s < 0) {
+        break;
+      }
+      from = s + 1;
+      AiEuro28c8JobCandidate best;
+      col->colonists[s].field_job = -1;
+      const int ok = ai_euro_28c8_score_job(
+        ctx, col, s, (int)col->colonists[s].profession, COLONIZE_JOB_LUMBERJACK, &best
+      );
+      if (!ok) {
+        continue; /* 8d5e != 0 — DOS just walks on to the next slot */
+      }
+      if (colonies_assign_field(pool, col->id, s, best.tile, best.job)) {
+        placed[s] = true;
+        any = true; /* iStack_8c = 1, raw 94676 */
+        /* FUN_281f_0c04 — the refresh that ends the loop. */
+        ai_euro_5952_ledgers(&world, pool, col, col1, gross, demand);
+      }
+    }
+  }
+  return any;
+}
+
 /* ===== FUN_5952_035e carpenter-staffing arm (raw 94690-94740) ===== */
 
 /*
@@ -3450,11 +3592,10 @@ COLONIZE_INTERNAL int ai_euro_5952_carpenter_pick(
  * `FUN_281f_04d4(0, 0x10 - DS:0x53a6) == 0` roll — 1-in-17 at Discoverer,
  * 1-in-13 at Viceroy. `FUN_1000_8e26(slot, 0x0d)` then seats him.
  *
- * DIVERGENCE (documented, upstream): DOS's two preceding arms in the same
- * `(+0x1d & 0x80) == 0` block — the forced-lumberjack pass (raw 94659-94679)
- * and the AI's 200-gold / 100-lumber emergency purchase (raw 94680-94689) —
- * are still unported, so this arm sees the colony's own lumber, never the
- * bought 100. That can only make the gate fail where DOS's would pass.
+ * DOS's two preceding arms in the same `(+0x1d & 0x80) == 0` block — the
+ * forced-lumberjack pass (raw 94659-94679) and the AI's 200-gold /
+ * 100-lumber emergency purchase (raw 94680-94689) — are ported above and run
+ * first, so this arm sees the bought 100 lumber exactly as DOS does.
  * `iStack_ca` (raw 94733) is a counter nothing in the function ever reads.
  */
 static void ai_euro_5952_carpenter_arm(
@@ -4297,6 +4438,13 @@ static void ai_euro_colony_tick_28c8_reassign(ColonizeTurnContext* ctx, int nati
      * `(+0x1d & 0x80) == 0` block that seeds local_14 below.
      */
     if ((col->build_ai_flags & COLONIZE_BUILD_AI_WANTS_CONSTRUCTION) == 0) {
+      /* raw 94659-94679 then 94680-94689, both ahead of the carpenter arm. */
+      const bool lumber_placed = ai_euro_5952_forced_lumberjack(ctx, col, placed, n);
+      ai_euro_5952_lumber_purchase(
+        ctx->europe, (ctx->col1_ok && ctx->col1) ? ctx->col1 : NULL, col,
+        /* DS:0x538e — the port's turn counter is ctx->turn_number. */
+        ctx->turn_number ? (int)*ctx->turn_number : 0, lumber_placed
+      );
       ai_euro_5952_carpenter_arm(ctx, col, placed, n);
     }
 
@@ -18225,6 +18373,90 @@ COLONIZE_INTERNAL int ai_euro_5952_equip_pick(const ColonizeColony* c, int targe
 }
 
 /*
+ * Stage: FUN_5952_035e absorption arm, the two cases outside the Pioneer
+ * pair below — raw 94264-94270 (Scout, @UNIT 0x16) and raw 94271-94274
+ * (Colonist, @UNIT 0x13); annotated colony_tick_5952_035e.md:606-620.
+ *
+ * DOS runs this as a colony-side loop over the units STANDING ON the colony
+ * tile (`DS:0x8d72`, the tile stack count; the loop walks the colonist array
+ * past `+0x1f` into them), restarting from the top after every absorption
+ * (`iStack_32`). The port has no such colony-side tile pass, so — exactly as
+ * the Pioneer case one function below already does — each arriving unit
+ * applies its own case during its act. That is the same set of absorptions in
+ * the same order for any tile that gains one unit per act; the difference is
+ * only DOS's re-scan, which matters solely when several units sit on the tile
+ * at once and the earlier ones changed a gate.
+ *
+ * Outer gates, shared with the Pioneer case (raw 94231-94237): the colony
+ * must have `+0x1b & 0x10` (NEEDS_COLONISTS) and population < 0x20, and the
+ * unit must stand on the town tile.
+ * Per-case gates, verbatim:
+ *   Scout    `local_2a == 0 || colony[+0xaa] < 0x34` — continent G-stance 0
+ *            (ai_euro_continent_stance_at) or fewer than 52 HORSES
+ *            (+0xaa = +0x9a + 2*8, cargo 8 = Horses; the same word the tick's
+ *            "wants a Scout" arm tests against 0x65 at raw 94279).
+ *   Colonist no gate at all — an arriving Free Colonist is always taken in.
+ * Absorption itself is `FUN_1000_8e26(slot, 0x12)` = FUN_281f_0c36 =
+ * FUN_15eb_1068 with job 0x12 (the idle sentinel), i.e. colonies_admit_unit_w
+ * — whose refund loop (viceroy_unpacked.c 11234-11248) banks the unit's
+ * equipment back into the colony stock, and which keeps the colonist's
+ * profession, so an Indentured Servant (0x19) or Petty Criminal (0x1a)
+ * walking in stays one. No profession is rewritten anywhere in this arm.
+ *
+ * NOT ported, deliberately (raw 94240-94256, the Soldier/Dragoon 0x15/0x17
+ * case): its gate is
+ *   `(iStack_76 < 0 && !(+0x1b & 8)) ||
+ *    (is_expert(prof) && prof != 0x15 && (iStack_42 || iStack_3e)) ||
+ *    (+0x1b & 4)`
+ * and two of those three disjuncts cannot be pinned today. `iStack_76` is
+ * DOS's own labor_shortage FORMULA (raw 94020-94040, +0x8e), which this port
+ * has never ported — it keeps a thin labor latch in that field instead, so
+ * its sign is not DOS's. `iStack_42`/`iStack_3e` have no initialiser anywhere
+ * in the 1577-line body; by the carpenter arm's frame rule (Ghidra's label
+ * sits one word below the real slot, aiStack_68 based at BP-0x66) they would
+ * be `aiStack_68[0x13]` and `aiStack_68[0x15]` of the by-profession census,
+ * but that is an inference from a single prior data point, not evidence.
+ * Guessing either would put a wrong gate on the one absorption that also
+ * WRITES colony state (it clears `+0x1b` bit 2), so the case is left out.
+ */
+COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_colony_absorb(struct ai_euro_act_ctx* a) {
+  ColonizeTurnContext* const ctx = a->ctx;
+  ColonizeUnit* u = a->u;
+
+  if (a->is_ship || !u || !u->active || !ctx->colonies || !ctx->units) {
+    return AI_EURO_ACT_CONTINUE;
+  }
+  const ColonizeUnitKind kind = units_name_kind(units_display_name(ctx->units, u));
+  if (kind != UNITS_KIND_SCOUT && kind != UNITS_KIND_COLONIST) {
+    return AI_EURO_ACT_CONTINUE;
+  }
+  for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+    ColonizeColony* c = &ctx->colonies->colonies[i];
+    if (!c->active || c->nation_id != a->nation_id || c->x != u->x || c->y != u->y) {
+      continue;
+    }
+    if ((int)c->population >= 0x20 ||
+        (c->ai_flags & COLONIZE_COLONY_AI_NEEDS_COLONISTS) == 0) {
+      return AI_EURO_ACT_CONTINUE; /* raw 94231/94237 */
+    }
+    if (kind == UNITS_KIND_SCOUT) {
+      const int stance =
+        ai_euro_continent_stance_at(a->nation_id, map_continent_id_at(ctx->map, c->x, c->y));
+      if (stance != 0 && c->stock[COLONIZE_CARGO_HORSES] >= 0x34) {
+        return AI_EURO_ACT_CONTINUE; /* raw 94264 */
+      }
+    }
+    ColonizeWorld w = world_from_turn_ctx(ctx);
+    if (colonies_admit_unit_w(&w, c->id, u->id) >= 0) {
+      a->u = NULL;
+      return AI_EURO_ACT_RETURN;
+    }
+    return AI_EURO_ACT_CONTINUE;
+  }
+  return AI_EURO_ACT_CONTINUE;
+}
+
+/*
  * Stage: Pioneer FR tip corridor + colony tools/muskets equip arm
  * (FUN_5952_035e absorb+equip pair, raw 94257-94352). Extracted verbatim
  * from ai_euro_unit_act.
@@ -18313,8 +18545,20 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_pioneer_corridor(struct ai_euro_ac
        * reached with the Pioneer on it), `+0x1b & 0x10` (NEEDS_COLONISTS) is
        * set and population < 0x20; the Pioneer case adds
        * `((+0x1b & 0x80) != 0 && local_16 == 0) || local_2a == 0`, i.e.
-       * WANTS_PIONEER_WORK (once per tick — one Pioneer is absorbed per act
-       * here, which is that once) or continent stance 0.
+       * WANTS_PIONEER_WORK with `local_16` clear, or continent stance 0.
+       *
+       * `local_16` RESOLVED 2026-09-18 (md:283): it is NOT a per-act latch —
+       * the tick seeds it `uStack_16 = (0x13 < colony[+0xb6])`, i.e. "this
+       * colony already holds more than 19 TOOLS" (+0xb6 = +0x9a + 2*14,
+       * cargo 14 = Tools), and the Pioneer case then sets it so no SECOND
+       * Pioneer is absorbed through that disjunct in the same tick. Both
+       * halves are read live here: the gate is `stock[TOOLS] <= 19`, and the
+       * absorption's own refund (FUN_15eb_1068 banks the Pioneer's +0x3159
+       * tools byte into stock[TOOLS]) pushes a 100-tool Pioneer's colony past
+       * 19 by itself, which is DOS's `uStack_16 = 1` write in port terms.
+       * Residual divergence, documented: a Pioneer carrying fewer than 20
+       * tools into a colony holding none leaves the port's gate open where
+       * DOS's latch would have closed it.
        *
        * The equip gates are DOS's, from raw 94289-94311: population > 1;
        * demand = (ai_flags & 0x48) or the "big settled town" path (population
@@ -18327,7 +18571,8 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_pioneer_corridor(struct ai_euro_ac
       int absorbed = 0;
       if (on_tile && (int)c->population < 0x20 &&
           (c->ai_flags & COLONIZE_COLONY_AI_NEEDS_COLONISTS) != 0 &&
-          ((c->ai_flags & COLONIZE_COLONY_AI_WANTS_PIONEER_WORK) != 0 ||
+          (((c->ai_flags & COLONIZE_COLONY_AI_WANTS_PIONEER_WORK) != 0 &&
+            c->stock[COLONIZE_CARGO_TOOLS] <= 0x13) ||
            ai_euro_continent_stance_at(
              nation_id, map_continent_id_at(ctx->map, c->x, c->y)
            ) == 0)) {
@@ -20679,6 +20924,11 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
   a.nation_id = nation_id;
   a.is_ship = is_ship;
 
+  /* FUN_5952_035e absorption arm, Scout + Colonist cases (raw 94264-94274) —
+   * ahead of the Pioneer pair, which is the same arm's 0x14 case. */
+  if (ai_euro_act_colony_absorb(&a) == AI_EURO_ACT_RETURN) {
+    return;
+  }
   if (ai_euro_act_pioneer_corridor(&a) == AI_EURO_ACT_RETURN) {
     return;
   }

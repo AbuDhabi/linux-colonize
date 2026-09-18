@@ -841,6 +841,8 @@ static int unit_delivery_sell_tail_dumps_cargo(void) {
   c->colonist_count = 3;
   c->stock[COLONIZE_CARGO_FOOD] = 60;
   c->stock[COLONIZE_CARGO_TOOLS] = 150;
+  /* See treasure_add_colony: closes the 5952 emergency lumber buy (raw 94680). */
+  c->stock[COLONIZE_CARGO_LUMBER] = 25;
   c->building_in_production = -1;
   f.colonies.colony_count = 1;
   f.colonies.next_id = 1;
@@ -1615,6 +1617,10 @@ static void treasure_add_colony(Fixture* f, int idx, int nation, int x, int y) {
   c->population = 3;
   c->colonist_count = 3;
   c->stock[COLONIZE_CARGO_FOOD] = 60;
+  /* Closes FUN_5952_035e's emergency lumber buy (raw 94680: stock < 2), which
+   * would otherwise take 200 gold off this nation on turn 0 and drown the
+   * treasure/sell deltas these cases measure. */
+  c->stock[COLONIZE_CARGO_LUMBER] = 25;
   c->building_in_production = -1;
   if (f->colonies.colony_count <= idx) {
     f->colonies.colony_count = idx + 1;
