@@ -1905,13 +1905,6 @@ static int ai_euro_at_war_any_peer(const ColonizeCol1Save* col1, int nation_id) 
   return 0;
 }
 
-/* Forward: threatened colony (MD≤3 war-peer) — board skip / unload / LABOR. */
-static int ai_euro_colony_threatened_by_war(
-  ColonizeTurnContext* ctx,
-  int nation_id,
-  const ColonizeColony* c
-);
-
 /*
  * Military land unit by @UNIT row: Soldiers, Dragoons, Regulars, Cavalry,
  * Cont. Cav., Cont. Army. Also the peace colony garrison set — audit AE-6:
@@ -10663,10 +10656,9 @@ static void ai_euro_colony_goals(ColonizeTurnContext* ctx, int nation_id) {
    * (+0x8e): that disjunct was dropped 2026-09-09 and must not come back —
    * the long comment at the arm itself explains why (+0x8e is >= 1 for
    * essentially every colony of pop >= 3, so it made the arm unconditional).
-   * Threatened Stockade deepen: war-peer within MD≤3 + incomplete Stockade →
-   * higher LABOR prio so Free Colonist prefers hammers over distant FOUND.
-   * Cite: building_production.md Stockade defense; Colonization.pdf fortify;
-   * ai_euro_colony_threatened_by_war MD≤3; euro_unit_act §2e / case 0x0b. */
+   * (A "threatened Stockade deepen" LABOR-priority term stood here; deleted
+   * 2026-09-18 with ai_euro_colony_threatened_by_war — the AI's building
+   * choice is the FUN_5952_035e cascade alone, never war proximity.) */
   ai_euro_ship_pressure_reset(nation_id); /* FUN_4962_0018 raw 78239-78242 */
   if (ctx->colonies) {
     for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
@@ -13609,7 +13601,7 @@ static void ai_euro_try_attack(ColonizeTurnContext* ctx, ColonizeUnit* u, int tx
     if (!ai_diplo_at_war(ctx->col1, u->nation_id, f->nation_id)) {
       /*
        * bugs.md #472: the signed-treaty bit 0x40 gates every Euro target
-       * (same DOS rule as ai_euro_land_best_adjacent_foe, smell #106). The
+       * (same DOS rule as the LAB_4d2e attack term, smell #106). The
        * goal / goto / peace-border-garrison callers reach here without that
        * check and attacked treaty partners. Privateers fly no flag.
        */
@@ -15290,37 +15282,6 @@ static int ai_euro_try_ship_europe_export(
  * sell loop.)
  */
 
-/*
- * Own coastal colony threatened by a war-peer land/sea unit within MD≤3.
- * Cite: Colonization.pdf naval transport / fortify defense — troop ships sail
- * to threatened ports. Structural proximity only (no invented combat bonus).
- */
-static int ai_euro_colony_threatened_by_war(
-  ColonizeTurnContext* ctx,
-  int nation_id,
-  const ColonizeColony* c
-) {
-  if (!ctx || !ctx->units || !ctx->col1_ok || !ctx->col1 || !c || !c->active) {
-    return 0;
-  }
-  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-    const ColonizeUnit* f = &ctx->units->units[i];
-    if (!f->active || f->nation_id == nation_id || f->nation_id < 0 || f->nation_id > 3) {
-      continue;
-    }
-    if (!ai_diplo_at_war(ctx->col1, nation_id, f->nation_id)) {
-      continue;
-    }
-    if (ai_euro_in_europe(f->x, f->y)) {
-      continue;
-    }
-    if (abs(f->x - c->x) + abs(f->y - c->y) <= 3) {
-      return 1;
-    }
-  }
-  return 0;
-}
-
 
 /*
  * True when (x,y) is adjacent ocean under an enemy Fort/Fortress battery
@@ -15472,187 +15433,23 @@ static int ai_euro_has_useful_goto(const ColonizeUnit* u, const ColonizeWorldMap
 }
 
 /*
- * Thin land war hunt (5b66 case 0x0b act-level): nearest enemy land unit or
- * foreign Euro colony at war, or native Brave / tribe when Indian×Euro at war.
- * Prefer capital tribe tiles (tie-break closer MD) — Cortes rich_capital path.
- * When prefer_fortified (Artillery siege): foreign Euro Stockade/Fort/Fortress
- * colonies beat open ones (MD slack ≤3 vs nearest open). When prefer_open
- * (Dragoon/Soldier): open colonies beat fortified (same slack). Non-siege unit
- * hunt: Treasure beats non-Treasure, then lower toughness, within MD slack ≤3
- * (loot / thin 20e6). Cite: king_ref Artillery siege / Dragoon open bias;
- * Colonization.pdf Treasure Trains / Defending a Colony. Full 20e6 PARKED.
- */
-static int ai_euro_land_war_hunt_target(
-  ColonizeTurnContext* ctx,
-  int nation_id,
-  int from_x,
-  int from_y,
-  int prefer_fortified,
-  int prefer_open,
-  int* out_x,
-  int* out_y
-) {
-  if (!ctx || !ctx->units || !ctx->map || !ctx->col1_ok || !ctx->col1 || !out_x || !out_y) {
-    return 0;
-  }
-  int best = -1;
-  int best_cap = 0;
-  int best_fort = prefer_open ? 9999 : -1;
-  int best_treasure = 0;
-  int best_tough = 0;
-  int bx = 0;
-  int by = 0;
-
-  if (!prefer_fortified) {
-    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-      const ColonizeUnit* f = &ctx->units->units[i];
-      if (!f->active || f->nation_id == nation_id || !units_is_on_map(f) ||
-          units_is_sea(ctx->units, f->id) || ai_euro_in_europe(f->x, f->y)) {
-        continue;
-      }
-      if (f->nation_id >= 0 && f->nation_id <= 3) {
-        if (!ai_diplo_at_war(ctx->col1, nation_id, f->nation_id)) {
-          continue;
-        }
-      } else if (f->nation_id >= 4 && f->nation_id <= 11) {
-        if (!ai_diplo_indian_at_war(ctx->col1, nation_id, f->nation_id - 4)) {
-          continue;
-        }
-      } else {
-        continue;
-      }
-      const int dist = abs(f->x - from_x) + abs(f->y - from_y);
-      const int treasure = ai_euro_is_treasure_name(units_display_name(ctx->units, f));
-      const int tough = ai_euro_foe_toughness(ctx, ctx->units, f, 0);
-      if (prefer_open && f->nation_id >= 0 && f->nation_id <= 3) {
-        const int fb = ai_euro_colony_fort_bonus_at(ctx->colonies, f->x, f->y, f->nation_id);
-        if (best < 0 || fb < best_fort || (fb == best_fort && dist < best)) {
-          best = dist;
-          best_fort = fb;
-          best_cap = 0;
-          best_treasure = treasure;
-          best_tough = tough;
-          bx = f->x;
-          by = f->y;
-        } else if (fb == 0 && best_fort > 0 && dist <= best + 3) {
-          best = dist;
-          best_fort = 0;
-          best_cap = 0;
-          best_treasure = treasure;
-          best_tough = tough;
-          bx = f->x;
-          by = f->y;
-        }
-      } else {
-        /* Treasure > toughness > distance; MD slack ≤3 for treasure/toughness. */
-        int better = 0;
-        if (best < 0) {
-          better = 1;
-        } else if (treasure != best_treasure) {
-          if (treasure && dist <= best + 3) {
-            better = 1;
-          } else if (!treasure && dist + 3 < best) {
-            better = 1;
-          }
-        } else if (tough != best_tough) {
-          if (tough < best_tough && dist <= best + 3) {
-            better = 1;
-          } else if (tough > best_tough && dist + 3 < best) {
-            better = 1;
-          }
-        } else if (dist < best) {
-          better = 1;
-        }
-        if (better) {
-          best = dist;
-          best_cap = 0;
-          best_treasure = treasure;
-          best_tough = tough;
-          bx = f->x;
-          by = f->y;
-        }
-      }
-    }
-  }
-
-  if (ctx->colonies) {
-    for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
-      const ColonizeColony* c = &ctx->colonies->colonies[i];
-      if (!c->active || c->nation_id == nation_id || c->nation_id < 0 || c->nation_id > 3) {
-        continue;
-      }
-      if (!ai_diplo_at_war(ctx->col1, nation_id, c->nation_id)) {
-        continue;
-      }
-      const int dist = abs(c->x - from_x) + abs(c->y - from_y);
-      const int fb = colonies_fortification_defense_bonus_percent(ctx->colonies, c);
-      if (prefer_fortified) {
-        if (best < 0 || fb > best_fort || (fb == best_fort && dist < best)) {
-          best = dist;
-          best_fort = fb;
-          best_cap = 0;
-          bx = c->x;
-          by = c->y;
-        } else if (fb > 0 && best_fort <= 0 && dist <= best + 3) {
-          best = dist;
-          best_fort = fb;
-          best_cap = 0;
-          bx = c->x;
-          by = c->y;
-        }
-      } else if (prefer_open) {
-        if (best < 0 || fb < best_fort || (fb == best_fort && dist < best)) {
-          best = dist;
-          best_fort = fb;
-          best_cap = 0;
-          bx = c->x;
-          by = c->y;
-        } else if (fb == 0 && best_fort > 0 && dist <= best + 3) {
-          best = dist;
-          best_fort = 0;
-          best_cap = 0;
-          bx = c->x;
-          by = c->y;
-        }
-      } else if (best < 0 || dist < best) {
-        best = dist;
-        best_cap = 0;
-        bx = c->x;
-        by = c->y;
-      }
-    }
-  }
-
-  if (!prefer_fortified && ctx->col1->tribe) {
-    for (uint16_t i = 0; i < ctx->col1->head.tribe_count; ++i) {
-      const ColonizeCol1Tribe* t = &ctx->col1->tribe[i];
-      if (t->nation_id < 4 || t->nation_id > 11) {
-        continue;
-      }
-      if (!ai_diplo_indian_at_war(ctx->col1, nation_id, (int)t->nation_id - 4)) {
-        continue;
-      }
-      const int cap = t->state.capital ? 1 : 0;
-      const int dist = abs((int)t->x - from_x) + abs((int)t->y - from_y);
-      if (best < 0 || cap > best_cap || (cap == best_cap && dist < best)) {
-        best = dist;
-        best_cap = cap;
-        bx = (int)t->x;
-        by = (int)t->y;
-      }
-    }
-  }
-
-  if (best < 0) {
-    return 0;
-  }
-  *out_x = bx;
-  *out_y = by;
-  return 1;
-}
-
-/*
- * Best adjacent war foe for land attack (thin 20e6 combat scoring): prefer
+ * GOLDEN-BACKED STAND-IN (2026-09-18). This picker and its caller
+ * ai_euro_land_try_adjacent_attack have no DOS counterpart of their own: DOS
+ * scores an adjacent enemy tile inside the shared LAB_521d_4d2e wander scorer
+ * (attack term raw 88880-88940; `local_ea` adjacent-attackable-foreigner flag
+ * raw 88885-88887, artillery score-zero raw 88911-88913, soldier/dragoon
+ * colony-mass gate raw 88921-88937) and commits it as a one-shot goto that
+ * FUN_465b_0000 then resolves. The port's copy of that term keys the Euro /
+ * Indian split on the destination tile's layer3 owner nibble exactly as DOS
+ * does, but requires `owner >= 0 && at_war`, so a foe standing on an
+ * unclaimed tile is never scored as a target and land units go passive.
+ * Deleting this pair left golden_woi_ref01's REF unable to reduce two
+ * DEFENDED colonies (seizes of undefended ones still worked), so it is kept
+ * and marked. Fixing it for real means making the 4d2e attack term reachable
+ * on land (and/or binding every eligible unit to a 0a60 MILITARY goal rather
+ * than one) — filed as the next target, not done here.
+ *
+ * Behaviour: prefer
  * lower effective defense / non-fortified / weaker colony fort / non-veteran.
  * Artillery prefers higher fort % (siege — king_ref Artillery adjacent-fort).
  * Non-siege: at equal toughness prefer Treasure (loot — Colonization.pdf
@@ -15750,8 +15547,7 @@ static int ai_euro_land_best_adjacent_foe(ColonizeTurnContext* ctx, const Coloni
  * rating >1) adjacent to a foreign Euro colony with **no defender on the
  * tile** walks straight in and seizes it (Colonization capture-by-move —
  * combat only triggers when a defender is actually present, handled
- * separately by ai_euro_land_try_adjacent_attack's on-settlement
- * preference). Decomp scans all 8 neighbors via `FUN_281f_0696`
+ * separately by the LAB_521d_4d2e wander scorer's attack term). Decomp scans all 8 neighbors via `FUN_281f_0696`
  * (`euro_settlement_owner`) and stamps orders `0x46` the moment any
  * neighbor is owned by a different, non-crown Euro nation; Linux checks
  * war state too (decomp's world model has no live peacetime seize). One
@@ -15786,7 +15582,7 @@ static int ai_euro_land_try_adjacent_colony_seize(ColonizeTurnContext* ctx, Colo
     if (units_best_defender_at(
           ctx->units, ctx->col1_ok ? ctx->col1 : NULL, nx, ny, u->id, u->id
         ) >= 0) {
-      continue; /* defended — leave to ai_euro_land_try_adjacent_attack */
+      continue; /* defended — leave to the LAB_4d2e attack term */
     }
     if (units_id_at(ctx->units, nx, ny) >= 0) {
       /* Undefended but occupied (docked ships, civilians): DOS entry
@@ -15849,7 +15645,7 @@ static int ai_euro_land_try_adjacent_colony_seize(ColonizeTurnContext* ctx, Colo
  * villages instead of colonies — a real gap this port had: AI units could
  * already walk into an *undefended enemy colony* and seize it, but had no
  * equivalent for an undefended *village*, because
- * `ai_euro_land_best_adjacent_foe` only ever returns actual unit
+ * the LAB_4d2e attack term only ever scores actual unit
  * occupants (a Brave standing on the tile), never the village tile
  * itself as a target. `units_try_move` already resolves combat against an
  * empty village correctly on its own (synthesizes a temp defender per
@@ -15885,7 +15681,7 @@ static int ai_euro_land_try_adjacent_village_seize(ColonizeTurnContext* ctx, Col
         break;
       }
       if (units_id_at(ctx->units, nx, ny) >= 0) {
-        break; /* garrisoned Brave — leave to ai_euro_land_try_adjacent_attack */
+        break; /* garrisoned Brave — leave to the LAB_4d2e attack term */
       }
       ai_contact_village_open_hostilities(ctx, indian_nation, u->nation_id);
       ColonizeWorld w_ = world_make(ctx->units, ctx->colonies, ctx->map, NULL, false, ctx->rng, NULL);
@@ -15902,7 +15698,8 @@ static int ai_euro_land_try_adjacent_village_seize(ColonizeTurnContext* ctx, Col
  * Attack adjacent enemy land unit while at war (prefer weaker foe).
  * Thin multi-step combat: keep fighting while moves remain after enter
  * (MP drained by try_move on win). Cap steps so a failed spend cannot spin.
- * Cite: euro_unit_act §2c / sticky re-hunt; deep 20e6 scoring PARKED.
+ * GOLDEN-BACKED STAND-IN for the LAB_521d_4d2e attack term — see the header
+ * on ai_euro_land_best_adjacent_foe above. Not a DOS transcription.
  */
 static void ai_euro_land_try_adjacent_attack(ColonizeTurnContext* ctx, ColonizeUnit* u) {
   for (int step = 0; step < 8 && u && u->active && u->moves > 0; ++step) {
@@ -17617,23 +17414,26 @@ static int ai_euro_try_first_colony_land(ColonizeTurnContext* ctx, ColonizeUnit*
 }
 
 /*
- * War land engagement then hunt (audit AE-15): seize an adjacent foreign
- * colony, then an adjacent village, then attack an adjacent foe; if the unit
- * survives with no useful course, aim it at the war hunt target. Returns 0
- * when the unit died on the way (the caller must return), 1 otherwise.
- * `*hunted` is raised when the unit ends the block on a hunt course — either
- * one aimed here or one it already carried (sticky outer waves must not
- * LABOR/COLONY-yank it; euro_unit_act §2c / §2c3).
+ * War land engagement (audit AE-15): seize an adjacent foreign colony, then an
+ * adjacent village (both FUN_521d_20e6 `0x46` / `0x4c` arms). Returns 0 when
+ * the unit died on the way (the caller must return), 1 otherwise. `*hunted` is
+ * raised when the unit already carries a live course, so the sticky outer
+ * waves do not LABOR/COLONY-yank it.
  *
- * The third, partial copy in the act tail deliberately stays: it has no hunt
- * half and chains on `u->active` instead of returning.
+ * The act-level adjacent-foe attack loop and the distant "nearest foe / enemy
+ * colony" hunt aim that used to sit here were retired 2026-09-18: both were
+ * manual-cited inventions with no DOS counterpart (the same finding that
+ * retired their naval twins). DOS picks a land unit's fight in the shared
+ * LAB_521d_4d2e wander scorer (raw 88880-88940: `local_ea` adjacent
+ * attackable-foreigner flag raw 88885-88887, artillery score-zero raw
+ * 88911-88913, soldier/dragoon colony-mass gate raw 88921-88937), which
+ * commits the adjacent enemy tile as a one-shot goto; the move then resolves
+ * through FUN_465b_0000. There is no distant land hunt, exactly as there is
+ * none for ships.
  */
-static int ai_euro_land_engage_then_hunt(
+static int ai_euro_land_engage_adjacent(
   ColonizeTurnContext* ctx,
   ColonizeUnit* u,
-  int nation_id,
-  int prefer_fortified,
-  int prefer_open,
   int* hunted
 ) {
   (void)ai_euro_land_try_adjacent_colony_seize(ctx, u);
@@ -17648,62 +17448,10 @@ static int ai_euro_land_engage_then_hunt(
   if (!u->active) {
     return 0;
   }
-  if (!ai_euro_has_useful_goto(u, ctx->map)) {
-    int hx = 0;
-    int hy = 0;
-    if (ai_euro_land_war_hunt_target(
-          ctx, nation_id, u->x, u->y, prefer_fortified, prefer_open, &hx, &hy
-        )) {
-      ai_euro_set_goto(u, UNITS_ORDER_AI_MOVE, hx, hy);
-      *hunted = 1;
-    }
-  } else {
+  if (ai_euro_has_useful_goto(u, ctx->map)) {
     *hunted = 1;
   }
   return 1;
-}
-
-/*
- * Own colony within `md` (Manhattan) that wants construction labor, is
- * building a Stockade and is threatened by a war peer (audit AE-14: the same
- * scan ran twice inside ai_euro_unit_act). Writes the colony tile and returns
- * 1 on the first hit, in colony-slot order as before.
- */
-static int ai_euro_threatened_stockade_near(
-  ColonizeTurnContext* ctx, int nation_id, int x, int y, int md, int* out_x, int* out_y
-) {
-  if (!ctx || !ctx->colonies) {
-    return 0;
-  }
-  for (int ti = 0; ti < COLONIZE_COLONIES_MAX; ++ti) {
-    const ColonizeColony* tc = &ctx->colonies->colonies[ti];
-    if (!tc->active || tc->nation_id != nation_id) {
-      continue;
-    }
-    if (!ai_euro_colony_wants_construction_labor(ctx->colonies, tc)) {
-      continue;
-    }
-    const ColonizeBuildingType* bt =
-      tc->building_in_production >= 0
-        ? colonies_building_type(ctx->colonies, tc->building_in_production)
-        : NULL;
-    if (!bt || strcmp(bt->name, "Stockade") != 0) {
-      continue;
-    }
-    if (!ai_euro_colony_threatened_by_war(ctx, nation_id, tc)) {
-      continue;
-    }
-    if (abs(tc->x - x) + abs(tc->y - y) <= md) {
-      if (out_x) {
-        *out_x = tc->x;
-      }
-      if (out_y) {
-        *out_y = tc->y;
-      }
-      return 1;
-    }
-  }
-  return 0;
 }
 
 /*
@@ -18403,11 +18151,11 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_ship_war_trade(struct ai_euro_act_
   /*
    * Thin naval war hunt (act-level): idle / station-keep ships at war sail
    * toward nearest foe sea unit or coastal colony water. Adjacent → try_attack.
-   * Privateer deepen: named Privateer always re-aims hunt (commerce raid) even
-   * with a prior sail goto — reuse naval_war_hunt_target. Post-diplo wartime
-   * spawn station-keeps (goto=self → !useful_goto) so idle commission also
-   * aims. Cite: europe purchase Privateer; fandom Drake; euro_unit_act §2b;
-   * euro_diplo Privateer spawn. Deep 20e6 naval combat scoring stays PARKED.
+   * (The "fandom Drake" Privateer re-aim described here — a named Privateer
+   * always re-aiming the naval hunt even over a live sail goto — went with the
+   * naval hunt itself on 2026-09-18; nothing in this stage re-aims. A hull's
+   * fights come from the LAB_4d2e wander scorer, whose attack arm already
+   * takes a Privateer against an unmet owner (raw 88880-88940).)
    */
   const int at_war =
     ctx->col1_ok && ctx->col1 && ai_euro_at_war_any_peer(ctx->col1, nation_id);
@@ -18882,27 +18630,22 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_land_hunt_scout(struct ai_euro_act
   }
 
   /*
-   * Thin land war hunt (act-level): idle Soldier/Dragoon/Scout at war move
-   * toward nearest foe land unit or enemy colony. Adjacent → try_attack
-   * (prefer weaker defense / non-fortified). Does not steal founders on FOUND.
-   * Sentry/fortify wake: idle passive Soldier/Dragoon/Scout at war → units_wake
-   * then hunt (public wake API clears fortify/sentry + restores MP).
-   * Cite: euro_unit_act §2c; units.h units_wake; case 0x0b fortify arm.
-   * Deeper 20e6 multi-step combat scoring PARKED.
-   *
-   * Ship board military: at war, idle Soldier/Dragoon/Artillery on coastal own
-   * colony boards an empty transport with space before hunt yank (troop lift).
-   * Cite: Colonization.pdf naval transport; units_board; euro_unit_act §2b2.
+   * War land band: wake a passive hunter, then take the two adjacent-settlement
+   * arms (FUN_521d_20e6 `0x46` colony seize / `0x4c` village seize). The unit's
+   * actual fight is picked afterwards by the shared LAB_521d_4d2e wander scorer
+   * in ai_euro_20e6_land_step (attack term raw 88880-88940), which commits the
+   * enemy tile as a one-shot goto that FUN_465b_0000 resolves — no act-level
+   * adjacent-attack loop and no distant hunt aim (both retired 2026-09-18).
+   * Cite: units.h units_wake; euro_unit_act §2c wake.
    */
   if (at_war_land && is_land_hunter && ai_euro_land_is_passive_orders(u) &&
       !ai_euro_has_useful_goto(u, ctx->map)) {
     (void)units_wake(ctx->units, u->id);
   }
-  /* Board already attempted early (pre-gate); hunt if still on map. */
+  /* Board already attempted early (pre-gate); engage if still on map. */
   if (at_war_land && is_land_hunter && !ai_euro_land_is_fortified(u) &&
       u->orders != UNITS_ORDER_SENTRY) {
-    const int prefer_open = units_name_kind(uname) == UNITS_KIND_DRAGOON;
-    if (!ai_euro_land_engage_then_hunt(ctx, u, nation_id, 0, prefer_open, &land_war_hunted)) {
+    if (!ai_euro_land_engage_adjacent(ctx, u, &land_war_hunted)) {
       return AI_EURO_ACT_RETURN;
     }
   }
@@ -19286,22 +19029,15 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_land_goal_consume(struct ai_euro_a
     }
 
     /*
-     * Threatened-Stockade LABOR override: reactive same-turn war-threat
-     * check with no mapped 0a60 equivalent (labor urgency vs. war threat
-     * isn't part of the mapped goal-table scan) — kept, overrides the
-     * structural pick when it fires, same as before this section replaced
-     * the old three-loop approximation.
+     * A "threatened-Stockade LABOR override" stood here until 2026-09-18: a
+     * war-threat proximity scan that re-aimed a Free Colonist at any own
+     * colony building a Stockade. It had no DOS counterpart — the goal table
+     * is written only by FUN_521d_0a60 (its 'A' mark block spends colony
+     * +0x1e garrison_quota / +0x8e labor_shortage, neither of which is a
+     * building-choice term) and the one AI construction picker is the
+     * FUN_5952_035e cascade, which selects a Stockade from the colony's own
+     * +0x1b flags, never from an adjacent enemy. Deleted with its helpers.
      */
-    if (at_war_land && units_name_kind(uname) == UNITS_KIND_COLONIST) {
-      int sx = 0;
-      int sy = 0;
-      if (ai_euro_threatened_stockade_near(ctx, nation_id, u->x, u->y, 3, &sx, &sy)) {
-        goal_x = sx;
-        goal_y = sy;
-        goal_code = AI_GOAL_LABOR;
-        ai_goals_upsert_primary(nation_id, sx, sy, AI_GOAL_LABOR, 6);
-      }
-    }
   }
 
   /*
@@ -19383,22 +19119,13 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_land_goal_consume(struct ai_euro_a
        * by the colony tick's own placement pass.
        */
       const int lumberjack_bind = is_lumberjack && !is_pioneer;
-      /*
-       * Threatened Stockade: Free Colonist within MD≤3 prefers incomplete
-       * Stockade LABOR over distant FOUND (defense hammers). Cite:
-       * building_production.md Stockade; ai_euro_colony_threatened_by_war;
-       * Colonization.pdf fortify / Stockade defense.
-       */
-      int threat_stockade_bind = 0;
-      if (is_free_colonist && at_war_land && ctx->col1_ok && ctx->col1) {
-        threat_stockade_bind =
-          ai_euro_threatened_stockade_near(ctx, nation_id, u->x, u->y, 3, NULL, NULL);
-      }
+      /* (The MD≤3 "threatened Stockade" widening stood here; deleted with the
+       * goal-side override above — 2026-09-18.) */
       const int max_dist =
         (food_emergency && ai_euro_unit_is_food_labor(ctx->units, u)) ||
             tools_pioneer_bind || food_farmer_bind || food_free_colonist_bind
           ? 8
-          : (threat_stockade_bind ? 3 : 1);
+          : 1;
       int bx = -1;
       int by = -1;
       int best = 99;
@@ -19440,7 +19167,7 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_land_goal_consume(struct ai_euro_a
                  c->stock[COLONIZE_CARGO_FOOD] < c->population * 2;
         }
         /* Free Colonist MD>1 food bind: hungry colony only (not distant tools). */
-        if (food_free_colonist_bind && dist > 1 && !threat_stockade_bind) {
+        if (food_free_colonist_bind && dist > 1) {
           need = inv && inv->food_short > 0 &&
                  c->stock[COLONIZE_CARGO_FOOD] < c->population * 2;
         }
@@ -19451,15 +19178,6 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_land_goal_consume(struct ai_euro_a
         /* Expert Lumberjack: Warehouse/Lumber Mill lumber LABOR only. */
         if (lumberjack_bind) {
           need = lumber_need;
-        }
-        /* Free Colonist threat-Stockade: Stockade hammers only within MD≤3. */
-        if (threat_stockade_bind && is_free_colonist) {
-          const ColonizeBuildingType* sbt =
-            construction && c->building_in_production >= 0
-              ? colonies_building_type(ctx->colonies, c->building_in_production)
-              : NULL;
-          need = construction && sbt && strcmp(sbt->name, "Stockade") == 0 &&
-                 ai_euro_colony_threatened_by_war(ctx, nation_id, c);
         }
         if (!need) {
           continue;
@@ -19477,7 +19195,7 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_land_goal_consume(struct ai_euro_a
         goal_y = by;
         goal_code = code;
         ai_goals_upsert_primary(
-          nation_id, bx, by, code, (food_emergency || threat_stockade_bind || b_construction) ? 6 : 4
+          nation_id, bx, by, code, (food_emergency || b_construction) ? 6 : 4
         );
       }
     }
@@ -19678,14 +19396,12 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_land_goal_dispatch(struct ai_euro_
   }
 
   /* The "sticky CONTACT re-hunt" tail that used to sit here is folded into the
-   * block above (smell audit sweep-3 area C #1): once smell #37 gave it the
-   * same `at_war_land && is_land_hunter && !fortified` gate,
-   * ai_euro_land_try_adjacent_attack (euro_unit_act §2c sticky re-hunt; Euro
-   * target gate viceroy 75567-75593) already ran the identical 8-step
-   * best_adjacent_foe/try_attack loop under strictly weaker preconditions, so
-   * the tail could only ever re-hit its own `foe < 0`/no-progress break —
-   * confirmed by instrumenting its try_attack over the whole ctest suite
-   * (golden_ai_turns/mid01/late01/joint included): zero hits. */
+   * block above (smell audit sweep-3 area C #1): zero hits when instrumented
+   * over the whole ctest suite. The two seizes are the real DOS `0x46` / `0x4c`
+   * arms; ai_euro_land_try_adjacent_attack is a golden-backed stand-in for the
+   * LAB_521d_4d2e attack term (see its header). The distant land war hunt that
+   * also ran here was deleted 2026-09-18: DOS has no distant hunt for land
+   * units any more than it has one for ships. */
 
   a->goal_code = goal_code;
   a->goal_x = goal_x;
