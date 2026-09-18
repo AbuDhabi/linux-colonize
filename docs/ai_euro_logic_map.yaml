@@ -977,10 +977,10 @@ graphs:
         status: dos
       - id: war_hunt
         kind: step
-        label: War — wake passive hunter, seize adjacent colony/village, attack adjacent, else goto nearest foe
-        fn: ai_euro.c:ai_euro_land_engage_then_hunt
+        label: War — wake passive hunter, seize adjacent colony/village, attack adjacent foe
+        fn: ai_euro.c:ai_euro_land_engage_adjacent
         status: thin
-        note: Deep 20e6 multi-step combat scoring PARKED; Euro target gate cites viceroy 75567-75593.
+        note: "2026-09-18: the distant land war hunt (ai_euro_land_war_hunt_target) was deleted as invented — DOS has no distant land hunt, exactly as it has none for ships. The adjacent-attack loop (ai_euro_land_try_adjacent_attack / ai_euro_land_best_adjacent_foe) is kept and marked a GOLDEN-BACKED STAND-IN: DOS scores an adjacent foe inside the LAB_521d_4d2e attack term (raw 88880-88940) and resolves it via FUN_465b_0000, but the port's copy of that term needs owner >= 0 && at_war from the destination's layer3 nibble, so a foe on an unclaimed tile is never scored; deleting the pair left golden_woi_ref01's REF unable to reduce two defended colonies."
       - id: peace_border
         kind: step
         label: Peace — garrison wakes when a foreign Euro land unit enters MD≤2, hunts it
@@ -1019,9 +1019,10 @@ graphs:
         status: thin
       - id: pilot
         kind: step
-        label: Read 0a60 pick (act_state 0xb) — threatened-Stockade LABOR override
-        fn: ai_euro.c:ai_euro_threatened_stockade_near
+        label: Read 0a60 pick (act_state 0xb)
+        fn: ai_euro.c:ai_euro_act_land_goal_consume
         status: structural
+        note: "2026-09-18: the threatened-Stockade LABOR override and its ai_euro_colony_threatened_by_war helper were deleted as invented — the goal table is written only by FUN_521d_0a60 and the one AI construction picker is the FUN_5952_035e cascade, neither of which has a war-proximity term."
       - id: labor
         kind: step
         label: LABOR bind ladder — carpenter hammers, lumber, tools-short Pioneer, food labor, Free Colonist; MD≤8
