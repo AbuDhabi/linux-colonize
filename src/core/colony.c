@@ -946,7 +946,6 @@ int colonies_found(
   if (founder_type_index >= 0 && slot->colonist_count < COLONIZE_COLONY_POP_MAX) {
     ColonizeColonist* c = &slot->colonists[slot->colonist_count++];
     c->active = true;
-    c->col1_specialty = 0xff;
     c->unit_type_index = founder_type_index;
     c->profession =
       (founder_profession >= 0) ? founder_profession : UNITS_JOB_NONE;
@@ -1377,9 +1376,9 @@ bool colonies_assign_workplace(
     }
   }
   colonies_clear_colonist_tile(col, colonist_index);
-  /* Teaching progress is per-JOB: moving to a different workplace restarts
-   * the counter, so a teacher pulled out and re-seated later cannot
-   * insta-graduate a student off a stale tally. No-op reassignment keeps it. */
+  /* FUN_15eb_1068 (raw 11256-11258): `if (param_2 != current_job)
+   * FUN_15eb_0cbc(colonist, 0)` — a real job change zeroes the +0x60
+   * education nibble; a no-op reassignment keeps it. */
   if (c->building_type != building_type || c->field_job >= 0) {
     c->turns_in_job = 0;
   }
@@ -1444,7 +1443,7 @@ bool colonies_assign_field(
   colonies_clear_colonist_tile(col, colonist_index);
   col->tiles[tile_index] = (int8_t)colonist_index;
   if (c->building_type >= 0 || c->field_job != field_job) {
-    c->turns_in_job = 0; /* same per-job counter rule as assign_workplace */
+    c->turns_in_job = 0; /* FUN_15eb_1068 raw 11256-11258, as assign_workplace */
   }
   c->building_type = -1;
   c->field_job = field_job;
@@ -1530,7 +1529,6 @@ int colonies_admit_unit_w(
   ColonizeColonist* c = &col->colonists[col->colonist_count];
   memset(c, 0, sizeof(*c));
   c->active = true;
-  c->col1_specialty = 0xff;
   c->unit_type_index = work_type;
   c->profession = profession;
   c->building_type = -1;

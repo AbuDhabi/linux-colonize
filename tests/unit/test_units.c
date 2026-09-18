@@ -373,10 +373,48 @@ static int unit_useduptools(void) {
     return 1;
   }
 
+  /*
+   * bugs.md #509 — FUN_479b_0158 raw 76706-76709: the type reverts to 0
+   * (Colonists) EXCEPT when +0x315b == 0x18, which reverts to type 3
+   * (Missionaries). The port always handed back Colonists.
+   */
+  {
+    const int missionary = units_find_type(&pool, "Missionaries");
+    const int x2 = 5;
+    const int y2 = 3;
+    map_tile_set_road(&map, x2, y2, false);
+    const int jid = units_spawn(&pool, pioneer, x2, y2);
+    ColonizeUnit* ju = units_get(&pool, jid);
+    if (missionary < 0 || !ju) {
+      fprintf(stderr, "usedup: jesuit pioneer setup failed\n");
+      assets_msg_free(&game_txt);
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    ju->nation_id = 0;
+    ju->tools = 20;
+    ju->profession = UNITS_JOB_MISSIONARY;
+    ju->orders = UNITS_ORDER_BUILD_ROAD;
+    ju->col1_counter16 = 0;
+    for (int tick = 0; tick < 10 && ju->orders == UNITS_ORDER_BUILD_ROAD; ++tick) {
+      ju->moves = 1 * UNITS_MP_PER_TILE;
+      (void)units_pioneer_work_tick_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(NULL), .map=(ColonizeWorldMap*)(&map)}, jid, msg, sizeof(msg), &pops, &game_txt);
+    }
+    if (ju->type_index != missionary) {
+      fprintf(stderr, "usedup #509: jesuit should revert to Missionaries, got type=%d\n",
+              ju->type_index);
+      assets_msg_free(&game_txt);
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+  }
+
   assets_msg_free(&game_txt);
   map_free(&map);
   assets_msg_free(&names);
-  fprintf(stderr, "unit_units: USEDUPTOOLS demotion + popup ok\n");
+  fprintf(stderr, "unit_units: USEDUPTOOLS demotion + popup + #509 jesuit revert ok\n");
   return 0;
 }
 
@@ -3685,6 +3723,180 @@ static int unit_smell_audit_2026_09_09(void) {
   return rc;
 }
 
+/*
+ * bugs.md #503/#504/#507/#509 — FUN_157e_004a veteran peel, FUN_5fef_172c
+ * promotion gates, FUN_49dd_0386 profession line, FUN_479b_0158 tools-out.
+ */
+static int unit_promote_and_label_504(void) {
+  ColonizeMsgCatalog names;
+  assets_msg_init(&names);
+  if (!assets_msg_load_file(&names, "COLONIZE/NAMES.TXT")) {
+    fprintf(stderr, "promote504: NAMES.TXT load failed\n");
+    return 1;
+  }
+  ColonizeUnitPool pool;
+  memset(&pool, 0, sizeof(pool));
+  if (!units_load_types(&pool, &names)) {
+    fprintf(stderr, "promote504: units_load_types failed\n");
+    assets_msg_free(&names);
+    return 1;
+  }
+  int rc = 0;
+
+  /* --- #507: FUN_49dd_0386 profession line. ------------------------------ */
+  {
+    /* @JOB column 0 is singular. */
+    const char* farmer = units_profession_line(&names, 0, 0 /* Farmer */, false);
+    if (!farmer || strcmp(farmer, "Farmer") != 0) {
+      fprintf(stderr, "507: want singular \"Farmer\", got [%s]\n", farmer ? farmer : "(null)");
+      rc = 1;
+    }
+    /* type 1 (Soldiers) / 4 (Dragoons) + 0x15 -> @MISC[65]. */
+    const char* v1 = units_profession_line(&names, 1, UNITS_JOB_SOLDIER, false);
+    const char* v4 = units_profession_line(&names, 4, UNITS_JOB_SOLDIER, false);
+    if (!v1 || strcmp(v1, "Veteran") != 0 || !v4 || strcmp(v4, "Veteran") != 0) {
+      fprintf(stderr, "507: veteran override missing [%s]/[%s]\n",
+              v1 ? v1 : "(null)", v4 ? v4 : "(null)");
+      rc = 1;
+    }
+    /* type 5 + 0x16 and type 3 + 0x18 -> @MISC[4]. */
+    const char* e5 = units_profession_line(&names, 5, UNITS_JOB_SCOUT, false);
+    const char* e3 = units_profession_line(&names, 3, UNITS_JOB_MISSIONARY, false);
+    if (!e5 || strcmp(e5, "Expert") != 0 || !e3 || strcmp(e3, "Expert") != 0) {
+      fprintf(stderr, "507: expert override missing [%s]/[%s]\n",
+              e5 ? e5 : "(null)", e3 ? e3 : "(null)");
+      rc = 1;
+    }
+    /* Suppression: type != 0 + flag 0 + unskilled -> nothing; flag 1 prints. */
+    if (units_profession_line(&names, 1, UNITS_JOB_CRIMINAL, false) != NULL) {
+      fprintf(stderr, "507: unskilled line should be suppressed at param_3=0\n");
+      rc = 1;
+    }
+    const char* crim = units_profession_line(&names, 1, UNITS_JOB_CRIMINAL, true);
+    if (!crim || strcmp(crim, "Criminal") != 0) {
+      fprintf(stderr, "507: param_3=1 should print [%s]\n", crim ? crim : "(null)");
+      rc = 1;
+    }
+    /* type 0 is never suppressed; 0x1c folds to 0x13. */
+    const char* c0 = units_profession_line(&names, 0, UNITS_JOB_NONE, false);
+    if (!c0 || strcmp(c0, "Colonist") != 0) {
+      fprintf(stderr, "507: type0 NONE should fold to Colonist [%s]\n", c0 ? c0 : "(null)");
+      rc = 1;
+    }
+  }
+
+  /* --- #504: units_promote_on_win gates via a won engagement. ------------- */
+  {
+    ColonizeWorldMap map;
+    memset(&map, 0, sizeof(map));
+    char err[128];
+    if (!map_alloc(&map, 10, 10, err, sizeof(err))) {
+      fprintf(stderr, "promote504: map_alloc: %s\n", err);
+      assets_msg_free(&names);
+      return 1;
+    }
+    for (int i = 0; i < 10 * 10; ++i) {
+      map.terrain[i] = 2;
+      map.layer3[i] = 1;
+    }
+    const int soldiers = units_find_type(&pool, "Soldiers");
+    const int brave = units_find_type(&pool, "Braves");
+    const int cont_army = units_find_type(&pool, "Cont. Army");
+    if (soldiers < 0 || brave < 0 || cont_army < 0) {
+      fprintf(stderr, "promote504: missing types\n");
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    pool.types[soldiers].attack = 60; /* attacker wins on every seed */
+    pool.types[brave].defense = 1;
+
+    ColonizeCol1Save col1;
+    memset(&col1, 0, sizeof(col1));
+    col1.head.game_options.woi = 1;
+    col1.player[0].control = 0;
+    col1.player[1].control = 1;
+    /* Washington: FUN_5fef_172c skips the 04d4 roll entirely. */
+    col1.nation[0].founding_fathers[FF_GEORGE_WASHINGTON / 8] |=
+      (uint8_t)(1u << (FF_GEORGE_WASHINGTON % 8));
+    col1.nation[1].founding_fathers[FF_GEORGE_WASHINGTON / 8] |=
+      (uint8_t)(1u << (FF_GEORGE_WASHINGTON % 8));
+
+    /* Case table: (mobilized nation, human_player, winner nation, want type). */
+    struct {
+      int mob_nation;
+      int human_player;
+      int winner_nation;
+      int want_continental;
+      const char* what;
+    } cases[] = {
+      {0, 0, 0, 1, "human mobilized -> Continental"},
+      {1, 0, 0, 0, "flag on the wrong nation record -> no promote"},
+      {0, 0, 1, 0, "AI-controlled winner keeps Veteran (raw 100112)"},
+    };
+    for (size_t ci = 0; ci < sizeof(cases) / sizeof(cases[0]) && rc == 0; ++ci) {
+      col1.nation[0].nation_flags = 0;
+      col1.nation[1].nation_flags = 0;
+      col1.nation[cases[ci].mob_nation].nation_flags |= 0x08u;
+      col1.head.human_player = (uint16_t)cases[ci].human_player;
+
+      const int aid = units_spawn(&pool, soldiers, 3, 3);
+      const int did = units_spawn_allow_stack(&pool, brave, 4, 3);
+      ColonizeUnit* a = units_get(&pool, aid);
+      ColonizeUnit* d = units_get(&pool, did);
+      if (!a || !d) {
+        fprintf(stderr, "promote504: spawn failed\n");
+        rc = 1;
+        break;
+      }
+      a->nation_id = cases[ci].winner_nation;
+      a->profession = UNITS_JOB_SOLDIER;
+      a->muskets = 50;
+      a->moves = 3 * UNITS_MP_PER_TILE;
+      d->nation_id = 4;
+      d->moves = UNITS_MP_PER_TILE;
+      ColonizeDosRng rng;
+      dos_rng_seed(&rng, 12345u * (uint32_t)(ci + 1));
+      ColonizeWorld w;
+      memset(&w, 0, sizeof(w));
+      w.units = &pool;
+      w.map = &map;
+      w.rng = &rng;
+      w.col1 = &col1;
+      w.col1_ok = true;
+      units_set_ff_col1(&col1); /* units_try_move_w routes combat through the global */
+      (void)units_try_move_w(&w, aid, 4, 3);
+      a = units_get(&pool, aid);
+      if (!a || units_last_combat_outcome() <= 0) {
+        fprintf(stderr, "promote504[%s]: attacker should win (outcome=%d)\n",
+                cases[ci].what, units_last_combat_outcome());
+        rc = 1;
+      } else {
+        const int got_cont = (a->type_index == cont_army);
+        if (got_cont != cases[ci].want_continental) {
+          fprintf(stderr, "promote504[%s]: type_index=%d want_continental=%d\n",
+                  cases[ci].what, a->type_index, cases[ci].want_continental);
+          rc = 1;
+        }
+      }
+      for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+        if (pool.units[i].active) {
+          (void)units_despawn(&pool, pool.units[i].id);
+        }
+      }
+      units_set_occupancy_map(NULL);
+      units_set_ff_col1(NULL);
+    }
+    map_free(&map);
+  }
+
+  assets_msg_free(&names);
+  if (rc == 0) {
+    fprintf(stderr, "unit_units: #503/#504/#507 promote + profession line ok\n");
+  }
+  return rc;
+}
+
 int main(void) {
   diag_init(0, NULL);
 
@@ -3716,6 +3928,10 @@ int main(void) {
     return 1;
   }
   if (unit_useduptools() != 0) {
+    diag_shutdown();
+    return 1;
+  }
+  if (unit_promote_and_label_504() != 0) {
     diag_shutdown();
     return 1;
   }
@@ -6532,7 +6748,16 @@ int main(void) {
         fprintf(stderr, "green dragoon want 16 no-flag got %d flags=%x\n", green, dfl.flags);
         return 1;
       }
+      /* bugs.md #503: a veteran dragoon body is @UNIT type 4 carrying
+       * profession 0x15 — DOS never writes 0x17 to a unit, so 0x17 must NOT
+       * peel (FUN_157e_004a raw 8942-8944). */
       du->profession = UNITS_JOB_DRAGOON;
+      const int fake = combat_unit_base_x8(&sctx, did2, 0, &dfl);
+      if (fake != 16 || (dfl.flags & COMBAT_FLAG_VETERAN) != 0) {
+        fprintf(stderr, "prof 0x17 must not peel, got %d flags=%x\n", fake, dfl.flags);
+        return 1;
+      }
+      du->profession = UNITS_JOB_SOLDIER;
       const int vet = combat_unit_base_x8(&sctx, did2, 0, &dfl);
       if (vet != 24 || (dfl.flags & COMBAT_FLAG_VETERAN) == 0) {
         fprintf(stderr, "vet dragoon want 24+flag got %d flags=%x\n", vet, dfl.flags);

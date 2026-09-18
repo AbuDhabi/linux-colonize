@@ -611,6 +611,15 @@ bool units_type_has_profession_slot(int type_index);
 const char* units_profession_label(
   const ColonizeMsgCatalog* names, int type_index, int profession
 );
+/*
+ * DOS-LITERAL FUN_49dd_0386: the map-panel profession LINE (singular @JOB
+ * column 0, with the @MISC "Veteran"/"Expert" overrides). `allow_unskilled`
+ * is the DOS param_3: 1 at the selected-unit call site (raw 78892), 0 at the
+ * stack-list one (raw 79205). bugs.md #507.
+ */
+const char* units_profession_line(
+  const ColonizeMsgCatalog* names, int type_index, int profession, bool allow_unskilled
+);
 
 /*
  * ICONS.SS index for a colonist working inside a colony (no field

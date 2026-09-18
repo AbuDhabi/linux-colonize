@@ -1020,8 +1020,12 @@ bool col1_bridge_apply_w(
       col->field_job = -1;
       /* COL1 profession[] is NAMES.TXT @JOB skill, not unit type. */
       col->profession = (int)src->profession[p];
-      /* Preserve the raw DOS specialty nibble (colony +0x60) — see colony.h. */
-      col->col1_specialty =
+      /*
+       * Colony +0x60 per-colonist nibble = the education turn counter
+       * (FUN_15eb_0c7a, raw 10202-10218). Load it straight into
+       * turns_in_job so a save round-trips and teaching progress survives.
+       */
+      col->turns_in_job =
         (uint8_t)((p & 1) ? src->specialty[p / 2].odd : src->specialty[p / 2].even);
       int work_type = units_find_type(units, "Colonists");
       if (work_type < 0) {
@@ -2297,24 +2301,24 @@ bool col1_bridge_capture_w(
         }
       }
       /*
-       * Specialty nibbles: preserve each colonist's raw DOS nibble (stashed
-       * at apply; permuted through the canonical reorder above). The old
-       * "profession & 0xf" formula is contradicted by every original DOS
-       * campaign save (french-campaign 2026-09-03): AI colonies store 0,
-       * human colonies store 15 with occasional low values (learning
-       * state). Port-created colonists (stash 0xff) get those observed
-       * defaults.
+       * +0x60 nibbles = the per-colonist education counter, permuted with
+       * the canonical colonist reorder exactly as DOS does it (raw
+       * 47225/47241 stash 0d1c per colonist and write 0a7e back at the new
+       * slot). The writer FUN_15eb_0cbc clamps at 15 (raw 10231-10233), so
+       * the counter saturates rather than wrapping — an AI colony reads 0
+       * because its colonists were just seated, a long-lived human colony
+       * reads 15.
        */
       {
         uint8_t nib[COLONIZE_COL1_COLONY_POP_MAX];
         memset(nib, 0, sizeof(nib));
         for (int p = 0; p < dst->population && p < (int)COLONIZE_COL1_COLONY_POP_MAX; ++p) {
           /* col1_new_index maps old colonist index -> canonical position. */
-          uint8_t v = src->colonists[p].col1_specialty;
-          if (v == 0xffu) {
-            v = (dst->nation_id == (uint8_t)human_nation) ? 0x0fu : 0u;
+          uint8_t v = src->colonists[p].turns_in_job;
+          if (v > 0x0fu) {
+            v = 0x0fu; /* FUN_15eb_0cbc clamp, raw 10231-10233 */
           }
-          nib[col1_new_index[p]] = (uint8_t)(v & 0x0fu);
+          nib[col1_new_index[p]] = v;
         }
         for (int s = 0; s < 16; ++s) {
           dst->specialty[s].even = nib[s * 2];

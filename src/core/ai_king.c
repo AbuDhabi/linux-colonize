@@ -3214,7 +3214,9 @@ static void ai_king_ref_wave(ColonizeTurnContext* ctx) {
  * Names are the NAMES.TXT @UNIT rows; the singular fallbacks cover the
  * test pools.
  */
-static int ai_king_10f0_spawn_unit(ColonizeTurnContext* ctx, int human, int k, int x, int y) {
+COLONIZE_INTERNAL int ai_king_10f0_spawn_unit(
+  ColonizeTurnContext* ctx, int human, int k, int x, int y
+) {
   static const char* names[4][4] = {
     {"Cont. Army", "Continental Army", "Regular", "Soldier"},
     {"Cont. Cav.", "Continental Cavalry", "Dragoon", "Scout"},
@@ -3222,13 +3224,35 @@ static int ai_king_10f0_spawn_unit(ColonizeTurnContext* ctx, int human, int k, i
     {"Artillery", NULL, NULL, NULL},
   };
   static const char* peace_names[2] = {"Dragoons", "Dragoon"};
+  /* DOS-LITERAL FUN_43f7_0082 raw 73519-73543: for k 0/1 the FIRST test is
+   * `nation > 3 || player[nation].control != 0` → Regulars (6) / Cavalry (8);
+   * only a control==0 slot reaches the woi term, which yields Cont. Army (9) /
+   * Cont. Cav. (7) after the declaration and Dragoons (4) before it. The port
+   * ignored `human` entirely and handed Continentals to REF/AI nations
+   * (bugs.md #505). */
+  static const char* crown_names[2][2] = {
+    {"Regulars", "Regular"},
+    {"Cavalry", "Cavalry"},
+  };
   if (!ctx || !ctx->units || k < 0 || k > 3) {
     return -1;
   }
   int ty = -1;
-  if (k < 2 && ctx->col1_ok && ctx->col1 && !ai_king_independence_declared(ctx->col1)) {
-    for (int i = 0; i < 2 && ty < 0; ++i) {
-      ty = units_find_type(ctx->units, peace_names[i]);
+  if (k < 2) {
+    const int not_player =
+      (human < 0 || human > 3 ||
+       (ctx->col1_ok && ctx->col1 && ctx->col1->player[human].control != 0));
+    if (not_player) {
+      for (int i = 0; i < 2 && ty < 0; ++i) {
+        ty = units_find_type(ctx->units, crown_names[k][i]);
+      }
+      if (ty < 0) {
+        return -1;
+      }
+    } else if (ctx->col1_ok && ctx->col1 && !ai_king_independence_declared(ctx->col1)) {
+      for (int i = 0; i < 2 && ty < 0; ++i) {
+        ty = units_find_type(ctx->units, peace_names[i]);
+      }
     }
   }
   for (int i = 0; i < 4 && ty < 0 && names[k][i]; ++i) {

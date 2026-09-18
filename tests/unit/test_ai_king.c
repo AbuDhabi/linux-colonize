@@ -4543,6 +4543,96 @@ static int case_wartime_soonretiring1_1840(void) {
   return 0;
 }
 
+/*
+ * bugs.md #505 — FUN_43f7_0082 (raw 73519-73543) unit pick. k 0/1:
+ *   nation > 3 || player[nation].control != 0  -> Regulars (6) / Cavalry (8)
+ *   control == 0, independence declared        -> Cont. Army (9) / Cont. Cav. (7)
+ *   control == 0, not yet declared             -> Dragoons (4), both slots
+ * k == 2 -> Man-O-War (0x12), k == 3 -> Artillery (0xb), regardless of nation.
+ */
+static int case_43f7_0082_spawn_types(void) {
+  ColonizeMsgCatalog names;
+  assets_msg_init(&names);
+  if (!assets_msg_load_file(&names, "COLONIZE/NAMES.TXT")) {
+    return fail("0082: NAMES.TXT load failed");
+  }
+  ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
+  if (!units_load_types(&units, &names)) {
+    assets_msg_free(&names);
+    return fail("0082: units_load_types failed");
+  }
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  char err[128];
+  if (!map_alloc(&map, 12, 12, err, sizeof(err))) {
+    assets_msg_free(&names);
+    return fail("0082: map_alloc failed");
+  }
+  for (int i = 0; i < 12 * 12; ++i) {
+    map.terrain[i] = 2;
+    map.layer3[i] = 1;
+  }
+  ColonizeCol1Save col1;
+  memset(&col1, 0, sizeof(col1));
+  col1.player[0].control = 0;
+  col1.player[1].control = 1;
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.units = &units;
+  ctx.map = &map;
+  ctx.col1 = &col1;
+  ctx.col1_ok = true;
+
+  const int ty_regulars = units_find_type(&units, "Regulars");
+  const int ty_cavalry = units_find_type(&units, "Cavalry");
+  const int ty_army = units_find_type(&units, "Cont. Army");
+  const int ty_cav = units_find_type(&units, "Cont. Cav.");
+  const int ty_drag = units_find_type(&units, "Dragoons");
+  const int ty_mow = units_find_type(&units, "Man-O-War");
+  const int ty_art = units_find_type(&units, "Artillery");
+
+  struct {
+    int nation;
+    int declared;
+    int k;
+    int want;
+    const char* what;
+  } cases[] = {
+    {1, 1, 0, ty_regulars, "AI-controlled slot -> Regulars"},
+    {1, 1, 1, ty_cavalry, "AI-controlled slot -> Cavalry"},
+    {0, 1, 0, ty_army, "player + declared -> Cont. Army"},
+    {0, 1, 1, ty_cav, "player + declared -> Cont. Cav."},
+    {0, 0, 0, ty_drag, "player, pre-declaration -> Dragoons"},
+    {0, 0, 1, ty_drag, "player, pre-declaration -> Dragoons"},
+    {1, 1, 2, ty_mow, "k=2 -> Man-O-War"},
+    {1, 0, 3, ty_art, "k=3 -> Artillery"},
+  };
+  int rc = 0;
+  int x = 1;
+  for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); ++i) {
+    col1.head.game_options.woi = cases[i].declared ? 1u : 0u;
+    const int uid = ai_king_10f0_spawn_unit(&ctx, cases[i].nation, cases[i].k, x, 1);
+    const ColonizeUnit* u = uid >= 0 ? units_get_const(&units, uid) : NULL;
+    if (!u || u->type_index != cases[i].want) {
+      fprintf(stderr, "unit_ai_king: 0082[%s] got type=%d want=%d\n", cases[i].what,
+              u ? u->type_index : -1, cases[i].want);
+      rc = 1;
+    }
+    if (uid >= 0) {
+      (void)units_despawn(&units, uid);
+    }
+    x = (x + 2) % 10 + 1;
+  }
+  map_free(&map);
+  assets_msg_free(&names);
+  if (rc != 0) {
+    return fail("0082 spawn-type table");
+  }
+  fprintf(stderr, "unit_ai_king: FUN_43f7_0082 spawn types ok\n");
+  return 0;
+}
+
 static const TestCase k_cases[] = {
     {"test_king_new_war_event", test_king_new_war_event},
     {"test_king_noncombat_never_attacks", test_king_noncombat_never_attacks},
@@ -4557,5 +4647,6 @@ static const TestCase k_cases[] = {
     {"case_peacetime_scored_retiring_1800", case_peacetime_scored_retiring_1800},
     {"case_peacetime_soonretiring0_1790", case_peacetime_soonretiring0_1790},
     {"case_wartime_soonretiring1_1840", case_wartime_soonretiring1_1840},
+    {"case_43f7_0082_spawn_types", case_43f7_0082_spawn_types},
 };
 TEST_MAIN(k_cases)

@@ -336,6 +336,15 @@ typedef struct EuropeScreen {
    * (slot 3) damping key off this index. Cite: viceroy_unpacked.c
    * 60186-60201 (1d44 reads 0x9e12), 58696-58702 (FUN_38fd_0000). */
   uint8_t bound_nation;
+  /*
+   * DOS FUN_38fd_0718's own human test (raw 59120-59122):
+   * `*(int*)0x9e12 < 4 && *(char*)(0x9e12*0x34 + 0x543f) == 0` — the bound
+   * nation is a Euro nation under player control. Only then does the
+   * Dragoon roll use the difficulty byte as its bound; an AI nation uses 1.
+   * Refreshed wherever `difficulty` is (europe_nation_eot_tick), true until
+   * a col1 says otherwise.
+   */
+  bool bound_human;
   EuropeTrainOption train[EUROPE_TRAIN_MAX];
   int train_count;
   EuropePurchaseOption purchase[EUROPE_PURCHASE_MAX];
@@ -527,8 +536,27 @@ void europe_seed_campaign_prices(EuropeScreen* eu, struct ColonizeDosRng* rng);
 void europe_pool_ensure_filled(EuropeScreen* eu);
 const char* europe_pool_label(const EuropeScreen* eu, int slot);
 
+/*
+ * The `_ex` forms take the shared DOS stream: FUN_38fd_0718 (raw
+ * 59117-59128) rolls `04d4(0, bound + 4) == 0` -> Dragoons for every
+ * Soldier-profession dock arrival, training and purchase included. The
+ * plain forms pass NULL (plain Soldiers, no draw) and exist for callers
+ * with no rng at hand.
+ */
 bool europe_train(EuropeScreen* eu, int train_index);
+bool europe_train_ex(EuropeScreen* eu, int train_index, struct ColonizeDosRng* rng);
 bool europe_purchase(EuropeScreen* eu, int purchase_index);
+bool europe_purchase_ex(EuropeScreen* eu, int purchase_index, struct ColonizeDosRng* rng);
+
+/*
+ * DOS FUN_38fd_3694 (raw 61190-61195), the Europe dock caption on the
+ * status line: "<@NATIONALITY adjective> <@UNIT plural>", then
+ * " (<@JOB singular>)" unless the immigrant's profession is 0x1c (none).
+ * Writes at most `cap` bytes; returns false on a bad index.
+ */
+bool europe_dock_caption(
+  const EuropeScreen* eu, int dock_index, char* out, size_t cap
+);
 
 /* Live cost of a purchase-menu row — the table price plus DOS's Artillery
  * escalation (FUN_38fd_4b50: +100 gold per Artillery already purchased,

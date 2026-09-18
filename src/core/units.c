@@ -2885,13 +2885,18 @@ static int units_promote_on_win(
     return 0; /* unarmed colonists never combat-promote */
   }
   const int prof = winner->profession;
-  const int is_veteran = (prof == UNITS_JOB_SOLDIER || prof == UNITS_JOB_DRAGOON);
+  /* DOS-LITERAL FUN_5fef_172c raw 100076: the veteran test is `+0x315b ==
+   * 0x15` only. 0x17 is never written to a unit by DOS (bugs.md #503). */
+  const int is_veteran = (prof == UNITS_JOB_SOLDIER);
   int next_prof = -2; /* -2 = ineligible; -1 = Continental type promote */
   if (is_veteran) {
-    /* 172c: veteran promotes only under WoI with the mobilization flag
-     * (nation_flags bit 0x08) set — the Continental era. */
-    if (!col1 || !col1->head.game_options.woi ||
-        (col1->nation[winner->nation_id].nation_flags & 0x08u) == 0) {
+    /* 172c raw 100077-100082: veteran promotes only once independence is
+     * declared (DS:0x5382 bit 1) and the mobilization flag is set. DOS reads
+     * that flag from `nation[*(int*)0x5398]` — the HUMAN player's record
+     * (`head.human_player`), not the winner's own nation (bugs.md #504). */
+    const int mob_nation = col1 ? (int)col1->head.human_player : -1;
+    if (!col1 || !col1->head.game_options.woi || mob_nation < 0 || mob_nation > 3 ||
+        (col1->nation[mob_nation].nation_flags & 0x08u) == 0) {
       return 0;
     }
     next_prof = -1;
@@ -2918,10 +2923,27 @@ static int units_promote_on_win(
   const int washington =
     col1 && founding_fathers_nation_has(col1, winner->nation_id, FF_GEORGE_WASHINGTON);
   if (!washington) {
-    if (pool_n < 1) {
-      pool_n = 1;
+    if (!rng) {
+      return 0;
     }
-    if (!rng || dos_rng_range(rng, 1, pool_n) > loser_str) {
+    /* DOS-LITERAL FUN_5fef_172c raw 100104: `FUN_281f_04d4(1, pool_n)` with no
+     * clamp. `04d4` → FUN_19ef_0032 computes `((hi-lo+1) * rand()) >> 15 + lo`
+     * with a SIGNED span, so a non-positive span still draws off the shared
+     * stream and yields <= lo. dos_rng_range() short-circuits `hi < lo` to lo
+     * WITHOUT drawing, so spell the DOS formula out here rather than clamp
+     * pool_n to 1 (that clamp was invented — bugs.md #504).
+     * Arg order confirmed against the asm at the FUN_5fef_1b0e call site
+     * (viceroy_unpacked.asm 5fef:284e-2856, cdecl last-arg-first: PUSH
+     * local_92 = attacker/loser strength, PUSH local_a8 = winner strength,
+     * PUSH local_c8 = the winning unit), so param_3 is the LOSER strength and
+     * the roll compares against it. */
+    int roll;
+    if (pool_n >= 1) {
+      roll = dos_rng_range(rng, 1, pool_n);
+    } else {
+      roll = 1 + (int)(((int32_t)pool_n * (int32_t)dos_rng_next(rng)) >> 15);
+    }
+    if (roll > loser_str) {
       return 0;
     }
   }
@@ -2929,6 +2951,14 @@ static int units_promote_on_win(
   const int old_prof = winner->profession;
   const char* popup_tag = NULL;
   if (next_prof == -1) {
+    /* DOS-LITERAL FUN_5fef_172c raw 100112-100118: before the Continental type
+     * swap DOS re-reads the unit's nation nibble and bails when it is > 3 or
+     * the slot is not player-controlled (`(n&0xf)*0x34 + 0x543f != 0`) — REF /
+     * AI-run nations keep their Veteran professions (bugs.md #504). */
+    if (winner->nation_id > 3 ||
+        (col1 && col1->player[winner->nation_id].control != 0)) {
+      return 0;
+    }
     int tgt = is_dragoon_body ? units_find_type(pool, "Cont. Cav.")
                               : units_find_type(pool, "Cont. Army");
     if (tgt < 0) {
@@ -10452,9 +10482,13 @@ static bool units_pioneer_wear_tools(ColonizeUnitPool* pool, ColonizeUnit* u) {
     u->tools = 0;
     u->orders = UNITS_ORDER_NONE;
     if (pool) {
-      const int colonist = units_find_type(pool, "Colonists");
-      if (colonist >= 0) {
-        u->type_index = colonist;
+      /* DOS-LITERAL FUN_479b_0158 raw 76706-76709: type := 0 (Colonists), then
+       * `if (+0x315b == 0x18) type := 3` — a Jesuit Missionary that ran its
+       * tools out reverts to Missionaries, not Colonists (bugs.md #509). */
+      const char* want = (u->profession == UNITS_JOB_MISSIONARY) ? "Missionaries" : "Colonists";
+      const int tgt = units_find_type(pool, want);
+      if (tgt >= 0) {
+        u->type_index = tgt;
       }
     }
     return true;
@@ -12005,6 +12039,76 @@ static const int16_t k_units_job_icon[UNITS_JOB_NONE + 1] = {
  * One copy for unit_stack.c's row label and map_panel.c's sidebar line, which
  * had the same body twice (the unit_stack one only to dodge a link edge).
  */
+/* `col`-th comma-separated field of the @JOB row for `profession`, or NULL. */
+static const char* units_job_field(
+  const ColonizeMsgCatalog* names, int profession, int col
+) {
+  const ColonizeMsgSection* sec = names ? assets_msg_find(names, "JOB") : NULL;
+  if (!sec || profession < 0 || profession >= sec->line_count) {
+    return NULL;
+  }
+  const char* p = sec->lines[profession];
+  for (int c = 0; c < col; ++c) {
+    p = strchr(p, ',');
+    if (!p) {
+      return NULL;
+    }
+    ++p;
+  }
+  while (*p == ' ' || *p == '\t') {
+    ++p;
+  }
+  static char buf[40];
+  size_t n = 0;
+  while (p[n] && p[n] != ',' && n + 1 < sizeof(buf)) {
+    buf[n] = p[n];
+    ++n;
+  }
+  while (n > 0 && (buf[n - 1] == ' ' || buf[n - 1] == '\t')) {
+    --n;
+  }
+  buf[n] = '\0';
+  return buf[0] ? buf : NULL;
+}
+
+/*
+ * DOS-LITERAL FUN_49dd_0386 (raw 78606-78640) — the map-panel profession line.
+ * `local_4 = +0x315b`, `0x1c → 0x13`; the string is @JOB **column 0**
+ * (singular: DS word table stride 8, word 0), not the plural column the
+ * stack-row label uses. Suppression (raw 78622-78628): only when the unit type
+ * is non-zero AND the caller's flag is 0 AND `FUN_281f_0c9a` (= FUN_15eb_0002)
+ * reports the profession unskilled. The three overrides (raw 78630-78638) are
+ * applied after, so they win: type 1/4 + 0x15 → LABELS @MISC[65] "Veteran",
+ * type 5 + 0x16 and type 3 + 0x18 → @MISC[4] "Expert". The `has_profession_slot`
+ * test is the DOS caller's own `FUN_281f_0b78 >= 0` gate (bugs.md #507).
+ */
+const char* units_profession_line(
+  const ColonizeMsgCatalog* names, int type_index, int profession, bool allow_unskilled
+) {
+  if (!units_type_has_profession_slot(type_index) || profession < 0) {
+    return NULL;
+  }
+  int prof = profession;
+  if (prof == UNITS_JOB_NONE) {
+    prof = UNITS_JOB_COLONIST;
+  }
+  if ((type_index == 1 || type_index == 4) && prof == UNITS_JOB_SOLDIER) {
+    return reports_misc_display_word(65, "Veteran");
+  }
+  if ((type_index == 5 && prof == UNITS_JOB_SCOUT) ||
+      (type_index == 3 && prof == UNITS_JOB_MISSIONARY)) {
+    return reports_misc_display_word(4, "Expert");
+  }
+  /* FUN_15eb_0002: 0x1c / 0x13 / 0x19 / 0x1a / 0x1b are the unskilled set. */
+  const bool skilled =
+    !(prof == UNITS_JOB_NONE || prof == UNITS_JOB_COLONIST || prof == UNITS_JOB_SERVANT ||
+      prof == UNITS_JOB_CRIMINAL || prof == UNITS_JOB_CONVERT);
+  if (type_index != 0 && !allow_unskilled && !skilled) {
+    return NULL;
+  }
+  return units_job_field(names, prof, 0);
+}
+
 const char* units_profession_label(
   const ColonizeMsgCatalog* names, int type_index, int profession
 ) {

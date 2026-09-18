@@ -7271,6 +7271,10 @@ static int ai_euro_5d04_cb_dock_pop_candidate(int profession) {
   }
   units_set_nation(u, s_5d04_nation);
   u->moves = 0;
+  /* raw 59133 `*(undefined1 *)(iVar2 + 0x314c) = 1`: FUN_38fd_0718 parks the
+   * fresh recruit SENTRY in the harbour (+0x314c = the orders byte; europe.c
+   * does the same for the human harbour spawn). bugs.md #509. */
+  u->orders = UNITS_ORDER_SENTRY;
   u->profession = profession;
   if (type == 2) {
     u->tools = 100; /* 59140: local_4 == 2 -> +0x3159 = 100 */
@@ -7295,9 +7299,23 @@ static int ai_euro_5d04_cb_dock_pop_candidate(int profession) {
   }
   return (int)(u - ctx->units->units);
 }
-static int ai_euro_5d04_cb_dock_peek_type(int x) {
-  (void)x;
-  return s_5d04_ctx ? dos_rng_range(s_5d04_ctx->rng, 0, 0x1b) : 0x13;
+/*
+ * Refill the recruit-pool slot the AI hire just emptied. DOS `FUN_38fd_46d4`
+ * (raw 64554-64694) is a difficulty-scaled tier roll — Petty Criminal /
+ * Indentured Servant / Free Colonist are common, experts rare and never
+ * three at once — not a flat draw over the @JOB range, which is what this
+ * callback used to be. The faithful port already lives in europe.c and
+ * writes `nation.recruit[slot]` itself, including the DOS draw order
+ * (FUN_281f_04d4(1,15) / (1,10) / (1,8) off the shared game stream,
+ * raw 64632/64636/64640) and the AI difficulty substitution of 1
+ * (raw 64627-64633). bugs.md #510.
+ */
+static int ai_euro_5d04_refill_pool_slot(int slot) {
+  ColonizeTurnContext* ctx = s_5d04_ctx;
+  if (!ctx || !ctx->col1) {
+    return UNITS_JOB_NONE;
+  }
+  return europe_nation_refill_pool_slot(ctx->col1, s_5d04_nation, slot, false, ctx->rng);
 }
 /* Europe SELL quote: FUN_291f_09ea → FUN_38fd_0040 = euro_price − 1 (the same
  * value europe_sell_price returns), from the EuropeScreen (the one Linux
@@ -8042,7 +8060,7 @@ static void ai_euro_5d04_hire_tail_colony_demand(Ai5d04HireTail* t) {
         } else {
           hs->crosses_bank_raw -= 0x32;
         }
-        nat->recruit[slot] = (uint8_t)ai_euro_5d04_cb_dock_peek_type(0);
+        (void)ai_euro_5d04_refill_pool_slot(slot); /* FUN_38fd_46d4 */
         bVar9 = 1;
         bVar8_2 = 1;
         /* DS:0x5238[type] is indexed by the DOS @UNIT code, not by a Linux
@@ -8284,7 +8302,7 @@ static void ai_euro_5d04_hire_ladder_tail(
       const int slot = dos_rng_range(ctx->rng, 0, 2); /* nat->recruit[3] */
       const int candidate = ai_euro_5d04_cb_dock_pop_candidate(nat->recruit[slot]);
       if (candidate >= 0) {
-        nat->recruit[slot] = (uint8_t)ai_euro_5d04_cb_dock_peek_type(0);
+        (void)ai_euro_5d04_refill_pool_slot(slot); /* FUN_38fd_46d4 */
         local_16 = candidate;
       }
     }
@@ -8526,67 +8544,81 @@ static int ai_euro_0a60_weight_seed(const ColonizeTurnContext* ctx, int nation_i
   return seed;
 }
 
+static int ai_euro_20e6_type_flags(int dos_type);
+static int ai_euro_20e6_dos_type(const ColonizeUnitPool* units, const ColonizeUnit* u);
+
 /*
- * DS:0x523d unit-type -> goal-code capability bitmask — resolved 2026-08-27:
- * it is NAMES.TXT @UNIT's trailing bit-string read MSB-first (see
- * k_20e6_type_flags below). This function predates that and still keys on
- * unit names; equivalent for the FOUND/MIL cases it handles. Mirror the file's existing convention (unit-name matching) for
- * land units rather than accept-all, since accept-all would let e.g. a
- * Galleon "pursue" a LABOR goal.
+ * DOS-LITERAL FUN_521d_0a60 raw 88184-88191: the goal-capability gate is a
+ * single bit test, `(1 << (goal.code & 0x1f)) & DS:0x523d[type * 0xe]`, i.e.
+ * the goal code IS the bit index into the unit type's NAMES.TXT @UNIT
+ * capability byte (k_20e6_type_flags). Plus the two unit+0x3148 clauses on
+ * the same line: code 1 (FOUND) additionally needs bit2 (0x04), code 7
+ * (MIL_EXPAND) additionally needs bit3 (0x08).
  *
- * unit+0x3148 bit2/bit3 (2026-08-18, resolved): the raw unit-loop (raw
- * lines ~645-683, still otherwise out of scope) sets bit2 whenever a
- * unit's own "stack" holds founders or military, bit3 specifically for
- * military — gated `if (unit is ship-type)` for the refinement that
- * matters here. `FUN_1000_8aac` modes 3/4/6 are now byte-resolved
- * (2026-09-06b, 0d38 case table at ai_euro_20e6_stack_count: # Pioneers /
- * # military types / mobilizable count); this predates that and computes
- * the same *information* directly from Linux's real ship cargo hold
- * (`cargo_ids[]`), which DOS's query would ultimately be reporting on
- * anyway for a transport. Closes a real capability gap: previously ships
- * could never satisfy FOUND/MIL_EXPAND at all (their names never match
- * the land-unit name checks below), even when visibly carrying settlers
- * or soldiers. Not modeled: DOS's "ship is full → also require every
- * earlier-indexed ship in the same stack/fleet to be full too" fleet-
- * coordination downgrade — a defensible superset (this port may let a
- * not-yet-fully-loaded fleet's full ship pursue slightly earlier).
+ * Consequences of the table (they are DOS's, not an accident of this port):
+ * FOUND(1) and MIL_EXPAND(7) are TRANSPORT goals — only the ship rows
+ * 0x81/0x82/0xa2 carry bits 1 and 7. Land rows carry ESCORT(2)/LABOR(3)/
+ * MILITARY(4)/COLONY(5); Colonist and Pioneer (0x40) carry only bit 6
+ * (EXPLORE), a code the primary table never holds (ai_goals.h). The
+ * previous port keyed on unit *names* and let land settlers chase FOUND.
+ * bugs.md #511.
  */
-static int ai_euro_0a60_unit_can_pursue_goal(
+/*
+ * Fallback for pools whose types did not come from NAMES.TXT (hand-built test
+ * type tables — `ai_euro_20e6_dos_type` returns −1 there, see conventions.md
+ * "ColonizeUnit.type_index"): the pre-#511 name-keyed equivalent of the bit
+ * test below. Never reached in a real game, where every type resolves.
+ */
+static int ai_euro_0a60_can_pursue_goal_by_name(
   const char* name, int goal_code, int is_ship, int has_bit2, int has_bit3
 ) {
   switch (goal_code) {
     case AI_GOAL_FOUND:
-      /* DOS raw tail (goal code 1): capability-mask bit AND 0x3148 bit2 —
-       * for EVERY unit, land included (2026-09-06b rewire; the bits now
-       * carry the real 0d38 stack counts). Name check = the DS:0x523d
-       * capability-mask equivalent this file already used. */
       if (is_ship) {
         return has_bit2;
       }
       return has_bit2 && (ai_euro_name_is_pioneer(name) ||
                           units_name_kind(name) == UNITS_KIND_COLONIST);
     case AI_GOAL_MIL_EXPAND:
-      /* DOS goal code 7: capability bit AND 0x3148 bit3, every unit. */
       if (is_ship) {
         return has_bit3;
       }
       return has_bit3 && (ai_euro_is_military_name(name) || ai_euro_is_artillery_name(name));
     case AI_GOAL_MILITARY:
-      /* DOS gates code 4 on the capability mask only — no 0x3148 bit. */
       if (is_ship) {
         return has_bit3;
       }
       return ai_euro_is_military_name(name) || ai_euro_is_artillery_name(name);
     case AI_GOAL_ESCORT:
-      /* DS:0x523d bit 2 (k_20e6_type_flags 0x1c/0x3c/0x64 rows): land
-       * military and Scouts; no ship type carries it. */
       if (is_ship) {
         return 0;
       }
       return ai_euro_is_military_name(name) || units_name_kind(name) == UNITS_KIND_SCOUT;
     default:
-      return 1; /* CONTACT/LABOR/COLONY/COLONY_ALT: no known DOS type gate here */
+      return 1;
   }
+}
+
+static int ai_euro_0a60_unit_can_pursue_goal(
+  int dos_type, int goal_code, int has_bit2, int has_bit3,
+  const char* name, int is_ship
+) {
+  if (goal_code < 0 || goal_code > 0x1f) {
+    return 0;
+  }
+  if (dos_type < 0) {
+    return ai_euro_0a60_can_pursue_goal_by_name(name, goal_code, is_ship, has_bit2, has_bit3);
+  }
+  if (((1u << (unsigned)(goal_code & 0x1f)) & (unsigned)ai_euro_20e6_type_flags(dos_type)) == 0) {
+    return 0;
+  }
+  if (goal_code == AI_GOAL_FOUND && !has_bit2) {
+    return 0; /* raw 88189: `code != 1 || (unit+0x3148 & 4)` */
+  }
+  if (goal_code == AI_GOAL_MIL_EXPAND && !has_bit3) {
+    return 0; /* raw 88190-88191: `code != 7 || (unit+0x3148 & 8)` */
+  }
+  return 1;
 }
 
 /*
@@ -8993,7 +9025,8 @@ static void ai_euro_0a60_goal_orders_structural(ColonizeTurnContext* ctx, int na
         continue;
       }
       if (!ai_euro_0a60_unit_can_pursue_goal(
-            uname, g->code, unit_is_ship, has_bit2, has_bit3
+            ai_euro_20e6_dos_type(ctx->units, u), g->code, has_bit2, has_bit3,
+            uname, unit_is_ship
           )) {
         continue;
       }
@@ -20300,17 +20333,28 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_land_fortify(struct ai_euro_act_ct
   int workplace_assigned = a->workplace_assigned;
 
   /*
-   * Peace fortify (case 0x0b fortify arm): idle Soldier / Dragoon / Regular /
-   * Continental on own colony tile → FORTIFY if not already. Overrides
-   * explore/FOUND scoring-gate yank while on-colony (defense). Cite:
-   * euro_unit_act §2 fortify colony-check → 'F'; Colonization.pdf Defending a
-   * Colony ("fortify soldiers, dragoons, army, cavalry…"). At war: wake+hunt
-   * owns garrison instead.
+   * Peace fortify (case 0x0b fortify arm): idle armed land unit on own colony
+   * tile → FORTIFY if not already. Overrides explore/FOUND scoring-gate yank
+   * while on-colony (defense). At war: wake+hunt owns garrison instead.
+   *
+   * DOS-LITERAL FUN_521d_20e6 raw 89011-89013 (asm OVL14_L0000:0x5992-0x59c9)
+   * — the 'F' (0x46) arm's own unit test is exactly
+   *   `DS:0x5236[type * 0xe] > 1 && (type < 0xd || type > 0x12)`
+   * i.e. the NAMES @UNIT ATTACK column above 1 plus "not a ship type"
+   * (the loader stores column 3 = attack at 0x5236, column 4 = defense at
+   * 0x5235, raw 121115-121119). Replaces this arm's name matching, which
+   * both missed armed types whose name is not in the military list and let
+   * attack-1 types (Colonist, Scout, Pioneer) through. DOS spends no
+   * garrison quota here, so the quota gate is gone from this arm.
+   * bugs.md #512.
    */
+  const int fort_dos_type = ai_euro_20e6_dos_type(ctx->units, u);
   if (!at_war_land && !peace_border_hunted && !treasure_routed && !wagon_hauled &&
       !pioneer_improved && !lumberjack_fielded && !miner_fielded && !farmer_fielded &&
       !fisherman_fielded && !planter_fielded && !workplace_assigned && !scout_explored &&
-      !land_war_hunted && uname && ai_euro_is_military_name(uname) &&
+      !land_war_hunted && fort_dos_type >= 0 &&
+      ai_euro_20e6_type_combat(fort_dos_type) > 1 &&
+      (fort_dos_type < 0xd || fort_dos_type > 0x12) &&
       !ai_euro_land_is_fortified(u) && ctx->colonies) {
     const int cid = colonies_id_at(ctx->colonies, u->x, u->y);
     if (cid >= 0) {
@@ -20330,16 +20374,16 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_land_fortify(struct ai_euro_act_ct
             break;
           }
         }
-        if (!keep_mil && ai_euro_fortify_with_quota(ctx, nation_id, u, cid)) {
+        /* raw 89011-89031 sets +0x314b = 0x46 outright — no garrison-quota
+         * accounting anywhere in the arm, so no quota gate here either. The
+         * colony's quota is still spent so the other quota readers see the
+         * garrison. bugs.md #512. */
+        if (!keep_mil && units_order_fortify(ctx->units, u->id)) {
+          ColonizeColony* cm = colonies_get_mut(ctx->colonies, cid);
+          if (cm && cm->garrison_quota > 0) {
+            cm->garrison_quota--;
+          }
           return AI_EURO_ACT_RETURN; /* stay fortified — skip FOUND/explore yank */
-        }
-        /*
-         * No fortify slots left: admit as colonist (Dutch Isabella TURN4→5)
-         * rather than explore-yank off the town tile.
-         */
-        if (!keep_mil && c->garrison_quota == 0) {
-          ai_euro_join_colony(ctx, u, cid);
-          return AI_EURO_ACT_RETURN;
         }
       }
     }

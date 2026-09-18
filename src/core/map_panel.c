@@ -1021,7 +1021,8 @@ static void map_panel_draw_stack_row(
 
   /* DOS row precedence: Pioneers' tools, then profession, then Treasure gold,
    * then a loaded transport's holds, else the orders / destination text. */
-  const char* prof = units_profession_label(names, u->type_index, u->profession);
+  /* bugs.md #507: DOS FUN_49dd_0424 stack-list row passes param_3 = 0 (raw 79205). */
+  const char* prof = units_profession_line(names, u->type_index, u->profession, false);
   int goods = 0;
   for (int g = 0; g < COLONIZE_UNIT_CARGO_MAX; ++g) {
     if (u->hold_goods_amount[g] > 0 && u->hold_goods_amount[g] < 255) {
@@ -1338,8 +1339,9 @@ void map_panel_render_w(
     );
     map_panel_draw_line(font, framebuffer, text_x, &text_y, line_h, y_limit, line, MAP_PANEL_COL_TEXT);
 
+    /* bugs.md #507: DOS selected-unit block passes param_3 = 1 (raw 78892). */
     const char* prof =
-      units_profession_label(names, selected->type_index, selected->profession);
+      units_profession_line(names, selected->type_index, selected->profession, true);
     if (prof) {
       map_panel_draw_line(
         font, framebuffer, text_x, &text_y, line_h, y_limit, prof, MAP_PANEL_COL_EMPHASIS

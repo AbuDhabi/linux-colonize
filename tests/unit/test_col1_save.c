@@ -836,6 +836,37 @@ int main(void) {
         );
         return 1;
       }
+      /*
+       * bugs.md #506: colony +0x60 nibbles are the per-colonist education
+       * counter (FUN_15eb_0c7a/0cbc, raw 10202-10240), not a constant 15/0
+       * export — a real DOS save must round-trip them. The canonical
+       * colonist reorder (raw 47225/47241) permutes the slots with the
+       * colonists, so compare the multiset per colony.
+       */
+      for (unsigned ci = 0; ci < cap.head.colony_count && ci < orig.head.colony_count; ++ci) {
+        const ColonizeCol1Colony* a = &orig.colony[ci];
+        const ColonizeCol1Colony* b = &cap.colony[ci];
+        if (a->population != b->population) {
+          continue;
+        }
+        int hist_a[16];
+        int hist_b[16];
+        memset(hist_a, 0, sizeof(hist_a));
+        memset(hist_b, 0, sizeof(hist_b));
+        for (int pi = 0; pi < (int)a->population && pi < 32; ++pi) {
+          const int na = (pi & 1) ? a->specialty[pi / 2].odd : a->specialty[pi / 2].even;
+          const int nb = (pi & 1) ? b->specialty[pi / 2].odd : b->specialty[pi / 2].even;
+          hist_a[na & 0xf]++;
+          hist_b[nb & 0xf]++;
+        }
+        if (memcmp(hist_a, hist_b, sizeof(hist_a)) != 0) {
+          fprintf(
+            stderr, "specialty nibbles lost %s colony %u pop %u\n", fix->path, ci,
+            (unsigned)a->population
+          );
+          return 1;
+        }
+      }
       /* DOS in-game saves carry DS:0x5394/0x5396/0x5398 all == human slot
        * (Dutch goldens: 3/3/3); a stale 0 makes DOS run England's EOT as
        * "human" at load (immediate @PRICEUP) and draw fog for viewer 0

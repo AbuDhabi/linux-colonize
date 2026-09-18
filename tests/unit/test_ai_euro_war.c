@@ -17,6 +17,7 @@
  */
 #include "core/ai_diplo.h"
 #include "core/ai_euro.h"
+#include "core/ai_euro_internal.h"
 #include "core/ai_goals.h"
 #include "core/col1_save.h"
 #include "core/colony.h"
@@ -8576,6 +8577,204 @@ static int unit_naval_ambush(void) {
   return 0;
 }
 
+
+/*
+ * bugs.md #512 — FUN_521d_20e6 raw 89011-89013: the peace 'F' arm gates on the
+ * @UNIT ATTACK column (DS:0x5236[type] > 1) and a non-ship type, and spends no
+ * garrison quota. A Soldier standing on its own colony whose garrison_quota is
+ * already 0 must therefore still FORTIFY — before the fix the quota gate made
+ * it fall through and be admitted into the colony as a colonist.
+ */
+static int unit_peace_fortify_ignores_garrison_quota(void) {
+  const int nation = 1;
+
+  ColonizeWorldMap map;
+  if (!fx_map_alloc(&map, 16, 16, 1, false)) {
+    return fail("quota-fortify alloc map");
+  }
+
+  ColonizeUnitPool units;
+  fx_units_init(&units);
+  units.type_count = 1;
+  snprintf(units.types[0].name, sizeof(units.types[0].name), "Soldier");
+  units.types[0].movement = 3;
+  units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  units.types[0].attack = 4;
+  units.types[0].defense = 2;
+
+  ColonizeColonyPool colonies;
+  fx_colonies_init(&colonies);
+  ColonizeColony* own = &colonies.colonies[0];
+  own->id = 0;
+  own->active = true;
+  own->nation_id = nation;
+  own->x = 4;
+  own->y = 4;
+  /* Population 3+ keeps the separate pre-stage "quota 0 + tiny colony" admit
+   * arm (ai_euro_act_land_pre) out of this test — the arm under test is the
+   * 20e6 'F' arm alone. */
+  own->population = 4;
+  own->colonist_count = 4;
+  own->garrison_quota = 0; /* no slots left under the old quota gate */
+  colonies.colony_count = 1;
+
+  const int uid = units_spawn(&units, 0, 4, 4);
+  ColonizeUnit* soldier = units_get(&units, uid);
+  if (!soldier) {
+    fx_map_free(&map);
+    return fail("quota-fortify spawn");
+  }
+  soldier->nation_id = nation;
+  soldier->orders = UNITS_ORDER_NONE;
+  soldier->moves = 3 * UNITS_MP_PER_TILE;
+
+  ColonizeCol1Save col1;
+  col1_save_init(&col1);
+  memset(col1.nation, 0, sizeof(col1.nation));
+  memset(col1.head.nation_relation, 0, sizeof(col1.head.nation_relation));
+  for (int i = 0; i < 4; ++i) {
+    col1.player[i].control = 0;
+    col1.player[i].diplomacy = 0;
+  }
+  col1.head.difficulty = 0;
+  col1.nation[nation].gold = 50;
+  col1.stuff.ship_counts[nation] = 1;
+
+  ai_goals_reset();
+
+  uint32_t turn = 25;
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.turn_number = &turn;
+  ctx.units = &units;
+  ctx.colonies = &colonies;
+  ctx.map = &map;
+  ctx.col1 = &col1;
+  ctx.col1_ok = true;
+  ctx.rng_seed = 42;
+
+  const int pop0 = own->population;
+  struct ai_euro_act_ctx a;
+  memset(&a, 0, sizeof(a));
+  a.ctx = &ctx;
+  a.u = soldier;
+  a.nation_id = nation;
+  a.uname = units_display_name(&units, soldier);
+  a.goal_code = -1;
+  (void)ai_euro_act_land_fortify(&a);
+
+  soldier = units_get(&units, uid);
+  if (!soldier || !soldier->active) {
+    fx_map_free(&map);
+    return fail("Soldier was admitted into the colony instead of fortifying");
+  }
+  if (own->population != pop0) {
+    fx_map_free(&map);
+    return fail("colony population changed — the admit arm fired");
+  }
+  if (soldier->orders != UNITS_ORDER_FORTIFY && soldier->orders != UNITS_ORDER_FORTIFIED) {
+    fprintf(stderr, "unit_ai_euro_war: quota-fortify orders=%d\n", soldier->orders);
+    fx_map_free(&map);
+    return fail("expected FORTIFY with garrison_quota == 0");
+  }
+
+  fx_map_free(&map);
+  fprintf(stderr, "unit_ai_euro_war: peace fortify ignores garrison quota ok\n");
+  return 0;
+}
+
+/*
+ * The other half of the same DOS test: attack <= 1 types are NOT fortified by
+ * this arm. A Pioneer (DS:0x5236[2] == 1) on its own colony tile must not come
+ * out of the turn fortified — the old name-keyed gate happened to agree here,
+ * so this pins the new literal ATTACK-column reading.
+ */
+static int unit_peace_fortify_skips_attack_one_type(void) {
+  const int nation = 1;
+
+  ColonizeWorldMap map;
+  if (!fx_map_alloc(&map, 16, 16, 1, false)) {
+    return fail("attack1-fortify alloc map");
+  }
+
+  ColonizeUnitPool units;
+  fx_units_init(&units);
+  units.type_count = 1;
+  snprintf(units.types[0].name, sizeof(units.types[0].name), "Pioneer");
+  units.types[0].movement = 3;
+  units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  units.types[0].attack = 1;
+  units.types[0].defense = 1;
+
+  ColonizeColonyPool colonies;
+  fx_colonies_init(&colonies);
+  ColonizeColony* own = &colonies.colonies[0];
+  own->id = 0;
+  own->active = true;
+  own->nation_id = nation;
+  own->x = 4;
+  own->y = 4;
+  own->population = 2;
+  own->colonist_count = 2;
+  own->garrison_quota = 4;
+  colonies.colony_count = 1;
+
+  const int uid = units_spawn(&units, 0, 4, 4);
+  ColonizeUnit* pioneer = units_get(&units, uid);
+  if (!pioneer) {
+    fx_map_free(&map);
+    return fail("attack1-fortify spawn");
+  }
+  pioneer->nation_id = nation;
+  pioneer->orders = UNITS_ORDER_NONE;
+  pioneer->moves = 3 * UNITS_MP_PER_TILE;
+
+  ColonizeCol1Save col1;
+  col1_save_init(&col1);
+  memset(col1.nation, 0, sizeof(col1.nation));
+  memset(col1.head.nation_relation, 0, sizeof(col1.head.nation_relation));
+  for (int i = 0; i < 4; ++i) {
+    col1.player[i].control = 0;
+    col1.player[i].diplomacy = 0;
+  }
+  col1.head.difficulty = 0;
+  col1.nation[nation].gold = 50;
+  col1.stuff.ship_counts[nation] = 1;
+
+  ai_goals_reset();
+
+  uint32_t turn = 25;
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.turn_number = &turn;
+  ctx.units = &units;
+  ctx.colonies = &colonies;
+  ctx.map = &map;
+  ctx.col1 = &col1;
+  ctx.col1_ok = true;
+  ctx.rng_seed = 42;
+
+  struct ai_euro_act_ctx a;
+  memset(&a, 0, sizeof(a));
+  a.ctx = &ctx;
+  a.u = pioneer;
+  a.nation_id = nation;
+  a.uname = units_display_name(&units, pioneer);
+  a.goal_code = -1;
+  (void)ai_euro_act_land_fortify(&a);
+
+  pioneer = units_get(&units, uid);
+  if (pioneer && pioneer->active &&
+      (pioneer->orders == UNITS_ORDER_FORTIFY || pioneer->orders == UNITS_ORDER_FORTIFIED)) {
+    fx_map_free(&map);
+    return fail("attack-1 Pioneer must not take the 20e6 'F' arm");
+  }
+
+  fx_map_free(&map);
+  fprintf(stderr, "unit_ai_euro_war: attack-1 type skips 'F' arm ok\n");
+  return 0;
+}
+
 static const TestCase k_cases[] = {
   {"unit_mid_hire_mil", unit_mid_hire_mil},
   {"unit_soldier_board_empty_transport", unit_soldier_board_empty_transport},
@@ -8644,6 +8843,8 @@ static const TestCase k_cases[] = {
   {"unit_peace_regular_border_wake", unit_peace_regular_border_wake},
   {"unit_peace_continental_army_border_wake", unit_peace_continental_army_border_wake},
   {"unit_peace_continental_cavalry_border_wake", unit_peace_continental_cavalry_border_wake},
+  {"unit_peace_fortify_ignores_garrison_quota", unit_peace_fortify_ignores_garrison_quota},
+  {"unit_peace_fortify_skips_attack_one_type", unit_peace_fortify_skips_attack_one_type},
 };
 TEST_MAIN(k_cases)
 

@@ -948,7 +948,7 @@ static int unit_phase_h_trainprofession(void) {
   col->colonists[0].active = true;
   col->colonists[0].profession = COLONIZE_PROF_FREE_COLONIST;
   col->colonists[0].building_type = -1;
-  col->colonists[0].field_job = COLONIZE_JOB_FARMER;
+  col->colonists[0].field_job = COLONIZE_JOB_COTTON_PLANTER;
   col->colonist_count = 1;
   col->population = 1;
   col->tiles[0] = 0;
@@ -974,14 +974,15 @@ static int unit_phase_h_trainprofession(void) {
   for (unsigned t = 0; t < 5000u; ++t) {
     col1.head.turn = (uint16_t)(t & 0xffffu);
     col->colonists[0].profession = COLONIZE_PROF_FREE_COLONIST;
-    col->colonists[0].field_job = COLONIZE_JOB_FARMER;
+    /* raw 57595: `0 < job < 5` — Farmer (0) is excluded. */
+    col->colonists[0].field_job = COLONIZE_JOB_COTTON_PLANTER;
     col->stock[COLONIZE_CARGO_FOOD] = 500;
     eu.status[0] = '\0';
     ai_popup_init(&pops);
     ColonizeTurnResult prod;
     memset(&prod, 0, sizeof(prod));
     turn_run_colony_production_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&pool), .map=(ColonizeWorldMap*)(NULL), .col1=(ColonizeCol1Save*)(&col1), .col1_ok=true, .rng=(ColonizeDosRng*)(&rng), .europe=(EuropeScreen*)(&eu)}, 0, &prod, &pops, &game_txt);
-    if (col->colonists[0].profession == COLONIZE_JOB_FARMER) {
+    if (col->colonists[0].profession == COLONIZE_JOB_COTTON_PLANTER) {
       discovered = 1;
       if (pops.queue_count < 1 ||
           (strstr(pops.queue[0].body, "Concord") == NULL &&
@@ -4602,7 +4603,7 @@ int main(void) {
     col->colonists[0].active = true;
     col->colonists[0].profession = COLONIZE_PROF_FREE_COLONIST;
     col->colonists[0].building_type = -1;
-    col->colonists[0].field_job = COLONIZE_JOB_FARMER;
+    col->colonists[0].field_job = COLONIZE_JOB_COTTON_PLANTER;
     col->colonist_count = 1;
     col->population = 1;
     col->tiles[0] = 0;
@@ -4617,12 +4618,14 @@ int main(void) {
     for (unsigned t = 0; t < 5000u; ++t) {
       col1.head.turn = (uint16_t)(t & 0xffffu);
       col->colonists[0].profession = COLONIZE_PROF_FREE_COLONIST;
-      col->colonists[0].field_job = COLONIZE_JOB_FARMER;
+      /* raw 57595: job 0 (Farmer) never learns on the job — DOS gates
+       * `0 < job < 5`, so drive this with a cash-crop field job. */
+      col->colonists[0].field_job = COLONIZE_JOB_COTTON_PLANTER;
       col->stock[COLONIZE_CARGO_FOOD] = 500;
       ColonizeTurnResult prod;
       memset(&prod, 0, sizeof(prod));
       turn_run_colony_production_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&pool), .map=(ColonizeWorldMap*)(NULL), .col1=(ColonizeCol1Save*)(&col1), .col1_ok=true, .rng=(ColonizeDosRng*)(&rng), .europe=(EuropeScreen*)(NULL)}, 0, &prod, NULL, NULL);
-      if (col->colonists[0].profession == COLONIZE_JOB_FARMER) {
+      if (col->colonists[0].profession == COLONIZE_JOB_COTTON_PLANTER) {
         discovered = 1;
         break;
       }
@@ -4632,6 +4635,84 @@ int main(void) {
       return 1;
     }
     fprintf(stderr, "colony random field skill ok\n");
+  }
+
+  /*
+   * bugs.md #509b — on-the-job learning latch. DOS raw 57596/57605 tests
+   * the per-job DS byte at -0x6bd0 for 0 and bumps it on a success, and
+   * FUN_4962_0018 (raw 78140) clears that block per nation at the turn
+   * boundary: at most ONE colonist per job per nation per turn graduates,
+   * however many colonies and colonists are rolling. Job 0 (Farmer) is
+   * outside the `0 < job < 5` gate and never learns at all.
+   */
+  {
+    ColonizeColonyPool pool;
+    colonies_init(&pool);
+    colonies_set_occupancy_map(NULL);
+    for (int c = 0; c < 2; ++c) {
+      ColonizeColony* col = &pool.colonies[c];
+      memset(col, 0, sizeof(*col));
+      col->active = true;
+      col->id = c + 1;
+      col->nation_id = 0;
+      col->building_in_production = -1;
+      for (int k = 0; k < 8; ++k) {
+        col->colonists[k].active = true;
+        col->colonists[k].building_type = -1;
+        col->colonists[k].field_job = COLONIZE_JOB_COTTON_PLANTER;
+        col->tiles[k] = (int8_t)k;
+      }
+      col->colonist_count = 8;
+      col->population = 8;
+    }
+    pool.colony_count = 2;
+
+    ColonizeCol1Save col1;
+    memset(&col1, 0, sizeof(col1));
+    col1.head.year = 1492;
+    ColonizeDosRng rng;
+    dos_rng_seed(&rng, 7u * 12345u);
+    int total = 0;
+    int farmers = 0;
+    for (unsigned t = 0; t < 20000u; ++t) {
+      col1.head.turn = (uint16_t)(t & 0xffffu);
+      for (int c = 0; c < 2; ++c) {
+        for (int k = 0; k < 8; ++k) {
+          pool.colonies[c].colonists[k].profession = COLONIZE_PROF_FREE_COLONIST;
+          pool.colonies[c].colonists[k].field_job =
+            (k == 0) ? COLONIZE_JOB_FARMER : COLONIZE_JOB_COTTON_PLANTER;
+        }
+        pool.colonies[c].stock[COLONIZE_CARGO_FOOD] = 5000;
+      }
+      ColonizeTurnResult prod;
+      memset(&prod, 0, sizeof(prod));
+      turn_run_colony_production_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&pool), .map=(ColonizeWorldMap*)(NULL), .col1=(ColonizeCol1Save*)(&col1), .col1_ok=true, .rng=(ColonizeDosRng*)(&rng)}, 0, &prod, NULL, NULL);
+      int hit = 0;
+      for (int c = 0; c < 2; ++c) {
+        for (int k = 0; k < 8; ++k) {
+          const int prof = pool.colonies[c].colonists[k].profession;
+          if (prof == COLONIZE_JOB_COTTON_PLANTER) {
+            hit++;
+          } else if (k == 0 && prof == COLONIZE_JOB_FARMER) {
+            farmers++;
+          }
+        }
+      }
+      if (hit > 1) {
+        fprintf(stderr, "otj latch: %d graduations in one turn (t=%u)\n", hit, t);
+        return 1;
+      }
+      total += hit;
+    }
+    if (total < 10) {
+      fprintf(stderr, "otj latch: only %d graduations in 20000 turns\n", total);
+      return 1;
+    }
+    if (farmers != 0) {
+      fprintf(stderr, "otj latch: job 0 learned %d times (DOS gate 0 < job)\n", farmers);
+      return 1;
+    }
+    fprintf(stderr, "on-the-job latch + job-0 gate ok (%d graduations)\n", total);
   }
 
   /*
