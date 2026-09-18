@@ -4836,8 +4836,11 @@ typedef struct ColonizeLcrRoll {
  *   - case 8: de Soto rerolls it away (103552); a village within 3 tiles
  *     (DS:0x8db8 distance from the nearest-village scan) takes a relation
  *     hit of RNG(1,6) + ((difficulty - skill) + 1) * 5, gated on that
- *     tribe having met the nation (FUN_281f_0a38 & 0x20); then the case is
- *     forced to 6 (103554-103568) — DOS shows plain "Nothing" for this.
+ *     tribe having met the nation (FUN_281f_0a38 & 0x20). Met (103563-64
+ *     `goto LAB_65dd_0320`) KEEPS case 8 — the @LOSTCITY8 trespass popup —
+ *     and applies the hit; unmet clears local_32 to -1 and falls through to
+ *     `local_8 = 6`, i.e. plain "Nothing" and no hit. No village within 3
+ *     is also "Nothing" (103554-103568).
  *   - case 3: 3d8*10, times (skill+2)/2 when skill (103571-103578).
  *   - case 7: 4d10*2 (103580-103586).
  *   - case 5 (103597-103612): nation with < 5 census pop (DS:0x9410) and
@@ -4846,9 +4849,8 @@ typedef struct ColonizeLcrRoll {
  *     turns it into 4 (burial mounds) REGARDLESS of the two gates above
  *     (the latch check is last in the block); de Soto never accepts a bare
  *     Vanishes (103614-103616).
- * Not ported: the case-8 "met" gate (no per-tribe contact flag in the Col1
- * mirror — treated as met). Case 8 stays visibly `TRESPASS_ANGER` here
- * (P7.2 display call) where DOS goes silent.
+ * The case-8 "met" gate is live (bugs.md #497): `FUN_281f_0a38 & 0x20` is
+ * `col1->indian[t-4].euro_diplo[nation] & COL1_INDIAN_MET_BIT`.
  */
 static void units_lcr_roll_outcome(
   ColonizeLcrRoll* out,
@@ -4922,8 +4924,12 @@ static void units_lcr_roll_outcome(
           raw = 6;
         }
       } else {
+        /* 103536-103546: DOS rolls the value, then spawns the Treasure with
+         * FUN_281f_095c and bails out of the whole routine when that fails
+         * (`if (param_1 < 0) goto LAB_65dd_080a`); DS:0x1dc7 is bumped only on
+         * the success path. The port spawns in the dispatch tail below, so the
+         * counter is bumped there too (bugs.md #502). */
         out->treasure_hundreds = (skill + 2) * 10 + dos_rng_range(rng, 1, 20);
-        s_lcr_cibola_total++;
       }
     }
 
@@ -4933,12 +4939,31 @@ static void units_lcr_roll_outcome(
       }
       int dist = 0x7fffffff;
       const int tribe = units_lcr_nearest_tribe_dist(col1, x, y, &dist);
+      raw = 6; /* 103568: the fall-through case unless the met gate jumps out */
       if (tribe >= 0 && dist < 3) {
         const int difficulty = col1 ? col1->head.difficulty : 0;
+        /* 103557-103559: local_32 = the village's tribe, local_38 = the hit. */
         out->trespass_mag = dos_rng_range(rng, 1, 6) + ((difficulty - skill) + 1) * 5;
         out->trespass_tribe = tribe;
+        /*
+         * 103563-103565: `FUN_281f_0a38(*0x5394, *0x8d50) & 0x20` — the tribe
+         * must have MET this nation. Met -> `goto LAB_65dd_0320`, which skips
+         * the `local_8 = 6` below and leaves case 8 (the @LOSTCITY8 popup plus
+         * the relation hit). Unmet -> local_32 = -1 and case 6 ("Nothing"),
+         * so the later `(local_38 != 0) && (-1 < local_32)` hit never fires.
+         * (The 09a4/0438 pair at 103560-103561 is the %STRING0 tribe-name
+         * substitution for that popup; the port sets it as `tok.string0` in
+         * the TRESPASS_ANGER arm below.)
+         */
+        const int tidx = tribe - 4;
+        const bool met = col1 && tidx >= 0 && tidx < 8 && nation >= 0 && nation < 4 &&
+          (col1->indian[tidx].euro_diplo[nation] & COL1_INDIAN_MET_BIT) != 0;
+        if (met) {
+          raw = 8;
+        } else {
+          out->trespass_tribe = -1;
+        }
       }
-      raw = 6;
     }
 
     if (raw == 3) {
@@ -5119,9 +5144,13 @@ bool units_resolve_lcr_rumour_w(
     if (nation == human_nation) {
       (void)woodcut_fire(col1, WOODCUT_THE_FOUNTAIN_OF_YOUTH);
     }
-    /* 8 free dock immigrants (8x FUN_291f_0d2c, 103727-103731) after
-     * FUN_281f_0524(8), the once-only discovery event. Human only — AI
-     * nations have no modeled EuropeScreen recruit pool (PARK). */
+    /*
+     * 8 free dock immigrants (8x FUN_291f_0d2c, 103727-103731) after
+     * FUN_281f_0524(8). DOS runs the loop for EVERY nation (bugs.md #496):
+     * 103719 `FUN_281f_0582(nation)` binds DS:0x84fc to the explorer's own
+     * nation record first, and only the 0x37 tune + the woodcut above sit
+     * inside the `local_a != 0` (human) gate.
+     */
     if (europe && nation == human_nation) {
       if (g_units_combat_popups) {
         /* Real 4884(1,0) ×8: the player picks each of the eight (2026-08-28). */
@@ -5144,6 +5173,26 @@ bool units_resolve_lcr_rumour_w(
           (void)europe_recruit_free_from_pool_ex(europe, 0, rng);
         }
       }
+    } else if (col1 && nation >= 0 && nation < 4) {
+      /*
+       * AI (or any nation with no EuropeScreen bound): FUN_38fd_4884 skips its
+       * list dialog whenever the bound nation's control byte is non-zero
+       * (64744-64751 `*(0x543f + n*0x34) != 0` -> `local_58 = 1`), so each of
+       * the eight picks takes pool slot 1 of that nation's own recruit[3]
+       * (nation record +2..+4). param_1 != 0 means passage 0 (64695), the +0x2e
+       * crosses word untouched (64763 is `param_1 == 0` only) and no +6 recruit
+       * bump (64771). Tail order (64767-64774): create the unit, then refill the
+       * emptied slot with 46d4(0) off the shared stream — and only on success.
+       * bugs.md #496.
+       */
+      for (int i = 0; i < 8; ++i) {
+        const int profession = (int)col1->nation[nation].recruit[1];
+        const int id = europe_nation_harbor_spawn(w, nation, profession);
+        if (id < 0) {
+          break;
+        }
+        europe_nation_refill_pool_slot(col1, nation, 1, false, rng);
+      }
     }
     units_combat_enqueue_tok(
       AI_POPUP_TAG_INFO, "LOSTCITY1", nation, -1, 0, &tok,
@@ -5154,7 +5203,13 @@ bool units_resolve_lcr_rumour_w(
     units_play_event_sound(0x3c); /* FUN_65dd_0004 65dd:04b6 case 2: queued tune (281f_048e) */
     /* Case 2 (103536-103548): Treasure unit with +0x315b = hundreds. */
     const int gold = roll.treasure_hundreds * 100;
-    (void)units_spawn_treasure_train(pool, x, y, nation, gold);
+    const int treasure_id = units_spawn_treasure_train(pool, x, y, nation, gold);
+    if (treasure_id < 0) {
+      /* 103543 `if (param_1 < 0) goto LAB_65dd_080a`: no Treasure, no popup,
+       * and DS:0x1dc7 stays put (bugs.md #502). */
+      break;
+    }
+    s_lcr_cibola_total++; /* 103546: `*(char *)0x1dc7 += 1` after the spawn. */
     tok.has_number1 = true;
     tok.number1 = gold;
     units_combat_enqueue_tok(

@@ -91,14 +91,16 @@ approach / `@RAID*` loot via `5fef`-shaped helpers).
    `NOTHING` (empty warehouse / no lootable stock) → **"%s raiding party wiped
    out in %s!"** (`GAME.TXT` `@RAIDNOTHING`, tribe + colony). Full `@RAID*` dialog widgets
    **Done** structural (`ai_popup`); DOS body / VGA chrome PARKED.
-9. **Scout hostility** (`359c`-shaped) — alarm ≥90 + Scout name adjacent to Brave:
-   prefer **displace** 1–2 free land tiles away (direct xy nudge + `AI_MOVE` goto);
-   when displaced (not despawned) and status buffer present → human
-   **"The %s warn your Scout away from their village."**; **despawn only if** no free tile
-   (**"The %s kill your Scout."**). **Thin RNG kill-with-flee Done:** at alarm
-   **≥95**, ~1/4 chance kill even when a flee tile exists (90..94 prefer
-   displace). Dialog warn **widgets** **Done** structural (`ai_popup`); VGA
-   chrome PARKED.
+9. **Scout hostility — REMOVED 2026-09-18 (bugs.md #499).** This entry used to
+   describe a `359c`-shaped alarm >= 90 anti-Scout warn / displace / kill arm.
+   It had no DOS source: `FUN_4d56_359c` (raw 83481-83505) is the
+   **Enter-Hostile-Village wagon outcome** — `iVar1 = FUN_281f_030c(tribe, euro)`,
+   `iVar2 = rand(0, 500)`, then `r <= alarm` → `@KILLWAGONS` (DS:0x15c3) +
+   `FUN_281f_0808(unit)`; `r <= 2*alarm` → `@MADATWAGONS` (0x15ce); else
+   `@GRUDGEWAGONS` (0x15da) + `thunk_FUN_2a1f_044c` (the 2820 trade). That body
+   is already ported as `ai_contact_enter_hostile_village` (`a5e8`). No DOS code
+   harasses Scouts on the Indian move pulse, so the arm was deleted.
+
 10. **PARKED** — deep `FUN_4d56_2820` (~1.4k; thunk `2a1f_044c`) meet/raid
    decision matrix + nested `2aac…311e` haggle (not this post-pulse path;
    Marathon2 R6 keeps PARK — no body port); full `4528` settlement body; ship

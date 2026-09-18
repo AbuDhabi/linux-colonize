@@ -10,7 +10,7 @@
  *            indian_raid_outcomes.md
  *
  * FUN_4d56_1816 phases (prelude / relation), FUN_5bfb_022e meet,
- * FUN_4d56_4528 / FUN_5fef_0f14 raid outcomes, FUN_4d56_359c scout stub.
+ * FUN_4d56_4528 / FUN_5fef_0f14 raid outcomes.
  *
  * FUN_4d56_2820 (thunk 2a1f_044c) village trade: structural port 2026-08-29
  * (hold pick → LAB_002bbc sell loop → LAB_002e92 buy loop, all GAME.TXT
@@ -406,7 +406,7 @@ void ai_contact_alarm_delta_00f2(ColonizeTurnContext* ctx, int nation_id, int eu
 /* Tribe display name for Indian nation ids 4..11. */
 const char* ai_contact_tribe_name(int nation_id);
 
-/* FUN_4d56_4528 / 5fef_0f14 raid outcomes + 359c scout stub. */
+/* FUN_4d56_4528 / 5fef_0f14 raid outcomes. */
 void ai_contact_indian_raids(ColonizeTurnContext* ctx, int nation_id);
 
 /*

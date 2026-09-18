@@ -467,12 +467,6 @@ graphs:
         label: "E: foreign colonies at war → MILITARY prio 5; thin bind one idle Soldier/Dragoon"
         fn: ai_diplo.c:ai_diplo_at_war
         status: thin
-      - id: e_scout
-        kind: loop
-        label: "E2: peace, own≥1 — idle Scout → CONTACT ring MD 2–4 prio 2, else fog-explore"
-        fn: ai_euro.c:ai_euro_scout_contact_ring_target
-        status: linux
-        note: Chains with the act-phase copy (act only re-aims without a useful goto).
       - id: food
         kind: step
         label: Food emergency — food_short ≥ 4 → bind nearest food-capable colonist MD≤8 to LABOR
@@ -522,8 +516,7 @@ graphs:
       - [d_work, d_garrison]
       - [d_garrison, sec_d, "next colony"]
       - [sec_d, sec_e, "done"]
-      - [sec_e, e_scout]
-      - [e_scout, food]
+      - [sec_e, food]
       - [food, sec_f]
       - [sec_f, producers]
       - [producers, sec_g]
@@ -637,8 +630,9 @@ graphs:
         status: dos
       - id: gate_q
         kind: decision
-        label: Not on a goto, not mid Pioneer job, and type not deferred (Treasure/Missionary/Wagon/cargo ship)?
-        dos: 6d8e ~90552 early 20e6 call
+        label: "Not on a goto OR at a full MP allotment, not mid Pioneer job, and type not deferred (Treasure/Missionary/Wagon/cargo ship)?"
+        dos: raw 90551 — `+0x3149 == 0 || +0x314c != 0x0b` (no MP spent yet, or not on a goto)
+        note: "The full-allotment term was added 2026-09-18 (bugs.md #493): without it a unit that ever got an AI_MOVE goto never re-entered 20e6."
       - id: gate
         kind: sub
         label: Move-scoring gate (FUN_521d_20e6 land)
@@ -992,11 +986,6 @@ graphs:
         label: Peace — garrison wakes when a foreign Euro land unit enters MD≤2, hunts it
         fn: units.c:units_wake
         status: linux
-      - id: scout
-        kind: step
-        label: Peace Scout — CONTACT ring MD 2–4 around nearest tribe, else fog-explore MD≤8 (Seasoned deeper)
-        fn: ai_euro.c:ai_euro_scout_fog_explore_target
-        status: linux
       - id: treasure
         kind: step
         label: Treasure — cash at own colony (20e6), Europe cash, Cortes galleon, board ship, coast target, 47b9 dead-end destroy
@@ -1091,8 +1080,7 @@ graphs:
       - [lcr, end, "unit vanished"]
       - [war_hunt, end, "hunt bound"]
       - [war_hunt, peace_border, "not at war / not hunter"]
-      - [peace_border, scout]
-      - [scout, treasure]
+      - [peace_border, treasure]
       - [treasure, end, "cashed / destroyed / boarded"]
       - [treasure, wagon, "not treasure"]
       - [wagon, pioneer]
@@ -1127,8 +1115,8 @@ graphs:
         note: Ships never retarget here — courses owned by the ship band.
       - id: war_defer
         kind: decision
-        label: At war and unit is a land hunter / Artillery?
-        note: Defer to the act-level hunt (no explore yank).
+        label: At war and unit is a land hunter (Soldier/Dragoon/Regular/Continental) / Artillery?
+        note: "Defer to the act-level hunt (no explore yank). Scouts are NOT hunters (bugs.md #494): the 20e6 type-5 band has no war term."
       - id: peace_defer
         kind: decision
         label: Peace — passive colony Artillery, or idle Soldier already on own colony?

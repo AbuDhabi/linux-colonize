@@ -1945,12 +1945,23 @@ static int ai_euro_is_military_name(const char* name) {
          k == UNITS_KIND_CAVALRY || units_kind_is_continental(k);
 }
 
-/* Soldier / Dragoon / Scout / Regular / Continental — land war hunt; not founders. */
+/*
+ * Soldier / Dragoon / Regular / Continental — land war hunt; not founders.
+ *
+ * Scouts were in this set (bugs.md #494) and therefore skipped the
+ * FUN_521d_20e6 move-scoring gate at war and ran the combat hunt arm
+ * instead. DOS's 20e6 type-5 band carries no war term at all: the pre-gate
+ * (raw 88514-88530), the patrol 0x56 arm (raw 89047-89059), the village
+ * 0x4c arm (raw 89064-89068) and the explore ring (raw 89076+) read the
+ * G-table, continent ids, turn counters and the village record — never a
+ * per-peer relation byte. A Scout (attack 1) is also never issued the
+ * 0x46 seize order, so it has no hunt business at war.
+ */
 static int ai_euro_is_land_war_hunter(const char* name) {
   if (!name) {
     return 0;
   }
-  return ai_euro_is_military_name(name) || units_name_kind(name) == UNITS_KIND_SCOUT;
+  return ai_euro_is_military_name(name);
 }
 
 /* @UNIT row 11 ("Artillery", or a pool spelling it "Cannon"). */
@@ -2076,198 +2087,14 @@ static int ai_euro_nearest_military_goal(
 }
 
 /*
- * CONTACT scout ring (unpark #4): nearest tribe beyond adjacent from
- * (from_x,from_y) → land tile in Manhattan ring 2..4 around tribe.
- * FoW deepen: when map.seen exists, prefer tiles NOT seen by this nation
- * (map_tile_seen_by / Col1 fog bit) — explore CONTACT, not combat bonus.
- * Sticky deepen: ai_diplo_indian_hostility_sticky ≥ 2 (nation +0x4b =
- * unknown26[11], the "very-low" step; moved off +0x48 by smell audit #52)
- * → prefer closer rings when fog absent. Sticky + FoW: prefer deeper unseen
- * ring (md=4) to push fog outward. Cite: euro_diplo.md / ai_diplo.h; manual fog.
- * Fall back to toward-scout / tighter-ring scoring when fog absent or all seen.
- * No beyond-adjacent tribe / no ring tile: return 0 (fog-explore MD≤8 instead).
+ * Removed (bugs.md #493/#495): ai_euro_scout_contact_ring_target,
+ * ai_euro_scout_fog_explore_target and ai_euro_is_seasoned_scout_name were
+ * Linux inventions (tribe ring MD 2-4 with x1000/x50/x10 weights, an MD<=8
+ * fog sweep, and a "Seasoned Scout prefers deeper fog" profession read).
+ * DOS FUN_521d_20e6's type-5 band reads no profession byte and no relation
+ * matrix; its explore ring and radius are ported in
+ * ai_euro_land_explore_scan_target / ai_euro_20e6_explorer_flag.
  */
-static int ai_euro_scout_contact_ring_target(
-  ColonizeTurnContext* ctx,
-  int nation_id,
-  int from_x,
-  int from_y,
-  int* out_x,
-  int* out_y
-) {
-  if (!ctx || !out_x || !out_y || nation_id < 0 || nation_id >= 4) {
-    return 0;
-  }
-  if (!ctx->col1_ok || !ctx->col1 || !ctx->col1->tribe || ctx->col1->head.tribe_count == 0 ||
-      from_x < 0 || from_y < 0 || !ctx->map) {
-    return 0;
-  }
-  const uint8_t sticky = ai_diplo_indian_hostility_sticky(ctx->col1, nation_id);
-  /* sticky≥2 without FoW → weight ring radius so md=2 beats md=4. */
-  const int md_w = (sticky >= 2) ? 50 : 1;
-
-  int best_tribe_d = -1;
-  int tribe_x = 0;
-  int tribe_y = 0;
-  for (uint16_t i = 0; i < ctx->col1->head.tribe_count; ++i) {
-    const ColonizeCol1Tribe* t = &ctx->col1->tribe[i];
-    const int tx = (int)t->x;
-    const int ty = (int)t->y;
-    const int d = abs(tx - from_x) + abs(ty - from_y);
-    if (d <= 1) {
-      continue; /* already adjacent — no scout ring */
-    }
-    if (best_tribe_d < 0 || d < best_tribe_d) {
-      best_tribe_d = d;
-      tribe_x = tx;
-      tribe_y = ty;
-    }
-  }
-  if (best_tribe_d <= 1) {
-    return 0;
-  }
-
-  const int use_fog = ctx->map->seen != NULL;
-  /* Sticky CONTACT + FoW API → deepen into unseen outer ring. */
-  const int sticky_fog_deepen = sticky >= 2 && use_fog;
-  int best_score = -1;
-  int bx = 0;
-  int by = 0;
-  for (int dy = -4; dy <= 4; ++dy) {
-    for (int dx = -4; dx <= 4; ++dx) {
-      const int md = abs(dx) + abs(dy);
-      if (md < 2 || md > 4) {
-        continue;
-      }
-      const int nx = tribe_x + dx;
-      const int ny = tribe_y + dy;
-      if (nx < 0 || ny < 0 || nx >= ctx->map->width || ny >= ctx->map->height) {
-        continue;
-      }
-      if (map_tile_is_water(ctx->map, nx, ny)) {
-        continue;
-      }
-      if (ctx->colonies && colonies_id_at(ctx->colonies, nx, ny) >= 0) {
-        continue;
-      }
-      /*
-       * FoW: unseen tiles score first (explore CONTACT). Sticky+fog: among
-       * unseen prefer deeper ring (md=4). Else sticky prefers tighter ring
-       * (md=2). Cite Col1 seen bit / map_tile_seen_by — not combat bonuses.
-       */
-      const int unseen =
-        use_fog && !map_tile_seen_by(ctx->map, nx, ny, nation_id) ? 0 : 1;
-      const int to_scout = abs(nx - from_x) + abs(ny - from_y);
-      int score;
-      if (sticky_fog_deepen) {
-        /* unseen first; then deeper ring when unseen (4-md); seen fall back closer. */
-        const int depth = (unseen == 0) ? (4 - md) : md;
-        score = unseen * 1000 + depth * 50 + to_scout * 10;
-      } else {
-        score = unseen * 1000 + to_scout * 10 + md * md_w;
-      }
-      if (best_score < 0 || score < best_score) {
-        best_score = score;
-        bx = nx;
-        by = ny;
-      }
-    }
-  }
-  if (best_score < 0) {
-    return 0;
-  }
-  *out_x = bx;
-  *out_y = by;
-  return 1;
-}
-
-/*
- * Fog explore (no CONTACT): peaceful Scout without a CONTACT ring goal →
- * unseen land tile within Manhattan distance 8 (map_tile_seen_by / Col1 FoW).
- * Prefer map_tile_has_rumour tiles over plain unseen when both exist (Scout
- * seek Lost City Rumours; LCR resolve already on stand — no invented gold/FoY).
- * Plain Scout: nearest within the preferred tier (min md). Seasoned Scout
- * (prefer_deeper): farthest within that tier (max md ≤8) — AI explore
- * preference for the skill that is "Better at exploring rumors…"
- * (Colonization.pdf OTHER / Seasoned Scout). Scouts already see 2 squares
- * (de Soto text: all units → "as well as scouts"); do NOT invent extra sight
- * radius or MP — only deepen fog-target pick. Cite: Colonization.pdf Lost City
- * Rumours / Seasoned Scout; Pass5 LCR scaffold; manual fog / map.seen;
- * euro_unit_act explore.
- */
-static int ai_euro_scout_fog_explore_target(
-  ColonizeTurnContext* ctx,
-  int nation_id,
-  int from_x,
-  int from_y,
-  int prefer_deeper,
-  int* out_x,
-  int* out_y
-) {
-  if (!ctx || !ctx->map || !ctx->map->seen || !out_x || !out_y || nation_id < 0 ||
-      nation_id >= 4 || from_x < 0 || from_y < 0) {
-    return 0;
-  }
-  int best_md = -1;
-  int best_rumour = 0;
-  int bx = 0;
-  int by = 0;
-  for (int dy = -8; dy <= 8; ++dy) {
-    for (int dx = -8; dx <= 8; ++dx) {
-      const int md = abs(dx) + abs(dy);
-      if (md < 1 || md > 8) {
-        continue;
-      }
-      const int nx = from_x + dx;
-      const int ny = from_y + dy;
-      if (nx < 0 || ny < 0 || nx >= ctx->map->width || ny >= ctx->map->height) {
-        continue;
-      }
-      if (map_tile_is_water(ctx->map, nx, ny)) {
-        continue;
-      }
-      if (map_tile_seen_by(ctx->map, nx, ny, nation_id)) {
-        continue;
-      }
-      if (ctx->colonies && colonies_id_at(ctx->colonies, nx, ny) >= 0) {
-        continue;
-      }
-      const int rum = map_tile_has_rumour(ctx->map, nx, ny) ? 1 : 0;
-      int better = 0;
-      if (best_md < 0) {
-        better = 1;
-      } else if (rum && !best_rumour) {
-        /* Rumour beats plain unseen within MD≤8. */
-        better = 1;
-      } else if (rum == best_rumour) {
-        if (prefer_deeper) {
-          /* Seasoned: deeper fog first within the same rumour/plain tier. */
-          better = (md > best_md);
-        } else {
-          better = (md < best_md);
-        }
-      }
-      if (better) {
-        best_md = md;
-        best_rumour = rum;
-        bx = nx;
-        by = ny;
-      }
-    }
-  }
-  if (best_md < 0) {
-    return 0;
-  }
-  *out_x = bx;
-  *out_y = by;
-  return 1;
-}
-
-/* Seasoned Scout display-name / profession stand-in (UNITS_JOB_SCOUT). */
-static int ai_euro_is_seasoned_scout_name(const char* name) {
-  return name && strstr(name, "Seasoned") != NULL &&
-         units_name_kind(name) == UNITS_KIND_SCOUT;
-}
 
 /* Treasure train — display-name stand-in (manual Treasure Trains). */
 static int ai_euro_is_treasure_name(const char* name) {
@@ -7131,12 +6958,25 @@ static int ai_euro_5d04_cb_dock_pop_candidate(int profession) {
   u->moves = 0;
   u->profession = profession;
   if (type == 2) {
-    u->tools = 100;
+    u->tools = 100; /* 59140: local_4 == 2 -> +0x3159 = 100 */
   } else if (type == 1) {
     u->muskets = 50;
   } else if (type == 4) {
     u->muskets = 50;
     u->horses = 50;
+  } else if (type == 5) {
+    /*
+     * DOS FUN_38fd_0718 (raw 59133-59142) writes no equipment for any type
+     * but the Pioneer's tools: mounted/armed state IS the type byte
+     * (+0x3146 = 1 Soldier / 4 Dragoon / 5 Scout). This port models the kit
+     * as per-unit goods instead (units_sync_equip_after_type_change,
+     * units.c: SCOUT -> horses = UNITS_EQUIP_HORSES, the port's own
+     * canonical Scout shape), so the Soldier/Dragoon musket/horse writes
+     * above are the same representation choice. A hired Scout with 0 horses
+     * was the odd one out: it dismounted to nothing on demote and returned
+     * no horses when it joined a colony.
+     */
+    u->horses = UNITS_EQUIP_HORSES;
   }
   return (int)(u - ctx->units->units);
 }
@@ -10292,64 +10132,15 @@ COLONIZE_INTERNAL void ai_euro_colony_goals_foreign_colonies(
       if (pick) {
         ai_euro_set_goto(pick, UNITS_ORDER_AI_MOVE, pick_gx, pick_gy);
       }
-    } else {
-      /* Peaceful CONTACT scout rings (own colonies ≥ 1). */
-      const int own =
-        inv ? inv->colony_count : colonies_count_for_nation(ctx->colonies, nation_id);
-      if (own >= 1) {
-        /*
-         * Audit AE-37: the prio-1 tribe-adjacent secondary FOUND pass that
-         * stood here is gone. Section F below runs the identical
-         * ai_euro_pick_founding_tile walk over the same tribe table later in
-         * this same function and upserts the same (x,y,FOUND) at prio 2, and
-         * ai_goals_upsert only dedupes when the new prio is <= the stored one
-         * — so every tile this pass inserted was inserted a second time a few
-         * lines later, burning one of the 16 AI_SECONDARY_SLOTS per tribe for
-         * a goal the promote step then folds back onto the prio-2 copy.
-         */
-        for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-          ColonizeUnit* u = &ctx->units->units[i];
-          if (!u->active || u->nation_id != nation_id || u->aboard_ship_id >= 0) {
-            continue;
-          }
-          if (!units_is_on_map(u) || ai_euro_is_ship_type(ctx->units, u->id)) {
-            continue;
-          }
-          if (units_orders_follow_goto(u->orders)) {
-            continue; /* idle only */
-          }
-          const char* name = units_display_name(ctx->units, u);
-          if (!name || units_name_kind(name) != UNITS_KIND_SCOUT) {
-            continue;
-          }
-          int tx = 0;
-          int ty = 0;
-          /* CONTACT ring when tribe available; else fog-explore MD≤8 (no CONTACT).
-           * Seasoned Scout: deeper unseen fog pick (Colonization.pdf explore skill).
-           *
-           * Audit AE-38 proposed deleting this aim as a duplicate of the
-           * act-phase one in ai_euro_unit_act. It is NOT: the act-phase copy
-           * only re-aims when `!ai_euro_has_useful_goto(u)` or the sticky-FoW
-           * deepen fires, so once this goals-phase pass has given an idle
-           * Scout a course the act phase deliberately leaves it alone. The
-           * two therefore chain rather than overwrite, and dropping this one
-           * would move the Scout's first aim a phase later. Kept. */
-          if (ai_euro_scout_contact_ring_target(ctx, nation_id, u->x, u->y, &tx, &ty)) {
-            ai_goals_upsert_primary(nation_id, tx, ty, AI_GOAL_CONTACT, 2);
-            ai_euro_set_goto(u, UNITS_ORDER_AI_MOVE, tx, ty);
-          } else if (ai_euro_scout_fog_explore_target(
-                       ctx,
-                       nation_id,
-                       u->x,
-                       u->y,
-                       ai_euro_is_seasoned_scout_name(name),
-                       &tx,
-                       &ty)) {
-            ai_euro_set_goto(u, UNITS_ORDER_AI_MOVE, tx, ty);
-          }
-        }
-      }
     }
+    /*
+     * The goals-phase twin of the invented act-level scout ring aim used to
+     * sit here (bugs.md #493/#495) and is gone with it: DOS has no
+     * goals-phase Scout aim at all. A Scout's course is decided inside
+     * FUN_521d_20e6 (explorer flag / patrol 0x56 / village 0x4c / explore
+     * ring), which the act now reaches on every act (see the DOS re-entry
+     * gate in ai_euro_unit_act, raw 90551).
+     */
   }
 }
 
@@ -13456,7 +13247,15 @@ static int ai_euro_move_scoring_gate(ColonizeTurnContext* ctx, ColonizeUnit* u, 
   if (ai_goals_best_found_tile_near(ctx->map, nation_id, u->x, u->y, &fx, &fy)) {
     gx = fx;
     gy = fy;
-  } else if (units_orders_follow_goto(u->orders)) {
+  } else if (ai_euro_has_useful_goto(u, ctx->map)) {
+    /*
+     * A goto that points at the tile the unit is already standing on is an
+     * arrival, not a course: DOS clears +0x314c on arrival (FUN_15eb_1068),
+     * so 20e6's next call re-scores from scratch. Reading it as a live
+     * course here made the re-entry gate (raw 90551) a no-op for any unit
+     * that had ever finished a walk — it fell straight back out of the
+     * land arms with gx/gy == its own tile. (bugs.md #493)
+     */
     gx = u->goto_x;
     gy = u->goto_y;
   } else {
@@ -19310,7 +19109,6 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_land_hunt_scout(struct ai_euro_act
   const int nation_id = a->nation_id;
   const int at_war_land = a->at_war_land;
   const int is_land_hunter = a->is_land_hunter;
-  const int is_scout = a->is_scout;
   int land_war_hunted = a->land_war_hunted;
   int scout_explored = a->scout_explored;
   const char* const uname = a->uname;
@@ -19410,70 +19208,19 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_land_hunt_scout(struct ai_euro_act
   }
 
   /*
-   * CONTACT scout rings (act-level): peaceful Scout with own≥1 keeps/gets
-   * AI_MOVE toward ring tile (MD 2–4) around nearest beyond-adjacent tribe;
-   * upsert CONTACT; do not yank to COLONY. Fog prefer via scout_contact_ring_target.
-   * Sticky+FoW: re-aim even with prior goto so deeper unseen ring can deepen.
-   * Without CONTACT (no tribe ring): fog-explore unseen land MD≤8
-   * (map_tile_seen_by) — no CONTACT upsert. Seasoned Scout prefers deeper
-   * unseen fog than plain Scout (Colonization.pdf "Better at exploring").
-   * Cite: euro_unit_act §2c2 / FoW; Colonization.pdf Seasoned Scout.
+   * The invented "CONTACT scout ring / fog explore" arm that stood here is
+   * gone (bugs.md #493/#495). It scored a ring of tiles (MD 2-4) around the
+   * nearest tribe with weights x1000/x50/x10 and a fog sweep of MD<=8, and
+   * it cited the manual, not a FUN_. Worse, it re-stamped an AI_MOVE goto on
+   * every act, so a Scout was permanently "on a goto" and the real
+   * FUN_521d_20e6 type-5 machinery (explorer flag / patrol 0x56 / village
+   * 0x4c / explore ring) behind ai_euro_move_scoring_gate never ran for it.
+   * DOS's Scout band reads no relation matrix and no profession byte at all
+   * (raw 88514-88530 pre-gate, 89047-89059 patrol, 89064-89068 village,
+   * 89076+ explore ring); its explore radius comes from the continent
+   * rival-strength byte and the unit's own hold[0] explore counter
+   * (local_12, raw 89290-89291), never from "Seasoned Scout".
    */
-  if (!at_war_land && is_scout &&
-      colonies_count_for_nation(ctx->colonies, nation_id) >= 1) {
-    int tx = 0;
-    int ty = 0;
-    if (ai_euro_scout_contact_ring_target(ctx, nation_id, u->x, u->y, &tx, &ty)) {
-      ai_goals_upsert_primary(nation_id, tx, ty, AI_GOAL_CONTACT, 2);
-      const uint8_t sticky =
-        (ctx->col1_ok && ctx->col1) ? ai_diplo_indian_hostility_sticky(ctx->col1, nation_id)
-                                    : 0;
-      const int sticky_fog =
-        sticky >= 2 && ctx->map && ctx->map->seen != NULL;
-      if (!ai_euro_has_useful_goto(u, ctx->map) || sticky_fog) {
-        ai_euro_set_goto(u, UNITS_ORDER_AI_MOVE, tx, ty);
-      }
-      scout_explored = 1;
-    } else if (ai_euro_scout_fog_explore_target(
-                 ctx,
-                 nation_id,
-                 u->x,
-                 u->y,
-                 ai_euro_is_seasoned_scout_name(uname),
-                 &tx,
-                 &ty)) {
-      /*
-       * Idle: set fog course. Seasoned deeper pick is in the target helper —
-       * do not re-aim every act for plain Scout (max-md drifts to map-edge).
-       * Seasoned + sticky≥2 + FoW: deepen a shallow prior goto once at fresh
-       * MP (pick_md > goto_md) — mirror CONTACT sticky deepen without walk
-       * drift on dispatcher sticky waves. Re-aim if prior goto is now seen.
-       * Cite: euro_unit_act §2c2; Colonization.pdf Seasoned Scout.
-       */
-      const uint8_t sticky =
-        (ctx->col1_ok && ctx->col1) ? ai_diplo_indian_hostility_sticky(ctx->col1, nation_id)
-                                    : 0;
-      const int sticky_fog =
-        sticky >= 2 && ctx->map && ctx->map->seen != NULL;
-      const int seasoned_sticky =
-        sticky_fog && ai_euro_is_seasoned_scout_name(uname);
-      const int idle = !ai_euro_has_useful_goto(u, ctx->map);
-      const int goto_cleared =
-        !idle && ctx->map->seen &&
-        map_tile_seen_by(ctx->map, u->goto_x, u->goto_y, nation_id);
-      int deepen = 0;
-      if (seasoned_sticky && !idle && !goto_cleared) {
-        const int fresh = u->moves >= units_max_mp(ctx->units, u->id);
-        const int goto_md = abs(u->goto_x - u->x) + abs(u->goto_y - u->y);
-        const int pick_md = abs(tx - u->x) + abs(ty - u->y);
-        deepen = fresh && pick_md > goto_md;
-      }
-      if (idle || goto_cleared || deepen) {
-        ai_euro_set_goto(u, UNITS_ORDER_AI_MOVE, tx, ty);
-      }
-      scout_explored = 1;
-    }
-  }
 
   a->land_war_hunted = land_war_hunted;
   a->peace_border_hunted = peace_border_hunted;
@@ -20670,7 +20417,20 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
    */
   const int is_pioneer_job_active =
     u->orders == UNITS_ORDER_CLEAR_PLOW || u->orders == UNITS_ORDER_BUILD_ROAD;
-  if (!is_goto && !is_pioneer_job_active) {
+  /*
+   * DOS re-entry condition, raw 90551 (FUN_521d_5b66 → thunk 2a1f_04f4 →
+   * FUN_521d_20e6):
+   *   if (unit+0x3149 == 0 || unit+0x314c != 0x0b) call 20e6
+   * i.e. 20e6 runs when the unit has spent no MP yet this turn **or** is not
+   * on a goto — a goto-stamped unit is re-scored at the top of every turn,
+   * and 20e6's own early bail (raw 88395-88398) lets orders 0x0b through.
+   * +0x3149 is MP spent; this port stores MP remaining, so "spent 0" is a
+   * full allotment. Without this term a unit that ever got an AI_MOVE goto
+   * never re-entered the gate again — which is why Scouts needed an invented
+   * arm to keep moving at all (bugs.md #493).
+   */
+  const int fresh_allotment = u->moves >= units_max_mp(ctx->units, u->id);
+  if ((!is_goto || fresh_allotment) && !is_pioneer_job_active) {
     const char* gate_name = units_display_name(ctx->units, u);
     const int defer_gate =
       ai_euro_is_treasure_name(gate_name) || ai_euro_is_missionary_name(gate_name) ||

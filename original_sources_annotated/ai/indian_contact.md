@@ -323,7 +323,7 @@ success enqueues CONTACT_CONVERT OK. Mission burn (prelude ≥80) enqueues
 CONTACT_RAID OK with status. Deep DOS dialog chrome (VGA-identical) stays
 **PARKED**. Deep `FUN_4d56_2820` (~1.4k; thunk `2a1f_044c`) meet/raid decision
 + nested `2aac…311e` haggle stays **PARK only**.
-Scout `359c` warn-on-displace already thinned; **thin RNG kill-with-flee Done**
+Scout `359c` warn-on-displace **deleted 2026-09-18** (bugs.md #499 — `359c` is the Enter-Hostile-Village wagon outcome, not an anti-Scout sweep)
 (alarm **≥95**, ~¼ kill even when a flee tile exists; 90..94 prefer displace).
 Linux still kills when displace is blocked.
 
