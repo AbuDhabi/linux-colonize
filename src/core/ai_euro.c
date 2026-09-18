@@ -3377,6 +3377,142 @@ static void ai_euro_5952_indoor_pass(
   }
 }
 
+/* ===== FUN_5952_035e carpenter-staffing arm (raw 94690-94740) ===== */
+
+/*
+ * DOS-LITERAL FUN_5952_035e raw 94690-94740 (asm 5952:1ac7-5952:1be2,
+ * annotated colony_tick_5952_035e.md:1114-1160) — the pass-ordered pick of
+ * ONE colonist for the Carpenter's House when the colony has lumber but is
+ * making no hammers.
+ *
+ * `ai_euro_5952_carpenter_pick` is the per-pass slot election plus DOS's own
+ * profession rewrite at raw 94716-94718 (`FUN_1000_8e9e(slot, 0x1c)` =
+ * FUN_281f_0cae, the same "clear specialty" writer bugs.md #431 uses): an
+ * Indentured Servant (0x19) or a Petty Criminal (0x1a) chosen by this arm is
+ * turned into a Free Colonist BEFORE it is put to work. The four passes are
+ * DOS's `iStack_e6` 0..3 over the still-unplaced slots:
+ *   0: profession == 0x0d (an existing Master Carpenter)
+ *   1: profession == 0x1c (Free Colonist)
+ *   2: profession == 0x19 (Indentured Servant)
+ *   3: anyone left
+ * `out_prof` hands back the pre-rewrite profession because DOS's own expert
+ * test one line later (`FUN_281f_0c9a(aiStack_12e[slot])`) reads the cached
+ * array, which the 0cae writes never update.
+ */
+COLONIZE_INTERNAL int ai_euro_5952_carpenter_pick(
+  ColonizeColony* c, const bool* placed, int n, int pass, int start, int* out_prof
+) {
+  if (out_prof) {
+    *out_prof = -1;
+  }
+  if (!c || !placed) {
+    return -1;
+  }
+  for (int s = start < 0 ? 0 : start; s < n && s < COLONIZE_COLONY_POP_MAX; ++s) {
+    if (placed[s] || !c->colonists[s].active) {
+      continue;
+    }
+    const int prof = (int)c->colonists[s].profession;
+    if (pass == 0 && prof != COLONIZE_PROF_CARPENTER) {
+      continue; /* raw 94696 */
+    }
+    if (pass == 1 && prof != COLONIZE_PROF_FREE_COLONIST) {
+      continue; /* raw 94701 */
+    }
+    if (pass == 2 && prof != COLONIZE_PROF_INDENTURED) {
+      continue; /* raw 94705 */
+    }
+    /* raw 94716-94718 — 0cae(slot, 0x1c). */
+    if (prof == COLONIZE_PROF_CRIMINAL || prof == COLONIZE_PROF_INDENTURED) {
+      c->colonists[s].profession = (uint8_t)COLONIZE_PROF_FREE_COLONIST;
+    }
+    if (out_prof) {
+      *out_prof = prof;
+    }
+    return s;
+  }
+  return -1;
+}
+
+/*
+ * The arm itself. DOS gate, raw 94690: `iStack_6a = colony+0xa4 + DS:0x8dd2`
+ * = stock[lumber] + gross production[lumber], and the arm runs only when that
+ * is > 1. Its loop condition is `DS:0x8de8 == 0` — gross production[hammers],
+ * refreshed by FUN_281f_0c04 after every assignment — so in practice it staffs
+ * exactly ONE carpenter and then stops, in every remaining pass too.
+ *
+ * Between the rewrite and the assignment DOS may hand the colonist the
+ * Master Carpenter specialty outright (raw 94719-94726): a non-expert
+ * (`FUN_281f_0c9a == 0`) in a colony that has NO Master Carpenter yet
+ * (`iStack_4e` — BP-0x4c, i.e. `aiStack_68[0x0d]`, the by-profession census
+ * the tick builds at raw 94170; the frame slot is one word past Ghidra's
+ * `local_4e` label) and a population above 5, on a
+ * `FUN_281f_04d4(0, 0x10 - DS:0x53a6) == 0` roll — 1-in-17 at Discoverer,
+ * 1-in-13 at Viceroy. `FUN_1000_8e26(slot, 0x0d)` then seats him.
+ *
+ * DIVERGENCE (documented, upstream): DOS's two preceding arms in the same
+ * `(+0x1d & 0x80) == 0` block — the forced-lumberjack pass (raw 94659-94679)
+ * and the AI's 200-gold / 100-lumber emergency purchase (raw 94680-94689) —
+ * are still unported, so this arm sees the colony's own lumber, never the
+ * bought 100. That can only make the gate fail where DOS's would pass.
+ * `iStack_ca` (raw 94733) is a counter nothing in the function ever reads.
+ */
+static void ai_euro_5952_carpenter_arm(
+  ColonizeTurnContext* ctx, ColonizeColony* col, bool* placed, int n
+) {
+  ColonizeColonyPool* pool = ctx->colonies;
+  const ColonizeCol1Save* col1 = (ctx->col1_ok && ctx->col1) ? ctx->col1 : NULL;
+  const ColonizeWorld world = world_from_turn_ctx(ctx);
+  int gross[AI_EURO_5952_LEDGER_SLOTS];
+  int demand[AI_EURO_5952_LEDGER_SLOTS];
+
+  ai_euro_5952_ledgers(&world, pool, col, col1, gross, demand);
+  if (col->stock[COLONIZE_CARGO_LUMBER] + gross[COLONIZE_CARGO_LUMBER] < 2) {
+    return; /* raw 94691 `if (1 < iStack_6a)` */
+  }
+
+  /* aiStack_68[0x0d]: Master Carpenters by profession, the tick's snapshot. */
+  int master_carpenters = 0;
+  for (int s = 0; s < n && s < COLONIZE_COLONY_POP_MAX; ++s) {
+    if (col->colonists[s].active &&
+        (int)col->colonists[s].profession == COLONIZE_PROF_CARPENTER) {
+      ++master_carpenters;
+    }
+  }
+  const int difficulty = col1 ? (int)col1->head.difficulty : 4; /* DS:0x53a6 */
+
+  int workplace = -1;
+  (void)ai_euro_5952_chain_owned(pool, col, COLONIES_CHAIN_CARPENTER, NULL, &workplace);
+  if (workplace < 0) {
+    return;
+  }
+
+  for (int pass = 0; pass < 4; ++pass) {
+    int from = 0;
+    while (gross[AI_EURO_5952_HAMMERS] == 0) {
+      int prof = -1;
+      const int s = ai_euro_5952_carpenter_pick(col, placed, n, pass, from, &prof);
+      if (s < 0) {
+        break;
+      }
+      from = s + 1;
+      /* raw 94719-94726 — the free Master Carpenter specialty. */
+      if (!ai_euro_5952_job_is_expert(prof) && master_carpenters == 0 &&
+          (int)col->population > 5 && ctx->rng &&
+          dos_rng_range(ctx->rng, 0, 0x10 - difficulty) == 0) {
+        col->colonists[s].profession = (uint8_t)COLONIZE_PROF_CARPENTER;
+        ++master_carpenters;
+      }
+      /* raw 94731 `FUN_1000_8e26(slot, 0x0d)` = set job Carpenter. */
+      if (colonies_assign_workplace(pool, col->id, s, workplace)) {
+        placed[s] = true;
+        /* FUN_281f_0c04 — refresh the ledgers, which is what ends the loop. */
+        ai_euro_5952_ledgers(&world, pool, col, col1, gross, demand);
+      }
+    }
+  }
+}
+
 /*
  * FUN_5952_035e colonist placement block (viceroy_unpacked.c ~94560-94640),
  * the AI-turn caller of 28c8 (via resident stub FUN_281f_0b6e). Per AI
@@ -4154,6 +4290,14 @@ static void ai_euro_colony_tick_28c8_reassign(ColonizeTurnContext* ctx, int nati
           }
         }
       }
+    }
+
+    /*
+     * DOS raw 94690-94740 — the carpenter-staffing arm, inside the same
+     * `(+0x1d & 0x80) == 0` block that seeds local_14 below.
+     */
+    if ((col->build_ai_flags & COLONIZE_BUILD_AI_WANTS_CONSTRUCTION) == 0) {
+      ai_euro_5952_carpenter_arm(ctx, col, placed, n);
     }
 
     /*
@@ -18031,8 +18175,58 @@ static void ai_euro_first_colony_ship_course(
 #include "core/ai_euro_internal.h" /* AiEuroActStatus, struct ai_euro_act_ctx */
 
 /*
+ * FUN_5952_035e equip-arm candidate scorer (raw 94318-94345; annotated
+ * colony_tick_5952_035e.md:667-691). DOS-LITERAL. `target` is local_1b4,
+ * i.e. local_8e with 0x17 (Dragoon) mapped to 0x15 (Soldier), so it is
+ * always 0x15 at the one live call site.
+ *
+ *   score = 0
+ *   prof == target                       -> score = 4
+ *   else if !FUN_281f_0c9a(prof)         -> score += 1      (not an expert)
+ *   else if target == 0x15 && !(+0x1b & 0x40) -> score = 0xff9d  (= -99)
+ *   prof == 0x19 (Indentured Servant)    -> score += 1
+ *   prof == 0x1a (Petty Criminal)        -> score += 2
+ *   prof != 0x1b (Indian Convert) && best <= score -> take it
+ *
+ * `local_16e` starts at 0xffff and is compared as a signed 16-bit int, so
+ * best starts at -1; `<=` means later ties win. Returns the colonist slot,
+ * or -1 when every slot is an Indian Convert (or the colony is empty).
+ */
+COLONIZE_INTERNAL int ai_euro_5952_equip_pick(const ColonizeColony* c, int target) {
+  if (!c) {
+    return -1;
+  }
+  int best = -1;
+  int pick = -1;
+  const int pop = (int)c->population;
+  for (int i = 0; i < pop && i < COLONIZE_COLONY_POP_MAX; ++i) {
+    const int prof = (int)c->colonists[i].profession;
+    int score = 0;
+    if (prof == target) {
+      score = 4;
+    } else if (!ai_euro_5952_job_is_expert(prof)) {
+      score += 1;
+    } else if (target == UNITS_JOB_SOLDIER &&
+               (c->ai_flags & COLONIZE_COLONY_AI_NEEDS_GARRISON) == 0) {
+      score = -99;
+    }
+    if (prof == UNITS_JOB_SERVANT) {
+      score += 1;
+    }
+    if (prof == UNITS_JOB_CRIMINAL) {
+      score += 2;
+    }
+    if (prof != UNITS_JOB_CONVERT && best <= score) {
+      best = score;
+      pick = i;
+    }
+  }
+  return pick;
+}
+
+/*
  * Stage: Pioneer FR tip corridor + colony tools/muskets equip arm
- * (FUN_5952_035e absorb+equip pair, raw 94256-94352). Extracted verbatim
+ * (FUN_5952_035e absorb+equip pair, raw 94257-94352). Extracted verbatim
  * from ai_euro_unit_act.
  */
 COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_pioneer_corridor(struct ai_euro_act_ctx* a) {
@@ -18097,49 +18291,54 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_pioneer_corridor(struct ai_euro_ac
         return AI_EURO_ACT_RETURN;
       }
       /*
-       * On town tile: deposit tools, take warehouse muskets → Soldiers /
-       * Dragoons (TURN6→7 Quebec; stock tools 0→100, muskets 50→0).
-       *
-       * This single step stands in for a DOS PAIR that produces exactly that
-       * observable, both arms of the colony tick FUN_5952_035e and neither of
-       * them yet ported as such (smell audit #40, decoded 2026-09-09):
-       *   raw 94256-94261  the on-tile Pioneer is absorbed into the workforce
-       *                    (job 0x12) and FUN_15eb_1068's refund arm
-       *                    (viceroy_unpacked.c 11233-11249) banks its +0x3159
-       *                    tools byte into stock[TOOLS];
-       *   raw 94289-94352  the colony's equip arm then re-types a COLONIST
-       *                    (a slot < population, scored: Criminal +2, Servant
-       *                    +1, never an Indian Convert, an expert −99 unless
-       *                    ai_flags & 0x40) through the same FUN_15eb_1068,
-       *                    which writes the unit type byte, zeroes the orders
-       *                    byte (+0x314c) and charges stock[MUSKETS] -= 50.
+       * On town tile: the DOS PAIR out of the colony tick FUN_5952_035e, now
+       * ported as the pair it is (was one compressed step on the arriving
+       * Pioneer itself — smell audit #40; ported 2026-09-18):
+       *   raw 94257-94263  the absorption arm's Pioneer case (annotated
+       *                    colony_tick_5952_035e.md:606-611): the on-tile
+       *                    Pioneer becomes a colonist with job 0x12 through
+       *                    FUN_1000_8e26 = FUN_15eb_1068, whose refund loop
+       *                    (viceroy_unpacked.c 11234-11248) banks the unit's
+       *                    +0x3159 tools byte into stock[TOOLS];
+       *   raw 94289-94352  the equip arm then picks a COLONIST by score and
+       *                    re-types it through the same FUN_15eb_1068, which
+       *                    spawns the unit outside (case 2, raw 11279-11291),
+       *                    zeroes the orders byte (+0x314c) and charges the
+       *                    new gear off the stock (raw 11318-11329).
        * Net over the pair: colony population unchanged, tools banked, 50
-       * muskets spent, a soldier standing on the tile — what the port does
-       * here in one move on the arriving Pioneer itself.
+       * muskets spent, a soldier standing on the tile.
        *
-       * The gates below are DOS's, from the equip arm (raw 94289-94311):
-       * population > 1; demand = (ai_flags & 0x48) or the "big settled town"
-       * path (population > 10 and NOT wanting colonists); muskets > 0x31;
-       * horses > 0x33 upgrades the target to Dragoon. They used to be absent
-       * entirely — every AI Pioneer entering any colony with 50 muskets was
-       * re-typed (smell audit #40).
+       * The absorption gates are DOS's: the outer loop (raw 94222-94227) runs
+       * only while `DS:0x8d72 != 0` (units standing on the tile — this arm is
+       * reached with the Pioneer on it), `+0x1b & 0x10` (NEEDS_COLONISTS) is
+       * set and population < 0x20; the Pioneer case adds
+       * `((+0x1b & 0x80) != 0 && local_16 == 0) || local_2a == 0`, i.e.
+       * WANTS_PIONEER_WORK (once per tick — one Pioneer is absorbed per act
+       * here, which is that once) or continent stance 0.
        *
-       * DOS's `population > 1` is read AFTER the absorption arm has already
-       * added the Pioneer, so the compressed step here tests the same number
-       * as `population + 1 > 1`, i.e. `population > 0`. Verified against
-       * golden TURN6→7 Quebec (pop 1, one arriving Pioneer, 50 muskets →
-       * pop 1 + a Soldier on the tile): the honest `> 1` on the pre-absorption
-       * population suppresses the golden's Soldier, `> 0` reproduces it.
-       * The demand gate is satisfied there by the +0x1b writers this pass
-       * made live (#38/#41).
-       *
-       * UNPORTED remainder of the pair: the candidate scoring (Criminal +2 /
-       * Servant +1 / expert −99), the expert strip (FUN_1000_8e9e → 0x1c),
-       * and the population bookkeeping (absorb +1 / arm −1) that DOS does
-       * explicitly and this step nets out.
+       * The equip gates are DOS's, from raw 94289-94311: population > 1;
+       * demand = (ai_flags & 0x48) or the "big settled town" path (population
+       * > 10 and NOT wanting colonists); muskets > 0x31; horses > 0x33
+       * upgrades the target to Dragoon. Both population reads are DOS's own
+       * spelling now that the absorption is explicit and has already added
+       * the Pioneer — the former `+1 compensation` (`> 0` / `> 9`) is gone.
        */
-      const int equip_pop = (int)c->population;
       const int on_tile = (u->x == c->x && u->y == c->y);
+      int absorbed = 0;
+      if (on_tile && (int)c->population < 0x20 &&
+          (c->ai_flags & COLONIZE_COLONY_AI_NEEDS_COLONISTS) != 0 &&
+          ((c->ai_flags & COLONIZE_COLONY_AI_WANTS_PIONEER_WORK) != 0 ||
+           ai_euro_continent_stance_at(
+             nation_id, map_continent_id_at(ctx->map, c->x, c->y)
+           ) == 0)) {
+        ColonizeWorld w = world_from_turn_ctx(ctx);
+        if (colonies_admit_unit_w(&w, c->id, u->id) >= 0) {
+          absorbed = 1;
+          u = NULL;
+          a->u = NULL;
+        }
+      }
+      const int equip_pop = (int)c->population;
       /*
        * DOS's `local_90`, the "big settled town" disjunct, verbatim (raw
        * 94292-94299; the annotated dump keeps the far-call arguments the
@@ -18164,25 +18363,18 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_pioneer_corridor(struct ai_euro_ac
        * colony with 50 muskets re-typed arriving Pioneers unconditionally
        * (smell audit 2026-09-10 C2).
        *
-       * Compensation rule, one rule for the whole block (2026-09-10 seventh
-       * wave, second-wave lead 5): BOTH population gates read the SAME DOS
-       * byte, colony +0x1f, at the same point in FUN_5952_035e — raw 94276
-       * (`+0x1f < 2` → bail) and raw 94290 (`'\n' < +0x1f`) — and that point
-       * is after the absorption arm has already added the on-tile Pioneer to
-       * the workforce. The port compresses absorb+equip into one step on the
-       * pre-absorption population, so every read of +0x1f in this block gets
-       * the same +1: `> 1` becomes `> 0` and `> 10` becomes `> 9`. The `> 10`
-       * read used to keep DOS's literal spelling while its neighbour carried
-       * the +1 — two compensations for one byte, which is what this fixes.
-       * Widening it admits pop-10 towns (pop 11 post-absorption) to the
-       * "big settled town" arm, exactly as DOS admits them.
+       * Both population gates (raw 94276 `+0x1f < 2` → bail and raw 94290
+       * `'\n' < +0x1f`) read the SAME colony byte +0x1f at the same point in
+       * FUN_5952_035e — after the absorption arm above. Now that the port
+       * absorbs explicitly, both keep DOS's literal spelling (`> 1`, `> 10`);
+       * the old `+1 compensation` (`> 0` / `> 9`) is retired.
        * dos_rng_range returns `lo` for a NULL rng, so a context without an
        * RNG (fixtures) passes the roll — the pre-fix behaviour.
        */
       int equip_local_90 = 0;
       if (on_tile && ai_euro_continent_stance_at(
                        nation_id, map_continent_id_at(ctx->map, c->x, c->y)) == 0 &&
-          equip_pop > 9 && dos_rng_range(ctx->rng, 0, 3) == 0 &&
+          equip_pop > 10 && dos_rng_range(ctx->rng, 0, 3) == 0 &&
           (c->ai_flags & COLONIZE_COLONY_AI_NEEDS_COLONISTS) == 0) {
         equip_local_90 = 1;
       }
@@ -18191,31 +18383,51 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_pioneer_corridor(struct ai_euro_ac
         (c->ai_flags &
          (COLONIZE_COLONY_AI_NEEDS_GARRISON | COLONIZE_COLONY_AI_SHORT_DEFENDERS)) != 0 ||
         equip_local_90;
-      if (on_tile && equip_pop > 0 && equip_demand &&
+      if (on_tile && equip_pop > 1 && equip_demand &&
           c->stock[COLONIZE_CARGO_MUSKETS] > 0x31) {
+        /* raw 94307-94312: local_8e = 0x15, upgraded to 0x17 on horses. */
         const int mounted = c->stock[COLONIZE_CARGO_HORSES] > 0x33;
-        int arm_ty = mounted ? units_find_type(ctx->units, "Dragoons") : -1;
-        if (arm_ty < 0) {
-          arm_ty = units_find_type(ctx->units, "Soldiers");
-        }
-        if (arm_ty >= 0) {
-          if (u->tools > 0) {
-            c->stock[COLONIZE_CARGO_TOOLS] += u->tools;
-            u->tools = 0;
+        const int arm_job = mounted ? UNITS_JOB_DRAGOON : UNITS_JOB_SOLDIER;
+        /* raw 94314-94317: local_1b4 = local_8e, with 0x17 mapped to 0x15. */
+        const int pick = ai_euro_5952_equip_pick(c, UNITS_JOB_SOLDIER);
+        if (pick >= 0) {
+          /*
+           * raw 94347-94350, DOS-LITERAL: the expert strip reads
+           * FUN_1000_8e8a(iStack_18) with iStack_18 still holding the LAST
+           * loop iteration's profession, not the picked colonist's — the
+           * scorer's loop variable leaks out of the loop. Transcribed as
+           * such: the test is on colonist population-1.
+           */
+          const int last_prof = (int)c->colonists[equip_pop - 1].profession;
+          if (ai_euro_5952_job_is_expert(last_prof) && UNITS_JOB_SOLDIER != last_prof) {
+            /* FUN_1000_8e9e(colony, pick, 0x1c) = FUN_281f_0cae, clear specialty. */
+            c->colonists[pick].profession = COLONIZE_PROF_FREE_COLONIST;
           }
-          c->stock[COLONIZE_CARGO_MUSKETS] -= UNITS_EQUIP_MUSKETS;
-          u->muskets = UNITS_EQUIP_MUSKETS;
-          if (mounted && arm_ty != units_find_type(ctx->units, "Soldiers")) {
-            c->stock[COLONIZE_CARGO_HORSES] -= UNITS_EQUIP_HORSES;
-            u->horses = UNITS_EQUIP_HORSES;
+          /* FUN_1000_8e26(colony, pick, local_8e) = FUN_15eb_1068 case 2:
+           * the colonist leaves as a Soldier/Dragoon on the colony tile,
+           * keeping its profession byte, and the gear is charged off the
+           * stock (raw 11318-11329). colonies_eject_colonist is the port's
+           * spelling of that path (it also zeroes moves, DOS's +0x314c). */
+          const int uid = colonies_eject_colonist(
+            ctx->colonies, c->id, pick, ctx->units,
+            arm_job == UNITS_JOB_DRAGOON ? COLONIZE_EJECT_DRAGOON : COLONIZE_EJECT_SOLDIER
+          );
+          if (uid >= 0) {
+            if (absorbed) {
+              return AI_EURO_ACT_RETURN;
+            }
+            /* Not absorbed: the Pioneer still stands here and its act is
+             * spent on this colony visit, as it was before the pair split. */
+            if (u) {
+              ai_euro_set_goto(u, UNITS_ORDER_NONE, 0, 0);
+              u->moves = 0;
+            }
+            return AI_EURO_ACT_RETURN;
           }
-          u->type_index = arm_ty;
-          /* raw 11270: FUN_15eb_1068 zeroes +0x314c (the orders/act-state
-           * byte). The (0,0) goto is this port's spelling of "no goto". */
-          ai_euro_set_goto(u, UNITS_ORDER_NONE, 0, 0);
-          u->moves = 0;
-          return AI_EURO_ACT_RETURN;
         }
+      }
+      if (absorbed) {
+        return AI_EURO_ACT_RETURN;
       }
     }
   }

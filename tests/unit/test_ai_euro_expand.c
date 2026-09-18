@@ -5985,7 +5985,7 @@ static int unit_improve_timer_pioneer_gate(void) {
 
   /* On colony tile first — adjacent land is FOUND-eligible under 06ae and would
    * consume the pioneer before the improve_timer gate is observed. */
-  const int pid = units_spawn(&units, 0, 4, 4);
+  int pid = units_spawn(&units, 0, 4, 4);
   ColonizeUnit* pioneer = units_get(&units, pid);
   if (!pioneer) {
     fx_map_free(&map);
@@ -6036,8 +6036,20 @@ static int unit_improve_timer_pioneer_gate(void) {
   colonies.colonies[0].improve_timer = 2;
   pioneer = units_get(&units, pid);
   if (!pioneer || !pioneer->active) {
-    fx_map_free(&map);
-    return fail("improve-timer pioneer gone before unblock");
+    /*
+     * FUN_5952_035e absorption arm (raw 94257-94263, ported 2026-09-18): a
+     * Pioneer standing on the town tile of a colony that wants colonists is
+     * taken into the workforce. This fixture parks it there for phase 1, so
+     * phase 2 spawns a fresh one on the surround tile it is really about.
+     */
+    pid = units_spawn(&units, 0, 4, 3);
+    pioneer = units_get(&units, pid);
+    if (!pioneer) {
+      fx_map_free(&map);
+      return fail("improve-timer respawn");
+    }
+    pioneer->nation_id = nation;
+    pioneer->profession = UNITS_JOB_PIONEER;
   }
   pioneer->x = 4;
   pioneer->y = 3;

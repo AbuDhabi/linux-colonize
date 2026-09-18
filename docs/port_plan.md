@@ -601,6 +601,21 @@ list, not from the inventory.
   it places *map units* walking into a colony, which this pass (colonists
   already inside a colony) does not cover; that is a separate DOS site.
   `make test` 63/63 and `make golden` green with the pass on.
+- [x] **`5952_035e` carpenter-staffing arm (raw 94690-94740, asm
+  `5952:1ac7`-`5952:1be2`) — LANDED 2026-09-18.**
+  `ai_euro_5952_carpenter_arm` / `ai_euro_5952_carpenter_pick` in `ai_euro.c`
+  (seam in `ai_euro_internal.h`, `tests/unit/test_ai_euro_5952_carpenter.c`).
+  Runs inside the `(+0x1d & 0x80) == 0` block, after the field passes and
+  before the field-specialist restore pass. Resolutions: `iStack_4e` is the
+  frame slot one word past Ghidra's `local_4e` label, i.e. `aiStack_68[0x0d]`
+  — the by-profession Master Carpenter census, not an uninitialised local;
+  `FUN_281f_0cae(slot, 0x1c)` is the profession writer (bugs.md #431), so a
+  chosen Servant/Criminal becomes a Free Colonist; the RNG is
+  `FUN_281f_04d4(0, 0x10 - DS:0x53a6)`. STILL UNPORTED in the same block: the
+  forced-lumberjack pass (raw 94659-94679) and the 200-gold/100-lumber AI
+  purchase (raw 94680-94689), which only ever widen this arm's gate. Golden
+  impact zero (traced: the arm is reached on every AI colony, and every
+  golden colony fails the lumber gate). `make test` 66/66, `make golden` green.
 - [x] **`5952_035e` construction-project cascade (asm `5952:21d4`-`5952:274b`)
   — LANDED 2026-09-17, bugs.md #483.** `ai_euro_5952_build_cascade` in
   `ai_euro.c` (seam in `ai_euro_internal.h`, 12 cases in
