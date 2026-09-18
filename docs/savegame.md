@@ -217,15 +217,24 @@ Full opaque-field inventory and RE phases: **[save_format_map.md](save_format_ma
   ship once it sails for Europe (`units_despawn_ship_with_cargo`), so capture
   used to drop them from the unit list. DOS keeps them as unit records on
   the nation's Europe sentinel diagonal (`FUN_48d3_007a` sail-to-Europe,
-  `0346` sail-from-Europe, `03d0` per-turn tick): `228+n` in port,
-  `232+n` sailing to the New World (`goto` = landfall), `244+n` sailing to
-  Europe (`goto` = exit tile); unit `+0x16` (`col1_counter16`) = voyage
+  `0346` sail-from-Europe, `03d0` per-turn tick). The diagonal is a **chain
+  of lanes**, one hop per Atlantic tick (corrected 2026-09-18, bugs.md #489):
+  eastbound `244+n` → `240+n` → `236+n` = **the Europe port**, then westbound
+  `232+n` → `228+n` → `224+n`, from which `FUN_48d3_064e` → `048e` places the
+  hull on the map. `FUN_48d3_06ba` runs the two hops of each direction for the
+  active nation only, so `228+n` is "lands at the very next tick", not "in
+  port" — which is why the new-game fleet (`FUN_75c2_235c`, raw 121612-121646)
+  is created at `228+n` with counter 0, and why `240+n` (previously an
+  "unresolved fifth family") is simply one hop short of Europe. Port mapping:
+  `236+n` harbor, `228+n` Bound (`goto` = landfall), `244+n` Expected
+  (`goto` = exit tile); unit `+0x16` (`col1_counter16`) = voyage
   turns left; passengers chained `pax0→…→ship` with the same x/y/goto/turns,
   `orders=1`; Treasure `profession` = gold/100. Capture writes all three
   lanes that way (harbor passengers are already dock immigrants with their
   `(236,236)` mirror units, so only Expected/Bound carry cargo);
   `return_from_europe_x/y` ← `last_exit`. Apply classifies human ships by
-  lane: `244+n` → Expected, `232+n` → Bound, with chained passengers kept
+  lane: `244+n` → Expected, `228+n` → Bound (counter 0 kept verbatim there —
+  it means "arrives next tick"), with chained passengers kept
   aboard as `cargo_types`/`cargo_professions`; anything else at Europe
   coords stays the old harbor path (passengers to the docks, matching the
   Linux arrival model). Guarded by `unit_col1_save`'s recapture block

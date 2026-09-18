@@ -69,9 +69,34 @@ as a *sail-target* helper (trade-route Europe stop, treasure sail target,
 last-resort fallback) — DOS needs no such table because the human steers by hand
 and `015e` accepts whatever High Seas tile the ship happens to reach.
 
-**Open (#489)**: `FUN_75c2_235c` raw 121612-121646 creates all four nations'
-starting fleets at the off-map Europe sentinel `(228+n, 228+n)`
-(`FUN_281f_095c(type, nation, nation-0x1c, nation-0x1c)`) with the ship's orders
-byte 0 and both passengers 1, landfall = the nation tile, voyage counter 0. The
-port instead places the human fleet directly on the landfall tile. Same tile, one
-turn earlier on the map; a player-visible turn-1 restructure, so not changed.
+## Lane chain (resolved 2026-09-18, bugs.md #489)
+
+The sentinel diagonal is a **chain**, one hop per Atlantic tick, walked for the
+**active nation only** (`FUN_48d3_03d0` places at `param_2 + DS:0x5394`):
+
+| Lane | Role |
+|---|---|
+| `244+n` | eastbound entry (`FUN_48d3_007a` raw 77626, `nation-0x0c`) |
+| `240+n` | eastbound, one hop out |
+| `236+n` | **the Europe port** — no `03d0` call walks it; the dock lane |
+| `232+n` | westbound entry (`FUN_48d3_0346` raw 77755, `nation-0x18`) |
+| `228+n` | westbound, last hop — "arrives at the next tick" |
+| `224+n` | `FUN_48d3_064e` → `048e` puts the hull on the map |
+
+`FUN_48d3_06ba` head runs `0246(0xffe4,0xffe0)` then `0246(0xffe8,0xffe4)`
+(westbound 228→224, 232→228) and, after the treasure block,
+`0246(0xfff0,0xffec)` / `0246(0xfff4,0xfff0)` (eastbound 240→236, 244→240).
+
+**`FUN_75c2_235c` (#489) — REFUTED as a player-visible divergence.** The
+bootstrap does create all four fleets at `(228+n, 228+n)` with counter 0, but
+228+n is the *last* westbound lane, and the human nation's own `06ba` pass runs
+before the player ever sees the map. The genuine DOS turn-0 oracles
+`original_saves/mapgen/SEED100.SAV` and `original_saves/COLONY00.SAV` both show
+the **human fleet already on the landfall tile** (`goto` restamped to that same
+tile) with only the three AI nations still at 229/230/231. That is exactly what
+`units_new_world_start` produces, so nothing changed in the sim.
+
+What *was* wrong was the save-lane mapping: the port wrote its harbor at
+`228+n` and Bound at `232+n`. Now `236+n` / `228+n` / `244+n`
+(`col1_bridge.c`), which also explains the old "unresolved fifth family" at
+`240+n`.
