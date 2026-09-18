@@ -4275,6 +4275,132 @@ static int unit_peace_tail_does_not_open_war(void) {
   return rc;
 }
 
+/*
+ * bugs.md #521 — defended-colony assault through the goal-consumption tail.
+ * A land unit carrying a MILITARY goal on a defended foreign colony must
+ * resolve its goto step as an attack: FUN_465b_0000 fights the tile's BEST
+ * DEFENDER (FUN_5fef_0000), so neither a berthed foreign hull on the colony
+ * tile nor the garrison behind it may read as "nothing to attack" and leave
+ * the unit oscillating beside its own target (the REF stall in
+ * golden_woi_ref01). Drive ai_euro_act_land_goal_dispatch directly with
+ * is_land_hunter = 0 so the golden-backed adjacent-attack stand-in in the
+ * same stage cannot run: only the drain loop's own step can produce the
+ * attack.
+ */
+static int unit_goal_tail_assaults_defended_colony(void) {
+  const int nation = 1;
+  const int foe = 0;
+
+  ColonizeWorldMap map;
+  if (!fx_map_alloc(&map, 16, 16, 1, false)) {
+    return fail("defended-assault alloc map");
+  }
+
+  ColonizeUnitPool units;
+  fx_units_init(&units);
+  units.type_count = 2;
+  snprintf(units.types[0].name, sizeof(units.types[0].name), "Regulars");
+  units.types[0].movement = 1;
+  units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  units.types[0].attack = 7;
+  units.types[0].defense = 5;
+  snprintf(units.types[1].name, sizeof(units.types[1].name), "Merchantman");
+  units.types[1].movement = 5;
+  units.types[1].domain = COLONIZE_UNIT_DOMAIN_SEA;
+  units.types[1].attack = 0;
+  units.types[1].defense = 6;
+  units.types[1].cargo = 4;
+
+  ColonizeColonyPool colonies;
+  fx_colonies_init(&colonies);
+  ColonizeColony* enemy = fx_colony_add(&colonies, foe, 9, 8, 3);
+  enemy->stock[COLONIZE_CARGO_FOOD] = 20;
+
+  /* Garrison first, hull second: the hull is the head of the tile stack. */
+  const int def_id = units_spawn(&units, 0, 9, 8);
+  const int hull_id = units_spawn_allow_stack(&units, 1, 9, 8);
+  const int atk_id = units_spawn(&units, 0, 8, 8);
+  ColonizeUnit* d = units_get(&units, def_id);
+  ColonizeUnit* h = units_get(&units, hull_id);
+  ColonizeUnit* a = units_get(&units, atk_id);
+  if (!d || !h || !a) {
+    fx_map_free(&map);
+    return fail("defended-assault spawn");
+  }
+  d->nation_id = foe;
+  d->moves = 0;
+  h->nation_id = foe;
+  h->moves = 0;
+  a->nation_id = nation;
+  a->moves = 1 * UNITS_MP_PER_TILE;
+  a->orders = UNITS_ORDER_AI_MOVE;
+  a->goto_x = 9;
+  a->goto_y = 8;
+
+  ColonizeCol1Save col1;
+  col1_save_init(&col1);
+  memset(col1.nation, 0, sizeof(col1.nation));
+  memset(col1.head.nation_relation, 0, sizeof(col1.head.nation_relation));
+  for (int i = 0; i < 4; ++i) {
+    col1.player[i].control = 0;
+    col1.player[i].diplomacy = 0;
+  }
+  col1.head.tribe_count = 0;
+  col1.tribe = NULL;
+  ai_diplo_declare_war(&col1, nation, foe);
+  if (!ai_diplo_at_war(&col1, nation, foe)) {
+    fx_map_free(&map);
+    return fail("defended-assault expected war after declare");
+  }
+
+  uint32_t turn = 20;
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.turn_number = &turn;
+  ctx.units = &units;
+  ctx.colonies = &colonies;
+  ctx.map = &map;
+  ctx.col1 = &col1;
+  ctx.col1_ok = true;
+  ctx.human_nation = foe;
+  ctx.rng_seed = 4242;
+
+  struct ai_euro_act_ctx act;
+  memset(&act, 0, sizeof(act));
+  act.ctx = &ctx;
+  act.u = a;
+  act.nation_id = nation;
+  act.is_ship = 0;
+  act.uname = units_display_name(&units, a);
+  act.at_war_land = 1;
+  act.is_land_hunter = 0; /* keep the stand-in out of this stage */
+  act.goal_code = AI_GOAL_MILITARY;
+  act.goal_x = 9;
+  act.goal_y = 8;
+
+  ai_goals_reset();
+  ai_euro_reset();
+  (void)ai_euro_act_land_goal_dispatch(&act);
+
+  int rc = 0;
+  const ColonizeUnit* atk_after = units_get_const(&units, atk_id);
+  const ColonizeUnit* def_after = units_get_const(&units, def_id);
+  /* The step must have resolved as combat on (9,8): either side may fall,
+   * but the attacker must not have wandered off to some other neighbour. */
+  const int engaged =
+    !atk_after || !atk_after->active || !def_after || !def_after->active ||
+    (atk_after->x == 9 && atk_after->y == 8);
+  if (!engaged) {
+    rc = fail("MILITARY goto step onto a defended colony must resolve as an attack");
+  }
+
+  fx_map_free(&map);
+  if (rc == 0) {
+    fprintf(stderr, "unit_ai_euro_war: goal tail assaults defended colony ok\n");
+  }
+  return rc;
+}
+
 static int unit_peace_soldier_fortify_colony(void) {
   const int nation = 1;
 
@@ -5986,6 +6112,7 @@ static const TestCase k_cases[] = {
   {"unit_labor_shortage_and_ai_flags_5952", unit_labor_shortage_and_ai_flags_5952},
   {"unit_pioneer_conjures_no_tools", unit_pioneer_conjures_no_tools},
   {"unit_peace_tail_does_not_open_war", unit_peace_tail_does_not_open_war},
+  {"unit_goal_tail_assaults_defended_colony", unit_goal_tail_assaults_defended_colony},
   {"unit_peace_soldier_fortify_colony", unit_peace_soldier_fortify_colony},
   {"unit_peace_dragoon_fortify_colony", unit_peace_dragoon_fortify_colony},
   {"unit_peace_regular_fortify_colony", unit_peace_regular_fortify_colony},

@@ -266,6 +266,25 @@ const AiGoalSlot* ai_goals_primary(int nation_id, int slot) {
   return &s_goals[nation_id].primary[slot];
 }
 
+int ai_goals_primary_code_at(int nation_id, int x, int y) {
+  if (nation_id < 0 || nation_id >= 4) {
+    return -1;
+  }
+  int best = -1;
+  int best_prio = -1;
+  for (int slot = 0; slot < AI_PRIMARY_SLOTS; ++slot) {
+    const AiGoalSlot* g = &s_goals[nation_id].primary[slot];
+    if (g->code == AI_GOAL_EMPTY || g->x != x || g->y != y) {
+      continue;
+    }
+    if (g->prio > best_prio) {
+      best_prio = g->prio;
+      best = g->code;
+    }
+  }
+  return best;
+}
+
 const AiWorkSlot* ai_goals_work(int slot) {
   if (slot < 0 || slot >= AI_WORK_SLOTS) {
     return NULL;

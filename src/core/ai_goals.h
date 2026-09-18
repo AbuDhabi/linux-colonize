@@ -136,6 +136,15 @@ int ai_goals_nearest_colony_15eb_0142(
   int* out_dist
 );
 const AiGoalSlot* ai_goals_primary(int nation_id, int slot);
+/*
+ * AI_GOAL_* code of the highest-priority primary slot standing on (x, y), or
+ * -1 when the table holds none. DOS has no per-unit goal-code byte: a
+ * goal-bound unit carries only +0x314d/e (the tile) and +0x314b (the order
+ * letter), and every consumer that needs the concrete code re-reads the goal
+ * table at that tile. bugs.md #525 — replaces the per-unit mirror the
+ * retired `s_0a60_pilot_state` shadow used to carry.
+ */
+int ai_goals_primary_code_at(int nation_id, int x, int y);
 const AiWorkSlot* ai_goals_work(int slot);
 int ai_goals_best_found_tile(int nation_id, int* out_x, int* out_y);
 /*
