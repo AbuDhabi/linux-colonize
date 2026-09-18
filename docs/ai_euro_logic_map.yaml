@@ -646,11 +646,18 @@ graphs:
         label: On own colony with no fortify quota — admit military unit as colonist
         status: golden
         note: Dutch Isabella TURN4→5.
+      - id: absorb
+        kind: step
+        label: Absorption arm — Scout and Colonist cases of FUN_5952_035e's on-tile take-in
+        fn: ai_euro.c:ai_euro_act_colony_absorb
+        dos: FUN_5952_035e raw 94264-94274 (annotated colony_tick_5952_035e.md:606-620)
+        status: dos
+        note: "Outer gate +0x1b & 0x10 (NEEDS_COLONISTS) and population < 0x20. Scout (@UNIT 0x16): continent G-stance 0 or stock[horses] < 0x34. Colonist (@UNIT 0x13): unconditional. Admission is colonies_admit_unit_w (FUN_15eb_1068 job 0x12), which refunds equipment to the colony stock and keeps the profession, so Servants/Criminals stay themselves. UNPORTED: the Soldier/Dragoon case (raw 94240-94256) — its gate reads DOS's unported labor_shortage formula plus two locals with no initialiser in the body."
       - id: corridors
         kind: step
         label: First-colony staging corridors (Pioneer found+1 → SW coast; Soldier SE+1→SE+2→SE+3); on-tile absorb+equip pair
         status: golden
-        note: Geometric offsets from town fitted to TURN4–7 goldens. On the town tile the FUN_5952_035e pair is ported as a pair (2026-09-18) — absorption of the on-tile Pioneer (raw 94257-94263, job 0x12, tools refunded) then the equip arm (raw 94289-94352) scoring a colonist (ai_euro_5952_equip_pick) and ejecting it as Soldier/Dragoon; population gates are DOS-literal `> 1` / `> 10`.
+        note: Geometric offsets from town fitted to TURN4–7 goldens. On the town tile the FUN_5952_035e pair is ported as a pair (2026-09-18) — absorption of the on-tile Pioneer (raw 94257-94263, job 0x12, tools refunded; local_16 resolved 2026-09-18 as stock[TOOLS] > 19, not a per-act latch) then the equip arm (raw 94289-94352) scoring a colonist (ai_euro_5952_equip_pick) and ejecting it as Soldier/Dragoon; population gates are DOS-literal `> 1` / `> 10`.
       - id: is_ship
         kind: decision
         label: Ship?
@@ -684,7 +691,8 @@ graphs:
       - [gate, gate_ret]
       - [gate_ret, end, "yes"]
       - [gate_ret, admit_soldier, "no"]
-      - [admit_soldier, corridors]
+      - [admit_soldier, absorb]
+      - [absorb, corridors]
       - [corridors, is_ship]
       - [is_ship, ship_band, "yes"]
       - [is_ship, land_band, "no"]
@@ -1309,13 +1317,20 @@ graphs:
         kind: loop
         label: Pass 2 ×2 — everyone else, best job wins (raw 94613-94614 stop)
         status: dos
+      - id: lumber
+        kind: loop
+        label: Forced-lumberjack pass + AI emergency lumber buy — the two arms that feed the carpenter gate
+        fn: ai_euro.c:ai_euro_5952_lumberjack_pick
+        dos: FUN_5952_035e raw 94659-94689 (annotated colony_tick_5952_035e.md:1074-1112)
+        status: dos
+        note: "Both inside the +0x1d bit 0x80 clear block, ahead of the carpenter arm. Forced-lumberjack (raw 94659-94679): gated on stock[lumber] < 10 and no lumberjack placed yet; three passes over unplaced slots (profession 5, any non-expert, anyone) calling 28c8 with forced job 5, looping while prod[lumber] == 0 so the FUN_281f_0c04 refresh ends it after one placement. No profession rewrite in this arm. Emergency buy (raw 94680-94689, ai_euro_5952_lumber_purchase): no lumberjack placed, stock[lumber] < 2 and turn (DS:0x538e) & 7 == 0 -> colony gains 100 lumber UNCONDITIONALLY, and the owner's purse is debited 200 only when it holds at least 200 (europe_nation_gold / europe_nation_gold_add)."
       - id: carpenter
         kind: loop
         label: Carpenter-staffing arm — four passes for one Carpenter's House worker when the colony has lumber but no hammers
         fn: ai_euro.c:ai_euro_5952_carpenter_pick
         dos: FUN_5952_035e raw 94690-94740, asm 5952:1ac7-5952:1be2
         status: dos
-        note: "Gated on +0x1d bit 0x80 clear and stock[lumber] + prod[lumber] > 1; loops while prod[hammers] == 0, so the ledger refresh (FUN_281f_0c04) after the first assignment ends it. Passes: profession 0x0d, 0x1c, 0x19, anyone. A chosen Servant/Criminal is rewritten to Free Colonist (FUN_281f_0cae(slot, 0x1c)); a non-expert in a colony with no Master Carpenter and pop > 5 may be handed the Master Carpenter specialty on a FUN_281f_04d4(0, 0x10 - difficulty) == 0 roll. UPSTREAM UNPORTED: the same block's forced-lumberjack pass (raw 94659-94679) and the 200-gold/100-lumber AI purchase (raw 94680-94689)."
+        note: "Gated on +0x1d bit 0x80 clear and stock[lumber] + prod[lumber] > 1; loops while prod[hammers] == 0, so the ledger refresh (FUN_281f_0c04) after the first assignment ends it. Passes: profession 0x0d, 0x1c, 0x19, anyone. A chosen Servant/Criminal is rewritten to Free Colonist (FUN_281f_0cae(slot, 0x1c)); a non-expert in a colony with no Master Carpenter and pop > 5 may be handed the Master Carpenter specialty on a FUN_281f_04d4(0, 0x10 - difficulty) == 0 roll. The same block's two preceding arms (forced-lumberjack, emergency lumber buy) run first — see node `lumber`."
       - id: expert
         kind: step
         label: Expert workplace fix-ups; origin refresh
@@ -1341,7 +1356,8 @@ graphs:
     edges:
       - [loop, pass1, "each colony"]
       - [pass1, pass2]
-      - [pass2, carpenter]
+      - [pass2, lumber]
+      - [lumber, carpenter]
       - [carpenter, expert]
       - [expert, indoor]
       - [indoor, build]

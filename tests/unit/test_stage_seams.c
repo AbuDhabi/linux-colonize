@@ -10,6 +10,7 @@
  * pin.
  */
 #include "core/ai_contact_internal.h"
+#include "core/ai_euro_internal.h"
 #include "core/ai_internal.h"
 #include "core/col1_save.h"
 #include "core/game_loop_internal.h"
@@ -129,11 +130,85 @@ static int test_game_render_select_palette(void) {
   return 0;
 }
 
+
+/*
+ * ai_euro_act_colony_absorb — FUN_5952_035e's absorption arm, Colonist case
+ * (raw 94271-94274, an unconditional take-in) and its shared outer gate
+ * `+0x1b & 0x10` (NEEDS_COLONISTS, raw 94231).
+ */
+static int test_ai_euro_act_colony_absorb(void) {
+  ColonizeWorldMap map;
+  if (!fx_map_alloc(&map, 8, 8, /*terrain_fill=*/0, /*with_seen=*/true)) {
+    return fail("absorb map alloc");
+  }
+  ColonizeUnitPool units;
+  fx_units_init(&units);
+  units.type_count = 1;
+  snprintf(units.types[0].name, sizeof(units.types[0].name), "Free Colonist");
+  units.types[0].movement = 1;
+  units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+
+  ColonizeColonyPool colonies;
+  fx_colonies_init(&colonies);
+  ColonizeColony* c = fx_colony_add(&colonies, /*nation=*/1, 4, 4, /*pop=*/2);
+
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.units = &units;
+  ctx.colonies = &colonies;
+  ctx.map = &map;
+
+  const int uid = units_spawn(&units, 0, 4, 4);
+  ColonizeUnit* u = units_get(&units, uid);
+  if (!u) {
+    fx_map_free(&map);
+    return fail("absorb spawn colonist");
+  }
+  u->nation_id = 1;
+  u->moves = UNITS_MP_PER_TILE;
+
+  struct ai_euro_act_ctx a;
+  memset(&a, 0, sizeof(a));
+  a.ctx = &ctx;
+  a.u = u;
+  a.nation_id = 1;
+
+  /* Gate closed: the colony does not want colonists -> nothing happens. */
+  c->ai_flags = 0;
+  if (ai_euro_act_colony_absorb(&a) != AI_EURO_ACT_CONTINUE) {
+    fx_map_free(&map);
+    return fail("absorb must not fire without NEEDS_COLONISTS");
+  }
+  if ((int)c->population != 2 || !units_get(&units, uid)) {
+    fx_map_free(&map);
+    return fail("absorb changed state with the outer gate closed");
+  }
+
+  /* Gate open: the Colonist case has no test of its own. */
+  c->ai_flags = COLONIZE_COLONY_AI_NEEDS_COLONISTS;
+  a.u = units_get(&units, uid);
+  if (ai_euro_act_colony_absorb(&a) != AI_EURO_ACT_RETURN) {
+    fx_map_free(&map);
+    return fail("an arriving Free Colonist must always be absorbed");
+  }
+  const int pop_after = (int)colonies.colonies[0].population;
+  const ColonizeUnit* gone = units_get(&units, uid);
+  fx_map_free(&map);
+  if (pop_after != 3) {
+    return fail("absorption must add the colonist to the colony");
+  }
+  if (gone && gone->active) {
+    return fail("the absorbed unit must leave the map");
+  }
+  return 0;
+}
+
 static const TestCase k_cases[] = {
     {"test_turn_year_end_rival_rebels", test_turn_year_end_rival_rebels},
     {"test_ai_contact_raid_alarm_delta", test_ai_contact_raid_alarm_delta},
     {"test_ai_021a_dir_tile", test_ai_021a_dir_tile},
     {"test_game_render_select_palette", test_game_render_select_palette},
+    {"test_ai_euro_act_colony_absorb", test_ai_euro_act_colony_absorb},
 };
 
 TEST_MAIN(k_cases)

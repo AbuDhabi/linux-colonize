@@ -134,6 +134,16 @@ COLONIZE_INTERNAL int ai_euro_5952_equip_pick(const ColonizeColony* c, int targe
 COLONIZE_INTERNAL int ai_euro_5952_carpenter_pick(
   ColonizeColony* c, const bool* placed, int n, int pass, int start, int* out_prof
 );
+/* FUN_5952_035e forced-lumberjack pass, per-pass election (raw 94659-94679). */
+COLONIZE_INTERNAL int ai_euro_5952_lumberjack_pick(
+  const ColonizeColony* c, const bool* placed, int n, int pass, int start
+);
+/* FUN_5952_035e AI emergency lumber purchase (raw 94680-94689). */
+COLONIZE_INTERNAL void ai_euro_5952_lumber_purchase(
+  struct EuropeScreen* eu, struct ColonizeCol1Save* col1, ColonizeColony* col, int turn,
+  bool lumber_producer_placed
+);
+AiEuroActStatus ai_euro_act_colony_absorb(struct ai_euro_act_ctx* a);
 AiEuroActStatus ai_euro_act_pioneer_corridor(struct ai_euro_act_ctx* a);
 AiEuroActStatus ai_euro_act_soldier_staging(struct ai_euro_act_ctx* a);
 AiEuroActStatus ai_euro_act_ship_europe_exit(struct ai_euro_act_ctx* a);
