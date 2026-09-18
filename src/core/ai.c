@@ -470,44 +470,25 @@ static bool ai_spawn_euro_fleet(
     return false;
   }
 
-  int sx;
-  int sy;
-  if (p && !p->use_tribe_txt) {
-    /*
-     * NEW WORLD / CUSTOMIZE: AI Europeans begin in Europe harbor
-     * (Col1 sentinel coords = (uint8_t)(nation - 28) → 229/230/231).
-     * AMERICA / TRIBE.TXT keeps on-map fleets toward @SCENARIO landfalls.
-     */
-    sx = 228 + nation;
-    sy = 228 + nation;
-  } else {
-    /*
-     * DOS-LITERAL FUN_48d3_048e/0434 ring hunt from the nation's landfall tile
-     * (see units_new_world_start). Not an eastern-half scan — DOS has none.
-     */
-    sx = landfall_x;
-    sy = landfall_y;
-    if (!units_spiral_place_hs_near(units, map, landfall_x, landfall_y, nation, &sx, &sy)) {
-      return false;
-    }
-  }
-
   /*
-   * AMERICA / TRIBE.TXT: the @SCENARIO tile *is* the ship's Atlantic start, so
-   * using it as the landfall goto leaves the fleet ordered to sail to the tile
-   * it already occupies -- it never moved and never put its colonists ashore.
-   * Aim at real coast instead.
+   * DOS-LITERAL FUN_75c2_235c (raw 121612-121646): the new-game bootstrap is
+   * path-independent. Whatever the map source — generated, CUSTOMIZE or an
+   * AMERICA / TRIBE.TXT scenario — every one of the four fleets is created by
+   * FUN_281f_095c(type, nation, nation-0x1c, nation-0x1c), i.e. on the Europe
+   * westbound sentinel (228+n, 228+n) with voyage counter +0x315a = 0 ("lands
+   * at the next FUN_48d3_03d0 pass"), and the nation's landfall tile
+   * (-0x77c6/-0x77c5, seeded from @SCENARIO raw 121035 on a scenario map or
+   * from LAB_684c_1b4c's HS-rim walk on a generated one) is copied into the
+   * unit's +0x314d/+0x314e (raw 121627) as the arrival target. The human
+   * nation's own FUN_48d3_06ba pass then lands his fleet before turn 1; the
+   * three AI fleets land at their first tick through the ported 06ba/048e
+   * chain. (bugs.md #487/#489/#490)
    */
-  int goto_x = landfall_x;
-  int goto_y = landfall_y;
-  if (p && p->use_tribe_txt && sx == landfall_x && sy == landfall_y) {
-    int wx = 0;
-    int wy = 0;
-    if (ai_goals_nearest_landing_water_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(units), .colonies=(ColonizeColonyPool*)(NULL), .map=(ColonizeWorldMap*)(map)}, sx, sy, 24, &wx, &wy)) {
-      goto_x = wx;
-      goto_y = wy;
-    }
-  }
+  (void)p;
+  const int sx = 228 + nation;
+  const int sy = 228 + nation;
+  const int goto_x = landfall_x;
+  const int goto_y = landfall_y;
 
   const int ship_id = units_spawn_euro_starter_fleet(
     units, nation, difficulty, false, sx, sy, goto_x, goto_y
