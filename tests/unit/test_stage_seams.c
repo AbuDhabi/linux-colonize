@@ -316,6 +316,167 @@ static int test_ai_euro_5952_absorb_soldier(void) {
   return 0;
 }
 
+/* fx_colony_add sets population/colonist_count only; the equip arm ejects a
+ * real colonist, so the slots have to be live. */
+static void fx_colony_fill_colonists(ColonizeColony* c) {
+  for (int i = 0; i < COLONIZE_COLONY_FIELD_TILES; ++i) {
+    c->tiles[i] = -1;
+  }
+  for (int i = 0; i < (int)c->colonist_count && i < COLONIZE_COLONY_POP_MAX; ++i) {
+    c->colonists[i].active = true;
+    c->colonists[i].profession = COLONIZE_PROF_FREE_COLONIST;
+    c->colonists[i].field_job = -1;
+  }
+}
+
+/*
+ * ai_euro_5952_absorb_equip — the equip arm's SCOUT target (raw 94277-94285).
+ * DOS: `if (0x65 < stock[horses]) { if (pop < 10 && pop < wanted_size) skip;
+ * if (!(+0x1b & 0x10)) { local_8e = 0x16; local_136 = 1; } }`. With muskets
+ * at 0 the Soldier/Dragoon arm cannot override, and with pop <= 10 the
+ * local_90 conjunct short-circuits before its RNG draw, so this case is
+ * fully deterministic and needs no rng.
+ */
+static int test_ai_euro_5952_equip_scout(void) {
+  ColonizeWorldMap map;
+  if (!fx_map_alloc(&map, 8, 8, /*terrain_fill=*/0, /*with_seen=*/true)) {
+    return fail("equip-scout map alloc");
+  }
+  ColonizeUnitPool units;
+  fx_units_init(&units);
+  units.type_count = 2;
+  snprintf(units.types[0].name, sizeof(units.types[0].name), "Free Colonist");
+  units.types[0].movement = 1;
+  units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  snprintf(units.types[1].name, sizeof(units.types[1].name), "Scouts");
+  units.types[1].movement = 4;
+  units.types[1].domain = COLONIZE_UNIT_DOMAIN_LAND;
+
+  ColonizeColonyPool colonies;
+  fx_colonies_init(&colonies);
+  /* pop 8 = ai_euro_colony_wanted_size's live answer, so `pop < wanted` is
+   * false and the DOS `goto LAB_0de5` skip does NOT fire. */
+  ColonizeColony* c = fx_colony_add(&colonies, /*nation=*/1, 4, 4, /*pop=*/8);
+  c->ai_flags = 0;
+  c->stock[COLONIZE_CARGO_MUSKETS] = 0;
+  c->stock[COLONIZE_CARGO_HORSES] = 0x65; /* exactly the threshold: no arm */
+  fx_colony_fill_colonists(c);
+
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.units = &units;
+  ctx.colonies = &colonies;
+  ctx.map = &map;
+
+  int labor = 0;
+  ai_euro_5952_absorb_equip(&ctx, 1, c, &labor);
+  if ((int)c->population != 8) {
+    fx_map_free(&map);
+    return fail("horses == 0x65 must not arm the Scout target (DOS tests 0x65 <)");
+  }
+
+  c->stock[COLONIZE_CARGO_HORSES] = 0x66;
+  c->ai_flags = COLONIZE_COLONY_AI_NEEDS_COLONISTS; /* +0x1b & 0x10 blocks it */
+  ai_euro_5952_absorb_equip(&ctx, 1, c, &labor);
+  if ((int)c->population != 8) {
+    fx_map_free(&map);
+    return fail("NEEDS_COLONISTS must veto the Scout target");
+  }
+
+  c->ai_flags = 0;
+  ai_euro_5952_absorb_equip(&ctx, 1, c, &labor);
+  if ((int)c->population != 7) {
+    fx_map_free(&map);
+    return fail("the Scout target must re-type one colonist out of the colony");
+  }
+  if (c->stock[COLONIZE_CARGO_HORSES] != 0x66 - UNITS_EQUIP_HORSES) {
+    fx_map_free(&map);
+    return fail("FUN_15eb_1068 must charge the Scout's horses to the stock");
+  }
+  int scouts = 0;
+  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    const ColonizeUnit* u = &units.units[i];
+    if (u->active && u->x == 4 && u->y == 4) {
+      scouts++;
+    }
+  }
+  fx_map_free(&map);
+  if (scouts != 1) {
+    return fail("exactly one Scout must be produced per tick (local_136 is a flag)");
+  }
+  return 0;
+}
+
+/*
+ * ai_euro_5952_absorb_equip — the equip arm's PIONEER target (raw
+ * 94300-94303): `local_90 && unit_type_counts[nation][2] == 0 && local_10 &&
+ * 0x13 < stock[tools]`. local_90 carries DOS's RNG(0,3) conjunct, so the
+ * arm fires on roughly a quarter of the ticks; the test drives a fixed seed
+ * for a fixed number of ticks and asserts the tools gate flips the outcome
+ * from "some Pioneers" to "none", which is the gate this piece adds.
+ */
+static int equip_pioneer_run(int tools, int ticks) {
+  ColonizeWorldMap map;
+  if (!fx_map_alloc(&map, 8, 8, /*terrain_fill=*/0, /*with_seen=*/true)) {
+    return -1;
+  }
+  ColonizeUnitPool units;
+  fx_units_init(&units);
+  units.type_count = 2;
+  snprintf(units.types[0].name, sizeof(units.types[0].name), "Free Colonist");
+  units.types[0].movement = 1;
+  units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  snprintf(units.types[1].name, sizeof(units.types[1].name), "Pioneers");
+  units.types[1].movement = 1;
+  units.types[1].domain = COLONIZE_UNIT_DOMAIN_LAND;
+
+  ColonizeColonyPool colonies;
+  fx_colonies_init(&colonies);
+  ColonizeColony* c = fx_colony_add(&colonies, /*nation=*/1, 4, 4, /*pop=*/20);
+  c->ai_flags = 0;
+  c->stock[COLONIZE_CARGO_MUSKETS] = 0;  /* Soldier/Dragoon arm stays shut */
+  c->stock[COLONIZE_CARGO_HORSES] = 0;   /* Scout arm stays shut */
+  c->stock[COLONIZE_CARGO_TOOLS] = tools;
+  fx_colony_fill_colonists(c);
+
+  ColonizeDosRng rng;
+  dos_rng_seed(&rng, 7);
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.units = &units;
+  ctx.colonies = &colonies;
+  ctx.map = &map;
+  ctx.rng = &rng;
+
+  int made = 0;
+  int labor = 0;
+  for (int t = 0; t < ticks; ++t) {
+    const int before = (int)c->population;
+    c->stock[COLONIZE_CARGO_TOOLS] = tools; /* one Pioneer's worth per tick */
+    ai_euro_5952_absorb_equip(&ctx, 1, c, &labor);
+    if ((int)c->population < before) {
+      made++;
+    }
+  }
+  fx_map_free(&map);
+  return made;
+}
+
+static int test_ai_euro_5952_equip_pioneer(void) {
+  const int open = equip_pioneer_run(/*tools=*/100, /*ticks=*/40);
+  if (open < 0) {
+    return fail("equip-pioneer map alloc");
+  }
+  if (open <= 0) {
+    return fail("the Pioneer target must fire when tools > 0x13 and local_90 rolls");
+  }
+  const int shut = equip_pioneer_run(/*tools=*/0x13, /*ticks=*/40);
+  if (shut != 0) {
+    return fail("tools == 0x13 must veto the Pioneer target (DOS tests 0x13 <)");
+  }
+  return 0;
+}
+
 static const TestCase k_cases[] = {
     {"test_turn_year_end_rival_rebels", test_turn_year_end_rival_rebels},
     {"test_ai_contact_raid_alarm_delta", test_ai_contact_raid_alarm_delta},
@@ -323,6 +484,8 @@ static const TestCase k_cases[] = {
     {"test_game_render_select_palette", test_game_render_select_palette},
     {"test_ai_euro_5952_absorb_colonist", test_ai_euro_5952_absorb_colonist},
     {"test_ai_euro_5952_absorb_soldier", test_ai_euro_5952_absorb_soldier},
+    {"test_ai_euro_5952_equip_scout", test_ai_euro_5952_equip_scout},
+    {"test_ai_euro_5952_equip_pioneer", test_ai_euro_5952_equip_pioneer},
 };
 
 TEST_MAIN(k_cases)

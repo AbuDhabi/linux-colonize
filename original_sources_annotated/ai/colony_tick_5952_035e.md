@@ -65,15 +65,28 @@ latched by the Pioneer case at md:625. `iStack_76` is likewise carried as a
 tick-local from `ai_euro_5952_labor_demand`'s post-military-walk `want` —
 NOT the `+0x8e` byte, which DOS writes once at md:405 and never again.
 
-REMAINING DIVERGENCES for this pair:
-  - the two `iStack_76` readers at md:746 / md:758
-    (`FUN_OVL15_L0000__002a82(0x181f, 0xf, …)`, the build-preference arms)
-    are not modelled at all, so the absorption's `++` is observable only
-    through the dead disjunct (a) at md:604;
-  - the equip arm's other two `local_136` targets — the Scout arm
-    (md:644-654) and the Pioneer arm (md:664-668, needs `local_10` =
-    `func_0x0001a684` and the `-0x6db2` per-nation row) — are unported;
-    only the Soldier/Dragoon target (md:669-677) is live.
+REMAINING DIVERGENCES for this pair: **none as of 2026-09-18.** The last
+three were closed together:
+  - the equip arm's other two `local_136` targets are ported — the Scout arm
+    (md:644-654; `FUN_1000_8e6c` = `FUN_15eb_0484` = the AI wanted colony
+    size, and the `goto LAB_0de5` skips only this arm) and the Pioneer arm
+    (md:664-668; `local_10` = `func_0x0001a684` = `FUN_2a1f_0494` → the far
+    thunk for `FUN_521d_03d0` founding_expansion_urgency, and
+    `-0x6db2` = DS:0x924e = `unit_type_counts[nation][2]`, the nation's
+    Pioneer count, stride 0x13). All three arms write the same `local_8e`,
+    so a later one OVERRIDES an earlier one and at most one re-type happens
+    per tick;
+  - the five `FUN_OVL15_L0000__002a82` build-preference calls (md:758-793)
+    are ported. The thunk's target is `FUN_5952_0306(cargo, want)`
+    (viceroy_unpacked.c:93760), the `+0x8d` specialty_cargo writer; its
+    clears are `warehouse_capacity <= stock[cargo]` and `DS:0x8dc8[cargo] !=
+    0` (gross production). Tags: `0xf` Muskets, `0xe` Tools, `0xd` Trade
+    Goods, `8` Horses. The FIFTH call is the `iStack_76` reader, so the
+    absorption's `++` is now observable exactly where DOS makes it so, and
+    `uStack_96` is latched between calls 1 and 2. `-0x6a9a` col 0 is the
+    @LEADERNAME belligerence trait, `-0x7b37` is DS:0x84bc + 0xd, the
+    per-nation Europe SELL row for Trade Goods, and `+0x1c & 0x20` is the
+    WAGON_TRAIN colony flag.
 
 **Callers / nation gating (resolved 2026-09-08d — AI nations ONLY).** The
 tick has exactly one call site in the EXE: `FUN_521d_6d8e`'s own-colony loop

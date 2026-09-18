@@ -1978,13 +1978,24 @@ static int unit_specialty_flag_a_haul_match(void) {
   a->y = 2;
   a->population = 3;
   a->colonist_count = 3;
-  a->stock[COLONIZE_CARGO_TOOLS] = 0;
-  a->stock[COLONIZE_CARGO_LUMBER] = 50; /* surplus → specialty LUMBER (under warehouse) */
+  /* 2026-09-18: the invented "surplus haul ladder" that used to stamp +0x8d
+   * from stock is gone — DOS's only AI writer is FUN_5952_035e's five
+   * FUN_5952_0306 calls, which touch ONLY Muskets / Trade Goods / Horses /
+   * Tools. LUMBER is not one of those four tags, so a Lumber specialty is
+   * exactly what a DOS save carries untouched across the tick, and it is set
+   * here directly instead of being conjured from stock. The stock numbers
+   * below keep all five DOS arms at want = 0 so none of them re-stamps +0x8d
+   * over it: muskets 200 > (belligerence 0 + 2) * 0x32, horses 60 >= 0x32,
+   * tools 50 > 0x13 (local_16 latched), and no WAGON_TRAIN flag. */
+  a->stock[COLONIZE_CARGO_TOOLS] = 50;
+  a->stock[COLONIZE_CARGO_MUSKETS] = 200;
+  a->stock[COLONIZE_CARGO_HORSES] = 60;
+  a->stock[COLONIZE_CARGO_LUMBER] = 50;
   a->stock[COLONIZE_CARGO_FOOD] = 10; /* not FOOD surplus (avoids specialty overwrite) */
   a->stock[COLONIZE_CARGO_RUM] = 80; /* 80 > 0x4a → bVar5 registers this colony */
   a->building_in_production = -1;
   a->cargo_idle_turns = 0;
-  a->specialty_cargo = 0xff;
+  a->specialty_cargo = (uint8_t)COLONIZE_CARGO_LUMBER;
 
   ColonizeColony* b = &colonies.colonies[1];
   b->id = 1;
@@ -1995,12 +2006,14 @@ static int unit_specialty_flag_a_haul_match(void) {
   b->population = 3;
   b->colonist_count = 3;
   b->stock[COLONIZE_CARGO_LUMBER] = 0;
-  b->stock[COLONIZE_CARGO_TOOLS] = 50; /* surplus → specialty TOOLS (under warehouse) */
+  b->stock[COLONIZE_CARGO_TOOLS] = 50; /* same five-arm quieting as A, above */
+  b->stock[COLONIZE_CARGO_MUSKETS] = 200;
+  b->stock[COLONIZE_CARGO_HORSES] = 60;
   b->stock[COLONIZE_CARGO_FOOD] = 10; /* not FOOD surplus (avoids specialty overwrite) */
   b->stock[COLONIZE_CARGO_RUM] = 80; /* same, so both slots are eligible */
   b->building_in_production = -1;
   b->cargo_idle_turns = 0;
-  b->specialty_cargo = 0xff;
+  b->specialty_cargo = 0xff; /* no specialty → the +32 tie-break must pick A */
   colonies.colony_count = 2;
   colonies.next_id = 2;
 

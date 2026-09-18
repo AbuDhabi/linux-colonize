@@ -188,11 +188,26 @@ static ColonizeColony* fixture_ore_colony(Fixture* f, int nation, int population
   c->y = 4;
   c->population = (uint8_t)population;
   c->colonist_count = (uint8_t)population;
-  c->stock[COLONIZE_CARGO_ORE] = 60;     /* surplus → specialty = Ore */
+  c->stock[COLONIZE_CARGO_ORE] = 60;
   c->stock[COLONIZE_CARGO_FOOD] = 10;    /* < pop*2*2 → not a Food surplus */
-  c->stock[COLONIZE_CARGO_MUSKETS] = 5;  /* non-zero and < 20: no muskets need */
+  /*
+   * 2026-09-18: +0x8d is no longer conjured from stock by a port-invented
+   * "surplus ladder"; DOS's only AI writer is FUN_5952_035e's five
+   * FUN_5952_0306 calls, whose tags are Muskets / Trade Goods / Horses /
+   * Tools only. ORE is not one of them, so the specialty is stamped here
+   * directly — that is how a DOS save carries it — and the four stock
+   * numbers below hold every one of those five arms at want = 0 so none
+   * re-stamps +0x8d over it:
+   *   muskets 100 == warehouse capacity  -> arm 1 and arm 5 clear the want
+   *   horses  60  >= 0x32                -> arm 3 clear
+   *   tools   50  >  0x13                -> local_16 latched, arm 4 clear
+   *   no COLONIZE_COLONY_FLAG_WAGON_TRAIN -> arm 2 clear
+   */
+  c->stock[COLONIZE_CARGO_MUSKETS] = 100;
+  c->stock[COLONIZE_CARGO_HORSES] = 60;
   c->stock[COLONIZE_CARGO_TOOLS] = 50;   /* non-zero: no tools need */
   c->stock[COLONIZE_CARGO_LUMBER] = 0;
+  c->specialty_cargo = (uint8_t)COLONIZE_CARGO_ORE;
   c->building_in_production = -1;
   f->colonies.colony_count = 1;
   f->colonies.next_id = 1;
