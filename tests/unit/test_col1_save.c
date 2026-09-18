@@ -899,14 +899,41 @@ int main(void) {
                 europe.expected[0].exit_x, europe.expected[0].exit_y);
         return 1;
       }
-      /* COLONY06: human (3) fleet in port at 231 (Galleon + 2 passengers on chain). */
+      /*
+       * COLONY06: human (3) fleet at 231 = 228+n, the LAST westbound Atlantic
+       * lane — Bound for the New World, one tick from landing, not "in port".
+       * Two hulls (type 17 + type 14) with two Artillery chained aboard, voyage
+       * counter 0 and goto = the landfall tile (53,56). The Europe port itself
+       * is 236+n (FUN_48d3_03d0 never walks that lane; it is where the genuine
+       * COLONY02 French dock colonists sit at (237,237)), and 232+n is the
+       * lane one hop further out — the French stack at 233 in this same save
+       * carries counter 1. Cross-checked against the DOS turn-0 oracles
+       * original_saves/mapgen/SEED100.SAV and original_saves/COLONY00.SAV,
+       * where the three AI nations sit at 229/230/231 with counter 0 and goto =
+       * their landfall tiles. (bugs.md #489)
+       */
       if (strstr(fix->path, "lategame-saves/COLONY06.SAV")) {
-        if (europe.harbor_ships < 2) {
-          fprintf(stderr, "COLONY06 harbor lane wrong: n=%d\n", europe.harbor_ships);
+        if (europe.harbor_ships != 0 || europe.bound_ships != 2) {
+          fprintf(stderr, "COLONY06 lanes wrong: harbor=%d bound=%d\n",
+                  europe.harbor_ships, europe.bound_ships);
           return 1;
         }
-        /* Bound lane (232+n): no fixture carries one — sail a harbor ship
-         * out, capture, re-apply, expect it back in Bound with its voyage. */
+        if (europe.bound[0].turns_left != 0 || europe.bound[0].exit_x != 53 ||
+            europe.bound[0].exit_y != 56) {
+          fprintf(stderr, "COLONY06 bound[0] wrong: turns=%d exit=(%d,%d)\n",
+                  europe.bound[0].turns_left, europe.bound[0].exit_x,
+                  europe.bound[0].exit_y);
+          return 1;
+        }
+        /* Harbor lane (236+n): no fixture carries a docked hull — push one,
+         * sail it out, capture, re-apply, expect it back in Bound with its
+         * voyage counter intact alongside the two the save already had. */
+        if (!europe_harbor_push(
+              &europe, europe.bound[0].type_index, europe.bound[0].name, NULL, 0, NULL, NULL
+            )) {
+          fprintf(stderr, "COLONY06 harbor push failed\n");
+          return 1;
+        }
         if (!europe_set_sail_from_harbor(&europe, 0, 2, &units, br.human_nation)) {
           fprintf(stderr, "COLONY06 set sail failed\n");
           return 1;
@@ -935,12 +962,18 @@ int main(void) {
           fprintf(stderr, "COLONY06 bound re-apply failed: %s\n", err);
           return 1;
         }
-        if (europe3.bound_ships != 1 || europe3.bound[0].turns_left != 2 ||
-            europe3.harbor_ships != europe.harbor_ships) {
-          fprintf(stderr, "COLONY06 bound lane wrong: bound=%d turns=%d harbor=%d/%d\n",
-                  europe3.bound_ships, europe3.bound[0].turns_left, europe3.harbor_ships,
-                  europe.harbor_ships);
-          return 1;
+        {
+          int with_voyage = 0;
+          for (int bi = 0; bi < europe3.bound_ships; ++bi) {
+            if (europe3.bound[bi].turns_left == 2) {
+              with_voyage++;
+            }
+          }
+          if (europe3.bound_ships != 3 || with_voyage != 1 || europe3.harbor_ships != 0) {
+            fprintf(stderr, "COLONY06 bound lane wrong: bound=%d turns2=%d harbor=%d\n",
+                    europe3.bound_ships, with_voyage, europe3.harbor_ships);
+            return 1;
+          }
         }
         map_free(&map3);
       }
@@ -2542,8 +2575,9 @@ int main(void) {
     }
     /* Stamp the raw records: four land units on trade-route orders whose
      * cursor nibble is out of range, and the Galleon parked in the Europe
-     * dock lane (228 + human nation; 232/244 + n are the Bound/Expected
-     * sentinels) with one real hold and five stale ones. */
+     * port lane (236 + human nation; 228/232 + n are the westbound Bound
+     * lanes and 240/244 + n the eastbound Expected ones — bugs.md #489) with
+     * one real hold and five stale ones. */
     int stamped = 0;
     bool ship_stamped = false;
     for (uint16_t i = 0; i < save.head.unit_count; ++i) {
@@ -2561,7 +2595,7 @@ int main(void) {
       if (r->x == 30) {
         r->type = 15; /* Galleon: the 13..18 ship band the lane decoder wants */
         r->nation_id = 0;
-        r->x = 228; /* dock lane */
+        r->x = 236; /* Europe port lane (236 + human nation 0) */
         r->y = 0;
         r->orders = 0;
         r->profession = 0;
@@ -2676,6 +2710,129 @@ int main(void) {
       return 1;
     }
     fprintf(stderr, "col1 decoder bounds (route nibble / docked holds) ok\n");
+  }
+
+  /*
+   * Legacy-port harbor fallback (col1_bridge_apply_w): before the DOS-lane
+   * fix, a docked (harbor) human ship was written at 228+n with voyage
+   * counter 0 and goto (0,0) — the old, DOS-wrong assignment (228+n is
+   * really the last westbound Bound lane; genuine Bound records there always
+   * carry a nonzero landfall goto, see COLONY06 above). Live player saves
+   * under port_saves/ carry that old shape; the importer must still land
+   * them in the harbor, not treat them as "lands next tick". A record at
+   * 228+n with a real (nonzero) goto is unambiguous DOS Bound and must stay
+   * Bound.
+   */
+  {
+    ColonizeMsgCatalog names;
+    assets_msg_init(&names);
+    if (!assets_msg_load_file(&names, "COLONIZE/NAMES.TXT")) {
+      fprintf(stderr, "legacy harbor fallback: NAMES.TXT load failed\n");
+      return 1;
+    }
+    ColonizeCol1Save save;
+    if (!col1_bridge_init_template(
+          &save, COLONIZE_COL1_MAP_W_STD, COLONIZE_COL1_MAP_H_STD, err, sizeof(err)
+        )) {
+      fprintf(stderr, "legacy harbor fallback: template: %s\n", err);
+      assets_msg_free(&names);
+      return 1;
+    }
+    save.head.unit_count = 1;
+    save.unit = calloc(1, sizeof(ColonizeCol1Unit));
+    if (!save.unit) {
+      fprintf(stderr, "legacy harbor fallback: oom unit\n");
+      col1_save_free(&save);
+      assets_msg_free(&names);
+      return 1;
+    }
+    save.owned = true;
+    ColonizeCol1Unit* r = &save.unit[0];
+    r->type = 15; /* Galleon */
+    r->nation_id = 0; /* human (Governor control == 0, set by the template) */
+    r->x = 228; /* 228+n, n=0 */
+    r->y = 0;
+    r->col1_counter16 = 0;
+    r->goto_x = 0;
+    r->goto_y = 0;
+    r->transport_chain.prev_unit_idx = -1;
+    r->transport_chain.next_unit_idx = -1;
+
+    /* rc = 1: legacy shape (counter 0, goto (0,0)) -> harbor.
+     * rc = 2: DOS-shaped Bound (nonzero goto) -> stays bound. */
+    for (int variant = 0; variant < 2; ++variant) {
+      if (variant == 1) {
+        r->goto_x = 53;
+        r->goto_y = 56;
+      }
+      ColonizeWorldMap map;
+      memset(&map, 0, sizeof(map));
+      if (!map_alloc(&map, COLONIZE_COL1_MAP_W_STD, COLONIZE_COL1_MAP_H_STD, err, sizeof(err))) {
+        fprintf(stderr, "legacy harbor fallback: map_alloc: %s\n", err);
+        col1_save_free(&save);
+        assets_msg_free(&names);
+        return 1;
+      }
+      ColonizeUnitPool units;
+      memset(&units, 0, sizeof(units));
+      units_reset(&units);
+      units_set_occupancy_map(NULL);
+      if (!units_load_types(&units, &names)) {
+        fprintf(stderr, "legacy harbor fallback: unit types failed\n");
+        map_free(&map);
+        col1_save_free(&save);
+        assets_msg_free(&names);
+        return 1;
+      }
+      units_set_occupancy_map(&map);
+      ColonizeColonyPool colonies;
+      colonies_init(&colonies);
+      colonies_set_occupancy_map(NULL);
+      EuropeScreen europe;
+      memset(&europe, 0, sizeof(europe));
+      europe.cargo_count = 16;
+      ColonizeCol1BridgeResult br;
+      founding_fathers_reset();
+      if (!col1_bridge_apply_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&units), .colonies=(ColonizeColonyPool*)(&colonies), .map=(ColonizeWorldMap*)(&map), .col1=(ColonizeCol1Save*)(&save), .col1_ok=true, .europe=(EuropeScreen*)(&europe)}, &br, err, sizeof(err))) {
+        fprintf(stderr, "legacy harbor fallback: apply variant %d failed: %s\n", variant, err);
+        units_set_occupancy_map(NULL);
+        map_free(&map);
+        col1_save_free(&save);
+        assets_msg_free(&names);
+        return 1;
+      }
+      if (variant == 0) {
+        if (europe.harbor_ships != 1 || europe.bound_ships != 0) {
+          fprintf(stderr, "legacy harbor fallback: variant 0 harbor=%d bound=%d (want 1/0)\n",
+                  europe.harbor_ships, europe.bound_ships);
+          units_set_occupancy_map(NULL);
+          map_free(&map);
+          col1_save_free(&save);
+          assets_msg_free(&names);
+          return 1;
+        }
+      } else {
+        if (europe.harbor_ships != 0 || europe.bound_ships != 1 ||
+            europe.bound[0].exit_x != 53 || europe.bound[0].exit_y != 56) {
+          fprintf(
+            stderr,
+            "legacy harbor fallback: variant 1 harbor=%d bound=%d exit=(%d,%d) (want 0/1/53/56)\n",
+            europe.harbor_ships, europe.bound_ships, europe.bound[0].exit_x,
+            europe.bound[0].exit_y
+          );
+          units_set_occupancy_map(NULL);
+          map_free(&map);
+          col1_save_free(&save);
+          assets_msg_free(&names);
+          return 1;
+        }
+      }
+      units_set_occupancy_map(NULL);
+      map_free(&map);
+    }
+    col1_save_free(&save);
+    assets_msg_free(&names);
+    fprintf(stderr, "col1 legacy-port harbor fallback ok\n");
   }
 
   /*

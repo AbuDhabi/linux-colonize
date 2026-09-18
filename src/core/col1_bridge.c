@@ -1144,7 +1144,18 @@ bool col1_bridge_apply_w(
   }
   if (europe && local.human_nation >= 0) {
     const uint8_t n = (uint8_t)local.human_nation;
-    const uint8_t xy_bound = (uint8_t)(232 + n);
+    /*
+     * 228+n is the last westbound Atlantic lane, not the Europe port: the DOS
+     * chain is 232+n -> 228+n -> 224+n (FUN_48d3_06ba's two
+     * thunk_FUN_2a1f_0246 -> FUN_48d3_03d0 hops, raw 77965-77966) with
+     * FUN_48d3_0346 dropping a departing hull at 232+n (n - 0x18) and
+     * FUN_48d3_007a putting an eastbound one at 244+n (n - 0x0c). The Europe
+     * port itself is 236+n — the lane the genuine COLONY02 French dock
+     * colonists sit on at (237,237), and the one no FUN_48d3_03d0 call walks.
+     * The new-game fleet is created at 228+n with voyage counter 0
+     * (FUN_75c2_235c, raw 121612-121646), i.e. Bound with turns_left 0.
+     */
+    const uint8_t xy_bound = (uint8_t)(228 + n);
     const uint8_t xy_expected = (uint8_t)(244 + n);
     for (int i = 0; i < (int)save->head.unit_count; ++i) {
       const ColonizeCol1Unit* src = &save->unit[i];
@@ -1153,6 +1164,17 @@ bool col1_bridge_apply_w(
         continue;
       }
       const bool bound = src->x == xy_bound;
+      /*
+       * Legacy fallback: before this fix, harbor (docked) ships were written
+       * at 228+n with counter 0 and goto (0,0) (the old, DOS-wrong lane
+       * assignment). A genuine DOS Bound record at 228+n always carries a
+       * nonzero landfall goto (original_saves/COLONY06.SAV Dutch hulls at
+       * 231, goto (53,56)); counter 0 + goto (0,0) never occurs for a real
+       * Bound hull, so treat it as a legacy-port harbor ship instead of
+       * importing it as "lands next tick".
+       */
+      const bool legacy_harbor =
+        bound && src->col1_counter16 == 0 && src->goto_x == 0 && src->goto_y == 0;
       const int ti = col1_unit_type_to_runtime(units, src->type);
       const ColonizeUnitType* ut = units_type(units, ti);
       int pax_types[EUROPE_SHIP_CARGO_MAX];
@@ -1203,12 +1225,30 @@ bool col1_bridge_apply_w(
           }
         }
       }
-      const int turns = src->col1_counter16 > 0 ? (int)src->col1_counter16 : 1;
+      /*
+       * Bound keeps counter 0 verbatim — a 228+n hull with +0x315a == 0 lands
+       * at the very next FUN_48d3_03d0 pass, which is what turns_left 0 means
+       * here (the new-game fleet is exactly this). Expected has no such state:
+       * its lane is 244+n, three hops out, so a zeroed counter there is a
+       * truncated save and 1 is the safe floor.
+       */
+      const int turns = bound ? (int)src->col1_counter16
+                              : (src->col1_counter16 > 0 ? (int)src->col1_counter16 : 1);
       const int exit_x = (int)src->goto_x;
       const int exit_y = (int)src->goto_y;
       const bool exit_east = map->width > 0 ? exit_x >= map->width / 2 : true;
       EuropeHarborShip* slot = NULL;
-      if (bound) {
+      if (legacy_harbor) {
+        /* Legacy-port harbor ship (see comment above): import into the
+         * harbor list, passengers/cargo and all, not Bound. */
+        if (europe_harbor_push_ex(
+              europe, ti, ut ? ut->name : "Ship", pax_types, pax_profs, pax_n,
+              hold_types, hold_amts
+            ) &&
+            europe->harbor_ships > 0) {
+          slot = &europe->harbor[europe->harbor_ships - 1];
+        }
+      } else if (bound) {
         if (europe->bound_ships < EUROPE_HARBOR_MAX) {
           slot = &europe->bound[europe->bound_ships++];
         }
@@ -1226,7 +1266,7 @@ bool col1_bridge_apply_w(
       if (!slot) {
         continue;
       }
-      if (bound) {
+      if (bound && !legacy_harbor) {
         memset(slot, 0, sizeof(*slot));
         slot->type_index = ti;
         snprintf(slot->name, sizeof(slot->name), "%s", ut ? ut->name : "Ship");
@@ -2862,8 +2902,11 @@ bool col1_bridge_capture_w(
     /*
      * Human Europe-screen ships. DOS keeps them as unit records at the
      * nation's Europe sentinel diagonal (FUN_48d3_007a / 0346 / 03d0):
-     *   228+n  in port (harbor)
-     *   232+n  sailing to the New World (Bound), goto = landfall
+     *   236+n  in port (harbor) — FUN_48d3_03d0 never walks this lane, and it
+     *          is where genuine COLONY02 dock colonists sit (237,237)
+     *   228+n  sailing to the New World (Bound), goto = landfall; the last
+     *          westbound lane (232+n -> 228+n -> 224+n -> placed by 048e), and
+     *          where FUN_75c2_235c puts the new-game fleet with counter 0
      *   244+n  sailing to Europe (Expected), goto = the exit tile
      * with `col1_counter16` (+0x16) = voyage turns left and passengers chained
      * pax0→pax1→…→ship, sharing x/y/goto/turns. Harbor passengers were
@@ -2877,8 +2920,8 @@ bool col1_bridge_capture_w(
         int count;
         uint8_t xy;
       } lanes[3] = {
-        {europe->harbor, europe->harbor_ships, (uint8_t)(228 + n)},
-        {europe->bound, europe->bound_ships, (uint8_t)(232 + n)},
+        {europe->harbor, europe->harbor_ships, (uint8_t)(236 + n)},
+        {europe->bound, europe->bound_ships, (uint8_t)(228 + n)},
         {europe->expected, europe->expected_ships, (uint8_t)(244 + n)},
       };
       for (int li = 0; li < 3; ++li) {
@@ -2891,7 +2934,7 @@ bool col1_bridge_capture_w(
           if (ship_ti < 0 || written + 1 + ship->cargo_count > capacity) {
             continue;
           }
-          const bool in_port = lanes[li].xy == (uint8_t)(228 + n);
+          const bool in_port = lanes[li].xy == (uint8_t)(236 + n);
           const uint8_t gx = (uint8_t)(in_port ? 0 : ship->exit_x);
           const uint8_t gy = (uint8_t)(in_port ? 0 : ship->exit_y);
           const uint8_t turns = (uint8_t)(in_port ? 0 : (ship->turns_left < 0 ? 0 : ship->turns_left));
