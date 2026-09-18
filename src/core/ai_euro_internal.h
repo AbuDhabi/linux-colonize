@@ -128,6 +128,11 @@ COLONIZE_INTERNAL void ai_euro_5952_build_cascade(
   ColonizeTurnContext* ctx, ColonizeColony* col
 );
 COLONIZE_INTERNAL void ai_euro_5952_set_ring1_threat(int colony_id, int ring1);
+/* FUN_5952_035e by-profession census cells aiStack_68[0x13] / [0x15], the two
+ * the absorption arm's Soldier/Dragoon case consumes (raw 94242, 94248-94255). */
+COLONIZE_INTERNAL void ai_euro_5952_set_absorb_census(
+  int colony_id, int nonexpert, int vet_soldier
+);
 /* FUN_5952_035e equip-arm candidate scorer (raw 94318-94345). */
 COLONIZE_INTERNAL int ai_euro_5952_equip_pick(const ColonizeColony* c, int target);
 /* FUN_5952_035e carpenter-staffing arm, per-pass election (raw 94690-94740). */

@@ -203,12 +203,118 @@ static int test_ai_euro_act_colony_absorb(void) {
   return 0;
 }
 
+/*
+ * ai_euro_act_colony_absorb — the Soldier/Dragoon case (raw 94239-94256).
+ * Gate disjuncts: (b) the arriving unit is a specialist other than a Veteran
+ * Soldier AND one of the two census cells aiStack_68[0x13]/[0x15] is non-zero,
+ * (c) +0x1b bit 2 (MILITARY_SURPLUS). Absorbing clears bit 2, refunds the
+ * muskets to the colony stock, keeps the profession, and consumes one census
+ * cell ([0x15] first, else [0x13]).
+ */
+static int test_ai_euro_act_colony_absorb_soldier(void) {
+  ColonizeWorldMap map;
+  if (!fx_map_alloc(&map, 8, 8, /*terrain_fill=*/0, /*with_seen=*/true)) {
+    return fail("absorb-soldier map alloc");
+  }
+  ColonizeUnitPool units;
+  fx_units_init(&units);
+  units.type_count = 1;
+  snprintf(units.types[0].name, sizeof(units.types[0].name), "Soldiers");
+  units.types[0].movement = 1;
+  units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+
+  ColonizeColonyPool colonies;
+  fx_colonies_init(&colonies);
+  ColonizeColony* c = fx_colony_add(&colonies, /*nation=*/1, 4, 4, /*pop=*/2);
+  c->ai_flags = COLONIZE_COLONY_AI_NEEDS_COLONISTS;
+  c->stock[COLONIZE_CARGO_MUSKETS] = 0;
+
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.units = &units;
+  ctx.colonies = &colonies;
+  ctx.map = &map;
+
+  struct ai_euro_act_ctx a;
+  memset(&a, 0, sizeof(a));
+  a.ctx = &ctx;
+  a.nation_id = 1;
+
+  /* Census: one ordinary colonist to spare, no Veteran Soldier. */
+  ai_euro_5952_set_absorb_census(c->id, /*nonexpert=*/1, /*vet_soldier=*/0);
+
+  /* A Veteran Soldier (profession 0x15) is excluded from disjunct (b). */
+  const int vid = units_spawn(&units, 0, 4, 4);
+  ColonizeUnit* v = units_get(&units, vid);
+  if (!v) {
+    fx_map_free(&map);
+    return fail("absorb-soldier spawn veteran");
+  }
+  v->nation_id = 1;
+  v->profession = UNITS_JOB_SOLDIER;
+  v->muskets = 50;
+  a.u = v;
+  if (ai_euro_act_colony_absorb(&a) != AI_EURO_ACT_CONTINUE ||
+      (int)c->population != 2) {
+    fx_map_free(&map);
+    return fail("a Veteran Soldier must not be absorbed through disjunct (b)");
+  }
+
+  /* MILITARY_SURPLUS (disjunct c) takes the same unit in, clears the bit,
+   * refunds the muskets and keeps the profession. */
+  c->ai_flags |= COLONIZE_COLONY_AI_MILITARY_SURPLUS;
+  a.u = units_get(&units, vid);
+  if (ai_euro_act_colony_absorb(&a) != AI_EURO_ACT_RETURN) {
+    fx_map_free(&map);
+    return fail("MILITARY_SURPLUS must absorb an arriving soldier");
+  }
+  if ((int)c->population != 3 ||
+      (c->ai_flags & COLONIZE_COLONY_AI_MILITARY_SURPLUS) != 0 ||
+      c->stock[COLONIZE_CARGO_MUSKETS] != 50 ||
+      (int)c->colonists[2].profession != UNITS_JOB_SOLDIER) {
+    fx_map_free(&map);
+    return fail("surplus absorption must clear bit 2, refund muskets, keep profession");
+  }
+
+  /* That absorption consumed a census cell too (raw 94248-94255), so re-seed
+   * one before exercising disjunct (b). */
+  ai_euro_5952_set_absorb_census(c->id, /*nonexpert=*/1, /*vet_soldier=*/0);
+
+  /* Disjunct (b): a Hardy Pioneer carrying muskets, with census[0x13] = 1.
+   * The absorption consumes that cell, so the next one is refused. */
+  for (int round = 0; round < 2; ++round) {
+    const int pid = units_spawn(&units, 0, 4, 4);
+    ColonizeUnit* p = units_get(&units, pid);
+    if (!p) {
+      fx_map_free(&map);
+      return fail("absorb-soldier spawn specialist");
+    }
+    p->nation_id = 1;
+    p->profession = UNITS_JOB_PIONEER; /* expert, != 0x15 */
+    p->muskets = 50;
+    a.u = p;
+    const AiEuroActStatus st = ai_euro_act_colony_absorb(&a);
+    const int want_pop = round == 0 ? 4 : 4;
+    if (round == 0 && (st != AI_EURO_ACT_RETURN || (int)c->population != want_pop)) {
+      fx_map_free(&map);
+      return fail("a specialist must be absorbed while a census cell is free");
+    }
+    if (round == 1 && (st != AI_EURO_ACT_CONTINUE || (int)c->population != want_pop)) {
+      fx_map_free(&map);
+      return fail("the census cell must be consumed by the first absorption");
+    }
+  }
+  fx_map_free(&map);
+  return 0;
+}
+
 static const TestCase k_cases[] = {
     {"test_turn_year_end_rival_rebels", test_turn_year_end_rival_rebels},
     {"test_ai_contact_raid_alarm_delta", test_ai_contact_raid_alarm_delta},
     {"test_ai_021a_dir_tile", test_ai_021a_dir_tile},
     {"test_game_render_select_palette", test_game_render_select_palette},
     {"test_ai_euro_act_colony_absorb", test_ai_euro_act_colony_absorb},
+    {"test_ai_euro_act_colony_absorb_soldier", test_ai_euro_act_colony_absorb_soldier},
 };
 
 TEST_MAIN(k_cases)

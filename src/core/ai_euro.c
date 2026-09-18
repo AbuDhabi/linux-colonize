@@ -3775,6 +3775,51 @@ COLONIZE_INTERNAL void ai_euro_5952_set_ring1_threat(int colony_id, int ring1) {
   }
 }
 
+/*
+ * `aiStack_68[0x13]` / `aiStack_68[0x15]` — the two by-profession census
+ * cells the absorption arm's Soldier/Dragoon case consumes (raw 94242,
+ * 94248-94255; md:566-577 builds the array, md:589-604 reads it).
+ *
+ * VARIABLE RESOLUTION (2026-09-18, disassembly-confirmed). Ghidra names
+ * these `iStack_42` / `iStack_3e` and shows no initialiser for either,
+ * because they are interior slots of the census array, not locals. The
+ * overlay disassembly (`viceroy_overlays.asm`, OVL15_L0000 body of
+ * `FUN_5952_035e`) pins all three frame facts:
+ *   - Ghidra's `*Stack_NN` labels sit exactly one WORD below the real BP
+ *     offsets in this frame (`uStack_24` → `[BP-0x22]`, `iStack_8c` →
+ *     `[BP-0x8a]`, `iStack_76` → `[BP-0x74]`, at the four entry zero
+ *     stores), so `aiStack_68` is really based at `[BP-0x66]`.
+ *   - `LEA AX,[BP-0x66]` + `PUSH 0x32` into `FUN_0000_df7e` clears 50 bytes
+ *     = 25 words, i.e. the array is `int[25]` covering @JOB 0..0x18 — the
+ *     twin `aiStack_e4` memset is the same 0x32 and ends exactly at the
+ *     next declared local, so 25 is the real length, not 13.
+ *   - the census store is `INC word ptr [BP+SI-0x66]` with `SI = 2*@JOB`.
+ * `iStack_42` = `[BP-0x40]` = index (0x66-0x40)/2 = 0x13, `iStack_3e` =
+ * `[BP-0x3c]` = index 0x15 — and both offsets appear verbatim in the gate
+ * (`CMP word ptr [BP-0x40],0x0` / `[BP-0x3c],0x0`) and in the decrement
+ * pair (`DEC word ptr [BP-0x40]` / `[BP-0x3c]`). So they are the colony's
+ * count of non-expert colonists (every non-expert folds to 0x13 at md:574)
+ * and of Veteran Soldiers (@JOB 0x15).
+ *
+ * Stashed per colony for the same reason `s_5952_ring1` is: DOS builds the
+ * census inside the tick, immediately before the absorption loop, and the
+ * port runs that loop from each arriving unit's act instead. The
+ * decrement-on-absorb is carried here so a second absorption in the same
+ * turn sees DOS's consumed cell, not a fresh recount.
+ */
+static int s_5952_census_nonexpert[COLONIZE_COLONIES_MAX]; /* aiStack_68[0x13] */
+static int s_5952_census_vet_soldier[COLONIZE_COLONIES_MAX]; /* aiStack_68[0x15] */
+
+/* Test seam: the threat-seed pass is what fills these in production. */
+COLONIZE_INTERNAL void ai_euro_5952_set_absorb_census(
+  int colony_id, int nonexpert, int vet_soldier
+) {
+  if (colony_id >= 0 && colony_id < COLONIZE_COLONIES_MAX) {
+    s_5952_census_nonexpert[colony_id] = nonexpert;
+    s_5952_census_vet_soldier[colony_id] = vet_soldier;
+  }
+}
+
 /* DS:0x864, 6 rows of {root @BUILDING, @JOB, input @CARGO}. */
 typedef struct AiEuro5952Craft {
   int root;  /* DOS @BUILDING index */
@@ -9883,6 +9928,28 @@ static void ai_euro_colony_threat_seed_5952(
   ai_euro_5952_labor_demand(ctx, nation_id, c, col1, quota, ring1, &n, &want, &homed_mil);
 
   ai_euro_5952_ai_flags(ctx, nation_id, c, n, want, homed_mil);
+
+  /*
+   * raw 94219-94229 (md:566-577), DOS-LITERAL: right after the +0x1b flag
+   * writes the tick wipes the by-profession census and rebuilds it over the
+   * colony's own colonists, folding every non-expert (`FUN_281f_0c9a == 0`)
+   * into cell 0x13. Only the two cells the absorption arm reads are kept —
+   * see the s_5952_census_* note above for why they are stashed.
+   */
+  {
+    int nonexpert = 0;
+    int vet_soldier = 0;
+    const int pop = (int)c->population;
+    for (int i = 0; i < pop && i < COLONIZE_COLONY_POP_MAX; ++i) {
+      const int prof = (int)c->colonists[i].profession;
+      if (!ai_euro_5952_job_is_expert(prof)) {
+        nonexpert++;
+      } else if (prof == UNITS_JOB_SOLDIER) {
+        vet_soldier++;
+      }
+    }
+    ai_euro_5952_set_absorb_census(c->id, nonexpert, vet_soldier);
+  }
 }
 
 /* --- 0a60 colony goals: stage helpers ---------------------------------- */
@@ -18403,21 +18470,39 @@ COLONIZE_INTERNAL int ai_euro_5952_equip_pick(const ColonizeColony* c, int targe
  * profession, so an Indentured Servant (0x19) or Petty Criminal (0x1a)
  * walking in stays one. No profession is rewritten anywhere in this arm.
  *
- * NOT ported, deliberately (raw 94240-94256, the Soldier/Dragoon 0x15/0x17
- * case): its gate is
- *   `(iStack_76 < 0 && !(+0x1b & 8)) ||
- *    (is_expert(prof) && prof != 0x15 && (iStack_42 || iStack_3e)) ||
- *    (+0x1b & 4)`
- * and two of those three disjuncts cannot be pinned today. `iStack_76` is
- * DOS's own labor_shortage FORMULA (raw 94020-94040, +0x8e), which this port
- * has never ported — it keeps a thin labor latch in that field instead, so
- * its sign is not DOS's. `iStack_42`/`iStack_3e` have no initialiser anywhere
- * in the 1577-line body; by the carpenter arm's frame rule (Ghidra's label
- * sits one word below the real slot, aiStack_68 based at BP-0x66) they would
- * be `aiStack_68[0x13]` and `aiStack_68[0x15]` of the by-profession census,
- * but that is an inference from a single prior data point, not evidence.
- * Guessing either would put a wrong gate on the one absorption that also
- * WRITES colony state (it clears `+0x1b` bit 2), so the case is left out.
+ * Soldier/Dragoon case (@UNIT 0x15/0x17), raw 94239-94256 — ported
+ * 2026-09-18, once its three unresolved locals were pinned off the overlay
+ * disassembly (see the s_5952_census_* note above for the frame rule and
+ * the `[BP-0x40]`/`[BP-0x3c]` evidence). DOS-LITERAL gate, all three
+ * disjuncts:
+ *   (a) `iStack_76 < 0 && (+0x1b & 8) == 0`
+ *       `iStack_76` is the tick's own labor_shortage running total (+0x8e),
+ *       which this port has carried since 2026-09-09 in
+ *       ai_euro_5952_labor_demand. It is UNREACHABLE: the formula clamps it
+ *       up to `quota >= 0` and only ever `++`s, or `--`s under `!= 0`, so it
+ *       is never negative by the time this loop runs. Transcribed as the
+ *       dead branch it is (DOS-LITERAL: not repaired, not deleted).
+ *   (b) `is_expert(unit @JOB) && @JOB != 0x15 && (census[0x13] || census[0x15])`
+ *       i.e. take in a specialist (but never a Veteran Soldier) as long as
+ *       the colony still holds an ordinary colonist or a Veteran Soldier to
+ *       spare. `FUN_1000_8e8a` = FUN_281f_0c9a = the expert test, called on
+ *       the ARRIVING unit's profession (asm: the value FUN_1000_8e44 just
+ *       returned is still in AX at the PUSH).
+ *   (c) `(+0x1b & 4) != 0` — MILITARY_SURPLUS: more homed military than the
+ *       colony wants, so any soldier walking in is put to work.
+ * On absorption, verbatim: `FUN_1000_8e26(slot, 0x12)` (= colonies_admit_unit_w,
+ * whose FUN_15eb_1068 refund arm banks the unit's muskets and horses into
+ * stock and keeps the colonist's profession, so an Indentured Servant 0x19 /
+ * Petty Criminal 0x1a stays one), `iStack_76++`, `+0x1b &= 0xfb` (clear
+ * MILITARY_SURPLUS), then `census[0x15]--` if non-zero, else `census[0x13]--`.
+ *
+ * Divergences, both structural and pre-existing for this whole stage:
+ * `iStack_76++` is a tick-local increment whose only readers are later in the
+ * same tick body, which the port has already run by the time an arriving unit
+ * acts; the port therefore does not write it back (colonies_admit_unit_w's own
+ * `labor_shortage--` comes from a different DOS site, ~87701, and is left
+ * alone). And DOS re-scans the tile stack from the top after each absorption;
+ * the port applies one case per arriving unit.
  */
 COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_colony_absorb(struct ai_euro_act_ctx* a) {
   ColonizeTurnContext* const ctx = a->ctx;
@@ -18427,7 +18512,8 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_colony_absorb(struct ai_euro_act_c
     return AI_EURO_ACT_CONTINUE;
   }
   const ColonizeUnitKind kind = units_name_kind(units_display_name(ctx->units, u));
-  if (kind != UNITS_KIND_SCOUT && kind != UNITS_KIND_COLONIST) {
+  if (kind != UNITS_KIND_SCOUT && kind != UNITS_KIND_COLONIST &&
+      kind != UNITS_KIND_SOLDIER && kind != UNITS_KIND_DRAGOON) {
     return AI_EURO_ACT_CONTINUE;
   }
   for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
@@ -18446,8 +18532,42 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_colony_absorb(struct ai_euro_act_c
         return AI_EURO_ACT_CONTINUE; /* raw 94264 */
       }
     }
+    const int is_mil = (kind == UNITS_KIND_SOLDIER || kind == UNITS_KIND_DRAGOON);
+    if (is_mil) {
+      /* raw 94239-94243, the three gate disjuncts; see the header note. */
+      const int idx = (c->id >= 0 && c->id < COLONIZE_COLONIES_MAX) ? c->id : -1;
+      const int census13 = idx >= 0 ? s_5952_census_nonexpert[idx] : 0;
+      const int census15 = idx >= 0 ? s_5952_census_vet_soldier[idx] : 0;
+      const int prof = u->profession;
+      /* iStack_76 at this point in the tick: provably never negative, so
+       * disjunct (a) is dead. Kept spelled out, DOS-LITERAL. */
+      const int labor_shortage_running = 0;
+      const int dead_shortage_arm =
+        (labor_shortage_running < 0 &&
+         (c->ai_flags & COLONIZE_COLONY_AI_SHORT_DEFENDERS) == 0);
+      const int specialist_arm =
+        ai_euro_5952_job_is_expert(prof) && prof != UNITS_JOB_SOLDIER &&
+        (census13 != 0 || census15 != 0);
+      const int surplus_arm = (c->ai_flags & COLONIZE_COLONY_AI_MILITARY_SURPLUS) != 0;
+      if (!dead_shortage_arm && !specialist_arm && !surplus_arm) {
+        return AI_EURO_ACT_CONTINUE;
+      }
+    }
     ColonizeWorld w = world_from_turn_ctx(ctx);
     if (colonies_admit_unit_w(&w, c->id, u->id) >= 0) {
+      if (is_mil) {
+        /* raw 94247-94255 */
+        c->ai_flags =
+          (uint8_t)(c->ai_flags & (uint8_t)~COLONIZE_COLONY_AI_MILITARY_SURPLUS);
+        const int idx = (c->id >= 0 && c->id < COLONIZE_COLONIES_MAX) ? c->id : -1;
+        if (idx >= 0) {
+          if (s_5952_census_vet_soldier[idx] != 0) {
+            s_5952_census_vet_soldier[idx]--;
+          } else if (s_5952_census_nonexpert[idx] != 0) {
+            s_5952_census_nonexpert[idx]--;
+          }
+        }
+      }
       a->u = NULL;
       return AI_EURO_ACT_RETURN;
     }
@@ -21346,6 +21466,8 @@ void ai_euro_reset(void) {
   s_sticky_unit = -1;
   s_sticky_count = 0;
   memset(s_5952_ring1, 0, sizeof(s_5952_ring1));
+  memset(s_5952_census_nonexpert, 0, sizeof(s_5952_census_nonexpert));
+  memset(s_5952_census_vet_soldier, 0, sizeof(s_5952_census_vet_soldier));
   memset(s_deferred_found, 0, sizeof(s_deferred_found));
   memset(s_unloaded_this_turn, 0, sizeof(s_unloaded_this_turn));
   /*
