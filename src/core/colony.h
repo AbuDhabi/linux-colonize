@@ -989,15 +989,18 @@ void colonies_emit_more_than_three_chrome(
 
 /*
  * FUN_5952_0306: set/clear specialty_cargo (+0x8d).
- * want_set cleared when stock >= warehouse capacity or boycotted.
- * Cite: viceroy_unpacked.c FUN_5952_0306; FUN_15eb_0a50 capacity.
+ * want_set cleared when stock >= warehouse capacity, or when the colony
+ * already produces the cargo (DS:0x8dc8 gross-production ledger != 0 —
+ * `already_produced`). The only DOS caller is FUN_5952_035e's five-call
+ * build-preference block (ai_euro_5952_build_pref_0306).
+ * Cite: viceroy_unpacked.c:93760 FUN_5952_0306; FUN_15eb_0a50 capacity.
  */
 void colonies_specialty_cargo_update(
   const ColonizeColonyPool* pool,
   ColonizeColony* colony,
   int cargo_type,
   int want_set,
-  int boycotted
+  int already_produced
 );
 
 /*

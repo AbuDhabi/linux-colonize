@@ -3102,7 +3102,7 @@ void colonies_specialty_cargo_update(
   ColonizeColony* colony,
   int cargo_type,
   int want_set,
-  int boycotted
+  int already_produced
 ) {
   if (!colony || !colony->active || cargo_type < 0 || cargo_type >= COLONIZE_CARGO_COUNT) {
     return;
@@ -3112,7 +3112,12 @@ void colonies_specialty_cargo_update(
   if (cap > 0 && cap <= colony->stock[cargo_type]) {
     want_set = 0;
   }
-  if (boycotted) {
+  /* FUN_5952_0306's second clear, raw: `if (*(int *)(cargo * 2 + -0x7238) !=
+   * 0) want = 0` — DS:0x8dc8, the tick's GROSS PRODUCTION scratch ledger. A
+   * colony that already makes the cargo never asks to be sent it. This
+   * parameter used to be an invented `boycotted`, which no DOS reader of
+   * +0x8d has; corrected 2026-09-18 with the real callee. */
+  if (already_produced) {
     want_set = 0;
   }
   if (want_set) {

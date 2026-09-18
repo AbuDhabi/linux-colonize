@@ -744,11 +744,10 @@ list, not from the inventory.
     the `+0x8e` byte — DOS writes that once, before the walk, and never
     again in the tick). `ai_euro_colony_threat_seed_5952` hands it out
     through a new `out_labor_running` parameter and the Soldier case `++`s it
-    in place. Its in-tick readers are the dead disjunct (a) and the two
-    build-preference arms at md:746 / md:758
-    (`FUN_OVL15_L0000__002a82(0x181f, 0xf, …)`), which this port does not
-    model at all — so the increment is honest but currently observable only
-    through (a). **Remaining divergence:** those two `002a82` arms.
+    in place. Its in-tick readers are the dead disjunct (a) and the fifth
+    `FUN_OVL15_L0000__002a82(0x181f, 0xf, …)` build-preference call, both
+    live since 2026-09-18 — the increment can now tip a colony's `+0x8d`
+    preference back onto Muskets, which is DOS's only observable use of it.
   - **`local_16` is now a real tick-local** seeded from `0x13 < +0xb6` and
     latched to 1 by the Pioneer case, which retires the "Pioneer carrying
     < 20 tools" residual the unit-act hosting had to document.
@@ -757,11 +756,44 @@ list, not from the inventory.
     colony tick, instead of only when a Pioneer happened to stand on the
     tile during the unit wave. That is DOS's position in the shared LCG
     stream; `golden_ai_turns` TURN1→7 stays byte-green with it.
-  - **Still unported (unchanged by the re-hosting):** DOS's other two
-    `local_136` equip targets — the Scout arm (raw 94277-94285, horses >
-    0x65) and the Pioneer arm (raw 94300-94303, which needs `local_10` =
-    `func_0x0001a684` and the `DS:-0x6db2` per-nation row). Only the
-    Soldier/Dragoon target (raw 94304-94312) is modelled.
+  - **Closed 2026-09-18 — FUN_5952_035e's colony tick has no documented
+    divergence left.** Three pieces landed together:
+      * the Scout equip target (raw 94277-94285): `0x65 < stock[horses]`,
+        then `pop < 10 && pop < FUN_1000_8e6c()` (= `FUN_15eb_0484`, the AI
+        wanted colony size — `ai_euro_colony_wanted_size`) jumps past THIS
+        ARM ONLY, then `!(+0x1b & 0x10)` sets `local_8e = 0x16`. The scorer
+        runs with target 0x16 (`local_1b4` only remaps 0x17), so its `-99`
+        expert-strip arm does not apply; the 50-horse charge is inside
+        `FUN_15eb_1068` (`COLONIZE_EJECT_SCOUT`).
+      * the Pioneer equip target (raw 94300-94303): `local_90 &&
+        unit_type_counts[nation][2] == 0 && local_10 && 0x13 < stock[tools]`.
+        `local_10` = `func_0x0001a684` = `FUN_2a1f_0494` → `FUN_521d_03d0`
+        founding_expansion_urgency; `DS:-0x6db2` = 0x924e = DS:0x924c + 2 =
+        the nation's Pioneer count (stride 0x13), the same cell 5d04's
+        tools-training arm reads. Note the tools test re-reads the LIVE
+        stock word, unlike the absorb arm's frozen `local_16`, so a Pioneer
+        absorbed earlier in the tick can fund the one minted here.
+        The three targets share `local_8e`, so later overrides earlier and
+        exactly one re-type happens per tick.
+      * the five `002a82` build-preference calls (raw 94353-94395), ported
+        as `ai_euro_5952_build_pref_0306`. The thunk target is
+        `FUN_5952_0306(cargo, want)` (viceroy_unpacked.c:93760) — the
+        `+0x8d` writer already in `colonies_specialty_cargo_update`, whose
+        invented `boycotted` clear is corrected to DOS's real one,
+        `DS:0x8dc8[cargo] != 0` (gross production). Tags `0xf`/`0xe`/`0xd`/
+        `8` = Muskets/Tools/Trade Goods/Horses; arm 1's target is
+        `(belligerence + 2) * 0x32`; arm 2 reads DS:0x84bc + 0xd (the Europe
+        SELL row for Trade Goods, `euro_price − 1`) and `+0x1c & 0x20`
+        (WAGON_TRAIN); arm 4 reads `local_16`; arm 5 reads `iStack_76`,
+        `+0x8e`, `+0x1b & 8` and the `uStack_96` latch taken between arms 1
+        and 2. This **replaces** the invented 11-cargo "surplus haul ladder"
+        that used to stamp `+0x8d` from stock inside
+        `ai_euro_colony_inventory`, which was both a fabrication and in the
+        wrong body. Two fixtures that had conjured a specialty out of that
+        ladder (`unit_specialty_flag_a_haul_match`,
+        `departing_ship_buys_wanted_cargo`) now stamp `+0x8d` directly — as
+        a DOS save carries it — and quiet all five DOS arms with stock
+        numbers, each documented at the site.
   - Tests: `tests/unit/test_stage_seams.c` cases renamed to
     `test_ai_euro_5952_absorb_colonist` / `_soldier` and re-pointed at the
     colony-side seam, with new assertions for the re-scan (two colonists

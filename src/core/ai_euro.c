@@ -5309,10 +5309,11 @@ static int ai_euro_colony_haul_cargo_short(const ColonizeColony* c, int cargo_ty
   return ai_euro_colony_haul_threshold(c, cargo_type, 1);
 }
 
-/* Surplus load gate (mult 2 = the "≥" arm). */
-static int ai_euro_colony_haul_cargo_surplus(const ColonizeColony* c, int cargo_type) {
-  return ai_euro_colony_haul_threshold(c, cargo_type, 2);
-}
+/* (`ai_euro_colony_haul_cargo_surplus` — the mult-2 "≥" arm — went with the
+ * invented +0x8d surplus-haul ladder on 2026-09-18, when FUN_5952_035e's five
+ * real FUN_5952_0306 build-preference calls were ported. Its only caller was
+ * that ladder; ai_euro_colony_haul_threshold's mult-2 arm is unused now and
+ * is kept because the shared threshold table is DOS's own.) */
 
 /*
  * (`ai_euro_haul_load_amount` — the Linux 20/10/pop*2 load chunk — was deleted
@@ -6264,36 +6265,13 @@ static void ai_euro_colony_inventory(ColonizeTurnContext* ctx, int nation_id) {
       }
     }
     /*
-     * FUN_5952_0306 thin: refresh specialty for surplus haul cargos (tools…
-     * food ladder). Warehouse-full / boycott clears. Cite: +0x8d.
+     * The 11-cargo "surplus haul ladder" that used to refresh +0x8d here was
+     * a port invention (its own comment read "FUN_5952_0306 thin"), and it
+     * ran in the wrong body besides. DOS's only +0x8d writers in the AI turn
+     * are FUN_5952_035e's five FUN_5952_0306 calls, now ported literally as
+     * ai_euro_5952_build_pref_0306 and hosted at DOS's position inside the
+     * colony tick (2026-09-18).
      */
-    {
-      const uint16_t boycott =
-        (ctx->col1_ok && ctx->col1 && nation_id >= 0 && nation_id < 4)
-          ? ctx->col1->nation[nation_id].boycott_bitmap
-          : 0u;
-      static const int k_spec[] = {
-        COLONIZE_CARGO_TOOLS,
-        COLONIZE_CARGO_LUMBER,
-        COLONIZE_CARGO_ORE,
-        COLONIZE_CARGO_MUSKETS,
-        COLONIZE_CARGO_HORSES,
-        COLONIZE_CARGO_FOOD,
-        COLONIZE_CARGO_SUGAR,
-        COLONIZE_CARGO_TOBACCO,
-        COLONIZE_CARGO_COTTON,
-        COLONIZE_CARGO_FURS,
-        COLONIZE_CARGO_SILVER
-      };
-      for (size_t si = 0; si < sizeof(k_spec) / sizeof(k_spec[0]); ++si) {
-        const int ct = k_spec[si];
-        const int want =
-          ai_euro_colony_haul_cargo_surplus(c, ct) ||
-          (ct != COLONIZE_CARGO_FOOD && c->stock[ct] > 99);
-        const int boy = (boycott & (1u << ct)) != 0;
-        colonies_specialty_cargo_update(ctx->colonies, c, ct, want, boy);
-      }
-    }
   }
 }
 
@@ -9832,10 +9810,12 @@ static void ai_euro_5952_ai_flags(
  * walk, NOT the `+0x8e` byte (DOS writes +0x8e once, before that walk, and
  * never again in the tick). It is passed in by address and the Soldier case
  * `++`s it. In-tick readers of the post-absorption value: the dead disjunct
- * (a) below, and the two build-preference arms at md:746 / md:758
- * (`FUN_OVL15_L0000__002a82(0x181f, 0xf, ...)`), which this port does not
- * model at all — so the increment is honest but currently observable only
- * through (a). Documented in docs/port_plan.md.
+ * (a) below, and the second Muskets build-preference arm
+ * (`FUN_OVL15_L0000__002a82(0x181f, 0xf, ...)` = FUN_5952_0306), ported
+ * 2026-09-18 as ai_euro_5952_build_pref_0306 and called from the tail of
+ * this function — so the increment is now observable where DOS makes it
+ * observable: one extra absorbed Soldier can force the colony's +0x8d
+ * preference back onto Muskets.
  */
 static int ai_euro_5952_tile_stack(
   const ColonizeTurnContext* ctx, const ColonizeColony* c, int* ids, int max
@@ -9859,6 +9839,16 @@ static int ai_euro_5952_tile_stack(
   }
   return n;
 }
+
+/* Defined below, in DOS's own order: the equip arm and then the five
+ * FUN_5952_0306 build-preference calls that follow it. */
+static void ai_euro_5952_equip_arm(
+  ColonizeTurnContext* ctx, int nation_id, ColonizeColony* c, int stance
+);
+static void ai_euro_5952_build_pref_0306(
+  ColonizeTurnContext* ctx, int nation_id, ColonizeColony* c,
+  int labor_running, int tools_latch
+);
 
 COLONIZE_INTERNAL void ai_euro_5952_absorb_equip(
   ColonizeTurnContext* ctx, int nation_id, ColonizeColony* c, int* labor_running
@@ -9962,20 +9952,69 @@ COLONIZE_INTERNAL void ai_euro_5952_absorb_equip(
     }
   }
 
-  /* ---- equip arm, raw 94276-94352 ------------------------------------- *
-   * `if (+0x1f < 2) goto LAB_5952_0f7c` skips the whole block. Both
-   * population reads are DOS's own spelling and see the post-absorption
-   * population, which is why this must be hosted here.
-   *
-   * STILL UNPORTED (pre-existing, unchanged by the re-hosting): DOS's other
-   * two `local_136` targets — the Scout arm (raw 94277-94285, horses > 0x65)
-   * and the Pioneer arm (raw 94300-94303, which needs `local_10` =
-   * func_0x0001a684 and the DS:-0x6db2 per-nation row). Only the
-   * Soldier/Dragoon target (raw 94304-94312) is modelled.
-   */
+  ai_euro_5952_equip_arm(ctx, nation_id, c, stance);
+  /* raw 94353-94354: FUN_1000_8ebc(0x181f) = the ledger refresh, then DOS's
+   * five FUN_5952_0306 build-preference calls. `local_16` (tools_latch) is
+   * the fourth one's own input, which is why the block is hosted here, in
+   * the same frame that owns the latch, rather than in the caller. */
+  ai_euro_5952_build_pref_0306(ctx, nation_id, c, *labor_running, tools_latch);
+}
+
+/* ---- equip arm, raw 94276-94352 ---------------------------------------
+ * `if (+0x1f < 2) goto LAB_5952_0f7c` skips the whole block. Both
+ * population reads are DOS's own spelling and see the post-absorption
+ * population, which is why this must be hosted here.
+ *
+ * Completed 2026-09-18: all THREE of DOS's `local_136` targets are now
+ * modelled, in DOS's order — Scout (raw 94277-94285), Pioneer (raw
+ * 94300-94303), Soldier/Dragoon (raw 94304-94312). They are three plain
+ * `if`s over the same `local_8e`, so a later arm silently OVERRIDES an
+ * earlier one and at most ONE re-type happens per tick (`local_136` is a
+ * flag, not a count, and the picker below runs once).
+ *
+ * `stance` is the caller's `local_2a` (the owner's continent stance); the
+ * early `return`s are DOS's `goto LAB_5952_0f7c`, which lands on the ledger
+ * refresh + build-preference block the caller runs next.
+ */
+static void ai_euro_5952_equip_arm(
+  ColonizeTurnContext* ctx, int nation_id, ColonizeColony* c, int stance
+) {
   const int equip_pop = (int)c->population;
   if (equip_pop < 2) {
     return;
+  }
+  int local_8e = UNITS_JOB_COLONIST; /* raw 94276: local_8e = 0x13 */
+  int local_136 = 0;
+  /*
+   * Scout target, raw 94277-94285 (md:644-654), DOS-LITERAL:
+   *   if (0x65 < +0xaa) {                       // stock[horses] > 101
+   *     if (+0x1f < '\n')                       // pop < 10
+   *       { cVar8 = FUN_1000_8e6c(0x181f); if (+0x1f < cVar8) goto LAB_0de5; }
+   *     if ((+0x1b & 0x10) == 0) { local_8e = 0x16; local_136 = 1; }
+   *   }
+   * `FUN_1000_8e6c` = `FUN_281f_0c7c` -> `FUN_15eb_0484` = the AI's wanted
+   * colony size (ai_euro_colony_wanted_size; 8 in practice — see its note),
+   * the same callee the NEEDS_COLONISTS latch uses ten lines earlier with
+   * segment literal 0x1a1f. `LAB_OVL15_L0000__000de5` is the local_90
+   * computation below, so the jump skips the Scout arm ONLY; it does not
+   * leave the equip block.
+   * No horses test beyond the 0x65 threshold lives in the arm — the 50-horse
+   * charge is inside FUN_15eb_1068 (colonies_eject_colonist,
+   * COLONIZE_EJECT_SCOUT), and 0x65 guarantees it is affordable.
+   * The scorer is called with local_1b4 = local_8e = 0x16 unchanged (only
+   * 0x17 is remapped), so ai_euro_5952_equip_pick scores against 0x16: a
+   * Seasoned Scout in the colony scores 4, any non-expert +1, and the
+   * `-99` expert-strip arm does NOT apply (it is gated on target == 0x15).
+   */
+  if (c->stock[COLONIZE_CARGO_HORSES] > 0x65) {
+    int skip_scout = 0;
+    if (equip_pop < 10 && equip_pop < ai_euro_colony_wanted_size(ctx->colonies, c)) {
+      skip_scout = 1; /* goto LAB_OVL15_L0000__000de5 */
+    }
+    if (!skip_scout && (c->ai_flags & COLONIZE_COLONY_AI_NEEDS_COLONISTS) == 0) {
+      local_8e = UNITS_JOB_SCOUT;
+      local_136 = 1;
+    }
   }
   /*
    * local_90, raw 94292-94299, all four conjuncts in DOS's order. The
@@ -9990,18 +10029,66 @@ COLONIZE_INTERNAL void ai_euro_5952_absorb_equip(
       (c->ai_flags & COLONIZE_COLONY_AI_NEEDS_COLONISTS) == 0) {
     local_90 = 1;
   }
+  /*
+   * Pioneer target, raw 94300-94303 (md:664-668), DOS-LITERAL:
+   *   if (local_90 != 0 && *(char *)(local_1b0 * 0x13 + -0x6db2) == 0 &&
+   *       local_10 != 0 && 0x13 < +0xb6) { local_8e = 0x14; local_136 = 1; }
+   * Variable resolutions, all from the raw text plus already-pinned tables:
+   *  - `local_1b0` is the colony's owner nation (+0x1a); the two neighbouring
+   *    reads in this same tail index the same local as `*3 + -0x6a9a` (the
+   *    DS:0x9566 @LEADERNAME trait triple) and `*0x10 + -0x7b37` (the
+   *    DS:0x84bc Europe price row), both per-Euro-nation.
+   *  - `-0x6db2` = DS:0x924e = DS:0x924c + 2 = `unit_type_counts[nation][2]`,
+   *    stride 0x13 = 19 @UNIT types (save_format_map.md row 252,
+   *    FUN_4962_0018). Column 2 is the nation's Pioneer count — the identical
+   *    expression FUN_521d_5d04's tools-side training arm reads (raw
+   *    92745-92748, ai_euro.c). So the gate is "this nation has NO Pioneer
+   *    anywhere"; the colony only mints one when the nation owns none.
+   *  - `local_10` = `func_0x0001a684(0x181f, +0x1a)` = `FUN_2a1f_0494`
+   *    (address_mapping.csv raw 1a684) = the far thunk for `FUN_521d_03d0`,
+   *    founding_expansion_urgency(nation) — ai_goals_founding_expansion_
+   *    urgency. Computed once at the top of the tick (md:608) and only read
+   *    here.
+   *  - `0x13 < +0xb6` is stock[tools] > 19. This is the SAME threshold the
+   *    absorption arm's `local_16` was seeded from, but NOT the same
+   *    quantity: `local_16` is a tick-local frozen at the tick's top and
+   *    latched to 1 by the Pioneer absorb case, while this arm re-reads the
+   *    live stock word. So a Pioneer absorbed earlier in this very tick
+   *    refunds its tools into +0xb6 and can push this gate open — DOS takes
+   *    a Pioneer in and hands one back out in one tick, and the latch does
+   *    not stop it (it only guards the absorb side).
+   * The tools are charged by FUN_15eb_1068 (colonies_eject_colonist,
+   * COLONIZE_EJECT_PIONEER), which also refuses when the stock cannot pay.
+   */
+  {
+    const int pioneers_afield =
+      (ctx->col1_ok && ctx->col1 && nation_id >= 0 && nation_id < 4)
+        ? (int)ctx->col1->stuff.unit_type_counts[nation_id][2]
+        : 0;
+    const int total_colonies = ctx->colonies ? ctx->colonies->colony_count : 0;
+    if (local_90 && pioneers_afield == 0 &&
+        ai_goals_founding_expansion_urgency(nation_id, total_colonies) != 0 &&
+        c->stock[COLONIZE_CARGO_TOOLS] > 0x13) {
+      local_8e = UNITS_JOB_PIONEER;
+      local_136 = 1;
+    }
+  }
   /* raw 94304-94306: `((+0x1b & 0x48) != 0 || local_90 != 0) && 0x31 < +0xb8` */
   const int equip_demand =
     (c->ai_flags &
      (COLONIZE_COLONY_AI_NEEDS_GARRISON | COLONIZE_COLONY_AI_SHORT_DEFENDERS)) != 0 ||
     local_90;
-  if (!equip_demand || c->stock[COLONIZE_CARGO_MUSKETS] <= 0x31) {
+  if (equip_demand && c->stock[COLONIZE_CARGO_MUSKETS] > 0x31) {
+    /* raw 94307-94312: local_8e = 0x15, upgraded to 0x17 on horses > 0x33. */
+    local_8e = c->stock[COLONIZE_CARGO_HORSES] > 0x33 ? UNITS_JOB_DRAGOON : UNITS_JOB_SOLDIER;
+    local_136 = 1;
+  }
+  if (!local_136) { /* raw 94313: `if (local_136 != 0)` guards the picker */
     return;
   }
-  /* raw 94307-94312: local_8e = 0x15, upgraded to 0x17 on horses > 0x33. */
-  const int mounted = c->stock[COLONIZE_CARGO_HORSES] > 0x33;
   /* raw 94314-94317: local_1b4 = local_8e, with 0x17 mapped to 0x15. */
-  const int pick = ai_euro_5952_equip_pick(c, UNITS_JOB_SOLDIER);
+  const int target = (local_8e == UNITS_JOB_DRAGOON) ? UNITS_JOB_SOLDIER : local_8e;
+  const int pick = ai_euro_5952_equip_pick(c, target);
   if (pick < 0) {
     return;
   }
@@ -10011,18 +10098,163 @@ COLONIZE_INTERNAL void ai_euro_5952_absorb_equip(
    * picked colonist's — the scorer's loop variable leaks out of the loop.
    */
   const int last_prof = (int)c->colonists[equip_pop - 1].profession;
-  if (ai_euro_5952_job_is_expert(last_prof) && UNITS_JOB_SOLDIER != last_prof) {
+  if (ai_euro_5952_job_is_expert(last_prof) && target != last_prof) {
     /* FUN_1000_8e9e(colony, pick, 0x1c) = FUN_281f_0cae, clear specialty. */
     c->colonists[pick].profession = COLONIZE_PROF_FREE_COLONIST;
   }
-  /* FUN_1000_8e26(colony, pick, local_8e) = FUN_15eb_1068 case 2: the
-   * colonist leaves as a Soldier/Dragoon on the colony tile keeping its
-   * profession byte, orders byte (+0x314c) zeroed, gear charged off the
-   * stock (raw 11318-11329). */
-  (void)colonies_eject_colonist(
-    ctx->colonies, c->id, pick, ctx->units,
-    mounted ? COLONIZE_EJECT_DRAGOON : COLONIZE_EJECT_SOLDIER
+  /* FUN_1000_8e26(colony, pick, local_8e) = FUN_15eb_1068: the colonist
+   * leaves as a Scout / Pioneer / Soldier / Dragoon on the colony tile
+   * keeping its profession byte, orders byte (+0x314c) zeroed, gear charged
+   * off the stock (raw 11318-11329). local_8e, not local_1b4 — the Dragoon
+   * remap is for the SCORER only. */
+  int eject_role = COLONIZE_EJECT_COLONIST;
+  if (local_8e == UNITS_JOB_PIONEER) {
+    eject_role = COLONIZE_EJECT_PIONEER;
+  } else if (local_8e == UNITS_JOB_SOLDIER) {
+    eject_role = COLONIZE_EJECT_SOLDIER;
+  } else if (local_8e == UNITS_JOB_SCOUT) {
+    eject_role = COLONIZE_EJECT_SCOUT;
+  } else if (local_8e == UNITS_JOB_DRAGOON) {
+    eject_role = COLONIZE_EJECT_DRAGOON;
+  }
+  (void)colonies_eject_colonist(ctx->colonies, c->id, pick, ctx->units, eject_role);
+}
+
+/* ---- build-preference block, raw 94353-94395 (md:758-793) --------------
+ *
+ * DOS's five `FUN_OVL15_L0000__002a82(0x181f, cargo, want)` calls, in order,
+ * immediately after the equip arm's `FUN_1000_8ebc(0x181f)` ledger refresh.
+ *
+ * CALLEE PINNED. `thunk_FUN_2a1f_05e4` is the RTLink dynalink stub at
+ * `5952:2a82` (address_mapping.csv row `thunk_FUN_2a1f_05e4,5952:2a82,
+ * OVL15_L0000,2a82`), and its target is `FUN_5952_0306(cargo, want)`
+ * (viceroy_unpacked.c:93760-93780) — the real `+0x8d` `specialty_cargo`
+ * writer, already ported as `colonies_specialty_cargo_update`:
+ *     cap = FUN_281f_0d3a()                      // warehouse capacity
+ *     if (cap <= stock[cargo])        want = 0
+ *     if (DS:0x8dc8[cargo] != 0)      want = 0   // colony already MAKES it
+ *     if (want) +0x8d = cargo; else if (+0x8d == cargo) +0x8d = 0xff
+ * Ghidra drops the two args at every call site because they arrive in
+ * registers; the `(0x181f, tag, value)` spelling in the clean overlay
+ * recovery IS the literal argument list (md:760-793), so no ndisasm
+ * recovery was needed beyond confirming the thunk target.
+ * `DS:0x8dc8` (`-0x7238`) is the tick's gross-production scratch ledger,
+ * `ai_euro_5952_ledgers`' `gross[]`.
+ *
+ * ARM-BY-ARM, all four cargo tags fall out of the colony record's stock
+ * base `+0x9a + cargo*2`: `0xf` = +0xb8 Muskets, `0xe` = +0xb6 Tools,
+ * `0xd` = +0xb4 Trade Goods, `8` = +0xaa Horses.
+ *
+ *  1. `(0xf, (target - muskets != 0 && muskets <= target))` where
+ *     `target = (byte[nation*3 + -0x6a9a] + 2) * 0x32`. `-0x6a9a` =
+ *     DS:0x9566 column 0, the @LEADERNAME **belligerence** trait
+ *     (ai_diplo_leader_trait column 0, shipped 1/0/1/-1), so a warlike
+ *     leader wants 150 muskets, a meek one 50. The pair of tests is just
+ *     `muskets < target` spelled long-hand.
+ *  2. `(0xd, trade_goods < 100 && byte[nation*0x10 + -0x7b37] < 4 &&
+ *     (+0x1c & 0x20))`. `-0x7b37` = DS:0x84c9 = DS:0x84bc + 0xd, the
+ *     per-nation Europe SELL row for Trade Goods (`euro_price − 1`, clamped
+ *     at 0 — the cascade header above cites the same table at +0xf), and
+ *     `+0x1c & 0x20` is COLONIZE_COLONY_FLAG_WAGON_TRAIN. So: stock a
+ *     trading post's worth of Trade Goods only while they are cheap and the
+ *     colony has a wagon to move them.
+ *  3. `(8, horses < 0x32)`.
+ *  4. `(0xe, local_16 == 0 && (+0x1b & 0x80))` — the tick-local tools latch
+ *     (seeded `0x13 < +0xb6`, raised by the Pioneer absorb case) and
+ *     WANTS_PIONEER_WORK. This is the second of the two `local_16` readers
+ *     and the reason the latch has to leave the absorb frame.
+ *  5. `(0xf, ...)` AGAIN, overriding arm 1 — this is the `iStack_76`
+ *     reader the 2026-09-18 re-hosting left unmodelled. DOS computes
+ *     `uStack_96 = (+0x8d == 0x0f)` between arms 1 and 2, i.e. "arm 1 left
+ *     Muskets as the standing preference", then:
+ *       want = !( (labor < 1 || muskets > 0x31)
+ *              && (+0x8e != 1 || muskets > 0x31 || +0x8d == 0x0e)
+ *              && ((+0x1b & 8) == 0 || muskets > 0x31 || +0x8d == 0x0e)
+ *              && (uStack_96 == 0 || +0x8d != 0x0f) )
+ *     i.e. the preference is FORCED back onto Muskets whenever the colony
+ *     is short of hands for its garrison (`iStack_76 >= 1`, the running
+ *     total the absorption arm `++`s), or +0x8e says labor_shortage 1, or
+ *     SHORT_DEFENDERS is set — unless it already has more than 49 muskets
+ *     or has settled on Tools. That is the whole observable consequence of
+ *     the absorb-time increment: one more absorbed Soldier this tick can
+ *     tip a colony into buying muskets.
+ *
+ * The 11-cargo "surplus haul ladder" that used to stand in for this block
+ * in ai_euro_colony_inventory was a port invention (its own comment said
+ * "FUN_5952_0306 thin"); it is deleted, and with it the invented `boycotted`
+ * clear — DOS's second clear is `gross[cargo] != 0`.
+ */
+static void ai_euro_5952_build_pref_0306(
+  ColonizeTurnContext* ctx, int nation_id, ColonizeColony* c,
+  int labor_running, int tools_latch
+) {
+  if (!ctx->colonies) {
+    return;
+  }
+  int gross[AI_EURO_5952_LEDGER_SLOTS];
+  int demand[AI_EURO_5952_LEDGER_SLOTS];
+  {
+    const ColonizeWorld w = world_from_turn_ctx(ctx);
+    ai_euro_5952_ledgers(
+      &w, ctx->colonies, c, (ctx->col1_ok && ctx->col1) ? ctx->col1 : NULL, gross, demand
+    );
+  }
+  const ColonizeCol1Save* col1 = (ctx->col1_ok && ctx->col1) ? ctx->col1 : NULL;
+
+  /* arm 1 — Muskets, md:759-762 */
+  {
+    const int target = (ai_diplo_leader_trait(ctx, nation_id, 0) + 2) * 0x32;
+    const int muskets = c->stock[COLONIZE_CARGO_MUSKETS];
+    colonies_specialty_cargo_update(
+      ctx->colonies, c, COLONIZE_CARGO_MUSKETS,
+      (target - muskets != 0 && muskets <= target),
+      gross[COLONIZE_CARGO_MUSKETS] != 0
+    );
+  }
+  /* md:764-765: uStack_96 is latched HERE, between arms 1 and 2. */
+  const int local_96 = (c->specialty_cargo == (uint8_t)COLONIZE_CARGO_MUSKETS);
+  /* arm 2 — Trade Goods, md:766-773 */
+  {
+    int price = 0;
+    if (col1 && nation_id >= 0 && nation_id < 4) {
+      const int p = (int)col1->nation[nation_id].trade.euro_price[COLONIZE_CARGO_TRADE_GOODS] - 1;
+      price = p < 0 ? 0 : p;
+    }
+    const int want = c->stock[COLONIZE_CARGO_TRADE_GOODS] < 100 && price < 4 &&
+                     (c->colony_flags & COLONIZE_COLONY_FLAG_WAGON_TRAIN) != 0;
+    colonies_specialty_cargo_update(
+      ctx->colonies, c, COLONIZE_CARGO_TRADE_GOODS, want,
+      gross[COLONIZE_CARGO_TRADE_GOODS] != 0
+    );
+  }
+  /* arm 3 — Horses, md:774 */
+  colonies_specialty_cargo_update(
+    ctx->colonies, c, COLONIZE_CARGO_HORSES, c->stock[COLONIZE_CARGO_HORSES] < 0x32,
+    gross[COLONIZE_CARGO_HORSES] != 0
   );
+  /* arm 4 — Tools, md:775-781 */
+  colonies_specialty_cargo_update(
+    ctx->colonies, c, COLONIZE_CARGO_TOOLS,
+    tools_latch == 0 && (c->ai_flags & COLONIZE_COLONY_AI_WANTS_PIONEER_WORK) != 0,
+    gross[COLONIZE_CARGO_TOOLS] != 0
+  );
+  /* arm 5 — Muskets again, md:782-793. DOS-LITERAL, including the three
+   * repeats of `0x31 < +0xb8` and the `+0x8d == 0x0e` (Tools) escape. */
+  {
+    const int muskets = c->stock[COLONIZE_CARGO_MUSKETS];
+    const int spec = (int)c->specialty_cargo;
+    const int rich = muskets > 0x31;
+    const int quiet =
+      (labor_running < 1 || rich) &&
+      ((int)c->labor_shortage != 1 || rich || spec == COLONIZE_CARGO_TOOLS) &&
+      ((c->ai_flags & COLONIZE_COLONY_AI_SHORT_DEFENDERS) == 0 || rich ||
+       spec == COLONIZE_CARGO_TOOLS) &&
+      (local_96 == 0 || spec != COLONIZE_CARGO_MUSKETS);
+    colonies_specialty_cargo_update(
+      ctx->colonies, c, COLONIZE_CARGO_MUSKETS, !quiet,
+      gross[COLONIZE_CARGO_MUSKETS] != 0
+    );
+  }
 }
 
 static void ai_euro_colony_threat_seed_5952(
