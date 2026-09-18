@@ -573,11 +573,13 @@ graphs:
         note: "act_state 5/6 land units skip when standing in any Euro colony (FUN_137f_0358 euro_settlement_owner on the unit's own tile). Pick: score < best && score/weight_seed <= prio*3/2. FIXED 2026-09-18 (bugs.md #511): the gate was keyed on unit NAMES; DOS indexes the type's NAMES.TXT @UNIT capability byte (k_20e6_type_flags) with the GOAL CODE as the bit index. Consequence, and it is DOS's: FOUND(1) and MIL_EXPAND(7) live only on the ship rows 0x81/0x82/0xa2 — they are transport goals — while land rows carry ESCORT(2)/LABOR(3)/MILITARY(4)/COLONY(5) and Colonist/Pioneer (0x40) carry only bit 6 (EXPLORE, a code the primary table never holds). The two extra clauses stay: code 1 also needs unit+0x3148 bit2, code 7 also needs bit3. A pool whose types did not come from NAMES.TXT (dos_type −1, hand-built test tables only) falls back to the old name-keyed equivalent."
       - id: commit
         kind: step
-        label: "Commit best slot: order '1' (FOUND 't', MIL_EXPAND 'i'), act_state 0xb, goal x/y/code; claim-count++ unless MILITARY"
+        label: "Commit best slot: +0x314b order '1' (FOUND 't', MIL_EXPAND 'i'), +0x314c = 0x0b, +0x314d/e = goal tile; claim-count++ unless MILITARY"
+        fn: ai_euro.c:ai_euro_0a60_goal_orders_structural
         status: structural
+        note: "2026-09-18f (bugs.md #525): the commit writes the REAL unit bytes now (u->col1_ai_plan / u->orders / u->goto_x / u->goto_y via ai_euro_set_goto), not the retired s_0a60_pilot_state mirror, so the 20e6 pre-LAB_4d2e gate and the act-level arms see the same course the rest of the port sets. LAND ONLY, and that is a port divergence: DOS binds ships here too (a 0x0b transport whose DS:0x523d bit0 is clear skips 20e6 outright and just walks the goal), but binding them moves every AI transport off its landfall onto this port's own 0a60 ocean-tile FOUND/CONTACT producers and loses four of the six real DOS save pairs in golden_ai_turns — i.e. the SHIP half of the goal table is not faithful enough yet. Open lead. The AI_GOAL_* code itself has no DOS byte at all: `ai_goals_primary_code_at` re-reads it from the goal table at +0x314d/e, and ai_euro_unit_act captures the binding before 20e6's LAB_589e wander commit can overwrite +0x314c with 0x0c."
       - id: end
         kind: end
-        label: return (unit_act reads the pilot state back)
+        label: "return (unit_act reads +0x314b/c/d/e back off the unit)" 
     edges:
       - [weight, loop]
       - [loop, skip_job]
@@ -980,7 +982,7 @@ graphs:
         label: War — wake passive hunter, seize adjacent colony/village, attack adjacent foe
         fn: ai_euro.c:ai_euro_land_engage_adjacent
         status: thin
-        note: "2026-09-18: the distant land war hunt (ai_euro_land_war_hunt_target) was deleted as invented — DOS has no distant land hunt, exactly as it has none for ships. The adjacent-attack loop (ai_euro_land_try_adjacent_attack / ai_euro_land_best_adjacent_foe) is kept and marked a GOLDEN-BACKED STAND-IN: DOS scores an adjacent foe inside the LAB_521d_4d2e attack term (raw 88880-88940) and resolves it via FUN_465b_0000, but the port's copy of that term needs owner >= 0 && at_war from the destination's layer3 nibble, so a foe on an unclaimed tile is never scored; deleting the pair left golden_woi_ref01's REF unable to reduce two defended colonies."
+        note: "2026-09-18: the distant land war hunt (ai_euro_land_war_hunt_target) was deleted as invented — DOS has no distant land hunt, exactly as it has none for ships. The adjacent-attack loop (ai_euro_land_try_adjacent_attack / ai_euro_land_best_adjacent_foe) is kept and marked a GOLDEN-BACKED STAND-IN: DOS scores an adjacent foe inside the LAB_521d_4d2e attack term (raw 88880-88940) and resolves it via FUN_465b_0000, but the port's copy of that term needs owner >= 0 && at_war from the destination's layer3 nibble, so a foe on an unclaimed tile is never scored; deleting the pair left golden_woi_ref01's REF unable to reduce two defended colonies. 2026-09-18b (bugs.md #521): two DOS divergences behind that stall were fixed — the LAB_52aa WoI gate (raw 88883-88885: during WoI an attack is scored only on a human-controlled player slot or a tribe, not the port's `!woi || owner < 0`) and the best-defender rule of FUN_465b_0000 / FUN_5fef_0000 in ai_euro_score_move and the goal-dispatch drain loop (a berthed foreign hull was hiding a colony garrison). Without the stand-in the REF now leaves 1 surviving colony instead of 2; the residue is volume, not reachability — on land every @UNIT col9 byte is 0 so the LAB_52aa odds core is 0 for any 2+ defender stack, and the assault must come from the 0a60 MILITARY goal walk, whose binding this port drops the moment the unit stands adjacent (0a60 housekeeping sets act_state 10, raw 87566-87568, and the goal tail reads a goal only at act_state 0x0b). 2026-09-18c: act_state 10 decoded and the lead closed — FUN_521d_0a60 raw 87567 is its only writer in the game and it marks 'a foreign unit or settlement stands on one of my eight neighbours' (FUN_521d_0906 via FUN_281f_0682/06be, filtered by FUN_521d_0896 which passes any Euro owner). DOS gives such a unit no goal (raw 88164 assigns only at 0/5/6), admits it into 20e6 (raw 88404-88406), sends it straight to LAB_521d_4d2e with no goal pathing (raw 90210-90214) and demotes it to 5 with order code '0' at the tail (raw 90399-90404, now ported at every ai_euro_move_scoring_gate exit); FUN_521d_5b66 dispatches a goal only at 0x0b (raw 90552) and its switch case 10 (raw 91195) is unreachable. So DOS unbinds the adjacent unit exactly as this port does and the goal walk is NOT the assault route. Case 0 of FUN_1427_0d38 confirmed byte-exact from the 1427:0d78 jump table as 'DI += DS:0x5239[type*0xe]', so the 0-odds-vs-2+-stack behaviour is DOS's own. Also fixed here: the uncited at-war land-hunter early return in ai_euro_move_scoring_gate (20e6 has no war gate) and the drain loop's nation-blind units_id_at fallback, which handed an own unit on the step tile to ai_euro_try_attack and froze REF columns two tiles short — with the stand-in all seven colonies now fall at t15 (was t21). Lead (c) refuted: raw 88686 is an inert ship/ocean skip gate, not the normal-branch test (that is raw 88774-88776 and already matches). 2026-09-18e (bugs.md #522/#523): the reachability half is now fixed — the gate's two missing DOS act-state tests (own-colony garrison arm raw 88584-88612, pre-LAB_4d2e gate raw 90210-90219) are ported, the three uncited early returns they replaced are gone, and golden_woi_ref01's land arms now take 118 wander steps where they took 0. It did not retire the stand-in: with ai_euro_land_try_adjacent_attack disabled the REF parks beside the human colonies (1368 border-park exits) and 2 colonies survive, because the LAB_52aa odds core still scores 0 against every 2+-defender land stack and local_ce is therefore never set. With the stand-in the war now ends at t11 (@LOSING3 surrender) instead of t15-t17. #523 is REFUTED: `goto LAB_521d_5183` out of the Soldier/Dragoon colony-mass gate is the direction loop's own increment, not an exit from the scan — viceroy_overlays.asm LAB_OVL14_L0000__005183 is `INC word ptr [BP-0x4e]` followed by `CMP [BP-0x4e],0x8 / JL`, with 14 XREFs; the port's per-tile skip already matches. 2026-09-18f (bugs.md #525/#526): FUN_521d_5b66 fully decoded off its own 198 bytes (see the move_scoring_gate graph, node goal_walk) and the port now walks the unit's stored +0x314d/e instead of re-deriving a nearest FOUND tile on every act; the 0a60 shadow is retired and the raw 90210-90219 gate reads the real +0x314c. It does not retire the stand-in either: with ai_euro_land_try_adjacent_attack disabled golden_woi_ref01 still leaves 1 colony standing and never latches the endgame (with it, endgame=2 at t16). The LAB_52aa odds core scoring 0 against every 2+-defender land stack remains the sole blocker and still needs a DOSBox-X trace."
       - id: peace_border
         kind: step
         label: Peace — garrison wakes when a foreign Euro land unit enters MD≤2, hunts it
@@ -1011,7 +1013,7 @@ graphs:
         fn: ai_euro.c:ai_euro_act_land_fortify
         dos: FUN_521d_20e6 raw 89011-89013 (the 'F' = 0x46 arm's unit test)
         status: structural
-        note: "FIXED 2026-09-18 (bugs.md #512): the arm's own unit test is now DOS's — the NAMES @UNIT ATTACK column above 1 (loader raw 121115-121119 stores col3 attack at 0x5236, col4 defense at 0x5235) plus not-a-ship-type — instead of name matching, and it spends no garrison quota to fire (DOS's arm has no quota concept; the colony's quota is still decremented so the other quota readers see the garrison). NOT ported from that DOS arm: its remaining guards — local_ea (an adjacent attackable foreigner was seen earlier in the act), FUN_281f_098e == FUN_281f_02ee (the +0x315c and +0x315e stack-chain walks agree, i.e. the unit is alone in its stack) and the 8-neighbour FUN_281f_0696 scan for a Euro colony owned by another nation. Those belong to a DIFFERENT trigger (fortify beside a foreign border colony) than this port arm's own-colony garrison, so bolting them on would suppress ordinary AI garrison fortification."
+        note: "FIXED 2026-09-18 (bugs.md #512): the arm's own unit test is now DOS's — the NAMES @UNIT ATTACK column above 1 (loader raw 121115-121119 stores col3 attack at 0x5236, col4 defense at 0x5235) plus not-a-ship-type — instead of name matching, and it spends no garrison quota to fire (DOS's arm has no quota concept; the colony's quota is still decremented so the other quota readers see the garrison). NOT ported from that DOS arm: its remaining guards — local_ea (an adjacent attackable foreigner was seen earlier in the act), FUN_281f_098e == FUN_281f_02ee (the +0x315c and +0x315e stack-chain walks agree, i.e. the unit is alone in its stack) and the 8-neighbour FUN_281f_0696 scan for a Euro colony owned by another nation. Those belong to a DIFFERENT trigger (park beside a foreign border colony) than this port arm's own-colony garrison, so bolting them on would suppress ordinary AI garrison fortification; that trigger is ported separately 2026-09-18 as ai_euro_20e6_border_park_arm (move_scoring_gate graph, node border_park)."
       - id: missionary
         kind: step
         label: Missionary — CONTACT prio 3 at nearest tribe without mission (not fleeing alarm ≥55)
@@ -1117,24 +1119,30 @@ graphs:
         label: Ship?
         fn: ai_euro.c:ai_euro_move_scoring_gate
         note: Ships never retarget here — courses owned by the ship band.
-      - id: war_defer
+      - id: garrison
         kind: decision
-        label: At war and unit is a land hunter (Soldier/Dragoon/Regular/Continental) / Artillery?
-        note: "Defer to the act-level hunt (no explore yank). Scouts are NOT hunters (bugs.md #494): the 20e6 type-5 band has no war term."
-      - id: peace_defer
-        kind: decision
-        label: Peace — passive colony Artillery, or idle Soldier already on own colony?
+        label: "Own-colony garrison — non-hauler type with @UNIT attack > 1, type not 4/8, standing on an own colony whose labor_shortage (+0x8e) >= 1 or order 'A'"
+        fn: ai_euro.c:ai_euro_move_scoring_gate
+        dos: FUN_521d_20e6 raw 88584-88612
+        status: dos
+        note: "Ported 2026-09-18e (bugs.md #522). Replaces three uncited early returns that used to stand here — 'passive colony Artillery', 'military name on own colony' and 'colony wants construction labor' — siblings of the at-war bail deleted 2026-09-18b; they parked every armed unit standing on one of its own colonies, so the whole land-arms branch (and with it the LAB_4d2e attack term) was unreachable for exactly the units that fight. DOS: order 'A' stays (LAB_5899); fewer than two armed units in the tile chain (attack > 1, type not in [0xd,0x12], not 4, not 8) garrisons — colony.labor_shortage--, order_code 0x47, stay; two or more sets local_8e = 1 and falls straight into LAB_4d2e, skipping LAB_277a and every arm hanging off it. local_2e == 0 ('distance to the nearest own colony is zero') is how DOS spells 'standing on an own colony'; colony +0x8e is labor_shortage; types 4 (Dragoons) and 8 (Cavalry) never garrison and are not counted."
       - id: no_colony
         kind: decision
         label: Nation has no colony and unit is a Pioneer/Colonist?
         dos: FUN_521d_06ae settle-where-landed
-      - id: found_near
+      - id: gate_4d2e
         kind: decision
-        label: Nearest top-priority FOUND on this landmass?
-        fn: ai_goals.c:ai_goals_best_found_tile_near
-      - id: on_goto
-        kind: decision
-        label: Already following a goto?
+        label: "Pre-LAB_4d2e gate — courseless unit, or a foreigner on one of the eight neighbours?"
+        dos: FUN_521d_20e6 raw 90210-90219
+        status: dos
+        note: "Ported 2026-09-18e (bugs.md #522) — the root cause of the land arms never being entered. DOS: `if (act_state != 0 && != 10 && != 5 && != 6 && (act_state != 0x0b || +0x314d != x || +0x314e != y)) { if (FUN_281f_0984(x, y, continent) == 0) goto LAB_521d_5a78; } goto LAB_521d_4d2e;` — a courseless unit (0/5/6), one flagged 'a foreigner stands on one of my eight neighbours' (10) and a goal-bound unit already standing on its goal tile ALWAYS free-score their neighbours; a goal-bound unit whose goal lies elsewhere free-scores only when FUN_281f_0984 (-> FUN_1427_09dc) finds a foreign unit or colony adjacent, and otherwise leaves 20e6 for FUN_521d_5b66 to walk the goal. The port had no such test and coursed every land unit at the nearest FOUND goal instead: instrumented over golden_woi_ref01, 284 of 460 gate calls were FOUND courses, 176 early returns and ZERO wander steps. 2026-09-18f (bugs.md #525): the test now reads the unit's REAL +0x314c/+0x314d/e. The Col1 unit record is 0x1c bytes based at DS:0x3144, so +0x3148/+0x3149/+0x314b/+0x314c/+0x314d/e ARE ColonizeUnit.col1_flags15 / moves (spent) / col1_ai_plan / orders / goto_x / goto_y, and the port's @ORDERS constants are the DOS act-state bytes themselves (7/8/9 = FUN_521d_5b66 switch cases 7/8/9, UNITS_ORDER_AI_SAIL 11 = 0x0b 'pursuing +0x314d/e', UNITS_ORDER_AI_MOVE 12 = 0x0c 'one committed step'). The file-local `s_0a60_pilot_state` mirror of those bytes is retired; `ai_euro_has_useful_goto` is now a spelling of the DOS test rather than a stand-in for it, because every course — 0a60's goal commit included — stamps the real bytes. One deliberate divergence: DOS also sends act_state 1/2/3 to the tail, but its 1 means 'aboard ship / off-map' (this port keeps that in aboard_ship_id) while the port's orders 1 is SENTRY, an on-map parked unit that must still free-score."
+      - id: goal_walk
+        kind: step
+        label: "Walk the unit's OWN goal — score_move toward +0x314d/e"
+        fn: ai_euro.c:ai_euro_move_scoring_gate
+        dos: FUN_521d_5b66 case 0x0b/0x0c -> FUN_479b_0972 (raw 77052-77120)
+        status: dos
+        note: "bugs.md #526, 2026-09-18f. On the `goto LAB_521d_5a78` side 20e6 sets NO course at all: DOS leaves the unit bound to the goal already in +0x314d/e and FUN_521d_5b66's switch walks it. The real dispatcher is 198 bytes at OVL14 0x5b66 (viceroy_overlays.asm ~139884-139975): entry `if (+0x3149 == 0 || +0x314c != 0x0b) -> 20e6` (0x3149 is the SPENT byte, zeroed at the day top raw 6357), else `DS:0x523d[type*0xe] & 1` — set only on the warship rows 16/17/18 — decides whether the 0984 adjacency probe can divert it into 20e6 (and, at order code 'E', decrement DS:0x9456[nation]); every other 0x0b unit SKIPS 20e6 entirely. Then `switch (+0x314c)` over 7..12 via the CS jump table at 0x5c2a: 7 -> FUN_1000_93ea = FUN_479b_076e (found colony), 8 -> 0x93b2 = FUN_479b_01a6 (clear/plow), 9 -> FUN_1000_9406 = FUN_479b_0526 (road), 0x0b and 0x0c -> FUN_1000_96aa = FUN_479b_0972 (the goal walk), 0x0a and every out-of-range value -> FUN_1000_8b24 = FUN_281f_0934 (finish the unit). FUN_479b_0972 itself: set DS:0x1dd6 (0xffff for 0x0c, else the unit's nation nibble), ask FUN_2a1f_0210 = FUN_6662_0f74 (the pathfinder) for one step toward +0x314d/e, move via FUN_2a1f_0142 = FUN_465b_0000 (or FUN_291f_044e for a control-0 player), bail keeping the binding unless the unit now stands on the goal; on arrival enter a terrain-0x1a settlement, reset the type-2 ring latch, and for 0x0b finish the unit and clear +0x314c (0x02 and 0x0c keep theirs). The port's `ai_euro_score_move` + the goal-dispatch drain loop stand in for that walk; this node is only about WHICH tile it is aimed at. A `ai_goals_best_found_tile_near` re-derive stood here and re-aimed every already-bound land unit at the nearest top-priority FOUND tile on every act, so no unit ever finished a walk — deleted: FOUND (code 1) is a ship-only capability bit (bugs.md #511) and the only writer of a unit's goal is FUN_521d_0a60's consumption tail."
       - id: prologue
         kind: step
         label: 20e6 prologue — unit state, continent, explorer flag
@@ -1177,6 +1185,20 @@ graphs:
         fn: ai_euro.c:ai_euro_20e6_wander_step
         dos: LAB_521d_4d2e→5183
         status: dos
+        note: "bugs.md #523 REFUTED 2026-09-18e. ai_euro_20e6_attack_term's Soldier/Dragoon colony-mass gate (raw 88921-88937) returns 'skip this tile' and the caller `continue`s to the next direction; that IS DOS. `goto LAB_521d_5183` is the direction loop's own increment: viceroy_overlays.asm `LAB_OVL14_L0000__0054b0 CMP [BP+0xff28],AX / JL 0054b5 / JMP 005183` and `LAB_OVL14_L0000__005183 = INC word ptr [BP-0x4e]`, immediately followed by `LAB_..__005186 CMP [BP-0x4e],0x8 / JL 00518f` — the loop counter bump and test, with 14 XREFs (every unscoreable-direction arm in the scorer jumps there). No abandonment of the 8-direction scan anywhere."
+      - id: surplus_tail
+        kind: decision
+        label: "Surplus garrison (local_8e) whose scan picked no attack → back to the garrison hold"
+        dos: FUN_521d_20e6 raw 88982-88984 (LAB_4d2e tail, `local_ce == 0` → `local_8e != 0` → LAB_5888)
+        status: dos
+        note: "Ported 2026-09-18e (bugs.md #522). The raw 88612 surplus entry only buys the unit one free-scored attack: with local_ce clear it drops back into LAB_5888 — colony.labor_shortage--, order_code 0x47, stay. It also suppresses the 0x46 park arm below, which reads local_8e == 0 at raw 88985."
+      - id: border_park
+        kind: decision
+        label: "0x46 park — pick is not an attack (local_ce == 0), an attackable foreigner was seen (local_ea), the unit is alone in its tile chain and a Euro settlement of another nation stands on one of its own 8 neighbours → stay"
+        fn: ai_euro.c:ai_euro_20e6_border_park_arm
+        dos: FUN_521d_20e6 raw 89011-89029 (LAB_4d2e tail, asm OVL14_L0000:0x005992-0x005a31)
+        status: dos
+        note: "Ported 2026-09-18 (bugs.md #512). The LAB_4d2e tail runs local_ce == 0 (asm 0x5840) → local_8e == 0 (asm 0x5876) → the 0x42 / 0x65 pioneer codes (raw 88989-89009, act-level in this port) → this arm → the 0x39 fallthrough (asm 0x586a); every failed sub-test jumps straight to 0x586a. The two chain walks have their far-call args dropped by Ghidra — the asm at 0x59c9 passes the unit index in AX, FUN_1000_8b7e = FUN_281f_098e = FUN_1427_0026 (walk +0x315e to the tail) and FUN_1000_84de = FUN_281f_02ee = FUN_1427_0002 (walk +0x315c to the head), so tail == head is exactly 'alone in the chain' (units_map_stack_chrome). The arm issues no FORTIFY order and no goto: +0x314b is the AI annotation byte and no DOS reader compares it against 0x46, so the whole effect is LAB_5899's local_76 = 8 — the scored wander step is dropped. It spends no garrison quota and needs no colony of its own nearby. Unreachable in the current goldens (the land arms branch of the gate is never taken in golden_ai_turns / smoke_ai_* / golden_woi_ref01), so it changes no golden counter; covered by the four unit_border_park_* cases in tests/unit/test_ai_euro_20e6.c."
       - id: score
         kind: step
         label: score_move toward target → set AI_MOVE goto
@@ -1189,17 +1211,16 @@ graphs:
         label: return 1 (act aborted)
     edges:
       - [is_sea, ret0, "yes"]
-      - [is_sea, war_defer, "no"]
-      - [war_defer, ret0, "yes"]
-      - [war_defer, peace_defer, "no"]
-      - [peace_defer, ret0, "yes"]
-      - [peace_defer, no_colony, "no"]
+      - [is_sea, garrison, "no"]
+      - [garrison, ret0, "hold: LAB_5899 (order 'A', or < 2 armed in the chain)"]
+      - [garrison, prologue, "surplus: local_8e = 1, raw 88612 goto LAB_4d2e"]
+      - [garrison, no_colony, "not an own-colony garrison: LAB_277a"]
       - [no_colony, score, "yes: own tile"]
-      - [no_colony, found_near, "no"]
-      - [found_near, score, "yes"]
-      - [found_near, on_goto, "no"]
-      - [on_goto, score, "yes: keep"]
-      - [on_goto, prologue, "no"]
+      - [no_colony, gate_4d2e, "no"]
+      - [gate_4d2e, prologue, "yes: goto LAB_521d_4d2e"]
+      - [gate_4d2e, goal_walk, "no: LAB_5a78 tail, 5b66 case 0x0b/0x0c walks the goal"]
+      - [goal_walk, score, "target in +0x314d/e"]
+      - [goal_walk, ret0, "no target: LAB_5a78 tail only"]
       - [prologue, patrol]
       - [patrol, ret0, "handled"]
       - [patrol, village, "no"]
@@ -1212,7 +1233,11 @@ graphs:
       - [recall, wander, "no, not explorer"]
       - [explore, score, "target"]
       - [explore, wander, "no target, no hop"]
-      - [wander, score]
+      - [wander, surplus_tail]
+      - [surplus_tail, ret0, "yes: LAB_5888 garrison hold"]
+      - [surplus_tail, border_park, "no"]
+      - [border_park, ret0, "yes: stay (LAB_5899 local_76 = 8)"]
+      - [border_park, score, "no"]
       - [score, ret0, "goto set"]
       - [score, ret1, "no step"]
 

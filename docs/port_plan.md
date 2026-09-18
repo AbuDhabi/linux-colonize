@@ -469,7 +469,7 @@ residue list. Remaining AI work is the **residual punch list** below —
 small recorded items, not planner arms. New AI work should start from that
 list, not from the inventory.
 
-### Residual punch list (all that is genuinely open AI-side, 2026-09-08)
+### Residual punch list (all that is genuinely open AI-side, 2026-09-18)
 
 - [x] **AI cross-driven immigration** — ported 2026-09-17. DOS `3844_00f2`
   runs `5e52` for every `control != 2` nation (raw 6392-6394) and gates only
@@ -803,6 +803,86 @@ list, not from the inventory.
     raised to 12 (= wanted_size 8 + 2×tier 2) so the tick cannot swallow the
     berth passenger before the ship acts. `make test` 67/67, `make golden`
     green, `golden_ai_turns` 6/6.
+- [x] **Invented AI unit-act arms swept** — 2026-09-18 (bugs.md #512-#520,
+  out of the Veteran Soldier audit). Fifteen `ai_euro.c` arms whose only
+  citation was Colonization.pdf / fandom / "Skills Chart" were traced against
+  the decomp and deleted: soldier ship-boarding + Artillery siege hunt (DOS
+  boarding is ship-side `FUN_1427_10be`; type 0x0b only zeroes the shared tile
+  score, raw 88911-88913), the land-pre and goal-stage join-colony arms
+  (`FUN_521d_20e6` has **no** join outcome — its `+0x314b` vocabulary over raw
+  88266-89800 is 0x39/0x3d/0x40/0x42/0x46/0x47/0x4c/0x56/0x65; absorption is
+  the `FUN_5952_035e` tick, seating via `FUN_15eb_1068(slot, 0x12)` with no
+  tile or building pick, raw 11245-11275), expert field/craft-workplace
+  assign, pioneer + wagon tools delivery (DOS dumps every hold, raw 3002-3012),
+  transport Europe sell (real sellers: the 20e6 delivery sell tail and
+  `FUN_364b_0688` phase O, raw 57806-57848), privateer loot sail + short-colony
+  unload, military-threat unload (DOS uses the `LAB_521d_3558` `DS:0x523d`
+  mask block, raw 89440-89560, already ported), the naval adjacent-foe picker
+  (hulls fight only through the shared `LAB_521d_4d2e` scorer), the distant
+  land war hunt, and the threatened-Stockade LABOR arms. Root cause found on
+  the way: the AI ship band was gated on a Caravel/Merchantman/Galleon **name
+  list** where DOS tests only "type 0x0d..0x12 with holds" (raw 1691), which is
+  why Privateer loot never reached the DOS dump/delivery/sell path. Net
+  ≈ −5k lines; goldens 6/6 on every wave, no golden re-blessed.
+  Kept as **golden-backed stand-ins** (no decomp citation, but real DOS save
+  pairs back them): `ai_euro_try_post_found_coast_cruise` (TURN4-7 ship XY)
+  and the land adjacent-attack pair — see the open item below.
+  Remaining manual-only citations are triaged in
+  `docs/ai_euro_uncited_arms_2026-09-18.md`.
+- [x] **AI goal walking made DOS-shaped** — 2026-09-18f (bugs.md #525/#526).
+  `FUN_521d_5b66` was decoded off its own 198 bytes in
+  `viceroy_overlays.asm` (OVL14 0x5b66-0x5c37); Ghidra's 1800-line body at
+  raw 90446 is inlined corruption and must not be read. Head: bail to `20e6`
+  unless `+0x3149 != 0 && +0x314c == 0x0b`; then **skip 20e6 entirely**
+  unless `DS:0x523d[type] & 1` (set only on rows 16/17/18 —
+  Privateer/Frigate/MoW) **and** `FUN_281f_0984` finds an adjacent foreigner;
+  release the Europe-lane slot when `+0x314b == 'E'`; jump table `CS:0x5c2a`
+  over 7..12 = found colony / clear-plow / road / (0x0b, 0x0c)
+  `FUN_479b_0972` **goal walk** / finish. So a land unit with a goal and MP
+  left simply walks its own `+0x314d`/`+0x314e`. The port's per-act
+  "re-derive the nearest FOUND tile" is gone, and the port-only
+  `s_0a60_pilot_state` mirror is retired: `+0x3148`/`b`/`c`/`d`/`e` are the
+  real save fields (`col1_flags15`, `col1_ai_plan`, `orders`, `goto_x`,
+  `goto_y`) and the port's `@ORDERS` constants already are DOS's act states.
+  Three divergences were measured and **kept**, each having cost a golden when
+  tried DOS-literal — they are bugs.md #527 (0a60 binds land only, for want of
+  ship-side goal producers), #528 (turn-top clear ported for `>= 10` only,
+  because SENTRY overloads `orders` with the landfall latch) and #529.
+- [ ] **Land assault volume vs a 2+-defender colony** (bugs.md #521, open;
+  needs a **[live]** DOSBox-X trace). `+0x314c` is now fully decoded — value
+  **10** has exactly one writer in the game, `FUN_521d_0a60` raw 87567, and
+  means "a foreign unit or settlement stands on one of my 8 neighbours";
+  raw 88164 assigns fresh goals only at 0/5/6, so **DOS unbinds an adjacent
+  unit from its goal just as the port does** (`5b66`'s `case 10` at raw 91195
+  is unreachable — 20e6 demotes to 5 first at raw 90399-90404). The MILITARY
+  goal walk is therefore *not* the assault route; `LAB_521d_4d2e` is. But
+  DOS's own odds core refuses the assault: `FUN_1427_0d38` case 0 is
+  byte-exact `DI += DS:0x5239[type*0xe]` (jump table `1427:0d78`→`0d96`) and
+  every land `@UNIT` col9 byte is 0, so `((Σcol9+1)/stack)*base` is 0 against
+  any 2+-defender stack. Statically DOS just parks the unit beside the colony
+  (the `0x46` arm, raw 89011-89029). **What makes the real REF break a
+  defended colony is unidentified and cannot be settled statically.** Until
+  then `ai_euro_land_best_adjacent_foe` / `ai_euro_land_try_adjacent_attack`
+  stay as a marked stand-in; without them `golden_woi_ref01` leaves one colony
+  standing. The port's land arms were additionally **unreachable** until
+  2026-09-18e (bugs.md #522): three uncited early returns and an
+  unconditional nearest-FOUND course ate all 460 gate calls in the WoI run.
+  Porting raw 88584-88612 (own-colony garrison arm), raw 90210-90219 (the
+  pre-`LAB_4d2e` gate — act_state 0/5/6/10 reach the scorer unconditionally,
+  0x0b bails only with no adjacent foreigner) and raw 88982-88984 (`local_8e`
+  surplus tail) took the run from 0 to 118 wander steps and the war's end from
+  t15 to t11 — but the odds core still refuses, so the stand-in stays.
+  Fixed literally on the way: the `LAB_52aa` WoI gate (raw
+  88883-88885 — during the WoI score an attack only against a control-0 player
+  slot or a tribe), the `FUN_465b_0000` best-defender rule in
+  `ai_euro_score_move` and the goal-dispatch drain loop, the raw 90399-90404
+  tail demote, and the drain loop's nation-blind `units_id_at` fallback (an own
+  column on the step tile was handed to the attacker, freezing REF columns two
+  tiles short). With the stand-in all 7 WoI colonies now fall at t15 (t21
+  before this pass, t17 before the session). Refuted: the raw 88686 gate is an
+  inert ship-on-ocean skip, not a narrowed normal branch. Remaining static
+  sub-lead: port the `0x46` park-beside-a-foreign-colony arm (raw 89011-89029,
+  gated on `local_ea`) — the adjacent unit currently wanders off instead.
 - Deliberate documented divergences (decision needed before "work"):
   king_ref.md short list, 5d04 past-the-end read kept 0 + musket-scratch
   collision as price×100, `@HELLOUSA` not modeled, per-act (vs DOS

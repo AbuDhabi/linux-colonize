@@ -1804,7 +1804,479 @@ static int unit_treasure_outside_colony_not_cashed(void) {
   return 0;
 }
 
+/*
+ * FUN_521d_20e6 raw 89011-89029, the LAB_4d2e tail's 0x46 arm: a combat unit
+ * (@UNIT attack column > 1, not a ship type) that saw an attackable foreigner
+ * during its 8-direction scan, is alone in its tile chain and has a Euro
+ * settlement of another nation on one of its own eight neighbours stays where
+ * it is (LAB_5899 forces local_76 = 8) instead of taking the wander step it
+ * just scored.
+ *
+ * Fixture shape: an Artillery (DOS type 0x0b) is used as the mover because it
+ * is NOT in ai_euro_is_land_war_hunter's set, so the act-level adjacent-attack
+ * stand-in never runs and the only thing that can move the unit is the wander
+ * step itself. The foreign colony carries two defenders so the LAB_52aa odds
+ * core scores it 0 (a/d = 1/2) and the attack candidate takes the −999 penalty
+ * — that is exactly the DOS state the arm is written for: local_ea set,
+ * local_ce clear.
+ */
+static int park_add_artillery_type(Fixture* f) {
+  const int ti = f->units.type_count++;
+  snprintf(f->units.types[ti].name, sizeof(f->units.types[ti].name), "Artillery");
+  f->units.types[ti].movement = 1;
+  f->units.types[ti].attack = 7;
+  f->units.types[ti].defense = 5;
+  f->units.types[ti].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  return ti;
+}
+
+/*
+ * Returns the mover's id, or −1 on a spawn failure.
+ *
+ * Shape: the mover (Artillery, nation 1) stands at (8,8). A nation-0 Soldier
+ * on the bare tile (7,8) is the `local_ea` source — the tile's layer3 owner
+ * nibble is 0 and nation 1 is at war with nation 0, so the LAB_52aa term runs
+ * and the Artillery-in-the-open rule (raw 88911-88913) scores it 0 → −999, so
+ * it can never become the winning pick. `colony_nation` < 0 means "no adjacent
+ * settlement"; otherwise a colony of that nation sits at (9,8) with its layer3
+ * owner nibble stamped to match, which keeps that tile out of the attack term
+ * (a foreign nation at peace is skipped, the mover's own nation is the
+ * own-tile branch) and leaves the 0x46 neighbour scan as the only thing that
+ * can read it.
+ */
+static int park_setup(Fixture* f, int nation, int colony_nation, int stacked) {
+  const int ai = park_add_artillery_type(f);
+  ai_diplo_declare_war(&f->col1, nation, 0);
+  if (colony_nation >= 0) {
+    treasure_add_colony(f, 0, colony_nation, 9, 8);
+    f->map.layer3[8 * f->map.width + 9] = (uint8_t)(colony_nation << 4);
+  }
+  const int fid = units_spawn(&f->units, 1, 7, 8);
+  ColonizeUnit* fu = units_get(&f->units, fid);
+  if (fu) {
+    fu->nation_id = 0;
+    fu->moves = 0;
+    fu->orders = 0;
+  }
+  const int uid = units_spawn(&f->units, ai, 8, 8);
+  ColonizeUnit* u = units_get(&f->units, uid);
+  if (!u) {
+    return -1;
+  }
+  u->nation_id = nation;
+  u->moves = 1 * UNITS_MP_PER_TILE;
+  u->orders = 0;
+  if (stacked) {
+    const int sid = units_spawn_allow_stack(&f->units, ai, 8, 8);
+    ColonizeUnit* s = units_get(&f->units, sid);
+    if (s) {
+      s->nation_id = nation;
+      s->moves = 0;
+      s->orders = 0;
+    }
+  }
+  return uid;
+}
+
+static int park_moved(Fixture* f, int uid) {
+  const ColonizeUnit* u = units_get_const(&f->units, uid);
+  if (!u || !u->active) {
+    return -1;
+  }
+  if (u->x != 8 || u->y != 8) {
+    return 1;
+  }
+  if (units_orders_follow_goto(u->orders) && u->goto_x < 200 &&
+      (u->goto_x != 8 || u->goto_y != 8)) {
+    return 1;
+  }
+  return 0;
+}
+
+/*
+ * bugs.md #525/#526 — the unit's own goal binding lives in the REAL DOS
+ * bytes (+0x314b/c/d/e = col1_ai_plan / orders / goto_x / goto_y), and
+ * FUN_521d_20e6's pre-LAB_4d2e gate (raw 90210-90219) hands a bound unit
+ * whose goal lies elsewhere straight to the goal walk instead of re-scoring
+ * it. The port used to re-derive a nearest-FOUND course on every act, so a
+ * bound unit never finished a walk.
+ *
+ * Shared fixture: own colony far west at (2,2), three own Soldiers (the
+ * continent-presence gate in the 0a60 tail needs >= 3 land units before it
+ * will reassign a Soldier), one MILITARY goal four tiles east of the
+ * subject at (12,12) and one same-priority FOUND decoy on the tile right
+ * behind it — a code the Soldier row of DS:0x523d cannot take, and the tile
+ * the retired nearest-FOUND re-derive used to yank every bound unit to.
+ */
+static int goalwalk_setup(Fixture* f, int nation, int subject_orders, int subject_moves) {
+  quiet_5d04_planner(f, nation);
+  treasure_add_colony(f, 0, nation, 2, 2);
+  f->map.layer3[2 * f->map.width + 2] = (uint8_t)(nation << 4);
+  const int uid = units_spawn(&f->units, 1, 12, 12);
+  ColonizeUnit* u = units_get(&f->units, uid);
+  if (!u) {
+    return -1;
+  }
+  u->nation_id = nation;
+  u->moves = subject_moves;
+  u->orders = subject_orders;
+  u->col1_ai_plan = 0x31; /* '1': the only order code a course survives on */
+  for (int i = 0; i < 2; ++i) {
+    const int oid = units_spawn(&f->units, 1, 6 + i, 10);
+    ColonizeUnit* o = units_get(&f->units, oid);
+    if (o) {
+      o->nation_id = nation;
+      o->moves = 0;
+      o->orders = 0;
+    }
+  }
+  ai_goals_upsert_primary(nation, 12, 13, AI_GOAL_FOUND, 9);
+  ai_goals_upsert_primary(nation, 12, 8, AI_GOAL_MILITARY, 9);
+  return uid;
+}
+
+/* A unit bound at act_state 0x0b walks toward its OWN +0x314d/e. */
+static int unit_goal_walk_keeps_stored_goal(void) {
+  const int nation = 1;
+  Fixture f;
+  if (fixture_init(&f, nation) != 0) {
+    return 1;
+  }
+  const int uid = goalwalk_setup(&f, nation, UNITS_ORDER_AI_SAIL, 1 * UNITS_MP_PER_TILE);
+  if (uid < 0) {
+    fixture_free(&f);
+    return fail("goal-walk spawn");
+  }
+  ColonizeUnit* u = units_get(&f.units, uid);
+  u->goto_x = 12;
+  u->goto_y = 8;
+  ai_euro_dispatcher_turn(&f.ctx, nation);
+  u = units_get(&f.units, uid);
+  const int x = u ? u->x : -1;
+  const int y = u ? u->y : -1;
+  const int gx = u ? u->goto_x : -1;
+  const int gy = u ? u->goto_y : -1;
+  fixture_free(&f);
+  if (x < 0) {
+    return fail("goal-walk soldier vanished");
+  }
+  if (gx != 12 || gy != 8) {
+    fprintf(stderr, "unit_ai_euro_20e6: goal-walk goto=(%d,%d)\n", gx, gy);
+    return fail("bound unit must keep its own +0x314d/e, not re-derive a FOUND tile");
+  }
+  if (x != 12 || y != 11) {
+    fprintf(stderr, "unit_ai_euro_20e6: goal-walk pos=(%d,%d)\n", x, y);
+    return fail("bound unit must step toward its stored goal");
+  }
+  return 0;
+}
+
+/* Standing on +0x314d/e: raw 90210-90219 free-scores, the binding is done. */
+static int unit_goal_binding_dropped_on_arrival(void) {
+  const int nation = 1;
+  Fixture f;
+  if (fixture_init(&f, nation) != 0) {
+    return 1;
+  }
+  const int uid = goalwalk_setup(&f, nation, UNITS_ORDER_AI_SAIL, 1 * UNITS_MP_PER_TILE);
+  if (uid < 0) {
+    fixture_free(&f);
+    return fail("goal-arrival spawn");
+  }
+  ColonizeUnit* u = units_get(&f.units, uid);
+  u->goto_x = 12; /* already on the goal tile */
+  u->goto_y = 12;
+  ai_euro_dispatcher_turn(&f.ctx, nation);
+  u = units_get(&f.units, uid);
+  const int ord = u ? u->orders : -1;
+  const int gx = u ? u->goto_x : -1;
+  const int gy = u ? u->goto_y : -1;
+  fixture_free(&f);
+  if (ord < 0) {
+    return fail("goal-arrival soldier vanished");
+  }
+  if (ord == UNITS_ORDER_AI_SAIL && gx == 12 && gy == 12) {
+    return fail("a unit standing on its goal must not stay bound to it");
+  }
+  return 0;
+}
+
+/* raw 88164: fresh goals only at act_state 0/5/6. */
+static int goalwalk_binding_after_turn(int subject_orders, int* out_gx, int* out_gy) {
+  const int nation = 1;
+  Fixture f;
+  if (fixture_init(&f, nation) != 0) {
+    return -2;
+  }
+  /* moves 0: the subject never acts, so what is read back is exactly what the
+   * FUN_521d_0a60 consumption tail committed. */
+  const int uid = goalwalk_setup(&f, nation, subject_orders, 0);
+  if (uid < 0) {
+    fixture_free(&f);
+    return -2;
+  }
+  ai_euro_dispatcher_turn(&f.ctx, nation);
+  const ColonizeUnit* u = units_get_const(&f.units, uid);
+  const int ord = u ? u->orders : -1;
+  if (u && out_gx && out_gy) {
+    *out_gx = u->goto_x;
+    *out_gy = u->goto_y;
+  }
+  fixture_free(&f);
+  return ord;
+}
+
+static int unit_idle_act_state_takes_fresh_goal(void) {
+  int gx = -1;
+  int gy = -1;
+  const int ord = goalwalk_binding_after_turn(UNITS_ORDER_NONE, &gx, &gy);
+  if (ord == -2) {
+    return fail("idle-goal fixture");
+  }
+  /* Which slot wins is the 0a60 scorer's business (planning rebuilds the
+   * table around the colony too); what this case pins is that an act_state-0
+   * unit ends the nation turn bound — +0x314c == 0x0b with a real goal tile
+   * in +0x314d/e — through the unit's own bytes rather than a shadow. */
+  if (ord != UNITS_ORDER_AI_SAIL || gx < 0 || gx > 15 || gy < 0 || gy > 15) {
+    fprintf(stderr, "unit_ai_euro_20e6: idle-goal orders=%d goto=(%d,%d)\n", ord, gx, gy);
+    return fail("act_state 0 must be handed a fresh goal as +0x314c=0x0b / +0x314d/e");
+  }
+  return 0;
+}
+
+static int unit_adjacent_act_state_takes_no_goal(void) {
+  int gx = -1;
+  int gy = -1;
+  /* act_state 10 = FUN_521d_0a60 raw 87567's "a foreigner stands on one of my
+   * eight neighbours"; raw 88164 gives such a unit no goal. */
+  const int ord = goalwalk_binding_after_turn(10, &gx, &gy);
+  if (ord == -2) {
+    return fail("adjacent-goal fixture");
+  }
+  if (ord != 10) {
+    fprintf(stderr, "unit_ai_euro_20e6: adjacent-goal orders=%d goto=(%d,%d)\n", ord, gx, gy);
+    return fail("act_state 10 must not be handed a fresh goal");
+  }
+  return 0;
+}
+
+static int unit_border_park_beside_foreign_colony(void) {
+  const int nation = 1;
+  Fixture f;
+  if (fixture_init(&f, nation) != 0) {
+    return 1;
+  }
+  quiet_5d04_planner(&f, nation);
+  const int uid = park_setup(&f, nation, 2, 0);
+  if (uid < 0) {
+    fixture_free(&f);
+    return fail("spawn artillery");
+  }
+  ai_euro_dispatcher_turn(&f.ctx, nation);
+  const int moved = park_moved(&f, uid);
+  fixture_free(&f);
+  if (moved < 0) {
+    return fail("artillery vanished");
+  }
+  if (moved) {
+    return fail("0x46 arm: lone combat unit beside a foreign colony must stay put");
+  }
+  return 0;
+}
+
+static int unit_border_park_skipped_when_stacked(void) {
+  const int nation = 1;
+  Fixture f;
+  if (fixture_init(&f, nation) != 0) {
+    return 1;
+  }
+  quiet_5d04_planner(&f, nation);
+  const int uid = park_setup(&f, nation, 2, 1);
+  if (uid < 0) {
+    fixture_free(&f);
+    return fail("spawn artillery (stacked)");
+  }
+  ai_euro_dispatcher_turn(&f.ctx, nation);
+  const int moved = park_moved(&f, uid);
+  fixture_free(&f);
+  if (moved < 0) {
+    return fail("artillery vanished (stacked)");
+  }
+  if (!moved) {
+    return fail("0x46 arm must not fire for a unit that is not alone in its chain");
+  }
+  return 0;
+}
+
+static int unit_border_park_skipped_without_colony(void) {
+  const int nation = 1;
+  Fixture f;
+  if (fixture_init(&f, nation) != 0) {
+    return 1;
+  }
+  quiet_5d04_planner(&f, nation);
+  const int uid = park_setup(&f, nation, -1, 0);
+  if (uid < 0) {
+    fixture_free(&f);
+    return fail("spawn artillery (no colony)");
+  }
+  ai_euro_dispatcher_turn(&f.ctx, nation);
+  const int moved = park_moved(&f, uid);
+  fixture_free(&f);
+  if (moved < 0) {
+    return fail("artillery vanished (no colony)");
+  }
+  if (!moved) {
+    return fail("0x46 arm must not fire with no adjacent Euro settlement");
+  }
+  return 0;
+}
+
+static int unit_border_park_skipped_on_own_colony(void) {
+  const int nation = 1;
+  Fixture f;
+  if (fixture_init(&f, nation) != 0) {
+    return 1;
+  }
+  quiet_5d04_planner(&f, nation);
+  /* Same shape, but the adjacent colony belongs to the mover's own nation:
+   * raw 89024 takes the arm only when `local_10 != uVar11`. */
+  const int uid = park_setup(&f, nation, nation, 0);
+  if (uid < 0) {
+    fixture_free(&f);
+    return fail("spawn artillery (own colony)");
+  }
+  ai_euro_dispatcher_turn(&f.ctx, nation);
+  const int moved = park_moved(&f, uid);
+  fixture_free(&f);
+  if (moved < 0) {
+    return fail("artillery vanished (own colony)");
+  }
+  if (!moved) {
+    return fail("0x46 arm must not fire beside a colony of the unit's own nation");
+  }
+  return 0;
+}
+
+/*
+ * FUN_521d_20e6 pre-LAB_4d2e gate (raw 90210-90219) and own-colony garrison
+ * arm (raw 88584-88612) — both bugs.md #522.
+ *
+ * Shared fixture: a nation-0 colony at (9,8) held by one Soldier, war
+ * declared, and an Artillery of nation 1 at (8,8) that already carries a far
+ * course to (13,8) plus a full MP allotment. The mover is an Artillery so
+ * ai_euro_land_try_adjacent_attack (the #521 stand-in, land war hunters only)
+ * never runs and the only thing that can retarget it is the 20e6 scorer
+ * itself; the neighbouring settlement keeps the Artillery-in-the-open zero
+ * (raw 88911-88913) out of the way so the attack candidate can win the scan.
+ *
+ *   own_colony = 0 → raw 90217: the unit is busy (live course) but
+ *                    FUN_281f_0984 finds a foreigner adjacent, so DOS goes to
+ *                    LAB_4d2e anyway; the scored attack step replaces the
+ *                    course and the defender falls.
+ *   own_colony = 1 → raw 88604-88610: the same unit standing on one of its own
+ *                    colonies with +0x8e >= 1 and no second armed unit in its
+ *                    tile chain is a garrison — LAB_5899, no scan at all, so
+ *                    the neighbouring colony is left alone.
+ *
+ * (The raw 88611-88612 surplus branch — two or more armed units in the chain
+ * fall through to LAB_4d2e — has no separable outcome in this fixture: the
+ * scan runs and commits the attack step, but a unit stepping out of its own
+ * colony tile does not resolve the assault the way the colony-less mover does,
+ * so both stacked and unstacked end the turn in place. It is covered
+ * behaviourally by golden_woi_ref01 instead.)
+ */
+static int gate_course_run(int own_colony, int* out_x, int* out_y, int* out_def_alive) {
+  const int nation = 1;
+  Fixture f;
+  if (fixture_init(&f, nation) != 0) {
+    return -1;
+  }
+  quiet_5d04_planner(&f, nation);
+  const int ai = park_add_artillery_type(&f);
+  ai_diplo_declare_war(&f.col1, nation, 0);
+  int ci = 0;
+  if (own_colony) {
+    treasure_add_colony(&f, ci, nation, 8, 8);
+    f.colonies.colonies[ci].labor_shortage = 3;
+    f.colonies.colonies[ci].garrison_quota = 3;
+    f.map.layer3[8 * f.map.width + 8] = (uint8_t)(nation << 4);
+    ci++;
+  }
+  treasure_add_colony(&f, ci, 0, 9, 8);
+  f.map.layer3[8 * f.map.width + 9] = 0;
+  const int did = units_spawn(&f.units, 1, 9, 8);
+  ColonizeUnit* du = units_get(&f.units, did);
+  if (du) {
+    du->nation_id = 0;
+    du->moves = 0;
+    du->orders = 0;
+  }
+  const int uid = units_spawn_allow_stack(&f.units, ai, 8, 8);
+  ColonizeUnit* u = units_get(&f.units, uid);
+  if (!u) {
+    fixture_free(&f);
+    return -1;
+  }
+  u->nation_id = nation;
+  u->moves = units_max_mp(&f.units, uid);
+  u->orders = UNITS_ORDER_AI_MOVE;
+  u->goto_x = 13;
+  u->goto_y = 8;
+  ai_euro_dispatcher_turn(&f.ctx, nation);
+  const ColonizeUnit* r = units_get_const(&f.units, uid);
+  const ColonizeUnit* d = units_get_const(&f.units, did);
+  const int ok = (r && r->active);
+  if (ok) {
+    *out_x = r->x;
+    *out_y = r->y;
+  }
+  *out_def_alive = (d && d->active) ? 1 : 0;
+  fixture_free(&f);
+  return ok ? 0 : -1;
+}
+
+static int unit_gate_adjacent_foe_reaches_scorer(void) {
+  int x = -1;
+  int y = -1;
+  int def_alive = -1;
+  if (gate_course_run(0, &x, &y, &def_alive) != 0) {
+    return fail("gate course fixture (foe)");
+  }
+  if (def_alive || x != 9 || y != 8) {
+    fprintf(stderr, "unit_ai_euro_20e6: gate mover at (%d,%d), defender alive=%d\n", x, y,
+            def_alive);
+    return fail("raw 90217: an adjacent foreigner must send a busy unit to LAB_4d2e");
+  }
+  return 0;
+}
+
+static int unit_garrison_hold_blocks_scorer(void) {
+  int x = -1;
+  int y = -1;
+  int def_alive = -1;
+  if (gate_course_run(1, &x, &y, &def_alive) != 0) {
+    return fail("garrison hold fixture");
+  }
+  if (!def_alive || x != 8 || y != 8) {
+    fprintf(stderr, "unit_ai_euro_20e6: garrison mover at (%d,%d), defender alive=%d\n", x, y,
+            def_alive);
+    return fail("raw 88604-88610: a lone armed unit on its own colony garrisons, it does not scan");
+  }
+  return 0;
+}
+
 static const TestCase k_cases[] = {
+    {"unit_gate_adjacent_foe_reaches_scorer", unit_gate_adjacent_foe_reaches_scorer},
+    {"unit_garrison_hold_blocks_scorer", unit_garrison_hold_blocks_scorer},
+    {"unit_goal_walk_keeps_stored_goal", unit_goal_walk_keeps_stored_goal},
+    {"unit_goal_binding_dropped_on_arrival", unit_goal_binding_dropped_on_arrival},
+    {"unit_idle_act_state_takes_fresh_goal", unit_idle_act_state_takes_fresh_goal},
+    {"unit_adjacent_act_state_takes_no_goal", unit_adjacent_act_state_takes_no_goal},
+    {"unit_border_park_beside_foreign_colony", unit_border_park_beside_foreign_colony},
+    {"unit_border_park_skipped_when_stacked", unit_border_park_skipped_when_stacked},
+    {"unit_border_park_skipped_without_colony", unit_border_park_skipped_without_colony},
+    {"unit_border_park_skipped_on_own_colony", unit_border_park_skipped_on_own_colony},
     {"unit_treasure_in_colony_cash_in", unit_treasure_in_colony_cash_in},
     {"unit_treasure_cash_in_silent_under_woi", unit_treasure_cash_in_silent_under_woi},
     {"unit_treasure_outside_colony_not_cashed", unit_treasure_outside_colony_not_cashed},

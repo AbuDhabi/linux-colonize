@@ -2000,7 +2000,19 @@ static int ai_euro_colony_fort_bonus_at(
 }
 
 static int ai_euro_land_is_fortified(const ColonizeUnit* u) {
-  return u && (u->orders == UNITS_ORDER_FORTIFY || u->orders == UNITS_ORDER_FORTIFIED);
+  if (!u || (u->orders != UNITS_ORDER_FORTIFY && u->orders != UNITS_ORDER_FORTIFIED)) {
+    return 0;
+  }
+  /*
+   * FUN_521d_20e6's LAB_5a78 tail writes exactly `+0x314b = '0'; +0x314c = 5`
+   * on every exit of a unit that had no state (raw 90399-90404) — DOS's "idle,
+   * re-evaluate next call" marker, not a fortify order: FUN_521d_0a60 hands
+   * such a unit a fresh goal on the next pass (raw 88164 admits 5/6). Since
+   * 2026-09-18 that write lands on the real +0x314c (bugs.md #525), so the
+   * pair has to be excluded here or every idle AI land unit reads as
+   * fortified and the act-level garrison / labor arms below never run.
+   */
+  return u->col1_ai_plan != 0x30;
 }
 
 /* Sentry / fortify / fortified — wake-eligible passive land orders. */
@@ -7684,40 +7696,41 @@ static void ai_euro_nation_planning(ColonizeTurnContext* ctx, int nation_id) {
  * *effect* (nation x continent stance) via a from-scratch recompute, just
  * not FUN_521d_0a60's literal write path.
  *
- * DOS-only per-unit AI scratch bytes this section reads/writes
- * (unit+0x314b/c/d/e — "AI order code", "act state", "goal x/y") have no
- * persisted Linux struct field; modeled here as a file-local shadow array
- * (`s_0a60_pilot_state`, name kept from the original pilot pass) instead
- * of new ColonizeUnit fields — same pattern this file already uses for
- * `unit+0x314f` (`s_euro_last_dir`).
+ * DOS unit AI bytes +0x3148/+0x314b/c/d/e — RESOLVED 2026-09-18, bugs.md
+ * #525. They are not port-only scratch and need no shadow array: the Col1
+ * unit record is 0x1c bytes based at DS:0x3144, and its field order (see
+ * col1_save_layout.h `ColonizeCol1Unit`) is
+ *   +0x3144/5 x,y   +0x3146 type   +0x3147 nation|vis   +0x3148 flags
+ *   +0x3149 moves   +0x314a origin +0x314b ai_plan      +0x314c orders
+ *   +0x314d goto_x  +0x314e goto_y +0x314f facing
+ * so the whole DOS AI scratch block maps onto real `ColonizeUnit` fields:
+ *   +0x3148 flag byte  -> u->col1_flags15
+ *   +0x3149 MP SPENT   -> units_max_mp() - u->moves  (raw 6357 zeroes it at
+ *                         the day top, raw 100342 adds 3 per step)
+ *   +0x314b order code -> u->col1_ai_plan
+ *   +0x314c act state  -> u->orders
+ *   +0x314d/e goal x/y -> u->goto_x / u->goto_y
+ * The port's own @ORDERS constants ARE those DOS act-state bytes:
+ * FUN_521d_5b66's switch cases 7/8/9 are UNITS_ORDER_BUILD_COLONY /
+ * CLEAR_PLOW / BUILD_ROAD, case 0x0b is UNITS_ORDER_AI_SAIL ("pursuing the
+ * goal stored at +0x314d/e") and case 0x0c is UNITS_ORDER_AI_MOVE ("one
+ * committed step"). The file-local `s_0a60_pilot_state` mirror of those
+ * bytes was retired with this pass; only the AI_GOAL_* code of the committed
+ * slot has no DOS byte at all, and it is re-read from the goal table by
+ * `ai_goals_primary_code_at` instead of being mirrored.
  */
 
-typedef struct Ai0a60UnitState {
-  uint8_t order_code;    /* unit+0x314b: '?'=0x3f pending, 'A'=admitted-
-                           * labor, 't'=pursue-FOUND, 'i'=pursue-MIL_EXPAND,
-                           * '1'=pursue-generic goal */
-  uint8_t act_state;     /* unit+0x314c: 0/5/6 = idle/re-evaluate states
-                           * this section reacts to; 0xb = now pursuing */
-  uint8_t goal_x, goal_y; /* unit+0x314d/e: goal target tile once assigned */
-  int8_t goal_code;       /* Linux-only mirror of the committed slot's
-                           * AI_GOAL_* code (-1 = none) — DOS's own
-                           * order_code byte doesn't distinguish LABOR vs.
-                           * COLONY vs. COLONY_ALT vs. MILITARY vs. CONTACT,
-                           * but ai_euro_unit_act's downstream dispatch
-                           * (found/labor-bind/attack) needs the concrete
-                           * value. Only meaningful while act_state==0xb;
-                           * stale otherwise (matches order_code's own
-                           * DOS-real staleness — see body). */
-  uint8_t flags;          /* unit+0x3148 AI scratch bits, written by
-                           * ai_euro_0a60_unit_housekeeping each nation turn
-                           * (DOS resets bits 1/2/3/5 via `&= 0xd1` and
-                           * rederives them — per-tick scratch, matching the
-                           * col1_save.h bitfield names): bit1 0x02
-                           * roam_reeval_pending (act_state 5/6), bit2 0x04
-                           * stack_has_founders_or_military (FOUND-eligible),
-                           * bit3 0x08 stack_has_military (MIL_EXPAND-
-                           * eligible), bit5 0x20 spare-transport mark. */
-} Ai0a60UnitState;
+/* unit+0x314c literals, spelled as the port's own @ORDERS constants. */
+#define AI_EURO_ACT_GOAL UNITS_ORDER_AI_SAIL /* 0x0b — pursue +0x314d/e */
+#define AI_EURO_ACT_STEP UNITS_ORDER_AI_MOVE /* 0x0c — one committed step */
+#define AI_EURO_ACT_ADJACENT 10              /* FUN_521d_0a60 raw 87567 */
+
+/* unit+0x3148 — DOS `&= 0xd1` scratch bits (col1_save_layout.h names). */
+#define AI_EURO_F3148_KEEP 0xd1u
+#define AI_EURO_F3148_ROAM 0x02u  /* roam_reeval_pending (act_state 5/6) */
+#define AI_EURO_F3148_FOUND 0x04u /* stack_has_founders_or_military */
+#define AI_EURO_F3148_MIL 0x08u   /* stack_has_military */
+#define AI_EURO_F3148_SPARE 0x20u /* spare-transport mark */
 
 /*
  * The `aiStack_1da[64]` weight seed 0a60 fills every primary slot with at
@@ -7887,10 +7900,12 @@ static void ai_euro_0a60_continent_presence(
  * unit of `nation_id`, pick the closest/highest-priority matching primary
  * goal slot and write order_code/act_state/goal_x/goal_y — mirrors raw
  * decomp lines 974-1063 control flow and arithmetic 1:1 (see file header
- * comment for what's real vs. placeholder). Pilot-only: writes into the
- * file-local shadow array below, not into ColonizeUnit or live orders.
+ * comment for what's real vs. placeholder). Since 2026-09-18 (bugs.md #525)
+ * it writes the REAL DOS bytes (`u->col1_ai_plan` / `u->orders` /
+ * `u->goto_x` / `u->goto_y`) through `ai_euro_set_goto`, so every downstream
+ * reader — the 20e6 pre-LAB_4d2e gate included — sees the same course the
+ * rest of the port sets, and the old file-local mirror is gone.
  */
-static Ai0a60UnitState s_0a60_pilot_state[COLONIZE_UNITS_MAX];
 
 /* --- 0a60 unit-loop housekeeping (raw lines 1-189) ----------------------
  *
@@ -8064,30 +8079,23 @@ static void ai_euro_0a60_unit_housekeeping(ColonizeTurnContext* ctx, int nation_
   int spare_marked = 0; /* iStack_c: at most one spare-transport mark per turn */
   const int woi = (ctx->col1_ok && ctx->col1) ? (int)ctx->col1->head.game_options.woi : 0;
 
-  /* Slot walk (Leads 2, 2026-09-10): `ui` is an array index, not a unit id —
-   * the shadow state array is keyed by `u->id` everywhere else in this file
-   * (see ai_euro_20e6_unit_state / the 457e and 10be readers), so it is keyed
-   * by `u->id` here too. */
+  /* Slot walk (Leads 2, 2026-09-10): `ui` is an array index, not a unit id. */
   for (int ui = 0; ui < COLONIZE_UNITS_MAX; ++ui) {
-    const ColonizeUnit* u = &ctx->units->units[ui];
+    ColonizeUnit* u = &ctx->units->units[ui];
     if (!u->active) {
       continue;
     }
     const int dos_type = ai_euro_20e6_dos_type(ctx->units, u);
     const int is_ship_t = (dos_type >= 0x0d && dos_type <= 0x12);
     if (u->nation_id == nation_id) {
-      if (u->id < 0 || u->id >= COLONIZE_UNITS_MAX) {
-        continue; /* shadow array is id-keyed and 256 wide, like every reader */
-      }
-      Ai0a60UnitState* st = &s_0a60_pilot_state[u->id];
       const int ux = u->x;
       const int uy = u->y;
-      if (st->order_code == 'A') {
-        st->order_code = 'G'; /* admitted labor → garrisoned (fresh shadow: no-op) */
+      if (u->col1_ai_plan == 'A') {
+        u->col1_ai_plan = 'G'; /* admitted labor → garrisoned */
       }
-      st->flags &= 0xd1; /* rederive bits 1/2/3/5 below */
-      if (st->act_state == 5 || st->act_state == 6) {
-        st->flags |= 0x02; /* roam_reeval_pending */
+      u->col1_flags15 &= AI_EURO_F3148_KEEP; /* rederive bits 1/2/3/5 below */
+      if (u->orders == UNITS_ORDER_FORTIFY || u->orders == UNITS_ORDER_FORTIFIED) {
+        u->col1_flags15 |= AI_EURO_F3148_ROAM; /* roam_reeval_pending */
       }
 
       /* FOUND/MIL_EXPAND eligibility bits — REWIRED 2026-09-06b to the
@@ -8121,9 +8129,9 @@ static void ai_euro_0a60_unit_housekeeping(ColonizeTurnContext* ctx, int nation_
         if (ok) {
           /* Raw: iStack_1e → |= 0xc, iStack_1c → |= 4 — bit2 from either,
            * bit3 only from military. */
-          st->flags |= 0x04;
+          u->col1_flags15 |= AI_EURO_F3148_FOUND;
           if (has_military) {
-            st->flags |= 0x08;
+            u->col1_flags15 |= AI_EURO_F3148_MIL;
           }
         }
       }
@@ -8132,14 +8140,15 @@ static void ai_euro_0a60_unit_housekeeping(ColonizeTurnContext* ctx, int nation_
        * fewer than 2 Merchantman+Galleon (or no Merchantman), a 2nd+
        * Caravel is the spare; otherwise the first Merchantman is. Only for
        * ships not already FOUND/MIL_EXPAND-eligible. */
-      if (!spare_marked && is_ship_t && (st->flags & 0x0c) == 0) {
+      if (!spare_marked && is_ship_t &&
+          (u->col1_flags15 & (AI_EURO_F3148_FOUND | AI_EURO_F3148_MIL)) == 0) {
         if (merchantmen + galleons < 2 || merchantmen == 0) {
           if (dos_type == UNITS_KIND_CARAVEL && caravels > 1) {
-            st->flags |= 0x20;
+            u->col1_flags15 |= AI_EURO_F3148_SPARE;
             spare_marked = 1;
           }
         } else if (dos_type == UNITS_KIND_MERCHANTMAN) {
-          st->flags |= 0x20;
+          u->col1_flags15 |= AI_EURO_F3148_SPARE;
           spare_marked = 1;
         }
       }
@@ -8152,13 +8161,31 @@ static void ai_euro_0a60_unit_housekeeping(ColonizeTurnContext* ctx, int nation_
         /* DS:0x9faa region stamp (|=1 / |=5 by profession-capability) is
          * covered by ai_coarse_fog_euro_restamp — its consumers only test
          * the byte for nonzero, so the 1-vs-5 split is behaviorally inert. */
-        if (st->act_state == 1 || st->act_state == 2 || st->act_state == 3 ||
-            (st->act_state >= 10 && st->order_code != 0x31)) {
-          st->act_state = 0;
+        /*
+         * DOS raw 87560-87564: `if (act_state == 3 || == 2 || == 1 ||
+         * (act_state > 9 && order_code != '1')) act_state = 0;` — an AI
+         * course only survives the nation-turn boundary when its order code
+         * is the generic goal-pursue '1'; 't'/'i'/0x45 courses and every
+         * one-step 0x0c commit are dropped and re-decided. Live since
+         * 2026-09-18 (bugs.md #525) now that +0x314c is the real `u->orders`
+         * byte; against the retired shadow (zeroed every dispatcher turn) the
+         * whole test was vacuous.
+         *
+         * NOT ported: the `== 1 || == 2 || == 3` arm. Those DOS values mean
+         * "aboard a ship / in transit / off-map", state this port carries in
+         * `aboard_ship_id` instead — while orders 1 (SENTRY) here doubles as
+         * the port-only first-colony landfall latch
+         * (ai_euro_set_goto(u, UNITS_ORDER_SENTRY, lf_x, lf_y), three sites),
+         * so clearing it drops the landfall memory and loses the TURN3→4 DOS
+         * save pair. The `>= 10` arm is the one that carries the AI courses
+         * and is the whole point of the rule.
+         */
+        if (u->orders >= AI_EURO_ACT_ADJACENT && u->col1_ai_plan != 0x31) {
+          u->orders = UNITS_ORDER_NONE;
         }
         int side = 0;
         if (ai_goals_probe_adjacent_contact_claim_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(ctx->units), .colonies=(ColonizeColonyPool*)(ctx->colonies), .map=(ColonizeWorldMap*)(ctx->map), .col1=(ColonizeCol1Save*)(ctx->col1_ok ? ctx->col1 : NULL), .col1_ok=((ctx->col1_ok ? ctx->col1 : NULL) != NULL)}, ux, uy, nation_id, 1, &side) >= 0) {
-          st->act_state = 10; /* on-site at a contact claim: no new goal */
+          u->orders = AI_EURO_ACT_ADJACENT; /* on-site at a contact claim: no new goal */
         }
         const int on_water = map_tile_is_water(ctx->map, ux, uy) ||
                              map_tile_is_high_seas(ctx->map, ux, uy);
@@ -8167,7 +8194,7 @@ static void ai_euro_0a60_unit_housekeeping(ColonizeTurnContext* ctx, int nation_
         }
       }
       if (in_transit) {
-        st->act_state = 1; /* aboard ship / in Europe / off-map */
+        u->orders = UNITS_ORDER_SENTRY; /* +0x314c = 1: aboard ship / Europe / off-map */
       }
     } else if (u->nation_id >= 0 && u->nation_id < 4) {
       /* Foreign branch: spotted hostile ship → CONTACT goal prio 3.
@@ -8195,39 +8222,34 @@ static void ai_euro_0a60_goal_orders_structural(ColonizeTurnContext* ctx, int na
     weight[i] = weight_seed;
   }
 
-  /* Slot walk (Leads 2, 2026-09-10): `ui` is an array index, not a unit id;
-   * the id-keyed shadow keeps its `u->id` key and its 256-wide guard. */
+  /* Slot walk (Leads 2, 2026-09-10): `ui` is an array index, not a unit id. */
   for (int ui = 0; ui < COLONIZE_UNITS_MAX; ++ui) {
-    const ColonizeUnit* u = &ctx->units->units[ui];
+    ColonizeUnit* u = &ctx->units->units[ui];
     if (!u->active || u->nation_id != nation_id || u->id < 0 ||
         u->id >= COLONIZE_UNITS_MAX) {
       continue;
     }
     /*
-     * s_0a60_pilot_state is reset every call (see its dispatcher_turn
-     * reset comment), so a mid-job Pioneer (CLEAR_PLOW/BUILD_ROAD) always
-     * starts this loop with act_state==0 — without this guard it gets a
-     * fresh goal assigned every turn regardless of its in-progress order,
-     * hijacking it before units_pioneer_work_tick ever finishes. Was
-     * invisible while the real DS:0x2f78 threshold was unknown and every
-     * job finished in a single tick; exposed once the real (usually
-     * multi-turn) threshold was captured 2026-08-20.
+     * Pioneer work orders 8/9 are FUN_521d_5b66's own switch cases, i.e.
+     * act states DOS's raw 88164 gate (`0/5/6 only`) already refuses — the
+     * explicit skip stays because units_pioneer_work_tick, not 5b66, drives
+     * the job here and must not be hijacked mid-job.
      */
     if (u->orders == UNITS_ORDER_CLEAR_PLOW || u->orders == UNITS_ORDER_BUILD_ROAD) {
       continue;
     }
-    Ai0a60UnitState* st = &s_0a60_pilot_state[u->id];
-    if (st->order_code == 'A') {
+    if (u->col1_ai_plan == 'A') {
       continue; /* already admitted as labor */
     }
-    if (st->act_state < 10) {
-      st->order_code = 0x3f; /* '?' pending-decision placeholder */
+    if (u->orders < AI_EURO_ACT_ADJACENT) {
+      u->col1_ai_plan = 0x3f; /* '?' pending-decision placeholder */
     }
-    if (st->act_state != 0 && st->act_state != 5 && st->act_state != 6) {
-      continue;
+    if (u->orders != UNITS_ORDER_NONE && u->orders != UNITS_ORDER_FORTIFY &&
+        u->orders != UNITS_ORDER_FORTIFIED) {
+      continue; /* raw 88164: fresh goals only at act_state 0/5/6 */
     }
-    if (st->order_code == 't' || st->order_code == 'i') {
-      st->order_code = 0x3f; /* clear stale goal-pursuit code */
+    if (u->col1_ai_plan == 't' || u->col1_ai_plan == 'i') {
+      u->col1_ai_plan = 0x3f; /* clear stale goal-pursuit code */
     }
 
     const char* uname = units_display_name(ctx->units, u);
@@ -8239,8 +8261,8 @@ static void ai_euro_0a60_goal_orders_structural(ColonizeTurnContext* ctx, int na
      * behind DOS's hold-full + fleet-coordination gate): bit2 =
      * FOUND-eligible, bit3 = MIL_EXPAND-eligible — read for every unit,
      * land included, as the DOS tail does. */
-    const int has_bit2 = (st->flags & 0x04) != 0;
-    const int has_bit3 = (st->flags & 0x08) != 0;
+    const int has_bit2 = (u->col1_flags15 & AI_EURO_F3148_FOUND) != 0;
+    const int has_bit3 = (u->col1_flags15 & AI_EURO_F3148_MIL) != 0;
 
     if (!unit_is_ship && (units_name_kind(uname ? uname : "") == UNITS_KIND_SOLDIER ||
                            units_name_kind(uname ? uname : "") == UNITS_KIND_DRAGOON)) {
@@ -8273,7 +8295,8 @@ static void ai_euro_0a60_goal_orders_structural(ColonizeTurnContext* ctx, int na
       const int dist = map_dos_dist(g->x - u->x, g->y - u->y);
       const int score = weight[slot] * dist / (g->prio + 1);
 
-      if ((st->act_state == 5 || st->act_state == 6) && !unit_is_ship) {
+      if ((u->orders == UNITS_ORDER_FORTIFY || u->orders == UNITS_ORDER_FORTIFIED) &&
+          !unit_is_ship) {
         /*
          * Real check (fixed 2026-08-18, `address_mapping.csv`:
          * FUN_1000_8886 → canonical FUN_281f_0696 → FUN_137f_0358 =
@@ -8304,16 +8327,33 @@ static void ai_euro_0a60_goal_orders_structural(ColonizeTurnContext* ctx, int na
 
     if (best_slot >= 0) {
       const AiGoalSlot* g = ai_goals_primary(nation_id, best_slot);
-      st->order_code = 0x31; /* '1' default goal-pursue code */
+      u->col1_ai_plan = 0x31; /* '1' default goal-pursue code */
       if (g->code == AI_GOAL_FOUND) {
-        st->order_code = 0x74; /* 't' */
+        u->col1_ai_plan = 0x74; /* 't' */
       } else if (g->code == AI_GOAL_MIL_EXPAND) {
-        st->order_code = 0x69; /* 'i' */
+        u->col1_ai_plan = 0x69; /* 'i' */
       }
-      st->act_state = 0xb; /* pursuing a goal */
-      st->goal_x = (uint8_t)g->x;
-      st->goal_y = (uint8_t)g->y;
-      st->goal_code = (int8_t)g->code;
+      /*
+       * bugs.md #525: the commit writes the REAL +0x314c/+0x314d/e now
+       * (act_state 0x0b + the goal tile), so `ai_euro_move_scoring_gate`'s
+       * raw 90210-90219 test and `ai_euro_act_land_goal_dispatch` both read
+       * the unit's own stored goal instead of a private mirror the rest of
+       * the port never stamped.
+       *
+       * LAND ONLY, and that is a port divergence, not DOS: DOS binds ships
+       * here too (a 0x0b hull whose DS:0x523d bit0 is clear — every
+       * transport row 0xa2/0x82 — skips FUN_521d_20e6 outright and just
+       * walks the goal, FUN_521d_5b66 raw 90552-90560). Binding them here
+       * moves every AI transport off its landfall onto this port's own
+       * FOUND/CONTACT goal tiles and loses four of the six real DOS save
+       * pairs in golden_ai_turns — i.e. the ship half of the goal TABLE
+       * (the 0a60 ocean-tile producers) is not faithful enough yet, so the
+       * ship course stays owned by the 20e6 ship band. Open lead; the land
+       * half below is DOS as written.
+       */
+      if (!unit_is_ship) {
+        ai_euro_set_goto(u, AI_EURO_ACT_GOAL, g->x, g->y);
+      }
       if (g->code != AI_GOAL_MILITARY) {
         weight[best_slot]++; /* claim-count so the same slot isn't over-assigned */
       }
@@ -10163,10 +10203,9 @@ COLONIZE_INTERNAL void ai_euro_colony_goals_colony_garrison(
     static const int k_adm_type[5] = {0x0b, 0x01, 0x01, 0x04, 0x04};
     static const int k_adm_vet[5] = {-1, 0, 1, 0, 1}; /* -1 any; 0/1 vs prof 0x15 */
     for (int pass = 0; pass < 5 && c->labor_shortage > 0; ++pass) {
-      /* Slot walk (Leads 2, 2026-09-10): `ui` is an array index; the
-       * id-keyed shadow below keeps its `u->id` key. */
+      /* Slot walk (Leads 2, 2026-09-10): `ui` is an array index. */
       for (int ui = 0; ui < COLONIZE_UNITS_MAX && c->labor_shortage > 0; ++ui) {
-        const ColonizeUnit* gu = &ctx->units->units[ui];
+        ColonizeUnit* gu = &ctx->units->units[ui];
         if (!gu->active || gu->nation_id != nation_id || gu->x != c->x ||
             gu->y != c->y || gu->id < 0 || gu->id >= COLONIZE_UNITS_MAX) {
           continue;
@@ -10178,11 +10217,10 @@ COLONIZE_INTERNAL void ai_euro_colony_goals_colony_garrison(
         if (k_adm_vet[pass] >= 0 && is_vet != k_adm_vet[pass]) {
           continue;
         }
-        Ai0a60UnitState* gst = &s_0a60_pilot_state[gu->id];
-        if (gst->order_code == 'A') {
+        if (gu->col1_ai_plan == 'A') {
           continue; /* already admitted this turn */
         }
-        gst->order_code = 'A';
+        gu->col1_ai_plan = 'A'; /* +0x314b */
         c->labor_shortage--;
         if (c->garrison_quota != 0) {
           c->garrison_quota--;
@@ -10865,7 +10903,22 @@ static int ai_euro_score_move(
       continue;
     }
     if (!units_can_enter_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(ctx->units), .colonies=(ColonizeColonyPool*)(ctx->colonies), .map=(ColonizeWorldMap*)(ctx->map)}, u->type_index, nx, ny, u->id)) {
-      const int foe = units_id_at(ctx->units, nx, ny);
+      /*
+       * FUN_465b_0000 resolves a step onto an occupied tile against the
+       * tile's BEST DEFENDER (FUN_5fef_0000), never the head of the stack.
+       * Reading units_id_at here let a berthed foreign ship (which
+       * units_is_sea then skipped) hide the land garrison of a defended
+       * colony, so an approaching land unit scored the target tile as
+       * unreachable and oscillated beside it forever — the REF stall
+       * behind bugs.md #521. Fall back to the raw head for defenderless
+       * tiles (lone Treasure / civilians), as units_try_move does.
+       */
+      int foe = units_best_defender_at(
+        ctx->units, ctx->col1_ok ? ctx->col1 : NULL, nx, ny, u->id, u->id
+      );
+      if (foe < 0) {
+        foe = units_id_at(ctx->units, nx, ny);
+      }
       if (foe < 0) {
         continue;
       }
@@ -11283,7 +11336,7 @@ typedef struct Ai20e6Unit {
   int village_dist; /* iStack_a0 */
   int unit_river; /* uStack_84 */
   int unit_road;  /* uStack_5a */
-  int act_state;  /* unit+0x314c (s_0a60_pilot_state shadow) */
+  int act_state;  /* unit+0x314c == ColonizeUnit.orders */
   int order_code; /* unit+0x314b */
   int explorer;   /* iStack_6a */
   int turn;
@@ -11320,8 +11373,8 @@ static void ai_euro_20e6_prologue(ColonizeTurnContext* ctx, const ColonizeUnit* 
   s->unit_river = map_tile_has_river(ctx->map, u->x, u->y) ? 1 : 0;
   s->unit_road = map_tile_has_road(ctx->map, u->x, u->y) ? 1 : 0;
   if (u->id >= 0 && u->id < COLONIZE_UNITS_MAX) {
-    s->act_state = s_0a60_pilot_state[u->id].act_state;
-    s->order_code = s_0a60_pilot_state[u->id].order_code;
+    s->act_state = u->orders;        /* +0x314c */
+    s->order_code = u->col1_ai_plan; /* +0x314b */
   }
   s->turn = (ctx->turn_number && *ctx->turn_number) ? (int)*ctx->turn_number : 0;
   s->year = (ctx->game_year && *ctx->game_year) ? (int)*ctx->game_year : 1492;
@@ -11595,11 +11648,9 @@ static void ai_euro_20e6_explorer_flag(ColonizeTurnContext* ctx, const ColonizeU
     if (s->act_state == 0) {
       ex = 1;
     }
-    if (s->act_state == 0xb && u->id >= 0 && u->id < COLONIZE_UNITS_MAX) {
-      const Ai0a60UnitState* ps = &s_0a60_pilot_state[u->id];
-      if (map_dos_dist(u->x - ps->goal_x, u->y - ps->goal_y) > 12) {
-        ex = 1;
-      }
+    if (s->act_state == AI_EURO_ACT_GOAL &&
+        map_dos_dist(u->x - u->goto_x, u->y - u->goto_y) > 12) {
+      ex = 1; /* goal (+0x314d/e) more than 12 tiles away */
     }
     if (ai_goals_colony_balance_flags_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(ctx->colonies), .map=(ColonizeWorldMap*)(ctx->map), .col1=(ColonizeCol1Save*)(ctx->col1), .col1_ok=((ctx->col1) != NULL)}, s->nation, s->cid) > 2) {
       ex = 1;
@@ -12026,8 +12077,8 @@ static int ai_euro_land_explore_scan_target(
           const int rx = (r < 8) ? tx + k_20e6_ring20_dx[r] : tx;
           const int ry = (r < 8) ? ty + k_20e6_ring20_dy[r] : ty;
           const int oid = units_id_at(ctx->units, rx, ry);
-          if (oid >= 0 && oid != u->id && oid < COLONIZE_UNITS_MAX &&
-              s_0a60_pilot_state[oid].act_state == 7) {
+          const ColonizeUnit* ou = oid >= 0 ? units_get_const(ctx->units, oid) : NULL;
+          if (ou && oid != u->id && ou->orders == UNITS_ORDER_BUILD_COLONY) {
             free_site = 0;
           }
         }
@@ -12234,7 +12285,16 @@ static int ai_euro_20e6_attack_term(
    * of the attacker's own nation (the decompile compares the owner nibble to
    * a clobbered constant 2; own-nation is the only coherent reading — noted
    * in move_scoring_20e6_full.md as "adjacent Spanish-owned units?").
-   * own ≤ def → skip the tile entirely (LAB_5183).
+   * own ≤ def → `goto LAB_521d_5183`.
+   *
+   * LAB_5183 is the direction loop's own increment, NOT an exit from the scan
+   * (bugs.md #523, refuted 2026-09-18e): viceroy_overlays.asm
+   * `LAB_OVL14_L0000__0054b0  CMP [BP+0xff28],AX / JL 0054b5 / JMP 005183`,
+   * and `LAB_OVL14_L0000__005183` is `INC word ptr [BP-0x4e]` followed by
+   * `LAB_..__005186  CMP [BP-0x4e],0x8 / JL 00518f` — the loop counter bump
+   * and test, with 14 XREFs, i.e. every "this direction is unscoreable" arm
+   * in the scorer jumps there. Returning 0 so the caller `continue`s to the
+   * next direction is exactly DOS.
    */
   if ((s->dos_type == UNITS_KIND_SOLDIER || s->dos_type == UNITS_KIND_DRAGOON) &&
       ai_euro_20e6_colony_owner_at(ctx, nx, ny) >= 0) {
@@ -12301,8 +12361,17 @@ static int ai_euro_20e6_open_sea(const ColonizeWorldMap* map, int x, int y) {
  * inside the same loop (water-only step, no settlement term, fort/artillery
  * term scaled by holds, west lean, unseen-water credit). Returns dir 0..7,
  * or 8 = stay.
+ *
+ * `out_attack` = DOS `local_ce` (raw 88874): the winning candidate was scored
+ * through LAB_521d_52aa, i.e. the pick is an attack. `out_saw_foe` = DOS
+ * `local_ea` (raw 88887): *any* candidate reached LAB_52aa with a non-zero
+ * DS:0x5236 row — an attackable foreigner stood next to this unit, whatever
+ * the odds came out as. Both are read by the LAB_4d2e tail (raw 88983-89040);
+ * either may be NULL.
  */
-static int ai_euro_20e6_wander_step(ColonizeTurnContext* ctx, ColonizeUnit* u, Ai20e6Unit* s) {
+static int ai_euro_20e6_wander_step(
+  ColonizeTurnContext* ctx, ColonizeUnit* u, Ai20e6Unit* s, int* out_attack, int* out_saw_foe
+) {
   const int nation = s->nation;
   /* uVar14 — far-probe/fog enable: no adjacent claim (probe mode 1) or a
    * non-combat land unit. */
@@ -12332,6 +12401,7 @@ static int ai_euro_20e6_wander_step(ColonizeTurnContext* ctx, ColonizeUnit* u, A
   int best = -999;
   int best_dir = 8;
   int best_attack = 0;
+  int saw_foe = 0; /* local_ea */
   const int last_dir = (u->id >= 0 && u->id < COLONIZE_UNITS_MAX) ? s_euro_last_dir[u->id] : -1;
   for (int d = 0; d < 8; ++d) {
     const int nx = u->x + MAP_DIR8_DX[d];
@@ -12448,7 +12518,20 @@ static int ai_euro_20e6_wander_step(ColonizeTurnContext* ctx, ColonizeUnit* u, A
     } else if (owner < 4) {
       const int rel = ai_euro_20e6_diplo(ctx->col1, nation, owner);
       const int hu_type = hu ? ai_euro_20e6_dos_type(ctx->units, hu) : -1;
-      const int woi_ok = !s->woi || owner < 0;
+      /*
+       * raw 88883-88885 (FUN_521d_20e6, LAB_521d_52aa entry gate):
+       *   (*(byte*)0x5382 & 1) == 0 ||
+       *   ((local_10 < 4 && *(char*)(local_10*0x34 + 0x543f) == '\0') || 3 < local_10)
+       * During the War of Independence (DS:0x5382 bit0) an attack is scored
+       * only against a human-controlled player slot (control byte 0) or a
+       * tribe. The port previously spelled this `!s->woi || owner < 0`, which
+       * rejected every claimed tile and left the REF unable to score an
+       * assault on a defended rebel colony (bugs.md #521).
+       */
+      const int woi_ok =
+        !s->woi || owner > 3 ||
+        (owner >= 0 && owner < 4 && ctx->col1_ok && ctx->col1 &&
+         ctx->col1->player[owner].control == 0);
       /* DOS scores the tile as an attack when the owner is not yet MET (a
        * forced first contact) or a Privateer is involved; Linux contact is
        * driven by ai_contact_*, so this port only takes the arm at war —
@@ -12458,6 +12541,13 @@ static int ai_euro_20e6_wander_step(ColonizeTurnContext* ctx, ColonizeUnit* u, A
            ((rel & AI_DIPLO_MET) == 0 && s->dos_type == UNITS_KIND_PRIVATEER) ||
            hu_type == UNITS_KIND_PRIVATEER) &&
           woi_ok) {
+        /* raw 88885-88887, LAB_521d_52aa entry: `if (DS:0x5236[type*0xe] !=
+         * 0) { local_7e = 1; local_ea = 1; ... }`. local_ea is sticky for the
+         * whole 8-direction scan and is set here, before the odds are known —
+         * a −999 candidate still marks it. */
+        if (s->combat != 0) {
+          saw_foe = 1;
+        }
         if (!ai_euro_20e6_attack_term(ctx, u, s, nx, ny, here, &score)) {
           continue;
         }
@@ -12474,6 +12564,10 @@ static int ai_euro_20e6_wander_step(ColonizeTurnContext* ctx, ColonizeUnit* u, A
         }
         if (ai_euro_20e6_own_colonies_on(ctx, nation, s->cid) == 0) {
           continue;
+        }
+        /* raw 88885-88887 again: the tribe branch enters the same LAB_52aa. */
+        if (s->combat != 0) {
+          saw_foe = 1;
         }
         if (!ai_euro_20e6_attack_term(ctx, u, s, nx, ny, here, &score)) {
           continue;
@@ -12593,8 +12687,86 @@ static int ai_euro_20e6_wander_step(ColonizeTurnContext* ctx, ColonizeUnit* u, A
   /* LAB_5183 tail for an attack pick: DOS stays when fewer than 3 thirds
    * (one full move) remain — Linux moves is whole moves and the act
    * loop already requires >0, so nothing extra to gate here. */
-  (void)best_attack;
+  if (out_attack) {
+    *out_attack = best_attack;
+  }
+  if (out_saw_foe) {
+    *out_saw_foe = saw_foe;
+  }
   return best_dir;
+}
+
+/*
+ * DOS-LITERAL FUN_521d_20e6 raw 89011-89029 — the 0x46 arm of the LAB_4d2e
+ * tail (asm OVL14_L0000:0x005992-0x005a31, viceroy_overlays.asm; the same body
+ * decompiles a second time at raw 85856-85874, where the nation compare reads
+ * `uStack_e6` and confirms it is the acting unit's own nation nibble).
+ *
+ * Position: the tail runs `local_ce == 0` (the winning wander pick is not an
+ * attack, asm 0x5840) → `local_8e == 0` (not the own-colony ≥2-garrison entry,
+ * asm 0x5876) → the 0x42 arm (DS:0x523d bit0 pioneer work, raw 88989-89000) →
+ * the 0x65 arm (bit2, raw 89002-89009) → **this arm** → the 0x39 fallthrough
+ * (asm 0x586a). Every failed sub-test jumps straight to 0x586a/0x39, so this
+ * arm never changes the wander pick unless all four sub-tests pass.
+ *
+ *   bVar10 = unit+0x3146;                              // raw 89011
+ *   if (DS:0x5236[bVar10 * 0xe] > 1 &&                 // @UNIT attack col > 1
+ *       (bVar10 < 0xd || 0x12 < bVar10) &&             // not a ship type
+ *       local_ea != 0) {                               // saw an attackable foe
+ *     if (FUN_281f_098e(param_1) == FUN_281f_02ee(param_1)) {   // raw 89016-89019
+ *       for (i = 0; i < 8; i++) {                      // raw 89020-89029
+ *         y = DS:0xbe[i] + local_94; x = DS:0xb4[i] + local_88; // the UNIT's tile
+ *         local_10 = FUN_281f_0696(x, y);              // Euro settlement owner
+ *         if (-1 < local_10 && local_10 != uVar11) {   // owned by another nation
+ *           unit+0x314b = 0x46; goto LAB_521d_5899;    // local_76 = 8 -> stay
+ *         }
+ *       }
+ *     }
+ *   }
+ *
+ * The args of the two chain walks are dropped by Ghidra (far thunks); the asm
+ * at 0x59c9 passes the unit index in AX with no stack cleanup:
+ *   MOV AX,[BP+6]; CALLF FUN_1000_8b7e  -> FUN_281f_098e -> FUN_1427_0026
+ *   MOV AX,[BP+6]; CALLF FUN_1000_84de  -> FUN_281f_02ee -> FUN_1427_0002
+ * FUN_1427_0026 walks unit+0x315e to the chain tail, FUN_1427_0002 walks
+ * unit+0x315c to the chain head (raw 7241-7277); both return the unit itself
+ * when its link is −1, so `tail == head` is exactly "this unit is alone in its
+ * per-tile chain" — the same chain units_map_stack_chrome models (units.h).
+ *
+ * What the arm does NOT do: it issues no FORTIFY order and no goto. +0x314b is
+ * the AI's own annotation byte and no DOS reader compares it against 0x46; the
+ * whole behavioural effect is LAB_5899's `local_76 = 8`, i.e. the unit does not
+ * take the wander step it just scored and its act state falls to 5/6 at the
+ * epilogue (raw 90374-90386). It also spends no garrison quota and does not
+ * require the unit to stand on (or near) a colony of its own. bugs.md #512.
+ */
+static int ai_euro_20e6_border_park_arm(
+  ColonizeTurnContext* ctx, const ColonizeUnit* u, const Ai20e6Unit* s, int saw_foe
+) {
+  /* raw 89012-89013 / asm 0x5992-0x59c6, in DOS's own order. */
+  if (s->combat <= 1) {
+    return 0;
+  }
+  if (s->dos_type >= 0xd && s->dos_type <= 0x12) {
+    return 0;
+  }
+  if (!saw_foe) {
+    return 0;
+  }
+  /* raw 89016-89019 / asm 0x59c9-0x59df: alone in the tile chain. */
+  if (units_map_stack_chrome(ctx->units, u->id)) {
+    return 0;
+  }
+  /* raw 89020-89029 / asm 0x59e2-0x5a31: a Euro settlement of another nation
+   * on one of the unit's own eight neighbours. */
+  for (int d = 0; d < 8; ++d) {
+    const int owner =
+      ai_euro_20e6_colony_owner_at(ctx, u->x + MAP_DIR8_DX[d], u->y + MAP_DIR8_DY[d]);
+    if (owner >= 0 && owner != s->nation) {
+      return 1;
+    }
+  }
+  return 0;
 }
 
 /*
@@ -12625,7 +12797,7 @@ static int ai_euro_20e6_ship_far_roam(ColonizeTurnContext* ctx, ColonizeUnit* u,
   if (mil + pioneers == 0) {
     return 0;
   }
-  uint8_t* flags = &s_0a60_pilot_state[u->id].flags;
+  uint8_t* flags = &u->col1_flags15; /* unit+0x3148 */
   if ((*flags & 0x10) == 0) {
     if (dos_rng_range(ctx->rng, 0, 0x10) != 0) {
       return 0;
@@ -12674,7 +12846,7 @@ static int ai_euro_20e6_ship_wander_act(ColonizeTurnContext* ctx, ColonizeUnit* 
   if (!busy && ai_euro_20e6_ship_far_roam(ctx, u, &s)) {
     return 1;
   }
-  const int dir = ai_euro_20e6_wander_step(ctx, u, &s);
+  const int dir = ai_euro_20e6_wander_step(ctx, u, &s, NULL, NULL);
   if (getenv("AI_SHIP_TRACE")) {
     fprintf(stderr, "[ship] unit %d wander dir %d busy %d at (%d,%d)\n", u->id, dir, busy, u->x, u->y);
   }
@@ -13252,7 +13424,7 @@ static int ai_euro_20e6_457e_hs_cadence(ColonizeTurnContext* ctx, ColonizeUnit* 
   if (!ai_euro_20e6_457e_type_gate(ctx, u, s.dos_type)) {
     return 0;
   }
-  const int spare = (s_0a60_pilot_state[u->id].flags & 0x20) != 0; /* unit+0x3148 */
+  const int spare = (u->col1_flags15 & AI_EURO_F3148_SPARE) != 0; /* unit+0x3148 */
   if (!spare && (((char)u->id + (char)s.turn) & 0x1f) != 0) {
     return 0;
   }
@@ -13288,41 +13460,82 @@ static int ai_euro_move_scoring_gate(ColonizeTurnContext* ctx, ColonizeUnit* u, 
     return 0;
   }
   /*
-   * At-war land hunters / Artillery siege: defer course to act-level hunt
-   * (do not explore-yank idle Soldier/Dragoon/Scout/Artillery before hunt).
-   * Passive fortify/sentry — act wakes via units_wake then hunts.
+   * (bugs.md #521 lead b, 2026-09-18b) The at-war "defer course to act-level
+   * hunt" early return that stood here — idle Soldier/Dragoon/Scout/Artillery
+   * of a nation at war with any peer left the gate before any 20e6 arm ran —
+   * had no DOS counterpart and was the reason the LAB_521d_4d2e attack term
+   * could never fire on land. FUN_521d_20e6 has exactly two act-state gates,
+   * both ported below: the entry bail (raw 88404-88406, `act_state ∉ {0,5,6}
+   * && act_state < 10 → tail`) and the pre-4d2e gate (raw 90210-90219).
+   * Neither looks at war state. Removed; the adjacent fight is now picked by
+   * ai_euro_20e6_wander_step's attack term, as in DOS.
    */
-  if (ctx->col1_ok && ctx->col1 && ai_euro_at_war_any_peer(ctx->col1, nation_id)) {
-    const char* hn = units_display_name(ctx->units, u);
-    if (ai_euro_is_land_war_hunter(hn) || ai_euro_is_artillery_name(hn)) {
-      return 0;
-    }
-  }
   /*
-   * Peace: do not FOUND/explore-yank passive colony Artillery before §2d3
-   * border wake (garrison Soldiers often already have planning MILITARY goto).
-   * Cite: Colonization.pdf Defending a Colony; euro_unit_act §2d3.
-   * Also: idle Soldier already on own colony — fortify/LABOR join first
-   * (Dutch Isabella TURN4→5 admits beachhead soldier; yank broke pop 1→2).
+   * FUN_521d_20e6 own-colony garrison arm, raw 88584-88612 (bugs.md #522).
+   * This replaces three uncited early returns that used to stand here —
+   * "passive colony Artillery", "military name on own colony" and "colony
+   * wants construction labor" — siblings of the at-war bail deleted
+   * 2026-09-18b. They parked every armed unit that stood on one of its own
+   * colonies, so the whole land-arms branch below (and with it the LAB_4d2e
+   * attack term) was unreachable for exactly the units that fight.
+   *
+   * DOS, verbatim, for a non-wagon/non-ship type (local_34 == 0):
+   *   if (attack[type] < 2 || type == 4 || type == 8 || local_2e != 0 ||
+   *       (colony(local_62).labor_shortage < 1 && order_code != 'A'))
+   *      goto LAB_521d_277a;                       // normal arm chain
+   *   armed = # units in this tile's chain with attack[type] > 1,
+   *           type ∉ [0xd,0x12], type != 4, type != 8
+   *   if (order_code == 'A')  goto LAB_521d_5899;  // stay
+   *   if (armed < 2) { colony.labor_shortage--; order_code = 0x47;
+   *                    goto LAB_521d_5899; }       // stay, garrison
+   *   local_8e = 1; goto LAB_521d_4d2e;            // surplus: free-score
+   * local_2e is the distance to the nearest own colony (DS:0x8db8 after the
+   * uStack_62 search), so `local_2e == 0` is "standing on an own colony";
+   * colony +0x8e is labor_shortage. Types 4 (Dragoons) and 8 (Cavalry) never
+   * garrison and are not counted. LAB_5899 forces local_76 = 8, i.e. the unit
+   * stays. The surplus branch is the DOS route by which a stack of two or
+   * more armed units on an own colony marches back out and free-scores its
+   * eight neighbours — the assault engine the port was missing.
    */
+  int force_wander = 0; /* local_8e */
   {
-    const char* hn = units_display_name(ctx->units, u);
-    if (ai_euro_land_is_passive_orders(u) && ai_euro_is_artillery_name(hn)) {
-      return 0;
-    }
-    if (ctx->colonies) {
-      const int cid = colonies_id_at(ctx->colonies, u->x, u->y);
-      if (cid >= 0) {
-        const ColonizeColony* oc = colonies_get(ctx->colonies, cid);
-        if (oc && oc->active && oc->nation_id == nation_id) {
-          if (ai_euro_is_military_name(hn)) {
-            return 0;
-          }
-          if (ai_euro_colony_wants_construction_labor(ctx->colonies, oc)) {
-            return 0;
-          }
+    const int dtype = ai_euro_20e6_dos_type(ctx->units, u);
+    const int not_hauler = dtype < 0xd || dtype > 0x12; /* local_34 == 0 */
+    const int cid = ctx->colonies ? colonies_id_at(ctx->colonies, u->x, u->y) : -1;
+    ColonizeColony* oc = cid >= 0 ? colonies_get_mut(ctx->colonies, cid) : NULL;
+    const int on_own_colony = oc && oc->active && oc->nation_id == nation_id; /* local_2e == 0 */
+    const int admitted = u->col1_ai_plan == 'A'; /* +0x314b == 'A' */
+    if (not_hauler && on_own_colony && ai_euro_20e6_type_combat(dtype) > 1 && dtype != 4 &&
+        dtype != 8 && (oc->labor_shortage >= 1 || admitted)) {
+      /* raw 88594-88600: the tile-chain armed count. */
+      int armed = 0;
+      for (int id = 1; id < COLONIZE_UNITS_MAX; ++id) {
+        const ColonizeUnit* su = units_get_const(ctx->units, id);
+        if (!su || !su->active || su->x != u->x || su->y != u->y) {
+          continue;
+        }
+        const int st = ai_euro_20e6_dos_type(ctx->units, su);
+        if (ai_euro_20e6_type_combat(st) > 1 && (st < 0xd || st > 0x12) && st != 4 && st != 8) {
+          armed++;
         }
       }
+      if (admitted) {
+        if (u->id >= 0 && u->id < COLONIZE_UNITS_MAX) {
+          s_euro_last_dir[u->id] = 8; /* LAB_5899 local_76 = 8 */
+        }
+        return 0;
+      }
+      if (armed < 2) {
+        if (oc->labor_shortage > 0) {
+          oc->labor_shortage--;
+        }
+        u->col1_ai_plan = 0x47;
+        if (u->id >= 0 && u->id < COLONIZE_UNITS_MAX) {
+          s_euro_last_dir[u->id] = 8; /* LAB_5899 local_76 = 8 */
+        }
+        return 0;
+      }
+      force_wander = 1; /* local_8e = 1, straight to LAB_521d_4d2e */
     }
   }
   int gx = u->x;
@@ -13337,6 +13550,7 @@ static int ai_euro_move_scoring_gate(ColonizeTurnContext* ctx, ColonizeUnit* u, 
    * founder used to set off across the continent and either never arrive or
    * oscillate between two tiles forever.
    */
+  int landed_settle = 0;
   if (ctx->colonies && colonies_count_for_nation(ctx->colonies, nation_id) == 0) {
     const char* fname = units_display_name(ctx->units, u);
     if (ai_euro_name_is_pioneer(fname) || units_name_kind(fname) == UNITS_KIND_COLONIST) {
@@ -13349,26 +13563,75 @@ static int ai_euro_move_scoring_gate(ColonizeTurnContext* ctx, ColonizeUnit* u, 
         ai_goals_upsert_primary(nation_id, lx, ly, AI_GOAL_FOUND, 7);
         fx = lx;
         fy = ly;
+        landed_settle = 1;
       }
     }
   }
-  /* Nearest top-priority FOUND on this unit's own landmass -- the table is
-   * priority-ordered but distance-blind, and planning fills it with a band of
-   * equal-priority tribe-adjacent sites shared by all four nations. */
-  if (ai_goals_best_found_tile_near(ctx->map, nation_id, u->x, u->y, &fx, &fy)) {
+  /*
+   * FUN_521d_20e6 pre-LAB_4d2e gate, raw 90210-90219 — the last thing the arm
+   * chain does before the 8-direction scorer:
+   *   if (act_state != 0 && act_state != 10 && act_state != 5 &&
+   *       act_state != 6 &&
+   *       (act_state != 0x0b || +0x314d != x || +0x314e != y)) {
+   *     if (FUN_281f_0984(x, y, continent) == 0) goto LAB_521d_5a78;
+   *   }
+   *   goto LAB_521d_4d2e;
+   * i.e. a courseless unit (0/5/6), one flagged "a foreigner stands on one of
+   * my eight neighbours" (10, FUN_521d_0a60 raw 87567) and a goal-bound unit
+   * already standing on its goal tile ALWAYS free-score their neighbours; a
+   * goal-bound unit whose goal lies elsewhere free-scores only when
+   * FUN_281f_0984 (→ FUN_1427_09dc) finds a foreign unit or colony adjacent,
+   * and otherwise leaves 20e6 for FUN_521d_5b66 to walk the goal.
+   *
+   * The port used to skip this test entirely and course every land unit at
+   * the nearest FOUND goal, which is why the land arms below were never
+   * entered in any golden (bugs.md #522: 284 of 460 gate calls).
+   *
+   * 2026-09-18 (bugs.md #525/#526): the test is now the DOS one, read off the
+   * unit's real +0x314c/+0x314d/e (`u->orders` / `u->goto_x` / `u->goto_y`,
+   * see the field map at the head of the 0a60 section) instead of the
+   * `ai_euro_has_useful_goto` stand-in the retired 0a60 shadow forced. Every
+   * course in this port already goes through `ai_euro_set_goto`, so the real
+   * bytes are stamped everywhere — including by 0a60's goal-consumption tail,
+   * which used to write only the mirror.
+   */
+  /*
+   * `act_state ∈ {0, 10, 5, 6}`, and `0x0b standing on +0x314d/e`, all read
+   * here as "no live course" — which is exactly `ai_euro_has_useful_goto`
+   * now that every course, 0a60's goal commit included, stamps the real
+   * +0x314c/+0x314d/e. Divergence, deliberate and one-way: DOS also sends
+   * act_state 1/2/3 to the tail, but its 1 means "aboard ship / off-map"
+   * (state this port keeps in `aboard_ship_id`) while the port's orders 1 is
+   * SENTRY, a parked ON-MAP unit that must still free-score.
+   */
+  int to_4d2e = force_wander || !ai_euro_has_useful_goto(u, ctx->map) ||
+                ai_euro_20e6_adjacent_foreign_09dc(ctx, u->x, u->y, nation_id);
+  if (landed_settle) {
+    to_4d2e = 0; /* FUN_521d_06ae settle-where-landed commits its own course */
     gx = fx;
     gy = fy;
-  } else if (ai_euro_has_useful_goto(u, ctx->map)) {
+  } else if (!to_4d2e) {
     /*
-     * A goto that points at the tile the unit is already standing on is an
-     * arrival, not a course: DOS clears +0x314c on arrival (FUN_15eb_1068),
-     * so 20e6's next call re-scores from scratch. Reading it as a live
-     * course here made the re-entry gate (raw 90551) a no-op for any unit
-     * that had ever finished a walk — it fell straight back out of the
-     * land arms with gx/gy == its own tile. (bugs.md #493)
+     * `goto LAB_521d_5a78` — 20e6 sets NO course here. DOS leaves the unit
+     * bound to the goal already stored in +0x314d/e and FUN_521d_5b66's
+     * switch (case 0x0b / 0x0c → FUN_479b_0972) walks one pathfinder step
+     * toward it, keeping the binding until the unit stands on the tile.
+     * `ai_euro_score_move` below is this port's stand-in for that walk, so
+     * the only thing to do is aim it at the unit's OWN goal.
+     *
+     * A `ai_goals_best_found_tile_near` re-derive stood here until
+     * 2026-09-18 (bugs.md #526) and re-aimed every already-bound land unit
+     * at the nearest top-priority FOUND tile on every act, so no unit ever
+     * finished a walk. It has no DOS counterpart at all: FOUND (code 1) is a
+     * ship-only capability bit (bugs.md #511) and the only writer of a unit's
+     * goal is FUN_521d_0a60's consumption tail.
      */
     gx = u->goto_x;
     gy = u->goto_y;
+    if (gx < 0 || gy < 0 || gx >= UNITS_GOTO_NONE || gy >= UNITS_GOTO_NONE ||
+        !map_coords_inset(ctx->map, gx, gy)) {
+      return 0; /* stale/absent target: nothing to walk, LAB_5a78 tail only */
+    }
   } else {
     /*
      * FUN_521d_20e6 land arms, in DOS order: SCOUT/PATROL (LAB_277a) →
@@ -13380,7 +13643,11 @@ static int ai_euro_move_scoring_gate(ColonizeTurnContext* ctx, ColonizeUnit* u, 
     Ai20e6Unit s;
     ai_euro_20e6_prologue(ctx, u, nation_id, &s);
     ai_euro_20e6_explorer_flag(ctx, u, &s);
-    if (ai_euro_20e6_patrol_arm(ctx, u, &s)) {
+    /*
+     * raw 88612 `goto LAB_521d_4d2e`: the own-colony surplus branch enters the
+     * scorer directly, skipping LAB_277a and every arm hanging off it.
+     */
+    if (!force_wander && ai_euro_20e6_patrol_arm(ctx, u, &s)) {
       return 0;
     }
     /*
@@ -13404,11 +13671,11 @@ static int ai_euro_move_scoring_gate(ColonizeTurnContext* ctx, ColonizeUnit* u, 
      * here since the ring only fires for explorers). A consumed unit (village
      * entry, colony join, Pioneer convert) aborts the act — it may no longer
      * exist; a labor walk (goto set) lets the act loop move it this turn. */
-    if (ai_euro_20e6_village_arm(ctx, u, &s)) {
+    if (!force_wander && ai_euro_20e6_village_arm(ctx, u, &s)) {
       return 1;
     }
     {
-      const int lr = ai_euro_20e6_labor_arm(ctx, u, &s);
+      const int lr = force_wander ? 0 : ai_euro_20e6_labor_arm(ctx, u, &s);
       if (lr == 2) {
         return 1;
       }
@@ -13424,7 +13691,7 @@ static int ai_euro_move_scoring_gate(ColonizeTurnContext* ctx, ColonizeUnit* u, 
      * reaches the hop pick with a fresh roll.
      */
     int hop_scan = 1;
-    if (s.explorer && u->id >= 0 && u->id < COLONIZE_UNITS_MAX) {
+    if (!force_wander && s.explorer && u->id >= 0 && u->id < COLONIZE_UNITS_MAX) {
       if (s_20e6_hop_steps[u->id] != 0) {
         s_20e6_hop_steps[u->id]--;
         hop_scan = 0;
@@ -13437,18 +13704,61 @@ static int ai_euro_move_scoring_gate(ColonizeTurnContext* ctx, ColonizeUnit* u, 
     }
     /* Raw 85313-85337, DOS position: after the hop block, before the
      * settlement-step scorer below. */
-    if (ai_euro_20e6_surplus_recall_arm(ctx, u, &s)) {
+    if (!force_wander && ai_euro_20e6_surplus_recall_arm(ctx, u, &s)) {
       return 0;
     }
-    if (s.explorer && hop_scan &&
+    if (!force_wander && s.explorer && hop_scan &&
         ai_euro_land_explore_scan_target(ctx, u, nation_id, s.explorer, &fx, &fy)) {
       gx = fx;
       gy = fy;
       is_roam = 1; /* unit+0x314c==5 idle-roam (explore ring) */
-    } else if (s.explorer && hop_scan && ai_euro_20e6_ring_hop(ctx, u, &s)) {
+    } else if (!force_wander && s.explorer && hop_scan && ai_euro_20e6_ring_hop(ctx, u, &s)) {
       return 0; /* raw 2416-2458: scan failed, hop 4 tiles out instead */
     } else {
-      const int dir = ai_euro_20e6_wander_step(ctx, u, &s);
+      int wander_attack = 0; /* local_ce */
+      int wander_saw_foe = 0; /* local_ea */
+      const int dir = ai_euro_20e6_wander_step(ctx, u, &s, &wander_attack, &wander_saw_foe);
+      /*
+       * LAB_4d2e tail, raw 88983-89031: with `local_ce == 0` (the pick is not
+       * an attack) DOS runs the 0x42 / 0x65 / 0x46 park arms before the 0x39
+       * fallthrough, and each of them reaches LAB_5899, which forces
+       * `local_76 = 8` — the scored direction is dropped and the unit stays.
+       * Only the 0x46 arm is ported here; the 0x42 / 0x65 arms (raw
+       * 88989-89009) are the pioneer work codes, which this port runs at act
+       * level in ai_euro_act_land_roles. `local_8e` (raw 88612) is 0 on every
+       * path that reaches this point in the port: it is set only by the DOS
+       * own-colony-with-2+-garrison entry at raw 88584-88612, whose own
+       * outcome (0x47) never reaches the wander scorer's tail arms.
+       * See ai_euro_20e6_border_park_arm.
+       */
+      /*
+       * raw 88982-88984, the first test of the LAB_4d2e tail after
+       * `local_ce == 0`: `if (local_8e != 0) { select(local_62);
+       * goto LAB_521d_5888; }` — a surplus garrison unit (the raw 88612 entry)
+       * that scored no attack this scan falls back into the garrison hold,
+       * i.e. colony.labor_shortage--, order_code = 0x47, stay. It also
+       * suppresses the 0x46 park arm below (raw 88985 reads local_8e == 0).
+       */
+      if (!wander_attack && force_wander) {
+        const int hcid = ctx->colonies ? colonies_id_at(ctx->colonies, u->x, u->y) : -1;
+        ColonizeColony* hc = hcid >= 0 ? colonies_get_mut(ctx->colonies, hcid) : NULL;
+        if (hc && hc->labor_shortage > 0) {
+          hc->labor_shortage--;
+        }
+        if (u->id >= 0 && u->id < COLONIZE_UNITS_MAX) {
+          u->col1_ai_plan = 0x47; /* +0x314b */
+          s_euro_last_dir[u->id] = 8; /* LAB_5899 local_76 = 8 */
+        }
+        return 0;
+      }
+      if (!wander_attack && !force_wander &&
+          ai_euro_20e6_border_park_arm(ctx, u, &s, wander_saw_foe)) {
+        if (u->id >= 0 && u->id < COLONIZE_UNITS_MAX) {
+          s_euro_last_dir[u->id] = 8; /* LAB_5899 local_76 = 8, then +0x314f */
+          u->col1_ai_plan = 0x46; /* +0x314b */
+        }
+        return 0; /* stay put next to the foreign border colony */
+      }
       if (u->id >= 0 && u->id < COLONIZE_UNITS_MAX) {
         s_euro_last_dir[u->id] = (int8_t)dir; /* unit+0x314f, 8 = stay */
       }
@@ -14342,7 +14652,7 @@ static int ai_euro_20e6_wagon_village_errand(
  *     its own. Nothing here has a port counterpart — the port has no tile-stack
  *     chain, passengers live in `cargo_ids`.
  *
- * So `s_0a60_pilot_state` only ever carries 0/1 in this sweep.
+ * So +0x314c only ever carries 0/1 in this sweep.
  *
  * Linux tile substitution: DOS ships berth ON the colony tile, so 10be's own
  * tile stack already holds the marked land units. This port berths ships on
@@ -14370,10 +14680,9 @@ static void ai_euro_20e6_clear_stale_board_marks(
   if (!ctx || !ctx->units || !ship) {
     return;
   }
-  /* Slot walk (Leads 2, 2026-09-10): `ui` is an array index; the id-keyed
-   * shadow below keeps its `lu->id` key and its 256-wide guard. */
+  /* Slot walk (Leads 2, 2026-09-10): `ui` is an array index. */
   for (int ui = 0; ui < COLONIZE_UNITS_MAX; ++ui) {
-    const ColonizeUnit* lu = &ctx->units->units[ui];
+    ColonizeUnit* lu = &ctx->units->units[ui];
     if (!lu->active || lu->aboard_ship_id >= 0 || lu->id < 0 ||
         lu->id >= COLONIZE_UNITS_MAX) {
       continue;
@@ -14387,8 +14696,8 @@ static void ai_euro_20e6_clear_stale_board_marks(
         on_stack = 1;
       }
     }
-    if (on_stack && s_0a60_pilot_state[lu->id].act_state == 1) {
-      s_0a60_pilot_state[lu->id].act_state = 0;
+    if (on_stack && lu->orders == UNITS_ORDER_SENTRY) {
+      lu->orders = UNITS_ORDER_NONE; /* +0x314c = 0 */
     }
   }
 }
@@ -14511,7 +14820,7 @@ static int ai_euro_20e6_transport_assemble(
      * an unattached unit sitting in a non-Europe off-map park (arm 1), or
      * standing on the ship's open-water tile (arm 2).
      */
-    int take = (s_0a60_pilot_state[lu->id].act_state == 1);
+    int take = (lu->orders == UNITS_ORDER_SENTRY); /* +0x314c == 1 */
     int arm = 0;
     if (!take) {
       if (ai_euro_20e6_member_off_map(ctx, lu)) {
@@ -14536,7 +14845,7 @@ static int ai_euro_20e6_transport_assemble(
     if (!units_board(ctx->units, lu->id, ship->id)) {
       continue;
     }
-    s_0a60_pilot_state[lu->id].act_state = 1; /* asm 1427:1264 `[BX+0x314c] = 1` */
+    lu->orders = UNITS_ORDER_SENTRY; /* asm 1427:1264 `[BX+0x314c] = 1` */
     free_holds -= size;
     boarded++;
     if (trace) {
@@ -14619,7 +14928,7 @@ static int ai_euro_20e6_load_holds(
  * The block itself:
  *   raw 2991-2997  clear act_state 1 on the berth tile's units (LIVE since
  *                  2026-09-07e — the +0x314c channel is the
- *                  s_0a60_pilot_state act_state shadow)
+ *                  the real +0x314c byte)
  *   raw 2999-3001  bind colony uStack_62 / nation uStack_e6
  *   raw 3002-3007  while (holds_occupied) { g = pull hold 0 (8cdc compacts
  *                  and stashes qty in 0x8dc4); colony stock[g] += qty; }
@@ -14781,7 +15090,7 @@ static int ai_euro_20e6_ship_berth_arrival(
    * (:81295) — the only reset the counter has.
    */
   if (ai_euro_20e6_457e_type_gate(ctx, ship, arrival_dos_type) &&
-      (s_0a60_pilot_state[ship->id].flags & 0x20) == 0) {
+      (ship->col1_flags15 & AI_EURO_F3148_SPARE) == 0) {
     const int cid = ctx->map ? map_continent_id_at(ctx->map, c->x, c->y) : -1;
     const int stance = ai_euro_continent_stance_at(nation_id, cid);
     const int turn = (ctx->turn_number && *ctx->turn_number) ? (int)*ctx->turn_number : 0;
@@ -14810,7 +15119,7 @@ static int ai_euro_20e6_ship_berth_arrival(
         continue;
       }
       int mark = 0;
-      const int oc = s_0a60_pilot_state[lu->id].order_code;
+      const int oc = lu->col1_ai_plan; /* +0x314b */
       if (ai_euro_20e6_type_combat(lt) > 1 && oc != 'G' && oc != 'A' && stance == 0) {
         mark = 1;
       }
@@ -14822,7 +15131,7 @@ static int ai_euro_20e6_ship_berth_arrival(
       }
       if (mark) {
         /* raw 3046-3050: act_state = 1, iStack_d2 -= 0x5238[type]. */
-        s_0a60_pilot_state[lu->id].act_state = 1;
+        lu->orders = UNITS_ORDER_SENTRY; /* +0x314c = 1 */
         free_holds -= space;
         if (trace) {
           fprintf(
@@ -15443,11 +15752,56 @@ static int ai_euro_has_useful_goto(const ColonizeUnit* u, const ColonizeWorldMap
  * Indian split on the destination tile's layer3 owner nibble exactly as DOS
  * does, but requires `owner >= 0 && at_war`, so a foe standing on an
  * unclaimed tile is never scored as a target and land units go passive.
- * Deleting this pair left golden_woi_ref01's REF unable to reduce two
- * DEFENDED colonies (seizes of undefended ones still worked), so it is kept
- * and marked. Fixing it for real means making the 4d2e attack term reachable
- * on land (and/or binding every eligible unit to a 0a60 MILITARY goal rather
- * than one) — filed as the next target, not done here.
+ *
+ * 2026-09-18 pass (bugs.md #521): two real DOS divergences behind the stall
+ * were found and fixed, and the stand-in still cannot be deleted.
+ *  - raw 88883-88885: the LAB_52aa WoI gate is
+ *    `(0x5382 & 1) == 0 || ((owner < 4 && control[owner] == 0) || owner > 3)`,
+ *    i.e. during the War of Independence an attack is scored only against a
+ *    human-controlled player slot or a tribe. The port spelled it
+ *    `!woi || owner < 0`, which rejected every claimed tile — the REF never
+ *    scored an assault on a rebel colony at all.
+ *  - FUN_465b_0000 / FUN_5fef_0000: a step onto an occupied tile resolves
+ *    against the tile's BEST DEFENDER, not the head of the stack. Both
+ *    `ai_euro_score_move` and the goal-dispatch drain loop read
+ *    `units_id_at` and then skipped sea units, so a berthed foreign hull hid
+ *    a colony's garrison.
+ * 2026-09-18c (bugs.md #521 leads a/b/c). Two further DOS divergences fixed —
+ * the uncited at-war early return in ai_euro_move_scoring_gate (20e6 has no
+ * war gate; its only act-state gates are raw 88404-88406 and 90210-90219) and
+ * the drain loop's nation-blind `units_id_at` fallback, which handed an own
+ * unit standing on the step tile to ai_euro_try_attack and froze whole REF
+ * columns two tiles short of their target. With the stand-in every colony now
+ * falls at t15 (was t21); without it one still survives.
+ *
+ * act_state 10 is now fully decoded and is NOT the missing mechanism.
+ * FUN_521d_0a60 (raw 87566-87568) is its only writer in the whole game and it
+ * means "a foreign unit or settlement stands on one of my eight neighbours"
+ * (FUN_521d_0906 → FUN_281f_0682 layer2-bit0 unit owner / FUN_281f_06be
+ * layer2-bit1 settlement owner, filtered by FUN_521d_0896 which returns any
+ * Euro owner unconditionally). Readers: raw 88160 (`< 10` → order code '?';
+ * 10 keeps its code), raw 88164 (fresh goals only at 0/5/6 → a 10 unit gets
+ * none), raw 88404-88406 (20e6 entry admits it), raw 90210-90214 (listed with
+ * 0/5/6 → straight into LAB_521d_4d2e, no goal pathing), raw 90399-90404
+ * (demoted to 5, order code '0'), raw 90552 (FUN_521d_5b66 dispatches a goal
+ * only at 0x0b). DOS therefore unbinds an adjacent unit from its goal exactly
+ * as this port does — the goal walk is not the assault route.
+ *
+ * The residue is volume, and it is DOS's own: case 0 of FUN_1427_0d38 is
+ * `DI += DS:0x5239[type * 0xe]` (jump table at 1427:0d78 entry 0 → 1427:0d96,
+ * read byte-exact from viceroy_unpacked.asm), i.e. Σ @UNIT col9, which is 0
+ * for every land type. So the LAB_52aa odds core `((Σcol9 + 1) / stack) * base`
+ * is 0 for any tile holding two or more land defenders and the tile scores
+ * −999. Statically, DOS's own scorer refuses to assault a stacked colony and
+ * instead parks the unit beside it (the 0x46 arm, raw 89011-89029, gated on
+ * `local_ea` = "LAB_52aa was reached for some neighbour"). That arm is ported
+ * (ai_euro_20e6_border_park_arm) and does not help here: the land-arms branch
+ * of ai_euro_move_scoring_gate is never entered in golden_woi_ref01 at all
+ * (460 gate calls → 284 FOUND-goal courses, 176 early returns, 0 wander
+ * steps), and with this stand-in disabled the REF still leaves one surviving
+ * colony and never latches the endgame. What actually makes the DOS REF break
+ * a 2+-defender colony is not visible in the static read and needs a DOSBox-X
+ * trace; until then this stand-in stays.
  *
  * Behaviour: prefer
  * lower effective defense / non-fortified / weaker colony fort / non-veteran.
@@ -18685,7 +19039,15 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_land_hunt_scout(struct ai_euro_act
           if (!u->active) {
             return AI_EURO_ACT_RETURN;
           }
-          if (!ai_euro_has_useful_goto(u, ctx->map)) {
+          /*
+           * An idle-roam step (`s_euro_roam_wander`, the 20e6 scorer's own
+           * one-tile LAB_589e commit) is not a course: since bugs.md #525 the
+           * gate's wander step lands on the real +0x314c/d/e, so without this
+           * clause the scorer's coin-flip neighbour always beat this arm.
+           */
+          const int roam_step =
+            u->id >= 0 && u->id < COLONIZE_UNITS_MAX && s_euro_roam_wander[u->id];
+          if (!ai_euro_has_useful_goto(u, ctx->map) || roam_step) {
             ai_euro_set_goto(u, UNITS_ORDER_AI_MOVE, tx, ty);
           } else if (ai_euro_is_artillery_name(uname)) {
             /* Artillery: planning rarely sets MILITARY; gate FOUND must not stick. */
@@ -18915,10 +19277,12 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_land_fortify(struct ai_euro_act_ct
             break;
           }
         }
-        /* raw 89011-89031 sets +0x314b = 0x46 outright — no garrison-quota
+        /* raw 89011-89029 sets +0x314b = 0x46 outright — no garrison-quota
          * accounting anywhere in the arm, so no quota gate here either. The
          * colony's quota is still spent so the other quota readers see the
-         * garrison. bugs.md #512. */
+         * garrison. (The rest of that DOS arm — local_ea, the chain-alone test
+         * and the foreign-settlement neighbour scan — is a different trigger
+         * and lives in ai_euro_20e6_border_park_arm.) bugs.md #512. */
         if (!keep_mil && units_order_fortify(ctx->units, u->id)) {
           ColonizeColony* cm = colonies_get_mut(ctx->colonies, cid);
           if (cm && cm->garrison_quota > 0) {
@@ -19009,25 +19373,18 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_land_goal_consume(struct ai_euro_a
   const char* const uname = a->uname;
   int wagon_hauled = a->wagon_hauled;
 
-  int goal_x = u->goto_x;
-  int goal_y = u->goto_y;
-  int goal_code = -1;
+  /*
+   * FUN_521d_0a60 goal-consumption tail, structurally ported (see
+   * ai_euro_0a60_goal_orders_structural above): runs once per nation per turn
+   * and commits its pick into the unit's own +0x314c/+0x314d/e (bugs.md
+   * #525). `ai_euro_unit_act` captures it before the 20e6 gate can overwrite
+   * the byte with a 0x0c wander commit; the concrete AI_GOAL_* code has no
+   * DOS byte at all and is re-read from the goal table at the goal tile.
+   */
+  int goal_x = (a->goal_code >= 0) ? a->goal_x : u->goto_x;
+  int goal_y = (a->goal_code >= 0) ? a->goal_y : u->goto_y;
+  int goal_code = a->goal_code;
   {
-    /*
-     * FUN_521d_0a60 goal-consumption tail, structurally ported (see
-     * ai_euro_0a60_goal_orders_structural above / euro_goal_orders_0a60_
-     * full.md "Structural pilot port"): runs once per nation per turn,
-     * scores every matching primary-goal slot in one real single-pass
-     * scan (no soldier-first/founder-first two-phase hack), commits the
-     * pick into the shadow state below. Read it back here.
-     */
-    const Ai0a60UnitState* st = &s_0a60_pilot_state[u->id];
-    if (st->act_state == 0xb) {
-      goal_x = st->goal_x;
-      goal_y = st->goal_y;
-      goal_code = st->goal_code;
-    }
-
     /*
      * A "threatened-Stockade LABOR override" stood here until 2026-09-18: a
      * war-threat proximity scan that re-aimed a Free Colonist at any own
@@ -19360,7 +19717,32 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_land_goal_dispatch(struct ai_euro_
       }
       const int tx = u->x + dx;
       const int ty = u->y + dy;
-      const int foe = units_id_at(ctx->units, tx, ty);
+      /* Same best-defender rule as the step scorer above: a berthed hull on
+       * the tile must not read as "empty" (FUN_5fef_0000 / FUN_465b_0000). */
+      int foe = units_best_defender_at(
+        ctx->units, ctx->col1_ok ? ctx->col1 : NULL, tx, ty, u->id, u->id
+      );
+      if (foe < 0) {
+        foe = units_id_at(ctx->units, tx, ty);
+      }
+      /*
+       * Only a FOREIGN occupant makes the step a fight. FUN_465b_0000 reaches
+       * its combat tail only when the destination's owner nibble differs from
+       * the mover's nation (raw 75417ff); a tile holding one of our own units
+       * is an ordinary stacking move. The raw `units_id_at` fallback above has
+       * no nation filter, so a second REF column standing on the step tile was
+       * handed to ai_euro_try_attack — which returns without acting on an
+       * own-nation target — and this loop broke every turn: the whole assault
+       * column froze two tiles short of the colony (bugs.md #521). The step
+       * scorer's own copy of this fallback (ai_euro_score_move) already
+       * filtered on nation; this one did not.
+       */
+      if (foe >= 0) {
+        const ColonizeUnit* fu = units_get_const(ctx->units, foe);
+        if (!fu || fu->nation_id == u->nation_id) {
+          foe = -1;
+        }
+      }
       if (foe >= 0) {
         ai_euro_try_attack(ctx, u, tx, ty);
         break;
@@ -19570,6 +19952,21 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
   int is_goto = units_orders_follow_goto(u->orders);
 
   /*
+   * The unit's 0a60 binding (+0x314c == 0x0b, target +0x314d/e), read BEFORE
+   * FUN_521d_20e6 runs: its wander commit (LAB_589e) overwrites the byte with
+   * 0x0c and the one-step target, and this port's act-level LABOR / MILITARY /
+   * CONTACT arms — which DOS does not have, it consumes a goal only through
+   * FUN_479b_0972's walk — still need the goal the unit was bound to.
+   * bugs.md #525/#526.
+   */
+  int bound_goal_code = -1;
+  int bound_goal_x = u->goto_x;
+  int bound_goal_y = u->goto_y;
+  if (u->orders == AI_EURO_ACT_GOAL) {
+    bound_goal_code = ai_goals_primary_code_at(nation_id, u->goto_x, u->goto_y);
+  }
+
+  /*
    * FUN_521d_20e6 epilogue roam-abort (unit+0x314c==5 cleared the moment a
    * met foreign unit is adjacent, forcing a re-decide next call — see
    * move_scoring_20e6_full.md "Epilogue / commit block", line ~2213-2275).
@@ -19669,8 +20066,30 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
     const int defer_gate =
       ai_euro_is_treasure_name(gate_name) || ai_euro_is_missionary_name(gate_name) ||
       ai_euro_type_is_wagon_name(gate_name) || ai_euro_is_cargo_ship_name(gate_name);
-    if (!defer_gate && ai_euro_move_scoring_gate(ctx, u, nation_id)) {
-      return;
+    if (!defer_gate) {
+      const int gate_r = ai_euro_move_scoring_gate(ctx, u, nation_id);
+      /*
+       * LAB_521d_5a78 tail, raw 90399-90404 — runs on every 20e6 exit:
+       *   if (act_state == 10 || act_state == 0) { order_code = 0x30; act_state = 5; }
+       * act_state 10 is FUN_521d_0a60's "a foreign unit or settlement stands on
+       * one of my eight neighbours" marker (raw 87566-87568, its only writer in
+       * the whole game). It is a one-call transient: 20e6 admits it at the entry
+       * bail (raw 88404-88406, `< 10` fails), treats it exactly like the
+       * courseless states 0/5/6 at the pre-4d2e gate (raw 90210-90214) so the
+       * unit free-scores its eight neighbours instead of pathing, and then
+       * demotes it here to 5 ("idle, re-evaluate next call") with order code '0'.
+       * It is never a goal state: 0a60's goal walk hands out goals only at
+       * 0/5/6 (raw 88164) and FUN_521d_5b66 dispatches one only at 0x0b
+       * (raw 90552), so a unit standing next to a foreign colony is deliberately
+       * unbound from its goal by DOS as well. (bugs.md #521 lead a.)
+       */
+      if (u->orders == AI_EURO_ACT_ADJACENT || u->orders == UNITS_ORDER_NONE) {
+        u->col1_ai_plan = 0x30;             /* +0x314b = '0' */
+        u->orders = UNITS_ORDER_FORTIFY;    /* +0x314c = 5 */
+      }
+      if (gate_r) {
+        return;
+      }
     }
   }
 
@@ -19678,8 +20097,10 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
    * No quota-0 "admit garrison as colonist" arm here. FUN_521d_20e6 has no
    * join-colony outcome at all: its complete +0x314b vocabulary over the whole
    * body (raw 88266-89800) is 0x39/0x3d/0x40/0x42/0x46/0x47/0x4c/0x56/0x65 —
-   * 0x46 = fortify (the 'F' arm, raw 89011-89031, which takes every attack>1
-   * non-ship type on an own colony tile and spends no garrison quota) and
+   * 0x46 = the LAB_4d2e tail's park arm (raw 89011-89029, ported as
+   * ai_euro_20e6_border_park_arm: every attack>1 non-ship type that is alone
+   * in its chain and stands next to a settlement of ANOTHER nation stays put;
+   * it has no own-colony test and spends no garrison quota) and
    * 0x4c = enter village (raw 89068). Absorbing a unit into a colony as a
    * colonist is FUN_5952_035e's colony-tick arm (ai_euro_5952_absorb_equip),
    * not a unit act. The garrison_quota == 0 admit that used to sit here cited
@@ -19692,6 +20113,9 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
   a.u = u;
   a.nation_id = nation_id;
   a.is_ship = is_ship;
+  a.goal_code = bound_goal_code;
+  a.goal_x = bound_goal_x;
+  a.goal_y = bound_goal_y;
 
   /* FUN_5952_035e's absorption + equip arms are NOT a unit act: they run in
    * the colony tick (ai_euro_5952_absorb_equip), re-hosted 2026-09-18. */
@@ -19738,7 +20162,7 @@ static void ai_euro_dispatcher_turn_reset(ColonizeTurnContext* ctx) {
    * state — real gameplay only ever has one live unit pool, so this is a
    * safety/test-hygiene fix, not a behavior change within a real game.
    */
-  memset(s_0a60_pilot_state, 0, sizeof(s_0a60_pilot_state));
+
   /* FUN_521d_0a60 entry: memset(0xa13c,0,16) — per-continent explorer count
    * read by FUN_521d_20e6's explorer cap (s_20e6_explorers). */
   memset(s_20e6_explorers, 0, sizeof(s_20e6_explorers));
@@ -19796,8 +20220,8 @@ static void ai_euro_dispatcher_turn_plan(ColonizeTurnContext* ctx, int nation_id
       }
     }
   }
-  /* FUN_521d_0a60 goal-consumption tail (structural port) — picks each
-   * idle unit's next goal into the s_0a60_pilot_state shadow; consumed by
+  /* FUN_521d_0a60 goal-consumption tail (structural port) — stamps each idle
+   * unit's next goal into its own +0x314b/c/d/e; consumed by
    * ai_euro_unit_act below. See the function's header comment for scope. */
   ai_euro_0a60_goal_orders_structural(ctx, nation_id);
 
@@ -20150,7 +20574,7 @@ void ai_euro_reset(void) {
   s_5d04_ctx = NULL;
   s_5d04_nation = -1;
   memset(s_5d04_hire_scratch, 0, sizeof(s_5d04_hire_scratch));
-  memset(s_0a60_pilot_state, 0, sizeof(s_0a60_pilot_state));
+
   memset(s_20e6_explorers, 0, sizeof(s_20e6_explorers));
   memset(s_20e6_explore_fatigue, 0, sizeof(s_20e6_explore_fatigue));
   memset(s_20e6_hop_steps, 0, sizeof(s_20e6_hop_steps));
