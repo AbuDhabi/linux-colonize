@@ -3847,19 +3847,19 @@ int main(void) {
     return 1;
   }
   if (!map_tile_is_high_seas(&map, ship->x, ship->y)) {
-    fprintf(stderr, "starter ship not on eastern high seas (%d,%d)\n", ship->x, ship->y);
+    fprintf(stderr, "starter ship not on high seas (%d,%d)\n", ship->x, ship->y);
     map_free(&map);
     assets_msg_free(&names);
     return 1;
   }
-  /* Western rim: tile to the west should not be high seas. */
-  if (ship->x > 0 && map_tile_is_high_seas(&map, ship->x - 1, ship->y)) {
-    fprintf(
-      stderr,
-      "starter ship not on western rim of eastern high seas (%d,%d)\n",
-      ship->x,
-      ship->y
-    );
+  /*
+   * FUN_48d3_048e ring hunt from the landfall tile: AMER2's @SCENARIO tiles are
+   * themselves High Seas, so the fleet lands on the requested tile exactly (the
+   * e=0 hit), never on some other rim tile the old eastern-half scan preferred.
+   * (bugs.md #487)
+   */
+  if (ship->x != 39 || ship->y != 10) {
+    fprintf(stderr, "starter ship want landfall tile (39,10) got (%d,%d)\n", ship->x, ship->y);
     map_free(&map);
     assets_msg_free(&names);
     return 1;
@@ -3894,7 +3894,7 @@ int main(void) {
     memset(&fr, 0, sizeof(fr));
     fr.type_count = pool.type_count;
     memcpy(fr.types, pool.types, sizeof(pool.types));
-    const int fid = units_spawn_euro_starter_fleet(&fr, 1, 0, ship->x + 1, ship->y, 40, 10);
+    const int fid = units_spawn_euro_starter_fleet(&fr, 1, 0, true, ship->x + 1, ship->y, 40, 10);
     ColonizeUnit* fs = units_get(&fr, fid);
     if (!fs || fs->cargo_count < 2) {
       fprintf(stderr, "French Discoverer fleet missing cargo\n");
@@ -3923,6 +3923,58 @@ int main(void) {
       return 1;
     }
   }
+  /*
+   * FUN_75c2_235c raw 121644-121647: the Discoverer Veteran Soldier is gated on
+   * `bVar1` = this nation's player control byte (0x543f) == 0, i.e. the human.
+   * An AI English nation on Discoverer gets a plain Soldier. (bugs.md #488)
+   */
+  {
+    ColonizeUnitPool aiw;
+    memset(&aiw, 0, sizeof(aiw));
+    aiw.type_count = pool.type_count;
+    memcpy(aiw.types, pool.types, sizeof(pool.types));
+    const int aid = units_spawn_euro_starter_fleet(&aiw, 0, 0, false, ship->x + 2, ship->y, 40, 10);
+    ColonizeUnit* as = units_get(&aiw, aid);
+    if (!as || as->cargo_count < 2) {
+      fprintf(stderr, "AI Discoverer fleet missing cargo\n");
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    const ColonizeUnit* ap0 = units_get_const(&aiw, as->cargo_ids[0]);
+    const ColonizeUnit* ap1 = units_get_const(&aiw, as->cargo_ids[1]);
+    if (!ap0 || !ap1 || ap0->profession != UNITS_JOB_NONE || ap1->profession != UNITS_JOB_NONE) {
+      fprintf(
+        stderr,
+        "AI English Discoverer expected plain skills (got %d,%d)\n",
+        ap0 ? ap0->profession : -1,
+        ap1 ? ap1->profession : -1
+      );
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    /* Spain keeps its Veteran Soldier even as an AI (`|| local_8 == 2`). */
+    ColonizeUnitPool sp;
+    memset(&sp, 0, sizeof(sp));
+    sp.type_count = pool.type_count;
+    memcpy(sp.types, pool.types, sizeof(pool.types));
+    const int spid = units_spawn_euro_starter_fleet(&sp, 2, 3, false, ship->x + 3, ship->y, 47, 61);
+    ColonizeUnit* sps = units_get(&sp, spid);
+    const ColonizeUnit* sp1 = sps && sps->cargo_count >= 2
+                                ? units_get_const(&sp, sps->cargo_ids[1])
+                                : NULL;
+    if (!sp1 || sp1->profession != UNITS_JOB_SOLDIER) {
+      fprintf(
+        stderr,
+        "AI Spain expected Veteran Soldier (got %d)\n",
+        sp1 ? sp1->profession : -1
+      );
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+  }
   /* Conquistador (diff 2) Dutch: plain Pioneer + plain Soldier. */
   {
     ColonizeUnitPool hard;
@@ -3930,7 +3982,7 @@ int main(void) {
     memset(&hard, 0, sizeof(hard));
     hard.type_count = pool.type_count;
     memcpy(hard.types, pool.types, sizeof(pool.types));
-    const int sid = units_spawn_euro_starter_fleet(&hard, 3, 2, ship->x, ship->y, 39, 10);
+    const int sid = units_spawn_euro_starter_fleet(&hard, 3, 2, true, ship->x, ship->y, 39, 10);
     ColonizeUnit* hs = units_get(&hard, sid);
     if (!hs || hs->cargo_count < 2) {
       fprintf(stderr, "Dutch Conquistador fleet missing cargo\n");

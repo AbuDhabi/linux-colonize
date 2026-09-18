@@ -481,9 +481,13 @@ static bool ai_spawn_euro_fleet(
     sx = 228 + nation;
     sy = 228 + nation;
   } else {
+    /*
+     * DOS-LITERAL FUN_48d3_048e/0434 ring hunt from the nation's landfall tile
+     * (see units_new_world_start). Not an eastern-half scan — DOS has none.
+     */
     sx = landfall_x;
     sy = landfall_y;
-    if (!units_find_eastern_high_seas_tile(units, map, landfall_y, &sx, &sy)) {
+    if (!units_spiral_place_hs_near(units, map, landfall_x, landfall_y, nation, &sx, &sy)) {
       return false;
     }
   }
@@ -506,7 +510,7 @@ static bool ai_spawn_euro_fleet(
   }
 
   const int ship_id = units_spawn_euro_starter_fleet(
-    units, nation, difficulty, sx, sy, goto_x, goto_y
+    units, nation, difficulty, false, sx, sy, goto_x, goto_y
   );
   return ship_id >= 0;
 }

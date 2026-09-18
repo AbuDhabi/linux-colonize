@@ -43,3 +43,35 @@ Europe→map place: `48d3_048e` via `2a1f_0262` (Linux
 | Arriving-ship Europe focus | `game_europe_deliver_bound_ships` | Reshape |
 | Landfall delay ticks | Voyage timers / AI goto | Split |
 | Map landfall coords | `map_gen_euro_landfall` | Mapgen |
+
+## Placement chain — full audit 2026-09-17 (bugs.md #487, #489)
+
+Every DOS appearance of a ship coming out of Europe resolves through **one**
+tile source. There is no map-wide scan anywhere in the `48d3` module.
+
+| Step | DOS | Detail |
+|---|---|---|
+| Nation landfall tile | nation record `-0x77c6` / `-0x77c5` | 2 bytes, x then y. Save field `return_from_europe_x/y` (`docs/save_format_map.md`). |
+| Seed (scenario map) | raw 121035 | `@SCENARIO` row for the loaded `.MP` stem: `stem, x0,y0, x1,y1, x2,y2, x3,y3`, one pair per nation. AMER2 = (34,20) (39,10) (47,61) (50,33); all four are class `0x1a` High Seas. No RNG, no difficulty. |
+| Seed (generated map) | `LAB_684c_1b4c` raw 107140-107154 | nation→slot shuffle seeded from the human nation, then per slot `y = (height/5)*(slot+1)` and `x` walked west from `width-2` while the tile is `0x1a`, `+1` (the HS band's western rim). Port: `map_gen.c:1615-1660`, already DOS-literal. |
+| Restamp on departure | `FUN_48d3_007a` raw 77604-77607 | Writes the departing unit's own x,y into the nation tile, then copies it into `+0x314d/+0x314e` of every unit in the stack and sets `+0x315a` = voyage turns (`48d3_0002`). So "nation has no saved exit tile" only exists at new-game time. |
+| New unit in Europe | raw 97805, 99622, 107547, 112448, 114391, 121627 | Purchases, REF/King arrivals, the damaged-hull Europe slot and the new-game fleet all copy the nation tile into the unit's `+0x314d/+0x314e`. No per-unit variation, no difficulty term. |
+| Sail *to* Europe | `FUN_48d3_015e` raw 77636-77728 | Expanding ring around the unit's **current** tile for a `0x1a` tile that is empty or holds our own unit; stores it in `+0x314d/e`, bumps `DS:0x9456[nation]`, sets orders `3` (human) / `0xb` (AI) and `+0x314b = 0x45`. |
+| Arrive *from* Europe | `FUN_48d3_048e` raw 77810-77896 (+ `FUN_48d3_0434` raw 77779) | Expanding ring around `+0x314d/+0x314e`, first tile passing `0434` (on map, class `0x1a`, occupant `< 0` or own nation nibble). Ring radius cap `max(0x853a, 0x853c)`; on total failure the unit is still placed on the saved tile. |
+| Per-turn Atlantic tick | `FUN_48d3_03d0` | Decrements `+0x315a`; at 0 calls `281f_0880` + `08c6` → the `048e` placement. New-game fleets are created with `+0x315a = 0`, so they land on turn 1. |
+| Lane cleanup | `FUN_48d3_064e` | Walks non-ship types out of the lane. |
+
+**Linux**: `units_spiral_place_hs_near` = `048e` + `0434` and is now the only
+placement path (`units_new_world_start`, `ai_spawn_euro_fleet`,
+`game_europe_deliver_bound_ships`, `ai_king` MoW, `ai_euro` Europe exit).
+`units_find_eastern_high_seas_tile` has **no DOS counterpart** and is kept only
+as a *sail-target* helper (trade-route Europe stop, treasure sail target,
+last-resort fallback) — DOS needs no such table because the human steers by hand
+and `015e` accepts whatever High Seas tile the ship happens to reach.
+
+**Open (#489)**: `FUN_75c2_235c` raw 121612-121646 creates all four nations'
+starting fleets at the off-map Europe sentinel `(228+n, 228+n)`
+(`FUN_281f_095c(type, nation, nation-0x1c, nation-0x1c)`) with the ship's orders
+byte 0 and both passengers 1, landfall = the nation tile, voyage counter 0. The
+port instead places the human fleet directly on the landfall tile. Same tile, one
+turn earlier on the map; a player-visible turn-1 restructure, so not changed.

@@ -547,7 +547,10 @@ void units_reset_state(void);
 #define UNITS_EQUIP_TOOLS_MAX 100
 #define UNITS_EQUIP_TOOLS_STEP 20
 
-/* Human starter: Caravel (Dutch Merchantman) on eastern high seas with Pioneer+Soldier. */
+/*
+ * Human starter: Caravel (Dutch Merchantman) with Pioneer+Soldier, placed by the
+ * FUN_48d3_048e ring hunt from the nation's @SCENARIO / mapgen landfall tile.
+ */
 void units_new_world_start(
   ColonizeUnitPool* pool,
   const ColonizeWorldMap* map,
@@ -559,13 +562,17 @@ void units_new_world_start(
 
 /*
  * Spawn European starter fleet (ship + Pioneer + Soldier) at (x,y).
- * Skills from difficulty/nation (Discoverer/Explorer / French Hardy / Spanish Veteran).
- * Returns ship unit id or -1.
+ * FUN_75c2_235c (raw 121612-121647): type 0xd ship (0xe for the Dutch, nation 3),
+ * then type 2 Pioneers, then type 1 Soldiers. Profession overrides: French
+ * (nation 1) Pioneers → @JOB 0x14 Hardy Pioneer; Soldiers → @JOB 0x15 Veteran
+ * Soldier when the nation is Spanish (2) **or** this nation is the human
+ * (`is_human`) on difficulty < 2. Returns ship unit id or -1.
  */
 int units_spawn_euro_starter_fleet(
   ColonizeUnitPool* pool,
   int nation_id,
   int difficulty,
+  bool is_human,
   int x,
   int y,
   int goto_x,
