@@ -5394,8 +5394,13 @@ static int unit_war_transport_threatened_colony(void) {
  */
 
 /*
- * War transport: idle Man-O-War with passenger space prefers threatened own
- * coastal colony water over distant foe sea. Cite: euro_unit_act §2b2.
+ * Idle Man-O-War at war with a spotted foe hull: FUN_521d_0a60's
+ * foreign-ship producer (raw 87577-87586) upserts CONTACT prio 3 on the foe
+ * ship's tile, and the goal tail (raw 88164-88230) binds the MoW to it
+ * (DS:0x523d bit0 = CONTACT is a warship capability). Nothing in DOS sends
+ * it to a threatened own colony instead — the old premise of this test
+ * ("prefer threatened coastal colony", cited to a non-decomp note) went with
+ * bugs.md #527, when 0a60 started binding ships.
  */
 static int unit_mow_war_transport_threatened(void) {
   const int nation = 1;
@@ -5519,17 +5524,11 @@ static int unit_mow_war_transport_threatened(void) {
     return fail("mowtrans mow should remain");
   }
 
-  /* Expect AI_SAIL toward coastal water near (4,4), not distant foe (14,14). */
-  int near_colony = 0;
-  if (mow->orders == UNITS_ORDER_AI_SAIL) {
-    const int gd = abs(mow->goto_x - 4) + abs(mow->goto_y - 4);
-    const int fd = abs(mow->goto_x - 14) + abs(mow->goto_y - 14);
-    near_colony = gd <= 2 && gd < fd;
-  }
-  const int moved_closer =
-    abs(mow->x - 4) + abs(mow->y - 4) < abs(3 - 4) + abs(10 - 4);
-
-  if (!near_colony && !moved_closer) {
+  /* Bound to the foe ship's CONTACT goal (act 0x0b, +0x314d/e = its tile)
+   * and walking it: strictly closer to (14,14) than the spawn (3,10). */
+  const int bound = mow->orders == UNITS_ORDER_AI_SAIL && mow->goto_x == 14 && mow->goto_y == 14;
+  const int walked = abs(mow->x - 14) + abs(mow->y - 14) < abs(3 - 14) + abs(10 - 14);
+  if (!bound || !walked) {
     fprintf(
       stderr,
       "unit_ai_euro_war: mowtrans orders=%d goto=(%d,%d) pos=(%d,%d)\n",
@@ -5540,15 +5539,15 @@ static int unit_mow_war_transport_threatened(void) {
       mow->y
     );
     fx_map_free(&map);
-    return fail("expected Man-O-War sail toward threatened own coastal colony");
+    return fail("expected Man-O-War bound to the spotted foe ship's CONTACT goal");
   }
 
   fx_map_free(&map);
   fprintf(
     stderr,
-    "unit_ai_euro_war: Man-O-War war transport threatened ok (near=%d closer=%d)\n",
-    near_colony,
-    moved_closer
+    "unit_ai_euro_war: Man-O-War bound to foe-ship CONTACT goal ok (pos=%d,%d)\n",
+    mow->x,
+    mow->y
   );
   return 0;
 }

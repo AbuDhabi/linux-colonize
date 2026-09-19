@@ -8046,10 +8046,27 @@ static int ai_euro_0a60_holds_occupied(const ColonizeUnitPool* units, const Colo
   return n;
 }
 
-/* Raw: type_table_5237[unit.type] == unit+0x3150 — "hold completely full". */
+/*
+ * DOS-LITERAL raw 87511-87514: `0x5237[type] == unit+0x3150` — every GOODS
+ * hold in use. +0x3150 is the packed goods-hold count only (bumped by
+ * FUN_15eb_30b8 on a load, decomp 13331); passengers never enter it — the
+ * DOS saves show it 0 on every opening Caravel carrying two colonists
+ * (test-saves-ai/TURN2). So a transport carrying only passengers is never
+ * "full", never gets +0x3148 bits 2/3, and cannot take a FOUND/MIL_EXPAND
+ * goal — which is why DOS's opening ships wander (plan '9', act 0x0c) instead
+ * of walking a goal. Counting passengers here (the pre-2026-09-19 reading)
+ * made those ships FOUND-eligible and was what kept 0a60's ship binding
+ * switched off (bugs.md #527).
+ */
 static int ai_euro_0a60_ship_full(const ColonizeUnitPool* units, const ColonizeUnit* u) {
   const int cap = units_ship_capacity(units, u->id);
-  return cap > 0 && ai_euro_0a60_holds_occupied(units, u) >= cap;
+  int goods = 0;
+  for (int i = 0; i < cap && i < COLONIZE_UNIT_CARGO_MAX; ++i) {
+    if (units_hold_amount(units, u->id, i) > 0) {
+      goods++;
+    }
+  }
+  return cap > 0 && goods >= cap;
 }
 
 static void ai_euro_0a60_unit_housekeeping(ColonizeTurnContext* ctx, int nation_id) {
@@ -8340,20 +8357,14 @@ static void ai_euro_0a60_goal_orders_structural(ColonizeTurnContext* ctx, int na
        * the unit's own stored goal instead of a private mirror the rest of
        * the port never stamped.
        *
-       * LAND ONLY, and that is a port divergence, not DOS: DOS binds ships
-       * here too (a 0x0b hull whose DS:0x523d bit0 is clear — every
-       * transport row 0xa2/0x82 — skips FUN_521d_20e6 outright and just
-       * walks the goal, FUN_521d_5b66 raw 90552-90560). Binding them here
-       * moves every AI transport off its landfall onto this port's own
-       * FOUND/CONTACT goal tiles and loses four of the six real DOS save
-       * pairs in golden_ai_turns — i.e. the ship half of the goal TABLE
-       * (the 0a60 ocean-tile producers) is not faithful enough yet, so the
-       * ship course stays owned by the 20e6 ship band. Open lead; the land
-       * half below is DOS as written.
+       * Ships bind here too, as in DOS (a 0x0b hull whose DS:0x523d bit0 is
+       * clear — every transport row 0xa2/0x82 — skips FUN_521d_20e6 and
+       * just walks the goal, FUN_521d_5b66 raw 90552-90560). Until
+       * 2026-09-19 this was land-only: ai_euro_0a60_ship_full counted
+       * passengers, so every loaded opening transport looked FOUND-eligible
+       * and got pulled off its landfall (bugs.md #527).
        */
-      if (!unit_is_ship) {
-        ai_euro_set_goto(u, AI_EURO_ACT_GOAL, g->x, g->y);
-      }
+      ai_euro_set_goto(u, AI_EURO_ACT_GOAL, g->x, g->y);
       if (g->code != AI_GOAL_MILITARY) {
         weight[best_slot]++; /* claim-count so the same slot isn't over-assigned */
       }
