@@ -94,6 +94,7 @@
 #include "core/popup.h"
 #include "core/popup_msg.h"
 #include "core/reports.h"
+#include "core/reports_names.h"
 #include "core/save_load_dialog.h"
 #include "core/savegame.h"
 #include "core/settings.h"
@@ -969,7 +970,10 @@ static void game_apply_setview(ColonizeGameState* game, int view_id, const char*
     game->col1.head.show_entire_map = (uint16_t)(view_id == -2 ? 0 : 1);
   }
   if (view_id == -2) {
-    set_status(game, "No special view", NULL);
+    /* DEBUG.TXT @SETVIEW row 6 ("No Special View") — `label` is already the
+     * live catalog row text from cheat_list_open_setview; literal kept as
+     * fallback for missing/empty label (no data dir). */
+    set_status(game, (label && label[0]) ? label : "No special view", NULL);
   } else if (label && label[0]) {
     set_status(game, "View", label);
   } else {
@@ -1069,9 +1073,23 @@ static void game_open_cheat_create_unit(ColonizeGameState* game) {
     ids[i] = i;
   }
   game->cheat_create_stage = 0;
-  if (!cheat_list_open_create_unit(
-        &game->cheat_list, "Select Unit To Create", k_cheat_create_main_labels, ids, 14
-      )) {
+  /* DEBUG.TXT @CREATE row 0 (prompt) + rows 1-14 (option labels); the
+   * k_cheat_create_main_labels literals stay the per-row fallback. */
+  char prompt_buf[1][CHEAT_LIST_LABEL_LEN];
+  const char* k_prompt_fallback[1] = {"Select Unit To Create"};
+  cheat_list_catalog_rows(
+    game->debug_txt_ok ? &game->debug_txt : NULL, "CREATE", 0, k_prompt_fallback, prompt_buf, 1
+  );
+  char label_buf[14][CHEAT_LIST_LABEL_LEN];
+  cheat_list_catalog_rows(
+    game->debug_txt_ok ? &game->debug_txt : NULL, "CREATE", 1, k_cheat_create_main_labels,
+    label_buf, 14
+  );
+  const char* labels[14];
+  for (int i = 0; i < 14; ++i) {
+    labels[i] = label_buf[i];
+  }
+  if (!cheat_list_open_create_unit(&game->cheat_list, prompt_buf[0], labels, ids, 14)) {
     set_status(game, "Create Unit unavailable", NULL);
   }
 }
@@ -1140,8 +1158,22 @@ static void game_apply_cheat_create_unit(ColonizeGameState* game, int id) {
     game->cheat_create_pending_nation = id;
     game->cheat_create_stage = 3;
     static int ids2[2] = {0, 1};
+    /* DEBUG.TXT @FOREIGN2 row 0 (prompt) + rows 1-2 (option labels); the
+     * k_cheat_create_foreign_labels literals stay the per-row fallback. */
+    char foreign2_prompt_buf[1][CHEAT_LIST_LABEL_LEN];
+    const char* k_foreign2_prompt_fallback[1] = {"Select Type to Create"};
+    cheat_list_catalog_rows(
+      game->debug_txt_ok ? &game->debug_txt : NULL, "FOREIGN2", 0, k_foreign2_prompt_fallback,
+      foreign2_prompt_buf, 1
+    );
+    char foreign2_label_buf[2][CHEAT_LIST_LABEL_LEN];
+    cheat_list_catalog_rows(
+      game->debug_txt_ok ? &game->debug_txt : NULL, "FOREIGN2", 1, k_cheat_create_foreign_labels,
+      foreign2_label_buf, 2
+    );
+    const char* foreign2_labels[2] = {foreign2_label_buf[0], foreign2_label_buf[1]};
     if (!cheat_list_open_create_unit(
-          &game->cheat_list, "Select Type to Create", k_cheat_create_foreign_labels, ids2, 2
+          &game->cheat_list, foreign2_prompt_buf[0], foreign2_labels, ids2, 2
         )) {
       game->cheat_create_stage = 0;
       set_status(game, "Create Unit unavailable", NULL);
@@ -1178,9 +1210,25 @@ static void game_apply_cheat_create_unit(ColonizeGameState* game, int id) {
     /* Ship: follow up with @CSHIP. */
     game->cheat_create_stage = 1;
     static int ids3[6] = {0, 1, 2, 3, 4, 5};
-    if (!cheat_list_open_create_unit(
-          &game->cheat_list, "Select Ship To Create", k_cheat_create_ship_labels, ids3, 6
-        )) {
+    /* DEBUG.TXT @CSHIP row 0 (prompt) + rows 1-6 (option labels); the
+     * k_cheat_create_ship_labels literals stay the per-row fallback (also
+     * still used as the units_find_type key below, unchanged). */
+    char cship_prompt_buf[1][CHEAT_LIST_LABEL_LEN];
+    const char* k_cship_prompt_fallback[1] = {"Select Ship To Create"};
+    cheat_list_catalog_rows(
+      game->debug_txt_ok ? &game->debug_txt : NULL, "CSHIP", 0, k_cship_prompt_fallback,
+      cship_prompt_buf, 1
+    );
+    char ship_label_buf[6][CHEAT_LIST_LABEL_LEN];
+    cheat_list_catalog_rows(
+      game->debug_txt_ok ? &game->debug_txt : NULL, "CSHIP", 1, k_cheat_create_ship_labels,
+      ship_label_buf, 6
+    );
+    const char* ship_labels[6];
+    for (int i = 0; i < 6; ++i) {
+      ship_labels[i] = ship_label_buf[i];
+    }
+    if (!cheat_list_open_create_unit(&game->cheat_list, cship_prompt_buf[0], ship_labels, ids3, 6)) {
       game->cheat_create_stage = 0;
       set_status(game, "Create Unit unavailable", NULL);
     }
@@ -1195,8 +1243,16 @@ static void game_apply_cheat_create_unit(ColonizeGameState* game, int id) {
     for (int i = 0; i < 4; ++i) {
       nat_labels[i] = reports_nation_adjective_display_name(i);
     }
+    /* DEBUG.TXT @FOREIGN row 0 (prompt); option labels above are already
+     * live (NAMES.TXT), see comment. */
+    char foreign_prompt_buf[1][CHEAT_LIST_LABEL_LEN];
+    const char* k_foreign_prompt_fallback[1] = {"Select Nationality To Create"};
+    cheat_list_catalog_rows(
+      game->debug_txt_ok ? &game->debug_txt : NULL, "FOREIGN", 0, k_foreign_prompt_fallback,
+      foreign_prompt_buf, 1
+    );
     if (!cheat_list_open_create_unit(
-          &game->cheat_list, "Select Nationality To Create", nat_labels, ids4, 4
+          &game->cheat_list, foreign_prompt_buf[0], nat_labels, ids4, 4
         )) {
       game->cheat_create_stage = 0;
       set_status(game, "Create Unit unavailable", NULL);
@@ -1360,7 +1416,16 @@ static void game_open_cheat_sound_test(ColonizeGameState* game) {
   if (!game) {
     return;
   }
-  howmuch_open(&game->howmuch, HOWMUCH_KIND_SOUND_TEST, "Play what sound #?", 255, 0, 0, 0);
+  howmuch_open(
+    &game->howmuch,
+    HOWMUCH_KIND_SOUND_TEST,
+    "Play what sound #?",
+    howmuch_amount_label(&game->debug_txt, "SOUND", "Sound:"),
+    255,
+    0,
+    0,
+    0
+  );
 }
 
 /* Nation's Europe port name — the Europe-stop row label (DOS DS:-0x7c74 table). */
@@ -4472,6 +4537,12 @@ static void game_create_load_text_assets(ColonizeGameState* game, const Colonize
     diag_warn("Map right panel assets incomplete");
   }
 
+  /* Colonizopedia list chrome (header, "(Exit)", category names) reads
+   * LABELS.TXT / MENU.TXT through this bind — see pedia_set_chrome_catalogs. */
+  pedia_set_chrome_catalogs(
+    game->labels_ok ? &game->labels : NULL, &game->map_menu_txt
+  );
+
   char names_txt[512];
   if (dos_compat_normalize_asset_path(game->resolved_data_dir, "NAMES.TXT", names_txt, sizeof(names_txt))) {
     if (assets_msg_load_file(&game->names, names_txt)) {
@@ -5708,7 +5779,12 @@ bool game_foreign_trade_open(
         break;
       }
       /* Cancel row text = DS:0x2dfa = LABELS @MISC[32] ((0x2dfa-0x2dba)/2). */
-      snprintf(labels_buf[rows], sizeof(labels_buf[rows]), "Nothing");
+      {
+        const char* nothing_live = reports_labels_field("MISC", 32);
+        snprintf(
+          labels_buf[rows], sizeof(labels_buf[rows]), "%s", nothing_live ? nothing_live : "Nothing"
+        );
+      }
       labels[rows] = labels_buf[rows];
       ids[rows] = 99; /* raw 98957: id 99 = cancel */
       rows++;
@@ -7303,7 +7379,16 @@ static bool game_colony_drag_drop(
             sizeof(prompt)
           );
           game->howmuch_move_dst_unit_id = dst;
-          howmuch_open(&game->howmuch, HOWMUCH_KIND_MOVE, prompt, max_amt, max_amt, ctype, hold);
+          howmuch_open(
+            &game->howmuch,
+            HOWMUCH_KIND_MOVE,
+            prompt,
+            howmuch_amount_label(&game->messages, "HOWMUCH3", "Amount:"),
+            max_amt,
+            max_amt,
+            ctype,
+            hold
+          );
         }
         game_ui_drag_clear(game);
         return true;
@@ -7362,7 +7447,16 @@ static bool game_colony_drag_drop(
             &game->messages, "HOWMUCH2", &tok, "How much should be unloaded?", prompt,
             sizeof(prompt)
           );
-          howmuch_open(&game->howmuch, HOWMUCH_KIND_UNLOAD, prompt, max_amt, max_amt, ctype, hold);
+          howmuch_open(
+            &game->howmuch,
+            HOWMUCH_KIND_UNLOAD,
+            prompt,
+            howmuch_amount_label(&game->messages, "HOWMUCH2", "Amount:"),
+            max_amt,
+            max_amt,
+            ctype,
+            hold
+          );
         }
         game_ui_drag_clear(game);
         return true;
@@ -7519,7 +7613,16 @@ static bool game_europe_drag_drop(ColonizeGameState* game, int mx, int my, bool 
           popup_msg_fill(
             &game->messages, "HOWMUCH5", &tok, "How much to sell?", prompt, sizeof(prompt)
           );
-          howmuch_open(&game->howmuch, HOWMUCH_KIND_SELL, prompt, max_amt, max_amt, ctype, hold);
+          howmuch_open(
+            &game->howmuch,
+            HOWMUCH_KIND_SELL,
+            prompt,
+            howmuch_amount_label(&game->messages, "HOWMUCH5", "Amount:"),
+            max_amt,
+            max_amt,
+            ctype,
+            hold
+          );
         }
       } else if (eu->selected_harbor >= 0) {
         europe_sell_hold(eu, &game->col1, game->human_nation, eu->selected_harbor, drag->index);
@@ -10192,7 +10295,16 @@ void game_colony_open_load_prompt(
   popup_msg_fill(
     &game->messages, "HOWMUCH1", &tok, "How much should be loaded?", prompt, sizeof(prompt)
   );
-  howmuch_open(&game->howmuch, HOWMUCH_KIND_LOAD, prompt, max_amt, max_amt, cargo, 0);
+  howmuch_open(
+    &game->howmuch,
+    HOWMUCH_KIND_LOAD,
+    prompt,
+    howmuch_amount_label(&game->messages, "HOWMUCH1", "Amount:"),
+    max_amt,
+    max_amt,
+    cargo,
+    0
+  );
 }
 
 /*
@@ -10221,7 +10333,16 @@ void game_europe_open_buy_prompt_for(ColonizeGameState* game, int hidx, int carg
   if (max_amt <= 0) {
     snprintf(eu->status, sizeof(eu->status), "%s", "No empty hold.");
   } else {
-    howmuch_open(&game->howmuch, HOWMUCH_KIND_BUY, prompt, max_amt, max_amt, cargo, 0);
+    howmuch_open(
+      &game->howmuch,
+      HOWMUCH_KIND_BUY,
+      prompt,
+      howmuch_amount_label(&game->messages, "HOWMUCH4", "Amount:"),
+      max_amt,
+      max_amt,
+      cargo,
+      0
+    );
   }
 }
 

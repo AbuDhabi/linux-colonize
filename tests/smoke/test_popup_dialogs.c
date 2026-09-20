@@ -34,7 +34,7 @@ static int case_token_apply(void) {
 
 static int case_howmuch(void) {
   HowmuchDialog hm;
-  if (!howmuch_open(&hm, HOWMUCH_KIND_BUY, "How much?", 100, 50, 3, 0)) {
+  if (!howmuch_open(&hm, HOWMUCH_KIND_BUY, "How much?", NULL, 100, 50, 3, 0)) {
     return fail("howmuch_open");
   }
   ColonizeInputState in;

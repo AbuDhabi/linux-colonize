@@ -22,6 +22,7 @@
 #include "core/europe.h"
 #include "core/founding_fathers.h"
 #include "core/reports.h"
+#include "core/reports_names.h"
 #include "core/unit_chrome.h"
 #include "core/woodcut.h"
 #include "platform/diagnostics.h"
@@ -83,7 +84,8 @@ void turn_format_date(uint16_t year, uint16_t autumn, char* out, size_t out_size
   if (year == 0) {
     year = TURN_START_YEAR;
   }
-  snprintf(out, out_size, "%s %u", autumn ? "Autumn" : "Spring", (unsigned)year);
+  /* NAMES.TXT @SEASONS row 0/1 via reports_season_name. */
+  snprintf(out, out_size, "%s %u", reports_season_name(autumn != 0), (unsigned)year);
 }
 
 void turn_refresh_moves_for_nation_w(
@@ -3067,13 +3069,19 @@ COLONIZE_INTERNAL int turn_year_end_rival_rebels(const ColonizeCol1Save* col1, i
  * when its King grants independence — raw 58598-58603.
  */
 COLONIZE_INTERNAL const char* turn_year_end_independent_name(int nation) {
+  /* Only reached when no NAMES.TXT is loaded (slim test targets, no data
+   * dir) — same fallback-table shape as reports_names.c. */
   static const char* k[COLONIZE_COL1_NATION_COUNT] = {
     "United States of America",
     "Republic of Quebec",
     "Republic of Mexico",
     "Republic of Surinam"
   };
-  return (nation >= 0 && nation < (int)COLONIZE_COL1_NATION_COUNT) ? k[nation] : "";
+  if (nation < 0 || nation >= (int)COLONIZE_COL1_NATION_COUNT) {
+    return "";
+  }
+  const char* live = reports_names_field("INDEPENDENT", nation, 0);
+  return live ? live : k[nation];
 }
 
 /* player[n].country_name (DS 0x5426) with NAMES.TXT @COUNTRY as fallback.

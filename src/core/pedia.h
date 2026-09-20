@@ -101,6 +101,12 @@ typedef struct PediaListHit {
   int entry_index;
 } PediaListHit;
 
+/* Bind LABELS.TXT / MENU.TXT for the list screen's own chrome (header,
+ * "(Exit)" row, category names). Call once after the catalogs load. */
+void pedia_set_chrome_catalogs(
+  const struct ColonizeMsgCatalog* labels, const struct ColonizeMsgCatalog* menu
+);
+
 int pedia_category_count(PediaCategory category);
 const char* pedia_category_label(PediaCategory category);
 

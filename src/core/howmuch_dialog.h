@@ -5,6 +5,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "core/assets.h"
 #include "core/font.h"
 #include "core/popup.h"
 #include "core/ss.h"
@@ -17,6 +18,7 @@
 
 #define HOWMUCH_PROMPT_LEN 240
 #define HOWMUCH_FIELD_LEN 16
+#define HOWMUCH_LABEL_LEN 32
 
 typedef enum HowmuchKind {
   HOWMUCH_KIND_NONE = 0,
@@ -34,6 +36,10 @@ typedef struct HowmuchDialog {
   int max_amount;
   int amount;
   char prompt[HOWMUCH_PROMPT_LEN];
+  /* The entry-field caption under the prompt. DOS keeps it in the same
+   * GAME.TXT / DEBUG.TXT section as the prompt, as the section's last line:
+   * "Amount:" for @HOWMUCH1..5, "Sound:" for DEBUG.TXT @SOUND. */
+  char amount_label[HOWMUCH_LABEL_LEN];
   char field[HOWMUCH_FIELD_LEN];
   bool field_selected; /* next digit replaces */
 
@@ -52,10 +58,23 @@ typedef struct HowmuchDialog {
 
 void howmuch_init(HowmuchDialog* dlg);
 
+/*
+ * The entry-field caption of `section`: its last stored line, skipping the
+ * lowercase @directive lines assets_msg_load_file keeps as content. Returns
+ * `fallback` when the catalog or section is missing (tests, no data dir).
+ * Static return buffer: use or copy it before the next call.
+ */
+const char* howmuch_amount_label(
+  const ColonizeMsgCatalog* catalog,
+  const char* section,
+  const char* fallback
+);
+
 bool howmuch_open(
   HowmuchDialog* dlg,
   HowmuchKind kind,
   const char* prompt,
+  const char* amount_label,
   int max_amount,
   int initial_amount,
   int cargo,

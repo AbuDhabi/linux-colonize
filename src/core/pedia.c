@@ -162,6 +162,26 @@ static const int k_job_icons[PEDIA_JOB_COUNT] = {
   109  /* Convert → Brave-ish */
 };
 
+/*
+ * LABELS.TXT and MENU.TXT, bound once by the screen owner (game_loop) the way
+ * europe_set_labels binds Europe's. The list screen's own chrome — its header,
+ * its "(Exit)" row and the category names — is DOS text like everything else,
+ * but pedia_list_render / pedia_category_label are called from places that
+ * carry no catalog argument, so they read it from here. NULL = fall back to
+ * the built-in literals (tests, missing data dir).
+ */
+static const ColonizeMsgCatalog* g_pedia_labels_txt = NULL;
+static const ColonizeMsgCatalog* g_pedia_menu_txt = NULL;
+
+static const char* pedia_label(const ColonizeMsgCatalog* labels, int idx, const char* fallback);
+
+void pedia_set_chrome_catalogs(
+  const ColonizeMsgCatalog* labels, const ColonizeMsgCatalog* menu
+) {
+  g_pedia_labels_txt = labels;
+  g_pedia_menu_txt = menu;
+}
+
 int pedia_category_count(PediaCategory category) {
   if (category < 0 || category >= PEDIA_CAT_COUNT) {
     return 0;
@@ -169,9 +189,36 @@ int pedia_category_count(PediaCategory category) {
   return k_category_counts[category];
 }
 
+/*
+ * MENU.TXT @PEDIA is the live source of these seven rows: the section opens
+ * with the "~COLONIZOPEDIA" menu title and carries one "---" separator
+ * between Terrain Types and Colonist Skills, so the n-th category is the
+ * n-th row once the title, the separator and the @END marker are skipped.
+ * k_category_labels stays the fallback (tests, missing data dir).
+ */
 const char* pedia_category_label(PediaCategory category) {
+  const ColonizeMsgCatalog* menu = g_pedia_menu_txt;
   if (category < 0 || category >= PEDIA_CAT_COUNT) {
     return "Colonizopedia";
+  }
+  static char live[PEDIA_CAT_COUNT][40];
+  const ColonizeMsgSection* sec = menu ? assets_msg_find(menu, "PEDIA") : NULL;
+  if (sec) {
+    int cat = 0;
+    for (int i = 0; i < sec->line_count; ++i) {
+      const char* line = sec->lines[i];
+      if (!line || line[0] == '\0' || line[0] == '@' || line[0] == '~') {
+        continue;
+      }
+      if (strncmp(line, "---", 3) == 0) {
+        continue;
+      }
+      if (cat == (int)category) {
+        str_copy_trunc(live[category], sizeof(live[category]), line);
+        return live[category];
+      }
+      cat++;
+    }
   }
   return k_category_labels[category];
 }
@@ -463,7 +510,15 @@ bool pedia_page(
 
   if (category == PEDIA_CAT_MISC) {
     if (index >= 0 && index < PEDIA_MISC_COUNT) {
-      snprintf(out->title, sizeof(out->title), "%s", k_misc_titles[index]);
+      /* PEDIA.TXT @MISCELLANEOUS line 0 is the count; titles follow (same
+       * live-catalog check as pedia_article_render below, ~line 1835). */
+      const ColonizeMsgSection* misc =
+        pedia ? assets_msg_find(pedia, "MISCELLANEOUS") : NULL;
+      if (misc && index + 1 < misc->line_count) {
+        snprintf(out->title, sizeof(out->title), "%s", misc->lines[index + 1]);
+      } else {
+        snprintf(out->title, sizeof(out->title), "%s", k_misc_titles[index]);
+      }
       const char* src = k_misc_bodies[index];
       out->body_line_count = 0;
       while (*src && out->body_line_count < PEDIA_BODY_MAX_LINES) {
@@ -609,7 +664,9 @@ static void pedia_list_exit_rect(
   int* out_w,
   int* out_h
 ) {
-  const int tw = font_text_width_skip(font, PEDIA_LIST_EXIT, FONT_SKIP_NONE);
+  /* LABELS.TXT @MISC row 110 — the same live text the row draws, so the
+   * hit-rect and the caption can never disagree. */
+  const int tw = font_text_width_skip(font, pedia_label(g_pedia_labels_txt, 110, PEDIA_LIST_EXIT), FONT_SKIP_NONE);
   const int line_h = pedia_list_line_h(font);
   if (out_w) {
     *out_w = tw + 4;
@@ -677,11 +734,17 @@ void pedia_list_render(
     pik_blit(wood_bg, framebuffer, 0, 0);
   }
 
-  font_draw_text(font, framebuffer, 8, 4, PEDIA_LIST_HEADER, PEDIA_COL_HEADER);
+  /* LABELS.TXT @MISC row 108 (header) / 110 ("(Exit)") — row 108 was already
+   * live on the article page (pedia_article_render). */
+  font_draw_text(
+    font, framebuffer, 8, 4, pedia_label(g_pedia_labels_txt, 108, PEDIA_LIST_HEADER), PEDIA_COL_HEADER
+  );
 
   int ex, ey, ew, eh;
   pedia_list_exit_rect(font, framebuffer->width, &ex, &ey, &ew, &eh);
-  font_draw_text(font, framebuffer, ex, ey, PEDIA_LIST_EXIT, PEDIA_COL_LINK);
+  font_draw_text(
+    font, framebuffer, ex, ey, pedia_label(g_pedia_labels_txt, 110, PEDIA_LIST_EXIT), PEDIA_COL_LINK
+  );
 
   const int count = pedia_list_slot_count(category);
   for (int i = 0; i < count; ++i) {

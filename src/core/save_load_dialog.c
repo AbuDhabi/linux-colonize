@@ -69,7 +69,7 @@ static void save_load_format_label(
     diff,
     leader,
     reports_nation_adjective_display_name(info->human_nation),
-    info->autumn ? "Autumn" : "Spring",
+    reports_season_name(info->autumn != 0),
     (unsigned)info->year
   );
 }

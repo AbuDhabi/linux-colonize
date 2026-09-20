@@ -4,6 +4,8 @@
 #include <string.h>
 
 #include "core/colony.h"
+#include "core/reports.h"
+#include "core/reports_names.h"
 #include "core/ui_colors.h"
 #include "core/unit_chrome.h"
 #include "platform/diagnostics.h"
@@ -107,6 +109,18 @@ static void combat_analysis_push_row_icon(
 }
 
 /*
+ * NAMES.TXT @LEVELS column 1 (verified COLONIZE/NAMES.TXT rows 0-4: "Camp",
+ * "Village", "City", "City", "Capital" — row 4's tech column is "<Any>",
+ * i.e. the capital override rather than a fifth tech tier). No existing
+ * accessor reads this column (reports_tribe_level reads column 0, the tech
+ * name); `row` here is 0-3 for the tech-indexed noun, or 4 for "Capital".
+ */
+static const char* combat_analysis_village_noun(int row, const char* fallback) {
+  const char* live = reports_names_field("LEVELS", row, 1);
+  return live ? live : fallback;
+}
+
+/*
  * Modifier rows only (FUN_636c_0000 flag walk, DOS check order). Labels match
  * the LABELS.TXT Combat Analysis block.
  *
@@ -155,8 +169,10 @@ static void combat_analysis_fill_mods(
    * the g_units_revere_muskets_latch feeds this flag — see docs/combat.md.
    */
   if (flags->flags & COMBAT_FLAG_MUSKETS) {
+    /* NAMES.TXT @CARGO row 15 "Muskets" (0-based; Food=0 .. Muskets=15). */
     combat_analysis_push_row_icon(
-      rows, count, "Muskets", 1, COMBAT_ROW_ICON_UNIT, COMBAT_ANALYSIS_MUSKETS_ICON, -1, 8
+      rows, count, reports_cargo_display_name(15), 1, COMBAT_ROW_ICON_UNIT,
+      COMBAT_ANALYSIS_MUSKETS_ICON, -1, 8
     );
     if (*count > 0) {
       /* Bare "+1": this row has no FUN_281f_010a, so no trailing '%'. */
@@ -164,11 +180,13 @@ static void combat_analysis_fill_mods(
     }
   }
   if (flags->flags & COMBAT_FLAG_VETERAN) {
-    combat_analysis_push_row(rows, count, "Veteran", 50);
+    /* LABELS.TXT @MISC row 65 "Veteran". */
+    combat_analysis_push_row(rows, count, reports_misc_display_word(65, "Veteran"), 50);
   }
   if (flags->flags & COMBAT_FLAG_HOLDS) {
     const int pct = flags->holds_occupied > 0 ? (flags->holds_occupied * 100) >> 3 : 0;
-    combat_analysis_push_row(rows, count, "Cargo", -pct);
+    /* LABELS.TXT @MISC row 62 "Cargo". */
+    combat_analysis_push_row(rows, count, reports_misc_display_word(62, "Cargo"), -pct);
   }
   /*
    * DOS 636c fatigue rows — bit 0x100 (asm 636c:02ff, value 0x21 = 33) and
@@ -180,11 +198,12 @@ static void combat_analysis_fill_mods(
    * strength calc models the @HALF penalty: 2 thirds left = x2/3, 1 = x1/3.
    * Attacker side only — a defender is never charged for being tired.
    */
+  /* LABELS.TXT @MISC row 76 "Fatigue" (both thirds-left rows share it). */
   if (flags->flags & COMBAT_FLAG_FATIGUE_33) {
-    combat_analysis_push_row(rows, count, "Fatigue", -33);
+    combat_analysis_push_row(rows, count, reports_misc_display_word(76, "Fatigue"), -33);
   }
   if (flags->flags2 & COMBAT_FLAG_FATIGUE_66) {
-    combat_analysis_push_row(rows, count, "Fatigue", -66);
+    combat_analysis_push_row(rows, count, reports_misc_display_word(76, "Fatigue"), -66);
   }
   /*
    * LABELS line 92 "Attack Bonus" (DS:0x2e54), value +50%. DOS FUN_636c_0000
@@ -197,14 +216,17 @@ static void combat_analysis_fill_mods(
    * domains; its is-ship flags bVar9/bVar10 gate other clauses, not this one).
    */
   if (attack_bonus) {
-    combat_analysis_push_row(rows, count, "Attack Bonus", 50);
+    /* LABELS.TXT @MISC row 77 "Attack Bonus". */
+    combat_analysis_push_row(rows, count, reports_misc_display_word(77, "Attack Bonus"), 50);
   }
   /* bugs.md #242: DOS 636c bit 0x8000 label ptr DS:0x2e8a = @MISC 104
    * "Bombard" (the WoI colony-attack support bonus), not "Expeditionary
    * Force" (@MISC 91, the Congress force row). */
   if (flags->flags & COMBAT_FLAG_REF) {
+    /* LABELS.TXT @MISC row 104 "Bombard". */
     combat_analysis_push_row_icon(
-      rows, count, "Bombard", 50, COMBAT_ROW_ICON_UNIT, flags->bombard_icon, -1, 0x10
+      rows, count, reports_misc_display_word(104, "Bombard"), 50, COMBAT_ROW_ICON_UNIT,
+      flags->bombard_icon, -1, 0x10
     );
   }
   /*
@@ -215,10 +237,15 @@ static void combat_analysis_fill_mods(
    * lines 147 / 148 = "Tory Unrest" / "Rebel Unrest". The port used to print
    * "Tories" / "Rebels" (lines 101 / 102), which 636c never reads.
    */
+  /* LABELS.TXT @MISC row 132 "Tory Unrest" / row 133 "Rebel Unrest". */
   if (flags->flags2 & COMBAT_FLAG_TORIES) {
-    combat_analysis_push_row(rows, count, "Tory Unrest", flags->sol_percent);
+    combat_analysis_push_row(
+      rows, count, reports_misc_display_word(132, "Tory Unrest"), flags->sol_percent
+    );
   } else if (flags->flags2 & COMBAT_FLAG_REBELS) {
-    combat_analysis_push_row(rows, count, "Rebel Unrest", flags->sol_percent);
+    combat_analysis_push_row(
+      rows, count, reports_misc_display_word(133, "Rebel Unrest"), flags->sol_percent
+    );
   }
   /*
    * DOS 0x2e56/0x2e58: attacker terrain line reads "Ambush", defender
@@ -226,10 +253,13 @@ static void combat_analysis_fill_mods(
    * (FUN_281f_033a → FUN_1baa_0006, asm 636c:08c4-0921) and indents by 0x11.
    */
   if (flags->flags & COMBAT_FLAG_TERRAIN) {
+    /* LABELS.TXT @MISC row 78 "Ambush" (attacker) / row 79 "Terrain" (defender). */
     combat_analysis_push_row_icon(
       rows,
       count,
-      is_attacker ? "Ambush" : "Terrain",
+      is_attacker
+        ? reports_misc_display_word(78, "Ambush")
+        : reports_misc_display_word(79, "Terrain"),
       flags->terrain_byte * 25,
       COMBAT_ROW_ICON_TERRAIN,
       flags->terrain_sprite,
@@ -247,7 +277,6 @@ static void combat_analysis_fill_mods(
    * its own +150% tier instead of collapsing into Stockade's +100%.
    */
   if (flags->flags & COMBAT_FLAG_COLONY) {
-    static const char* k_fort_tier_names[4] = {"Colony", "Stockade", "Fort", "Fortress"};
     int tier = flags->fort_tier;
     if (tier < 0) {
       tier = 0;
@@ -255,10 +284,16 @@ static void combat_analysis_fill_mods(
     if (tier > 3) {
       tier = 3;
     }
+    /* Tier 0: LABELS.TXT @MISC row 80 "Colony" (no fortification built yet).
+     * Tiers 1-3: NAMES.TXT @BUILDING rows 0-2 (Stockade/Fort/Fortress) via
+     * the existing live-backed accessor. */
+    const char* tier_label = tier == 0
+      ? reports_misc_display_word(80, "Colony")
+      : reports_fort_tier_name(tier - 1);
     combat_analysis_push_row_icon(
       rows,
       count,
-      k_fort_tier_names[tier],
+      tier_label,
       (tier + 1) * 50,
       COMBAT_ROW_ICON_SETTLEMENT,
       flags->colony_icon,
@@ -274,8 +309,15 @@ static void combat_analysis_fill_mods(
    */
   if (flags->flags & COMBAT_FLAG_VILLAGE) {
     const bool capital = (flags->flags2 & COMBAT_FLAG_VILLAGE_CAPITAL) != 0;
-    const char* label = capital ? "Capital"
-      : (flags->village_n > 1 ? "City" : (flags->village_n == 1 ? "Village" : "Camp"));
+    /* NAMES.TXT @LEVELS column 1: rows 0-3 Camp/Village/City/City by tech,
+     * row 4 "Capital" override. */
+    const char* label = capital
+      ? combat_analysis_village_noun(4, "Capital")
+      : (flags->village_n > 1
+          ? combat_analysis_village_noun(2, "City")
+          : (flags->village_n == 1
+              ? combat_analysis_village_noun(1, "Village")
+              : combat_analysis_village_noun(0, "Camp")));
     int pct = flags->village_n > 1 ? 100 : 50;
     if (capital) {
       pct *= 2;
@@ -292,19 +334,28 @@ static void combat_analysis_fill_mods(
     );
   }
   if (flags->flags & COMBAT_FLAG_ARTILLERY) {
-    combat_analysis_push_row(rows, count, "Artillery In Open", -75);
+    /* LABELS.TXT @MISC row 84 "Artillery In Open". */
+    combat_analysis_push_row(
+      rows, count, reports_misc_display_word(84, "Artillery In Open"), -75
+    );
   }
   if (flags->flags2 & COMBAT_FLAG_ARTY_COLONY) {
-    combat_analysis_push_row(rows, count, "Artillery Vs. Raid", 100);
+    /* LABELS.TXT @MISC row 129 "Artillery Vs. Raid". */
+    combat_analysis_push_row(
+      rows, count, reports_misc_display_word(129, "Artillery Vs. Raid"), 100
+    );
   }
   if (flags->flags & COMBAT_FLAG_FORTIFY) {
-    combat_analysis_push_row(rows, count, "Fortified", 50);
+    /* LABELS.TXT @MISC row 81 "Fortified". */
+    combat_analysis_push_row(rows, count, reports_misc_display_word(81, "Fortified"), 50);
   }
   if (flags->flags & COMBAT_FLAG_AMBUSH) {
-    combat_analysis_push_row(rows, count, "Spain Bonus", 50);
+    /* LABELS.TXT @MISC row 82 "Spain Bonus". */
+    combat_analysis_push_row(rows, count, reports_misc_display_word(82, "Spain Bonus"), 50);
   }
   if (flags->flags_hi & COMBAT_FLAG_DRAKE) {
-    combat_analysis_push_row(rows, count, "Drake", 50);
+    /* LABELS.TXT @MISC row 90 "Drake". */
+    combat_analysis_push_row(rows, count, reports_misc_display_word(90, "Drake"), 50);
   }
 }
 

@@ -380,10 +380,24 @@ int europe_purchase_price(const char* type_name) {
   return 0;
 }
 
+/*
+ * NAMES.TXT @UNIT row per purchase slot — the display name the list draws.
+ * The literals in k_purchase_opts stay the price-lookup keys (and the
+ * fallback when no catalog is loaded); only the shown text is live, so a
+ * renamed unit in a modded NAMES.TXT shows through here the way DOS's own
+ * list does.
+ */
+static const int k_purchase_unit_rows[] = {11, 13, 14, 15, 16, 17};
+
 void europe_init_purchase_table(EuropeScreen* eu) {
   eu->purchase_count = 0;
   for (int i = 0; i < k_purchase_opt_count && eu->purchase_count < EUROPE_PURCHASE_MAX; ++i) {
-    eu->purchase[eu->purchase_count++] = k_purchase_opts[i];
+    EuropePurchaseOption* slot = &eu->purchase[eu->purchase_count++];
+    *slot = k_purchase_opts[i];
+    const char* live = reports_names_field("UNIT", k_purchase_unit_rows[i], 0);
+    if (live && live[0]) {
+      str_copy_trunc(slot->name, sizeof(slot->name), live);
+    }
   }
 }
 

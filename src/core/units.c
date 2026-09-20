@@ -1204,13 +1204,34 @@ int units_king_galleon_offer_coastal_treasures_w(
       "a %d%% share.",
       units_king_galleon_share_pct(col1, nation_id)
     );
+    const char* galleon_section = cortes ? "KINGGALLEON3" : "KINGGALLEON2";
     if (game_txt) {
-      popup_msg_fill(game_txt, cortes ? "KINGGALLEON3" : "KINGGALLEON2", &tok, fb, body, sizeof(body));
+      popup_msg_fill(game_txt, galleon_section, &tok, fb, body, sizeof(body));
     } else {
       snprintf(body, sizeof(body), "%s", fb);
     }
-    const char* choices[2] = {"Very well, and let the Crown claim its rightful share.",
-                              "No, I would sooner kiss your royal pinky ring."};
+    /* GAME.TXT @KINGGALLEON2/@KINGGALLEON3 choice lines (same pair in both
+     * sections); the catalog spells the second "sooner {kiss} your" —
+     * braces kept (renderer/plain-sink convention), same as the ai_king.c /
+     * ai_contact.c popup_msg_choices callers. */
+    char raw_choices[AI_POPUP_CHOICE_MAX][AI_POPUP_CHOICE_LEN];
+    char c0[AI_POPUP_CHOICE_LEN];
+    char c1[AI_POPUP_CHOICE_LEN];
+    const ColonizeMsgSection* galleon_sec =
+      game_txt ? assets_msg_find(game_txt, galleon_section) : NULL;
+    const int galleon_nch =
+      galleon_sec ? popup_msg_choices(galleon_sec, raw_choices, AI_POPUP_CHOICE_MAX) : 0;
+    popup_msg_apply_tokens(
+      c0, sizeof(c0),
+      galleon_nch >= 2 ? raw_choices[0] : "Very well, and let the Crown claim its rightful share.",
+      NULL
+    );
+    popup_msg_apply_tokens(
+      c1, sizeof(c1),
+      galleon_nch >= 2 ? raw_choices[1] : "No, I would sooner {kiss} your royal pinky ring.",
+      NULL
+    );
+    const char* choices[2] = {c0, c1};
     const int cids[2] = {1, 0};
     (void)ai_popup_enqueue_choice_ctx(
       popups, AI_POPUP_TAG_KING_GALLEON, nation_id, -1, ids[i], NULL, body, choices, cids, 2
@@ -2531,14 +2552,24 @@ static const char* units_combat_nation_label(const ColonizeCol1Save* col1, int n
      * the proper adjective is "Tory" ("Tory Cavalry"), not the peer nation
      * whose slot it wears and not "Royal". */
     if (nation_id == unit_chrome_crown_nation()) {
-      return "Tory";
+      /* LABELS.TXT @MISC row 70. Own static buffer (not
+       * reports_misc_display_word's shared one): a Tory-vs-Rebels combat
+       * fills tok.string0/string1 from two calls into this function before
+       * either is read, and a shared buffer would alias them both to
+       * whichever word resolved last. */
+      static char tory_buf[32];
+      str_copy_trunc(tory_buf, sizeof(tory_buf), reports_misc_display_word(70, "Tory"));
+      return tory_buf;
     }
-    /* bugs.md #239: under the WoI the player faction is "Rebels" (LABELS 101),
-     * never "United Colonies" or the old country name. */
+    /* bugs.md #239: under the WoI the player faction is "Rebels" (LABELS.TXT
+     * @MISC row 86), never "United Colonies" or the old country name. */
     if (col1 && col1->head.game_options.woi &&
         (col1->player[nation_id].control == 0 ||
          nation_id == g_units_combat_human_nation)) {
-      return "Rebels";
+      /* LABELS.TXT @MISC row 86. Own static buffer, same aliasing reason. */
+      static char rebels_buf[32];
+      str_copy_trunc(rebels_buf, sizeof(rebels_buf), reports_misc_display_word(86, "Rebels"));
+      return rebels_buf;
     }
     /*
      * bugs.md ("New Spain Privateer" should be "Spanish Privateer"): DOS
@@ -2604,7 +2635,8 @@ static const char* units_combat_place_label(
       return best->name;
     }
   }
-  return "Wilderness";
+  /* LABELS.TXT @MISC row 17. */
+  return reports_misc_display_word(17, "Wilderness");
 }
 
 static const char* units_combat_unit_label(
@@ -2626,10 +2658,13 @@ static const char* units_combat_unit_label(
  * with type_index ≥ 7 (Cont. Cav.+) use "defeats" (FUN_5fef_1b0e).
  */
 static const char* units_combat_defeat_verb(int subject_is_nation_only, int unit_type_index) {
+  /* LABELS.TXT @MISC rows 73 / 74. */
   if (subject_is_nation_only) {
-    return "defeat";
+    return reports_misc_display_word(73, "defeat");
   }
-  return (unit_type_index >= 0 && unit_type_index < 7) ? "defeat" : "defeats";
+  return (unit_type_index >= 0 && unit_type_index < 7)
+    ? reports_misc_display_word(73, "defeat")
+    : reports_misc_display_word(74, "defeats");
 }
 
 static void units_combat_enqueue_tok(
@@ -4230,9 +4265,8 @@ static void units_combat_outcome_popups(
         );
       } else {
         /* @INDIANLOSE: {nation unit} {defeat} {tribe} near {place}!
-         * LABELS defeat/defeats — unit subjects type_index ≥7 use "defeats". */
-        tok.string4 =
-          (def_u->type_index >= 0 && def_u->type_index < 7) ? "defeat" : "defeats";
+         * LABELS.TXT @MISC rows 73/74 — unit subjects type_index ≥7 use "defeats". */
+        tok.string4 = units_combat_defeat_verb(0, def_u->type_index);
         units_combat_enqueue_tok(
           AI_POPUP_TAG_COMBAT_AMBUSH,
           "INDIANLOSE",
@@ -6344,9 +6378,11 @@ static bool units_fort_vs_ship(
     if (defense > eng.def_flags.base_combat) {
       eng.def_flags.flags_hi |= COMBAT_FLAG_DRAKE;
     }
+    /* NAMES.TXT @BUILDING tier 1 ("Fort"): only caller always passes its own
+     * fort_label, this is the defensive default for a NULL/empty one. */
     snprintf(
       eng.atk_label, sizeof(eng.atk_label), "%s",
-      atk_label && atk_label[0] ? atk_label : "Fort"
+      atk_label && atk_label[0] ? atk_label : reports_fort_tier_name(1)
     );
     units_combat_maybe_present_analysis(col1, &eng, fort_nation, def->nation_id);
   }
@@ -6597,10 +6633,15 @@ void units_ship_slow_scan_w(
       int drain = 0;
       if (fortress >= 0 && col->has_building[fortress]) {
         drain = 50;
-        bname = "Fortress";
+        /* Live @BUILDING name (NAMES.TXT), literal fallback if unset. */
+        bname = colonies->building_types[fortress].name[0]
+          ? colonies->building_types[fortress].name
+          : "Fortress";
       } else if (fort >= 0 && col->has_building[fort]) {
         drain = 2;
-        bname = "Fort";
+        bname = colonies->building_types[fort].name[0]
+          ? colonies->building_types[fort].name
+          : "Fort";
       }
       if (drain > 0) {
         u->moves -= drain;
@@ -6727,9 +6768,16 @@ int units_coastal_fort_fire_pulse_w(
       const int fortress = colonies_find_building(colonies, "Fortress");
       const int is_fortress = fortress >= 0 && fortress < COLONIZE_BUILDING_TYPES_MAX &&
         col->has_building[fortress];
+      /* Live @BUILDING name (NAMES.TXT), literal fallback if unset. */
+      const int fort = colonies_find_building(colonies, "Fort");
+      const char* bname = is_fortress
+        ? (colonies->building_types[fortress].name[0] ? colonies->building_types[fortress].name
+                                                        : "Fortress")
+        : (fort >= 0 && colonies->building_types[fort].name[0] ? colonies->building_types[fort].name
+                                                                 : "Fort");
       snprintf(
         fort_label, sizeof(fort_label), "%s %s",
-        col->name[0] ? col->name : "Colony", is_fortress ? "Fortress" : "Fort"
+        col->name[0] ? col->name : "Colony", bname
       );
     }
     for (int d = 0; d < 8; ++d) {
@@ -6777,7 +6825,13 @@ int units_coastal_fort_fire_pulse_w(
           const int fortress = colonies_find_building(colonies, "Fortress");
           const int is_fortress = fortress >= 0 && fortress < COLONIZE_BUILDING_TYPES_MAX &&
             col->has_building[fortress];
-          tok.string0 = is_fortress ? "Fortress" : "Fort";
+          /* Live @BUILDING name (NAMES.TXT), literal fallback if unset. */
+          const int fort = colonies_find_building(colonies, "Fort");
+          tok.string0 = is_fortress
+            ? (colonies->building_types[fortress].name[0] ? colonies->building_types[fortress].name
+                                                            : "Fortress")
+            : (fort >= 0 && colonies->building_types[fort].name[0] ? colonies->building_types[fort].name
+                                                                     : "Fort");
           tok.string1 = col->name[0] ? col->name : "the colony";
           tok.string2 = units_combat_nation_label(col1, ship_nation);
           tok.string3 = ship_type && ship_type->name[0] ? ship_type->name : "ship";

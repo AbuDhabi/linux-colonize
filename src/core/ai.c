@@ -336,7 +336,11 @@ static bool ai_setup_col1_template(const AiNewGameParams* p, char* err, size_t e
   const int human = p->human_nation;
   for (int i = 0; i < (int)COLONIZE_COL1_NATION_COUNT; ++i) {
     const char* leader = (i == human) ? p->leader_name : k_default_leaders[i];
-    ai_set_nation_identity(p->col1, i, i == human ? 0 : 1, leader, k_new_country[i]);
+    /* NAMES.TXT @COLONYNAME rows 0-3 (New England/France/Spain/Netherlands);
+       k_new_country[] is the fallback when the names catalog is absent. */
+    const char* country_name =
+      assets_msg_line_or(p->names, "COLONYNAME", i, k_new_country[i]);
+    ai_set_nation_identity(p->col1, i, i == human ? 0 : 1, leader, country_name);
     p->col1->head.nation_relation[i] = -1;
     p->col1->nation[i].gold = (i == human) ? ai_starting_gold(p->difficulty) : 0u;
     p->col1->nation[i].current_crosses = 0u;

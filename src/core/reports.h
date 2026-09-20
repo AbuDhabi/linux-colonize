@@ -140,6 +140,10 @@ const char* reports_home_port_name(int nation);
 const char* reports_difficulty_title(int level);
 const char* reports_tribe_singular_name(int t);
 const char* reports_fort_tier_name(int tier);
+
+/* NAMES.TXT @SEASONS row 0/1 — the "Spring"/"Autumn" word DOS prints in the
+ * save rows, the report headers and the turn banner. */
+const char* reports_season_name(bool autumn);
 const char* reports_brave_ladder_name(int rank);
 const char* reports_dock_type_name(int dos_type);
 

@@ -2126,9 +2126,20 @@ static void reports_render_colony_sol(
     reports_draw_line(font, fb, REPORTS_COLONY_PCT_X, row_top, line, REPORTS_COLONY_LABEL_COLOR);
 
     /* Printing Press/Newspaper — 2-bit tier bitfield, same popcount
-     * convention as fortification; Newspaper implies Press. */
+     * convention as fortification; Newspaper implies Press. NAMES.TXT
+     * @BUILDING col 0: row 20 "Newspaper", row 19 "Printing Press". */
     const unsigned press_bits = c->buildings.printing_press;
-    const char* press_label = (press_bits & 2u) ? "Newspaper" : ((press_bits & 1u) ? "Press" : NULL);
+    const char* press_label = NULL;
+    if (press_bits & 2u) {
+      const char* live = reports_names_field("BUILDING", 20, 0);
+      press_label = live ? live : "Newspaper";
+    } else if (press_bits & 1u) {
+      /* NOT @BUILDING row 19 ("Printing Press"): this column is 153px in and
+       * the port has always drawn the short form here. No catalog row for the
+       * abbreviation was found, so it stays a literal rather than an invented
+       * source (docs/conventions.md evidence hierarchy). */
+      press_label = "Press";
+    }
     if (press_label) {
       reports_draw_line(font, fb, REPORTS_COLONY_BUILDING_X, row_top, press_label, REPORTS_COLONY_LABEL_COLOR);
     }
@@ -2263,15 +2274,14 @@ static int reports_naval_goods_icon(int cargo_type, int amount) {
 static const char* reports_naval_passenger_label(int profession, const char* base_name) {
   switch (profession) {
     case UNITS_JOB_PIONEER:
-      return "Hardy Pioneers";
     case UNITS_JOB_SOLDIER:
-      return "Veteran Soldiers";
     case UNITS_JOB_SCOUT:
-      return "Seasoned Scouts";
     case UNITS_JOB_DRAGOON:
-      return "Veteran Dragoons";
     case UNITS_JOB_MISSIONARY:
-      return "Jesuit Missionaries";
+      /* NAMES.TXT @JOB col 1 expert name, live via reports_job_name (rows
+       * UNITS_JOB_PIONEER(20)..UNITS_JOB_MISSIONARY(24) match @JOB row
+       * index); literals above were this same table hardcoded. */
+      return reports_job_name(profession);
     default:
       return (base_name && base_name[0]) ? base_name : "Colonists";
   }
@@ -2361,6 +2371,8 @@ static int reports_naval_build_rows(
    * already-resolved harbor/expected/bound lists by the same shape as the
    * on-mapboard loop above. */
   if (europe) {
+    /* LABELS.TXT @MISC row 60 "High Seas". */
+    const char* high_seas = reports_misc_display_word(60, "High Seas");
     struct {
       const EuropeHarborShip* list;
       int count;
@@ -2368,8 +2380,8 @@ static int reports_naval_build_rows(
       const char* dest;
     } lanes[3] = {
       {europe->harbor, europe->harbor_ships, europe->port_city, ""},
-      {europe->expected, europe->expected_ships, "High Seas", europe->port_city},
-      {europe->bound, europe->bound_ships, "High Seas", europe->colony_region},
+      {europe->expected, europe->expected_ships, high_seas, europe->port_city},
+      {europe->bound, europe->bound_ships, high_seas, europe->colony_region},
     };
     for (int lane = 0; lane < 3; ++lane) {
       for (int i = 0; i < lanes[lane].count && n < max_rows; ++i) {
@@ -3741,7 +3753,7 @@ static void reports_render_score(
       diff_name,
       leader,
       nation_adj,
-      col1->head.autumn ? "Autumn" : "Spring",
+      reports_season_name(col1->head.autumn), /* NAMES.TXT @SEASONS rows 0/1 */
       sc.year
     );
   } else {
@@ -3887,7 +3899,7 @@ static void reports_render_score(
       sizeof(lines[0]),
       "%s (%s %d):  +%d",
       reports_misc_word(142, "Early Revolution", w1, sizeof(w1)),
-      col1->head.autumn ? "Autumn" : "Spring",
+      reports_season_name(col1->head.autumn), /* NAMES.TXT @SEASONS rows 0/1 */
       sc.year,
       sc.early_revolution_pts
     );

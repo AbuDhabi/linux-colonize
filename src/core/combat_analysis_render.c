@@ -13,6 +13,7 @@
 #include "core/colony.h"
 #include "core/font.h"
 #include "core/popup.h"
+#include "core/reports.h"
 #include "core/ss.h"
 #include "core/ui_colors.h"
 #include "core/unit_chrome.h"
@@ -153,7 +154,8 @@ void combat_analysis_render(
     return;
   }
 
-  const char* title = "COMBAT ANALYSIS";
+  /* LABELS.TXT @MISC row 75 "COMBAT ANALYSIS". */
+  const char* title = reports_misc_display_word(75, "COMBAT ANALYSIS");
   const int tw = font_text_width(font, title);
   popup_draw_text_shadowed(
     font, framebuffer, ix + (iw - tw) / 2, iy + 3, title, text_color

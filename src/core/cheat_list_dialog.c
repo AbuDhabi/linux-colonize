@@ -35,6 +35,53 @@ static bool cheat_list_is_directive(const char* line) {
   return line && line[0] == '@';
 }
 
+/*
+ * Live-catalog row loader shared by the CHEAT Create Unit list stages
+ * (DEBUG.TXT @CREATE / @CSHIP / @FOREIGN / @FOREIGN2). Same "live wins,
+ * literal fallback" shape as cheat_list_open_setview, but returns plain
+ * strings for a caller that builds its own labels[]/ids[] pair rather than
+ * opening the dialog directly. Counts non-directive, non-blank rows (blank
+ * lines are already dropped by assets_msg_load_file); `skip_rows` is how
+ * many of those rows to skip before copying `count` of them into `out[]`
+ * (skip_rows=0 count=1 fetches just the section's own prompt row). Missing
+ * catalog/section/row falls back to fallback[i] per row; never mixes live
+ * and fallback text within a single row.
+ */
+bool cheat_list_catalog_rows(
+  const ColonizeMsgCatalog* catalog,
+  const char* section_name,
+  int skip_rows,
+  const char* const* fallback,
+  char out[][CHEAT_LIST_LABEL_LEN],
+  int count
+) {
+  if (!out || count <= 0) {
+    return false;
+  }
+  for (int i = 0; i < count; ++i) {
+    str_copy_trunc(out[i], CHEAT_LIST_LABEL_LEN, fallback ? fallback[i] : "");
+  }
+  const ColonizeMsgSection* section = catalog ? assets_msg_find(catalog, section_name) : NULL;
+  if (!section) {
+    return false;
+  }
+  int row = 0;
+  int filled = 0;
+  for (int i = 0; i < section->line_count && filled < count; ++i) {
+    const char* line = section->lines[i];
+    if (!line || line[0] == '\0' || cheat_list_is_directive(line)) {
+      continue;
+    }
+    if (row < skip_rows) {
+      row++;
+      continue;
+    }
+    str_copy_trunc(out[filled], CHEAT_LIST_LABEL_LEN, line);
+    filled++;
+    row++;
+  }
+  return true;
+}
 
 bool cheat_list_open_setview(CheatListDialog* dlg, const ColonizeMsgCatalog* debug_txt) {
   if (!dlg) {
