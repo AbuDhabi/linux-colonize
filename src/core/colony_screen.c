@@ -1996,6 +1996,31 @@ static int colony_screen_category_sprite(
 }
 
 /*
+ * bugs.md #536: DOS-LITERAL anchor for the fortification's outside-unit
+ * strip. FUN_2f2b_14d4 (raw 48255) calls the strip drawer
+ * thunk_FUN_291f_0564 -> FUN_2f2b_11b2 (raw 47883) with
+ * x = *(char*)(param_4+0x23c) + slot_x, y = *(char*)(param_4+0x242) +
+ * slot_y, where param_4 is the slot's size CLASS (not the built sprite).
+ * DS:0x23c/0x242 are two more 5-entry (class 0..4) byte tables sitting
+ * right after the already-recovered DS:0x230 width / 0x236 height class
+ * boxes (file offset 121248+addr, per docs/conventions.md's DS->EXE rule);
+ * dumped from VICEROY.EXE: {3,20,25,5,0} / {12,8,22,5,0}. The fortification
+ * slot is always size class 3 (k_building_slots[COLONY_CAT_FORTIFICATION]),
+ * so the real anchor offset is (+5,+5) from the slot's top-left corner —
+ * fixed regardless of which tier (fence/stockade/fort/fortress) occupies
+ * it, because the class (hence the offset) never changes across tiers.
+ * The port previously anchored at (+0,+0) *and* resized the whole strip
+ * box to the actual built sprite's pixel dimensions, so the row visibly
+ * shifted as the garrison was upgraded — neither behaviour exists in DOS,
+ * which always uses the fixed class box (73x18) and the fixed class
+ * offset.
+ */
+enum {
+  COLONY_FENCE_UNIT_OFFSET_X = 5, /* DS:0x23c[class 3] */
+  COLONY_FENCE_UNIT_OFFSET_Y = 5  /* DS:0x242[class 3] */
+};
+
+/*
  * Screen rectangle of the fortification slot (DOS category 0, always drawn),
  * which the outside-unit strip sits on. xs/ys come from
  * colony_screen_assign_slot_positions_ex.
@@ -2011,18 +2036,13 @@ static void colony_screen_fence_rect(
   int* out_w,
   int* out_h
 ) {
-  *out_x = COLONY_VIEWPORT_X + xs[COLONY_CAT_FORTIFICATION];
-  *out_y = COLONY_VIEWPORT_Y + ys[COLONY_CAT_FORTIFICATION];
+  (void)view;
+  (void)pool;
+  (void)colony;
+  *out_x = COLONY_VIEWPORT_X + xs[COLONY_CAT_FORTIFICATION] + COLONY_FENCE_UNIT_OFFSET_X;
+  *out_y = COLONY_VIEWPORT_Y + ys[COLONY_CAT_FORTIFICATION] + COLONY_FENCE_UNIT_OFFSET_Y;
   *out_w = COLONY_FENCE_W;
   *out_h = COLONY_FENCE_H;
-  const int sprite = colony_screen_category_sprite(pool, colony, COLONY_CAT_FORTIFICATION);
-  if (view && view->buildings_ok && sprite >= 0 && sprite < view->buildings.sprite_count) {
-    const ColonizeSprite* spr = &view->buildings.sprites[sprite];
-    if (spr && spr->width > 2 && spr->height > 2) {
-      *out_w = spr->width;
-      *out_h = spr->height;
-    }
-  }
 }
 
 static void colony_screen_blit_slot(

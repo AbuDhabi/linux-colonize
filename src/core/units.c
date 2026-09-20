@@ -6618,6 +6618,84 @@ void units_ship_slow_scan_w(
   }
 }
 
+/*
+ * FUN_5bfb_3180 sentry-wake half (decomp 98628-98646) — the third independent
+ * branch of the post-step 8-neighbour scan that 465b's commit tail runs for
+ * EVERY mover, human or AI, once per STEP (the naval half is
+ * units_ship_slow_scan_w above).
+ *
+ * Rule: for each of the 8 neighbours of the mover's destination whose unit
+ * stack belongs to another nation (`local_46 != uVar7`, raw 98521 — there is
+ * NO war/treaty gate and no sight radius; plain adjacency of a foreign unit),
+ * every SENTRY unit in that stack has its order byte cleared
+ * (`*(undefined1 *)(local_44 * 0x1c + 0x314c) = 0`, raw 98640). Only order 1
+ * is touched; Fortify/Fortified stay put (their own wake is FUN_5bfb_12d0,
+ * ai_diplo_wake_border_garrisons).
+ *
+ * Two DOS gates, both literal:
+ *   - domain (raw 98628-98630): the mover must stand on a Euro colony tile
+ *     (`local_34` = FUN_281f_0696(dest) >= 0), OR the neighbour tile must
+ *     carry a settlement (`local_42` = FUN_281f_06be(n) >= 0, rebound to a
+ *     boolean at raw 98591), OR the neighbour's water-ness must equal the
+ *     destination's (`FUN_281f_0768(n) == local_36`). So a ship sailing past
+ *     open coast does not wake the sentries ashore and a land march does not
+ *     wake anchored ships, unless a settlement is involved.
+ *   - aboard (raw 98635-98638): a NON-ship type (outside 0x0d..0x12) standing
+ *     on a water tile is a passenger in a hold and is left asleep.
+ *
+ * DOS writes the order byte only; the port routes through units_wake so the
+ * park_nights MP-refund discriminator stays the single owner of that rule.
+ * bugs.md #539 (REF landfall left the garrison's Sentry units asleep).
+ */
+static void units_sentry_wake_scan(
+  ColonizeUnitPool* pool,
+  const ColonizeWorldMap* map,
+  const ColonizeColonyPool* colonies,
+  int unit_id
+) {
+  ColonizeUnit* u = units_get(pool, unit_id);
+  if (!pool || !map || !u || !u->active || !units_is_on_map(u) || u->nation_id < 0) {
+    return;
+  }
+  const ColonizeCol1Save* col1 = g_units_fallout_col1;
+  const int mover_nation = u->nation_id;
+  const int dest_x = u->x;
+  const int dest_y = u->y;
+  /* local_36 / local_34 (raw 98502-98504). */
+  const bool dest_water = map_tile_is_water(map, dest_x, dest_y);
+  const bool mover_in_colony = colonies && colonies_id_at(colonies, dest_x, dest_y) >= 0;
+  for (int d = 0; d < 8; ++d) {
+    const int nx = dest_x + MAP_DIR8_DX[d];
+    const int ny = dest_y + MAP_DIR8_DY[d];
+    if (nx < 0 || ny < 0 || nx >= map->width || ny >= map->height) {
+      continue;
+    }
+    /* local_44 = FUN_281f_07e0(n) stack head, local_46 = its nation nibble. */
+    const int top = units_id_at(pool, nx, ny);
+    const ColonizeUnit* topu = top >= 0 ? units_get_const(pool, top) : NULL;
+    if (!topu || !topu->active || topu->nation_id < 0 || topu->nation_id == mover_nation) {
+      continue;
+    }
+    const bool nb_settlement =
+      (colonies && colonies_id_at(colonies, nx, ny) >= 0) ||
+      (col1 && col1_save_tribe_at(col1, nx, ny) != NULL);
+    if (!mover_in_colony && !nb_settlement && map_tile_is_water(map, nx, ny) != dest_water) {
+      continue;
+    }
+    int slot = 0;
+    for (ColonizeUnit* f = units_next_on_tile(pool, nx, ny, &slot); f != NULL;
+         f = units_next_on_tile(pool, nx, ny, &slot)) {
+      if (f->orders != UNITS_ORDER_SENTRY) {
+        continue;
+      }
+      if (!units_is_sea(pool, f->id) && map_tile_is_water(map, f->x, f->y)) {
+        continue; /* land unit on water: riding in a hold (raw 98635-98638) */
+      }
+      units_wake(pool, f->id);
+    }
+  }
+}
+
 int units_coastal_fort_fire_pulse_w(
   const ColonizeWorld* w,
   int human_nation,
@@ -6711,6 +6789,18 @@ int units_coastal_fort_fire_pulse_w(
           units_combat_enqueue_tok(
             AI_POPUP_TAG_COMBAT_SHIP, "FORTFIRE", col->nation_id, ship_nation, 0, &tok, fb
           );
+          /*
+           * bugs.md #535: DOS announces and THEN resolves, one fort at a
+           * time - raw 57104-57105 fires the blocking @FORTFIRE dialog
+           * (FUN_281f_0652, tag 0xd7f) and only once it is answered calls
+           * FUN_291f_0a14 (= FUN_5fef_1b0e), which draws the Combat
+           * Analysis and rolls. The port's announcement goes to the
+           * deferred ai_popup queue while the analysis is a nested modal,
+           * so with several forts firing the two channels batched apart.
+           * Pump here, as every other combat site does, so the
+           * announcement is answered before this fort's analysis opens.
+           */
+          units_combat_pump_popups();
         }
         if (units_fort_vs_ship(units, atk, col->nation_id, targets[t], rng, col1, fort_label)) {
           sunk++;
@@ -6718,6 +6808,10 @@ int units_coastal_fort_fire_pulse_w(
             snprintf(status, status_size, "Coastal fort sank a ship.");
           }
         }
+        /* Drain this fort's own outcome chrome (@SHIPSUNK / repair notice)
+         * before the next fort fires - the pump this pulse was missing
+         * (bugs.md #535); units_fort_vs_ship has none of its own. */
+        units_combat_pump_popups();
         /* bugs.md #249: fort loss/miss → nothing happens, no chrome. */
       }
     }
@@ -8381,6 +8475,9 @@ combat_entry_resolved:
   /* FUN_5bfb_3180 naval half: adjacent foreign warship / Fort / Fortress
    * may eat the mover's remaining MP (see units_ship_slow_scan). */
   units_ship_slow_scan_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(pool), .colonies=(ColonizeColonyPool*)(colonies), .map=(ColonizeWorldMap*)(map), .rng=(ColonizeDosRng*)(rng)}, unit_id);
+  /* FUN_5bfb_3180 sentry half: a foreign unit now adjacent wakes that stack's
+   * Sentry units (raw 98628-98646). Runs for every mover, land or sea. */
+  units_sentry_wake_scan(pool, map, colonies, unit_id);
   unit = units_get(pool, unit_id);
   if (g_units_move_watch && units_is_on_map(unit)) {
     g_units_move_watch(

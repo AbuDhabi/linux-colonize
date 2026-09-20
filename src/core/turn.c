@@ -583,6 +583,102 @@ static void turn_emit_built_chrome(
 }
 
 /*
+ * DOS-LITERAL FUN_364b_0688 Phase L construction tools check
+ * (viceroy_unpacked.c raw 57737-57771). After banking this tick's hammers
+ * DOS resolves the current project's cost with `FUN_281f_0ac4(0x281f,
+ * colony+0x94, &local_e)` — return = hammers required, `local_e` = tools
+ * required — and that resolver covers BOTH real buildings and the
+ * unit-type projects (Artillery, Wagon Train, ships). Then:
+ *
+ *   if (colony->hammers >= hammers_need && project >= 0)          [raw 57739]
+ *     if (project is a building already owned) -> @ALREADYHAVE     [raw 57783]
+ *     else if (colony+0xb6 (tools) < local_e) {                    [raw 57748]
+ *       if (nation < 4 && control byte 0x543f == 0)                 human
+ *         if ((*(byte*)0x5384 & 0x10) == 0) {                       report opt
+ *           %STRING1 = project name (FUN_281f_0d4e/0416)
+ *           %NUMBER0 = tools required, %NUMBER1 = tools on hand
+ *           tag = @NEEDTOOLS (DS:0xea1), plus "0" (DS:0xeab) -> @NEEDTOOLS0
+ *           when the colony holds no tools at all
+ *         }
+ *       else colony+0xb6 = local_e;   (AI is handed the tools — not ported)
+ *     }
+ *
+ * No latch: DOS re-runs this every EOT, so the notice repeats each turn the
+ * project stays stalled on tools. It is NOT gated on hammers having been
+ * produced this tick (DOS adds 0 and falls through), which is why this sits
+ * outside turn_produce_one_colony's `hammers_add > 0` block — bugs.md #537,
+ * where an idle-carpenter or BUY-topped colony (and every unit project) went
+ * silent.
+ */
+static void turn_emit_needtools_notice(
+  const ColonizeColonyPool* pool,
+  const ColonizeColony* colony,
+  const ColonizeCol1Save* col1,
+  EuropeScreen* europe,
+  int human_nation,
+  AiPopupState* ai_popups,
+  const ColonizeMsgCatalog* messages
+) {
+  if (!pool || !colony || colony->building_in_production < 0) {
+    return;
+  }
+  if (colony->nation_id != human_nation) {
+    return;
+  }
+  /* Gate !(DS:0x5384 & 0x10). */
+  if (col1 && col1->head.colony_report_options.report_tools_needed_for_production) {
+    return;
+  }
+  const int bip = colony->building_in_production;
+  const char* pname = NULL;
+  int hammers_need = 0;
+  int tools_cost = 0;
+  if (!colonies_unit_build_info(bip, &pname, &hammers_need, &tools_cost)) {
+    const ColonizeBuildingType* bt = colonies_building_type(pool, bip);
+    if (!bt) {
+      return;
+    }
+    /* Already-owned project takes DOS's @ALREADYHAVE arm instead. */
+    if (bip < COLONIZE_BUILDING_TYPES_MAX && colony->has_building[bip]) {
+      return;
+    }
+    pname = bt->name;
+    hammers_need = bt->hammers;
+    tools_cost = bt->tools_cost;
+  }
+  if (hammers_need <= 0 || colony->hammers < hammers_need) {
+    return;
+  }
+  const int tools_have = colony->stock[COLONIZE_CARGO_TOOLS];
+  if (tools_cost <= 0 || tools_have >= tools_cost) {
+    return;
+  }
+  const char* fallback = "Need tools.";
+  if (europe) {
+    snprintf(europe->status, sizeof(europe->status), "Need tools.");
+    fallback = europe->status;
+  }
+  if (!ai_popups) {
+    return;
+  }
+  char body[AI_POPUP_BODY_LEN];
+  PopupMsgTokens tok;
+  memset(&tok, 0, sizeof(tok));
+  tok.string0 = colony->name[0] ? colony->name : "colony";
+  tok.string1 = (pname && pname[0]) ? pname : "building";
+  tok.number0 = tools_cost;
+  tok.has_number0 = true;
+  const char* section = "NEEDTOOLS0";
+  if (tools_have > 0) {
+    section = "NEEDTOOLS";
+    tok.number1 = tools_have;
+    tok.has_number1 = true;
+  }
+  popup_msg_fill(messages, section, &tok, fallback, body, sizeof(body));
+  ai_popup_enqueue_colony_event(ai_popups, colony->id, body);
+}
+
+/*
  * On-the-job learning latch (raw 57595-57605): DOS keeps a DS byte per field
  * job at -0x6bd0, tested for 0 before the roll and bumped on a success, and
  * FUN_4962_0018 (raw 78140) clears that block for a nation at its turn
@@ -1535,38 +1631,6 @@ static void turn_produce_one_colony(
             }
             turn_emit_built_chrome(messages, ai_popups, colony, bname, europe->status);
           }
-        } else if (
-          colony->nation_id == human_nation && europe &&
-          (!col1 || !col1->head.colony_report_options.report_tools_needed_for_production)
-        ) {
-          /* K tools crumb (0x8e76 / 0xe8f); gate !(5384&0x10).
-           * Hammers ready but tools short: @NEEDTOOLS0 (0) / @NEEDTOOLS (some). */
-          const ColonizeBuildingType* bt =
-            (bip >= 0 && bip < pool->building_type_count) ? &pool->building_types[bip] : NULL;
-          const int tools_have = colony->stock[COLONIZE_CARGO_TOOLS];
-          const int tools_cost = bt ? bt->tools_cost : 0;
-          const bool hammers_ready =
-            bt && bt->hammers > 0 && colony->hammers >= bt->hammers;
-          if (hammers_ready && tools_cost > 0 && tools_have < tools_cost) {
-            snprintf(europe->status, sizeof(europe->status), "Need tools.");
-            if (ai_popups) {
-              char body[AI_POPUP_BODY_LEN];
-              PopupMsgTokens tok;
-              memset(&tok, 0, sizeof(tok));
-              tok.string0 = colony->name[0] ? colony->name : "colony";
-              tok.string1 = (bname && bname[0]) ? bname : "building";
-              tok.number0 = tools_cost;
-              tok.has_number0 = true;
-              const char* section = "NEEDTOOLS0";
-              if (tools_have > 0) {
-                section = "NEEDTOOLS";
-                tok.number1 = tools_have;
-                tok.has_number1 = true;
-              }
-              popup_msg_fill(messages, section, &tok, europe->status, body, sizeof(body));
-              ai_popup_enqueue_colony_event(ai_popups, colony->id, body);
-            }
-          }
         }
       }
     } else if (
@@ -1584,6 +1648,13 @@ static void turn_produce_one_colony(
       );
     }
   }
+
+  /*
+   * Phase L construction tools check — outside the `hammers_add > 0` block
+   * above because DOS runs it every EOT, hammers produced or not, and for
+   * unit projects as well as buildings (bugs.md #537).
+   */
+  turn_emit_needtools_notice(pool, colony, col1, europe, human_nation, ai_popups, messages);
 
   /* Phase K demand crumbs (hammers/tools already above): raw / craft empty. */
   if (colony->nation_id == human_nation && europe &&
@@ -2636,10 +2707,13 @@ void turn_run_nation_ticks(ColonizeTurnContext* ctx, ColonizeTurnResult* out) {
         if (ai_king_spend_woi_bell_pool(ctx, n)) {
           founding_fathers_consume_woi_bell_pool(n);
           if (ctx->status && ctx->status_size > 0 && n == ctx->human_nation) {
+            /* bugs.md #538: the bell spend only ANNOUNCES (DOS 0a22 ->
+             * FUN_43f7_1528); the force itself lands from 2022's free drain
+             * on a later turn. */
             snprintf(
               ctx->status,
               ctx->status_size,
-              "Foreign intervention force arrives!"
+              "Foreign intervention force joins the rebellion!"
             );
           }
         }

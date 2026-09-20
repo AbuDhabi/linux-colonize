@@ -3158,11 +3158,25 @@ int colonies_apply_warehouse_spoilage(
     /*
      * DOS reports a loss only for the part of the overflow that was already
      * there *before* this turn's production: `if (production < overflow)`.
-     * Either way the stock ends clamped at capacity, so overflow caused purely
-     * by production is a silent clamp with no @SPOIL message. A reported loss
-     * below 2 tons is also dropped (`if (local_74 < 2) local_74 = 0`).
+     * Overflow caused purely by production is a silent clamp to capacity with
+     * no @SPOIL message. A reported loss below 2 tons is also dropped
+     * (`if (local_74 < 2) local_74 = 0`).
+     *
+     * DOS-LITERAL FUN_364b_0688 raw 57847-57868. The DOS branch test is
+     * `aiStack_e4[c] < overflow`, i.e. (stock_now - before) < (stock_now -
+     * cap), i.e. `before > cap`. In that branch DOS first backs this turn's
+     * production off the stock (`stock -= aiStack_e4[c]`, leaving `before`)
+     * and only then subtracts local_74 — so when local_74 is zeroed by the
+     * `< 2` rule the stock is left at `before`, NOT at cap. A single ton of
+     * pre-existing overflow therefore sits in the warehouse forever: DOS
+     * discards only above capacity, and only 2 tons or more.
      */
     const int before = stock_before ? stock_before[c] : colony->stock[c];
+    if (before <= cap) {
+      /* Overflow is entirely this turn's production: silent clamp. */
+      colony->stock[c] = cap;
+      continue;
+    }
     int lost = before - cap;
     if (lost < 2) {
       lost = 0;
@@ -3174,7 +3188,7 @@ int colonies_apply_warehouse_spoilage(
       types++;
       spoiled += lost;
     }
-    colony->stock[c] = cap;
+    colony->stock[c] = before - lost;
   }
   if (out_type_count) {
     *out_type_count = types;

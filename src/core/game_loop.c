@@ -705,6 +705,16 @@ static void game_combat_dissolve(void* user, int phase) {
   uint8_t pixels[320 * 200];
   ColonizeFramebuffer8 fb = {.width = 320, .height = 200, .pixels = pixels};
   ColonizePalette pal;
+  /*
+   * bugs.md #533: freeze the map blink (DS:0x929c) across BOTH frames. The
+   * outcome enqueues popups between phase 0 and phase 1, which flips
+   * game_map_blink_running() and with it the active unit's blink phase — the
+   * selected unit owns its tile outright (units_top_on_map_tile), so the
+   * attacker was absent from one frame and present in the other and the
+   * LFSR dissolve played on the WINNER's sprite. DOS never toggles 0x929c
+   * inside the 1b0e tail: the map's input loop is the only thing that does.
+   */
+  game->combat_dissolve_freeze = true;
   if (phase == 0) {
     game_render(game, &fb, &pal);
     memcpy(s_before, pixels, sizeof(s_before));
@@ -712,11 +722,13 @@ static void game_combat_dissolve(void* user, int phase) {
     return;
   }
   if (!s_before_ok) {
+    game->combat_dissolve_freeze = false;
     return;
   }
   s_before_ok = false;
   game_render(game, &fb, &pal);
   if (memcmp(s_before, pixels, sizeof(pixels)) == 0) {
+    game->combat_dissolve_freeze = false;
     return;
   }
   memcpy(s_work, s_before, sizeof(s_work));
@@ -752,6 +764,7 @@ static void game_combat_dissolve(void* user, int phase) {
   /* Final frame exact (the batch split leaves a 64000%16 remainder). */
   game_render(game, &fb, &pal);
   platform_present(game->platform, &fb, &pal);
+  game->combat_dissolve_freeze = false;
 }
 
 /*
@@ -13317,6 +13330,10 @@ COLONIZE_INTERNAL void game_render_begin_menu(
  */
 static bool game_map_blink_running(const ColonizeGameState* game) {
   if (!game) {
+    return false;
+  }
+  /* bugs.md #533: fizzle in progress — both dissolve frames must agree. */
+  if (game->combat_dissolve_freeze) {
     return false;
   }
   /* Status line up: FUN_1009_00b4's blocking dwell. */
