@@ -2,6 +2,6 @@
 #define COLONIZE_VERSION_H
 
 /* Bump as the Linux port progresses. Shown on the title-menu dialog. */
-#define COLONIZE_VERSION_STRING "0.5-alpha"
+#define COLONIZE_VERSION_STRING "0.6-alpha"
 
 #endif
