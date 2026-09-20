@@ -117,6 +117,9 @@ void ai_coarse_fog_euro_restamp(
   const ColonizeUnitPool* units, const ColonizeColonyPool* colonies, int nation_id
 );
 
+/* DS:0x9faa explore-index byte == 0 at (x,y): the 20e6 far-probe +8 test. */
+int ai_coarse_fog_explore_unseen(int x, int y);
+
 /* Set when a Brave step of this pulse opened first contact with euro_nation (3180 on the Indian mover). */
 int ai_native_first_contact_this_turn(int nation_id, int euro_nation);
 

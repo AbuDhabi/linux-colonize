@@ -162,6 +162,11 @@ static int ai_coarse_fog_unseen(int x, int y) {
   return s_ai_coarse_fog[ix] == 0;
 }
 
+/* Public read of the +8 far-probe test (FUN_521d_20e6 raw 88837). */
+int ai_coarse_fog_explore_unseen(int x, int y) {
+  return ai_coarse_fog_unseen(x, y);
+}
+
 static uint8_t ai_coarse_fog_explore_byte(int x, int y) {
   const int ix = ai_coarse_fog_explore_index(x, y);
   if (ix < 0 || ix >= AI_COARSE_FOG_SIZE) {
