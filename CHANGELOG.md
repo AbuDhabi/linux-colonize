@@ -3,9 +3,9 @@
 Player-facing changes. Bracketed numbers are [bugs.md](bugs.md) row ids (closed
 rows live in [docs/archive/bugs_closed.md](docs/archive/bugs_closed.md)).
 
-## Unreleased — since 0.5-alpha
+## 0.6-alpha — 2026-09-20
 
-Covers `0.5-alpha` (2026-09-05) to 2026-09-18: 152 commits, ~115 user-reported
+Covers `0.5-alpha` (2026-09-05) to 2026-09-20: 160 commits, ~130 user-reported
 bug rows resolved.
 
 Two themes dominate. First, the rival-European and native AI stopped being an
@@ -71,6 +71,15 @@ a handful of familiar "features" to be gone because they were never real.
 - The build preview no longer shows a hammers restriction that does not exist in
   the original.
 
+- Units standing outside a colony's fence, stockade, fort or fortress are drawn
+  at the original's fixed position instead of shifting down as the fortification
+  is upgraded. [536]
+- "Need tools to finish construction" warnings are back; they had gone silent
+  when the colony produced no hammers that turn, or when the project was a unit
+  (Artillery, Wagon Train, ship) rather than a building. [537]
+- A single ton of pre-existing warehouse overflow now stays in store instead of
+  being silently clamped away, matching the original's rounding.
+
 ### Combat
 
 - Attacking a foreign colony always asks for confirmation, including an
@@ -101,6 +110,14 @@ a handful of familiar "features" to be gone because they were never real.
   fort tier and village-type rows, and the mislabelled "Tories"/"Rebels" rows now
   read "Tory Unrest"/"Rebel Unrest".
 
+- Winning an attack against a Tory stack no longer plays the dissolve death
+  animation on your own attacking unit. [533]
+- When several coastal forts fire in one turn, each fort's announcement and its
+  Combat Analysis resolve one at a time, instead of every announcement arriving
+  first and every analysis afterwards. [535]
+- Sentried land units wake and drop their orders when an enemy moves adjacent;
+  previously they could sleep through a Royal landing beside them. [539]
+
 ### War of Independence
 
 - The King's reinforcements generate Regulars and Cavalry for the correct side.
@@ -125,6 +142,11 @@ a handful of familiar "features" to be gone because they were never real.
   popup rather than a status-bar line.
 - Popups about rival monarchs weighing independence no longer appear absurdly
   early in the game. [424]
+
+- Continental Army mustering happens at the start of the turn after you declare
+  independence, not instantly on the declaration turn. [532]
+- The foreign intervention force no longer lands twice in one turn; the
+  announcement and the arrival are separate events, as in the original. [540]
 
 ### Europe, trade and the Crown
 
@@ -227,6 +249,10 @@ a handful of familiar "features" to be gone because they were never real.
   [520]
 - The Discoverer trait's free Veteran Soldier is human-only again, and AI Cortes
   no longer collects an invented treasure windfall. [478] [488]
+
+- Rival European ships judge an empty hold correctly (passengers were being
+  counted as cargo), which fixes their opening moves and war-transport threat
+  checks. [527]
 
 ### Map, movement and exploration
 
@@ -342,7 +368,13 @@ visiting your colonies [500], and turn-1 nation placement [489] — though that
 last one turned up and fixed a save-compatibility bug for ships en route to
 Europe.
 
+Also confirmed as the original's own behaviour: muskets spoiling out of a full
+warehouse after a native gift forces two extra tons in [531]; Veteran Dragoons
+promoting to "Continental Army" text rather than "Continental Cavalry" [534];
+and the sidebar reading "Soldier" under a Continental Cavalry unit, because that
+line shows the profession field, which promotion does not rewrite [538].
+
 ### Still open
 
 [473] bogus ship-damaged popup after a land combat; [474] diplomacy text filling
-the wrong name tokens; [521] [524] [527] [528] [529] rival-AI fidelity residue.
+the wrong name tokens; [521] [524] [528] [529] [530] rival-AI fidelity residue.
