@@ -83,3 +83,4 @@ Status: OPEN = no resolution yet. FIXED = agent claims a fix, awaiting user veri
 | 535 | OPEN | If there are more than one fortresses firing, all the "fortress fires on" popups arrive sequentially, and only then their combat analyses. These should resolve each case before moving on. |
 | 536 | OPEN | Exact pixel alignment of units on the fence/stockage/fort/fortress in the colony UI is somewhat off. Check how DOS does it. |
 | 537 | OPEN | Lack of tools to finish construction popups are missing now. |
+| 538 | OPEN | Foreign intervention force fired twice in the same turn. It should not. Rate limited to once per turn only. | 
