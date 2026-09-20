@@ -61,7 +61,9 @@ static const uint8_t k_difficul_colors[5] = {10, 9, 14, 13, 12};
 static const char* k_nation_bonuses[4] = {
   "Immigration", "Cooperation", "Conquest", "Trade"
 };
-static const char* k_finished_label = "(Click Here When Finished)";
+/* LABELS.TXT @MISC "Click Here When Finished" — the parens are the port's
+ * own chrome (new_game_format_finished adds them when the text has none). */
+static const char* k_finished_label = "Click Here When Finished";
 static const char* k_customiz_title = "CUSTOMIZE NEW WORLD";
 static const char* k_customiz_cats[4] = {"Land Mass", "Land Form", "Temperature", "Climate"};
 static const char* k_customiz_vals[4][3] = {
@@ -838,18 +840,46 @@ static void new_game_nation_nav(NewGameWizard* ng, ColonizeKey key) {
   ng->selection = s;
 }
 
-static const char* new_game_finished_text(const NewGameWizard* ng) {
-  if (ng && ng->labels_txt) {
-    const ColonizeMsgSection* misc = assets_msg_find(ng->labels_txt, "MISC");
-    if (misc) {
-      for (int i = 0; i < misc->line_count; ++i) {
-        if (misc->lines[i][0] && strstr(misc->lines[i], "Finished") != NULL) {
-          return misc->lines[i];
-        }
+/*
+ * LABELS.TXT @MISC, addressed relative to the "Land Mass" anchor the
+ * CUSTOMIZE labels already key off (row 144 in the shipped file):
+ *
+ *   +16 CUSTOMIZE NEW WORLD   +17 Click Here When Finished
+ *   +18 Choose                +19 Difficulty Level   +20 Level
+ *   +21..25 Easiest..Toughest
+ *   +26 Select                +27 European Power     +28 Power
+ *   +29..32 Immigration / Cooperation / Conquest / Trade
+ *
+ * Anchoring beats a bare index for the same reason new_game_customiz_labels
+ * does it: the block moves as a unit if the file is edited. NULL catalog or a
+ * missing anchor falls back to the built-in English.
+ */
+#define NEW_GAME_MISC_ANCHOR "Land Mass"
+
+static const char* new_game_misc_label(
+  const NewGameWizard* ng, int offset, const char* fallback
+) {
+  if (!ng || !ng->labels_txt) {
+    return fallback;
+  }
+  const ColonizeMsgSection* misc = assets_msg_find(ng->labels_txt, "MISC");
+  if (!misc) {
+    return fallback;
+  }
+  for (int i = 0; i < misc->line_count; ++i) {
+    if (misc->lines[i][0] && strcmp(misc->lines[i], NEW_GAME_MISC_ANCHOR) == 0) {
+      const int row = i + offset;
+      if (row >= 0 && row < misc->line_count && misc->lines[row][0]) {
+        return misc->lines[row];
       }
+      break;
     }
   }
-  return k_finished_label;
+  return fallback;
+}
+
+static const char* new_game_finished_text(const NewGameWizard* ng) {
+  return new_game_misc_label(ng, 17, k_finished_label);
 }
 
 /* Resolve CUSTOMIZE labels from @MISC starting at "Land Mass"; else English fallbacks. */
@@ -1559,18 +1589,18 @@ static void new_game_render_region_pick(
     new_game_draw_shadowed_line(
       title_font,
       fb,
-      new_game_centered_x(title_font, "Choose", anchor_cx),
+      new_game_centered_x(title_font, new_game_misc_label(ng, 18, "Choose"), anchor_cx),
       title_y,
-      "Choose",
+      new_game_misc_label(ng, 18, "Choose"),
       green,
       shadow
     );
     new_game_draw_shadowed_line(
       title_font,
       fb,
-      new_game_centered_x(title_font, "Difficulty Level", anchor_cx),
+      new_game_centered_x(title_font, new_game_misc_label(ng, 19, "Difficulty Level"), anchor_cx),
       title_y + title_lh,
-      "Difficulty Level",
+      new_game_misc_label(ng, 19, "Difficulty Level"),
       green,
       shadow
     );
@@ -1583,7 +1613,7 @@ static void new_game_render_region_pick(
         fb,
         &rects[ng->selection],
         top,
-        k_difficul_levels[ng->selection],
+        new_game_misc_label(ng, 21 + ng->selection, k_difficul_levels[ng->selection]),
         k_difficul_colors[ng->selection]
       );
     }
@@ -1599,18 +1629,18 @@ static void new_game_render_region_pick(
     new_game_draw_shadowed_line(
       title_font,
       fb,
-      new_game_centered_x(title_font, "Select", anchor_cx),
+      new_game_centered_x(title_font, new_game_misc_label(ng, 26, "Select"), anchor_cx),
       title_y,
-      "Select",
+      new_game_misc_label(ng, 26, "Select"),
       green,
       shadow
     );
     new_game_draw_shadowed_line(
       title_font,
       fb,
-      new_game_centered_x(title_font, "European Power", anchor_cx),
+      new_game_centered_x(title_font, new_game_misc_label(ng, 27, "European Power"), anchor_cx),
       title_y + title_lh,
-      "European Power",
+      new_game_misc_label(ng, 27, "European Power"),
       green,
       shadow
     );
@@ -1628,7 +1658,7 @@ static void new_game_render_region_pick(
         fb,
         &rects[ng->selection],
         top,
-        k_nation_bonuses[ng->selection],
+        new_game_misc_label(ng, 29 + ng->selection, k_nation_bonuses[ng->selection]),
         nation_ink
       );
     }

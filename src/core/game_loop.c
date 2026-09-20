@@ -156,6 +156,12 @@
  * order or a production line says where it happened. Modal chrome wins over
  * the screen under it, matching the input gate in game_update.
  */
+/* LABELS.TXT @MISC row, or the built-in English when no catalog is loaded. */
+static const char* game_labels_misc_or(int row, const char* fallback) {
+  const char* live = reports_labels_field("MISC", row);
+  return live ? live : fallback;
+}
+
 static void game_screen_name(const ColonizeGameState* game, char* out, size_t out_size) {
   if (!game || !out || out_size == 0) {
     return;
@@ -6423,7 +6429,13 @@ void game_after_unit_action(ColonizeGameState* game) {
       !game_units_pending_orders(game)) {
     game_do_end_turn(game);
   } else {
-    snprintf(game->status, sizeof(game->status), "%s", "End of Turn");
+    snprintf(
+      game->status,
+      sizeof(game->status),
+      "%s",
+      /* LABELS.TXT @MISC row 2 — the same row the sidebar EOT prompt uses. */
+      game_labels_misc_or(2, "End of Turn")
+    );
   }
 }
 
@@ -8692,7 +8704,13 @@ void game_wait_next_unit(ColonizeGameState* game) {
   if (!found) {
     game_select_tile(game, game->map_cursor_x, game->map_cursor_y);
     if (turn_option_end_of_turn(game->col1_ok ? &game->col1 : NULL, game->col1_ok)) {
-      snprintf(game->status, sizeof(game->status), "%s", "End of Turn");
+      snprintf(
+      game->status,
+      sizeof(game->status),
+      "%s",
+      /* LABELS.TXT @MISC row 2 — the same row the sidebar EOT prompt uses. */
+      game_labels_misc_or(2, "End of Turn")
+    );
     } else {
       game_do_end_turn(game);
     }
@@ -8700,7 +8718,8 @@ void game_wait_next_unit(ColonizeGameState* game) {
   }
   game->view_pieces_mode = false;
   game_center_on_selected_unit(game);
-  snprintf(game->status, sizeof(game->status), "%s", "Continue turn.");
+  /* LABELS.TXT @MISC row 34 (DS:0x2dfe) — the colony-event choice word. */
+  snprintf(game->status, sizeof(game->status), "%s", game_labels_misc_or(34, "Continue turn."));
 }
 
 /* Persistent Hall of Fame: COLONIZE/HOF.TXT holds a ranked table of retired
