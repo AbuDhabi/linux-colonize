@@ -643,9 +643,15 @@ void colony_screen_open_dock_orders(
     view->dock_orders_count++;
   }
   if (view->dock_orders_count <= 0) {
+    /* The cancel row is the section's own last line (@SHIPOPTIONS /
+     * @UNITOPTIONS "No changes."), not a second hardcoded copy of it. */
+    const char* cancel_label = fallback[cancel_index];
+    if (opts && cancel_index < opts->line_count && opts->lines[cancel_index][0]) {
+      cancel_label = opts->lines[cancel_index];
+    }
     view->dock_orders_actions[0] = COLONY_DOCK_ORDER_CANCEL;
     snprintf(
-      view->dock_orders_labels[0], sizeof(view->dock_orders_labels[0]), "%s", "No changes."
+      view->dock_orders_labels[0], sizeof(view->dock_orders_labels[0]), "%s", cancel_label
     );
     view->dock_orders_count = 1;
   }

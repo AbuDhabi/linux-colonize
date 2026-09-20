@@ -212,6 +212,19 @@ MENU.TXT `@PEDIA`), the naval-report passenger labels, `@BUILDING` Newspaper,
 display names, and the `@HAVETREATY` / `@TRADE*` / `@BUY*` / `@KINGGALLEON*`
 choice rows.
 
+A second pass the same day caught what the first missed: the first scanner
+only saw single-line calls, so text passed to multi-line `font_draw_*` /
+`snprintf` calls slipped through. Re-scanning with statement joining found the
+new-game wizard's own screen titles ("Choose" / "Difficulty Level", "Select" /
+"European Power"), its difficulty words (Easiest..Toughest) and nation-bonus
+words (Immigration / Cooperation / Conquest / Trade), the map status line's
+"End of Turn" and "Continue turn.", and the dock-orders "No changes." row. All
+are live now. The wizard block is addressed **relative to the "Land Mass"
+anchor** (`new_game_misc_label`), the way `new_game_customiz_labels` already
+did it, so the whole @MISC block can move without breaking: +17 finished,
++18/19 difficulty title, +21..25 level words, +26/27 nation title, +29..32
+bonus words.
+
 Still hardcoded **on purpose** (do not "fix" without evidence):
 
 - Lookup keys, not text — `units_find_type(pool, "Artillery")`,
