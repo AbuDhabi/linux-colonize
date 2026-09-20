@@ -1408,7 +1408,12 @@ int ai_contact_try_euro_attack_confirm(
   );
   char body[AI_POPUP_BODY_LEN];
   popup_msg_fill(ctx->messages, "HAVETREATY", &tok, fb, body, sizeof(body));
-  static const char* labels[] = {"Cancel Action.", "Break Treaty."};
+  /* GAME.TXT @HAVETREATY choice rows: "Cancel Action." / "Break Treaty." */
+  char choice_buf[2][POPUP_MSG_CHOICE_LEN];
+  const char* labels[2];
+  (void)popup_msg_section_labels(
+    ctx->messages, "HAVETREATY", &tok, "Cancel Action.", "Break Treaty.", choice_buf, labels
+  );
   static const int ids[] = {0, 1};
   const int payload = dest_x | (dest_y << 8);
   if (!ai_popup_enqueue_choice_ctx(
@@ -6444,6 +6449,30 @@ static void ai_contact_intel_note_buys(
   }
 }
 
+/*
+ * GAME.TXT's trailing choice row (@TRADE0/@TRADE1/@BUY0/@BUY1 etc. all end
+ * "Never mind.") for CHOICE arrays that build their other rows by hand from
+ * live prices and so can't go through popup_msg_section_labels (that helper
+ * only extracts the first two rows). Returns the catalog row when the
+ * section has exactly `expected_rows` choice rows, else `fallback` verbatim.
+ */
+static const char* ai_contact_last_choice_label(
+  const ColonizeMsgCatalog* catalog, const char* section_name, int expected_rows,
+  char* buf, size_t buf_size, const char* fallback
+) {
+  const ColonizeMsgSection* sec = catalog ? assets_msg_find(catalog, section_name) : NULL;
+  if (sec && expected_rows > 0 && expected_rows <= 4) {
+    char rows[4][POPUP_MSG_CHOICE_LEN];
+    int n = popup_msg_choices(sec, rows, expected_rows);
+    if (n == expected_rows) {
+      str_copy_trunc(buf, buf_size, rows[n - 1]);
+      return buf;
+    }
+  }
+  str_copy_trunc(buf, buf_size, fallback);
+  return buf;
+}
+
 static void ai_contact_enqueue_buy0(
   ColonizeTurnContext* ctx, int nation_id, int e, ColonizeUnit* unit, int cargo, int price, int qty,
   int round
@@ -6475,7 +6504,11 @@ static void ai_contact_enqueue_buy0(
   snprintf(accept, sizeof(accept), "We will gladly pay %d$ (of %u$)", price,
            (unsigned)europe_nation_gold(ctx->europe, ctx->col1, e)); /* audit G3 */
   snprintf(haggle, sizeof(haggle), "A fairer price would be %d$", fair);
-  const char* labels[3] = {accept, haggle, "Never mind"};
+  char nevermind[POPUP_MSG_CHOICE_LEN];
+  const char* labels[3] = {
+    accept, haggle,
+    ai_contact_last_choice_label(ctx->messages, tag, 3, nevermind, sizeof(nevermind), "Never mind")
+  };
   const int ids[3] = {1, 2, 0};
   if (ai_popup_enqueue_choice_ctx(
         ctx->ai_popups, AI_POPUP_TAG_CONTACT_BUY0, e, nation_id,
@@ -6802,10 +6835,15 @@ static int ai_contact_enqueue_trade_offer_round(
   snprintf(accept, sizeof(accept), "We gratefully accept %d$", s->price);
   snprintf(haggle, sizeof(haggle), "A fairer price would be %d$", s->fair);
   snprintf(gift, sizeof(gift), "No, let the %s be our gift to you", tok.string1);
-  const char* labels[4] = {accept, haggle, gift, "Never mind"};
+  char nevermind[POPUP_MSG_CHOICE_LEN];
+  const char* nm = ai_contact_last_choice_label(
+    ctx->messages, s->round == 0 ? "TRADE0" : "TRADE1", s->round == 0 ? 4 : 3,
+    nevermind, sizeof(nevermind), "Never mind"
+  );
+  const char* labels[4] = {accept, haggle, gift, nm};
   const int ids4[4] = {AI_CONTACT_TRADE_OFFER_ACCEPT, AI_CONTACT_TRADE_OFFER_HAGGLE,
                        AI_CONTACT_TRADE_OFFER_GIFT, AI_CONTACT_TRADE_OFFER_DECLINE};
-  const char* labels3[3] = {accept, haggle, "Never mind"};
+  const char* labels3[3] = {accept, haggle, nm};
   const int ids3[3] = {AI_CONTACT_TRADE_OFFER_ACCEPT, AI_CONTACT_TRADE_OFFER_HAGGLE,
                        AI_CONTACT_TRADE_OFFER_DECLINE};
   const int four = s->round == 0;
@@ -8498,7 +8536,9 @@ COLONIZE_INTERNAL void ai_contact_raid_stage_combat(struct ai_contact_raid_ctx* 
         ctx->col1->player[target_euro].country_name[0]) {
       foe_nation_label = ctx->col1->player[target_euro].country_name;
     }
-    const char* place = "Wilderness";
+    /* LABELS.TXT @MISC row 17 = "Wilderness"; reports_misc_display_word is
+       the shared sim-side live lookup (reports_names.c), fallback kept. */
+    const char* place = reports_misc_display_word(17, "Wilderness");
     if (ctx->colonies) {
       int best_d = 99;
       for (int ci = 0; ci < COLONIZE_COLONIES_MAX; ++ci) {
@@ -10473,7 +10513,9 @@ static void ai_contact_establish_mission(
   memset(&tok, 0, sizeof(tok));
   tok.string0 = ai_contact_euro_name(e);
   tok.string1 = c ? c->name : col1->player[e].country_name;
-  tok.string2 = (ctx->game_autumn && *ctx->game_autumn != 0) ? "Autumn" : "Spring";
+  /* NAMES.TXT @SEASONS rows 0/1; reports_season_name is the shared live
+     lookup, same Spring/Autumn literals kept as its fallback. */
+  tok.string2 = reports_season_name(ctx->game_autumn && *ctx->game_autumn != 0);
   tok.number0 = ctx->game_year ? (int)*ctx->game_year : 0;
   tok.has_number0 = true;
   tok.string3 = ai_contact_tribe_name(nation_id);

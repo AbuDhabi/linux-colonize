@@ -74,10 +74,38 @@ static void howmuch_finish(HowmuchDialog* dlg, bool cancelled) {
   );
 }
 
+/*
+ * DOS keeps the field caption in the dialog's own section, as the line after
+ * the prompt body (GAME.TXT @HOWMUCH1..5 "Amount:", DEBUG.TXT @SOUND
+ * "Sound:" — the port drew a hardcoded "Amount:" in both). The section's
+ * stored lines still carry the lowercase @directives (@width=, @default=),
+ * so walk back from the end past those.
+ */
+const char* howmuch_amount_label(
+  const ColonizeMsgCatalog* catalog,
+  const char* section,
+  const char* fallback
+) {
+  static char buf[HOWMUCH_LABEL_LEN];
+  const ColonizeMsgSection* sec = catalog ? assets_msg_find(catalog, section) : NULL;
+  if (sec) {
+    for (int i = sec->line_count - 1; i >= 0; --i) {
+      const char* line = sec->lines[i];
+      if (!line || line[0] == '\0' || line[0] == '@') {
+        continue;
+      }
+      str_copy_trunc(buf, sizeof(buf), line);
+      return buf;
+    }
+  }
+  return fallback;
+}
+
 bool howmuch_open(
   HowmuchDialog* dlg,
   HowmuchKind kind,
   const char* prompt,
+  const char* amount_label,
   int max_amount,
   int initial_amount,
   int cargo,
@@ -96,6 +124,11 @@ bool howmuch_open(
   dlg->result_payload = payload;
   str_copy_trunc(
     dlg->prompt, sizeof(dlg->prompt), prompt && prompt[0] ? prompt : "How much?"
+  );
+  str_copy_trunc(
+    dlg->amount_label,
+    sizeof(dlg->amount_label),
+    amount_label && amount_label[0] ? amount_label : "Amount:"
   );
   howmuch_sync_field(dlg);
   dlg->open = true;
@@ -238,7 +271,7 @@ void howmuch_render(
   }
   const int ix = g.frame.inner_x;
   int ty = g.text_y + 2;
-  popup_draw_text_shadowed(font, framebuffer, ix + pad, ty, "Amount:", text_color);
+  popup_draw_text_shadowed(font, framebuffer, ix + pad, ty, dlg->amount_label, text_color);
   ty += line_h;
   char shown[24];
   snprintf(shown, sizeof(shown), "%s_", dlg->field);

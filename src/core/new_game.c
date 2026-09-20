@@ -564,10 +564,15 @@ static void new_game_enter_sail(NewGameWizard* ng) {
 }
 
 static void new_game_scan_mp_files(NewGameWizard* ng) {
-  new_game_clear_list(ng);
-  snprintf(ng->prompt_lines[0], sizeof(ng->prompt_lines[0]), "Select Map File to Load");
-  ng->prompt_line_count = 1;
-  ng->dialog_width = 220;
+  /* Title and @width come from GAME.TXT @MAPTOLOAD, like every other wizard
+   * page; the options are the .MP files on disk, appended below. */
+  new_game_load_choice_section(ng, "MAPTOLOAD");
+  ng->option_count = 0;
+  if (ng->prompt_line_count == 0) {
+    snprintf(ng->prompt_lines[0], sizeof(ng->prompt_lines[0]), "Select Map File to Load");
+    ng->prompt_line_count = 1;
+    ng->dialog_width = 220;
+  }
 
   DIR* dir = opendir(ng->data_dir);
   if (!dir) {

@@ -139,6 +139,23 @@ bool cheat_list_open_trade_cargo_one(
 );
 
 /*
+ * Live-catalog row loader shared by the CHEAT Create Unit list stages
+ * (DEBUG.TXT @CREATE / @CSHIP / @FOREIGN / @FOREIGN2). Copies `count`
+ * non-directive, non-blank rows starting after `skip_rows` earlier ones
+ * (skip_rows=0 count=1 fetches the section's own prompt row) into out[];
+ * falls back to fallback[i] per row when the catalog/section/row is missing.
+ * out[] entries are CHEAT_LIST_LABEL_LEN-sized.
+ */
+bool cheat_list_catalog_rows(
+  const ColonizeMsgCatalog* catalog,
+  const char* section_name,
+  int skip_rows,
+  const char* const* fallback,
+  char out[][CHEAT_LIST_LABEL_LEN],
+  int count
+);
+
+/*
  * CHEAT Create Unit generic list step (@CREATE / @CSHIP / @FOREIGN / @FOREIGN2).
  * Caller supplies whichever stage's labels/ids; result_id round-trips ids[i].
  */

@@ -256,9 +256,19 @@ const char* reports_misc_word(int index, const char* fallback, char* out, size_t
   return out;
 }
 
+/*
+ * Rotating buffer set, not one shared scratch: callers routinely fetch
+ * several @MISC words into one PopupMsgTokens before the text is filled
+ * (nation + defeat verb + place in the combat popups), and a single static
+ * made every token read back the word resolved last — the same aliasing bug
+ * reports_cargo_name documents above.
+ */
 const char* reports_misc_display_word(int index, const char* fallback) {
-  static char buf[64];
-  return reports_misc_word(index, fallback ? fallback : "", buf, sizeof(buf));
+  static char buf[8][64];
+  static int next = 0;
+  char* out = buf[next];
+  next = (next + 1) % 8;
+  return reports_misc_word(index, fallback ? fallback : "", out, sizeof(buf[0]));
 }
 
 const char* reports_title(ColonizeReportId id) {
@@ -500,6 +510,17 @@ const char* reports_tribe_singular_name(int t) {
 /* Fortification chain name, tier 0 = Stockade. NAMES.TXT has no separate
  * "fort tier" list: DOS reads these off the first three @BUILDING rows,
  * which are the chain in order. */
+/* NAMES.TXT @SEASONS: row 0 Spring, row 1 Autumn. The season word was
+ * retyped as an "autumn ? \"Autumn\" : \"Spring\"" ternary in the save/load
+ * dialog, the report screens, turn.c and ai_contact.c. */
+const char* reports_season_name(bool autumn) {
+  static char live[2][16];
+  const int row = autumn ? 1 : 0;
+  return reports_names_or(
+    live[row], sizeof(live[row]), "SEASONS", row, 0, autumn ? "Autumn" : "Spring"
+  );
+}
+
 const char* reports_fort_tier_name(int tier) {
   static char live[3][24];
   if (tier < 0 || tier > 2) {

@@ -2097,7 +2097,10 @@ static AiTalkStepStatus ai_talk_stage_third(
   if (k->third >= 0 && !k->crown_armed && ai_talk_met(ctx, h, k->third)) {
     PopupMsgTokens t3 = *tok;
     t3.string0 = ai_talk_name(ctx, k->third);
-    t3.string1 = k->third >= 4 ? ai_talk_name(ctx, k->third) : (k->manly ? "demand" : "request");
+    /* GAME.TXT @MEEKNESS: row 0 = "request", row 1 = "demand". */
+    t3.string1 = k->third >= 4
+      ? ai_talk_name(ctx, k->third)
+      : assets_msg_line_or(ctx->messages, "MEEKNESS", k->manly ? 1 : 0, k->manly ? "demand" : "request");
     static const char* const lab_a[2] = {"Never! They are our friends!", "Yes! We shall crush them together!"};
     if (k->third < 4) {
       ai_talk_choice(
@@ -2465,7 +2468,8 @@ static void ai_talk_advance(ColonizeTurnContext* ctx) {
   tok.string0 = ai_talk_name(ctx, t);
   tok.string1 = ai_talk_name(ctx, h);
   tok.string2 = ai_talk_name(ctx, t);
-  tok.string3 = k->manly ? "demand" : "request"; /* @MEEKNESS */
+  /* GAME.TXT @MEEKNESS: row 0 = "request", row 1 = "demand". */
+  tok.string3 = assets_msg_line_or(ctx->messages, "MEEKNESS", k->manly ? 1 : 0, k->manly ? "demand" : "request");
   for (int guard = 0; guard < 16; ++guard) {
     switch (k->stage) {
       case AI_TALK_ST_THIRD:

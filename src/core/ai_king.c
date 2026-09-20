@@ -774,15 +774,27 @@ static void ai_king_1d42_royal_purse(ColonizeTurnContext* ctx) {
   }
   f[k]++;
   static const char* k_pool_name[4] = {"Regulars", "Cavalry", "Man-O-War", "Artillery"};
+  /* NAMES.TXT @UNIT live lookup for display text; k_pool_name[] stays the
+   * lookup key and the fallback when the catalog entry is missing. */
+  const char* k_pool_display = k_pool_name[k];
+  if (ctx->units) {
+    int disp_ty = units_find_type(ctx->units, k_pool_name[k]);
+    if (disp_ty >= 0) {
+      const ColonizeUnitType* disp_type = units_type(ctx->units, disp_ty);
+      if (disp_type && disp_type->name[0]) {
+        k_pool_display = disp_type->name;
+      }
+    }
+  }
   if (ctx->status && ctx->status_size && ctx->status[0] == '\0') {
     snprintf(ctx->status, ctx->status_size,
              "King increases military spending. %s added to royal expeditionary force.",
-             k_pool_name[k]);
+             k_pool_display);
   }
   if (ai_king_human_popups(ctx)) {
     PopupMsgTokens tok;
     memset(&tok, 0, sizeof(tok));
-    tok.string0 = k_pool_name[k];
+    tok.string0 = k_pool_display;
     char body[AI_POPUP_BODY_LEN];
     popup_msg_fill(
       ctx->messages,

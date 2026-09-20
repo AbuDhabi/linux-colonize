@@ -194,7 +194,43 @@ Already **file-driven** in practice: MADSPACK art/fonts, `GAME`/`MENU`/`LABELS`/
 
 Already **baked** (correctly): DOS RNG, map gen pipeline, MAPEDIT compositor + resource-type table, `viceroy_tables.c`, colony production tier math, much UI layout, sound ID map.
 
-Still **duplicated in C** (should migrate toward catalogs when convenient): some report/Europe/job/tribe name arrays; a few nation/port strings in `new_game.c` / `europe.c` that also exist in `NAMES.TXT`.
+**Display-text sweep, 2026-09-20.** Every C string literal in `src/` was matched
+against the shipped catalogs (927 candidate sites) and triaged into *display*
+(hardcoded text that reaches the screen), *fallback* (already live, literal is
+only the no-catalog default), *key* (a lookup/dispatch string) and coincidence.
+All display cases found were migrated to the live catalogs, keeping the literal
+as the fallback: Europe purchase names (`@UNIT`), `@INDEPENDENT` republic names,
+`@SEASONS` (new shared `reports_season_name`, replacing four `autumn ? "Autumn"
+: "Spring"` ternaries), the `@HOWMUCH1-5` / DEBUG `@SOUND` field caption (DOS
+says "Sound:" there, the port drew "Amount:"), `@MAPTOLOAD`, the whole cheat
+CREATE / CSHIP / FOREIGN / FOREIGN2 / SETVIEW menu text, the Combat Analysis
+row labels and village nouns (`@MISC`, `@CARGO`, `@LEVELS` col 1), the
+Colonizopedia list header / "(Exit)" / category names (`@MISC` 108/110,
+MENU.TXT `@PEDIA`), the naval-report passenger labels, `@BUILDING` Newspaper,
+`@MISC` "High Seas" / "Nothing" / "Wilderness" / "Tory" / "Rebels" /
+"defeat(s)", `@COLONYNAME`, `@MEEKNESS` request/demand, the King's unit-pool
+display names, and the `@HAVETREATY` / `@TRADE*` / `@BUY*` / `@KINGGALLEON*`
+choice rows.
+
+Still hardcoded **on purpose** (do not "fix" without evidence):
+
+- Lookup keys, not text — `units_find_type(pool, "Artillery")`,
+  `colonies_find_building(..., "Fortress")`, `europe_purchase_price("Caravel")`,
+  the NAMES.TXT section-name keys in `pedia.c`, and `map_menu_classify`'s
+  `strcmp(label, "Build Colony")` dispatch over live MENU.TXT rows. These are
+  the real modding fragility: renaming a `@UNIT` / `@BUILDING` / MENU.TXT row
+  silently dead-ends the lookup. Fixing that means keying off ids, not text —
+  a separate job from this sweep.
+- Abbreviations and composed names with no catalog row: the colony report's
+  "Press" (short form of `@BUILDING` 19), `units_display_name`'s singular
+  nouns ("Dragoon", "Soldier"), the `name_entry_dialog` "Name:" caption that
+  `popup_msg` deliberately strips from parsed bodies.
+- Debug/diag log strings and popup tag names.
+
+One fidelity lead came out of the sweep: `ai_contact.c`'s village-warning
+popup ("Leave" / "Attack" plus its four alarm-tier bodies) has no GAME.TXT
+section at all — it is invented prose, not a port. See
+[popup_audit.md](popup_audit.md).
 
 ---
 
