@@ -869,10 +869,15 @@ static int case_colony_screen_render_workflow(void) {
       colony_screen_free(&view);
       return 1;
     }
-    /* Single icon should sit near fence horizontal center (not left-aligned +4). */
-    const int mid_x = fence_x + 73 / 2;
+    /* Single icon should sit near the horizontal center of the outside-unit
+     * strip. bugs.md #536: the strip is anchored at the fortification slot's
+     * origin + the DOS size-class offset DS:0x23c/0x242[class 3] = (+5,+5),
+     * not at the slot corner itself. */
+    const int strip_x = fence_x + 5;
+    const int strip_y = fence_y + 5;
+    const int mid_x = strip_x + 73 / 2;
     bool outside_centered = false;
-    for (int y = fence_y; y < fence_y + 18 && !outside_centered; ++y) {
+    for (int y = strip_y; y < strip_y + 18 && !outside_centered; ++y) {
       for (int x = mid_x - 8; x <= mid_x + 8; ++x) {
         if (x >= 0 && x < 320 && pixels[y * 320 + x] != 0) {
           outside_centered = true;
@@ -930,8 +935,8 @@ static int case_colony_screen_render_workflow(void) {
     }
     /* Left gutter of fence should not hold the sole unit (old left-align). */
     bool left_gutter = false;
-    for (int y = fence_y; y < fence_y + 18 && !left_gutter; ++y) {
-      for (int x = fence_x; x < fence_x + 4; ++x) {
+    for (int y = strip_y; y < strip_y + 18 && !left_gutter; ++y) {
+      for (int x = strip_x; x < strip_x + 4; ++x) {
         if (pixels[y * 320 + x] != 0) {
           left_gutter = true;
           break;
@@ -941,7 +946,7 @@ static int case_colony_screen_render_workflow(void) {
     /* Fence art itself paints the gutter — only fail if hit-test still uses +4. */
     {
       ColonyScreenHitResult hit =
-        colony_screen_hit_test(&view, &pool, col, &units, mid_x, fence_y + 9);
+        colony_screen_hit_test(&view, &pool, col, &units, mid_x, strip_y + 9);
       if (hit.kind != COLONY_HIT_OUTSIDE_UNIT || hit.index != 0) {
         fprintf(
           stderr,

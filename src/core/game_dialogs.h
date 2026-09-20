@@ -123,6 +123,14 @@ struct ColonizeGameState {
   char resolved_data_dir[512];
   uint32_t turn_number;
   uint32_t elapsed_ms;
+  /*
+   * bugs.md #533: while the combat fizzle (FUN_12d6_0000) is rendering its
+   * "before" and "after" frames, the map blink must be frozen in ONE phase
+   * for both — otherwise the active (attacking) unit is drawn in one frame
+   * and not the other and the LFSR dissolve plays on the winner's own
+   * sprite. Matches DOS: nothing toggles DS:0x929c while 1b0e's tail runs.
+   */
+  bool combat_dissolve_freeze;
   uint8_t map_seed;
   int map_cursor_x;
   int map_cursor_y;

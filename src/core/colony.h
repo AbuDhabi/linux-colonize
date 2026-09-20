@@ -1017,6 +1017,10 @@ void colonies_specialty_cargo_update(
  * are clamped silently. Returns the reportable total (0 when nothing but
  * production overflowed, or when the loss is under 2 tons).
  *
+ * A pre-existing overflow of exactly 1 ton is neither reported nor removed —
+ * DOS zeroes the loss below 2 tons *after* backing production off the stock,
+ * so that ton stays in the warehouse (FUN_364b_0688 raw 57847-57868).
+ *
  * When out_first_cargo != NULL and any reportable spoil occurs, writes the
  * first such cargo index. When out_type_count != NULL, writes how many
  * distinct cargo types spoiled reportably.

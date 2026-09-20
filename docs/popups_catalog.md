@@ -317,8 +317,8 @@ Appendices and exhaustive `@SECTION` reference for [popups.md](popups.md).
 | `@KINGSTAMPACT` | Done | `FUN_38fd_5be8` top rung (38fd:5dfe): +5..8%, `%STRING2` = the player's New World name (`player.country_name`). Rendered through `popup_msg_fill` from `ai_king_tax_hike_apply` (`src/core/ai_king.c`) with `%STRING0`/`%STRING1` = difficulty title + player name, `%NUMBER0` = applied delta, `%NUMBER1` = resulting rate; the raise arm keeps the `@TAXOPTIONS` Kiss/Party rows. 2026-09-16 |
 | `@COUNTRIES` | Done | Not a popup: the 8-entry list `FUN_38fd_5be8` indexes for the tax audience's `%STRING2` (`@KINGVICTORY` / `@KINGWAR`). Read by `ai_king_msg_list_entry` (`src/core/ai_king.c`), 2026-09-16 |
 | `@ORDINAL` | Done | Not a popup: the 30-entry ordinal list the audience's `@KINGWIFE` rung indexes with the King's wife count. Same reader, 2026-09-16 |
-| `@NEEDTOOLS` | Done thin | EOT Phase K tools short but >0 construction ai_popup OK |
-| `@NEEDTOOLS0` | Done thin | EOT Phase K tools-short construction ai_popup OK |
+| `@NEEDTOOLS` | Done | EOT Phase L (raw 57737-57771) `turn_emit_needtools_notice` in `turn.c`: hammers ready, tools short but >0. Runs every EOT (not only on hammer-producing ticks) and covers unit projects too — bugs.md #537, 2026-09-20 |
+| `@NEEDTOOLS0` | Done | Same emitter, tools == 0 (DOS appends DS:0xeab "0" to DS:0xea1), 2026-09-20 |
 | `@ALREADYHAVE` | Done thin | construction set refused when already owned → ai_popup OK |
 | `@LOBOTOMIZE` | Done | Clear Specialty confirm `AI_POPUP_TAG_COLONY_CLEARSPEC` (bugs.md #431) |
 | `@NATION0A` | Done | nation lore pages |

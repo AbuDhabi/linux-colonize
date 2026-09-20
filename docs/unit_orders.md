@@ -144,6 +144,7 @@ stateDiagram-v2
 | Sentry | ORDERS / **S** | Order 1; exhaust MP; skip until wake | `units_order_sentry` | Done |
 | Sentry auto-board | Ship leaves tile | Same-tile Sentry land board to capacity | `units_board_sentries_from_tile` | Done |
 | Wake | Activate / stack / replace | Clear order; restore MP | `units_wake` | Done |
+| Sentry wake on enemy | A foreign unit steps onto an adjacent tile | `FUN_5bfb_3180` move tail (raw 98628-98646): for each of the 8 neighbours of the mover's destination whose stack is another nation's (no war/treaty gate), every **order 1** unit in that stack is cleared. Gated on mover-in-colony **or** settlement on the neighbour tile **or** neighbour water-ness == destination water-ness; a non-ship on a water tile (in a hold) is left asleep | `units_sentry_wake_scan` (units.c), called from `units_try_move` beside `units_ship_slow_scan_w` | Done |
 
 ### Go-To / Trade Route / Follow
 

@@ -3360,10 +3360,10 @@ static const char* ai_king_1528_announce_colony(const ColonizeTurnContext* ctx, 
  * ai_king_seed_backup_force_1a26 — not a stand-in.
  *
  * Gate (no REF-empty condition; see the bugs.md note in the body): the
- * bells-threshold announce path (from_bells) runs unconditionally, while the
- * per-turn free drain (FUN_43f7_2022) needs the intervention-once latch
- * AI_KING_INTERVENE_ANNOUNCED_BYTE set AND the MoW pool backup_force[2]
- * nonzero.
+ * per-turn free drain (FUN_43f7_2022 raw 75007) needs the intervention-once
+ * latch AI_KING_INTERVENE_ANNOUNCED_BYTE set AND the MoW pool
+ * backup_force[2] nonzero. The bell spend does NOT land anything — it only
+ * announces (ai_king_1528_announce); bugs.md #538.
  *
  * Landing (74378-74449): every unit is spawned for the HUMAN nation, so the
  * force is player-controlled. One Man-O-War (pool [2] −1) on the best water
@@ -3375,10 +3375,10 @@ static const char* ai_king_1528_announce_colony(const ColonizeTurnContext* ctx, 
  * Intervene nation: the saved rival slot (rival_nation_slot_1) when valid,
  * else the Euro with most colonies (tie-break land-unit force).
  *
- * Popups are the full 1528 pair: the "<country> declares war on <country>"
- * announcement fires once per game behind the same latch (with the @FRIEND
- * general and the human's largest coastal colony), the arrival line every
- * landing. Deep economy / mercenary chrome remains unported.
+ * Popups: the per-landing @INTERVENE / @MERCS arrival line only. The
+ * once-per-game "<country> declares war on <country>" announcement belongs
+ * to FUN_43f7_1528 (ai_king_1528_announce), not here. Deep economy /
+ * mercenary chrome remains unported.
  *
  * `target` = DOS's `iVar2 = *(int *)0x5398` (74308), the nation the whole
  * force is spawned for and whose colonies the roulette walks. DOS hardcodes
@@ -3394,6 +3394,82 @@ static const char* ai_king_1528_announce_colony(const ColonizeTurnContext* ctx, 
  * unreachable.
  */
 /*
+ * FUN_43f7_1528 (viceroy_unpacked.c:74459-74497) — the @INTERVENTION
+ * "declares war" announce, and nothing else. DOS reaches it only from the
+ * wartime bell-pool spend FUN_4345_0a22 (raw 73368 `FUN_291f_0348` -> raw
+ * 34894 -> 1528) and only while `(*0x5382 & 2) == 0`: it picks the human's
+ * largest coastal colony (74470-74481) for %STRING3, shows the popups
+ * (0x12d4 / 0x12db) and latches `*0x5382 |= 2` (74496). It spawns no unit
+ * and lands no force. The landing is FUN_43f7_10f0's free drain, which the
+ * once-per-turn FUN_43f7_2022 arm runs on a LATER turn, gated on that same
+ * bit plus a nonzero Man-O-War pool (raw 75007).
+ *
+ * bugs.md #538: the port used to land the whole force straight from the
+ * bell spend, so the free drain — whose gate the announce had just opened —
+ * landed a second intervention force in the same turn.
+ */
+static void ai_king_1528_announce(ColonizeTurnContext* ctx, int human) {
+  if (!ctx || !ctx->col1_ok || !ctx->col1 || human < 0 || human >= 4) {
+    return;
+  }
+  if (ai_king_latch_get(ctx->col1, AI_KING_INTERVENE_ANNOUNCED_BYTE) != 0) {
+    return; /* DOS 0a22 never re-enters 1528 once bit2 is up */
+  }
+  const int ally1 = ai_king_intervention_nation_slot(ctx, human, 0); /* DS:0x53d4 */
+  ai_king_latch_set(ctx->col1, AI_KING_INTERVENE_ANNOUNCED_BYTE, 1); /* 74496 */
+
+  /* bugs.md #252: the declaration names the PARENT countries (1528 passes
+   * both nations through FUN_291f_0ac8's country-name form). */
+  const char* ally_name =
+    (ally1 >= 0 && ally1 < 4) ? reports_nation_adjective_display_name(ally1) : "Foreign";
+  const char* ally_country =
+    (ally1 >= 0 && ally1 < 4) ? reports_nation_country_name(ally1) : "A foreign power";
+  const char* crown_country = reports_nation_country_name(human);
+  const char* announce_colony = ai_king_1528_announce_colony(ctx, human);
+  if (!announce_colony || !announce_colony[0]) {
+    announce_colony = "the colonies";
+  }
+  /* @FRIEND row for the ally ("French General Lafayette", ...) — 1528
+   * splices GAME.TXT @FRIEND[ally] into %STRING2. */
+  char general[64];
+  snprintf(general, sizeof(general), "%s General", ally_name);
+  {
+    const ColonizeMsgSection* fsec = assets_msg_find(ctx->messages, "FRIEND");
+    if (fsec && ally1 >= 0 && ally1 < fsec->line_count && fsec->lines[ally1][0]) {
+      str_copy_trunc(general, sizeof(general), fsec->lines[ally1]);
+    }
+  }
+  if (ctx->status && ctx->status_size) {
+    snprintf(ctx->status, ctx->status_size, "%s declares war on %s!",
+             ally_country, crown_country);
+  }
+  if (!ai_king_human_popups(ctx)) {
+    return;
+  }
+  PopupMsgTokens itok;
+  memset(&itok, 0, sizeof(itok));
+  itok.string0 = ally_country;
+  itok.string1 = crown_country;
+  itok.string2 = general;
+  itok.string3 = announce_colony;
+  itok.string4 = ally_name;
+  char fallback[AI_POPUP_BODY_LEN];
+  char body[AI_POPUP_BODY_LEN];
+  snprintf(
+    fallback,
+    sizeof(fallback),
+    "%s declares war on %s and joins the War of Independence on the Rebel side!",
+    ally_country,
+    crown_country
+  );
+  popup_msg_fill(ctx->messages, "INTERVENTION", &itok, fallback, body, sizeof(body));
+  (void)ai_popup_enqueue_ok_ctx(
+    ctx->ai_popups, AI_POPUP_TAG_KING_ARRIVAL, human, ally1 >= 0 ? ally1 : 0, 0, NULL, body
+  );
+  units_pump_combat_popups();
+}
+
+/*
  * FUN_43f7_10f0 arrival chrome: the @DECLAREWAR / @INTERVENE announce beat
  * for the intervention force. Extracted verbatim from ai_king_10f0_land.
  */
@@ -3408,10 +3484,6 @@ static void ai_king_10f0_announce(
    * Force"). */
   const char* ally_name =
     (ally1 >= 0 && ally1 < 4) ? reports_nation_adjective_display_name(ally1) : "Foreign";
-  const char* ally_country =
-    (ally1 >= 0 && ally1 < 4) ? reports_nation_country_name(ally1) : "A foreign power";
-  const char* crown_country =
-    (human >= 0 && human < 4) ? reports_nation_country_name(human) : "the Crown";
   const char* colony = "the colonies";
   if (ctx->colonies) {
     const int cid = colonies_id_at(ctx->colonies, hx, hy);
@@ -3420,21 +3492,6 @@ static void ai_king_10f0_announce(
       colony = c->name;
     }
   }
-  const char* announce_colony = ai_king_1528_announce_colony(ctx, human);
-  if (!announce_colony || !announce_colony[0]) {
-    announce_colony = colony;
-  }
-  /* @FRIEND row for the ally ("French General Lafayette", …) — DOS 1528
-   * splices GAME.TXT @FRIEND[ally] into %STRING2. */
-  char general[64];
-  snprintf(general, sizeof(general), "%s General", ally_name);
-  {
-    const ColonizeMsgSection* fsec = assets_msg_find(ctx->messages, "FRIEND");
-    if (fsec && ally1 >= 0 && ally1 < fsec->line_count && fsec->lines[ally1][0]) {
-      str_copy_trunc(general, sizeof(general), fsec->lines[ally1]);
-    }
-  }
-
   if (ctx->status && ctx->status_size) {
     if (paid) {
       snprintf(ctx->status, ctx->status_size, "%s mercenaries arrive in %s.",
@@ -3470,33 +3527,10 @@ static void ai_king_10f0_announce(
   if (!paid && ai_king_human_popups(ctx)) {
     char body[AI_POPUP_BODY_LEN];
     char fallback[AI_POPUP_BODY_LEN];
-    /* bugs.md #252: the declares-war announcement fires ONCE per game (DOS
-     * 1528 latch), the per-landing arrival popup every time. */
-    if (ai_king_latch_get(ctx->col1, AI_KING_INTERVENE_ANNOUNCED_BYTE) == 0) {
-      ai_king_latch_set(ctx->col1, AI_KING_INTERVENE_ANNOUNCED_BYTE, 1);
-      PopupMsgTokens itok;
-      memset(&itok, 0, sizeof(itok));
-      itok.string0 = ally_country;
-      itok.string1 = crown_country;
-      itok.string2 = general;
-      /* DOS 1528 names the human's largest COASTAL colony here, not the
-       * tile the force happens to land on — see
-       * ai_king_1528_announce_colony. */
-      itok.string3 = announce_colony;
-      itok.string4 = ally_name;
-      snprintf(
-        fallback,
-        sizeof(fallback),
-        "%s declares war on %s and joins the War of Independence on the Rebel side!",
-        ally_country,
-        crown_country
-      );
-      popup_msg_fill(ctx->messages, "INTERVENTION", &itok, fallback, body, sizeof(body));
-      (void)ai_popup_enqueue_ok_ctx(
-        ctx->ai_popups, AI_POPUP_TAG_KING_ARRIVAL, human, ally1, landings, NULL, body
-      );
-    }
-
+    /* The one-per-game "<country> declares war" announcement is NOT here:
+     * DOS shows it from FUN_43f7_1528 at the bell spend (see
+     * ai_king_1528_announce). 10f0 only ever shows the per-landing
+     * @INTERVENE arrival line (74396). */
     PopupMsgTokens atok;
     memset(&atok, 0, sizeof(atok));
     atok.string0 = colony;
@@ -3573,7 +3607,7 @@ static void ai_king_10f0_disembark(
 }
 
 static void ai_king_10f0_land(
-  ColonizeTurnContext* ctx, int target, int from_bells, int paid, const int merc_counts[4]
+  ColonizeTurnContext* ctx, int target, int paid, const int merc_counts[4]
 ) {
   if (!ctx || !ctx->col1_ok || !ctx->col1 || !ctx->units) {
     return;
@@ -3595,11 +3629,11 @@ static void ai_king_10f0_land(
    * AI_KING_INTERVENE_ANNOUNCED_BYTE models it here.
    */
   if (!paid) {
-    if (!from_bells) {
-      if (ai_king_latch_get(ctx->col1, AI_KING_INTERVENE_ANNOUNCED_BYTE) == 0 ||
-          backup[2] == 0) {
-        return;
-      }
+    /* FUN_43f7_2022 raw 75007: the free drain needs the 1528 announce latch
+     * (0x5382 bit2) AND a nonzero Man-O-War pool (0x53e6). */
+    if (ai_king_latch_get(ctx->col1, AI_KING_INTERVENE_ANNOUNCED_BYTE) == 0 ||
+        backup[2] == 0) {
+      return;
     }
     if (ai_king_force_total(backup) <= 0) {
       return;
@@ -3756,7 +3790,10 @@ int ai_king_spend_woi_bell_pool(ColonizeTurnContext* ctx, int nation_id) {
     return 0; /* pool kept, same as DOS */
   }
   if (nation_id == ctx->human_nation) {
-    ai_king_10f0_land(ctx, ctx->human_nation, 1, 0, NULL); /* FUN_43f7_10f0, bells-funded */
+    /* DOS 0a22 wartime arm (raw 73366-73369): announce ONLY (FUN_43f7_1528),
+     * no landing. The force itself arrives from 2022's once-per-turn free
+     * drain on a later turn. bugs.md #538. */
+    ai_king_1528_announce(ctx, ctx->human_nation);
   }
   return 1;
 }
@@ -3846,7 +3883,7 @@ static int ai_king_do_merc_hire_at(ColonizeTurnContext* ctx, int human, int hx, 
     snprintf(ctx->status, ctx->status_size,
              "Mercenaries join the Continental cause (−%d gold).", price);
   }
-  ai_king_10f0_land(ctx, human, 0, 1, merc_counts);
+  ai_king_10f0_land(ctx, human, 1, merc_counts);
   return 1;
 }
 
@@ -4312,7 +4349,7 @@ static int ai_king_do_merc_peace_hire(
   }
   /* DOS debits before 10f0 runs; a failed roulette / water scan keeps the
    * gold spent. Kept literal. */
-  ai_king_10f0_land(ctx, human, 0, 1, merc_counts);
+  ai_king_10f0_land(ctx, human, 1, merc_counts);
   return 1;
 }
 
@@ -4767,7 +4804,7 @@ static void ai_king_war_act(ColonizeTurnContext* ctx) {
      * Rebel arm first: 10f0 while human ports still exist (crown move/capture
      * below may seize the landing pick). In addition to 06a6 in ref_wave.
      */
-    ai_king_10f0_land(ctx, ctx->human_nation, 0, 0, NULL); /* FUN_43f7_10f0, free drain */
+    ai_king_10f0_land(ctx, ctx->human_nation, 0, NULL); /* FUN_43f7_10f0, free drain */
     /* Real 2022: recurring per-turn rebel merc gift (hire CHOICE / auto). */
     ai_king_merc_offer(ctx);
   }
@@ -4830,6 +4867,13 @@ static void ai_king_war_act(ColonizeTurnContext* ctx) {
         }
         int promoted = 0;
         const char* promoted_from = "Soldiers"; /* DOS %STRING1 = pre-promote type name */
+        /* bugs.md #534 (REFUTED 2026-09-20): GAME.TXT @MOBILIZE/@MOBILIZE2
+         * (COLONIZE/GAME.TXT 2689-2697) name "Continental Army" twice,
+         * unconditionally — there is no Dragoon variant tag and no
+         * substitution token for the post-promote type, so DOS itself prints
+         * "Continental Army status" for a Dragoon->Continental Cavalry
+         * promote. Only %STRING1 (the PRE-promote type, "Dragoons") varies.
+         * Do not retarget the text: the mechanic is already correct. */
         for (int i = 0; i < COLONIZE_UNITS_MAX && cap > 0; ++i) {
           ColonizeUnit* u = &ctx->units->units[i];
           if (!u->active || u->nation_id != human) {
@@ -6037,11 +6081,31 @@ void ai_king_apply_popup_result(ColonizeTurnContext* ctx, const AiPopupState* po
       if (popup->result_choice_id == AI_KING_CHOICE_CONFIRM) {
         ai_king_do_declare(ctx, human);
         /*
-         * Same-turn REF wave + 1eca Continental muster (FUN_43f7_0982 / 1eca).
-         * Auto-declare gets these from the crown slot's pre-euro beat; popup
-         * Confirm applies outside that turn slice.
+         * bugs.md #532: NO same-turn Continental muster. DOS reaches 1eca
+         * only through FUN_43f7_2022 called with the *human* slot
+         * (viceroy_unpacked.c:75002-75006: `param_1 != *0x53d2` arm →
+         * `if ((*(byte *)*0x84fc & 8) == 0) { 2a1f_00c4 = 1eca; set bit 8;
+         * return; }`), and 2022 is only ever called from FUN_43f7_2424
+         * (raw 75209), which in turn is only called from FUN_3844_00f2
+         * (raw 58392). 00f2 runs per slot at the START of that slot's turn
+         * (raw 6394: `FUN_281f_0644(slot)` = 3844_00f2, immediately before
+         * the slot's own turn body 0668/062c — human — or 0638 = 6d8e — AI).
+         * The human's 00f2 for the declaring turn has therefore already run
+         * by the time 1a26 fires from the Congress confirm, so the muster
+         * cannot happen before the human's NEXT turn start. 2424 also latches
+         * the WoI bit once at entry (`if ((*0x5382 & 1) == 0) {peacetime,
+         * incl. 2564/1a26 declare} else if (bVar1) {2022}`), so an
+         * auto-declare can never fall through into 2022 in the same call
+         * either.
+         *
+         * The REF wave half is unchanged: ai_king_ref_wave here only burns
+         * the port's one-turn AI_KING_REF_WAVE_WAIT_BYTE latch that
+         * ai_king_do_declare just armed ("no landing on the declaration turn
+         * itself"), keeping the landing on the same turn it has always been.
+         * The muster / 10f0 / merc arm (ai_king_war_act, DOS 2022's non-crown
+         * branch) now waits for the crown slot's pre-euro beat next turn.
          */
-        ai_king_ref_pre_euro_beat(ctx);
+        ai_king_ref_wave(ctx);
       }
       break;
     case AI_POPUP_TAG_KING_SCORED:

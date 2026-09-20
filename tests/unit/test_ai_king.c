@@ -2743,7 +2743,12 @@ static int case_king_narrative(void) {
     ctx.rng = NULL; /* restore — later blocks in this test assume no RNG */
 
     /*
-     * R3: 10f0 intervene landing enqueues @INTERVENTION + @INTERVENE ARRIVAL.
+     * R3 (bugs.md #538): the bells spend ANNOUNCES only (DOS FUN_4345_0a22
+     * wartime arm -> FUN_291f_0348 -> FUN_43f7_1528, raw 73366-73369): one
+     * @INTERVENTION ARRIVAL, no landing. The force itself arrives from
+     * FUN_43f7_2022's once-per-turn free drain (raw 75007, gated on the
+     * announce latch + a nonzero Man-O-War pool) — i.e. ai_king_war_act via
+     * ai_king_ref_pre_euro_beat — and lands exactly once.
      * WoI + REF empty + backup; merc flag already set so no Hire CHOICE spam.
      */
     {
@@ -2801,17 +2806,54 @@ static int case_king_narrative(void) {
             }
           }
         }
-        if (arrival_ok != 2 || !found_intervention || !found_intervene) {
+        if (arrival_ok != 1 || !found_intervention || found_intervene) {
           fprintf(stderr,
-                  "unit_ai_king: intervene ARRIVAL count=%d interv=%d arrive=%d\n",
+                  "unit_ai_king: announce ARRIVAL count=%d interv=%d arrive=%d\n",
                   arrival_ok, found_intervention, found_intervene);
-          return fail("10f0 intervene should enqueue @INTERVENTION + @INTERVENE once each");
+          return fail("bells spend should enqueue @INTERVENTION only, no landing");
         }
         if (!announce_names_biggest_coastal) {
           for (int i = 0; i < pop.queue_count; ++i) {
             fprintf(stderr, "unit_ai_king: 1528 body[%d]: %s\n", i, pop.queue[i].body);
           }
           return fail("1528 @INTERVENTION %STRING3 should name the largest coastal colony");
+        }
+      }
+      /*
+       * bugs.md #538 rate limit: the free drain is the ONLY landing path and
+       * runs once per turn. Arm the Man-O-War pool and take one crown
+       * pre-euro beat — exactly one @INTERVENE arrival, no second
+       * @INTERVENTION, and the pool drained so the same turn cannot land
+       * another force.
+       */
+      col1.head.backup_force[2] = 1;
+      col1.nation[0].nation_flags = (uint8_t)(col1.nation[0].nation_flags | 0x08u);
+      ai_popup_clear(&pop);
+      ai_king_ref_pre_euro_beat(&ctx);
+      {
+        int landed = 0;
+        int announced_again = 0;
+        for (int i = 0; i < pop.queue_count; ++i) {
+          if (pop.queue[i].tag != AI_POPUP_TAG_KING_ARRIVAL ||
+              pop.queue[i].kind != AI_POPUP_KIND_OK) {
+            continue;
+          }
+          if (strstr(pop.queue[i].body, "Intervention Force") ||
+              strstr(pop.queue[i].body, "regales")) {
+            landed++;
+          }
+          if (strstr(pop.queue[i].body, "declares war") ||
+              strstr(pop.queue[i].body, "War of Independence")) {
+            announced_again = 1;
+          }
+        }
+        if (landed != 1 || announced_again) {
+          fprintf(stderr, "unit_ai_king: drain landed=%d announced_again=%d\n",
+                  landed, announced_again);
+          return fail("free drain should land the intervention force exactly once");
+        }
+        if (col1.head.backup_force[2] != 0) {
+          return fail("free drain should spend the Man-O-War pool slot");
         }
       }
       /* Same-turn capture may overwrite status (1528 pattern); popup is canonical. */
@@ -2989,8 +3031,20 @@ static int case_king_narrative(void) {
     if (founding_fathers_bells_since_last_elect(0) != 0u) {
       return fail("consume_woi_bell_pool must zero side-table pool");
     }
+    /* bugs.md #538: DOS 0a22 calls FUN_43f7_1528 (announce + 0x5382 bit2),
+     * never 10f0 — the spend spawns nothing. */
+    if (count_nation(&units, 0) != intervene_before) {
+      return fail("WoI bell spend must announce only, not spawn");
+    }
+    if (ai_king_latch_get(&col1, AI_KING_INTERVENE_ANNOUNCED_BYTE) == 0) {
+      return fail("WoI bell spend should latch the 1528 intervention announce");
+    }
+    /* The landing is 2022's once-per-turn free drain (ai_king_war_act). */
+    col1.head.backup_force[2] = 1;
+    col1.nation[0].nation_flags = (uint8_t)(col1.nation[0].nation_flags | 0x08u);
+    ai_king_ref_pre_euro_beat(&ctx);
     if (count_nation(&units, 0) <= intervene_before) {
-      return fail("WoI bell spend should spawn foreign intervention");
+      return fail("free drain should spawn the foreign intervention force");
     }
     col1.head.game_options.woi = 0;
     col1.head.game_options.ref_present = 0;
