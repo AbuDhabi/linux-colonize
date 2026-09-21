@@ -580,6 +580,21 @@ static int colony_yield_pipeline(
   return yield;
 }
 
+/*
+ * colonies_has_building_row lives in colony.c, which the slim unit_colony_yield
+ * target does not link; weak so that binary still builds (it never asks about
+ * buildings). Every real binary links colony.c and takes the normal path.
+ */
+extern bool colonies_has_building_row(
+  const ColonizeColonyPool* pool, const ColonizeColony* col, ColonizeBuildingRow row
+) __attribute__((weak));
+
+static bool colony_yield_has_row(
+  const ColonizeColonyPool* pool, const ColonizeColony* colony, ColonizeBuildingRow row
+) {
+  return colonies_has_building_row && colonies_has_building_row(pool, colony, row);
+}
+
 bool colony_yield_colony_has_docks(
   const ColonizeColonyPool* pool,
   const ColonizeColony* colony
@@ -587,13 +602,14 @@ bool colony_yield_colony_has_docks(
   if (!pool || !colony) {
     return false;
   }
-  for (int bi = 0; bi < pool->building_type_count && bi < COLONIZE_BUILDING_TYPES_MAX; ++bi) {
-    if (!colony->has_building[bi]) {
-      continue;
-    }
-    const char* bn = pool->building_types[bi].name;
-    if (bn && (strstr(bn, "Docks") != NULL || strstr(bn, "Drydock") != NULL ||
-               strstr(bn, "Shipyard") != NULL)) {
+  /* Any tier of the docks chain counts. NOT just the base row: DOS never
+   * clears a lower tier on upgrade, but pillage clears single bits, so a lone
+   * Drydock or Shipyard is a real save state (docs/save_format_map.md). */
+  static const ColonizeBuildingRow k_docks[3] = {
+    COLONY_BUILDING_DOCKS, COLONY_BUILDING_DRYDOCK, COLONY_BUILDING_SHIPYARD
+  };
+  for (int i = 0; i < 3; ++i) {
+    if (colony_yield_has_row(pool, colony, k_docks[i])) {
       return true;
     }
   }

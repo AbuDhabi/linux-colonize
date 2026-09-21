@@ -1321,17 +1321,10 @@ void colonies_emit_need_school_chrome(
   const char* section = (shortfall == 3) ? "NEEDUNIVERSITY" : "NEEDCOLLEGE";
   const char* pname = colonies_profession_name(profession);
   char body[AI_POPUP_BODY_LEN];
-  char fallback[160];
-  snprintf(
-    fallback,
-    sizeof(fallback),
-    shortfall == 3 ? "Need a university to teach %s." : "Need a college to teach %s.",
-    pname
-  );
   PopupMsgTokens tok;
   memset(&tok, 0, sizeof(tok));
   tok.string0 = pname;
-  popup_msg_fill(messages, section, &tok, fallback, body, sizeof(body));
+  popup_msg_fill(messages, section, &tok, "", body, sizeof(body));
   ai_popup_enqueue_ok(ai_popups, AI_POPUP_TAG_INFO, NULL, body);
 }
 
@@ -3086,12 +3079,10 @@ void colonies_emit_full_chrome(
   }
   const char* cname = colony->name[0] ? colony->name : "colony";
   char body[AI_POPUP_BODY_LEN];
-  char fallback[160];
-  snprintf(fallback, sizeof(fallback), "The colony of %s is far too crowded.", cname);
   PopupMsgTokens tok;
   memset(&tok, 0, sizeof(tok));
   tok.string0 = cname;
-  popup_msg_fill(messages, "FULL", &tok, fallback, body, sizeof(body));
+  popup_msg_fill(messages, "FULL", &tok, "", body, sizeof(body));
   ai_popup_enqueue_ok(ai_popups, AI_POPUP_TAG_INFO, NULL, body);
 }
 

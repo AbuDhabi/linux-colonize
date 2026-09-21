@@ -377,23 +377,8 @@ static void ai_king_enqueue_teaparty_ok(ColonizeTurnContext* ctx, int human, int
   tok.number0 = tons;
   tok.has_number0 = true;
 
-  char fallback[AI_POPUP_BODY_LEN];
-  snprintf(
-    fallback,
-    sizeof(fallback),
-    "%s Party! Sons of Liberty throw %d tons of %s into the sea at %s! "
-    "Colonists refuse to pay new tax. Parliament announces boycott of %s. "
-    "%s cannot be traded in Europe until boycott is lifted.",
-    party,
-    tons,
-    cargo_nm,
-    colony_nm,
-    cargo_nm,
-    cargo_nm
-  );
-
   char body[AI_POPUP_BODY_LEN];
-  popup_msg_fill(ctx->messages, "TEAPARTY", &tok, fallback, body, sizeof(body));
+  popup_msg_fill(ctx->messages, "TEAPARTY", &tok, "", body, sizeof(body));
   sound_play(0x56); /* FUN_38fd_3dc8 tea party (COLDIG 9 cheering) */
   (void)ai_popup_enqueue_ok_ctx(
     ctx->ai_popups,
@@ -780,9 +765,11 @@ static void ai_king_1d42_royal_purse(ColonizeTurnContext* ctx) {
   /* Display text is the catalog's own @UNIT name for that row. */
   const char* k_pool_display = ai_king_merc_unit_name(ctx->units, k_pool_kind[k]);
   if (ctx->status && ctx->status_size && ctx->status[0] == '\0') {
-    snprintf(ctx->status, ctx->status_size,
-             "King increases military spending. %s added to royal expeditionary force.",
-             k_pool_display);
+    PopupMsgTokens status_tok;
+    memset(&status_tok, 0, sizeof(status_tok));
+    status_tok.string0 = k_pool_display;
+    popup_msg_fill(ctx->messages, "KINGBUY", &status_tok, "", ctx->status, ctx->status_size);
+    popup_msg_strip_markup(ctx->status);
   }
   if (ai_king_human_popups(ctx)) {
     PopupMsgTokens tok;
@@ -1467,7 +1454,7 @@ static void ai_king_tax_hike_apply(
   const char* king_title =
     reports_difficulty_title(difficulty >= 0 && difficulty < 5 ? difficulty : 0);
   const char* king_addressee =
-    ctx->col1->player[human].name[0] ? ctx->col1->player[human].name : "Governor";
+    ctx->col1->player[human].name[0] ? ctx->col1->player[human].name : "";
   ColonizeCol1Nation* nat = &ctx->col1->nation[human];
   /*
    * bugs.md: DOS's 3dc8 applies the delta and then offers keep-vs-revert, so
@@ -1616,7 +1603,7 @@ static void ai_king_tax_hike_apply(
     int nch = 0;
     if (taxopt) {
       char raw_choices[AI_POPUP_CHOICE_MAX][AI_POPUP_CHOICE_LEN];
-      nch = popup_msg_choices(taxopt, raw_choices, AI_POPUP_CHOICE_MAX);
+      nch = popup_msg_rows(taxopt, raw_choices, AI_POPUP_CHOICE_MAX);
       for (int i = 0; i < nch; ++i) {
         popup_msg_apply_tokens(choice_buf[i], sizeof(choice_buf[i]), raw_choices[i], &tok);
       }
@@ -1627,10 +1614,8 @@ static void ai_king_tax_hike_apply(
       labels[0] = choice_buf[0];
       labels[1] = choice_buf[1];
     } else {
-      labels[0] = "Kiss pinky ring.";
-      /* %.49s bounds the party name: the literal costs 14 chars, leaving 49
-       * plus NUL of the 64-byte choice slot. */
-      snprintf(choice_buf[1], sizeof(choice_buf[1]), "Hold '%.49s Party.'", party);
+      labels[0] = "";
+      choice_buf[1][0] = '\0';
       labels[1] = choice_buf[1];
     }
     sound_play(0x3e); /* FUN_38fd_3dc8 38fd:4022/4068: royal-audience tune */
@@ -1772,27 +1757,26 @@ static void ai_king_succession(ColonizeTurnContext* ctx) {
     tok.string2 = heir_adj;
     tok.string3 = merged_adj;
     char body[AI_POPUP_BODY_LEN];
-    char fallback[AI_POPUP_BODY_LEN];
-    snprintf(
-      fallback,
-      sizeof(fallback),
-      "War of the Spanish Succession ends in Europe! %s, ravaged by war, agrees "
-      "to cede %s to the %s. Treaty of Utrecht specifies that all %s possessions "
-      "in the New World now fall under %s rule.",
-      ceder, domain, heir_adj, merged_adj, heir_adj
-    );
-    popup_msg_fill(ctx->messages, "SUCCESSION", &tok, fallback, body, sizeof(body));
+    popup_msg_fill(ctx->messages, "SUCCESSION", &tok, "", body, sizeof(body));
     (void)ai_popup_enqueue_ok_ctx(
       ctx->ai_popups, AI_POPUP_TAG_INFO, human, merged, heir, NULL, body
     );
   }
   if (ctx->status && ctx->status_size && ctx->status[0] == '\0') {
-    snprintf(ctx->status, ctx->status_size,
-             "War of the Spanish Succession: %s possessions pass to the %s.",
-             col1->player[merged].country_name[0] ? col1->player[merged].country_name
-                                                  : "foreign",
-             (heir >= 0 && heir < 4) ? reports_nation_adjective_display_name(heir)
-                                     : "heir");
+    const char* ceder = reports_nation_country_name(merged);
+    const char* domain = col1->player[merged].country_name[0]
+                           ? col1->player[merged].country_name
+                           : "its colonies";
+    const char* heir_adj = reports_nation_adjective_display_name(heir);
+    const char* merged_adj = reports_nation_adjective_display_name(merged);
+    PopupMsgTokens status_tok;
+    memset(&status_tok, 0, sizeof(status_tok));
+    status_tok.string0 = ceder;
+    status_tok.string1 = domain;
+    status_tok.string2 = heir_adj;
+    status_tok.string3 = merged_adj;
+    popup_msg_fill(ctx->messages, "SUCCESSION", &status_tok, "", ctx->status, ctx->status_size);
+    popup_msg_strip_markup(ctx->status);
   }
 }
 
@@ -1970,10 +1954,7 @@ static void ai_king_do_declare(ColonizeTurnContext* ctx, int human) {
           memset(&tok, 0, sizeof(tok));
           tok.string0 = ship->name[0] ? ship->name : "Ship";
           char body[AI_POPUP_BODY_LEN];
-          char fallback[AI_POPUP_BODY_LEN];
-          snprintf(fallback, sizeof(fallback),
-                   "%s seized on the high seas by the Royal Navy!", tok.string0);
-          popup_msg_fill(ctx->messages, "SEIZURE", &tok, fallback, body, sizeof(body));
+          popup_msg_fill(ctx->messages, "SEIZURE", &tok, "", body, sizeof(body));
           (void)ai_popup_enqueue_ok_ctx(
             ctx->ai_popups, AI_POPUP_TAG_INFO, human, crown_fold, 0, NULL, body
           );
@@ -2112,15 +2093,7 @@ static void ai_king_show_declare_choice(ColonizeTurnContext* ctx, int human, int
     memset(&tok, 0, sizeof(tok));
     tok.string0 = motherland;
     char body[AI_POPUP_BODY_LEN];
-    char fallback[AI_POPUP_BODY_LEN];
-    snprintf(
-      fallback,
-      sizeof(fallback),
-      "Shall we declare our independence from %s, Your Excellency? "
-      "This will end our turn and place us at war with our King!",
-      motherland
-    );
-    popup_msg_fill(ctx->messages, "DECLARE", &tok, fallback, body, sizeof(body));
+    popup_msg_fill(ctx->messages, "DECLARE", &tok, "", body, sizeof(body));
     char choice_buf[AI_POPUP_CHOICE_MAX][AI_POPUP_CHOICE_LEN];
     const ColonizeMsgSection* sec = assets_msg_find(ctx->messages, "DECLARE");
     int nch = popup_msg_choices(sec, choice_buf, AI_POPUP_CHOICE_MAX);
@@ -2136,8 +2109,8 @@ static void ai_king_show_declare_choice(ColonizeTurnContext* ctx, int human, int
       labels[0] = choice_buf[0];
       labels[1] = choice_buf[1];
     } else {
-      labels[0] = "Never! That would be treasonous! God save the King!";
-      labels[1] = "Yes! Give me liberty or give me death!";
+      labels[0] = "";
+      labels[1] = "";
     }
     if (ai_popup_enqueue_choice_ctx(ctx->ai_popups, AI_POPUP_TAG_KING_CONGRESS, human,
                                     ai_king_crown_nation_col1(ctx->col1_ok ? ctx->col1 : NULL, human), sol, NULL,
@@ -2205,8 +2178,10 @@ void ai_king_menu_declare_independence(ColonizeTurnContext* ctx) {
     return;
   }
   if (ai_king_independence_declared(ctx->col1)) {
+    /* Port-authored notice: no GAME.TXT section covers this re-entry case
+     * (menu DECLARE INDEPENDENCE after already at war with the Crown). */
     if (ctx->status && ctx->status_size) {
-      snprintf(ctx->status, ctx->status_size, "We are already at war with the Crown.");
+      snprintf(ctx->status, ctx->status_size, "Independence already declared.");
     }
     return;
   }
@@ -2217,24 +2192,19 @@ void ai_king_menu_declare_independence(ColonizeTurnContext* ctx) {
       memset(&tok, 0, sizeof(tok));
       tok.number0 = sol;
       tok.has_number0 = true;
-      char fallback[AI_POPUP_BODY_LEN];
-      snprintf(
-        fallback,
-        sizeof(fallback),
-        "Only %d%% of the colonists support the independence movement, Your "
-        "Excellency. We cannot start a rebellion against the King until the "
-        "majority is behind us.",
-        sol
-      );
       char body[AI_POPUP_BODY_LEN];
-      popup_msg_fill(ctx->messages, "TOOTORY", &tok, fallback, body, sizeof(body));
+      popup_msg_fill(ctx->messages, "TOOTORY", &tok, "", body, sizeof(body));
       (void)ai_popup_enqueue_ok_ctx(ctx->ai_popups, AI_POPUP_TAG_INFO, human,
                                     ai_king_crown_nation_col1(ctx->col1_ok ? ctx->col1 : NULL, human), sol, NULL,
                                     body);
     }
     if (ctx->status && ctx->status_size) {
-      snprintf(ctx->status, ctx->status_size,
-               "Only %d%% of the colonists support independence yet.", sol);
+      PopupMsgTokens status_tok;
+      memset(&status_tok, 0, sizeof(status_tok));
+      status_tok.number0 = sol;
+      status_tok.has_number0 = true;
+      popup_msg_fill(ctx->messages, "TOOTORY", &status_tok, "", ctx->status, ctx->status_size);
+      popup_msg_strip_markup(ctx->status);
     }
     return;
   }
@@ -2476,8 +2446,8 @@ COLONIZE_INTERNAL int ai_king_0982_garrison_score(const ColonizeTurnContext* ctx
     }
     g += combat_unit_base_x8(&cs, u->id, 1, NULL) >> 4;
   }
-  const int fortress = colonies_find_building(ctx->colonies, "Fortress");
-  const int fort = colonies_find_building(ctx->colonies, "Fort");
+  const int fortress = colonies_building_row(ctx->colonies, COLONY_BUILDING_FORTRESS);
+  const int fort = colonies_building_row(ctx->colonies, COLONY_BUILDING_FORT);
   if (fortress >= 0 && c->has_building[fortress]) {
     g <<= 1;
   } else if (fort >= 0 && c->has_building[fort]) {
@@ -3101,11 +3071,8 @@ COLONIZE_INTERNAL void ai_king_0982_invasion(struct ai_king_0982_ctx* w) {
         PopupMsgTokens tok;
         memset(&tok, 0, sizeof(tok));
         tok.string0 = c->name[0] ? c->name : "your colony";
-        char fallback[AI_POPUP_BODY_LEN];
-        snprintf(fallback, sizeof(fallback), "Royal Expeditionary Force lands near %s!",
-                 tok.string0);
         char body[AI_POPUP_BODY_LEN];
-        popup_msg_fill(ctx->messages, "INVASION", &tok, fallback, body, sizeof(body));
+        popup_msg_fill(ctx->messages, "INVASION", &tok, "", body, sizeof(body));
         if (ctx->status && ctx->status_size) {
           snprintf(ctx->status, ctx->status_size, "%s", body);
         }
@@ -3432,7 +3399,7 @@ static void ai_king_1528_announce(ColonizeTurnContext* ctx, int human) {
   /* @FRIEND row for the ally ("French General Lafayette", ...) — 1528
    * splices GAME.TXT @FRIEND[ally] into %STRING2. */
   char general[64];
-  snprintf(general, sizeof(general), "%s General", ally_name);
+  general[0] = '\0';
   {
     const ColonizeMsgSection* fsec = assets_msg_find(ctx->messages, "FRIEND");
     if (fsec && ally1 >= 0 && ally1 < fsec->line_count && fsec->lines[ally1][0]) {
@@ -3453,16 +3420,8 @@ static void ai_king_1528_announce(ColonizeTurnContext* ctx, int human) {
   itok.string2 = general;
   itok.string3 = announce_colony;
   itok.string4 = ally_name;
-  char fallback[AI_POPUP_BODY_LEN];
   char body[AI_POPUP_BODY_LEN];
-  snprintf(
-    fallback,
-    sizeof(fallback),
-    "%s declares war on %s and joins the War of Independence on the Rebel side!",
-    ally_country,
-    crown_country
-  );
-  popup_msg_fill(ctx->messages, "INTERVENTION", &itok, fallback, body, sizeof(body));
+  popup_msg_fill(ctx->messages, "INTERVENTION", &itok, "", body, sizeof(body));
   (void)ai_popup_enqueue_ok_ctx(
     ctx->ai_popups, AI_POPUP_TAG_KING_ARRIVAL, human, ally1 >= 0 ? ally1 : 0, 0, NULL, body
   );
@@ -3493,13 +3452,13 @@ static void ai_king_10f0_announce(
     }
   }
   if (ctx->status && ctx->status_size) {
-    if (paid) {
-      snprintf(ctx->status, ctx->status_size, "%s mercenaries arrive in %s.",
-               ally_name, colony);
-    } else {
-      snprintf(ctx->status, ctx->status_size, "%s Intervention Force arrives in %s!",
-               ally_name, colony);
-    }
+    PopupMsgTokens status_tok;
+    memset(&status_tok, 0, sizeof(status_tok));
+    status_tok.string0 = colony;
+    status_tok.string1 = ally_name;
+    popup_msg_fill(ctx->messages, paid ? "MERCS" : "INTERVENE", &status_tok, "",
+                   ctx->status, ctx->status_size);
+    popup_msg_strip_markup(ctx->status);
   }
   if (paid && ai_king_human_popups(ctx)) {
     /*
@@ -3515,9 +3474,7 @@ static void ai_king_10f0_announce(
     mtok.string0 = colony;
     mtok.string1 = ally_name;
     char mbody[AI_POPUP_BODY_LEN];
-    char mfallback[AI_POPUP_BODY_LEN];
-    snprintf(mfallback, sizeof(mfallback), "%s mercenaries arrive in %s.", ally_name, colony);
-    popup_msg_fill(ctx->messages, "MERCS", &mtok, mfallback, mbody, sizeof(mbody));
+    popup_msg_fill(ctx->messages, "MERCS", &mtok, "", mbody, sizeof(mbody));
     (void)ai_popup_enqueue_ok_ctx(
       ctx->ai_popups, AI_POPUP_TAG_KING_MERC, human,
       ai_king_crown_nation_col1(ctx->col1, human), landings, NULL, mbody
@@ -3526,7 +3483,6 @@ static void ai_king_10f0_announce(
   }
   if (!paid && ai_king_human_popups(ctx)) {
     char body[AI_POPUP_BODY_LEN];
-    char fallback[AI_POPUP_BODY_LEN];
     /* The one-per-game "<country> declares war" announcement is NOT here:
      * DOS shows it from FUN_43f7_1528 at the bell spend (see
      * ai_king_1528_announce). 10f0 only ever shows the per-landing
@@ -3535,16 +3491,7 @@ static void ai_king_10f0_announce(
     memset(&atok, 0, sizeof(atok));
     atok.string0 = colony;
     atok.string1 = ally_name;
-    snprintf(
-      fallback,
-      sizeof(fallback),
-      "%s Intervention Force arrives in %s! Local Rebel Army commander regales "
-      "%s admiral.",
-      ally_name,
-      colony,
-      ally_name
-    );
-    popup_msg_fill(ctx->messages, "INTERVENE", &atok, fallback, body, sizeof(body));
+    popup_msg_fill(ctx->messages, "INTERVENE", &atok, "", body, sizeof(body));
     (void)ai_popup_enqueue_ok_ctx(
       ctx->ai_popups, AI_POPUP_TAG_KING_ARRIVAL, human, ally1, landings, NULL, body
     );
@@ -4040,18 +3987,9 @@ static void ai_king_merc_offer(ColonizeTurnContext* ctx) {
     tok.string1 = merc_list;
     tok.number0 = price;
     tok.has_number0 = true;
-    char fallback[AI_POPUP_BODY_LEN];
-    snprintf(
-      fallback,
-      sizeof(fallback),
-      "%s offers to sell us mercenaries (%s) for %d gold.",
-      seller_name,
-      merc_list,
-      price
-    );
     char body[AI_POPUP_BODY_LEN];
     char choice_buf[AI_POPUP_CHOICE_MAX][AI_POPUP_CHOICE_LEN];
-    const int nch = ai_king_merc_fill_dialog(ctx, &tok, fallback, body, choice_buf);
+    const int nch = ai_king_merc_fill_dialog(ctx, &tok, "", body, choice_buf);
     /* GAME.TXT: No thank you. / Pay $ — map to Decline / Hire. */
     const char* labels[2];
     const int ids[] = {AI_KING_CHOICE_DECLINE, AI_KING_CHOICE_HIRE};
@@ -4059,8 +3997,8 @@ static void ai_king_merc_offer(ColonizeTurnContext* ctx) {
       labels[0] = choice_buf[0];
       labels[1] = choice_buf[1];
     } else {
-      labels[0] = "No thank you.";
-      labels[1] = "Pay";
+      labels[0] = "";
+      labels[1] = "";
     }
     if (ai_popup_enqueue_choice_ctx(ctx->ai_popups, AI_POPUP_TAG_KING_MERC, human,
                                     ai_king_crown_nation_col1(ctx->col1_ok ? ctx->col1 : NULL, human),
@@ -4172,8 +4110,10 @@ static void ai_king_frigate_accept(ColonizeTurnContext* ctx, int nation) {
     return;
   }
   if (nation == ctx->human_nation) {
+    /* Port-authored notice: no GAME.TXT section covers the frigate-departure
+     * status beat (KINGFRIGATE only carries the audience offer itself). */
     if (ctx->status && ctx->status_size) {
-      snprintf(ctx->status, ctx->status_size, "A Royal Frigate sails for the New World.");
+      snprintf(ctx->status, ctx->status_size, "Royal frigate dispatched.");
     }
     ai_king_tax_hike_apply(ctx, nation, 10, NULL);
   }
@@ -4223,10 +4163,10 @@ void ai_king_frigate_offer(ColonizeTurnContext* ctx, int nation) {
   memset(&tok, 0, sizeof(tok));
   tok.string0 = reports_difficulty_title(d >= 0 && d < 5 ? d : 0);
   tok.string1 = ctx->col1->player[nation].name[0] ? ctx->col1->player[nation].name
-                                                    : "Your Excellency";
+                                                    : "";
   tok.string2 = ctx->col1->player[nation].country_name[0]
                   ? ctx->col1->player[nation].country_name
-                  : "Royal";
+                  : "";
   char body[AI_POPUP_BODY_LEN];
   popup_msg_fill(
     ctx->messages, "KINGFRIGATE", &tok,
@@ -4242,8 +4182,8 @@ void ai_king_frigate_offer(ColonizeTurnContext* ctx, int nation) {
     labels[0] = choice_buf[0];
     labels[1] = choice_buf[1];
   } else {
-    labels[0] = "Yes, I fear it is necessary.";
-    labels[1] = "No. We shall attend to our own defense.";
+    labels[0] = "";
+    labels[1] = "";
   }
   sound_play(0x3e); /* FUN_3844_00f2 3844:0350: audience tune (281f_048e) before the CHOICE */
   if (!ai_popup_enqueue_choice_ctx(ctx->ai_popups, AI_POPUP_TAG_KING_FRIGATE, nation,
@@ -4428,26 +4368,18 @@ void ai_king_peacetime_merc_offer(ColonizeTurnContext* ctx) {
   tok.string1 = merc_list;
   tok.number0 = price;
   tok.has_number0 = true;
-  char fallback[AI_POPUP_BODY_LEN];
-  snprintf(
-    fallback, sizeof(fallback),
-    "The King of %s has offered to send us a force of trained mercenaries (%s) in exchange for %d gold.",
-    seller_name, merc_list, price
-  );
   char body[AI_POPUP_BODY_LEN];
   char choice_buf[AI_POPUP_CHOICE_MAX][AI_POPUP_CHOICE_LEN];
-  const int nch = ai_king_merc_fill_dialog(ctx, &tok, fallback, body, choice_buf);
+  const int nch = ai_king_merc_fill_dialog(ctx, &tok, "", body, choice_buf);
   /* GAME.TXT: No thank you. / Pay {%NUMBER0$}. — DOS choice 2 = Pay. */
   const char* labels[2];
-  char pay_fallback[32];
-  snprintf(pay_fallback, sizeof(pay_fallback), "Pay %d gold.", price);
   const int ids[] = {AI_KING_CHOICE_DECLINE, AI_KING_CHOICE_HIRE};
   if (nch >= 2) {
     labels[0] = choice_buf[0];
     labels[1] = choice_buf[1];
   } else {
-    labels[0] = "No thank you.";
-    labels[1] = pay_fallback;
+    labels[0] = "";
+    labels[1] = "";
   }
   if (ai_popup_enqueue_choice_ctx(
         ctx->ai_popups, AI_POPUP_TAG_KING_MERC_PEACE, human, seller,
@@ -4560,7 +4492,7 @@ int ai_king_new_war_event(ColonizeTurnContext* ctx) {
     PopupMsgTokens tok;
     memset(&tok, 0, sizeof(tok));
     tok.string0 = reports_difficulty_title(difficulty >= 0 && difficulty < 5 ? difficulty : 0);
-    tok.string1 = col1->player[human].name[0] ? col1->player[human].name : "Governor";
+    tok.string1 = col1->player[human].name[0] ? col1->player[human].name : "";
     tok.string2 = peer_name;
     tok.number0 = gold;
     tok.has_number0 = true;
@@ -4592,7 +4524,9 @@ int ai_king_new_war_event(ColonizeTurnContext* ctx) {
    * the units appear in Europe — Linux puts them on the docks. */
   if (ctx->europe) {
     for (int i = 0; i < count; ++i) {
-      if (!europe_dock_push_load(ctx->europe, "Veteran Soldier", UNITS_JOB_SOLDIER)) {
+      if (!europe_dock_push_load(
+            ctx->europe, reports_job_display_name(UNITS_JOB_SOLDIER), UNITS_JOB_SOLDIER
+          )) {
         break;
       }
     }
@@ -4865,7 +4799,7 @@ static void ai_king_war_act(ColonizeTurnContext* ctx) {
           cap = 1;
         }
         int promoted = 0;
-        const char* promoted_from = "Soldiers"; /* DOS %STRING1 = pre-promote type name */
+        const char* promoted_from = ""; /* DOS %STRING1 = pre-promote type name */
         /* bugs.md #534 (REFUTED 2026-09-20): GAME.TXT @MOBILIZE/@MOBILIZE2
          * (COLONIZE/GAME.TXT 2689-2697) name "Continental Army" twice,
          * unconditionally — there is no Dragoon variant tag and no
@@ -4908,11 +4842,11 @@ static void ai_king_war_act(ColonizeTurnContext* ctx) {
           }
           if (soldier_ty >= 0 && u->type_index == soldier_ty && army >= 0) {
             const ColonizeUnitType* ty = units_type(ctx->units, u->type_index);
-            promoted_from = ty && ty->name[0] ? ty->name : "Soldiers";
+            promoted_from = ty && ty->name[0] ? ty->name : "";
             u->type_index = army;
           } else if (dragoon_ty >= 0 && u->type_index == dragoon_ty && cav >= 0) {
             const ColonizeUnitType* ty = units_type(ctx->units, u->type_index);
-            promoted_from = ty && ty->name[0] ? ty->name : "Dragoons";
+            promoted_from = ty && ty->name[0] ? ty->name : "";
             u->type_index = cav;
           } else {
             continue;
@@ -4921,14 +4855,20 @@ static void ai_king_war_act(ColonizeTurnContext* ctx) {
           ++promoted;
         }
         if (promoted > 0 && ctx->status && ctx->status_size) {
+          PopupMsgTokens status_tok;
+          memset(&status_tok, 0, sizeof(status_tok));
+          status_tok.string0 = c->name[0] ? c->name : "our colony";
           if (promoted == 1) {
-            snprintf(ctx->status, ctx->status_size,
-                     "A rebel unit has been promoted to Continental status!");
+            status_tok.string1 = promoted_from;
+            popup_msg_fill(ctx->messages, "MOBILIZE", &status_tok, "",
+                           ctx->status, ctx->status_size);
           } else {
-            snprintf(ctx->status, ctx->status_size,
-                     "%d rebel units have been promoted to Continental status!",
-                     promoted);
+            status_tok.has_number0 = true;
+            status_tok.number0 = promoted;
+            popup_msg_fill(ctx->messages, "MOBILIZE2", &status_tok, "",
+                           ctx->status, ctx->status_size);
           }
+          popup_msg_strip_markup(ctx->status);
         }
         /* bugs.md #232: the mustering gets its own dialog per colony —
          * GAME.TXT @MOBILIZE (one unit, %STRING0 colony / %STRING1 type) or
@@ -5198,26 +5138,11 @@ static void ai_king_enqueue_throne_audience(
   PopupMsgTokens tok;
   memset(&tok, 0, sizeof(tok));
   char body[AI_POPUP_BODY_LEN];
-  char fallback[AI_POPUP_BODY_LEN];
   if (win) {
-    snprintf(
-      fallback,
-      sizeof(fallback),
-      "\"In our wisdom, we have decided to let you go your own way. Do not "
-      "seek our aid in the future, for it will not be forthcoming.\""
-    );
-    popup_msg_fill(ctx->messages, "KINGLOSE", &tok, fallback, body, sizeof(body));
+    popup_msg_fill(ctx->messages, "KINGLOSE", &tok, "", body, sizeof(body));
   } else {
     tok.string0 = motherland;
-    snprintf(
-      fallback,
-      sizeof(fallback),
-      "\"As expected, your attempt to separate from mother %s has proven "
-      "futile. Your Rag Tag armies are simply no match for our Royal "
-      "forces.\"",
-      motherland
-    );
-    popup_msg_fill(ctx->messages, "KINGWIN", &tok, fallback, body, sizeof(body));
+    popup_msg_fill(ctx->messages, "KINGWIN", &tok, "", body, sizeof(body));
   }
   (void)ai_popup_enqueue_ok_ctx(
     ctx->ai_popups, AI_POPUP_TAG_KING_THRONE, human, crown, win ? 1 : 2, NULL, body
@@ -5334,17 +5259,7 @@ static AiKingWoiEndStatus ai_king_woi_end_lose(struct ai_king_woi_end_ctx* w) {
                         ? reports_nation_country_name(exile_nation)
                         : "Europe";
   if (colonies <= 0) {
-    char fallback[AI_POPUP_BODY_LEN];
-    snprintf(
-      fallback,
-      sizeof(fallback),
-      "King's Forces control all colonies in %s! Continental Congress capitulates. "
-      "%s, stripped of titles, escapes to exile in %s.",
-      country,
-      leader,
-      exile
-    );
-    ai_king_emit_loss(ctx, "LOSING2", fallback, human, crown, country, leader, exile);
+    ai_king_emit_loss(ctx, "LOSING2", "", human, crown, country, leader, exile);
     return AI_KING_WOI_END_DONE;
   }
   /*
@@ -5353,31 +5268,11 @@ static AiKingWoiEndStatus ai_king_woi_end_lose(struct ai_king_woi_end_ctx* w) {
    * after 58507 wrote 1).
    */
   if (pop_pct >= AI_KING_LOSING3_PCT) {
-    char fallback[AI_POPUP_BODY_LEN];
-    snprintf(
-      fallback,
-      sizeof(fallback),
-      "King's Forces control over 90%% of %s population! Continental Congress "
-      "capitulates. %s, stripped of titles, escapes to exile in %s.",
-      country,
-      leader,
-      exile
-    );
-    ai_king_emit_loss(ctx, "LOSING3", fallback, human, crown, country, leader, exile);
+    ai_king_emit_loss(ctx, "LOSING3", "", human, crown, country, leader, exile);
     return AI_KING_WOI_END_DONE;
   }
   if (ports <= 0) {
-    char fallback[AI_POPUP_BODY_LEN];
-    snprintf(
-      fallback,
-      sizeof(fallback),
-      "King's Forces control all ports in %s! Continental Congress capitulates. "
-      "%s, stripped of titles, escapes to exile in %s.",
-      country,
-      leader,
-      exile
-    );
-    ai_king_emit_loss(ctx, "LOSING1", fallback, human, crown, country, leader, exile);
+    ai_king_emit_loss(ctx, "LOSING1", "", human, crown, country, leader, exile);
     return AI_KING_WOI_END_DONE;
   }
   return AI_KING_WOI_END_CONTINUE;
@@ -5444,7 +5339,6 @@ static AiKingWoiEndStatus ai_king_woi_end_win(struct ai_king_woi_end_ctx* w) {
     const char* country =
       (pl->country_name[0] != '\0') ? pl->country_name : "the colonies";
     char body[AI_POPUP_BODY_LEN];
-    char fallback[AI_POPUP_BODY_LEN];
     /* DOS 3844_0442 win order: victory tune pool (FUN_129f_0318(3)), the
      * @WINNING announcement, THEN the @KINGLOSE throne audience (bugs.md #258
      * — the first pass had the two inverted). */
@@ -5457,17 +5351,7 @@ static AiKingWoiEndStatus ai_king_woi_end_win(struct ai_king_woi_end_ctx* w) {
     memset(&tok, 0, sizeof(tok));
     tok.string0 = leader;
     tok.string1 = country;
-    snprintf(
-      fallback,
-      sizeof(fallback),
-      "Royal Expeditionary Force annihilated! General %s accepts surrender of "
-      "all Tory forces. Parliament accepts independence of %s. Continental "
-      "Congress proclaims %s the first President of the new republic!",
-      leader,
-      country,
-      leader
-    );
-    popup_msg_fill(ctx->messages, "WINNING", &tok, fallback, body, sizeof(body));
+    popup_msg_fill(ctx->messages, "WINNING", &tok, "", body, sizeof(body));
     if (ctx->status && ctx->status_size) {
       snprintf(ctx->status, ctx->status_size, "%s", body);
     }
@@ -5517,44 +5401,14 @@ static void ai_king_woi_end_warn(struct ai_king_woi_end_ctx* w) {
       memset(&tok, 0, sizeof(tok));
       ai_king_warn_numbers(&tok, ports, colonies, pop_pct);
       tok.string0 = country;
-      char fallback[AI_POPUP_BODY_LEN];
       char tag[16];
       snprintf(tag, sizeof(tag), "WARN%d", warn_sel);
-      if (warn_sel == 2) {
-        snprintf(
-          fallback,
-          sizeof(fallback),
-          "Your Excellency, the King's forces control all but %d of our colonies!  "
-          "We need to protect our remaining colonies, or we will lose the war!",
-          colonies
-        );
-      } else if (warn_sel == 3) {
-        snprintf(
-          fallback,
-          sizeof(fallback),
-          "Your Excellency, the King's forces control %d%% of the %s population.  "
-          "If he ever controls 90%%, the Continental Congress will be unable to "
-          "continue the war and we will have to surrender!",
-          pop_pct,
-          country
-        );
-      } else {
-        snprintf(
-          fallback,
-          sizeof(fallback),
-          "Your Excellency, the King's forces control all but %d of the ports in %s!  "
-          "If we don't retain control of at least one port our commerce will be "
-          "choked and we will have to surrender!",
-          ports,
-          country
-        );
-      }
       /*
        * Do not clobber same-turn wave/war_act status (1528 @INVASION, 2244
        * merc). The warn still enqueues its INFO OK; status when buffer empty.
        */
       ai_king_emit_ok(
-        ctx, tag, &tok, fallback, AI_POPUP_TAG_INFO, human, crown, warn_sel, 0, NULL, 0
+        ctx, tag, &tok, "", AI_POPUP_TAG_INFO, human, crown, warn_sel, 0, NULL, 0
       );
       ai_king_latch_set(ctx->col1, warn_byte, 1);
     }
@@ -5584,18 +5438,8 @@ static void ai_king_woi_end_warn(struct ai_king_woi_end_ctx* w) {
     tok.string0 = reports_difficulty_title((diff >= 0 && diff < 5) ? diff : 4);
     tok.string1 = leader;
     tok.string2 = estate;
-    char fallback[AI_POPUP_BODY_LEN];
-    snprintf(
-      fallback,
-      sizeof(fallback),
-      "War-weary Continental Congress sues for peace!  King accepts surrender "
-      "from %s %s, who retires to country estate near %s.",
-      tok.string0,
-      leader,
-      estate
-    );
     ai_king_emit_ok(
-      ctx, "RETIRING2", &tok, fallback, AI_POPUP_TAG_KING_WAR_END, human, crown, 2, 1,
+      ctx, "RETIRING2", &tok, "", AI_POPUP_TAG_KING_WAR_END, human, crown, 2, 1,
       NULL, 0
     );
   }
@@ -5622,7 +5466,7 @@ static void ai_king_check_revolution_end(ColonizeTurnContext* ctx) {
   const ColonizeCol1Player* pl = &ctx->col1->player[human];
   const char* country =
     (pl->country_name[0] != '\0') ? pl->country_name : "the colonies";
-  const char* leader = (pl->name[0] != '\0') ? pl->name : "Your Excellency";
+  const char* leader = (pl->name[0] != '\0') ? pl->name : "";
   /*
    * Mid-war warn selector — DOS FUN_3844_0442 builds the warn tag the same
    * way it builds the lose tag: one digit patched into a base name
@@ -5742,7 +5586,7 @@ void ai_king_nation_turn(ColonizeTurnContext* ctx) {
       const char* leader =
         (human >= 0 && human < 4 && ctx->col1->player[human].name[0] != '\0')
           ? ctx->col1->player[human].name
-          : "Your Excellency";
+          : "";
       PopupMsgTokens tok;
       memset(&tok, 0, sizeof(tok));
       /* raw 58622 `FUN_281f_0438(0, *(0x53a6 * 2 - 0x7c6c))`: %STRING0 is the
@@ -5751,17 +5595,8 @@ void ai_king_nation_turn(ColonizeTurnContext* ctx) {
       const int diff = (int)ctx->col1->head.difficulty;
       tok.string0 = reports_difficulty_title((diff >= 0 && diff < 5) ? diff : 4);
       tok.string1 = leader;
-      char fallback[AI_POPUP_BODY_LEN];
-      snprintf(
-        fallback,
-        sizeof(fallback),
-        "%s %s plans to retire in 1800!  A rumor circulates that he would "
-        "postpone his retirement were a War of Independence to begin.",
-        tok.string0,
-        leader
-      );
       ai_king_emit_ok(
-        ctx, "SOONRETIRING0", &tok, fallback, AI_POPUP_TAG_INFO, human,
+        ctx, "SOONRETIRING0", &tok, "", AI_POPUP_TAG_INFO, human,
         ai_king_crown_nation_col1(ctx->col1_ok ? ctx->col1 : NULL, human),
         AI_KING_SOONRETIRE0_YEAR, 0, NULL, 0
       );
@@ -5800,8 +5635,8 @@ void ai_king_nation_turn(ColonizeTurnContext* ctx) {
           labels[0] = choice_buf[0];
           labels[1] = choice_buf[1];
         } else {
-          labels[0] = "That's all.";
-          labels[1] = "Keep playing anyway.";
+          labels[0] = "";
+          labels[1] = "";
         }
         (void)ai_popup_enqueue_choice_ctx(
           ctx->ai_popups,
@@ -5854,19 +5689,7 @@ void ai_king_nation_turn(ColonizeTurnContext* ctx) {
           tok.string0 = country;
           const char* section = rising ? (sol >= 50 ? "REBELUP50" : "REBELUP") : "REBELDOWN";
           char body[AI_POPUP_BODY_LEN];
-          char fallback[AI_POPUP_BODY_LEN];
-          snprintf(
-            fallback,
-            sizeof(fallback),
-            rising
-              ? "Rebel sentiment is rising in the colonies! %d%% of the population "
-                "supports the idea of independence from %s."
-              : "Tory sentiment is once again on the rise. Only %d%% of the population "
-                "now supports the notion of independence from %s.",
-            sol,
-            country
-          );
-          popup_msg_fill(ctx->messages, section, &tok, fallback, body, sizeof(body));
+          popup_msg_fill(ctx->messages, section, &tok, "", body, sizeof(body));
           (void)ai_popup_enqueue_ok_ctx(
             ctx->ai_popups, AI_POPUP_TAG_INFO, ctx->human_nation,
             ai_king_crown_nation_col1(ctx->col1, ctx->human_nation), sol, NULL, body
@@ -5920,7 +5743,7 @@ void ai_king_nation_turn(ColonizeTurnContext* ctx) {
       const char* leader =
         (human >= 0 && human < 4 && ctx->col1->player[human].name[0] != '\0')
           ? ctx->col1->player[human].name
-          : "Your Excellency";
+          : "";
       PopupMsgTokens tok;
       memset(&tok, 0, sizeof(tok));
       /* Same emitter as @SOONRETIRING0 (raw 58618-58628): %STRING0 is the
@@ -5931,17 +5754,8 @@ void ai_king_nation_turn(ColonizeTurnContext* ctx) {
         tok.string0 = reports_difficulty_title((diff >= 0 && diff < 5) ? diff : 4);
       }
       tok.string1 = leader;
-      char fallback[AI_POPUP_BODY_LEN];
-      snprintf(
-        fallback,
-        sizeof(fallback),
-        "\"General %s, the people are weary of this long war.  If we cannot "
-        "force a conclusion by 1850, the Continental Congress will sue for "
-        "peace and seek to swear renewed allegiance to the King.\"",
-        leader
-      );
       ai_king_emit_ok(
-        ctx, "SOONRETIRING1", &tok, fallback, AI_POPUP_TAG_INFO, human,
+        ctx, "SOONRETIRING1", &tok, "", AI_POPUP_TAG_INFO, human,
         ai_king_crown_nation_col1(ctx->col1_ok ? ctx->col1 : NULL, human),
         AI_KING_SOONRETIRE1_YEAR, 0, NULL, 0
       );
@@ -6112,25 +5926,16 @@ void ai_king_apply_popup_result(ColonizeTurnContext* ctx, const AiPopupState* po
           (ctx->col1_ok && ctx->col1 && human >= 0 && human < 4 &&
            ctx->col1->player[human].name[0] != '\0')
             ? ctx->col1->player[human].name
-            : "Your Excellency";
+            : "";
         const char* estate = ai_king_richest_colony_name(ctx, human);
         PopupMsgTokens tok;
         memset(&tok, 0, sizeof(tok));
-        tok.string0 = "Viceroy";
+        const int retire_diff = (ctx->col1_ok && ctx->col1) ? (int)ctx->col1->head.difficulty : 4;
+        tok.string0 = reports_difficulty_title((retire_diff >= 0 && retire_diff < 5) ? retire_diff : 4);
         tok.string1 = leader;
         tok.string2 = estate;
-        char fallback[AI_POPUP_BODY_LEN];
-        snprintf(
-          fallback,
-          sizeof(fallback),
-          "Viceroy %s steps down after over 300 years of loyal service to the "
-          "Crown.  King knights aging Viceroy, who retires to country estate "
-          "near %s.",
-          leader,
-          estate
-        );
         char body[AI_POPUP_BODY_LEN];
-        popup_msg_fill(ctx->messages, "RETIRING", &tok, fallback, body, sizeof(body));
+        popup_msg_fill(ctx->messages, "RETIRING", &tok, "", body, sizeof(body));
         if (ctx->status && ctx->status_size) {
           snprintf(ctx->status, ctx->status_size, "%s", body);
         }

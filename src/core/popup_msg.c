@@ -12,6 +12,46 @@ bool popup_msg_is_directive(const char* line) {
 }
 
 /*
+ * A field-caption row (e.g. "Name:", "Amount:", "Colony:") is never body or
+ * choice text: in every catalog section that has one, it is the LAST
+ * content line (verified against GAME.TXT/DEBUG.TXT for the shipped
+ * catalogs). Structural rule, not a literal-name comparison: a line ending
+ * in ':' with no further content line after it in the section.
+ */
+static bool popup_msg_is_trailing_caption(const ColonizeMsgSection* section, int index) {
+  if (!section) {
+    return false;
+  }
+  const char* line = section->lines[index];
+  if (!line || line[0] == '\0') {
+    return false;
+  }
+  size_t len = strlen(line);
+  if (line[len - 1] != ':') {
+    return false;
+  }
+  for (int j = index + 1; j < section->line_count; ++j) {
+    const char* rest = section->lines[j];
+    if (rest && rest[0] != '\0' && !popup_msg_is_directive(rest)) {
+      return false;
+    }
+  }
+  /* A caption FOLLOWS prose across a blank line ("How much ...?" / blank /
+   * "Amount:"). A prompt that merely ends in ':' and is the section's only
+   * text (@TRADESELECT "Select a trade route:") is the body, not a caption. */
+  if (!section->blank_before || !section->blank_before[index]) {
+    return false;
+  }
+  for (int j = 0; j < index; ++j) {
+    const char* prev = section->lines[j];
+    if (prev && prev[0] != '\0' && !popup_msg_is_directive(prev)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/*
  * DOS FUN_6f74_0c32 caret rule — the single source both the popup body
  * collector below and pedia_caret_flags() (core/pedia.c) run on. The DOS
  * parser tests the first byte, then the second, and stops: "^^" eats two and
@@ -34,32 +74,6 @@ int popup_msg_caret_flags(const char* line, const char** out_rest) {
     *out_rest = rest;
   }
   return flags;
-}
-
-static bool popup_msg_is_choice_word(const char* line) {
-  if (!line || line[0] == '\0') {
-    return false;
-  }
-  if (strcmp(line, "Yes") == 0 || strcmp(line, "No") == 0 || strcmp(line, "OK") == 0 ||
-      strcmp(line, "Never mind.") == 0 || strncmp(line, "Unload the", 10) == 0) {
-    return true;
-  }
-  /* Common trailing choice labels (blank lines are stripped by assets_msg_load). */
-  if (strcmp(line, "Stay With Ships") == 0 || strcmp(line, "Make Landfall") == 0 ||
-      strcmp(line, "No thank you.") == 0 || strncmp(line, "Pay ", 4) == 0 ||
-      strncmp(line, "Kiss pinky", 10) == 0 || strncmp(line, "Hold '", 6) == 0 ||
-      strncmp(line, "Yes, it is God's will", 21) == 0 ||
-      strncmp(line, "Never! That would be folly", 26) == 0 ||
-      strncmp(line, "\"Never! That would be treasonous", 32) == 0 ||
-      strncmp(line, "\"Yes! Give me liberty", 21) == 0 ||
-      strncmp(line, "\"Oh, I forgot about that.", 25) == 0 ||
-      strncmp(line, "\"And that is exactly what I had in mind.", 40) == 0 ||
-      strcmp(line, "Cancel Action.") == 0 || strcmp(line, "Break Treaty.") == 0 ||
-      strcmp(line, "Accept") == 0 || strcmp(line, "Refuse") == 0 ||
-      strcmp(line, "That's all.") == 0 || strcmp(line, "Keep playing anyway.") == 0) {
-    return true;
-  }
-  return false;
 }
 
 size_t popup_msg_section_body(
@@ -88,15 +102,16 @@ size_t popup_msg_section_body(
     if (!line || line[0] == '\0' || popup_msg_is_directive(line)) {
       continue;
     }
-    /* Skip lone "Name:" / "Amount:" / "Colony:" prompt labels for body. */
-    if (strcmp(line, "Name:") == 0 || strcmp(line, "Amount:") == 0 ||
-        strcmp(line, "Colony:") == 0) {
+    /* Skip a trailing field-caption row ("Name:" / "Amount:" / "Colony:")
+     * for body — structural rule, see popup_msg_is_trailing_caption(). */
+    if (popup_msg_is_trailing_caption(section, i)) {
       continue;
     }
     /* DOS FUN_6f74_32a4: a blank line after body prose switches the parser
-     * to choice state — everything past it is choice rows, never body. The
-     * keyword list stays as a backstop for blankless catalogs (tests). */
-    if (stop_before_choices && saw_prose && (boundary || popup_msg_is_choice_word(line))) {
+     * to choice state — everything past it is choice rows, never body.
+     * blank_before is always populated by the real loader, so this is the
+     * sole mechanism (no keyword backstop). */
+    if (stop_before_choices && saw_prose && boundary) {
       break;
     }
     /*
@@ -234,6 +249,13 @@ void popup_msg_apply_tokens(
       if (strncmp(src + i, "%NUMBER2", 8) == 0) {
         char num[16];
         snprintf(num, sizeof(num), "%d", tok->has_number2 ? tok->number2 : 0);
+        popup_msg_append(dst, dst_size, &used, num);
+        i += 8;
+        continue;
+      }
+      if (strncmp(src + i, "%NUMBER3", 8) == 0) {
+        char num[16];
+        snprintf(num, sizeof(num), "%d", tok->has_number3 ? tok->number3 : 0);
         popup_msg_append(dst, dst_size, &used, num);
         i += 8;
         continue;
@@ -426,8 +448,8 @@ int popup_msg_choices(
   int saw_prose = 0;
   /* Primary: DOS FUN_6f74_32a4 blank-line state machine — body until the
    * first blank line after prose, then every line is a choice row until the
-   * next blank (state 3 = ignored trailer). Quoted diplomacy/King rows the
-   * keyword list below never knew about are caught by this pass. */
+   * next blank (state 3 = ignored trailer). This is the sole mechanism for
+   * a real catalog (blank_before is always populated by the loader). */
   if (section->blank_before) {
     int state = 1; /* 1 body, 2 choices, 3 done */
     for (int i = 0; i < section->line_count; ++i) {
@@ -441,8 +463,7 @@ int popup_msg_choices(
       if (!line || line[0] == '\0' || popup_msg_is_directive(line)) {
         continue;
       }
-      if (strcmp(line, "Name:") == 0 || strcmp(line, "Amount:") == 0 ||
-          strcmp(line, "Colony:") == 0) {
+      if (popup_msg_is_trailing_caption(section, i)) {
         continue;
       }
       if (state == 1) {
@@ -458,35 +479,17 @@ int popup_msg_choices(
       return count;
     }
   }
-  saw_prose = 0;
-  for (int i = 0; i < section->line_count; ++i) {
-    const char* line = section->lines[i];
-    if (!line || line[0] == '\0' || popup_msg_is_directive(line)) {
-      continue;
-    }
-    if (strcmp(line, "Name:") == 0 || strcmp(line, "Amount:") == 0 ||
-        strcmp(line, "Colony:") == 0) {
-      continue;
-    }
-    if (popup_msg_is_choice_word(line)) {
-      if (count < max_choices) {
-        str_copy_trunc(out[count], POPUP_MSG_CHOICE_LEN, line);
-        count++;
-      }
-      continue;
-    }
-    /* Once a choice was seen, further non-directive lines are also choices
-     * (e.g. second landfall option if matcher missed one). */
-    if (count > 0 && saw_prose) {
-      if (count < max_choices) {
-        str_copy_trunc(out[count], POPUP_MSG_CHOICE_LEN, line);
-        count++;
-      }
-      continue;
-    }
-    saw_prose = 1;
-  }
-  /* Choice-only fragments (e.g. @TAXOPTIONS): no prose, collect all lines. */
+  /*
+   * section->blank_before is always populated by the real loader
+   * (assets_msg_load_file, assets.c) — the keyword-matching fallback that
+   * used to run here for a NULL blank_before never executes against a real
+   * catalog and was deleted (2026-09-21, no-dos-text-in-binary sweep).
+   * What remains: choice-only fragments (e.g. @TAXOPTIONS, no prose at
+   * all) collect every non-directive line below.
+   */
+  /* Only a section with NO prose at all is a choice-only fragment; a body
+   * with no blank-line boundary simply has no choices (HEAD's `!saw_prose`
+   * guard, dropped by mistake when the keyword backstop was deleted). */
   if (count == 0 && !saw_prose) {
     for (int i = 0; i < section->line_count && count < max_choices; ++i) {
       const char* line = section->lines[i];
@@ -497,18 +500,33 @@ int popup_msg_choices(
       count++;
     }
   }
-  if (count == 0) {
-    for (int i = 0; i < section->line_count && count < max_choices; ++i) {
-      const char* line = section->lines[i];
-      if (line && (strcmp(line, "Yes") == 0 || strcmp(line, "No") == 0)) {
-        str_copy_trunc(out[count], POPUP_MSG_CHOICE_LEN, line);
-        count++;
-      }
-    }
-  }
   return count;
 }
 
+
+/*
+ * Every content row of a section, in order — for the GAME.TXT fragments DOS
+ * reads line by line instead of through the dialog parser (@TAXOPTIONS:
+ * 38fd:40a9 FUN_291f_0928 + 091c appends its two rows to the @KINGTAX box),
+ * so they have no body/choice split for popup_msg_choices to find.
+ */
+int popup_msg_rows(
+  const ColonizeMsgSection* section, char out[][POPUP_MSG_CHOICE_LEN], int max_rows
+) {
+  if (!section || !out || max_rows <= 0) {
+    return 0;
+  }
+  int count = 0;
+  for (int i = 0; i < section->line_count && count < max_rows; ++i) {
+    const char* line = section->lines[i];
+    if (!line || line[0] == '\0' || popup_msg_is_directive(line)) {
+      continue;
+    }
+    str_copy_trunc(out[count], POPUP_MSG_CHOICE_LEN, line);
+    count++;
+  }
+  return count;
+}
 
 int popup_msg_section_labels(
   const ColonizeMsgCatalog* catalog,

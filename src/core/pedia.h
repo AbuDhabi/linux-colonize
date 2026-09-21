@@ -54,8 +54,8 @@ typedef enum PediaViewMode {
 #define PEDIA_CATEGORY_LABEL_LEN 32
 
 #define PEDIA_LIST_COLS 3
-#define PEDIA_LIST_HEADER "ENCYCLOPEDIA OF COLONIZATION"
-#define PEDIA_LIST_EXIT "(Exit)"
+#define PEDIA_LIST_HEADER ""
+#define PEDIA_LIST_EXIT ""
 /* Link greens from NAMES.TXT @COLORS (basic / hilite). */
 #define PEDIA_COL_HEADER 15
 #define PEDIA_COL_LINK COLONIZE_COL_BASIC

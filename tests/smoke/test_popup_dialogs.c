@@ -160,7 +160,7 @@ static int case_game_txt_wired_sections(void) {
   }
   char tax_choices[4][POPUP_MSG_CHOICE_LEN];
   const ColonizeMsgSection* taxopt = assets_msg_find(&game_txt, "TAXOPTIONS");
-  n = popup_msg_choices(taxopt, tax_choices, 4);
+  n = popup_msg_rows(taxopt, tax_choices, 4);
   if (n < 2) {
     assets_msg_free(&game_txt);
     return fail("TAXOPTIONS must expose Kiss/Party choices");

@@ -12,13 +12,7 @@
 #include "data/viceroy_tables.h"
 
 static const char* k_category_labels[PEDIA_CAT_COUNT] = {
-  "Cargo Types",
-  "",
-  "",
-  "",
-  "",
-  "",
-  "Miscellaneous"
+  "", "", "", "", "", "", ""
 };
 
 static const char* k_category_prefixes[] = {
@@ -41,22 +35,10 @@ static const int k_category_counts[] = {
   PEDIA_MISC_COUNT
 };
 
-/* @MISCELLANEOUS titles (PEDIA.TXT). Bodies are not in PEDIA.TXT — short
- * reference blurbs from the manual / GAME.TXT tutorials. */
-static const char* k_misc_titles[PEDIA_MISC_COUNT] = {
-  "Disband",
-  "",
-  "",
-  "",
-  "",
-  "",
-  "",
-  "",
-  "",
-  "",
-  "",
-  "Hammers"
-};
+/* @MISCELLANEOUS titles live in PEDIA.TXT only (assets_msg_find(pedia,
+ * "MISCELLANEOUS")); a catalog miss yields the empty string, never a
+ * compiled-in MicroProse title. Bodies are not in PEDIA.TXT — short
+ * reference blurbs from the manual / GAME.TXT tutorials, port-authored. */
 
 static const char* k_misc_bodies[PEDIA_MISC_COUNT] = {
   "Remove a unit from the game permanently. Disbanding a colonist in a "
@@ -66,9 +48,10 @@ static const char* k_misc_bodies[PEDIA_MISC_COUNT] = {
   "Order a land unit to dig in. A fortified unit gains a defensive bonus "
   "in combat. Ships use the same order to anchor in a colony harbor.",
 
-  "Pioneers plow clear land with the P key. Plowing raises food, tobacco, "
-  "cotton, and sugar yields by one. Plowing a forest clears it first, "
-  "making room for agriculture.",
+  "Give a Pioneer the Plow order to improve open ground; the P key does "
+  "the same from the map. A plowed tile yields one extra unit of food, "
+  "tobacco, cotton, or sugar. Ordering it on a forest tile fells the "
+  "trees instead, opening the square up for farming.",
 
   "",
 
@@ -198,7 +181,7 @@ int pedia_category_count(PediaCategory category) {
 const char* pedia_category_label(PediaCategory category) {
   const ColonizeMsgCatalog* menu = g_pedia_menu_txt;
   if (category < 0 || category >= PEDIA_CAT_COUNT) {
-    return "Colonizopedia";
+    return "";
   }
   static char live[PEDIA_CAT_COUNT][40];
   const ColonizeMsgSection* sec = menu ? assets_msg_find(menu, "PEDIA") : NULL;
@@ -516,7 +499,7 @@ bool pedia_page(
       if (misc && index + 1 < misc->line_count) {
         snprintf(out->title, sizeof(out->title), "%s", misc->lines[index + 1]);
       } else {
-        snprintf(out->title, sizeof(out->title), "%s", k_misc_titles[index]);
+        out->title[0] = '\0';
       }
       const char* src = k_misc_bodies[index];
       out->body_line_count = 0;
@@ -944,7 +927,7 @@ static void pedia_terrain_display_name(
     assets_msg_row_field(names, "UNFORESTED", idx, 0, out, out_size);
   } else if (idx >= 8 && idx <= 23) {
     assets_msg_row_field(names, "FORESTED", idx & 7, 0, out, out_size);
-    const char* forest = "Forest";
+    const char* forest = "";
     if (names) {
       const ColonizeMsgSection* other = assets_msg_find(names, "OTHER_NAMES");
       if (other && other->line_count > 0) {
@@ -1898,8 +1881,6 @@ void pedia_article_render(
       /* @MISCELLANEOUS line 0 is the count; titles follow. */
       if (misc && index + 1 < misc->line_count) {
         snprintf(name, sizeof(name), "%s", misc->lines[index + 1]);
-      } else if (index >= 0 && index < PEDIA_MISC_COUNT) {
-        snprintf(name, sizeof(name), "%s", k_misc_titles[index]);
       }
       break;
     }

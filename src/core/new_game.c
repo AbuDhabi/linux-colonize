@@ -61,16 +61,16 @@ static const uint8_t k_difficul_colors[5] = {10, 9, 14, 13, 12};
 static const char* k_nation_bonuses[4] = {
   "", "", "", ""
 };
-/* LABELS.TXT @MISC "Click Here When Finished" — the parens are the port's
+/* LABELS.TXT @MISC row 161 — the parens are the port's
  * own chrome (new_game_format_finished adds them when the text has none). */
-static const char* k_finished_label = "Click Here When Finished";
-static const char* k_customiz_title = "CUSTOMIZE NEW WORLD";
+static const char* k_finished_label = "";
+static const char* k_customiz_title = "";
 static const char* k_customiz_cats[4] = {"", "", "", ""};
 static const char* k_customiz_vals[4][3] = {
-  {"Small", "", "Large"},
-  {"Archipelago", "", "Continents"},
-  {"Cool", "", "Warm"},
-  {"Arid", "", "Wet"},
+  {"", "", ""},
+  {"", "", ""},
+  {"", "", ""},
+  {"", "", ""},
 };
 
 /*
@@ -96,8 +96,18 @@ static const char* new_game_nation_port(int nation) {
   return reports_home_port_name(nation);
 }
 
-static const char* new_game_nation_ruler_title(int nation) {
-  return (nation == 3) ? "Stadtholder" : "King";
+/* GAME.TXT @MYLEADER row `nation` (0..3): King/King/King/Stadtholder. */
+static const char* new_game_nation_ruler_title(
+  const ColonizeMsgCatalog* game_txt, int nation
+) {
+  static char buf[32];
+  if (nation < 0 || nation > 3) {
+    nation = 0;
+  }
+  if (game_txt && assets_msg_row_field(game_txt, "MYLEADER", nation, 0, buf, sizeof(buf))) {
+    return buf;
+  }
+  return "";
 }
 
 void new_game_init(NewGameWizard* ng) {
@@ -438,7 +448,7 @@ static void new_game_enter_difficulty(NewGameWizard* ng) {
   new_game_ensure_difficul(ng);
   new_game_load_choice_section(ng, "DIFFICULTY");
   if (ng->option_count == 0) {
-    snprintf(ng->prompt_lines[0], sizeof(ng->prompt_lines[0]), "");
+    ng->prompt_lines[0][0] = '\0';
     ng->prompt_line_count = 1;
     for (int i = 0; i < 5; ++i) {
       snprintf(ng->options[i], sizeof(ng->options[0]), "%s", reports_difficulty_title(i));
@@ -523,7 +533,7 @@ static void new_game_enter_nation(NewGameWizard* ng) {
   new_game_ensure_nations(ng);
   new_game_load_choice_section(ng, "PICKNATION");
   if (ng->option_count == 0) {
-    snprintf(ng->prompt_lines[0], sizeof(ng->prompt_lines[0]), "");
+    ng->prompt_lines[0][0] = '\0';
     ng->prompt_line_count = 1;
     for (int i = 0; i < 4; ++i) {
       snprintf(ng->options[i], sizeof(ng->options[0]), "%s", new_game_nation_name(i));
@@ -539,7 +549,7 @@ static void new_game_enter_leader_name(NewGameWizard* ng) {
   text_edit_reset(&ng->leader_edit, ng->leader_name, true);
   new_game_load_choice_section(ng, "LEADERNAME");
   if (ng->prompt_line_count == 0) {
-    snprintf(ng->prompt_lines[0], sizeof(ng->prompt_lines[0]), "");
+    ng->prompt_lines[0][0] = '\0';
     ng->prompt_line_count = 1;
   }
   ng->option_count = 0; /* text field, not a list */
@@ -571,7 +581,7 @@ static void new_game_scan_mp_files(NewGameWizard* ng) {
   new_game_load_choice_section(ng, "MAPTOLOAD");
   ng->option_count = 0;
   if (ng->prompt_line_count == 0) {
-    snprintf(ng->prompt_lines[0], sizeof(ng->prompt_lines[0]), "");
+    ng->prompt_lines[0][0] = '\0';
     ng->prompt_line_count = 1;
     ng->dialog_width = 220;
   }
@@ -636,10 +646,10 @@ bool new_game_begin(
       ng->dialog_width = 180;
     }
     if (ng->option_count == 0) {
-      snprintf(ng->prompt_lines[0], sizeof(ng->prompt_lines[0]), "Original Americas or Map Editor?");
+      ng->prompt_lines[0][0] = '\0';
       ng->prompt_line_count = 1;
-      snprintf(ng->options[0], sizeof(ng->options[0]), "");
-      snprintf(ng->options[1], sizeof(ng->options[1]), "");
+      ng->options[0][0] = '\0';
+      ng->options[1][0] = '\0';
       ng->option_count = 2;
     }
   } else if (path == NEW_GAME_PATH_CUSTOMIZE) {
@@ -1717,7 +1727,7 @@ static void new_game_render_leader_name(
   const ColonizeFont* font = ng->ui_font;
   const int line_h = font ? (font->max_height + 3) : 10;
   const char* prompt =
-    ng->prompt_line_count > 0 ? ng->prompt_lines[0] : "Please Enter Your Name.";
+    ng->prompt_line_count > 0 ? ng->prompt_lines[0] : "";
   char prompt_clean[COLONIZE_MSG_LINE_LEN];
   size_t po = 0;
   for (const char* p = prompt; *p && po + 1 < sizeof(prompt_clean); ++p) {
@@ -2273,7 +2283,7 @@ static void new_game_render_sail(
   const char* leader = ng->leader_name;
   const char* country = new_game_nation_name(ng->nation);
   const char* port = new_game_nation_port(ng->nation);
-  const char* ruler = new_game_nation_ruler_title(ng->nation);
+  const char* ruler = new_game_nation_ruler_title(ng->game_txt, ng->nation);
 
   /* BUILD caption string mapping (DOS order):
    * 2: %STRING0=leader %STRING1=title-ish (Governor / explorer label) — use nation demonym role

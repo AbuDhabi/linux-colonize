@@ -68,7 +68,7 @@ bool name_entry_open(
   str_copy_trunc(
     dlg->prompt,
     sizeof(dlg->prompt),
-    prompt && prompt[0] ? prompt : "What shall we name this colony?"
+    prompt && prompt[0] ? prompt : ""
   );
   str_copy_trunc(dlg->name, sizeof(dlg->name), initial_name ? initial_name : "");
   /* DOS opens the field with bit 0x80 set — whole text selected. */

@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "../common/test_catalogs.h"
 #include "core/assets.h"
 #include "core/colony.h"
 #include "core/dos_rng.h"
@@ -25,12 +26,23 @@
  * is the "truly one continuous narrative mutating shared state" case, so it
  * stays a single TestCase.
  */
+/* europe_load + the GAME.TXT bind game_loop does in the real game: several
+ * Europe status lines are GAME.TXT sections, and the port has no built-in
+ * copy of them. */
+static bool test_europe_load(EuropeScreen* eu, const char* dir, char* err, size_t err_size) {
+  if (!europe_load(eu, dir, err, err_size)) {
+    return false;
+  }
+  europe_set_messages(eu, test_game_txt());
+  return true;
+}
+
 static int case_europe_workflow(void) {
   diag_init(0, NULL);
 
   EuropeScreen eu;
   char err[256];
-  if (!europe_load(&eu, "COLONIZE", err, sizeof(err))) {
+  if (!test_europe_load(&eu, "COLONIZE", err, sizeof(err))) {
     fprintf(stderr, "europe_load failed: %s\n", err);
     return 1;
   }
@@ -943,9 +955,8 @@ static int case_europe_workflow(void) {
       return 1;
     }
     /* @LOOTCASH wording, not an invented "Treasure cash-in" stub. */
-    if (strstr(eu.status, "treasure fleet laden with 1000$") == NULL ||
-        strstr(eu.status, "arrives safely in") == NULL ||
-        strstr(eu.status, "1000$ added to") == NULL) {
+    /* The status is GAME.TXT @LOOTCASH filled with the amounts. */
+    if (!test_body_is_section(eu.status, "LOOTCASH") || strstr(eu.status, "1000$") == NULL) {
       fprintf(stderr, "cash_treasure untaxed status '%s'\n", eu.status);
       europe_free(&eu);
       return 1;
@@ -1150,7 +1161,7 @@ static int case_europe_workflow(void) {
       europe_free(&eu);
       return 1;
     }
-    if (!europe_load(&cap, "COLONIZE", cerr, sizeof(cerr))) {
+    if (!test_europe_load(&cap, "COLONIZE", cerr, sizeof(cerr))) {
       fprintf(stderr, "hold cap: europe_load failed: %s\n", cerr);
       assets_msg_free(&cap_names);
       europe_free(&eu);
@@ -1352,7 +1363,7 @@ static int case_europe_workflow(void) {
   {
     EuropeScreen arm;
     char aerr[128];
-    if (!europe_load(&arm, "COLONIZE", aerr, sizeof(aerr))) {
+    if (!test_europe_load(&arm, "COLONIZE", aerr, sizeof(aerr))) {
       fprintf(stderr, "armoptions: reload failed: %s\n", aerr);
       europe_free(&eu);
       return 1;
@@ -1497,7 +1508,7 @@ static int case_europe_workflow(void) {
   {
     EuropeScreen vol;
     char verr[128];
-    if (!europe_load(&vol, "COLONIZE", verr, sizeof(verr))) {
+    if (!test_europe_load(&vol, "COLONIZE", verr, sizeof(verr))) {
       fprintf(stderr, "volume: reload failed: %s\n", verr);
       europe_free(&eu);
       return 1;
@@ -1560,7 +1571,7 @@ static int case_europe_workflow(void) {
    */
   {
     EuropeScreen led;
-    if (!europe_load(&led, "COLONIZE", err, sizeof(err))) {
+    if (!test_europe_load(&led, "COLONIZE", err, sizeof(err))) {
       fprintf(stderr, "europe_load (ledger): %s\n", err);
       europe_free(&eu);
       return 1;
@@ -1616,7 +1627,7 @@ static int case_europe_workflow(void) {
   {
     EuropeScreen tick;
     char terr[128];
-    if (!europe_load(&tick, "COLONIZE", terr, sizeof(terr))) {
+    if (!test_europe_load(&tick, "COLONIZE", terr, sizeof(terr))) {
       fprintf(stderr, "tick: reload failed: %s\n", terr);
       europe_free(&eu);
       return 1;
@@ -2336,7 +2347,7 @@ static int case_europe_workflow(void) {
 static int case_europe_dragoon_roll_and_caption(void) {
   EuropeScreen eu;
   char err[256];
-  if (!europe_load(&eu, "COLONIZE", err, sizeof(err))) {
+  if (!test_europe_load(&eu, "COLONIZE", err, sizeof(err))) {
     fprintf(stderr, "dragoon roll: europe_load failed: %s\n", err);
     return 1;
   }

@@ -21,9 +21,11 @@ typedef struct PopupMsgTokens {
   int number0;
   int number1;
   int number2;
+  int number3; /* e.g. @BUY0 "(of {%NUMBER3$})" = the buyer's treasury */
   bool has_number0;
   bool has_number1;
   bool has_number2;
+  bool has_number3;
 } PopupMsgTokens;
 
 /*
@@ -131,6 +133,11 @@ void popup_msg_fill(
 /* Must fit longest GAME.TXT choice (@DECLARE Never… = 53 with quotes). */
 #define POPUP_MSG_CHOICE_LEN 64
 
+
+/* All content rows of a line-by-line fragment (@TAXOPTIONS); see popup_msg.c. */
+int popup_msg_rows(
+  const ColonizeMsgSection* section, char out[][POPUP_MSG_CHOICE_LEN], int max_rows
+);
 
 /*
  * The "GAME.TXT labels, else hardcoded fallbacks" idiom every two-row CHOICE

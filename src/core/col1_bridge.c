@@ -205,7 +205,8 @@ static const char* col1_bridge_europe_dock_job_name(const EuropeScreen* eu, int 
       }
     }
   }
-  return "Colonists";
+  /* NAMES.TXT @JOB column 1 for that profession (row 19 = the plain colonist). */
+  return reports_job_display_name(profession >= 0 ? profession : 19);
 }
 
 /*
@@ -263,7 +264,7 @@ static int col1_find_human_nation(const ColonizeCol1Save* save) {
 static void col1_apply_building_bits(
   ColonizeColonyPool* pool,
   ColonizeColony* colony,
-  const char* const* names,
+  const int* rows,
   int name_count,
   unsigned bits
 ) {
@@ -271,7 +272,7 @@ static void col1_apply_building_bits(
     if (!(bits & (1u << i))) {
       continue;
     }
-    const int idx = colonies_find_building(pool, names[i]);
+    const int idx = colonies_building_row(pool, (ColonizeBuildingRow)rows[i]);
     if (idx >= 0 && idx < COLONIZE_BUILDING_TYPES_MAX) {
       colony->has_building[idx] = true;
     }
@@ -281,15 +282,15 @@ static void col1_apply_building_bits(
 static unsigned col1_encode_building_bits(
   const ColonizeColonyPool* pool,
   const ColonizeColony* colony,
-  const char* const* names,
+  const int* rows,
   int name_count
 ) {
   unsigned bits = 0;
-  if (!pool || !colony || !names || name_count <= 0) {
+  if (!pool || !colony || !rows || name_count <= 0) {
     return 0;
   }
   for (int i = 0; i < name_count; ++i) {
-    const int idx = colonies_find_building(pool, names[i]);
+    const int idx = colonies_building_row(pool, (ColonizeBuildingRow)rows[i]);
     if (idx >= 0 && idx < COLONIZE_BUILDING_TYPES_MAX && colony->has_building[idx]) {
       bits |= 1u << i;
     }
@@ -301,12 +302,16 @@ static unsigned col1_encode_building_bits(
 static int col1_best_owned_chain_building(
   const ColonizeColonyPool* colonies, const ColonizeColony* col, int chain
 ) {
-  const char* const* names = colonies_building_chain(chain);
-  if (!names || !colonies || !col) {
+  const int* rows = colonies_building_chain_rows(chain);
+  if (!rows || !colonies || !col) {
     return -1;
   }
-  for (int i = colonies_building_chain_length(chain) - 1; i >= 0; --i) {
-    const int bi = colonies_find_building(colonies, names[i]);
+  int len = 0;
+  while (rows[len] != -1) {
+    ++len;
+  }
+  for (int i = len - 1; i >= 0; --i) {
+    const int bi = colonies_building_row(colonies, (ColonizeBuildingRow)rows[i]);
     if (bi >= 0 && bi < COLONIZE_BUILDING_TYPES_MAX && col->has_building[bi]) {
       return bi;
     }
@@ -326,13 +331,13 @@ static int col1_best_owned_chain_building(
 static void col1_apply_chain_bits(
   ColonizeColonyPool* pool, ColonizeColony* colony, int chain, int name_count, unsigned bits
 ) {
-  col1_apply_building_bits(pool, colony, colonies_building_chain(chain), name_count, bits);
+  col1_apply_building_bits(pool, colony, colonies_building_chain_rows(chain), name_count, bits);
 }
 
 static unsigned col1_encode_chain_bits(
   const ColonizeColonyPool* pool, const ColonizeColony* colony, int chain, int name_count
 ) {
-  return col1_encode_building_bits(pool, colony, colonies_building_chain(chain), name_count);
+  return col1_encode_building_bits(pool, colony, colonies_building_chain_rows(chain), name_count);
 }
 
 static void col1_apply_colony_buildings(
@@ -515,8 +520,8 @@ bool col1_bridge_init_template(
   save->head.tribe_count = 0;
   save->head.difficulty = 0;
   save->player[0].control = 0;
-  snprintf(save->player[0].name, sizeof(save->player[0].name), "");
-  snprintf(save->player[0].country_name, sizeof(save->player[0].country_name), "");
+  save->player[0].name[0] = '\0';
+  save->player[0].country_name[0] = '\0';
   for (int i = 1; i < (int)COLONIZE_COL1_NATION_COUNT; ++i) {
     save->player[i].control = 1;
   }
@@ -2224,32 +2229,59 @@ bool col1_bridge_capture_w(
            * quietly stopped producing until it starved. Map the building
            * to its @JOB (mirror of the import chains above).
            */
-          const char* bn = colonies->building_types[c->building_type].name;
+          const int row = colonies_building_type_row(colonies, c->building_type);
           int occ = UNITS_JOB_COLONIST;
-          if (bn && bn[0]) {
-            if (strstr(bn, "Lumber") != NULL || strstr(bn, "Carpenter") != NULL) {
+          switch (row) {
+            case COLONY_BUILDING_CARPENTERS_SHOP:
+            case COLONY_BUILDING_LUMBER_MILL:
               occ = 13;
-            } else if (strstr(bn, "Rum") != NULL) {
+              break;
+            case COLONY_BUILDING_RUM_DISTILLERS_HOUSE:
+            case COLONY_BUILDING_RUM_DISTILLERY:
+            case COLONY_BUILDING_RUM_FACTORY:
               occ = 9;
-            } else if (strstr(bn, "Cigar") != NULL || strstr(bn, "Tobacconist") != NULL) {
+              break;
+            case COLONY_BUILDING_TOBACCONISTS_HOUSE:
+            case COLONY_BUILDING_TOBACCONISTS_SHOP:
+            case COLONY_BUILDING_CIGAR_FACTORY:
               occ = 10;
-            } else if (strstr(bn, "Textile") != NULL || strstr(bn, "Weaver") != NULL) {
+              break;
+            case COLONY_BUILDING_WEAVERS_HOUSE:
+            case COLONY_BUILDING_WEAVERS_SHOP:
+            case COLONY_BUILDING_TEXTILE_MILL:
               occ = 11;
-            } else if (strstr(bn, "Fur") != NULL) {
+              break;
+            case COLONY_BUILDING_FUR_TRADERS_HOUSE:
+            case COLONY_BUILDING_FUR_TRADING_POST:
+            case COLONY_BUILDING_FUR_FACTORY:
               occ = 12;
-            } else if (strstr(bn, "Iron") != NULL || strstr(bn, "Blacksmith") != NULL) {
+              break;
+            case COLONY_BUILDING_BLACKSMITHS_HOUSE:
+            case COLONY_BUILDING_BLACKSMITHS_SHOP:
+            case COLONY_BUILDING_IRON_WORKS:
               occ = 14;
-            } else if (strstr(bn, "Arsenal") != NULL || strstr(bn, "Magazine") != NULL ||
-                       strstr(bn, "Armory") != NULL) {
+              break;
+            case COLONY_BUILDING_ARMORY:
+            case COLONY_BUILDING_MAGAZINE:
+            case COLONY_BUILDING_ARSENAL:
               occ = 15;
-            } else if (strstr(bn, "Cathedral") != NULL || strstr(bn, "Church") != NULL) {
+              break;
+            case COLONY_BUILDING_CHURCH:
+            case COLONY_BUILDING_CATHEDRAL:
               occ = 16;
-            } else if (strstr(bn, "Town Hall") != NULL) {
+              break;
+            case COLONY_BUILDING_TOWN_HALL:
+            case COLONY_BUILDING_TOWN_HALL_2:
+            case COLONY_BUILDING_TOWN_HALL_3:
               occ = 17;
-            } else if (strstr(bn, "University") != NULL || strstr(bn, "College") != NULL ||
-                       strstr(bn, "School") != NULL) {
+              break;
+            case COLONY_BUILDING_SCHOOLHOUSE:
+            case COLONY_BUILDING_COLLEGE:
+            case COLONY_BUILDING_UNIVERSITY:
               occ = 18;
-            }
+              break;
+            default:
+              break;
           }
           dst->occupation[p] = (uint8_t)occ;
         } else {
@@ -2362,14 +2394,18 @@ bool col1_bridge_capture_w(
         uint8_t wh = 0;
         uint8_t cap = 0;
         {
-          static const char* k_wh[] = {"Warehouse", "Warehouse Expansion"};
-          static const char* k_cp[] = {"Capitol", "Capitol Expansion"};
+          static const ColonizeBuildingRow k_wh[] = {
+            COLONY_BUILDING_WAREHOUSE, COLONY_BUILDING_WAREHOUSE_EXPANSION
+          };
+          static const ColonizeBuildingRow k_cp[] = {
+            COLONY_BUILDING_CAPITOL, COLONY_BUILDING_CAPITOL_EXPANSION
+          };
           for (int t = 0; t < 2; ++t) {
-            const int wi = colonies_find_building(colonies, k_wh[t]);
+            const int wi = colonies_building_row(colonies, k_wh[t]);
             if (wi >= 0 && wi < COLONIZE_BUILDING_TYPES_MAX && src->has_building[wi]) {
               wh = (uint8_t)(t + 1);
             }
-            const int ci = colonies_find_building(colonies, k_cp[t]);
+            const int ci = colonies_building_row(colonies, k_cp[t]);
             if (ci >= 0 && ci < COLONIZE_BUILDING_TYPES_MAX && src->has_building[ci]) {
               cap = (uint8_t)(t + 1);
             }
@@ -2986,7 +3022,7 @@ bool col1_bridge_capture_w(
             px->col1_counter16 = turns;
             {
               const ColonizeUnitType* put = units_type(units, pti);
-              const bool treasure = put && strcmp(put->name, "Treasure") == 0;
+              const bool treasure = put && units_type_kind(put) == UNITS_KIND_TREASURE;
               const int prof = ship->cargo_professions[c];
               if (treasure) {
                 const int gold = ship->cargo_treasure_gold[c];

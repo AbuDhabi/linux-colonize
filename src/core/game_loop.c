@@ -979,7 +979,7 @@ static void game_apply_setview(ColonizeGameState* game, int view_id, const char*
     /* DEBUG.TXT @SETVIEW row 6 ("No Special View") — `label` is already the
      * live catalog row text from cheat_list_open_setview; literal kept as
      * fallback for missing/empty label (no data dir). */
-    set_status(game, (label && label[0]) ? label : "No special view", NULL);
+    set_status(game, (label && label[0]) ? label : "", NULL);
   } else if (label && label[0]) {
     set_status(game, "", label);
   } else {
@@ -1076,7 +1076,7 @@ static void game_open_cheat_create_unit(ColonizeGameState* game) {
   /* DEBUG.TXT @CREATE row 0 (prompt) + rows 1-14 (option labels); the
    * k_cheat_create_main_labels literals stay the per-row fallback. */
   char prompt_buf[1][CHEAT_LIST_LABEL_LEN];
-  const char* k_prompt_fallback[1] = {"Select Unit To Create"};
+  const char* k_prompt_fallback[1] = {""};
   cheat_list_catalog_rows(
     game->debug_txt_ok ? &game->debug_txt : NULL, "CREATE", 0, k_prompt_fallback, prompt_buf, 1
   );
@@ -1161,7 +1161,7 @@ static void game_apply_cheat_create_unit(ColonizeGameState* game, int id) {
     /* DEBUG.TXT @FOREIGN2 row 0 (prompt) + rows 1-2 (option labels); the
      * k_cheat_create_foreign_labels literals stay the per-row fallback. */
     char foreign2_prompt_buf[1][CHEAT_LIST_LABEL_LEN];
-    const char* k_foreign2_prompt_fallback[1] = {"Select Type to Create"};
+    const char* k_foreign2_prompt_fallback[1] = {""};
     cheat_list_catalog_rows(
       game->debug_txt_ok ? &game->debug_txt : NULL, "FOREIGN2", 0, k_foreign2_prompt_fallback,
       foreign2_prompt_buf, 1
@@ -1214,7 +1214,7 @@ static void game_apply_cheat_create_unit(ColonizeGameState* game, int id) {
      * k_cheat_create_ship_labels literals stay the per-row fallback (also
      * still used as the units_find_type key below, unchanged). */
     char cship_prompt_buf[1][CHEAT_LIST_LABEL_LEN];
-    const char* k_cship_prompt_fallback[1] = {"Select Ship To Create"};
+    const char* k_cship_prompt_fallback[1] = {""};
     cheat_list_catalog_rows(
       game->debug_txt_ok ? &game->debug_txt : NULL, "CSHIP", 0, k_cship_prompt_fallback,
       cship_prompt_buf, 1
@@ -1246,7 +1246,7 @@ static void game_apply_cheat_create_unit(ColonizeGameState* game, int id) {
     /* DEBUG.TXT @FOREIGN row 0 (prompt); option labels above are already
      * live (NAMES.TXT), see comment. */
     char foreign_prompt_buf[1][CHEAT_LIST_LABEL_LEN];
-    const char* k_foreign_prompt_fallback[1] = {"Select Nationality To Create"};
+    const char* k_foreign_prompt_fallback[1] = {""};
     cheat_list_catalog_rows(
       game->debug_txt_ok ? &game->debug_txt : NULL, "FOREIGN", 0, k_foreign_prompt_fallback,
       foreign_prompt_buf, 1
@@ -1350,7 +1350,8 @@ static void game_cheat_toggle_colony_sites(ColonizeGameState* game) {
   set_status(game, "", game->debug_show_colony_sites ? "on" : "off");
 }
 
-/* DEBUG.TXT @TEST: "Number of Units = %NUMBER0; Number of Colonies = %NUMBER1". */
+/* DEBUG.TXT @TEST rows 0/1 ("^Number of Units = %NUMBER0" / "^Number of
+ * Colonies = %NUMBER1"), composed live from the catalog. */
 static void game_cheat_test_routine(ColonizeGameState* game) {
   if (!game) {
     return;
@@ -1371,10 +1372,22 @@ static void game_cheat_test_routine(ColonizeGameState* game) {
       }
     }
   }
+  PopupMsgTokens tok = {0};
+  tok.has_number0 = true;
+  tok.number0 = units_n;
+  const char* rest0;
+  popup_msg_caret_flags(assets_msg_line_or(game->debug_txt_ok ? &game->debug_txt : NULL, "TEST", 0, ""), &rest0);
+  char row0[64] = {0};
+  popup_msg_apply_tokens(row0, sizeof(row0), rest0, &tok);
+  PopupMsgTokens tok1 = {0};
+  tok1.has_number1 = true;
+  tok1.number1 = colonies_n;
+  const char* rest1;
+  popup_msg_caret_flags(assets_msg_line_or(game->debug_txt_ok ? &game->debug_txt : NULL, "TEST", 1, ""), &rest1);
+  char row1[64] = {0};
+  popup_msg_apply_tokens(row1, sizeof(row1), rest1, &tok1);
   char line[80];
-  snprintf(
-    line, sizeof(line), "Number of Units = %d; Number of Colonies = %d", units_n, colonies_n
-  );
+  snprintf(line, sizeof(line), "%s; %s", row0, row1);
   set_status(game, line, NULL);
 }
 
@@ -1516,7 +1529,7 @@ void game_trade_open_dest_picker(ColonizeGameState* game, int stop_i) {
   tok.has_number0 = true;
   char prompt[COLONIZE_MSG_LINE_LEN];
   char fb[COLONIZE_MSG_LINE_LEN];
-  snprintf(fb, sizeof(fb), "", number);
+  fb[0] = '\0';
   popup_msg_fill(&game->messages, "TRADESTART", &tok, fb, prompt, sizeof(prompt));
   if (count <= 0) {
     /* No colonies yet: DOS FUN_647e_01c6 still shows the (empty) destination
@@ -1571,13 +1584,8 @@ void game_trade_open_cargo_picker(ColonizeGameState* game, int stop_i, bool is_l
     &game->colonies, r->stop[stop_i].colony_index, game_trade_europe_label(game)
   );
   char prompt[COLONIZE_MSG_LINE_LEN];
-  char fb[COLONIZE_MSG_LINE_LEN];
-  snprintf(
-    fb, sizeof(fb), "Select a cargo to %s at {%s}.", is_load ? "load" : "unload",
-    tok.string0
-  );
   popup_msg_fill(
-    &game->messages, is_load ? "CARGOLOAD" : "CARGOUNLOAD", &tok, fb, prompt,
+    &game->messages, is_load ? "CARGOLOAD" : "CARGOUNLOAD", &tok, "", prompt,
     sizeof(prompt)
   );
   game->trade_cargo_stop = stop_i;
@@ -1625,8 +1633,7 @@ void game_trade_open_stop_picker(ColonizeGameState* game, int route, int presele
     PopupMsgTokens tok;
     memset(&tok, 0, sizeof(tok));
     const char* section = r->sea ? "SAILPORT" : "TRAVELPLACE";
-    const char* fb = r->sea ? "Select a port to sail to:" : "Select a colony to travel to:";
-    popup_msg_fill(&game->messages, section, &tok, fb, prompt, sizeof(prompt));
+    popup_msg_fill(&game->messages, section, &tok, "", prompt, sizeof(prompt));
     /* @default rides popup_msg's side channel meant for the next ai_popup
      * enqueue; this dialog is a cheat_list, not an ai_popup, so consume it
      * here rather than let it leak onto whatever popup comes next. */
@@ -2062,6 +2069,48 @@ static void strip_hotkey_markers(char* text) {
     *dst++ = *src;
   }
   *dst = '\0';
+}
+
+/* Status text for an F-key report from MENU.TXT: strip ~hotkey markers and
+ * the leading "F<n> " key label, the way load_begin_menu / map_menu.c do
+ * for menu rows, but reduced to plain words for the status bar. */
+static void game_status_from_menu_row(
+  ColonizeGameState* game,
+  const char* section,
+  int row,
+  char* out,
+  size_t out_size
+) {
+  if (out && out_size > 0) {
+    out[0] = '\0';
+  }
+  if (!game || !out || out_size == 0) {
+    return;
+  }
+  const ColonizeMsgSection* sec = assets_msg_find(&game->map_menu_txt, section);
+  if (!sec || row < 0 || row >= sec->line_count) {
+    return;
+  }
+  char label[160];
+  snprintf(label, sizeof(label), "%s", sec->lines[row]);
+  strip_hotkey_markers(label);
+  char* p = label;
+  while (*p == ' ' || *p == '\t') {
+    ++p;
+  }
+  if (*p == 'F' && p[1] >= '0' && p[1] <= '9') {
+    char* q = p + 1;
+    while (*q >= '0' && *q <= '9') {
+      ++q;
+    }
+    if (*q == ' ') {
+      p = q;
+      while (*p == ' ' || *p == '\t') {
+        ++p;
+      }
+    }
+  }
+  snprintf(out, out_size, "%s", p);
 }
 
 static void load_begin_menu(ColonizeGameState* game) {
@@ -2603,7 +2652,7 @@ bool game_save_col1_slot(ColonizeGameState* game, int slot, char* err, size_t er
       str_copy_trunc(
         game->col1.player[hn].name,
         sizeof(game->col1.player[hn].name),
-        game->leader_name[0] ? game->leader_name : "Governor"
+        game->leader_name[0] ? game->leader_name : ""
       );
       str_copy_trunc(
         game->col1.player[hn].country_name,
@@ -2740,7 +2789,7 @@ static bool game_names_row(
 static void game_build_exploits(ColonizeGameState* game, const ColonizeScoreBreakdown* sc) {
   ColonizeExploitsView* ex = &game->exploits;
   memset(ex, 0, sizeof(*ex));
-  const char* leader = game->leader_name[0] ? game->leader_name : "Governor";
+  const char* leader = game->leader_name[0] ? game->leader_name : "";
   const char* surname = strchr(leader, ' ');
   surname = surname ? surname + 1 : leader;
   char nation_name[64];
@@ -2767,8 +2816,8 @@ static void game_build_exploits(ColonizeGameState* game, const ColonizeScoreBrea
     }
   } else {
     snprintf(ex->header[0], sizeof(ex->header[0]), "COLONIZATION RATING: %d%%", sc->rating);
-    snprintf(ex->header[1], sizeof(ex->header[1]), "");
-    snprintf(ex->header[2], sizeof(ex->header[2]), "", nation_name);
+    ex->header[1][0] = '\0';
+    ex->header[2][0] = '\0';
     ex->header_count = 3;
   }
 
@@ -2840,7 +2889,7 @@ static void game_retire_after_score(ColonizeGameState* game) {
   ColonizeHofEntry entry;
   memset(&entry, 0, sizeof(entry));
   snprintf(
-    entry.leader, sizeof(entry.leader), "%s", game->leader_name[0] ? game->leader_name : "Governor"
+    entry.leader, sizeof(entry.leader), "%s", game->leader_name[0] ? game->leader_name : ""
   );
   snprintf(entry.nation, sizeof(entry.nation), "%s", new_game_nation_name(game->human_nation));
   entry.nation_id = game->human_nation;
@@ -2997,7 +3046,7 @@ static void game_open_terrain_pedia_at_cursor(ColonizeGameState* game) {
     index = map_pedia_terrain_index_at(&game->world_map, game->map_cursor_x, game->map_cursor_y);
   }
   game_open_pedia_article(game, PEDIA_CAT_TERRAIN, index, false);
-  snprintf(game->status, sizeof(game->status), "");
+  game_status_from_menu_row(game, "REPORTS", 1, game->status, sizeof(game->status));
   diag_info(
     "Opened Terrain Information pedia index=%d at cursor (%d,%d)",
     index,
@@ -3301,18 +3350,10 @@ static void europe_menu_title_prose(const ColonizeGameState* game, char* buf, si
   const char* fallback = "";
   switch (eu->menu) {
     case EUROPE_MENU_RECRUIT:
-      fallback = "The following individuals will accompany us to the New World if we "
-                 "will pay their passage ({%NUMBER0 gold}).  Whom shall we recruit?";
-      break;
     case EUROPE_MENU_TRAIN:
-      fallback = "The {Royal University} can provide us with specialists if we grease "
-                 "the right palms.  Which skill shall we request?";
-      break;
     case EUROPE_MENU_PURCHASE:
-      fallback = "The following items are available.  Which shall we purchase?";
-      break;
     case EUROPE_MENU_DOCK:
-      fallback = "European dock options:";
+      fallback = "";
       break;
     default:
       buf[0] = '\0';
@@ -3735,7 +3776,7 @@ static void europe_render_menu_popup(
   }
 
   {
-    const char* f1 = "(F1 for Help)";
+    const char* f1 = reports_misc_display_word(189, "");
     const int fw = font_text_width(font, f1);
     europe_menu_draw_shadowed(
       font, framebuffer, inner_x + inner_w - pad - fw,
@@ -3882,6 +3923,14 @@ static void render_europe_chrome(
   }
 
   /* Transit boxes: two-line headers + ship icons (not text lists). */
+  char expected_header[32];
+  snprintf(expected_header, sizeof(expected_header), "%s", reports_misc_display_word(9, ""));
+  {
+    char* sp = strchr(expected_header, ' ');
+    if (sp) {
+      *sp = '\n';
+    }
+  }
   europe_render_transit_box(
     game,
     font,
@@ -3890,7 +3939,7 @@ static void render_europe_chrome(
     EUROPE_EXPECTED_Y,
     EUROPE_EXPECTED_W,
     EUROPE_EXPECTED_H,
-    "",
+    expected_header,
     eu->expected,
     eu->expected_ships,
     -1
@@ -3899,7 +3948,8 @@ static void render_europe_chrome(
   snprintf(
     line,
     sizeof(line),
-    "",
+    "%s\n%s",
+    reports_misc_display_word(10, ""),
     eu->colony_region[0] ? eu->colony_region : "New World"
   );
   europe_render_transit_box(
@@ -4362,7 +4412,7 @@ static void game_create_reset_fields(ColonizeGameState* game, const ColonizeGame
   game->map_view_y = 36;
   game->in_menu = true;
   game->difficulty = 0;
-  snprintf(game->leader_name, sizeof(game->leader_name), "");
+  game->leader_name[0] = '\0';
   game->game_year = 1492;
   game->game_autumn = 0;
   game->human_nation = 0;
@@ -4500,6 +4550,8 @@ static void game_create_load_text_assets(ColonizeGameState* game, const Colonize
       trade_screen_init(&game->trade_screen, &game->labels);
       /* @CMESSAGE wording for the Europe sale status line (bugs.md #376). */
       europe_set_labels(&game->europe, &game->labels);
+      /* GAME.TXT for statuses europe.c composes itself (@KISSSORRY etc). */
+      europe_set_messages(&game->europe, &game->messages);
     } else {
       diag_warn("Failed to parse LABELS.TXT");
     }
@@ -5330,19 +5382,17 @@ static void game_report_enter_reason(
   if (reason == COLONIZE_ENTER_BOUNCE_FOREIGN) {
     if (units_is_sea(&game->units, sid)) {
       section = "SHIPCOMBAT";
-      fallback = "Only {Privateers} and {Frigates} can attack enemy ships.";
+      fallback = "";
     } else {
       section = "CANNOTATTACK";
-      fallback = "That unit type cannot attack.";
+      fallback = "";
     }
   } else if (reason == COLONIZE_ENTER_LAKE_BLOCKED) {
     section = "SHIPLAKE";
-    fallback = "Ship units cannot enter inland {lake} squares.";
+    fallback = "";
   } else if (reason == COLONIZE_ENTER_LANDFIRST) {
     section = "LANDFIRST";
-    fallback = "Land units cannot enter an enemy occupied square from on board a "
-               "ship.  You must first unload them into an empty or friendly-occupied "
-               "square.";
+    fallback = "";
   }
   if (section) {
     char body[AI_POPUP_BODY_LEN];
@@ -5670,12 +5720,12 @@ void game_foreign_trade_price_hold(
   char c0[AI_POPUP_CHOICE_LEN];
   char c1[AI_POPUP_CHOICE_LEN];
   popup_msg_apply_tokens(
-    c0, sizeof(c0), nch >= 1 ? choices[0] : "We'll take the {%NUMBER0 %STRING0}.", &tok
+    c0, sizeof(c0), nch >= 1 ? choices[0] : "", &tok
   );
   popup_msg_apply_tokens(
-    c1, sizeof(c1), nch >= 2 ? choices[1] : "Just give us the {%NUMBER2$}.", &tok
+    c1, sizeof(c1), nch >= 2 ? choices[1] : "", &tok
   );
-  const char* labels[3] = {c0, c1, nch >= 3 ? choices[2] : "Do you take us for fools?"};
+  const char* labels[3] = {c0, c1, nch >= 3 ? choices[2] : ""};
   const int ids[3] = {1, 2, 3};
   if (ai_popup_enqueue_choice_ctx(
         &game->ai_popups, AI_POPUP_TAG_FOREIGN_TRADE_OFFER, unit_id, colony_id, hold, NULL,
@@ -5898,7 +5948,7 @@ COLONIZE_INTERNAL GameMoveStep game_move_native_prompts(
       !(game->colony_attack_ok_unit == sid &&
         game->colony_attack_ok_payload == (dest_x | (dest_y << 8)))) {
     const ColonizeUnitType* sty = units_type(&game->units, selected->type_index);
-    if (sty && strcmp(sty->name, "Scouts") == 0) {
+    if (sty && units_type_kind(sty) == UNITS_KIND_SCOUT) {
       const int cid = colonies_id_at(&game->colonies, dest_x, dest_y);
       const ColonizeColony* col = colonies_get(&game->colonies, cid);
       if (col && col->active && col->nation_id >= 0 && col->nation_id <= 3 &&
@@ -5927,10 +5977,10 @@ COLONIZE_INTERNAL GameMoveStep game_move_native_prompts(
         const ColonizeMsgSection* sec = assets_msg_find(&game->messages, "SCOUTCOLONY");
         const int nch = popup_msg_choices(sec, choices, AI_POPUP_CHOICE_MAX);
         const char* labels[4] = {
-          nch >= 1 ? choices[0] : "Meet With Mayor",
-          nch >= 2 ? choices[1] : "Infiltrate Colony",
-          nch >= 3 ? choices[2] : "Attack Colony",
-          nch >= 4 ? choices[3] : "Nothing"
+          nch >= 1 ? choices[0] : "",
+          nch >= 2 ? choices[1] : "",
+          nch >= 3 ? choices[2] : "",
+          nch >= 4 ? choices[3] : ""
         };
         const int ids[4] = {1, 2, 3, 4};
         const int payload = dest_x | (dest_y << 8);
@@ -5953,7 +6003,7 @@ COLONIZE_INTERNAL GameMoveStep game_move_native_prompts(
    */
   if (game->col1_ok) {
     const ColonizeUnitType* tty = units_type(&game->units, selected->type_index);
-    const bool is_scout = tty && strcmp(tty->name, "Scouts") == 0; /* DOS type 5 → 000e */
+    const bool is_scout = tty && units_type_kind(tty) == UNITS_KIND_SCOUT; /* DOS type 5 → 000e */
     const int cid = colonies_id_at(&game->colonies, dest_x, dest_y);
     const ColonizeColony* col = colonies_get(&game->colonies, cid);
     if (!is_scout && col && col->active && col->nation_id >= 0 && col->nation_id <= 3 &&
@@ -6026,12 +6076,16 @@ COLONIZE_INTERNAL GameMoveStep game_move_colony_prompts(
         set_status(game, "Attack?", NULL);
         return GAME_MOVE_RETURN_TRUE;
       }
+      /* Port-authored confirm (bugs.md #437): no shipped DOS dialog covers a
+       * Euro-colony attack the way @WHACKINDIANS covers a village, so this
+       * wording is deliberately not the catalog's "Shall we attack the
+       * {%STRING0}, Your Excellency?" phrasing. */
       char body[AI_POPUP_BODY_LEN];
       snprintf(
-        body, sizeof(body), "Shall we attack the colony of {%s}, Your Excellency?",
-        col->name[0] ? col->name : "the enemy"
+        body, sizeof(body), "Order troops against %s?",
+        col->name[0] ? col->name : "the enemy colony"
       );
-      static const char* labels[] = {"No, cancel the attack.", "Attack!"};
+      static const char* labels[] = {"Hold position.", "Attack!"};
       static const int ids[] = {2, 1};
       const int payload = dest_x | (dest_y << 8);
       if (ai_popup_enqueue_choice_ctx(
@@ -6100,7 +6154,9 @@ COLONIZE_INTERNAL GameMoveStep game_move_colony_prompts(
       ColonizeTurnContext ctx;
       game_fill_turn_context(game, &ctx);
       if (ai_contact_try_tired_attack_confirm(&ctx, sid, dest_x, dest_y)) {
-        set_status(game, "These men are tired…", NULL);
+        /* GAME.TXT @HALF popup is enqueued by ai_contact.c; this status-bar
+         * echo is port-authored and deliberately not that catalog wording. */
+        set_status(game, "Confirm the attack?", NULL);
         return GAME_MOVE_RETURN_TRUE;
       }
     }
@@ -6191,7 +6247,7 @@ bool game_try_unit_move(ColonizeGameState* game, int dest_x, int dest_y) {
   }
 
   if (selected->type_index >= 0 && selected->type_index < game->units.type_count &&
-      strcmp(game->units.types[selected->type_index].name, "Wagon Train") == 0) {
+      units_type_kind(&game->units.types[selected->type_index]) == UNITS_KIND_WAGON) {
     /* bugs.md #440: the wheels (COLDIG 12, event 0x52) roll only when the
      * wagon ARRIVES at a colony, not on every overland step. */
     const int arrive_cid = colonies_id_at(&game->colonies, selected->x, selected->y);
@@ -6789,10 +6845,10 @@ static bool game_colony_request_eject(
     colony_screen_close_message(csv);
     char filled[2][AI_POPUP_CHOICE_LEN];
     popup_msg_apply_tokens(
-      filled[0], sizeof(filled[0]), nch >= 1 ? choices[0] : "Yes, it is God's will.", &tok
+      filled[0], sizeof(filled[0]), nch >= 1 ? choices[0] : "", &tok
     );
     popup_msg_apply_tokens(
-      filled[1], sizeof(filled[1]), nch >= 2 ? choices[1] : "Never! That would be folly.", &tok
+      filled[1], sizeof(filled[1]), nch >= 2 ? choices[1] : "", &tok
     );
     const char* labels[2] = {filled[0], filled[1]};
     const int ids[2] = {1, 2};
@@ -6979,11 +7035,8 @@ static void game_colony_assign_building_sound(
   const ColonizeColonyPool* pool,
   int building_index
 ) {
-  const ColonizeBuildingType* bt = colonies_building_type(pool, building_index);
-  if (!bt) {
-    return;
-  }
-  if (strstr(bt->name, "Church") || strstr(bt->name, "Cathedral")) {
+  const int row = colonies_building_type_row(pool, building_index);
+  if (row == COLONY_BUILDING_CHURCH || row == COLONY_BUILDING_CATHEDRAL) {
     game_colony_assign_job_sound(GAME_JOB_PREACHER);
   }
 }
@@ -7727,6 +7780,7 @@ static bool game_colony_apply_outside_role(
   int muskets_take = 0;
   int horses_take = 0;
   const char* type_name = units_equip_role_type_name(units, u->type_index, role);
+  int type_index_override = -1;
   switch (role) {
   case COLONIZE_EJECT_MISSIONARY:
     /*
@@ -7745,7 +7799,7 @@ static bool game_colony_apply_outside_role(
     if (!colonies_has_church_or_cathedral(pool, colony)) {
       return false;
     }
-    type_name = "Missionaries";
+    type_index_override = units_kind_type_index(units, UNITS_KIND_MISSIONARY);
     break;
   case COLONIZE_EJECT_PIONEER:
   case COLONIZE_EJECT_SOLDIER:
@@ -7779,7 +7833,7 @@ static bool game_colony_apply_outside_role(
   colony->stock[COLONIZE_CARGO_MUSKETS] = stock_muskets - muskets_take;
   colony->stock[COLONIZE_CARGO_HORSES] = stock_horses - horses_take;
 
-  int type_index = units_find_type(units, type_name);
+  int type_index = type_index_override >= 0 ? type_index_override : units_find_type(units, type_name);
   if (type_index < 0) {
     type_index = u->type_index;
   }
@@ -8817,7 +8871,7 @@ static void game_hof_load(ColonizeGameState* game) {
       continue;
     }
     entry.score = score;
-    snprintf(entry.leader, sizeof(entry.leader), "%s", parsed >= 2 ? leader : "Governor");
+    snprintf(entry.leader, sizeof(entry.leader), "%s", parsed >= 2 ? leader : "");
     snprintf(entry.nation, sizeof(entry.nation), "%s", parsed >= 3 ? nation : "");
     entry.year = parsed >= 4 ? year : 0;
     entry.difficulty = parsed >= 5 ? difficulty : 0;
@@ -9122,15 +9176,9 @@ static void game_trade_route_retarget(ColonizeGameState* game, ColonizeUnit* u) 
   if (all_same) {
     PopupMsgTokens tok;
     memset(&tok, 0, sizeof(tok));
-    tok.string0 = r->name[0] ? r->name : "route";
+    tok.string0 = r->name[0] ? r->name : "";
     char body[AI_POPUP_BODY_LEN];
-    char fb[AI_POPUP_BODY_LEN];
-    snprintf(
-      fb, sizeof(fb),
-      "Your Excellency, our \"{%s}\" trade route has only one port on its itinerary!",
-      tok.string0
-    );
-    popup_msg_fill(&game->messages, "ROUTELOOP", &tok, fb, body, sizeof(body));
+    popup_msg_fill(&game->messages, "ROUTELOOP", &tok, "", body, sizeof(body));
     ai_popup_enqueue_ok(&game->ai_popups, AI_POPUP_TAG_INFO, NULL, body);
     u->moves = 0;
     return;
@@ -10640,11 +10688,19 @@ COLONIZE_INTERNAL GameUpdateStep game_update_services(ColonizeGameState* game, c
     /* bugs.md: the signature on the parchment is the LEADER's name (the
      * John Hancock moment), not the country — which had just been renamed
      * "United Colonies" and truncated to "United Colon" on the line. */
+    char default_leader[NEW_GAME_LEADER_NAME_MAX];
+    default_leader[0] = '\0';
+    if (game->leader_name[0] == '\0' &&
+        !(game->col1_ok && human >= 0 && human < 4 && game->col1.player[human].name[0])) {
+      new_game_default_leader_name(
+        game->names_ok ? &game->names : NULL, human, default_leader, sizeof(default_leader)
+      );
+    }
     const char* signer =
       (game->col1_ok && human >= 0 && human < 4 &&
        game->col1.player[human].name[0] != '\0')
         ? game->col1.player[human].name
-        : (game->leader_name[0] ? game->leader_name : "Walter Raleigh");
+        : (game->leader_name[0] ? game->leader_name : default_leader);
     declaration_just_opened =
       declaration_open(&game->declaration, game->resolved_data_dir, signer);
   }
@@ -11759,7 +11815,7 @@ static GameUpdateStep game_colony_screen_cargo_keys(
         } k_craft[] = {
           {COLONIZE_CARGO_RUM, "Rum"},
           {COLONIZE_CARGO_CIGARS, "Cigar"},
-          {COLONIZE_CARGO_CLOTH, "Cloth"},
+          {COLONIZE_CARGO_CLOTH, "Clth"},
           {COLONIZE_CARGO_COATS, "Coat"},
           {COLONIZE_CARGO_TOOLS, "Tool"},
           {COLONIZE_CARGO_MUSKETS, "Gun"},
@@ -11871,7 +11927,7 @@ COLONIZE_INTERNAL GameUpdateStep game_update_colony_screen(ColonizeGameState* ga
         }
         game_open_pedia_article(game, PEDIA_CAT_TERRAIN, index, false);
         game->pedia_return_colony_id = cid;
-        snprintf(game->status, sizeof(game->status), "");
+        game_status_from_menu_row(game, "REPORTS", 1, game->status, sizeof(game->status));
         return GAME_UPDATE_RETURN_TRUE;
       }
     }

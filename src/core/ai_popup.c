@@ -314,8 +314,8 @@ bool ai_popup_enqueue_choice_ctx(
 }
 
 /* LABELS.TXT @MISC 34/35 (DS:0x2dfe/0x2e00); literals until the file loads. */
-static char g_colony_event_continue[AI_POPUP_CHOICE_LEN] = "Continue turn.";
-static char g_colony_event_zoom[AI_POPUP_CHOICE_LEN] = "Zoom to colony.";
+static char g_colony_event_continue[AI_POPUP_CHOICE_LEN] = "";
+static char g_colony_event_zoom[AI_POPUP_CHOICE_LEN] = "";
 
 void ai_popup_set_colony_event_labels(const char* continue_label, const char* zoom_label) {
   if (continue_label && continue_label[0]) {

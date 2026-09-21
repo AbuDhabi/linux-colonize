@@ -179,7 +179,7 @@ int combat_unit_base_x8(
    * exactly type 0x0b (Artillery); no ship takes this peel — the old
    * Privateer arm was invented (smell #4).
    */
-  if (combat_type_is_artillery_name(t->name) &&
+  if (combat_type_is_artillery(t) &&
       (u->col1_flags15 & 0x80u) != 0) {
     local_8 -= 2;
     if (local_8 < 0) {
@@ -519,18 +519,17 @@ int combat_unit_toughness(
 }
 
 /*
- * @UNIT row 11 (Artillery) by name. units_name_kind() accepts the same
- * "Artillery"/"Cannon" spellings this used to test for directly; no stock
- * NAMES.TXT @UNIT row carries either token alongside a more specific one, so
- * the classifier's most-specific-first order cannot change any verdict here.
+ * @UNIT row 11 (Artillery), identified by row via units_type_kind — no-DOS-
+ * text-in-binary: units_name_kind(name) only resolves through a test-only
+ * name table in production, so a name-keyed test here would always miss.
  */
-int combat_type_is_artillery_name(const char* name) {
-  return units_name_kind(name) == UNITS_KIND_ARTILLERY;
+int combat_type_is_artillery(const ColonizeUnitType* type) {
+  return units_type_kind(type) == UNITS_KIND_ARTILLERY;
 }
 
 /* @UNIT row 5 (Scouts); "Seasoned Scout" and friends still classify as 5. */
-int combat_type_is_scout_name(const char* name) {
-  return units_name_kind(name) == UNITS_KIND_SCOUT;
+int combat_type_is_scout(const ColonizeUnitType* type) {
+  return units_type_kind(type) == UNITS_KIND_SCOUT;
 }
 
 /*
@@ -746,8 +745,8 @@ static void combat_apply_1b0e_peels(
 
   /* Artillery open-field >>2 when the combat tile has no settlement. */
   if (land) {
-    const int atk_arty = combat_type_is_artillery_name(at->name);
-    const int def_arty = combat_type_is_artillery_name(dt->name);
+    const int atk_arty = combat_type_is_artillery(at);
+    const int def_arty = combat_type_is_artillery(dt);
     /*
      * DOS 1f4b: BOTH clauses read the DEFENDER's orders (asm IMUL of the
      * defender slot in each) — penalty unless (defender Fortify/Fortified

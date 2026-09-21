@@ -1019,7 +1019,7 @@ static void turn_produce_one_colony(
    * and warehouse headroom.
    */
   {
-    const bool horse_has_stable = colonies_has_building_name_contains(pool, colony, "");
+    const bool horse_has_stable = colonies_has_building_row(pool, colony, COLONY_BUILDING_STABLE);
     const int horse_warehouse_cap =
       colonies_warehouse_capacity(pool, colony, COLONIZE_CARGO_HORSES);
     const ColonyProdHorseBreed breed = colony_prod_horse_breed(
@@ -1136,12 +1136,7 @@ static void turn_produce_one_colony(
         if (tell) {
           snprintf(europe->status, sizeof(europe->status), "No students to teach.");
           if (ai_popups) {
-            snprintf(
-              fallback,
-              sizeof(fallback),
-              "",
-              cname
-            );
+            fallback[0] = '\0';
             memset(&tok, 0, sizeof(tok));
             tok.string0 = cname;
             popup_msg_fill(messages, "TRAINFAIL", &tok, fallback, body, sizeof(body));
@@ -1161,35 +1156,19 @@ static void turn_produce_one_colony(
         student->profession = COLONIZE_PROF_INDENTURED;
         chrome_sec = "TRAINCRIMINAL";
         grad = GRAD_CRIMINAL;
-        snprintf(
-          fallback,
-          sizeof(fallback),
-          "A criminal in %s has become an indentured servant through education.",
-          cname
-        );
+        fallback[0] = '\0';
       } else if (prev_prof == COLONIZE_PROF_INDENTURED) {
         /* DOS 0x19 -> 0x1c, popup 0xdff. */
         student->profession = COLONIZE_PROF_FREE_COLONIST;
         chrome_sec = "TRAININDENTURED";
         grad = GRAD_INDENTURED;
-        snprintf(
-          fallback,
-          sizeof(fallback),
-          "",
-          cname
-        );
+        fallback[0] = '\0';
       } else {
         /* DOS 0cae(student, aiStack_7e[t]) + 0438(1, jobtable[prof].name),
          * popup 0xe0f. */
         student->profession = teach_prof[t];
         chrome_sec = "TRAINPROFESSION";
-        snprintf(
-          fallback,
-          sizeof(fallback),
-          "A colonist in %s has learned the specialty profession %s.",
-          cname,
-          skill_name
-        );
+        fallback[0] = '\0';
       }
       student->turns_in_job = 0;
       for (int k = pick; k < n_stud - 1; ++k) {
@@ -1879,8 +1858,9 @@ static void turn_produce_one_colony(
       colonies_apply_warehouse_spoilage(pool, colony, stock_before, &first_spoil, &spoil_types);
     /* Phase P thin: human spoilage status; multi-type → goods phrasing. */
     if (spoiled > 0 && europe && colony->nation_id == human_nation) {
-      const char* wh =
-        (colony->warehouse_level > 1u) ? "Expanded warehouse" : "Warehouse";
+      const char* wh = colonies_building_row_name(
+        (colony->warehouse_level > 1u) ? COLONY_BUILDING_WAREHOUSE_EXPANSION : COLONY_BUILDING_WAREHOUSE
+      );
       const char* where = (colony->name[0]) ? colony->name : NULL;
       const char* cargo_name = NULL;
       if (first_spoil >= 0 && first_spoil < europe->cargo_count) {
@@ -2487,10 +2467,9 @@ static void turn_notify_dock_immigrant(
   memset(&tok, 0, sizeof(tok));
   tok.country = ctx->europe->nation_name[0] ? ctx->europe->nation_name : "Europe";
   tok.string0 = "Europe";
-  tok.string1 = immigrant_name && immigrant_name[0] ? immigrant_name : "Colonists";
+  tok.string1 = immigrant_name && immigrant_name[0] ? immigrant_name : "";
   char body[AI_POPUP_BODY_LEN];
-  const char* fb =
-    "Religious unrest causes increased emigration. Colonists now available in Europe.";
+  const char* fb = "";
   if (ctx->messages) {
     popup_msg_fill(ctx->messages, "UNREST", &tok, fb, body, sizeof(body));
   } else {
@@ -2672,7 +2651,7 @@ void turn_run_nation_ticks(ColonizeTurnContext* ctx, ColonizeTurnResult* out) {
           founding_fathers_bells_since_last_elect(ctx->human_nation) > 0u &&
           ctx->ai_popups) {
         const int ally = (int)ctx->col1->head.rival_nation_slot_1;
-        const char* ally_name = "A European power";
+        const char* ally_name = "";
         /* bugs.md #252 rule: PARENT country ("France"), never the new-world
          * colony name player[ally].country_name ("New France"). */
         if (ally >= 0 && ally < 4) {
@@ -2680,8 +2659,7 @@ void turn_run_nation_ticks(ColonizeTurnContext* ctx, ColonizeTurnResult* out) {
         }
         popup_chrome_ok(
           ctx->ai_popups, ctx->messages, "AMBUSHHINT", NULL,
-          "Attacking the King's troops while neither unit is in a colony square "
-          "gains an ambush bonus equal to the terrain's defensive value!"
+          ""
         );
         PopupMsgTokens tok;
         memset(&tok, 0, sizeof(tok));
@@ -3456,22 +3434,19 @@ COLONIZE_INTERNAL void turn_year_end_rival_independence(
           ai_diplo_or_both(dcol1, rival, other, AI_DIPLO_PEACE);
           ai_diplo_clear_both(dcol1, rival, other, 0xbb);
         }
-        if (ctx->status && ctx->status_size > 0) {
-          snprintf(
-            ctx->status,
-            ctx->status_size,
-            "The King of %s grants independence to %s.",
-            old_country,
-            old_country
-          );
-        }
         PopupMsgTokens gtok;
         memset(&gtok, 0, sizeof(gtok));
         gtok.string0 = old_country;
         gtok.string1 = old_country;
         gtok.string2 = leader;
         gtok.string3 = newname;
-        turn_year_end_rival_popup(ctx, "OTHERGRANTED", &gtok, ctx->status);
+        if (ctx->status && ctx->status_size > 0 && ctx->messages) {
+          char status_body[AI_POPUP_BODY_LEN];
+          popup_msg_fill(ctx->messages, "OTHERGRANTED", &gtok, "", status_body, sizeof(status_body));
+          popup_msg_strip_markup(status_body);
+          snprintf(ctx->status, ctx->status_size, "%s", status_body);
+        }
+        turn_year_end_rival_popup(ctx, "OTHERGRANTED", &gtok, "");
       }
     }
   }

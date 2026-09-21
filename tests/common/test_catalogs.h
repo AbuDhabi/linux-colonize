@@ -36,6 +36,27 @@ static inline const ColonizeMsgCatalog* test_names_txt(void) {
   return state == 1 ? &cat : NULL;
 }
 
+/* The shipped LABELS.TXT / MENU.TXT (screen chrome reads them). */
+static inline const ColonizeMsgCatalog* test_labels_txt(void) {
+  static ColonizeMsgCatalog cat;
+  static int state = 0;
+  if (state == 0) {
+    assets_msg_init(&cat);
+    state = assets_msg_load_file(&cat, "COLONIZE/LABELS.TXT") ? 1 : -1;
+  }
+  return state == 1 ? &cat : NULL;
+}
+
+static inline const ColonizeMsgCatalog* test_menu_txt(void) {
+  static ColonizeMsgCatalog cat;
+  static int state = 0;
+  if (state == 0) {
+    assets_msg_init(&cat);
+    state = assets_msg_load_file(&cat, "COLONIZE/MENU.TXT") ? 1 : -1;
+  }
+  return state == 1 ? &cat : NULL;
+}
+
 /* Longest token-free run (no %TOKEN, {markup}, caret or quote) found on any
  * content line of the section, copied to out. False if none is >= 8 chars. */
 static inline bool test_section_needle(const char* section, char* out, size_t out_size) {

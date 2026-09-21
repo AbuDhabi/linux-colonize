@@ -194,56 +194,56 @@ Already **file-driven** in practice: MADSPACK art/fonts, `GAME`/`MENU`/`LABELS`/
 
 Already **baked** (correctly): DOS RNG, map gen pipeline, MAPEDIT compositor + resource-type table, `viceroy_tables.c`, colony production tier math, much UI layout, sound ID map.
 
-**Display-text sweep, 2026-09-20.** Every C string literal in `src/` was matched
-against the shipped catalogs (927 candidate sites) and triaged into *display*
-(hardcoded text that reaches the screen), *fallback* (already live, literal is
-only the no-catalog default), *key* (a lookup/dispatch string) and coincidence.
-All display cases found were migrated to the live catalogs, keeping the literal
-as the fallback: Europe purchase names (`@UNIT`), `@INDEPENDENT` republic names,
-`@SEASONS` (new shared `reports_season_name`, replacing four `autumn ? "Autumn"
-: "Spring"` ternaries), the `@HOWMUCH1-5` / DEBUG `@SOUND` field caption (DOS
-says "Sound:" there, the port drew "Amount:"), `@MAPTOLOAD`, the whole cheat
-CREATE / CSHIP / FOREIGN / FOREIGN2 / SETVIEW menu text, the Combat Analysis
-row labels and village nouns (`@MISC`, `@CARGO`, `@LEVELS` col 1), the
-Colonizopedia list header / "(Exit)" / category names (`@MISC` 108/110,
-MENU.TXT `@PEDIA`), the naval-report passenger labels, `@BUILDING` Newspaper,
-`@MISC` "High Seas" / "Nothing" / "Wilderness" / "Tory" / "Rebels" /
-"defeat(s)", `@COLONYNAME`, `@MEEKNESS` request/demand, the King's unit-pool
-display names, and the `@HAVETREATY` / `@TRADE*` / `@BUY*` / `@KINGGALLEON*`
-choice rows.
+**No MicroProse text in the binary (rule since 2026-09-21).** The port relies
+strictly on the shipped `COLONIZE/*.TXT` catalogs for the game's wording; only
+the port's own text is compiled in. This supersedes the older "keep the DOS
+literal as a fallback" idiom — a fallback copy is still a copy.
 
-A second pass the same day caught what the first missed: the first scanner
-only saw single-line calls, so text passed to multi-line `font_draw_*` /
-`snprintf` calls slipped through. Re-scanning with statement joining found the
-new-game wizard's own screen titles ("Choose" / "Difficulty Level", "Select" /
-"European Power"), its difficulty words (Easiest..Toughest) and nation-bonus
-words (Immigration / Cooperation / Conquest / Trade), the map status line's
-"End of Turn" and "Continue turn.", and the dock-orders "No changes." row. All
-are live now. The wizard block is addressed **relative to the "Land Mass"
-anchor** (`new_game_misc_label`), the way `new_game_customiz_labels` already
-did it, so the whole @MISC block can move without breaking: +17 finished,
-+18/19 difficulty title, +21..25 level words, +26/27 nation title, +29..32
-bonus words.
+- **Catalogs are required.** `assets_validate_required_files` lists GAME / MENU /
+  LABELS / NAMES / PEDIA / COLONY / DEBUG.TXT; `main.c` exits with a port-written
+  error when one is missing. A lookup that misses returns the **empty string**.
+- **Identity is the catalog row, never an English name.**
+  Units: `ColonizeUnitType.kind_plus1` is stamped by `units_load_types`;
+  use `units_kind_type_index(pool, UNITS_KIND_X)` / `units_type_kind(type)`.
+  Buildings: `ColonizeBuildingType.row_plus1`; use `colonies_building_row`,
+  `colonies_building_type_row`, `colonies_has_building_row`,
+  `colonies_building_row_chain`, `colonies_building_chain_rows`
+  (`ColonizeBuildingRow` enum in colony.h). Professions: the `@JOB` row is the
+  profession byte. `units_name_kind(name)` resolves **only** through a test hook
+  and returns UNKNOWN in the shipped game — never call it from game code.
+- **Menus dispatch by row**: title menu (`@BEGINMENU` rows 0-4, optional 5 =
+  exit), `map_menu.c` per-section row tables, `@PICKMUSIC` submenus by position.
+- **Text is read, not typed**: `reports_*` accessors (names, `@JOB` col 0/1,
+  `@MISC` words, seasons), `assets_msg_line_or`, and for sentences
+  `popup_msg_fill(catalog, "SECTION", &tok, "", …)` (+ `popup_msg_strip_markup`
+  for a status line; tokens `%STRING0-4`, `%NUMBER0-3`, `%COUNTRY`). Choice rows:
+  `popup_msg_choices` + `popup_msg_apply_tokens`; line-by-line fragments
+  (`@TAXOPTIONS`): `popup_msg_rows`. Field captions ("Amount:") are recognised
+  structurally — last content line, ends in ':', follows prose across a blank.
+  Europe reads GAME.TXT through `europe_set_messages`, the pedia list chrome
+  through `pedia_set_chrome_catalogs`.
+- **Tests** run against the real catalogs. `tests/common/test_name_kinds.c`
+  (appended to every test target) loads NAMES/LABELS and installs the
+  name→kind / name→row resolvers that fixture-built pools need;
+  `tests/common/test_catalogs.h` gives `test_game_txt()` etc. and
+  `test_body_is_section(body, "SECTION")` so a test identifies a popup by its
+  section, not by a typed DOS phrase. Synthetic catalogs in tests use invented
+  wording.
+- **Port-authored text is fine** but must not copy catalog wording: diagnostics,
+  log names, short notices where DOS has no section (raid "thin" notices, the
+  village-approach warning, "Independence already declared.", "Royal frigate
+  dispatched.", "%s taken as a prize.", the attack-confirm dialog, "(no
+  specialty)", "%d Villages", "Press"), and the Colonizopedia misc blurbs.
+- **Checking**: two scratch detectors were used — exact/field match of code
+  literals against catalog lines, and a 4-word-shingle match that also catches
+  printf-style paraphrases. Both should stay at (near) zero; `strings` on the
+  built binary should show no DOS sentences.
 
-Still hardcoded **on purpose** (do not "fix" without evidence):
-
-- Lookup keys, not text — `units_find_type(pool, "Artillery")`,
-  `colonies_find_building(..., "Fortress")`, `europe_purchase_price("Caravel")`,
-  the NAMES.TXT section-name keys in `pedia.c`, and `map_menu_classify`'s
-  `strcmp(label, "Build Colony")` dispatch over live MENU.TXT rows. These are
-  the real modding fragility: renaming a `@UNIT` / `@BUILDING` / MENU.TXT row
-  silently dead-ends the lookup. Fixing that means keying off ids, not text —
-  a separate job from this sweep.
-- Abbreviations and composed names with no catalog row: the colony report's
-  "Press" (short form of `@BUILDING` 19), `units_display_name`'s singular
-  nouns ("Dragoon", "Soldier"), the `name_entry_dialog` "Name:" caption that
-  `popup_msg` deliberately strips from parsed bodies.
-- Debug/diag log strings and popup tag names.
-
-One fidelity lead came out of the sweep: `ai_contact.c`'s village-warning
-popup ("Leave" / "Attack" plus its four alarm-tier bodies) has no GAME.TXT
-section at all — it is invented prose, not a port. See
-[popup_audit.md](popup_audit.md).
+Traps met while getting here (do not repeat): blanking literals by pattern
+half-empties key tables and turns `strstr` needles into `""` (always true);
+regexes over `"…"` spans mangle adjacent literals into `"""""`; section keys
+(`"MISSION%d"`) and log names are not text; a fixture that names its types
+oddly can hide a lookup that never worked.
 
 ---
 

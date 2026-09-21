@@ -50,6 +50,7 @@
  * ai_king_mow_sail_home_20e6 call — that function stayed public and is driven
  * from the euro ship band.
  */
+#include "../common/test_catalogs.h"
 #include "core/ai_king.h"
 #include "core/ai_diplo.h"
 #include "core/assets.h"
@@ -142,6 +143,8 @@ static int test_king_new_war_event(void) {
   ColonizeDosRng rng;
   ColonizeTurnContext ctx;
   memset(&ctx, 0, sizeof(ctx));
+  ctx.messages = test_game_txt();
+  ctx.names = test_names_txt();
   ctx.col1 = &c;
   ctx.col1_ok = true;
   ctx.rng = &rng;
@@ -291,6 +294,8 @@ static int test_king_noncombat_never_attacks(void) {
   status[0] = '\0';
   ColonizeTurnContext ctx;
   memset(&ctx, 0, sizeof(ctx));
+  ctx.messages = test_game_txt();
+  ctx.names = test_names_txt();
   ctx.human_nation = 0;
   ctx.col1 = &col1;
   ctx.col1_ok = true;
@@ -456,6 +461,8 @@ static int case_king_narrative(void) {
   status[0] = '\0';
   ColonizeTurnContext ctx;
   memset(&ctx, 0, sizeof(ctx));
+  ctx.messages = test_game_txt();
+  ctx.names = test_names_txt();
   ctx.human_nation = 0;
   ctx.col1 = &col1;
   ctx.col1_ok = true;
@@ -3125,6 +3132,8 @@ static int case_revolution_lose2_no_colonies(void) {
     estatus[0] = '\0';
     ColonizeTurnContext ectx;
     memset(&ectx, 0, sizeof(ectx));
+    ectx.messages = test_game_txt();
+    ectx.names = test_names_txt();
     ectx.col1 = &end;
     ectx.col1_ok = true;
     ectx.human_nation = 0;
@@ -3245,6 +3254,8 @@ static int case_revolution_lose1_no_ports(void) {
     estatus[0] = '\0';
     ColonizeTurnContext ectx;
     memset(&ectx, 0, sizeof(ectx));
+    ectx.messages = test_game_txt();
+    ectx.names = test_names_txt();
     ectx.col1 = &end;
     ectx.col1_ok = true;
     ectx.human_nation = 0;
@@ -3385,6 +3396,8 @@ static int case_revolution_warn_one_colony(void) {
     estatus[0] = '\0';
     ColonizeTurnContext ectx;
     memset(&ectx, 0, sizeof(ectx));
+    ectx.messages = test_game_txt();
+    ectx.names = test_names_txt();
     ectx.col1 = &end;
     ectx.col1_ok = true;
     ectx.human_nation = 0;
@@ -3676,6 +3689,8 @@ static int case_revolution_warn3_pop_share(void) {
     estatus[0] = '\0';
     ColonizeTurnContext ectx;
     memset(&ectx, 0, sizeof(ectx));
+    ectx.messages = test_game_txt();
+    ectx.names = test_names_txt();
     ectx.col1 = &end;
     ectx.col1_ok = true;
     ectx.human_nation = 0;
@@ -3876,6 +3891,8 @@ static int case_revolution_lose3_pop_share(void) {
     estatus[0] = '\0';
     ColonizeTurnContext ectx;
     memset(&ectx, 0, sizeof(ectx));
+    ectx.messages = test_game_txt();
+    ectx.names = test_names_txt();
     ectx.col1 = &end;
     ectx.col1_ok = true;
     ectx.human_nation = 0;
@@ -3997,6 +4014,8 @@ static int case_revolution_win_1850(void) {
     estatus[0] = '\0';
     ColonizeTurnContext ectx;
     memset(&ectx, 0, sizeof(ectx));
+    ectx.messages = test_game_txt();
+    ectx.names = test_names_txt();
     ectx.col1 = &end;
     ectx.col1_ok = true;
     ectx.human_nation = 0;
@@ -4166,6 +4185,8 @@ static int case_revolution_retiring2_1850_stalemate(void) {
     estatus[0] = '\0';
     ColonizeTurnContext ectx;
     memset(&ectx, 0, sizeof(ectx));
+    ectx.messages = test_game_txt();
+    ectx.names = test_names_txt();
     ectx.col1 = &end;
     ectx.col1_ok = true;
     ectx.human_nation = 0;
@@ -4275,6 +4296,8 @@ static int case_peacetime_scored_retiring_1800(void) {
     estatus[0] = '\0';
     ColonizeTurnContext ectx;
     memset(&ectx, 0, sizeof(ectx));
+    ectx.messages = test_game_txt();
+    ectx.names = test_names_txt();
     ectx.col1 = &end;
     ectx.col1_ok = true;
     ectx.human_nation = 0;
@@ -4390,6 +4413,8 @@ static int case_peacetime_soonretiring0_1790(void) {
     estatus[0] = '\0';
     ColonizeTurnContext ectx;
     memset(&ectx, 0, sizeof(ectx));
+    ectx.messages = test_game_txt();
+    ectx.names = test_names_txt();
     ectx.col1 = &end;
     ectx.col1_ok = true;
     ectx.human_nation = 0;
@@ -4524,6 +4549,8 @@ static int case_wartime_soonretiring1_1840(void) {
     estatus[0] = '\0';
     ColonizeTurnContext ectx;
     memset(&ectx, 0, sizeof(ectx));
+    ectx.messages = test_game_txt();
+    ectx.names = test_names_txt();
     ectx.col1 = &end;
     ectx.col1_ok = true;
     ectx.human_nation = 0;
@@ -4633,6 +4660,8 @@ static int case_43f7_0082_spawn_types(void) {
   col1.player[1].control = 1;
   ColonizeTurnContext ctx;
   memset(&ctx, 0, sizeof(ctx));
+  ctx.messages = test_game_txt();
+  ctx.names = test_names_txt();
   ctx.units = &units;
   ctx.map = &map;
   ctx.col1 = &col1;

@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "../common/test_catalogs.h"
 #include "core/assets.h"
 #include "core/ai_diplo.h"
 #include "core/ai_popup.h"
@@ -1124,6 +1125,8 @@ int main(void) {
   char status[128];
   ColonizeTurnContext ctx;
   memset(&ctx, 0, sizeof(ctx));
+  ctx.messages = test_game_txt();
+  ctx.names = test_names_txt();
   ctx.turn_number = &turn_number;
   ctx.game_year = &year;
   ctx.game_autumn = &autumn;
@@ -1245,6 +1248,8 @@ int main(void) {
     uint16_t autumn = 0;
     ColonizeTurnContext ctx;
     memset(&ctx, 0, sizeof(ctx));
+    ctx.messages = test_game_txt();
+    ctx.names = test_names_txt();
     ctx.turn_number = &turn;
     ctx.game_year = &year;
     ctx.game_autumn = &autumn;
@@ -4350,6 +4355,8 @@ int main(void) {
 
     ColonizeTurnContext ctx;
     memset(&ctx, 0, sizeof(ctx));
+    ctx.messages = test_game_txt();
+    ctx.names = test_names_txt();
     ctx.human_nation = 0;
     ctx.colonies = &pool;
     ctx.col1 = &col1;
@@ -4418,6 +4425,8 @@ int main(void) {
 
     ColonizeTurnContext ctx;
     memset(&ctx, 0, sizeof(ctx));
+    ctx.messages = test_game_txt();
+    ctx.names = test_names_txt();
     ctx.human_nation = 0;
     ctx.colonies = &pool;
     ctx.col1 = &col1;
@@ -4741,6 +4750,8 @@ int main(void) {
 
     ColonizeTurnContext ctx;
     memset(&ctx, 0, sizeof(ctx));
+    ctx.messages = test_game_txt();
+    ctx.names = test_names_txt();
     ctx.human_nation = 0;
     ctx.units = &units;
     ctx.col1 = &col1;
@@ -4956,6 +4967,8 @@ int main(void) {
     uint32_t turn_number = 8;
     ColonizeTurnContext ctx;
     memset(&ctx, 0, sizeof(ctx));
+    ctx.messages = test_game_txt();
+    ctx.names = test_names_txt();
     ctx.human_nation = 0;
     ctx.units = &units;
     ctx.game_year = &year;
@@ -5123,6 +5136,8 @@ int main(void) {
     char status[64];
     ColonizeTurnContext ctx;
     memset(&ctx, 0, sizeof(ctx));
+    ctx.messages = test_game_txt();
+    ctx.names = test_names_txt();
     ctx.game_year = &year;
     ctx.game_autumn = &autumn;
     ctx.turn_number = &turn_number;

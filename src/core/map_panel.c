@@ -607,7 +607,7 @@ static bool map_panel_tile_flag(
 static const char* map_panel_order_label(const ColonizeMsgCatalog* names, int orders_index) {
   const char* line = map_panel_section_line(names, "ORDERS", orders_index);
   static char buf[24];
-  assets_msg_csv_field(line ? line : "No Orders", 0, buf, sizeof(buf));
+  assets_msg_csv_field(line ? line : "", 0, buf, sizeof(buf));
   return buf;
 }
 
@@ -675,11 +675,11 @@ static const char* map_panel_nationality(int nation_id) {
     /* bugs.md: crown slot = the REF during the WoI, never the peer name;
      * the adjective is "Tory" ("Tory Cavalry"), not "Royal". */
     if (nation_id == unit_chrome_crown_nation()) {
-      return "Tory";
+      return reports_misc_display_word(70, "");
     }
-    /* bugs.md #239: rebel side's units read "Rebel" (LABELS 84) during WoI. */
+    /* bugs.md #239: rebel side's units read @MISC row 69 during WoI. */
     if (nation_id == unit_chrome_rebel_nation()) {
-      return "Rebel";
+      return reports_misc_display_word(69, "");
     }
     return reports_nation_adjective_display_name(nation_id);
   }
@@ -693,14 +693,13 @@ static const char* map_panel_unit_type_name(const ColonizeUnitPool* units, const
 
 /* NAMES.TXT @CARGO name, for the Pioneers tool line (DS:0x97dc). */
 static const char* map_panel_cargo_name(const ColonizeMsgCatalog* names, int cargo) {
-  static const char* k_tools = "Tools";
   const char* line = map_panel_section_line(names, "CARGO", cargo);
   if (!line) {
-    return k_tools;
+    return "";
   }
   static char buf[32];
   assets_msg_csv_field(line, 0, buf, sizeof(buf));
-  return buf[0] ? buf : k_tools;
+  return buf;
 }
 
 /*
@@ -1257,8 +1256,8 @@ void map_panel_render_w(
     turn_format_date(game_year, game_autumn, date, sizeof(date));
     map_panel_draw_line(font, framebuffer, text_x, &text_y, line_h, y_limit, date, MAP_PANEL_COL_TEXT);
 
-    const char* gold_label = "Gold:";
-    const char* tax_label = "Tax:";
+    const char* gold_label = "";
+    const char* tax_label = "";
     if (labels) {
       const ColonizeMsgSection* ct = assets_msg_find(labels, "CTITLE");
       if (ct && ct->line_count > 9) {
@@ -1316,13 +1315,13 @@ void map_panel_render_w(
     char line[72];
     char mp_text[16];
     units_format_mp(selected->moves, mp_text, sizeof(mp_text));
-    snprintf(line, sizeof(line), "%s %s", panel ? panel->label_moves : "Moves:", mp_text);
+    snprintf(line, sizeof(line), "%s %s", panel ? panel->label_moves : "", mp_text);
     map_panel_draw_line(font, framebuffer, indent_x, &side_y, line_h, y_limit, line, MAP_PANEL_COL_TEXT);
     snprintf(
       line,
       sizeof(line),
       "%s (%d,%d)",
-      panel ? panel->label_locat : "Locat:",
+      panel ? panel->label_locat : "",
       selected->x,
       selected->y
     );
@@ -1362,7 +1361,7 @@ void map_panel_render_w(
      */
     char line[72];
     snprintf(
-      line, sizeof(line), "%s (%d,%d)", panel ? panel->label_locat : "Locat:", cursor_x, cursor_y
+      line, sizeof(line), "%s (%d,%d)", panel ? panel->label_locat : "", cursor_x, cursor_y
     );
     map_panel_draw_line(font, framebuffer, text_x, &text_y, line_h, y_limit, line, MAP_PANEL_COL_TEXT);
 
@@ -1377,21 +1376,14 @@ void map_panel_render_w(
         );
         map_panel_draw_line(font, framebuffer, text_x, &text_y, line_h, y_limit, line, MAP_PANEL_COL_TEXT);
       } else if (tribe) {
-        snprintf(line, sizeof(line), "", map_panel_tribe_short(tribe->nation_id));
+        snprintf(
+          line, sizeof(line), "%s %s", map_panel_tribe_short(tribe->nation_id),
+          reports_misc_display_word(18, "")
+        );
         map_panel_draw_line(font, framebuffer, text_x, &text_y, line_h, y_limit, line, MAP_PANEL_COL_TEXT);
       } else {
-        const char* wild = "Wilderness";
-        if (labels) {
-          const ColonizeMsgSection* misc = assets_msg_find(labels, "MISC");
-          if (misc) {
-            for (int i = 0; i < misc->line_count; ++i) {
-              if (strcmp(misc->lines[i], "Wilderness") == 0) {
-                wild = misc->lines[i];
-                break;
-              }
-            }
-          }
-        }
+        /* LABELS.TXT @MISC row 17 "Wilderness". */
+        const char* wild = reports_misc_display_word(17, "");
         map_panel_draw_line(font, framebuffer, text_x, &text_y, line_h, y_limit, wild, MAP_PANEL_COL_TEXT);
       }
     }
@@ -1455,7 +1447,7 @@ void map_panel_render_w(
       }
     }
     if (stype && stype->cargo > 0 && goods > 0 && text_y + MAP_PANEL_ROW_H <= y_limit) {
-      const char* with = panel ? panel->label_with : "With:";
+      const char* with = panel ? panel->label_with : "";
       font_draw_text(font, framebuffer, text_x, text_y + 2, with, MAP_PANEL_COL_TEXT);
       const int label_w = font ? font_text_width(font, with) : 24;
       map_panel_draw_cargo_icons(
@@ -1505,7 +1497,7 @@ void map_panel_render_w(
       const ColonizeCol1Tribe* tribe = col1_save_tribe_at(col1, info_x, info_y);
       if (tribe && text_y + MAP_PANEL_ROW_H <= y_limit) {
         const char* tshort = map_panel_tribe_short(tribe->nation_id);
-        const char* settlement = "Camp";
+        const char* settlement = "";
         /* `col1 && col1->indian[..].tech` was a logical AND — every tribe with
          * a tech above 0 collapsed to 1, so Aztec (2) and Inca (3) drew the
          * Village icon and read the Village @LEVELS row. bugs.md. */
@@ -1621,7 +1613,7 @@ void map_panel_render_w(
             continue; /* already shown as the selected-unit block */
           }
           if (text_y >= MAP_PANEL_STACK_Y_LIMIT || text_y + MAP_PANEL_ROW_H > y_limit) {
-            const char* more = "(More)";
+            const char* more = "";
             if (labels) {
               const ColonizeMsgSection* ct = assets_msg_find(labels, "CTITLE");
               if (ct && ct->line_count > 6) {
@@ -1668,7 +1660,7 @@ void map_panel_render_w(
     if (eot_y > eot_max) {
       eot_y = eot_max;
     }
-    const char* eot = "End of Turn";
+    const char* eot = "";
     if (labels) {
       const ColonizeMsgSection* misc = assets_msg_find(labels, "MISC");
       if (misc && misc->line_count > 2) {

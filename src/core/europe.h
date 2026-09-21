@@ -187,7 +187,8 @@ typedef struct EuropeTrainOption {
 } EuropeTrainOption;
 
 typedef struct EuropePurchaseOption {
-  char name[32];
+  ColonizeUnitKind kind; /* @UNIT row identity — never a name-string key */
+  char name[32]; /* display only; filled live from NAMES.TXT @UNIT */
   int gold;
   bool is_ship; /* false = artillery → docks */
 } EuropePurchaseOption;
@@ -433,6 +434,10 @@ typedef struct EuropeScreen {
   int bar_event_count;
   /* LABELS.TXT for that wording (@CMESSAGE). NULL → built-in fallbacks. */
   const struct ColonizeMsgCatalog* labels;
+  /* GAME.TXT (europe_set_messages) — sections like @KISSSORRY that this
+   * screen composes itself rather than leaving to a game_dialogs.c popup.
+   * NULL → those statuses stay blank, same as a missing labels catalog. */
+  const struct ColonizeMsgCatalog* messages;
 } EuropeScreen;
 
 bool europe_load(EuropeScreen* eu, const char* data_dir, char* err, size_t err_size);
@@ -445,6 +450,9 @@ void europe_set_nation(EuropeScreen* eu, int nation, const struct ColonizeMsgCat
 
 /* LABELS.TXT used for the sale status line's @CMESSAGE wording (bugs.md #376). */
 void europe_set_labels(EuropeScreen* eu, const struct ColonizeMsgCatalog* labels);
+
+/* GAME.TXT used for statuses this screen composes itself (e.g. @KISSSORRY). */
+void europe_set_messages(EuropeScreen* eu, const struct ColonizeMsgCatalog* game_txt);
 
 /*
  * Compose DOS's Europe-sale status line for one sale and queue it in
@@ -654,7 +662,7 @@ int europe_dock_unit_type_index_ex(
  */
 int europe_purchase_option_count(void);
 const EuropePurchaseOption* europe_purchase_option_at(int index);
-int europe_purchase_price(const char* type_name);
+int europe_purchase_price(ColonizeUnitKind kind);
 
 /*
  * DOS @UNIT type for a dock entry. A name that is itself one of the six

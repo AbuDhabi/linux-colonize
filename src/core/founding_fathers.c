@@ -1137,7 +1137,7 @@ static bool effect_jones_frigate(
   if (europe) {
     const ColonizeUnitType* ty = units_type(units, ship_ty);
     return europe_harbor_push(
-      europe, ship_ty, ty && ty->name[0] ? ty->name : "Frigate", NULL, 0, NULL, NULL
+      europe, ship_ty, ty && ty->name[0] ? ty->name : "", NULL, 0, NULL, NULL
     );
   }
   int sx = 0;
