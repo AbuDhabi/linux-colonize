@@ -1,5 +1,6 @@
 #include "col1_json.h"
 
+#include <stdlib.h>
 #include <string.h>
 
 /* strnlen is POSIX, not ISO C11 (project builds with -std=c11, extensions
@@ -1393,6 +1394,12 @@ void col1_write_json(FILE* f, const ColonizeCol1Save* s) {
     write_trade_route(f, &s->trade_route[i]);
   }
   fputc(']', f);
+  /* Port extension block (col1_save.h): absent in DOS originals, so the key
+   * is only emitted when the save carries one. Kept as opaque hex so the tool
+   * round-trips a newer port's chunks byte for byte. */
+  if (s->ext && s->ext_size > 0) {
+    wh(f, &n, "port_ext_hex", s->ext, s->ext_size);
+  }
   fputc('}', f);
   fputc('\n', f);
 }
@@ -1519,6 +1526,27 @@ bool col1_read_json(const JsonValue* root, ColonizeCol1Save* out, char* err, siz
   if (routes && routes->type == JV_ARR) {
     for (size_t i = 0; i < COLONIZE_COL1_TRADE_ROUTE_COUNT && i < json_arr_len(routes); ++i) {
       read_trade_route(json_arr_at(routes, i), &out->trade_route[i]);
+    }
+  }
+
+  const char* ext_hex = json_get_str(root, "port_ext_hex");
+  if (ext_hex) {
+    const size_t hex_len = strlen(ext_hex);
+    if ((hex_len % 2u) != 0) {
+      if (err && err_size) snprintf(err, err_size, "port_ext_hex must have an even length");
+      return false;
+    }
+    uint8_t* bytes = malloc(hex_len / 2u ? hex_len / 2u : 1u);
+    if (!bytes) {
+      if (err && err_size) snprintf(err, err_size, "oom for port_ext_hex");
+      return false;
+    }
+    const bool ok = json_get_hex(root, "port_ext_hex", bytes, hex_len / 2u) &&
+                    col1_save_set_ext(out, bytes, hex_len / 2u);
+    free(bytes);
+    if (!ok) {
+      if (err && err_size) snprintf(err, err_size, "port_ext_hex is not a valid extension block");
+      return false;
     }
   }
 

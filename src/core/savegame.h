@@ -47,6 +47,10 @@ typedef struct ColonizeSaveSlotInfo {
   uint16_t turn;
   uint8_t difficulty; /* head.difficulty 0..4 */
   uint8_t human_nation; /* first player with control == 0 */
+  /* Carries a port extension block (col1_save.h) past the DOS sections, i.e.
+   * state DOS cannot load and silently drops on re-save. The Load/Save list
+   * marks these rows with a trailing "*". */
+  bool has_port_ext;
 } ColonizeSaveSlotInfo;
 
 bool savegame_probe_col1_slot(

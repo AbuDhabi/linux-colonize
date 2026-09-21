@@ -81,6 +81,15 @@ typedef struct ColonizeCol1Save {
   ColonizeCol1Map map;
   ColonizeCol1PostMap post_map;
   ColonizeCol1TradeRoute trade_route[COLONIZE_COL1_TRADE_ROUTE_COUNT];
+  /*
+   * Port-only extension block appended AFTER the last DOS section (see
+   * "Port extension block" in docs/savegame.md). DOS reads the .SAV section
+   * by section with no whole-file length check (FUN_75c2_0940), so trailing
+   * bytes are invisible to it -- and dropped when DOS re-saves the slot.
+   * NULL / 0 = a plain DOS-shaped save. Always heap-owned by this struct.
+   */
+  uint8_t* ext;
+  size_t ext_size;
   bool owned; /* true if colony/unit/tribe/map buffers owned by this struct */
 } ColonizeCol1Save;
 
@@ -254,7 +263,10 @@ int col1_save_human_nation_from(
   const ColonizeCol1Player* players
 );
 
+/* DOS-shaped size: the part of the file DOS itself reads (no ext block). */
 size_t col1_save_expected_size(const ColonizeCol1Save* save);
+/* Bytes actually written by col1_save_write_*: expected size + ext block. */
+size_t col1_save_total_size(const ColonizeCol1Save* save);
 size_t col1_save_expected_size_counts(
   uint16_t map_w,
   uint16_t map_h,
@@ -289,6 +301,54 @@ bool col1_save_write_memory(
   size_t* out_size,
   char* err,
   size_t err_size
+);
+
+/*
+ * ---------------------------------------------------------------------
+ * Port extension block (Linux-only, DOS-transparent)
+ * ---------------------------------------------------------------------
+ * Layout, little-endian, appended after trade_route[]:
+ *
+ *   char     magic[8]  "COLNXEXT"
+ *   uint16   version   COLONIZE_COL1_EXT_VERSION
+ *   uint16   reserved  0
+ *   uint32   payload   bytes of chunk data that follow
+ *   chunks:  uint32 tag, uint32 len, len bytes payload  (repeated)
+ *
+ * Unknown chunks are carried through read -> write untouched, so a newer
+ * port's extras survive a round trip through an older one.
+ */
+#define COLONIZE_COL1_EXT_MAGIC "COLNXEXT"
+#define COLONIZE_COL1_EXT_MAGIC_SIZE 8u
+#define COLONIZE_COL1_EXT_HEADER_SIZE 16u
+#define COLONIZE_COL1_EXT_VERSION 1u
+
+/* 'VTIN': village Buys/Sells sidebar knowledge (village_trade_intel.h). */
+#define COLONIZE_COL1_EXT_TAG_VILLAGE_TRADE_INTEL 0x4e495456u
+
+/* True when `data` is a well-formed ext block (magic, version, chunk walk). */
+bool col1_save_ext_valid(const uint8_t* data, size_t size);
+
+/* Replace `save->ext` wholesale; NULL/0 clears it. Copies the bytes. */
+bool col1_save_set_ext(ColonizeCol1Save* save, const uint8_t* data, size_t size);
+
+/* Locate one chunk's payload inside save->ext. */
+bool col1_save_ext_find(
+  const ColonizeCol1Save* save,
+  uint32_t tag,
+  const uint8_t** out_payload,
+  size_t* out_size
+);
+
+/*
+ * Add/replace one chunk, keeping every other chunk as-is. `payload` NULL or
+ * `size` 0 removes the chunk (and the whole block once it holds nothing).
+ */
+bool col1_save_ext_put(
+  ColonizeCol1Save* save,
+  uint32_t tag,
+  const uint8_t* payload,
+  size_t size
 );
 
 /* Allocate empty standard-size map buffers; counts must already be set in head. */

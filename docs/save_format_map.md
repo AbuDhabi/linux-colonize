@@ -49,7 +49,7 @@ Post-P5, remaining `opaque`/`community` are mostly **closed** save-only pads
 | Role | Symbol | Notes |
 |------|--------|-------|
 | Write save | `FUN_75c2_0288` | Canonical section dump; ~33 discrete stuff writes; post-map DS blobs |
-| Load save | `FUN_75c2_0940` | Mirror of 0288 |
+| Load save | `FUN_75c2_0940` | Mirror of 0288 — section-by-section reads, **no whole-file length check**, which is what makes the port extension block (docs/savegame.md) DOS-transparent |
 | Header probe | `FUN_75c2_0840` | Sig / version **73** / map product — ported as `col1_save_validate_head` |
 | Slot UI / paths | `FUN_7562_*` | COLONY## paths, autosave 8/9 |
 | Connectivity fill | `FUN_67f4_0088` | Builds 2×`0x10e` planes → saved after map layers |

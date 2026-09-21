@@ -110,6 +110,33 @@ bool savegame_read_col1(
   return col1_save_read_file(path, out_save, err_buf, err_buf_size);
 }
 
+/*
+ * Does this slot carry the port extension block past the DOS sections? Only
+ * the magic is checked here (the list needs a yes/no, not the chunks): the
+ * DOS-shaped length comes from the head counts, so anything beyond it that
+ * starts with "COLNXEXT" is port-written state DOS cannot keep.
+ */
+static bool savegame_probe_port_ext(FILE* f, const ColonizeCol1Head* head) {
+  if (!f || !head) {
+    return false;
+  }
+  const size_t base = col1_save_expected_size_counts(
+    head->map_size_x, head->map_size_y, head->colony_count, head->unit_count, head->tribe_count
+  );
+  if (fseek(f, 0, SEEK_END) != 0) {
+    return false;
+  }
+  const long size = ftell(f);
+  if (size < 0 || (size_t)size < base + COLONIZE_COL1_EXT_HEADER_SIZE) {
+    return false;
+  }
+  char magic[COLONIZE_COL1_EXT_MAGIC_SIZE];
+  if (fseek(f, (long)base, SEEK_SET) != 0 || fread(magic, 1, sizeof(magic), f) != sizeof(magic)) {
+    return false;
+  }
+  return memcmp(magic, COLONIZE_COL1_EXT_MAGIC, sizeof(magic)) == 0;
+}
+
 bool savegame_probe_col1_slot(
   const char* save_dir,
   int slot,
@@ -135,8 +162,8 @@ bool savegame_probe_col1_slot(
 
   uint8_t buf[COLONIZE_COL1_PREFIX_SIZE];
   const size_t n = fread(buf, 1, sizeof(buf), f);
-  fclose(f);
   if (n < sizeof(buf)) {
+    fclose(f);
     return true;
   }
 
@@ -157,6 +184,7 @@ bool savegame_probe_col1_slot(
    * the DOS probe path: accept any).
    */
   if (!col1_save_validate_head(&head, -1, -1, NULL, 0)) {
+    fclose(f);
     return true; /* not occupied */
   }
 
@@ -183,5 +211,7 @@ bool savegame_probe_col1_slot(
   out->turn = head.turn;
   out->difficulty = head.difficulty;
   out->human_nation = (uint8_t)human;
+  out->has_port_ext = savegame_probe_port_ext(f, &head);
+  fclose(f);
   return true;
 }

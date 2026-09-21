@@ -111,6 +111,7 @@ void col1_save_free(ColonizeCol1Save* save) {
     free(save->map.path);
     free(save->map.seen);
   }
+  free(save->ext); /* always this struct's own allocation, unlike the sections */
   memset(save, 0, sizeof(*save));
 }
 
@@ -223,6 +224,173 @@ size_t col1_save_expected_size_counts(
          tiles * 4u +
          (size_t)COLONIZE_COL1_POST_MAP_SIZE +
          (size_t)COLONIZE_COL1_TRADE_ROUTE_COUNT * COLONIZE_COL1_TRADE_ROUTE_SIZE;
+}
+
+/* ---------------- Port extension block (see col1_save.h) ---------------- */
+
+static uint32_t ext_rd32(const uint8_t* p) {
+  return (uint32_t)p[0] | ((uint32_t)p[1] << 8) | ((uint32_t)p[2] << 16) | ((uint32_t)p[3] << 24);
+}
+
+static void ext_wr32(uint8_t* p, uint32_t v) {
+  p[0] = (uint8_t)(v & 0xffu);
+  p[1] = (uint8_t)((v >> 8) & 0xffu);
+  p[2] = (uint8_t)((v >> 16) & 0xffu);
+  p[3] = (uint8_t)((v >> 24) & 0xffu);
+}
+
+bool col1_save_ext_valid(const uint8_t* data, size_t size) {
+  if (!data || size < COLONIZE_COL1_EXT_HEADER_SIZE) {
+    return false;
+  }
+  if (memcmp(data, COLONIZE_COL1_EXT_MAGIC, COLONIZE_COL1_EXT_MAGIC_SIZE) != 0) {
+    return false;
+  }
+  const uint32_t version = (uint32_t)data[8] | ((uint32_t)data[9] << 8);
+  if (version == 0 || version > COLONIZE_COL1_EXT_VERSION) {
+    return false;
+  }
+  const uint32_t payload = ext_rd32(data + 12);
+  if ((size_t)payload + COLONIZE_COL1_EXT_HEADER_SIZE != size) {
+    return false;
+  }
+  /* Chunk walk: every header must fit and every length must stay inside. */
+  size_t off = 0;
+  while (off < payload) {
+    if (payload - off < 8u) {
+      return false;
+    }
+    const uint32_t len = ext_rd32(data + COLONIZE_COL1_EXT_HEADER_SIZE + off + 4);
+    if ((size_t)len > payload - off - 8u) {
+      return false;
+    }
+    off += 8u + len;
+  }
+  return true;
+}
+
+bool col1_save_set_ext(ColonizeCol1Save* save, const uint8_t* data, size_t size) {
+  if (!save) {
+    return false;
+  }
+  if (!data || size == 0) {
+    free(save->ext);
+    save->ext = NULL;
+    save->ext_size = 0;
+    return true;
+  }
+  if (!col1_save_ext_valid(data, size)) {
+    return false;
+  }
+  uint8_t* copy = malloc(size);
+  if (!copy) {
+    return false;
+  }
+  memcpy(copy, data, size);
+  free(save->ext);
+  save->ext = copy;
+  save->ext_size = size;
+  return true;
+}
+
+bool col1_save_ext_find(
+  const ColonizeCol1Save* save,
+  uint32_t tag,
+  const uint8_t** out_payload,
+  size_t* out_size
+) {
+  if (out_payload) {
+    *out_payload = NULL;
+  }
+  if (out_size) {
+    *out_size = 0;
+  }
+  if (!save || !col1_save_ext_valid(save->ext, save->ext_size)) {
+    return false;
+  }
+  const uint8_t* chunks = save->ext + COLONIZE_COL1_EXT_HEADER_SIZE;
+  const size_t payload = save->ext_size - COLONIZE_COL1_EXT_HEADER_SIZE;
+  size_t off = 0;
+  while (off + 8u <= payload) {
+    const uint32_t chunk_tag = ext_rd32(chunks + off);
+    const uint32_t len = ext_rd32(chunks + off + 4);
+    if (chunk_tag == tag) {
+      if (out_payload) {
+        *out_payload = chunks + off + 8u;
+      }
+      if (out_size) {
+        *out_size = len;
+      }
+      return true;
+    }
+    off += 8u + len;
+  }
+  return false;
+}
+
+bool col1_save_ext_put(
+  ColonizeCol1Save* save,
+  uint32_t tag,
+  const uint8_t* payload,
+  size_t size
+) {
+  if (!save || size > 0x0fffffffu) {
+    return false;
+  }
+  const bool have_old = col1_save_ext_valid(save->ext, save->ext_size);
+  const uint8_t* old_chunks = have_old ? save->ext + COLONIZE_COL1_EXT_HEADER_SIZE : NULL;
+  const size_t old_payload = have_old ? save->ext_size - COLONIZE_COL1_EXT_HEADER_SIZE : 0;
+
+  /* Worst case: everything kept plus the new chunk. */
+  const size_t need = COLONIZE_COL1_EXT_HEADER_SIZE + old_payload + 8u + size;
+  uint8_t* buf = malloc(need > 0 ? need : 1u);
+  if (!buf) {
+    return false;
+  }
+  memcpy(buf, COLONIZE_COL1_EXT_MAGIC, COLONIZE_COL1_EXT_MAGIC_SIZE);
+  buf[8] = (uint8_t)COLONIZE_COL1_EXT_VERSION;
+  buf[9] = 0;
+  buf[10] = 0;
+  buf[11] = 0;
+
+  size_t out = COLONIZE_COL1_EXT_HEADER_SIZE;
+  size_t off = 0;
+  while (off + 8u <= old_payload) {
+    const uint32_t chunk_tag = ext_rd32(old_chunks + off);
+    const uint32_t len = ext_rd32(old_chunks + off + 4);
+    if (chunk_tag != tag) {
+      memcpy(buf + out, old_chunks + off, 8u + len);
+      out += 8u + len;
+    }
+    off += 8u + len;
+  }
+  if (payload && size > 0) {
+    ext_wr32(buf + out, tag);
+    ext_wr32(buf + out + 4, (uint32_t)size);
+    memcpy(buf + out + 8u, payload, size);
+    out += 8u + size;
+  }
+
+  if (out == COLONIZE_COL1_EXT_HEADER_SIZE) {
+    /* Nothing left to carry -- keep the file plain DOS-shaped. */
+    free(buf);
+    free(save->ext);
+    save->ext = NULL;
+    save->ext_size = 0;
+    return true;
+  }
+  ext_wr32(buf + 12, (uint32_t)(out - COLONIZE_COL1_EXT_HEADER_SIZE));
+  free(save->ext);
+  save->ext = buf;
+  save->ext_size = out;
+  return true;
+}
+
+size_t col1_save_total_size(const ColonizeCol1Save* save) {
+  if (!save) {
+    return 0;
+  }
+  return col1_save_expected_size(save) + save->ext_size;
 }
 
 size_t col1_save_expected_size(const ColonizeCol1Save* save) {
@@ -584,6 +752,11 @@ static bool emit_to_stream(
       !put(ctx, save->trade_route, sizeof(save->trade_route), err, err_size, "trade_routes")) {
     return false;
   }
+  /* Port extension block last, so DOS's section-by-section read never sees it. */
+  if (save->ext && save->ext_size > 0 &&
+      !put(ctx, save->ext, save->ext_size, err, err_size, "port_ext")) {
+    return false;
+  }
 
   if (err && err_size > 0) {
     err[0] = '\0';
@@ -652,7 +825,9 @@ bool col1_save_read_file(const char* path, ColonizeCol1Save* out, char* err, siz
     head_probe.unit_count,
     head_probe.tribe_count
   );
-  if ((size_t)file_size != expect) {
+  /* A file LONGER than the DOS layout carries the port extension block; DOS
+   * itself stops reading at the last section, so this stays interop-safe. */
+  if ((size_t)file_size < expect) {
     fclose(f);
     COL1_FAIL(
       err,
@@ -674,7 +849,18 @@ bool col1_save_read_file(const char* path, ColonizeCol1Save* out, char* err, siz
   }
 
   Col1FileCtx ctx = {.f = f};
-  const bool ok = parse_from_stream(file_take, &ctx, out, err, err_size);
+  bool ok = parse_from_stream(file_take, &ctx, out, err, err_size);
+  if (ok && (size_t)file_size > expect) {
+    const size_t tail = (size_t)file_size - expect;
+    uint8_t* tail_buf = malloc(tail);
+    if (tail_buf && fseek(f, (long)expect, SEEK_SET) == 0 &&
+        fread(tail_buf, 1, tail, f) == tail) {
+      if (!col1_save_set_ext(out, tail_buf, tail)) {
+        diag_warn("col1_save_read_file %s: unrecognised %zu-byte tail ignored", path, tail);
+      }
+    }
+    free(tail_buf);
+  }
   fclose(f);
   if (ok) {
     diag_info(
@@ -765,7 +951,7 @@ bool col1_save_write_file(const char* path, const ColonizeCol1Save* save, char* 
     return false;
   }
   free(tmp_path);
-  diag_info("col1_save_write_file %s (%zu bytes)", path, col1_save_expected_size(save));
+  diag_info("col1_save_write_file %s (%zu bytes)", path, col1_save_total_size(save));
   if (err && err_size > 0) {
     err[0] = '\0';
   }
@@ -801,7 +987,7 @@ bool col1_save_read_memory(
     head_probe.unit_count,
     head_probe.tribe_count
   );
-  if (size != expect) {
+  if (size < expect) {
     COL1_FAIL(
       err,
       err_size,
@@ -812,7 +998,13 @@ bool col1_save_read_memory(
   }
 
   Col1MemCtx ctx = {.p = data, .remain = size};
-  return parse_from_stream(mem_take_ctx, &ctx, out, err, err_size);
+  if (!parse_from_stream(mem_take_ctx, &ctx, out, err, err_size)) {
+    return false;
+  }
+  if (size > expect && !col1_save_set_ext(out, data + expect, size - expect)) {
+    diag_warn("col1_save_read_memory: unrecognised %zu-byte tail ignored", size - expect);
+  }
+  return true;
 }
 
 bool col1_save_write_memory(
@@ -834,7 +1026,7 @@ bool col1_save_write_memory(
   uint8_t saved_pad21[COLONIZE_COL1_NATION_COUNT];
   founding_fathers_stash_pools_into_col1(mut, saved_last, saved_pad21);
 
-  const size_t need = col1_save_expected_size(save);
+  const size_t need = col1_save_total_size(save);
   uint8_t* buf = malloc(need);
   if (!buf) {
     founding_fathers_restore_col1_last_turn(mut, saved_last, saved_pad21);
