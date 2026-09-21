@@ -98,3 +98,4 @@ Status: OPEN = no resolution yet. FIXED = agent claims a fix, awaiting user veri
 | | OPEN | Destroyed villages seem to leave behind roads. I think they didn't do that in DOS. |
 | | OPEN | Destroying an Indian settlement with a mission of your country that hasn't been burned before the village is burned needs to return the missionary used to establish the mission, respawned on the former village site. Check DOS. |
 | | OPEN | Destroying a native village also should despawn any braves associated with that village that are on the map. | 
+| | OPEN | Sailing a ship into a captured colony is impossible. It should behave like any other colony you own. |
