@@ -2092,57 +2092,6 @@ static bool game_apply_popup_contact(ColonizeGameState* game) {
     }
   return true;
   }
-  /*
-   * FUN_4d56_4528 village raid warn: Leave aborts; Attack opens hostilities then
-   * commits the deferred move (combat if Brave on tile; empty → fallout).
-   */
-  if (game->ai_popups.result_tag == AI_POPUP_TAG_CONTACT_VILLAGE_WARN) {
-    const int unit_id = game->ai_popups.result_nation_a;
-    const int indian_nation = game->ai_popups.result_nation_b;
-    const int dest_x = game->ai_popups.result_payload & 0xff;
-    const int dest_y = (game->ai_popups.result_payload >> 8) & 0xff;
-    const int choice = game->ai_popups.result_choice_id;
-    if (!game->ai_popups.result_cancelled && choice == 1 /* Attack */) {
-      ColonizeTurnContext ctx;
-      game_fill_turn_context(game, &ctx);
-      ColonizeUnit* u = units_get(&game->units, unit_id);
-      const int euro = u ? u->nation_id : game->human_nation;
-      ai_contact_village_open_hostilities(&ctx, indian_nation, euro);
-      units_set_ff_col1(game->col1_ok ? &game->col1 : NULL);
-      colonies_set_col1_context(game->col1_ok ? &game->col1 : NULL);
-      units_set_combat_human_nation(game->human_nation);
-      units_set_combat_popups(&game->ai_popups, &game->messages);
-      units_set_combat_europe(&game->europe);
-      units_set_occupancy_map(&game->world_map);
-      colonies_set_occupancy_map(&game->world_map);
-      units_set_combat_colonies(&game->colonies);
-      units_set_native_fallout_context(
-        game->col1_ok ? &game->col1 : NULL, &game->world_map, -1
-      );
-      /*
-       * Empty village: FUN_5fef_1b0e temp Brave; try_move fights then stays
-       * adjacent (no enter). Population-- / destroy via finish helper.
-       */
-      game->units.selected_id = unit_id;
-      if (units_try_move_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&game->units), .colonies=(ColonizeColonyPool*)(&game->colonies), .map=(ColonizeWorldMap*)(&game->world_map), .rng=(ColonizeDosRng*)(&game->move_rng)}, unit_id, dest_x, dest_y)) {
-        if (units_last_combat_outcome() > 0) {
-          snprintf(game->status, sizeof(game->status), "Village attacked (%d,%d)", dest_x, dest_y);
-        } else {
-          snprintf(game->status, sizeof(game->status), "Village contact (%d,%d)", dest_x, dest_y);
-        }
-        game_after_unit_action(game);
-      } else if (units_last_combat_outcome() < 0) {
-        set_status(game, "Combat lost", NULL);
-        game_after_unit_action(game);
-      } else {
-        set_status(game, "Attack failed", NULL);
-      }
-    } else {
-      set_status(game, "Left the village alone", NULL);
-    }
-    ai_popup_consume_result(&game->ai_popups);
-  return true;
-  }
   if (game->ai_popups.result_tag == AI_POPUP_TAG_CONTACT_WHACK) {
     const int unit_id = game->ai_popups.result_nation_a;
     const int indian_nation = game->ai_popups.result_nation_b;

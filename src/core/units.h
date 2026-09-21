@@ -181,6 +181,17 @@ typedef struct ColonizeUnit {
    * moves / spent byte.
    */
   uint8_t mp_spent_turn;
+  /*
+   * Port-only: the allotment (thirds) a passenger still has while it rides
+   * in a hold, i.e. max_mp minus DOS's spent byte +0x3149, which DOS leaves
+   * untouched aboard — the ship's move and dock path never write a
+   * passenger's +0x3149 (only the day-top reset FUN_130d_0290 does). Needed
+   * because `moves` is the hold's park zero while aboard. -1 = full
+   * allotment (nothing spent this turn / unknown). Set at boarding, read
+   * when the passenger wakes or is put ashore, reset by the per-turn
+   * refresh. Round-trips through the Col1 spent byte (bugs.md #544).
+   */
+  int aboard_moves;
   int last_dir; /* DOS unit facing / Col1 facing; 0..7 for AI scoring */
   uint8_t col1_flags15; /* DOS unit+0x15 flag byte (bits named in ColonizeCol1Unit); bit7 = ship damaged. Was col1_unknown15. */
   /*

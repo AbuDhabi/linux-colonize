@@ -3575,8 +3575,13 @@ static int unit_smell_audit_2026_09_09(void) {
    * loss takes the damage/repair-port arm, not a despawn and not a skip.
    * Because the roll at raw 99527 is guarded by `winner_type*0xe + 0x523b != 0`
    * (the @UNIT guns column, zero for every land type), a land winner never
-   * draws: the hull is ALWAYS damaged. Assert the whole shape — survives,
-   * keeps its flag, carries bit7 and the repair timer, and loses its cargo.
+   * draws: the hull is ALWAYS damaged.
+   *
+   * bugs.md #473: the swept stack is the DEFENDER's tile (raw 100722, taken
+   * when the winner's attack byte is 0). An attacker that loses sweeps only
+   * the off-map park it was lifted to at raw 100568 (FUN_281f_0916 →
+   * FUN_1427_12f6 → 0362(unit, -2, -2)), so a hull berthed on the
+   * ATTACKER's tile must come through untouched — no bogus @SHIPDAMAGE.
    */
   if (rc == 0) {
     ColonizeUnitPool pool;
@@ -3588,9 +3593,7 @@ static int unit_smell_audit_2026_09_09(void) {
     pool.types[2].hull = 4;
     pool.type_count = 3;
 
-    /* Attacker sallies out of its own port and loses; the hull is berthed on
-     * the attacker's tile, which is the stack 0ec0 sweeps (raw 100758-100760
-     * passes the attacker's own x/y). */
+    /* Attacker sallies out of its own port and loses. */
     const int hull = units_spawn_allow_stack(&pool, 2, 4, 4);
     units_set_nation(units_get(&pool, hull), 0);
     units_get(&pool, hull)->hold_goods_type[0] = 3;
@@ -3626,20 +3629,81 @@ static int unit_smell_audit_2026_09_09(void) {
     }
     const ColonizeUnit* h = rc == 0 ? units_get(&pool, hull) : NULL;
     if (rc == 0 && (!h || !h->active)) {
-      fprintf(stderr, "0352-hull: berthed Caravel was destroyed by the land sweep\n");
+      fprintf(stderr, "#473: berthed Caravel was destroyed by an attacker-loss sweep\n");
       rc = 1;
-    } else if (rc == 0 && (h->col1_flags15 & 0x80u) == 0) {
-      fprintf(stderr, "0352-hull: damaged bit7 (+0x3148|0x80) not set\n");
+    } else if (rc == 0 && (h->col1_flags15 & 0x80u) != 0) {
+      fprintf(stderr, "#473: attacker-loss must not damage a hull on the origin tile\n");
       rc = 1;
-    } else if (rc == 0 && h->repair_pending == 0) {
-      fprintf(stderr, "0352-hull: repair timer not armed\n");
-      rc = 1;
-    } else if (rc == 0 && h->hold_goods_amount[0] != 0) {
-      fprintf(stderr, "0352-hull: damage tail must zero the holds (+0x3150)\n");
+    } else if (rc == 0 && h->hold_goods_amount[0] != 100) {
+      fprintf(stderr, "#473: attacker-loss must not touch the berthed hull's holds\n");
       rc = 1;
     }
     if (rc == 0) {
-      fprintf(stderr, "unit_units: 0352 hull arm damages berthed ships in a land sweep ok\n");
+      fprintf(stderr, "unit_units: #473 attacker loss leaves berthed hull alone ok\n");
+    }
+    units_despawn(&pool, hull);
+  }
+
+  /* Hull arm on the DEFENDER side (raw 100720-100722): a winner whose attack
+   * byte is 0 sweeps the beaten defender's stack, and the berthed hull there
+   * is always damaged (bit7, repair timer, holds lost). */
+  if (rc == 0) {
+    ColonizeUnitPool pool;
+    memset(&pool, 0, sizeof(pool));
+    audit_type(&pool.types[0], "Colonists", 1, 0, 30, COLONIZE_UNIT_DOMAIN_LAND);
+    audit_type(&pool.types[1], "Soldiers", 1, 1, 1, COLONIZE_UNIT_DOMAIN_LAND);
+    audit_type(&pool.types[2], "Caravel", 4, 0, 2, COLONIZE_UNIT_DOMAIN_SEA);
+    pool.types[2].guns = 0;
+    pool.types[2].hull = 4;
+    pool.type_count = 3;
+
+    const int hull = units_spawn_allow_stack(&pool, 2, 5, 4);
+    units_set_nation(units_get(&pool, hull), 1);
+    units_get(&pool, hull)->hold_goods_type[0] = 3;
+    units_get(&pool, hull)->hold_goods_amount[0] = 100;
+
+    int won = 0;
+    for (int seed = 1; seed <= 40 && !won && rc == 0; ++seed) {
+      const int atk = units_spawn_allow_stack(&pool, 0, 4, 4);
+      const int def = units_spawn_allow_stack(&pool, 1, 5, 4);
+      if (atk < 0 || def < 0) {
+        rc = 1;
+        break;
+      }
+      units_set_nation(units_get(&pool, atk), 0);
+      units_set_nation(units_get(&pool, def), 1);
+      ColonizeDosRng rng;
+      dos_rng_seed(&rng, (unsigned)(seed * 9973 + 4271));
+      if (units_resolve_land_combat_ff_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .col1=(ColonizeCol1Save*)(&col1), .col1_ok=true, .rng=(ColonizeDosRng*)(&rng)}, atk, def)) {
+        won = 1;
+      }
+      if (units_get(&pool, atk) && units_get(&pool, atk)->active) {
+        units_despawn(&pool, atk);
+      }
+      if (units_get(&pool, def) && units_get(&pool, def)->active) {
+        units_despawn(&pool, def);
+      }
+    }
+    if (rc == 0 && won) {
+      const ColonizeUnit* h = units_get(&pool, hull);
+      if (!h || !h->active) {
+        fprintf(stderr, "0352-hull: berthed Caravel was destroyed by the land sweep\n");
+        rc = 1;
+      } else if ((h->col1_flags15 & 0x80u) == 0) {
+        fprintf(stderr, "0352-hull: damaged bit7 (+0x3148|0x80) not set\n");
+        rc = 1;
+      } else if (h->repair_pending == 0) {
+        fprintf(stderr, "0352-hull: repair timer not armed\n");
+        rc = 1;
+      } else if (h->hold_goods_amount[0] != 0) {
+        fprintf(stderr, "0352-hull: damage tail must zero the holds (+0x3150)\n");
+        rc = 1;
+      }
+      if (rc == 0) {
+        fprintf(stderr, "unit_units: 0352 hull arm damages berthed ships in a land sweep ok\n");
+      }
+    } else if (rc == 0) {
+      fprintf(stderr, "unit_units: 0352 hull arm: attack-0 winner never won (skipped)\n");
     }
     units_despawn(&pool, hull);
   }
@@ -10415,6 +10479,7 @@ int main(void) {
     }
     /* Now mark the first one as having spent its allotment this turn. */
     units_get(&pool, spent_pax)->mp_spent_turn = 1;
+    units_get(&pool, spent_pax)->aboard_moves = 0; /* what try_move's shore arm writes */
     if (units_cargo_can_landfall(&pool, spent_pax)) {
       fprintf(stderr, "landfall-spent: spent pax must not be eligible\n");
       return 1;
@@ -10441,14 +10506,16 @@ int main(void) {
       return 1;
     }
     /*
-     * bugs.md #544: docking is not a refill. The shore-boarded (spent) pioneer
-     * carried into a colony lands with no moves; a park zero still refills.
+     * bugs.md #544: docking is not a refill. DOS keeps the passenger's own
+     * spent byte aboard: the shore-boarded (spent) pioneer lands in the colony
+     * with no moves, one that boarded with 1 third left lands with 1.
      */
     if (!units_board(&pool, fresh_pax, boat)) {
       fprintf(stderr, "dock-spent: re-board failed\n");
       return 1;
     }
     units_get(&pool, fresh_pax)->mp_spent_turn = 0;
+    units_get(&pool, fresh_pax)->aboard_moves = 1;
     if (units_disembark_all(&pool, boat, wx, wy) != 2) {
       fprintf(stderr, "dock-spent: both passengers must go ashore\n");
       return 1;
@@ -10457,8 +10524,8 @@ int main(void) {
       fprintf(stderr, "dock-spent: spent pax must land with no moves\n");
       return 1;
     }
-    if (units_get(&pool, fresh_pax)->moves <= 0) {
-      fprintf(stderr, "dock-spent: parked pax must land with its allotment\n");
+    if (units_get(&pool, fresh_pax)->moves != 1) {
+      fprintf(stderr, "dock-spent: partly-spent pax must land with its remainder\n");
       return 1;
     }
     units_despawn(&pool, fresh_pax);

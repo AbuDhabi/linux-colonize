@@ -130,6 +130,7 @@ void turn_refresh_moves_for_nation_w(
     /* DOS clears every unit's spent byte at the day top (viceroy 6355-6357):
      * last turn's spend never gates this turn's landfall (bugs.md #423). */
     u->mp_spent_turn = 0;
+    u->aboard_moves = -1;
     /* Fortify completes overnight → Fortified; stay asleep until woken. */
     if (u->orders == UNITS_ORDER_FORTIFY) {
       u->orders = UNITS_ORDER_FORTIFIED;

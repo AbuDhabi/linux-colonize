@@ -15,7 +15,7 @@ Loot outcomes (sibling path, not direct callees inside `4528`):
 **Port status:** human `@ACTIONS` 9-way dispatch **Done** (P8.8, 2026-08-28);
 ship abort + Linux raid/fallout arms **Done** thin; full body recovered clean
 (see below) — VGA chrome still open (T5.1). The old "warn CHOICE" is only the
-unmet fallback. **2026-09-06 full audit: logic Done both arms** — see the
+unmet fallback (deleted 2026-09-21, bugs.md #542: DOS builds @ACTIONS for unmet land units too). **2026-09-06 full audit: logic Done both arms** — see the
 per-case table at the end of this file; case-7 Mode-2 auto-incite fixed to the
 real `417e` gates/push (`indian_incite_417e.md` 2026-09-06 section).
 
@@ -630,7 +630,7 @@ functions and `4528`'s call sites, not this dispatch tail.
 | DOS head idea | Linux `ai_contact_indian_raids` |
 |---------------|----------------------------------|
 | Relation / friction gates | Alarm/friction ≥40 (uniform; the Spain ≥35 special was retired 2026-09-09, smell #76); war prefer |
-| Human warn CHOICE | `ai_contact_try_village_raid_warn` Attack/Leave; apply opens hostilities + deferred move |
+| Human warn CHOICE | (deleted 2026-09-21, bugs.md #542 — no DOS counterpart; unmet land units get @ACTIONS) |
 | Ship abort | `ai_contact_try_ship_village` (`@DONTKNOWSHIPS` / `@MADATSHIPS`; mid-band 50..74 wary + Meet, Series T) |
 | Post-head combat / loot | Adjacent combat + `@RAID*` kinds + fallout `@LOOT`/`@LOOT2` |
 | Capture / burn | High band + tiny pop → `colonies_capture` |

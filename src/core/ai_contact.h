@@ -276,21 +276,6 @@ int ai_contact_meet_payload_unit(int payload);
 int ai_contact_meet_pending_for_unit(const AiPopupState* st, int unit_id);
 
 /*
- * FUN_4d56_4528 human village-enter warn CHOICE (Attack / Leave) for combatish
- * land units. Defers the move: nation_a=unit_id, nation_b=indian, payload=
- * dest_x|(dest_y<<8). Cite: indian_settlement_4528.md head; game_loop apply.
- * Returns 1 if CHOICE enqueued.
- */
-int ai_contact_try_village_raid_warn(
-  ColonizeTurnContext* ctx,
-  int euro_nation,
-  int indian_nation,
-  int unit_id,
-  int dest_x,
-  int dest_y
-);
-
-/*
  * FUN_465b_0000 @WHACKINDIANS (static port 2026-08-27): a human land unit
  * moving onto a tile held by a native unit, while that tribe's alarm toward
  * the human is < 0x4b and the pair's euro_diplo bit 0x04 is clear, gets a

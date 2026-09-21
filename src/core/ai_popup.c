@@ -42,7 +42,7 @@ void ai_popup_clear(AiPopupState* st) {
  *
  * Every tag below carries nation_a = the Euro nation and nation_b = the other
  * party (0..3 Euro peer, 4..11 Indian nation) — the tags whose nation_a is a
- * unit id instead (WHACK, EURO_WAR, VILLAGE_WARN, INDIAN_LAND) are deliberately
+ * unit id instead (WHACK, EURO_WAR, INDIAN_LAND) are deliberately
  * absent: they are single pre-attack confirms, not chains.
  */
 static int ai_popup_chain_key(AiPopupTag tag, int nation_a, int nation_b) {
@@ -488,8 +488,6 @@ static const char* ai_popup_tag_name(AiPopupTag tag) {
       return "CONTACT_REFUSE";
     case AI_POPUP_TAG_CONTACT_WELCOME:
       return "CONTACT_WELCOME";
-    case AI_POPUP_TAG_CONTACT_VILLAGE_WARN:
-      return "CONTACT_VILLAGE_WARN";
     case AI_POPUP_TAG_DIPLO_WAR:
       return "DIPLO_WAR";
     case AI_POPUP_TAG_DIPLO_PEACE:

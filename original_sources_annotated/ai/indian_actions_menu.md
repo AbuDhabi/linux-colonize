@@ -50,7 +50,7 @@ Row enabling (`FUN_1000_8212(row)` + `LAB_1000_9365` per row; asm
 | 6 | Ask to Speak With Chief | type 5 (Scouts) |
 | 7 | Incite Indians | met, type 3 — always, after row 3/4 |
 | 8 | Demand Tribute | met, not type 3, attack ≠ 0, land unit |
-| 9 | Attack Village | land unit, attack > 1; also (met) attack ≠ 0 when not yet listed |
+| 9 | Attack Village | land unit, attack ≠ 0 (the second add at OVL13::004a85 is also the unmet jump target, so not met-gated) |
 | 10 | Cancel Action | always |
 
 Result switch (`switchD 0x4bdb`, 1-based): 1 → `a63c` (2820 trade), 2 →

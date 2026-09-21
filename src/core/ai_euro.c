@@ -16027,8 +16027,7 @@ static int ai_euro_land_try_adjacent_colony_seize(ColonizeTurnContext* ctx, Colo
  * empty village correctly on its own (synthesizes a temp defender per
  * `FUN_5fef_1b0e`, applies raid fallout, then — unlike a colony capture —
  * the attacker does **not** enter/occupy the tile, matching the human
- * Attack-CHOICE path in `game_loop.c`, `AI_POPUP_TAG_CONTACT_VILLAGE_WARN`
- * handling) — this function's only job is picking the target and opening
+ * @ACTIONS "Attack Village" commit in `game_dialogs.c`) — this function's only job is picking the target and opening
  * hostilities, same division of labor as the human path.
  * One raid attempt per call; re-armed next act pass like the colony seize.
  */
@@ -20847,12 +20846,17 @@ static void ai_euro_dispatcher_turn_unit_waves(ColonizeTurnContext* ctx, int nat
          * No-ops without ctx->ai_popups (headless/golden harness) and the
          * encounter dedupes once per pair per turn.
          */
+        /* bugs.md #545: DOS runs the Euro branch only with the mover's tile
+         * AND the neighbour tile both land (FUN_281f_0768 == 0, raw 98614) —
+         * an AI ship at sea beside a coastal colony opens nothing. */
         if (progressed && u->active && units_is_on_map(u) && ctx->human_nation >= 0 &&
-            ctx->human_nation <= 3 && nation_id != ctx->human_nation && ctx->ai_popups) {
+            ctx->human_nation <= 3 && nation_id != ctx->human_nation && ctx->ai_popups &&
+            ctx->map && !map_tile_is_water(ctx->map, u->x, u->y)) {
           int near_human = 0;
           for (int ady = -1; ady <= 1 && !near_human; ++ady) {
             for (int adx = -1; adx <= 1 && !near_human; ++adx) {
-              if (adx == 0 && ady == 0) {
+              if ((adx == 0 && ady == 0) ||
+                  map_tile_is_water(ctx->map, u->x + adx, u->y + ady)) {
                 continue;
               }
               const int oid = units_id_at(ctx->units, u->x + adx, u->y + ady);
