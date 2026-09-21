@@ -3397,7 +3397,8 @@ static void colony_screen_draw_multifunction(
       } else if (unit_name) {
         snprintf(line, sizeof(line), "%s", unit_name);
       } else {
-        snprintf(line, sizeof(line), "-");
+        /* FUN_2f2b_1e46: no project (+0x94 < 0) = empty title. */
+        line[0] = '\0';
       }
       const int title_w = font_text_width(font, line);
       font_draw_text(font, framebuffer, px + (pane_w - title_w) / 2, py, line, 57);
@@ -3427,7 +3428,10 @@ static void colony_screen_draw_multifunction(
         ui_button_measure(font, chg_lbl, &chg_w, &chg_h);
         /* Player-reported: BUY aligned vertically with CHANGE (both 4px up
          * from the original placement). */
-        ui_button_draw(font, framebuffer, px, py + 10 - 4, buy_w, buy_h, buy_lbl, &bc);
+        /* FUN_2f2b_21da: BUY is drawn only when +0x94 >= 0; CHANGE always. */
+        if (colony->building_in_production >= 0) {
+          ui_button_draw(font, framebuffer, px, py + 10 - 4, buy_w, buy_h, buy_lbl, &bc);
+        }
         const int change_x = COLONY_MULTI_X + COLONY_MULTI_W - chg_w - 4 - 10;
         ui_button_draw(font, framebuffer, change_x, py + 10 - 4, chg_w, chg_h, chg_lbl, &bc);
       }
@@ -4299,12 +4303,16 @@ ColonyScreenHitResult colony_screen_hit_test(
     if (view->multi_mode == COLONY_MULTI_CONSTRUCTION &&
         my >= COLONY_PANEL_CONTENT_Y + 6 && my < COLONY_PANEL_CONTENT_Y + 22) {
       const int mid = COLONY_MULTI_X + COLONY_MULTI_W / 2;
-      if (mx < mid) {
-        hit.kind = COLONY_HIT_MULTI_BUY;
-      } else {
+      if (mx >= mid) {
         hit.kind = COLONY_HIT_MULTI_CHANGE;
+        return hit;
       }
-      return hit;
+      /* FUN_2f2b_5fc6: the BUY button only hit-tests when +0x94 >= 0 (no
+       * project, e.g. a captured AI colony's 0xFF, has no BUY; bugs.md #548). */
+      if (colony->building_in_production >= 0) {
+        hit.kind = COLONY_HIT_MULTI_BUY;
+        return hit;
+      }
     }
     hit.kind = COLONY_HIT_MULTI_PANE;
     hit.index = (int)view->multi_mode;
