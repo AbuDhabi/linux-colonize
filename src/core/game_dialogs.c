@@ -909,9 +909,8 @@ static void game_do_buy_construction(ColonizeGameState* game, int colony_id) {
   }
   ColonizeColony* colony = colonies_get_mut(&game->colonies, colony_id);
   ColonyScreenView* csv = &game->colony_screen;
+  /* FUN_2f2b_5fc6: no project (+0x94 < 0) = no BUY at all (bugs.md #548). */
   if (!colony || colony->building_in_production < 0) {
-    set_status(game, "No project", NULL);
-    colony_screen_set_status(csv, game->status);
     return;
   }
   const ColonizeBuildingType* bt =
@@ -1026,9 +1025,8 @@ void game_request_buy_construction_confirm(ColonizeGameState* game) {
   }
   ColonizeColony* colony = colonies_get_mut(&game->colonies, game->colony_view_id);
   ColonyScreenView* csv = &game->colony_screen;
+  /* FUN_2f2b_5fc6: no project (+0x94 < 0) = no BUY at all (bugs.md #548). */
   if (!colony || colony->building_in_production < 0) {
-    set_status(game, "No project", NULL);
-    colony_screen_set_status(csv, game->status);
     return;
   }
   const ColonizeBuildingType* bt =

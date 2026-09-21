@@ -1705,6 +1705,27 @@ static int case_colony_screen_render_workflow(void) {
       colony_screen_free(&view);
       return 1;
     }
+    {
+      /* bugs.md #548: BUY hit-tests only with a project (FUN_2f2b_5fc6);
+       * with none (captured AI colony, 0xFF) the left half is plain pane. */
+      ColonizeColony probe = *sample;
+      probe.building_in_production = 0;
+      const ColonyScreenHitResult with_proj = colony_screen_hit_test(
+        &view, &pool, &probe, &units, COLONY_MULTI_X + 4, COLONY_PANEL_CONTENT_Y + 10
+      );
+      probe.building_in_production = -1;
+      const ColonyScreenHitResult no_proj = colony_screen_hit_test(
+        &view, &pool, &probe, &units, COLONY_MULTI_X + 4, COLONY_PANEL_CONTENT_Y + 10
+      );
+      if (with_proj.kind != COLONY_HIT_MULTI_BUY || no_proj.kind != COLONY_HIT_MULTI_PANE) {
+        fprintf(
+          stderr, "expected BUY only with a project got %d/%d\n", (int)with_proj.kind,
+          (int)no_proj.kind
+        );
+        colony_screen_free(&view);
+        return 1;
+      }
+    }
     hit = colony_screen_hit_test(&view, &pool, sample, &units, COLONY_EXIT_X + 2, COLONY_EXIT_Y + 2);
     if (hit.kind != COLONY_HIT_EXIT) {
       fprintf(stderr, "expected exit hit got kind=%d\n", (int)hit.kind);
