@@ -1040,11 +1040,10 @@ static void game_open_cheat_kill_indians(ColonizeGameState* game) {
  * CHEAT Create Unit. The list TEXT is DEBUG.TXT @CREATE / @CSHIP / @FOREIGN2
  * (cheat_list_catalog_rows); these tables hold only the @UNIT ROW each entry
  * spawns — the port spells no unit names itself. -1 = resolved by a follow-up
- * stage (Treasure amount, Ship picker, Foreign picker).
+ * stage (Treasure amount, Ship picker, Foreign picker). When DEBUG.TXT is
+ * missing a row falls back to the spawned kind's NAMES.TXT @UNIT name
+ * (bugs.md #543), else "".
  */
-static const char* const k_cheat_create_main_labels[14] = {
-  "", "", "", "", "", "", "", "", "", "", "", "", "", ""
-};
 static const int k_cheat_create_main_kinds[14] = {
   UNITS_KIND_COLONIST, UNITS_KIND_PIONEER, UNITS_KIND_SOLDIER, UNITS_KIND_MISSIONARY,
   UNITS_KIND_SCOUT, UNITS_KIND_ARTILLERY, UNITS_KIND_WAGON, -1 /* Treasure */, -1 /* Ship */,
@@ -1057,12 +1056,20 @@ static int game_cheat_create_kind(int id) {
   }
   return k_cheat_create_main_kinds[id];
 }
-static const char* const k_cheat_create_ship_labels[6] = {"", "", "", "", "", ""};
 static const ColonizeUnitKind k_cheat_create_ship_kinds[6] = {
   UNITS_KIND_CARAVEL, UNITS_KIND_MERCHANTMAN, UNITS_KIND_GALLEON,
   UNITS_KIND_PRIVATEER, UNITS_KIND_FRIGATE, UNITS_KIND_MAN_O_WAR
 };
-static const char* const k_cheat_create_foreign_labels[] = {"", ""};
+/* @FOREIGN2 rows: 0 = Rebel (Continental Army), 1 = Loyal (Regulars). */
+static const ColonizeUnitKind k_cheat_create_foreign_kinds[2] = {
+  UNITS_KIND_CONT_ARMY, UNITS_KIND_REGULAR
+};
+/* NAMES.TXT @UNIT name of `kind` (live catalog), "" when unknown. */
+static const char* game_cheat_unit_label(const ColonizeGameState* game, int kind) {
+  const int ti = kind >= 0 ? units_kind_type_index(&game->units, (ColonizeUnitKind)kind) : -1;
+  const ColonizeUnitType* t = ti >= 0 ? units_type(&game->units, ti) : NULL;
+  return t ? t->name : "";
+}
 
 static void game_open_cheat_create_unit(ColonizeGameState* game) {
   if (!game) {
@@ -1073,16 +1080,20 @@ static void game_open_cheat_create_unit(ColonizeGameState* game) {
     ids[i] = i;
   }
   game->cheat_create_stage = 0;
-  /* DEBUG.TXT @CREATE row 0 (prompt) + rows 1-14 (option labels); the
-   * k_cheat_create_main_labels literals stay the per-row fallback. */
+  /* DEBUG.TXT @CREATE row 0 (prompt) + rows 1-14 (option labels); @UNIT
+   * names are the per-row fallback. */
   char prompt_buf[1][CHEAT_LIST_LABEL_LEN];
   const char* k_prompt_fallback[1] = {""};
   cheat_list_catalog_rows(
     game->debug_txt_ok ? &game->debug_txt : NULL, "CREATE", 0, k_prompt_fallback, prompt_buf, 1
   );
+  const char* main_fallback[14];
+  for (int i = 0; i < 14; ++i) {
+    main_fallback[i] = game_cheat_unit_label(game, k_cheat_create_main_kinds[i]);
+  }
   char label_buf[14][CHEAT_LIST_LABEL_LEN];
   cheat_list_catalog_rows(
-    game->debug_txt_ok ? &game->debug_txt : NULL, "CREATE", 1, k_cheat_create_main_labels,
+    game->debug_txt_ok ? &game->debug_txt : NULL, "CREATE", 1, main_fallback,
     label_buf, 14
   );
   const char* labels[14];
@@ -1136,7 +1147,7 @@ static void game_apply_cheat_create_unit(ColonizeGameState* game, int id) {
   const int y = game->map_cursor_y;
 
   if (game->cheat_create_stage == 1) {
-    /* @CSHIP result: id = index into k_cheat_create_ship_labels. */
+    /* @CSHIP result: id = index into k_cheat_create_ship_kinds. */
     game->cheat_create_stage = 0;
     if (id < 0 || id >= 6) {
       return;
@@ -1158,17 +1169,21 @@ static void game_apply_cheat_create_unit(ColonizeGameState* game, int id) {
     game->cheat_create_pending_nation = id;
     game->cheat_create_stage = 3;
     static int ids2[2] = {0, 1};
-    /* DEBUG.TXT @FOREIGN2 row 0 (prompt) + rows 1-2 (option labels); the
-     * k_cheat_create_foreign_labels literals stay the per-row fallback. */
+    /* DEBUG.TXT @FOREIGN2 row 0 (prompt) + rows 1-2 (option labels); @UNIT
+     * names of the spawned kinds are the per-row fallback. */
     char foreign2_prompt_buf[1][CHEAT_LIST_LABEL_LEN];
     const char* k_foreign2_prompt_fallback[1] = {""};
     cheat_list_catalog_rows(
       game->debug_txt_ok ? &game->debug_txt : NULL, "FOREIGN2", 0, k_foreign2_prompt_fallback,
       foreign2_prompt_buf, 1
     );
+    const char* foreign_fallback[2] = {
+      game_cheat_unit_label(game, k_cheat_create_foreign_kinds[0]),
+      game_cheat_unit_label(game, k_cheat_create_foreign_kinds[1])
+    };
     char foreign2_label_buf[2][CHEAT_LIST_LABEL_LEN];
     cheat_list_catalog_rows(
-      game->debug_txt_ok ? &game->debug_txt : NULL, "FOREIGN2", 1, k_cheat_create_foreign_labels,
+      game->debug_txt_ok ? &game->debug_txt : NULL, "FOREIGN2", 1, foreign_fallback,
       foreign2_label_buf, 2
     );
     const char* foreign2_labels[2] = {foreign2_label_buf[0], foreign2_label_buf[1]};
@@ -1188,7 +1203,7 @@ static void game_apply_cheat_create_unit(ColonizeGameState* game, int id) {
     if (nation < 0 || nation > 3) {
       return;
     }
-    const ColonizeUnitKind foreign_kind = id == 0 ? UNITS_KIND_CONT_ARMY : UNITS_KIND_REGULAR;
+    const ColonizeUnitKind foreign_kind = k_cheat_create_foreign_kinds[id == 0 ? 0 : 1];
     const int type_idx = units_kind_type_index(&game->units, foreign_kind);
     const int uid = type_idx >= 0
       ? units_spawn_allow_stack(&game->units, type_idx, x, y)
@@ -1210,18 +1225,21 @@ static void game_apply_cheat_create_unit(ColonizeGameState* game, int id) {
     /* Ship: follow up with @CSHIP. */
     game->cheat_create_stage = 1;
     static int ids3[6] = {0, 1, 2, 3, 4, 5};
-    /* DEBUG.TXT @CSHIP row 0 (prompt) + rows 1-6 (option labels); the
-     * k_cheat_create_ship_labels literals stay the per-row fallback (also
-     * still used as the units_find_type key below, unchanged). */
+    /* DEBUG.TXT @CSHIP row 0 (prompt) + rows 1-6 (option labels); @UNIT
+     * names of k_cheat_create_ship_kinds are the per-row fallback. */
     char cship_prompt_buf[1][CHEAT_LIST_LABEL_LEN];
     const char* k_cship_prompt_fallback[1] = {""};
     cheat_list_catalog_rows(
       game->debug_txt_ok ? &game->debug_txt : NULL, "CSHIP", 0, k_cship_prompt_fallback,
       cship_prompt_buf, 1
     );
+    const char* ship_fallback[6];
+    for (int i = 0; i < 6; ++i) {
+      ship_fallback[i] = game_cheat_unit_label(game, k_cheat_create_ship_kinds[i]);
+    }
     char ship_label_buf[6][CHEAT_LIST_LABEL_LEN];
     cheat_list_catalog_rows(
-      game->debug_txt_ok ? &game->debug_txt : NULL, "CSHIP", 1, k_cheat_create_ship_labels,
+      game->debug_txt_ok ? &game->debug_txt : NULL, "CSHIP", 1, ship_fallback,
       ship_label_buf, 6
     );
     const char* ship_labels[6];
@@ -4548,10 +4566,6 @@ static void game_create_load_text_assets(ColonizeGameState* game, const Colonize
       }
       /* EDIT TRADE ROUTE screen strings (@ROUTE + @MISC 46 "OK"). */
       trade_screen_init(&game->trade_screen, &game->labels);
-      /* @CMESSAGE wording for the Europe sale status line (bugs.md #376). */
-      europe_set_labels(&game->europe, &game->labels);
-      /* GAME.TXT for statuses europe.c composes itself (@KISSSORRY etc). */
-      europe_set_messages(&game->europe, &game->messages);
     } else {
       diag_warn("Failed to parse LABELS.TXT");
     }
@@ -4801,6 +4815,11 @@ static void game_create_load_screens(ColonizeGameState* game) {
      * plunder, combat ransom/loot — reach the human's live purse through this
      * registration (europe_set_live_screen). */
     europe_set_live_screen(&game->europe);
+    /* Bound AFTER europe_load: its memset wipes both handles (bugs.md #545).
+     * @CMESSAGE wording for the Europe sale status line (bugs.md #376);
+     * GAME.TXT for statuses europe.c composes itself (@KISSSORRY etc). */
+    europe_set_labels(&game->europe, game->labels_ok ? &game->labels : NULL);
+    europe_set_messages(&game->europe, &game->messages);
     game->europe_ok = true;
   } else {
     game->europe_ok = false;
@@ -5862,9 +5881,8 @@ COLONIZE_INTERNAL GameMoveStep game_move_native_prompts(
   ColonizeGameState* game, ColonizeUnit* selected, int sid, int dest_x, int dest_y
 ) {
   /*
-   * FUN_4d56_4528: combatish land unit → village tile gets Attack/Leave warn
-   * before enter (defers move). Non-combat → Meet from adjacent (no enter).
-   * Cite: indian_settlement_4528.md; ai_contact_try_village_raid_warn.
+   * FUN_4d56_4528: a land unit moving onto a village tile never enters it;
+   * the human gets the @ACTIONS menu (met or not). Cite: indian_settlement_4528.md.
    */
   if (game->col1_ok && !units_is_sea(&game->units, sid) && game->col1.tribe) {
     for (uint16_t ti = 0; ti < game->col1.head.tribe_count; ++ti) {
@@ -5889,22 +5907,15 @@ COLONIZE_INTERNAL GameMoveStep game_move_native_prompts(
        * move is deferred for combat-role units so it can still be made.
        */
       const int combatish = combat_unit_is_combat_role(&game->units, sid);
-      if (!ai_contact_try_village_meet_unit_at(
-            &ctx,
-            selected->nation_id,
-            (int)t->nation_id,
-            selected->profession == UNITS_JOB_MISSIONARY,
-            t->state.capital,
-            sid,
-            (int)ti
-          ) && combatish &&
-          ai_contact_try_village_raid_warn(
-            &ctx, selected->nation_id, (int)t->nation_id, sid, dest_x, dest_y
-          )) {
-        /* Unmet / at-war tribe: the menu is refused, keep the warn CHOICE. */
-        set_status(game, "Village…", NULL);
-        return GAME_MOVE_RETURN_TRUE;
-      }
+      (void)ai_contact_try_village_meet_unit_at(
+        &ctx,
+        selected->nation_id,
+        (int)t->nation_id,
+        selected->profession == UNITS_JOB_MISSIONARY,
+        t->state.capital,
+        sid,
+        (int)ti
+      );
       if (ai_contact_meet_pending_for_unit(&game->ai_popups, sid)) {
         if (!combatish) {
           /* Peaceful Meet from adjacent — spend a step, stay put. */
@@ -6387,31 +6398,6 @@ void game_after_unit_action(ColonizeGameState* game) {
       (void)ai_contact_encounter_scan(&sctx, u->nation_id, u->x, u->y);
     }
     /*
-     * FUN_5bfb_3180 Euro x Euro branch: an adjacent unit of another Euro
-     * nation opens the FUN_5bfb_153e encounter (WoI clear; AI nations only).
-     */
-    if (!game->col1.head.game_options.woi) {
-      for (int dy = -1; dy <= 1; ++dy) {
-        for (int dx = -1; dx <= 1; ++dx) {
-          if (dx == 0 && dy == 0) {
-            continue;
-          }
-          const int oid = units_id_at(&game->units, u->x + dx, u->y + dy);
-          const ColonizeUnit* o = oid >= 0 ? units_get_const(&game->units, oid) : NULL;
-          if (!o || !o->active || o->nation_id < 0 || o->nation_id > 3 ||
-              o->nation_id == u->nation_id) {
-            continue;
-          }
-          ColonizeTurnContext ctx;
-          game_fill_turn_context(game, &ctx);
-          if (ai_diplo_153e_encounter(&ctx, u->nation_id, o->nation_id, u->id)) {
-            dy = 2;
-            break;
-          }
-        }
-      }
-    }
-    /*
      * Already-met village Meet is enqueued from adjacent step (no enter).
      * Exact-tile Meet kept only if a unit somehow stands on the dwelling.
      */
@@ -6437,6 +6423,48 @@ void game_after_unit_action(ColonizeGameState* game) {
             )) {
           break;
         }
+      }
+    }
+  }
+  /*
+   * FUN_5bfb_3180 Euro x Euro branch (raw 98457-98713, 5bfb:3180): for each
+   * of the 8 neighbours, the "other" nation is the owner of the unit on that
+   * tile (FUN_281f_07e0) or else the settlement owner (FUN_281f_06be) — so an
+   * ungarrisoned foreign colony counts too. The branch only runs when BOTH
+   * the mover's tile and the neighbour tile are land (FUN_281f_0768 == 0,
+   * local_36 / raw 98614) — a ship berthed in a colony qualifies (that is
+   * the @HELLOAHOY case), a ship at sea never does. Euro target + WoI clear
+   * (DS:0x5382 bit0) -> FUN_5bfb_153e via thunk_FUN_2a1f_05fc; a nonzero
+   * return stamps MET (0x20) both ways (bugs.md #545).
+   */
+  if (game->col1_ok && game->world_map_ok && u->nation_id >= 0 && u->nation_id <= 3 &&
+      units_is_on_map(u) && !game->col1.head.game_options.woi &&
+      !map_tile_is_water(&game->world_map, u->x, u->y)) {
+    for (int d = 0; d < 8; ++d) {
+      const int nx = u->x + MAP_DIR8_DX[d];
+      const int ny = u->y + MAP_DIR8_DY[d];
+      if (map_tile_is_water(&game->world_map, nx, ny)) {
+        continue;
+      }
+      int other = -1;
+      const int oid = units_id_at(&game->units, nx, ny);
+      const ColonizeUnit* o = oid >= 0 ? units_get_const(&game->units, oid) : NULL;
+      if (o && o->active) {
+        other = o->nation_id;
+      } else if (game->colonies_ok) {
+        const int ocid = colonies_id_at(&game->colonies, nx, ny);
+        const ColonizeColony* oc = ocid >= 0 ? colonies_get(&game->colonies, ocid) : NULL;
+        if (oc && oc->active) {
+          other = oc->nation_id;
+        }
+      }
+      if (other < 0 || other > 3 || other == u->nation_id) {
+        continue;
+      }
+      ColonizeTurnContext ctx;
+      game_fill_turn_context(game, &ctx);
+      if (ai_diplo_153e_encounter(&ctx, u->nation_id, other, u->id)) {
+        break;
       }
     }
   }

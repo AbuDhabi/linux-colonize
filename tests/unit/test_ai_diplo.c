@@ -2974,6 +2974,7 @@ static int case_153e_phases_2_4_encounter(void) {
     e.nation[1].gold = 1000;
     snprintf(e.player[0].country_name, sizeof(e.player[0].country_name), "England");
     snprintf(e.player[1].country_name, sizeof(e.player[1].country_name), "France");
+    snprintf(e.player[0].name, sizeof(e.player[0].name), "Tsterson");
     AiPopupState epop;
     ai_popup_init(&epop);
     ColonizeDosRng erng;
@@ -3003,6 +3004,39 @@ static int case_153e_phases_2_4_encounter(void) {
       free(emap.layer2);
       free(emap.layer3);
       return fail("153e talk: expected greeting OK then a CHOICE");
+    }
+    /* bugs.md #545: @HELLOFIRST tokens are DOS raw :97696-97704 — %STRING0
+     * = difficulty title + human leader name, %STRING1 = TARGET country,
+     * %STRING2/3 = @GREATKINGS/@GREATDEEDS line[target]. Compare against
+     * the catalog lines themselves (wrap-normalised). */
+    {
+      char flat[AI_POPUP_BODY_LEN];
+      snprintf(flat, sizeof(flat), "%s", epop.queue[0].body);
+      for (char* c = flat; *c; ++c) {
+        if (*c == '\n') {
+          *c = ' ';
+        }
+      }
+      const ColonizeMsgSection* gk = assets_msg_find(test_game_txt(), "GREATKINGS");
+      const char* kings = NULL;
+      int idx = 0;
+      for (int i = 0; gk && i < gk->line_count; ++i) {
+        const char* ln = gk->lines[i];
+        if (!ln || !ln[0] || ln[0] == ';' || ln[0] == '@') {
+          continue;
+        }
+        if (idx++ == 1) {
+          kings = ln;
+          break;
+        }
+      }
+      if (!strstr(flat, "Tsterson") || !strstr(flat, "France") || !kings || !strstr(flat, kings)) {
+        fprintf(stderr, "unit_ai_diplo: greeting body='%s'\n", flat);
+        free(emap.terrain);
+        free(emap.layer2);
+        free(emap.layer3);
+        return fail("153e greeting: DOS HELLOFIRST tokens (leader, target country, GREATKINGS)");
+      }
     }
     /* Drive the talk: answer every CHOICE with option 1 (SIEGES: stay,
      * TRIBUTE: refuse, WORTHY: Yes) until the queue drains. */
@@ -3403,7 +3437,145 @@ static int case_153e_worthy_cascade(void) {
   return 0;
 }
 
+/*
+ * bugs.md #474: 153e talk tokens that used to carry the nation adjective /
+ * the @MEEKNESS word. DOS operands:
+ *   @WORTHY %STRING0      = @GREATLEADER2[target]   (raw :97987)
+ *   @OLDPEACE* %STRING2/3 = difficulty title / human player.name (raw :98076-98079)
+ * Drives a first audience (partition accepted) and then a forced one at
+ * peace, collecting every body, and checks each shape that shows up.
+ */
+static void talk474_flat(char* out, size_t cap, const char* body) {
+  snprintf(out, cap, "%s", body ? body : "");
+  for (char* c = out; *c; ++c) {
+    if (*c == '\n') {
+      *c = ' ';
+    }
+  }
+}
+
+static int talk474_drain(ColonizeTurnContext* ctx, AiPopupState* pop, int* saw_worthy,
+                         int* saw_wise) {
+  for (int guard = 0; guard < 16 && pop->queue_count > 0; ++guard) {
+    AiPopupRequest front = pop->queue[0];
+    memmove(&pop->queue[0], &pop->queue[1], sizeof(pop->queue[0]) * (size_t)(pop->queue_count - 1));
+    pop->queue_count--;
+    char flat[AI_POPUP_BODY_LEN];
+    talk474_flat(flat, sizeof(flat), front.body);
+    if (strstr(flat, "rightfully ours by order of")) {
+      *saw_worthy = 1;
+      if (!strstr(flat, "by order of the King") || strstr(flat, "by order of France")) {
+        fprintf(stderr, "unit_ai_diplo: #474 WORTHY body='%s'\n", flat);
+        return fail("#474: @WORTHY %STRING0 must be @GREATLEADER2[target]");
+      }
+    }
+    if (strstr(flat, "wise leader")) {
+      *saw_wise = 1;
+      if (!strstr(flat, "Tsterson") || strstr(flat, "request") || strstr(flat, "leader France")) {
+        fprintf(stderr, "unit_ai_diplo: #474 OLDPEACE body='%s'\n", flat);
+        return fail("#474: @OLDPEACEMEEK %STRING2/3 must be title + human leader name");
+      }
+    }
+    if (front.kind != AI_POPUP_KIND_CHOICE) {
+      continue;
+    }
+    pop->has_result = true;
+    pop->result_cancelled = false;
+    pop->result_tag = AI_POPUP_TAG_DIPLO_TALK;
+    pop->result_choice_id = 1;
+    pop->result_nation_a = 0;
+    pop->result_nation_b = 1;
+    pop->result_payload = front.payload;
+    ai_diplo_apply_popup_result(ctx, pop);
+    pop->has_result = false;
+  }
+  return 0;
+}
+
+static int case_153e_talk_tokens_474(void) {
+  ColonizeWorldMap emap;
+  memset(&emap, 0, sizeof(emap));
+  emap.width = 16;
+  emap.height = 16;
+  emap.tile_count = 256;
+  static uint8_t terr[256], l2[256], l3[256];
+  memset(terr, 1, sizeof(terr));
+  memset(l2, 0, sizeof(l2));
+  memset(l3, 1, sizeof(l3));
+  emap.terrain = terr;
+  emap.layer2 = l2;
+  emap.layer3 = l3;
+  static ColonizeUnitPool eunits;
+  units_reset(&eunits);
+  units_set_occupancy_map(NULL);
+  eunits.type_count = 1;
+  snprintf(eunits.types[0].name, sizeof(eunits.types[0].name), "Scouts");
+  eunits.types[0].movement = 4;
+  eunits.types[0].attack = 1;
+  eunits.types[0].defense = 1;
+  eunits.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  const int ha = units_spawn(&eunits, 0, 5, 5);
+  const int hb = units_spawn(&eunits, 0, 6, 5);
+  ColonizeUnit* pa = units_get(&eunits, ha);
+  ColonizeUnit* pb = units_get(&eunits, hb);
+  if (!pa || !pb) {
+    return fail("#474 talk spawn");
+  }
+  pa->nation_id = 0;
+  pb->nation_id = 1;
+  static ColonizeColonyPool ecol;
+  colonies_init(&ecol);
+  colonies_set_occupancy_map(NULL);
+  static ColonizeCol1Save e;
+  col1_save_init(&e);
+  memset(e.nation, 0, sizeof(e.nation));
+  memset(e.head.nation_relation, 0, sizeof(e.head.nation_relation));
+  e.head.turn = 30;
+  e.head.difficulty = 2;
+  e.head.human_player = 0;
+  e.nation[0].gold = 1000;
+  e.nation[1].gold = 1000;
+  snprintf(e.player[0].country_name, sizeof(e.player[0].country_name), "England");
+  snprintf(e.player[1].country_name, sizeof(e.player[1].country_name), "France");
+  snprintf(e.player[0].name, sizeof(e.player[0].name), "Tsterson");
+  static AiPopupState epop;
+  ai_popup_init(&epop);
+  ColonizeDosRng erng;
+  dos_rng_seed(&erng, 5);
+  ColonizeTurnContext ectx;
+  memset(&ectx, 0, sizeof(ectx));
+  ectx.messages = test_game_txt();
+  ectx.col1 = &e;
+  ectx.col1_ok = true;
+  ectx.map = &emap;
+  ectx.units = &eunits;
+  ectx.colonies = &ecol;
+  ectx.human_nation = 0;
+  ectx.ai_popups = &epop;
+  ectx.rng = &erng;
+  if (!ectx.messages) {
+    return 0; /* no shipped GAME.TXT: nothing to compare against */
+  }
+  int saw_worthy = 0;
+  int saw_wise = 0;
+  (void)ai_diplo_153e_encounter(&ectx, 0, 1, pa->id);
+  if (talk474_drain(&ectx, &epop, &saw_worthy, &saw_wise) != 0) {
+    return 1;
+  }
+  ai_popup_init(&epop);
+  (void)ai_diplo_153e_encounter_forced(&ectx, 0, 1, pa->id);
+  if (talk474_drain(&ectx, &epop, &saw_worthy, &saw_wise) != 0) {
+    return 1;
+  }
+  if (!saw_worthy || !saw_wise) {
+    fprintf(stderr, "unit_ai_diplo: #474 saw_worthy=%d saw_wise=%d\n", saw_worthy, saw_wise);
+    return fail("#474: fixture must reach both @WORTHY and @OLDPEACEMEEK");
+  }
+  return 0;
+}
+
 static const TestCase k_cases[] = {
+    {"case_153e_talk_tokens_474", case_153e_talk_tokens_474},
     {"case_declare_peace_narrative", case_declare_peace_narrative},
     {"case_indian_sticky_status_chrome", case_indian_sticky_status_chrome},
     {"case_r11_no_indian_war_hit", case_r11_no_indian_war_hit},

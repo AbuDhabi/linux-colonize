@@ -65,7 +65,7 @@ typedef enum AiPopupTag {
   AI_POPUP_TAG_CONTACT_CONVERT = 15,
   AI_POPUP_TAG_CONTACT_REFUSE = 16,
   AI_POPUP_TAG_CONTACT_WELCOME = 17, /* FUN_5bfb_022e @INDIANWELCOME Yes/No */
-  AI_POPUP_TAG_CONTACT_VILLAGE_WARN = 18, /* FUN_4d56_4528 human warn: Attack/Leave */
+  /* 18 retired (bugs.md #542): CONTACT_VILLAGE_WARN was a port invention. */
   AI_POPUP_TAG_DIPLO_WAR = 20,
   AI_POPUP_TAG_DIPLO_PEACE = 21,
   /* 22 was DIPLO_ALLIANCE — retired with the Linux-only Euro alliance

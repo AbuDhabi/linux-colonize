@@ -2548,8 +2548,13 @@ bool col1_bridge_capture_w(
           const int max_mp = col1_bridge_unit_max_mp(ut, src->nation_id, save);
           int spent = 0;
           if (src->aboard_ship_id >= 0) {
-            /* A passenger spends nothing of its own; DOS keeps its byte 0. */
-            spent = 0;
+            /* A passenger's byte is whatever it carried aboard: DOS never
+             * rewrites +0x3149 in the hold (bugs.md #544). A live `moves`
+             * means it was woken aboard; the park zero means aboard_moves
+             * (-1 = nothing spent). */
+            const int left = src->moves > 0 ? src->moves
+                             : (src->aboard_moves >= 0 ? src->aboard_moves : max_mp);
+            spent = max_mp > left ? max_mp - left : 0;
           } else if (
             transport && src->orders == UNITS_ORDER_AI_MOVE && src->goto_x == src->x &&
             src->goto_y == src->y

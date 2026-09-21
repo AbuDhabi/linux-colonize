@@ -5670,8 +5670,8 @@ static int case_full_contact_scenario(void) {
   }
 
   /*
-   * Series U: 4528 human village raid warn CHOICE (Attack/Leave) + open
-   * hostilities. Cite: indian_settlement_4528.md; ai_contact_try_village_raid_warn.
+   * Series U: Attack Village open hostilities (the invented Attack/Leave raid
+   * warn was deleted, bugs.md #542). Cite: indian_settlement_4528.md.
    */
   {
     AiPopupState pop;
@@ -5688,23 +5688,6 @@ static int case_full_contact_scenario(void) {
     col1.indian[0].euro_diplo[0] |= COL1_INDIAN_MET_BIT;
     ind->alarm_by_player[0] = 10;
     col1.tribe[0].alarm[0].friction = 10;
-    ai_popup_clear(&pop);
-    if (!ai_contact_try_village_raid_warn(&ctx, 0, 4, 7 /* unit id */, 5, 5)) {
-      return fail("village raid warn should enqueue Attack/Leave");
-    }
-    if (pop.queue_count < 1 || pop.queue[0].tag != AI_POPUP_TAG_CONTACT_VILLAGE_WARN) {
-      return fail("village warn tag missing");
-    }
-    if (pop.queue[0].choice_count < 2) {
-      return fail("village warn should offer Leave/Attack");
-    }
-    if (pop.queue[0].nation_a != 7 || pop.queue[0].nation_b != 4) {
-      return fail("village warn should store unit_id / indian nation");
-    }
-    if ((pop.queue[0].payload & 0xff) != 5 || ((pop.queue[0].payload >> 8) & 0xff) != 5) {
-      return fail("village warn should pack dest xy");
-    }
-    /* Leave path: no hostilities. */
     ai_contact_village_open_hostilities(&ctx, 4, 0);
     if (ai_contact_indian_has_peace(&col1, 4, 0)) {
       return fail("Attack hostilities should clear peace");
@@ -7274,6 +7257,22 @@ static int case_full_contact_scenario(void) {
                 q->choice_count > 1 ? q->choice_ids[1] : -1,
                 q->choice_count > 2 ? q->choice_ids[2] : -1);
         return fail("menu: DOS row order is Demand(8) then Attack(9) then Cancel(10)");
+      }
+      /* bugs.md #542: unmet tribe still gets the @ACTIONS menu (OVL13::00493f
+       * jumps past rows 3-8 to the row-9 add) — no invented raid warn. */
+      {
+        const uint8_t saved_diplo = ind->euro_diplo[0];
+        ind->euro_diplo[0] = 0;
+        ai_popup_clear(&pop);
+        if (!ai_contact_try_village_meet_unit(&ctx, 0, 4, 0, 0, sold_id)) {
+          return fail("menu: unmet soldier should still get the @ACTIONS menu");
+        }
+        if (pop.queue[0].tag != AI_POPUP_TAG_CONTACT_MEET || pop.queue[0].choice_count != 2 ||
+            pop.queue[0].choice_ids[0] != AI_CONTACT_CHOICE_ATTACK ||
+            pop.queue[0].choice_ids[1] != 5 /* Cancel */) {
+          return fail("menu: unmet soldier rows should be Attack / Cancel");
+        }
+        ind->euro_diplo[0] = saved_diplo;
       }
       ai_popup_clear(&pop);
       units_despawn(&units, sold_id);

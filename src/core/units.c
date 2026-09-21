@@ -582,6 +582,7 @@ static void units_slot_reset_defaults(
   slot->col1_counter16 = 0;
   slot->park_nights = 0;
   slot->mp_spent_turn = 0;
+  slot->aboard_moves = -1;
   slot->last_dir = 0;
   /* COL1 +0x06 origin: DOS leaves it unbound at create; 0xff is the "no
    * home colony / tribe" sentinel every DOS reader tests as < 0. */
@@ -1447,6 +1448,7 @@ static void units_clear_slot(ColonizeUnit* unit) {
   unit->col1_counter16 = 0;
   unit->park_nights = 0;
   unit->mp_spent_turn = 0;
+  unit->aboard_moves = -1;
   unit->last_dir = 0;
   unit->col1_origin = 0xff;
   unit->col1_flags15 = 0;
@@ -5834,8 +5836,6 @@ bool units_resolve_land_combat_ff_w(
     return true;
   }
   {
-    const int atk_x = atk->x;
-    const int atk_y = atk->y;
     const int atk_nation = atk->nation_id;
     const int def_nation = def->nation_id;
     const ColonizeUnit win_snap = *def;
@@ -5845,7 +5845,21 @@ bool units_resolve_land_combat_ff_w(
     units_combat_outcome_popups(
       pool, &win_snap, &lose_snap, 0, atk_nation, def_nation, 0, ambush, col1
     );
-    units_sweep_stack_after_loss(pool, atk_x, atk_y, atk_nation, defender_id, attacker_id, col1);
+    /*
+     * bugs.md #473: NO sweep of the attacker's origin tile. DOS 1b0e does run
+     * 0ec0 on the attacker after a loss (raw 100759-100760), but before the
+     * roll it has already lifted the attacker off its tile: raw 100568
+     * FUN_281f_0916(param_1) = FUN_1427_12f6, which for a land unit is
+     * FUN_1427_0362(unit, -2, -2) — unlink from the tile stack (1427_023a)
+     * and relink at the off-map park (1427_02ca). 0ec0 walks the stack the
+     * loser is IN (02ee/02e4 over +0x315c/+0x315e), so the origin tile —
+     * a colony's docked ships, wagons and colonists — is never touched;
+     * the survivor is put back at the saved (uVar21, uVar22) by 0948 at raw
+     * 100764-100768. The old port sweep here sent a Galleon berthed in
+     * Isabella to Seville for repairs after an Artillery sortie lost to a
+     * Scout. (The land resolver has no ship attacker; the naval sweep keeps
+     * its own attacker-loss walk, since 12f6 does not park a hull.)
+     */
     /* DS:0x54f6 discharge, DOS 1b0e site 1 (raw 101039-101041). A native
      * attacker that LOSES at a colony is DOS's raid handoff and is skipped
      * here — the tension clear rides FUN_5fef_0f14 on that limb. */
@@ -8004,10 +8018,23 @@ bool units_try_move_w(
      * gone (smell audit 2026-09-10 A4); if the MP gate above is ever relaxed
      * to let a spent unit board, that half of the rule has to come back here.
      */
-    if (units_move_crosses_shore(map, colonies, ox, oy, dest_x, dest_y)) {
+    {
       ColonizeUnit* boarded = units_get(pool, unit_id);
-      if (boarded) {
+      if (boarded && units_move_crosses_shore(map, colonies, ox, oy, dest_x, dest_y)) {
         boarded->mp_spent_turn = 1;
+        boarded->aboard_moves = 0;
+      } else if (boarded && boarded->aboard_moves > 0) {
+        /* Boarding from a colony tile is an ordinary step: 465b's ADD charges
+         * the water tile's cost to the spent byte the passenger then carries
+         * (bugs.md #544). Spent at or past max = no landfall this turn. */
+        int cost = map_move_spent_thirds(map, ox, oy, dest_x, dest_y);
+        if (cost < 1) {
+          cost = 1;
+        }
+        boarded->aboard_moves = boarded->aboard_moves > cost ? boarded->aboard_moves - cost : 0;
+        if (boarded->aboard_moves == 0) {
+          boarded->mp_spent_turn = 1;
+        }
       }
     }
     units_occupancy_refresh_tile(pool, ox, oy, unit_id);
@@ -8842,12 +8869,17 @@ bool units_wake(ColonizeUnitPool* pool, int unit_id) {
    * open shore, the one case units_try_move can mark (a unit that is already
    * out of MP never gets to board, audit A4) — so waking must not refund it
    * (bugs.md #423; same discriminator the landfall pick uses). */
-  const bool parked =
-    (u->aboard_ship_id >= 0 && !u->mp_spent_turn) ||
-    ((prev == UNITS_ORDER_FORTIFIED || prev == UNITS_ORDER_SENTRY) &&
-     u->park_nights > 0);
-  if (parked && units_type(pool, u->type_index)) {
-    units_mp_restore(pool, u);
+  /* Aboard, the zero stands for the carried allotment (bugs.md #544). */
+  if (u->aboard_ship_id >= 0 && u->moves <= 0 && u->aboard_moves >= 0) {
+    u->moves = u->aboard_moves;
+  } else {
+    const bool parked =
+      (u->aboard_ship_id >= 0 && !u->mp_spent_turn) ||
+      ((prev == UNITS_ORDER_FORTIFIED || prev == UNITS_ORDER_SENTRY) &&
+       u->park_nights > 0);
+    if (parked && units_type(pool, u->type_index)) {
+      units_mp_restore(pool, u);
+    }
   }
   if (prev == UNITS_ORDER_SENTRY || prev == UNITS_ORDER_FORTIFY ||
       prev == UNITS_ORDER_FORTIFIED) {
@@ -11224,6 +11256,22 @@ bool units_board_stacked(ColonizeUnitPool* pool, int land_unit_id, int ship_id) 
    * (the boardable-ship pick matches nations), so the sentinel and its readers
    * stay in one space.
    */
+  /*
+   * What rides along is the passenger's own spent byte: DOS keeps +0x3149
+   * as it was (bugs.md #544). A live allotment is carried as is; an
+   * overnight Sentry/Fortified zero is a park (DOS spent 0, full); any
+   * other zero is a real spend. Natives never board, but a native zero
+   * means "nothing spent", so they carry full.
+   */
+  if (land->moves > 0) {
+    land->aboard_moves = land->moves;
+  } else if (land->nation_id >= 4 ||
+             ((land->orders == UNITS_ORDER_SENTRY || land->orders == UNITS_ORDER_FORTIFIED) &&
+              land->park_nights > 0)) {
+    land->aboard_moves = -1;
+  } else {
+    land->aboard_moves = 0;
+  }
   land->moves = 0;
   land->orders = UNITS_ORDER_SENTRY; /* sentry aboard */
   ship->cargo_ids[ship->cargo_count++] = land_unit_id;
@@ -11454,10 +11502,12 @@ bool units_unload_passenger_w(
    */
   {
     int remaining = pax->moves;
-    /* A shore-boarding spend is not a park: nothing to refill (bugs.md #544). */
-    if (remaining <= 0 && !pax->mp_spent_turn) {
-      remaining = units_max_mp(pool, pax_id);
+    /* The park zero stands for what the passenger carried aboard: its own
+     * DOS spent byte, never a free refill (bugs.md #544). */
+    if (remaining <= 0) {
+      remaining = pax->aboard_moves >= 0 ? pax->aboard_moves : units_max_mp(pool, pax_id);
     }
+    pax->aboard_moves = -1;
     int cost = map_move_spent_thirds(map, ship->x, ship->y, dest_x, dest_y);
     if (cost < 1) {
       cost = 1;
@@ -11675,16 +11725,21 @@ int units_disembark_all(ColonizeUnitPool* pool, int ship_id, int x, int y) {
        * the same way for its own move charge.
        */
       /*
-       * Only a PARK zero is refilled. A passenger that walked aboard from
-       * open shore this turn has DOS spent == max (465b_05ca, bugs.md #423),
-       * and nothing on the ship's move or dock path rewrites a passenger's
-       * +0x3149 (its only writers are the new-turn reset FUN_130d_0290,
-       * spawns and AI arms), so it lands spent (bugs.md #544).
+       * The park zero is refilled with what the passenger carried aboard
+       * (aboard_moves), never more: nothing on the ship's move or dock path
+       * rewrites a passenger's +0x3149 (its only writers are the day-top
+       * reset FUN_130d_0290, spawns and AI arms), so a pioneer that walked
+       * aboard from open shore (465b_05ca spent = max, #423) lands spent and
+       * one that boarded mid-turn in port lands with its remainder (#544).
        */
-      if (units_remaining_mp(pool, pax_id) <= 0 && !pax->mp_spent_turn &&
-          units_type(pool, pax->type_index)) {
-        units_mp_restore(pool, pax);
+      if (units_remaining_mp(pool, pax_id) <= 0 && units_type(pool, pax->type_index)) {
+        if (pax->aboard_moves >= 0) {
+          pax->moves = pax->aboard_moves;
+        } else {
+          units_mp_restore(pool, pax);
+        }
       }
+      pax->aboard_moves = -1;
       n++;
     }
   }

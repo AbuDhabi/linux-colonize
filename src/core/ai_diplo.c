@@ -2055,7 +2055,11 @@ static void ai_talk_peace_offer(ColonizeTurnContext* ctx) {
   Ai153eTalk* k = &s_talk;
   PopupMsgTokens tok;
   memset(&tok, 0, sizeof(tok));
-  tok.string0 = ai_talk_name(ctx, k->target);
+  /* bugs.md #474: raw :97987-97992 — %STRING0 = 0618(0, "LEADER2", target)
+   * = @GREATLEADER2 ("rightfully ours by order of the Queen"), not the
+   * nation adjective; %STRING1/2 = 09a4(human) / 09a4(target). */
+  const char* leader2 = ai_talk_great_line(ctx, "GREATLEADER2", k->target);
+  tok.string0 = leader2 ? leader2 : "";
   tok.string1 = ai_talk_name(ctx, k->self);
   tok.string2 = ai_talk_name(ctx, k->target);
   if (ai_talk_peace(ctx, k->self, k->target)) {
@@ -2166,6 +2170,10 @@ static AiTalkStepStatus ai_talk_stage_wantstuff(
   k->stage = AI_TALK_ST_WORTHY;
   if (k->manly && k->score != 999 && k->want_cargo >= 0 && ctx->colonies) {
     PopupMsgTokens tw = *tok;
+    /* bugs.md #474: raw :97931 — %STRING0 = 0618(0, "LEADER2", target) =
+     * @GREATLEADER2 ("rightfully ours by order of the King"). */
+    const char* wl2 = ai_talk_great_line(ctx, "GREATLEADER2", t);
+    tw.string0 = wl2 ? wl2 : "";
     tw.number0 = k->want_amount;
     tw.has_number0 = true;
     /* reports_cargo_display_name hands back reports.c's shared NAMES
@@ -2313,6 +2321,17 @@ static AiTalkStepStatus ai_talk_stage_peacemenu(
       PopupMsgTokens tp = *tok;
       tp.string0 = ai_talk_name(ctx, h);
       tp.string1 = ai_talk_name(ctx, t);
+      /* bugs.md #474: raw :98076-98079 — the OLDPEACE* leg (iVar17, set with
+       * the DS:0x1984 "OLD" prefix at raw :98056) also fills %STRING2 = the
+       * difficulty title (`*(0x53a6*2 - 0x7c6c)`) and %STRING3 = the HUMAN's
+       * player.name (param_2*0x34 + 0x540e): "their wise leader Viceroy
+       * Christopher Columbus". The shared tok's target name / @MEEKNESS word
+       * used to leak in ("their wise leader English request"). */
+      if (!k->at_war) {
+        const int diff = (int)ctx->col1->head.difficulty;
+        tp.string2 = reports_difficulty_title((diff >= 0 && diff < 5) ? diff : 0);
+        tp.string3 = ctx->col1->player[h].name;
+      }
       ai_talk_choice(ctx, tag, &tp, "", lab, 4, AI_TALK_ST_PEACEMENU);
       return AI_TALK_STEP_RETURN;
     }
@@ -2989,12 +3008,32 @@ static int ai_diplo_153e_encounter_gated(
   }
 
   /* Greeting (HELLO + FIRST/AHOY/MEEK/MANLY). */
+  /*
+   * Greeting tokens, raw :97696-97704 (bugs.md #545):
+   *   %STRING0 = DS:0x8394[difficulty] title + " " (FUN_281f_0178 appends
+   *              DS:0x50) + the human's player.name (param_2*0x34 + 0x540e)
+   *   %STRING1 = target player.country_name (param_3*0x34 + 0x5426)
+   *   %STRING2 = @GREATKINGS line[target]  (0618(2, "KINGS", target))
+   *   %STRING3 = @GREATDEEDS line[target]  (0618(3, "DEEDS", target))
+   * The previous English literals ("the New World", "spread the faith")
+   * were invented; empty on a catalog miss.
+   */
   PopupMsgTokens tok;
   memset(&tok, 0, sizeof(tok));
-  tok.string0 = ai_talk_name(ctx, human);
-  tok.string1 = "the New World";
-  tok.string2 = ai_talk_name(ctx, target);
-  tok.string3 = k->manly ? "subdue the heathen" : "spread the faith";
+  char hello_addressee[64];
+  {
+    const int d = (int)col1->head.difficulty;
+    snprintf(
+      hello_addressee, sizeof(hello_addressee), "%s %s",
+      reports_difficulty_title(d >= 0 && d < 5 ? d : 0), col1->player[human].name
+    );
+  }
+  const char* great_kings = ai_talk_great_line(ctx, "GREATKINGS", target);
+  const char* great_deeds = ai_talk_great_line(ctx, "GREATDEEDS", target);
+  tok.string0 = hello_addressee;
+  tok.string1 = col1->player[target].country_name; /* "New England" (bugs.md #474) */
+  tok.string2 = great_kings ? great_kings : "";
+  tok.string3 = great_deeds ? great_deeds : "";
   const char* hello = k->manly ? "HELLOMANLY" : "HELLOMEEK";
   if ((ai_diplo_read(col1, human, target) & AI_DIPLO_MET) == 0) {
     const ColonizeUnit* u = units_get_const(ctx->units, unit_id);

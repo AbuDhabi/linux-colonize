@@ -188,12 +188,6 @@ enum {
   AI_CONTACT_LEARNSTAY_NO = 2
 };
 
-/* Village raid warn CHOICE ids (FUN_4d56_4528; Attack Village ACTIONS). */
-enum {
-  AI_CONTACT_VILLAGE_LEAVE = 0,
-  AI_CONTACT_VILLAGE_ATTACK = 1
-};
-
 /* Gift amount CHOICE ids (CONTACT_GIFT; FUN_5bfb_102a amount stand-in). */
 enum {
   AI_CONTACT_GIFT_SMALL = 1,    /* −5 gold, friction −1 */
@@ -799,7 +793,7 @@ int ai_contact_try_first_welcome(ColonizeTurnContext* ctx, int euro_nation, int 
   ai_contact_apply_welcome_accept(ctx, ind, indian_nation, euro_nation);
   return 1;
 }
-/* ===================== Encounter/meet scans, village-meet dialogs & attack/raid confirmations (ai_contact_encounter_scan .. ai_contact_try_village_raid_warn) ===================== */
+/* ===================== Encounter/meet scans, village-meet dialogs & attack/raid confirmations (ai_contact_encounter_scan .. ai_contact_try_tired_attack_confirm) ===================== */
 
 
 int ai_contact_encounter_scan(ColonizeTurnContext* ctx, int euro_nation, int x, int y) {
@@ -1109,8 +1103,11 @@ static void ai_contact_enqueue_village_meet(
     if (met && !cls.is_missionary && cls.attack != 0 && !cls.is_ship) {
       AI_CONTACT_MENU_ADD(7, AI_CONTACT_CHOICE_DEMAND); /* row 8 */
     }
-    /* row 9: land unit with attack > 1; also (met) any attack != 0. */
-    if (!cls.is_ship && (cls.attack > 1 || (met && cls.attack != 0))) {
+    /* row 9: land unit with attack != 0. DOS adds it early for attack > 1
+     * and again at OVL13::004a85 for attack != 0 — that label is also the
+     * unmet jump target (OVL13::00493f), so the second add is not met-gated
+     * and the two collapse to attack != 0. */
+    if (!cls.is_ship && cls.attack != 0) {
       AI_CONTACT_MENU_ADD(8, AI_CONTACT_CHOICE_ATTACK_VILLAGE);
     }
   } else {
@@ -1165,16 +1162,18 @@ int ai_contact_try_village_meet_unit_at(
     return 0;
   }
   ColonizeCol1Indian* ind = &ctx->col1->indian[indian_nation - 4];
-  /* Already met only — unmet uses WELCOME. */
-  if (!ind->euro_diplo[euro_nation]) {
-    return 0;
-  }
   /*
-   * DOS shows the menu at any alarm (the @VILLAGEWAR body + "Enter Hostile
-   * Village" row exist for exactly that); only the legacy no-unit callers
-   * keep the old at-war refusal so their raid-warn fallback still runs.
+   * FUN_4d56_4528 human land arm (OVL13::004932..004ad0): the @ACTIONS menu
+   * is built for every land unit, met or not — the met test (TEST AL,0x40 at
+   * OVL13::00493b) only gates rows 3-8, and the only met-bit abort in the
+   * function is the ship head's @DONTKNOWSHIPS. It is also built at any
+   * alarm (@VILLAGEWAR body + "Enter Hostile Village" row). Only the legacy
+   * no-unit callers keep the old unmet / at-war refusals. (bugs.md #542: the
+   * port's Attack/Leave "raid warn" fallback for unmet tribes had no DOS
+   * counterpart and was deleted.)
    */
-  if (unit_id < 0 && ai_diplo_indian_at_war(ctx->col1, euro_nation, indian_nation - 4)) {
+  if (unit_id < 0 && (!ind->euro_diplo[euro_nation] ||
+                      ai_diplo_indian_at_war(ctx->col1, euro_nation, indian_nation - 4))) {
     return 0;
   }
   if (ai_contact_meet_choice_pending(ctx->ai_popups, euro_nation, indian_nation) ||
@@ -1206,16 +1205,6 @@ int ai_contact_try_village_meet(
   int is_capital
 ) {
   return ai_contact_try_village_meet_unit(ctx, euro_nation, indian_nation, is_missionary, is_capital, -1);
-}
-
-static int ai_contact_village_warn_pending(const AiPopupState* st, int unit_id) {
-  if (unit_id < 0) {
-    return 0;
-  }
-  return ai_popup_pending(
-    st, AI_POPUP_TAG_CONTACT_VILLAGE_WARN, AI_POPUP_KIND_CHOICE,
-    AI_POPUP_KEY_NATION_A, unit_id, 0
-  ) ? 1 : 0;
 }
 
 void ai_contact_village_open_hostilities(
@@ -1451,88 +1440,6 @@ int ai_contact_try_tired_attack_confirm(
   return 1;
 }
 
-int ai_contact_try_village_raid_warn(
-  ColonizeTurnContext* ctx,
-  int euro_nation,
-  int indian_nation,
-  int unit_id,
-  int dest_x,
-  int dest_y
-) {
-  if (!ctx || !ctx->col1_ok || !ctx->col1 || !ctx->ai_popups) {
-    return 0;
-  }
-  if (euro_nation < 0 || euro_nation > 3 || indian_nation < 4 || indian_nation > 11) {
-    return 0;
-  }
-  if (unit_id < 0 || dest_x < 0 || dest_y < 0 || dest_x > 255 || dest_y > 255) {
-    return 0;
-  }
-  if (!ai_contact_euro_is_human(ctx, euro_nation)) {
-    return 0;
-  }
-  ai_contact_bind_names(ctx);
-  if (ai_contact_village_warn_pending(ctx->ai_popups, unit_id) ||
-      ai_contact_welcome_pending(ctx->ai_popups, euro_nation, indian_nation)) {
-    return 0;
-  }
-  const char* tribe = ai_contact_tribe_name(indian_nation);
-  const int alarm = ai_diplo_indian_alarm(ctx->col1, indian_nation, euro_nation);
-  char body[AI_POPUP_BODY_LEN];
-  if (alarm <= 25) { /* relation >= 75 */
-    snprintf(
-      body,
-      sizeof(body),
-      "The %s welcome visitors, but armed entry insults their hospitality. "
-      "Attack the village, or leave in peace?",
-      tribe
-    );
-  } else if (alarm <= 50) { /* relation >= 50 */
-    snprintf(
-      body,
-      sizeof(body),
-      "The %s eye your weapons with suspicion. Attack their village, or withdraw?",
-      tribe
-    );
-  } else if (alarm <= 75) { /* relation >= 25 */
-    snprintf(
-      body,
-      sizeof(body),
-      "The %s shout warnings from the edge of camp. Attack, or leave before blood is shed?",
-      tribe
-    );
-  } else {
-    snprintf(
-      body,
-      sizeof(body),
-      "Hostile %s braves bar the path. Attack the village, or fall back?",
-      tribe
-    );
-  }
-  static const char* labels[] = {"", ""};
-  static const int ids[] = {AI_CONTACT_VILLAGE_LEAVE, AI_CONTACT_VILLAGE_ATTACK};
-  const int payload = dest_x | (dest_y << 8);
-  if (!ai_popup_enqueue_choice_ctx(
-        ctx->ai_popups,
-        AI_POPUP_TAG_CONTACT_VILLAGE_WARN,
-        unit_id,
-        indian_nation,
-        payload,
-        NULL,
-        body,
-        labels,
-        ids,
-        2
-      )) {
-    return 0;
-  }
-  {
-    char st[96];
-    snprintf(st, sizeof(st), "Approaching %s village…", tribe);
-    ai_contact_set_status(ctx, st);
-  }
-  return 1;
-}
 /* ===================== Ship-village visits, jesuit/teachable checks & skill teaching (ai_contact_try_ship_village .. ai_contact_teach_skill) ===================== */
 
 
@@ -1826,10 +1733,15 @@ static const char* ai_contact_learner_skill_name(
   const ColonizeUnit* u
 ) {
   if (!u) {
-    return "colonist";
+    return "";
   }
   if (u->profession >= 0 && u->profession < COLONIZE_FIELD_JOB_COUNT) {
     return colony_yield_job_name(u->profession);
+  }
+  /* Factory / other skills by their @JOB row too (bugs.md #547). */
+  const char* job = reports_job_short_name(u->profession);
+  if (job && job[0]) {
+    return job;
   }
   return units_display_name(units, u);
 }
@@ -8974,10 +8886,10 @@ static const char* ai_contact_job_name(int job) {
   if (job >= 0 && job < COLONIZE_FIELD_JOB_COUNT) {
     return colony_yield_job_name(job);
   }
-  if (job == UNITS_JOB_SCOUT) {
-    return reports_job_short_name(job);
-  }
-  return "colonist";
+  /* Every other @JOB id by its NAMES.TXT row: villages also teach factory
+   * skills (Fur Trader 12, Weaver 11, Tobacconist 10), which used to fall
+   * through to a typed "colonist" (bugs.md #547). Empty on a miss. */
+  return reports_job_short_name(job);
 }
 
 /* DS:0x8394 difficulty titles (%STRING0 of the @EXTORT* bodies). */
