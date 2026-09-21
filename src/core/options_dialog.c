@@ -110,12 +110,12 @@ bool options_dialog_open_game(
 ) {
   static const char* const k_fb[] = {
     "Show Indian Moves",
-    "Show Foreign Moves",
-    "Fast Piece Slide",
-    "End of Turn",
-    "Autosave",
-    "Combat Analysis",
-    "Water Color Cycling",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
     "Tutorial Hints"
   };
   uint8_t vals[8] = {0};
@@ -135,7 +135,7 @@ bool options_dialog_open_game(
     OPTIONS_KIND_GAME,
     game_txt,
     "GAMEOPTIONS",
-    "Set Game Options",
+    "",
     k_fb,
     vals,
     8,
@@ -150,14 +150,14 @@ bool options_dialog_open_colony(
 ) {
   static const char* const k_fb[] = {
     "Labels on buildings",
-    "Labels on cargo and terrain",
-    "Report when colonists trained",
-    "Report food shortages",
-    "Report raw materials shortages",
-    "Report tools needed for production",
-    "Report inefficient government",
-    "Report new cargos available",
-    "Report Sons of Liberty membership",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
     "Report rebel majorities"
   };
   /*
@@ -183,7 +183,7 @@ bool options_dialog_open_colony(
     OPTIONS_KIND_COLONY,
     game_txt,
     "COLONYOPTIONS",
-    "Set Colony Report Options",
+    "",
     k_fb,
     vals,
     10,
@@ -199,7 +199,7 @@ bool options_dialog_open_sound(
   bool sound_effects
 ) {
   static const char* const k_fb[] = {
-    "Background Music", "Event Music", "Sound Effects"
+    "", "", ""
   };
   uint8_t vals[3] = {
     background_music ? 1 : 0, event_music ? 1 : 0, sound_effects ? 1 : 0
@@ -209,7 +209,7 @@ bool options_dialog_open_sound(
     OPTIONS_KIND_SOUND,
     game_txt,
     "SOUNDOPTIONS",
-    "Set Sound Options",
+    "",
     k_fb,
     vals,
     3,

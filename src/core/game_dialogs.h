@@ -202,6 +202,8 @@ struct ColonizeGameState {
   int difficulty;
   char leader_name[NEW_GAME_LEADER_NAME_MAX];
   bool assets_ok;
+  /* Why validation failed, for the fatal startup message in main.c. */
+  char assets_error[256];
   bool palette_ok;
   ColonizePalette palette;
   ColonizeMsgCatalog messages;

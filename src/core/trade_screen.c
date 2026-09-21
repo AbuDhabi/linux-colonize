@@ -41,18 +41,18 @@ void trade_screen_init(TradeScreen* ts, const ColonizeMsgCatalog* labels) {
   }
   memset(ts, 0, sizeof(*ts));
   ts->route = -1;
-  trade_label(ts->lab_title, sizeof(ts->lab_title), labels, "ROUTE", 0, "EDIT TRADE ROUTE");
-  trade_label(ts->lab_name, sizeof(ts->lab_name), labels, "ROUTE", 1, "Route Name:");
-  trade_label(ts->lab_type, sizeof(ts->lab_type), labels, "ROUTE", 2, "Route Type:");
-  trade_label(ts->lab_sea, sizeof(ts->lab_sea), labels, "ROUTE", 3, "Sea");
-  trade_label(ts->lab_land, sizeof(ts->lab_land), labels, "ROUTE", 4, "Land");
-  trade_label(ts->lab_dest, sizeof(ts->lab_dest), labels, "ROUTE", 5, "Destination");
-  trade_label(ts->lab_unload, sizeof(ts->lab_unload), labels, "ROUTE", 6, "Unload Cargo");
-  trade_label(ts->lab_load, sizeof(ts->lab_load), labels, "ROUTE", 7, "Load Cargo");
+  trade_label(ts->lab_title, sizeof(ts->lab_title), labels, "", 0, "");
+  trade_label(ts->lab_name, sizeof(ts->lab_name), labels, "", 1, "");
+  trade_label(ts->lab_type, sizeof(ts->lab_type), labels, "", 2, "");
+  trade_label(ts->lab_sea, sizeof(ts->lab_sea), labels, "", 3, "Sea");
+  trade_label(ts->lab_land, sizeof(ts->lab_land), labels, "", 4, "");
+  trade_label(ts->lab_dest, sizeof(ts->lab_dest), labels, "", 5, "");
+  trade_label(ts->lab_unload, sizeof(ts->lab_unload), labels, "", 6, "");
+  trade_label(ts->lab_load, sizeof(ts->lab_load), labels, "", 7, "");
   trade_label(
-    ts->lab_delete, sizeof(ts->lab_delete), labels, "ROUTE", 8, "(Delete Destination)"
+    ts->lab_delete, sizeof(ts->lab_delete), labels, "", 8, ""
   );
-  trade_label(ts->lab_ok, sizeof(ts->lab_ok), labels, "MISC", 46, "OK");
+  trade_label(ts->lab_ok, sizeof(ts->lab_ok), labels, "", 46, "OK");
 }
 
 void trade_screen_open(TradeScreen* ts, int route) {

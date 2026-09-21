@@ -198,8 +198,8 @@ static int case_wizard_new_world_flow(void) {
     game_destroy(game);
     return 1;
   }
-  if (strcmp(game_leader_name(game), "Jacques Cartier") != 0) {
-    fprintf(stderr, "expected Jacques Cartier got '%s'\n", game_leader_name(game));
+  if (strcmp(game_leader_name(game), "Leader Two") != 0) {
+    fprintf(stderr, "expected fixture @LEADERNAME row 1 got '%s'\n", game_leader_name(game));
     game_destroy(game);
     return 1;
   }
@@ -216,8 +216,8 @@ static int case_hall_of_fame_from_menu(void) {
   if (!game) {
     return 1;
   }
-  /* Move to Hall of Fame (index 3) */
-  for (int i = 0; i < 3; ++i) {
+  /* Move to Hall of Fame (@BEGINMENU row 4) */
+  for (int i = 0; i < 4; ++i) {
     if (!test_assets_step(game, COLONIZE_KEY_DOWN)) { game_destroy(game); return 1; }
   }
   if (!test_assets_step(game, COLONIZE_KEY_ENTER)) { game_destroy(game); return 1; }

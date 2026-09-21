@@ -177,26 +177,26 @@ bool col1_save_validate_head(
    * map (0/0 = accept any). Error codes → @LOADNOT / @LOADOLD / @LOADSIZE.
    */
   if (!head) {
-    COL1_FAIL(err, err_size, "is not a valid save file");
+    COL1_FAIL(err, err_size, COL1_ERR_NOT_A_SAVE);
   }
   if (memcmp(head->sig_colonize, COLONIZE_COL1_SIG, 8) != 0 || head->sig_colonize[8] != '\0') {
-    COL1_FAIL(err, err_size, "is not a valid save file");
+    COL1_FAIL(err, err_size, COL1_ERR_NOT_A_SAVE);
   }
   if (head->sig_eof != COLONIZE_COL1_SIG_EOF) {
-    COL1_FAIL(err, err_size, "is not a valid save file");
+    COL1_FAIL(err, err_size, COL1_ERR_NOT_A_SAVE);
   }
   if (head->save_version < COLONIZE_COL1_SAVE_VERSION) {
-    COL1_FAIL(err, err_size, "is an obsolete save file");
+    COL1_FAIL(err, err_size, COL1_ERR_OBSOLETE);
   }
   if (head->save_version > COLONIZE_COL1_SAVE_VERSION) {
-    COL1_FAIL(err, err_size, "is not a valid save file");
+    COL1_FAIL(err, err_size, COL1_ERR_NOT_A_SAVE);
   }
   if (head->map_size_x == 0 || head->map_size_y == 0) {
-    COL1_FAIL(err, err_size, "is not a valid save file");
+    COL1_FAIL(err, err_size, COL1_ERR_NOT_A_SAVE);
   }
   if (expect_map_w > 0 && expect_map_h > 0) {
     if ((int)head->map_size_x != expect_map_w || (int)head->map_size_y != expect_map_h) {
-      COL1_FAIL(err, err_size, "does not match the current map size");
+      COL1_FAIL(err, err_size, COL1_ERR_MAP_SIZE);
     }
   }
   if (err && err_size > 0) {

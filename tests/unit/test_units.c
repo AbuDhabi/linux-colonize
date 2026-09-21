@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "../common/test_catalogs.h"
 #include "core/assets.h"
 #include "core/colony.h"
 #include "core/colony_production.h"
@@ -19,6 +20,7 @@
 #include "core/ss.h"
 #include "core/unit_chrome.h"
 #include "core/unit_stack.h"
+#include "core/reports.h"
 #include "core/units.h"
 #include "platform/diagnostics.h"
 #include "platform/platform.h"
@@ -1235,8 +1237,9 @@ static int unit_display_name_free_colonist(void) {
   }
   u->profession = UNITS_JOB_NONE;
   const char* name = units_display_name(&pool, u);
-  if (!name || strcmp(name, "Free Colonist") != 0) {
-    fprintf(stderr, "display_name: base Colonists got '%s' want 'Free Colonist'\n",
+  /* NAMES.TXT @JOB row 19, column 1 — read from the catalog, not typed here. */
+  if (!name || !name[0] || strcmp(name, reports_job_display_name(19)) != 0) {
+    fprintf(stderr, "display_name: base Colonists got '%s' want @JOB row 19 col 1\n",
             name ? name : "(null)");
     assets_msg_free(&names);
     return 1;
@@ -7658,7 +7661,7 @@ int main(void) {
     }
     AiPopupState pops;
     ai_popup_init(&pops);
-    units_set_combat_popups(&pops, NULL);
+    units_set_combat_popups(&pops, test_game_txt());
     int trespass_popups[2] = {0, 0};
     int trial_count[2] = {0, 0};
     for (int met = 0; met < 2; ++met) {
@@ -7702,7 +7705,7 @@ int main(void) {
               return 1;
             }
             for (int q = 0; q < pops.queue_count; ++q) {
-              if (strstr(pops.queue[q].body, "trespassing") != NULL) {
+              if (test_body_is_section(pops.queue[q].body, "LOSTCITY8")) {
                 trespass_popups[met]++;
               }
             }

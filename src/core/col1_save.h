@@ -35,6 +35,15 @@
 
 #include "core/col1_save_layout.h"
 
+/*
+ * Header-validation failures, as the port's own error tokens. The caller
+ * maps them to GAME.TXT @LOADNOT / @LOADOLD / @LOADSIZE for the player-facing
+ * wording; the sentences themselves are never compiled in.
+ */
+#define COL1_ERR_NOT_A_SAVE "save: unrecognised header"
+#define COL1_ERR_OBSOLETE "save: obsolete format version"
+#define COL1_ERR_MAP_SIZE "save: map size mismatch"
+
 
 typedef struct ColonizeCol1Map {
   uint16_t width;

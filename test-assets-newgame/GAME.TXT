@@ -1,65 +1,66 @@
 @BEGINMENU
 @width=160
-{COLONIZATION} Version test
+{TEST} Version test
 @options
-Start a Game in NEW WORLD
-Start a Game in AMERICA
-LOAD Game
-View Hall of Fame
-Exit to DOS
+Menu Option New
+Menu Option America
+Menu Option Customize
+Menu Option Load
+Menu Option Hall
+Menu Option Exit
 
 @AMERICA
 @width=160
-Would you like to use the original Americas map, or
-a map prepared with the map editor?
-Original Americas
-Map Editor
+Synthetic map question line one
+synthetic question line two?
+Map Option One
+Map Option Two
 
 @DIFFICULTY
 @width=190
-Select a Difficulty Level
-Discoverer
-Explorer
-Conquistador
-Governor
-Viceroy
+Synthetic Difficulty Prompt
+Level One
+Level Two
+Level Three
+Level Four
+Level Five
 
 @PICKNATION
 @default=1
-Select a European Power
-England
-France
-Spain
-Netherlands
+Synthetic Nation Prompt
+Nation One
+Nation Two
+Nation Three
+Nation Four
 
 @LEADERNAME
 @width=300
-Please Enter Your Name.
+Synthetic Name Prompt
 @options
 ______________________
 
 @NATION1A
 @width=300
-FRANCE
+NATION TWO
 History page A.
 
 @NATION1B
 @width=300
-FRANCE
+NATION TWO
 Bonus page B.
 
 @VICEROY
 @width=78
 @x=232
 @y=21
-An Audience With
-The King of %COUNTRY
+Synthetic Audience Line
+Synthetic Ruler Of %COUNTRY
 
 @BUILD1
 @width=310
 @y=30
-In the Year of Our Lord
+Synthetic Year Line
 
 @BUILD2
 @y=30
-led by %STRING0, %STRING1
+synthetic leader %STRING0, %STRING1

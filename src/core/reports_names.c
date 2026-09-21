@@ -23,138 +23,35 @@
 #include "platform/diagnostics.h"
 
 /*
- * `k_ff_names` / `k_job_names` / `k_cargo_names` below are hand-typed copies
- * of NAMES.TXT `@FATHERS` column 0 / `@JOB` column 2 / `@CARGO` column 0 —
- * correct today (byte-checked once, e.g. founding_fathers.md P9.1), but
- * silently stale if the user ever mods NAMES.TXT, since nothing re-read
- * them live. `g_reports_names` is that live source (one NAMES.TXT parse,
- * shared by all three), loaded once in reports_load; reports_ff_name /
- * reports_job_name / reports_cargo_name prefer it and only fall back to
- * the static tables when assets aren't available (tests, missing data dir).
+ * The one live NAMES.TXT parse, loaded in reports_load and shared by every
+ * accessor below.
+ *
+ * There are no built-in name tables behind these any more (2026-09-20): the
+ * port ships none of the game's own wording, so a name that the catalog does
+ * not supply comes back as the empty string and the caller draws nothing.
+ * assets_validate_required_files makes a missing NAMES.TXT fatal at startup,
+ * so an empty return means a modded or truncated section, not a normal run.
  */
 static ColonizeMsgCatalog g_reports_names;
 static bool g_reports_names_ok = false;
 
-/*
- * `k_report_titles` (below reports_title) is a hand-typed copy of LABELS.TXT
- * `@MISC`'s "<X> ADVISER REPORT" / "CONTINENTAL CONGRESS ACTIVITIES" /
- * "COLONIZATION SCORE" lines — byte-checked correct against the real asset
- * 2026-08-26 (P2.2's earlier "these titles aren't shipped as text anywhere"
- * finding was itself wrong: an earlier grep searched for "Religious
- * Advisor" — American spelling, no "REPORT" suffix — the real asset spells
- * it "RELIGIOUS ADVISER REPORT"). `g_reports_labels` is the live source
- * (one LABELS.TXT parse), loaded once in reports_load; reports_title
- * prefers it and only falls back to `k_report_titles` when assets aren't
- * available (tests, missing data dir) — same shape as `g_reports_names`.
- */
+/* The one live LABELS.TXT parse; same no-fallback rule as above. */
 static ColonizeMsgCatalog g_reports_labels;
 static bool g_reports_labels_ok = false;
 
-static const char* k_report_titles[COLONIZE_REPORT_COUNT] = {
-  "RELIGIOUS ADVISER REPORT",
-  "CONTINENTAL CONGRESS ACTIVITIES",
-  "LABOR ADVISER REPORT",
-  "ECONOMIC ADVISER REPORT",
-  "COLONY ADVISER REPORT",
-  "NAVAL ADVISER REPORT",
-  "FOREIGN AFFAIRS REPORT",
-  "INDIAN ADVISER REPORT",
-  "COLONIZATION SCORE"
-};
 
-/* NAMES.TXT @FATHERS order. */
-static const char* k_ff_names[COLONIZE_COL1_FF_COUNT] = {
-  "Adam Smith",
-  "Jakob Fugger",
-  "Peter Minuit",
-  "Peter Stuyvesant",
-  "Jan de Witt",
-  "Ferdinand Magellan",
-  "Francisco Coronado",
-  "Hernando de Soto",
-  "Henry Hudson",
-  "Sieur De La Salle",
-  "Hernan Cortes",
-  "George Washington",
-  "Paul Revere",
-  "Francis Drake",
-  "John Paul Jones",
-  "Thomas Jefferson",
-  "Pocahontas",
-  "Thomas Paine",
-  "Simon Bolivar",
-  "Benjamin Franklin",
-  "William Brewster",
-  "William Penn",
-  "Jean de Brebeuf",
-  "Juan de Sepulveda",
-  "Bartolome de las Casas"
-};
+/*
+ * @JOB row count. The number of professions is structure, not wording, so it
+ * stays a constant; the names themselves are read live.
+ */
+const int k_job_count = 28;
 
-/* NAMES.TXT @JOB column 2 (recruit / specialty display names). */
-static const char* k_job_names[] = {
-  "Expert Farmers",
-  "Master Sugar Planters",
-  "Master Tobacco Planters",
-  "Master Cotton Planters",
-  "Expert Fur Trappers",
-  "Expert Lumberjacks",
-  "Expert Ore Miners",
-  "Expert Silver Miners",
-  "Expert Fishermen",
-  "Master Distiller",
-  "Master Tobacconists",
-  "Master Weavers",
-  "Master Fur Traders",
-  "Master Carpenters",
-  "Master Blacksmiths",
-  "Master Gunsmiths",
-  "Firebrand Preachers",
-  "Elder Statesmen",
-  "Expert Teachers",
-  "Free Colonists",
-  "Hardy Pioneers",
-  "Veteran Soldiers",
-  "Seasoned Scouts",
-  "Veteran Dragoons",
-  "Jesuit Missionaries",
-  "Indentured Servants",
-  "Petty Criminals",
-  "Indian Converts"
-};
-const int k_job_count = (int)(sizeof(k_job_names) / sizeof(k_job_names[0]));
-
-static const char* k_cargo_names[COLONIZE_COL1_CARGO_TYPES] = {
-  "Food",
-  "Sugar",
-  "Tobacco",
-  "Cotton",
-  "Furs",
-  "Lumber",
-  "Ore",
-  "Silver",
-  "Horses",
-  "Rum",
-  "Cigars",
-  "Cloth",
-  "Coats",
-  "Trade Goods",
-  "Tools",
-  "Muskets"
-};
 
 /* NAMES.TXT @TRIBES column 0 (plural display name — golden: indian.png
  * "Arawaks:" / "Cherokee:"). Only Inca/Aztec/Arawak actually change in
  * plural; the rest are already the same word. */
-static const char* k_tribe_names[COLONIZE_COL1_INDIAN_COUNT] = {
-  "Incas", "Aztecs", "Arawaks", "Iroquois", "Cherokee", "Apache", "Sioux", "Tupi"
-};
 
-static const char* k_tribe_levels[] = {"Semi-Nomadic", "Agrarian", "Advanced", "Civilized"};
 
-static const char* k_euro_short[COLONIZE_COL1_NATION_COUNT] = {
-  "English", "French", "Spanish", "Dutch"
-};
 
 /*
  * Shared fallback tables for the NAMES.TXT-backed name accessors below.
@@ -167,42 +64,23 @@ static const char* k_euro_short[COLONIZE_COL1_NATION_COUNT] = {
 /* @COUNTRY column 0. The rows carry a trailing ", <colour>" number that
  * reports_names_field drops with the rest of the line at the first comma.
  * "Netherlands", never "Holland" (turn.c:3025 was the odd one out). */
-const char* const k_euro_country[COLONIZE_COL1_NATION_COUNT] = {
-  "England", "France", "Spain", "Netherlands"
-};
 
 /* @HOMEPORT column 0. France is La Rochelle — new_game.c's "Paris" was
  * wrong (audit SC-7). */
-static const char* k_home_ports[COLONIZE_COL1_NATION_COUNT] = {
-  "London", "La Rochelle", "Seville", "Amsterdam"
-};
 
 /* @DIFFICULTY column 0. */
-static const char* k_difficulty_titles[5] = {
-  "Discoverer", "Explorer", "Conquistador", "Governor", "Viceroy"
-};
 
 /* @TRIBES column 1 (singular). Column 0 is the plural k_tribe_names above. */
-static const char* k_tribe_singular[COLONIZE_COL1_INDIAN_COUNT] = {
-  "Inca", "Aztec", "Arawak", "Iroquois", "Cherokee", "Apache", "Sioux", "Tupi"
-};
 
 /* @BUILDING rows 0..2 column 0 — the fortification chain, low tier first. */
-static const char* k_fort_tier_names[3] = {"Stockade", "Fort", "Fortress"};
 
 /* @UNIT rows 19..22 column 0 — the Indian arms/mounts ladder. The DOS
  * spellings are abbreviated ("Mtd."), and these strings double as
  * units_find_type keys, so they must stay the @UNIT text. */
 #define REPORTS_UNIT_ROW_BRAVES 19
-static const char* k_brave_ladder_names[4] = {
-  "Braves", "Armed Braves", "Mtd. Braves", "Mtd. Warriors"
-};
 
 /* @UNIT rows 0..5 column 0 — the Europe dock immigrant types, in DOS
  * dos_type order (europe.h EUROPE_DOCK_TYPE_*). */
-static const char* k_dock_type_names[6] = {
-  "Colonists", "Soldiers", "Pioneers", "Missionaries", "Dragoons", "Scouts"
-};
 /*
  * 0-based line index within LABELS.TXT `@MISC` for each report title,
  * `k_report_titles` order (Religious/Congress/Labor/Economic/Colony/Naval/
@@ -276,7 +154,7 @@ const char* reports_title(ColonizeReportId id) {
     return "REPORT";
   }
   const char* live = reports_labels_field("MISC", k_report_title_labels_index[id]);
-  return live ? live : k_report_titles[id];
+  return live ? live : "";
 }
 /*
  * `col`-th (0-based) comma-separated field of the `row`-th (0-based,
@@ -337,7 +215,7 @@ const char* reports_job_name(int job) {
   }
   /* @JOB: name(0), expert_name(1), school_tier(2), europe_hire_cost(3). */
   const char* live = reports_names_field("JOB", job, 1);
-  return live ? live : k_job_names[job];
+  return live ? live : "";
 }
 
 /*
@@ -353,7 +231,7 @@ const char* reports_cargo_name(int cargo) {
     return "cargo";
   }
   const char* live = reports_names_field("CARGO", cargo, 0);
-  snprintf(buf[cargo], sizeof(buf[cargo]), "%s", live ? live : k_cargo_names[cargo]);
+  snprintf(buf[cargo], sizeof(buf[cargo]), "%s", live ? live : "");
   return buf[cargo];
 }
 
@@ -362,7 +240,7 @@ const char* reports_ff_name(int idx) {
     return "(none)";
   }
   const char* live = reports_names_field("FATHERS", idx, 0);
-  return live ? live : k_ff_names[idx];
+  return live ? live : "";
 }
 
 /*
@@ -382,7 +260,7 @@ const char* reports_tribe_name(int t) {
     snprintf(live[t], sizeof(live[t]), "%s", field);
     return live[t];
   }
-  return k_tribe_names[t];
+  return "";
 }
 
 const char* reports_ff_display_name(int idx) {
@@ -395,7 +273,7 @@ const char* reports_ff_display_name(int idx) {
  * Congress debate builder indexes by @FATHERS type column.
  */
 static const char* k_ff_category_names[] = {
-  "Trade", "Exploration", "Military", "Political", "Religious", "Independence"
+  "", "", "", "", "", ""
 };
 
 const char* reports_ff_category_display_name(int type) {
@@ -462,8 +340,7 @@ const char* reports_nation_country_name(int nation) {
     return "";
   }
   return reports_names_or(
-    live[nation], sizeof(live[nation]), "COUNTRY", nation, 0, k_euro_country[nation]
-  );
+    live[nation], sizeof(live[nation]), "COUNTRY", nation, 0, "");
 }
 
 const char* reports_home_port_name(int nation) {
@@ -472,8 +349,7 @@ const char* reports_home_port_name(int nation) {
     return "";
   }
   return reports_names_or(
-    live[nation], sizeof(live[nation]), "HOMEPORT", nation, 0, k_home_ports[nation]
-  );
+    live[nation], sizeof(live[nation]), "HOMEPORT", nation, 0, "");
 }
 
 const char* reports_difficulty_title(int level) {
@@ -482,8 +358,7 @@ const char* reports_difficulty_title(int level) {
     return "?";
   }
   return reports_names_or(
-    live[level], sizeof(live[level]), "DIFFICULTY", level, 0, k_difficulty_titles[level]
-  );
+    live[level], sizeof(live[level]), "DIFFICULTY", level, 0, "");
 }
 
 /*
@@ -504,7 +379,7 @@ const char* reports_tribe_singular_name(int t) {
   if (t < 0 || t >= (int)COLONIZE_COL1_INDIAN_COUNT) {
     return "Tribe";
   }
-  return reports_names_or(live[t], sizeof(live[t]), "TRIBES", t, 1, k_tribe_singular[t]);
+  return reports_names_or(live[t], sizeof(live[t]), "TRIBES", t, 1, "");
 }
 
 /* Fortification chain name, tier 0 = Stockade. NAMES.TXT has no separate
@@ -517,7 +392,7 @@ const char* reports_season_name(bool autumn) {
   static char live[2][16];
   const int row = autumn ? 1 : 0;
   return reports_names_or(
-    live[row], sizeof(live[row]), "SEASONS", row, 0, autumn ? "Autumn" : "Spring"
+    live[row], sizeof(live[row]), "SEASONS", row, 0, ""
   );
 }
 
@@ -527,8 +402,7 @@ const char* reports_fort_tier_name(int tier) {
     return "";
   }
   return reports_names_or(
-    live[tier], sizeof(live[tier]), "BUILDING", tier, 0, k_fort_tier_names[tier]
-  );
+    live[tier], sizeof(live[tier]), "BUILDING", tier, 0, "");
 }
 
 /* Indian arms/mounts ladder, 0 = Braves … 3 = Mtd. Warriors (@UNIT rows
@@ -540,9 +414,7 @@ const char* reports_brave_ladder_name(int rank) {
     return "";
   }
   return reports_names_or(
-    live[rank], sizeof(live[rank]), "UNIT", REPORTS_UNIT_ROW_BRAVES + rank, 0,
-    k_brave_ladder_names[rank]
-  );
+    live[rank], sizeof(live[rank]), "UNIT", REPORTS_UNIT_ROW_BRAVES + rank, 0, "");
 }
 
 /* Europe dock immigrant type name, indexed by DOS dos_type 0..5 — which is
@@ -553,8 +425,7 @@ const char* reports_dock_type_name(int dos_type) {
     return "";
   }
   return reports_names_or(
-    live[dos_type], sizeof(live[dos_type]), "UNIT", dos_type, 0, k_dock_type_names[dos_type]
-  );
+    live[dos_type], sizeof(live[dos_type]), "UNIT", dos_type, 0, "");
 }
 
 /*
@@ -573,7 +444,7 @@ const char* reports_nation_adjective(int nation) {
     snprintf(live[nation], sizeof(live[nation]), "%s", field);
     return live[nation];
   }
-  return k_euro_short[nation];
+  return "";
 }
 
 /* NAMES.TXT @LEVELS column 0 (row = tech, capped 0..3). Own buffer for the
@@ -589,7 +460,7 @@ const char* reports_tribe_level(uint8_t tech) {
     snprintf(live[tech], sizeof(live[tech]), "%s", field);
     return live[tech];
   }
-  return k_tribe_levels[tech];
+  return "";
 }
 
 const char* reports_nation_adjective_display_name(int nation) {

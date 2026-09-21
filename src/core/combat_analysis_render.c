@@ -155,7 +155,7 @@ void combat_analysis_render(
   }
 
   /* LABELS.TXT @MISC row 75 "COMBAT ANALYSIS". */
-  const char* title = reports_misc_display_word(75, "COMBAT ANALYSIS");
+  const char* title = reports_misc_display_word(75, "");
   const int tw = font_text_width(font, title);
   popup_draw_text_shadowed(
     font, framebuffer, ix + (iw - tw) / 2, iy + 3, title, text_color

@@ -13,11 +13,11 @@
 
 static const char* k_category_labels[PEDIA_CAT_COUNT] = {
   "Cargo Types",
-  "Unit Types",
-  "Terrain Types",
-  "Colonist Skills",
-  "Colony Buildings",
-  "Founding Fathers",
+  "",
+  "",
+  "",
+  "",
+  "",
   "Miscellaneous"
 };
 
@@ -45,16 +45,16 @@ static const int k_category_counts[] = {
  * reference blurbs from the manual / GAME.TXT tutorials. */
 static const char* k_misc_titles[PEDIA_MISC_COUNT] = {
   "Disband",
-  "Fortify",
-  "Plowing",
-  "Roads",
-  "Sentry",
-  "Trade Route",
-  "Veteran Units",
-  "Prices",
-  "Taxes",
-  "Liberty Bells",
-  "Crosses",
+  "",
+  "",
+  "",
+  "",
+  "",
+  "",
+  "",
+  "",
+  "",
+  "",
   "Hammers"
 };
 
@@ -70,8 +70,7 @@ static const char* k_misc_bodies[PEDIA_MISC_COUNT] = {
   "cotton, and sugar yields by one. Plowing a forest clears it first, "
   "making room for agriculture.",
 
-  "Pioneers build roads with the R key. Roads speed movement and increase "
-  "fur, lumber, ore, and silver production in the square.",
+  "",
 
   /*
    * Wake-on-enemy-approach was invented here (smell #47) and is now gone.
@@ -576,7 +575,7 @@ bool pedia_page(
       break;
     }
     case PEDIA_CAT_TERRAIN:
-      snprintf(fallback, sizeof(fallback), "Terrain %d", index);
+      snprintf(fallback, sizeof(fallback), "#%d", index);
       break;
     default:
       break;
@@ -870,8 +869,8 @@ static void pedia_category_subtitle(
   const ColonizeMsgCatalog* pedia, PediaCategory cat, char* out, size_t out_size
 ) {
   static const char* k_fallback[PEDIA_CAT_COUNT] = {
-    "Cargo Type", "Unit Type", "Terrain Type", "Colonist Skill",
-    "Colony Building", "Founding Father", "Game Concept"
+    "", "", "", "",
+    "", "", ""
   };
   const int line = (int)cat;
   out[0] = '\0';
@@ -914,7 +913,7 @@ static void pedia_cargo_display_name(
   const ColonizeMsgCatalog* names, int cargo, char* out, size_t out_size
 ) {
   if (!assets_msg_row_field(names, "CARGO", cargo, 0, out, out_size)) {
-    snprintf(out, out_size, "Cargo %d", cargo);
+    snprintf(out, out_size, "#%d", cargo);
   }
 }
 
@@ -959,7 +958,7 @@ static void pedia_terrain_display_name(
     assets_msg_row_field(names, "OTHER", idx - 24, 0, out, out_size);
   }
   if (!out[0]) {
-    snprintf(out, out_size, "Terrain %d", idx);
+    snprintf(out, out_size, "#%d", idx);
   }
 }
 
@@ -1262,7 +1261,7 @@ static void pedia_cargo_row(
   if (cargo < 0) {
     sprite = 57; /* Fish */
     job = COLONIZE_PROF_FISHERMAN;
-    snprintf(name, sizeof(name), "%s", pedia_label(a->labels, 177, "Fish"));
+    snprintf(name, sizeof(name), "%s", pedia_label(a->labels, 177, ""));
   } else {
     pedia_cargo_display_name(a->names, cargo, name, sizeof(name));
   }
@@ -1282,7 +1281,7 @@ static void pedia_cargo_row(
     char expert[64];
     pedia_job_expert_name(a->names, job, expert, sizeof(expert));
     snprintf(
-      text, sizeof(text), "%s (%s %s)", name, pedia_label(a->labels, 178, "With"), expert
+      text, sizeof(text), "%s (%s %s)", name, pedia_label(a->labels, 178, ""), expert
     );
   } else {
     snprintf(text, sizeof(text), "%s", name);
@@ -1442,7 +1441,7 @@ static int pedia_article_unit(
     char expert[64];
     pedia_job_expert_name(a->names, expert_job, expert, sizeof(expert));
     snprintf(
-      line, sizeof(line), "%s (%s %s)", name, pedia_label(a->labels, 106, "and"), expert
+      line, sizeof(line), "%s (%s %s)", name, pedia_label(a->labels, 106, ""), expert
     );
   } else if (t == 11) {
     snprintf(
@@ -1450,8 +1449,8 @@ static int pedia_article_unit(
       sizeof(line),
       "%s (%s %s %s)",
       name,
-      pedia_label(a->labels, 106, "and"),
-      pedia_label(a->labels, 201, "Damaged"),
+      pedia_label(a->labels, 106, ""),
+      pedia_label(a->labels, 201, ""),
       name
     );
   } else {
@@ -1463,35 +1462,35 @@ static int pedia_article_unit(
   /* Stats line. */
   char stats[256];
   size_t used = (size_t)snprintf(
-    stats, sizeof(stats), "%s: %d", pedia_label(a->labels, 179, "Combat"), combat
+    stats, sizeof(stats), "%s: %d", pedia_label(a->labels, 179, ""), combat
   );
   if (t == 11) {
     used += (size_t)snprintf(
       stats + used,
       sizeof(stats) - used,
       "   (%s: +%d %s: -2)",
-      pedia_label(a->labels, 180, "Attack"),
+      pedia_label(a->labels, 180, ""),
       attack - combat,
-      pedia_label(a->labels, 201, "Damaged")
+      pedia_label(a->labels, 201, "")
     );
   } else if (t == 1 || t == 4) {
     used += (size_t)snprintf(
       stats + used,
       sizeof(stats) - used,
       "   (%s: %d)",
-      pedia_label(a->labels, 65, "Veteran"),
+      pedia_label(a->labels, 65, ""),
       attack * 3 / 2
     );
   }
   used += (size_t)snprintf(
-    stats + used, sizeof(stats) - used, "   %s: %d", pedia_label(a->labels, 182, "Moves"), movement
+    stats + used, sizeof(stats) - used, "   %s: %d", pedia_label(a->labels, 182, ""), movement
   );
   if (cargo != 0) {
     used += (size_t)snprintf(
       stats + used,
       sizeof(stats) - used,
       "   (%s: %d)",
-      pedia_label(a->labels, 181, "Cargo Holds"),
+      pedia_label(a->labels, 181, ""),
       cargo
     );
   }
@@ -1609,15 +1608,15 @@ static int pedia_article_terrain(
     font_draw_text(a->font, fb, x, y + 6, buf, PEDIA_COL_LINK_HOVER);
     x += font_text_width_skip(a->font, buf, FONT_SKIP_NONE);
 
-    const char* first = (j <= 3) ? pedia_label(a->labels, 183, "Plow")
-      : (j < 8) ? pedia_label(a->labels, 31, "Road")
-                : pedia_label(a->labels, 185, "Coast");
+    const char* first = (j <= 3) ? pedia_label(a->labels, 183, "")
+      : (j < 8) ? pedia_label(a->labels, 31, "")
+                : pedia_label(a->labels, 185, "");
     snprintf(
       buf,
       sizeof(buf),
       "    %s/%s: +%d",
       first,
-      pedia_label(a->labels, 184, "River"),
+      pedia_label(a->labels, 184, ""),
       1 + (j == 4) + (j == 5)
     );
     font_draw_text(a->font, fb, x, y + 6, buf, PEDIA_COL_LINK);
@@ -1630,7 +1629,7 @@ static int pedia_article_terrain(
       x += 18;
       char resname[48];
       if (res == 4) {
-        snprintf(resname, sizeof(resname), "%s", pedia_label(a->labels, 200, "Prime"));
+        snprintf(resname, sizeof(resname), "%s", pedia_label(a->labels, 200, ""));
       } else {
         assets_msg_row_field(a->names, "RESOURCE", res, 0, resname, sizeof(resname));
       }
@@ -1649,9 +1648,9 @@ static int pedia_article_terrain(
     }
 
     if (j == 0 || j == 8) {
-      snprintf(buf, sizeof(buf), "    %s: +3", pedia_label(a->labels, 4, "Expert"));
+      snprintf(buf, sizeof(buf), "    %s: +3", pedia_label(a->labels, 4, ""));
     } else {
-      snprintf(buf, sizeof(buf), "    %s: x2", pedia_label(a->labels, 4, "Expert"));
+      snprintf(buf, sizeof(buf), "    %s: x2", pedia_label(a->labels, 4, ""));
     }
     font_draw_text(a->font, fb, x, y + 6, buf, PEDIA_COL_LINK);
     y += 16;
@@ -1663,9 +1662,9 @@ static int pedia_article_terrain(
       buf,
       sizeof(buf),
       "%s: %d    %s: +%d%%",
-      pedia_label(a->labels, 186, "Move Cost"),
+      pedia_label(a->labels, 186, ""),
       move_cost,
-      pedia_label(a->labels, 187, "Defense or Ambush Bonus"),
+      pedia_label(a->labels, 187, ""),
       defense * 25
     );
     font_draw_text(a->font, fb, 63, y + 6, buf, PEDIA_COL_LINK);
@@ -1753,7 +1752,7 @@ static int pedia_article_job(
     pedia_blit(a->icons, cargo_sprite, fb, prod_x, icon_y + 2);
     char cname[64];
     if (job == COLONIZE_PROF_FISHERMAN) {
-      snprintf(cname, sizeof(cname), "%s", pedia_label(a->labels, 177, "Fish"));
+      snprintf(cname, sizeof(cname), "%s", pedia_label(a->labels, 177, ""));
     } else {
       pedia_cargo_display_name(a->names, cargo_name_id, cname, sizeof(cname));
     }
@@ -1829,7 +1828,7 @@ static int pedia_article_building(
     char buf[128];
     assets_msg_row_field(a->names, "BUILDING", prereq, 0, pname, sizeof(pname));
     snprintf(
-      buf, sizeof(buf), "%s: %s", pedia_label(a->labels, 188, "Prerequisite"), pname
+      buf, sizeof(buf), "%s: %s", pedia_label(a->labels, 188, ""), pname
     );
     font_draw_text(a->font, fb, 10, y, buf, PEDIA_COL_LINK);
     y += 20;

@@ -934,52 +934,26 @@ static int case_post_free_fallback(void) {
   reports_free(&g_view);
   g_view_ready = 0;
 
+  /*
+   * No built-in copy exists behind these accessors: the port compiles none of
+   * the game's wording, so once the catalogs are gone every name is the empty
+   * string (and must never be stale or NULL).
+   */
   int rc = 0;
-  if (strcmp(reports_ff_display_name(0), "Adam Smith") != 0) {
-    fprintf(
-      stderr, "FF 0 after reports_free want 'Adam Smith' got '%s'\n", reports_ff_display_name(0)
-    );
-    rc = 1;
-  }
-  if (rc == 0 && strcmp(reports_job_display_name(0), "Expert Farmers") != 0) {
-    fprintf(
-      stderr,
-      "job 0 after reports_free want 'Expert Farmers' got '%s'\n",
-      reports_job_display_name(0)
-    );
-    rc = 1;
-  }
-  if (rc == 0 && strcmp(reports_cargo_display_name(0), "Food") != 0) {
-    fprintf(
-      stderr, "cargo 0 after reports_free want 'Food' got '%s'\n", reports_cargo_display_name(0)
-    );
-    rc = 1;
-  }
-  if (rc == 0 && strcmp(reports_tribe_display_name(0), "Incas") != 0) {
-    fprintf(
-      stderr, "tribe 0 after reports_free want 'Incas' got '%s'\n", reports_tribe_display_name(0)
-    );
-    rc = 1;
-  }
-  if (rc == 0 && strcmp(reports_nation_adjective_display_name(0), "English") != 0) {
-    fprintf(
-      stderr,
-      "nation 0 after reports_free want 'English' got '%s'\n",
-      reports_nation_adjective_display_name(0)
-    );
-    rc = 1;
-  }
-  if (rc == 0 && strcmp(reports_tribe_level_display_name(0), "Semi-Nomadic") != 0) {
-    fprintf(
-      stderr,
-      "level 0 after reports_free want 'Semi-Nomadic' got '%s'\n",
-      reports_tribe_level_display_name(0)
-    );
-    rc = 1;
-  }
-  if (rc == 0 && strcmp(reports_misc_display_word(86, "Rebels"), "Rebels") != 0) {
-    fprintf(stderr, "misc word 86 after reports_free should fall back to 'Rebels'\n");
-    rc = 1;
+  const char* got[] = {
+    reports_ff_display_name(0),
+    reports_job_display_name(0),
+    reports_cargo_display_name(0),
+    reports_tribe_display_name(0),
+    reports_nation_adjective_display_name(0),
+    reports_tribe_level_display_name(0),
+    reports_misc_display_word(86, ""),
+  };
+  for (size_t i = 0; i < sizeof(got) / sizeof(got[0]); ++i) {
+    if (!got[i] || got[i][0] != '\0') {
+      fprintf(stderr, "accessor %zu after reports_free want \"\" got '%s'\n", i, got[i] ? got[i] : "(null)");
+      rc = 1;
+    }
   }
 
   /* Restore the shared view/globals so any case running after this one

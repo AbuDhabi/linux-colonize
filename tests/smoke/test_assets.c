@@ -37,8 +37,8 @@ static int setup(ColonizeMsgCatalog* catalog, const ColonizeMsgSection** section
         "@BEGINMENU\r\n"
         "@width=160\r\n"
         "@options\r\n"
-        "Start a Game in NEW WORLD\r\n"
-        "LOAD Game\r\n"
+        "Menu Option New\r\n"
+        "Menu Option Load\r\n"
       )) {
     return 0;
   }

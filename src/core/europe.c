@@ -306,16 +306,16 @@ static void europe_disembark_passengers_to_dock(
     const int tag = ship->cargo_types[i];
     const int prof = ship->cargo_professions[i];
     if (tag == -2) {
-      snprintf(name, sizeof(name), "%s", "Artillery");
+      snprintf(name, sizeof(name), "%s", "");
     } else if (units) {
       const ColonizeUnitType* ut = units_type(units, tag);
       if (ut && ut->name[0]) {
         snprintf(name, sizeof(name), "%s", ut->name);
       } else {
-        snprintf(name, sizeof(name), "%s", "Free Colonists");
+        snprintf(name, sizeof(name), "%s", "");
       }
     } else {
-      snprintf(name, sizeof(name), "%s", "Free Colonists");
+      snprintf(name, sizeof(name), "%s", "");
     }
     /* Passengers keep sentry ("board next") — same convention as aboard ship. */
     if (!europe_dock_push_front(eu, name, prof, true)) {
@@ -407,33 +407,20 @@ void europe_init_purchase_table(EuropeScreen* eu) {
  * Planters, Expert Fur Trappers, Expert Teachers, Veteran Dragoons) are
  * deliberately absent — see europe_pool_remap.
  */
-typedef struct EuropePoolCand {
-  const char* name;
-  int profession;
-} EuropePoolCand;
-
-static const EuropePoolCand k_pool_cands[] = {
-  {"Petty Criminals", 26},
-  {"Indentured Servants", 25},
-  {"Free Colonists", 19},
-  {"Expert Farmers", 0},
-  {"Expert Lumberjacks", 5},
-  {"Expert Ore Miners", 6},
-  {"Expert Silver Miners", 7},
-  {"Expert Fishermen", 8},
-  {"Master Distiller", 9},
-  {"Master Tobacconists", 10},
-  {"Master Weavers", 11},
-  {"Master Fur Traders", 12},
-  {"Master Carpenters", 13},
-  {"Master Blacksmiths", 14},
-  {"Master Gunsmiths", 15},
-  {"Firebrand Preachers", 16},
-  {"Elder Statesmen", 17},
-  {"Hardy Pioneers", 20},
-  {"Veteran Soldiers", 21},
-  {"Seasoned Scouts", 22},
-  {"Jesuit Missionaries", 24},
+/*
+ * @JOB ids only — no display text lives here (audit SC-13). The name
+ * column this table used to carry (Petty Criminals=26, Indentured
+ * Servants=25, Free Colonists=19, Expert Farmers=0, Expert Lumberjacks=5,
+ * Expert Ore Miners=6, Expert Silver Miners=7, Expert Fishermen=8, Master
+ * Distiller=9, Master Tobacconists=10, Master Weavers=11, Master Fur
+ * Traders=12, Master Carpenters=13, Master Blacksmiths=14, Master
+ * Gunsmiths=15, Firebrand Preachers=16, Elder Statesmen=17, Hardy
+ * Pioneers=20, Veteran Soldiers=21, Seasoned Scouts=22, Jesuit
+ * Missionaries=24) was dead: nothing ever read it, and
+ * reports_job_display_name (NAMES.TXT @JOB column 1) is the live source.
+ */
+static const int k_pool_cands[] = {
+  26, 25, 19, 0, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 20, 21, 22, 24,
 };
 
 /* @JOB id of Free Colonists — the pool's "nothing special here" value and
@@ -443,7 +430,7 @@ static const EuropePoolCand k_pool_cands[] = {
 /* Slot in k_pool_cands, or -1 when this @JOB id cannot appear in the pool. */
 static int europe_pool_cand_index(int profession) {
   for (size_t i = 0; i < sizeof(k_pool_cands) / sizeof(k_pool_cands[0]); ++i) {
-    if (k_pool_cands[i].profession == profession) {
+    if (k_pool_cands[i] == profession) {
       return (int)i;
     }
   }
@@ -1056,9 +1043,14 @@ void europe_set_nation(EuropeScreen* eu, int nation, const ColonizeMsgCatalog* n
    * now (audit SC-6/SC-7). The `names` catalog handed in here is read first
    * when it has the section — it is the *caller's* catalog, which may be a
    * different one from reports_load's. */
-  static const char* k_regions[4] = {
-    "New England", "New France", "New Spain", "New Netherlands"
-  };
+  /* NAMES.TXT @COLONYNAME through the shared sim-side parse, for callers
+   * that hand in no catalog of their own. Copied at once: the accessor's
+   * scratch buffer is reused by the next name lookup. */
+  char shared_region[48];
+  {
+    const char* r = reports_names_field("COLONYNAME", nation < 0 || nation > 3 ? 0 : nation, 0);
+    snprintf(shared_region, sizeof(shared_region), "%s", r ? r : "");
+  }
   if (!eu) {
     return;
   }
@@ -1087,14 +1079,14 @@ void europe_set_nation(EuropeScreen* eu, int nation, const ColonizeMsgCatalog* n
       if (line[0] && line[0] != ';') {
         str_copy_trunc(eu->colony_region, sizeof(eu->colony_region), line);
       } else {
-        str_copy_trunc(eu->colony_region, sizeof(eu->colony_region), k_regions[nation]);
+        str_copy_trunc(eu->colony_region, sizeof(eu->colony_region), shared_region);
       }
     } else {
-      str_copy_trunc(eu->colony_region, sizeof(eu->colony_region), k_regions[nation]);
+      str_copy_trunc(eu->colony_region, sizeof(eu->colony_region), shared_region);
     }
   } else {
     str_copy_trunc(eu->port_city, sizeof(eu->port_city), reports_home_port_name(nation));
-    str_copy_trunc(eu->colony_region, sizeof(eu->colony_region), k_regions[nation]);
+    str_copy_trunc(eu->colony_region, sizeof(eu->colony_region), shared_region);
   }
   str_copy_trunc(eu->nation_name, sizeof(eu->nation_name), reports_nation_country_name(nation));
   /* FUN_38fd_0000(nation): DS:0x9e12 = nation, DS:0x84fc = its record
@@ -1615,7 +1607,7 @@ int europe_dock_display_type_index(
   }
   int ti = -1;
   if (strcmp(d->name, "Artillery") == 0) {
-    ti = units_find_type(units, "Artillery");
+    ti = units_kind_type_index(units, UNITS_KIND_ARTILLERY);
   }
   if (ti < 0) {
     ti = europe_dock_unit_type_index(units, d->dos_type);
@@ -1624,7 +1616,7 @@ int europe_dock_display_type_index(
     ti = units_find_type(units, d->name);
   }
   if (ti < 0) {
-    ti = units_find_type(units, "Colonists");
+    ti = units_kind_type_index(units, UNITS_KIND_COLONIST);
   }
   return ti;
 }
@@ -1705,7 +1697,7 @@ int europe_spawn_dock_mirror_unit(
   const int dos_type = europe_dock_unit_dos_type(profession, difficulty, human, rng);
   int ti = europe_dock_unit_type_index(units, dos_type);
   if (ti < 0) {
-    ti = units_find_type(units, "Colonists");
+    ti = units_kind_type_index(units, UNITS_KIND_COLONIST);
   }
   const int id = units_spawn_allow_stack(units, ti >= 0 ? ti : 0, 236, 236);
   ColonizeUnit* u = units_get(units, id);
@@ -1908,16 +1900,16 @@ void europe_build_dock_menu(
   /* GAME.TXT @ARMOPTIONS verbatim, for a build with no catalog loaded. */
   static const char* const k_fallback[EUROPE_DOCK_MENU_MAX] = {
     "Don't get on next ship.",
-    "Board next ship.",
-    "Move to front of dock.",
-    "Arm with {Muskets} (costs {%NUMBER0$}).",
+    "",
+    "",
+    "",
     "Sell {Muskets} (save {%NUMBER0$}).",
-    "Equip with {Tools} (costs {%NUMBER1$}).",
+    "",
     "Sell {Tools} (save {%NUMBER1$}).",
-    "Equip with {Horses} (costs {%NUMBER2$}).",
+    "",
     "Sell {Horses} (save {%NUMBER2$}).",
-    "Bless as {Missionaries}.",
-    "Cancel {Missionary} Status.",
+    "",
+    "",
     "No changes."
   };
   const ColonizeMsgSection* sec =
@@ -3686,7 +3678,7 @@ int europe_buyback_boycott(
   }
   const int cost = price * 500;
   if (eu->gold < cost) {
-    snprintf(eu->status, sizeof(eu->status), "Unfortunately, we only have %d$ available.", eu->gold);
+    snprintf(eu->status, sizeof(eu->status), "", eu->gold);
     return 0;
   }
   europe_purse_move(eu, col1, human_nation, -cost);
@@ -3792,12 +3784,12 @@ static void europe_push_sale_status(EuropeScreen* eu, int cargo_type, int amount
     "%d %s %s %d. %d%s %d%s %d",
     amount,
     cname,
-    europe_label(eu, "CMESSAGE", 1, "sold for"),
+    europe_label(eu, "CMESSAGE", 1, ""),
     gross,
     eu->tax_percent,
-    europe_label(eu, "CMESSAGE", 0x11, "% Tax:"),
+    europe_label(eu, "CMESSAGE", 0x11, ""),
     tax_paid < 0 ? 0 : tax_paid,
-    europe_label(eu, "CMESSAGE", 0x12, ". Net:"),
+    europe_label(eu, "CMESSAGE", 0x12, ""),
     net
   );
   eu->bar_event_count++;
@@ -4035,7 +4027,7 @@ int europe_custom_house_autosell_ex_w(
   if (!eu || !pool || !colony || !colony->active) {
     return 0;
   }
-  const int ch_id = colonies_find_building(pool, "Custom House");
+  const int ch_id = colonies_building_row(pool, COLONY_BUILDING_CUSTOM_HOUSE);
   if (ch_id < 0 || ch_id >= COLONIZE_BUILDING_TYPES_MAX || !colony->has_building[ch_id]) {
     return 0;
   }
@@ -4624,11 +4616,11 @@ static int europe_ship_icon_sprite(const ColonizeUnitPool* units, const EuropeHa
 
 int europe_pax_type_index(const ColonizeUnitPool* units, int tag) {
   if (tag == -2) {
-    const int t = units_find_type(units, "Artillery");
+    const int t = units_kind_type_index(units, UNITS_KIND_ARTILLERY);
     return t >= 0 ? t : 0;
   }
   if (!units || tag < 0 || tag >= units->type_count) {
-    const int t = units_find_type(units, "Colonists");
+    const int t = units_kind_type_index(units, UNITS_KIND_COLONIST);
     return t >= 0 ? t : 0;
   }
   return tag;
@@ -5118,7 +5110,7 @@ int europe_dock_icon_sprite(const ColonizeUnitPool* units, const EuropeDockImmig
     return -1;
   }
   if (strcmp(d->name, "Artillery") == 0) {
-    const int ti = units_find_type(units, "Artillery");
+    const int ti = units_kind_type_index(units, UNITS_KIND_ARTILLERY);
     const ColonizeUnitType* ut = units_type(units, ti);
     return ut ? ut->icon_sprite : -1;
   }
@@ -5165,7 +5157,7 @@ int europe_dock_icon_sprite(const ColonizeUnitPool* units, const EuropeDockImmig
   }
   int ti = units_find_type(units, d->name);
   if (ti < 0) {
-    ti = units_find_type(units, "Colonists");
+    ti = units_kind_type_index(units, UNITS_KIND_COLONIST);
   }
   if (ti < 0) {
     return -1;

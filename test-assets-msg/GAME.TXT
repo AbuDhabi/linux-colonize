@@ -2,5 +2,5 @@
 @BEGINMENU
 @width=160
 @options
-Start a Game in NEW WORLD
-LOAD Game
+Menu Option New
+Menu Option Load

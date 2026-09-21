@@ -66,9 +66,9 @@ bool map_panel_load(MapPanel* panel, const char* data_dir, const ColonizeMsgCata
     return false;
   }
   memset(panel, 0, sizeof(*panel));
-  str_copy_trunc(panel->label_moves, sizeof(panel->label_moves), "Moves:");
-  str_copy_trunc(panel->label_locat, sizeof(panel->label_locat), "Locat:");
-  str_copy_trunc(panel->label_with, sizeof(panel->label_with), "With:");
+  str_copy_trunc(panel->label_moves, sizeof(panel->label_moves), "");
+  str_copy_trunc(panel->label_locat, sizeof(panel->label_locat), "");
+  str_copy_trunc(panel->label_with, sizeof(panel->label_with), "");
 
   if (labels) {
     const ColonizeMsgSection* info = assets_msg_find(labels, "INFO");
@@ -1377,7 +1377,7 @@ void map_panel_render_w(
         );
         map_panel_draw_line(font, framebuffer, text_x, &text_y, line_h, y_limit, line, MAP_PANEL_COL_TEXT);
       } else if (tribe) {
-        snprintf(line, sizeof(line), "%s Land", map_panel_tribe_short(tribe->nation_id));
+        snprintf(line, sizeof(line), "", map_panel_tribe_short(tribe->nation_id));
         map_panel_draw_line(font, framebuffer, text_x, &text_y, line_h, y_limit, line, MAP_PANEL_COL_TEXT);
       } else {
         const char* wild = "Wilderness";
@@ -1472,9 +1472,9 @@ void map_panel_render_w(
       const ColonizeColony* col = colonies_get(colonies, cid);
       if (col && col->active && text_y + MAP_PANEL_ROW_H <= y_limit) {
         int colony_icon = MAP_PANEL_COLONY_ICON_NONE;
-        const int fortress = colonies_find_building(colonies, "Fortress");
-        const int fort = colonies_find_building(colonies, "Fort");
-        const int stockade = colonies_find_building(colonies, "Stockade");
+        const int fortress = colonies_building_row(colonies, COLONY_BUILDING_FORTRESS);
+        const int fort = colonies_building_row(colonies, COLONY_BUILDING_FORT);
+        const int stockade = colonies_building_row(colonies, COLONY_BUILDING_STOCKADE);
         if (fortress >= 0 && col->has_building[fortress]) {
           colony_icon = 2;
         } else if (fort >= 0 && col->has_building[fort]) {

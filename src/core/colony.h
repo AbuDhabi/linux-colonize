@@ -58,6 +58,9 @@ typedef struct AiPopupState AiPopupState;
 
 typedef struct ColonizeBuildingType {
   char name[40];
+  /* NAMES.TXT @BUILDING row + 1 (== ColonizeBuildingRow + 1); 0 = not
+   * stamped. The row identifies a building; the name is display text only. */
+  int row_plus1;
   int hammers;
   int tools_cost;
   int min_population;
@@ -564,6 +567,89 @@ int colonies_found_with_indian_land_w(
 const ColonizeColony* colonies_get(const ColonizeColonyPool* pool, int colony_id);
 ColonizeColony* colonies_get_mut(ColonizeColonyPool* pool, int colony_id);
 int colonies_id_at(const ColonizeColonyPool* pool, int x, int y);
+/*
+ * NAMES.TXT @BUILDING row indices. The order is DOS's own (the colony
+ * building bitfield is indexed by it — see docs/save_format_map.md), so the
+ * row number, not the English name, is the stable identifier. Use these with
+ * colonies_building_row instead of colonies_find_building(pool, "Fortress"):
+ * the port keeps no MicroProse names in the binary, and a renamed row must
+ * still resolve.
+ */
+typedef enum ColonizeBuildingRow {
+  COLONY_BUILDING_STOCKADE = 0,
+  COLONY_BUILDING_FORT = 1,
+  COLONY_BUILDING_FORTRESS = 2,
+  COLONY_BUILDING_ARMORY = 3,
+  COLONY_BUILDING_MAGAZINE = 4,
+  COLONY_BUILDING_ARSENAL = 5,
+  COLONY_BUILDING_DOCKS = 6,
+  COLONY_BUILDING_DRYDOCK = 7,
+  COLONY_BUILDING_SHIPYARD = 8,
+  COLONY_BUILDING_TOWN_HALL = 9,
+  COLONY_BUILDING_TOWN_HALL_2 = 10,
+  COLONY_BUILDING_TOWN_HALL_3 = 11,
+  COLONY_BUILDING_SCHOOLHOUSE = 12,
+  COLONY_BUILDING_COLLEGE = 13,
+  COLONY_BUILDING_UNIVERSITY = 14,
+  COLONY_BUILDING_WAREHOUSE = 15,
+  COLONY_BUILDING_WAREHOUSE_EXPANSION = 16,
+  COLONY_BUILDING_STABLE = 17,
+  COLONY_BUILDING_CUSTOM_HOUSE = 18,
+  COLONY_BUILDING_PRINTING_PRESS = 19,
+  COLONY_BUILDING_NEWSPAPER = 20,
+  COLONY_BUILDING_WEAVERS_HOUSE = 21,
+  COLONY_BUILDING_WEAVERS_SHOP = 22,
+  COLONY_BUILDING_TEXTILE_MILL = 23,
+  COLONY_BUILDING_TOBACCONISTS_HOUSE = 24,
+  COLONY_BUILDING_TOBACCONISTS_SHOP = 25,
+  COLONY_BUILDING_CIGAR_FACTORY = 26,
+  COLONY_BUILDING_RUM_DISTILLERS_HOUSE = 27,
+  COLONY_BUILDING_RUM_DISTILLERY = 28,
+  COLONY_BUILDING_RUM_FACTORY = 29,
+  COLONY_BUILDING_CAPITOL = 30,
+  COLONY_BUILDING_CAPITOL_EXPANSION = 31,
+  COLONY_BUILDING_FUR_TRADERS_HOUSE = 32,
+  COLONY_BUILDING_FUR_TRADING_POST = 33,
+  COLONY_BUILDING_FUR_FACTORY = 34,
+  COLONY_BUILDING_CARPENTERS_SHOP = 35,
+  COLONY_BUILDING_LUMBER_MILL = 36,
+  COLONY_BUILDING_CHURCH = 37,
+  COLONY_BUILDING_CATHEDRAL = 38,
+  COLONY_BUILDING_BLACKSMITHS_HOUSE = 39,
+  COLONY_BUILDING_BLACKSMITHS_SHOP = 40,
+  COLONY_BUILDING_IRON_WORKS = 41
+} ColonizeBuildingRow;
+
+/* Pool slot of @BUILDING `row`, or -1 when the pool does not carry it. */
+int colonies_building_row(const ColonizeColonyPool* pool, ColonizeBuildingRow row);
+/*
+ * @BUILDING row for a building NAME read from the catalog (exact match against
+ * the names the last colonies_load_building_types call saw; a fixture-built
+ * pool resolves through the test-only hook below). This is how code that is
+ * handed a name asks "which building is this?" without the port carrying any
+ * building names of its own. -1 when unknown.
+ */
+int colonies_building_name_row(const char* name);
+/* True when `col` owns @BUILDING `row`. */
+bool colonies_has_building_row(
+  const ColonizeColonyPool* pool, const ColonizeColony* col, ColonizeBuildingRow row
+);
+
+/* @BUILDING row of a pool slot, or -1. */
+int colonies_building_type_row(const ColonizeColonyPool* pool, int type_index);
+/* Test-only seam, same purpose as units_set_name_kind_resolver: fixtures that
+ * build a pool out of names get their rows from tests/common. */
+typedef int (*ColoniesBuildingNameRowResolver)(const char* name);
+void colonies_set_building_name_row_resolver(ColoniesBuildingNameRowResolver fn);
+typedef const char* (*ColoniesBuildingRowNameResolver)(int row);
+void colonies_set_building_row_name_resolver(ColoniesBuildingRowNameResolver fn);
+/* The catalog's own spelling of @BUILDING `row` ("" when unknown). */
+const char* colonies_building_row_name(int row);
+/* A chain as @BUILDING rows, lowest tier first, -1 terminated. */
+const int* colonies_building_chain_rows(int chain);
+/* Chain a @BUILDING row belongs to, or -1. */
+int colonies_building_row_chain(int row);
+
 const ColonizeBuildingType* colonies_building_type(const ColonizeColonyPool* pool, int type_index);
 
 /* Manual ch. 6 "Colonies" / building_production.md: at most 3 colonists per

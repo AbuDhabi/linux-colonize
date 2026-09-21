@@ -29,9 +29,9 @@ static const char* k_data_dir = "./test-assets-hof";
 static const char* k_save_dir = "./test-saves-hof";
 static char k_hof_path[512];
 
-/* Move DOWN to the "View Hall of Fame" option (index 3) and activate it. */
+/* Move DOWN to the Hall of Fame row (@BEGINMENU row 4) and activate it. */
 static bool open_hall_of_fame(ColonizeGameState* game) {
-  for (int i = 0; i < 3; ++i) {
+  for (int i = 0; i < 4; ++i) {
     if (!test_assets_step(game, COLONIZE_KEY_DOWN)) return false;
   }
   return test_assets_step(game, COLONIZE_KEY_ENTER);

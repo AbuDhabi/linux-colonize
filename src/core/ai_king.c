@@ -214,6 +214,7 @@ int ai_king_pick_dump_goods_cargo(
  * Returns 1 if any bit set. Cite: king_ref refuse/holds chrome; Fugger partial
  * clear may leave a subset of bits while market_demand_pool_raw[2] still holds.
  */
+static const char* ai_king_merc_unit_name(const ColonizeUnitPool* units, ColonizeUnitKind kind);
 static int ai_king_format_boycott_cargos(char* buf, size_t buf_size, uint16_t bitmap) {
   if (!buf || buf_size == 0) {
     return 0;
@@ -773,19 +774,11 @@ static void ai_king_1d42_royal_purse(ColonizeTurnContext* ctx) {
     k = 2; /* Man-O-War short of a tenth of the land force */
   }
   f[k]++;
-  static const char* k_pool_name[4] = {"Regulars", "Cavalry", "Man-O-War", "Artillery"};
-  /* NAMES.TXT @UNIT live lookup for display text; k_pool_name[] stays the
-   * lookup key and the fallback when the catalog entry is missing. */
-  const char* k_pool_display = k_pool_name[k];
-  if (ctx->units) {
-    int disp_ty = units_find_type(ctx->units, k_pool_name[k]);
-    if (disp_ty >= 0) {
-      const ColonizeUnitType* disp_type = units_type(ctx->units, disp_ty);
-      if (disp_type && disp_type->name[0]) {
-        k_pool_display = disp_type->name;
-      }
-    }
-  }
+  static const ColonizeUnitKind k_pool_kind[4] = {
+    UNITS_KIND_REGULAR, UNITS_KIND_CAVALRY, UNITS_KIND_MAN_O_WAR, UNITS_KIND_ARTILLERY
+  };
+  /* Display text is the catalog's own @UNIT name for that row. */
+  const char* k_pool_display = ai_king_merc_unit_name(ctx->units, k_pool_kind[k]);
   if (ctx->status && ctx->status_size && ctx->status[0] == '\0') {
     snprintf(ctx->status, ctx->status_size,
              "King increases military spending. %s added to royal expeditionary force.",
@@ -800,8 +793,7 @@ static void ai_king_1d42_royal_purse(ColonizeTurnContext* ctx) {
       ctx->messages,
       "KINGBUY",
       &tok,
-      "King increases military spending.  %STRING0 added to royal "
-      "expeditionary force.  Colonial leaders express alarm.",
+      "",
       body,
       sizeof(body)
     );
@@ -1615,7 +1607,7 @@ static void ai_king_tax_hike_apply(
       ctx->messages,
       section,
       &tok,
-      "The King raises taxes. Kiss pinky ring, or hold a tea party and boycott a good?",
+      "",
       body,
       sizeof(body)
     );
@@ -2046,9 +2038,7 @@ static void ai_king_do_declare(ColonizeTurnContext* ctx, int human) {
       ctx->messages,
       "INDEPENDENCE",
       &letter_tok,
-      "Continental Congress signs Declaration of Independence! "
-      "Abuses and usurpations cited! Ultimatum presented to King! "
-      "Expeditionary force dispatched to suppress rebellion!",
+      "",
       letter,
       sizeof(letter)
     );
@@ -2529,7 +2519,7 @@ COLONIZE_INTERNAL void ai_king_0982_purge_tile(ColonizeTurnContext* ctx, int cro
         char body[AI_POPUP_BODY_LEN];
         popup_msg_fill(
           ctx->messages, sea ? "SEIZURESEA" : "SEIZURELAND", &tok,
-          "The Royal Expeditionary Force has seized our %STRING0!", body, sizeof(body)
+          "", body, sizeof(body)
         );
         (void)ai_popup_enqueue_ok_ctx(
           ctx->ai_popups, AI_POPUP_TAG_INFO, ctx->human_nation, crown, 0, NULL, body
@@ -2561,11 +2551,17 @@ COLONIZE_INTERNAL int ai_king_0982_crown_mow_alive(const ColonizeTurnContext* ct
 COLONIZE_INTERNAL int ai_king_0982_spawn_pool_unit(ColonizeTurnContext* ctx, int crown, int k, int x, int y) {
   /* bugs.md: the REF fields Regulars and CAVALRY (@UNIT 8) — not colonial
    * Dragoons; pool[1] is the Cavalry pool. */
-  static const char* names[4] = {"Regulars", "Cavalry", "Man-O-War", "Artillery"};
-  static const char* alts[4] = {"Soldiers", "Dragoons", "Galleon", "Cannon"};
-  int ty = units_find_type(ctx->units, names[k]);
+  /* @UNIT rows, not names: 6 Regulars / 8 Cavalry / 18 Man-O-War / 11
+   * Artillery, with the colonial stand-ins for a pool that lacks a row. */
+  static const ColonizeUnitKind kinds[4] = {
+    UNITS_KIND_REGULAR, UNITS_KIND_CAVALRY, UNITS_KIND_MAN_O_WAR, UNITS_KIND_ARTILLERY
+  };
+  static const ColonizeUnitKind alts[4] = {
+    UNITS_KIND_SOLDIER, UNITS_KIND_DRAGOON, UNITS_KIND_GALLEON, UNITS_KIND_ARTILLERY
+  };
+  int ty = units_kind_type_index(ctx->units, kinds[k]);
   if (ty < 0) {
-    ty = units_find_type(ctx->units, alts[k]);
+    ty = units_kind_type_index(ctx->units, alts[k]);
   }
   if (ty < 0) {
     return -1;
@@ -2693,8 +2689,8 @@ static void ai_king_ref_tory_uprising(ColonizeTurnContext* ctx, int crown, int h
   }
   ColonizeCol1Colony* c = &ctx->col1->colony[best_ci];
   c->flags.ref_landing = 1;
-  const int soldier_ty = units_find_type(ctx->units, "Soldier");
-  const int dragoon_ty = units_find_type(ctx->units, "Dragoon");
+  const int soldier_ty = units_kind_type_index(ctx->units, UNITS_KIND_SOLDIER);
+  const int dragoon_ty = units_kind_type_index(ctx->units, UNITS_KIND_DRAGOON);
   int remaining = best_score;
   int spawned = 0;
   bool any_pass = true;
@@ -3081,9 +3077,9 @@ COLONIZE_INTERNAL void ai_king_0982_invasion(struct ai_king_0982_ctx* w) {
     if (best > 0) {
       ai_king_0982_purge_tile(ctx, crown, lx, ly);
       force[2]--;
-      int ship_ty = units_find_type(ctx->units, "Man-O-War");
+      int ship_ty = units_kind_type_index(ctx->units, UNITS_KIND_MAN_O_WAR);
       if (ship_ty < 0) {
-        ship_ty = units_find_type(ctx->units, "Galleon");
+        ship_ty = units_kind_type_index(ctx->units, UNITS_KIND_GALLEON);
       }
       const int sid = ship_ty >= 0 ? units_spawn_allow_stack(ctx->units, ship_ty, lx, ly) : -1;
       ColonizeUnit* ship = units_get(ctx->units, sid);
@@ -3229,23 +3225,19 @@ static void ai_king_ref_wave(ColonizeTurnContext* ctx) {
 COLONIZE_INTERNAL int ai_king_10f0_spawn_unit(
   ColonizeTurnContext* ctx, int human, int k, int x, int y
 ) {
-  static const char* names[4][4] = {
-    {"Cont. Army", "Continental Army", "Regular", "Soldier"},
-    {"Cont. Cav.", "Continental Cavalry", "Dragoon", "Scout"},
-    {"Man-O-War", "Frigate", NULL, NULL},
-    {"Artillery", NULL, NULL, NULL},
+  static const int names[4][4] = {
+    {UNITS_KIND_CONT_ARMY, UNITS_KIND_REGULAR, UNITS_KIND_SOLDIER, -1},
+    {UNITS_KIND_CONT_CAV, UNITS_KIND_DRAGOON, UNITS_KIND_SCOUT, -1},
+    {UNITS_KIND_MAN_O_WAR, UNITS_KIND_FRIGATE, -1, -1},
+    {UNITS_KIND_ARTILLERY, -1, -1, -1},
   };
-  static const char* peace_names[2] = {"Dragoons", "Dragoon"};
   /* DOS-LITERAL FUN_43f7_0082 raw 73519-73543: for k 0/1 the FIRST test is
    * `nation > 3 || player[nation].control != 0` → Regulars (6) / Cavalry (8);
    * only a control==0 slot reaches the woi term, which yields Cont. Army (9) /
    * Cont. Cav. (7) after the declaration and Dragoons (4) before it. The port
    * ignored `human` entirely and handed Continentals to REF/AI nations
    * (bugs.md #505). */
-  static const char* crown_names[2][2] = {
-    {"Regulars", "Regular"},
-    {"Cavalry", "Cavalry"},
-  };
+  static const ColonizeUnitKind crown_kinds[2] = {UNITS_KIND_REGULAR, UNITS_KIND_CAVALRY};
   if (!ctx || !ctx->units || k < 0 || k > 3) {
     return -1;
   }
@@ -3255,20 +3247,16 @@ COLONIZE_INTERNAL int ai_king_10f0_spawn_unit(
       (human < 0 || human > 3 ||
        (ctx->col1_ok && ctx->col1 && ctx->col1->player[human].control != 0));
     if (not_player) {
-      for (int i = 0; i < 2 && ty < 0; ++i) {
-        ty = units_find_type(ctx->units, crown_names[k][i]);
-      }
+      ty = units_kind_type_index(ctx->units, crown_kinds[k]);
       if (ty < 0) {
         return -1;
       }
     } else if (ctx->col1_ok && ctx->col1 && !ai_king_independence_declared(ctx->col1)) {
-      for (int i = 0; i < 2 && ty < 0; ++i) {
-        ty = units_find_type(ctx->units, peace_names[i]);
-      }
+      ty = units_kind_type_index(ctx->units, UNITS_KIND_DRAGOON);
     }
   }
-  for (int i = 0; i < 4 && ty < 0 && names[k][i]; ++i) {
-    ty = units_find_type(ctx->units, names[k][i]);
+  for (int i = 0; i < 4 && ty < 0 && names[k][i] >= 0; ++i) {
+    ty = units_kind_type_index(ctx->units, (ColonizeUnitKind)names[k][i]);
   }
   if (ty < 0) {
     return -1;
@@ -3920,10 +3908,10 @@ static int ai_king_do_merc_hire_at(ColonizeTurnContext* ctx, int human, int hx, 
  * the DOS spelling is the fallback for the synthetic test pools.
  */
 static const char* ai_king_merc_unit_name(
-  const ColonizeUnitPool* units, const char* dos_name
+  const ColonizeUnitPool* units, ColonizeUnitKind kind
 ) {
   if (units) {
-    const int ty = units_find_type(units, dos_name);
+    const int ty = units_kind_type_index(units, kind);
     if (ty >= 0) {
       const ColonizeUnitType* t = units_type(units, ty);
       if (t && t->name[0] != '\0') {
@@ -3931,7 +3919,7 @@ static const char* ai_king_merc_unit_name(
       }
     }
   }
-  return dos_name;
+  return "";
 }
 
 static int ai_king_merc_offer_pending(const AiPopupState* st) {
@@ -4038,7 +4026,7 @@ static void ai_king_merc_offer(ColonizeTurnContext* ctx) {
     char merc_list[96];
     int list_n = snprintf(
       merc_list, sizeof(merc_list), "%d %s", qty_a,
-      ai_king_merc_unit_name(ctx->units, "Regulars")
+      ai_king_merc_unit_name(ctx->units, UNITS_KIND_REGULAR)
     );
     if (list_n < 0) {
       list_n = 0;
@@ -4046,7 +4034,7 @@ static void ai_king_merc_offer(ColonizeTurnContext* ctx) {
     if ((size_t)list_n < sizeof(merc_list)) {
       snprintf(
         merc_list + list_n, sizeof(merc_list) - (size_t)list_n, ", %s",
-        ai_king_merc_unit_name(ctx->units, extra_flag == 0 ? "Artillery" : "Cavalry")
+        ai_king_merc_unit_name(ctx->units, extra_flag == 0 ? UNITS_KIND_ARTILLERY : UNITS_KIND_CAVALRY)
       );
     }
     tok.string1 = merc_list;
@@ -4141,7 +4129,7 @@ static int ai_king_frigate_spawn(ColonizeTurnContext* ctx, int nation) {
   if (!ctx || !ctx->units || !ctx->col1_ok || !ctx->col1 || nation < 0 || nation >= 4) {
     return -1;
   }
-  const int ti = units_find_type(ctx->units, "Frigate");
+  const int ti = units_kind_type_index(ctx->units, UNITS_KIND_FRIGATE);
   if (ti < 0) {
     return -1;
   }
@@ -4202,7 +4190,7 @@ void ai_king_frigate_offer(ColonizeTurnContext* ctx, int nation) {
   if ((ctx->col1->head.turn & 7u) != 0) {
     return;
   }
-  const int ft = units_find_type(ctx->units, "Frigate");
+  const int ft = units_kind_type_index(ctx->units, UNITS_KIND_FRIGATE);
   /* Slot array is sparse — despawns clear a slot but decrement unit_count, so
    * bound with the array size, not the live population (as every other unit
    * sweep in this file does). Bounding by unit_count hid an existing Frigate
@@ -4242,8 +4230,7 @@ void ai_king_frigate_offer(ColonizeTurnContext* ctx, int nation) {
   char body[AI_POPUP_BODY_LEN];
   popup_msg_fill(
     ctx->messages, "KINGFRIGATE", &tok,
-    "%STRING0 %STRING1.  We note that enemy warships are preying on your undefended "
-    "shipping lanes.  Shall we dispatch a frigate from the %STRING2 navy to assist you?",
+    "",
     body, sizeof(body)
   );
   char choice_buf[AI_POPUP_CHOICE_MAX][AI_POPUP_CHOICE_LEN];
@@ -4415,7 +4402,7 @@ void ai_king_peacetime_merc_offer(ColonizeTurnContext* ctx) {
   char merc_list[96];
   int list_n = snprintf(
     merc_list, sizeof(merc_list), "%d %s", regular,
-    ai_king_merc_unit_name(ctx->units, "Dragoons")
+    ai_king_merc_unit_name(ctx->units, UNITS_KIND_DRAGOON)
   );
   if (list_n < 0) {
     list_n = 0;
@@ -4424,12 +4411,12 @@ void ai_king_peacetime_merc_offer(ColonizeTurnContext* ctx) {
     if (artillery > 1) {
       snprintf(
         merc_list + list_n, sizeof(merc_list) - (size_t)list_n, ", %d %s", artillery,
-        ai_king_merc_unit_name(ctx->units, "Artillery")
+        ai_king_merc_unit_name(ctx->units, UNITS_KIND_ARTILLERY)
       );
     } else {
       snprintf(
         merc_list + list_n, sizeof(merc_list) - (size_t)list_n, ", %s",
-        ai_king_merc_unit_name(ctx->units, "Artillery")
+        ai_king_merc_unit_name(ctx->units, UNITS_KIND_ARTILLERY)
       );
     }
   }
@@ -4848,16 +4835,16 @@ static void ai_king_war_act(ColonizeTurnContext* ctx) {
   if (human >= 0 && human < (int)COLONIZE_COL1_NATION_COUNT &&
       (ctx->col1->nation[human].nation_flags & 0x08u) == 0) {
     ctx->col1->nation[human].nation_flags |= 0x08u;
-    int army = units_find_type(ctx->units, "Continental Army");
+    int army = units_kind_type_index(ctx->units, UNITS_KIND_CONT_ARMY);
     if (army < 0) {
-      army = units_find_type(ctx->units, "Cont. Army");
+      army = units_kind_type_index(ctx->units, UNITS_KIND_CONT_ARMY);
     }
-    int cav = units_find_type(ctx->units, "Continental Cavalry");
+    int cav = units_kind_type_index(ctx->units, UNITS_KIND_CONT_CAV);
     if (cav < 0) {
-      cav = units_find_type(ctx->units, "Cont. Cav.");
+      cav = units_kind_type_index(ctx->units, UNITS_KIND_CONT_CAV);
     }
-    const int soldier_ty = units_find_type(ctx->units, "Soldier");
-    const int dragoon_ty = units_find_type(ctx->units, "Dragoon");
+    const int soldier_ty = units_kind_type_index(ctx->units, UNITS_KIND_SOLDIER);
+    const int dragoon_ty = units_kind_type_index(ctx->units, UNITS_KIND_DRAGOON);
     if (ctx->col1->colony && (army >= 0 || cav >= 0) &&
         (soldier_ty >= 0 || dragoon_ty >= 0)) {
       for (uint16_t ci = 0; ci < ctx->col1->head.colony_count; ++ci) {
@@ -4957,8 +4944,7 @@ static void ai_king_war_act(ColonizeTurnContext* ctx) {
             tok.string1 = promoted_from;
             popup_msg_fill(
               ctx->messages, "MOBILIZE", &tok,
-              "Continental Army mobilizes! Our Veteran unit has been promoted to "
-              "Continental Army status.",
+              "",
               body, sizeof(body)
             );
           } else {
@@ -4966,8 +4952,7 @@ static void ai_king_war_act(ColonizeTurnContext* ctx) {
             tok.number0 = promoted;
             popup_msg_fill(
               ctx->messages, "MOBILIZE2", &tok,
-              "Continental Army mobilizes! %NUMBER0 Veteran units have been "
-              "promoted to Continental Army status.",
+              "",
               body, sizeof(body)
             );
           }
@@ -5798,7 +5783,7 @@ void ai_king_nation_turn(ColonizeTurnContext* ctx) {
         ctx->messages,
         "SCORED",
         &tok,
-        "Scoring for this game is now complete.",
+        "",
         body,
         sizeof(body)
       );

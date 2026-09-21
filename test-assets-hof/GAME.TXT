@@ -1,9 +1,10 @@
 @BEGINMENU
 @width=160
-{COLONIZATION} Version test
+{TEST} Version test
 @options
-Start a Game in NEW WORLD
-Start a Game in AMERICA
-LOAD Game
-View Hall of Fame
-Exit to DOS
+Menu Option New
+Menu Option America
+Menu Option Customize
+Menu Option Load
+Menu Option Hall
+Menu Option Exit

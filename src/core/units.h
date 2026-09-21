@@ -112,6 +112,9 @@ typedef enum ColonizeUnitDomain {
 
 typedef struct ColonizeUnitType {
   char name[32];
+  /* NAMES.TXT @UNIT row + 1 (== ColonizeUnitKind + 1); 0 = not stamped. The
+   * row, not the name, is what identifies a unit type — see units_type_kind. */
+  int kind_plus1;
   int icon_sprite; /* ICONS.SS 0-based blit index (@UNIT icon is 1-based in NAMES.TXT) */
   int movement;
   int attack;
@@ -364,7 +367,20 @@ typedef enum ColonizeUnitKind {
  *   1  "Soldier"      0  "Colonist"
  * Returns UNITS_KIND_UNKNOWN for a name none of those match.
  */
+/*
+ * Pool slot for a @UNIT row / ColonizeUnitKind. Unit types are loaded from
+ * NAMES.TXT @UNIT in file order, so the kind IS the row index; this only
+ * range-checks it against what the catalog actually provided. Prefer it over
+ * units_find_type(pool, "Artillery") — the port compiles no MicroProse names
+ * of its own, and a renamed row must not break the lookup.
+ */
+int units_kind_type_index(const ColonizeUnitPool* pool, ColonizeUnitKind kind);
+
 ColonizeUnitKind units_name_kind(const char* name);
+/* Test-only seam: name -> kind for fixtures that build a pool out of names.
+ * The production binary never installs one (it carries no unit names). */
+typedef ColonizeUnitKind (*UnitsNameKindResolver)(const char* name);
+void units_set_name_kind_resolver(UnitsNameKindResolver fn);
 ColonizeUnitKind units_type_kind(const ColonizeUnitType* type);
 /* DOS @UNIT code for a type, or -1 when the name is not a stock @UNIT row. */
 int units_type_dos_code(const ColonizeUnitType* type);

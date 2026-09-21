@@ -1672,10 +1672,10 @@ static int ai_euro_colony_wants_construction_labor(
   if (!bt || bt->name[0] == '\0') {
     return 0;
   }
-  return strcmp(bt->name, "Stockade") == 0 || strcmp(bt->name, "Fort") == 0 ||
-         strcmp(bt->name, "Fortress") == 0 || strcmp(bt->name, "Warehouse") == 0 ||
-         strcmp(bt->name, "Lumber Mill") == 0 || strcmp(bt->name, "Drydock") == 0 ||
-         strcmp(bt->name, "Shipyard") == 0 || strcmp(bt->name, "Custom House") == 0;
+  return colonies_building_name_row(bt->name) == COLONY_BUILDING_STOCKADE || colonies_building_name_row(bt->name) == COLONY_BUILDING_FORT ||
+         colonies_building_name_row(bt->name) == COLONY_BUILDING_FORTRESS || colonies_building_name_row(bt->name) == COLONY_BUILDING_WAREHOUSE ||
+         colonies_building_name_row(bt->name) == COLONY_BUILDING_LUMBER_MILL || colonies_building_name_row(bt->name) == COLONY_BUILDING_DRYDOCK ||
+         colonies_building_name_row(bt->name) == COLONY_BUILDING_SHIPYARD || colonies_building_name_row(bt->name) == COLONY_BUILDING_CUSTOM_HOUSE;
 }
 
 /*
@@ -1713,12 +1713,12 @@ static void ai_euro_prefer_peace_construction(ColonizeTurnContext* ctx, int nati
   if (!ctx || !ctx->colonies || !ctx->map || nation_id < 0 || nation_id >= 4) {
     return;
   }
-  const int stockade_id = colonies_find_building(ctx->colonies, "Stockade");
-  const int fort_id = colonies_find_building(ctx->colonies, "Fort");
-  const int fortress_id = colonies_find_building(ctx->colonies, "Fortress");
-  const int warehouse_id = colonies_find_building(ctx->colonies, "Warehouse");
-  const int whe_id = colonies_find_building(ctx->colonies, "Warehouse Expansion");
-  const int docks_id = colonies_find_building(ctx->colonies, "Docks");
+  const int stockade_id = colonies_building_row(ctx->colonies, COLONY_BUILDING_STOCKADE);
+  const int fort_id = colonies_building_row(ctx->colonies, COLONY_BUILDING_FORT);
+  const int fortress_id = colonies_building_row(ctx->colonies, COLONY_BUILDING_FORTRESS);
+  const int warehouse_id = colonies_building_row(ctx->colonies, COLONY_BUILDING_WAREHOUSE);
+  const int whe_id = colonies_building_row(ctx->colonies, COLONY_BUILDING_WAREHOUSE_EXPANSION);
+  const int docks_id = colonies_building_row(ctx->colonies, COLONY_BUILDING_DOCKS);
   if (stockade_id < 0 && fort_id < 0 && fortress_id < 0 && warehouse_id < 0 && docks_id < 0) {
     return;
   }
@@ -1806,7 +1806,7 @@ static void ai_euro_clear_pre_stockade_build_queue(ColonizeTurnContext* ctx, int
   if (!ctx || !ctx->colonies || nation_id < 0 || nation_id >= 4) {
     return;
   }
-  const int stockade_id = colonies_find_building(ctx->colonies, "Stockade");
+  const int stockade_id = colonies_building_row(ctx->colonies, COLONY_BUILDING_STOCKADE);
   for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
     ColonizeColony* c = &ctx->colonies->colonies[i];
     if (!c->active || c->nation_id != nation_id || c->building_in_production < 0) {
@@ -1882,11 +1882,11 @@ static int ai_euro_colony_wants_lumberjack_labor(
   if (!bt || bt->name[0] == '\0') {
     return 0;
   }
-  if (strcmp(bt->name, "Warehouse") == 0) {
-    return colonies_find_building(pool, "Warehouse") >= 0;
+  if (colonies_building_name_row(bt->name) == COLONY_BUILDING_WAREHOUSE) {
+    return colonies_building_row(pool, COLONY_BUILDING_WAREHOUSE) >= 0;
   }
-  if (strcmp(bt->name, "Lumber Mill") == 0) {
-    return colonies_find_building(pool, "Lumber Mill") >= 0;
+  if (colonies_building_name_row(bt->name) == COLONY_BUILDING_LUMBER_MILL) {
+    return colonies_building_row(pool, COLONY_BUILDING_LUMBER_MILL) >= 0;
   }
   return 0;
 }
@@ -2717,14 +2717,14 @@ static int ai_euro_5952_producible(
       if (out_cargo) {
         *out_cargo = AI_EURO_5952_HAMMERS;
       }
-      const bool mill = colonies_has_building_name_contains(pool, col, "Lumber Mill");
+      const bool mill = colonies_has_building_name_contains(pool, col, "");
       return colony_prod_hammers_worker(name, prof, sol_bonus, mill);
     }
     case COLONIZE_PROF_PREACHER: {
       if (out_cargo) {
         *out_cargo = AI_EURO_5952_CROSSES;
       }
-      const bool cathedral = colonies_has_building_name_contains(pool, col, "Cathedral");
+      const bool cathedral = colonies_has_building_name_contains(pool, col, "");
       const bool penn = founding_fathers_nation_has(col1, col->nation_id, FF_WILLIAM_PENN);
       return colony_prod_crosses_worker(name, prof, sol_bonus, cathedral, penn);
     }
@@ -3140,7 +3140,7 @@ static void ai_euro_5952_indoor_pass(
         continue;
       }
       /* DS:0x8dbe == 0: no plot taken. raw 94864-94872. */
-      const int church = colonies_find_building(pool, "Church"); /* @BUILDING 0x25 */
+      const int church = colonies_building_row(pool, COLONY_BUILDING_CHURCH); /* @BUILDING 0x25 */
       const bool has_church = church >= 0 && church < COLONIZE_BUILDING_TYPES_MAX &&
                               col->has_building[church];
       /* FUN_15eb_0c52(5): demand[lumber] < stock[lumber] + gross[lumber]. */
@@ -5889,9 +5889,9 @@ static int ai_euro_type_is_wagon_name(const char* name) {
  * afford exactly the ship its flag buys. */
 static uint32_t ai_euro_5d04_ph_gold_floor(int which) {
   switch (which) {
-    case 0x9796: return (uint32_t)europe_purchase_price("Caravel");   /* no_ships */
-    case 0x97a8: return (uint32_t)europe_purchase_price("Privateer"); /* privateer threat */
-    case 0x97ae: return (uint32_t)europe_purchase_price("Frigate");   /* frigate threat */
+    case 0x9796: return (uint32_t)europe_purchase_price("");   /* no_ships */
+    case 0x97a8: return (uint32_t)europe_purchase_price(""); /* privateer threat */
+    case 0x97ae: return (uint32_t)europe_purchase_price("");   /* frigate threat */
     default: return 0;
   }
 }
@@ -5950,7 +5950,7 @@ static int ai_euro_20e6_dos_type(const ColonizeUnitPool* units, const ColonizeUn
 static int ai_euro_5d04_colony_has_college(
   const ColonizeTurnContext* ctx, const ColonizeColony* colony
 ) {
-  const int id = colonies_find_building(ctx->colonies, "College");
+  const int id = colonies_building_row(ctx->colonies, COLONY_BUILDING_COLLEGE);
   return id >= 0 && colony->has_building[id];
 }
 
@@ -6241,7 +6241,7 @@ static int ai_euro_5d04_propose_ship_buy(
   }
   int lt = units_find_type(ctx->units, opt->name);
   if (lt < 0 && strcmp(opt->name, "Artillery") == 0) {
-    lt = units_find_type(ctx->units, "Cannon"); /* pools spelling @UNIT 0xb "Cannon" */
+    lt = units_kind_type_index(ctx->units, UNITS_KIND_ARTILLERY); /* pools spelling @UNIT 0xb "Cannon" */
   }
   if (lt < 0) {
     return 0;
@@ -6411,8 +6411,8 @@ static int ai_euro_5d04_dos_type_of(const ColonizeUnitPool* pool, int type_index
  */
 static int ai_euro_5d04_linux_type_for(const ColonizeUnitPool* pool, int dos_code) {
   if (dos_code == UNITS_KIND_ARTILLERY) {
-    const int t = units_find_type(pool, "Artillery");
-    return t >= 0 ? t : units_find_type(pool, "Cannon");
+    const int t = units_kind_type_index(pool, UNITS_KIND_ARTILLERY);
+    return t >= 0 ? t : units_kind_type_index(pool, UNITS_KIND_ARTILLERY);
   }
   return europe_dock_unit_type_index_ex(pool, dos_code, true);
 }
@@ -13898,7 +13898,7 @@ static void ai_euro_try_violate_notify(ColonizeTurnContext* ctx, ColonizeUnit* u
     tok.string2 = (place && place[0]) ? place : "the frontier";
     popup_msg_fill(
       ctx->messages, "VIOLATE", &tok,
-      "%STRING0 violate %STRING1 territory near %STRING2! Colonists are outraged!",
+      "",
       ctx->status, ctx->status_size
     );
     popup_msg_strip_markup(ctx->status); /* status line: no {} coloring */
@@ -13974,7 +13974,7 @@ static void ai_euro_try_attack(ColonizeTurnContext* ctx, ColonizeUnit* u, int tx
         PopupMsgTokens tok = {0};
         tok.string0 = ai_diplo_rival_name(ctx->col1, u->nation_id);
         popup_msg_fill(
-          ctx->messages, "SNEAK", &tok, "Sneak attack by the treacherous %STRING0!",
+          ctx->messages, "SNEAK", &tok, "",
           ctx->status, ctx->status_size
         );
         popup_msg_strip_markup(ctx->status); /* status line: no {} coloring */

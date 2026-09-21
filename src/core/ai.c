@@ -62,10 +62,10 @@ static uint32_t ai_turn_seed(const ColonizeTurnContext* ctx) {
 }
 
 static const char* k_new_country[4] = {
-  "New England", "New France", "New Spain", "New Netherlands"
+  "", "", "", ""
 };
 static const char* k_default_leaders[4] = {
-  "Walter Raleigh", "Jacques Cartier", "Christopher Columbus", "Michiel De Ruyter"
+  "", "", "", ""
 };
 
 /* TRIBE.TXT section → Col1 nation_id (4..11) via @TRIBES order. */
@@ -755,7 +755,7 @@ static void ai_spawn_brave_near(
   int ty,
   AiRng* rng
 ) {
-  const int brave = units_find_type(units, "Braves");
+  const int brave = units_kind_type_index(units, UNITS_KIND_BRAVE);
   if (brave < 0 || !units || !map) {
     return;
   }
