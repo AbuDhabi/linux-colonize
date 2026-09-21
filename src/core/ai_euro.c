@@ -858,14 +858,24 @@ static int ai_euro_unload_pax_at(
   return 1;
 }
 
+/* Unit kind from its catalog TYPE row, never its display name/string
+ * (production installs no units_name_kind resolver — see
+ * docs archive note no-dos-text-in-binary.md). */
+static ColonizeUnitKind ai_euro_unit_kind(const ColonizeUnitPool* pool, const ColonizeUnit* u) {
+  if (!pool || !u) {
+    return UNITS_KIND_UNKNOWN;
+  }
+  return units_type_kind(units_type(pool, u->type_index));
+}
+
 /* @UNIT row 2 (Pioneers / "Hardy Pioneer" display name). */
-static int ai_euro_name_is_pioneer(const char* name) {
-  return units_name_kind(name) == UNITS_KIND_PIONEER;
+static int ai_euro_name_is_pioneer(ColonizeUnitKind kind) {
+  return kind == UNITS_KIND_PIONEER;
 }
 
 /* @UNIT row 1 (Soldiers / "Veteran Soldier" display name). */
-static int ai_euro_name_is_soldier(const char* name) {
-  return units_name_kind(name) == UNITS_KIND_SOLDIER;
+static int ai_euro_name_is_soldier(ColonizeUnitKind kind) {
+  return kind == UNITS_KIND_SOLDIER;
 }
 
 
@@ -929,7 +939,7 @@ static int ai_euro_pioneer_ashore_at(ColonizeTurnContext* ctx, int nation_id, in
     if (!p->active || p->nation_id != nation_id || p->aboard_ship_id >= 0) {
       continue;
     }
-    if (ai_euro_name_is_pioneer(units_display_name(ctx->units, p)) && p->x == fx && p->y == fy) {
+    if (ai_euro_name_is_pioneer(ai_euro_unit_kind(ctx->units, p)) && p->x == fx && p->y == fy) {
       return 1;
     }
   }
@@ -1611,8 +1621,7 @@ static void ai_euro_refresh_colony_ai_flags(
           (int)u->col1_origin != c->id) {
         continue;
       }
-      const char* nm = units_display_name(ctx->units, u);
-      if (units_name_kind(nm) == UNITS_KIND_WAGON) {
+      if (ai_euro_unit_kind(ctx->units, u) == UNITS_KIND_WAGON) {
         wagon = 1;
         break;
       }
@@ -1917,11 +1926,7 @@ static int ai_euro_at_war_any_peer(const ColonizeCol1Save* col1, int nation_id) 
  * old substring list needed both spellings; units_name_kind carries all of
  * them (same defect class as the fixed ai_king "Cavalry != Dragoon" bug).
  */
-static int ai_euro_is_military_name(const char* name) {
-  if (!name) {
-    return 0;
-  }
-  const ColonizeUnitKind k = units_name_kind(name);
+static int ai_euro_is_military_name(ColonizeUnitKind k) {
   /* Deliberately NOT units_kind_is_military: that set also holds Artillery,
    * which this port keeps separate (siege + border wake, below). */
   return k == UNITS_KIND_SOLDIER || k == UNITS_KIND_DRAGOON || k == UNITS_KIND_REGULAR ||
@@ -1940,16 +1945,13 @@ static int ai_euro_is_military_name(const char* name) {
  * per-peer relation byte. A Scout (attack 1) is also never issued the
  * 0x46 seize order, so it has no hunt business at war.
  */
-static int ai_euro_is_land_war_hunter(const char* name) {
-  if (!name) {
-    return 0;
-  }
-  return ai_euro_is_military_name(name);
+static int ai_euro_is_land_war_hunter(ColonizeUnitKind kind) {
+  return ai_euro_is_military_name(kind);
 }
 
 /* @UNIT row 11 ("Artillery", or a pool spelling it "Cannon"). */
-static int ai_euro_is_artillery_name(const char* name) {
-  return units_name_kind(name) == UNITS_KIND_ARTILLERY;
+static int ai_euro_is_artillery_name(ColonizeUnitKind kind) {
+  return kind == UNITS_KIND_ARTILLERY;
 }
 
 /*
@@ -2091,9 +2093,9 @@ static int ai_euro_nearest_military_goal(
  * ai_euro_land_explore_scan_target / ai_euro_20e6_explorer_flag.
  */
 
-/* Treasure train — display-name stand-in (manual Treasure Trains). */
-static int ai_euro_is_treasure_name(const char* name) {
-  return units_name_kind(name) == UNITS_KIND_TREASURE;
+/* Treasure train, identified by @UNIT type row (manual Treasure Trains). */
+static int ai_euro_is_treasure_name(ColonizeUnitKind kind) {
+  return kind == UNITS_KIND_TREASURE;
 }
 
 /*
@@ -2133,7 +2135,7 @@ static int ai_euro_is_treasure_name(const char* name) {
 static void ai_euro_treasure_tension_bump(ColonizeTurnContext* ctx, ColonizeUnit* u) {
   if (!ctx || !ctx->units || !ctx->col1_ok || !ctx->col1 || !u || !u->active ||
       u->nation_id < 0 || u->nation_id >= 4 ||
-      !ai_euro_is_treasure_name(units_display_name(ctx->units, u))) {
+      !ai_euro_is_treasure_name(ai_euro_unit_kind(ctx->units, u))) {
     return;
   }
   for (int d = 0; d < 8; ++d) {
@@ -2290,10 +2292,9 @@ static int ai_euro_treasure_coast_target(
   return 1;
 }
 
-/* Missionary / Jesuit Missionary — name substring (ai_contact / NAMES). */
-static int ai_euro_is_missionary_name(const char* name) {
-  return name &&
-         units_name_kind(name) == UNITS_KIND_MISSIONARY;
+/* Missionary / Jesuit Missionary, identified by @UNIT type row. */
+static int ai_euro_is_missionary_name(ColonizeUnitKind kind) {
+  return kind == UNITS_KIND_MISSIONARY;
 }
 
 /*
@@ -2717,14 +2718,14 @@ static int ai_euro_5952_producible(
       if (out_cargo) {
         *out_cargo = AI_EURO_5952_HAMMERS;
       }
-      const bool mill = colonies_has_building_name_contains(pool, col, "");
+      const bool mill = colonies_has_building_row(pool, col, COLONY_BUILDING_LUMBER_MILL);
       return colony_prod_hammers_worker(name, prof, sol_bonus, mill);
     }
     case COLONIZE_PROF_PREACHER: {
       if (out_cargo) {
         *out_cargo = AI_EURO_5952_CROSSES;
       }
-      const bool cathedral = colonies_has_building_name_contains(pool, col, "");
+      const bool cathedral = colonies_has_building_row(pool, col, COLONY_BUILDING_CATHEDRAL);
       const bool penn = founding_fathers_nation_has(col1, col->nation_id, FF_WILLIAM_PENN);
       return colony_prod_crosses_worker(name, prof, sol_bonus, cathedral, penn);
     }
@@ -3626,39 +3627,42 @@ static const AiEuro5952Craft k_5952_craft[6] = {
 };
 
 /*
- * @BUILDING index -> NAMES.TXT row name, for the ids this cascade names.
+ * @BUILDING index -> ColonizeBuildingRow, for the ids this cascade names.
  * The predecessor column is `DS:0x8f85 + id*0xc`; it is the same chain
  * parent colonies_building_chain() already models, so the table carries it
  * directly (−1 = chain root). Town Hall (9..0xb) and Capitol (0x1e/0x1f) are
  * absent because the cascade never asks for them and DOS refuses both.
+ * `row` == the DOS @BUILDING index itself (ColonizeBuildingRow shares that
+ * numbering 1:1), so this table is really just the predecessor column plus
+ * a `has_row` flag for the three unused Town Hall / Capitol slots.
  */
 typedef struct AiEuro5952Bld {
-  const char* name;
+  bool has_row;
   int pred;
 } AiEuro5952Bld;
 
 static const AiEuro5952Bld k_5952_bld[0x2a] = {
-  {"Stockade", -1},              {"Fort", 0x00},
-  {"Fortress", 0x01},            {"Armory", -1},
-  {"Magazine", 0x03},            {"Arsenal", 0x04},
-  {"Docks", -1},                 {"Drydock", 0x06},
-  {"Shipyard", 0x07},            {NULL, -1},
-  {NULL, -1},                    {NULL, -1},
-  {"Schoolhouse", -1},           {"College", 0x0c},
-  {"University", 0x0d},          {"Warehouse", -1},
-  {"Warehouse Expansion", 0x0f}, {"Stable", -1},
-  {"Custom House", -1},          {"Printing Press", -1},
-  {"Newspaper", 0x13},           {"Weaver's House", -1},
-  {"Weaver's Shop", 0x15},       {"Textile Mill", 0x16},
-  {"Tobacconist's House", -1},   {"Tobacconist's Shop", 0x18},
-  {"Cigar Factory", 0x19},       {"Rum Distiller's House", -1},
-  {"Rum Distillery", 0x1b},      {"Rum Factory", 0x1c},
-  {NULL, -1},                    {NULL, -1},
-  {"Fur Trader's House", -1},    {"Fur Trading Post", 0x20},
-  {"Fur Factory", 0x21},         {"Carpenter's Shop", -1},
-  {"Lumber Mill", 0x23},         {"Church", -1},
-  {"Cathedral", 0x25},           {"Blacksmith's House", -1},
-  {"Blacksmith's Shop", 0x27},   {"Iron Works", 0x28},
+  {true, -1},   {true, 0x00},
+  {true, 0x01}, {true, -1},
+  {true, 0x03}, {true, 0x04},
+  {true, -1},   {true, 0x06},
+  {true, 0x07}, {false, -1},
+  {false, -1},  {false, -1},
+  {true, -1},   {true, 0x0c},
+  {true, 0x0d}, {true, -1},
+  {true, 0x0f}, {true, -1},
+  {true, -1},   {true, -1},
+  {true, 0x13}, {true, -1},
+  {true, 0x15}, {true, 0x16},
+  {true, -1},   {true, 0x18},
+  {true, 0x19}, {true, -1},
+  {true, 0x1b}, {true, 0x1c},
+  {false, -1},  {false, -1},
+  {true, -1},   {true, 0x20},
+  {true, 0x21}, {true, -1},
+  {true, 0x23}, {true, -1},
+  {true, 0x25}, {true, -1},
+  {true, 0x27}, {true, 0x28},
 };
 
 typedef struct AiEuro5952Cascade {
@@ -3672,10 +3676,10 @@ typedef struct AiEuro5952Cascade {
 } AiEuro5952Cascade;
 
 static int ai_euro_5952_bld_index(const ColonizeColonyPool* pool, int dos_id) {
-  if (dos_id < 0 || dos_id >= 0x2a || !k_5952_bld[dos_id].name) {
+  if (dos_id < 0 || dos_id >= 0x2a || !k_5952_bld[dos_id].has_row) {
     return -1;
   }
-  return colonies_find_building(pool, k_5952_bld[dos_id].name);
+  return colonies_building_row(pool, (ColonizeBuildingRow)dos_id);
 }
 
 /* FUN_281f_0b8c -> FUN_15eb_3650, via the port's own gate. */
@@ -4472,24 +4476,24 @@ static void ai_euro_colony_tick_28c8_reassign(ColonizeTurnContext* ctx, int nati
 
 
 
-/* Free Colonist / Colonist / Pioneer / Hardy / Farmer — can join LABOR for food. */
-static int ai_euro_is_food_labor_name(const char* name) {
-  if (!name) {
+/*
+ * Free Colonist / Colonist / Pioneer / Hardy — can join LABOR for food. Kind
+ * comes from the unit's @UNIT type row; the residual "Farmer" case folds
+ * into the profession == 0 (@JOB Farmer) check in the caller, so this stays
+ * kind-only.
+ */
+static int ai_euro_is_food_labor_name(ColonizeUnitKind kind) {
+  if (kind == UNITS_KIND_WAGON) {
     return 0;
   }
-  if (units_name_kind(name) == UNITS_KIND_WAGON) {
+  if (kind == UNITS_KIND_SOLDIER || kind == UNITS_KIND_DRAGOON || kind == UNITS_KIND_SCOUT) {
     return 0;
   }
-  if (units_name_kind(name) == UNITS_KIND_SOLDIER || units_name_kind(name) == UNITS_KIND_DRAGOON ||
-      units_name_kind(name) == UNITS_KIND_SCOUT) {
-    return 0;
-  }
-  return units_name_kind(name) == UNITS_KIND_PIONEER ||
-         units_name_kind(name) == UNITS_KIND_COLONIST || strstr(name, "Farmer") != NULL;
+  return kind == UNITS_KIND_PIONEER || kind == UNITS_KIND_COLONIST;
 }
 
 /*
- * Food-LABOR capable unit: display-name food labor OR @JOB Farmer (profession 0)
+ * Food-LABOR capable unit: kind-based food labor OR @JOB Farmer (profession 0)
  * Expert Farmer on a Free Colonist / Colonist. Cite: docs/building_production.md
  * @JOB Farmer→Expert Farmer / Food; Colonization.pdf Skills Chart. No invented
  * food rates — LABOR join only.
@@ -4498,19 +4502,18 @@ static int ai_euro_unit_is_food_labor(const ColonizeUnitPool* units, const Colon
   if (!u) {
     return 0;
   }
-  const char* name = units_display_name(units, u);
-  if (ai_euro_is_food_labor_name(name)) {
+  const ColonizeUnitKind kind = ai_euro_unit_kind(units, u);
+  if (ai_euro_is_food_labor_name(kind)) {
     return 1;
   }
   /* profession 0 == @JOB Farmer (Expert Farmer skill). */
-  if (u->profession == 0 && name &&
-      units_name_kind(name) == UNITS_KIND_COLONIST) {
+  if (u->profession == 0 && kind == UNITS_KIND_COLONIST) {
     return 1;
   }
   return 0;
 }
 
-static int ai_euro_type_is_wagon_name(const char* name);
+static int ai_euro_type_is_wagon_name(ColonizeUnitKind kind);
 static int ai_euro_has_useful_goto(const ColonizeUnit* u, const ColonizeWorldMap* map);
 
 static int ai_euro_ship_enter_europe(ColonizeTurnContext* ctx, ColonizeUnit* ship);
@@ -4731,7 +4734,7 @@ static int ai_euro_try_cash_treasure_europe(
 
   /* Land Treasure already at Europe coords. */
   if (!ai_euro_is_ship_type(ctx->units, u->id)) {
-    if (at_europe && ai_euro_is_treasure_name(units_display_name(ctx->units, u))) {
+    if (at_europe && ai_euro_is_treasure_name(ai_euro_unit_kind(ctx->units, u))) {
       (void)ai_euro_cash_one_treasure(ctx, nation_id, u);
       return 1;
     }
@@ -4750,7 +4753,7 @@ static int ai_euro_try_cash_treasure_europe(
     if (!pax || !pax->active) {
       continue;
     }
-    if (!ai_euro_is_treasure_name(units_display_name(ctx->units, pax))) {
+    if (!ai_euro_is_treasure_name(ai_euro_unit_kind(ctx->units, pax))) {
       continue;
     }
     (void)ai_euro_cash_one_treasure(ctx, nation_id, pax);
@@ -5204,8 +5207,7 @@ static int ai_euro_try_wagon_haul(
   if (!ctx || !ctx->units || !ctx->colonies || !wagon || !wagon->active) {
     return 0;
   }
-  const char* name = units_display_name(ctx->units, wagon);
-  if (!ai_euro_type_is_wagon_name(name)) {
+  if (!ai_euro_type_is_wagon_name(ai_euro_unit_kind(ctx->units, wagon))) {
     return 0;
   }
   /* No cargo-flag entry gate any more: the DOS band runs for every wagon —
@@ -5428,8 +5430,7 @@ static int ai_euro_try_pioneer_improve(
   if (!units_is_pioneer(ctx->units, u->id) || u->moves <= 0) {
     return 0;
   }
-  const char* name = units_display_name(ctx->units, u);
-  if (!ai_euro_name_is_pioneer(name)) {
+  if (!ai_euro_name_is_pioneer(ai_euro_unit_kind(ctx->units, u))) {
     return 0;
   }
   if (ai_euro_land_is_fortified(u)) {
@@ -5621,7 +5622,7 @@ static void ai_euro_found_with_unit(ColonizeTurnContext* ctx, ColonizeUnit* foun
         if (!p->active || p->nation_id != nation_id || p->aboard_ship_id >= 0) {
           continue;
         }
-        if (!ai_euro_name_is_pioneer(units_display_name(ctx->units, p))) {
+        if (!ai_euro_name_is_pioneer(ai_euro_unit_kind(ctx->units, p))) {
           continue;
         }
         if (p->x == founded_x && p->y == founded_y + 1) {
@@ -5670,7 +5671,7 @@ static void ai_euro_found_with_unit(ColonizeTurnContext* ctx, ColonizeUnit* foun
             if (!su->active || su->nation_id != nation_id || su->aboard_ship_id >= 0) {
               continue;
             }
-            if (!ai_euro_name_is_soldier(units_display_name(ctx->units, su))) {
+            if (!ai_euro_name_is_soldier(ai_euro_unit_kind(ctx->units, su))) {
               continue;
             }
             if (su->x == founded_x + 1 && su->y == founded_y + 3) {
@@ -5811,12 +5812,9 @@ static void ai_euro_colony_inventory(ColonizeTurnContext* ctx, int nation_id) {
 
 /* --- 5d04 planning / hire ---------------------------------------------- */
 
-static int ai_euro_type_is_wagon_name(const char* name) {
-  if (!name) {
-    return 0;
-  }
+static int ai_euro_type_is_wagon_name(ColonizeUnitKind kind) {
   /* @UNIT row 12 is "Wagon Train"; no roster spells it "Supply Train". */
-  return units_name_kind(name) == UNITS_KIND_WAGON;
+  return kind == UNITS_KIND_WAGON;
 }
 
 /*
@@ -5888,10 +5886,17 @@ static int ai_euro_type_is_wagon_name(const char* name) {
  * Privateer / Frigate — so each floor guarantees the flagged nation can
  * afford exactly the ship its flag buys. */
 static uint32_t ai_euro_5d04_ph_gold_floor(int which) {
+  const EuropePurchaseOption* opt;
   switch (which) {
-    case 0x9796: return (uint32_t)europe_purchase_price("");   /* no_ships */
-    case 0x97a8: return (uint32_t)europe_purchase_price(""); /* privateer threat */
-    case 0x97ae: return (uint32_t)europe_purchase_price("");   /* frigate threat */
+    case 0x9796: /* no_ships: Caravel floor (table index 1) */
+      opt = europe_purchase_option_at(1);
+      return opt ? (uint32_t)opt->gold : 0;
+    case 0x97a8: /* privateer threat: Privateer floor (table index 4) */
+      opt = europe_purchase_option_at(4);
+      return opt ? (uint32_t)opt->gold : 0;
+    case 0x97ae: /* frigate threat: Frigate floor (table index 5) */
+      opt = europe_purchase_option_at(5);
+      return opt ? (uint32_t)opt->gold : 0;
     default: return 0;
   }
 }
@@ -6239,10 +6244,8 @@ static int ai_euro_5d04_propose_ship_buy(
   if (nat->gold < price) {
     return 0;
   }
-  int lt = units_find_type(ctx->units, opt->name);
-  if (lt < 0 && strcmp(opt->name, "Artillery") == 0) {
-    lt = units_kind_type_index(ctx->units, UNITS_KIND_ARTILLERY); /* pools spelling @UNIT 0xb "Cannon" */
-  }
+  /* The purchase slot's identity is its @UNIT kind; its name is display text. */
+  int lt = units_kind_type_index(ctx->units, opt->kind);
   if (lt < 0) {
     return 0;
   }
@@ -7820,30 +7823,29 @@ static int ai_euro_20e6_dos_type(const ColonizeUnitPool* units, const ColonizeUn
  * test below. Never reached in a real game, where every type resolves.
  */
 static int ai_euro_0a60_can_pursue_goal_by_name(
-  const char* name, int goal_code, int is_ship, int has_bit2, int has_bit3
+  ColonizeUnitKind kind, int goal_code, int is_ship, int has_bit2, int has_bit3
 ) {
   switch (goal_code) {
     case AI_GOAL_FOUND:
       if (is_ship) {
         return has_bit2;
       }
-      return has_bit2 && (ai_euro_name_is_pioneer(name) ||
-                          units_name_kind(name) == UNITS_KIND_COLONIST);
+      return has_bit2 && (ai_euro_name_is_pioneer(kind) || kind == UNITS_KIND_COLONIST);
     case AI_GOAL_MIL_EXPAND:
       if (is_ship) {
         return has_bit3;
       }
-      return has_bit3 && (ai_euro_is_military_name(name) || ai_euro_is_artillery_name(name));
+      return has_bit3 && (ai_euro_is_military_name(kind) || ai_euro_is_artillery_name(kind));
     case AI_GOAL_MILITARY:
       if (is_ship) {
         return has_bit3;
       }
-      return ai_euro_is_military_name(name) || ai_euro_is_artillery_name(name);
+      return ai_euro_is_military_name(kind) || ai_euro_is_artillery_name(kind);
     case AI_GOAL_ESCORT:
       if (is_ship) {
         return 0;
       }
-      return ai_euro_is_military_name(name) || units_name_kind(name) == UNITS_KIND_SCOUT;
+      return ai_euro_is_military_name(kind) || kind == UNITS_KIND_SCOUT;
     default:
       return 1;
   }
@@ -7851,13 +7853,13 @@ static int ai_euro_0a60_can_pursue_goal_by_name(
 
 static int ai_euro_0a60_unit_can_pursue_goal(
   int dos_type, int goal_code, int has_bit2, int has_bit3,
-  const char* name, int is_ship
+  ColonizeUnitKind kind, int is_ship
 ) {
   if (goal_code < 0 || goal_code > 0x1f) {
     return 0;
   }
   if (dos_type < 0) {
-    return ai_euro_0a60_can_pursue_goal_by_name(name, goal_code, is_ship, has_bit2, has_bit3);
+    return ai_euro_0a60_can_pursue_goal_by_name(kind, goal_code, is_ship, has_bit2, has_bit3);
   }
   if (((1u << (unsigned)(goal_code & 0x1f)) & (unsigned)ai_euro_20e6_type_flags(dos_type)) == 0) {
     return 0;
@@ -8272,7 +8274,7 @@ static void ai_euro_0a60_goal_orders_structural(ColonizeTurnContext* ctx, int na
       u->col1_ai_plan = 0x3f; /* clear stale goal-pursuit code */
     }
 
-    const char* uname = units_display_name(ctx->units, u);
+    const ColonizeUnitKind ukind = ai_euro_unit_kind(ctx->units, u);
     const int unit_is_ship = ai_euro_is_ship_type(ctx->units, u->id);
     const int unit_continent = map_continent_id_at(ctx->map, u->x, u->y);
 
@@ -8284,8 +8286,7 @@ static void ai_euro_0a60_goal_orders_structural(ColonizeTurnContext* ctx, int na
     const int has_bit2 = (u->col1_flags15 & AI_EURO_F3148_FOUND) != 0;
     const int has_bit3 = (u->col1_flags15 & AI_EURO_F3148_MIL) != 0;
 
-    if (!unit_is_ship && (units_name_kind(uname ? uname : "") == UNITS_KIND_SOLDIER ||
-                           units_name_kind(uname ? uname : "") == UNITS_KIND_DRAGOON)) {
+    if (!unit_is_ship && (ukind == UNITS_KIND_SOLDIER || ukind == UNITS_KIND_DRAGOON)) {
       int colonies = 0;
       int land_units = 0;
       ai_euro_0a60_continent_presence(ctx, nation_id, unit_continent, &colonies, &land_units);
@@ -8303,7 +8304,7 @@ static void ai_euro_0a60_goal_orders_structural(ColonizeTurnContext* ctx, int na
       }
       if (!ai_euro_0a60_unit_can_pursue_goal(
             ai_euro_20e6_dos_type(ctx->units, u), g->code, has_bit2, has_bit3,
-            uname, unit_is_ship
+            ukind, unit_is_ship
           )) {
         continue;
       }
@@ -10277,7 +10278,7 @@ COLONIZE_INTERNAL void ai_euro_colony_goals_foreign_colonies(
         if (units_orders_follow_goto(u->orders)) {
           continue; /* idle only */
         }
-        if (!ai_euro_is_military_name(units_display_name(ctx->units, u))) {
+        if (!ai_euro_is_military_name(ai_euro_unit_kind(ctx->units, u))) {
           continue;
         }
         int gx = 0;
@@ -10561,11 +10562,8 @@ COLONIZE_INTERNAL void ai_euro_colony_goals_producers(
               if (units_orders_follow_goto(u->orders)) {
                 continue;
               }
-              const char* name = units_display_name(ctx->units, u);
-              if (!name) {
-                continue;
-              }
-              if (units_name_kind(name) != UNITS_KIND_SCOUT && !ai_euro_is_military_name(name)) {
+              const ColonizeUnitKind kind = ai_euro_unit_kind(ctx->units, u);
+              if (kind != UNITS_KIND_SCOUT && !ai_euro_is_military_name(kind)) {
                 continue;
               }
               ai_euro_set_goto(u, UNITS_ORDER_AI_MOVE, tx, ty);
@@ -10652,11 +10650,11 @@ COLONIZE_INTERNAL void ai_euro_colony_goals_bind_founders(
       if (u->orders == UNITS_ORDER_CLEAR_PLOW || u->orders == UNITS_ORDER_BUILD_ROAD) {
         continue;
       }
-      const char* name = units_display_name(ctx->units, u);
-      if (!name || units_name_kind(name) == UNITS_KIND_SOLDIER) {
+      const ColonizeUnitKind kind = ai_euro_unit_kind(ctx->units, u);
+      if (kind == UNITS_KIND_SOLDIER) {
         continue;
       }
-      if (!ai_euro_name_is_pioneer(name) && units_name_kind(name) != UNITS_KIND_COLONIST) {
+      if (!ai_euro_name_is_pioneer(kind) && kind != UNITS_KIND_COLONIST) {
         continue;
       }
       /* Per-unit pick: a single table-wide FOUND bound every founder in the
@@ -10982,8 +10980,7 @@ static int ai_euro_score_move(
       }
       const int rum = map_tile_has_rumour(ctx->map, nx, ny);
       const int lcr_class = map_dos_terr_class_at(ctx->map, nx, ny) == 0x1b;
-      const char* nm = units_display_name(ctx->units, u);
-      const int is_scout = nm && units_name_kind(nm) == UNITS_KIND_SCOUT;
+      const int is_scout = ai_euro_unit_kind(ctx->units, u) == UNITS_KIND_SCOUT;
       if (is_scout && rum) {
         score += 12;
       } else if (!is_scout && (rum || lcr_class)) {
@@ -11006,7 +11003,7 @@ static int ai_euro_score_move(
               c->nation_id != u->nation_id &&
               ai_diplo_at_war(ctx->col1, u->nation_id, c->nation_id)) {
             score += 16;
-            if (ai_euro_is_artillery_name(units_display_name(ctx->units, u)) &&
+            if (ai_euro_is_artillery_name(ai_euro_unit_kind(ctx->units, u)) &&
                 colonies_has_fortification(ctx->colonies, c)) {
               score += 10; /* Artillery siege prefer fortified port */
             }
@@ -13580,8 +13577,8 @@ static int ai_euro_move_scoring_gate(ColonizeTurnContext* ctx, ColonizeUnit* u, 
    */
   int landed_settle = 0;
   if (ctx->colonies && colonies_count_for_nation(ctx->colonies, nation_id) == 0) {
-    const char* fname = units_display_name(ctx->units, u);
-    if (ai_euro_name_is_pioneer(fname) || units_name_kind(fname) == UNITS_KIND_COLONIST) {
+    const ColonizeUnitKind fkind = ai_euro_unit_kind(ctx->units, u);
+    if (ai_euro_name_is_pioneer(fkind) || fkind == UNITS_KIND_COLONIST) {
       int lx = 0;
       int ly = 0;
       if (ai_euro_pick_founding_tile(
@@ -14055,10 +14052,8 @@ static int ai_euro_coastal_water_near(
 }
 
 /* Caravel / Merchantman / Galleon — New-World cargo haul (manual trade ships). */
-static int ai_euro_is_cargo_ship_name(const char* name) {
-  return name &&
-         (units_name_kind(name) == UNITS_KIND_CARAVEL || units_name_kind(name) == UNITS_KIND_MERCHANTMAN ||
-          units_name_kind(name) == UNITS_KIND_GALLEON);
+static int ai_euro_is_cargo_ship_name(ColonizeUnitKind kind) {
+  return kind == UNITS_KIND_CARAVEL || kind == UNITS_KIND_MERCHANTMAN || kind == UNITS_KIND_GALLEON;
 }
 
 /*
@@ -15398,7 +15393,7 @@ static int ai_euro_try_ship_trade_haul(
      * widened to DOS's raw-1691 hull test (2026-09-18) the peel kept the
      * pre-existing cargo-hull list rather than guess at the unresolved half.
      */
-    if (ai_euro_is_cargo_ship_name(units_display_name(ctx->units, ship)) &&
+    if (ai_euro_is_cargo_ship_name(ai_euro_unit_kind(ctx->units, ship)) &&
         ai_euro_4393_work_queue_haul_pick(
           ctx, nation_id, ship->x, ship->y, ship, &cx, &cy
         )) {
@@ -15529,7 +15524,7 @@ static int ai_euro_try_ship_europe_export(
 
   /* Prefer SILVER then other export-eligible cargos (FUN_364b_0636). */
   const int has_cap = ai_euro_wagon_has_hold_capacity(ctx->units, ship) &&
-                      ai_euro_is_cargo_ship_name(units_display_name(ctx->units, ship));
+                      ai_euro_is_cargo_ship_name(ai_euro_unit_kind(ctx->units, ship));
   if (has_cap && !ai_euro_ship_holds_export_goods(ctx->units, ship)) {
     for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
       ColonizeColony* c = &ctx->colonies->colonies[i];
@@ -15845,8 +15840,7 @@ static int ai_euro_land_best_adjacent_foe(ColonizeTurnContext* ctx, const Coloni
   if (!ctx || !ctx->units || !u || !u->active || units_is_sea(ctx->units, u->id)) {
     return -1;
   }
-  const char* uname = units_display_name(ctx->units, u);
-  const int siege = ai_euro_is_artillery_name(uname);
+  const int siege = ai_euro_is_artillery_name(ai_euro_unit_kind(ctx->units, u));
   int best_id = -1;
   int best_tough = 0;
   int best_fort = -1;
@@ -15897,7 +15891,7 @@ static int ai_euro_land_best_adjacent_foe(ColonizeTurnContext* ctx, const Coloni
         ? ai_euro_colony_fort_bonus_at(ctx->colonies, f->x, f->y, f->nation_id)
         : 0;
     const int tough = ai_euro_foe_toughness(ctx, ctx->units, f, 0);
-    const int treasure = ai_euro_is_treasure_name(units_display_name(ctx->units, f));
+    const int treasure = ai_euro_is_treasure_name(ai_euro_unit_kind(ctx->units, f));
     /* Prefer foes already on a foreign Euro settlement (0x46 settlement scan). */
     const int on_settle =
       (f->nation_id >= 0 && f->nation_id <= 3 && ctx->colonies &&
@@ -16866,13 +16860,13 @@ static void ai_euro_unload_settle_first_landfall(
     if (!p || !p->active) {
       continue;
     }
-    const char* name = units_display_name(ctx->units, p);
-    if (ai_euro_is_treasure_name(name)) {
+    const ColonizeUnitKind kind = ai_euro_unit_kind(ctx->units, p);
+    if (ai_euro_is_treasure_name(kind)) {
       continue;
     }
-    if (ai_euro_name_is_pioneer(name) && !pioneer) {
+    if (ai_euro_name_is_pioneer(kind) && !pioneer) {
       pioneer = p;
-    } else if (ai_euro_name_is_soldier(name) && !soldier) {
+    } else if (ai_euro_name_is_soldier(kind) && !soldier) {
       soldier = p;
     }
     if (landfall_x < 0 && p->goto_x >= 0 && p->goto_y >= 0 && p->goto_x < 255 &&
@@ -16890,8 +16884,8 @@ static void ai_euro_unload_settle_first_landfall(
     if (!units_is_on_map(u) || units_is_sea(ctx->units, u->id)) {
       continue;
     }
-    const char* name = units_display_name(ctx->units, u);
-    if (ai_euro_name_is_soldier(name) && !soldier_ashore) {
+    const ColonizeUnitKind kind = ai_euro_unit_kind(ctx->units, u);
+    if (ai_euro_name_is_soldier(kind) && !soldier_ashore) {
       soldier_ashore = u;
       if (landfall_x < 0 && u->goto_x >= 0 && u->goto_y >= 0 && u->goto_x < 255 &&
           u->goto_y < 255) {
@@ -16899,7 +16893,7 @@ static void ai_euro_unload_settle_first_landfall(
         landfall_y = u->goto_y;
       }
     }
-    if (ai_euro_name_is_pioneer(name) && !pioneer_ashore) {
+    if (ai_euro_name_is_pioneer(kind) && !pioneer_ashore) {
       pioneer_ashore = u;
       if (landfall_x < 0 && u->goto_x >= 0 && u->goto_y >= 0 && u->goto_x < 255 &&
           u->goto_y < 255) {
@@ -17246,16 +17240,16 @@ static void ai_euro_unload_settle(ColonizeTurnContext* ctx, ColonizeUnit* ship, 
     if (!p || !p->active) {
       continue;
     }
-    const char* name = units_display_name(ctx->units, p);
+    const ColonizeUnitKind kind = ai_euro_unit_kind(ctx->units, p);
     /* Treasure stays aboard for Europe sail — do not landfall as settler.
      * Cite: Colonization.pdf Treasure Trains → Europe gold (cash on Europe/HS). */
-    if (ai_euro_is_treasure_name(name)) {
+    if (ai_euro_is_treasure_name(kind)) {
       continue;
     }
     int sc = 2;
-    if (ai_euro_name_is_pioneer(name)) {
+    if (ai_euro_name_is_pioneer(kind)) {
       sc = 5;
-    } else if (units_name_kind(name) == UNITS_KIND_COLONIST) {
+    } else if (kind == UNITS_KIND_COLONIST) {
       sc = 4;
     }
     if (sc > best_score) {
@@ -17329,8 +17323,8 @@ static int ai_euro_nation_aboard(ColonizeTurnContext* ctx, int nation_id, int or
       if (!pax || !pax->active) {
         continue;
       }
-      const char* pn = units_display_name(ctx->units, pax);
-      if (ai_euro_name_is_pioneer(pn) || (or_soldier && ai_euro_name_is_soldier(pn))) {
+      const ColonizeUnitKind kind = ai_euro_unit_kind(ctx->units, pax);
+      if (ai_euro_name_is_pioneer(kind) || (or_soldier && ai_euro_name_is_soldier(kind))) {
         return 1;
       }
     }
@@ -17608,7 +17602,7 @@ static int ai_euro_first_colony_land_walk(
           if (!su->active || su->nation_id != nation_id || su->aboard_ship_id >= 0) {
             continue;
           }
-          if (!ai_euro_name_is_soldier(units_display_name(ctx->units, su))) {
+          if (!ai_euro_name_is_soldier(ai_euro_unit_kind(ctx->units, su))) {
             continue;
           }
           if (su->x == fx + 1 && su->y == fy + 2) {
@@ -17663,7 +17657,7 @@ static int ai_euro_try_first_colony_land(ColonizeTurnContext* ctx, ColonizeUnit*
       nation_id == (int)ctx->col1->head.crown_nation_id) {
     return 0;
   }
-  const char* uname = units_display_name(ctx->units, u);
+  const ColonizeUnitKind uname = ai_euro_unit_kind(ctx->units, u);
   if (!ai_euro_name_is_pioneer(uname) && !ai_euro_name_is_soldier(uname)) {
     return 0;
   }
@@ -17769,7 +17763,7 @@ static int ai_euro_try_first_colony_land(ColonizeTurnContext* ctx, ColonizeUnit*
         ship_on_found_hold = 1;
       }
     } else if (o->aboard_ship_id < 0 && o->id != u->id &&
-               ai_euro_name_is_pioneer(units_display_name(ctx->units, o))) {
+               ai_euro_name_is_pioneer(ai_euro_unit_kind(ctx->units, o))) {
       if (o->x == fx && o->y == fy) {
         pioneer_at_found = 1;
       } else if (o->x == fx && o->y == fy + 1) {
@@ -17918,8 +17912,8 @@ static int ai_euro_settler_on_tile(
     if (!o->active || o->nation_id != nation_id || o->aboard_ship_id >= 0) {
       continue;
     }
-    const char* n = units_display_name(ctx->units, o);
-    const int match = want_pioneer ? ai_euro_name_is_pioneer(n) : ai_euro_name_is_soldier(n);
+    const ColonizeUnitKind kind = ai_euro_unit_kind(ctx->units, o);
+    const int match = want_pioneer ? ai_euro_name_is_pioneer(kind) : ai_euro_name_is_soldier(kind);
     if (match && o->x == x && o->y == y) {
       return 1;
     }
@@ -17948,11 +17942,11 @@ static void ai_euro_settlers_ashore(
     if (!units_is_on_map(lu) || units_is_sea(ctx->units, lu->id)) {
       continue;
     }
-    const char* ln = units_display_name(ctx->units, lu);
-    if (ai_euro_name_is_soldier(ln)) {
+    const ColonizeUnitKind lkind = ai_euro_unit_kind(ctx->units, lu);
+    if (ai_euro_name_is_soldier(lkind)) {
       *out_soldier = 1;
     }
-    if (ai_euro_name_is_pioneer(ln)) {
+    if (ai_euro_name_is_pioneer(lkind)) {
       *out_pioneer = 1;
     }
     if (lf_x && *lf_x < 0 && lu->goto_x >= 0 && lu->goto_y >= 0 && lu->goto_x < 255 &&
@@ -18105,7 +18099,7 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_pioneer_corridor(struct ai_euro_ac
    * FR tip south of new colony: leave found+1 toward SW coast (TURN4→5 pioneer
    * (50,38)→(48,39)). Geometric offset from town — not a nation peel.
    */
-  if (!is_ship && ctx->colonies && ai_euro_name_is_pioneer(units_display_name(ctx->units, u))) {
+  if (!is_ship && ctx->colonies && ai_euro_name_is_pioneer(ai_euro_unit_kind(ctx->units, u))) {
     for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
       ColonizeColony* c = &ctx->colonies->colonies[i];
       if (!c->active || c->nation_id != nation_id) {
@@ -18189,7 +18183,7 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_soldier_staging(struct ai_euro_act
    * Cite: test-saves-ai/TURN6–7.
    */
   if (!is_ship && ctx->colonies &&
-      ai_euro_name_is_soldier(units_display_name(ctx->units, u))) {
+      ai_euro_name_is_soldier(ai_euro_unit_kind(ctx->units, u))) {
     for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
       const ColonizeColony* c = &ctx->colonies->colonies[i];
       if (!c->active || c->nation_id != nation_id) {
@@ -18436,9 +18430,9 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_ship_first_colony_course(struct ai
       if (!pax || !pax->active) {
         continue;
       }
-      const char* pn = units_display_name(ctx->units, pax);
-      if (ai_euro_name_is_pioneer(pn) || units_name_kind(pn) == UNITS_KIND_COLONIST ||
-          units_name_kind(pn) == UNITS_KIND_SOLDIER) {
+      const ColonizeUnitKind pkind = ai_euro_unit_kind(ctx->units, pax);
+      if (ai_euro_name_is_pioneer(pkind) || pkind == UNITS_KIND_COLONIST ||
+          pkind == UNITS_KIND_SOLDIER) {
         has_settler = 1;
       }
       if (plx < 0 && pax->goto_x >= 0 && pax->goto_y >= 0 && pax->goto_x < 255 &&
@@ -18458,8 +18452,8 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_ship_first_colony_course(struct ai
         if (!units_is_on_map(lu) || units_is_sea(ctx->units, lu->id)) {
           continue;
         }
-        const char* ln = units_display_name(ctx->units, lu);
-        if (!ai_euro_name_is_pioneer(ln) && !ai_euro_name_is_soldier(ln)) {
+        const ColonizeUnitKind lkind = ai_euro_unit_kind(ctx->units, lu);
+        if (!ai_euro_name_is_pioneer(lkind) && !ai_euro_name_is_soldier(lkind)) {
           continue;
         }
         if (lu->goto_x >= 0 && lu->goto_y >= 0 && lu->goto_x < 255 && lu->goto_y < 255 &&
@@ -18519,12 +18513,12 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_ship_first_colony_course(struct ai
           if (!pax || !pax->active) {
             continue;
           }
-          const char* pn = units_display_name(ctx->units, pax);
-          if (ai_euro_name_is_pioneer(pn)) {
+          const ColonizeUnitKind pkind = ai_euro_unit_kind(ctx->units, pax);
+          if (ai_euro_name_is_pioneer(pkind)) {
             pioneer_aboard = 1;
             any_cargo_settler = 1;
-          } else if (ai_euro_name_is_soldier(pn) ||
-                     units_name_kind(pn) == UNITS_KIND_COLONIST) {
+          } else if (ai_euro_name_is_soldier(pkind) ||
+                     pkind == UNITS_KIND_COLONIST) {
             any_cargo_settler = 1;
           }
         }
@@ -18616,7 +18610,7 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_ship_war_trade(struct ai_euro_act_
   int treasure_aboard = 0;
   for (int c = 0; c < u->cargo_count && c < COLONIZE_UNIT_CARGO_MAX; ++c) {
     const ColonizeUnit* pax = units_get_const(ctx->units, u->cargo_ids[c]);
-    if (pax && ai_euro_is_treasure_name(units_display_name(ctx->units, pax))) {
+    if (pax && ai_euro_is_treasure_name(ai_euro_unit_kind(ctx->units, pax))) {
       treasure_aboard = 1;
       break;
     }
@@ -18683,11 +18677,11 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_ship_war_trade(struct ai_euro_act_
       if (!pax || !pax->active) {
         continue;
       }
-      const char* pn = units_display_name(ctx->units, pax);
-      if (ai_euro_name_is_pioneer(pn)) {
+      const ColonizeUnitKind pkind = ai_euro_unit_kind(ctx->units, pax);
+      if (ai_euro_name_is_pioneer(pkind)) {
         pioneer_aboard = 1;
         any_cargo = 1;
-      } else if (ai_euro_name_is_soldier(pn)) {
+      } else if (ai_euro_name_is_soldier(pkind)) {
         any_cargo = 1;
       }
       if (lf_x < 0 && pax->goto_x >= 0 && pax->goto_y >= 0 && pax->goto_x < 255 &&
@@ -18943,7 +18937,7 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_ship_arrival(struct ai_euro_act_ct
             if (!pu->active || pu->nation_id != nation_id || pu->aboard_ship_id >= 0) {
               continue;
             }
-            if (ai_euro_name_is_pioneer(units_display_name(ctx->units, pu)) &&
+            if (ai_euro_name_is_pioneer(ai_euro_unit_kind(ctx->units, pu)) &&
                 pu->x == fx && pu->y == fy) {
               pioneer_on_found = 1;
               break;
@@ -19058,7 +19052,7 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_land_hunt_scout(struct ai_euro_act
   const int is_land_hunter = a->is_land_hunter;
   int land_war_hunted = a->land_war_hunted;
   int scout_explored = a->scout_explored;
-  const char* const uname = a->uname;
+  const ColonizeUnitKind ukind = a->ukind;
 
   /*
    * LCR (FUN_65dd_0004 thin transcription): any land unit standing on a
@@ -19113,8 +19107,8 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_land_hunt_scout(struct ai_euro_act
    * defense; units_wake; euro_unit_act §2d3. No invented combat bonuses.
    */
   int peace_border_hunted = 0;
-  if (!at_war_land && !land_war_hunted && uname &&
-      (ai_euro_is_military_name(uname) || ai_euro_is_artillery_name(uname)) &&
+  if (!at_war_land && !land_war_hunted &&
+      (ai_euro_is_military_name(ukind) || ai_euro_is_artillery_name(ukind)) &&
       ctx->colonies) {
     const int cid = colonies_id_at(ctx->colonies, u->x, u->y);
     if (cid >= 0) {
@@ -19147,7 +19141,7 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_land_hunt_scout(struct ai_euro_act
             u->id >= 0 && u->id < COLONIZE_UNITS_MAX && s_euro_roam_wander[u->id];
           if (!ai_euro_has_useful_goto(u, ctx->map) || roam_step) {
             ai_euro_set_goto(u, UNITS_ORDER_AI_MOVE, tx, ty);
-          } else if (ai_euro_is_artillery_name(uname)) {
+          } else if (ai_euro_is_artillery_name(ukind)) {
             /* Artillery: planning rarely sets MILITARY; gate FOUND must not stick. */
             ai_euro_set_goto(u, UNITS_ORDER_AI_MOVE, tx, ty);
           }
@@ -19261,7 +19255,7 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_land_roles(struct ai_euro_act_ctx*
   int peace_border_hunted = a->peace_border_hunted;
   int scout_explored = a->scout_explored;
   int treasure_routed = a->treasure_routed;
-  const char* const uname = a->uname;
+  const ColonizeUnitKind ukind = a->ukind;
 
   /*
    * Wagon Train haul (act-level): idle Wagon with hold capacity or TOOLS /
@@ -19270,7 +19264,7 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_land_roles(struct ai_euro_act_ctx*
    * Colonization.pdf Wagon Train; 5cf6 food/lumber/ore_short.
    */
   int wagon_hauled = 0;
-  if (!treasure_routed && uname && ai_euro_type_is_wagon_name(uname) &&
+  if (!treasure_routed && ai_euro_type_is_wagon_name(ukind) &&
       !ai_euro_land_is_fortified(u)) {
     if (ai_euro_try_wagon_haul(ctx, nation_id, u)) {
       wagon_hauled = 1;
@@ -19294,8 +19288,8 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_land_roles(struct ai_euro_act_ctx*
    */
   int pioneer_improved = 0;
   if (!treasure_routed && !wagon_hauled && !land_war_hunted && !peace_border_hunted &&
-      !scout_explored && uname &&
-      ai_euro_name_is_pioneer(uname)) {
+      !scout_explored &&
+      ai_euro_name_is_pioneer(ukind)) {
     if (ai_euro_try_pioneer_improve(ctx, nation_id, u)) {
       pioneer_improved = 1;
       if (!u->active || u->moves <= 0) {
@@ -19330,7 +19324,7 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_land_fortify(struct ai_euro_act_ct
   int pioneer_improved = a->pioneer_improved;
   int scout_explored = a->scout_explored;
   int treasure_routed = a->treasure_routed;
-  const char* const uname = a->uname;
+  const ColonizeUnitKind ukind = a->ukind;
   int wagon_hauled = a->wagon_hauled;
 
   /*
@@ -19409,7 +19403,7 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_land_fortify(struct ai_euro_act_ct
    */
   if (!treasure_routed && !wagon_hauled && !pioneer_improved &&
       !scout_explored && !land_war_hunted && !peace_border_hunted &&
-      ai_euro_is_artillery_name(uname) && !ai_euro_land_is_fortified(u) && ctx->colonies) {
+      ai_euro_is_artillery_name(ukind) && !ai_euro_land_is_fortified(u) && ctx->colonies) {
     const int cid = colonies_id_at(ctx->colonies, u->x, u->y);
     if (cid >= 0) {
       const ColonizeColony* c = colonies_get(ctx->colonies, cid);
@@ -19468,7 +19462,7 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_land_goal_consume(struct ai_euro_a
   int pioneer_improved = a->pioneer_improved;
   int scout_explored = a->scout_explored;
   int treasure_routed = a->treasure_routed;
-  const char* const uname = a->uname;
+  const ColonizeUnitKind ukind = a->ukind;
   int wagon_hauled = a->wagon_hauled;
 
   /*
@@ -19521,25 +19515,26 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_land_goal_consume(struct ai_euro_a
    */
   {
     const int is_pioneer =
-      ai_euro_name_is_pioneer(uname);
+      ai_euro_name_is_pioneer(ukind);
     const int is_farmer = ai_euro_unit_is_food_labor(ctx->units, u) &&
-                          ((uname && strstr(uname, "Farmer") != NULL) ||
-                           (u->profession == 0));
-    /* Master Carpenter — hammer bind for Stockade/Warehouse/Lumber Mill. */
+                          (u->profession == COLONIZE_JOB_FARMER);
+    /* Master Carpenter — hammer bind for Stockade/Warehouse/Lumber Mill.
+     * @JOB row 0x0d (Master Carpenter); see raw 3326 comment above for the
+     * same profession value on the analogous production-side check. */
     const int is_carpenter =
-      uname && strstr(uname, "Carpenter") != NULL;
+      ukind == UNITS_KIND_COLONIST && u->profession == 0x0d;
     /* Expert Lumberjack — lumber for incomplete Warehouse/Lumber Mill. */
     const int is_lumberjack =
-      uname && strstr(uname, "Lumberjack") != NULL;
+      ukind == UNITS_KIND_COLONIST && u->profession == COLONIZE_JOB_LUMBERJACK;
     const int is_free_colonist =
-      units_name_kind(uname) == UNITS_KIND_COLONIST &&
-      (strstr(uname, "Free Colonist") != NULL ||
+      ukind == UNITS_KIND_COLONIST &&
+      (u->profession == 19 ||
        (!is_pioneer && !is_farmer && !is_carpenter && !is_lumberjack));
     const int is_colonist_cap =
-      uname && units_name_kind(uname) != UNITS_KIND_SOLDIER && units_name_kind(uname) != UNITS_KIND_DRAGOON &&
-      units_name_kind(uname) != UNITS_KIND_SCOUT && !ai_euro_type_is_wagon_name(uname) &&
+      ukind != UNITS_KIND_SOLDIER && ukind != UNITS_KIND_DRAGOON &&
+      ukind != UNITS_KIND_SCOUT && !ai_euro_type_is_wagon_name(ukind) &&
       (is_pioneer || is_farmer || is_carpenter || is_lumberjack ||
-       units_name_kind(uname) == UNITS_KIND_COLONIST || strstr(uname, "Farmer"));
+       ukind == UNITS_KIND_COLONIST);
     if (!land_war_hunted && !peace_border_hunted && !scout_explored && !treasure_routed &&
         !missionary_contacted && !wagon_hauled && !pioneer_improved &&
         is_colonist_cap &&
@@ -19691,7 +19686,7 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_land_goal_dispatch(struct ai_euro_
   int pioneer_improved = a->pioneer_improved;
   int scout_explored = a->scout_explored;
   int treasure_routed = a->treasure_routed;
-  const char* const uname = a->uname;
+  const ColonizeUnitKind ukind = a->ukind;
   int wagon_hauled = a->wagon_hauled;
 
   if (goal_code == AI_GOAL_FOUND && u->x == goal_x && u->y == goal_y) {
@@ -19705,8 +19700,8 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_land_goal_dispatch(struct ai_euro_
    * the rest of the game. Found when we are standing on this nation's own best
    * FOUND tile and the tile still takes a colony.
    */
-  if (goal_code < 0 && !is_ship && uname &&
-      (ai_euro_name_is_pioneer(uname) || units_name_kind(uname) == UNITS_KIND_COLONIST)) {
+  if (goal_code < 0 && !is_ship &&
+      (ai_euro_name_is_pioneer(ukind) || ukind == UNITS_KIND_COLONIST)) {
     int bfx = 0;
     int bfy = 0;
     if (ai_goals_best_found_tile_near(ctx->map, nation_id, u->x, u->y, &bfx, &bfy) &&
@@ -19855,8 +19850,7 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_land_goal_dispatch(struct ai_euro_
     }
   } else {
     /* Peace fortify fallback (case 0x0b): idle garrison on own colony. */
-    const char* name = units_display_name(ctx->units, u);
-    if (!at_war_land && name && ai_euro_is_military_name(name) && ctx->colonies &&
+    if (!at_war_land && ai_euro_is_military_name(ai_euro_unit_kind(ctx->units, u)) && ctx->colonies &&
         !ai_euro_land_is_fortified(u)) {
       const int cid = colonies_id_at(ctx->colonies, u->x, u->y);
       if (cid >= 0) {
@@ -19935,10 +19929,11 @@ COLONIZE_INTERNAL void ai_euro_act_land(struct ai_euro_act_ctx* a) {
 
   /* Case 0x0b land: bind primary goal (role-aware scan). */
   const char* uname = units_display_name(ctx->units, u);
-  const int is_land_hunter = ai_euro_is_land_war_hunter(uname);
-  const int is_scout = uname && units_name_kind(uname) == UNITS_KIND_SCOUT;
-  const int is_treasure = ai_euro_is_treasure_name(uname);
-  const int is_missionary = ai_euro_is_missionary_name(uname);
+  const ColonizeUnitKind ukind = ai_euro_unit_kind(ctx->units, u);
+  const int is_land_hunter = ai_euro_is_land_war_hunter(ukind);
+  const int is_scout = ukind == UNITS_KIND_SCOUT;
+  const int is_treasure = ai_euro_is_treasure_name(ukind);
+  const int is_missionary = ai_euro_is_missionary_name(ukind);
   /*
    * Land war: Euro peer war, or Indian hostility sticky with a real hunt
    * target (tribe / Brave). Sticky alone is not enough — memset relation=0
@@ -19971,6 +19966,7 @@ COLONIZE_INTERNAL void ai_euro_act_land(struct ai_euro_act_ctx* a) {
   int missionary_contacted = 0;
 
   a->uname = uname;
+  a->ukind = ukind;
   a->is_land_hunter = is_land_hunter;
   a->is_scout = is_scout;
   a->is_treasure = is_treasure;
@@ -20484,10 +20480,10 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
    */
   const int fresh_allotment = u->moves >= units_max_mp(ctx->units, u->id);
   if ((!is_goto || fresh_allotment) && !is_pioneer_job_active) {
-    const char* gate_name = units_display_name(ctx->units, u);
+    const ColonizeUnitKind gate_kind = ai_euro_unit_kind(ctx->units, u);
     const int defer_gate =
-      ai_euro_is_treasure_name(gate_name) || ai_euro_is_missionary_name(gate_name) ||
-      ai_euro_type_is_wagon_name(gate_name) || ai_euro_is_cargo_ship_name(gate_name);
+      ai_euro_is_treasure_name(gate_kind) || ai_euro_is_missionary_name(gate_kind) ||
+      ai_euro_type_is_wagon_name(gate_kind) || ai_euro_is_cargo_ship_name(gate_kind);
     if (!defer_gate) {
       const int gate_r = ai_euro_move_scoring_gate(ctx, u, nation_id);
       /*
@@ -20719,7 +20715,7 @@ static void ai_euro_dispatcher_turn_unit_waves(ColonizeTurnContext* ctx, int nat
           continue;
         }
         const int is_ship = ai_euro_is_ship_type(ctx->units, u->id);
-        const ColonizeUnitKind ukind = units_name_kind(units_display_name(ctx->units, u));
+        const ColonizeUnitKind ukind = ai_euro_unit_kind(ctx->units, u);
         const int is_wave0_type =
           ukind == UNITS_KIND_TREASURE || ukind == UNITS_KIND_ARTILLERY || ukind == UNITS_KIND_WAGON;
         const int in_wave = (wave != 0) || (dos_loop ? is_wave0_type : is_ship);
@@ -20734,14 +20730,13 @@ static void ai_euro_dispatcher_turn_unit_waves(ColonizeTurnContext* ctx, int nat
           if (is_ship || colonies_count_for_nation(ctx->colonies, nation_id) != 0) {
             continue;
           }
-          const char* wn = units_display_name(ctx->units, u);
-          if (!ai_euro_name_is_pioneer(wn) && !ai_euro_name_is_soldier(wn)) {
+          if (!ai_euro_name_is_pioneer(ukind) && !ai_euro_name_is_soldier(ukind)) {
             continue;
           }
           /* Only wake when found-approach eligibility can fire (not beachhead). */
           const int settler_aboard = ai_euro_nation_settler_aboard(ctx, nation_id);
           const int pioneer_aboard = ai_euro_nation_pioneer_aboard(ctx, nation_id);
-          if (ai_euro_name_is_soldier(wn)) {
+          if (ai_euro_name_is_soldier(ukind)) {
             if (!pioneer_aboard && settler_aboard) {
               continue;
             }

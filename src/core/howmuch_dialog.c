@@ -123,12 +123,12 @@ bool howmuch_open(
   dlg->result_cargo = cargo;
   dlg->result_payload = payload;
   str_copy_trunc(
-    dlg->prompt, sizeof(dlg->prompt), prompt && prompt[0] ? prompt : "How much?"
+    dlg->prompt, sizeof(dlg->prompt), prompt && prompt[0] ? prompt : ""
   );
   str_copy_trunc(
     dlg->amount_label,
     sizeof(dlg->amount_label),
-    amount_label && amount_label[0] ? amount_label : "Amount:"
+    amount_label && amount_label[0] ? amount_label : ""
   );
   howmuch_sync_field(dlg);
   dlg->open = true;

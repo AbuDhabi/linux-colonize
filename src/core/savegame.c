@@ -176,7 +176,7 @@ bool savegame_probe_col1_slot(
     }
   }
   if (out->leader_name[0] == '\0') {
-    snprintf(out->leader_name, sizeof(out->leader_name), "");
+    out->leader_name[0] = '\0';
   }
   out->year = head.year;
   out->autumn = head.autumn;

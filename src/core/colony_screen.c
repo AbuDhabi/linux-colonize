@@ -561,7 +561,7 @@ void colony_screen_open_dock_orders(
   const ColonizeUnitType* type = units_type(units, u->type_index);
   PopupMsgTokens tok;
   memset(&tok, 0, sizeof(tok));
-  tok.string0 = (type && type->name[0]) ? type->name : "Transport";
+  tok.string0 = (type && type->name[0]) ? type->name : "";
   tok.string1 = "";
   popup_msg_fill(
     messages,
@@ -1913,6 +1913,22 @@ static int colony_screen_find_built(
   return idx;
 }
 
+/* Row-identified sibling of colony_screen_find_built, for callers that
+ * already know the @BUILDING row (no-DOS-text-in-binary: identity is the
+ * row, not a catalog name). */
+static int colony_screen_find_built_row(
+  const ColonizeColonyPool* pool,
+  const ColonizeColony* colony,
+  ColonizeBuildingRow row
+) {
+  const int idx = colonies_building_row(pool, row);
+  if (idx < 0 || !pool || !colony || idx >= COLONIZE_BUILDING_TYPES_MAX ||
+      !colony->has_building[idx]) {
+    return -1;
+  }
+  return idx;
+}
+
 /* Highest present building in an upgrade chain (names ordered low → high). */
 static int colony_screen_best_built(
   const ColonizeColonyPool* pool,
@@ -1973,8 +1989,7 @@ static int colony_screen_category_built(
     return -1;
   }
   if (cat == COLONY_CAT_WAREHOUSE) {
-    const int warehouse = colony_screen_find_built(pool, colony, "");
-    return warehouse >= 0 ? warehouse : colony_screen_find_built(pool, colony, "");
+    return colony_screen_find_built_row(pool, colony, COLONY_BUILDING_WAREHOUSE);
   }
   const char* const* chain = colony_screen_slot_chain(cat);
   return colony_screen_best_built(pool, colony, chain, colony_screen_chain_len(chain));
@@ -2006,7 +2021,7 @@ static int colony_screen_category_sprite(
     return built >= 0 ? built : COLONY_FENCE_SPRITE;
   }
   if (cat == COLONY_CAT_WAREHOUSE) {
-    const int warehouse = colony_screen_find_built(pool, colony, "");
+    const int warehouse = colony_screen_find_built_row(pool, colony, COLONY_BUILDING_WAREHOUSE);
     const bool stable = colonies_has_building_row(pool, colony, COLONY_BUILDING_STABLE);
     if (warehouse < 0) {
       return stable ? COLONY_STABLE_ONLY_SPRITE : k_dos_class_placeholder[k_building_slots[cat].size_class];
@@ -2260,8 +2275,8 @@ static int colony_screen_building_production_badge(
   if (!pool || built < 0 || built >= pool->building_type_count) {
     return -1;
   }
-  const char* name = pool->building_types[built].name;
-  if (!name) {
+  const int row = colonies_building_type_row(pool, built);
+  if (row < 0) {
     return -1;
   }
   /* Printing Press / Newspaper are colony-wide bell *multipliers* — a
@@ -2269,23 +2284,23 @@ static int colony_screen_building_production_badge(
    * work (no @JOB for them). Player-caught: matching them here drew a bell
    * badge on the Press/Newspaper sprite itself, duplicating Town Hall's own
    * badge — only Town Hall has a worker slot and a bell count to show. */
-  if (strstr(name, "Town Hall")) {
+  const int chain = colonies_building_row_chain(row);
+  if (chain == COLONIES_CHAIN_TOWN_HALL) {
     return COLONY_ICON_BELL;
   }
-  if (strstr(name, "Church") || strstr(name, "Cathedral")) {
+  if (chain == COLONIES_CHAIN_CHURCH) {
     return COLONY_ICON_CROSS;
   }
-  if (strstr(name, "Carpenter") || strstr(name, "Lumber Mill")) {
+  if (chain == COLONIES_CHAIN_CARPENTER) {
     return COLONY_ICON_HAMMER;
   }
   /* Manufacturing: the badge icon is the recipe's out_cargo, read from the
-   * one shared table in colony_craft.c (audit CO-12). The private ladder
-   * this replaced used looser needles — and its "Tobacconist" spelling
-   * matched neither tier of the Cigar Factory, so a staffed Cigar Factory
-   * (NAMES.TXT @BUILDING row 26) drew no produce badge at all while its
-   * Tobacconist's Shop predecessor did. Every other @BUILDING row resolves
-   * to the same icon under both spellings. */
-  const ColonizeCraftRecipe* rec = colony_craft_recipe_for_building(name);
+   * one shared table in colony_craft.c (audit CO-12), matched by chain — not
+   * the private ladder this replaced, whose looser needles could miss a
+   * renamed factory tier (a staffed Cigar Factory drew no produce badge
+   * while its Tobacconist's Shop predecessor did). Every @BUILDING row in a
+   * chain resolves to the same icon. */
+  const ColonizeCraftRecipe* rec = colony_craft_recipe_for_building_row(row);
   if (rec) {
     return COLONY_CARGO_ICON_BASE + rec->out_cargo;
   }
@@ -3304,7 +3319,7 @@ static void colony_screen_draw_multifunction(
      * gained a `labels` param for this), centered, dark blue (WOODPANL.PIK
      * idx 57, exact RGB match against the golden's sampled ink color). */
     if (font) {
-      const char* title = "Units Present";
+      const char* title = "";
       if (labels) {
         const ColonizeMsgSection* cmisc = assets_msg_find(labels, "CMISC");
         if (cmisc && cmisc->line_count > 1 && cmisc->lines[1][0]) {

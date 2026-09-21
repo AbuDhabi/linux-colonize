@@ -49,6 +49,10 @@ not specs.
 - `/* DOS-LITERAL FUN_ssss_oooo raw NNNNN */` marks a verbatim port. Do not "improve" it.
   Cite `FUN_ssss_oooo` (Ghidra name) and raw EXE offset in comments when porting.
 - `_id` = stable identifier, `_index` = 0-based array slot. Do not mix.
+- No MicroProse text in the binary: wording comes only from `COLONIZE/*.TXT` (miss =
+  empty string, never a typed fallback); identify units/buildings/jobs/menu items by
+  catalog ROW (`units_kind_type_index`, `colonies_building_row`), never by English name.
+  See docs/data_vs_hardcoded.md Part D.
 - Line endings are LF everywhere (`.gitattributes` enforces). Never write CRLF.
 - Every new modal popup joins `game_modal_open` (all popups block all sim).
 - Gold: read `europe_nation_gold`, write `europe_nation_gold_add` (europe.h). Never

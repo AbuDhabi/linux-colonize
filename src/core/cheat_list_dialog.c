@@ -92,14 +92,14 @@ bool cheat_list_open_setview(CheatListDialog* dlg, const ColonizeMsgCatalog* deb
   dlg->kind = CHEAT_LIST_KIND_SETVIEW;
   dlg->width = 190;
 
-  static const char* k_fallback_prompt = "Select Viewpoint";
+  static const char* k_fallback_prompt = "";
   static const char* k_fallback[] = {
-    "English Map",
     "",
     "",
     "",
     "",
-    "No Special View"
+    "",
+    ""
   };
   /* option_ids: 0..3 nation, -1 complete, -2 normal */
   static const int k_fallback_ids[] = {0, 1, 2, 3, -1, -2};
@@ -309,7 +309,7 @@ bool cheat_list_open_create_unit(
 }
 
 bool cheat_list_open_set_human(CheatListDialog* dlg, const ColonizeMsgCatalog* debug_txt) {
-  static const char* k_fallback_prompt = "Select Human Nationality";
+  static const char* k_fallback_prompt = "";
   static const int k_fallback_ids[] = {0, 1, 2, 3, -1};
   if (!dlg) {
     return false;
@@ -376,15 +376,15 @@ bool cheat_list_open_debug_flags(
   const ColonizeMsgCatalog* debug_txt,
   uint16_t initial_mask
 ) {
-  static const char* k_fallback_prompt = "Select Debug Information Options";
+  static const char* k_fallback_prompt = "";
   static const char* k_fallback[] = {
-    "Anger & Friction Levels",
     "",
     "",
     "",
     "",
     "",
-    "All Movement"
+    "",
+    ""
   };
   if (!dlg) {
     return false;

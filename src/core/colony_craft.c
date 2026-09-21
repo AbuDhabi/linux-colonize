@@ -48,31 +48,36 @@
  * finding in turn.c's hammers block.
  */
 static const ColonizeCraftRecipe k_recipes[] = {
-  {"Blacksmith", COLONIZE_CARGO_ORE, COLONIZE_CARGO_TOOLS, COLONIZE_PROF_BLACKSMITH},
-  {"Iron Works", COLONIZE_CARGO_ORE, COLONIZE_CARGO_TOOLS, COLONIZE_PROF_BLACKSMITH},
-  {"Tobacconist", COLONIZE_CARGO_TOBACCO, COLONIZE_CARGO_CIGARS, COLONIZE_PROF_TOBACCONIST},
-  {"Cigar Factory", COLONIZE_CARGO_TOBACCO, COLONIZE_CARGO_CIGARS, COLONIZE_PROF_TOBACCONIST},
-  {"Weaver", COLONIZE_CARGO_COTTON, COLONIZE_CARGO_CLOTH, COLONIZE_PROF_WEAVER},
-  {"Textile", COLONIZE_CARGO_COTTON, COLONIZE_CARGO_CLOTH, COLONIZE_PROF_WEAVER},
-  {"Fur Trad", COLONIZE_CARGO_FURS, COLONIZE_CARGO_COATS, COLONIZE_PROF_FUR_TRADER},
-  {"Fur Fact", COLONIZE_CARGO_FURS, COLONIZE_CARGO_COATS, COLONIZE_PROF_FUR_TRADER},
-  {"Rum Distill", COLONIZE_CARGO_SUGAR, COLONIZE_CARGO_RUM, COLONIZE_PROF_DISTILLER},
-  {"Rum Factory", COLONIZE_CARGO_SUGAR, COLONIZE_CARGO_RUM, COLONIZE_PROF_DISTILLER},
-  {"Armory", COLONIZE_CARGO_TOOLS, COLONIZE_CARGO_MUSKETS, COLONIZE_PROF_GUNSMITH},
-  {"Magazine", COLONIZE_CARGO_TOOLS, COLONIZE_CARGO_MUSKETS, COLONIZE_PROF_GUNSMITH},
-  {"Arsenal", COLONIZE_CARGO_TOOLS, COLONIZE_CARGO_MUSKETS, COLONIZE_PROF_GUNSMITH},
+  {COLONIES_CHAIN_BLACKSMITH, COLONIZE_CARGO_ORE, COLONIZE_CARGO_TOOLS, COLONIZE_PROF_BLACKSMITH},
+  {COLONIES_CHAIN_TOBACCONIST, COLONIZE_CARGO_TOBACCO, COLONIZE_CARGO_CIGARS,
+   COLONIZE_PROF_TOBACCONIST},
+  {COLONIES_CHAIN_WEAVER, COLONIZE_CARGO_COTTON, COLONIZE_CARGO_CLOTH, COLONIZE_PROF_WEAVER},
+  {COLONIES_CHAIN_FUR, COLONIZE_CARGO_FURS, COLONIZE_CARGO_COATS, COLONIZE_PROF_FUR_TRADER},
+  {COLONIES_CHAIN_RUM, COLONIZE_CARGO_SUGAR, COLONIZE_CARGO_RUM, COLONIZE_PROF_DISTILLER},
+  {COLONIES_CHAIN_ARMORY, COLONIZE_CARGO_TOOLS, COLONIZE_CARGO_MUSKETS, COLONIZE_PROF_GUNSMITH},
 };
+
+const ColonizeCraftRecipe* colony_craft_recipe_for_building_row(int building_row) {
+  if (building_row < 0) {
+    return NULL;
+  }
+  const int chain = colonies_building_row_chain(building_row);
+  if (chain < 0) {
+    return NULL;
+  }
+  for (size_t r = 0; r < sizeof(k_recipes) / sizeof(k_recipes[0]); ++r) {
+    if (k_recipes[r].chain == chain) {
+      return &k_recipes[r];
+    }
+  }
+  return NULL;
+}
 
 const ColonizeCraftRecipe* colony_craft_recipe_for_building(const char* building_name) {
   if (!building_name || !building_name[0]) {
     return NULL;
   }
-  for (size_t r = 0; r < sizeof(k_recipes) / sizeof(k_recipes[0]); ++r) {
-    if (strstr(building_name, k_recipes[r].needle) != NULL) {
-      return &k_recipes[r];
-    }
-  }
-  return NULL;
+  return colony_craft_recipe_for_building_row(colonies_building_name_row(building_name));
 }
 
 int colony_craft_recipe_count(void) {
@@ -84,10 +89,6 @@ const ColonizeCraftRecipe* colony_craft_recipe_at(int index) {
     return NULL;
   }
   return &k_recipes[index];
-}
-
-static bool colony_craft_name_matches(const char* name, const char* needle) {
-  return name && needle && strstr(name, needle) != NULL;
 }
 
 static void colony_craft_pair_totals(
@@ -114,8 +115,8 @@ static void colony_craft_pair_totals(
     if (!c->active || c->building_type < 0 || c->building_type >= pool->building_type_count) {
       continue;
     }
-    const char* bname = pool->building_types[c->building_type].name;
-    if (!colony_craft_name_matches(bname, rec->needle)) {
+    const int row = colonies_building_type_row(pool, c->building_type);
+    if (row < 0 || colonies_building_row_chain(row) != rec->chain) {
       continue;
     }
     /* sol_bonus folds in before tier/skill math (matches DOS FUN_15eb_1d4c) —
@@ -123,13 +124,13 @@ static void colony_craft_pair_totals(
      * penalty (negative) reduces output here exactly like it already does
      * for field yields in turn.c, not just SoL bonuses increasing it. */
     total_out +=
-      colony_prod_manufacturing_output(bname, c->profession, rec->craft_profession, sol_bonus);
+      colony_prod_manufacturing_output_row(row, c->profession, rec->craft_profession, sol_bonus);
     /* sol_bonus folds into input the same way it folds into output —
      * player-confirmed 2026-08-15 (Viceroy): factory tier discount tracks
      * the *actual* SoL-adjusted output, not the flat base rate. See
      * colony_prod_manufacturing_input's header comment. */
     total_in +=
-      colony_prod_manufacturing_input(bname, c->profession, rec->craft_profession, sol_bonus);
+      colony_prod_manufacturing_input_row(row, c->profession, rec->craft_profession, sol_bonus);
   }
   if (out_total_out) {
     *out_total_out = total_out;

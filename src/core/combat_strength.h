@@ -179,9 +179,11 @@ int combat_unit_toughness(
   int foe_id
 );
 
-/* Type helpers used by best-defender / outcome. */
-int combat_type_is_artillery_name(const char* name);
-int combat_type_is_scout_name(const char* name);
+/* Type helpers used by best-defender / outcome. Row-identified via
+ * units_type_kind(type), not by name (no-DOS-text-in-binary: units_name_kind
+ * only resolves through a test-only hook in production). */
+int combat_type_is_artillery(const ColonizeUnitType* type);
+int combat_type_is_scout(const ColonizeUnitType* type);
 /*
  * @UNIT TYPE row combat flag only: the DS:0x5236 column (`t->attack > 0`),
  * the byte FUN_5fef_0000 picks defenders on and FUN_5fef_0352 gates capture

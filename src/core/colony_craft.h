@@ -11,24 +11,30 @@
  * as a private if-ladder, with a "must stay in lockstep with k_recipes"
  * comment admitting it).
  *
- *   needle           substring matched against the building's @BUILDING name
- *   in_cargo         raw good consumed
- *   out_cargo        manufactured good produced
- *   craft_profession the @JOB id that is "expert" at this building
+ *   chain             @BUILDING chain id (colonies_building_row_chain) —
+ *                      identity is the chain, not the English name; every
+ *                      tier of the chain (house/shop/factory spelling) uses
+ *                      the same recipe
+ *   in_cargo          raw good consumed
+ *   out_cargo         manufactured good produced
+ *   craft_profession  the @JOB id that is "expert" at this building
  *
  * The table order is the DOS conversion-ledger emission order and is
  * load-bearing (Ore→Tools first, Tools→Muskets last) — see colony_craft.c.
  */
 typedef struct ColonizeCraftRecipe {
-  const char* needle;
+  int chain;
   int in_cargo;
   int out_cargo;
   int craft_profession;
 } ColonizeCraftRecipe;
 
-/* First recipe whose needle occurs in `building_name`, or NULL. Both tiers
- * of every chain match: the needles cover the house/shop spellings and the
- * renamed factory tier separately ("Rum Distill" + "Rum Factory", …). */
+/* Recipe whose chain owns @BUILDING row `building_row`, or NULL. */
+const ColonizeCraftRecipe* colony_craft_recipe_for_building_row(int building_row);
+
+/* Name-taking wrapper (colonies_building_name_row lookup) — kept for
+ * callers outside colony_craft.c/.h that only have a catalog name in hand
+ * (e.g. ai_euro.c's per-worker want pass). Prefer the _row form. */
 const ColonizeCraftRecipe* colony_craft_recipe_for_building(const char* building_name);
 
 /* Raw table access, for callers that need to walk every chain. */

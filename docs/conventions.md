@@ -131,6 +131,17 @@ the verification loop. It does **not** own feature status — that stays in the
   `turn_internal.h`, `game_loop_internal.h` and
   `tests/unit/test_stage_seams.c`. (2026-09-16)
 
+### No MicroProse text in the binary
+
+The game's wording comes only from `COLONIZE/*.TXT`; a catalog miss is the
+empty string, and nothing DOS-authored is compiled in — not as a fallback, not
+as a lookup key. Identify units by `@UNIT` kind, buildings by `@BUILDING` row,
+professions by `@JOB` row, menu items by row. Sentences come from
+`popup_msg_fill(catalog, "SECTION", &tok, "", …)`. Port-authored notices are
+allowed but must not copy catalog wording. Full rule, accessor list and the
+traps: [data_vs_hardcoded.md](data_vs_hardcoded.md) Part D. CLAUDE.md's short
+form carries the same rule.
+
 ### Structural invariants
 
 | Rule | Where |

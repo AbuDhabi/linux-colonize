@@ -175,6 +175,16 @@ static int europe_ship_free_slots(const EuropeHarborShip* ship, const ColonizeUn
   return free_slots > 0 ? free_slots : 0;
 }
 
+/*
+ * A docked Artillery piece carries no dos_type of its own; it is recognised by
+ * carrying the catalog's @UNIT row 11 name (whatever a given NAMES.TXT calls
+ * it) — never by an English word compiled in here.
+ */
+static bool europe_dock_name_is_artillery(const char* name) {
+  const char* live = reports_names_field("UNIT", UNITS_KIND_ARTILLERY, 0);
+  return name && name[0] && live && live[0] && strcmp(name, live) == 0;
+}
+
 /* Insert at dock front (index 0). Returns false if docks are full. */
 static bool europe_dock_push_front(
   EuropeScreen* eu,
@@ -190,7 +200,7 @@ static bool europe_dock_push_front(
   }
   EuropeDockImmigrant* d = &eu->dock[0];
   memset(d, 0, sizeof(*d));
-  snprintf(d->name, sizeof(d->name), "%s", name ? name : "Colonists");
+  snprintf(d->name, sizeof(d->name), "%s", name ? name : "");
   d->profession = profession;
   d->present = true;
   d->sentry = sentry;
@@ -205,7 +215,7 @@ bool europe_dock_push_load(EuropeScreen* eu, const char* name, int profession) {
   }
   EuropeDockImmigrant* slot = &eu->dock[eu->dock_count++];
   memset(slot, 0, sizeof(*slot));
-  snprintf(slot->name, sizeof(slot->name), "%s", name ? name : "Colonists");
+  snprintf(slot->name, sizeof(slot->name), "%s", name ? name : "");
   slot->profession = profession;
   slot->present = true;
   slot->sentry = true;
@@ -242,7 +252,7 @@ static int europe_type_is_treasure(const ColonizeUnitPool* units, int type_tag) 
     return 0;
   }
   const ColonizeUnitType* ut = units_type(units, type_tag);
-  return ut && ut->name[0] && strstr(ut->name, "Treasure") != NULL;
+  return units_type_is_treasure(ut);
 }
 
 /*
@@ -347,12 +357,12 @@ static void europe_disembark_passengers_to_dock(
  * now; europe_purchase_price / europe_purchase_option_at expose them.
  */
 static const EuropePurchaseOption k_purchase_opts[] = {
-  {"Artillery", 500, false},
-  {"Caravel", 1000, true},
-  {"Merchantman", 2000, true},
-  {"Galleon", 3000, true},
-  {"Privateer", 2000, true},
-  {"Frigate", 5000, true},
+  {UNITS_KIND_ARTILLERY, "", 500, false},
+  {UNITS_KIND_CARAVEL, "", 1000, true},
+  {UNITS_KIND_MERCHANTMAN, "", 2000, true},
+  {UNITS_KIND_GALLEON, "", 3000, true},
+  {UNITS_KIND_PRIVATEER, "", 2000, true},
+  {UNITS_KIND_FRIGATE, "", 5000, true},
 };
 static const int k_purchase_opt_count =
   (int)(sizeof(k_purchase_opts) / sizeof(k_purchase_opts[0]));
@@ -368,12 +378,9 @@ const EuropePurchaseOption* europe_purchase_option_at(int index) {
   return &k_purchase_opts[index];
 }
 
-int europe_purchase_price(const char* type_name) {
-  if (!type_name || !type_name[0]) {
-    return 0;
-  }
+int europe_purchase_price(ColonizeUnitKind kind) {
   for (int i = 0; i < k_purchase_opt_count; ++i) {
-    if (strcmp(k_purchase_opts[i].name, type_name) == 0) {
+    if (k_purchase_opts[i].kind == kind) {
       return k_purchase_opts[i].gold;
     }
   }
@@ -382,10 +389,10 @@ int europe_purchase_price(const char* type_name) {
 
 /*
  * NAMES.TXT @UNIT row per purchase slot — the display name the list draws.
- * The literals in k_purchase_opts stay the price-lookup keys (and the
- * fallback when no catalog is loaded); only the shown text is live, so a
- * renamed unit in a modded NAMES.TXT shows through here the way DOS's own
- * list does.
+ * k_purchase_opts[].kind (a ColonizeUnitKind) is the price-lookup key; name[]
+ * is filled live from the catalog below and is display-only, so a renamed
+ * unit in a modded NAMES.TXT shows through here the way DOS's own list does.
+ * A catalog miss leaves name[] empty (no DOS text baked in).
  */
 static const int k_purchase_unit_rows[] = {11, 13, 14, 15, 16, 17};
 
@@ -1411,7 +1418,7 @@ int europe_purchase_cost(const EuropeScreen* eu, int purchase_index) {
   const EuropePurchaseOption* p = &eu->purchase[purchase_index];
   int cost = p->gold;
   /* FUN_38fd_4b50: type 0xb (Artillery) costs base + nation+0x1e * 100. */
-  if (strcmp(p->name, "Artillery") == 0 && eu->artillery_bought > 0) {
+  if (p->kind == UNITS_KIND_ARTILLERY && eu->artillery_bought > 0) {
     cost += eu->artillery_bought * 100;
   }
   return cost;
@@ -1427,7 +1434,7 @@ bool europe_purchase_ex(EuropeScreen* eu, int purchase_index, ColonizeDosRng* rn
   }
   const EuropePurchaseOption* p = &eu->purchase[purchase_index];
   const int cost = europe_purchase_cost(eu, purchase_index);
-  const bool is_artillery = strcmp(p->name, "Artillery") == 0;
+  const bool is_artillery = p->kind == UNITS_KIND_ARTILLERY;
   if (eu->gold < cost) {
     snprintf(eu->status, sizeof(eu->status), "Need %d$ for %s.", cost, p->name);
     return false;
@@ -1563,10 +1570,10 @@ static int europe_dock_type_horses(int dos_type) {
 int europe_dock_unit_type_index_ex(
   const ColonizeUnitPool* units, int dos_type, bool with_singular_fallback
 ) {
-  static const char* const k_singular[EUROPE_DOCK_TYPE_COUNT][2] = {
-    {"Free Colonist", "Colonist"}, {"Soldier", NULL},  {"Pioneer", NULL},
-    {"Missionary", NULL},          {"Dragoon", NULL},  {"Scout", NULL},
-  };
+  /* EUROPE_DOCK_TYPE_* (0..5) shares its order with ColonizeUnitKind's
+   * COLONIST/SOLDIER/PIONEER/MISSIONARY/DRAGOON/SCOUT (0..5) — the singular
+   * fallback used to re-derive that identity by re-matching a hand-typed
+   * English name; it now goes through the @UNIT row directly. */
   if (!units || dos_type < 0 || dos_type >= EUROPE_DOCK_TYPE_COUNT) {
     return -1;
   }
@@ -1574,13 +1581,7 @@ int europe_dock_unit_type_index_ex(
   if (t >= 0 || !with_singular_fallback) {
     return t;
   }
-  for (int i = 0; i < 2 && k_singular[dos_type][i]; ++i) {
-    t = units_find_type((ColonizeUnitPool*)units, k_singular[dos_type][i]);
-    if (t >= 0) {
-      return t;
-    }
-  }
-  return -1;
+  return units_kind_type_index(units, (ColonizeUnitKind)dos_type);
 }
 
 int europe_dock_unit_type_index(const ColonizeUnitPool* units, int dos_type) {
@@ -1606,7 +1607,7 @@ int europe_dock_display_type_index(
     return -1;
   }
   int ti = -1;
-  if (strcmp(d->name, "Artillery") == 0) {
+  if (europe_dock_name_is_artillery(d->name)) {
     ti = units_kind_type_index(units, UNITS_KIND_ARTILLERY);
   }
   if (ti < 0) {
@@ -1897,20 +1898,11 @@ void europe_build_dock_menu(
                   ? europe_arm_sell_gain(eu, COLONIZE_CARGO_HORSES, EUROPE_ARM_HORSES)
                   : europe_arm_buy_cost(eu, COLONIZE_CARGO_HORSES, EUROPE_ARM_HORSES);
 
-  /* GAME.TXT @ARMOPTIONS verbatim, for a build with no catalog loaded. */
+  /* GAME.TXT @ARMOPTIONS is required at startup (assets_validate_required_files);
+   * a missing catalog is already fatal, so this fallback carries no MicroProse
+   * wording — a catalog miss here just shows blank rows. */
   static const char* const k_fallback[EUROPE_DOCK_MENU_MAX] = {
-    "Don't get on next ship.",
-    "",
-    "",
-    "",
-    "Sell {Muskets} (save {%NUMBER0$}).",
-    "",
-    "Sell {Tools} (save {%NUMBER1$}).",
-    "",
-    "Sell {Horses} (save {%NUMBER2$}).",
-    "",
-    "",
-    "No changes."
+    "", "", "", "", "", "", "", "", "", "", "", ""
   };
   const ColonizeMsgSection* sec =
     messages ? assets_msg_find((const ColonizeMsgCatalog*)messages, "ARMOPTIONS") : NULL;
@@ -1980,11 +1972,13 @@ static bool europe_apply_dock_menu_row_ex(
   switch (row) {
     case EUROPE_ARM_ROW_NO_BOARD:
       d->sentry = false;
-      europe_set_status(eu, "Will not board next ship.");
+      /* GAME.TXT @ARMOPTIONS row 0 ("Don't get on next ship."). */
+      europe_set_status(eu, assets_msg_line_or(eu->messages, "ARMOPTIONS", 0, ""));
       return true;
     case EUROPE_ARM_ROW_BOARD:
       d->sentry = true;
-      europe_set_status(eu, "Will board next ship.");
+      /* GAME.TXT @ARMOPTIONS row 1 ("Board next ship."). */
+      europe_set_status(eu, assets_msg_line_or(eu->messages, "ARMOPTIONS", 1, ""));
       return true;
     case EUROPE_ARM_ROW_TO_FRONT: {
       if (dock_index <= 0) {
@@ -1996,7 +1990,8 @@ static bool europe_apply_dock_menu_row_ex(
       }
       eu->dock[0] = moved;
       eu->menu_dock_index = 0;
-      europe_set_status(eu, "Moved to front of dock.");
+      /* GAME.TXT @ARMOPTIONS row 2 ("Move to front of dock."). */
+      europe_set_status(eu, assets_msg_line_or(eu->messages, "ARMOPTIONS", 2, ""));
       return true;
     }
     /* 38fd:3ade — Scouts become Dragoons, anyone else Soldiers. */
@@ -2290,7 +2285,7 @@ static void europe_board_sentry_dockers(
       break;
     }
     int type_tag = 0;
-    const bool is_artillery = (strcmp(eu->dock[di].name, "Artillery") == 0);
+    const bool is_artillery = europe_dock_name_is_artillery(eu->dock[di].name);
     if (is_artillery) {
       type_tag = -2;
     } else if (units) {
@@ -2365,11 +2360,11 @@ bool europe_set_sail_from_harbor(
     sizeof(eu->status),
     "%s bound for %s (%d turns).",
     ship.name,
-    eu->colony_region[0] ? eu->colony_region : "New World",
+    eu->colony_region[0] ? eu->colony_region : "",
     ship.turns_left
   );
   diag_info(
-    "EUROPE %s sails for the New World: %d turns, exit (%d,%d) %s",
+    "EUROPE %s departs for the colonies: %d turns, exit (%d,%d) %s",
     ship.name, ship.turns_left, ship.exit_x, ship.exit_y,
     ship.exit_east ? "east" : "west"
   );
@@ -2391,7 +2386,7 @@ bool europe_reverse_transit(EuropeScreen* eu, bool from_expected, int index) {
     eu->expected_ships--;
     europe_clear_ship(&eu->expected[eu->expected_ships]);
     eu->bound[eu->bound_ships++] = ship;
-    europe_set_status(eu, "Reversed — now bound for the New World.");
+    europe_set_status(eu, "Reversed -- now sailing for the colonies.");
     return true;
   }
   if (index < 0 || index >= eu->bound_ships || eu->expected_ships >= EUROPE_HARBOR_MAX) {
@@ -2644,29 +2639,23 @@ int europe_cash_treasure(EuropeScreen* eu, int treasure_value) {
   }
   const int credited = (treasure_value * (100 - tax)) / 100;
   eu->gold += credited;
-  /*
-   * GAME.TXT @LOOTCASH: "{%STRING0} treasure fleet laden with {%NUMBER0$}
-   * arrives safely in %STRING1! Crown takes {%NUMBER1%%} share. {%NUMBER2$}
-   * added to %STRING0 treasury." No ColonizeMsgCatalog reachable from this
-   * call depth (europe.c has no catalog handle); wording matches the real
-   * section verbatim rather than an invented "Treasure cash-in" stub.
-   */
-  const char* nation = eu->nation_name[0] ? eu->nation_name : "Our";
-  const char* port = eu->port_city[0] ? eu->port_city : "Europe";
-  /* %.16s bounds nation/port so the worst case (both fields maxed, nation
-   * used twice) always fits eu->status[160] — silences -Wformat-truncation. */
-  snprintf(
-    eu->status,
-    sizeof(eu->status),
-    "%.16s treasure fleet laden with %d$ arrives safely in %.16s! Crown takes %d%% share. "
-    "%d$ added to %.16s treasury.",
-    nation,
-    treasure_value,
-    port,
-    tax,
-    credited,
-    nation
-  );
+  /* GAME.TXT @LOOTCASH, composed live via eu->messages (europe_set_messages). */
+  const char* nation = eu->nation_name[0] ? eu->nation_name : "";
+  const char* port = eu->port_city[0] ? eu->port_city : "";
+  eu->status[0] = '\0';
+  if (eu->messages) {
+    PopupMsgTokens tok = {0};
+    tok.string0 = nation;
+    tok.string1 = port;
+    tok.has_number0 = true;
+    tok.number0 = treasure_value;
+    tok.has_number1 = true;
+    tok.number1 = tax;
+    tok.has_number2 = true;
+    tok.number2 = credited;
+    popup_msg_fill(eu->messages, "LOOTCASH", &tok, "", eu->status, sizeof(eu->status));
+    popup_msg_strip_markup(eu->status);
+  }
   diag_info(
     "EUROPE treasure cashed %d$: crown %d%% share, credited %d$ (gold=%d)",
     treasure_value, tax, credited, eu->gold
@@ -3075,22 +3064,24 @@ void europe_tick_market_prices_w(
    * STRING0 = cargo name (-0x6840 @CARGO table), STRING1 = nation home-port
    * city (-0x7c74 table == eu->port_city), NUMBER0 = new bid.
    */
-  if (last_rise >= 0) {
-    const char* nm =
-      (eu->cargo[last_rise].name[0]) ? eu->cargo[last_rise].name : "Goods";
-    const char* port = eu->port_city[0] ? eu->port_city : "Europe";
-    snprintf(
-      eu->status, sizeof(eu->status),
-      "The price of %s in %s has risen to %d.", nm, port, eu->cargo[last_rise].bid
-    );
-  } else if (last_fall >= 0) {
-    const char* nm =
-      (eu->cargo[last_fall].name[0]) ? eu->cargo[last_fall].name : "Goods";
-    const char* port = eu->port_city[0] ? eu->port_city : "Europe";
-    snprintf(
-      eu->status, sizeof(eu->status),
-      "The price of %s in %s has fallen to %d.", nm, port, eu->cargo[last_fall].bid
-    );
+  if (last_rise >= 0 && eu->messages) {
+    PopupMsgTokens tok = {0};
+    tok.string0 = eu->cargo[last_rise].name;
+    tok.string1 = eu->port_city;
+    tok.has_number0 = true;
+    tok.number0 = eu->cargo[last_rise].bid;
+    popup_msg_fill(eu->messages, "PRICEUP", &tok, "", eu->status, sizeof(eu->status));
+    popup_msg_strip_markup(eu->status);
+  } else if (last_fall >= 0 && eu->messages) {
+    PopupMsgTokens tok = {0};
+    tok.string0 = eu->cargo[last_fall].name;
+    tok.string1 = eu->port_city;
+    tok.has_number0 = true;
+    tok.number0 = eu->cargo[last_fall].bid;
+    popup_msg_fill(eu->messages, "PRICEDOWN", &tok, "", eu->status, sizeof(eu->status));
+    popup_msg_strip_markup(eu->status);
+  } else if (last_rise >= 0 || last_fall >= 0) {
+    eu->status[0] = '\0';
   }
 }
 
@@ -3678,7 +3669,18 @@ int europe_buyback_boycott(
   }
   const int cost = price * 500;
   if (eu->gold < cost) {
-    snprintf(eu->status, sizeof(eu->status), "", eu->gold);
+    /* GAME.TXT @KISSSORRY: "Unfortunately, we only have {%NUMBER0$}
+     * available." — same sentence game_dialogs.c's KISSSORRY popup shows;
+     * composed here via eu->messages (europe_set_messages) since this
+     * applier re-checks the purse on its own. */
+    eu->status[0] = '\0';
+    if (eu->messages) {
+      PopupMsgTokens tok = {0};
+      tok.number0 = eu->gold;
+      tok.has_number0 = true;
+      popup_msg_fill(eu->messages, "KISSSORRY", &tok, "", eu->status, sizeof(eu->status));
+      popup_msg_strip_markup(eu->status);
+    }
     return 0;
   }
   europe_purse_move(eu, col1, human_nation, -cost);
@@ -3740,6 +3742,12 @@ static void europe_credit_sale_tax(
 void europe_set_labels(EuropeScreen* eu, const struct ColonizeMsgCatalog* labels) {
   if (eu) {
     eu->labels = labels;
+  }
+}
+
+void europe_set_messages(EuropeScreen* eu, const struct ColonizeMsgCatalog* game_txt) {
+  if (eu) {
+    eu->messages = game_txt;
   }
 }
 
@@ -5109,7 +5117,7 @@ int europe_dock_icon_sprite(const ColonizeUnitPool* units, const EuropeDockImmig
   if (!units || !d || !d->name[0]) {
     return -1;
   }
-  if (strcmp(d->name, "Artillery") == 0) {
+  if (europe_dock_name_is_artillery(d->name)) {
     const int ti = units_kind_type_index(units, UNITS_KIND_ARTILLERY);
     const ColonizeUnitType* ut = units_type(units, ti);
     return ut ? ut->icon_sprite : -1;

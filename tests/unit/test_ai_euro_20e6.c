@@ -3,6 +3,7 @@
 #ifndef _POSIX_C_SOURCE
 #define _POSIX_C_SOURCE 200809L
 #endif
+#include "../common/test_catalogs.h"
 #include "core/ai_diplo.h"
 #include "core/ai_euro.h"
 #include "core/ai_goals.h"
@@ -96,6 +97,8 @@ static int fixture_init(Fixture* f, int nation) {
   dos_rng_seed(&f->rng, 100);
   f->turn = 5;
   f->year = 1500;
+  f->ctx.messages = test_game_txt();
+  f->ctx.names = test_names_txt();
   f->ctx.turn_number = &f->turn;
   f->ctx.game_year = &f->year;
   f->ctx.human_nation = 0;
@@ -1699,7 +1702,7 @@ static int unit_treasure_in_colony_cash_in(void) {
   /* Pre-WoI: @LOOTFOREIGN enqueued. */
   int found = 0;
   for (int i = 0; i < popups.queue_count; ++i) {
-    if (strstr(popups.queue[i].body, "treasure fleet") != NULL) {
+    if (test_body_is_section(popups.queue[i].body, "LOOTFOREIGN")) {
       found = 1;
     }
   }
@@ -1756,7 +1759,7 @@ static int unit_treasure_cash_in_silent_under_woi(void) {
     return fail("WoI cash-in must still credit the treasury");
   }
   for (int i = 0; i < popups.queue_count; ++i) {
-    if (strstr(popups.queue[i].body, "treasure fleet") != NULL) {
+    if (test_body_is_section(popups.queue[i].body, "LOOTFOREIGN")) {
       fixture_free(&f);
       return fail("@LOOTFOREIGN must not fire once the WoI flag is set");
     }
@@ -2231,7 +2234,11 @@ static int gate_course_run(int own_colony, int* out_x, int* out_y, int* out_def_
     *out_x = r->x;
     *out_y = r->y;
   }
-  *out_def_alive = (d && d->active) ? 1 : 0;
+  /* "Alive" = still an armed defender of its own nation. A beaten Soldier is
+   * demoted to a Colonist and captured (DOS), not necessarily destroyed; the
+   * fixture's colonist type now resolves by @UNIT kind, so that path runs. */
+  *out_def_alive =
+    (d && d->active && d->nation_id == 0 && d->type_index == 1) ? 1 : 0;
   fixture_free(&f);
   return ok ? 0 : -1;
 }

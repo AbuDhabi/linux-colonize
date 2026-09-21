@@ -109,14 +109,14 @@ bool options_dialog_open_game(
   const ColonizeCol1GameOptions* opts
 ) {
   static const char* const k_fb[] = {
-    "Show Indian Moves",
     "",
     "",
     "",
     "",
     "",
     "",
-    "Tutorial Hints"
+    "",
+    ""
   };
   uint8_t vals[8] = {0};
   if (opts) {
@@ -149,7 +149,6 @@ bool options_dialog_open_colony(
   const ColonizeCol1ColonyReportOptions* opts
 ) {
   static const char* const k_fb[] = {
-    "Labels on buildings",
     "",
     "",
     "",
@@ -158,7 +157,8 @@ bool options_dialog_open_colony(
     "",
     "",
     "",
-    "Report rebel majorities"
+    "",
+    ""
   };
   /*
    * Every DS:0x5384/0x5385 bit is a *suppress* flag: FUN_2b5a_223a sets it

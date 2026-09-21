@@ -616,13 +616,7 @@ static void ai_contact_apply_welcome_accept(
   peace_tok.string0 = tribe;
   peace_tok.string1 = euro;
   char peace_fb[AI_POPUP_BODY_LEN];
-  snprintf(
-    peace_fb,
-    sizeof(peace_fb),
-    "",
-    tribe,
-    euro
-  );
+  peace_fb[0] = '\0';
   char peace_body[AI_POPUP_BODY_LEN];
   popup_msg_fill(
     ctx->messages, "INDIANPEACE", &peace_tok, peace_fb, peace_body, sizeof(peace_body)
@@ -635,12 +629,7 @@ static void ai_contact_apply_welcome_accept(
     memset(&come_tok, 0, sizeof(come_tok));
     come_tok.string0 = tribe;
     char come_fb[AI_POPUP_BODY_LEN];
-    snprintf(
-      come_fb,
-      sizeof(come_fb),
-      "",
-      tribe
-    );
+    come_fb[0] = '\0';
     char come_body[AI_POPUP_BODY_LEN];
     popup_msg_fill(
       ctx->messages, "INDIANCOME", &come_tok, come_fb, come_body, sizeof(come_body)
@@ -696,12 +685,7 @@ static void ai_contact_apply_welcome_reject(
   memset(&shun_tok, 0, sizeof(shun_tok));
   shun_tok.string0 = tribe;
   char shun_fb[AI_POPUP_BODY_LEN];
-  snprintf(
-    shun_fb,
-    sizeof(shun_fb),
-    "Then the mighty %s shall mercilessly drive you from our shores. Prepare for WAR!",
-    tribe
-  );
+  shun_fb[0] = '\0';
   char shun_body[AI_POPUP_BODY_LEN];
   popup_msg_fill(
     ctx->messages, "INDIANSHUN", &shun_tok, shun_fb, shun_body, sizeof(shun_body)
@@ -751,14 +735,7 @@ static void ai_contact_enqueue_welcome(ColonizeTurnContext* ctx, int e, int nati
   welcome_tok.number0 = shown;
   welcome_tok.has_number0 = true;
   char fb[AI_POPUP_BODY_LEN];
-  snprintf(
-    fb,
-    sizeof(fb),
-    "",
-    tribe,
-    welcome_tok.number0,
-    welcome_tok.string1
-  );
+  fb[0] = '\0';
   char body[AI_POPUP_BODY_LEN];
   popup_msg_fill(
     ctx->messages, "INDIANWELCOME", &welcome_tok, fb, body, sizeof(body)
@@ -915,15 +892,12 @@ static void ai_contact_classify_unit(
     return;
   }
   const ColonizeUnitType* t = units_type(units, u->type_index);
-  const char* tname = t ? t->name : "";
   out->is_ship = units_is_sea(units, u->id) ? 1 : 0;
   out->is_wagon = units_type_is_wagon(t) ? 1 : 0;
-  out->is_scout = combat_type_is_scout_name(tname);
+  out->is_scout = combat_type_is_scout(t);
   out->is_missionary = units_type_is_missionary(t) ? 1 : 0;
   out->attack = t ? t->attack : 0;
-  const char* dname = units_display_name(units, u);
-  const int is_convert =
-    u->profession == COLONIZE_PROF_CONVERT || (dname && strstr(dname, "Convert") != NULL);
+  const int is_convert = u->profession == COLONIZE_PROF_CONVERT;
   const int colonist_class =
     !out->is_ship && !out->is_wagon && !out->is_scout && !out->is_missionary &&
     !units_type_is_treasure(t) && !units_type_is_artillery(t);
@@ -1065,7 +1039,7 @@ static void ai_contact_enqueue_village_meet(
   tok.string0 = ai_contact_level_noun(ctx, (int)ind->tech);
   tok.string1 = tribe;
   char fb[AI_POPUP_BODY_LEN];
-  snprintf(fb, sizeof(fb), "", tok.string0, tribe);
+  fb[0] = '\0';
   char body[AI_POPUP_BODY_LEN];
   popup_msg_fill(ctx->messages, section, &tok, fb, body, sizeof(body));
 
@@ -1318,10 +1292,8 @@ int ai_contact_try_whack_confirm(
   PopupMsgTokens tok;
   memset(&tok, 0, sizeof(tok));
   tok.string0 = tribe;
-  char fb[AI_POPUP_BODY_LEN];
-  snprintf(fb, sizeof(fb), "Shall we attack the %s, Your Excellency?", tribe);
   char body[AI_POPUP_BODY_LEN];
-  popup_msg_fill(ctx->messages, "WHACKINDIANS", &tok, fb, body, sizeof(body));
+  popup_msg_fill(ctx->messages, "WHACKINDIANS", &tok, "", body, sizeof(body));
   static const char* labels[] = {"", ""};
   static const int ids[] = {1, 0};
   const int payload = dest_x | (dest_y << 8);
@@ -1392,13 +1364,8 @@ int ai_contact_try_euro_attack_confirm(
   PopupMsgTokens tok;
   memset(&tok, 0, sizeof(tok));
   tok.string0 = name;
-  char fb[AI_POPUP_BODY_LEN];
-  snprintf(
-    fb, sizeof(fb),
-    "\"We have signed a peace treaty with the %s, Your Excellency.\"", name
-  );
   char body[AI_POPUP_BODY_LEN];
-  popup_msg_fill(ctx->messages, "HAVETREATY", &tok, fb, body, sizeof(body));
+  popup_msg_fill(ctx->messages, "HAVETREATY", &tok, "", body, sizeof(body));
   /* GAME.TXT @HAVETREATY choice rows: "Cancel Action." / "Break Treaty." */
   char choice_buf[2][POPUP_MSG_CHOICE_LEN];
   const char* labels[2];
@@ -1455,11 +1422,7 @@ int ai_contact_try_tired_attack_confirm(
   tok.number0 = rem;
   tok.has_number0 = true;
   char fb[AI_POPUP_BODY_LEN];
-  snprintf(
-    fb, sizeof(fb),
-    "",
-    rem
-  );
+  fb[0] = '\0';
   char body[AI_POPUP_BODY_LEN];
   popup_msg_fill(ctx->messages, "HALF", &tok, fb, body, sizeof(body));
   /* @HALF carries its own two rows after the blank line, same as the
@@ -1797,19 +1760,20 @@ static int ai_contact_is_petty_criminal(const ColonizeUnitPool* units, const Col
    * Colonists-type unit whose display name reads "Free Colonist", so the
    * old name test never fired (and Indentured Servants fell into the
    * profession-set "master" refusal instead of learning). */
-  if (u->profession == UNITS_JOB_CRIMINAL) {
-    return 1;
-  }
-  const char* name = units_display_name(units, u);
-  return name && strstr(name, "Criminal") != NULL;
+  (void)units;
+  return u->profession == UNITS_JOB_CRIMINAL;
 }
 
 static int ai_contact_is_teachable_learner(const ColonizeUnitPool* units, const ColonizeUnit* u) {
-  const char* name = units_display_name(units, u);
-  if (!name) {
+  if (!u) {
     return 0;
   }
-  return strstr(name, "Free Colonist") != NULL || strstr(name, "Scout") != NULL;
+  const ColonizeUnitType* ty = units_type(units, u->type_index);
+  ColonizeUnitKind kind = ty ? units_type_kind(ty) : UNITS_KIND_UNKNOWN;
+  if (kind == UNITS_KIND_SCOUT) {
+    return 1;
+  }
+  return kind == UNITS_KIND_COLONIST && u->profession == UNITS_JOB_NONE;
 }
 
 /*
@@ -2030,8 +1994,9 @@ static void ai_contact_teach_skill(ColonizeTurnContext* ctx, int nation_id) {
        */
       int taught_scout = 0;
       if (other->profession == UNITS_JOB_NONE) {
-        const char* name = units_display_name(ctx->units, other);
-        if (name && strstr(name, "Scout") != NULL) {
+        const ColonizeUnitType* other_ty = units_type(ctx->units, other->type_index);
+        ColonizeUnitKind other_kind = other_ty ? units_type_kind(other_ty) : UNITS_KIND_UNKNOWN;
+        if (other_kind == UNITS_KIND_SCOUT) {
           other->profession = UNITS_JOB_SCOUT;
           taught_scout = 1;
         } else {
@@ -2040,8 +2005,7 @@ static void ai_contact_teach_skill(ColonizeTurnContext* ctx, int nation_id) {
       }
       if (taught_scout) {
         char body[AI_POPUP_BODY_LEN];
-        const char* fb = "Our Scouts have improved to Seasoned status.";
-        popup_msg_fill(ctx->messages, "WELLSEASONED", NULL, fb, body, sizeof(body));
+        popup_msg_fill(ctx->messages, "WELLSEASONED", NULL, "", body, sizeof(body));
         ai_contact_human_chrome(
           ctx, e, AI_POPUP_TAG_CONTACT_TEACH, nation_id, "Teach", body
         );
@@ -2491,16 +2455,8 @@ static int ai_contact_enqueue_incite_target_choice(
   PopupMsgTokens tok;
   memset(&tok, 0, sizeof(tok));
   tok.string0 = ai_contact_tribe_name(nation_id);
-  char fb[AI_POPUP_BODY_LEN];
-  snprintf(
-    fb,
-    sizeof(fb),
-    "\"The %s tribe is ready to go on the warpath. Whom would you like us "
-    "to attack?\"",
-    tok.string0
-  );
   char body[AI_POPUP_BODY_LEN];
-  popup_msg_fill(ctx->messages, "INDIANWARPATH", &tok, fb, body, sizeof(body));
+  popup_msg_fill(ctx->messages, "INDIANWARPATH", &tok, "", body, sizeof(body));
   /* Carry the offer-time-captured discount flags through to apply time
    * (bit0=is_missionary, bit1=is_capital) — see ai_contact_incite_price. */
   const int payload = (is_missionary ? 1 : 0) | (is_capital ? 2 : 0);
@@ -2553,9 +2509,7 @@ static void ai_contact_enqueue_incite_confirm(
   if ((ind->euro_diplo[target] & COL1_INDIAN_MET_BIT) == 0) {
     /* @NOCONTACT (0x16b7): the tribe has never met the named nation. */
     char nb[AI_POPUP_BODY_LEN];
-    char nfb[AI_POPUP_BODY_LEN];
-    snprintf(nfb, sizeof(nfb), "\"We have no contact with the %s.\"", tok.string0);
-    popup_msg_fill(ctx->messages, "NOCONTACT", &tok, nfb, nb, sizeof(nb));
+    popup_msg_fill(ctx->messages, "NOCONTACT", &tok, "", nb, sizeof(nb));
     ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_INCITE, nation_id, "Incite", nb);
     return;
   }
@@ -2563,17 +2517,8 @@ static void ai_contact_enqueue_incite_confirm(
     ai_contact_incite_price(ctx, ind, nation_id, e, target, is_missionary, is_capital);
   tok.number0 = (int)price;
   tok.has_number0 = true;
-  char fb[AI_POPUP_BODY_LEN];
-  snprintf(
-    fb,
-    sizeof(fb),
-    "\"We will gladly drive the %s from our ancestral lands in exchange for "
-    "%u.\"",
-    tok.string0,
-    (unsigned)price
-  );
   char body[AI_POPUP_BODY_LEN];
-  popup_msg_fill(ctx->messages, "INDIANWARPATH2", &tok, fb, body, sizeof(body));
+  popup_msg_fill(ctx->messages, "INDIANWARPATH2", &tok, "", body, sizeof(body));
   char pay_fb[POPUP_MSG_CHOICE_LEN];
   snprintf(pay_fb, sizeof(pay_fb), "Pay %u.", (unsigned)price);
   char row_buf[2][POPUP_MSG_CHOICE_LEN];
@@ -2621,12 +2566,7 @@ static void ai_contact_incite_warfare_chrome(
   tok.string2 = ai_contact_tribe_name(nation_id);
   tok.string3 = ai_contact_euro_name(target);
   char fb[AI_POPUP_BODY_LEN];
-  snprintf(
-    fb,
-    sizeof(fb),
-    "",
-    tok.string0, tok.string1, tok.string2, tok.string3
-  );
+  fb[0] = '\0';
   char body[AI_POPUP_BODY_LEN];
   popup_msg_fill(ctx->messages, "INDIANWARFARE", &tok, fb, body, sizeof(body));
   ai_contact_human_chrome(
@@ -2669,10 +2609,8 @@ static void ai_contact_apply_incite(
     PopupMsgTokens tok;
     memset(&tok, 0, sizeof(tok));
     tok.string0 = ai_contact_euro_name(target);
-    char fb[AI_POPUP_BODY_LEN];
-    snprintf(fb, sizeof(fb), "\"We have no contact with the %s.\"", tok.string0);
     char body[AI_POPUP_BODY_LEN];
-    popup_msg_fill(ctx->messages, "NOCONTACT", &tok, fb, body, sizeof(body));
+    popup_msg_fill(ctx->messages, "NOCONTACT", &tok, "", body, sizeof(body));
     ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_INCITE, nation_id, "Incite", body);
     return;
   }
@@ -2696,12 +2634,8 @@ static void ai_contact_apply_incite(
     PopupMsgTokens tok;
     memset(&tok, 0, sizeof(tok));
     tok.string0 = ai_contact_euro_name(target);
-    char fb[AI_POPUP_BODY_LEN];
-    snprintf(
-      fb, sizeof(fb), "\"We are already at war with the worthless %s.\"", tok.string0
-    );
     char body[AI_POPUP_BODY_LEN];
-    popup_msg_fill(ctx->messages, "ALREADYSMITE", &tok, fb, body, sizeof(body));
+    popup_msg_fill(ctx->messages, "ALREADYSMITE", &tok, "", body, sizeof(body));
     ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_INCITE, nation_id, "Incite", body);
     return;
   }
@@ -3374,7 +3308,7 @@ static void ai_contact_gift_or_demand(
         e,
         nation_id,
         demand_band ? AI_POPUP_TAG_CONTACT_DEMAND : AI_POPUP_TAG_CONTACT_GIFT,
-        demand_band ? "Demand" : "Gift",
+        "", /* title param is unused by ai_contact_human_chrome */
         demand_band ? "demands" : "gifts"
       );
     }
@@ -4656,13 +4590,7 @@ void ai_contact_indian_woi_defect(ColonizeTurnContext* ctx, int nation_id) {
     gtok.string0 = ai_contact_tribe_name(nation_id);
     gtok.string1 = gtok.string0;
     char gfb[AI_POPUP_BODY_LEN];
-    snprintf(
-      gfb,
-      sizeof(gfb),
-      "",
-      gtok.string0,
-      gtok.string1
-    );
+    gfb[0] = '\0';
     char gbody[AI_POPUP_BODY_LEN];
     popup_msg_fill(ctx->messages, "INDIANGRUDGE", &gtok, gfb, gbody, sizeof(gbody));
     ai_contact_human_chrome(
@@ -5350,16 +5278,8 @@ int ai_contact_try_village_gifts(ColonizeTurnContext* ctx, int nation_id) {
           PopupMsgTokens tok;
           memset(&tok, 0, sizeof(tok));
           tok.string0 = c->name[0] ? c->name : "our colony";
-          char fb[AI_POPUP_BODY_LEN];
-          snprintf(
-            fb,
-            sizeof(fb),
-            "\"The wisdom of your missionaries has convinced some of us to join "
-            "your colony at %s and live among you as converts.\"",
-            tok.string0
-          );
           char body[AI_POPUP_BODY_LEN];
-          popup_msg_fill(ctx->messages, "INDIANSCONVERT", &tok, fb, body, sizeof(body));
+          popup_msg_fill(ctx->messages, "INDIANSCONVERT", &tok, "", body, sizeof(body));
           ai_contact_human_chrome(
             ctx, e, AI_POPUP_TAG_CONTACT_CONVERT, nation_id, "", body
           );
@@ -5874,8 +5794,8 @@ static void ai_contact_reparations_present(
     ctx->messages,
     section,
     tok,
-    city ? "Man the stockade." : "Hand them over.",
-    city ? "Hand them over." : "Circle the wagons.",
+    "",
+    "",
     label_buf,
     labels
   );
@@ -6024,9 +5944,7 @@ static void ai_contact_try_village_reparations(ColonizeTurnContext* ctx, int nat
       const int ai_accept = (best_cargo != COLONIZE_CARGO_MUSKETS);
       ai_contact_reparations_present(
         ctx, ind, nation_id, e, AI_CONTACT_REPARATIONS_CITY, "INDIANCITY", &tok,
-        "\"The settlers have committed intolerable acts of destruction against "
-        "our lands and our people. We therefore demand reparations from the "
-        "colony stores.\"",
+        "",
         ai_accept
       );
       return; /* one reparations demand per Indian nation per turn */
@@ -6430,27 +6348,25 @@ static void ai_contact_intel_note_buys(
 }
 
 /*
- * GAME.TXT's trailing choice row (@TRADE0/@TRADE1/@BUY0/@BUY1 etc. all end
- * "Never mind.") for CHOICE arrays that build their other rows by hand from
- * live prices and so can't go through popup_msg_section_labels (that helper
- * only extracts the first two rows). Returns the catalog row when the
- * section has exactly `expected_rows` choice rows, else `fallback` verbatim.
+ * Choice rows of a GAME.TXT section with the tokens applied — the haggle
+ * dialogs' "We gratefully accept {N}$." style rows are catalog text like the
+ * body, never typed here. Returns how many rows were filled (0 when the
+ * section is missing: the popup then simply has no such row).
  */
-static const char* ai_contact_last_choice_label(
-  const ColonizeMsgCatalog* catalog, const char* section_name, int expected_rows,
-  char* buf, size_t buf_size, const char* fallback
+static int ai_contact_choice_rows(
+  const ColonizeMsgCatalog* catalog, const char* section_name, const PopupMsgTokens* tok,
+  char out[][AI_POPUP_CHOICE_LEN], int max_rows
 ) {
   const ColonizeMsgSection* sec = catalog ? assets_msg_find(catalog, section_name) : NULL;
-  if (sec && expected_rows > 0 && expected_rows <= 4) {
-    char rows[4][POPUP_MSG_CHOICE_LEN];
-    int n = popup_msg_choices(sec, rows, expected_rows);
-    if (n == expected_rows) {
-      str_copy_trunc(buf, buf_size, rows[n - 1]);
-      return buf;
-    }
+  if (!sec) {
+    return 0;
   }
-  str_copy_trunc(buf, buf_size, fallback);
-  return buf;
+  char raw[AI_POPUP_CHOICE_MAX][POPUP_MSG_CHOICE_LEN];
+  int n = popup_msg_choices(sec, raw, max_rows < AI_POPUP_CHOICE_MAX ? max_rows : AI_POPUP_CHOICE_MAX);
+  for (int i = 0; i < n; ++i) {
+    popup_msg_apply_tokens(out[i], AI_POPUP_CHOICE_LEN, raw[i], tok);
+  }
+  return n;
 }
 
 static void ai_contact_enqueue_buy0(
@@ -6473,22 +6389,14 @@ static void ai_contact_enqueue_buy0(
   tok.has_number2 = true;
   char tag[8];
   snprintf(tag, sizeof(tag), "BUY%d", round > 0 ? 1 : 0); /* FUN_0000_d9b4 + '0'+iStack_88 */
-  char fb[AI_POPUP_BODY_LEN];
-  snprintf(fb, sizeof(fb), "\"%sWe shall fill up your %s with %d %s in exchange for %d$. Is this acceptable?\"",
-           round > 0 ? "We grow tired of your constant haggling. " : "", tok.string1, qty, tok.string0,
-           price);
   char body[AI_POPUP_BODY_LEN];
-  popup_msg_fill(ctx->messages, tag, &tok, fb, body, sizeof(body));
-  char accept[AI_POPUP_CHOICE_LEN];
-  char haggle[AI_POPUP_CHOICE_LEN];
-  snprintf(accept, sizeof(accept), "We will gladly pay %d$ (of %u$)", price,
-           (unsigned)europe_nation_gold(ctx->europe, ctx->col1, e)); /* audit G3 */
-  snprintf(haggle, sizeof(haggle), "", fair);
-  char nevermind[POPUP_MSG_CHOICE_LEN];
-  const char* labels[3] = {
-    accept, haggle,
-    ai_contact_last_choice_label(ctx->messages, tag, 3, nevermind, sizeof(nevermind), "")
-  };
+  popup_msg_fill(ctx->messages, tag, &tok, "", body, sizeof(body));
+  /* @BUY0/@BUY1 rows: pay {N0} (of {N3}) / a fairer price {N1} / never mind. */
+  tok.number3 = (int)europe_nation_gold(ctx->europe, ctx->col1, e); /* audit G3 */
+  tok.has_number3 = true;
+  char rows[3][AI_POPUP_CHOICE_LEN] = {{0}, {0}, {0}};
+  (void)ai_contact_choice_rows(ctx->messages, tag, &tok, rows, 3);
+  const char* labels[3] = {rows[0], rows[1], rows[2]};
   const int ids[3] = {1, 2, 0};
   if (ai_popup_enqueue_choice_ctx(
         ctx->ai_popups, AI_POPUP_TAG_CONTACT_BUY0, e, nation_id,
@@ -6525,11 +6433,8 @@ static int ai_contact_enqueue_buywhich(
   tok.string0 = ai_contact_cargo_name(goods[0]);
   tok.string1 = n > 1 ? ai_contact_cargo_name(goods[1]) : "";
   tok.string2 = n > 2 ? ai_contact_cargo_name(goods[2]) : "";
-  char fb[AI_POPUP_BODY_LEN];
-  snprintf(fb, sizeof(fb), "\"We have %s, %s, and %s available to trade with you. Which would you like to buy?\"",
-           tok.string0, tok.string1, tok.string2);
   char body[AI_POPUP_BODY_LEN];
-  popup_msg_fill(ctx->messages, "BUYWHICH", &tok, fb, body, sizeof(body));
+  popup_msg_fill(ctx->messages, "BUYWHICH", &tok, "", body, sizeof(body));
   /* GAME.TXT rows when the section carries all four, else plain fallbacks. */
   char rows[AI_POPUP_CHOICE_MAX][POPUP_MSG_CHOICE_LEN];
   const ColonizeMsgSection* sec = ctx->messages ? assets_msg_find(ctx->messages, "BUYWHICH") : NULL;
@@ -6546,7 +6451,7 @@ static int ai_contact_enqueue_buywhich(
     labels[k] = filled[k];
     ids[k] = goods[k] + 1; /* 1..16 */
   }
-  snprintf(filled[n], sizeof(filled[n]), "%s", nrows >= 4 ? rows[3] : "Nothing right now, thank you.");
+  snprintf(filled[n], sizeof(filled[n]), "%s", nrows >= 4 ? rows[3] : "");
   labels[n] = filled[n];
   ids[n] = 0; /* decline: no purchase */
   if (!ai_popup_enqueue_choice_ctx(
@@ -6591,12 +6496,8 @@ static void ai_contact_2820_buy_phase(
     tok.string0 = ai_contact_cargo_name(wanted[0]);
     tok.string1 = ai_contact_cargo_name(wanted[1]);
     tok.string2 = ai_contact_cargo_name(wanted[2]);
-    char fb[AI_POPUP_BODY_LEN];
-    snprintf(fb, sizeof(fb),
-             "\"We are in need of %s and %s. Perhaps you will bring some next time you come to trade with us. Even %s would be of some value.\"",
-             tok.string0, tok.string1, tok.string2);
     char body[AI_POPUP_BODY_LEN];
-    popup_msg_fill(ctx->messages, "BRING", &tok, fb, body, sizeof(body));
+    popup_msg_fill(ctx->messages, "BRING", &tok, "", body, sizeof(body));
     ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_MEET, nation_id, "", body);
     ai_contact_intel_note_buys(ctx, e, nation_id, unit, wanted);
   }
@@ -6756,10 +6657,8 @@ static void ai_contact_apply_buy0(
       PopupMsgTokens tok;
       memset(&tok, 0, sizeof(tok));
       tok.string0 = ai_contact_cargo_name(cargo);
-      char fb[AI_POPUP_BODY_LEN];
-      snprintf(fb, sizeof(fb), "\"Our patience with your haggling is exhausted. We will sell you nothing further until you bring us something of value.\"");
       char body[AI_POPUP_BODY_LEN];
-      popup_msg_fill(ctx->messages, "BADHAGGLE2", &tok, fb, body, sizeof(body));
+      popup_msg_fill(ctx->messages, "BADHAGGLE2", &tok, "", body, sizeof(body));
       ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_REFUSE, nation_id, "", body);
       return;
     }
@@ -6777,11 +6676,8 @@ static void ai_contact_apply_buy0(
     memset(&tok, 0, sizeof(tok));
     tok.number0 = (int)europe_nation_gold(ctx->europe, ctx->col1, e); /* audit G3 */
     tok.has_number0 = true;
-    char fb[AI_POPUP_BODY_LEN];
-    snprintf(fb, sizeof(fb), "\"Sadly, your treasury (%d$) is not large enough to back your promise.\"",
-             tok.number0);
     char body[AI_POPUP_BODY_LEN];
-    popup_msg_fill(ctx->messages, "NOTENOUGH", &tok, fb, body, sizeof(body));
+    popup_msg_fill(ctx->messages, "NOTENOUGH", &tok, "", body, sizeof(body));
     ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_REFUSE, nation_id, "", body);
   }
   s->active = 0;
@@ -6799,34 +6695,21 @@ static int ai_contact_enqueue_trade_offer_round(
   tok.has_number0 = true;
   tok.number1 = s->fair;
   tok.has_number1 = true;
-  char fb[AI_POPUP_BODY_LEN];
-  if (s->round == 0) {
-    snprintf(fb, sizeof(fb), "\"We see that you have brought some %s %s to trade with us. We offer you %d$ in exchange.\"",
-             tok.string0, tok.string1, s->price);
-  } else {
-    snprintf(fb, sizeof(fb), "\"Your haggling is trying our patience, but we shall raise our offer to %d$ for your %s.\"",
-             s->price, tok.string1);
-  }
   char body[AI_POPUP_BODY_LEN];
-  popup_msg_fill(ctx->messages, s->round == 0 ? "TRADE0" : "TRADE1", &tok, fb, body, sizeof(body));
-  char accept[AI_POPUP_CHOICE_LEN];
-  char haggle[AI_POPUP_CHOICE_LEN];
-  char gift[AI_POPUP_CHOICE_LEN];
-  snprintf(accept, sizeof(accept), "", s->price);
-  snprintf(haggle, sizeof(haggle), "", s->fair);
-  snprintf(gift, sizeof(gift), "No, let the %s be our gift to you", tok.string1);
-  char nevermind[POPUP_MSG_CHOICE_LEN];
-  const char* nm = ai_contact_last_choice_label(
-    ctx->messages, s->round == 0 ? "TRADE0" : "TRADE1", s->round == 0 ? 4 : 3,
-    nevermind, sizeof(nevermind), ""
+  popup_msg_fill(ctx->messages, s->round == 0 ? "TRADE0" : "TRADE1", &tok, "", body, sizeof(body));
+  /* @TRADE0 rows: accept {N0} / fairer {N1} / gift / never mind; @TRADE1 has
+   * no gift row. */
+  const int four = s->round == 0;
+  char rows[4][AI_POPUP_CHOICE_LEN] = {{0}, {0}, {0}, {0}};
+  (void)ai_contact_choice_rows(
+    ctx->messages, four ? "TRADE0" : "TRADE1", &tok, rows, four ? 4 : 3
   );
-  const char* labels[4] = {accept, haggle, gift, nm};
+  const char* labels[4] = {rows[0], rows[1], rows[2], rows[3]};
   const int ids4[4] = {AI_CONTACT_TRADE_OFFER_ACCEPT, AI_CONTACT_TRADE_OFFER_HAGGLE,
                        AI_CONTACT_TRADE_OFFER_GIFT, AI_CONTACT_TRADE_OFFER_DECLINE};
-  const char* labels3[3] = {accept, haggle, nm};
+  const char* labels3[3] = {rows[0], rows[1], rows[2]};
   const int ids3[3] = {AI_CONTACT_TRADE_OFFER_ACCEPT, AI_CONTACT_TRADE_OFFER_HAGGLE,
                        AI_CONTACT_TRADE_OFFER_DECLINE};
-  const int four = s->round == 0;
   if (!ai_popup_enqueue_choice_ctx(
         ctx->ai_popups, AI_POPUP_TAG_CONTACT_TRADE_OFFER, e, nation_id, s->price, NULL,
         body, four ? labels : labels3, four ? ids4 : ids3, four ? 4 : 3
@@ -6881,12 +6764,8 @@ static void ai_contact_2820_dispatch(
     tok.string1 = ai_contact_cargo_name(wanted[0]);
     tok.string2 = ai_contact_cargo_name(wanted[1]);
     tok.string3 = ai_contact_cargo_name(wanted[2]);
-    char fb[AI_POPUP_BODY_LEN];
-    snprintf(fb, sizeof(fb),
-             "\"We have enough %s and don't need any more right now. Come back when you have something else to offer. We are in need of %s and %s. Even %s would be of some use.\"",
-             tok.string0, tok.string1, tok.string2, tok.string3);
     char body[AI_POPUP_BODY_LEN];
-    popup_msg_fill(ctx->messages, "BADCARGO", &tok, fb, body, sizeof(body));
+    popup_msg_fill(ctx->messages, "BADCARGO", &tok, "", body, sizeof(body));
     ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_REFUSE, nation_id, "", body);
     ai_contact_intel_note_buys(ctx, e, nation_id, unit, wanted);
     s->active = 0;
@@ -6897,11 +6776,8 @@ static void ai_contact_2820_dispatch(
     PopupMsgTokens tok;
     memset(&tok, 0, sizeof(tok));
     tok.string0 = ai_contact_cargo_name(s->cargo);
-    char fb[AI_POPUP_BODY_LEN];
-    snprintf(fb, sizeof(fb), "\"We have already told you that we no longer want your %s. Come back when you have something else.\"",
-             tok.string0);
     char body[AI_POPUP_BODY_LEN];
-    popup_msg_fill(ctx->messages, "BADHAGGLE1", &tok, fb, body, sizeof(body));
+    popup_msg_fill(ctx->messages, "BADHAGGLE1", &tok, "", body, sizeof(body));
     ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_REFUSE, nation_id, "", body);
     s->active = 0;
     return;
@@ -7145,11 +7021,8 @@ static void ai_contact_apply_trade_offer(
     PopupMsgTokens tok;
     memset(&tok, 0, sizeof(tok));
     tok.string1 = ai_contact_cargo_name(s->cargo);
-    char fb[AI_POPUP_BODY_LEN];
-    snprintf(fb, sizeof(fb), "\"Our patience with your haggling is exhausted. We no longer want your worthless %s. Come back when you have something else to offer.\"",
-             tok.string1);
     char body[AI_POPUP_BODY_LEN];
-    popup_msg_fill(ctx->messages, "BADHAGGLE0", &tok, fb, body, sizeof(body));
+    popup_msg_fill(ctx->messages, "BADHAGGLE0", &tok, "", body, sizeof(body));
     ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_REFUSE, nation_id, "", body);
     return;
   }
@@ -8380,39 +8253,13 @@ COLONIZE_INTERNAL void ai_contact_raid_ambush_chrome(
     if (brave_won) {
       if (seized_muskets) {
         sec = "INDIANWIN1";
-        snprintf(
-          fb,
-          sizeof(fb),
-          "%s ambush %s %s near %s! Muskets seized by %s braves!",
-          tribe,
-          foe_nation_label,
-          foe_unit_name,
-          place,
-          tribe
-        );
+        fb[0] = '\0';
       } else if (seized_horses) {
         sec = "INDIANWIN2";
-        snprintf(
-          fb,
-          sizeof(fb),
-          "%s ambush %s %s near %s! Horses seized by %s braves!",
-          tribe,
-          foe_nation_label,
-          foe_unit_name,
-          place,
-          tribe
-        );
+        fb[0] = '\0';
       } else {
         sec = "INDIANWIN0";
-        snprintf(
-          fb,
-          sizeof(fb),
-          "%s ambush %s %s near %s!",
-          tribe,
-          foe_nation_label,
-          foe_unit_name,
-          place
-        );
+        fb[0] = '\0';
       }
     } else {
       /* LABELS defeat/defeats — unit subjects type_index ≥7 use "defeats". */
@@ -9109,7 +8956,7 @@ static const char* ai_contact_job_expert_name(const ColonizeTurnContext* ctx, in
     return colony_yield_job_name(job);
   }
   if (job == UNITS_JOB_SCOUT) {
-    return "Seasoned Scouts";
+    return reports_job_display_name(job);
   }
   return "colonists";
 }
@@ -9120,7 +8967,7 @@ static const char* ai_contact_job_name(int job) {
     return colony_yield_job_name(job);
   }
   if (job == UNITS_JOB_SCOUT) {
-    return "Scout";
+    return reports_job_short_name(job);
   }
   return "colonist";
 }
@@ -9727,10 +9574,8 @@ static void ai_contact_learnstay_apply(
   memset(&tok, 0, sizeof(tok));
   tok.string0 = ai_contact_tribe_name(nation_id);
   tok.string1 = ai_contact_job_name(skill);
-  char fb[AI_POPUP_BODY_LEN];
-  snprintf(fb, sizeof(fb), "\"Congratulations, Young One. You have learned the ways of the %s and become a master %s.\"", tok.string0, tok.string1);
   char body[AI_POPUP_BODY_LEN];
-  popup_msg_fill(ctx->messages, "LEARNDONE", &tok, fb, body, sizeof(body));
+  popup_msg_fill(ctx->messages, "LEARNDONE", &tok, "", body, sizeof(body));
   ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_TEACH, nation_id, "Teach", body);
 }
 
@@ -9774,16 +9619,14 @@ static void ai_contact_live_among_natives(
       return; /* met, no peace → DOS returns before the popup */
     }
     section = "LEARNMAD";
-    fb = "\"Your ill manners infuriate us, Young One. You fail to understand our ways, so we doubt you will ever learn anything from us.\"";
+    fb = "";
   } else if (ai_contact_is_petty_criminal(ctx->units, u)) {
     section = "LEARNCRIMINAL";
-    fb = "\"Your ill manners offend us, Young One, and we doubt that you will ever be more than a common criminal. The %s will teach you nothing.\"";
+    fb = "";
   } else {
-    const char* dname = units_display_name(ctx->units, u);
-    const int is_convert = u->profession == COLONIZE_PROF_CONVERT || (dname && strstr(dname, "Convert") != NULL);
+    const int is_convert = u->profession == COLONIZE_PROF_CONVERT;
     /* Profession byte, not the display name (see is_petty_criminal). */
-    const int is_indentured = u->profession == UNITS_JOB_SERVANT ||
-      (dname && strstr(dname, "Indentured") != NULL);
+    const int is_indentured = u->profession == UNITS_JOB_SERVANT;
     if (is_convert) {
       char body[AI_POPUP_BODY_LEN];
       popup_msg_fill(ctx->messages, "TEACHCONVERT", NULL, "", body, sizeof(body));
@@ -9796,10 +9639,10 @@ static void ai_contact_live_among_natives(
         !is_indentured) {
       tok.string1 = ai_contact_learner_skill_name(ctx->units, u);
       section = "LEARNMASTER";
-      fb = "\"We are glad to have a master %s living among us, Old One. However, we can only teach new skills to colonists who do not yet have one.\"";
+      fb = "";
     } else if (t->state.learned && !t->state.capital) {
       section = "LEARNALREADY";
-      fb = "\"The %s of this village have already shared their skills with young Europeans. Go and learn from them if you will, for we have nothing else to teach.\"";
+      fb = "";
     } else {
       int slow = 0;
       if (band > 0) {
@@ -9810,12 +9653,10 @@ static void ai_contact_live_among_natives(
       }
       if (slow) {
         section = "LEARNSLOW";
-        fb = "\"You are unskilled and uncouth, Young One, and have difficulty understanding our ways. We see scarce hope for you, although you are welcome to remain in our village.\"";
+        fb = "";
       } else if (human && ctx->ai_popups) {
         char body[AI_POPUP_BODY_LEN];
-        char fbs[AI_POPUP_BODY_LEN];
-        snprintf(fbs, sizeof(fbs), "\"You are unskilled, Young One, and your ways are strange. If you wish, however, we %s will show you how to become a master %s.\"", tribe, tok.string1);
-        popup_msg_fill(ctx->messages, "LEARNSTAY", &tok, fbs, body, sizeof(body));
+        popup_msg_fill(ctx->messages, "LEARNSTAY", &tok, "", body, sizeof(body));
         /* @LEARNSTAY row 2 ("Not right now, thanks.") carries no token, so
          * running it through the shared tokeniser leaves it byte for byte —
          * checked against COLONIZE/GAME.TXT:1475-1476 (audit AC-28). */
@@ -9944,10 +9785,13 @@ static void ai_contact_speak_with_chief(
           PopupMsgTokens ht;
           memset(&ht, 0, sizeof(ht));
           ht.string0 = ai_contact_job_expert_name(ctx, skill);
-          ht.string1 = want[0] >= 0 ? ai_contact_cargo_name(want[0]) : "trade goods";
-          ht.string2 = want[1] >= 0 ? ai_contact_cargo_name(want[1]) : "tools";
-          ht.string3 = want[2] >= 0 ? ai_contact_cargo_name(want[2]) : "muskets";
-          snprintf(fb, sizeof(fb), "\"Greetings, travelers. We are a peaceful village known for our %s. We would gladly trade with you if you bring us some badly needed %s. We would also pay well for %s or %s.\"", ht.string0, ht.string1, ht.string2, ht.string3);
+          ht.string1 = want[0] >= 0 ? ai_contact_cargo_name(want[0])
+                                    : ai_contact_cargo_name(COLONIZE_CARGO_TRADE_GOODS);
+          ht.string2 = want[1] >= 0 ? ai_contact_cargo_name(want[1])
+                                    : ai_contact_cargo_name(COLONIZE_CARGO_TOOLS);
+          ht.string3 = want[2] >= 0 ? ai_contact_cargo_name(want[2])
+                                    : ai_contact_cargo_name(COLONIZE_CARGO_MUSKETS);
+          fb[0] = '\0';
           popup_msg_fill(ctx->messages, "CHIEFHOWDY", &ht, fb, body, sizeof(body));
           ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_MEET, nation_id, "Chief", body);
           if (want[0] >= 0) {
@@ -9961,7 +9805,7 @@ static void ai_contact_speak_with_chief(
             tok.string1 = ai_contact_level_noun(ctx, (int)ind->tech);
             u->profession = UNITS_JOB_SCOUT;
             if (human) {
-              snprintf(fb, sizeof(fb), "\"We gladly welcome you to our %s. In honor of the strange tales you have shared with us, the %s shall provide you with guides to aid your passage through our lands.\"", tok.string1, tribe);
+              fb[0] = '\0';
               popup_msg_fill(ctx->messages, "CHIEFGUIDES", &tok, fb, body, sizeof(body));
               ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_MEET, nation_id, "Chief", body);
               /* OVL13:0x003c2b `PUSH 1 / CALLF FUN_1000_900c` between
@@ -9983,7 +9827,7 @@ static void ai_contact_speak_with_chief(
             tok.number0 = gold;
             tok.has_number0 = true;
             if (human) {
-              snprintf(fb, sizeof(fb), "\"The %s welcome the emissaries of the %s tribe. Please take these valuable beads (worth %d gold) back to your chieftain as a peace offering.\"", tribe, tok.string1, gold);
+              fb[0] = '\0';
               popup_msg_fill(ctx->messages, "CHIEFGIFT", &tok, fb, body, sizeof(body));
               ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_MEET, nation_id, "Chief", body);
             }
@@ -10012,7 +9856,7 @@ static void ai_contact_speak_with_chief(
         }
         /* bored */
         tok.string1 = ai_contact_euro_name(e);
-        snprintf(fb, sizeof(fb), "\"The %s are always pleased to welcome %s travelers.\"", tribe, tok.string1);
+        fb[0] = '\0';
         popup_msg_fill(ctx->messages, "CHIEFBORED", &tok, fb, body, sizeof(body));
         ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_MEET, nation_id, "Chief", body);
         return;
@@ -10027,14 +9871,14 @@ static void ai_contact_speak_with_chief(
        * immediately before @CHIEFKILL (DS:0x1668). bugs.md #502. */
       sound_play(0x55);
     }
-    snprintf(fb, sizeof(fb), "\"You have broken sacred taboos of the %s tribe! We shall tie you up for target practice.\"", tribe);
+    fb[0] = '\0';
     popup_msg_fill(ctx->messages, "CHIEFKILL", &tok, fb, body, sizeof(body));
     ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_MEET, nation_id, "Chief", body);
     units_despawn(ctx->units, u->id);
     return;
   }
   tok.string1 = ai_contact_euro_name(e);
-  snprintf(fb, sizeof(fb), "\"The %s are always pleased to welcome %s travelers.\"", tribe, tok.string1);
+  fb[0] = '\0';
   popup_msg_fill(ctx->messages, "CHIEFBORED", &tok, fb, body, sizeof(body));
   ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_MEET, nation_id, "Chief", body);
 }
@@ -10139,13 +9983,13 @@ static void ai_contact_demand_tribute(
         tok.has_number0 = true;
         tok.string2 = ai_contact_cargo_name(good);
         tok.string3 = c ? c->name : "your colony";
-        snprintf(fb, sizeof(fb), "\"Great %s, we bow before the might of your strange weapons. The humble and peaceloving %s shall gladly deliver %d %s to %s.\"", title, tribe, qty, tok.string2, tok.string3);
+        fb[0] = '\0';
         popup_msg_fill(ctx->messages, "EXTORTSTUFF", &tok, fb, body, sizeof(body));
         ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_DEMAND, nation_id, "Tribute", body);
       } else {
         tok.string0 = title;
         tok.string1 = tribe;
-        snprintf(fb, sizeof(fb), "\"Mighty %s, we tremble before you. Alas, the humble and peaceloving %s have no gifts worthy of your magnificence.\"", title, tribe);
+        fb[0] = '\0';
         popup_msg_fill(ctx->messages, "EXTORTPOOR", &tok, fb, body, sizeof(body));
         ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_DEMAND, nation_id, "Tribute", body);
         bump = 0;
@@ -10154,13 +9998,13 @@ static void ai_contact_demand_tribute(
       tok.string0 = title;
       tok.string1 = col1->player[e].name;
       tok.string2 = tribe;
-      snprintf(fb, sizeof(fb), "\"You must think us very foolish indeed, %s %s. The %s will not be taken in by your tricks and treachery.\"", title, tok.string1, tribe);
+      fb[0] = '\0';
       popup_msg_fill(ctx->messages, "EXTORTNO", &tok, fb, body, sizeof(body));
       ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_DEMAND, nation_id, "Tribute", body);
     }
   } else {
     tok.string0 = tribe;
-    snprintf(fb, sizeof(fb), "\"We laugh at your puny threats. Do not try our patience, for %s warriors are known for their ferocity in times of war.\"", tribe);
+    fb[0] = '\0';
     popup_msg_fill(ctx->messages, "EXTORTLAUGH", &tok, fb, body, sizeof(body));
     ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_DEMAND, nation_id, "Tribute", body);
   }
@@ -10402,12 +10246,12 @@ static void ai_contact_denounce_heresy(
   char fb[AI_POPUP_BODY_LEN];
   const int roll = dos_rng_range(rng, 1, mine + pro_me > 0 ? mine + pro_me : 1);
   if (pro_me < roll) {
-    snprintf(fb, sizeof(fb), "", tok.string0, tok.string1, tok.string2, tok.string0);
+    fb[0] = '\0';
     popup_msg_fill(ctx->messages, "HERESY1", &tok, fb, body, sizeof(body));
     ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_CONVERT, nation_id, "", body);
     d_them = -d_them;
   } else {
-    snprintf(fb, sizeof(fb), "", tok.string0, tok.string1, tok.string2, tok.string1, tok.string0);
+    fb[0] = '\0';
     popup_msg_fill(ctx->messages, "HERESY0", &tok, fb, body, sizeof(body));
     ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_CONVERT, nation_id, "", body);
     t->mission = (uint8_t)(jesuit_me ? ((unsigned)e | COL1_TRIBE_MISSION_JESUIT_BIT) : (unsigned)e);
@@ -10930,11 +10774,13 @@ static void ai_contact_apply_popup_result_menu(
     const int is_missionary = popup->result_payload & 1;
     const int is_capital = (popup->result_payload >> 1) & 1;
     if (!ai_contact_enqueue_incite_target_choice(ctx, e, nation_id, is_missionary, is_capital)) {
+      /* Port-authored: no GAME.TXT section covers this no-eligible-target
+       * refusal (distinct from @UNFORTUNATE, the affordability case). */
       char refuse_fb[AI_POPUP_BODY_LEN];
       snprintf(
         refuse_fb,
         sizeof(refuse_fb),
-        "The %s have no reason to go on the warpath.",
+        "No other nation is available for the %s to incite.",
         ai_contact_tribe_name(nation_id)
       );
       ai_contact_human_chrome(

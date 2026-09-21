@@ -125,16 +125,23 @@ static bool pick_music_load_section(
     str_strip_quotes(opt->label);
 
     if (view == PICK_MUSIC_VIEW_MAIN) {
-      if (strcmp(opt->label, "Independence Tunes") == 0) {
-        opt->kind = PICK_MUSIC_KIND_SUB_INDEPENDENCE;
-      } else if (strcmp(opt->label, "Military Tunes") == 0) {
-        opt->kind = PICK_MUSIC_KIND_SUB_MILITARY;
-      } else if (strcmp(opt->label, "Indian Tunes") == 0) {
-        opt->kind = PICK_MUSIC_KIND_SUB_INDIAN;
-      } else {
+      /*
+       * GAME.TXT @PICKMUSIC row identity, not the label text: the song
+       * rows come first (song_index < song_id_count), then exactly three
+       * submenu rows in fixed catalog order — Independence, Military,
+       * Indian Tunes (COLONIZE/GAME.TXT:2647-2649). A renamed catalog row
+       * still lands on the right submenu.
+       */
+      if (song_index < song_id_count) {
         opt->kind = PICK_MUSIC_KIND_SONG;
-        if (song_index < song_id_count) {
-          opt->song_id = song_ids[song_index++];
+        opt->song_id = song_ids[song_index++];
+      } else {
+        const int sub_row = dlg->option_count - song_id_count;
+        switch (sub_row) {
+          case 0: opt->kind = PICK_MUSIC_KIND_SUB_INDEPENDENCE; break;
+          case 1: opt->kind = PICK_MUSIC_KIND_SUB_MILITARY; break;
+          case 2: opt->kind = PICK_MUSIC_KIND_SUB_INDIAN; break;
+          default: opt->kind = PICK_MUSIC_KIND_SONG; break;
         }
       }
     } else {

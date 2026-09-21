@@ -82,7 +82,7 @@ const char* trade_screen_stop_label(
   const char* europe_label
 ) {
   if (colony_index == 999) {
-    return (europe_label && europe_label[0]) ? europe_label : "Europe";
+    return (europe_label && europe_label[0]) ? europe_label : "";
   }
   const ColonizeColony* c = colonies ? colonies_get(colonies, (int)colony_index) : NULL;
   if (c && c->active && c->name[0]) {

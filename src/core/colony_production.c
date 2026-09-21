@@ -7,36 +7,34 @@
 #include "core/colony_yield.h"
 #include "core/founding_fathers.h"
 
-static bool colony_prod_name_has(const char* name, const char* needle) {
-  return name && needle && strstr(name, needle) != NULL;
-}
-
-/* Audit CO-31: file-local. */
-static ColonyProdTier colony_prod_building_tier(const char* building_name) {
-  if (!building_name) {
-    return COLONY_PROD_TIER_HOUSE;
+/* Row-identified tier (no-DOS-text-in-binary: identity is the @BUILDING row,
+ * not the English name). Sets match the old substring logic exactly:
+ * FACTORY = Arsenal/Textile Mill/Cigar Factory/Rum Factory/Fur Factory/
+ * Iron Works; SHOP = Magazine/Weaver's Shop/Tobacconist's Shop/Rum
+ * Distillery/Fur Trading Post/Lumber Mill/Blacksmith's Shop. Carpenter's
+ * Shop (row 35) is deliberately HOUSE tier — it falls through to the
+ * default, same as the old code's explicit "Carpenter" special case.
+ * Audit CO-31: file-local. */
+static ColonyProdTier colony_prod_building_tier_row(int building_row) {
+  switch (building_row) {
+    case COLONY_BUILDING_ARSENAL:
+    case COLONY_BUILDING_TEXTILE_MILL:
+    case COLONY_BUILDING_CIGAR_FACTORY:
+    case COLONY_BUILDING_RUM_FACTORY:
+    case COLONY_BUILDING_FUR_FACTORY:
+    case COLONY_BUILDING_IRON_WORKS:
+      return COLONY_PROD_TIER_FACTORY;
+    case COLONY_BUILDING_MAGAZINE:
+    case COLONY_BUILDING_WEAVERS_SHOP:
+    case COLONY_BUILDING_TOBACCONISTS_SHOP:
+    case COLONY_BUILDING_RUM_DISTILLERY:
+    case COLONY_BUILDING_FUR_TRADING_POST:
+    case COLONY_BUILDING_LUMBER_MILL:
+    case COLONY_BUILDING_BLACKSMITHS_SHOP:
+      return COLONY_PROD_TIER_SHOP;
+    default:
+      return COLONY_PROD_TIER_HOUSE;
   }
-  if (colony_prod_name_has(building_name, "Factory") ||
-      colony_prod_name_has(building_name, "Iron Works") ||
-      colony_prod_name_has(building_name, "Arsenal") ||
-      colony_prod_name_has(building_name, "Textile Mill")) {
-    return COLONY_PROD_TIER_FACTORY;
-  }
-  /* Carpenter's Shop is house-tier (3); Lumber Mill is shop-tier (6). Match
-   * before the generic "Shop" needle so "Carpenter's Shop" is not mis-tiered. */
-  if (colony_prod_name_has(building_name, "Lumber Mill")) {
-    return COLONY_PROD_TIER_SHOP;
-  }
-  if (colony_prod_name_has(building_name, "Carpenter")) {
-    return COLONY_PROD_TIER_HOUSE;
-  }
-  if (colony_prod_name_has(building_name, "Shop") ||
-      colony_prod_name_has(building_name, "Distillery") ||
-      colony_prod_name_has(building_name, "Trading Post") ||
-      colony_prod_name_has(building_name, "Magazine")) {
-    return COLONY_PROD_TIER_SHOP;
-  }
-  return COLONY_PROD_TIER_HOUSE;
 }
 
 /* Cargo input consumed to produce `output` units at tier (factory: 6 in per
@@ -126,16 +124,16 @@ static int colony_prod_carpenter_preacher_shape(
   return v > 0 ? v : 0;
 }
 
-int colony_prod_manufacturing_output(
-  const char* building_name,
+int colony_prod_manufacturing_output_row(
+  int building_row,
   int profession,
   int craft_profession,
   int sol_bonus
 ) {
-  if (!building_name) {
+  if (building_row < 0) {
     return 0;
   }
-  const ColonyProdTier tier = colony_prod_building_tier(building_name);
+  const ColonyProdTier tier = colony_prod_building_tier_row(building_row);
   /* DOS FUN_15eb_1d4c: class tag (1/2/3, i.e. colony_prod_scale_by_class at a
    * fixed house-tier "3") plus sol_bonus first; shop re-adds the tag alone;
    * factory applies ×1.5 (floor, matching x86 SAR) to the running total;
@@ -160,8 +158,22 @@ int colony_prod_manufacturing_output(
   return out > 0 ? out : 0;
 }
 
-int colony_prod_manufacturing_input(
+int colony_prod_manufacturing_output(
   const char* building_name,
+  int profession,
+  int craft_profession,
+  int sol_bonus
+) {
+  if (!building_name) {
+    return 0;
+  }
+  return colony_prod_manufacturing_output_row(
+    colonies_building_name_row(building_name), profession, craft_profession, sol_bonus
+  );
+}
+
+int colony_prod_manufacturing_input_row(
+  int building_row,
   int profession,
   int craft_profession,
   int sol_bonus
@@ -181,12 +193,26 @@ int colony_prod_manufacturing_input(
    * does. See docs/building_production.md factory-input fix-log row.
    */
   const int out =
-    colony_prod_manufacturing_output(building_name, profession, craft_profession, sol_bonus);
+    colony_prod_manufacturing_output_row(building_row, profession, craft_profession, sol_bonus);
   if (out <= 0) {
     return 0;
   }
-  const ColonyProdTier tier = colony_prod_building_tier(building_name);
+  const ColonyProdTier tier = colony_prod_building_tier_row(building_row);
   return colony_prod_tier_input_for_output(tier, out);
+}
+
+int colony_prod_manufacturing_input(
+  const char* building_name,
+  int profession,
+  int craft_profession,
+  int sol_bonus
+) {
+  if (!building_name) {
+    return 0;
+  }
+  return colony_prod_manufacturing_input_row(
+    colonies_building_name_row(building_name), profession, craft_profession, sol_bonus
+  );
 }
 
 int colony_prod_sol_percent(const ColonizeCol1Save* col1, const ColonizeColony* colony) {
@@ -531,16 +557,14 @@ void colony_prod_tick_rebel_accumulators(
   }
 }
 
-int colony_prod_crosses_worker(
-  const char* building_name,
+int colony_prod_crosses_worker_row(
+  int building_row,
   int profession,
   int sol_bonus,
   bool colony_has_cathedral,
   bool nation_has_penn
 ) {
-  if (!building_name ||
-      (!colony_prod_name_has(building_name, "Church") &&
-       !colony_prod_name_has(building_name, "Cathedral"))) {
+  if (colonies_building_row_chain(building_row) != COLONIES_CHAIN_CHURCH) {
     return 0;
   }
   return colony_prod_carpenter_preacher_shape(
@@ -548,8 +572,24 @@ int colony_prod_crosses_worker(
   );
 }
 
-int colony_prod_bells_worker(const char* building_name, int profession, int sol_bonus) {
-  if (!building_name || !colony_prod_name_has(building_name, "Town Hall")) {
+int colony_prod_crosses_worker(
+  const char* building_name,
+  int profession,
+  int sol_bonus,
+  bool colony_has_cathedral,
+  bool nation_has_penn
+) {
+  if (!building_name) {
+    return 0;
+  }
+  return colony_prod_crosses_worker_row(
+    colonies_building_name_row(building_name), profession, sol_bonus, colony_has_cathedral,
+    nation_has_penn
+  );
+}
+
+int colony_prod_bells_worker_row(int building_row, int profession, int sol_bonus) {
+  if (colonies_building_row_chain(building_row) != COLONIES_CHAIN_TOWN_HALL) {
     return 0;
   }
   /* DOS FUN_15eb_1d4c Statesman body: v = class_tag + local_e (sol_bonus),
@@ -563,15 +603,22 @@ int colony_prod_bells_worker(const char* building_name, int profession, int sol_
   return base > 0 ? base : 0;
 }
 
-int colony_prod_hammers_worker(
-  const char* building_name,
+int colony_prod_bells_worker(const char* building_name, int profession, int sol_bonus) {
+  if (!building_name) {
+    return 0;
+  }
+  return colony_prod_bells_worker_row(
+    colonies_building_name_row(building_name), profession, sol_bonus
+  );
+}
+
+int colony_prod_hammers_worker_row(
+  int building_row,
   int profession,
   int sol_bonus,
   bool colony_has_lumber_mill
 ) {
-  if (!building_name ||
-      (!colony_prod_name_has(building_name, "Carpenter") &&
-       !colony_prod_name_has(building_name, "Lumber Mill"))) {
+  if (colonies_building_row_chain(building_row) != COLONIES_CHAIN_CARPENTER) {
     return 0;
   }
   /* Carpenter has no Penn-shaped second multiplier — confirmed by direct
@@ -582,48 +629,35 @@ int colony_prod_hammers_worker(
   );
 }
 
-/* Passive crosses when Church (+1) or Cathedral (+1) is built — same passive
- * either way, confirmed via FUN_15eb_1f72 (not manual-sourced +2/+3). See
- * manufacturing_worker_calc_1d4c.md. Audit CO-31: file-local. */
-static int colony_prod_church_passive_crosses(const char* building_name) {
-  /*
-   * DOS FUN_15eb_1f72 (nation bells/crosses composer, viceroy_unpacked_2.c
-   * ~11306-11314): colony crosses = 1 (unconditional) + 1 if Church built +
-   * 1 if Cathedral built — Church and Cathedral are worth the *same* passive
-   * (+1), not the manual/wiki-sourced +2/+3 this used to return. Confirmed
-   * by the same read that pinned down the Printing Press/Newspaper bell
-   * multipliers and the Jefferson/Paine FF indices (15/17) exactly matching
-   * founding_fathers.h — see manufacturing_worker_calc_1d4c.md.
-   */
+int colony_prod_hammers_worker(
+  const char* building_name,
+  int profession,
+  int sol_bonus,
+  bool colony_has_lumber_mill
+) {
   if (!building_name) {
     return 0;
   }
-  if (colony_prod_name_has(building_name, "Cathedral")) {
-    return 1;
-  }
-  if (colony_prod_name_has(building_name, "Church")) {
+  return colony_prod_hammers_worker_row(
+    colonies_building_name_row(building_name), profession, sol_bonus, colony_has_lumber_mill
+  );
+}
+
+/* Passive crosses when Church (+1) or Cathedral (+1) is built — same passive
+ * either way, confirmed via FUN_15eb_1f72 (not manual-sourced +2/+3). See
+ * manufacturing_worker_calc_1d4c.md. Audit CO-31: file-local.
+ *
+ * DOS FUN_15eb_1f72 (nation bells/crosses composer, viceroy_unpacked_2.c
+ * ~11306-11314): colony crosses = 1 (unconditional) + 1 if Church built +
+ * 1 if Cathedral built — Church and Cathedral are worth the *same* passive
+ * (+1), not the manual/wiki-sourced +2/+3 this used to return. Row-
+ * identified, not name-matched: Church and Cathedral are separate
+ * @BUILDING rows (37/38) both in the CHURCH chain. */
+static int colony_prod_church_passive_crosses_row(int building_row) {
+  if (building_row == COLONY_BUILDING_CATHEDRAL || building_row == COLONY_BUILDING_CHURCH) {
     return 1;
   }
   return 0;
-}
-
-static bool colony_prod_building_built(
-  const ColonizeColonyPool* pool,
-  const ColonizeColony* colony,
-  const char* needle
-) {
-  if (!pool || !colony || !needle) {
-    return false;
-  }
-  for (int i = 0; i < pool->building_type_count && i < COLONIZE_BUILDING_TYPES_MAX; ++i) {
-    if (!colony->has_building[i]) {
-      continue;
-    }
-    if (colony_prod_name_has(pool->building_types[i].name, needle)) {
-      return true;
-    }
-  }
-  return false;
 }
 
 int colony_prod_colony_crosses_ff(
@@ -651,22 +685,23 @@ int colony_prod_colony_crosses_ff(
     if (!colony->has_building[i]) {
       continue;
     }
-    crosses += colony_prod_church_passive_crosses(pool->building_types[i].name);
+    crosses += colony_prod_church_passive_crosses_row(colonies_building_type_row(pool, i));
   }
-  const bool colony_has_cathedral = colony_prod_building_built(pool, colony, "Cathedral");
+  const bool colony_has_cathedral =
+    colonies_has_building_row(pool, colony, COLONY_BUILDING_CATHEDRAL);
   int cross_workers = 0;
   for (int p = 0; p < colony->colonist_count; ++p) {
     const ColonizeColonist* c = &colony->colonists[p];
     if (!c->active || c->building_type < 0 || c->building_type >= pool->building_type_count) {
       continue;
     }
-    const char* bn = pool->building_types[c->building_type].name;
-    if (!colony_prod_name_has(bn, "Church") && !colony_prod_name_has(bn, "Cathedral")) {
+    const int row = colonies_building_type_row(pool, c->building_type);
+    if (colonies_building_row_chain(row) != COLONIES_CHAIN_CHURCH) {
       continue;
     }
     cross_workers++;
     crosses +=
-      colony_prod_crosses_worker(bn, c->profession, sol_bonus, colony_has_cathedral, nation_has_penn);
+      colony_prod_crosses_worker_row(row, c->profession, sol_bonus, colony_has_cathedral, nation_has_penn);
   }
   /* bugs.md (player-recalled, matches the asm): the SoL bonus folds in
    * per-WORKER only (FUN_15eb_1d4c) — the base/passive composer
@@ -689,7 +724,7 @@ int colony_prod_colony_bells_ff(
     return 0;
   }
   int bells = 0;
-  const bool has_town_hall = colony_prod_building_built(pool, colony, "Town Hall");
+  const bool has_town_hall = colonies_has_building_row(pool, colony, COLONY_BUILDING_TOWN_HALL);
   if (has_town_hall) {
     bells += 1;
     /* AI bells subsidy, player-confirmed 2026-08-15 (Viceroy difficulty): a
@@ -727,8 +762,8 @@ int colony_prod_colony_bells_ff(
     if (!c->active || c->building_type < 0 || c->building_type >= pool->building_type_count) {
       continue;
     }
-    const char* bn = pool->building_types[c->building_type].name;
-    if (!colony_prod_name_has(bn, "Town Hall")) {
+    const int row = colonies_building_type_row(pool, c->building_type);
+    if (colonies_building_row_chain(row) != COLONIES_CHAIN_TOWN_HALL) {
       continue;
     }
     bell_workers++;
@@ -737,7 +772,7 @@ int colony_prod_colony_bells_ff(
      * v <<= 1`, nothing else; no Jefferson/Press/Paine call anywhere in
      * Statesman's own per-worker body. Those three apply once, colony-wide,
      * below — see the comment there. */
-    bells += colony_prod_bells_worker(bn, c->profession, sol_bonus);
+    bells += colony_prod_bells_worker_row(row, c->profession, sol_bonus);
   }
   /* bugs.md smell #19 (user-confirmed vs DOS): the SoL bonus folds in
    * per-WORKER only (FUN_15eb_1d4c Statesman body) — the base/passive
@@ -775,9 +810,9 @@ int colony_prod_colony_bells_ff(
    * owning Press), so this must be an if/else, never additive, or a
    * Newspaper colony's bells get double-bonused (150% instead of 100%). */
   int bonus_pct = 0;
-  if (colony_prod_building_built(pool, colony, "Newspaper")) {
+  if (colonies_has_building_row(pool, colony, COLONY_BUILDING_NEWSPAPER)) {
     bonus_pct = 100;
-  } else if (colony_prod_building_built(pool, colony, "Printing Press")) {
+  } else if (colonies_has_building_row(pool, colony, COLONY_BUILDING_PRINTING_PRESS)) {
     bonus_pct = 50;
   }
   if (bonus_pct > 0) {
@@ -798,7 +833,8 @@ int colony_prod_colony_hammers(
   if (!pool || !colony || !colony->active) {
     return 0;
   }
-  const bool colony_has_lumber_mill = colony_prod_building_built(pool, colony, "Lumber Mill");
+  const bool colony_has_lumber_mill =
+    colonies_has_building_row(pool, colony, COLONY_BUILDING_LUMBER_MILL);
   /* sol_bonus=0 base-rate tally — a staffed-carpenter DEMAND probe for
    * turn.c's "Need lumber." crumb, not the tick's lumber debit. The live
    * debit is 1:1 with the sol-adjusted hammer count returned below (turn.c;
@@ -811,10 +847,10 @@ int colony_prod_colony_hammers(
     if (!c->active || c->building_type < 0 || c->building_type >= pool->building_type_count) {
       continue;
     }
-    const char* bname = pool->building_types[c->building_type].name;
-    lumber_total += colony_prod_hammers_worker(bname, c->profession, 0, colony_has_lumber_mill);
+    const int row = colonies_building_type_row(pool, c->building_type);
+    lumber_total += colony_prod_hammers_worker_row(row, c->profession, 0, colony_has_lumber_mill);
     hammers_total +=
-      colony_prod_hammers_worker(bname, c->profession, sol_bonus, colony_has_lumber_mill);
+      colony_prod_hammers_worker_row(row, c->profession, sol_bonus, colony_has_lumber_mill);
   }
   if (out_lumber_use && lumber_total > 0) {
     *out_lumber_use = lumber_total;
@@ -874,37 +910,38 @@ static int colony_prod_worker_building_output_ctx(
   if (!pool || building_type < 0 || building_type >= pool->building_type_count) {
     return 0;
   }
-  const char* name = pool->building_types[building_type].name;
-  if (!name) {
+  const int row = colonies_building_type_row(pool, building_type);
+  if (row < 0) {
     return 0;
   }
   /* bugs.md: the badge must fold in the SAME multipliers the turn tick
    * applies — the Lumber Mill x2 (a Master Carpenter reads 14, not 7),
    * the Cathedral x2 and Penn x1.5 for preachers. */
   const bool has_mill =
-    colony && colony_prod_building_built(pool, colony, "Lumber Mill");
+    colony && colonies_has_building_row(pool, colony, COLONY_BUILDING_LUMBER_MILL);
   const bool has_cathedral =
-    colony && colony_prod_building_built(pool, colony, "Cathedral");
+    colony && colonies_has_building_row(pool, colony, COLONY_BUILDING_CATHEDRAL);
   const bool has_penn = col1 && colony && colony->nation_id >= 0 &&
     colony->nation_id <= 3 &&
     founding_fathers_nation_has(col1, colony->nation_id, FF_WILLIAM_PENN);
-  if (colony_prod_name_has(name, "Town Hall")) {
-    return colony_prod_bells_worker(name, profession, sol_bonus);
+  const int chain = colonies_building_row_chain(row);
+  if (chain == COLONIES_CHAIN_TOWN_HALL) {
+    return colony_prod_bells_worker_row(row, profession, sol_bonus);
   }
-  if (colony_prod_name_has(name, "Church") || colony_prod_name_has(name, "Cathedral")) {
-    return colony_prod_crosses_worker(name, profession, sol_bonus, has_cathedral, has_penn);
+  if (chain == COLONIES_CHAIN_CHURCH) {
+    return colony_prod_crosses_worker_row(row, profession, sol_bonus, has_cathedral, has_penn);
   }
-  if (colony_prod_name_has(name, "Carpenter") || colony_prod_name_has(name, "Lumber Mill")) {
-    return colony_prod_hammers_worker(name, profession, sol_bonus, has_mill);
+  if (chain == COLONIES_CHAIN_CARPENTER) {
+    return colony_prod_hammers_worker_row(row, profession, sol_bonus, has_mill);
   }
   /* Manufacturing: one shared table, colony_craft.c's k_recipes (audit
    * CO-12). It is what the turn tick actually pays, so the badge/preview
    * fallback cannot display 0 for a worker who is in fact producing — the
    * private if-ladder this replaced carried exactly that risk, with a
    * "must stay in lockstep with k_recipes" comment admitting it. */
-  const ColonizeCraftRecipe* rec = colony_craft_recipe_for_building(name);
+  const ColonizeCraftRecipe* rec = colony_craft_recipe_for_building_row(row);
   if (rec) {
-    return colony_prod_manufacturing_output(name, profession, rec->craft_profession, sol_bonus);
+    return colony_prod_manufacturing_output_row(row, profession, rec->craft_profession, sol_bonus);
   }
   return 0;
 }
@@ -922,17 +959,16 @@ int colony_prod_building_display_output_sol(
   if (!colony->has_building[building_type]) {
     return 0;
   }
-  const char* name = pool->building_types[building_type].name;
-  if (!name) {
+  const int row = colonies_building_type_row(pool, building_type);
+  if (row < 0) {
     return 0;
   }
   int amount = 0;
-  if (colony_prod_name_has(name, "Town Hall")) {
+  const int chain = colonies_building_row_chain(row);
+  if (chain == COLONIES_CHAIN_TOWN_HALL) {
     amount += 1; /* building passive liberty bell */
-  } else if (
-    colony_prod_name_has(name, "Church") || colony_prod_name_has(name, "Cathedral")
-  ) {
-    amount += colony_prod_church_passive_crosses(name);
+  } else if (chain == COLONIES_CHAIN_CHURCH) {
+    amount += colony_prod_church_passive_crosses_row(row);
   }
   for (int p = 0; p < colony->colonist_count; ++p) {
     const ColonizeColonist* c = &colony->colonists[p];

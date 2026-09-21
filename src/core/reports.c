@@ -1532,7 +1532,7 @@ static void reports_render_economic_trade(
     /* LABELS.TXT @MISC index 206 (2026-08-27 fix, same helper as the
      * column headers below). */
     const char* live = reports_labels_field("MISC", 206);
-    const char* kSubtitle = live ? live : "European Trade";
+    const char* kSubtitle = live ? live : "";
     const int w = font_text_width(font, kSubtitle);
     reports_draw_line(font, fb, (fb->width - w) / 2, y - 1, kSubtitle, REPORTS_ECON_LABEL_COLOR);
   }
@@ -1546,19 +1546,19 @@ static void reports_render_economic_trade(
     const char* bid_w = reports_labels_field("MISC", 203);
     const char* ask_w = reports_labels_field("MISC", 204);
     reports_draw_right(
-      font, fb, REPORTS_ECON1_TONS_RIGHT, REPORTS_ECON1_HEADER_Y, tons_w ? tons_w : "Tons",
+      font, fb, REPORTS_ECON1_TONS_RIGHT, REPORTS_ECON1_HEADER_Y, tons_w ? tons_w : "",
       REPORTS_ECON_LABEL_COLOR
     );
     reports_draw_right(
-      font, fb, REPORTS_ECON1_GOLD_RIGHT, REPORTS_ECON1_HEADER_Y, gold_w ? gold_w : "Gold",
+      font, fb, REPORTS_ECON1_GOLD_RIGHT, REPORTS_ECON1_HEADER_Y, gold_w ? gold_w : "",
       REPORTS_ECON_LABEL_COLOR
     );
     reports_draw_right(
-      font, fb, REPORTS_ECON1_BID_RIGHT, REPORTS_ECON1_HEADER_Y, bid_w ? bid_w : "Bid Price",
+      font, fb, REPORTS_ECON1_BID_RIGHT, REPORTS_ECON1_HEADER_Y, bid_w ? bid_w : "",
       REPORTS_ECON_LABEL_COLOR
     );
     reports_draw_right(
-      font, fb, REPORTS_ECON1_ASK_RIGHT, REPORTS_ECON1_HEADER_Y, ask_w ? ask_w : "Ask Price",
+      font, fb, REPORTS_ECON1_ASK_RIGHT, REPORTS_ECON1_HEADER_Y, ask_w ? ask_w : "",
       REPORTS_ECON_LABEL_COLOR
     );
   }
@@ -1651,7 +1651,7 @@ static void reports_render_economic_cargo(
   if (font) {
     /* LABELS.TXT @MISC index 207 (2026-08-27 fix). */
     const char* live = reports_labels_field("MISC", 207);
-    const char* kSubtitle = live ? live : "Cargo in Port";
+    const char* kSubtitle = live ? live : "";
     const int w = font_text_width(font, kSubtitle);
     reports_draw_line(font, fb, (fb->width - w) / 2, y - 1, kSubtitle, REPORTS_ECON_LABEL_COLOR);
   }
@@ -1936,7 +1936,7 @@ static void reports_render_colony_garrisons(
   if (font) {
     /* LABELS.TXT @MISC index 208 (2026-08-27 fix). */
     const char* live = reports_labels_field("MISC", 208);
-    const char* kSubtitle = live ? live : "Military Garrisons";
+    const char* kSubtitle = live ? live : "";
     const int w = font_text_width(font, kSubtitle);
     reports_draw_line(font, fb, (fb->width - w) / 2, y - 1, kSubtitle, REPORTS_COLONY_LABEL_COLOR);
   }
@@ -2088,7 +2088,7 @@ static void reports_render_colony_sol(
   if (font) {
     /* LABELS.TXT @MISC index 209 (2026-08-27 fix). */
     const char* live = reports_labels_field("MISC", 209);
-    const char* kSubtitle = live ? live : "Sons of Liberty";
+    const char* kSubtitle = live ? live : "";
     const int w = font_text_width(font, kSubtitle);
     reports_draw_line(font, fb, (fb->width - w) / 2, y - 1, kSubtitle, REPORTS_COLONY_LABEL_COLOR);
   }
@@ -2132,7 +2132,7 @@ static void reports_render_colony_sol(
     const char* press_label = NULL;
     if (press_bits & 2u) {
       const char* live = reports_names_field("BUILDING", 20, 0);
-      press_label = live ? live : "Newspaper";
+      press_label = live ? live : "";
     } else if (press_bits & 1u) {
       /* NOT @BUILDING row 19 ("Printing Press"): this column is 153px in and
        * the port has always drawn the short form here. No catalog row for the
@@ -2283,7 +2283,7 @@ static const char* reports_naval_passenger_label(int profession, const char* bas
        * index); literals above were this same table hardcoded. */
       return reports_job_name(profession);
     default:
-      return (base_name && base_name[0]) ? base_name : "Colonists";
+      return (base_name && base_name[0]) ? base_name : "";
   }
 }
 
@@ -2485,19 +2485,19 @@ static void reports_render_naval(
   const char* location_w = reports_labels_field("MISC", 63);
   const char* dest_w = reports_labels_field("MISC", 64);
   reports_naval_draw_centered(
-    font, fb, 0, REPORTS_NAVAL_DIV1_X, REPORTS_NAVAL_HEADER_Y, ship_w ? ship_w : "Ship",
+    font, fb, 0, REPORTS_NAVAL_DIV1_X, REPORTS_NAVAL_HEADER_Y, ship_w ? ship_w : "",
     REPORTS_NAVAL_HEADER_COLOR
   );
   reports_naval_draw_centered(
     font, fb, REPORTS_NAVAL_DIV1_X, REPORTS_NAVAL_DIV2_X, REPORTS_NAVAL_HEADER_Y,
-    cargo_w ? cargo_w : "Cargo", REPORTS_NAVAL_HEADER_COLOR
+    cargo_w ? cargo_w : "", REPORTS_NAVAL_HEADER_COLOR
   );
   reports_naval_draw_centered(
     font, fb, REPORTS_NAVAL_DIV2_X, REPORTS_NAVAL_DIV3_X, REPORTS_NAVAL_HEADER_Y,
-    location_w ? location_w : "Location", REPORTS_NAVAL_HEADER_COLOR
+    location_w ? location_w : "", REPORTS_NAVAL_HEADER_COLOR
   );
   reports_naval_draw_centered(
-    font, fb, REPORTS_NAVAL_DIV3_X, fb->width, REPORTS_NAVAL_HEADER_Y, dest_w ? dest_w : "Destination",
+    font, fb, REPORTS_NAVAL_DIV3_X, fb->width, REPORTS_NAVAL_HEADER_Y, dest_w ? dest_w : "",
     REPORTS_NAVAL_HEADER_COLOR
   );
 
@@ -2874,7 +2874,7 @@ static void reports_render_foreign(
        * step before centering this, landing it on the normal body line. */
       body_y += REPORTS_FOREIGN_LINE_STEP;
       const char* live = reports_labels_field("MISC", 190);
-      const char* msg = live ? live : "(Withdrawn from New World)";
+      const char* msg = live ? live : "";
       const int w = font ? font_text_width(font, msg) : 0;
       reports_draw_line(font, fb, (fb->width - w) / 2, body_y, msg, REPORTS_FOREIGN_LABEL_COLOR);
       continue;
@@ -3216,7 +3216,7 @@ static void reports_render_indian(
        * buffer right after FUN_281f_01be's colon, then the
        * `TEST [0x8d4e+3],0x80 / JMP LAB_3f41_04e7` skips level + stats. */
       const char* extinct_w = reports_labels_field("MISC", 130);
-      snprintf(name_buf, sizeof(name_buf), "%s: %s", r->name, extinct_w ? extinct_w : "Extinct");
+      snprintf(name_buf, sizeof(name_buf), "%s: %s", r->name, extinct_w ? extinct_w : "");
       reports_draw_line_shadowed(name_font, fb, REPORTS_INDIAN_NAME_X, name_y, name_buf, r->color);
       continue;
     }
@@ -3234,11 +3234,13 @@ static void reports_render_indian(
      * so it stays hardcoded.
      */
     char buf[32];
-    snprintf(buf, sizeof(buf), "", r->villages);
+    /* No LABELS.TXT row for plain "Villages" (only "Villages Burned",
+     * @MISC #117, used above in the score report) — port-authored word. */
+    snprintf(buf, sizeof(buf), "%d Villages", r->villages);
     reports_draw_line(font, fb, REPORTS_INDIAN_VILLAGES_X, stats_y, buf, REPORTS_INDIAN_TEXT_COLOR);
     if (r->missions > 0) {
       const char* missions_w = reports_labels_field("MISC", 28);
-      snprintf(buf, sizeof(buf), "%d %s", r->missions, missions_w ? missions_w : "Missions");
+      snprintf(buf, sizeof(buf), "%d %s", r->missions, missions_w ? missions_w : "");
       reports_draw_line(font, fb, REPORTS_INDIAN_MISSIONS_X, stats_y, buf, REPORTS_INDIAN_TEXT_COLOR);
     }
     if (r->muskets > 0) {
@@ -3247,7 +3249,7 @@ static void reports_render_indian(
     }
     if (r->horse_herds > 0) {
       const char* horses_w = reports_labels_field("MISC", 45);
-      snprintf(buf, sizeof(buf), "%d %s", r->horse_herds, horses_w ? horses_w : "Horse Herds");
+      snprintf(buf, sizeof(buf), "%d %s", r->horse_herds, horses_w ? horses_w : "");
       reports_draw_line(font, fb, REPORTS_INDIAN_HORSES_X, stats_y, buf, REPORTS_INDIAN_TEXT_COLOR);
     }
   }

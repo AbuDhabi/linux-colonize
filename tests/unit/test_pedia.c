@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "../common/test_catalogs.h"
 #include "core/assets.h"
 #include "core/ff.h"
 #include "core/font.h"
@@ -291,6 +292,8 @@ static int case_entry_title(void) {
 }
 
 static int case_list_render_and_hits(void) {
+  /* The list chrome ("(Exit)", header, category names) is catalog text. */
+  pedia_set_chrome_catalogs(test_labels_txt(), test_menu_txt());
   if (fixture_ensure() != 0) {
     return 1;
   }

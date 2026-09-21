@@ -64,6 +64,15 @@ int colony_prod_manufacturing_output(
   int craft_profession,
   int sol_bonus
 );
+/* Row-identified core (no-DOS-text-in-binary: identity is the @BUILDING
+ * row). `building_name` above is a thin wrapper via colonies_building_name_row
+ * kept for callers (ai_euro.c) that only have a catalog name in hand. */
+int colony_prod_manufacturing_output_row(
+  int building_row,
+  int profession,
+  int craft_profession,
+  int sol_bonus
+);
 
 /*
  * Raw-good input for one worker's manufacturing output. Factory tier
@@ -78,6 +87,13 @@ int colony_prod_manufacturing_output(
  */
 int colony_prod_manufacturing_input(
   const char* building_name,
+  int profession,
+  int craft_profession,
+  int sol_bonus
+);
+/* Row-identified core; see colony_prod_manufacturing_output_row. */
+int colony_prod_manufacturing_input_row(
+  int building_row,
   int profession,
   int craft_profession,
   int sol_bonus
@@ -163,6 +179,14 @@ int colony_prod_crosses_worker(
   bool colony_has_cathedral,
   bool nation_has_penn
 );
+/* Row-identified core; see colony_prod_manufacturing_output_row. */
+int colony_prod_crosses_worker_row(
+  int building_row,
+  int profession,
+  int sol_bonus,
+  bool colony_has_cathedral,
+  bool nation_has_penn
+);
 
 /*
  * sol_bonus (colony_prod_sol_bonus) is folded in *before* the skill-match
@@ -171,11 +195,20 @@ int colony_prod_crosses_worker(
  * badges).
  */
 int colony_prod_bells_worker(const char* building_name, int profession, int sol_bonus);
+/* Row-identified core; see colony_prod_manufacturing_output_row. */
+int colony_prod_bells_worker_row(int building_row, int profession, int sol_bonus);
 
 /* Same shape as colony_prod_crosses_worker (Carpenter body) —
  * `colony_has_lumber_mill` is colony-wide, not this worker's own building. */
 int colony_prod_hammers_worker(
   const char* building_name,
+  int profession,
+  int sol_bonus,
+  bool colony_has_lumber_mill
+);
+/* Row-identified core; see colony_prod_manufacturing_output_row. */
+int colony_prod_hammers_worker_row(
+  int building_row,
   int profession,
   int sol_bonus,
   bool colony_has_lumber_mill

@@ -88,11 +88,9 @@ bool save_load_open(
   dlg->has_result = false;
   dlg->mode = mode;
 
-  /* GAME.TXT @SAVEGAME "Select Save Slot" / @LOADGAME "Select Game To Load". */
+  /* GAME.TXT @SAVEGAME / @LOADGAME prompt; catalog miss = empty string. */
   const char* section = (mode == SAVE_LOAD_MODE_SAVE) ? "SAVEGAME" : "LOADGAME";
-  const char* fallback =
-    (mode == SAVE_LOAD_MODE_SAVE) ? "Select Save Slot" : "Select Game To Load";
-  str_copy_trunc(dlg->prompt, sizeof(dlg->prompt), fallback);
+  dlg->prompt[0] = '\0';
   if (messages) {
     const ColonizeMsgSection* sec = assets_msg_find(messages, section);
     if (sec) {
