@@ -2134,11 +2134,10 @@ static void reports_render_colony_sol(
       const char* live = reports_names_field("BUILDING", 20, 0);
       press_label = live ? live : "";
     } else if (press_bits & 1u) {
-      /* NOT @BUILDING row 19 ("Printing Press"): this column is 153px in and
-       * the port has always drawn the short form here. No catalog row for the
-       * abbreviation was found, so it stays a literal rather than an invented
-       * source (docs/conventions.md evidence hierarchy). */
-      press_label = "Press";
+      /* The short form is its own catalog row — LABELS.TXT @MISC 202 "Press"
+       * — not @BUILDING row 19 ("Printing Press"), which would overflow the
+       * 153px column. */
+      press_label = reports_misc_display_word(202, "");
     }
     if (press_label) {
       reports_draw_line(font, fb, REPORTS_COLONY_BUILDING_X, row_top, press_label, REPORTS_COLONY_LABEL_COLOR);
@@ -3043,6 +3042,7 @@ typedef struct IndianRow {
   const char* name;
   uint8_t color;
   const char* level;
+  uint8_t tech; /* indian.tech — row of NAMES.TXT @LEVELS */
   int villages;
   int missions;
   int muskets;
@@ -3115,6 +3115,7 @@ static int reports_indian_build_rows(
     r->name = reports_tribe_name(t);
     r->color = k_indian_tribe_colors[t];
     r->level = reports_tribe_level(ind->tech);
+    r->tech = ind->tech > 3 ? 3 : ind->tech;
     r->villages = villages;
     r->missions = missions;
     r->muskets = ((int)ind->muskets + armed_units) * REPORTS_INDIAN_MUSKET_UNIT_SCALE;
@@ -3234,9 +3235,14 @@ static void reports_render_indian(
      * so it stays hardcoded.
      */
     char buf[32];
-    /* No LABELS.TXT row for plain "Villages" (only "Villages Burned",
-     * @MISC #117, used above in the score report) — port-authored word. */
-    snprintf(buf, sizeof(buf), "%d Villages", r->villages);
+    /* DOS-LITERAL FUN_3f41_010a raw 69557-69564: the settlement noun is the
+     * tribe's own NAMES.TXT @LEVELS row (indexed by indian.tech) — column 1
+     * when the count is exactly 1 ("1 City"), column 2 otherwise ("3 Camps").
+     * The port printed a fixed "Villages" for every tribe until 2026-09-21. */
+    {
+      const char* noun = reports_names_field("LEVELS", r->tech, r->villages == 1 ? 1 : 2);
+      snprintf(buf, sizeof(buf), "%d %s", r->villages, noun ? noun : "");
+    }
     reports_draw_line(font, fb, REPORTS_INDIAN_VILLAGES_X, stats_y, buf, REPORTS_INDIAN_TEXT_COLOR);
     if (r->missions > 0) {
       const char* missions_w = reports_labels_field("MISC", 28);
