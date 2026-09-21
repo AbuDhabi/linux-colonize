@@ -105,6 +105,49 @@ static int test_ai_021a_dir_tile(void) {
   return 0;
 }
 
+/* bugs.md #553: FUN_465b_0000 local_4 — the settlement owner of a Euro
+ * colony tile, overridden by the stack head's nation. ai_native_brave_step
+ * uses it to keep a Brave from walking INTO a foreign colony (DOS attacks or
+ * exhausts instead; it never co-locates). */
+static int test_ai_465b_dest_owner(void) {
+  ColonizeWorldMap map;
+  if (!fx_map_alloc(&map, 8, 8, /*terrain_fill=*/0, /*with_seen=*/true)) {
+    return fail("map alloc");
+  }
+  ColonizeUnitPool units;
+  fx_units_init(&units);
+  const size_t ci = (size_t)4 * map.width + 5;
+  for (size_t i = 0; i < (size_t)map.width * map.height; ++i) {
+    map.layer3[i] = 0xf0; /* unowned */
+  }
+  map.layer2[ci] |= 0x02u;  /* settlement bit */
+  map.layer3[ci] = 0x21;    /* owner nibble 2 (Spain) */
+  int rc = 0;
+  if (ai_465b_dest_owner(&map, &units, 5, 4) != 2) {
+    rc = fail("empty Spanish colony tile must read owner 2");
+  }
+  if (rc == 0 && ai_465b_dest_owner(&map, &units, 3, 3) != -1) {
+    rc = fail("empty unowned land must read -1");
+  }
+  ColonizeUnit* g = &units.units[0];
+  g->active = true;
+  g->x = 5;
+  g->y = 4;
+  g->aboard_ship_id = -1;
+  g->nation_id = 2;
+  if (rc == 0 && ai_465b_dest_owner(&map, &units, 5, 4) != 2) {
+    rc = fail("garrisoned colony must read the garrison's nation");
+  }
+  /* A lone Euro unit on open ground is foreign to a Brave too. */
+  g->x = 3;
+  g->y = 3;
+  if (rc == 0 && ai_465b_dest_owner(&map, &units, 3, 3) != 2) {
+    rc = fail("unit-held open tile must read the unit's nation");
+  }
+  fx_map_free(&map);
+  return rc;
+}
+
 /* game_render_select_palette with no display dependency: an in_menu-only
  * game state with none of the other screen flags set must pick game->palette
  * verbatim (the first arm of the cascade). */
@@ -481,6 +524,7 @@ static const TestCase k_cases[] = {
     {"test_turn_year_end_rival_rebels", test_turn_year_end_rival_rebels},
     {"test_ai_contact_raid_alarm_delta", test_ai_contact_raid_alarm_delta},
     {"test_ai_021a_dir_tile", test_ai_021a_dir_tile},
+    {"test_ai_465b_dest_owner", test_ai_465b_dest_owner},
     {"test_game_render_select_palette", test_game_render_select_palette},
     {"test_ai_euro_5952_absorb_colonist", test_ai_euro_5952_absorb_colonist},
     {"test_ai_euro_5952_absorb_soldier", test_ai_euro_5952_absorb_soldier},

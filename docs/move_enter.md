@@ -39,7 +39,7 @@ Status: **Done** / **Partial** / **Missing** / **PARKED**.
 | Land **aboard a ship** | Land occupied by another nation | Reason **9** = `@LANDFIRST` — no amphibious assault | `COLONIZE_ENTER_LANDFIRST` (bugs.md #485) | Done |
 | Ship | Ocean / HS | OK (`4720`); **already on HS** + eastward without sail order → reason **5** | Same (`units_can_enter`); entering the lane from ocean is always legal, and a Go To may target a lane tile → `game_ship_sail_to_europe` on arrival | Done |
 | Ship | Map edge | Reason **4** | Out-of-bounds → edge | Partial |
-| Ship | Own colony land | Dock | `can_enter` + disembark | Done |
+| Ship | Own colony land | Dock (`465b` reads the settlement owner `281f_06be`; a DOS own-colony stack is always own) | `can_enter` + disembark; foreign units squatting on the tile (port leftovers) are ignored (bugs.md #553) | Done |
 | Ship / Wagon | Foreign Euro colony | — | Never enters: `FUN_5f7a_0662` → `FUN_5f7a_020e` trades from outside and spends the whole allotment ([foreign_colony_trade.md](foreign_colony_trade.md)) | Done |
 | Ship | Bare land | Landfall UI reasons 2/3 | `@LANDFALL` Stay / Make Landfall (one unit; sentry cargo OK); passenger spends its **whole** allotment (465b_05ca shore crossing, 2026-09-04); ship −1 MP on Make Landfall | Done |
 | Ship | Native village | `4528` ship abort (`@DONTKNOWSHIPS` / `@MADATSHIPS`) | `VILLAGE_SHIP` + `ai_contact_try_ship_village` | Done |

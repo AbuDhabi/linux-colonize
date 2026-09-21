@@ -51,6 +51,9 @@ Ai021aDirStatus ai_021a_dir_occupant(struct ai_021a_ctx* c);
 Ai021aDirStatus ai_021a_dir_terrain(struct ai_021a_ctx* c);
 Ai021aDirStatus ai_021a_dir_angry(struct ai_021a_ctx* c);
 void ai_021a_score_dir(struct ai_021a_ctx* c);
+int ai_465b_dest_owner(
+  const ColonizeWorldMap* map, const ColonizeUnitPool* units, int x, int y
+);
 #endif /* COLONIZE_TESTING */
 
 #endif /* COLONIZE_CORE_AI_INTERNAL_H */

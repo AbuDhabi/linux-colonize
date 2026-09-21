@@ -352,6 +352,15 @@ dwelling. Human `4528` `@ACTIONS` arm **Done** (P8.8). Deep `4528` mid-body / VG
   `%STRING1 %STRING2` = tribe name + NAMES.TXT @LEVELS column 1 by tech (row 4
   "Capital" for a capital).
   widens the amount. Gold = amount × 100.
+- Razing order (`FUN_5fef_1b0e` dwelling arm): `FUN_4d56_00e0` destroy →
+  mission return → convert-join → treasure. `00e0` clears only settlement bit
+  `0x02` on the tile (`FUN_281f_068c(x,y,2,0)`, raw 81307): a real road `0x08`
+  stays, the village's implied road art goes (bugs.md #550). It deletes every
+  Indian unit whose home village `+0x314a` is the razed one, wherever it
+  stands; braves of the tribe's other villages stay (#552). If the mission
+  byte's low nibble is the conqueror, a Missionary (`@UNIT` 3) of the
+  conqueror spawns on the site, Jesuit bit `0x10` → profession `0x18`
+  (raw 100667-100672); a rival's mission is lost (#551).
 
 ### Land loss
 
