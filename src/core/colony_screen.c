@@ -3797,7 +3797,10 @@ static void colony_screen_draw_jobs_popup(
     const int job = view->job_ids[i];
     if (job == COLONY_JOB_CLEAR_SPECIALTY) {
       if (font) {
-        font_draw_text(font, framebuffer, inner_x + pad, row_y + 1, "(no specialty)", 15);
+        /* LABELS.TXT @MISC row 44 — DOS's own jobs-menu entry for the action. */
+        font_draw_text(
+          font, framebuffer, inner_x + pad, row_y + 1, reports_misc_display_word(44, ""), 15
+        );
       }
       continue;
     }

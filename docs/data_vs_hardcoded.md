@@ -232,8 +232,14 @@ literal as a fallback" idiom — a fallback copy is still a copy.
 - **Port-authored text is fine** but must not copy catalog wording: diagnostics,
   log names, short notices where DOS has no section (raid "thin" notices, the
   village-approach warning, "Independence already declared.", "Royal frigate
-  dispatched.", "%s taken as a prize.", the attack-confirm dialog, "(no
-  specialty)", "%d Villages", "Press"), and the Colonizopedia misc blurbs.
+  dispatched.", "%s taken as a prize.", the attack-confirm dialog), and the
+  Colonizopedia misc blurbs. None of these has a counterpart in VICEROY.EXE
+  either (checked by string search): they cover situations the port handles
+  with a message and DOS does not. Things first thought to be un-sourced turned
+  out to have rows: jobs-menu "(CLEAR SPECIALTY)" = LABELS @MISC 44, "Press" =
+  @MISC 202, and the Indian Adviser's settlement noun = NAMES @LEVELS col 1
+  (count 1) / col 2 (plural) by tribe tech (FUN_3f41_010a) — "3 Camps", not a
+  fixed "Villages".
 - **Checking**: two scratch detectors were used — exact/field match of code
   literals against catalog lines, and a 4-word-shingle match that also catches
   printf-style paraphrases. Both should stay at (near) zero; `strings` on the
