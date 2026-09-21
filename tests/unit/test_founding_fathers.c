@@ -8,6 +8,7 @@
 #include "core/dos_rng.h"
 #include "core/europe.h"
 #include "core/founding_fathers.h"
+#include "core/reports.h"
 #include "core/map.h"
 #include "core/ai_king.h"
 #include "core/turn.h"
@@ -308,7 +309,7 @@ int main(void) {
       return fail("Brewster dock-filter elect");
     }
     if (eu_dock.dock[0].profession != COLONIZE_PROF_FREE_COLONIST ||
-        strstr(eu_dock.dock[0].name, "Free") == NULL) {
+        strcmp(eu_dock.dock[0].name, reports_job_display_name(COLONIZE_PROF_FREE_COLONIST)) != 0) {
       return fail("Brewster must convert Indentured dock to Free Colonists");
     }
   }
@@ -1498,6 +1499,7 @@ int main(void) {
        * writes row 0x17 with attack 2 / defense 2, the same numbers). */
       if (upool.type_count < 7) {
         snprintf(upool.types[6].name, sizeof(upool.types[6].name), "Soldiers");
+        upool.types[6].kind_plus1 = UNITS_KIND_SOLDIER + 1; /* the @UNIT Soldiers row */
         upool.types[6].attack = 2;
         upool.types[6].defense = 2;
         upool.types[6].movement = 1;
@@ -2090,9 +2092,11 @@ int main(void) {
     if (lu->profession != COLONIZE_PROF_FREE_COLONIST) {
       return fail("Las Casas must assimilate map Convert profession");
     }
-    if (lu_named->profession != COLONIZE_PROF_FREE_COLONIST ||
-        lu_named->type_index != 2) {
-      return fail("Las Casas must rename Indian Converts unit type");
+    /* DOS has no "Convert" @UNIT row (a Convert is a base Colonist with
+     * profession 0x1b), and the port no longer recognises unit types by their
+     * English name — so a synthetic type merely NAMED like one is untouched. */
+    if (lu_named->type_index != 1) {
+      return fail("Las Casas must not swap a unit type by its name");
     }
 
     /*

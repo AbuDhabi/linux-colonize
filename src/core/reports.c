@@ -312,7 +312,7 @@ static void reports_render_ok_button(const ColonizeFont* font, ColonizeFramebuff
     return;
   }
   char ok_w[16];
-  reports_misc_word(46, "OK", ok_w, sizeof(ok_w));
+  reports_misc_word(46, "", ok_w, sizeof(ok_w));
   const int tw = font_text_width(font, ok_w);
   const int tx = REPORTS_OK_X + (REPORTS_OK_W - tw) / 2;
   const int ty = REPORTS_OK_Y + (REPORTS_OK_H - font->max_height) / 2;
@@ -788,7 +788,7 @@ static void reports_render_congress_page1(
       line,
       line_sz,
       "%s:  (%s)",
-      reports_misc_word(112, "Next Continental Congress Session", w1, sizeof(w1)),
+      reports_misc_word(112, "", w1, sizeof(w1)),
       nat->next_founding_father >= 0 ? reports_ff_name(nat->next_founding_father) : "none"
     );
   } else if (!ref_arrived) {
@@ -801,7 +801,7 @@ static void reports_render_congress_page1(
       line_sz,
       "%s %s:",
       reports_nation_adjective(ally),
-      reports_misc_word(113, "Intervention", w1, sizeof(w1))
+      reports_misc_word(113, "", w1, sizeof(w1))
     );
   }
   if (line[0]) {
@@ -842,10 +842,10 @@ static void reports_render_congress_page1(
     line,
     line_sz,
     "%s %s: %u%%  %s %s: %u%%",
-    reports_misc_word(69, "Rebel", w1, sizeof(w1)),
-    reports_misc_word(71, "Sentiment", w3, sizeof(w3)),
+    reports_misc_word(69, "", w1, sizeof(w1)),
+    reports_misc_word(71, "", w3, sizeof(w3)),
     rebel_pct,
-    reports_misc_word(70, "Tory", w2, sizeof(w2)),
+    reports_misc_word(70, "", w2, sizeof(w2)),
     w3,
     100 - rebel_pct
   );
@@ -873,7 +873,7 @@ static void reports_render_congress_page1(
     line_sz,
     "%s %s:",
     reports_nation_adjective(human),
-    reports_misc_word(85, "Expeditionary Force", w1, sizeof(w1))
+    reports_misc_word(85, "", w1, sizeof(w1))
   );
   reports_draw_line(font, fb, 8, REPORTS_CONGRESS_TEXT3_Y, line, 15);
 
@@ -981,7 +981,7 @@ static void reports_render_congress_page1(
       snprintf(
         line, line_sz, "%s %s:",
         reports_nation_adjective(ally), /* DOS: FUN_281f_09a4(DS:0x53d4), raw */
-        reports_misc_word(111, "Intervention Force", w1, sizeof(w1))
+        reports_misc_word(111, "", w1, sizeof(w1))
       );
       reports_draw_line(font, fb, 8, interv_row_y, line, 15);
       for (int i = 0; i < 4; ++i) {
@@ -1006,7 +1006,7 @@ static void reports_render_congress_page1(
     }
   }
 
-  snprintf(line, line_sz, "%s:", reports_misc_word(89, "Founding Fathers", w1, sizeof(w1)));
+  snprintf(line, line_sz, "%s:", reports_misc_word(89, "", w1, sizeof(w1)));
   reports_draw_line(font, fb, 8, ff_header_y, line, 15);
   {
     int shown = 0;
@@ -1296,7 +1296,7 @@ static void reports_render_labor_grid(
   /* Centered, matching every other report's centered-title convention. */
   if (font) {
     char hint[48];
-    reports_misc_word(56, "(Click on item to zoom)", hint, sizeof(hint));
+    reports_misc_word(56, "", hint, sizeof(hint));
     const int w = font_text_width(font, hint);
     reports_draw_line(font, fb, (fb->width - w) / 2, y, hint, 14);
   }
@@ -1374,15 +1374,15 @@ static void reports_render_labor_detail(
   const int bd_x_value = 295;
   /* LABELS.TXT @MISC #53/#54/#55. */
   char w[48];
-  snprintf(line, line_sz, "%s:", reports_misc_word(53, "Off Mapboard (Europe)", w, sizeof(w)));
+  snprintf(line, line_sz, "%s:", reports_misc_word(53, "", w, sizeof(w)));
   reports_draw_line(font, fb, bd_x_label, header_y, line, 14);
   snprintf(line, line_sz, "%d", europe_n);
   reports_draw_line(font, fb, bd_x_value, header_y, line, 14);
-  snprintf(line, line_sz, "%s:", reports_misc_word(54, "On Mapboard", w, sizeof(w)));
+  snprintf(line, line_sz, "%s:", reports_misc_word(54, "", w, sizeof(w)));
   reports_draw_line(font, fb, bd_x_label, header_y + REPORTS_LABOR_ROW_STEP / 2, line, 14);
   snprintf(line, line_sz, "%d", mapboard_n);
   reports_draw_line(font, fb, bd_x_value, header_y + REPORTS_LABOR_ROW_STEP / 2, line, 14);
-  snprintf(line, line_sz, "%s:", reports_misc_word(55, "In Colonies", w, sizeof(w)));
+  snprintf(line, line_sz, "%s:", reports_misc_word(55, "", w, sizeof(w)));
   reports_draw_line(font, fb, bd_x_label, header_y + REPORTS_LABOR_ROW_STEP, line, 14);
   snprintf(line, line_sz, "%d", colony_n);
   reports_draw_line(font, fb, bd_x_value, header_y + REPORTS_LABOR_ROW_STEP, line, 14);
@@ -2096,7 +2096,7 @@ static void reports_render_colony_sol(
     return;
   }
 
-  const int town_hall_idx = colonies ? colonies_find_building(colonies, "Town Hall") : -1;
+  const int town_hall_idx = colonies ? colonies_building_row(colonies, COLONY_BUILDING_TOWN_HALL) : -1;
   const bool nation_is_ai =
     human >= 0 && human < (int)COLONIZE_COL1_NATION_COUNT && col1->player[human].control != 0;
   const int statesmen_pct =
@@ -2372,7 +2372,7 @@ static int reports_naval_build_rows(
    * on-mapboard loop above. */
   if (europe) {
     /* LABELS.TXT @MISC row 60 "High Seas". */
-    const char* high_seas = reports_misc_display_word(60, "High Seas");
+    const char* high_seas = reports_misc_display_word(60, "");
     struct {
       const EuropeHarborShip* list;
       int count;
@@ -2692,7 +2692,7 @@ typedef enum ForeignDetail {
 /* @MISC index + English fallback per cell, same order as ForeignDetail. */
 static const int k_foreign_detail_labels[FOREIGN_DETAIL_COUNT] = {95, 97, 96, 98, 99, 100};
 static const char* k_foreign_detail_fallbacks[FOREIGN_DETAIL_COUNT] = {
-  "Colonies", "Average Colony", "Population", "Military Power", "Naval Power", "Merchant Marine"
+  "", "", "", "", "", ""
 };
 
 typedef struct ForeignRow {
@@ -2902,7 +2902,7 @@ static void reports_render_foreign(
     body_y += REPORTS_FOREIGN_LINE_STEP;
     for (int p = 0; p < r->peer_count; ++p) {
       const int col_x = reports_foreign_cell_x(p);
-      snprintf(line, sizeof(line), "%s:", k_euro_country[r->peer_nation[p]]);
+      snprintf(line, sizeof(line), "%s:", reports_nation_country_name(r->peer_nation[p]));
       reports_draw_line(font, fb, col_x, body_y, line, REPORTS_FOREIGN_LABEL_COLOR);
       const int label_w = font ? font_text_width(font, line) : 0;
       /* "War"/"Peace" live from LABELS.TXT @MISC #101/#102 (2026-08-27 fix).
@@ -2910,8 +2910,8 @@ static void reports_render_foreign(
        * both indices up front aliased reports_labels_field's single static
        * buffer, so a War pair printed the word "Peace" (in the War colour). */
       char state[32];
-      const char* state_w = r->peer_war[p] ? reports_misc_word(101, "War", state, sizeof(state))
-                                           : reports_misc_word(102, "Peace", state, sizeof(state));
+      const char* state_w = r->peer_war[p] ? reports_misc_word(101, "", state, sizeof(state))
+                                           : reports_misc_word(102, "", state, sizeof(state));
       snprintf(line, sizeof(line), " %s", state_w);
       reports_draw_line(
         font, fb, col_x + label_w, body_y, line,
@@ -2926,9 +2926,9 @@ static void reports_render_foreign(
     const int rebels_y = body_y + (r->peer_count > 0 ? REPORTS_FOREIGN_LINE_STEP : 0);
     /* LABELS.TXT @MISC #86 "Rebels" / #87 "Tories" (plural forms are real). */
     char w[32];
-    snprintf(line, sizeof(line), "%s: %d", reports_misc_word(86, "Rebels", w, sizeof(w)), r->rebels);
+    snprintf(line, sizeof(line), "%s: %d", reports_misc_word(86, "", w, sizeof(w)), r->rebels);
     reports_draw_line(font, fb, REPORTS_FOREIGN_COL1_X, rebels_y, line, REPORTS_FOREIGN_LABEL_COLOR);
-    snprintf(line, sizeof(line), "%s: %d", reports_misc_word(87, "Tories", w, sizeof(w)), r->tories);
+    snprintf(line, sizeof(line), "%s: %d", reports_misc_word(87, "", w, sizeof(w)), r->tories);
     reports_draw_line(font, fb, REPORTS_FOREIGN_COL2_X, rebels_y, line, REPORTS_FOREIGN_LABEL_COLOR);
   }
 }
@@ -3234,7 +3234,7 @@ static void reports_render_indian(
      * so it stays hardcoded.
      */
     char buf[32];
-    snprintf(buf, sizeof(buf), "%d Villages", r->villages);
+    snprintf(buf, sizeof(buf), "", r->villages);
     reports_draw_line(font, fb, REPORTS_INDIAN_VILLAGES_X, stats_y, buf, REPORTS_INDIAN_TEXT_COLOR);
     if (r->missions > 0) {
       const char* missions_w = reports_labels_field("MISC", 28);
@@ -3772,7 +3772,7 @@ static void reports_render_score(
   if (sc.scoring_complete) {
     /* FUN_41f2_0092: 0x5382|0x10 -> only @MISC #126 "SCORING COMPLETE",
      * centered at y=0x61, nothing else composed. */
-    reports_misc_word(126, "SCORING COMPLETE", w1, sizeof(w1));
+    reports_misc_word(126, "", w1, sizeof(w1));
     if (body_font) {
       const int w = font_text_width(body_font, w1);
       reports_draw_line(body_font, fb, (fb->width - w) / 2, 0x61, w1, REPORTS_SCORE_TITLE_COLOR);
@@ -3780,12 +3780,12 @@ static void reports_render_score(
     return;
   }
   if (!col1) {
-    snprintf(line, line_sz, "%-24s%d", reports_misc_word(59, "Gold", w1, sizeof(w1)), sc.treasury);
+    snprintf(line, line_sz, "%-24s%d", reports_misc_word(59, "", w1, sizeof(w1)), sc.treasury);
     reports_draw_line(
       body_font, fb, REPORTS_SCORE_LEFT_X, REPORTS_SCORE_GOLD_Y, line, REPORTS_SCORE_GREEN_COLOR
     );
     snprintf(
-      line, line_sz, "%-24s%d", reports_misc_word(121, "Total Score", w1, sizeof(w1)), sc.total
+      line, line_sz, "%-24s%d", reports_misc_word(121, "", w1, sizeof(w1)), sc.total
     );
     reports_draw_line(
       body_font, fb, REPORTS_SCORE_LEFT_X, REPORTS_SCORE_TOTAL_Y, line, REPORTS_SCORE_TITLE_COLOR
@@ -3799,7 +3799,7 @@ static void reports_render_score(
     line_sz,
     "%s %s:  +%d",
     nation_adj,
-    reports_misc_word(115, "Citizens", w1, sizeof(w1)),
+    reports_misc_word(115, "", w1, sizeof(w1)),
     sc.citizens
   );
   reports_draw_line(
@@ -3824,7 +3824,7 @@ static void reports_render_score(
     line_sz,
     "%s %s:  +%d",
     nation_adj,
-    reports_misc_word(134, "Continental Congress", w1, sizeof(w1)),
+    reports_misc_word(134, "", w1, sizeof(w1)),
     sc.congress
   );
   reports_draw_line(
@@ -3863,7 +3863,7 @@ static void reports_render_score(
       lines[n_lines],
       sizeof(lines[0]),
       "%s:  (%u$) +%d",
-      reports_misc_word(59, "Gold", w1, sizeof(w1)),
+      reports_misc_word(59, "", w1, sizeof(w1)),
       (unsigned)score_gold,
       sc.treasury
     );
@@ -3875,7 +3875,7 @@ static void reports_render_score(
       sizeof(lines[0]),
       "%d %s:  %d",
       sc.villages_burned,
-      reports_misc_word(117, "Villages Burned", w1, sizeof(w1)),
+      reports_misc_word(117, "", w1, sizeof(w1)),
       sc.villages_penalty
     );
     colors[n_lines++] = REPORTS_SCORE_GREEN_COLOR;
@@ -3885,8 +3885,8 @@ static void reports_render_score(
       lines[n_lines],
       sizeof(lines[0]),
       "%s %s:  +%d",
-      reports_misc_word(69, "Rebel", w1, sizeof(w1)),
-      reports_misc_word(71, "Sentiment", w2, sizeof(w2)),
+      reports_misc_word(69, "", w1, sizeof(w1)),
+      reports_misc_word(71, "", w2, sizeof(w2)),
       sc.rebel_sentiment
     );
     colors[n_lines++] = REPORTS_SCORE_GREEN_COLOR;
@@ -3898,7 +3898,7 @@ static void reports_render_score(
       lines[n_lines],
       sizeof(lines[0]),
       "%s (%s %d):  +%d",
-      reports_misc_word(142, "Early Revolution", w1, sizeof(w1)),
+      reports_misc_word(142, "", w1, sizeof(w1)),
       reports_season_name(col1->head.autumn), /* NAMES.TXT @SEASONS rows 0/1 */
       sc.year,
       sc.early_revolution_pts
@@ -3920,22 +3920,22 @@ static void reports_render_score(
         sizeof(prior),
         " (%d %s)",
         sc.prior_nations,
-        reports_misc_word(143, "prior nations", w2, sizeof(w2))
+        reports_misc_word(143, "", w2, sizeof(w2))
       );
     }
     snprintf(
       lines[n_lines],
       sizeof(lines[0]),
       "%s %s%s:  +%d%%",
-      reports_misc_word(116, "Independence", w1, sizeof(w1)),
-      reports_misc_word(119, "Achieved", w2, sizeof(w2)),
+      reports_misc_word(116, "", w1, sizeof(w1)),
+      reports_misc_word(119, "", w2, sizeof(w2)),
       prior,
       sc.foreign_recognition_pct
     );
     colors[n_lines++] = REPORTS_SCORE_GREEN_COLOR;
   }
   snprintf(
-    lines[n_lines], sizeof(lines[0]), "%s: %d", reports_misc_word(121, "Total Score", w1, sizeof(w1)), sc.total
+    lines[n_lines], sizeof(lines[0]), "%s: %d", reports_misc_word(121, "", w1, sizeof(w1)), sc.total
   );
   colors[n_lines++] = REPORTS_SCORE_TITLE_COLOR;
   {
@@ -4023,7 +4023,7 @@ void reports_render_hall_of_fame(
    */
   char w1[64], w2[64], w3[64];
   reports_draw_centered(
-    body_font, fb, 3, reports_misc_word(192, "COLONIZATION HALL OF FAME", w1, sizeof(w1)),
+    body_font, fb, 3, reports_misc_word(192, "", w1, sizeof(w1)),
     REPORTS_SCORE_TITLE_COLOR
   );
 
@@ -4041,8 +4041,8 @@ void reports_render_hall_of_fame(
       i + 1,
       diff_name,
       e->leader,
-      reports_misc_word(19, "of the", w1, sizeof(w1)),
-      e->declared ? reports_misc_word(191, "Free", w2, sizeof(w2)) : "",
+      reports_misc_word(19, "", w1, sizeof(w1)),
+      e->declared ? reports_misc_word(191, "", w2, sizeof(w2)) : "",
       e->declared ? " " : "",
       e->nation
     );
@@ -4055,21 +4055,21 @@ void reports_render_hall_of_fame(
         title,
         sizeof(title),
         "%s, %s",
-        reports_misc_word(195, "President", w1, sizeof(w1)),
+        reports_misc_word(195, "", w1, sizeof(w1)),
         e->independent_name[0] ? e->independent_name : e->nation
       );
     } else if (e->declared) {
       snprintf(
-        title, sizeof(title), "%s", reports_misc_word(196, "General, Continental Army", w1, sizeof(w1))
+        title, sizeof(title), "%s", reports_misc_word(196, "", w1, sizeof(w1))
       );
     } else {
       snprintf(
         title,
         sizeof(title),
         "%s, %s %s",
-        reports_misc_word(197, "Leader", w1, sizeof(w1)),
+        reports_misc_word(197, "", w1, sizeof(w1)),
         e->nation,
-        reports_misc_word(95, "Colonies", w2, sizeof(w2))
+        reports_misc_word(95, "", w2, sizeof(w2))
       );
     }
     snprintf(
@@ -4077,10 +4077,10 @@ void reports_render_hall_of_fame(
       sizeof(line),
       "%s %s %s %d. %s: %d",
       title,
-      reports_misc_word(193, "to", w1, sizeof(w1)),
-      reports_misc_word(194, "A.D.", w2, sizeof(w2)),
+      reports_misc_word(193, "", w1, sizeof(w1)),
+      reports_misc_word(194, "", w2, sizeof(w2)),
       e->year,
-      reports_misc_word(198, "Score", w3, sizeof(w3)),
+      reports_misc_word(198, "", w3, sizeof(w3)),
       e->score
     );
     reports_draw_centered(body_font, fb, y, line, REPORTS_SCORE_GREEN_COLOR);
@@ -4090,7 +4090,7 @@ void reports_render_hall_of_fame(
       line,
       sizeof(line),
       "--- %s: %d%% ---",
-      reports_misc_word(199, "Colonization_Rating", w1, sizeof(w1)),
+      reports_misc_word(199, "", w1, sizeof(w1)),
       e->rating
     );
     reports_draw_centered(body_font, fb, y, line, REPORTS_SCORE_TITLE_COLOR);

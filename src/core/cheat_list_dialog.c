@@ -95,10 +95,10 @@ bool cheat_list_open_setview(CheatListDialog* dlg, const ColonizeMsgCatalog* deb
   static const char* k_fallback_prompt = "Select Viewpoint";
   static const char* k_fallback[] = {
     "English Map",
-    "French Map",
-    "Spanish Map",
-    "Dutch Map",
-    "Complete Map",
+    "",
+    "",
+    "",
+    "",
     "No Special View"
   };
   /* option_ids: 0..3 nation, -1 complete, -2 normal */
@@ -379,11 +379,11 @@ bool cheat_list_open_debug_flags(
   static const char* k_fallback_prompt = "Select Debug Information Options";
   static const char* k_fallback[] = {
     "Anger & Friction Levels",
-    "Indian AI movement",
-    "Supply and Demand (Indians)",
-    "Foreign AI planning modes",
-    "Close Moves",
-    "Far Moves",
+    "",
+    "",
+    "",
+    "",
+    "",
     "All Movement"
   };
   if (!dlg) {

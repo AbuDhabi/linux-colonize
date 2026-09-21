@@ -58,6 +58,14 @@ void game_apply_mouse_cursor(
  */
 
 /* New-game wizard / campaign identity (for smoke tests). */
+/*
+ * False when a required COLONIZE/ file is missing. The port compiles no
+ * MicroProse text of its own, so it cannot run usefully without the
+ * catalogs — main.c treats this as fatal and prints game_assets_error().
+ */
+bool game_assets_ok(const ColonizeGameState* game);
+const char* game_assets_error(const ColonizeGameState* game);
+
 bool game_in_menu(const ColonizeGameState* game);
 bool game_in_new_game(const ColonizeGameState* game);
 int game_human_nation(const ColonizeGameState* game);

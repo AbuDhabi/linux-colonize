@@ -137,11 +137,11 @@
   X(closing, "closing")                                                                           \
   X(declaration, "declaration")                                                                   \
   X(woodcut, "woodcut")                                                                           \
-  X(combat_analysis, "combat analysis")                                                           \
+  X(combat_analysis, "combat panel")                                             \
   X(trade_screen, "trade route editor")                                                           \
   X(save_load, "save/load")                                                                       \
   X(options_dlg, "options")                                                                       \
-  X(pick_music, "pick music")                                                                     \
+  X(pick_music, "music picker")                                                         \
   X(name_entry, "name entry")                                                                     \
   X(howmuch, "how much")                                                                          \
   X(cheat_list, "cheat list")                                                                     \
@@ -981,7 +981,7 @@ static void game_apply_setview(ColonizeGameState* game, int view_id, const char*
      * fallback for missing/empty label (no data dir). */
     set_status(game, (label && label[0]) ? label : "No special view", NULL);
   } else if (label && label[0]) {
-    set_status(game, "View", label);
+    set_status(game, "", label);
   } else {
     set_status(game, "Viewpoint changed", NULL);
   }
@@ -1036,39 +1036,33 @@ static void game_open_cheat_kill_indians(ColonizeGameState* game) {
   }
 }
 
-/* NAMES.TXT @UNIT type names for the CHEAT Create Unit stages. */
-static const char* const k_cheat_create_main_labels[] = {
-  "Colonists",   "Pioneers", "Militia",     "Missionary", "Scout",
-  "Artillery",   "Wagon Train", "Treasure", "Ship",       "Indian Braves",
-  "Indian Armed Braves", "Indian Horse", "Indian Armed Horse", "Foreign Unit"
+/*
+ * CHEAT Create Unit. The list TEXT is DEBUG.TXT @CREATE / @CSHIP / @FOREIGN2
+ * (cheat_list_catalog_rows); these tables hold only the @UNIT ROW each entry
+ * spawns — the port spells no unit names itself. -1 = resolved by a follow-up
+ * stage (Treasure amount, Ship picker, Foreign picker).
+ */
+static const char* const k_cheat_create_main_labels[14] = {
+  "", "", "", "", "", "", "", "", "", "", "", "", "", ""
 };
-/* units.h ColonizeUnitType.name for each main-stage entry (Ship/Foreign Unit
- * resolved by a follow-up stage instead). */
-static const char* const k_cheat_create_main_types[] = {
-  "Colonists", "Pioneers", "Soldiers", "Missionaries", "Scouts",
-  "Artillery", "Wagon Train", NULL /* Treasure */, NULL /* Ship */,
-  NULL, NULL, NULL, NULL /* rows 9..12: brave ladder, see below */,
-  NULL /* Foreign */
+static const int k_cheat_create_main_kinds[14] = {
+  UNITS_KIND_COLONIST, UNITS_KIND_PIONEER, UNITS_KIND_SOLDIER, UNITS_KIND_MISSIONARY,
+  UNITS_KIND_SCOUT, UNITS_KIND_ARTILLERY, UNITS_KIND_WAGON, -1 /* Treasure */, -1 /* Ship */,
+  UNITS_KIND_BRAVE, UNITS_KIND_ARMED_BRAVE, UNITS_KIND_MTD_BRAVE, UNITS_KIND_MTD_WARRIOR,
+  -1 /* Foreign */
 };
-
-/* Rows 9..12 are the Indian arms/mounts ladder — @UNIT rows 19..22, sourced
- * from the live NAMES.TXT catalog rather than a fourth private copy of the
- * spelling (audit theme D). They double as units_find_type keys, which is why
- * reports_brave_ladder_name keeps the @UNIT spelling. */
-#define GAME_CHEAT_CREATE_BRAVE_FIRST 9
-static const char* game_cheat_create_type_name(int id) {
-  if (id >= GAME_CHEAT_CREATE_BRAVE_FIRST && id <= GAME_CHEAT_CREATE_BRAVE_FIRST + 3) {
-    return reports_brave_ladder_name(id - GAME_CHEAT_CREATE_BRAVE_FIRST);
+static int game_cheat_create_kind(int id) {
+  if (id < 0 || id >= (int)(sizeof(k_cheat_create_main_kinds) / sizeof(k_cheat_create_main_kinds[0]))) {
+    return -1;
   }
-  if (id < 0 || id >= (int)(sizeof(k_cheat_create_main_types) / sizeof(k_cheat_create_main_types[0]))) {
-    return NULL;
-  }
-  return k_cheat_create_main_types[id];
+  return k_cheat_create_main_kinds[id];
 }
-static const char* const k_cheat_create_ship_labels[] = {
-  "Caravel", "Merchantman", "Galleon", "Privateer", "Frigate", "Man-O-War"
+static const char* const k_cheat_create_ship_labels[6] = {"", "", "", "", "", ""};
+static const ColonizeUnitKind k_cheat_create_ship_kinds[6] = {
+  UNITS_KIND_CARAVEL, UNITS_KIND_MERCHANTMAN, UNITS_KIND_GALLEON,
+  UNITS_KIND_PRIVATEER, UNITS_KIND_FRIGATE, UNITS_KIND_MAN_O_WAR
 };
-static const char* const k_cheat_create_foreign_labels[] = {"Rebel", "Loyal"};
+static const char* const k_cheat_create_foreign_labels[] = {"", ""};
 
 static void game_open_cheat_create_unit(ColonizeGameState* game) {
   if (!game) {
@@ -1147,7 +1141,7 @@ static void game_apply_cheat_create_unit(ColonizeGameState* game, int id) {
     if (id < 0 || id >= 6) {
       return;
     }
-    const int type_idx = units_find_type(&game->units, k_cheat_create_ship_labels[id]);
+    const int type_idx = units_kind_type_index(&game->units, k_cheat_create_ship_kinds[id]);
     const int uid = type_idx >= 0
       ? units_spawn_allow_stack(&game->units, type_idx, x, y)
       : -1;
@@ -1156,7 +1150,7 @@ static void game_apply_cheat_create_unit(ColonizeGameState* game, int id) {
       return;
     }
     units_set_nation(units_get(&game->units, uid), game->human_nation);
-    set_status(game, "Created", k_cheat_create_ship_labels[id]);
+    set_status(game, "Created", units_type(&game->units, type_idx)->name);
     return;
   }
   if (game->cheat_create_stage == 2) {
@@ -1194,8 +1188,8 @@ static void game_apply_cheat_create_unit(ColonizeGameState* game, int id) {
     if (nation < 0 || nation > 3) {
       return;
     }
-    const char* type_name = id == 0 ? "Cont. Army" : "Regulars";
-    const int type_idx = units_find_type(&game->units, type_name);
+    const ColonizeUnitKind foreign_kind = id == 0 ? UNITS_KIND_CONT_ARMY : UNITS_KIND_REGULAR;
+    const int type_idx = units_kind_type_index(&game->units, foreign_kind);
     const int uid = type_idx >= 0
       ? units_spawn_allow_stack(&game->units, type_idx, x, y)
       : -1;
@@ -1204,7 +1198,7 @@ static void game_apply_cheat_create_unit(ColonizeGameState* game, int id) {
       return;
     }
     units_set_nation(units_get(&game->units, uid), nation);
-    set_status(game, "Created", type_name);
+    set_status(game, "Created", units_type(&game->units, type_idx)->name);
     return;
   }
 
@@ -1273,17 +1267,17 @@ static void game_apply_cheat_create_unit(ColonizeGameState* game, int id) {
       set_status(game, "Cannot create unit here", NULL);
       return;
     }
-    set_status(game, "Created", "Treasure (1000)");
+    set_status(game, "Created", "treasure 1000");
     return;
   }
-  const char* type_name = game_cheat_create_type_name(id);
-  if (!type_name) {
+  const int kind = game_cheat_create_kind(id);
+  if (kind < 0) {
     return;
   }
   /* Indian unit types spawn for the first native tribe (id 4); @CREATE has
    * no tribe picker in DEBUG.TXT. Cite: docs/save_format_map.md nation ids. */
   const int nation = id >= 9 ? 4 : game->human_nation;
-  const int type_idx = units_find_type(&game->units, type_name);
+  const int type_idx = units_kind_type_index(&game->units, (ColonizeUnitKind)kind);
   const int uid =
     type_idx >= 0 ? units_spawn_allow_stack(&game->units, type_idx, x, y) : -1;
   if (uid < 0) {
@@ -1291,7 +1285,7 @@ static void game_apply_cheat_create_unit(ColonizeGameState* game, int id) {
     return;
   }
   units_set_nation(units_get(&game->units, uid), nation);
-  set_status(game, "Created", k_cheat_create_main_labels[id]);
+  set_status(game, "Created", units_type(&game->units, type_idx)->name);
 }
 
 static void game_apply_set_human(ColonizeGameState* game, int nation_id) {
@@ -1333,11 +1327,11 @@ static void game_cheat_advance_revolution(ColonizeGameState* game) {
     return;
   }
   if (!game->col1_ok) {
-    set_status(game, "Advance Revolution Status unavailable", NULL);
+    set_status(game, "", NULL);
     return;
   }
   game->col1.head.game_options.independence_force = 1;
-  set_status(game, "Independence forced at end of next turn.", NULL);
+  set_status(game, "", NULL);
 }
 
 static void game_cheat_toggle_strategy(ColonizeGameState* game) {
@@ -1353,7 +1347,7 @@ static void game_cheat_toggle_colony_sites(ColonizeGameState* game) {
     return;
   }
   game->debug_show_colony_sites = !game->debug_show_colony_sites;
-  set_status(game, "Show Colony Sites", game->debug_show_colony_sites ? "on" : "off");
+  set_status(game, "", game->debug_show_colony_sites ? "on" : "off");
 }
 
 /* DEBUG.TXT @TEST: "Number of Units = %NUMBER0; Number of Colonies = %NUMBER1". */
@@ -1425,8 +1419,8 @@ static void game_open_cheat_sound_test(ColonizeGameState* game) {
   howmuch_open(
     &game->howmuch,
     HOWMUCH_KIND_SOUND_TEST,
-    "Play what sound #?",
-    howmuch_amount_label(&game->debug_txt, "SOUND", "Sound:"),
+    "",
+    howmuch_amount_label(&game->debug_txt, "SOUND", ""),
     255,
     0,
     0,
@@ -1522,7 +1516,7 @@ void game_trade_open_dest_picker(ColonizeGameState* game, int stop_i) {
   tok.has_number0 = true;
   char prompt[COLONIZE_MSG_LINE_LEN];
   char fb[COLONIZE_MSG_LINE_LEN];
-  snprintf(fb, sizeof(fb), "Select destination number %d for route", number);
+  snprintf(fb, sizeof(fb), "", number);
   popup_msg_fill(&game->messages, "TRADESTART", &tok, fb, prompt, sizeof(prompt));
   if (count <= 0) {
     /* No colonies yet: DOS FUN_647e_01c6 still shows the (empty) destination
@@ -1565,7 +1559,7 @@ void game_trade_open_cargo_picker(ColonizeGameState* game, int stop_i, bool is_l
       }
       str_copy_trunc(bufs[count], sizeof(bufs[count]), line);
     } else {
-      snprintf(bufs[count], sizeof(bufs[count]), "Cargo %d", c);
+      snprintf(bufs[count], sizeof(bufs[count]), "#%d", c);
     }
     labels[count] = bufs[count];
     ids[count] = c;
@@ -1732,12 +1726,12 @@ static void game_trade_wizard_after_dest1(ColonizeGameState* game, int dest1) {
   char body[AI_POPUP_BODY_LEN];
   popup_msg_fill(
     &game->messages, "TRADETYPE", NULL,
-    "Is this a {sea} trade route or a {land} trade route?", body, sizeof(body)
+    "", body, sizeof(body)
   );
   char label_buf[2][POPUP_MSG_CHOICE_LEN];
   const char* labels[2];
   (void)popup_msg_section_labels(
-    &game->messages, "TRADETYPE", NULL, "Sea route", "Land route", label_buf, labels
+    &game->messages, "TRADETYPE", NULL, "", "", label_buf, labels
   );
   const int ids[2] = {1, 0}; /* DOS: 1 = sea, else land */
   if (!ai_popup_enqueue_choice(
@@ -1753,7 +1747,7 @@ void game_trade_wizard_open_name(ColonizeGameState* game) {
   game_trade_default_name(game, game->trade_create_dest1, def_name, sizeof(def_name));
   char prompt[AI_POPUP_BODY_LEN];
   popup_msg_fill(
-    &game->messages, "TRADENAME", NULL, "Enter the name for this trade route.",
+    &game->messages, "TRADENAME", NULL, "",
     prompt, sizeof(prompt)
   );
   if (!name_entry_open(
@@ -1938,7 +1932,7 @@ void game_apply_cheat_list_result(ColonizeGameState* game) {
         GAME_MAP_CONFIRM_TRADE_DELETE,
         id,
         "SUREDELETE",
-        "Are you sure you want to delete this route?",
+        "",
         &tok
       );
     }
@@ -1971,24 +1965,14 @@ static void game_open_save_load(ColonizeGameState* game, SaveLoadMode mode) {
  * doesn't already cover) maps to LOADERROR.
  */
 static void game_show_save_load_popup(
-  ColonizeGameState* game,
-  const char* section,
-  const char* fallback_fmt,
-  const char* filename,
-  const char* noun
+  ColonizeGameState* game, const char* section, const char* filename, const char* noun
 ) {
   PopupMsgTokens tok;
   memset(&tok, 0, sizeof(tok));
   tok.string0 = filename;
   tok.string1 = noun;
-  char fallback[160];
-  if (noun) {
-    snprintf(fallback, sizeof(fallback), fallback_fmt, noun, filename);
-  } else {
-    snprintf(fallback, sizeof(fallback), fallback_fmt, filename);
-  }
   char body[AI_POPUP_BODY_LEN];
-  popup_msg_fill(&game->messages, section, &tok, fallback, body, sizeof(body));
+  popup_msg_fill(&game->messages, section, &tok, "", body, sizeof(body));
   ai_popup_enqueue_ok(&game->ai_popups, AI_POPUP_TAG_INFO, NULL, body);
   ai_popup_present_now(&game->ai_popups, AI_POPUP_TAG_INFO);
 }
@@ -2013,7 +1997,7 @@ void game_apply_save_load_result(ColonizeGameState* game) {
     if (!game_save_col1_slot(game, slot, err, sizeof(err))) {
       set_status(game, "Save failed", err);
       diag_error("Save failed: %s", err);
-      game_show_save_load_popup(game, "SAVEERROR", "Error saving game %s.", filename, NULL);
+      game_show_save_load_popup(game, "SAVEERROR", filename, NULL);
       return;
     }
     snprintf(
@@ -2025,7 +2009,7 @@ void game_apply_save_load_result(ColonizeGameState* game) {
       game->game_year
     );
     diag_info("Save succeeded for COLONY%02d (turn %u)", slot, game->turn_number);
-    game_show_save_load_popup(game, "SAVEGOOD", "%s saved as %s.", filename, "Game");
+    game_show_save_load_popup(game, "SAVEGOOD", filename, "Game");
     return;
   }
 
@@ -2038,18 +2022,14 @@ void game_apply_save_load_result(ColonizeGameState* game) {
     set_status(game, "Load failed", err);
     diag_error("Load failed: %s", err);
     const char* section = "LOADERROR";
-    const char* fallback_fmt = "Error loading game %s.";
-    if (strstr(err, "obsolete") != NULL) {
+    if (strstr(err, COL1_ERR_OBSOLETE) != NULL) {
       section = "LOADOLD";
-      fallback_fmt = "%s is an obsolete save file.";
-    } else if (strstr(err, "does not match") != NULL) {
+    } else if (strstr(err, COL1_ERR_MAP_SIZE) != NULL) {
       section = "LOADSIZE";
-      fallback_fmt = "%s does not match the current map size.  It cannot be loaded at this time.";
-    } else if (strstr(err, "not a valid") != NULL) {
+    } else if (strstr(err, COL1_ERR_NOT_A_SAVE) != NULL) {
       section = "LOADNOT";
-      fallback_fmt = "%s is not a valid save file.";
     }
-    game_show_save_load_popup(game, section, fallback_fmt, filename, NULL);
+    game_show_save_load_popup(game, section, filename, NULL);
     return;
   }
   snprintf(
@@ -2068,7 +2048,7 @@ void game_apply_save_load_result(ColonizeGameState* game) {
     game->units.unit_count,
     game->colonies.colony_count
   );
-  game_show_save_load_popup(game, "LOADGOOD", "Loaded %s successfully.", filename, NULL);
+  game_show_save_load_popup(game, "LOADGOOD", filename, NULL);
 }
 
 /* Nearest palette index to an 8-bit RGB triple (for cross-PIK @COLORS remap). */
@@ -2100,11 +2080,11 @@ static void load_begin_menu(ColonizeGameState* game) {
 
   const ColonizeMsgSection* section = assets_msg_find(&game->messages, "BEGINMENU");
   if (!section) {
-    diag_warn("GAME.TXT missing @BEGINMENU; using fallback menu.");
-    snprintf(game->menu_options[0], sizeof(game->menu_options[0]), "Start a Game in NEW WORLD");
-    snprintf(game->menu_options[1], sizeof(game->menu_options[1]), "LOAD Game");
-    snprintf(game->menu_options[2], sizeof(game->menu_options[2]), "Exit");
-    game->menu_option_count = 3;
+    /* No built-in menu to fall back on: the port ships none of the game's
+     * wording, and a GAME.TXT without @BEGINMENU is a broken data dir. The
+     * menu stays empty and the title screen shows the asset error. */
+    diag_error("GAME.TXT has no @BEGINMENU section; title menu is empty.");
+    game->menu_option_count = 0;
     return;
   }
 
@@ -2679,8 +2659,7 @@ void game_open_report(ColonizeGameState* game, ColonizeReportId id) {
       &game->messages,
       tag ? tag : "FOREIGNNOTAVAIL",
       NULL,
-      "The Foreign Affairs Adviser's report is no longer available once the War of "
-      "Independence has begun.",
+      "",
       body,
       sizeof(body)
     );
@@ -2788,8 +2767,8 @@ static void game_build_exploits(ColonizeGameState* game, const ColonizeScoreBrea
     }
   } else {
     snprintf(ex->header[0], sizeof(ex->header[0]), "COLONIZATION RATING: %d%%", sc->rating);
-    snprintf(ex->header[1], sizeof(ex->header[1]), "In memory of your deeds, the citizens of");
-    snprintf(ex->header[2], sizeof(ex->header[2]), "%s give your name to . . .", nation_name);
+    snprintf(ex->header[1], sizeof(ex->header[1]), "");
+    snprintf(ex->header[2], sizeof(ex->header[2]), "", nation_name);
     ex->header_count = 3;
   }
 
@@ -2906,7 +2885,7 @@ void game_begin_win_closing_or_score(ColonizeGameState* game) {
   if (closing_open(&game->closing, game->resolved_data_dir)) {
     game->closing_just_opened = true;
     game->closing_then_score = true;
-    set_status(game, "Independence", NULL);
+    set_status(game, "", NULL);
     return;
   }
   game_open_retire_score(game);
@@ -2918,12 +2897,12 @@ void game_begin_win_closing_or_score(ColonizeGameState* game) {
 static void game_enqueue_war_scored_choice(ColonizeGameState* game) {
   char body[AI_POPUP_BODY_LEN];
   popup_msg_fill(
-    &game->messages, "SCORED", NULL, "Scoring for this game is now complete.", body, sizeof(body)
+    &game->messages, "SCORED", NULL, "", body, sizeof(body)
   );
   char label_buf[2][POPUP_MSG_CHOICE_LEN];
   const char* labels[2];
   (void)popup_msg_section_labels(
-    &game->messages, "SCORED", NULL, "That's all.", "Keep playing anyway.", label_buf, labels
+    &game->messages, "SCORED", NULL, "", "", label_buf, labels
   );
   const int ids[2] = {1, 2};
   (void)ai_popup_enqueue_choice_ctx(
@@ -3018,7 +2997,7 @@ static void game_open_terrain_pedia_at_cursor(ColonizeGameState* game) {
     index = map_pedia_terrain_index_at(&game->world_map, game->map_cursor_x, game->map_cursor_y);
   }
   game_open_pedia_article(game, PEDIA_CAT_TERRAIN, index, false);
-  snprintf(game->status, sizeof(game->status), "Terrain Information");
+  snprintf(game->status, sizeof(game->status), "");
   diag_info(
     "Opened Terrain Information pedia index=%d at cursor (%d,%d)",
     index,
@@ -3911,7 +3890,7 @@ static void render_europe_chrome(
     EUROPE_EXPECTED_Y,
     EUROPE_EXPECTED_W,
     EUROPE_EXPECTED_H,
-    "Expected\nSoon",
+    "",
     eu->expected,
     eu->expected_ships,
     -1
@@ -3920,7 +3899,7 @@ static void render_europe_chrome(
   snprintf(
     line,
     sizeof(line),
-    "Bound For\n%s",
+    "",
     eu->colony_region[0] ? eu->colony_region : "New World"
   );
   europe_render_transit_box(
@@ -4116,7 +4095,14 @@ static void render_europe_market_and_buttons(
 
   /* RECRUIT / PURCHASE / TRAIN — transparent beveled ALL-CAPS buttons. */
   {
-    static const char* k_btn_labels[3] = {"~RECRUIT", "~PURCHASE", "~TRAIN"};
+    /* LABELS.TXT @EUROLABEL rows 0..2; '~' is the port's hotkey marker. */
+    char k_btn_labels[3][24];
+    for (int i = 0; i < 3; ++i) {
+      snprintf(
+        k_btn_labels[i], sizeof(k_btn_labels[i]), "~%s",
+        assets_msg_line_or(game->labels_ok ? &game->labels : NULL, "EUROLABEL", i, "")
+      );
+    }
     UiButtonColors bc;
     bc.dark = EUROPE_BTN_DARK;
     bc.light = EUROPE_BTN_LIGHT;
@@ -4376,7 +4362,7 @@ static void game_create_reset_fields(ColonizeGameState* game, const ColonizeGame
   game->map_view_y = 36;
   game->in_menu = true;
   game->difficulty = 0;
-  snprintf(game->leader_name, sizeof(game->leader_name), "Walter Raleigh");
+  snprintf(game->leader_name, sizeof(game->leader_name), "");
   game->game_year = 1492;
   game->game_autumn = 0;
   game->human_nation = 0;
@@ -4455,6 +4441,7 @@ static void game_create_resolve_data_dir(ColonizeGameState* game, const Colonize
   char err[256];
   game->assets_ok = assets_validate_required_files(game->resolved_data_dir, err, sizeof(err));
   if (!game->assets_ok) {
+    str_copy_trunc(game->assets_error, sizeof(game->assets_error), err);
     set_status(game, "Asset error", err);
     diag_error("Asset validation failed: %s", err);
   } else {
@@ -5165,33 +5152,45 @@ static void game_commit_new_campaign(ColonizeGameState* game) {
   );
 }
 
+/*
+ * GAME.TXT @BEGINMENU option rows, in DOS's own file order. Dispatch is by
+ * ROW, never by label: the port compiles none of the game's wording, and a
+ * translated or re-worded menu must still work. A sixth row, if a data dir
+ * supplies one, is the quit row (DOS has none; Esc quits there).
+ */
+enum {
+  TITLE_MENU_ROW_NEW_WORLD = 0,
+  TITLE_MENU_ROW_AMERICA = 1,
+  TITLE_MENU_ROW_CUSTOMIZE = 2,
+  TITLE_MENU_ROW_LOAD = 3,
+  TITLE_MENU_ROW_HALL_OF_FAME = 4,
+  TITLE_MENU_ROW_EXIT = 5
+};
+
 void activate_menu_selection(ColonizeGameState* game) {
   if (game->menu_selection < 0 || game->menu_selection >= game->menu_option_count) {
     return;
   }
-  const char* choice = game->menu_options[game->menu_selection];
-  diag_info("Menu selected: %s", choice);
+  diag_info("Menu selected: row %d (%s)", game->menu_selection, game->menu_options[game->menu_selection]);
 
-  if (strstr(choice, "Exit") != NULL || strstr(choice, "DOS") != NULL) {
+  switch (game->menu_selection) {
+    case TITLE_MENU_ROW_EXIT: {
     game_enqueue_yes_no(
-      game, GAME_MAP_CONFIRM_TITLE_EXIT, -1, "DOS", "Exit to DOS?", NULL
+      game, GAME_MAP_CONFIRM_TITLE_EXIT, -1, "DOS", "", NULL
     );
     return;
-  }
-
-  if (strstr(choice, "LOAD") != NULL || strstr(choice, "Load") != NULL) {
+    }
+    case TITLE_MENU_ROW_LOAD: {
     game_open_save_load(game, SAVE_LOAD_MODE_LOAD);
     return;
-  }
-
-  if (strstr(choice, "Hall of Fame") != NULL || strstr(choice, "HALL") != NULL) {
+    }
+    case TITLE_MENU_ROW_HALL_OF_FAME: {
     game->in_menu = false;
     game->in_hall_of_fame = true;
-    set_status(game, "Hall of Fame", NULL);
+    set_status(game, "Menu", "hall");
     return;
-  }
-
-  if (strstr(choice, "CUSTOMIZE") != NULL || strstr(choice, "Customize") != NULL) {
+    }
+    case TITLE_MENU_ROW_CUSTOMIZE: {
     game->in_menu = false;
     new_game_begin(
       &game->new_game,
@@ -5200,11 +5199,10 @@ void activate_menu_selection(ColonizeGameState* game) {
       &game->messages,
       game->names_ok ? &game->names : NULL
     );
-    set_status(game, "New game", "Customize New World");
+    set_status(game, "New game", "customize");
     return;
-  }
-
-  if (strstr(choice, "AMERICA") != NULL || strstr(choice, "America") != NULL) {
+    }
+    case TITLE_MENU_ROW_AMERICA: {
     game->in_menu = false;
     new_game_begin(
       &game->new_game,
@@ -5213,12 +5211,10 @@ void activate_menu_selection(ColonizeGameState* game) {
       &game->messages,
       game->names_ok ? &game->names : NULL
     );
-    set_status(game, "New game", "America");
+    set_status(game, "New game", "scenario map");
     return;
-  }
-
-  if (strstr(choice, "NEW WORLD") != NULL || strstr(choice, "New World") != NULL ||
-      strstr(choice, "Start") != NULL) {
+    }
+    case TITLE_MENU_ROW_NEW_WORLD: {
     game->in_menu = false;
     new_game_begin(
       &game->new_game,
@@ -5227,10 +5223,12 @@ void activate_menu_selection(ColonizeGameState* game) {
       &game->messages,
       game->names_ok ? &game->names : NULL
     );
-    set_status(game, "New game", "New World");
+    set_status(game, "New game", "generated map");
     return;
+    }
+    default:
+      break;
   }
-
   set_status(game, "Menu", "unknown option");
 }
 /* ===================== Unit selection & movement dispatch (game_set_view_center .. game_key_move_delta) ===================== */
@@ -5444,7 +5442,7 @@ COLONIZE_INTERNAL GameMoveStep game_move_sea_unit(
         char body[AI_POPUP_BODY_LEN];
         popup_msg_fill(
           &game->messages, "EUROPENOTLEAVE", NULL,
-          "We cannot sail to Europe, Your Excellency — we are at war with the King!",
+          "",
           body, sizeof(body)
         );
         ai_popup_enqueue_ok(&game->ai_popups, AI_POPUP_TAG_INFO, NULL, body);
@@ -5458,21 +5456,21 @@ COLONIZE_INTERNAL GameMoveStep game_move_sea_unit(
         char body[AI_POPUP_BODY_LEN];
         popup_msg_fill(
           &game->messages, "SAILHOME", NULL,
-          "We have reached the {high seas}, Your Excellency.  Shall we sail for Europe?",
+          "",
           body, sizeof(body)
         );
         char label_buf[2][POPUP_MSG_CHOICE_LEN];
         const char* labels[2];
         (void)popup_msg_section_labels(
-          &game->messages, "SAILHOME", NULL, "Yes, steady as she goes.",
-          "No, let us remain in these waters.", label_buf, labels
+          &game->messages, "SAILHOME", NULL, "",
+          "", label_buf, labels
         );
         const int ids[2] = {1, 0};
         if (ai_popup_enqueue_choice_ctx(
               &game->ai_popups, AI_POPUP_TAG_SAILHOME, sid, dest_x, dest_y, NULL, body,
               labels, ids, 2
             )) {
-          set_status(game, "Sail for Europe?", NULL);
+          set_status(game, "", NULL);
           return GAME_MOVE_RETURN_TRUE;
         }
       }
@@ -5544,14 +5542,14 @@ COLONIZE_INTERNAL GameMoveStep game_move_sea_unit(
           &game->messages,
           landfall_section,
           NULL,
-          "Shall we make landfall, Your Excellency, and leave the ships behind?",
+          "",
           body,
           sizeof(body)
         );
         char label_buf[2][POPUP_MSG_CHOICE_LEN];
         const char* labels[2];
         (void)popup_msg_section_labels(
-          &game->messages, landfall_section, NULL, "Stay With Ships", "Make Landfall", label_buf,
+          &game->messages, landfall_section, NULL, "", "", label_buf,
           labels
         );
         const int ids[] = {0, 1};
@@ -5654,8 +5652,7 @@ void game_foreign_trade_price_hold(
   if (deal.offer_cargo < 0) {
     game_foreign_trade_refuse(
       game, "TRADENOWANT", &tok,
-      "\"We are not interested in your {%NUMBER0 %STRING0}.  Come back when "
-      "you have something better to offer.\"");
+      "");
     return;
   }
   tok.string0 = reports_cargo_display_name(deal.offer_cargo);
@@ -5664,8 +5661,7 @@ void game_foreign_trade_price_hold(
   char body[AI_POPUP_BODY_LEN];
   popup_msg_fill(
     &game->messages, "TRADEWITH", &tok,
-    "\"We will give you {%NUMBER0 %STRING0} in exchange for your %NUMBER1 %STRING1.  "
-    "Or, if you like, we are willing to give you {%NUMBER2$}.  Is this satisfactory?\"",
+    "",
     body, sizeof(body)
   );
   char choices[AI_POPUP_CHOICE_MAX][AI_POPUP_CHOICE_LEN];
@@ -5737,22 +5733,19 @@ bool game_foreign_trade_open(
     case COLONIZE_FTRADE_ATWAR:
       game_foreign_trade_refuse(
         game, "TRADEATWAR", NULL,
-        "Ships and wagon trains cannot enter the colonies of foreign powers "
-        "with whom you are at war or with whom you have not yet established contact.");
+        "");
       break;
     case COLONIZE_FTRADE_MERCANTILISM:
       /* %STRING0 = @LEADER2[owner] (FUN_2a1f_0618(0, 0x1aab, owner), raw 98931). */
       tok.string0 = game_foreign_trade_leader2(game, col->nation_id);
       game_foreign_trade_refuse(
         game, "TRADEMERCANTILISM", &tok,
-        "\"In the interests of {Mercantilism}, %STRING0 has ordered us not to trade "
-        "with foreign merchants.  We must therefore ask you to go away please.\"");
+        "");
       break;
     case COLONIZE_FTRADE_NOCARGO:
       game_foreign_trade_refuse(
         game, "TRADENOCARGO", NULL,
-        "\"You have brought nothing with you to trade with us.  Please come back "
-        "when you have something useful to offer.\"");
+        "");
       break;
     case COLONIZE_FTRADE_OK:
     default: {
@@ -5797,7 +5790,7 @@ bool game_foreign_trade_open(
       char body[AI_POPUP_BODY_LEN];
       popup_msg_fill(
         &game->messages, "TRADEWHICH", NULL,
-        "Which cargo shall we offer to trade, Your Excellency?", body, sizeof(body)
+        "", body, sizeof(body)
       );
       if (ai_popup_enqueue_choice_ctx(
             &game->ai_popups, AI_POPUP_TAG_FOREIGN_TRADE_WHICH, unit_id, colony_id,
@@ -5927,8 +5920,7 @@ COLONIZE_INTERNAL GameMoveStep game_move_native_prompts(
         char body[AI_POPUP_BODY_LEN];
         popup_msg_fill(
           &game->messages, "SCOUTCOLONY", &tok,
-          "Our {scouts} have reached the outskirts of {%STRING0}, "
-          "Your Excellency.  What shall they do?",
+          "",
           body, sizeof(body)
         );
         char choices[AI_POPUP_CHOICE_MAX][AI_POPUP_CHOICE_LEN];
@@ -5988,7 +5980,7 @@ COLONIZE_INTERNAL GameMoveStep game_move_native_prompts(
       char body[AI_POPUP_BODY_LEN];
       popup_msg_fill(
         &game->messages, "NOWARSDURINGREV", NULL,
-        "Foreign colonies cannot be attacked during the {War of Independence}.",
+        "",
         body, sizeof(body)
       );
       ai_popup_enqueue_ok(&game->ai_popups, AI_POPUP_TAG_INFO, NULL, body);
@@ -6434,7 +6426,7 @@ void game_after_unit_action(ColonizeGameState* game) {
       sizeof(game->status),
       "%s",
       /* LABELS.TXT @MISC row 2 — the same row the sidebar EOT prompt uses. */
-      game_labels_misc_or(2, "End of Turn")
+      game_labels_misc_or(2, "")
     );
   }
 }
@@ -6600,7 +6592,7 @@ static void game_enter_colony_at_cursor(ColonizeGameState* game) {
  * open slot, Town Hall preferred (always a starter, generic Bells labor).
  */
 static void game_auto_assign_new_colonist(ColonizeGameState* game, int colony_id, int colonist_index) {
-  const int town_hall = colonies_find_building(&game->colonies, "Town Hall");
+  const int town_hall = colonies_building_row(&game->colonies, COLONY_BUILDING_TOWN_HALL);
   if (town_hall >= 0 &&
       colonies_assign_workplace(&game->colonies, colony_id, colonist_index, town_hall)) {
     return;
@@ -6744,7 +6736,7 @@ static bool game_colony_request_eject(
       &game->messages,
       "KEEPSTOCKADE",
       NULL,
-      "We cannot voluntarily reduce below three the population of a colony that has a stockade, fort, or fortress.",
+      "",
       body,
       sizeof(body)
     );
@@ -6779,7 +6771,7 @@ static bool game_colony_request_eject(
       &game->messages,
       section,
       &tok,
-      "Shall we indeed abandon our colony, Your Excellency?",
+      "",
       body,
       sizeof(body)
     );
@@ -7150,8 +7142,7 @@ static void game_colony_area_tile_drop(
     char body[AI_POPUP_BODY_LEN];
     popup_msg_fill(
       &game->messages, "NODOCKS", NULL,
-      "We cannot operate fishing boats at this colony until we build Docks, "
-      "Your Excellency.",
+      "",
       body, sizeof(body)
     );
     ai_popup_enqueue_ok(&game->ai_popups, AI_POPUP_TAG_INFO, NULL, body);
@@ -7234,8 +7225,7 @@ static void game_colony_commit_job(ColonizeGameState* game, ColonizeColony* colo
       char body[AI_POPUP_BODY_LEN];
       popup_msg_fill(
         &game->messages, "LOBOTOMIZE", &tok,
-        "Do you wish to {clear} this colonist's specialty and make "
-        "him an ordinary free colonist?",
+        "",
         body, sizeof(body)
       );
       const char* labels[2] = {"Yes", "No"};
@@ -7254,8 +7244,7 @@ static void game_colony_commit_job(ColonizeGameState* game, ColonizeColony* colo
     char body[AI_POPUP_BODY_LEN];
     popup_msg_fill(
       &game->messages, "NODOCKS", NULL,
-      "We cannot operate fishing boats at this colony until we build "
-      "Docks, Your Excellency.",
+      "",
       body, sizeof(body)
     );
     ai_popup_enqueue_ok(&game->ai_popups, AI_POPUP_TAG_INFO, NULL, body);
@@ -7387,7 +7376,7 @@ static bool game_colony_drag_drop(
           tok.number0 = max_amt;
           tok.has_number0 = true;
           popup_msg_fill(
-            &game->messages, "HOWMUCH3", &tok, "How much should be moved?", prompt,
+            &game->messages, "HOWMUCH3", &tok, "", prompt,
             sizeof(prompt)
           );
           game->howmuch_move_dst_unit_id = dst;
@@ -7395,7 +7384,7 @@ static bool game_colony_drag_drop(
             &game->howmuch,
             HOWMUCH_KIND_MOVE,
             prompt,
-            howmuch_amount_label(&game->messages, "HOWMUCH3", "Amount:"),
+            howmuch_amount_label(&game->messages, "HOWMUCH3", ""),
             max_amt,
             max_amt,
             ctype,
@@ -7456,14 +7445,14 @@ static bool game_colony_drag_drop(
           tok.number0 = max_amt;
           tok.has_number0 = true;
           popup_msg_fill(
-            &game->messages, "HOWMUCH2", &tok, "How much should be unloaded?", prompt,
+            &game->messages, "HOWMUCH2", &tok, "", prompt,
             sizeof(prompt)
           );
           howmuch_open(
             &game->howmuch,
             HOWMUCH_KIND_UNLOAD,
             prompt,
-            howmuch_amount_label(&game->messages, "HOWMUCH2", "Amount:"),
+            howmuch_amount_label(&game->messages, "HOWMUCH2", ""),
             max_amt,
             max_amt,
             ctype,
@@ -7566,7 +7555,7 @@ static void game_europe_request_sail(ColonizeGameState* game, int hidx) {
     GAME_MAP_CONFIRM_EUROPE_SAIL,
     hidx,
     "SAILAWAY",
-    "Shall we set sail for the New World, Your Excellency?",
+    "",
     NULL
   );
 }
@@ -7623,13 +7612,13 @@ static bool game_europe_drag_drop(ColonizeGameState* game, int mx, int my, bool 
           tok.number1 = europe_sell_price(eu, ctype);
           tok.has_number1 = true;
           popup_msg_fill(
-            &game->messages, "HOWMUCH5", &tok, "How much to sell?", prompt, sizeof(prompt)
+            &game->messages, "HOWMUCH5", &tok, "", prompt, sizeof(prompt)
           );
           howmuch_open(
             &game->howmuch,
             HOWMUCH_KIND_SELL,
             prompt,
-            howmuch_amount_label(&game->messages, "HOWMUCH5", "Amount:"),
+            howmuch_amount_label(&game->messages, "HOWMUCH5", ""),
             max_amt,
             max_amt,
             ctype,
@@ -7939,7 +7928,7 @@ static void game_colony_apply_dock_order(
     break;
   case COLONY_DOCK_ORDER_SENTRY:
     units_order_sentry(&game->units, uid);
-    set_status(game, "Sentry", NULL);
+    set_status(game, "", NULL);
     break;
   case COLONY_DOCK_ORDER_FORTIFY:
     /* Same order and the same ship/land chrome the map rows use (GL-20). The
@@ -8025,11 +8014,11 @@ void game_fill_turn_context(ColonizeGameState* game, ColonizeTurnContext* ctx) {
  * -2 = Artillery. Real passenger type indices (map→Europe round trips) pass through. */
 static int game_europe_resolve_pax_type(const ColonizeUnitPool* units, int tag) {
   if (tag == -2) {
-    const int t = units_find_type(units, "Artillery");
+    const int t = units_kind_type_index(units, UNITS_KIND_ARTILLERY);
     return t >= 0 ? t : 0;
   }
   if (tag < 0 || tag >= units->type_count) {
-    const int t = units_find_type(units, "Colonists");
+    const int t = units_kind_type_index(units, UNITS_KIND_COLONIST);
     return t >= 0 ? t : 0;
   }
   return tag;
@@ -8189,7 +8178,7 @@ bool game_ship_sail_to_europe(ColonizeGameState* game, int sid) {
     char body[AI_POPUP_BODY_LEN];
     popup_msg_fill(
       &game->messages, "EUROPENOTLEAVE", NULL,
-      "We cannot sail to Europe, Your Excellency — we are at war with the King!",
+      "",
       body, sizeof(body)
     );
     ai_popup_enqueue_ok(&game->ai_popups, AI_POPUP_TAG_INFO, NULL, body);
@@ -8709,7 +8698,7 @@ void game_wait_next_unit(ColonizeGameState* game) {
       sizeof(game->status),
       "%s",
       /* LABELS.TXT @MISC row 2 — the same row the sidebar EOT prompt uses. */
-      game_labels_misc_or(2, "End of Turn")
+      game_labels_misc_or(2, "")
     );
     } else {
       game_do_end_turn(game);
@@ -8719,7 +8708,7 @@ void game_wait_next_unit(ColonizeGameState* game) {
   game->view_pieces_mode = false;
   game_center_on_selected_unit(game);
   /* LABELS.TXT @MISC row 34 (DS:0x2dfe) — the colony-event choice word. */
-  snprintf(game->status, sizeof(game->status), "%s", game_labels_misc_or(34, "Continue turn."));
+  snprintf(game->status, sizeof(game->status), "%s", game_labels_misc_or(34, ""));
 }
 
 /* Persistent Hall of Fame: COLONIZE/HOF.TXT holds a ranked table of retired
@@ -9349,7 +9338,7 @@ static void game_open_goto_port_picker(ColonizeGameState* game, int uid) {
   PopupMsgTokens tok;
   memset(&tok, 0, sizeof(tok));
   popup_msg_fill(
-    &game->messages, "SAILPORT", &tok, "Select a port to sail to:", prompt, sizeof(prompt)
+    &game->messages, "SAILPORT", &tok, "", prompt, sizeof(prompt)
   );
   popup_msg_take_pending_default(); /* consume — this is a cheat_list, not an ai_popup */
   game->goto_port_pending_unit = uid;
@@ -9431,14 +9420,14 @@ static GameMenuActionStatus game_menu_action_system(ColonizeGameState* game, Map
         GAME_MAP_CONFIRM_RETIRE,
         -1,
         "RETIRE",
-        "Do you really want to quit?",
+        "",
         NULL
       );
       return GAME_MENU_ACTION_DONE;
     }
     case MAP_MENU_ACTION_EXIT: {
       game_enqueue_yes_no(
-        game, GAME_MAP_CONFIRM_QUIT, -1, "DOS", "Exit to DOS?", NULL
+        game, GAME_MAP_CONFIRM_QUIT, -1, "DOS", "", NULL
       );
       return GAME_MENU_ACTION_DONE;
     }
@@ -9446,7 +9435,7 @@ static GameMenuActionStatus game_menu_action_system(ColonizeGameState* game, Map
       if (!pick_music_open(&game->pick_music, &game->messages)) {
         set_status(game, "Pick Music unavailable", "GAME.TXT @PICKMUSIC missing");
       } else {
-        set_status(game, "Pick Music", "Esc closes");
+        set_status(game, "", "Esc closes");
       }
       return GAME_MENU_ACTION_DONE;
     case MAP_MENU_ACTION_OPTIONS:
@@ -9613,7 +9602,7 @@ static GameMenuActionStatus game_menu_action_orders(ColonizeGameState* game, Map
       if (uid < 0 || !units_order_sentry(&game->units, uid)) {
         set_status(game, "Cannot sentry", NULL);
       } else {
-        set_status(game, "Sentry", NULL);
+        set_status(game, "", NULL);
         game_wait_next_unit(game);
       }
       return GAME_MENU_ACTION_DONE;
@@ -9740,8 +9729,7 @@ static GameMenuActionStatus game_menu_action_goto_and_cargo(ColonizeGameState* g
         char body[AI_POPUP_BODY_LEN];
         popup_msg_fill(
           &game->messages, "TRADEMANY", &tok,
-          "Only {12} trade routes can be defined, Your Excellency.\n"
-          "To create a new trade route now, you must delete an old one first.",
+          "",
           body, sizeof(body)
         );
         ai_popup_enqueue_ok(&game->ai_popups, AI_POPUP_TAG_INFO, NULL, body);
@@ -10312,13 +10300,13 @@ void game_colony_open_load_prompt(
   tok.number0 = max_amt;
   tok.has_number0 = true;
   popup_msg_fill(
-    &game->messages, "HOWMUCH1", &tok, "How much should be loaded?", prompt, sizeof(prompt)
+    &game->messages, "HOWMUCH1", &tok, "", prompt, sizeof(prompt)
   );
   howmuch_open(
     &game->howmuch,
     HOWMUCH_KIND_LOAD,
     prompt,
-    howmuch_amount_label(&game->messages, "HOWMUCH1", "Amount:"),
+    howmuch_amount_label(&game->messages, "HOWMUCH1", ""),
     max_amt,
     max_amt,
     cargo,
@@ -10347,7 +10335,7 @@ void game_europe_open_buy_prompt_for(ColonizeGameState* game, int hidx, int carg
   tok.number1 = europe_buy_price(eu, cargo);
   tok.has_number1 = true;
   popup_msg_fill(
-    &game->messages, "HOWMUCH4", &tok, "How much to purchase?", prompt, sizeof(prompt)
+    &game->messages, "HOWMUCH4", &tok, "", prompt, sizeof(prompt)
   );
   if (max_amt <= 0) {
     snprintf(eu->status, sizeof(eu->status), "%s", "No empty hold.");
@@ -10356,7 +10344,7 @@ void game_europe_open_buy_prompt_for(ColonizeGameState* game, int hidx, int carg
       &game->howmuch,
       HOWMUCH_KIND_BUY,
       prompt,
-      howmuch_amount_label(&game->messages, "HOWMUCH4", "Amount:"),
+      howmuch_amount_label(&game->messages, "HOWMUCH4", ""),
       max_amt,
       max_amt,
       cargo,
@@ -11326,7 +11314,7 @@ static GameUpdateStep game_colony_screen_mouse_click(
        * refuses it) — a plain click opens its per-cargo autosell
        * checklist instead of trying (and failing) to assign a colonist. */
       const ColonizeBuildingType* bt = colonies_building_type(&game->colonies, hit.index);
-      if (bt && strcmp(bt->name, "Custom House") == 0) {
+      if (bt && colonies_building_name_row(bt->name) == COLONY_BUILDING_CUSTOM_HOUSE) {
         ColonizeColony* col = colonies_get_mut(&game->colonies, game->colony_view_id);
         if (col && hit.index >= 0 && hit.index < COLONIZE_BUILDING_TYPES_MAX &&
             col->has_building[hit.index]) {
@@ -11618,7 +11606,7 @@ static GameUpdateStep game_colony_screen_keys(
         &game->messages,
         "RENAMECOLONY",
         NULL,
-        "What shall we rename this colony?",
+        "",
         prompt,
         sizeof(prompt)
       );
@@ -11883,7 +11871,7 @@ COLONIZE_INTERNAL GameUpdateStep game_update_colony_screen(ColonizeGameState* ga
         }
         game_open_pedia_article(game, PEDIA_CAT_TERRAIN, index, false);
         game->pedia_return_colony_id = cid;
-        snprintf(game->status, sizeof(game->status), "Terrain Information");
+        snprintf(game->status, sizeof(game->status), "");
         return GAME_UPDATE_RETURN_TRUE;
       }
     }
@@ -12379,7 +12367,7 @@ COLONIZE_INTERNAL GameUpdateStep game_update_title_menu(ColonizeGameState* game,
     }
     if (input->last_key == COLONIZE_KEY_ESCAPE) {
       game_enqueue_yes_no(
-        game, GAME_MAP_CONFIRM_TITLE_EXIT, -1, "DOS", "Exit to DOS?", NULL
+        game, GAME_MAP_CONFIRM_TITLE_EXIT, -1, "DOS", "", NULL
       );
       return GAME_UPDATE_RETURN_TRUE;
     }
@@ -13084,7 +13072,7 @@ COLONIZE_INTERNAL GameUpdateStep game_update_map_keys(ColonizeGameState* game, c
       const ColonizeUnit* su = units_get_const(&game->units, uid);
       if (su && su->active && units_is_on_map(su)) {
         if (units_order_sentry(&game->units, uid)) {
-          set_status(game, "Sentry", NULL);
+          set_status(game, "", NULL);
           game_wait_next_unit(game);
           return GAME_UPDATE_RETURN_TRUE;
         }
@@ -13170,7 +13158,7 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
 
   if (input->last_key == COLONIZE_KEY_Q) {
     game_enqueue_yes_no(
-      game, GAME_MAP_CONFIRM_QUIT, -1, "DOS", "Exit to DOS?", NULL
+      game, GAME_MAP_CONFIRM_QUIT, -1, "DOS", "", NULL
     );
     return true;
   }
@@ -14555,6 +14543,14 @@ void game_apply_mouse_cursor(
   } else {
     platform_show_game_mouse_cursor(platform, false);
   }
+}
+
+bool game_assets_ok(const ColonizeGameState* game) {
+  return game && game->assets_ok;
+}
+
+const char* game_assets_error(const ColonizeGameState* game) {
+  return (game && game->assets_error[0]) ? game->assets_error : "";
 }
 
 bool game_in_menu(const ColonizeGameState* game) {

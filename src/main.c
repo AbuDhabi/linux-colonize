@@ -189,6 +189,18 @@ int main(int argc, char** argv) {
     return 1;
   }
 
+  if (!game_assets_ok(game)) {
+    /* No built-in copy of the game's text exists to fall back on. */
+    fprintf(stderr, "%s\n", game_assets_error(game));
+    fprintf(stderr, "The original COLONIZE/ data files are required to run.\n");
+    fprintf(stderr, "Point the port at them with --data-dir <path>.\n");
+    diag_error("Startup aborted: %s", game_assets_error(game));
+    game_destroy(game);
+    platform_destroy(platform);
+    diag_shutdown();
+    return 1;
+  }
+
   sound_set_soundfont(settings_get()->soundfont);
   sound_set_midi_backend(settings_get()->midi_backend);
   sound_init(cli.data_dir, platform_audio_enabled(platform));

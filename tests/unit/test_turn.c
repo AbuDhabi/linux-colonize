@@ -16,6 +16,7 @@
 #include "core/map.h"
 #include "core/ai_king.h"
 #include "core/turn.h"
+#include "core/turn_internal.h"
 #include "core/unit_chrome.h"
 #include "core/units.h"
 #include "platform/diagnostics.h"
@@ -5479,7 +5480,9 @@ int main(void) {
       fprintf(stderr, "year-end D want nation_flags 0x04 latch set\n");
       return 1;
     }
-    if (strcmp(dw.player[2].country_name, "Republic of Mexico") != 0) {
+    /* Expectation read from the same NAMES.TXT @INDEPENDENT row the code uses. */
+    if (dw.player[2].country_name[0] == '\0' ||
+        strcmp(dw.player[2].country_name, turn_year_end_independent_name(2)) != 0) {
       fprintf(
         stderr,
         "year-end D want @INDEPENDENT rename got '%s'\n",

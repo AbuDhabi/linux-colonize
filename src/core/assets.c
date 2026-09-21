@@ -87,11 +87,22 @@ bool assets_resolve_data_dir(const char* override_dir, char* out, size_t out_siz
 }
 
 bool assets_validate_required_files(const char* data_dir, char* err_buf, size_t err_buf_size) {
+  /*
+   * Every text catalog the port reads is required, not optional: no MicroProse
+   * wording is compiled into the binary any more, so a missing catalog cannot
+   * be papered over with a built-in copy — the screen would simply go blank.
+   * Fail here, with the port's own error, instead of launching into that.
+   */
   static const char* required[] = {
     "MODULES.DB",
     "ERRORS.DB",
     "GAME.TXT",
     "MENU.TXT",
+    "LABELS.TXT",
+    "NAMES.TXT",
+    "PEDIA.TXT",
+    "COLONY.TXT",
+    "DEBUG.TXT",
     "VICEROY.PAL"
   };
   if (!data_dir) {

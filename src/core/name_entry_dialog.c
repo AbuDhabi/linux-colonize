@@ -37,7 +37,7 @@ static void name_entry_finish(NameEntryDialog* dlg, bool cancelled) {
         /* Caller fills NAMES.TXT @COLONYNAME nation default. */
         dlg->result_name[0] = '\0';
       } else {
-        str_copy_trunc(dlg->result_name, sizeof(dlg->result_name), "Colony");
+        str_copy_trunc(dlg->result_name, sizeof(dlg->result_name), "");
       }
     }
   } else {
@@ -151,7 +151,7 @@ void name_entry_render(
   const int ix = g.frame.inner_x;
   const int iw = g.frame.inner_w;
   int ty = g.text_y + 2;
-  popup_draw_text_shadowed(font, framebuffer, ix + pad, ty, "Name:", text_color);
+  popup_draw_text_shadowed(font, framebuffer, ix + pad, ty, "", text_color);
   ty += line_h + TEXT_EDIT_FRAME_PAD;
   dlg->field_font = font;
   dlg->field_x = ix + pad;

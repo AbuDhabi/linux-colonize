@@ -36,6 +36,7 @@
 #include "core/map.h"
 #include "core/popup_msg.h"
 #include "core/reports.h"
+#include "core/strutil.h"
 #include "core/units.h"
 #include "core/village_trade_intel.h"
 
@@ -405,7 +406,7 @@ void ai_contact_alarm_delta_00f2(
     char body[AI_POPUP_BODY_LEN];
     popup_msg_fill(ctx->messages, "INDIANBURN", &tok, fb, body, sizeof(body));
     ai_contact_human_chrome(
-      ctx, euro, AI_POPUP_TAG_CONTACT_RAID, nation_id, "Mission", body
+      ctx, euro, AI_POPUP_TAG_CONTACT_RAID, nation_id, "", body
     );
   }
 }
@@ -618,8 +619,7 @@ static void ai_contact_apply_welcome_accept(
   snprintf(
     peace_fb,
     sizeof(peace_fb),
-    "The %s welcome peace with our brothers the %s. Let us smoke a peace pipe "
-    "to celebrate our perpetual friendship.",
+    "",
     tribe,
     euro
   );
@@ -627,7 +627,7 @@ static void ai_contact_apply_welcome_accept(
   popup_msg_fill(
     ctx->messages, "INDIANPEACE", &peace_tok, peace_fb, peace_body, sizeof(peace_body)
   );
-  ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_MEET, nation_id, "Peace", peace_body);
+  ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_MEET, nation_id, "", peace_body);
 
   /* DOS FUN_5bfb_0182: @INDIANCOME when relation < 0x19 before/as friendly. */
   if (rel_before < 25u) {
@@ -638,15 +638,14 @@ static void ai_contact_apply_welcome_accept(
     snprintf(
       come_fb,
       sizeof(come_fb),
-      "We hope you will soon visit %s villages to share knowledge with us, and "
-      "that you will send your wagon trains to trade with us.",
+      "",
       tribe
     );
     char come_body[AI_POPUP_BODY_LEN];
     popup_msg_fill(
       ctx->messages, "INDIANCOME", &come_tok, come_fb, come_body, sizeof(come_body)
     );
-    ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_MEET, nation_id, "Peace", come_body);
+    ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_MEET, nation_id, "", come_body);
   }
 
   /*
@@ -755,10 +754,7 @@ static void ai_contact_enqueue_welcome(ColonizeTurnContext* ctx, int e, int nati
   snprintf(
     fb,
     sizeof(fb),
-    "The %s tribe welcomes you. We are a glorious nation of %d %s. "
-    "To celebrate our friendship, we generously offer you the land you now "
-    "occupy as a gift. Will you accept our treaty and live with us in peace "
-    "as brothers?",
+    "",
     tribe,
     welcome_tok.number0,
     welcome_tok.string1
@@ -767,7 +763,7 @@ static void ai_contact_enqueue_welcome(ColonizeTurnContext* ctx, int e, int nati
   popup_msg_fill(
     ctx->messages, "INDIANWELCOME", &welcome_tok, fb, body, sizeof(body)
   );
-  static const char* labels[] = {"Yes", "No"};
+  static const char* labels[] = {"", ""};
   static const int ids[] = {AI_CONTACT_WELCOME_YES, AI_CONTACT_WELCOME_NO};
   ai_popup_enqueue_choice_ctx(
     ctx->ai_popups,
@@ -952,7 +948,7 @@ int ai_contact_meet_payload_unit(int payload) {
 
 /* NAMES.TXT @LEVELS column 1 by tribe tech (DS:0x9634 + tech*6): Camp/Village/City. */
 static const char* ai_contact_level_noun(const ColonizeTurnContext* ctx, int tech) {
-  static const char* k_fallback[4] = {"camp", "village", "city", "city"};
+  static const char* k_fallback[4] = {"", "", "", ""};
   static char live[32];
   if (tech < 0) {
     tech = 0;
@@ -974,13 +970,8 @@ static const char* ai_contact_action_label(
   char* out,
   size_t out_size
 ) {
-  static const char* k_fallback[10] = {
-    "Trade With Village",   "Enter Hostile Village",  "Establish Mission",
-    "Denounce Heresy of %Fs Mission", "Live Among The Natives", "Ask to Speak With Chief",
-    "Incite Indians",       "Demand Tribute",         "Attack Village",
-    "Cancel Action"
-  };
-  const char* src = (row >= 0 && row < 10) ? k_fallback[row] : "";
+  /* NAMES.TXT @ACTIONS is the only source; a missing row reads empty. */
+  const char* src = "";
   if (ctx) {
     src = assets_msg_line_or(ctx->names, "ACTIONS", row, src);
   }
@@ -1074,7 +1065,7 @@ static void ai_contact_enqueue_village_meet(
   tok.string0 = ai_contact_level_noun(ctx, (int)ind->tech);
   tok.string1 = tribe;
   char fb[AI_POPUP_BODY_LEN];
-  snprintf(fb, sizeof(fb), "Your expedition has reached a %s of %s.", tok.string0, tribe);
+  snprintf(fb, sizeof(fb), "", tok.string0, tribe);
   char body[AI_POPUP_BODY_LEN];
   popup_msg_fill(ctx->messages, section, &tok, fb, body, sizeof(body));
 
@@ -1331,7 +1322,7 @@ int ai_contact_try_whack_confirm(
   snprintf(fb, sizeof(fb), "Shall we attack the %s, Your Excellency?", tribe);
   char body[AI_POPUP_BODY_LEN];
   popup_msg_fill(ctx->messages, "WHACKINDIANS", &tok, fb, body, sizeof(body));
-  static const char* labels[] = {"Yes", "No"};
+  static const char* labels[] = {"", ""};
   static const int ids[] = {1, 0};
   const int payload = dest_x | (dest_y << 8);
   if (!ai_popup_enqueue_choice_ctx(
@@ -1412,7 +1403,7 @@ int ai_contact_try_euro_attack_confirm(
   char choice_buf[2][POPUP_MSG_CHOICE_LEN];
   const char* labels[2];
   (void)popup_msg_section_labels(
-    ctx->messages, "HAVETREATY", &tok, "Cancel Action.", "Break Treaty.", choice_buf, labels
+    ctx->messages, "HAVETREATY", &tok, "", "", choice_buf, labels
   );
   static const int ids[] = {0, 1};
   const int payload = dest_x | (dest_y << 8);
@@ -1466,8 +1457,7 @@ int ai_contact_try_tired_attack_confirm(
   char fb[AI_POPUP_BODY_LEN];
   snprintf(
     fb, sizeof(fb),
-    "Your Excellency, these men are tired.  If we force them to attack this "
-    "turn, they will fight at %d/3 strength.",
+    "",
     rem
   );
   char body[AI_POPUP_BODY_LEN];
@@ -1477,7 +1467,7 @@ int ai_contact_try_tired_attack_confirm(
   char choice_buf[2][POPUP_MSG_CHOICE_LEN];
   const char* labels[2];
   popup_msg_section_labels(
-    ctx->messages, "HALF", &tok, "\"Charge!\"", "\"Then let them rest.\"", choice_buf, labels
+    ctx->messages, "HALF", &tok, "", "", choice_buf, labels
   );
   static const int ids[] = {1, 0};
   const int payload = dest_x | (dest_y << 8);
@@ -1548,7 +1538,7 @@ int ai_contact_try_village_raid_warn(
       tribe
     );
   }
-  static const char* labels[] = {"Leave", "Attack"};
+  static const char* labels[] = {"", ""};
   static const int ids[] = {AI_CONTACT_VILLAGE_LEAVE, AI_CONTACT_VILLAGE_ATTACK};
   const int payload = dest_x | (dest_y << 8);
   if (!ai_popup_enqueue_choice_ctx(
@@ -1595,7 +1585,7 @@ static void ai_contact_ship_advisor_chrome(
   int indian_nation,
   const char* body
 ) {
-  ai_contact_human_chrome(ctx, euro_nation, AI_POPUP_TAG_INFO, indian_nation, "Ships", body);
+  ai_contact_human_chrome(ctx, euro_nation, AI_POPUP_TAG_INFO, indian_nation, "", body);
   if (ctx->ai_popups) {
     ai_popup_set_last_portrait(ctx->ai_popups, -1, 0);
   }
@@ -1634,7 +1624,7 @@ int ai_contact_try_ship_village_unit(
       ctx->messages,
       "DONTKNOWSHIPS",
       NULL,
-      "We must contact the Indians on land first, Excellency.",
+      "",
       body,
       sizeof(body)
     );
@@ -1654,7 +1644,7 @@ int ai_contact_try_ship_village_unit(
       ctx->messages,
       "MADATSHIPS",
       &tok,
-      "The people do not trust the men in your ships.",
+      "",
       body,
       sizeof(body)
     );
@@ -1673,7 +1663,7 @@ int ai_contact_try_ship_village_unit(
       "The %s are wary of ships.",
       ai_contact_tribe_name(indian_nation)
     );
-    ai_contact_human_chrome(ctx, euro_nation, AI_POPUP_TAG_INFO, indian_nation, "Ships", wary);
+    ai_contact_human_chrome(ctx, euro_nation, AI_POPUP_TAG_INFO, indian_nation, "", wary);
     if (!ai_contact_euro_is_human(ctx, euro_nation)) {
       ai_contact_set_status(ctx, wary);
     }
@@ -2018,7 +2008,7 @@ static void ai_contact_teach_skill(ColonizeTurnContext* ctx, int nation_id) {
           ctx->messages,
           "LEARNMAD",
           NULL,
-          "Your ill manners infuriate us. We doubt you will ever learn anything from us.",
+          "",
           refuse_fb,
           sizeof(refuse_fb)
         );
@@ -2589,7 +2579,7 @@ static void ai_contact_enqueue_incite_confirm(
   char row_buf[2][POPUP_MSG_CHOICE_LEN];
   const char* labels[2];
   (void)popup_msg_section_labels(
-    ctx->messages, "INDIANWARPATH2", &tok, pay_fb, "Never mind.", row_buf, labels
+    ctx->messages, "INDIANWARPATH2", &tok, pay_fb, "", row_buf, labels
   );
   int ids[2];
   ids[0] = AI_CONTACT_INCITE_PAY;
@@ -2634,8 +2624,7 @@ static void ai_contact_incite_warfare_chrome(
   snprintf(
     fb,
     sizeof(fb),
-    "%s nation holds War Council! %s missionaries incite %s to warfare "
-    "against the %s!",
+    "",
     tok.string0, tok.string1, tok.string2, tok.string3
   );
   char body[AI_POPUP_BODY_LEN];
@@ -2694,8 +2683,7 @@ static void ai_contact_apply_incite(
     char body[AI_POPUP_BODY_LEN];
     popup_msg_fill(
       ctx->messages, "UNFORTUNATE", NULL,
-      "\"Unfortunately, your treasury is insufficient to match your "
-      "extravagant promises.\"",
+      "",
       body, sizeof(body)
     );
     ai_contact_human_chrome(
@@ -2882,7 +2870,7 @@ static int ai_contact_demand_band_ok(
   }
   const int friction = ai_contact_pair_friction(ind, ctx->col1, nation_id, e);
   if (friction >= 55 || friction < 40) {
-    ai_contact_refuse_chrome(ctx, e, nation_id, AI_POPUP_TAG_CONTACT_DEMAND, "Demand", "demands");
+    ai_contact_refuse_chrome(ctx, e, nation_id, AI_POPUP_TAG_CONTACT_DEMAND, "", "demands");
     return 0;
   }
   return 1;
@@ -2919,7 +2907,7 @@ static int ai_contact_apply_demand_tools(
   } else if (other && other->tools >= 20) {
     other->tools -= 10;
   } else {
-    ai_contact_refuse_chrome(ctx, e, nation_id, AI_POPUP_TAG_CONTACT_DEMAND, "Demand", "demands");
+    ai_contact_refuse_chrome(ctx, e, nation_id, AI_POPUP_TAG_CONTACT_DEMAND, "", "demands");
     return 0;
   }
   ai_contact_friction_decay(ind, ctx->col1, nation_id, e, 3);
@@ -2932,7 +2920,7 @@ static int ai_contact_apply_demand_tools(
       ai_contact_tribe_name(nation_id)
     );
     ai_contact_human_chrome(
-      ctx, e, AI_POPUP_TAG_CONTACT_DEMAND, nation_id, "Demand", trib_fb
+      ctx, e, AI_POPUP_TAG_CONTACT_DEMAND, nation_id, "", trib_fb
     );
   }
   return 1;
@@ -2952,7 +2940,7 @@ static int ai_contact_apply_demand_gold(
     return 0;
   }
   if (europe_nation_gold(ctx->europe, ctx->col1, e) < 50u) {
-    ai_contact_refuse_chrome(ctx, e, nation_id, AI_POPUP_TAG_CONTACT_DEMAND, "Demand", "demands");
+    ai_contact_refuse_chrome(ctx, e, nation_id, AI_POPUP_TAG_CONTACT_DEMAND, "", "demands");
     return 0;
   }
   europe_nation_gold_add(ctx->europe, ctx->col1, e, -15L); /* audit G3 */
@@ -2966,7 +2954,7 @@ static int ai_contact_apply_demand_gold(
       ai_contact_tribe_name(nation_id)
     );
     ai_contact_human_chrome(
-      ctx, e, AI_POPUP_TAG_CONTACT_DEMAND, nation_id, "Demand", trib_fb
+      ctx, e, AI_POPUP_TAG_CONTACT_DEMAND, nation_id, "", trib_fb
     );
   }
   return 1;
@@ -3477,7 +3465,7 @@ static void ai_contact_gift_or_demand(
     }
   }
   {
-    ai_contact_refuse_chrome(ctx, e, nation_id, AI_POPUP_TAG_CONTACT_DEMAND, "Demand", "demands");
+    ai_contact_refuse_chrome(ctx, e, nation_id, AI_POPUP_TAG_CONTACT_DEMAND, "", "demands");
   }
 }
 /* ===================== Visit mood, demand gating & beg-food flow (ai_contact_beg_food_gift .. ai_contact_try_village_beg_food) ===================== */
@@ -4006,8 +3994,7 @@ void ai_contact_try_village_beg_food(ColonizeTurnContext* ctx, int nation_id) {
       char body[AI_POPUP_BODY_LEN];
       popup_msg_fill(
         ctx->messages, "INDIANBEGFOOD", &tok,
-        "\"The tribe has fallen upon hard times and does not have enough food this "
-        "season.  Will you share your bounty with them?\"",
+        "",
         body, sizeof(body)
       );
       /* The rows carry %NUMBER tokens of their own — the helper fills them,
@@ -4018,8 +4005,8 @@ void ai_contact_try_village_beg_food(ColonizeTurnContext* ctx, int nation_id) {
         ctx->messages,
         "INDIANBEGFOOD",
         &tok,
-        "I'm sorry, we gave at the office.",
-        "We offer you %NUMBER0 of our %NUMBER1 food as a sign of friendship.",
+        "",
+        "",
         label_buf,
         labels
       );
@@ -4208,7 +4195,7 @@ static void ai_contact_missionary_convert(ColonizeTurnContext* ctx, int nation_i
        * refuse convert / heresy / crosses (status thinned; ai_popup Done).
        */
       if (ind->alarm_by_player[e] >= 55 || t->alarm[e].friction >= 55) {
-        ai_contact_refuse_chrome(ctx, e, nation_id, AI_POPUP_TAG_CONTACT_CONVERT, "Mission", "conversion");
+        ai_contact_refuse_chrome(ctx, e, nation_id, AI_POPUP_TAG_CONTACT_CONVERT, "", "conversion");
         break; /* one refuse pulse per tribe per call */
       }
 
@@ -4248,7 +4235,7 @@ static void ai_contact_missionary_convert(ColonizeTurnContext* ctx, int nation_i
               ai_contact_tribe_name(nation_id)
             );
             ai_contact_human_chrome(
-              ctx, e, AI_POPUP_TAG_CONTACT_CONVERT, nation_id, "Mission", heresy_fb
+              ctx, e, AI_POPUP_TAG_CONTACT_CONVERT, nation_id, "", heresy_fb
             );
           }
           /* Thin: previous mission owner learns their mission burned. */
@@ -4262,7 +4249,7 @@ static void ai_contact_missionary_convert(ColonizeTurnContext* ctx, int nation_i
               ai_contact_tribe_name(nation_id)
             );
             ai_contact_human_chrome(
-              ctx, foreign, AI_POPUP_TAG_CONTACT_CONVERT, nation_id, "Mission", lose_fb
+              ctx, foreign, AI_POPUP_TAG_CONTACT_CONVERT, nation_id, "", lose_fb
             );
           }
         } else {
@@ -4276,7 +4263,7 @@ static void ai_contact_missionary_convert(ColonizeTurnContext* ctx, int nation_i
               ai_contact_tribe_name(nation_id)
             );
             ai_contact_human_chrome(
-              ctx, e, AI_POPUP_TAG_CONTACT_CONVERT, nation_id, "Mission", heresy_fb
+              ctx, e, AI_POPUP_TAG_CONTACT_CONVERT, nation_id, "", heresy_fb
             );
           }
         }
@@ -4293,7 +4280,7 @@ static void ai_contact_missionary_convert(ColonizeTurnContext* ctx, int nation_i
           (ind->alarm_by_player[e] >= 40 && ind->alarm_by_player[e] < 55) ||
           (t->alarm[e].friction >= 40 && t->alarm[e].friction < 55);
         if (mid && !ai_contact_is_jesuit_grade(ctx->col1, ctx->units, other)) {
-          ai_contact_refuse_chrome(ctx, e, nation_id, AI_POPUP_TAG_CONTACT_CONVERT, "Mission", "conversion");
+          ai_contact_refuse_chrome(ctx, e, nation_id, AI_POPUP_TAG_CONTACT_CONVERT, "", "conversion");
           break; /* one refuse pulse per tribe per call */
         }
       }
@@ -4365,7 +4352,7 @@ static void ai_contact_missionary_convert(ColonizeTurnContext* ctx, int nation_i
           );
         }
         ai_contact_human_chrome(
-          ctx, e, AI_POPUP_TAG_CONTACT_CONVERT, nation_id, "Mission", convert_fb
+          ctx, e, AI_POPUP_TAG_CONTACT_CONVERT, nation_id, "", convert_fb
         );
       }
       break; /* one convert pulse per tribe per call */
@@ -4502,7 +4489,7 @@ static void ai_contact_missionary_flee(ColonizeTurnContext* ctx, int nation_id) 
             e,
             AI_POPUP_TAG_CONTACT_MEET,
             nation_id,
-            "Mission",
+            "",
             flee_fb
           );
         }
@@ -4672,8 +4659,7 @@ void ai_contact_indian_woi_defect(ColonizeTurnContext* ctx, int nation_id) {
     snprintf(
       gfb,
       sizeof(gfb),
-      "%s nation holds War Council! %s enter the War of Independence on the "
-      "Tory side!",
+      "",
       gtok.string0,
       gtok.string1
     );
@@ -5027,7 +5013,7 @@ static AiContact2820 s_2820[4];
 
 /* NAMES.TXT @VALUES (DS:-0x6cc0 table): "low quality" / "good" / "fine" / "excellent". */
 static const char* ai_contact_values_name(int idx) {
-  static const char* const k_values[4] = {"low quality", "good", "fine", "excellent"};
+  static const char* const k_values[4] = {"", "", "", ""};
   static char live[32];
   if (idx < 0) {
     idx = 0;
@@ -5375,10 +5361,10 @@ int ai_contact_try_village_gifts(ColonizeTurnContext* ctx, int nation_id) {
           char body[AI_POPUP_BODY_LEN];
           popup_msg_fill(ctx->messages, "INDIANSCONVERT", &tok, fb, body, sizeof(body));
           ai_contact_human_chrome(
-            ctx, e, AI_POPUP_TAG_CONTACT_CONVERT, nation_id, "Mission", body
+            ctx, e, AI_POPUP_TAG_CONTACT_CONVERT, nation_id, "", body
           );
         }
-        const int convert_type = units_find_type(ctx->units, "Colonists");
+        const int convert_type = units_kind_type_index(ctx->units, UNITS_KIND_COLONIST);
         if (convert_type >= 0) {
           const int cid = units_spawn_allow_stack(ctx->units, convert_type, c->x, c->y);
           ColonizeUnit* convert = cid >= 0 ? units_get(ctx->units, cid) : NULL;
@@ -5418,9 +5404,7 @@ int ai_contact_try_village_gifts(ColonizeTurnContext* ctx, int nation_id) {
         char body[AI_POPUP_BODY_LEN];
         popup_msg_fill(
           ctx->messages, "INDIANGIVEFOOD", &tok,
-          "\"Our own harvest has been plentiful and we have come to share our "
-          "bounty with you. We offer you a gift of food in recognition of the "
-          "everlasting peace between our peoples.\"",
+          "",
           body, sizeof(body)
         );
         ai_contact_human_chrome(
@@ -5486,9 +5470,7 @@ int ai_contact_try_village_gifts(ColonizeTurnContext* ctx, int nation_id) {
         char body[AI_POPUP_BODY_LEN];
         popup_msg_fill(
           ctx->messages, "INDIANGIVESTUFF", &tok,
-          "\"The tribe is pleased to see the progress of our neighbors. We have "
-          "come to offer you a gift in recognition of the everlasting peace "
-          "between our peoples.\"",
+          "",
           body, sizeof(body)
         );
         ai_contact_human_chrome(
@@ -6114,9 +6096,7 @@ static void ai_contact_try_village_reparations(ColonizeTurnContext* ctx, int nat
     /* DOS `else { local_c = 1; }` — an AI Euro always hands the wagon over. */
     ai_contact_reparations_present(
       ctx, ind, nation_id, e, AI_CONTACT_REPARATIONS_WAGONS, "INDIANWAGONS", &tok,
-      "\"The settlers have committed intolerable acts of destruction against "
-      "our lands and our people. We therefore demand all of the goods in "
-      "these wagons as reparations.\"",
+      "",
       1
     );
     return; /* one reparations demand per Indian nation per turn */
@@ -6503,11 +6483,11 @@ static void ai_contact_enqueue_buy0(
   char haggle[AI_POPUP_CHOICE_LEN];
   snprintf(accept, sizeof(accept), "We will gladly pay %d$ (of %u$)", price,
            (unsigned)europe_nation_gold(ctx->europe, ctx->col1, e)); /* audit G3 */
-  snprintf(haggle, sizeof(haggle), "A fairer price would be %d$", fair);
+  snprintf(haggle, sizeof(haggle), "", fair);
   char nevermind[POPUP_MSG_CHOICE_LEN];
   const char* labels[3] = {
     accept, haggle,
-    ai_contact_last_choice_label(ctx->messages, tag, 3, nevermind, sizeof(nevermind), "Never mind")
+    ai_contact_last_choice_label(ctx->messages, tag, 3, nevermind, sizeof(nevermind), "")
   };
   const int ids[3] = {1, 2, 0};
   if (ai_popup_enqueue_choice_ctx(
@@ -6617,7 +6597,7 @@ static void ai_contact_2820_buy_phase(
              tok.string0, tok.string1, tok.string2);
     char body[AI_POPUP_BODY_LEN];
     popup_msg_fill(ctx->messages, "BRING", &tok, fb, body, sizeof(body));
-    ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_MEET, nation_id, "Trade", body);
+    ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_MEET, nation_id, "", body);
     ai_contact_intel_note_buys(ctx, e, nation_id, unit, wanted);
   }
   if (human && t && t->sticky_trade_good == 0xfe) {
@@ -6780,7 +6760,7 @@ static void ai_contact_apply_buy0(
       snprintf(fb, sizeof(fb), "\"Our patience with your haggling is exhausted. We will sell you nothing further until you bring us something of value.\"");
       char body[AI_POPUP_BODY_LEN];
       popup_msg_fill(ctx->messages, "BADHAGGLE2", &tok, fb, body, sizeof(body));
-      ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_REFUSE, nation_id, "Trade", body);
+      ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_REFUSE, nation_id, "", body);
       return;
     }
     s->price = price;
@@ -6802,7 +6782,7 @@ static void ai_contact_apply_buy0(
              tok.number0);
     char body[AI_POPUP_BODY_LEN];
     popup_msg_fill(ctx->messages, "NOTENOUGH", &tok, fb, body, sizeof(body));
-    ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_REFUSE, nation_id, "Trade", body);
+    ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_REFUSE, nation_id, "", body);
   }
   s->active = 0;
 }
@@ -6832,13 +6812,13 @@ static int ai_contact_enqueue_trade_offer_round(
   char accept[AI_POPUP_CHOICE_LEN];
   char haggle[AI_POPUP_CHOICE_LEN];
   char gift[AI_POPUP_CHOICE_LEN];
-  snprintf(accept, sizeof(accept), "We gratefully accept %d$", s->price);
-  snprintf(haggle, sizeof(haggle), "A fairer price would be %d$", s->fair);
+  snprintf(accept, sizeof(accept), "", s->price);
+  snprintf(haggle, sizeof(haggle), "", s->fair);
   snprintf(gift, sizeof(gift), "No, let the %s be our gift to you", tok.string1);
   char nevermind[POPUP_MSG_CHOICE_LEN];
   const char* nm = ai_contact_last_choice_label(
     ctx->messages, s->round == 0 ? "TRADE0" : "TRADE1", s->round == 0 ? 4 : 3,
-    nevermind, sizeof(nevermind), "Never mind"
+    nevermind, sizeof(nevermind), ""
   );
   const char* labels[4] = {accept, haggle, gift, nm};
   const int ids4[4] = {AI_CONTACT_TRADE_OFFER_ACCEPT, AI_CONTACT_TRADE_OFFER_HAGGLE,
@@ -6907,7 +6887,7 @@ static void ai_contact_2820_dispatch(
              tok.string0, tok.string1, tok.string2, tok.string3);
     char body[AI_POPUP_BODY_LEN];
     popup_msg_fill(ctx->messages, "BADCARGO", &tok, fb, body, sizeof(body));
-    ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_REFUSE, nation_id, "Trade", body);
+    ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_REFUSE, nation_id, "", body);
     ai_contact_intel_note_buys(ctx, e, nation_id, unit, wanted);
     s->active = 0;
     return;
@@ -6922,7 +6902,7 @@ static void ai_contact_2820_dispatch(
              tok.string0);
     char body[AI_POPUP_BODY_LEN];
     popup_msg_fill(ctx->messages, "BADHAGGLE1", &tok, fb, body, sizeof(body));
-    ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_REFUSE, nation_id, "Trade", body);
+    ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_REFUSE, nation_id, "", body);
     s->active = 0;
     return;
   }
@@ -7170,7 +7150,7 @@ static void ai_contact_apply_trade_offer(
              tok.string1);
     char body[AI_POPUP_BODY_LEN];
     popup_msg_fill(ctx->messages, "BADHAGGLE0", &tok, fb, body, sizeof(body));
-    ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_REFUSE, nation_id, "Trade", body);
+    ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_REFUSE, nation_id, "", body);
     return;
   }
   if (choice == AI_CONTACT_TRADE_OFFER_GIFT && s->round == 0) {
@@ -7506,7 +7486,7 @@ static int ai_contact_colony_has_burn_target(
       continue;
     }
     const ColonizeBuildingType* bt = colonies_building_type(pool, bi);
-    if (!bt || strcmp(bt->name, "Town Hall") == 0) {
+    if (!bt || colonies_building_name_row(bt->name) == COLONY_BUILDING_TOWN_HALL) {
       continue;
     }
     return 1;
@@ -7573,9 +7553,9 @@ static AiRaidKind ai_contact_pick_raid_kind(
    */
   if (c && ctx && ctx->colonies && rng && !forced) {
     int walls = 0;
-    static const char* k_chain[3] = {"Stockade", "Fort", "Fortress"};
-    for (int i = 0; i < 3; ++i) {
-      const int b = colonies_find_building(ctx->colonies, k_chain[i]);
+    const int* k_chain = colonies_building_chain_rows(COLONIES_CHAIN_FORTIFICATION);
+    for (int i = 0; i < 3 && k_chain && k_chain[i] >= 0; ++i) {
+      const int b = colonies_building_row(ctx->colonies, (ColonizeBuildingRow)k_chain[i]);
       if (b >= 0 && b < COLONIZE_BUILDING_TYPES_MAX && c->has_building[b]) {
         walls++;
       }
@@ -7991,7 +7971,7 @@ static void ai_contact_apply_raid_loot(
           continue;
         }
         const ColonizeBuildingType* bt = colonies_building_type(ctx->colonies, bi);
-        if (!bt || strcmp(bt->name, "Town Hall") == 0) {
+        if (!bt || colonies_building_name_row(bt->name) == COLONY_BUILDING_TOWN_HALL) {
           continue;
         }
         burn_bt = bi;
@@ -8317,39 +8297,39 @@ typedef struct AiRaidChrome {
   int popup_without_colony;
 } AiRaidChrome;
 
+/*
+ * `section` is the GAME.TXT body (the only MicroProse wording involved — it is
+ * read from the catalog, never typed here). The thin_* lines are the PORT's
+ * own short notices for the cases DOS's dialog cannot cover (no colony name
+ * to substitute, or a burn with no named building); they are deliberately
+ * not phrased like the catalog text.
+ */
 static const AiRaidChrome k_raid_chrome[] = {
-  /* GAME.TXT @RAIDNOTHING: "{tribe} raiding party wiped out in {colony}!
-   * Colonists jubilant!"; sound 0x5b = raid repelled (gunfight). */
-  {AI_RAID_NOTHING, "RAIDNOTHING", "%STRING0 raiding party wiped out in %STRING1!",
-   NULL, "%s raiding party wiped out!", 0x5b, 2, AI_RAID_TOK_NONE, 0},
-  /* GAME.TXT @RAIDSHIP: "{tribe}... in {colony}! {ship} damaged. Colonists appalled!" */
-  {AI_RAID_SHIP, "RAIDSHIP", "%STRING0 raiding party attacks harbor in %STRING1!",
-   NULL, "The %s raid your harbor.", -1, -1, AI_RAID_TOK_SHIP, 0},
-  /* GAME.TXT @RAIDSCALP; sound 0x4e = colonists killed (screaming). */
-  {AI_RAID_SCALP, "RAIDSCALP", "%STRING0 raiding party takes scalps in %STRING1!",
-   NULL, "The %s massacre colonists at your colony!", 0x4e, -1, AI_RAID_TOK_NONE, 0},
-  /* GAME.TXT @RAIDGOLD: "... Merchants report {N}$ plundered."; 0x4d = loot gold. */
-  {AI_RAID_GOLD, "RAIDGOLD", "%STRING0 raiding party seizes strongboxes in %STRING1!",
-   NULL, "The %s raid your treasury!", 0x4d, -1, AI_RAID_TOK_GOLD, 0},
-  /* GAME.TXT @RAIDSTORES: "... Large quantities of {cargo} stolen."; 0x4f = loot goods. */
-  {AI_RAID_STORES, "RAIDSTORES", "%STRING0 raiding party attacks stores in %STRING1!",
-   NULL, "%s raiding party attacks your stores!", 0x4f, -1, AI_RAID_TOK_STORES, 0},
-  /* GAME.TXT @RAIDWREAK thin. */
-  {AI_RAID_WREAK, NULL, NULL,
-   "%s raiding party wreaks havoc in %s!", "%s raiding party wreaks havoc!",
-   -1, -1, AI_RAID_TOK_NONE, 0}
+  /* @RAIDNOTHING; sound 0x5b = raid repelled (gunfight). */
+  {AI_RAID_NOTHING, "RAIDNOTHING", "", NULL, "%s raid repelled.", 0x5b, 2, AI_RAID_TOK_NONE, 0},
+  /* @RAIDSHIP */
+  {AI_RAID_SHIP, "RAIDSHIP", "", NULL, "The %s raid your harbor.", -1, -1, AI_RAID_TOK_SHIP, 0},
+  /* @RAIDSCALP; sound 0x4e = colonists killed (screaming). */
+  {AI_RAID_SCALP, "RAIDSCALP", "", NULL, "The %s massacre colonists at your colony!", 0x4e, -1,
+   AI_RAID_TOK_NONE, 0},
+  /* @RAIDGOLD; 0x4d = loot gold. */
+  {AI_RAID_GOLD, "RAIDGOLD", "", NULL, "The %s raid your treasury!", 0x4d, -1, AI_RAID_TOK_GOLD, 0},
+  /* @RAIDSTORES; 0x4f = loot goods. */
+  {AI_RAID_STORES, "RAIDSTORES", "", NULL, "The %s loot your stores.", 0x4f, -1,
+   AI_RAID_TOK_STORES, 0},
+  /* @RAIDWREAK needs a foreign-colony nation token the human path lacks: thin. */
+  {AI_RAID_WREAK, NULL, NULL, "%s raiders strike %s.", "%s raiders strike.", -1, -1,
+   AI_RAID_TOK_NONE, 0}
 };
 
-/* GAME.TXT @RAIDBURN: "{tribe}... in {colony}! {building} destroyed..." */
+/* @RAIDBURN, with the destroyed building named. */
 static const AiRaidChrome k_raid_chrome_burn_named = {
-  AI_RAID_BURN, "RAIDBURN", "The %STRING0 burn your %STRING2.",
-  NULL, NULL, -1, -1, AI_RAID_TOK_BURN, 1
+  AI_RAID_BURN, "RAIDBURN", "", NULL, NULL, -1, -1, AI_RAID_TOK_BURN, 1
 };
-/* @RAIDBURN thin (no named building). */
+/* Burn with no named building: port notice. */
 static const AiRaidChrome k_raid_chrome_burn_thin = {
-  AI_RAID_BURN, NULL, NULL,
-  "%s raiding party burns buildings in %s!", "%s raiding party burns buildings!",
-  -1, -1, AI_RAID_TOK_NONE, 0
+  AI_RAID_BURN, NULL, NULL, "%s raiders set fires in %s.", "%s raiders set fires.", -1, -1,
+  AI_RAID_TOK_NONE, 0
 };
 /* Generic successful raid chrome when no kind-specific line applies. */
 static const AiRaidChrome k_raid_chrome_generic = {
@@ -8459,7 +8439,7 @@ COLONIZE_INTERNAL void ai_contact_raid_ambush_chrome(
       target_euro,
       AI_POPUP_TAG_COMBAT_AMBUSH,
       nation_id,
-      "Ambush",
+      "",
       ambush_body
     );
   }
@@ -8538,7 +8518,7 @@ COLONIZE_INTERNAL void ai_contact_raid_stage_combat(struct ai_contact_raid_ctx* 
     }
     /* LABELS.TXT @MISC row 17 = "Wilderness"; reports_misc_display_word is
        the shared sim-side live lookup (reports_names.c), fallback kept. */
-    const char* place = reports_misc_display_word(17, "Wilderness");
+    const char* place = reports_misc_display_word(17, "");
     if (ctx->colonies) {
       int best_d = 99;
       for (int ci = 0; ci < COLONIZE_COLONIES_MAX; ++ci) {
@@ -8774,16 +8754,8 @@ COLONIZE_INTERNAL void ai_contact_raid_human_chrome(
         stok.string0 = tribe;
         stok.string1 = c->name[0] ? c->name : "";
         stok.string2 = tribe;
-        char sfb[160];
-        snprintf(
-          sfb,
-          sizeof(sfb),
-          "%s make surprise raid near %s!  Colonists frightened.  %s "
-          "chief denies involvement.",
-          tribe, stok.string1, tribe
-        );
         popup_msg_fill(
-          ctx->messages, "INDIANSURPRISE", &stok, sfb, pre_buf, sizeof(pre_buf)
+          ctx->messages, "INDIANSURPRISE", &stok, "", pre_buf, sizeof(pre_buf)
         );
         pre = pre_buf;
       }
@@ -9814,7 +9786,7 @@ static void ai_contact_live_among_natives(
       (dname && strstr(dname, "Indentured") != NULL);
     if (is_convert) {
       char body[AI_POPUP_BODY_LEN];
-      popup_msg_fill(ctx->messages, "TEACHCONVERT", NULL, "Indian converts already know the Indian ways.", body, sizeof(body));
+      popup_msg_fill(ctx->messages, "TEACHCONVERT", NULL, "", body, sizeof(body));
       ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_TEACH, nation_id, "Teach", body);
       return;
     }
@@ -9853,8 +9825,8 @@ static void ai_contact_live_among_natives(
           ctx->messages,
           "LEARNSTAY",
           &tok,
-          "Then I shall become a master %STRING1.",
-          "Not right now, thanks.",
+          "",
+          "",
           label_buf,
           labels
         );
@@ -9996,7 +9968,7 @@ static void ai_contact_speak_with_chief(
                * @CHIEFGUIDES and @WELLSEASONED is FUN_281f_0e1c →
                * FUN_6b7e_00c0, the map-viewport repaint — not a sound cue
                * (bugs.md #502). The port repaints every frame; nothing to do. */
-              popup_msg_fill(ctx->messages, "WELLSEASONED", NULL, "Our Scouts have improved to Seasoned status.", body, sizeof(body));
+              popup_msg_fill(ctx->messages, "WELLSEASONED", NULL, "", body, sizeof(body));
               ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_MEET, nation_id, "Chief", body);
             }
             return;
@@ -10022,7 +9994,7 @@ static void ai_contact_speak_with_chief(
           }
           /* r == 2, or a seasoned scout rolling 1: tales of nearby lands. */
           if (human) {
-            popup_msg_fill(ctx->messages, "CHIEFAREA", &tok, "\"The %s are pleased to welcome travelers from afar. Come sit by the fire and we shall tell you tales of nearby lands.\"", body, sizeof(body));
+            popup_msg_fill(ctx->messages, "CHIEFAREA", &tok, "", body, sizeof(body));
             ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_MEET, nation_id, "Chief", body);
           }
           if (ctx->map) {
@@ -10430,14 +10402,14 @@ static void ai_contact_denounce_heresy(
   char fb[AI_POPUP_BODY_LEN];
   const int roll = dos_rng_range(rng, 1, mine + pro_me > 0 ? mine + pro_me : 1);
   if (pro_me < roll) {
-    snprintf(fb, sizeof(fb), "%s missionaries denounce heresy of %s. Loyal %s worshipers burn the %s at the stake!", tok.string0, tok.string1, tok.string2, tok.string0);
+    snprintf(fb, sizeof(fb), "", tok.string0, tok.string1, tok.string2, tok.string0);
     popup_msg_fill(ctx->messages, "HERESY1", &tok, fb, body, sizeof(body));
-    ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_CONVERT, nation_id, "Mission", body);
+    ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_CONVERT, nation_id, "", body);
     d_them = -d_them;
   } else {
-    snprintf(fb, sizeof(fb), "%s missionaries denounce heresy of %s. %s converts burn %s mission and erect a new, %s one!", tok.string0, tok.string1, tok.string2, tok.string1, tok.string0);
+    snprintf(fb, sizeof(fb), "", tok.string0, tok.string1, tok.string2, tok.string1, tok.string0);
     popup_msg_fill(ctx->messages, "HERESY0", &tok, fb, body, sizeof(body));
-    ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_CONVERT, nation_id, "Mission", body);
+    ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_CONVERT, nation_id, "", body);
     t->mission = (uint8_t)(jesuit_me ? ((unsigned)e | COL1_TRIBE_MISSION_JESUIT_BIT) : (unsigned)e);
     d_me = -d_me;
   }
@@ -10523,7 +10495,7 @@ static void ai_contact_establish_mission(
   snprintf(fb, sizeof(fb), "%s %s mission founded in %s, %d.", tok.string0, tok.string1, tok.string2, tok.number0);
   char body[AI_POPUP_BODY_LEN];
   popup_msg_fill(ctx->messages, section, &tok, fb, body, sizeof(body));
-  ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_CONVERT, nation_id, "Mission", body);
+  ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_CONVERT, nation_id, "", body);
   t->mission = (uint8_t)e;
   if (u->profession == UNITS_JOB_MISSIONARY || founding_fathers_nation_has(col1, e, FF_JEAN_DE_BREBEUF)) {
     t->mission = (uint8_t)(t->mission | COL1_TRIBE_MISSION_JESUIT_BIT);
@@ -10559,19 +10531,19 @@ static int ai_contact_enter_hostile_village(
   if (r <= alarm) {
     snprintf(fb, sizeof(fb), "The %s seize your goods and kill your traders!", tok.string0);
     popup_msg_fill(ctx->messages, "KILLWAGONS", &tok, fb, body, sizeof(body));
-    ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_REFUSE, nation_id, "Trade", body);
+    ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_REFUSE, nation_id, "", body);
     units_despawn(ctx->units, u->id);
     return 0;
   }
   if (r <= alarm * 2) {
     snprintf(fb, sizeof(fb), "The %s refuse to deal with you.", tok.string0);
     popup_msg_fill(ctx->messages, "MADATWAGONS", &tok, fb, body, sizeof(body));
-    ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_REFUSE, nation_id, "Trade", body);
+    ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_REFUSE, nation_id, "", body);
     return 0;
   }
   snprintf(fb, sizeof(fb), "The %s grudgingly agree to trade.", tok.string0);
   popup_msg_fill(ctx->messages, "GRUDGEWAGONS", &tok, fb, body, sizeof(body));
-  ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_MEET, nation_id, "Trade", body);
+  ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_MEET, nation_id, "", body);
   return 1;
 }
 
@@ -10758,7 +10730,7 @@ static AiContactPopupStatus ai_contact_apply_popup_result_tags(
       ai_contact_learnstay_apply(ctx, e, nation_id, lu, lt, skill);
     } else {
       char body[AI_POPUP_BODY_LEN];
-      popup_msg_fill(ctx->messages, "LEARNLATER", NULL, "\"Very well. Perhaps another time.\"", body, sizeof(body));
+      popup_msg_fill(ctx->messages, "LEARNLATER", NULL, "", body, sizeof(body));
       ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_TEACH, nation_id, "Teach", body);
     }
     return AI_CONTACT_POPUP_DONE;
@@ -10861,7 +10833,7 @@ static void ai_contact_apply_popup_result_menu(
   case AI_CONTACT_CHOICE_TRADE:
     /* FUN_4d56_2820 shell (ai_contact_2820_begin): tables, hold pick, sell loop, buy loop. */
     if (!other || !ai_contact_2820_begin(ctx, ind, nation_id, e, other)) {
-      ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_MEET, nation_id, "Trade", "Trade concluded.");
+      ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_MEET, nation_id, "", "Trade concluded.");
     }
     break;
   case AI_CONTACT_CHOICE_GIFT: {
@@ -10914,7 +10886,7 @@ static void ai_contact_apply_popup_result_menu(
        * (seeded from it, only raised) — smell #54 / audit D10. */
     } else if (friction >= 55) {
       /* No adjacent Euro unit — still show alarmed refuse chrome. */
-      ai_contact_refuse_chrome(ctx, e, nation_id, AI_POPUP_TAG_CONTACT_DEMAND, "Demand", "demands");
+      ai_contact_refuse_chrome(ctx, e, nation_id, AI_POPUP_TAG_CONTACT_DEMAND, "", "demands");
     }
     break;
   }

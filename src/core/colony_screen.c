@@ -19,6 +19,7 @@
 #include "core/popup.h"
 #include "core/popup_msg.h"
 #include "core/reports.h"
+#include "core/reports_names.h"
 #include "core/ui_colors.h"
 #include "core/turn.h"
 #include "core/ui_button.h"
@@ -361,6 +362,15 @@ void colony_screen_close_custom_house(ColonyScreenView* view) {
  * section lines by the catalog parser, so an owner that wants one scans for
  * it — the same read pick_music.c:126 and game_loop.c:4428 do. (@width is not
  * scanned here: popup_msg_fill already latches it, see the two call sites.) */
+/* NAMES.TXT @CARGO row 16 — the production-point noun. Past the 16 tradeable
+ * cargos, so reports_cargo_display_name does not cover it. */
+static const char* colony_screen_hammers_word(void) {
+  static char word[24];
+  const char* live = reports_names_field("CARGO", 16, 0);
+  snprintf(word, sizeof(word), "%s", live ? live : "");
+  return word;
+}
+
 static bool colony_screen_section_has_directive(
   const ColonizeMsgSection* section,
   const char* directive
@@ -409,7 +419,7 @@ void colony_screen_open_custom_house(
     messages,
     "CUSTOM",
     &tok,
-    "Which cargos shall our Custom House export?",
+    "",
     view->custom_house_title,
     sizeof(view->custom_house_title)
   );
@@ -557,7 +567,7 @@ void colony_screen_open_dock_orders(
     messages,
     "COLONYUNIT",
     &tok,
-    "Options for %STRING0%STRING1:",
+    "",
     view->dock_orders_title,
     sizeof(view->dock_orders_title)
   );
@@ -571,15 +581,15 @@ void colony_screen_open_dock_orders(
 
   /* GAME.TXT @SHIPOPTIONS / @UNITOPTIONS verbatim, if the catalog is missing. */
   static const char* const k_fallback_ship[] = {
-    "Move to front.",
-    "Clear orders.",
-    "Sentry.",
-    "Anchor in harbor (\"Fortify\").",
-    "Unload all cargo.",
-    "No changes."
+    "",
+    "",
+    "",
+    "",
+    "",
+    ""
   };
   static const char* const k_fallback_land[] = {
-    "Move to front.", "Clear orders.", "Sentry / Board ship.", "Fortify.", "No changes."
+    "", "", "", "", ""
   };
   const char* const* fallback = sea ? k_fallback_ship : k_fallback_land;
   const int fallback_count = sea ? 6 : 5;
@@ -644,7 +654,7 @@ void colony_screen_open_dock_orders(
   }
   if (view->dock_orders_count <= 0) {
     /* The cancel row is the section's own last line (@SHIPOPTIONS /
-     * @UNITOPTIONS "No changes."), not a second hardcoded copy of it. */
+     * @UNITOPTIONS ""), not a second hardcoded copy of it. */
     const char* cancel_label = fallback[cancel_index];
     if (opts && cancel_index < opts->line_count && opts->lines[cancel_index][0]) {
       cancel_label = opts->lines[cancel_index];
@@ -1710,7 +1720,7 @@ static void colony_screen_render_minimap(
 
 typedef struct ColonyBuildingSlot {
   int chain;                 /* COLONIES_CHAIN_* (colony.h owns the name list) */
-  const char* const* render; /* NULL, or a render-only override of that chain */
+  const int* render; /* NULL, or a render-only override of that chain, as rows */
   int size_class;            /* NAMES.TXT @BUILDING column 4 */
 } ColonyBuildingSlot;
 
@@ -1735,8 +1745,10 @@ typedef struct ColonyPoint {
  *    Stable its own bit group and level byte. Hence the render-only
  *    override below, which appends the Stable after the warehouse tiers.
  */
-static const char* const k_slot_warehouse_render[] = {
-  "Warehouse", "Warehouse Expansion", "Stable", NULL
+/* @BUILDING rows, -1 terminated: Warehouse, Warehouse Expansion, then the
+ * Stable the screen folds into the same slot. */
+static const int k_slot_warehouse_render_rows[] = {
+  COLONY_BUILDING_WAREHOUSE, COLONY_BUILDING_WAREHOUSE_EXPANSION, COLONY_BUILDING_STABLE, -1
 };
 
 /* DOS category order (FUN_75c2_144c). The order matters: it is also the
@@ -1747,7 +1759,7 @@ static const ColonyBuildingSlot k_building_slots[] = {
   {COLONIES_CHAIN_DOCKS, NULL, 4},         /*  2 (the dock corner) */
   {COLONIES_CHAIN_TOWN_HALL, NULL, 2},     /*  3 */
   {COLONIES_CHAIN_SCHOOL, NULL, 1},        /*  4 */
-  {COLONIES_CHAIN_WAREHOUSE, k_slot_warehouse_render, 1}, /*  5 warehouse + stable */
+  {COLONIES_CHAIN_WAREHOUSE, k_slot_warehouse_render_rows, 1}, /*  5 warehouse + stable */
   {COLONIES_CHAIN_CUSTOM_HOUSE, NULL, 0},  /*  6 */
   {COLONIES_CHAIN_PRESS, NULL, 0},         /*  7 */
   {COLONIES_CHAIN_WEAVER, NULL, 0},        /*  8 */
@@ -1925,7 +1937,14 @@ static const char* const* colony_screen_slot_chain(int cat) {
     return NULL;
   }
   if (k_building_slots[cat].render) {
-    return k_building_slots[cat].render;
+    /* Name view of the row override, spelled by the catalog. */
+    static const char* names[8];
+    int n = 0;
+    for (const int* r = k_building_slots[cat].render; *r >= 0 && n < 7; ++r) {
+      names[n++] = colonies_building_row_name(*r);
+    }
+    names[n] = NULL;
+    return names;
   }
   return colonies_building_chain(k_building_slots[cat].chain);
 }
@@ -1954,8 +1973,8 @@ static int colony_screen_category_built(
     return -1;
   }
   if (cat == COLONY_CAT_WAREHOUSE) {
-    const int warehouse = colony_screen_find_built(pool, colony, "Warehouse");
-    return warehouse >= 0 ? warehouse : colony_screen_find_built(pool, colony, "Stable");
+    const int warehouse = colony_screen_find_built(pool, colony, "");
+    return warehouse >= 0 ? warehouse : colony_screen_find_built(pool, colony, "");
   }
   const char* const* chain = colony_screen_slot_chain(cat);
   return colony_screen_best_built(pool, colony, chain, colony_screen_chain_len(chain));
@@ -1987,8 +2006,8 @@ static int colony_screen_category_sprite(
     return built >= 0 ? built : COLONY_FENCE_SPRITE;
   }
   if (cat == COLONY_CAT_WAREHOUSE) {
-    const int warehouse = colony_screen_find_built(pool, colony, "Warehouse");
-    const bool stable = colonies_has_building_named(pool, colony, "Stable");
+    const int warehouse = colony_screen_find_built(pool, colony, "");
+    const bool stable = colonies_has_building_row(pool, colony, COLONY_BUILDING_STABLE);
     if (warehouse < 0) {
       return stable ? COLONY_STABLE_ONLY_SPRITE : k_dos_class_placeholder[k_building_slots[cat].size_class];
     }
@@ -3363,7 +3382,7 @@ static void colony_screen_draw_multifunction(
       } else if (unit_name) {
         snprintf(line, sizeof(line), "%s", unit_name);
       } else {
-        snprintf(line, sizeof(line), "none");
+        snprintf(line, sizeof(line), "-");
       }
       const int title_w = font_text_width(font, line);
       font_draw_text(font, framebuffer, px + (pane_w - title_w) / 2, py, line, 57);
@@ -3383,13 +3402,19 @@ static void colony_screen_draw_multifunction(
         int buy_h = 0;
         int chg_w = 0;
         int chg_h = 0;
-        ui_button_measure(font, "~BUY", &buy_w, &buy_h);
-        ui_button_measure(font, "~CHANGE", &chg_w, &chg_h);
+        /* LABELS.TXT @CTITLE rows 2 / 3; the leading '~' is the port's
+         * hotkey marker, not catalog text. */
+        char buy_lbl[24];
+        char chg_lbl[24];
+        snprintf(buy_lbl, sizeof(buy_lbl), "~%s", assets_msg_line_or(labels, "CTITLE", 2, ""));
+        snprintf(chg_lbl, sizeof(chg_lbl), "~%s", assets_msg_line_or(labels, "CTITLE", 3, ""));
+        ui_button_measure(font, buy_lbl, &buy_w, &buy_h);
+        ui_button_measure(font, chg_lbl, &chg_w, &chg_h);
         /* Player-reported: BUY aligned vertically with CHANGE (both 4px up
          * from the original placement). */
-        ui_button_draw(font, framebuffer, px, py + 10 - 4, buy_w, buy_h, "~BUY", &bc);
+        ui_button_draw(font, framebuffer, px, py + 10 - 4, buy_w, buy_h, buy_lbl, &bc);
         const int change_x = COLONY_MULTI_X + COLONY_MULTI_W - chg_w - 4 - 10;
-        ui_button_draw(font, framebuffer, change_x, py + 10 - 4, chg_w, chg_h, "~CHANGE", &bc);
+        ui_button_draw(font, framebuffer, change_x, py + 10 - 4, chg_w, chg_h, chg_lbl, &bc);
       }
     }
     /* Accumulated carpenter hammers toward the current project, as four
@@ -3650,10 +3675,14 @@ static void colony_screen_draw_construction_popup(
           hammers_left = 0;
         }
         snprintf(label, sizeof(label), "%s", bt->name);
+        /* NAMES.TXT @CARGO row 16 "Hammers", row 14 "Tools". */
         if (bt->tools_cost > 0) {
-          snprintf(cost, sizeof(cost), "%d Hammers %d Tools", hammers_left, bt->tools_cost);
+          snprintf(
+            cost, sizeof(cost), "%d %s %d %s", hammers_left, colony_screen_hammers_word(),
+            bt->tools_cost, reports_cargo_display_name(14)
+          );
         } else {
-          snprintf(cost, sizeof(cost), "%d Hammers", hammers_left);
+          snprintf(cost, sizeof(cost), "%d %s", hammers_left, colony_screen_hammers_word());
         }
       } else if (colonies_unit_build_info(bid, &uname, &uh, &ut)) {
         /* Artillery (colonies_unit_build_info) — not a real @BUILDING row. */
@@ -3662,7 +3691,10 @@ static void colony_screen_draw_construction_popup(
           hammers_left = 0;
         }
         snprintf(label, sizeof(label), "%s", uname);
-        snprintf(cost, sizeof(cost), "%d Hammers %d Tools", hammers_left, ut);
+        snprintf(
+          cost, sizeof(cost), "%d %s %d %s", hammers_left, colony_screen_hammers_word(), ut,
+          reports_cargo_display_name(14)
+        );
       } else {
         snprintf(label, sizeof(label), "?");
       }
@@ -3750,7 +3782,7 @@ static void colony_screen_draw_jobs_popup(
     const int job = view->job_ids[i];
     if (job == COLONY_JOB_CLEAR_SPECIALTY) {
       if (font) {
-        font_draw_text(font, framebuffer, inner_x + pad, row_y + 1, "Clear Specialty", 15);
+        font_draw_text(font, framebuffer, inner_x + pad, row_y + 1, "(no specialty)", 15);
       }
       continue;
     }
@@ -4519,7 +4551,7 @@ ColonyScreenHitResult colony_screen_hit_test(
         }
         int built = colony_screen_category_built(pool, colony, i);
         if (built < 0 && i == COLONY_CAT_FORTIFICATION) {
-          built = colonies_find_building(pool, "Stockade"); /* DOS's `|| b == 0` */
+          built = colonies_building_row(pool, COLONY_BUILDING_STOCKADE); /* DOS's `|| b == 0` */
         }
         if (built < 0) {
           break; /* unbuilt slot: DOS keeps scanning the later slots */

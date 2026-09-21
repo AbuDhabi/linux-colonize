@@ -176,8 +176,7 @@ bool game_try_enter_europe(ColonizeGameState* game) {
       &game->messages,
       "EUROPENOTAVAIL",
       NULL,
-      "The European Status Screen is no longer available once the War of "
-      "Independence has begun.",
+      "",
       body,
       sizeof(body)
     );
@@ -460,15 +459,15 @@ void game_request_noport_found_confirm(ColonizeGameState* game, int uid) {
     &game->messages,
     "NOPORT",
     &tok,
-    "This square does not have access to the ocean.",
+    "",
     body,
     sizeof(body)
   );
   char label_buf[2][POPUP_MSG_CHOICE_LEN];
   const char* labels[2];
   (void)popup_msg_section_labels(
-    &game->messages, "NOPORT", &tok, "Oh, I forgot about that.",
-    "And that is exactly what I had in mind.", label_buf, labels
+    &game->messages, "NOPORT", &tok, "",
+    "", label_buf, labels
   );
   const int ids[] = {0, 1}; /* forgot / proceed */
   game->map_confirm = GAME_MAP_CONFIRM_FOUND_INLAND;
@@ -498,7 +497,7 @@ bool game_try_found_colony_at_cursor(ColonizeGameState* game) {
       &game->messages,
       "SEACOLONY",
       NULL,
-      "Colonies cannot be built at sea.",
+      "",
       body,
       sizeof(body)
     );
@@ -517,7 +516,7 @@ bool game_try_found_colony_at_cursor(ColonizeGameState* game) {
         &game->messages,
         "TOONEAR",
         &tok,
-        "This land is too near to another colony for a new colony, Your Excellency.",
+        "",
         body,
         sizeof(body)
       );
@@ -545,8 +544,7 @@ bool game_try_found_colony_at_cursor(ColonizeGameState* game) {
             &game->messages,
             "TOONEARBUILD",
             NULL,
-            "A colony building project is already under way "
-            "in an adjacent square, Your Excellency.",
+            "",
             body,
             sizeof(body)
           );
@@ -563,7 +561,7 @@ bool game_try_found_colony_at_cursor(ColonizeGameState* game) {
       &game->messages,
       "TOOMOUNTAIN",
       NULL,
-      "Colonies cannot be built in the mountains.",
+      "",
       body,
       sizeof(body)
     );
@@ -627,7 +625,7 @@ static void game_do_disband(ColonizeGameState* game, int uid) {
     return;
   }
   if (uid < 0 || !units_disband(&game->units, uid)) {
-    set_status(game, "Cannot disband", NULL);
+    set_status(game, "", NULL);
   } else {
     set_status(game, "Unit disbanded", NULL);
     game_wait_next_unit(game);
@@ -855,7 +853,7 @@ void game_request_disband_confirm(ColonizeGameState* game) {
   }
   const int uid = game->units.selected_id;
   if (uid < 0) {
-    set_status(game, "Cannot disband", NULL);
+    set_status(game, "", NULL);
     return;
   }
   const ColonizeUnit* u = units_get_const(&game->units, uid);
@@ -882,7 +880,7 @@ void game_request_disband_confirm(ColonizeGameState* game) {
         &game->messages,
         "DISBANDSHIP",
         NULL,
-        "We cannot disband a ship at sea while it is carrying units.",
+        "",
         body,
         sizeof(body)
       );
@@ -900,7 +898,7 @@ void game_request_disband_confirm(ColonizeGameState* game) {
     GAME_MAP_CONFIRM_DISBAND,
     uid,
     "SUREDISBAND",
-    "Really disband this unit?",
+    "",
     &tok
   );
 }
@@ -1006,8 +1004,7 @@ void game_europe_ask_boycott_buyback(ColonizeGameState* game, int cargo_type) {
   char fallback[AI_POPUP_BODY_LEN];
   snprintf(
     fallback, sizeof(fallback),
-    "{%s} is currently under Parliamentary {boycott}. Parliament will not lift it "
-    "until we agree to pay {%d$} in back taxes.",
+    "",
     cname, cost
   );
   popup_msg_fill(&game->messages, "KISSUP", &tok, fallback, body, sizeof(body));
@@ -1015,7 +1012,7 @@ void game_europe_ask_boycott_buyback(ColonizeGameState* game, int cargo_type) {
   const char* labels[2];
   (void)popup_msg_section_labels(
     &game->messages, "KISSUP", &tok,
-    "This is taxation without representation! Unfair!", "Pay {%NUMBER0$}.",
+    "", "",
     labels_buf, labels
   );
   /* DOS row order: 1 = refuse, 2 = pay. Choice id 1 is the payer here, so the
@@ -1117,7 +1114,7 @@ void game_request_buy_construction_confirm(ColonizeGameState* game) {
   char label_buf[2][POPUP_MSG_CHOICE_LEN];
   const char* labels[2];
   (void)popup_msg_section_labels(
-    &game->messages, "BUYME1", &tok, "Never mind", "Complete it", label_buf, labels
+    &game->messages, "BUYME1", &tok, "", "", label_buf, labels
   );
   const int ids[] = {0, 1}; /* Never mind / Complete it */
   game->map_confirm = GAME_MAP_CONFIRM_BUY_CONSTRUCTION;
@@ -1149,7 +1146,7 @@ void game_request_overboard_confirm(ColonizeGameState* game) {
     GAME_MAP_CONFIRM_OVERBOARD,
     sid,
     "OVERBOARD",
-    "Throw cargo overboard?",
+    "",
     &tok
   );
 }
@@ -1179,14 +1176,14 @@ void game_open_find_colony_picker(ColonizeGameState* game) {
   if (count <= 0) {
     char body[AI_POPUP_BODY_LEN];
     popup_msg_fill(
-      &game->messages, "NOCITY", NULL, "No colonies founded yet.", body, sizeof(body)
+      &game->messages, "NOCITY", NULL, "", body, sizeof(body)
     );
     ai_popup_enqueue_ok(&game->ai_popups, AI_POPUP_TAG_INFO, NULL, body);
     return;
   }
   char prompt[COLONIZE_MSG_LINE_LEN];
   popup_msg_fill(
-    &game->messages, "FINDCITY", NULL, "Where the heck is . . .", prompt, sizeof(prompt)
+    &game->messages, "FINDCITY", NULL, "", prompt, sizeof(prompt)
   );
   if (!cheat_list_open_find_colony(&game->cheat_list, prompt, labels, ids, count)) {
     set_status(game, "Find Colony unavailable", NULL);
@@ -1213,7 +1210,7 @@ void game_open_trade_route_picker(ColonizeGameState* game, int mode) {
     char body[AI_POPUP_BODY_LEN];
     popup_msg_fill(
       &game->messages, "TRADENONE", NULL,
-      "You have not yet defined any trade routes.", body, sizeof(body)
+      "", body, sizeof(body)
     );
     ai_popup_enqueue_ok(&game->ai_popups, AI_POPUP_TAG_INFO, NULL, body);
     return;
@@ -1249,7 +1246,7 @@ void game_open_trade_route_picker(ColonizeGameState* game, int mode) {
     char body[AI_POPUP_BODY_LEN];
     char fb[AI_POPUP_BODY_LEN];
     snprintf(
-      fb, sizeof(fb), "You have not yet defined any {%s} trade routes.", tok.string0
+      fb, sizeof(fb), "", tok.string0
     );
     popup_msg_fill(&game->messages, "TRADENONE2", &tok, fb, body, sizeof(body));
     ai_popup_enqueue_ok(&game->ai_popups, AI_POPUP_TAG_INFO, NULL, body);
@@ -1282,7 +1279,7 @@ static void game_open_found_name_entry(ColonizeGameState* game, int colony_id) {
     &game->messages,
     "COLONY",
     NULL,
-    "What shall we name this colony?",
+    "",
     prompt,
     sizeof(prompt)
   );
@@ -1302,14 +1299,14 @@ static void game_open_found_name_entry(ColonizeGameState* game, int colony_id) {
 
 static void game_landho_default_region(const ColonizeGameState* game, char* out, size_t out_size) {
   static const char* k_regions[4] = {
-    "New England", "New France", "New Spain", "New Netherlands"
+    "", "", "", ""
   };
   if (!out || out_size == 0) {
     return;
   }
   out[0] = '\0';
   if (!game) {
-    str_copy_trunc(out, out_size, "New England");
+    str_copy_trunc(out, out_size, "");
     return;
   }
   /* Seed from the human nation's @COLONYNAME — do not trust a stale
@@ -1347,7 +1344,7 @@ static void game_open_landho_name_entry(ColonizeGameState* game) {
     &game->messages,
     "LANDHO",
     NULL,
-    "Land Ho! What shall we call this new land, Your Excellency?",
+    "",
     prompt,
     sizeof(prompt)
   );
@@ -1425,7 +1422,7 @@ static void game_apply_name_entry_result(ColonizeGameState* game) {
       colonies_get_mut(&game->colonies, game->name_entry.result_colony_id);
     if (col) {
       str_copy_trunc(col->name, sizeof(col->name), game->name_entry.result_name);
-      snprintf(game->status, sizeof(game->status), "Colony: %s", col->name);
+      snprintf(game->status, sizeof(game->status), "", col->name);
       if (game->in_colony) {
         colony_screen_set_status(&game->colony_screen, game->status);
       }
@@ -1520,7 +1517,7 @@ static void game_apply_options_result(ColonizeGameState* game) {
         &game->options_dlg, &game->col1.head.colony_report_options
       );
       game_persist_settings(game);
-      set_status(game, "Colony report options updated", NULL);
+      set_status(game, "", NULL);
     } else if (game->options_dlg.result_kind == OPTIONS_KIND_SOUND) {
       bool bg = true, ev = true, sfx = true;
       if (options_dialog_apply_sound(&game->options_dlg, &bg, &ev, &sfx)) {
@@ -1571,7 +1568,7 @@ static void game_trade_service_screen_request(ColonizeGameState* game) {
     case TRADE_SCREEN_REQ_RENAME: {
       char prompt[AI_POPUP_BODY_LEN];
       popup_msg_fill(
-        &game->messages, "TRADENAME", NULL, "Enter the name for this trade route.",
+        &game->messages, "TRADENAME", NULL, "",
         prompt, sizeof(prompt)
       );
       (void)name_entry_open(
@@ -2086,7 +2083,7 @@ static bool game_apply_popup_contact(ColonizeGameState* game) {
           &game->messages,
           "INDIANBRIBE",
           NULL,
-          "\"Very well, we withdraw our objection.\"",
+          "",
           body,
           sizeof(body)
         );
@@ -2261,7 +2258,7 @@ static bool game_apply_popup_diplo_and_scout(ColonizeGameState* game) {
       char body[AI_POPUP_BODY_LEN];
       char fallback[AI_POPUP_BODY_LEN];
       snprintf(
-        fallback, sizeof(fallback), "Unfortunately, we only have {%d$} available.", eu->gold
+        fallback, sizeof(fallback), "", eu->gold
       );
       popup_msg_fill(&game->messages, "KISSSORRY", &tok, fallback, body, sizeof(body));
       ai_popup_enqueue_ok(&game->ai_popups, AI_POPUP_TAG_INFO, NULL, body);
@@ -2362,7 +2359,7 @@ static bool game_apply_popup_diplo_and_scout(ColonizeGameState* game) {
         char body[AI_POPUP_BODY_LEN];
         popup_msg_fill(
           &game->messages, "NOMAYORSDURINGREV", NULL,
-          "Scouts cannot meet with mayors during the {War of Independence}.",
+          "",
           body, sizeof(body)
         );
         ai_popup_enqueue_ok(&game->ai_popups, AI_POPUP_TAG_INFO, NULL, body);
@@ -2408,8 +2405,7 @@ static bool game_apply_popup_diplo_and_scout(ColonizeGameState* game) {
         char body[AI_POPUP_BODY_LEN];
         popup_msg_fill(
           &game->messages, "LOSTOURSCOUTS", &tok,
-          "Our {scouts} near {%STRING1} have been captured by the {%STRING0}, "
-          "Your Excellency!",
+          "",
           body, sizeof(body)
         );
         ai_popup_enqueue_ok(&game->ai_popups, AI_POPUP_TAG_INFO, NULL, body);

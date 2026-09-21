@@ -54,23 +54,23 @@ static const NewGameRect k_customiz_rects[4][3] = {
 };
 
 static const char* k_difficul_levels[5] = {
-  "Easiest", "Easy", "Moderate", "Tough", "Toughest"
+  "", "", "", "", ""
 };
 /* FUN_733a_0512 local_5a: Discoverer..Viceroy palette indices. */
 static const uint8_t k_difficul_colors[5] = {10, 9, 14, 13, 12};
 static const char* k_nation_bonuses[4] = {
-  "Immigration", "Cooperation", "Conquest", "Trade"
+  "", "", "", ""
 };
 /* LABELS.TXT @MISC "Click Here When Finished" — the parens are the port's
  * own chrome (new_game_format_finished adds them when the text has none). */
 static const char* k_finished_label = "Click Here When Finished";
 static const char* k_customiz_title = "CUSTOMIZE NEW WORLD";
-static const char* k_customiz_cats[4] = {"Land Mass", "Land Form", "Temperature", "Climate"};
+static const char* k_customiz_cats[4] = {"", "", "", ""};
 static const char* k_customiz_vals[4][3] = {
-  {"Small", "Moderate", "Large"},
-  {"Archipelago", "Normal", "Continents"},
-  {"Cool", "Temperate", "Warm"},
-  {"Arid", "Normal", "Wet"},
+  {"Small", "", "Large"},
+  {"Archipelago", "", "Continents"},
+  {"Cool", "", "Warm"},
+  {"Arid", "", "Wet"},
 };
 
 /*
@@ -391,7 +391,7 @@ void new_game_default_leader_name(
   const ColonizeMsgCatalog* names_txt, int nation, char* out, size_t out_size
 ) {
   static const char* defaults[4] = {
-    "Walter Raleigh", "Jacques Cartier", "Christopher Columbus", "Michiel De Ruyter"
+    "", "", "", ""
   };
   const int n_idx = (nation < 0 || nation > 3) ? 0 : nation;
   if (names_txt) {
@@ -438,7 +438,7 @@ static void new_game_enter_difficulty(NewGameWizard* ng) {
   new_game_ensure_difficul(ng);
   new_game_load_choice_section(ng, "DIFFICULTY");
   if (ng->option_count == 0) {
-    snprintf(ng->prompt_lines[0], sizeof(ng->prompt_lines[0]), "Select a Difficulty Level");
+    snprintf(ng->prompt_lines[0], sizeof(ng->prompt_lines[0]), "");
     ng->prompt_line_count = 1;
     for (int i = 0; i < 5; ++i) {
       snprintf(ng->options[i], sizeof(ng->options[0]), "%s", reports_difficulty_title(i));
@@ -523,7 +523,7 @@ static void new_game_enter_nation(NewGameWizard* ng) {
   new_game_ensure_nations(ng);
   new_game_load_choice_section(ng, "PICKNATION");
   if (ng->option_count == 0) {
-    snprintf(ng->prompt_lines[0], sizeof(ng->prompt_lines[0]), "Select a European Power");
+    snprintf(ng->prompt_lines[0], sizeof(ng->prompt_lines[0]), "");
     ng->prompt_line_count = 1;
     for (int i = 0; i < 4; ++i) {
       snprintf(ng->options[i], sizeof(ng->options[0]), "%s", new_game_nation_name(i));
@@ -539,7 +539,7 @@ static void new_game_enter_leader_name(NewGameWizard* ng) {
   text_edit_reset(&ng->leader_edit, ng->leader_name, true);
   new_game_load_choice_section(ng, "LEADERNAME");
   if (ng->prompt_line_count == 0) {
-    snprintf(ng->prompt_lines[0], sizeof(ng->prompt_lines[0]), "Please Enter Your Name.");
+    snprintf(ng->prompt_lines[0], sizeof(ng->prompt_lines[0]), "");
     ng->prompt_line_count = 1;
   }
   ng->option_count = 0; /* text field, not a list */
@@ -571,7 +571,7 @@ static void new_game_scan_mp_files(NewGameWizard* ng) {
   new_game_load_choice_section(ng, "MAPTOLOAD");
   ng->option_count = 0;
   if (ng->prompt_line_count == 0) {
-    snprintf(ng->prompt_lines[0], sizeof(ng->prompt_lines[0]), "Select Map File to Load");
+    snprintf(ng->prompt_lines[0], sizeof(ng->prompt_lines[0]), "");
     ng->prompt_line_count = 1;
     ng->dialog_width = 220;
   }
@@ -638,8 +638,8 @@ bool new_game_begin(
     if (ng->option_count == 0) {
       snprintf(ng->prompt_lines[0], sizeof(ng->prompt_lines[0]), "Original Americas or Map Editor?");
       ng->prompt_line_count = 1;
-      snprintf(ng->options[0], sizeof(ng->options[0]), "Original Americas");
-      snprintf(ng->options[1], sizeof(ng->options[1]), "Map Editor");
+      snprintf(ng->options[0], sizeof(ng->options[0]), "");
+      snprintf(ng->options[1], sizeof(ng->options[1]), "");
       ng->option_count = 2;
     }
   } else if (path == NEW_GAME_PATH_CUSTOMIZE) {
@@ -854,7 +854,7 @@ static void new_game_nation_nav(NewGameWizard* ng, ColonizeKey key) {
  * does it: the block moves as a unit if the file is edited. NULL catalog or a
  * missing anchor falls back to the built-in English.
  */
-#define NEW_GAME_MISC_ANCHOR "Land Mass"
+#define NEW_GAME_MISC_BASE_ROW 144 /* @MISC "Land Mass", first row of the wizard block */
 
 static const char* new_game_misc_label(
   const NewGameWizard* ng, int offset, const char* fallback
@@ -866,14 +866,9 @@ static const char* new_game_misc_label(
   if (!misc) {
     return fallback;
   }
-  for (int i = 0; i < misc->line_count; ++i) {
-    if (misc->lines[i][0] && strcmp(misc->lines[i], NEW_GAME_MISC_ANCHOR) == 0) {
-      const int row = i + offset;
-      if (row >= 0 && row < misc->line_count && misc->lines[row][0]) {
-        return misc->lines[row];
-      }
-      break;
-    }
+  const int row = NEW_GAME_MISC_BASE_ROW + offset;
+  if (row >= 0 && row < misc->line_count && misc->lines[row][0]) {
+    return misc->lines[row];
   }
   return fallback;
 }
@@ -903,13 +898,7 @@ static void new_game_customiz_labels(
   if (!misc) {
     return;
   }
-  int start = -1;
-  for (int i = 0; i < misc->line_count; ++i) {
-    if (misc->lines[i][0] && strcmp(misc->lines[i], "Land Mass") == 0) {
-      start = i;
-      break;
-    }
-  }
+  const int start = NEW_GAME_MISC_BASE_ROW;
   if (start < 0 || start + 16 >= misc->line_count) {
     return;
   }
@@ -1589,18 +1578,18 @@ static void new_game_render_region_pick(
     new_game_draw_shadowed_line(
       title_font,
       fb,
-      new_game_centered_x(title_font, new_game_misc_label(ng, 18, "Choose"), anchor_cx),
+      new_game_centered_x(title_font, new_game_misc_label(ng, 18, ""), anchor_cx),
       title_y,
-      new_game_misc_label(ng, 18, "Choose"),
+      new_game_misc_label(ng, 18, ""),
       green,
       shadow
     );
     new_game_draw_shadowed_line(
       title_font,
       fb,
-      new_game_centered_x(title_font, new_game_misc_label(ng, 19, "Difficulty Level"), anchor_cx),
+      new_game_centered_x(title_font, new_game_misc_label(ng, 19, ""), anchor_cx),
       title_y + title_lh,
-      new_game_misc_label(ng, 19, "Difficulty Level"),
+      new_game_misc_label(ng, 19, ""),
       green,
       shadow
     );
@@ -1629,18 +1618,18 @@ static void new_game_render_region_pick(
     new_game_draw_shadowed_line(
       title_font,
       fb,
-      new_game_centered_x(title_font, new_game_misc_label(ng, 26, "Select"), anchor_cx),
+      new_game_centered_x(title_font, new_game_misc_label(ng, 26, ""), anchor_cx),
       title_y,
-      new_game_misc_label(ng, 26, "Select"),
+      new_game_misc_label(ng, 26, ""),
       green,
       shadow
     );
     new_game_draw_shadowed_line(
       title_font,
       fb,
-      new_game_centered_x(title_font, new_game_misc_label(ng, 27, "European Power"), anchor_cx),
+      new_game_centered_x(title_font, new_game_misc_label(ng, 27, ""), anchor_cx),
       title_y + title_lh,
-      new_game_misc_label(ng, 27, "European Power"),
+      new_game_misc_label(ng, 27, ""),
       green,
       shadow
     );

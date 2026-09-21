@@ -1019,7 +1019,7 @@ static void turn_produce_one_colony(
    * and warehouse headroom.
    */
   {
-    const bool horse_has_stable = colonies_has_building_name_contains(pool, colony, "Stable");
+    const bool horse_has_stable = colonies_has_building_name_contains(pool, colony, "");
     const int horse_warehouse_cap =
       colonies_warehouse_capacity(pool, colony, COLONIZE_CARGO_HORSES);
     const ColonyProdHorseBreed breed = colony_prod_horse_breed(
@@ -1139,8 +1139,7 @@ static void turn_produce_one_colony(
             snprintf(
               fallback,
               sizeof(fallback),
-              "We have a teacher in %s, but all the colonists there already have "
-              "specialty professions.",
+              "",
               cname
             );
             memset(&tok, 0, sizeof(tok));
@@ -1176,7 +1175,7 @@ static void turn_produce_one_colony(
         snprintf(
           fallback,
           sizeof(fallback),
-          "An indentured servant in %s has become a free colonist through education.",
+          "",
           cname
         );
       } else {
@@ -1345,7 +1344,7 @@ static void turn_produce_one_colony(
       bool born_on_tile = false;
       if (s_turn_birth_units) {
         /* bugs.md: the newborn stands on the colony tile awaiting orders. */
-        const int ct = units_find_type(s_turn_birth_units, "Colonists");
+        const int ct = units_kind_type_index(s_turn_birth_units, UNITS_KIND_COLONIST);
         if (ct >= 0) {
           const int nid =
             units_spawn_allow_stack(s_turn_birth_units, ct, colony->x, colony->y);
@@ -1816,7 +1815,7 @@ static void turn_produce_one_colony(
           sizeof(line),
           "%s %s %d %s %s %d.",
           colony->name[0] ? colony->name : "Colony",
-          turn_label("MISC", 47, "sells"),
+          turn_label("MISC", 47, ""),
           sale->amount,
           cargo_name,
           turn_label("MISC", 48, "for"),
@@ -1828,9 +1827,9 @@ static void turn_produce_one_colony(
             sizeof(line) - (size_t)n,
             " %d%s %d%s %d",
             sale->tax_percent,
-            turn_label("CMESSAGE", 0x11, "% Tax:"),
+            turn_label("CMESSAGE", 0x11, ""),
             sale->tax_paid,
-            turn_label("CMESSAGE", 0x12, ". Net:"),
+            turn_label("CMESSAGE", 0x12, ""),
             sale->net
           );
         }
@@ -2123,7 +2122,7 @@ static void turn_log_colony_production(
     at += (size_t)n;
   }
   if (at == 0) {
-    snprintf(goods, sizeof(goods), "nothing");
+    snprintf(goods, sizeof(goods), "%s", reports_misc_display_word(32, ""));
   }
   const char* building = "-";
   if (pool && colony->building_in_production >= 0 &&
@@ -2287,7 +2286,7 @@ static void turn_run_colony_unit_construction(ColonizeTurnContext* ctx) {
           tok.has_number0 = true;
           popup_msg_fill(
             ctx->messages, "NOMOREWAGONS", &tok,
-            "We are not allowed to have more wagon trains than we have colonies.",
+            "",
             body, sizeof(body)
           );
           ai_popup_enqueue_colony_event(ctx->ai_popups, col->id, body);
@@ -2691,8 +2690,7 @@ void turn_run_nation_ticks(ColonizeTurnContext* ctx, ColonizeTurnResult* out) {
         tok.number0 = (int)founding_fathers_bells_needed(ctx->col1, ctx->human_nation);
         popup_chrome_ok(
           ctx->ai_popups, ctx->messages, "CONSIDER", &tok,
-          "%STRING0 is considering intervention on our behalf against the King! "
-          "If we can generate %NUMBER0 liberty bells, they will join us."
+          ""
         );
         ctx->col1->head.game_options.woi_crosses_event = 1;
       }
@@ -2908,8 +2906,8 @@ static void turn_route_damaged_ships(ColonizeTurnContext* ctx, int nation) {
     ctx->col1_ok && ctx->col1 && ctx->col1->head.game_options.woi != 0;
   const int crown =
     woi ? ai_king_crown_nation_col1(ctx->col1_ok ? ctx->col1 : NULL, ctx->human_nation) : -1;
-  const int drydock = colonies_find_building(ctx->colonies, "Drydock");
-  const int shipyard = colonies_find_building(ctx->colonies, "Shipyard");
+  const int drydock = colonies_building_row(ctx->colonies, COLONY_BUILDING_DRYDOCK);
+  const int shipyard = colonies_building_row(ctx->colonies, COLONY_BUILDING_SHIPYARD);
   for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
     ColonizeUnit* u = &ctx->units->units[i];
     if (!u->active || u->nation_id != nation || u->aboard_ship_id >= 0) {
@@ -3069,19 +3067,15 @@ COLONIZE_INTERNAL int turn_year_end_rival_rebels(const ColonizeCol1Save* col1, i
  * when its King grants independence — raw 58598-58603.
  */
 COLONIZE_INTERNAL const char* turn_year_end_independent_name(int nation) {
-  /* Only reached when no NAMES.TXT is loaded (slim test targets, no data
-   * dir) — same fallback-table shape as reports_names.c. */
-  static const char* k[COLONIZE_COL1_NATION_COUNT] = {
-    "United States of America",
-    "Republic of Quebec",
-    "Republic of Mexico",
-    "Republic of Surinam"
-  };
+  /* Own per-nation buffer: reports_names_field hands back one shared scratch
+   * string, and the caller fetches other names before it copies this one. */
+  static char live[COLONIZE_COL1_NATION_COUNT][40];
   if (nation < 0 || nation >= (int)COLONIZE_COL1_NATION_COUNT) {
     return "";
   }
-  const char* live = reports_names_field("INDEPENDENT", nation, 0);
-  return live ? live : k[nation];
+  const char* field = reports_names_field("INDEPENDENT", nation, 0);
+  snprintf(live[nation], sizeof(live[nation]), "%s", field ? field : "");
+  return live[nation];
 }
 
 /* player[n].country_name (DS 0x5426) with NAMES.TXT @COUNTRY as fallback.
@@ -3556,9 +3550,7 @@ COLONIZE_INTERNAL void turn_year_end_defeat_check(
       char body[AI_POPUP_BODY_LEN];
       popup_msg_fill(
         ctx->messages, "LOSENOCOLONIES", &tok,
-        "Our efforts in the New World have proven fruitless and we have "
-        "decided to remove you as Viceroy. You may, as always, kiss our "
-        "royal pinky ring.",
+        "",
         body, sizeof(body)
       );
       if (ai_popup_enqueue_ok(ctx->ai_popups, AI_POPUP_TAG_INFO, NULL, body)) {
@@ -3743,9 +3735,7 @@ COLONIZE_INTERNAL void turn_step_setup(ColonizeTurnProcessor* proc, ColonizeTurn
             *ctx->game_autumn == 1) {
           popup_chrome_ok(
             ctx->ai_popups, ctx->messages, "TIMECHANGE", NULL,
-            "Colonization Help: Time Scale\n\nIn 1600, the time scale changes "
-            "from one turn per year to two turns per year. Henceforth there "
-            "will be a Spring and a Fall turn in each year."
+            ""
           );
         }
       }

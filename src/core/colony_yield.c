@@ -1,4 +1,5 @@
 #include "core/colony_yield.h"
+#include "core/reports.h"
 
 #include <stddef.h>
 #include <string.h>
@@ -53,17 +54,6 @@ static const int k_other[5][COLONIZE_FIELD_JOB_COUNT] = {
   {1, 0, 0, 0, 0, 0, 4, 0, 0},
 };
 
-static const char* k_job_names[COLONIZE_FIELD_JOB_COUNT] = {
-  "Farmer",
-  "Sugar Planter",
-  "Tobacco Planter",
-  "Cotton Planter",
-  "Fur Trapper",
-  "Lumberjack",
-  "Ore Miner",
-  "Silver Miner",
-  "Fisherman",
-};
 
 int colony_yield_job_cargo(int field_job) {
   switch (field_job) {
@@ -93,7 +83,8 @@ const char* colony_yield_job_name(int field_job) {
   if (field_job < 0 || field_job >= COLONIZE_FIELD_JOB_COUNT) {
     return "?";
   }
-  return k_job_names[field_job];
+  /* Field jobs are NAMES.TXT @JOB rows 0..8; column 0 is the singular name. */
+  return reports_job_short_name(field_job);
 }
 
 static int colony_yield_base_for_pedia(int pedia, int field_job) {

@@ -109,9 +109,9 @@ static int combat_colony_local_1a(
   const ColonizeColony* col,
   ColonizeCombatSideFlags* flags
 ) {
-  const int stockade = colonies_find_building(colonies, "Stockade");
-  const int fort = colonies_find_building(colonies, "Fort");
-  const int fortress = colonies_find_building(colonies, "Fortress");
+  const int stockade = colonies_building_row(colonies, COLONY_BUILDING_STOCKADE);
+  const int fort = colonies_building_row(colonies, COLONY_BUILDING_FORT);
+  const int fortress = colonies_building_row(colonies, COLONY_BUILDING_FORTRESS);
   const int has_stockade =
     stockade >= 0 && stockade < COLONIZE_BUILDING_TYPES_MAX && col->has_building[stockade];
   const int has_fort = fort >= 0 && fort < COLONIZE_BUILDING_TYPES_MAX && col->has_building[fort];

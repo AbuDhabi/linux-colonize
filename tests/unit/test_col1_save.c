@@ -2106,20 +2106,20 @@ int main(void) {
     }
     h.save_version = 72;
     if (col1_save_validate_head(&h, -1, -1, err, sizeof(err)) ||
-        strstr(err, "obsolete") == NULL) {
+        strstr(err, COL1_ERR_OBSOLETE) == NULL) {
       fprintf(stderr, "expected obsolete reject, got '%s'\n", err);
       return 1;
     }
     h.save_version = 74;
     if (col1_save_validate_head(&h, -1, -1, err, sizeof(err)) ||
-        strstr(err, "not a valid") == NULL) {
+        strstr(err, COL1_ERR_NOT_A_SAVE) == NULL) {
       fprintf(stderr, "expected invalid newer reject, got '%s'\n", err);
       return 1;
     }
     h.save_version = COLONIZE_COL1_SAVE_VERSION;
     h.sig_eof = 0;
     if (col1_save_validate_head(&h, -1, -1, err, sizeof(err)) ||
-        strstr(err, "not a valid") == NULL) {
+        strstr(err, COL1_ERR_NOT_A_SAVE) == NULL) {
       fprintf(stderr, "expected bad eof reject, got '%s'\n", err);
       return 1;
     }

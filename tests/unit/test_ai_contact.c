@@ -1,4 +1,5 @@
 /* Smoke: Indian meet + friction raid loot (@RAID* kinds) + prelude encroachment. */
+#include "../common/test_catalogs.h"
 #include "core/ai.h"
 #include "core/ai_contact.h"
 #include "core/ai_diplo.h"
@@ -180,6 +181,8 @@ static int test_colony_tick_war_5952(void) {
   uint32_t turn = 1;
   ColonizeTurnContext ctx;
   memset(&ctx, 0, sizeof(ctx));
+  ctx.messages = test_game_txt();
+  ctx.names = test_names_txt();
   ctx.turn_number = &turn;
   ctx.units = &units;
   ctx.colonies = &colonies;
@@ -371,6 +374,8 @@ static int test_prelude_alarm_band(void) {
   uint32_t turn = 3;
   ColonizeTurnContext ctx;
   memset(&ctx, 0, sizeof(ctx));
+  ctx.messages = test_game_txt();
+  ctx.names = test_names_txt();
   ctx.turn_number = &turn;
   ctx.col1 = &col1;
   ctx.col1_ok = true;
@@ -473,6 +478,8 @@ static int test_ai_only_meet_is_silent_for_human(void) {
   uint32_t turn = 1;
   ColonizeTurnContext ctx;
   memset(&ctx, 0, sizeof(ctx));
+  ctx.messages = test_game_txt();
+  ctx.names = test_names_txt();
   ctx.turn_number = &turn;
   ctx.units = &units;
   ctx.colonies = &colonies;
@@ -564,6 +571,8 @@ static int test_encounter_scan_ignores_stale_owner_stamp(void) {
   uint32_t turn = 1;
   ColonizeTurnContext ctx;
   memset(&ctx, 0, sizeof(ctx));
+  ctx.messages = test_game_txt();
+  ctx.names = test_names_txt();
   ctx.turn_number = &turn;
   ctx.units = &units;
   ctx.colonies = &colonies;
@@ -786,6 +795,8 @@ static int case_full_contact_scenario(void) {
   uint32_t turn = 1;
   ColonizeTurnContext ctx;
   memset(&ctx, 0, sizeof(ctx));
+  ctx.messages = test_game_txt();
+  ctx.names = test_names_txt();
   ctx.turn_number = &turn;
   ctx.units = &units;
   ctx.colonies = &colonies;
@@ -2027,7 +2038,8 @@ static int case_full_contact_scenario(void) {
     (void)assets_msg_load_file(&game_txt_raid, "COLONIZE/GAME.TXT");
     ctx.messages = &game_txt_raid;
     RUN_INDIAN_RAIDS();
-    ctx.messages = NULL;
+    ctx.messages = test_game_txt();
+    ctx.names = test_names_txt();
     assets_msg_free(&game_txt_raid);
     if (ai_contact_last_raid_kind() != AI_RAID_STORES) {
       return fail("real-GAME.TXT STORES scenario should still pick AI_RAID_STORES");
@@ -3241,7 +3253,8 @@ static int case_full_contact_scenario(void) {
     if (c_burn->stock[COLONIZE_CARGO_LUMBER] >= lumber0) {
       return fail("BURN should drain lumber stock when no construction");
     }
-    if (strstr(status, "burns buildings") == NULL || strstr(status, "Roanoke") == NULL) {
+    /* No named building -> the port's own thin notice; it must name the colony. */
+    if (status[0] == '\0' || strstr(status, "Roanoke") == NULL) {
       fprintf(stderr, "unit_ai_contact: BURN-lumber status '%s'\n", status);
       return fail("BURN lumber should set @RAIDBURN-shaped buildings status");
     }
@@ -6670,6 +6683,8 @@ static int case_full_contact_scenario(void) {
     ai_popup_clear(&wp);
     ColonizeTurnContext wctx;
     memset(&wctx, 0, sizeof(wctx));
+    wctx.messages = test_game_txt();
+    wctx.names = test_names_txt();
     wctx.col1 = &col1;
     wctx.col1_ok = true;
     wctx.ai_popups = &wp;
@@ -6712,6 +6727,8 @@ static int case_full_contact_scenario(void) {
     ai_popup_clear(&wp);
     ColonizeTurnContext wctx;
     memset(&wctx, 0, sizeof(wctx));
+    wctx.messages = test_game_txt();
+    wctx.names = test_names_txt();
     wctx.col1 = &col1;
     wctx.col1_ok = true;
     wctx.ai_popups = &wp;
@@ -6779,6 +6796,8 @@ static int case_full_contact_scenario(void) {
     dos_rng_seed(&irng, 5u);
     ColonizeTurnContext ictx;
     memset(&ictx, 0, sizeof(ictx));
+    ictx.messages = test_game_txt();
+    ictx.names = test_names_txt();
     ictx.col1 = &col1;
     ictx.col1_ok = true;
     ictx.units = &units;
@@ -6847,6 +6866,8 @@ static int case_full_contact_scenario(void) {
     }
     ColonizeTurnContext bctx;
     memset(&bctx, 0, sizeof(bctx));
+    bctx.messages = test_game_txt();
+    bctx.names = test_names_txt();
     bctx.col1 = &col1;
     bctx.col1_ok = true;
     bctx.units = &units;
@@ -6926,6 +6947,8 @@ static int case_full_contact_scenario(void) {
     }
     ColonizeTurnContext vctx;
     memset(&vctx, 0, sizeof(vctx));
+    vctx.messages = test_game_txt();
+    vctx.names = test_names_txt();
     vctx.col1 = &col1;
     vctx.col1_ok = true;
     vctx.units = &units;

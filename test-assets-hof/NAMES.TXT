@@ -1,8 +1,8 @@
 @LEADERNAME
-Walter Raleigh, 1, -1, 0
+Leader One, 1, -1, 0
 
 @SCENARIO
 AMER2, 34, 20, 39, 10, 47, 61, 50, 33
 
 @UNIT
-Colonists, 0, 0, 0, 0, 0, 0, 0, 0
+Unit Row Zero, 0, 0, 0, 0, 0, 0, 0, 0

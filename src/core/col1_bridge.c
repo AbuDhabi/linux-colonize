@@ -515,8 +515,8 @@ bool col1_bridge_init_template(
   save->head.tribe_count = 0;
   save->head.difficulty = 0;
   save->player[0].control = 0;
-  snprintf(save->player[0].name, sizeof(save->player[0].name), "Governor");
-  snprintf(save->player[0].country_name, sizeof(save->player[0].country_name), "New England");
+  snprintf(save->player[0].name, sizeof(save->player[0].name), "");
+  snprintf(save->player[0].country_name, sizeof(save->player[0].country_name), "");
   for (int i = 1; i < (int)COLONIZE_COL1_NATION_COUNT; ++i) {
     save->player[i].control = 1;
   }
@@ -1027,7 +1027,7 @@ bool col1_bridge_apply_w(
        */
       col->turns_in_job =
         (uint8_t)((p & 1) ? src->specialty[p / 2].odd : src->specialty[p / 2].even);
-      int work_type = units_find_type(units, "Colonists");
+      int work_type = units_kind_type_index(units, UNITS_KIND_COLONIST);
       if (work_type < 0) {
         work_type = 0;
       }
@@ -1105,7 +1105,7 @@ bool col1_bridge_apply_w(
        */
       if (dst->colonists[p].building_type < 0 && dst->colonists[p].field_job < 0 &&
           occ != (int)UNITS_JOB_COLONIST) {
-        const int th = colonies_find_building(colonies, "Town Hall");
+        const int th = colonies_building_row(colonies, COLONY_BUILDING_TOWN_HALL);
         if (th >= 0 && th < COLONIZE_BUILDING_TYPES_MAX && dst->has_building[th]) {
           dst->colonists[p].building_type = th;
         }
@@ -1394,7 +1394,7 @@ bool col1_bridge_apply_w(
         {
           int tid = europe_dock_unit_type_index(units, dos_type);
           if (tid < 0) {
-            tid = units_find_type(units, "Colonists");
+            tid = units_kind_type_index(units, UNITS_KIND_COLONIST);
           }
           const int id = units_spawn_allow_stack(units, tid >= 0 ? tid : 0, 236, 236);
           ColonizeUnit* mu = units_get(units, id);
@@ -2878,7 +2878,7 @@ bool col1_bridge_capture_w(
         const EuropeDockImmigrant* row = &europe->dock[r];
         int ti = europe_dock_unit_type_index(units, row->dos_type);
         if (ti < 0) {
-          ti = units_find_type(units, "Colonists");
+          ti = units_kind_type_index(units, UNITS_KIND_COLONIST);
         }
         if (ti < 0) {
           continue;
@@ -2966,7 +2966,7 @@ bool col1_bridge_capture_w(
           for (int c = 0; c < ship->cargo_count && c < EUROPE_SHIP_CARGO_MAX; ++c) {
             int pti = ship->cargo_types[c];
             if (pti == -2) {
-              pti = units_find_type(units, "Artillery");
+              pti = units_kind_type_index(units, UNITS_KIND_ARTILLERY);
             }
             if (pti < 0) {
               continue;

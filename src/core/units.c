@@ -124,8 +124,8 @@ static void units_cache_names_rows(
 }
 
 static void units_cache_nationality(const ColonizeMsgCatalog* names) {
-  static const char* const k_euro[4] = {"English", "French", "Spanish", "Dutch"};
-  static const char* const k_port[4] = {"London", "La Rochelle", "Seville", "Amsterdam"};
+  static const char* const k_euro[4] = {"", "", "", ""};
+  static const char* const k_port[4] = {"", "", "", ""};
   units_cache_names_rows(names, "NATIONALITY", g_units_nationality, k_euro);
   units_cache_names_rows(names, "HOMEPORT", g_units_homeport, k_port);
 }
@@ -241,6 +241,8 @@ bool units_load_types(ColonizeUnitPool* pool, const ColonizeMsgCatalog* names) {
     }
     ColonizeUnitType* t = &pool->types[pool->type_count++];
     str_copy_trunc(t->name, sizeof(t->name), line);
+    /* The @UNIT row is the type's identity (ColonizeUnitKind). */
+    t->kind_plus1 = pool->type_count;
     /* NAMES.TXT @UNIT icon is 1-based (DOS / MAPEDIT style); ICONS.SS blit is 0-based. */
     t->icon_sprite = icon > 0 ? icon - 1 : -1;
     t->movement = movement > 0 ? movement : 1;
@@ -269,6 +271,26 @@ void units_reset(ColonizeUnitPool* pool) {
   pool->selected_id = -1;
   pool->board_first_slot = -1;
   pool->next_id = 1;
+}
+
+int units_kind_type_index(const ColonizeUnitPool* pool, ColonizeUnitKind kind) {
+  if (!pool || kind < 0) {
+    return -1;
+  }
+  /* A row stamped by the loader is authoritative (and on a loaded pool it is
+   * simply slot == kind). Only a pool nobody stamped — a test fixture built
+   * out of names — falls through to the resolver pass. */
+  for (int i = 0; i < pool->type_count; ++i) {
+    if (pool->types[i].kind_plus1 == (int)kind + 1) {
+      return i;
+    }
+  }
+  for (int i = 0; i < pool->type_count; ++i) {
+    if (pool->types[i].kind_plus1 == 0 && units_type_kind(&pool->types[i]) == kind) {
+      return i;
+    }
+  }
+  return -1;
 }
 
 int units_find_type(const ColonizeUnitPool* pool, const char* name) {
@@ -320,68 +342,35 @@ int units_find_type(const ColonizeUnitPool* pool, const char* name) {
  *   hits 9 before bare "Army", "Armed Braves" and "Mtd. Braves" hit 20/21
  *   before bare "Brave", and "Mtd. Warriors" hits 22 before either.
  */
-static const struct {
-  const char* key;
-  ColonizeUnitKind kind;
-} k_units_kind_names[] = {
-  {"Cont. Cav", UNITS_KIND_CONT_CAV},
-  {"Continental Cav", UNITS_KIND_CONT_CAV},
-  {"Cont. Army", UNITS_KIND_CONT_ARMY},
-  {"Continental Army", UNITS_KIND_CONT_ARMY},
-  {"Regular", UNITS_KIND_REGULAR},
-  {"Cavalry", UNITS_KIND_CAVALRY},
-  {"Cav.", UNITS_KIND_CAVALRY},
-  {"Man-O-War", UNITS_KIND_MAN_O_WAR},
-  {"Man-o-War", UNITS_KIND_MAN_O_WAR},
-  {"Man O War", UNITS_KIND_MAN_O_WAR},
-  {"Man of War", UNITS_KIND_MAN_O_WAR},
-  {"Man-O'-War", UNITS_KIND_MAN_O_WAR},
-  {"Man-o'-War", UNITS_KIND_MAN_O_WAR},
-  {"Merchantman", UNITS_KIND_MERCHANTMAN},
-  {"Galleon", UNITS_KIND_GALLEON},
-  {"Privateer", UNITS_KIND_PRIVATEER},
-  {"Frigate", UNITS_KIND_FRIGATE},
-  {"Caravel", UNITS_KIND_CARAVEL},
-  {"Treasure", UNITS_KIND_TREASURE},
-  {"Artillery", UNITS_KIND_ARTILLERY},
-  {"Cannon", UNITS_KIND_ARTILLERY},
-  {"Wagon", UNITS_KIND_WAGON},
-  {"Mtd. Warrior", UNITS_KIND_MTD_WARRIOR},
-  {"Mtd Warrior", UNITS_KIND_MTD_WARRIOR},
-  {"Mounted Warrior", UNITS_KIND_MTD_WARRIOR},
-  {"Mtd. Brave", UNITS_KIND_MTD_BRAVE},
-  {"Mtd Brave", UNITS_KIND_MTD_BRAVE},
-  {"Mounted Brave", UNITS_KIND_MTD_BRAVE},
-  {"Armed Brave", UNITS_KIND_ARMED_BRAVE},
-  {"Brave", UNITS_KIND_BRAVE},
-  {"Dragoon", UNITS_KIND_DRAGOON},
-  {"Scout", UNITS_KIND_SCOUT},
-  {"Pioneer", UNITS_KIND_PIONEER},
-  {"Hardy", UNITS_KIND_PIONEER},
-  {"Missionar", UNITS_KIND_MISSIONARY},
-  {"Mission", UNITS_KIND_MISSIONARY},
-  {"Jesuit", UNITS_KIND_MISSIONARY},
-  {"Soldier", UNITS_KIND_SOLDIER},
-  {"Colonist", UNITS_KIND_COLONIST},
-  /* Last resort: the abbreviated WoI/King spellings the equip ladders used. */
-  {"Cav", UNITS_KIND_CAVALRY},
-  {"Army", UNITS_KIND_CONT_ARMY},
-};
+/*
+ * No name table lives here any more: the port compiles none of the game's
+ * wording, so a unit's kind comes from its @UNIT ROW (ColonizeUnitType.
+ * kind_plus1, stamped by units_load_types), never from its English name.
+ * The old spelling table moved to tests/common/test_name_kinds.c, which
+ * registers it through this hook for the fixtures that hand-build a pool
+ * out of names. Production never installs a resolver.
+ */
+static UnitsNameKindResolver g_units_name_kind_resolver = NULL;
+
+void units_set_name_kind_resolver(UnitsNameKindResolver fn) {
+  g_units_name_kind_resolver = fn;
+}
 
 ColonizeUnitKind units_name_kind(const char* name) {
-  if (!name || !name[0]) {
+  if (!name || !name[0] || !g_units_name_kind_resolver) {
     return UNITS_KIND_UNKNOWN;
   }
-  for (size_t i = 0; i < sizeof(k_units_kind_names) / sizeof(k_units_kind_names[0]); ++i) {
-    if (strstr(name, k_units_kind_names[i].key) != NULL) {
-      return k_units_kind_names[i].kind;
-    }
-  }
-  return UNITS_KIND_UNKNOWN;
+  return g_units_name_kind_resolver(name);
 }
 
 ColonizeUnitKind units_type_kind(const ColonizeUnitType* type) {
-  return type ? units_name_kind(type->name) : UNITS_KIND_UNKNOWN;
+  if (!type) {
+    return UNITS_KIND_UNKNOWN;
+  }
+  if (type->kind_plus1 > 0) {
+    return (ColonizeUnitKind)(type->kind_plus1 - 1);
+  }
+  return units_name_kind(type->name);
 }
 
 int units_type_dos_code(const ColonizeUnitType* type) {
@@ -666,7 +655,7 @@ int units_spawn_treasure_train(
   if (!pool || gold < 0) {
     return -1;
   }
-  const int ti = units_find_type(pool, "Treasure");
+  const int ti = units_kind_type_index(pool, UNITS_KIND_TREASURE);
   if (ti < 0) {
     return -1;
   }
@@ -1581,9 +1570,9 @@ int units_sight_radius(
    *   CMP [BX+0x3146],0x5 -> INC DI             ; Scouts
    * Man-O-War is type 0x12 and is deliberately NOT in the list: radius 1.
    */
-  if (u->type_index == units_find_type(pool, "Galleon") ||
-      u->type_index == units_find_type(pool, "Privateer") ||
-      u->type_index == units_find_type(pool, "Frigate")) {
+  if (u->type_index == units_kind_type_index(pool, UNITS_KIND_GALLEON) ||
+      u->type_index == units_kind_type_index(pool, UNITS_KIND_PRIVATEER) ||
+      u->type_index == units_kind_type_index(pool, UNITS_KIND_FRIGATE)) {
     radius = 2;
   }
   /* 13f1:0321 — FF 7 (de Soto) and not a ship (type outside 0xd..0x12). */
@@ -1592,7 +1581,7 @@ int units_sight_radius(
     radius = 2;
   }
   /* 13f1:034b — Scouts (row 5) +1. */
-  if (u->type_index == units_find_type(pool, "Scouts")) {
+  if (u->type_index == units_kind_type_index(pool, UNITS_KIND_SCOUT)) {
     radius += 1;
   }
   return radius;
@@ -2453,7 +2442,7 @@ int units_spawn_village_temp_defender(
   }
   int ti = units_find_type(pool, type_name);
   if (ti < 0) {
-    ti = units_find_type(pool, "Braves");
+    ti = units_kind_type_index(pool, UNITS_KIND_BRAVE);
   }
   if (ti < 0) {
     return -1;
@@ -2558,7 +2547,7 @@ static const char* units_combat_nation_label(const ColonizeCol1Save* col1, int n
        * either is read, and a shared buffer would alias them both to
        * whichever word resolved last. */
       static char tory_buf[32];
-      str_copy_trunc(tory_buf, sizeof(tory_buf), reports_misc_display_word(70, "Tory"));
+      str_copy_trunc(tory_buf, sizeof(tory_buf), reports_misc_display_word(70, ""));
       return tory_buf;
     }
     /* bugs.md #239: under the WoI the player faction is "Rebels" (LABELS.TXT
@@ -2568,7 +2557,7 @@ static const char* units_combat_nation_label(const ColonizeCol1Save* col1, int n
          nation_id == g_units_combat_human_nation)) {
       /* LABELS.TXT @MISC row 86. Own static buffer, same aliasing reason. */
       static char rebels_buf[32];
-      str_copy_trunc(rebels_buf, sizeof(rebels_buf), reports_misc_display_word(86, "Rebels"));
+      str_copy_trunc(rebels_buf, sizeof(rebels_buf), reports_misc_display_word(86, ""));
       return rebels_buf;
     }
     /*
@@ -2636,7 +2625,7 @@ static const char* units_combat_place_label(
     }
   }
   /* LABELS.TXT @MISC row 17. */
-  return reports_misc_display_word(17, "Wilderness");
+  return reports_misc_display_word(17, "");
 }
 
 static const char* units_combat_unit_label(
@@ -2660,11 +2649,11 @@ static const char* units_combat_unit_label(
 static const char* units_combat_defeat_verb(int subject_is_nation_only, int unit_type_index) {
   /* LABELS.TXT @MISC rows 73 / 74. */
   if (subject_is_nation_only) {
-    return reports_misc_display_word(73, "defeat");
+    return reports_misc_display_word(73, "");
   }
   return (unit_type_index >= 0 && unit_type_index < 7)
-    ? reports_misc_display_word(73, "defeat")
-    : reports_misc_display_word(74, "defeats");
+    ? reports_misc_display_word(73, "")
+    : reports_misc_display_word(74, "");
 }
 
 static void units_combat_enqueue_tok(
@@ -2738,8 +2727,7 @@ void units_combat_notify_colony_captured(
       colony->nation_id,
       0,
       &tok,
-      "Colony captured."
-    );
+      "");
   } else if (col1 && col1->head.game_options.woi != 0) {
     units_combat_enqueue_tok(
       AI_POPUP_TAG_COMBAT_COLONY,
@@ -2748,8 +2736,7 @@ void units_combat_notify_colony_captured(
       colony->nation_id,
       0,
       &tok,
-      "Colony captured."
-    );
+      "");
   } else {
     tok.number0 = plunder_gold;
     tok.has_number0 = true;
@@ -2760,8 +2747,7 @@ void units_combat_notify_colony_captured(
       colony->nation_id,
       plunder_gold,
       &tok,
-      "Colony captured."
-    );
+      "");
   }
 }
 
@@ -2818,7 +2804,7 @@ void units_combat_notify_colony_burned(
    */
   units_combat_burn_chrome(
     col1, AI_POPUP_TAG_COMBAT_COLONY, "INDIANBURNCOLONY", victim_nation, -1, burner_label,
-    victim_nation, colony_name, "Colony burned to the ground!"
+    victim_nation, colony_name, ""
   );
 }
 
@@ -2994,11 +2980,11 @@ static int units_promote_on_win(
         (col1 && col1->player[winner->nation_id].control != 0)) {
       return 0;
     }
-    int tgt = is_dragoon_body ? units_find_type(pool, "Cont. Cav.")
-                              : units_find_type(pool, "Cont. Army");
+    int tgt = is_dragoon_body ? units_kind_type_index(pool, UNITS_KIND_CONT_CAV)
+                              : units_kind_type_index(pool, UNITS_KIND_CONT_ARMY);
     if (tgt < 0) {
-      tgt = is_dragoon_body ? units_find_type(pool, "Continental Cavalry")
-                            : units_find_type(pool, "Continental Army");
+      tgt = is_dragoon_body ? units_kind_type_index(pool, UNITS_KIND_CONT_CAV)
+                            : units_kind_type_index(pool, UNITS_KIND_CONT_ARMY);
     }
     if (tgt < 0) {
       return 0;
@@ -3031,8 +3017,7 @@ static int units_promote_on_win(
       tok.string1 = units_promote_prof_label(old_prof);
       tok.string2 = units_promote_prof_label(winner->profession);
       snprintf(fb, sizeof(fb),
-               "Because of their valor in battle, our %s soldiers have been promoted from %s "
-               "to %s status.",
+               "",
                base, tok.string1, tok.string2);
     }
     units_combat_enqueue_tok(
@@ -3164,8 +3149,7 @@ static int units_demote_combat_type(
           -1,
           0,
           &tok,
-          "Unit demoted."
-        );
+          "");
       }
       return 1;
     }
@@ -3198,8 +3182,7 @@ static int units_demote_combat_type(
       -1,
       0,
       &tok,
-      "Unit demoted."
-    );
+      "");
   }
   return 1;
 }
@@ -3306,8 +3289,7 @@ static int units_apply_land_loss_outcome(
           win->nation_id,
           0,
           &tok,
-          "Artillery damaged. Further damage will destroy it."
-        );
+          "");
       }
       return 1;
     }
@@ -3319,8 +3301,7 @@ static int units_apply_land_loss_outcome(
         win->nation_id,
         0,
         &tok,
-        "Damaged Artillery destroyed."
-      );
+        "");
     }
     units_despawn(pool, loser_id);
     return 0;
@@ -3364,8 +3345,7 @@ static int units_apply_land_loss_outcome(
           from_nat,
           0,
           &tok,
-          "Wagon captured."
-        );
+          "");
         if (cargo_amt > 0) {
           tok.number0 = cargo_amt;
           tok.has_number0 = true;
@@ -3379,8 +3359,7 @@ static int units_apply_land_loss_outcome(
             from_nat,
             cargo_amt,
             &tok,
-            "Cargo captured."
-          );
+            "");
         }
       }
       return 1;
@@ -3404,8 +3383,7 @@ static int units_apply_land_loss_outcome(
           from_nat,
           0,
           &tok,
-          "Colonists captured."
-        );
+          "");
       }
       return 1;
     }
@@ -3530,8 +3508,8 @@ static const ColonizeColony* units_nearest_own_drydock_colony(
   /* DOS tests colony feature bit 7 (Drydock). Shipyard is the tier above it
    * and leaves that bit set, but a save whose mask only carries the top tier
    * must still count as a repair port. */
-  const int drydock = colonies_find_building(colonies, "Drydock");
-  const int shipyard = colonies_find_building(colonies, "Shipyard");
+  const int drydock = colonies_building_row(colonies, COLONY_BUILDING_DRYDOCK);
+  const int shipyard = colonies_building_row(colonies, COLONY_BUILDING_SHIPYARD);
   if (drydock < 0 && shipyard < 0) {
     return NULL;
   }
@@ -3687,7 +3665,7 @@ static void units_ship_enter_repair(
       (home && home->name[0]) ? home->name : units_home_port_name(col1, lose->nation_id);
     char fb[AI_POPUP_BODY_LEN];
     snprintf(
-      fb, sizeof(fb), "%s %s damaged! Ship returns to %s for repairs.", tok.string0, tok.string1,
+      fb, sizeof(fb), "", tok.string0, tok.string1,
       tok.string2
     );
     units_combat_enqueue_tok(
@@ -3970,7 +3948,7 @@ int units_raid_damage_ship(ColonizeUnitPool* pool, int ship_id, const ColonizeCo
   {
     /* The raid arm has no winner unit: DOS bills the repair against the
      * Privateer's defense column (the raider stand-in). */
-    const int pi = units_find_type(pool, "Privateer");
+    const int pi = units_kind_type_index(pool, UNITS_KIND_PRIVATEER);
     const ColonizeUnitType* pt = pi >= 0 ? units_type(pool, pi) : NULL;
     units_ship_enter_repair(pool, lose, pt ? pt->defense : 0, home, col1, human, -1);
   }
@@ -4216,8 +4194,7 @@ static void units_combat_outcome_popups(
           def_nation,
           0,
           &tok,
-          "Victory!"
-        );
+          "");
       } else {
         const ColonizeUnit* def_u = win;
         tok.string4 = units_combat_defeat_verb(0, def_u->type_index);
@@ -4228,8 +4205,7 @@ static void units_combat_outcome_popups(
           def_nation,
           0,
           &tok,
-          "Defeat."
-        );
+          "");
       }
     } else if (atk_nation >= 4 && atk_nation <= 11 && def_nation >= 0 && def_nation <= 3 &&
                !g_units_native_chrome_owned) {
@@ -4261,8 +4237,7 @@ static void units_combat_outcome_popups(
           def_nation,
           0,
           &tok,
-          "Ambushed!"
-        );
+          "");
       } else {
         /* @INDIANLOSE: {nation unit} {defeat} {tribe} near {place}!
          * LABELS.TXT @MISC rows 73/74 — unit subjects type_index ≥7 use "defeats". */
@@ -4274,8 +4249,7 @@ static void units_combat_outcome_popups(
           def_nation,
           0,
           &tok,
-          "Attack repulsed!"
-        );
+          "");
       }
     }
     /* bugs.md #238: no @SEIZURELAND here — DOS shows it only from the 0512
@@ -4553,9 +4527,9 @@ static int units_spawn_subjugated_convert(
   if (!units || nation_id < 0 || nation_id > 3) {
     return -1;
   }
-  int ti = units_find_type(units, "Colonists");
+  int ti = units_kind_type_index(units, UNITS_KIND_COLONIST);
   if (ti < 0) {
-    ti = units_find_type(units, "Free Colonists");
+    ti = units_kind_type_index(units, UNITS_KIND_COLONIST);
   }
   if (ti < 0) {
     return -1;
@@ -4709,8 +4683,7 @@ bool units_try_native_settlement_fallout_w(
         snprintf(
           bfb,
           sizeof(bfb),
-          "\"The %s tribe bows before the might of the %s. In tribute to your "
-          "greatness, we give you all the land you now occupy.\"",
+          "",
           btok.string0,
           btok.string1
         );
@@ -4758,8 +4731,7 @@ bool units_try_native_settlement_fallout_w(
         tok.has_number0 = true;
         units_combat_enqueue_tok(
           AI_POPUP_TAG_COMBAT_LOOT, "LOOT", attacker_nation_id, defender_nation_id, gold, &tok,
-          "Treasure recovered from ruins."
-        );
+          "");
       }
     } else if (units_combat_human_involved(col1, attacker_nation_id, defender_nation_id)) {
       /* Peel came up empty — DOS 0x1cd1 (@LOOT2), not @NOLOOT. */
@@ -4775,8 +4747,7 @@ bool units_try_native_settlement_fallout_w(
         defender_nation_id,
         0,
         &tok,
-        "Village burned; natives flee."
-      );
+        "");
     }
   }
   return true;
@@ -5133,7 +5104,7 @@ bool units_resolve_lcr_rumour_w(
    * in this decomp) = +1 more. See units_lcr_roll_outcome for how `skill`
    * and `de_soto_reroll` (decomp bVar4) drive the case-selection loop.
    */
-  const int scout_type = units_find_type(pool, "Scouts");
+  const int scout_type = units_kind_type_index(pool, UNITS_KIND_SCOUT);
   int skill = (scout_type >= 0 && u->type_index == scout_type) ? 1 : 0;
   if (skill != 0 && u->profession == UNITS_JOB_SCOUT) {
     skill += 1;
@@ -5143,7 +5114,7 @@ bool units_resolve_lcr_rumour_w(
     skill += 1;
   }
   const bool woi = col1 && col1->head.game_options.woi;
-  const int pioneer_type = units_find_type(pool, "Pioneers");
+  const int pioneer_type = units_kind_type_index(pool, UNITS_KIND_PIONEER);
   const bool is_pioneer = pioneer_type >= 0 && u->type_index == pioneer_type;
   /* DS:0x1dc6++ happens before the roll loop (103459). */
   s_lcr_explored_total++;
@@ -5170,8 +5141,7 @@ bool units_resolve_lcr_rumour_w(
   switch (outcome) {
   case COLONIZE_LCR_NOTHING:
     units_combat_enqueue_tok(
-      AI_POPUP_TAG_INFO, "LOSTCITY6", nation, -1, 0, &tok, "You find nothing but rumors."
-    );
+      AI_POPUP_TAG_INFO, "LOSTCITY6", nation, -1, 0, &tok, "");
     break;
   case COLONIZE_LCR_SMALL_TREASURE: {
     const int gold = roll.gold;
@@ -5180,8 +5150,7 @@ bool units_resolve_lcr_rumour_w(
     tok.number0 = gold;
     units_combat_enqueue_tok(
       AI_POPUP_TAG_INFO, "LOSTCITY3", nation, -1, gold, &tok,
-      "You find the ruins of a lost civilization."
-    );
+      "");
     /* FUN_65dd_0004 65dd:04ca: human + gold found (local_12) → pool 2. */
     if (nation == human_nation && gold != 0) {
       units_set_bgm_pool(2);
@@ -5195,8 +5164,7 @@ bool units_resolve_lcr_rumour_w(
     tok.number0 = gold;
     units_combat_enqueue_tok(
       AI_POPUP_TAG_INFO, "LOSTCITY7", nation, -1, gold, &tok,
-      "A small, friendly tribe offers you a gift."
-    );
+      "");
     if (nation == human_nation && gold != 0) {
       units_set_bgm_pool(2); /* 65dd:04ca, same arm as LOSTCITY3 */
     }
@@ -5260,8 +5228,7 @@ bool units_resolve_lcr_rumour_w(
     }
     units_combat_enqueue_tok(
       AI_POPUP_TAG_INFO, "LOSTCITY1", nation, -1, 0, &tok,
-      "You have discovered a Fountain of Youth!"
-    );
+      "");
     break;
   case COLONIZE_LCR_CIBOLA: {
     units_play_event_sound(0x3c); /* FUN_65dd_0004 65dd:04b6 case 2: queued tune (281f_048e) */
@@ -5278,8 +5245,7 @@ bool units_resolve_lcr_rumour_w(
     tok.number1 = gold;
     units_combat_enqueue_tok(
       AI_POPUP_TAG_INFO, "LOSTCITY2", nation, -1, gold, &tok,
-      "You have found one of the Seven Cities of Cibola!"
-    );
+      "");
     break;
   }
   case COLONIZE_LCR_SURVIVORS_JOIN: {
@@ -5300,7 +5266,7 @@ bool units_resolve_lcr_rumour_w(
      * The port composes each popup from a freshly `memset` AiPopupTokens and
      * always assigns `tok.string0` here, so the clear has no port-visible
      * effect and is deliberately not transcribed. */
-    const int ct = units_find_type(pool, "Colonists");
+    const int ct = units_kind_type_index(pool, UNITS_KIND_COLONIST);
     if (ct >= 0) {
       const int nid = units_spawn_allow_stack(pool, ct, x, y);
       ColonizeUnit* nu = units_get(pool, nid);
@@ -5312,8 +5278,7 @@ bool units_resolve_lcr_rumour_w(
                                                : units_combat_nation_label(col1, nation);
     units_combat_enqueue_tok(
       AI_POPUP_TAG_INFO, "LOSTCITY9", nation, -1, 0, &tok,
-      "Desperate survivors of a former colony join you."
-    );
+      "");
     break;
   }
   case COLONIZE_LCR_TRESPASS_ANGER: {
@@ -5324,15 +5289,13 @@ bool units_resolve_lcr_rumour_w(
     tok.string0 = units_combat_nation_label(col1, tribe);
     units_combat_enqueue_tok(
       AI_POPUP_TAG_INFO, "LOSTCITY8", nation, -1, 0, &tok,
-      "You are trespassing near sacred native shrines."
-    );
+      "");
     break;
   }
   case COLONIZE_LCR_VANISHES:
     units_combat_enqueue_tok(
       AI_POPUP_TAG_INFO, "LOSTCITY5", nation, -1, 0, &tok,
-      "Your expedition has vanished without a trace!"
-    );
+      "");
     /* 65dd:0778 (case 5): human → tune pool 1 (map) before the unit goes. */
     if (nation == human_nation) {
       units_set_bgm_pool(1);
@@ -5368,8 +5331,7 @@ bool units_resolve_lcr_rumour_w(
     }
     if (roll.gate < 25) {
       units_combat_enqueue_tok(
-        AI_POPUP_TAG_INFO, "BURIAL1", nation, -1, 0, &tok, "The mounds are cold and empty."
-      );
+        AI_POPUP_TAG_INFO, "BURIAL1", nation, -1, 0, &tok, "");
     } else if (roll.gate < 50 || (screwed_tribe < 0 && roll.gate < 65)) {
       int g = dos_rng_range(rng, 1, 8);
       g += dos_rng_range(rng, 1, 8);
@@ -5379,8 +5341,7 @@ bool units_resolve_lcr_rumour_w(
       tok.has_number0 = true;
       tok.number0 = gold;
       units_combat_enqueue_tok(
-        AI_POPUP_TAG_INFO, "BURIAL2", nation, -1, gold, &tok, "Within, you find trinkets."
-      );
+        AI_POPUP_TAG_INFO, "BURIAL2", nation, -1, gold, &tok, "");
     } else {
       const int gold = (dos_rng_range(rng, 1, 8) + (skill + 5) * 2) * 2 * 100;
       (void)units_spawn_treasure_train(pool, x, y, nation, gold);
@@ -5392,8 +5353,7 @@ bool units_resolve_lcr_rumour_w(
       tok.number1 = gold;
       units_combat_enqueue_tok(
         AI_POPUP_TAG_INFO, "BURIAL3", nation, -1, gold, &tok,
-        "Within, you find incredible treasure!"
-      );
+        "");
     }
     if (screwed_tribe >= 0) {
       /* 65dd:06e6: human → 0x32 Military sting ahead of @SCREWED. */
@@ -5408,8 +5368,7 @@ bool units_resolve_lcr_rumour_w(
       stok.string0 = units_combat_nation_label(col1, screwed_tribe);
       units_combat_enqueue_tok(
         AI_POPUP_TAG_INFO, "SCREWED", nation, -1, 0, &stok,
-        "These are sacred burial grounds! You must die!"
-      );
+        "");
     }
     break;
   }
@@ -5804,7 +5763,7 @@ bool units_resolve_land_combat_ff_w(
           char body[AI_POPUP_BODY_LEN];
           if (g_units_combat_game_txt) {
             popup_msg_fill(
-              g_units_combat_game_txt, "LOOTCAPTURE", &tok, "Treasure captured.", body, sizeof(body)
+              g_units_combat_game_txt, "LOOTCAPTURE", &tok, "", body, sizeof(body)
             );
           } else {
             snprintf(body, sizeof(body), "Treasure worth %d — Accept ransom?", loot_gold);
@@ -5835,8 +5794,7 @@ bool units_resolve_land_combat_ff_w(
               def_nation,
               loot_gold,
               &tok,
-              "Treasure captured."
-            );
+              "");
           }
         }
       }
@@ -6224,8 +6182,7 @@ bool units_resolve_naval_combat_ff_w(
             def_nation,
             0,
             &tok,
-            "Ship seized at sea by the Royal Navy."
-          );
+            "");
         }
       }
     }
@@ -6267,11 +6224,11 @@ int units_coastal_fort_attack_strength(
     return 0;
   }
   int tier = 0;
-  const int fortress = colonies_find_building(colonies, "Fortress");
+  const int fortress = colonies_building_row(colonies, COLONY_BUILDING_FORTRESS);
   if (fortress >= 0 && fortress < COLONIZE_BUILDING_TYPES_MAX && colony->has_building[fortress]) {
     tier = 2;
   } else {
-    const int fort = colonies_find_building(colonies, "Fort");
+    const int fort = colonies_building_row(colonies, COLONY_BUILDING_FORT);
     if (fort >= 0 && fort < COLONIZE_BUILDING_TYPES_MAX && colony->has_building[fort]) {
       tier = 1;
     }
@@ -6627,8 +6584,8 @@ void units_ship_slow_scan_w(
     const ColonizeColony* col = cid >= 0 ? colonies_get(colonies, cid) : NULL;
     if (col && col->active && col->nation_id != u->nation_id && u->moves > 0 &&
         units_ship_slow_gate(col1, u->nation_id, col->nation_id, mover_kind)) {
-      const int fortress = colonies_find_building(colonies, "Fortress");
-      const int fort = colonies_find_building(colonies, "Fort");
+      const int fortress = colonies_building_row(colonies, COLONY_BUILDING_FORTRESS);
+      const int fort = colonies_building_row(colonies, COLONY_BUILDING_FORT);
       const char* bname = NULL;
       int drain = 0;
       if (fortress >= 0 && col->has_building[fortress]) {
@@ -6765,11 +6722,11 @@ int units_coastal_fort_fire_pulse_w(
     /* bugs.md #261: analysis header for the unit-less attacker. */
     char fort_label[40];
     {
-      const int fortress = colonies_find_building(colonies, "Fortress");
+      const int fortress = colonies_building_row(colonies, COLONY_BUILDING_FORTRESS);
       const int is_fortress = fortress >= 0 && fortress < COLONIZE_BUILDING_TYPES_MAX &&
         col->has_building[fortress];
       /* Live @BUILDING name (NAMES.TXT), literal fallback if unset. */
-      const int fort = colonies_find_building(colonies, "Fort");
+      const int fort = colonies_building_row(colonies, COLONY_BUILDING_FORT);
       const char* bname = is_fortress
         ? (colonies->building_types[fortress].name[0] ? colonies->building_types[fortress].name
                                                         : "Fortress")
@@ -6822,11 +6779,11 @@ int units_coastal_fort_fire_pulse_w(
           const ColonizeUnitType* ship_type = before ? units_type(units, before->type_index) : NULL;
           PopupMsgTokens tok;
           memset(&tok, 0, sizeof(tok));
-          const int fortress = colonies_find_building(colonies, "Fortress");
+          const int fortress = colonies_building_row(colonies, COLONY_BUILDING_FORTRESS);
           const int is_fortress = fortress >= 0 && fortress < COLONIZE_BUILDING_TYPES_MAX &&
             col->has_building[fortress];
           /* Live @BUILDING name (NAMES.TXT), literal fallback if unset. */
-          const int fort = colonies_find_building(colonies, "Fort");
+          const int fort = colonies_building_row(colonies, COLONY_BUILDING_FORT);
           tok.string0 = is_fortress
             ? (colonies->building_types[fortress].name[0] ? colonies->building_types[fortress].name
                                                             : "Fortress")
@@ -7142,8 +7099,7 @@ static void units_try_capture_foreign_colony(
             u->nation_id,
             0,
             &tok,
-            "Colonists massacred!"
-          );
+            "");
         } else if (g_units_combat_human_nation >= 0) {
           units_combat_enqueue_tok(
             AI_POPUP_TAG_INFO,
@@ -7152,8 +7108,7 @@ static void units_try_capture_foreign_colony(
             u->nation_id,
             0,
             &tok,
-            "Spies report a colony massacre."
-          );
+            "");
         }
       }
       /*
@@ -7252,11 +7207,7 @@ static void units_try_capture_foreign_colony(
     mut->head.tut2.howtowin = 1;
     units_combat_enqueue_tok(
       AI_POPUP_TAG_INFO, "HOWTOWIN", u->nation_id, -1, 0, NULL,
-      "We have just won a glorious victory on the road to freedom, Your "
-      "Excellency. In order to defeat the King's forces and win our "
-      "independence, we must recapture all of our colonies from the King, and "
-      "we must destroy most of his ground forces in the New World."
-    );
+      "");
   }
   /*
    * Raw 101032-101034, the last thing 1b0e's capture arm does: DOS drops a
@@ -7886,13 +7837,13 @@ static int units_spawn_colony_temp_defender(
   }
   int ti = -1;
   if (revere_armed) {
-    ti = units_find_type(pool, "Soldiers");
+    ti = units_kind_type_index(pool, UNITS_KIND_SOLDIER);
   }
   if (ti < 0) {
-    ti = units_find_type(pool, "Free Colonist");
+    ti = units_kind_type_index(pool, UNITS_KIND_COLONIST);
   }
   if (ti < 0) {
-    ti = units_find_type(pool, "Colonists");
+    ti = units_kind_type_index(pool, UNITS_KIND_COLONIST);
   }
   if (ti < 0) {
     return -1;
@@ -10844,7 +10795,7 @@ bool units_pioneer_work_tick_w(
           near = NULL;
         }
         if (near) {
-          const int lumber_mill = colonies_find_building(colonies, "Lumber Mill");
+          const int lumber_mill = colonies_building_row(colonies, COLONY_BUILDING_LUMBER_MILL);
           const bool has_mill = lumber_mill >= 0 && near->has_building[lumber_mill];
           int scale = map_dos_terr_lumber_reward_byte(map_dos_terr_class_at(map, u->x, u->y));
           scale += 1; /* layer2(colony tile) & 0x0a — city bit, always set */
@@ -11063,7 +11014,7 @@ bool units_pioneer_road_w(
   }
   if (map_tile_has_road(map, u->x, u->y)) {
     if (err && err_size) {
-      snprintf(err, err_size, "Already a road");
+      snprintf(err, err_size, "");
     }
     units_pioneer_emit_order_gate(u, ai_popups, messages, "NOROAD", "Already a road.");
     return false;
@@ -12071,9 +12022,15 @@ const char* units_display_name(const ColonizeUnitPool* pool, const ColonizeUnit*
   if (units_display_keeps_own_type(ut)) {
     return ut->name;
   }
+  /*
+   * Every word below is catalog text: NAMES.TXT @JOB column 0 is the singular
+   * role noun (row 19 Colonist .. 23 Dragoon), column 1 the expert title, and
+   * LABELS.TXT @MISC carries the rank words (65 Veteran, 66 Seasoned, 201
+   * Damaged). The port composes them; it spells none of them itself.
+   */
   /* bugs.md: damaged artillery (bit7, −2 combat) reads "Damaged Artillery". */
-  if (ut && combat_type_is_artillery_name(ut->name) && (unit->col1_flags15 & 0x80u) != 0) {
-    snprintf(buf, sizeof(buf), "Damaged %s", ut->name);
+  if (ut && units_type_is_artillery(ut) && (unit->col1_flags15 & 0x80u) != 0) {
+    snprintf(buf, sizeof(buf), "%s %s", reports_misc_display_word(201, ""), ut->name);
     return buf;
   }
   const bool armed = unit->muskets > 0;
@@ -12083,50 +12040,50 @@ const char* units_display_name(const ColonizeUnitPool* pool, const ColonizeUnit*
    * armed — a mounted Veteran Soldier is a Veteran Dragoon. */
   const bool vet_prof =
     unit->profession == UNITS_JOB_SOLDIER || unit->profession == UNITS_JOB_DRAGOON;
+  const char* veteran = reports_misc_display_word(65, "");
   if (armed && mounted) {
     if (vet_prof) {
-      snprintf(buf, sizeof(buf), "Veteran Dragoon");
+      snprintf(buf, sizeof(buf), "%s %s", veteran, reports_job_short_name(UNITS_JOB_DRAGOON));
       return buf;
     }
-    return "Dragoon";
+    return reports_job_short_name(UNITS_JOB_DRAGOON);
   }
   if (armed) {
     if (vet_prof) {
-      snprintf(buf, sizeof(buf), "Veteran Soldier");
+      snprintf(buf, sizeof(buf), "%s %s", veteran, reports_job_short_name(UNITS_JOB_SOLDIER));
       return buf;
     }
-    return "Soldier";
+    return reports_job_short_name(UNITS_JOB_SOLDIER);
   }
   if (mounted) {
     if (unit->profession == UNITS_JOB_SCOUT) {
-      snprintf(buf, sizeof(buf), "Seasoned Scout");
+      snprintf(
+        buf, sizeof(buf), "%s %s", reports_misc_display_word(66, ""),
+        reports_job_short_name(UNITS_JOB_SCOUT)
+      );
       return buf;
     }
-    return "Scout";
+    return reports_job_short_name(UNITS_JOB_SCOUT);
   }
-  if (has_tools) {
+  if (has_tools || unit->profession == UNITS_JOB_PIONEER) {
     if (unit->profession == UNITS_JOB_PIONEER) {
-      snprintf(buf, sizeof(buf), "Hardy Pioneer");
-      return buf;
+      return reports_job_display_name(UNITS_JOB_PIONEER); /* @JOB col 1 expert title */
     }
-    return "Pioneer";
-  }
-  if (unit->profession == UNITS_JOB_PIONEER) {
-    snprintf(buf, sizeof(buf), "Hardy Pioneer");
-    return buf;
+    return reports_job_short_name(UNITS_JOB_PIONEER);
   }
   if (unit->profession == UNITS_JOB_SOLDIER) {
-    snprintf(buf, sizeof(buf), "Veteran Soldier");
+    snprintf(buf, sizeof(buf), "%s %s", veteran, reports_job_short_name(UNITS_JOB_SOLDIER));
     return buf;
   }
-  if (ut && strcmp(ut->name, "Pioneers") == 0) {
-    return "Pioneer";
-  }
-  if (ut && strcmp(ut->name, "Soldiers") == 0) {
-    return "Soldier";
-  }
-  if (ut && strcmp(ut->name, "Colonists") == 0) {
-    return "Free Colonist";
+  switch (units_type_kind(ut)) {
+    case UNITS_KIND_PIONEER:
+      return reports_job_short_name(UNITS_JOB_PIONEER);
+    case UNITS_KIND_SOLDIER:
+      return reports_job_short_name(UNITS_JOB_SOLDIER);
+    case UNITS_KIND_COLONIST:
+      return reports_job_display_name(19); /* @JOB row 19 col 1 */
+    default:
+      break;
   }
   return ut ? ut->name : "Unit";
 }
@@ -12244,11 +12201,11 @@ const char* units_profession_line(
     prof = UNITS_JOB_COLONIST;
   }
   if ((type_index == 1 || type_index == 4) && prof == UNITS_JOB_SOLDIER) {
-    return reports_misc_display_word(65, "Veteran");
+    return reports_misc_display_word(65, "");
   }
   if ((type_index == 5 && prof == UNITS_JOB_SCOUT) ||
       (type_index == 3 && prof == UNITS_JOB_MISSIONARY)) {
-    return reports_misc_display_word(4, "Expert");
+    return reports_misc_display_word(4, "");
   }
   /* FUN_15eb_0002: 0x1c / 0x13 / 0x19 / 0x1a / 0x1b are the unskilled set. */
   const bool skilled =
@@ -12429,19 +12386,19 @@ int units_display_type_index(const ColonizeUnitPool* pool, int unit_id) {
   units_founder_loot(pool, unit_id, &tools, &muskets, &horses);
   /* Col1 @UNIT indices: match equipment → displayed type for chrome placement. */
   if (muskets > 0 && horses > 0) {
-    const int t = units_find_type(pool, "Dragoons");
+    const int t = units_kind_type_index(pool, UNITS_KIND_DRAGOON);
     return t >= 0 ? t : 4;
   }
   if (muskets > 0) {
-    const int t = units_find_type(pool, "Soldiers");
+    const int t = units_kind_type_index(pool, UNITS_KIND_SOLDIER);
     return t >= 0 ? t : 1;
   }
   if (horses > 0) {
-    const int t = units_find_type(pool, "Scouts");
+    const int t = units_kind_type_index(pool, UNITS_KIND_SCOUT);
     return t >= 0 ? t : 5;
   }
   if (tools > 0) {
-    const int t = units_find_type(pool, "Pioneers");
+    const int t = units_kind_type_index(pool, UNITS_KIND_PIONEER);
     return t >= 0 ? t : 2;
   }
   return unit->type_index;
@@ -12536,14 +12493,14 @@ int units_spawn_euro_starter_fleet(
     difficulty = 4;
   }
 
-  int pioneer_type = units_find_type(pool, "Pioneers");
+  int pioneer_type = units_kind_type_index(pool, UNITS_KIND_PIONEER);
   if (pioneer_type < 0) {
-    pioneer_type = units_find_type(pool, "Colonists");
+    pioneer_type = units_kind_type_index(pool, UNITS_KIND_COLONIST);
   }
-  const int soldier_type = units_find_type(pool, "Soldiers");
-  int ship_type = units_find_type(pool, "Caravel");
+  const int soldier_type = units_kind_type_index(pool, UNITS_KIND_SOLDIER);
+  int ship_type = units_kind_type_index(pool, UNITS_KIND_CARAVEL);
   if (nation_id == 3) {
-    const int merchant = units_find_type(pool, "Merchantman");
+    const int merchant = units_kind_type_index(pool, UNITS_KIND_MERCHANTMAN);
     if (merchant >= 0) {
       ship_type = merchant;
     }
@@ -12935,7 +12892,7 @@ bool units_deploy_colonist(
   if (!pool || !map) {
     return false;
   }
-  int colonist_type = units_find_type(pool, "Colonists");
+  int colonist_type = units_kind_type_index(pool, UNITS_KIND_COLONIST);
   if (colonist_type < 0) {
     return false;
   }

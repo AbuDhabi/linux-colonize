@@ -702,7 +702,7 @@ static void ff_debate_row_label(int idx, char* out, size_t out_size) {
   char adviser[32];
   snprintf(name, sizeof(name), "%s", reports_ff_display_name(idx));
   snprintf(category, sizeof(category), "%s", reports_ff_category_display_name(k_ff_type[idx]));
-  snprintf(adviser, sizeof(adviser), "%s", reports_misc_display_word(103, "Adviser"));
+  snprintf(adviser, sizeof(adviser), "%s", reports_misc_display_word(103, ""));
   if (category[0] == '\0') {
     snprintf(out, out_size, "%s", name);
     return;
@@ -747,8 +747,7 @@ static bool ff_enqueue_debate_from_slate(
     NULL,
     /* GAME.TXT @WHICHFREEDOM verbatim (fallback only — popup_msg_fill uses
      * the live section, including its @width=190, whenever assets load). */
-    "The Continental Congress will expand during its next session, Your Excellency.  "
-    "Which Founding Father shall we appoint as its next member?",
+    "",
     body,
     sizeof(body)
   );
@@ -867,7 +866,7 @@ static int effect_la_salle_stockades(ColonizeColonyPool* colonies, int nation_id
   if (!colonies) {
     return 0;
   }
-  const int stock_idx = colonies_find_building(colonies, "Stockade");
+  const int stock_idx = colonies_building_row(colonies, COLONY_BUILDING_STOCKADE);
   if (stock_idx < 0 || stock_idx >= COLONIZE_BUILDING_TYPES_MAX) {
     return 0;
   }
@@ -974,12 +973,13 @@ static void effect_brewster_filter_pool(EuropeScreen* europe) {
     if (!europe->dock[i].present) {
       continue;
     }
+    /* Identity is the @JOB profession byte, never the label text. */
     if (europe->dock[i].profession == COLONIZE_PROF_CRIMINAL ||
-        europe->dock[i].profession == COLONIZE_PROF_INDENTURED ||
-        strstr(europe->dock[i].name, "Criminal") != NULL ||
-        strstr(europe->dock[i].name, "Indentured") != NULL ||
-        strstr(europe->dock[i].name, "Servant") != NULL) {
-      snprintf(europe->dock[i].name, sizeof(europe->dock[i].name), "Free Colonists");
+        europe->dock[i].profession == COLONIZE_PROF_INDENTURED) {
+      snprintf(
+        europe->dock[i].name, sizeof(europe->dock[i].name), "%s",
+        reports_job_display_name(COLONIZE_PROF_FREE_COLONIST)
+      );
       europe->dock[i].profession = COLONIZE_PROF_FREE_COLONIST;
     }
   }
@@ -1021,13 +1021,6 @@ static int effect_las_casas_assimilate(
   }
 
   if (units) {
-    int free_ty = units_find_type(units, "Free Colonist");
-    if (free_ty < 0) {
-      free_ty = units_find_type(units, "Colonists");
-    }
-    if (free_ty < 0) {
-      free_ty = units_find_type(units, "Colonist");
-    }
     for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
       ColonizeUnit* u = &units->units[i];
       if (!u->active || u->nation_id != nation_id) {
@@ -1047,23 +1040,6 @@ static int effect_las_casas_assimilate(
       bool changed = false;
       if (u->profession == COLONIZE_PROF_CONVERT && units_type_is_colonist(ut)) {
         u->profession = COLONIZE_PROF_FREE_COLONIST;
-        changed = true;
-      }
-      /*
-       * Name-based type swap when a Convert/@JOB display type was used. Not
-       * itself a DOS field (docs/founding_fathers.c comment above: DOS has
-       * no separate @UNIT "Convert" — Converts are always base Colonists
-       * type + profession 0x1b), so it stays ungated by type==0: it exists
-       * only for synthetic fixtures/content that name a type "Convert".
-       */
-      if (ut && free_ty >= 0 &&
-          (strstr(ut->name, "Indian Convert") != NULL ||
-           strcmp(ut->name, "Convert") == 0 ||
-           strcmp(ut->name, "Converts") == 0)) {
-        u->type_index = free_ty;
-        if (u->profession == COLONIZE_PROF_CONVERT) {
-          u->profession = COLONIZE_PROF_FREE_COLONIST;
-        }
         changed = true;
       }
       if (changed) {
@@ -1151,9 +1127,9 @@ static bool effect_jones_frigate(
   if (!units || !map) {
     return false;
   }
-  int ship_ty = units_find_type(units, "Frigate");
+  int ship_ty = units_kind_type_index(units, UNITS_KIND_FRIGATE);
   if (ship_ty < 0) {
-    ship_ty = units_find_type(units, "Man-O-War");
+    ship_ty = units_kind_type_index(units, UNITS_KIND_MAN_O_WAR);
   }
   if (ship_ty < 0) {
     return false;
@@ -1456,7 +1432,7 @@ static bool elect_commit(
       ctx->messages,
       "FREEDOM",
       &tok,
-      "Founding Fathers announce that a new member has joined the Continental Congress!",
+      "",
       body,
       sizeof(body)
     );

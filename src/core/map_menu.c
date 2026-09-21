@@ -131,243 +131,86 @@ static int map_menu_visible_row_from_item(const MapMenuPulldown* menu, int item_
 }
 
 
-static MapMenuAction map_menu_classify(const char* section, const char* label) {
+/*
+ * MENU.TXT row -> action, per section. `row` is the section's stored-line
+ * index (row 0 = the "~TITLE" line, items from 1), i.e. DOS's own item order.
+ * Dispatch is by ROW, never by label: the port compiles none of the game's
+ * wording, and a translated or re-worded MENU.TXT must still work. DOS does
+ * the same — its menu handler switches on the item ordinal.
+ */
+#define U MAP_MENU_ACTION_UNIMPLEMENTED
+static const MapMenuAction k_menu_rows_game[] = {
+  U, MAP_MENU_ACTION_OPTIONS, MAP_MENU_ACTION_COLONY_OPTIONS, MAP_MENU_ACTION_SOUND_OPTIONS,
+  MAP_MENU_ACTION_PICK_MUSIC, MAP_MENU_ACTION_SAVE, MAP_MENU_ACTION_LOAD,
+  MAP_MENU_ACTION_DECLARE_INDEPENDENCE, MAP_MENU_ACTION_RETIRE, MAP_MENU_ACTION_EXIT
+};
+static const MapMenuAction k_menu_rows_view[] = {
+  U, MAP_MENU_ACTION_MOVE_PIECES, MAP_MENU_ACTION_VIEW_PIECES, MAP_MENU_ACTION_EUROPE,
+  MAP_MENU_ACTION_FIND_COLONY, MAP_MENU_ACTION_ZOOM_IN, MAP_MENU_ACTION_ZOOM_OUT,
+  MAP_MENU_ACTION_ZOOM_LEVEL_120X96, MAP_MENU_ACTION_ZOOM_LEVEL_60X48,
+  MAP_MENU_ACTION_ZOOM_LEVEL_30X24, MAP_MENU_ACTION_ZOOM_LEVEL_15X12,
+  MAP_MENU_ACTION_VIEW_HIDDEN_TERRAIN, MAP_MENU_ACTION_CENTER_VIEW
+};
+/* Rows 3 and 4 are both "Fortify" (land 0x302, ship 0x303): the second is
+ * the ship's anchor order. */
+static const MapMenuAction k_menu_rows_orders[] = {
+  U, MAP_MENU_ACTION_ACTIVATE_UNIT, MAP_MENU_ACTION_WAIT_UNIT, MAP_MENU_ACTION_FORTIFY,
+  MAP_MENU_ACTION_ANCHOR, MAP_MENU_ACTION_SENTRY, MAP_MENU_ACTION_BUILD_COLONY,
+  MAP_MENU_ACTION_JOIN_COLONY, MAP_MENU_ACTION_CLEAR_FOREST, MAP_MENU_ACTION_PLOW_FIELDS,
+  MAP_MENU_ACTION_BUILD_ROAD, MAP_MENU_ACTION_LOAD_CARGO, MAP_MENU_ACTION_UNLOAD_CARGO,
+  MAP_MENU_ACTION_PILLAGE, MAP_MENU_ACTION_GOTO_PORT, MAP_MENU_ACTION_GOTO_PLACE,
+  MAP_MENU_ACTION_TRADE_ROUTE, MAP_MENU_ACTION_RETURN_EUROPE, MAP_MENU_ACTION_NO_ORDERS,
+  MAP_MENU_ACTION_DUMP_OVERBOARD, MAP_MENU_ACTION_DISBAND
+};
+static const MapMenuAction k_menu_rows_reports[] = {
+  U, MAP_MENU_ACTION_REPORT_TERRAIN, MAP_MENU_ACTION_REPORT_RELIGIOUS,
+  MAP_MENU_ACTION_REPORT_CONGRESS, MAP_MENU_ACTION_REPORT_LABOR,
+  MAP_MENU_ACTION_REPORT_ECONOMIC, MAP_MENU_ACTION_REPORT_COLONY, MAP_MENU_ACTION_REPORT_NAVAL,
+  MAP_MENU_ACTION_REPORT_FOREIGN, MAP_MENU_ACTION_REPORT_INDIAN, MAP_MENU_ACTION_REPORT_SCORE
+};
+static const MapMenuAction k_menu_rows_trade[] = {
+  U, MAP_MENU_ACTION_TRADE_EDIT, MAP_MENU_ACTION_TRADE_CREATE, MAP_MENU_ACTION_TRADE_DELETE
+};
+static const MapMenuAction k_menu_rows_cup[] = {
+  U, MAP_MENU_ACTION_CHEAT_CREATE_UNIT, MAP_MENU_ACTION_CHEAT_DEBUG_FLAGS,
+  MAP_MENU_ACTION_CHEAT_REVEAL_MAP, MAP_MENU_ACTION_CHEAT_SET_HUMAN,
+  MAP_MENU_ACTION_CHEAT_KILL_INDIANS, MAP_MENU_ACTION_CHEAT_ADVANCE_REVOLUTION,
+  MAP_MENU_ACTION_CHEAT_SOUND_TEST, MAP_MENU_ACTION_CHEAT_MEMORY_CHECK,
+  MAP_MENU_ACTION_CHEAT_SHOW_STRATEGY, MAP_MENU_ACTION_CHEAT_SHOW_COLONY_SITES,
+  MAP_MENU_ACTION_CHEAT_TEST_ROUTINE
+};
+/* Row 4 is the "---" separator line. */
+static const MapMenuAction k_menu_rows_pedia[] = {
+  U, MAP_MENU_ACTION_PEDIA_CARGO, MAP_MENU_ACTION_PEDIA_UNIT, MAP_MENU_ACTION_PEDIA_TERRAIN,
+  MAP_MENU_ACTION_SEPARATOR, MAP_MENU_ACTION_PEDIA_JOB, MAP_MENU_ACTION_PEDIA_BUILDING,
+  MAP_MENU_ACTION_PEDIA_FATHER, MAP_MENU_ACTION_PEDIA_MISC
+};
+#undef U
+
+static MapMenuAction map_menu_classify(const char* section, int row, const char* label) {
   if (!section || !label) {
     return MAP_MENU_ACTION_UNIMPLEMENTED;
   }
-
-  if (strcmp(section, "GAME") == 0) {
-    if (strcmp(label, "Save Game") == 0) {
-      return MAP_MENU_ACTION_SAVE;
+  static const struct {
+    const char* section;
+    const MapMenuAction* rows;
+    int count;
+  } k_sections[] = {
+#define ROWS(name, table) {name, table, (int)(sizeof(table) / sizeof(table[0]))}
+    ROWS("GAME", k_menu_rows_game),       ROWS("VIEW", k_menu_rows_view),
+    ROWS("ORDERS", k_menu_rows_orders),   ROWS("REPORTS", k_menu_rows_reports),
+    ROWS("TRADE", k_menu_rows_trade),     ROWS("CUP", k_menu_rows_cup),
+    ROWS("PEDIA", k_menu_rows_pedia),
+#undef ROWS
+  };
+  for (size_t i = 0; i < sizeof(k_sections) / sizeof(k_sections[0]); ++i) {
+    if (strcmp(section, k_sections[i].section) == 0) {
+      return (row >= 0 && row < k_sections[i].count) ? k_sections[i].rows[row]
+                                                     : MAP_MENU_ACTION_UNIMPLEMENTED;
     }
-    if (strcmp(label, "Load Game") == 0) {
-      return MAP_MENU_ACTION_LOAD;
-    }
-    if (strcmp(label, "DECLARE INDEPENDENCE") == 0) {
-      return MAP_MENU_ACTION_DECLARE_INDEPENDENCE;
-    }
-    if (strcmp(label, "Retire") == 0) {
-      return MAP_MENU_ACTION_RETIRE;
-    }
-    if (strcmp(label, "Exit to DOS") == 0) {
-      return MAP_MENU_ACTION_EXIT;
-    }
-    if (strcmp(label, "Pick Music") == 0) {
-      return MAP_MENU_ACTION_PICK_MUSIC;
-    }
-    if (strcmp(label, "Game Options") == 0 || strcmp(label, "Options") == 0) {
-      return MAP_MENU_ACTION_OPTIONS;
-    }
-    if (strcmp(label, "Colony Report Options") == 0) {
-      return MAP_MENU_ACTION_COLONY_OPTIONS;
-    }
-    if (strcmp(label, "Sound Options") == 0) {
-      return MAP_MENU_ACTION_SOUND_OPTIONS;
-    }
-    return MAP_MENU_ACTION_UNIMPLEMENTED;
   }
 
-  if (strcmp(section, "VIEW") == 0) {
-    if (strcmp(label, "Move Pieces") == 0) {
-      return MAP_MENU_ACTION_MOVE_PIECES;
-    }
-    if (strcmp(label, "View Pieces") == 0) {
-      return MAP_MENU_ACTION_VIEW_PIECES;
-    }
-    if (strcmp(label, "European Status") == 0) {
-      return MAP_MENU_ACTION_EUROPE;
-    }
-    if (strcmp(label, "Find Colony") == 0) {
-      return MAP_MENU_ACTION_FIND_COLONY;
-    }
-    if (strstr(label, "Zoom In") != NULL) {
-      return MAP_MENU_ACTION_ZOOM_IN;
-    }
-    if (strstr(label, "Zoom Out") != NULL) {
-      return MAP_MENU_ACTION_ZOOM_OUT;
-    }
-    if (strcmp(label, "Zoom Level 120 x 96") == 0) {
-      return MAP_MENU_ACTION_ZOOM_LEVEL_120X96;
-    }
-    if (strcmp(label, "Zoom Level 60 x 48") == 0) {
-      return MAP_MENU_ACTION_ZOOM_LEVEL_60X48;
-    }
-    if (strcmp(label, "Zoom Level 30 x 24") == 0) {
-      return MAP_MENU_ACTION_ZOOM_LEVEL_30X24;
-    }
-    if (strcmp(label, "Zoom Level 15 x 12") == 0) {
-      return MAP_MENU_ACTION_ZOOM_LEVEL_15X12;
-    }
-    if (strcmp(label, "Center View") == 0) {
-      return MAP_MENU_ACTION_CENTER_VIEW;
-    }
-    if (strcmp(label, "Show Hidden Terrain") == 0) {
-      return MAP_MENU_ACTION_VIEW_HIDDEN_TERRAIN;
-    }
-    return MAP_MENU_ACTION_UNIMPLEMENTED;
-  }
-
-  if (strcmp(section, "ORDERS") == 0) {
-    if (strcmp(label, "Activate unit") == 0) {
-      return MAP_MENU_ACTION_ACTIVATE_UNIT;
-    }
-    if (strcmp(label, "Wait for next unit") == 0) {
-      return MAP_MENU_ACTION_WAIT_UNIT;
-    }
-    if (strcmp(label, "Fortify") == 0) {
-      /* First Fortify = land; second identical row = ship Anchor (GAME.TXT). */
-      return MAP_MENU_ACTION_FORTIFY;
-    }
-    if (strcmp(label, "Sentry") == 0) {
-      return MAP_MENU_ACTION_SENTRY;
-    }
-    if (strcmp(label, "Build Colony") == 0) {
-      return MAP_MENU_ACTION_BUILD_COLONY;
-    }
-    if (strcmp(label, "Join Colony (B)") == 0) {
-      return MAP_MENU_ACTION_JOIN_COLONY;
-    }
-    if (strcmp(label, "Clear Forest (P)") == 0) {
-      return MAP_MENU_ACTION_CLEAR_FOREST;
-    }
-    if (strcmp(label, "Plow Fields  (P)") == 0 || strcmp(label, "Plow Fields (P)") == 0) {
-      return MAP_MENU_ACTION_PLOW_FIELDS;
-    }
-    if (strcmp(label, "Build Road") == 0) {
-      return MAP_MENU_ACTION_BUILD_ROAD;
-    }
-    if (strcmp(label, "Load Cargo") == 0) {
-      return MAP_MENU_ACTION_LOAD_CARGO;
-    }
-    if (strcmp(label, "Unload Cargo") == 0) {
-      return MAP_MENU_ACTION_UNLOAD_CARGO;
-    }
-    if (strcmp(label, "Pillage") == 0) {
-      return MAP_MENU_ACTION_PILLAGE;
-    }
-    if (strcmp(label, "Go to Port") == 0) {
-      return MAP_MENU_ACTION_GOTO_PORT;
-    }
-    if (strcmp(label, "Go to Place") == 0) {
-      return MAP_MENU_ACTION_GOTO_PLACE;
-    }
-    if (strcmp(label, "Begin Trade Route") == 0) {
-      return MAP_MENU_ACTION_TRADE_ROUTE;
-    }
-    if (strcmp(label, "Return to Europe") == 0) {
-      return MAP_MENU_ACTION_RETURN_EUROPE;
-    }
-    if (strcmp(label, "No Orders (space bar)") == 0) {
-      return MAP_MENU_ACTION_NO_ORDERS;
-    }
-    if (strcmp(label, "Dump Cargo Overboard") == 0) {
-      return MAP_MENU_ACTION_DUMP_OVERBOARD;
-    }
-    if (strstr(label, "Disband Unit") != NULL) {
-      return MAP_MENU_ACTION_DISBAND;
-    }
-    return MAP_MENU_ACTION_UNIMPLEMENTED;
-  }
-
-  if (strcmp(section, "PEDIA") == 0) {
-    if (strcmp(label, "---") == 0 || strcmp(label, "-") == 0) {
-      return MAP_MENU_ACTION_SEPARATOR;
-    }
-    if (strcmp(label, "Cargo Types") == 0) {
-      return MAP_MENU_ACTION_PEDIA_CARGO;
-    }
-    if (strcmp(label, "Unit Types") == 0) {
-      return MAP_MENU_ACTION_PEDIA_UNIT;
-    }
-    if (strcmp(label, "Terrain Types") == 0) {
-      return MAP_MENU_ACTION_PEDIA_TERRAIN;
-    }
-    if (strcmp(label, "Colonist Skills") == 0) {
-      return MAP_MENU_ACTION_PEDIA_JOB;
-    }
-    if (strcmp(label, "Colony Buildings") == 0) {
-      return MAP_MENU_ACTION_PEDIA_BUILDING;
-    }
-    if (strcmp(label, "Founding Fathers") == 0) {
-      return MAP_MENU_ACTION_PEDIA_FATHER;
-    }
-    if (strcmp(label, "Miscellaneous") == 0) {
-      return MAP_MENU_ACTION_PEDIA_MISC;
-    }
-    return MAP_MENU_ACTION_UNIMPLEMENTED;
-  }
-
-  if (strcmp(section, "REPORTS") == 0) {
-    if (strstr(label, "Terrain Information")) {
-      return MAP_MENU_ACTION_REPORT_TERRAIN;
-    }
-    if (strstr(label, "Religious Adviser")) {
-      return MAP_MENU_ACTION_REPORT_RELIGIOUS;
-    }
-    if (strstr(label, "Continental Congress")) {
-      return MAP_MENU_ACTION_REPORT_CONGRESS;
-    }
-    if (strstr(label, "Labor Adviser")) {
-      return MAP_MENU_ACTION_REPORT_LABOR;
-    }
-    if (strstr(label, "Economic Adviser")) {
-      return MAP_MENU_ACTION_REPORT_ECONOMIC;
-    }
-    if (strstr(label, "Colony Adviser")) {
-      return MAP_MENU_ACTION_REPORT_COLONY;
-    }
-    if (strstr(label, "Naval Adviser")) {
-      return MAP_MENU_ACTION_REPORT_NAVAL;
-    }
-    if (strstr(label, "Foreign Affairs")) {
-      return MAP_MENU_ACTION_REPORT_FOREIGN;
-    }
-    if (strstr(label, "Indian Adviser")) {
-      return MAP_MENU_ACTION_REPORT_INDIAN;
-    }
-    if (strstr(label, "Colonization Score")) {
-      return MAP_MENU_ACTION_REPORT_SCORE;
-    }
-    return MAP_MENU_ACTION_UNIMPLEMENTED;
-  }
-
-  if (strcmp(section, "CUP") == 0) {
-    if (strstr(label, "Create Unit")) {
-      return MAP_MENU_ACTION_CHEAT_CREATE_UNIT;
-    }
-    if (strstr(label, "Debug Info Flags")) {
-      return MAP_MENU_ACTION_CHEAT_DEBUG_FLAGS;
-    }
-    if (strstr(label, "Reveal Map")) {
-      return MAP_MENU_ACTION_CHEAT_REVEAL_MAP;
-    }
-    if (strstr(label, "Set Human Player")) {
-      return MAP_MENU_ACTION_CHEAT_SET_HUMAN;
-    }
-    if (strstr(label, "Kill Indians")) {
-      return MAP_MENU_ACTION_CHEAT_KILL_INDIANS;
-    }
-    if (strstr(label, "Advance Revolution Status")) {
-      return MAP_MENU_ACTION_CHEAT_ADVANCE_REVOLUTION;
-    }
-    if (strstr(label, "Sound Test")) {
-      return MAP_MENU_ACTION_CHEAT_SOUND_TEST;
-    }
-    if (strstr(label, "Memory Check")) {
-      return MAP_MENU_ACTION_CHEAT_MEMORY_CHECK;
-    }
-    if (strstr(label, "Show Strategy")) {
-      return MAP_MENU_ACTION_CHEAT_SHOW_STRATEGY;
-    }
-    if (strstr(label, "Show Colony Sites")) {
-      return MAP_MENU_ACTION_CHEAT_SHOW_COLONY_SITES;
-    }
-    if (strstr(label, "Test Routine")) {
-      return MAP_MENU_ACTION_CHEAT_TEST_ROUTINE;
-    }
-    return MAP_MENU_ACTION_UNIMPLEMENTED;
-  }
-
+  /* The DEBUG pulldown is the port's own menu, so its labels are ours. */
   if (strcmp(section, "DEBUG") == 0) {
     if (strcmp(label, "Sprite Viewer") == 0) {
       return MAP_MENU_ACTION_DEBUG_SPRITE_VIEWER;
@@ -383,19 +226,6 @@ static MapMenuAction map_menu_classify(const char* section, const char* label) {
     }
     return MAP_MENU_ACTION_UNIMPLEMENTED;
   }
-
-  /* TRADE */
-  if (strcmp(label, "Create Trade Route") == 0) {
-    return MAP_MENU_ACTION_TRADE_CREATE;
-  }
-  if (strcmp(label, "Edit Trade Route") == 0) {
-    return MAP_MENU_ACTION_TRADE_EDIT;
-  }
-  if (strcmp(label, "Delete Trade Route") == 0) {
-    return MAP_MENU_ACTION_TRADE_DELETE;
-  }
-
-  /* TRADE — remaining screens / features not wired yet. */
   return MAP_MENU_ACTION_UNIMPLEMENTED;
 }
 
@@ -686,16 +516,7 @@ static bool map_menu_load_section(
     if (classify_label[0] == '\0') {
       continue;
     }
-    MapMenuAction action = map_menu_classify(section_name, classify_label);
-    /* MENU.TXT lists ~Fortify twice: land (0x302) then ship (0x303). */
-    if (strcmp(section_name, "ORDERS") == 0 && action == MAP_MENU_ACTION_FORTIFY) {
-      for (int j = 0; j < menu->item_count; ++j) {
-        if (menu->items[j].action == MAP_MENU_ACTION_FORTIFY) {
-          action = MAP_MENU_ACTION_ANCHOR;
-          break;
-        }
-      }
-    }
+    MapMenuAction action = map_menu_classify(section_name, i, classify_label);
     /* Skip MENU.TXT --- for PEDIA — DOS inserts the sep in FUN_74a4_0000. */
     if (action == MAP_MENU_ACTION_SEPARATOR) {
       continue;
@@ -1516,6 +1337,7 @@ void map_menu_render(
   }
 }
 
+/* Log-only: the port's own action ids, not MENU.TXT labels. */
 const char* map_menu_action_name(MapMenuAction action) {
   switch (action) {
     case MAP_MENU_ACTION_NONE:
@@ -1525,153 +1347,153 @@ const char* map_menu_action_name(MapMenuAction action) {
     case MAP_MENU_ACTION_UNIMPLEMENTED:
       return "unimplemented";
     case MAP_MENU_ACTION_SAVE:
-      return "Save Game";
+      return "save";
     case MAP_MENU_ACTION_LOAD:
-      return "Load Game";
+      return "load";
     case MAP_MENU_ACTION_DECLARE_INDEPENDENCE:
-      return "Declare Independence";
+      return "declare_independence";
     case MAP_MENU_ACTION_RETIRE:
-      return "Retire";
+      return "retire";
     case MAP_MENU_ACTION_EXIT:
-      return "Exit to DOS";
+      return "exit";
     case MAP_MENU_ACTION_PICK_MUSIC:
-      return "Pick Music";
+      return "pick_music";
     case MAP_MENU_ACTION_OPTIONS:
-      return "Options";
+      return "options";
     case MAP_MENU_ACTION_COLONY_OPTIONS:
-      return "Colony Report Options";
+      return "colony_options";
     case MAP_MENU_ACTION_SOUND_OPTIONS:
-      return "Sound Options";
+      return "sound_options";
     case MAP_MENU_ACTION_EUROPE:
-      return "European Status";
+      return "europe";
     case MAP_MENU_ACTION_FIND_COLONY:
-      return "Find Colony";
+      return "find_colony";
     case MAP_MENU_ACTION_ZOOM_IN:
-      return "Zoom In";
+      return "zoom_in";
     case MAP_MENU_ACTION_ZOOM_OUT:
-      return "Zoom Out";
+      return "zoom_out";
     case MAP_MENU_ACTION_ZOOM_LEVEL_120X96:
-      return "Zoom Level 120 x 96";
+      return "zoom_level_120x96";
     case MAP_MENU_ACTION_ZOOM_LEVEL_60X48:
-      return "Zoom Level 60 x 48";
+      return "zoom_level_60x48";
     case MAP_MENU_ACTION_ZOOM_LEVEL_30X24:
-      return "Zoom Level 30 x 24";
+      return "zoom_level_30x24";
     case MAP_MENU_ACTION_ZOOM_LEVEL_15X12:
-      return "Zoom Level 15 x 12";
+      return "zoom_level_15x12";
     case MAP_MENU_ACTION_CENTER_VIEW:
-      return "Center View";
+      return "center_view";
     case MAP_MENU_ACTION_VIEW_HIDDEN_TERRAIN:
-      return "Show Hidden Terrain";
+      return "view_hidden_terrain";
     case MAP_MENU_ACTION_ACTIVATE_UNIT:
-      return "Activate unit";
+      return "activate_unit";
     case MAP_MENU_ACTION_WAIT_UNIT:
-      return "Wait for next unit";
+      return "wait_unit";
     case MAP_MENU_ACTION_BUILD_COLONY:
-      return "Build Colony";
+      return "build_colony";
     case MAP_MENU_ACTION_JOIN_COLONY:
-      return "Join Colony";
+      return "join_colony";
     case MAP_MENU_ACTION_CLEAR_FOREST:
-      return "Clear Forest";
+      return "clear_forest";
     case MAP_MENU_ACTION_PLOW_FIELDS:
-      return "Plow Fields";
+      return "plow_fields";
     case MAP_MENU_ACTION_BUILD_ROAD:
-      return "Build Road";
+      return "build_road";
     case MAP_MENU_ACTION_LOAD_CARGO:
-      return "Load Cargo";
+      return "load_cargo";
     case MAP_MENU_ACTION_UNLOAD_CARGO:
-      return "Unload Cargo";
+      return "unload_cargo";
     case MAP_MENU_ACTION_PILLAGE:
-      return "Pillage";
+      return "pillage";
     case MAP_MENU_ACTION_GOTO_PORT:
-      return "Go to Port";
+      return "goto_port";
     case MAP_MENU_ACTION_GOTO_PLACE:
-      return "Go to Place";
+      return "goto_place";
     case MAP_MENU_ACTION_TRADE_ROUTE:
-      return "Begin Trade Route";
+      return "trade_route";
     case MAP_MENU_ACTION_TRADE_CREATE:
-      return "Create Trade Route";
+      return "trade_create";
     case MAP_MENU_ACTION_TRADE_EDIT:
-      return "Edit Trade Route";
+      return "trade_edit";
     case MAP_MENU_ACTION_TRADE_DELETE:
-      return "Delete Trade Route";
+      return "trade_delete";
     case MAP_MENU_ACTION_RETURN_EUROPE:
-      return "Return to Europe";
+      return "return_europe";
     case MAP_MENU_ACTION_FORTIFY:
-      return "Fortify";
+      return "fortify";
     case MAP_MENU_ACTION_ANCHOR:
-      return "Fortify"; /* ship row — same label in MENU.TXT */
+      return "anchor"; /* ship row — same label in MENU.TXT */
     case MAP_MENU_ACTION_SENTRY:
-      return "Sentry";
+      return "sentry";
     case MAP_MENU_ACTION_DISBAND:
-      return "Disband Unit";
+      return "disband";
     case MAP_MENU_ACTION_DUMP_OVERBOARD:
-      return "Dump Cargo Overboard";
+      return "dump_overboard";
     case MAP_MENU_ACTION_NO_ORDERS:
-      return "No Orders";
+      return "no_orders";
     case MAP_MENU_ACTION_PEDIA_CARGO:
-      return "Cargo Types";
+      return "pedia_cargo";
     case MAP_MENU_ACTION_PEDIA_UNIT:
-      return "Unit Types";
+      return "pedia_unit";
     case MAP_MENU_ACTION_PEDIA_TERRAIN:
-      return "Terrain Types";
+      return "pedia_terrain";
     case MAP_MENU_ACTION_PEDIA_JOB:
-      return "Colonist Skills";
+      return "pedia_job";
     case MAP_MENU_ACTION_PEDIA_BUILDING:
-      return "Colony Buildings";
+      return "pedia_building";
     case MAP_MENU_ACTION_PEDIA_FATHER:
-      return "Founding Fathers";
+      return "pedia_father";
     case MAP_MENU_ACTION_PEDIA_MISC:
-      return "Miscellaneous";
+      return "pedia_misc";
     case MAP_MENU_ACTION_REPORT_TERRAIN:
-      return "Terrain Information";
+      return "report_terrain";
     case MAP_MENU_ACTION_REPORT_RELIGIOUS:
-      return "Religious Adviser";
+      return "report_religious";
     case MAP_MENU_ACTION_REPORT_CONGRESS:
-      return "Continental Congress";
+      return "report_congress";
     case MAP_MENU_ACTION_REPORT_LABOR:
-      return "Labor Adviser";
+      return "report_labor";
     case MAP_MENU_ACTION_REPORT_ECONOMIC:
-      return "Economic Adviser";
+      return "report_economic";
     case MAP_MENU_ACTION_REPORT_COLONY:
-      return "Colony Adviser";
+      return "report_colony";
     case MAP_MENU_ACTION_REPORT_NAVAL:
-      return "Naval Adviser";
+      return "report_naval";
     case MAP_MENU_ACTION_REPORT_FOREIGN:
-      return "Foreign Affairs Advisor";
+      return "report_foreign";
     case MAP_MENU_ACTION_REPORT_INDIAN:
-      return "Indian Adviser";
+      return "report_indian";
     case MAP_MENU_ACTION_REPORT_SCORE:
-      return "Colonization Score";
+      return "report_score";
     case MAP_MENU_ACTION_CHEAT_CREATE_UNIT:
-      return "Create Unit";
+      return "cheat_create_unit";
     case MAP_MENU_ACTION_CHEAT_DEBUG_FLAGS:
-      return "Debug Info Flags";
+      return "cheat_debug_flags";
     case MAP_MENU_ACTION_CHEAT_REVEAL_MAP:
-      return "Reveal Map";
+      return "cheat_reveal_map";
     case MAP_MENU_ACTION_CHEAT_SET_HUMAN:
-      return "Set Human Player";
+      return "cheat_set_human";
     case MAP_MENU_ACTION_CHEAT_KILL_INDIANS:
-      return "Kill Indians";
+      return "cheat_kill_indians";
     case MAP_MENU_ACTION_CHEAT_ADVANCE_REVOLUTION:
-      return "Advance Revolution Status";
+      return "cheat_advance_revolution";
     case MAP_MENU_ACTION_CHEAT_SOUND_TEST:
-      return "Sound Test";
+      return "cheat_sound_test";
     case MAP_MENU_ACTION_CHEAT_MEMORY_CHECK:
-      return "Memory Check";
+      return "cheat_memory_check";
     case MAP_MENU_ACTION_CHEAT_SHOW_STRATEGY:
-      return "Show Strategy";
+      return "cheat_show_strategy";
     case MAP_MENU_ACTION_CHEAT_SHOW_COLONY_SITES:
-      return "Show Colony Sites";
+      return "cheat_show_colony_sites";
     case MAP_MENU_ACTION_CHEAT_TEST_ROUTINE:
-      return "Test Routine";
+      return "cheat_test_routine";
     case MAP_MENU_ACTION_DEBUG_SPRITE_VIEWER:
-      return "Sprite Viewer";
+      return "debug_sprite_viewer";
     case MAP_MENU_ACTION_DEBUG_TOGGLE_MOUSE_COORDS:
-      return "Show Mouse Coords";
+      return "debug_toggle_mouse_coords";
     case MAP_MENU_ACTION_DEBUG_BUILDING_RECTS:
-      return "Building Rects";
+      return "debug_building_rects";
     case MAP_MENU_ACTION_DEBUG_LOGS:
-      return "Debug Logs";
+      return "debug_logs";
     default:
       return "unknown";
   }

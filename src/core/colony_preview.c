@@ -122,7 +122,7 @@ void colony_preview_compute_w(
                              * colony_craft_preview below, which memsets
                              * out->shortfall at its own start. */
   {
-    const bool has_stable = colonies_has_building_name_contains(pool, colony, "Stable");
+    const bool has_stable = colonies_has_building_name_contains(pool, colony, "");
     const int warehouse_cap =
       colonies_warehouse_capacity(pool, colony, COLONIZE_CARGO_HORSES);
     const ColonyProdHorseBreed breed = colony_prod_horse_breed(

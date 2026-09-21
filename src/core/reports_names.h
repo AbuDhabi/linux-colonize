@@ -27,6 +27,5 @@ const char* reports_nation_adjective(int nation);
 const char* reports_tribe_level(uint8_t tech);
 
 extern const int k_job_count;
-extern const char* const k_euro_country[];
 
 #endif /* COLONIZE_CORE_REPORTS_NAMES_H */

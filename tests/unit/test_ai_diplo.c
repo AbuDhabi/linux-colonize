@@ -59,6 +59,28 @@
    AI_DIPLO_SMOKE_COATS_BIT | AI_DIPLO_SMOKE_TRADE_GOODS_BIT | AI_DIPLO_SMOKE_TOOLS_BIT | \
    AI_DIPLO_SMOKE_MUSKETS_BIT)
 
+#include "../common/test_catalogs.h"
+#include "core/popup_msg.h"
+#include "core/reports.h"
+
+/* Expected status text for a nation pair, built from the same GAME.TXT
+ * section and NAMES.TXT adjectives the code reads — never typed in here. */
+static const char* diplo_pair_text(const char* section, int nation_a, int nation_b) {
+  static char buf[4][256];
+  static int next = 0;
+  char* out = buf[next];
+  next = (next + 1) % 4;
+  char a[32], b[32];
+  snprintf(a, sizeof(a), "%s", reports_nation_adjective_display_name(nation_a));
+  snprintf(b, sizeof(b), "%s", reports_nation_adjective_display_name(nation_b));
+  PopupMsgTokens tok = {0};
+  tok.string0 = a;
+  tok.string1 = b;
+  popup_msg_fill(test_game_txt(), section, &tok, "", out, sizeof(buf[0]));
+  popup_msg_strip_markup(out);
+  return out;
+}
+
 static int fail(const char* msg) {
   fprintf(stderr, "unit_ai_diplo: FAIL %s\n", msg);
   return 1;
@@ -249,6 +271,7 @@ static int case_declare_peace_narrative(void) {
     status_up[0] = '\0';
     ColonizeTurnContext ctx_up;
     memset(&ctx_up, 0, sizeof(ctx_up));
+    ctx_up.messages = test_game_txt();
     ctx_up.col1 = &col1;
     ctx_up.col1_ok = true;
     ctx_up.rng = &rng_up;
@@ -332,6 +355,7 @@ static int case_declare_peace_narrative(void) {
     uint32_t turn_h = 2;
     ColonizeTurnContext ctx_h;
     memset(&ctx_h, 0, sizeof(ctx_h));
+    ctx_h.messages = test_game_txt();
     ctx_h.col1 = &col1;
     ctx_h.col1_ok = true;
     ctx_h.rng = &rng_h;
@@ -421,6 +445,7 @@ static int case_declare_peace_narrative(void) {
     uint32_t turn_pr = 4;
     ColonizeTurnContext ctx_pr;
     memset(&ctx_pr, 0, sizeof(ctx_pr));
+    ctx_pr.messages = test_game_txt();
     ctx_pr.col1 = &col1;
     ctx_pr.col1_ok = true;
     ctx_pr.rng = &rng_pr;
@@ -494,6 +519,7 @@ static int case_declare_peace_narrative(void) {
     uint32_t turn = 1;
     ColonizeTurnContext ctx;
     memset(&ctx, 0, sizeof(ctx));
+    ctx.messages = test_game_txt();
     ctx.col1 = &col1;
     ctx.col1_ok = true;
     ctx.rng = &rng;
@@ -525,6 +551,7 @@ static int case_declare_peace_narrative(void) {
     uint32_t turn_d = 2;
     ColonizeTurnContext ctx_d;
     memset(&ctx_d, 0, sizeof(ctx_d));
+    ctx_d.messages = test_game_txt();
     ctx_d.col1 = &col1;
     ctx_d.col1_ok = true;
     ctx_d.rng = &rng_d;
@@ -562,6 +589,7 @@ static int case_declare_peace_narrative(void) {
     uint32_t turn_f = 6;
     ColonizeTurnContext ctx_f;
     memset(&ctx_f, 0, sizeof(ctx_f));
+    ctx_f.messages = test_game_txt();
     ctx_f.col1 = &col1;
     ctx_f.col1_ok = true;
     ctx_f.rng = &rng_f;
@@ -766,6 +794,7 @@ static int case_indian_sticky_status_chrome(void) {
     uint32_t turn_st = 7;
     ColonizeTurnContext ctx_st;
     memset(&ctx_st, 0, sizeof(ctx_st));
+    ctx_st.messages = test_game_txt();
     ctx_st.col1 = &st;
     ctx_st.col1_ok = true;
     ctx_st.rng = &rng_st;
@@ -914,6 +943,7 @@ static int case_trade_deepen_military_score(void) {
     sc.nation[0].gold = 100; /* must NOT reach the score any more */
     ColonizeTurnContext ctx;
     memset(&ctx, 0, sizeof(ctx));
+    ctx.messages = test_game_txt();
     ctx.units = &units;
     ctx.colonies = &colonies;
     ctx.col1 = &sc;
@@ -978,6 +1008,7 @@ static int case_war_peace_status_chrome(void) {
     status[0] = '\0';
     ColonizeTurnContext ctx_st;
     memset(&ctx_st, 0, sizeof(ctx_st));
+    ctx_st.messages = test_game_txt();
     ctx_st.col1 = &st;
     ctx_st.col1_ok = true;
     ctx_st.human_nation = 0;
@@ -988,7 +1019,7 @@ static int case_war_peace_status_chrome(void) {
     if (!ai_diplo_at_war(&st, 0, 1)) {
       return fail("declare_war_ctx should set WAR");
     }
-    if (strcmp(status, "The French and English are now at war.") != 0) {
+    if (strcmp(status, diplo_pair_text("DECLAREWAR", 1, 0)) != 0) {
       fprintf(stderr, "unit_ai_diplo: war status '%s'\n", status);
       return fail("declare_war_ctx should use @DECLAREWAR line (no wartime boycott)");
     }
@@ -1003,7 +1034,7 @@ static int case_war_peace_status_chrome(void) {
     if (ai_diplo_at_war(&st, 0, 1)) {
       return fail("make_peace_ctx should clear WAR");
     }
-    if (strcmp(status, "The English and French have signed a peace treaty.") != 0) {
+    if (strcmp(status, diplo_pair_text("SIGNTREATY", 0, 1)) != 0) {
       fprintf(stderr, "unit_ai_diplo: peace status '%s'\n", status);
       return fail("make_peace_ctx should use @SIGNTREATY when no Tools embargo");
     }
@@ -1027,7 +1058,7 @@ static int case_war_peace_status_chrome(void) {
     if ((st.nation[0].boycott_bitmap & AI_DIPLO_SMOKE_FOOD_BIT) != 0) {
       return fail("declare_war_ctx must not OR Food onto existing king boycotts");
     }
-    if (strcmp(status, "The English and Spanish are now at war.") != 0) {
+    if (strcmp(status, diplo_pair_text("DECLAREWAR", 0, 2)) != 0) {
       fprintf(stderr, "unit_ai_diplo: first-cargo status '%s'\n", status);
       return fail("declare_war_ctx should use war line when no new boycott bits");
     }
@@ -1044,7 +1075,7 @@ static int case_war_peace_status_chrome(void) {
     st.nation[0].boycott_bitmap = (uint16_t)AI_DIPLO_SMOKE_WARTIME_MASK;
     status[0] = '\0';
     ai_diplo_declare_war_ctx(&ctx_st, 0, 2);
-    if (strcmp(status, "The English and Spanish are now at war.") != 0) {
+    if (strcmp(status, diplo_pair_text("DECLAREWAR", 0, 2)) != 0) {
       fprintf(stderr, "unit_ai_diplo: rival status '%s'\n", status);
       return fail("declare_war_ctx should fall back to @DECLAREWAR war line when full wartime mask set");
     }
@@ -1075,7 +1106,7 @@ static int case_war_peace_status_chrome(void) {
       ctx_st.messages = NULL;
       assets_msg_free(&game_txt);
     }
-    if (strcmp(status, "The English and Spanish are now at war.") != 0) {
+    if (strcmp(status, diplo_pair_text("DECLAREWAR", 0, 2)) != 0) {
       fprintf(stderr, "unit_ai_diplo: named war status '%s'\n", status);
       return fail("declare_war_ctx should render authentic @DECLAREWAR with both country names");
     }
@@ -1176,6 +1207,7 @@ static int case_sticky_pressure_relation_read(void) {
     uint32_t turn_sp = 11;
     ColonizeTurnContext ctx_sp;
     memset(&ctx_sp, 0, sizeof(ctx_sp));
+    ctx_sp.messages = test_game_txt();
     ctx_sp.col1 = &sp;
     ctx_sp.col1_ok = true;
     ctx_sp.rng = &rng_sp;
@@ -1290,6 +1322,7 @@ static int case_r2_war_fatigue_tools(void) {
     status_wf[0] = '\0';
     ColonizeTurnContext ctx_wf;
     memset(&ctx_wf, 0, sizeof(ctx_wf));
+    ctx_wf.messages = test_game_txt();
     ctx_wf.col1 = &wf;
     ctx_wf.col1_ok = true;
     ctx_wf.units = &units_wf;
@@ -1334,7 +1367,7 @@ static int case_r2_war_fatigue_tools(void) {
       }
       if (!ai_diplo_at_war(&wf, 0, 1)) {
         peaced = 1;
-        if (strcmp(status_wf, "The English and French have signed a peace treaty.") != 0) {
+        if (strcmp(status_wf, diplo_pair_text("SIGNTREATY", 0, 1)) != 0) {
           fprintf(stderr, "unit_ai_diplo: war-fatigue status '%s'\n", status_wf);
           return fail("war-fatigue make_peace_ctx should status @SIGNTREATY for human");
         }
@@ -1378,6 +1411,7 @@ static int case_r2_war_fatigue_tools(void) {
       uint32_t turn_peer = 2;
       ColonizeTurnContext ctx_peer;
       memset(&ctx_peer, 0, sizeof(ctx_peer));
+      ctx_peer.messages = test_game_txt();
       ctx_peer.col1 = &wf2;
       ctx_peer.col1_ok = true;
       ctx_peer.units = &units_wf2;
@@ -1410,7 +1444,7 @@ static int case_r2_war_fatigue_tools(void) {
         }
         if (!ai_diplo_at_war(&wf2, 0, 1)) {
           peaced_peer = 1;
-          if (strcmp(status_peer, "The French and English have signed a peace treaty.") != 0) {
+          if (strcmp(status_peer, diplo_pair_text("SIGNTREATY", 1, 0)) != 0) {
             fprintf(stderr, "unit_ai_diplo: war-fatigue peer status '%s'\n",
                     status_peer);
             return fail("war-fatigue make_peace_ctx should status @SIGNTREATY when human is peer");
@@ -1426,7 +1460,7 @@ static int case_r2_war_fatigue_tools(void) {
       wf2.nation[0].boycott_bitmap = 0;
       wf2.nation[1].boycott_bitmap = 0;
       ai_diplo_make_peace_ctx(&ctx_peer, 1, 0);
-      if (strcmp(status_peer, "The French and English have signed a peace treaty.") != 0) {
+      if (strcmp(status_peer, diplo_pair_text("SIGNTREATY", 1, 0)) != 0) {
         fprintf(stderr, "unit_ai_diplo: Peace concluded status '%s'\n", status_peer);
         return fail("make_peace_ctx should status @SIGNTREATY when Tools already clear");
       }
@@ -1455,6 +1489,7 @@ static int case_r2_war_fatigue_tools(void) {
     status[0] = '\0';
     ColonizeTurnContext ctx_ts;
     memset(&ctx_ts, 0, sizeof(ctx_ts));
+    ctx_ts.messages = test_game_txt();
     ctx_ts.col1 = &ts;
     ctx_ts.col1_ok = true;
     ctx_ts.human_nation = 0;
@@ -1465,7 +1500,7 @@ static int case_r2_war_fatigue_tools(void) {
       free(ts.colony);
       return fail("Tools status setup: colony-gap must not set Tools bit");
     }
-    if (strcmp(status, "The English and French are now at war.") != 0) {
+    if (strcmp(status, diplo_pair_text("DECLAREWAR", 0, 1)) != 0) {
       fprintf(stderr, "unit_ai_diplo: Tools set status '%s'\n", status);
       free(ts.colony);
       return fail("declare_war_ctx should use war line (no wartime boycott)");
@@ -1475,7 +1510,7 @@ static int case_r2_war_fatigue_tools(void) {
       free(ts.colony);
       return fail("make_peace_ctx should leave Tools bit clear");
     }
-    if (strcmp(status, "The English and French have signed a peace treaty.") != 0) {
+    if (strcmp(status, diplo_pair_text("SIGNTREATY", 0, 1)) != 0) {
       fprintf(stderr, "unit_ai_diplo: Tools lift status '%s'\n", status);
       free(ts.colony);
       return fail("make_peace_ctx should status @SIGNTREATY when Tools never set");
@@ -1525,6 +1560,7 @@ static int case_r3_r4_sugar_rum_cigars_boycott(void) {
     uint32_t turn_r3 = 7;
     ColonizeTurnContext ctx_r3;
     memset(&ctx_r3, 0, sizeof(ctx_r3));
+    ctx_r3.messages = test_game_txt();
     ctx_r3.col1 = &r3;
     ctx_r3.col1_ok = true;
     ctx_r3.rng = &rng_r3;
@@ -1655,6 +1691,7 @@ static int case_r3_r4_sugar_rum_cigars_boycott(void) {
     status_st[0] = '\0';
     ColonizeTurnContext ctx_st;
     memset(&ctx_st, 0, sizeof(ctx_st));
+    ctx_st.messages = test_game_txt();
     ctx_st.col1 = &st;
     ctx_st.col1_ok = true;
     ctx_st.human_nation = 0;
@@ -1664,7 +1701,7 @@ static int case_r3_r4_sugar_rum_cigars_boycott(void) {
     if ((st.nation[0].boycott_bitmap & AI_DIPLO_SMOKE_TOOLS_BIT) != 0) {
       return fail("declare_war must not OR Tools boycott");
     }
-    if (strcmp(status_st, "The English and French are now at war.") != 0) {
+    if (strcmp(status_st, diplo_pair_text("DECLAREWAR", 0, 1)) != 0) {
       fprintf(stderr, "unit_ai_diplo: Sugar/Tobacco/Tools status '%s'\n", status_st);
       return fail("declare_war_ctx should use war line (no wartime boycott)");
     }
@@ -1740,6 +1777,7 @@ static int case_r8_lumber_boycott_privateer(void) {
       uint32_t turn_pr = 9;
       ColonizeTurnContext ctx_pr;
       memset(&ctx_pr, 0, sizeof(ctx_pr));
+      ctx_pr.messages = test_game_txt();
       ctx_pr.col1 = &pr;
       ctx_pr.col1_ok = true;
       ctx_pr.rng = &rng_pr;
@@ -1783,6 +1821,7 @@ static int case_r8_lumber_boycott_privateer(void) {
       uint32_t turn_fl = 12;
       ColonizeTurnContext ctx_fl;
       memset(&ctx_fl, 0, sizeof(ctx_fl));
+      ctx_fl.messages = test_game_txt();
       ctx_fl.col1 = &fl;
       ctx_fl.col1_ok = true;
       ctx_fl.rng = &rng_fl;
@@ -1868,6 +1907,7 @@ static int case_declare_war_popup_unpark(void) {
     ai_popup_init(&popups);
     ColonizeTurnContext ctx_pop;
     memset(&ctx_pop, 0, sizeof(ctx_pop));
+    ctx_pop.messages = test_game_txt();
     ctx_pop.col1 = &pop;
     ctx_pop.col1_ok = true;
     ctx_pop.human_nation = 0;
@@ -1879,7 +1919,7 @@ static int case_declare_war_popup_unpark(void) {
     if (!ai_diplo_at_war(&pop, 0, 1)) {
       return fail("popup smoke: declare_war_ctx should set WAR");
     }
-    if (strcmp(status_pop, "The French and English are now at war.") != 0) {
+    if (strcmp(status_pop, diplo_pair_text("DECLAREWAR", 1, 0)) != 0) {
       fprintf(stderr, "unit_ai_diplo: popup war status '%s'\n", status_pop);
       return fail("popup smoke: status line is @DECLAREWAR (no wartime boycott)");
     }
@@ -1936,6 +1976,7 @@ static int case_declare_war_popup_unpark(void) {
       ai_popup_init(&pop_w2);
       ColonizeTurnContext ctx_w2;
       memset(&ctx_w2, 0, sizeof(ctx_w2));
+      ctx_w2.messages = test_game_txt();
       ctx_w2.col1 = &w2;
       ctx_w2.col1_ok = true;
       ctx_w2.human_nation = 0;
@@ -2091,6 +2132,7 @@ static int case_declare_war_popup_unpark(void) {
         ai_popup_init(&pop_pr3);
         ColonizeTurnContext ctx_pr3;
         memset(&ctx_pr3, 0, sizeof(ctx_pr3));
+        ctx_pr3.messages = test_game_txt();
         ctx_pr3.col1 = &pr;
         ctx_pr3.col1_ok = true;
         ctx_pr3.rng = &rng_pr3;
@@ -2187,6 +2229,7 @@ static int case_marathon2_privateer_spawn(void) {
     ai_popup_init(&pop);
     ColonizeTurnContext ctx;
     memset(&ctx, 0, sizeof(ctx));
+    ctx.messages = test_game_txt();
     ctx.col1 = &pr;
     ctx.col1_ok = true;
     ctx.units = &units;
@@ -2367,6 +2410,7 @@ static int case_marathon2_ai_declare_choice(void) {
     ai_popup_init(&pop_w3);
     ColonizeTurnContext ctx_w3;
     memset(&ctx_w3, 0, sizeof(ctx_w3));
+    ctx_w3.messages = test_game_txt();
     ctx_w3.col1 = &w3;
     ctx_w3.col1_ok = true;
     ctx_w3.human_nation = 0;
@@ -2501,6 +2545,7 @@ static int case_cancelpeace_authentic_prompt(void) {
     dos_rng_seed(&rng_cp, 99);
     ColonizeTurnContext ctx_cp;
     memset(&ctx_cp, 0, sizeof(ctx_cp));
+    ctx_cp.messages = test_game_txt();
     ctx_cp.col1 = &cp;
     ctx_cp.col1_ok = true;
     ctx_cp.units = &units_cp;
@@ -2561,6 +2606,7 @@ static int case_marathon2_sticky_deepen_popup(void) {
     uint32_t turn_ns = 13;
     ColonizeTurnContext ctx_ns;
     memset(&ctx_ns, 0, sizeof(ctx_ns));
+    ctx_ns.messages = test_game_txt();
     ctx_ns.col1 = &ns;
     ctx_ns.col1_ok = true;
     ctx_ns.rng = &rng_ns;
@@ -2697,6 +2743,7 @@ static int case_marathon3_franklin_peace_gate(void) {
     status_e[0] = '\0';
     ColonizeTurnContext ctx_e;
     memset(&ctx_e, 0, sizeof(ctx_e));
+    ctx_e.messages = test_game_txt();
     ctx_e.col1 = &fr3;
     ctx_e.col1_ok = true;
     ctx_e.turn_number = &turn_e;
@@ -2847,6 +2894,7 @@ static int case_153e_phase1_border_probe(void) {
     w.nation[1].euro_relation[0] = AI_DIPLO_MET;
     ColonizeTurnContext wctx;
     memset(&wctx, 0, sizeof(wctx));
+    wctx.messages = test_game_txt();
     wctx.col1 = &w;
     wctx.col1_ok = true;
     wctx.map = &wmap;
@@ -2932,6 +2980,7 @@ static int case_153e_phases_2_4_encounter(void) {
     dos_rng_seed(&erng, 5);
     ColonizeTurnContext ectx;
     memset(&ectx, 0, sizeof(ectx));
+    ectx.messages = test_game_txt();
     ectx.col1 = &e;
     ectx.col1_ok = true;
     ectx.map = &emap;
@@ -3097,6 +3146,7 @@ static int case_153e_wantstuff_demand(void) {
     dos_rng_seed(&qrng, 7);
     ColonizeTurnContext qctx;
     memset(&qctx, 0, sizeof(qctx));
+    qctx.messages = test_game_txt();
     qctx.col1 = &q;
     qctx.col1_ok = true;
     qctx.map = &qmap;
@@ -3125,7 +3175,7 @@ static int case_153e_wantstuff_demand(void) {
         continue;
       }
       /* WANTSTUFF: accept (choice 2). Everything else: option 1. */
-      const int is_want = strstr(front.body, "reparations") != NULL;
+      const int is_want = test_body_is_section(front.body, "WANTSTUFF");
       if (is_want && !saw_wantstuff) {
         saw_wantstuff = 1;
       }
@@ -3235,6 +3285,7 @@ static int case_153e_worthy_cascade(void) {
     dos_rng_seed(&rrng, 7);
     ColonizeTurnContext rctx;
     memset(&rctx, 0, sizeof(rctx));
+    rctx.messages = test_game_txt();
     rctx.col1 = &r;
     rctx.col1_ok = true;
     rctx.map = &rmap;
@@ -3256,10 +3307,10 @@ static int case_153e_worthy_cascade(void) {
       AiPopupRequest front = rpop.queue[0];
       memmove(&rpop.queue[0], &rpop.queue[1], sizeof(rpop.queue[0]) * (size_t)(rpop.queue_count - 1));
       rpop.queue_count--;
-      if (strstr(front.body, "drive you into the sea")) {
+      if (test_body_is_section(front.body, "RID")) {
         saw_rid = 1;
       }
-      if (strstr(front.body, "wipe you from the face")) {
+      if (test_body_is_section(front.body, "WARMANLY")) {
         saw_warmanly_run1 = 1;
       }
       if (front.kind != AI_POPUP_KIND_CHOICE) {
@@ -3311,13 +3362,13 @@ static int case_153e_worthy_cascade(void) {
       AiPopupRequest front = rpop.queue[0];
       memmove(&rpop.queue[0], &rpop.queue[1], sizeof(rpop.queue[0]) * (size_t)(rpop.queue_count - 1));
       rpop.queue_count--;
-      if (strstr(front.body, "donation of")) {
+      if (test_body_is_section(front.body, "TRIBUTE")) {
         saw_tribute = 1;
       }
-      if (strstr(front.body, "wipe you from the face")) {
+      if (test_body_is_section(front.body, "WARMANLY")) {
         saw_warmanly = 1;
       }
-      if (strstr(front.body, "drive you into the sea")) {
+      if (test_body_is_section(front.body, "RID")) {
         saw_rid_run2 = 1;
       }
       if (front.kind != AI_POPUP_KIND_CHOICE) {

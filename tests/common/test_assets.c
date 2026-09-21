@@ -35,108 +35,114 @@ bool test_assets_write_palette(const char* path) {
   return ok;
 }
 
+/* Option rows follow GAME.TXT @BEGINMENU's own order, because the title menu
+ * dispatches by ROW: new world / america / customize / load / hall (/ exit). */
 static const char k_menu_min[] =
   "@BEGINMENU\r\n"
   "@width=160\r\n"
-  "{COLONIZATION} Version %STRING0\r\n"
+  "{TEST} Version %STRING0\r\n"
   "@options\r\n"
-  "Start a Game in NEW WORLD\r\n"
-  "LOAD Game\r\n"
-  "Exit to DOS\r\n";
+  "Menu Option New\r\n"
+  "Menu Option America\r\n"
+  "Menu Option Customize\r\n"
+  "Menu Option Load\r\n"
+  "Menu Option Hall\r\n"
+  "Menu Option Exit\r\n";
 
 static const char k_menu_full[] =
   "@BEGINMENU\r\n"
   "@width=160\r\n"
-  "{COLONIZATION} Version test\r\n"
+  "{TEST} Version test\r\n"
   "@options\r\n"
-  "Start a Game in NEW WORLD\r\n"
-  "Start a Game in AMERICA\r\n"
-  "LOAD Game\r\n"
-  "View Hall of Fame\r\n"
-  "Exit to DOS\r\n";
+  "Menu Option New\r\n"
+  "Menu Option America\r\n"
+  "Menu Option Customize\r\n"
+  "Menu Option Load\r\n"
+  "Menu Option Hall\r\n"
+  "Menu Option Exit\r\n";
 
 static const char k_wizard_pages[] =
   "\r\n"
   "@AMERICA\r\n"
   "@width=160\r\n"
-  "Would you like to use the original Americas map, or\r\n"
-  "a map prepared with the map editor?\r\n"
-  "Original Americas\r\n"
-  "Map Editor\r\n"
+  "Synthetic map question line one\r\n"
+  "synthetic question line two?\r\n"
+  "Map Option One\r\n"
+  "Map Option Two\r\n"
   "\r\n"
   "@DIFFICULTY\r\n"
   "@width=190\r\n"
-  "Select a Difficulty Level\r\n"
-  "Discoverer\r\n"
-  "Explorer\r\n"
-  "Conquistador\r\n"
-  "Governor\r\n"
-  "Viceroy\r\n"
+  "Synthetic Difficulty Prompt\r\n"
+  "Level One\r\n"
+  "Level Two\r\n"
+  "Level Three\r\n"
+  "Level Four\r\n"
+  "Level Five\r\n"
   "\r\n"
   "@PICKNATION\r\n"
   "@default=1\r\n"
-  "Select a European Power\r\n"
-  "England\r\n"
-  "France\r\n"
-  "Spain\r\n"
-  "Netherlands\r\n"
+  "Synthetic Nation Prompt\r\n"
+  "Nation One\r\n"
+  "Nation Two\r\n"
+  "Nation Three\r\n"
+  "Nation Four\r\n"
   "\r\n"
   "@LEADERNAME\r\n"
   "@width=300\r\n"
-  "Please Enter Your Name.\r\n"
+  "Synthetic Name Prompt\r\n"
   "@options\r\n"
   "______________________\r\n"
   "\r\n"
   "@NATION1A\r\n"
   "@width=300\r\n"
-  "FRANCE\r\n"
+  "NATION TWO\r\n"
   "History page A.\r\n"
   "\r\n"
   "@NATION1B\r\n"
   "@width=300\r\n"
-  "FRANCE\r\n"
+  "NATION TWO\r\n"
   "Bonus page B.\r\n"
   "\r\n"
   "@VICEROY\r\n"
   "@width=78\r\n"
   "@x=232\r\n"
   "@y=21\r\n"
-  "An Audience With\r\n"
-  "The King of %COUNTRY\r\n"
+  "Synthetic Audience Line\r\n"
+  "Synthetic Ruler Of %COUNTRY\r\n"
   "\r\n"
   "@BUILD1\r\n"
   "@width=310\r\n"
   "@y=30\r\n"
-  "In the Year of Our Lord\r\n"
+  "Synthetic Year Line\r\n"
   "\r\n"
   "@BUILD2\r\n"
   "@y=30\r\n"
-  "led by %STRING0, %STRING1\r\n";
+  "synthetic leader %STRING0, %STRING1\r\n";
 
 static const char k_names_min[] =
   "@LEADERNAME\r\n"
-  "Walter Raleigh, 1, -1, 0\r\n"
+  "Leader One, 1, -1, 0\r\n"
   "\r\n"
   "@SCENARIO\r\n"
   "AMER2, 34, 20, 39, 10, 47, 61, 50, 33\r\n"
   "\r\n"
   "@UNIT\r\n"
-  "Colonists, 0, 0, 0, 0, 0, 0, 0, 0\r\n";
+  "Unit Row Zero, 0, 0, 0, 0, 0, 0, 0, 0\r\n";
 
 static const char k_names_full[] =
   "@LEADERNAME\r\n"
-  "Walter Raleigh, 1, -1, 0\r\n"
-  "Jacques Cartier, 0, 1, 0\r\n"
-  "Christopher Columbus, 1, 0, -1\r\n"
-  "Michiel De Ruyter, -1, 0, 1\r\n"
+  "Leader One, 1, -1, 0\r\n"
+  "Leader Two, 0, 1, 0\r\n"
+  "Leader Three, 1, 0, -1\r\n"
+  "Leader Four, -1, 0, 1\r\n"
   "\r\n"
   "@SCENARIO\r\n"
   "AMER2, 34, 20, 39, 10, 47, 61, 50, 33\r\n"
   "\r\n"
   "@UNIT\r\n"
-  "Colonists, 0, 0, 0, 0, 0, 0, 0, 0\r\n"
-  "Pioneers, 0, 0, 0, 0, 0, 0, 0, 0\r\n"
-  "Caravel, 0, 0, 0, 0, 0, 0, 0, 0\r\n";
+  "Unit Row Zero, 0, 0, 0, 0, 0, 0, 0, 0\r\n"
+  "Unit Row One, 0, 0, 0, 0, 0, 0, 0, 0\r\n"
+  "Unit Row Two, 0, 0, 0, 0, 0, 0, 0, 0\r\n";
 
 bool test_assets_create(const char* dir, unsigned flags) {
   char path[512];
@@ -151,7 +157,7 @@ bool test_assets_create(const char* dir, unsigned flags) {
   snprintf(path, sizeof(path), "%s/ERRORS.DB", dir);
   if (!test_assets_write_text_file(path, "SeriesListFull\r\n")) return false;
   snprintf(path, sizeof(path), "%s/MENU.TXT", dir);
-  if (!test_assets_write_text_file(path, "@GAME\r\n~GAME\r\n  Exit\r\n")) return false;
+  if (!test_assets_write_text_file(path, "@GAME\r\n~GAME\r\n  Menu Option Exit\r\n")) return false;
 
   snprintf(
     game_txt, sizeof(game_txt), "%s%s",
@@ -169,6 +175,27 @@ bool test_assets_create(const char* dir, unsigned flags) {
       return false;
     }
   }
+
+  /*
+   * The port compiles none of the game's wording, so every text catalog is a
+   * required asset (assets_validate_required_files). Tests that build their
+   * own tree must therefore provide all of them; the content here is
+   * deliberately synthetic, never the shipped MicroProse text.
+   */
+  if (!(flags & (TEST_ASSETS_NAMES | TEST_ASSETS_NAMES_FULL))) {
+    snprintf(path, sizeof(path), "%s/NAMES.TXT", dir);
+    if (!test_assets_write_text_file(path, k_names_min)) return false;
+  }
+  snprintf(path, sizeof(path), "%s/LABELS.TXT", dir);
+  if (!test_assets_write_text_file(path, "@MISC\r\nSynthetic Label\r\n")) return false;
+  snprintf(path, sizeof(path), "%s/PEDIA.TXT", dir);
+  if (!test_assets_write_text_file(path, "@MISCELLANEOUS\r\n1\r\nSynthetic Topic\r\n")) {
+    return false;
+  }
+  snprintf(path, sizeof(path), "%s/COLONY.TXT", dir);
+  if (!test_assets_write_text_file(path, "@ENGLISH\r\nSynthetic Colony\r\n")) return false;
+  snprintf(path, sizeof(path), "%s/DEBUG.TXT", dir);
+  if (!test_assets_write_text_file(path, "@SETVIEW\r\nSynthetic Cheat Prompt\r\n")) return false;
 
   snprintf(path, sizeof(path), "%s/VICEROY.PAL", dir);
   if (!test_assets_write_palette(path)) return false;

@@ -181,12 +181,12 @@ static void combat_analysis_fill_mods(
   }
   if (flags->flags & COMBAT_FLAG_VETERAN) {
     /* LABELS.TXT @MISC row 65 "Veteran". */
-    combat_analysis_push_row(rows, count, reports_misc_display_word(65, "Veteran"), 50);
+    combat_analysis_push_row(rows, count, reports_misc_display_word(65, ""), 50);
   }
   if (flags->flags & COMBAT_FLAG_HOLDS) {
     const int pct = flags->holds_occupied > 0 ? (flags->holds_occupied * 100) >> 3 : 0;
     /* LABELS.TXT @MISC row 62 "Cargo". */
-    combat_analysis_push_row(rows, count, reports_misc_display_word(62, "Cargo"), -pct);
+    combat_analysis_push_row(rows, count, reports_misc_display_word(62, ""), -pct);
   }
   /*
    * DOS 636c fatigue rows — bit 0x100 (asm 636c:02ff, value 0x21 = 33) and
@@ -200,10 +200,10 @@ static void combat_analysis_fill_mods(
    */
   /* LABELS.TXT @MISC row 76 "Fatigue" (both thirds-left rows share it). */
   if (flags->flags & COMBAT_FLAG_FATIGUE_33) {
-    combat_analysis_push_row(rows, count, reports_misc_display_word(76, "Fatigue"), -33);
+    combat_analysis_push_row(rows, count, reports_misc_display_word(76, ""), -33);
   }
   if (flags->flags2 & COMBAT_FLAG_FATIGUE_66) {
-    combat_analysis_push_row(rows, count, reports_misc_display_word(76, "Fatigue"), -66);
+    combat_analysis_push_row(rows, count, reports_misc_display_word(76, ""), -66);
   }
   /*
    * LABELS line 92 "Attack Bonus" (DS:0x2e54), value +50%. DOS FUN_636c_0000
@@ -217,7 +217,7 @@ static void combat_analysis_fill_mods(
    */
   if (attack_bonus) {
     /* LABELS.TXT @MISC row 77 "Attack Bonus". */
-    combat_analysis_push_row(rows, count, reports_misc_display_word(77, "Attack Bonus"), 50);
+    combat_analysis_push_row(rows, count, reports_misc_display_word(77, ""), 50);
   }
   /* bugs.md #242: DOS 636c bit 0x8000 label ptr DS:0x2e8a = @MISC 104
    * "Bombard" (the WoI colony-attack support bonus), not "Expeditionary
@@ -225,7 +225,7 @@ static void combat_analysis_fill_mods(
   if (flags->flags & COMBAT_FLAG_REF) {
     /* LABELS.TXT @MISC row 104 "Bombard". */
     combat_analysis_push_row_icon(
-      rows, count, reports_misc_display_word(104, "Bombard"), 50, COMBAT_ROW_ICON_UNIT,
+      rows, count, reports_misc_display_word(104, ""), 50, COMBAT_ROW_ICON_UNIT,
       flags->bombard_icon, -1, 0x10
     );
   }
@@ -240,11 +240,11 @@ static void combat_analysis_fill_mods(
   /* LABELS.TXT @MISC row 132 "Tory Unrest" / row 133 "Rebel Unrest". */
   if (flags->flags2 & COMBAT_FLAG_TORIES) {
     combat_analysis_push_row(
-      rows, count, reports_misc_display_word(132, "Tory Unrest"), flags->sol_percent
+      rows, count, reports_misc_display_word(132, ""), flags->sol_percent
     );
   } else if (flags->flags2 & COMBAT_FLAG_REBELS) {
     combat_analysis_push_row(
-      rows, count, reports_misc_display_word(133, "Rebel Unrest"), flags->sol_percent
+      rows, count, reports_misc_display_word(133, ""), flags->sol_percent
     );
   }
   /*
@@ -258,8 +258,8 @@ static void combat_analysis_fill_mods(
       rows,
       count,
       is_attacker
-        ? reports_misc_display_word(78, "Ambush")
-        : reports_misc_display_word(79, "Terrain"),
+        ? reports_misc_display_word(78, "")
+        : reports_misc_display_word(79, ""),
       flags->terrain_byte * 25,
       COMBAT_ROW_ICON_TERRAIN,
       flags->terrain_sprite,
@@ -288,7 +288,7 @@ static void combat_analysis_fill_mods(
      * Tiers 1-3: NAMES.TXT @BUILDING rows 0-2 (Stockade/Fort/Fortress) via
      * the existing live-backed accessor. */
     const char* tier_label = tier == 0
-      ? reports_misc_display_word(80, "Colony")
+      ? reports_misc_display_word(80, "")
       : reports_fort_tier_name(tier - 1);
     combat_analysis_push_row_icon(
       rows,
@@ -312,12 +312,12 @@ static void combat_analysis_fill_mods(
     /* NAMES.TXT @LEVELS column 1: rows 0-3 Camp/Village/City/City by tech,
      * row 4 "Capital" override. */
     const char* label = capital
-      ? combat_analysis_village_noun(4, "Capital")
+      ? combat_analysis_village_noun(4, "")
       : (flags->village_n > 1
-          ? combat_analysis_village_noun(2, "City")
+          ? combat_analysis_village_noun(2, "")
           : (flags->village_n == 1
-              ? combat_analysis_village_noun(1, "Village")
-              : combat_analysis_village_noun(0, "Camp")));
+              ? combat_analysis_village_noun(1, "")
+              : combat_analysis_village_noun(0, "")));
     int pct = flags->village_n > 1 ? 100 : 50;
     if (capital) {
       pct *= 2;
@@ -336,26 +336,26 @@ static void combat_analysis_fill_mods(
   if (flags->flags & COMBAT_FLAG_ARTILLERY) {
     /* LABELS.TXT @MISC row 84 "Artillery In Open". */
     combat_analysis_push_row(
-      rows, count, reports_misc_display_word(84, "Artillery In Open"), -75
+      rows, count, reports_misc_display_word(84, ""), -75
     );
   }
   if (flags->flags2 & COMBAT_FLAG_ARTY_COLONY) {
     /* LABELS.TXT @MISC row 129 "Artillery Vs. Raid". */
     combat_analysis_push_row(
-      rows, count, reports_misc_display_word(129, "Artillery Vs. Raid"), 100
+      rows, count, reports_misc_display_word(129, ""), 100
     );
   }
   if (flags->flags & COMBAT_FLAG_FORTIFY) {
     /* LABELS.TXT @MISC row 81 "Fortified". */
-    combat_analysis_push_row(rows, count, reports_misc_display_word(81, "Fortified"), 50);
+    combat_analysis_push_row(rows, count, reports_misc_display_word(81, ""), 50);
   }
   if (flags->flags & COMBAT_FLAG_AMBUSH) {
     /* LABELS.TXT @MISC row 82 "Spain Bonus". */
-    combat_analysis_push_row(rows, count, reports_misc_display_word(82, "Spain Bonus"), 50);
+    combat_analysis_push_row(rows, count, reports_misc_display_word(82, ""), 50);
   }
   if (flags->flags_hi & COMBAT_FLAG_DRAKE) {
     /* LABELS.TXT @MISC row 90 "Drake". */
-    combat_analysis_push_row(rows, count, reports_misc_display_word(90, "Drake"), 50);
+    combat_analysis_push_row(rows, count, reports_misc_display_word(90, ""), 50);
   }
 }
 
@@ -381,7 +381,7 @@ static void combat_analysis_join_rows(
     at += (size_t)n;
   }
   if (count <= 0) {
-    snprintf(out, out_size, "none");
+    snprintf(out, out_size, "-");
   }
 }
 
