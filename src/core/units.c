@@ -11454,7 +11454,8 @@ bool units_unload_passenger_w(
    */
   {
     int remaining = pax->moves;
-    if (remaining <= 0) {
+    /* A shore-boarding spend is not a park: nothing to refill (bugs.md #544). */
+    if (remaining <= 0 && !pax->mp_spent_turn) {
       remaining = units_max_mp(pool, pax_id);
     }
     int cost = map_move_spent_thirds(map, ship->x, ship->y, dest_x, dest_y);
@@ -11673,7 +11674,15 @@ int units_disembark_all(ColonizeUnitPool* pool, int ship_id, int x, int y) {
        * remaining that turn"). units_unload_passenger already restores it
        * the same way for its own move charge.
        */
-      if (units_remaining_mp(pool, pax_id) <= 0 && units_type(pool, pax->type_index)) {
+      /*
+       * Only a PARK zero is refilled. A passenger that walked aboard from
+       * open shore this turn has DOS spent == max (465b_05ca, bugs.md #423),
+       * and nothing on the ship's move or dock path rewrites a passenger's
+       * +0x3149 (its only writers are the new-turn reset FUN_130d_0290,
+       * spawns and AI arms), so it lands spent (bugs.md #544).
+       */
+      if (units_remaining_mp(pool, pax_id) <= 0 && !pax->mp_spent_turn &&
+          units_type(pool, pax->type_index)) {
         units_mp_restore(pool, pax);
       }
       n++;

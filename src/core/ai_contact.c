@@ -740,7 +740,12 @@ static void ai_contact_enqueue_welcome(ColonizeTurnContext* ctx, int e, int nati
   popup_msg_fill(
     ctx->messages, "INDIANWELCOME", &welcome_tok, fb, body, sizeof(body)
   );
-  static const char* labels[] = {"", ""};
+  /* GAME.TXT @INDIANWELCOME choice rows: "Yes" / "No" (bugs.md #541). */
+  char choice_buf[2][POPUP_MSG_CHOICE_LEN];
+  const char* labels[2];
+  (void)popup_msg_section_labels(
+    ctx->messages, "INDIANWELCOME", &welcome_tok, "", "", choice_buf, labels
+  );
   static const int ids[] = {AI_CONTACT_WELCOME_YES, AI_CONTACT_WELCOME_NO};
   ai_popup_enqueue_choice_ctx(
     ctx->ai_popups,
@@ -1294,7 +1299,10 @@ int ai_contact_try_whack_confirm(
   tok.string0 = tribe;
   char body[AI_POPUP_BODY_LEN];
   popup_msg_fill(ctx->messages, "WHACKINDIANS", &tok, "", body, sizeof(body));
-  static const char* labels[] = {"", ""};
+  /* GAME.TXT @WHACKINDIANS choice rows: "Yes" / "No" (bugs.md #541). */
+  char choice_buf[2][POPUP_MSG_CHOICE_LEN];
+  const char* labels[2];
+  (void)popup_msg_section_labels(ctx->messages, "WHACKINDIANS", &tok, "", "", choice_buf, labels);
   static const int ids[] = {1, 0};
   const int payload = dest_x | (dest_y << 8);
   if (!ai_popup_enqueue_choice_ctx(

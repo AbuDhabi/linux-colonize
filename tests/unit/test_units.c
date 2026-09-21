@@ -10440,6 +10440,27 @@ int main(void) {
       fprintf(stderr, "landfall-spent: all-spent cargo must offer nobody\n");
       return 1;
     }
+    /*
+     * bugs.md #544: docking is not a refill. The shore-boarded (spent) pioneer
+     * carried into a colony lands with no moves; a park zero still refills.
+     */
+    if (!units_board(&pool, fresh_pax, boat)) {
+      fprintf(stderr, "dock-spent: re-board failed\n");
+      return 1;
+    }
+    units_get(&pool, fresh_pax)->mp_spent_turn = 0;
+    if (units_disembark_all(&pool, boat, wx, wy) != 2) {
+      fprintf(stderr, "dock-spent: both passengers must go ashore\n");
+      return 1;
+    }
+    if (units_get(&pool, spent_pax)->moves != 0) {
+      fprintf(stderr, "dock-spent: spent pax must land with no moves\n");
+      return 1;
+    }
+    if (units_get(&pool, fresh_pax)->moves <= 0) {
+      fprintf(stderr, "dock-spent: parked pax must land with its allotment\n");
+      return 1;
+    }
     units_despawn(&pool, fresh_pax);
     units_despawn(&pool, spent_pax);
     units_despawn(&pool, boat);
