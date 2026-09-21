@@ -341,12 +341,16 @@ dwelling. Human `4528` `@ACTIONS` arm **Done** (P8.8). Deep `4528` mid-body / VG
 - Native def: settlement fallout (`FUN_5fef_31ea`) + `@LOOT` (treasure, DOS tag
   `0x1ccc`) / `@LOOT2` (burn, no treasure, `0x1cd1`). The treasure peel is **not
   Cortes-gated** (bugs.md #381): everyone rolls it. Cortes (`local -6`) is one of
-  the three "or" terms (`roll == 0 || rich || cortes`) that let the difficulty
-  0/1 roll pay out at all, plus a bonus — +50% at difficulty 0/1, +6 units at
-  difficulty 2, +10 at difficulty 3. **At difficulty 2 and 3 the amount is
-  unconditional for every conqueror.** Spanish (`local -0xa8`) shorten the
-  difficulty-0 roll (`rng(0,3)` vs `rng(0,6)`) and add +3/+5 units at 2/3; a
-  capital (`local -0xcc`, `tribe.state.capital`) always pays out and doubles /
+  the three "or" terms (`roll == 0 || rich || cortes`) that let the tech
+  0/1 roll pay out at all, plus a bonus — +50% at tech 0/1, +6 units at
+  tech 2, +10 at tech 3. The band is the razed tribe's Indian record `tech`
+  (`*(0x8d4e)+2`, NAMES.TXT @TRIBES column 4), **not** the game difficulty
+  (bugs.md #549). **At tech 2 and 3 the amount is unconditional for every
+  conqueror.** Spanish (`local -0xa8`) shorten the tech-0 roll (`rng(0,3)` vs
+  `rng(0,6)`) and add +3/+5 units at 2/3; a capital (`local -0xcc`,
+  `tribe.state.capital`) always pays out and doubles / widens the amount.
+  `%STRING1 %STRING2` = tribe name + NAMES.TXT @LEVELS column 1 by tech (row 4
+  "Capital" for a capital).
   widens the amount. Gold = amount × 100.
 
 ### Land loss

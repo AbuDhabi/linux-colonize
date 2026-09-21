@@ -123,11 +123,24 @@ static void units_cache_names_rows(
   }
 }
 
+/*
+ * NAMES.TXT @LEVELS column 1 ("Camp"/"Village"/"City"/"City"/"Capital") —
+ * DOS's DS:0x9634 stride-6 table, the @LOOT/@LOOT2 %STRING2 indexed by the
+ * razed tribe's tech, or 4 for a capital (FUN_5fef_31ea local -0xc0).
+ */
+static char g_units_levels[5][24];
+
 static void units_cache_nationality(const ColonizeMsgCatalog* names) {
   static const char* const k_euro[4] = {"", "", "", ""};
   static const char* const k_port[4] = {"", "", "", ""};
   units_cache_names_rows(names, "NATIONALITY", g_units_nationality, k_euro);
   units_cache_names_rows(names, "HOMEPORT", g_units_homeport, k_port);
+  for (int i = 0; i < 5; ++i) {
+    if (!names ||
+        !assets_msg_row_field(names, "LEVELS", i, 1, g_units_levels[i], sizeof(g_units_levels[i]))) {
+      g_units_levels[i][0] = '\0';
+    }
+  }
 }
 
 /*
@@ -4377,32 +4390,36 @@ static int col1_destroy_tribe_at(
 int units_conquest_treasure_gold(
   const ColonizeCol1Save* col1,
   int attacker_nation_id,
+  int tribe_nation_id,
   ColonizeDosRng* rng,
   int rich_capital
 ) {
   /*
    * Peel FUN_5fef_31ea amount → gold×100 (viceroy_unpacked.c ~101407–101495).
    * Locals: -6 Cortes FF10, -0xa8 Spanish (nation==2), -0xcc rich/capital
-   * (callers: tribe.state.capital from fallout), difficulty col1->head.difficulty
-   * (bands 0..3; ≥3 → band 3).
+   * (callers: tribe.state.capital from fallout).
+   *
+   * The band switch reads `*(char *)(*(int *)0x8d4e + 2)` — the razed
+   * tribe's Indian record +2 = `tech` (NAMES.TXT @TRIBES column 4: 0
+   * Semi-Nomadic .. 3 Civilized), bound by `FUN_281f_0a42(nation - 4)` just
+   * above. It is NOT the game difficulty (bugs.md #549: an Arawak village
+   * at difficulty 2 paid 11000; tech 1 caps a Cortes Spaniard at 1200).
    */
   if (!rng || !col1 || attacker_nation_id < 0 || attacker_nation_id > 3) {
+    return 0;
+  }
+  if (tribe_nation_id < 4 || tribe_nation_id > 11) {
     return 0;
   }
   const int cortes =
     founding_fathers_cortes_guarantees_conquest_treasure(col1, attacker_nation_id) ? 1 : 0;
   const int spanish = (attacker_nation_id == 2) ? 1 : 0;
   const int rich = rich_capital ? 1 : 0;
-  int diff = (int)col1->head.difficulty;
-  if (diff < 0) {
-    diff = 0;
-  }
-  if (diff > 3) {
-    diff = 3;
-  }
+  /* Any tech > 3 hits no DOS case and pays 0; the port clamps nothing. */
+  const int tech = (int)col1->indian[tribe_nation_id - 4].tech;
 
   int amount = 0; /* DOS -0xce before ×100 */
-  if (diff == 0) {
+  if (tech == 0) {
     const int hi = ((spanish == 0) ? 3 : 0) + 3;
     const int r0 = dos_rng_range(rng, 0, hi);
     if (r0 == 0 || rich || cortes) {
@@ -4414,7 +4431,7 @@ int units_conquest_treasure_gold(
     if (cortes) {
       amount += amount >> 1;
     }
-  } else if (diff == 1) {
+  } else if (tech == 1) {
     /* -0x62 set from Spanish but roll is always 04d4(0,2). */
     const int r0 = dos_rng_range(rng, 0, 2);
     if (r0 == 0 || rich || cortes) {
@@ -4426,13 +4443,13 @@ int units_conquest_treasure_gold(
     if (cortes) {
       amount += amount >> 1;
     }
-  } else if (diff == 2) {
+  } else if (tech == 2) {
     const int lo = rich ? 4 : 2;
     const int hi = rich ? 10 : 6;
     const int r = dos_rng_range(rng, lo, hi);
     amount = (r + (cortes ? 6 : 0) + (spanish ? 3 : 0)) * 10;
-  } else {
-    /* difficulty ≥3: 16-bit wrap of (cc==0 ? 0xfff7 : 0) + 0x19 → 16 or 25. */
+  } else if (tech == 3) {
+    /* tech 3: 16-bit wrap of (cc==0 ? 0xfff7 : 0) + 0x19 → 16 or 25. */
     amount = dos_rng_range(rng, 0, 4) + 2;
     const uint16_t mult16 =
       (uint16_t)((rich ? 0 : 0xfff7) + 0x19 + (cortes ? 10 : 0) + (spanish ? 5 : 0));
@@ -4665,9 +4682,15 @@ bool units_try_native_settlement_fallout_w(
    * burn any number of villages and never see a Treasure Train.
    */
   if (attacker_nation_id >= 0 && attacker_nation_id < 4) {
+    /* @LOOT/@LOOT2 slots 1/2 (FUN_5fef_31ea raw ~101470): the tribe name
+     * (FUN_281f_09a4) and @LEVELS[rich ? 4 : tech]. */
+    const int level_row =
+      rich_capital ? 4 : (int)col1->indian[(tribe_nation - 4) & 7].tech;
+    const char* loot_level = (level_row >= 0 && level_row < 5) ? g_units_levels[level_row] : "";
     int gold = gold_amount;
     if (gold <= 0) {
-      gold = units_conquest_treasure_gold(col1, attacker_nation_id, rng, rich_capital);
+      gold = units_conquest_treasure_gold(
+        col1, attacker_nation_id, tribe_nation, rng, rich_capital);
     }
     if (gold > 0) {
       (void)units_spawn_treasure_train(units, tile_x, tile_y, attacker_nation_id, gold);
@@ -4675,8 +4698,8 @@ bool units_try_native_settlement_fallout_w(
         PopupMsgTokens tok;
         memset(&tok, 0, sizeof(tok));
         tok.string0 = units_combat_nation_label(col1, attacker_nation_id);
-        tok.string1 = "native";
-        tok.string2 = "village";
+        tok.string1 = units_combat_nation_label(col1, tribe_nation);
+        tok.string2 = loot_level;
         tok.number0 = gold;
         tok.has_number0 = true;
         units_combat_enqueue_tok(
@@ -4688,8 +4711,8 @@ bool units_try_native_settlement_fallout_w(
       PopupMsgTokens tok;
       memset(&tok, 0, sizeof(tok));
       tok.string0 = units_combat_nation_label(col1, attacker_nation_id);
-      tok.string1 = "native";
-      tok.string2 = "village";
+      tok.string1 = units_combat_nation_label(col1, tribe_nation);
+      tok.string2 = loot_level;
       units_combat_enqueue_tok(
         AI_POPUP_TAG_COMBAT_LOOT,
         "LOOT2",

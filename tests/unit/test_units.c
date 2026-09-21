@@ -6367,8 +6367,8 @@ int main(void) {
       ColonizeDosRng r1;
       dos_rng_seed(&r0, 99);
       dos_rng_seed(&r1, 99);
-      const int plain = units_conquest_treasure_gold(&col1, 0, &r0, 0);
-      const int rich = units_conquest_treasure_gold(&col1, 0, &r1, 1);
+      const int plain = units_conquest_treasure_gold(&col1, 0, 4, &r0, 0);
+      const int rich = units_conquest_treasure_gold(&col1, 0, 4, &r1, 1);
       if (plain <= 0 || rich <= plain) {
         free(tmap.layer3);
         free(col1.tribe);
@@ -6376,6 +6376,27 @@ int main(void) {
         return 1;
       }
       fprintf(stderr, "unit_units: Cortes rich_capital plain=%d rich=%d ok\n", plain, rich);
+    }
+
+    /* bugs.md #549: the band is the razed tribe's tech, not the difficulty — a
+     * tech-1 (Agrarian, Arawak) village on Viceroy pays at most 8 * 1.5 * 100. */
+    {
+      const uint8_t saved_diff = col1.head.difficulty;
+      col1.head.difficulty = 4;
+      col1.indian[2].tech = 1;
+      for (uint32_t seed = 1; seed <= 64; ++seed) {
+        ColonizeDosRng r;
+        dos_rng_seed(&r, seed);
+        const int g = units_conquest_treasure_gold(&col1, 0, 6, &r, 0);
+        if (g < 0 || g > 1200) {
+          free(tmap.layer3);
+          free(col1.tribe);
+          fprintf(stderr, "#549 tech-1 treasure got %d want <= 1200\n", g);
+          return 1;
+        }
+      }
+      col1.indian[2].tech = 0;
+      col1.head.difficulty = saved_diff;
     }
 
     /* Known gold path: Cortes spawns treasure when caller supplies amount. */
@@ -6443,14 +6464,16 @@ int main(void) {
 
     /*
      * bugs.md #381: conquest treasure is NOT Cortes-gated. Strip Cortes and burn
-     * a village on Conquistador (difficulty 2), where FUN_5fef_31ea's amount is
+     * a tech-2 (Advanced) village, where FUN_5fef_31ea's amount is
      * unconditional — (roll 2..6 + 0 Cortes + 0 Spanish) * 10 * 100, i.e.
-     * 2000..6000 gold — and a Treasure Train must still appear.
+     * 2000..6000 gold — and a Treasure Train must still appear. The band is
+     * the tribe's tech, not the difficulty (bugs.md #549).
      */
     col1.nation[0].founding_fathers[FF_HERNAN_CORTES / 8] &=
       (uint8_t)~(1u << (FF_HERNAN_CORTES % 8));
     col1.head.founding_father[FF_HERNAN_CORTES] = -1; /* unclaimed */
-    col1.head.difficulty = 2;
+    col1.head.difficulty = 0;
+    col1.indian[0].tech = 2;
     col1.head.tribe_count = 1;
     col1.tribe[0].x = 12;
     col1.tribe[0].y = 10;
