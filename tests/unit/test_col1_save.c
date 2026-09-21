@@ -14,6 +14,7 @@
 #include "core/map.h"
 #include "core/savegame.h"
 #include "core/units_move.h"
+#include "core/village_trade_intel.h"
 #include "platform/diagnostics.h"
 
 static void fill_pattern(uint8_t* p, size_t n, uint8_t seed) {
@@ -552,6 +553,176 @@ static bool build_synthetic(ColonizeCol1Save* save, char* err, size_t err_size) 
   return true;
 }
 
+/*
+ * Port extension block: DOS-shaped prefix untouched, chunks round-trip, the
+ * slot probe flags the file, and removing the last chunk drops the tail
+ * again. Also covers the 'VTIN' payload (village Buys/Sells sidebar intel).
+ */
+static bool test_port_ext(char* err, size_t err_size) {
+  ColonizeCol1Save save;
+  if (!build_synthetic(&save, err, err_size)) {
+    fprintf(stderr, "port_ext: build_synthetic failed: %s\n", err);
+    return false;
+  }
+  const size_t base = col1_save_expected_size(&save);
+
+  uint8_t* plain = NULL;
+  size_t plain_size = 0;
+  if (!col1_save_write_memory(&save, &plain, &plain_size, err, err_size) || plain_size != base) {
+    fprintf(stderr, "port_ext: plain write %zu != base %zu (%s)\n", plain_size, base, err);
+    free(plain);
+    col1_save_free(&save);
+    return false;
+  }
+
+  /* Two chunks: the real 'VTIN' payload plus a made-up tag standing in for a
+   * newer port's chunk, which must survive read → write untouched. */
+  const int buys[3] = {2, 5, 9};
+  const int sells[3] = {1, 4, 0};
+  village_trade_intel_reset();
+  village_trade_intel_note_buys(1, 30, 40, buys, 3);
+  village_trade_intel_note_sells(1, 30, 40, sells, 3);
+  size_t intel_size = 0;
+  uint8_t* intel = village_trade_intel_serialize(&intel_size);
+  if (!intel || intel_size == 0) {
+    fprintf(stderr, "port_ext: intel serialize produced nothing\n");
+    free(plain);
+    col1_save_free(&save);
+    return false;
+  }
+  static const uint8_t k_other_payload[5] = {0xde, 0xad, 0xbe, 0xef, 0x01};
+  if (!col1_save_ext_put(&save, COLONIZE_COL1_EXT_TAG_VILLAGE_TRADE_INTEL, intel, intel_size) ||
+      !col1_save_ext_put(&save, 0x5a5a5a5au, k_other_payload, sizeof(k_other_payload))) {
+    fprintf(stderr, "port_ext: ext_put failed\n");
+    free(intel);
+    free(plain);
+    col1_save_free(&save);
+    return false;
+  }
+  if (col1_save_total_size(&save) != base + save.ext_size ||
+      !col1_save_ext_valid(save.ext, save.ext_size)) {
+    fprintf(stderr, "port_ext: ext block not well-formed\n");
+    free(intel);
+    free(plain);
+    col1_save_free(&save);
+    return false;
+  }
+
+  const char* path = "./test-saves-col1/COLONY01.SAV";
+  system("mkdir -p ./test-saves-col1");
+  if (!col1_save_write_file(path, &save, err, err_size)) {
+    fprintf(stderr, "port_ext: write_file failed: %s\n", err);
+    free(intel);
+    free(plain);
+    col1_save_free(&save);
+    return false;
+  }
+
+  /* The DOS-visible part must be exactly what a plain save holds. */
+  bool ok = true;
+  {
+    FILE* f = fopen(path, "rb");
+    uint8_t* disk = malloc(base);
+    if (!f || !disk || fread(disk, 1, base, f) != base || memcmp(disk, plain, base) != 0) {
+      fprintf(stderr, "port_ext: DOS-visible prefix differs from a plain save\n");
+      ok = false;
+    }
+    if (f) {
+      fclose(f);
+    }
+    free(disk);
+  }
+
+  ColonizeCol1Save loaded;
+  col1_save_init(&loaded);
+  if (ok && !col1_save_read_file(path, &loaded, err, err_size)) {
+    fprintf(stderr, "port_ext: read_file failed: %s\n", err);
+    ok = false;
+  }
+  if (ok && (loaded.ext_size != save.ext_size || memcmp(loaded.ext, save.ext, save.ext_size) != 0)) {
+    fprintf(stderr, "port_ext: ext block did not round-trip\n");
+    ok = false;
+  }
+  if (ok) {
+    const uint8_t* payload = NULL;
+    size_t payload_size = 0;
+    if (!col1_save_ext_find(&loaded, 0x5a5a5a5au, &payload, &payload_size) ||
+        payload_size != sizeof(k_other_payload) ||
+        memcmp(payload, k_other_payload, payload_size) != 0) {
+      fprintf(stderr, "port_ext: unknown chunk not carried through\n");
+      ok = false;
+    }
+  }
+  if (ok) {
+    const uint8_t* payload = NULL;
+    size_t payload_size = 0;
+    village_trade_intel_reset();
+    if (!col1_save_ext_find(&loaded, COLONIZE_COL1_EXT_TAG_VILLAGE_TRADE_INTEL, &payload, &payload_size)) {
+      fprintf(stderr, "port_ext: VTIN chunk missing\n");
+      ok = false;
+    } else {
+      village_trade_intel_deserialize(payload, payload_size);
+      int got_buys[VILLAGE_TRADE_INTEL_GOODS] = {0};
+      int got_sells[VILLAGE_TRADE_INTEL_GOODS] = {0};
+      int nb = 0;
+      int ns = 0;
+      if (!village_trade_intel_get(1, 30, 40, got_buys, &nb, got_sells, &ns) || nb != 3 || ns != 3 ||
+          got_buys[0] != 2 || got_buys[1] != 5 || got_buys[2] != 9 || got_sells[0] != 1 ||
+          got_sells[1] != 4 || got_sells[2] != 0) {
+        fprintf(stderr, "port_ext: village intel did not survive (nb=%d ns=%d)\n", nb, ns);
+        ok = false;
+      }
+      /* A nation that was never told anything stays blank. */
+      if (ok && village_trade_intel_get(2, 30, 40, got_buys, &nb, got_sells, &ns)) {
+        fprintf(stderr, "port_ext: intel leaked to another nation\n");
+        ok = false;
+      }
+    }
+  }
+
+  /* Slot probe: the file must be flagged, the plain one must not. */
+  if (ok) {
+    ColonizeSaveSlotInfo info;
+    if (!savegame_probe_col1_slot("./test-saves-col1", 1, &info) || !info.occupied ||
+        !info.has_port_ext) {
+      fprintf(stderr, "port_ext: probe did not flag the extended slot\n");
+      ok = false;
+    }
+  }
+
+  /* Dropping every chunk must leave a plain DOS-shaped file again. */
+  if (ok) {
+    if (!col1_save_ext_put(&loaded, COLONIZE_COL1_EXT_TAG_VILLAGE_TRADE_INTEL, NULL, 0) ||
+        !col1_save_ext_put(&loaded, 0x5a5a5a5au, NULL, 0) || loaded.ext != NULL ||
+        loaded.ext_size != 0) {
+      fprintf(stderr, "port_ext: chunk removal left a stub block\n");
+      ok = false;
+    }
+  }
+  if (ok && !col1_save_write_file(path, &loaded, err, err_size)) {
+    fprintf(stderr, "port_ext: rewrite failed: %s\n", err);
+    ok = false;
+  }
+  if (ok) {
+    ColonizeSaveSlotInfo info;
+    if (!savegame_probe_col1_slot("./test-saves-col1", 1, &info) || !info.occupied ||
+        info.has_port_ext) {
+      fprintf(stderr, "port_ext: probe still flags a plain save\n");
+      ok = false;
+    }
+  }
+
+  village_trade_intel_reset();
+  free(intel);
+  free(plain);
+  col1_save_free(&loaded);
+  col1_save_free(&save);
+  if (ok) {
+    fprintf(stderr, "port extension block round-trip ok\n");
+  }
+  return ok;
+}
+
 int main(void) {
   diag_init(0, NULL);
 
@@ -561,6 +732,10 @@ int main(void) {
     return 1;
   }
   fprintf(stderr, "col1 layout sizes ok\n");
+
+  if (!test_port_ext(err, sizeof(err))) {
+    return 1;
+  }
 
   ColonizeCol1Save save;
   if (!build_synthetic(&save, err, sizeof(err))) {

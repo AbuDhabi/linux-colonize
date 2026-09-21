@@ -54,14 +54,60 @@ original; pure new-game templates leave many of them zero.
 | Map layers ×4 | `map_w × map_h` each | Standard 58×72 (56×70 visible + border) |
 | `post_map` | 614 | Sea/land connectivity 2×270 + continent tallies + 10 B tail (`ColonizeCol1PostMap`) |
 | `trade_route[12]` | 74 × 12 = 888 | Always 12 slots |
+| *port extension block* | 16 + chunks, optional | **Port-only**, past the last DOS section — see below |
 
-Total size formula:
+Total size formula (the DOS-shaped part, `col1_save_expected_size`):
 
 ```
 390
 + 202*colonies + 28*units + 1264 + 18*tribes + 624 + 727
 + 4*map_w*map_h + 614 + 888
 ```
+
+`col1_save_total_size` adds the optional port extension block on top.
+
+## Port extension block
+
+State the port keeps but DOS has no field for lives in an optional block
+appended **after** `trade_route[]`. DOS's loader (`FUN_75c2_0940`) reads the
+file section by section and never checks the total length, so the tail is
+invisible to it — and silently dropped when DOS re-saves that slot. The Load /
+Save slot list therefore marks such files with a trailing `*`
+(`ColonizeSaveSlotInfo.has_port_ext`, probed by reading the magic at the
+DOS-shaped offset).
+
+Layout (little-endian, `col1_save.h`):
+
+| Field | Size | Notes |
+|-------|------|-------|
+| `magic` | 8 | `COLNXEXT` |
+| `version` | 2 | `COLONIZE_COL1_EXT_VERSION` (1) |
+| `reserved` | 2 | 0 |
+| `payload_size` | 4 | bytes of chunk data that follow |
+| chunks | `payload_size` | `uint32 tag`, `uint32 len`, `len` bytes, repeated |
+
+Rules:
+
+- `col1_save_read_*` accept a file/buffer **longer** than the DOS layout and keep
+  the tail verbatim in `save->ext`; an unrecognised tail is logged and ignored,
+  never an error (a DOS original still loads).
+- `col1_save_ext_put` adds/replaces one chunk and carries every other chunk
+  through untouched, so a newer port's chunks survive a round trip; removing the
+  last chunk drops the block and the file is plain DOS-shaped again.
+- The DOS-visible prefix is byte-for-byte what a plain save would hold.
+- `sav_json` round-trips the block as an opaque `port_ext_hex` string, emitted
+  only when present.
+
+Chunks:
+
+| Tag | Owner | Contents |
+|-----|-------|----------|
+| `VTIN` | `village_trade_intel.c` | Village sidebar `Buys:` / `Sells:` knowledge per settlement tile × European nation (`uint16` version, `uint16` entry count, 36 B per entry) |
+
+Wiring: `col1_bridge_capture` serializes the live side tables into chunks,
+`col1_bridge_apply` restores them (and clears the table when the save has no
+chunk, i.e. a DOS original or a DOS re-save). Covered by `unit_col1_save`
+(`test_port_ext`).
 
 ## API
 
@@ -135,7 +181,7 @@ Manual Save/Load (map menu, title **LOAD**, **S**/**L**) opens a wood slot popup
 - **Save** lists slots **0–7** (`COLONY00`–`COLONY07`); confirming overwrites the chosen slot.
 - **Load** lists slots **0–9**; empty slots are not selectable. Slots 8/9 get **no autosave label** — DOS's own row builder (`FUN_7562_0052`) formats every occupied slot the same way and has no notion of an autosave slot (this line claimed otherwise until 2026-09-09, smell audit #82; nothing ever implemented it).
 
-Slot rows show `N. Empty` or `N. <leader>  <year>` from a prefix-only probe (`savegame_probe_col1_slot`). That probe runs the same header check DOS's lister does — `FUN_7562_0052` → `FUN_2a1f_0d04` → `FUN_75c2_0840`, i.e. `col1_save_validate_head`: signature, `0x1A` EOF marker and save version (map size skipped, as in the DOS probe path). A file that fails it lists as `(EMPTY)` rather than as a selectable slot (smell audit #82).
+Slot rows show `N. Empty` or `N. <leader>  <year>` from a prefix-only probe (`savegame_probe_col1_slot`); a trailing `*` marks a save carrying the port extension block (state DOS cannot load and drops on re-save). That probe runs the same header check DOS's lister does — `FUN_7562_0052` → `FUN_2a1f_0d04` → `FUN_75c2_0840`, i.e. `col1_save_validate_head`: signature, `0x1A` EOF marker and save version (map size skipped, as in the DOS probe path). A file that fails it lists as `(EMPTY)` rather than as a selectable slot (smell audit #82).
 If the chosen Load file is missing under the save dir, Load falls back to `original_saves/COLONY##.SAV` (repo samples).
 
 Export is read-modify-write against the last loaded Col1 snapshot when present

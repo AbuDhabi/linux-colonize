@@ -39,6 +39,10 @@ void save_load_close(SaveLoadDialog* dlg) {
  * empty slot = DS:0x20ee "(EMPTY)". Difficulty titles = DS:0x8394 table,
  * nation = NAMES.TXT @NATIONALITY, "of the" = LABELS.TXT @MISC 19. The DOS
  * builder trims the leader name until it measures under 0x65 px.
+ *
+ * Port addition: a trailing " *" marks a slot that carries the port
+ * extension block (village Buys/Sells intel today) -- state DOS cannot read
+ * and will drop if it re-saves that slot.
  */
 static void save_load_format_label(
   char* out,
@@ -65,12 +69,13 @@ static void save_load_format_label(
   snprintf(
     out,
     out_sz,
-    "%s %s of the %s, %s %u",
+    "%s %s of the %s, %s %u%s",
     diff,
     leader,
     reports_nation_adjective_display_name(info->human_nation),
     reports_season_name(info->autumn != 0),
-    (unsigned)info->year
+    (unsigned)info->year,
+    info->has_port_ext ? " *" : ""
   );
 }
 

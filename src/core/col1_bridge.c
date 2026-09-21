@@ -14,6 +14,7 @@
 #include "core/strutil.h"
 #include "core/turn.h"
 #include "core/units.h"
+#include "core/village_trade_intel.h"
 #include "platform/diagnostics.h"
 
 /* Nibble slot gi (0..5) of a COL1 unit's cargo_item_0..5. */
@@ -1796,6 +1797,18 @@ bool col1_bridge_apply_w(
 
   founding_fathers_sync_from_col1_after_load(save);
 
+  /* Village Buys/Sells sidebar rows: restored from the port extension block,
+   * or cleared when the save has none (a DOS original, or one DOS re-saved). */
+  {
+    const uint8_t* intel = NULL;
+    size_t intel_size = 0;
+    if (col1_save_ext_find(save, COLONIZE_COL1_EXT_TAG_VILLAGE_TRADE_INTEL, &intel, &intel_size)) {
+      village_trade_intel_deserialize(intel, intel_size);
+    } else {
+      village_trade_intel_reset();
+    }
+  }
+
   if (out) {
     *out = local;
   }
@@ -3152,6 +3165,18 @@ bool col1_bridge_capture_w(
 
   /* Mid-campaign: do not leave discovery unset for DOS woodcut re-fire. */
   col1_bridge_sync_new_world_discovery(save, map, human_nation);
+
+  /*
+   * Port-only sidebar knowledge (village Buys/Sells rows) into the extension
+   * block past the last DOS section. DOS never sees it; re-saving in DOS
+   * simply drops it, which is why the Load dialog flags such slots with "*".
+   */
+  {
+    size_t intel_size = 0;
+    uint8_t* intel = village_trade_intel_serialize(&intel_size);
+    col1_save_ext_put(save, COLONIZE_COL1_EXT_TAG_VILLAGE_TRADE_INTEL, intel, intel_size);
+    free(intel);
+  }
 
   if (err && err_size) {
     err[0] = '\0';
