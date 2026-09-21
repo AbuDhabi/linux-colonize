@@ -75,15 +75,18 @@ int units_spawn_village_temp_defender(
 
 /*
  * FUN_5fef_31ea conquest treasure gold (×100 from DOS amount byte). Runs for
- * ANY conqueror (bugs.md #381) — Hernan Cortes only removes the difficulty-0/1
- * "did it pay out at all" roll and adds +50% (difficulty 0/1) or +10/+100
- * (difficulty 2/3); at difficulty 2 and 3 everyone gets an amount.
+ * ANY conqueror (bugs.md #381) — Hernan Cortes only removes the tech-0/1
+ * "did it pay out at all" roll and adds +50% (tech 0/1) or +6/+10 per unit
+ * (tech 2/3); at tech 2 and 3 everyone gets an amount. The band is the razed
+ * tribe's Indian record `tech` (tribe_nation_id 4..11), not the game
+ * difficulty (bugs.md #549).
  * rich_capital: stack-local -0xcc ← ColonizeCol1TribeState.capital.
  * Returns 0 if no treasure / no rng. Cite: viceroy_unpacked.c ~101407–101495.
  */
 int units_conquest_treasure_gold(
   const ColonizeCol1Save* col1,
   int attacker_nation_id,
+  int tribe_nation_id,
   ColonizeDosRng* rng,
   int rich_capital
 );
