@@ -4326,6 +4326,23 @@ static bool ai_native_brave_grudge_hold(
   }
   return false;
 }
+/*
+ * FUN_465b_0000 local_4 (raw 75467-75475): the destination's settlement owner
+ * (FUN_281f_06be), overridden by the nation of the unit heading the tile's
+ * stack (FUN_281f_07e0 -> FUN_1427_005c). -1 = nobody. The port has no stack
+ * order, so the first on-map unit in slot order stands in for the head.
+ */
+COLONIZE_INTERNAL int ai_465b_dest_owner(
+  const ColonizeWorldMap* map, const ColonizeUnitPool* units, int x, int y
+) {
+  int owner = ai_021a_settle_owner(map, x, y);
+  const int head = ai_unit_index_on_tile(units, x, y);
+  if (head >= 0) {
+    owner = units->units[head].nation_id;
+  }
+  return owner;
+}
+
 typedef enum {
   AI_NATIVE_STEP_MORE = 0, /* the Brave may act again (loop continues) */
   AI_NATIVE_STEP_STOP = 1  /* the Brave is done this turn (was a bare `break;`) */
@@ -4463,6 +4480,41 @@ static AiNativeStepStatus ai_native_brave_step(
   const int cost = ai_dos_move_spent(map, u->x, u->y, nx, ny, dir);
   const int from_x = u->x;
   const int from_y = u->y;
+  /*
+   * FUN_465b_0000 foreign-destination arm (raw 75467-75479, 75631-75634, 75692):
+   * local_4 = FUN_281f_06be(dest) (settlement owner), overridden by the
+   * nation of the tile's stack head FUN_281f_07e0 when a unit stands there;
+   * bVar4 = local_4 >= 0 && local_4 != mover nation. A bVar4 step never
+   * lands the mover on the tile: with < 3 MP left it is LAB_465b_01ce
+   * (FUN_281f_0934 exhaust, abort); otherwise the Brave (attack 1) takes
+   * LAB_465b_025c -> 05ca -> FUN_291f_0a14 = FUN_5fef_1b0e, the attack,
+   * which exhausts it (0934) and never moves it in (Indians do not
+   * capture). The 05ca cost gate short-circuits on bVar4 after the
+   * FUN_281f_04ca timer reseed, so there is no gamble roll.
+   * The port used to commit the 021a pick as a plain step, so a Brave whose
+   * pick carried the 0x0a contact/attack flags walked INTO a Euro colony
+   * and sat there fortified — and its foreign presence then blocked the
+   * owner's ships from docking (bugs.md #553). The Brave attack itself
+   * stays parked with the rest of the alarmed dispatch (see
+   * ai_native_brave_grudge_hold); the Brave keeps DOS's end state: in
+   * place, exhausted.
+   */
+  {
+    const int dest_owner = ai_465b_dest_owner(map, units, nx, ny);
+    if (dest_owner >= 0 && dest_owner != nation_id) {
+      if (max_mp - spent >= 3 && cost > max_mp - spent && spent != 0) {
+        dos_rng_seed(rng, ai_turn_seed(s_ai_native_ctx)); /* 04ca, no roll */
+      }
+      u->moves = max_mp;
+      u->last_dir = dir;
+      u->col1_facing_pad = 0;
+      if (u->orders == UNITS_ORDER_FORTIFY || u->orders == UNITS_ORDER_FORTIFIED) {
+        u->orders = UNITS_ORDER_NONE;
+      }
+      (*steps)++;
+      return AI_NATIVE_STEP_STOP;
+    }
+  }
   /*
    * FUN_465b_0000 cost gate (viceroy_unpacked.c 75643-75647 + the
    * `else` at :75820): `(cost <= left) || (spent == 0) || (04ca(timer),

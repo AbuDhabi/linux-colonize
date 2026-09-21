@@ -1591,6 +1591,87 @@ static int unit_amphibious_landfirst(void) {
 }
 
 /*
+ * bugs.md #553: "Sailing a ship into a captured colony is impossible." The
+ * live save had a native Brave standing fortified inside the colony (it had
+ * walked in before ai_native_brave_step ported the FUN_465b_0000
+ * foreign-destination arm), and the probe's foreign-unit scan bounced the
+ * owner's ship off it as BLOCKED_DOMAIN. DOS reads the settlement owner
+ * (FUN_281f_06be) for the tile: an own colony always docks.
+ */
+static int unit_own_colony_dock_ignores_squatter(void) {
+  ColonizeUnitPool pool;
+  memset(&pool, 0, sizeof(pool));
+  pool.type_count = 2;
+  snprintf(pool.types[0].name, sizeof(pool.types[0].name), "Merchantman");
+  pool.types[0].movement = 5;
+  pool.types[0].cargo = 4;
+  pool.types[0].space = 99;
+  pool.types[0].domain = COLONIZE_UNIT_DOMAIN_SEA;
+  snprintf(pool.types[1].name, sizeof(pool.types[1].name), "Brave");
+  pool.types[1].movement = 1;
+  pool.types[1].attack = 1;
+  pool.types[1].defense = 1;
+  pool.types[1].space = 1;
+  pool.types[1].domain = COLONIZE_UNIT_DOMAIN_LAND;
+
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  char err[128];
+  if (!map_alloc(&map, 8, 8, err, sizeof(err))) {
+    fprintf(stderr, "own-colony dock: map_alloc failed: %s\n", err);
+    return 1;
+  }
+  for (int i = 0; i < 8 * 8; ++i) {
+    map.terrain[i] = 25;
+    map.layer3[i] = 1;
+  }
+  map.terrain[3 * 8 + 4] = 1; /* colony tile east of the ship */
+  units_set_occupancy_map(NULL);
+
+  static ColonizeColonyPool colonies;
+  memset(&colonies, 0, sizeof(colonies));
+  colonies.colonies[0].active = true;
+  colonies.colonies[0].id = 7;
+  colonies.colonies[0].x = 4;
+  colonies.colonies[0].y = 3;
+  colonies.colonies[0].nation_id = 2; /* captured: now ours */
+
+  const ColonizeWorld w = {.units = &pool, .colonies = &colonies, .map = &map};
+  const int ship = units_spawn_allow_stack(&pool, 0, 3, 3);
+  const int brave = units_spawn_allow_stack(&pool, 1, 4, 3);
+  ColonizeUnit* su = units_get(&pool, ship);
+  ColonizeUnit* bu = units_get(&pool, brave);
+  int rc = 0;
+  if (!su || !bu) {
+    fprintf(stderr, "own-colony dock: spawn failed\n");
+    map_free(&map);
+    return 1;
+  }
+  su->nation_id = 2;
+  bu->nation_id = 6;
+  bu->orders = UNITS_ORDER_FORTIFIED;
+
+  if (units_enter_probe_w(&w, su->type_index, 4, 3, ship) != COLONIZE_ENTER_DOCK) {
+    fprintf(
+      stderr, "own-colony dock: ship must dock past a squatting Brave, got %d\n",
+      (int)units_last_enter_reason()
+    );
+    rc = 1;
+  }
+  /* A foreign colony still refuses the ship (FUN_5f7a_0662 trade path). */
+  colonies.colonies[0].nation_id = 1;
+  if (rc == 0 && units_enter_probe_w(&w, su->type_index, 4, 3, ship) == COLONIZE_ENTER_DOCK) {
+    fprintf(stderr, "own-colony dock: a foreign colony must not dock\n");
+    rc = 1;
+  }
+  map_free(&map);
+  if (rc == 0) {
+    fprintf(stderr, "unit_units: own-colony dock past squatter ok\n");
+  }
+  return rc;
+}
+
+/*
  * bugs.md #421: "Newly bought Merchantman sent to the New World spawned in an
  * unexplored sea lane tile, and did not even insta-reveal the fog."
  *
@@ -2721,6 +2802,184 @@ done:
   free(map.layer3);
   if (rc == 0) {
     fprintf(stderr, "unit_units: capture ring + 1b0e alarm vent ok\n");
+  }
+  return rc;
+}
+
+/*
+ * Razing a village (FUN_5fef_1b0e dwelling arm → FUN_4d56_00e0), bugs.md
+ * #550-#552:
+ *  - 00e0 raw 81307: only settlement bit 0x02 is cleared; a real road stays,
+ *    the implied village road art goes (#550).
+ *  - 1b0e raw 100667-100672: the conqueror's own mission comes back as a
+ *    Missionary on the site, Jesuit bit → profession 0x18; a rival's mission
+ *    is lost (#551).
+ *  - 00e0 raw 81310-81319: Indian units whose home village (+0x314a) is the
+ *    razed one are deleted wherever they stand; other villages' braves stay
+ *    and their home index shifts down (#552).
+ */
+static int unit_village_raze_tail(void) {
+  ColonizeMsgCatalog names;
+  assets_msg_init(&names);
+  char names_path[512];
+  if (!dos_compat_normalize_asset_path("COLONIZE", "NAMES.TXT", names_path, sizeof(names_path)) ||
+      !assets_msg_load_file(&names, names_path)) {
+    fprintf(stderr, "raze: NAMES.TXT load failed\n");
+    return 1;
+  }
+  ColonizeUnitPool pool;
+  memset(&pool, 0, sizeof(pool));
+  if (!units_load_types(&pool, &names)) {
+    fprintf(stderr, "raze: units_load_types failed\n");
+    assets_msg_free(&names);
+    return 1;
+  }
+  assets_msg_free(&names);
+  const int brave_t = units_kind_type_index(&pool, UNITS_KIND_BRAVE);
+  const int miss_t = units_kind_type_index(&pool, UNITS_KIND_MISSIONARY);
+  if (brave_t < 0 || miss_t < 0) {
+    fprintf(stderr, "raze: Brave/Missionary type rows missing\n");
+    return 1;
+  }
+
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  map.width = 10;
+  map.height = 10;
+  map.tile_count = 100;
+  map.terrain = calloc(100, 1);
+  map.layer2 = calloc(100, 1);
+  map.layer3 = calloc(100, 1);
+  map.improve = calloc(100, 1);
+  ColonizeCol1Tribe* tribes = calloc(3, sizeof(ColonizeCol1Tribe));
+  if (!map.terrain || !map.layer2 || !map.layer3 || !map.improve || !tribes) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    free(map.improve);
+    free(tribes);
+    return 1;
+  }
+  for (int i = 0; i < 100; ++i) {
+    map.terrain[i] = 2; /* plains */
+    map.layer3[i] = 0xf1;
+  }
+  units_set_occupancy_map(&map);
+
+  ColonizeCol1Save col1;
+  memset(&col1, 0, sizeof(col1));
+  memset(col1.head.founding_father, 0xff, sizeof(col1.head.founding_father));
+  col1.stuff.tribe_village_counts[0] = 3;
+  col1.head.tribe_count = 3;
+  col1.tribe = tribes;
+  const int vx[3] = {3, 6, 1};
+  const int vy[3] = {3, 6, 6};
+  /* 0: own plain mission; 1: rival (Dutch) Jesuit mission; 2: own Jesuit. */
+  const uint8_t mission[3] = {0u, (uint8_t)(1u | COL1_TRIBE_MISSION_JESUIT_BIT),
+                              (uint8_t)(0u | COL1_TRIBE_MISSION_JESUIT_BIT)};
+  for (int i = 0; i < 3; ++i) {
+    tribes[i].x = (uint8_t)vx[i];
+    tribes[i].y = (uint8_t)vy[i];
+    tribes[i].nation_id = 4;
+    tribes[i].population = 1;
+    tribes[i].mission = mission[i];
+    map.layer2[vy[i] * 10 + vx[i]] = MAP_OCCUPANCY_HAS_CITY;
+    map.layer3[vy[i] * 10 + vx[i]] = 0x41;
+  }
+  map.improve[6 * 10 + 6] = MAP_IMPROVE_ROAD; /* a real road under village 1 */
+
+  const int b_home0 = units_spawn_allow_stack(&pool, brave_t, 5, 5);
+  const int b_home1 = units_spawn_allow_stack(&pool, brave_t, 5, 6);
+  const int b_free = units_spawn_allow_stack(&pool, brave_t, 5, 7);
+  units_get(&pool, b_home0)->nation_id = 4;
+  units_get(&pool, b_home0)->home_tribe_id = 0;
+  units_get(&pool, b_home1)->nation_id = 4;
+  units_get(&pool, b_home1)->home_tribe_id = 1;
+  units_get(&pool, b_free)->nation_id = 4;
+  units_get(&pool, b_free)->home_tribe_id = -1;
+
+  ColonizeWorld w = {.units = &pool, .map = &map, .col1 = &col1, .col1_ok = true};
+  int rc = 0;
+
+  /* Raze village 0 (own plain mission). */
+  if (!units_try_native_settlement_fallout_w(&w, 0, 4, 3, 3, 500)) {
+    fprintf(stderr, "raze: village 0 not destroyed\n");
+    rc = 1;
+  }
+  const ColonizeUnit* u = units_get_const(&pool, b_home0);
+  if (rc == 0 && u && u->active) {
+    fprintf(stderr, "raze #552: brave bound to the razed village survived\n");
+    rc = 1;
+  }
+  u = units_get_const(&pool, b_home1);
+  if (rc == 0 && (!u || !u->active || u->home_tribe_id != 0)) {
+    fprintf(stderr, "raze #552: other village's brave must stay, home 1 -> 0\n");
+    rc = 1;
+  }
+  u = units_get_const(&pool, b_free);
+  if (rc == 0 && (!u || !u->active)) {
+    fprintf(stderr, "raze #552: unbound brave must stay\n");
+    rc = 1;
+  }
+  if (rc == 0 && (map_tile_has_city(&map, 3, 3) || map_tile_has_road(&map, 3, 3))) {
+    fprintf(stderr, "raze #550: razed site must lose the settlement bit (no road art)\n");
+    rc = 1;
+  }
+  int found_prof[3] = {-1, -1, -1};
+  int found_n[3] = {0, 0, 0};
+  for (int k = 0; k < 3 && rc == 0; ++k) {
+    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+      const ColonizeUnit* m = &pool.units[i];
+      if (m->active && m->type_index == miss_t && m->x == vx[k] && m->y == vy[k]) {
+        found_n[k]++;
+        found_prof[k] = m->profession;
+        if (m->nation_id != 0) {
+          fprintf(stderr, "raze #551: returned missionary nation %d want 0\n", m->nation_id);
+          rc = 1;
+        }
+      }
+    }
+    if (k == 0) {
+      if (found_n[0] != 1 || found_prof[0] == UNITS_JOB_MISSIONARY) {
+        fprintf(stderr, "raze #551: want one plain Missionary (n=%d prof=%d)\n", found_n[0],
+                found_prof[0]);
+        rc = 1;
+      }
+      /* Raze village 1 (rival Jesuit mission; now index 0) and 2 (own Jesuit). */
+      if (rc == 0 && (!units_try_native_settlement_fallout_w(&w, 0, 4, 6, 6, 500) ||
+                      !units_try_native_settlement_fallout_w(&w, 0, 4, 1, 6, 500))) {
+        fprintf(stderr, "raze: villages 1/2 not destroyed\n");
+        rc = 1;
+      }
+    }
+  }
+  if (rc == 0 && found_n[1] != 0) {
+    fprintf(stderr, "raze #551: a rival nation's mission must not come back\n");
+    rc = 1;
+  }
+  if (rc == 0 && (found_n[2] != 1 || found_prof[2] != UNITS_JOB_MISSIONARY)) {
+    fprintf(stderr, "raze #551: want one Jesuit Missionary (n=%d prof=%d)\n", found_n[2],
+            found_prof[2]);
+    rc = 1;
+  }
+  if (rc == 0 && (map_tile_has_city(&map, 6, 6) || !map_tile_has_road(&map, 6, 6))) {
+    fprintf(stderr, "raze #550: a real road under a razed village must stay\n");
+    rc = 1;
+  }
+  u = units_get_const(&pool, b_home1);
+  if (rc == 0 && u && u->active) {
+    fprintf(stderr, "raze #552: brave of razed village 1 survived\n");
+    rc = 1;
+  }
+
+  units_set_occupancy_map(NULL);
+  free(map.terrain);
+  free(map.layer2);
+  free(map.layer3);
+  free(map.improve);
+  free(tribes);
+  if (rc == 0) {
+    fprintf(stderr, "unit_units: village raze tail (#550-#552) ok\n");
   }
   return rc;
 }
@@ -4038,6 +4297,10 @@ int main(void) {
     diag_shutdown();
     return 1;
   }
+  if (unit_village_raze_tail() != 0) {
+    diag_shutdown();
+    return 1;
+  }
   if (unit_1b0e_resolve_handicaps() != 0) {
     diag_shutdown();
     return 1;
@@ -4059,6 +4322,10 @@ int main(void) {
     return 1;
   }
   if (unit_amphibious_landfirst() != 0) {
+    diag_shutdown();
+    return 1;
+  }
+  if (unit_own_colony_dock_ignores_squatter() != 0) {
     diag_shutdown();
     return 1;
   }
@@ -8985,6 +9252,9 @@ int main(void) {
       c1.tribe[0].y = (uint8_t)vy;
       c1.tribe[0].nation_id = 4;
       c1.tribe[0].population = 3;
+      /* calloc'd mission 0 = an ENGLISH mission, which the raze now returns
+       * as a Missionary (bugs.md #551); this fixture has none. */
+      c1.tribe[0].mission = COL1_TRIBE_MISSION_NONE;
       c1.player[0].control = 0;
       c1.head.game_options.combat_analysis = 1;
 

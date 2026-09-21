@@ -85,6 +85,12 @@ the truth is the 15-entry JMPF stub table at `4d56:4c22..4c6c`,
   step); else `FUN_281f_0934` (exhaust MP — the guarding `dir >= 0` test is
   dead). `021a` already exhausts on its own `dir == 8` exit (`021a:14e6`), so
   the Linux `moves = max_mp` covers both writes.
+  The `465b` step itself is not a plain move when the destination is foreign
+  (`local_4` = stack-head nation, else settlement owner, != Brave): DOS
+  exhausts (< 3 MP left) or attacks via `1b0e`, and never lands the Brave on
+  the tile. `ai_native_brave_step` keeps that end state (in place, exhausted;
+  the attack itself stays parked with the alarmed dispatch). Before
+  2026-09-21 the port walked the Brave INTO Euro colonies (bugs.md #553).
 - The residue behind the old "partial (T2 quiet)" label is the **callee**:
   `FUN_4d56_021a` (`4d56:021a..14fd`, 4836 bytes, one function) — the Indian
   unit decision routine Ghidra emitted as raw `??` bytes, reached from `14fe`

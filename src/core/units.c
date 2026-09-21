@@ -4310,6 +4310,15 @@ static int col1_destroy_tribe_at(
   }
 
   village_trade_intel_forget_tile(x, y); /* sidebar Buys/Sells rows go with it */
+  /* FUN_4d56_00e0 entry (raw 81307-81308): FUN_281f_068c(x, y, 2, 0) →
+   * FUN_137f_015e AND-clears settlement bit 0x02 of the mask plane (DS:0x160)
+   * and nothing else: a real road (0x08) stays, but the village's implied
+   * road art (map_tile_has_road_art = road || has_city) goes. The port left
+   * the bit set until the next save/load occupancy rebuild, so the razed
+   * site kept drawing a road (bugs.md #550). */
+  if (map) {
+    map_occupancy_set_layer2(map, x, y, MAP_OCCUPANCY_HAS_CITY, false);
+  }
   const uint16_t old_count = col1->head.tribe_count;
   if (found + 1 < (int)old_count) {
     memmove(
@@ -4525,6 +4534,49 @@ static int units_spawn_subjugated_convert(
   return id;
 }
 
+/*
+ * FUN_5fef_1b0e dwelling-destroy arm (raw 100661-100673), right after
+ * FUN_291f_0248 (= FUN_4d56_00e0) razed the settlement: when the village's
+ * mission byte (local_62 = record +5, read at raw 100410) names the
+ * CONQUEROR in its low nibble, DOS spawns @UNIT type 3 (Missionary) for the
+ * conqueror on the village tile (FUN_281f_095c(3, nation, x, y)); with the
+ * Jesuit bit 0x10 it also writes profession byte +0x315b = 0x18 (@JOB 24,
+ * Jesuit Missionary). A rival nation's mission is lost with the village.
+ * Returns unit id or -1.
+ */
+static int units_spawn_mission_return(
+  ColonizeUnitPool* units,
+  int x,
+  int y,
+  int attacker_nation_id,
+  uint8_t mission
+) {
+  if (!units || attacker_nation_id < 0 || attacker_nation_id > 3) {
+    return -1;
+  }
+  /* DOS-LITERAL: (local_62 & 0xf) == uVar16; 0xff (no mission) gives 0xf. */
+  if ((mission & COL1_TRIBE_MISSION_NATION_MASK) != (uint8_t)attacker_nation_id) {
+    return -1;
+  }
+  const int ti = units_kind_type_index(units, UNITS_KIND_MISSIONARY);
+  if (ti < 0) {
+    return -1;
+  }
+  const int id = units_spawn_allow_stack(units, ti, x, y);
+  if (id < 0) {
+    return -1;
+  }
+  ColonizeUnit* u = units_get(units, id);
+  if (!u) {
+    return -1;
+  }
+  units_set_nation(u, attacker_nation_id);
+  if ((mission & COL1_TRIBE_MISSION_JESUIT_BIT) != 0) {
+    u->profession = UNITS_JOB_MISSIONARY; /* +0x315b = 0x18 */
+  }
+  return id;
+}
+
 bool units_try_native_settlement_fallout_w(
   const ColonizeWorld* w,
   int attacker_nation_id,
@@ -4573,9 +4625,22 @@ bool units_try_native_settlement_fallout_w(
     }
   }
 
+  const int tribe_nation = col1_destroy_tribe_at(col1, units, map, tile_x, tile_y);
+  if (tribe_nation < 0) {
+    return false;
+  }
+
+  /* bugs.md #551: the conqueror's own mission comes back as a Missionary on
+   * the razed site (FUN_5fef_1b0e raw 100667-100672, right after 00e0). */
+  if (attacker_nation_id >= 0 && attacker_nation_id < 4) {
+    (void)units_spawn_mission_return(units, tile_x, tile_y, attacker_nation_id, mission);
+  }
+
   /*
-   * Subjugated convert-join before tribe destroy (DOS order: convert then
-   * treasure). Cite: FUN_5fef_1b0e ~101155–101184; @INDIANSLAVES 0x1cbf.
+   * Subjugated convert-join. DOS order (FUN_5fef_1b0e): destroy (00e0) →
+   * mission return → convert → treasure; the convert used to run before the
+   * destroy here (moved 2026-09-21, bugs.md #551). Cite: FUN_5fef_1b0e
+   * ~101155–101184; @INDIANSLAVES 0x1cbf.
    */
   if (attacker_nation_id >= 0 && attacker_nation_id < 4 && rng) {
     const int thr =
@@ -4606,10 +4671,6 @@ bool units_try_native_settlement_fallout_w(
     }
   }
 
-  const int tribe_nation = col1_destroy_tribe_at(col1, units, map, tile_x, tile_y);
-  if (tribe_nation < 0) {
-    return false;
-  }
 
   if (attacker_nation_id >= 0 && attacker_nation_id < 4) {
     /*
@@ -7385,8 +7446,23 @@ ColonizeEnterReason units_enter_probe_w(
     }
   }
 
+  /*
+   * bugs.md #553: a ship stepping into its OWN colony docks. DOS
+   * FUN_465b_0000 reads the destination's settlement owner (FUN_281f_06be,
+   * raw 75467) and lets only the stack head's nation (FUN_281f_07e0) override
+   * it; every DOS path that brings a foreign unit onto a colony tile is an
+   * attack or capture, so the stack of an own colony is always own. Foreign
+   * units found there are port leftovers (a Brave that walked in before the
+   * 465b foreign-destination arm was ported in ai_native_brave_step — live
+   * saves carry one), and must not bar the owner's ships.
+   */
+  bool own_colony_dock = false;
+  if (sea && land && colonies && mover_nation >= 0) {
+    const ColonizeColony* oc = colonies_get(colonies, colonies_id_at(colonies, x, y));
+    own_colony_dock = oc && oc->active && oc->nation_id == mover_nation;
+  }
   int foe = -1;
-  {
+  if (!own_colony_dock) {
     int foe_mismatch = -1;
     int slot_d = 0;
     for (const ColonizeUnit* u = units_next_on_tile_const(pool, x, y, &slot_d); u != NULL;
