@@ -18,6 +18,7 @@ void reports_names_free_catalogs(void);
 const char* reports_names_field(const char* section, int row, int col);
 const char* reports_labels_field(const char* section, int index);
 const char* reports_misc_word(int index, const char* fallback, char* out, size_t out_sz);
+const char* reports_ctitle_word(int index);
 
 const char* reports_ff_name(int idx);
 const char* reports_job_name(int job);

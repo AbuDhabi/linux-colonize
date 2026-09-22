@@ -62,11 +62,6 @@ static int fx_build(Fx* f, int pop) {
   if (!fx_map_alloc(&f->map, 24, 24, 3, false)) {
     return fail("map alloc");
   }
-  /* fx_map_alloc leaves map->improve NULL; the road/plow planes live there. */
-  f->map.improve = calloc(24u * 24u, 1);
-  if (!f->map.improve) {
-    return fail("improve alloc");
-  }
   /* All-land plains: no water in any colony ring unless a case adds it. */
   for (size_t i = 0; i < f->map.tile_count; ++i) {
     f->map.layer3[i] = 0xf1; /* owner none, continent 1 */
@@ -652,8 +647,6 @@ static int case_colony_tick_improves_a_plot(void) {
   }
   ai_euro_reset();
   fx_wake_colonists(&f, 3);
-  /* fx_map_alloc leaves the improvement plane unallocated; plow/road need it. */
-  f.map.improve = calloc(f.map.tile_count, 1);
   f.col->ai_flags |= COLONIZE_COLONY_AI_WANTS_PIONEER_WORK;
   f.col->ai_flags &= (uint8_t)~COLONIZE_COLONY_AI_WANTS_PIONEER_CLEAR;
   f.col->stock[COLONIZE_CARGO_TOOLS] = 50;
@@ -675,8 +668,6 @@ static int case_colony_tick_improves_a_plot(void) {
   }
   const int tools = f.col->stock[COLONIZE_CARGO_TOOLS];
   const int timer = (int)f.col->improve_timer;
-  free(f.map.improve);
-  f.map.improve = NULL;
   int units_left = 0;
   for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
     if (f.units.units[i].active) {

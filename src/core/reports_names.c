@@ -149,6 +149,23 @@ const char* reports_misc_display_word(int index, const char* fallback) {
   return reports_misc_word(index, fallback ? fallback : "", out, sizeof(buf[0]));
 }
 
+/*
+ * LABELS.TXT `@CTITLE` word, copied into a rotating buffer like
+ * reports_misc_display_word. DOS keeps these in the DS pointer slots the
+ * sidebar reads directly (`DS:0x93a0` = row 1, "Gold:", used by
+ * FUN_49dd_0424 raw 78727 header, raw 78911 selected-unit Treasure row and
+ * raw 79210 stack Treasure row). Catalog miss = "".
+ */
+const char* reports_ctitle_word(int index) {
+  static char buf[4][64];
+  static int next = 0;
+  char* out = buf[next];
+  next = (next + 1) % 4;
+  const char* live = reports_labels_field("CTITLE", index);
+  str_copy_trunc(out, sizeof(buf[0]), live ? live : "");
+  return out;
+}
+
 const char* reports_title(ColonizeReportId id) {
   if (id < 0 || id >= COLONIZE_REPORT_COUNT) {
     return "REPORT";

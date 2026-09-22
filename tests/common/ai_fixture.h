@@ -31,10 +31,12 @@ static inline bool fx_map_alloc(
   map->terrain = calloc((size_t)(w * h), 1);
   map->layer2 = calloc((size_t)(w * h), 1);
   map->layer3 = calloc((size_t)(w * h), 1);
+  map->improve = calloc((size_t)(w * h), 1);
   if (with_seen) {
     map->seen = calloc((size_t)(w * h), 1);
   }
-  if (!map->terrain || !map->layer2 || !map->layer3 || (with_seen && !map->seen)) {
+  if (!map->terrain || !map->layer2 || !map->layer3 || !map->improve ||
+      (with_seen && !map->seen)) {
     return false;
   }
   for (int i = 0; i < w * h; ++i) {
