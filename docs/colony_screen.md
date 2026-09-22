@@ -302,16 +302,21 @@ free position in that slot's class, retry on collision. Seed =
 `(colony.y << 8) + colony.x + DS:0x8d80`, srand-masked to 15 bits
 (`FUN_15eb_1476`).
 
-### The base seed, and why DOS layouts aren't in the save
+### The base seed (it *is* in the save — bugs.md #564)
 
-`DS:0x8d80` comes from the BIOS tick at `0040:006C` at program start —
-wall-clock. Real DOS re-rolls every layout each launch; no save reproduces
-a screenshot's layout. The port pins the base instead. Exactly **one**
+`DS:0x8d80` comes from the BIOS tick at `0040:006C` at program start
+(`FUN_75c2_2d46`), but it is **saved and restored**: post_map tail @608
+(`FUN_2a1f_0c9c` write / `FUN_2a1f_0cb4` read), i.e. `post_map.boot_timer`.
+So a layout is stable for the life of a game and a save *does* reproduce a
+screenshot's layout. The port still pins the base here. Exactly **one**
 15-bit base, `25281`, reproduces both golden screenshots at once (18
 independent category→slot constraints) — uniqueness over the whole 32768
 space is the proof the category table, pools, mapping, shuffle order and
 RNG are all right. Both colonies render at golden positions with no
-overrides. (Byproduct: the EXE's blacksmith x=7 beat the hand-measured 4.)
+overrides — and that pin is not arbitrary at all: the screenshot saves
+(`original_saves/colony-prod-tests/COLONY00-dutch2-*`) carry
+`boot_timer = 844481`, and 844481 mod 32768 = **25281**. Open follow-up:
+colony_screen.c should read `post_map.boot_timer` instead of the constant. (Byproduct: the EXE's blacksmith x=7 beat the hand-measured 4.)
 
 ## Left unresolved
 

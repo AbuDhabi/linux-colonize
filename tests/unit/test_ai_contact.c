@@ -7057,6 +7057,70 @@ static int case_full_contact_scenario(void) {
       units_despawn(&units, srv_id);
     }
 
+    /* bugs.md #564: the village-teach skill draw seeds from
+     * (village.y*256 + village.x) + DS:0x8d80 (post_map.boot_timer), so the
+     * same village on the same map teaches different skills in games with a
+     * different boot timer. Guard: the taught profession must not be
+     * constant across boot_timer values. */
+    {
+      const uint32_t boots[4] = {0u, 844481u, 1376060u, 1407547u};
+      int taught[4];
+      const uint32_t boot_save = col1.post_map.boot_timer;
+      for (int b = 0; b < 4; ++b) {
+        col1.post_map.boot_timer = boots[b];
+        col1.tribe[0].state.learned = 0;
+        const int lid = units_spawn_allow_stack(&units, 1, 6, 5);
+        ColonizeUnit* learner = units_get(&units, lid);
+        if (!learner) {
+          return fail("#564: spawn learner");
+        }
+        learner->nation_id = 0;
+        learner->profession = UNITS_JOB_NONE;
+        ai_popup_clear(&pop);
+        if (!ai_contact_try_village_meet_unit(&ctx, 0, 4, 0, 0, lid)) {
+          return fail("#564: learner meet should enqueue");
+        }
+        AiPopupState res2;
+        ai_popup_init(&res2);
+        res2.has_result = true;
+        res2.result_cancelled = false;
+        res2.result_choice_id = 4; /* Live Among */
+        res2.result_tag = AI_POPUP_TAG_CONTACT_MEET;
+        res2.result_nation_a = 0;
+        res2.result_nation_b = 4;
+        res2.result_payload = pop.queue[0].payload;
+        ai_popup_clear(&pop);
+        st_menu[0] = '\0';
+        ai_contact_apply_popup_result(&ctx, &res2);
+        AiPopupState ans2;
+        ai_popup_init(&ans2);
+        ans2.has_result = true;
+        ans2.result_cancelled = false;
+        ans2.result_choice_id = 1; /* YES */
+        ans2.result_tag = AI_POPUP_TAG_CONTACT_LEARNSTAY;
+        ans2.result_nation_a = 0;
+        ans2.result_nation_b = 4;
+        ans2.result_payload = pop.queue[0].payload;
+        ai_popup_clear(&pop);
+        st_menu[0] = '\0';
+        ai_contact_apply_popup_result(&ctx, &ans2);
+        taught[b] = learner->profession;
+        ai_popup_clear(&pop);
+        units_despawn(&units, lid);
+      }
+      col1.post_map.boot_timer = boot_save;
+      col1.tribe[0].state.learned = 0;
+      int distinct = 0;
+      for (int b = 0; b < 4; ++b) {
+        distinct += (taught[b] != taught[0]);
+      }
+      if (distinct == 0) {
+        fprintf(stderr, "unit_ai_contact: #564 taught %d %d %d %d\n",
+                taught[0], taught[1], taught[2], taught[3]);
+        return fail("#564: village-teach seed must include post_map.boot_timer");
+      }
+    }
+
     /* Soldier → Demand Tribute: one of the four @EXTORT* bodies; laugh/no bumps alarm. */
     {
       const int sol_id = units_spawn_allow_stack(&units, 3, 6, 5);

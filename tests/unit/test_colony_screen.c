@@ -2325,10 +2325,56 @@ static int case_colony_screen_render_workflow(void) {
   return 0;
 }
 
+/* bugs.md #576: the tile job menu lists every field job unconditionally.
+ * DOS row eligibility is FUN_15eb_3454 (raw 13518-13554), a required-BUILDING
+ * test on DS:0x2f4[job]; that byte is -1 for all nine field jobs, so none of
+ * them can ever be filtered out — least of all by a yield, which DOS only
+ * computes to print (trial-assigned, FUN_281f_0c36 then FUN_281f_0b3c). */
+static int unit_tile_jobs_menu_lists_all_field_jobs(void) {
+  ColonyScreenView view;
+  memset(&view, 0, sizeof(view));
+  ColonizeColony col;
+  memset(&col, 0, sizeof(col));
+  col.x = 31;
+  col.y = 14;
+  col.colonist_count = 0;
+
+  int rc = 0;
+  for (int tile = 0; tile < COLONIZE_COLONY_FIELD_TILES; ++tile) {
+    int dx = 0;
+    int dy = 0;
+    if (!colonies_field_tile_delta(tile, &dx, &dy)) {
+      continue;
+    }
+    view.jobs_open = false;
+    colony_screen_open_jobs(&view, NULL, &col, tile);
+    if (!view.jobs_open || view.job_count != COLONIZE_FIELD_JOB_COUNT) {
+      fprintf(
+        stderr,
+        "tile_jobs: tile %d open=%d rows=%d (want %d)\n",
+        tile,
+        (int)view.jobs_open,
+        view.job_count,
+        COLONIZE_FIELD_JOB_COUNT
+      );
+      rc = 1;
+      continue;
+    }
+    for (int i = 0; i < view.job_count; ++i) {
+      if (view.job_ids[i] != i) {
+        fprintf(stderr, "tile_jobs: tile %d row %d = job %d\n", tile, i, view.job_ids[i]);
+        rc = 1;
+      }
+    }
+  }
+  return rc;
+}
+
 static const TestCase k_cases[] = {
     {"unit_buyme1_tokens", unit_buyme1_tokens},
     {"unit_building_click_reaches_owned", unit_building_click_reaches_owned},
     {"unit_dock_orders_menu", unit_dock_orders_menu},
+    {"unit_tile_jobs_menu_lists_all_field_jobs", unit_tile_jobs_menu_lists_all_field_jobs},
     {"unit_multi_units_pane_roster", unit_multi_units_pane_roster},
     {"case_colony_screen_render_workflow", case_colony_screen_render_workflow},
 };

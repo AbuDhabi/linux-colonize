@@ -358,7 +358,16 @@ typedef struct ColonyScreenView {
   /* Multifunction "Units" tab selection (docked transport or outside unit id;
    * -1 none). Second click on the already-selected id opens dock orders. */
   int multi_unit_selected_id;
+
+  /* DS:0x8d80 — the game's BIOS boot tick (post_map.boot_timer, saved in
+   * the tail @608), the per-game half of the building-layout seed
+   * (FUN_2f2b_0434). bugs.md #578. Unset = the screenshot goldens' value. */
+  bool layout_seed_set;
+  uint32_t layout_seed_base;
 } ColonyScreenView;
+
+/* Hand the loaded/new game's post_map.boot_timer to the colony screen. */
+void colony_screen_set_layout_seed(ColonyScreenView* view, uint32_t boot_timer);
 
 bool colony_screen_load(ColonyScreenView* view, const char* data_dir, char* err, size_t err_size);
 void colony_screen_free(ColonyScreenView* view);
