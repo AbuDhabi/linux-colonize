@@ -551,6 +551,9 @@ const char* europe_pool_label(const EuropeScreen* eu, int slot);
  * plain forms pass NULL (plain Soldiers, no draw) and exist for callers
  * with no rng at hand.
  */
+/* Recruit pool row enabled? DOS greys every pool row when the purse cannot
+ * cover the passage (FUN_38fd_4884 raw 64736-64741) — bugs.md #588. */
+bool europe_recruit_affordable(const EuropeScreen* eu);
 /* Train dialog row enabled? DOS greys the row when the purse is short
  * (FUN_38fd_41ce raw 64399-64403) — bugs.md #566. */
 bool europe_train_affordable(const EuropeScreen* eu, int train_index);

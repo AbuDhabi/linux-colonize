@@ -36,6 +36,9 @@ typedef struct AiPopupState AiPopupState;
 #define COLONIZE_JOB_SILVER_MINER 7
 #define COLONIZE_JOB_FISHERMAN 8
 #define COLONIZE_FIELD_JOB_COUNT 9
+/* @JOB occupation 0x12, the colony's teaching slot DOS's work-assign
+ * validator counts (FUN_1000_8d72(0x12)). Not the cut Expert Teacher unit. */
+#define COLONIES_JOB_TEACHER 18
 
 /* Warehouse cargo order matches NAMES.TXT @CARGO (and ICONS.SS 22..37). */
 #define COLONIZE_CARGO_FOOD 0
@@ -703,6 +706,19 @@ int colonies_school_building_tier(
  * building_tier; else 0.
  */
 int colonies_school_tier_shortfall(int profession, int building_tier);
+/* Best school tier the colony OWNS (University 3 / College 2 / Schoolhouse 1,
+ * 0 none) — both the faculty cap and the @NEEDCOLLEGE/@NEEDUNIVERSITY test
+ * read this, never the clicked school row. bugs.md #580 / #589. */
+int colonies_school_owned_tier(const ColonizeColonyPool* pool, const ColonizeColony* col);
+/* DOS @JOB occupation a workable building employs (9..18), or -1. */
+int colonies_building_occupation(const ColonizeColonyPool* pool, int building_type);
+/* Colonists of that occupation in the colony, skipping except_index (-1 = none). */
+int colonies_occupation_worker_count(
+  const ColonizeColonyPool* pool,
+  const ColonizeColony* col,
+  int occupation,
+  int except_index
+);
 
 /* Human school assign chrome: GAME.TXT @NOTEACHER. No-op if ai_popups NULL. */
 void colonies_emit_noteacher_chrome(
@@ -714,6 +730,12 @@ void colonies_emit_noteacher_chrome(
 void colonies_emit_need_school_chrome(
   int profession,
   int building_tier,
+  AiPopupState* ai_popups,
+  const ColonizeMsgCatalog* messages
+);
+/* @SCHOOL1 / @COLLEGE2 / @UNIV3 faculty-cap refusal (owned tier 1/2/3). */
+void colonies_emit_school_faculty_chrome(
+  int owned_tier,
   AiPopupState* ai_popups,
   const ColonizeMsgCatalog* messages
 );
@@ -731,6 +753,34 @@ int colonies_colonist_tile(const ColonizeColony* colony, int colonist_index);
 /* Map tile index ↔ (dx,dy) offsets from colony center (N=0 … NW=7). */
 bool colonies_field_tile_delta(int tile_index, int* out_dx, int* out_dy);
 int colonies_field_tile_index(int dx, int dy);
+
+/*
+ * bugs.md #584 — DOS plot scan order. DS:0xc8/0xde list the work plots as
+ * N,E,S,W,NW,NE,SE,SW; the port's own slot order (colonies_field_tile_delta)
+ * is the clockwise MAP_DIR8 one. `colonies_field_scan_order(step)` maps a DOS
+ * scan step 0..7 to the runtime tile_index, so a scan that must reproduce a
+ * DOS tie-break ("first index wins", FUN_15eb_28c8 raw 13126 elects strictly
+ * greater) iterates `colonies_field_scan_order(step)` instead of `step`.
+ * Returns -1 outside 0..7.
+ */
+int colonies_field_scan_order(int step);
+
+/*
+ * DOS-LITERAL FUN_15eb_23f2 (raw 12695-12800): the "may this colony work this
+ * plot" bitmask for ring slot `tile_index` (0..7, the port's slot order), 0 =
+ * workable. Bits: 0x10 off-map / outside the work radius / unexplored, 0x80
+ * foreign-owned tile held by a fortified armed unit, 0x02 Lost City Rumour,
+ * 0x04 Indian village, 0x20 another colony's centre, 0x40 plot already worked
+ * by another colony, 0x08 own centre (unreachable here). Both DOS consumers —
+ * the AI plot scan FUN_15eb_28c8 (raw 12993) and the human area-view click
+ * FUN_2f2b_3fa6 (raw 50917) — require the byte to be 0, and 3fa6 simply
+ * ignores the click otherwise (no popup, no status line).
+ */
+uint8_t colonies_plot_blocked_mask(
+  const ColonizeWorld* w,
+  const ColonizeColony* col,
+  int tile_index
+);
 
 /* Forward decl — unit helpers need the unit pool without including units.h here. */
 typedef struct ColonizeUnitPool ColonizeUnitPool;

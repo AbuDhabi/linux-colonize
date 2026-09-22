@@ -1198,14 +1198,12 @@ static int unit_pioneer_order_gates(void) {
 }
 
 /*
- * units_display_name: real NAMES.TXT @UNIT base type names are plural
- * catalog labels ("Colonists", "Pioneers", "Soldiers", …), not display
- * strings. "Colonists" + no equipment/profession must resolve to the
- * canonical "Free Colonist" name — mirrors the existing "Pioneers"→
- * "Pioneer" / "Soldiers"→"Soldier" branches. Without this, every strstr(
- * units_display_name(...), "Free Colonist") gate across the codebase
- * (ai_contact teach-skill, ai_euro LABOR/founding-site checks, …) silently
- * never matches an ordinary base colonist in real gameplay.
+ * bugs.md #591: every DOS unit-name channel reads the @UNIT ROW string
+ * (0x5230 + type*0xe; raw 14128, 42654, 99460-99461, 99511, 100625-100628),
+ * never a @JOB-composed label. A bare colonist body reads the @UNIT row 0
+ * name ("Colonists"); arming it reads the @UNIT row 1 name ("Soldiers"),
+ * because DOS carries the equipment ladder in the type byte itself. The
+ * rank words live in the separate profession line (units_profession_line).
  */
 static int unit_display_name_free_colonist(void) {
   ColonizeMsgCatalog names;
@@ -1236,16 +1234,38 @@ static int unit_display_name_free_colonist(void) {
     return 1;
   }
   u->profession = UNITS_JOB_NONE;
+  const ColonizeUnitType* colonist_row = units_type(&pool, colonist_ty);
   const char* name = units_display_name(&pool, u);
-  /* NAMES.TXT @JOB row 19, column 1 — read from the catalog, not typed here. */
-  if (!name || !name[0] || strcmp(name, reports_job_display_name(19)) != 0) {
-    fprintf(stderr, "display_name: base Colonists got '%s' want @JOB row 19 col 1\n",
+  if (!name || !name[0] || strcmp(name, colonist_row->name) != 0) {
+    fprintf(stderr, "display_name: base Colonists got '%s' want @UNIT row 0 '%s'\n",
+            name ? name : "(null)", colonist_row->name);
+    assets_msg_free(&names);
+    return 1;
+  }
+  /* An Expert Fisherman body is still @UNIT row 0: the profession never
+   * touches the name channel. */
+  u->profession = 6 /* @JOB Expert Fisherman */;
+  name = units_display_name(&pool, u);
+  if (!name || strcmp(name, colonist_row->name) != 0) {
+    fprintf(stderr, "display_name: expert body got '%s' want '%s'\n",
+            name ? name : "(null)", colonist_row->name);
+    assets_msg_free(&names);
+    return 1;
+  }
+  /* Armed: DOS rewrites the type byte to @UNIT row 1 ("Soldiers"). */
+  const int soldier_ty = units_kind_type_index(&pool, UNITS_KIND_SOLDIER);
+  u->muskets = UNITS_EQUIP_MUSKETS;
+  name = units_display_name(&pool, u);
+  if (soldier_ty < 0 || !name || strcmp(name, units_type(&pool, soldier_ty)->name) != 0) {
+    fprintf(stderr, "display_name: armed expert got '%s' want @UNIT soldier row\n",
             name ? name : "(null)");
     assets_msg_free(&names);
     return 1;
   }
+  u->muskets = 0;
+  u->profession = UNITS_JOB_NONE;
   assets_msg_free(&names);
-  fprintf(stderr, "unit_units: display_name Colonists->Free Colonist ok\n");
+  fprintf(stderr, "unit_units: display_name = @UNIT row ok\n");
   return 0;
 }
 
@@ -1276,6 +1296,174 @@ static void unit_event_sfx_play_mock(int id) {
 
 static int unit_event_sfx_active_id_mock(void) {
   return -1;
+}
+
+/*
+ * bugs.md #581: production installs no name resolver (units_name_kind is a
+ * test-only hook), so every class test must read the @UNIT ROW's kind_plus1.
+ * Two gameplay sites used to read the English spelling and therefore went
+ * dead in the shipped binary:
+ *   (a) the FUN_5bfb_3180 adjacent-warship arm (raw 98519-98624) — a
+ *       Privateer next to a foreign Frigate must still drain MP;
+ *   (b) the royal-type demote guard (raw 99440-99465) — King's Regulars are
+ *       DESTROYED on a loss, never stripped to a musket-less body.
+ * Both run here with the resolver explicitly uninstalled.
+ */
+extern void test_name_kinds_reinstall(void);
+
+static int unit_kind_without_name_resolver(void) {
+  units_set_name_kind_resolver(NULL); /* production state */
+  int rc = 0;
+
+  /* (a) Privateer vs adjacent foreign Frigate: MP drains. */
+  {
+    ColonizeWorldMap map;
+    memset(&map, 0, sizeof(map));
+    map.width = 16;
+    map.height = 16;
+    map.tile_count = 256;
+    map.terrain = calloc(256, 1);
+    map.layer2 = calloc(256, 1);
+    map.layer3 = calloc(256, 1);
+    if (!map.terrain || !map.layer2 || !map.layer3) {
+      fprintf(stderr, "kind#581: map alloc\n");
+      test_name_kinds_reinstall();
+      return 1;
+    }
+    for (int i = 0; i < 256; ++i) {
+      map.terrain[i] = 25; /* ocean */
+      map.layer3[i] = 1;   /* continent 1: ocean, not lake */
+    }
+
+    ColonizeUnitPool pool;
+    memset(&pool, 0, sizeof(pool));
+    units_reset(&pool);
+    units_set_occupancy_map(NULL);
+    pool.type_count = 2;
+    /* No names at all — the row's kind_plus1 is the only identity. */
+    pool.types[0].movement = 8;
+    pool.types[0].domain = COLONIZE_UNIT_DOMAIN_SEA;
+    pool.types[0].kind_plus1 = (uint8_t)(UNITS_KIND_PRIVATEER + 1);
+    pool.types[1].movement = 6;
+    pool.types[1].domain = COLONIZE_UNIT_DOMAIN_SEA;
+    pool.types[1].kind_plus1 = (uint8_t)(UNITS_KIND_FRIGATE + 1);
+
+    ColonizeColonyPool colonies;
+    memset(&colonies, 0, sizeof(colonies));
+    colonies_init(&colonies);
+    units_set_occupancy_map(NULL);
+
+    const int own_id = units_spawn_allow_stack(&pool, 0, 5, 5);
+    const int foe_id = units_spawn_allow_stack(&pool, 1, 5, 4);
+    ColonizeUnit* own = units_get(&pool, own_id);
+    ColonizeUnit* foe = units_get(&pool, foe_id);
+    if (!own || !foe) {
+      fprintf(stderr, "kind#581: ship spawn failed\n");
+      free(map.terrain); free(map.layer2); free(map.layer3);
+      test_name_kinds_reinstall();
+      return 1;
+    }
+    own->nation_id = 0;
+    foe->nation_id = 2;
+    units_occupancy_rebuild(&pool);
+
+    ColonizeCol1Save col1;
+    memset(&col1, 0, sizeof(col1));
+    for (int i = 0; i < 4; ++i) {
+      col1.player[i].control = 1; /* nobody human: no popups */
+    }
+    units_set_native_fallout_context(&col1, &map, -1);
+    units_set_combat_popups(NULL, NULL);
+
+    const int full = 8 * UNITS_MP_PER_TILE;
+    int slowed = 0;
+    for (uint32_t seed = 1000; seed < 60000 && !slowed; seed += 1777) {
+      ColonizeDosRng rng;
+      dos_rng_seed(&rng, seed);
+      own->moves = full;
+      ColonizeWorld w = {
+        .units = &pool, .colonies = &colonies, .map = &map, .rng = &rng,
+        .col1 = &col1, .col1_ok = true
+      };
+      units_ship_slow_scan_w(&w, own_id);
+      if (own->moves < full) {
+        slowed = 1;
+      }
+    }
+    if (!slowed) {
+      fprintf(stderr,
+              "kind#581: Privateer next to a Frigate never slowed (@SHIPSLOW arm dead)\n");
+      rc = 1;
+    }
+    units_set_native_fallout_context(NULL, NULL, -1);
+    units_set_occupancy_map(NULL);
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+  }
+  if (rc != 0) {
+    test_name_kinds_reinstall();
+    return rc;
+  }
+
+  /* (b) King's Regulars lose: destroyed, not demoted. */
+  {
+    ColonizeUnitPool pool;
+    memset(&pool, 0, sizeof(pool));
+    units_reset(&pool);
+    units_set_occupancy_map(NULL);
+    pool.type_count = 2;
+    pool.types[0].attack = 99;
+    pool.types[0].defense = 99;
+    pool.types[0].movement = 1;
+    pool.types[0].kind_plus1 = (uint8_t)(UNITS_KIND_SOLDIER + 1);
+    pool.types[1].attack = 0;
+    pool.types[1].defense = 0;
+    pool.types[1].movement = 1;
+    pool.types[1].kind_plus1 = (uint8_t)(UNITS_KIND_REGULAR + 1);
+
+    ColonizeCol1Save col1;
+    memset(&col1, 0, sizeof(col1));
+    for (int i = 0; i < 4; ++i) {
+      col1.player[i].control = 1;
+    }
+    units_set_ff_col1(&col1);
+    units_set_combat_popups(NULL, NULL);
+
+    const int aid = units_spawn_allow_stack(&pool, 0, 5, 5);
+    const int did = units_spawn_allow_stack(&pool, 1, 6, 5);
+    ColonizeUnit* att = units_get(&pool, aid);
+    ColonizeUnit* def = units_get(&pool, did);
+    if (!att || !def) {
+      fprintf(stderr, "kind#581: regular spawn failed\n");
+      units_set_ff_col1(NULL);
+      test_name_kinds_reinstall();
+      return 1;
+    }
+    att->nation_id = 1;
+    def->nation_id = 2;
+    def->muskets = UNITS_EQUIP_MUSKETS;
+    ColonizeDosRng rng;
+    dos_rng_seed(&rng, 12345);
+    ColonizeWorld w = {
+      .units = &pool, .col1 = &col1, .col1_ok = true, .rng = &rng
+    };
+    units_resolve_land_combat_ff_w(&w, aid, did);
+    const ColonizeUnit* after = units_get_const(&pool, did);
+    if (after && after->active) {
+      fprintf(stderr, "kind#581: Regulars survived a loss (muskets=%d) — royal guard dead\n",
+              after->muskets);
+      rc = 1;
+    }
+    units_set_ff_col1(NULL);
+    units_set_occupancy_map(NULL);
+  }
+
+  test_name_kinds_reinstall(); /* other fixtures here are name-built */
+  if (rc == 0) {
+    fprintf(stderr, "unit_units: #581 kind_plus1 without name resolver ok\n");
+  }
+  return rc;
 }
 
 /*
@@ -2139,10 +2327,15 @@ static int unit_fog_vis_mask_and_snapshot(void) {
     memset(&cpool, 0, sizeof(cpool));
     units_reset(&cpool);
     units_set_occupancy_map(NULL);
-    cpool.type_count = 1;
+    cpool.type_count = 3;
     snprintf(cpool.types[0].name, sizeof(cpool.types[0].name), "Colonists");
     cpool.types[0].movement = 1;
     cpool.types[0].icon_sprite = 100; /* Free Colonist */
+    /* bugs.md #591: the name channel is the @UNIT row, so the fixture needs
+     * the Dragoons row an armed+mounted body displays as. */
+    snprintf(cpool.types[2].name, sizeof(cpool.types[2].name), "Dragoons");
+    cpool.types[2].movement = 4;
+    cpool.types[2].kind_plus1 = (uint8_t)(UNITS_KIND_DRAGOON + 1);
     const int plain = units_spawn_allow_stack(&cpool, 0, 3, 3);
     const int conv = units_spawn_allow_stack(&cpool, 0, 4, 3);
     ColonizeUnit* cu = units_get(&cpool, conv);
@@ -2186,10 +2379,16 @@ static int unit_fog_vis_mask_and_snapshot(void) {
               units_map_sprite(&cpool, plain), UNITS_ICON_VETERAN_DRAGOON);
       return 1;
     }
-    if (strcmp(units_display_name(&cpool, vu), "Veteran Dragoon") != 0) {
-      fprintf(stderr, "veteran name: mounted vet reads '%s' want 'Veteran Dragoon'\n",
-              units_display_name(&cpool, vu));
-      return 1;
+    /* bugs.md #591: the NAME channel is the @UNIT row (a mounted armed body
+     * displays as the Dragoons row); "Veteran" is the profession line. */
+    {
+      const int dragoon_ty = units_kind_type_index(&cpool, UNITS_KIND_DRAGOON);
+      const ColonizeUnitType* dt = dragoon_ty >= 0 ? units_type(&cpool, dragoon_ty) : NULL;
+      if (!dt || strcmp(units_display_name(&cpool, vu), dt->name) != 0) {
+        fprintf(stderr, "veteran name: mounted vet reads '%s' want @UNIT dragoon row\n",
+                units_display_name(&cpool, vu));
+        return 1;
+      }
     }
     vu->muskets = 0;
     vu->horses = 0;
@@ -4246,6 +4445,10 @@ int main(void) {
     return 1;
   }
   if (unit_display_name_free_colonist() != 0) {
+    diag_shutdown();
+    return 1;
+  }
+  if (unit_kind_without_name_resolver() != 0) {
     diag_shutdown();
     return 1;
   }

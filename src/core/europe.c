@@ -1267,14 +1267,12 @@ bool europe_recruit_from_pool_ex(EuropeScreen* eu, int pool_index, ColonizeDosRn
     europe_set_status(eu, "Docks are full.");
     return false;
   }
-  if (eu->gold < eu->recruit_passage) {
-    snprintf(
-      eu->status,
-      sizeof(eu->status),
-      "Need %d$ passage for %s.",
-      eu->recruit_passage,
-      eu->pool[pool_index].name
-    );
+  if (!europe_recruit_affordable(eu)) {
+    /*
+     * FUN_38fd_4884 raw 64736-64741: when the nation's 32-bit purse cannot
+     * cover the passage DOS greys the row (FUN_291f_01b6(list, row, 1)) and
+     * the pick does nothing — no status line, no popup. bugs.md #588.
+     */
     return false;
   }
   eu->gold -= eu->recruit_passage;
@@ -1403,6 +1401,10 @@ bool europe_immigrant_from_pool(EuropeScreen* eu, ColonizeDosRng* rng) {
  * FUN_291f_01b6(list, row, 1) — greys the row out — when the purse is
  * short, so an unaffordable expert cannot be picked at all. bugs.md #566.
  */
+bool europe_recruit_affordable(const EuropeScreen* eu) {
+  return eu && eu->gold >= eu->recruit_passage;
+}
+
 bool europe_train_affordable(const EuropeScreen* eu, int train_index) {
   if (!eu || train_index < 0 || train_index >= eu->train_count) {
     return false;
@@ -5102,6 +5104,9 @@ bool europe_menu_confirm_ex(EuropeScreen* eu, ColonizeDosRng* rng) {
   }
   if (m == EUROPE_MENU_RECRUIT) {
     const int pool_i = sel - 1;
+    if (!europe_recruit_affordable(eu)) {
+      return false; /* greyed row: inert, dialog stays up (bugs.md #588) */
+    }
     const bool ok = europe_recruit_from_pool_ex(eu, pool_i, rng);
     europe_menu_close(eu);
     return ok;

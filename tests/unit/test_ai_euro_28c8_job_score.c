@@ -168,7 +168,8 @@ static void recompute_expected(
   out_best->job = -1;
   out_best->tile = -1;
   out_best->score = 0;
-  for (int ti = 0; ti < COLONIZE_COLONY_FIELD_TILES; ++ti) {
+  for (int step = 0; step < COLONIZE_COLONY_FIELD_TILES; ++step) {
+    const int ti = colonies_field_scan_order(step); /* DS:0xc8/0xde order, #584 */
     int dx = 0, dy = 0;
     colonies_field_tile_delta(ti, &dx, &dy);
     const int tx = col->x + dx;
@@ -178,7 +179,7 @@ static void recompute_expected(
       if (yld <= 0) {
         continue;
       }
-      const int cargo = colony_yield_job_cargo(job);
+      const int cargo = job; /* raw 13000/13006 — local_24 is the JOB, #582 */
       int room = capacity - col->stock[cargo];
       if (room < 1) {
         room = 1;
@@ -309,10 +310,76 @@ static int unit_join_seats_on_work_plot(void) {
   return 0;
 }
 
+/*
+ * bugs.md #582 — the Fisherman's warehouse-room clamp reads cargo slot 8
+ * (HORSES), not FOOD. DOS raw 13000 calls `FUN_15eb_18ec(x,y,&local_24,0)`
+ * and the fish->food remap at raw 11983 only fires for param_4 != 0, so
+ * local_24 stays 8 and raw 13006 clamps against `colony+0x9a+8*2`.
+ *
+ * All eight field tiles are Ocean and the warehouse holds a full 100 FOOD
+ * with 0 HORSES: DOS leaves the fish yield alone (room = 100 - 0), while the
+ * old port clamped it to 1 because it indexed FOOD. Scored as an AI colony
+ * with the food emergency off (shortfall 2 * 0x10 < stock 100, raw 12978).
+ */
+static int unit_fisherman_clamps_against_horses(void) {
+  uint8_t terrain[MAP_W * MAP_H];
+  uint8_t layer2[MAP_W * MAP_H];
+  uint8_t layer3[MAP_W * MAP_H];
+  ColonizeWorldMap map;
+  map_init(&map, terrain, layer2, layer3);
+
+  const int cx = 8;
+  const int cy = 8;
+  static const int dx[COLONIZE_COLONY_FIELD_TILES] = {0, 1, 1, 1, 0, -1, -1, -1};
+  static const int dy[COLONIZE_COLONY_FIELD_TILES] = {-1, -1, 0, 1, 1, 1, 0, -1};
+  for (int ti = 0; ti < COLONIZE_COLONY_FIELD_TILES; ++ti) {
+    const int off = (cy + dy[ti]) * MAP_W + (cx + dx[ti]);
+    terrain[off] = 0x19; /* Ocean */
+    layer3[off] = 1;     /* low nibble 1 = sea, not a lake */
+  }
+  suppress_field_tile_resources(&map, cx, cy);
+
+  ColonizeColonyPool colonies;
+  colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
+  colony_init_common(&colonies.colonies[0], /*nation=*/1, cx, cy);
+  colonies.colonies[0].stock[COLONIZE_CARGO_FOOD] = 100;  /* at capacity */
+  colonies.colonies[0].stock[COLONIZE_CARGO_HORSES] = 0;  /* room to spare */
+
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.human_nation = 0; /* colony nation 1 -> AI shape */
+  ctx.colonies = &colonies;
+  ctx.map = &map;
+
+  AiEuro28c8JobCandidate best;
+  if (!ai_euro_28c8_colonist_job_score_structural(&ctx, 0, 0, &best)) {
+    return fail("fisherman_clamp: no assignment found");
+  }
+  if (best.job != COLONIZE_JOB_FISHERMAN) {
+    fprintf(stderr, "unit_ai_euro_28c8_job_score: job=%d want=%d\n",
+            best.job, COLONIZE_JOB_FISHERMAN);
+    return fail("fisherman_clamp: an all-Ocean ring elected a land job");
+  }
+  const int yld = colony_yield_for_tile(&map, cx, cy - 1, COLONIZE_JOB_FISHERMAN);
+  if (yld < 2) {
+    return fail("fisherman_clamp: fixture Ocean yield is too small to detect a clamp");
+  }
+  /* w4 = 0 (AI, no tick), m = 1, no consumer chain: score = yld*8 + 6. */
+  const int want = yld * 8 + 6;
+  if (best.score != want) {
+    fprintf(stderr, "unit_ai_euro_28c8_job_score: score=%d want=%d (yld=%d)\n",
+            best.score, want, yld);
+    return fail("fisherman_clamp: fish yield was clamped against FOOD, not HORSES");
+  }
+  return 0;
+}
+
 static const TestCase k_cases[] = {
     {"unit_distance_term_breaks_ties", unit_distance_term_breaks_ties},
     {"unit_full_matrix_sticky_doubling", unit_full_matrix_sticky_doubling},
     {"unit_join_seats_on_work_plot", unit_join_seats_on_work_plot},
+    {"unit_fisherman_clamps_against_horses", unit_fisherman_clamps_against_horses},
 };
 
 TEST_MAIN(k_cases)

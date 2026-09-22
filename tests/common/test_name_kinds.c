@@ -148,6 +148,14 @@ extern void colonies_set_building_row_name_resolver(ColoniesBuildingRowNameResol
  * test binary reads the real NAMES.TXT / LABELS.TXT (cwd = repo root). */
 extern void reports_names_load_catalogs(const char* data_dir) __attribute__((weak));
 
+/* Re-arm the resolver after a test deliberately uninstalls it to reproduce
+ * the production state (bugs.md #581). */
+void test_name_kinds_reinstall(void) {
+  if (units_set_name_kind_resolver) {
+    units_set_name_kind_resolver(test_name_kind);
+  }
+}
+
 __attribute__((constructor)) static void test_name_kinds_install(void) {
   if (reports_names_load_catalogs) {
     reports_names_load_catalogs("COLONIZE");
