@@ -400,6 +400,90 @@ static int test_prelude_alarm_band(void) {
 }
 
 /*
+ * bugs.md #557 — the AI missionary acts only at a village, through
+ * FUN_4d56_4528's non-human unit-type switch caseD_3: no incite gate met and
+ * no mission on the village → case 3 Establish Mission (thunk_FUN_1000_a5dc),
+ * which sets tribe.mission to the acting nation and consumes the unit. A
+ * human-owned missionary must take the @ACTIONS menu instead, so the AI arm
+ * refuses it.
+ */
+static int test_ai_missionary_village_arm(void) {
+  ColonizeCol1Save col1;
+  col1_save_init(&col1);
+  col1.head.difficulty = 2;
+  for (int ffi = 0; ffi < (int)COLONIZE_COL1_FF_COUNT; ++ffi) {
+    col1.head.founding_father[ffi] = -1;
+  }
+  col1.head.tribe_count = 1;
+  col1.tribe = calloc(1, sizeof(ColonizeCol1Tribe));
+  if (!col1.tribe) {
+    return fail("missionary village: alloc tribe");
+  }
+  col1.tribe[0].x = 5;
+  col1.tribe[0].y = 5;
+  col1.tribe[0].nation_id = 4;
+  col1.tribe[0].mission = COL1_TRIBE_MISSION_NONE;
+  col1.tribe[0].population = 4;
+  col1.indian[0].euro_diplo[0] = COL1_INDIAN_MET_BIT;
+
+  ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
+  units_reset(&units);
+  units_set_occupancy_map(NULL);
+  units.type_count = 4;
+  snprintf(units.types[3].name, sizeof(units.types[3].name), "Missionaries");
+  units.types[3].kind_plus1 = (uint8_t)(UNITS_KIND_MISSIONARY + 1);
+  units.types[3].movement = 1;
+  const int mid = units_spawn_allow_stack(&units, 3, 6, 5);
+  ColonizeUnit* miss = units_get(&units, mid);
+  if (!miss) {
+    return fail("missionary village: spawn");
+  }
+  miss->nation_id = 0;
+
+  uint32_t turn = 5;
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.messages = test_game_txt();
+  ctx.names = test_names_txt();
+  ctx.turn_number = &turn;
+  ctx.col1 = &col1;
+  ctx.col1_ok = true;
+  ctx.units = &units;
+  ctx.human_nation = 2; /* nation 0 is an AI here */
+
+  if (!ai_contact_ai_missionary_village(&ctx, 0, 0, mid)) {
+    col1_save_free(&col1);
+    return fail("4528 case 3 should establish a mission for the AI missionary");
+  }
+  if ((col1.tribe[0].mission & COL1_TRIBE_MISSION_NATION_MASK) != 0) {
+    col1_save_free(&col1);
+    return fail("establish should set tribe.mission to the acting nation");
+  }
+  if (units_get(&units, mid) && units_get(&units, mid)->active) {
+    col1_save_free(&col1);
+    return fail("establish should consume the missionary");
+  }
+
+  /* Human-owned missionary: the AI arm must not fire (menu path only). */
+  col1.tribe[0].mission = COL1_TRIBE_MISSION_NONE;
+  const int hid = units_spawn_allow_stack(&units, 3, 6, 5);
+  ColonizeUnit* hm = units_get(&units, hid);
+  if (!hm) {
+    col1_save_free(&col1);
+    return fail("missionary village: spawn human");
+  }
+  hm->nation_id = 2;
+  if (ai_contact_ai_missionary_village(&ctx, 2, 0, hid) ||
+      col1.tribe[0].mission != COL1_TRIBE_MISSION_NONE) {
+    col1_save_free(&col1);
+    return fail("the human missionary must use the @ACTIONS menu, not the AI arm");
+  }
+  col1_save_free(&col1);
+  return 0;
+}
+
+/*
  * bugs.md #416 — first contact is strictly per Euro nation.
  *
  * DOS FUN_5bfb_3180 hands FUN_5bfb_022e the pair (euro, indian) it actually
@@ -1228,328 +1312,14 @@ static int case_full_contact_scenario(void) {
   ind->alarm_by_player[0] = 10;
 
   /*
-   * Missionary convert pulse: adjacent Missionary + non-hostile →
-   * tribe.mission = euro id and nation current_crosses++.
-   *
-   * bugs.md: this pulse is the *AI's* stand-in for working a missionary. The
-   * human establishes a mission through the @ACTIONS village menu, so these
-   * blocks run with the human elsewhere (nation 2) and nation 0 as an AI, and
-   * the human-only case is asserted inert at the end of the block.
+   * (Retired 2026-09-22, bugs.md #557.) The AI missionary adjacency pulse
+   * asserted here (convert once, 50/50 heresy, crosses++, mid-band Jesuit /
+   * Brebeuf gate, alarm −2 decay) was invented; DOS has no Indian-turn
+   * missionary arm. The AI missionary now acts only at a village, through
+   * FUN_4d56_4528's non-human switch (ai_contact_ai_missionary_village),
+   * and the human keeps the @ACTIONS Establish / Denounce rows exercised
+   * further below.
    */
-  units.type_count = 3;
-  snprintf(units.types[2].name, sizeof(units.types[2].name), "Missionary");
-  units.types[2].movement = 1;
-  units.types[2].attack = 0;
-  units.types[2].defense = 1;
-  int miss_id = units_spawn_allow_stack(&units, 2, 6, 5);
-  ColonizeUnit* miss = units_get(&units, miss_id);
-  if (!miss) {
-    return fail("spawn missionary");
-  }
-  miss->nation_id = 0;
-  col1.tribe[0].mission = 0xff;
-  col1.tribe[0].alarm[0].friction = 10;
-  ind->alarm_by_player[0] = 10;
-  col1.indian[0].euro_diplo[0] |= COL1_INDIAN_MET_BIT; /* met (was relation 80; alarm pinned above) */ /* above very-low refuse */
-  {
-    char status_ok[128];
-    status_ok[0] = '\0';
-    ctx.status = status_ok;
-    ctx.status_size = sizeof(status_ok);
-    ctx.human_nation = 2;
-    c->active = true;
-    c->nation_id = 0;
-    c->x = 5;
-    c->y = 5;
-    snprintf(c->name, sizeof(c->name), "Jamestown");
-    const uint16_t crosses0 = col1.nation[0].current_crosses;
-    ai_contact_indian_meet_trade(&ctx, 4);
-    if (col1.tribe[0].mission != 0) {
-      return fail("missionary convert should set tribe.mission to euro nation");
-    }
-    if (col1.nation[0].current_crosses != (uint16_t)(crosses0 + 1)) {
-      return fail("missionary convert should bump nation current_crosses");
-    }
-    /*
-     * Convert once: mission already set → skip pulse (no re-crosses / no
-     * accept status). Cite: indian_contact.md convert once.
-     */
-    {
-      const uint16_t crosses1 = col1.nation[0].current_crosses;
-      const uint8_t fr1 = col1.tribe[0].alarm[0].friction;
-      const uint16_t al1 = ind->alarm_by_player[0];
-      status_ok[0] = '\0';
-      ai_contact_indian_meet_trade(&ctx, 4);
-      if (col1.tribe[0].mission != 0) {
-        return fail("convert-once should keep own mission");
-      }
-      if (col1.nation[0].current_crosses != crosses1) {
-        return fail("convert-once should not bump crosses again");
-      }
-      if (col1.tribe[0].alarm[0].friction != fr1 || ind->alarm_by_player[0] != al1) {
-        return fail("convert-once should not re-decay alarm/friction");
-      }
-      if (strstr(status_ok, "accept") != NULL || strstr(status_ok, "conversion") != NULL) {
-        fprintf(stderr, "unit_ai_contact: convert-once status '%s'\n", status_ok);
-        return fail("convert-once should skip accept-conversion status");
-      }
-    }
-    /*
-     * bugs.md: with nation 0 as the human, the same adjacency must do nothing
-     * at all — no mission, no crosses, no popup. The player's own missionary
-     * only acts through the village @ACTIONS menu.
-     */
-    {
-      col1.tribe[0].mission = 0xff;
-      const uint16_t crosses_h = col1.nation[0].current_crosses;
-      status_ok[0] = '\0';
-      ctx.human_nation = 0;
-      ai_contact_indian_meet_trade(&ctx, 4);
-      if (col1.tribe[0].mission != 0xff || col1.nation[0].current_crosses != crosses_h ||
-          status_ok[0] != '\0') {
-        fprintf(stderr, "unit_ai_contact: human auto-convert status '%s'\n", status_ok);
-        return fail("a human missionary must not auto-establish a mission by adjacency");
-      }
-      col1.tribe[0].mission = 0;
-      ctx.human_nation = 2;
-    }
-    ctx.status = NULL;
-    ctx.status_size = 0;
-  }
-
-  /*
-   * Foreign mission → heresy denounce 50/50 (wiki/HandWiki; fandom Missionaries).
-   * Seed 1 → roll 0 success (replace mission); seed 5006 → roll 50 fail (burn).
-   * Own-mission convert-once still skips above. Cite: indian_contact.md heresy.
-   */
-  {
-    char status_cv[128];
-    status_cv[0] = '\0';
-    ctx.status = status_cv;
-    ctx.status_size = sizeof(status_cv);
-    ctx.human_nation = 2; /* nation 0 acts as an AI here — see the pulse note above */
-    ColonizeDosRng heresy_rng;
-    dos_rng_seed(&heresy_rng, 1u); /* first roll 0 → success */
-    ctx.rng = &heresy_rng;
-    col1.tribe[0].mission = 1; /* foreign Euro owns mission */
-    col1.tribe[0].alarm[0].friction = 10;
-    ind->alarm_by_player[0] = 10;
-    miss->active = true;
-    miss->x = 6;
-    miss->y = 5;
-    miss->nation_id = 0;
-    const uint16_t crosses_f = col1.nation[0].current_crosses;
-    ai_contact_indian_meet_trade(&ctx, 4);
-    if ((col1.tribe[0].mission & COL1_TRIBE_MISSION_NATION_MASK) != 0) {
-      return fail("heresy success should replace foreign mission with denouncer");
-    }
-    if (col1.tribe[0].mission & COL1_TRIBE_MISSION_JESUIT_BIT) {
-      return fail("heresy success should install regular (non-Jesuit) mission");
-    }
-    if (col1.nation[0].current_crosses != (uint16_t)(crosses_f + 1)) {
-      return fail("heresy success should bump crosses");
-    }
-
-    /* Foreign owner (human) learns mission burned when AI denounces. */
-    {
-      char status_own[128];
-      status_own[0] = '\0';
-      ctx.status = status_own;
-      ctx.human_nation = 0;
-      dos_rng_seed(&heresy_rng, 1u);
-      col1.tribe[0].mission = 0; /* human owns mission */
-      /* Move human missionary away so French denouncer is the adjacent actor. */
-      miss->x = 9;
-      miss->y = 9;
-      units.type_count = 4;
-      snprintf(units.types[3].name, sizeof(units.types[3].name), "Missionary");
-      units.types[3].movement = 1;
-      const int fr_m = units_spawn_allow_stack(&units, 3, 6, 5);
-      ColonizeUnit* frm = units_get(&units, fr_m);
-      if (!frm) {
-        return fail("spawn French denouncer missionary");
-      }
-      frm->nation_id = 1;
-      ind->alarm_by_player[1] = 10;
-      col1.tribe[0].alarm[1].friction = 10;
-      ind->euro_diplo[1] = 1;
-      ai_contact_indian_meet_trade(&ctx, 4);
-      if ((col1.tribe[0].mission & COL1_TRIBE_MISSION_NATION_MASK) != 1) {
-        fprintf(
-          stderr,
-          "unit_ai_contact: AI heresy mission=%u\n",
-          (unsigned)col1.tribe[0].mission
-        );
-        return fail("AI heresy success should install French mission");
-      }
-      if (strstr(status_own, "burn your mission") == NULL) {
-        fprintf(stderr, "unit_ai_contact: heresy-owner status '%s'\n", status_own);
-        return fail("heresy success should notify human foreign mission owner");
-      }
-      units_despawn(&units, fr_m);
-      miss->x = 6;
-      miss->y = 5;
-      ctx.status = status_cv;
-      ctx.human_nation = 2;
-    }
-
-    /* Fail arm: burn denouncer at the stake. */
-    dos_rng_seed(&heresy_rng, 5006u); /* first roll 50 → fail */
-    col1.tribe[0].mission = 1;
-    status_cv[0] = '\0';
-    const uint16_t crosses_b = col1.nation[0].current_crosses;
-    ai_contact_indian_meet_trade(&ctx, 4);
-    if (col1.tribe[0].mission != 1) {
-      return fail("heresy fail should keep foreign mission");
-    }
-    if (col1.nation[0].current_crosses != crosses_b) {
-      return fail("heresy fail should not bump crosses");
-    }
-    if (miss->active) {
-      return fail("heresy fail should despawn denouncer missionary");
-    }
-    ctx.rng = NULL;
-
-    /* Respawn missionary for alarmed refuse arm. */
-    {
-      const int mid2 = units_spawn_allow_stack(&units, 2, 6, 5);
-      miss = units_get(&units, mid2);
-      if (!miss) {
-        return fail("respawn missionary after heresy");
-      }
-      miss->nation_id = 0;
-      miss_id = mid2; /* teach later despawns via miss_id */
-    }
-
-    col1.tribe[0].mission = 0xff;
-    col1.tribe[0].alarm[0].friction = 60;
-    ind->alarm_by_player[0] = 60;
-    status_cv[0] = '\0';
-    const uint16_t crosses_a = col1.nation[0].current_crosses;
-    ai_contact_indian_meet_trade(&ctx, 4);
-    if (col1.tribe[0].mission != 0xff) {
-      return fail("alarmed convert refuse should not set mission");
-    }
-    if (col1.nation[0].current_crosses != crosses_a) {
-      return fail("alarmed convert refuse should not bump crosses");
-    }
-    /* Restore peaceful band for later tests. */
-    col1.tribe[0].alarm[0].friction = 10;
-    ind->alarm_by_player[0] = 10;
-    ctx.status = NULL;
-    ctx.status_size = 0;
-  }
-
-  /*
-   * Mid-range Jesuit convert (40..54): Jesuit-grade establish + −2 decay.
-   * Plain Missionary mid → refuse (PEDIA Jesuit effectiveness; no Brebeuf).
-   * Cite: COLONIZE/PEDIA.TXT @JOB24; indian_contact.md convert gate.
-   */
-  {
-    char status_mid[128];
-    status_mid[0] = '\0';
-    ctx.status = status_mid;
-    ctx.status_size = sizeof(status_mid);
-    ctx.human_nation = 2;
-    /* Plain Missionary mid-alarm → refuse (not Jesuit-grade). */
-    snprintf(units.types[2].name, sizeof(units.types[2].name), "Missionary");
-    miss->x = 6;
-    miss->y = 5;
-    miss->active = true;
-    miss->profession = UNITS_JOB_NONE;
-    col1.tribe[0].mission = 0xff;
-    col1.tribe[0].alarm[0].friction = 40;
-    ind->alarm_by_player[0] = 40;
-    col1.indian[0].euro_diplo[0] |= COL1_INDIAN_MET_BIT; /* met (was relation 80; alarm pinned above) */
-    const uint16_t crosses_plain = col1.nation[0].current_crosses;
-    ai_contact_indian_meet_trade(&ctx, 4);
-    if (col1.tribe[0].mission != 0xff) {
-      return fail("plain Missionary mid-alarm should not establish mission");
-    }
-    if (col1.nation[0].current_crosses != crosses_plain) {
-      return fail("plain Missionary mid-alarm should not bump crosses");
-    }
-
-    /* Jesuit Missionary mid → convert with −2. */
-    snprintf(units.types[2].name, sizeof(units.types[2].name), "Jesuit Missionary");
-    status_mid[0] = '\0';
-    miss->x = 6;
-    miss->y = 5;
-    miss->active = true;
-    col1.tribe[0].mission = 0xff;
-    /* Floor of mid band: convert −2 → 38 (the pacify-meet drip that also
-     * used to fire here was retired 2026-09-09, smell #48). */
-    col1.tribe[0].alarm[0].friction = 40;
-    ind->alarm_by_player[0] = 40;
-    col1.indian[0].euro_diplo[0] |= COL1_INDIAN_MET_BIT; /* met (was relation 80; alarm pinned above) */
-    const uint16_t crosses_m = col1.nation[0].current_crosses;
-    ai_contact_indian_meet_trade(&ctx, 4);
-    if ((col1.tribe[0].mission & COL1_TRIBE_MISSION_NATION_MASK) != 0 ||
-        (col1.tribe[0].mission & COL1_TRIBE_MISSION_JESUIT_BIT) == 0) {
-      return fail("mid-range Jesuit convert should establish mission");
-    }
-    if (col1.nation[0].current_crosses != (uint16_t)(crosses_m + 1)) {
-      return fail("mid-range Jesuit convert should bump crosses");
-    }
-    if (col1.tribe[0].alarm[0].friction != 38 || ind->alarm_by_player[0] != 38) {
-      return fail("mid-range Jesuit convert should decay friction/alarm by 2");
-    }
-    /* Restore type name for later Missionary flees. */
-    snprintf(units.types[2].name, sizeof(units.types[2].name), "Missionary");
-    col1.tribe[0].alarm[0].friction = 10;
-    ind->alarm_by_player[0] = 10;
-    ctx.status = NULL;
-    ctx.status_size = 0;
-  }
-
-  /*
-   * Brebeuf unlock: plain Missionary mid-band convert as Jesuit-grade (−2).
-   * Cite: docs/fandom_col1994.md Father Jean de Brebeuf — all missionaries
-   * function as experts; PEDIA @JOB24; indian_contact.md convert gate.
-   * No invent elect crosses — convert +1 only on establish.
-   */
-  {
-    char status_br[128];
-    status_br[0] = '\0';
-    ctx.status = status_br;
-    ctx.status_size = sizeof(status_br);
-    ctx.human_nation = 2;
-    col1.head.founding_father[FF_JEAN_DE_BREBEUF] = 0;
-    col1.nation[0].founding_fathers[FF_JEAN_DE_BREBEUF / 8] |=
-      (uint8_t)(1u << (FF_JEAN_DE_BREBEUF % 8));
-    if (!founding_fathers_brebeuf_missionaries_are_experts(&col1, 0)) {
-      return fail("Brebeuf ownership gate should be true");
-    }
-    snprintf(units.types[2].name, sizeof(units.types[2].name), "Missionary");
-    miss->x = 6;
-    miss->y = 5;
-    miss->active = true;
-    miss->profession = UNITS_JOB_NONE;
-    col1.tribe[0].mission = 0xff;
-    col1.tribe[0].alarm[0].friction = 40;
-    ind->alarm_by_player[0] = 40;
-    col1.indian[0].euro_diplo[0] |= COL1_INDIAN_MET_BIT; /* met (was relation 80; alarm pinned above) */
-    const uint16_t crosses_br = col1.nation[0].current_crosses;
-    ai_contact_indian_meet_trade(&ctx, 4);
-    if ((col1.tribe[0].mission & COL1_TRIBE_MISSION_NATION_MASK) != 0 ||
-        (col1.tribe[0].mission & COL1_TRIBE_MISSION_JESUIT_BIT) == 0) {
-      return fail("Brebeuf plain Missionary mid should establish mission");
-    }
-    if (col1.nation[0].current_crosses != (uint16_t)(crosses_br + 1)) {
-      return fail("Brebeuf mid convert should bump crosses by 1 only");
-    }
-    if (col1.tribe[0].alarm[0].friction != 38 || ind->alarm_by_player[0] != 38) {
-      return fail("Brebeuf mid convert should decay friction/alarm by 2");
-    }
-    /* Clear Brebeuf so later tests stay plain-Missionary gated. */
-    col1.head.founding_father[FF_JEAN_DE_BREBEUF] = -1;
-    col1.nation[0].founding_fathers[FF_JEAN_DE_BREBEUF / 8] &=
-      (uint8_t)~(1u << (FF_JEAN_DE_BREBEUF % 8));
-    col1.tribe[0].alarm[0].friction = 10;
-    ind->alarm_by_player[0] = 10;
-    ctx.status = NULL;
-    ctx.status_size = 0;
-  }
 
   /*
    * bugs.md 2026-09-04 (bugs 2 and 3): there is NO passive teach pulse.
@@ -1561,7 +1331,6 @@ static int case_full_contact_scenario(void) {
    * So a Brave wandering past a colonist must never set tribe.state.learned,
    * never hand out a profession, and never emit a teach / @LEARN* line.
    */
-  units_despawn(&units, miss_id);
   {
     char status_np[128];
     status_np[0] = '\0';
@@ -2648,71 +2417,9 @@ static int case_full_contact_scenario(void) {
   }
 
   /*
-   * Missionary flee: adjacent to alarmed tribe (≥55), not converting →
-   * move 1 free land tile away + AI_MOVE. Cite: fandom Alarm.
+   * (Retired 2026-09-22, bugs.md #557.) A "missionary flee" assertion sat
+   * here; the pulse it tested had no DOS site and is deleted.
    */
-  {
-    for (int i = 0; i < 256; ++i) {
-      map.terrain[i] = 1;
-    }
-    units.type_count = 3;
-    snprintf(units.types[2].name, sizeof(units.types[2].name), "Missionary");
-    units.types[2].movement = 1;
-    units.types[2].attack = 0;
-    units.types[2].defense = 1;
-    const int flee_id = units_spawn_allow_stack(&units, 2, 6, 5);
-    ColonizeUnit* flee_m = units_get(&units, flee_id);
-    if (!flee_m) {
-      return fail("spawn missionary for flee");
-    }
-    flee_m->nation_id = 0;
-    flee_m->orders = 0;
-    euro->x = 10;
-    euro->y = 10;
-    brave->x = 5;
-    brave->y = 5;
-    col1.tribe[0].x = 5;
-    col1.tribe[0].y = 5;
-    col1.tribe[0].nation_id = 4;
-    col1.tribe[0].mission = 0; /* own mission — flee chrome (not convert refuse) */
-    col1.tribe[0].alarm[0].friction = 60;
-    ind->alarm_by_player[0] = 60;
-    col1.indian[0].euro_diplo[0] |= COL1_INDIAN_MET_BIT; /* met (was relation 80; alarm pinned above) */
-    const int mx0 = flee_m->x;
-    const int my0 = flee_m->y;
-    char status_flee[128];
-    status_flee[0] = '\0';
-    ctx.status = status_flee;
-    ctx.status_size = sizeof(status_flee);
-    ctx.human_nation = 0;
-    ai_contact_indian_meet_trade(&ctx, 4);
-    flee_m = units_get(&units, flee_id);
-    if (!flee_m || !flee_m->active) {
-      return fail("missionary flee should keep unit active");
-    }
-    if (flee_m->x == mx0 && flee_m->y == my0) {
-      return fail("missionary flee should move 1 tile away from alarmed tribe");
-    }
-    if (flee_m->orders != UNITS_ORDER_AI_MOVE) {
-      return fail("missionary flee should set AI_MOVE orders");
-    }
-    if (strstr(status_flee, "flees") == NULL) {
-      fprintf(stderr, "unit_ai_contact: flee status '%s'\n", status_flee);
-      return fail("missionary flee should set flee status");
-    }
-    /* Chebyshev distance from tribe should be > 1 (was adjacent). */
-    {
-      const int dx = flee_m->x - 5;
-      const int dy = flee_m->y - 5;
-      const int adx = dx < 0 ? -dx : dx;
-      const int ady = dy < 0 ? -dy : dy;
-      const int cheb = adx > ady ? adx : ady;
-      if (cheb < 2) {
-        return fail("missionary flee should increase distance from tribe");
-      }
-    }
-    units_despawn(&units, flee_id);
-  }
 
   /*
    * Raid prefer high-friction Euro among candidates: equal alarm band, lower
@@ -5520,8 +5227,10 @@ static int case_full_contact_scenario(void) {
         (void)ai_contact_try_village_gifts(&ctx, 4);
         for (int ui = 0; ui < COLONIZE_UNITS_MAX; ++ui) {
           const ColonizeUnit* u = &units.units[ui];
+          /* bugs.md #561: DOS spawns the Convert on the visiting brave's
+           * tile (raw 96996-97012, `[0x8542]+0/+1`), not the colony's. */
           if (u->active && u->nation_id == 0 && u->profession == COLONIZE_PROF_CONVERT &&
-              u->x == c->x && u->y == c->y) {
+              u->x == bravem->x && u->y == bravem->y) {
             converts++;
           }
         }
@@ -7546,6 +7255,82 @@ static int case_full_contact_scenario(void) {
       col1.tribe[0].mission = 0xff;
     }
 
+    /*
+     * bugs.md #558 — Denounce Heresy "Jesuit" bonus is a DOS typo.
+     * thunk_FUN_1000_a594 (viceroy_overlays.asm 126507:
+     * IMUL BX,[BP+6],0x1c / CMP byte ptr [BX+0x315b],0x3 / MOV AX,1) tests
+     * the denouncer's PROFESSION byte against @JOB row 3 (Cotton Planter),
+     * not the Jesuit row, and has no Brebeuf term (only the establish body
+     * a5dc tests 0x18 / FF 0x16). So a Jesuit-grade missionary gets no
+     * doubling and installs a plain mission on success, while a
+     * profession-3 missionary installs it with the 0x10 bit.
+     */
+    {
+      ColonizeDosRng* saved_rng = ctx.rng;
+      ColonizeDosRng hq_rng;
+      AiPopupState res;
+      ai_popup_init(&res);
+      res.has_result = true;
+      res.result_cancelled = false;
+      res.result_tag = AI_POPUP_TAG_CONTACT_MEET;
+      res.result_nation_a = 0;
+      res.result_nation_b = 4;
+      const uint8_t profs[2] = { (uint8_t)UNITS_JOB_MISSIONARY, (uint8_t)3 };
+      for (int k = 0; k < 2; ++k) {
+        int won = 0;
+        for (unsigned seed = 1u; seed <= 64u && !won; ++seed) {
+          col1.tribe[0].mission = 1; /* French, plain */
+          dos_rng_seed(&hq_rng, seed);
+          ctx.rng = &hq_rng;
+          const int hid = units_spawn_allow_stack(&units, 5, 6, 5);
+          ColonizeUnit* hu = units_get(&units, hid);
+          if (!hu) {
+            ctx.rng = saved_rng;
+            return fail("heresy quirk: spawn denouncer");
+          }
+          hu->nation_id = 0;
+          hu->profession = profs[k];
+          ai_popup_clear(&pop);
+          if (!ai_contact_try_village_meet_unit(&ctx, 0, 4, 1, 0, hid)) {
+            ctx.rng = saved_rng;
+            return fail("heresy quirk: missionary meet should enqueue");
+          }
+          res.result_choice_id = 8; /* AI_CONTACT_CHOICE_HERESY */
+          res.result_payload = pop.queue[0].payload;
+          ai_popup_clear(&pop);
+          st_menu[0] = '\0';
+          ai_contact_apply_popup_result(&ctx, &res);
+          if ((col1.tribe[0].mission & 0x0f) == 0) {
+            won = 1;
+            const int bit = (col1.tribe[0].mission & 0x10) != 0;
+            if (bit != (profs[k] == 3)) {
+              fprintf(
+                stderr,
+                "unit_ai_contact: a594 quirk prof=%u mission=%u\n",
+                (unsigned)profs[k],
+                (unsigned)col1.tribe[0].mission
+              );
+              ctx.rng = saved_rng;
+              return fail(
+                profs[k] == 3
+                  ? "heresy: DOS a594 profession==3 must install the 0x10 mission bit"
+                  : "heresy: a Jesuit denouncer gets no bonus in DOS (no 0x10 bit)"
+              );
+            }
+          }
+          if (hu->active) {
+            units_despawn(&units, hid);
+          }
+        }
+        if (!won) {
+          ctx.rng = saved_rng;
+          return fail("heresy quirk: no winning roll found in 64 seeds");
+        }
+      }
+      ctx.rng = saved_rng;
+      col1.tribe[0].mission = 0xff;
+    }
+
     /* Wagon: alarm < 75 → Trade With Village; alarm ≥ 75 → Enter Hostile Village. */
     {
       const int wag_id = units_spawn_allow_stack(&units, 4, 6, 5);
@@ -7600,6 +7385,7 @@ static const TestCase k_cases[] = {
     {"test_contact_chains_do_not_interleave", test_contact_chains_do_not_interleave},
     {"test_colony_tick_war_5952", test_colony_tick_war_5952},
     {"test_prelude_alarm_band", test_prelude_alarm_band},
+    {"test_ai_missionary_village_arm", test_ai_missionary_village_arm},
     {"case_full_contact_scenario", case_full_contact_scenario},
 };
 TEST_MAIN(k_cases)

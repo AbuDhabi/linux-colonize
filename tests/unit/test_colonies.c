@@ -1,3 +1,4 @@
+#include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -1199,6 +1200,98 @@ static int case_colonies_core(void) {
       const ColonizeUnitType* mt = units_type(&units, miss->type_index);
       CHECK(mt && strstr(mt->name, "Missionar") != NULL, "Missionaries unit type");
       CHECK(miss->profession == UNITS_JOB_NONE, "plain Church bless is non-Jesuit");
+    }
+    /*
+     * bugs.md #556 / #559: the bless copies the profession byte verbatim
+     * (overlays.c:10225-10245), and FUN_15eb_3454's two Jesuit row arms
+     * (raw 13561-13569).
+     */
+    {
+      ColonizeColony* col = colonies_get_mut(&pool, cid);
+      CHECK(col != NULL, "colony mut for jesuit rows");
+      const int church = colonies_find_building(&pool, "Church");
+      CHECK(church >= 0, "Church building type for jesuit rows");
+      /* (1) #556: an expert keeps his specialty through the bless. */
+      const int uidx = units_spawn_allow_stack(&units, free_col, land2_x, land2_y);
+      CHECK(uidx >= 0, "spawn expert for bless");
+      ColonizeUnit* oux = units_get(&units, uidx);
+      if (oux && col) {
+        oux->nation_id = col->nation_id;
+        oux->profession = UNITS_JOB_PIONEER;
+      }
+      const int adx = colonies_admit_unit_w(&w_admit, cid, uidx);
+      CHECK(adx >= 0, "admit expert before bless");
+      const int bej = colonies_eject_colonist(&pool, cid, adx, &units, COLONIZE_EJECT_MISSIONARY);
+      CHECK(bej >= 0, "bless the expert");
+      const ColonizeUnit* bu = units_get_const(&units, bej);
+      CHECK(bu && bu->profession == UNITS_JOB_PIONEER, "#556 bless keeps the specialty byte");
+
+      /* (2) #559a: a Jesuit is offered the Missionary row without a Church. */
+      col = colonies_get_mut(&pool, cid);
+      const bool had_church = col ? col->has_building[church] : false;
+      if (col) {
+        col->has_building[church] = false;
+      }
+      const int uidj = units_spawn_allow_stack(&units, free_col, land2_x, land2_y);
+      CHECK(uidj >= 0, "spawn jesuit");
+      ColonizeUnit* ouj = units_get(&units, uidj);
+      if (ouj && col) {
+        ouj->nation_id = col->nation_id;
+        ouj->profession = UNITS_JOB_MISSIONARY;
+      }
+      const int adj = colonies_admit_unit_w(&w_admit, cid, uidj);
+      CHECK(adj >= 0, "admit jesuit");
+      int jroles[COLONIZE_EJECT_ROLE_COUNT];
+      int njr = colonies_list_eject_roles(&pool, cid, adj, jroles, COLONIZE_EJECT_ROLE_COUNT);
+      int jesuit_miss = 0;
+      for (int i = 0; i < njr; ++i) {
+        if (jroles[i] == COLONIZE_EJECT_MISSIONARY) {
+          jesuit_miss = 1;
+        }
+      }
+      CHECK(jesuit_miss, "#559 Jesuit sees Missionary row in a churchless colony");
+
+      /* (3) #559b: the Colonist row under the DS:0x8dc6 nation-table test. */
+      int slot = -1;
+      for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+        if (pool.colonies[i].active && pool.colonies[i].id == cid) {
+          slot = i;
+        }
+      }
+      CHECK(slot >= 0, "colony pool slot found");
+      ColonizeCol1Save* jc = (ColonizeCol1Save*)calloc(1, sizeof(ColonizeCol1Save));
+      CHECK(jc != NULL, "col1 scratch for jesuit rows");
+      if (jc && slot >= 0 && slot < 4) {
+        colonies_set_col1_context(jc);
+        jc->player[slot].control = 0; /* human */
+        njr = colonies_list_eject_roles(&pool, cid, adj, jroles, COLONIZE_EJECT_ROLE_COUNT);
+        int has_colonist = 0;
+        for (int i = 0; i < njr; ++i) {
+          if (jroles[i] == COLONIZE_EJECT_COLONIST) {
+            has_colonist = 1;
+          }
+        }
+        CHECK(!has_colonist, "#559 Jesuit loses Colonist row in a human-indexed slot");
+        CHECK(
+          colonies_eject_colonist(&pool, cid, adj, &units, COLONIZE_EJECT_COLONIST) < 0,
+          "#559 applier refuses the row the list never drew"
+        );
+        jc->player[slot].control = 1; /* AI */
+        njr = colonies_list_eject_roles(&pool, cid, adj, jroles, COLONIZE_EJECT_ROLE_COUNT);
+        has_colonist = 0;
+        for (int i = 0; i < njr; ++i) {
+          if (jroles[i] == COLONIZE_EJECT_COLONIST) {
+            has_colonist = 1;
+          }
+        }
+        CHECK(has_colonist, "#559 AI-controlled slot keeps the Colonist row");
+        colonies_set_col1_context(NULL);
+      }
+      free(jc);
+      col = colonies_get_mut(&pool, cid);
+      if (col) {
+        col->has_building[church] = had_church;
+      }
     }
   }
 

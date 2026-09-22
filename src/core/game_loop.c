@@ -7779,7 +7779,7 @@ static int game_colony_list_outside_roles(
     unit->tools > 0 ? unit->tools : 0,
     unit->muskets > 0 ? unit->muskets : 0,
     unit->horses > 0 ? unit->horses : 0,
-    unit->profession == COLONIZE_PROF_CONVERT,
+    unit->profession,
     out_roles,
     out_enabled,
     out_max
@@ -7813,9 +7813,10 @@ static bool game_colony_apply_outside_role(
   case COLONIZE_EJECT_MISSIONARY:
     /*
      * FUN_15eb_3454 row 0x18: the bless costs no cargo, and its only gate is
-     * the Church bit — re-tested here the way colonies_eject_colonist
-     * re-tests it, so a row that went stale between build and click cannot
-     * bless. units_equip_role_type_name has no Missionary arm (DOS re-types
+     * the Church bit — or a body that is already a Jesuit (raw 13567-13569),
+     * which is offered the row in a churchless colony too. Re-tested here the
+     * way colonies_eject_colonist re-tests it, so a row that went stale
+     * between build and click cannot bless. units_equip_role_type_name has no Missionary arm (DOS re-types
      * gear changes through the @JOB->@UNIT table, which the bless does not
      * use), so name the type outright, exactly as the inside twin does.
      * The body's profession is left alone: DOS's "Cancel Missionary Status"
@@ -7824,16 +7825,23 @@ static bool game_colony_apply_outside_role(
      * writes the profession byte — and this path has never re-professioned a
      * body for any other row either.
      */
-    if (!colonies_has_church_or_cathedral(pool, colony)) {
+    if (!colonies_eject_row_offered(pool, colony, u->profession, role)) {
       return false;
     }
     type_index_override = units_kind_type_index(units, UNITS_KIND_MISSIONARY);
+    break;
+  case COLONIZE_EJECT_COLONIST:
+    /* raw 13561-13565: the Colonist row is not offered to a Jesuit under the
+     * DS:0x8dc6 test — see colonies_eject_row_offered. */
+    if (!colonies_eject_row_offered(pool, colony, u->profession, role)) {
+      return false;
+    }
+    (void)colonies_eject_role_gear(role, stock_tools, &tools_take, &muskets_take, &horses_take);
     break;
   case COLONIZE_EJECT_PIONEER:
   case COLONIZE_EJECT_SOLDIER:
   case COLONIZE_EJECT_SCOUT:
   case COLONIZE_EJECT_DRAGOON:
-  case COLONIZE_EJECT_COLONIST:
     /* bugs.md #356: the Pioneer takes whole 20-tool steps capped at 100,
      * the same rule colonies_eject_colonist uses — this path used to insist
      * on the full 100 and refused a Pioneer the menu beside it had just

@@ -2325,80 +2325,6 @@ static int ai_euro_is_missionary_name(ColonizeUnitKind kind) {
   return kind == UNITS_KIND_MISSIONARY;
 }
 
-/*
- * Missionary flee gate (same ≥55 refuse-talk / Alarm band as ai_contact flee):
- * adjacent tribe with indian alarm_by_player or tribe friction ≥55 → fleeing,
- * do not upsert CONTACT (leave ai_contact_missionary_flee). Cite: fandom Alarm;
- * Colonization.pdf Missionary Powers / Alarm.
- */
-static int ai_euro_missionary_should_flee(
-  ColonizeTurnContext* ctx,
-  int nation_id,
-  int x,
-  int y
-) {
-  if (!ctx || !ctx->col1_ok || !ctx->col1 || !ctx->col1->tribe || nation_id < 0 ||
-      nation_id >= 4) {
-    return 0;
-  }
-  for (uint16_t i = 0; i < ctx->col1->head.tribe_count; ++i) {
-    const ColonizeCol1Tribe* t = &ctx->col1->tribe[i];
-    if (abs((int)t->x - x) > 1 || abs((int)t->y - y) > 1) {
-      continue;
-    }
-    if (t->alarm[nation_id].friction >= 55) {
-      return 1;
-    }
-    const int ind = (int)t->nation_id;
-    if (ind >= 4 && ind <= 11) {
-      const ColonizeCol1Indian* indian = &ctx->col1->indian[ind - 4];
-      if (indian->alarm_by_player[nation_id] >= 55) {
-        return 1;
-      }
-    }
-  }
-  return 0;
-}
-
-/*
- * Peace Missionary CONTACT: nearest tribe with no mission (mission==0xff).
- * Goto tribe tile — adjacent convert pulse lives in ai_contact. Cite:
- * Colonization.pdf Establishing a Mission; indian_contact.md convert pulse.
- */
-static int ai_euro_missionary_no_mission_target(
-  ColonizeTurnContext* ctx,
-  int from_x,
-  int from_y,
-  int* out_x,
-  int* out_y
-) {
-  if (!ctx || !out_x || !out_y || !ctx->col1_ok || !ctx->col1 || !ctx->col1->tribe ||
-      ctx->col1->head.tribe_count == 0) {
-    return 0;
-  }
-  int best = -1;
-  int bx = 0;
-  int by = 0;
-  for (uint16_t i = 0; i < ctx->col1->head.tribe_count; ++i) {
-    const ColonizeCol1Tribe* t = &ctx->col1->tribe[i];
-    if (t->mission != 0xff) {
-      continue; /* already has a mission (own or foreign) */
-    }
-    const int d = abs((int)t->x - from_x) + abs((int)t->y - from_y);
-    if (best < 0 || d < best) {
-      best = d;
-      bx = (int)t->x;
-      by = (int)t->y;
-    }
-  }
-  if (best < 0) {
-    return 0;
-  }
-  *out_x = bx;
-  *out_y = by;
-  return 1;
-}
-
 static void ai_euro_set_goto(ColonizeUnit* u, int orders, int gx, int gy);
 
 
@@ -7182,7 +7108,10 @@ static void ai_euro_5d04_hire_tail_candidates(Ai5d04HireTail* t) {
                 stuff->unit_type_counts[nation_id][3] == 0 && turn > 0x32) {
               int proceed = 1;
               if (turn > 199) {
-                proceed = dos_rng_range(ctx->rng, 0, 3) != 0;
+                /* DOS-LITERAL FUN_521d_5d04 raw 92785-92788: `iVar14 =
+                 * FUN_281f_04d4(iVar19,0,3); if (iVar14 != 0) goto
+                 * LAB_521d_638a;` — skip the arm unless the roll lands on 0. */
+                proceed = dos_rng_range(ctx->rng, 0, 3) == 0;
               }
               if (proceed && (turn % 7) == 0) {
                 if (ai_euro_5d04_cb_profession_gate(ai_euro_5d04_cb_unit_profession(idx)) == 0 ||
@@ -11903,6 +11832,19 @@ static int ai_euro_20e6_village_arm(ColonizeTurnContext* ctx, ColonizeUnit* u, c
   const int att = ai_euro_20e6_village_attitude(t, s->nation);
   if (s->dos_type == UNITS_KIND_SCOUT && !t->state.scouted && att == 0) {
     if (ai_contact_ai_scout_visit_village(ctx, s->nation, s->village_idx, u->id)) {
+      s_20e6_village_visited[s->village_idx] |= (uint8_t)(1u << s->nation);
+      u->moves = 0;
+      return 1;
+    }
+  }
+  /*
+   * FUN_4d56_4528 non-human switch caseD_3 (Missionary): incite the village
+   * against the human, else establish a mission, else denounce a foreign
+   * mission. Resolved from the adjacent tile like the two arms around it
+   * (entering a village tile is an attack in this port). bugs.md #557.
+   */
+  if (s->dos_type == UNITS_KIND_MISSIONARY) {
+    if (ai_contact_ai_missionary_village(ctx, s->nation, s->village_idx, u->id)) {
       s_20e6_village_visited[s->village_idx] |= (uint8_t)(1u << s->nation);
       u->moves = 0;
       return 1;
@@ -19356,9 +19298,7 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_land_fortify(struct ai_euro_act_ct
   ColonizeUnit* u = a->u;
   const int nation_id = a->nation_id;
   const int at_war_land = a->at_war_land;
-  const int is_missionary = a->is_missionary;
   int land_war_hunted = a->land_war_hunted;
-  int missionary_contacted = a->missionary_contacted;
   int peace_border_hunted = a->peace_border_hunted;
   int pioneer_improved = a->pioneer_improved;
   int scout_explored = a->scout_explored;
@@ -19454,29 +19394,15 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_land_fortify(struct ai_euro_act_ct
   }
 
   /*
-   * Missionary CONTACT (act-level): not at Euro peer war + Jesuit/Missionary,
-   * not fleeing (Alarm ≥55 adjacent) → CONTACT at nearest tribe without mission
-   * (mission==0xff) + AI_MOVE. Gate on Euro peer war only — indian_war_hunt
-   * from relation_by_indian==0 (memset / unmet) must not block convert CONTACT.
-   * Native hostility still covered by flee gate. Cite: Colonization.pdf
-   * Establishing a Mission; euro_unit_act §2c6; indian_contact.md convert pulse.
+   * (Retired 2026-09-22, bugs.md #557.) A missionary CONTACT goal arm sat
+   * here (prio 3 goto of the nearest mission-less tribe, skipped when an
+   * adjacent tribe was alarmed). FUN_521d_20e6 has no `+0x3146 == 3` arm:
+   * DOS AI missionaries are hired/blessed in FUN_521d_5d04 and then take the
+   * generic land wander; a missionary that reaches a village is handled by
+   * FUN_4d56_4528's non-human switch (ai_contact_ai_missionary_village).
    */
-  if (!ai_euro_at_war_any_peer(ctx->col1_ok ? ctx->col1 : NULL, nation_id) && is_missionary &&
-      !ai_euro_missionary_should_flee(ctx, nation_id, u->x, u->y)) {
-    int tx = 0;
-    int ty = 0;
-    if (ai_euro_missionary_no_mission_target(ctx, u->x, u->y, &tx, &ty)) {
-      /* Prio 3 > Scout ring CONTACT (2) so convert beats explore. */
-      ai_goals_upsert_primary(nation_id, tx, ty, AI_GOAL_CONTACT, 3);
-      if (u->x != tx || u->y != ty) {
-        ai_euro_set_goto(u, UNITS_ORDER_AI_MOVE, tx, ty);
-      }
-      missionary_contacted = 1;
-    }
-  }
 
   a->land_war_hunted = land_war_hunted;
-  a->missionary_contacted = missionary_contacted;
   a->peace_border_hunted = peace_border_hunted;
   a->pioneer_improved = pioneer_improved;
   a->scout_explored = scout_explored;
@@ -19496,7 +19422,6 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_land_goal_consume(struct ai_euro_a
   const int nation_id = a->nation_id;
   const int at_war_land = a->at_war_land;
   int land_war_hunted = a->land_war_hunted;
-  int missionary_contacted = a->missionary_contacted;
   int peace_border_hunted = a->peace_border_hunted;
   int pioneer_improved = a->pioneer_improved;
   int scout_explored = a->scout_explored;
@@ -19575,7 +19500,7 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_land_goal_consume(struct ai_euro_a
       (is_pioneer || is_farmer || is_carpenter || is_lumberjack ||
        ukind == UNITS_KIND_COLONIST);
     if (!land_war_hunted && !peace_border_hunted && !scout_explored && !treasure_routed &&
-        !missionary_contacted && !wagon_hauled && !pioneer_improved &&
+        !wagon_hauled && !pioneer_improved &&
         is_colonist_cap &&
         ctx->colonies && !ai_euro_land_is_fortified(u)) {
       AiEuroInventory* inv = ai_goals_inventory(nation_id);
@@ -19694,7 +19619,6 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_land_goal_consume(struct ai_euro_a
   a->goal_x = goal_x;
   a->goal_y = goal_y;
   a->land_war_hunted = land_war_hunted;
-  a->missionary_contacted = missionary_contacted;
   a->peace_border_hunted = peace_border_hunted;
   a->pioneer_improved = pioneer_improved;
   a->scout_explored = scout_explored;
@@ -19720,7 +19644,6 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_land_goal_dispatch(struct ai_euro_
   const int is_land_hunter = a->is_land_hunter;
   const int is_ship = a->is_ship;
   int land_war_hunted = a->land_war_hunted;
-  int missionary_contacted = a->missionary_contacted;
   int peace_border_hunted = a->peace_border_hunted;
   int pioneer_improved = a->pioneer_improved;
   int scout_explored = a->scout_explored;
@@ -19818,7 +19741,7 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_land_goal_dispatch(struct ai_euro_
   /* Preserve land-war / peace-border / scout / treasure / missionary / wagon /
    * pioneer-improve / LABOR. */
   if (goal_code >= 0 && !land_war_hunted && !peace_border_hunted && !scout_explored &&
-      !treasure_routed && !missionary_contacted && !wagon_hauled && !pioneer_improved) {
+      !treasure_routed && !wagon_hauled && !pioneer_improved) {
     ai_euro_set_goto(u, UNITS_ORDER_AI_MOVE, goal_x, goal_y);
   }
 
@@ -19920,7 +19843,6 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_land_goal_dispatch(struct ai_euro_
   a->goal_x = goal_x;
   a->goal_y = goal_y;
   a->land_war_hunted = land_war_hunted;
-  a->missionary_contacted = missionary_contacted;
   a->peace_border_hunted = peace_border_hunted;
   a->pioneer_improved = pioneer_improved;
   a->scout_explored = scout_explored;
@@ -19972,7 +19894,6 @@ COLONIZE_INTERNAL void ai_euro_act_land(struct ai_euro_act_ctx* a) {
   const int is_land_hunter = ai_euro_is_land_war_hunter(ukind);
   const int is_scout = ukind == UNITS_KIND_SCOUT;
   const int is_treasure = ai_euro_is_treasure_name(ukind);
-  const int is_missionary = ai_euro_is_missionary_name(ukind);
   /*
    * Land war: Euro peer war, or Indian hostility sticky with a real hunt
    * target (tribe / Brave). Sticky alone is not enough — memset relation=0
@@ -20002,19 +19923,16 @@ COLONIZE_INTERNAL void ai_euro_act_land(struct ai_euro_act_ctx* a) {
   int land_war_hunted = 0;
   int scout_explored = 0;
   int treasure_routed = 0;
-  int missionary_contacted = 0;
 
   a->uname = uname;
   a->ukind = ukind;
   a->is_land_hunter = is_land_hunter;
   a->is_scout = is_scout;
   a->is_treasure = is_treasure;
-  a->is_missionary = is_missionary;
   a->at_war_land = at_war_land;
   a->land_war_hunted = land_war_hunted;
   a->scout_explored = scout_explored;
   a->treasure_routed = treasure_routed;
-  a->missionary_contacted = missionary_contacted;
   a->u = u;
 
   if (ai_euro_act_land_hunt_scout(a) == AI_EURO_ACT_RETURN) {

@@ -126,7 +126,10 @@ Related catalogs:
 | `@ACTIONS` | Trade With Village, Enter Hostile Village, Establish Mission, Denounce Heresy, Live Among The Natives, Speak With Chief, Incite Indians, Demand Tribute, Attack Village |
 
 Euro units that drive contact: Scout, Pioneer, Soldier, Dragoon, Artillery,
-Missionary / Jesuit (encroachment and mission pulses).
+Missionary / Jesuit (the missionary acts at a village through the
+`FUN_4d56_4528` switch — human @ACTIONS rows, AI non-human branch case 3 —
+never by standing next to one; the old adjacency "mission pulse" was invented
+and was deleted 2026-09-22, bugs.md #557).
 
 ---
 
@@ -711,7 +714,7 @@ deliberate **Live Among The Natives** `@ACTIONS` row.
 
 | Hook | Effect (port / sources) |
 |------|-------------------------|
-| Missionary / Jesuit | Sets `tribe.mission` (+ bit 0x10 when prof 0x18 or Brebeuf); no alarm-band gate, no crosses (audit 2026-09-22) |
+| Missionary / Jesuit | Sets `tribe.mission` (+ bit 0x10 when prof 0x18 or Brebeuf); no alarm-band gate, no crosses (audit 2026-09-22). Reached from the village only: human @ACTIONS Establish/Denounce, AI through `ai_contact_ai_missionary_village` (`4528` non-human switch case 3 → incite / establish / denounce). There is no adjacency convert pulse and no missionary flee arm (both deleted 2026-09-22, bugs.md #557) |
 | Foreign mission | Denounce = weighted roll (`a594`); DOS Jesuit test is `prof == 3` (typo, dead) — bugs.md #558 |
 | Las Casas | Existing Converts → free colonists on elect |
 | Sepulveda | Higher convert-join odds on settlement fallout |
@@ -722,8 +725,8 @@ deliberate **Live Among The Natives** `@ACTIONS` row.
 Incite / WARPATH gold **Done both modes, byte-faithful** (2026-09-06
 audit; first ported thin 2026-08-13) — `FUN_4d56_417e` as a village-meet
 CHOICE (`ai_contact_apply_incite`) plus the AI Mode-2 auto-incite
-(`ai_contact_ai_incite_human`, `4528` tail case 7, hooked in the
-missionary convert pulse). 2026-09-06 fixes: price multiplier is the raw
+(`ai_contact_ai_incite_human`, `4528` tail case 7, reached from
+`ai_contact_ai_missionary_village` — the AI missionary's village arm). 2026-09-06 fixes: price multiplier is the raw
 `0x5b1c` **alarm** value +75 (was inverted via `ai_diplo_indian_relation`);
 the relation push is `281f_0d6c` → `FUN_4cc6_00f2` = **+100 alarm slam**
 (French-target/Pocahontas-halved, clamped at 100 — was a flat +10

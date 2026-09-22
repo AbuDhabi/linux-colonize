@@ -432,4 +432,12 @@ void ai_contact_apply_popup_result(ColonizeTurnContext* ctx, const AiPopupState*
 int ai_contact_ai_scout_visit_village(ColonizeTurnContext* ctx, int e, int tribe_index, int unit_id);
 int ai_contact_ai_live_among_village(ColonizeTurnContext* ctx, int e, int tribe_index, int unit_id);
 
+/*
+ * FUN_4d56_4528 non-human branch, unit-type switch caseD_3 (Missionary):
+ * incite the village against the human (case 7), else Establish Mission
+ * (case 3), else Denounce Heresy on a foreign mission (case 4). Same
+ * adjacency convention as the two calls above. Returns 1 when an arm ran.
+ */
+int ai_contact_ai_missionary_village(ColonizeTurnContext* ctx, int e, int tribe_index, int unit_id);
+
 #endif

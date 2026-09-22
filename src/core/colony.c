@@ -1726,10 +1726,13 @@ int colonies_equip_tools_take(int available) {
  *             stock < required (tools 0x14 = 20, muskets/horses 0x32 = 50)
  *             sets local_4 = 0xffff (raw 13580-13585).
  *   0xfffe  — ordinary enabled row.
- * Return 0 comes from exactly two places for these rows: an Indian Convert
+ * Return 0 comes from exactly three places for these rows: an Indian Convert
  * (@JOB 0x1b) gets nothing but Colonist — raw 13557-13560,
- * `if (0x13 < param_1 && cur_prof == 0x1b) return 0` — and the Missionary row
- * 0x18 needs the Church bit (FUN_15eb_038e(0x25), raw 13567-13569).
+ * `if (0x13 < param_1 && cur_prof == 0x1b) return 0` — the Missionary row
+ * 0x18 needs the Church bit UNLESS the body is already a Jesuit
+ * (FUN_15eb_038e(0x25) && cur_prof != 0x18, raw 13567-13569), and the
+ * Colonist row 0x13 disappears for a Jesuit body under the DS:0x8dc6 test
+ * (raw 13561-13565, see colonies_eject_row_offered below).
  *
  * The port used to OMIT short-stock gear rows instead of greying them, and
  * offered all six to a Convert. Both fixed 2026-09-10 (seventh wave,
@@ -1744,13 +1747,74 @@ int colonies_equip_tools_take(int available) {
  * Earlier cites for the bless row: Colonization.pdf Establishing a Mission /
  * Church; building_production Missionary.
  */
+/* 0-based pool slot of a colony record, DOS's colony index (DS:0x8dc6 is set
+ * from the same kind of index by FUN_15eb_002c raw 9318). -1 if unknown. */
+static int colonies_pool_slot_index(const ColonizeColonyPool* pool, const ColonizeColony* col) {
+  if (!pool || !col) {
+    return -1;
+  }
+  const ptrdiff_t slot = col - &pool->colonies[0];
+  if (slot < 0 || slot >= (ptrdiff_t)COLONIZE_COLONIES_MAX) {
+    return -1;
+  }
+  return (int)slot;
+}
+
+/*
+ * DOS-LITERAL FUN_15eb_3454 raw 13556-13570 — the "is this leave-as row
+ * offered at all" test (return 0 vs 0xfffe/0xffff), shared by the two row
+ * builders (here and game_loop's outside twin) and by both appliers, so a
+ * click cannot take a row the list never drew.
+ *
+ *   raw 13557-13560: rows above 0x13 return 0 for an Indian Convert (0x1b).
+ *   raw 13561-13565: row 0x13 (Colonist) returns 0 when the body is already a
+ *     Jesuit Missionary (0x18) AND `*(int*)0x8dc6 < 4` AND
+ *     `*(char*)(*(int*)0x8dc6 * 0x34 + 0x543f) == 0`. DS:0x8dc6 is the ACTIVE
+ *     COLONY INDEX (FUN_15eb_002c raw 9318 writes it from the colony record
+ *     index), while 0x543f + n*0x34 is the NATION table whose byte 0 is the
+ *     control flag (0 = human). DOS indexes the nation table with a colony
+ *     index: a genuine DOS bug, ported literally per docs/project_goals.md —
+ *     whether a Jesuit may be un-blessed back to a plain Colonist depends on
+ *     which pool slot his colony happens to occupy.
+ *   raw 13567-13569: row 0x18 (Missionary) returns 0 only when the colony has
+ *     no Church AND the body is not already 0x18 — a Jesuit is always offered
+ *     the Missionary row, churchless colony or not.
+ */
+bool colonies_eject_row_offered(
+  const ColonizeColonyPool* pool,
+  const ColonizeColony* col,
+  int profession,
+  int role
+) {
+  if (!col) {
+    return false;
+  }
+  if (role != COLONIZE_EJECT_COLONIST && profession == COLONIZE_PROF_CONVERT) {
+    return false;
+  }
+  if (role == COLONIZE_EJECT_COLONIST) {
+    if (profession == UNITS_JOB_MISSIONARY) {
+      const int slot = colonies_pool_slot_index(pool, col);
+      if (slot >= 0 && slot < 4 && g_colonies_col1 &&
+          g_colonies_col1->player[slot].control == 0) {
+        return false;
+      }
+    }
+    return true;
+  }
+  if (role == COLONIZE_EJECT_MISSIONARY) {
+    return colonies_has_church_or_cathedral(pool, col) || profession == UNITS_JOB_MISSIONARY;
+  }
+  return true;
+}
+
 int colonies_list_eject_roles_gear(
   const ColonizeColonyPool* pool,
   const ColonizeColony* col,
   int add_tools,
   int add_muskets,
   int add_horses,
-  bool convert,
+  int profession,
   int* out_roles,
   bool* out_enabled,
   int out_max
@@ -1758,16 +1822,19 @@ int colonies_list_eject_roles_gear(
   if (!col || !out_roles || out_max <= 0) {
     return 0;
   }
+  const bool convert = (profession == COLONIZE_PROF_CONVERT);
   const int tools = col->stock[COLONIZE_CARGO_TOOLS] + add_tools;
   const int muskets = col->stock[COLONIZE_CARGO_MUSKETS] + add_muskets;
   const int horses = col->stock[COLONIZE_CARGO_HORSES] + add_horses;
 
   int n = 0;
-  out_roles[n] = COLONIZE_EJECT_COLONIST;
-  if (out_enabled) {
-    out_enabled[n] = true;
+  if (colonies_eject_row_offered(pool, col, profession, COLONIZE_EJECT_COLONIST)) {
+    out_roles[n] = COLONIZE_EJECT_COLONIST;
+    if (out_enabled) {
+      out_enabled[n] = true;
+    }
+    ++n;
   }
-  ++n;
   if (!convert) {
     const struct {
       int role;
@@ -1787,7 +1854,8 @@ int colonies_list_eject_roles_gear(
     }
     /* Bless costs no cargo, so the row is never the greyed kind
      * (FUN_15eb_3454 row 0x18). */
-    if (n < out_max && colonies_has_church_or_cathedral(pool, col)) {
+    if (n < out_max &&
+        colonies_eject_row_offered(pool, col, profession, COLONIZE_EJECT_MISSIONARY)) {
       out_roles[n] = COLONIZE_EJECT_MISSIONARY;
       if (out_enabled) {
         out_enabled[n] = true;
@@ -1814,9 +1882,11 @@ int colonies_list_eject_roles_ex(
       !col->colonists[colonist_index].active) {
     return 0;
   }
-  /* raw 13557-13560: rows above 0x13 return 0 outright for @JOB 0x1b. */
-  const bool convert = (col->colonists[colonist_index].profession == COLONIZE_PROF_CONVERT);
-  return colonies_list_eject_roles_gear(pool, col, 0, 0, 0, convert, out_roles, out_enabled, out_max);
+  /* raw 13556: every >= 0x13 row gate reads the body's own @JOB. */
+  const int profession = col->colonists[colonist_index].profession;
+  return colonies_list_eject_roles_gear(
+    pool, col, 0, 0, 0, profession, out_roles, out_enabled, out_max
+  );
 }
 
 bool colonies_eject_role_gear(
@@ -1915,12 +1985,19 @@ int colonies_eject_colonist(
     type_kind = UNITS_KIND_DRAGOON;
     break;
   case COLONIZE_EJECT_MISSIONARY:
-    if (!colonies_has_church_or_cathedral(pool, col)) {
+    /* Row gate re-tested (Church bit, or a body that is already a Jesuit —
+     * FUN_15eb_3454 raw 13567-13569). */
+    if (!colonies_eject_row_offered(pool, col, c->profession, role)) {
       return -1;
     }
     type_kind = UNITS_KIND_MISSIONARY;
     break;
   case COLONIZE_EJECT_COLONIST:
+    /* raw 13561-13565: the Colonist row can be missing for a Jesuit. */
+    if (!colonies_eject_row_offered(pool, col, c->profession, role)) {
+      return -1;
+    }
+    break;
   default:
     break;
   }
@@ -1933,13 +2010,13 @@ int colonies_eject_colonist(
   if (type_index < 0) {
     type_index = c->unit_type_index;
   }
-  int profession = c->profession;
-  if (role == COLONIZE_EJECT_MISSIONARY) {
-    /* Church bless → ordinary Missionary; keep Jesuit (job 24) if already skilled. */
-    if (profession != UNITS_JOB_MISSIONARY) {
-      profession = UNITS_JOB_NONE;
-    }
-  }
+  /* bugs.md #556: DOS's colony eject applier (overlays.c:10225-10245) writes
+   * only the TYPE byte from table 0x2f5 and copies the profession byte
+   * verbatim — `*(0x315b) = FUN_0000_6d02(param_1)` — for every row, bless
+   * included. A blessed Expert Farmer stays an Expert Farmer under type 3.
+   * The port used to wipe it to NONE here; the outside twin
+   * (game_loop game_colony_apply_outside_role) never did. */
+  const int profession = c->profession;
 
   colonies_clear_colonist_tile(col, colonist_index);
   for (int i = colonist_index; i < col->colonist_count - 1; ++i) {

@@ -37,12 +37,10 @@ struct ai_euro_act_ctx {
   int is_land_hunter;
   int is_scout;
   int is_treasure;
-  int is_missionary;
   int at_war_land;
   int land_war_hunted;
   int scout_explored;
   int treasure_routed;
-  int missionary_contacted;
   int peace_border_hunted;
   int wagon_hauled;
   int pioneer_improved;
