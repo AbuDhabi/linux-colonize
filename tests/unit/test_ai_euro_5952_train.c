@@ -94,10 +94,31 @@ static int case_no_candidate_and_no_need(void) {
   return 0;
 }
 
+/*
+ * bugs.md #600 — DOS reads a profession BYTE, so FUN_15eb_0002 never sees the
+ * port's -1 "profession not set" sentinel. Treating -1 as an expert made the
+ * pick skip such a colonist, and a roster of nothing but unset colonists left
+ * `last` at -1 (the arm then bought nothing). -1 is a non-expert candidate.
+ */
+static int case_unset_profession_is_a_candidate(void) {
+  ColonizeColony c;
+  const int profs[] = {COLONIZE_PROF_WEAVER, -1};
+  fx_colony(&c, profs, 2);
+  int slot = -1;
+  if (ai_euro_5952_train_pick(&c, 2, false, &slot) != COLONIZE_PROF_FARMER) {
+    return fail("unset profession -> Expert Farmer");
+  }
+  if (slot != 1) {
+    return fail("the unset colonist is the last non-expert slot");
+  }
+  return 0;
+}
+
 static const TestCase k_cases[] = {
   {"default_is_expert_farmer", case_default_is_expert_farmer},
   {"docks_prefers_fisherman", case_docks_prefers_fisherman},
   {"no_candidate_and_no_need", case_no_candidate_and_no_need},
+  {"unset_profession_is_a_candidate", case_unset_profession_is_a_candidate},
 };
 
 TEST_MAIN(k_cases)

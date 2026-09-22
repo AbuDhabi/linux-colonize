@@ -13,6 +13,7 @@
 #include "core/ai_diplo.h"
 #include "core/popup_msg.h"
 #include "core/reports.h"
+#include "core/reports_names.h"
 #include "core/colony_production.h"
 #include "core/colony_yield.h"
 #include "core/europe.h"
@@ -1132,7 +1133,19 @@ int colonies_id_at(const ColonizeColonyPool* pool, int x, int y) {
   return -1;
 }
 
-/* Surround order: N, NE, E, SE, S, SW, W, NW. */
+/*
+ * Surround order: N, NE, E, SE, S, SW, W, NW.
+ *
+ * COLONIZE_COLONY_FIELD_TILES is 8, i.e. the 3x3 block, and that is not a
+ * simplification: DOS picks the work ring as `DS:0x329[FUN_15eb_0470()]`
+ * over the table {0,4,8,12,20}, with `FUN_15eb_0470 = min(FUN_15eb_039e(10),
+ * 2) + 2`. `039e(10)` counts how many rows of the @BUILDING chain that starts
+ * at row 10 the colony owns — rows 0x0a/0x0b are the two Town Hall upgrades,
+ * and stock DOS offers no way to build either (docs/building_production.md:264)
+ * — so the tier is 2 and the ring is 8 for every save the game can produce.
+ * Slots 8..19 of the save's 20-plot array are carried through untouched
+ * (col1_bridge.c). bugs.md #593.
+ */
 static const int k_field_dx[COLONIZE_COLONY_FIELD_TILES] = {0, 1, 1, 1, 0, -1, -1, -1};
 static const int k_field_dy[COLONIZE_COLONY_FIELD_TILES] = {-1, -1, 0, 1, 1, 1, 0, -1};
 
@@ -1354,19 +1367,23 @@ static void colonies_clear_colonist_tile(ColonizeColony* col, int colonist_index
   }
 }
 
-/* NAMES.TXT @JOB school field (1..4), index-aligned. */
-static const uint8_t k_job_school_tier[28] = {
-  1, 2, 2, 2, 1, 1, 1, 1, 1, /* 0..8 field */
-  2, 2, 2, 2, 1, 2, 2,       /* 9..15 craft */
-  3, 3, 4, 4, 1, 2, 1, 2, 3, /* 16..24 civic/military */
-  4, 4, 4                    /* 25..27 servant/criminal/convert */
-};
-
+/*
+ * NAMES.TXT @JOB **column 2** — the school tier (1..4) a profession needs.
+ * DOS `FUN_364b_0688` (raw 57518) reads the loaded record at `-0x715a +
+ * prof*8`, i.e. the third word of the stride-8 @JOB row, so the port reads
+ * the same catalog column instead of compiling a copy of it (bugs.md #596,
+ * data_vs_hardcoded Part D). 0 when the catalog or the row is missing.
+ */
 int colonies_job_school_tier(int profession) {
-  if (profession < 0 || profession >= (int)(sizeof(k_job_school_tier) / sizeof(k_job_school_tier[0]))) {
+  if (profession < 0 || profession >= 28) {
     return 0;
   }
-  return (int)k_job_school_tier[profession];
+  const char* field = reports_names_field("JOB", profession, 2);
+  if (!field) {
+    return 0;
+  }
+  const int tier = atoi(field);
+  return (tier >= 1 && tier <= 4) ? tier : 0;
 }
 
 int colonies_school_building_tier(
@@ -1534,7 +1551,7 @@ static bool colonies_profession_is_labelled(int profession) {
 
 const char* colonies_profession_name(int profession) {
   if (!colonies_profession_is_labelled(profession)) {
-    return "profession";
+    return ""; /* no catalog row = empty string, never a typed fallback */
   }
   return reports_job_short_name(profession);
 }

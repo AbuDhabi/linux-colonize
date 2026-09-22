@@ -72,14 +72,15 @@
  *
  * Still open, unrelated to the above:
  * - New Amsterdam, New Holland: horses off by 1 — a food-surplus/2
- *   breeding-rounding cascade, gross food is off by ~1 pre-breed even
- *   though *net* food lands exactly right (the rounding hides it). New
- *   Amsterdam's likely source: the "expert Fisherman + Fishery resource
- *   -> +4 (not the table's +3), yielding 14 before doubling" override in
- *   colony_yield_pipeline — added early this project with no dedicated
- *   test, may be an unverified guess; New Holland's expert Fisherman has
- *   *no* resource yet is *also* off (opposite direction), so a single
- *   fix likely doesn't cover both — not chased down further this pass.
+ *   breeding-rounding cascade; gross food is off by ~1 pre-breed even
+ *   though *net* food lands exactly right (the rounding hides it). Both
+ *   colonies have an expert Fisherman, but only New Amsterdam's sits on a
+ *   Fishery resource and the two are off in OPPOSITE directions, so the
+ *   Fisherman yield itself is not the shared cause. The "expert Fisherman
+ *   + Fishery -> +4 instead of the table's +3" override this note used to
+ *   blame no longer exists — it was deleted from colony_yield_pipeline as
+ *   an unverified guess and the discrepancy survived its removal, so it
+ *   was never the source. Unresolved live anchor; bugs.md #608.
  * - Curacao, Recife: food off by 1 / several — not investigated.
  *
  * One real, unrelated bug *was* found and fixed via this save:

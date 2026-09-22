@@ -2518,8 +2518,10 @@ static int ai_euro_28c8_score_full(
   /* The scorer must answer the Fisherman gate exactly as the tick does, or it
    * assigns plots the tick then pays 0 for. DOS's 18ec gate is
    * FUN_15eb_038e(6), the building alone (smell audit 2026-09-10 E#2). */
-  const bool has_docks =
-    profession >= 0 ? colony_yield_colony_has_docks(ctx->colonies, col) : true;
+  /* The docks gate (raw 11955) is unconditional in DOS: it never depends on
+   * whether a worker profession is known, so answer it from the colony in both
+   * cases (bugs.md #609). */
+  const bool has_docks = colony_yield_colony_has_docks(ctx->colonies, col);
   const int sol_b_field =
     profession >= 0 ? colony_prod_sol_bonus_field(col1, col) : 0;
   const bool has_hudson = profession >= 0 && col1 &&
@@ -2596,7 +2598,9 @@ static int ai_euro_28c8_score_full(
                       ctx->map, tx, ty, job, profession, has_docks, sol_b_field,
                       col->colony_flags, has_hudson
                     )
-                  : colony_yield_for_tile(ctx->map, tx, ty, job);
+                  : colony_yield_for_tile_in_colony(
+                      ctx->colonies, col, ctx->map, tx, ty, job
+                    );
       if (yld <= 0) {
         continue; /* score would be 0, which never beats local_12 */
       }
@@ -2827,7 +2831,9 @@ void ai_euro_28c8_auto_assign_plots(ColonizeTurnContext* ctx, int colony_id, int
  * kept separate rather than cross-included so the two files stay independent.
  */
 static bool ai_euro_5952_job_is_expert(int job) {
-  return job != UNITS_JOB_COLONIST && job != COLONIZE_PROF_INDENTURED &&
+  /* DOS reads a profession byte, so -1 ("no profession set") never reaches it;
+   * the port's sentinel must not fall through as an expert (bugs.md #600). */
+  return job >= 0 && job != UNITS_JOB_COLONIST && job != COLONIZE_PROF_INDENTURED &&
          job != COLONIZE_PROF_CRIMINAL && job != COLONIZE_PROF_CONVERT &&
          job != COLONIZE_PROF_FREE_COLONIST;
 }
@@ -4636,7 +4642,17 @@ COLONIZE_INTERNAL void ai_euro_5952_specialist_arms(
     if (!colonies_field_tile_delta(ti, &dx, &dy)) {
       continue;
     }
-    if (map_tile_is_water(ctx->map, col->x + dx, col->y + dy)) {
+    const int wx = col->x + dx;
+    const int wy = col->y + dy;
+    /* OVL15 0x082c-0x0858 increments [BP-0x18] only when the tile's terrain
+     * class is 0x19/0x1a; the off-map path (0x094c) returns without touching
+     * it, so an edge colony's missing tiles are NOT water (bugs.md #595).
+     * map_tile_is_water() answers true off-map, hence the explicit bounds
+     * test — same shape as the build-cascade ring count above. */
+    if (wx < 0 || wy < 0 || wx >= (int)ctx->map->width || wy >= (int)ctx->map->height) {
+      continue;
+    }
+    if (map_tile_is_water(ctx->map, wx, wy)) {
       ++water_ring;
     }
   }

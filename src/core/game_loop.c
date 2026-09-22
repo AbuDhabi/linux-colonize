@@ -3702,6 +3702,21 @@ static int europe_menu_row_at(const ColonizeGameState* game, int mx, int my) {
   return (row >= 0 && row < lay.rows) ? row : -1;
 }
 
+/*
+ * DOS-LITERAL FUN_38fd_41ce raw 64391-64396 — the Train/Purchase row's cost
+ * suffix. DOS composes the row as @JOB column 1 + ' ' + DS:0x107f ("|   ",
+ * the column separator) + DS:0x2dd4 + ' ' + the number + DS:0x2dd6. The two
+ * 0x2dxx slots are entries 13 and 14 of the @MISC pointer table loaded at
+ * DS:0x2dba (raw 121284-121287 fills 0xdd slots from the "MISC" tag), i.e.
+ * LABELS.TXT @MISC lines 13 "(Cost:" and 14 ")". The port draws the suffix in
+ * its own column, so only the parenthesised part is composed here.
+ * bugs.md #602.
+ */
+static void europe_menu_cost_suffix(char* out, size_t cap, int amount) {
+  snprintf(out, cap, "%s %d%s",
+           reports_misc_display_word(13, ""), amount, reports_misc_display_word(14, ""));
+}
+
 /* RECRUIT/TRAIN/PURCHASE/DOCK wood popup — chrome via popup_draw. */
 static void europe_render_menu_popup(
   const ColonizeGameState* game,
@@ -3789,14 +3804,14 @@ static void europe_render_menu_popup(
     } else if (eu->menu == EUROPE_MENU_TRAIN) {
       const EuropeTrainOption* t = &eu->train[i - 1];
       snprintf(label, sizeof(label), "%s", t->expert_name);
-      snprintf(cost, sizeof(cost), "(Cost: %d)", t->cost);
+      europe_menu_cost_suffix(cost, sizeof(cost), t->cost);
       color = (eu->gold >= t->cost) ? 14 : 8;
     } else if (eu->menu == EUROPE_MENU_PURCHASE) {
       const EuropePurchaseOption* p = &eu->purchase[i - 1];
       /* Artillery escalates +100 per prior purchase (FUN_38fd_4b50). */
       const int row_cost = europe_purchase_cost(eu, i - 1);
       snprintf(label, sizeof(label), "%s", p->name);
-      snprintf(cost, sizeof(cost), "(Cost: %d)", row_cost);
+      europe_menu_cost_suffix(cost, sizeof(cost), row_cost);
       color = (eu->gold >= row_cost) ? 14 : 8;
     }
     /* ARMOPTIONS rows carry {} emphasis ("Arm with {Muskets}…"); a greyed

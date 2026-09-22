@@ -372,7 +372,17 @@ static int colony_yield_pipeline(
   int deferred_resource = 0;
   const int res = map_resource_type_for_yield(map, x, y);
   if (res >= 0) {
-    const int effect = colony_yield_resource_effect(res, field_job);
+    int effect = colony_yield_resource_effect(res, field_job);
+    /* DOS-LITERAL FUN_15eb_18ec raw 11901-11903: `local_12 = FUN_15eb_17fa(...);
+     * if ((local_1a == 7) && ((int)local_26 < 1)) local_12 = 0;` — resource row
+     * 7 (Fishery) pays nothing when the running yield is below 1. Unreachable
+     * in practice (ocean base 3, distance modifier floors at -2), recorded so
+     * it is not re-derived (bugs.md #594). DOS tests local_26 *after* the
+     * expert Farmer/Fisherman fold, which only ever raises it, so testing the
+     * pre-multiplier `yield` here cannot differ on any reachable input. */
+    if (res == 7 && yield < 1) {
+      effect = 0;
+    }
     if (field_job == COLONIZE_JOB_FARMER || field_job == COLONIZE_JOB_FISHERMAN) {
       deferred_resource = effect;
     } else if (effect == COLONY_YIELD_RESOURCE_DOUBLE) {
@@ -647,6 +657,15 @@ bool colony_yield_worked_tiles_next(ColonizeWorkedTileIter* it, ColonizeWorkedTi
   return false;
 }
 
+/*
+ * No-colony entry: `has_docks = true` is a stand-in, not the DOS rule — the
+ * 18ec Fisherman gate (raw 11955) is unconditional. Every caller that has a
+ * colony must use colony_yield_for_tile_in_colony / colony_yield_for_worker,
+ * which pass colony_yield_colony_has_docks. The only remaining callers are
+ * tests that score a bare map with no colony record (tests/unit/test_turn.c,
+ * test_units.c, test_colony_yield.c, test_ai_euro_28c8_job_score.c), where a
+ * Fisherman tile is meant to be scored as if Docks existed (bugs.md #609).
+ */
 int colony_yield_for_tile(const ColonizeWorldMap* map, int x, int y, int field_job) {
   return colony_yield_pipeline(map, x, y, field_job, -1, 0, true, 0, false);
 }

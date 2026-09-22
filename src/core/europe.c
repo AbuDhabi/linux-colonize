@@ -201,6 +201,27 @@ static bool europe_dock_name_is_artillery(const char* name) {
   return name && name[0] && live && live[0] && strcmp(name, live) == 0;
 }
 
+/*
+ * The EUROPE_DOCK_TYPE_* row an immigrant name belongs to, or -1. The six
+ * dock types ARE NAMES.TXT @UNIT rows 0..5 (europe_dock_unit_type_index_ex),
+ * so this is a catalog **row** scan, not an English name test: the name each
+ * row carries comes from reports_dock_type_name, never from the binary. A
+ * name that matches no row (a profession caption, an empty slot) returns -1
+ * and the caller falls back to the profession's DOS type (bugs.md #603).
+ */
+static int europe_dock_type_row_of_name(const char* name) {
+  if (!name || !name[0]) {
+    return -1;
+  }
+  for (int i = 0; i < EUROPE_DOCK_TYPE_COUNT; ++i) {
+    const char* row = reports_dock_type_name(i);
+    if (row && row[0] && strcmp(name, row) == 0) {
+      return i;
+    }
+  }
+  return -1;
+}
+
 /* Insert at dock front (index 0). Returns false if docks are full. */
 static bool europe_dock_push_front(
   EuropeScreen* eu,
@@ -1243,12 +1264,9 @@ static void europe_bump_recruit_count(EuropeScreen* eu) {
 static int europe_dock_type_roll(
   const EuropeScreen* eu, const char* name, int profession, ColonizeDosRng* rng
 ) {
-  if (name && name[0]) {
-    for (int i = 0; i < EUROPE_DOCK_TYPE_COUNT; ++i) {
-      if (strcmp(name, reports_dock_type_name(i)) == 0) {
-        return i;
-      }
-    }
+  const int row = europe_dock_type_row_of_name(name);
+  if (row >= 0) {
+    return row;
   }
   return europe_dock_unit_dos_type(
     profession, eu ? (int)eu->difficulty : 0, eu ? eu->bound_human : true, rng
@@ -1535,12 +1553,9 @@ int europe_dock_unit_dos_type(int profession, int difficulty, bool human, Coloni
 }
 
 int europe_dock_type_for(const char* name, int profession) {
-  if (name && name[0]) {
-    for (int i = 0; i < EUROPE_DOCK_TYPE_COUNT; ++i) {
-      if (strcmp(name, reports_dock_type_name(i)) == 0) {
-        return i;
-      }
-    }
+  const int row = europe_dock_type_row_of_name(name);
+  if (row >= 0) {
+    return row;
   }
   return europe_dock_unit_dos_type(profession, 0, true, NULL);
 }
@@ -5200,7 +5215,10 @@ int europe_dock_icon_sprite(const ColonizeUnitPool* units, const EuropeDockImmig
       return eut->icon_sprite;
     }
   }
-  int ti = units_find_type(units, d->name);
+  /* bugs.md #603: the dock entry's @UNIT row, not a display-name lookup.
+   * Only EUROPE_DOCK_TYPE_COLONISTS (or a row whose icon column is unset)
+   * reaches here, so the singular fallback covers hand-built test pools. */
+  int ti = europe_dock_unit_type_index_ex(units, d->dos_type, true);
   if (ti < 0) {
     ti = units_kind_type_index(units, UNITS_KIND_COLONIST);
   }

@@ -1015,7 +1015,17 @@ bool col1_bridge_apply_w(
     for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES; ++t) {
       dst->tiles[t] = -1;
     }
-    /* Slots 8..19 are unused by DOS; preserve raw for byte-exact write-back. */
+    /*
+     * Slots 8..19 are unused by DOS at every stock difficulty; preserved raw
+     * for byte-exact write-back. bugs.md #593: the work-plot ring DOS reads is
+     * `DS:0x329[FUN_15eb_0470()]` = {0,4,8,12,20}, and `0470` returns
+     * `min(FUN_15eb_039e(10),2)+2`, where `039e(10)` counts the owned rows of
+     * the @BUILDING chain starting at row 10 — the two Town Hall upgrades
+     * 0x0a/0x0b, which stock DOS never lets a colony build
+     * (docs/building_production.md:264). So the tier is always 2 and the ring
+     * is always the 8 adjacent plots; slots 8..19 would only come alive for a
+     * hand-edited save carrying bit 0x0a or 0x0b.
+     */
     for (int t = (int)COLONIZE_COL1_COLONY_TILE_RING; t < (int)COLONIZE_COL1_COLONY_TILES; ++t) {
       dst->col1_outer_tiles[t - (int)COLONIZE_COL1_COLONY_TILE_RING] = src->tiles[t];
     }

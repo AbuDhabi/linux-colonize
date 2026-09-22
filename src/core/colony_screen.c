@@ -1560,6 +1560,9 @@ static void colony_screen_draw_area_overlays(
       col1 && founding_fathers_nation_has(col1, colony->nation_id, FF_HENRY_HUDSON)
     );
     if (cargo >= 0 && yld > 0) {
+      /* FUN_2f2b_* raw 47750-47751: the per-plot badge swaps the Food cargo
+       * icon for ICONS.SS #0x3a (COLONY_ICON_FISH) when the plot's job is the
+       * Fisherman row — the produce icon is the JOB's, not the cargo's. */
       const int icon = (c->field_job == COLONIZE_JOB_FISHERMAN)
                          ? COLONY_ICON_FISH
                          : (COLONY_CARGO_ICON_BASE + cargo);
@@ -1580,7 +1583,7 @@ static void colony_screen_draw_area_overlays(
       /* bugs.md: a worker whose job produces nothing here (farmer on sea /
        * mountain, dockless fisherman, …) shows the job's normal produce
        * icon with the red slashed-circle (ICONS.SS #64) superimposed —
-       * not an empty tile. */
+       * not an empty tile. Same raw 47750-47751 fish-icon swap as above. */
       const int icon = (c->field_job == COLONIZE_JOB_FISHERMAN)
                          ? COLONY_ICON_FISH
                          : (COLONY_CARGO_ICON_BASE + cargo);
@@ -3052,6 +3055,17 @@ static void colony_screen_draw_people(
 
   int meter_x = COLONY_PEOPLE_X + 2;
   {
+    /*
+     * DOS-LITERAL FUN_2f2b_* raw 48474-48487 — the summary band draws FOOD
+     * TWICE. When DS:0x8e32 is 0 it first takes `local_4 = min(DS:0xa895,
+     * DS:0x8e0a)` — the fish subtotal accumulated by the plot walk (raw
+     * 12502 zeroes it, raw 12596 / 4270 / 5345 add each Fisherman plot's
+     * yield) clamped to the colony's total food — emits that row, then falls
+     * through to a second unconditional emit for the remainder. The port's
+     * fish/grain pair is that same split, with COLONY_ICON_FISH (DOS icon id
+     * 0x3a, 1-based; sprite index 57, the per-plot badge icon of raw 47750).
+     * bugs.md #607.
+     */
     const int fish_amt =
       (food_amt > 0) ? (p->food_fish > food_amt ? food_amt : p->food_fish) : 0;
     const int grain_amt = food_amt - fish_amt;

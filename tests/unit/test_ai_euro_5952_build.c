@@ -581,6 +581,46 @@ static int case_food_pass_skips_unplaceable_colonist(void) {
   return 0;
 }
 
+/*
+ * bugs.md #595 — ARM 1's water ring (OVL15 0x082c-0x0858) increments
+ * [BP-0x18] only for terrain class 0x19/0x1a; the off-map path at 0x094c
+ * returns without touching it. A colony on the map's west edge therefore has
+ * a water ring of 0, so the Fisherman target (census[Fisherman] < ring) can
+ * never be elected on a dry edge ring.
+ */
+static int case_edge_ring_has_no_phantom_water(void) {
+  Fx f;
+  if (fx_build(&f, 3) != 0) {
+    return 1;
+  }
+  ai_euro_reset();
+  f.col->x = 0; /* three ring tiles are off-map, none of them is water */
+  fx_wake_colonists(&f, 3);
+  own(&f, "Schoolhouse");      /* chain 1: 1 * 4 <= improve_timer */
+  f.col->improve_timer = 100;
+
+  ai_euro_5952_specialist_arms(&f.ctx, f.col, 3);
+
+  int fishermen = 0;
+  int farmers = 0;
+  for (int s = 0; s < 3; ++s) {
+    if (f.col->colonists[s].profession == COLONIZE_PROF_FISHERMAN) {
+      ++fishermen;
+    }
+    if (f.col->colonists[s].profession == COLONIZE_PROF_FARMER) {
+      ++farmers;
+    }
+  }
+  fx_done(&f);
+  if (fishermen != 0) {
+    return fail("#595: off-map ring tiles counted as water, electing a Fisherman");
+  }
+  if (farmers != 1) {
+    return fail("#595: ARM 1 never elected anyone, so the case proves nothing");
+  }
+  return 0;
+}
+
 static const TestCase k_cases[] = {
   {"case_first_pick_is_stockade", case_first_pick_is_stockade},
   {"case_docks_when_ring_worked_out", case_docks_when_ring_worked_out},
@@ -596,6 +636,7 @@ static const TestCase k_cases[] = {
   {"case_small_ai_flag_written", case_small_ai_flag_written},
   {"case_docks_commit_suppresses_expert_purchase", case_docks_commit_suppresses_expert_purchase},
   {"case_food_pass_skips_unplaceable_colonist", case_food_pass_skips_unplaceable_colonist},
+  {"case_edge_ring_has_no_phantom_water", case_edge_ring_has_no_phantom_water},
 };
 
 TEST_MAIN(k_cases)
