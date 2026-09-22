@@ -9,6 +9,7 @@
 #include "core/map_menu.h"
 #include "core/map_panel.h"
 #include "core/reports.h"
+#include "core/reports_names.h"
 #include "core/ss.h"
 #include "core/units.h"
 #include "core/village_trade_intel.h"
@@ -846,7 +847,7 @@ static int case_stack_detail_expert_prefix(void) {
     assets_msg_free(&names);
     return fail("stack detail (hardy) not produced");
   }
-  char want[72];
+  char want[128];
   snprintf(want, sizeof(want), "%s %s", expert, plain);
   if (strcmp(hardy, want) != 0) {
     fprintf(stderr, "stack detail: want '%s' got '%s'\n", want, hardy);
@@ -862,6 +863,65 @@ static int case_stack_detail_expert_prefix(void) {
   return 0;
 }
 
+/*
+ * bugs.md #642 / #643: the Treasure detail word comes from LABELS @CTITLE row
+ * 1 (the DOS DS:0x93a0 slot, FUN_49dd_0424 raw 78911 / 79210), and the type-2
+ * tools row is gated on the @UNIT type alone (raw 78896), so a 0-tools
+ * Pioneers body still prints its tools line.
+ */
+static int case_treasure_word_and_zero_tools(void) {
+  ColonizeMsgCatalog names;
+  memset(&names, 0, sizeof(names));
+  char names_path[512];
+  if (!dos_compat_normalize_asset_path("COLONIZE", "NAMES.TXT", names_path, sizeof(names_path)) ||
+      !assets_msg_load_file(&names, names_path)) {
+    return 0;
+  }
+  reports_names_load_catalogs("COLONIZE");
+  const char* gold = reports_ctitle_word(1);
+  if (!gold || !gold[0]) {
+    assets_msg_free(&names);
+    return fail("LABELS @CTITLE row 1 missing");
+  }
+  ColonizeUnitPool pool;
+  memset(&pool, 0, sizeof(pool));
+  if (!units_load_types(&pool, &names)) {
+    assets_msg_free(&names);
+    return fail("units_load_types failed");
+  }
+  int rc = 0;
+  const int tid = units_spawn_allow_stack(&pool, 10, 5, 5); /* Treasure */
+  if (tid < 0) {
+    assets_msg_free(&names);
+    return fail("treasure spawn failed");
+  }
+  ColonizeUnit* t = units_get(&pool, tid);
+  t->profession = 7; /* DOS +0x315b, x100 */
+  char want[128];
+  char got[72];
+  snprintf(want, sizeof(want), "%s 700", gold);
+  if (!map_panel_stack_detail_text(&pool, t, &names, got, sizeof(got)) ||
+      strcmp(got, want) != 0) {
+    fprintf(stderr, "treasure stack row: want '%s' got '%s'\n", want, got);
+    rc = 1;
+  }
+  const int pid = units_spawn_allow_stack(&pool, 2, 7, 9); /* Pioneers */
+  if (pid < 0) {
+    assets_msg_free(&names);
+    return fail("pioneer spawn failed");
+  }
+  ColonizeUnit* u = units_get(&pool, pid);
+  u->tools = 0;
+  u->profession = UNITS_JOB_NONE;
+  if (!map_panel_stack_detail_text(&pool, u, &names, got, sizeof(got)) ||
+      strncmp(got, "0 ", 2) != 0) {
+    fprintf(stderr, "0-tools pioneer stack row: got '%s'\n", got);
+    rc = 1;
+  }
+  assets_msg_free(&names);
+  return rc;
+}
+
 static const TestCase k_cases[] = {
   {"panel_geometry_constants", case_panel_geometry_constants},
   {"panel_load_and_labels", case_panel_load_and_labels},
@@ -874,6 +934,7 @@ static const TestCase k_cases[] = {
   {"tile_stack", case_tile_stack},
   {"village_trade_intel", case_village_trade_intel},
   {"stack_detail_expert_prefix", case_stack_detail_expert_prefix},
+  {"treasure_word_and_zero_tools", case_treasure_word_and_zero_tools},
 };
 
 TEST_MAIN(k_cases)

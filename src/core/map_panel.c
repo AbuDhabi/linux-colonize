@@ -9,6 +9,7 @@
 #include "core/fb.h"
 #include "core/map_menu.h"
 #include "core/reports.h"
+#include "core/reports_names.h"
 #include "core/ss.h"
 #include "core/strutil.h"
 #include "core/turn.h"
@@ -724,7 +725,10 @@ static bool map_panel_type_detail_mode(
   size_t out_size
 ) {
   (void)units;
-  if (u->type_index == MAP_PANEL_UNIT_PIONEERS && u->tools > 0) {
+  /* DOS-LITERAL FUN_49dd_0424 raw 78896: the tools row is gated on the @UNIT
+   * type byte (+0x3146 == 2) ALONE - a type-2 unit with 0 tools still prints
+   * "0 Tools" (bugs.md #643). */
+  if (u->type_index == MAP_PANEL_UNIT_PIONEERS) {
     if (stack) {
       const char* expert =
         (u->profession == UNITS_JOB_PIONEER) ? reports_misc_display_word(4, "") : "";
@@ -738,7 +742,11 @@ static bool map_panel_type_detail_mode(
     return true;
   }
   if (u->type_index == MAP_PANEL_UNIT_TREASURE) {
-    snprintf(out, out_size, stack ? "Gold: %d" : "(Gold: %d)", u->profession * 100);
+    /* The word is the LABELS @CTITLE row 1 the DOS slot DS:0x93a0 points at -
+     * the same string the sidebar header gold line uses (raw 78727); catalog
+     * miss = "" (bugs.md #642). */
+    const char* gold = reports_ctitle_word(1);
+    snprintf(out, out_size, stack ? "%s %d" : "(%s %d)", gold, u->profession * 100);
     return true;
   }
   return false;
@@ -1078,7 +1086,7 @@ static void map_panel_draw_stack_row(
       goods++;
     }
   }
-  if (u->type_index == MAP_PANEL_UNIT_PIONEERS && u->tools > 0) {
+  if (u->type_index == MAP_PANEL_UNIT_PIONEERS) { /* raw 78896: type-only, bugs.md #643 */
     map_panel_type_detail_mode(units, u, names, true, line, sizeof(line));
     font_draw_text(font, fb, x, detail_y, line, MAP_PANEL_COL_EMPHASIS);
   } else if (prof) {
@@ -1312,6 +1320,9 @@ void map_panel_render_w(
     turn_format_date(game_year, game_autumn, date, sizeof(date));
     map_panel_draw_line(font, framebuffer, text_x, &text_y, line_h, y_limit, date, MAP_PANEL_COL_TEXT);
 
+    /* @CTITLE row 1 = DS:0x93a0 ("Gold:", shared with the Treasure detail
+     * row), row 9 = "Tax:". Read through the one accessor so both sites use
+     * the same catalog row (bugs.md #642). */
     const char* gold_label = "";
     const char* tax_label = "";
     if (labels) {
@@ -1320,6 +1331,9 @@ void map_panel_render_w(
         gold_label = ct->lines[1];
         tax_label = ct->lines[9];
       }
+    } else {
+      gold_label = reports_ctitle_word(1);
+      tax_label = reports_ctitle_word(9);
     }
     char gold_line[64];
     snprintf(gold_line, sizeof(gold_line), "%s%d$  %s %d%%", gold_label, gold, tax_label, tax_percent);
