@@ -134,6 +134,13 @@ COLONIZE_INTERNAL void ai_euro_5952_absorb_equip(
 );
 /* FUN_5952_035e equip-arm candidate scorer (raw 94318-94345). */
 COLONIZE_INTERNAL int ai_euro_5952_equip_pick(const ColonizeColony* c, int target);
+
+/* FUN_5952_035e raw 95926-95944: the "train an expert here" pick. Returns the
+ * @JOB to buy (COLONIZE_PROF_FREE_COLONIST / 0x1c = buy nothing) and the
+ * chosen colonist slot. bugs.md #571. */
+COLONIZE_INTERNAL int ai_euro_5952_train_pick(
+  const ColonizeColony* c, int n, bool has_docks, int* out_slot
+);
 /* FUN_5952_035e carpenter-staffing arm, per-pass election (raw 94690-94740). */
 COLONIZE_INTERNAL int ai_euro_5952_carpenter_pick(
   ColonizeColony* c, const bool* placed, int n, int pass, int start, int* out_prof

@@ -551,6 +551,9 @@ const char* europe_pool_label(const EuropeScreen* eu, int slot);
  * plain forms pass NULL (plain Soldiers, no draw) and exist for callers
  * with no rng at hand.
  */
+/* Train dialog row enabled? DOS greys the row when the purse is short
+ * (FUN_38fd_41ce raw 64399-64403) — bugs.md #566. */
+bool europe_train_affordable(const EuropeScreen* eu, int train_index);
 bool europe_train(EuropeScreen* eu, int train_index);
 bool europe_train_ex(EuropeScreen* eu, int train_index, struct ColonizeDosRng* rng);
 bool europe_purchase(EuropeScreen* eu, int purchase_index);

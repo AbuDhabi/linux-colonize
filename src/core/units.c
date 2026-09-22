@@ -12332,6 +12332,17 @@ const char* units_profession_line(
   return units_job_field(names, prof, 0);
 }
 
+/*
+ * The @JOB COLUMN 1 name ("Expert Farmers") for a unit's profession, used
+ * for the stack row / Europe dock caption. DOS cite (bugs.md #577, the
+ * column choice used to carry none): FUN_38fd_3694,
+ * viceroy_overlays.c:61190 reads `-0x715c + profession*8` for exactly this
+ * caption, and -0x715c is the column-1 pointer table (column 0, "Farmer",
+ * is -0x715e and is what the map panel's FUN_49dd_0386 uses instead). A
+ * unit whose profession is one of the unskilled set (0x1c/0x13/0x19/0x1a/
+ * 0x1b) gets no label at all — DOS's own `!= 0x1c` guard, widened to the
+ * unskilled set the same way units_profession_line is.
+ */
 const char* units_profession_label(
   const ColonizeMsgCatalog* names, int type_index, int profession
 ) {

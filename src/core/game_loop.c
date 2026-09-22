@@ -3300,6 +3300,13 @@ static bool game_europe_menu_confirm(ColonizeGameState* game) {
     }
     return ok;
   }
+  /* FUN_38fd_41ce raw 64399-64403: an unaffordable Train row is greyed
+   * (FUN_291f_01b6(list, row, 1)) and inert — the dialog stays up and no
+   * "need gold" answer exists in DOS. bugs.md #566. */
+  if (eu->menu == EUROPE_MENU_TRAIN && eu->menu_selection > 0 &&
+      !europe_train_affordable(eu, eu->menu_selection - 1)) {
+    return false;
+  }
   /* The RECRUIT row's pool refill is a `46d4` roll DOS takes off the shared
    * game stream — hand the real rng down (smell audit 2026-09-10 G5). */
   return europe_menu_confirm_ex(eu, &game->move_rng);
@@ -6668,39 +6675,14 @@ static void game_enter_colony_at_cursor(ColonizeGameState* game) {
 }
 
 /*
- * bugs.md #6: a colonist admitted via 'B' had no field_job/building_type
- * — invisible on the settlement grid and minimap, and not producing anything.
- * No general auto-assignment exists yet (docs/terrain_yields.md: DOS's own
- * work-plot scorer FUN_15eb_28c8 is unported), so give the new hire a plain
- * default workplace rather than leaving them idle: first building with an
- * open slot, Town Hall preferred (always a starter, generic Bells labor).
+ * bugs.md #6 / #562: a colonist admitted via 'B' must go to work at once.
+ * DOS's join path is FUN_15eb_3930 -> FUN_15eb_2ea0 -> FUN_15eb_28c8: the
+ * newcomer takes the best-scoring work plot, and only when nothing scores does
+ * he become a Carpenter. The old Town-Hall-first seating here had no DOS
+ * counterpart. colonies_auto_assign_idle is that chain (colony.c).
  */
 static void game_auto_assign_new_colonist(ColonizeGameState* game, int colony_id, int colonist_index) {
-  const int town_hall = colonies_building_row(&game->colonies, COLONY_BUILDING_TOWN_HALL);
-  if (town_hall >= 0 &&
-      colonies_assign_workplace(&game->colonies, colony_id, colonist_index, town_hall)) {
-    return;
-  }
-  const ColonizeColony* col = colonies_get(&game->colonies, colony_id);
-  if (!col) {
-    return;
-  }
-  for (int bi = 0; bi < game->colonies.building_type_count; ++bi) {
-    if (bi == town_hall || !col->has_building[bi]) {
-      continue;
-    }
-    /* bugs.md #408 (veterans kept teaching after being pulled from the school):
-     * teaching is an explicit player choice — an auto-assign must never
-     * quietly seat a specialist at the Schoolhouse/College/University
-     * (it did whenever Town Hall was full, so a joining specialist started
-     * graduating Veteran Soldiers). Same guard as colonies_auto_assign_idle. */
-    if (colonies_school_building_tier(&game->colonies, bi) > 0) {
-      continue;
-    }
-    if (colonies_assign_workplace(&game->colonies, colony_id, colonist_index, bi)) {
-      return;
-    }
-  }
+  colonies_seat_new_colonist(&game->colonies, colony_id, colonist_index);
 }
 
 /*

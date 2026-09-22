@@ -682,13 +682,27 @@ static void turn_emit_needtools_notice(
 }
 
 /*
- * On-the-job learning latch (raw 57595-57605): DOS keeps a DS byte per field
- * job at -0x6bd0, tested for 0 before the roll and bumped on a success, and
- * FUN_4962_0018 (raw 78140) clears that block for a nation at its turn
- * boundary — so at most one colonist per job per nation per turn graduates.
- * Indexed [nation][job 1..4]; cleared at the top of each production pass.
+ * Per-nation SPECIALTY CENSUS — DOS's DS:0x9430 block (addressed as
+ * -0x6bd0), 0x1d bytes, one per @JOB row. Its only writer is
+ * `FUN_4962_0606` (raw 78332-78372): zero the block, then count every unit
+ * of the nation whose type carries a profession slot (`FUN_281f_0b78` ->
+ * FUN_15eb_0902 = units_type_default_job >= 0) by its +0x315b profession,
+ * then every colonist of every colony of the nation by its specialty
+ * (`FUN_281f_0c54`). The host `FUN_3844_00f2` (raw 58374) calls it through
+ * `FUN_291f_0a9e` once per nation, immediately BEFORE that nation's colony
+ * production loop, so the census a colony reads is the one the nation
+ * started its turn with.
+ *
+ * The on-the-job learning gate (raw 57595) reads this block: a colonist can
+ * learn field job j on the job only while the nation owns ZERO specialists
+ * of j anywhere — and a success bumps the byte in place (raw 57605), so the
+ * first graduate of the turn also closes the door behind him.
+ *
+ * (The port used to invent an `s_otj_latch` "one per job per nation per
+ * turn" and cite raw 78140 for clearing it; 78140 clears +0x942c, an
+ * unrelated per-nation flag block. bugs.md #563.)
  */
-static uint8_t s_otj_latch[COLONIZE_COL1_NATION_COUNT][COLONIZE_JOB_FUR_TRAPPER + 1];
+static uint8_t s_prof_census[COLONIZE_COL1_NATION_COUNT][32];
 
 static void turn_produce_one_colony(
   ColonizeColonyPool* pool,
@@ -1171,7 +1185,10 @@ static void turn_produce_one_colony(
         chrome_sec = "TRAINPROFESSION";
         fallback[0] = '\0';
       }
-      student->turns_in_job = 0;
+      /* bugs.md #565: DOS's graduation loop (raw 57540-57588) calls 0cae /
+       * the ladder writers on the student and never 0a7e — the student keeps
+       * his accumulated +0x60 counter, so a fresh graduate whose counter is
+       * already >= his own school need can start teaching immediately. */
       for (int k = pick; k < n_stud - 1; ++k) {
         students[k] = students[k + 1];
       }
@@ -1206,12 +1223,14 @@ static void turn_produce_one_colony(
      * starve-mercy roll a few lines up — fixed to use dos_rng_range(rng, ...)
      * like DOS's own FUN_281f_04d4 call, and to extend the class-scaled odds
      * to Indentured/Criminal (Convert stays excluded — not Free/Indentured/
-     * Criminal). The DOS field-job lower bound reads as `1..4` in the raw
-     * bytes (specialty via 0c0e), not `0..4`; whether that's the same value
-     * as `field_job` here is still unresolved (see colony_eot_production.md
-     * Deep H / Deep F "0c0e -> specialty" vs "0c54 -> current job" split) —
-     * left at the port's existing 0..4 scan rather than guess. Nation
-     * skill-flags / deep school-job tables still PARKED.
+     * Criminal). The DOS gate is `0 < occupation && occupation < 5` (raw
+     * 57595) on `FUN_281f_0c0e` = the colonist's OCCUPATION (work slot),
+     * ported as `field_job`: jobs 1..4 (@JOB 1 Sugar, 2 Tobacco, 3 Cotton,
+     * 4 Fur Trapper) only, so a colonist farming (job 0) can NEVER become an
+     * Expert Farmer on the job. (`FUN_281f_0c54` = specialty, the value the
+     * class-scaled odds and the Convert/expert exclusions read; the
+     * FUNCTION_CATALOG.md labels for 0c0e/0c54 are swapped.) The remaining
+     * gate is the per-nation specialty census — see s_prof_census.
      */
     for (int ci = 0; ci < colony->colonist_count; ++ci) {
       ColonizeColonist* c = &colony->colonists[ci];
@@ -1241,19 +1260,18 @@ static void turn_produce_one_colony(
       if (c->field_job < 1 || c->field_job > COLONIZE_JOB_FUR_TRAPPER) {
         continue;
       }
-      /* raw 57596/57605: the per-job DS byte at -0x6bd0 must be 0, and a
-       * success bumps it — one on-the-job graduation per job per nation per
-       * turn (FUN_4962_0018 raw 78140 clears that block per nation at the
-       * turn boundary). */
-      const int latch_n =
+      /* raw 57596/57605: the specialty-census byte at -0x6bd0 + job must be
+       * 0 — the nation may not already own an expert of that job anywhere —
+       * and a success bumps it in place. See s_prof_census. */
+      const int census_n =
         (colony->nation_id >= 0 && colony->nation_id < (int)COLONIZE_COL1_NATION_COUNT)
           ? colony->nation_id
           : 0;
-      if (s_otj_latch[latch_n][c->field_job] != 0) {
+      if (s_prof_census[census_n][c->field_job] != 0) {
         continue;
       }
       if (dos_rng_range(rng, 0, discover_denom) == 0) {
-        s_otj_latch[latch_n][c->field_job]++;
+        s_prof_census[census_n][c->field_job]++;
         c->profession = c->field_job;
         c->turns_in_job = 0;
         if (europe && colony->nation_id == human_nation && turn_report_ok_trained(col1)) {
@@ -2189,9 +2207,12 @@ void turn_run_colony_production_w(
   if (!pool) {
     return;
   }
-  /* FUN_4962_0018 (raw 78140) clears the on-the-job learning latch block at
-   * each nation's turn boundary; one production pass = one turn here. */
-  memset(s_otj_latch, 0, sizeof(s_otj_latch));
+  /* FUN_4962_0606 via FUN_3844_00f2 (raw 58374): the per-nation specialty
+   * census is recomputed before the colony production loop. One production
+   * pass = one turn here, so refresh all four Euro nations up front. */
+  for (int n = 0; n < (int)COLONIZE_COL1_NATION_COUNT && n < 4; ++n) {
+    turn_tally_professions(pool, w->units, n, s_prof_census[n]);
+  }
   for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
     if (pool->colonies[i].active && turn_prod_nation_in_scope(pool->colonies[i].nation_id)) {
       /* bugs.md #256: DOS never carries an idle colonist — sweep any
@@ -2775,8 +2796,15 @@ void turn_tally_professions(
   uint8_t out_hist[32]
 ) {
   /*
-   * FUN_4962_0606: zero hist[0x1d]; count unit specialties + colony jobs.
-   * Linux: profession / field_job stand-ins; 32 slots (covers @JOB range).
+   * FUN_4962_0606 (raw 78332-78372): zero hist[0x1d]; then count the
+   * nation's units by profession — but ONLY those whose @UNIT type carries
+   * a profession slot (`FUN_281f_0b78` -> FUN_15eb_0902 = DS:0x30e[type] >=
+   * 0, units_type_default_job here): ships, wagons, artillery and treasure
+   * are skipped, otherwise their profession byte 0 would register as an
+   * Expert Farmer. Then count every colonist of every colony of the nation
+   * by its SPECIALTY (`FUN_281f_0c54`) — never by the field job it is
+   * standing in, so a Free Colonist working a wheat plot is not an Expert
+   * Farmer. 32 slots here (covers the whole @JOB range).
    */
   if (!out_hist) {
     return;
@@ -2789,6 +2817,9 @@ void turn_tally_professions(
     for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
       const ColonizeUnit* u = &units->units[i];
       if (!u->active || u->nation_id != nation_id) {
+        continue;
+      }
+      if (!units_type_has_profession_slot(u->type_index)) {
         continue;
       }
       const int p = u->profession;
@@ -2808,10 +2839,7 @@ void turn_tally_professions(
         if (!col->active) {
           continue;
         }
-        int p = col->profession;
-        if (p < 0 && col->field_job >= 0) {
-          p = col->field_job;
-        }
+        const int p = col->profession;
         if (p >= 0 && p < 32 && out_hist[p] < 255u) {
           out_hist[p]++;
         }
@@ -4136,7 +4164,7 @@ ColonizeTurnResult turn_end(ColonizeTurnContext* ctx) {
  * units pool pointer must not survive into a different campaign's pool.
  */
 void turn_reset(void) {
-  memset(s_otj_latch, 0, sizeof(s_otj_latch));
+  memset(s_prof_census, 0, sizeof(s_prof_census));
   s_turn_birth_units = NULL;
   s_prod_only_nation = -1;
   s_prod_only_set = false;

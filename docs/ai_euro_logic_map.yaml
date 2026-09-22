@@ -1358,6 +1358,20 @@ graphs:
         dos: FUN_5952_035e raw 94784-94860, asm 5952:1ef7-5952:2193
         status: dos
         note: "Per unplaced slot: 28c8 mode-2 probe (DS:0x8dc0/0x8dbe) for the best plot, then score every available indoor job 9..0x11 as (producible*8+5)*want_weight (ai_euro_5952_want_weight / ai_euro_5952_job_score; producible = ai_euro_5952_producible, the 15eb:1f44 dispatcher over colony_production.c's ported 1d4c bodies). Indoor winner beats the plot score -> assign the workplace; else commit the plot; else ai_euro_5952_fallback_job (Carpenter, or Preacher on Church + lumber surplus + <3 preachers). AI_5952_INDOOR=0 restores the pre-2026-09-17 leftovers field stand-in."
+      - id: idle
+        kind: step
+        label: Idle EVERY colonist (incl. building workers) + memset the 20 plot bytes — raw 94551-94564
+        fn: ai_euro.c:ai_euro_colony_tick_28c8_reassign
+        dos: FUN_5952_035e raw 94551-94564 (annotated colony_tick_5952_035e.md:1030-1043)
+        status: dos
+        note: "bugs.md #569. `8e26(slot, 0x12)` runs for every slot with no indoor exemption and the plot array is memset 0xff, so a starving colony can pull an indoor worker onto a food tile; the indoor pass re-elects a job for everyone the field passes leave over. The port used to seed placed[] with `building_type >= 0`, which had no DOS counterpart."
+      - id: specialists
+        kind: step
+        label: Specialist arms — improve_timer expert election (DS:0x864) + "train an expert here" purchase
+        fn: ai_euro.c:ai_euro_5952_specialist_arms
+        dos: FUN_5952_035e raw ~95860-95958 (md:1653-1749); asm viceroy_overlays.asm OVL15 0x274b-0x29ff
+        status: dos
+        note: "bugs.md #571/#572, ported 2026-09-22. Counts taken at md:1459-1464: food_workers = count-by-JOB(0)+(8) (FUN_1000_8d72), food_experts = count-by-PROFESSION(0)+(8) (FUN_1000_8de0); train_flag = (pop/2 < food_workers && food_workers > 1) || DS:0x8e5a != 0 (colony short of food). ARM 1 (0x274b): school chain 0xc owned and ((count==3)+count)*4 <= improve_timer; target = 8 if census[8] < water ring tiles else 0 when pop < 10 && food_experts <= food_workers, then the DS:0x864 6-row table (recovered from VICEROY.EXE at EXE 121248+0x864: {building, @JOB, input @CARGO, @JOB} = {3,f,e,f} {27,e,6,e} {20,c,4,c} {1b,9,1,9} {18,a,2,a} {15,b,3,b}) overrides it for a craft whose chain is built out (2 tiers; 1 for Armory root 3), whose input cargo is being produced and whose @JOB the colony lacks — and DOS writes the ROW INDEX, not the row's @JOB (asm 0x2830), a DOS bug kept literal, so the override elects @JOB 0..5. Candidates = non-experts, or experts working off-specialty (occupation != 0x13), Converts excluded, cap 25; RNG pick, profession written, improve_timer = 0. ARM 2 (0x290c): train_flag && nation tax_rate (DS:0x84fc+1) <= 0x19 && purse >= @JOB row 0 price (NAMES.TXT column 3 = 1100) -> last non-expert non-Convert becomes Expert Fisherman (no Fisherman + Docks) else Expert Farmer (no Farmer); ai_euro_5952_train_pick. The gold debit reads @JOB[COLONIST SLOT] (asm 0x29d4 `MOV BX,[BP-0x2e]; SHL BX,3; MOV AX,[BX+0x8ea8]; CWD`) — DOS charges the price row indexed by the slot, kept literal. Deviation: DOS's ARM 1 candidate walk runs to pop + DS:0x8d72 (into units parked on the colony tile) and its census is the pre-absorption snapshot; the port walks the colony roster and recomputes."
       - id: build
         kind: loop
         label: Construction-project cascade — one ordered chain of FUN_5952_0214 tries ending in five unit projects
@@ -1369,12 +1383,14 @@ graphs:
         kind: end
         label: return
     edges:
-      - [loop, pass1, "each colony"]
+      - [loop, idle, "each colony"]
+      - [idle, pass1]
       - [pass1, pass2]
       - [pass2, lumber]
       - [lumber, carpenter]
       - [carpenter, expert]
       - [expert, indoor]
-      - [indoor, build]
+      - [indoor, specialists]
+      - [specialists, build]
       - [build, loop, "next colony"]
       - [loop, end, "done"]

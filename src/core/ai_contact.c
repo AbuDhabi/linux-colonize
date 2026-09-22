@@ -6,7 +6,7 @@
  *  - Contact bookkeeping: visit tracking, status/chrome text & tribe/euro names (~line 76)
  *  - Peace state, land-grant welcome dialogs & first-contact welcome flow (~line 332)
  *  - Encounter/meet scans, village-meet dialogs & attack/raid confirmations (~line 803)
- *  - Ship-village visits, jesuit/teachable checks & skill teaching (~line 1543)
+ *  - Ship-village visits & jesuit/teachable checks (~line 1443)
  *  - Friction/gift-gold, choice popups & incite pricing/confirmation (~line 2042)
  *  - Tools/gold demand pipeline & gift-or-demand economics (raw 2154) (~line 2694)
  *  - Visit mood, demand gating & beg-food flow (~line 3451)
@@ -1440,7 +1440,7 @@ int ai_contact_try_tired_attack_confirm(
   return 1;
 }
 
-/* ===================== Ship-village visits, jesuit/teachable checks & skill teaching (ai_contact_try_ship_village .. ai_contact_teach_skill) ===================== */
+/* ===================== Ship-village visits & jesuit/teachable checks (ai_contact_try_ship_village .. ai_contact_adjacent_euro_at) ===================== */
 
 
 /*
@@ -1711,205 +1711,23 @@ static const char* ai_contact_learner_skill_name(
   return units_display_name(units, u);
 }
 
-/* Warehouse cargo → outdoor @JOB (indices align food..silver). -1 unmapped. */
-static int ai_contact_profession_from_cargo(int cargo) {
-  switch (cargo) {
-    case COLONIZE_CARGO_FOOD:
-      return COLONIZE_JOB_FARMER;
-    case COLONIZE_CARGO_SUGAR:
-      return COLONIZE_JOB_SUGAR_PLANTER;
-    case COLONIZE_CARGO_TOBACCO:
-      return COLONIZE_JOB_TOBACCO_PLANTER;
-    case COLONIZE_CARGO_COTTON:
-      return COLONIZE_JOB_COTTON_PLANTER;
-    case COLONIZE_CARGO_FURS:
-      return COLONIZE_JOB_FUR_TRAPPER;
-    case COLONIZE_CARGO_LUMBER:
-      return COLONIZE_JOB_LUMBERJACK;
-    case COLONIZE_CARGO_ORE:
-      return COLONIZE_JOB_ORE_MINER;
-    case COLONIZE_CARGO_SILVER:
-      return COLONIZE_JOB_SILVER_MINER;
-    default:
-      return -1;
-  }
-}
-
 /*
- * Rough Col1 nation_id (4..11) → primary taught skill. Order matches
- * NAMES.TXT @TRIBES (Inca..Tupi). Fish has no cargo id — nation only.
- * Returns -1 if out of band (caller falls back to Farmer).
- * @TRIBES field-3 flavor goods (Jewelled Relics, …) are trade chrome, not
- * teach skills — see ai_contact_tribe_flavor_good.
+ * bugs.md #573 — RETIRED: the legacy "village adjacency teach pulse"
+ * (ai_contact_teach_skill) and its hand-written tribe→skill table
+ * (ai_contact_taught_profession, with ai_contact_profession_from_cargo /
+ * _from_nation) had no DOS counterpart at all. DOS teaches a skill in
+ * exactly one place, `thunk_FUN_1000_a618` (overlays.c 77658-77835) — the
+ * "Live Among The Natives" @ACTIONS row on a named acting unit and a named
+ * village — which is ported as ai_contact_live_among_natives /
+ * ai_contact_a618_skill. The pulse's own rules were invented too: it admitted
+ * @JOB 28/19 but excluded Indentured Servants where DOS's learner test is
+ * exactly `0x1c || 0x19` (overlays.c 77796), it consumed the village one-shot
+ * on refusals, and it ignored the capital exemption. Its only caller was the
+ * AI_CONTACT_CHOICE_TEACH fallback for an unbound menu_unit/menu_village,
+ * which cannot happen for a real @ACTIONS pick (ai_contact_menu_village falls
+ * back to the tribe's first village whenever the payload carries a unit), so
+ * that arm is now a no-op.
  */
-static int ai_contact_profession_from_nation(int nation_id) {
-  static const int k_by_indian[8] = {
-      COLONIZE_JOB_SILVER_MINER,    /* 4 Inca */
-      COLONIZE_JOB_ORE_MINER,       /* 5 Aztec */
-      COLONIZE_JOB_FISHERMAN,       /* 6 Arawak */
-      COLONIZE_JOB_FUR_TRAPPER,     /* 7 Iroquois */
-      COLONIZE_JOB_TOBACCO_PLANTER, /* 8 Cherokee */
-      COLONIZE_JOB_COTTON_PLANTER,  /* 9 Apache */
-      COLONIZE_JOB_FUR_TRAPPER,     /* 10 Sioux */
-      COLONIZE_JOB_SUGAR_PLANTER,   /* 11 Tupi */
-  };
-  const int idx = nation_id - 4;
-  if (idx < 0 || idx >= 8) {
-    return -1;
-  }
-  return k_by_indian[idx];
-}
-
-/*
- * Resolve taught profession for an unskilled Free Colonist.
- * Prefer tribe.last_sold when it is a raw cargo 1..7 (sugar..silver) — food(0)
- * is left alone so zeroed Col1 tribes still take the nation map. Else nation
- * table; else Expert Farmer.
- */
-static int ai_contact_taught_profession(const ColonizeCol1Tribe* t) {
-  if (!t) {
-    return COLONIZE_JOB_FARMER;
-  }
-  if (t->last_sold >= COLONIZE_CARGO_SUGAR && t->last_sold <= COLONIZE_CARGO_SILVER) {
-    const int from_cargo = ai_contact_profession_from_cargo((int)t->last_sold);
-    if (from_cargo >= 0) {
-      return from_cargo;
-    }
-  }
-  const int from_nation = ai_contact_profession_from_nation((int)t->nation_id);
-  if (from_nation >= 0) {
-    return from_nation;
-  }
-  return COLONIZE_JOB_FARMER;
-}
-
-static void ai_contact_teach_skill(ColonizeTurnContext* ctx, int nation_id) {
-  if (!ctx || !ctx->units || !ctx->col1_ok || !ctx->col1 || !ctx->col1->tribe) {
-    return;
-  }
-  if (nation_id < 4 || nation_id > 11) {
-    return;
-  }
-  ColonizeCol1Indian* ind = &ctx->col1->indian[nation_id - 4];
-
-  for (uint16_t ti = 0; ti < ctx->col1->head.tribe_count; ++ti) {
-    ColonizeCol1Tribe* t = &ctx->col1->tribe[ti];
-    if ((int)t->nation_id != nation_id) {
-      continue;
-    }
-    /*
-     * Col1 one-shot: tribe.state.learned already set -> skip teach and do
-     * not write teach/refuse status (preserves gift/trade chrome). Cite:
-     * non-capital village teaches one skill to one colonist total, shared
-     * across all Euro nations; the tribe's capital is exempt and teaches
-     * unlimited colonists (manual Indian Land / Colonization rules, per
-     * user correction 2026-08-13 -- teaching itself is always free, no
-     * gold changes hands either way).
-     */
-    if (t->state.learned && !t->state.capital) {
-      continue;
-    }
-    for (int d = 0; d < 8; ++d) {
-      ColonizeUnit* other = ai_contact_adjacent_euro_at(ctx, t, d, NULL, NULL);
-      if (!other) {
-        continue;
-      }
-      /*
-       * bugs.md: the adjacency pulse never LECTURES — a mounted
-       * criminal-scout got the @LEARNCRIMINAL refusal out of nowhere when
-       * a Brave wandered by, as though it had asked to live among the
-       * natives. Refusal dialogs (@LEARNCRIMINAL/@LEARNMASTER/…) belong to
-       * the deliberate "Live Among The Natives" flow; here an ineligible
-       * unit is simply skipped in silence.
-       */
-      if (ai_contact_is_petty_criminal(ctx->units, other)) {
-        continue;
-      }
-      if (!ai_contact_is_teachable_learner(ctx->units, other)) {
-        continue;
-      }
-      const int e = other->nation_id;
-      /*
-       * @LEARNMASTER: "We can only teach new skills to colonists who do not
-       * yet have one" — a colonist (or already-Seasoned Scout) that already
-       * carries an expert skill cannot be re-taught. Refuse without consuming
-       * the village's one-shot (state.learned stays clear for a future
-       * unskilled colonist). Previously this fell through and silently
-       * burned the teach + showed a misleading "taught outdoor skills" line.
-       */
-      if (other->profession != UNITS_JOB_NONE &&
-          other->profession != UNITS_JOB_COLONIST /* @JOB 19 free alias */) {
-        /* Skilled already — silent skip in the pulse; the @LEARNMASTER
-         * refusal dialog belongs to the deliberate Live-Among flow
-         * (bugs.md — no unprompted lecture popups). */
-        continue;
-      }
-      /*
-       * Teach is peaceful-band only (<40): at 40 and above the village
-       * refuses with @LEARNMAD (ai_popup Done, no invented gold). A separate
-       * >=55 arm used to sit here with a byte-identical body; >=55 implies
-       * >=40 so it could never change the outcome (audit AC-2).
-       * Cite: fandom Alarm / Teach; indian_contact.md teach-skill pulse.
-       */
-      if (ind->alarm_by_player[e] >= 40 || t->alarm[e].friction >= 40) {
-        char refuse_fb[AI_POPUP_BODY_LEN];
-        popup_msg_fill(
-          ctx->messages,
-          "LEARNMAD",
-          NULL,
-          "",
-          refuse_fb,
-          sizeof(refuse_fb)
-        );
-        ai_contact_human_chrome(
-          ctx,
-          e,
-          AI_POPUP_TAG_CONTACT_TEACH,
-          nation_id,
-          "Teach",
-          refuse_fb
-        );
-        break; /* one refuse pulse per tribe per call */
-      }
-      t->state.learned = 1;
-      /*
-       * Optional expertise: unskilled Free Colonist → tribe-appropriate
-       * outdoor skill (cargo / nation map); Plain Scout → Seasoned Scout.
-       * Already-skilled units keep profession.
-       */
-      int taught_scout = 0;
-      if (other->profession == UNITS_JOB_NONE) {
-        const ColonizeUnitType* other_ty = units_type(ctx->units, other->type_index);
-        ColonizeUnitKind other_kind = other_ty ? units_type_kind(other_ty) : UNITS_KIND_UNKNOWN;
-        if (other_kind == UNITS_KIND_SCOUT) {
-          other->profession = UNITS_JOB_SCOUT;
-          taught_scout = 1;
-        } else {
-          other->profession = ai_contact_taught_profession(t);
-        }
-      }
-      if (taught_scout) {
-        char body[AI_POPUP_BODY_LEN];
-        popup_msg_fill(ctx->messages, "WELLSEASONED", NULL, "", body, sizeof(body));
-        ai_contact_human_chrome(
-          ctx, e, AI_POPUP_TAG_CONTACT_TEACH, nation_id, "Teach", body
-        );
-      } else {
-        char line[96];
-        snprintf(
-          line,
-          sizeof(line),
-          "The %s teach outdoor skills.",
-          ai_contact_tribe_name(nation_id)
-        );
-        ai_contact_human_chrome(
-          ctx, e, AI_POPUP_TAG_CONTACT_TEACH, nation_id, "Teach", line
-        );
-      }
-      break; /* one teach pulse per tribe per call */
-    }
-  }
-}
 /* ===================== Friction/gift-gold, choice popups & incite pricing/confirmation (ai_contact_friction_decay .. ai_contact_apply_incite) ===================== */
 
 
@@ -9044,13 +8862,12 @@ static int ai_contact_a618_skill(ColonizeTurnContext* ctx, int nation_id, const 
       w[i] = (int)econ.bid[i];
     }
   } else {
+    /* No economics record to build DS:0x9e78 from: fall back to the one
+     * skill DOS's own weight table makes the default, @JOB 0 Expert Farmer
+     * (highest weight at tech >= 2). The old fallback was a hand-written
+     * tribe/cargo table with no DOS counterpart — bugs.md #573. */
     memset(w, 0, sizeof(w));
-    const int fb = ai_contact_taught_profession(t);
-    if (fb >= 0 && fb < 16) {
-      w[fb] = 1;
-    } else {
-      w[0] = 1;
-    }
+    w[0] = 1;
   }
   const unsigned tech = (unsigned)ctx->col1->indian[nation_id - 4].tech;
   w[8] = 0;
@@ -10352,10 +10169,11 @@ static void ai_contact_apply_popup_result_menu(
   }
   case AI_CONTACT_CHOICE_TEACH:
     /* "Live Among The Natives" — thunk_FUN_1000_a618 on the acting unit. */
+    /* No acting unit / village => not a real DOS pick; nothing happens
+     * (bugs.md #573 retired the invented adjacency pulse that used to run
+     * here). */
     if (menu_unit && menu_village) {
       ai_contact_live_among_natives(ctx, e, nation_id, menu_unit, menu_village);
-    } else {
-      ai_contact_teach_skill(ctx, nation_id);
     }
     break;
   case AI_CONTACT_CHOICE_CHIEF:

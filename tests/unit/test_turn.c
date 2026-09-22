@@ -4545,8 +4545,11 @@ int main(void) {
       );
       return 1;
     }
-    if (col->colonists[0].turns_in_job != 0 || col->colonists[1].turns_in_job != 0) {
-      fprintf(stderr, "education: turns should reset after graduate\n");
+    /* bugs.md #565: DOS zeroes only the TEACHER's +0x60 counter (raw 57540-
+     * 57588 never calls 0a7e on the student), so the graduate keeps the tick
+     * he took this turn (0 -> 1). */
+    if (col->colonists[0].turns_in_job != 0 || col->colonists[1].turns_in_job != 1) {
+      fprintf(stderr, "education: teacher counter resets, student's must not\n");
       return 1;
     }
     fprintf(stderr, "colony education graduate ok\n");
@@ -5600,14 +5603,31 @@ int main(void) {
     memset(&units, 0, sizeof(units));
     units_reset(&units);
     units_set_occupancy_map(NULL);
-    units.type_count = 1;
+    units.type_count = 14;
     snprintf(units.types[0].name, sizeof(units.types[0].name), "Scout");
+    snprintf(units.types[13].name, sizeof(units.types[13].name), "Caravel");
     const int uid = units_spawn(&units, 0, 1, 1);
     ColonizeUnit* u = units_get(&units, uid);
     if (u) {
       units_set_nation(u, 0);
       u->profession = COLONIZE_PROF_STATESMAN;
     }
+    /* bugs.md #563: DOS's census (FUN_4962_0606 raw 78356-78360) only counts
+     * units whose @UNIT type carries a profession slot — DS:0x30e[13] = -1
+     * for a Caravel, so its profession byte 0 must NOT read as a Farmer. */
+    const int sid = units_spawn(&units, 13, 2, 2);
+    ColonizeUnit* ship = units_get(&units, sid);
+    if (ship) {
+      units_set_nation(ship, 0);
+      ship->profession = COLONIZE_JOB_FARMER;
+    }
+    /* ... and a colonist with no specialty is counted by SPECIALTY only, not
+     * by the field job he happens to be standing in (raw 78366-78370). */
+    col->colonists[2].active = true;
+    col->colonists[2].profession = -1;
+    col->colonists[2].field_job = COLONIZE_JOB_FARMER;
+    col->colonist_count = 3;
+    col->population = 3;
 
     uint8_t hist[32];
     turn_tally_professions(&pool, &units, 0, hist);
@@ -5617,6 +5637,13 @@ int main(void) {
     }
     if (hist[COLONIZE_PROF_FREE_COLONIST] != 1) {
       fprintf(stderr, "tally free want 1 got %u\n", (unsigned)hist[COLONIZE_PROF_FREE_COLONIST]);
+      return 1;
+    }
+    if (hist[COLONIZE_JOB_FARMER] != 0) {
+      fprintf(
+        stderr, "tally farmer want 0 got %u (ship/field_job leak)\n",
+        (unsigned)hist[COLONIZE_JOB_FARMER]
+      );
       return 1;
     }
     fprintf(stderr, "profession tally ok\n");

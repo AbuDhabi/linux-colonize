@@ -46,6 +46,16 @@ int ai_euro_28c8_colonist_job_score_structural(
   AiEuro28c8JobCandidate* out_best
 );
 
+/*
+ * FUN_15eb_2ea0 (raw 13162-13196) — the plot pass of DOS's colony recompute
+ * FUN_15eb_3930. Seats a colonist who is not on a plot and is not a building
+ * worker on the best-scored work plot (FUN_15eb_28c8), falling back to
+ * Carpenter. Runs for HUMAN colonies too. `colonist_slot` >= 0 restricts it to
+ * one colonist (the join path); -1 walks the roster.
+ * colonies_seat_new_colonist is the sim-side entry point (bugs.md #562).
+ */
+void ai_euro_28c8_auto_assign_plots(ColonizeTurnContext* ctx, int colony_id, int colonist_slot);
+
 
 /*
  * FUN_5bfb_10ec — Euro A↔B "war-worthy" eligibility by military balance
