@@ -1608,41 +1608,6 @@ static void ai_contact_clamp_alarms(ColonizeCol1Indian* ind) {
 }
 
 /*
- * Jesuit-grade missionary (expert).
- * PEDIA @JOB24: Jesuits are more effective than ordinary blessed missionaries.
- * Detect by display name "Jesuit", NAMES @JOB profession 24, or Brebeuf FF
- * ownership (fandom: all missionaries function as experts). Cite:
- * COLONIZE/PEDIA.TXT @JOB24; NAMES.TXT Missionary/Jesuit Missionaries;
- * docs/fandom_col1994.md Father Jean de Brebeuf.
- * Las Casas Convert→Free Colonist assimilate: founding_fathers elect +
- * ownership tick (PEDIA @FATHER24) — not this convert-pulse path.
- * Sepulveda convert-join (PEDIA @FATHER23 / FUN_5fef_31ea): wired in
- * units_try_native_settlement_fallout when conquering a mission-owned tribe;
- * this missionary convert pulse is a different path (no invent join % here).
- */
-static int ai_contact_is_jesuit_grade(
-  const ColonizeCol1Save* col1,
-  const ColonizeUnitPool* units,
-  const ColonizeUnit* u
-) {
-  if (!u) {
-    return 0;
-  }
-  const char* name = units_display_name(units, u);
-  if (name && strstr(name, "Jesuit") != NULL) {
-    return 1;
-  }
-  if (u->profession == UNITS_JOB_MISSIONARY) { /* NAMES @JOB Jesuit Missionaries */
-    return 1;
-  }
-  if (col1 && founding_fathers_brebeuf_missionaries_are_experts(col1, u->nation_id) &&
-      units_is_missionary(units, u)) {
-    return 1;
-  }
-  return 0;
-}
-
-/*
  * (ai_contact_alarm_bump_amount removed 2026-09-09, smell #72: its last two
  * callers were the ambush raid pulse (retired, smell #65) and the prelude
  * flag-body escalate (retired, smell #72). The Pocahontas/French halving it
@@ -4007,352 +3972,18 @@ int ai_contact_ai_incite_human(
  * tail. It now lives at that site, in ai_contact_try_village_gifts.
  */
 
-static void ai_contact_missionary_convert(ColonizeTurnContext* ctx, int nation_id) {
-  if (!ctx || !ctx->units || !ctx->col1_ok || !ctx->col1 || !ctx->col1->tribe) {
-    return;
-  }
-  if (nation_id < 4 || nation_id > 11) {
-    return;
-  }
-  ColonizeCol1Indian* ind = &ctx->col1->indian[nation_id - 4];
-  ColonizeDosRng local;
-  ai_contact_local_rng(ctx, nation_id, &local);
-  ColonizeDosRng* rng = ctx->rng ? ctx->rng : &local;
-
-  for (uint16_t ti = 0; ti < ctx->col1->head.tribe_count; ++ti) {
-    ColonizeCol1Tribe* t = &ctx->col1->tribe[ti];
-    if ((int)t->nation_id != nation_id) {
-      continue;
-    }
-    for (int d = 0; d < 8; ++d) {
-      int oid = -1;
-      ColonizeUnit* other =
-        ai_contact_adjacent_euro_at(ctx, t, d, units_is_missionary, &oid);
-      if (!other) {
-        continue;
-      }
-      const int e = other->nation_id;
-      /*
-       * bugs.md: this adjacency pulse is the AI's stand-in for working a
-       * missionary, and only that. A human's missionary establishes a mission
-       * or denounces heresy through the @ACTIONS village menu (rows 3 and 4,
-       * AI_CONTACT_CHOICE_MISSION / _HERESY) — never by merely standing next
-       * to a village, and never with a popup announcing it. Converts reaching
-       * the player's colonies are a separate event
-       * (FUN_5bfb_022e's @INDIANSCONVERT arm, in ai_contact_try_village_gifts).
-       */
-      if (ai_contact_euro_is_human(ctx, e)) {
-        continue;
-      }
-      /*
-       * Alarmed Indian diplomacy (fandom Alarm; same ≥55 refuse-talk gate):
-       * refuse convert / heresy / crosses (status thinned; ai_popup Done).
-       */
-      if (ind->alarm_by_player[e] >= 55 || t->alarm[e].friction >= 55) {
-        ai_contact_refuse_chrome(ctx, e, nation_id, AI_POPUP_TAG_CONTACT_CONVERT, "", "conversion");
-        break; /* one refuse pulse per tribe per call */
-      }
-
-      /* 4528 non-human Missionary: case 7 auto-incite against the human first. */
-      if (!ai_contact_euro_is_human(ctx, e) &&
-          ai_contact_ai_incite_human(ctx, ind, t, nation_id, e, 1)) {
-        break;
-      }
-
-      /* Own mission keep — convert once (no re-crosses). */
-      if (t->mission != COL1_TRIBE_MISSION_NONE &&
-          (t->mission & COL1_TRIBE_MISSION_NATION_MASK) == (uint8_t)e) {
-        break;
-      }
-
-      /*
-       * Foreign mission → heresy denounce (50/50). Cite: Wikipedia /
-       * HandWiki Colonization; fandom Missionaries denounce; GameFAQs
-       * heresy install is regular (no Jesuit bit).
-       */
-      if (t->mission != COL1_TRIBE_MISSION_NONE) {
-        const int foreign =
-          (int)(t->mission & COL1_TRIBE_MISSION_NATION_MASK);
-        const int roll = dos_rng_range(rng, 0, 99);
-        if (roll < 50) {
-          t->mission = (uint8_t)e; /* regular mission; no Jesuit-bright bit */
-          ColonizeCol1Nation* nat = &ctx->col1->nation[e];
-          if (nat->current_crosses < 0xffffu) {
-            nat->current_crosses++;
-          }
-          {
-            char heresy_fb[AI_POPUP_BODY_LEN];
-            snprintf(
-              heresy_fb,
-              sizeof(heresy_fb),
-              "Heresy denounced; the %s burn the foreign mission.",
-              ai_contact_tribe_name(nation_id)
-            );
-            ai_contact_human_chrome(
-              ctx, e, AI_POPUP_TAG_CONTACT_CONVERT, nation_id, "", heresy_fb
-            );
-          }
-          /* Thin: previous mission owner learns their mission burned. */
-          if (foreign >= 0 && foreign <= 3 && foreign != e &&
-              ai_contact_euro_is_human(ctx, foreign)) {
-            char lose_fb[AI_POPUP_BODY_LEN];
-            snprintf(
-              lose_fb,
-              sizeof(lose_fb),
-              "The %s burn your mission!",
-              ai_contact_tribe_name(nation_id)
-            );
-            ai_contact_human_chrome(
-              ctx, foreign, AI_POPUP_TAG_CONTACT_CONVERT, nation_id, "", lose_fb
-            );
-          }
-        } else {
-          units_despawn(ctx->units, oid);
-          {
-            char heresy_fb[AI_POPUP_BODY_LEN];
-            snprintf(
-              heresy_fb,
-              sizeof(heresy_fb),
-              "The %s burn your missionary at the stake.",
-              ai_contact_tribe_name(nation_id)
-            );
-            ai_contact_human_chrome(
-              ctx, e, AI_POPUP_TAG_CONTACT_CONVERT, nation_id, "", heresy_fb
-            );
-          }
-        }
-        break; /* one heresy pulse per tribe per call */
-      }
-
-      /*
-       * Mid-alarm (40..54): Jesuit-grade only. Plain Missionary refuses
-       * unless nation owns Brebeuf (fandom experts). Cite: COLONIZE/PEDIA.TXT
-       * @JOB24; docs/fandom_col1994.md Brebeuf; indian_contact.md convert.
-       */
-      {
-        const int mid =
-          (ind->alarm_by_player[e] >= 40 && ind->alarm_by_player[e] < 55) ||
-          (t->alarm[e].friction >= 40 && t->alarm[e].friction < 55);
-        if (mid && !ai_contact_is_jesuit_grade(ctx->col1, ctx->units, other)) {
-          ai_contact_refuse_chrome(ctx, e, nation_id, AI_POPUP_TAG_CONTACT_CONVERT, "", "conversion");
-          break; /* one refuse pulse per tribe per call */
-        }
-      }
-      /* Nation in low nibble; Jesuit-grade sets bit0x10 (FUN_5bfb / 5fef_31ea). */
-      t->mission = (uint8_t)e;
-      if (ai_contact_is_jesuit_grade(ctx->col1, ctx->units, other)) {
-        t->mission = (uint8_t)(t->mission | COL1_TRIBE_MISSION_JESUIT_BIT);
-      }
-      /*
-       * Mid-range Jesuit convert friction polish (40..54): stronger −2 decay
-       * on establish (matches meet-pulse mission pacify mid band). Peaceful
-       * (<40) keeps −1 for any missionary. Cite: fandom Alarm — missions
-       * slow hostility; PEDIA Jesuit effectiveness; Brebeuf experts;
-       * indian_contact.md. Convert +1 crosses only (no elect fiction).
-       */
-      {
-        const int mid =
-          (ind->alarm_by_player[e] >= 40 && ind->alarm_by_player[e] < 55) ||
-          (t->alarm[e].friction >= 40 && t->alarm[e].friction < 55);
-        const int decay = mid ? 2 : 1;
-        if ((int)ind->alarm_by_player[e] > decay) {
-          ind->alarm_by_player[e] =
-            (uint16_t)(ind->alarm_by_player[e] - (uint16_t)decay);
-        } else {
-          ind->alarm_by_player[e] = 0;
-        }
-        if ((int)t->alarm[e].friction > decay) {
-          t->alarm[e].friction = (uint8_t)(t->alarm[e].friction - (uint8_t)decay);
-        } else {
-          t->alarm[e].friction = 0;
-        }
-      }
-      ColonizeCol1Nation* nat = &ctx->col1->nation[e];
-      if (nat->current_crosses < 0xffffu) {
-        nat->current_crosses++;
-      }
-      {
-        /* GAME.TXT @INDIANSCONVERT: name nearest Euro colony when known. */
-        char convert_fb[AI_POPUP_BODY_LEN];
-        const char* col_name = NULL;
-        int best_d = 99;
-        if (ctx->colonies) {
-          for (int ci = 0; ci < COLONIZE_COLONIES_MAX; ++ci) {
-            const ColonizeColony* c = &ctx->colonies->colonies[ci];
-            if (!c->active || c->nation_id != e || !c->name[0]) {
-              continue;
-            }
-            const int dist = map_chebyshev(c->x, c->y, t->x, t->y);
-            if (dist < best_d) {
-              best_d = dist;
-              col_name = c->name;
-            }
-          }
-        }
-        if (col_name && best_d <= 8) {
-          snprintf(
-            convert_fb,
-            sizeof(convert_fb),
-            "The %s accept conversion at %s.",
-            ai_contact_tribe_name(nation_id),
-            col_name
-          );
-        } else {
-          snprintf(
-            convert_fb,
-            sizeof(convert_fb),
-            "The %s accept conversion.",
-            ai_contact_tribe_name(nation_id)
-          );
-        }
-        ai_contact_human_chrome(
-          ctx, e, AI_POPUP_TAG_CONTACT_CONVERT, nation_id, "", convert_fb
-        );
-      }
-      break; /* one convert pulse per tribe per call */
-    }
-  }
-}
-
 /*
- * Missionary flee (structural): adjacent to alarmed tribe (≥55 refuse-talk
- * band) and not converting → nudge 1 free land tile away + AI_MOVE goto.
- * Cite: fandom Alarm — alarmed natives may refuse / attack missionaries.
- * Full 2820/4528 flee dialog PARKED; thin widgets Done (ai_popup).
+ * (Retired 2026-09-22, bugs.md #557.) ai_contact_missionary_convert and
+ * ai_contact_missionary_flee lived here, plus the ai_contact_step_tile_ok /
+ * _step_commit / _flee_one_tile helpers they alone used: a standing-adjacency
+ * pulse that established missions, rolled a 50/50 heresy, bumped crosses,
+ * decayed alarm and nudged missionaries away from angry tribes. None of it
+ * has a DOS site — thunk_FUN_1000_a5dc (establish, overlays.c 77201) and
+ * thunk_FUN_1000_a594 (heresy, 75753) are reached only from the FUN_4d56_4528
+ * switch tail (OVL13 0x4bdb), i.e. from a real village entry, and there is no
+ * flee arm anywhere. The DOS AI missionary path is now
+ * ai_contact_ai_missionary_village (4528 non-human switch case 3).
  */
-/*
- * Shared "can this unit step onto (nx,ny)?" filter and the move commit tail
- * behind ai_contact_flee_one_tile (audit
- * AC-26). Only these two halves are byte-identical between the pair: the
- * tile pickers are NOT merged, because they walk different orders (flee
- * scans ring 1 in MAP_DIR8 order, displace rasters a 5x5 and scores
- * dist*10 + ring), so folding them would silently re-pick the winner on
- * ties. Neither order is DOS-proven, so neither may be changed here.
- */
-static int ai_contact_step_tile_ok(
-  const ColonizeTurnContext* ctx,
-  const ColonizeUnit* u,
-  int nx,
-  int ny
-) {
-  if (nx < 0 || ny < 0 || nx >= ctx->map->width || ny >= ctx->map->height) {
-    return 0;
-  }
-  if (!map_tile_is_land(ctx->map, nx, ny)) {
-    return 0;
-  }
-  if (units_id_at(ctx->units, nx, ny) >= 0) {
-    return 0;
-  }
-  return units_can_enter_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(ctx->units), .colonies=(ColonizeColonyPool*)(ctx->colonies), .map=(ColonizeWorldMap*)(ctx->map)}, u->type_index, nx, ny, u->id)
-           ? 1
-           : 0;
-}
-
-static void ai_contact_step_commit(ColonizeTurnContext* ctx, ColonizeUnit* u, int nx, int ny) {
-  const int mv_ox = u->x;
-  const int mv_oy = u->y;
-  u->x = nx;
-  u->y = ny;
-  units_occupancy_notify_moved(ctx->units, mv_ox, mv_oy, nx, ny);
-  u->orders = UNITS_ORDER_AI_MOVE;
-  u->goto_x = nx;
-  u->goto_y = ny;
-}
-
-static int ai_contact_flee_one_tile(
-  ColonizeTurnContext* ctx,
-  ColonizeUnit* u,
-  int away_x,
-  int away_y
-) {
-  if (!ctx || !ctx->units || !ctx->map || !u || !u->active) {
-    return 0;
-  }
-  const int ox = u->x;
-  const int oy = u->y;
-  const int dist0 = map_chebyshev(ox, oy, away_x, away_y);
-  int best_x = -1;
-  int best_y = -1;
-  int best_d = -1;
-  for (int d = 0; d < 8; ++d) {
-    const int nx = ox + MAP_DIR8_DX[d];
-    const int ny = oy + MAP_DIR8_DY[d];
-    if (!ai_contact_step_tile_ok(ctx, u, nx, ny)) {
-      continue;
-    }
-    const int dist = map_chebyshev(nx, ny, away_x, away_y);
-    if (dist < dist0) {
-      continue; /* must increase Chebyshev distance from tribe */
-    }
-    if (dist > best_d) {
-      best_d = dist;
-      best_x = nx;
-      best_y = ny;
-    }
-  }
-  if (best_x < 0) {
-    return 0;
-  }
-  ai_contact_step_commit(ctx, u, best_x, best_y);
-  return 1;
-}
-
-static void ai_contact_missionary_flee(ColonizeTurnContext* ctx, int nation_id) {
-  if (!ctx || !ctx->units || !ctx->map || !ctx->col1_ok || !ctx->col1 || !ctx->col1->tribe) {
-    return;
-  }
-  if (nation_id < 4 || nation_id > 11) {
-    return;
-  }
-  ColonizeCol1Indian* ind = &ctx->col1->indian[nation_id - 4];
-
-  for (uint16_t ti = 0; ti < ctx->col1->head.tribe_count; ++ti) {
-    ColonizeCol1Tribe* t = &ctx->col1->tribe[ti];
-    if ((int)t->nation_id != nation_id) {
-      continue;
-    }
-    for (int d = 0; d < 8; ++d) {
-      int oid = -1;
-      ColonizeUnit* other =
-        ai_contact_adjacent_euro_at(ctx, t, d, units_is_missionary, &oid);
-      if (!other) {
-        continue;
-      }
-      const int e = other->nation_id;
-      /* Only flee when convert is blocked by alarm (not converting). */
-      if (ind->alarm_by_player[e] < 55 && t->alarm[e].friction < 55) {
-        continue;
-      }
-      if (ai_contact_flee_one_tile(ctx, other, t->x, t->y)) {
-        /*
-         * When mission unset, convert refuse chrome already wrote this pulse —
-         * keep that status. Flee status when an established mission can't hold
-         * amid alarm (missionary withdraws).
-         */
-        if (t->mission != COL1_TRIBE_MISSION_NONE) {
-          char flee_fb[AI_POPUP_BODY_LEN];
-          snprintf(
-            flee_fb,
-            sizeof(flee_fb),
-            "Your missionary flees the %s village.",
-            ai_contact_tribe_name(nation_id)
-          );
-          ai_contact_human_chrome(
-            ctx,
-            e,
-            AI_POPUP_TAG_CONTACT_MEET,
-            nation_id,
-            "",
-            flee_fb
-          );
-        }
-        break; /* one flee pulse per tribe per call */
-      }
-    }
-  }
-}
-
 /*
  * ai_contact_mission_pacify_meet lived here: a meet-pulse "mission pacify
  * deepen" that took −2 off tribe friction and alarm_by_player in the 40..80
@@ -5188,9 +4819,11 @@ int ai_contact_try_village_gifts(ColonizeTurnContext* ctx, int nation_id) {
         need *= 2;
       }
       if (need > dos_rng_range(ctx->rng, 0, 0xf)) {
-        /* DOS shows the popup first (FUN_281f_0416 STRING0 = colony name,
-         * then @INDIANSCONVERT / tag 0x182a), then spawns unit type 0 at the
-         * colony owned by `colony[0x1a]` and stamps profession 0x1b. */
+        /* DOS-LITERAL FUN_5bfb raw 96996-97012: shows the popup first
+         * (FUN_281f_0416 STRING0 = colony name, then @INDIANSCONVERT / tag
+         * 0x182a), then spawns unit type 0 at the visiting brave's tile
+         * (`*(int*)0x8542` + 0/+1 = x/y of the brave, not the colony) and
+         * stamps profession 0x1b. */
         ai_contact_bind_names(ctx);
         const int human_convert = ai_contact_euro_is_human(ctx, e);
         if (human_convert) {
@@ -5206,7 +4839,7 @@ int ai_contact_try_village_gifts(ColonizeTurnContext* ctx, int nation_id) {
         }
         const int convert_type = units_kind_type_index(ctx->units, UNITS_KIND_COLONIST);
         if (convert_type >= 0) {
-          const int cid = units_spawn_allow_stack(ctx->units, convert_type, c->x, c->y);
+          const int cid = units_spawn_allow_stack(ctx->units, convert_type, brave->x, brave->y);
           ColonizeUnit* convert = cid >= 0 ? units_get(ctx->units, cid) : NULL;
           if (convert) {
             convert->nation_id = (uint8_t)e;
@@ -7113,15 +6746,13 @@ void ai_contact_indian_meet_trade(ColonizeTurnContext* ctx, int nation_id) {
     }
   }
 
-  /* 2b. AI missionary adjacent to tribe → mission owner + crosses. */
-  ai_contact_missionary_convert(ctx, nation_id);
-
-  /* 2c. (Retired 2026-09-08, smell #75.) The @INDIANSCONVERT pulse used to
-   * sit here. DOS sends converts only from inside the 022e visit --- see
-   * ai_contact_try_village_gifts' convert arm. */
-
-  /* 2b1. Alarmed tribe + Missionary not converting → flee 1 tile (AI_MOVE). */
-  ai_contact_missionary_flee(ctx, nation_id);
+  /* 2b. (Retired 2026-09-22, bugs.md #557.) An invented AI missionary
+   * adjacency pulse (establish/heresy 50-50/crosses/alarm decay) and its
+   * flee sibling lived here. DOS has no Indian-turn missionary pulse: an
+   * AI missionary acts only when it reaches a village, through the
+   * FUN_4d56_4528 non-human unit-type switch (case 3 -> incite/mission/
+   * heresy) — ai_contact_ai_missionary_village below.
+   */
 
   /*
    * 2b2. (Retired 2026-09-09, smell #48.) The "mission pacify deepen" −2
@@ -10079,7 +9710,8 @@ static int ai_contact_4cc6_03f8(
  * weight; mission weight += population, ×2 Jesuit, ×2 capital, credited to
  * the mission owner's side (mine → mine, else pro_me). Then pro_me += alarm[foreign] << (capital ? 4 : 0),
  * mine += alarm[me] >> (capital ? 29 : 1); capital: both += rand(1,20) and
- * both deltas ×2; my Jesuit: pro_me ×2, delta ×2; rival Jesuit: mine ×2,
+ * both deltas ×2; denouncer profession == 3 (DOS typo, see below):
+ * pro_me ×2, delta ×2; rival Jesuit: mine ×2,
  * delta ×2. rand(1, mine+pro_me) > pro_me → @HERESY1 (missionary burned,
  * rival's alarm −delta, mine +delta); else @HERESY0 (mission flips to me,
  * mine −delta, rival's +delta). The missionary unit is consumed either way.
@@ -10136,7 +9768,16 @@ static void ai_contact_denounce_heresy(
       }
     }
   }
-  const int jesuit_me = ai_contact_is_jesuit_grade(col1, ctx->units, u);
+  /*
+   * DOS-LITERAL thunk_FUN_1000_a594 viceroy_overlays.asm 126507:
+   * IMUL BX,[BP+6],0x1c / CMP byte ptr [BX+0x315b],0x3 / MOV AX,1 —
+   * the denouncing unit's PROFESSION byte is tested against @JOB row 3
+   * (Cotton Planter), not the Missionary/Jesuit row: an apparent DOS typo
+   * that makes this bonus effectively dead. There is NO Brebeuf term here;
+   * only the establish body (thunk_FUN_1000_a5dc) tests 0x18 / FF 0x16.
+   */
+  static const int k_a594_heresy_prof_quirk = 3; /* @JOB 3 Cotton Planter */
+  const int jesuit_me = (int)u->profession == k_a594_heresy_prof_quirk;
   const int rival_jesuit = (t->mission & COL1_TRIBE_MISSION_JESUIT_BIT) != 0;
   const unsigned cap_shift = t->state.capital ? 4u : 0u;
   pro_me += ai_diplo_indian_alarm(col1, nation_id, foreign) << cap_shift;
@@ -10267,6 +9908,61 @@ static void ai_contact_establish_mission(
   units_despawn(ctx->units, u->id);
   ai_contact_alarm_delta_00f2(ctx, nation_id, e, base); /* full 4cc6_00f2 */
 }
+
+/*
+ * FUN_4d56_4528 non-human (AI) branch, unit-type switch at OVL13 0x476d,
+ * caseD_3 = Missionary (raw: asm OVL13_L0000 0x4650-0x46ee). The AI arm
+ * picks a switch code into [BP-0x54] and falls into the SAME tail switch
+ * (0x4bdb) the human @ACTIONS menu uses:
+ *   code 7 (0x46c6) — incite the village against the human, when the five
+ *     gates hold (ai_contact_ai_incite_human, thunk_FUN_1000_a5b8 = 417e
+ *     Mode 2);
+ *   code 3 (0x46d8) — village has no mission -> Establish Mission
+ *     (thunk_FUN_1000_a5dc);
+ *   code 4 (0x46ee) — village carries a foreign mission -> Denounce Heresy
+ *     (thunk_FUN_1000_a594);
+ *   own mission -> nothing.
+ * DOS reaches this off a real village-tile entry; entering a village tile is
+ * an attack in this port, so — exactly as for the AI Scout visit and the
+ * wagon errand — the entry is resolved from the adjacent tile by the caller
+ * (ai_euro_20e6_village_arm). Returns 1 when an arm consumed the unit's act.
+ */
+int ai_contact_ai_missionary_village(
+  ColonizeTurnContext* ctx, int e, int tribe_index, int unit_id
+) {
+  if (!ctx || !ctx->units || !ctx->col1_ok || !ctx->col1 || !ctx->col1->tribe || e < 0 || e > 3) {
+    return 0;
+  }
+  if (tribe_index < 0 || tribe_index >= (int)ctx->col1->head.tribe_count) {
+    return 0;
+  }
+  if (ai_contact_euro_is_human(ctx, e)) {
+    return 0; /* the human arm is the @ACTIONS menu, not this branch */
+  }
+  ColonizeUnit* u = units_get(ctx->units, unit_id);
+  if (!u || !u->active || u->nation_id != e || !units_is_missionary(ctx->units, u)) {
+    return 0;
+  }
+  ColonizeCol1Tribe* t = &ctx->col1->tribe[tribe_index];
+  const int nation_id = (int)t->nation_id;
+  if (nation_id < 4 || nation_id > 11) {
+    return 0;
+  }
+  ColonizeCol1Indian* ind = &ctx->col1->indian[nation_id - 4];
+  if (ai_contact_ai_incite_human(ctx, ind, t, nation_id, e, 1)) {
+    return 1; /* case 7 */
+  }
+  if (t->mission == COL1_TRIBE_MISSION_NONE) {
+    ai_contact_establish_mission(ctx, e, nation_id, u, t); /* case 3 */
+    return 1;
+  }
+  if ((int)(t->mission & COL1_TRIBE_MISSION_NATION_MASK) != e) {
+    ai_contact_denounce_heresy(ctx, e, nation_id, u, t); /* case 4 */
+    return 1;
+  }
+  return 0; /* own mission: the switch does nothing */
+}
+
 
 /*
  * thunk_FUN_1000_a5e8 — "Enter Hostile Village" (wagon / ship, alarm ≥ 75).

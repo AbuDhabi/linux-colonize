@@ -1014,11 +1014,6 @@ graphs:
         dos: FUN_521d_20e6 raw 89011-89013 (the 'F' = 0x46 arm's unit test)
         status: structural
         note: "FIXED 2026-09-18 (bugs.md #512): the arm's own unit test is now DOS's — the NAMES @UNIT ATTACK column above 1 (loader raw 121115-121119 stores col3 attack at 0x5236, col4 defense at 0x5235) plus not-a-ship-type — instead of name matching, and it spends no garrison quota to fire (DOS's arm has no quota concept; the colony's quota is still decremented so the other quota readers see the garrison). NOT ported from that DOS arm: its remaining guards — local_ea (an adjacent attackable foreigner was seen earlier in the act), FUN_281f_098e == FUN_281f_02ee (the +0x315c and +0x315e stack-chain walks agree, i.e. the unit is alone in its stack) and the 8-neighbour FUN_281f_0696 scan for a Euro colony owned by another nation. Those belong to a DIFFERENT trigger (park beside a foreign border colony) than this port arm's own-colony garrison, so bolting them on would suppress ordinary AI garrison fortification; that trigger is ported separately 2026-09-18 as ai_euro_20e6_border_park_arm (move_scoring_gate graph, node border_park)."
-      - id: missionary
-        kind: step
-        label: Missionary — CONTACT prio 3 at nearest tribe without mission (not fleeing alarm ≥55)
-        fn: ai_euro.c:ai_euro_missionary_no_mission_target
-        status: thin
       - id: pilot
         kind: step
         label: Read 0a60 pick (act_state 0xb)
@@ -1092,8 +1087,7 @@ graphs:
       - [treasure, wagon, "not treasure"]
       - [wagon, pioneer]
       - [pioneer, fortify]
-      - [fortify, missionary]
-      - [missionary, pilot]
+      - [fortify, pilot]
       - [pilot, labor]
       - [labor, found_now]
       - [found_now, found, "yes"]

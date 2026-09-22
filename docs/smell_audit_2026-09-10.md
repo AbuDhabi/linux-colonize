@@ -1571,6 +1571,12 @@ madspack/ss/pik/ff failure paths have no leaks or double frees.
     13561-13565 (`cur_prof == 0x18 && *0x8dc6 < 4 && (*0x8dc6 * 0x34 + 0x543f) == 0`)
     — a human-controlled nation cannot un-bless a Missionary from this dialog. Needs
     `0x8dc6` identified before porting.
+    **RESOLVED 2026-09-22 (bugs.md #559).** `0x8dc6` is the ACTIVE COLONY INDEX
+    (`FUN_15eb_002c` raw 9318), so DOS indexes the nation-control table `0x543f +
+    n*0x34` with a colony index — a DOS bug, ported literally. Both `return 0` arms
+    now live in one shared gate, `colonies_eject_row_offered` (colony.c), used by both
+    row builders AND both appliers, so the applier's Church re-test no longer refuses
+    a Jesuit's row and the Colonist row's absence is enforced on the click too.
 20. `colony_prod_tick_rebel_accumulators` now applies DOS's non-WoI SoL decay
     (`bells -= sol%/20` when bells < population, audit 2026-09-08 #107). Two knock-ons
     worth a look: the `bells` it decays is the Phase-A stamped word shared with the

@@ -647,6 +647,71 @@ static int pioneer_training_skipped_past_turn_99(void) {
 }
 
 /*
+ * bugs.md #555 — past turn 199 the Missionary-training arm is gated by
+ * `FUN_281f_04d4(rng,0,3) == 0` (DOS-LITERAL FUN_521d_5d04 raw 92785-92788:
+ * `iVar14 = FUN_281f_04d4(...); if (iVar14 != 0) goto LAB_521d_638a;`), i.e.
+ * proceed on a 1-in-4 roll. Before the fix the port tested `!= 0`, proceeding
+ * on a 3-in-4 roll instead — triple the late-game bless rate. This sweeps
+ * many seeds at turn 203 (> 199, and 203 % 7 == 0 to clear the second gate)
+ * with the profession gate forced open (recruit profession 0x1c), so the
+ * only randomness left is the turn>199 roll itself, and checks the observed
+ * bless rate lands near 25%, not 75%.
+ */
+static int missionary_bless_roll_matches_dos_one_in_four(void) {
+  const int nation = 1;
+  const int k_seeds = 200;
+  int trained = 0;
+  for (int s = 0; s < k_seeds; ++s) {
+    Fixture f;
+    if (fixture_init(&f, nation, 203, (unsigned)(11 + s * 17)) != 0) {
+      return 1;
+    }
+    f.col1.stuff.colony_counts[nation] = 0;
+    f.col1.stuff.colony_pop_totals[nation] = 0;
+    f.col1.stuff.free_colonist_counts[nation] = 0;
+    f.col1.stuff.unit_type_counts[nation][3] = 0; /* own Missionaries */
+    f.col1.nation[nation].gold = 5000;
+    /* Price the earlier muskets/tools training arms out (same trick as
+     * pioneer_training_skipped_past_turn_99) so a candidate never gets
+     * `handled` before reaching the Missionary arm under test. */
+    f.col1.nation[nation].trade.euro_price[COLONIZE_CARGO_TOOLS] = 199;
+    f.col1.nation[nation].trade.euro_price[COLONIZE_CARGO_MUSKETS] = 199;
+    if (spawn_europe_ship(&f, nation) < 0 ||
+        spawn_europe_colonist(&f, nation, 0, 0x1c) < 0) {
+      fixture_free(&f);
+      return fail("spawn europe stack");
+    }
+
+    ai_euro_dispatcher_turn(&f.ctx, nation);
+
+    int missionaries = 0;
+    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+      const ColonizeUnit* u = &f.units.units[i];
+      if (!u->active || u->nation_id != nation) {
+        continue;
+      }
+      if (strcmp(units_display_name(&f.units, u), "Missionary") == 0) {
+        missionaries++;
+      }
+    }
+    if (missionaries > 0) {
+      trained++;
+    }
+    fixture_free(&f);
+  }
+  /* Expected ~50/200 (25%); std dev ~6.1. A buggy `!= 0` gate would land
+   * near 150/200 (75%). Window is > 6 std devs from the buggy rate. */
+  if (trained < 20 || trained > 80) {
+    fprintf(stderr, "missionary bless rate %d/%d (want near 50/%d = 25%%)\n",
+            trained, k_seeds, k_seeds);
+    return fail("turn > 199 bless roll must fire ~1 in 4, not ~3 in 4");
+  }
+  printf("unit_ai_euro_5d04_hire: missionary bless sweep trained %d/%d at turn 203\n",
+         trained, k_seeds);
+  return 0;
+}
+
+/*
  * Case 4 — the hire chain's @UNIT table. `ai_euro_5d04_dos_type_of` is the
  * DOS-side view of a Linux unit type, and its rows have to be NAMES.TXT
  * @UNIT file order (COLONIZE/NAMES.TXT:301-323): 0 Colonists .. 5 Scouts,
@@ -831,6 +896,7 @@ static const TestCase k_cases[] = {
     {"recruit_swap_follows_colonies_wanting_colonists", recruit_swap_follows_colonies_wanting_colonists},
     {"recruit_swap_spawns_sentry_and_refills_pool", recruit_swap_spawns_sentry_and_refills_pool},
     {"pioneer_training_skipped_past_turn_99", pioneer_training_skipped_past_turn_99},
+    {"missionary_bless_roll_matches_dos_one_in_four", missionary_bless_roll_matches_dos_one_in_four},
     {"dos_type_table_is_names_txt_unit_order", dos_type_table_is_names_txt_unit_order},
     {"hull_budget_space_uses_translated_type", hull_budget_space_uses_translated_type},
     {"needs_colonists_latch_matches_5952", needs_colonists_latch_matches_5952},

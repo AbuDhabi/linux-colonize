@@ -833,7 +833,9 @@ int colonies_list_eject_roles_ex(
 /*
  * Same row list for a body that carries its own gear (a unit outside the
  * colony): add_* is what the unit already holds and counts toward the row
- * gates, convert says whether it is an Indian Convert (Colonist row only).
+ * gates, profession is the body's own @JOB (every >= 0x13 row gate in
+ * FUN_15eb_3454 reads it: Convert 0x1b gets the Colonist row only, a Jesuit
+ * 0x18 always gets the Missionary row and may lose the Colonist row).
  * colonies_list_eject_roles_ex is this with add_* = 0 and the colonist's own
  * profession; the colony-screen "outside" list in game_loop used to carry a
  * row-for-row copy that drifted once (duplication audit GL-11).
@@ -844,10 +846,21 @@ int colonies_list_eject_roles_gear(
   int add_tools,
   int add_muskets,
   int add_horses,
-  bool convert,
+  int profession,
   int* out_roles,
   bool* out_enabled,
   int out_max
+);
+/*
+ * Is a "Leave as" row offered at all for this body (FUN_15eb_3454's three
+ * `return 0` arms, raw 13556-13570)? Shared by both row builders and both
+ * appliers. See the definition in colony.c for the DS:0x8dc6 DOS bug.
+ */
+bool colonies_eject_row_offered(
+  const ColonizeColonyPool* pool,
+  const ColonizeColony* col,
+  int profession,
+  int role
 );
 /*
  * Gear a "Leave as" row takes from the stock: Pioneer = whole 20-tool steps
