@@ -953,6 +953,13 @@ static int ai_euro_pioneer_ashore_at(ColonizeTurnContext* ctx, int nation_id, in
 
 /* Set a goto and walk it step by step until arrival or the unit is out of
  * moves, then park the unit where it stands. *u_io follows a re-fetch. */
+/* Foreign unit (any nation but the mover's) standing on (x, y). */
+static int ai_euro_foreign_unit_at(const ColonizeTurnContext* ctx, const ColonizeUnit* u, int x, int y) {
+  const int id = units_id_at(ctx->units, x, y);
+  const ColonizeUnit* o = id >= 0 ? units_get_const(ctx->units, id) : NULL;
+  return o && o->active && o->nation_id != u->nation_id;
+}
+
 static void ai_euro_drain_goto(
   ColonizeTurnContext* ctx, ColonizeUnit** u_io, int order, int gx, int gy
 ) {
@@ -1995,27 +2002,6 @@ static int ai_euro_fortify_with_quota(
     c->garrison_quota--;
   }
   return 1;
-}
-
-/* Colony fortification % on tile (0 if none / foreign / non-Euro). */
-static int ai_euro_colony_fort_bonus_at(
-  const ColonizeColonyPool* colonies,
-  int x,
-  int y,
-  int nation_id
-) {
-  if (!colonies || nation_id < 0 || nation_id > 3) {
-    return 0;
-  }
-  const int cid = colonies_id_at(colonies, x, y);
-  if (cid < 0) {
-    return 0;
-  }
-  const ColonizeColony* col = colonies_get(colonies, cid);
-  if (!col || !col->active || col->nation_id != nation_id) {
-    return 0;
-  }
-  return colonies_fortification_defense_bonus_percent(colonies, col);
 }
 
 static int ai_euro_land_is_fortified(const ColonizeUnit* u) {
@@ -11878,17 +11864,21 @@ static int8_t s_20e6_hop_steps[COLONIZE_UNITS_MAX];
 static int16_t s_20e6_hop_slot[COLONIZE_UNITS_MAX];
 
 /* DOS unit+0x3146 type index (NAMES.TXT @UNIT order) from a Linux unit. */
-/* NAMES.TXT @UNIT column 9 (DS:0x5239): 0 for land types; ships Caravel 0,
- * Merchantman 1, Galleon 4, Privateer 4, Frigate 12, Man-O-War 32. */
-static int ai_euro_20e6_unit_col9(int dos_type) {
-  switch (dos_type) {
-    case UNITS_KIND_MERCHANTMAN: return 1;
-    case UNITS_KIND_GALLEON: return 4;
-    case UNITS_KIND_PRIVATEER: return 4;
-    case UNITS_KIND_FRIGATE: return 12;
-    case UNITS_KIND_MAN_O_WAR: return 32;
-    default: return 0;
-  }
+/*
+ * DS:0x5239 = the @UNIT "cost" column (ColonizeUnitType.cost). The @UNIT
+ * loader (raw 121115-121135) stores the NAMES.TXT numeric columns in file
+ * order at 0x5232 icon, 0x5234 moves×3, 0x5236 attack, 0x5235 defense,
+ * 0x5237 cargo, 0x5238 size, 0x5239 cost, 0x523a tools, 0x523b guns,
+ * 0x523c hull, 0x523d bits. Cost is non-zero for every land type (Colonists
+ * 1, Soldiers 2, Dragoons 3, Regulars 3, Cavalry 4, Artillery 6; ships
+ * Caravel 4 .. Man-O-War 32). An earlier table here returned the guns
+ * column (0x523b) instead, which is 0 for every land type and made the
+ * LAB_52aa odds core score 0 against any 2+-defender land stack
+ * (bugs.md #521).
+ */
+static int ai_euro_20e6_unit_col9(const ColonizeUnitPool* units, const ColonizeUnit* u) {
+  const ColonizeUnitType* t = (units && u) ? units_type(units, u->type_index) : NULL;
+  return t ? t->cost : 0;
 }
 
 static int ai_euro_20e6_dos_type(const ColonizeUnitPool* units, const ColonizeUnit* u) {
@@ -12910,9 +12900,8 @@ static int ai_euro_land_explore_scan_target(
  * the old "# military types" reading was case 4's body)
  *   odds = ((a / d) * base) / max(@UNIT col9[own type], 1)
  * (8aac = FUN_281f_08bc → FUN_1427_0d38, the stack query dispatcher, cases
- * decoded from its jump table; col9 = DS:0x5239, zero for every land type
- * and 0/1/4/4/12/32 for Caravel..Man-O-War — so on land a=1 and any foe
- * stack of two or more units makes odds 0.) Then the transcribed
+ * decoded from its jump table; col9 = DS:0x5239 = the @UNIT cost column,
+ * see ai_euro_20e6_unit_col9 — non-zero for every land type.) Then the transcribed
  * modifiers: ×3 own-colony tile, ×2 village, Artillery in the open → 0,
  * ×3 when flags&0x10 and stance==4, clamp 0..1000, <12 → −999 else +odds×4.
  * Still substituted: the "REF nation == 2" halving and the Soldier/Dragoon
@@ -12952,8 +12941,7 @@ static int ai_euro_20e6_attack_term(
       if (!o->active || o->aboard_ship_id >= 0 || o->x != nx || o->y != ny) {
         continue;
       }
-      const int t = ai_euro_20e6_dos_type(ctx->units, o);
-      col9_sum += ai_euro_20e6_unit_col9(t);
+      col9_sum += ai_euro_20e6_unit_col9(ctx->units, o);
       stack++;
     }
   }
@@ -12961,7 +12949,7 @@ static int ai_euro_20e6_attack_term(
   const int d = stack < 1 ? 1 : stack;
   int odds = (a / d) * base;
   {
-    const int own_c9 = ai_euro_20e6_unit_col9(s->dos_type);
+    const int own_c9 = ai_euro_20e6_unit_col9(ctx->units, u);
     odds /= own_c9 < 1 ? 1 : own_c9;
   }
   int settlement = 0;
@@ -13223,7 +13211,20 @@ static int ai_euro_20e6_wander_step(
     if ((here < 0 && pres < 0) || owner == nation) {
       /* LAB_54f5: empty or own tile — fall through to facing/fog terms. */
     } else if (owner < 4) {
-      const int rel = ai_euro_20e6_diplo(ctx->col1, nation, owner);
+      /*
+       * raw 88877-88880: `local_10 = FUN_281f_06dc(x, y)` is the layer3 owner
+       * nibble with 0xf → −1, and the Euro arm is entered on `local_10 < 4`,
+       * so a foe standing on UNCLAIMED land (owner −1) is scored here too.
+       * DOS then reads `FUN_15b3_0004(nation, −1)` = the byte before the
+       * nation's relation row (nation[n−1] +0x13b, a trade-table tail byte;
+       * DS:0x883b for nation 0) — a stray read whose value is not knowable
+       * statically. The port stands in with the relation to the occupant's
+       * nation, which is the only reading under which the arm is coherent
+       * (bugs.md #521, 2026-09-22: without it a foe on unclaimed land was
+       * never scored and land units went passive).
+       */
+      const int partner = owner >= 0 ? owner : (hu ? hu->nation_id : -1);
+      const int rel = ai_euro_20e6_diplo(ctx->col1, nation, partner);
       const int hu_type = hu ? ai_euro_20e6_dos_type(ctx->units, hu) : -1;
       /*
        * raw 88883-88885 (FUN_521d_20e6, LAB_521d_52aa entry gate):
@@ -13236,14 +13237,14 @@ static int ai_euro_20e6_wander_step(
        * assault on a defended rebel colony (bugs.md #521).
        */
       const int woi_ok =
-        !s->woi || owner > 3 ||
-        (owner >= 0 && owner < 4 && ctx->col1_ok && ctx->col1 &&
-         ctx->col1->player[owner].control == 0);
+        !s->woi || partner > 3 ||
+        (partner >= 0 && partner < 4 && ctx->col1_ok && ctx->col1 &&
+         ctx->col1->player[partner].control == 0);
       /* DOS scores the tile as an attack when the owner is not yet MET (a
        * forced first contact) or a Privateer is involved; Linux contact is
        * driven by ai_contact_*, so this port only takes the arm at war —
        * a deliberate narrowing, not a transcription slip. */
-      const int at_war = owner >= 0 && ctx->col1 && ai_diplo_at_war(ctx->col1, nation, owner);
+      const int at_war = partner >= 0 && ctx->col1 && ai_diplo_at_war(ctx->col1, nation, partner);
       if ((at_war ||
            ((rel & AI_DIPLO_MET) == 0 && s->dos_type == UNITS_KIND_PRIVATEER) ||
            hu_type == UNITS_KIND_PRIVATEER) &&
@@ -13392,8 +13393,8 @@ static int ai_euro_20e6_wander_step(
         }
       }
     }
-    if (s->is_ship && getenv("AI_SHIP_TRACE")) {
-      fprintf(stderr, "[shipdos]    dir %d (%d,%d) score %d\n", d, nx, ny, score);
+    if ((s->is_ship && getenv("AI_SHIP_TRACE")) || getenv("AI_4D2E_TRACE")) {
+      fprintf(stderr, "[4d2e] u%d dir %d (%d,%d) score %d attack %d\n", u->id, d, nx, ny, score, attack);
     }
     if (score > best) {
       best = score;
@@ -16481,158 +16482,14 @@ static int ai_euro_has_useful_goto(const ColonizeUnit* u, const ColonizeWorldMap
 }
 
 /*
- * GOLDEN-BACKED STAND-IN (2026-09-18). This picker and its caller
- * ai_euro_land_try_adjacent_attack have no DOS counterpart of their own: DOS
- * scores an adjacent enemy tile inside the shared LAB_521d_4d2e wander scorer
- * (attack term raw 88880-88940; `local_ea` adjacent-attackable-foreigner flag
- * raw 88885-88887, artillery score-zero raw 88911-88913, soldier/dragoon
- * colony-mass gate raw 88921-88937) and commits it as a one-shot goto that
- * FUN_465b_0000 then resolves. The port's copy of that term keys the Euro /
- * Indian split on the destination tile's layer3 owner nibble exactly as DOS
- * does, but requires `owner >= 0 && at_war`, so a foe standing on an
- * unclaimed tile is never scored as a target and land units go passive.
- *
- * 2026-09-18 pass (bugs.md #521): two real DOS divergences behind the stall
- * were found and fixed, and the stand-in still cannot be deleted.
- *  - raw 88883-88885: the LAB_52aa WoI gate is
- *    `(0x5382 & 1) == 0 || ((owner < 4 && control[owner] == 0) || owner > 3)`,
- *    i.e. during the War of Independence an attack is scored only against a
- *    human-controlled player slot or a tribe. The port spelled it
- *    `!woi || owner < 0`, which rejected every claimed tile — the REF never
- *    scored an assault on a rebel colony at all.
- *  - FUN_465b_0000 / FUN_5fef_0000: a step onto an occupied tile resolves
- *    against the tile's BEST DEFENDER, not the head of the stack. Both
- *    `ai_euro_score_move` and the goal-dispatch drain loop read
- *    `units_id_at` and then skipped sea units, so a berthed foreign hull hid
- *    a colony's garrison.
- * 2026-09-18c (bugs.md #521 leads a/b/c). Two further DOS divergences fixed —
- * the uncited at-war early return in ai_euro_move_scoring_gate (20e6 has no
- * war gate; its only act-state gates are raw 88404-88406 and 90210-90219) and
- * the drain loop's nation-blind `units_id_at` fallback, which handed an own
- * unit standing on the step tile to ai_euro_try_attack and froze whole REF
- * columns two tiles short of their target. With the stand-in every colony now
- * falls at t15 (was t21); without it one still survives.
- *
- * act_state 10 is now fully decoded and is NOT the missing mechanism.
- * FUN_521d_0a60 (raw 87566-87568) is its only writer in the whole game and it
- * means "a foreign unit or settlement stands on one of my eight neighbours"
- * (FUN_521d_0906 → FUN_281f_0682 layer2-bit0 unit owner / FUN_281f_06be
- * layer2-bit1 settlement owner, filtered by FUN_521d_0896 which returns any
- * Euro owner unconditionally). Readers: raw 88160 (`< 10` → order code '?';
- * 10 keeps its code), raw 88164 (fresh goals only at 0/5/6 → a 10 unit gets
- * none), raw 88404-88406 (20e6 entry admits it), raw 90210-90214 (listed with
- * 0/5/6 → straight into LAB_521d_4d2e, no goal pathing), raw 90399-90404
- * (demoted to 5, order code '0'), raw 90552 (FUN_521d_5b66 dispatches a goal
- * only at 0x0b). DOS therefore unbinds an adjacent unit from its goal exactly
- * as this port does — the goal walk is not the assault route.
- *
- * The residue is volume, and it is DOS's own: case 0 of FUN_1427_0d38 is
- * `DI += DS:0x5239[type * 0xe]` (jump table at 1427:0d78 entry 0 → 1427:0d96,
- * read byte-exact from viceroy_unpacked.asm), i.e. Σ @UNIT col9, which is 0
- * for every land type. So the LAB_52aa odds core `((Σcol9 + 1) / stack) * base`
- * is 0 for any tile holding two or more land defenders and the tile scores
- * −999. Statically, DOS's own scorer refuses to assault a stacked colony and
- * instead parks the unit beside it (the 0x46 arm, raw 89011-89029, gated on
- * `local_ea` = "LAB_52aa was reached for some neighbour"). That arm is ported
- * (ai_euro_20e6_border_park_arm) and does not help here: the land-arms branch
- * of ai_euro_move_scoring_gate is never entered in golden_woi_ref01 at all
- * (460 gate calls → 284 FOUND-goal courses, 176 early returns, 0 wander
- * steps), and with this stand-in disabled the REF still leaves one surviving
- * colony and never latches the endgame. What actually makes the DOS REF break
- * a 2+-defender colony is not visible in the static read and needs a DOSBox-X
- * trace; until then this stand-in stays.
- *
- * Behaviour: prefer
- * lower effective defense / non-fortified / weaker colony fort / non-veteran.
- * Artillery prefers higher fort % (siege — king_ref Artillery adjacent-fort).
- * Non-siege: at equal toughness prefer Treasure (loot — Colonization.pdf
- * Treasure Trains / @LOOTCASH). Returns foe unit id or -1.
- *
- * PARK: full FUN_521d_20e6 −0x6790 / explore-ring matrix. Structured: adjacent
- * toughness + Treasure prefer + settlement prefer + siege Artillery fort %;
- * score_move settlement-tile / relative-strength peels Done thin.
+ * bugs.md #521 (closed 2026-09-22): the golden-backed adjacent-attack stand-in
+ * pair (ai_euro_land_best_adjacent_foe / ai_euro_land_try_adjacent_attack)
+ * that lived here was deleted. Its reason to exist was the LAB_521d_52aa odds
+ * core scoring 0 against any 2+-defender land stack, which was a port bug:
+ * ai_euro_20e6_unit_col9 returned the @UNIT guns column (0x523b) instead of
+ * the cost column (0x5239). With the right column the DOS wander scorer
+ * (ai_euro_20e6_attack_term) assaults stacked colonies on its own.
  */
-static int ai_euro_land_best_adjacent_foe(ColonizeTurnContext* ctx, const ColonizeUnit* u) {
-  if (!ctx || !ctx->units || !u || !u->active || units_is_sea(ctx->units, u->id)) {
-    return -1;
-  }
-  const int siege = ai_euro_is_artillery_name(ai_euro_unit_kind(ctx->units, u));
-  int best_id = -1;
-  int best_tough = 0;
-  int best_fort = -1;
-  int best_treasure = 0;
-  for (int d = 0; d < 8; ++d) {
-    const int nx = u->x + MAP_DIR8_DX[d];
-    const int ny = u->y + MAP_DIR8_DY[d];
-    /*
-     * DOS engages the tile's BEST DEFENDER (FUN_5fef_0000), not whichever
-     * unit tops the occupancy list — a docked ship on a colony tile used to
-     * hide the land garrison behind the `is_sea` skip and freeze the REF
-     * assault (found closing D1). Fall back to the raw top-of-stack for
-     * defenderless tiles (lone Treasure / civilians).
-     */
-    int foe = units_best_defender_at(
-      ctx->units, ctx->col1_ok ? ctx->col1 : NULL, nx, ny, u->id, u->id
-    );
-    if (foe < 0) {
-      foe = units_id_at(ctx->units, nx, ny);
-    }
-    if (foe < 0 || units_is_sea(ctx->units, foe)) {
-      continue;
-    }
-    const ColonizeUnit* f = units_get_const(ctx->units, foe);
-    if (!f || f->nation_id == u->nation_id) {
-      continue;
-    }
-    if (ctx->col1_ok && ctx->col1) {
-      if (f->nation_id >= 0 && f->nation_id < 4) {
-        /* Smell #106: DOS gates a Euro target only on the signed-treaty bit
-         * 0x40 (465b clears it both ways when the attack lands, viceroy
-         * 75567-75593) — requiring at-war here made the @SNEAK opening
-         * below unreachable. */
-        if (!ai_diplo_at_war(ctx->col1, u->nation_id, f->nation_id) &&
-            (ai_diplo_read(ctx->col1, u->nation_id, f->nation_id) & AI_DIPLO_PEACE) != 0) {
-          continue;
-        }
-      } else if (f->nation_id >= 4 && f->nation_id <= 11) {
-        if (!ai_diplo_indian_at_war(ctx->col1, u->nation_id, f->nation_id - 4)) {
-          continue;
-        }
-      } else {
-        continue;
-      }
-    }
-    const int fort =
-      (f->nation_id >= 0 && f->nation_id <= 3)
-        ? ai_euro_colony_fort_bonus_at(ctx->colonies, f->x, f->y, f->nation_id)
-        : 0;
-    const int tough = ai_euro_foe_toughness(ctx, ctx->units, f, 0);
-    const int treasure = ai_euro_is_treasure_name(ai_euro_unit_kind(ctx->units, f));
-    /* Prefer foes already on a foreign Euro settlement (0x46 settlement scan). */
-    const int on_settle =
-      (f->nation_id >= 0 && f->nation_id <= 3 && ctx->colonies &&
-       colonies_id_at(ctx->colonies, f->x, f->y) >= 0)
-        ? 1
-        : 0;
-    if (siege) {
-      if (best_id < 0 || fort > best_fort || (fort == best_fort && tough < best_tough)) {
-        best_id = foe;
-        best_fort = fort;
-        best_tough = tough;
-        best_treasure = treasure;
-      }
-    } else if (
-      best_id < 0 || tough < best_tough ||
-      (tough == best_tough && treasure && !best_treasure) ||
-      (tough == best_tough && treasure == best_treasure && on_settle)
-    ) {
-      best_id = foe;
-      best_tough = tough;
-      best_treasure = treasure;
-    }
-  }
-  return best_id;
-}
 
 /*
  * FUN_521d_20e6 `0x46` gate, full port: combat-capable land unit (combat
@@ -16785,36 +16642,6 @@ static int ai_euro_land_try_adjacent_village_seize(ColonizeTurnContext* ctx, Col
   return 0;
 }
 
-/*
- * Attack adjacent enemy land unit while at war (prefer weaker foe).
- * Thin multi-step combat: keep fighting while moves remain after enter
- * (MP drained by try_move on win). Cap steps so a failed spend cannot spin.
- * GOLDEN-BACKED STAND-IN for the LAB_521d_4d2e attack term — see the header
- * on ai_euro_land_best_adjacent_foe above. Not a DOS transcription.
- */
-static void ai_euro_land_try_adjacent_attack(ColonizeTurnContext* ctx, ColonizeUnit* u) {
-  for (int step = 0; step < 8 && u && u->active && u->moves > 0; ++step) {
-    const int foe = ai_euro_land_best_adjacent_foe(ctx, u);
-    if (foe < 0) {
-      return;
-    }
-    const ColonizeUnit* f = units_get_const(ctx->units, foe);
-    if (!f) {
-      return;
-    }
-    const int ml0 = u->moves;
-    const int ax = u->x;
-    const int ay = u->y;
-    ai_euro_try_attack(ctx, u, f->x, f->y);
-    if (!u->active) {
-      return;
-    }
-    /* No progress (lost MP and tile) → stop to avoid infinite retry. */
-    if (u->moves >= ml0 && u->x == ax && u->y == ay) {
-      return;
-    }
-  }
-}
 
 /*
  * Nearest foreign Euro land unit within Manhattan max_md of (from_x,from_y).
@@ -18605,10 +18432,6 @@ static int ai_euro_land_engage_adjacent(
     return 0;
   }
   (void)ai_euro_land_try_adjacent_village_seize(ctx, u);
-  if (!u->active) {
-    return 0;
-  }
-  ai_euro_land_try_adjacent_attack(ctx, u);
   if (!u->active) {
     return 0;
   }
@@ -20504,7 +20327,19 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_land_goal_dispatch(struct ai_euro_
       }
       int dx = 0;
       int dy = 0;
-      if (!ai_euro_score_move(ctx, u, u->goto_x, u->goto_y, &dx, &dy)) {
+      /*
+       * An adjacent goto holding a foreign unit is the LAB_4d2e attack pick
+       * (the scorer commits the neighbour tile itself as +0x3153/+0x3154 and
+       * FUN_479b_0972 → FUN_465b_0000 steps straight into it). Re-scoring
+       * that step with ai_euro_score_move sidestepped diagonally around the
+       * foe and the fight never happened (bugs.md #521, 2026-09-22).
+       */
+      const int adj_foe = abs(u->goto_x - u->x) <= 1 && abs(u->goto_y - u->y) <= 1 &&
+                          ai_euro_foreign_unit_at(ctx, u, u->goto_x, u->goto_y);
+      if (adj_foe) {
+        dx = u->goto_x - u->x;
+        dy = u->goto_y - u->y;
+      } else if (!ai_euro_score_move(ctx, u, u->goto_x, u->goto_y, &dx, &dy)) {
         break;
       }
       const int tx = u->x + dx;
@@ -20563,16 +20398,13 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_land_goal_dispatch(struct ai_euro_
     if (u->active) {
       (void)ai_euro_land_try_adjacent_village_seize(ctx, u);
     }
-    if (u->active) {
-      ai_euro_land_try_adjacent_attack(ctx, u);
-    }
   }
 
   /* The "sticky CONTACT re-hunt" tail that used to sit here is folded into the
    * block above (smell audit sweep-3 area C #1): zero hits when instrumented
    * over the whole ctest suite. The two seizes are the real DOS `0x46` / `0x4c`
-   * arms; ai_euro_land_try_adjacent_attack is a golden-backed stand-in for the
-   * LAB_521d_4d2e attack term (see its header). The distant land war hunt that
+   * arms; the adjacent-attack stand-in that also ran here was deleted 2026-09-22
+   * (bugs.md #521, LAB_521d_4d2e attack term is DOS-live). The distant land war hunt that
    * also ran here was deleted 2026-09-18: DOS has no distant hunt for land
    * units any more than it has one for ships. */
 

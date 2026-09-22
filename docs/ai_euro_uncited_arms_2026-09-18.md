@@ -2,6 +2,8 @@
 
 STATUS: open triage list; second wave resolved 2026-09-18, plus the 2026-09-18f
 5b66/goal-walk pass (bugs.md #525/#526) — see the two "Resolved" sections.
+2026-09-22: the adjacent-attack stand-in pair discussed below is deleted
+(bugs.md #521 FIXED — `0x5239` is the @UNIT cost column, not a zero column).
 
 Scope: every `Colonization.pdf` / `manual` / `fandom` / `Skills Chart` /
 `euro_unit_act §` citation left in `src/core/ai_euro.c` after the 2026-09-18

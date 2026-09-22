@@ -864,7 +864,11 @@ list, not from the inventory.
   defended colony is unidentified and cannot be settled statically.** Until
   then `ai_euro_land_best_adjacent_foe` / `ai_euro_land_try_adjacent_attack`
   stay as a marked stand-in; without them `golden_woi_ref01` leaves one colony
-  standing. The port's land arms were additionally **unreachable** until
+  standing. **Settled 2026-09-22 (bugs.md #521):** the col9 reading was off
+  by one column — `0x5239` is the `@UNIT` *cost* column (loader raw
+  121115-121135), non-zero for every land type; with it the 4d2e term assaults
+  stacked colonies and the stand-in pair is deleted (`golden_woi_ref01` all 7
+  colonies fall t17 with no stand-in). The port's land arms were additionally **unreachable** until
   2026-09-18e (bugs.md #522): three uncited early returns and an
   unconditional nearest-FOUND course ate all 460 gate calls in the WoI run.
   Porting raw 88584-88612 (own-colony garrison arm), raw 90210-90219 (the
