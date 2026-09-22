@@ -1150,14 +1150,15 @@ static int reports_labor_normalize_job(int job) {
   return job;
 }
 
-/* Only @UNIT types 0-5 (Colonists, Soldiers, Pioneers, Missionaries,
- * Dragoons, Scouts — NAMES.TXT @UNIT rows 0-5) are colonist-derived persons
- * the labor report should ever count; everything else (ships 13-18,
- * Artillery, Wagon Train, Treasure, Regulars/Cavalry/Continental Army 6-9)
- * is equipment/vehicles/King's-army units with no colonist behind them, even
- * though some carry a leftover profession byte. */
+/* bugs.md #575: DOS's labor-report unit filter (`FUN_3f41_10d8` ->
+ * `FUN_281f_0b28` -> FUN_15eb_0902) is the DS:0x30e[type] >= 0 predicate —
+ * "this @UNIT type carries a profession slot" — not a type cut-off. That
+ * keeps ships (13-18), Artillery, Wagon Train, Treasure and the King's
+ * Regulars (6) / Cavalry (8) out, but it KEEPS Continental Cavalry (7,
+ * DS:0x30e = 23) and Continental Army (9, = 21): a drafted Expert Farmer is
+ * still a person and must not vanish from the report. */
 static bool reports_labor_unit_is_person(const ColonizeCol1Unit* u) {
-  return u->type <= 5;
+  return units_type_has_profession_slot((int)u->type);
 }
 
 static void reports_labor_job_counts(
@@ -3265,37 +3266,20 @@ static void reports_render_indian(
   }
 }
 
-/* Unit type → default @JOB index when profession is out of range. */
+/* Unit type → default @JOB index when profession is out of range. DOS
+ * DS:0x30e[type] (FUN_15eb_0902), the one table the whole game uses; the
+ * port's hand-written copy of it here had @UNIT 6 (Regulars) → 21 and 8
+ * (Cavalry) → 23 where DOS has -1, which promoted the King's army to
+ * scoring citizens (bugs.md #574). */
 static int reports_profession_from_unit_type(int type) {
-  static const int k_map[] = {
-    19, /* Colonists → Free Colonists */
-    21, /* Soldiers */
-    20, /* Pioneers */
-    24, /* Missionaries */
-    23, /* Dragoons */
-    22, /* Scouts */
-    21, /* Regulars → Veteran Soldiers */
-    23, /* Cont. Cav. */
-    23, /* Cavalry */
-    21, /* Cont. Army */
-    -1, /* Treasure */
-    -1, /* Artillery */
-    -1, /* Wagon Train */
-    -1, /* Caravel … ships */
-    -1,
-    -1,
-    -1,
-    -1,
-    -1
-  };
-  if (type < 0 || type >= (int)(sizeof(k_map) / sizeof(k_map[0]))) {
-    return -1;
-  }
-  return k_map[type];
+  return units_type_default_job(type);
 }
 
+/* FUN_41f2_0092 raw 71172-71178: the Score citizen loop admits a unit on
+ * `FUN_281f_0b78(unit) >= 0` alone — the profession-slot predicate — and
+ * nothing else. */
 static bool reports_unit_type_is_scored_colonist(int type) {
-  return reports_profession_from_unit_type(type) >= 0;
+  return units_type_has_profession_slot(type);
 }
 
 /* FUN_41f2_0092 raw 71188-71198: profession 0x1c +2; 0x19/0x1a/0x1b
@@ -3461,6 +3445,19 @@ static int reports_score_collect_citizen_jobs(
     if (!reports_unit_type_is_scored_colonist((int)u->type)) {
       continue;
     }
+    /*
+     * bugs.md #574 asked for 0x1c units to score +2 here, reading raw
+     * 71188-71198 (`if (prof == 0x1c) +2; else if 0x19/0x1a/0x1b +1; else
+     * +4`) as applying to every slot-bearing unit. REFUTED by the DOS
+     * capture: original_saves/report-screen-goldens/score.png reads
+     * "Dutch Citizens: +158" for dutch-reports.SAV, which is colony
+     * population (142) + the 4 units whose profession byte is a genuine
+     * assigned job (4 x 4). Counting that save's 0x1c-profession units at
+     * +2 each gives 166. So a unit with the "no specialty" sentinel does
+     * not reach the ladder at all — the scored value in the decomp
+     * (`in_stack_0000ff8e`, a stack slot Ghidra only shows assigned inside
+     * the generic-icon branch) is not simply +0x315b.
+     */
     const int prof = (int)u->profession;
     if (prof < 0 || prof >= k_job_count) {
       continue;

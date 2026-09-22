@@ -790,6 +790,11 @@ colonize_add_test(NAME unit_ai_euro_5952_equip
   LIBS colonize_core
 )
 
+colonize_add_test(NAME unit_ai_euro_5952_train
+  SOURCES tests/unit/test_ai_euro_5952_train.c
+  LIBS colonize_core
+)
+
 colonize_add_test(NAME unit_ai_euro_5952_carpenter
   SOURCES tests/unit/test_ai_euro_5952_carpenter.c
   LIBS colonize_core

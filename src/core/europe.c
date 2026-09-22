@@ -83,9 +83,25 @@ static int europe_pool_tier_roll(EuropePoolRng* r, int lo, int hi) {
   return lo + (int)(europe_rng_next(r->local) % (unsigned)(hi - lo + 1));
 }
 
-/* DOS's per-nation LFSR stand-in: 0..hi inclusive, no shared-stream draw. */
+/*
+ * DOS's per-nation LFSR stand-in for the expert-tier draw (FUN_38fd_46d4,
+ * raw 64584-64592). The DOS shape is: advance nation+0x44 through
+ * FUN_291f_0eda(&b44, 0x14), take `(nation+0x44 + nation+0x45) & 0x1f`, and
+ * REROLL while the result is > 0x18 — not a modulo (bugs.md #566). Same
+ * distribution over 0..0x18, different number of draws off the local state,
+ * which is what a byte-exact RNG trace sees.
+ */
 static int europe_pool_expert_roll(EuropePoolRng* r, int hi) {
-  return (int)(europe_rng_next(r->local) % (unsigned)(hi + 1));
+  if (hi != 0x18) {
+    return (int)(europe_rng_next(r->local) % (unsigned)(hi + 1));
+  }
+  for (int guard = 0; guard < 1000; ++guard) {
+    const int v = (int)(europe_rng_next(r->local) & 0x1fu);
+    if (v <= 0x18) {
+      return v;
+    }
+  }
+  return 0;
 }
 
 static bool europe_parse_int_field(const char** cursor, int* out) {
@@ -1381,6 +1397,19 @@ bool europe_immigrant_from_pool(EuropeScreen* eu, ColonizeDosRng* rng) {
   return true;
 }
 
+/*
+ * FUN_38fd_41ce raw 64399-64403: the Train dialog compares the nation's
+ * 32-bit purse (+0x2a low / +0x2c high) against the @JOB cost and calls
+ * FUN_291f_01b6(list, row, 1) — greys the row out — when the purse is
+ * short, so an unaffordable expert cannot be picked at all. bugs.md #566.
+ */
+bool europe_train_affordable(const EuropeScreen* eu, int train_index) {
+  if (!eu || train_index < 0 || train_index >= eu->train_count) {
+    return false;
+  }
+  return eu->gold >= eu->train[train_index].cost;
+}
+
 bool europe_train(EuropeScreen* eu, int train_index) {
   return europe_train_ex(eu, train_index, NULL);
 }
@@ -1519,7 +1548,10 @@ int europe_dock_type_for(const char* name, int profession) {
  * 0056(1) opens the line, 0074 appends the @NATIONALITY adjective of the
  * bound nation (DS -0x72f6) and the @UNIT plural of the immigrant's type
  * (0x5230 + type*0xe); then, only when +0x315b (profession) != 0x1c, it
- * appends " (" + the @JOB singular (-0x715e + prof*8) + ")".
+ * appends " (" + the @JOB name at `-0x715c + prof*8` + ")". That is @JOB
+ * COLUMN 1 (the "Expert Farmers" plural), which is what the code below
+ * reads — the old "-0x715e singular" cite was a transcription slip; the
+ * real site is viceroy_overlays.c:61190 (bugs.md #577).
  */
 bool europe_dock_caption(const EuropeScreen* eu, int dock_index, char* out, size_t cap) {
   if (!eu || !out || cap == 0) {

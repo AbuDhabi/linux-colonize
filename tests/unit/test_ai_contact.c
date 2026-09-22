@@ -5031,8 +5031,12 @@ static int case_full_contact_scenario(void) {
     }
 
     /*
-     * Teach CHOICE refuse (≥55) → follow-up CONTACT_TEACH OK.
-     * Cite: FUN_5bfb_022e teach arm; fandom Alarm refuse-talk gate.
+     * bugs.md #573: a TEACH choice whose payload carries no acting unit is
+     * not a DOS situation at all — DOS only ever teaches through
+     * thunk_FUN_1000_a618 ("Live Among The Natives") on a named unit and a
+     * named village. The port used to run an invented village-adjacency
+     * pulse here (skill from a hand-written tribe table, one-shot burned on
+     * refusals); it is retired, so the arm is a silent no-op.
      */
     {
       ai_popup_clear(&pop);
@@ -5047,17 +5051,17 @@ static int case_full_contact_scenario(void) {
       ColonizeUnit* bravet = units_get(&units, bt);
       ColonizeUnit* eurot = units_get(&units, et);
       if (!bravet || !eurot) {
-        return fail("teach refuse CHOICE spawn");
+        return fail("teach no-unit CHOICE spawn");
       }
       bravet->nation_id = 4;
       eurot->nation_id = 0;
       eurot->profession = UNITS_JOB_NONE;
       ind->euro_diplo[0] = 1;
-      ind->alarm_by_player[0] = 60;
+      ind->alarm_by_player[0] = 10;
       col1.tribe[0].nation_id = 4;
       col1.tribe[0].x = 5;
       col1.tribe[0].y = 5;
-      col1.tribe[0].alarm[0].friction = 60;
+      col1.tribe[0].alarm[0].friction = 10;
       col1.tribe[0].state.learned = 0;
       col1.tribe[0].mission = 0xff;
       st_pop[0] = '\0';
@@ -5069,81 +5073,14 @@ static int case_full_contact_scenario(void) {
       pop.result_nation_b = 4;
       ai_contact_apply_popup_result(&ctx, &pop);
       if (col1.tribe[0].state.learned) {
-        return fail("Teach refuse CHOICE should not set learned");
+        return fail("Teach with no acting unit must not burn the one-shot");
       }
-      if (pop.queue_count < 1 ||
-          pop.queue[pop.queue_count - 1].kind != AI_POPUP_KIND_OK ||
-          pop.queue[pop.queue_count - 1].tag != AI_POPUP_TAG_CONTACT_TEACH) {
-        return fail("Teach refuse should enqueue CONTACT_TEACH OK");
+      if (eurot->profession != UNITS_JOB_NONE) {
+        return fail("Teach with no acting unit must not grant a skill");
       }
-      if (strstr(st_pop, "infuriate") == NULL || strstr(st_pop, "learn") == NULL) {
-        fprintf(stderr, "unit_ai_contact: teach-refuse OK status '%s'\n", st_pop);
-        return fail("Teach refuse should set @LEARNMAD refuse status");
+      if (pop.queue_count != 0) {
+        return fail("Teach with no acting unit must enqueue nothing");
       }
-    }
-
-    /*
-     * Teach CHOICE success: Aztec (5) → Ore Miner (unused nation-map entry).
-     * Cite: indian_contact.md teach-skill profession map; FUN_5bfb_022e.
-     */
-    {
-      ai_popup_clear(&pop);
-      for (int ui = 0; ui < COLONIZE_UNITS_MAX; ++ui) {
-        ColonizeUnit* u = &units.units[ui];
-        if (u->active &&
-            (u->nation_id == 4 || u->nation_id == 5 || u->nation_id == 0)) {
-          units_despawn(&units, u->id);
-        }
-      }
-      const int bt = units_spawn_allow_stack(&units, 0, 5, 5);
-      const int et = units_spawn_allow_stack(&units, 1, 6, 5);
-      ColonizeUnit* bravet = units_get(&units, bt);
-      ColonizeUnit* eurot = units_get(&units, et);
-      if (!bravet || !eurot) {
-        return fail("teach Aztec CHOICE spawn");
-      }
-      bravet->nation_id = 5;
-      eurot->nation_id = 0;
-      eurot->profession = UNITS_JOB_NONE;
-      ColonizeCol1Indian* aztec = &col1.indian[1];
-      memset(aztec, 0, sizeof(*aztec));
-      aztec->euro_diplo[0] = 1;
-      aztec->alarm_by_player[0] = 5;
-      col1.tribe[0].nation_id = 5;
-      col1.tribe[0].x = 5;
-      col1.tribe[0].y = 5;
-      col1.tribe[0].alarm[0].friction = 5;
-      col1.tribe[0].state.learned = 0;
-      col1.tribe[0].last_sold = 0;
-      col1.tribe[0].mission = 0xff;
-      col1.indian[1].alarm_by_player[0] = 20; /* relation 80 */ /* Aztec idx 1 */
-      col1.indian[1].euro_diplo[0] |= COL1_INDIAN_MET_BIT;
-      col1.nation[0].gold = 0;
-      st_pop[0] = '\0';
-      pop.has_result = true;
-      pop.result_cancelled = false;
-      pop.result_choice_id = 4; /* TEACH */
-      pop.result_tag = AI_POPUP_TAG_CONTACT_MEET;
-      pop.result_nation_a = 0;
-      pop.result_nation_b = 5;
-      ai_contact_apply_popup_result(&ctx, &pop);
-      if (!col1.tribe[0].state.learned) {
-        return fail("Teach Aztec CHOICE should set learned");
-      }
-      if (eurot->profession != COLONIZE_JOB_ORE_MINER) {
-        return fail("Teach Aztec CHOICE → Expert Ore Miner");
-      }
-      if (pop.queue_count < 1 ||
-          pop.queue[pop.queue_count - 1].kind != AI_POPUP_KIND_OK ||
-          pop.queue[pop.queue_count - 1].tag != AI_POPUP_TAG_CONTACT_TEACH) {
-        return fail("Teach Aztec success should enqueue CONTACT_TEACH OK");
-      }
-      if (strstr(st_pop, "teach") == NULL || strstr(st_pop, "Aztec") == NULL) {
-        fprintf(stderr, "unit_ai_contact: teach-aztec status '%s'\n", st_pop);
-        return fail("Teach Aztec should set Natives-teach-Aztec status");
-      }
-      /* Restore tribe nation for later arms. */
-      col1.tribe[0].nation_id = 4;
       ind->euro_diplo[0] = 1;
       ind->alarm_by_player[0] = 10;
     }

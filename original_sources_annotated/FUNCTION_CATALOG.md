@@ -1481,14 +1481,14 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_281f_0bf0` | 33530 | 10 | thunk | Far thunk → FUN_15eb_13ac (count colonists by specialty) | inferred |  |
 | `FUN_281f_0bfa` | 33540 | 10 | thunk | Far thunk → FUN_15eb_394c (refresh colony unit lists + production) | inferred |  |
 | `FUN_281f_0c04` | 33550 | 10 | thunk | Far thunk → FUN_15eb_1f72 (recompute colony production totals) | inferred |  |
-| `FUN_281f_0c0e` | 33560 | 10 | thunk | Far thunk → FUN_15eb_0e18 (colonist profession: slot or outside unit) | inferred |  |
+| `FUN_281f_0c0e` | 33560 | 10 | thunk | Far thunk → FUN_15eb_0e18 (colonist OCCUPATION: work slot — 0x12 teacher, 1..4 field job; NOT the specialty; bugs.md #577) | inferred |  |
 | `FUN_281f_0c18` | 33570 | 10 | thunk | Far thunk → FUN_15eb_022c (lookup word from remapped id table (−0x715e)) | inferred |  |
 | `FUN_281f_0c22` | 33580 | 10 | thunk | Far thunk → FUN_15eb_3956 (full colony-view refresh compose) | inferred |  |
 | `FUN_281f_0c2c` | 33590 | 10 | thunk | Far thunk → FUN_15eb_32a0 (find unit cargo slot index by type) | inferred |  |
 | `FUN_281f_0c36` | 33600 | 10 | thunk | Far thunk → FUN_15eb_1068 (assign colony colonist to job) | inferred |  |
 | `FUN_281f_0c40` | 33610 | 10 | thunk | Far thunk → FUN_15eb_0242 (cargo catalog secondary word at id×8) | inferred |  |
 | `FUN_281f_0c4a` | 33620 | 10 | thunk | Far thunk → FUN_15eb_096e (unit id → profession-capable ordinal +colony+0x1f) | inferred |  |
-| `FUN_281f_0c54` | 33630 | 10 | thunk | Far thunk → FUN_15eb_0e52 (colonist workplace/job read) | inferred |  |
+| `FUN_281f_0c54` | 33630 | 10 | thunk | Far thunk → FUN_15eb_0e52 (colonist SPECIALTY read — 0x13/0x19/0x1a/0x1b/0x1c or an expert @JOB row; the two labels were swapped, bugs.md #577) | inferred |  |
 | `FUN_281f_0c5e` | 33640 | 10 | thunk | Far thunk → FUN_15eb_0470 (work-radius size from fortification) | inferred |  |
 | `FUN_281f_0c68` | 33650 | 10 | thunk | Far thunk → FUN_15eb_3040 (read unit cargo/passenger qty byte) | inferred |  |
 | `FUN_281f_0c72` | 33660 | 10 | thunk | Far thunk → FUN_15eb_26e4 (fill 5×5 native-contact caches) | inferred |  |

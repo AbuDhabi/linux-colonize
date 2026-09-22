@@ -18,8 +18,10 @@
 #include "core/map.h"
 #include "core/popup_msg.h"
 #include "core/reports.h"
+#include "core/reports_names.h"
 #include "core/units.h"
 
+#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -2331,118 +2333,201 @@ static void ai_euro_set_goto(ColonizeUnit* u, int orders, int gx, int gy);
 
 
 
-/* Headcount of active colonists currently doing `field_job` in `col` —
- * substitute for DOS's `colony+0x9a+job*2` per-job counter array (that
- * table isn't itself modeled in ColonizeColony; this walks the colonist
- * list instead, same result). Used by ai_euro_28c8_colonist_job_score_structural. */
-static int ai_euro_28c8_job_headcount(const ColonizeColony* col, int field_job) {
+/* Defined further down with the FUN_5952_035e tick; 28c8 needs the same
+ * DS:0x8dc8 / DS:0x8e0a ledger pair. */
+static void ai_euro_5952_ledgers(
+  const ColonizeWorld* world,
+  const ColonizeColonyPool* pool,
+  const ColonizeColony* col,
+  const ColonizeCol1Save* col1,
+  int gross[AI_EURO_5952_LEDGER_SLOTS],
+  int demand[AI_EURO_5952_LEDGER_SLOTS]
+);
+
+/*
+ * FUN_15eb_28c8 — colonist work-plot scorer, DOS-literal (raw 12908-13158).
+ * bugs.md #570 (2026-09-22): the previous body was a structural sketch and
+ * diverged from the decomp in six ways (no distance term, no food-emergency
+ * branch, no cargo-weight branch, labour penalty applied unconditionally and
+ * AI-only, sticky x2 unconditional, colonist headcount used where DOS clamps
+ * against WAREHOUSE stock). Ported here term for term.
+ *
+ * Shape of the DOS body (`param_1` = colonist slot, `param_2` = restrict):
+ *   bVar1 = colony is HUMAN-controlled (colony+0x1a < 4 && DS:0x543f[nation
+ *           *0x34] == 0, raw 12952-12958) — this is NOT an AI-only routine:
+ *           FUN_15eb_2ea0 runs it for every colony (see
+ *           ai_euro_28c8_auto_assign_plots).
+ *   bVar2 = food emergency: `DS:0x35e == 0 && DS:0x8dc8 < DS:0x8e0a`
+ *           (food gross < food demand) and, for an AI colony, also
+ *           `colony+0x9a <= capacity && !(DS:0x8e32*0x10 < colony+0x9a)`.
+ *           DS:0x35e is set to 1 for the whole FUN_5952_035e AI colony tick
+ *           (raw 94628 set / 95975 clear), so the emergency branch is
+ *           unreachable from the tick — hence `in_ai_tick` here.
+ *   score = yld*8 + (7 - |dx| - |dy|)                       (raw 13017-13024)
+ *   sticky x2 when the colonist already holds this job — HUMAN only (bVar1).
+ *   then either the food-emergency branch (jobs 0/8 get <<5, Fisherman +8,
+ *   minus the DS:0x2f7a labour byte with a +0x18 forest surcharge, floor 1;
+ *   an Indian-claimed plot halves) or the cargo-weight branch (per-nation
+ *   DS:0x84bc price row, shortfall/unmet bumps, consumer-building term,
+ *   Indian-alarm subtraction, `score = (local_38 + local_4) * score`).
+ *
+ * Deliberate substitutions (no DOS constant invented):
+ *   - DS:0x8e32 "production shortfall" / DS:0x8e5a "unmet after stock" are
+ *     recomputed from the same ledger pair the 5952 tick uses
+ *     (ai_euro_5952_ledgers = DS:0x8dc8/0x8e0a) with FUN_15eb_0b52's own
+ *     rule (colony_craft.c header).
+ *   - FUN_15eb_15c6(DS:0x2b6[job]) is 0 when the field good has no consumer
+ *     job, else 1 (+1 when that job's base building itself has a parent tier,
+ *     which no chain root in the port's @BUILDING table has) — see
+ *     k_ai_euro_28c8_consumer_chain.
+ *   - byte[FUN_15eb_0470()+0x329] is the colony's work-plot count. Read off
+ *     VICEROY.EXE (file offset 121248 + 0x329): {0, 4, 8, 12, 20}, indexed by
+ *     FUN_15eb_0470() = min(FUN_15eb_039e(10), 2) + 2. 039e(10) is 0 in every
+ *     reachable state (ai_euro.c's own DS:0x2f4 note), so the index is 2 and
+ *     the count is 8 = COLONIZE_COLONY_FIELD_TILES. Settled 2026-09-22
+ *     (bugs.md #570).
+ */
+
+/* DS:0x2b6 read as 28c8 reads it: field job -> the JOB that consumes its
+ * good (jobs 9..12/14 there are input cargos; 28c8 only indexes 0..8).
+ * {-1,9,10,11,12,-1,14,-1,-1} -> building chain via DS:0x2f4 (FUN_15eb_0aec). */
+static int ai_euro_28c8_consumer_chain(int field_job) {
+  switch (field_job) {
+    case 1: return COLONIES_CHAIN_RUM;         /* Sugar   -> Distiller  (9) */
+    case 2: return COLONIES_CHAIN_TOBACCONIST; /* Tobacco -> Tobacconist(10) */
+    case 3: return COLONIES_CHAIN_WEAVER;      /* Cotton  -> Weaver    (11) */
+    case 4: return COLONIES_CHAIN_FUR;         /* Furs    -> Fur Trader(12) */
+    case COLONIZE_JOB_ORE_MINER: return COLONIES_CHAIN_BLACKSMITH; /* Ore (14) */
+    default: return -1;
+  }
+}
+
+/* FUN_15eb_039e(b): owned buildings walking b -> parent -> ... `tiers` is how
+ * many tiers from the chain root that walk covers (039e(3) = the Armory row
+ * alone, 039e(0x28) = Blacksmith's House + Shop). */
+static int ai_euro_28c8_chain_owned_upto(
+  const ColonizeColonyPool* pool, const ColonizeColony* col, int chain, int tiers
+) {
+  const char* const* names = colonies_building_chain(chain);
+  if (!pool || !col || !names) {
+    return 0;
+  }
   int n = 0;
-  for (int i = 0; i < col->colonist_count; ++i) {
-    if (col->colonists[i].active && col->colonists[i].field_job == field_job) {
+  for (int i = 0; names[i] && i < tiers; ++i) {
+    const int idx = colonies_find_building(pool, names[i]);
+    if (idx >= 0 && idx < COLONIZE_BUILDING_TYPES_MAX && col->has_building[idx]) {
       ++n;
     }
   }
   return n;
 }
 
-/*
- * FUN_15eb_28c8 — colonist work-plot job scoring, structural reference port
- * (2026-08-22, docs/port_plan.md T1.17). RE is complete — see
- * original_sources_annotated/turn/colonist_work_plot_28c8.md. **2026-08-24
- * (W1.7):** a golden fixture now verifies the 9-job weighted formula —
- * tests/unit/test_ai_euro_28c8_job_score.c — and caught a real discrepancy
- * against the doc, fixed here (see the labor/travel-penalty note below).
- * Still deliberately NOT wired into any live AI path — that's Tier 3
- * (docs/port_plan.md W3.1), a user-confirmed default-behavior change, not
- * this pass's scope (same "document/verify, don't silently ship"
- * precedent as T1.9/T1.15). External linkage (declared in ai_euro.h) so
- * the fixture can call it directly.
- *
- * Covers only the tier-2/8-tile case: colony.h's own
- * COLONIZE_COLONY_FIELD_TILES==8 already matches DOS's default (Town-Hall-
- * level-1) tile count byte-for-byte (see the doc's Fidelity section) — no
- * struct change needed for the common case. Town-Hall-level-2/3 outer-ring
- * tiles (12/20, DS:0x329-gated) have no storage in ColonizeColony yet and
- * stay deliberately out of scope. Only scores field jobs 0..8
- * (COLONIZE_FIELD_JOB_COUNT) — building-job assignment (DOS job >=0xd) and
- * the human single-job-probe / early-shortcut gate (`param_2`, the
- * ambiguous `bVar2` population-near-cap short-circuit) are not modeled;
- * this is the AI full-search branch's core loop only.
- *
- * Real, resolved terms scored: field yield (colony_yield_for_tile — the
- * same worker-context-free substitute this file's other job-assign helpers
- * already use, per the doc's own "local_24 vs local_34" note), the
- * labor/travel terrain penalty (map_dos_terr_labor_penalty_byte, this
- * session's own T1.17 addition to map.c) — per the doc's Structure §5,
- * this is an AI-full-search-branch term scoped to jobs 0 (Farmer) and 8
- * (Fisherman) only ("generalist" slots), NOT a universal base-score term;
- * the original port applied it to every job unconditionally, which the
- * golden fixture caught and this pass fixed — the population-cap-vs-
- * headroom clamp (warehouse_level doubles as DOS's population cap per
- * FUN_15eb_0a50 — already named/cited in colony.h), and the current-job
- * sticky-preference doubling.
- *
- * Deliberately left at 0 / unimplemented — real but not independently
- * pinned down, would be guessing to fill in (see the doc's "Remaining
- * genuinely open terms"): the dx/dy "distance-ish" term, the
- * continent×nation military-development danger term (a real accessor
- * exists, ai_euro_continent_stance_at, but the doc's exact combination
- * with this term wasn't nailed down), the per-job RNG/wealth-rank boost
- * for established colonies, the per-(nation,job) throttle table (a
- * *different* table from 2820's own DS:0x84BC cargo throttle — not
- * captured for this call site), the "senior profession tier"/"unhappy
- * colony" AI-search-gate short-circuit (colony+0x94, no Linux field named
- * yet), and the first-work hidden-resource discovery roll
- * (FUN_281f_0d78/_0d6c — parked, self-contained, doc's own note).
- */
+typedef struct AiEuro28c8Env {
+  bool human;       /* bVar1 */
+  bool food_emerg;  /* bVar2 */
+  int capacity;     /* local_6 = FUN_15eb_0a50 */
+  int continent;    /* local_e = FUN_137f_02a0(colony) */
+  int mil_count;    /* local_14 = own units with @UNIT defense > 1 */
+  int lumber_gross; /* DS:0x8dd2 = gross[Lumber] */
+  int turn;         /* DS:0x538e */
+  int shortfall[COLONIZE_CARGO_COUNT]; /* DS:0x8e32 */
+  int unmet[COLONIZE_CARGO_COUNT];     /* DS:0x8e5a */
+} AiEuro28c8Env;
+
+static void ai_euro_28c8_env(
+  const ColonizeTurnContext* ctx, const ColonizeColony* col, int in_ai_tick,
+  AiEuro28c8Env* env
+) {
+  const ColonizeCol1Save* col1 = ctx->col1_ok ? ctx->col1 : NULL;
+  memset(env, 0, sizeof(*env));
+  env->human = col->nation_id == ctx->human_nation;
+  env->capacity = colonies_warehouse_capacity(ctx->colonies, col, COLONIZE_CARGO_FOOD);
+  env->continent = ctx->map ? map_continent_id_at(ctx->map, col->x, col->y) : -1;
+  env->turn = col1 ? (int)col1->head.turn : 0;
+
+  int gross[AI_EURO_5952_LEDGER_SLOTS];
+  int demand[AI_EURO_5952_LEDGER_SLOTS];
+  const ColonizeWorld w = world_from_turn_ctx(ctx);
+  ai_euro_5952_ledgers(&w, ctx->colonies, col, col1, gross, demand);
+  env->lumber_gross = gross[COLONIZE_CARGO_LUMBER];
+  for (int c = 0; c < COLONIZE_CARGO_COUNT; ++c) {
+    /* DS:0x8e32 production shortfall and DS:0x8e5a unmet-after-stock,
+     * FUN_15eb_0b52's own rule (colony_craft.c header). */
+    const int miss = demand[c] - gross[c];
+    env->shortfall[c] = miss > 0 ? miss : 0;
+    const int after = miss - col->stock[c];
+    env->unmet[c] = after > 0 ? after : 0;
+  }
+
+  /* bVar2, raw 12974-12980. */
+  bool emerg = !in_ai_tick && gross[COLONIZE_CARGO_FOOD] < demand[COLONIZE_CARGO_FOOD];
+  if (!env->human) {
+    const int food_stock = col->stock[COLONIZE_CARGO_FOOD];
+    emerg = emerg && food_stock <= env->capacity;
+    if (env->shortfall[COLONIZE_CARGO_FOOD] * 0x10 < food_stock) {
+      emerg = false;
+    }
+  }
+  env->food_emerg = emerg;
+
+  /* local_14 (AI only, raw 12960-12966): own units whose @UNIT defense
+   * (DOS type*0xe + 0x5235) is > 1. */
+  if (!env->human && ctx->units) {
+    for (int i = 0; i < ctx->units->unit_count; ++i) {
+      const ColonizeUnit* u = &ctx->units->units[i];
+      if (!u->active || u->nation_id != col->nation_id) {
+        continue;
+      }
+      if (u->type_index >= 0 && u->type_index < ctx->units->type_count &&
+          ctx->units->types[u->type_index].defense > 1) {
+        ++env->mil_count;
+      }
+    }
+  }
+}
+
 /*
  * 28c8 scorer body. `profession` < 0 scores plain tile yields (the
  * structural/test entry point); otherwise the colonist's real profession
  * goes through colony_yield_for_worker (DOS 1068 trial-assigns the job, so
- * 18ec sees the expert) — that is what the live tick uses.
+ * 18ec sees the expert) — that is what the live tick and the human
+ * auto-assign use.
  *
- * `restrict_job` is DOS's `FUN_1000_8d5e(colony, slot, job)` third argument
- * when it is a real job index rather than one of the −1 / −2 modes: the
- * search is then confined to that one field job and only the best TILE for
- * it is elected. −1 keeps the all-jobs search the two placement passes use.
+ * `restrict_job` is DOS's `param_2` when it is a real job index rather than
+ * one of the −1 / −2 modes: the search is then confined to that one field
+ * job. `in_ai_tick` is DS:0x35e (1 inside FUN_5952_035e).
  */
-static int ai_euro_28c8_score_job(
+static int ai_euro_28c8_score_full(
   const ColonizeTurnContext* ctx,
   const ColonizeColony* col,
   int colonist_slot,
   int profession,
   int restrict_job,
+  int in_ai_tick,
   AiEuro28c8JobCandidate* out_best
 ) {
   const ColonizeColonist* self = &col->colonists[colonist_slot];
   if (!self->active) {
     return 0;
   }
-  const int current_job = self->field_job; /* -1 if not currently field-working */
-  /* colony[0x9a+job*2] headroom cap = (warehouse_level + 1) * 100. The old
-   * `warehouse_level == 0 ? 100 : …` special case computed the identical
-   * value and only implied an exception DOS does not have (smell audit #43). */
-  const int pop_cap = ((int)col->warehouse_level + 1) * 100;
-  const int is_ai = col->nation_id != ctx->human_nation;
+  const int current_job = self->field_job; /* iVar4 = FUN_15eb_0e18 */
+  AiEuro28c8Env env;
+  ai_euro_28c8_env(ctx, col, in_ai_tick, &env);
+  const ColonizeCol1Save* col1 = ctx->col1_ok ? ctx->col1 : NULL;
+  const ColonizeWorld world = world_from_turn_ctx(ctx);
   /* The scorer must answer the Fisherman gate exactly as the tick does, or it
-   * assigns plots the tick then pays 0 for. This used to be a local helper
-   * that ORed in `colony_flags & COASTAL || map_tile_is_coastal(...)`, which
-   * DOS's 18ec does not (smell audit 2026-09-10 E#2): the gate there is
-   * FUN_15eb_038e(6), the building alone. */
+   * assigns plots the tick then pays 0 for. DOS's 18ec gate is
+   * FUN_15eb_038e(6), the building alone (smell audit 2026-09-10 E#2). */
   const bool has_docks =
     profession >= 0 ? colony_yield_colony_has_docks(ctx->colonies, col) : true;
   const int sol_b_field =
-    profession >= 0 ? colony_prod_sol_bonus_field(ctx->col1_ok ? ctx->col1 : NULL, col) : 0;
-  /* DOS 1068/28c8 score through the same FUN_15eb_18ec the tick uses, so
-   * Henry Hudson's Fur Trapper doubling is inside the scored yield too. The
-   * port used to miss it entirely because the doubling lived at four UI/tick
-   * call sites instead of the shared pipeline (smell audit #60). */
-  const bool has_hudson = profession >= 0 && ctx->col1_ok && ctx->col1 &&
-                          founding_fathers_nation_has(ctx->col1, col->nation_id, FF_HENRY_HUDSON);
+    profession >= 0 ? colony_prod_sol_bonus_field(col1, col) : 0;
+  const bool has_hudson = profession >= 0 && col1 &&
+                          founding_fathers_nation_has(col1, col->nation_id, FF_HENRY_HUDSON);
 
   out_best->job = -1;
   out_best->tile = -1;
-  out_best->score = -1000000;
+  out_best->score = 0; /* local_12 = 0: DOS elects only a strictly positive score */
   out_best->yield = 0;
 
   for (int ti = 0; ti < COLONIZE_COLONY_FIELD_TILES; ++ti) {
@@ -2456,12 +2541,34 @@ static int ai_euro_28c8_score_job(
     }
     const int tx = col->x + dx;
     const int ty = col->y + dy;
+    /* DS:0x8d9e (-0x7262), FUN_15eb_26e4's 5x5 Indian-claim table. A HUMAN
+     * colony skips a claimed plot outright (raw 12993-12995); an AI colony
+     * scores it and pays the alarm term below. */
+    int claim_village = -1;
+    int claim_tribe = -1;
+    if (col1) {
+      claim_village = colonies_indian_claim_tribe_from_w(
+        &world, col->nation_id, col->x, col->y, tx, ty
+      );
+      if (claim_village >= 0 && col1->tribe) {
+        claim_tribe = (int)col1->tribe[claim_village].nation_id - 4;
+      }
+    }
+    if (env.human && claim_village >= 0) {
+      continue;
+    }
     const int terr = map_dos_terr_class_at(ctx->map, tx, ty);
-    const int penalty = map_dos_terr_labor_penalty_byte(terr);
+    /* DOS reads local_32 (the terrain class) in both branches although the
+     * decompiler only shows it assigned inside the emergency one — a
+     * register-reuse artefact; it is the same FUN_13e4_003a(tile) call. */
+    const bool forest = terr > 7 && terr < 0x18;
+    const bool lumber_idle =
+      col->stock[COLONIZE_CARGO_LUMBER] < 0xb && env.lumber_gross == 0;
     for (int job = 0; job < COLONIZE_FIELD_JOB_COUNT; ++job) {
       if (restrict_job >= 0 && job != restrict_job) {
         continue;
       }
+      const int cargo = colony_yield_job_cargo(job);
       int yld = profession >= 0
                   ? colony_yield_for_worker(
                       ctx->map, tx, ty, job, profession, has_docks, sol_b_field,
@@ -2469,32 +2576,124 @@ static int ai_euro_28c8_score_job(
                     )
                   : colony_yield_for_tile(ctx->map, tx, ty, job);
       if (yld <= 0) {
-        continue;
+        continue; /* score would be 0, which never beats local_12 */
       }
       const int raw_yield = yld;
-      if (is_ai) {
-        /* AI-only headroom clamp: colony[0x9a+job*2], floor 1 (doc's own
-         * reading of the raw asm). */
-        int headroom = pop_cap - ai_euro_28c8_job_headcount(col, job);
-        if (headroom < 1) {
-          headroom = 1;
+      if (restrict_job < 0 && cargo >= 0 && cargo < COLONIZE_CARGO_COUNT) {
+        /* raw 13004-13011: clamp to the warehouse room left for this good
+         * (capacity − colony+0x9a+cargo*2), floor 1. Not AI-gated. */
+        int room = env.capacity - col->stock[cargo];
+        if (room < 1) {
+          room = 1;
         }
-        if (yld > headroom) {
-          yld = headroom;
+        if (yld > room) {
+          yld = room;
         }
       }
-      int score = yld * 8;
-      /* Doc's own Structure §5: the DS:0x2f76+4 labor/travel penalty is an
-       * AI-full-search-branch term scoped to jobs 0/8 only ("generalist"
-       * Farmer/Fisherman slots) — NOT a universal base-score term. Fixed
-       * 2026-08-24 (W1.7 verification): the port previously subtracted it
-       * from every job's base score, which the doc's own derivation doesn't
-       * support (a golden fixture caught the resulting best-pick flip). */
-      if (is_ai && (job == COLONIZE_JOB_FARMER || job == COLONIZE_JOB_FISHERMAN)) {
-        score -= penalty;
+      /* raw 13017-13024. */
+      int score = yld * 8 + (7 - (dx < 0 ? -dx : dx) - (dy < 0 ? -dy : dy));
+      if (restrict_job < 0 && job == current_job && env.human) {
+        score <<= 1; /* raw 13025 — human colonies only */
       }
-      if (job == current_job) {
-        score *= 2; /* sticky preference for the colonist's current job */
+      if (restrict_job < 0) {
+        if (env.food_emerg) {
+          if (job == COLONIZE_JOB_FARMER || job == COLONIZE_JOB_FISHERMAN) {
+            if (job == COLONIZE_JOB_FISHERMAN && score != 0) {
+              score += 8;
+            }
+            score <<= 5;
+            if (score != 0) {
+              int pen = map_dos_terr_labor_penalty_byte(terr);
+              if (forest && lumber_idle) {
+                pen += 0x18;
+              }
+              score -= pen;
+              if (score < 1) {
+                score = 1;
+              }
+            }
+          }
+          if (claim_village >= 0) {
+            score >>= 1;
+          }
+        } else {
+          int w4 = 0; /* local_4 */
+          if (job == COLONIZE_JOB_FARMER || job == COLONIZE_JOB_FISHERMAN) {
+            if (col->population < COLONIZE_COLONY_FIELD_TILES * 2 && in_ai_tick) {
+              w4 = 4;
+            }
+            if (env.human && w4 == 0) {
+              w4 = 1;
+            }
+          } else if (cargo >= 0 && cargo < COLONIZE_CARGO_COUNT) {
+            /* DS:0x84bc[nation*0x10 + cargo] — the per-nation Europe SELL
+             * price byte (euro_price − 1, clamped at 0; europe.c). */
+            if (col1) {
+              const int p = (int)col1->nation[col->nation_id].trade.euro_price[cargo] - 1;
+              w4 = p < 0 ? 0 : p;
+            }
+            if (!env.human && cargo == COLONIZE_CARGO_ORE && col->population > 7 &&
+                env.turn > 0x4f && ctx->euro_power_rank_ok &&
+                ctx->euro_power_rank[ctx->human_nation] <= ctx->euro_power_rank[col->nation_id]) {
+              w4 += 2;
+              /* FUN_15eb_039e(0x28) / (3): owned tiers of the Blacksmith and
+               * Armory chains — not an RNG draw. */
+              w4 += ai_euro_28c8_chain_owned_upto(
+                ctx->colonies, col, COLONIES_CHAIN_BLACKSMITH, 2
+              );
+              w4 += ai_euro_28c8_chain_owned_upto(
+                      ctx->colonies, col, COLONIES_CHAIN_ARMORY, 1
+                    ) * 2;
+            }
+          }
+          int m = w4 + 1; /* local_38 */
+          const int sc = (cargo >= 0 && cargo < COLONIZE_CARGO_COUNT) ? cargo : 0;
+          if (env.shortfall[sc] == 0 && env.unmet[sc] == 0) {
+            if (job == COLONIZE_JOB_LUMBERJACK &&
+                col->stock[COLONIZE_CARGO_LUMBER] + env.lumber_gross > 1) {
+              m = w4;
+            }
+          } else {
+            m = w4 + 2;
+            if (env.unmet[sc] != 0) {
+              score <<= 1;
+            }
+          }
+          /* FUN_15eb_15c6(DS:0x2b6[job]) — does a consumer workplace exist. */
+          {
+            const int chain = ai_euro_28c8_consumer_chain(job);
+            if (chain >= 0) {
+              m += 1;
+            }
+          }
+          if (claim_tribe >= 0) {
+            const int alarm =
+              ai_diplo_indian_alarm(col1, claim_tribe + 4, col->nation_id);
+            int t = -(alarm - 4);
+            const int cont = env.continent;
+            if (cont >= 0 && cont < 16 &&
+                col1->stuff.unit_value_sum_by_continent[col->nation_id * 0x10 + cont] <
+                  col1->stuff.tribe_dwellings_91cc[claim_tribe * 0x10 + cont]) {
+              t = (alarm - 4) * -2;
+            }
+            if (col1->stuff.land_combat_totals[col->nation_id] <
+                col1->stuff.tribe_data_9184[claim_tribe]) {
+              t = t * 3 >> 1;
+            }
+            t -= env.mil_count;
+            if (t < 0) {
+              t = 0;
+            }
+            m -= t;
+          }
+          if (m < 0) {
+            m = 0;
+          }
+          score = (m + w4) * score;
+          if (cargo != COLONIZE_CARGO_LUMBER && forest && lumber_idle) {
+            score -= 10; /* raw 13124-13130 */
+          }
+        }
       }
       if (score > out_best->score) {
         out_best->score = score;
@@ -2507,7 +2706,24 @@ static int ai_euro_28c8_score_job(
   return out_best->job >= 0 ? 1 : 0;
 }
 
-/* DOS `FUN_1000_8d5e(colony, slot, −1)` — the unrestricted all-jobs search. */
+/*
+ * DOS `FUN_15eb_28c8(slot, job)` as the FUN_5952_035e colony tick calls it:
+ * DS:0x35e is 1 for the whole tick, so the food-emergency branch is off.
+ */
+static int ai_euro_28c8_score_job(
+  const ColonizeTurnContext* ctx,
+  const ColonizeColony* col,
+  int colonist_slot,
+  int profession,
+  int restrict_job,
+  AiEuro28c8JobCandidate* out_best
+) {
+  return ai_euro_28c8_score_full(
+    ctx, col, colonist_slot, profession, restrict_job, 1, out_best
+  );
+}
+
+/* DOS `FUN_15eb_28c8(slot, −1)` — the unrestricted all-jobs search. */
 static int ai_euro_28c8_score(
   const ColonizeTurnContext* ctx,
   const ColonizeColony* col,
@@ -2531,8 +2747,54 @@ int ai_euro_28c8_colonist_job_score_structural(
   if (!col || !col->active || colonist_slot < 0 || colonist_slot >= col->colonist_count) {
     return 0;
   }
-  return ai_euro_28c8_score(ctx, col, colonist_slot, -1, out_best);
+  return ai_euro_28c8_score_full(ctx, col, colonist_slot, -1, -1, 0, out_best);
 }
+
+/*
+ * FUN_15eb_2ea0 (raw 13162-13196) — the plot pass of DOS's generic colony
+ * recompute FUN_15eb_3930 (`268e(); 287e(); 2ea0();`), run for HUMAN colonies
+ * too (bugs.md #562). Every colonist not standing on a plot whose occupation
+ * is a field job (FUN_15eb_0e18 < 9) is put through 28c8; when that finds
+ * nothing the colonist becomes a Carpenter (`FUN_15eb_1068(slot, 0xd)`),
+ * never a bell-ringer.
+ *
+ * `colonist_slot` >= 0 restricts the pass to one colonist — the join path
+ * (colonies_admit / ORDERS Join Colony), which is the caller bugs.md #562 is
+ * about. -1 walks the whole roster.
+ *
+ * Colonists carrying DOS occupation 0x13 (@JOB row 19, plain "Colonist") are
+ * NOT in scope: 0e18 returns 19 for them, which fails the `< 9` gate, and
+ * tests/golden/colony_prod01 (a DOS COLONY00->01 capture) proves DOS leaves
+ * such a colonist unproductive rather than seating him. The port spells that
+ * out at the call sites — colonies_auto_assign_idle keeps its own stale-save
+ * sweep for them (colony.c).
+ */
+void ai_euro_28c8_auto_assign_plots(ColonizeTurnContext* ctx, int colony_id, int colonist_slot) {
+  if (!ctx || !ctx->colonies || !ctx->map) {
+    return;
+  }
+  ColonizeColony* col = colonies_get_mut(ctx->colonies, colony_id);
+  if (!col || !col->active) {
+    return;
+  }
+  for (int s = 0; s < col->colonist_count; ++s) {
+    if (colonist_slot >= 0 && s != colonist_slot) {
+      continue;
+    }
+    ColonizeColonist* c = &col->colonists[s];
+    if (!c->active || c->building_type >= 0 || colonies_colonist_tile(col, s) >= 0) {
+      continue;
+    }
+    AiEuro28c8JobCandidate best;
+    const int ok =
+      ai_euro_28c8_score_full(ctx, col, s, c->profession, -1, 0, &best);
+    if (ok && colonies_assign_field(ctx->colonies, colony_id, s, best.tile, best.job)) {
+      continue;
+    }
+    colonies_assign_carpenter_fallback(ctx->colonies, colony_id, s);
+  }
+}
+
 
 /*
  * DOS FUN_281f_0c9a → FUN_15eb_0002 (viceroy_unpacked.c 9298-9307): the
@@ -3564,20 +3826,31 @@ COLONIZE_INTERNAL void ai_euro_5952_set_absorb_census(
   }
 }
 
-/* DS:0x864, 6 rows of {root @BUILDING, @JOB, input @CARGO}. */
+/*
+ * DS:0x864, 6 rows of 4 bytes. Recovered verbatim from VICEROY.EXE at EXE
+ * offset 121248 + 0x864 (bugs.md #572):
+ *   03 0f 0e 0f | 27 0e 06 0e | 20 0c 04 0c
+ *   1b 09 01 09 | 18 0a 02 0a | 15 0b 03 0b
+ * (the next bytes are the "GAME" literal, so the table really is 6 rows).
+ * Columns: {root @BUILDING, @JOB, input @CARGO, @JOB again} — the fourth
+ * byte duplicates the second in every row, and only columns 0/1/2 are read
+ * (asm OVL15 0x27cf-0x2837: `[BX+0x864]` -> FUN_1000_8ca0, `[BX+0x866]`*2 ->
+ * `[BX+0x8dc8]` gross ledger, `[BX+0x865]`*2 -> the aiStack_68 census).
+ */
 typedef struct AiEuro5952Craft {
   int root;  /* DOS @BUILDING index */
   int chain; /* COLONIES_CHAIN_* */
   int cargo; /* input @CARGO */
+  int job;   /* DS:0x864 column 1 = @JOB */
 } AiEuro5952Craft;
 
 static const AiEuro5952Craft k_5952_craft[6] = {
-  {0x03, COLONIES_CHAIN_ARMORY, COLONIZE_CARGO_TOOLS},
-  {0x27, COLONIES_CHAIN_BLACKSMITH, COLONIZE_CARGO_ORE},
-  {0x20, COLONIES_CHAIN_FUR, COLONIZE_CARGO_FURS},
-  {0x1b, COLONIES_CHAIN_RUM, COLONIZE_CARGO_SUGAR},
-  {0x18, COLONIES_CHAIN_TOBACCONIST, COLONIZE_CARGO_TOBACCO},
-  {0x15, COLONIES_CHAIN_WEAVER, COLONIZE_CARGO_COTTON},
+  {0x03, COLONIES_CHAIN_ARMORY, COLONIZE_CARGO_TOOLS, COLONIZE_PROF_GUNSMITH},
+  {0x27, COLONIES_CHAIN_BLACKSMITH, COLONIZE_CARGO_ORE, COLONIZE_PROF_BLACKSMITH},
+  {0x20, COLONIES_CHAIN_FUR, COLONIZE_CARGO_FURS, COLONIZE_PROF_FUR_TRADER},
+  {0x1b, COLONIES_CHAIN_RUM, COLONIZE_CARGO_SUGAR, COLONIZE_PROF_DISTILLER},
+  {0x18, COLONIES_CHAIN_TOBACCONIST, COLONIZE_CARGO_TOBACCO, COLONIZE_PROF_TOBACCONIST},
+  {0x15, COLONIES_CHAIN_WEAVER, COLONIZE_CARGO_COTTON, COLONIZE_PROF_WEAVER},
 };
 
 /*
@@ -4122,6 +4395,288 @@ wants:
     (uint8_t)(col->build_ai_flags | COLONIZE_BUILD_AI_WANTS_CONSTRUCTION);
 }
 
+/*
+ * DS:0x8ea8, @JOB column 3 ("price"), stride 8 — the word DOS reads as
+ * `*(uint *)(row * 8 + -0x7158)`. NAMES.TXT carries it as the fourth field
+ * of the @JOB record ("Farmer, Expert Farmers, 1, 1100"); rows that cannot
+ * be trained on the Europe dock carry -1, and DOS sign-extends the word with
+ * CWD before the 32-bit subtract, so a -1 row ADDS one gold. No catalog
+ * (empty section) answers INT_MIN and the caller skips the whole arm.
+ */
+static int ai_euro_5952_job_price(int row) {
+  const char* s = reports_names_field("JOB", row, 3);
+  if (!s) {
+    return INT_MIN;
+  }
+  while (*s == ' ' || *s == '\t') {
+    ++s;
+  }
+  if (!*s) {
+    return INT_MIN;
+  }
+  return (int)strtol(s, NULL, 10);
+}
+
+/*
+ * FUN_1000_8dfe -> FUN_15eb_0e18, colony +0x20+slot = the colonist's
+ * OCCUPATION (the job he is doing right now), as opposed to +0x40+slot =
+ * his profession. The port stores a field job directly and leaves indoor
+ * work implicit in `building_type`, so an indoor worker's occupation is
+ * recovered from the chain his workplace belongs to. -1 = idle.
+ */
+static int ai_euro_5952_occupation(
+  const ColonizeColonyPool* pool, const ColonizeColony* col, int slot
+) {
+  const ColonizeColonist* c = &col->colonists[slot];
+  if (c->field_job >= 0) {
+    return c->field_job;
+  }
+  if (c->building_type < 0) {
+    return -1;
+  }
+  for (int job = COLONIZE_PROF_DISTILLER; job <= COLONIZE_PROF_STATESMAN; ++job) {
+    const char* const* names = colonies_building_chain(ai_euro_5952_job_chain(job));
+    for (int i = 0; names && names[i]; ++i) {
+      if (colonies_find_building(pool, names[i]) == c->building_type) {
+        return job;
+      }
+    }
+  }
+  return -1;
+}
+
+/*
+ * ARM 2's candidate pick, raw 95926-95944 (asm OVL15 0x2940-0x29c7), split
+ * out so a unit test can drive it without a whole turn context. Returns the
+ * @JOB to buy (0x1c = "buy nothing") and, through `out_slot`, the colonist
+ * DOS picks: the LAST non-expert, non-Convert slot. `uStack_ec` bit 0 tracks
+ * "this colony already has an Expert Farmer", bit 1 "… an Expert Fisherman".
+ */
+COLONIZE_INTERNAL int ai_euro_5952_train_pick(
+  const ColonizeColony* col, int n, bool has_docks, int* out_slot
+) {
+  int last = -1;   /* iStack_30 */
+  int have = 0;    /* uStack_ec */
+  for (int s = 0; s < n; ++s) {
+    if (!col->colonists[s].active) {
+      continue;
+    }
+    const int prof = col->colonists[s].profession;
+    if (prof == COLONIZE_PROF_FARMER) {
+      have |= 1;
+    }
+    if (prof == COLONIZE_PROF_FISHERMAN) {
+      have |= 2;
+    }
+    if (!ai_euro_5952_job_is_expert(prof) && prof != COLONIZE_PROF_CONVERT) {
+      last = s;
+    }
+  }
+  if (out_slot) {
+    *out_slot = last;
+  }
+  if (last < 0) {
+    return COLONIZE_PROF_FREE_COLONIST; /* iStack_ee stays 0x1c */
+  }
+  if ((have & 2) == 0 && has_docks) {
+    return COLONIZE_PROF_FISHERMAN;
+  }
+  if ((have & 1) == 0) {
+    return COLONIZE_PROF_FARMER;
+  }
+  return COLONIZE_PROF_FREE_COLONIST;
+}
+
+/*
+ * DOS-LITERAL FUN_5952_035e raw ~95860-95958 — the two specialist arms that
+ * close the AI colony tick, both unported until 2026-09-22 (bugs.md #571 /
+ * #572). Clean body colony_tick_5952_035e.md:1653-1749, asm
+ * viceroy_overlays.asm OVL15 0x274b-0x29ff.
+ *
+ * Two counts feed them, taken at md:1459-1464 right before the arms:
+ *   iVar12     = FUN_1000_8d72(0) + FUN_1000_8d72(8)  // colonists WORKING
+ *                                                     // @JOB 0 / @JOB 8
+ *   iStack_a   = FUN_1000_8de0(0) + FUN_1000_8de0(8)  // colonists whose
+ *                                                     // PROFESSION is 0 / 8
+ * and the training flag (asm 0x2296-0x22bc):
+ *   if (pop/2 < iVar12 && iVar12 > 1) local_a0 = 1;
+ *   if (DS:0x8e5a != 0)               local_a0 = 1;   // colony short of FOOD
+ * The audit read `iVar12` as an expert count; the asm is unambiguous that
+ * the pair at [BP+0xfe4a] and [BP-0x8] are FUN_1000_8d72 (count by JOB) and
+ * FUN_1000_8de0 (count by PROFESSION) respectively.
+ *
+ * ARM 1 — the schoolhouse/expert election (0x274b). Gated on the colony
+ * owning something along @BUILDING chain 0xc (Schoolhouse/College/
+ * University) and `((count == 3) + count) * 4 <= improve_timer` (4 / 8 / 16
+ * turns). Target:
+ *   - pop < 10 and food-experts <= food-workers:
+ *       Fishermen-by-profession < water ring tiles ? @JOB 8 : @JOB 0;
+ *   - then the DS:0x864 sweep overrides it for any craft whose building
+ *     chain is built out (2 tiers, or 1 for the Armory root 0x03), whose
+ *     input cargo is actually being produced, and whose @JOB the colony has
+ *     nobody of — and the override writes the ROW INDEX, not the row's @JOB:
+ *     `MOV AX,[BP+0xff56]; MOV [BP+0xff78],AX` (asm 0x2830). That is a DOS
+ *     bug and it is kept: a colony that lacks a Gunsmith elects @JOB 0
+ *     (Expert Farmer), one that lacks a Blacksmith elects @JOB 1, and so on
+ *     through row 5 -> @JOB 5 (Expert Lumberjack).
+ *   The candidate list is every colonist who is NOT an expert, or is an
+ *   expert working something other than his specialty (occupation != 0x13),
+ *   excluding Converts, capped at 25; one is drawn with FUN_1000_86c4(0,
+ *   n-1), his profession is written and improve_timer is zeroed.
+ *   Default target for a small colony with little water: @JOB 0.
+ *
+ * ARM 2 — "train an expert in the colony" (0x290c). Gated on local_a0, on
+ * the nation record's tax rate (`*(char *)(DS:0x84fc + 1) <= 0x19`) and on
+ * the purse covering @JOB row 0's price (1100). It finds the LAST non-expert
+ * non-Convert colonist and makes him an Expert Fisherman when the colony has
+ * no Fisherman and owns Docks, else an Expert Farmer when it has no Farmer;
+ * then it debits `*(uint *)(slot * 8 + -0x7158)`. That index really is the
+ * colonist SLOT, not the profession: asm 0x29d4 is
+ * `MOV BX,[BP-0x2e]; SHL BX,0x3; MOV AX,[BX+0x8ea8]; CWD`, and [BP-0x2e] is
+ * the same word pushed to FUN_1000_8e9e as the slot argument two
+ * instructions earlier. DOS therefore charges the AI @JOB[slot]'s price, not
+ * @JOB[target]'s — kept DOS-literal (bugs.md #571).
+ *
+ * Port deviations, both documented rather than modelled: DOS's candidate
+ * walk in ARM 1 runs to `pop + DS:0x8d72`, i.e. past the colonists into the
+ * units parked on the colony tile, and DOS's aiStack_68 census is the
+ * snapshot taken before the tick's absorption loop. The port walks the
+ * colony roster only and recomputes the census here.
+ */
+static void ai_euro_5952_specialist_arms(
+  ColonizeTurnContext* ctx, ColonizeColony* col, int n
+) {
+  ColonizeColonyPool* pool = ctx->colonies;
+  const ColonizeCol1Save* col1 = (ctx->col1_ok && ctx->col1) ? ctx->col1 : NULL;
+  const int nation = col->nation_id;
+  if (nation < 0 || nation >= 4) {
+    return;
+  }
+
+  /* aiStack_68 — per-@JOB census, non-experts folded to 0x13 (md:633-641). */
+  int census[0x19];
+  memset(census, 0, sizeof census);
+  int food_experts = 0; /* iStack_a  = 8de0(0) + 8de0(8) */
+  int food_workers = 0; /* iVar12    = 8d72(0) + 8d72(8) */
+  for (int s = 0; s < n; ++s) {
+    if (!col->colonists[s].active) {
+      continue;
+    }
+    int prof = col->colonists[s].profession;
+    if (prof == COLONIZE_PROF_FARMER || prof == COLONIZE_PROF_FISHERMAN) {
+      ++food_experts;
+    }
+    const int job = col->colonists[s].field_job;
+    if (job == COLONIZE_JOB_FARMER || job == COLONIZE_JOB_FISHERMAN) {
+      ++food_workers;
+    }
+    if (!ai_euro_5952_job_is_expert(prof)) {
+      prof = 0x13;
+    }
+    if (prof >= 0 && prof < (int)(sizeof census / sizeof census[0])) {
+      ++census[prof];
+    }
+  }
+
+  /* iStack_1a — ring tiles of terrain class 0x19/0x1a (Ocean / High Seas). */
+  int water_ring = 0;
+  for (int ti = 0; ti < COLONIZE_COLONY_FIELD_TILES; ++ti) {
+    int dx = 0;
+    int dy = 0;
+    if (!colonies_field_tile_delta(ti, &dx, &dy)) {
+      continue;
+    }
+    if (map_tile_is_water(ctx->map, col->x + dx, col->y + dy)) {
+      ++water_ring;
+    }
+  }
+
+  const ColonizeWorld world = world_from_turn_ctx(ctx);
+  int gross[AI_EURO_5952_LEDGER_SLOTS];
+  int demand[AI_EURO_5952_LEDGER_SLOTS];
+  ai_euro_5952_ledgers(&world, pool, col, col1, gross, demand);
+
+  /* DS:0x8e5a — slot 0 (FOOD) of the FUN_15eb_1f72 unmet-demand ledger:
+   * FUN_15eb_0b52 records a row when stock + production < demand. */
+  const bool food_short =
+    col->stock[COLONIZE_CARGO_FOOD] + gross[COLONIZE_CARGO_FOOD] <
+    demand[COLONIZE_CARGO_FOOD];
+  const bool train_flag =
+    ((col->population / 2) < food_workers && food_workers > 1) || food_short;
+
+  /* ---- ARM 1: improve_timer-gated expert election (asm 0x274b) ---- */
+  const int school_chain = ai_euro_5952_chain_owned(pool, col, COLONIES_CHAIN_SCHOOL, NULL, NULL);
+  if (school_chain != 0 &&
+      ((school_chain == 3 ? 1 : 0) + school_chain) * 4 <= (int)col->improve_timer) {
+    int target = -1; /* iStack_8a */
+    if (col->population < 10 && food_experts <= food_workers) {
+      target = census[COLONIZE_PROF_FISHERMAN] < water_ring ? COLONIZE_PROF_FISHERMAN
+                                                            : COLONIZE_PROF_FARMER;
+    }
+    for (int r = 0; r < 6; ++r) {
+      const int owned = ai_euro_5952_chain_owned(pool, col, k_5952_craft[r].chain, NULL, NULL);
+      const int need = k_5952_craft[r].root == 0x03 ? 1 : 2;
+      if (owned >= need && gross[k_5952_craft[r].cargo] != 0 &&
+          census[k_5952_craft[r].job] == 0) {
+        target = r; /* DOS-LITERAL: the ROW INDEX, not k_5952_craft[r].job */
+      }
+    }
+    int cand[0x19];
+    int n_cand = 0;
+    for (int s = 0; s < n && n_cand < 0x19; ++s) {
+      if (!col->colonists[s].active) {
+        continue;
+      }
+      const int prof = col->colonists[s].profession;
+      const int occ = ai_euro_5952_occupation(pool, col, s);
+      if (!((!ai_euro_5952_job_is_expert(prof) || (prof != occ && occ != 0x13)) &&
+            prof != COLONIZE_PROF_CONVERT)) {
+        continue;
+      }
+      cand[n_cand++] = s;
+    }
+    if (n_cand != 0) {
+      const int pick = cand[dos_rng_range(ctx->rng, 0, n_cand - 1)];
+      int elected = target;
+      if (elected < 0) {
+        elected = ai_euro_5952_occupation(pool, col, pick);
+      }
+      if (elected >= 0) {
+        col->colonists[pick].profession = elected;
+      }
+      col->improve_timer = 0;
+    }
+  }
+
+  /* ---- ARM 2: buy an expert for this colony (asm 0x290c) ---- */
+  if (!train_flag) {
+    return;
+  }
+  const int tax = col1 ? (int)col1->nation[nation].tax_rate : 0;
+  if (tax > 0x19) {
+    return;
+  }
+  const int gate_price = ai_euro_5952_job_price(COLONIZE_PROF_FARMER);
+  if (gate_price == INT_MIN) {
+    return; /* no @JOB catalog: nothing to price the purchase against */
+  }
+  if ((long)(int32_t)europe_nation_gold(ctx->europe, ctx->col1, nation) < (long)gate_price) {
+    return;
+  }
+  int last = -1;
+  const int trained =
+    ai_euro_5952_train_pick(col, n, colony_yield_colony_has_docks(pool, col), &last);
+  if (trained == COLONIZE_PROF_FREE_COLONIST) {
+    return;
+  }
+  col->colonists[last].profession = trained;
+  /* DOS-LITERAL: the price row is the colonist SLOT (asm 0x29d4). */
+  const int charged = ai_euro_5952_job_price(last);
+  if (charged != INT_MIN) {
+    europe_nation_gold_add(ctx->europe, ctx->col1, nation, -(long)charged);
+  }
+}
+
 static void ai_euro_colony_tick_28c8_reassign(ColonizeTurnContext* ctx, int nation_id) {
   if (!ctx || !ctx->colonies || !ctx->map || nation_id == ctx->human_nation) {
     return;
@@ -4138,8 +4693,25 @@ static void ai_euro_colony_tick_28c8_reassign(ColonizeTurnContext* ctx, int nati
     for (int s = 0; s < n; ++s) {
       const ColonizeColonist* c = &col->colonists[s];
       prev_job[s] = c->field_job;
-      /* Building workers and inactive slots are out of scope this tick. */
-      placed[s] = !c->active || c->building_type >= 0;
+      /*
+       * DOS-LITERAL FUN_5952_035e raw 94551-94564 (clean body
+       * colony_tick_5952_035e.md:1030-1043): the tick idles EVERY colonist
+       * before the food pass —
+       *   for (slot) { prof[slot] = 8e44(slot); placed[slot] = 0;
+       *                8c6e(slot,0); 8e26(slot,0x12); }
+       *   memset(colony+0x70, 0xff, 0x14);
+       * `8e26(slot, 0x12)` is FUN_15eb_1068 with the idle sentinel job and
+       * carries no "indoor workers are exempt" test, and the plot memset
+       * wipes all 20 tile bytes. Building workers are therefore unseated
+       * too, and the indoor pass at raw 94784 (ai_euro_5952_indoor_pass)
+       * re-elects an indoor job for everyone the field passes left over —
+       * so nobody is lost. The port used to seed
+       * `placed[s] = ... || c->building_type >= 0`, which had no DOS
+       * counterpart and meant a starving AI colony could never pull a
+       * Statesman or a stuck Expert Farmer out of a building onto a food
+       * tile (bugs.md #569).
+       */
+      placed[s] = !c->active;
     }
     for (int s = 0; s < n; ++s) {
       if (placed[s]) {
@@ -4150,6 +4722,7 @@ static void ai_euro_colony_tick_28c8_reassign(ColonizeTurnContext* ctx, int nati
         colonies_clear_field(ctx->colonies, col->id, ti);
       }
       col->colonists[s].field_job = -1;
+      col->colonists[s].building_type = -1; /* raw 94557 `8e26(slot, 0x12)` */
     }
 
     const bool fishable = colony_yield_colony_has_docks(ctx->colonies, col);
@@ -4168,19 +4741,34 @@ static void ai_euro_colony_tick_28c8_reassign(ColonizeTurnContext* ctx, int nati
     /* DOS `goto LAB_5952_178f`: ends the whole placement section, not a pass. */
     bool section_done = false;
 
-    /* Pass 1 — food, from the slots that were feeding the colony. */
+    /*
+     * Pass 1 — the FOOD pass. DOS-LITERAL raw 94592-94594
+     * (colony_tick_5952_035e.md:1071-1075):
+     *   if (placed[slot] == 0 &&
+     *       (prof[slot] == 0 ||
+     *        (prof[slot] == 8 && FUN_1000_8bec(0x181f, 6) != 0)) &&
+     *       FUN_1000_8d5e(0x181f, slot, prof[slot]) == 0)
+     * `aiStack_12e[]` is filled from FUN_1000_8e44 (colony +0x40+slot), i.e.
+     * the colonist's PROFESSION, not his previous field job — so only an
+     * Expert Farmer (@JOB 0), or an Expert Fisherman (@JOB 8) in a colony
+     * with Docks (@BUILDING 6), enters this pass, and the 28c8 call is
+     * RESTRICTED to that job (third argument = the profession, not 0xffff),
+     * so a food-pass slot can only ever land on a food plot. The port gated
+     * on `prev_job[]` and called the unrestricted search (bugs.md #567).
+     */
     for (int s = 0; s < n && food_have < food_need; ++s) {
       if (placed[s]) {
         continue;
       }
-      const bool was_food = prev_job[s] == COLONIZE_JOB_FARMER ||
-                            (prev_job[s] == COLONIZE_JOB_FISHERMAN && fishable);
+      const int food_prof = col->colonists[s].profession;
+      const bool was_food = food_prof == COLONIZE_PROF_FARMER ||
+                            (food_prof == COLONIZE_PROF_FISHERMAN && fishable);
       if (!was_food) {
         continue;
       }
       AiEuro28c8JobCandidate best;
       col->colonists[s].field_job = prev_job[s]; /* sticky ×2 on the old job */
-      const int ok = ai_euro_28c8_score(ctx, col, s, col->colonists[s].profession, &best);
+      const int ok = ai_euro_28c8_score_job(ctx, col, s, food_prof, food_prof, &best);
       col->colonists[s].field_job = -1;
       if (!ok || best.yield < 3) {
         section_done = true; /* raw 94596 */
@@ -4208,6 +4796,23 @@ static void ai_euro_colony_tick_28c8_reassign(ColonizeTurnContext* ctx, int nati
          */
         const int shortfall = food_need > food_have ? food_need - food_have : 0;
         const bool plenty = (shortfall * 0x10) < food_stock;
+        /*
+         * DOS-LITERAL raw 94600-94604 (md:1088-1092) — the admission test the
+         * port was missing entirely (bugs.md #568):
+         *   iVar11 = FUN_1000_8e8a(0x181f, prof[slot]);   // is_expert
+         *   if (((iVar11 == 0) || (local_84 == 0 && pass != 0)) &&
+         *       ((local_84 == 0) || (pass != 0 || prof[slot] == 0x1b)) && ...)
+         * With food plentiful (`local_84`), the FIRST sub-pass admits only
+         * Indian Converts (@JOB 0x1b) and experts are barred from it
+         * altogether; experts enter on the second sub-pass and only when food
+         * is NOT plentiful.
+         */
+        const int prof2 = col->colonists[s].profession;
+        const bool expert2 = ai_euro_5952_job_is_expert(prof2);
+        if (!((!expert2 || (!plenty && pass != 0)) &&
+              (!plenty || (pass != 0 || prof2 == COLONIZE_PROF_CONVERT)))) {
+          continue;
+        }
         AiEuro28c8JobCandidate best;
         col->colonists[s].field_job = prev_job[s];
         const int ok = ai_euro_28c8_score(ctx, col, s, col->colonists[s].profession, &best);
@@ -4364,6 +4969,8 @@ static void ai_euro_colony_tick_28c8_reassign(ColonizeTurnContext* ctx, int nati
      */
     if (ai_euro_5952_indoor_pass_enabled()) {
       ai_euro_5952_indoor_pass(ctx, col, placed, n);
+      /* DOS raw ~95860-95958, the tick's last two arms (bugs.md #571/#572). */
+      ai_euro_5952_specialist_arms(ctx, col, n);
       continue;
     }
 
@@ -4421,6 +5028,7 @@ static void ai_euro_colony_tick_28c8_reassign(ColonizeTurnContext* ctx, int nati
         (void)colonies_assign_field(ctx->colonies, col->id, s, best.tile, best.job);
       }
     }
+    ai_euro_5952_specialist_arms(ctx, col, n);
   }
 }
 

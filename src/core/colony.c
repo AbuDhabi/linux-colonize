@@ -5,6 +5,7 @@
 #include <string.h>
 
 #include "core/ai_popup.h"
+#include "core/ai_euro.h"
 #include "core/col1_save.h"
 #include "core/dos_rng.h"
 #include "core/font.h"
@@ -1608,10 +1609,85 @@ int colonies_admit_unit_w(
   /* bugs.md #256: every admit path (AI joins, capture, save import) puts the
    * newcomer to work immediately — DOS has no idle colonists, and an idle
    * one made the head count disagree with the visible workers. */
-  colonies_auto_assign_idle(pool, colony_id);
+  colonies_seat_new_colonist(pool, colony_id, idx);
   return idx;
 }
 
+/*
+ * DOS `FUN_15eb_1068(slot, 0xd)` — the auto-assign fallback both
+ * FUN_15eb_2ea0 (raw 13189-13192) and FUN_15eb_28c8 (raw 13152) use when no
+ * work plot scores: @JOB row 13, Carpenter. DOS sets the job unconditionally;
+ * the port needs a workplace to put the colonist in, so it seats him in the
+ * Carpenter chain when the colony owns one and only then falls back to any
+ * other non-school building (bugs.md #6/#256/#408 keep their intent: no idle
+ * colonist, and never a silent re-seat at a school).
+ */
+void colonies_assign_carpenter_fallback(ColonizeColonyPool* pool, int colony_id, int colonist_index) {
+  ColonizeColony* col = colonies_get_mut(pool, colony_id);
+  if (!pool || !col) {
+    return;
+  }
+  const char* const* chain = colonies_building_chain(COLONIES_CHAIN_CARPENTER);
+  for (int i = 0; chain && chain[i]; ++i) {
+    const int bi = colonies_find_building(pool, chain[i]);
+    if (bi >= 0 && bi < COLONIZE_BUILDING_TYPES_MAX && col->has_building[bi] &&
+        colonies_assign_workplace(pool, colony_id, colonist_index, bi)) {
+      return;
+    }
+  }
+  for (int bi = 0; bi < pool->building_type_count; ++bi) {
+    if (!col->has_building[bi] || colonies_school_building_tier(pool, bi) > 0) {
+      continue;
+    }
+    if (colonies_assign_workplace(pool, colony_id, colonist_index, bi)) {
+      return;
+    }
+  }
+}
+
+/*
+ * bugs.md #562: DOS's join path is FUN_15eb_3930 -> FUN_15eb_2ea0 ->
+ * FUN_15eb_28c8 — the newcomer takes the best-scoring WORK PLOT, and only when
+ * nothing scores does he become a Carpenter (`1068(slot, 0xd)`). The port used
+ * to seat every joiner in the Town Hall, which has no DOS counterpart at all,
+ * so an Expert Farmer joining a colony with a free Plains plot made 0 food.
+ */
+void colonies_seat_new_colonist(ColonizeColonyPool* pool, int colony_id, int colonist_index) {
+  ColonizeColony* col = colonies_get_mut(pool, colony_id);
+  if (!pool || !col || colonist_index < 0 || colonist_index >= col->colonist_count) {
+    return;
+  }
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.colonies = pool;
+  ctx.map = g_colonies_occupancy_map;
+  ctx.col1 = g_colonies_col1;
+  ctx.col1_ok = g_colonies_col1 != NULL;
+  /* bVar1 (raw 12952-12958) is `colony+0x1a < 4 && player[nation].control
+   * == 0` — a per-colony test, so feeding the scorer this colony's own nation
+   * when it is human-controlled answers it exactly (and keeps colony.c free of
+   * a save-layer call the slim test targets do not link). */
+  ctx.human_nation = -1;
+  if (g_colonies_col1 && col->nation_id >= 0 && col->nation_id < 4 &&
+      g_colonies_col1->player[col->nation_id].control == 0) {
+    ctx.human_nation = col->nation_id;
+  }
+  if (!ctx.map) {
+    /* No map bound (headless import / unit tests): DOS's no-plot outcome. */
+    colonies_assign_carpenter_fallback(pool, colony_id, colonist_index);
+    return;
+  }
+  ai_euro_28c8_auto_assign_plots(&ctx, colony_id, colonist_index);
+}
+
+/*
+ * Stale-save sweep, NOT a DOS routine: a colonist imported with DOS
+ * occupation 0x13 (@JOB row 19, plain "Colonist") is genuinely idle in DOS —
+ * FUN_15eb_0e18 returns 19, so FUN_15eb_2ea0's `< 9` gate skips him, and the
+ * colony_prod01 DOS capture shows he stays unproductive. The port still needs
+ * him visible on the settlement grid (bugs.md #6/#256), so he is parked in a
+ * building; new joiners go through colonies_seat_new_colonist instead.
+ */
 void colonies_auto_assign_idle(ColonizeColonyPool* pool, int colony_id) {
   ColonizeColony* col = colonies_get_mut(pool, colony_id);
   if (!pool || !col) {
@@ -1626,22 +1702,8 @@ void colonies_auto_assign_idle(ColonizeColonyPool* pool, int colony_id) {
     if (town_hall >= 0 && colonies_assign_workplace(pool, colony_id, i, town_hall)) {
       continue;
     }
-    for (int bi = 0; bi < pool->building_type_count; ++bi) {
-      if (bi == town_hall || !col->has_building[bi]) {
-        continue;
-      }
-      /* bugs.md (veterans kept teaching after being pulled from the school):
-       * teaching is an explicit player choice — the idle sweep must never
-       * quietly seat a specialist back at the Schoolhouse/College/University
-       * (it did whenever Town Hall was full, so "unassigned" teachers
-       * resumed graduating Veteran Soldiers). */
-      if (colonies_school_building_tier(pool, bi) > 0) {
-        continue;
-      }
-      if (colonies_assign_workplace(pool, colony_id, i, bi)) {
-        break;
-      }
-    }
+    /* bugs.md #408: never quietly seat a specialist back at a school. */
+    colonies_assign_carpenter_fallback(pool, colony_id, i);
   }
 }
 

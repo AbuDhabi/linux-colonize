@@ -750,6 +750,16 @@ int colonies_admit_unit_w(
 /* bugs.md #256: assign every job-less colonist a workplace (Town Hall first).
  * DOS never carries idle colonists; runs after admits and each EOT. */
 void colonies_auto_assign_idle(ColonizeColonyPool* pool, int colony_id);
+
+/* DOS FUN_15eb_3930 -> 2ea0 -> 28c8 for one just-admitted colonist: best work
+ * plot, else Carpenter (bugs.md #562). */
+void colonies_seat_new_colonist(ColonizeColonyPool* pool, int colony_id, int colonist_index);
+
+/* DOS FUN_15eb_1068(slot, 0xd): the Carpenter fallback both 2ea0 and 28c8 use
+ * when no work plot scores (bugs.md #562). */
+void colonies_assign_carpenter_fallback(
+  ColonizeColonyPool* pool, int colony_id, int colonist_index
+);
 /*
  * Remove a colonist onto the colony map tile as the given role (spends warehouse
  * gear). Compacts the colonist list. Returns new unit id or -1.

@@ -1,36 +1,29 @@
 /*
- * Golden fixture for FUN_15eb_28c8's structural reference port
+ * FUN_15eb_28c8 work-plot scorer fixture
  * (ai_euro_28c8_colonist_job_score_structural, src/core/ai_euro.c).
- * docs/port_plan.md W1.7 — verification only, NOT a wiring test: the port
- * stays reference-only (Tier 3 to flip live, docs/port_plan.md W3.1).
  *
- * No dosbox-x-dumps/* save exercises colonist auto-job-assignment
- * deterministically (checked; the RE doc's own "Not attempted this pass"
- * section already flags this as unbuilt — see
- * original_sources_annotated/turn/colonist_work_plot_28c8.md). Every
- * scenario below is therefore FORMULA-DERIVED from that doc's own
- * Structure §5 write-up, not captured from a live DOS session — expected
- * scores are hand-computed (and, for the multi-tile scenario, cross-checked
- * by an independent from-scratch recompute helper in this file) from the
- * doc's documented terms: field yield (colony_yield_for_tile), the
- * DS:0x2f76+4 labor/travel penalty (map_dos_terr_labor_penalty_byte,
- * scoped to jobs 0/Farmer and 8/Fisherman only per the doc — see the
- * ai_euro.c fix this fixture drove), the population-cap headroom clamp,
- * and the current-job sticky-preference doubling. Every other term the doc
- * lists ("Remaining genuinely open terms") is left at 0 by the port and
- * not modeled here either — this fixture only proves the resolved terms.
+ * Rewritten 2026-09-22 for bugs.md #570: the scorer is now a term-for-term
+ * port of raw 13012-13130, so this fixture checks the DOS formula, not the
+ * old structural sketch (which it used to lock in):
  *
- * Every field tile below is marked MAP_LAYER2_SUPPRESS. colony_yield_for_
- * tile's real pipeline folds in a *separate*, already-ported, coordinate-
- * hash-seeded "special resource" term (map_resource_type_for_yield,
- * FUN_12ab_0458 — not part of 28c8's own formula, already covered by
- * colony_yield.c's own tests) that would otherwise make this fixture's
- * expected numbers depend on which absolute (x,y) the test happens to
- * pick — confirmed empirically (a throwaway dump program) to flip a
- * scenario below from its intended outcome. MAP_LAYER2_SUPPRESS forces
- * that unrelated term to 0 so every expected value here reduces to the
- * plain terrain-class base yield (NAMES.TXT table, plus Farmer's
- * documented unconditional +1 non-expert crop bonus).
+ *   score = yld*8 + (7 - |dx| - |dy|)                   raw 13017-13024
+ *   sticky x2 on the colonist's current job, HUMAN colonies only  raw 13025
+ *   non-emergency branch: score = (local_38 + local_4) * score   raw 13120
+ *     local_4  = 0 (AI) / 1 (human) for jobs 0 and 8 with no AI tick running,
+ *                else the DS:0x84bc price byte (0 with no COL1 save bound)
+ *     local_38 = local_4 + 1, +1 more when DS:0x2b6[job] names a consumer job
+ *                (FUN_15eb_15c6)
+ *
+ * Both scenarios pin the food-emergency flag (bVar2) OFF so the cargo-weight
+ * branch is the one under test: pop 1 (food demand 2) with 50 food in store
+ * makes `DS:0x8e32*0x10 < colony+0x9a` true for the AI shape and
+ * `DS:0x8dc8 < DS:0x8e0a` false for the human shape. No COL1 save is bound,
+ * so there are no Indian claims, no price row and no wealth ranks.
+ *
+ * Every field tile is marked MAP_LAYER2_SUPPRESS: colony_yield_for_tile folds
+ * in a coordinate-hash "special resource" term (map_resource_type_for_yield,
+ * FUN_12ab_0458) that is not part of 28c8 and would make expected numbers
+ * depend on the absolute (x,y) the test picks.
  */
 #include "core/ai_euro.h"
 #include "core/colony.h"
@@ -99,24 +92,15 @@ static void colony_init_common(ColonizeColony* c, int nation, int cx, int cy) {
 }
 
 /*
- * Scenario 1 — the bug the fixture caught, on a single Prairie tile
- * (terr_class 3, labor penalty 15). colony_yield_for_tile's real pipeline
- * (not just the raw NAMES.TXT base table — Farmer gets an unconditional
- * +1 non-expert crop bonus the raw table doesn't show) gives, at Prairie:
- *   Farmer (job0): yld 4 -> base 32, penalty-scoped (job0 IS generalist)
- *                  -> 32-15 = 17.
- *   Cotton Planter (job3): yld 3 -> base 24, NOT penalty-scoped per the
- *                  doc (only jobs 0/8 pay DS:0x2f76+4) -> stays 24.
- * Fixed formula best = Cotton Planter, score 24 (beats Farmer's 17).
- * Before this pass's fix (penalty subtracted from every job
- * unconditionally) Cotton Planter's 24 was wrongly knocked down to 9
- * (24-15), so the port instead picked Farmer at 17 — a real best-pick
- * flip on ONE tile, not just a score-magnitude nit. (Values confirmed
- * against the live colony_yield_for_tile pipeline via a throwaway dump
- * program, not hand-derived from the raw table alone — see this file's
- * top comment.)
+ * Scenario 1 — the distance term (raw 13017-13024), which the port used to
+ * drop entirely: `score = yld*8 + (7 - |dx| - |dy|)`. Two identical Prairie
+ * plots, one orthogonal (tile 0, N, |dx|+|dy| = 1) and one diagonal (tile 1,
+ * NE, |dx|+|dy| = 2). Same yields, same weights, so the only thing that can
+ * separate them is the distance term — the nearer plot must win, and the
+ * winning score must be the odd number `yld*8 + 6` scaled by the cargo
+ * weight, never a bare multiple of 8.
  */
-static int unit_penalty_scoped_to_generalist_jobs(void) {
+static int unit_distance_term_breaks_ties(void) {
   uint8_t terrain[MAP_W * MAP_H];
   uint8_t layer2[MAP_W * MAP_H];
   uint8_t layer3[MAP_W * MAP_H];
@@ -125,91 +109,97 @@ static int unit_penalty_scoped_to_generalist_jobs(void) {
 
   const int cx = 8;
   const int cy = 8;
-  terrain[(cy - 1) * MAP_W + cx] = 3; /* tile 0 (N, dx=0,dy=-1): Prairie */
+  terrain[(cy - 1) * MAP_W + cx] = 3;       /* tile 0 (N):  Prairie */
+  terrain[(cy - 1) * MAP_W + (cx + 1)] = 3; /* tile 1 (NE): Prairie */
   suppress_field_tile_resources(&map, cx, cy);
 
   ColonizeColonyPool colonies;
   colonies_init(&colonies);
   colonies_set_occupancy_map(NULL);
   colony_init_common(&colonies.colonies[0], /*nation=*/1, cx, cy);
+  colonies.colonies[0].stock[COLONIZE_CARGO_FOOD] = 50; /* bVar2 off */
 
   ColonizeTurnContext ctx;
   memset(&ctx, 0, sizeof(ctx));
-  ctx.human_nation = 0; /* colony's nation (1) != human -> AI full-search branch */
+  ctx.human_nation = 0; /* colony nation 1 -> AI shape */
   ctx.colonies = &colonies;
   ctx.map = &map;
 
   AiEuro28c8JobCandidate best;
   int ok = ai_euro_28c8_colonist_job_score_structural(&ctx, 0, 0, &best);
   if (!ok) {
-    return fail("penalty_scoped: no assignment found");
-  }
-  if (best.job != COLONIZE_JOB_COTTON_PLANTER) {
-    fprintf(stderr, "unit_ai_euro_28c8_job_score: got job=%d want=%d (Cotton Planter)\n",
-            best.job, COLONIZE_JOB_COTTON_PLANTER);
-    return fail("penalty_scoped: wrong job");
+    return fail("distance_term: no assignment found");
   }
   if (best.tile != 0) {
-    fprintf(stderr, "unit_ai_euro_28c8_job_score: got tile=%d want=0 (Prairie/N)\n", best.tile);
-    return fail("penalty_scoped: wrong tile");
+    fprintf(stderr, "unit_ai_euro_28c8_job_score: got tile=%d want=0 (nearer plot)\n",
+            best.tile);
+    return fail("distance_term: diagonal plot beat the orthogonal one");
   }
-  if (best.score != 24) {
-    fprintf(stderr, "unit_ai_euro_28c8_job_score: got score=%d want=24\n", best.score);
-    return fail("penalty_scoped: wrong score");
+  {
+    const int cargo = colony_yield_job_cargo(best.job);
+    const int yld = colony_yield_for_tile(&map, cx, cy - 1, best.job);
+    const int weight = best.score / (yld * 8 + 6);
+    if (weight < 1 || best.score != weight * (yld * 8 + 6)) {
+      fprintf(stderr,
+        "unit_ai_euro_28c8_job_score: score=%d is not a cargo-weight multiple of "
+        "yld*8+6 (job=%d cargo=%d yld=%d)\n", best.score, best.job, cargo, yld);
+      return fail("distance_term: score has no (7-|dx|-|dy|) term");
+    }
   }
   return 0;
 }
 
 /*
- * Independent recompute of the doc's documented formula (field yield,
- * job-0/8-scoped labor penalty, AI headroom clamp, current-job doubling)
- * over every (tile, job) pair, mirroring the port's own iteration order
- * (tile ascending, job ascending, strict '>' so the first-seen max wins
- * ties) so it can be compared candidate-for-candidate against the port's
- * actual output — not just re-asserting the same hand-picked numbers.
+ * Independent transcription of raw 13012-13130's cargo-weight branch, over
+ * every (tile, job) pair in the port's own iteration order (tile ascending,
+ * job ascending, strict '>' so the first-seen max wins ties). `human` is
+ * DOS's bVar1; no COL1 save is bound, so the price row, the Indian-claim
+ * term and the Ore wealth-rank bonus are all 0 and the shortfall/unmet
+ * ledgers are empty (pop 1 has no demand beyond food, which is covered).
  */
 static void recompute_expected(
   const ColonizeWorldMap* map,
   const ColonizeColony* col,
   int current_job,
+  int human,
   AiEuro28c8JobCandidate* out_best
 ) {
-  const int pop_cap = col->warehouse_level == 0 ? 100 : ((int)col->warehouse_level + 1) * 100;
+  const int capacity = ((int)col->warehouse_level + 1) * 100;
   out_best->job = -1;
   out_best->tile = -1;
-  out_best->score = -1000000;
+  out_best->score = 0;
   for (int ti = 0; ti < COLONIZE_COLONY_FIELD_TILES; ++ti) {
     int dx = 0, dy = 0;
     colonies_field_tile_delta(ti, &dx, &dy);
     const int tx = col->x + dx;
     const int ty = col->y + dy;
-    const int terr = map_dos_terr_class_at(map, tx, ty);
-    const int penalty = map_dos_terr_labor_penalty_byte(terr);
     for (int job = 0; job < COLONIZE_FIELD_JOB_COUNT; ++job) {
       int yld = colony_yield_for_tile(map, tx, ty, job);
       if (yld <= 0) {
         continue;
       }
-      int headcount = 0;
-      for (int i = 0; i < col->colonist_count; ++i) {
-        if (col->colonists[i].active && col->colonists[i].field_job == job) {
-          ++headcount;
-        }
+      const int cargo = colony_yield_job_cargo(job);
+      int room = capacity - col->stock[cargo];
+      if (room < 1) {
+        room = 1;
       }
-      int headroom = pop_cap - headcount;
-      if (headroom < 1) {
-        headroom = 1;
+      if (yld > room) {
+        yld = room;
       }
-      if (yld > headroom) {
-        yld = headroom;
+      int score = yld * 8 + (7 - (dx < 0 ? -dx : dx) - (dy < 0 ? -dy : dy));
+      if (human && job == current_job) {
+        score <<= 1;
       }
-      int score = yld * 8;
+      int w4 = 0;
       if (job == COLONIZE_JOB_FARMER || job == COLONIZE_JOB_FISHERMAN) {
-        score -= penalty;
+        w4 = human ? 1 : 0;
       }
-      if (job == current_job) {
-        score *= 2;
+      int m = w4 + 1;
+      /* DS:0x2b6 consumer job: sugar/tobacco/cotton/furs/ore have one. */
+      if (job == 1 || job == 2 || job == 3 || job == 4 || job == COLONIZE_JOB_ORE_MINER) {
+        m += 1;
       }
+      score = (m + w4) * score;
       if (score > out_best->score) {
         out_best->score = score;
         out_best->job = job;
@@ -220,16 +210,11 @@ static void recompute_expected(
 }
 
 /*
- * Scenario 2 — full 8-tile matrix, one per pedia terrain class 0..7
- * (Tundra..Swamp), colonist's current job = Ore Miner (job 6, a non-
- * generalist job) to exercise sticky doubling on a job the penalty must
- * NOT touch. Hand-computed best (see docs/port_plan.md W1.7 entry for the
- * per-tile table): Ore Miner @ tile 0 (Tundra), score 32 — Tundra's Ore
- * yield (2) doubled (16*2=32) ties with Desert/Marsh/Swamp's own doubled
- * Ore score, and tile 0 wins the tie as the first-seen max (port's
- * iteration order: tile ascending, job ascending, strict '>').
- * Cross-checked against recompute_expected() above, an independently
- * written re-implementation of the same doc-documented formula.
+ * Scenario 2 — full 8-tile matrix, one pedia terrain class 0..7 per tile,
+ * run twice: once as an AI colony (no sticky doubling, jobs 0/8 weight 0)
+ * and once as the human's own colony (sticky x2 on the colonist's current
+ * job, jobs 0/8 weight 1). Proves the sticky term is bVar1-gated, which the
+ * port used to apply unconditionally.
  */
 static int unit_full_matrix_sticky_doubling(void) {
   uint8_t terrain[MAP_W * MAP_H];
@@ -240,8 +225,6 @@ static int unit_full_matrix_sticky_doubling(void) {
 
   const int cx = 8;
   const int cy = 8;
-  /* Field tile order (colony.c k_field_dx/dy): N,NE,E,SE,S,SW,W,NW.
-   * Assign pedia terrain class == field tile index for all 8. */
   static const int dx[COLONIZE_COLONY_FIELD_TILES] = {0, 1, 1, 1, 0, -1, -1, -1};
   static const int dy[COLONIZE_COLONY_FIELD_TILES] = {-1, -1, 0, 1, 1, 1, 0, -1};
   for (int ti = 0; ti < COLONIZE_COLONY_FIELD_TILES; ++ti) {
@@ -255,39 +238,81 @@ static int unit_full_matrix_sticky_doubling(void) {
   colony_init_common(&colonies.colonies[0], /*nation=*/1, cx, cy);
   colonies.colonies[0].colonists[0].field_job = COLONIZE_JOB_ORE_MINER; /* sticky */
 
-  ColonizeTurnContext ctx;
-  memset(&ctx, 0, sizeof(ctx));
-  ctx.human_nation = 0;
-  ctx.colonies = &colonies;
-  ctx.map = &map;
+  for (int human = 0; human < 2; ++human) {
+    ColonizeTurnContext ctx;
+    memset(&ctx, 0, sizeof(ctx));
+    ctx.human_nation = human ? 1 : 0; /* colony nation is 1 */
+    ctx.colonies = &colonies;
+    ctx.map = &map;
 
-  AiEuro28c8JobCandidate expected;
-  recompute_expected(&map, &colonies.colonies[0], COLONIZE_JOB_ORE_MINER, &expected);
-  if (expected.job != COLONIZE_JOB_ORE_MINER || expected.tile != 0 || expected.score != 32) {
-    fprintf(stderr,
-      "unit_ai_euro_28c8_job_score: recompute sanity mismatch job=%d tile=%d score=%d "
-      "(want job=%d tile=0 score=32)\n",
-      expected.job, expected.tile, expected.score, COLONIZE_JOB_ORE_MINER);
-    return fail("full_matrix: hand-derived expectation and recompute helper disagree");
-  }
+    AiEuro28c8JobCandidate expected;
+    recompute_expected(&map, &colonies.colonies[0], COLONIZE_JOB_ORE_MINER, human, &expected);
 
-  AiEuro28c8JobCandidate best;
-  int ok = ai_euro_28c8_colonist_job_score_structural(&ctx, 0, 0, &best);
-  if (!ok) {
-    return fail("full_matrix: no assignment found");
+    AiEuro28c8JobCandidate best;
+    int ok = ai_euro_28c8_colonist_job_score_structural(&ctx, 0, 0, &best);
+    if (!ok) {
+      return fail("full_matrix: no assignment found");
+    }
+    if (best.job != expected.job || best.tile != expected.tile ||
+        best.score != expected.score) {
+      fprintf(stderr,
+        "unit_ai_euro_28c8_job_score: human=%d got job=%d tile=%d score=%d "
+        "want job=%d tile=%d score=%d\n",
+        human, best.job, best.tile, best.score, expected.job, expected.tile,
+        expected.score);
+      return fail("full_matrix: port output doesn't match the 28c8 transcription");
+    }
   }
-  if (best.job != expected.job || best.tile != expected.tile || best.score != expected.score) {
-    fprintf(stderr,
-      "unit_ai_euro_28c8_job_score: got job=%d tile=%d score=%d want job=%d tile=%d score=%d\n",
-      best.job, best.tile, best.score, expected.job, expected.tile, expected.score);
-    return fail("full_matrix: port output doesn't match doc-derived recompute");
+  return 0;
+}
+
+/*
+ * bugs.md #562 — the join path. DOS FUN_15eb_3930 -> FUN_15eb_2ea0 ->
+ * FUN_15eb_28c8 seats a newly admitted colonist on the best-scoring WORK
+ * PLOT (fallback Carpenter, raw 13189-13192); the port used to park every
+ * joiner in the Town Hall. One Prairie plot next to the colony, so the
+ * newcomer must end up on tile 0 with a field job, not in a building.
+ */
+static int unit_join_seats_on_work_plot(void) {
+  uint8_t terrain[MAP_W * MAP_H];
+  uint8_t layer2[MAP_W * MAP_H];
+  uint8_t layer3[MAP_W * MAP_H];
+  ColonizeWorldMap map;
+  map_init(&map, terrain, layer2, layer3);
+
+  const int cx = 8;
+  const int cy = 8;
+  terrain[(cy - 1) * MAP_W + cx] = 3; /* tile 0 (N): Prairie */
+  suppress_field_tile_resources(&map, cx, cy);
+
+  ColonizeColonyPool colonies;
+  colonies_init(&colonies);
+  colonies_set_occupancy_map(&map);
+  colony_init_common(&colonies.colonies[0], /*nation=*/1, cx, cy);
+  colonies.colonies[0].stock[COLONIZE_CARGO_FOOD] = 50;
+  colonies.colony_count = 1;
+
+  colonies_seat_new_colonist(&colonies, 0, 0);
+  colonies_set_occupancy_map(NULL);
+
+  const ColonizeColony* col = &colonies.colonies[0];
+  if (col->colonists[0].field_job < 0 || col->colonists[0].building_type >= 0) {
+    fprintf(stderr, "unit_ai_euro_28c8_job_score: joiner field_job=%d building=%d\n",
+            col->colonists[0].field_job, col->colonists[0].building_type);
+    return fail("join_seats: newcomer did not take a work plot");
+  }
+  if (colonies_colonist_tile(col, 0) != 0) {
+    fprintf(stderr, "unit_ai_euro_28c8_job_score: joiner tile=%d want=0\n",
+            colonies_colonist_tile(col, 0));
+    return fail("join_seats: newcomer took the wrong plot");
   }
   return 0;
 }
 
 static const TestCase k_cases[] = {
-    {"unit_penalty_scoped_to_generalist_jobs", unit_penalty_scoped_to_generalist_jobs},
+    {"unit_distance_term_breaks_ties", unit_distance_term_breaks_ties},
     {"unit_full_matrix_sticky_doubling", unit_full_matrix_sticky_doubling},
+    {"unit_join_seats_on_work_plot", unit_join_seats_on_work_plot},
 };
 
 TEST_MAIN(k_cases)
