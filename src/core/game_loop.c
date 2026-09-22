@@ -7809,14 +7809,18 @@ static int game_colony_list_outside_roles(
   if (!colony || !unit || !out_roles || out_max <= 0) {
     return 0;
   }
-  /* Same DOS row list as the inside colonist (FUN_15eb_3454), with the gear
-   * the unit already carries counting toward the row gates. */
+  /* bugs.md #649: FUN_15eb_3454's >= 0x13 arm (raw 13583) gates every row on
+   * DS:0x8542 colony warehouse stock alone — it never adds the standing
+   * unit's own carried gear, so an outside Dragoon on an empty-warehouse
+   * colony sees the same greyed rows an inside colonist would. The apply-time
+   * check (game_colony_apply_outside_role) still refunds the unit's gear into
+   * stock before testing, matching FUN_2f2b_348c's post-refund apply. */
   return colonies_list_eject_roles_gear(
     pool,
     colony,
-    unit->tools > 0 ? unit->tools : 0,
-    unit->muskets > 0 ? unit->muskets : 0,
-    unit->horses > 0 ? unit->horses : 0,
+    0,
+    0,
+    0,
     unit->profession,
     out_roles,
     out_enabled,
@@ -7911,28 +7915,18 @@ static bool game_colony_apply_outside_role(
   if (type_index < 0) {
     type_index = u->type_index;
   }
-  const int prev_type = u->type_index;
-  const int prev_tools = u->tools;
-  const int prev_muskets = u->muskets;
-  const int prev_horses = u->horses;
   u->type_index = type_index;
   u->tools = tools_take;
   u->muskets = muskets_take;
   u->horses = horses_take;
-  /* bugs.md #277: ANY loadout change (arming, mounting, tools taken OR laid
-   * down) exhausts the unit's moves for the turn; picking the same kit
-   * ("No changes") costs nothing. bugs.md follow-up: the standing order goes
-   * with them — the unit that comes out of the armoury is a different type
-   * and reports for orders rather than staying dug in as whatever it was.
-   * (It has no moves left, so it is only offered next turn.) The type test
-   * carries the bless, the one row that changes the unit without moving a
-   * single crate; the inside twin's ejected body starts with moves = 0
-   * whichever row it took. */
-  if (u->type_index != prev_type || u->tools != prev_tools || u->muskets != prev_muskets ||
-      u->horses != prev_horses) {
-    u->moves = 0;
-    units_clear_orders(units, u->id);
-  }
+  /* bugs.md #650: FUN_2f2b_348c's tail (raw 50674) calls FUN_15eb_1068
+   * unconditionally for the picked row, and FUN_15eb_1068's case 1 body
+   * (raw 11276) always calls FUN_1427_155e (raw 8880-8887, moves-spent :=
+   * full allotment) — there is no "did anything change" test in DOS. Picking
+   * the row the unit already stands in still exhausts its moves and clears
+   * its standing order, same as any other row. */
+  u->moves = 0;
+  units_clear_orders(units, u->id);
   return true;
 }
 

@@ -8,6 +8,7 @@
 #include "core/font.h"
 #include "core/map_menu.h"
 #include "core/popup.h"
+#include "core/reports.h"
 #include "core/ui_button.h"
 #include "core/ui_colors.h"
 #include "core/unit_chrome.h"
@@ -35,9 +36,13 @@ bool unit_stack_try_open(
   if (n <= 1) {
     return false;
   }
-  /* bugs.md #246: grid shows up to 3 columns x 8 rows. */
-  if (n > 24) {
-    n = 24;
+  /* bugs.md #654: FUN_2b5a_1b5a raw 42760 caps the list at 10
+   * (`local_54 < 10`) — the port's 3-column x 8-row grid (bugs.md #246) is a
+   * left-over from before that cap was ported and still renders up to 24;
+   * only the count is capped here, the grid layout is unchanged (#654 layout
+   * follow-up left for a UI pass). */
+  if (n > 10) {
+    n = 10;
   }
   dlg->open = true;
   dlg->tile_x = x;
@@ -55,7 +60,65 @@ bool unit_stack_try_open(
   return true;
 }
 
-/* bugs.md #260: one row's full label ("Dragoon (Expert Farmers) (aboard)"). */
+/*
+ * bugs.md #654: @JOB column 0 (singular — "Soldier", not "Soldiers"), the
+ * table FUN_2b5a_1b5a raw 42749 reads (-0x715e + profession*8). units.c's
+ * units_job_field does the identical parse but is static (its own comment
+ * says it used to have a copy here "to dodge a link edge"); re-add that
+ * small local copy rather than exporting a units.c symbol this agent does
+ * not own.
+ */
+static const char* unit_stack_job_field0(const ColonizeMsgCatalog* names, int profession) {
+  const ColonizeMsgSection* sec = names ? assets_msg_find(names, "JOB") : NULL;
+  if (!sec || profession < 0 || profession >= sec->line_count) {
+    return NULL;
+  }
+  const char* p = sec->lines[profession];
+  while (*p == ' ' || *p == '\t') {
+    ++p;
+  }
+  static char buf[40];
+  size_t n = 0;
+  while (p[n] && p[n] != ',' && n + 1 < sizeof(buf)) {
+    buf[n] = p[n];
+    ++n;
+  }
+  while (n > 0 && (buf[n - 1] == ' ' || buf[n - 1] == '\t')) {
+    --n;
+  }
+  buf[n] = '\0';
+  return buf[0] ? buf : NULL;
+}
+
+/*
+ * bugs.md #654: FUN_2b5a_1b5a raw 42738-42755 — the parenthetical word after
+ * a stack row's name. Gate: DS:0x30e[type] >= 0 (units_type_has_profession_slot).
+ * Then profession == DS:0x30e[type] (the type's own default role, e.g. Soldier
+ * for a Dragoon/Cont.Army) -> @MISC[4] "Expert"; profession == 0x1c (NONE)
+ * -> @MISC[3] "None"; else @JOB column 0 singular for the actual profession
+ * (a cross-specialized body, "Farmer").
+ */
+static const char* unit_stack_row_paren_word(
+  const ColonizeMsgCatalog* names, int type_index, int profession
+) {
+  if (!units_type_has_profession_slot(type_index)) {
+    return NULL;
+  }
+  if (profession == units_type_default_job(type_index)) {
+    return reports_misc_display_word(4, "");
+  }
+  if (profession == UNITS_JOB_NONE) {
+    return reports_misc_display_word(3, "");
+  }
+  return unit_stack_job_field0(names, profession);
+}
+
+/* bugs.md #654: one row's full label ("Dutch Dragoons (Soldier)") — DOS
+ * FUN_2b5a_1b5a raw 42685-42760. Port used to skip the @NATIONALITY
+ * adjective, read the plural @JOB column instead of the singular one, print
+ * nothing for an unskilled body instead of "(None)", and append a port-only
+ * "(aboard)"/"(ready)" suffix no DOS row has (bugs.md #260 asked for that
+ * suffix explicitly, so it stays). */
 static void unit_stack_row_label(
   const ColonizeUnitPool* pool,
   const ColonizeMsgCatalog* names,
@@ -64,23 +127,28 @@ static void unit_stack_row_label(
   size_t out_size
 ) {
   const char* name = units_display_name(pool, u);
-  /* bugs.md #226: cross-specialized soldiers/dragoons carry their expert
-   * skill in the row name — "Dragoon (Expert Farmers)". */
-  const char* prof =
-    (u && names) ? units_profession_label(names, u->type_index, u->profession) : NULL;
-  char base[56];
-  if (prof && name && strstr(name, prof) == NULL) {
-    snprintf(base, sizeof(base), "%s (%s)", name, prof);
+  const char* nation_adj = u ? reports_nation_adjective_display_name(u->nation_id) : NULL;
+  const char* word =
+    u ? unit_stack_row_paren_word(names, u->type_index, u->profession) : NULL;
+  char base[64];
+  if (nation_adj && nation_adj[0] && name) {
+    snprintf(base, sizeof(base), "%s %s", nation_adj, name);
   } else {
     snprintf(base, sizeof(base), "%s", name ? name : "Unit");
   }
+  char with_word[72];
+  if (word) {
+    snprintf(with_word, sizeof(with_word), "%s (%s)", base, word);
+  } else {
+    snprintf(with_word, sizeof(with_word), "%s", base);
+  }
   if (u && u->aboard_ship_id >= 0) {
     snprintf(
-      out, out_size, "%s (%s)", base,
+      out, out_size, "%s (%s)", with_word,
       u->orders == UNITS_ORDER_SENTRY ? "aboard" : "ready"
     );
   } else {
-    snprintf(out, out_size, "%s", base);
+    snprintf(out, out_size, "%s", with_word);
   }
 }
 

@@ -1598,7 +1598,8 @@ static bool colonies_profession_is_labelled(int profession) {
   case UNITS_JOB_PIONEER:
   case UNITS_JOB_SOLDIER:
   case UNITS_JOB_SCOUT:
-  case UNITS_JOB_DRAGOON:
+  /* bugs.md #656: 0x17 (UNITS_JOB_DRAGOON) dropped — DOS never writes it
+   * to a unit (#503/#639), matching units.c's 0x15-only veteran gates. */
   case UNITS_JOB_MISSIONARY:
     return true;
   default:

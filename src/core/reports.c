@@ -3381,7 +3381,11 @@ static int reports_count_ff_for_nation(const ColonizeCol1Save* col1, int human) 
  * Icon constants: NAMES @UNIT icon column − 1 (1-based sheet).
  */
 static int reports_score_unit_icon(int type, int prof) {
-  const bool vet = (prof == UNITS_JOB_SOLDIER || prof == UNITS_JOB_DRAGOON);
+  /* bugs.md #656: 0x17 (UNITS_JOB_DRAGOON) is never written by DOS
+   * (#503/#639); units.c's veteran gates (units_profession_line,
+   * units_map_sprite/FUN_112b_0060, the 172c promote test) are 0x15-only,
+   * so this sibling display matches them instead of tolerating 0x17. */
+  const bool vet = (prof == UNITS_JOB_SOLDIER);
   int icon = -1;
   switch (type) {
   case 1: /* Soldiers */
