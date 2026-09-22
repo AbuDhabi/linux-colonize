@@ -845,6 +845,9 @@ static int ai_euro_unload_pax_at(
     return 0;
   }
   ai_euro_set_goto(pax, orders, goto_x, goto_y);
+  /* Port-only landfall goto memory (bugs.md #528): only the SENTRY-order
+   * unloads overload `orders` for this, so only those set the flag. */
+  pax->ai_landfall_wait = (orders == UNITS_ORDER_SENTRY);
   pax->moves = 0;
   if (pax->id >= 0 && pax->id < COLONIZE_UNITS_MAX) {
     s_unloaded_this_turn[pax->id] = 1;
@@ -2008,13 +2011,38 @@ static int ai_euro_land_is_fortified(const ColonizeUnit* u) {
     return 0;
   }
   /*
-   * FUN_521d_20e6's LAB_5a78 tail writes exactly `+0x314b = '0'; +0x314c = 5`
-   * on every exit of a unit that had no state (raw 90399-90404) — DOS's "idle,
-   * re-evaluate next call" marker, not a fortify order: FUN_521d_0a60 hands
-   * such a unit a fresh goal on the next pass (raw 88164 admits 5/6). Since
-   * 2026-09-18 that write lands on the real +0x314c (bugs.md #525), so the
-   * pair has to be excluded here or every idle AI land unit reads as
-   * fortified and the act-level garrison / labor arms below never run.
+   * bugs.md #529, re-derived 2026-09-22. Both halves of this check are DOS-
+   * literal, not a heuristic:
+   *
+   * - `orders ∈ {FORTIFY(5), FORTIFIED(6)}`: FUN_521d_20e6's shared exit tail
+   *   (raw 90378-90386, the LAB_521d_589e block every call of 20e6 funnels
+   *   through) forces `+0x314c` (`orders`) to 5 whenever it isn't already 5
+   *   or 6, and to 6 when the colony-admit flag bit is set — i.e. every
+   *   single 20e6 exit leaves a land unit's real order byte in the
+   *   fortify family. This is why `orders` alone (as in bugs.md #529's
+   *   2026-09-22 "DOS-literal" attempt, `return 1;` unconditionally) proves
+   *   nothing: idle units land here too.
+   * - `col1_ai_plan != '0'(0x30)`: LAB_5a78 (raw 90399-90404) writes the pair
+   *   `+0x314b = '0'; +0x314c = 5` ONLY when +0x314c was already invalid
+   *   (0 or 10) on entry to the tail, i.e. nothing upstream in this call
+   *   actually assigned the unit — it is DOS's "idle, re-evaluate next call"
+   *   sentinel, not a real decision. Every genuine assignment that funnels
+   *   into the same tail sets `+0x314b` to a real code BEFORE the goto
+   *   (`'A'`/0x41 standing military raw 87705 family, `'G'`/0x47 own-colony
+   *   garrison raw 87491-87492 and move_scoring_gate's admitted/armed<2
+   *   branches, `'F'`/0x46 park raw 89025, etc.), so `!= '0'` is exactly
+   *   "a branch upstream actually decided this", which matches the other
+   *   independent DOS "already assigned, don't redo" queries used elsewhere
+   *   in the game (FUN_521d_0a60's own re-decision gate, raw 88159, skips a
+   *   unit only when `+0x314b == 'A'`; the labor/combat-strength admission
+   *   gates at raw 84724 and 87632 use `!= 'G' && != 'A'`) — those never
+   *   admit '0' either, since '0' is specifically "not decided".
+   *
+   * Together: a unit reads as fortified only when it both carries a real
+   * fortify order AND was actually routed there by a DOS branch this call,
+   * not merely defaulted. Confirms the pre-existing form; the row's
+   * "DOS-literal" attempt was wrong to drop the ai_plan half rather than
+   * narrow it to exactly '0'.
    */
   return u->col1_ai_plan != 0x30;
 }
@@ -4525,6 +4553,17 @@ static void ai_euro_set_goto(ColonizeUnit* u, int orders, int gx, int gy) {
   u->orders = orders;
   u->goto_x = gx;
   u->goto_y = gy;
+  /*
+   * Every non-SENTRY goto write clears the port-only landfall-wait flag
+   * (bugs.md #528) — a real order (goal-directed goto, found move, wander,
+   * hunt, wagon, ship stage) means the unit is no longer just parked ashore
+   * waiting for its next landfall act. Call sites that DO mean "still
+   * waiting ashore" pass SENTRY and then set the flag themselves right
+   * after this call (ai_euro_unload_pax_at and its three direct siblings).
+   */
+  if (orders != UNITS_ORDER_SENTRY) {
+    u->ai_landfall_wait = false;
+  }
   if (getenv("AI_SET_GOTO_TRACE")) {
     fprintf(stderr, "[goto] unit %d (%d,%d) orders %d -> (%d,%d)\n", u->id, u->x, u->y, orders,
             gx, gy);
@@ -6625,7 +6664,7 @@ static int ai_euro_5d04_cb_colony_demand_query(int head, int mode) {
   return n;
 }
 /* DOS unit+0x3150 holds_occupied (defined below with the 0a60 block). */
-static int ai_euro_0a60_holds_occupied(const ColonizeUnitPool* units, const ColonizeUnit* u);
+static int ai_euro_0a60_goods_holds_used(const ColonizeUnitPool* units, const ColonizeUnit* u);
 
 static int ai_euro_5d04_cb_reward_case(int idx) {
   const ColonizeUnit* u = ai_euro_5d04_cb_unit(idx);
@@ -7420,12 +7459,11 @@ static void ai_euro_5d04_hire_tail_departing_ships(Ai5d04HireTail* t) {
             /* raw: break when 0x5237[type] (capacity) == unit+0x3150 (cargo). */
             const ColonizeUnit* sh = ai_euro_5d04_cb_unit(idx2);
             const int cap = units_ship_capacity(ctx->units, sh->id);
-            /* Was a third open-coded copy of unit+0x3150 (smell audit sweep-3
-             * area C #5): it scanned the array bound instead of
-             * units_goods_hold_count and counted the 255 empty-hold sentinel as
-             * cargo, which is exactly what #36 fixed in the other two copies —
-             * a sentinel hull read as full here and bought nothing. */
-            const int used = ai_euro_0a60_holds_occupied(ctx->units, sh);
+            /* Goods-only, as every +0x3150 read at raw 93020-93039 is
+             * (bugs.md #530 side lead; same finding as #527): a passenger
+             * never occupies a DOS hold, so a transport carrying colonists
+             * still buys cargo here. */
+            const int used = ai_euro_0a60_goods_holds_used(ctx->units, sh);
             if (cap == used || f->cargo_short || !has_any_colony) {
               break;
             }
@@ -8033,36 +8071,13 @@ static void ai_euro_0a60_stack_counts(
 }
 
 /*
- * DOS unit+0x3150 holds_occupied: passengers + occupied goods holds (DOS's
- * own count is goods-only, but its passengers re-debit the same budget every
- * berth act — see ai_euro_20e6_ship_hold_budget for the full derivation).
- * Goods holds are scanned over `units_goods_hold_count`, not the array bound,
- * and the 255 empty-hold sentinel (col1_bridge.c:2485) is not an occupant.
+ * DOS unit+0x3150: the packed GOODS-hold count only (bumped by FUN_15eb_30b8
+ * on a load, decomp 13331); passengers never enter it — the DOS saves show it
+ * 0 on every opening Caravel carrying two colonists (test-saves-ai/TURN2).
+ * Scanned over the ship's capacity, never the array bound, so the 255
+ * empty-hold sentinel (col1_bridge.c:2485) is not an occupant.
  */
-static int ai_euro_0a60_holds_occupied(const ColonizeUnitPool* units, const ColonizeUnit* u) {
-  int n = u->cargo_count;
-  const int cap = units_goods_hold_count(units, u->id);
-  for (int i = 0; i < cap && i < COLONIZE_UNIT_CARGO_MAX; ++i) {
-    if (units_hold_amount(units, u->id, i) > 0) {
-      n++;
-    }
-  }
-  return n;
-}
-
-/*
- * DOS-LITERAL raw 87511-87514: `0x5237[type] == unit+0x3150` — every GOODS
- * hold in use. +0x3150 is the packed goods-hold count only (bumped by
- * FUN_15eb_30b8 on a load, decomp 13331); passengers never enter it — the
- * DOS saves show it 0 on every opening Caravel carrying two colonists
- * (test-saves-ai/TURN2). So a transport carrying only passengers is never
- * "full", never gets +0x3148 bits 2/3, and cannot take a FOUND/MIL_EXPAND
- * goal — which is why DOS's opening ships wander (plan '9', act 0x0c) instead
- * of walking a goal. Counting passengers here (the pre-2026-09-19 reading)
- * made those ships FOUND-eligible and was what kept 0a60's ship binding
- * switched off (bugs.md #527).
- */
-static int ai_euro_0a60_ship_full(const ColonizeUnitPool* units, const ColonizeUnit* u) {
+static int ai_euro_0a60_goods_holds_used(const ColonizeUnitPool* units, const ColonizeUnit* u) {
   const int cap = units_ship_capacity(units, u->id);
   int goods = 0;
   for (int i = 0; i < cap && i < COLONIZE_UNIT_CARGO_MAX; ++i) {
@@ -8070,7 +8085,21 @@ static int ai_euro_0a60_ship_full(const ColonizeUnitPool* units, const ColonizeU
       goods++;
     }
   }
-  return cap > 0 && goods >= cap;
+  return goods;
+}
+
+/*
+ * DOS-LITERAL raw 87511-87514: `0x5237[type] == unit+0x3150` — every GOODS
+ * hold in use. A transport carrying only passengers is never "full", never
+ * gets +0x3148 bits 2/3, and cannot take a FOUND/MIL_EXPAND goal — which is
+ * why DOS's opening ships wander (plan '9', act 0x0c) instead of walking a
+ * goal. Counting passengers here (the pre-2026-09-19 reading) made those
+ * ships FOUND-eligible and was what kept 0a60's ship binding switched off
+ * (bugs.md #527).
+ */
+static int ai_euro_0a60_ship_full(const ColonizeUnitPool* units, const ColonizeUnit* u) {
+  const int cap = units_ship_capacity(units, u->id);
+  return cap > 0 && ai_euro_0a60_goods_holds_used(units, u) >= cap;
 }
 
 static void ai_euro_0a60_unit_housekeeping(ColonizeTurnContext* ctx, int nation_id) {
@@ -8192,17 +8221,25 @@ static void ai_euro_0a60_unit_housekeeping(ColonizeTurnContext* ctx, int nation_
          * byte; against the retired shadow (zeroed every dispatcher turn) the
          * whole test was vacuous.
          *
-         * NOT ported: the `== 1 || == 2 || == 3` arm. Those DOS values mean
-         * "aboard a ship / in transit / off-map", state this port carries in
-         * `aboard_ship_id` instead — while orders 1 (SENTRY) here doubles as
-         * the port-only first-colony landfall latch
-         * (ai_euro_set_goto(u, UNITS_ORDER_SENTRY, lf_x, lf_y), three sites),
-         * so clearing it drops the landfall memory and loses the TURN3→4 DOS
-         * save pair. The `>= 10` arm is the one that carries the AI courses
-         * and is the whole point of the rule.
+         * `== 1 || == 2 || == 3` ported unconditionally (bugs.md #528,
+         * 2026-09-22): those DOS values mean "aboard a ship / in transit /
+         * off-map" — on a landed unit, order 1 (SENTRY) is simply the
+         * leftover "aboard" value `FUN_1427_10be` wrote at boarding (raw
+         * 8297/8674); the LAB_3558 unload block (raw 89440-89560) never
+         * rewrites it, so a unit unloaded during nation-turn N still reads 1
+         * at N's end, and this clear (N+1's own 0a60 top) wipes it to 0
+         * before 20e6 re-decides. That is exactly what the TURN2→3/TURN3→4
+         * DOS save pairs show. The port's own first-colony landfall goto
+         * memory used to piggyback the same `orders == SENTRY` value
+         * (collides with this clear); it now lives in the port-only
+         * `ai_landfall_wait` flag (units.h) instead, set alongside
+         * `orders = UNITS_ORDER_SENTRY` at every AI unload site and read by
+         * whichever caller needs the landfall memory, so this clear no
+         * longer has to dodge it. The `>= 10` arm is the one that carries the
+         * AI courses.
          */
         if ((u->orders >= AI_EURO_ACT_ADJACENT && u->col1_ai_plan != 0x31) ||
-            (ai_euro_ship_dos_enabled() && u->orders >= 1 && u->orders <= 3)) {
+            (u->orders >= 1 && u->orders <= 3)) {
           u->orders = UNITS_ORDER_NONE;
         }
         int side = 0;
@@ -17087,6 +17124,7 @@ static void ai_euro_unload_settle_first_landfall(
       }
       if (pioneer && pioneer->aboard_ship_id == ship->id) {
         ai_euro_set_goto(pioneer, UNITS_ORDER_SENTRY, lf_x, lf_y);
+        pioneer->ai_landfall_wait = true; /* bugs.md #528 */
         pioneer->x = ship->x;
         pioneer->y = ship->y;
         pioneer->moves = 0;
@@ -17826,6 +17864,7 @@ static int ai_euro_try_first_colony_land(ColonizeTurnContext* ctx, ColonizeUnit*
   /* Pioneer tip south of found (FR unload): keep sentry + landfall. */
   if (at_found_south) {
     ai_euro_set_goto(u, UNITS_ORDER_SENTRY, lf_x, lf_y);
+    u->ai_landfall_wait = true; /* bugs.md #528 */
     u->moves = 0;
     return 1;
   }
@@ -17841,6 +17880,7 @@ static int ai_euro_try_first_colony_land(ColonizeTurnContext* ctx, ColonizeUnit*
       /* Ship-adj: sentry+landfall (Dutch beachhead). Same-turn arrive: NONE+found. */
       if (ship_adj) {
         ai_euro_set_goto(u, UNITS_ORDER_SENTRY, lf_x, lf_y);
+        u->ai_landfall_wait = true; /* bugs.md #528 */
       } else {
         ai_euro_set_goto(u, UNITS_ORDER_NONE, fx, fy);
       }
@@ -19089,7 +19129,7 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_land_hunt_scout(struct ai_euro_act
   }
   /* Board already attempted early (pre-gate); engage if still on map. */
   if (at_war_land && is_land_hunter && !ai_euro_land_is_fortified(u) &&
-      u->orders != UNITS_ORDER_SENTRY) {
+      !u->ai_landfall_wait) {
     if (!ai_euro_land_engage_adjacent(ctx, u, &land_war_hunted)) {
       return AI_EURO_ACT_RETURN;
     }

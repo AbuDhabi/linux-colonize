@@ -603,6 +603,7 @@ static void units_slot_reset_defaults(
   slot->col1_flags15 = 0;
   slot->col1_ai_plan = COL1_UNIT_UNKNOWN16_HI_DEFAULT;
   slot->repair_pending = 0;
+  slot->ai_landfall_wait = false;
   units_sync_equip_after_type_change(slot, type);
 }
 
@@ -8974,7 +8975,14 @@ bool units_wake(ColonizeUnitPool* pool, int unit_id) {
   } else {
     const bool parked =
       (u->aboard_ship_id >= 0 && !u->mp_spent_turn) ||
-      ((prev == UNITS_ORDER_FORTIFIED || prev == UNITS_ORDER_SENTRY) &&
+      ((prev == UNITS_ORDER_FORTIFIED || prev == UNITS_ORDER_SENTRY ||
+        /* bugs.md #528: FUN_521d_0a60's turn-top clear (ai_euro.c) may already
+         * have zeroed a landfall-waiting unit's `orders` back to NONE before
+         * this wake — this port-only flag (units.h) is the same "was parked
+         * ashore, not really idle" signal, cross-checked against the
+         * DOS-real park_nights counter below so only an overnight park (not
+         * a same-turn 0a60 clear) refunds the allotment. */
+        (prev == UNITS_ORDER_NONE && u->ai_landfall_wait)) &&
        u->park_nights > 0);
     if (parked && units_type(pool, u->type_index)) {
       units_mp_restore(pool, u);
@@ -8983,6 +8991,9 @@ bool units_wake(ColonizeUnitPool* pool, int unit_id) {
   if (prev == UNITS_ORDER_SENTRY || prev == UNITS_ORDER_FORTIFY ||
       prev == UNITS_ORDER_FORTIFIED) {
     u->park_nights = 0;
+  }
+  if (prev == UNITS_ORDER_SENTRY || prev == UNITS_ORDER_NONE) {
+    u->ai_landfall_wait = false; /* woken: no longer just parked ashore (bugs.md #528) */
   }
   if (diag_info_enabled() && prev != UNITS_ORDER_NONE) {
     char who[96];

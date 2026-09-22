@@ -219,6 +219,20 @@ typedef struct ColonizeUnit {
   /* Port-only, not saved: bit7 came from combat damage (repair timer), so the
    * completion popup says "repaired", not "construction complete". */
   uint8_t repair_pending;
+  /*
+   * Port-only, not saved (COLNXEXT does not carry it; a save/load mid-opening
+   * loses it, same as repair_pending above). AI first-colony landfall goto
+   * memory: set alongside `orders = UNITS_ORDER_SENTRY` at every AI unload
+   * site that means "wait ashore for the next landfall act", cleared once the
+   * unit gets a real order. Exists because DOS's own `+0x314c == 1` after an
+   * AI unload is just the leftover "aboard ship" value (`FUN_1427_10be`
+   * writes it, raw 8297/8674) that `FUN_521d_0a60`'s turn-top clear (raw
+   * 87560-87564) wipes back to 0 on the unit's own nation's next turn — it
+   * carries no landfall memory in DOS. The port used to piggyback that same
+   * `orders == SENTRY` value to remember "this unit is mid-landfall", which
+   * collided with the DOS clear. Cite: bugs.md #528.
+   */
+  bool ai_landfall_wait;
 } ColonizeUnit;
 
 typedef struct ColonizeUnitPool {

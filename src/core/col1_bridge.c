@@ -1458,6 +1458,17 @@ bool col1_bridge_apply_w(
       }
       u->orders = (int)src->orders;
       /*
+       * Reconstruct the port-only landfall-wait flag (bugs.md #528) on
+       * import: it is not saved (COLNXEXT does not carry it), but any AI
+       * land unit read back with orders == SENTRY is, by the very premise
+       * of #528, either genuinely parked ashore mid-landfall or the DOS
+       * aboard-leftover value FUN_521d_0a60 will clear on this nation's next
+       * turn top either way — treating it as landfall-wait on load is a safe
+       * over-approximation (units_wake's MP-restore park check is the only
+       * reader that needs it to survive a save/load boundary).
+       */
+      u->ai_landfall_wait = (u->orders == UNITS_ORDER_SENTRY);
+      /*
        * Col1 Braves store goto (0,0) with orders=0 meaning "no goto". Runtime
        * uses UNITS_GOTO_NONE (0xFF); leave (0,0) alone only when it equals xy.
        */
