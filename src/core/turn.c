@@ -97,7 +97,10 @@ void turn_refresh_moves_for_nation_w(
   ColonizeUnitPool* pool = w->units;
   const ColonizeCol1Save* col1 = w->col1;
   ColonizeWorldMap* map = w->map;
-  ColonizeColonyPool* colonies = w->colonies;
+  /* bugs.md #626: the pioneer work tick moved to the activation rotation, so
+   * the refresh no longer emits text of its own. */
+  (void)ai_popups;
+  (void)messages;
 
   if (!pool) {
     return;
@@ -137,16 +140,18 @@ void turn_refresh_moves_for_nation_w(
       u->moves = 0;
       continue;
     }
-    /* Pioneer clear/plow/road: overnight work-tick (FUN_479b_01a6 / 0526).
-     * DOS clears moves_spent for EVERY unit at the day top (viceroy 6357);
-     * only the work body's FUN_281f_0934 spends it (76761 / 76889). An
-     * aborted order (bad tile / already improved / no tools, viceroy
-     * 76753 / 76886) returns BEFORE that spend, so the pioneer keeps its
-     * full allotment. */
-    if (map &&
-        (u->orders == UNITS_ORDER_CLEAR_PLOW || u->orders == UNITS_ORDER_BUILD_ROAD)) {
+    /* Pioneer clear/plow/road: the refresh gives back the allotment and
+     * NOTHING else. bugs.md #626: DOS does not run the work bodies here —
+     * the lasting-order dispatcher FUN_2b5a_3ae6 (raw 46414) runs them from
+     * the human map loop (raw 46873) when the unit comes up in the
+     * activation rotation (game_select_next_unit_awaiting_orders), so the
+     * @CLEARCUT / @USEDUPTOOLS text arrives one unit at a time instead of in
+     * a burst at turn start, and an AI unit parked on order 8/9 is never
+     * advanced at all. DOS clears moves_spent for EVERY unit at the day top
+     * (viceroy 6357); only the work body's FUN_281f_0934 spends it
+     * (76761 / 76889). */
+    if (u->orders == UNITS_ORDER_CLEAR_PLOW || u->orders == UNITS_ORDER_BUILD_ROAD) {
       u->moves = units_max_mp(pool, u->id);
-      (void)units_pioneer_work_tick_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(pool), .colonies=(ColonizeColonyPool*)(colonies), .map=(ColonizeWorldMap*)(map)}, u->id, NULL, 0, ai_popups, messages);
       continue;
     }
     if (units_orders_skip_turn(u)) {

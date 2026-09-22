@@ -278,6 +278,20 @@ bool game_request_indian_land_choice(
     return false;
   }
   ColonizeCol1Save* col1 = &game->col1;
+  /*
+   * DOS-LITERAL FUN_2b5a_123e raw 42452-42453 (and FUN_2b5a_1454 raw
+   * 42558-42559): the whole encroachment block hangs off
+   * `if (FUN_281f_0696(x, y) < 0)` — the EURO-settlement-owner probe (owners
+   * above 3 clamp to -1).  A tile carrying a Euro colony is never tribal land
+   * to ask about; DOS falls straight through to the order tail.
+   */
+  {
+    const ColonizeColony* on_tile =
+      colonies_get(&game->colonies, colonies_id_at(&game->colonies, x, y));
+    if (on_tile && on_tile->active && on_tile->nation_id >= 0 && on_tile->nation_id <= 3) {
+      return false;
+    }
+  }
   if (kind == GAME_INDIAN_LAND_FOREST) {
     const int cls = map_dos_terr_class_at(&game->world_map, x, y);
     if (cls < 8 || cls > 23) {
@@ -2039,6 +2053,23 @@ static bool game_apply_popup_contact(ColonizeGameState* game) {
                                                         : game->ai_popups.result_choice_id;
     ai_popup_consume_result(&game->ai_popups);
     if (choice == GAME_INDIAN_LAND_RESPECT) {
+      /*
+       * DOS-LITERAL FUN_2b5a_123e raw 42496-42499 (FUN_2b5a_1454 raw
+       * 42587-42590): the "respect their wishes" arm is
+       *   unit+0x314c = 0;            // orders byte, NOT the 8 the tail sets
+       *   FUN_281f_0934(unit);        // spend the whole allotment
+       *   return;
+       * so the pioneer loses the turn — it cannot re-open the dialog or walk
+       * away. Only the orders byte is touched (goto/follow survive).
+       */
+      ColonizeUnit* pu = units_get(&game->units, uid);
+      if (pu && pu->active) {
+        pu->orders = UNITS_ORDER_NONE;
+        /* FUN_281f_0934 = "spend the full allotment" (bugs.md #626: one
+         * shared spelling, units_mp_exhaust_unit, instead of re-deriving the
+         * Euro/native `moves` inversion here). */
+        units_mp_exhaust_unit(&game->units, uid);
+      }
       set_status(game, "We respect their wishes", NULL);
   return true;
     }

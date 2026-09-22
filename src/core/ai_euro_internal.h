@@ -43,7 +43,6 @@ struct ai_euro_act_ctx {
   int treasure_routed;
   int peace_border_hunted;
   int wagon_hauled;
-  int pioneer_improved;
   int goal_x;
   int goal_y;
   int goal_code;

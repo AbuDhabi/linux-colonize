@@ -1113,8 +1113,114 @@ static int unit_phase_h_trainprofession(void) {
   return 0;
 }
 
+/*
+ * bugs.md #626: the per-nation move refresh restores the allotment and does
+ * NOT run the pioneer work bodies. DOS runs them from the lasting-order
+ * dispatcher FUN_2b5a_3ae6 (raw 46414) when the unit comes up in the human
+ * activation rotation (raw 46873) -- so a human pioneer is ticked once per
+ * turn by game_select_next_unit_awaiting_orders, and an AI unit parked on
+ * order 9 is never ticked at all.
+ */
+static int refresh_does_not_tick_pioneer_work(void) {
+  ColonizeMsgCatalog names;
+  assets_msg_init(&names);
+  if (!assets_msg_load_file(&names, "COLONIZE/NAMES.TXT")) {
+    fprintf(stderr, "#626: NAMES.TXT load failed\n");
+    return 1;
+  }
+  ColonizeUnitPool pool;
+  memset(&pool, 0, sizeof(pool));
+  if (!units_load_types(&pool, &names)) {
+    fprintf(stderr, "#626: units_load_types failed\n");
+    assets_msg_free(&names);
+    return 1;
+  }
+  const int pioneer = units_find_type(&pool, "Pioneers");
+  assets_msg_free(&names);
+  if (pioneer < 0) {
+    fprintf(stderr, "#626: no Pioneers type\n");
+    return 1;
+  }
+
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  char err[128];
+  if (!map_alloc(&map, 8, 8, err, sizeof(err))) {
+    fprintf(stderr, "#626: map_alloc failed: %s\n", err);
+    return 1;
+  }
+  for (int i = 0; i < 8 * 8; ++i) {
+    map.terrain[i] = 2; /* plains */
+  }
+  map.terrain[3 * map.width + 3] = 10; /* mixed forest: clear-forest is valid */
+
+  units_set_occupancy_map(NULL);
+  ColonizeColonyPool colonies;
+  colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
+
+  const int hid = units_spawn(&pool, pioneer, 3, 3);
+  const int aid = units_spawn(&pool, pioneer, 5, 5);
+  ColonizeUnit* hu = units_get(&pool, hid);
+  ColonizeUnit* au = units_get(&pool, aid);
+  if (!hu || !au) {
+    fprintf(stderr, "#626: pioneer spawn failed\n");
+    map_free(&map);
+    return 1;
+  }
+  hu->nation_id = 0;
+  hu->tools = 100;
+  hu->moves = 0;
+  hu->col1_counter16 = 0;
+  hu->orders = UNITS_ORDER_CLEAR_PLOW;
+  au->nation_id = 1;
+  au->tools = 100;
+  au->moves = 0;
+  au->col1_counter16 = 0;
+  au->orders = UNITS_ORDER_BUILD_ROAD;
+
+  const ColonizeWorld w = {
+    .units = &pool, .colonies = &colonies, .map = &map, .col1 = NULL, .col1_ok = false
+  };
+  turn_refresh_moves_for_nation_w(&w, 0, NULL, NULL);
+  turn_refresh_moves_for_nation_w(&w, 1, NULL, NULL);
+
+  int rc = 0;
+  if (hu->col1_counter16 != 0 || hu->orders != UNITS_ORDER_CLEAR_PLOW) {
+    fprintf(
+      stderr, "#626: refresh ticked the human pioneer (counter=%u orders=%d)\n",
+      (unsigned)hu->col1_counter16, (int)hu->orders
+    );
+    rc = 1;
+  }
+  if (hu->moves != units_max_mp(&pool, hid)) {
+    fprintf(stderr, "#626: refresh must still restore the allotment (%d)\n", hu->moves);
+    rc = 1;
+  }
+  if (au->col1_counter16 != 0 || au->orders != UNITS_ORDER_BUILD_ROAD ||
+      map_tile_has_road(&map, 5, 5)) {
+    fprintf(stderr, "#626: an AI unit's order-9 park must never be advanced\n");
+    rc = 1;
+  }
+  /* Precondition for the new tick site: the ascending-id rotation still
+   * stops on the order-8 unit (DOS raw 42296-42300 classes {5,6,8,9} as
+   * "lasting" -- active, but never waiting for input). */
+  pool.selected_id = -1;
+  hu->moves = units_max_mp(&pool, hid);
+  if (!turn_select_next_unit(&pool, 0) || pool.selected_id != hid) {
+    fprintf(stderr, "#626: rotation skipped the working pioneer\n");
+    rc = 1;
+  }
+  map_free(&map);
+  return rc;
+}
+
 int main(void) {
   diag_init(0, NULL);
+
+  if (refresh_does_not_tick_pioneer_work() != 0) {
+    return 1;
+  }
 
   if (unit_needtools0() != 0) {
     return 1;

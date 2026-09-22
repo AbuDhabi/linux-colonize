@@ -7,6 +7,8 @@
 #include "core/colony.h"
 #include "core/dos_rng.h"
 #include "core/europe.h"
+#include "core/reports.h"
+#include "core/reports_names.h"
 #include "core/unit_chrome.h"
 #include "core/ui_drag.h"
 #include "core/units.h"
@@ -2461,7 +2463,37 @@ static int case_europe_dragoon_roll_and_caption(void) {
     europe_free(&eu);
     return 1;
   }
-  fprintf(stderr, "Europe dock caption '%s' / '%s' ok\n", cap, cap2);
+  /*
+   * bugs.md #624: FUN_38fd_3694 raw 61193 reads `prof*8 - 0x715e` = @JOB
+   * COLUMN 0 (the singular "Veteran Soldier"), not the column-1 plural at
+   * -0x715c that the OVL03 colony site uses.
+   */
+  reports_names_load_catalogs("COLONIZE");
+  eu.dock[0].profession = UNITS_JOB_SOLDIER;
+  char cap3[128];
+  if (!europe_dock_caption(&eu, 0, cap3, sizeof(cap3))) {
+    europe_free(&eu);
+    return 1;
+  }
+  const char* singular = reports_job_short_name(UNITS_JOB_SOLDIER);
+  const char* plural = reports_job_name(UNITS_JOB_SOLDIER);
+  char want[80];
+  snprintf(want, sizeof(want), "(%s)", singular ? singular : "");
+  if (!singular || !singular[0] || !strstr(cap3, want)) {
+    fprintf(stderr, "dock caption should carry @JOB col 0 '%s': '%s'\n", want, cap3);
+    europe_free(&eu);
+    return 1;
+  }
+  if (plural && plural[0] && strcmp(plural, singular) != 0) {
+    char nope[80];
+    snprintf(nope, sizeof(nope), "(%s)", plural);
+    if (strstr(cap3, nope)) {
+      fprintf(stderr, "dock caption still uses the @JOB col 1 plural: '%s'\n", cap3);
+      europe_free(&eu);
+      return 1;
+    }
+  }
+  fprintf(stderr, "Europe dock caption '%s' / '%s' / '%s' ok\n", cap, cap2, cap3);
   europe_free(&eu);
   return 0;
 }

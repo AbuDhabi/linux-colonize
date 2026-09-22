@@ -14,6 +14,8 @@
 #include "core/assets.h"
 #include "core/col1_save.h"
 #include "core/colony.h"
+#include "core/dos_rng.h"
+#include "core/europe.h"
 #include "core/colony_production.h"
 #include "core/colony_yield.h"
 #include "core/map.h"
@@ -40,6 +42,7 @@ typedef struct Fx {
   ColonizeTurnContext ctx;
   uint32_t turn;
   ColonizeColony* col;
+  ColonizeDosRng rng;
 } Fx;
 
 static int fx_build(Fx* f, int pop) {
@@ -58,6 +61,11 @@ static int fx_build(Fx* f, int pop) {
   }
   if (!fx_map_alloc(&f->map, 24, 24, 3, false)) {
     return fail("map alloc");
+  }
+  /* fx_map_alloc leaves map->improve NULL; the road/plow planes live there. */
+  f->map.improve = calloc(24u * 24u, 1);
+  if (!f->map.improve) {
+    return fail("improve alloc");
   }
   /* All-land plains: no water in any colony ring unless a case adds it. */
   for (size_t i = 0; i < f->map.tile_count; ++i) {
@@ -82,6 +90,13 @@ static int fx_build(Fx* f, int pop) {
   f->ctx.human_nation = 0;
   ai_euro_5952_set_ring1_threat(f->col->id, 0);
   return 0;
+}
+
+/* The #640/#641 arms need DOS's RNG (FUN_281f_04d4) and a purse. */
+static void fx_enable_road_arms(Fx* f, uint32_t seed, long gold) {
+  dos_rng_seed(&f->rng, seed);
+  f->ctx.rng = &f->rng;
+  f->col1.nation[NATION].gold = (uint32_t)gold;
 }
 
 static void fx_done(Fx* f) {
@@ -621,6 +636,257 @@ static int case_edge_ring_has_no_phantom_water(void) {
   return 0;
 }
 
+
+/*
+ * bugs.md #612 — FUN_5952_035e raw 94402-94551. The DOS AI improves tiles
+ * through the COLONY tick (phantom colonist + the real FUN_479b_01a6/0526
+ * bodies), not through a unit order. With the +0x1b bit 0x80 want flag, 20+
+ * tools in stock, a ripe +0x8c timer and a turn that is not the road-connect
+ * turn (turn % 7 != 0), exactly one ring plot must come out improved, the
+ * colony must pay 20 tools and the timer must reset.
+ */
+static int case_colony_tick_improves_a_plot(void) {
+  Fx f;
+  if (fx_build(&f, 3) != 0) {
+    return 1;
+  }
+  ai_euro_reset();
+  fx_wake_colonists(&f, 3);
+  /* fx_map_alloc leaves the improvement plane unallocated; plow/road need it. */
+  f.map.improve = calloc(f.map.tile_count, 1);
+  f.col->ai_flags |= COLONIZE_COLONY_AI_WANTS_PIONEER_WORK;
+  f.col->ai_flags &= (uint8_t)~COLONIZE_COLONY_AI_WANTS_PIONEER_CLEAR;
+  f.col->stock[COLONIZE_CARGO_TOOLS] = 50;
+  f.col->improve_timer = 100;
+
+  ai_euro_colony_tick_28c8_reassign(&f.ctx, NATION);
+
+  int improved = 0;
+  for (int t = 0; t < colonies_work_plot_count(&f.colonies, f.col); ++t) {
+    int dx = 0;
+    int dy = 0;
+    if (!colonies_field_tile_delta(t, &dx, &dy)) {
+      continue;
+    }
+    if (map_tile_is_plowed(&f.map, f.col->x + dx, f.col->y + dy) ||
+        map_tile_has_road(&f.map, f.col->x + dx, f.col->y + dy)) {
+      ++improved;
+    }
+  }
+  const int tools = f.col->stock[COLONIZE_CARGO_TOOLS];
+  const int timer = (int)f.col->improve_timer;
+  free(f.map.improve);
+  f.map.improve = NULL;
+  int units_left = 0;
+  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    if (f.units.units[i].active) {
+      ++units_left;
+    }
+  }
+  fx_done(&f);
+
+  if (improved != 1) {
+    return fail("#612: the colony tick improved no ring plot");
+  }
+  if (tools != 30) {
+    fprintf(stderr, "%s: tools=%d\n", TEST_NAME, tools);
+    return fail("#612: raw 94541-94549 pays 20 tools per improvement");
+  }
+  if (timer != 0) {
+    return fail("#612: raw 94549 clears +0x8c on success");
+  }
+  if (units_left != 0) {
+    return fail("#612: the phantom colonist (FUN_291f_0a06) was not undone");
+  }
+  return 0;
+}
+
+/*
+ * The same colony on a road-connect turn (turn % 7 == 0, raw 94403) must not
+ * touch its ring: that turn belongs to the inter-colony road helper.
+ */
+static int case_colony_tick_skips_road_connect_turn(void) {
+  Fx f;
+  if (fx_build(&f, 3) != 0) {
+    return 1;
+  }
+  ai_euro_reset();
+  fx_wake_colonists(&f, 3);
+  f.col1.head.turn = 98; /* 98 % 7 == 0 */
+  f.turn = 98;
+  f.col->ai_flags |= COLONIZE_COLONY_AI_WANTS_PIONEER_WORK;
+  f.col->stock[COLONIZE_CARGO_TOOLS] = 50;
+  f.col->improve_timer = 100;
+
+  ai_euro_colony_tick_28c8_reassign(&f.ctx, NATION);
+
+  const int tools = f.col->stock[COLONIZE_CARGO_TOOLS];
+  fx_done(&f);
+  if (tools != 50) {
+    return fail("#612: raw 94403 reserves turn % 7 == 0 for the road helper");
+  }
+  return 0;
+}
+
+/*
+ * bugs.md #641 — FUN_5952_0000 (raw 93589-93685) via the `turn % 7 == 0` arm
+ * at raw 94389-94400. Two colonies of the same nation on the same continent,
+ * four tiles apart, no road between them: the helper must road the first
+ * un-roaded tile on the path and the caller must then charge 20 tools and
+ * clear `+0x8c`.
+ */
+static int case_road_connect_links_two_colonies(void) {
+  Fx f;
+  if (fx_build(&f, 3) != 0) {
+    return 1;
+  }
+  ai_euro_reset();
+  fx_wake_colonists(&f, 3);
+  fx_enable_road_arms(&f, 12345u, 10000);
+  fx_colony_add(&f.colonies, NATION, 12, 8, 3);
+  f.col1.head.turn = 98; /* 98 % 7 == 0 */
+  f.turn = 98;
+  f.col->stock[COLONIZE_CARGO_TOOLS] = 50;
+  f.col->improve_timer = 100;
+
+  ai_euro_colony_tick_28c8_reassign(&f.ctx, NATION);
+
+  int roaded = 0;
+  for (int x = 9; x <= 11; ++x) {
+    for (int y = 7; y <= 9; ++y) {
+      if (map_tile_has_road(&f.map, x, y)) {
+        roaded = 1;
+      }
+    }
+  }
+  const int tools = f.col->stock[COLONIZE_CARGO_TOOLS];
+  const int timer = f.col->improve_timer;
+  const int units_left = f.units.unit_count;
+  fx_done(&f);
+  if (!roaded) {
+    return fail("#641: raw 93669 must road the gap tile on the link");
+  }
+  if (tools != 30) {
+    return fail("#641: raw 94396-94399 charges 20 tools");
+  }
+  if (timer != 0) {
+    return fail("#641: raw 94400 clears +0x8c");
+  }
+  if (units_left != 0) {
+    return fail("#641: both phantoms (FUN_291f_0a06) must be undone");
+  }
+  return 0;
+}
+
+/*
+ * bugs.md #641 — raw 93601 gates on `1 < DS:0x94e6[nation*0x10 + continent]`:
+ * a nation with a single colony on the continent has nothing to connect to,
+ * so the road turn spends nothing.
+ */
+static int case_road_connect_needs_a_second_colony(void) {
+  Fx f;
+  if (fx_build(&f, 3) != 0) {
+    return 1;
+  }
+  ai_euro_reset();
+  fx_wake_colonists(&f, 3);
+  fx_enable_road_arms(&f, 12345u, 10000);
+  f.col1.head.turn = 98;
+  f.turn = 98;
+  f.col->stock[COLONIZE_CARGO_TOOLS] = 50;
+  f.col->improve_timer = 100;
+
+  ai_euro_colony_tick_28c8_reassign(&f.ctx, NATION);
+
+  const int tools = f.col->stock[COLONIZE_CARGO_TOOLS];
+  fx_done(&f);
+  if (tools != 50) {
+    return fail("#641: raw 93601 needs 2+ own colonies on the continent");
+  }
+  return 0;
+}
+
+/*
+ * bugs.md #640 — raw 94370-94388. A colony under 20 tools that carries the
+ * wants-pioneer-work bit buys 20 tools at the DS:0x84bc sell row for Tools
+ * (`euro_price - 1`, cargo 0x0e == DS:0x84ca + nation*0x10).
+ */
+static int tools_purchase_run(int euro_price, int* out_tools, long* out_gold) {
+  Fx f;
+  if (fx_build(&f, 3) != 0) {
+    return 1;
+  }
+  ai_euro_reset();
+  fx_wake_colonists(&f, 3);
+  fx_enable_road_arms(&f, 999u, 10000);
+  f.col1.nation[NATION].trade.euro_price[COLONIZE_CARGO_TOOLS] = (uint8_t)euro_price;
+  f.turn = 100; /* 100 % 7 == 2: the road arm is not this turn's */
+  f.col1.head.turn = 100;
+  f.col->ai_flags |= COLONIZE_COLONY_AI_WANTS_PIONEER_WORK;
+  f.col->stock[COLONIZE_CARGO_TOOLS] = 0;
+  f.col->improve_timer = 0; /* keeps the #612 improve arm off the tools */
+
+  ai_euro_colony_tick_28c8_reassign(&f.ctx, NATION);
+
+  *out_tools = f.col->stock[COLONIZE_CARGO_TOOLS];
+  *out_gold = (long)europe_nation_gold(NULL, &f.col1, NATION);
+  fx_done(&f);
+  return 0;
+}
+
+static int case_tools_purchase_tops_up_a_broke_colony(void) {
+  int tools_free = 0;
+  int tools_paid = 0;
+  long gold_free = 0;
+  long gold_paid = 0;
+  /* euro_price 1 -> row value 0 -> a free top-up; euro_price 3 -> 2 * 20 = 40.
+   * The two runs are differenced so the rest of the tick's own gold traffic
+   * cancels out. */
+  if (tools_purchase_run(1, &tools_free, &gold_free) != 0) {
+    return 1;
+  }
+  if (tools_purchase_run(3, &tools_paid, &gold_paid) != 0) {
+    return 1;
+  }
+  if (tools_free != 20 || tools_paid != 20) {
+    return fail("#640: raw 94386 adds 0x14 tools");
+  }
+  if (gold_free - gold_paid != 40) {
+    return fail("#640: raw 94382 charges (euro_price - 1) * 20");
+  }
+  return 0;
+}
+
+/*
+ * bugs.md #640 — the same colony with an empty purse buys nothing (raw
+ * 94376-94380: the 32-bit gold compare).
+ */
+static int case_tools_purchase_needs_gold(void) {
+  Fx f;
+  if (fx_build(&f, 3) != 0) {
+    return 1;
+  }
+  ai_euro_reset();
+  fx_wake_colonists(&f, 3);
+  fx_enable_road_arms(&f, 999u, 10);
+  f.col1.nation[NATION].trade.euro_price[COLONIZE_CARGO_TOOLS] = 3;
+  f.turn = 100;
+  f.col1.head.turn = 100;
+  f.col->ai_flags |= COLONIZE_COLONY_AI_WANTS_PIONEER_WORK;
+  f.col->stock[COLONIZE_CARGO_TOOLS] = 0;
+  f.col->improve_timer = 0;
+
+  ai_euro_colony_tick_28c8_reassign(&f.ctx, NATION);
+
+  const int tools = f.col->stock[COLONIZE_CARGO_TOOLS];
+  const long gold = (long)europe_nation_gold(NULL, &f.col1, NATION);
+  fx_done(&f);
+  if (tools != 0 || gold != 10) {
+    return fail("#640: raw 94376 refuses the purchase without the gold");
+  }
+  return 0;
+}
+
 static const TestCase k_cases[] = {
   {"case_first_pick_is_stockade", case_first_pick_is_stockade},
   {"case_docks_when_ring_worked_out", case_docks_when_ring_worked_out},
@@ -637,6 +903,12 @@ static const TestCase k_cases[] = {
   {"case_docks_commit_suppresses_expert_purchase", case_docks_commit_suppresses_expert_purchase},
   {"case_food_pass_skips_unplaceable_colonist", case_food_pass_skips_unplaceable_colonist},
   {"case_edge_ring_has_no_phantom_water", case_edge_ring_has_no_phantom_water},
+  {"case_colony_tick_improves_a_plot", case_colony_tick_improves_a_plot},
+  {"case_colony_tick_skips_road_connect_turn", case_colony_tick_skips_road_connect_turn},
+  {"case_road_connect_links_two_colonies", case_road_connect_links_two_colonies},
+  {"case_road_connect_needs_a_second_colony", case_road_connect_needs_a_second_colony},
+  {"case_tools_purchase_tops_up_a_broke_colony", case_tools_purchase_tops_up_a_broke_colony},
+  {"case_tools_purchase_needs_gold", case_tools_purchase_needs_gold},
 };
 
 TEST_MAIN(k_cases)

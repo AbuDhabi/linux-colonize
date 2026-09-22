@@ -8789,7 +8789,61 @@ bool game_select_next_unit_awaiting_orders(ColonizeGameState* game) {
   if (!game || !game->units_ok) {
     return false;
   }
-  return turn_select_next_unit_awaiting_orders(&game->units, game->human_nation);
+  if (!game->world_map_ok) {
+    return turn_select_next_unit_awaiting_orders(&game->units, game->human_nation);
+  }
+  /*
+   * bugs.md #626 (pioneer work tick site). DOS does NOT tick clear/plow/road
+   * at the nation's move refresh: the human map loop (raw 46873) calls the
+   * lasting-order dispatcher FUN_2b5a_3ae6 (raw 46414) for whatever unit is
+   * currently active, and 3ae6 switches on that unit's +0x314c order byte
+   * (jump table 2b5a:3b58, index orders-2; 8 -> FUN_479b_01a6 clear/plow,
+   * 9 -> FUN_479b_0526 road). The select routine FUN_2b5a_1... (raw 42296-
+   * 42300) classes orders {5,6,8,9} as "lasting" — the unit still becomes
+   * the active one, it just never waits for player input — so a pioneer
+   * with order 8/9 is ticked exactly when its turn in the ascending-id
+   * rotation comes up, not in a burst at turn start.
+   *
+   * This loop is that rotation: every hand-off site in the port funnels
+   * through here, so the dispatch happens at the same point DOS's does.
+   * Only human units reach it (turn_select_next_unit filters on
+   * human_nation) — nobody ticks an AI unit's order 8/9 in DOS; the AI
+   * improves tiles through the 5952 colony-tick phantom-unit arm, and an
+   * AI unit left on order 9 is simply parked.
+   */
+  for (int guard = 0; guard < COLONIZE_UNITS_MAX; ++guard) {
+    if (!turn_select_next_unit(&game->units, game->human_nation)) {
+      return false;
+    }
+    ColonizeUnit* u = units_get(&game->units, game->units.selected_id);
+    if (!u) {
+      return false;
+    }
+    if (u->orders == UNITS_ORDER_CLEAR_PLOW || u->orders == UNITS_ORDER_BUILD_ROAD) {
+      (void)units_pioneer_work_tick_w(
+        &(ColonizeWorld){
+          .units = &game->units,
+          .colonies = game->colonies_ok ? &game->colonies : NULL,
+          .map = &game->world_map
+        },
+        u->id, NULL, 0, &game->ai_popups, &game->messages
+      );
+      /* FUN_479b_01a6 raw 76753 / FUN_479b_0526 raw 76886: an aborted body
+       * clears the order and returns BEFORE FUN_281f_0934 spends the
+       * allotment, so the unit drops straight back into the player's hands
+       * with its full moves. A body that ran (in progress or finished)
+       * spent them, so the rotation just moves on. */
+      if (u->moves > 0 && !units_orders_skip_turn(u)) {
+        return true;
+      }
+      continue;
+    }
+    if (units_orders_skip_turn(u)) {
+      continue;
+    }
+    return true;
+  }
+  return false;
 }
 
 /*
@@ -9745,9 +9799,17 @@ static GameMenuActionStatus game_menu_action_orders(ColonizeGameState* game, Map
       char msg[96];
       msg[0] = '\0';
       {
-        /* @INDIANFOREST: thunk_FUN_1000_91fc asks when the clear order is given. */
+        /* @INDIANFOREST: thunk_FUN_1000_91fc asks when the clear order is given.
+         *
+         * DOS-LITERAL FUN_2b5a_123e raw 42448-42451: the very first thing the
+         * order body does is `if (FUN_281f_0754(x,y) & 0x40) { @NOPLOW; return; }`
+         * — the already-plowed bit is tested BEFORE the tribal-land block, so an
+         * already-plowed tribal tile never asks you to buy the land. Skipping the
+         * CHOICE here drops through to units_pioneer_plow_w, which raises @NOPLOW
+         * on the same bit (units.c units_pioneer_plow_w). */
         const ColonizeUnit* pu = units_get_const(&game->units, sid);
-        if (pu && pu->active && pu->orders != UNITS_ORDER_CLEAR_PLOW &&
+        if (pu && pu->active && !map_tile_is_plowed(&game->world_map, pu->x, pu->y) &&
+            pu->orders != UNITS_ORDER_CLEAR_PLOW &&
             units_is_pioneer(&game->units, sid) && pu->tools >= 20 &&
             game_request_indian_land_choice(game, GAME_INDIAN_LAND_FOREST, sid, pu->x, pu->y)) {
           return GAME_MENU_ACTION_DONE;

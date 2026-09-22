@@ -21,6 +21,7 @@ professions from `@JOB` (profession byte = row). Identify by row, never by name.
 | 2026-09-22 | Missionary / Jesuit Missionary | #555-561 | all fixed |
 | 2026-09-22 | Farmer / Expert Farmer | #562-578 | all fixed |
 | 2026-09-22 | Fisherman / Expert Fisherman | #579-609, #554 | all fixed |
+| 2026-09-22 | Pioneer / Hardy Pioneer (all fitted forms, AI arms) | #610-643 | 31 fixed; #625 (clear-forest `-= 8`, needs user DOS check), #634 (dead text, evidence recorded), #642/#643 open |
 
 Open carry-over: #530 (AI first-colony opening scaffolding) came out of the Vet
 Soldier audit and is still OPEN.
@@ -32,7 +33,6 @@ Partly covered by earlier audits is noted; still needs its own pass.
 | Row | Type | Notes |
 |-----|------|-------|
 | 0 | Colonists (Free Colonist) | touched by Farmer/Fisherman/Servant audits |
-| 2 | Pioneers / Hardy Pioneer | tools, terrain work, AI pioneer arms |
 | 4 | Dragoons / Veteran Dragoon | horses, promotion, Europe dragoon roll (#508) |
 | 6 | Regulars (REF) | WoI batches touched it |
 | 7 | Continental Cavalry | |

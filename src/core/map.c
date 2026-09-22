@@ -1938,14 +1938,20 @@ static const uint8_t k_map_dos_terr_pioneer_threshold[29] = {
   4, 3, 3, 3, 3, 3, 5, 7, 4, 4, 4, 4, 4, 6, 6, 7, 4, 4, 4, 4, 4, 6, 6, 7, 4, 2, 2, 7, 4
 };
 
-/* DS:0x2f80 Pioneer clear/plow lumber-reward scale byte (offset +8), same capture. */
+/*
+ * DS:0x2f80 Pioneer clear/plow lumber-reward scale byte. FUN_479b_01a6 raw
+ * 76785 reads `*(byte*)(class*0x10 + 0x2f80)` (asm MOV AL,[BX+0x2f80],
+ * unpacked.asm:121282); 0x2f80 - 0x2f76 = +0x0a, i.e. yield column 5
+ * (Lumberjack), not the +0x8 Cotton column (bugs.md #613). Values are the
+ * NAMES.TXT @UNFORESTED/@FORESTED/@OTHER Lumber column.
+ */
 static const uint8_t k_map_dos_terr_lumber_reward[29] = {
-  0, 1, 2, 3, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0
+  0, 0, 0, 0, 0, 0, 0, 0, 2, 1, 3, 2, 3, 2, 2, 2, 2, 1, 3, 2, 3, 2, 2, 2, 0, 0, 0, 0, 0
 };
 
 /*
  * DS:0x2f7a colonist work-plot labor/travel penalty byte (offset +4), same
- * capture/method as the +2/+8 columns above. Consumed by
+ * capture/method as the +2/+0xa columns above. Consumed by
  * FUN_15eb_28c8 (colonist work-plot job scoring, not yet ported — see
  * docs/port_plan.md T1.17 and original_sources_annotated/turn/
  * colonist_work_plot_28c8.md), subtracted from a running byte
@@ -2148,6 +2154,18 @@ int map_tile_layer_cmds(
   if (forest >= 0 && terrain_peel_phase < 3) {
     map_layer_push(out, max, &n, MAP_LAYER_SHEET_PHYS0, 0, forest, 0, 0);
   }
+  /*
+   * DOS-LITERAL FUN_6ba1_0938 raw 109621-109665: the `layer2 & 0x40` plow art
+   * (PHYS0 149 via FUN_.._0558) is blitted right after the forest canopy and
+   * BEFORE the hill / river / resource / rumour overlays, so a resource icon
+   * or a river naturally lands on top of the furrows. The port used to push it
+   * after the whole overlay loop and then re-blit the resource on top (the
+   * bugs.md #396 workaround); bugs.md #622 restores the DOS order.
+   */
+  const int plow = map_phys0_plow_sprite_at(map, x, y);
+  if (plow >= 0) {
+    map_layer_push(out, max, &n, MAP_LAYER_SHEET_PHYS0, 0, plow, 0, 0);
+  }
   const int layers = map_phys0_overlay_count(map, x, y);
   /* MAPEDIT: coast PHYS0, then masked ocean into colour-0 holes, then estuary. */
   const int coast_end = (underlayer >= 0) ? coast_layers : layers;
@@ -2182,28 +2200,6 @@ int map_tile_layer_cmds(
       map_phys0_overlay_offset_at(map, x, y, layer, &ox, &oy);
       map_layer_push(out, max, &n, MAP_LAYER_SHEET_PHYS0, 0, overlay, ox, oy);
       out[n - 1].offset = 1;
-    }
-  }
-  /* Runtime plow / road: PHYS0 149 / 80-88 after static overlays. */
-  const int plow = map_phys0_plow_sprite_at(map, x, y);
-  if (plow >= 0) {
-    map_layer_push(out, max, &n, MAP_LAYER_SHEET_PHYS0, 0, plow, 0, 0);
-    /* bugs.md #396: keep the special-resource icon visible — re-blit it
-     * above the plow art (phase 2+ peel already hides it). */
-    if (terrain_peel_phase < 2) {
-      for (int rl = 0; rl < layers; ++rl) {
-        if (map_phys0_overlay_kind_at(map, x, y, rl) != MAP_OVERLAY_KIND_RESOURCE) {
-          continue;
-        }
-        const int rs = map_phys0_overlay_sprite_at(map, x, y, rl);
-        if (rs >= 0) {
-          int rox = 0;
-          int roy = 0;
-          map_phys0_overlay_offset_at(map, x, y, rl, &rox, &roy);
-          map_layer_push(out, max, &n, MAP_LAYER_SHEET_PHYS0, 0, rs, rox, roy);
-          out[n - 1].offset = 1;
-        }
-      }
     }
   }
   /* Hidden Terrain phase 2+: roads aren't in the exempt set. */

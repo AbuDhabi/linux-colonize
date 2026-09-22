@@ -52,8 +52,8 @@ Tags: **arm** = code an act stage calls, decision is manual-cited ·
 | Function | Lines | Tag |
 |---|---|---|
 | `ai_euro_try_wagon_haul` | 5291 | arm |
-| `ai_euro_pioneer_improve_target` | 5332, 5380 | helper |
-| `ai_euro_try_pioneer_improve` | 5410 | arm |
+| ~~`ai_euro_pioneer_improve_target`~~ | — | DELETED 2026-09-22 (bugs.md #610) |
+| ~~`ai_euro_try_pioneer_improve`~~ | — | DELETED 2026-09-22 (bugs.md #610); replaced by `ai_euro_move_scoring_gate`'s raw 90183-90206 order-9 arm (#611) and `ai_euro_5952_improve_best_plot` (raw 94402-94551, #612) |
 | `ai_euro_found_with_unit` | 5502, 5514 | arm (Minuit land-purchase gate) |
 | `ai_euro_act_land_roles` | 19066-19067, 19089 | arm |
 

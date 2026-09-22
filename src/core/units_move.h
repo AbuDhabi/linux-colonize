@@ -170,6 +170,11 @@ bool units_wake(ColonizeUnitPool* pool, int unit_id);
 /* True if unit skips selection until woken (sentry or fortified). */
 bool units_orders_skip_turn(const ColonizeUnit* unit);
 
+/* FUN_281f_0934: spend the unit's whole remaining allotment. `moves` is thirds
+ * LEFT for a Euro unit (nation 0..3) and thirds SPENT for a native one, so
+ * never assign one spelling from the other by hand. */
+void units_mp_exhaust_unit(ColonizeUnitPool* pool, int unit_id);
+
 /* Set Go-To order (does not move); returns false if unit/dest invalid. */
 bool units_set_goto_w(
   const ColonizeWorld* w,

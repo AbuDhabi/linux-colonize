@@ -8,6 +8,7 @@
 #include "core/map.h"
 #include "core/map_menu.h"
 #include "core/map_panel.h"
+#include "core/reports.h"
 #include "core/ss.h"
 #include "core/units.h"
 #include "core/village_trade_intel.h"
@@ -800,6 +801,67 @@ static int case_village_trade_intel(void) {
   return 0;
 }
 
+/*
+ * bugs.md #630: FUN_49dd_0424 raw 79185-79196 prefixes the stack row's tools
+ * detail with LABELS @MISC row 4 ("Expert") when the profession byte is 0x14
+ * (Hardy Pioneer), and spells it without the parentheses the selected-unit
+ * block (raw 78897-78918) uses.
+ */
+static int case_stack_detail_expert_prefix(void) {
+  ColonizeMsgCatalog names;
+  memset(&names, 0, sizeof(names));
+  char names_path[512];
+  if (!dos_compat_normalize_asset_path("COLONIZE", "NAMES.TXT", names_path, sizeof(names_path)) ||
+      !assets_msg_load_file(&names, names_path)) {
+    return 0;
+  }
+  reports_names_load_catalogs("COLONIZE");
+  const char* expert = reports_misc_display_word(4, "");
+  if (!expert || !expert[0]) {
+    assets_msg_free(&names);
+    return fail("LABELS @MISC row 4 missing");
+  }
+  ColonizeUnitPool pool;
+  memset(&pool, 0, sizeof(pool));
+  if (!units_load_types(&pool, &names)) {
+    assets_msg_free(&names);
+    return fail("units_load_types failed");
+  }
+  const int id = units_spawn_allow_stack(&pool, 2, 7, 9); /* Pioneers */
+  if (id < 0) {
+    assets_msg_free(&names);
+    return fail("pioneer spawn failed");
+  }
+  ColonizeUnit* u = units_get(&pool, id);
+  u->tools = 100;
+  u->profession = UNITS_JOB_NONE;
+  char plain[72];
+  char hardy[72];
+  if (!map_panel_stack_detail_text(&pool, u, &names, plain, sizeof(plain))) {
+    assets_msg_free(&names);
+    return fail("stack detail (plain) not produced");
+  }
+  u->profession = UNITS_JOB_PIONEER; /* DOS 0x14 */
+  if (!map_panel_stack_detail_text(&pool, u, &names, hardy, sizeof(hardy))) {
+    assets_msg_free(&names);
+    return fail("stack detail (hardy) not produced");
+  }
+  char want[72];
+  snprintf(want, sizeof(want), "%s %s", expert, plain);
+  if (strcmp(hardy, want) != 0) {
+    fprintf(stderr, "stack detail: want '%s' got '%s'\n", want, hardy);
+    assets_msg_free(&names);
+    return 1;
+  }
+  if (strncmp(plain, "100 ", 4) != 0 || strchr(plain, '(') || strchr(hardy, '(')) {
+    fprintf(stderr, "stack detail should be '100 <Tools>' with no parens: '%s'\n", plain);
+    assets_msg_free(&names);
+    return 1;
+  }
+  assets_msg_free(&names);
+  return 0;
+}
+
 static const TestCase k_cases[] = {
   {"panel_geometry_constants", case_panel_geometry_constants},
   {"panel_load_and_labels", case_panel_load_and_labels},
@@ -811,6 +873,7 @@ static const TestCase k_cases[] = {
   {"tribe_settlement_icon", case_tribe_settlement_icon},
   {"tile_stack", case_tile_stack},
   {"village_trade_intel", case_village_trade_intel},
+  {"stack_detail_expert_prefix", case_stack_detail_expert_prefix},
 };
 
 TEST_MAIN(k_cases)

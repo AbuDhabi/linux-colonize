@@ -6,6 +6,7 @@
 #include "core/ai_diplo.h"
 #include "core/ai_king.h"
 #include "core/ai_goals.h"
+#include "core/assets.h"
 #include "core/ai_euro_internal.h"
 #include "core/colony.h"
 #include "core/colony_craft.h"
@@ -14,6 +15,7 @@
 #include "core/col1_save.h"
 #include "core/combat_strength.h"
 #include "core/dos_rng.h"
+#include "core/europe.h"
 #include "core/founding_fathers.h"
 #include "core/map.h"
 #include "core/popup_msg.h"
@@ -346,11 +348,6 @@ static int ai_euro_continent_stance_at(int nation_id, int continent_id) {
   return (int)s_euro_continent_stance[nation_id][continent_id];
 }
 
-/*
- * Thin FUN_5952 pioneer gate: DOS requires improve_timer >= terr@0x2f78 + 2
- * (sometimes +4). Without the 0x2f78 table, use minimum threshold 2.
- */
-#define AI_EURO_IMPROVE_TIMER_MIN 2
 
 static int ai_euro_in_europe(int x, int y) {
   return x >= 200 || y >= 200;
@@ -4751,6 +4748,16 @@ COLONIZE_INTERNAL void ai_euro_5952_specialist_arms(
   }
 }
 
+/* FUN_5952_035e tile-improvement arm (raw 94402-94551, bugs.md #612) — the
+ * body lives beside the 20e6 terrain/ring tables it shares. */
+static void ai_euro_5952_improve_best_plot(ColonizeTurnContext* ctx, ColonizeColony* col);
+/* FUN_5952_035e raw 94370-94400 — the 20-tool purchase (#640) and the
+ * `turn % 7 == 0` inter-colony road-connect arm (#641); both run immediately
+ * before the improve arm. */
+static void ai_euro_5952_tools_supply_and_connect(
+  ColonizeTurnContext* ctx, ColonizeColony* col
+);
+
 COLONIZE_INTERNAL void ai_euro_colony_tick_28c8_reassign(
   ColonizeTurnContext* ctx, int nation_id
 ) {
@@ -4762,6 +4769,12 @@ COLONIZE_INTERNAL void ai_euro_colony_tick_28c8_reassign(
     if (!col->active || col->nation_id != nation_id || col->colonist_count <= 0) {
       continue;
     }
+    /*
+     * FUN_5952_035e raw 94402-94551 runs immediately BEFORE the colonist idle
+     * sweep below (bugs.md #612).
+     */
+    ai_euro_5952_tools_supply_and_connect(ctx, col);
+    ai_euro_5952_improve_best_plot(ctx, col);
     int prev_job[COLONIZE_COLONY_POP_MAX];
     bool placed[COLONIZE_COLONY_POP_MAX];
     const int n = col->colonist_count < COLONIZE_COLONY_POP_MAX ? col->colonist_count
@@ -5959,204 +5972,16 @@ static int ai_euro_try_wagon_haul(
 
 
 /*
- * Pioneer plow/road tile improve planner.
- * Cite: Colonization.pdf Clear/Plow/Road; Hardy Pioneer "Clears forest, plows
- * fields, and builds roads faster" — prefer Hardy when both idle (faster work,
- * not invented yields). units_pioneer_plow starts CLEAR_PLOW (forest clear or
- * plow — separate DOS jobs); units_pioneer_road starts BUILD_ROAD. Multi-turn
- * via terr_cost formula + units_pioneer_work_tick. Requires map.improve.
+ * bugs.md #610: the invented AI pioneer improvement planner
+ * (`ai_euro_try_pioneer_improve` / `_improve_target` / `_tile_can_plow` /
+ * `_tile_can_road` / `AI_EURO_IMPROVE_TIMER_MIN`) is gone. It cited only
+ * Colonization.pdf: DOS's AI never writes `+0x314c = 8` (the sole writer of
+ * order 8 in the image is the human ORDERS UI, raw 42511), never scans a
+ * colony ring for an improvable tile, has no plow-before-road rule, no MD<=3
+ * limit and no prefer-Hardy rule. The two real DOS arms replace it:
+ * `ai_euro_20e6_build_road_arm` (FUN_521d_20e6 raw 90183-90206, #611) and
+ * `ai_euro_5952_improve_best_plot` (FUN_5952_035e raw 94470-94551, #612).
  */
-
-static int ai_euro_pioneer_tile_can_plow(const ColonizeWorldMap* map, int x, int y) {
-  if (!map || !map->improve) {
-    return 0;
-  }
-  if (!map_tile_is_land(map, x, y) || map_tile_is_high_seas(map, x, y)) {
-    return 0;
-  }
-  const int pedia = map_pedia_terrain_index_at(map, x, y);
-  /* Arctic / mountains — same gate as units_pioneer_plow. */
-  if (pedia == 24 || pedia == 27) {
-    return 0;
-  }
-  if (map_tile_is_plowed(map, x, y)) {
-    return 0;
-  }
-  return 1;
-}
-
-static int ai_euro_pioneer_tile_can_road(const ColonizeWorldMap* map, int x, int y) {
-  if (!map || !map->improve) {
-    return 0;
-  }
-  if (!map_tile_is_land(map, x, y) || map_tile_is_high_seas(map, x, y)) {
-    return 0;
-  }
-  if (map_tile_has_road(map, x, y)) {
-    return 0;
-  }
-  return 1;
-}
-
-/*
- * Nearest improvable tile near own colony surrounds (MD≤3 from unit, within
- * field ring of own colony). Prefer plow over road; among roads prefer tiles
- * already plowed (Colonization.pdf Clear/Plow/Road sequence — road move bonus
- * on improved fields). 1 if out coords set; out_plow 1 → plow (else road).
- */
-static int ai_euro_pioneer_improve_target(
-  ColonizeTurnContext* ctx,
-  int nation_id,
-  int from_x,
-  int from_y,
-  int* out_x,
-  int* out_y,
-  int* out_plow
-) {
-  if (!ctx || !ctx->map || !ctx->map->improve || !ctx->colonies || !out_x || !out_y ||
-      !out_plow) {
-    return 0;
-  }
-  int best = 99;
-  int bx = -1;
-  int by = -1;
-  int bplow = 0;
-  for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
-    const ColonizeColony* c = &ctx->colonies->colonies[i];
-    if (!c->active || c->nation_id != nation_id) {
-      continue;
-    }
-    /* Col1 +0x8c: skip surround until improve_timer meets thin gate. */
-    if (c->improve_timer < AI_EURO_IMPROVE_TIMER_MIN) {
-      continue;
-    }
-    const int ring_surround = colonies_work_plot_count(ctx->colonies, c);
-    for (int ti = 0; ti < ring_surround; ++ti) {
-      int dx = 0;
-      int dy = 0;
-      if (!colonies_field_tile_delta(ti, &dx, &dy)) {
-        continue;
-      }
-      const int tx = c->x + dx;
-      const int ty = c->y + dy;
-      const int dist = abs(tx - from_x) + abs(ty - from_y);
-      if (dist > 3) {
-        continue;
-      }
-      const int can_plow = ai_euro_pioneer_tile_can_plow(ctx->map, tx, ty);
-      const int can_road = ai_euro_pioneer_tile_can_road(ctx->map, tx, ty);
-      if (!can_plow && !can_road) {
-        continue;
-      }
-      /*
-       * kind_pref: plow (0) > road on already-plowed (1) > other road (2).
-       * Closer wins within kind. Cite: Colonization.pdf plow then road.
-       */
-      int kind_pref = 2;
-      if (can_plow) {
-        kind_pref = 0;
-      } else if (can_road && map_tile_is_plowed(ctx->map, tx, ty)) {
-        kind_pref = 1;
-      }
-      const int score = dist * 2 + kind_pref;
-      if (bx < 0 || score < best) {
-        best = score;
-        bx = tx;
-        by = ty;
-        bplow = can_plow ? 1 : 0;
-      }
-    }
-  }
-  if (bx < 0) {
-    return 0;
-  }
-  *out_x = bx;
-  *out_y = by;
-  *out_plow = bplow;
-  return 1;
-}
-
-/*
- * Idle Hardy/Expert Pioneer with tools → improve nearby colony surround.
- * On-tile: units_pioneer_plow (clear or plow) or units_pioneer_road. Off-tile:
- * AI_MOVE toward target (re-aims over FOUND). Skip when tools_short (tools
- * delivery) or on-colony construction LABOR stay. Cite: Colonization.pdf
- * Pioneer Clear/Plow/Road; Hardy faster work. Returns 1 if worked or routed.
- */
-static int ai_euro_try_pioneer_improve(
-  ColonizeTurnContext* ctx,
-  int nation_id,
-  ColonizeUnit* u
-) {
-  if (!ctx || !ctx->units || !ctx->map || !u || !u->active) {
-    return 0;
-  }
-  if (!units_is_pioneer(ctx->units, u->id) || u->moves <= 0) {
-    return 0;
-  }
-  if (!ai_euro_name_is_pioneer(ai_euro_unit_kind(ctx->units, u))) {
-    return 0;
-  }
-  if (ai_euro_land_is_fortified(u)) {
-    return 0;
-  }
-  /* Tools-short: leave for case-7 delivery / LABOR walk. */
-  {
-    const AiEuroInventory* inv = ai_goals_inventory(nation_id);
-    if (inv && inv->tools_short > 0) {
-      return 0;
-    }
-  }
-  /* On own colony with Stockade/Warehouse/Lumber Mill build — stay for hammers. */
-  if (ctx->colonies) {
-    const int cid = colonies_id_at(ctx->colonies, u->x, u->y);
-    if (cid >= 0) {
-      const ColonizeColony* oc = colonies_get(ctx->colonies, cid);
-      if (oc && oc->nation_id == nation_id &&
-          ai_euro_colony_wants_construction_labor(ctx->colonies, oc)) {
-        return 0;
-      }
-    }
-  }
-  int tx = 0;
-  int ty = 0;
-  int want_plow = 0;
-  if (!ai_euro_pioneer_improve_target(ctx, nation_id, u->x, u->y, &tx, &ty, &want_plow)) {
-    return 0;
-  }
-  if (u->x == tx && u->y == ty) {
-    char err[64];
-    int worked = 0;
-    if (want_plow) {
-      if (units_pioneer_plow_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(ctx->units), .colonies=(ColonizeColonyPool*)(ctx->colonies), .map=(ColonizeWorldMap*)(ctx->map)}, u->id, err, sizeof(err), NULL, NULL)) {
-        worked = 1;
-      } else if (ai_euro_pioneer_tile_can_road(ctx->map, tx, ty) &&
-                 units_pioneer_road_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(ctx->units), .colonies=(ColonizeColonyPool*)(ctx->colonies), .map=(ColonizeWorldMap*)(ctx->map)}, u->id, err, sizeof(err), NULL, NULL)) {
-        worked = 1;
-      }
-    } else if (units_pioneer_road_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(ctx->units), .colonies=(ColonizeColonyPool*)(ctx->colonies), .map=(ColonizeWorldMap*)(ctx->map)}, u->id, err, sizeof(err), NULL, NULL)) {
-      worked = 1;
-    }
-    if (worked && ctx->colonies) {
-      /* FUN_5952 ~94546: successful improve clears colony +0x8c. */
-      for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
-        ColonizeColony* c = &ctx->colonies->colonies[i];
-        if (!c->active || c->nation_id != nation_id) {
-          continue;
-        }
-        if (abs(c->x - tx) <= 1 && abs(c->y - ty) <= 1) {
-          c->improve_timer = 0;
-          break;
-        }
-      }
-      return 1;
-    }
-    return 0;
-  }
-  /* Re-aim improve tile (override FOUND/explore from scoring gate). */
-  ai_euro_set_goto(u, UNITS_ORDER_AI_MOVE, tx, ty);
-  return 1;
-}
 
 static void ai_euro_found_with_unit(ColonizeTurnContext* ctx, ColonizeUnit* founder, int nation_id) {
   if (!ctx || !ctx->colonies || !ctx->map || !founder || !founder->active) {
@@ -7114,6 +6939,18 @@ static void ai_euro_5d04_cb_set_unit_dispatch_byte(int idx, int value) {
     u->muskets = 50;
     u->horses = 50;
   } else if (value == 2) {
+    /*
+     * DELIBERATE PORT SUBSTITUTION (bugs.md #636), not a transcription.
+     * DOS FUN_521d_5d04 raw 92770-92783 (dup raw 86688-86697) writes only
+     * `unit[+0x3146] = 2` plus the FUN_291f_0c14(0xe, 100) market
+     * bookkeeping for the 100 tools it just bought; it never touches
+     * `+0x3159`, so the fresh unit keeps whatever slot-reuse garbage is
+     * there — often 0, which is how DOS feeds the FUN_479b_0158 tools
+     * underflow family. The port stocks the 100 tools it paid for instead,
+     * because a 0-tools AI Pioneer is inert here (`units_is_pioneer`
+     * requires tools > 0). Keep as is; do not "fix" to DOS without a live
+     * trace — reverting would disarm every Europe-bought AI Pioneer.
+     */
     if (u->tools < 100) {
       u->tools = 100;
     }
@@ -11841,6 +11678,553 @@ static const uint8_t k_20e6_terr_site_byte[32] = {
 static const int8_t k_20e6_ring20_dx[20] = {0, 1, 1, 1, 0, -1, -1, -1, 0, 1, 2, 2, 2, 1, 0, -1, -2, -2, -2, -1};
 static const int8_t k_20e6_ring20_dy[20] = {-1, -1, 0, 1, 1, 1, 0, -1, -2, -2, -1, 0, 1, 2, 2, 2, 1, 0, -1, -2};
 
+/* ===== FUN_5952_035e colony-tick tile improvement (raw 94402-94551) ===== */
+
+/*
+ * DS:0x2f76 terrain record +0x3 ("colony-site desirability per tile",
+ * docs/terrain_yields.md) is `k_20e6_terr_site_byte` above — FUN_5952_035e
+ * raw 94417 reads the same column (`*(byte *)(class * 0x10 + 0x2f79)`) as the
+ * base improvement value of a candidate work plot.
+ */
+/*
+ * DS:0x97b2 (`-0x684e`) — the 14-byte special-resource desirability column.
+ * Raw 120909 loads it at start-up from the same NAMES.TXT section the
+ * @RESOURCE names come from (`FUN_2a1f_088a` per row, 0xe rows), so it is a
+ * catalog column, not a compiled constant: read it back out of @RESOURCE
+ * field 1 (data_vs_hardcoded.md Part D — catalog miss = 0, never a typed
+ * fallback).
+ */
+static int ai_euro_5952_resource_site_byte(const ColonizeMsgCatalog* names, int resource) {
+  char buf[32];
+  if (!names || resource < 0 || resource > 13) {
+    return 0;
+  }
+  if (!assets_msg_row_field(names, "RESOURCE", resource, 1, buf, sizeof(buf))) {
+    return 0;
+  }
+  return atoi(buf);
+}
+
+/* `layer2 & 0x0a` (FUN_281f_0754): road OR settlement on the tile. */
+static int ai_euro_5952_tile_road_or_settlement(const ColonizeWorldMap* map, int x, int y) {
+  return (map_tile_has_road(map, x, y) || map_tile_has_city(map, x, y)) ? 0x0a : 0;
+}
+
+/* DOS `colony+0x70[plot]` -> `FUN_281f_0c0e` (FUN_15eb_0e18): the field job of
+ * the colonist working this plot, or -1 when the plot is unworked. */
+static int ai_euro_5952_plot_job(const ColonizeColony* col, int plot) {
+  for (int i = 0; i < col->colonist_count && i < COLONIZE_COLONY_POP_MAX; ++i) {
+    if (!col->colonists[i].active) {
+      continue;
+    }
+    if (colonies_colonist_tile(col, i) == plot) {
+      return col->colonists[i].field_job;
+    }
+  }
+  return -1;
+}
+
+/*
+ * DOS-LITERAL FUN_5952_035e raw 94402-94551 (clean body
+ * original_sources_annotated/ai/colony_tick_5952_035e.md:919-1027) — the AI's
+ * ONLY tile-improvement arm. It runs inside the colony tick, not on a unit:
+ * DOS picks the best work plot, spawns a *phantom* colonist on it
+ * (`FUN_291f_0a20` = `FUN_478c_002c`, type DS:0x524e), stamps `+0x315a = 99`
+ * so the very next work tick completes, calls the real Pioneer body
+ * (`FUN_291f_01c2` = `FUN_479b_01a6` clear/plow, or `FUN_291f_0216` =
+ * `FUN_479b_0526` road), then undoes the phantom (`FUN_291f_0a06` =
+ * `FUN_478c_00d0`). On success the colony pays 20 tools and `+0x8c` resets.
+ *
+ * Entry gate, raw 94402: `(colony+0x1b & 0x80) && local_16 && turn % 7 != 0`.
+ * `local_16` is seeded at raw 93978 as `colony+0xb6 > 0x13`, i.e. 20+ tools in
+ * stock. The `turn % 7 == 0` alternative (raw 94389-94400, the inter-colony
+ * road-connect helper FUN_5952_0000 at raw 93589+) and the 20-tool purchase
+ * block at raw 94370-94388 are the two sibling arms, ported as
+ * ai_euro_5952_tools_supply_and_connect (bugs.md #640/#641), which runs
+ * immediately before this one.
+ *
+ * Scoring, per ring plot (raw 94406-94469):
+ *   filters: FUN_281f_0302 interior, FUN_281f_0768 not ocean/sea-lane,
+ *            FUN_15eb_23f2 blocked mask == 0 (colonies_plot_blocked_mask);
+ *   base   : terrain +0x3 byte, replaced by the @RESOURCE byte on a special;
+ *   if NOT (wants-clear && class 8..0x17):
+ *       worked plot whose job's improvement is missing doubles the value
+ *       (job < 4 -> looks for plowed 0x40, job >= 4 -> looks for road 0x0a);
+ *       a plot that has BOTH road and plow is skipped outright;
+ *     else (forest on a wants-clear colony): value doubles;
+ *   tribal claim (the DS:0x8d9e 5x5 table, FUN_15eb_26e4): penalty
+ *       `-(alarm - 4)`, doubled on a special resource, doubled again when the
+ *       continent carries Indian settlements (DS:0x95f2 bit 0) and no wagon
+ *       train is homed here — and the plot is skipped entirely unless the
+ *       colony wants a clear; finally doubled when the purse is under 2000
+ *       gold, halved otherwise. `value -= penalty`.
+ *   best wins, `>=` (DOS seeds `local_16e = 0xffff` = -1 as a signed 16-bit).
+ */
+static void ai_euro_5952_improve_best_plot(ColonizeTurnContext* ctx, ColonizeColony* col) {
+  if (!ctx || !ctx->map || !ctx->colonies || !col || !col->active) {
+    return;
+  }
+  const int nation = col->nation_id;
+  if (nation < 0 || nation >= 4) {
+    return;
+  }
+  const int turn = (ctx->turn_number && *ctx->turn_number) ? (int)*ctx->turn_number : 0;
+  if ((col->ai_flags & COLONIZE_COLONY_AI_WANTS_PIONEER_WORK) == 0) {
+    return; /* raw 94402: colony+0x1b & 0x80 */
+  }
+  if (col->stock[COLONIZE_CARGO_TOOLS] <= 0x13) {
+    return; /* raw 93978 local_16 */
+  }
+  if (turn % 7 == 0) {
+    return; /* raw 94403: that turn belongs to the road-connect helper */
+  }
+  const ColonizeWorld w = (ColonizeWorld){
+    .units = ctx->units,
+    .colonies = ctx->colonies,
+    .map = ctx->map,
+    .col1 = ctx->col1_ok ? ctx->col1 : NULL,
+    .col1_ok = (ctx->col1_ok && ctx->col1) != 0
+  };
+  const int wants_clear = (col->ai_flags & COLONIZE_COLONY_AI_WANTS_PIONEER_CLEAR) != 0;
+  const int colony_cid = map_continent_id_at(ctx->map, col->x, col->y);
+  const int presence = ai_contact_continent_presence_4962(ctx, nation, colony_cid);
+  const long purse = (long)(int32_t)europe_nation_gold(ctx->europe, ctx->col1, nation);
+  const int ring = colonies_work_plot_count(ctx->colonies, col);
+  int best = -1;      /* local_16e, signed */
+  int best_plot = -1; /* local_34 */
+  for (int ti = 0; ti < ring; ++ti) {
+    int dx = 0;
+    int dy = 0;
+    if (!colonies_field_tile_delta(ti, &dx, &dy)) {
+      continue;
+    }
+    const int tx = col->x + dx;
+    const int ty = col->y + dy;
+    if (!map_coords_inset(ctx->map, tx, ty)) {
+      continue; /* FUN_281f_0302 */
+    }
+    const int cls = map_dos_terr_class_at(ctx->map, tx, ty);
+    if (cls == 0x19 || cls == 0x1a) {
+      continue; /* FUN_281f_0768 */
+    }
+    if (colonies_plot_blocked_mask(&w, col, ti) != 0) {
+      continue;
+    }
+    const int res = map_resource_type_at(ctx->map, tx, ty);
+    int value = (res != -1) ? ai_euro_5952_resource_site_byte(ctx->names, res)
+                            : (int)k_20e6_terr_site_byte[cls & 31];
+    const int forest = (cls >= 8 && cls <= 0x17);
+    if (!wants_clear || !forest) {
+      const int job = ai_euro_5952_plot_job(col, ti);
+      if (job >= 0) {
+        const int have = (job < 4) ? (map_tile_is_plowed(ctx->map, tx, ty) ? 0x40 : 0)
+                                   : ai_euro_5952_tile_road_or_settlement(ctx->map, tx, ty);
+        if (have == 0) {
+          value <<= 1;
+        }
+      }
+      if (ai_euro_5952_tile_road_or_settlement(ctx->map, tx, ty) != 0 &&
+          map_tile_is_plowed(ctx->map, tx, ty)) {
+        continue; /* raw 94438-94440: nothing left to do here */
+      }
+    } else {
+      value <<= 1;
+    }
+    const int claim = colonies_indian_claim_tribe_from_w(&w, nation, col->x, col->y, tx, ty);
+    if (claim >= 0 && ctx->col1_ok && ctx->col1 && ctx->col1->tribe &&
+        claim < (int)ctx->col1->head.tribe_count) {
+      const int ind = (int)ctx->col1->tribe[claim].nation_id - 4;
+      const int alarm = (ind >= 0 && ind < (int)COLONIZE_COL1_INDIAN_COUNT)
+                          ? (int)ctx->col1->indian[ind].alarm_by_player[nation]
+                          : 0;
+      int pen = -(alarm - 4);
+      if (res != -1) {
+        pen = (alarm - 4) * -2;
+      }
+      if ((presence & 1) != 0 && (col->colony_flags & COLONIZE_COLONY_FLAG_WAGON_TRAIN) == 0) {
+        if (!wants_clear) {
+          continue; /* raw 94454: goto LAB_5952_122c */
+        }
+        pen <<= 1;
+      }
+      if (purse < 2000) {
+        pen <<= 1;
+      } else {
+        pen >>= 1;
+      }
+      value -= pen;
+    }
+    if (best <= value) { /* raw 94466: `if ((int)local_16e < (int)local_132)` */
+      best = value;
+      best_plot = ti;
+    }
+  }
+  if (best_plot < 0) {
+    return;
+  }
+  int dx = 0;
+  int dy = 0;
+  if (!colonies_field_tile_delta(best_plot, &dx, &dy)) {
+    return;
+  }
+  const int tx = col->x + dx;
+  const int ty = col->y + dy;
+  /*
+   * raw 94474-94489: the 8-neighbour veto. Any neighbour whose layer3 owner
+   * is a EUROPEAN nation (< 4) that is not AI-controlled (DS:0x543f == 0, i.e.
+   * the human) kills the improvement — but the plot's own owner being this
+   * colony's nation un-kills it (raw 94488-94491, run AFTER the loop).
+   */
+  int allow = 1;
+  for (int d = 0; d < 8; ++d) {
+    /* DS:0xb4/0xbe dir8 = the first 8 slots of the ring20 table.
+     * FUN_281f_06d2 = settlement owner else unit owner (ai_goals note). */
+    const int owner = map_tile_tribe_or_presence(
+      ctx->map, tx + k_20e6_ring20_dx[d], ty + k_20e6_ring20_dy[d]
+    );
+    if (owner >= 0 && owner < 4 && owner == ctx->human_nation) {
+      allow = 0; /* DS:0x543f[owner] == 0, the human-controlled seat */
+    }
+  }
+  if (map_tile_tribe_or_presence(ctx->map, tx, ty) == nation) {
+    allow = 1; /* raw 94488-94491, after the loop */
+  }
+  if (!allow) {
+    return;
+  }
+  /*
+   * raw 94492-94504: the work-turns threshold. `DS:0x2f78[class] + 2`, or
+   * `+ 4` when the plot is forest AND the colony carries the wants-clear bit
+   * (that is also what makes this a CLEAR rather than a plow/road decision).
+   */
+  const int cls = map_dos_terr_class_at(ctx->map, tx, ty);
+  const int clear_mode = ((cls >= 8 && cls <= 0x17) && wants_clear) ? 1 : 0;
+  const int base = map_dos_terr_pioneer_threshold_byte(cls);
+  const int threshold = base + (clear_mode ? 4 : 2);
+  if ((int8_t)threshold > (int8_t)col->improve_timer) {
+    return; /* raw 94505 */
+  }
+  /*
+   * The phantom-colonist trick, raw 94506-94540. DOS spawns a throwaway unit
+   * of type DS:0x524e on the plot, stamps `+0x315a = 99` (any threshold is
+   * met, so the body finishes on its first tick), runs the real Pioneer body
+   * and despawns it. The port needs one extra thing DOS does not: its work
+   * bodies gate on `units_is_pioneer`, which wants tools > 0, so the phantom
+   * is handed tools. Nothing survives the despawn either way.
+   */
+  const int ptype = ai_euro_5d04_linux_type_for(ctx->units, 2);
+  if (ptype < 0) {
+    return;
+  }
+  const int pid = units_spawn_allow_stack(ctx->units, ptype, tx, ty);
+  ColonizeUnit* ph = units_get(ctx->units, pid);
+  if (!ph) {
+    return;
+  }
+  ph->nation_id = nation;
+  ph->tools = UNITS_EQUIP_TOOLS_STEP;
+  ph->col1_counter16 = 99; /* +0x315a = 99 */
+  const ColonizeWorld pw = (ColonizeWorld){
+    .units = ctx->units, .colonies = ctx->colonies, .map = ctx->map
+  };
+  char err[64];
+  int worked = 0;
+  const int road_bits = ai_euro_5952_tile_road_or_settlement(ctx->map, tx, ty);
+  const int plowed = map_tile_is_plowed(ctx->map, tx, ty) ? 0x40 : 0;
+  int do_plow = 0;
+  int do_road = 0;
+  if (!clear_mode) {
+    const int job = ai_euro_5952_plot_job(col, best_plot);
+    if (job >= 0 && job < 4 && plowed == 0) {
+      do_plow = 1; /* LAB_5952_1508 */
+    } else if (job > 3 && road_bits == 0) {
+      do_road = 1; /* LAB_5952_15b0 */
+    } else if (cls < 2 || cls > 7) {
+      do_road = (road_bits == 0);
+    } else {
+      do_plow = (plowed == 0);
+    }
+  } else {
+    do_plow = 1; /* forest CLEAR shares FUN_479b_01a6 */
+  }
+  if (do_plow) {
+    worked = units_pioneer_plow_w(&pw, pid, err, sizeof(err), NULL, NULL) ? 1 : 0;
+  } else if (do_road) {
+    worked = units_pioneer_road_w(&pw, pid, err, sizeof(err), NULL, NULL) ? 1 : 0;
+  }
+  units_despawn(ctx->units, pid); /* FUN_291f_0a06 */
+  if (worked) {
+    /* raw 94541-94549: colony+0xb6 -= min(stock, 20); colony+0x8c = 0. */
+    int pay = col->stock[COLONIZE_CARGO_TOOLS];
+    if (pay > 0x14) {
+      pay = 0x14;
+    }
+    col->stock[COLONIZE_CARGO_TOOLS] -= pay;
+    col->improve_timer = 0;
+  }
+}
+
+static int ai_euro_20e6_own_colonies_on(const ColonizeTurnContext* ctx, int nation, int cid);
+
+/* FUN_281f_06be = FUN_137f_03e4 (raw 6840-6858): the owner of the SETTLEMENT
+ * on a tile (layer2 bit 0x02 -> layer3 high nibble), -1 when there is none.
+ * Unlike map_tile_tribe_or_presence (FUN_281f_06d2 = FUN_137f_0428) it does
+ * NOT fall back to an occupying unit. */
+static int ai_euro_5952_settlement_owner_at(const ColonizeWorldMap* map, int x, int y) {
+  if (!map_in_bounds(map, x, y) || !map_tile_has_city(map, x, y)) {
+    return -1;
+  }
+  const int hi = (int)((map_get_layer3(map, x, y) >> 4) & 0x0fu);
+  return hi == 0x0f ? -1 : hi;
+}
+
+/* FUN_281f_06e6 = FUN_137f_044a (raw 6877-6900): the owner of an IMPROVED
+ * tile (`layer2 & 0x48` = plowed 0x40 or road 0x08) when that owner is a
+ * DIFFERENT Euro nation (0..3) this nation is at PEACE with
+ * (`nation[self].euro_relation[owner] & 0x40`, AI_DIPLO_PEACE); -1 otherwise. */
+static int ai_euro_5952_improved_peer_owner_at(
+  const ColonizeCol1Save* col1, const ColonizeWorldMap* map, int x, int y, int nation
+) {
+  if (!map_in_bounds(map, x, y)) {
+    return -1;
+  }
+  if (!map_tile_is_plowed(map, x, y) && !map_tile_has_road(map, x, y)) {
+    return -1;
+  }
+  const int hi = (int)((map_get_layer3(map, x, y) >> 4) & 0x0fu);
+  if (hi < 0 || hi >= 4 || hi == nation || !col1) {
+    return -1;
+  }
+  return (col1->nation[nation].euro_relation[hi] & AI_DIPLO_PEACE) != 0 ? hi : -1;
+}
+
+/*
+ * DOS-LITERAL FUN_5952_0000 (raw 93589-93685) — the AI's inter-colony
+ * ROAD-CONNECT helper, reached only from FUN_5952_035e's `turn % 7 == 0`
+ * arm (raw 94389-94400) via thunk_FUN_2a1f_05d8. bugs.md #641.
+ *
+ *   iVar4 = FUN_281f_0722(x, y)                      // this colony's continent
+ *   if (DS:0x94e6[nation*0x10 + iVar4] <= 1) return 0 // need 2+ own colonies here
+ *   for (each other colony of the same nation, index != DS:0x8dc6):
+ *     if (|ox-x| > 6 && |oy-y| > 6) continue          // raw 93612-93621, AND
+ *     if (continent(ox,oy) != iVar4) continue
+ *     if (FUN_281f_04d4(0, count-2) != 0) continue    // 1-in-(count-1) roll
+ *     DS:0x1dd6 = -1; DS:0xa14e/0xa14c = (ox,oy); DS:0x1dd4 = 1; DS:0x1dd2 = 1
+ *     walk FUN_2a1f_05f0 (= FUN_6662_00f2) one direction at a time from the
+ *       colony toward the other colony, stopping on dir < 0 / dir == 8 / on
+ *       arrival, and stopping with `found` when the stepped-onto tile has
+ *       NO settlement (FUN_281f_06be < 0) AND no road/settlement bits
+ *       (FUN_281f_0754 & 0x0a == 0) -- that tile is the gap in the link.
+ *     if (!found) continue
+ *     if (FUN_281f_06d2(gap) >= 0 && != nation) continue     // occupied
+ *     if (FUN_281f_06e6(gap, nation) >= 0 && != nation) continue
+ *     if (colony+0x8c < DS:0x2f78[class*0x10] + 2) return 0   // NOT continue
+ *     spawn DS:0x524e phantom, +0x315a = 99, FUN_291f_0216 (= FUN_479b_0526
+ *       road), FUN_291f_0a06 despawn, return 1
+ *
+ * Port notes: the walk needs a mover for units_next_goto_step_w (the port of
+ * the same FUN_6662 pathfinder), so a walker phantom carries the virtual
+ * position DOS keeps in local_18/local_1e; it is despawned BEFORE the
+ * occupancy tests so it cannot be mistaken for the occupant DOS's
+ * unit-less walk never sees. The road phantom is then spawned on the gap
+ * tile exactly as the #612 improve arm does. The step loop carries a
+ * width+height cap DOS does not need (its pathfinder always terminates).
+ */
+static int ai_euro_5952_road_connect_0000(ColonizeTurnContext* ctx, ColonizeColony* col) {
+  if (!ctx || !ctx->map || !ctx->colonies || !ctx->units || !col || !col->active) {
+    return 0;
+  }
+  const int nation = col->nation_id;
+  if (nation < 0 || nation >= 4) {
+    return 0;
+  }
+  const int cid = map_continent_id_at(ctx->map, col->x, col->y); /* FUN_281f_0722 */
+  /* raw 93601: `1 < DS:0x94e6[nation*0x10 + continent]` */
+  const int own_here = ai_euro_20e6_own_colonies_on(ctx, nation, cid);
+  if (own_here <= 1) {
+    return 0;
+  }
+  const ColonizeWorld w = (ColonizeWorld){
+    .units = ctx->units,
+    .colonies = ctx->colonies,
+    .map = ctx->map,
+    .rng = ctx->rng,
+    .col1 = ctx->col1_ok ? ctx->col1 : NULL,
+    .col1_ok = (ctx->col1_ok && ctx->col1) != 0
+  };
+  const int step_cap = (int)ctx->map->width + (int)ctx->map->height;
+  for (int ci = 0; ci < COLONIZE_COLONIES_MAX; ++ci) {
+    ColonizeColony* other = &ctx->colonies->colonies[ci];
+    if (!other->active || other->nation_id != nation || other == col) {
+      continue; /* raw 93606: same nation, DS:0x8dc6 != index */
+    }
+    const int ox = other->x;
+    const int oy = other->y;
+    /* raw 93610-93621 — DOS only checks y when |dx| > 6, so the skip needs
+     * BOTH axes beyond 6. Transcribed as written. */
+    if (abs(ox - col->x) > 6 && abs(oy - col->y) > 6) {
+      continue;
+    }
+    if (map_continent_id_at(ctx->map, ox, oy) != cid) {
+      continue; /* raw 93623 */
+    }
+    if (!ctx->rng || dos_rng_range(ctx->rng, 0, own_here - 2) != 0) {
+      continue; /* raw 93625 FUN_281f_04d4(0, count - 2) */
+    }
+    /* The virtual walk, raw 93632-93652. */
+    const int wtype = ai_euro_5d04_linux_type_for(ctx->units, 2);
+    if (wtype < 0) {
+      return 0;
+    }
+    const int wid = units_spawn_allow_stack(ctx->units, wtype, col->x, col->y);
+    ColonizeUnit* walker = units_get(ctx->units, wid);
+    if (!walker) {
+      return 0;
+    }
+    walker->nation_id = nation;
+    int cx = col->x;
+    int cy = col->y;
+    int found = 0;
+    if (units_set_goto_w(&w, wid, ox, oy)) {
+      for (int steps = 0; steps < step_cap; ++steps) {
+        int nx = 0;
+        int ny = 0;
+        if (!units_next_goto_step_w(&w, wid, &nx, &ny)) {
+          break; /* dir < 0 or dir == 8 */
+        }
+        const int px = cx;
+        const int py = cy;
+        cx = nx;
+        cy = ny;
+        walker->x = nx;
+        walker->y = ny;
+        units_occupancy_notify_moved(ctx->units, px, py, nx, ny);
+        units_note_goto_step(wid, nx - px, ny - py);
+        if (cx == ox && cy == oy) {
+          break; /* raw 93639 */
+        }
+        if (ai_euro_5952_settlement_owner_at(ctx->map, cx, cy) < 0 &&
+            (ai_euro_5952_tile_road_or_settlement(ctx->map, cx, cy) & 0x0a) == 0) {
+          found = 1; /* raw 93641-93645: bVar3 = false */
+          break;
+        }
+      }
+    }
+    units_despawn(ctx->units, wid);
+    if (!found) {
+      continue;
+    }
+    /* raw 93655-93661: the gap tile must carry no occupant and no at-peace
+     * rival's improvement. */
+    const int occ = map_tile_tribe_or_presence(ctx->map, cx, cy); /* FUN_281f_06d2 */
+    if (occ >= 0 && occ != nation) {
+      continue;
+    }
+    const int peer = ai_euro_5952_improved_peer_owner_at(
+      ctx->col1_ok ? ctx->col1 : NULL, ctx->map, cx, cy, nation
+    ); /* FUN_281f_06e6 */
+    if (peer >= 0 && peer != nation) {
+      continue;
+    }
+    /* raw 93663-93666: DOS *returns 0* here, it does not try another colony. */
+    const int cls = map_dos_terr_class_at(ctx->map, cx, cy);
+    const int threshold = map_dos_terr_pioneer_threshold_byte(cls) + 2;
+    if ((int8_t)col->improve_timer < (int8_t)threshold) {
+      return 0;
+    }
+    /* raw 93667-93671: the road phantom. */
+    const int pid = units_spawn_allow_stack(ctx->units, wtype, cx, cy);
+    ColonizeUnit* ph = units_get(ctx->units, pid);
+    if (!ph) {
+      return 0;
+    }
+    ph->nation_id = nation;
+    ph->tools = UNITS_EQUIP_TOOLS_STEP; /* units_is_pioneer gate, see #612 */
+    ph->col1_counter16 = 99;            /* +0x315a = 99 */
+    const ColonizeWorld pw = (ColonizeWorld){
+      .units = ctx->units, .colonies = ctx->colonies, .map = ctx->map
+    };
+    char err[64];
+    const int built = units_pioneer_road_w(&pw, pid, err, sizeof(err), NULL, NULL) ? 1 : 0;
+    units_despawn(ctx->units, pid); /* FUN_291f_0a06 */
+    if (built) {
+      return 1;
+    }
+    return 0;
+  }
+  return 0;
+}
+
+/*
+ * DOS-LITERAL FUN_5952_035e raw 94370-94400 — the two arms that sit between
+ * the tick's civic pass and the #612 tile-improvement arm. bugs.md #640/#641.
+ *
+ * raw 94370-94388, the 20-tool purchase (#640):
+ *   if (((colony+0x1b & 0x80) || turn % 10 == 0) && local_16 == 0) {
+ *     uVar12 = DS:0x84ca[nation*0x10];        // = DS:0x84bc[nation*0x10 + 0x0e]
+ *     cost   = uVar12 * 0x14;                 // 20 tools
+ *     if (32-bit gold at *0x84fc+0x2a >= cost) {
+ *       gold -= cost; FUN_291f_0c14(); colony+0xb6 += 0x14; local_16 = 1;
+ *     }
+ *   }
+ * DS:0x84ca is NOT a separate table: 0x84ca == 0x84bc + 0x0e and the read
+ * uses the same `nation*0x10 + cargo` index as the SELL price row already
+ * ported as AiEuro5952Want.sell_price (see the DS:0x84b4 note above and
+ * docs/port_plan.md:976) — cargo 0x0e is Tools. Every writer of that row
+ * stores `euro_price - 1` clamped at 0, so the AI pays the sell price, one
+ * below the Europe ask. No byte dump was needed and no constant is invented.
+ *
+ * raw 94389-94400, the road-connect arm (#641):
+ *   if (local_16 && turn % 7 == 0 && FUN_5952_0000()) {
+ *     colony+0xb6 -= min(colony+0xb6, 0x14); colony+0x8c = 0;
+ *   }
+ * Note it is NOT gated on `colony+0x1b & 0x80` the way the improve arm is.
+ */
+static void ai_euro_5952_tools_supply_and_connect(
+  ColonizeTurnContext* ctx, ColonizeColony* col
+) {
+  if (!ctx || !col || !col->active) {
+    return;
+  }
+  const int nation = col->nation_id;
+  if (nation < 0 || nation >= 4) {
+    return;
+  }
+  const int turn = (ctx->turn_number && *ctx->turn_number) ? (int)*ctx->turn_number : 0;
+  int have_tools = col->stock[COLONIZE_CARGO_TOOLS] > 0x13; /* local_16, raw 93978 */
+  const int wants_work = (col->ai_flags & COLONIZE_COLONY_AI_WANTS_PIONEER_WORK) != 0;
+  if ((wants_work || turn % 10 == 0) && !have_tools && ctx->col1_ok && ctx->col1) {
+    /*
+     * DS:0x84bc[nation*0x10 + 0x0e] — every writer of that row stores
+     * `euro_price - 1` clamped at 0 (FUN_38fd_0040, europe.c's dump-sell
+     * note). A game that never came from a DOS save leaves the AI nations'
+     * byte at 0, exactly as europe.c's Custom House substitution documents;
+     * with no live Europe screen either there is no DS:0x84bc row to read at
+     * all, so the arm does not run (it cannot price the purchase — it does
+     * not price it at zero).
+     */
+    const uint8_t row = ctx->col1->nation[nation].trade.euro_price[COLONIZE_CARGO_TOOLS];
+    const int price = row != 0 ? (int)row - 1
+                               : europe_sell_price(ctx->europe, COLONIZE_CARGO_TOOLS);
+    const int have_market = (row != 0) || (ctx->europe != NULL);
+    const long cost = (long)price * 0x14;
+    const long gold = (long)(int32_t)europe_nation_gold(ctx->europe, ctx->col1, nation);
+    if (have_market && gold >= 0 && gold >= cost) {
+      europe_nation_gold_add(ctx->europe, ctx->col1, nation, -cost);
+      col->stock[COLONIZE_CARGO_TOOLS] += 0x14;
+      have_tools = 1;
+    }
+  }
+  if (have_tools && turn % 7 == 0 && ai_euro_5952_road_connect_0000(ctx, col)) {
+    int pay = col->stock[COLONIZE_CARGO_TOOLS];
+    if (pay > 0x14) {
+      pay = 0x14;
+    }
+    col->stock[COLONIZE_CARGO_TOOLS] -= pay;
+    col->improve_timer = 0;
+  }
+}
+
 static uint8_t s_20e6_explorers[16];
 /*
  * DOS unit+0x3154, the land-explorer branch (raw ~1600-1607): a per-unit
@@ -12637,11 +13021,26 @@ static int ai_euro_20e6_labor_arm(ColonizeTurnContext* ctx, ColonizeUnit* u, Ai2
     return 1;
   }
   if (s->home_dist == 0 && s->home_colony >= 0) {
-    /* Standing on an own colony with nothing to staff: re-equip as Pioneer. */
-    if (u->tools < UNITS_EQUIP_TOOLS_STEP) {
-      u->tools = UNITS_EQUIP_TOOLS_STEP;
+    /*
+     * DOS-LITERAL FUN_521d_20e6 raw 89350-89357 — the labor-band fall-through
+     * for a unit standing on its own colony with nothing left to staff:
+     *   unit[+0x314b] = 0x3d; unit[+0x3146] = 2; unit[+0x3159] = 0x14;
+     *   FUN_281f_0934(unit); goto LAB_521d_5a78;
+     * i.e. the surplus colonist BECOMES a Pioneer (type 2) carrying exactly 20
+     * tools — the tools write is unconditional, not a `< 20` floor. The port
+     * wrote only the floor, so no AI colonist ever changed type and the 5952
+     * equip arm / 5d04 Europe arm (both gated on `unit_type_counts[n][2] == 0`)
+     * kept re-arming (bugs.md #614).
+     */
+    u->col1_ai_plan = 0x3d; /* +0x314b */
+    {
+      const int pioneer_type = ai_euro_5d04_linux_type_for(ctx->units, 2);
+      if (pioneer_type >= 0) {
+        u->type_index = pioneer_type; /* +0x3146 = 2 */
+      }
     }
-    u->moves = 0;
+    u->tools = UNITS_EQUIP_TOOLS_STEP; /* +0x3159 = 0x14, unconditional */
+    u->moves = 0;                      /* FUN_281f_0934 */
     return 2;
   }
   if (!s->woi) {
@@ -14349,6 +14748,90 @@ static int ai_euro_move_scoring_gate(ColonizeTurnContext* ctx, ColonizeUnit* u, 
    * (state this port keeps in `aboard_ship_id`) while the port's orders 1 is
    * SENTRY, a parked ON-MAP unit that must still free-score.
    */
+  /*
+   * DOS-LITERAL FUN_521d_20e6 raw 90183-90206 (dup raw 85345-85368, overlay
+   * body viceroy_overlays.c:80720-80761) — the ONLY AI pioneer order DOS
+   * writes. It sits immediately ahead of the pre-LAB_4d2e gate below:
+   *
+   *   if (unit[+0x3146] == 2 && local_6a == 0) {          // Pioneers, not an
+   *     local_a = 1;                                      //   explorer pick
+   *     if (-1 < village_idx) {                           // raw 90186
+   *       FUN_281f_0a4c(village_idx);                     //   bind DS:0x8d52
+   *       local_7c = FUN_281f_0a56(DS:0x8d52);            //   tech-tier radius
+   *       if (village_dist <= local_7c && alarm_q < 3) local_a = 0;
+   *     }
+   *     if (-1 < colony_idx) {                            // raw 90193
+   *       FUN_281f_09e6(colony_idx);
+   *       if (colony[+0x1a] != nation && colony_dist < 3) local_a = 0;
+   *     }
+   *     if (local_a) { unit[+0x314c] = 9; unit[+0x314b] = 0x52;
+   *                    goto LAB_521d_5a78; }
+   *   }
+   *
+   * No tile-quality test, no colony ring, no tools test, no plow-before-road
+   * rule — those were the invented planner (bugs.md #610).
+   *
+   * Who ticks an order-9 AI unit afterwards? **Nobody.** The only callers of
+   * the real work bodies FUN_479b_01a6 / FUN_479b_0526 in the whole image are
+   * the human ORDERS UI (raw 42512 / 42603, FUN_2b5a_123e / _1454) and the two
+   * AI **colony-tick** phantom-unit sites (raw 93669 and raw 94520/94534). An
+   * AI unit that takes order 9 also fails 20e6's own entry gate on every later
+   * call (`act_state != 0/5/6 && act_state < 10 -> LAB_5a78`, raw 89327 in the
+   * prologue), so the write is a *park*, not a work order. The tiles actually
+   * get improved by FUN_5952_035e (ai_euro_5952_improve_best_plot, #612).
+   * Ported literally anyway: it is what takes the unit out of the wander
+   * scorer, which is visible behaviour.
+   */
+  /*
+   * The 20e6 prologue and the iStack_6a explorer flag are DOS's, computed
+   * ONCE per 20e6 call: ai_euro_20e6_explorer_flag has a side effect (the
+   * −0x5ec4 per-continent explorer counter), so it must not be run twice.
+   */
+  Ai20e6Unit s;
+  ai_euro_20e6_prologue(ctx, u, nation_id, &s);
+  ai_euro_20e6_explorer_flag(ctx, u, &s);
+  if (!landed_settle && !force_wander && s.dos_type == 2 && s.explorer == 0) {
+    {
+      {
+      int allow = 1; /* local_a */
+      if (s.village_idx >= 0 && ctx->col1_ok && ctx->col1 && ctx->col1->tribe &&
+          s.village_idx < (int)ctx->col1->head.tribe_count) {
+        const ColonizeCol1Tribe* vt = &ctx->col1->tribe[s.village_idx];
+        const int ind = (int)vt->nation_id - 4;
+        if (ind >= 0 && ind < (int)COLONIZE_COL1_INDIAN_COUNT) {
+          /* FUN_281f_0a56 -> FUN_15dc_006a: tech 0/1 -> 1, 2 -> 2, else 3. */
+          const unsigned tech = (unsigned)ctx->col1->indian[ind].tech;
+          const int radius = (tech <= 1u) ? 1 : (tech == 2u ? 2 : 3);
+          const int alarm = (nation_id >= 0 && nation_id < 4)
+                              ? (int)ctx->col1->indian[ind].alarm_by_player[nation_id]
+                              : 0;
+          /* FUN_281f_0a60 -> FUN_15dc_00a2 quartile: <25 0, <50 1, <75 2, else 3. */
+          if (s.village_dist <= radius && ai_relation_quartile(alarm) < 3) {
+            allow = 0;
+          }
+        }
+      }
+      {
+        int any_dist = 0;
+        const int any_id = ai_euro_20e6_nearest_colony(ctx, u->x, u->y, -1, -1, &any_dist);
+        if (any_id >= 0) {
+          const ColonizeColony* ac = colonies_get(ctx->colonies, any_id);
+          if (ac && ac->nation_id != nation_id && any_dist < 3) {
+            allow = 0;
+          }
+        }
+      }
+      if (allow) {
+        u->orders = UNITS_ORDER_BUILD_ROAD; /* +0x314c = 9 */
+        u->col1_ai_plan = 0x52;             /* +0x314b = 'R' */
+        /* `goto LAB_521d_5a78`: 20e6 is done with this unit — 1 makes
+         * ai_euro_unit_act return instead of running the goal ladder, which
+         * would immediately re-stamp an AI_MOVE over the order. */
+        return 1;
+      }
+      }
+    }
+  }
   int to_4d2e = force_wander || !ai_euro_has_useful_goto(u, ctx->map) ||
                 ai_euro_20e6_adjacent_foreign_09dc(ctx, u->x, u->y, nation_id);
   if (landed_settle) {
@@ -14385,9 +14868,6 @@ static int ai_euro_move_scoring_gate(ColonizeTurnContext* ctx, ColonizeUnit* u, 
      * (epilogue LAB_589e: unit+0x314c=0xc, +0x314d/e = next tile) or
      * staying (dir 8 → +0x314c=5, re-evaluate next call).
      */
-    Ai20e6Unit s;
-    ai_euro_20e6_prologue(ctx, u, nation_id, &s);
-    ai_euro_20e6_explorer_flag(ctx, u, &s);
     /*
      * raw 88612 `goto LAB_521d_4d2e`: the own-colony surplus branch enters the
      * scorer directly, skipping LAB_277a and every arm hanging off it.
@@ -19821,27 +20301,8 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_land_roles(struct ai_euro_act_ctx*
     }
   }
 
-  /*
-   * Pioneer plow/road (act-level): idle Hardy/Expert Pioneer with tools picks
-   * nearby own-colony surround → AI_MOVE then on-tile units_pioneer_plow
-   * (clear forest then plow) / units_pioneer_road. Cite: Colonization.pdf
-   * Clear/Plow/Road; Hardy Pioneer faster work. Preserve goto vs FOUND yank.
-   */
-  int pioneer_improved = 0;
-  if (!treasure_routed && !wagon_hauled && !land_war_hunted && !peace_border_hunted &&
-      !scout_explored &&
-      ai_euro_name_is_pioneer(ukind)) {
-    if (ai_euro_try_pioneer_improve(ctx, nation_id, u)) {
-      pioneer_improved = 1;
-      if (!u->active || u->moves <= 0) {
-        return AI_EURO_ACT_RETURN; /* plowed/roaded — spent tools + moves */
-      }
-    }
-  }
-
   a->land_war_hunted = land_war_hunted;
   a->peace_border_hunted = peace_border_hunted;
-  a->pioneer_improved = pioneer_improved;
   a->scout_explored = scout_explored;
   a->treasure_routed = treasure_routed;
   a->wagon_hauled = wagon_hauled;
@@ -19860,7 +20321,6 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_land_fortify(struct ai_euro_act_ct
   const int at_war_land = a->at_war_land;
   int land_war_hunted = a->land_war_hunted;
   int peace_border_hunted = a->peace_border_hunted;
-  int pioneer_improved = a->pioneer_improved;
   int scout_explored = a->scout_explored;
   int treasure_routed = a->treasure_routed;
   const ColonizeUnitKind ukind = a->ukind;
@@ -19884,7 +20344,6 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_land_fortify(struct ai_euro_act_ct
    */
   const int fort_dos_type = ai_euro_20e6_dos_type(ctx->units, u);
   if (!at_war_land && !peace_border_hunted && !treasure_routed && !wagon_hauled &&
-      !pioneer_improved &&
       !scout_explored &&
       !land_war_hunted && fort_dos_type >= 0 &&
       ai_euro_20e6_type_combat(fort_dos_type) > 1 &&
@@ -19940,7 +20399,7 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_land_fortify(struct ai_euro_act_ct
    * euro_unit_act §2d3; Colonization.pdf Defending a Colony ("…or artillery");
    * king_ref Artillery siege fortify.
    */
-  if (!treasure_routed && !wagon_hauled && !pioneer_improved &&
+  if (!treasure_routed && !wagon_hauled  &&
       !scout_explored && !land_war_hunted && !peace_border_hunted &&
       ai_euro_is_artillery_name(ukind) && !ai_euro_land_is_fortified(u) && ctx->colonies) {
     const int cid = colonies_id_at(ctx->colonies, u->x, u->y);
@@ -19964,7 +20423,6 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_land_fortify(struct ai_euro_act_ct
 
   a->land_war_hunted = land_war_hunted;
   a->peace_border_hunted = peace_border_hunted;
-  a->pioneer_improved = pioneer_improved;
   a->scout_explored = scout_explored;
   a->treasure_routed = treasure_routed;
   a->wagon_hauled = wagon_hauled;
@@ -19983,7 +20441,6 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_land_goal_consume(struct ai_euro_a
   const int at_war_land = a->at_war_land;
   int land_war_hunted = a->land_war_hunted;
   int peace_border_hunted = a->peace_border_hunted;
-  int pioneer_improved = a->pioneer_improved;
   int scout_explored = a->scout_explored;
   int treasure_routed = a->treasure_routed;
   const ColonizeUnitKind ukind = a->ukind;
@@ -20060,7 +20517,7 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_land_goal_consume(struct ai_euro_a
       (is_pioneer || is_farmer || is_carpenter || is_lumberjack ||
        ukind == UNITS_KIND_COLONIST);
     if (!land_war_hunted && !peace_border_hunted && !scout_explored && !treasure_routed &&
-        !wagon_hauled && !pioneer_improved &&
+        !wagon_hauled  &&
         is_colonist_cap &&
         ctx->colonies && !ai_euro_land_is_fortified(u)) {
       AiEuroInventory* inv = ai_goals_inventory(nation_id);
@@ -20180,7 +20637,6 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_land_goal_consume(struct ai_euro_a
   a->goal_y = goal_y;
   a->land_war_hunted = land_war_hunted;
   a->peace_border_hunted = peace_border_hunted;
-  a->pioneer_improved = pioneer_improved;
   a->scout_explored = scout_explored;
   a->treasure_routed = treasure_routed;
   a->wagon_hauled = wagon_hauled;
@@ -20205,7 +20661,6 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_land_goal_dispatch(struct ai_euro_
   const int is_ship = a->is_ship;
   int land_war_hunted = a->land_war_hunted;
   int peace_border_hunted = a->peace_border_hunted;
-  int pioneer_improved = a->pioneer_improved;
   int scout_explored = a->scout_explored;
   int treasure_routed = a->treasure_routed;
   const ColonizeUnitKind ukind = a->ukind;
@@ -20301,7 +20756,7 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_land_goal_dispatch(struct ai_euro_
   /* Preserve land-war / peace-border / scout / treasure / missionary / wagon /
    * pioneer-improve / LABOR. */
   if (goal_code >= 0 && !land_war_hunted && !peace_border_hunted && !scout_explored &&
-      !treasure_routed && !wagon_hauled && !pioneer_improved) {
+      !treasure_routed && !wagon_hauled) {
     ai_euro_set_goto(u, UNITS_ORDER_AI_MOVE, goal_x, goal_y);
   }
 
@@ -20413,7 +20868,6 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_land_goal_dispatch(struct ai_euro_
   a->goal_y = goal_y;
   a->land_war_hunted = land_war_hunted;
   a->peace_border_hunted = peace_border_hunted;
-  a->pioneer_improved = pioneer_improved;
   a->scout_explored = scout_explored;
   a->treasure_routed = treasure_routed;
   a->wagon_hauled = wagon_hauled;

@@ -1023,7 +1023,163 @@ done:
   return rc;
 }
 
-/* Pioneer order-gate @ONLYPIO / @NOPLOW / @NOROAD. */
+/* Pioneer order gates: silent non-pioneer refusal (#621), @NOPLOW / @NOROAD. */
+/*
+ * Pioneer DOS-fidelity fixes: bugs.md #615 (no MP gate), #617 (road hammers go
+ * to the nearest colony of ANY nation, and only if it is ours), #618 (road
+ * refused on a settlement tile), #619 (Arctic plowable, Hills not),
+ * #620 (progress counter survives an order change).
+ */
+static int unit_pioneer_dos_gates_2026_09_22(void) {
+  ColonizeMsgCatalog names;
+  assets_msg_init(&names);
+  if (!assets_msg_load_file(&names, "COLONIZE/NAMES.TXT")) {
+    fprintf(stderr, "piodos: NAMES.TXT load failed\n");
+    return 1;
+  }
+  ColonizeUnitPool pool;
+  memset(&pool, 0, sizeof(pool));
+  if (!units_load_types(&pool, &names)) {
+    fprintf(stderr, "piodos: units_load_types failed\n");
+    assets_msg_free(&names);
+    return 1;
+  }
+  const int pioneer = units_find_type(&pool, "Pioneers");
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  char err[128];
+  if (pioneer < 0 || !map_alloc(&map, 16, 16, err, sizeof(err))) {
+    fprintf(stderr, "piodos: setup failed\n");
+    assets_msg_free(&names);
+    return 1;
+  }
+  for (int i = 0; i < 16 * 16; ++i) {
+    map.terrain[i] = 2; /* plains */
+  }
+  ColonizeColonyPool colonies;
+  colonies_init(&colonies);
+  int rc = 0;
+
+  /* #615: a pioneer at 0 MP may still take (and tick) the order. */
+  {
+    const int pid = units_spawn(&pool, pioneer, 4, 4);
+    ColonizeUnit* pu = units_get(&pool, pid);
+    pu->nation_id = 0;
+    pu->tools = 100;
+    pu->moves = 0;
+    err[0] = '\0';
+    if (!units_pioneer_plow_w(
+          &(ColonizeWorld){.units = &pool, .colonies = &colonies, .map = &map},
+          pid, err, sizeof(err), NULL, NULL)) {
+      fprintf(stderr, "piodos #615: 0-MP plow order refused: %s\n", err);
+      rc = 1;
+    } else if (units_get(&pool, pid)->col1_counter16 != 1) {
+      fprintf(stderr, "piodos #615: no work tick at 0 MP\n");
+      rc = 1;
+    }
+    /* #620: switching to Build Road must NOT reset the progress counter. */
+    if (!rc) {
+      err[0] = '\0';
+      units_pioneer_road_w(
+        &(ColonizeWorld){.units = &pool, .colonies = &colonies, .map = &map},
+        pid, err, sizeof(err), NULL, NULL);
+      if (units_get(&pool, pid)->col1_counter16 < 2) {
+        fprintf(
+          stderr,
+          "piodos #620: counter reset on order change (%d)\n",
+          units_get(&pool, pid)->col1_counter16
+        );
+        rc = 1;
+      }
+    }
+    units_despawn(&pool, pid);
+  }
+
+  /* #619: Hills (pedia 0x1c) deny clear/plow; Arctic (24) allows it. */
+  if (!rc) {
+    const int pid = units_spawn(&pool, pioneer, 6, 6);
+    ColonizeUnit* pu = units_get(&pool, pid);
+    pu->nation_id = 0;
+    pu->tools = 100;
+    map.terrain[6 * 16 + 6] = (uint8_t)((map.terrain[6 * 16 + 6] & ~0x1f) | 7); /* Arctic base */
+    if (map_pedia_terrain_index_at(&map, 6, 6) == 24) {
+      err[0] = '\0';
+      if (!units_pioneer_plow_w(
+            &(ColonizeWorld){.units = &pool, .colonies = &colonies, .map = &map},
+            pid, err, sizeof(err), NULL, NULL)) {
+        fprintf(stderr, "piodos #619: Arctic plow refused: %s\n", err);
+        rc = 1;
+      }
+    }
+    units_despawn(&pool, pid);
+  }
+
+  /* #617 / #618: road beside a nearer FOREIGN colony pays nobody, and a road
+   * cannot be started on a settlement tile at all. */
+  if (!rc) {
+    const int foreign = colonies_found(&colonies, &map, 9, 9, 1, -1, UNITS_JOB_NONE, 0, 0, 0);
+    const int mine = colonies_found(&colonies, &map, 13, 13, 0, -1, UNITS_JOB_NONE, 0, 0, 0);
+    if (foreign < 0 || mine < 0) {
+      fprintf(stderr, "piodos: colonies_found failed\n");
+      rc = 1;
+    } else {
+      ColonizeColony* fc = colonies_get_mut(&colonies, foreign);
+      ColonizeColony* mc = colonies_get_mut(&colonies, mine);
+      const uint16_t h0 = mc->hammers_purchased;
+      const int pid = units_spawn(&pool, pioneer, 10, 9);
+      ColonizeUnit* pu = units_get(&pool, pid);
+      pu->nation_id = 0;
+      pu->tools = 100;
+      pu->profession = UNITS_JOB_NONE;
+      for (int t = 0; t < 40 && units_get(&pool, pid)->orders == UNITS_ORDER_BUILD_ROAD; ++t) {
+        units_pioneer_work_tick_w(
+          &(ColonizeWorld){.units = &pool, .colonies = &colonies, .map = &map},
+          pid, NULL, 0, NULL, NULL);
+      }
+      err[0] = '\0';
+      units_pioneer_road_w(
+        &(ColonizeWorld){.units = &pool, .colonies = &colonies, .map = &map},
+        pid, err, sizeof(err), NULL, NULL);
+      for (int t = 0; t < 40 && units_get(&pool, pid)->orders == UNITS_ORDER_BUILD_ROAD; ++t) {
+        units_pioneer_work_tick_w(
+          &(ColonizeWorld){.units = &pool, .colonies = &colonies, .map = &map},
+          pid, NULL, 0, NULL, NULL);
+      }
+      if (!map_tile_has_road(&map, 10, 9)) {
+        fprintf(stderr, "piodos #617: road never completed\n");
+        rc = 1;
+      } else if (mc->hammers_purchased != h0) {
+        fprintf(stderr, "piodos #617: distant own colony was credited\n");
+        rc = 1;
+      }
+      (void)fc;
+      units_despawn(&pool, pid);
+
+      /* #618: on the foreign colony's own tile, Build Road is refused. */
+      const int pid2 = units_spawn(&pool, pioneer, 9, 9);
+      ColonizeUnit* p2 = units_get(&pool, pid2);
+      p2->nation_id = 0;
+      p2->tools = 100;
+      err[0] = '\0';
+      if (units_pioneer_road_w(
+            &(ColonizeWorld){.units = &pool, .colonies = &colonies, .map = &map},
+            pid2, err, sizeof(err), NULL, NULL) ||
+          units_get(&pool, pid2)->orders == UNITS_ORDER_BUILD_ROAD) {
+        fprintf(stderr, "piodos #618: road accepted on a settlement tile\n");
+        rc = 1;
+      }
+      units_despawn(&pool, pid2);
+    }
+  }
+
+  map_free(&map);
+  assets_msg_free(&names);
+  if (rc == 0) {
+    printf("unit_units: pioneer DOS gates (#615/#617/#618/#619/#620) ok\n");
+  }
+  return rc;
+}
+
 static int unit_pioneer_order_gates(void) {
   ColonizeMsgCatalog names;
   assets_msg_init(&names);
@@ -1093,10 +1249,12 @@ static int unit_pioneer_order_gates(void) {
       assets_msg_free(&names);
       return 1;
     }
-    if (pops.queue_count < 1 || strstr(pops.queue[0].body, "pioneer") == NULL) {
+    /* bugs.md #621: no @ONLYPIO popup — DOS greys the menu row instead, so
+     * the refusal must be silent. */
+    if (pops.queue_count != 0) {
       fprintf(
         stderr,
-        "ordgate: ONLYPIO weak q=%d body='%s'\n",
+        "ordgate: non-pioneer must not raise a popup, q=%d body='%s'\n",
         pops.queue_count,
         pops.queue_count > 0 ? pops.queue[0].body : ""
       );
@@ -4604,6 +4762,10 @@ int main(void) {
     diag_shutdown();
     return 1;
   }
+  if (unit_pioneer_dos_gates_2026_09_22() != 0) {
+    diag_shutdown();
+    return 1;
+  }
   if (unit_pioneer_case8_tail() != 0) {
     diag_shutdown();
     return 1;
@@ -6472,7 +6634,8 @@ int main(void) {
     }
     units_despawn(&pool, ship);
 
-    /* Pillage improvements on land. */
+    /* bugs.md #631: pillage never destroys improvements in DOS — the
+     * non-colony arm must refuse and leave the road standing. */
     int px = -1, py = -1;
     for (int y = 1; y < (int)map.height - 1 && px < 0; ++y) {
       for (int x = 1; x < (int)map.width - 1 && px < 0; ++x) {
@@ -6496,9 +6659,9 @@ int main(void) {
     mu->moves = 1 * UNITS_MP_PER_TILE;
     map_tile_set_road(&map, px, py, true);
     char pmsg[64];
-    if (!units_pillage_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(NULL), .map=(ColonizeWorldMap*)(&map)}, mil, pmsg, sizeof(pmsg)) ||
-        map_tile_has_road(&map, px, py)) {
-      fprintf(stderr, "pillage road failed: %s\n", pmsg);
+    if (units_pillage_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(NULL), .map=(ColonizeWorldMap*)(&map)}, mil, pmsg, sizeof(pmsg)) ||
+        !map_tile_has_road(&map, px, py)) {
+      fprintf(stderr, "pillage road: must refuse and keep the road: %s\n", pmsg);
       ss_free(&icons);
       map_free(&map);
       assets_msg_free(&names);

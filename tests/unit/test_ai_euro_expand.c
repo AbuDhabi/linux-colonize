@@ -5061,141 +5061,6 @@ static int unit_improve_timer_pioneer_gate(void) {
   return 0;
 }
 
-static int unit_pioneer_plow_improve(void) {
-  const int nation = 1;
-
-  ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  map.improve = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3 || !map.improve) {
-    return fail("pioneer-plow alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 1; /* plains */
-  }
-
-  ColonizeUnitPool units;
-  fx_units_init(&units);
-  units.type_count = 1;
-  snprintf(units.types[0].name, sizeof(units.types[0].name), "Pioneer");
-  units.types[0].movement = 1;
-  units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
-
-  ColonizeColonyPool colonies;
-  fx_colonies_init(&colonies);
-  ColonizeColony* c = &colonies.colonies[0];
-  c->id = 0;
-  c->active = true;
-  c->nation_id = nation;
-  c->x = 4;
-  c->y = 4;
-  c->population = 3;
-  c->colonist_count = 3;
-  c->stock[COLONIZE_CARGO_TOOLS] = 40; /* no tools_short */
-  c->stock[COLONIZE_CARGO_FOOD] = 40;
-  c->building_in_production = -1;
-  c->improve_timer = 2; /* Col1 +0x8c gate (≥2 thin) */
-  colonies.colony_count = 1;
-  colonies.next_id = 1;
-
-  /* Hardy Pioneer on north surround (4,3) — plowable plains. */
-  const int pid = units_spawn(&units, 0, 4, 3);
-  ColonizeUnit* pioneer = units_get(&units, pid);
-  if (!pioneer) {
-    fx_map_free(&map);
-    return fail("pioneer-plow spawn");
-  }
-  pioneer->nation_id = nation;
-  pioneer->orders = 0;
-  pioneer->moves = 1 * UNITS_MP_PER_TILE;
-  pioneer->tools = 100;
-  pioneer->profession = UNITS_JOB_PIONEER; /* Hardy */
-
-  ai_goals_reset();
-  /* Distant FOUND must not yank off improve. */
-  ai_goals_upsert_primary(nation, 12, 12, AI_GOAL_FOUND, 5);
-
-  ColonizeCol1Save col1;
-  col1_save_init(&col1);
-  memset(col1.nation, 0, sizeof(col1.nation));
-  memset(col1.head.nation_relation, 0, sizeof(col1.head.nation_relation));
-  for (int i = 0; i < 4; ++i) {
-    col1.player[i].control = 0;
-    col1.player[i].diplomacy = 0;
-  }
-  col1.nation[nation].gold = 200;
-  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
-   * ladder / recruit / Artillery buys naturally inert (blank census). */
-  col1.stuff.ship_counts[nation] = 1;
-
-  uint32_t turn = 22;
-  ColonizeTurnContext ctx;
-  memset(&ctx, 0, sizeof(ctx));
-  ctx.turn_number = &turn;
-  ctx.units = &units;
-  ctx.colonies = &colonies;
-  ctx.map = &map;
-  ctx.col1 = &col1;
-  ctx.col1_ok = true;
-  ctx.rng_seed = 7;
-
-  const int tools0 = pioneer->tools;
-  ai_euro_dispatcher_turn(&ctx, nation);
-
-  pioneer = units_get(&units, pid);
-  const int plowed = map_tile_is_plowed(&map, 4, 3);
-  const int tools_spent =
-    pioneer && pioneer->active && pioneer->tools == tools0 - UNITS_EQUIP_TOOLS_STEP;
-  /* Or goto toward another improvable surround if (4,3) skipped. */
-  const int improving =
-    pioneer && pioneer->active && pioneer->orders == UNITS_ORDER_AI_MOVE &&
-    abs(pioneer->goto_x - 4) <= 1 && abs(pioneer->goto_y - 4) <= 1 &&
-    (pioneer->goto_x != 4 || pioneer->goto_y != 4);
-  /*
-   * Or already on-tile and mid-job (started this turn, not yet finished) —
-   * the real DS:0x2f78 threshold (2026-08-20 live capture) usually takes
-   * more than one turn even for a Hardy Pioneer, so "started CLEAR_PLOW/
-   * BUILD_ROAD on the surround tile" is now the common single-turn outcome,
-   * not "already plowed".
-   */
-  const int started =
-    pioneer && pioneer->active &&
-    (pioneer->orders == UNITS_ORDER_CLEAR_PLOW || pioneer->orders == UNITS_ORDER_BUILD_ROAD) &&
-    pioneer->x == 4 && pioneer->y == 3;
-
-  if (!plowed && !tools_spent && !improving && !started) {
-    fprintf(
-      stderr,
-      "unit_ai_euro_expand: plow=%d tools=%d→%d orders=%d goto=(%d,%d) pos=(%d,%d)\n",
-      plowed,
-      tools0,
-      pioneer ? pioneer->tools : -1,
-      pioneer ? pioneer->orders : -1,
-      pioneer ? pioneer->goto_x : -1,
-      pioneer ? pioneer->goto_y : -1,
-      pioneer ? pioneer->x : -1,
-      pioneer ? pioneer->y : -1
-    );
-    fx_map_free(&map);
-    return fail("expected Hardy Pioneer plow or improve goto on colony surround");
-  }
-
-  fx_map_free(&map);
-  fprintf(
-    stderr,
-    "unit_ai_euro_expand: pioneer plow ok (plowed=%d tools_spent=%d improving=%d)\n",
-    plowed,
-    tools_spent,
-    improving
-  );
-  return 0;
-}
 
 /*
  * AI FOUND on Indian homeland: charges FUN_4cc6_07c2 gold; short gold PARK;
@@ -5505,135 +5370,6 @@ static int unit_indian_land_found(void) {
   return 0;
 }
 
-/*
- * Pioneer road preference on already-plowed surround: idle Hardy Pioneer with
- * tools on plowed no-road tile → units_pioneer_road (not leave to plow elsewhere).
- * Cite: Colonization.pdf Clear/Plow/Road sequence.
- */
-static int unit_pioneer_road_on_plowed(void) {
-  const int nation = 1;
-
-  ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  map.improve = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3 || !map.improve) {
-    return fail("pioneer-road alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 1; /* plains */
-  }
-  /* North surround already plowed, no road — prefer road here. */
-  map_tile_set_plowed(&map, 4, 3, true);
-
-  ColonizeUnitPool units;
-  fx_units_init(&units);
-  units.type_count = 1;
-  snprintf(units.types[0].name, sizeof(units.types[0].name), "Pioneer");
-  units.types[0].movement = 1;
-  units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
-
-  ColonizeColonyPool colonies;
-  fx_colonies_init(&colonies);
-  ColonizeColony* c = &colonies.colonies[0];
-  c->id = 0;
-  c->active = true;
-  c->nation_id = nation;
-  c->x = 4;
-  c->y = 4;
-  c->population = 3;
-  c->colonist_count = 3;
-  c->stock[COLONIZE_CARGO_TOOLS] = 40;
-  c->stock[COLONIZE_CARGO_FOOD] = 40;
-  c->improve_timer = 2; /* Col1 +0x8c gate */
-  c->building_in_production = -1;
-  colonies.colony_count = 1;
-  colonies.next_id = 1;
-
-  const int pid = units_spawn(&units, 0, 4, 3);
-  ColonizeUnit* pioneer = units_get(&units, pid);
-  if (!pioneer) {
-    fx_map_free(&map);
-    return fail("pioneer-road spawn");
-  }
-  pioneer->nation_id = nation;
-  pioneer->orders = 0;
-  pioneer->moves = 1 * UNITS_MP_PER_TILE;
-  pioneer->tools = 100;
-  pioneer->profession = UNITS_JOB_PIONEER;
-
-  ai_goals_reset();
-  ai_goals_upsert_primary(nation, 12, 12, AI_GOAL_FOUND, 5);
-
-  ColonizeCol1Save col1;
-  col1_save_init(&col1);
-  memset(col1.nation, 0, sizeof(col1.nation));
-  for (int i = 0; i < 4; ++i) {
-    col1.player[i].control = 1;
-  }
-  col1.nation[nation].gold = 200;
-  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
-   * ladder / recruit / Artillery buys naturally inert (blank census). */
-  col1.stuff.ship_counts[nation] = 1;
-
-  uint32_t turn = 26;
-  ColonizeTurnContext ctx;
-  memset(&ctx, 0, sizeof(ctx));
-  ctx.turn_number = &turn;
-  ctx.units = &units;
-  ctx.colonies = &colonies;
-  ctx.map = &map;
-  ctx.col1 = &col1;
-  ctx.col1_ok = true;
-  ctx.rng_seed = 16;
-
-  const int tools0 = pioneer->tools;
-  /*
-   * Real DS:0x2f78 threshold (2026-08-20 live capture) usually takes more
-   * than one turn even for a Hardy Pioneer on plains — drive several turns
-   * rather than assuming one-shot completion.
-   */
-  int roaded = 0;
-  for (int t = 0; t < 8 && !roaded; ++t) {
-    pioneer = units_get(&units, pid);
-    if (pioneer && pioneer->active) {
-      pioneer->moves = 1 * UNITS_MP_PER_TILE;
-    }
-    turn++;
-    ai_euro_dispatcher_turn(&ctx, nation);
-    roaded = map_tile_has_road(&map, 4, 3);
-  }
-
-  pioneer = units_get(&units, pid);
-  const int tools_spent =
-    pioneer && pioneer->active && pioneer->tools == tools0 - UNITS_EQUIP_TOOLS_STEP;
-  const int still_plowed = map_tile_is_plowed(&map, 4, 3);
-
-  if (!roaded || !tools_spent || !still_plowed) {
-    fprintf(
-      stderr,
-      "unit_ai_euro_expand: road=%d plow=%d tools=%d→%d orders=%d goto=(%d,%d)\n",
-      roaded,
-      still_plowed,
-      tools0,
-      pioneer ? pioneer->tools : -1,
-      pioneer ? pioneer->orders : -1,
-      pioneer ? pioneer->goto_x : -1,
-      pioneer ? pioneer->goto_y : -1
-    );
-    fx_map_free(&map);
-    return fail("expected Hardy Pioneer road on already-plowed surround");
-  }
-
-  fx_map_free(&map);
-  fprintf(stderr, "unit_ai_euro_expand: pioneer road-on-plowed ok\n");
-  return 0;
-}
 
 
 /*
@@ -7209,7 +6945,101 @@ static int unit_ship_food_delivery(void) {
   return 0;
 }
 
+
+/*
+ * bugs.md #611 — DOS-LITERAL FUN_521d_20e6 raw 90183-90206. A Pioneer that is
+ * not the explorer pick takes order 9 (Build Road) with plan byte 0x52 at the
+ * land commit point, unless the nearest village claims the tile (within the
+ * tribe's tech-tier radius and alarm quartile < 3) or a foreign colony stands
+ * within DOS distance 3. With no villages and no colonies at all on the map,
+ * neither veto can fire.
+ */
+static int unit_pioneer_takes_order9(void) {
+  const int nation = 1;
+
+  ColonizeWorldMap map;
+  if (!fx_map_alloc(&map, 16, 16, 1, false)) {
+    return fail("pioneer-order9 alloc map");
+  }
+
+  ColonizeUnitPool units;
+  fx_units_init(&units);
+  units.type_count = 1;
+  snprintf(units.types[0].name, sizeof(units.types[0].name), "Pioneers");
+  units.types[0].kind_plus1 = (uint8_t)(UNITS_KIND_PIONEER + 1);
+  units.types[0].movement = 1;
+  units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+
+  ColonizeColonyPool colonies;
+  fx_colonies_init(&colonies);
+  /* One own colony, far enough that the raw 90193 foreign-colony veto (which
+   * only fires for another nation's colony inside DOS distance 3) is inert. */
+  ColonizeColony* home = fx_colony_add(&colonies, nation, 2, 2, 4);
+  home->stock[COLONIZE_CARGO_FOOD] = 100;
+
+  /*
+   * The −0x5ec4 explorer cap is 3 per continent for a non-Colonist, so with
+   * four Pioneers at least one fails the iStack_6a explorer test and reaches
+   * the raw 90183 commit point.
+   */
+  int pids[4];
+  for (int i = 0; i < 4; ++i) {
+    pids[i] = units_spawn(&units, 0, 4 + i * 2, 8);
+    ColonizeUnit* p = units_get(&units, pids[i]);
+    if (!p) {
+      fx_map_free(&map);
+      return fail("pioneer-order9 spawn");
+    }
+    p->nation_id = nation;
+    p->moves = UNITS_MP_PER_TILE;
+    p->orders = 0;
+    p->tools = 100;
+    p->profession = UNITS_JOB_PIONEER;
+  }
+
+  ai_goals_reset();
+
+  ColonizeCol1Save col1;
+  col1_save_init(&col1);
+  memset(col1.nation, 0, sizeof(col1.nation));
+  memset(col1.head.nation_relation, 0, sizeof(col1.head.nation_relation));
+  for (int i = 0; i < 4; ++i) {
+    col1.player[i].control = 0;
+    col1.player[i].diplomacy = 0;
+  }
+  col1.head.tribe_count = 0;
+
+  uint32_t turn = 32;
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.turn_number = &turn;
+  ctx.units = &units;
+  ctx.colonies = &colonies;
+  ctx.map = &map;
+  ctx.col1 = &col1;
+  ctx.col1_ok = true;
+  ctx.rng_seed = 7;
+
+  ai_euro_dispatcher_turn(&ctx, nation);
+
+  int road_orders = 0;
+  for (int i = 0; i < 4; ++i) {
+    const ColonizeUnit* p = units_get(&units, pids[i]);
+    if (p && p->orders == UNITS_ORDER_BUILD_ROAD && p->col1_ai_plan == 0x52) {
+      ++road_orders;
+    }
+  }
+  fx_map_free(&map);
+
+  if (road_orders == 0) {
+    return fail("#611: no AI Pioneer took +0x314c = 9 / +0x314b = 0x52");
+  }
+  fprintf(stderr, "unit_ai_euro_expand: pioneer order-9 arm ok\n");
+  return 0;
+}
+
 static const TestCase k_cases[] = {
+    {"unit_pioneer_takes_order9", unit_pioneer_takes_order9},
     {"unit_specialty_flag_a_haul_match", unit_specialty_flag_a_haul_match},
     {"unit_treasure_coast", unit_treasure_coast},
     {"unit_treasure_board_sail", unit_treasure_board_sail},
@@ -7259,8 +7089,6 @@ static const TestCase k_cases[] = {
     {"unit_capitol_expansion_prefer", unit_capitol_expansion_prefer},
     {"unit_indian_land_found", unit_indian_land_found},
     {"unit_improve_timer_pioneer_gate", unit_improve_timer_pioneer_gate},
-    {"unit_pioneer_plow_improve", unit_pioneer_plow_improve},
-    {"unit_pioneer_road_on_plowed", unit_pioneer_road_on_plowed},
     {"unit_multistep_military", unit_multistep_military},
     {"unit_treasury_skip_hire", unit_treasury_skip_hire},
     {"unit_5d04_buy_caravel_colonies_ge6", unit_5d04_buy_caravel_colonies_ge6},
