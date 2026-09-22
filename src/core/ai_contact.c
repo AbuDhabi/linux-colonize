@@ -7672,9 +7672,7 @@ COLONIZE_INTERNAL void ai_contact_raid_stage_combat(struct ai_contact_raid_ctx* 
         continue;
       }
     }
-    /* Snapshot before combat despawn (GAME.TXT @INDIANWIN1/@INDIANWIN2). */
-    const int foe_muskets = f->muskets;
-    const int foe_horses = f->horses;
+    /* Snapshot before combat despawn (the loser is gone by the chrome call). */
     const int foe_x = f->x;
     const int foe_y = f->y;
     const int foe_type = f->type_index;
@@ -7718,22 +7716,24 @@ COLONIZE_INTERNAL void ai_contact_raid_stage_combat(struct ai_contact_raid_ctx* 
      * reports twice.
      */
     units_set_native_combat_chrome_owned(1);
+    units_clear_native_gear_step();
     const int brave_won =
       units_resolve_land_combat(ctx->units, brave->id, foe, rng) ? 1 : 0;
     units_set_native_combat_chrome_owned(0);
+    /*
+     * bugs.md #645: the gear seizure itself is DOS FUN_5fef_1b0e raw
+     * 100730-100744 and now lives in the land-loss outcome path
+     * (units_apply_land_loss_outcome), where it steps the brave's TYPE and
+     * tallies the tribe record — the numeric muskets/horses transfer that
+     * used to sit here was an invention, and it only ever ran in this AI raid
+     * arm, so a human Dragoon losing to a Brave never mounted it. All that is
+     * left here is the chrome pick: `bVar13` -> @INDIANWIN1 (armed step),
+     * `bVar14` -> @INDIANWIN2 (mounted step), raw 101088-101095.
+     */
     int seized_muskets = 0;
     int seized_horses = 0;
+    units_last_native_gear_step(&seized_muskets, &seized_horses);
     if (brave_won) {
-      ColonizeUnit* br = units_get(ctx->units, brave->id);
-      if (br && br->active) {
-        if (foe_muskets > 0) {
-          br->muskets += foe_muskets;
-          seized_muskets = 1;
-        } else if (foe_horses > 0) {
-          br->horses += foe_horses;
-          seized_horses = 1;
-        }
-      }
       {
         ColonizeWorld w_ = world_make(ctx->units, ctx->colonies, ctx->map, NULL, false, rng, NULL);
         units_try_move_w(&w_, brave->id, nx, ny);

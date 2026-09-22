@@ -63,14 +63,16 @@ static int unit_continental_equip_tier(void) {
     int role;
     const char* want;
   } cases[] = {
-    {cont_army, COLONIZE_EJECT_DRAGOON, "Cont. Cav."},
-    {cont_army, COLONIZE_EJECT_SOLDIER, "Cont. Army"},
+    /* bugs.md #648: DS:0x2f5 is flat — no tier is preserved by a gear change.
+     * FUN_15eb_1068 case 1 raw 11268-11270 -> FUN_15eb_0916 raw 9949-9955. */
+    {cont_army, COLONIZE_EJECT_DRAGOON, "Dragoons"},
+    {cont_army, COLONIZE_EJECT_SOLDIER, "Soldiers"},
     {cont_army, COLONIZE_EJECT_COLONIST, "Colonists"},
-    {cont_cav, COLONIZE_EJECT_SOLDIER, "Cont. Army"},
-    {cont_cav, COLONIZE_EJECT_DRAGOON, "Cont. Cav."},
+    {cont_cav, COLONIZE_EJECT_SOLDIER, "Soldiers"},
+    {cont_cav, COLONIZE_EJECT_DRAGOON, "Dragoons"},
     {colonists, COLONIZE_EJECT_DRAGOON, "Dragoons"},
     {colonists, COLONIZE_EJECT_SOLDIER, "Soldiers"},
-    {regulars, COLONIZE_EJECT_DRAGOON, "Cavalry"},
+    {regulars, COLONIZE_EJECT_DRAGOON, "Dragoons"},
   };
   for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); ++i) {
     const char* got = units_equip_role_type_name(&pool, cases[i].type, cases[i].role);
@@ -4701,8 +4703,60 @@ static int unit_promote_convert_rng_598(void) {
   return rc;
 }
 
+/*
+ * bugs.md #655: NAMES.TXT @UNIT column 12 (DOS `DS:0x523d + type*0xe`, loader
+ * raw 121132-121134) is an 8-character MSB-first bit-string, so row 4
+ * Dragoons "00111100" = 0x3c and row 7 Cont. Cav. "00011100" = 0x1c — the two
+ * values the AI capability tables hardcoded.
+ */
+static int unit_cap_bits_column12(void) {
+  ColonizeMsgCatalog names;
+  assets_msg_init(&names);
+  if (!assets_msg_load_file(&names, "COLONIZE/NAMES.TXT")) {
+    fprintf(stderr, "cap_bits: NAMES.TXT load failed\n");
+    return 1;
+  }
+  ColonizeUnitPool pool;
+  memset(&pool, 0, sizeof(pool));
+  int rc = 0;
+  if (!units_load_types(&pool, &names)) {
+    fprintf(stderr, "cap_bits: units_load_types failed\n");
+    rc = 1;
+  } else if (pool.type_count < 8) {
+    fprintf(stderr, "cap_bits: only %d @UNIT rows\n", pool.type_count);
+    rc = 1;
+  } else {
+    if (pool.types[4].cap_bits != 0x3c) {
+      fprintf(stderr, "cap_bits: row 4 = 0x%02x, want 0x3c\n", pool.types[4].cap_bits);
+      rc = 1;
+    }
+    if (pool.types[7].cap_bits != 0x1c) {
+      fprintf(stderr, "cap_bits: row 7 = 0x%02x, want 0x1c\n", pool.types[7].cap_bits);
+      rc = 1;
+    }
+    if (pool.types[10].cap_bits != 0x00) { /* Treasure "00000000" */
+      fprintf(stderr, "cap_bits: row 10 = 0x%02x, want 0x00\n", pool.types[10].cap_bits);
+      rc = 1;
+    }
+    if (pool.types[13].cap_bits != 0xa2) { /* Caravel "10100010" */
+      fprintf(stderr, "cap_bits: row 13 = 0x%02x, want 0xa2\n", pool.types[13].cap_bits);
+      rc = 1;
+    }
+  }
+  assets_msg_free(&names);
+  if (rc == 0) {
+    fprintf(stderr, "unit_units: #655 @UNIT column 12 cap_bits ok\n");
+  }
+  return rc;
+}
+
 int main(void) {
   diag_init(0, NULL);
+
+  if (unit_cap_bits_column12() != 0) {
+    diag_shutdown();
+    return 1;
+  }
 
   if (unit_smell_audit_2026_09_09() != 0) {
     return 1;

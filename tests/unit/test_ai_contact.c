@@ -1166,11 +1166,21 @@ static int case_full_contact_scenario(void) {
     ctx.status = st_amb;
     ctx.status_size = sizeof(st_amb);
     ctx.human_nation = 0;
-    units.type_count = 3;
+    units.type_count = 5;
     snprintf(units.types[2].name, sizeof(units.types[2].name), "Soldier");
     units.types[2].movement = 1;
     units.types[2].attack = 0;
     units.types[2].defense = 0; /* total=Brave.attack → always Brave win */
+    /* bugs.md #645: the seizure is a TYPE STEP (+1 armed / +2 mounted) on the
+     * brave, so the @UNIT ladder rows have to exist in the fixture. */
+    snprintf(units.types[3].name, sizeof(units.types[3].name), "Armed Braves");
+    units.types[3].movement = 1;
+    units.types[3].attack = 2;
+    units.types[3].defense = 2;
+    snprintf(units.types[4].name, sizeof(units.types[4].name), "Mtd. Braves");
+    units.types[4].movement = 4;
+    units.types[4].attack = 2;
+    units.types[4].defense = 2;
     const int sol_id = units_spawn_allow_stack(&units, 2, 6, 5);
     ColonizeUnit* sol = units_get(&units, sol_id);
     if (!sol) {
@@ -1193,8 +1203,14 @@ static int case_full_contact_scenario(void) {
     if (!brave->active) {
       return fail("ambush win should keep Brave alive");
     }
-    if (brave->muskets < 50) {
-      return fail("ambush WIN1 should transfer foe muskets onto Brave");
+    /* DOS FUN_5fef_1b0e raw 100739-100742: beaten Soldiers step the brave to
+     * Armed Braves (type += 1). No numeric muskets transfer. */
+    if (units_type_kind(units_type(&units, brave->type_index)) !=
+        UNITS_KIND_ARMED_BRAVE) {
+      return fail("ambush WIN1 should step the Brave to Armed Braves");
+    }
+    if (brave->muskets != 0) {
+      return fail("ambush WIN1 must not transfer a numeric muskets kit");
     }
     if (strstr(st_amb, "Muskets") == NULL ||
         (strstr(st_amb, "ambush") == NULL && strstr(st_amb, "Ambush") == NULL) ||
@@ -1213,20 +1229,39 @@ static int case_full_contact_scenario(void) {
     sol->nation_id = 0;
     sol->muskets = 0;
     sol->horses = 50;
+    /* WIN2 needs a Dragoons/Scouts loser (raw 100731) and a brave that is not
+     * mounted yet. */
+    snprintf(units.types[2].name, sizeof(units.types[2].name), "Dragoons");
+    brave->type_index = 0;
     brave->x = 5;
     brave->y = 5;
     brave->moves = 0;
     brave->muskets = 0;
     brave->horses = 0;
+    const uint8_t herds_before = ind->horse_herds;
+    /* The tribe tally writes through the native-fallout context (turn.c:123
+     * sets it in play). */
+    units_set_native_fallout_context(&col1, ctx.map, -1);
     RUN_INDIAN_RAIDS();
-    if (brave->horses < 50) {
-      return fail("ambush WIN2 should transfer foe horses onto Brave");
+    units_set_native_fallout_context(NULL, NULL, -1);
+    if (units_type_kind(units_type(&units, brave->type_index)) !=
+        UNITS_KIND_MTD_BRAVE) {
+      return fail("ambush WIN2 should step the Brave to Mtd. Braves");
+    }
+    if (brave->horses != 0) {
+      return fail("ambush WIN2 must not transfer a numeric horses kit");
+    }
+    if (ind->horse_herds != (uint8_t)(herds_before + 1)) {
+      return fail("ambush WIN2 should tally the tribe horse herd (DS:0x59a6)");
     }
     if (strstr(st_amb, "Horses") == NULL) {
       fprintf(stderr, "unit_ai_contact: ambush-WIN2 status '%s'\n", st_amb);
       return fail("ambush WIN2 should set Horses seized status");
     }
     units_despawn(&units, sol2);
+    snprintf(units.types[2].name, sizeof(units.types[2].name), "Soldier");
+    units.type_count = 3;
+    brave->type_index = 0;
     c->active = true;
     brave->x = 4;
     brave->y = 5;

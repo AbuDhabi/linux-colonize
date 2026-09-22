@@ -1146,6 +1146,17 @@ int ai_goals_composite_unit_priority_w(
  * every ship type carries 0x81/0x82/0xa2, so a carrier never picks itself and
  * an empty transport returns -1. Table values are the same DS:0x523d
  * @UNIT bit-string ai_euro.c's k_20e6_type_flags carries.
+ *
+ * bugs.md #655: kept hardcoded here, unlike ai_euro.c's live catalog cache
+ * (ColonizeUnitType.cap_bits) - this walker takes a raw ColonizeCol1Unit
+ * chain (COLONY.SAV on-disk layout), which carries only a numeric type
+ * index, not a ColonizeUnitPool / ColonizeUnitType record, so no catalog
+ * is reachable at this call's signature. It is also dead in production
+ * today (no src/core caller; exercised only by
+ * tests/unit/test_ai_goals.c), so the NAMES.TXT-default table cannot
+ * silently drift from a modded catalog in a real game. If a future caller
+ * threads a ColonizeUnitPool through, switch this to
+ * units_type(pool, row)->cap_bits the same way ai_euro.c does.
  */
 static const uint8_t k_goals_type_flags_523d[23] = {
   0x40, 0x1c, 0x40, 0x20, 0x3c, 0x64, 0x1c, 0x1c, 0x1c, 0x1c, 0x00, 0x18,

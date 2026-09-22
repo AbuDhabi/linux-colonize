@@ -8793,7 +8793,15 @@ static void ai_euro_0a60_goal_orders_structural(ColonizeTurnContext* ctx, int na
       int land_units = 0;
       ai_euro_0a60_continent_presence(ctx, nation_id, unit_continent, &colonies, &land_units);
       if (land_units < 3 && (land_units < 2 || colonies == 0)) {
-        continue; /* don't reassign a defender off a continent that still needs it */
+        /* FUN_521d_0a60 raw 88176-88181, literally: at the head of the
+         * goal-binding body, `if (type == 1 || type == 4) { A =
+         * [cont + nation*0x10 - 0x6b5a]; if (A < 3 && (A < 2 ||
+         * [cont + nation*0x10 - 0x6b1a] == 0)) goto LAB_521d_1fdf; }`,
+         * and LAB_521d_1fdf (raw 88240) is the unit-loop increment. So
+         * this IS the DOS skip, not a port invention (bugs.md #652).
+         * -0x6b5a = land units per continent, -0x6b1a = colonies per
+         * continent. DOS has no ship guard; types 1/4 are land anyway. */
+        continue;
       }
     }
 
@@ -11647,7 +11655,16 @@ static int ai_euro_score_move(
 
 #define AI_20E6_TYPE_COUNT 23
 
-/* DS:0x5233 unit-type record +3 (0x5236 "combat", NAMES @UNIT column 4). */
+/*
+ * bugs.md #655: DS:0x5236 (@UNIT column 4, ATTACK) and DS:0x523d (@UNIT
+ * column 12, the capability bit-string) are now catalog fields
+ * (ColonizeUnitType.attack / .cap_bits, units_load_types). These two
+ * NAMES.TXT-default tables are kept ONLY as the fallback for a pool whose
+ * types did not come from a real NAMES.TXT load (hand-built test pools —
+ * see ai_euro_20e6_dos_type's own -1 fallback comment); the live tables
+ * below (s_20e6_type_combat_live / s_20e6_type_flags_live), refreshed from
+ * the loaded catalog once per dispatcher turn, are read first.
+ */
 static const uint8_t k_20e6_type_combat[AI_20E6_TYPE_COUNT] = {
   1, 2, 1, 1, 3, 1, 5, 5, 6, 4, 0, 5, 1, 2, 6, 10, 8, 16, 24, 1, 2, 2, 3
 };
@@ -11660,6 +11677,49 @@ static const uint8_t k_20e6_type_flags[AI_20E6_TYPE_COUNT] = {
   0x40, 0x1c, 0x40, 0x20, 0x3c, 0x64, 0x1c, 0x1c, 0x1c, 0x1c, 0x00, 0x18,
   0x00, 0xa2, 0x82, 0x82, 0x01, 0x81, 0x81, 0x38, 0x38, 0x38, 0x38
 };
+
+/*
+ * bugs.md #655: live per-DOS-row cache of ColonizeUnitType.attack / .cap_bits
+ * from the loaded catalog, refreshed once per dispatcher turn
+ * (ai_euro_20e6_refresh_type_cache, called from ai_euro_dispatcher_turn — the
+ * same per-nation-turn boundary that zeroes the other 20e6 file-local
+ * latches). Indexed by DOS row (units_type_dos_code == ColonizeUnitKind),
+ * which is what every ai_euro_20e6_dos_type() caller already produces.
+ * `s_20e6_type_cache_valid` bit *i* means row i had a matching catalog entry
+ * this refresh; unset rows fall back to the NAMES.TXT-default tables above
+ * (hand-built test pools with no real @UNIT load never set any bit).
+ */
+static uint8_t s_20e6_type_combat_live[AI_20E6_TYPE_COUNT];
+static uint8_t s_20e6_type_flags_live[AI_20E6_TYPE_COUNT];
+static uint32_t s_20e6_type_cache_valid;
+
+static void ai_euro_20e6_refresh_type_cache(const ColonizeUnitPool* units) {
+  s_20e6_type_cache_valid = 0;
+  if (!units) {
+    return;
+  }
+  const int n = units->type_count < COLONIZE_UNIT_TYPES_MAX ? units->type_count : COLONIZE_UNIT_TYPES_MAX;
+  for (int i = 0; i < n; ++i) {
+    const ColonizeUnitType* t = &units->types[i];
+    /* Only a units_load_types-stamped entry (kind_plus1 > 0) actually
+     * parsed a real @UNIT column 12 bit-string / column 4 attack value;
+     * a hand-built test pool (ai_fixture-style, kind_plus1 left 0, cap_bits
+     * left at its zero-init) resolves a DOS row through the name fallback
+     * (units_type_dos_code -> units_name_kind) but carries no real
+     * cap_bits/attack data, so it must not overwrite the NAMES.TXT-default
+     * fallback table below. */
+    if (t->kind_plus1 <= 0) {
+      continue;
+    }
+    const int row = units_type_dos_code(t);
+    if (row < 0 || row >= AI_20E6_TYPE_COUNT) {
+      continue;
+    }
+    s_20e6_type_combat_live[row] = (uint8_t)t->attack;
+    s_20e6_type_flags_live[row] = t->cap_bits;
+    s_20e6_type_cache_valid |= (1u << (unsigned)row);
+  }
+}
 /*
  * DS:0x2f79 terrain record +3 (terrain_yields.md "DS:0x2f76 terrain-class
  * record", decoded 2026-08-21 from 20 dump instances) — colony-site
@@ -12283,11 +12343,23 @@ static int ai_euro_20e6_dos_type(const ColonizeUnitPool* units, const ColonizeUn
 }
 
 static int ai_euro_20e6_type_combat(int dos_type) {
-  return (dos_type >= 0 && dos_type < AI_20E6_TYPE_COUNT) ? (int)k_20e6_type_combat[dos_type] : 0;
+  if (dos_type < 0 || dos_type >= AI_20E6_TYPE_COUNT) {
+    return 0;
+  }
+  if ((s_20e6_type_cache_valid & (1u << (unsigned)dos_type)) != 0) {
+    return (int)s_20e6_type_combat_live[dos_type];
+  }
+  return (int)k_20e6_type_combat[dos_type];
 }
 
 static int ai_euro_20e6_type_flags(int dos_type) {
-  return (dos_type >= 0 && dos_type < AI_20E6_TYPE_COUNT) ? (int)k_20e6_type_flags[dos_type] : 0;
+  if (dos_type < 0 || dos_type >= AI_20E6_TYPE_COUNT) {
+    return 0;
+  }
+  if ((s_20e6_type_cache_valid & (1u << (unsigned)dos_type)) != 0) {
+    return (int)s_20e6_type_flags_live[dos_type];
+  }
+  return (int)k_20e6_type_flags[dos_type];
 }
 
 /* FUN_1000_88cc / FUN_137f_0200 owner_nibble: layer3 high nibble, 0xf → −1. */
@@ -15266,7 +15338,7 @@ static int ai_euro_is_cargo_ship_name(ColonizeUnitKind kind) {
  * per act, from the 20e6 unload/settle flow, and now so does this port.
  */
 
-static int ai_euro_20e6_unit_col5(int dos_type);
+static int ai_euro_20e6_unit_col5(const ColonizeUnitPool* pool, int dos_type);
 
 /*
  * FUN_521d_20e6 hold-cargo colony-delivery matrix (raw 2047-2139;
@@ -15470,11 +15542,11 @@ static int ai_euro_20e6_delivery_colony_pick(
     }
     if ((c->ai_flags & COLONIZE_COLONY_AI_NEARBY_FRIGATE) != 0) {
       if (ship_type < 0x10) {
-        score += (ai_euro_20e6_unit_col5(ship_type) - 10) * 8; /* raw 2119-2121 */
+        score += (ai_euro_20e6_unit_col5(ctx->units, ship_type) - 10) * 8; /* raw 2119-2121 */
       }
     } else if ((c->ai_flags & COLONIZE_COLONY_AI_NEARBY_ARMED_SHIP) != 0) {
       if (ship_type < 0x10) {
-        score += (ai_euro_20e6_unit_col5(ship_type) - 10) * 2; /* raw 2113-2115 */
+        score += (ai_euro_20e6_unit_col5(ctx->units, ship_type) - 10) * 2; /* raw 2113-2115 */
       }
     }
     const int dist = map_dos_dist(ship->x - c->x, ship->y - c->y);
@@ -17711,19 +17783,24 @@ static int ai_euro_20e6_unload_by_mask(
   return total;
 }
 
-/* NAMES @UNIT column 5 (DS:0x5235, holds incl. passenger slots): Wagon 2,
- * Caravel 2, Merchantman 4, Galleon 6, Privateer 2, Frigate 4, MoW 6. */
-static int ai_euro_20e6_unit_col5(int dos_type) {
-  switch (dos_type) {
-    case UNITS_KIND_WAGON: return 2;
-    case UNITS_KIND_CARAVEL: return 2;
-    case UNITS_KIND_MERCHANTMAN: return 4;
-    case UNITS_KIND_GALLEON: return 6;
-    case UNITS_KIND_PRIVATEER: return 2;
-    case UNITS_KIND_FRIGATE: return 4;
-    case UNITS_KIND_MAN_O_WAR: return 6;
-    default: return 0;
-  }
+/*
+ * DS:0x5235[type] — the @UNIT DEFENSE column, not holds. The @UNIT loader
+ * (FUN_5b66_0eee raw 121108-121133) reads the NAMES row strictly in file
+ * order: name ptr -> 0x5230, icon -> 0x5232, moves*3 -> 0x5234, attack ->
+ * 0x5236, defense -> 0x5235, holds -> 0x5237, size -> 0x5238. So the three
+ * FUN_521d_20e6 reads of `type * 0xe + 0x5235` (raw 89685-89687 `(x-10)*2`
+ * with gate type < 0x11 -- land units included; raw 89801-89803 `(x-10)*8`
+ * with gate type < 0x10; and the same pair in the LAB_3558 colony-sail
+ * matrix, raw 86375 / 86506 / 86512) all take DEFENSE. This used to return
+ * the holds column, which flattened every land type to 0 (Dragoon scored
+ * (0-10)*2 = -20 instead of (3-10)*2 = -14) and under-read every warship.
+ * Read from the loaded @UNIT catalog rather than a hardcoded table: the
+ * kind id IS the @UNIT row (see ai_euro_5d04_dos_type_of).
+ */
+static int ai_euro_20e6_unit_col5(const ColonizeUnitPool* pool, int dos_type) {
+  const int ti = pool ? units_kind_type_index(pool, (ColonizeUnitKind)dos_type) : -1;
+  const ColonizeUnitType* t = ti >= 0 ? units_type(pool, ti) : NULL;
+  return t ? t->defense : 0;
 }
 
 /*
@@ -17844,7 +17921,7 @@ static int ai_euro_20e6_colony_sail_pick(
         score -= 0x32;
       }
     } else if ((c->ai_flags & COLONIZE_COLONY_AI_NEARBY_ARMED_SHIP) && ship_type < 0x11) {
-      score += (ai_euro_20e6_unit_col5(ship_type) - 10) * 2;
+      score += (ai_euro_20e6_unit_col5(ctx->units, ship_type) - 10) * 2;
     }
     const int dist = map_dos_dist(ship->x - c->x, ship->y - c->y);
     score -= (dist >> 1) + 1; /* iStack_b2 == 1 */
@@ -21904,6 +21981,7 @@ void ai_euro_dispatcher_turn(ColonizeTurnContext* ctx, int nation_id) {
   }
 
   ai_euro_dispatcher_turn_reset(ctx);
+  ai_euro_20e6_refresh_type_cache(ctx->units);
 
   ai_euro_dispatcher_turn_plan(ctx, nation_id);
 
@@ -21937,6 +22015,7 @@ void ai_euro_reset(void) {
   memset(s_5952_census_vet_soldier, 0, sizeof(s_5952_census_vet_soldier));
   memset(s_deferred_found, 0, sizeof(s_deferred_found));
   memset(s_unloaded_this_turn, 0, sizeof(s_unloaded_this_turn));
+  s_20e6_type_cache_valid = 0; /* bugs.md #655: refreshed next dispatcher_turn */
   /*
    * s_euro_last_dir (unit+0x314f) has no save-file backing in this port
    * either — it round-trips only within a single dispatcher_turn/turn

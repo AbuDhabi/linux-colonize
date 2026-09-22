@@ -252,6 +252,24 @@ bool units_load_types(ColonizeUnitPool* pool, const ColonizeMsgCatalog* names) {
         !str_next_int_field(&p, &guns) || !str_next_int_field(&p, &hull)) {
       continue;
     }
+    /*
+     * Column 12: the capability bit-string (DOS `0x523d + row*0xe`, loader
+     * raw 121132-121134 — FUN_2a1f_0b2e reads it as a bit-string, which is
+     * why it cannot go through str_next_int_field: "00111100" is not 111100).
+     * MSB-first, leftmost character = bit 7. bugs.md #655.
+     */
+    unsigned cap_bits = 0u;
+    {
+      const char* q = p;
+      while (*q == ' ' || *q == '\t' || *q == ',') {
+        ++q;
+      }
+      for (int b = 7; b >= 0 && (*q == '0' || *q == '1'); --b, ++q) {
+        if (*q == '1') {
+          cap_bits |= (1u << b);
+        }
+      }
+    }
     ColonizeUnitType* t = &pool->types[pool->type_count++];
     str_copy_trunc(t->name, sizeof(t->name), line);
     /* The @UNIT row is the type's identity (ColonizeUnitKind). */
@@ -267,6 +285,7 @@ bool units_load_types(ColonizeUnitPool* pool, const ColonizeMsgCatalog* names) {
     t->space = size;
     t->guns = guns;
     t->hull = hull;
+    t->cap_bits = (uint8_t)cap_bits;
     t->domain = hull > 0 ? COLONIZE_UNIT_DOMAIN_SEA : COLONIZE_UNIT_DOMAIN_LAND;
   }
 
@@ -486,45 +505,48 @@ bool units_is_missionary(const ColonizeUnitPool* pool, const ColonizeUnit* u) {
 }
 
 /*
- * bugs.md: the destination @UNIT type for an equipment change, honouring the
- * body's own tier. DOS re-types through the DS:0x2f5 @JOB->@UNIT table
- * (FUN_15eb_0916 out of FUN_15eb_1068 case 1), whose only entries are the six
- * colonial types — but the reverse table DS:0x30e deliberately files the
- * Continentals under those same jobs (type 9 "Cont. Army" -> job 0x15
- * Soldier, type 7 "Cont. Cav." -> job 0x17 Dragoon), which is the pairing the
- * WoI promotion (FUN_5fef_172c) and the demote table both use. Mounting a
- * Continental Army therefore yields Continental Cavalry, not the plain
- * Veteran Dragoons the flat table name would give; the same holds for the
- * King's Regulars/Cavalry pair. Losing the muskets drops the body out of the
- * tier entirely (DOS demote: Cont. Army -> Colonists).
+ * DOS-LITERAL FUN_15eb_0916 raw 9949-9955 — the destination @UNIT type for an
+ * equipment change. FUN_15eb_1068 case 1 (raw 11268-11270) writes the new type
+ * byte (+0x3146) straight from `*(char*)(job + 0x2f5)`, a flat @JOB->@UNIT
+ * table with no tier branch anywhere in the body or in its thunk
+ * FUN_281f_0c36 (raw 33600-33604). VICEROY.EXE DS:0x2f5 (file offset
+ * 121248+0x2f5), rows 0x13..0x18:
+ *   0x13 Colonist->0, 0x14 Pioneer->2, 0x15 Soldier->1,
+ *   0x16 Scout->5,    0x17 Dragoon->4,  0x18 Missionary->3
+ * bugs.md #648: this used to preserve the Continental/Royal tier, so mounting
+ * a Cont. Army gave Cont. Cavalry. The reverse table DS:0x30e (raw 9931/9944,
+ * type->job: 7 "Cont. Cav."->0x17, 9 "Cont. Army"->0x15) only files the
+ * Continentals under the colonial jobs for the *menu* lookup; it is never read
+ * back to re-type, so an equipment change in DOS always lands on the flat
+ * colonial type and drops the tier.
  */
 const char* units_equip_role_type_name(
   const ColonizeUnitPool* units,
   int cur_type_index,
   int role
 ) {
-  const ColonizeUnitType* t = units_type(units, cur_type_index);
-  const ColonizeUnitKind k = units_type_kind(t);
-  const int is_cont = units_kind_is_continental(k);
-  const int is_royal = units_kind_is_royal(k);
+  (void)cur_type_index;
   ColonizeUnitKind dest_kind = UNITS_KIND_COLONIST;
-  if (role == COLONIZE_EJECT_SOLDIER) {
-    dest_kind = is_cont ? UNITS_KIND_CONT_ARMY : (is_royal ? UNITS_KIND_REGULAR : UNITS_KIND_SOLDIER);
-  } else if (role == COLONIZE_EJECT_DRAGOON) {
-    dest_kind = is_cont ? UNITS_KIND_CONT_CAV : (is_royal ? UNITS_KIND_CAVALRY : UNITS_KIND_DRAGOON);
-  } else {
-    switch (role) {
-    case COLONIZE_EJECT_PIONEER:
-      dest_kind = UNITS_KIND_PIONEER;
-      break;
-    case COLONIZE_EJECT_SCOUT:
-      dest_kind = UNITS_KIND_SCOUT;
-      break;
-    case COLONIZE_EJECT_COLONIST:
-    default:
-      dest_kind = UNITS_KIND_COLONIST;
-      break;
-    }
+  switch (role) {
+  case COLONIZE_EJECT_PIONEER:
+    dest_kind = UNITS_KIND_PIONEER;
+    break;
+  case COLONIZE_EJECT_SOLDIER:
+    dest_kind = UNITS_KIND_SOLDIER;
+    break;
+  case COLONIZE_EJECT_SCOUT:
+    dest_kind = UNITS_KIND_SCOUT;
+    break;
+  case COLONIZE_EJECT_DRAGOON:
+    dest_kind = UNITS_KIND_DRAGOON;
+    break;
+  case COLONIZE_EJECT_MISSIONARY:
+    dest_kind = UNITS_KIND_MISSIONARY;
+    break;
+  case COLONIZE_EJECT_COLONIST:
+  default:
+    dest_kind = UNITS_KIND_COLONIST;
+    break;
   }
   const int dest_index = units_kind_type_index(units, dest_kind);
   if (dest_index >= 0) {
@@ -1936,6 +1958,28 @@ static bool units_defender_is_dos_scratch_row(void) {
   return combat_auto_defender();
 }
 
+/*
+ * FUN_5fef_1b0e `bVar13` / `bVar14` (raw 100733 / 100741, read at raw
+ * 101088-101095 to append '1' / '2' to the @INDIANWIN tag): the native gear
+ * step that just fired, for the chrome owner. bugs.md #645.
+ */
+static int g_units_native_gear_armed = 0;
+static int g_units_native_gear_mounted = 0;
+
+void units_last_native_gear_step(int* out_armed, int* out_mounted) {
+  if (out_armed) {
+    *out_armed = g_units_native_gear_armed;
+  }
+  if (out_mounted) {
+    *out_mounted = g_units_native_gear_mounted;
+  }
+}
+
+void units_clear_native_gear_step(void) {
+  g_units_native_gear_armed = 0;
+  g_units_native_gear_mounted = 0;
+}
+
 /* See units.h: ai_contact owns the richer ambush chrome for its own calls. */
 static int g_units_native_chrome_owned = 0;
 void units_set_native_combat_chrome_owned(int owned) {
@@ -1949,6 +1993,15 @@ static ColonizeCombatStrengthCtx units_combat_strength_ctx(const ColonizeCol1Sav
   ctx.colonies = g_units_combat_colonies;
   ctx.col1 = col1 ? col1 : g_units_ff_col1;
   return ctx;
+}
+
+/* FUN_281f_0768 — ocean or high seas (terrain 0x19 / 0x1a). */
+static int units_tile_is_ocean_or_hs(const ColonizeCol1Save* col1, int x, int y) {
+  const ColonizeCombatStrengthCtx sctx = units_combat_strength_ctx(col1);
+  if (!sctx.map) {
+    return 0;
+  }
+  return (map_tile_is_water(sctx.map, x, y) || map_tile_is_high_seas(sctx.map, x, y)) ? 1 : 0;
 }
 
 static void units_combat_maybe_present_analysis(
@@ -3136,8 +3189,8 @@ static int units_demote_combat_type(
       } else {
         loser->muskets = 0;
       }
-      loser->orders = UNITS_ORDER_NONE;
-      loser->moves = 0;
+      /* Same DOS write set as the table arm below (raw 99433-99464): type /
+       * equipment only, orders and MP untouched. bugs.md #646. */
       if (human_facing) {
         PopupMsgTokens tok;
         memset(&tok, 0, sizeof(tok));
@@ -3165,8 +3218,12 @@ static int units_demote_combat_type(
   loser->type_index = tgt;
   const ColonizeUnitType* nt = units_type(pool, tgt);
   units_sync_equip_after_type_change(loser, nt);
-  loser->orders = UNITS_ORDER_NONE;
-  loser->moves = 0;
+  /*
+   * DOS-LITERAL FUN_5fef_0352 raw 99433-99464: the demote arm writes the
+   * TYPE byte (`+0x3146`) and nothing else — no `+0x314c` orders write, no
+   * `+0x3149` MP write. The port used to clear both, so a Fortified Dragoon
+   * beaten down to Soldiers lost its Fortified order. bugs.md #646.
+   */
   if (human_facing) {
     PopupMsgTokens tok;
     memset(&tok, 0, sizeof(tok));
@@ -3234,7 +3291,14 @@ static void units_capture_to_winner(
 ) {
   units_set_nation(lose, win->nation_id);
   lose->orders = UNITS_ORDER_NONE;
-  lose->moves = 0;
+  /*
+   * DOS-LITERAL FUN_5fef_0352 raw 99393-99399: the capture arm writes the
+   * nation nibble (0812/0894/0844 = occupancy remove / set-nation / add) and
+   * `+0x314c = 0`. There is NO `+0x3149` MP write, so the port's `moves = 0`
+   * is dropped (bugs.md #646). The relocation below is deliberate and is NOT
+   * DOS: bugs.md #198 (CLOSED, user-observed) requires a captured unit to
+   * change allegiance AND step onto the captor's tile, colony tiles excepted.
+   */
   units_capture_relocate_to_winner(pool, lose, win);
 }
 
@@ -3243,7 +3307,8 @@ static int units_apply_land_loss_outcome(
   int loser_id,
   int winner_id,
   const ColonizeCol1Save* col1,
-  int show_popups
+  int show_popups,
+  ColonizeDosRng* rng
 ) {
   ColonizeUnit* lose = units_get(pool, loser_id);
   ColonizeUnit* win = units_get(pool, winner_id);
@@ -3270,6 +3335,79 @@ static int units_apply_land_loss_outcome(
    */
   const int win_can_capture = win_euro && units_is_combat_role(pool, win);
   const int loser_euro = lose->nation_id >= 0 && lose->nation_id <= 3;
+
+  /* ===== Native gear arms (bugs.md #645 / #653) ===== */
+  g_units_native_gear_armed = 0;
+  g_units_native_gear_mounted = 0;
+  {
+    ColonizeCol1Save* wcol1 = g_units_fallout_col1;
+    const int on_colony = g_units_combat_colonies &&
+                          colonies_id_at(g_units_combat_colonies, lose->x, lose->y) >= 0;
+    /*
+     * DOS-LITERAL FUN_5fef_0352 raw 99364-99377 (bugs.md #653): a KILLED
+     * Armed / Mtd. Brave hands its gear back to its own tribe. Gate: loser
+     * nation nibble > 3 and (`loser+0x3148 & 0x10` — the wander-dest latch —
+     * or `FUN_281f_04d4(0,1)`, a coin flip). Record base is `nation * 0x4e +
+     * 0x599e` (tech at +2 = DS:0x5ad6 for nation 4, ai.c:1390), so 0x59a5 =
+     * muskets (+7) and 0x59a8 = horse_breeding (+10):
+     *   type 0x14 / 0x16 -> muskets += 1
+     *   type 0x15 / 0x16 -> horse_breeding += 0x19
+     */
+    if (!loser_euro && lose->nation_id >= 4 && wcol1 && wcol1->indian &&
+        lose->nation_id - 4 < COLONIZE_COL1_INDIAN_COUNT &&
+        (((lose->col1_flags15 & 0x10u) != 0) || dos_rng_range(rng, 0, 1) != 0)) {
+      const ColonizeUnitKind lk = units_type_kind(lt);
+      ColonizeCol1Indian* ind = &wcol1->indian[lose->nation_id - 4];
+      if (lk == UNITS_KIND_ARMED_BRAVE || lk == UNITS_KIND_MTD_WARRIOR) {
+        ind->muskets = (uint8_t)(ind->muskets + 1);
+      }
+      if (lk == UNITS_KIND_MTD_BRAVE || lk == UNITS_KIND_MTD_WARRIOR) {
+        ind->horse_breeding = (uint16_t)(ind->horse_breeding + 0x19);
+      }
+    }
+    /*
+     * DOS-LITERAL FUN_5fef_1b0e raw 100730-100744 (bugs.md #645): a native
+     * winner takes the beaten Euro unit's GEAR as a type STEP, not as a
+     * numeric kit transfer. Gate: attacker nation nibble > 3, defender nibble
+     * < 4, a real defender existed and the fight is not a colony raid
+     * (`local_6`, raw 100644 = native attacker with a colony on the target
+     * tile).
+     *   defender type 4 Dragoons / 5 Scouts, brave type 0x13 / 0x14
+     *       -> brave type += 2 (mounted) and tribe `0x59a6` (+8 horse_herds)
+     *          += 1; flags @INDIANWIN2.
+     *   else defender type 1 Soldiers, brave type 0x15 / 0x13
+     *       -> brave type += 1 (armed); flags @INDIANWIN1.
+     * (bVar14 -> tag suffix '2', bVar13 -> '1' at raw 101088-101095.)
+     */
+    if (loser_euro && win->nation_id >= 4 && !on_colony) {
+      const ColonizeUnitKind lk = units_type_kind(lt);
+      const ColonizeUnitKind wk = units_type_kind(wt);
+      int step = 0;
+      if ((lk == UNITS_KIND_DRAGOON || lk == UNITS_KIND_SCOUT) &&
+          (wk == UNITS_KIND_BRAVE || wk == UNITS_KIND_ARMED_BRAVE)) {
+        step = 2;
+        g_units_native_gear_mounted = 1;
+        if (wcol1 && wcol1->indian && win->nation_id - 4 < COLONIZE_COL1_INDIAN_COUNT) {
+          ColonizeCol1Indian* ind = &wcol1->indian[win->nation_id - 4];
+          ind->horse_herds = (uint8_t)(ind->horse_herds + 1);
+        }
+      } else if (lk == UNITS_KIND_SOLDIER &&
+                 (wk == UNITS_KIND_MTD_BRAVE || wk == UNITS_KIND_BRAVE)) {
+        step = 1;
+        g_units_native_gear_armed = 1;
+      }
+      if (step != 0) {
+        const int nti = units_kind_type_index(pool, (ColonizeUnitKind)(wk + step));
+        if (nti >= 0) {
+          win->type_index = nti;
+          units_sync_equip_after_type_change(win, units_type(pool, nti));
+        } else {
+          g_units_native_gear_mounted = 0;
+          g_units_native_gear_armed = 0;
+        }
+      }
+    }
+  }
 
   /* Artillery: first loss → damaged bit7; already damaged → destroyed. */
   if (lt && combat_type_is_artillery(lt)) {
@@ -3397,9 +3535,26 @@ static int units_apply_land_loss_outcome(
     }
   }
 
-  /* Type demote (Soldier→Colonist, Dragoon→Soldier, …); keep nation. */
-  if (units_demote_combat_type(pool, lose, col1, human)) {
-    return 1;
+  /*
+   * Type demote (Soldier→Colonist, Dragoon→Soldier, …); keep nation.
+   *
+   * DOS-LITERAL FUN_5fef_0352 raw 99355-99364 + 99433: the ladder is gated.
+   * `local_2a` is `FUN_281f_0768` (ocean / high seas) of the WINNER's tile
+   * OR'd with the LOSER's tile, and the arm runs only when
+   * `(winner type < 0xd || winner type > 0x12) && local_2a == 0` — i.e. the
+   * winner is not a hull and neither tile is water. Beaten by a ship, or
+   * fought on water, the loser is DESTROYED. The port called the ladder
+   * unconditionally. bugs.md #647.
+   */
+  {
+    const int win_is_hull = wt && units_type_is_ship(wt);
+    const int on_water =
+      units_tile_is_ocean_or_hs(col1, win->x, win->y) ||
+      units_tile_is_ocean_or_hs(col1, lose->x, lose->y);
+    if (!win_is_hull && !on_water &&
+        units_demote_combat_type(pool, lose, col1, human)) {
+      return 1;
+    }
   }
 
   units_despawn(pool, loser_id);
@@ -3498,7 +3653,7 @@ static void units_sweep_stack_after_loss(
     }
     const ColonizeUnitType* t = units_type(pool, u->type_index);
     if (t && t->attack == 0 && u->nation_id >= 0 && u->nation_id <= 3) {
-      (void)units_apply_land_loss_outcome(pool, u->id, winner_id, col1, 0);
+      (void)units_apply_land_loss_outcome(pool, u->id, winner_id, col1, 0, NULL);
     }
   }
 }
@@ -5878,7 +6033,7 @@ bool units_resolve_land_combat_ff_w(
        * still evaporates it, exactly as FUN_291f_0a06 does.
        */
       if (!units_defender_is_dos_scratch_row()) {
-        (void)units_apply_land_loss_outcome(pool, defender_id, attacker_id, col1, 1);
+        (void)units_apply_land_loss_outcome(pool, defender_id, attacker_id, col1, 1, rng);
       }
       units_combat_outcome_popups(
         pool, &win_snap, &lose_snap, 1, atk_nation, def_nation, 0, ambush, col1
@@ -5956,7 +6111,7 @@ bool units_resolve_land_combat_ff_w(
     const ColonizeUnit win_snap = *def;
     const ColonizeUnit lose_snap = *atk;
     /* bugs.md #240: loss outcome popups first, then @EUROPELOSE (DOS order). */
-    (void)units_apply_land_loss_outcome(pool, attacker_id, defender_id, col1, 1);
+    (void)units_apply_land_loss_outcome(pool, attacker_id, defender_id, col1, 1, rng);
     units_combat_outcome_popups(
       pool, &win_snap, &lose_snap, 0, atk_nation, def_nation, 0, ambush, col1
     );
@@ -7354,7 +7509,7 @@ void units_seize_noncombat_at(
     if (units_is_sea(pool, u->id) || units_is_combat_role(pool, u)) {
       continue;
     }
-    (void)units_apply_land_loss_outcome(pool, u->id, winner_id, col1, 1);
+    (void)units_apply_land_loss_outcome(pool, u->id, winner_id, col1, 1, NULL);
   }
 }
 

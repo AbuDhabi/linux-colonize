@@ -1622,16 +1622,19 @@ static int europe_dock_type_horses(int dos_type) {
 int europe_dock_unit_type_index_ex(
   const ColonizeUnitPool* units, int dos_type, bool with_singular_fallback
 ) {
-  /* EUROPE_DOCK_TYPE_* (0..5) shares its order with ColonizeUnitKind's
-   * COLONIST/SOLDIER/PIONEER/MISSIONARY/DRAGOON/SCOUT (0..5) — the singular
-   * fallback used to re-derive that identity by re-matching a hand-typed
-   * English name; it now goes through the @UNIT row directly. */
+  /* bugs.md #657: EUROPE_DOCK_TYPE_* (0..5) shares its order with
+   * ColonizeUnitKind's COLONIST/SOLDIER/PIONEER/MISSIONARY/DRAGOON/SCOUT
+   * (0..5) directly — DOS never round-trips through a name here at all, it
+   * indexes the @UNIT row table by kind. This used to call
+   * units_find_type(units, reports_dock_type_name(dos_type)) first and only
+   * fall back to the row lookup, so an @UNIT pool whose plural name text
+   * didn't match verbatim (or was empty) silently mis-typed a dock entry.
+   * with_singular_fallback is now unused (kept in the signature: callers
+   * pass true/false without changing behaviour) since the row lookup always
+   * succeeds and never needs a fallback. */
+  (void)with_singular_fallback;
   if (!units || dos_type < 0 || dos_type >= EUROPE_DOCK_TYPE_COUNT) {
     return -1;
-  }
-  int t = units_find_type((ColonizeUnitPool*)units, reports_dock_type_name(dos_type));
-  if (t >= 0 || !with_singular_fallback) {
-    return t;
   }
   return units_kind_type_index(units, (ColonizeUnitKind)dos_type);
 }
@@ -5184,12 +5187,12 @@ int europe_dock_icon_sprite(const ColonizeUnitPool* units, const EuropeDockImmig
    * base pose unless the unit's own profession matches; the dock follows
    * the same rule, so a Master Blacksmith with tools reads as a plain
    * Pioneer, not a Hardy one. */
-  /* bugs.md #263 (units_map_sprite): BOTH veteran professions (0x15 Veteran
-   * Soldiers / 0x17 Veteran Dragoons) take the veteran pose — a Veteran
-   * Soldier armed with horses on the dock is a Veteran Dragoon, exactly as
-   * the map draws him. */
-  const bool dock_vet_prof =
-    d->profession == UNITS_JOB_SOLDIER || d->profession == UNITS_JOB_DRAGOON;
+  /* bugs.md #263 (units_map_sprite) superseded by #656: units.c's veteran
+   * gates (units_profession_line, units_map_sprite/FUN_112b_0060) are
+   * 0x15 (UNITS_JOB_SOLDIER) only — DOS never writes 0x17
+   * (UNITS_JOB_DRAGOON) to a unit (#503/#639) — so this sibling display
+   * now matches them instead of tolerating 0x17. */
+  const bool dock_vet_prof = d->profession == UNITS_JOB_SOLDIER;
   switch (d->dos_type) {
     case EUROPE_DOCK_TYPE_PIONEERS:
       return d->profession == UNITS_JOB_PIONEER ? UNITS_ICON_HARDY_PIONEER

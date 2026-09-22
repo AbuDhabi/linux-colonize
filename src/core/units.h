@@ -85,6 +85,16 @@ void units_set_combat_europe(struct EuropeScreen* europe);
 void units_set_native_combat_chrome_owned(int owned);
 
 /*
+ * FUN_5fef_1b0e's `bVar13` / `bVar14` gear-step flags from the last land loss
+ * resolved (bugs.md #645). `armed` = the brave stepped to Armed (@INDIANWIN
+ * tag suffix '1'), `mounted` = stepped to Mtd. (suffix '2'). The type step and
+ * the tribe tally happen inside the combat path; these are only the chrome
+ * picks for the owner of the @INDIANWIN popup. Clear before a resolve.
+ */
+void units_last_native_gear_step(int* out_armed, int* out_mounted);
+void units_clear_native_gear_step(void);
+
+/*
  * Optional sound.c hooks for the DOS-evidenced combat "Military" BGM sting
  * (SOUND_MILITARY_BGM_ID, see sound.h) — kept as function pointers rather
  * than a direct link so units.c stays linkable without sound.c (several
@@ -125,6 +135,15 @@ typedef struct ColonizeUnitType {
   int space; /* NAMES.TXT @UNIT "size" column (DOS 0x5238): ship slots this unit takes; 99 = cannot board */
   int guns; /* NAMES.TXT @UNIT guns column (DOS 0x523b): naval sink power */
   int hull; /* NAMES.TXT @UNIT hull column (DOS 0x523c): naval survive-as-damaged weight */
+  /*
+   * NAMES.TXT @UNIT column 12, the 8-character capability BIT-STRING
+   * (DOS `DS:0x523d + type*0xe`, loader raw 121132-121134 reads it with the
+   * bit-string reader FUN_2a1f_0b2e, not the numeric one). MSB-first: the
+   * leftmost character is bit 7, so "00111100" = 0x3c (row 4 Dragoons) and
+   * "00011100" = 0x1c (row 7 Cont. Cav.). Consumed by the AI capability
+   * tables (FUN_521d_20e6 / the goal walk) that used to hardcode it.
+   */
+  uint8_t cap_bits;
   ColonizeUnitDomain domain;
 } ColonizeUnitType;
 
@@ -304,10 +323,11 @@ int units_build_code_to_index(int raw_code);
 bool units_build_project_info(int raw_code, const char** name, int* hammers, int* tools_cost);
 
 /*
- * Destination @UNIT type name for a COLONIZE_EJECT_* equipment change applied
- * to an EXISTING unit of type cur_type_index — keeps a Continental
- * (Cont. Army <-> Cont. Cav.) or royal (Regulars <-> Cavalry) body in its own
- * tier instead of dropping it to the plain colonial pair. See units.c.
+ * Destination @UNIT type name for a COLONIZE_EJECT_* equipment change: the
+ * flat DS:0x2f5 @JOB->@UNIT row DOS re-types through (FUN_15eb_0916). The
+ * tier is NOT preserved — a Continental or royal body that changes its gear
+ * lands on the plain colonial type, exactly as in DOS. cur_type_index is
+ * unused and kept only for call-site shape. See units.c.
  */
 const char* units_equip_role_type_name(
   const ColonizeUnitPool* units,
