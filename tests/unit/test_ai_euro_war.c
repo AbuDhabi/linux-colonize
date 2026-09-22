@@ -856,6 +856,9 @@ static int unit_sticky_contact_rehunt(void) {
   if (!fx_map_alloc(&map, 16, 16, 1, false)) {
     return fail("sticky alloc map");
   }
+  /* layer3 is calloc'd (owner nibble 0 = nation 0); the 4d2e attack term
+   * keys on the tile owner, so mark the field unclaimed like a real map. */
+  memset(map.layer3, 0xf0, (size_t)(16 * 16));
 
   ColonizeUnitPool units;
   fx_units_init(&units);
@@ -969,6 +972,9 @@ static int unit_land_adjacent_combat_chain(void) {
   if (!fx_map_alloc(&map, 16, 16, 1, false)) {
     return fail("combat-chain alloc map");
   }
+  /* layer3 is calloc'd (owner nibble 0 = nation 0); the 4d2e attack term
+   * keys on the tile owner, so mark the field unclaimed like a real map. */
+  memset(map.layer3, 0xf0, (size_t)(16 * 16));
 
   ColonizeUnitPool units;
   fx_units_init(&units);
@@ -1204,6 +1210,9 @@ static int unit_land_adjacent_foe_prefer_weak(void) {
   if (!fx_map_alloc(&map, 16, 16, 1, false)) {
     return fail("adj-foe alloc map");
   }
+  /* layer3 is calloc'd (owner nibble 0 = nation 0); the 4d2e attack term
+   * keys on the tile owner, so mark the field unclaimed like a real map. */
+  memset(map.layer3, 0xf0, (size_t)(16 * 16));
 
   ColonizeUnitPool units;
   fx_units_init(&units);
@@ -1323,8 +1332,11 @@ static int unit_land_adjacent_foe_prefer_weak(void) {
 }
 
 /*
- * Thin 20e6 land adjacent-foe: equal toughness Scout (N, first dir) vs Treasure
- * (S) → prefer Treasure loot. Cite: Colonization.pdf Treasure Trains / @LOOTCASH.
+ * LAB_521d_4d2e adjacent foes: Scout (N) and Treasure (S), both at war with
+ * the mover. The DOS scorer takes whichever direction scores higher (the
+ * former "prefer Treasure loot" rule was a Linux invention, retired with the
+ * adjacent-attack stand-in, bugs.md #521); the test pins that exactly one of
+ * the two is attacked and killed.
  */
 static int unit_land_adjacent_foe_prefer_treasure(void) {
   const int nation = 1;
@@ -1336,6 +1348,9 @@ static int unit_land_adjacent_foe_prefer_treasure(void) {
   if (!fx_map_alloc(&map, 16, 16, 1, false)) {
     return fail("adj-treasure alloc map");
   }
+  /* layer3 is calloc'd (owner nibble 0 = nation 0); the 4d2e attack term
+   * keys on the tile owner, so mark the field unclaimed like a real map. */
+  memset(map.layer3, 0xf0, (size_t)(16 * 16));
 
   ColonizeUnitPool units;
   fx_units_init(&units);
@@ -1435,23 +1450,23 @@ static int unit_land_adjacent_foe_prefer_treasure(void) {
   treasure = units_get(&units, treasure_id);
 
   const int treasure_dead = treasure == NULL || !treasure->active;
-  const int scout_alive = scout && scout->active;
+  const int scout_dead = !scout || !scout->active;
   const int own_alive = soldier && soldier->active;
 
-  if (!treasure_dead || !scout_alive || !own_alive) {
+  if (treasure_dead == scout_dead || !own_alive) {
     fprintf(
       stderr,
-      "unit_ai_euro_war: adj-treasure own=%d treasure_dead=%d scout_alive=%d\n",
+      "unit_ai_euro_war: adj-treasure own=%d treasure_dead=%d scout_dead=%d\n",
       own_alive,
       treasure_dead,
-      scout_alive
+      scout_dead
     );
     fx_map_free(&map);
-    return fail("expected attack on Treasure over equal-toughness Scout");
+    return fail("expected the 4d2e pick to attack exactly one adjacent foe");
   }
 
   fx_map_free(&map);
-  fprintf(stderr, "unit_ai_euro_war: adjacent-foe prefer Treasure ok\n");
+  fprintf(stderr, "unit_ai_euro_war: adjacent-foe 4d2e pick ok\n");
   return 0;
 }
 
@@ -1472,6 +1487,9 @@ static int unit_land_adjacent_foe_prefer_open_over_stockade(void) {
   if (!fx_map_alloc(&map, 16, 16, 1, false)) {
     return fail("adj-stockade alloc map");
   }
+  /* layer3 is calloc'd (owner nibble 0 = nation 0); the 4d2e attack term
+   * keys on the tile owner, so mark the field unclaimed like a real map. */
+  memset(map.layer3, 0xf0, (size_t)(16 * 16));
 
   ColonizeUnitPool units;
   fx_units_init(&units);
@@ -1609,6 +1627,9 @@ static int unit_land_adjacent_foe_prefer_non_veteran(void) {
   if (!fx_map_alloc(&map, 16, 16, 1, false)) {
     return fail("adj-vet alloc map");
   }
+  /* layer3 is calloc'd (owner nibble 0 = nation 0); the 4d2e attack term
+   * keys on the tile owner, so mark the field unclaimed like a real map. */
+  memset(map.layer3, 0xf0, (size_t)(16 * 16));
 
   ColonizeUnitPool units;
   fx_units_init(&units);

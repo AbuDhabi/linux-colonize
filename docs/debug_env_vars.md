@@ -28,6 +28,7 @@ comparing golden output.
 | `AI_20E6_LOAD_TRACE` | `src/core/ai_euro.c:4665`, `13757` | trace | Logs cargo/unit load decisions | off |
 | `AI_0A60_WORK_TRACE` | `src/core/ai_euro.c:9355` | trace | Logs `0a60` goal-consumption work steps | off |
 | `AI_SHIP_TRACE` | `src/core/ai_euro.c:11843` (+5 more sites) | trace | Logs AI ship movement/dispatch decisions | off |
+| `AI_4D2E_TRACE` | `src/core/ai_euro.c` (`ai_euro_20e6_wander_step`) | trace | Logs every LAB_521d_4d2e direction score (`[4d2e] u<id> dir d (x,y) score s attack a`) for land units and ships | off |
 | `AI_20E6_HOP_TRACE` | `src/core/ai_euro.c:11960` | trace | Logs ship hop/waypoint choice | off |
 | `AI_20E6_TREASURE_TRACE` | `src/core/ai_euro.c:12073` | trace | Logs treasure cash-in pickup logic | off |
 | `AI_20E6_DEADEND_TRACE` | `src/core/ai_euro.c:12147`, `12235`, `13400` | trace | Logs dead-end/destroy detection for stuck ships | off |
