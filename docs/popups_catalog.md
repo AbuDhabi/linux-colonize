@@ -48,7 +48,7 @@ Appendices and exhaustive `@SECTION` reference for [popups.md](popups.md).
 | `@RENAMECOLONY` | Done | colony **R** rename |
 | `@LANDFALL` | Done | AI_POPUP_TAG_LANDFALL |
 | `@LANDFALL2` | Done | river variant: `game_loop.c` picks LANDFALL vs LANDFALL2 by `map_tile_has_river` on the dest tile (DOS FUN_4720_015c terrain-flag bit 0x40) |
-| `@ONLYPIO` | Done thin | non-pioneer plow/road ai_popup OK |
+| `@ONLYPIO` | Dead text | literal absent from VICEROY.EXE; DOS greys the menu row (`0b34` raw 42211-42215). Popup deleted 2026-09-22, bugs.md #621 |
 | `@ONLYCOL` | n/a | dead text: no `ONLYCOL` DS string in VICEROY.EXE (absent from popup_tag_ids.md), so nothing can push it |
 | `@SHIPCOMBAT` | Done | `game_report_enter_reason` (`game_loop.c`) — real OK popup on `COLONIZE_ENTER_BOUNCE_FOREIGN` when the mover is sea (non-combat ship attacking a ship) |
 | `@SHIPLAKE` | Done | new gate: `units_enter_probe` denies a ship entering an enclosed water region with `COLONIZE_ENTER_LAKE_BLOCKED`; `game_report_enter_reason` shows the real OK popup. Uses `layer3` region nibble `> 1` (stricter than the shared `map_tile_is_lake` `!= 1`) since a zeroed/uncomputed region nibble (many synthetic test/AI fixtures) must not misread as a lake — real generated/loaded maps never legitimately carry region 0 on water |

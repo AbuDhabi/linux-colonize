@@ -96,6 +96,20 @@ bool map_panel_minimap_click(
   int* out_tile_y
 );
 
+/*
+ * The stack-row type-detail string (Pioneers' tools / Treasure gold) exactly as
+ * FUN_49dd_0424's stack list spells it: no parentheses, and the LABELS @MISC
+ * row 4 "Expert" word in front when the profession byte is 0x14 (bugs.md #630).
+ * Exposed for tests; the selected-unit block uses the parenthesised spelling.
+ */
+bool map_panel_stack_detail_text(
+  const ColonizeUnitPool* units,
+  const ColonizeUnit* u,
+  const ColonizeMsgCatalog* names,
+  char* out,
+  size_t out_size
+);
+
 void map_panel_render_w(
   const ColonizeWorld* w,
   const MapPanel* panel,

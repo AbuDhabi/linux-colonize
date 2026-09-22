@@ -586,8 +586,18 @@ static void units_slot_reset_defaults(
    * FUN_1427_06b4: type cargo>0 → profession 0 (ships/wagons); else 0x1c.
    * Exporting ships as profession 28 makes DOS treat the tile as a land stack
    * and peel the caravel off its transport_chain (sidebar "unloaded").
+   *
+   * bugs.md #638: DOS raw 7744-7749 has a third arm ahead of the 0x1c
+   * default — type 7 (Cont. Cavalry) / type 9 (Cont. Army) spawn with
+   * profession 0x15 (Veteran Soldiers), since every Continental is a
+   * promoted veteran. The port omitted it and gave them 0x1c.
    */
-  slot->profession = type->cargo > 0 ? 0 : UNITS_JOB_NONE;
+  const ColonizeUnitKind spawn_kind = units_type_kind(type);
+  if (spawn_kind == UNITS_KIND_CONT_CAV || spawn_kind == UNITS_KIND_CONT_ARMY) {
+    slot->profession = UNITS_JOB_SOLDIER;
+  } else {
+    slot->profession = type->cargo > 0 ? 0 : UNITS_JOB_NONE;
+  }
   slot->tools = 0;
   slot->muskets = 0;
   slot->horses = 0;
@@ -3312,10 +3322,16 @@ static int units_apply_land_loss_outcome(
      * different type there; a Colonists-type unit carrying horses or
      * muskets here (seizure, save import) must not slip into the capture
      * branch on its type name.
+     *
+     * bugs.md #637: tools too. DOS FUN_5fef_0352 raw 99344-99347 captures
+     * loser types {0 Colonists, 0x0a Treasure, 0x0c Wagon}; type 2 Pioneers
+     * is absent there and absent from the demote ladder (raw 99437-99447),
+     * so a losing Pioneer is destroyed. Latent in-port (tools only ride the
+     * Pioneers type today); guards imported/hand-edited saves.
      */
     const int is_colonist =
       units_type_is_colonist(lt) && !is_treasure && !is_wagon &&
-      lose->horses <= 0 && lose->muskets <= 0;
+      lose->horses <= 0 && lose->muskets <= 0 && lose->tools <= 0;
     if (is_treasure) {
       /* Treasure gold handled in resolve; despawn below. */
     } else if (is_wagon) {
@@ -7741,6 +7757,15 @@ static void units_mp_exhaust(const ColonizeUnitPool* pool, ColonizeUnit* u) {
  * therefore reads as *fully spent* on a Brave. Every park/refund site goes
  * through this so the trap cannot come back by copy-paste.
  */
+/*
+ * Public spelling of the same "FUN_281f_0934: spend the whole allotment" act,
+ * for callers outside units.c (game_dialogs.c's respect-their-wishes arm,
+ * bugs.md #616/#626) that used to re-derive the nation>=4 inversion inline.
+ */
+void units_mp_exhaust_unit(ColonizeUnitPool* pool, int unit_id) {
+  units_mp_exhaust(pool, units_get(pool, unit_id));
+}
+
 static void units_mp_restore(const ColonizeUnitPool* pool, ColonizeUnit* u) {
   if (!u) {
     return;
@@ -8894,26 +8919,20 @@ bool units_pillage_w(
     return true;
   }
 
-  /* Non-colony: clear plow / road improvements on the tile. */
-  const bool had_plow = map_tile_is_plowed(map, u->x, u->y);
-  const bool had_road = map_tile_has_road(map, u->x, u->y);
-  if (!had_plow && !had_road) {
-    if (err && err_size) {
-      snprintf(err, err_size, "Nothing to pillage");
-    }
-    return false;
-  }
-  if (had_plow) {
-    map_tile_set_plowed(map, u->x, u->y, false);
-  }
-  if (had_road) {
-    map_tile_set_road(map, u->x, u->y, false);
-  }
-  units_mp_exhaust(pool, u); /* pillaging ends the turn (audit A9) */
+  /*
+   * bugs.md #631: there is no improvement-destroying pillage in DOS. Every
+   * FUN_281f_068c(x,y,bit,on) call in both exports was enumerated: only
+   * `0x10,1` (land purchased, raw 42499 / 42592 / 76688), `4,1` (raw 57001)
+   * and `1,0` / `2,0` (occupancy, raw 58157 / 101569-101570). Nothing ever
+   * clears the plow bit 0x40 or the road bit 0x08 — not raids (4cc6), not
+   * 5fef. The port's "clear plow / road on the tile" arm was invented; it is
+   * gone. ORDERS id 0x317 Pillage is hidden unconditionally by
+   * FUN_2b5a_0b34 anyway, so only the colony-loot arm above is reachable.
+   */
   if (err && err_size) {
-    snprintf(err, err_size, "Pillaged improvements");
+    snprintf(err, err_size, "Nothing to pillage");
   }
-  return true;
+  return false;
 }
 
 
@@ -10512,6 +10531,27 @@ bool units_is_pioneer(const ColonizeUnitPool* pool, int unit_id) {
 #define UNITS_PIONEER_TOOL_COST 20
 
 /*
+ * DOS `FUN_281f_0754(x,y) & 0x0a` — the layer2 road-OR-settlement mask that
+ * both Build Road gates use (order entry FUN_2b5a_1454 raw 42552-42555, work
+ * body FUN_479b_0526 raw 76873-76876). bugs.md #618. The port's settlement
+ * bit is MAP_OCCUPANCY_HAS_CITY (map_tile_has_city); the colony pool is
+ * consulted as well so the gate still holds when the live occupancy map is
+ * not bound (headless tests, tools).
+ */
+static bool units_pioneer_road_mask(
+  const ColonizeWorldMap* map,
+  const ColonizeColonyPool* colonies,
+  int x,
+  int y
+) {
+  if (map_tile_has_road(map, x, y) || map_tile_has_city(map, x, y)) {
+    return true;
+  }
+  return colonies && colonies_id_at(colonies, x, y) >= 0;
+}
+
+
+/*
  * DOS FUN_479b_01a6/0526: both clear/plow and road read the same DS:0x2f78
  * threshold byte (offset +2 of the terrain-class record), but only the
  * clear/plow body adds 2 (`local_2a = byte + 2`); the road body takes the
@@ -10649,9 +10689,20 @@ static bool units_pioneer_tile_can_clear_or_plow(
   if (!map_tile_is_land(map, x, y) || map_tile_is_high_seas(map, x, y)) {
     return false;
   }
+  /*
+   * bugs.md #619. DOS's terrain veto for Clear/Plow lives in the ORDERS menu
+   * FUN_2b5a_0b34 raw 42224-42227: it hides ids 0x312/0x313 only on classes
+   * 0x1b (Mountains) / 0x1c (Hills) on the FUN_281f_078c scale that
+   * map_pedia_terrain_index_at mirrors. Arctic (24) is plowable in DOS (its
+   * DS:0x2f76 threshold byte is 4). The work body FUN_479b_01a6 raw
+   * 76745-76755 itself aborts only on `layer2 & 0x40`, class 0x19 (Ocean)
+   * and 0x1a (Sea Lane) — covered by the land / high-seas tests above.
+   * The port had `24 || 27`, which denied Arctic and permitted Hills, so the
+   * menu offered Plow Fields on Arctic and the order then failed.
+   */
   const int pedia = map_pedia_terrain_index_at(map, x, y);
-  if (pedia == 24 || pedia == 27) {
-    return false; /* Arctic / mountains */
+  if (pedia == 0x1b || pedia == 0x1c) {
+    return false; /* Mountains / Hills */
   }
   if (pedia >= 8 && pedia <= 23) {
     if (out_clearing) {
@@ -10718,7 +10769,7 @@ static void units_pioneer_emit_useduptools(
     messages,
     "USEDUPTOOLS",
     NULL,
-    err && err[0] ? err : "Tools used up.",
+    "", /* bugs.md #632: catalog miss = empty string */
     body,
     sizeof(body)
   );
@@ -10765,33 +10816,30 @@ bool units_pioneer_work_tick_w(
   if (!road && !clear_plow) {
     return false;
   }
-  if (!units_is_pioneer(pool, unit_id) || u->tools < UNITS_PIONEER_TOOL_COST) {
+  /*
+   * bugs.md #628: DOS's work bodies never read tools (raw 76722-76960); the
+   * tool debit FUN_479b_0158 simply underflows hold[5] and demotes. Only the
+   * type test survives (FUN_2b5a_0b08 is type-only).
+   * bugs.md #620: an aborted tick (raw 76753 / 76886) clears the order and
+   * returns WITHOUT touching the +0x315a progress counter.
+   */
+  if (!units_is_pioneer(pool, unit_id)) {
     u->orders = UNITS_ORDER_NONE;
-    u->col1_counter16 = 0;
-    if (err && err_size) {
-      snprintf(err, err_size, "Need tools");
-    }
     return false;
   }
 
   if (road) {
+    /* bugs.md #618: DOS FUN_479b_0526 raw 76873-76876 aborts on
+     * `layer2 & 0x0a` = road OR settlement, not the road bit alone. */
     if (!map_tile_is_land(map, u->x, u->y) || map_tile_is_high_seas(map, u->x, u->y) ||
-        map_tile_has_road(map, u->x, u->y)) {
+        units_pioneer_road_mask(map, colonies, u->x, u->y)) {
       u->orders = UNITS_ORDER_NONE;
-      u->col1_counter16 = 0;
-      if (err && err_size) {
-        snprintf(err, err_size, "Cannot build road here");
-      }
       return false;
     }
   } else {
     bool clearing = false;
     if (!units_pioneer_tile_can_clear_or_plow(map, u->x, u->y, &clearing)) {
       u->orders = UNITS_ORDER_NONE;
-      u->col1_counter16 = 0;
-      if (err && err_size) {
-        snprintf(err, err_size, "Cannot plow here");
-      }
       return false;
     }
     (void)clearing;
@@ -10804,21 +10852,11 @@ bool units_pioneer_work_tick_w(
   }
   const int needed = units_pioneer_work_needed(u, map, road);
   if (u->col1_counter16 < needed) {
-    if (err && err_size) {
-      if (road) {
-        snprintf(err, err_size, "Building road (%d/%d)", u->col1_counter16, needed);
-      } else {
-        bool clearing = false;
-        (void)units_pioneer_tile_can_clear_or_plow(map, u->x, u->y, &clearing);
-        snprintf(
-          err,
-          err_size,
-          clearing ? "Clearing forest (%d/%d)" : "Plowing (%d/%d)",
-          u->col1_counter16,
-          needed
-        );
-      }
-    }
+    /* bugs.md #633: DOS's work bodies write nothing to the status channel
+     * while the job is in progress; the only text they emit is @CLEARCUT
+     * (raw 76800) and @USEDUPTOOLS (0158 raw 76715). The port's
+     * "Clearing forest (n/m)" / "Plowing (n/m)" / "Building road (n/m)"
+     * progress lines were port-only chrome and are gone. */
     return true;
   }
 
@@ -10828,16 +10866,17 @@ bool units_pioneer_work_tick_w(
     map_tile_set_road(map, u->x, u->y, true);
     const bool demoted = units_pioneer_wear_tools(pool, u);
     /*
-     * FUN_479b_0526 road completion: nearest same-nation colony (no radius
-     * limit — DOS FUN_281f_0614(x,y,nation,0xffff)) gets a flat
-     * +10 hammers_purchased. Mirrors the already-ported case-8 clear-forest
-     * lumber grant's "nearest own colony" pattern (units_pioneer_work_tick
-     * clearing branch below). Distance is DOS's own max+min/2 metric since
-     * 2026-09-06e (was Manhattan).
+     * DOS-LITERAL FUN_479b_0526 raw 76908-76921: road completion looks up the
+     * nearest colony of ANY nation — `FUN_281f_0614(x, y, 0xffff, 0xffff)`,
+     * filter -1 — and only then tests
+     * `if ((unit.nation & 0xf) == colony[+0x1a]) colony[+0x98] += 10`.
+     * So a road laid beside a nearer FOREIGN colony pays nobody; it does not
+     * fall through to a more distant own colony (bugs.md #617). Distance is
+     * DOS's own max+min/2 metric.
      */
     if (colonies) {
-      ColonizeColony* near_road = units_nearest_colony_dos(colonies, u->x, u->y, u->nation_id, NULL);
-      if (near_road) {
+      ColonizeColony* near_road = units_nearest_colony_dos(colonies, u->x, u->y, -1, NULL);
+      if (near_road && near_road->nation_id == (u->nation_id & 0xf)) {
         int next = (int)near_road->hammers_purchased + 10;
         if (next > 65535) {
           next = 65535;
@@ -10847,14 +10886,6 @@ bool units_pioneer_work_tick_w(
     }
     if (demoted) {
       units_pioneer_emit_useduptools(u, err, err_size, ai_popups, messages);
-    } else if (err && err_size) {
-      snprintf(
-        err,
-        err_size,
-        "Road built (-%d tools, %d left)",
-        UNITS_PIONEER_TOOL_COST,
-        u->tools
-      );
     }
     /* LAB_479b_0687 tail: base 3 (0d6c mode 1). */
     units_pioneer_native_land_tail(u, map, colonies, 3);
@@ -10925,27 +10956,8 @@ bool units_pioneer_work_tick_w(
           }
         }
       }
-      if (err && err_size) {
-        if (lumber_add > 0 && near && near->name[0]) {
-          snprintf(
-            err,
-            err_size,
-            "Forest cleared (+%d lumber to %s)",
-            lumber_add,
-            near->name
-          );
-        } else if (lumber_add > 0) {
-          snprintf(err, err_size, "Forest cleared (+%d lumber)", lumber_add);
-        } else {
-          snprintf(
-            err,
-            err_size,
-            "Forest cleared (-%d tools, %d left)",
-            UNITS_PIONEER_TOOL_COST,
-            u->tools
-          );
-        }
-      }
+      /* bugs.md #633: no "Forest cleared (…)" status line in DOS — @CLEARCUT
+       * below is the only text FUN_479b_01a6 emits. */
       if (lumber_add > 0 && near && ai_popups &&
           (g_units_combat_human_nation < 0 || u->nation_id == g_units_combat_human_nation)) {
         char body[AI_POPUP_BODY_LEN];
@@ -10958,7 +10970,7 @@ bool units_pioneer_work_tick_w(
           messages,
           "CLEARCUT",
           &tok,
-          err && err[0] ? err : "Forest cleared.",
+          "", /* bugs.md #632: catalog miss = empty string */
           body,
           sizeof(body)
         );
@@ -10982,15 +10994,8 @@ bool units_pioneer_work_tick_w(
       const bool demoted = units_pioneer_wear_tools(pool, u);
       if (demoted) {
         units_pioneer_emit_useduptools(u, err, err_size, ai_popups, messages);
-      } else if (err && err_size) {
-        snprintf(
-          err,
-          err_size,
-          "Plowed (-%d tools, %d left)",
-          UNITS_PIONEER_TOOL_COST,
-          u->tools
-        );
       }
+      /* bugs.md #633: DOS's plow completion writes no status text. */
     }
   }
   return true;
@@ -11013,23 +11018,25 @@ static ColonizeUnit* units_pioneer_begin_order(
   AiPopupState* ai_popups,
   const ColonizeMsgCatalog* messages
 ) {
+  (void)ai_popups;
+  (void)messages;
+  (void)order;
   ColonizeUnit* u = units_get(pool, unit_id);
+  /*
+   * bugs.md #621: no @ONLYPIO popup. The literal ONLYPIO does not occur in
+   * VICEROY.EXE at all; DOS FUN_2b5a_0b34 raw 42211-42215 simply greys menu
+   * ids 0x312/0x313/0x314 via FUN_291f_0146 when FUN_2b5a_0b08 says the unit
+   * is not type 2 — the row can never be picked, so there is nothing to
+   * refuse. map_menu.c does the same greying.
+   * bugs.md #615: no MP gate. FUN_2b5a_123e raw 42427-42513 and
+   * FUN_2b5a_1454 raw 42519-42604 read moves nowhere; the first work tick
+   * runs at 0 MP and FUN_281f_0934 exhausts inside the body (raw 76761),
+   * which is why DOS pioneers finish work at 0 MP.
+   * bugs.md #628: no tools gate either — DOS never reads tools at order time.
+   */
   if (!u || !map || !units_is_pioneer(pool, unit_id)) {
     if (err && err_size) {
       snprintf(err, err_size, "Select a Pioneer");
-    }
-    units_pioneer_emit_order_gate(u, ai_popups, messages, "ONLYPIO", "Only pioneers can do that.");
-    return NULL;
-  }
-  if (u->orders != order && u->moves <= 0) {
-    if (err && err_size) {
-      snprintf(err, err_size, "No moves left");
-    }
-    return NULL;
-  }
-  if (u->tools < UNITS_PIONEER_TOOL_COST) {
-    if (err && err_size) {
-      snprintf(err, err_size, "Need tools");
     }
     return NULL;
   }
@@ -11058,7 +11065,7 @@ bool units_pioneer_plow_w(
     if (err && err_size) {
       snprintf(err, err_size, "Already plowed");
     }
-    units_pioneer_emit_order_gate(u, ai_popups, messages, "NOPLOW", "Already plowed.");
+    units_pioneer_emit_order_gate(u, ai_popups, messages, "NOPLOW", "");
     return false;
   }
   if (!units_pioneer_tile_can_clear_or_plow(map, u->x, u->y, NULL)) {
@@ -11068,7 +11075,10 @@ bool units_pioneer_plow_w(
     return false;
   }
   if (u->orders != UNITS_ORDER_CLEAR_PLOW) {
-    u->col1_counter16 = 0;
+    /* bugs.md #620: DOS FUN_2b5a_123e raw 42511-42512 writes only +0x314c;
+     * the +0x315a progress counter survives an order change. Only completion
+     * (raw 76773 / 76899), fortify (raw 42418) and entering a colony (465b
+     * raw 76733) zero it. */
     u->orders = UNITS_ORDER_CLEAR_PLOW;
     if (diag_info_enabled()) {
       char who[96];
@@ -11110,7 +11120,10 @@ bool units_pioneer_road_w(
     }
     return false;
   }
-  if (map_tile_has_road(map, u->x, u->y)) {
+  /* bugs.md #618: DOS FUN_2b5a_1454 raw 42552-42555 tests `layer2 & 0x0a`
+   * = road OR settlement before raising @NOROAD, so Build Road is never
+   * offered on a colony/village tile. */
+  if (units_pioneer_road_mask(map, colonies, u->x, u->y)) {
     if (err && err_size) {
       popup_msg_fill(messages, "NOROAD", NULL, "", err, err_size);
       popup_msg_strip_markup(err);
@@ -11119,7 +11132,7 @@ bool units_pioneer_road_w(
     return false;
   }
   if (u->orders != UNITS_ORDER_BUILD_ROAD) {
-    u->col1_counter16 = 0;
+    /* bugs.md #620: FUN_2b5a_1454 raw 42602-42603 writes only +0x314c. */
     u->orders = UNITS_ORDER_BUILD_ROAD;
     if (diag_info_enabled()) {
       char who[96];
@@ -12428,10 +12441,16 @@ int units_map_sprite(const ColonizeUnitPool* pool, int unit_id) {
              ? type->icon_sprite /* = UNITS_ICON_JESUIT_MISSIONARY, from NAMES @UNIT */
              : UNITS_ICON_MISSIONARY;
   }
-  /* bugs.md #263: a mounted Veteran Soldier (profession 0x15) IS a veteran
-   * dragoon — both veteran professions (0x15/0x17) take the veteran art. */
-  const bool vet_prof =
-    unit->profession == UNITS_JOB_SOLDIER || unit->profession == UNITS_JOB_DRAGOON;
+  /*
+   * DOS-LITERAL FUN_112b_0060: the veteran art test is profession == 0x15
+   * exactly — `if ((type == 1) && (prof != 0x15)) icon = 0x4b;` and
+   * `if ((type == 4) && (prof != 0x15)) icon = 0x4d;`. A mounted Veteran
+   * Soldier (0x15) IS a veteran dragoon (bugs.md #263), but 0x17 is not a
+   * veteran profession to DOS — and DOS never writes 0x17 to a unit at all
+   * (bugs.md #503), so accepting it here only mis-drew hand-edited saves
+   * (bugs.md #639).
+   */
+  const bool vet_prof = unit->profession == UNITS_JOB_SOLDIER;
   if (muskets > 0 && horses > 0) {
     return vet_prof ? UNITS_ICON_VETERAN_DRAGOON : UNITS_ICON_DRAGOON;
   }

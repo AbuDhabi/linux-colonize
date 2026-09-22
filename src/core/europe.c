@@ -1565,10 +1565,13 @@ int europe_dock_type_for(const char* name, int profession) {
  * 0056(1) opens the line, 0074 appends the @NATIONALITY adjective of the
  * bound nation (DS -0x72f6) and the @UNIT plural of the immigrant's type
  * (0x5230 + type*0xe); then, only when +0x315b (profession) != 0x1c, it
- * appends " (" + the @JOB name at `-0x715c + prof*8` + ")". That is @JOB
- * COLUMN 1 (the "Expert Farmers" plural), which is what the code below
- * reads — the old "-0x715e singular" cite was a transcription slip; the
- * real site is viceroy_overlays.c:61190 (bugs.md #577).
+ * appends " (" + the @JOB name at `-0x715e + prof*8` + ")". That is @JOB
+ * COLUMN 0 (the singular "Expert Farmer"): col0 = -0x715e, col1 = -0x715c,
+ * col2 = -0x715a (raw 61193, ndisasm 0x00033C65 `push word [bx-0x715e]`;
+ * cross-checked by FUN_49dd_0386 raw 78620 and FUN_15eb_3454 raw 13544).
+ * bugs.md #613-wave #624: bugs.md #577 had been "fixed" onto the plural on
+ * a bad cite — viceroy_overlays.c:61190 is the OVL03 `2f2b` colony site
+ * (which really does read -0x715c), not this 3694 Europe dock caption.
  */
 bool europe_dock_caption(const EuropeScreen* eu, int dock_index, char* out, size_t cap) {
   if (!eu || !out || cap == 0) {
@@ -1582,7 +1585,7 @@ bool europe_dock_caption(const EuropeScreen* eu, int dock_index, char* out, size
   const char* adj = reports_nation_adjective_display_name((int)eu->bound_nation);
   const char* type_name = reports_dock_type_name(d->dos_type);
   const int prof = d->profession;
-  const char* job_name = (prof >= 0 && prof != UNITS_JOB_NONE) ? reports_job_name(prof) : NULL;
+  const char* job_name = (prof >= 0 && prof != UNITS_JOB_NONE) ? reports_job_short_name(prof) : NULL;
   if (job_name && job_name[0]) {
     snprintf(out, cap, "%s %s (%s)", adj ? adj : "", type_name ? type_name : "", job_name);
   } else {

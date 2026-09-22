@@ -706,7 +706,58 @@ static const char* map_panel_cargo_name(const ColonizeMsgCatalog* names, int car
  * Type-specific detail line: DOS gives Pioneers their tool count (0x3159) and
  * a Treasure Train its gold (0x315b x 100) in the highlight ink, between the
  * profession and the orders.
+ *
+ * The two DOS sites inside FUN_49dd_0424 spell it differently, so `stack`
+ * picks which one is wanted:
+ *  - selected-unit block, raw 78897-78918: FUN_281f_011e "(" ... FUN_281f_0128
+ *    ")" around the text, and no "Expert" word.
+ *  - stack row, raw 79185-79196: no parentheses, and when the profession byte
+ *    (+0x315b) is 0x14 (Hardy Pioneer) the LABELS @MISC row 4 word at
+ *    DS:0x2dc2 ("Expert") is prepended (bugs.md #630).
  */
+static bool map_panel_type_detail_mode(
+  const ColonizeUnitPool* units,
+  const ColonizeUnit* u,
+  const ColonizeMsgCatalog* names,
+  bool stack,
+  char* out,
+  size_t out_size
+) {
+  (void)units;
+  if (u->type_index == MAP_PANEL_UNIT_PIONEERS && u->tools > 0) {
+    if (stack) {
+      const char* expert =
+        (u->profession == UNITS_JOB_PIONEER) ? reports_misc_display_word(4, "") : "";
+      snprintf(
+        out, out_size, "%s%s%d %s", expert, (expert && expert[0]) ? " " : "", u->tools,
+        map_panel_cargo_name(names, COLONIZE_CARGO_TOOLS)
+      );
+    } else {
+      snprintf(out, out_size, "(%d %s)", u->tools, map_panel_cargo_name(names, COLONIZE_CARGO_TOOLS));
+    }
+    return true;
+  }
+  if (u->type_index == MAP_PANEL_UNIT_TREASURE) {
+    snprintf(out, out_size, stack ? "Gold: %d" : "(Gold: %d)", u->profession * 100);
+    return true;
+  }
+  return false;
+}
+
+bool map_panel_stack_detail_text(
+  const ColonizeUnitPool* units,
+  const ColonizeUnit* u,
+  const ColonizeMsgCatalog* names,
+  char* out,
+  size_t out_size
+) {
+  if (!u || !out || out_size == 0) {
+    return false;
+  }
+  out[0] = 0;
+  return map_panel_type_detail_mode(units, u, names, true, out, out_size);
+}
+
 static bool map_panel_type_detail(
   const ColonizeUnitPool* units,
   const ColonizeUnit* u,
@@ -714,16 +765,7 @@ static bool map_panel_type_detail(
   char* out,
   size_t out_size
 ) {
-  (void)units;
-  if (u->type_index == MAP_PANEL_UNIT_PIONEERS && u->tools > 0) {
-    snprintf(out, out_size, "(%d %s)", u->tools, map_panel_cargo_name(names, COLONIZE_CARGO_TOOLS));
-    return true;
-  }
-  if (u->type_index == MAP_PANEL_UNIT_TREASURE) {
-    snprintf(out, out_size, "(Gold: %d)", u->profession * 100);
-    return true;
-  }
-  return false;
+  return map_panel_type_detail_mode(units, u, names, false, out, out_size);
 }
 
 /*
@@ -1014,12 +1056,20 @@ static void map_panel_draw_stack_row(
   x += MAP_PANEL_ICON_INDENT;
 
   const ColonizeUnitType* type = units_type(units, u->type_index);
-  const int text_y = *y + 2;
+  /*
+   * DOS-LITERAL FUN_49dd_0424 raw 79184-79246: one 0x12-tall stack entry holds
+   * TWO text rows at the post-icon column - the type detail at local_74 + 4
+   * (LAB_49dd_1451) and, unconditionally, the orders string at
+   * local_74 + 0x10 - <font height byte at DS:0x89e> (LAB_49dd_1572). The port
+   * drew the orders only when no detail applied (bugs.md #623).
+   */
+  const int detail_y = *y + 4;
+  const int orders_y = *y + 0x10 - (font ? (int)font->max_height : 6);
   const int right = MAP_PANEL_X + MAP_PANEL_W - 2;
   char line[72];
 
-  /* DOS row precedence: Pioneers' tools, then profession, then Treasure gold,
-   * then a loaded transport's holds, else the orders / destination text. */
+  /* DOS detail precedence: Pioneers' tools, then profession, then Treasure
+   * gold, then a loaded transport's holds, else the @UNIT type name. */
   /* bugs.md #507: DOS FUN_49dd_0424 stack-list row passes param_3 = 0 (raw 79205). */
   const char* prof = units_profession_line(names, u->type_index, u->profession, false);
   int goods = 0;
@@ -1029,21 +1079,27 @@ static void map_panel_draw_stack_row(
     }
   }
   if (u->type_index == MAP_PANEL_UNIT_PIONEERS && u->tools > 0) {
-    map_panel_type_detail(units, u, names, line, sizeof(line));
-    font_draw_text(font, fb, x, text_y, line, MAP_PANEL_COL_EMPHASIS);
+    map_panel_type_detail_mode(units, u, names, true, line, sizeof(line));
+    font_draw_text(font, fb, x, detail_y, line, MAP_PANEL_COL_EMPHASIS);
   } else if (prof) {
-    font_draw_text(font, fb, x, text_y, prof, MAP_PANEL_COL_EMPHASIS);
+    font_draw_text(font, fb, x, detail_y, prof, MAP_PANEL_COL_EMPHASIS);
   } else if (u->type_index == MAP_PANEL_UNIT_TREASURE) {
-    map_panel_type_detail(units, u, names, line, sizeof(line));
-    font_draw_text(font, fb, x, text_y, line, MAP_PANEL_COL_EMPHASIS);
+    map_panel_type_detail_mode(units, u, names, true, line, sizeof(line));
+    font_draw_text(font, fb, x, detail_y, line, MAP_PANEL_COL_EMPHASIS);
   } else if (type && type->cargo > 0 && goods > 0) {
     /* Loaded transport: its holds are drawn inline, exactly as DOS does with
-     * thunk_FUN_2a1f_028a on this row. */
+     * thunk_FUN_2a1f_028a on this row (raw 79220) - and that arm alone skips
+     * the detail draw, never the orders row below. */
     map_panel_draw_cargo_icons(u, col1, icons, fb, x, *y, right);
   } else {
-    map_panel_orders_text(units, u, colonies, map, names, labels, line, sizeof(line));
-    font_draw_text(font, fb, x, text_y, line, MAP_PANEL_COL_TEXT);
+    /* raw 79215-79219: the plain arm draws the @UNIT name (0x5230 + type*0xe). */
+    font_draw_text(
+      font, fb, x, detail_y, map_panel_unit_type_name(units, u), MAP_PANEL_COL_EMPHASIS
+    );
   }
+
+  map_panel_orders_text(units, u, colonies, map, names, labels, line, sizeof(line));
+  font_draw_text(font, fb, x, orders_y, line, MAP_PANEL_COL_TEXT);
   *y += MAP_PANEL_ROW_H;
 }
 

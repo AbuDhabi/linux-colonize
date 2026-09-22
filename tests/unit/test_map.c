@@ -710,6 +710,195 @@ static int case_fog_edges(void) {
   return 0;
 }
 
+/*
+ * bugs.md #613: the Pioneer clear/plow lumber reward reads DS:0x2f80 =
+ * terrain record +0x0a = NAMES.TXT yield column 5 (Lumberjack), not the +0x8
+ * Cotton column it used to read.
+ */
+static int case_lumber_reward_column(void) {
+  /* class -> NAMES.TXT Lumber column. Forests 8..15 repeat at 16..23. */
+  static const struct { int cls; int want; const char* what; } k[] = {
+    {2, 0, "Plains (unforested: no lumber)"},
+    {3, 0, "Prairie (was 3 from the Cotton column)"},
+    {8, 2, "Boreal"},
+    {9, 1, "Scrub"},
+    {10, 3, "Mixed Forest"},
+    {11, 2, "Broadleaf"},
+    {12, 3, "Conifer"},
+    {13, 2, "Tropical"},
+    {14, 2, "Wetland"},
+    {15, 2, "Rain"},
+    {18, 3, "Mixed Forest (alt half)"},
+    {24, 0, "Arctic"},
+    {28, 0, "Hills"},
+  };
+  for (size_t i = 0; i < sizeof(k) / sizeof(k[0]); ++i) {
+    const int got = map_dos_terr_lumber_reward_byte(k[i].cls);
+    if (got != k[i].want) {
+      fprintf(
+        stderr, "lumber reward class %d (%s): want %d got %d\n", k[i].cls, k[i].what, k[i].want,
+        got
+      );
+      return 1;
+    }
+  }
+  return 0;
+}
+
+/*
+ * bugs.md #622: FUN_6ba1_0938 raw 109621-109665 blits the plow art right after
+ * the forest canopy, before the hill/river/resource/rumour overlays. A plowed
+ * river tile must therefore list PHYS0 149 BEFORE its river overlay, with no
+ * second copy of any overlay above it (the old #396 resource re-blit).
+ */
+static int case_plow_layer_order(void) {
+  ColonizeWorldMap m;
+  memset(&m, 0, sizeof(m));
+  m.width = 4;
+  m.height = 4;
+  m.tile_count = 16;
+  m.terrain = calloc(16, 1);
+  m.layer2 = calloc(16, 1);
+  m.layer3 = calloc(16, 1);
+  m.improve = calloc(16, 1);
+  m.seen = calloc(16, 1);
+  if (!m.terrain || !m.layer2 || !m.layer3 || !m.improve || !m.seen) {
+    map_free(&m);
+    return 1;
+  }
+  m.terrain[1 * 4 + 1] = (uint8_t)(2 | 0x40); /* Plains + river */
+  map_tile_set_plowed(&m, 1, 1, true);
+  const int overlays = map_phys0_overlay_count(&m, 1, 1);
+  if (overlays < 1) {
+    fprintf(stderr, "plow order: fixture tile has no overlay to sit under\n");
+    map_free(&m);
+    return 1;
+  }
+  ColonizeMapLayerCmd cmds[MAP_LAYER_CMDS_MAX];
+  const int n = map_tile_layer_cmds(&m, 1, 1, 0, cmds, MAP_LAYER_CMDS_MAX);
+  int plow_at = -1;
+  int plows = 0;
+  for (int i = 0; i < n; ++i) {
+    if (cmds[i].sheet == MAP_LAYER_SHEET_PHYS0 && cmds[i].sprite == 149) {
+      if (plow_at < 0) {
+        plow_at = i;
+      }
+      ++plows;
+    }
+  }
+  if (plows != 1 || plow_at < 0) {
+    fprintf(stderr, "plow order: expected exactly one PHYS0 149, got %d\n", plows);
+    map_free(&m);
+    return 1;
+  }
+  const int river = map_phys0_overlay_sprite_at(&m, 1, 1, 0);
+  int river_at = -1;
+  for (int i = 0; i < n; ++i) {
+    if (cmds[i].sheet == MAP_LAYER_SHEET_PHYS0 && cmds[i].sprite == river && i != plow_at) {
+      river_at = i;
+      break;
+    }
+  }
+  if (river_at < 0 || river_at < plow_at) {
+    fprintf(
+      stderr, "plow order: plow at %d, river sprite %d at %d (plow must come first)\n", plow_at,
+      river, river_at
+    );
+    map_free(&m);
+    return 1;
+  }
+  /* No resource / rumour sprite (PHYS0 89-103) may be listed twice any more:
+   * that was the #396 re-blit this row deleted. */
+  for (int i = 0; i < n; ++i) {
+    if (cmds[i].sheet != MAP_LAYER_SHEET_PHYS0 || cmds[i].sprite < 89 || cmds[i].sprite > 103) {
+      continue;
+    }
+    for (int j = i + 1; j < n; ++j) {
+      if (cmds[j].sheet == MAP_LAYER_SHEET_PHYS0 && cmds[j].sprite == cmds[i].sprite) {
+        fprintf(stderr, "plow order: sprite %d blitted twice (%d and %d)\n", cmds[i].sprite, i, j);
+        map_free(&m);
+        return 1;
+      }
+    }
+  }
+  map_free(&m);
+
+  /* Same, on a tile that really carries a special resource: a plowed resource
+   * tile must list 149 once, below the resource icon. */
+  ColonizeWorldMap r;
+  memset(&r, 0, sizeof(r));
+  r.width = 40;
+  r.height = 40;
+  r.tile_count = 1600;
+  r.terrain = calloc(1600, 1);
+  r.layer2 = calloc(1600, 1);
+  r.layer3 = calloc(1600, 1);
+  r.improve = calloc(1600, 1);
+  r.seen = calloc(1600, 1);
+  if (!r.terrain || !r.layer2 || !r.layer3 || !r.improve || !r.seen) {
+    map_free(&r);
+    return 1;
+  }
+  memset(r.terrain, 2, 1600); /* all Plains */
+  int rx = -1;
+  int ry = -1;
+  int rlayer = -1;
+  for (int y = 1; y < 39 && rx < 0; ++y) {
+    for (int x = 1; x < 39 && rx < 0; ++x) {
+      const int cnt = map_phys0_overlay_count(&r, x, y);
+      for (int l = 0; l < cnt; ++l) {
+        if (map_phys0_overlay_kind_at(&r, x, y, l) == MAP_OVERLAY_KIND_RESOURCE) {
+          rx = x;
+          ry = y;
+          rlayer = l;
+          break;
+        }
+      }
+    }
+  }
+  if (rx < 0) {
+    fprintf(stderr, "plow order: no procedural resource tile in the 40x40 fixture\n");
+    map_free(&r);
+    return 1;
+  }
+  const int res_sprite = map_phys0_overlay_sprite_at(&r, rx, ry, rlayer);
+  map_tile_set_plowed(&r, rx, ry, true);
+  ColonizeMapLayerCmd rc[MAP_LAYER_CMDS_MAX];
+  const int rn = map_tile_layer_cmds(&r, rx, ry, 0, rc, MAP_LAYER_CMDS_MAX);
+  int rplow = -1;
+  int rres = -1;
+  int rres_count = 0;
+  int rplow_count = 0;
+  for (int i = 0; i < rn; ++i) {
+    if (rc[i].sheet != MAP_LAYER_SHEET_PHYS0) {
+      continue;
+    }
+    if (rc[i].sprite == 149) {
+      if (rplow < 0) {
+        rplow = i;
+      }
+      ++rplow_count;
+    }
+    if (rc[i].sprite == res_sprite) {
+      if (rres < 0) {
+        rres = i;
+      }
+      ++rres_count;
+    }
+  }
+  if (rplow_count != 1 || rres_count != 1 || rplow < 0 || rres < 0 || rplow > rres) {
+    fprintf(
+      stderr,
+      "plow order (resource tile %d,%d): plow x%d at %d, resource %d x%d at %d\n", rx, ry,
+      rplow_count, rplow, res_sprite, rres_count, rres
+    );
+    map_free(&r);
+    return 1;
+  }
+  map_free(&r);
+  return 0;
+}
+
 static const TestCase k_cases[] = {
   {"map_load_and_ocean", case_map_load_and_ocean},
   {"amer2_fixtures", case_amer2_fixtures},
@@ -723,6 +912,8 @@ static const TestCase k_cases[] = {
   {"river_estuary", case_river_estuary},
   {"plow_road_overlay", case_plow_road_overlay},
   {"fog_edges", case_fog_edges},
+  {"lumber_reward_column", case_lumber_reward_column},
+  {"plow_layer_order", case_plow_layer_order},
 };
 
 TEST_MAIN(k_cases)

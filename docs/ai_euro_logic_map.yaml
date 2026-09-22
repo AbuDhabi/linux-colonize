@@ -1003,10 +1003,11 @@ graphs:
         status: dos
       - id: pioneer
         kind: step
-        label: Pioneer — pick own-colony surround to clear/plow/road
-        fn: ai_euro.c:ai_euro_try_pioneer_improve
-        dos: 5b66 cases 8/9 bodies FUN_479b_*
+        label: "Pioneer — order 9 (Build Road) park, unless a village claims the tile or a foreign colony is within 3"
+        fn: ai_euro.c:ai_euro_move_scoring_gate
+        dos: FUN_521d_20e6 raw 90183-90206 (dup raw 85345-85368)
         status: dos
+        note: "bugs.md #610/#611: the old node was the INVENTED planner ai_euro_try_pioneer_improve (Colonization.pdf-cited colony-ring scan, plow-before-road, MD<=3, prefer-Hardy), deleted 2026-09-22. DOS's only AI pioneer unit order is this one: at the land commit point a type-2 unit that is not the iStack_6a explorer pick writes +0x314c = 9 / +0x314b = 0x52 and leaves 20e6 (goto LAB_5a78). Nothing in the image then ticks that order for an AI unit — the sole callers of FUN_479b_01a6/0526 are the human ORDERS UI (raw 42512/42603) and the colony tick's phantom-unit sites (raw 93669, raw 94520/94534) — so the write is a park. Real AI tile improvement happens in FUN_5952_035e raw 94402-94551 (ai_euro_5952_improve_best_plot, bugs.md #612), which is a colony-tick arm and therefore not on this unit graph."
       - id: fortify
         kind: step
         label: "Peace fortify — armed land unit (DS:0x5236[type] > 1, type outside 0xd..0x12) on own colony → FORTIFY; Artillery fortify"
@@ -1322,6 +1323,13 @@ graphs:
         dos: FUN_5952_035e via 2a1f_0530 → 521d_5cf6 → 2a1f_05a8 — raw 93119, inside the PRELUDE colony loop
         status: dos
         note: "ORDER DIVERGES: DOS runs the tick per colony in the 6d8e prelude (before 5d04 / 0342 / 0a60 and before any unit acts), so planning reads post-tick colony state. The port runs it last on purpose (w31-28c8 2026-08-29: the Linux expert field-assign arm needed a free tile first; that arm was deleted 2026-09-18 as invented, the position note is kept for the remaining ordering divergence). Body is DOS; position is Linux."
+      - id: pioneer
+        kind: loop
+        label: Pioneer supply / road-connect / tile-improve trio — FUN_5952_035e raw 94370-94551
+        fn: ai_euro.c:ai_euro_5952_tools_supply_and_connect
+        dos: FUN_5952_035e raw 94370-94400 (+ FUN_5952_0000 raw 93589-93685), raw 94402-94551
+        status: dos
+        note: "Three consecutive arms, all sharing the tick-local local_16 = `0x13 < colony+0xb6` (20+ tools). (1) bugs.md #640, raw 94370-94388: when ((+0x1b & 0x80) || turn % 10 == 0) && !local_16, buy 20 tools at DS:0x84ca[nation*0x10]. That address is NOT a separate table — 0x84ca == DS:0x84bc + 0x0e, so it is the already-ported per-nation SELL price row (AiEuro5952Want.sell_price, writers store `euro_price - 1`) read at cargo 0x0e = Tools; the purse test is the 32-bit gold at *0x84fc+0x2a/0x2c. (2) bugs.md #641, raw 94389-94400: on local_16 && turn % 7 == 0 (NOT gated on +0x1b bit 0x80) call FUN_5952_0000 (ai_euro_5952_road_connect_0000) — needs 2+ own colonies on this continent (DS:0x94e6[nation*0x10+cid] > 1), picks another own colony that is within 6 on at least one axis and on the same continent, rolls FUN_281f_04d4(0, count-2) == 0, walks the FUN_6662_00f2 pathfinder toward it (DS:0x1dd2=1, 0x1dd4=1, 0x1dd6=-1) until a tile with no settlement (06be) and no road/settlement bits (0754 & 0x0a) appears, rejects it if occupied (06d2) or improved by an at-peace Euro rival (06e6 = 137f_044a, euro_relation bit 0x40), aborts the whole helper when colony+0x8c < DS:0x2f78[class*0x10] + 2, else spawns the DS:0x524e phantom with +0x315a = 99 and runs FUN_479b_0526. On success the caller charges min(stock,20) tools and clears +0x8c. (3) bugs.md #612, raw 94402-94551: ai_euro_5952_improve_best_plot, gated on +0x1b bit 0x80 && local_16 && turn % 7 != 0."
       - id: pass1
         kind: loop
         label: "Pass 1 — food: re-score the slots that were feeding the colony until food_have ≥ food_need"
@@ -1384,7 +1392,8 @@ graphs:
         kind: end
         label: return
     edges:
-      - [loop, idle, "each colony"]
+      - [loop, pioneer, "each colony"]
+      - [pioneer, idle]
       - [idle, pass1]
       - [pass1, pass2]
       - [pass2, lumber]
