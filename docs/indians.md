@@ -579,10 +579,10 @@ Used by contact / mission / raid gates ([indian_contact.md](../original_sources_
 
 | Band | Typical use |
 |------|-------------|
-| **&lt; 40** | Cool: gift / teach / friction decay; any missionary may establish |
-| **40–54** | Mid: demand/payoff; Jesuit-grade (or Brebeuf) convert only; hard-bargain trade (~45–49); teach refused |
-| **≥ 55** | Refuse trade / gifts / convert; raid gate (non-mission villages); missionary flee |
-| **≥ 80** | Mission burn (`FUN_4cc6_0000`); burn/raid band; stronger escort |
+| **&lt; 40** | Cool: gift / teach / friction decay |
+| **40–54** | Mid: demand/payoff; hard-bargain trade (~45–49); teach refused |
+| **≥ 55** | Refuse trade / gifts / convert; raid gate (non-mission villages) |
+| **≥ 80** | Burn/raid band; stronger escort. (Mission burn `FUN_4cc6_0000` is NOT this band: it needs alarm == 100 AND the at-peace bit `0a38 & 0x40`, then `rng(0,10) <= difficulty+1`, raw 80900-80912) |
 | **≥ 90 / 95** | Scout displace; ~¼ RNG kill at ≥95 even when flee exists |
 
 First-contact **reject** floors alarm/friction into the **≥80** band
@@ -596,7 +596,7 @@ First-contact **reject** floors alarm/friction into the **≥80** band
 | Units at sea | **Never counted** (verified 2026-09-04). `FUN_4cc6_03f8`'s 20-tile threat ring skips a tile when `FUN_281f_0768` → `FUN_13e4_0074` says terrain class `0x19`/`0x1a` (water), and its stack walk ignores unit types `0xd..0x12` (ships). So combat units riding a ship raise no alarm; `@MADATSHIPS` / `@DONTKNOWSHIPS` are refusal chrome with no alarm bump. `ai_indian_village_threat` already matched (`map_tile_is_water`, `units_is_sea`, and `units_is_on_map` excluding aboard passengers). |
 | French (Euro nation 1) | Half-rate bumps; +1 auto-trade reach |
 | Pocahontas | Half-rate bumps; elect zeros this nation's tribe friction/attacks + `alarm_by_player` |
-| Missions | Low band extra −1; mid 40–79 meet pulse −2 toward mission owner; ≥80 burns mission |
+| Missions | Establish (`a5dc`) has no alarm gate; alarm only picks the quartile of the `{-25,-15,-10,-5}` delta and the `@MISSION0..3` variant. Burn at alarm 100 + peace bit (see band table). Audit 2026-09-22: bugs.md #557 |
 | Difficulty prelude | Chance `2+(4-diff)`, bump `5+(4-diff)` — [difficulty.md](difficulty.md) §Indians |
 
 `@ATTITUDE` labels: Content, Uneasy, Restless, Angry, War (+ `@ATTITUDINAL`
@@ -711,8 +711,8 @@ deliberate **Live Among The Natives** `@ACTIONS` row.
 
 | Hook | Effect (port / sources) |
 |------|-------------------------|
-| Missionary / Jesuit | Sets `tribe.mission`; crosses; mid-band needs Jesuit or Brebeuf |
-| Foreign mission | 50/50 heresy replace vs burn denouncer |
+| Missionary / Jesuit | Sets `tribe.mission` (+ bit 0x10 when prof 0x18 or Brebeuf); no alarm-band gate, no crosses (audit 2026-09-22) |
+| Foreign mission | Denounce = weighted roll (`a594`); DOS Jesuit test is `prof == 3` (typo, dead) — bugs.md #558 |
 | Las Casas | Existing Converts → free colonists on elect |
 | Sepulveda | Higher convert-join odds on settlement fallout |
 | Cortes | Conquest treasure **bonus and guaranteed payout**, not a prerequisite — any conqueror can find treasure, and at difficulty 2+ always does (bugs.md #381); capital = `rich_capital` |
