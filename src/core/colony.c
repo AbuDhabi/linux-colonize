@@ -194,10 +194,9 @@ void colonies_init(ColonizeColonyPool* pool) {
   }
   memset(pool, 0, sizeof(*pool));
   for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
-    for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES; ++t) {
+    for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES_MAX; ++t) {
       pool->colonies[i].tiles[t] = -1;
     }
-    memset(pool->colonies[i].col1_outer_tiles, 0xff, sizeof(pool->colonies[i].col1_outer_tiles));
     pool->colonies[i].specialty_cargo = 0xff; /* Col1 +0x8d none */
   }
 }
@@ -997,10 +996,9 @@ int colonies_found(
   slot->building_in_production = -1;
   slot->specialty_cargo = 0xff;
   slot->active = true;
-  for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES; ++t) {
+  for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES_MAX; ++t) {
     slot->tiles[t] = -1;
   }
-  memset(slot->col1_outer_tiles, 0xff, sizeof(slot->col1_outer_tiles));
   /* Drop any orphan COL1 record left on this tile by a destroyed colony —
    * every runtime<->COL1 pairing is by tile, so its SoL/buildings would be
    * inherited by this brand-new colony (see colonies_col1_forget_record_at). */
@@ -1134,23 +1132,28 @@ int colonies_id_at(const ColonizeColonyPool* pool, int x, int y) {
 }
 
 /*
- * Surround order: N, NE, E, SE, S, SW, W, NW.
+ * Runtime plot slots. 0..7 are the port's own clockwise ring
+ * N, NE, E, SE, S, SW, W, NW; 8..19 are the DOS outer plots in the DS:0xc8 /
+ * DS:0xde order (slots 8..19 of those tables), so the runtime array and the
+ * save's colony+0x70 array agree above 7 and col1_bridge only has to remap
+ * 0..7.
  *
- * COLONIZE_COLONY_FIELD_TILES is 8, i.e. the 3x3 block, and that is not a
- * simplification: DOS picks the work ring as `DS:0x329[FUN_15eb_0470()]`
- * over the table {0,4,8,12,20}, with `FUN_15eb_0470 = min(FUN_15eb_039e(10),
- * 2) + 2`. `039e(10)` counts how many rows of the @BUILDING chain that starts
- * at row 10 the colony owns — rows 0x0a/0x0b are the two Town Hall upgrades,
- * and stock DOS offers no way to build either (docs/building_production.md:264)
- * — so the tier is 2 and the ring is 8 for every save the game can produce.
- * Slots 8..19 of the save's 20-plot array are carried through untouched
- * (col1_bridge.c). bugs.md #593.
+ * How many of these a colony actually works is per colony, not 8: DOS reads
+ * `DS:0x329[FUN_15eb_0470()]` over {0,4,8,12,20} with
+ * `FUN_15eb_0470 = min(FUN_15eb_039e(10),2)+2` (raw 9636-9645 / 9561-9578).
+ * See colonies_work_plot_count(). bugs.md #593.
  */
-static const int k_field_dx[COLONIZE_COLONY_FIELD_TILES] = {0, 1, 1, 1, 0, -1, -1, -1};
-static const int k_field_dy[COLONIZE_COLONY_FIELD_TILES] = {-1, -1, 0, 1, 1, 1, 0, -1};
+static const int k_field_dx[COLONIZE_COLONY_FIELD_TILES_MAX] = {
+  0, 1, 1, 1, 0, -1, -1, -1,
+  0, 2, 0, -2, -1, 1, -1, 1, -2, -2, 2, 2
+};
+static const int k_field_dy[COLONIZE_COLONY_FIELD_TILES_MAX] = {
+  -1, -1, 0, 1, 1, 1, 0, -1,
+  -2, 0, 2, 0, -2, -2, 2, 2, -1, 1, -1, 1
+};
 
 bool colonies_field_tile_delta(int tile_index, int* out_dx, int* out_dy) {
-  if (tile_index < 0 || tile_index >= COLONIZE_COLONY_FIELD_TILES) {
+  if (tile_index < 0 || tile_index >= COLONIZE_COLONY_FIELD_TILES_MAX) {
     return false;
   }
   if (out_dx) {
@@ -1163,7 +1166,7 @@ bool colonies_field_tile_delta(int tile_index, int* out_dx, int* out_dy) {
 }
 
 int colonies_field_tile_index(int dx, int dy) {
-  for (int i = 0; i < COLONIZE_COLONY_FIELD_TILES; ++i) {
+  for (int i = 0; i < COLONIZE_COLONY_FIELD_TILES_MAX; ++i) {
     if (k_field_dx[i] == dx && k_field_dy[i] == dy) {
       return i;
     }
@@ -1175,7 +1178,7 @@ int colonies_field_tile_index(int dx, int dy) {
  * DS:0xc8 / DS:0xde (VICEROY.EXE file offset 121248 + addr), 20 entries each:
  * the DOS work-plot delta tables. Index order is
  *   0..7  N, E, S, W, NW, NE, SE, SW      (the ring the port stores in tiles[])
- *   8..19 the outer ring (col1_outer_tiles[], never worked by DOS)
+ *   8..19 the outer ring (tiles[8..19], worked only at ring tier 3/4)
  * `FUN_15eb_05e2` (raw ~9838) searches them for a (dx,dy) pair, and
  * `FUN_15eb_28c8` (raw 12993) walks them in this order, so the earliest index
  * wins an equal-score tie. The port's own slot order (k_field_dx/dy above) is
@@ -1190,7 +1193,7 @@ static const int8_t k_dos_plot_dy[20] = {
 };
 
 int colonies_field_scan_order(int step) {
-  if (step < 0 || step >= COLONIZE_COLONY_FIELD_TILES) {
+  if (step < 0 || step >= COLONIZE_COLONY_FIELD_TILES_MAX) {
     return -1;
   }
   return colonies_field_tile_index((int)k_dos_plot_dx[step], (int)k_dos_plot_dy[step]);
@@ -1211,16 +1214,45 @@ static bool colonies_dos_plot_worked(const ColonizeColony* oc, int dos_index) {
   if (dos_index < 0) {
     return false;
   }
-  if (dos_index < 8) {
-    const int rti = colonies_field_tile_index(
-      (int)k_dos_plot_dx[dos_index], (int)k_dos_plot_dy[dos_index]
-    );
-    return rti >= 0 && (int)oc->tiles[rti] >= 0;
+  if (dos_index >= COLONIZE_COLONY_FIELD_TILES_MAX) {
+    return false;
   }
-  if (dos_index - 8 < (int)(sizeof(oc->col1_outer_tiles) / sizeof(oc->col1_outer_tiles[0]))) {
-    return (int)oc->col1_outer_tiles[dos_index - 8] >= 0;
+  const int rti = colonies_field_tile_index(
+    (int)k_dos_plot_dx[dos_index], (int)k_dos_plot_dy[dos_index]
+  );
+  return rti >= 0 && (int)oc->tiles[rti] >= 0;
+}
+
+/*
+ * DOS-LITERAL FUN_15eb_0470 raw 9636-9645 + the DS:0x329 table (VICEROY.EXE
+ * file offset 121248+0x329 = {0,4,8,12,20}).
+ *
+ * `0470` is `min(FUN_15eb_039e(10),2)+2`, and `039e(10)` (raw 9561-9578)
+ * counts the owned rows of the @BUILDING chain that starts at row 10, walking
+ * the next-row byte at `row*0xc - 0x707a`. That chain is rows 0x0a then 0x0b,
+ * the two Town Hall upgrades of NAMES.TXT:177-178 — the port's Town Hall chain
+ * above its first row. DOS's buildability gate FUN_15eb_3650 (raw ~13674)
+ * hard-zeroes both rows (`if (local_e == 10) local_14 = 0;` and the same for
+ * 0xb), so its own construction menu can never offer them and every colony
+ * stock DOS produces stays at tier 2 / ring 8. A save can still carry the bits
+ * (colony buildings mask bits 9-11 = @BUILDING rows 9/10/11), and then DOS
+ * really does work 12 or 20 plots — hence the per-colony count.
+ */
+int colonies_work_plot_count(const ColonizeColonyPool* pool, const ColonizeColony* col) {
+  static const int k_ring_by_tier[5] = {0, 4, 8, 12, 20};
+  int owned = 0;
+  if (pool && col) {
+    if (colonies_has_building_row(pool, col, COLONY_BUILDING_TOWN_HALL_2)) {
+      owned++;
+    }
+    if (colonies_has_building_row(pool, col, COLONY_BUILDING_TOWN_HALL_3)) {
+      owned++;
+    }
   }
-  return false;
+  if (owned > 2) {
+    owned = 2;
+  }
+  return k_ring_by_tier[owned + 2];
 }
 
 /*
@@ -1268,14 +1300,39 @@ uint8_t colonies_plot_blocked_mask(
     return 0x10u;
   }
   /*
-   * FUN_137f_003c(|dx|,|dy|,FUN_15eb_0470()): the work-radius test. The tier
-   * FUN_15eb_0470 returns is `min(FUN_15eb_039e(10),2)+2`, and 039e(10) is 0
-   * in every shipped NAMES.TXT (see ai_euro.c:1219-1245), so the tier is 2 and
-   * the radius is the 3x3 block.
+   * DOS-LITERAL FUN_137f_003c raw 6535-6557, called as
+   * `FUN_137f_003c(|dx|,|dy|,FUN_15eb_0470())` (raw 12727): the work-radius
+   * test. Tier 1 keeps |dx|+|dy| < 2, tier 2 adds the diagonals (the 3x3
+   * block), tier 3 adds |dx|+|dy| < 3, tier 4 takes everything in the 5x5 but
+   * the four corners. The tier is per colony (bugs.md #593), recovered here
+   * from the plot count rather than assumed to be 2.
    */
+  const int ring = colonies_work_plot_count(w->colonies, col);
+  int tier = 2;
+  if (ring <= 4) {
+    tier = 1;
+  } else if (ring <= 8) {
+    tier = 2;
+  } else if (ring <= 12) {
+    tier = 3;
+  } else {
+    tier = 4;
+  }
   const int adx = dx < 0 ? -dx : dx;
   const int ady = dy < 0 ? -dy : dy;
-  if (adx > 1 || ady > 1) {
+  bool in_radius = (adx + ady) < 2;
+  if (tier != 1) {
+    if (adx < 2 && ady < 2) {
+      in_radius = true;
+    }
+    if (tier != 2) {
+      in_radius = in_radius || (adx + ady) < 3;
+      if (tier != 3 && (adx < 2 || ady < 2)) {
+        in_radius = true;
+      }
+    }
+  }
+  if (!in_radius) {
     return 0x10u;
   }
   /* `3 < colony_nation || (FUN_137f_02f8(x,y) & (0x10 << nation))` — a native
@@ -1348,7 +1405,7 @@ int colonies_colonist_tile(const ColonizeColony* colony, int colonist_index) {
   if (!colony || colonist_index < 0) {
     return -1;
   }
-  for (int i = 0; i < COLONIZE_COLONY_FIELD_TILES; ++i) {
+  for (int i = 0; i < COLONIZE_COLONY_FIELD_TILES_MAX; ++i) {
     if ((int)colony->tiles[i] == colonist_index) {
       return i;
     }
@@ -1360,7 +1417,7 @@ static void colonies_clear_colonist_tile(ColonizeColony* col, int colonist_index
   if (!col) {
     return;
   }
-  for (int i = 0; i < COLONIZE_COLONY_FIELD_TILES; ++i) {
+  for (int i = 0; i < COLONIZE_COLONY_FIELD_TILES_MAX; ++i) {
     if ((int)col->tiles[i] == colonist_index) {
       col->tiles[i] = -1;
     }
@@ -1791,7 +1848,9 @@ bool colonies_assign_field(
   if (colonist_index < 0 || colonist_index >= col->colonist_count) {
     return false;
   }
-  if (tile_index < 0 || tile_index >= COLONIZE_COLONY_FIELD_TILES) {
+  /* Only the colony's own ring can be seated (DS:0x329[FUN_15eb_0470()],
+   * bugs.md #593) — slots beyond it are outside the work radius. */
+  if (tile_index < 0 || tile_index >= colonies_work_plot_count(pool, col)) {
     return false;
   }
   if (field_job < 0 || field_job >= COLONIZE_FIELD_JOB_COUNT) {
@@ -1830,7 +1889,7 @@ bool colonies_clear_field(ColonizeColonyPool* pool, int colony_id, int tile_inde
   if (!col) {
     return false;
   }
-  if (tile_index < 0 || tile_index >= COLONIZE_COLONY_FIELD_TILES) {
+  if (tile_index < 0 || tile_index >= COLONIZE_COLONY_FIELD_TILES_MAX) {
     return false;
   }
   const int who = (int)col->tiles[tile_index];
@@ -2406,7 +2465,7 @@ int colonies_eject_colonist(
   if (col->colonist_count >= 0 && col->colonist_count < COLONIZE_COLONY_POP_MAX) {
     memset(&col->colonists[col->colonist_count], 0, sizeof(col->colonists[0]));
   }
-  for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES; ++t) {
+  for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES_MAX; ++t) {
     const int who = (int)col->tiles[t];
     if (who == colonist_index) {
       col->tiles[t] = -1;

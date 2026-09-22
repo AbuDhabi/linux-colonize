@@ -87,6 +87,9 @@ COLONIZE_INTERNAL int ai_euro_5952_job_score(
   const AiEuro5952Want* w, int job, int out_cargo, int qty
 );
 
+/* FUN_521d_20e6 shared exit tail LAB_521d_589e, local_76 == 8 (raw 90378-90386). */
+COLONIZE_INTERNAL void ai_euro_20e6_stay_tail_589e(ColonizeUnit* u);
+
 #ifdef COLONIZE_TESTING
 void ai_euro_colony_goals_unit_contact(ColonizeTurnContext* ctx, int nation_id);
 void ai_euro_colony_goals_colony_labor(

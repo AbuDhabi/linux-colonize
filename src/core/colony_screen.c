@@ -499,6 +499,15 @@ void colony_screen_open_jobs(
   const ColonizeColony* colony,
   int tile_index
 ) {
+  /*
+   * Bounded by the 3x3 area the screen draws, not by the colony's work ring.
+   * bugs.md #593: a colony that owns @BUILDING row 0x0a/0x0b works 12 or 20
+   * plots and the sim counts all of them, but the DOS colony screen's area
+   * panel is a 3x3 grid (FUN_2f2b_0a74, raw ~47500, walks the full
+   * DS:0x329 count yet the panel geometry never grew), and no save stock DOS
+   * can write ever carries those rows. So the port draws and clicks the 3x3
+   * and does not invent an outer-plot UI.
+   */
   if (!view || !colony || tile_index < 0 || tile_index >= COLONIZE_COLONY_FIELD_TILES) {
     return;
   }

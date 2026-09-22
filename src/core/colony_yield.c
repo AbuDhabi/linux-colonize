@@ -621,7 +621,9 @@ bool colony_yield_worked_tiles_next(ColonizeWorkedTileIter* it, ColonizeWorkedTi
     return false;
   }
   const ColonizeColony* colony = it->colony;
-  while (it->next_tile < COLONIZE_COLONY_FIELD_TILES) {
+  /* All 20 slots: only the colony's own ring is ever seated (bugs.md #593),
+   * so walking the full array is the same set DOS's 0x329 count walks. */
+  while (it->next_tile < COLONIZE_COLONY_FIELD_TILES_MAX) {
     const int ti = it->next_tile++;
     const int who = (int)colony->tiles[ti];
     if (who < 0 || who >= colony->colonist_count) {
@@ -646,10 +648,18 @@ bool colony_yield_worked_tiles_next(ColonizeWorkedTileIter* it, ColonizeWorkedTi
     out->colonist_index = who;
     out->colonist = c;
     /* colonies_field_tile_delta's table (colony.c) is MAP_DIR8 — N, NE, E,
-     * SE, S, SW, W, NW. Read straight off map.h here so colony_yield.c
-     * keeps linking without colony.c (unit_colony_yield links it alone). */
-    out->dx = MAP_DIR8_DX[ti];
-    out->dy = MAP_DIR8_DY[ti];
+     * SE, S, SW, W, NW — for slots 0..7, and the DS:0xc8/0xde outer plots for
+     * 8..19 (bugs.md #593). Mirrored here so colony_yield.c keeps linking
+     * without colony.c (unit_colony_yield links it alone). */
+    if (ti < 8) {
+      out->dx = MAP_DIR8_DX[ti];
+      out->dy = MAP_DIR8_DY[ti];
+    } else {
+      static const int k_outer_dx[12] = {0, 2, 0, -2, -1, 1, -1, 1, -2, -2, 2, 2};
+      static const int k_outer_dy[12] = {-2, 0, 2, 0, -2, -2, 2, 2, -1, 1, -1, 1};
+      out->dx = k_outer_dx[ti - 8];
+      out->dy = k_outer_dy[ti - 8];
+    }
     out->x = colony->x + out->dx;
     out->y = colony->y + out->dy;
     return true;

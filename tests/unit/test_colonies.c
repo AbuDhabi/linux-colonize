@@ -9,6 +9,7 @@
 #include "core/colony.h"
 #include "core/colony_craft.h"
 #include "core/colony_production.h"
+#include "core/colony_yield.h"
 #include "core/europe.h"
 #include "core/founding_fathers.h"
 #include "core/map.h"
@@ -2383,7 +2384,7 @@ static int unit_school_faculty_and_occupation_cap(void) {
   col->id = 1;
   col->nation_id = 0;
   snprintf(col->name, sizeof(col->name), "Cambridge");
-  for (int i = 0; i < COLONIZE_COLONY_FIELD_TILES; ++i) {
+  for (int i = 0; i < COLONIZE_COLONY_FIELD_TILES_MAX; ++i) {
     col->tiles[i] = -1;
   }
   for (int i = 0; i < 6; ++i) {
@@ -2501,12 +2502,10 @@ static int unit_plot_blocked_mask(void) {
   ColonizeColony* b = &pool.colonies[1];
   memset(a, 0, sizeof(*a));
   memset(b, 0, sizeof(*b));
-  for (int i = 0; i < COLONIZE_COLONY_FIELD_TILES; ++i) {
+  for (int i = 0; i < COLONIZE_COLONY_FIELD_TILES_MAX; ++i) {
     a->tiles[i] = -1;
     b->tiles[i] = -1;
   }
-  memset(a->col1_outer_tiles, 0xff, sizeof(a->col1_outer_tiles));
-  memset(b->col1_outer_tiles, 0xff, sizeof(b->col1_outer_tiles));
   a->active = b->active = true;
   a->id = 1;
   b->id = 2;
@@ -2538,8 +2537,14 @@ static int unit_plot_blocked_mask(void) {
   CHECK(colonies_plot_blocked_mask(&w, b, b_east) == 0, "a free plot is unblocked");
   CHECK(colonies_plot_blocked_mask(&w, a, a_east) == 0, "the owner's own plot is unblocked");
   /* Another colony's CENTRE is 0x20 even when unworked. */
+  /* #593: (2,0) IS a runtime slot now (9), but a tier-2 colony cannot work
+   * it — FUN_137f_003c rejects it, so the mask is the early 0x10. */
   const int a_east2 = colonies_field_tile_index(2, 0);
-  CHECK(a_east2 < 0, "the 5x5 outer ring is not a runtime field slot");
+  CHECK(a_east2 == 9, "#593: the 5x5 outer ring occupies runtime slots 8..19");
+  CHECK(
+    colonies_plot_blocked_mask(&w, a, a_east2) == 0x10u,
+    "#593: an outer plot is outside a tier-2 colony's radius"
+  );
   b->x = 11;
   CHECK(
     (colonies_plot_blocked_mask(&w, a, a_east) & 0x20u) != 0,
@@ -2563,6 +2568,169 @@ static int unit_plot_blocked_mask(void) {
   return 1;
 }
 
+/*
+ * bugs.md #593 — the work-plot ring is per colony:
+ * `DS:0x329[FUN_15eb_0470()]` over {0,4,8,12,20} with
+ * `FUN_15eb_0470 = min(FUN_15eb_039e(10),2)+2` (raw 9636-9645 / 9561-9578),
+ * i.e. +4 plots per owned @BUILDING row 0x0a / 0x0b. Stock DOS can build
+ * neither row (FUN_15eb_3650 zeroes both), so a stock colony stays at 8.
+ */
+static int unit_work_plot_ring_593(void) {
+  ColonizeMsgCatalog names;
+  assets_msg_init(&names);
+  if (!assets_msg_load_file(&names, "COLONIZE/NAMES.TXT")) {
+    fprintf(stderr, "ring593: load NAMES.TXT failed\n");
+    return 1;
+  }
+  ColonizeColonyPool pool;
+  colonies_init(&pool);
+  colonies_set_occupancy_map(NULL);
+  if (!colonies_load_buildings(&pool, &names)) {
+    fprintf(stderr, "ring593: load @BUILDING failed\n");
+    assets_msg_free(&names);
+    return 1;
+  }
+  int failures = 0;
+  const int failures_before = failures;
+
+  ColonizeColony* c = &pool.colonies[0];
+  memset(c, 0, sizeof(*c));
+  for (int i = 0; i < COLONIZE_COLONY_FIELD_TILES_MAX; ++i) {
+    c->tiles[i] = -1;
+  }
+  c->active = true;
+  c->id = 1;
+  c->x = 10;
+  c->y = 10;
+  c->nation_id = 0;
+
+  CHECK(colonies_work_plot_count(&pool, c) == 8, "#593: no Town Hall upgrade -> ring 8");
+  /* The ring's first 8 slots are unchanged: the port's clockwise MAP_DIR8. */
+  int dx = 0;
+  int dy = 0;
+  colonies_field_tile_delta(0, &dx, &dy);
+  CHECK(dx == 0 && dy == -1, "#593: slot 0 is still North");
+  colonies_field_tile_delta(7, &dx, &dy);
+  CHECK(dx == -1 && dy == -1, "#593: slot 7 is still NW");
+  /* Slots 8..19 are the DOS outer ring in DS:0xc8/0xde order. */
+  colonies_field_tile_delta(8, &dx, &dy);
+  CHECK(dx == 0 && dy == -2, "#593: slot 8 is (0,-2)");
+  colonies_field_tile_delta(19, &dx, &dy);
+  CHECK(dx == 2 && dy == 1, "#593: slot 19 is (2,1)");
+  CHECK(colonies_field_scan_order(8) == 8, "#593: DOS scan step 8 is slot 8");
+
+  const int row10 = colonies_building_row(&pool, COLONY_BUILDING_TOWN_HALL_2);
+  const int row11 = colonies_building_row(&pool, COLONY_BUILDING_TOWN_HALL_3);
+  CHECK(row10 >= 0 && row11 >= 0, "#593: @BUILDING rows 10/11 are loaded");
+  /* Neither row is offerable: DOS FUN_15eb_3650 (raw ~13674) hard-zeroes
+   * both, and colonies_list_buildable carries the same block — so the ring
+   * only ever grows for a save that already carries the bits. */
+  {
+    int ids[64];
+    const int n = colonies_list_buildable(&pool, c->id, ids, 64, NULL);
+    bool offered = false;
+    for (int i = 0; i < n; ++i) {
+      if (ids[i] == row10 || ids[i] == row11) {
+        offered = true;
+      }
+    }
+    CHECK(!offered, "#593: rows 10/11 are never offered by the build list");
+  }
+  c->has_building[row10] = true;
+  CHECK(colonies_work_plot_count(&pool, c) == 12, "#593: row 10 -> ring 12");
+  c->has_building[row11] = true;
+  CHECK(colonies_work_plot_count(&pool, c) == 20, "#593: rows 10+11 -> ring 20");
+  c->has_building[row10] = false;
+  CHECK(colonies_work_plot_count(&pool, c) == 12, "#593: one upgrade -> ring 12");
+
+  /* FUN_137f_003c radius: tier 3 takes |dx|+|dy| < 3, tier 4 everything in
+   * the 5x5 but the corners. */
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  char err[128];
+  if (!map_alloc(&map, 24, 24, err, sizeof(err))) {
+    fprintf(stderr, "ring593: map_alloc: %s\n", err);
+    assets_msg_free(&names);
+    return 1;
+  }
+  for (int y = 0; y < 24; ++y) {
+    for (int x = 0; x < 24; ++x) {
+      const size_t i = (size_t)y * 24u + (size_t)x;
+      map.terrain[i] = 2;
+      map.layer3[i] = 0xf1u;
+      map.layer2[i] = 0;
+    }
+  }
+  map.prime_resource_seed = 0;
+  map_reveal_all(&map, 0);
+  const ColonizeWorld w = world_make(NULL, &pool, &map, NULL, false, NULL, NULL);
+  const int slot_0_m2 = colonies_field_tile_index(0, -2);
+  const int slot_corner = colonies_field_tile_index(2, 2);
+  const int slot_2_1 = colonies_field_tile_index(2, 1);
+  CHECK(slot_corner < 0, "#593: (2,2) is not a DOS plot at any tier");
+  CHECK(
+    colonies_plot_blocked_mask(&w, c, slot_0_m2) == 0,
+    "#593: tier 3 works (0,-2)"
+  );
+  CHECK(
+    colonies_plot_blocked_mask(&w, c, slot_2_1) == 0x10u,
+    "#593: tier 3 does not reach (2,1)"
+  );
+  c->has_building[row10] = true; /* both upgrades -> tier 4 */
+  CHECK(
+    colonies_plot_blocked_mask(&w, c, slot_2_1) == 0,
+    "#593: tier 4 works (2,1)"
+  );
+
+  /* An outer plot really produces: Expert Fisherman on slot 8 over ocean,
+   * with Docks, shows up in the shared worked-tile walk the turn production
+   * sum uses. */
+  const size_t oi = (size_t)(c->y - 2) * 24u + (size_t)c->x;
+  map.terrain[oi] = (uint8_t)T_OCEAN;
+  const int docks = colonies_building_row(&pool, COLONY_BUILDING_DOCKS);
+  c->has_building[docks] = true;
+  c->colonist_count = 1;
+  c->population = 1;
+  c->colonists[0].active = true;
+  c->colonists[0].building_type = -1;
+  /* @JOB 8 = Expert Fisherman (the field job and the expert share the row). */
+  c->colonists[0].profession = COLONIZE_JOB_FISHERMAN;
+  CHECK(
+    colonies_assign_field(&pool, c->id, 0, slot_0_m2, COLONIZE_JOB_FISHERMAN),
+    "#593: a tier-4 colony can seat a colonist on slot 8"
+  );
+  int food = 0;
+  ColonizeWorkedTileIter wit;
+  ColonizeWorkedTile wt;
+  colony_yield_worked_tiles_begin(&wit, c);
+  while (colony_yield_worked_tiles_next(&wit, &wt)) {
+    if (wt.colonist->field_job != COLONIZE_JOB_FISHERMAN) {
+      continue;
+    }
+    food += colony_yield_for_worker(
+      &map, wt.x, wt.y, wt.colonist->field_job, wt.colonist->profession, true, 0,
+      c->colony_flags, false
+    );
+  }
+  CHECK(food > 0, "#593: the outer-ring Fisherman produces food");
+
+  /* Seating outside the ring is refused. */
+  c->has_building[row10] = false;
+  c->has_building[row11] = false;
+  CHECK(
+    !colonies_assign_field(&pool, c->id, 0, slot_0_m2, COLONIZE_JOB_FISHERMAN),
+    "#593: a tier-2 colony cannot seat outside its ring"
+  );
+
+  map_free(&map);
+  assets_msg_free(&names);
+  if (failures == failures_before) {
+    printf("unit_colonies: work plot ring ok\n");
+    return 0;
+  }
+  return 1;
+}
+
 static const TestCase k_cases[] = {
     {"unit_colonies_core", case_colonies_core},
     {"unit_found_chrome", unit_found_chrome},
@@ -2581,5 +2749,6 @@ static const TestCase k_cases[] = {
     {"unit_wagon_cap_and_armory_gate", unit_wagon_cap_and_armory_gate},
     {"unit_school_faculty_and_occupation_cap", unit_school_faculty_and_occupation_cap},
     {"unit_plot_blocked_mask", unit_plot_blocked_mask},
+    {"unit_work_plot_ring_593", unit_work_plot_ring_593},
 };
 TEST_MAIN(k_cases)

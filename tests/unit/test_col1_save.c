@@ -1264,7 +1264,7 @@ int main(void) {
     col->colonists[0].field_job = -1;
     /* Opaque outer tile slots 8..19 must survive capture/apply byte-exact. */
     for (int i = 0; i < 12; ++i) {
-      col->col1_outer_tiles[i] = (int8_t)(0x20 + i);
+      col->tiles[COLONIZE_COLONY_FIELD_TILES + i] = (int8_t)(0x20 + i);
     }
 
     ColonizeCol1Save save;
@@ -1347,7 +1347,8 @@ int main(void) {
         return 1;
       }
       for (int i = 0; i < 12; ++i) {
-        if ((uint8_t)pool2.colonies[0].col1_outer_tiles[i] != (uint8_t)(0x20 + i)) {
+        if ((uint8_t)pool2.colonies[0].tiles[COLONIZE_COLONY_FIELD_TILES + i] !=
+            (uint8_t)(0x20 + i)) {
           fprintf(stderr, "outer tiles: apply lost slot %d\n", 8 + i);
           col1_save_free(&save);
           map_free(&map);

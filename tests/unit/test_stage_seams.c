@@ -362,7 +362,7 @@ static int test_ai_euro_5952_absorb_soldier(void) {
 /* fx_colony_add sets population/colonist_count only; the equip arm ejects a
  * real colonist, so the slots have to be live. */
 static void fx_colony_fill_colonists(ColonizeColony* c) {
-  for (int i = 0; i < COLONIZE_COLONY_FIELD_TILES; ++i) {
+  for (int i = 0; i < COLONIZE_COLONY_FIELD_TILES_MAX; ++i) {
     c->tiles[i] = -1;
   }
   for (int i = 0; i < (int)c->colonist_count && i < COLONIZE_COLONY_POP_MAX; ++i) {
