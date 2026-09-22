@@ -580,21 +580,6 @@ static int colony_yield_pipeline(
   return yield;
 }
 
-/*
- * colonies_has_building_row lives in colony.c, which the slim unit_colony_yield
- * target does not link; weak so that binary still builds (it never asks about
- * buildings). Every real binary links colony.c and takes the normal path.
- */
-extern bool colonies_has_building_row(
-  const ColonizeColonyPool* pool, const ColonizeColony* col, ColonizeBuildingRow row
-) __attribute__((weak));
-
-static bool colony_yield_has_row(
-  const ColonizeColonyPool* pool, const ColonizeColony* colony, ColonizeBuildingRow row
-) {
-  return colonies_has_building_row && colonies_has_building_row(pool, colony, row);
-}
-
 bool colony_yield_colony_has_docks(
   const ColonizeColonyPool* pool,
   const ColonizeColony* colony
@@ -602,18 +587,12 @@ bool colony_yield_colony_has_docks(
   if (!pool || !colony) {
     return false;
   }
-  /* Any tier of the docks chain counts. NOT just the base row: DOS never
-   * clears a lower tier on upgrade, but pillage clears single bits, so a lone
-   * Drydock or Shipyard is a real save state (docs/save_format_map.md). */
-  static const ColonizeBuildingRow k_docks[3] = {
-    COLONY_BUILDING_DOCKS, COLONY_BUILDING_DRYDOCK, COLONY_BUILDING_SHIPYARD
-  };
-  for (int i = 0; i < 3; ++i) {
-    if (colony_yield_has_row(pool, colony, k_docks[i])) {
-      return true;
-    }
-  }
-  return false;
+  /* DOS-LITERAL FUN_15eb_18ec raw 11967: `FUN_15eb_038e(6)` ->
+   * FUN_15eb_035e(DS:0x8dc6, 6) (raw 9540-9557) is a single bit test on
+   * @BUILDING row 6 (Docks). Higher tiers do not substitute: DOS upgrades
+   * never clear the lower bit, so Drydock/Shipyard colonies keep row 6 set.
+   * The AI food pass tests the same bit (FUN_1000_8bec(6)). */
+  return colonies_has_building_row(pool, colony, COLONY_BUILDING_DOCKS);
 }
 
 void colony_yield_worked_tiles_begin(

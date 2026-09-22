@@ -6469,6 +6469,35 @@ static int case_full_contact_scenario(void) {
     if (ai_contact_ai_incite_human(&ictx, ind, &col1.tribe[0], 4, 1, 1)) {
       return fail("417e Mode 2 requires AI gold >= 1500");
     }
+    /*
+     * bugs.md #587 — FUN_4d56_417e raw 83579-83580: the -1500 discount is
+     * keyed on the acting unit's PROFESSION byte (+0x315b == 0x18, Jesuit),
+     * so a blessed non-Jesuit colonist pays exactly 1500 more.
+     */
+    const uint8_t muskets_save = ind->muskets;
+    const uint8_t horses_save = ind->horse_herds;
+    ind->muskets = 50; /* lift the price well clear of the 500 floor */
+    ind->horse_herds = 50;
+    col1.nation[1].gold = 100000;
+    ind->alarm_by_player[0] = 20;
+    col1.tribe[0].mission = COL1_TRIBE_MISSION_NONE;
+    if (!ai_contact_ai_incite_human(&ictx, ind, &col1.tribe[0], 4, 1, 1)) {
+      return fail("417e Mode 2 (Jesuit) should fire");
+    }
+    const uint32_t paid_jesuit = 100000u - col1.nation[1].gold;
+    col1.nation[1].gold = 100000;
+    ind->alarm_by_player[0] = 20;
+    col1.tribe[0].mission = COL1_TRIBE_MISSION_NONE;
+    if (!ai_contact_ai_incite_human(&ictx, ind, &col1.tribe[0], 4, 1, 0)) {
+      return fail("417e Mode 2 (non-Jesuit) should fire");
+    }
+    const uint32_t paid_plain = 100000u - col1.nation[1].gold;
+    if (paid_plain != paid_jesuit + 1500u) {
+      return fail("417e -1500 discount must apply only to profession 0x18 (Jesuit)");
+    }
+    ind->muskets = muskets_save;
+    ind->horse_herds = horses_save;
+    ind->alarm_by_player[0] = 20;
     col1.player[1].control = 0;
     fprintf(stderr, "unit_ai_contact: 417e Mode 2 auto-incite ok\n");
   }

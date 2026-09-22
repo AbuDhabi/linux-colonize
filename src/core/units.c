@@ -2821,9 +2821,9 @@ void units_combat_notify_colony_burned_foreign(
  * type (that chain ended with defeated Regulars demoting into capturable
  * Colonists), and defeated Regulars are destroyed, not demoted.
  */
-static int units_type_is_royal_name(const char* n) {
-  return units_kind_is_royal(units_name_kind(n)) ? 1 : 0;
-}
+/* bugs.md #581: the class comes from the @UNIT ROW (kind_plus1), never from
+ * the English name — units_name_kind has no resolver in production, so the
+ * name spelling read UNKNOWN and this guard was dead. */
 /* ===================== Combat outcomes: promote/demote/capture, loss resolution, cargo holds, alarm venting (units_promote_prof_label .. units_indian_attack_alarm_vent) ===================== */
 
 
@@ -3103,7 +3103,7 @@ static int units_demote_combat_type(
      * Braves) is DESTROYED — the old unguarded branch stripped a Regular's
      * muskets and popped "Regulars routed, demoted to Regulars". */
     if (table_target < 0 && lt0 && loser->muskets > 0 &&
-        !units_type_is_royal_name(lt0->name) && !units_type_is_brave_named(lt0)) {
+        !units_type_is_royal(lt0) && !units_type_is_brave_named(lt0)) {
       const char* was = units_display_name(pool, loser);
       char old_name[48];
       snprintf(old_name, sizeof(old_name), "%s", was ? was : "Soldier");
@@ -6491,7 +6491,8 @@ static bool units_fort_vs_ship(
  */
 static int units_ship_slow_power(const ColonizeUnitPool* pool, const ColonizeUnit* u) {
   int power = units_max_mp(pool, u->id) + 3;
-  const ColonizeUnitKind k = units_name_kind(units_display_name(pool, u));
+  /* bugs.md #581: @UNIT row class (kind_plus1), not the display spelling. */
+  const ColonizeUnitKind k = units_type_kind(units_type(pool, u->type_index));
   if (k == UNITS_KIND_PRIVATEER) {
     power *= 2;
   } else if (k == UNITS_KIND_GALLEON) {
@@ -6575,7 +6576,7 @@ void units_ship_slow_scan_w(
   /* local_36: branch A needs the mover itself on water; B does not. */
   const int mover_on_water = map_tile_is_water(map, u->x, u->y);
   const ColonizeCol1Save* col1 = g_units_fallout_col1;
-  const ColonizeUnitKind mover_kind = units_name_kind(units_display_name(pool, u));
+  const ColonizeUnitKind mover_kind = units_type_kind(units_type(pool, u->type_index));
   const int mover_human = units_combat_human_involved(col1, u->nation_id, -1);
   for (int d = 0; d < 8; ++d) {
     const int nx = u->x + MAP_DIR8_DX[d];
@@ -6597,7 +6598,7 @@ void units_ship_slow_scan_w(
           continue;
         }
         const char* fname = units_display_name(pool, f);
-        int drain = units_ship_slow_drain_for(units_name_kind(fname));
+        int drain = units_ship_slow_drain_for(units_type_kind(units_type(pool, f->type_index)));
         if (drain == 0) {
           continue;
         }
@@ -7812,12 +7813,10 @@ static bool units_is_standing_soldier(const ColonizeUnitPool* pool, const Coloni
     return true;
   }
   const ColonizeUnitType* t = units_type(pool, u->type_index);
-  /* Type name OR display name: an armed Colonists-type body reads "Soldier"
-   * only through units_display_name. Both former substring sets are exactly
-   * the military kinds (Soldiers/Dragoons/Cavalry/Artillery/Regulars/
-   * Cont. Cav./Cont. Army). */
-  return units_kind_is_military(units_type_kind(t)) ||
-         units_kind_is_military(units_name_kind(units_display_name(pool, u)));
+  /* bugs.md #581: the @UNIT row class alone. The muskets test above already
+   * covers an armed Colonists-type body; the old display-name arm resolved to
+   * UNKNOWN in production (no name resolver is installed outside tests). */
+  return units_kind_is_military(units_type_kind(t));
 }
 
 static bool units_colony_has_soldier_on_tile(
@@ -12125,82 +12124,34 @@ static bool units_display_keeps_own_type(const ColonizeUnitType* t) {
   return units_type_is_continental(t) || units_type_is_royal(t);
 }
 
+/*
+ * bugs.md #591: DOS names every unit from its @UNIT ROW string,
+ * `*(0x5230 + type*0xe)` — the map sidebar header (raw 14128), the disband
+ * prompt (raw 42654), @DEMOTE (raw 99460-99461), @CAPTURE (raw 99511) and the
+ * combat chrome (raw 100625-100628) all read that one table. There is no
+ * equipment- or profession-derived name channel: the rank words ("Veteran",
+ * "Seasoned") are the SEPARATE second line, FUN_49dd_0386 (raw 78606-78650),
+ * which the port keeps in units_profession_line / units_profession_label.
+ * So a bare Expert Fisherman is "Colonists" (@UNIT row 0) and an armed one is
+ * "Soldiers" (@UNIT row 1) — the type decides, nothing else.
+ */
 const char* units_display_name(const ColonizeUnitPool* pool, const ColonizeUnit* unit) {
-  static char buf[48];
   if (!unit) {
     return "Unit";
   }
-  const ColonizeUnitType* ut = pool ? units_type(pool, unit->type_index) : NULL;
-  /* bugs.md: the WoI military types keep their own names — a Cont. Army unit
-   * carries muskets + a veteran profession, and the equipment branches below
-   * would relabel it "Veteran Soldier" in the sidebar. */
-  if (units_display_keeps_own_type(ut)) {
-    return ut->name;
-  }
-  /*
-   * Every word below is catalog text: NAMES.TXT @JOB column 0 is the singular
-   * role noun (row 19 Colonist .. 23 Dragoon), column 1 the expert title, and
-   * LABELS.TXT @MISC carries the rank words (65 Veteran, 66 Seasoned, 201
-   * Damaged). The port composes them; it spells none of them itself.
-   */
-  /* bugs.md: damaged artillery (bit7, −2 combat) reads "Damaged Artillery". */
-  if (ut && units_type_is_artillery(ut) && (unit->col1_flags15 & 0x80u) != 0) {
-    snprintf(buf, sizeof(buf), "%s %s", reports_misc_display_word(201, ""), ut->name);
-    return buf;
-  }
-  const bool armed = unit->muskets > 0;
-  const bool mounted = unit->horses > 0;
-  const bool has_tools = unit->tools > 0;
-  /* bugs.md #263: either veteran profession (0x15/0x17) reads Veteran when
-   * armed — a mounted Veteran Soldier is a Veteran Dragoon. */
-  const bool vet_prof =
-    unit->profession == UNITS_JOB_SOLDIER || unit->profession == UNITS_JOB_DRAGOON;
-  const char* veteran = reports_misc_display_word(65, "");
-  if (armed && mounted) {
-    if (vet_prof) {
-      snprintf(buf, sizeof(buf), "%s %s", veteran, reports_job_short_name(UNITS_JOB_DRAGOON));
-      return buf;
+  int ti = unit->type_index;
+  if (pool && units_get_const(pool, unit->id) == unit) {
+    /* DOS carries the equipment ladder in the type byte +0x3146 itself
+     * (arming a colonist in a colony rewrites it); this port keeps the
+     * equipment on a colonist body, so units_display_type_index is the
+     * stand-in for that byte. */
+    const int dt = units_display_type_index(pool, unit->id);
+    if (dt >= 0) {
+      ti = dt;
     }
-    return reports_job_short_name(UNITS_JOB_DRAGOON);
   }
-  if (armed) {
-    if (vet_prof) {
-      snprintf(buf, sizeof(buf), "%s %s", veteran, reports_job_short_name(UNITS_JOB_SOLDIER));
-      return buf;
-    }
-    return reports_job_short_name(UNITS_JOB_SOLDIER);
-  }
-  if (mounted) {
-    if (unit->profession == UNITS_JOB_SCOUT) {
-      snprintf(
-        buf, sizeof(buf), "%s %s", reports_misc_display_word(66, ""),
-        reports_job_short_name(UNITS_JOB_SCOUT)
-      );
-      return buf;
-    }
-    return reports_job_short_name(UNITS_JOB_SCOUT);
-  }
-  if (has_tools || unit->profession == UNITS_JOB_PIONEER) {
-    if (unit->profession == UNITS_JOB_PIONEER) {
-      return reports_job_display_name(UNITS_JOB_PIONEER); /* @JOB col 1 expert title */
-    }
-    return reports_job_short_name(UNITS_JOB_PIONEER);
-  }
-  if (unit->profession == UNITS_JOB_SOLDIER) {
-    snprintf(buf, sizeof(buf), "%s %s", veteran, reports_job_short_name(UNITS_JOB_SOLDIER));
-    return buf;
-  }
-  switch (units_type_kind(ut)) {
-    case UNITS_KIND_PIONEER:
-      return reports_job_short_name(UNITS_JOB_PIONEER);
-    case UNITS_KIND_SOLDIER:
-      return reports_job_short_name(UNITS_JOB_SOLDIER);
-    case UNITS_KIND_COLONIST:
-      return reports_job_display_name(19); /* @JOB row 19 col 1 */
-    default:
-      break;
-  }
-  return ut ? ut->name : "Unit";
+  const ColonizeUnitType* ut = pool ? units_type(pool, ti) : NULL;
+  return (ut && ut->name[0]) ? ut->name : "Unit";
 }
 
 /*

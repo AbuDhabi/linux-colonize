@@ -177,6 +177,46 @@ static int case_europe_workflow(void) {
       return 1;
     }
   }
+  /*
+   * bugs.md #588 — FUN_38fd_4884 raw 64736-64741: a pool row the purse
+   * cannot cover is greyed and inert; the pick does nothing and DOS has no
+   * "need gold" answer, so nothing may be spawned, spent or said.
+   */
+  {
+    const int gold_save = eu.gold;
+    const int passage_save = eu.recruit_passage;
+    eu.gold = 50;
+    eu.recruit_passage = 200;
+    eu.status[0] = '\0';
+    const int dock3_before = eu.dock_count;
+    if (europe_recruit_affordable(&eu)) {
+      fprintf(stderr, "purse 50 vs passage 200 must not be affordable\n");
+      europe_free(&eu);
+      return 1;
+    }
+    if (!europe_open_recruit_menu(&eu)) {
+      fprintf(stderr, "recruit menu reopen failed: %s\n", eu.status);
+      europe_free(&eu);
+      return 1;
+    }
+    eu.status[0] = '\0';
+    eu.menu_selection = 1;
+    if (europe_menu_confirm(&eu) || eu.dock_count != dock3_before || eu.gold != 50 ||
+        eu.status[0] != '\0' || eu.menu != EUROPE_MENU_RECRUIT) {
+      fprintf(
+        stderr,
+        "unaffordable recruit row must be inert (dock %d→%d gold=%d status=\"%s\")\n",
+        dock3_before, eu.dock_count, eu.gold, eu.status
+      );
+      europe_free(&eu);
+      return 1;
+    }
+    europe_menu_close(&eu);
+    eu.gold = gold_save;
+    eu.recruit_passage = passage_save;
+    eu.status[0] = '\0';
+  }
+
   /* Crosses-driven free immigrant (0718 harbor spawn) must NOT bump
    * Europe+6 — only the real interactive Recruit path (4884) does. */
   {

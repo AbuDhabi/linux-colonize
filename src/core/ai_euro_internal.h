@@ -121,6 +121,20 @@ COLONIZE_INTERNAL void ai_euro_5952_build_cascade(
   ColonizeTurnContext* ctx, ColonizeColony* col
 );
 COLONIZE_INTERNAL void ai_euro_5952_set_ring1_threat(int colony_id, int ring1);
+/*
+ * FUN_5952_035e's two closing specialist arms (bugs.md #571/#572), and the
+ * cross-arm latch the Docks branch of the cascade writes into DOS's
+ * [BP+0xff62] (bugs.md #586): non-zero means the cascade started Docks for
+ * that colony this tick, which suppresses ARM 2's expert purchase.
+ */
+COLONIZE_INTERNAL void ai_euro_5952_specialist_arms(
+  ColonizeTurnContext* ctx, ColonizeColony* col, int n
+);
+COLONIZE_INTERNAL int ai_euro_5952_docks_started(int colony_id);
+/* FUN_5952_035e's field-placement section (raw 94551-94620), bugs.md #585. */
+COLONIZE_INTERNAL void ai_euro_colony_tick_28c8_reassign(
+  ColonizeTurnContext* ctx, int nation_id
+);
 /* FUN_5952_035e by-profession census cells aiStack_68[0x13] / [0x15], the two
  * the absorption arm's Soldier/Dragoon case consumes (raw 94242, 94248-94255). */
 COLONIZE_INTERNAL void ai_euro_5952_set_absorb_census(

@@ -894,6 +894,14 @@ static void ai_contact_classify_unit(
   out->is_ship = units_is_sea(units, u->id) ? 1 : 0;
   out->is_wagon = units_type_is_wagon(t) ? 1 : 0;
   out->is_scout = combat_type_is_scout(t);
+  /*
+   * @ACTIONS row gating (Mission / Heresy / Live Among / Incite) is by @UNIT
+   * KIND — any blessed missionary gets those rows. Not to be confused with
+   * the incite -1500 discount, which FUN_4d56_417e raw 83579-83580 keys on
+   * the PROFESSION byte (+0x315b == 0x18, Jesuit) — that flag is passed in
+   * by the caller (game_loop's `profession == UNITS_JOB_MISSIONARY`) and
+   * travels in the CHOICE payload bit0. bugs.md #587.
+   */
   out->is_missionary = units_type_is_missionary(t) ? 1 : 0;
   out->attack = t ? t->attack : 0;
   const int is_convert = u->profession == COLONIZE_PROF_CONVERT;
@@ -9731,7 +9739,15 @@ int ai_contact_ai_missionary_village(
     return 0;
   }
   ColonizeCol1Indian* ind = &ctx->col1->indian[nation_id - 4];
-  if (ai_contact_ai_incite_human(ctx, ind, t, nation_id, e, 1)) {
+  /*
+   * FUN_4d56_417e raw 83579-83580: the -1500 incite discount tests the
+   * acting unit's PROFESSION byte (+0x315b == 0x18 = Jesuit Missionary),
+   * not its @UNIT type — a blessed non-Jesuit colonist pays full price.
+   * bugs.md #587.
+   */
+  if (ai_contact_ai_incite_human(
+        ctx, ind, t, nation_id, e, u->profession == UNITS_JOB_MISSIONARY
+      )) {
     return 1; /* case 7 */
   }
   if (t->mission == COL1_TRIBE_MISSION_NONE) {

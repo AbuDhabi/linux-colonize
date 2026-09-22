@@ -1095,6 +1095,25 @@ static void turn_produce_one_colony(
    *     3 teachers graduate per colony per tick (`local_6e < 3`).
    * The 0x1a -> 0x19 and 0x19 -> 0x1c ladders take priority over the specialty
    * and consume the teacher's turn, exactly as in DOS.
+   *
+   * FACULTY CAP (bugs.md #580, raw 57510-57535). The tick's cap is the bare
+   * literal `local_6e < 3`: it is NOT the colony's owned school tier. The tick
+   * selects teachers on `FUN_281f_0c0e(colonist) == 0x12` (the @JOB "teacher"
+   * occupation byte) plus the level test alone -- it never calls
+   * FUN_1000_8bec / thunk_FUN_1000_9808, so it asks neither which school row
+   * the teacher sits in nor which schools the colony owns. The owned-tier cap
+   * (University 3 / College 2 / Schoolhouse 1, colonies_school_owned_tier) and
+   * the @NEEDCOLLEGE / @NEEDUNIVERSITY level requirement live ONLY in the
+   * work-assign validator, overlays.c:60455-60484. Consequence, kept
+   * deliberately: a save made in DOS (or edited) that seats more teachers than
+   * the owned tier allows, or seats a level-2/3 specialist with only a
+   * Schoolhouse, still teaches here -- up to 3 of them per tick. Do not "fix"
+   * this by wiring colonies_school_owned_tier into the loop below; the seating
+   * path is the only place DOS enforces the tier.
+   * The seated-building test below is the port's spelling of occupation 0x12:
+   * DOS stores one teacher occupation byte with no row in it, so "seated in
+   * any school building" (tier > 0), never "seated in a building of the
+   * required tier", is the faithful reading.
    */
   if (pool) {
     enum { EDU_MAX_TEACHERS = 3 };

@@ -2344,6 +2344,220 @@ static int unit_wagon_cap_and_armory_gate(void) {
   return 1;
 }
 
+/*
+ * bugs.md #580 / #589 / #590 — the DOS work-assign validator
+ * (thunk_FUN_1000_9808, overlays.c:60412-60498): faculty cap by the school
+ * the colony OWNS, @NEEDCOLLEGE/@NEEDUNIVERSITY by owned building, and
+ * @MORETHANTHREE only for occupation > 9.
+ */
+static int unit_school_faculty_and_occupation_cap(void) {
+  ColonizeMsgCatalog names;
+  assets_msg_init(&names);
+  if (!assets_msg_load_file(&names, "COLONIZE/NAMES.TXT")) {
+    fprintf(stderr, "faculty: load NAMES.TXT failed\n");
+    return 1;
+  }
+  ColonizeColonyPool pool;
+  colonies_init(&pool);
+  colonies_set_occupancy_map(NULL);
+  if (!colonies_load_buildings(&pool, &names)) {
+    fprintf(stderr, "faculty: load @BUILDING failed\n");
+    assets_msg_free(&names);
+    return 1;
+  }
+  assets_msg_free(&names);
+  int failures = 0;
+  const int failures_before = failures;
+
+  const int school = colonies_find_building(&pool, "Schoolhouse");
+  const int college = colonies_find_building(&pool, "College");
+  const int univ = colonies_find_building(&pool, "University");
+  const int church = colonies_find_building(&pool, "Church");
+  const int distillery = colonies_find_building(&pool, "Rum Distillery");
+  CHECK(school >= 0 && college >= 0 && univ >= 0, "school rows exist");
+  CHECK(church >= 0 && distillery >= 0, "Church / Rum Distillery rows exist");
+
+  ColonizeColony* col = &pool.colonies[0];
+  memset(col, 0, sizeof(*col));
+  col->active = true;
+  col->id = 1;
+  col->nation_id = 0;
+  snprintf(col->name, sizeof(col->name), "Cambridge");
+  for (int i = 0; i < COLONIZE_COLONY_FIELD_TILES; ++i) {
+    col->tiles[i] = -1;
+  }
+  for (int i = 0; i < 6; ++i) {
+    col->colonists[i].active = true;
+    col->colonists[i].profession = COLONIZE_JOB_FARMER; /* @JOB school level 1 */
+    col->colonists[i].field_job = -1;
+    col->colonists[i].building_type = -1;
+  }
+  col->colonist_count = 6;
+  col->population = 6;
+  pool.colony_count = 1;
+
+  /* #580 — Schoolhouse alone supports one teacher (@SCHOOL1). */
+  col->has_building[school] = true;
+  CHECK(colonies_school_owned_tier(&pool, col) == 1, "Schoolhouse only = owned tier 1");
+  CHECK(colonies_assign_workplace(&pool, 1, 0, school), "first teacher fits a Schoolhouse");
+  CHECK(!colonies_assign_workplace(&pool, 1, 1, school), "@SCHOOL1: second teacher refused");
+  /* College (@COLLEGE2) raises the cap to two — DOS keeps the lower rows. */
+  col->has_building[college] = true;
+  CHECK(colonies_school_owned_tier(&pool, col) == 2, "College owned = tier 2");
+  CHECK(colonies_assign_workplace(&pool, 1, 1, school), "second teacher fits with a College");
+  CHECK(!colonies_assign_workplace(&pool, 1, 2, college), "@COLLEGE2: third teacher refused");
+  col->has_building[univ] = true;
+  CHECK(colonies_school_owned_tier(&pool, col) == 3, "University owned = tier 3");
+  CHECK(colonies_assign_workplace(&pool, 1, 2, school), "third teacher fits with a University");
+  CHECK(!colonies_assign_workplace(&pool, 1, 3, univ), "@UNIV3: fourth teacher refused");
+
+  /* #589 — the requirement is the OWNED building, not the clicked row: an
+   * Elder Statesman (level 3) teaches from the Schoolhouse row when the
+   * colony owns a University. */
+  CHECK(colonies_job_school_tier(COLONIZE_PROF_STATESMAN) == 3, "Statesman is @JOB level 3");
+  col->colonists[0].building_type = -1;
+  col->colonists[1].building_type = -1;
+  col->colonists[2].building_type = -1;
+  col->colonists[3].profession = COLONIZE_PROF_STATESMAN;
+  CHECK(
+    colonies_assign_workplace(&pool, 1, 3, school),
+    "#589: University owner accepts a level-3 teacher on the Schoolhouse row"
+  );
+  col->has_building[univ] = false;
+  col->colonists[4].profession = COLONIZE_PROF_STATESMAN;
+  CHECK(
+    !colonies_assign_workplace(&pool, 1, 4, univ),
+    "#589: without the University row owned, a level-3 teacher is refused"
+  );
+  col->colonists[3].building_type = -1;
+  col->has_building[school] = false;
+  col->has_building[college] = false;
+
+  /* #590 — @MORETHANTHREE applies to occupation > 9 only. */
+  col->has_building[church] = true;
+  col->has_building[distillery] = true;
+  CHECK(colonies_building_occupation(&pool, church) == 16, "Church occupation = Preacher 16");
+  CHECK(colonies_building_occupation(&pool, distillery) == 9, "Rum chain occupation = 9");
+  for (int i = 0; i < 6; ++i) {
+    col->colonists[i].profession = COLONIZE_PROF_FREE_COLONIST;
+    col->colonists[i].building_type = -1;
+  }
+  for (int i = 0; i < 3; ++i) {
+    CHECK(colonies_assign_workplace(&pool, 1, i, church), "three preachers fit");
+  }
+  CHECK(!colonies_assign_workplace(&pool, 1, 3, church), "@MORETHANTHREE: fourth preacher refused");
+  for (int i = 0; i < 6; ++i) {
+    col->colonists[i].building_type = -1;
+  }
+  for (int i = 0; i < 4; ++i) {
+    CHECK(
+      colonies_assign_workplace(&pool, 1, i, distillery),
+      "#590 DOS-LITERAL: @JOB 9 has no @MORETHANTHREE cap"
+    );
+  }
+
+  if (failures == failures_before) {
+    printf("unit_colonies: school faculty + occupation cap ok\n");
+    return 0;
+  }
+  return 1;
+}
+
+/*
+ * bugs.md #579 — FUN_15eb_23f2's blocked mask: a plot already worked by
+ * ANOTHER colony carries bit 0x40 and cannot be seated.
+ */
+static int unit_plot_blocked_mask(void) {
+  ColonizeColonyPool pool;
+  colonies_init(&pool);
+  colonies_set_occupancy_map(NULL);
+  int failures = 0;
+  const int failures_before = failures;
+
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  char err[128];
+  if (!map_alloc(&map, 24, 24, err, sizeof(err))) {
+    fprintf(stderr, "blockedmask: map_alloc failed: %s\n", err);
+    return 1;
+  }
+  for (int y = 0; y < 24; ++y) {
+    for (int x = 0; x < 24; ++x) {
+      const size_t i = (size_t)y * 24u + (size_t)x;
+      map.terrain[i] = 2;    /* plains — not water */
+      map.layer3[i] = 0xf1u; /* owner none, continent 1 */
+      map.layer2[i] = 0;
+    }
+  }
+  map.prime_resource_seed = 0; /* no procedural rumours */
+  map_reveal_all(&map, 0);
+
+  ColonizeColony* a = &pool.colonies[0];
+  ColonizeColony* b = &pool.colonies[1];
+  memset(a, 0, sizeof(*a));
+  memset(b, 0, sizeof(*b));
+  for (int i = 0; i < COLONIZE_COLONY_FIELD_TILES; ++i) {
+    a->tiles[i] = -1;
+    b->tiles[i] = -1;
+  }
+  memset(a->col1_outer_tiles, 0xff, sizeof(a->col1_outer_tiles));
+  memset(b->col1_outer_tiles, 0xff, sizeof(b->col1_outer_tiles));
+  a->active = b->active = true;
+  a->id = 1;
+  b->id = 2;
+  a->x = 10;
+  a->y = 10;
+  b->x = 12;
+  b->y = 10;
+  a->colonists[0].active = true;
+  a->colonists[0].field_job = COLONIZE_JOB_FARMER;
+  a->colonists[0].building_type = -1;
+  a->colonist_count = a->population = 1;
+  b->colonists[0].active = true;
+  b->colonists[0].field_job = COLONIZE_JOB_FARMER;
+  b->colonists[0].building_type = -1;
+  b->colonist_count = b->population = 1;
+  pool.colony_count = 2;
+
+  const int a_east = colonies_field_tile_index(1, 0);  /* (11,10) */
+  const int b_west = colonies_field_tile_index(-1, 0); /* (11,10) */
+  const int b_east = colonies_field_tile_index(1, 0);  /* (13,10) */
+  CHECK(a_east >= 0 && b_west >= 0, "field slots resolve");
+  a->tiles[a_east] = 0; /* colony A works the shared plot */
+
+  const ColonizeWorld w = world_make(NULL, &pool, &map, NULL, false, NULL, NULL);
+  CHECK(
+    (colonies_plot_blocked_mask(&w, b, b_west) & 0x40u) != 0,
+    "#579: plot worked by another colony is blocked (0x40)"
+  );
+  CHECK(colonies_plot_blocked_mask(&w, b, b_east) == 0, "a free plot is unblocked");
+  CHECK(colonies_plot_blocked_mask(&w, a, a_east) == 0, "the owner's own plot is unblocked");
+  /* Another colony's CENTRE is 0x20 even when unworked. */
+  const int a_east2 = colonies_field_tile_index(2, 0);
+  CHECK(a_east2 < 0, "the 5x5 outer ring is not a runtime field slot");
+  b->x = 11;
+  CHECK(
+    (colonies_plot_blocked_mask(&w, a, a_east) & 0x20u) != 0,
+    "#579: another colony's centre is blocked (0x20)"
+  );
+  b->x = 12;
+
+  /* DOS scan order (bugs.md #584): step 0..7 = N,E,S,W,NW,NE,SE,SW. */
+  int sdx = 0;
+  int sdy = 0;
+  colonies_field_tile_delta(colonies_field_scan_order(1), &sdx, &sdy);
+  CHECK(sdx == 1 && sdy == 0, "#584: DOS scan step 1 is East");
+  colonies_field_tile_delta(colonies_field_scan_order(4), &sdx, &sdy);
+  CHECK(sdx == -1 && sdy == -1, "#584: DOS scan step 4 is NW");
+
+  map_free(&map);
+  if (failures == failures_before) {
+    printf("unit_colonies: plot blocked mask ok\n");
+    return 0;
+  }
+  return 1;
+}
+
 static const TestCase k_cases[] = {
     {"unit_colonies_core", case_colonies_core},
     {"unit_found_chrome", unit_found_chrome},
@@ -2360,5 +2574,7 @@ static const TestCase k_cases[] = {
     {"unit_foreign_colony_trade", unit_foreign_colony_trade},
     {"unit_ship_construction", unit_ship_construction},
     {"unit_wagon_cap_and_armory_gate", unit_wagon_cap_and_armory_gate},
+    {"unit_school_faculty_and_occupation_cap", unit_school_faculty_and_occupation_cap},
+    {"unit_plot_blocked_mask", unit_plot_blocked_mask},
 };
 TEST_MAIN(k_cases)

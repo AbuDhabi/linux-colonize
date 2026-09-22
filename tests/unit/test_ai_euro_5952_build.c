@@ -14,6 +14,8 @@
 #include "core/assets.h"
 #include "core/col1_save.h"
 #include "core/colony.h"
+#include "core/colony_production.h"
+#include "core/colony_yield.h"
 #include "core/map.h"
 #include "core/turn.h"
 #include "core/units.h"
@@ -458,6 +460,127 @@ static int case_small_ai_flag_written(void) {
   return 0;
 }
 
+
+/* ---- bugs.md #586 / #585: the arms that follow the cascade ------------ */
+
+/* fx_colony_add leaves the roster zeroed; the tick and the specialist arms
+ * both walk live colonists, so wake them here. */
+static void fx_wake_colonists(Fx* f, int n) {
+  for (int s = 0; s < n; ++s) {
+    f->col->colonists[s].active = true;
+    f->col->colonists[s].unit_type_index = -1;
+    f->col->colonists[s].building_type = -1;
+    f->col->colonists[s].field_job = -1;
+    f->col->colonists[s].profession = COLONIZE_PROF_FREE_COLONIST;
+  }
+  for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES; ++t) {
+    f->col->tiles[t] = -1;
+  }
+}
+
+/*
+ * bugs.md #586 — OVL15 asm 0x22bc-0x22ea. The Docks arm of the cascade stores
+ * AX = 0 into [BP+0xff62] when its commit succeeds, so ARM 2 (buy an expert,
+ * raw 95918 `if (local_a0 != 0)`) cannot fire on that turn. The Stockade arm
+ * at 0x22ec has no such store.
+ *
+ * Both halves run the same pop-8 coastal colony with an empty warehouse
+ * (DS:0x8e5a food shortfall, so `train_flag` would otherwise be 1) and 5000
+ * gold. Half A skips the cascade and must buy an Expert Farmer; half B runs
+ * the cascade first — Docks commits — and must buy nothing.
+ */
+static int case_docks_commit_suppresses_expert_purchase(void) {
+  for (int with_cascade = 0; with_cascade < 2; ++with_cascade) {
+    Fx f;
+    if (fx_build(&f, 8) != 0) {
+      return 1;
+    }
+    ai_euro_reset();
+    f.map.terrain[8 * 24 + 7] = 0x19; /* one ocean plot: Docks is coastal-gated */
+    fx_wake_colonists(&f, 8);
+    f.col->stock[COLONIZE_CARGO_FOOD] = 0; /* gross 0 < demand -> food_short */
+    f.col1.nation[NATION].gold = 5000;
+    f.col1.nation[NATION].tax_rate = 0;
+
+    if (with_cascade) {
+      ai_euro_5952_build_cascade(&f.ctx, f.col);
+      if (f.col->building_in_production != bld(&f, "Docks")) {
+        fx_done(&f);
+        return fail("#586: cascade did not commit Docks");
+      }
+      if (!ai_euro_5952_docks_started(f.col->id)) {
+        fx_done(&f);
+        return fail("#586: the Docks arm did not clear [BP+0xff62]");
+      }
+    }
+    ai_euro_5952_specialist_arms(&f.ctx, f.col, 8);
+    const uint32_t gold = f.col1.nation[NATION].gold;
+    fx_done(&f);
+
+    if (with_cascade) {
+      if (gold != 5000u) {
+        return fail("#586: ARM 2 bought an expert on the turn Docks was started");
+      }
+    } else if (gold >= 5000u) {
+      return fail("#586: baseline ARM 2 never fired, so the case proves nothing");
+    }
+  }
+  return 0;
+}
+
+/*
+ * bugs.md #585 — DOS raw 94592-94597. A non-zero FUN_15eb_28c8 return only
+ * advances `local_ac` to the next colonist; only a HANDLED call whose
+ * DS:0x8dbe best yield is under 3 ends the placement section.
+ *
+ * Ring is all ocean, so the Expert Farmer in slot 0 has no farm plot at all
+ * and his food-pass 28c8 call returns non-zero; the Expert Fisherman in slot
+ * 1 has seven free water plots and the colony owns Docks, so the food pass
+ * must go on and seat him.
+ *
+ * Scope note: this pins the loop SHAPE, not a divergence the port can still
+ * show end-to-end. DOS `goto LAB_5952_178f` only skips the placement passes
+ * (raw 94623-94627 falls straight into the rest of the tick), and the port's
+ * indoor pass (raw 94784) commits a work plot for anyone the passes left
+ * over — so with the old `section_done` break this same colonist ended up on
+ * the same plot one arm later. The case exists so a future change to the
+ * passes cannot quietly re-introduce the early stop.
+ */
+static int case_food_pass_skips_unplaceable_colonist(void) {
+  Fx f;
+  if (fx_build(&f, 6) != 0) {
+    return 1;
+  }
+  ai_euro_reset();
+  static const int dx[COLONIZE_COLONY_FIELD_TILES] = {0, 1, 1, 1, 0, -1, -1, -1};
+  static const int dy[COLONIZE_COLONY_FIELD_TILES] = {-1, -1, 0, 1, 1, 1, 0, -1};
+  for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES; ++t) {
+    f.map.terrain[(8 + dy[t]) * 24 + (8 + dx[t])] = 0x19; /* Ocean */
+  }
+  fx_wake_colonists(&f, 6);
+  own(&f, "Docks");
+  f.col->colonists[0].profession = COLONIZE_PROF_FARMER;
+  f.col->colonists[1].profession = COLONIZE_PROF_FISHERMAN;
+
+  ai_euro_colony_tick_28c8_reassign(&f.ctx, NATION);
+
+  const int farmer_job = f.col->colonists[0].field_job;
+  const int fisher_job = f.col->colonists[1].field_job;
+  const int fisher_tile = colonies_colonist_tile(f.col, 1);
+  fx_done(&f);
+
+  /* The farmer's own food-pass call is the one that returns non-zero (no farm
+   * plot exists); DOS still lets the unrestricted pass 2 put him on the water
+   * later, so only slot 1 is the discriminator here. `farmer_job` is printed
+   * on failure to make a regression easy to read. */
+  if (fisher_job != COLONIZE_JOB_FISHERMAN || fisher_tile < 0) {
+    fprintf(stderr, "%s: farmer_job=%d fisher_job=%d fisher_tile=%d\n",
+            TEST_NAME, farmer_job, fisher_job, fisher_tile);
+    return fail("#585: the Expert Fisherman behind him was never seated");
+  }
+  return 0;
+}
+
 static const TestCase k_cases[] = {
   {"case_first_pick_is_stockade", case_first_pick_is_stockade},
   {"case_docks_when_ring_worked_out", case_docks_when_ring_worked_out},
@@ -471,6 +594,8 @@ static const TestCase k_cases[] = {
   {"case_artillery_pick", case_artillery_pick},
   {"case_artillery_capped_at_three_on_tile", case_artillery_capped_at_three_on_tile},
   {"case_small_ai_flag_written", case_small_ai_flag_written},
+  {"case_docks_commit_suppresses_expert_purchase", case_docks_commit_suppresses_expert_purchase},
+  {"case_food_pass_skips_unplaceable_colonist", case_food_pass_skips_unplaceable_colonist},
 };
 
 TEST_MAIN(k_cases)

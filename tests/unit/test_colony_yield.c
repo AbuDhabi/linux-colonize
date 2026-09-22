@@ -881,6 +881,48 @@ static int case_commons_plow_unconditional(void) {
   return 0;
 }
 
+/*
+ * Docks gate is a single bit test on @BUILDING row 6 (DOS-LITERAL
+ * FUN_15eb_18ec raw 11967 -> FUN_15eb_035e(DS:0x8dc6, 6), raw 9540-9557).
+ * A Drydock built on top of Docks keeps row 6 set (the port's completion
+ * path only sets bits), so fishing still works; a lone higher tier with the
+ * Docks bit clear does not open fishing, matching DOS.
+ */
+static int case_docks_row6_bit(void) {
+  static ColonizeColonyPool pool;
+  memset(&pool, 0, sizeof(pool));
+  pool.building_type_count = COLONIZE_BUILDING_TYPES_MAX;
+  for (int i = 0; i < pool.building_type_count; ++i) {
+    pool.building_types[i].row_plus1 = i + 1;
+  }
+  ColonizeColony col;
+  memset(&col, 0, sizeof(col));
+
+  if (colony_yield_colony_has_docks(&pool, &col)) {
+    fprintf(stderr, "docks: empty colony reported docks\n");
+    return 1;
+  }
+  col.has_building[COLONY_BUILDING_DOCKS] = true;
+  if (!colony_yield_colony_has_docks(&pool, &col)) {
+    fprintf(stderr, "docks: row 6 set but not reported\n");
+    return 1;
+  }
+  /* Upgrade: Drydock on top of Docks — row 6 stays set, fishing continues. */
+  col.has_building[COLONY_BUILDING_DRYDOCK] = true;
+  if (!colony_yield_colony_has_docks(&pool, &col)) {
+    fprintf(stderr, "docks: drydock upgrade cleared the fishing gate\n");
+    return 1;
+  }
+  /* Docks bit clear + higher tiers set is not a Docks colony in DOS. */
+  col.has_building[COLONY_BUILDING_DOCKS] = false;
+  col.has_building[COLONY_BUILDING_SHIPYARD] = true;
+  if (colony_yield_colony_has_docks(&pool, &col)) {
+    fprintf(stderr, "docks: higher tier substituted for row 6\n");
+    return 1;
+  }
+  return 0;
+}
+
 static const TestCase k_cases[] = {
   {"commons_scrub", case_commons_scrub},
   {"commons_hills_base", case_commons_hills_base},
@@ -897,6 +939,7 @@ static const TestCase k_cases[] = {
   {"tundra_farmer_sol_readd", case_tundra_farmer_sol_readd},
   {"silver_miner_collapse", case_silver_miner_collapse},
   {"commons_plow_unconditional", case_commons_plow_unconditional},
+  {"docks_row6_bit", case_docks_row6_bit},
 };
 
 TEST_MAIN(k_cases)

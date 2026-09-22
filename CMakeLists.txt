@@ -589,17 +589,12 @@ colonize_add_test(NAME unit_combat_strength
   SLIM
 )
 
+# colony_yield.c calls colonies_has_building_row (colony.c) with a real strong
+# reference (no weak fallback, conventions "No weak fallbacks in colonize_core"),
+# so this target takes the full slim source set like its siblings.
 colonize_add_test(NAME unit_colony_yield
-  SOURCES
-    tests/unit/test_colony_yield.c
-    src/core/colony_yield.c
-    src/core/reports_names.c
-    src/core/assets.c
-    src/core/map.c
-    src/data/viceroy_tables.c
-    src/platform/diagnostics.c
-    src/platform/dos_compat/dos_compat.c
-    src/core/strutil.c
+  SOURCES tests/unit/test_colony_yield.c ${COLONIZE_SLIM_SOURCES}
+  SLIM
 )
 
 colonize_add_test(NAME unit_colonies

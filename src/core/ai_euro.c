@@ -2530,7 +2530,22 @@ static int ai_euro_28c8_score_full(
   out_best->score = 0; /* local_12 = 0: DOS elects only a strictly positive score */
   out_best->yield = 0;
 
-  for (int ti = 0; ti < COLONIZE_COLONY_FIELD_TILES; ++ti) {
+  /* DOS-LITERAL FUN_15eb_28c8 raw 12987-12996: the plot walk is over the
+   * DS:0xc8/0xde delta tables (N,E,S,W,NW,NE,SE,SW), and since the election at
+   * raw 13126 is strictly greater the earliest table index wins ties — so the
+   * port must visit its own slots in that DOS order (bugs.md #584). */
+  for (int step = 0; step < COLONIZE_COLONY_FIELD_TILES; ++step) {
+    const int ti = colonies_field_scan_order(step);
+    if (ti < 0) {
+      continue;
+    }
+    /* raw 12993: `*(char *)(iVar5 + iVar12 * 5 + -0x7210) == '\0'` — the
+     * FUN_15eb_23f2 blocked bitmask cached in DS:0x8df0 must be 0 for both
+     * human and AI colonies (bugs.md #579). The Indian-claim table at
+     * -0x7262 below is the separate, human-only test. */
+    if (colonies_plot_blocked_mask(&world, col, ti) != 0) {
+      continue;
+    }
     if (col->tiles[ti] >= 0 && col->tiles[ti] != colonist_slot) {
       continue; /* worked by a different colonist already */
     }
@@ -2568,7 +2583,14 @@ static int ai_euro_28c8_score_full(
       if (restrict_job >= 0 && job != restrict_job) {
         continue;
       }
-      const int cargo = colony_yield_job_cargo(job);
+      /* DOS-LITERAL FUN_15eb_28c8 raw 13000: `FUN_15eb_18ec(x,y,&local_24,0)`.
+       * 18ec writes the *job* index into local_24 and only remaps a water job
+       * to food when param_4 != 0 (raw 11983), which this call site passes as
+       * 0 — so for the Fisherman (job 8) local_24 stays 8 and every later use
+       * (warehouse clamp `colony+0x9a+8*2`, the DS -0x71ce / -0x71a6 rows, the
+       * `local_24 != 5` lumber test) reads cargo slot 8 = HORSES. A DOS quirk,
+       * kept verbatim (bugs.md #582). Jobs 0..7 map to cargo 0..7 identically. */
+      const int cargo = job;
       int yld = profession >= 0
                   ? colony_yield_for_worker(
                       ctx->map, tx, ty, job, profession, has_docks, sol_b_field,
@@ -3813,6 +3835,25 @@ COLONIZE_INTERNAL void ai_euro_5952_set_ring1_threat(int colony_id, int ring1) {
  * decrement-on-absorb is carried here so a second absorption in the same
  * turn sees DOS's consumed cell, not a fresh recount.
  */
+/*
+ * DOS-LITERAL FUN_5952_035e, OVL15 asm 0x22bc-0x22ea: the Docks arm of the
+ * build cascade stores AX = 0 into [BP+0xff62] — the tick-local `train_flag`
+ * (`local_a0`) — when its FUN_OVL15_002a6e(6) commit returns 0, so ARM 2 (buy
+ * an expert, raw 95918 `if (local_a0 != 0)`) cannot fire on the turn Docks is
+ * started. The Stockade arm at 0x22ec has no such store. The port splits the
+ * one DOS body into ai_euro_5952_build_cascade (the plan step) and
+ * ai_euro_5952_specialist_arms (the colony tick), which run in that DOS order,
+ * so the store is carried across as this per-colony latch (bugs.md #586).
+ */
+static int s_5952_docks_started[COLONIZE_COLONIES_MAX];
+
+/* Test seam for the latch above. */
+COLONIZE_INTERNAL int ai_euro_5952_docks_started(int colony_id) {
+  return (colony_id >= 0 && colony_id < COLONIZE_COLONIES_MAX)
+           ? s_5952_docks_started[colony_id]
+           : 0;
+}
+
 static int s_5952_census_nonexpert[COLONIZE_COLONIES_MAX]; /* aiStack_68[0x13] */
 static int s_5952_census_vet_soldier[COLONIZE_COLONIES_MAX]; /* aiStack_68[0x15] */
 
@@ -4019,6 +4060,10 @@ COLONIZE_INTERNAL void ai_euro_5952_build_cascade(
   if (!ctx || !ctx->colonies || !ctx->map || !col || !col->active) {
     return;
   }
+  /* Fresh per tick, like DOS's stack-local [BP+0xff62] (bugs.md #586). */
+  if (col->id >= 0 && col->id < COLONIZE_COLONIES_MAX) {
+    s_5952_docks_started[col->id] = 0;
+  }
   if (ctx->colonies->building_type_count <= 0) {
     /* Port-side guard, not a DOS gate: a real game always carries the 42
      * @BUILDING rows, so DOS never runs this cascade with nothing to build.
@@ -4170,6 +4215,11 @@ COLONIZE_INTERNAL void ai_euro_5952_build_cascade(
 
   if ((ring - ring_nonland) <= pop || (ring_nonland != 0 && hungry != 0)) {
     if (ai_euro_5952_try_build(&s, 0x06) == 0) { /* asm 22da: Docks */
+      /* asm 0x22e6 `MOV [BP+0xff62],AX` with AX == 0 — the committed Docks
+       * arm clears the tick's train_flag, suppressing ARM 2 this turn. */
+      if (col->id >= 0 && col->id < COLONIZE_COLONIES_MAX) {
+        s_5952_docks_started[col->id] = 1;
+      }
       return;
     }
   }
@@ -4543,7 +4593,7 @@ COLONIZE_INTERNAL int ai_euro_5952_train_pick(
  * snapshot taken before the tick's absorption loop. The port walks the
  * colony roster only and recomputes the census here.
  */
-static void ai_euro_5952_specialist_arms(
+COLONIZE_INTERNAL void ai_euro_5952_specialist_arms(
   ColonizeTurnContext* ctx, ColonizeColony* col, int n
 ) {
   ColonizeColonyPool* pool = ctx->colonies;
@@ -4601,8 +4651,13 @@ static void ai_euro_5952_specialist_arms(
   const bool food_short =
     col->stock[COLONIZE_CARGO_FOOD] + gross[COLONIZE_CARGO_FOOD] <
     demand[COLONIZE_CARGO_FOOD];
+  /* asm 0x2296-0x22b9 sets [BP+0xff62] to 1; asm 0x22e6 clears it again when
+   * the build cascade's Docks arm commits this turn (bugs.md #586). */
+  const bool docks_started =
+    col->id >= 0 && col->id < COLONIZE_COLONIES_MAX && s_5952_docks_started[col->id] != 0;
   const bool train_flag =
-    ((col->population / 2) < food_workers && food_workers > 1) || food_short;
+    !docks_started &&
+    (((col->population / 2) < food_workers && food_workers > 1) || food_short);
 
   /* ---- ARM 1: improve_timer-gated expert election (asm 0x274b) ---- */
   const int school_chain = ai_euro_5952_chain_owned(pool, col, COLONIES_CHAIN_SCHOOL, NULL, NULL);
@@ -4677,7 +4732,9 @@ static void ai_euro_5952_specialist_arms(
   }
 }
 
-static void ai_euro_colony_tick_28c8_reassign(ColonizeTurnContext* ctx, int nation_id) {
+COLONIZE_INTERNAL void ai_euro_colony_tick_28c8_reassign(
+  ColonizeTurnContext* ctx, int nation_id
+) {
   if (!ctx || !ctx->colonies || !ctx->map || nation_id == ctx->human_nation) {
     return;
   }
@@ -4770,7 +4827,15 @@ static void ai_euro_colony_tick_28c8_reassign(ColonizeTurnContext* ctx, int nati
       col->colonists[s].field_job = prev_job[s]; /* sticky ×2 on the old job */
       const int ok = ai_euro_28c8_score_job(ctx, col, s, food_prof, food_prof, &best);
       col->colonists[s].field_job = -1;
-      if (!ok || best.yield < 3) {
+      /* DOS-LITERAL raw 94592-94597: the DS:0x8dbe (best yield) stop is INSIDE
+       * the `FUN_281f_0b6e(...) == 0` arm. A non-zero 28c8 return (no positive
+       * plot) is not a stop at all — DOS just falls through to `local_ac++`
+       * and tries the next colonist; only a handled call whose best yield is
+       * under 3 ends the whole placement section (bugs.md #585). */
+      if (!ok) {
+        continue;
+      }
+      if (best.yield < 3) {
         section_done = true; /* raw 94596 */
         break;
       }
@@ -4817,7 +4882,12 @@ static void ai_euro_colony_tick_28c8_reassign(ColonizeTurnContext* ctx, int nati
         col->colonists[s].field_job = prev_job[s];
         const int ok = ai_euro_28c8_score(ctx, col, s, col->colonists[s].profession, &best);
         col->colonists[s].field_job = -1;
-        if (!ok || best.yield < 3 || (plenty && best.yield < 5)) {
+        /* raw 94612-94614, same shape as pass 1: an unhandled 28c8 only skips
+         * this colonist (bugs.md #585). */
+        if (!ok) {
+          continue;
+        }
+        if (best.yield < 3 || (plenty && best.yield < 5)) {
           section_done = true; /* raw 94614 */
           break;
         }
@@ -21524,6 +21594,7 @@ void ai_euro_reset(void) {
   s_sticky_unit = -1;
   s_sticky_count = 0;
   memset(s_5952_ring1, 0, sizeof(s_5952_ring1));
+  memset(s_5952_docks_started, 0, sizeof(s_5952_docks_started));
   memset(s_5952_census_nonexpert, 0, sizeof(s_5952_census_nonexpert));
   memset(s_5952_census_vet_soldier, 0, sizeof(s_5952_census_vet_soldier));
   memset(s_deferred_found, 0, sizeof(s_deferred_found));

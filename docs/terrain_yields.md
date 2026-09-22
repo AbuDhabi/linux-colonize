@@ -119,7 +119,10 @@ stack was ported literally; pinned by `farming/case3`'s expert Farmer on a
 bare Hill = 4 (1 + expert 2 + farmer 1).
 
 Colonies cannot be founded on mountains. Fishing on ocean/sea lane requires
-colony **Docks** (`18ec` zeroes fish jobs without it).
+colony **Docks** (`18ec` zeroes fish jobs without it). The gate is the single
+@BUILDING **row 6** bit — `FUN_15eb_18ec` raw 11967 `FUN_15eb_038e(6)` ->
+`FUN_15eb_035e(DS:0x8dc6, 6)` (raw 9540-9557); Drydock/Shipyard do **not**
+substitute for it (DOS upgrades leave the lower bit set, so they never need to).
 
 ---
 

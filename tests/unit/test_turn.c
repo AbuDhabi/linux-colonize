@@ -639,6 +639,106 @@ static int unit_train_veteran_soldier(void) {
   return 0;
 }
 
+/*
+ * bugs.md #580 tick half: DOS FUN_364b_0688 (raw 57510-57535) caps the
+ * graduation loop with the bare literal `local_6e < 3` and picks teachers on
+ * occupation 0x12 + the level test only -- it never consults the colony's
+ * owned school tier. So a Schoolhouse-only colony that somehow seats four
+ * teachers still graduates three of them in one tick, and a level-2 specialist
+ * seated in a Schoolhouse still teaches. The owned-tier cap lives in the
+ * work-assign validator alone (overlays.c:60455-60484).
+ */
+static int unit_school_tick_cap_is_three(void) {
+  ColonizeColonyPool pool;
+  colonies_init(&pool);
+  colonies_set_occupancy_map(NULL);
+  snprintf(pool.building_types[0].name, sizeof(pool.building_types[0].name), "Schoolhouse");
+  pool.building_type_count = 1;
+
+  ColonizeColony* col = &pool.colonies[0];
+  memset(col, 0, sizeof(*col));
+  col->active = true;
+  col->id = 1;
+  col->nation_id = 0;
+  snprintf(col->name, sizeof(col->name), "Boston");
+  col->building_in_production = -1;
+  col->has_building[0] = true; /* owned tier 1 only */
+  col->stock[COLONIZE_CARGO_FOOD] = 200;
+  /* Four ready level-1 teachers (Expert Farmer, @JOB level 1 -> 4 turns). */
+  for (int i = 0; i < 4; ++i) {
+    col->colonists[i].active = true;
+    col->colonists[i].profession = COLONIZE_JOB_FARMER;
+    col->colonists[i].building_type = 0;
+    col->colonists[i].field_job = -1;
+    col->colonists[i].turns_in_job = 3; /* one tick -> 4 == need */
+  }
+  /* Five Free Colonist students out on tiles. */
+  for (int i = 4; i < 9; ++i) {
+    col->colonists[i].active = true;
+    col->colonists[i].profession = COLONIZE_PROF_FREE_COLONIST;
+    col->colonists[i].building_type = -1;
+    col->colonists[i].field_job = COLONIZE_JOB_FARMER;
+    col->colonists[i].turns_in_job = 0;
+  }
+  col->colonist_count = 9;
+  col->population = 9;
+  pool.colony_count = 1;
+
+  ColonizeTurnResult prod;
+  memset(&prod, 0, sizeof(prod));
+  turn_colony_free_production(&pool, col, NULL, &prod, NULL);
+
+  int graduated = 0;
+  for (int i = 4; i < 9; ++i) {
+    if (col->colonists[i].profession == COLONIZE_JOB_FARMER) {
+      graduated++;
+    }
+  }
+  if (graduated != 3) {
+    fprintf(stderr, "school cap: want 3 graduates in one tick, got %d\n", graduated);
+    return 1;
+  }
+  /* The first three teachers qualified and were zeroed; the fourth never
+   * entered the `local_6e < 3` body, so its counter keeps running. */
+  for (int i = 0; i < 3; ++i) {
+    if (col->colonists[i].turns_in_job != 0) {
+      fprintf(stderr, "school cap: teacher %d counter should reset\n", i);
+      return 1;
+    }
+  }
+  if (col->colonists[3].turns_in_job == 0) {
+    fprintf(stderr, "school cap: 4th teacher must not consume his turn\n");
+    return 1;
+  }
+
+  /* A level-2 specialist seated in a Schoolhouse still teaches: the tick has
+   * no @NEEDCOLLEGE gate. */
+  memset(col->colonists, 0, sizeof(col->colonists));
+  col->colonists[0].active = true;
+  col->colonists[0].profession = 21; /* Veteran Soldier, level 2 -> 6 turns */
+  col->colonists[0].building_type = 0;
+  col->colonists[0].field_job = -1;
+  col->colonists[0].turns_in_job = 5;
+  col->colonists[1].active = true;
+  col->colonists[1].profession = COLONIZE_PROF_FREE_COLONIST;
+  col->colonists[1].building_type = -1;
+  col->colonists[1].field_job = COLONIZE_JOB_FARMER;
+  col->colonist_count = 2;
+  col->population = 2;
+  memset(&prod, 0, sizeof(prod));
+  turn_colony_free_production(&pool, col, NULL, &prod, NULL);
+  if (col->colonists[1].profession != 21) {
+    fprintf(
+      stderr,
+      "school cap: Schoolhouse must still teach level 2, got %d\n",
+      col->colonists[1].profession
+    );
+    return 1;
+  }
+  fprintf(stderr, "unit_turn: school tick cap ok\n");
+  return 0;
+}
+
 /* Phase G @TRAINFAIL when ready teacher has no eligible students. */
 static int unit_trainfail(void) {
   ColonizeColonyPool pool;
@@ -1023,6 +1123,9 @@ int main(void) {
     return 1;
   }
   if (unit_train_veteran_soldier() != 0) {
+    return 1;
+  }
+  if (unit_school_tick_cap_is_three() != 0) {
     return 1;
   }
   if (unit_trainfail() != 0) {

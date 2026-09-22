@@ -1158,6 +1158,179 @@ int colonies_field_tile_index(int dx, int dy) {
   return -1;
 }
 
+/*
+ * DS:0xc8 / DS:0xde (VICEROY.EXE file offset 121248 + addr), 20 entries each:
+ * the DOS work-plot delta tables. Index order is
+ *   0..7  N, E, S, W, NW, NE, SE, SW      (the ring the port stores in tiles[])
+ *   8..19 the outer ring (col1_outer_tiles[], never worked by DOS)
+ * `FUN_15eb_05e2` (raw ~9838) searches them for a (dx,dy) pair, and
+ * `FUN_15eb_28c8` (raw 12993) walks them in this order, so the earliest index
+ * wins an equal-score tie. The port's own slot order (k_field_dx/dy above) is
+ * the MAP_DIR8 clockwise one and is kept — col1_bridge.c maps between the two.
+ * bugs.md #584.
+ */
+static const int8_t k_dos_plot_dx[20] = {
+  0, 1, 0, -1, -1, 1, 1, -1, 0, 2, 0, -2, -1, 1, -1, 1, -2, -2, 2, 2
+};
+static const int8_t k_dos_plot_dy[20] = {
+  -1, 0, 1, 0, -1, -1, 1, 1, -2, 0, 2, 0, -2, -2, 2, 2, -1, 1, -1, 1
+};
+
+int colonies_field_scan_order(int step) {
+  if (step < 0 || step >= COLONIZE_COLONY_FIELD_TILES) {
+    return -1;
+  }
+  return colonies_field_tile_index((int)k_dos_plot_dx[step], (int)k_dos_plot_dy[step]);
+}
+
+/* FUN_15eb_05e2 (raw ~9838): the DOS plot slot (0..19) for a delta, or -1. */
+static int colonies_dos_plot_index(int dx, int dy) {
+  for (int i = 0; i < 20; ++i) {
+    if ((int)k_dos_plot_dx[i] == dx && (int)k_dos_plot_dy[i] == dy) {
+      return i;
+    }
+  }
+  return -1;
+}
+
+/* Is plot slot `dos_index` of `oc` worked? DOS reads colony+0x70+index. */
+static bool colonies_dos_plot_worked(const ColonizeColony* oc, int dos_index) {
+  if (dos_index < 0) {
+    return false;
+  }
+  if (dos_index < 8) {
+    const int rti = colonies_field_tile_index(
+      (int)k_dos_plot_dx[dos_index], (int)k_dos_plot_dy[dos_index]
+    );
+    return rti >= 0 && (int)oc->tiles[rti] >= 0;
+  }
+  if (dos_index - 8 < (int)(sizeof(oc->col1_outer_tiles) / sizeof(oc->col1_outer_tiles[0]))) {
+    return (int)oc->col1_outer_tiles[dos_index - 8] >= 0;
+  }
+  return false;
+}
+
+/*
+ * DOS-LITERAL FUN_15eb_23f2 raw 12695-12800 — the work-plot "blocked" byte.
+ * `FUN_15eb_268e` (raw 12806-12820) caches the whole 5x5 into DS:0x8df0; this
+ * port computes one plot on demand (the cache is a DOS speed trick, not a
+ * rule). Both consumers — the AI plot scan `FUN_15eb_28c8` (raw 12993) and the
+ * human area-view click `FUN_2f2b_3fa6` (raw 50917) — require byte == 0.
+ *
+ * Bits, in DOS order:
+ *   0x10  off the playable map, outside the colony's work radius, or
+ *         unexplored by the colony's nation (an early `return 0x10`, so no
+ *         other bit can be set with it);
+ *   0x80  the tile is owned by another European nation (layer2 unit flag +
+ *         layer3 owner nibble), is not water, and carries a fortified unit
+ *         that is either armed (type attack > 1) or a Pioneer (DOS type 2)
+ *         of a human-controlled nation. DOS also reveals that unit to the
+ *         colony's nation here (`FUN_1427_0992`); the port's query is const
+ *         and skips that side effect;
+ *   0x02  Lost City Rumour tile (`FUN_137f_0598`);
+ *   0x04  an Indian village stands on it;
+ *   0x20  another colony's centre tile;
+ *   0x40  the plot is already worked by another colony;
+ *   0x08  the colony's own centre tile (unreachable through this entry point,
+ *         which only takes the 8 ring slots).
+ */
+uint8_t colonies_plot_blocked_mask(
+  const ColonizeWorld* w,
+  const ColonizeColony* col,
+  int tile_index
+) {
+  if (!w || !col || !col->active) {
+    return 0x10u;
+  }
+  int dx = 0;
+  int dy = 0;
+  if (!colonies_field_tile_delta(tile_index, &dx, &dy)) {
+    return 0x10u;
+  }
+  const ColonizeWorldMap* map = w->map;
+  const int x = col->x + dx;
+  const int y = col->y + dy;
+  /* FUN_137f_000a: the playable interior. */
+  if (!map || !map_coords_inset(map, x, y)) {
+    return 0x10u;
+  }
+  /*
+   * FUN_137f_003c(|dx|,|dy|,FUN_15eb_0470()): the work-radius test. The tier
+   * FUN_15eb_0470 returns is `min(FUN_15eb_039e(10),2)+2`, and 039e(10) is 0
+   * in every shipped NAMES.TXT (see ai_euro.c:1219-1245), so the tier is 2 and
+   * the radius is the 3x3 block.
+   */
+  const int adx = dx < 0 ? -dx : dx;
+  const int ady = dy < 0 ? -dy : dy;
+  if (adx > 1 || ady > 1) {
+    return 0x10u;
+  }
+  /* `3 < colony_nation || (FUN_137f_02f8(x,y) & (0x10 << nation))` — a native
+   * settlement skips the fog test, a European colony needs the tile seen. */
+  if (col->nation_id < 4 && !map_tile_seen_by(map, x, y, col->nation_id)) {
+    return 0x10u;
+  }
+  uint8_t mask = 0;
+  const ColonizeCol1Save* col1 = w->col1_ok ? w->col1 : NULL;
+  /* 0x80: foreign-owned tile guarded by a fortified unit. */
+  const size_t mi = (size_t)y * (size_t)map->width + (size_t)x;
+  const int occ = map->layer2 ? (int)map->layer2[mi] : 0;
+  const int owner =
+    ((occ & (int)MAP_OCCUPANCY_HAS_UNIT) != 0 && map->layer3)
+      ? (int)((map->layer3[mi] >> MAP_L3_OWNER_SHIFT) & MAP_L3_OWNER_MASK)
+      : -1;
+  if (owner >= 0 && owner != col->nation_id && owner < 4 &&
+      !map_tile_is_water((ColonizeWorldMap*)map, x, y) && w->units) {
+    const int pioneer_type = units_kind_type_index(w->units, UNITS_KIND_PIONEER);
+    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+      const ColonizeUnit* u = &w->units->units[i];
+      if (!u->active || u->x != x || u->y != y) {
+        continue;
+      }
+      if (u->orders != UNITS_ORDER_FORTIFY && u->orders != UNITS_ORDER_FORTIFIED) {
+        continue; /* raw 12747: `+0x314c == 5 || == 6` */
+      }
+      const ColonizeUnitType* ut = units_type(w->units, u->type_index);
+      bool blocks = (ut && ut->attack > 1); /* type table +0x5236 */
+      if (!blocks && pioneer_type >= 0 && u->type_index == pioneer_type &&
+          u->nation_id >= 0 && u->nation_id < 4 && col1 && col1->player &&
+          col1->player[u->nation_id].control == 0) {
+        blocks = true; /* raw 12745: DOS type 2, nation < 4, 0x543f == 0 */
+      }
+      if (blocks) {
+        mask |= 0x80u;
+      }
+    }
+  }
+  /* 0x02: FUN_137f_0598 rumour tile. */
+  if (map_dos_0598_rumour_tile(map, x, y)) {
+    mask |= 0x02u;
+  }
+  /* 0x04: an Indian settlement record on the tile (DOS walks all of them). */
+  if (col1 && col1_save_tribe_at(col1, x, y)) {
+    mask |= 0x04u;
+  }
+  /* 0x20 / 0x40: every OTHER colony's centre and worked plots. */
+  if (w->colonies) {
+    for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+      const ColonizeColony* oc = &w->colonies->colonies[i];
+      if (!oc->active || oc->id == col->id) {
+        continue;
+      }
+      if (oc->x == x && oc->y == y) {
+        mask |= 0x20u;
+      }
+      const int ddx = oc->x - x < 0 ? x - oc->x : oc->x - x;
+      const int ddy = oc->y - y < 0 ? y - oc->y : oc->y - y;
+      if (ddx < 3 && ddy < 3 &&
+          colonies_dos_plot_worked(oc, colonies_dos_plot_index(x - oc->x, y - oc->y))) {
+        mask |= 0x40u;
+      }
+    }
+  }
+  return mask;
+}
+
 int colonies_colonist_tile(const ColonizeColony* colony, int colonist_index) {
   if (!colony || colonist_index < 0) {
     return -1;
@@ -1213,6 +1386,85 @@ int colonies_school_building_tier(
   default:
     return 0;
   }
+}
+
+/*
+ * The school tier this colony actually OWNS: University 3, College 2,
+ * Schoolhouse 1, none 0. DOS's work-assign validator
+ * (thunk_FUN_1000_9808, overlays.c:60459-60484) never looks at the school row
+ * the player clicked — it asks `FUN_1000_8bec(0xe/0xd/0xc)`, "does the colony
+ * own this @BUILDING", both for the faculty cap (@UNIV3 3 / @COLLEGE2 2 /
+ * @SCHOOL1 1 teachers) and for the teacher's own level requirement
+ * (@NEEDUNIVERSITY / @NEEDCOLLEGE). DOS never clears the lower tiers, so a
+ * colony with a University owns all three rows. bugs.md #580, #589.
+ */
+int colonies_school_owned_tier(const ColonizeColonyPool* pool, const ColonizeColony* col) {
+  if (!pool || !col) {
+    return 0;
+  }
+  static const int k_rows[3] = {
+    COLONY_BUILDING_UNIVERSITY, COLONY_BUILDING_COLLEGE, COLONY_BUILDING_SCHOOLHOUSE
+  };
+  for (int i = 0; i < 3; ++i) {
+    const int bi = colonies_building_row(pool, k_rows[i]);
+    if (bi >= 0 && bi < pool->building_type_count && col->has_building[bi]) {
+      return 3 - i;
+    }
+  }
+  return 0;
+}
+
+/*
+ * The DOS @JOB occupation a workable building employs, or -1. The mirror of
+ * col1_bridge.c's building→occupation switch (the save byte DOS stores per
+ * colonist): DOS has no per-building membership at all, so both the school
+ * faculty cap and @MORETHANTHREE tally COLONISTS BY OCCUPATION
+ * (`FUN_1000_8dfe` / `FUN_15eb_1376`), which spans a chain's tiers —
+ * Church and Cathedral are one Preacher pool.
+ */
+int colonies_building_occupation(const ColonizeColonyPool* pool, int building_type) {
+  if (!pool || building_type < 0 || building_type >= pool->building_type_count) {
+    return -1;
+  }
+  switch (colonies_building_row_chain(colonies_building_type_row(pool, building_type))) {
+    case COLONIES_CHAIN_RUM:         return 9;
+    case COLONIES_CHAIN_TOBACCONIST: return 10;
+    case COLONIES_CHAIN_WEAVER:      return 11;
+    case COLONIES_CHAIN_FUR:         return 12;
+    case COLONIES_CHAIN_CARPENTER:   return 13;
+    case COLONIES_CHAIN_BLACKSMITH:  return 14;
+    case COLONIES_CHAIN_ARMORY:      return 15;
+    case COLONIES_CHAIN_CHURCH:      return 16;
+    case COLONIES_CHAIN_TOWN_HALL:   return 17;
+    case COLONIES_CHAIN_SCHOOL:      return COLONIES_JOB_TEACHER;
+    default:                         return -1;
+  }
+}
+
+/* Colonists working that occupation, skipping `except_index` (-1 = none). */
+int colonies_occupation_worker_count(
+  const ColonizeColonyPool* pool,
+  const ColonizeColony* col,
+  int occupation,
+  int except_index
+) {
+  if (!pool || !col || occupation < 0) {
+    return 0;
+  }
+  int n = 0;
+  for (int i = 0; i < col->colonist_count; ++i) {
+    if (i == except_index) {
+      continue;
+    }
+    const ColonizeColonist* c = &col->colonists[i];
+    if (!c->active || c->building_type < 0) {
+      continue;
+    }
+    if (colonies_building_occupation(pool, c->building_type) == occupation) {
+      n++;
+    }
+  }
+  return n;
 }
 
 int colonies_school_tier_shortfall(int profession, int building_tier) {
@@ -1303,6 +1555,25 @@ void colonies_emit_noteacher_chrome(
     body,
     sizeof(body)
   );
+  ai_popup_enqueue_ok(ai_popups, AI_POPUP_TAG_INFO, NULL, body);
+}
+
+/*
+ * @SCHOOL1 / @COLLEGE2 / @UNIV3 (GAME.TXT:474-487) — the faculty cap refusal,
+ * overlays.c:60459-60472 cases 9 / 8 / 7 (tag ids 0xc29 / 0xc20 / 0xc1a).
+ * `owned_tier` is colonies_school_owned_tier's 1/2/3.
+ */
+void colonies_emit_school_faculty_chrome(
+  int owned_tier,
+  AiPopupState* ai_popups,
+  const ColonizeMsgCatalog* messages
+) {
+  if (!ai_popups || owned_tier < 1 || owned_tier > 3) {
+    return;
+  }
+  static const char* const k_sections[3] = {"SCHOOL1", "COLLEGE2", "UNIV3"};
+  char body[AI_POPUP_BODY_LEN];
+  popup_msg_fill(messages, k_sections[owned_tier - 1], NULL, "", body, sizeof(body));
   ai_popup_enqueue_ok(ai_popups, AI_POPUP_TAG_INFO, NULL, body);
 }
 
@@ -1410,18 +1681,46 @@ bool colonies_assign_workplace(
   if (!colonies_building_workable(pool, building_type)) {
     return false;
   }
-  /* @MORETHANTHREE: at most 3 colonists per building (manual ch. 6 / schools
-   * teacher+students). No-op reassignment (already working there) is fine. */
-  if (c->building_type != building_type &&
-      colonies_building_worker_count(col, building_type) >= COLONIZE_BUILDING_MAX_WORKERS) {
-    return false;
-  }
-  const int school_tier = colonies_school_building_tier(pool, building_type);
-  if (school_tier > 0) {
-    if (!colonies_profession_may_teach(c->profession)) {
-      return false;
+  /*
+   * DOS work-assign validator thunk_FUN_1000_9808 (overlays.c:60412-60498),
+   * in its own order. What it validates is an @JOB OCCUPATION, not a building:
+   * `iStack_10 = FUN_1000_8dfe(colonist); if (iStack_10 == param_2) return 0`
+   * lets a no-op reassignment through before any cap runs.
+   * bugs.md #580 / #589 / #590.
+   */
+  const int occupation = colonies_building_occupation(pool, building_type);
+  const int cur_occupation =
+    (c->building_type >= 0) ? colonies_building_occupation(pool, c->building_type) : -1;
+  if (occupation >= 0 && occupation != cur_occupation) {
+    if (occupation == COLONIES_JOB_TEACHER) {
+      /* overlays.c:60459-60472: faculty cap = the best school OWNED —
+       * University 3 (@UNIV3), College 2 (@COLLEGE2), Schoolhouse 1
+       * (@SCHOOL1) teachers, counted over the whole colony. */
+      const int cap = colonies_school_owned_tier(pool, col);
+      if (cap > 0 &&
+          colonies_occupation_worker_count(pool, col, COLONIES_JOB_TEACHER, -1) >= cap) {
+        return false;
+      }
+      /* overlays.c:60474-60484: @JOB school level > 3 → @NOTEACHER; level 3
+       * without a University (@BUILDING 0xe) → @NEEDUNIVERSITY; level 2
+       * without a College (0xd) → @NEEDCOLLEGE. Again the test is what the
+       * colony OWNS, never the tier of the clicked school row. */
+      if (!colonies_profession_may_teach(c->profession)) {
+        return false;
+      }
+      if (colonies_school_tier_shortfall(c->profession, cap) != 0) {
+        return false;
+      }
     }
-    if (colonies_school_tier_shortfall(c->profession, school_tier) != 0) {
+    /*
+     * DOS-LITERAL overlays.c:60486-60496 @MORETHANTHREE: DOS tallies every
+     * OTHER colonist by occupation and refuses a fourth with
+     * `if ((2 < aiStack_42[param_2]) && (9 < param_2)) return 0x16;` — the
+     * `9 < param_2` half means @JOB 9 (Rum Distiller) has no cap at all.
+     * Verbatim, oddity included.
+     */
+    if (occupation > 9 &&
+        colonies_occupation_worker_count(pool, col, occupation, colonist_index) > 2) {
       return false;
     }
   }
