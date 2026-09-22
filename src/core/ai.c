@@ -4813,7 +4813,7 @@ void ai_indian_midpass_claim_worked_tiles(ColonizeTurnContext* ctx) {
     if (!c->active || c->nation_id < 0 || c->nation_id > 3) {
       continue;
     }
-    for (int i = 0; i < COLONIZE_COLONY_FIELD_TILES; ++i) {
+    for (int i = 0; i < COLONIZE_COLONY_FIELD_TILES_MAX; ++i) {
       if (c->tiles[i] < 0) {
         continue; /* DOS: `colony[0x70 + i] < 0` — nobody works this plot. */
       }

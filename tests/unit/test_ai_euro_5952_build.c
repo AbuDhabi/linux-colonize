@@ -473,7 +473,7 @@ static void fx_wake_colonists(Fx* f, int n) {
     f->col->colonists[s].field_job = -1;
     f->col->colonists[s].profession = COLONIZE_PROF_FREE_COLONIST;
   }
-  for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES; ++t) {
+  for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES_MAX; ++t) {
     f->col->tiles[t] = -1;
   }
 }

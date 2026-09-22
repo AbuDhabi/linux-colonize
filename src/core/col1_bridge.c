@@ -341,6 +341,18 @@ static unsigned col1_encode_chain_bits(
   return col1_encode_building_bits(pool, colony, colonies_building_chain_rows(chain), name_count);
 }
 
+/*
+ * The 3-bit town_hall group is @BUILDING rows 9/10/11, one bit per row (the
+ * colony building mask is bit-per-row, FUN_15eb_035e raw 9538). The port's
+ * COLONIES_CHAIN_TOWN_HALL deliberately stops at row 9 (rows 10/11 are the
+ * two upgrades DOS never offers), so the save side names the rows itself.
+ */
+static const int k_col1_town_hall_rows[3] = {
+  (int)COLONY_BUILDING_TOWN_HALL,
+  (int)COLONY_BUILDING_TOWN_HALL_2,
+  (int)COLONY_BUILDING_TOWN_HALL_3
+};
+
 static void col1_apply_colony_buildings(
   ColonizeColonyPool* pool,
   ColonizeColony* colony,
@@ -349,12 +361,15 @@ static void col1_apply_colony_buildings(
   col1_apply_chain_bits(pool, colony, COLONIES_CHAIN_FORTIFICATION, 3, b->fortification);
   col1_apply_chain_bits(pool, colony, COLONIES_CHAIN_ARMORY, 3, b->armory);
   col1_apply_chain_bits(pool, colony, COLONIES_CHAIN_DOCKS, 3, b->docks);
-  /* Bit 0 of the 3-bit town_hall group, tested like every other chain — this
-   * used to be an "any bit set" test while the encoder wrote bit 0 only, the
-   * same lossy shape as the retired popcount-tiers bug. All 916 colonies in
-   * original_saves read exactly 1 here, and the encoder now carries bits 1-2
-   * through untouched (smell audit #81). */
-  col1_apply_chain_bits(pool, colony, COLONIES_CHAIN_TOWN_HALL, 1, b->town_hall);
+  /*
+   * The full 3-bit town_hall group = @BUILDING rows 9/10/11 (the save's
+   * building mask is bit-per-row, FUN_15eb_035e). All 916 colonies in
+   * original_saves read exactly 1, because DOS's build menu can never offer
+   * rows 10/11 — but a save that does carry them makes DOS work a 12- or
+   * 20-plot ring (colonies_work_plot_count, bugs.md #593), so decode all
+   * three rather than bit 0 alone.
+   */
+  col1_apply_building_bits(pool, colony, k_col1_town_hall_rows, 3, b->town_hall);
   col1_apply_chain_bits(pool, colony, COLONIES_CHAIN_SCHOOL, 3, b->schoolhouse);
   /*
    * Warehouse Expansion has no bit of its own in DOS: FUN_364b_0114 only INCs
@@ -415,11 +430,7 @@ static void col1_encode_colony_buildings(
   out->fortification = col1_encode_chain_bits(pool, colony, COLONIES_CHAIN_FORTIFICATION, 3);
   out->armory = col1_encode_chain_bits(pool, colony, COLONIES_CHAIN_ARMORY, 3);
   out->docks = col1_encode_chain_bits(pool, colony, COLONIES_CHAIN_DOCKS, 3);
-  /* Bit 0 from the live building, bits 1-2 straight back out of the save. */
-  out->town_hall = (uint32_t)(
-    (col1_encode_chain_bits(pool, colony, COLONIES_CHAIN_TOWN_HALL, 1) ? 1u : 0u) |
-    (prev.town_hall & 0x6u)
-  );
+  out->town_hall = col1_encode_building_bits(pool, colony, k_col1_town_hall_rows, 3);
   out->schoolhouse = col1_encode_chain_bits(pool, colony, COLONIES_CHAIN_SCHOOL, 3);
   /* Tier 1 lives in warehouse_level, never in the bitfield — see the decode. */
   out->warehouse = col1_encode_chain_bits(pool, colony, COLONIES_CHAIN_WAREHOUSE, 1);
@@ -1012,22 +1023,20 @@ bool col1_bridge_apply_w(
     col1_apply_colony_buildings(colonies, dst, &src->buildings);
     const int pop = src->population > COLONIZE_COLONY_POP_MAX ? COLONIZE_COLONY_POP_MAX
                                                               : (int)src->population;
-    for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES; ++t) {
+    /*
+     * All 20 plot slots load. Slots 0..7 remap to the port's clockwise ring,
+     * 8..19 are identity (the runtime array keeps the DS:0xc8/0xde outer
+     * order), so the record round-trips verbatim. Whether a slot above 7 is
+     * ever worked is the colony's own ring size — see
+     * colonies_work_plot_count / bugs.md #593.
+     */
+    for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES_MAX; ++t) {
       dst->tiles[t] = -1;
     }
-    /*
-     * Slots 8..19 are unused by DOS at every stock difficulty; preserved raw
-     * for byte-exact write-back. bugs.md #593: the work-plot ring DOS reads is
-     * `DS:0x329[FUN_15eb_0470()]` = {0,4,8,12,20}, and `0470` returns
-     * `min(FUN_15eb_039e(10),2)+2`, where `039e(10)` counts the owned rows of
-     * the @BUILDING chain starting at row 10 — the two Town Hall upgrades
-     * 0x0a/0x0b, which stock DOS never lets a colony build
-     * (docs/building_production.md:264). So the tier is always 2 and the ring
-     * is always the 8 adjacent plots; slots 8..19 would only come alive for a
-     * hand-edited save carrying bit 0x0a or 0x0b.
-     */
+    /* Slots 8..19 are identity, so they carry through raw — including a
+     * value no colonist matches, which must still write back byte-exact. */
     for (int t = (int)COLONIZE_COL1_COLONY_TILE_RING; t < (int)COLONIZE_COL1_COLONY_TILES; ++t) {
-      dst->col1_outer_tiles[t - (int)COLONIZE_COL1_COLONY_TILE_RING] = src->tiles[t];
+      dst->tiles[t] = (int8_t)src->tiles[t];
     }
     for (int p = 0; p < pop; ++p) {
       ColonizeColonist* col = &dst->colonists[p];
@@ -1050,7 +1059,7 @@ bool col1_bridge_apply_w(
       col->unit_type_index = work_type;
       dst->colonist_count++;
     }
-    for (int ti = 0; ti < COLONIZE_COLONY_FIELD_TILES; ++ti) {
+    for (int ti = 0; ti < (int)COLONIZE_COL1_COLONY_TILES; ++ti) {
       const int who = (int)src->tiles[ti];
       if (who < 0 || who >= dst->colonist_count) {
         continue;
@@ -2401,18 +2410,20 @@ bool col1_bridge_capture_w(
         }
         dst->stock[c] = (uint16_t)s;
       }
-      for (int ti = 0; ti < (int)COLONIZE_COL1_COLONY_TILE_RING; ++ti) {
+      for (int ti = 0; ti < (int)COLONIZE_COL1_COLONY_TILES; ++ti) {
         dst->tiles[ti] = (int8_t)-1; /* DOS empty = 0xff */
       }
-      for (int ti = (int)COLONIZE_COL1_COLONY_TILE_RING; ti < (int)COLONIZE_COL1_COLONY_TILES; ++ti) {
-        dst->tiles[ti] = src->col1_outer_tiles[ti - (int)COLONIZE_COL1_COLONY_TILE_RING];
-      }
-      for (int rti = 0; rti < COLONIZE_COLONY_FIELD_TILES; ++rti) {
+      for (int rti = 0; rti < COLONIZE_COLONY_FIELD_TILES_MAX; ++rti) {
         const int who = (int)src->tiles[rti];
+        const int cti = col1_tile_index_from_runtime(rti);
         if (who < 0 || who >= dst->population) {
+          /* Outer slots keep whatever the save carried, even when it names no
+           * colonist of this colony (byte-exact interop, bugs.md #593). */
+          if (rti >= COLONIZE_COLONY_FIELD_TILES && who >= 0) {
+            dst->tiles[cti] = (int8_t)who;
+          }
           continue;
         }
-        const int cti = col1_tile_index_from_runtime(rti);
         /* Remap through the DOS-canonical colonist ordering above. */
         dst->tiles[cti] = (int8_t)col1_new_index[who];
       }

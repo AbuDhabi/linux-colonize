@@ -238,7 +238,7 @@ static int unit_hammers_lumber_two_turns(void) {
   col->colonists[0].building_type = 0;
   col->colonists[0].profession = COLONIZE_PROF_CARPENTER;
   col->colonists[0].field_job = -1;
-  for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES; ++t) {
+  for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES_MAX; ++t) {
     col->tiles[t] = -1;
   }
   col->colonist_count = 1;
@@ -397,7 +397,7 @@ static int unit_needtools0(void) {
   col->colonists[0].active = true;
   col->colonists[0].building_type = carpenter;
   col->colonists[0].field_job = -1;
-  for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES; ++t) {
+  for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES_MAX; ++t) {
     col->tiles[t] = -1;
   }
   col->colonist_count = 1;
@@ -502,7 +502,7 @@ static int unit_needtools(void) {
   col->colonists[0].active = true;
   col->colonists[0].building_type = carpenter;
   col->colonists[0].field_job = -1;
-  for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES; ++t) {
+  for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES_MAX; ++t) {
     col->tiles[t] = -1;
   }
   col->colonist_count = 1;
@@ -1175,7 +1175,7 @@ int main(void) {
   c->colonists[0].unit_type_index = 0;
   c->colonists[0].building_type = -1;
   c->colonists[0].field_job = -1;
-  for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES; ++t) {
+  for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES_MAX; ++t) {
     c->tiles[t] = -1;
   }
   c->colonist_count = 1;
@@ -1441,7 +1441,7 @@ int main(void) {
     col->colonists[0].unit_type_index = 0;
     col->colonists[0].building_type = carpenter;
     col->colonists[0].field_job = -1;
-    for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES; ++t) {
+    for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES_MAX; ++t) {
       col->tiles[t] = -1;
     }
     col->colonist_count = 1;
@@ -1579,7 +1579,7 @@ int main(void) {
     col->colonists[0].active = true;
     col->colonists[0].building_type = distiller;
     col->colonists[0].field_job = -1;
-    for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES; ++t) {
+    for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES_MAX; ++t) {
       col->tiles[t] = -1;
     }
     col->colonist_count = 1;
@@ -2030,7 +2030,7 @@ int main(void) {
     col->colonists[0].building_type = distiller;
     col->colonists[0].profession = COLONIZE_PROF_CONVERT;
     col->colonists[0].field_job = -1;
-    for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES; ++t) {
+    for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES_MAX; ++t) {
       col->tiles[t] = -1;
     }
     col->colonist_count = 1;
@@ -2317,7 +2317,7 @@ int main(void) {
     col->colonists[0].building_type = 0;
     col->colonists[0].profession = COLONIZE_PROF_FREE_COLONIST;
     col->colonists[0].field_job = -1;
-    for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES; ++t) {
+    for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES_MAX; ++t) {
       col->tiles[t] = -1;
     }
     col->colonist_count = 1;
@@ -2376,7 +2376,7 @@ int main(void) {
     col->colonists[0].building_type = 0;
     col->colonists[0].profession = COLONIZE_PROF_FREE_COLONIST;
     col->colonists[0].field_job = -1;
-    for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES; ++t) {
+    for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES_MAX; ++t) {
       col->tiles[t] = -1;
     }
     /* tories=15, thresh=10 (col1 NULL -> default) -> mod=-1. Both fields:
@@ -2447,7 +2447,7 @@ int main(void) {
     col->colonists[0].building_type = 0;
     col->colonists[0].profession = COLONIZE_PROF_FREE_COLONIST;
     col->colonists[0].field_job = -1;
-    for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES; ++t) {
+    for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES_MAX; ++t) {
       col->tiles[t] = -1;
     }
     col->colonist_count = 1;
@@ -2534,7 +2534,7 @@ int main(void) {
       col->colonists[i].profession = COLONIZE_PROF_FREE_COLONIST;
       col->colonists[i].field_job = -1;
     }
-    for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES; ++t) {
+    for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES_MAX; ++t) {
       col->tiles[t] = -1;
     }
     col->colonist_count = 2;
@@ -2683,7 +2683,7 @@ int main(void) {
     col->active = true;
     col->id = 1;
     col->nation_id = 0;
-    for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES; ++t) {
+    for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES_MAX; ++t) {
       col->tiles[t] = -1;
     }
     pool.colony_count = 1;
@@ -3137,7 +3137,7 @@ int main(void) {
     b->colonists[0].profession = UNITS_JOB_NONE;
     b->colonists[0].building_type = -1;
     b->colonists[0].field_job = -1;
-    for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES; ++t) {
+    for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES_MAX; ++t) {
       b->tiles[t] = -1;
     }
     b->colonist_count = 1;
@@ -3210,7 +3210,7 @@ int main(void) {
     a->colonists[0].unit_type_index = 0;
     a->colonists[0].building_type = -1;
     a->colonists[0].field_job = -1;
-    for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES; ++t) {
+    for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES_MAX; ++t) {
       a->tiles[t] = -1;
     }
     a->colonist_count = 1;
@@ -3288,7 +3288,7 @@ int main(void) {
     c->colonists[0].building_type = 0;
     c->colonists[0].profession = COLONIZE_PROF_STATESMAN;
     c->colonists[0].field_job = -1;
-    for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES; ++t) {
+    for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES_MAX; ++t) {
       c->tiles[t] = -1;
     }
     c->colonist_count = 1;
@@ -3418,7 +3418,7 @@ int main(void) {
     c->colonists[0].building_type = 0;
     c->colonists[0].profession = COLONIZE_PROF_STATESMAN;
     c->colonists[0].field_job = -1;
-    for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES; ++t) {
+    for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES_MAX; ++t) {
       c->tiles[t] = -1;
     }
     c->colonist_count = 1;
@@ -3560,7 +3560,7 @@ int main(void) {
       c->colonists[i].field_job = -1;
       c->colonists[i].profession = COLONIZE_PROF_FREE_COLONIST;
     }
-    for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES; ++t) {
+    for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES_MAX; ++t) {
       c->tiles[t] = -1;
     }
     c->colonist_count = 12;
@@ -3750,7 +3750,7 @@ int main(void) {
       s->colonists[i].building_type = -1;
       s->colonists[i].field_job = -1;
     }
-    for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES; ++t) {
+    for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES_MAX; ++t) {
       s->tiles[t] = -1;
     }
     s->colonist_count = 2;
@@ -3796,7 +3796,7 @@ int main(void) {
     s->colonists[0].profession = UNITS_JOB_NONE;
     s->colonists[0].building_type = 9;
     s->colonists[0].field_job = -1;
-    for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES; ++t) {
+    for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES_MAX; ++t) {
       s->tiles[t] = -1;
     }
     s->colonist_count = 1;
@@ -3837,7 +3837,7 @@ int main(void) {
     s->colonists[0].profession = UNITS_JOB_NONE;
     s->colonists[0].building_type = -1;
     s->colonists[0].field_job = -1;
-    for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES; ++t) {
+    for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES_MAX; ++t) {
       s->tiles[t] = -1;
     }
     s->colonist_count = 1;
@@ -3901,7 +3901,7 @@ int main(void) {
       s->colonists[i].building_type = -1;
       s->colonists[i].field_job = -1;
     }
-    for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES; ++t) {
+    for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES_MAX; ++t) {
       s->tiles[t] = -1;
     }
     s->colonist_count = 2;
@@ -3958,7 +3958,7 @@ int main(void) {
       s->colonists[i].building_type = -1;
       s->colonists[i].field_job = -1;
     }
-    for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES; ++t) {
+    for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES_MAX; ++t) {
       s->tiles[t] = -1;
     }
     s->colonist_count = 2;
@@ -4050,7 +4050,7 @@ int main(void) {
     col->colonists[1].active = true;
     col->colonist_count = 2;
     col->population = 2;
-    for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES; ++t) {
+    for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES_MAX; ++t) {
       col->tiles[t] = -1;
     }
     pool.colony_count = 1;
@@ -4115,7 +4115,7 @@ int main(void) {
     col->colonists[1].building_type = -1;
     col->colonist_count = 2;
     col->population = 2;
-    for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES; ++t) {
+    for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES_MAX; ++t) {
       col->tiles[t] = -1;
     }
     col->tiles[0] = 0;
@@ -4193,7 +4193,7 @@ int main(void) {
     col->colonists[1].active = true;
     col->colonist_count = 2;
     col->population = 2;
-    for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES; ++t) {
+    for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES_MAX; ++t) {
       col->tiles[t] = -1;
     }
     pool.colony_count = 1;
@@ -4257,7 +4257,7 @@ int main(void) {
     col->colonists[1].active = true;
     col->colonist_count = 2;
     col->population = 2;
-    for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES; ++t) {
+    for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES_MAX; ++t) {
       col->tiles[t] = -1;
     }
     pool.colony_count = 1;

@@ -82,7 +82,7 @@ static void colony_init_common(ColonizeColony* c, int nation, int cx, int cy) {
   c->colonist_count = 1;
   c->building_in_production = -1;
   c->warehouse_level = 0; /* pop cap floor 100, per FUN_15eb_0a50 */
-  for (int i = 0; i < COLONIZE_COLONY_FIELD_TILES; ++i) {
+  for (int i = 0; i < COLONIZE_COLONY_FIELD_TILES_MAX; ++i) {
     c->tiles[i] = -1;
   }
   c->colonists[0].active = true;

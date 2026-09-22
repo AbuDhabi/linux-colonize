@@ -1242,25 +1242,31 @@ static int ai_euro_colony_food_short(const ColonizeColony* c) {
  *     behind the Capitol as its prerequisite (docs/building_production.md
  *     "Cut rows", 259-266; the port mirrors that block in
  *     colonies_building_is_buildable). Starter colonies grant row 9, not 0xa.
- * ⇒ FUN_15eb_039e(10) == 0 always ⇒ tier == 2 always.
+ * ⇒ FUN_15eb_039e(10) == 0 in any state stock DOS can build itself into.
  *
  * Cross-check: the tier's own consumer indexes `DS:0x329[tier]` = 8/12/20
  * ring tiles (FUN_15eb_04c0, :9683-9700 — the "is (x,y) worked by this
- * colony" test the human colony screen uses too). Every Colonization colony
- * works exactly 8 field tiles, which is only true at tier 2. That is why
- * COLONIZE_COLONY_FIELD_TILES == 8 has always matched DOS byte-for-byte.
+ * colony" test the human colony screen uses too). Every colony DOS can build
+ * works exactly 8 field tiles, which is only true at tier 2.
  *
- * Kept as a function (four call sites, and it names the DOS quantity), but it
- * no longer reads colony state. `pool`/`c` stay in the signature so a future
- * scenario that really does grant one of the cut rows has somewhere to go.
+ * ⇒ tier 2 for every colony stock DOS can produce. A SAVE can still carry the
+ * bits (the colony building mask is bit-per-@BUILDING-row, and town_hall owns
+ * bits 9-11), and then DOS really does run at tier 3/4, so since bugs.md #593
+ * this reads the colony instead of returning the constant: the tier is
+ * recovered from colonies_work_plot_count(), which is DS:0x329[0470()].
  */
 static int ai_euro_colony_ring_tier(
   const ColonizeColonyPool* pool,
   const ColonizeColony* c
 ) {
-  (void)pool;
-  (void)c;
-  return 2;
+  const int ring = colonies_work_plot_count(pool, c);
+  if (ring <= 4) {
+    return 1;
+  }
+  if (ring <= 8) {
+    return 2;
+  }
+  return ring <= 12 ? 3 : 4;
 }
 
 /*
@@ -1304,10 +1310,9 @@ static int ai_euro_colony_wanted_size(
  * class 0x19/0x1a (Ocean / High Seas — `map_tile_is_water`, which also
  * reports off-map as water), and is forced to 0 when the colony owns
  * `FUN_1000_8bec(0x181f, 6)` = @BUILDING index 6 = Docks (NAMES.TXT
- * @BUILDING row 7). Ring tiles = `DS:0x329[tier]` = 8/12/20; the port's ring
- * is the immediate 8 (COLONIZE_COLONY_FIELD_TILES, the P4.2 decision noted in
- * docs/indians.md and colonist_work_plot_28c8.md), so both the total and the
- * blocked count are taken over those 8 tiles.
+ * @BUILDING row 7). Ring tiles = `DS:0x329[tier]` = 4/8/12/20, per colony
+ * (colonies_work_plot_count, bugs.md #593), and both the total and the
+ * blocked count are taken over exactly those tiles.
  *
  * Replaced an uncited `population < 3` on 2026-09-09.
  */
@@ -1332,8 +1337,9 @@ int ai_euro_colony_needs_colonists_5952(
    * the shared answer — the old local test named "Docks" alone and would
    * have missed a colony whose slot had been upgraded past it. */
   const bool has_docks = colony_yield_colony_has_docks(pool, c);
+  const int ring = colonies_work_plot_count(pool, c);
   if (map && !has_docks) {
-    for (int ti = 0; ti < COLONIZE_COLONY_FIELD_TILES; ++ti) {
+    for (int ti = 0; ti < ring; ++ti) {
       int dx = 0;
       int dy = 0;
       if (!colonies_field_tile_delta(ti, &dx, &dy)) {
@@ -1344,7 +1350,7 @@ int ai_euro_colony_needs_colonists_5952(
       }
     }
   }
-  return pop - tier * 2 < COLONIZE_COLONY_FIELD_TILES - blocked;
+  return pop - tier * 2 < ring - blocked;
 }
 
 /*
@@ -1477,12 +1483,16 @@ static void ai_euro_refresh_colony_ai_flags(
    * local_142 is the Docks-cleared water count the 0x10 latch uses; it plays
    * no part in the 0x20 writers, so it is not recomputed here.
    */
+  /* local_a2 (raw 93997) = DS:0x329[FUN_15eb_0470()], the colony's own ring
+   * size — 8 for anything stock DOS builds, 12/20 with the cut Town Hall
+   * upgrade rows (bugs.md #593). */
+  const int ring_5952 = colonies_work_plot_count(ctx->colonies, c);
   if (ctx->map) {
     int unproductive = 0; /* local_144 */
     int good_food = 0;    /* local_e   */
     int forests = 0;      /* local_134 */
     int clearable = 0;    /* local_c   */
-    for (int ti = 0; ti < COLONIZE_COLONY_FIELD_TILES; ++ti) {
+    for (int ti = 0; ti < ring_5952; ++ti) {
       int dx = 0;
       int dy = 0;
       if (!colonies_field_tile_delta(ti, &dx, &dy)) {
@@ -1517,7 +1527,7 @@ static void ai_euro_refresh_colony_ai_flags(
       }
     }
     /* raw 94200-94202 */
-    if (COLONIZE_COLONY_FIELD_TILES - 1 <= unproductive && forests > 1) {
+    if (ring_5952 - 1 <= unproductive && forests > 1) {
       c->ai_flags |= (uint8_t)(COLONIZE_COLONY_AI_WANTS_PIONEER_WORK |
                                COLONIZE_COLONY_AI_WANTS_PIONEER_CLEAR);
     }
@@ -1534,7 +1544,7 @@ static void ai_euro_refresh_colony_ai_flags(
    * without plow 0x40; either non-zero sets the bit.
    */
   if (ctx->map) {
-    for (int ti = 0; ti < COLONIZE_COLONY_FIELD_TILES; ++ti) {
+    for (int ti = 0; ti < ring_5952; ++ti) {
       if (c->tiles[ti] < 0) {
         continue; /* DOS: colony+0x70+slot < 0 — unworked */
       }
@@ -2383,9 +2393,9 @@ static void ai_euro_5952_ledgers(
  *   - byte[FUN_15eb_0470()+0x329] is the colony's work-plot count. Read off
  *     VICEROY.EXE (file offset 121248 + 0x329): {0, 4, 8, 12, 20}, indexed by
  *     FUN_15eb_0470() = min(FUN_15eb_039e(10), 2) + 2. 039e(10) is 0 in every
- *     reachable state (ai_euro.c's own DS:0x2f4 note), so the index is 2 and
- *     the count is 8 = COLONIZE_COLONY_FIELD_TILES. Settled 2026-09-22
- *     (bugs.md #570).
+ *     state stock DOS can reach, so the count is 8 there — but a save may
+ *     carry the cut rows, so it is read per colony from
+ *     colonies_work_plot_count (bugs.md #570, #593).
  */
 
 /* DS:0x2b6 read as 28c8 reads it: field job -> the JOB that consumes its
@@ -2527,6 +2537,10 @@ static int ai_euro_28c8_score_full(
   const bool has_hudson = profession >= 0 && col1 &&
                           founding_fathers_nation_has(col1, col->nation_id, FF_HENRY_HUDSON);
 
+  /* local_22 (raw 12987) = DS:0x329[FUN_15eb_0470()] — the colony's own ring
+   * size, 8 unless it owns the cut Town Hall rows (bugs.md #593). */
+  const int ring_28c8 = colonies_work_plot_count(ctx->colonies, col);
+
   out_best->job = -1;
   out_best->tile = -1;
   out_best->score = 0; /* local_12 = 0: DOS elects only a strictly positive score */
@@ -2536,7 +2550,7 @@ static int ai_euro_28c8_score_full(
    * DS:0xc8/0xde delta tables (N,E,S,W,NW,NE,SE,SW), and since the election at
    * raw 13126 is strictly greater the earliest table index wins ties — so the
    * port must visit its own slots in that DOS order (bugs.md #584). */
-  for (int step = 0; step < COLONIZE_COLONY_FIELD_TILES; ++step) {
+  for (int step = 0; step < ring_28c8; ++step) {
     const int ti = colonies_field_scan_order(step);
     if (ti < 0) {
       continue;
@@ -2645,7 +2659,7 @@ static int ai_euro_28c8_score_full(
         } else {
           int w4 = 0; /* local_4 */
           if (job == COLONIZE_JOB_FARMER || job == COLONIZE_JOB_FISHERMAN) {
-            if (col->population < COLONIZE_COLONY_FIELD_TILES * 2 && in_ai_tick) {
+            if (col->population < ring_28c8 * 2 && in_ai_tick) {
               w4 = 4;
             }
             if (env.human && w4 == 0) {
@@ -3176,7 +3190,8 @@ static void ai_euro_5952_ledgers(
       gross[tc.secondary_cargo] += tc.secondary_amount;
     }
   }
-  for (int ti = 0; ti < COLONIZE_COLONY_FIELD_TILES; ++ti) {
+  const int ring_ledger = colonies_work_plot_count(pool, col); /* DS:0x329, #593 */
+  for (int ti = 0; ti < ring_ledger; ++ti) {
     const int occ = col->tiles[ti];
     if (occ < 0 || occ >= COLONIZE_COLONY_POP_MAX) {
       continue;
@@ -4189,9 +4204,10 @@ COLONIZE_INTERNAL void ai_euro_5952_build_cascade(
     hungry = 1; /* DS:0x8e5a != 0 (unmet[food]) */
   }
 
-  /* uStack_a2 / iStack_142 — the 8-tile ring and how much of it is not land
-   * (off-map, Ocean 0x19 or High Seas 0x1a), asm 5952:1150 loop. */
-  const int ring = COLONIZE_COLONY_FIELD_TILES;
+  /* uStack_a2 / iStack_142 — the colony's ring (DS:0x329[FUN_15eb_0470()],
+   * bugs.md #593) and how much of it is not land (off-map, Ocean 0x19 or High
+   * Seas 0x1a), asm 5952:1150 loop. */
+  const int ring = colonies_work_plot_count(ctx->colonies, col);
   int ring_nonland = 0;
   for (int d = 0; d < ring; ++d) {
     const int tx = col->x + MAP_DIR8_DX[d];
@@ -4636,7 +4652,8 @@ COLONIZE_INTERNAL void ai_euro_5952_specialist_arms(
 
   /* iStack_1a — ring tiles of terrain class 0x19/0x1a (Ocean / High Seas). */
   int water_ring = 0;
-  for (int ti = 0; ti < COLONIZE_COLONY_FIELD_TILES; ++ti) {
+  const int ring_water = colonies_work_plot_count(ctx->colonies, col);
+  for (int ti = 0; ti < ring_water; ++ti) {
     int dx = 0;
     int dy = 0;
     if (!colonies_field_tile_delta(ti, &dx, &dy)) {
@@ -4979,7 +4996,8 @@ COLONIZE_INTERNAL void ai_euro_colony_tick_28c8_reassign(
       int lumber_use = 0;
       (void)colony_prod_colony_hammers(ctx->colonies, col, 0, &lumber_use);
       int lumber_prod = 0;
-      for (int ti = 0; ti < COLONIZE_COLONY_FIELD_TILES; ++ti) {
+      const int ring_lumber = colonies_work_plot_count(ctx->colonies, col);
+      for (int ti = 0; ti < ring_lumber; ++ti) {
         const int occ = col->tiles[ti];
         if (occ < 0 || occ >= n) {
           continue;
@@ -6026,7 +6044,8 @@ static int ai_euro_pioneer_improve_target(
     if (c->improve_timer < AI_EURO_IMPROVE_TIMER_MIN) {
       continue;
     }
-    for (int ti = 0; ti < COLONIZE_COLONY_FIELD_TILES; ++ti) {
+    const int ring_surround = colonies_work_plot_count(ctx->colonies, c);
+    for (int ti = 0; ti < ring_surround; ++ti) {
       int dx = 0;
       int dy = 0;
       if (!colonies_field_tile_delta(ti, &dx, &dy)) {
@@ -14149,6 +14168,37 @@ static int ai_euro_20e6_457e_hs_cadence(ColonizeTurnContext* ctx, ColonizeUnit* 
   return 1;
 }
 
+/*
+ * LAB_521d_589e, the shared FUN_521d_20e6 exit tail, `local_76 == 8` arm
+ * (DOS-LITERAL FUN_521d_20e6 raw 90378-90386):
+ *   unit+0x314f = local_76;                       // facing, 8 = stay
+ *   if (local_76 == 8) {
+ *     if (+0x314c != 5 && +0x314c != 6) +0x314c = 5;
+ *     if (+0x3148 & 2) +0x314c = 6;
+ *   }
+ * Every "the unit stays this beat" exit of 20e6 funnels through here (the
+ * LAB_5899 garrison/park jumps included), so a stay always lands the unit in
+ * the act_state 5/6 fortify family. DOS never touches +0x314d/e (the goto
+ * tile) on this arm — a stale course is simply no longer dispatched, because
+ * FUN_521d_5b66 only walks a goal at act_state 0x0b (raw 90552).
+ * (bugs.md #554.)
+ */
+COLONIZE_INTERNAL void ai_euro_20e6_stay_tail_589e(ColonizeUnit* u) {
+  if (!u) {
+    return;
+  }
+  if (u->id >= 0 && u->id < COLONIZE_UNITS_MAX) {
+    s_euro_last_dir[u->id] = 8; /* +0x314f = local_76 = 8 */
+  }
+  u->last_dir = 8;
+  if (u->orders != UNITS_ORDER_FORTIFY && u->orders != UNITS_ORDER_FORTIFIED) {
+    u->orders = UNITS_ORDER_FORTIFY; /* +0x314c = 5 */
+  }
+  if (u->col1_flags15 & AI_EURO_F3148_ROAM) {
+    u->orders = UNITS_ORDER_FORTIFIED; /* +0x314c = 6 */
+  }
+}
+
 static int ai_euro_move_scoring_gate(ColonizeTurnContext* ctx, ColonizeUnit* u, int nation_id) {
   /*
    * Ships: never retarget here — landfall/sail courses are owned by case 0x0b.
@@ -14218,9 +14268,7 @@ static int ai_euro_move_scoring_gate(ColonizeTurnContext* ctx, ColonizeUnit* u, 
         }
       }
       if (admitted) {
-        if (u->id >= 0 && u->id < COLONIZE_UNITS_MAX) {
-          s_euro_last_dir[u->id] = 8; /* LAB_5899 local_76 = 8 */
-        }
+        ai_euro_20e6_stay_tail_589e(u); /* LAB_5899 local_76 = 8 -> LAB_589e */
         return 0;
       }
       if (armed < 2) {
@@ -14228,9 +14276,7 @@ static int ai_euro_move_scoring_gate(ColonizeTurnContext* ctx, ColonizeUnit* u, 
           oc->labor_shortage--;
         }
         u->col1_ai_plan = 0x47;
-        if (u->id >= 0 && u->id < COLONIZE_UNITS_MAX) {
-          s_euro_last_dir[u->id] = 8; /* LAB_5899 local_76 = 8 */
-        }
+        ai_euro_20e6_stay_tail_589e(u); /* LAB_5899 local_76 = 8 -> LAB_589e */
         return 0;
       }
       force_wander = 1; /* local_8e = 1, straight to LAB_521d_4d2e */
@@ -14443,25 +14489,22 @@ static int ai_euro_move_scoring_gate(ColonizeTurnContext* ctx, ColonizeUnit* u, 
         if (hc && hc->labor_shortage > 0) {
           hc->labor_shortage--;
         }
-        if (u->id >= 0 && u->id < COLONIZE_UNITS_MAX) {
-          u->col1_ai_plan = 0x47; /* +0x314b */
-          s_euro_last_dir[u->id] = 8; /* LAB_5899 local_76 = 8 */
-        }
+        u->col1_ai_plan = 0x47; /* +0x314b */
+        ai_euro_20e6_stay_tail_589e(u); /* LAB_5899 local_76 = 8 -> LAB_589e */
         return 0;
       }
       if (!wander_attack && !force_wander &&
           ai_euro_20e6_border_park_arm(ctx, u, &s, wander_saw_foe)) {
-        if (u->id >= 0 && u->id < COLONIZE_UNITS_MAX) {
-          s_euro_last_dir[u->id] = 8; /* LAB_5899 local_76 = 8, then +0x314f */
-          u->col1_ai_plan = 0x46; /* +0x314b */
-        }
+        u->col1_ai_plan = 0x46; /* +0x314b */
+        ai_euro_20e6_stay_tail_589e(u); /* LAB_5899 local_76 = 8 -> LAB_589e */
         return 0; /* stay put next to the foreign border colony */
       }
       if (u->id >= 0 && u->id < COLONIZE_UNITS_MAX) {
         s_euro_last_dir[u->id] = (int8_t)dir; /* unit+0x314f, 8 = stay */
       }
       if (dir == 8) {
-        return 0; /* stay; DOS +0x314c=5 */
+        ai_euro_20e6_stay_tail_589e(u); /* LAB_589e: +0x314c = 5 (6 when admitted) */
+        return 0;
       }
       static const int wdx[8] = {0, 1, 1, 1, 0, -1, -1, -1};
       static const int wdy[8] = {-1, -1, 0, 1, 1, 1, 0, -1};
@@ -20896,14 +20939,7 @@ static int ai_euro_20e6_ship_dos(ColonizeTurnContext* ctx, ColonizeUnit* u, int 
   u->col1_ai_plan = 0x39; /* '9' — raw 89040 fallthrough */
   /* LAB_589e commit. */
   if (dir < 0 || dir > 7) {
-    s_euro_last_dir[id] = 8;
-    u->last_dir = 8;
-    if (u->orders != UNITS_ORDER_FORTIFY && u->orders != UNITS_ORDER_FORTIFIED) {
-      u->orders = UNITS_ORDER_FORTIFY;
-    }
-    if (u->col1_flags15 & AI_EURO_F3148_ROAM) {
-      u->orders = UNITS_ORDER_FORTIFIED;
-    }
+    ai_euro_20e6_stay_tail_589e(u);
   } else {
     s_euro_last_dir[id] = (int8_t)dir;
     u->last_dir = dir;

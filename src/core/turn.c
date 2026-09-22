@@ -760,8 +760,8 @@ static void turn_produce_one_colony(
   int field_food = 0;
   /* DOS 0xa896: ore/silver deposit "depletion units" tallied in FUN_15eb_18ec,
    * rolled down in the FUN_364b_0688 epilogue (see bottom of this function). */
-  int depl_tx[2 * COLONIZE_COLONY_FIELD_TILES];
-  int depl_ty[2 * COLONIZE_COLONY_FIELD_TILES];
+  int depl_tx[2 * COLONIZE_COLONY_FIELD_TILES_MAX];
+  int depl_ty[2 * COLONIZE_COLONY_FIELD_TILES_MAX];
   int depl_n = 0;
   int field_lumber = 0;
   int field_ore = 0;
@@ -880,7 +880,7 @@ static void turn_produce_one_colony(
         } else if (res == 12 && cargo == COLONIZE_CARGO_SILVER) {
           units = 1;
         }
-        while (units-- > 0 && depl_n < (int)(2 * COLONIZE_COLONY_FIELD_TILES)) {
+        while (units-- > 0 && depl_n < (int)(2 * COLONIZE_COLONY_FIELD_TILES_MAX)) {
           depl_tx[depl_n] = colony->x + dx;
           depl_ty[depl_n] = colony->y + dy;
           depl_n++;
@@ -1443,7 +1443,7 @@ static void turn_produce_one_colony(
         colony->name[0] ? colony->name : "colony"
       );
       const int kill_i = colony->colonist_count - 1;
-      for (int ti = 0; ti < COLONIZE_COLONY_FIELD_TILES; ++ti) {
+      for (int ti = 0; ti < COLONIZE_COLONY_FIELD_TILES_MAX; ++ti) {
         if ((int)colony->tiles[ti] == kill_i) {
           colony->tiles[ti] = (int8_t)-1;
         } else if ((int)colony->tiles[ti] > kill_i) {

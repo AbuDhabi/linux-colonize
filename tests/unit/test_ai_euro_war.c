@@ -3792,8 +3792,14 @@ static int unit_garrison_quota_one_fortify(void) {
       idle++;
     }
   }
-  /* Both fortify (quota does not gate the 'F' arm); quota spent once 1 -> 0. */
-  if (fortified != 2 || c->garrison_quota != 0 || idle != 0 || joined != 0) {
+  /*
+   * Both fortify (quota does not gate the 'F' arm). Since bugs.md #554 the
+   * fortify comes from FUN_521d_20e6's own stay tail LAB_521d_589e
+   * (raw 90378-90386, +0x314c = 5), which runs before the port's peace
+   * fortify fallback; that fallback is the only consumer of garrison_quota
+   * (+0x1e) and it skips an already-fortified unit, so the quota seed stays 1.
+   */
+  if (fortified != 2 || c->garrison_quota != 1 || idle != 0 || joined != 0) {
     fprintf(
       stderr,
       "unit_ai_euro_war: garrison_quota fortified=%d idle=%d joined=%d quota=%u\n",
@@ -3803,11 +3809,174 @@ static int unit_garrison_quota_one_fortify(void) {
       (unsigned)c->garrison_quota
     );
     fx_map_free(&map);
-    return fail("expected both Soldiers fortified and garrison_quota 1→0");
+    return fail("expected both Soldiers fortified and garrison_quota untouched");
   }
 
   fx_map_free(&map);
   fprintf(stderr, "unit_ai_euro_war: garrison_quota fortify ok\n");
+  return 0;
+}
+
+/*
+ * bugs.md #554 — FUN_521d_20e6's own-colony garrison stay branch
+ * (raw 88584-88612) must exit through the shared tail LAB_521d_589e
+ * (raw 90378-90386): with `local_76 == 8` DOS writes +0x314f = 8 and forces
+ * +0x314c into the fortify family (5, or 6 when +0x3148 & 2 is set). The port
+ * only stamped +0x314b = 'G' (0x47), so a garrison unit that still carried a
+ * stale AI_MOVE course kept being dispatched by the goal drain, which keys on
+ * orders alone. DOS does NOT clear +0x314d/e here, so the goto tile survives;
+ * the act_state is what unbinds the unit.
+ *
+ * Lone Soldier standing on its own colony with a stale goto across the map,
+ * full MP (so the gate is entered at all): it must stay on the colony tile in
+ * the fortify family.
+ */
+static int unit_garrison_stay_clears_stale_goto(void) {
+  const int nation = 1;
+
+  ColonizeWorldMap map;
+  if (!fx_map_alloc(&map, 16, 16, 1, false)) {
+    return fail("stay-tail alloc map");
+  }
+
+  ColonizeUnitPool units;
+  fx_units_init(&units);
+  units.type_count = 1;
+  snprintf(units.types[0].name, sizeof(units.types[0].name), "Soldier");
+  units.types[0].movement = 1;
+  units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  units.types[0].attack = 2;
+  units.types[0].defense = 2;
+
+  ColonizeColonyPool colonies;
+  fx_colonies_init(&colonies);
+  ColonizeColony* c = &colonies.colonies[0];
+  c->id = 0;
+  c->active = true;
+  c->nation_id = nation;
+  c->x = 5;
+  c->y = 5;
+  c->population = 3;
+  c->colonist_count = 3;
+  c->stock[COLONIZE_CARGO_FOOD] = 40;
+  c->building_in_production = -1;
+  c->labor_shortage = 2; /* +0x8e >= 1: the garrison arm is entered */
+  colonies.colony_count = 1;
+  colonies.next_id = 1;
+
+  const int uid = units_spawn_allow_stack(&units, 0, 5, 5);
+  ColonizeUnit* s0 = units_get(&units, uid);
+  if (!s0) {
+    fx_map_free(&map);
+    return fail("stay-tail spawn");
+  }
+  s0->nation_id = nation;
+  s0->moves = 1 * UNITS_MP_PER_TILE; /* fresh allotment -> gate is entered */
+  s0->orders = UNITS_ORDER_GOTO;     /* stale course */
+  s0->col1_ai_plan = 'A';            /* +0x314b == 'A': DOS goto LAB_521d_5899 */
+  s0->goto_x = 12;
+  s0->goto_y = 12;
+
+  /*
+   * A distant Brave puts the nation in the at-war land band, so the port's
+   * peace fortify fallback (the other arm that could fortify this unit) is
+   * out of the way and the assertion sees LAB_589e's write alone.
+   */
+  const int bid = units_spawn_allow_stack(&units, 0, 12, 12);
+  ColonizeUnit* brave = units_get(&units, bid);
+  if (!brave) {
+    fx_map_free(&map);
+    return fail("stay-tail brave spawn");
+  }
+  brave->nation_id = 4;
+  brave->moves = 0;
+
+  ai_goals_reset();
+
+  ColonizeCol1Save col1;
+  col1_save_init(&col1);
+  memset(col1.nation, 0, sizeof(col1.nation));
+  memset(col1.head.nation_relation, 0, sizeof(col1.head.nation_relation));
+  for (int i = 0; i < 4; ++i) {
+    col1.player[i].control = 0;
+    col1.player[i].diplomacy = 0;
+  }
+  col1.nation[nation].gold = 100;
+  col1.stuff.ship_counts[nation] = 1;
+
+  uint32_t turn = 55;
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.turn_number = &turn;
+  ctx.units = &units;
+  ctx.colonies = &colonies;
+  ctx.map = &map;
+  ctx.col1 = &col1;
+  ctx.col1_ok = true;
+  ctx.human_nation = 0;
+  ctx.rng_seed = 42;
+
+  ai_euro_dispatcher_turn(&ctx, nation);
+
+  s0 = units_get(&units, uid);
+  if (!s0 || !s0->active) {
+    fx_map_free(&map);
+    return fail("stay-tail unit vanished");
+  }
+  if (s0->col1_ai_plan != 0x47) {
+    fprintf(stderr, "unit_ai_euro_war: stay-tail plan=%d\n", (int)s0->col1_ai_plan);
+    fx_map_free(&map);
+    return fail("expected the LAB_5888 garrison stay branch (+0x314b = 0x47)");
+  }
+  if (s0->orders != UNITS_ORDER_FORTIFY && s0->orders != UNITS_ORDER_FORTIFIED) {
+    fprintf(stderr, "unit_ai_euro_war: stay-tail orders=%d pos=(%d,%d)\n",
+            (int)s0->orders, s0->x, s0->y);
+    fx_map_free(&map);
+    return fail("LAB_589e stay tail must leave +0x314c in the fortify family");
+  }
+  if (s0->x != 5 || s0->y != 5) {
+    fprintf(stderr, "unit_ai_euro_war: stay-tail walked to (%d,%d)\n", s0->x, s0->y);
+    fx_map_free(&map);
+    return fail("garrison stay must not follow the stale goto");
+  }
+
+  /*
+   * The tail itself, straight from raw 90378-90386: a stale AI_MOVE course
+   * becomes 5, an already-fortified unit is left alone, the +0x3148 & 2
+   * (roam re-evaluate) unit becomes 6, and the goto tile is never touched —
+   * DOS writes +0x314d/e only on the `local_76 != 8` arm.
+   */
+  s0->orders = UNITS_ORDER_AI_MOVE;
+  s0->goto_x = 12;
+  s0->goto_y = 12;
+  s0->col1_flags15 = 0;
+  ai_euro_20e6_stay_tail_589e(s0);
+  if (s0->orders != UNITS_ORDER_FORTIFY || s0->last_dir != 8) {
+    fprintf(stderr, "unit_ai_euro_war: tail orders=%d dir=%d\n", (int)s0->orders,
+            (int)s0->last_dir);
+    fx_map_free(&map);
+    return fail("LAB_589e must write +0x314c = 5 and +0x314f = 8");
+  }
+  if (s0->goto_x != 12 || s0->goto_y != 12) {
+    fx_map_free(&map);
+    return fail("LAB_589e stay arm must not touch +0x314d/e");
+  }
+  s0->orders = UNITS_ORDER_FORTIFIED;
+  ai_euro_20e6_stay_tail_589e(s0);
+  if (s0->orders != UNITS_ORDER_FORTIFIED) {
+    fx_map_free(&map);
+    return fail("LAB_589e must keep an existing 6");
+  }
+  s0->orders = UNITS_ORDER_AI_MOVE;
+  s0->col1_flags15 = 0x02; /* +0x3148 & 2 */
+  ai_euro_20e6_stay_tail_589e(s0);
+  if (s0->orders != UNITS_ORDER_FORTIFIED) {
+    fx_map_free(&map);
+    return fail("LAB_589e must write +0x314c = 6 when +0x3148 & 2");
+  }
+
+  fx_map_free(&map);
+  fprintf(stderr, "unit_ai_euro_war: LAB_589e garrison stay tail ok\n");
   return 0;
 }
 
@@ -6108,6 +6277,7 @@ static const TestCase k_cases[] = {
   {"unit_fortify_wake_hunt", unit_fortify_wake_hunt},
   {"unit_garrison_quota_threat_seed", unit_garrison_quota_threat_seed},
   {"unit_garrison_quota_one_fortify", unit_garrison_quota_one_fortify},
+  {"unit_garrison_stay_clears_stale_goto", unit_garrison_stay_clears_stale_goto},
   {"unit_labor_shortage_and_ai_flags_5952", unit_labor_shortage_and_ai_flags_5952},
   {"unit_pioneer_conjures_no_tools", unit_pioneer_conjures_no_tools},
   {"unit_peace_tail_does_not_open_war", unit_peace_tail_does_not_open_war},

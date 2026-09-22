@@ -23,7 +23,22 @@ typedef struct AiPopupState AiPopupState;
 #define COLONIZE_COLONY_NAMES_MAX 80
 #define COLONIZE_BUILDING_TYPES_MAX 48
 #define COLONIZE_COLONY_POP_MAX 32
+/*
+ * The work-plot ring. DOS sizes it per colony: `DS:0x329[FUN_15eb_0470()]`
+ * over the table {0,4,8,12,20} (VICEROY.EXE file offset 121248+0x329), with
+ * `FUN_15eb_0470` (raw 9636-9645) = `min(FUN_15eb_039e(10),2)+2`. `039e(10)`
+ * (raw 9561-9578) walks the @BUILDING chain that starts at row 10 through the
+ * `-0x707a` next-row byte and counts the rows the colony owns, i.e. the two
+ * Town Hall upgrade rows 0x0a/0x0b (NAMES.TXT:177-178). DOS's own "can build"
+ * gate FUN_15eb_3650 (raw ~13674) hard-zeroes both rows, so no colony stock
+ * DOS can produce ever leaves tier 2 and the usual ring is the 8 adjacent
+ * plots -- but a save may carry the bits (colony buildings mask bits 9-11 are
+ * @BUILDING rows 9/10/11), so the ring is computed per colony from
+ * `colonies_work_plot_count()` and the array is sized for all 20 slots.
+ * bugs.md #593.
+ */
 #define COLONIZE_COLONY_FIELD_TILES 8
+#define COLONIZE_COLONY_FIELD_TILES_MAX 20
 
 /* NAMES.TXT @JOB field jobs (Farmer … Fisherman). */
 #define COLONIZE_JOB_FARMER 0
@@ -105,14 +120,15 @@ typedef struct ColonizeColony {
   ColonizeColonist colonists[COLONIZE_COLONY_POP_MAX];
   int colonist_count;
   bool has_building[COLONIZE_BUILDING_TYPES_MAX];
-  /* Surrounding field slots: colonist index or -1. Order N,NE,E,SE,S,SW,W,NW. */
-  int8_t tiles[COLONIZE_COLONY_FIELD_TILES];
   /*
-   * Col1 record has 20 tile slots (colony+0x70); DOS only ever uses the
-   * 8-tile ring above. The remaining 12 are legacy layout leftovers — kept
-   * opaque here so a DOS save round-trips byte-exact (0xff when unused).
+   * Surrounding field slots: colonist index or -1. Slots 0..7 are the port's
+   * clockwise ring N,NE,E,SE,S,SW,W,NW; slots 8..19 are the DOS outer ring in
+   * DS:0xc8/0xde order, (0,-2),(2,0),(0,2),(-2,0),(-1,-2),(1,-2),(-1,2),
+   * (1,2),(-2,-1),(-2,1),(2,-1),(2,1). Only the first
+   * colonies_work_plot_count() plots are workable; the rest stay -1 and
+   * round-trip into the save's 20-slot colony+0x70 array verbatim.
    */
-  int8_t col1_outer_tiles[12];
+  int8_t tiles[COLONIZE_COLONY_FIELD_TILES_MAX];
   /* Warehouse + build queue — production ticks in src/core/turn.c. */
   int stock[COLONIZE_CARGO_COUNT];
   int hammers;
@@ -776,6 +792,12 @@ int colonies_field_scan_order(int step);
  * FUN_2f2b_3fa6 (raw 50917) — require the byte to be 0, and 3fa6 simply
  * ignores the click otherwise (no popup, no status line).
  */
+/*
+ * DS:0x329[FUN_15eb_0470()] for this colony: 8 unless it owns @BUILDING row
+ * 0x0a (then 12) and 0x0b (then 20). See COLONIZE_COLONY_FIELD_TILES.
+ */
+int colonies_work_plot_count(const ColonizeColonyPool* pool, const ColonizeColony* col);
+
 uint8_t colonies_plot_blocked_mask(
   const ColonizeWorld* w,
   const ColonizeColony* col,

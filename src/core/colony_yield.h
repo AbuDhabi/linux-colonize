@@ -63,7 +63,7 @@ bool colony_yield_colony_has_docks(
  * ---------------------------------------------------------------------
  */
 typedef struct ColonizeWorkedTile {
-  int tile_index;                /* 0..7, MAP_DIR8 order */
+  int tile_index;                /* 0..19; 0..7 MAP_DIR8, 8..19 the outer ring */
   int dx;                        /* field tile offset from the colony centre */
   int dy;
   int x;                         /* absolute map tile = colony->x + dx */

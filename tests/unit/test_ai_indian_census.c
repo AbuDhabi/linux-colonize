@@ -84,7 +84,7 @@ static int test_1b3a_phase3(void) {
   int idx_claim = -1;
   int idx_blocked = -1;
   int idx_unworked = -1;
-  for (int i = 0; i < COLONIZE_COLONY_FIELD_TILES; ++i) {
+  for (int i = 0; i < COLONIZE_COLONY_FIELD_TILES_MAX; ++i) {
     c->tiles[i] = -1;
   }
   for (int i = 0; i < COLONIZE_COLONY_FIELD_TILES && worked < 3; ++i) {
