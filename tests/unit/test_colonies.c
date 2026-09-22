@@ -2415,6 +2415,11 @@ static int unit_school_faculty_and_occupation_cap(void) {
    * Elder Statesman (level 3) teaches from the Schoolhouse row when the
    * colony owns a University. */
   CHECK(colonies_job_school_tier(COLONIZE_PROF_STATESMAN) == 3, "Statesman is @JOB level 3");
+  /* #596: the tier comes from the loaded NAMES.TXT @JOB column 2, not a
+   * compiled copy of it — @JOB row 8 (Fisherman) reads 1. */
+  CHECK(colonies_job_school_tier(8) == 1, "#596: @JOB row 8 Fisherman is level 1");
+  CHECK(colonies_job_school_tier(17) == 3, "#596: @JOB row 17 Statesman is level 3");
+  CHECK(colonies_job_school_tier(19) == 4, "#596: @JOB row 19 Colonist is level 4");
   col->colonists[0].building_type = -1;
   col->colonists[1].building_type = -1;
   col->colonists[2].building_type = -1;

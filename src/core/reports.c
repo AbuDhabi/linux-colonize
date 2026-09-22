@@ -2261,30 +2261,40 @@ static int reports_naval_goods_icon(int cargo_type, int amount) {
   return (grey ? REPORTS_NAVAL_CARGO_GREY_BASE : REPORTS_NAVAL_CARGO_ICON_BASE) + cargo_type;
 }
 
-/* Plural expert-profession label for a passenger row (golden: naval.png's
- * one passenger example reads "Colonists", the @UNIT plural, matching
- * `base_name` for a no-profession Free Colonist) — same identity
- * `units_display_name` exists for elsewhere (singular, combat-log style),
- * but the report needs NAMES.TXT's own plural @JOB expert names
- * ("Hardy Pioneers" etc.) to match that convention instead. Player-
- * reported: a toolless Pioneer-professioned Colonist (dutch-reports.SAV,
- * (44,39)) should read as a Hardy Pioneer, not a generic Colonist, even
- * without tools equipped — profession names the unit regardless of
- * carried equipment. */
+/*
+ * Plural expert label for a passenger row.
+ *
+ * DOS has no text channel here: the Naval Adviser body `FUN_3f41_1ed8`
+ * (raw 70555-70620) draws the ship name once (`FUN_281f_013c`, colony/ship
+ * record +2) and then one SPRITE per qualifying passenger
+ * (`FUN_281f_02bc(100, 0xffff)`), filtered on the @UNIT attack column
+ * (`type*0xe + 0x5236 != 0`) and the type band `< 0xd || > 0x12`. So this
+ * column is a port-side readability extension, not a transcription
+ * (bugs.md #605).
+ *
+ * The rule it follows is DOS's own identity rule, the one the map panel's
+ * `FUN_49dd_0386` and `units_profession_label` use: a unit is named by its
+ * PROFESSION when that profession is a skilled one, and by its @UNIT row
+ * otherwise. The old five-entry whitelist (professions 20-24, the equipment
+ * kits) was a curve fit to naval.png's single example and left every other
+ * expert — an Expert Fisherman most visibly — reading as plain "Colonists".
+ *
+ * `FUN_15eb_0002`'s unskilled set is 0x13 Colonist, 0x19 Ind. Servant,
+ * 0x1a Criminal, 0x1b Convert and 0x1c none; those take the @UNIT plural.
+ */
 static const char* reports_naval_passenger_label(int profession, const char* base_name) {
-  switch (profession) {
-    case UNITS_JOB_PIONEER:
-    case UNITS_JOB_SOLDIER:
-    case UNITS_JOB_SCOUT:
-    case UNITS_JOB_DRAGOON:
-    case UNITS_JOB_MISSIONARY:
-      /* NAMES.TXT @JOB col 1 expert name, live via reports_job_name (rows
-       * UNITS_JOB_PIONEER(20)..UNITS_JOB_MISSIONARY(24) match @JOB row
-       * index); literals above were this same table hardcoded. */
-      return reports_job_name(profession);
-    default:
-      return (base_name && base_name[0]) ? base_name : "";
+  const bool skilled =
+    profession >= 0 && profession != UNITS_JOB_NONE && profession != UNITS_JOB_COLONIST &&
+    profession != UNITS_JOB_SERVANT && profession != UNITS_JOB_CRIMINAL &&
+    profession != UNITS_JOB_CONVERT;
+  if (skilled) {
+    /* NAMES.TXT @JOB column 1 ("Expert Fishermen", "Hardy Pioneers"). */
+    const char* job = reports_job_name(profession);
+    if (job && job[0]) {
+      return job;
+    }
   }
+  return (base_name && base_name[0]) ? base_name : "";
 }
 
 /* Builds the flat ship/passenger row list (on-mapboard ships from `units`,

@@ -4422,6 +4422,127 @@ static int unit_promote_and_label_504(void) {
   return rc;
 }
 
+/*
+ * bugs.md #598: an armed Indian Convert (@JOB 0x1b) is NOT short-circuited by
+ * the FUN_281f_0c9a eligibility gate (FUN_15eb_0002 raw 9298-9307 returns 0
+ * for 0x1b), so FUN_5fef_172c raw 100100-100104 reaches the Washington test
+ * and, absent Washington, draws FUN_281f_04d4(1, local_6) before the ladder
+ * FUN_5fef_16ea (raw 100040-100059) maps 0x1b -> 0x1b and the promotion
+ * no-ops. The port must burn that one draw; the profession must not change.
+ */
+static int unit_promote_convert_rng_598(void) {
+  ColonizeMsgCatalog names;
+  assets_msg_init(&names);
+  if (!assets_msg_load_file(&names, "COLONIZE/NAMES.TXT")) {
+    fprintf(stderr, "convert598: NAMES.TXT load failed\n");
+    return 1;
+  }
+  ColonizeUnitPool pool;
+  memset(&pool, 0, sizeof(pool));
+  if (!units_load_types(&pool, &names)) {
+    fprintf(stderr, "convert598: units_load_types failed\n");
+    assets_msg_free(&names);
+    return 1;
+  }
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  char err[128];
+  if (!map_alloc(&map, 10, 10, err, sizeof(err))) {
+    fprintf(stderr, "convert598: map_alloc: %s\n", err);
+    assets_msg_free(&names);
+    return 1;
+  }
+  for (int i = 0; i < 10 * 10; ++i) {
+    map.terrain[i] = 2;
+    map.layer3[i] = 1;
+  }
+  const int soldiers = units_find_type(&pool, "Soldiers");
+  const int brave = units_find_type(&pool, "Braves");
+  int rc = 0;
+  if (soldiers < 0 || brave < 0) {
+    fprintf(stderr, "convert598: missing types\n");
+    map_free(&map);
+    assets_msg_free(&names);
+    return 1;
+  }
+  pool.types[soldiers].attack = 60; /* attacker wins on every seed */
+  pool.types[brave].defense = 1;
+
+  uint32_t state_after[2] = {0, 0};
+  /* pass 0 = no Washington (DOS draws); pass 1 = Washington (DOS skips). */
+  for (int pass = 0; pass < 2 && rc == 0; ++pass) {
+    ColonizeCol1Save col1;
+    memset(&col1, 0, sizeof(col1));
+    col1.player[0].control = 0;
+    col1.head.human_player = 0;
+    if (pass == 1) {
+      col1.nation[0].founding_fathers[FF_GEORGE_WASHINGTON / 8] |=
+        (uint8_t)(1u << (FF_GEORGE_WASHINGTON % 8));
+    }
+    const int aid = units_spawn(&pool, soldiers, 3, 3);
+    const int did = units_spawn_allow_stack(&pool, brave, 4, 3);
+    ColonizeUnit* a = units_get(&pool, aid);
+    ColonizeUnit* d = units_get(&pool, did);
+    if (!a || !d) {
+      fprintf(stderr, "convert598: spawn failed\n");
+      rc = 1;
+      break;
+    }
+    a->nation_id = 0;
+    a->profession = UNITS_JOB_CONVERT;
+    a->muskets = 50;
+    a->moves = 3 * UNITS_MP_PER_TILE;
+    d->nation_id = 4;
+    d->moves = UNITS_MP_PER_TILE;
+    ColonizeDosRng rng;
+    dos_rng_seed(&rng, 987654u);
+    ColonizeWorld w;
+    memset(&w, 0, sizeof(w));
+    w.units = &pool;
+    w.map = &map;
+    w.rng = &rng;
+    w.col1 = &col1;
+    w.col1_ok = true;
+    units_set_ff_col1(&col1);
+    (void)units_try_move_w(&w, aid, 4, 3);
+    a = units_get(&pool, aid);
+    if (!a || units_last_combat_outcome() <= 0) {
+      fprintf(stderr, "convert598[pass %d]: attacker should win\n", pass);
+      rc = 1;
+    } else if (a->profession != UNITS_JOB_CONVERT || a->type_index != soldiers) {
+      fprintf(stderr, "convert598[pass %d]: Convert promoted (prof=%d type=%d)\n",
+              pass, a->profession, a->type_index);
+      rc = 1;
+    }
+    state_after[pass] = rng.state;
+    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+      if (pool.units[i].active) {
+        (void)units_despawn(&pool, pool.units[i].id);
+      }
+    }
+    units_set_occupancy_map(NULL);
+    units_set_ff_col1(NULL);
+  }
+  if (rc == 0) {
+    ColonizeDosRng probe;
+    probe.state = state_after[1];
+    (void)dos_rng_next(&probe); /* the one 04d4 draw the no-Washington pass makes */
+    if (probe.state != state_after[0]) {
+      fprintf(stderr,
+              "convert598: expected exactly one extra rng draw "
+              "(no-FF state %u, Washington state +1 draw %u)\n",
+              state_after[0], probe.state);
+      rc = 1;
+    }
+  }
+  map_free(&map);
+  assets_msg_free(&names);
+  if (rc == 0) {
+    fprintf(stderr, "unit_units: #598 Convert falls through and burns one draw ok\n");
+  }
+  return rc;
+}
+
 int main(void) {
   diag_init(0, NULL);
 
@@ -4458,6 +4579,9 @@ int main(void) {
   }
   if (unit_useduptools() != 0) {
     diag_shutdown();
+    return 1;
+  }
+  if (unit_promote_convert_rng_598() != 0) {
     return 1;
   }
   if (unit_promote_and_label_504() != 0) {

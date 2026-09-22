@@ -2908,8 +2908,17 @@ static int units_promote_on_win(
     next_prof = UNITS_JOB_NONE; /* Free Colonist */
   } else if (prof == UNITS_JOB_COLONIST || prof == UNITS_JOB_NONE) {
     next_prof = UNITS_JOB_SOLDIER; /* DOS 0x15 for soldier AND dragoon bodies */
+  } else if (prof == UNITS_JOB_CONVERT) {
+    /* DOS-LITERAL FUN_5fef_172c raw 100085-100104: the eligibility gate is
+     * FUN_281f_0c9a (= FUN_15eb_0002 raw 9298-9307), which returns 0 for
+     * 0x13/0x19/0x1a/0x1b/0x1c — so a Convert (0x1b) FALLS THROUGH into the
+     * Washington test and, absent Washington, draws FUN_281f_04d4(1, local_6)
+     * off the shared stream. Only then does the ladder FUN_5fef_16ea raw
+     * 100040-100059 map 0x1b -> 0x1b, so `iVar3 != iVar2` fails and nothing
+     * is promoted. Outcome is a no-op; the RNG draw is not. (bugs.md #598) */
+    next_prof = UNITS_JOB_CONVERT;
   } else {
-    return 0; /* experts / Converts / everything else: no combat promote */
+    return 0; /* experts / everything else: FUN_15eb_0002 returns 1, early out */
   }
   /* Odds. */
   const int human = (g_units_combat_human_nation >= 0 &&
@@ -2948,6 +2957,11 @@ static int units_promote_on_win(
     if (roll > loser_str) {
       return 0;
     }
+  }
+  /* 172c raw 100111: ladder(0x1b) == 0x1b, so the `iVar3 != iVar2` guard
+   * fails and the Convert keeps its profession — after the draw above. */
+  if (next_prof == UNITS_JOB_CONVERT) {
+    return 0;
   }
   const ColonizeUnitType* old_ty = ut;
   const int old_prof = winner->profession;
@@ -10515,9 +10529,9 @@ static int units_pioneer_work_needed(const ColonizeUnit* u, const ColonizeWorldM
   if (u->profession == UNITS_JOB_PIONEER) {
     needed >>= 1;
   }
-  if (needed < 1) {
-    needed = 1;
-  }
+  /* DOS-LITERAL: neither FUN_479b_01a6 (raw 76765-76770) nor FUN_479b_0526
+   * (raw 76890-76893) clamps the threshold — a `needed < 1` floor was an
+   * invented guard (bugs.md #606). */
   return needed;
 }
 
@@ -10663,7 +10677,10 @@ static bool units_pioneer_wear_tools(ColonizeUnitPool* pool, ColonizeUnit* u) {
   }
   if (u->tools < UNITS_PIONEER_TOOL_COST) {
     u->tools = 0;
-    u->orders = UNITS_ORDER_NONE;
+    /* DOS-LITERAL FUN_479b_0158 raw 76696-76718: tools-out writes only
+     * tools (+0x3159), type (+0x3146) and @USEDUPTOOLS — it never touches
+     * orders (+0x314c). Orders are cleared by the work bodies themselves on
+     * completion (FUN_479b_01a6 raw 76779 / 0526 raw 76899). (bugs.md #597) */
     if (pool) {
       /* DOS-LITERAL FUN_479b_0158 raw 76706-76709: type := 0 (Colonists), then
        * `if (+0x315b == 0x18) type := 3` — a Jesuit Missionary that ran its

@@ -8879,6 +8879,18 @@ static int ai_contact_a618_skill(ColonizeTurnContext* ctx, int nation_id, const 
   if (skill == 4 && (((int)t->x + (int)t->y) % 3) == 0) {
     skill = UNITS_JOB_SCOUT; /* 0x16 */
   }
+  /*
+   * bugs.md #601 — deliberate divergence, documented not "fixed". DOS
+   * `thunk_FUN_1000_a618` (viceroy_overlays.c:77768-77780) walks the same
+   * 20-plot ring and calls `FUN_281f_0768` on raw village x+-2 / y+-2 with NO
+   * bounds test: at the map edge it reads whatever byte sits past the row and
+   * can count it as ocean. The port keeps `map_coords_inset` because reading
+   * outside the map here is undefined behaviour on a heap-allocated plane, not
+   * a wrap into a neighbouring row as it was in DOS's flat segment. Effect is
+   * confined to villages within 2 tiles of the map border, which stock maps
+   * do not place (the playable interior starts at x/y 1), so the Farmer ->
+   * Fisherman substitution odds match DOS everywhere a real save reaches.
+   */
   if (skill == 0 && ctx->map) {
     int ocean = 0;
     for (int k = 0; k < 20; ++k) {

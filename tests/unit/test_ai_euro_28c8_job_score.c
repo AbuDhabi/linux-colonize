@@ -343,6 +343,13 @@ static int unit_fisherman_clamps_against_horses(void) {
   colonies_init(&colonies);
   colonies_set_occupancy_map(NULL);
   colony_init_common(&colonies.colonies[0], /*nation=*/1, cx, cy);
+  /* The 18ec Fisherman gate (raw 11955) is unconditional, so the colony needs
+   * real Docks for a water plot to score at all (bugs.md #609). */
+  colonies.building_type_count = 1;
+  snprintf(
+    colonies.building_types[0].name, sizeof(colonies.building_types[0].name), "Docks"
+  );
+  colonies.colonies[0].has_building[0] = true;
   colonies.colonies[0].stock[COLONIZE_CARGO_FOOD] = 100;  /* at capacity */
   colonies.colonies[0].stock[COLONIZE_CARGO_HORSES] = 0;  /* room to spare */
 
@@ -375,11 +382,58 @@ static int unit_fisherman_clamps_against_horses(void) {
   return 0;
 }
 
+/*
+ * bugs.md #609 — the 18ec Docks gate (raw 11955) is unconditional, and the
+ * structural entry scores with `profession < 0`. The same all-Ocean ring with
+ * the Docks bit cleared must yield nothing at all, i.e. no assignment.
+ */
+static int unit_no_docks_scores_no_water_plot(void) {
+  uint8_t terrain[MAP_W * MAP_H];
+  uint8_t layer2[MAP_W * MAP_H];
+  uint8_t layer3[MAP_W * MAP_H];
+  ColonizeWorldMap map;
+  map_init(&map, terrain, layer2, layer3);
+
+  const int cx = 8;
+  const int cy = 8;
+  static const int dx[COLONIZE_COLONY_FIELD_TILES] = {0, 1, 1, 1, 0, -1, -1, -1};
+  static const int dy[COLONIZE_COLONY_FIELD_TILES] = {-1, -1, 0, 1, 1, 1, 0, -1};
+  for (int ti = 0; ti < COLONIZE_COLONY_FIELD_TILES; ++ti) {
+    const int off = (cy + dy[ti]) * MAP_W + (cx + dx[ti]);
+    terrain[off] = 0x19; /* Ocean */
+    layer3[off] = 1;
+  }
+  suppress_field_tile_resources(&map, cx, cy);
+
+  ColonizeColonyPool colonies;
+  colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
+  colony_init_common(&colonies.colonies[0], /*nation=*/1, cx, cy);
+  colonies.building_type_count = 1;
+  snprintf(
+    colonies.building_types[0].name, sizeof(colonies.building_types[0].name), "Docks"
+  );
+  colonies.colonies[0].has_building[0] = false; /* no Docks */
+
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.human_nation = 0;
+  ctx.colonies = &colonies;
+  ctx.map = &map;
+
+  AiEuro28c8JobCandidate best;
+  if (ai_euro_28c8_colonist_job_score_structural(&ctx, 0, 0, &best)) {
+    return fail("#609: a dockless colony scored a water plot");
+  }
+  return 0;
+}
+
 static const TestCase k_cases[] = {
     {"unit_distance_term_breaks_ties", unit_distance_term_breaks_ties},
     {"unit_full_matrix_sticky_doubling", unit_full_matrix_sticky_doubling},
     {"unit_join_seats_on_work_plot", unit_join_seats_on_work_plot},
     {"unit_fisherman_clamps_against_horses", unit_fisherman_clamps_against_horses},
+    {"unit_no_docks_scores_no_water_plot", unit_no_docks_scores_no_water_plot},
 };
 
 TEST_MAIN(k_cases)
