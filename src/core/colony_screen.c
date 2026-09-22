@@ -514,18 +514,27 @@ void colony_screen_open_jobs(
   colony_screen_close_subpanels(view);
   view->jobs_tile_index = tile_index;
   view->job_count = 0;
-  const int tx = colony->x + dx;
-  const int ty = colony->y + dy;
-  /* Row list is deliberately NOT docks-gated (and colony_yield_for_tile's
-   * has_docks=true is right here): DOS offers Fisherman on a dockless colony
-   * and answers the pick with GAME.TXT @NODOCKS, which is what game_loop.c's
-   * two assign paths do. The drawn number IS gated, so the row reads
-   * "Fisherman (0)" — see colony_screen_draw_jobs_popup. */
+  /* Row list is deliberately NOT docks-gated: DOS offers Fisherman on a
+   * dockless colony and answers the pick with GAME.TXT @NODOCKS, which is
+   * what game_loop.c's two assign paths do. The drawn number IS gated, so
+   * the row reads "Fisherman (0)" — see colony_screen_draw_jobs_popup. */
+  /* DOS-LITERAL FUN_15eb_3454 raw 13518-13554 (reached from the row loop of
+   * FUN_2f2b_348c raw 50753-50757, `local_e = FUN_281f_0bb4(job)`): row
+   * eligibility is a BUILDING test, never a yield test. For job < 0x13 the
+   * required-building byte is DS:0x2f4[job] (FUN_15eb_0aec raw 10087-10093);
+   * that table (VICEROY.EXE raw 122004, 19 bytes) is
+   *   -1 -1 -1 -1 -1 -1 -1 -1 -1 27 24 21 32 35 39 3 37 9 12
+   * so every field job 0..8 has no building requirement and is ALWAYS listed;
+   * a job is dropped only when its building is absent (FUN_15eb_038e == 0).
+   * DOS then fills each row's number with the colonist trial-assigned
+   * (FUN_281f_0c36 = FUN_15eb_1068, then FUN_281f_0b3c = FUN_15eb_18ec, raw
+   * 50609-50615) — which is what colony_screen_draw_jobs_popup already does
+   * via colony_yield_for_worker. So: no yield filter here. */
+  (void)map;
+  (void)dx;
+  (void)dy;
   for (int job = 0; job < COLONIZE_FIELD_JOB_COUNT && view->job_count < COLONY_JOB_LIST_MAX; ++job) {
-    const int yld = map ? colony_yield_for_tile(map, tx, ty, job) : 0;
-    if (yld > 0) {
-      view->job_ids[view->job_count++] = job;
-    }
+    view->job_ids[view->job_count++] = job;
   }
   /* FUN_2f2b_348c: a colonist with a specialty (FUN_15eb_0002 — profession
    * outside 0x13/0x19/0x1a/0x1b/0x1c) gets one extra row, "Clear Specialty"
@@ -1809,17 +1818,31 @@ static const int k_dos_class_placeholder[COLONY_DOS_CLASS_COUNT] = {
 };
 
 /*
- * The per-program-launch half of DOS's layout seed (DS:0x8d80). DOS fills it
- * from the BIOS tick at 0040:006C when the game boots (FUN_1c0c_0012), so a
- * real DOS session re-rolls every colony's layout on every launch and no save
- * can reproduce one. This port pins it instead, so a colony's layout is
- * stable forever — and the value is not arbitrary: it is the unique base in
+ * The per-game half of DOS's layout seed (DS:0x8d80). DOS fills it from the
+ * BIOS tick at 0040:006C when the game boots (FUN_1c0c_0012 via
+ * FUN_75c2_2d46 raw 121990) and SAVES it in the post-map tail @608
+ * (FUN_2a1f_0c9c raw 120106 / 0cb4 raw 120429) = post_map.boot_timer, so a
+ * save does reproduce its layouts (bugs.md #564/#578). The live game hands
+ * that field in through colony_screen_set_layout_seed; this fallback is only
+ * for callers without a save (tests, tools) and is not arbitrary: 25281 =
+ * 844481 mod 32768, the boot_timer of the screenshot saves
+ * (original_saves/colony-prod-tests/COLONY00-dutch2-*), the unique base in
  * 0..0x7fff that reproduces BOTH golden screenshots (New Amsterdam at (50,43)
- * and Recife at (41,38), 18 independent category→slot constraints measured
- * off the real DOS frames). Finding one at all, let alone a unique one, is
- * the proof that the tables and the algorithm below are right.
+ * and Recife at (41,38), 18 independent category→slot constraints).
  */
 #define COLONY_DOS_LAYOUT_SEED 25281u
+
+void colony_screen_set_layout_seed(ColonyScreenView* view, uint32_t boot_timer) {
+  if (!view) {
+    return;
+  }
+  view->layout_seed_set = true;
+  view->layout_seed_base = boot_timer;
+}
+
+static uint32_t colony_screen_layout_seed(const ColonyScreenView* view) {
+  return (view && view->layout_seed_set) ? view->layout_seed_base : COLONY_DOS_LAYOUT_SEED;
+}
 
 static int colony_screen_slot_size_class(int slot) {
   for (int c = 0; c < COLONY_DOS_CLASS_COUNT; ++c) {
@@ -1847,7 +1870,8 @@ static void colony_screen_assign_slot_positions_ex(
   const ColonizeColony* colony,
   int* xs,
   int* ys,
-  int* out_slot /* optional, indexed by category: the DS:0x266 SLOT it landed in */
+  int* out_slot, /* optional, indexed by category: the DS:0x266 SLOT it landed in */
+  uint32_t seed_base /* DS:0x8d80, see colony_screen_layout_seed */
 ) {
   (void)pool;
   int perm[COLONY_DOS_SLOT_COUNT];
@@ -1857,7 +1881,7 @@ static void colony_screen_assign_slot_positions_ex(
 
   ColonizeDosRng rng;
   const uint32_t xy = colony ? (((uint32_t)colony->y << 8) + (uint32_t)colony->x) : 0u;
-  dos_rng_seed(&rng, (COLONY_DOS_LAYOUT_SEED + xy) & 0x7fffu);
+  dos_rng_seed(&rng, (seed_base + xy) & 0x7fffu);
 
   for (int slot = 0; slot < COLONY_DOS_SLOT_COUNT; ++slot) {
     const int cls = colony_screen_slot_size_class(slot);
@@ -2391,7 +2415,9 @@ static void colony_screen_blit_buildings(
   const int slot_oy = COLONY_VIEWPORT_Y;
   int slot_x[32];
   int slot_y[32];
-  colony_screen_assign_slot_positions_ex(pool, colony, slot_x, slot_y, NULL);
+  colony_screen_assign_slot_positions_ex(
+    pool, colony, slot_x, slot_y, NULL, colony_screen_layout_seed(view)
+  );
   /* Pass 1: every building sprite first. Badges/worker strips/production
    * counters go in a second pass so an overlapping neighbour's sprite can
    * never blit over another slot's counters (player-reported: resource
@@ -4114,7 +4140,9 @@ ColonyScreenHitResult colony_screen_hit_test(
   int slot_x[32];
   int slot_y[32];
   int slot_of_cat[32];
-  colony_screen_assign_slot_positions_ex(pool, colony, slot_x, slot_y, slot_of_cat);
+  colony_screen_assign_slot_positions_ex(
+    pool, colony, slot_x, slot_y, slot_of_cat, colony_screen_layout_seed(view)
+  );
 
   if (view->message_kind != COLONY_MSG_NONE) {
     const int rows = (view->message_kind == COLONY_MSG_CONFIRM) ? 2 : 1;

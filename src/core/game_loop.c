@@ -48,6 +48,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <time.h>
 #include <stdlib.h>
 #include <string.h>
 #ifndef _WIN32
@@ -2514,6 +2515,9 @@ static bool game_apply_col1_save(ColonizeGameState* game, ColonizeCol1Save* load
   game->col1 = *loaded;
   memset(loaded, 0, sizeof(*loaded));
   game->col1_ok = true;
+  /* DS:0x8d80 (post_map.boot_timer) seeds every colony's building layout
+   * (FUN_2f2b_0434); the save carries it, so hand it over. bugs.md #578. */
+  colony_screen_set_layout_seed(&game->colony_screen, game->col1.post_map.boot_timer);
   ai_diplo_talk_reset(); /* the outgoing game's 153e talk died with its popups */
   /* Repair invented wartime all-cargo embargo on the live save (const apply
    * cannot touch the snapshot). europe.boycott_bitmap already mapped 0xFFFF→0. */
@@ -2700,6 +2704,15 @@ bool game_save_col1_slot(ColonizeGameState* game, int slot, char* err, size_t er
       game->col1.head.expeditionary_force[3] = (uint16_t)(6 * diff + 2);
     }
     game->col1_ok = true;
+    /* DOS samples DS:0x8d80 from the BIOS tick (0040:006C, 18.2 Hz) once per
+     * launch (FUN_1c0c_0012 via FUN_75c2_2d46 raw 121990) and saves it in the
+     * post-map tail; a new game without one gets the same kind of value
+     * here so its colony layouts differ per game like DOS. bugs.md #578. */
+    if (game->col1.post_map.boot_timer == 0) {
+      game->col1.post_map.boot_timer =
+        (uint32_t)(((uint64_t)time(NULL) * 182u / 10u) & 0x00ffffffu);
+    }
+    colony_screen_set_layout_seed(&game->colony_screen, game->col1.post_map.boot_timer);
     if (game->game_year == 0) {
       game->game_year = 1492;
     }

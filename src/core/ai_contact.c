@@ -1440,7 +1440,7 @@ int ai_contact_try_tired_attack_confirm(
   return 1;
 }
 
-/* ===================== Ship-village visits & jesuit/teachable checks (ai_contact_try_ship_village .. ai_contact_adjacent_euro_at) ===================== */
+/* ===================== Ship-village visits & jesuit/teachable checks (ai_contact_try_ship_village .. ai_contact_is_criminal_learner) ===================== */
 
 
 /*
@@ -1642,53 +1642,6 @@ static int ai_contact_is_petty_criminal(const ColonizeUnitPool* units, const Col
    * profession-set "master" refusal instead of learning). */
   (void)units;
   return u->profession == UNITS_JOB_CRIMINAL;
-}
-
-static int ai_contact_is_teachable_learner(const ColonizeUnitPool* units, const ColonizeUnit* u) {
-  if (!u) {
-    return 0;
-  }
-  const ColonizeUnitType* ty = units_type(units, u->type_index);
-  ColonizeUnitKind kind = ty ? units_type_kind(ty) : UNITS_KIND_UNKNOWN;
-  if (kind == UNITS_KIND_SCOUT) {
-    return 1;
-  }
-  return kind == UNITS_KIND_COLONIST && u->profession == UNITS_JOB_NONE;
-}
-
-/*
- * One step of the "settlement's eight neighbours, European land unit only"
- * walk the teach / convert / flee adjacency pulses each spelled out by hand
- * (audit AC-5). Returns the unit on neighbour `d` when it belongs to a
- * European nation (0..3) and `pred` accepts it, else NULL; `*out_id` gets
- * its unit id. The caller keeps its own loop so break/continue still mean
- * what they did.
- */
-static ColonizeUnit* ai_contact_adjacent_euro_at(
-  ColonizeTurnContext* ctx,
-  const ColonizeCol1Tribe* t,
-  int d,
-  bool (*pred)(const ColonizeUnitPool*, const ColonizeUnit*),
-  int* out_id
-) {
-  if (out_id) {
-    *out_id = -1;
-  }
-  const int oid = units_id_at(ctx->units, t->x + MAP_DIR8_DX[d], t->y + MAP_DIR8_DY[d]);
-  if (oid < 0) {
-    return NULL;
-  }
-  ColonizeUnit* other = units_get(ctx->units, oid);
-  if (!other || other->nation_id < 0 || other->nation_id > 3) {
-    return NULL;
-  }
-  if (pred && !pred(ctx->units, other)) {
-    return NULL;
-  }
-  if (out_id) {
-    *out_id = oid;
-  }
-  return other;
 }
 
 /* @LEARNMASTER %STRING1: skill name of an already-expert learner (field job
@@ -8848,8 +8801,8 @@ void ai_contact_colony_tick_war_5952(ColonizeTurnContext* ctx, int nation_id, in
  * += Silver/2. Weighted draw rand(1,Σ). FurTrapper(4) with (x+y)%3==0 →
  * Seasoned Scout (0x16). Farmer(0) → Fisherman(8) when rand(1,20) < ocean
  * tiles in the 20-ring. DOS reseeds the RNG from the village position
- * (FUN_1000_86ba(x*256+y + DS:0x8d80)) so the answer is stable per village;
- * the DS:0x8d80 base is not named — this port seeds from the position alone.
+ * (FUN_1000_86ba(y*256+x + DS:0x8d80)) so the answer is stable per village
+ * per game; DS:0x8d80 = post_map.boot_timer (saved/restored, bugs.md #564).
  */
 static int ai_contact_a618_skill(ColonizeTurnContext* ctx, int nation_id, const ColonizeCol1Tribe* t) {
   if (!ctx || !ctx->col1 || !t) {
@@ -8889,7 +8842,19 @@ static int ai_contact_a618_skill(ColonizeTurnContext* ctx, int nation_id, const 
     w[7] += w[7] >> 1;
   }
   ColonizeDosRng rng;
-  dos_rng_seed(&rng, (uint32_t)((int)t->y * 256 + (int)t->x));
+  /*
+   * DOS-LITERAL FUN_1000_86ba seed, overlays.c:77726-77731 (raw 77726):
+   * seed32 = (village.y * 0x100 + village.x) + DS:0x8d80 (32-bit, high word
+   * at 0x8d82), fed to srand which keeps the low 15 bits (dos_rng_seed
+   * masks). DS:0x8d80 is the BIOS tick at 0040:006C sampled once per program
+   * launch (FUN_75c2_2d46 raw 121990 <- FUN_281f_0e72 -> FUN_1c0c_0012 =
+   * _DAT_0000_046c) AND it is written to / restored from the save file
+   * (post_map tail @608: FUN_2a1f_0c9c write, FUN_2a1f_0cb4 read at raw
+   * 120429), so it is a stable per-game value: post_map.boot_timer.
+   * bugs.md #564.
+   */
+  dos_rng_seed(&rng,
+               (uint32_t)((int)t->y * 256 + (int)t->x) + ctx->col1->post_map.boot_timer);
   int sum = 0;
   for (int i = 0; i < 16; ++i) {
     sum += w[i];
