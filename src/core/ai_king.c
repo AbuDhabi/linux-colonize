@@ -2557,7 +2557,18 @@ COLONIZE_INTERNAL int ai_king_0982_spawn_pool_unit(ColonizeTurnContext* ctx, int
   return uid;
 }
 
-#define AI_KING_0982_MAX_LANDING 31 /* DS:0x5333 */
+/* DS:0x5333 = @UNIT row 18 (Man-O-War) + 5 = the HOLDS column (0x5232 +
+ * 18*0xe + 5), i.e. 6 with stock NAMES.TXT: one MoW load per wave. Both
+ * 0982 clamps (raw 74077-74081 pass>=1, raw 74091-74094 after the pick)
+ * read it. User-observed: REF waves are never larger than 6 (bugs.md #661). */
+static int ai_king_0982_max_landing(const ColonizeTurnContext* ctx) {
+  const int ti = units_kind_type_index(ctx->units, UNITS_KIND_MAN_O_WAR);
+  if (ti < 0 || ti >= ctx->units->type_count) {
+    return 6;
+  }
+  const int cargo = ctx->units->types[ti].cargo;
+  return cargo > 0 ? cargo : 6;
+}
 #define AI_KING_0982_MAX_TARGETS 10
 
 /*
@@ -2571,7 +2582,7 @@ COLONIZE_INTERNAL int ai_king_0982_spawn_pool_unit(ColonizeTurnContext* ctx, int
  *     crown units already adjacent. Three relaxing passes pick the first
  *     colony the pools can cover (Dragoon/Artillery each capped at
  *     max(1, need>>3), or 1 when Regulars ≥ Dragoons+Artillery); passes ≥1
- *     cap need at DS:0x5333 = 31.
+ *     cap need at DS:0x5333 = MoW holds column (6).
  *   - landing water tile = the colony neighbour with the most free land
  *     neighbours on the colony's continent (a human ship stack there counts
  *     as 1). Non-crown units on it are seized (0512), the MoW spawns there
@@ -2754,9 +2765,8 @@ COLONIZE_INTERNAL void ai_king_0982_land_troops(
   if (need < 3) {
     need = 3;
   }
-  /* bugs.md #661: no per-wave hold cap in DOS. FUN_43f7_0982 clamps `need`
-   * only to DS:0x5333 (31, raw 74091-74094) and floors it at 3 (raw
-   * 74162-74164); the MoW hold column is never read. */
+  /* Per-wave cap = DS:0x5333 (MoW holds, 6) already applied by the caller
+   * (raw 74091-74094); floor 3 above is raw 74162-74164. bugs.md #661. */
   int used_d = 0;
   int used_a = 0;
   /* Candidate land tiles around the ship, weakest stack first. */
@@ -2974,6 +2984,7 @@ COLONIZE_INTERNAL void ai_king_0982_invasion(struct ai_king_0982_ctx* w) {
    */
   int pick = -1;
   int need = 0;
+  const int max_landing = ai_king_0982_max_landing(ctx);
   for (int pass = 0; pass < 3 && pick < 0; ++pass) {
     for (int i = n - 1; i >= 0; --i) {
       int g = garrison[i] < 1 ? 1 : garrison[i];
@@ -2986,8 +2997,8 @@ COLONIZE_INTERNAL void ai_king_0982_invasion(struct ai_king_0982_ctx* w) {
       }
       const int cd = (int)force[1] < cap ? (int)force[1] : cap;
       const int ca = (int)force[3] < cap ? (int)force[3] : cap;
-      if (pass != 0 && g > AI_KING_0982_MAX_LANDING) {
-        g = AI_KING_0982_MAX_LANDING;
+      if (pass != 0 && g > max_landing) {
+        g = max_landing;
       }
       if (pass < 2 && (int)force[0] + cd + ca < g) {
         continue;
@@ -2998,8 +3009,8 @@ COLONIZE_INTERNAL void ai_king_0982_invasion(struct ai_king_0982_ctx* w) {
     }
   }
   if (pick >= 0) {
-    if (need > AI_KING_0982_MAX_LANDING) {
-      need = AI_KING_0982_MAX_LANDING;
+    if (need > max_landing) {
+      need = max_landing;
     }
     const ColonizeColony* c = &ctx->colonies->colonies[cidx[pick]];
     const int continent = map_continent_id_at(ctx->map, c->x, c->y);
