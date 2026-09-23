@@ -343,7 +343,7 @@ struct ColonizeGameState {
   bool debug_show_colony_sites; /* CHEAT Show Colony Sites: ai_goals_best_found_tile overlay */
   uint16_t debug_flags_mask; /* CHEAT Debug Info Flags (@OPTIONS, 7 bits); bits 1/3 shadow
                                * col1.game_options.show_indian_moves/show_foreign_moves */
-  int cheat_create_stage; /* CHEAT Create Unit: 0=main @CREATE, 1=@CSHIP, 2=@FOREIGN, 3=@FOREIGN2 */
+  int cheat_create_stage; /* CHEAT Create Unit: 0=main @CREATE/@CREATE2, 1=@CSHIP, 2=@FOREIGN (owner pick) */
   int cheat_create_pending_nation; /* Foreign Unit stage: nation picked at @FOREIGN */
   int cheat_unlock_step;   /* 0=expect W, 1=I, 2=N for Alt-WIN */
   /*

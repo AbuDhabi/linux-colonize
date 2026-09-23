@@ -11666,7 +11666,9 @@ static int ai_euro_score_move(
  * the loaded catalog once per dispatcher turn, are read first.
  */
 static const uint8_t k_20e6_type_combat[AI_20E6_TYPE_COUNT] = {
-  1, 2, 1, 1, 3, 1, 5, 5, 6, 4, 0, 5, 1, 2, 6, 10, 8, 16, 24, 1, 2, 2, 3
+  /* NAMES.TXT @UNIT column 4 = ATTACK (DS:0x5236), same column the live
+   * cache reads (t->attack); bugs.md #668 (was the DEFENSE column). */
+  0, 2, 0, 0, 3, 1, 5, 5, 6, 4, 0, 7, 0, 0, 0, 0, 8, 16, 24, 1, 2, 2, 3
 };
 /*
  * DS:0x523d unit-type capability flags = NAMES.TXT @UNIT trailing bit-string

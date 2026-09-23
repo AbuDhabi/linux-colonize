@@ -713,10 +713,12 @@ static void map_menu_refresh_orders_dos(
    */
   const bool hills = (pedia == 0x1b || pedia == 0x1c);
   /*
-   * DOS local_c via FUN_281f_0b78: unit appears in profession/founder table.
-   * Approximate: land non-transport (colonists / military / pioneers).
+   * DOS local_c via FUN_281f_0b78 = FUN_15eb_0902 (raw 42188-42196,
+   * 9939-9944): `DS:0x30e[type] >= 0` — the unit has a profession slot.
+   * Regulars / Cavalry / Treasure / Artillery (-1) hide Build and Join;
+   * Cont. Army / Cont. Cav. (21 / 23) keep them. bugs.md #667.
    */
-  const bool can_found_unit = land && !transport;
+  const bool can_found_unit = units_type_has_profession_slot(u->type_index);
   const int cid_here =
     ctx->colonies ? colonies_id_at(ctx->colonies, ux, uy) : -1;
   const ColonizeColony* col_here =

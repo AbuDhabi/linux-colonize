@@ -4757,7 +4757,7 @@ static void ai_king_war_act(ColonizeTurnContext* ctx) {
    *   cap = max(1, min(pop>>1, pop*(sol-50)/50))
    * Walk *only* the units stationed on that colony's own tile (decomp
    * FUN_281f_07e0/02e4 tile-stack walk — not every unit the nation owns)
-   * and promote up to `cap` of them that are FORTIFIED, base type Soldier
+   * and promote up to `cap` of them of base type Soldier
    * or Dragoon (decomp tests raw type id 1 / 4 only — Regulars and
    * already-Continental units never match and are untouched), AND Veteran
    * status (decomp `unit+0x315b == 0x15` = UNITS_JOB_SOLDIER "Veteran
@@ -4778,14 +4778,8 @@ static void ai_king_war_act(ColonizeTurnContext* ctx) {
   if (human >= 0 && human < (int)COLONIZE_COL1_NATION_COUNT &&
       (ctx->col1->nation[human].nation_flags & 0x08u) == 0) {
     ctx->col1->nation[human].nation_flags |= 0x08u;
-    int army = units_kind_type_index(ctx->units, UNITS_KIND_CONT_ARMY);
-    if (army < 0) {
-      army = units_kind_type_index(ctx->units, UNITS_KIND_CONT_ARMY);
-    }
-    int cav = units_kind_type_index(ctx->units, UNITS_KIND_CONT_CAV);
-    if (cav < 0) {
-      cav = units_kind_type_index(ctx->units, UNITS_KIND_CONT_CAV);
-    }
+    const int army = units_kind_type_index(ctx->units, UNITS_KIND_CONT_ARMY);
+    const int cav = units_kind_type_index(ctx->units, UNITS_KIND_CONT_CAV);
     const int soldier_ty = units_kind_type_index(ctx->units, UNITS_KIND_SOLDIER);
     const int dragoon_ty = units_kind_type_index(ctx->units, UNITS_KIND_DRAGOON);
     if (ctx->col1->colony && (army >= 0 || cav >= 0) &&
