@@ -582,9 +582,12 @@ static int colony_yield_pipeline(
     yield <<= 1;
   }
 
-  /* Convert +1 on DOS whitelist (FUN_15eb_18ec) */
-  if (yield > 0 && profession == COLONIZE_PROF_CONVERT && field_job != COLONIZE_JOB_LUMBERJACK &&
-      field_job != COLONIZE_JOB_ORE_MINER && field_job != COLONIZE_JOB_SILVER_MINER) {
+  /* Convert +1 on DOS whitelist (FUN_15eb_18ec raw 11973-11979):
+   * `job==0 || job==1 || job==2 || job==3 || job==4 || 7 < job` (i.e. every
+   * field job except Lumberjack/Ore Miner/Silver Miner), gated on yield>0. */
+  if (yield > 0 && profession == COLONIZE_PROF_CONVERT &&
+      (field_job == 0 || field_job == 1 || field_job == 2 || field_job == 3 ||
+       field_job == 4 || field_job > 7)) {
     yield += 1;
   }
 

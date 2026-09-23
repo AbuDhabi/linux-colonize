@@ -393,8 +393,8 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_15eb_0cbc` | 10220 | 28 | mapdraw | Write packed colonist specialty nibble (+0x60, clamp 0..15) | inferred |  |
 | `FUN_15eb_0d04` | 10248 | 108 | mapdraw | Remove colonist slot; compact jobs/specialty/area; −100 pop | inferred | thunk_FUN_281f_0a9c |
 | `FUN_15eb_0d8e` | 10356 | 692 | mapdraw | Fill cargo-id list for leave-as gear (tools/muskets/horses); return count | inferred | asm switch on prof 0x13..0x18; Ghidra body overlapped |
-| `FUN_15eb_0e18` | 11048 | 19 | mapdraw | Colonist profession: slot+0x20 or outside unit via 0924/0902 | inferred | thunk_FUN_281f_0c0e |
-| `FUN_15eb_0e52` | 11067 | 16 | mapdraw | Colonist workplace/job: slot+0x40 or unit+0x315b | inferred | thunk_FUN_281f_0c54 |
+| `FUN_15eb_0e18` | 11048 | 19 | mapdraw | Colonist occupation/work slot: slot+0x20 or outside unit via 0924/0902 | inferred | thunk_FUN_281f_0c0e |
+| `FUN_15eb_0e52` | 11067 | 16 | mapdraw | Colonist profession/specialty: slot+0x40 or unit+0x315b | inferred | thunk_FUN_281f_0c54 |
 | `FUN_15eb_0e8c` | 11083 | 21 | mapdraw | Set workplace/job (0x17→0x15); slot or outside unit | inferred | thunk_FUN_281f_0cae |
 | `FUN_15eb_0ed4` | 11104 | 20 | mapdraw | Map specialty nibble to tier 0..3 (cuts at 4/8/15) | inferred |  |
 | `FUN_15eb_0f1c` | 11124 | 39 | mapdraw | Resolve colonist people-band sprite/icon index | inferred | FUN_112b_0002 |

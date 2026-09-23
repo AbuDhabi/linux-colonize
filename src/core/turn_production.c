@@ -873,7 +873,9 @@ void turn_produce_one_colony(
         c->turns_in_job++;
       }
       const int prof = c->profession;
-      if (prof < 0 || prof == COLONIZE_PROF_FREE_COLONIST || prof == UNITS_JOB_COLONIST ||
+      /* Student whitelist is exactly {0x1a,0x19,0x1c,0x13} (FUN_364b_0688 raw
+       * 57510); no `prof < 0` arm in DOS. */
+      if (prof == COLONIZE_PROF_FREE_COLONIST || prof == UNITS_JOB_COLONIST ||
           prof == COLONIZE_PROF_INDENTURED || prof == COLONIZE_PROF_CRIMINAL) {
         if (n_stud < (int)(sizeof(students) / sizeof(students[0]))) {
           students[n_stud++] = ci;
