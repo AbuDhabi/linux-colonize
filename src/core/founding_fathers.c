@@ -968,21 +968,11 @@ static void effect_brewster_filter_pool(EuropeScreen* europe) {
   /* Pool substitution shared with the immigration tick (DOS 4345_0342 case
    * 0x14: servant/criminal slot bytes overwritten with 0x1c in place). */
   europe_apply_brewster(europe, 1);
-  /* Dock starters may still be Indentured — clear/refill to Free Colonists. */
-  for (int i = 0; i < europe->dock_count; ++i) {
-    if (!europe->dock[i].present) {
-      continue;
-    }
-    /* Identity is the @JOB profession byte, never the label text. */
-    if (europe->dock[i].profession == COLONIZE_PROF_CRIMINAL ||
-        europe->dock[i].profession == COLONIZE_PROF_INDENTURED) {
-      snprintf(
-        europe->dock[i].name, sizeof(europe->dock[i].name), "%s",
-        reports_job_display_name(COLONIZE_PROF_FREE_COLONIST)
-      );
-      europe->dock[i].profession = COLONIZE_PROF_FREE_COLONIST;
-    }
-  }
+  /* bugs.md #728: FUN_4345_0342 case 0x14 (raw 73160-73168) rewrites ONLY the
+   * three recruit slots at nation*0x13c-0x77f6 (0x19/0x1a -> 0x1c). It does
+   * not walk the docks, so colonists who already emigrated keep being
+   * Indentured Servants / Petty Criminals. The dock sweep that used to sit
+   * here was invented. */
 }
 
 /*

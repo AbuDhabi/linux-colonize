@@ -412,13 +412,16 @@ bool colonies_can_found(
     return false;
   }
   /*
-   * Arctic (pedia 24) and mountains (pedia 27) are not colonizable.
-   * Hills (28) are valid. Cite: Colonization.pdf; GAME.TXT @TOOMOUNTAIN;
-   * docs/terrain_yields.md.
+   * DOS-LITERAL FUN_2b5a Build handler, asm 0x22620-0x22632 (bugs.md #685):
+   * the found path has exactly ONE terrain-class test,
+   * `FUN_281f_078c(x,y) == 0x1b` -> @TOOMOUNTAIN. Water is caught earlier by
+   * FUN_281f_0768 -> @SEACOLONY. There is no Arctic gate anywhere on the
+   * path, so the old pedia-24 rejection (cited only to Colonization.pdf) was
+   * invented and is gone; Arctic is a legal, miserable colony site.
    */
   {
     const int pedia = map_pedia_terrain_index_at(map, x, y);
-    if (pedia == 24 || pedia == 27) {
+    if (pedia == 27) {
       return false;
     }
   }
@@ -486,7 +489,31 @@ bool colonies_can_found(
   return true;
 }
 
-static const char* colonies_next_name(ColonizeColonyPool* pool, int nation_id) {
+/*
+ * DOS keeps a per-nation settlement count in the byte `nation + 0x9298`
+ * (written raw 58030, decremented raw 58154) and the Build handler refuses
+ * at 0x26 == 38 (asm 0x22595). The port has no such byte, so it recounts the
+ * pool — the same quantity by construction. bugs.md #681.
+ */
+int colonies_nation_settlement_count(const ColonizeColonyPool* pool, int nation_id) {
+  if (!pool) {
+    return 0;
+  }
+  int n = 0;
+  for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+    if (pool->colonies[i].active && pool->colonies[i].nation_id == nation_id) {
+      ++n;
+    }
+  }
+  return n;
+}
+
+/*
+ * DOS thunk_FUN_2a1f_01f4 (raw 76995) builds the nation's next default colony
+ * name into a local BEFORE the name prompt runs, without consuming it — the
+ * prompt may still be cancelled (bugs.md #682). Non-advancing peek.
+ */
+const char* colonies_peek_next_name(const ColonizeColonyPool* pool, int nation_id) {
   if (!pool) {
     return "New Colony";
   }
@@ -496,9 +523,17 @@ static const char* colonies_next_name(ColonizeColonyPool* pool, int nation_id) {
   if (pool->name_count[nation_id] == 0) {
     return "New Colony";
   }
-  const char* n =
-    pool->names[nation_id][pool->name_next[nation_id] % pool->name_count[nation_id]];
-  pool->name_next[nation_id]++;
+  return pool->names[nation_id][pool->name_next[nation_id] % pool->name_count[nation_id]];
+}
+
+static const char* colonies_next_name(ColonizeColonyPool* pool, int nation_id) {
+  const char* n = colonies_peek_next_name(pool, nation_id);
+  if (pool) {
+    const int nid = (nation_id < 0 || nation_id > 3) ? 0 : nation_id;
+    if (pool->name_count[nid] != 0) {
+      pool->name_next[nid]++;
+    }
+  }
   return n;
 }
 
@@ -697,7 +732,32 @@ static int colonies_indian_land_purchase_gold_on(
     score = (int)(tech + bought) - (int)diff - dist + 0xc;
     scale = 0x32;
   }
-  /* PARKED: full −0x6bf0 / 0x9410 per-nation table adjust (decomp SAR). */
+  /*
+   * DOS-LITERAL FUN_4cc6_07c2 raw 81213-81219 (bugs.md #710), both terms in
+   * this order and both before the <1 clamp:
+   *   iVar1 = (int)-(*(byte *)(param_2 + -0x6bf0) - 10) >> 1;
+   *   if (iVar1 < 0) iVar1 = 0;
+   *   local_4 = local_4 - iVar1;
+   *   iVar1 = FUN_281f_0718(0x281f, param_3, param_4);
+   *   if (iVar1 != -1) local_4 = local_4 * 2;
+   * DS:nation−0x6bf0 is DS:0x9410 = census_pop_proxy[nation] (resolved
+   * 2026-09-06, see ai_goals.h / original_sources_annotated/ai/king_ref.md),
+   * so a small nation pays less. FUN_281f_0718(x, y) is the special-resource
+   * probe (== the human Build handler's raw-45631 `!= -1` count), i.e.
+   * map_resource_type_at != -1 → the tile is worth double.
+   */
+  {
+    const unsigned census =
+      (nation_id >= 0 && nation_id < 4) ? (unsigned)col1->stuff.census_pop_proxy[nation_id] : 0u;
+    int adj = -((int)census - 10) >> 1;
+    if (adj < 0) {
+      adj = 0;
+    }
+    score -= adj;
+  }
+  if (map && map_resource_type_at(map, x, y) != -1) {
+    score *= 2;
+  }
   if (score < 1) {
     score = 1;
   }

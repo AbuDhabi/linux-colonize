@@ -1364,7 +1364,8 @@ bool europe_brewster_pick_from_pool_ex(
    * recruit-count bump (param_2!=0 skips it). */
   eu->current_crosses = 0;
   eu->immigration_pressure = 0;
-  eu->crosses_immigrant_seen = true;
+  /* bugs.md #672: no nation_flags 0x40 latch on the Brewster branch — 5e52
+   * raw 68601 sets it only inside the 07b4(nation,0x14)==0 arm. */
   /* bugs.md #223: do NOT clear open_on_dock here — that flag belongs to a
    * ship ARRIVAL (DS:0x14c). A Brewster pick answered after the end of turn
    * was wiping the pending auto-open of the ship that had just docked. */
@@ -1377,39 +1378,36 @@ bool europe_immigrant_from_pool(EuropeScreen* eu, ColonizeDosRng* rng) {
   if (!eu || eu->dock_count >= EUROPE_DOCK_MAX) {
     return false;
   }
-  int slot = -1;
+  /* DOS `5e52` raw 68578: recruit[04d4(0,2)] is used unconditionally — an
+   * unfilled slot reads as job 0x1c and spawns Free Colonists (bugs.md #676;
+   * the old "first filled slot / force-refill slot 0" fallback was invented). */
+  int slot = 0;
   if (rng) {
-    /* DOS `5e52` phase 5: 04d4(0,2) rolls the slot before rerolling it. */
-    const int roll = dos_rng_range(rng, 0, EUROPE_POOL_SIZE - 1);
-    if (eu->pool[roll].filled) {
-      slot = roll;
-    }
+    slot = dos_rng_range(rng, 0, EUROPE_POOL_SIZE - 1);
   }
-  if (slot < 0) {
-    for (int i = 0; i < EUROPE_POOL_SIZE; ++i) {
-      if (eu->pool[i].filled) {
-        slot = i;
-        break;
-      }
-    }
+  char name[sizeof(eu->pool[0].name)];
+  int profession;
+  if (eu->pool[slot].filled) {
+    snprintf(name, sizeof(name), "%s", eu->pool[slot].name);
+    profession = eu->pool[slot].profession;
+  } else {
+    snprintf(name, sizeof(name), "%s", europe_pool_job_name(EUROPE_POOL_JOB_FREE_COLONIST));
+    profession = EUROPE_POOL_JOB_FREE_COLONIST;
   }
-  if (slot < 0) {
-    europe_refill_pool_slot_rng(eu, 0, false, rng);
-    slot = 0;
-  }
+  /* 68583: the slot is refilled with `46d4((turn & 3) == 0)` BEFORE the
+   * 0b26/0718 harbor spawn (raw 68585) rolls the Soldier->Dragoon type, all
+   * off the same shared stream (bugs.md #671). The 4884 Recruit-click paths
+   * really are spawn-then-refill and stay as they are. */
+  europe_refill_pool_slot_rng(eu, slot, eu->pool_force_expert, rng);
   EuropeDockImmigrant* d = &eu->dock[eu->dock_count++];
   memset(d, 0, sizeof(*d));
-  snprintf(d->name, sizeof(d->name), "%s", eu->pool[slot].name);
-  d->profession = eu->pool[slot].profession;
+  snprintf(d->name, sizeof(d->name), "%s", name);
+  d->profession = profession;
   d->present = true;
   d->sentry = true;
   d->dos_type = europe_dock_type_roll(eu, d->name, d->profession, rng);
   /* DOS 0718 harbor-spawn does NOT bump Europe+6 — only 4884's own real
    * Recruit-click tail does (see europe_compute_recruit_passage). */
-  /* 68583: this refill is `46d4((turn & 3) == 0)`, not `46d4(0)` — and it
-   * rolls off the same shared stream as the 04d4(0,2) slot pick above, the
-   * two draws back to back (68581/68583). */
-  europe_refill_pool_slot_rng(eu, slot, eu->pool_force_expert, rng);
   return true;
 }
 
@@ -3262,6 +3260,13 @@ int europe_tick_immigration_pressure_w(
       if (!eu->dock[i].present) {
         continue;
       }
+      /* 584a raw 68272: only units with FUN_281f_0b78(unit) >= 0 (a
+       * default-profession slot) drain; a purchased Artillery row does not
+       * (bugs.md #674; the AI twin below already applied this test). */
+      const int ti = units ? europe_dock_unit_type_index(units, eu->dock[i].dos_type) : -1;
+      if (ti >= 0 && !units_type_has_profession_slot(ti)) {
+        continue;
+      }
       delta = (delta < 1) ? delta - 2 : -2;
     }
   }
@@ -3277,7 +3282,7 @@ int europe_tick_immigration_pressure_w(
   europe_refresh_recruit_passage(eu);
 
   /* Phase 5: needed < current → dock immigrant; clear current. */
-  if (need > 0 && (int)eu->current_crosses > need) {
+  if ((int)eu->current_crosses > need) { /* 5e52 raw 68563: plain `local_6 < iVar3` (bugs.md #676) */
     /*
      * 5e52 ~68577: FF 0x14 (Brewster) owned → FUN_38fd_4884(0,1) instead of
      * the random 04d4(0,2) pool pick: the player chooses (@RECRUITCHOOSE),
@@ -3292,9 +3297,11 @@ int europe_tick_immigration_pressure_w(
     }
     eu->current_crosses = 0;
     eu->immigration_pressure = 0;
-    eu->crosses_immigrant_seen = true;
     europe_refresh_recruit_passage(eu);
     if (europe_immigrant_from_pool(eu, rng)) {
+      /* 5e52 raw 68588/68601: nation_flags |= 0x40 only when the 0b26 spawn
+       * succeeded (bugs.md #675). */
+      eu->crosses_immigrant_seen = true;
       /* bugs.md #223: keep open_on_dock — arrivals own it (see above). */
       snprintf(eu->status, sizeof(eu->status), "Immigrant arrives in Europe.");
       return 1;

@@ -5241,6 +5241,95 @@ static int unit_indian_land_found(void) {
     }
   }
 
+  /*
+   * Phase 1b (bugs.md #709/#710, 2026-09-23): the AI affordability gate is
+   * FUN_479b_00ca's `gold - cost >= cost / 2` (asm 121034-121094), not
+   * `gold >= cost`, and FUN_4cc6_07c2's price carries the census term
+   * `score -= max((10 - census_pop_proxy[nation]) >> 1, 0)` (raw 81213).
+   */
+  {
+    /* Phase 1 stamped MAP_LAYER2_PURCHASED on (fx,fy); clear so this tile is
+     * chargeable again. */
+    {
+      const size_t idx0 = (size_t)fy * (size_t)map.width + (size_t)fx;
+      if (map.layer2 && idx0 < map.tile_count) {
+        map.layer2[idx0] = (uint8_t)(map.layer2[idx0] & (uint8_t)~MAP_LAYER2_PURCHASED);
+      }
+    }
+    col1.indian[0].lands_bought = 0;
+    col1.nation[nation].founding_fathers[0] = 0;
+    col1.nation[nation].founding_father_count = 0;
+    /* Census term: a bigger nation pays strictly more for the same tile. */
+    const uint8_t census0 = col1.stuff.census_pop_proxy[nation];
+    col1.stuff.census_pop_proxy[nation] = 0;
+    const int cost_small = colonies_indian_land_purchase_gold(&col1, &map, fx, fy, nation);
+    col1.stuff.census_pop_proxy[nation] = 10;
+    const int cost_big = colonies_indian_land_purchase_gold(&col1, &map, fx, fy, nation);
+    col1.stuff.census_pop_proxy[nation] = census0;
+    if (cost_big <= cost_small) {
+      fprintf(
+        stderr, "unit_ai_euro_expand: census term small=%d big=%d\n", cost_small, cost_big
+      );
+      fx_map_free(&map);
+      return fail("indian-land: census_pop_proxy term must raise the price");
+    }
+
+    /* Half-margin gate: gold == cost is NOT affordable for an AI nation. */
+    unit_indian_land_seed_colony(&colonies, nation);
+    units_reset(&units);
+    units_set_occupancy_map(NULL);
+    units.type_count = 1;
+    snprintf(units.types[0].name, sizeof(units.types[0].name), "Pioneer");
+    units.types[0].movement = 3;
+    units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+    col1.stuff.ship_counts[nation] = 1;
+    col1.indian[0].lands_bought = 0;
+    col1.nation[nation].founding_fathers[0] = 0;
+    col1.nation[nation].founding_father_count = 0;
+    {
+      const size_t idx = (size_t)fy * (size_t)map.width + (size_t)fx;
+      if (map.layer2 && idx < map.tile_count) {
+        map.layer2[idx] = (uint8_t)(map.layer2[idx] & (uint8_t)~MAP_LAYER2_PURCHASED);
+      }
+    }
+    const int gate_cost = colonies_indian_land_purchase_gold(&col1, &map, fx, fy, nation);
+    col1.nation[nation].gold = (uint32_t)gate_cost;
+
+    const int uid = units_spawn(&units, 0, fx, fy);
+    ColonizeUnit* founder = units_get(&units, uid);
+    if (!founder) {
+      fx_map_free(&map);
+      return fail("indian-land spawn gate");
+    }
+    founder->nation_id = nation;
+    founder->orders = 0;
+    founder->moves = 3 * UNITS_MP_PER_TILE;
+
+    ai_goals_reset();
+    ai_goals_upsert_secondary(nation, fx, fy, AI_GOAL_FOUND, 2);
+    turn = 41;
+    const uint32_t gate_gold0 = col1.nation[nation].gold;
+    ai_euro_dispatcher_turn(&ctx, nation);
+
+    /* DOS's 00ca simply refuses to pay; the port still founds (caller of the
+     * thunk 2a1f:01dd unresolved), so the colony appears with gold intact. */
+    if (count_nation_colonies(&colonies, nation) != 2) {
+      fx_map_free(&map);
+      return fail("indian-land: half-margin gate must still found");
+    }
+    if (col1.nation[nation].gold + (uint32_t)gate_cost <= gate_gold0) {
+      fprintf(
+        stderr,
+        "unit_ai_euro_expand: half-margin gate paid gold %u→%u cost=%d\n",
+        gate_gold0,
+        col1.nation[nation].gold,
+        gate_cost
+      );
+      fx_map_free(&map);
+      return fail("indian-land: gold == cost must not buy (gold-cost < cost/2)");
+    }
+  }
+
   /* Phase 2: short gold → PARK (seed colony remains; no second colony).
    * Phase 1 stamped MAP_LAYER2_PURCHASED on (fx,fy); clear so charge still
    * applies (founding must not treat prior buy as free forever for this smoke). */

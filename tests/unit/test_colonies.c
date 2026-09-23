@@ -2731,6 +2731,61 @@ static int unit_work_plot_ring_593(void) {
   return 1;
 }
 
+/*
+ * bugs.md #681 / #682: the per-nation settlement count DOS keeps in the byte
+ * `nation + 0x9298` (asm 0x22595, cap 0x26), and the non-consuming default
+ * name peek that lets the @COLONY prompt run before the colony exists.
+ */
+static int unit_settlement_count_and_name_peek(void) {
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  char err[128];
+  if (!map_alloc(&map, 16, 16, err, sizeof(err))) {
+    return 1;
+  }
+  for (size_t i = 0; i < map.tile_count; ++i) {
+    map.terrain[i] = 2; /* plains */
+  }
+  ColonizeColonyPool pool;
+  colonies_init(&pool);
+  colonies_set_occupancy_map(NULL);
+
+  int rc = 0;
+  if (colonies_nation_settlement_count(&pool, 0) != 0) {
+    fprintf(stderr, "settlement count: empty pool not 0\n");
+    rc = 1;
+  }
+  const char* peek1 = colonies_peek_next_name(&pool, 0);
+  const char* peek2 = colonies_peek_next_name(&pool, 0);
+  if (!peek1 || !peek2 || strcmp(peek1, peek2) != 0) {
+    fprintf(stderr, "name peek advanced the counter\n");
+    rc = 1;
+  }
+  char first[64];
+  snprintf(first, sizeof(first), "%s", peek1 ? peek1 : "");
+
+  const int a = colonies_found(&pool, &map, 2, 2, 0, -1, UNITS_JOB_NONE, 0, 0, 0);
+  const int b = colonies_found(&pool, &map, 6, 6, 0, -1, UNITS_JOB_NONE, 0, 0, 0);
+  const int c = colonies_found(&pool, &map, 10, 10, 1, -1, UNITS_JOB_NONE, 0, 0, 0);
+  if (a < 0 || b < 0 || c < 0) {
+    fprintf(stderr, "settlement count: found failed\n");
+    rc = 1;
+  }
+  const ColonizeColony* ca = colonies_get(&pool, a);
+  if (ca && first[0] && strcmp(ca->name, first) != 0) {
+    fprintf(stderr, "first colony took '%s', peek promised '%s'\n", ca->name, first);
+    rc = 1;
+  }
+  if (colonies_nation_settlement_count(&pool, 0) != 2 ||
+      colonies_nation_settlement_count(&pool, 1) != 1 ||
+      colonies_nation_settlement_count(&pool, 2) != 0) {
+    fprintf(stderr, "settlement count: per-nation tally wrong\n");
+    rc = 1;
+  }
+  map_free(&map);
+  return rc;
+}
+
 static const TestCase k_cases[] = {
     {"unit_colonies_core", case_colonies_core},
     {"unit_found_chrome", unit_found_chrome},
@@ -2750,5 +2805,6 @@ static const TestCase k_cases[] = {
     {"unit_school_faculty_and_occupation_cap", unit_school_faculty_and_occupation_cap},
     {"unit_plot_blocked_mask", unit_plot_blocked_mask},
     {"unit_work_plot_ring_593", unit_work_plot_ring_593},
+    {"unit_settlement_count_and_name_peek", unit_settlement_count_and_name_peek},
 };
 TEST_MAIN(k_cases)

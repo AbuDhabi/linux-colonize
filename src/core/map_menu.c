@@ -646,9 +646,12 @@ static void map_menu_refresh_orders_dos(
         case MAP_MENU_ACTION_NO_ORDERS:
         case MAP_MENU_ACTION_FORTIFY:
         case MAP_MENU_ACTION_SENTRY:
-        case MAP_MENU_ACTION_BUILD_COLONY:
           it->enabled = false;
           break;
+        /* bugs.md #693: FUN_2b5a_0902 greys Build (0x310) at raw 42124 and
+         * then HIDES it at raw 42127 — the hide wins, so View Pieces shows no
+         * Build Colony row at all. */
+        case MAP_MENU_ACTION_BUILD_COLONY:
         case MAP_MENU_ACTION_DUMP_OVERBOARD:
         case MAP_MENU_ACTION_ANCHOR:
         case MAP_MENU_ACTION_JOIN_COLONY:
@@ -723,8 +726,6 @@ static void map_menu_refresh_orders_dos(
     ctx->colonies ? colonies_id_at(ctx->colonies, ux, uy) : -1;
   const ColonizeColony* col_here =
     (cid_here >= 0) ? colonies_get(ctx->colonies, cid_here) : NULL;
-  const bool on_own_colony =
-    col_here && col_here->nation_id == u->nation_id;
   const bool on_euro_settlement = col_here != NULL;
   const bool high_seas =
     ctx->map && units_on_high_seas(ctx->map, ux, uy);
@@ -743,19 +744,23 @@ static void map_menu_refresh_orders_dos(
   /* Build / Join (0x310 / 0x311). */
   for (int i = 0; i < orders->item_count; ++i) {
     MapMenuItem* it = &orders->items[i];
+    /*
+     * DOS-LITERAL FUN_2b5a_0b34 raw 42199-42211 (bugs.md #686 / #692):
+     * `FUN_281f_07be(x,y)` resolves ANY Euro colony on the tile (not just an
+     * own one). Colony present -> hide Build (0x310), Join (0x311) stays
+     * visible and enabled; no colony -> hide Join, and the ONLY grey on
+     * Build is profession 0x1b (Indian Convert). Terrain is never consulted
+     * at enable time — the site popups (@SEACOLONY / @TOOMOUNTAIN / …) do
+     * that work at apply time.
+     */
     if (it->action == MAP_MENU_ACTION_BUILD_COLONY) {
-      if (!can_found_unit) {
+      if (!can_found_unit || on_euro_settlement) {
         it->visible = false;
-      } else if (on_own_colony) {
-        it->visible = false; /* hide Build when on colony */
       } else {
-        it->enabled = ctx->map && ctx->colonies &&
-                      colonies_can_found(ctx->colonies, ctx->map, ux, uy);
+        it->enabled = (u->profession != UNITS_JOB_CONVERT);
       }
     } else if (it->action == MAP_MENU_ACTION_JOIN_COLONY) {
-      if (!can_found_unit) {
-        it->visible = false;
-      } else if (!on_own_colony) {
+      if (!can_found_unit || !on_euro_settlement) {
         it->visible = false;
       }
     }
@@ -850,13 +855,13 @@ static void map_menu_refresh_orders_dos(
     }
   }
 
-  /* Activate: unit under cursor. */
-  for (int i = 0; i < orders->item_count; ++i) {
-    if (orders->items[i].action == MAP_MENU_ACTION_ACTIVATE_UNIT) {
-      orders->items[i].enabled =
-        ctx->units && units_id_at(ctx->units, ctx->cursor_x, ctx->cursor_y) >= 0;
-    }
-  }
+  /*
+   * bugs.md #694: Activate (0x300) is never greyed or hidden. Neither
+   * FUN_2b5a_0b34 (a unit is selected) nor FUN_2b5a_0902 (View Pieces) names
+   * 0x300 in any of its FUN_291f_0146 / FUN_291f_013a lists, so the row stays
+   * live even with no unit under the cursor. The port used to gate it on
+   * units_id_at(cursor), which is the port's own invention.
+   */
 }
 
 void map_menu_refresh(MapMenuBar* bar, const MapMenuOrdersContext* ctx) {

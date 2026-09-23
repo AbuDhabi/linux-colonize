@@ -68,7 +68,7 @@ static const char* k_misc_bodies[PEDIA_MISC_COUNT] = {
    * bodies at all (DOS misc pages are title-only, docs/assets.md), and
    * GAME.TXT's only Sentry strings are the menu labels @UNITOPTIONS
    * "Sentry / Board ship." (:1774) and @SHIPOPTIONS "Sentry." (:1781).
-   * The boarding half IS real — units_board_sentries_from_tile, DOS
+   * The boarding half IS real — units_ship_departure_pickup, DOS
    * FUN_4720_0006/015c embark probe — so only the wake clause was cut.
    */
   "Sentry puts a unit on standby: it is skipped in the turn cycle until you "

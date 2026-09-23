@@ -25,7 +25,8 @@ void game_open_pedia_article(
   bool return_to_list
 );
 void game_trade_begin_at_stop(ColonizeGameState* game, int route, int stop_i);
-static void game_open_found_name_entry(ColonizeGameState* game, int colony_id);
+static void game_found_open_colony_name(ColonizeGameState* game, int uid);
+static bool game_found_finalize(ColonizeGameState* game, int uid, const char* chosen_name);
 static void game_open_landho_name_entry(ColonizeGameState* game);
 static void game_landho_default_region(const ColonizeGameState* game, char* out, size_t out_size);
 static void game_apply_name_entry_result(ColonizeGameState* game);
@@ -357,18 +358,129 @@ bool game_request_indian_land_choice(
   );
 }
 
-bool game_do_found_colony_at_unit(ColonizeGameState* game, int uid, bool land_resolved) {
+/*
+ * DOS-LITERAL FUN_2b5a Build/Join handler, asm 0x2256D-0x22583 (bugs.md
+ * #688): `test byte [0x5382],0x1` sits at the very top of the SHARED handler,
+ * before the colony-on-tile split, and raises @NOCOLONIESEITHER as a real
+ * popup (FUN_281f_0652(0x98a, MSS 1)) — so it blocks Join as well as Build.
+ * Returns true when the gate fired.
+ */
+bool game_woi_blocks_colony_orders(ColonizeGameState* game) {
+  if (!game || !game->col1_ok || !game->col1.head.game_options.woi) {
+    return false;
+  }
+  char body[AI_POPUP_BODY_LEN];
+  popup_msg_fill(&game->messages, "NOCOLONIESEITHER", NULL, "", body, sizeof(body));
+  ai_popup_enqueue_ok(&game->ai_popups, AI_POPUP_TAG_INFO, NULL, body);
+  set_status(game, "", NULL);
+  return true;
+}
+
+/*
+ * DOS FUN_479b_076e tail, raw 77005-77045 (bugs.md #682): consume the unit
+ * (FUN_281f_0934), create the colony (FUN_291f_09b2), stamp the name and
+ * FUN_281f_0608 into the colony screen. Only ever reached once the @COLONY
+ * name prompt has been ACCEPTED — a cancel at raw 77000 returns without
+ * touching the unit or the map.
+ */
+static bool game_found_finalize(ColonizeGameState* game, int uid, const char* chosen_name) {
   if (!game || !game->world_map_ok || uid < 0) {
     return false;
   }
-  /* bugs.md follow-up: DOS forbids founding new colonies once independence
-   * is declared — every hand and bell goes to the war effort. */
-  if (game->col1_ok && game->col1.head.game_options.woi) {
-    set_status(
-      game,
-      assets_msg_line_or(&game->messages, "NOCOLONIESEITHER", 0, ""),
-      NULL
-    );
+  const ColonizeUnit* founder = units_get_const(&game->units, uid);
+  if (!founder || !founder->active || !units_is_on_map(founder)) {
+    return false;
+  }
+  const int cx = founder->x;
+  const int cy = founder->y;
+  const int type_index = founder->type_index;
+  const int profession = founder->profession;
+  int tools = 0;
+  int muskets = 0;
+  int horses = 0;
+  units_founder_loot(&game->units, uid, &tools, &muskets, &horses);
+
+  const int hn = game->human_nation;
+  ColonizeCol1Save* col1 = game->col1_ok ? &game->col1 : NULL;
+  uint32_t* gold = NULL;
+
+  const int cid = colonies_found_with_indian_land_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&game->colonies), .map=(ColonizeWorldMap*)(&game->world_map), .col1=(ColonizeCol1Save*)(col1), .col1_ok=((col1) != NULL)}, gold, cx, cy, hn, type_index, profession, tools, muskets, horses);
+  if (cid < 0) {
+    set_status(game, "Cannot found colony here", NULL);
+    return false;
+  }
+
+  units_despawn(&game->units, uid);
+  /* bugs.md #268: DOS tracks names-consumed per nation in the SAVE (the AI
+   * paths already bump player.founded_colonies); the human path didn't, so
+   * a reload re-derived nothing and the session counter drifted. */
+  if (game->col1_ok && hn >= 0 && hn < 4) {
+    game->col1.player[hn].founded_colonies++;
+  }
+  colonies_reveal_founded_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&game->colonies), .map=(ColonizeWorldMap*)(&game->world_map), .col1=(ColonizeCol1Save*)(game->col1_ok ? &game->col1 : NULL), .col1_ok=((game->col1_ok ? &game->col1 : NULL) != NULL)}, cid); /* FUN_364b_1dd6 Coronado */
+  ColonizeColony* col = colonies_get_mut(&game->colonies, cid);
+  /* raw 77024: the human arm writes the answered buffer over the default. */
+  if (col && chosen_name && chosen_name[0]) {
+    str_copy_trunc(col->name, sizeof(col->name), chosen_name);
+  }
+  snprintf(
+    game->status,
+    sizeof(game->status),
+    "Founded %s (pop %d)",
+    col ? col->name : "colony",
+    col ? col->population : 0
+  );
+  sound_play(0x54); /* DOS FUN_479b_076e: found-colony hammering (COLDIG sample 13) */
+  /* 479b:0950, immediately after that same 0x54: human-only woodcut 2. */
+  if (game->col1_ok) {
+    (void)woodcut_fire(&game->col1, WOODCUT_BUILDING_A_COLONY);
+  }
+  game->found_open_colony_id = -1;
+  if (!game->in_colony) {
+    /*
+     * bugs.md #682: FUN_479b_076e's tail (viceroy_unpacked.c raw 77043-77048)
+     * is FUN_281f_04c0 (redraw the map) → FUN_281f_0524(2) (the "Building a
+     * Colony" woodcut, a BLOCKING screen in DOS) → FUN_281f_0608 (the colony
+     * screen). Opening the colony screen in the same breath as arming the
+     * woodcut parked the woodcut behind it (game_service_woodcut refuses to
+     * open while a screen owns the display), so it only played after the
+     * player escaped out of the colony. Defer the open instead; the idle
+     * service in game_update_services picks it up once the woodcut is done.
+     */
+    if (woodcut_has_pending()) {
+      game->found_open_colony_id = cid;
+    } else {
+      game_enter_colony(game, cid); /* FUN_281f_0608, raw 77045 */
+    }
+  }
+  return true;
+}
+
+/*
+ * @COLONY name prompt (DOS FUN_291f_0120(0x17), raw 76999). The default name
+ * comes from thunk_FUN_2a1f_01f4 at raw 76995 and is only consumed when the
+ * founding actually goes through, so the seed is a non-advancing peek.
+ */
+static void game_found_open_colony_name(ColonizeGameState* game, int uid) {
+  if (!game || uid < 0) {
+    return;
+  }
+  char prompt[AI_POPUP_BODY_LEN];
+  popup_msg_fill(&game->messages, "COLONY", NULL, "", prompt, sizeof(prompt));
+  const char* seed = colonies_peek_next_name(&game->colonies, game->human_nation);
+  game->found_open_colony_id = -1;
+  game->found_pending_unit_plus1 = uid + 1;
+  if (!name_entry_open(&game->name_entry, NAME_ENTRY_KIND_FOUND, prompt, seed, -1)) {
+    /* No prompt to answer means nothing will fire the tail — found anyway
+     * rather than silently eating the order. */
+    game->found_pending_unit_plus1 = 0;
+    set_status(game, "Name entry failed", NULL);
+    (void)game_found_finalize(game, uid, NULL);
+  }
+}
+
+bool game_do_found_colony_at_unit(ColonizeGameState* game, int uid, bool land_resolved) {
+  if (!game || !game->world_map_ok || uid < 0) {
     return false;
   }
   const ColonizeUnit* founder = units_get_const(&game->units, uid);
@@ -387,17 +499,6 @@ bool game_do_found_colony_at_unit(ColonizeGameState* game, int uid, bool land_re
     return false;
   }
 
-  const int type_index = founder->type_index;
-  const int profession = founder->profession;
-  int tools = 0;
-  int muskets = 0;
-  int horses = 0;
-  units_founder_loot(&game->units, uid, &tools, &muskets, &horses);
-
-  const int hn = game->human_nation;
-  ColonizeCol1Save* col1 = game->col1_ok ? &game->col1 : NULL;
-  uint32_t* gold = NULL;
-  int land_cost = 0;
   /*
    * @INDIANLAND: DOS asks respect / offer gold / take before founding on
    * tribal land (FUN_479b tile-buy site). land_resolved = the CHOICE already
@@ -412,78 +513,90 @@ bool game_do_found_colony_at_unit(ColonizeGameState* game, int uid, bool land_re
    * the @INDIANLAND "offer gold" arm. The old "need N gold" hard block and
    * silent auto-pay are gone with it.
    */
-  (void)col1;
-
-  const int cid = colonies_found_with_indian_land_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&game->colonies), .map=(ColonizeWorldMap*)(&game->world_map), .col1=(ColonizeCol1Save*)(col1), .col1_ok=((col1) != NULL)}, gold, cx, cy, hn, type_index, profession, tools, muskets, horses);
-  if (cid < 0) {
-    set_status(game, "Cannot found colony here", NULL);
-    return false;
-  }
-
-  units_despawn(&game->units, uid);
-  if (gold) {
-    game->europe.gold = (int)*gold;
-  }
-  /* bugs.md #268: DOS tracks names-consumed per nation in the SAVE (the AI
-   * paths already bump player.founded_colonies); the human path didn't, so
-   * a reload re-derived nothing and the session counter drifted. */
-  if (game->col1_ok && hn >= 0 && hn < 4) {
-    game->col1.player[hn].founded_colonies++;
-  }
-  colonies_reveal_founded_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&game->colonies), .map=(ColonizeWorldMap*)(&game->world_map), .col1=(ColonizeCol1Save*)(game->col1_ok ? &game->col1 : NULL), .col1_ok=((game->col1_ok ? &game->col1 : NULL) != NULL)}, cid); /* FUN_364b_1dd6 Coronado */
-  const ColonizeColony* col = colonies_get(&game->colonies, cid);
-  if (land_cost > 0) {
-    snprintf(
-      game->status,
-      sizeof(game->status),
-      "Founded %s (paid %d gold)",
-      col ? col->name : "colony",
-      land_cost
-    );
-  } else {
-    snprintf(
-      game->status,
-      sizeof(game->status),
-      "Founded %s (pop %d)",
-      col ? col->name : "colony",
-      col ? col->population : 0
-    );
-  }
-  game->found_open_colony_id = cid;
-  game_open_found_name_entry(game, cid);
-  sound_play(0x54); /* DOS FUN_479b_076e: found-colony hammering (COLDIG sample 13) */
-  /* 479b:0950, immediately after that same 0x54: human-only woodcut 2. */
-  if (hn == game->human_nation && game->col1_ok) {
-    (void)woodcut_fire(&game->col1, WOODCUT_BUILDING_A_COLONY);
-  }
+  /*
+   * bugs.md #682: the name prompt is the LAST gate. Everything that touches
+   * the world (unit consume, colony create, sound, woodcut, first-worker
+   * placement) lives in game_found_finalize and runs only on accept.
+   */
+  game_found_open_colony_name(game, uid);
   return true;
 }
 
-/* @NOPORT CHOICE when founding inland (no ocean access). */
-void game_request_noport_found_confirm(ColonizeGameState* game, int uid) {
-  if (!game || uid < 0) {
-    return;
+/*
+ * DOS-LITERAL FUN_2b5a Build handler, asm 0x22636-0x226d7 (bugs.md #684):
+ * the 9-tile site survey that feeds @TUTNOSPACES / @TUTNOLUMBER. Offsets are
+ * the DS:0xb4 / DS:0xbe tables (VICEROY.EXE 121248+0xb4 / +0xbe) -- the 8
+ * neighbours, then the site itself.
+ *   productive  +1 per tile whose terrain class is not 1 / 0x18 / 0x19 /
+ *               0x1a (Desert / Arctic / Ocean / Sea Lane) AND carries no
+ *               Indian village (FUN_281f_06f0 = FUN_137f_0392 < 0);
+ *               +1 again per tile that carries a special resource
+ *               (FUN_281f_0718 = FUN_137f_04b0 != -1).  Both land in the
+ *               same counter [bp-0x6], so one tile can score twice.
+ *   forest      set once any tile's class is 8..0x17.
+ */
+static const int k_found_scan_dx[9] = {0, 1, 1, 1, 0, -1, -1, -1, 0};
+static const int k_found_scan_dy[9] = {-1, -1, 0, 1, 1, 1, 0, -1, 0};
+
+static void game_found_site_survey(
+  const ColonizeGameState* game, int cx, int cy, int* productive, int* forest
+) {
+  int prod = 0;
+  int fore = 0;
+  for (int i = 0; i < 9; ++i) {
+    const int tx = cx + k_found_scan_dx[i];
+    const int ty = cy + k_found_scan_dy[i];
+    const int cls = map_pedia_terrain_index_at(&game->world_map, tx, ty);
+    if (cls != 1 && cls != 0x18 && cls != 0x19 && cls != 0x1a) {
+      const ColonizeCol1Tribe* v =
+        game->col1_ok ? col1_save_village_at(&game->col1, tx, ty) : NULL;
+      if (!v) {
+        ++prod;
+      }
+    }
+    if (map_resource_type_for_yield(&game->world_map, tx, ty) != -1) {
+      ++prod;
+    }
+    if (cls >= 8 && cls <= 0x17) {
+      fore = 1;
+    }
   }
+  if (productive) {
+    *productive = prod;
+  }
+  if (forest) {
+    *forest = fore;
+  }
+}
+
+/*
+ * The three pre-founding CHOICEs of the DOS Build handler, in DOS order:
+ * @NOPORT (asm 0x2274e), then -- only on difficulty <= 1, `cmp byte
+ * [0x53a6],2 / jnc` at asm 0x22763 -- @TUTNOSPACES when the survey counter
+ * is below 4 and @TUTNOLUMBER when no scanned tile is forested. Each is a
+ * 2-choice popup whose second row ("Build colony anyway") is the only answer
+ * that continues; anything else drops the order (asm jumps to 0x27e5).
+ * bugs.md #684 / #687.
+ */
+#define GAME_FOUND_STAGE_NOPORT 0
+#define GAME_FOUND_STAGE_NOSPACES 1
+#define GAME_FOUND_STAGE_NOLUMBER 2
+
+static void game_found_stage_confirm(
+  ColonizeGameState* game, int uid, int stage, const char* section
+) {
   PopupMsgTokens tok;
   memset(&tok, 0, sizeof(tok));
   char body[AI_POPUP_BODY_LEN];
-  popup_msg_fill(
-    &game->messages,
-    "NOPORT",
-    &tok,
-    "",
-    body,
-    sizeof(body)
-  );
+  popup_msg_fill(&game->messages, section, &tok, "", body, sizeof(body));
   char label_buf[2][POPUP_MSG_CHOICE_LEN];
   const char* labels[2];
   (void)popup_msg_section_labels(
-    &game->messages, "NOPORT", &tok, "",
-    "", label_buf, labels
+    &game->messages, section, &tok, "", "", label_buf, labels
   );
-  const int ids[] = {0, 1}; /* forgot / proceed */
+  const int ids[] = {0, 1}; /* cancel action / build anyway */
   game->map_confirm = GAME_MAP_CONFIRM_FOUND_INLAND;
-  game->map_confirm_payload = uid;
+  game->map_confirm_payload = (uid & 0xffff) | (stage << 16);
   if (!ai_popup_enqueue_choice(
         &game->ai_popups, AI_POPUP_TAG_MAP_CONFIRM, NULL, body, labels, ids, 2
       )) {
@@ -493,13 +606,81 @@ void game_request_noport_found_confirm(ColonizeGameState* game, int uid) {
   }
 }
 
+/* Run the confirm chain from `stage` on; falls through to the name prompt. */
+static void game_found_confirm_chain(ColonizeGameState* game, int uid, int stage) {
+  if (!game || uid < 0) {
+    return;
+  }
+  const ColonizeUnit* u = units_get_const(&game->units, uid);
+  if (!u || !u->active || !units_is_on_map(u)) {
+    return;
+  }
+  const int cx = u->x;
+  const int cy = u->y;
+  if (stage <= GAME_FOUND_STAGE_NOPORT &&
+      !map_tile_is_coastal(&game->world_map, cx, cy)) {
+    game_found_stage_confirm(game, uid, GAME_FOUND_STAGE_NOPORT, "NOPORT");
+    return;
+  }
+  /* DS:0x53a6 -- Discoverer (0) and Explorer (1) only. */
+  if (game->europe.difficulty <= 1) {
+    int productive = 0;
+    int forest = 0;
+    game_found_site_survey(game, cx, cy, &productive, &forest);
+    if (stage <= GAME_FOUND_STAGE_NOSPACES && productive < 4) {
+      game_found_stage_confirm(game, uid, GAME_FOUND_STAGE_NOSPACES, "TUTNOSPACES");
+      return;
+    }
+    if (stage <= GAME_FOUND_STAGE_NOLUMBER && forest == 0) {
+      game_found_stage_confirm(game, uid, GAME_FOUND_STAGE_NOLUMBER, "TUTNOLUMBER");
+      return;
+    }
+  }
+  (void)game_do_found_colony_at_unit(game, uid, false);
+}
+
+/* @NOPORT CHOICE when founding inland (no ocean access). */
+void game_request_noport_found_confirm(ColonizeGameState* game, int uid) {
+  game_found_confirm_chain(game, uid, GAME_FOUND_STAGE_NOPORT);
+}
+
 /*
- * Human FOUND (B key / Orders → Build Colony).
- * @SEACOLONY on water; @TOOMOUNTAIN on mountains; @NOPORT CHOICE when land is not coastal.
+ * Human FOUND (B key / Orders → Build Colony), in DOS's own order
+ * (FUN_2b5a Build handler, asm 0x22542-0x227b0 — bugs.md #687):
+ * @NOCOLONIESEITHER → @TOOMANYCOLONIES → @SEACOLONY → @TOONEAR →
+ * @TOOMOUNTAIN → 9-tile scan (@TOONEARBUILD) → @NOPORT → @TUTNOSPACES →
+ * @TUTNOLUMBER → name prompt → found.
  */
 bool game_try_found_colony_at_cursor(ColonizeGameState* game) {
   if (!game || !game->world_map_ok) {
     return false;
+  }
+  if (game_woi_blocks_colony_orders(game)) { /* asm 0x2256d, bugs.md #688 */
+    return false;
+  }
+  /*
+   * DOS-LITERAL FUN_2b5a Build handler, asm 0x22584-0x225ad (bugs.md #681):
+   * `cmp word [0x539e],0x30` (48 colonies in the game) and
+   * `cmp byte [nation+0x9298],0x26` (38 settlements for this nation); over
+   * either cap, and only when there is no colony on the tile (the Join
+   * branch is exempt), DOS shows @TOOMANYCOLONIES and drops the order.
+   */
+  {
+    int live = 0;
+    for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+      if (game->colonies.colonies[i].active) {
+        ++live;
+      }
+    }
+    const int mine =
+      colonies_nation_settlement_count(&game->colonies, game->human_nation);
+    if (live >= 0x30 || mine >= 0x26) {
+      char body[AI_POPUP_BODY_LEN];
+      popup_msg_fill(&game->messages, "TOOMANYCOLONIES", NULL, "", body, sizeof(body));
+      ai_popup_enqueue_ok(&game->ai_popups, AI_POPUP_TAG_INFO, NULL, body);
+      set_status(game, "", NULL);
+      return false;
+    }
   }
   const int cx = game->map_cursor_x;
   const int cy = game->map_cursor_y;
@@ -537,6 +718,21 @@ bool game_try_found_colony_at_cursor(ColonizeGameState* game) {
       return false;
     }
   }
+  /* asm 0x22620-0x22632: @TOOMOUNTAIN sits BEFORE the neighbour scan. */
+  if (map_pedia_terrain_index_at(&game->world_map, cx, cy) == 27) {
+    char body[AI_POPUP_BODY_LEN];
+    popup_msg_fill(
+      &game->messages,
+      "TOOMOUNTAIN",
+      NULL,
+      "",
+      body,
+      sizeof(body)
+    );
+    ai_popup_enqueue_ok(&game->ai_popups, AI_POPUP_TAG_INFO, NULL, body);
+    set_status(game, "Cannot found colony here", NULL);
+    return false;
+  }
   /*
    * @TOONEARBUILD (colony.c:472): a 9-tile neighbor scan (own tile plus the
    * 8 adjacent) for another unit with a Build Colony order (UNITS_ORDER_
@@ -567,20 +763,6 @@ bool game_try_found_colony_at_cursor(ColonizeGameState* game) {
       }
     }
   }
-  if (map_pedia_terrain_index_at(&game->world_map, cx, cy) == 27) {
-    char body[AI_POPUP_BODY_LEN];
-    popup_msg_fill(
-      &game->messages,
-      "TOOMOUNTAIN",
-      NULL,
-      "",
-      body,
-      sizeof(body)
-    );
-    ai_popup_enqueue_ok(&game->ai_popups, AI_POPUP_TAG_INFO, NULL, body);
-    set_status(game, "Cannot found colony here", NULL);
-    return false;
-  }
   if (!colonies_can_found(&game->colonies, &game->world_map, cx, cy)) {
     set_status(game, "Cannot found colony here", NULL);
     return false;
@@ -594,11 +776,8 @@ bool game_try_found_colony_at_cursor(ColonizeGameState* game) {
     set_status(game, "Ships cannot found colonies", NULL);
     return false;
   }
-  if (!map_tile_is_coastal(&game->world_map, cx, cy)) {
-    game_request_noport_found_confirm(game, uid);
-    return true;
-  }
-  return game_do_found_colony_at_unit(game, uid, false);
+  game_found_confirm_chain(game, uid, GAME_FOUND_STAGE_NOPORT);
+  return true;
 }
 
 void game_enqueue_yes_no(
@@ -849,7 +1028,9 @@ static void game_apply_map_confirm(ColonizeGameState* game) {
       game_do_buy_construction(game, payload);
       break;
     case GAME_MAP_CONFIRM_FOUND_INLAND:
-      (void)game_do_found_colony_at_unit(game, payload, false);
+      /* payload = uid | stage<<16; resume the DOS confirm chain after the
+       * stage that was just answered "build anyway". bugs.md #684. */
+      game_found_confirm_chain(game, payload & 0xffff, ((payload >> 16) & 0xff) + 1);
       break;
     case GAME_MAP_CONFIRM_EUROPE_SAIL:
       game_europe_sail_harbor(game, payload);
@@ -1255,34 +1436,6 @@ void game_open_trade_route_picker(ColonizeGameState* game, int mode) {
   }
 }
 
-static void game_open_found_name_entry(ColonizeGameState* game, int colony_id) {
-  if (!game) {
-    return;
-  }
-  const ColonizeColony* col = colonies_get(&game->colonies, colony_id);
-  char prompt[AI_POPUP_BODY_LEN];
-  popup_msg_fill(
-    &game->messages,
-    "COLONY",
-    NULL,
-    "",
-    prompt,
-    sizeof(prompt)
-  );
-  const char* seed = col && col->name[0] ? col->name : "Colony";
-  if (!name_entry_open(
-        &game->name_entry, NAME_ENTRY_KIND_FOUND, prompt, seed, colony_id
-      )) {
-    /* No prompt to answer means nothing will fire the FUN_281f_0608 tail;
-     * open the colony now rather than leaving it armed for the next one. */
-    set_status(game, "Name entry failed", NULL);
-    if (game->found_open_colony_id == colony_id) {
-      game->found_open_colony_id = -1;
-      game_enter_colony(game, colony_id);
-    }
-  }
-}
-
 static void game_landho_default_region(const ColonizeGameState* game, char* out, size_t out_size) {
   static const char* k_regions[4] = {
     "", "", "", ""
@@ -1386,6 +1539,23 @@ static void game_apply_name_entry_result(ColonizeGameState* game) {
     game->name_entry.has_result = false;
     return;
   }
+  /*
+   * bugs.md #682: the founding prompt answered. Accept -> run DOS's
+   * FUN_479b_076e tail; cancel (FUN_291f_0120 != 0, raw 77000) -> the unit
+   * and the map are left exactly as they were.
+   */
+  if (kind == NAME_ENTRY_KIND_FOUND && game->found_pending_unit_plus1 > 0) {
+    const int uid = game->found_pending_unit_plus1 - 1;
+    const bool cancelled = game->name_entry.result_cancelled;
+    game->found_pending_unit_plus1 = 0;
+    game->name_entry.has_result = false;
+    if (!cancelled) {
+      (void)game_found_finalize(game, uid, game->name_entry.result_name);
+    } else {
+      set_status(game, "", NULL);
+    }
+    return;
+  }
   if (kind == NAME_ENTRY_KIND_LANDHO) {
     char fallback[48];
     game_landho_default_region(game, fallback, sizeof(fallback));
@@ -1416,19 +1586,8 @@ static void game_apply_name_entry_result(ColonizeGameState* game) {
       }
     }
   }
-  /*
-   * FUN_479b_076e tail: once the human has named the new colony, DOS calls
-   * FUN_281f_0608(colony) and drops the player straight into its screen.
-   * Only for a founding — a rename from inside the colony screen leaves the
-   * view exactly where it was.
-   */
-  if (kind == NAME_ENTRY_KIND_FOUND && game->found_open_colony_id >= 0) {
-    const int cid = game->found_open_colony_id;
-    game->found_open_colony_id = -1;
-    if (!game->in_colony) {
-      game_enter_colony(game, cid);
-    }
-  }
+  /* The founding branch above owns FUN_281f_0608 (game_found_finalize);
+   * a rename from inside the colony screen leaves the view where it was. */
   game->name_entry.has_result = false;
 }
 
@@ -2014,11 +2173,17 @@ static bool game_apply_popup_voyage(ColonizeGameState* game) {
     ColonizeUnit* ship = units_get(&game->units, ship_id);
     if (!cancelled && ship && ship->active && units_is_sea(&game->units, ship_id)) {
       if (choice == 1) {
-        /* Yes, steady as she goes — sail for Europe from the lane tile.
-         * Hand control on only when the ship really left (a refused
-         * crossing leaves it selected on the lane tile). */
-        if (units_on_high_seas(&game->world_map, ship->x, ship->y) && game->europe_ok &&
-            game_ship_sail_to_europe(game, ship_id)) {
+        /*
+         * bugs.md #717: "Yes" sails, full stop. FUN_4720_049e's shared
+         * reason-4/5 UI body (ndisasm 0x3FECE-0x3FEE9) is
+         * `cmp word [bp-0xc],1; jnz 0xfeea; call 0x191f:0x208;
+         *  push word [0x5392]; call 0x181f:0xdf4; retf` — the crossing is
+         * launched on the answer alone, with no re-test of the ship's tile.
+         * The port required units_on_high_seas() first, so a ship pushed off
+         * the x rim from an ordinary ocean tile (reason 4) answered Yes and
+         * then just sat there.
+         */
+        if (game->europe_ok && game_ship_sail_to_europe(game, ship_id)) {
           if (game_select_next_unit_awaiting_orders(game)) {
             game->view_pieces_mode = false;
           }
@@ -2185,6 +2350,31 @@ static bool game_apply_popup_contact(ColonizeGameState* game) {
       set_status(game, "Attack called off", NULL);
     }
     ai_popup_consume_result(&game->ai_popups);
+  return true;
+  }
+  /*
+   * bugs.md #691 — FUN_2b5a_1112 raw 42405-42411. @HAVETREATY answer 2
+   * ("Break Treaty") sets the war bit and clears 0x40 (FUN_281f_0a10), THEN
+   * falls into the fortify tail; any other answer returns with no order
+   * written at all.
+   */
+  if (game->ai_popups.result_tag == AI_POPUP_TAG_FORTIFY_TREATY) {
+    const int unit_id = game->ai_popups.result_nation_a;
+    const int partner = game->ai_popups.result_nation_b;
+    const bool brk = !game->ai_popups.result_cancelled && game->ai_popups.result_choice_id == 1;
+    ai_popup_consume_result(&game->ai_popups);
+    ColonizeUnit* u = units_get(&game->units, unit_id);
+    if (brk && u && u->active && u->nation_id >= 0 && u->nation_id <= 3 && partner >= 0 &&
+        partner <= 3 && game->col1_ok) {
+      ColonizeTurnContext ctx;
+      game_fill_turn_context(game, &ctx);
+      ai_diplo_declare_war_ctx(&ctx, u->nation_id, partner);
+      if (units_order_fortify(&game->units, unit_id)) {
+        set_status(
+          game, units_is_sea(&game->units, unit_id) ? "Anchoring in harbor" : "Fortifying", NULL
+        );
+      }
+    }
   return true;
   }
   return false;

@@ -1803,14 +1803,23 @@ static int unit_sea_lane_entry(void) {
     fprintf(stderr, "sea_lane: step onto the west rim column must be denied\n");
     rc = 1;
   }
-  if (rc == 0 && units_last_enter_reason() != COLONIZE_ENTER_BLOCKED_EDGE) {
-    fprintf(stderr, "sea_lane: rim deny should be reason EDGE\n");
+  /* bugs.md #717: the x-axis rim is DOS reason 4 for a SHIP (@SAILHOME with a
+   * "No" that aborts), not the silent y-axis edge. Expectation updated from
+   * COLONIZE_ENTER_BLOCKED_EDGE — the step is still denied either way. */
+  if (rc == 0 && units_last_enter_reason() != COLONIZE_ENTER_EDGE_SAIL) {
+    fprintf(stderr, "sea_lane: west rim deny should be reason EDGE_SAIL (#717)\n");
     rc = 1;
   }
   u->x = 3;
   u->y = 1;
   if (rc == 0 && units_can_enter_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(NULL), .map=(ColonizeWorldMap*)(&map)}, u->type_index, 3, 0, id)) {
     fprintf(stderr, "sea_lane: step onto the north rim row must be denied\n");
+    rc = 1;
+  }
+  /* bugs.md #717: the y-axis rim returns 0 with no reason word in DOS —
+   * silent BLOCKED_EDGE, never the @SAILHOME question. */
+  if (rc == 0 && units_last_enter_reason() != COLONIZE_ENTER_BLOCKED_EDGE) {
+    fprintf(stderr, "sea_lane: north rim deny should stay silent EDGE (#717)\n");
     rc = 1;
   }
   u->x = 3;
@@ -2696,6 +2705,152 @@ static int unit_flood_river_pair_step(void) {
   map_free(&map);
   if (rc == 0) {
     fprintf(stderr, "unit_units: flood river-pair neighbour pick ok\n");
+  }
+  return rc;
+}
+
+/*
+ * bugs.md #696 / #697 / #701 — FUN_479b_0972 + FUN_6662_0f74 tails.
+ *  #701 the adjacent tier is FUN_6662_0086, a bare sign->dir8 lookup: it
+ *       returns the sign step even onto a tile the unit cannot enter.
+ *  #696 a pathfinder miss spends the whole allotment (FUN_281f_0934) and
+ *       clears +0x314c.
+ *  #697 on arrival AI_MOVE (0x0c) keeps its order like TRADE_ROUTE (0x02),
+ *       and AI_SAIL (0x0b) is finished on the spot.
+ */
+static int unit_goto_dos_tails(void) {
+  units_reset_state();
+
+  ColonizeUnitPool pool;
+  memset(&pool, 0, sizeof(pool));
+  pool.type_count = 2;
+  snprintf(pool.types[0].name, sizeof(pool.types[0].name), "Free Colonist");
+  pool.types[0].movement = 1;
+  pool.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  snprintf(pool.types[1].name, sizeof(pool.types[1].name), "Caravel");
+  pool.types[1].movement = 4;
+  pool.types[1].domain = COLONIZE_UNIT_DOMAIN_SEA;
+
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  char err[128];
+  if (!map_alloc(&map, 16, 16, err, sizeof(err))) {
+    fprintf(stderr, "goto_tails: map_alloc failed: %s\n", err);
+    return 1;
+  }
+  for (int i = 0; i < 16 * 16; ++i) {
+    map.terrain[i] = 25; /* ocean */
+    map.layer3[i] = 1;   /* continent 1: open sea, not a lake */
+  }
+  /* One 3x3 plains island at (4..6, 4..6). */
+  for (int y = 4; y <= 6; ++y) {
+    for (int x = 4; x <= 6; ++x) {
+      map.terrain[y * 16 + x] = 2; /* plains */
+    }
+  }
+  map.terrain[2 * 16 + 2] = 2; /* lone 1x1 plains islet for the #696 case */
+
+  int rc = 0;
+  const ColonizeWorld w = {
+    .units = &pool, .colonies = NULL, .map = &map, .rng = NULL
+  };
+
+  /* #701: adjacent goal on water — the sign step is returned anyway. */
+  const int land = units_spawn_allow_stack(&pool, 0, 6, 6);
+  ColonizeUnit* u = units_get(&pool, land);
+  if (!u) {
+    map_free(&map);
+    fprintf(stderr, "goto_tails: land spawn failed\n");
+    return 1;
+  }
+  u->nation_id = 0;
+  u->moves = UNITS_MP_PER_TILE;
+  u->orders = UNITS_ORDER_GOTO;
+  u->goto_x = 7;
+  u->goto_y = 7; /* ocean, diagonally adjacent to the island corner */
+  int nx = -1;
+  int ny = -1;
+  if (!units_next_goto_step_w(&w, land, &nx, &ny) || nx != 7 || ny != 7) {
+    fprintf(stderr, "goto_tails: #701 adjacent sign step expected (7,7), got (%d,%d)\n", nx, ny);
+    rc = 1;
+  }
+
+  /* #696: a land unit marooned on a 1x1 islet — every tier misses, so the
+   * order is dropped and the whole allotment is spent. */
+  if (rc == 0) {
+    const int marooned = units_spawn_allow_stack(&pool, 0, 2, 2);
+    u = units_get(&pool, marooned);
+    if (!u) {
+      map_free(&map);
+      fprintf(stderr, "goto_tails: islet spawn failed\n");
+      return 1;
+    }
+    u->nation_id = 0;
+    u->moves = UNITS_MP_PER_TILE;
+    u->orders = UNITS_ORDER_GOTO;
+    u->goto_x = 13;
+    u->goto_y = 13;
+    if (units_advance_goto_one_step_w(&w, marooned)) {
+      fprintf(stderr, "goto_tails: #696 unreachable goal must not step\n");
+      rc = 1;
+    } else if (u->orders != UNITS_ORDER_NONE) {
+      fprintf(stderr, "goto_tails: #696 order must be cleared, got %d\n", u->orders);
+      rc = 1;
+    } else if (u->moves != 0) {
+      fprintf(stderr, "goto_tails: #696 allotment must be spent, moves=%d\n", u->moves);
+      rc = 1;
+    }
+  }
+
+  /* #697: arrival — AI_MOVE keeps its order, AI_SAIL is finished. */
+  if (rc == 0) {
+    u = units_get(&pool, land);
+    u->x = 5;
+    u->y = 5;
+    u->moves = UNITS_MP_PER_TILE;
+    u->orders = UNITS_ORDER_AI_MOVE;
+    u->goto_x = 6;
+    u->goto_y = 5;
+    if (!units_advance_goto_one_step_w(&w, land)) {
+      fprintf(stderr, "goto_tails: #697 AI_MOVE step must commit\n");
+      rc = 1;
+    } else if (u->x != 6 || u->y != 5) {
+      fprintf(stderr, "goto_tails: #697 AI_MOVE landed at (%d,%d)\n", u->x, u->y);
+      rc = 1;
+    } else if (u->orders != UNITS_ORDER_AI_MOVE) {
+      fprintf(stderr, "goto_tails: #697 AI_MOVE must survive arrival, got %d\n", u->orders);
+      rc = 1;
+    }
+  }
+  if (rc == 0) {
+    const int ship = units_spawn_allow_stack(&pool, 1, 8, 8);
+    ColonizeUnit* s = units_get(&pool, ship);
+    if (!s) {
+      fprintf(stderr, "goto_tails: ship spawn failed\n");
+      rc = 1;
+    } else {
+      s->nation_id = 0;
+      s->moves = 4 * UNITS_MP_PER_TILE;
+      s->orders = UNITS_ORDER_AI_SAIL;
+      s->goto_x = 9;
+      s->goto_y = 8;
+      if (!units_advance_goto_one_step_w(&w, ship)) {
+        fprintf(stderr, "goto_tails: #697 AI_SAIL step must commit\n");
+        rc = 1;
+      } else if (s->orders != UNITS_ORDER_NONE) {
+        fprintf(stderr, "goto_tails: #697 AI_SAIL order must clear, got %d\n", s->orders);
+        rc = 1;
+      } else if (s->moves != 0) {
+        fprintf(stderr, "goto_tails: #697 AI_SAIL must be finished, moves=%d\n", s->moves);
+        rc = 1;
+      }
+    }
+  }
+
+  map_free(&map);
+  units_reset_state();
+  if (rc == 0) {
+    fprintf(stderr, "unit_units: goto DOS tails (#696/#697/#701) ok\n");
   }
   return rc;
 }
@@ -4750,8 +4905,173 @@ static int unit_cap_bits_column12(void) {
   return rc;
 }
 
+
+/*
+ * bugs.md #720 / #719 / #714 — MP model + entry gating (docs/move_enter.md).
+ *
+ * #720 FUN_465b_0000 raw 75510-75516: a land unit whose @UNIT attack column
+ *      (DS:0x5236) is 0 never enters a foreign Euro colony, defended or not.
+ * #719 FUN_4720_015c raw 76012-76020: the landfall passenger is the FIRST
+ *      cargo-chain entry with size < 99 and spent < max — one pass.
+ * #714 FUN_465b_0000 LAB_465b_05ca: boarding runs the ordinary cost gate.
+ */
+static int unit_mp_entry_gating_713_724(void) {
+  int rc = 0;
+  ColonizeUnitPool pool;
+  memset(&pool, 0, sizeof(pool));
+  pool.type_count = 3;
+  snprintf(pool.types[0].name, sizeof(pool.types[0].name), "Colonists");
+  pool.types[0].movement = 1;
+  pool.types[0].attack = 0;
+  pool.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  snprintf(pool.types[1].name, sizeof(pool.types[1].name), "Soldiers");
+  pool.types[1].movement = 1;
+  pool.types[1].attack = 2;
+  pool.types[1].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  snprintf(pool.types[2].name, sizeof(pool.types[2].name), "Caravel");
+  pool.types[2].movement = 4;
+  pool.types[2].domain = COLONIZE_UNIT_DOMAIN_SEA;
+  pool.types[2].space = 2;
+
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  char err[128];
+  if (!map_alloc(&map, 8, 8, err, sizeof(err))) {
+    fprintf(stderr, "mp_entry: map_alloc failed: %s\n", err);
+    return 1;
+  }
+  for (int i = 0; i < 8 * 8; ++i) {
+    map.terrain[i] = 1; /* plains */
+  }
+  map.terrain[3 * 8 + 5] = 25; /* ocean berth */
+
+  ColonizeColonyPool colonies;
+  colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
+  ColonizeColony* col = &colonies.colonies[0];
+  col->active = true;
+  col->id = 1;
+  col->nation_id = 1; /* foreign */
+  col->x = 4;
+  col->y = 3;
+  colonies.colony_count = 1;
+
+  /* #720: plain colonist bumping the UNDEFENDED foreign colony. */
+  const int cid = units_spawn_allow_stack(&pool, 0, 3, 3);
+  ColonizeUnit* cu = units_get(&pool, cid);
+  if (!cu) {
+    map_free(&map);
+    fprintf(stderr, "mp_entry: colonist spawn failed\n");
+    return 1;
+  }
+  cu->nation_id = 0;
+  cu->moves = UNITS_MP_PER_TILE;
+  const ColonizeEnterReason r_col = units_enter_probe_w(
+    &(ColonizeWorld){.units = &pool, .colonies = &colonies, .map = &map},
+    cu->type_index, 4, 3, cid
+  );
+  if (r_col != COLONIZE_ENTER_BOUNCE_FOREIGN) {
+    fprintf(stderr, "mp_entry #720: colonist onto empty foreign colony -> %d\n", (int)r_col);
+    rc = 1;
+  }
+
+  /* A combat-role mover still walks in (capture path). */
+  const int sid = units_spawn_allow_stack(&pool, 1, 3, 3);
+  ColonizeUnit* su = units_get(&pool, sid);
+  if (su) {
+    su->nation_id = 0;
+    su->moves = UNITS_MP_PER_TILE;
+    const ColonizeEnterReason r_sol = units_enter_probe_w(
+      &(ColonizeWorld){.units = &pool, .colonies = &colonies, .map = &map},
+      su->type_index, 4, 3, sid
+    );
+    if (rc == 0 && r_sol != COLONIZE_ENTER_OK) {
+      fprintf(stderr, "mp_entry #720: soldier must still enter -> %d\n", (int)r_sol);
+      rc = 1;
+    }
+  }
+
+  /* #719: landfall pick is the FIRST chain entry that passes the spent test. */
+  const int shid = units_spawn_allow_stack(&pool, 2, 5, 3);
+  ColonizeUnit* sh = units_get(&pool, shid);
+  const int p1 = units_spawn_allow_stack(&pool, 0, 5, 3);
+  const int p2 = units_spawn_allow_stack(&pool, 0, 5, 3);
+  if (sh && p1 >= 0 && p2 >= 0) {
+    sh->nation_id = 0;
+    ColonizeUnit* u1 = units_get(&pool, p1);
+    ColonizeUnit* u2 = units_get(&pool, p2);
+    u1->nation_id = 0;
+    u2->nation_id = 0;
+    if (units_board(&pool, p1, shid) && units_board(&pool, p2, shid)) {
+      u1 = units_get(&pool, p1);
+      u2 = units_get(&pool, p2);
+      u1->moves = 0;               /* parked by boarding, spent byte clear */
+      u1->mp_spent_turn = 0;
+      u2->moves = UNITS_MP_PER_TILE; /* live MP: the old tier-1 would pick it */
+      u2->mp_spent_turn = 0;
+      if (rc == 0 && units_first_landfall_cargo(&pool, shid) != p1) {
+        fprintf(stderr, "mp_entry #719: landfall pick must be the first chain entry\n");
+        rc = 1;
+      }
+    }
+  }
+
+  /* #714: boarding from shore runs the cost gate — 1 third left, cost 3, the
+   * unit has already spent part of its allotment, so only the roll can pass
+   * it; with a 1-move unit the DOS "spent == 0" clause is what normally lets
+   * a full-MP unit aboard. Here the gate must refuse and still charge. */
+  const int bid = units_spawn_allow_stack(&pool, 0, 4, 3);
+  ColonizeUnit* bu = units_get(&pool, bid);
+  if (bu) {
+    /* Move it off the foreign colony tile the fixture put at (4,3). */
+    bu->x = 6;
+    bu->y = 3;
+    map.terrain[3 * 8 + 7] = 25; /* ocean next to it */
+    bu->nation_id = 0;
+    bu->moves = 1;               /* < cost 3, and NOT a full allotment */
+    ColonizeDosRng rng;
+    dos_rng_seed(&rng, 1);
+    const int shid2 = units_spawn_allow_stack(&pool, 2, 7, 3);
+    ColonizeUnit* sh2 = units_get(&pool, shid2);
+    if (sh2) {
+      sh2->nation_id = 0;
+      int denied = 0;
+      for (int i = 0; i < 24 && !denied; ++i) {
+        ColonizeUnit* b = units_get(&pool, bid);
+        b->x = 6;
+        b->y = 3;
+        b->aboard_ship_id = -1;
+        b->moves = 1;
+        b->mp_spent_turn = 0;
+        if (!units_try_move_w(
+              &(ColonizeWorld){
+                .units = &pool, .colonies = &colonies, .map = &map, .rng = &rng
+              },
+              bid, 7, 3
+            )) {
+          denied = 1;
+        }
+      }
+      if (rc == 0 && !denied) {
+        fprintf(stderr, "mp_entry #714: boarding must be able to fail the DOS cost roll\n");
+        rc = 1;
+      }
+    }
+  }
+
+  map_free(&map);
+  if (rc == 0) {
+    fprintf(stderr, "unit_units: MP model + entry gating (#714/#719/#720) ok\n");
+  }
+  return rc;
+}
+
 int main(void) {
   diag_init(0, NULL);
+  if (unit_mp_entry_gating_713_724() != 0) {
+    diag_shutdown();
+    return 1;
+  }
 
   if (unit_cap_bits_column12() != 0) {
     diag_shutdown();
@@ -4763,6 +5083,10 @@ int main(void) {
   }
 
   if (unit_flood_river_pair_step() != 0) {
+    return 1;
+  }
+
+  if (unit_goto_dos_tails() != 0) {
     return 1;
   }
 
@@ -6529,6 +6853,25 @@ int main(void) {
       assets_msg_free(&names);
       return 1;
     }
+    /*
+     * bugs.md #695: FUN_2b5a_1112's tail (raw 42418-42421) has no "already
+     * fortified" early-out — re-issuing Fortify on a dug-in unit rewrites
+     * order 5, zeroes +0x315a and exhausts the allotment all over again.
+     */
+    su->moves = 3 * UNITS_MP_PER_TILE;
+    su->col1_counter16 = 7;
+    if (!units_order_fortify(&pool, sid) || su->orders != UNITS_ORDER_FORTIFY ||
+        su->moves != 0 || su->col1_counter16 != 0) {
+      fprintf(stderr, "re-fortify no-op: orders=%d mp=%d counter=%d\n",
+              su->orders, su->moves, (int)su->col1_counter16);
+      ss_free(&icons);
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    su->orders = UNITS_ORDER_FORTIFIED;
+    su->moves = 0;
+    su->park_nights = 1;
     if (!units_wake(&pool, sid) || su->orders != UNITS_ORDER_NONE || su->moves <= 0) {
       fprintf(stderr, "wake fortified failed\n");
       ss_free(&icons);
@@ -7460,60 +7803,101 @@ int main(void) {
     fprintf(stderr, "unit_units: Sepulveda convert-join ok\n");
   }
 
-  /* FUN_3844_0004: Treasure outside colony despawns after >8 ticks. */
+  /*
+   * FUN_3844_0004 (raw 58268, bugs.md #725): a LONE Indian Convert on an open
+   * tile ages unit +0x16 and vanishes once the byte passes 8. Treasure trains
+   * are untouched — no DOS site expires one.
+   */
   {
-    ColonizeColonyPool colonies;
-    colonies_init(&colonies);
-    colonies_set_occupancy_map(NULL);
-    ColonizeColony* home = &colonies.colonies[0];
-    home->id = 0;
-    home->active = true;
-    home->nation_id = 0;
-    home->x = 2;
-    home->y = 2;
-    colonies.colony_count = 1;
-    int tid = units_spawn_treasure_train(&pool, 7, 7, 0, 100);
-    if (tid < 0) {
-      fprintf(stderr, "treasure tick spawn failed\n");
+    ColonizeWorldMap cmap;
+    memset(&cmap, 0, sizeof(cmap));
+    char cerr[128];
+    if (!map_alloc(&cmap, 12, 12, cerr, sizeof(cerr))) {
+      fprintf(stderr, "convert tick map_alloc failed: %s\n", cerr);
       return 1;
     }
-    ColonizeUnit* tr = units_get(&pool, tid);
-    tr->col1_counter16 = 0;
+    /* Settlement on (3,3) — layer2 bit 1 stands for FUN_281f_06be >= 0. */
+    cmap.layer2[3 * 12 + 3] |= MAP_OCCUPANCY_HAS_CITY;
+
+    const int cti = units_kind_type_index(&pool, UNITS_KIND_COLONIST);
+    if (cti < 0) {
+      map_free(&cmap);
+      fprintf(stderr, "convert tick: no Colonists type\n");
+      return 1;
+    }
+    const int lone = units_spawn_allow_stack(&pool, cti, 7, 7);
+    ColonizeUnit* cu = units_get(&pool, lone);
+    if (!cu) {
+      map_free(&cmap);
+      fprintf(stderr, "convert tick spawn failed\n");
+      return 1;
+    }
+    units_set_nation(cu, 0);
+    cu->profession = UNITS_JOB_CONVERT;
+    cu->col1_counter16 = 0;
     for (int t = 0; t < 8; ++t) {
-      if (units_tick_treasure_outside_colony(&pool, &colonies, 0, NULL, 0) != 0) {
-        fprintf(stderr, "treasure should survive tick %d\n", t + 1);
+      if (units_tick_convert_outside_colony(&pool, &cmap, 0) != 0) {
+        map_free(&cmap);
+        fprintf(stderr, "convert should survive tick %d\n", t + 1);
         return 1;
       }
-      tr = units_get(&pool, tid);
-      if (!tr || !tr->active || tr->col1_counter16 != t + 1) {
-        fprintf(stderr, "treasure counter want %d\n", t + 1);
+      cu = units_get(&pool, lone);
+      if (!cu || !cu->active || cu->col1_counter16 != t + 1) {
+        map_free(&cmap);
+        fprintf(stderr, "convert counter want %d\n", t + 1);
         return 1;
       }
     }
-    if (units_tick_treasure_outside_colony(&pool, &colonies, 0, NULL, 0) < 1) {
-      fprintf(stderr, "treasure should despawn on tick 9\n");
+    if (units_tick_convert_outside_colony(&pool, &cmap, 0) != 1) {
+      map_free(&cmap);
+      fprintf(stderr, "convert should despawn on tick 9\n");
       return 1;
     }
-    tr = units_get(&pool, tid);
-    if (tr && tr->active) {
-      fprintf(stderr, "treasure still active after tick 9\n");
+    if (units_get(&pool, lone) && units_get(&pool, lone)->active) {
+      map_free(&cmap);
+      fprintf(stderr, "convert still active after tick 9\n");
       return 1;
     }
-    /* On own colony: counter resets; never despawns. */
-    tid = units_spawn_treasure_train(&pool, 2, 2, 0, 50);
-    tr = units_get(&pool, tid);
-    tr->col1_counter16 = 7;
-    if (units_tick_treasure_outside_colony(&pool, &colonies, 0, NULL, 0) != 0) {
-      fprintf(stderr, "treasure on colony should not despawn\n");
+
+    /* On a settlement tile: never counted. */
+    const int inside = units_spawn_allow_stack(&pool, cti, 3, 3);
+    cu = units_get(&pool, inside);
+    units_set_nation(cu, 0);
+    cu->profession = UNITS_JOB_CONVERT;
+    cu->col1_counter16 = 7;
+    /* Stacked with an escort: FUN_281f_08bc(unit,2) >= 2, also skipped. */
+    const int escorted = units_spawn_allow_stack(&pool, cti, 9, 9);
+    const int escort = units_spawn_allow_stack(&pool, cti, 9, 9);
+    units_set_nation(units_get(&pool, escorted), 0);
+    units_set_nation(units_get(&pool, escort), 0);
+    units_get(&pool, escorted)->profession = UNITS_JOB_CONVERT;
+    units_get(&pool, escorted)->col1_counter16 = 7;
+    /* A Treasure train alone in the open must NOT be touched. */
+    const int tid = units_spawn_treasure_train(&pool, 5, 5, 0, 100);
+    units_get(&pool, tid)->col1_counter16 = 8;
+
+    if (units_tick_convert_outside_colony(&pool, &cmap, 0) != 0) {
+      map_free(&cmap);
+      fprintf(stderr, "convert tick removed a protected unit\n");
       return 1;
     }
-    tr = units_get(&pool, tid);
-    if (!tr || tr->col1_counter16 != 0) {
-      fprintf(stderr, "treasure on colony should reset counter\n");
+    if (units_get(&pool, inside)->col1_counter16 != 7 ||
+        units_get(&pool, escorted)->col1_counter16 != 7) {
+      map_free(&cmap);
+      fprintf(stderr, "convert tick must not age gated Converts\n");
       return 1;
     }
+    if (!units_get(&pool, tid)->active || units_get(&pool, tid)->col1_counter16 != 8) {
+      map_free(&cmap);
+      fprintf(stderr, "Treasure train must be untouched by 3844_0004\n");
+      return 1;
+    }
+    units_despawn(&pool, inside);
+    units_despawn(&pool, escorted);
+    units_despawn(&pool, escort);
     units_despawn(&pool, tid);
-    fprintf(stderr, "unit_units: treasure outside-colony 8-turn tick ok\n");
+    map_free(&cmap);
+    fprintf(stderr, "unit_units: lone-Convert 3844_0004 tick ok\n");
   }
 
   /* Stockade/Fort/Fortress defense bonus in land combat + Treasure capture loot. */
@@ -9523,7 +9907,16 @@ int main(void) {
       pool.types[arty].defense = 8;
       pool.types[col].attack = 0;
       pool.types[col].defense = 1;
-      const int best = units_best_defender_at(&pool, NULL, 31, 30, atk, atk);
+      /* bugs.md #677: DOS FUN_5fef_0000 is one ranking; an UNFORTIFIED gun in
+       * the open takes score >>= 3 (asm 0x0115) and loses the pick to the
+       * colonist. Fortified, it ranks on full strength and wins. */
+      int best = units_best_defender_at(&pool, NULL, 31, 30, atk, atk);
+      if (best != weak) {
+        fprintf(stderr, "phase2 best-def open-field arty want colonist id=%d got %d\n", weak, best);
+        return 1;
+      }
+      su->orders = UNITS_ORDER_FORTIFIED;
+      best = units_best_defender_at(&pool, NULL, 31, 30, atk, atk);
       if (best != strong) {
         fprintf(stderr, "phase2 best-def want arty id=%d got %d\n", strong, best);
         return 1;

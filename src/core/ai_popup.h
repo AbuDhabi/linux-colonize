@@ -172,7 +172,14 @@ typedef enum AiPopupTag {
                                  * colony's counter-offer. 1 = take the goods, 2 = take
                                  * the gold, 3 / Esc = refuse. nation_a = unit id,
                                  * nation_b = colony id, payload = hold index. The deal
-                                 * itself rides ColonizeGameState.foreign_trade. */
+                                 * itself rides ColonizeGameState.foreign_trade. */,
+  AI_POPUP_TAG_FORTIFY_TREATY = 69 /* bugs.md #691. FUN_2b5a_1112 (Fortify,
+                                 * viceroy_unpacked.c raw 42389-42411): a land unit
+                                 * digging in next to a treaty partner's colony asks
+                                 * @HAVETREATY (DS:0x932) first. 1 = Break Treaty (war
+                                 * bit set, 0x40 cleared via FUN_281f_0a10, then the
+                                 * unit fortifies), anything else = no fortify at all.
+                                 * nation_a = unit id, nation_b = treaty partner. */
 } AiPopupTag;
 
 typedef struct AiPopupRequest {

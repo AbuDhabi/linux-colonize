@@ -735,6 +735,183 @@ static int case_orders_gating(void) {
   return gating_ok ? 0 : 1;
 }
 
+/*
+ * bugs.md #686 / #692 — DOS-LITERAL FUN_2b5a_0b34 raw 42199-42211.
+ * Build (0x310) / Join (0x311) are decided by "is there ANY Euro colony on
+ * the tile" plus the single profession-0x1b grey; terrain never enters.
+ */
+static int case_build_join_gating(void) {
+  Fixture fx;
+  if (fixture_init(&fx) != 0) {
+    return 1;
+  }
+  MapMenuBar* bar = &fx.bar;
+  ColonizeMsgCatalog names;
+  assets_msg_init(&names);
+  if (!assets_msg_load_file(&names, "COLONIZE/NAMES.TXT")) {
+    fixture_free(&fx);
+    return 1;
+  }
+  ColonizeUnitPool pool;
+  memset(&pool, 0, sizeof(pool));
+  if (!units_load_types(&pool, &names)) {
+    assets_msg_free(&names);
+    fixture_free(&fx);
+    return 1;
+  }
+  const int colonist = units_find_type(&pool, "Colonists");
+  ColonizeWorldMap omap;
+  memset(&omap, 0, sizeof(omap));
+  char oerr[128];
+  if (colonist < 0 || !map_alloc(&omap, 8, 8, oerr, sizeof(oerr))) {
+    assets_msg_free(&names);
+    fixture_free(&fx);
+    return 1;
+  }
+  for (int i = 0; i < 8 * 8; ++i) {
+    omap.terrain[i] = 2; /* plains */
+  }
+  ColonizeColonyPool ocol;
+  colonies_init(&ocol);
+  colonies_set_occupancy_map(NULL);
+
+  const int uid = units_spawn(&pool, colonist, 3, 3);
+  ColonizeUnit* u = units_get(&pool, uid);
+  u->nation_id = 0;
+
+  MapMenuOrdersContext octx;
+  memset(&octx, 0, sizeof(octx));
+  octx.units = &pool;
+  octx.map = &omap;
+  octx.colonies = &ocol;
+  octx.selected_id = uid;
+  octx.cursor_x = 3;
+  octx.cursor_y = 3;
+  octx.human_nation = 0;
+
+  const int orders_i = find_section(bar, "ORDERS");
+  int rc = 0;
+  struct Row { bool bv, be, jv; };
+  struct Row got;
+  #define PROBE() do { \
+    map_menu_refresh(bar, &octx); \
+    got.bv = got.be = got.jv = false; \
+    for (int i = 0; orders_i >= 0 && i < bar->menus[orders_i].item_count; ++i) { \
+      const MapMenuItem* it = &bar->menus[orders_i].items[i]; \
+      if (it->action == MAP_MENU_ACTION_BUILD_COLONY) { got.bv = it->visible; got.be = it->enabled; } \
+      if (it->action == MAP_MENU_ACTION_JOIN_COLONY) { got.jv = it->visible; } \
+    } \
+  } while (0)
+  #define WANT(bv_, be_, jv_, what) do { \
+    if (got.bv != (bv_) || (got.bv && got.be != (be_)) || got.jv != (jv_)) { \
+      fprintf(stderr, "build/join %s: B vis=%d en=%d J vis=%d, want %d/%d/%d\n", \
+        what, (int)got.bv, (int)got.be, (int)got.jv, (int)(bv_), (int)(be_), (int)(jv_)); \
+      rc = 1; \
+    } \
+  } while (0)
+
+  if (orders_i < 0) {
+    rc = 1;
+  }
+  PROBE();
+  WANT(true, true, false, "open plains");
+
+  /* Terrain is NOT consulted at enable time (mountains class 0x1b). */
+  omap.terrain[3 * omap.width + 3] = (uint8_t)(2 | 0xa0u);
+  PROBE();
+  WANT(true, true, false, "mountains");
+  omap.terrain[3 * omap.width + 3] = 2;
+
+  /* Only grey: profession 0x1b, the Indian Convert. */
+  u->profession = UNITS_JOB_CONVERT;
+  PROBE();
+  WANT(true, false, false, "convert");
+  u->profession = UNITS_JOB_NONE;
+
+  /* A FOREIGN colony on the tile hides Build and shows Join. */
+  if (colonies_found(&ocol, &omap, 3, 3, 1, -1, UNITS_JOB_NONE, 0, 0, 0) < 0) {
+    fprintf(stderr, "build/join: foreign colony setup failed\n");
+    rc = 1;
+  }
+  PROBE();
+  WANT(false, false, true, "foreign colony");
+  #undef PROBE
+  #undef WANT
+
+  map_free(&omap);
+  assets_msg_free(&names);
+  fixture_free(&fx);
+  return rc;
+}
+
+/*
+ * bugs.md #693 / #694 — FUN_2b5a_0902 (View Pieces, no active unit).
+ * #693: Build (0x310) is greyed at raw 42124 and then HIDDEN at raw 42127.
+ * #694: Activate (0x300) appears in neither the grey list nor the hide list
+ * of 0902 or 0b34, so it stays enabled even with nothing under the cursor.
+ */
+static int case_view_pieces_orders_gating(void) {
+  Fixture fx;
+  if (fixture_init(&fx) != 0) {
+    return 1;
+  }
+  MapMenuBar* bar = &fx.bar;
+  ColonizeWorldMap omap;
+  memset(&omap, 0, sizeof(omap));
+  char oerr[128];
+  if (!map_alloc(&omap, 8, 8, oerr, sizeof(oerr))) {
+    fixture_free(&fx);
+    return 1;
+  }
+  for (int i = 0; i < 8 * 8; ++i) {
+    omap.terrain[i] = 2;
+  }
+  ColonizeUnitPool pool;
+  memset(&pool, 0, sizeof(pool));
+  ColonizeColonyPool ocol;
+  colonies_init(&ocol);
+  colonies_set_occupancy_map(NULL);
+
+  MapMenuOrdersContext octx;
+  memset(&octx, 0, sizeof(octx));
+  octx.units = &pool;
+  octx.map = &omap;
+  octx.colonies = &ocol;
+  octx.selected_id = -1; /* View Pieces: no active map unit */
+  octx.cursor_x = 3;
+  octx.cursor_y = 3;
+  octx.human_nation = 0;
+
+  const int orders_i = find_section(bar, "ORDERS");
+  int rc = orders_i >= 0 ? 0 : 1;
+  map_menu_refresh(bar, &octx);
+  bool build_vis = true;
+  bool activate_seen = false;
+  bool activate_en = false;
+  for (int i = 0; orders_i >= 0 && i < bar->menus[orders_i].item_count; ++i) {
+    const MapMenuItem* it = &bar->menus[orders_i].items[i];
+    if (it->action == MAP_MENU_ACTION_BUILD_COLONY) {
+      build_vis = it->visible;
+    }
+    if (it->action == MAP_MENU_ACTION_ACTIVATE_UNIT) {
+      activate_seen = true;
+      activate_en = it->enabled;
+    }
+  }
+  if (build_vis) {
+    fprintf(stderr, "view pieces: Build Colony still visible (#693)\n");
+    rc = 1;
+  }
+  if (!activate_seen || !activate_en) {
+    fprintf(stderr, "view pieces: Activate seen=%d enabled=%d, want 1/1 (#694)\n",
+            (int)activate_seen, (int)activate_en);
+    rc = 1;
+  }
+  map_free(&omap);
+  fixture_free(&fx);
+  return rc;
+}
+
 static const TestCase k_cases[] = {
   {"menu_counts_and_titles", case_menu_counts_and_titles},
   {"cheat_items", case_cheat_items},
@@ -747,6 +924,8 @@ static const TestCase k_cases[] = {
   {"click_open_and_save", case_click_open_and_save},
   {"hidden_cheat_click_blocked", case_hidden_cheat_click_blocked},
   {"orders_gating", case_orders_gating},
+  {"build_join_gating", case_build_join_gating},
+  {"view_pieces_orders_gating", case_view_pieces_orders_gating},
 };
 
 TEST_MAIN(k_cases)

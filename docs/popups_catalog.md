@@ -57,7 +57,7 @@ Appendices and exhaustive `@SECTION` reference for [popups.md](popups.md).
 | `@NOPORT` | Done thin | inland Build Colony → CHOICE cancel/proceed |
 | `@TOOMOUNTAIN` | Done thin | Build Colony on mountains → ai_popup OK |
 | `@BUILT` | Done thin | EOT building complete ai_popup OK (`@BUILT`); VGA PARKED |
-| `@FULL` | Done thin | Join Colony at POP_MAX → ai_popup OK |
+| `@FULL` | n/a | bugs.md #690: the port's Join-at-POP_MAX popup was invented and is gone. DOS's join branch (asm `0x227b2`) bails silently, and the 32-colonist cap inside the admit (`overlays.c:10252-10255`) says nothing; `@FULL` has no DS tag in `docs/popup_tag_ids.md` and no push/lea site near the handler |
 | `@NOTEACHER` | Done thin | unskilled → school assign refuse + ai_popup OK |
 | `@NEEDCOLLEGE` | Done thin | school assign when job tier 2 > building → ai_popup OK |
 | `@NEEDUNIVERSITY` | Done thin | school assign when job tier 3 > building → ai_popup OK |
@@ -406,9 +406,9 @@ Appendices and exhaustive `@SECTION` reference for [popups.md](popups.md).
 | `@INTERVENTION` / `@INTERVENE` | Done thin | `10f0` ally declare + landing ARRIVAL |
 | `@TOOTORY` | Done | `ai_king_menu_declare_independence` (FUN_43f7_2564 tail, sol<50 branch) — OK notice via `ai_popup_enqueue_ok_ctx` |
 | `@DECLARE` | Done thin | ai_popup CHOICE body+labels via `popup_msg_*`; VGA PARKED |
-| `@DEADCONVERTS` | Missing | real DOS site: the per-unit tick `FUN_3844_0002` case 0x1a (viceroy_unpacked.c 58287-58299, tag 0xee2) — a Convert standing on open map outside a colony ages a counter at unit +0x16 and is removed on the 9th turn. Neither the expiry nor the popup is ported; the port's `col1_counter16` byte is already multiplexed for voyages / trade-route stops, so this needs its own field decision |
+| `@DEADCONVERTS` | Done | `FUN_3844_0004` (viceroy_unpacked.c 58268-58299, tag 0xee2): a lone Convert (type 0, profession 27) on a tile with no settlement ages `col1_counter16` and is removed when it passes 8; human owner gets the popup. Ported 2026-09-23 (`units_tick_convert_outside_colony`, bugs.md #725) |
 | `@TOOMANYUNITS` | n/a | dead text: no DS string in VICEROY.EXE (absent from popup_tag_ids.md) |
-| `@TOOMANYCOLONIES` | n/a | dead text: no DS string in VICEROY.EXE (absent from popup_tag_ids.md) |
+| `@TOOMANYCOLONIES` | Done | **NOT dead** (bugs.md #681, corrected 2026-09-23): the Build handler raises it at asm `0x227dc` (`lea bx,[0x9e5]; call 0x181f:0x3fe`) — a LEA site, which is why the PUSH-pair scan missed it — when `word [0x539e] >= 0x30` (48 colonies) or `byte [nation+0x9298] >= 0x26` (38 settlements for that nation) and there is no colony on the tile. Ported in `game_try_found_colony_at_cursor` |
 | `@PICKMUSIC` | Done | slot / music dialogs |
 | `@PICKINDEPENDENCE` | Done | slot / music dialogs |
 | `@PICKMILITARY` | Done | slot / music dialogs |
@@ -422,7 +422,7 @@ Appendices and exhaustive `@SECTION` reference for [popups.md](popups.md).
 | `@FOREIGNNOTAVAIL` | Done | F8 Foreign Affairs is withdrawn once the WoI has begun — `FUN_3f41_2548` raw :70792 (`0x5382 & 1`); `reports_is_available` + the `game_open_report` popup, 2026-09-08 |
 | `@EUROPENOTLEAVE` | Done | DOS site confirmed 2026-09-16: `viceroy_overlays.asm` OVL08_L0040 raw :0x13fd LEA gated by `TEST byte[0x5382],1` (WoI bit) — same bit the port tests in `game_ship_sail_to_europe`/lane-entry gates (`game_loop.c` ~10263-10389), `"EUROPENOTLEAVE"` `popup_msg_fill` sites |
 | `@NOWARSDURINGREV` | Done | `FUN_5f7a_0662` tail (raw 99069-99080, asm 5f7a:06c8): during the WoI a human-controlled Euro unit stepping onto the colony of a Euro power that is neither human-controlled nor the Crown is refused, abort + full allotment spent. Wired in `game_move_native_prompts` (game_loop.c) alongside the foreign-trade dispatch, docs/foreign_colony_trade.md |
-| `@NOCOLONIESEITHER` | n/a | no asm PUSH/LEA site found for this id (absent from `docs/popup_tag_ids.md`'s asm-scanned table, unlike its GAME.TXT neighbor `@NOWARSDURINGREV` at 0x1af3); dead text in GAME.TXT |
+| `@NOCOLONIESEITHER` | Done | **NOT dead** (bugs.md #688, corrected 2026-09-23): `FUN_281f_0652(0x98a, 1)` at asm `0x22574`, the first thing the shared Build/Join handler does when `byte [0x5382] & 1` (independence declared) — so it blocks Join as well as Build. Ported as `game_woi_blocks_colony_orders` |
 | `@NOMAYORSDURINGREV` | Done | FUN_5f7a_000e Meet-With-Mayor WoI refusal (raw :98838) — `game_loop.c` AI_POPUP_TAG_SCOUT_COLONY choice 1 |
 | `@HOWMUCH1` | Done | howmuch colony load |
 | `@HOWMUCH2` | Done | confirmed 2026-09-16: shift+drag colony-cargo unload already opens the real amount prompt (`game_loop.c` ~9548, `HOWMUCH_KIND_UNLOAD`) alongside the DOS-matching whole-hold plain drag |
@@ -500,9 +500,9 @@ Appendices and exhaustive `@SECTION` reference for [popups.md](popups.md).
 | `@TUTORIAL16` | Missing | tutorial hints missing |
 | `@TUTORIAL17` | Missing | tutorial hints missing |
 | `@TUTORIAL18` | Missing | tutorial hints missing |
-| `@TUTORIAL19` | Missing | tutorial hints missing |
-| `@TUTNOLUMBER` | Missing | tutorial hints missing |
-| `@TUTNOSPACES` | Missing | tutorial hints missing |
+| `@TUTORIAL19` | Done | `FUN_2b5a_001e` (viceroy_unpacked.c 42006-42009): once per game on selecting an Indian Convert, latch DS:0x5380 bit 0x80 (`tut1.nr19`). Ported 2026-09-23 at the tail of `game_select_unit` (bugs.md #730) |
+| `@TUTNOLUMBER` | Done | bugs.md #684: `FUN_281f_0652(0x9d9, 3)` at asm `0x2278a`, difficulty `byte [0x53a6] < 2` only, when no tile of the 9-tile site scan has terrain class 8..0x17. 2-choice; only answer 2 ("Build colony anyway") continues |
+| `@TUTNOSPACES` | Done | bugs.md #684: `FUN_281f_0652(0x9cd, 3)` at asm `0x22772`, difficulty `byte [0x53a6] < 2` only, when the 9-tile productive counter is below 4. 2-choice; only answer 2 continues |
 | `@KINGLOSE` | Done | WoI won — full-screen throne audience (KINGLSS1 + KINGLOSE.SS, FUN_75c2_20e2); dismissal plays the CLOSING.EXE cinematic (`closing.c`) then the retire score |
 | `@KINGWIN` | Done | WoI lost (@LOSING1-3) — full-screen throne audience (KINGWIN.SS); dismissal opens the retire score |
 | `@DISBANDSHIP` | Done | ship-with-cargo error OK (not Yes/No) |

@@ -235,6 +235,14 @@ int turn_voyage_ship_count(const ColonizeTurnContext* ctx, int nation);
 void turn_run_year_end_chrome(ColonizeTurnContext* ctx, ColonizeTurnResult* out);
 
 /*
+ * DOS day-top pass (FUN_4d56_1b3a raw 6355-6357, bugs.md #713): zero the
+ * moves-spent byte (+0x3149) of EVERY active unit of EVERY nation, once, at
+ * the top of the year and before any nation moves. Separate from the
+ * per-nation refresh below, which owns only orders/park/allotment.
+ */
+void turn_clear_mp_spent_all_nations(ColonizeUnitPool* pool);
+
+/*
  * Refresh moves for units of one nation (4..11 = natives when nation >= 4).
  * When col1 is set and the nation owns Magellan, sea units get +1 movement.
  * map may be NULL; when non-NULL with col1, arms native settlement fallout

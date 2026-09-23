@@ -550,6 +550,8 @@ static const char* ai_popup_tag_name(AiPopupTag tag) {
       return "CONTACT_TRADE_PICK";
     case AI_POPUP_TAG_CONTACT_EURO_WAR:
       return "CONTACT_EURO_WAR";
+    case AI_POPUP_TAG_FORTIFY_TREATY:
+      return "FORTIFY_TREATY";
     case AI_POPUP_TAG_COLONY_EVENT:
       return "COLONY_EVENT";
     case AI_POPUP_TAG_KING_WAR_END:

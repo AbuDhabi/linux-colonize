@@ -38,10 +38,10 @@ Status: **Done** / **Partial** / **Missing** / **PARKED**.
 | Land | Ocean / HS (25/26) | Embark if own ship has room for the boarder's `@UNIT` **size** (`4720_00e0`) | `BOARD` via `units_find_boardable_ship(..., need_space)`; else domain deny | Done |
 | Land **aboard a ship** | Land occupied by another nation | Reason **9** = `@LANDFIRST` — no amphibious assault | `COLONIZE_ENTER_LANDFIRST` (bugs.md #485) | Done |
 | Ship | Ocean / HS | OK (`4720`); **already on HS** + eastward without sail order → reason **5** | Same (`units_can_enter`); entering the lane from ocean is always legal, and a Go To may target a lane tile → `game_ship_sail_to_europe` on arrival | Done |
-| Ship | Map edge | Reason **4** | Out-of-bounds → edge | Partial |
+| Ship | Map edge | x rim → reason **4** (→ @SAILHOME/@EUROPENOTLEAVE body, No = deny); y rim and land units silent (`4720_015c` raw 75960-75980) | `COLONIZE_ENTER_EDGE_SAIL` → @SAILHOME handler; y rim / land = silent `BLOCKED_EDGE` (bugs.md #717) | Done |
 | Ship | Own colony land | Dock (`465b` reads the settlement owner `281f_06be`; a DOS own-colony stack is always own) | `can_enter` + disembark; foreign units squatting on the tile (port leftovers) are ignored (bugs.md #553) | Done |
 | Ship / Wagon | Foreign Euro colony | — | Never enters: `FUN_5f7a_0662` → `FUN_5f7a_020e` trades from outside and spends the whole allotment ([foreign_colony_trade.md](foreign_colony_trade.md)) | Done |
-| Ship | Bare land | Landfall UI reasons 2/3 | `@LANDFALL` Stay / Make Landfall (one unit; sentry cargo OK); passenger spends its **whole** allotment (465b_05ca shore crossing, 2026-09-04); ship −1 MP on Make Landfall | Done |
+| Ship | Bare land | Landfall UI reasons 2/3 | `@LANDFALL` Stay / Make Landfall (one unit; sentry cargo OK); passenger spends its **whole** allotment (465b_05ca shore crossing, 2026-09-04); ship is neither moved nor charged (`4720_049e`, bugs.md #716) | Done |
 | Ship | Native village | `4528` ship abort (`@DONTKNOWSHIPS` / `@MADATSHIPS`) | `VILLAGE_SHIP` + `ai_contact_try_ship_village` | Done |
 
 ---
@@ -57,7 +57,7 @@ Status: **Done** / **Partial** / **Missing** / **PARKED**.
 | Ship | Foreign ship | Naval fight path | Naval `157e_004a` + analysis | Done |
 | Ship | Foreign land | Block / landfall | Block / landfall | Done |
 | Any | Empty | Enter | Enter | Done |
-| Ship leaves tile | Same-tile Sentry land | Auto-board to capacity | `units_board_sentries_from_tile` on ship move | Done |
+| Ship leaves tile | Same-tile Sentry land | Auto-board to capacity | `units_ship_departure_pickup` on ship move | Done |
 
 ---
 

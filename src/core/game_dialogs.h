@@ -169,6 +169,14 @@ struct ColonizeGameState {
    */
   int found_open_colony_id;
   /*
+   * bugs.md #682: DOS FUN_479b_076e raw 76995-77004 runs the colony-name
+   * prompt BEFORE FUN_281f_0934 (consume unit) and FUN_291f_09b2 (create
+   * colony) — a cancel aborts the whole founding. The founder's unit id is
+   * held here across the async prompt, stored +1 so a zeroed state means
+   * "nothing pending" (unit 0 is a legal id).
+   */
+  int found_pending_unit_plus1;
+  /*
    * bugs.md #403: one-shot latch for the @HALF tired-attack confirm. "Charge!"
    * re-enters game_try_unit_move, and unlike WHACK (confirmed bit) or Break
    * Treaty (war opened) nothing in the save marks the answer, so without this
@@ -526,6 +534,9 @@ void game_colony_unload_hold(
   const char* empty_msg
 );
 bool game_do_found_colony_at_unit(ColonizeGameState* game, int uid, bool land_resolved);
+/* @NOCOLONIESEITHER at the top of the shared Build/Join handler (bugs.md
+ * #688). True = the gate fired and the order is dropped. */
+bool game_woi_blocks_colony_orders(ColonizeGameState* game);
 void game_emit_warehouse_full(
   ColonizeGameState* game,
   int colony_id,

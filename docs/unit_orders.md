@@ -139,11 +139,11 @@ stateDiagram-v2
 
 | Command | When | Expected (DOS) | Linux | Status |
 |---------|------|----------------|-------|--------|
-| Fortify (land) | ORDERS / **F**; `FUN_2b5a_1112` | Order 5; exhaust MP; overnight → 6 (`479b_0b6c`) | `units_order_fortify` + refresh | Done |
+| Fortify (land) | ORDERS / **F**; `FUN_2b5a_1112` | 8-neighbour scan first: a treaty partner's colony adjacent (relation 0x40) raises `@HAVETREATY`; answer != 2 = no fortify, 2 = war bit set + 0x40 cleared then proceed (raw 42389-42411, bugs.md #691). Then order 5, zero `+0x315a`, exhaust MP — unconditionally, even if already Fortified (bugs.md #695); overnight → 6 (`479b_0b6c`) | `game_fortify_treaty_confirm` + `units_order_fortify` + refresh | Done |
 | Anchor (ship) | 2nd Fortify menu / `@SHIPOPTIONS` | Sea unit at own colony or adjacent sea → fortify path | `MAP_MENU_ACTION_ANCHOR` → `game_order_fortify` (same handler as the land row) | Done |
 | Fortified | Overnight | Skip selection until woken; combat defense context-dependent | Skip via `units_orders_skip_turn` (bonus → [combat.md](combat.md)) | Done |
 | Sentry | ORDERS / **S** | Order 1; exhaust MP; skip until wake | `units_order_sentry` | Done |
-| Sentry auto-board | Ship leaves tile | Same-tile Sentry land board to capacity | `units_board_sentries_from_tile` | Done |
+| Sentry auto-board | Ship leaves tile | Same-tile Sentry land board to capacity | `units_ship_departure_pickup` | Done |
 | Wake | Activate / stack / replace | Clear order; restore MP | `units_wake` | Done |
 | Sentry wake on enemy | A foreign unit steps onto an adjacent tile | `FUN_5bfb_3180` move tail (raw 98628-98646): for each of the 8 neighbours of the mover's destination whose stack is another nation's (no war/treaty gate), every **order 1** unit in that stack is cleared. Gated on mover-in-colony **or** settlement on the neighbour tile **or** neighbour water-ness == destination water-ness; a non-ship on a water tile (in a hold) is left asleep | `units_sentry_wake_scan` (units.c), called from `units_try_move` beside `units_ship_slow_scan_w` | Done |
 
@@ -198,7 +198,7 @@ Digest of DOS `FUN_2b5a_0b34` (Move Pieces) / `0902` (View Pieces) as ported in
 
 | Rule | Behavior |
 |------|----------|
-| View Pieces (no unit) | Disable Wait / No Orders / Fortify / Sentry / Build; hide most unit-specific items |
+| View Pieces (no unit) | Disable Wait / No Orders / Fortify / Sentry; hide Build (`0902` greys 0x310 at raw 42124 then HIDES it at raw 42127 — bugs.md #693) and most unit-specific items |
 | Pillage | Always hidden in `0b34` |
 | Build vs Join | Hide Build on own colony; hide Join off own colony; hide both if not founder-capable |
 | Clear ↔ Plow | Forest → show Clear hide Plow; else opposite; hills/arctic hide both |
@@ -206,7 +206,7 @@ Digest of DOS `FUN_2b5a_0b34` (Move Pieces) / `0902` (View Pieces) as ported in
 | Fortify ↔ Anchor | Land → Fortify; sea → Anchor (hide the other) |
 | Port ↔ Place | Land → Place (hide Port + Return Europe); sea → Port (hide Place); Return Europe enabled only on High Seas |
 | Cargo items | Hide Load/Unload/Trade/Dump if no cargo capacity; Load/Unload disabled off Euro settlement; Dump disabled with no goods |
-| Activate | Enabled if a unit exists under cursor |
+| Activate | Always enabled — 0x300 appears in no grey/hide list of `0b34` or `0902` (bugs.md #694) |
 
 VIEW pulldown's own `~Move Pieces` (M) / `~View Pieces` (V) — the mode toggle
 itself, distinct from the ORDERS-menu enable/hide table above — is wired to
