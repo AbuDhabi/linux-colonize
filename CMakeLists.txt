@@ -95,10 +95,18 @@ add_library(colonize_sim STATIC
   src/core/turn.c
   src/core/founding_fathers.c
   src/core/europe.c
+  src/core/europe_pool.c
+  src/core/europe_dock.c
+  src/core/europe_harbor.c
+  src/core/europe_market.c
   src/core/new_game_scenario.c
   src/core/reports_names.c
   src/core/woodcut.c
   src/core/ai.c
+  src/core/ai_indian.c
+  src/core/ai_native_score.c
+  src/core/ai_native_021a.c
+  src/core/ai_brave.c
   src/core/ai_goals.c
   src/core/ai_euro.c
   src/core/ai_euro_colony_jobs.c
@@ -115,6 +123,10 @@ add_library(colonize_sim STATIC
   src/core/ai_contact_raid.c
   src/core/ai_contact_actions.c
   src/core/ai_king.c
+  src/core/ai_king_audience.c
+  src/core/ai_king_ref.c
+  src/core/ai_king_offers.c
+  src/core/ai_king_war.c
   src/core/savegame.c
   src/core/col1_save.c
   src/core/col1_bridge.c
@@ -595,6 +607,10 @@ set(COLONIZE_SLIM_SOURCES
   src/core/popup_msg.c
   src/core/map_menu.c
   src/core/europe.c
+  src/core/europe_pool.c
+  src/core/europe_dock.c
+  src/core/europe_harbor.c
+  src/core/europe_market.c
   src/core/europe_art.c
   src/core/pik.c
   src/core/map.c
@@ -782,7 +798,7 @@ colonize_add_test(NAME unit_ai_goals
 )
 
 # tests/unit/test_ai_contact.c was split by feature 2026-09-23 (7456 lines).
-# case_full_contact_scenario is one entangled narrative and stays in _core.
+# _core: the old single narrative is kept as an ordered cumulative spine (sp_00..sp_59), exposed as 59 named prefix cases.
 # Shared include set / helpers: tests/unit/test_ai_contact_common.h.
 foreach(_test_ai_contact_slice core meet colony)
   colonize_add_test(NAME unit_ai_contact_${_test_ai_contact_slice}

@@ -541,7 +541,20 @@ void game_cheat_test_routine(ColonizeGameState* game) {
   char row1[64] = {0};
   popup_msg_apply_tokens(row1, sizeof(row1), rest1, &tok1);
   char line[80];
-  snprintf(line, sizeof(line), "%s; %s", row0, row1);
+  /* Same bytes as snprintf(line, 80, "%s; %s", row0, row1) (truncation at 79
+   * chars is DOS-observed and kept); written as bounded copies so gcc has no
+   * -Wformat-truncation to raise. */
+  {
+    size_t n = 0;
+    const char* parts[3] = { row0, "; ", row1 };
+    for (int i = 0; i < 3 && n < sizeof(line) - 1; i++) {
+      size_t l = strlen(parts[i]);
+      if (l > sizeof(line) - 1 - n) l = sizeof(line) - 1 - n;
+      memcpy(line + n, parts[i], l);
+      n += l;
+    }
+    line[n] = '\0';
+  }
   set_status(game, line, NULL);
 }
 
