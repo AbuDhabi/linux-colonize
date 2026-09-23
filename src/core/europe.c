@@ -409,6 +409,14 @@ void europe_disembark_passengers_to_dock(
       ship->cargo_count = i + 1;
       return;
     }
+    /* bugs.md #669: a Continental keeps its @UNIT row (DOS keeps +0x3146);
+     * the name scan above only knows the six @ARMOPTIONS rows. */
+    if (units && tag >= 0) {
+      const int kind = (int)units_type_kind(units_type(units, tag));
+      if (kind == (int)UNITS_KIND_CONT_ARMY || kind == (int)UNITS_KIND_CONT_CAV) {
+        eu->dock[0].dos_type = kind;
+      }
+    }
   }
   ship->cargo_count = 0;
   memset(ship->cargo_types, 0, sizeof(ship->cargo_types));

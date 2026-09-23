@@ -1416,7 +1416,7 @@ bool col1_bridge_apply_w(
          * menu deals in fall back to what the profession implies.
          */
         int dos_type = europe_dock_type_for(name, (int)src->profession);
-        if ((int)src->type <= 5) {
+        if (europe_dock_dos_type_is_valid((int)src->type)) { /* 0..5 or Continental (#669) */
           dos_type = (int)src->type;
         }
         if (docked) {

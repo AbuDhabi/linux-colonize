@@ -3087,6 +3087,18 @@ int ai_euro_move_scoring_gate(ColonizeTurnContext* ctx, ColonizeUnit* u, int nat
     return 0;
   }
   /*
+   * DOS-LITERAL FUN_521d_20e6 entry bail, raw 88404-88406 (bugs.md #734):
+   *   if (act_state != 0 && act_state != 5 && act_state != 6 && act_state < 10)
+   *     goto LAB_521d_5a78;
+   * i.e. a unit holding any other order (sentry, goto, build colony, plow,
+   * road ...) is left alone; only the LAB_5a78 tail runs, which the caller
+   * applies after this returns. 20e6 returns 0 there (raw 90445); this
+   * port's 0 means "nothing decided here", the same thing.
+   */
+  if (u->orders != 0 && u->orders != 5 && u->orders != 6 && u->orders < 10) {
+    return 0;
+  }
+  /*
    * (bugs.md #521 lead b, 2026-09-18b) The at-war "defer course to act-level
    * hunt" early return that stood here — idle Soldier/Dragoon/Scout/Artillery
    * of a nation at war with any peer left the gate before any 20e6 arm ran —

@@ -1838,39 +1838,19 @@ static bool units_greedy_next_step(
   if (!u || !out_x || !out_y) {
     return false;
   }
-  const int sdx = units_sign_i(gx - u->x);
-  const int sdy = units_sign_i(gy - u->y);
-  const int try_dx[5] = {sdx, sdx, 0, sdx, -sdx};
-  const int try_dy[5] = {sdy, 0, sdy, -sdy, sdy};
-
   int best_x = -1;
   int best_y = -1;
   int best_score = 1 << 30;
-  for (int i = 0; i < 5; ++i) {
-    if (try_dx[i] == 0 && try_dy[i] == 0) {
-      continue;
-    }
-    const int nx = u->x + try_dx[i];
-    const int ny = u->y + try_dy[i];
-    if (!units_greedy_owner_ok(u, map, colonies, nx, ny, goal_x, goal_y)) {
-      continue;
-    }
-    if (!units_can_enter_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(pool), .colonies=(ColonizeColonyPool*)(colonies), .map=(ColonizeWorldMap*)(map)}, u->type_index, nx, ny, unit_id)) {
-      continue;
-    }
-    /* bugs.md #700: no MP pre-filter — FUN_6662_0f74's candidate loop
-     * (viceroy_unpacked.c:104652-104720) never reads the mover's MP. */
-    const int step_cost = units_move_cost(pool, unit_id, map, nx, ny);
-    const int score = units_octile(nx, ny, gx, gy) * 10 + step_cost;
-    if (score < best_score) {
-      best_score = score;
-      best_x = nx;
-      best_y = ny;
-    }
-  }
-  if (best_x < 0) {
+  /*
+   * bugs.md #732 (2026-09-23): the invented 5-candidate pre-tier
+   * (`octile*10 + step_cost` over the goal-ward directions) that used to
+   * run ahead of this loop is gone — it had no DOS counterpart and shadowed
+   * the real FUN_6662_0f74 loop below almost every time. golden_ai_turns
+   * 6/6 and the full suite are unchanged without it.
+   */
+  {
     /*
-     * Full 8-neighbor fallback (FUN_6662_0f74's own scored tail,
+     * The 8-neighbour scored loop (FUN_6662_0f74's own scored tail,
      * viceroy_unpacked.c:104652-104720 — transcribed byte-exact, not the
      * `move_scoring_20e6_full.md` prose summary, which undersold the
      * distance term). Per-candidate:
