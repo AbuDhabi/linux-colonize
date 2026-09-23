@@ -32,14 +32,18 @@ struct ai_contact_raid_ctx {
 
 #ifdef COLONIZE_TESTING
 int ai_contact_raid_port_ship(ColonizeTurnContext* ctx, const ColonizeColony* c);
-AiRaidKind ai_contact_raid_kind_demote(
-  ColonizeTurnContext* ctx, ColonizeColony* c, AiRaidKind kind
+AiRaidKind ai_contact_pick_raid_kind(
+  ColonizeTurnContext* ctx, ColonizeColony* c, int indian_nation, int target_euro,
+  ColonizeDosRng* rng, int forced
 );
 int ai_contact_raid_gate_target(
   ColonizeTurnContext* ctx, ColonizeCol1Indian* ind, int nation_id,
   int* out_euro, int* out_alarm
 );
 int ai_contact_raid_alarm_delta(AiRaidKind kind);
+void ai_contact_raid_alarm_tail(
+  ColonizeTurnContext* ctx, int indian_nation, int euro, AiRaidKind kind
+);
 void ai_contact_raid_stage_combat(struct ai_contact_raid_ctx* a);
 int ai_contact_raid_pick_colony(struct ai_contact_raid_ctx* a);
 AiRaidStatus ai_contact_raid_stage_colony(struct ai_contact_raid_ctx* a);
@@ -250,7 +254,7 @@ void ai_contact_apply_buy0( ColonizeTurnContext* ctx, ColonizeCol1Indian* ind, i
 void ai_contact_apply_buywhich( ColonizeTurnContext* ctx, ColonizeCol1Indian* ind, int nation_id, int e, int unit_id, int cargo );
 void ai_contact_apply_gift_gold( ColonizeTurnContext* ctx, ColonizeCol1Indian* ind, int nation_id, int e, unsigned gold_cost, int friction_decay );
 void ai_contact_apply_incite( ColonizeTurnContext* ctx, ColonizeCol1Indian* ind, int nation_id, int e, int target, int is_missionary, int is_capital );
-void ai_contact_apply_raid_loot( ColonizeTurnContext* ctx, ColonizeColony* c, int target_euro, AiRaidKind kind, int max_alarm );
+void ai_contact_apply_raid_loot( ColonizeTurnContext* ctx, ColonizeColony* c, int indian_nation, int target_euro, AiRaidKind kind );
 void ai_contact_apply_reparations( ColonizeTurnContext* ctx, ColonizeCol1Indian* ind, int nation_id, int e, int flavor, int accept );
 void ai_contact_apply_trade_offer( ColonizeTurnContext* ctx, ColonizeCol1Indian* ind, int nation_id, int e, int price, int choice );
 void ai_contact_apply_trade_pick( ColonizeTurnContext* ctx, ColonizeCol1Indian* ind, int nation_id, int e, int unit_id, int choice );

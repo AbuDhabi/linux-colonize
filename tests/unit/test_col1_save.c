@@ -3793,6 +3793,152 @@ head_stamp_fail:
     fprintf(stderr, "slot probe matches FUN_75c2_0840 (sig + EOF + version) ok\n");
   }
 
+  /*
+   * bugs.md #844/#845 empirical check: load a real brave-bearing Col1 save
+   * (dutch-reports.SAV, which has native units with a nonzero +0xc
+   * per-settlement counter and +0x15 values in 1..100), round-trip it
+   * through apply -> capture with real @UNIT types loaded, and diff every
+   * native (nation_id >= 4) unit's holds_occupied (+0xc) and cargo_hold[5]
+   * (+0x15) against the original raw bytes. Matched by (x, y, type,
+   * nation_id) since capture re-emits records in runtime pool order
+   * (bugs.md D5), not original slot order.
+   */
+  {
+    founding_fathers_reset();
+    ColonizeMsgCatalog names;
+    assets_msg_init(&names);
+    if (!assets_msg_load_file(&names, "COLONIZE/NAMES.TXT")) {
+      fprintf(stderr, "brave roundtrip: NAMES.TXT load failed\n");
+      return 1;
+    }
+    ColonizeCol1Save orig;
+    col1_save_init(&orig);
+    if (!col1_save_read_file(
+          "original_saves/report-screen-goldens/dutch-reports.SAV", &orig, err, sizeof(err)
+        )) {
+      fprintf(stderr, "brave roundtrip: dutch-reports.SAV read failed: %s\n", err);
+      assets_msg_free(&names);
+      return 1;
+    }
+    /* Snapshot original native raw bytes before apply touches anything. */
+    typedef struct { int x, y, type, nation_id, holds_occupied, hold5; } BraveSnap;
+    BraveSnap orig_snap[256];
+    int orig_snap_n = 0;
+    for (uint16_t i = 0; i < orig.head.unit_count && orig_snap_n < 256; ++i) {
+      const ColonizeCol1Unit* u = &orig.unit[i];
+      if ((u->nation_id & 0xF) < 4) {
+        continue;
+      }
+      orig_snap[orig_snap_n].x = u->x;
+      orig_snap[orig_snap_n].y = u->y;
+      orig_snap[orig_snap_n].type = u->type;
+      orig_snap[orig_snap_n].nation_id = u->nation_id;
+      orig_snap[orig_snap_n].holds_occupied = u->holds_occupied;
+      orig_snap[orig_snap_n].hold5 = u->cargo_hold[5];
+      orig_snap_n++;
+    }
+    if (orig_snap_n == 0) {
+      fprintf(stderr, "brave roundtrip: no native units found (fixture stale?)\n");
+      col1_save_free(&orig);
+      assets_msg_free(&names);
+      return 1;
+    }
+    ColonizeWorldMap map;
+    memset(&map, 0, sizeof(map));
+    ColonizeUnitPool units;
+    memset(&units, 0, sizeof(units));
+    units_reset(&units);
+    units_set_occupancy_map(NULL);
+    if (!units_load_types(&units, &names)) {
+      fprintf(stderr, "brave roundtrip: unit types failed\n");
+      col1_save_free(&orig);
+      assets_msg_free(&names);
+      return 1;
+    }
+    ColonizeColonyPool colonies;
+    colonies_init(&colonies);
+    colonies_set_occupancy_map(NULL);
+    EuropeScreen europe;
+    memset(&europe, 0, sizeof(europe));
+    europe.cargo_count = 16;
+    ColonizeCol1BridgeResult br;
+    if (!col1_bridge_apply_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&units), .colonies=(ColonizeColonyPool*)(&colonies), .map=(ColonizeWorldMap*)(&map), .col1=(ColonizeCol1Save*)(&orig), .col1_ok=true, .europe=(EuropeScreen*)(&europe)}, &br, err, sizeof(err))) {
+      fprintf(stderr, "brave roundtrip: apply: %s\n", err);
+      col1_save_free(&orig);
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    if (!col1_bridge_capture_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&units), .colonies=(ColonizeColonyPool*)(&colonies), .map=(ColonizeWorldMap*)(&map), .col1=(ColonizeCol1Save*)(&orig), .col1_ok=true, .europe=(EuropeScreen*)(&europe)}, orig.head.year, orig.head.autumn, orig.head.turn, orig.head.human_player, 0, 0, 0, 0, -1, false, err, sizeof(err))) {
+      fprintf(stderr, "brave roundtrip: capture: %s\n", err);
+      col1_save_free(&orig);
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    int mismatches_holds = 0;
+    int mismatches_hold5 = 0;
+    int matched = 0;
+    for (int s = 0; s < orig_snap_n; ++s) {
+      bool found = false;
+      for (uint16_t i = 0; i < orig.head.unit_count; ++i) {
+        const ColonizeCol1Unit* u = &orig.unit[i];
+        if (u->x == orig_snap[s].x && u->y == orig_snap[s].y && u->type == orig_snap[s].type &&
+            u->nation_id == orig_snap[s].nation_id) {
+          found = true;
+          matched++;
+          if (u->holds_occupied != orig_snap[s].holds_occupied) {
+            mismatches_holds++;
+            fprintf(
+              stderr,
+              "brave roundtrip: holds_occupied changed at (%d,%d) type=%d nation=%d: %d -> %d\n",
+              orig_snap[s].x, orig_snap[s].y, orig_snap[s].type, orig_snap[s].nation_id,
+              orig_snap[s].holds_occupied, u->holds_occupied
+            );
+          }
+          if (u->cargo_hold[5] != orig_snap[s].hold5) {
+            mismatches_hold5++;
+            fprintf(
+              stderr,
+              "brave roundtrip: cargo_hold[5] changed at (%d,%d) type=%d nation=%d: %d -> %d\n",
+              orig_snap[s].x, orig_snap[s].y, orig_snap[s].type, orig_snap[s].nation_id,
+              orig_snap[s].hold5, u->cargo_hold[5]
+            );
+          }
+          break;
+        }
+      }
+      if (!found) {
+        fprintf(
+          stderr, "brave roundtrip: native unit at (%d,%d) type=%d nation=%d missing after roundtrip\n",
+          orig_snap[s].x, orig_snap[s].y, orig_snap[s].type, orig_snap[s].nation_id
+        );
+      }
+    }
+    fprintf(
+      stderr,
+      "brave roundtrip: %d/%d native units matched, holds_occupied mismatches=%d, "
+      "cargo_hold[5] mismatches=%d\n",
+      matched, orig_snap_n, mismatches_holds, mismatches_hold5
+    );
+    for (int s = 0; s < orig_snap_n; ++s) {
+      if (orig_snap[s].holds_occupied != 0 || (orig_snap[s].hold5 >= 1 && orig_snap[s].hold5 <= 100)) {
+        fprintf(
+          stderr, "brave roundtrip: nonzero sample (%d,%d) type=%d nation=%d holds=%d hold5=%d\n",
+          orig_snap[s].x, orig_snap[s].y, orig_snap[s].type, orig_snap[s].nation_id,
+          orig_snap[s].holds_occupied, orig_snap[s].hold5
+        );
+      }
+    }
+    col1_save_free(&orig);
+    map_free(&map);
+    assets_msg_free(&names);
+    if (mismatches_holds != 0 || mismatches_hold5 != 0 || matched != orig_snap_n) {
+      fprintf(stderr, "brave roundtrip: FAIL — see bugs.md #844/#845\n");
+      return 1;
+    }
+  }
+
   diag_shutdown();
   return 0;
 }

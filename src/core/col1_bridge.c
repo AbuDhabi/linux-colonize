@@ -2809,8 +2809,17 @@ bool col1_bridge_capture_w(
         if (gi == 0 && !src->col1_hold_raw_valid && src->nation_id < 4) {
           dst->cargo_hold[2] = 255; /* COL1 empty-hold sentinel seen in starters */
         }
-        /* Goods only — passengers live in transport_chain (not hold slots). */
-        dst->holds_occupied = (uint8_t)gi;
+        /*
+         * Goods only — passengers live in transport_chain (not hold slots).
+         * bugs.md #844: when the port modelled no goods (gi == 0) and a raw
+         * +0xc..+0x15 block was stashed at apply, leave the just-restored
+         * raw holds_occupied byte alone instead of stamping 0 over it —
+         * DOS repurposes +0xc on native units (hold[2] per-settlement
+         * counter neighbours it) and the port has no model for that byte.
+         */
+        if (gi > 0 || !src->col1_hold_raw_valid) {
+          dst->holds_occupied = (uint8_t)gi;
+        }
       }
       /* DOS pioneer tools = cargo_hold[5] (FUN_479b_0158). Keep actual count.
        * A stashed hold[5] > 100 is the repurposed DOS byte, never tools —

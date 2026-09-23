@@ -684,10 +684,10 @@ typedef struct ColonizeCol1TribeState {
   /*
    * DOS settlement-record +3 bit0x01 "needs first colonist" — cleared by
    * FUN_4d56_152e right after a founding-colonist assignment succeeds
-   * (settlement_record_8d4a.md). No Linux producer sets this bit yet
-   * (village creation, FUN_4d56_0038, is unported) — structurally present
-   * and read by ai_indian_152e_village_growth, but always 0 for now, same
-   * "wired but not fed" class as ai_euro_5d04_compute_flags. (Was
+   * (settlement_record_8d4a.md). Producer is unit DESTROY FUN_1427_0824
+   * raw 7796-7799 (Indian unit with a valid home village dies -> home
+   * village flagged), ported in units_despawn (bugs.md #837, 2026-09-23);
+   * 152e then issues one replacement Brave armed from tribe stock. (Was
    * misplaced at bit 0x10 under the name needs_colonist, with bit 0x01
    * labelled "artillery" — nothing read either; fixed 2026-08-28.)
    */

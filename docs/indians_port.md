@@ -63,14 +63,23 @@ of several of these thunks is reloc-`0000` garbage):
 - `FUN_281f_095c`'s argument was mis-transcribed as a "cost": DOS's `local_4`
   is the **unit type** — `0x13` Brave, `+1` when a musket is spent, `+2` when
   50 horse-breeding is spent, i.e. Armed / Mtd. Brave / `0x16` Mtd. Warrior.
-  The village arms its founding Brave out of the nation's own stock. Branch is
-  still unreachable (its gate `state.needs_colonist` has no Linux producer —
-  village CREATE `FUN_4d56_0038` is unported), ported anyway.
+  The village arms its founding Brave out of the nation's own stock. Its gate
+  `state.needs_colonist` is produced by **unit DESTROY**, `FUN_1427_0824` raw
+  7796-7799 (`3 < nation nibble && -1 < +0x314a` → `settlement +3 |= 1`), not
+  by village CREATE — `FUN_4d56_0038` raw 81282 writes `+3 = 0`. The port sets
+  it in `units_despawn` (units_map.c), the one chokepoint every despawn goes
+  through, so combat deaths and village-destroy deaths both feed it
+  (bugs.md #837). The result is the DOS rhythm: one Brave per village,
+  re-issued whenever that village's Brave dies.
 - `FUN_281f_07b4(nation, 0x18/0x17)` = **FF 24 Las Casas doubles / FF 23
   Sepulveda halves** the mission goodwill a village grants (applied in that
   order, so owning both nets ×1). Matches their PEDIA text.
-- Capital-only gate on the growth block kept (see the code comment: removing
-  it regresses `golden_ai_turns` TURN1→2).
+- Capital-only gate on the growth block **removed** (bugs.md #838): DOS raw
+  81404-81440 runs the `local_16` block for every settlement. Satellites still
+  never reach `local_16 = 2` because their `population` already equals the
+  non-capital worth cap `2*tech+3`, which is what kept the seed-100 TURN1→2
+  golden green; the gate only wrongly suppressed the `local_16 = 1`
+  replacement arm for satellite villages.
 
 **Two real defects found in the already-"ported" threat scorer**
 (`ai_indian_village_threat` = `FUN_4cc6_03f8`, the *only* DOS producer of

@@ -816,7 +816,7 @@ static GameUpdateStep game_pacer_goto_step(
       units_is_sea(&game->units, active_id) && game->europe_ok &&
       active->goto_x < UNITS_GOTO_NONE && active->goto_y < UNITS_GOTO_NONE &&
       map_tile_is_high_seas(&game->world_map, goto_dest_x, goto_dest_y);
-    const bool stepped = units_advance_goto_one_step_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&game->units), .colonies=(ColonizeColonyPool*)(&game->colonies), .map=(ColonizeWorldMap*)(&game->world_map), .rng=(ColonizeDosRng*)(&game->move_rng)}, active_id);
+    const bool stepped = units_advance_goto_one_step_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&game->units), .colonies=(ColonizeColonyPool*)(&game->colonies), .map=(ColonizeWorldMap*)(&game->world_map), .rng=(ColonizeDosRng*)(&game->move_rng), .rng_reseed=game->ai_rng_seed, .rng_reseed_set=true}, active_id);
     ColonizeUnit* again = units_get(&game->units, active_id);
     const bool sailed_for_europe =
       goto_ship_to_lane && again && again->active && units_is_on_map(again) &&

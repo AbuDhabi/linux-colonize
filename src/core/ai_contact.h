@@ -44,15 +44,19 @@
  */
 void ai_contact_reset(void);
 
-/* @RAID* kind stand-ins (COLONIZE/GAME.TXT tags). */
+/*
+ * DOS-LITERAL FUN_5fef_0f14 `local_6` (raw 99790): the raid resolver rolls
+ * rand(1,4) and these ARE its four kinds, so the numbering matches DOS. There
+ * is no fifth kind: @RAIDSCALP is dead GAME.TXT text with no DS string in
+ * VICEROY.EXE (bugs.md #828), and @RAIDWREAK (0x1b8a) is the third-party
+ * "Spies report" bulletin, not a loot kind (raw 99897-99899, bugs.md #829).
+ */
 typedef enum AiRaidKind {
   AI_RAID_NOTHING = 0,
-  AI_RAID_WREAK = 1,
-  AI_RAID_STORES = 2,
-  AI_RAID_BURN = 3,
-  AI_RAID_SCALP = 4,
-  AI_RAID_SHIP = 5,
-  AI_RAID_GOLD = 6
+  AI_RAID_STORES = 1,  /* @RAIDSTORES 0x1b94 — warehouse cargo */
+  AI_RAID_BURN = 2,    /* @RAIDBURN   0x1b9f — a building */
+  AI_RAID_SHIP = 3,    /* @RAIDSHIP   0x1ba8 — a ship in the port */
+  AI_RAID_GOLD = 4     /* @RAIDGOLD   0x1bb1 — treasury */
 } AiRaidKind;
 
 /* Last colony-raid loot kind applied (for smoke / diagnostics). */

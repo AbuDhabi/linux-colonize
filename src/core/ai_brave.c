@@ -1,6 +1,7 @@
 #include "core/internal.h"
 #include "core/ai.h"
 #include "core/combat_strength.h"
+#include "core/units_combat.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -32,17 +33,7 @@
  *  - Nation pulse, indian nation turn, kill-nation & reset
  */
 
-/* AI_BRAVE_PICK=20e6 — live opt-in fallback to the retired 20e6-shaped quiet scorer. */
-/* ===================== Native pick-dir dispatch, move-spent accounting & init schedule (ai_brave_pick_20e6_fallback .. ai_init_sched_apply) ===================== */
-static int ai_brave_pick_20e6_fallback(void) {
-  static int cached = -1;
-  if (cached < 0) {
-    const char* e = getenv("AI_BRAVE_PICK");
-    cached = (e && strcmp(e, "20e6") == 0) ? 1 : 0;
-  }
-  return cached;
-}
-
+/* ===================== Native pick-dir dispatch, move-spent accounting & init schedule (ai_native_pick_dir .. ai_init_sched_apply) ===================== */
 static int ai_native_pick_dir(
   AiRng* rng,
   const ColonizeWorldMap* map,
@@ -55,10 +46,10 @@ static int ai_native_pick_dir(
 ) {
   res->dir = 8;
   res->flags = 0;
-  if (ai_brave_pick_20e6_fallback() || !col1) {
-    res->dir = ai_native_pick_dir_asm(rng, map, units, u->x, u->y, nation_id, last_dir);
-    return res->dir;
+  if (!col1) {
+    return res->dir; /* no Col1 record: 021a cannot run, the Brave stays. */
   }
+  (void)last_dir;
   int dir = ai_native_pick_dir_021a(
     rng, map, units, col1, ai_s_native_colonies, u, nation_id, res
   );
@@ -72,40 +63,23 @@ static int ai_native_pick_dir(
 
 /* FUN_281f_0754 / mask &0x0a handled by ai_mask_fa_flags above. */
 
+/*
+ * bugs.md #847: the Brave step's cost head is the SAME FUN_465b cost head
+ * every other mover uses — terr_cost[class(dest)]*3, both-FA pair -> 1,
+ * both-river + cardinal -> 1, tribe/settlement dest capped at 3. It used to
+ * be a private copy here that also carried the ">100 -> 1" sentinel bugs.md
+ * #718 proved was a port invention. Folded onto map_move_spent_thirds
+ * (map.c) so the two cannot drift; `dir` is gone because the cardinal test
+ * is the axis equality the shared helper already does.
+ */
 static int ai_dos_move_spent(
   const ColonizeWorldMap* map,
   int from_x,
   int from_y,
   int to_x,
-  int to_y,
-  int dir
+  int to_y
 ) {
-  const int terr = ai_dos_terr_class(map, to_x, to_y);
-  int spent = map_dos_terr_cost_byte(terr) * 3;
-  /* FUN_465b: both mask flags &0x0a → cost 1 (ASM TEST AL,0xa). */
-  const int fa_from = ai_mask_fa_flags(map, from_x, from_y);
-  const int fa_to = ai_mask_fa_flags(map, to_x, to_y);
-  if (fa_from != 0 && fa_to != 0) {
-    spent = 1;
-  }
-  /* FUN_281f_072c: both terrain &0x40 (minor river) and cardinal → cost 1.
-   * (Mask road bit 0x40 is a different plane; 465b uses the terrain reader.) */
-  const int river_from = (int)(map_get_terrain_or(map, from_x, from_y, 25) & 0x40u);
-  const int river_to = (int)(map_get_terrain_or(map, to_x, to_y, 25) & 0x40u);
-  if (river_from != 0 && river_to != 0 && (dir & 1) == 0) {
-    spent = 1;
-  }
-  /* FUN_465b / 06be: cap spent at 3 when dest has tribe flag + owner. */
-  if ((ai_layer2_at(map, to_x, to_y) & 2u) != 0) {
-    const int own = ai_owner_nibble(map, to_x, to_y);
-    if (own >= 0 && spent > 3) {
-      spent = 3;
-    }
-  }
-  if (spent > 100) {
-    spent = 1;
-  }
-  return spent;
+  return map_move_spent_thirds(map, from_x, from_y, to_x, to_y);
 }
 
 /* T4.6 (closed statically 2026-09-08): the seed-100 Brave "writer after ADD"
@@ -262,6 +236,13 @@ static uint8_t s_brave_origin_ok[COLONIZE_UNITS_MAX];
  */
 static ColonizeTurnContext* s_ai_native_ctx = NULL;
 static uint8_t s_ai_first_contact_this_turn[8][4];
+/*
+ * DOS's `aiStack_20[nation]` (viceroy 98653-98676): the 3180 move tail
+ * resolves at most ONE 022e encounter per nation per pass. bugs.md #824
+ * moved the gift/beg apply onto the step site, so the latch lives here now
+ * instead of being implied by ai.c §9's once-per-nation arm order.
+ */
+static uint8_t s_ai_visit_applied_this_turn[8];
 
 /* ===================== First contact, brave-turn origin & brave step/order execution (ai_native_first_contact_this_turn .. ai_native_brave_step) ===================== */
 int ai_native_first_contact_this_turn(int nation_id, int euro_nation) {
@@ -322,7 +303,26 @@ static int ai_native_step_first_contact(
     if (ai_021a_trace_enabled()) {
       fprintf(stderr, "AI_021A_VISITROLL n=%d xy=(%d,%d) e=%d\n", nation_id, u->x, u->y, e);
     }
-    (void)ai_contact_visit_step_roll(s_ai_native_ctx, nation_id, e, u->id);
+    if (!ai_contact_visit_step_roll(s_ai_native_ctx, nation_id, e, u->id)) {
+      continue;
+    }
+    /*
+     * bugs.md #824: DOS resolves the WHOLE encounter here, in the 465b move
+     * tail (0984 -> 3180 -> 022e), not in a later per-nation sweep. The mood
+     * roll above is 022e's head (raw 96745-96760); these two arms are its
+     * two mutually exclusive halves — LAB_5bfb_096c gifts when bVar6, else
+     * LAB_5bfb_0def begs/demands. They used to run post-pulse from ai.c §9
+     * off the published verdict, behind a reconstructed "did a Brave walk up
+     * this turn" gate and a "no popup queue -> decline" bail; both are gone
+     * with the call site that needed them. `aiStack_20[nation]` keeps it to
+     * one resolved encounter per nation per pass.
+     */
+    if (!s_ai_visit_applied_this_turn[nation_id - 4]) {
+      s_ai_visit_applied_this_turn[nation_id - 4] = 1;
+      if (!ai_contact_try_village_gifts(s_ai_native_ctx, nation_id)) {
+        ai_contact_try_village_beg_food(s_ai_native_ctx, nation_id);
+      }
+    }
   }
   return fired;
 }
@@ -350,55 +350,6 @@ int ai_native_brave_turn_origin(int unit_id, int* out_x, int* out_y) {
 }
 
 /*
- * bugs.md ("I refused, and they didn't attack my wagon train next turn"):
- * a Brave whose HOME village holds an attitude word over 0x7f toward a
- * European (LAB_5bfb_0ff2's refused-demand +0x80 — the same `0x7f <` band
- * FUN_521d_0906 reads out of DS:0x54f6) is an ALARMED unit: DOS's 021a
- * dispatches it to the raid/attack path instead of the quiet 14fe wander.
- * That alarmed dispatch is PARKED in the port, and §9's raid pass runs AFTER
- * this pulse and needs remaining MP — so a grudge-carrying Brave wandered its
- * whole allotment away and could never answer the refusal. Leave it standing
- * for the §9 raid dispatch when the offender is right there.
- */
-static bool ai_native_brave_grudge_hold(
-  const ColonizeUnitPool* units, const ColonizeColonyPool* colonies,
-  const ColonizeCol1Save* col1, const ColonizeUnit* u
-) {
-  if (!units || !col1 || !col1->tribe || !u) {
-    return false;
-  }
-  if (u->home_tribe_id < 0 || u->home_tribe_id >= (int)col1->head.tribe_count) {
-    return false;
-  }
-  const ColonizeCol1Tribe* t = &col1->tribe[u->home_tribe_id];
-  for (int e = 0; e < 4; ++e) {
-    if (col1_tribe_attitude(t, e) <= 0x7f) {
-      continue;
-    }
-    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-      const ColonizeUnit* f = &units->units[i];
-      if (!f->active || f->nation_id != e || !units_is_on_map(f)) {
-        continue;
-      }
-      if (abs(f->x - u->x) <= 1 && abs(f->y - u->y) <= 1) {
-        return true;
-      }
-    }
-    if (colonies) {
-      for (int ci = 0; ci < COLONIZE_COLONIES_MAX; ++ci) {
-        const ColonizeColony* c = &colonies->colonies[ci];
-        if (!c->active || c->nation_id != e) {
-          continue;
-        }
-        if (abs(c->x - u->x) <= 1 && abs(c->y - u->y) <= 1) {
-          return true;
-        }
-      }
-    }
-  }
-  return false;
-}
-/*
  * FUN_465b_0000 local_4 (raw 75467-75475): the destination's settlement owner
  * (FUN_281f_06be), overridden by the nation of the unit heading the tile's
  * stack (FUN_281f_07e0 -> FUN_1427_005c). -1 = nobody. The port has no stack
@@ -415,17 +366,14 @@ COLONIZE_INTERNAL int ai_465b_dest_owner(
   return owner;
 }
 
-typedef enum {
-  AI_NATIVE_STEP_MORE = 0, /* the Brave may act again (loop continues) */
-  AI_NATIVE_STEP_STOP = 1  /* the Brave is done this turn (was a bare `break;`) */
-} AiNativeStepStatus;
-
 /*
- * One FUN_1427_13b0 act for one Brave: MP gate, grudge hold, 021a direction
- * pick, the partial-MP gamble and the commit. Extracted verbatim from
- * ai_native_nation_pulse.
+ * One FUN_1427_13b0 act for one Brave: MP gate, 021a direction pick, the
+ * partial-MP gamble, the foreign-tile attack handoff and the commit.
+ * Extracted verbatim from ai_native_nation_pulse; the status enum lives in
+ * ai_internal.h so a test can build one (conventions.md "Internal-header
+ * test seam").
  */
-static AiNativeStepStatus ai_native_brave_step(
+COLONIZE_INTERNAL AiNativeStepStatus ai_native_brave_step(
   ColonizeUnitPool* units, ColonizeWorldMap* map, ColonizeCol1Save* col1, AiRng* rng,
   int nation_id, bool seed100_init_burns, ColonizeUnit* u, int hx, int hy, int tech,
   int max_mp, int brave_index, int* steps
@@ -452,16 +400,17 @@ static AiNativeStepStatus ai_native_brave_step(
    * 021a:0337..0365 — a unit whose home village slot is out of range
    * (u+0x314a < 0 or >= DS:0x539a) is destroyed (FUN_281f_0808), not
    * re-homed; 021a returns -1 and 14fe's "step" lands on the freed slot.
+   *
+   * DOS-LITERAL deviation (bugs.md #826): DOS returns -1 here and its
+   * caller FUN_4d56_14fe, which only tests the result against 8, then
+   * dereferences the freed unit record — a use-after-free the port does not
+   * reproduce. The port STOPs the Brave cleanly instead. This is the one
+   * deliberate departure in the despawn arm; everything else is verbatim.
    */
   if (col1 &&
       (u->home_tribe_id < 0 ||
        u->home_tribe_id >= (int)col1->head.tribe_count)) {
     units_despawn(units, u->id);
-    return AI_NATIVE_STEP_STOP;
-  }
-  /* Alarmed dispatch stand-in — see ai_native_brave_grudge_hold. */
-  if (ai_native_brave_grudge_hold(units, ai_s_native_colonies, col1, u)) {
-    u->col1_counter16--;
     return AI_NATIVE_STEP_STOP;
   }
   if (ai_lcg_audit_enabled() && seed100_init_burns) {
@@ -486,7 +435,7 @@ static AiNativeStepStatus ai_native_brave_step(
   (void)tech;
   Ai021aResult pick;
   int dir = ai_native_pick_dir(rng, map, units, col1, u, nation_id, last_dir, &pick);
-  if (!ai_brave_pick_20e6_fallback() && col1) {
+  if (col1) {
     const int picked = dir;
     dir = ai_native_021a_tail(units, map, col1, rng, u, nation_id, dir, pick.flags);
     if (ai_021a_trace_enabled()) {
@@ -504,6 +453,14 @@ static AiNativeStepStatus ai_native_brave_step(
      * byte (COL1 +0x0b) unconditionally — the full byte value 8 (facing
      * bits 0 + pad bit0 in the save split). Keep last_dir = 8 in memory:
      * 521d:54f5 skips the facing term for any byte >= 8.
+     *
+     * bugs.md #846 (REFUTED) read `col1_facing_pad` here as a port-only
+     * flag stealing DOS's upper 5 bits. It is not: 021a:11b9 is a FULL
+     * byte store (`byte [BX+0x314f] = chosen dir`), so DOS itself zeroes
+     * those bits on every act. facing (low 3) + pad (high 5) is only how
+     * col1_bridge splits that one byte; writing pad = 1 on a stay is what
+     * reproduces DOS's byte 8. Moving the write to a non-serialized field
+     * would make a stayed Brave round-trip as facing 0 = "faced north".
      */
     u->last_dir = 8;
     u->col1_facing_pad = 1;
@@ -513,6 +470,15 @@ static AiNativeStepStatus ai_native_brave_step(
      * any orders byte; the port latches only over NONE/FORTIFY/FORTIFIED
      * so the Linux-side FOLLOW/GOTO escort machinery survives (DOS
      * escorts exit 021a through the raid dispatch, never this tail).
+     *
+     * bugs.md #826 asked whether a Brave can ever hold a Linux-only order,
+     * i.e. whether the guard can go and the latch become unconditional as
+     * at 021a:11cd/1272. It cannot: `ai_contact_raid.c` (:1809) hands an
+     * idle Brave UNITS_ORDER_FOLLOW through units_follow_unit in the §9
+     * escort peel, and that order persists into the next turn's §8 pulse.
+     * An unconditional latch would overwrite it with FORTIFY on the first
+     * stay. The guard stays; this is a recorded port adaptation, not an
+     * oversight. The same reasoning covers the three clear sites below.
      */
     if (u->orders == UNITS_ORDER_NONE || u->orders == UNITS_ORDER_FORTIFY ||
         u->orders == UNITS_ORDER_FORTIFIED) {
@@ -549,7 +515,7 @@ static AiNativeStepStatus ai_native_brave_step(
   }
   const int nx = u->x + k_ai_dir8_dx[dir];
   const int ny = u->y + k_ai_dir8_dy[dir];
-  const int cost = ai_dos_move_spent(map, u->x, u->y, nx, ny, dir);
+  const int cost = ai_dos_move_spent(map, u->x, u->y, nx, ny);
   const int from_x = u->x;
   const int from_y = u->y;
   /*
@@ -566,16 +532,48 @@ static AiNativeStepStatus ai_native_brave_step(
    * The port used to commit the 021a pick as a plain step, so a Brave whose
    * pick carried the 0x0a contact/attack flags walked INTO a Euro colony
    * and sat there fortified — and its foreign presence then blocked the
-   * owner's ships from docking (bugs.md #553). The Brave attack itself
-   * stays parked with the rest of the alarmed dispatch (see
-   * ai_native_brave_grudge_hold); the Brave keeps DOS's end state: in
-   * place, exhausted.
+   * owner's ships from docking (bugs.md #553). The Brave keeps DOS's end
+   * state: in place, exhausted — and, since bugs.md #822, with the attack
+   * actually resolved on the >= 3-thirds limb.
+   *
+   * bugs.md #822: the >= 3-thirds limb is DOS's attack. The port routes it
+   * into the same resolver every other 1b0e call site uses
+   * (units_resolve_land_combat -> units_resolve_land_combat_ff_w), picking
+   * the defender with FUN_5fef_0000 (units_best_defender_at) exactly as the
+   * §9 ambush arm does. That resolver also carries 1b0e's colony limb: a
+   * Brave beaten on a colony tile reaches the raid handoff units.c
+   * self-registers from ai_contact_raid.c (ColonizeUnitsRaidRepelledFn), so
+   * a colony target and a lone field unit both go through one path, as in
+   * DOS. Two deviations, deliberate:
+   *  - defender nations are limited to the Europeans 0..3; DOS's bVar4 is
+   *    any foreign owner, but the port models no tribe-versus-tribe combat
+   *    anywhere, so a foreign-tribe tile keeps the exhaust-only end state;
+   *  - a foreign tile whose best defender is -1 (an undefended colony: only
+   *    civilians, which FUN_5fef_0000 skips) also keeps the exhaust-only end
+   *    state rather than inventing an outcome. The §9 raid pass owns that
+   *    case.
    */
   {
     const int dest_owner = ai_465b_dest_owner(map, units, nx, ny);
     if (dest_owner >= 0 && dest_owner != nation_id) {
-      if (max_mp - spent >= 3 && cost > max_mp - spent && spent != 0) {
+      const int left = max_mp - spent;
+      if (left >= 3 && cost > left && spent != 0) {
         dos_rng_seed(rng, ai_turn_seed(s_ai_native_ctx)); /* 04ca, no roll */
+      }
+      if (left >= 3) {
+        const int foe = units_best_defender_at(units, col1, nx, ny, u->id, u->id);
+        ColonizeUnit* f = foe >= 0 ? units_get(units, foe) : NULL;
+        if (f && f->active && f->nation_id >= 0 && f->nation_id <= 3 &&
+            !units_is_sea(units, foe)) {
+          /* LAB_465b_025c -> 05ca -> FUN_291f_0a14 = FUN_5fef_1b0e. */
+          (void)units_resolve_land_combat(units, u->id, foe, rng);
+          const ColonizeUnit* self = units_get_const(units, u->id);
+          if (!self || !self->active) {
+            /* The Brave lost; 1b0e despawned it. Nothing left to stamp. */
+            (*steps)++;
+            return AI_NATIVE_STEP_STOP;
+          }
+        }
       }
       u->moves = max_mp;
       u->last_dir = dir;
@@ -727,6 +725,7 @@ void ai_native_nation_pulse(
     (void)ai_init_sched_apply(rng, nation_id, -1);
   }
   memset(s_ai_first_contact_this_turn[nation_id - 4], 0, sizeof(s_ai_first_contact_this_turn[0]));
+  s_ai_visit_applied_this_turn[nation_id - 4] = 0;
 
   const int max_mp = 3; /* Brave thirds allotment (FUN_281f_090c path) */
   /*
@@ -967,12 +966,11 @@ void ai_indian_nation_turn(ColonizeTurnContext* ctx, int nation_id) {
   /*
    * bugs.md 2026-09-04: FUN_5bfb_022e's peaceful visit picks ONE of two
    * halves — generous (@INDIANGIVEFOOD/@INDIANGIVESTUFF) or demanding
-   * (@INDIANBEGFOOD / tribute). The gift half was never wired, so the only
-   * peaceful visitor the player ever saw was a beggar.
+   * (@INDIANBEGFOOD / tribute).
+   * bugs.md #824 (2026-09-23): both halves now run from the Brave's own step
+   * (ai_native_step_first_contact above), which is where DOS's 022e runs.
+   * Nothing is left to do post-pulse.
    */
-  if (!ai_contact_try_village_gifts(ctx, nation_id)) {
-    ai_contact_try_village_beg_food(ctx, nation_id);
-  }
   ai_contact_indian_raids(ctx, nation_id);
 }
 
@@ -1121,4 +1119,5 @@ void ai_native_reset(void) {
   memset(s_brave_origin_ok, 0, sizeof(s_brave_origin_ok));
   s_ai_native_ctx = NULL;
   memset(s_ai_first_contact_this_turn, 0, sizeof(s_ai_first_contact_this_turn));
+  memset(s_ai_visit_applied_this_turn, 0, sizeof(s_ai_visit_applied_this_turn));
 }

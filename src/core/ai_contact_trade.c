@@ -227,21 +227,19 @@ static int ai_contact_2820_price_byte(const ColonizeCol1Save* col1, int nation, 
  * qty = min(100/(want+1), key+5) clamped [5,100], capped to warehouse room,
  * floor 2. Cite: FUN_281f_0d3a = warehouse capacity; FUN_291f_0ed0 sort.
  *
- * TRIGGER FIDELITY (the port's one deliberate divergence, 2026-09-04).
+ * TRIGGER (bugs.md #824, 2026-09-23 — no longer reconstructed).
  * DOS reaches 022e from FUN_465b's move tail (FUN_281f_0984 →
  * FUN_5bfb_3180), once per Brave step, for the neighbour tile the encounter
- * scan found. The Linux native pulse commits its steps inline and runs the
- * contact arms once per nation afterwards, so this reconstructs the trigger
- * from ai_native_brave_turn_origin (the Brave must have walked up this turn —
- * see ai_contact_brave_walked_up_to; no turn cooldown — see the visit
- * pacing note at the top of this file), and
- * declines entirely without a popup queue. That last gate exists because the
- * port's Brave paths are NOT DOS-faithful (golden_ai_turns is DISABLED for
- * exactly that): in COLONY00→01 the port walks an Iroquois Brave to (49,48),
- * beside New Amsterdam, while DOS's own Braves end that turn at (49,51) and
- * (50,47) — nowhere near it. Letting a mis-walked Brave move a colony's
- * stores would corrupt the DOS colony-production goldens, so the arm stays
- * out of contexts that are replaying production math.
+ * scan found. The port now calls this arm from that same site:
+ * ai_native_step_first_contact (ai_brave.c) runs the 022e mood roll
+ * (ai_contact_visit_step_roll) and then this apply, for the Brave that just
+ * stepped. The two reconstruction gates this function used to carry are
+ * gone with the post-pulse call site that needed them — the
+ * "decline entirely without a popup queue" bail is gone with the post-pulse
+ * call site that needed it; ai_contact_brave_walked_up_to survives as the
+ * per-Brave SELECTOR (it now picks the Brave that is mid-step, not a
+ * reconstruction of one). There is no turn cooldown either; see the visit
+ * pacing note at the top of this file.
  *
  * Returns 1 when a gift was actually handed over. The caller uses that to
  * skip the demand/beg arm: in DOS the two are the mutually exclusive halves
@@ -254,17 +252,6 @@ int ai_contact_try_village_gifts(ColonizeTurnContext* ctx, int nation_id) {
     return 0;
   }
   if (nation_id < 4 || nation_id > 11) {
-    return 0;
-  }
-  if (!ctx->ai_popups) {
-    /*
-     * No presentation context — see the "trigger fidelity" note in this
-     * function's header. A visit is a blocking dialog in DOS; a caller with
-     * no popup queue (the DOS colony-production golden fixtures drive
-     * turn_end directly) is replaying production math, and the port's Brave
-     * paths are not DOS-faithful enough (golden_ai_turns is DISABLED for
-     * exactly that) to let this arm move a colony's stores there.
-     */
     return 0;
   }
   ColonizeCol1Indian* ind = &ctx->col1->indian[nation_id - 4];
@@ -301,6 +288,13 @@ int ai_contact_try_village_gifts(ColonizeTurnContext* ctx, int nation_id) {
         if (abs(bu->x - c->x) > 1 || abs(bu->y - c->y) > 1) {
           continue;
         }
+        /*
+         * bugs.md #824: still the move-tail filter, but no longer a
+         * reconstruction — this arm runs from the stepping Brave's own
+         * 022e now, so "walked up this turn" simply SELECTS that Brave out
+         * of the nation's units and leaves a loitering one alone, which is
+         * what FUN_5bfb_3180's per-step neighbour scan does.
+         */
         if (!ai_contact_brave_walked_up_to(bu, c->x, c->y)) {
           continue;
         }
@@ -396,9 +390,12 @@ int ai_contact_try_village_gifts(ColonizeTurnContext* ctx, int nation_id) {
       if (need > dos_rng_range(ctx->rng, 0, 0xf)) {
         /* DOS-LITERAL FUN_5bfb raw 96996-97012: shows the popup first
          * (FUN_281f_0416 STRING0 = colony name, then @INDIANSCONVERT / tag
-         * 0x182a), then spawns unit type 0 at the visiting brave's tile
-         * (`*(int*)0x8542` + 0/+1 = x/y of the brave, not the colony) and
-         * stamps profession 0x1b. */
+         * 0x182a), then spawns unit type 0 at raw 97009-97013:
+         * `puVar4 = *(0x8542)` is the COLONY record, and
+         * `FUN_281f_095c(0, puVar4[0x1a], puVar4[0], puVar4[1])` = type 0,
+         * nation = colony+0x1a (the colony's owner byte), x/y = the colony
+         * tile — not the visiting brave's tile (bugs.md #840). Then stamps
+         * profession 0x1b. The brave is not consumed. */
         ai_contact_bind_names(ctx);
         const int human_convert = ai_contact_euro_is_human(ctx, e);
         if (human_convert) {
@@ -414,10 +411,10 @@ int ai_contact_try_village_gifts(ColonizeTurnContext* ctx, int nation_id) {
         }
         const int convert_type = units_kind_type_index(ctx->units, UNITS_KIND_COLONIST);
         if (convert_type >= 0) {
-          const int cid = units_spawn_allow_stack(ctx->units, convert_type, brave->x, brave->y);
+          const int cid = units_spawn_allow_stack(ctx->units, convert_type, c->x, c->y);
           ColonizeUnit* convert = cid >= 0 ? units_get(ctx->units, cid) : NULL;
           if (convert) {
-            convert->nation_id = (uint8_t)e;
+            convert->nation_id = (uint8_t)c->nation_id;
             convert->profession = COLONIZE_PROF_CONVERT;
           }
         }
@@ -784,7 +781,9 @@ void ai_contact_apply_reparations(
       const int rank = ai_contact_brave_ladder_rank(ctx->units, brave);
       if (brave && rank >= 0 && (rank & 1) == 0) {
         ai_contact_brave_ladder_add(ctx->units, brave, 1);
-      } else if (ind->muskets < 0xff) {
+      } else {
+        /* DOS 022e raw ~96906-96928: plain signed-byte `+= 1`, no cap
+         * (bugs.md #841 — the invented 0xff guard is gone). */
         ind->muskets = (uint8_t)(ind->muskets + 1);
       }
     } else if (s->cargo == COLONIZE_CARGO_HORSES) {
@@ -794,9 +793,9 @@ void ai_contact_apply_reparations(
       } else {
         ind->horse_breeding = (uint16_t)(ind->horse_breeding + 0x32);
       }
-      if (ind->horse_herds < 0xff) {
-        ind->horse_herds = (uint8_t)(ind->horse_herds + 1);
-      }
+      /* DOS 022e raw ~96906-96928: unconditional signed-byte `+= 1`
+       * (bugs.md #841). */
+      ind->horse_herds = (uint8_t)(ind->horse_herds + 1);
     }
     /* bugs.md #802: DOS writes no status line here (no such text in any
      * COLONIZE .TXT section); the invented English narration is gone. */

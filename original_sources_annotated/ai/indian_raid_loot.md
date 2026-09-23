@@ -123,12 +123,31 @@ disassembly is in the 2026-08-13 investigation log if anyone resumes this.
 4. **AI**: score each slot = `euro_price[type][nation] * qty` (`-0x7b44` table);
    sort (`291f_0ed0`); pick best index
 
-**Linux:** `units_plunder_ship_holds` / raid STORES arm — goods-value sort shape;
-human CHOICE **thin/PARKED**.
+**Linux:** `units_plunder_ship_holds` — goods-value sort shape; human CHOICE
+**thin/PARKED**. (`0f14`'s own STORES cargo pick is **not** this sort — see the
+2026-09-23 correction below.)
 
 ---
 
 ## `FUN_5fef_0f14` — Indian raid colony loot + tension
+
+> **Correction 2026-09-23 (bugs.md #827-#833, #836).** The head of `0f14` is
+> now ported verbatim and several stand-ins below are retired:
+> * The kind is `rand(1,4)` (raw 99790) — **four** kinds, 1 goods / 2 building /
+>   3 ship / 4 gold. The port's alarm-band picker and its 1500/1520 **year**
+>   demote thresholds had no DOS source and are deleted.
+> * `FUN_281f_09fc(n)` is a **building-bit test** on the active colony (far
+>   thunk → `FUN_15eb_038e`), so the demote chain is fortification-gated:
+>   Fort → building kind becomes goods; Stockade → gold becomes goods, and
+>   goods can become nothing on `difficulty < rand(0,8)`; Fortress → ship kind
+>   dies. The early grace is a **turn** test on Discoverer/Explorer only.
+> * `AI_RAID_SCALP` is deleted: `@RAIDSCALP` has no DS string in VICEROY.EXE.
+> * `AI_RAID_WREAK` is deleted as a kind: 0x1b8a is the third-party
+>   "Spies report" bulletin for a raid on a non-human colony (raw 99897-99899).
+> * The goods cargo is a **retry roll** with a 10-stock floor, not a value
+>   sort, and the amount is `rand(min(h,10), h)` over half the pile.
+> * `ai_contact_raid_secondary_loot` is deleted — `0f14` mutates exactly one
+>   thing per raid.
 
 | Item | Value |
 |------|-------|
@@ -200,10 +219,10 @@ gate, via `ai_contact_alarm_delta_00f2` → `ai_diplo_indian_alarm_delta`, and
 wired into **both** entries to this resolver — the raid pulse in
 `ai_contact_indian_raids` and the 1b0e repelled-at-a-colony handoff
 `ai_contact_colony_raid_repelled` — each immediately before its own DS:0x54f6
-clear, matching DOS's order. AiRaidKind→DOS kind: `STORES`=1, `BURN`/`WREAK`=2,
-`SHIP`/`SCALP`=3 (kind 3 walks ship types `0xd..0x12`; the port's colonist-kill
-band has no DOS kind and shares the row), `GOLD`=4. This **retires** the
-former Series-J POSITIVE escalate (STORES +4, BURN/WREAK +12, SCALP +16,
+clear, matching DOS's order. Since 2026-09-23 `AiRaidKind` **is** DOS's
+`local_6`: `NOTHING`=0, `STORES`=1, `BURN`=2, `SHIP`=3, `GOLD`=4, with the
+invented `WREAK`/`SCALP` kinds deleted. This **retires** the
+former Series-J POSITIVE escalate (STORES +4, BURN +12, +16,
 GOLD/SHIP +8 via `ai_contact_alarm_bump_amount`), which had both the sign and
 the kind-3 assignment wrong — same retirement rule as the three fandom alarm
 drips (bugs.md 295): DOS grows Indian alarm only through `FUN_4d56_152e`.

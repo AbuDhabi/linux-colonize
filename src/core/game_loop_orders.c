@@ -240,7 +240,7 @@ bool game_commit_sea_lane_step(ColonizeGameState* game, int sid, int dest_x, int
   u->orders = UNITS_ORDER_GOTO;
   u->goto_x = dest_x;
   u->goto_y = dest_y;
-  const bool ok = units_try_move_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&game->units), .colonies=(ColonizeColonyPool*)(&game->colonies), .map=(ColonizeWorldMap*)(&game->world_map), .rng=(ColonizeDosRng*)(&game->move_rng)}, sid, dest_x, dest_y);
+  const bool ok = units_try_move_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&game->units), .colonies=(ColonizeColonyPool*)(&game->colonies), .map=(ColonizeWorldMap*)(&game->world_map), .rng=(ColonizeDosRng*)(&game->move_rng), .rng_reseed=game->ai_rng_seed, .rng_reseed_set=true}, sid, dest_x, dest_y);
   u = units_get(&game->units, sid);
   if (u) {
     u->orders = prev_orders;
@@ -377,7 +377,7 @@ COLONIZE_INTERNAL GameMoveStep game_move_sea_unit(
       /* units_try_move puts passengers ashore on docking (bugs.md), so count
        * them before the move to report what came off. */
       const int n = selected->cargo_count;
-      if (!units_try_move_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&game->units), .colonies=(ColonizeColonyPool*)(colonies), .map=(ColonizeWorldMap*)(&game->world_map), .rng=(ColonizeDosRng*)(&game->move_rng)}, sid, dest_x, dest_y)) {
+      if (!units_try_move_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&game->units), .colonies=(ColonizeColonyPool*)(colonies), .map=(ColonizeWorldMap*)(&game->world_map), .rng=(ColonizeDosRng*)(&game->move_rng), .rng_reseed=game->ai_rng_seed, .rng_reseed_set=true}, sid, dest_x, dest_y)) {
         set_status(game, units_enter_reason_status(units_last_enter_reason()), NULL);
         return GAME_MOVE_RETURN_FALSE;
       }
@@ -1017,7 +1017,7 @@ COLONIZE_INTERNAL GameMoveStep game_move_commit(
 ) {
   {
     const int mp_before = selected->moves;
-    if (!units_try_move_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&game->units), .colonies=(ColonizeColonyPool*)(colonies), .map=(ColonizeWorldMap*)(&game->world_map), .rng=(ColonizeDosRng*)(&game->move_rng)}, sid, dest_x, dest_y)) {
+    if (!units_try_move_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&game->units), .colonies=(ColonizeColonyPool*)(colonies), .map=(ColonizeWorldMap*)(&game->world_map), .rng=(ColonizeDosRng*)(&game->move_rng), .rng_reseed=game->ai_rng_seed, .rng_reseed_set=true}, sid, dest_x, dest_y)) {
       if (units_last_combat_outcome() < 0) {
         set_status(game, "Combat lost", NULL);
         game_after_unit_action(game);

@@ -1159,17 +1159,37 @@ int units_apply_land_loss_outcome(
      *   type 0x14 / 0x16 -> muskets += 1
      *   type 0x15 / 0x16 -> horse_breeding += 0x19
      */
-    if (!loser_euro && lose->nation_id >= 4 && wcol1 && wcol1->indian &&
-        lose->nation_id - 4 < COLONIZE_COL1_INDIAN_COUNT &&
+    /*
+     * bugs.md #835: DOS's only gate is `3 < uVar15` plus the flag/coin term,
+     * so the draw happens even with no col1 record bound. Evaluate the gate
+     * first and apply the record write only when a record exists, otherwise a
+     * headless caller silently skips the RNG draw and shifts the stream.
+     */
+    if (!loser_euro && lose->nation_id >= 4 &&
         (((lose->col1_flags15 & 0x10u) != 0) || dos_rng_range(rng, 0, 1) != 0)) {
-      const ColonizeUnitKind lk = units_type_kind(lt);
-      ColonizeCol1Indian* ind = &wcol1->indian[lose->nation_id - 4];
-      if (lk == UNITS_KIND_ARMED_BRAVE || lk == UNITS_KIND_MTD_WARRIOR) {
-        ind->muskets = (uint8_t)(ind->muskets + 1);
+      if (wcol1 && (unsigned)(lose->nation_id - 4) < (unsigned)COLONIZE_COL1_INDIAN_COUNT) {
+        const ColonizeUnitKind lk = units_type_kind(lt);
+        ColonizeCol1Indian* ind = &wcol1->indian[lose->nation_id - 4];
+        if (lk == UNITS_KIND_ARMED_BRAVE || lk == UNITS_KIND_MTD_WARRIOR) {
+          ind->muskets = (uint8_t)(ind->muskets + 1);
+        }
+        if (lk == UNITS_KIND_MTD_BRAVE || lk == UNITS_KIND_MTD_WARRIOR) {
+          ind->horse_breeding = (uint16_t)(ind->horse_breeding + 0x19);
+        }
       }
-      if (lk == UNITS_KIND_MTD_BRAVE || lk == UNITS_KIND_MTD_WARRIOR) {
-        ind->horse_breeding = (uint16_t)(ind->horse_breeding + 0x19);
-      }
+    }
+    /*
+     * DOS-LITERAL FUN_5fef_1b0e raw 100641-100646 (bugs.md #834): when the
+     * native attacker wins on a tile carrying a colony (`-1 < iVar18`, the
+     * 07be colony lookup) DOS sets `local_6 = 1` AND latches
+     * `attacker+0x3148 |= 0x10`. That bit is the guaranteed arm of the 0352
+     * gear-return gate above, so a colony-raiding brave killed later always
+     * hands its gear back. DOS's extra `(colony+0x1f > 1 || !bVar28)` term is
+     * always true at this entry point: `bVar28` is "no real unit defender was
+     * found", and this function is only ever reached with a live loser unit.
+     */
+    if (win->nation_id >= 4 && on_colony) {
+      win->col1_flags15 = (uint8_t)(win->col1_flags15 | 0x10u);
     }
     /*
      * DOS-LITERAL FUN_5fef_1b0e raw 100730-100744 (bugs.md #645): a native
@@ -1193,7 +1213,7 @@ int units_apply_land_loss_outcome(
           (wk == UNITS_KIND_BRAVE || wk == UNITS_KIND_ARMED_BRAVE)) {
         step = 2;
         g_units_native_gear_mounted = 1;
-        if (wcol1 && wcol1->indian && win->nation_id - 4 < COLONIZE_COL1_INDIAN_COUNT) {
+        if (wcol1 && (unsigned)(win->nation_id - 4) < (unsigned)COLONIZE_COL1_INDIAN_COUNT) {
           ColonizeCol1Indian* ind = &wcol1->indian[win->nation_id - 4];
           ind->horse_herds = (uint8_t)(ind->horse_herds + 1);
         }
@@ -2389,12 +2409,14 @@ static int col1_destroy_tribe_at(
       if (!u->active || u->home_tribe_id < 0) {
         continue;
       }
+      /* DOS-LITERAL FUN_4d56_00e0 raw 81310-81319: the whole loop body sits
+       * under `if (3 < (*(byte*)(i*0x1c + 0x3147) & 0xf))` — Euro units are
+       * never destroyed and never renumbered here (bugs.md #839). */
+      if (u->nation_id < 4) {
+        continue;
+      }
       if (u->home_tribe_id == found) {
-        if (u->nation_id >= 4) {
-          (void)units_despawn(units, u->id);
-        } else {
-          u->home_tribe_id = -1;
-        }
+        (void)units_despawn(units, u->id);
       } else if (u->home_tribe_id > found) {
         u->home_tribe_id--;
       }
