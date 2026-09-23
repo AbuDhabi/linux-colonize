@@ -2732,22 +2732,6 @@ static void units_combat_enqueue_tok(
   );
 }
 
-bool units_combat_apply_ransom_popup(ColonizeCol1Save* col1, const AiPopupState* popups) {
-  if (!popups || popups->result_tag != AI_POPUP_TAG_COMBAT_RANSOM) {
-    return false;
-  }
-  if (!col1 || popups->result_cancelled || popups->result_choice_id != 1) {
-    return true; /* Refuse / cancel: no gold */
-  }
-  const int nation = popups->result_nation_a;
-  const int gold = popups->result_payload;
-  if (nation < 0 || nation > 3 || gold <= 0) {
-    return true;
-  }
-  europe_nation_gold_add(NULL, col1, nation, (long)gold); /* audit G3 */
-  return true;
-}
-
 void units_combat_notify_colony_captured(
   const ColonizeCol1Save* col1,
   const ColonizeColony* colony,
@@ -3448,10 +3432,24 @@ static int units_apply_land_loss_outcome(
   }
 
   /*
-   * Capture-alive (DOS type ∈ {Colonists, Wagon}; Treasure handled in resolve).
-   * Winner must be Euro with attack>0 — natives destroy, never nation-flip.
+   * Capture-alive (DOS loser type ∈ {0x00 Colonists, 0x0a Treasure,
+   * 0x0c Wagon}). Winner must be Euro with attack>0 — natives destroy,
+   * never nation-flip.
+   *
+   * DOS-LITERAL FUN_5fef_0352 raw 99381-99383 (bugs.md #663): the capture
+   * flag is cleared again by
+   * `if ((0xc < loser type && loser type < 0x13) || local_2a != 0)
+   *    bVar12 = false;`
+   * — a losing hull (types 0xd..0x12) never changes hands, and neither does
+   * anyone when `local_2a` (FUN_281f_0768, ocean / high seas of the WINNER's
+   * tile OR'd with the LOSER's tile) is set. A disqualified capture falls
+   * through to the demote ladder / destroy below.
    */
-  if (loser_euro && lt && lt->name[0] && win_can_capture) {
+  const int on_water =
+    units_tile_is_ocean_or_hs(col1, win->x, win->y) ||
+    units_tile_is_ocean_or_hs(col1, lose->x, lose->y);
+  const int loser_is_hull = lt && units_type_is_ship(lt);
+  if (loser_euro && lt && lt->name[0] && win_can_capture && !loser_is_hull && !on_water) {
     const int is_treasure = units_type_is_treasure(lt);
     const int is_wagon = units_type_is_wagon(lt);
     /*
@@ -3471,7 +3469,38 @@ static int units_apply_land_loss_outcome(
       units_type_is_colonist(lt) && !is_treasure && !is_wagon &&
       lose->horses <= 0 && lose->muskets <= 0 && lose->tools <= 0;
     if (is_treasure) {
-      /* Treasure gold handled in resolve; despawn below. */
+      /*
+       * DOS-LITERAL FUN_5fef_0352 raw 99392-99413 (bugs.md #660): a beaten
+       * Treasure Train CHANGES HANDS like a Wagon — FUN_281f_0812 (unlink),
+       * FUN_281f_0894(unit, winner nation) (nation flip), FUN_281f_0844
+       * (re-place), `+0x314c = 0` (orders none) — and pushes tag 0x1b13
+       * @LOOTCAPTURE with STRING0 = loser nation, STRING1 = winner nation,
+       * NUMBER0 = `*(char *)(loser * 0x1c + 0x315b) * 100`, the train's value
+       * as DISPLAY ONLY. No gold is credited anywhere in 0352; the port's
+       * Accept/Refuse "ransom" CHOICE and its credit were inventions.
+       * The value goes through units_treasure_value_gold so a COL1-imported
+       * train (value in the profession byte, empty LE16 mirror) is not 0.
+       */
+      const int from_nat = lose->nation_id;
+      const int loot_gold = units_treasure_value_gold(lose);
+      units_capture_to_winner(pool, lose, win);
+      if (human) {
+        PopupMsgTokens tok;
+        memset(&tok, 0, sizeof(tok));
+        tok.string0 = units_combat_nation_label(col1, from_nat);
+        tok.string1 = units_combat_nation_label(col1, win->nation_id);
+        tok.number0 = loot_gold;
+        tok.has_number0 = true;
+        units_combat_enqueue_tok(
+          AI_POPUP_TAG_COMBAT_CAPTURE,
+          "LOOTCAPTURE",
+          win->nation_id,
+          from_nat,
+          loot_gold,
+          &tok,
+          "");
+      }
+      return 1;
     } else if (is_wagon) {
       const int from_nat = lose->nation_id;
       int cargo_amt = 0;
@@ -3548,9 +3577,7 @@ static int units_apply_land_loss_outcome(
    */
   {
     const int win_is_hull = wt && units_type_is_ship(wt);
-    const int on_water =
-      units_tile_is_ocean_or_hs(col1, win->x, win->y) ||
-      units_tile_is_ocean_or_hs(col1, lose->x, lose->y);
+    /* `on_water` is the same local_2a hoisted above for the capture gate. */
     if (!win_is_hull && !on_water &&
         units_demote_combat_type(pool, lose, col1, human)) {
       return 1;
@@ -5947,78 +5974,11 @@ bool units_resolve_land_combat_ff_w(
     const int def_y = def->y;
     const int def_nation = def->nation_id;
     const int atk_nation = atk->nation_id;
-    /*
-     * Treasure capture: the DOS site is FUN_5fef_0352's capture arm, the one
-     * guarded by `bVar12 && local_32 < 4 && bVar11`
-     * (viceroy_unpacked.c:99392). It reads the loser's value as
-     * `iVar17 = *(char *)(iVar18 + 0x315b) * 100` at raw 99404 — iVar18 =
-     * param_1 * 0x1c, param_1 being the LOSING unit — and prints it in the
-     * loser-type-0xc (Treasure) message 0x1b1f at raw 99407-99408. Reading
-     * the value goes through units_treasure_value_gold so a Treasure bridged
-     * from a COL1 save (value in the profession byte, empty LE16 mirror) is
-     * not silently worth 0; the open-coded mirror read this replaced skipped
-     * the ransom popup and the gold credit outright, and the unit was then
-     * destroyed by units_apply_land_loss_outcome below.
-     *
-     * (The former citation here, FUN_5fef_1908, is the Europe/King-galleon
-     * cash-in — raw 100158, `local_5c = *(byte *)(param_1 * 0x1c + 0x315b) *
-     * 100` — which this file ports separately in the King-galleon share
-     * path, not a combat path.)
-     *
-     * Port-side presentation on top of DOS's rename: human → ransom
-     * Accept/Refuse CHOICE before credit; AI → silent full credit.
+    /* bugs.md #660: a beaten Treasure Train CHANGES HANDS in DOS
+     * (FUN_5fef_0352 raw 99392-99413) — see the capture arm in
+     * units_apply_land_loss_outcome. The ransom CHOICE and the gold
+     * credit that stood here were port inventions; 0352 credits no gold.
      */
-    if (col1 && atk_nation >= 0 && atk_nation <= 3 && dt->name[0] &&
-        units_type_is_treasure(dt)) {
-      const int loot_gold = units_treasure_value_gold(def);
-      if (loot_gold > 0) {
-        const int human = units_combat_human_involved(col1, atk_nation, def_nation);
-        PopupMsgTokens tok;
-        memset(&tok, 0, sizeof(tok));
-        tok.string0 = units_combat_nation_label(col1, def_nation);
-        tok.string1 = units_combat_nation_label(col1, atk_nation);
-        tok.number0 = loot_gold;
-        tok.has_number0 = true;
-        if (human && g_units_combat_popups) {
-          char body[AI_POPUP_BODY_LEN];
-          if (g_units_combat_game_txt) {
-            popup_msg_fill(
-              g_units_combat_game_txt, "LOOTCAPTURE", &tok, "", body, sizeof(body)
-            );
-          } else {
-            snprintf(body, sizeof(body), "Treasure worth %d — Accept ransom?", loot_gold);
-          }
-          const char* choices[2] = {"Refuse", "Accept"};
-          const int ids[2] = {0, 1};
-          (void)ai_popup_enqueue_choice_ctx(
-            g_units_combat_popups,
-            AI_POPUP_TAG_COMBAT_RANSOM,
-            atk_nation,
-            def_nation,
-            loot_gold,
-            NULL,
-            body,
-            choices,
-            ids,
-            2
-          );
-        } else {
-          europe_nation_gold_add(
-            NULL, (ColonizeCol1Save*)col1, atk_nation, (long)loot_gold
-          ); /* audit G3 */
-          if (human) {
-            units_combat_enqueue_tok(
-              AI_POPUP_TAG_COMBAT_LOOT,
-              "LOOTCAPTURE",
-              atk_nation,
-              def_nation,
-              loot_gold,
-              &tok,
-              "");
-          }
-        }
-      }
-    }
     /* bugs.md #240: loss outcome (demote/damage/capture popups) FIRST, then
      * @EUROPEWIN — DOS 1b0e order. Snapshots keep labels past a despawn. */
     {
@@ -7420,12 +7380,12 @@ static void units_try_capture_foreign_colony(
       }
     }
   }
-  /* DOS 5fef capture tail (~100915): @HOWTOWIN "glorious victory on the road
-   * to freedom" fires ONCE, on the first colony the human recaptures while
-   * the REF is present (0x5382 bit1) — latch DS:0x5386 bit0 (tut2.howtowin).
+  /* DOS 5fef capture tail (raw 100913-100920): @HOWTOWIN "glorious victory
+   * on the road to freedom" fires ONCE, on the first colony the human
+   * recaptures after declaring — gate is `0x5382 & 1` (woi) only, not
+   * ref_present (bugs.md #662) — latch DS:0x5386 bit0 (tut2.howtowin).
    * bugs.md #236: it does NOT fire at the declaration. */
   if (g_units_ff_col1 && g_units_ff_col1->head.game_options.woi &&
-      g_units_ff_col1->head.game_options.ref_present &&
       u->nation_id == g_units_combat_human_nation &&
       !g_units_ff_col1->head.tut2.howtowin) {
     ColonizeCol1Save* mut = (ColonizeCol1Save*)g_units_ff_col1;

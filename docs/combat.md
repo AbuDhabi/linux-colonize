@@ -301,13 +301,19 @@ dwelling. Human `4528` `@ACTIONS` arm **Done** (P8.8). Deep `4528` mid-body / VG
 
 ### Land win (`units_resolve_land_combat_ff`)
 
-- Treasure: LE16 hold gold; human → Accept/Refuse ransom CHOICE (DOS source unidentified — `FUN_5fef_1908` was miscited here; it is the King's Galleon offer, see `euro_unit_act.md` 2026-08-27)
-  (`AI_POPUP_TAG_COMBAT_RANSOM`) before credit; AI → silent full credit + `@LOOTCAPTURE`
+- Treasure: **captured alive, no gold** (bugs.md #660). `FUN_5fef_0352` raw 99344
+  puts loser type 0x0a in the same capture set as Colonists/Wagon; raw 99392-99413
+  unlink / nation-flip / re-place / orders-none, then `@LOOTCAPTURE` with
+  STRING0 = loser nation, STRING1 = winner nation, NUMBER0 =
+  `units_treasure_value_gold` (display only). The port's Accept/Refuse "ransom"
+  CHOICE and its gold credit were inventions and are gone.
 - Loser: `units_apply_land_loss_outcome` (`FUN_5fef_0352`)
   - Artillery: first loss → damage bit7; second → despawn
-  - **Capture** (Euro winner only, `attack>0`): Colonists / Wagon → nation flip +
-    `@COLONISTCAPTURE*` / `@WAGONCAPTURE` / `@CARGOCAPTURE`. Veteran Colonist
-    specialty stripped → `@COLONISTCAPTURE2`. **Natives never capture.**
+  - **Capture** (Euro winner only, `attack>0`): Colonists / Treasure / Wagon →
+    nation flip + `@COLONISTCAPTURE*` / `@LOOTCAPTURE` / `@WAGONCAPTURE` /
+    `@CARGOCAPTURE`. Veteran Colonist specialty stripped → `@COLONISTCAPTURE2`.
+    **Natives never capture.** Disqualifiers (raw 99381-99383, bugs.md #663):
+    a losing hull (type 0xd..0x12) or either tile ocean/high seas → destroy.
   - **Type demote** (keep nation): Dragoon→Soldier, Soldier→Colonist,
     Cont.Cav→Cont.Army, Cavalry→Regulars, Cont.Army→Colonist (+ Jesuit →
     Missionary); `@DEMOTE` if human-facing

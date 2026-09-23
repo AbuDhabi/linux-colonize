@@ -7787,7 +7787,7 @@ int main(void) {
       fprintf(stderr, "unit_units: combat analysis gate ok\n");
     }
 
-    /* Treasure capture: winner gets LE16 gold into nation treasury. */
+    /* bugs.md #660: treasure capture flips nation, credits no gold. */
     ColonizeCol1Save tcol1;
     memset(&tcol1, 0, sizeof(tcol1));
     tcol1.nation[1].gold = 50;
@@ -7822,13 +7822,16 @@ int main(void) {
       fprintf(stderr, "treasure capture combat should win\n");
       return 1;
     }
-    if (tcol1.nation[1].gold != 250) {
-      fprintf(stderr, "treasure capture gold want 250 got %u\n", tcol1.nation[1].gold);
+    if (tcol1.nation[1].gold != 50) {
+      fprintf(stderr, "treasure capture must credit no gold, got %u\n", tcol1.nation[1].gold);
       return 1;
     }
-    if (units_get(&pool, loot_id) && units_get(&pool, loot_id)->active) {
-      fprintf(stderr, "captured Treasure should despawn\n");
-      return 1;
+    {
+      const ColonizeUnit* lu = units_get_const(&pool, loot_id);
+      if (!lu || !lu->active || lu->nation_id != 1) {
+        fprintf(stderr, "captured Treasure should change hands and live\n");
+        return 1;
+      }
     }
     fprintf(stderr, "unit_units: fortification defense + treasure capture ok\n");
   }
@@ -10655,10 +10658,13 @@ int main(void) {
       fprintf(stderr, "unit_units: 1b0e port-ship fate + DS:0x54f6 discharge ok\n");
     }
 
-    /* Treasure ransom Accept credits gold; Refuse does not. */
+    /* bugs.md #660: a beaten Treasure Train changes hands (no gold, no ransom).
+     * DOS FUN_5fef_0352 raw 99392-99413. */
     {
       ai_popup_clear(&pops);
       units_set_combat_popups(&pops, NULL);
+      units_set_occupancy_map(NULL);
+      units_set_native_fallout_context(NULL, NULL, 0);
       ColonizeCol1Save c1;
       memset(&c1, 0, sizeof(c1));
       c1.player[0].control = 0;
@@ -10667,7 +10673,7 @@ int main(void) {
       int use_ti = units_find_type(&pool, "Treasure");
       const int sol = units_find_type(&pool, "Soldiers");
       if (use_ti < 0 || sol < 0) {
-        fprintf(stderr, "ransom types missing\n");
+        fprintf(stderr, "treasure capture types missing\n");
         return 1;
       }
       const int aid = units_spawn_allow_stack(&pool, sol, 55, 55);
@@ -10681,44 +10687,86 @@ int main(void) {
       pool.types[sol].attack = 8;
       pool.types[use_ti].defense = 1;
       if (!units_resolve_land_combat_ff_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .col1=(ColonizeCol1Save*)(&c1), .col1_ok=true, .rng=(ColonizeDosRng*)(NULL)}, aid, did)) {
-        fprintf(stderr, "ransom combat should win\n");
+        fprintf(stderr, "treasure capture combat should win\n");
         return 1;
       }
       if (c1.nation[0].gold != 10) {
-        fprintf(stderr, "ransom should defer gold until Accept (got %u)\n", c1.nation[0].gold);
+        fprintf(stderr, "treasure capture must credit no gold (got %u)\n", c1.nation[0].gold);
         return 1;
       }
-      int ransom_q = -1;
+      const ColonizeUnit* dd = units_get_const(&pool, did);
+      if (!dd || !dd->active) {
+        fprintf(stderr, "captured treasure must stay alive\n");
+        return 1;
+      }
+      if (dd->nation_id != 0) {
+        fprintf(stderr, "captured treasure nation want 0 got %d\n", dd->nation_id);
+        return 1;
+      }
+      int cap_q = -1;
       for (int i = 0; i < pops.queue_count; ++i) {
-        if (pops.queue[i].tag == AI_POPUP_TAG_COMBAT_RANSOM) {
-          ransom_q = i;
+        if (pops.queue[i].tag == AI_POPUP_TAG_COMBAT_CAPTURE && pops.queue[i].payload == 100) {
+          cap_q = i;
           break;
         }
       }
-      if (ransom_q < 0) {
-        fprintf(stderr, "ransom CHOICE not enqueued\n");
-        return 1;
-      }
-      /* Simulate Refuse. */
-      pops.has_result = true;
-      pops.result_tag = AI_POPUP_TAG_COMBAT_RANSOM;
-      pops.result_nation_a = 0;
-      pops.result_payload = 100;
-      pops.result_choice_id = 0;
-      pops.result_cancelled = false;
-      (void)units_combat_apply_ransom_popup(&c1, &pops);
-      if (c1.nation[0].gold != 10) {
-        fprintf(stderr, "ransom Refuse should not credit\n");
-        return 1;
-      }
-      pops.result_choice_id = 1;
-      (void)units_combat_apply_ransom_popup(&c1, &pops);
-      if (c1.nation[0].gold != 110) {
-        fprintf(stderr, "ransom Accept want gold 110 got %u\n", c1.nation[0].gold);
+      if (cap_q < 0) {
+        fprintf(stderr, "@LOOTCAPTURE popup (number0 = value) not enqueued\n");
         return 1;
       }
       (void)units_despawn(&pool, aid);
-      fprintf(stderr, "unit_units: treasure ransom Accept/Refuse ok\n");
+      (void)units_despawn(&pool, did);
+      fprintf(stderr, "unit_units: treasure capture-alive ok\n");
+    }
+
+    /* bugs.md #663: capture is disqualified on water (local_2a) — destroy. */
+    {
+      ColonizeWorldMap wmap;
+      memset(&wmap, 0, sizeof(wmap));
+      wmap.width = 16;
+      wmap.height = 16;
+      wmap.tile_count = 256;
+      wmap.terrain = calloc(256, 1);
+      wmap.layer2 = calloc(256, 1);
+      wmap.layer3 = calloc(256, 1);
+      if (!wmap.terrain || !wmap.layer2 || !wmap.layer3) {
+        fprintf(stderr, "#663 map alloc\n");
+        return 1;
+      }
+      for (int i = 0; i < 256; ++i) {
+        wmap.terrain[i] = 25; /* ocean */
+        wmap.layer3[i] = 1;   /* continent 1: ocean, not lake */
+      }
+      ai_popup_clear(&pops);
+      units_set_combat_popups(&pops, NULL);
+      units_set_occupancy_map(&wmap);
+      ColonizeCol1Save c1;
+      memset(&c1, 0, sizeof(c1));
+      c1.player[0].control = 0;
+      c1.player[1].control = 1;
+      const int use_ti = units_find_type(&pool, "Treasure");
+      const int sol = units_find_type(&pool, "Soldiers");
+      const int aid = units_spawn_allow_stack(&pool, sol, 5, 5);
+      const int did = units_spawn_allow_stack(&pool, use_ti, 5, 5);
+      units_get(&pool, aid)->nation_id = 0;
+      ColonizeUnit* d = units_get(&pool, did);
+      d->nation_id = 1;
+      d->hold_goods_amount[0] = 100 & 0xff;
+      pool.types[sol].attack = 8;
+      pool.types[use_ti].defense = 1;
+      (void)units_resolve_land_combat_ff_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .col1=(ColonizeCol1Save*)(&c1), .col1_ok=true, .rng=(ColonizeDosRng*)(NULL)}, aid, did);
+      const ColonizeUnit* dd = units_get_const(&pool, did);
+      if (dd && dd->active && dd->nation_id == 0) {
+        fprintf(stderr, "#663: treasure must not be captured on water\n");
+        units_set_occupancy_map(NULL);
+        return 1;
+      }
+      units_set_occupancy_map(NULL);
+      (void)units_despawn(&pool, aid);
+      free(wmap.terrain);
+      free(wmap.layer2);
+      free(wmap.layer3);
+      fprintf(stderr, "unit_units: #663 water capture gate ok\n");
     }
 
     /* Colony capture notify @CAPTURED*. */

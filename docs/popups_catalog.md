@@ -165,9 +165,9 @@ Appendices and exhaustive `@SECTION` reference for [popups.md](popups.md).
 | `@NOLOOT` | n/a | Alias unused, no DS id (no entry in `popup_tag_ids.md`); village burn uses `@LOOT2` (re-verified 2026-09-16) |
 | `@LOOT` | Done | Cortes/conquest treasure fallout |
 | `@LOOT2` | Done | village burn without treasure |
-| `@LOOTCASH` | Done thin | `europe_cash_treasure` status now the real GAME.TXT line (was invented "Treasure cash-in +$"); not combat — combat uses `@LOOTCAPTURE` ransom |
+| `@LOOTCASH` | Done thin | `europe_cash_treasure` status now the real GAME.TXT line (was invented "Treasure cash-in +$"); not combat — combat uses `@LOOTCAPTURE` capture |
 | `@LOOTFOREIGN` | Missing | Bystander spy-report sibling of `@LOOTCASH` (mirrors `@BURNED3`); not wired — `ai_euro_cash_one_treasure` reuses one shared `EuropeScreen` scratch struct per nation and it is unclear whether/when it runs for AI (non-human) nations, so gating "human is not the cashing nation" needs that traced first |
-| `@LOOTCAPTURE` | Done | treasure ransom Accept/Refuse + OK path |
+| `@LOOTCAPTURE` | Done | treasure nation-flip capture (`FUN_5fef_0352` raw 99392-99413); NUMBER0 = value, display only |
 | `@WAGONCAPTURE` | Done | wagon nation-flip capture |
 | `@COLONISTCAPTURE` | Done | Euro winner captures Colonists only (not Pioneer) |
 | `@COLONISTCAPTURE2` | Done | capture + strip Veteran specialty |

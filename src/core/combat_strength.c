@@ -589,8 +589,11 @@ static int combat_bombard_row_icon(const ColonizeCombatStrengthCtx* ctx, int x, 
       coastal = 0;
     }
   }
-  const int type_index = coastal ? 18 : 11; /* DS:0x532e / DS:0x52cc */
-  if (type_index >= ctx->units->type_count) {
+  /* DS:0x532e / DS:0x52cc = @UNIT rows 18 / 11; resolve by kind, not pool
+   * slot (bugs.md #664). */
+  const int type_index = units_kind_type_index(
+    ctx->units, coastal ? UNITS_KIND_MAN_O_WAR : UNITS_KIND_ARTILLERY);
+  if (type_index < 0 || type_index >= ctx->units->type_count) {
     return -1;
   }
   return ctx->units->types[type_index].icon_sprite;

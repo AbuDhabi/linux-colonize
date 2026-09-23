@@ -83,7 +83,8 @@ typedef enum AiPopupTag {
   AI_POPUP_TAG_COMBAT_SHIP = 31,
   AI_POPUP_TAG_COMBAT_DEMOTE = 32,
   AI_POPUP_TAG_COMBAT_AMBUSH = 33,
-  AI_POPUP_TAG_COMBAT_RANSOM = 34, /* treasure Accept/Refuse before gold credit */
+  /* 34 retired (bugs.md #660: the treasure "ransom" CHOICE was invented;
+   * DOS FUN_5fef_0352 captures the train alive and credits no gold). */
   AI_POPUP_TAG_COMBAT_COLONY = 35, /* @CAPTURED* / @BURNED* */
   AI_POPUP_TAG_COMBAT_SEIZURE = 36, /* privateer @SEIZURE* */
   AI_POPUP_TAG_KING_SCORED = 37, /* peacetime 1800 @SCORED That's all / Keep playing */
