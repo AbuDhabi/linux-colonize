@@ -37,11 +37,177 @@ static int expect_cal(
   return 0;
 }
 
-int main(void) {
-  diag_init(0, NULL);
+/* Split into named cases 2026-09-23 (was one 5.3k-line main()).
+ * The first cases are the former prologue, which was one entangled scope:
+ * fx_open() rebuilds the colony pool + free-production beat, fx_stage2()
+ * replays the unit pool / Europe / turn_end() spine and fx_stage3() the
+ * next-unit selection the later prologue cases were written on top of.
+ * Everything after that was already a self-contained braced block and became
+ * one case each (three oversized blocks were split at internal section
+ * boundaries). Every case rebuilds its own fixture, so
+ * `COLONIZE_TEST_ONLY=<case>` runs one alone. */
 
+static int g_diag_ready;
 
+/* Former prologue locals, now file scope so the prologue cases can share the
+ * fx_* spine. Prefixed fx_ so no later case can silently pick one up in place
+ * of its own local of the same name. */
+static ColonizeColonyPool fx_colonies;
+static ColonizeColony* fx_c;
+static ColonizeTurnResult fx_prod;
+static ColonizeUnitPool fx_units;
+static ColonizeUnit* fx_u;
+static ColonizeUnit* fx_u2;
+static int fx_uid;
+static int fx_uid2;
+static EuropeScreen fx_europe;
+static uint32_t fx_turn_number;
+static uint16_t fx_year;
+static uint16_t fx_autumn;
+static char fx_status[128];
+static ColonizeTurnContext fx_ctx;
+static ColonizeTurnResult fx_end;
 
+/* Shadow state that outlives a local pool (occupancy map pointers, per-id unit
+ * state, the turn module's own statics) must be cleared at case start or a
+ * case inherits the previous one's leftovers -- tests/README.md "Hunting order
+ * dependencies". */
+static void fx_begin(void) {
+  if (!g_diag_ready) {
+    diag_init(0, NULL);
+    atexit(diag_shutdown);
+    g_diag_ready = 1;
+  }
+  units_set_occupancy_map(NULL);
+  units_reset_state();
+  colonies_set_occupancy_map(NULL);
+  turn_reset();
+}
+
+static int fx_open(void) {
+  fx_begin();
+  memset(&fx_colonies, 0, sizeof(fx_colonies));
+  memset(&fx_prod, 0, sizeof(fx_prod));
+  /* Production without fields: consume 2 food / colonist. */
+  colonies_init(&fx_colonies);
+  colonies_set_occupancy_map(NULL);
+  fx_c = &fx_colonies.colonies[0];
+  memset(fx_c, 0, sizeof(*fx_c));
+  fx_c->active = true;
+  fx_c->id = 1;
+  fx_c->building_in_production = -1;
+  fx_c->stock[COLONIZE_CARGO_FOOD] = 10;
+  fx_c->colonists[0].active = true;
+  fx_c->colonists[0].unit_type_index = 0;
+  fx_c->colonists[0].building_type = -1;
+  fx_c->colonists[0].field_job = -1;
+  for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES_MAX; ++t) {
+    fx_c->tiles[t] = -1;
+  }
+  fx_c->colonist_count = 1;
+  fx_c->population = 1;
+  fx_colonies.colony_count = 1;
+
+  memset(&fx_prod, 0, sizeof(fx_prod));
+  turn_colony_free_production(&fx_colonies, fx_c, NULL, &fx_prod, NULL);
+  if (fx_c->stock[COLONIZE_CARGO_FOOD] != 8) { /* 10 - 2 */
+    fprintf(stderr, "food expected 8 got %d\n", fx_c->stock[COLONIZE_CARGO_FOOD]);
+    return 1;
+  }
+  if (fx_prod.colonies_produced != 1) {
+    fprintf(stderr, "expected 1 colony produced\n");
+    return 1;
+  }
+
+  /* Yield chart: plains farmer / ocean fisherman. */
+  if (colony_yield_job_cargo(COLONIZE_JOB_LUMBERJACK) != COLONIZE_CARGO_LUMBER) {
+    fprintf(stderr, "lumberjack cargo mapping wrong\n");
+    return 1;
+  }
+  return 0;
+}
+
+static int fx_stage2(void) {
+  memset(&fx_units, 0, sizeof(fx_units));
+  memset(&fx_europe, 0, sizeof(fx_europe));
+  memset(&fx_ctx, 0, sizeof(fx_ctx));
+  memset(&fx_end, 0, sizeof(fx_end));
+  memset(fx_status, 0, sizeof(fx_status));
+  /* Full turn_end advances calendar and refreshes human MP. */
+  memset(&fx_units, 0, sizeof(fx_units));
+  units_reset(&fx_units);
+  units_set_occupancy_map(NULL);
+  fx_units.type_count = 1;
+  snprintf(fx_units.types[0].name, sizeof(fx_units.types[0].name), "Scout");
+  fx_units.types[0].movement = 4;
+  fx_units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  fx_uid = units_spawn(&fx_units, 0, 5, 5);
+  if (fx_uid < 0) {
+    fprintf(stderr, "spawn failed\n");
+    return 1;
+  }
+  fx_u = units_get(&fx_units, fx_uid);
+  fx_u->nation_id = 0;
+  fx_u->moves = 0;
+
+  memset(&fx_europe, 0, sizeof(fx_europe));
+  fx_europe.needed_crosses = TURN_DEFAULT_NEEDED_CROSSES;
+
+  fx_turn_number = 2;
+  fx_year = 1494;
+  fx_autumn = 0;
+  memset(&fx_ctx, 0, sizeof(fx_ctx));
+  fx_ctx.messages = test_game_txt();
+  fx_ctx.names = test_names_txt();
+  fx_ctx.turn_number = &fx_turn_number;
+  fx_ctx.game_year = &fx_year;
+  fx_ctx.game_autumn = &fx_autumn;
+  fx_ctx.human_nation = 0;
+  fx_ctx.units = &fx_units;
+  fx_ctx.colonies = &fx_colonies;
+  fx_ctx.europe = &fx_europe;
+  fx_ctx.status = fx_status;
+  fx_ctx.status_size = sizeof(fx_status);
+
+  fx_end = turn_end(&fx_ctx);
+  if (!fx_end.advanced || fx_year != 1495 || fx_autumn != 0 || fx_turn_number != 3) {
+    fprintf(
+      stderr,
+      "turn_end calendar fail year=%u autumn=%u turn=%u\n",
+      fx_year,
+      fx_autumn,
+      fx_turn_number
+    );
+    return 1;
+  }
+  if (fx_u->moves != 4 * UNITS_MP_PER_TILE) {
+    fprintf(stderr, "human MP not refreshed got %d\n", fx_u->moves);
+    return 1;
+  }
+  if (strstr(fx_status, "1495") == NULL) {
+    fprintf(stderr, "status missing date: %s\n", fx_status);
+    return 1;
+  }
+  return 0;
+}
+
+static int fx_stage3(void) {
+  /* Next-unit selection wraps to units with moves. */
+  fx_uid2 = units_spawn_allow_stack(&fx_units, 0, 6, 6);
+  fx_u2 = units_get(&fx_units, fx_uid2);
+  fx_u2->nation_id = 0;
+  fx_u2->moves = 2 * UNITS_MP_PER_TILE;
+  fx_u->moves = 0;
+  fx_units.selected_id = fx_uid;
+  if (!turn_select_next_unit(&fx_units, 0) || fx_units.selected_id != fx_uid2) {
+    fprintf(stderr, "wait-next failed selected=%d\n", fx_units.selected_id);
+    return 1;
+  }
+  return 0;
+}
+
+static int case_calendar(void) {
+  fx_begin();
   if (expect_date(1492, 0, "Spring 1492") != 0 || expect_date(1600, 1, "Autumn 1600") != 0) {
     return 1;
   }
@@ -58,152 +224,74 @@ int main(void) {
       expect_cal(1601, 0, 110, 1601, 1, 111) != 0) {
     return 1;
   }
+  return 0;
+}
 
-  /* Production without fields: consume 2 food / colonist. */
-  ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
-  ColonizeColony* c = &colonies.colonies[0];
-  memset(c, 0, sizeof(*c));
-  c->active = true;
-  c->id = 1;
-  c->building_in_production = -1;
-  c->stock[COLONIZE_CARGO_FOOD] = 10;
-  c->colonists[0].active = true;
-  c->colonists[0].unit_type_index = 0;
-  c->colonists[0].building_type = -1;
-  c->colonists[0].field_job = -1;
-  for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES_MAX; ++t) {
-    c->tiles[t] = -1;
-  }
-  c->colonist_count = 1;
-  c->population = 1;
-  colonies.colony_count = 1;
-
-  ColonizeTurnResult prod;
-  memset(&prod, 0, sizeof(prod));
-  turn_colony_free_production(&colonies, c, NULL, &prod, NULL);
-  if (c->stock[COLONIZE_CARGO_FOOD] != 8) { /* 10 - 2 */
-    fprintf(stderr, "food expected 8 got %d\n", c->stock[COLONIZE_CARGO_FOOD]);
+static int case_free_production(void) {
+  if (fx_open() != 0) {
     return 1;
   }
-  if (prod.colonies_produced != 1) {
-    fprintf(stderr, "expected 1 colony produced\n");
+  return 0;
+}
+
+static int case_turn_end_calendar(void) {
+  if (fx_open() != 0) {
     return 1;
   }
-
-  /* Yield chart: plains farmer / ocean fisherman. */
-  if (colony_yield_job_cargo(COLONIZE_JOB_LUMBERJACK) != COLONIZE_CARGO_LUMBER) {
-    fprintf(stderr, "lumberjack cargo mapping wrong\n");
+  if (fx_stage2() != 0) {
     return 1;
   }
+  return 0;
+}
 
-  /* Full turn_end advances calendar and refreshes human MP. */
-  ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
-  units.type_count = 1;
-  snprintf(units.types[0].name, sizeof(units.types[0].name), "Scout");
-  units.types[0].movement = 4;
-  units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
-  const int uid = units_spawn(&units, 0, 5, 5);
-  if (uid < 0) {
-    fprintf(stderr, "spawn failed\n");
+static int case_next_unit_selection(void) {
+  if (fx_open() != 0) {
     return 1;
   }
-  ColonizeUnit* u = units_get(&units, uid);
-  u->nation_id = 0;
-  u->moves = 0;
-
-  EuropeScreen europe;
-  memset(&europe, 0, sizeof(europe));
-  europe.needed_crosses = TURN_DEFAULT_NEEDED_CROSSES;
-
-  uint32_t turn_number = 2;
-  uint16_t year = 1494;
-  uint16_t autumn = 0;
-  char status[128];
-  ColonizeTurnContext ctx;
-  memset(&ctx, 0, sizeof(ctx));
-  ctx.messages = test_game_txt();
-  ctx.names = test_names_txt();
-  ctx.turn_number = &turn_number;
-  ctx.game_year = &year;
-  ctx.game_autumn = &autumn;
-  ctx.human_nation = 0;
-  ctx.units = &units;
-  ctx.colonies = &colonies;
-  ctx.europe = &europe;
-  ctx.status = status;
-  ctx.status_size = sizeof(status);
-
-  ColonizeTurnResult end = turn_end(&ctx);
-  if (!end.advanced || year != 1495 || autumn != 0 || turn_number != 3) {
-    fprintf(
-      stderr,
-      "turn_end calendar fail year=%u autumn=%u turn=%u\n",
-      year,
-      autumn,
-      turn_number
-    );
+  if (fx_stage2() != 0) {
     return 1;
   }
-  if (u->moves != 4 * UNITS_MP_PER_TILE) {
-    fprintf(stderr, "human MP not refreshed got %d\n", u->moves);
+  if (fx_stage3() != 0) {
     return 1;
   }
-  if (strstr(status, "1495") == NULL) {
-    fprintf(stderr, "status missing date: %s\n", status);
-    return 1;
-  }
-
-  /* Next-unit selection wraps to units with moves. */
-  const int uid2 = units_spawn_allow_stack(&units, 0, 6, 6);
-  ColonizeUnit* u2 = units_get(&units, uid2);
-  u2->nation_id = 0;
-  u2->moves = 2 * UNITS_MP_PER_TILE;
-  u->moves = 0;
-  units.selected_id = uid;
-  if (!turn_select_next_unit(&units, 0) || units.selected_id != uid2) {
-    fprintf(stderr, "wait-next failed selected=%d\n", units.selected_id);
-    return 1;
-  }
-
   /*
    * smell #24: the hand-off form must skip standing orders. DOS's control
    * cycle only offers units that actually await orders; parking the selection
    * on a Fortified unit flashes it into control for a frame.
    */
   {
-    const int uid3 = units_spawn_allow_stack(&units, 0, 7, 7);
-    ColonizeUnit* u3 = units_get(&units, uid3);
+    const int uid3 = units_spawn_allow_stack(&fx_units, 0, 7, 7);
+    ColonizeUnit* u3 = units_get(&fx_units, uid3);
     u3->nation_id = 0;
     u3->moves = 2 * UNITS_MP_PER_TILE;
     /* uid2 fortified, uid3 free: the skip must land on uid3, not uid2. */
-    u2->orders = UNITS_ORDER_FORTIFIED;
-    units.selected_id = uid;
-    if (turn_select_next_unit(&units, 0) != true || units.selected_id != uid2) {
+    fx_u2->orders = UNITS_ORDER_FORTIFIED;
+    fx_units.selected_id = fx_uid;
+    if (turn_select_next_unit(&fx_units, 0) != true || fx_units.selected_id != fx_uid2) {
       fprintf(stderr, "bare select should stop on the Fortified unit\n");
       return 1;
     }
-    units.selected_id = uid;
-    if (!turn_select_next_unit_awaiting_orders(&units, 0) || units.selected_id != uid3) {
-      fprintf(stderr, "awaiting-orders select skipped wrong: %d\n", units.selected_id);
+    fx_units.selected_id = fx_uid;
+    if (!turn_select_next_unit_awaiting_orders(&fx_units, 0) || fx_units.selected_id != uid3) {
+      fprintf(stderr, "awaiting-orders select skipped wrong: %d\n", fx_units.selected_id);
       return 1;
     }
     /* Nothing awaiting orders at all → false, not a parked standing order. */
     u3->orders = UNITS_ORDER_SENTRY;
-    units.selected_id = uid;
-    if (turn_select_next_unit_awaiting_orders(&units, 0)) {
+    fx_units.selected_id = fx_uid;
+    if (turn_select_next_unit_awaiting_orders(&fx_units, 0)) {
       fprintf(stderr, "awaiting-orders select must report empty on all-parked\n");
       return 1;
     }
-    u2->orders = UNITS_ORDER_NONE;
+    fx_u2->orders = UNITS_ORDER_NONE;
     u3->orders = UNITS_ORDER_NONE;
-    units_despawn(&units, uid3);
+    units_despawn(&fx_units, uid3);
   }
+  return 0;
+}
 
+static int case_nation_colors(void) {
+  fx_begin();
   /* Turn-owner colors: NAMES.TXT @COUNTRY; England fill uses saturated red 112. */
   if (unit_chrome_nation_color(0) != 112 || unit_chrome_nation_color(1) != 9 || unit_chrome_nation_color(2) != 14 ||
       unit_chrome_nation_color(3) != 13) {
@@ -214,5090 +302,5329 @@ int main(void) {
     fprintf(stderr, "tribe turn colors mismatch\n");
     return 1;
   }
+  return 0;
+}
 
-  {
-    uint8_t pixels[320 * 200];
-    ColonizeFramebuffer8 fb;
-    fb.width = 320;
-    fb.height = 200;
-    fb.pixels = pixels;
-    memset(pixels, 0, sizeof(pixels));
-    turn_draw_owner_indicator(&fb, 2); /* Spain = 14 */
-    const int x0 = TURN_OWNER_INDICATOR_X;
-    const int y0 = TURN_OWNER_INDICATOR_Y;
-    if (pixels[y0 * 320 + x0] != 14 ||
-        pixels[(y0 + TURN_OWNER_INDICATOR_H - 1) * 320 + (x0 + TURN_OWNER_INDICATOR_W - 1)] != 14) {
-      fprintf(stderr, "owner indicator pixels not filled\n");
-      return 1;
-    }
-    if (pixels[y0 * 320 + (x0 - 1)] != 0) {
-      fprintf(stderr, "owner indicator spilled left\n");
-      return 1;
-    }
+static int case_owner_indicator(void) {
+  fx_begin();
+  uint8_t pixels[320 * 200];
+  ColonizeFramebuffer8 fb;
+  fb.width = 320;
+  fb.height = 200;
+  fb.pixels = pixels;
+  memset(pixels, 0, sizeof(pixels));
+  turn_draw_owner_indicator(&fb, 2); /* Spain = 14 */
+  const int x0 = TURN_OWNER_INDICATOR_X;
+  const int y0 = TURN_OWNER_INDICATOR_Y;
+  if (pixels[y0 * 320 + x0] != 14 ||
+      pixels[(y0 + TURN_OWNER_INDICATOR_H - 1) * 320 + (x0 + TURN_OWNER_INDICATOR_W - 1)] != 14) {
+    fprintf(stderr, "owner indicator pixels not filled\n");
+    return 1;
   }
+  if (pixels[y0 * 320 + (x0 - 1)] != 0) {
+    fprintf(stderr, "owner indicator spilled left\n");
+    return 1;
+  }
+  return 0;
+}
 
-  /* Indicator is only armed during EURO/INDIAN processor steps. */
-  {
-    ColonizeTurnProcessor proc;
-    turn_processor_start(&proc);
-    if (turn_processor_show_indicator(&proc)) {
-      fprintf(stderr, "indicator should be off at start\n");
-      return 1;
-    }
-    uint32_t turn = 1;
-    uint16_t year = 1492;
-    uint16_t autumn = 0;
-    ColonizeTurnContext ctx;
-    memset(&ctx, 0, sizeof(ctx));
-    ctx.messages = test_game_txt();
-    ctx.names = test_names_txt();
-    ctx.turn_number = &turn;
-    ctx.game_year = &year;
-    ctx.game_autumn = &autumn;
-    ctx.human_nation = 0;
-    int active = 0;
-    ctx.active_turn_nation = &active;
+/* Indicator is only armed during EURO/INDIAN processor steps. */
+static int case_processor_indicator_steps(void) {
+  fx_begin();
+  ColonizeTurnProcessor proc;
+  turn_processor_start(&proc);
+  if (turn_processor_show_indicator(&proc)) {
+    fprintf(stderr, "indicator should be off at start\n");
+    return 1;
+  }
+  uint32_t turn = 1;
+  uint16_t year = 1492;
+  uint16_t autumn = 0;
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.messages = test_game_txt();
+  ctx.names = test_names_txt();
+  ctx.turn_number = &turn;
+  ctx.game_year = &year;
+  ctx.game_autumn = &autumn;
+  ctx.human_nation = 0;
+  int active = 0;
+  ctx.active_turn_nation = &active;
+  if (!turn_processor_advance(&proc, &ctx)) {
+    fprintf(stderr, "setup should leave processor active\n");
+    return 1;
+  }
+  /* SETUP owns no nation's EOT (human production moved to TURN_PROC_FINISH),
+   * so the turn-owner box stays dark here — turn.h + turn_between_players.md
+   * ("only while EURO/INDIAN steps run"). Active nation is still stamped to
+   * the human for the slice's own bookkeeping. */
+  if (turn_processor_show_indicator(&proc) || active != 0) {
+    fprintf(stderr, "setup should not show the turn-owner box\n");
+    return 1;
+  }
+  /*
+   * DOS order relative to the human's slot (turn/year_loop.c,
+   * mid_pass_indian_rank.md): Euro slots above the human first, then the
+   * 4d56_1b3a mid-pass Indian turns (4..11), then Euro slots below the
+   * human. Human is England (0) here, so France (1) leads.
+   */
+  if (!turn_processor_advance(&proc, &ctx) || !turn_processor_show_indicator(&proc)) {
+    fprintf(stderr, "indicator should show during euro AI step\n");
+    return 1;
+  }
+  if (active != 1) {
+    fprintf(stderr, "expected france active got %d\n", active);
+    return 1;
+  }
+  for (int i = 0; i < 2; ++i) {
     if (!turn_processor_advance(&proc, &ctx)) {
-      fprintf(stderr, "setup should leave processor active\n");
+      fprintf(stderr, "euro steps should keep processor active\n");
       return 1;
-    }
-    /* SETUP owns no nation's EOT (human production moved to TURN_PROC_FINISH),
-     * so the turn-owner box stays dark here — turn.h + turn_between_players.md
-     * ("only while EURO/INDIAN steps run"). Active nation is still stamped to
-     * the human for the slice's own bookkeeping. */
-    if (turn_processor_show_indicator(&proc) || active != 0) {
-      fprintf(stderr, "setup should not show the turn-owner box\n");
-      return 1;
-    }
-    /*
-     * DOS order relative to the human's slot (turn/year_loop.c,
-     * mid_pass_indian_rank.md): Euro slots above the human first, then the
-     * 4d56_1b3a mid-pass Indian turns (4..11), then Euro slots below the
-     * human. Human is England (0) here, so France (1) leads.
-     */
-    if (!turn_processor_advance(&proc, &ctx) || !turn_processor_show_indicator(&proc)) {
-      fprintf(stderr, "indicator should show during euro AI step\n");
-      return 1;
-    }
-    if (active != 1) {
-      fprintf(stderr, "expected france active got %d\n", active);
-      return 1;
-    }
-    for (int i = 0; i < 2; ++i) {
-      if (!turn_processor_advance(&proc, &ctx)) {
-        fprintf(stderr, "euro steps should keep processor active\n");
-        return 1;
-      }
-    }
-    if (!turn_processor_advance(&proc, &ctx) || !turn_processor_show_indicator(&proc)) {
-      fprintf(stderr, "indicator should show during indian AI step\n");
-      return 1;
-    }
-    if (active != 4) {
-      fprintf(stderr, "expected first indian nation active got %d\n", active);
-      return 1;
-    }
-    for (int i = 0; i < 7; ++i) {
-      if (!turn_processor_advance(&proc, &ctx)) {
-        fprintf(stderr, "indian steps should keep processor active\n");
-        return 1;
-      }
     }
   }
+  if (!turn_processor_advance(&proc, &ctx) || !turn_processor_show_indicator(&proc)) {
+    fprintf(stderr, "indicator should show during indian AI step\n");
+    return 1;
+  }
+  if (active != 4) {
+    fprintf(stderr, "expected first indian nation active got %d\n", active);
+    return 1;
+  }
+  for (int i = 0; i < 7; ++i) {
+    if (!turn_processor_advance(&proc, &ctx)) {
+      fprintf(stderr, "indian steps should keep processor active\n");
+      return 1;
+    }
+  }
+  return 0;
+}
 
-  /* Carpenter workplace + Stockade project completes via free production ticks. */
-  {
-    ColonizeColonyPool pool;
-    colonies_init(&pool);
-    colonies_set_occupancy_map(NULL);
-    ColonizeMsgCatalog names;
-    assets_msg_init(&names);
-    if (!assets_msg_load_file(&names, "COLONIZE/NAMES.TXT") ||
-        !colonies_load_buildings(&pool, &names)) {
-      fprintf(stderr, "failed to load buildings for hammer test\n");
-      assets_msg_free(&names);
-      return 1;
-    }
-    const int carpenter = colonies_find_building(&pool, "Carpenter's Shop");
-    const int stockade = colonies_find_building(&pool, "Stockade");
-    if (carpenter < 0 || stockade < 0) {
-      fprintf(stderr, "missing Carpenter/Stockade building types\n");
-      assets_msg_free(&names);
-      return 1;
-    }
-    ColonizeColony* col = &pool.colonies[0];
-    memset(col, 0, sizeof(*col));
-    col->active = true;
-    col->id = 1;
-    col->nation_id = 0;
-    snprintf(col->name, sizeof(col->name), "Jamestown");
-    col->has_building[carpenter] = true;
-    col->building_in_production = stockade;
-    col->stock[COLONIZE_CARGO_FOOD] = 100; /* under food cap 199; no birth mid-build */
-    col->stock[COLONIZE_CARGO_LUMBER] = 200;
-    col->colonists[0].active = true;
-    col->colonists[0].unit_type_index = 0;
-    col->colonists[0].building_type = carpenter;
-    col->colonists[0].field_job = -1;
-    for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES_MAX; ++t) {
-      col->tiles[t] = -1;
-    }
-    col->colonist_count = 1;
-    col->population = 1;
-    pool.colony_count = 1;
+/* Carpenter workplace + Stockade project completes via free production ticks. */
+static int case_carpenter_stockade(void) {
+  fx_begin();
+  ColonizeColonyPool pool;
+  colonies_init(&pool);
+  colonies_set_occupancy_map(NULL);
+  ColonizeMsgCatalog names;
+  assets_msg_init(&names);
+  if (!assets_msg_load_file(&names, "COLONIZE/NAMES.TXT") ||
+      !colonies_load_buildings(&pool, &names)) {
+    fprintf(stderr, "failed to load buildings for hammer test\n");
+    assets_msg_free(&names);
+    return 1;
+  }
+  const int carpenter = colonies_find_building(&pool, "Carpenter's Shop");
+  const int stockade = colonies_find_building(&pool, "Stockade");
+  if (carpenter < 0 || stockade < 0) {
+    fprintf(stderr, "missing Carpenter/Stockade building types\n");
+    assets_msg_free(&names);
+    return 1;
+  }
+  ColonizeColony* col = &pool.colonies[0];
+  memset(col, 0, sizeof(*col));
+  col->active = true;
+  col->id = 1;
+  col->nation_id = 0;
+  snprintf(col->name, sizeof(col->name), "Jamestown");
+  col->has_building[carpenter] = true;
+  col->building_in_production = stockade;
+  col->stock[COLONIZE_CARGO_FOOD] = 100; /* under food cap 199; no birth mid-build */
+  col->stock[COLONIZE_CARGO_LUMBER] = 200;
+  col->colonists[0].active = true;
+  col->colonists[0].unit_type_index = 0;
+  col->colonists[0].building_type = carpenter;
+  col->colonists[0].field_job = -1;
+  for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES_MAX; ++t) {
+    col->tiles[t] = -1;
+  }
+  col->colonist_count = 1;
+  col->population = 1;
+  pool.colony_count = 1;
 
-    EuropeScreen eu;
-    memset(&eu, 0, sizeof(eu));
-    AiPopupState pops;
-    ai_popup_init(&pops);
-    ColonizeMsgCatalog game_txt;
-    assets_msg_init(&game_txt);
-    (void)assets_msg_load_file(&game_txt, "COLONIZE/GAME.TXT");
+  EuropeScreen eu;
+  memset(&eu, 0, sizeof(eu));
+  AiPopupState pops;
+  ai_popup_init(&pops);
+  ColonizeMsgCatalog game_txt;
+  assets_msg_init(&game_txt);
+  (void)assets_msg_load_file(&game_txt, "COLONIZE/GAME.TXT");
 
-    const ColonizeBuildingType* bt = colonies_building_type(&pool, stockade);
-    const int need = bt ? bt->hammers : 64;
-    ColonizeColonyProdDelta delta;
-    bool completed = false;
-    for (int t = 0; t < need + 8; ++t) {
-      ColonizeTurnResult prod;
-      memset(&prod, 0, sizeof(prod));
-      memset(&delta, 0, sizeof(delta));
-      ai_popup_clear(&pops);
-      eu.status[0] = '\0';
-      turn_run_colony_production_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&pool), .map=(ColonizeWorldMap*)(NULL), .col1=(ColonizeCol1Save*)(NULL), .col1_ok=((NULL) != NULL), .rng=(ColonizeDosRng*)(NULL), .europe=(EuropeScreen*)(&eu)}, 0, &prod, &pops, &game_txt);
-      if (prod.buildings_completed > 0 || col->has_building[stockade]) {
-        completed = true;
-        if (strstr(eu.status, "Stockade") == NULL && strstr(eu.status, "completed") == NULL) {
-          fprintf(stderr, "BUILT: status want Stockade completed got '%s'\n", eu.status);
-          assets_msg_free(&game_txt);
-          assets_msg_free(&names);
-          return 1;
-        }
-        if (pops.queue_count < 1) {
-          fprintf(stderr, "BUILT: expected popup on complete\n");
-          assets_msg_free(&game_txt);
-          assets_msg_free(&names);
-          return 1;
-        }
-        if (strstr(pops.queue[0].body, "Jamestown") == NULL &&
-            strstr(pops.queue[0].body, "Stockade") == NULL &&
-            strstr(pops.queue[0].body, "produces") == NULL) {
-          fprintf(stderr, "BUILT: popup body weak: '%s'\n", pops.queue[0].body);
-          assets_msg_free(&game_txt);
-          assets_msg_free(&names);
-          return 1;
-        }
-        break;
-      }
-    }
-    if (!completed || !col->has_building[stockade]) {
-      fprintf(
-        stderr,
-        "Stockade not completed after ticks (hammers=%d need=%d)\n",
-        col->hammers,
-        need
-      );
-      assets_msg_free(&game_txt);
-      assets_msg_free(&names);
-      return 1;
-    }
-    /* DOS never clears building_in_production on completion (player-
-     * confirmed 2026-08-17, colony_prod02 golden: a real single DOS turn
-     * shows it still pointing at the just-finished project) — only
-     * has_building[]/hammers change, checked above. */
-    if (col->building_in_production != stockade) {
-      fprintf(
-        stderr,
-        "expected building_in_production to stay %d after complete, got %d\n",
-        stockade,
-        col->building_in_production
-      );
-      assets_msg_free(&game_txt);
-      assets_msg_free(&names);
-      return 1;
-    }
-    /* No carpenter assigned → no hammers even if Carpenter's Shop exists. */
-    col->colonists[0].building_type = -1;
-    col->hammers = 0;
-    col->building_in_production = stockade;
-    col->has_building[stockade] = false;
-    {
-      ColonizeTurnResult prod;
-      ColonizeColonyProdDelta delta2;
-      memset(&prod, 0, sizeof(prod));
-      memset(&delta2, 0, sizeof(delta2));
-      turn_colony_free_production(&pool, col, NULL, &prod, &delta2);
-      if (delta2.hammers_added != 0 || col->hammers != 0) {
-        fprintf(
-          stderr,
-          "expected no hammers without carpenter got delta=%d stock=%d\n",
-          delta2.hammers_added,
-          col->hammers
-        );
+  const ColonizeBuildingType* bt = colonies_building_type(&pool, stockade);
+  const int need = bt ? bt->hammers : 64;
+  ColonizeColonyProdDelta delta;
+  bool completed = false;
+  for (int t = 0; t < need + 8; ++t) {
+    ColonizeTurnResult prod;
+    memset(&prod, 0, sizeof(prod));
+    memset(&delta, 0, sizeof(delta));
+    ai_popup_clear(&pops);
+    eu.status[0] = '\0';
+    turn_run_colony_production_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&pool), .map=(ColonizeWorldMap*)(NULL), .col1=(ColonizeCol1Save*)(NULL), .col1_ok=((NULL) != NULL), .rng=(ColonizeDosRng*)(NULL), .europe=(EuropeScreen*)(&eu)}, 0, &prod, &pops, &game_txt);
+    if (prod.buildings_completed > 0 || col->has_building[stockade]) {
+      completed = true;
+      if (strstr(eu.status, "Stockade") == NULL && strstr(eu.status, "completed") == NULL) {
+        fprintf(stderr, "BUILT: status want Stockade completed got '%s'\n", eu.status);
         assets_msg_free(&game_txt);
         assets_msg_free(&names);
         return 1;
       }
+      if (pops.queue_count < 1) {
+        fprintf(stderr, "BUILT: expected popup on complete\n");
+        assets_msg_free(&game_txt);
+        assets_msg_free(&names);
+        return 1;
+      }
+      if (strstr(pops.queue[0].body, "Jamestown") == NULL &&
+          strstr(pops.queue[0].body, "Stockade") == NULL &&
+          strstr(pops.queue[0].body, "produces") == NULL) {
+        fprintf(stderr, "BUILT: popup body weak: '%s'\n", pops.queue[0].body);
+        assets_msg_free(&game_txt);
+        assets_msg_free(&names);
+        return 1;
+      }
+      break;
     }
+  }
+  if (!completed || !col->has_building[stockade]) {
+    fprintf(
+      stderr,
+      "Stockade not completed after ticks (hammers=%d need=%d)\n",
+      col->hammers,
+      need
+    );
     assets_msg_free(&game_txt);
     assets_msg_free(&names);
-    fprintf(stderr, "BUILT building chrome ok\n");
+    return 1;
   }
-  {
-    ColonizeColonyPool pool;
-    colonies_init(&pool);
-    colonies_set_occupancy_map(NULL);
-    ColonizeMsgCatalog names;
-    assets_msg_init(&names);
-    if (!assets_msg_load_file(&names, "COLONIZE/NAMES.TXT") ||
-        !colonies_load_buildings(&pool, &names)) {
-      fprintf(stderr, "craft test: load buildings failed\n");
-      assets_msg_free(&names);
-      return 1;
-    }
-    const int distiller = colonies_find_building(&pool, "Rum Distiller's House");
-    const int weaver = colonies_find_building(&pool, "Weaver's House");
-    const int smith = colonies_find_building(&pool, "Blacksmith's House");
-    const int armory = colonies_find_building(&pool, "Armory");
-    const int fur = colonies_find_building(&pool, "Fur Trader's House");
-    if (distiller < 0 || weaver < 0 || smith < 0 || armory < 0 || fur < 0) {
-      fprintf(stderr, "craft test: missing building types\n");
-      assets_msg_free(&names);
-      return 1;
-    }
-
-    ColonizeColony* col = &pool.colonies[0];
-    memset(col, 0, sizeof(*col));
-    col->active = true;
-    col->id = 1;
-    col->building_in_production = -1;
-    col->has_building[distiller] = true;
-    col->stock[COLONIZE_CARGO_FOOD] = 20;
-    col->stock[COLONIZE_CARGO_SUGAR] = 10;
-    col->colonists[0].active = true;
-    col->colonists[0].building_type = distiller;
-    col->colonists[0].field_job = -1;
-    for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES_MAX; ++t) {
-      col->tiles[t] = -1;
-    }
-    col->colonist_count = 1;
-    col->population = 1;
-    pool.colony_count = 1;
-
-    ColonizeTurnResult prod;
-    ColonizeColonyProdDelta delta;
-    memset(&prod, 0, sizeof(prod));
-    turn_colony_free_production(&pool, col, NULL, &prod, &delta);
-    if (col->stock[COLONIZE_CARGO_RUM] != 3 || col->stock[COLONIZE_CARGO_SUGAR] != 7 ||
-        delta.goods[COLONIZE_CARGO_RUM] != 3) {
-      fprintf(
-        stderr,
-        "rum craft failed sugar=%d rum=%d dRum=%d\n",
-        col->stock[COLONIZE_CARGO_SUGAR],
-        col->stock[COLONIZE_CARGO_RUM],
-        delta.goods[COLONIZE_CARGO_RUM]
-      );
-      assets_msg_free(&names);
-      return 1;
-    }
-
-    /* No furs → no coats. */
-    col->has_building[fur] = true;
-    col->colonists[0].building_type = fur;
-    col->stock[COLONIZE_CARGO_FURS] = 0;
-    const int coats_before = col->stock[COLONIZE_CARGO_COATS];
-    turn_colony_free_production(&pool, col, NULL, &prod, &delta);
-    if (col->stock[COLONIZE_CARGO_COATS] != coats_before || delta.goods[COLONIZE_CARGO_COATS] != 0) {
-      fprintf(stderr, "expected no coats without furs\n");
-      assets_msg_free(&names);
-      return 1;
-    }
-
-    col->has_building[weaver] = true;
-    col->colonists[0].building_type = weaver;
-    col->stock[COLONIZE_CARGO_COTTON] = 5;
-    turn_colony_free_production(&pool, col, NULL, &prod, &delta);
-    if (col->stock[COLONIZE_CARGO_CLOTH] != 3 || col->stock[COLONIZE_CARGO_COTTON] != 2) {
-      fprintf(
-        stderr,
-        "cloth craft failed cotton=%d cloth=%d\n",
-        col->stock[COLONIZE_CARGO_COTTON],
-        col->stock[COLONIZE_CARGO_CLOTH]
-      );
-      assets_msg_free(&names);
-      return 1;
-    }
-
-    col->has_building[smith] = true;
-    col->has_building[armory] = true;
-    col->colonists[0].building_type = smith;
-    col->colonists[0].active = true;
-    col->stock[COLONIZE_CARGO_ORE] = 10;
-    col->stock[COLONIZE_CARGO_TOOLS] = 0;
-    col->stock[COLONIZE_CARGO_MUSKETS] = 0;
-    /* Two workers: smith + gunsmith. */
-    col->colonists[1].active = true;
-    col->colonists[1].building_type = armory;
-    col->colonists[1].field_job = -1;
-    col->colonist_count = 2;
-    col->population = 2;
-    turn_colony_free_production(&pool, col, NULL, &prod, &delta);
-    /* Smith makes 3 tools from ore; gunsmith converts 3 tools → 3 muskets same tick. */
-    if (col->stock[COLONIZE_CARGO_ORE] != 7 || col->stock[COLONIZE_CARGO_TOOLS] != 0 ||
-        col->stock[COLONIZE_CARGO_MUSKETS] != 3) {
-      fprintf(
-        stderr,
-        "tools/muskets craft failed ore=%d tools=%d guns=%d\n",
-        col->stock[COLONIZE_CARGO_ORE],
-        col->stock[COLONIZE_CARGO_TOOLS],
-        col->stock[COLONIZE_CARGO_MUSKETS]
-      );
-      assets_msg_free(&names);
-      return 1;
-    }
+  /* DOS never clears building_in_production on completion (player-
+   * confirmed 2026-08-17, colony_prod02 golden: a real single DOS turn
+   * shows it still pointing at the just-finished project) — only
+   * has_building[]/hammers change, checked above. */
+  if (col->building_in_production != stockade) {
+    fprintf(
+      stderr,
+      "expected building_in_production to stay %d after complete, got %d\n",
+      stockade,
+      col->building_in_production
+    );
+    assets_msg_free(&game_txt);
     assets_msg_free(&names);
+    return 1;
   }
-
-  /* Production rules: convert +1 on tiles; convert/criminal floor in buildings; wrong expert → free rate. */
+  /* No carpenter assigned → no hammers even if Carpenter's Shop exists. */
+  col->colonists[0].building_type = -1;
+  col->hammers = 0;
+  col->building_in_production = stockade;
+  col->has_building[stockade] = false;
   {
-    ColonizeWorldMap map;
-    memset(&map, 0, sizeof(map));
-    char err[256];
-    if (!map_load_mp("COLONIZE/AMER2.MP", &map, err, sizeof(err))) {
-      fprintf(stderr, "production rules: map load: %s\n", err);
-      return 1;
-    }
-    int fx = -1, fy = -1;
-    for (int y = 1; y < (int)map.height - 1 && fx < 0; ++y) {
-      for (int x = 1; x < (int)map.width - 1 && fx < 0; ++x) {
-        if (colony_yield_for_tile(&map, x, y, COLONIZE_JOB_LUMBERJACK) == 2) {
-          fx = x;
-          fy = y;
-        }
-      }
-    }
-    if (fx < 0) {
-      fprintf(stderr, "production rules: no tile with lumberjack yield 2\n");
-      map_free(&map);
-      return 1;
-    }
-    const int base = colony_yield_for_tile(&map, fx, fy, COLONIZE_JOB_LUMBERJACK);
-    /* Convert whitelist (FUN_15eb_18ec ~11974-11979): Lumberjack is
-     * excluded — no +1 here, unlike Farmer/Sugar/Tobacco/Cotton/Fur
-     * Trapper/Fisherman below. */
-    const int convert_yld =
-      colony_yield_for_worker(&map, fx, fy, COLONIZE_JOB_LUMBERJACK, COLONIZE_PROF_CONVERT, true, 0, 0, false);
-    if (convert_yld != base) {
-      fprintf(
-        stderr,
-        "convert lumberjack (not whitelisted) want %d got %d\n",
-        base,
-        convert_yld
-      );
-      map_free(&map);
-      return 1;
-    }
-    {
-      int ffx = -1, ffy = -1;
-      for (int y = 1; y < (int)map.height - 1 && ffx < 0; ++y) {
-        for (int x = 1; x < (int)map.width - 1 && ffx < 0; ++x) {
-          if (colony_yield_for_tile(&map, x, y, COLONIZE_JOB_FARMER) > 0) {
-            ffx = x;
-            ffy = y;
-          }
-        }
-      }
-      if (ffx < 0) {
-        fprintf(stderr, "production rules: no tile with farmer yield\n");
-        map_free(&map);
-        return 1;
-      }
-      const int farmer_base = colony_yield_for_tile(&map, ffx, ffy, COLONIZE_JOB_FARMER);
-      const int farmer_convert =
-        colony_yield_for_worker(&map, ffx, ffy, COLONIZE_JOB_FARMER, COLONIZE_PROF_CONVERT, true, 0, 0, false);
-      if (farmer_convert != farmer_base + 1) {
-        fprintf(
-          stderr,
-          "convert farmer (whitelisted) want %d got %d\n",
-          farmer_base + 1,
-          farmer_convert
-        );
-        map_free(&map);
-        return 1;
-      }
-    }
-    /*
-     * Resource effect table (FUN_15eb_17fa): a resource can pair with more
-     * than one job (Game(9) -> Farmer +2 AND Fur Trapper +2). The old port
-     * modeled resource->job as a single mapping (Game -> Fur Trapper only),
-     * so Farmer on a Game tile got no bonus at all — not just a wrong
-     * number, a whole matching case the old shape couldn't express.
-     */
-    {
-      int gx = -1, gy = -1;
-      for (int y = 1; y < (int)map.height - 1 && gx < 0; ++y) {
-        for (int x = 1; x < (int)map.width - 1 && gx < 0; ++x) {
-          if (map_resource_type_for_yield(&map, x, y) == 9 /* Game */) {
-            gx = x;
-            gy = y;
-          }
-        }
-      }
-      if (gx >= 0) {
-        const int farmer_no_res = colony_yield_for_tile(&map, gx, gy, COLONIZE_JOB_FARMER);
-        /* Base without the resource: same pedia, off-tile so no resource hits. */
-        const int base_pedia = map_pedia_terrain_index_at(&map, gx, gy);
-        int base_no_res = -1;
-        for (int y = 1; y < (int)map.height - 1 && base_no_res < 0; ++y) {
-          for (int x = 1; x < (int)map.width - 1 && base_no_res < 0; ++x) {
-            if (map_pedia_terrain_index_at(&map, x, y) == base_pedia &&
-                map_resource_type_for_yield(&map, x, y) < 0 &&
-                !map_tile_has_road(&map, x, y) && !map_tile_has_river(&map, x, y)) {
-              base_no_res = colony_yield_for_tile(&map, x, y, COLONIZE_JOB_FARMER);
-            }
-          }
-        }
-        if (base_no_res >= 0 && !map_tile_has_road(&map, gx, gy) &&
-            !map_tile_has_river(&map, gx, gy) && farmer_no_res != base_no_res + 2) {
-          fprintf(
-            stderr,
-            "Game+Farmer resource effect want %d got %d (base %d)\n",
-            base_no_res + 2,
-            farmer_no_res,
-            base_no_res
-          );
-          map_free(&map);
-          return 1;
-        }
-      }
-    }
-    const int wrong_expert =
-      colony_yield_for_worker(&map, fx, fy, COLONIZE_JOB_LUMBERJACK, COLONIZE_PROF_FREE_COLONIST, true, 0, 0, false);
-    if (wrong_expert != base) {
-      fprintf(
-        stderr,
-        "wrong field expert should match free yield base=%d got=%d\n",
-        base,
-        wrong_expert
-      );
-      map_free(&map);
-      return 1;
-    }
-    map_free(&map);
-
-    ColonizeColonyPool pool;
-    colonies_init(&pool);
-    colonies_set_occupancy_map(NULL);
-    ColonizeMsgCatalog names;
-    assets_msg_init(&names);
-    if (!assets_msg_load_file(&names, "COLONIZE/NAMES.TXT") ||
-        !colonies_load_buildings(&pool, &names)) {
-      fprintf(stderr, "production rules: load buildings failed\n");
-      assets_msg_free(&names);
-      return 1;
-    }
-    const int distiller = colonies_find_building(&pool, "Rum Distiller's House");
-    if (distiller < 0) {
-      fprintf(stderr, "production rules: missing distillery\n");
-      assets_msg_free(&names);
-      return 1;
-    }
-    const char* dname = pool.building_types[distiller].name;
-    if (colony_prod_manufacturing_output(dname, COLONIZE_PROF_CONVERT, COLONIZE_PROF_DISTILLER, 0) != 1 ||
-        colony_prod_manufacturing_output(dname, COLONIZE_PROF_BLACKSMITH, COLONIZE_PROF_DISTILLER, 0) != 3 ||
-        colony_prod_manufacturing_output(dname, COLONIZE_PROF_DISTILLER, COLONIZE_PROF_DISTILLER, 0) != 6) {
-      fprintf(stderr, "manufacturing class/skill rules failed\n");
-      assets_msg_free(&names);
-      return 1;
-    }
-
-    /*
-     * FUN_15eb_1d4c: sol_bonus folds in *before* tier/skill math, not as a
-     * flat post-hoc add — matters at factory tier (×1.5 of the whole running
-     * total, not just the class portion) and whenever skill matches (the
-     * whole thing doubles, sol_bonus included). See
-     * manufacturing_worker_calc_1d4c.md.
-     */
-    {
-      const int iron_works = colonies_find_building(&pool, "Iron Works");
-      if (iron_works < 0) {
-        fprintf(stderr, "production rules: missing Iron Works\n");
-        assets_msg_free(&names);
-        return 1;
-      }
-      const char* iname = pool.building_types[iron_works].name;
-      /* Free colonist (tag=3), factory tier, sol_bonus=2 (the real maximum —
-       * the old ">=2 clamps to 2, +1 truncates to 0" step is gone; DOS folds
-       * local_e directly): v = 3+2=5; shop/factory re-add tag: 5+3=8;
-       * factory ×1.5 floor: 8+4=12. */
-      const int unskilled =
-        colony_prod_manufacturing_output(iname, COLONIZE_PROF_FREE_COLONIST, COLONIZE_PROF_BLACKSMITH, 2);
-      if (unskilled != 12) {
-        fprintf(stderr, "factory sol-fold unskilled want 12 got %d\n", unskilled);
-        assets_msg_free(&names);
-        return 1;
-      }
-      /* Skilled (Blacksmith in Iron Works): whole running total doubles: 12*2=24. */
-      const int skilled =
-        colony_prod_manufacturing_output(iname, COLONIZE_PROF_BLACKSMITH, COLONIZE_PROF_BLACKSMITH, 2);
-      if (skilled != 24) {
-        fprintf(stderr, "factory sol-fold skilled want 24 got %d\n", skilled);
-        assets_msg_free(&names);
-        return 1;
-      }
-      /*
-       * Factory input, player-confirmed 2026-08-15 (Viceroy): Textile Mill,
-       * free colonist, +2 sentiment — 12 cloth/turn output, 8 cotton/turn
-       * consumed (colony-wide cotton accounting: 23 produced, 15 surplus, 8
-       * consumed). Reusing Iron Works here (same tier/tag math, recipe-
-       * independent) — free colonist, sol_bonus=2: v=3+2=5, +tag=8,
-       * factory x1.5 floor=12 (matches the 12 cloth exactly). Input:
-       * (12*6+8)/9=8, matching the observed 8 cotton exactly — settles the
-       * long-open "does factory input discount 6-for-9, and does it track
-       * the SoL-adjusted output or the flat base rate" question both ways:
-       * yes to the discount, and it tracks the *actual* output (the old
-       * `sol_bonus=0`-forced reading would have given 6, not 8).
-       */
-      const int factory_out_sol2 =
-        colony_prod_manufacturing_output(iname, COLONIZE_PROF_FREE_COLONIST, COLONIZE_PROF_BLACKSMITH, 2);
-      if (factory_out_sol2 != 12) {
-        fprintf(stderr, "factory output sol=2 want 12 got %d\n", factory_out_sol2);
-        assets_msg_free(&names);
-        return 1;
-      }
-      const int factory_in_sol2 =
-        colony_prod_manufacturing_input(iname, COLONIZE_PROF_FREE_COLONIST, COLONIZE_PROF_BLACKSMITH, 2);
-      if (factory_in_sol2 != 8) {
-        fprintf(stderr, "factory input sol=2 want 8 got %d\n", factory_in_sol2);
-        assets_msg_free(&names);
-        return 1;
-      }
-      /* Base rate (sol_bonus=0) input stays 6 — the old, still-correct half
-       * of the ratio; only the sol-fold was missing before. */
-      const int factory_in_base =
-        colony_prod_manufacturing_input(iname, COLONIZE_PROF_FREE_COLONIST, COLONIZE_PROF_BLACKSMITH, 0);
-      if (factory_in_base != 6) {
-        fprintf(stderr, "factory input base want 6 got %d\n", factory_in_base);
-        assets_msg_free(&names);
-        return 1;
-      }
-      /* Tory penalty (negative sol_bonus) must reduce output, not get
-       * clamped away — house tier, criminal (tag=1), sol_bonus=-5 clamps to 0. */
-      const int penalized =
-        colony_prod_manufacturing_output(dname, COLONIZE_PROF_CRIMINAL, COLONIZE_PROF_DISTILLER, -5);
-      if (penalized != 0) {
-        fprintf(stderr, "Tory-penalty clamp want 0 got %d\n", penalized);
-        assets_msg_free(&names);
-        return 1;
-      }
-      /* Same penalty, free colonist (tag=3): 3-5=-2 clamps to 0 too. */
-      const int penalized2 =
-        colony_prod_manufacturing_output(dname, COLONIZE_PROF_FREE_COLONIST, COLONIZE_PROF_DISTILLER, -5);
-      if (penalized2 != 0) {
-        fprintf(stderr, "Tory-penalty clamp (free) want 0 got %d\n", penalized2);
-        assets_msg_free(&names);
-        return 1;
-      }
-      /* A smaller penalty that doesn't clamp: free colonist, house tier, sol=-1 -> 3-1=2. */
-      const int penalized3 =
-        colony_prod_manufacturing_output(dname, COLONIZE_PROF_FREE_COLONIST, COLONIZE_PROF_DISTILLER, -1);
-      if (penalized3 != 2) {
-        fprintf(stderr, "Tory-penalty (unclamped) want 2 got %d\n", penalized3);
-        assets_msg_free(&names);
-        return 1;
-      }
-      /* colony_prod_bells_worker: sol_bonus folds in before skill doubling
-       * (FUN_15eb_1d4c Statesman body) — unit-level check independent of the
-       * nation-tick machinery above. Skilled: (tag+sol)*2; unskilled: tag+sol
-       * only, no doubling. */
-      const int bells_skilled =
-        colony_prod_bells_worker("Town Hall", COLONIZE_PROF_STATESMAN, 2);
-      if (bells_skilled != 10) { /* (3+2)*2 */
-        fprintf(stderr, "bells_worker skilled sol-fold want 10 got %d\n", bells_skilled);
-        assets_msg_free(&names);
-        return 1;
-      }
-      const int bells_unskilled =
-        colony_prod_bells_worker("Town Hall", COLONIZE_PROF_FREE_COLONIST, 2);
-      if (bells_unskilled != 5) { /* 3+2, not doubled */
-        fprintf(stderr, "bells_worker unskilled sol-fold want 5 got %d\n", bells_unskilled);
-        assets_msg_free(&names);
-        return 1;
-      }
-      /*
-       * colony_prod_crosses_worker / colony_prod_hammers_worker: Carpenter/
-       * Preacher DOS shape is `(skilled?6:tag)+sol_bonus`, *then* doubled by
-       * a colony-wide "owns the upgrade" flag — not the class-scaled rate
-       * table the port used to use, which only matched at sol_bonus=0 (see
-       * manufacturing_worker_calc_1d4c.md). These four values only diverge
-       * from the pre-fix numbers precisely when the colony owns the
-       * upgrade, which is exactly the case being tested here.
-       */
-      const int crosses_unskilled_cathedral =
-        colony_prod_crosses_worker("Cathedral", COLONIZE_PROF_FREE_COLONIST, 2, true, false);
-      if (crosses_unskilled_cathedral != 10) { /* (3+2)*2, not the old 6+2=8 */
-        fprintf(
-          stderr,
-          "crosses_worker unskilled+cathedral want 10 got %d\n",
-          crosses_unskilled_cathedral
-        );
-        assets_msg_free(&names);
-        return 1;
-      }
-      const int crosses_skilled_cathedral =
-        colony_prod_crosses_worker("Cathedral", COLONIZE_PROF_PREACHER, 2, true, false);
-      if (crosses_skilled_cathedral != 16) { /* (6+2)*2, not the old 6*2+2=14 */
-        fprintf(
-          stderr,
-          "crosses_worker skilled+cathedral want 16 got %d\n",
-          crosses_skilled_cathedral
-        );
-        assets_msg_free(&names);
-        return 1;
-      }
-      const int hammers_unskilled =
-        colony_prod_hammers_worker("Carpenter's Shop", UNITS_JOB_NONE, 0, false);
-      const int hammers_skilled =
-        colony_prod_hammers_worker("Carpenter's Shop", COLONIZE_PROF_CARPENTER, 0, false);
-      const int hammers_unskilled_sol =
-        colony_prod_hammers_worker("Carpenter's Shop", UNITS_JOB_NONE, 2, false);
-      const int hammers_unskilled_mill =
-        colony_prod_hammers_worker("Lumber Mill", UNITS_JOB_NONE, 2, true);
-      if (hammers_unskilled_mill != 10) { /* (3+2)*2, not the old 6+2=8 */
-        fprintf(
-          stderr,
-          "hammers_worker unskilled+mill want 10 got %d\n",
-          hammers_unskilled_mill
-        );
-        assets_msg_free(&names);
-        return 1;
-      }
-      const int hammers_skilled_mill =
-        colony_prod_hammers_worker("Lumber Mill", COLONIZE_PROF_CARPENTER, 2, true);
-      if (hammers_skilled_mill != 16) { /* (6+2)*2, not the old 6*2+2=14 */
-        fprintf(
-          stderr,
-          "hammers_worker skilled+mill want 16 got %d\n",
-          hammers_skilled_mill
-        );
-        assets_msg_free(&names);
-        return 1;
-      }
-      /*
-       * William Penn stacks with Cathedral per-worker (v *= 2 for Cathedral,
-       * *then* v += v>>1 for Penn — DOS falls through from the Cathedral
-       * branch into the Penn check unconditionally, not an else). Confirmed
-       * by direct asm read of the Preacher body; see
-       * manufacturing_worker_calc_1d4c.md. Distinguishes this from the old
-       * (wrong) flat colony-total ×1.5, which this function never sees at
-       * all — it can only be right if the stacking happens right here.
-       */
-      const int crosses_unskilled_cathedral_penn =
-        colony_prod_crosses_worker("Cathedral", COLONIZE_PROF_FREE_COLONIST, 0, true, true);
-      if (crosses_unskilled_cathedral_penn != 9) { /* (3*2)+((3*2)>>1) = 6+3 */
-        fprintf(
-          stderr,
-          "crosses_worker unskilled+cathedral+penn want 9 got %d\n",
-          crosses_unskilled_cathedral_penn
-        );
-        assets_msg_free(&names);
-        return 1;
-      }
-      const int crosses_skilled_cathedral_penn =
-        colony_prod_crosses_worker("Cathedral", COLONIZE_PROF_PREACHER, 0, true, true);
-      if (crosses_skilled_cathedral_penn != 18) { /* (6*2)+((6*2)>>1) = 12+6 */
-        fprintf(
-          stderr,
-          "crosses_worker skilled+cathedral+penn want 18 got %d\n",
-          crosses_skilled_cathedral_penn
-        );
-        assets_msg_free(&names);
-        return 1;
-      }
-    }
-
-    ColonizeColony* col = &pool.colonies[0];
-    memset(col, 0, sizeof(*col));
-    col->active = true;
-    col->id = 1;
-    col->building_in_production = -1;
-    col->has_building[distiller] = true;
-    col->stock[COLONIZE_CARGO_FOOD] = 20;
-    col->stock[COLONIZE_CARGO_SUGAR] = 10;
-    col->colonists[0].active = true;
-    col->colonists[0].building_type = distiller;
-    col->colonists[0].profession = COLONIZE_PROF_CONVERT;
-    col->colonists[0].field_job = -1;
-    for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES_MAX; ++t) {
-      col->tiles[t] = -1;
-    }
-    col->colonist_count = 1;
-    col->population = 1;
-    pool.colony_count = 1;
-
     ColonizeTurnResult prod;
-    ColonizeColonyProdDelta delta;
+    ColonizeColonyProdDelta delta2;
     memset(&prod, 0, sizeof(prod));
-    turn_colony_free_production(&pool, col, NULL, &prod, &delta);
-    if (col->stock[COLONIZE_CARGO_RUM] != 1 || col->stock[COLONIZE_CARGO_SUGAR] != 9) {
+    memset(&delta2, 0, sizeof(delta2));
+    turn_colony_free_production(&pool, col, NULL, &prod, &delta2);
+    if (delta2.hammers_added != 0 || col->hammers != 0) {
       fprintf(
         stderr,
-        "convert rum craft failed sugar=%d rum=%d\n",
-        col->stock[COLONIZE_CARGO_SUGAR],
-        col->stock[COLONIZE_CARGO_RUM]
-      );
-      assets_msg_free(&names);
-      return 1;
-    }
-    assets_msg_free(&names);
-  }
-
-  /* Field lumberjack harvests from forest surround tile. */
-  {
-    ColonizeWorldMap map;
-    memset(&map, 0, sizeof(map));
-    char err[256];
-    if (!map_load_mp("COLONIZE/AMER2.MP", &map, err, sizeof(err))) {
-      fprintf(stderr, "map load for field test: %s\n", err);
-      return 1;
-    }
-    ColonizeColonyPool pool;
-    colonies_init(&pool);
-    colonies_set_occupancy_map(NULL);
-    ColonizeMsgCatalog names;
-    assets_msg_init(&names);
-    if (!assets_msg_load_file(&names, "COLONIZE/NAMES.TXT") ||
-        !colonies_load_buildings(&pool, &names) || !colonies_load_names(&pool, "COLONIZE/COLONY.TXT")) {
-      fprintf(stderr, "names/buildings for field test failed\n");
-      assets_msg_free(&names);
-      map_free(&map);
-      return 1;
-    }
-    int fx = -1, fy = -1, ftile = -1, cx = -1, cy = -1;
-    for (int y = 1; y < (int)map.height - 1 && fx < 0; ++y) {
-      for (int x = 1; x < (int)map.width - 1 && fx < 0; ++x) {
-        if (!map_tile_is_land(&map, x, y) || !colonies_can_found(&pool, &map, x, y)) {
-          continue;
-        }
-        for (int ti = 0; ti < COLONIZE_COLONY_FIELD_TILES; ++ti) {
-          int dx = 0, dy = 0;
-          colonies_field_tile_delta(ti, &dx, &dy);
-          const int yld =
-            colony_yield_for_tile(&map, x + dx, y + dy, COLONIZE_JOB_LUMBERJACK);
-          if (yld > 0) {
-            cx = x;
-            cy = y;
-            fx = x + dx;
-            fy = y + dy;
-            ftile = ti;
-            break;
-          }
-        }
-      }
-    }
-    if (ftile < 0) {
-      fprintf(stderr, "no colony site with lumberjack yield nearby\n");
-      assets_msg_free(&names);
-      map_free(&map);
-      return 1;
-    }
-    const int cid = colonies_found(&pool, &map, cx, cy, 0, 0, UNITS_JOB_NONE, 0, 0, 0);
-    ColonizeColony* col = colonies_get_mut(&pool, cid);
-    if (!col || !colonies_assign_field(&pool, cid, 0, ftile, COLONIZE_JOB_LUMBERJACK)) {
-      fprintf(stderr, "assign lumberjack failed at (%d,%d) tile %d\n", fx, fy, ftile);
-      assets_msg_free(&names);
-      map_free(&map);
-      return 1;
-    }
-    /* Isolate field harvest from carpenter hammers on default Stockade project.
-     * This colony has no Farmer, only the Lumberjack under test, so give it a
-     * food buffer up front — otherwise Phase J's starve-kill (still short of
-     * `pop*2` after the turn, and food was 0 at turn start) removes the
-     * colony's only colonist on the very first turn_colony_free_production
-     * call below, before either check in this block ever runs. */
-    col->building_in_production = -1;
-    col->stock[COLONIZE_CARGO_FOOD] = 100;
-    const int before = col->stock[COLONIZE_CARGO_LUMBER];
-    const int expect =
-      colony_yield_for_worker(&map, fx, fy, COLONIZE_JOB_LUMBERJACK, col->colonists[0].profession, true, 0, 0, false);
-    ColonizeTurnResult prod;
-    ColonizeColonyProdDelta delta;
-    memset(&prod, 0, sizeof(prod));
-    turn_colony_free_production(&pool, col, &map, &prod, &delta);
-    /* No carpenter assigned → hammers stay 0 (shop alone does not produce). */
-    if (delta.goods[COLONIZE_CARGO_LUMBER] < expect) {
-      fprintf(
-        stderr,
-        "field lumber delta too low got %d expect %d (stock %d->%d)\n",
-        delta.goods[COLONIZE_CARGO_LUMBER],
-        expect,
-        before,
-        col->stock[COLONIZE_CARGO_LUMBER]
-      );
-      assets_msg_free(&names);
-      map_free(&map);
-      return 1;
-    }
-
-    /* Tory penalty must reduce the Production tab's field-yield preview too —
-     * colony_preview.c's field loop had the same `sol_b > 0` guard bug as
-     * bells/hammers, dropping every Tory penalty instead of applying it. */
-    /* tories=15, thresh=10 (col1 NULL) -> mod=-1. Both fields: the pop
-     * fallback is colonist_count-first port-wide (see colony_prod_sol_bonus);
-     * setting `population` alone encoded the old population-first order.
-     * Slots 1..14 stay inactive, so no worker/production loop sees them. */
-    col->population = 15;
-    col->colonist_count = 15;
-    const int base_yield =
-      colony_yield_for_worker(&map, fx, fy, COLONIZE_JOB_LUMBERJACK, col->colonists[0].profession, true, 0, 0, false);
-    ColonizeColonyPreview prev;
-    colony_preview_compute_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&pool), .map=(ColonizeWorldMap*)(&map), .col1=(ColonizeCol1Save*)(NULL), .col1_ok=((NULL) != NULL)}, col, &prev);
-    if (prev.goods[COLONIZE_CARGO_LUMBER] != base_yield - 1) {
-      fprintf(
-        stderr,
-        "Tory-penalty field preview want %d got %d (base_yield=%d)\n",
-        base_yield - 1,
-        prev.goods[COLONIZE_CARGO_LUMBER],
-        base_yield
-      );
-      assets_msg_free(&names);
-      map_free(&map);
-      return 1;
-    }
-
-    assets_msg_free(&names);
-    map_free(&map);
-  }
-
-  /*
-   * Henry Hudson: fur trapper field output +100% (turn_produce_one_colony).
-   * Preview must match — colony_preview.c had been missing this doubling.
-   */
-  {
-    ColonizeWorldMap map;
-    memset(&map, 0, sizeof(map));
-    char err[256];
-    if (!map_load_mp("COLONIZE/AMER2.MP", &map, err, sizeof(err))) {
-      fprintf(stderr, "map load for Hudson test: %s\n", err);
-      return 1;
-    }
-    ColonizeColonyPool pool;
-    colonies_init(&pool);
-    colonies_set_occupancy_map(NULL);
-    ColonizeMsgCatalog names;
-    assets_msg_init(&names);
-    if (!assets_msg_load_file(&names, "COLONIZE/NAMES.TXT") ||
-        !colonies_load_buildings(&pool, &names) || !colonies_load_names(&pool, "COLONIZE/COLONY.TXT")) {
-      fprintf(stderr, "names/buildings for Hudson test failed\n");
-      assets_msg_free(&names);
-      map_free(&map);
-      return 1;
-    }
-    int fx = -1, fy = -1, ftile = -1, cx = -1, cy = -1;
-    for (int y = 1; y < (int)map.height - 1 && fx < 0; ++y) {
-      for (int x = 1; x < (int)map.width - 1 && fx < 0; ++x) {
-        if (!map_tile_is_land(&map, x, y) || !colonies_can_found(&pool, &map, x, y)) {
-          continue;
-        }
-        for (int ti = 0; ti < COLONIZE_COLONY_FIELD_TILES; ++ti) {
-          int dx = 0, dy = 0;
-          colonies_field_tile_delta(ti, &dx, &dy);
-          const int yld =
-            colony_yield_for_tile(&map, x + dx, y + dy, COLONIZE_JOB_FUR_TRAPPER);
-          if (yld > 0) {
-            cx = x;
-            cy = y;
-            fx = x + dx;
-            fy = y + dy;
-            ftile = ti;
-            break;
-          }
-        }
-      }
-    }
-    if (ftile < 0) {
-      fprintf(stderr, "no colony site with fur trapper yield nearby\n");
-      assets_msg_free(&names);
-      map_free(&map);
-      return 1;
-    }
-    const int cid = colonies_found(&pool, &map, cx, cy, 0, 0, UNITS_JOB_NONE, 0, 0, 0);
-    ColonizeColony* col = colonies_get_mut(&pool, cid);
-    if (!col || !colonies_assign_field(&pool, cid, 0, ftile, COLONIZE_JOB_FUR_TRAPPER)) {
-      fprintf(stderr, "assign fur trapper failed at (%d,%d) tile %d\n", fx, fy, ftile);
-      assets_msg_free(&names);
-      map_free(&map);
-      return 1;
-    }
-    col->building_in_production = -1;
-    col->nation_id = 0;
-    /* No Farmer, only the Fur Trapper under test — seed a food buffer so
-     * Phase J's starve-kill doesn't remove the colony's only colonist on
-     * this first simulated turn (town-commons food alone nets exactly 0
-     * against pop*2 consumption for a fresh 1-colonist colony). */
-    col->stock[COLONIZE_CARGO_FOOD] = 100;
-
-    ColonizeCol1Save col1;
-    memset(&col1, 0, sizeof(col1));
-    col1.player[0].control = 0;
-    for (int i = 0; i < (int)COLONIZE_COL1_FF_COUNT; ++i) {
-      col1.head.founding_father[i] = -1;
-    }
-
-    ColonizeTurnResult prod;
-    memset(&prod, 0, sizeof(prod));
-    turn_run_colony_production_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&pool), .map=(ColonizeWorldMap*)(&map), .col1=(ColonizeCol1Save*)(&col1), .col1_ok=true, .rng=(ColonizeDosRng*)(NULL), .europe=(EuropeScreen*)(NULL)}, -1, &prod, NULL, NULL);
-    const int base_furs = col->stock[COLONIZE_CARGO_FURS];
-    if (base_furs <= 0) {
-      fprintf(stderr, "Hudson test base fur harvest want >0 got %d\n", base_furs);
-      assets_msg_free(&names);
-      map_free(&map);
-      return 1;
-    }
-
-    /* Grant Hudson, redo the same tick from a clean stock, expect exactly 2x. */
-    col->stock[COLONIZE_CARGO_FURS] = 0;
-    col1.head.founding_father[FF_HENRY_HUDSON] = 0; /* nation 0 owns it */
-    col1.nation[0].founding_fathers[FF_HENRY_HUDSON / 8] |=
-      (uint8_t)(1u << (FF_HENRY_HUDSON % 8));
-    ColonizeColonyPreview prev;
-    colony_preview_compute_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&pool), .map=(ColonizeWorldMap*)(&map), .col1=(ColonizeCol1Save*)(&col1), .col1_ok=true}, col, &prev);
-    memset(&prod, 0, sizeof(prod));
-    turn_run_colony_production_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&pool), .map=(ColonizeWorldMap*)(&map), .col1=(ColonizeCol1Save*)(&col1), .col1_ok=true, .rng=(ColonizeDosRng*)(NULL), .europe=(EuropeScreen*)(NULL)}, -1, &prod, NULL, NULL);
-    const int hudson_furs = col->stock[COLONIZE_CARGO_FURS];
-    if (hudson_furs != base_furs * 2) {
-      fprintf(
-        stderr,
-        "Hudson fur doubling want %d got %d\n",
-        base_furs * 2,
-        hudson_furs
-      );
-      assets_msg_free(&names);
-      map_free(&map);
-      return 1;
-    }
-    if (prev.goods[COLONIZE_CARGO_FURS] != hudson_furs) {
-      fprintf(
-        stderr,
-        "Hudson fur preview mismatch want %d got %d\n",
-        hudson_furs,
-        prev.goods[COLONIZE_CARGO_FURS]
-      );
-      assets_msg_free(&names);
-      map_free(&map);
-      return 1;
-    }
-    assets_msg_free(&names);
-    map_free(&map);
-  }
-
-  /*
-   * Hammers bank even with no construction queued (turn.c "TURN5→6" comment,
-   * colony_prod_colony_hammers). Preview had been hiding this row entirely
-   * whenever building_in_production < 0.
-   */
-  {
-    ColonizeColonyPool pool;
-    colonies_init(&pool);
-    colonies_set_occupancy_map(NULL);
-    snprintf(pool.building_types[0].name, sizeof(pool.building_types[0].name), "Carpenter's Shop");
-    pool.building_type_count = 1;
-
-    ColonizeColony* col = &pool.colonies[0];
-    memset(col, 0, sizeof(*col));
-    col->active = true;
-    col->id = 1;
-    col->nation_id = 0;
-    col->building_in_production = -1; /* no project selected */
-    col->stock[COLONIZE_CARGO_FOOD] = 100; /* avoid starve-kill wiping the colony */
-    col->stock[COLONIZE_CARGO_LUMBER] = 10;
-    col->colonists[0].active = true;
-    col->colonists[0].building_type = 0;
-    col->colonists[0].profession = COLONIZE_PROF_FREE_COLONIST;
-    col->colonists[0].field_job = -1;
-    for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES_MAX; ++t) {
-      col->tiles[t] = -1;
-    }
-    col->colonist_count = 1;
-    col->population = 1;
-    pool.colony_count = 1;
-
-    ColonizeColonyPreview prev;
-    colony_preview_compute_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&pool), .map=(ColonizeWorldMap*)(NULL), .col1=(ColonizeCol1Save*)(NULL), .col1_ok=((NULL) != NULL)}, col, &prev);
-    if (prev.hammers != 3) {
-      fprintf(stderr, "no-project hammers preview want 3 got %d\n", prev.hammers);
-      return 1;
-    }
-
-    ColonizeTurnResult prod;
-    ColonizeColonyProdDelta delta;
-    memset(&prod, 0, sizeof(prod));
-    memset(&delta, 0, sizeof(delta));
-    turn_colony_free_production(&pool, col, NULL, &prod, &delta);
-    if (col->hammers != 3 || delta.hammers_added != 3 ||
-        col->stock[COLONIZE_CARGO_LUMBER] != 7) {
-      fprintf(
-        stderr,
-        "no-project hammers actual want hammers=3 delta=3 lumber=7 got %d/%d/%d\n",
-        col->hammers,
-        delta.hammers_added,
-        col->stock[COLONIZE_CARGO_LUMBER]
-      );
-      return 1;
-    }
-  }
-
-  /*
-   * Tory penalty must reduce banked hammers too, not get silently dropped
-   * (same `sol_b > 0` guard bug as bells above, now fixed). Lumber stock
-   * must cover the sol-adjusted output — hammers cost lumber 1:1, capped by
-   * what was on hand at the start of the turn (2026-08-16 real-DOS fix: a
-   * carpenter with 0 lumber on hand now correctly bags 0 hammers, not the
-   * sol-adjusted value for free — see turn.c's Carpenter hammers block).
-   */
-  {
-    ColonizeColonyPool pool;
-    colonies_init(&pool);
-    colonies_set_occupancy_map(NULL);
-    snprintf(pool.building_types[0].name, sizeof(pool.building_types[0].name), "Carpenter's Shop");
-    pool.building_type_count = 1;
-
-    ColonizeColony* col = &pool.colonies[0];
-    memset(col, 0, sizeof(*col));
-    col->active = true;
-    col->id = 1;
-    col->nation_id = 0;
-    col->building_in_production = -1;
-    col->stock[COLONIZE_CARGO_FOOD] = 100;
-    col->stock[COLONIZE_CARGO_LUMBER] = 100;
-    col->colonists[0].active = true;
-    col->colonists[0].building_type = 0;
-    col->colonists[0].profession = COLONIZE_PROF_FREE_COLONIST;
-    col->colonists[0].field_job = -1;
-    for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES_MAX; ++t) {
-      col->tiles[t] = -1;
-    }
-    /* tories=15, thresh=10 (col1 NULL -> default) -> mod=-1. Both fields:
-     * the pop fallback is colonist_count-first port-wide (colony_prod_sol_
-     * bonus); `population` alone encoded the old population-first order.
-     * Only slot 0 is active, so the carpenter stays the lone worker. */
-    col->colonist_count = 15;
-    col->population = 15;
-    pool.colony_count = 1;
-
-    ColonizeColonyPreview prev;
-    colony_preview_compute_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&pool), .map=(ColonizeWorldMap*)(NULL), .col1=(ColonizeCol1Save*)(NULL), .col1_ok=((NULL) != NULL)}, col, &prev);
-    if (prev.hammers != 2) {
-      fprintf(stderr, "Tory-penalty hammers preview want 2 got %d\n", prev.hammers);
-      return 1;
-    }
-
-    ColonizeTurnResult prod;
-    ColonizeColonyProdDelta delta;
-    memset(&prod, 0, sizeof(prod));
-    memset(&delta, 0, sizeof(delta));
-    turn_colony_free_production(&pool, col, NULL, &prod, &delta);
-    if (col->hammers != 2 || delta.hammers_added != 2) {
-      fprintf(
-        stderr,
-        "Tory-penalty hammers actual want 2 got hammers=%d delta=%d\n",
-        col->hammers,
-        delta.hammers_added
-      );
-      return 1;
-    }
-    fprintf(stderr, "Tory penalty reduces hammers ok\n");
-  }
-
-  /*
-   * Smell audit #62 — latch-crossing turn: the Production preview and the
-   * real tick must compose from the SAME SoL number. DOS composes every
-   * cargo (field, craft, hammers, bells, crosses) once in FUN_364b_0688's
-   * Phase A prologue (`281f_0c22` -> `15eb_1f72`, viceroy 57228) and only
-   * reads that scratch back later, so Phase C/D's SoL accumulator + latch
-   * update (57349-57485) cannot reach this tick's production. The port used
-   * to call colony_prod_sol_bonus() again down at the Phase L hammers site,
-   * i.e. *after* the latch flipped, so on the one turn a colony crosses 50%
-   * SoL the preview promised 3 hammers and the tick banked 4.
-   *
-   * Fixture: pop 1, 60% SoL, no latch bit yet. tories = (1*40+50)/100 = 0,
-   * so the pre-tick bonus is exactly 0 and the post-latch bonus exactly +1
-   * — the whole difference is the bit Phase D sets during this same tick.
-   */
-  {
-    ColonizeColonyPool pool;
-    colonies_init(&pool);
-    colonies_set_occupancy_map(NULL);
-    snprintf(pool.building_types[0].name, sizeof(pool.building_types[0].name), "Carpenter's Shop");
-    pool.building_type_count = 1;
-
-    ColonizeColony* col = &pool.colonies[0];
-    memset(col, 0, sizeof(*col));
-    col->active = true;
-    col->id = 1;
-    col->nation_id = 0;
-    col->x = 5;
-    col->y = 7;
-    col->building_in_production = -1;
-    col->stock[COLONIZE_CARGO_FOOD] = 100;
-    col->stock[COLONIZE_CARGO_LUMBER] = 100;
-    col->colonists[0].active = true;
-    col->colonists[0].building_type = 0;
-    col->colonists[0].profession = COLONIZE_PROF_FREE_COLONIST;
-    col->colonists[0].field_job = -1;
-    for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES_MAX; ++t) {
-      col->tiles[t] = -1;
-    }
-    col->colonist_count = 1;
-    col->population = 1;
-    col->colony_flags = 0; /* neither SoL latch bit set yet */
-    pool.colony_count = 1;
-
-    ColonizeCol1Save col1;
-    memset(&col1, 0, sizeof(col1));
-    ColonizeCol1Colony c1rec;
-    memset(&c1rec, 0, sizeof(c1rec));
-    c1rec.x = 5;
-    c1rec.y = 7;
-    c1rec.rebel_dividend = 60;
-    c1rec.rebel_divisor = 100; /* 60% -> Phase D sets SOL_50 this tick */
-    col1.colony = &c1rec;
-    col1.head.colony_count = 1;
-    col1.player[0].control = 0;
-    /* memset(0) would read as "nation 0 owns every founding father" — the
-     * fixture trap that has bitten this project before. */
-    for (int i = 0; i < (int)COLONIZE_COL1_FF_COUNT; ++i) {
-      col1.head.founding_father[i] = -1;
-    }
-
-    ColonizeColonyPreview prev;
-    colony_preview_compute_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&pool), .map=(ColonizeWorldMap*)(NULL), .col1=(ColonizeCol1Save*)(&col1), .col1_ok=true}, col, &prev);
-
-    ColonizeTurnResult prod;
-    memset(&prod, 0, sizeof(prod));
-    turn_run_colony_production_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&pool), .map=(ColonizeWorldMap*)(NULL), .col1=(ColonizeCol1Save*)(&col1), .col1_ok=true, .rng=(ColonizeDosRng*)(NULL), .europe=(EuropeScreen*)(NULL)}, -1, &prod, NULL, NULL);
-
-    if ((col->colony_flags & COLONIZE_COLONY_FLAG_SOL_50) == 0) {
-      fprintf(
-        stderr,
-        "latch-crossing fixture never crossed (flags=%u) — test is vacuous\n",
-        (unsigned)col->colony_flags
-      );
-      return 1;
-    }
-    if (prev.hammers != 3 || col->hammers != 3) {
-      fprintf(
-        stderr,
-        "latch-crossing preview/tick disagree: preview %d, tick %d (want 3/3)\n",
-        prev.hammers,
+        "expected no hammers without carpenter got delta=%d stock=%d\n",
+        delta2.hammers_added,
         col->hammers
       );
-      return 1;
-    }
-    fprintf(stderr, "latch-crossing preview == tick ok\n");
-  }
-
-  /*
-   * Smell audit #63 — Phase A composes before Phase J. DOS's per-colonist
-   * manufacturing loop (`15eb_1d4c` inside `15eb_1f72`, viceroy 12602-12609)
-   * runs in the prologue, so the roster it reads is the one that started the
-   * turn; the starve-kill at 57623-57695 comes much later and cannot retract
-   * work already composed. The port used to call colony_craft_one_colony at
-   * the Phase L position, *after* the kill, so a Blacksmith who starved this
-   * tick had his tools vanish retroactively.
-   *
-   * Fixture: pop 2, no food and no food production (map NULL -> no commons),
-   * so Phase J kills the last colonist — who is the Blacksmith.
-   */
-  {
-    ColonizeColonyPool pool;
-    colonies_init(&pool);
-    colonies_set_occupancy_map(NULL);
-    snprintf(
-      pool.building_types[0].name, sizeof(pool.building_types[0].name), "Blacksmith's House"
-    );
-    pool.building_type_count = 1;
-
-    ColonizeColony* col = &pool.colonies[0];
-    memset(col, 0, sizeof(*col));
-    col->active = true;
-    col->id = 1;
-    col->nation_id = 0;
-    col->building_in_production = -1;
-    col->stock[COLONIZE_CARGO_FOOD] = 0; /* Phase J needs food 0 at entry */
-    col->stock[COLONIZE_CARGO_ORE] = 50;
-    for (int i = 0; i < 2; ++i) {
-      col->colonists[i].active = true;
-      col->colonists[i].building_type = (i == 1) ? 0 : -1;
-      col->colonists[i].profession = COLONIZE_PROF_FREE_COLONIST;
-      col->colonists[i].field_job = -1;
-    }
-    for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES_MAX; ++t) {
-      col->tiles[t] = -1;
-    }
-    col->colonist_count = 2;
-    col->population = 2;
-    pool.colony_count = 1;
-
-    ColonizeTurnResult prod;
-    ColonizeColonyProdDelta delta;
-    memset(&prod, 0, sizeof(prod));
-    memset(&delta, 0, sizeof(delta));
-    turn_colony_free_production(&pool, col, NULL, &prod, &delta);
-
-    if (col->colonist_count != 1) {
-      fprintf(
-        stderr,
-        "starve fixture did not kill exactly one colonist (count=%d) — test is vacuous\n",
-        col->colonist_count
-      );
-      return 1;
-    }
-    if (col->stock[COLONIZE_CARGO_TOOLS] <= 0 || col->stock[COLONIZE_CARGO_ORE] >= 50) {
-      fprintf(
-        stderr,
-        "starved Blacksmith's Phase A tools were retracted: tools=%d ore=%d\n",
-        col->stock[COLONIZE_CARGO_TOOLS],
-        col->stock[COLONIZE_CARGO_ORE]
-      );
-      return 1;
-    }
-    fprintf(stderr, "Phase A craft survives Phase J starve-kill ok\n");
-  }
-
-  /*
-   * Fisherman needs Docks (FUN_15eb_18ec ~11925-11939): yields 0 without it,
-   * regardless of what the tile table says. colony_yield_for_worker's
-   * has_docks parameter must actually gate this, not just default to
-   * "allowed" everywhere.
-   */
-  {
-    ColonizeWorldMap map;
-    memset(&map, 0, sizeof(map));
-    char err[256];
-    if (!map_load_mp("COLONIZE/AMER2.MP", &map, err, sizeof(err))) {
-      fprintf(stderr, "map load for docks-gate test: %s\n", err);
-      return 1;
-    }
-    ColonizeColonyPool pool;
-    colonies_init(&pool);
-    colonies_set_occupancy_map(NULL);
-    ColonizeMsgCatalog names;
-    assets_msg_init(&names);
-    if (!assets_msg_load_file(&names, "COLONIZE/NAMES.TXT") ||
-        !colonies_load_buildings(&pool, &names) || !colonies_load_names(&pool, "COLONIZE/COLONY.TXT")) {
-      fprintf(stderr, "names/buildings for docks-gate test failed\n");
+      assets_msg_free(&game_txt);
       assets_msg_free(&names);
-      map_free(&map);
       return 1;
     }
-    int fx = -1, fy = -1, ftile = -1, cx = -1, cy = -1;
-    for (int y = 1; y < (int)map.height - 1 && fx < 0; ++y) {
-      for (int x = 1; x < (int)map.width - 1 && fx < 0; ++x) {
-        if (!map_tile_is_land(&map, x, y) || !colonies_can_found(&pool, &map, x, y)) {
-          continue;
-        }
-        for (int ti = 0; ti < COLONIZE_COLONY_FIELD_TILES; ++ti) {
-          int dx = 0, dy = 0;
-          colonies_field_tile_delta(ti, &dx, &dy);
-          const int yld =
-            colony_yield_for_tile(&map, x + dx, y + dy, COLONIZE_JOB_FISHERMAN);
-          if (yld > 0) {
-            cx = x;
-            cy = y;
-            fx = x + dx;
-            fy = y + dy;
-            ftile = ti;
-            break;
-          }
-        }
+  }
+  assets_msg_free(&game_txt);
+  assets_msg_free(&names);
+  fprintf(stderr, "BUILT building chrome ok\n");
+  return 0;
+}
+
+static int case_craft_chain(void) {
+  fx_begin();
+  ColonizeColonyPool pool;
+  colonies_init(&pool);
+  colonies_set_occupancy_map(NULL);
+  ColonizeMsgCatalog names;
+  assets_msg_init(&names);
+  if (!assets_msg_load_file(&names, "COLONIZE/NAMES.TXT") ||
+      !colonies_load_buildings(&pool, &names)) {
+    fprintf(stderr, "craft test: load buildings failed\n");
+    assets_msg_free(&names);
+    return 1;
+  }
+  const int distiller = colonies_find_building(&pool, "Rum Distiller's House");
+  const int weaver = colonies_find_building(&pool, "Weaver's House");
+  const int smith = colonies_find_building(&pool, "Blacksmith's House");
+  const int armory = colonies_find_building(&pool, "Armory");
+  const int fur = colonies_find_building(&pool, "Fur Trader's House");
+  if (distiller < 0 || weaver < 0 || smith < 0 || armory < 0 || fur < 0) {
+    fprintf(stderr, "craft test: missing building types\n");
+    assets_msg_free(&names);
+    return 1;
+  }
+
+  ColonizeColony* col = &pool.colonies[0];
+  memset(col, 0, sizeof(*col));
+  col->active = true;
+  col->id = 1;
+  col->building_in_production = -1;
+  col->has_building[distiller] = true;
+  col->stock[COLONIZE_CARGO_FOOD] = 20;
+  col->stock[COLONIZE_CARGO_SUGAR] = 10;
+  col->colonists[0].active = true;
+  col->colonists[0].building_type = distiller;
+  col->colonists[0].field_job = -1;
+  for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES_MAX; ++t) {
+    col->tiles[t] = -1;
+  }
+  col->colonist_count = 1;
+  col->population = 1;
+  pool.colony_count = 1;
+
+  ColonizeTurnResult prod;
+  ColonizeColonyProdDelta delta;
+  memset(&prod, 0, sizeof(prod));
+  turn_colony_free_production(&pool, col, NULL, &prod, &delta);
+  if (col->stock[COLONIZE_CARGO_RUM] != 3 || col->stock[COLONIZE_CARGO_SUGAR] != 7 ||
+      delta.goods[COLONIZE_CARGO_RUM] != 3) {
+    fprintf(
+      stderr,
+      "rum craft failed sugar=%d rum=%d dRum=%d\n",
+      col->stock[COLONIZE_CARGO_SUGAR],
+      col->stock[COLONIZE_CARGO_RUM],
+      delta.goods[COLONIZE_CARGO_RUM]
+    );
+    assets_msg_free(&names);
+    return 1;
+  }
+
+  /* No furs → no coats. */
+  col->has_building[fur] = true;
+  col->colonists[0].building_type = fur;
+  col->stock[COLONIZE_CARGO_FURS] = 0;
+  const int coats_before = col->stock[COLONIZE_CARGO_COATS];
+  turn_colony_free_production(&pool, col, NULL, &prod, &delta);
+  if (col->stock[COLONIZE_CARGO_COATS] != coats_before || delta.goods[COLONIZE_CARGO_COATS] != 0) {
+    fprintf(stderr, "expected no coats without furs\n");
+    assets_msg_free(&names);
+    return 1;
+  }
+
+  col->has_building[weaver] = true;
+  col->colonists[0].building_type = weaver;
+  col->stock[COLONIZE_CARGO_COTTON] = 5;
+  turn_colony_free_production(&pool, col, NULL, &prod, &delta);
+  if (col->stock[COLONIZE_CARGO_CLOTH] != 3 || col->stock[COLONIZE_CARGO_COTTON] != 2) {
+    fprintf(
+      stderr,
+      "cloth craft failed cotton=%d cloth=%d\n",
+      col->stock[COLONIZE_CARGO_COTTON],
+      col->stock[COLONIZE_CARGO_CLOTH]
+    );
+    assets_msg_free(&names);
+    return 1;
+  }
+
+  col->has_building[smith] = true;
+  col->has_building[armory] = true;
+  col->colonists[0].building_type = smith;
+  col->colonists[0].active = true;
+  col->stock[COLONIZE_CARGO_ORE] = 10;
+  col->stock[COLONIZE_CARGO_TOOLS] = 0;
+  col->stock[COLONIZE_CARGO_MUSKETS] = 0;
+  /* Two workers: smith + gunsmith. */
+  col->colonists[1].active = true;
+  col->colonists[1].building_type = armory;
+  col->colonists[1].field_job = -1;
+  col->colonist_count = 2;
+  col->population = 2;
+  turn_colony_free_production(&pool, col, NULL, &prod, &delta);
+  /* Smith makes 3 tools from ore; gunsmith converts 3 tools → 3 muskets same tick. */
+  if (col->stock[COLONIZE_CARGO_ORE] != 7 || col->stock[COLONIZE_CARGO_TOOLS] != 0 ||
+      col->stock[COLONIZE_CARGO_MUSKETS] != 3) {
+    fprintf(
+      stderr,
+      "tools/muskets craft failed ore=%d tools=%d guns=%d\n",
+      col->stock[COLONIZE_CARGO_ORE],
+      col->stock[COLONIZE_CARGO_TOOLS],
+      col->stock[COLONIZE_CARGO_MUSKETS]
+    );
+    assets_msg_free(&names);
+    return 1;
+  }
+  assets_msg_free(&names);
+  return 0;
+}
+
+/* Production rules: convert +1 on tiles; convert/criminal floor in buildings; wrong expert → free rate. */
+static int case_production_rules_field(void) {
+  fx_begin();
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  char err[256];
+  if (!map_load_mp("COLONIZE/AMER2.MP", &map, err, sizeof(err))) {
+    fprintf(stderr, "production rules: map load: %s\n", err);
+    return 1;
+  }
+  int fx = -1, fy = -1;
+  for (int y = 1; y < (int)map.height - 1 && fx < 0; ++y) {
+    for (int x = 1; x < (int)map.width - 1 && fx < 0; ++x) {
+      if (colony_yield_for_tile(&map, x, y, COLONIZE_JOB_LUMBERJACK) == 2) {
+        fx = x;
+        fy = y;
       }
     }
-    if (ftile < 0) {
-      fprintf(stderr, "no colony site with fisherman yield nearby\n");
-      assets_msg_free(&names);
-      map_free(&map);
-      return 1;
-    }
-    const int cid = colonies_found(&pool, &map, cx, cy, 0, 0, UNITS_JOB_NONE, 0, 0, 0);
-    ColonizeColony* col = colonies_get_mut(&pool, cid);
-    if (!col || !colonies_assign_field(&pool, cid, 0, ftile, COLONIZE_JOB_FISHERMAN)) {
-      fprintf(stderr, "assign fisherman failed at (%d,%d) tile %d\n", fx, fy, ftile);
-      assets_msg_free(&names);
-      map_free(&map);
-      return 1;
-    }
-    const int docks = colonies_find_building(&pool, "Docks");
-    if (docks < 0) {
-      fprintf(stderr, "docks-gate test: missing Docks building type\n");
-      assets_msg_free(&names);
-      map_free(&map);
-      return 1;
-    }
-    col->has_building[docks] = false;
-    const int no_docks_yld = colony_yield_for_worker(
-      &map, fx, fy, COLONIZE_JOB_FISHERMAN, col->colonists[0].profession, false, 0, 0,
-      false
-    );
-    if (no_docks_yld != 0) {
-      fprintf(stderr, "fisherman without Docks want 0 got %d\n", no_docks_yld);
-      assets_msg_free(&names);
-      map_free(&map);
-      return 1;
-    }
-    const int with_docks_yld = colony_yield_for_worker(
-      &map, fx, fy, COLONIZE_JOB_FISHERMAN, col->colonists[0].profession, true, 0, 0,
-      false
-    );
-    if (with_docks_yld <= 0) {
-      fprintf(stderr, "fisherman with Docks want >0 got %d\n", with_docks_yld);
-      assets_msg_free(&names);
-      map_free(&map);
-      return 1;
-    }
-    assets_msg_free(&names);
+  }
+  if (fx < 0) {
+    fprintf(stderr, "production rules: no tile with lumberjack yield 2\n");
     map_free(&map);
-    fprintf(stderr, "fisherman Docks gate ok\n");
+    return 1;
   }
-
-  /*
-   * Church and Cathedral passive crosses are the *same* (+1 each, on top of
-   * the colony base +1) in DOS (FUN_15eb_1f72 ~11306-11314: unconditional
-   * +1, then +1 independently if Church built, +1 independently if
-   * Cathedral built) — not the manual/wiki-sourced +2/+3 this used to
-   * return. No existing test exercised Cathedral specifically to catch a
-   * regression back to the old split.
-   */
-  {
-    ColonizeColonyPool pool;
-    colonies_init(&pool);
-    colonies_set_occupancy_map(NULL);
-    snprintf(pool.building_types[0].name, sizeof(pool.building_types[0].name), "Church");
-    snprintf(pool.building_types[1].name, sizeof(pool.building_types[1].name), "Cathedral");
-    pool.building_type_count = 2;
-
-    ColonizeColony* col = &pool.colonies[0];
-    memset(col, 0, sizeof(*col));
-    col->active = true;
-    col->id = 1;
-    col->nation_id = 0;
-    for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES_MAX; ++t) {
-      col->tiles[t] = -1;
-    }
-    pool.colony_count = 1;
-
-    col->has_building[0] = true; /* Church */
-    const int church_crosses = colony_prod_colony_crosses_ff(&pool, col, false, 0);
-    col->has_building[0] = false;
-    col->has_building[1] = true; /* Cathedral */
-    const int cathedral_crosses = colony_prod_colony_crosses_ff(&pool, col, false, 0);
-    if (church_crosses != 2 || cathedral_crosses != 2) {
-      fprintf(
-        stderr,
-        "Church/Cathedral passive parity want 2/2 got %d/%d\n",
-        church_crosses,
-        cathedral_crosses
-      );
-      return 1;
-    }
-    fprintf(stderr, "Church/Cathedral passive parity ok\n");
+  const int base = colony_yield_for_tile(&map, fx, fy, COLONIZE_JOB_LUMBERJACK);
+  /* Convert whitelist (FUN_15eb_18ec ~11974-11979): Lumberjack is
+   * excluded — no +1 here, unlike Farmer/Sugar/Tobacco/Cotton/Fur
+   * Trapper/Fisherman below. */
+  const int convert_yld =
+    colony_yield_for_worker(&map, fx, fy, COLONIZE_JOB_LUMBERJACK, COLONIZE_PROF_CONVERT, true, 0, 0, false);
+  if (convert_yld != base) {
+    fprintf(
+      stderr,
+      "convert lumberjack (not whitelisted) want %d got %d\n",
+      base,
+      convert_yld
+    );
+    map_free(&map);
+    return 1;
   }
-
-  /*
-   * Real DOS gives expert Farmer/Fisherman a flat +2 on skill match, not
-   * ×2 like every other field expert, plus the colony's SoL latch bits
-   * re-added a second time (FUN_15eb_18ec ~11890-11899, asm-confirmed —
-   * see docs/terrain_yields.md "Field Farmer/Fisherman expert formula").
-   * Wired 2026-08-18, player-confirmed against four real,
-   * un-synthesized golden_colony_prod02 town-commons-food values (which
-   * pinned the sibling formula first) plus Fort Orange's real expert
-   * Farmer (Savannah, no resource: base 3 + sol fold 2 + flat 2 + latch
-   * re-add 2 = 9, not (3+2)×2 = 10) and New Amsterdam's real expert
-   * Fisherman + Fishery resource (needs the same shape plus its own
-   * doubled resource).
-   *
-   * `base` (free colonist, non-expert) includes the unconditional Farmer
-   * +1 (colony_yield_pipeline) plus a possible river +1 — neither applies
-   * to the expert path (skips this block entirely), so back both out to
-   * get the raw table value the expert path's flat +2 applies to. No
-   * colony context here (real map, no colony), so colony_flags=0 → no
-   * latch re-add.
-   */
   {
-    ColonizeWorldMap map;
-    memset(&map, 0, sizeof(map));
-    char err[256];
-    if (!map_load_mp("COLONIZE/AMER2.MP", &map, err, sizeof(err))) {
-      fprintf(stderr, "map load for expert food/fish test: %s\n", err);
-      return 1;
-    }
-    int fx = -1, fy = -1;
-    for (int y = 1; y < (int)map.height - 1 && fx < 0; ++y) {
-      for (int x = 1; x < (int)map.width - 1 && fx < 0; ++x) {
+    int ffx = -1, ffy = -1;
+    for (int y = 1; y < (int)map.height - 1 && ffx < 0; ++y) {
+      for (int x = 1; x < (int)map.width - 1 && ffx < 0; ++x) {
         if (colony_yield_for_tile(&map, x, y, COLONIZE_JOB_FARMER) > 0) {
-          fx = x;
-          fy = y;
+          ffx = x;
+          ffy = y;
         }
       }
     }
-    if (fx < 0) {
-      fprintf(stderr, "no tile with farmer yield for expert test\n");
+    if (ffx < 0) {
+      fprintf(stderr, "production rules: no tile with farmer yield\n");
       map_free(&map);
       return 1;
     }
-    const int base = colony_yield_for_tile(&map, fx, fy, COLONIZE_JOB_FARMER);
-    const int expert_yld =
-      colony_yield_for_worker(&map, fx, fy, COLONIZE_JOB_FARMER, COLONIZE_JOB_FARMER, true, 0, 0, false);
-    /* 2026-09-03: the improvement stack (farmer +1, plow, river) applies to
-     * expert and non-expert alike (asm 15eb:1c32-1c9c is skill-blind except
-     * for u sizing, and u=1 for food jobs), so the expert delta over the
-     * profession-less tile yield is exactly the flat +2 — golden_colony_
-     * prod03's case3 (forest+Game 8, bare hill 4) pinned this. */
-    const int want = base + 2;
-    if (expert_yld != want) {
+    const int farmer_base = colony_yield_for_tile(&map, ffx, ffy, COLONIZE_JOB_FARMER);
+    const int farmer_convert =
+      colony_yield_for_worker(&map, ffx, ffy, COLONIZE_JOB_FARMER, COLONIZE_PROF_CONVERT, true, 0, 0, false);
+    if (farmer_convert != farmer_base + 1) {
       fprintf(
         stderr,
-        "expert farmer flat+2 want %d got %d (base %d)\n",
-        want,
-        expert_yld,
-        base
+        "convert farmer (whitelisted) want %d got %d\n",
+        farmer_base + 1,
+        farmer_convert
       );
       map_free(&map);
       return 1;
     }
-    map_free(&map);
-    fprintf(stderr, "expert farmer flat+2 ok\n");
   }
-
   /*
-   * Fisherman distance/enclosure modifier (FUN_15eb_18ec ~11814-11838):
-   * open-ocean tiles (all 8 neighbors Ocean/Sea Lane) get -2; a sheltered
-   * tile (few/no ocean neighbors) gets +1. Never ported before — new
-   * mechanic found this pass, not a divergence-fix.
+   * Resource effect table (FUN_15eb_17fa): a resource can pair with more
+   * than one job (Game(9) -> Farmer +2 AND Fur Trapper +2). The old port
+   * modeled resource->job as a single mapping (Game -> Fur Trapper only),
+   * so Farmer on a Game tile got no bonus at all — not just a wrong
+   * number, a whole matching case the old shape couldn't express.
    */
   {
-    ColonizeWorldMap map;
-    memset(&map, 0, sizeof(map));
-    char err[64];
-    if (!map_alloc(&map, 5, 5, err, sizeof(err))) {
-      fprintf(stderr, "fisherman distance mod: map_alloc %s\n", err);
-      return 1;
-    }
-    for (int i = 0; i < 25; ++i) {
-      map.terrain[i] = 2; /* plains everywhere */
-    }
-    map.terrain[2 * 5 + 2] = 25; /* ocean center tile being fished */
-    const int sheltered = colony_yield_for_tile(&map, 2, 2, COLONIZE_JOB_FISHERMAN);
-    for (int dy = -1; dy <= 1; ++dy) {
-      for (int dx = -1; dx <= 1; ++dx) {
-        if (dx == 0 && dy == 0) {
-          continue;
+    int gx = -1, gy = -1;
+    for (int y = 1; y < (int)map.height - 1 && gx < 0; ++y) {
+      for (int x = 1; x < (int)map.width - 1 && gx < 0; ++x) {
+        if (map_resource_type_for_yield(&map, x, y) == 9 /* Game */) {
+          gx = x;
+          gy = y;
         }
-        map.terrain[(2 + dy) * 5 + (2 + dx)] = 25; /* surround with open ocean too */
       }
     }
-    const int open_ocean = colony_yield_for_tile(&map, 2, 2, COLONIZE_JOB_FISHERMAN);
-    map_free(&map);
-    if (sheltered != open_ocean + 3) {
-      fprintf(
-        stderr,
-        "fisherman distance mod want sheltered=open_ocean+3 got sheltered=%d open_ocean=%d\n",
-        sheltered,
-        open_ocean
-      );
-      return 1;
-    }
-    fprintf(stderr, "fisherman distance mod ok\n");
-  }
-
-  /*
-   * Field yields zero the SoL/Tory mod outright for AI-controlled colonies
-   * (FUN_15eb_18ec); manufacturing/bells/crosses/hammers (FUN_15eb_1d4c)
-   * only change the divisor, never zero it — colony_prod_sol_bonus_field
-   * vs. the shared colony_prod_sol_bonus must actually differ for AI.
-   */
-  {
-    ColonizeColony col;
-    memset(&col, 0, sizeof(col));
-    col.active = true;
-    col.nation_id = 1;
-    col.population = 15; /* tories=(15*100+50)/100=15; thresh=10 -> mod=-1 */
-
-    ColonizeCol1Save col1;
-    memset(&col1, 0, sizeof(col1));
-    col1.player[1].control = 1; /* AI */
-
-    const int building_mod = colony_prod_sol_bonus(&col1, &col);
-    const int field_mod = colony_prod_sol_bonus_field(&col1, &col);
-    if (building_mod != -1 || field_mod != 0) {
-      fprintf(
-        stderr,
-        "AI field-vs-building SoL mod want building=-1 field=0 got building=%d field=%d\n",
-        building_mod,
-        field_mod
-      );
-      return 1;
-    }
-    fprintf(stderr, "AI field SoL zero-out ok\n");
-  }
-
-  /*
-   * Custom House auto-sell (FUN_364b_0688 / FUN_364b_0636): stock>99 → leave 50;
-   * Food denied; boycott bypass; tax then WoI untaxed.
-   */
-  {
-    ColonizeColonyPool pool;
-    colonies_init(&pool);
-    colonies_set_occupancy_map(NULL);
-    snprintf(
-      pool.building_types[0].name, sizeof(pool.building_types[0].name), "Custom House"
-    );
-    pool.building_type_count = 1;
-
-    ColonizeColony* col = &pool.colonies[0];
-    memset(col, 0, sizeof(*col));
-    col->active = true;
-    col->id = 1;
-    col->nation_id = 0;
-    col->has_building[0] = true;
-    col->building_in_production = -1;
-    /* bits==0 means "nothing configured" (per-cargo UI PARKED) → sells
-     * nothing; player-confirmed 2026-08-16 against a real DOS save
-     * (colony-prod-tests). Enable Tobacco explicitly to exercise the sell
-     * math below; the bits==0 no-op case is its own check further down. */
-    col->custom_house_bits = (uint16_t)(1u << COLONIZE_CARGO_TOBACCO);
-    col->stock[COLONIZE_CARGO_TOBACCO] = 120;
-    col->stock[COLONIZE_CARGO_FOOD] = 200;
-
-    EuropeScreen eu;
-    memset(&eu, 0, sizeof(eu));
-    eu.cargo_count = COLONIZE_CARGO_COUNT;
-    for (int i = 0; i < COLONIZE_CARGO_COUNT; ++i) {
-      eu.cargo[i].bid = 10;
-    }
-    eu.gold = 0;
-    eu.tax_percent = 20;
-
-    ColonizeCol1Save col1;
-    memset(&col1, 0, sizeof(col1));
-    col1.nation[0].boycott_bitmap = (uint16_t)(1u << COLONIZE_CARGO_TOBACCO);
-    col1.nation[0].tax_rate = 20; /* 1dfa ledger reads the seller's nation tax */
-
-    const int gained = europe_custom_house_autosell_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&pool), .col1=(ColonizeCol1Save*)(&col1), .col1_ok=true, .europe=(EuropeScreen*)(&eu)}, col, 0);
-    /* Sells at euro_price − 1 = 9: gross 630, tax 20% = 126 → 504
-     * (FUN_364b_0688 rounding: gross − gross·tax/100); boycott bit ignored;
-     * tax goes to royal_money. */
-    if (col->stock[COLONIZE_CARGO_TOBACCO] != 50 || col->stock[COLONIZE_CARGO_FOOD] != 200) {
-      fprintf(
-        stderr,
-        "custom house stock tobacco=%d food=%d (want 50/200)\n",
-        col->stock[COLONIZE_CARGO_TOBACCO],
-        col->stock[COLONIZE_CARGO_FOOD]
-      );
-      return 1;
-    }
-    if (gained != 504 || eu.gold != 504 || col1.nation[0].gold != 504u ||
-        col1.nation[0].royal_money != 126 || col1.nation[0].trade.tons[COLONIZE_CARGO_TOBACCO] != 70 ||
-        col1.nation[0].trade.tons2[COLONIZE_CARGO_TOBACCO] != 70 ||
-        col1.nation[0].trade.gold[COLONIZE_CARGO_TOBACCO] != 504) {
-      fprintf(
-        stderr,
-        "custom house gold gained=%d eu=%d nat=%u royal=%d (want 504/126)\n",
-        gained,
-        eu.gold,
-        (unsigned)col1.nation[0].gold,
-        (int)col1.nation[0].royal_money
-      );
-      return 1;
-    }
-
-    /* Blockade: enemy armed ship next to the colony shuts the Custom House
-     * (FUN_364b_0688 colony +0x1b & 3). */
-    col->stock[COLONIZE_CARGO_TOBACCO] = 120;
-    col->ai_flags = 0x01;
-    if (europe_custom_house_autosell_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&pool), .col1=(ColonizeCol1Save*)(&col1), .col1_ok=true, .europe=(EuropeScreen*)(&eu)}, col, 0) != 0 ||
-        col->stock[COLONIZE_CARGO_TOBACCO] != 120) {
-      fprintf(stderr, "custom house should be blockaded\n");
-      return 1;
-    }
-    col->ai_flags = 0;
-
-    col->stock[COLONIZE_CARGO_TOBACCO] = 120;
-    eu.gold = 0;
-    col1.nation[0].gold = 0;
-    col1.head.game_options.woi = 1; /* WoI — tax 0 */
-    const int gained_woi = europe_custom_house_autosell_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&pool), .col1=(ColonizeCol1Save*)(&col1), .col1_ok=true, .europe=(EuropeScreen*)(&eu)}, col, 0);
-    if (gained_woi != 630 || eu.gold != 630) {
-      fprintf(stderr, "custom house WoI gained=%d eu=%d (want 630)\n", gained_woi, eu.gold);
-      return 1;
-    }
-
-    /* Mask bit off → no sell for that cargo. */
-    col->stock[COLONIZE_CARGO_TOBACCO] = 120;
-    col->custom_house_bits = (uint16_t)(1u << COLONIZE_CARGO_SUGAR); /* tobacco off */
-    eu.gold = 0;
-    if (europe_custom_house_autosell_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&pool), .col1=(ColonizeCol1Save*)(&col1), .col1_ok=true, .europe=(EuropeScreen*)(&eu)}, col, 0) != 0 ||
-        col->stock[COLONIZE_CARGO_TOBACCO] != 120) {
-      fprintf(stderr, "custom house mask should skip tobacco\n");
-      return 1;
-    }
-
-    /* bits==0 (nothing configured yet) → sells nothing, not "everything".
-     * Player-confirmed 2026-08-16: real DOS save with Custom House built,
-     * custom_house_bits==0, sold nothing that turn. */
-    col->stock[COLONIZE_CARGO_TOBACCO] = 120;
-    col->custom_house_bits = 0;
-    eu.gold = 0;
-    if (europe_custom_house_autosell_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&pool), .col1=(ColonizeCol1Save*)(&col1), .col1_ok=true, .europe=(EuropeScreen*)(&eu)}, col, 0) != 0 ||
-        col->stock[COLONIZE_CARGO_TOBACCO] != 120) {
-      fprintf(stderr, "custom house bits==0 should sell nothing\n");
-      return 1;
-    }
-
-    /* turn_run_colony_production wires autosell. */
-    col->custom_house_bits = (uint16_t)(1u << COLONIZE_CARGO_TOBACCO);
-    col->stock[COLONIZE_CARGO_TOBACCO] = 120;
-    col->colonists[0].active = true;
-    col->colonist_count = 1;
-    col->population = 1;
-    col->stock[COLONIZE_CARGO_FOOD] = 10; /* eat 2 */
-    eu.gold = 0;
-    col1.head.game_options.woi = 0;
-    col1.nation[0].gold = 0;
-    eu.tax_percent = 0;
-    ColonizeTurnResult prod;
-    memset(&prod, 0, sizeof(prod));
-    turn_run_colony_production_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&pool), .map=(ColonizeWorldMap*)(NULL), .col1=(ColonizeCol1Save*)(&col1), .col1_ok=true, .rng=(ColonizeDosRng*)(NULL), .europe=(EuropeScreen*)(&eu)}, 0, &prod, NULL, NULL);
-    if (col->stock[COLONIZE_CARGO_TOBACCO] != 50 || eu.gold != 630) {
-      fprintf(
-        stderr,
-        "produce+CH tobacco=%d gold=%d (want 50/630)\n",
-        col->stock[COLONIZE_CARGO_TOBACCO],
-        eu.gold
-      );
-      return 1;
-    }
-    fprintf(stderr, "custom house autosell ok\n");
-  }
-
-  /*
-   * Col1 +0x97 depletion_counter: ore/silver field work INC; wrap at 50 sets
-   * MAP_LAYER2_SUPPRESS on the worked tile (FUN_364b_033a feature 4).
-   */
-  {
-    ColonizeWorldMap map;
-    memset(&map, 0, sizeof(map));
-    char err[256];
-    if (!map_load_mp("COLONIZE/AMER2.MP", &map, err, sizeof(err))) {
-      fprintf(stderr, "depletion: map load failed: %s\n", err);
-      return 1;
-    }
-    ColonizeColonyPool pool;
-    colonies_init(&pool);
-    colonies_set_occupancy_map(NULL);
-    ColonizeMsgCatalog names;
-    assets_msg_init(&names);
-    if (!assets_msg_load_file(&names, "COLONIZE/NAMES.TXT") ||
-        !colonies_load_buildings(&pool, &names) ||
-        !colonies_load_names(&pool, "COLONIZE/COLONY.TXT")) {
-      fprintf(stderr, "depletion: names/buildings failed\n");
-      assets_msg_free(&names);
-      map_free(&map);
-      return 1;
-    }
-    int cx = -1, cy = -1, fx = -1, fy = -1, ftile = -1;
-    for (int y = 1; y < (int)map.height - 1 && ftile < 0; ++y) {
-      for (int x = 1; x < (int)map.width - 1 && ftile < 0; ++x) {
-        if (!map_tile_is_land(&map, x, y) || !colonies_can_found(&pool, &map, x, y)) {
-          continue;
-        }
-        for (int ti = 0; ti < COLONIZE_COLONY_FIELD_TILES; ++ti) {
-          int dx = 0, dy = 0;
-          colonies_field_tile_delta(ti, &dx, &dy);
-          const int yld =
-            colony_yield_for_tile(&map, x + dx, y + dy, COLONIZE_JOB_ORE_MINER);
-          /*
-           * depletion_counter only tracks a special-resource deposit being
-           * mined down (2026-08-16 real-DOS fix), not any ore-yielding
-           * tile — the site must actually carry the bonus resource.
-           */
-          if (yld > 0 && map_resource_type_for_yield(&map, x + dx, y + dy) == 6) {
-            cx = x;
-            cy = y;
-            fx = x + dx;
-            fy = y + dy;
-            ftile = ti;
-            break;
+    if (gx >= 0) {
+      const int farmer_no_res = colony_yield_for_tile(&map, gx, gy, COLONIZE_JOB_FARMER);
+      /* Base without the resource: same pedia, off-tile so no resource hits. */
+      const int base_pedia = map_pedia_terrain_index_at(&map, gx, gy);
+      int base_no_res = -1;
+      for (int y = 1; y < (int)map.height - 1 && base_no_res < 0; ++y) {
+        for (int x = 1; x < (int)map.width - 1 && base_no_res < 0; ++x) {
+          if (map_pedia_terrain_index_at(&map, x, y) == base_pedia &&
+              map_resource_type_for_yield(&map, x, y) < 0 &&
+              !map_tile_has_road(&map, x, y) && !map_tile_has_river(&map, x, y)) {
+            base_no_res = colony_yield_for_tile(&map, x, y, COLONIZE_JOB_FARMER);
           }
         }
       }
-    }
-    if (ftile < 0) {
-      fprintf(stderr, "depletion: no ore-miner field site\n");
-      assets_msg_free(&names);
-      map_free(&map);
-      return 1;
-    }
-    const int cid = colonies_found(&pool, &map, cx, cy, 0, 0, UNITS_JOB_NONE, 0, 0, 0);
-    ColonizeColony* col = colonies_get_mut(&pool, cid);
-    if (!col || !colonies_assign_field(&pool, cid, 0, ftile, COLONIZE_JOB_ORE_MINER)) {
-      fprintf(stderr, "depletion: assign ore miner failed\n");
-      assets_msg_free(&names);
-      map_free(&map);
-      return 1;
-    }
-    col->building_in_production = -1;
-    col->stock[COLONIZE_CARGO_FOOD] = 100;
-    col->depletion_counter = 0x31; /* one INC wraps */
-    snprintf(col->name, sizeof(col->name), "Potosi");
-
-    EuropeScreen eu;
-    memset(&eu, 0, sizeof(eu));
-    AiPopupState pops;
-    ai_popup_init(&pops);
-    ColonizeMsgCatalog game_txt;
-    assets_msg_init(&game_txt);
-    (void)assets_msg_load_file(&game_txt, "COLONIZE/GAME.TXT");
-
-    ColonizeTurnResult prod;
-    memset(&prod, 0, sizeof(prod));
-    turn_run_colony_production_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&pool), .map=(ColonizeWorldMap*)(&map), .col1=(ColonizeCol1Save*)(NULL), .col1_ok=((NULL) != NULL), .rng=(ColonizeDosRng*)(NULL), .europe=(EuropeScreen*)(&eu)}, 0, &prod, &pops, &game_txt);
-    if (col->depletion_counter != 0) {
-      fprintf(
-        stderr,
-        "depletion_counter wrap got %u want 0\n",
-        (unsigned)col->depletion_counter
-      );
-      assets_msg_free(&game_txt);
-      assets_msg_free(&names);
-      map_free(&map);
-      return 1;
-    }
-    const uint8_t after_l2 =
-      map.layer2 ? map.layer2[fy * map.width + fx] : 0;
-    if ((after_l2 & MAP_LAYER2_SUPPRESS) == 0) {
-      fprintf(
-        stderr,
-        "depletion wrap did not set LAYER2_SUPPRESS at (%d,%d) after=%02x\n",
-        fx,
-        fy,
-        after_l2
-      );
-      assets_msg_free(&game_txt);
-      assets_msg_free(&names);
-      map_free(&map);
-      return 1;
-    }
-    if (col->stock[COLONIZE_CARGO_ORE] <= 0 && col->stock[COLONIZE_CARGO_SILVER] <= 0) {
-      fprintf(stderr, "depletion: expected ore/silver yield in stock\n");
-      assets_msg_free(&game_txt);
-      assets_msg_free(&names);
-      map_free(&map);
-      return 1;
-    }
-    if (strstr(eu.status, "depleted") == NULL && pops.queue_count < 1) {
-      fprintf(stderr, "depletion: want status/popup got '%s' q=%d\n", eu.status, pops.queue_count);
-      assets_msg_free(&game_txt);
-      assets_msg_free(&names);
-      map_free(&map);
-      return 1;
-    }
-    if (pops.queue_count >= 1 &&
-        strstr(pops.queue[0].body, "depleted") == NULL &&
-        strstr(pops.queue[0].body, "Potosi") == NULL) {
-      fprintf(stderr, "depletion: popup body weak: '%s'\n", pops.queue[0].body);
-      assets_msg_free(&game_txt);
-      assets_msg_free(&names);
-      map_free(&map);
-      return 1;
-    }
-    fprintf(stderr, "depletion_counter wrap+suppress ok\n");
-    assets_msg_free(&game_txt);
-    assets_msg_free(&names);
-    map_free(&map);
-  }
-
-  /* FUN_364b_0688 birth: food≥200 after eat → Free Colonist, −200 food. */
-  {
-    ColonizeColonyPool birth_pool;
-    colonies_init(&birth_pool);
-    colonies_set_occupancy_map(NULL);
-    ColonizeColony* b = &birth_pool.colonies[0];
-    memset(b, 0, sizeof(*b));
-    b->active = true;
-    b->id = 1;
-    b->nation_id = 0;
-    b->building_in_production = -1;
-    snprintf(b->name, sizeof(b->name), "Plymouth");
-    b->stock[COLONIZE_CARGO_FOOD] = 250; /* eat 2 → 248 → birth −200 → 48 */
-    b->colonists[0].active = true;
-    b->colonists[0].unit_type_index = 0;
-    b->colonists[0].profession = UNITS_JOB_NONE;
-    b->colonists[0].building_type = -1;
-    b->colonists[0].field_job = -1;
-    for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES_MAX; ++t) {
-      b->tiles[t] = -1;
-    }
-    b->colonist_count = 1;
-    b->population = 1;
-    birth_pool.colony_count = 1;
-
-    EuropeScreen eu;
-    memset(&eu, 0, sizeof(eu));
-    AiPopupState pops;
-    ai_popup_init(&pops);
-    ColonizeMsgCatalog game_txt;
-    assets_msg_init(&game_txt);
-    (void)assets_msg_load_file(&game_txt, "COLONIZE/GAME.TXT");
-
-    ColonizeTurnResult br;
-    memset(&br, 0, sizeof(br));
-    turn_run_colony_production_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&birth_pool), .map=(ColonizeWorldMap*)(NULL), .col1=(ColonizeCol1Save*)(NULL), .col1_ok=((NULL) != NULL), .rng=(ColonizeDosRng*)(NULL), .europe=(EuropeScreen*)(&eu)}, 0, &br, &pops, &game_txt);
-    if (!b->active || b->colonist_count != 2) {
-      fprintf(stderr, "birth: colonist_count want 2 got %d\n", b->colonist_count);
-      assets_msg_free(&game_txt);
-      return 1;
-    }
-    if (b->stock[COLONIZE_CARGO_FOOD] != 48) {
-      fprintf(stderr, "birth: food want 48 got %d\n", b->stock[COLONIZE_CARGO_FOOD]);
-      assets_msg_free(&game_txt);
-      return 1;
-    }
-    if (b->colonists[1].profession != UNITS_JOB_COLONIST) {
-      fprintf(stderr, "birth: newborn should be Free Colonist job\n");
-      assets_msg_free(&game_txt);
-      return 1;
-    }
-    if (strstr(eu.status, "Birth") == NULL && strstr(eu.status, "Plymouth") == NULL) {
-      fprintf(stderr, "birth: status want Birth/Plymouth got '%s'\n", eu.status);
-      assets_msg_free(&game_txt);
-      return 1;
-    }
-    if (pops.queue_count < 1) {
-      fprintf(stderr, "birth: expected NEWCOLONIST popup\n");
-      assets_msg_free(&game_txt);
-      return 1;
-    }
-    if (strstr(pops.queue[0].body, "Population increase") == NULL &&
-        strstr(pops.queue[0].body, "Plymouth") == NULL &&
-        strstr(pops.queue[0].body, "Birth") == NULL) {
-      fprintf(stderr, "birth: popup body weak: '%s'\n", pops.queue[0].body);
-      assets_msg_free(&game_txt);
-      return 1;
-    }
-    assets_msg_free(&game_txt);
-    fprintf(stderr, "colony birth food≥200 ok\n");
-  }
-
-  /*
-   * FUN_364b_0688 Phase B: AI Euro food += difficulty>>1.
-   * Cite: colony_eot_production.md; difficulty.md.
-   */
-  {
-    ColonizeColonyPool ai_pool;
-    colonies_init(&ai_pool);
-    colonies_set_occupancy_map(NULL);
-    ColonizeColony* a = &ai_pool.colonies[0];
-    memset(a, 0, sizeof(*a));
-    a->active = true;
-    a->id = 1;
-    a->nation_id = 1;
-    a->building_in_production = -1;
-    a->stock[COLONIZE_CARGO_FOOD] = 10;
-    a->colonists[0].active = true;
-    a->colonists[0].unit_type_index = 0;
-    a->colonists[0].building_type = -1;
-    a->colonists[0].field_job = -1;
-    for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES_MAX; ++t) {
-      a->tiles[t] = -1;
-    }
-    a->colonist_count = 1;
-    a->population = 1;
-    ai_pool.colony_count = 1;
-
-    ColonizeCol1Save col1;
-    memset(&col1, 0, sizeof(col1));
-    col1.player[0].control = 0;
-    col1.player[1].control = 1; /* AI */
-    col1.head.difficulty = 4; /* Viceroy → +2 */
-
-    ColonizeTurnResult ar;
-    memset(&ar, 0, sizeof(ar));
-    turn_run_colony_production_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&ai_pool), .map=(ColonizeWorldMap*)(NULL), .col1=(ColonizeCol1Save*)(&col1), .col1_ok=true, .rng=(ColonizeDosRng*)(NULL), .europe=(EuropeScreen*)(NULL)}, 0, &ar, NULL, NULL);
-    /* 10 + 2 AI food − 2 eat = 10 */
-    if (a->stock[COLONIZE_CARGO_FOOD] != 10) {
-      fprintf(
-        stderr,
-        "AI food bonus Viceroy: want 10 got %d\n",
-        a->stock[COLONIZE_CARGO_FOOD]
-      );
-      return 1;
-    }
-
-    a->stock[COLONIZE_CARGO_FOOD] = 10;
-    col1.head.difficulty = 0; /* Discoverer → +0 */
-    turn_run_colony_production_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&ai_pool), .map=(ColonizeWorldMap*)(NULL), .col1=(ColonizeCol1Save*)(&col1), .col1_ok=true, .rng=(ColonizeDosRng*)(NULL), .europe=(EuropeScreen*)(NULL)}, 0, &ar, NULL, NULL);
-    if (a->stock[COLONIZE_CARGO_FOOD] != 8) {
-      fprintf(
-        stderr,
-        "AI food bonus Discoverer: want 8 got %d\n",
-        a->stock[COLONIZE_CARGO_FOOD]
-      );
-      return 1;
-    }
-
-    a->stock[COLONIZE_CARGO_FOOD] = 10;
-    a->nation_id = 0; /* human */
-    col1.head.difficulty = 4;
-    turn_run_colony_production_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&ai_pool), .map=(ColonizeWorldMap*)(NULL), .col1=(ColonizeCol1Save*)(&col1), .col1_ok=true, .rng=(ColonizeDosRng*)(NULL), .europe=(EuropeScreen*)(NULL)}, 0, &ar, NULL, NULL);
-    if (a->stock[COLONIZE_CARGO_FOOD] != 8) {
-      fprintf(
-        stderr,
-        "human no AI food bonus: want 8 got %d\n",
-        a->stock[COLONIZE_CARGO_FOOD]
-      );
-      return 1;
-    }
-    fprintf(stderr, "AI colony food difficulty>>1 ok\n");
-  }
-
-  /*
-   * FUN_364b_0688 Phase C: rebel dividend/divisor EOT tick.
-   * Cite: sons_of_liberty.md; colony_prod_tick_rebel_accumulators.
-   */
-  {
-    ColonizeColonyPool pool;
-    colonies_init(&pool);
-    colonies_set_occupancy_map(NULL);
-    snprintf(pool.building_types[0].name, sizeof(pool.building_types[0].name), "Town Hall");
-    pool.building_type_count = 1;
-
-    ColonizeColony* c = &pool.colonies[0];
-    memset(c, 0, sizeof(*c));
-    c->active = true;
-    c->id = 1;
-    c->x = 10;
-    c->y = 12;
-    c->nation_id = 0; /* human */
-    c->building_in_production = -1;
-    c->has_building[0] = true;
-    c->stock[COLONIZE_CARGO_FOOD] = 50;
-    c->colonists[0].active = true;
-    c->colonists[0].building_type = 0;
-    c->colonists[0].profession = COLONIZE_PROF_STATESMAN;
-    c->colonists[0].field_job = -1;
-    for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES_MAX; ++t) {
-      c->tiles[t] = -1;
-    }
-    c->colonist_count = 1;
-    c->population = 1;
-    pool.colony_count = 1;
-
-    ColonizeCol1Colony col1c;
-    memset(&col1c, 0, sizeof(col1c));
-    col1c.x = 10;
-    col1c.y = 12;
-    col1c.nation_id = 0;
-    /* Pre-shrink 50%/100 so >>6 restores 50/100. */
-    col1c.rebel_dividend = 50u << 6;
-    col1c.rebel_divisor = 100u << 6;
-
-    ColonizeCol1Save col1;
-    memset(&col1, 0, sizeof(col1));
-    col1.colony = &col1c;
-    col1.head.colony_count = 1;
-    col1.player[0].control = 0;
-    col1.player[1].control = 1;
-    for (int i = 0; i < (int)COLONIZE_COL1_FF_COUNT; ++i) {
-      col1.head.founding_father[i] = -1;
-    }
-
-    /* Town Hall +1 + Statesman 6 = 7 bells. */
-    const int expect_bells = colony_prod_colony_bells_ff(&pool, c, 0, 0, false, 0);
-    if (expect_bells != 7) {
-      fprintf(stderr, "Phase C setup bells want 7 got %d\n", expect_bells);
-      return 1;
-    }
-
-    /*
-     * Production tab preview must match the EOT tick's FF-adjusted, per-worker
-     * SoL bells (turn_count_bells_and_crosses_for_nation in turn.c), not the
-     * plain (no-FF) colony_prod_colony_bells_ff() used above only to sanity-check the
-     * base rate. rebel_dividend/divisor above (50/100 <<6) give sol 50%,
-     * latched below into SOL_50 (bonus reads latch bits only, 18ec
-     * 11881-11886) -> sol_bonus +1. sol_bonus now folds into colony_prod_bells_worker
-     * *before* the skill-match doubling (matches FUN_15eb_1d4c's Statesman
-     * body — manufacturing_worker_calc_1d4c.md): tag(3)+sol_bonus(1)=4,
-     * doubled (skilled Statesman) = 8. Jefferson +50%: 8*1.5=12. Town Hall
-     * passive +1 = 13.
-     */
-    col1.head.founding_father[FF_THOMAS_JEFFERSON] = 0; /* nation 0 owns it */
-    col1.nation[0].founding_fathers[FF_THOMAS_JEFFERSON / 8] |=
-      (uint8_t)(1u << (FF_THOMAS_JEFFERSON % 8));
-    colony_prod_refresh_sol_flags(c, &col1); /* latch SOL_50 from the 50% pair */
-    ColonizeColonyPreview prev;
-    colony_preview_compute_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&pool), .map=(ColonizeWorldMap*)(NULL), .col1=(ColonizeCol1Save*)(&col1), .col1_ok=true}, c, &prev);
-    if (prev.bells != 13) {
-      fprintf(stderr, "Phase C preview Jefferson bells want 13 got %d\n", prev.bells);
-      return 1;
-    }
-    col1.head.founding_father[FF_THOMAS_JEFFERSON] = -1;
-    col1.nation[0].founding_fathers[FF_THOMAS_JEFFERSON / 8] &=
-      (uint8_t)~(1u << (FF_THOMAS_JEFFERSON % 8));
-
-    ColonizeTurnResult prod;
-    memset(&prod, 0, sizeof(prod));
-    turn_run_colony_production_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&pool), .map=(ColonizeWorldMap*)(NULL), .col1=(ColonizeCol1Save*)(&col1), .col1_ok=true, .rng=(ColonizeDosRng*)(NULL), .europe=(EuropeScreen*)(NULL)}, 0, &prod, NULL, NULL);
-    /*
-     * -= >>6 → 3150/6300; divisor+=2 → 6302; dividend += bells → 3159.
-     * Bells here are the SoL-ADJUSTED 9, not the sol-free 7: DOS
-     * FUN_364b_0688 reads this colony's bells once (`local_ba`,
-     * viceroy_unpacked.c:57230) and feeds the same word to the congress
-     * tally and to the rebel dividend, and that word carries the per-worker
-     * SoL term. The SOL_50 latch above gives sol_bonus +1, so the Statesman
-     * is (3+1)*2 = 8 plus the Town Hall passive 1 = 9. (Was 3157 while the
-     * accumulator recomputed bells with sol_bonus=0 — smell #89.)
-     */
-    if (col1c.rebel_dividend != 3159u || col1c.rebel_divisor != 6302u) {
-      fprintf(
-        stderr,
-        "Phase C human tick want 3159/6302 got %u/%u\n",
-        (unsigned)col1c.rebel_dividend,
-        (unsigned)col1c.rebel_divisor
-      );
-      return 1;
-    }
-
-    /* WoI + crown-occupied: bells = -(9>>1) = -4 → dividend 3150-4=3146
-     * (9 = same SoL-adjusted bells as above; was -(7>>1) pre-#89). */
-    col1c.rebel_dividend = 50u << 6;
-    col1c.rebel_divisor = 100u << 6;
-    c->nation_id = 1; /* crown peer of human 0 */
-    col1c.nation_id = 1;
-    col1.head.game_options.woi = 1;
-    c->stock[COLONIZE_CARGO_FOOD] = 50;
-    memset(&prod, 0, sizeof(prod));
-    turn_run_colony_production_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&pool), .map=(ColonizeWorldMap*)(NULL), .col1=(ColonizeCol1Save*)(&col1), .col1_ok=true, .rng=(ColonizeDosRng*)(NULL), .europe=(EuropeScreen*)(NULL)}, 0, &prod, NULL, NULL);
-    if (col1c.rebel_dividend != 3146u || col1c.rebel_divisor != 6302u) {
-      fprintf(
-        stderr,
-        "Phase C WoI crown tick want 3146/6302 got %u/%u\n",
-        (unsigned)col1c.rebel_dividend,
-        (unsigned)col1c.rebel_divisor
-      );
-      return 1;
-    }
-    fprintf(stderr, "SoL Phase C rebel accumulator ok\n");
-  }
-
-  /*
-   * FUN_364b_0688 Phase D: REBELMAJORITY / SONSUP chrome + report gates.
-   * Cite: colony_eot_production.md; sons_of_liberty.md; GAME.TXT @REBELMAJORITY.
-   */
-  {
-    ColonizeColonyPool pool;
-    colonies_init(&pool);
-    colonies_set_occupancy_map(NULL);
-    snprintf(pool.building_types[0].name, sizeof(pool.building_types[0].name), "Town Hall");
-    pool.building_type_count = 1;
-
-    ColonizeColony* c = &pool.colonies[0];
-    memset(c, 0, sizeof(*c));
-    c->active = true;
-    c->id = 1;
-    c->x = 10;
-    c->y = 12;
-    c->nation_id = 0;
-    c->building_in_production = -1;
-    c->has_building[0] = true;
-    snprintf(c->name, sizeof(c->name), "Jamestown");
-    c->stock[COLONIZE_CARGO_FOOD] = 80;
-    c->colonists[0].active = true;
-    c->colonists[0].building_type = 0;
-    c->colonists[0].profession = COLONIZE_PROF_STATESMAN;
-    c->colonists[0].field_job = -1;
-    for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES_MAX; ++t) {
-      c->tiles[t] = -1;
-    }
-    c->colonist_count = 1;
-    c->population = 1;
-    pool.colony_count = 1;
-
-    ColonizeCol1Colony col1c;
-    memset(&col1c, 0, sizeof(col1c));
-    col1c.x = 10;
-    col1c.y = 12;
-    col1c.nation_id = 0;
-    /* Pre-shrink 50%/100 → after tick +6 bells → ~50.07%. */
-    col1c.rebel_dividend = 50u << 6;
-    col1c.rebel_divisor = 100u << 6;
-
-    ColonizeCol1Save col1;
-    memset(&col1, 0, sizeof(col1));
-    col1.colony = &col1c;
-    col1.head.colony_count = 1;
-    col1.player[0].control = 0;
-    snprintf(col1.player[0].country_name, sizeof(col1.player[0].country_name), "England");
-    for (int i = 0; i < (int)COLONIZE_COL1_FF_COUNT; ++i) {
-      col1.head.founding_father[i] = -1;
-    }
-
-    EuropeScreen eu;
-    memset(&eu, 0, sizeof(eu));
-    AiPopupState pops;
-    ai_popup_init(&pops);
-    ColonizeMsgCatalog game_txt;
-    assets_msg_init(&game_txt);
-    (void)assets_msg_load_file(&game_txt, "COLONIZE/GAME.TXT");
-
-    ColonizeTurnResult prod;
-    memset(&prod, 0, sizeof(prod));
-    turn_run_colony_production_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&pool), .map=(ColonizeWorldMap*)(NULL), .col1=(ColonizeCol1Save*)(&col1), .col1_ok=true, .rng=(ColonizeDosRng*)(NULL), .europe=(EuropeScreen*)(&eu)}, 0, &prod, &pops, &game_txt);
-    if ((c->colony_flags & COLONIZE_COLONY_FLAG_SOL_50) == 0) {
-      fprintf(stderr, "Phase D majority: sol_50 latch missing\n");
-      assets_msg_free(&game_txt);
-      return 1;
-    }
-    if (strstr(eu.status, "SoL") == NULL && pops.queue_count < 1) {
-      fprintf(stderr, "Phase D majority: want status/popup got '%s' q=%d\n", eu.status, pops.queue_count);
-      assets_msg_free(&game_txt);
-      return 1;
-    }
-    if (pops.queue_count >= 1 &&
-        strstr(pops.queue[0].body, "majority") == NULL &&
-        strstr(pops.queue[0].body, "SoL") == NULL &&
-        strstr(eu.status, "up to") == NULL) {
-      fprintf(stderr, "Phase D majority body/status weak: '%s' / '%s'\n", pops.queue[0].body, eu.status);
-      assets_msg_free(&game_txt);
-      return 1;
-    }
-
-    /* Suppress rebel-majority reports. */
-    c->colony_flags = 0;
-    col1c.rebel_dividend = 45u << 6;
-    col1c.rebel_divisor = 100u << 6;
-    c->stock[COLONIZE_CARGO_FOOD] = 80;
-    col1.head.colony_report_options.report_rebel_majorities = 1;
-    eu.status[0] = '\0';
-    ai_popup_clear(&pops);
-    memset(&prod, 0, sizeof(prod));
-    turn_run_colony_production_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&pool), .map=(ColonizeWorldMap*)(NULL), .col1=(ColonizeCol1Save*)(&col1), .col1_ok=true, .rng=(ColonizeDosRng*)(NULL), .europe=(EuropeScreen*)(&eu)}, 0, &prod, &pops, &game_txt);
-    if (pops.queue_count != 0 || strstr(eu.status, "SoL") != NULL) {
-      fprintf(
-        stderr,
-        "Phase D suppress rebel maj: want quiet got q=%d '%s'\n",
-        pops.queue_count,
-        eu.status
-      );
-      assets_msg_free(&game_txt);
-      return 1;
-    }
-
-    /* Decade up (@SONSUP): sol_50 already, 59%→60%. */
-    col1.head.colony_report_options.report_rebel_majorities = 0;
-    col1.head.colony_report_options.report_sons_of_liberty_membership = 0;
-    c->colony_flags = COLONIZE_COLONY_FLAG_SOL_50;
-    col1c.rebel_dividend = 3835u;
-    col1c.rebel_divisor = 100u << 6;
-    c->stock[COLONIZE_CARGO_FOOD] = 80;
-    eu.status[0] = '\0';
-    ai_popup_clear(&pops);
-    memset(&prod, 0, sizeof(prod));
-    turn_run_colony_production_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&pool), .map=(ColonizeWorldMap*)(NULL), .col1=(ColonizeCol1Save*)(&col1), .col1_ok=true, .rng=(ColonizeDosRng*)(NULL), .europe=(EuropeScreen*)(&eu)}, 0, &prod, &pops, &game_txt);
-    if (strstr(eu.status, "SoL") == NULL && pops.queue_count < 1) {
-      fprintf(stderr, "Phase D SONSUP: want status/popup got '%s' q=%d\n", eu.status, pops.queue_count);
-      assets_msg_free(&game_txt);
-      return 1;
-    }
-    /* Suppress sons membership reports. */
-    c->colony_flags = COLONIZE_COLONY_FLAG_SOL_50;
-    col1c.rebel_dividend = 3835u;
-    col1c.rebel_divisor = 100u << 6;
-    c->stock[COLONIZE_CARGO_FOOD] = 80;
-    col1.head.colony_report_options.report_sons_of_liberty_membership = 1;
-    eu.status[0] = '\0';
-    ai_popup_clear(&pops);
-    memset(&prod, 0, sizeof(prod));
-    turn_run_colony_production_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&pool), .map=(ColonizeWorldMap*)(NULL), .col1=(ColonizeCol1Save*)(&col1), .col1_ok=true, .rng=(ColonizeDosRng*)(NULL), .europe=(EuropeScreen*)(&eu)}, 0, &prod, &pops, &game_txt);
-    if (pops.queue_count != 0 || strstr(eu.status, "SoL") != NULL) {
-      fprintf(
-        stderr,
-        "Phase D suppress sons: want quiet got q=%d '%s'\n",
-        pops.queue_count,
-        eu.status
-      );
-      assets_msg_free(&game_txt);
-      return 1;
-    }
-
-    assets_msg_free(&game_txt);
-    fprintf(stderr, "SoL Phase D membership chrome ok\n");
-  }
-
-  /*
-   * FUN_364b_0688 Phase D Tory pressure: @INEFFICIENT / @EFFICIENT.
-   * Cite: colony_eot_production.md; difficulty.md; GAME.TXT @INEFFICIENT.
-   */
-  {
-    ColonizeColonyPool pool;
-    colonies_init(&pool);
-    colonies_set_occupancy_map(NULL);
-    ColonizeColony* c = &pool.colonies[0];
-    memset(c, 0, sizeof(*c));
-    c->active = true;
-    c->id = 1;
-    c->x = 8;
-    c->y = 8;
-    c->nation_id = 0;
-    c->building_in_production = -1;
-    snprintf(c->name, sizeof(c->name), "Roanoke");
-    c->stock[COLONIZE_CARGO_FOOD] = 200;
-    for (int i = 0; i < 12; ++i) {
-      c->colonists[i].active = true;
-      c->colonists[i].building_type = -1;
-      c->colonists[i].field_job = -1;
-      c->colonists[i].profession = COLONIZE_PROF_FREE_COLONIST;
-    }
-    for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES_MAX; ++t) {
-      c->tiles[t] = -1;
-    }
-    c->colonist_count = 12;
-    c->population = 12;
-    pool.colony_count = 1;
-
-    ColonizeCol1Colony col1c;
-    memset(&col1c, 0, sizeof(col1c));
-    col1c.x = 8;
-    col1c.y = 8;
-    col1c.nation_id = 0;
-    col1c.rebel_dividend = 0u << 6;
-    col1c.rebel_divisor = 100u << 6;
-
-    ColonizeCol1Save col1;
-    memset(&col1, 0, sizeof(col1));
-    col1.colony = &col1c;
-    col1.head.colony_count = 1;
-    col1.head.difficulty = 0; /* Discoverer thresh 10 */
-    col1.player[0].control = 0;
-    for (int i = 0; i < (int)COLONIZE_COL1_FF_COUNT; ++i) {
-      col1.head.founding_father[i] = -1;
-    }
-    /* Quiet SoL latch/decade chrome for this fixture. */
-    col1.head.colony_report_options.report_rebel_majorities = 1;
-    col1.head.colony_report_options.report_sons_of_liberty_membership = 1;
-
-    EuropeScreen eu;
-    memset(&eu, 0, sizeof(eu));
-    AiPopupState pops;
-    ai_popup_init(&pops);
-    ColonizeMsgCatalog game_txt;
-    assets_msg_init(&game_txt);
-    (void)assets_msg_load_file(&game_txt, "COLONIZE/GAME.TXT");
-
-    ColonizeTurnResult prod;
-    memset(&prod, 0, sizeof(prod));
-    turn_run_colony_production_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&pool), .map=(ColonizeWorldMap*)(NULL), .col1=(ColonizeCol1Save*)(&col1), .col1_ok=true, .rng=(ColonizeDosRng*)(NULL), .europe=(EuropeScreen*)(&eu)}, 0, &prod, &pops, &game_txt);
-    if ((c->colony_flags & COLONIZE_COLONY_FLAG_INEFFICIENT_GOV) == 0) {
-      fprintf(stderr, "INEFFICIENT: latch not set (sol low, pop 12)\n");
-      assets_msg_free(&game_txt);
-      return 1;
-    }
-    if (strstr(eu.status, "inefficient") == NULL && pops.queue_count < 1) {
-      fprintf(stderr, "INEFFICIENT: want status/popup got '%s' q=%d\n", eu.status, pops.queue_count);
-      assets_msg_free(&game_txt);
-      return 1;
-    }
-
-    /*
-     * bugs.md ("it keeps pestering me"): a second tick with the latch already
-     * set must stay quiet, and — because the latch is now DOS's saved
-     * colony_flags bit3 rather than a RAM-only byte — that silence survives a
-     * save/load too.
-     */
-    eu.status[0] = '\0';
-    ai_popup_clear(&pops);
-    c->stock[COLONIZE_CARGO_FOOD] = 200;
-    memset(&prod, 0, sizeof(prod));
-    turn_run_colony_production_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&pool), .map=(ColonizeWorldMap*)(NULL), .col1=(ColonizeCol1Save*)(&col1), .col1_ok=true, .rng=(ColonizeDosRng*)(NULL), .europe=(EuropeScreen*)(&eu)}, 0, &prod, &pops, &game_txt);
-    if (strstr(eu.status, "inefficient") != NULL) {
-      fprintf(stderr, "INEFFICIENT: repeated on a second tick ('%s')\n", eu.status);
-      assets_msg_free(&game_txt);
-      return 1;
-    }
-
-    /* Raise SoL → tories 0 → @EFFICIENT. */
-    col1c.rebel_dividend = 100u << 6;
-    col1c.rebel_divisor = 100u << 6;
-    c->stock[COLONIZE_CARGO_FOOD] = 200;
-    c->colony_flags = (uint8_t)(COLONIZE_COLONY_FLAG_SOL_50 | COLONIZE_COLONY_FLAG_SOL_100 |
-                                COLONIZE_COLONY_FLAG_INEFFICIENT_GOV);
-    eu.status[0] = '\0';
-    ai_popup_clear(&pops);
-    memset(&prod, 0, sizeof(prod));
-    turn_run_colony_production_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&pool), .map=(ColonizeWorldMap*)(NULL), .col1=(ColonizeCol1Save*)(&col1), .col1_ok=true, .rng=(ColonizeDosRng*)(NULL), .europe=(EuropeScreen*)(&eu)}, 0, &prod, &pops, &game_txt);
-    if ((c->colony_flags & COLONIZE_COLONY_FLAG_INEFFICIENT_GOV) != 0) {
-      fprintf(stderr, "EFFICIENT: latch still set\n");
-      assets_msg_free(&game_txt);
-      return 1;
-    }
-    if (strstr(eu.status, "efficien") == NULL && pops.queue_count < 1) {
-      fprintf(stderr, "EFFICIENT: want status/popup got '%s' q=%d\n", eu.status, pops.queue_count);
-      assets_msg_free(&game_txt);
-      return 1;
-    }
-
-    /* Suppress reports: edge up silent but latch still sets. */
-    col1c.rebel_dividend = 0u << 6;
-    col1c.rebel_divisor = 100u << 6;
-    c->stock[COLONIZE_CARGO_FOOD] = 200;
-    c->colony_flags = 0;
-    col1.head.colony_report_options.report_inefficient_government = 1;
-    eu.status[0] = '\0';
-    ai_popup_clear(&pops);
-    memset(&prod, 0, sizeof(prod));
-    turn_run_colony_production_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&pool), .map=(ColonizeWorldMap*)(NULL), .col1=(ColonizeCol1Save*)(&col1), .col1_ok=true, .rng=(ColonizeDosRng*)(NULL), .europe=(EuropeScreen*)(&eu)}, 0, &prod, &pops, &game_txt);
-    if ((c->colony_flags & COLONIZE_COLONY_FLAG_INEFFICIENT_GOV) == 0) {
-      fprintf(stderr, "INEFFICIENT suppress: latch should still set\n");
-      assets_msg_free(&game_txt);
-      return 1;
-    }
-    if (pops.queue_count != 0 || strstr(eu.status, "inefficient") != NULL) {
-      fprintf(
-        stderr,
-        "INEFFICIENT suppress: want quiet got q=%d '%s'\n",
-        pops.queue_count,
-        eu.status
-      );
-      assets_msg_free(&game_txt);
-      return 1;
-    }
-
-    /*
-     * smell #29: DOS FUN_364b_0688 keeps the bit3 latch for EVERY colony of
-     * the ticked nation (viceroy 57470-57485 — the OR/AND-clear pair sits in
-     * the open function body); only the two dialogs are human-gated, and by
-     * DS:0xa897, which FUN_15eb_002c sets from "colony owner == view nation
-     * AND that slot's control == 0". Retarget the colony to an AI nation:
-     * latch must still move, chrome must stay silent.
-     */
-    c->nation_id = 1;
-    col1c.nation_id = 1;
-    col1.player[1].control = 1;
-    col1.head.colony_report_options.report_inefficient_government = 0;
-    c->colony_flags = 0;
-    c->stock[COLONIZE_CARGO_FOOD] = 200;
-    col1c.rebel_dividend = 0u << 6;
-    col1c.rebel_divisor = 100u << 6;
-    eu.status[0] = '\0';
-    ai_popup_clear(&pops);
-    memset(&prod, 0, sizeof(prod));
-    turn_run_colony_production_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&pool), .map=(ColonizeWorldMap*)(NULL), .col1=(ColonizeCol1Save*)(&col1), .col1_ok=true, .rng=(ColonizeDosRng*)(NULL), .europe=(EuropeScreen*)(&eu)}, 0, &prod, &pops, &game_txt);
-    if ((c->colony_flags & COLONIZE_COLONY_FLAG_INEFFICIENT_GOV) == 0) {
-      fprintf(stderr, "INEFFICIENT AI: latch not set on an AI colony\n");
-      assets_msg_free(&game_txt);
-      return 1;
-    }
-    if (pops.queue_count != 0 || eu.status[0] != '\0') {
-      fprintf(
-        stderr,
-        "INEFFICIENT AI: want no chrome got q=%d '%s'\n",
-        pops.queue_count,
-        eu.status
-      );
-      assets_msg_free(&game_txt);
-      return 1;
-    }
-    /* And the clear side, still silent. */
-    col1c.rebel_dividend = 100u << 6;
-    col1c.rebel_divisor = 100u << 6;
-    c->stock[COLONIZE_CARGO_FOOD] = 200;
-    eu.status[0] = '\0';
-    ai_popup_clear(&pops);
-    memset(&prod, 0, sizeof(prod));
-    turn_run_colony_production_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&pool), .map=(ColonizeWorldMap*)(NULL), .col1=(ColonizeCol1Save*)(&col1), .col1_ok=true, .rng=(ColonizeDosRng*)(NULL), .europe=(EuropeScreen*)(&eu)}, 0, &prod, &pops, &game_txt);
-    if ((c->colony_flags & COLONIZE_COLONY_FLAG_INEFFICIENT_GOV) != 0) {
-      fprintf(stderr, "INEFFICIENT AI: latch not cleared on an AI colony\n");
-      assets_msg_free(&game_txt);
-      return 1;
-    }
-    if (pops.queue_count != 0 || eu.status[0] != '\0') {
-      fprintf(stderr, "EFFICIENT AI: want no chrome got q=%d '%s'\n", pops.queue_count, eu.status);
-      assets_msg_free(&game_txt);
-      return 1;
-    }
-
-    assets_msg_free(&game_txt);
-    fprintf(stderr, "inefficient government chrome ok\n");
-  }
-
-  /* FUN_364b_0688 starve-kill: food_at_start==0 and still short → lose one. */
-  {
-    ColonizeColonyPool starve_pool;
-    colonies_init(&starve_pool);
-    colonies_set_occupancy_map(NULL);
-    ColonizeColony* s = &starve_pool.colonies[0];
-    memset(s, 0, sizeof(*s));
-    s->active = true;
-    s->id = 1;
-    s->building_in_production = -1;
-    s->stock[COLONIZE_CARGO_FOOD] = 0; /* 2 pop need 4; stay starving */
-    for (int i = 0; i < 2; ++i) {
-      s->colonists[i].active = true;
-      s->colonists[i].unit_type_index = 0;
-      s->colonists[i].profession = UNITS_JOB_NONE;
-      s->colonists[i].building_type = -1;
-      s->colonists[i].field_job = -1;
-    }
-    for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES_MAX; ++t) {
-      s->tiles[t] = -1;
-    }
-    s->colonist_count = 2;
-    s->population = 2;
-    starve_pool.colony_count = 1;
-    ColonizeTurnResult sr;
-    memset(&sr, 0, sizeof(sr));
-    turn_colony_free_production(&starve_pool, s, NULL, &sr, NULL);
-    if (!s->active || s->colonist_count != 1) {
-      fprintf(
-        stderr,
-        "starve: colonist_count want 1 got %d active=%d\n",
-        s->colonist_count,
-        s->active
-      );
-      return 1;
-    }
-    if (s->food_shortfall_latch == 0) {
-      fprintf(stderr, "starve: food-shortfall latch should remain\n");
-      return 1;
-    }
-    fprintf(stderr, "colony starve-kill ok\n");
-  }
-
-  /* bugs.md (port_orange_starves.SAV): DOS deficit is DS:0x8e5a =
-   * consumption − stock − production; a colony producing exactly what it
-   * eats at 0 stores (commons feeds the lone statesman) must NOT latch
-   * starvation or lose anyone, ever. Simulated without a map by pre-adding
-   * the "production" to stock, which is how the tick's own commons food
-   * lands before the latch runs — deficit 2−0−2 = 0. */
-  {
-    ColonizeColonyPool zpool;
-    colonies_init(&zpool);
-    colonies_set_occupancy_map(NULL);
-    ColonizeColony* s = &zpool.colonies[0];
-    memset(s, 0, sizeof(*s));
-    s->active = true;
-    s->id = 1;
-    s->building_in_production = -1;
-    s->stock[COLONIZE_CARGO_FOOD] = 2; /* 1 pop eats 2 — net zero, not short */
-    s->colonists[0].active = true;
-    s->colonists[0].unit_type_index = 0;
-    s->colonists[0].profession = UNITS_JOB_NONE;
-    s->colonists[0].building_type = 9;
-    s->colonists[0].field_job = -1;
-    for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES_MAX; ++t) {
-      s->tiles[t] = -1;
-    }
-    s->colonist_count = 1;
-    s->population = 1;
-    zpool.colony_count = 1;
-    ColonizeTurnResult sr;
-    memset(&sr, 0, sizeof(sr));
-    turn_colony_free_production(&zpool, s, NULL, &sr, NULL);
-    if (!s->active || s->colonist_count != 1) {
-      fprintf(
-        stderr, "starve netzero: colonist_count want 1 got %d active=%d\n",
-        s->colonist_count, s->active
-      );
-      return 1;
-    }
-    if (s->food_shortfall_latch != 0) {
-      fprintf(stderr, "starve netzero: food-shortfall latch must stay clear\n");
-      return 1;
-    }
-    fprintf(stderr, "colony net-zero food no-starve ok\n");
-  }
-
-  /* Last colonist starve → @VANISH + abandon (DOS 0xe47). */
-  {
-    ColonizeColonyPool pool;
-    colonies_init(&pool);
-    colonies_set_occupancy_map(NULL);
-    ColonizeColony* s = &pool.colonies[0];
-    memset(s, 0, sizeof(*s));
-    s->active = true;
-    s->id = 1;
-    s->nation_id = 0;
-    s->building_in_production = -1;
-    snprintf(s->name, sizeof(s->name), "Roanoke");
-    s->stock[COLONIZE_CARGO_FOOD] = 0;
-    s->colonists[0].active = true;
-    s->colonists[0].unit_type_index = 0;
-    s->colonists[0].profession = UNITS_JOB_NONE;
-    s->colonists[0].building_type = -1;
-    s->colonists[0].field_job = -1;
-    for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES_MAX; ++t) {
-      s->tiles[t] = -1;
-    }
-    s->colonist_count = 1;
-    s->population = 1;
-    pool.colony_count = 1;
-
-    EuropeScreen eu;
-    memset(&eu, 0, sizeof(eu));
-    AiPopupState pops;
-    ai_popup_init(&pops);
-    ColonizeMsgCatalog game_txt;
-    assets_msg_init(&game_txt);
-    (void)assets_msg_load_file(&game_txt, "COLONIZE/GAME.TXT");
-
-    ColonizeTurnResult sr;
-    memset(&sr, 0, sizeof(sr));
-    turn_run_colony_production_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&pool), .map=(ColonizeWorldMap*)(NULL), .col1=(ColonizeCol1Save*)(NULL), .col1_ok=((NULL) != NULL), .rng=(ColonizeDosRng*)(NULL), .europe=(EuropeScreen*)(&eu)}, 0, &sr, &pops, &game_txt);
-    if (s->active || pool.colony_count != 0) {
-      fprintf(
-        stderr,
-        "vanish: want abandoned active=%d count=%d\n",
-        s->active,
-        pool.colony_count
-      );
-      assets_msg_free(&game_txt);
-      return 1;
-    }
-    if (pops.queue_count < 1 ||
-        (strstr(pops.queue[0].body, "vanished") == NULL &&
-         strstr(pops.queue[0].body, "Roanoke") == NULL)) {
-      fprintf(
-        stderr,
-        "vanish: popup weak q=%d body='%s'\n",
-        pops.queue_count,
-        pops.queue_count > 0 ? pops.queue[0].body : ""
-      );
-      assets_msg_free(&game_txt);
-      return 1;
-    }
-    assets_msg_free(&game_txt);
-    fprintf(stderr, "colony vanish starve ok\n");
-  }
-
-  /* Starve-kill chrome: @STARVE1 (spring) / @STARVE2 (autumn). */
-  {
-    ColonizeColonyPool pool;
-    colonies_init(&pool);
-    colonies_set_occupancy_map(NULL);
-    ColonizeColony* s = &pool.colonies[0];
-    memset(s, 0, sizeof(*s));
-    s->active = true;
-    s->id = 1;
-    s->nation_id = 0;
-    s->building_in_production = -1;
-    snprintf(s->name, sizeof(s->name), "Roanoke");
-    s->stock[COLONIZE_CARGO_FOOD] = 0;
-    for (int i = 0; i < 2; ++i) {
-      s->colonists[i].active = true;
-      s->colonists[i].unit_type_index = 0;
-      s->colonists[i].profession = UNITS_JOB_NONE;
-      s->colonists[i].building_type = -1;
-      s->colonists[i].field_job = -1;
-    }
-    for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES_MAX; ++t) {
-      s->tiles[t] = -1;
-    }
-    s->colonist_count = 2;
-    s->population = 2;
-    pool.colony_count = 1;
-
-    EuropeScreen eu;
-    memset(&eu, 0, sizeof(eu));
-    AiPopupState pops;
-    ai_popup_init(&pops);
-    ColonizeMsgCatalog game_txt;
-    assets_msg_init(&game_txt);
-    (void)assets_msg_load_file(&game_txt, "COLONIZE/GAME.TXT");
-
-    ColonizeTurnResult sr;
-    memset(&sr, 0, sizeof(sr));
-    turn_run_colony_production_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&pool), .map=(ColonizeWorldMap*)(NULL), .col1=(ColonizeCol1Save*)(NULL), .col1_ok=((NULL) != NULL), .rng=(ColonizeDosRng*)(NULL), .europe=(EuropeScreen*)(&eu)}, 0, &sr, &pops, &game_txt);
-    if (s->colonist_count != 1) {
-      fprintf(stderr, "starve1: colonist_count want 1 got %d\n", s->colonist_count);
-      assets_msg_free(&game_txt);
-      return 1;
-    }
-    if (pops.queue_count < 1 ||
-        (strstr(pops.queue[0].body, "Roanoke") == NULL &&
-         strstr(pops.queue[0].body, "starv") == NULL)) {
-      fprintf(
-        stderr,
-        "starve1: popup weak q=%d body='%s'\n",
-        pops.queue_count,
-        pops.queue_count > 0 ? pops.queue[0].body : ""
-      );
-      assets_msg_free(&game_txt);
-      return 1;
-    }
-    if (strstr(pops.queue[0].body, "coming soon") != NULL) {
-      fprintf(stderr, "starve1: spring must not use STARVE2 got '%s'\n", pops.queue[0].body);
-      assets_msg_free(&game_txt);
-      return 1;
-    }
-    fprintf(stderr, "starve1 chrome ok\n");
-
-    /* Reset for autumn → STARVE2. */
-    memset(s, 0, sizeof(*s));
-    s->active = true;
-    s->id = 1;
-    s->nation_id = 0;
-    s->building_in_production = -1;
-    snprintf(s->name, sizeof(s->name), "Roanoke");
-    s->stock[COLONIZE_CARGO_FOOD] = 0;
-    for (int i = 0; i < 2; ++i) {
-      s->colonists[i].active = true;
-      s->colonists[i].unit_type_index = 0;
-      s->colonists[i].profession = UNITS_JOB_NONE;
-      s->colonists[i].building_type = -1;
-      s->colonists[i].field_job = -1;
-    }
-    for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES_MAX; ++t) {
-      s->tiles[t] = -1;
-    }
-    s->colonist_count = 2;
-    s->population = 2;
-    pool.colony_count = 1;
-
-    ColonizeCol1Save col1;
-    memset(&col1, 0, sizeof(col1));
-    col1.head.autumn = 1;
-    /* Difficulty>=2: skip the Discoverer/Explorer easy-mode no-kill mercy
-     * (FUN_364b_0688) so this deterministically still starve-kills. */
-    col1.head.difficulty = 2;
-    eu.status[0] = '\0';
-    ai_popup_clear(&pops);
-    memset(&sr, 0, sizeof(sr));
-    turn_run_colony_production_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&pool), .map=(ColonizeWorldMap*)(NULL), .col1=(ColonizeCol1Save*)(&col1), .col1_ok=true, .rng=(ColonizeDosRng*)(NULL), .europe=(EuropeScreen*)(&eu)}, 0, &sr, &pops, &game_txt);
-    if (pops.queue_count < 1 ||
-        (strstr(pops.queue[0].body, "coming soon") == NULL &&
-         strstr(pops.queue[0].body, "worse") == NULL)) {
-      fprintf(
-        stderr,
-        "starve2: want winter-coming q=%d body='%s'\n",
-        pops.queue_count,
-        pops.queue_count > 0 ? pops.queue[0].body : ""
-      );
-      assets_msg_free(&game_txt);
-      return 1;
-    }
-    assets_msg_free(&game_txt);
-    fprintf(stderr, "starve2 chrome ok\n");
-  }
-
-  /* Food shortage status for human (production deficit; stock stays ≥ need*4). */
-  {
-    ColonizeColonyPool pool;
-    colonies_init(&pool);
-    colonies_set_occupancy_map(NULL);
-    ColonizeColony* col = &pool.colonies[0];
-    memset(col, 0, sizeof(*col));
-    col->active = true;
-    col->id = 1;
-    col->nation_id = 0;
-    col->building_in_production = -1;
-    /* Eat 4 → 16 left (= need*4); avoids @FOODLOW overwriting shortage status. */
-    col->stock[COLONIZE_CARGO_FOOD] = 20;
-    col->colonists[0].active = true;
-    col->colonists[1].active = true;
-    col->colonist_count = 2;
-    col->population = 2;
-    pool.colony_count = 1;
-
-    EuropeScreen eu;
-    memset(&eu, 0, sizeof(eu));
-    eu.cargo_count = COLONIZE_CARGO_COUNT;
-    for (int i = 0; i < COLONIZE_CARGO_COUNT; ++i) {
-      eu.cargo[i].bid = 1;
-    }
-
-    ColonizeTurnResult prod;
-    memset(&prod, 0, sizeof(prod));
-    turn_run_colony_production_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&pool), .map=(ColonizeWorldMap*)(NULL), .col1=(ColonizeCol1Save*)(NULL), .col1_ok=((NULL) != NULL), .rng=(ColonizeDosRng*)(NULL), .europe=(EuropeScreen*)(&eu)}, 0, &prod, NULL, NULL);
-    if (prod.food_shortages < 1 || strstr(eu.status, "Food shortage") == NULL) {
-      fprintf(
-        stderr,
-        "food shortage want count+status got shortages=%d '%s'\n",
-        prod.food_shortages,
-        eu.status
-      );
-      return 1;
-    }
-    fprintf(stderr, "food shortage status ok\n");
-  }
-
-  /* DOS 0xe5e @FOODLOW: production shortfall 8e32; stock < 8e32×4; not starving. */
-  {
-    ColonizeColonyPool pool;
-    colonies_init(&pool);
-    colonies_set_occupancy_map(NULL);
-    ColonizeColony* col = &pool.colonies[0];
-    memset(col, 0, sizeof(*col));
-    col->active = true;
-    col->id = 1;
-    col->nation_id = 0;
-    col->building_in_production = -1;
-    snprintf(col->name, sizeof(col->name), "Jamestown");
-    /* 2 pop need 4; no field food → shortfall 4; start 10 → after eat 6 (< 16). */
-    col->stock[COLONIZE_CARGO_FOOD] = 10;
-    col->colonists[0].active = true;
-    col->colonists[1].active = true;
-    col->colonist_count = 2;
-    col->population = 2;
-    for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES_MAX; ++t) {
-      col->tiles[t] = -1;
-    }
-    pool.colony_count = 1;
-
-    EuropeScreen eu;
-    memset(&eu, 0, sizeof(eu));
-    AiPopupState pops;
-    ai_popup_init(&pops);
-    ColonizeMsgCatalog game_txt;
-    assets_msg_init(&game_txt);
-    (void)assets_msg_load_file(&game_txt, "COLONIZE/GAME.TXT");
-
-    ColonizeTurnResult prod;
-    memset(&prod, 0, sizeof(prod));
-    turn_run_colony_production_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&pool), .map=(ColonizeWorldMap*)(NULL), .col1=(ColonizeCol1Save*)(NULL), .col1_ok=((NULL) != NULL), .rng=(ColonizeDosRng*)(NULL), .europe=(EuropeScreen*)(&eu)}, 0, &prod, &pops, &game_txt);
-    if (col->stock[COLONIZE_CARGO_FOOD] != 6) {
-      fprintf(stderr, "foodlow: stock want 6 got %d\n", col->stock[COLONIZE_CARGO_FOOD]);
-      assets_msg_free(&game_txt);
-      return 1;
-    }
-    if (strstr(eu.status, "Food low") == NULL && strstr(eu.status, "Jamestown") == NULL) {
-      fprintf(stderr, "foodlow: status want Food low/Jamestown got '%s'\n", eu.status);
-      assets_msg_free(&game_txt);
-      return 1;
-    }
-    if (pops.queue_count < 1) {
-      fprintf(stderr, "foodlow: expected FOODLOW popup\n");
-      assets_msg_free(&game_txt);
-      return 1;
-    }
-    if (strstr(pops.queue[0].body, "Jamestown") == NULL &&
-        strstr(pops.queue[0].body, "food") == NULL &&
-        strstr(pops.queue[0].body, "Food") == NULL) {
-      fprintf(stderr, "foodlow: popup body weak: '%s'\n", pops.queue[0].body);
-      assets_msg_free(&game_txt);
-      return 1;
-    }
-    assets_msg_free(&game_txt);
-    fprintf(stderr, "foodlow chrome ok\n");
-  }
-
-  /* Surplus harvest (8e32==0): no @FOODLOW even when stock < need×4. */
-  {
-    ColonizeColonyPool pool;
-    colonies_init(&pool);
-    colonies_set_occupancy_map(NULL);
-    ColonizeColony* col = &pool.colonies[0];
-    memset(col, 0, sizeof(*col));
-    col->active = true;
-    col->id = 1;
-    col->nation_id = 0;
-    col->building_in_production = -1;
-    snprintf(col->name, sizeof(col->name), "Plymouth");
-    col->stock[COLONIZE_CARGO_FOOD] = 12; /* after surplus net, still modest vs need×4 */
-    col->colonists[0].active = true;
-    col->colonists[0].field_job = COLONIZE_JOB_FARMER;
-    col->colonists[0].profession = COLONIZE_JOB_FARMER;
-    col->colonists[0].building_type = -1;
-    col->colonists[1].active = true;
-    col->colonists[1].field_job = COLONIZE_JOB_FARMER;
-    col->colonists[1].profession = COLONIZE_JOB_FARMER;
-    col->colonists[1].building_type = -1;
-    col->colonist_count = 2;
-    col->population = 2;
-    for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES_MAX; ++t) {
-      col->tiles[t] = -1;
-    }
-    col->tiles[0] = 0;
-    col->tiles[1] = 1;
-    pool.colony_count = 1;
-
-    ColonizeWorldMap map;
-    memset(&map, 0, sizeof(map));
-    char err[64];
-    if (!map_alloc(&map, 8, 8, err, sizeof(err))) {
-      fprintf(stderr, "foodlow-surplus: map_alloc %s\n", err);
-      return 1;
-    }
-    for (int i = 0; i < 64; ++i) {
-      map.terrain[i] = 1; /* plains */
-    }
-    col->x = 3;
-    col->y = 3;
-
-    EuropeScreen eu;
-    memset(&eu, 0, sizeof(eu));
-    AiPopupState pops;
-    ai_popup_init(&pops);
-
-    ColonizeTurnResult prod;
-    memset(&prod, 0, sizeof(prod));
-    turn_run_colony_production_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&pool), .map=(ColonizeWorldMap*)(&map), .col1=(ColonizeCol1Save*)(NULL), .col1_ok=((NULL) != NULL), .rng=(ColonizeDosRng*)(NULL), .europe=(EuropeScreen*)(&eu)}, 0, &prod, &pops, NULL);
-    if (prod.food_shortages != 0) {
-      fprintf(stderr, "foodlow-surplus: unexpected shortage %d\n", prod.food_shortages);
-      map_free(&map);
-      return 1;
-    }
-    if (strstr(eu.status, "Food low") != NULL) {
-      fprintf(stderr, "foodlow-surplus: must not warn on surplus '%s'\n", eu.status);
-      map_free(&map);
-      return 1;
-    }
-    for (int i = 0; i < pops.queue_count; ++i) {
-      if (strstr(pops.queue[i].body, "rapidly depleting") != NULL ||
-          strstr(pops.queue[i].body, "Food low") != NULL) {
-        fprintf(stderr, "foodlow-surplus: FOODLOW popup with surplus food\n");
+      if (base_no_res >= 0 && !map_tile_has_road(&map, gx, gy) &&
+          !map_tile_has_river(&map, gx, gy) && farmer_no_res != base_no_res + 2) {
+        fprintf(
+          stderr,
+          "Game+Farmer resource effect want %d got %d (base %d)\n",
+          base_no_res + 2,
+          farmer_no_res,
+          base_no_res
+        );
         map_free(&map);
         return 1;
       }
     }
-    /* Sanity: stock should not be below one turn's need after a surplus turn. */
-    if (col->stock[COLONIZE_CARGO_FOOD] < 4) {
-      fprintf(
-        stderr,
-        "foodlow-surplus: expected surplus leave stock>=4 got %d\n",
-        col->stock[COLONIZE_CARGO_FOOD]
-      );
-      map_free(&map);
-      return 1;
-    }
+  }
+  const int wrong_expert =
+    colony_yield_for_worker(&map, fx, fy, COLONIZE_JOB_LUMBERJACK, COLONIZE_PROF_FREE_COLONIST, true, 0, 0, false);
+  if (wrong_expert != base) {
+    fprintf(
+      stderr,
+      "wrong field expert should match free yield base=%d got=%d\n",
+      base,
+      wrong_expert
+    );
     map_free(&map);
-    fprintf(stderr, "foodlow surplus no-warn ok\n");
+    return 1;
   }
-
-  /* @FOOD1: first starvation latch (stock after eat < need, no prior latch). */
-  {
-    ColonizeColonyPool pool;
-    colonies_init(&pool);
-    colonies_set_occupancy_map(NULL);
-    ColonizeColony* col = &pool.colonies[0];
-    memset(col, 0, sizeof(*col));
-    col->active = true;
-    col->id = 1;
-    col->nation_id = 0;
-    col->building_in_production = -1;
-    snprintf(col->name, sizeof(col->name), "Plymouth");
-    /* 2 pop need 4; start 3 → after eat 0 (< need); no prior STARVATION. */
-    col->stock[COLONIZE_CARGO_FOOD] = 3;
-    col->colonists[0].active = true;
-    col->colonists[1].active = true;
-    col->colonist_count = 2;
-    col->population = 2;
-    for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES_MAX; ++t) {
-      col->tiles[t] = -1;
-    }
-    pool.colony_count = 1;
-
-    EuropeScreen eu;
-    memset(&eu, 0, sizeof(eu));
-    AiPopupState pops;
-    ai_popup_init(&pops);
-    ColonizeMsgCatalog game_txt;
-    assets_msg_init(&game_txt);
-    (void)assets_msg_load_file(&game_txt, "COLONIZE/GAME.TXT");
-
-    ColonizeTurnResult prod;
-    memset(&prod, 0, sizeof(prod));
-    turn_run_colony_production_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&pool), .map=(ColonizeWorldMap*)(NULL), .col1=(ColonizeCol1Save*)(NULL), .col1_ok=((NULL) != NULL), .rng=(ColonizeDosRng*)(NULL), .europe=(EuropeScreen*)(&eu)}, 0, &prod, &pops, &game_txt);
-    if (col->food_shortfall_latch == 0) {
-      fprintf(stderr, "food1: want food-shortfall latch\n");
-      assets_msg_free(&game_txt);
-      return 1;
-    }
-    if (strstr(eu.status, "depleted") == NULL && strstr(eu.status, "Plymouth") == NULL) {
-      fprintf(stderr, "food1: status want depleted/Plymouth got '%s'\n", eu.status);
-      assets_msg_free(&game_txt);
-      return 1;
-    }
-    if (pops.queue_count < 1 ||
-        (strstr(pops.queue[0].body, "depleted") == NULL &&
-         strstr(pops.queue[0].body, "Plymouth") == NULL)) {
-      fprintf(
-        stderr,
-        "food1: popup weak q=%d body='%s'\n",
-        pops.queue_count,
-        pops.queue_count > 0 ? pops.queue[0].body : ""
-      );
-      assets_msg_free(&game_txt);
-      return 1;
-    }
-    if (strstr(pops.queue[0].body, "Winter") != NULL) {
-      fprintf(stderr, "food1: spring must not use FOOD2 got '%s'\n", pops.queue[0].body);
-      assets_msg_free(&game_txt);
-      return 1;
-    }
-    assets_msg_free(&game_txt);
-    fprintf(stderr, "food1 chrome ok\n");
-  }
-
-  /* @FOOD2: same latch with Col1 autumn → winter-soon wording. */
-  {
-    ColonizeColonyPool pool;
-    colonies_init(&pool);
-    colonies_set_occupancy_map(NULL);
-    ColonizeColony* col = &pool.colonies[0];
-    memset(col, 0, sizeof(*col));
-    col->active = true;
-    col->id = 1;
-    col->nation_id = 0;
-    col->building_in_production = -1;
-    snprintf(col->name, sizeof(col->name), "Plymouth");
-    col->stock[COLONIZE_CARGO_FOOD] = 3;
-    col->colonists[0].active = true;
-    col->colonists[1].active = true;
-    col->colonist_count = 2;
-    col->population = 2;
-    for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES_MAX; ++t) {
-      col->tiles[t] = -1;
-    }
-    pool.colony_count = 1;
-
-    ColonizeCol1Save col1;
-    memset(&col1, 0, sizeof(col1));
-    col1.head.autumn = 1;
-
-    EuropeScreen eu;
-    memset(&eu, 0, sizeof(eu));
-    AiPopupState pops;
-    ai_popup_init(&pops);
-    ColonizeMsgCatalog game_txt;
-    assets_msg_init(&game_txt);
-    (void)assets_msg_load_file(&game_txt, "COLONIZE/GAME.TXT");
-
-    ColonizeTurnResult prod;
-    memset(&prod, 0, sizeof(prod));
-    turn_run_colony_production_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&pool), .map=(ColonizeWorldMap*)(NULL), .col1=(ColonizeCol1Save*)(&col1), .col1_ok=true, .rng=(ColonizeDosRng*)(NULL), .europe=(EuropeScreen*)(&eu)}, 0, &prod, &pops, &game_txt);
-    if (pops.queue_count < 1 ||
-        (strstr(pops.queue[0].body, "Winter") == NULL &&
-         strstr(pops.queue[0].body, "starve") == NULL)) {
-      fprintf(
-        stderr,
-        "food2: want Winter/starve q=%d body='%s'\n",
-        pops.queue_count,
-        pops.queue_count > 0 ? pops.queue[0].body : ""
-      );
-      assets_msg_free(&game_txt);
-      return 1;
-    }
-    assets_msg_free(&game_txt);
-    fprintf(stderr, "food2 chrome ok\n");
-  }
-
-  /*
-   * FUN_364b_0688 phase O — AI dump-sell: non-human Euro surplus → gold before
-   * spoilage. Human colony must not sell. Horses → nation_horses (no gold).
-   */
-  {
-    ColonizeColonyPool pool;
-    colonies_init(&pool);
-    colonies_set_occupancy_map(NULL);
-    ColonizeColony* ai = &pool.colonies[0];
-    memset(ai, 0, sizeof(*ai));
-    ai->active = true;
-    ai->id = 1;
-    ai->nation_id = 1; /* AI French */
-    ai->building_in_production = -1;
-    ai->warehouse_level = 0; /* cap 100 */
-    ai->stock[COLONIZE_CARGO_TOBACCO] = 150;
-    ai->stock[COLONIZE_CARGO_HORSES] = 130;
-    ai->stock[COLONIZE_CARGO_MUSKETS] = 160;
-    ai->stock[COLONIZE_CARGO_FOOD] = 50;
-    ai->colonists[0].active = true;
-    ai->colonist_count = 1;
-    ai->population = 1;
-
-    ColonizeColony* human = &pool.colonies[1];
-    memset(human, 0, sizeof(*human));
-    human->active = true;
-    human->id = 2;
-    human->nation_id = 0;
-    human->building_in_production = -1;
-    human->warehouse_level = 0;
-    human->stock[COLONIZE_CARGO_TOBACCO] = 150;
-    human->stock[COLONIZE_CARGO_FOOD] = 50; /* avoid Phase J vanish on 0 food */
-    human->colonists[0].active = true;
-    human->colonist_count = 1;
-    human->population = 1;
-    pool.colony_count = 2;
-
-    EuropeScreen eu;
-    memset(&eu, 0, sizeof(eu));
-    eu.cargo_count = COLONIZE_CARGO_COUNT;
-    for (int i = 0; i < COLONIZE_CARGO_COUNT; ++i) {
-      eu.cargo[i].bid = 10;
-      eu.cargo[i].low = 1;
-      eu.cargo[i].high = 20;
-    }
-    eu.tax_percent = 0;
-
-    ColonizeCol1Save col1;
-    memset(&col1, 0, sizeof(col1));
-    col1.nation[1].tax_rate = 20;
-    for (int i = 0; i < (int)COLONIZE_COL1_CARGO_TYPES; ++i) {
-      col1.nation[1].trade.euro_price[i] = 10;
-    }
-
-    /*
-     * DOS (viceroy 57834-57835) pays the derived sell table DS:0x84BC
-     * (-0x7b44), which is euro_price − 1 = 9, UNTAXED: tobacco 50→450 +
-     * muskets remainder 10→90; horses→word; muskets 1 batch.
-     */
-    const int gained = europe_ai_colony_dump_sell_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&pool), .col1=(ColonizeCol1Save*)(&col1), .col1_ok=true, .europe=(EuropeScreen*)(&eu)}, ai, 0);
-    if (gained != 540 || col1.nation[1].gold != 540u) {
-      fprintf(
-        stderr,
-        "dump-sell gained=%d gold=%u (want 540)\n",
-        gained,
-        (unsigned)col1.nation[1].gold
-      );
-      return 1;
-    }
-    if (col1.nation[1].royal_money != 0) {
-      fprintf(
-        stderr,
-        "dump-sell must not tax: royal_money=%d\n",
-        (int)col1.nation[1].royal_money
-      );
-      return 1;
-    }
-    if (eu.nation_horses[1] != 30u) {
-      fprintf(stderr, "dump-sell horses word want 30 got %u\n", (unsigned)eu.nation_horses[1]);
-      return 1;
-    }
-    if (eu.nation_musket_batches[1] != 1u) {
-      fprintf(
-        stderr,
-        "dump-sell musket batches want 1 got %u\n",
-        (unsigned)eu.nation_musket_batches[1]
-      );
-      return 1;
-    }
-    if (ai->stock[COLONIZE_CARGO_TOBACCO] != 150) {
-      fprintf(stderr, "dump-sell must leave stock for spoilage, got %d\n", ai->stock[COLONIZE_CARGO_TOBACCO]);
-      return 1;
-    }
-    if (europe_ai_colony_dump_sell_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&pool), .col1=(ColonizeCol1Save*)(&col1), .col1_ok=true, .europe=(EuropeScreen*)(&eu)}, human, 0) != 0) {
-      fprintf(stderr, "dump-sell must skip human colony\n");
-      return 1;
-    }
-
-    /* Wired through production: spoilage clamps after credit. */
-    col1.nation[1].gold = 0;
-    ColonizeTurnResult prod;
-    memset(&prod, 0, sizeof(prod));
-    turn_run_colony_production_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&pool), .map=(ColonizeWorldMap*)(NULL), .col1=(ColonizeCol1Save*)(&col1), .col1_ok=true, .rng=(ColonizeDosRng*)(NULL), .europe=(EuropeScreen*)(&eu)}, 0, &prod, NULL, NULL);
-    if (ai->stock[COLONIZE_CARGO_TOBACCO] != 100 || ai->stock[COLONIZE_CARGO_HORSES] != 100) {
-      fprintf(
-        stderr,
-        "produce+dump tobacco=%d horses=%d (want 100/100)\n",
-        ai->stock[COLONIZE_CARGO_TOBACCO],
-        ai->stock[COLONIZE_CARGO_HORSES]
-      );
-      return 1;
-    }
-    if (col1.nation[1].gold != 540u) {
-      fprintf(stderr, "produce+dump gold=%u (want 540)\n", (unsigned)col1.nation[1].gold);
-      return 1;
-    }
-    if (human->stock[COLONIZE_CARGO_TOBACCO] != 100 || col1.nation[0].gold != 0u) {
-      fprintf(
-        stderr,
-        "human must spoil without sell tobacco=%d gold=%u\n",
-        human->stock[COLONIZE_CARGO_TOBACCO],
-        (unsigned)col1.nation[0].gold
-      );
-      return 1;
-    }
-    fprintf(stderr, "AI colony dump-sell ok\n");
-  }
-
-  /*
-   * Nation ticks: AI Euro colonies accrue liberty_bells into col1 (DOS 00f2 /
-   * 4345_0a22 per nation). Human Europe chrome unchanged.
-   */
-  {
-    ColonizeColonyPool pool;
-    colonies_init(&pool);
-    colonies_set_occupancy_map(NULL);
-    snprintf(pool.building_types[0].name, sizeof(pool.building_types[0].name), "Town Hall");
-    pool.building_type_count = 1;
-
-    ColonizeColony* ai = &pool.colonies[0];
-    memset(ai, 0, sizeof(*ai));
-    ai->active = true;
-    ai->id = 1;
-    ai->nation_id = 1;
-    ai->building_in_production = -1;
-    ai->has_building[0] = true;
-    ai->colonists[0].active = true;
-    ai->colonists[0].building_type = 0;
-    ai->colonists[0].profession = COLONIZE_PROF_STATESMAN;
-    ai->colonist_count = 1;
-    ai->population = 1;
-    pool.colony_count = 1;
-
-    ColonizeCol1Save col1;
-    memset(&col1, 0, sizeof(col1));
-    col1.player[0].control = 0;
-    col1.player[1].control = 1;
-    col1.player[2].control = 2;
-    col1.player[3].control = 1;
-    for (int i = 0; i < (int)COLONIZE_COL1_FF_COUNT; ++i) {
-      col1.head.founding_father[i] = -1;
-    }
-
-    ColonizeTurnContext ctx;
-    memset(&ctx, 0, sizeof(ctx));
-    ctx.messages = test_game_txt();
-    ctx.names = test_names_txt();
-    ctx.human_nation = 0;
-    ctx.colonies = &pool;
-    ctx.col1 = &col1;
-    ctx.col1_ok = true;
-
-    turn_run_nation_ticks(&ctx, NULL);
-    if (col1.nation[1].liberty_bells_last_turn == 0 || col1.nation[1].liberty_bells_total == 0) {
-      fprintf(
-        stderr,
-        "AI bells last=%u total=%u (want >0)\n",
-        (unsigned)col1.nation[1].liberty_bells_last_turn,
-        (unsigned)col1.nation[1].liberty_bells_total
-      );
-      return 1;
-    }
-    if (col1.nation[0].liberty_bells_total != 0) {
-      fprintf(stderr, "human with no colonies should stay 0 bells\n");
-      return 1;
-    }
-    if (col1.nation[2].liberty_bells_total != 0) {
-      fprintf(stderr, "withdrawn nation must not accrue bells\n");
-      return 1;
-    }
-    fprintf(stderr, "AI nation bells accrue ok\n");
-  }
-
-  /*
-   * Tory penalty (negative colony_prod_sol_bonus) must reduce bells, not get
-   * silently dropped — turn_count_bells_and_crosses_for_nation used to guard
-   * the SoL adjustment on `sol_b > 0`, which threw away every Tory penalty.
-   * FUN_15eb_1d4c folds the (signed) term in unconditionally.
-   */
-  {
-    ColonizeColonyPool pool;
-    colonies_init(&pool);
-    colonies_set_occupancy_map(NULL);
-    snprintf(pool.building_types[0].name, sizeof(pool.building_types[0].name), "Town Hall");
-    pool.building_type_count = 1;
-
-    ColonizeColony* ai = &pool.colonies[0];
-    memset(ai, 0, sizeof(*ai));
-    ai->active = true;
-    ai->id = 1;
-    ai->nation_id = 1;
-    ai->building_in_production = -1;
-    ai->has_building[0] = true;
-    ai->colonists[0].active = true;
-    ai->colonists[0].building_type = 0;
-    ai->colonists[0].profession = COLONIZE_PROF_STATESMAN;
-    /* tories=(15*100+50)/100=15; thresh=10 (AI, fixed); mod=-1. Both fields
-     * carry 15: the pop fallback is colonist_count-first port-wide
-     * (colony_prod_sol_bonus), and DOS has one population byte, so a fixture
-     * that set only `population` had two different pops inside one bells
-     * composer. Slots 1..14 stay inactive — one Statesman still works. */
-    ai->colonist_count = 15;
-    ai->population = 15;
-    pool.colony_count = 1;
-
-    ColonizeCol1Save col1;
-    memset(&col1, 0, sizeof(col1));
-    col1.player[0].control = 0;
-    col1.player[1].control = 1;
-    for (int i = 0; i < (int)COLONIZE_COL1_FF_COUNT; ++i) {
-      col1.head.founding_father[i] = -1;
-    }
-
-    ColonizeTurnContext ctx;
-    memset(&ctx, 0, sizeof(ctx));
-    ctx.messages = test_game_txt();
-    ctx.names = test_names_txt();
-    ctx.human_nation = 0;
-    ctx.colonies = &pool;
-    ctx.col1 = &col1;
-    ctx.col1_ok = true;
-
-    turn_run_nation_ticks(&ctx, NULL);
-    /* sol_bonus now folds into colony_prod_bells_worker *before* the
-     * skill-match doubling (matches FUN_15eb_1d4c's Statesman body):
-     * tag(3)+sol_b(-1)=2, doubled (skilled Statesman) = 4. Town Hall
-     * passive +1 = 5 — not 7 (bug would leave it there un-penalized), and
-     * not 6 either (that was this fix's own first pass, which only moved
-     * the sign-drop bug and still added sol_b post-doubling). Plus the
-     * AI-only pop term in colony_prod_colony_bells_ff, (pop+3)/5 = 3 at
-     * pop 15, for 8 total: it reads the same colonist_count the Tory term
-     * does, and only looked like 0 while this fixture left colonist_count
-     * at 1 and put the 15 in `population` alone. */
-    if (col1.nation[1].liberty_bells_total != 8) {
-      fprintf(
-        stderr,
-        "Tory-penalty bells want 8 got %u\n",
-        (unsigned)col1.nation[1].liberty_bells_total
-      );
-      return 1;
-    }
-    fprintf(stderr, "Tory penalty reduces bells ok\n");
-  }
-
-  /*
-   * FUN_5bfb_00f8 Euro rank: gold/100 + 2*colonies + pop → inverse place.
-   */
-  {
-    ColonizeColonyPool pool;
-    colonies_init(&pool);
-    colonies_set_occupancy_map(NULL);
-    for (int n = 0; n < 3; ++n) {
-      ColonizeColony* c = &pool.colonies[n];
-      memset(c, 0, sizeof(*c));
-      c->active = true;
-      c->id = n + 1;
-      c->nation_id = n;
-      c->building_in_production = -1;
-      c->population = (n == 0) ? 10 : (n == 1) ? 3 : 1;
-      c->colonist_count = c->population;
-    }
-    pool.colony_count = 3;
-
-    ColonizeCol1Save col1;
-    memset(&col1, 0, sizeof(col1));
-    col1.nation[0].gold = 100; /* +1 */
-    col1.nation[1].gold = 5000; /* +50 — should win despite fewer pops */
-    col1.nation[2].gold = 0;
-    col1.nation[3].gold = 0;
-
-    uint8_t rank[4];
-    if (turn_rank_euro_nations(&col1, &pool, rank) != 0) {
-      fprintf(stderr, "rank: call failed\n");
-      return 1;
-    }
-    /* FR gold-heavy → place 0; EN pop → place 1; SP → 2; DU empty → 3. */
-    if (rank[1] != 0 || rank[0] != 1 || rank[2] != 2 || rank[3] != 3) {
-      fprintf(
-        stderr,
-        "rank got EN=%u FR=%u SP=%u DU=%u want 1/0/2/3\n",
-        (unsigned)rank[0],
-        (unsigned)rank[1],
-        (unsigned)rank[2],
-        (unsigned)rank[3]
-      );
-      return 1;
-    }
-    fprintf(stderr, "euro power rank ok\n");
-  }
-
-  /*
-   * FUN_364b_0688 F–G: an Expert Farmer working the Schoolhouse graduates a
-   * Free Colonist into a Farmer after 4 turns_in_job.
-   */
-  {
-    ColonizeColonyPool pool;
-    colonies_init(&pool);
-    colonies_set_occupancy_map(NULL);
-    snprintf(pool.building_types[0].name, sizeof(pool.building_types[0].name), "Schoolhouse");
-    pool.building_type_count = 1;
-
-    ColonizeColony* col = &pool.colonies[0];
-    memset(col, 0, sizeof(*col));
-    col->active = true;
-    col->id = 1;
-    col->nation_id = 0;
-    col->building_in_production = -1;
-    col->has_building[0] = true;
-    col->stock[COLONIZE_CARGO_FOOD] = 50;
-    col->colonists[0].active = true;
-    col->colonists[0].profession = COLONIZE_JOB_FARMER; /* @JOB level 1 teacher */
-    col->colonists[0].building_type = 0;
-    col->colonists[0].field_job = -1;
-    col->colonists[0].turns_in_job = 3; /* one tick → 4 ≥ need */
-    col->colonists[1].active = true;
-    col->colonists[1].profession = COLONIZE_PROF_FREE_COLONIST;
-    col->colonists[1].building_type = 0;
-    col->colonists[1].field_job = -1;
-    col->colonists[1].turns_in_job = 0;
-    col->colonist_count = 2;
-    col->population = 2;
-    pool.colony_count = 1;
-
-    ColonizeTurnResult prod;
-    memset(&prod, 0, sizeof(prod));
-    turn_colony_free_production(&pool, col, NULL, &prod, NULL);
-    if (col->colonists[1].profession != COLONIZE_JOB_FARMER) {
-      fprintf(
-        stderr,
-        "education: student profession want Farmer(%d) got %d\n",
-        COLONIZE_JOB_FARMER,
-        col->colonists[1].profession
-      );
-      return 1;
-    }
-    /* bugs.md #565: DOS zeroes only the TEACHER's +0x60 counter (raw 57540-
-     * 57588 never calls 0a7e on the student), so the graduate keeps the tick
-     * he took this turn (0 -> 1). */
-    if (col->colonists[0].turns_in_job != 0 || col->colonists[1].turns_in_job != 1) {
-      fprintf(stderr, "education: teacher counter resets, student's must not\n");
-      return 1;
-    }
-    fprintf(stderr, "colony education graduate ok\n");
-
-    /* bugs.md #380: the graduate takes the TEACHER'S OWN profession. */
-    col->colonists[0].profession = COLONIZE_JOB_FISHERMAN;
-    col->colonists[0].building_type = 0;
-    col->colonists[0].field_job = -1;
-    col->colonists[0].turns_in_job = 3;
-    col->colonists[1].profession = COLONIZE_PROF_FREE_COLONIST;
-    col->colonists[1].building_type = 0;
-    col->colonists[1].field_job = -1;
-    col->colonists[1].turns_in_job = 0;
-    memset(&prod, 0, sizeof(prod));
-    turn_colony_free_production(&pool, col, NULL, &prod, NULL);
-    if (col->colonists[1].profession != COLONIZE_JOB_FISHERMAN) {
-      fprintf(
-        stderr,
-        "education specialty: want Fisherman(%d) got %d\n",
-        COLONIZE_JOB_FISHERMAN,
-        col->colonists[1].profession
-      );
-      return 1;
-    }
-    fprintf(stderr, "colony education specialty ok\n");
-
-    /* Teacher ready, no students → status crumb. */
-    {
-      EuropeScreen eu;
-      memset(&eu, 0, sizeof(eu));
-      col->colonists[0].profession = COLONIZE_JOB_FARMER; /* @JOB level 1 teacher */
-      col->colonists[0].building_type = 0;
-      col->colonists[0].turns_in_job = 3;
-      col->colonists[1].active = false;
-      col->colonist_count = 1;
-      col->population = 1;
-      col->stock[COLONIZE_CARGO_FOOD] = 50; /* avoid food-shortage overwrite */
-      memset(&prod, 0, sizeof(prod));
-      turn_run_colony_production_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&pool), .map=(ColonizeWorldMap*)(NULL), .col1=(ColonizeCol1Save*)(NULL), .col1_ok=((NULL) != NULL), .rng=(ColonizeDosRng*)(NULL), .europe=(EuropeScreen*)(&eu)}, 0, &prod, NULL, NULL);
-      if (strstr(eu.status, "No students") == NULL) {
-        fprintf(stderr, "education no-students want status got '%s'\n", eu.status);
-        return 1;
-      }
-      fprintf(stderr, "colony education no-students ok\n");
-      col->colonists[1].active = true;
-      col->colonist_count = 2;
-      col->population = 2;
-    }  }
-
-  /*
-   * Phase H thin: Free Colonist on field job discovers that skill (1/100).
-   */
-  {
-    ColonizeColonyPool pool;
-    colonies_init(&pool);
-    colonies_set_occupancy_map(NULL);
-    ColonizeColony* col = &pool.colonies[0];
-    memset(col, 0, sizeof(*col));
-    col->active = true;
-    col->id = 1;
-    col->nation_id = 0;
-    col->building_in_production = -1;
-    col->stock[COLONIZE_CARGO_FOOD] = 500;
-    col->colonists[0].active = true;
-    col->colonists[0].profession = COLONIZE_PROF_FREE_COLONIST;
-    col->colonists[0].building_type = -1;
-    col->colonists[0].field_job = COLONIZE_JOB_COTTON_PLANTER;
-    col->colonist_count = 1;
-    col->population = 1;
-    col->tiles[0] = 0;
-    pool.colony_count = 1;
-
-    ColonizeCol1Save col1;
-    memset(&col1, 0, sizeof(col1));
-    col1.head.year = 1492;
-    ColonizeDosRng rng;
-    dos_rng_seed(&rng, 1);
-    int discovered = 0;
-    for (unsigned t = 0; t < 5000u; ++t) {
-      col1.head.turn = (uint16_t)(t & 0xffffu);
-      col->colonists[0].profession = COLONIZE_PROF_FREE_COLONIST;
-      /* raw 57595: job 0 (Farmer) never learns on the job — DOS gates
-       * `0 < job < 5`, so drive this with a cash-crop field job. */
-      col->colonists[0].field_job = COLONIZE_JOB_COTTON_PLANTER;
-      col->stock[COLONIZE_CARGO_FOOD] = 500;
-      ColonizeTurnResult prod;
-      memset(&prod, 0, sizeof(prod));
-      turn_run_colony_production_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&pool), .map=(ColonizeWorldMap*)(NULL), .col1=(ColonizeCol1Save*)(&col1), .col1_ok=true, .rng=(ColonizeDosRng*)(&rng), .europe=(EuropeScreen*)(NULL)}, 0, &prod, NULL, NULL);
-      if (col->colonists[0].profession == COLONIZE_JOB_COTTON_PLANTER) {
-        discovered = 1;
-        break;
-      }
-    }
-    if (!discovered) {
-      fprintf(stderr, "education H: no field skill discover in 5000 ticks\n");
-      return 1;
-    }
-    fprintf(stderr, "colony random field skill ok\n");
-  }
-
-  /*
-   * bugs.md #509b — on-the-job learning latch. DOS raw 57596/57605 tests
-   * the per-job DS byte at -0x6bd0 for 0 and bumps it on a success, and
-   * FUN_4962_0018 (raw 78140) clears that block per nation at the turn
-   * boundary: at most ONE colonist per job per nation per turn graduates,
-   * however many colonies and colonists are rolling. Job 0 (Farmer) is
-   * outside the `0 < job < 5` gate and never learns at all.
-   */
-  {
-    ColonizeColonyPool pool;
-    colonies_init(&pool);
-    colonies_set_occupancy_map(NULL);
-    for (int c = 0; c < 2; ++c) {
-      ColonizeColony* col = &pool.colonies[c];
-      memset(col, 0, sizeof(*col));
-      col->active = true;
-      col->id = c + 1;
-      col->nation_id = 0;
-      col->building_in_production = -1;
-      for (int k = 0; k < 8; ++k) {
-        col->colonists[k].active = true;
-        col->colonists[k].building_type = -1;
-        col->colonists[k].field_job = COLONIZE_JOB_COTTON_PLANTER;
-        col->tiles[k] = (int8_t)k;
-      }
-      col->colonist_count = 8;
-      col->population = 8;
-    }
-    pool.colony_count = 2;
-
-    ColonizeCol1Save col1;
-    memset(&col1, 0, sizeof(col1));
-    col1.head.year = 1492;
-    ColonizeDosRng rng;
-    dos_rng_seed(&rng, 7u * 12345u);
-    int total = 0;
-    int farmers = 0;
-    for (unsigned t = 0; t < 20000u; ++t) {
-      col1.head.turn = (uint16_t)(t & 0xffffu);
-      for (int c = 0; c < 2; ++c) {
-        for (int k = 0; k < 8; ++k) {
-          pool.colonies[c].colonists[k].profession = COLONIZE_PROF_FREE_COLONIST;
-          pool.colonies[c].colonists[k].field_job =
-            (k == 0) ? COLONIZE_JOB_FARMER : COLONIZE_JOB_COTTON_PLANTER;
-        }
-        pool.colonies[c].stock[COLONIZE_CARGO_FOOD] = 5000;
-      }
-      ColonizeTurnResult prod;
-      memset(&prod, 0, sizeof(prod));
-      turn_run_colony_production_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&pool), .map=(ColonizeWorldMap*)(NULL), .col1=(ColonizeCol1Save*)(&col1), .col1_ok=true, .rng=(ColonizeDosRng*)(&rng)}, 0, &prod, NULL, NULL);
-      int hit = 0;
-      for (int c = 0; c < 2; ++c) {
-        for (int k = 0; k < 8; ++k) {
-          const int prof = pool.colonies[c].colonists[k].profession;
-          if (prof == COLONIZE_JOB_COTTON_PLANTER) {
-            hit++;
-          } else if (k == 0 && prof == COLONIZE_JOB_FARMER) {
-            farmers++;
-          }
-        }
-      }
-      if (hit > 1) {
-        fprintf(stderr, "otj latch: %d graduations in one turn (t=%u)\n", hit, t);
-        return 1;
-      }
-      total += hit;
-    }
-    if (total < 10) {
-      fprintf(stderr, "otj latch: only %d graduations in 20000 turns\n", total);
-      return 1;
-    }
-    if (farmers != 0) {
-      fprintf(stderr, "otj latch: job 0 learned %d times (DOS gate 0 < job)\n", farmers);
-      return 1;
-    }
-    fprintf(stderr, "on-the-job latch + job-0 gate ok (%d graduations)\n", total);
-  }
-
-  /*
-   * AI Euro crosses: the DOS FUN_38fd_5e52 tick runs for AI nations too —
-   * +2 a turn, and on `needed < current` one recruit[] slot becomes a real
-   * unit parked in the Europe limbo (FUN_38fd_0718), the slot is refilled
-   * (FUN_38fd_46d4), crosses are zeroed and nation_flags 0x40 latches.
-   * Cite: europe.c europe_nation_immigration_tick_w; viceroy 68539-68620.
-   */
-  {
-    ColonizeUnitPool units;
-    memset(&units, 0, sizeof(units));
-    memset(&units, 0, sizeof(units));
-    units_reset(&units);
-    units_set_occupancy_map(NULL);
-    snprintf(units.types[0].name, sizeof(units.types[0].name), "Colonists");
-    units.type_count = 1;
-
-    ColonizeCol1Save col1;
-    memset(&col1, 0, sizeof(col1));
-    col1.player[0].control = 0;
-    col1.player[1].control = 1;
-    col1.nation[1].current_crosses = 8;
-    col1.nation[1].needed_crosses = 8;
-
-    ColonizeTurnContext ctx;
-    memset(&ctx, 0, sizeof(ctx));
-    ctx.messages = test_game_txt();
-    ctx.names = test_names_txt();
-    ctx.human_nation = 0;
-    ctx.units = &units;
-    ctx.col1 = &col1;
-    ctx.col1_ok = true;
-
-    ColonizeTurnResult out;
-    memset(&out, 0, sizeof(out));
-    col1.nation[1].recruit[0] = UNITS_JOB_COLONIST;
-    col1.nation[1].recruit[1] = UNITS_JOB_COLONIST;
-    col1.nation[1].recruit[2] = UNITS_JOB_COLONIST;
-    turn_run_nation_ticks(&ctx, &out);
-    /* 8 + 2 > 8 → arrival: crosses zeroed, 0x40 latched, one unit in limbo. */
-    if (col1.nation[1].needed_crosses != 8 || col1.nation[1].current_crosses != 0) {
-      fprintf(
-        stderr,
-        "AI crosses want 0/8 got %u/%u\n",
-        (unsigned)col1.nation[1].current_crosses,
-        (unsigned)col1.nation[1].needed_crosses
-      );
-      return 1;
-    }
-    if ((col1.nation[1].nation_flags & 0x40u) == 0u) {
-      fprintf(stderr, "AI immigrant: nation_flags 0x40 not latched\n");
-      return 1;
-    }
-    int in_limbo = 0;
-    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-      const ColonizeUnit* u = &units.units[i];
-      if (u->active && u->nation_id == 1 && (u->x >= 200 || u->y >= 200)) {
-        in_limbo++;
-      }
-    }
-    if (in_limbo != 1) {
-      fprintf(stderr, "AI immigrant: want 1 unit in Europe limbo got %d\n", in_limbo);
-      return 1;
-    }
-    /* Second tick: the drain rule (584a *param_2) now sees that colonist. */
-    const uint16_t before = col1.nation[1].current_crosses;
-    turn_run_nation_ticks(&ctx, &out);
-    if (col1.nation[1].current_crosses != before) {
-      fprintf(
-        stderr,
-        "AI crosses drain: want %u got %u\n",
-        (unsigned)before, (unsigned)col1.nation[1].current_crosses
-      );
-      return 1;
-    }
-    fprintf(stderr, "AI crosses immigrant arrival + dock drain ok\n");
-  }
-
-  /* 5e52 phase 4 immigration pressure thin. */
-  {
-    EuropeScreen eu;
-    memset(&eu, 0, sizeof(eu));
-    ColonizeColonyPool pool;
-    colonies_init(&pool);
-    colonies_set_occupancy_map(NULL);
-    ColonizeColony* col = &pool.colonies[0];
-    memset(col, 0, sizeof(*col));
-    col->active = true;
-    col->nation_id = 0;
-    col->colonist_count = 5;
-    col->population = 5;
-    pool.colony_count = 1;
-    ColonizeUnitPool units;
-    memset(&units, 0, sizeof(units));
-    memset(&units, 0, sizeof(units));
-    units_reset(&units);
-    units_set_occupancy_map(NULL);
-    europe_tick_immigration_pressure_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&units), .colonies=(ColonizeColonyPool*)(&pool), .col1=(ColonizeCol1Save*)(NULL), .col1_ok=((NULL) != NULL), .rng=(ColonizeDosRng*)(NULL), .europe=(EuropeScreen*)(&eu)}, 0);
-    if (eu.needed_crosses <= 0) {
-      fprintf(stderr, "immigration needed want >0 got %u\n", (unsigned)eu.needed_crosses);
-      return 1;
-    }
-    if (eu.current_crosses != 2) {
-      fprintf(stderr, "immigration current want +2 got %u\n", (unsigned)eu.current_crosses);
-      return 1;
-    }
-    /* Force phase5: current > needed → dock; @UNREST popup owns chrome (no auto-Europe). */
-    eu.current_crosses = (uint16_t)(eu.needed_crosses + 10);
-    eu.immigration_pressure = (int16_t)eu.current_crosses;
-    eu.dock_count = 0;
-    eu.status[0] = '\0';
-    eu.open_on_dock = false;
-    if (!europe_tick_immigration_pressure_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&units), .colonies=(ColonizeColonyPool*)(&pool), .col1=(ColonizeCol1Save*)(NULL), .col1_ok=((NULL) != NULL), .rng=(ColonizeDosRng*)(NULL), .europe=(EuropeScreen*)(&eu)}, 0) || eu.open_on_dock ||
-        eu.dock_count < 1 || strstr(eu.status, "Immigrant") == NULL) {
-      fprintf(
-        stderr,
-        "phase5 want dock+status no-open open=%d dock=%d '%s'\n",
-        eu.open_on_dock ? 1 : 0,
-        eu.dock_count,
-        eu.status
-      );
-      return 1;
-    }
-    fprintf(stderr, "immigration pressure tick ok\n");
-    /* 584a: AI nation ((8-diff)*score)>>3; English human also *2/3. */
-    {
-      ColonizeCol1Save icol;
-      memset(&icol, 0, sizeof(icol));
-      icol.head.difficulty = 4; /* Viceroy → AI score half */
-      icol.player[0].control = 0;
-      icol.player[1].control = 1;
-      col->nation_id = 1;
-      eu.current_crosses = 0;
-      eu.immigration_pressure = 0;
-      europe_tick_immigration_pressure_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&units), .colonies=(ColonizeColonyPool*)(&pool), .col1=(ColonizeCol1Save*)(&icol), .col1_ok=true, .rng=(ColonizeDosRng*)(NULL), .europe=(EuropeScreen*)(&eu)}, 1);
-      const int ai_score = (int)eu.needed_crosses;
-      col->nation_id = 0;
-      eu.current_crosses = 0;
-      eu.immigration_pressure = 0;
-      europe_tick_immigration_pressure_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&units), .colonies=(ColonizeColonyPool*)(&pool), .col1=(ColonizeCol1Save*)(&icol), .col1_ok=true, .rng=(ColonizeDosRng*)(NULL), .europe=(EuropeScreen*)(&eu)}, 0);
-      const int en_score = (int)eu.needed_crosses;
-      /* Base pop5 → ((5)<<1)+8=18; EN *2/3=12; AI half of 18=9. */
-      if (ai_score != 9 || en_score != 12) {
-        fprintf(stderr, "584a scale want AI9 EN12 got AI%d EN%d\n", ai_score, en_score);
-        return 1;
-      }
-      fprintf(stderr, "immigration 584a AI/EN scale ok\n");
-    }
-    /* 5e52 Brewster branch → FUN_38fd_4884(0,1): tick returns 2, nothing
-     * docks, crosses kept; the CHOICE apply moves the pick + zeroes crosses;
-     * cancel leaves everything so next turn re-asks. */
-    {
-      ColonizeCol1Save bcol;
-      memset(&bcol, 0, sizeof(bcol));
-      for (int i = 0; i < (int)COLONIZE_COL1_FF_COUNT; ++i) {
-        bcol.head.founding_father[i] = -1;
-      }
-      bcol.head.founding_father[FF_WILLIAM_BREWSTER] = 0;
-      bcol.nation[0].founding_fathers[FF_WILLIAM_BREWSTER / 8] |=
-        (uint8_t)(1u << (FF_WILLIAM_BREWSTER % 8));
-      col->nation_id = 0;
-      eu.dock_count = 0;
-      eu.brewster_no_criminals = false;
-      europe_tick_immigration_pressure_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&units), .colonies=(ColonizeColonyPool*)(&pool), .col1=(ColonizeCol1Save*)(&bcol), .col1_ok=true, .rng=(ColonizeDosRng*)(NULL), .europe=(EuropeScreen*)(&eu)}, 0);
-      eu.current_crosses = (uint16_t)(eu.needed_crosses + 10);
-      const uint16_t kept = eu.current_crosses;
-      /* The tick's own 584a +2 lands first (dock empty), then the Brewster
-       * branch returns 2 without spending the meter. */
-      if (europe_tick_immigration_pressure_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&units), .colonies=(ColonizeColonyPool*)(&pool), .col1=(ColonizeCol1Save*)(&bcol), .col1_ok=true, .rng=(ColonizeDosRng*)(NULL), .europe=(EuropeScreen*)(&eu)}, 0) != 2 ||
-          eu.dock_count != 0 || eu.current_crosses != (uint16_t)(kept + 2) ||
-          !eu.brewster_no_criminals) {
-        fprintf(stderr, "brewster tick want 2/no dock/crosses kept\n");
-        return 1;
-      }
-      const uint16_t after_tick = eu.current_crosses;
-      AiPopupState pops;
-      memset(&pops, 0, sizeof(pops));
-      units_brewster_enqueue_pick(&eu, &pops, NULL, 0);
-      if (pops.queue_count != 1 || pops.queue[0].tag != AI_POPUP_TAG_BREWSTER_PICK ||
-          pops.queue[0].choice_count != EUROPE_POOL_SIZE) {
-        fprintf(stderr, "brewster pick popup not queued (%d)\n", pops.queue_count);
-        return 1;
-      }
-      pops.has_result = true;
-      pops.result_tag = AI_POPUP_TAG_BREWSTER_PICK;
-      pops.result_nation_a = 0;
-      pops.result_cancelled = true;
-      if (!units_brewster_apply_popup(&eu, &pops, &units) || eu.dock_count != 0 ||
-          eu.current_crosses != after_tick) {
-        fprintf(stderr, "brewster cancel must keep crosses/dock\n");
-        return 1;
-      }
-      if (units.type_count < 1) {
-        snprintf(units.types[0].name, sizeof(units.types[0].name), "Colonists");
-        units.types[0].movement = 1;
-        units.type_count = 1;
-      }
-      int before_units = 0;
-      for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-        before_units += units.units[i].active ? 1 : 0;
-      }
-      char want[64];
-      snprintf(want, sizeof(want), "%s", eu.pool[2].name);
-      pops.result_cancelled = false;
-      pops.result_choice_id = 2;
-      if (!units_brewster_apply_popup(&eu, &pops, &units) || eu.dock_count != 1 ||
-          eu.current_crosses != 0 || strcmp(eu.dock[0].name, want) != 0) {
-        fprintf(stderr, "brewster pick apply: dock=%d crosses=%u '%s' want '%s'\n",
-                eu.dock_count, (unsigned)eu.current_crosses, eu.dock[0].name, want);
-        return 1;
-      }
-      int after_units = 0;
-      for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-        after_units += units.units[i].active ? 1 : 0;
-      }
-      if (after_units != before_units + 1) {
-        fprintf(stderr, "brewster pick must mirror one Europe-map unit\n");
-        return 1;
-      }
-      fprintf(stderr, "brewster pick-among-pool ok\n");
-    }
-  }
-
-  /* §C tail = @KINGFRIGATE (ai_king.c), NOT a turn.c spawn: the old
-   * duplicate here handed out a free "Merchantman" every 8th turn
-   * (bugs.md free_merchanman.SAV; type 0x11 is the Frigate). Assert the
-   * turn tick spawns nothing on its own. */
-  {
-    ColonizeUnitPool units;
-    memset(&units, 0, sizeof(units));
-    memset(&units, 0, sizeof(units));
-    units_reset(&units);
-    units_set_occupancy_map(NULL);
-    snprintf(units.types[0x11].name, sizeof(units.types[0x11].name), "Frigate");
-    units.types[0x11].domain = COLONIZE_UNIT_DOMAIN_SEA;
-    units.types[0x11].movement = 6;
-    units.types[0x11].attack = 16;
-    units.type_count = 0x12;
-    uint16_t year = 1600;
-    uint16_t autumn = 0;
-    uint32_t turn_number = 8;
-    ColonizeTurnContext ctx;
-    memset(&ctx, 0, sizeof(ctx));
-    ctx.messages = test_game_txt();
-    ctx.names = test_names_txt();
-    ctx.human_nation = 0;
-    ctx.units = &units;
-    ctx.game_year = &year;
-    ctx.game_autumn = &autumn;
-    ctx.turn_number = &turn_number;
-    turn_run_nation_ticks(&ctx, NULL);
-    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-      if (units.units[i].active) {
-        fprintf(stderr, "turn tick must not spawn free ships (KINGFRIGATE lives in ai_king)\n");
-        return 1;
-      }
-    }
-  }
-
-  /*
-   * colony_prod_horse_breed direct unit checks — DOS-confirmed 2026-08-26
-   * against real golden_colony_prod01/02 fixtures (COLONY00->01, actual
-   * one-turn DOS runs). Two of the 13 exactly-matching colonies from that
-   * verification, locked in here as a formula-level regression independent
-   * of the full colony/map simulation below.
-   */
-  {
-    /* Fort Nassau (golden_colony_prod01): stock=176 pop=13 food_gross=37
-     * wcap=200 no Stable -> potential=ceil(176/50)*2=8, food_avail=37-26=11,
-     * food_cap=(11+1)/2=6, capped=min(8,6)=6, headroom=200-176=24,
-     * bred=min(6,24)=6 -> stock 176+6=182 (golden expected). */
-    ColonyProdHorseBreed b =
-      colony_prod_horse_breed(176, 13, 37, 200, false);
-    if (b.bred != 6 || b.shortfall != 2) {
-      fprintf(
-        stderr,
-        "colony_prod_horse_breed Fort Nassau want bred=6 shortfall=2 got bred=%d shortfall=%d\n",
-        b.bred, b.shortfall
-      );
-      return 1;
-    }
-    /* Quebec (golden_colony_prod01): stock=51 pop=5 food_gross=9 wcap=100
-     * with Stable -> potential=ceil(51/25)*2=6, food_avail=max(0,9-10)=0,
-     * food_cap=0, capped=0, bred=0 -> stock unchanged (golden expected). */
-    b = colony_prod_horse_breed(51, 5, 9, 100, true);
-    if (b.bred != 0 || b.shortfall != 6) {
-      fprintf(
-        stderr,
-        "colony_prod_horse_breed Quebec want bred=0 shortfall=6 got bred=%d shortfall=%d\n",
-        b.bred, b.shortfall
-      );
-      return 1;
-    }
-    /* horses < 2 -> no growth at all, regardless of food/warehouse room. */
-    b = colony_prod_horse_breed(1, 1, 50, 100, true);
-    if (b.bred != 0 || b.shortfall != 0) {
-      fprintf(
-        stderr,
-        "colony_prod_horse_breed <2 horses want bred=0 shortfall=0 got bred=%d shortfall=%d\n",
-        b.bred, b.shortfall
-      );
-      return 1;
-    }
-    /* Warehouse headroom binds even when food would allow more. */
-    b = colony_prod_horse_breed(99, 0, 100, 100, true);
-    if (b.bred != 1) {
-      fprintf(
-        stderr,
-        "colony_prod_horse_breed warehouse-headroom want bred=1 got bred=%d\n",
-        b.bred
-      );
-      return 1;
-    }
-    fprintf(stderr, "colony_prod_horse_breed direct ok\n");
-  }
-
-  /*
-   * Horse breed: ≥2 horses + food surplus → +horses, −food; Stable raises cap.
-   */
-  {
-    ColonizeColonyPool pool;
-    colonies_init(&pool);
-    colonies_set_occupancy_map(NULL);
-    snprintf(pool.building_types[0].name, sizeof(pool.building_types[0].name), "Stable");
-    pool.building_type_count = 1;
-
-    ColonizeColony* col = &pool.colonies[0];
-    memset(col, 0, sizeof(*col));
-    col->active = true;
-    col->id = 1;
-    col->nation_id = 0;
-    col->building_in_production = -1;
-    col->has_building[0] = true;
-    /* One farmer producing will need map — use stock food surplus stand-in via
-     * free production with no field yield: inject food_surplus by pre-stocking
-     * food high and zero pop consume… pop=1 eats 2; set field via craft skip.
-     * Use turn_run with no map → field_food=0 → no breed. Force via direct
-     * stock path: pop 0 invalid. Instead assign no colonists but population 0
-     * skips eat — horses≥2 + we need food_surplus_turn>0 from field.
-     */
-    col->stock[COLONIZE_CARGO_HORSES] = 2;
-    col->stock[COLONIZE_CARGO_FOOD] = 20;
-    col->colonists[0].active = true;
-    col->colonists[0].profession = COLONIZE_PROF_FREE_COLONIST;
-    col->colonists[0].field_job = COLONIZE_JOB_FARMER;
-    col->colonists[0].building_type = -1;
-    col->colonist_count = 1;
-    col->population = 1;
-    col->tiles[0] = 0;
-    pool.colony_count = 1;
-
-    /* Without map, field_food=0 → surplus negative → no breed. Add map plains. */
-    ColonizeWorldMap map;
-    memset(&map, 0, sizeof(map));
-    char err[64];
-    if (!map_alloc(&map, 8, 8, err, sizeof(err))) {
-      fprintf(stderr, "breed: map_alloc %s\n", err);
-      return 1;
-    }
-    for (int i = 0; i < 64; ++i) {
-      map.terrain[i] = 1; /* plains */
-    }
-    col->x = 3;
-    col->y = 3;
-
-    /* Preview must show the same breeding the EOT tick is about to do. */
-    ColonizeColonyPreview prev;
-    colony_preview_compute_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&pool), .map=(ColonizeWorldMap*)(&map), .col1=(ColonizeCol1Save*)(NULL), .col1_ok=((NULL) != NULL)}, col, &prev);
-
-    ColonizeTurnResult prod;
-    memset(&prod, 0, sizeof(prod));
-    const int h0 = col->stock[COLONIZE_CARGO_HORSES];
-    turn_run_colony_production_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&pool), .map=(ColonizeWorldMap*)(&map), .col1=(ColonizeCol1Save*)(NULL), .col1_ok=((NULL) != NULL), .rng=(ColonizeDosRng*)(NULL), .europe=(EuropeScreen*)(NULL)}, 0, &prod, NULL, NULL);
-    const int bred = col->stock[COLONIZE_CARGO_HORSES] - h0;
-    if (bred <= 0) {
-      fprintf(
-        stderr,
-        "breed: horses %d→%d want increase (food=%d)\n",
-        h0,
-        col->stock[COLONIZE_CARGO_HORSES],
-        col->stock[COLONIZE_CARGO_FOOD]
-      );
-      map_free(&map);
-      return 1;
-    }
-    if (prev.goods[COLONIZE_CARGO_HORSES] != bred) {
-      fprintf(
-        stderr,
-        "breed preview mismatch want %d got %d\n",
-        bred,
-        prev.goods[COLONIZE_CARGO_HORSES]
-      );
-      map_free(&map);
-      return 1;
-    }
-    map_free(&map);
-    fprintf(stderr, "colony horse breed ok\n");
-  }
-
-  /*
-   * FUN_3844_0442 B: year≥1600, no human colonies, peacetime → defeat.
-   */
-  {
-    ColonizeColonyPool pool;
-    colonies_init(&pool);
-    colonies_set_occupancy_map(NULL);
-    uint16_t year = 1600;
-    uint16_t autumn = 0;
-    uint32_t turn_number = 200;
-    char status[64];
-    ColonizeTurnContext ctx;
-    memset(&ctx, 0, sizeof(ctx));
-    ctx.messages = test_game_txt();
-    ctx.names = test_names_txt();
-    ctx.game_year = &year;
-    ctx.game_autumn = &autumn;
-    ctx.turn_number = &turn_number;
-    ctx.human_nation = 0;
-    ctx.colonies = &pool;
-    ctx.status = status;
-    ctx.status_size = sizeof(status);
-
-    ColonizeTurnResult out;
-    memset(&out, 0, sizeof(out));
-    turn_run_year_end_chrome(&ctx, &out);
-    if (!out.year_end_defeat || strstr(status, "Defeat") == NULL) {
-      fprintf(stderr, "year-end defeat want latch+status got defeat=%d '%s'\n", out.year_end_defeat, status);
-      return 1;
-    }
-    /* WoI skips defeat. */
-    ColonizeCol1Save col1;
-    memset(&col1, 0, sizeof(col1));
-    col1.head.game_options.woi = 1;
-    ctx.col1 = &col1;
-    ctx.col1_ok = true;
-    memset(&out, 0, sizeof(out));
-    status[0] = '\0';
-    turn_run_year_end_chrome(&ctx, &out);
-    if (out.year_end_defeat) {
-      fprintf(stderr, "year-end defeat must skip during WoI\n");
-      return 1;
-    }
-    /* Same fixture: WoI + no crown colonies → C1 victory. */
-    if (!out.year_end_victory || ai_king_latch_get(&col1, 4) != 1 ||
-        col1.head.show_entire_map != 1 || strstr(status, "Victory") == NULL) {
-      fprintf(
-        stderr,
-        "year-end victory want latch+map+status got victory=%d u46[4]=%u map=%u '%s'\n",
-        out.year_end_victory,
-        (unsigned)ai_king_latch_get(&col1, 4),
-        (unsigned)col1.head.show_entire_map,
-        status
-      );
-      return 1;
-    }
-    fprintf(stderr, "year-end defeat chrome ok\n");
-    fprintf(stderr, "year-end victory chrome ok\n");
-    /* calendar_latch ("scoring complete") is set by the retire-score chain,
-     * not the victory latch (bugs.md #259) — the WON latch alone must both
-     * leave it clear and still suppress the anniversary chrome. */
-    if (col1.head.game_options.calendar_latch) {
-      fprintf(stderr, "year-end victory must NOT set calendar_latch (scoring pending)\n");
-      return 1;
-    }
-    /* Endgame latch suppresses further E anniversary while campaign stopped. */
-    year = 1790;
-    status[0] = '\0';
-    memset(&out, 0, sizeof(out));
-    turn_run_year_end_chrome(&ctx, &out);
-    if (strstr(status, "Anniversary") != NULL) {
-      fprintf(stderr, "calendar_latch must suppress anniversary got '%s'\n", status);
-      return 1;
-    }
-    fprintf(stderr, "year-end calendar_latch ok\n");
-
-    /* C1 REF pool fat blocks victory; independence_force bypasses. */
-    {
-      ColonizeCol1Save fat;
-      memset(&fat, 0, sizeof(fat));
-      fat.head.game_options.woi = 1;
-      fat.head.expeditionary_force[0] = 8; /* regulars → score ≥4 */
-      fat.head.expeditionary_force[1] = 4;
-      fat.head.expeditionary_force[3] = 2;
-      ctx.col1 = &fat;
-      ctx.col1_ok = true;
-      status[0] = '\0';
-      memset(&out, 0, sizeof(out));
-      turn_run_year_end_chrome(&ctx, &out);
-      if (out.year_end_victory) {
-        fprintf(stderr, "year-end C1 REF-fat must block victory\n");
-        return 1;
-      }
-      fat.head.game_options.independence_force = 1;
-      status[0] = '\0';
-      memset(&out, 0, sizeof(out));
-      turn_run_year_end_chrome(&ctx, &out);
-      if (!out.year_end_victory || strstr(status, "Victory") == NULL) {
-        fprintf(
-          stderr,
-          "year-end C1 force bypass want victory got %d '%s'\n",
-          out.year_end_victory,
-          status
-        );
-        return 1;
-      }
-      fprintf(stderr, "year-end C1 REF pool gate ok\n");
-    }
-    year = 1790;
-    status[0] = '\0';
-    memset(&out, 0, sizeof(out));
-    ctx.col1_ok = false;
-    ctx.col1 = NULL;
-    /* Give human a colony so defeat B does not fire. */
-    ColonizeColony* c = &pool.colonies[0];
-    memset(c, 0, sizeof(*c));
-    c->active = true;
-    c->nation_id = 0;
-    c->building_in_production = -1;
-    pool.colony_count = 1;
-    turn_run_year_end_chrome(&ctx, &out);
-    if (out.year_end_defeat || strstr(status, "Anniversary") == NULL) {
-      fprintf(stderr, "anniversary want status got defeat=%d '%s'\n", out.year_end_defeat, status);
-      return 1;
-    }
-    fprintf(stderr, "year-end anniversary ok\n");
-
-    /* E game-era 1800 with richest colony name. */
-    year = 1800;
-    status[0] = '\0';
-    memset(&out, 0, sizeof(out));
-    snprintf(c->name, sizeof(c->name), "Jamestown");
-    c->colonist_count = 5;
-    turn_run_year_end_chrome(&ctx, &out);
-    if (strstr(status, "Game era") == NULL || strstr(status, "Jamestown") == NULL) {
-      fprintf(stderr, "game-era want Jamestown status got '%s'\n", status);
-      return 1;
-    }
-    fprintf(stderr, "year-end game-era richest ok\n");
-
-    /* C2: WoI + crown colonies + high crown SoL → peace offer status. */
-    year = 1700;
-    status[0] = '\0';
-    memset(&out, 0, sizeof(out));
-    ColonizeCol1Save c2;
-    col1_save_init(&c2);
-    c2.head.game_options.woi = 1; /* WoI */
-    c2.head.colony_count = 2;
-    c2.colony = calloc(2, sizeof(ColonizeCol1Colony));
-    if (!c2.colony) {
-      return 1;
-    }
-    c2.colony[0].nation_id = 0;
-    c2.colony[0].population = 1;
-    c2.colony[0].rebel_dividend = 5;
-    c2.colony[0].rebel_divisor = 100;
-    c2.colony[1].nation_id = 1;
-    c2.colony[1].population = 1;
-    c2.colony[1].rebel_dividend = 90;
-    c2.colony[1].rebel_divisor = 100;
-    ColonizeColony* crown_c2 = &pool.colonies[1];
-    memset(crown_c2, 0, sizeof(*crown_c2));
-    crown_c2->active = true;
-    crown_c2->nation_id = 1;
-    crown_c2->building_in_production = -1;
-    if (pool.colony_count < 2) {
-      pool.colony_count = 2;
-    }
-    ctx.col1 = &c2;
-    ctx.col1_ok = true;
-    ctx.colonies = &pool;
-    turn_run_year_end_chrome(&ctx, &out);
-    if (out.year_end_victory || strstr(status, "peace") == NULL) {
-      fprintf(
-        stderr,
-        "year-end C2 want peace status got victory=%d '%s'\n",
-        out.year_end_victory,
-        status
-      );
-      free(c2.colony);
-      return 1;
-    }
-    free(c2.colony);
-    ctx.col1 = NULL;
-    ctx.col1_ok = false;
-    fprintf(stderr, "year-end C2 peace ok\n");
-
-    /*
-     * smell #21: C2 is NOT under C1's crown-colony guard. raw 58493 opens the
-     * C1 arm with `(crown_colony_count == 0) || (0x5382 & 0x20)`; the C2 body
-     * at 58507 sits after that arm closes, still inside
-     * `(0x5382 & 1) && !(0x5382 & 8)`. Crown with ZERO colonies but a REF pool
-     * too fat for C1 to fire must still raise the peace-offer band.
-     */
-    year = 1700;
-    status[0] = '\0';
-    memset(&out, 0, sizeof(out));
-    ColonizeCol1Save c2b;
-    col1_save_init(&c2b);
-    c2b.head.game_options.woi = 1;
-    c2b.head.colony_count = 2;
-    c2b.colony = calloc(2, sizeof(ColonizeCol1Colony));
-    if (!c2b.colony) {
-      return 1;
-    }
-    c2b.colony[0].nation_id = 0; /* human, no bells accumulated → SoL 0 */
-    c2b.colony[0].population = 1;
-    c2b.colony[0].rebel_dividend = 0;
-    c2b.colony[0].rebel_divisor = 100;
-    /*
-     * The crown's SoL comes from its own rebel pair, never from a
-     * `liberty_bells_total / 4` stand-in — that stand-in is deleted
-     * (bugs.md #424: nation bell totals run into the millions in real DOS
-     * saves, so every hit of it read as 100%). C1's crown-colony gate counts
-     * the RUNTIME pool (below, which stays crownless so the gate is open and
-     * only the fat REF pool stops C1); ai_king_sol_percent reads the COL1
-     * records, so this record is what gives the crown a SoL history to
-     * compare against.
-     */
-    c2b.colony[1].nation_id = 1; /* crown */
-    c2b.colony[1].population = 1;
-    c2b.colony[1].rebel_dividend = 100;
-    c2b.colony[1].rebel_divisor = 100;
-    /* REF pool fat: ref_score = ef[0] + 2 - (ef[1]==0) - (ef[3]==0) = 5 ⇒
-     * !ref_thin ⇒ C1 cannot fire even with the crown wiped off the map. */
-    c2b.head.expeditionary_force[0] = 5;
-    for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
-      pool.colonies[i].active = false;
-    }
-    ColonizeColony* human_c2b = &pool.colonies[0];
-    memset(human_c2b, 0, sizeof(*human_c2b));
-    human_c2b->active = true;
-    human_c2b->nation_id = 0;
-    human_c2b->building_in_production = -1;
-    pool.colony_count = 1;
-    ctx.col1 = &c2b;
-    ctx.col1_ok = true;
-    ctx.colonies = &pool;
-    ctx.units = NULL;
-    turn_run_year_end_chrome(&ctx, &out);
-    if (out.year_end_victory || strstr(status, "peace") == NULL) {
-      fprintf(
-        stderr,
-        "year-end C2 crownless want peace status got victory=%d '%s'\n",
-        out.year_end_victory,
-        status
-      );
-      free(c2b.colony);
-      return 1;
-    }
-    free(c2b.colony);
-    ctx.col1 = NULL;
-    ctx.col1_ok = false;
-    fprintf(stderr, "year-end C2 runs with no crown colonies ok\n");
-
-    /*
-     * Section D — a rival's OWN independence (raw 58558-58617), not a war
-     * declaration. v = rebel_sentiment × census_pop_proxy / 100 (capped 100)
-     * against threshold (8−difficulty)×10; @OTHERGRANTED at/over it,
-     * @OTHERMIGHT / @OTHERLESS under it behind the two hysteresis bands.
-     */
-    year = 1700;
-    status[0] = '\0';
-    memset(&out, 0, sizeof(out));
-    ColonizeCol1Save dcol;
-    col1_save_init(&dcol);
-    dcol.head.difficulty = 4; /* thresh = (8-4)*10 = 40 */
-    dcol.player[0].control = 0;
-    dcol.player[1].control = 1;
-    dcol.player[2].control = 1;
-    dcol.player[3].control = 2;
-    /* v = 25*100/100 = 25; band = [20,40); cache 10 → rising fires. */
-    dcol.nation[2].rebel_sentiment = 25;
-    dcol.stuff.census_pop_proxy[2] = 100;
-    dcol.nation[2].rebellion_pct_last_notified = 10;
-    ctx.col1 = &dcol;
-    ctx.col1_ok = true;
-    turn_run_year_end_chrome(&ctx, &out);
-    if (strstr(status, "considers granting independence") == NULL) {
-      fprintf(stderr, "year-end D want @OTHERMIGHT rising got '%s'\n", status);
-      return 1;
-    }
-    if (dcol.nation[2].rebellion_pct_last_notified != 25) {
-      fprintf(
-        stderr,
-        "year-end D cache want 25 got %u\n",
-        (unsigned)dcol.nation[2].rebellion_pct_last_notified
-      );
-      return 1;
-    }
-    /* Re-run unchanged: DOS's `cached < v` band must keep it quiet — the
-     * pre-fix port re-fired every year on a 1-point wobble. */
-    status[0] = '\0';
-    memset(&out, 0, sizeof(out));
-    turn_run_year_end_chrome(&ctx, &out);
-    if (status[0] != '\0') {
-      fprintf(stderr, "year-end D want silence on repeat got '%s'\n", status);
-      return 1;
-    }
-    /* Rising band's other half (raw 58572 `thresh-0x14 <= v`): below
-     * thresh−20 it stays quiet even though v is well above the cache. */
-    dcol.nation[2].rebel_sentiment = 19; /* v = 19 < 40-20 */
-    dcol.nation[2].rebellion_pct_last_notified = 5;
-    status[0] = '\0';
-    memset(&out, 0, sizeof(out));
-    turn_run_year_end_chrome(&ctx, &out);
-    if (status[0] != '\0') {
-      fprintf(stderr, "year-end D want silence under thresh-20 got '%s'\n", status);
-      return 1;
-    }
-    if (dcol.nation[2].rebellion_pct_last_notified != 5) {
-      fprintf(stderr, "year-end D quiet band must not write the cache\n");
-      return 1;
-    }
-    /* Falling band: v must be more than 5 UNDER the cache. */
-    dcol.nation[2].rebellion_pct_last_notified = 24; /* 19 < 24-5? no (19==19) */
-    status[0] = '\0';
-    memset(&out, 0, sizeof(out));
-    turn_run_year_end_chrome(&ctx, &out);
-    if (status[0] != '\0') {
-      fprintf(stderr, "year-end D falling needs >5 drop, got '%s'\n", status);
-      return 1;
-    }
-    dcol.nation[2].rebellion_pct_last_notified = 26; /* 19 < 21 → fires */
-    status[0] = '\0';
-    memset(&out, 0, sizeof(out));
-    turn_run_year_end_chrome(&ctx, &out);
-    if (strstr(status, "easing") == NULL) {
-      fprintf(stderr, "year-end D want @OTHERLESS got '%s'\n", status);
-      return 1;
-    }
-    if (dcol.nation[2].rebellion_pct_last_notified != 19) {
-      fprintf(
-        stderr,
-        "year-end D falling cache want 19 got %u\n",
-        (unsigned)dcol.nation[2].rebellion_pct_last_notified
-      );
-      return 1;
-    }
-    ctx.col1 = NULL;
-    ctx.col1_ok = false;
-    fprintf(stderr, "year-end D hysteresis bands ok\n");
-
-    /*
-     * At/over threshold → @OTHERGRANTED: nation_flags bit 0x04 latch, the
-     * NAMES.TXT @INDEPENDENT rename, and peace (never war) with every other
-     * European nation. Then the latch makes it once-only.
-     */
-    year = 1700;
-    status[0] = '\0';
-    memset(&out, 0, sizeof(out));
-    ColonizeCol1Save dw;
-    col1_save_init(&dw);
-    dw.head.difficulty = 3; /* thresh = 50 */
-    dw.player[0].control = 0;
-    dw.player[1].control = 1;
-    dw.player[2].control = 1;
-    dw.player[3].control = 1;
-    snprintf(dw.player[2].country_name, sizeof(dw.player[2].country_name), "Spain");
-    dw.nation[2].rebel_sentiment = 55;
-    dw.stuff.census_pop_proxy[2] = 100; /* v = 55 >= 50 */
-    /* Start at war with everyone so the peace writes are visible. */
-    ai_diplo_declare_war(&dw, 2, 0);
-    ai_diplo_declare_war(&dw, 2, 1);
-    ai_diplo_declare_war(&dw, 2, 3);
-    ctx.col1 = &dw;
-    ctx.col1_ok = true;
-    turn_run_year_end_chrome(&ctx, &out);
-    if ((dw.nation[2].nation_flags & 0x04u) == 0) {
-      fprintf(stderr, "year-end D want nation_flags 0x04 latch set\n");
-      return 1;
-    }
-    /* Expectation read from the same NAMES.TXT @INDEPENDENT row the code uses. */
-    if (dw.player[2].country_name[0] == '\0' ||
-        strcmp(dw.player[2].country_name, turn_year_end_independent_name(2)) != 0) {
-      fprintf(
-        stderr,
-        "year-end D want @INDEPENDENT rename got '%s'\n",
-        dw.player[2].country_name
-      );
-      return 1;
-    }
-    for (int other = 0; other < 4; ++other) {
-      if (other == 2) {
-        continue;
-      }
-      if (ai_diplo_at_war(&dw, 2, other)) {
-        fprintf(stderr, "year-end D independence must make peace with %d\n", other);
-        return 1;
-      }
-    }
-    if (strstr(status, "grants independence") == NULL) {
-      fprintf(stderr, "year-end D want @OTHERGRANTED status got '%s'\n", status);
-      return 1;
-    }
-    /* Once-only: the latch must keep it from re-firing (and re-renaming). */
-    status[0] = '\0';
-    memset(&out, 0, sizeof(out));
-    turn_run_year_end_chrome(&ctx, &out);
-    if (status[0] != '\0') {
-      fprintf(stderr, "year-end D latch must be once-only, got '%s'\n", status);
-      return 1;
-    }
-    ctx.col1 = NULL;
-    ctx.col1_ok = false;
-    fprintf(stderr, "year-end D independence grant ok\n");
-
-    /*
-     * The loop visits all four slots, gated on DS 0x543f = player+0x31
-     * (`control != 0`), not on two cached rival_nation_slot cells: nation 3
-     * alone is over threshold and must still be found.
-     */
-    year = 1700;
-    status[0] = '\0';
-    memset(&out, 0, sizeof(out));
-    ColonizeCol1Save ds;
-    col1_save_init(&ds);
-    ds.head.difficulty = 3; /* thresh = 50 */
-    ds.player[0].control = 0;
-    ds.player[1].control = 1;
-    ds.player[2].control = 1;
-    ds.player[3].control = 1;
-    ds.head.rival_nation_slot_1 = 1;
-    ds.head.rival_nation_slot_2 = 2; /* both cached slots are quiet */
-    ds.nation[3].rebel_sentiment = 60;
-    ds.stuff.census_pop_proxy[3] = 100;
-    /* Human slot well over threshold: the control==0 gate must still skip it
-     * (the human's own independence is the War of Independence, section C). */
-    ds.nation[0].rebel_sentiment = 90;
-    ds.stuff.census_pop_proxy[0] = 100;
-    ctx.col1 = &ds;
-    ctx.col1_ok = true;
-    turn_run_year_end_chrome(&ctx, &out);
-    if ((ds.nation[3].nation_flags & 0x04u) == 0) {
-      fprintf(stderr, "year-end D must visit slot 3, not just the two caches\n");
-      return 1;
-    }
-    if (ds.head.rival_nation_slot_1 != 1 || ds.head.rival_nation_slot_2 != 2) {
-      fprintf(stderr, "year-end D must not touch the King/WoI rival caches\n");
-      return 1;
-    }
-    /* The human slot (control 0) is never a candidate. */
-    if ((ds.nation[0].nation_flags & 0x04u) != 0) {
-      fprintf(stderr, "year-end D must skip the human-controlled slot\n");
-      return 1;
-    }
-    ctx.col1 = NULL;
-    ctx.col1_ok = false;
-    fprintf(stderr, "year-end D all-four-slots loop ok\n");
-  }
-
-  /*
-   * FUN_4962_0606 profession tally from colonists + units.
-   */
-  {
-    ColonizeColonyPool pool;
-    colonies_init(&pool);
-    colonies_set_occupancy_map(NULL);
-    ColonizeColony* col = &pool.colonies[0];
-    memset(col, 0, sizeof(*col));
-    col->active = true;
-    col->nation_id = 0;
-    col->building_in_production = -1;
-    col->colonists[0].active = true;
-    col->colonists[0].profession = COLONIZE_PROF_STATESMAN;
-    col->colonists[1].active = true;
-    col->colonists[1].profession = COLONIZE_PROF_FREE_COLONIST;
-    col->colonists[1].field_job = COLONIZE_JOB_FARMER;
-    col->colonist_count = 2;
-    col->population = 2;
-    pool.colony_count = 1;
-
-    ColonizeUnitPool units;
-    memset(&units, 0, sizeof(units));
-    memset(&units, 0, sizeof(units));
-    units_reset(&units);
-    units_set_occupancy_map(NULL);
-    units.type_count = 14;
-    snprintf(units.types[0].name, sizeof(units.types[0].name), "Scout");
-    snprintf(units.types[13].name, sizeof(units.types[13].name), "Caravel");
-    const int uid = units_spawn(&units, 0, 1, 1);
-    ColonizeUnit* u = units_get(&units, uid);
-    if (u) {
-      units_set_nation(u, 0);
-      u->profession = COLONIZE_PROF_STATESMAN;
-    }
-    /* bugs.md #563: DOS's census (FUN_4962_0606 raw 78356-78360) only counts
-     * units whose @UNIT type carries a profession slot — DS:0x30e[13] = -1
-     * for a Caravel, so its profession byte 0 must NOT read as a Farmer. */
-    const int sid = units_spawn(&units, 13, 2, 2);
-    ColonizeUnit* ship = units_get(&units, sid);
-    if (ship) {
-      units_set_nation(ship, 0);
-      ship->profession = COLONIZE_JOB_FARMER;
-    }
-    /* ... and a colonist with no specialty is counted by SPECIALTY only, not
-     * by the field job he happens to be standing in (raw 78366-78370). */
-    col->colonists[2].active = true;
-    col->colonists[2].profession = -1;
-    col->colonists[2].field_job = COLONIZE_JOB_FARMER;
-    col->colonist_count = 3;
-    col->population = 3;
-
-    uint8_t hist[32];
-    turn_tally_professions(&pool, &units, 0, hist);
-    if (hist[COLONIZE_PROF_STATESMAN] != 2) {
-      fprintf(stderr, "tally statesman want 2 got %u\n", (unsigned)hist[COLONIZE_PROF_STATESMAN]);
-      return 1;
-    }
-    if (hist[COLONIZE_PROF_FREE_COLONIST] != 1) {
-      fprintf(stderr, "tally free want 1 got %u\n", (unsigned)hist[COLONIZE_PROF_FREE_COLONIST]);
-      return 1;
-    }
-    if (hist[COLONIZE_JOB_FARMER] != 0) {
-      fprintf(
-        stderr, "tally farmer want 0 got %u (ship/field_job leak)\n",
-        (unsigned)hist[COLONIZE_JOB_FARMER]
-      );
-      return 1;
-    }
-    fprintf(stderr, "profession tally ok\n");
-  }
-
-  /* Live census peel: colony counts + unit/combat tallies. */
-  {
-    ColonizeCol1Save col1;
-    memset(&col1, 0, sizeof(col1));
-    col1.stuff.colony_counts[0] = 99; /* stale */
-    col1.stuff.land_combat_strength[0] = 999; /* stale */
-    ColonizeColonyPool pool;
-    colonies_init(&pool);
-    colonies_set_occupancy_map(NULL);
-    ColonizeColony* c = &pool.colonies[0];
-    memset(c, 0, sizeof(*c));
-    c->active = true;
-    c->nation_id = 0;
-    c->colonist_count = 3;
-    pool.colony_count = 1;
-
-    ColonizeUnitPool units;
-    memset(&units, 0, sizeof(units));
-    memset(&units, 0, sizeof(units));
-    units_reset(&units);
-    units_set_occupancy_map(NULL);
-    units.type_count = 2;
-    snprintf(units.types[0].name, sizeof(units.types[0].name), "Colonists");
-    units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
-    snprintf(units.types[1].name, sizeof(units.types[1].name), "Soldiers");
-    units.types[1].domain = COLONIZE_UNIT_DOMAIN_LAND;
-    units.types[1].attack = 2;
-    units.types[1].defense = 2;
-    const int sid = units_spawn(&units, 1, 2, 2);
-    ColonizeUnit* su = units_get(&units, sid);
-    if (su) {
-      units_set_nation(su, 0);
-    }
-
-    col1_stuff_census_refresh_colony_counts_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&units), .colonies=(ColonizeColonyPool*)(&pool), .col1=(ColonizeCol1Save*)(&col1), .col1_ok=true}, &col1.stuff);
-    if (col1.stuff.colony_counts[0] != 1 || col1.stuff.colony_pop_totals[0] != 3) {
-      fprintf(
-        stderr,
-        "census refresh counts=%u pop=%u want 1/3\n",
-        (unsigned)col1.stuff.colony_counts[0],
-        (unsigned)col1.stuff.colony_pop_totals[0]
-      );
-      return 1;
-    }
-    /*
-     * smell_audit 2026-09-09 #74: 0x9180 / 0x941c / 0x942c are FUN_281f_09c8
-     * combat VALUES (base x8 + peels), not counts or attack+defense sums.
-     * The lone Soldier (attack 2 / defense 2, no veteran profession) is
-     * mode-0 = 2*8 = 16 and mode-1 = 2*8 = 16; it stands off the colony tile,
-     * so it also counts toward field_combat_totals.
-     */
-    if (col1.stuff.all_unit_counts[0] != 1 || col1.stuff.land_combat_strength[0] != 16 ||
-        col1.stuff.land_combat_totals[0] != 16 || col1.stuff.field_combat_totals[0] != 16 ||
-        col1.stuff.unit_type_counts[0][1] != 1) {
-      fprintf(
-        stderr,
-        "census unit tallies units=%u m0=%u m1=%u field=%u type1=%u want 1/16/16/16/1\n",
-        (unsigned)col1.stuff.all_unit_counts[0],
-        (unsigned)col1.stuff.land_combat_totals[0],
-        (unsigned)col1.stuff.land_combat_strength[0],
-        (unsigned)col1.stuff.field_combat_totals[0],
-        (unsigned)col1.stuff.unit_type_counts[0][1]
-      );
-      return 1;
-    }
-    fprintf(stderr, "census colony_counts refresh ok\n");
-  }
-
-  /*
-   * Phase P: human warehouse spoilage → Europe status + SPOIL1–4 section pick.
-   */
-  {
-    ColonizeColonyPool pool;
-    colonies_init(&pool);
-    colonies_set_occupancy_map(NULL);
-    ColonizeColony* col = &pool.colonies[0];
-    memset(col, 0, sizeof(*col));
-    col->active = true;
-    col->id = 1;
-    col->nation_id = 0;
-    col->building_in_production = -1;
-    snprintf(col->name, sizeof(col->name), "Roanoke");
-    col->warehouse_level = 0;
-    col->stock[COLONIZE_CARGO_TOBACCO] = 150;
-    col->stock[COLONIZE_CARGO_FOOD] = 20;
-    col->colonists[0].active = true;
-    col->colonist_count = 1;
-    col->population = 1;
-    pool.colony_count = 1;
-
-    EuropeScreen eu;
-    memset(&eu, 0, sizeof(eu));
-    eu.cargo_count = COLONIZE_CARGO_COUNT;
-    for (int i = 0; i < COLONIZE_CARGO_COUNT; ++i) {
-      eu.cargo[i].bid = 1;
-    }
-    snprintf(eu.cargo[COLONIZE_CARGO_TOBACCO].name, sizeof(eu.cargo[0].name), "Tobacco");
-    AiPopupState pops;
-    ai_popup_init(&pops);
-    ColonizeMsgCatalog game_txt;
-    assets_msg_init(&game_txt);
-    (void)assets_msg_load_file(&game_txt, "COLONIZE/GAME.TXT");
-
-    ColonizeTurnResult prod;
-    memset(&prod, 0, sizeof(prod));
-    turn_run_colony_production_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&pool), .map=(ColonizeWorldMap*)(NULL), .col1=(ColonizeCol1Save*)(NULL), .col1_ok=((NULL) != NULL), .rng=(ColonizeDosRng*)(NULL), .europe=(EuropeScreen*)(&eu)}, 0, &prod, &pops, &game_txt);
-    if (col->stock[COLONIZE_CARGO_TOBACCO] != 100) {
-      fprintf(stderr, "spoilage clamp tobacco=%d want 100\n", col->stock[COLONIZE_CARGO_TOBACCO]);
-      assets_msg_free(&game_txt);
-      return 1;
-    }
-    if (strstr(eu.status, "spoiled") == NULL || strstr(eu.status, "Tobacco") == NULL) {
-      fprintf(stderr, "spoilage status want Tobacco spoiled got '%s'\n", eu.status);
-      assets_msg_free(&game_txt);
-      return 1;
-    }
-    if (pops.queue_count < 1) {
-      fprintf(stderr, "spoilage: expected SPOIL1 popup\n");
-      assets_msg_free(&game_txt);
-      return 1;
-    }
-    if (strstr(pops.queue[0].body, "Roanoke") == NULL ||
-        (strstr(pops.queue[0].body, "Tobacco") == NULL &&
-         strstr(pops.queue[0].body, "thrown away") == NULL) ||
-        strstr(pops.queue[0].body, "warehouse") == NULL) {
-      fprintf(stderr, "spoilage SPOIL1 body weak: '%s'\n", pops.queue[0].body);
-      assets_msg_free(&game_txt);
-      return 1;
-    }
-    assets_msg_free(&game_txt);
-    fprintf(stderr, "warehouse spoilage status ok\n");
-  }
-
-  /* Phase P: multi-type spoil → @SPOIL2. */
-  {
-    ColonizeColonyPool pool;
-    colonies_init(&pool);
-    colonies_set_occupancy_map(NULL);
-    ColonizeColony* col = &pool.colonies[0];
-    memset(col, 0, sizeof(*col));
-    col->active = true;
-    col->id = 1;
-    col->nation_id = 0;
-    col->building_in_production = -1;
-    snprintf(col->name, sizeof(col->name), "Roanoke");
-    col->warehouse_level = 0;
-    col->stock[COLONIZE_CARGO_TOBACCO] = 150;
-    col->stock[COLONIZE_CARGO_SUGAR] = 140;
-    col->stock[COLONIZE_CARGO_FOOD] = 20;
-    col->colonists[0].active = true;
-    col->colonist_count = 1;
-    col->population = 1;
-    pool.colony_count = 1;
-
-    EuropeScreen eu;
-    memset(&eu, 0, sizeof(eu));
-    eu.cargo_count = COLONIZE_CARGO_COUNT;
-    for (int i = 0; i < COLONIZE_CARGO_COUNT; ++i) {
-      eu.cargo[i].bid = 1;
-    }
-    snprintf(eu.cargo[COLONIZE_CARGO_TOBACCO].name, sizeof(eu.cargo[0].name), "Tobacco");
-    snprintf(eu.cargo[COLONIZE_CARGO_SUGAR].name, sizeof(eu.cargo[0].name), "Sugar");
-    AiPopupState pops;
-    ai_popup_init(&pops);
-    ColonizeMsgCatalog game_txt;
-    assets_msg_init(&game_txt);
-    (void)assets_msg_load_file(&game_txt, "COLONIZE/GAME.TXT");
-
-    ColonizeTurnResult prod;
-    memset(&prod, 0, sizeof(prod));
-    turn_run_colony_production_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&pool), .map=(ColonizeWorldMap*)(NULL), .col1=(ColonizeCol1Save*)(NULL), .col1_ok=((NULL) != NULL), .rng=(ColonizeDosRng*)(NULL), .europe=(EuropeScreen*)(&eu)}, 0, &prod, &pops, &game_txt);
-    if (pops.queue_count < 1 || strstr(pops.queue[0].body, "Some of our cargo") == NULL) {
-      fprintf(
-        stderr,
-        "spoilage SPOIL2 want 'Some of our cargo' q=%d body='%s'\n",
-        pops.queue_count,
-        pops.queue_count > 0 ? pops.queue[0].body : ""
-      );
-      assets_msg_free(&game_txt);
-      return 1;
-    }
-    if (strstr(pops.queue[0].body, "warehouse") == NULL) {
-      fprintf(stderr, "spoilage SPOIL2 want warehouse tip got '%s'\n", pops.queue[0].body);
-      assets_msg_free(&game_txt);
-      return 1;
-    }
-    assets_msg_free(&game_txt);
-    fprintf(stderr, "warehouse spoilage SPOIL2 ok\n");
-  }
-
-  /* Phase P: expanded warehouse single → @SPOIL3 (no larger-warehouse tip). */
-  {
-    ColonizeColonyPool pool;
-    colonies_init(&pool);
-    colonies_set_occupancy_map(NULL);
-    ColonizeColony* col = &pool.colonies[0];
-    memset(col, 0, sizeof(*col));
-    col->active = true;
-    col->id = 1;
-    col->nation_id = 0;
-    col->building_in_production = -1;
-    snprintf(col->name, sizeof(col->name), "Roanoke");
-    col->warehouse_level = 2; /* cap 300 */
-    col->stock[COLONIZE_CARGO_TOBACCO] = 350;
-    col->stock[COLONIZE_CARGO_FOOD] = 20;
-    col->colonists[0].active = true;
-    col->colonist_count = 1;
-    col->population = 1;
-    pool.colony_count = 1;
-
-    EuropeScreen eu;
-    memset(&eu, 0, sizeof(eu));
-    eu.cargo_count = COLONIZE_CARGO_COUNT;
-    for (int i = 0; i < COLONIZE_CARGO_COUNT; ++i) {
-      eu.cargo[i].bid = 1;
-    }
-    snprintf(eu.cargo[COLONIZE_CARGO_TOBACCO].name, sizeof(eu.cargo[0].name), "Tobacco");
-    AiPopupState pops;
-    ai_popup_init(&pops);
-    ColonizeMsgCatalog game_txt;
-    assets_msg_init(&game_txt);
-    (void)assets_msg_load_file(&game_txt, "COLONIZE/GAME.TXT");
-
-    ColonizeTurnResult prod;
-    memset(&prod, 0, sizeof(prod));
-    turn_run_colony_production_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&pool), .map=(ColonizeWorldMap*)(NULL), .col1=(ColonizeCol1Save*)(NULL), .col1_ok=((NULL) != NULL), .rng=(ColonizeDosRng*)(NULL), .europe=(EuropeScreen*)(&eu)}, 0, &prod, &pops, &game_txt);
-    if (col->stock[COLONIZE_CARGO_TOBACCO] != 300) {
-      fprintf(stderr, "spoilage SPOIL3 clamp tobacco=%d want 300\n", col->stock[COLONIZE_CARGO_TOBACCO]);
-      assets_msg_free(&game_txt);
-      return 1;
-    }
-    if (pops.queue_count < 1) {
-      fprintf(stderr, "spoilage: expected SPOIL3 popup\n");
-      assets_msg_free(&game_txt);
-      return 1;
-    }
-    if (strstr(pops.queue[0].body, "Tobacco") == NULL ||
-        strstr(pops.queue[0].body, "thrown away") == NULL) {
-      fprintf(stderr, "spoilage SPOIL3 body weak: '%s'\n", pops.queue[0].body);
-      assets_msg_free(&game_txt);
-      return 1;
-    }
-    if (strstr(pops.queue[0].body, "larger") != NULL) {
-      fprintf(stderr, "spoilage SPOIL3 must omit warehouse tip got '%s'\n", pops.queue[0].body);
-      assets_msg_free(&game_txt);
-      return 1;
-    }
-    assets_msg_free(&game_txt);
-    fprintf(stderr, "warehouse spoilage SPOIL3 ok\n");
-  }
-
-
-
-
-  /*
-   * Ship-build ready (00f2): types 0x0d..0x12 + bit7; +1/+2 col1_counter16;
-   * clear bit7 at threshold (type.defense = DOS 0x5235 / NAMES combat).
-   */
-  {
-    ColonizeUnitPool units;
-    memset(&units, 0, sizeof(units));
-    memset(&units, 0, sizeof(units));
-    units_reset(&units);
-    units_set_occupancy_map(NULL);
-    snprintf(units.types[0xd].name, sizeof(units.types[0xd].name), "Caravel");
-    units.types[0xd].movement = 4;
-    units.types[0xd].defense = 4; /* NAMES combat stand-in (Caravel real=2) */
-    units.types[0xd].domain = COLONIZE_UNIT_DOMAIN_SEA;
-    units.type_count = 0x0e;
-
-    ColonizeColonyPool colonies;
-    colonies_init(&colonies);
-    colonies_set_occupancy_map(NULL);
-    ColonizeColony* col = &colonies.colonies[0];
-    memset(col, 0, sizeof(*col));
-    col->active = true;
-    col->id = 1;
-    col->x = 10;
-    col->y = 10;
-    col->nation_id = 0;
-
-    const int id = units_spawn_allow_stack(&units, 0x0d, 10, 10);
-    ColonizeUnit* u = units_get(&units, id);
-    if (!u) {
-      fprintf(stderr, "ship-build spawn failed\n");
-      return 1;
-    }
-    units_set_nation(u, 0);
-    u->col1_flags15 = 0x80;
-    u->col1_counter16 = 0;
-
-    char status[128];
-    status[0] = '\0';
-    int want_eu = 0;
-    /* On colony: +2/tick → need 2 ticks to reach threshold 4. */
-    (void)units_tick_ship_build_ready(&units, &colonies, 0, 0, status, sizeof(status), &want_eu);
-    if ((u->col1_flags15 & 0x80u) == 0 || u->col1_counter16 != 2) {
-      fprintf(
-        stderr,
-        "ship-build mid: bit=%u tw=%d want bit set tw=2\n",
-        (unsigned)(u->col1_flags15 & 0x80u),
-        u->col1_counter16
-      );
-      return 1;
-    }
-    (void)units_tick_ship_build_ready(&units, &colonies, 0, 0, status, sizeof(status), &want_eu);
-    if ((u->col1_flags15 & 0x80u) != 0 || u->col1_counter16 < 4) {
-      fprintf(
-        stderr,
-        "ship-build done: bit=%u tw=%d want clear tw≥4\n",
-        (unsigned)(u->col1_flags15 & 0x80u),
-        u->col1_counter16
-      );
-      return 1;
-    }
-    if (strstr(status, "complete") == NULL) {
-      fprintf(stderr, "ship-build status want complete got '%s'\n", status);
-      return 1;
-    }
-    if (want_eu != 0) {
-      fprintf(stderr, "ship-build on colony should not request Europe\n");
-      return 1;
-    }
-    /* Real Caravel combat=2 completes in one colony tick. */
-    u->col1_flags15 = 0x80;
-    u->col1_counter16 = 0;
-    units.types[0xd].defense = 2;
-    status[0] = '\0';
-    (void)units_tick_ship_build_ready(&units, &colonies, 0, 0, status, sizeof(status), &want_eu);
-    if ((u->col1_flags15 & 0x80u) != 0 || u->col1_counter16 != 2) {
-      fprintf(
-        stderr,
-        "ship-build combat2: bit=%u tw=%d want clear tw=2\n",
-        (unsigned)(u->col1_flags15 & 0x80u),
-        u->col1_counter16
-      );
-      return 1;
-    }
-    fprintf(stderr, "ship-build ready ok\n");
-  }
-
-  /* Phase K thin: project queued, no hammers → Europe status. */
-  {
-    ColonizeColonyPool pool;
-    colonies_init(&pool);
-    colonies_set_occupancy_map(NULL);
-    ColonizeColony* col = &pool.colonies[0];
-    memset(col, 0, sizeof(*col));
-    col->active = true;
-    col->id = 1;
-    col->nation_id = 0;
-    col->building_in_production = 0; /* any queued project */
-    col->colonists[0].active = true;
-    col->colonists[0].profession = UNITS_JOB_COLONIST;
-    col->colonist_count = 1;
-    col->population = 1;
-    col->stock[COLONIZE_CARGO_FOOD] = 20;
-
-    EuropeScreen eu;
-    memset(&eu, 0, sizeof(eu));
-    eu.cargo_count = COLONIZE_CARGO_COUNT;
-    for (int i = 0; i < COLONIZE_CARGO_COUNT; ++i) {
-      eu.cargo[i].bid = 1;
-    }
-
-    ColonizeTurnResult prod;
-    memset(&prod, 0, sizeof(prod));
-    turn_run_colony_production_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&pool), .map=(ColonizeWorldMap*)(NULL), .col1=(ColonizeCol1Save*)(NULL), .col1_ok=((NULL) != NULL), .rng=(ColonizeDosRng*)(NULL), .europe=(EuropeScreen*)(&eu)}, 0, &prod, NULL, NULL);
-    if (strstr(eu.status, "hammers") == NULL) {
-      fprintf(stderr, "build advisory K want hammers status got '%s'\n", eu.status);
-      return 1;
-    }
-    fprintf(stderr, "build advisory K ok\n");
-
-    /* K tools crumb: hammers banked + this-tick carpenter flow, tools short. */
-    pool.building_type_count = 2;
-    snprintf(pool.building_types[0].name, sizeof(pool.building_types[0].name), "Carpenter's Shop");
-    pool.building_types[0].hammers = 0;
-    pool.building_types[0].tools_cost = 0;
-    snprintf(pool.building_types[1].name, sizeof(pool.building_types[1].name), "Printing Press");
-    pool.building_types[1].hammers = 10;
-    pool.building_types[1].tools_cost = 4;
-    col->building_in_production = 1;
-    col->has_building[0] = true;
-    col->has_building[1] = false;
-    col->hammers = 10;
-    col->stock[COLONIZE_CARGO_TOOLS] = 0;
-    col->stock[COLONIZE_CARGO_LUMBER] = 20;
-    col->stock[COLONIZE_CARGO_FOOD] = 50; /* avoid Food shortage overwriting */
-    col->colonists[0].building_type = 0;
-    col->colonists[0].profession = COLONIZE_PROF_CARPENTER;
-    eu.status[0] = '\0';
-    memset(&prod, 0, sizeof(prod));
-    turn_run_colony_production_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&pool), .map=(ColonizeWorldMap*)(NULL), .col1=(ColonizeCol1Save*)(NULL), .col1_ok=((NULL) != NULL), .rng=(ColonizeDosRng*)(NULL), .europe=(EuropeScreen*)(&eu)}, 0, &prod, NULL, NULL);
-    if (strstr(eu.status, "tools") == NULL) {
-      fprintf(stderr, "build advisory K tools want status got '%s'\n", eu.status);
-      return 1;
-    }
-    fprintf(stderr, "build advisory K tools ok\n");
-
-    /* 5384&0x20 set → suppress hammers K. */
-    ColonizeCol1Save kcol;
-    memset(&kcol, 0, sizeof(kcol));
-    kcol.head.colony_report_options.report_raw_materials_shortages = 1;
-    col->building_in_production = 0;
-    col->stock[COLONIZE_CARGO_LUMBER] = 0;
-    col->colonists[0].building_type = -1;
-    col->colonists[0].profession = UNITS_JOB_COLONIST;
-    eu.status[0] = '\0';
-    memset(&prod, 0, sizeof(prod));
-    turn_run_colony_production_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&pool), .map=(ColonizeWorldMap*)(NULL), .col1=(ColonizeCol1Save*)(&kcol), .col1_ok=true, .rng=(ColonizeDosRng*)(NULL), .europe=(EuropeScreen*)(&eu)}, 0, &prod, NULL, NULL);
-    if (strstr(eu.status, "hammers") != NULL) {
-      fprintf(stderr, "5384 gate want suppress hammers got '%s'\n", eu.status);
-      return 1;
-    }
-    /* K craft crumbs: Weaver with empty cotton (suppress food-shortage crumb).
-     * 2026-08-24 fix: the K "ran out of X" gate now uses actual craft demand
-     * (colony_craft_demand_mask — someone staffed producing a positive
-     * tier-scaled input requirement), not "the building exists by name",
-     * matching DOS FUN_15eb_0bd4/0b96's demand scratch word — so the
-     * colonist must actually be assigned to the Weaver's House for the
-     * @COTTON crumb to fire (an unstaffed building has zero demand in DOS,
-     * and used to incorrectly nag "Need cotton." regardless of staffing). */
-    ColonizeCol1Save cloth_col;
-    memset(&cloth_col, 0, sizeof(cloth_col));
-    cloth_col.head.colony_report_options.report_food_shortages = 1;
-    snprintf(pool.building_types[0].name, sizeof(pool.building_types[0].name), "Weaver's House");
-    col->has_building[0] = true;
-    col->building_in_production = -1;
-    col->stock[COLONIZE_CARGO_COTTON] = 0;
-    col->stock[COLONIZE_CARGO_SUGAR] = 5;
-    col->stock[COLONIZE_CARGO_TOBACCO] = 5;
-    col->stock[COLONIZE_CARGO_FURS] = 5;
-    col->stock[COLONIZE_CARGO_FOOD] = 20;
-    col->stock[COLONIZE_CARGO_LUMBER] = 5;
-    col->stock[COLONIZE_CARGO_ORE] = 5;
-    col->colonists[0].building_type = 0;
-    col->colonists[0].profession = COLONIZE_PROF_WEAVER;
-    eu.status[0] = '\0';
-    memset(&prod, 0, sizeof(prod));
-    turn_run_colony_production_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&pool), .map=(ColonizeWorldMap*)(NULL), .col1=(ColonizeCol1Save*)(&cloth_col), .col1_ok=true, .rng=(ColonizeDosRng*)(NULL), .europe=(EuropeScreen*)(&eu)}, 0, &prod, NULL, NULL);
-    if (strstr(eu.status, "cotton") == NULL) {
-      fprintf(stderr, "build advisory K cotton want status got '%s'\n", eu.status);
-      return 1;
-    }
-    fprintf(stderr, "build advisory K cotton ok\n");
-
-    /* Phase K @LUMBER / @ORE / @TOOLS chrome. */
-    ColonizeMsgCatalog game_txt;
-    assets_msg_init(&game_txt);
-    (void)assets_msg_load_file(&game_txt, "COLONIZE/GAME.TXT");
-    AiPopupState pops;
-    ai_popup_init(&pops);
-    ColonizeCol1Save food_gate;
-    memset(&food_gate, 0, sizeof(food_gate));
-    food_gate.head.colony_report_options.report_food_shortages = 1;
-
-    snprintf(col->name, sizeof(col->name), "Boston");
-    snprintf(pool.building_types[0].name, sizeof(pool.building_types[0].name), "Carpenter's Shop");
-    col->has_building[0] = true;
-    /* Invent +1 lumber then carpenter hammers burn it so stock ends at 0. */
-    col->building_in_production = 0;
-    col->hammers = 0;
-    col->stock[COLONIZE_CARGO_LUMBER] = 0;
-    col->stock[COLONIZE_CARGO_ORE] = 5;
-    col->stock[COLONIZE_CARGO_FOOD] = 40;
-    col->stock[COLONIZE_CARGO_TOOLS] = 5;
-    col->stock[COLONIZE_CARGO_MUSKETS] = 5;
-    col->colonists[0].building_type = 0;
-    col->colonists[0].profession = COLONIZE_PROF_CARPENTER;
-    eu.status[0] = '\0';
-    ai_popup_clear(&pops);
-    memset(&prod, 0, sizeof(prod));
-    turn_run_colony_production_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&pool), .map=(ColonizeWorldMap*)(NULL), .col1=(ColonizeCol1Save*)(&food_gate), .col1_ok=true, .rng=(ColonizeDosRng*)(NULL), .europe=(EuropeScreen*)(&eu)}, 0, &prod, &pops, &game_txt);
-    if (strstr(eu.status, "lumber") == NULL) {
-      fprintf(stderr, "K LUMBER status want lumber got '%s'\n", eu.status);
-      assets_msg_free(&game_txt);
-      return 1;
-    }
-    if (pops.queue_count < 1 ||
-        (strstr(pops.queue[0].body, "lumber") == NULL &&
-         strstr(pops.queue[0].body, "Boston") == NULL)) {
-      fprintf(
-        stderr,
-        "K LUMBER popup weak q=%d body='%s'\n",
-        pops.queue_count,
-        pops.queue_count > 0 ? pops.queue[0].body : ""
-      );
-      assets_msg_free(&game_txt);
-      return 1;
-    }
-    fprintf(stderr, "Phase K LUMBER chrome ok\n");
-
-    /* Phase K LUMBER negative: unstaffed Carpenter's Shop + 0 lumber must NOT
-     * nag "Need lumber." — 2026-08-24 fix applies the same real-staffed-
-     * demand gate (colony_prod_colony_hammers' out_lumber_use) already used
-     * for the other five K goods above; lumber isn't a colony_craft.c recipe
-     * so it can't reuse colony_craft_demand_mask directly, but the principle
-     * (an unstaffed building has zero demand in DOS) is the same. */
-    col->building_in_production = -1;
-    col->colonists[0].building_type = -1;
-    col->colonists[0].profession = UNITS_JOB_COLONIST;
-    col->stock[COLONIZE_CARGO_LUMBER] = 0;
-    col->stock[COLONIZE_CARGO_ORE] = 5;
-    col->stock[COLONIZE_CARGO_SUGAR] = 5;
-    col->stock[COLONIZE_CARGO_TOBACCO] = 5;
-    col->stock[COLONIZE_CARGO_COTTON] = 5;
-    col->stock[COLONIZE_CARGO_FURS] = 5;
-    col->stock[COLONIZE_CARGO_TOOLS] = 5;
-    col->stock[COLONIZE_CARGO_MUSKETS] = 5;
-    col->stock[COLONIZE_CARGO_FOOD] = 40;
-    eu.status[0] = '\0';
-    ai_popup_clear(&pops);
-    memset(&prod, 0, sizeof(prod));
-    turn_run_colony_production_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&pool), .map=(ColonizeWorldMap*)(NULL), .col1=(ColonizeCol1Save*)(&food_gate), .col1_ok=true, .rng=(ColonizeDosRng*)(NULL), .europe=(EuropeScreen*)(&eu)}, 0, &prod, &pops, &game_txt);
-    if (strstr(eu.status, "lumber") != NULL) {
-      fprintf(stderr, "K LUMBER unstaffed want silence got '%s'\n", eu.status);
-      assets_msg_free(&game_txt);
-      return 1;
-    }
-    fprintf(stderr, "Phase K LUMBER unstaffed-silence ok\n");
-
-    snprintf(pool.building_types[0].name, sizeof(pool.building_types[0].name), "Blacksmith's House");
-    col->building_in_production = -1;
-    /* Stays staffed (building_type=0) — 2026-08-24: K's "ran out of X" gate
-     * needs real craft demand now, not just the building existing. */
-    col->colonists[0].building_type = 0;
-    col->colonists[0].profession = COLONIZE_PROF_BLACKSMITH;
-    col->stock[COLONIZE_CARGO_LUMBER] = 5;
-    col->stock[COLONIZE_CARGO_ORE] = 0;
-    eu.status[0] = '\0';
-    ai_popup_clear(&pops);
-    memset(&prod, 0, sizeof(prod));
-    turn_run_colony_production_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&pool), .map=(ColonizeWorldMap*)(NULL), .col1=(ColonizeCol1Save*)(&food_gate), .col1_ok=true, .rng=(ColonizeDosRng*)(NULL), .europe=(EuropeScreen*)(&eu)}, 0, &prod, &pops, &game_txt);
-    if (strstr(eu.status, "ore") == NULL) {
-      fprintf(stderr, "K ORE status want ore got '%s'\n", eu.status);
-      assets_msg_free(&game_txt);
-      return 1;
-    }
-    if (pops.queue_count < 1 ||
-        (strstr(pops.queue[0].body, "ore") == NULL && strstr(pops.queue[0].body, "Boston") == NULL)) {
-      fprintf(
-        stderr,
-        "K ORE popup weak q=%d body='%s'\n",
-        pops.queue_count,
-        pops.queue_count > 0 ? pops.queue[0].body : ""
-      );
-      assets_msg_free(&game_txt);
-      return 1;
-    }
-    fprintf(stderr, "Phase K ORE chrome ok\n");
-
-    snprintf(pool.building_types[0].name, sizeof(pool.building_types[0].name), "Armory");
-    col->colonists[0].profession = COLONIZE_PROF_GUNSMITH;
-    col->stock[COLONIZE_CARGO_ORE] = 5;
-    col->stock[COLONIZE_CARGO_TOOLS] = 0;
-    col->stock[COLONIZE_CARGO_MUSKETS] = 0;
-    eu.status[0] = '\0';
-    ai_popup_clear(&pops);
-    memset(&prod, 0, sizeof(prod));
-    turn_run_colony_production_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&pool), .map=(ColonizeWorldMap*)(NULL), .col1=(ColonizeCol1Save*)(&food_gate), .col1_ok=true, .rng=(ColonizeDosRng*)(NULL), .europe=(EuropeScreen*)(&eu)}, 0, &prod, &pops, &game_txt);
-    if (strstr(eu.status, "tools") == NULL) {
-      fprintf(stderr, "K TOOLS status want tools got '%s'\n", eu.status);
-      assets_msg_free(&game_txt);
-      return 1;
-    }
-    if (pops.queue_count < 1 ||
-        (strstr(pops.queue[0].body, "tools") == NULL &&
-         strstr(pops.queue[0].body, "Boston") == NULL)) {
-      fprintf(
-        stderr,
-        "K TOOLS popup weak q=%d body='%s'\n",
-        pops.queue_count,
-        pops.queue_count > 0 ? pops.queue[0].body : ""
-      );
-      assets_msg_free(&game_txt);
-      return 1;
-    }
-    assets_msg_free(&game_txt);
-    fprintf(stderr, "Phase K TOOLS chrome ok\n");
-
-    /* Phase K @COTTON / @TOBACCO craft-raw chrome. */
-    (void)assets_msg_load_file(&game_txt, "COLONIZE/GAME.TXT");
-    snprintf(pool.building_types[0].name, sizeof(pool.building_types[0].name), "Weaver's House");
-    col->building_in_production = -1;
-    col->colonists[0].building_type = 0;
-    col->colonists[0].profession = COLONIZE_PROF_WEAVER;
-    col->stock[COLONIZE_CARGO_COTTON] = 0;
-    col->stock[COLONIZE_CARGO_SUGAR] = 5;
-    col->stock[COLONIZE_CARGO_TOBACCO] = 5;
-    col->stock[COLONIZE_CARGO_FURS] = 5;
-    col->stock[COLONIZE_CARGO_LUMBER] = 5;
-    col->stock[COLONIZE_CARGO_ORE] = 5;
-    col->stock[COLONIZE_CARGO_TOOLS] = 5;
-    col->stock[COLONIZE_CARGO_MUSKETS] = 5;
-    eu.status[0] = '\0';
-    ai_popup_clear(&pops);
-    memset(&prod, 0, sizeof(prod));
-    turn_run_colony_production_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&pool), .map=(ColonizeWorldMap*)(NULL), .col1=(ColonizeCol1Save*)(&food_gate), .col1_ok=true, .rng=(ColonizeDosRng*)(NULL), .europe=(EuropeScreen*)(&eu)}, 0, &prod, &pops, &game_txt);
-    if (strstr(eu.status, "cotton") == NULL) {
-      fprintf(stderr, "K COTTON status want cotton got '%s'\n", eu.status);
-      assets_msg_free(&game_txt);
-      return 1;
-    }
-    if (pops.queue_count < 1 ||
-        (strstr(pops.queue[0].body, "cotton") == NULL &&
-         strstr(pops.queue[0].body, "Boston") == NULL)) {
-      fprintf(
-        stderr,
-        "K COTTON popup weak q=%d body='%s'\n",
-        pops.queue_count,
-        pops.queue_count > 0 ? pops.queue[0].body : ""
-      );
-      assets_msg_free(&game_txt);
-      return 1;
-    }
-    fprintf(stderr, "Phase K COTTON chrome ok\n");
-
-    snprintf(pool.building_types[0].name, sizeof(pool.building_types[0].name), "Tobacconist's House");
-    col->colonists[0].profession = COLONIZE_PROF_TOBACCONIST;
-    col->stock[COLONIZE_CARGO_COTTON] = 5;
-    col->stock[COLONIZE_CARGO_TOBACCO] = 0;
-    eu.status[0] = '\0';
-    ai_popup_clear(&pops);
-    memset(&prod, 0, sizeof(prod));
-    turn_run_colony_production_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&pool), .map=(ColonizeWorldMap*)(NULL), .col1=(ColonizeCol1Save*)(&food_gate), .col1_ok=true, .rng=(ColonizeDosRng*)(NULL), .europe=(EuropeScreen*)(&eu)}, 0, &prod, &pops, &game_txt);
-    if (strstr(eu.status, "tobacco") == NULL) {
-      fprintf(stderr, "K TOBACCO status want tobacco got '%s'\n", eu.status);
-      assets_msg_free(&game_txt);
-      return 1;
-    }
-    if (pops.queue_count < 1 ||
-        (strstr(pops.queue[0].body, "tobacco") == NULL &&
-         strstr(pops.queue[0].body, "Boston") == NULL)) {
-      fprintf(
-        stderr,
-        "K TOBACCO popup weak q=%d body='%s'\n",
-        pops.queue_count,
-        pops.queue_count > 0 ? pops.queue[0].body : ""
-      );
-      assets_msg_free(&game_txt);
-      return 1;
-    }
-    assets_msg_free(&game_txt);
-    fprintf(stderr, "Phase K TOBACCO chrome ok\n");
-  }
-
-  fprintf(stderr, "turn tests ok\n");
-  diag_shutdown();
+  map_free(&map);
   return 0;
 }
+
+static int case_production_rules_manufacturing(void) {
+  fx_begin();
+  ColonizeColonyPool pool;
+  colonies_init(&pool);
+  colonies_set_occupancy_map(NULL);
+  ColonizeMsgCatalog names;
+  assets_msg_init(&names);
+  if (!assets_msg_load_file(&names, "COLONIZE/NAMES.TXT") ||
+      !colonies_load_buildings(&pool, &names)) {
+    fprintf(stderr, "production rules: load buildings failed\n");
+    assets_msg_free(&names);
+    return 1;
+  }
+  const int distiller = colonies_find_building(&pool, "Rum Distiller's House");
+  if (distiller < 0) {
+    fprintf(stderr, "production rules: missing distillery\n");
+    assets_msg_free(&names);
+    return 1;
+  }
+  const char* dname = pool.building_types[distiller].name;
+  if (colony_prod_manufacturing_output(dname, COLONIZE_PROF_CONVERT, COLONIZE_PROF_DISTILLER, 0) != 1 ||
+      colony_prod_manufacturing_output(dname, COLONIZE_PROF_BLACKSMITH, COLONIZE_PROF_DISTILLER, 0) != 3 ||
+      colony_prod_manufacturing_output(dname, COLONIZE_PROF_DISTILLER, COLONIZE_PROF_DISTILLER, 0) != 6) {
+    fprintf(stderr, "manufacturing class/skill rules failed\n");
+    assets_msg_free(&names);
+    return 1;
+  }
+
+  /*
+   * FUN_15eb_1d4c: sol_bonus folds in *before* tier/skill math, not as a
+   * flat post-hoc add — matters at factory tier (×1.5 of the whole running
+   * total, not just the class portion) and whenever skill matches (the
+   * whole thing doubles, sol_bonus included). See
+   * manufacturing_worker_calc_1d4c.md.
+   */
+  {
+    const int iron_works = colonies_find_building(&pool, "Iron Works");
+    if (iron_works < 0) {
+      fprintf(stderr, "production rules: missing Iron Works\n");
+      assets_msg_free(&names);
+      return 1;
+    }
+    const char* iname = pool.building_types[iron_works].name;
+    /* Free colonist (tag=3), factory tier, sol_bonus=2 (the real maximum —
+     * the old ">=2 clamps to 2, +1 truncates to 0" step is gone; DOS folds
+     * local_e directly): v = 3+2=5; shop/factory re-add tag: 5+3=8;
+     * factory ×1.5 floor: 8+4=12. */
+    const int unskilled =
+      colony_prod_manufacturing_output(iname, COLONIZE_PROF_FREE_COLONIST, COLONIZE_PROF_BLACKSMITH, 2);
+    if (unskilled != 12) {
+      fprintf(stderr, "factory sol-fold unskilled want 12 got %d\n", unskilled);
+      assets_msg_free(&names);
+      return 1;
+    }
+    /* Skilled (Blacksmith in Iron Works): whole running total doubles: 12*2=24. */
+    const int skilled =
+      colony_prod_manufacturing_output(iname, COLONIZE_PROF_BLACKSMITH, COLONIZE_PROF_BLACKSMITH, 2);
+    if (skilled != 24) {
+      fprintf(stderr, "factory sol-fold skilled want 24 got %d\n", skilled);
+      assets_msg_free(&names);
+      return 1;
+    }
+    /*
+     * Factory input, player-confirmed 2026-08-15 (Viceroy): Textile Mill,
+     * free colonist, +2 sentiment — 12 cloth/turn output, 8 cotton/turn
+     * consumed (colony-wide cotton accounting: 23 produced, 15 surplus, 8
+     * consumed). Reusing Iron Works here (same tier/tag math, recipe-
+     * independent) — free colonist, sol_bonus=2: v=3+2=5, +tag=8,
+     * factory x1.5 floor=12 (matches the 12 cloth exactly). Input:
+     * (12*6+8)/9=8, matching the observed 8 cotton exactly — settles the
+     * long-open "does factory input discount 6-for-9, and does it track
+     * the SoL-adjusted output or the flat base rate" question both ways:
+     * yes to the discount, and it tracks the *actual* output (the old
+     * `sol_bonus=0`-forced reading would have given 6, not 8).
+     */
+    const int factory_out_sol2 =
+      colony_prod_manufacturing_output(iname, COLONIZE_PROF_FREE_COLONIST, COLONIZE_PROF_BLACKSMITH, 2);
+    if (factory_out_sol2 != 12) {
+      fprintf(stderr, "factory output sol=2 want 12 got %d\n", factory_out_sol2);
+      assets_msg_free(&names);
+      return 1;
+    }
+    const int factory_in_sol2 =
+      colony_prod_manufacturing_input(iname, COLONIZE_PROF_FREE_COLONIST, COLONIZE_PROF_BLACKSMITH, 2);
+    if (factory_in_sol2 != 8) {
+      fprintf(stderr, "factory input sol=2 want 8 got %d\n", factory_in_sol2);
+      assets_msg_free(&names);
+      return 1;
+    }
+    /* Base rate (sol_bonus=0) input stays 6 — the old, still-correct half
+     * of the ratio; only the sol-fold was missing before. */
+    const int factory_in_base =
+      colony_prod_manufacturing_input(iname, COLONIZE_PROF_FREE_COLONIST, COLONIZE_PROF_BLACKSMITH, 0);
+    if (factory_in_base != 6) {
+      fprintf(stderr, "factory input base want 6 got %d\n", factory_in_base);
+      assets_msg_free(&names);
+      return 1;
+    }
+    /* Tory penalty (negative sol_bonus) must reduce output, not get
+     * clamped away — house tier, criminal (tag=1), sol_bonus=-5 clamps to 0. */
+    const int penalized =
+      colony_prod_manufacturing_output(dname, COLONIZE_PROF_CRIMINAL, COLONIZE_PROF_DISTILLER, -5);
+    if (penalized != 0) {
+      fprintf(stderr, "Tory-penalty clamp want 0 got %d\n", penalized);
+      assets_msg_free(&names);
+      return 1;
+    }
+    /* Same penalty, free colonist (tag=3): 3-5=-2 clamps to 0 too. */
+    const int penalized2 =
+      colony_prod_manufacturing_output(dname, COLONIZE_PROF_FREE_COLONIST, COLONIZE_PROF_DISTILLER, -5);
+    if (penalized2 != 0) {
+      fprintf(stderr, "Tory-penalty clamp (free) want 0 got %d\n", penalized2);
+      assets_msg_free(&names);
+      return 1;
+    }
+    /* A smaller penalty that doesn't clamp: free colonist, house tier, sol=-1 -> 3-1=2. */
+    const int penalized3 =
+      colony_prod_manufacturing_output(dname, COLONIZE_PROF_FREE_COLONIST, COLONIZE_PROF_DISTILLER, -1);
+    if (penalized3 != 2) {
+      fprintf(stderr, "Tory-penalty (unclamped) want 2 got %d\n", penalized3);
+      assets_msg_free(&names);
+      return 1;
+    }
+    /* colony_prod_bells_worker: sol_bonus folds in before skill doubling
+     * (FUN_15eb_1d4c Statesman body) — unit-level check independent of the
+     * nation-tick machinery above. Skilled: (tag+sol)*2; unskilled: tag+sol
+     * only, no doubling. */
+    const int bells_skilled =
+      colony_prod_bells_worker("Town Hall", COLONIZE_PROF_STATESMAN, 2);
+    if (bells_skilled != 10) { /* (3+2)*2 */
+      fprintf(stderr, "bells_worker skilled sol-fold want 10 got %d\n", bells_skilled);
+      assets_msg_free(&names);
+      return 1;
+    }
+    const int bells_unskilled =
+      colony_prod_bells_worker("Town Hall", COLONIZE_PROF_FREE_COLONIST, 2);
+    if (bells_unskilled != 5) { /* 3+2, not doubled */
+      fprintf(stderr, "bells_worker unskilled sol-fold want 5 got %d\n", bells_unskilled);
+      assets_msg_free(&names);
+      return 1;
+    }
+    /*
+     * colony_prod_crosses_worker / colony_prod_hammers_worker: Carpenter/
+     * Preacher DOS shape is `(skilled?6:tag)+sol_bonus`, *then* doubled by
+     * a colony-wide "owns the upgrade" flag — not the class-scaled rate
+     * table the port used to use, which only matched at sol_bonus=0 (see
+     * manufacturing_worker_calc_1d4c.md). These four values only diverge
+     * from the pre-fix numbers precisely when the colony owns the
+     * upgrade, which is exactly the case being tested here.
+     */
+    const int crosses_unskilled_cathedral =
+      colony_prod_crosses_worker("Cathedral", COLONIZE_PROF_FREE_COLONIST, 2, true, false);
+    if (crosses_unskilled_cathedral != 10) { /* (3+2)*2, not the old 6+2=8 */
+      fprintf(
+        stderr,
+        "crosses_worker unskilled+cathedral want 10 got %d\n",
+        crosses_unskilled_cathedral
+      );
+      assets_msg_free(&names);
+      return 1;
+    }
+    const int crosses_skilled_cathedral =
+      colony_prod_crosses_worker("Cathedral", COLONIZE_PROF_PREACHER, 2, true, false);
+    if (crosses_skilled_cathedral != 16) { /* (6+2)*2, not the old 6*2+2=14 */
+      fprintf(
+        stderr,
+        "crosses_worker skilled+cathedral want 16 got %d\n",
+        crosses_skilled_cathedral
+      );
+      assets_msg_free(&names);
+      return 1;
+    }
+    const int hammers_unskilled =
+      colony_prod_hammers_worker("Carpenter's Shop", UNITS_JOB_NONE, 0, false);
+    const int hammers_skilled =
+      colony_prod_hammers_worker("Carpenter's Shop", COLONIZE_PROF_CARPENTER, 0, false);
+    const int hammers_unskilled_sol =
+      colony_prod_hammers_worker("Carpenter's Shop", UNITS_JOB_NONE, 2, false);
+    const int hammers_unskilled_mill =
+      colony_prod_hammers_worker("Lumber Mill", UNITS_JOB_NONE, 2, true);
+    if (hammers_unskilled_mill != 10) { /* (3+2)*2, not the old 6+2=8 */
+      fprintf(
+        stderr,
+        "hammers_worker unskilled+mill want 10 got %d\n",
+        hammers_unskilled_mill
+      );
+      assets_msg_free(&names);
+      return 1;
+    }
+    const int hammers_skilled_mill =
+      colony_prod_hammers_worker("Lumber Mill", COLONIZE_PROF_CARPENTER, 2, true);
+    if (hammers_skilled_mill != 16) { /* (6+2)*2, not the old 6*2+2=14 */
+      fprintf(
+        stderr,
+        "hammers_worker skilled+mill want 16 got %d\n",
+        hammers_skilled_mill
+      );
+      assets_msg_free(&names);
+      return 1;
+    }
+    /*
+     * William Penn stacks with Cathedral per-worker (v *= 2 for Cathedral,
+     * *then* v += v>>1 for Penn — DOS falls through from the Cathedral
+     * branch into the Penn check unconditionally, not an else). Confirmed
+     * by direct asm read of the Preacher body; see
+     * manufacturing_worker_calc_1d4c.md. Distinguishes this from the old
+     * (wrong) flat colony-total ×1.5, which this function never sees at
+     * all — it can only be right if the stacking happens right here.
+     */
+    const int crosses_unskilled_cathedral_penn =
+      colony_prod_crosses_worker("Cathedral", COLONIZE_PROF_FREE_COLONIST, 0, true, true);
+    if (crosses_unskilled_cathedral_penn != 9) { /* (3*2)+((3*2)>>1) = 6+3 */
+      fprintf(
+        stderr,
+        "crosses_worker unskilled+cathedral+penn want 9 got %d\n",
+        crosses_unskilled_cathedral_penn
+      );
+      assets_msg_free(&names);
+      return 1;
+    }
+    const int crosses_skilled_cathedral_penn =
+      colony_prod_crosses_worker("Cathedral", COLONIZE_PROF_PREACHER, 0, true, true);
+    if (crosses_skilled_cathedral_penn != 18) { /* (6*2)+((6*2)>>1) = 12+6 */
+      fprintf(
+        stderr,
+        "crosses_worker skilled+cathedral+penn want 18 got %d\n",
+        crosses_skilled_cathedral_penn
+      );
+      assets_msg_free(&names);
+      return 1;
+    }
+  }
+
+  ColonizeColony* col = &pool.colonies[0];
+  memset(col, 0, sizeof(*col));
+  col->active = true;
+  col->id = 1;
+  col->building_in_production = -1;
+  col->has_building[distiller] = true;
+  col->stock[COLONIZE_CARGO_FOOD] = 20;
+  col->stock[COLONIZE_CARGO_SUGAR] = 10;
+  col->colonists[0].active = true;
+  col->colonists[0].building_type = distiller;
+  col->colonists[0].profession = COLONIZE_PROF_CONVERT;
+  col->colonists[0].field_job = -1;
+  for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES_MAX; ++t) {
+    col->tiles[t] = -1;
+  }
+  col->colonist_count = 1;
+  col->population = 1;
+  pool.colony_count = 1;
+
+  ColonizeTurnResult prod;
+  ColonizeColonyProdDelta delta;
+  memset(&prod, 0, sizeof(prod));
+  turn_colony_free_production(&pool, col, NULL, &prod, &delta);
+  if (col->stock[COLONIZE_CARGO_RUM] != 1 || col->stock[COLONIZE_CARGO_SUGAR] != 9) {
+    fprintf(
+      stderr,
+      "convert rum craft failed sugar=%d rum=%d\n",
+      col->stock[COLONIZE_CARGO_SUGAR],
+      col->stock[COLONIZE_CARGO_RUM]
+    );
+    assets_msg_free(&names);
+    return 1;
+  }
+  assets_msg_free(&names);
+  return 0;
+}
+
+/* Field lumberjack harvests from forest surround tile. */
+static int case_field_lumberjack(void) {
+  fx_begin();
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  char err[256];
+  if (!map_load_mp("COLONIZE/AMER2.MP", &map, err, sizeof(err))) {
+    fprintf(stderr, "map load for field test: %s\n", err);
+    return 1;
+  }
+  ColonizeColonyPool pool;
+  colonies_init(&pool);
+  colonies_set_occupancy_map(NULL);
+  ColonizeMsgCatalog names;
+  assets_msg_init(&names);
+  if (!assets_msg_load_file(&names, "COLONIZE/NAMES.TXT") ||
+      !colonies_load_buildings(&pool, &names) || !colonies_load_names(&pool, "COLONIZE/COLONY.TXT")) {
+    fprintf(stderr, "names/buildings for field test failed\n");
+    assets_msg_free(&names);
+    map_free(&map);
+    return 1;
+  }
+  int fx = -1, fy = -1, ftile = -1, cx = -1, cy = -1;
+  for (int y = 1; y < (int)map.height - 1 && fx < 0; ++y) {
+    for (int x = 1; x < (int)map.width - 1 && fx < 0; ++x) {
+      if (!map_tile_is_land(&map, x, y) || !colonies_can_found(&pool, &map, x, y)) {
+        continue;
+      }
+      for (int ti = 0; ti < COLONIZE_COLONY_FIELD_TILES; ++ti) {
+        int dx = 0, dy = 0;
+        colonies_field_tile_delta(ti, &dx, &dy);
+        const int yld =
+          colony_yield_for_tile(&map, x + dx, y + dy, COLONIZE_JOB_LUMBERJACK);
+        if (yld > 0) {
+          cx = x;
+          cy = y;
+          fx = x + dx;
+          fy = y + dy;
+          ftile = ti;
+          break;
+        }
+      }
+    }
+  }
+  if (ftile < 0) {
+    fprintf(stderr, "no colony site with lumberjack yield nearby\n");
+    assets_msg_free(&names);
+    map_free(&map);
+    return 1;
+  }
+  const int cid = colonies_found(&pool, &map, cx, cy, 0, 0, UNITS_JOB_NONE, 0, 0, 0);
+  ColonizeColony* col = colonies_get_mut(&pool, cid);
+  if (!col || !colonies_assign_field(&pool, cid, 0, ftile, COLONIZE_JOB_LUMBERJACK)) {
+    fprintf(stderr, "assign lumberjack failed at (%d,%d) tile %d\n", fx, fy, ftile);
+    assets_msg_free(&names);
+    map_free(&map);
+    return 1;
+  }
+  /* Isolate field harvest from carpenter hammers on default Stockade project.
+   * This colony has no Farmer, only the Lumberjack under test, so give it a
+   * food buffer up front — otherwise Phase J's starve-kill (still short of
+   * `pop*2` after the turn, and food was 0 at turn start) removes the
+   * colony's only colonist on the very first turn_colony_free_production
+   * call below, before either check in this block ever runs. */
+  col->building_in_production = -1;
+  col->stock[COLONIZE_CARGO_FOOD] = 100;
+  const int before = col->stock[COLONIZE_CARGO_LUMBER];
+  const int expect =
+    colony_yield_for_worker(&map, fx, fy, COLONIZE_JOB_LUMBERJACK, col->colonists[0].profession, true, 0, 0, false);
+  ColonizeTurnResult prod;
+  ColonizeColonyProdDelta delta;
+  memset(&prod, 0, sizeof(prod));
+  turn_colony_free_production(&pool, col, &map, &prod, &delta);
+  /* No carpenter assigned → hammers stay 0 (shop alone does not produce). */
+  if (delta.goods[COLONIZE_CARGO_LUMBER] < expect) {
+    fprintf(
+      stderr,
+      "field lumber delta too low got %d expect %d (stock %d->%d)\n",
+      delta.goods[COLONIZE_CARGO_LUMBER],
+      expect,
+      before,
+      col->stock[COLONIZE_CARGO_LUMBER]
+    );
+    assets_msg_free(&names);
+    map_free(&map);
+    return 1;
+  }
+
+  /* Tory penalty must reduce the Production tab's field-yield preview too —
+   * colony_preview.c's field loop had the same `sol_b > 0` guard bug as
+   * bells/hammers, dropping every Tory penalty instead of applying it. */
+  /* tories=15, thresh=10 (col1 NULL) -> mod=-1. Both fields: the pop
+   * fallback is colonist_count-first port-wide (see colony_prod_sol_bonus);
+   * setting `population` alone encoded the old population-first order.
+   * Slots 1..14 stay inactive, so no worker/production loop sees them. */
+  col->population = 15;
+  col->colonist_count = 15;
+  const int base_yield =
+    colony_yield_for_worker(&map, fx, fy, COLONIZE_JOB_LUMBERJACK, col->colonists[0].profession, true, 0, 0, false);
+  ColonizeColonyPreview prev;
+  colony_preview_compute_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&pool), .map=(ColonizeWorldMap*)(&map), .col1=(ColonizeCol1Save*)(NULL), .col1_ok=((NULL) != NULL)}, col, &prev);
+  if (prev.goods[COLONIZE_CARGO_LUMBER] != base_yield - 1) {
+    fprintf(
+      stderr,
+      "Tory-penalty field preview want %d got %d (base_yield=%d)\n",
+      base_yield - 1,
+      prev.goods[COLONIZE_CARGO_LUMBER],
+      base_yield
+    );
+    assets_msg_free(&names);
+    map_free(&map);
+    return 1;
+  }
+
+  assets_msg_free(&names);
+  map_free(&map);
+  return 0;
+}
+
+/*
+ * Henry Hudson: fur trapper field output +100% (turn_produce_one_colony).
+ * Preview must match — colony_preview.c had been missing this doubling.
+ */
+static int case_hudson_fur_preview(void) {
+  fx_begin();
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  char err[256];
+  if (!map_load_mp("COLONIZE/AMER2.MP", &map, err, sizeof(err))) {
+    fprintf(stderr, "map load for Hudson test: %s\n", err);
+    return 1;
+  }
+  ColonizeColonyPool pool;
+  colonies_init(&pool);
+  colonies_set_occupancy_map(NULL);
+  ColonizeMsgCatalog names;
+  assets_msg_init(&names);
+  if (!assets_msg_load_file(&names, "COLONIZE/NAMES.TXT") ||
+      !colonies_load_buildings(&pool, &names) || !colonies_load_names(&pool, "COLONIZE/COLONY.TXT")) {
+    fprintf(stderr, "names/buildings for Hudson test failed\n");
+    assets_msg_free(&names);
+    map_free(&map);
+    return 1;
+  }
+  int fx = -1, fy = -1, ftile = -1, cx = -1, cy = -1;
+  for (int y = 1; y < (int)map.height - 1 && fx < 0; ++y) {
+    for (int x = 1; x < (int)map.width - 1 && fx < 0; ++x) {
+      if (!map_tile_is_land(&map, x, y) || !colonies_can_found(&pool, &map, x, y)) {
+        continue;
+      }
+      for (int ti = 0; ti < COLONIZE_COLONY_FIELD_TILES; ++ti) {
+        int dx = 0, dy = 0;
+        colonies_field_tile_delta(ti, &dx, &dy);
+        const int yld =
+          colony_yield_for_tile(&map, x + dx, y + dy, COLONIZE_JOB_FUR_TRAPPER);
+        if (yld > 0) {
+          cx = x;
+          cy = y;
+          fx = x + dx;
+          fy = y + dy;
+          ftile = ti;
+          break;
+        }
+      }
+    }
+  }
+  if (ftile < 0) {
+    fprintf(stderr, "no colony site with fur trapper yield nearby\n");
+    assets_msg_free(&names);
+    map_free(&map);
+    return 1;
+  }
+  const int cid = colonies_found(&pool, &map, cx, cy, 0, 0, UNITS_JOB_NONE, 0, 0, 0);
+  ColonizeColony* col = colonies_get_mut(&pool, cid);
+  if (!col || !colonies_assign_field(&pool, cid, 0, ftile, COLONIZE_JOB_FUR_TRAPPER)) {
+    fprintf(stderr, "assign fur trapper failed at (%d,%d) tile %d\n", fx, fy, ftile);
+    assets_msg_free(&names);
+    map_free(&map);
+    return 1;
+  }
+  col->building_in_production = -1;
+  col->nation_id = 0;
+  /* No Farmer, only the Fur Trapper under test — seed a food buffer so
+   * Phase J's starve-kill doesn't remove the colony's only colonist on
+   * this first simulated turn (town-commons food alone nets exactly 0
+   * against pop*2 consumption for a fresh 1-colonist colony). */
+  col->stock[COLONIZE_CARGO_FOOD] = 100;
+
+  ColonizeCol1Save col1;
+  memset(&col1, 0, sizeof(col1));
+  col1.player[0].control = 0;
+  for (int i = 0; i < (int)COLONIZE_COL1_FF_COUNT; ++i) {
+    col1.head.founding_father[i] = -1;
+  }
+
+  ColonizeTurnResult prod;
+  memset(&prod, 0, sizeof(prod));
+  turn_run_colony_production_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&pool), .map=(ColonizeWorldMap*)(&map), .col1=(ColonizeCol1Save*)(&col1), .col1_ok=true, .rng=(ColonizeDosRng*)(NULL), .europe=(EuropeScreen*)(NULL)}, -1, &prod, NULL, NULL);
+  const int base_furs = col->stock[COLONIZE_CARGO_FURS];
+  if (base_furs <= 0) {
+    fprintf(stderr, "Hudson test base fur harvest want >0 got %d\n", base_furs);
+    assets_msg_free(&names);
+    map_free(&map);
+    return 1;
+  }
+
+  /* Grant Hudson, redo the same tick from a clean stock, expect exactly 2x. */
+  col->stock[COLONIZE_CARGO_FURS] = 0;
+  col1.head.founding_father[FF_HENRY_HUDSON] = 0; /* nation 0 owns it */
+  col1.nation[0].founding_fathers[FF_HENRY_HUDSON / 8] |=
+    (uint8_t)(1u << (FF_HENRY_HUDSON % 8));
+  ColonizeColonyPreview prev;
+  colony_preview_compute_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&pool), .map=(ColonizeWorldMap*)(&map), .col1=(ColonizeCol1Save*)(&col1), .col1_ok=true}, col, &prev);
+  memset(&prod, 0, sizeof(prod));
+  turn_run_colony_production_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&pool), .map=(ColonizeWorldMap*)(&map), .col1=(ColonizeCol1Save*)(&col1), .col1_ok=true, .rng=(ColonizeDosRng*)(NULL), .europe=(EuropeScreen*)(NULL)}, -1, &prod, NULL, NULL);
+  const int hudson_furs = col->stock[COLONIZE_CARGO_FURS];
+  if (hudson_furs != base_furs * 2) {
+    fprintf(
+      stderr,
+      "Hudson fur doubling want %d got %d\n",
+      base_furs * 2,
+      hudson_furs
+    );
+    assets_msg_free(&names);
+    map_free(&map);
+    return 1;
+  }
+  if (prev.goods[COLONIZE_CARGO_FURS] != hudson_furs) {
+    fprintf(
+      stderr,
+      "Hudson fur preview mismatch want %d got %d\n",
+      hudson_furs,
+      prev.goods[COLONIZE_CARGO_FURS]
+    );
+    assets_msg_free(&names);
+    map_free(&map);
+    return 1;
+  }
+  assets_msg_free(&names);
+  map_free(&map);
+  return 0;
+}
+
+/*
+ * Hammers bank even with no construction queued (turn.c "TURN5→6" comment,
+ * colony_prod_colony_hammers). Preview had been hiding this row entirely
+ * whenever building_in_production < 0.
+ */
+static int case_hammers_bank_no_project(void) {
+  fx_begin();
+  ColonizeColonyPool pool;
+  colonies_init(&pool);
+  colonies_set_occupancy_map(NULL);
+  snprintf(pool.building_types[0].name, sizeof(pool.building_types[0].name), "Carpenter's Shop");
+  pool.building_type_count = 1;
+
+  ColonizeColony* col = &pool.colonies[0];
+  memset(col, 0, sizeof(*col));
+  col->active = true;
+  col->id = 1;
+  col->nation_id = 0;
+  col->building_in_production = -1; /* no project selected */
+  col->stock[COLONIZE_CARGO_FOOD] = 100; /* avoid starve-kill wiping the colony */
+  col->stock[COLONIZE_CARGO_LUMBER] = 10;
+  col->colonists[0].active = true;
+  col->colonists[0].building_type = 0;
+  col->colonists[0].profession = COLONIZE_PROF_FREE_COLONIST;
+  col->colonists[0].field_job = -1;
+  for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES_MAX; ++t) {
+    col->tiles[t] = -1;
+  }
+  col->colonist_count = 1;
+  col->population = 1;
+  pool.colony_count = 1;
+
+  ColonizeColonyPreview prev;
+  colony_preview_compute_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&pool), .map=(ColonizeWorldMap*)(NULL), .col1=(ColonizeCol1Save*)(NULL), .col1_ok=((NULL) != NULL)}, col, &prev);
+  if (prev.hammers != 3) {
+    fprintf(stderr, "no-project hammers preview want 3 got %d\n", prev.hammers);
+    return 1;
+  }
+
+  ColonizeTurnResult prod;
+  ColonizeColonyProdDelta delta;
+  memset(&prod, 0, sizeof(prod));
+  memset(&delta, 0, sizeof(delta));
+  turn_colony_free_production(&pool, col, NULL, &prod, &delta);
+  if (col->hammers != 3 || delta.hammers_added != 3 ||
+      col->stock[COLONIZE_CARGO_LUMBER] != 7) {
+    fprintf(
+      stderr,
+      "no-project hammers actual want hammers=3 delta=3 lumber=7 got %d/%d/%d\n",
+      col->hammers,
+      delta.hammers_added,
+      col->stock[COLONIZE_CARGO_LUMBER]
+    );
+    return 1;
+  }
+  return 0;
+}
+
+/*
+ * Tory penalty must reduce banked hammers too, not get silently dropped
+ * (same `sol_b > 0` guard bug as bells above, now fixed). Lumber stock
+ * must cover the sol-adjusted output — hammers cost lumber 1:1, capped by
+ * what was on hand at the start of the turn (2026-08-16 real-DOS fix: a
+ * carpenter with 0 lumber on hand now correctly bags 0 hammers, not the
+ * sol-adjusted value for free — see turn.c's Carpenter hammers block).
+ */
+static int case_tory_penalty_hammers(void) {
+  fx_begin();
+  ColonizeColonyPool pool;
+  colonies_init(&pool);
+  colonies_set_occupancy_map(NULL);
+  snprintf(pool.building_types[0].name, sizeof(pool.building_types[0].name), "Carpenter's Shop");
+  pool.building_type_count = 1;
+
+  ColonizeColony* col = &pool.colonies[0];
+  memset(col, 0, sizeof(*col));
+  col->active = true;
+  col->id = 1;
+  col->nation_id = 0;
+  col->building_in_production = -1;
+  col->stock[COLONIZE_CARGO_FOOD] = 100;
+  col->stock[COLONIZE_CARGO_LUMBER] = 100;
+  col->colonists[0].active = true;
+  col->colonists[0].building_type = 0;
+  col->colonists[0].profession = COLONIZE_PROF_FREE_COLONIST;
+  col->colonists[0].field_job = -1;
+  for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES_MAX; ++t) {
+    col->tiles[t] = -1;
+  }
+  /* tories=15, thresh=10 (col1 NULL -> default) -> mod=-1. Both fields:
+   * the pop fallback is colonist_count-first port-wide (colony_prod_sol_
+   * bonus); `population` alone encoded the old population-first order.
+   * Only slot 0 is active, so the carpenter stays the lone worker. */
+  col->colonist_count = 15;
+  col->population = 15;
+  pool.colony_count = 1;
+
+  ColonizeColonyPreview prev;
+  colony_preview_compute_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&pool), .map=(ColonizeWorldMap*)(NULL), .col1=(ColonizeCol1Save*)(NULL), .col1_ok=((NULL) != NULL)}, col, &prev);
+  if (prev.hammers != 2) {
+    fprintf(stderr, "Tory-penalty hammers preview want 2 got %d\n", prev.hammers);
+    return 1;
+  }
+
+  ColonizeTurnResult prod;
+  ColonizeColonyProdDelta delta;
+  memset(&prod, 0, sizeof(prod));
+  memset(&delta, 0, sizeof(delta));
+  turn_colony_free_production(&pool, col, NULL, &prod, &delta);
+  if (col->hammers != 2 || delta.hammers_added != 2) {
+    fprintf(
+      stderr,
+      "Tory-penalty hammers actual want 2 got hammers=%d delta=%d\n",
+      col->hammers,
+      delta.hammers_added
+    );
+    return 1;
+  }
+  fprintf(stderr, "Tory penalty reduces hammers ok\n");
+  return 0;
+}
+
+/*
+ * Smell audit #62 — latch-crossing turn: the Production preview and the
+ * real tick must compose from the SAME SoL number. DOS composes every
+ * cargo (field, craft, hammers, bells, crosses) once in FUN_364b_0688's
+ * Phase A prologue (`281f_0c22` -> `15eb_1f72`, viceroy 57228) and only
+ * reads that scratch back later, so Phase C/D's SoL accumulator + latch
+ * update (57349-57485) cannot reach this tick's production. The port used
+ * to call colony_prod_sol_bonus() again down at the Phase L hammers site,
+ * i.e. *after* the latch flipped, so on the one turn a colony crosses 50%
+ * SoL the preview promised 3 hammers and the tick banked 4.
+ *
+ * Fixture: pop 1, 60% SoL, no latch bit yet. tories = (1*40+50)/100 = 0,
+ * so the pre-tick bonus is exactly 0 and the post-latch bonus exactly +1
+ * — the whole difference is the bit Phase D sets during this same tick.
+ */
+static int case_sol_latch_crossing_turn(void) {
+  fx_begin();
+  ColonizeColonyPool pool;
+  colonies_init(&pool);
+  colonies_set_occupancy_map(NULL);
+  snprintf(pool.building_types[0].name, sizeof(pool.building_types[0].name), "Carpenter's Shop");
+  pool.building_type_count = 1;
+
+  ColonizeColony* col = &pool.colonies[0];
+  memset(col, 0, sizeof(*col));
+  col->active = true;
+  col->id = 1;
+  col->nation_id = 0;
+  col->x = 5;
+  col->y = 7;
+  col->building_in_production = -1;
+  col->stock[COLONIZE_CARGO_FOOD] = 100;
+  col->stock[COLONIZE_CARGO_LUMBER] = 100;
+  col->colonists[0].active = true;
+  col->colonists[0].building_type = 0;
+  col->colonists[0].profession = COLONIZE_PROF_FREE_COLONIST;
+  col->colonists[0].field_job = -1;
+  for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES_MAX; ++t) {
+    col->tiles[t] = -1;
+  }
+  col->colonist_count = 1;
+  col->population = 1;
+  col->colony_flags = 0; /* neither SoL latch bit set yet */
+  pool.colony_count = 1;
+
+  ColonizeCol1Save col1;
+  memset(&col1, 0, sizeof(col1));
+  ColonizeCol1Colony c1rec;
+  memset(&c1rec, 0, sizeof(c1rec));
+  c1rec.x = 5;
+  c1rec.y = 7;
+  c1rec.rebel_dividend = 60;
+  c1rec.rebel_divisor = 100; /* 60% -> Phase D sets SOL_50 this tick */
+  col1.colony = &c1rec;
+  col1.head.colony_count = 1;
+  col1.player[0].control = 0;
+  /* memset(0) would read as "nation 0 owns every founding father" — the
+   * fixture trap that has bitten this project before. */
+  for (int i = 0; i < (int)COLONIZE_COL1_FF_COUNT; ++i) {
+    col1.head.founding_father[i] = -1;
+  }
+
+  ColonizeColonyPreview prev;
+  colony_preview_compute_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&pool), .map=(ColonizeWorldMap*)(NULL), .col1=(ColonizeCol1Save*)(&col1), .col1_ok=true}, col, &prev);
+
+  ColonizeTurnResult prod;
+  memset(&prod, 0, sizeof(prod));
+  turn_run_colony_production_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&pool), .map=(ColonizeWorldMap*)(NULL), .col1=(ColonizeCol1Save*)(&col1), .col1_ok=true, .rng=(ColonizeDosRng*)(NULL), .europe=(EuropeScreen*)(NULL)}, -1, &prod, NULL, NULL);
+
+  if ((col->colony_flags & COLONIZE_COLONY_FLAG_SOL_50) == 0) {
+    fprintf(
+      stderr,
+      "latch-crossing fixture never crossed (flags=%u) — test is vacuous\n",
+      (unsigned)col->colony_flags
+    );
+    return 1;
+  }
+  if (prev.hammers != 3 || col->hammers != 3) {
+    fprintf(
+      stderr,
+      "latch-crossing preview/tick disagree: preview %d, tick %d (want 3/3)\n",
+      prev.hammers,
+      col->hammers
+    );
+    return 1;
+  }
+  fprintf(stderr, "latch-crossing preview == tick ok\n");
+  return 0;
+}
+
+/*
+ * Smell audit #63 — Phase A composes before Phase J. DOS's per-colonist
+ * manufacturing loop (`15eb_1d4c` inside `15eb_1f72`, viceroy 12602-12609)
+ * runs in the prologue, so the roster it reads is the one that started the
+ * turn; the starve-kill at 57623-57695 comes much later and cannot retract
+ * work already composed. The port used to call colony_craft_one_colony at
+ * the Phase L position, *after* the kill, so a Blacksmith who starved this
+ * tick had his tools vanish retroactively.
+ *
+ * Fixture: pop 2, no food and no food production (map NULL -> no commons),
+ * so Phase J kills the last colonist — who is the Blacksmith.
+ */
+static int case_phase_a_before_phase_j(void) {
+  fx_begin();
+  ColonizeColonyPool pool;
+  colonies_init(&pool);
+  colonies_set_occupancy_map(NULL);
+  snprintf(
+    pool.building_types[0].name, sizeof(pool.building_types[0].name), "Blacksmith's House"
+  );
+  pool.building_type_count = 1;
+
+  ColonizeColony* col = &pool.colonies[0];
+  memset(col, 0, sizeof(*col));
+  col->active = true;
+  col->id = 1;
+  col->nation_id = 0;
+  col->building_in_production = -1;
+  col->stock[COLONIZE_CARGO_FOOD] = 0; /* Phase J needs food 0 at entry */
+  col->stock[COLONIZE_CARGO_ORE] = 50;
+  for (int i = 0; i < 2; ++i) {
+    col->colonists[i].active = true;
+    col->colonists[i].building_type = (i == 1) ? 0 : -1;
+    col->colonists[i].profession = COLONIZE_PROF_FREE_COLONIST;
+    col->colonists[i].field_job = -1;
+  }
+  for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES_MAX; ++t) {
+    col->tiles[t] = -1;
+  }
+  col->colonist_count = 2;
+  col->population = 2;
+  pool.colony_count = 1;
+
+  ColonizeTurnResult prod;
+  ColonizeColonyProdDelta delta;
+  memset(&prod, 0, sizeof(prod));
+  memset(&delta, 0, sizeof(delta));
+  turn_colony_free_production(&pool, col, NULL, &prod, &delta);
+
+  if (col->colonist_count != 1) {
+    fprintf(
+      stderr,
+      "starve fixture did not kill exactly one colonist (count=%d) — test is vacuous\n",
+      col->colonist_count
+    );
+    return 1;
+  }
+  if (col->stock[COLONIZE_CARGO_TOOLS] <= 0 || col->stock[COLONIZE_CARGO_ORE] >= 50) {
+    fprintf(
+      stderr,
+      "starved Blacksmith's Phase A tools were retracted: tools=%d ore=%d\n",
+      col->stock[COLONIZE_CARGO_TOOLS],
+      col->stock[COLONIZE_CARGO_ORE]
+    );
+    return 1;
+  }
+  fprintf(stderr, "Phase A craft survives Phase J starve-kill ok\n");
+  return 0;
+}
+
+/*
+ * Fisherman needs Docks (FUN_15eb_18ec ~11925-11939): yields 0 without it,
+ * regardless of what the tile table says. colony_yield_for_worker's
+ * has_docks parameter must actually gate this, not just default to
+ * "allowed" everywhere.
+ */
+static int case_fisherman_needs_docks(void) {
+  fx_begin();
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  char err[256];
+  if (!map_load_mp("COLONIZE/AMER2.MP", &map, err, sizeof(err))) {
+    fprintf(stderr, "map load for docks-gate test: %s\n", err);
+    return 1;
+  }
+  ColonizeColonyPool pool;
+  colonies_init(&pool);
+  colonies_set_occupancy_map(NULL);
+  ColonizeMsgCatalog names;
+  assets_msg_init(&names);
+  if (!assets_msg_load_file(&names, "COLONIZE/NAMES.TXT") ||
+      !colonies_load_buildings(&pool, &names) || !colonies_load_names(&pool, "COLONIZE/COLONY.TXT")) {
+    fprintf(stderr, "names/buildings for docks-gate test failed\n");
+    assets_msg_free(&names);
+    map_free(&map);
+    return 1;
+  }
+  int fx = -1, fy = -1, ftile = -1, cx = -1, cy = -1;
+  for (int y = 1; y < (int)map.height - 1 && fx < 0; ++y) {
+    for (int x = 1; x < (int)map.width - 1 && fx < 0; ++x) {
+      if (!map_tile_is_land(&map, x, y) || !colonies_can_found(&pool, &map, x, y)) {
+        continue;
+      }
+      for (int ti = 0; ti < COLONIZE_COLONY_FIELD_TILES; ++ti) {
+        int dx = 0, dy = 0;
+        colonies_field_tile_delta(ti, &dx, &dy);
+        const int yld =
+          colony_yield_for_tile(&map, x + dx, y + dy, COLONIZE_JOB_FISHERMAN);
+        if (yld > 0) {
+          cx = x;
+          cy = y;
+          fx = x + dx;
+          fy = y + dy;
+          ftile = ti;
+          break;
+        }
+      }
+    }
+  }
+  if (ftile < 0) {
+    fprintf(stderr, "no colony site with fisherman yield nearby\n");
+    assets_msg_free(&names);
+    map_free(&map);
+    return 1;
+  }
+  const int cid = colonies_found(&pool, &map, cx, cy, 0, 0, UNITS_JOB_NONE, 0, 0, 0);
+  ColonizeColony* col = colonies_get_mut(&pool, cid);
+  if (!col || !colonies_assign_field(&pool, cid, 0, ftile, COLONIZE_JOB_FISHERMAN)) {
+    fprintf(stderr, "assign fisherman failed at (%d,%d) tile %d\n", fx, fy, ftile);
+    assets_msg_free(&names);
+    map_free(&map);
+    return 1;
+  }
+  const int docks = colonies_find_building(&pool, "Docks");
+  if (docks < 0) {
+    fprintf(stderr, "docks-gate test: missing Docks building type\n");
+    assets_msg_free(&names);
+    map_free(&map);
+    return 1;
+  }
+  col->has_building[docks] = false;
+  const int no_docks_yld = colony_yield_for_worker(
+    &map, fx, fy, COLONIZE_JOB_FISHERMAN, col->colonists[0].profession, false, 0, 0,
+    false
+  );
+  if (no_docks_yld != 0) {
+    fprintf(stderr, "fisherman without Docks want 0 got %d\n", no_docks_yld);
+    assets_msg_free(&names);
+    map_free(&map);
+    return 1;
+  }
+  const int with_docks_yld = colony_yield_for_worker(
+    &map, fx, fy, COLONIZE_JOB_FISHERMAN, col->colonists[0].profession, true, 0, 0,
+    false
+  );
+  if (with_docks_yld <= 0) {
+    fprintf(stderr, "fisherman with Docks want >0 got %d\n", with_docks_yld);
+    assets_msg_free(&names);
+    map_free(&map);
+    return 1;
+  }
+  assets_msg_free(&names);
+  map_free(&map);
+  fprintf(stderr, "fisherman Docks gate ok\n");
+  return 0;
+}
+
+/*
+ * Church and Cathedral passive crosses are the *same* (+1 each, on top of
+ * the colony base +1) in DOS (FUN_15eb_1f72 ~11306-11314: unconditional
+ * +1, then +1 independently if Church built, +1 independently if
+ * Cathedral built) — not the manual/wiki-sourced +2/+3 this used to
+ * return. No existing test exercised Cathedral specifically to catch a
+ * regression back to the old split.
+ */
+static int case_church_cathedral_crosses(void) {
+  fx_begin();
+  ColonizeColonyPool pool;
+  colonies_init(&pool);
+  colonies_set_occupancy_map(NULL);
+  snprintf(pool.building_types[0].name, sizeof(pool.building_types[0].name), "Church");
+  snprintf(pool.building_types[1].name, sizeof(pool.building_types[1].name), "Cathedral");
+  pool.building_type_count = 2;
+
+  ColonizeColony* col = &pool.colonies[0];
+  memset(col, 0, sizeof(*col));
+  col->active = true;
+  col->id = 1;
+  col->nation_id = 0;
+  for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES_MAX; ++t) {
+    col->tiles[t] = -1;
+  }
+  pool.colony_count = 1;
+
+  col->has_building[0] = true; /* Church */
+  const int church_crosses = colony_prod_colony_crosses_ff(&pool, col, false, 0);
+  col->has_building[0] = false;
+  col->has_building[1] = true; /* Cathedral */
+  const int cathedral_crosses = colony_prod_colony_crosses_ff(&pool, col, false, 0);
+  if (church_crosses != 2 || cathedral_crosses != 2) {
+    fprintf(
+      stderr,
+      "Church/Cathedral passive parity want 2/2 got %d/%d\n",
+      church_crosses,
+      cathedral_crosses
+    );
+    return 1;
+  }
+  fprintf(stderr, "Church/Cathedral passive parity ok\n");
+  return 0;
+}
+
+/*
+ * Real DOS gives expert Farmer/Fisherman a flat +2 on skill match, not
+ * ×2 like every other field expert, plus the colony's SoL latch bits
+ * re-added a second time (FUN_15eb_18ec ~11890-11899, asm-confirmed —
+ * see docs/terrain_yields.md "Field Farmer/Fisherman expert formula").
+ * Wired 2026-08-18, player-confirmed against four real,
+ * un-synthesized golden_colony_prod02 town-commons-food values (which
+ * pinned the sibling formula first) plus Fort Orange's real expert
+ * Farmer (Savannah, no resource: base 3 + sol fold 2 + flat 2 + latch
+ * re-add 2 = 9, not (3+2)×2 = 10) and New Amsterdam's real expert
+ * Fisherman + Fishery resource (needs the same shape plus its own
+ * doubled resource).
+ *
+ * `base` (free colonist, non-expert) includes the unconditional Farmer
+ * +1 (colony_yield_pipeline) plus a possible river +1 — neither applies
+ * to the expert path (skips this block entirely), so back both out to
+ * get the raw table value the expert path's flat +2 applies to. No
+ * colony context here (real map, no colony), so colony_flags=0 → no
+ * latch re-add.
+ */
+static int case_expert_farmer_flat_bonus(void) {
+  fx_begin();
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  char err[256];
+  if (!map_load_mp("COLONIZE/AMER2.MP", &map, err, sizeof(err))) {
+    fprintf(stderr, "map load for expert food/fish test: %s\n", err);
+    return 1;
+  }
+  int fx = -1, fy = -1;
+  for (int y = 1; y < (int)map.height - 1 && fx < 0; ++y) {
+    for (int x = 1; x < (int)map.width - 1 && fx < 0; ++x) {
+      if (colony_yield_for_tile(&map, x, y, COLONIZE_JOB_FARMER) > 0) {
+        fx = x;
+        fy = y;
+      }
+    }
+  }
+  if (fx < 0) {
+    fprintf(stderr, "no tile with farmer yield for expert test\n");
+    map_free(&map);
+    return 1;
+  }
+  const int base = colony_yield_for_tile(&map, fx, fy, COLONIZE_JOB_FARMER);
+  const int expert_yld =
+    colony_yield_for_worker(&map, fx, fy, COLONIZE_JOB_FARMER, COLONIZE_JOB_FARMER, true, 0, 0, false);
+  /* 2026-09-03: the improvement stack (farmer +1, plow, river) applies to
+   * expert and non-expert alike (asm 15eb:1c32-1c9c is skill-blind except
+   * for u sizing, and u=1 for food jobs), so the expert delta over the
+   * profession-less tile yield is exactly the flat +2 — golden_colony_
+   * prod03's case3 (forest+Game 8, bare hill 4) pinned this. */
+  const int want = base + 2;
+  if (expert_yld != want) {
+    fprintf(
+      stderr,
+      "expert farmer flat+2 want %d got %d (base %d)\n",
+      want,
+      expert_yld,
+      base
+    );
+    map_free(&map);
+    return 1;
+  }
+  map_free(&map);
+  fprintf(stderr, "expert farmer flat+2 ok\n");
+  return 0;
+}
+
+/*
+ * Fisherman distance/enclosure modifier (FUN_15eb_18ec ~11814-11838):
+ * open-ocean tiles (all 8 neighbors Ocean/Sea Lane) get -2; a sheltered
+ * tile (few/no ocean neighbors) gets +1. Never ported before — new
+ * mechanic found this pass, not a divergence-fix.
+ */
+static int case_fisherman_enclosure_mod(void) {
+  fx_begin();
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  char err[64];
+  if (!map_alloc(&map, 5, 5, err, sizeof(err))) {
+    fprintf(stderr, "fisherman distance mod: map_alloc %s\n", err);
+    return 1;
+  }
+  for (int i = 0; i < 25; ++i) {
+    map.terrain[i] = 2; /* plains everywhere */
+  }
+  map.terrain[2 * 5 + 2] = 25; /* ocean center tile being fished */
+  const int sheltered = colony_yield_for_tile(&map, 2, 2, COLONIZE_JOB_FISHERMAN);
+  for (int dy = -1; dy <= 1; ++dy) {
+    for (int dx = -1; dx <= 1; ++dx) {
+      if (dx == 0 && dy == 0) {
+        continue;
+      }
+      map.terrain[(2 + dy) * 5 + (2 + dx)] = 25; /* surround with open ocean too */
+    }
+  }
+  const int open_ocean = colony_yield_for_tile(&map, 2, 2, COLONIZE_JOB_FISHERMAN);
+  map_free(&map);
+  if (sheltered != open_ocean + 3) {
+    fprintf(
+      stderr,
+      "fisherman distance mod want sheltered=open_ocean+3 got sheltered=%d open_ocean=%d\n",
+      sheltered,
+      open_ocean
+    );
+    return 1;
+  }
+  fprintf(stderr, "fisherman distance mod ok\n");
+  return 0;
+}
+
+/*
+ * Field yields zero the SoL/Tory mod outright for AI-controlled colonies
+ * (FUN_15eb_18ec); manufacturing/bells/crosses/hammers (FUN_15eb_1d4c)
+ * only change the divisor, never zero it — colony_prod_sol_bonus_field
+ * vs. the shared colony_prod_sol_bonus must actually differ for AI.
+ */
+static int case_ai_field_sol_zeroed(void) {
+  fx_begin();
+  ColonizeColony col;
+  memset(&col, 0, sizeof(col));
+  col.active = true;
+  col.nation_id = 1;
+  col.population = 15; /* tories=(15*100+50)/100=15; thresh=10 -> mod=-1 */
+
+  ColonizeCol1Save col1;
+  memset(&col1, 0, sizeof(col1));
+  col1.player[1].control = 1; /* AI */
+
+  const int building_mod = colony_prod_sol_bonus(&col1, &col);
+  const int field_mod = colony_prod_sol_bonus_field(&col1, &col);
+  if (building_mod != -1 || field_mod != 0) {
+    fprintf(
+      stderr,
+      "AI field-vs-building SoL mod want building=-1 field=0 got building=%d field=%d\n",
+      building_mod,
+      field_mod
+    );
+    return 1;
+  }
+  fprintf(stderr, "AI field SoL zero-out ok\n");
+  return 0;
+}
+
+/*
+ * Custom House auto-sell (FUN_364b_0688 / FUN_364b_0636): stock>99 → leave 50;
+ * Food denied; boycott bypass; tax then WoI untaxed.
+ */
+static int case_custom_house_autosell(void) {
+  fx_begin();
+  ColonizeColonyPool pool;
+  colonies_init(&pool);
+  colonies_set_occupancy_map(NULL);
+  snprintf(
+    pool.building_types[0].name, sizeof(pool.building_types[0].name), "Custom House"
+  );
+  pool.building_type_count = 1;
+
+  ColonizeColony* col = &pool.colonies[0];
+  memset(col, 0, sizeof(*col));
+  col->active = true;
+  col->id = 1;
+  col->nation_id = 0;
+  col->has_building[0] = true;
+  col->building_in_production = -1;
+  /* bits==0 means "nothing configured" (per-cargo UI PARKED) → sells
+   * nothing; player-confirmed 2026-08-16 against a real DOS save
+   * (colony-prod-tests). Enable Tobacco explicitly to exercise the sell
+   * math below; the bits==0 no-op case is its own check further down. */
+  col->custom_house_bits = (uint16_t)(1u << COLONIZE_CARGO_TOBACCO);
+  col->stock[COLONIZE_CARGO_TOBACCO] = 120;
+  col->stock[COLONIZE_CARGO_FOOD] = 200;
+
+  EuropeScreen eu;
+  memset(&eu, 0, sizeof(eu));
+  eu.cargo_count = COLONIZE_CARGO_COUNT;
+  for (int i = 0; i < COLONIZE_CARGO_COUNT; ++i) {
+    eu.cargo[i].bid = 10;
+  }
+  eu.gold = 0;
+  eu.tax_percent = 20;
+
+  ColonizeCol1Save col1;
+  memset(&col1, 0, sizeof(col1));
+  col1.nation[0].boycott_bitmap = (uint16_t)(1u << COLONIZE_CARGO_TOBACCO);
+  col1.nation[0].tax_rate = 20; /* 1dfa ledger reads the seller's nation tax */
+
+  const int gained = europe_custom_house_autosell_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&pool), .col1=(ColonizeCol1Save*)(&col1), .col1_ok=true, .europe=(EuropeScreen*)(&eu)}, col, 0);
+  /* Sells at euro_price − 1 = 9: gross 630, tax 20% = 126 → 504
+   * (FUN_364b_0688 rounding: gross − gross·tax/100); boycott bit ignored;
+   * tax goes to royal_money. */
+  if (col->stock[COLONIZE_CARGO_TOBACCO] != 50 || col->stock[COLONIZE_CARGO_FOOD] != 200) {
+    fprintf(
+      stderr,
+      "custom house stock tobacco=%d food=%d (want 50/200)\n",
+      col->stock[COLONIZE_CARGO_TOBACCO],
+      col->stock[COLONIZE_CARGO_FOOD]
+    );
+    return 1;
+  }
+  if (gained != 504 || eu.gold != 504 || col1.nation[0].gold != 504u ||
+      col1.nation[0].royal_money != 126 || col1.nation[0].trade.tons[COLONIZE_CARGO_TOBACCO] != 70 ||
+      col1.nation[0].trade.tons2[COLONIZE_CARGO_TOBACCO] != 70 ||
+      col1.nation[0].trade.gold[COLONIZE_CARGO_TOBACCO] != 504) {
+    fprintf(
+      stderr,
+      "custom house gold gained=%d eu=%d nat=%u royal=%d (want 504/126)\n",
+      gained,
+      eu.gold,
+      (unsigned)col1.nation[0].gold,
+      (int)col1.nation[0].royal_money
+    );
+    return 1;
+  }
+
+  /* Blockade: enemy armed ship next to the colony shuts the Custom House
+   * (FUN_364b_0688 colony +0x1b & 3). */
+  col->stock[COLONIZE_CARGO_TOBACCO] = 120;
+  col->ai_flags = 0x01;
+  if (europe_custom_house_autosell_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&pool), .col1=(ColonizeCol1Save*)(&col1), .col1_ok=true, .europe=(EuropeScreen*)(&eu)}, col, 0) != 0 ||
+      col->stock[COLONIZE_CARGO_TOBACCO] != 120) {
+    fprintf(stderr, "custom house should be blockaded\n");
+    return 1;
+  }
+  col->ai_flags = 0;
+
+  col->stock[COLONIZE_CARGO_TOBACCO] = 120;
+  eu.gold = 0;
+  col1.nation[0].gold = 0;
+  col1.head.game_options.woi = 1; /* WoI — tax 0 */
+  const int gained_woi = europe_custom_house_autosell_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&pool), .col1=(ColonizeCol1Save*)(&col1), .col1_ok=true, .europe=(EuropeScreen*)(&eu)}, col, 0);
+  if (gained_woi != 630 || eu.gold != 630) {
+    fprintf(stderr, "custom house WoI gained=%d eu=%d (want 630)\n", gained_woi, eu.gold);
+    return 1;
+  }
+
+  /* Mask bit off → no sell for that cargo. */
+  col->stock[COLONIZE_CARGO_TOBACCO] = 120;
+  col->custom_house_bits = (uint16_t)(1u << COLONIZE_CARGO_SUGAR); /* tobacco off */
+  eu.gold = 0;
+  if (europe_custom_house_autosell_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&pool), .col1=(ColonizeCol1Save*)(&col1), .col1_ok=true, .europe=(EuropeScreen*)(&eu)}, col, 0) != 0 ||
+      col->stock[COLONIZE_CARGO_TOBACCO] != 120) {
+    fprintf(stderr, "custom house mask should skip tobacco\n");
+    return 1;
+  }
+
+  /* bits==0 (nothing configured yet) → sells nothing, not "everything".
+   * Player-confirmed 2026-08-16: real DOS save with Custom House built,
+   * custom_house_bits==0, sold nothing that turn. */
+  col->stock[COLONIZE_CARGO_TOBACCO] = 120;
+  col->custom_house_bits = 0;
+  eu.gold = 0;
+  if (europe_custom_house_autosell_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&pool), .col1=(ColonizeCol1Save*)(&col1), .col1_ok=true, .europe=(EuropeScreen*)(&eu)}, col, 0) != 0 ||
+      col->stock[COLONIZE_CARGO_TOBACCO] != 120) {
+    fprintf(stderr, "custom house bits==0 should sell nothing\n");
+    return 1;
+  }
+
+  /* turn_run_colony_production wires autosell. */
+  col->custom_house_bits = (uint16_t)(1u << COLONIZE_CARGO_TOBACCO);
+  col->stock[COLONIZE_CARGO_TOBACCO] = 120;
+  col->colonists[0].active = true;
+  col->colonist_count = 1;
+  col->population = 1;
+  col->stock[COLONIZE_CARGO_FOOD] = 10; /* eat 2 */
+  eu.gold = 0;
+  col1.head.game_options.woi = 0;
+  col1.nation[0].gold = 0;
+  eu.tax_percent = 0;
+  ColonizeTurnResult prod;
+  memset(&prod, 0, sizeof(prod));
+  turn_run_colony_production_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&pool), .map=(ColonizeWorldMap*)(NULL), .col1=(ColonizeCol1Save*)(&col1), .col1_ok=true, .rng=(ColonizeDosRng*)(NULL), .europe=(EuropeScreen*)(&eu)}, 0, &prod, NULL, NULL);
+  if (col->stock[COLONIZE_CARGO_TOBACCO] != 50 || eu.gold != 630) {
+    fprintf(
+      stderr,
+      "produce+CH tobacco=%d gold=%d (want 50/630)\n",
+      col->stock[COLONIZE_CARGO_TOBACCO],
+      eu.gold
+    );
+    return 1;
+  }
+  fprintf(stderr, "custom house autosell ok\n");
+  return 0;
+}
+
+/*
+ * Col1 +0x97 depletion_counter: ore/silver field work INC; wrap at 50 sets
+ * MAP_LAYER2_SUPPRESS on the worked tile (FUN_364b_033a feature 4).
+ */
+static int case_depletion_counter(void) {
+  fx_begin();
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  char err[256];
+  if (!map_load_mp("COLONIZE/AMER2.MP", &map, err, sizeof(err))) {
+    fprintf(stderr, "depletion: map load failed: %s\n", err);
+    return 1;
+  }
+  ColonizeColonyPool pool;
+  colonies_init(&pool);
+  colonies_set_occupancy_map(NULL);
+  ColonizeMsgCatalog names;
+  assets_msg_init(&names);
+  if (!assets_msg_load_file(&names, "COLONIZE/NAMES.TXT") ||
+      !colonies_load_buildings(&pool, &names) ||
+      !colonies_load_names(&pool, "COLONIZE/COLONY.TXT")) {
+    fprintf(stderr, "depletion: names/buildings failed\n");
+    assets_msg_free(&names);
+    map_free(&map);
+    return 1;
+  }
+  int cx = -1, cy = -1, fx = -1, fy = -1, ftile = -1;
+  for (int y = 1; y < (int)map.height - 1 && ftile < 0; ++y) {
+    for (int x = 1; x < (int)map.width - 1 && ftile < 0; ++x) {
+      if (!map_tile_is_land(&map, x, y) || !colonies_can_found(&pool, &map, x, y)) {
+        continue;
+      }
+      for (int ti = 0; ti < COLONIZE_COLONY_FIELD_TILES; ++ti) {
+        int dx = 0, dy = 0;
+        colonies_field_tile_delta(ti, &dx, &dy);
+        const int yld =
+          colony_yield_for_tile(&map, x + dx, y + dy, COLONIZE_JOB_ORE_MINER);
+        /*
+         * depletion_counter only tracks a special-resource deposit being
+         * mined down (2026-08-16 real-DOS fix), not any ore-yielding
+         * tile — the site must actually carry the bonus resource.
+         */
+        if (yld > 0 && map_resource_type_for_yield(&map, x + dx, y + dy) == 6) {
+          cx = x;
+          cy = y;
+          fx = x + dx;
+          fy = y + dy;
+          ftile = ti;
+          break;
+        }
+      }
+    }
+  }
+  if (ftile < 0) {
+    fprintf(stderr, "depletion: no ore-miner field site\n");
+    assets_msg_free(&names);
+    map_free(&map);
+    return 1;
+  }
+  const int cid = colonies_found(&pool, &map, cx, cy, 0, 0, UNITS_JOB_NONE, 0, 0, 0);
+  ColonizeColony* col = colonies_get_mut(&pool, cid);
+  if (!col || !colonies_assign_field(&pool, cid, 0, ftile, COLONIZE_JOB_ORE_MINER)) {
+    fprintf(stderr, "depletion: assign ore miner failed\n");
+    assets_msg_free(&names);
+    map_free(&map);
+    return 1;
+  }
+  col->building_in_production = -1;
+  col->stock[COLONIZE_CARGO_FOOD] = 100;
+  col->depletion_counter = 0x31; /* one INC wraps */
+  snprintf(col->name, sizeof(col->name), "Potosi");
+
+  EuropeScreen eu;
+  memset(&eu, 0, sizeof(eu));
+  AiPopupState pops;
+  ai_popup_init(&pops);
+  ColonizeMsgCatalog game_txt;
+  assets_msg_init(&game_txt);
+  (void)assets_msg_load_file(&game_txt, "COLONIZE/GAME.TXT");
+
+  ColonizeTurnResult prod;
+  memset(&prod, 0, sizeof(prod));
+  turn_run_colony_production_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&pool), .map=(ColonizeWorldMap*)(&map), .col1=(ColonizeCol1Save*)(NULL), .col1_ok=((NULL) != NULL), .rng=(ColonizeDosRng*)(NULL), .europe=(EuropeScreen*)(&eu)}, 0, &prod, &pops, &game_txt);
+  if (col->depletion_counter != 0) {
+    fprintf(
+      stderr,
+      "depletion_counter wrap got %u want 0\n",
+      (unsigned)col->depletion_counter
+    );
+    assets_msg_free(&game_txt);
+    assets_msg_free(&names);
+    map_free(&map);
+    return 1;
+  }
+  const uint8_t after_l2 =
+    map.layer2 ? map.layer2[fy * map.width + fx] : 0;
+  if ((after_l2 & MAP_LAYER2_SUPPRESS) == 0) {
+    fprintf(
+      stderr,
+      "depletion wrap did not set LAYER2_SUPPRESS at (%d,%d) after=%02x\n",
+      fx,
+      fy,
+      after_l2
+    );
+    assets_msg_free(&game_txt);
+    assets_msg_free(&names);
+    map_free(&map);
+    return 1;
+  }
+  if (col->stock[COLONIZE_CARGO_ORE] <= 0 && col->stock[COLONIZE_CARGO_SILVER] <= 0) {
+    fprintf(stderr, "depletion: expected ore/silver yield in stock\n");
+    assets_msg_free(&game_txt);
+    assets_msg_free(&names);
+    map_free(&map);
+    return 1;
+  }
+  if (strstr(eu.status, "depleted") == NULL && pops.queue_count < 1) {
+    fprintf(stderr, "depletion: want status/popup got '%s' q=%d\n", eu.status, pops.queue_count);
+    assets_msg_free(&game_txt);
+    assets_msg_free(&names);
+    map_free(&map);
+    return 1;
+  }
+  if (pops.queue_count >= 1 &&
+      strstr(pops.queue[0].body, "depleted") == NULL &&
+      strstr(pops.queue[0].body, "Potosi") == NULL) {
+    fprintf(stderr, "depletion: popup body weak: '%s'\n", pops.queue[0].body);
+    assets_msg_free(&game_txt);
+    assets_msg_free(&names);
+    map_free(&map);
+    return 1;
+  }
+  fprintf(stderr, "depletion_counter wrap+suppress ok\n");
+  assets_msg_free(&game_txt);
+  assets_msg_free(&names);
+  map_free(&map);
+  return 0;
+}
+
+/* FUN_364b_0688 birth: food≥200 after eat → Free Colonist, −200 food. */
+static int case_colony_birth(void) {
+  fx_begin();
+  ColonizeColonyPool birth_pool;
+  colonies_init(&birth_pool);
+  colonies_set_occupancy_map(NULL);
+  ColonizeColony* b = &birth_pool.colonies[0];
+  memset(b, 0, sizeof(*b));
+  b->active = true;
+  b->id = 1;
+  b->nation_id = 0;
+  b->building_in_production = -1;
+  snprintf(b->name, sizeof(b->name), "Plymouth");
+  b->stock[COLONIZE_CARGO_FOOD] = 250; /* eat 2 → 248 → birth −200 → 48 */
+  b->colonists[0].active = true;
+  b->colonists[0].unit_type_index = 0;
+  b->colonists[0].profession = UNITS_JOB_NONE;
+  b->colonists[0].building_type = -1;
+  b->colonists[0].field_job = -1;
+  for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES_MAX; ++t) {
+    b->tiles[t] = -1;
+  }
+  b->colonist_count = 1;
+  b->population = 1;
+  birth_pool.colony_count = 1;
+
+  EuropeScreen eu;
+  memset(&eu, 0, sizeof(eu));
+  AiPopupState pops;
+  ai_popup_init(&pops);
+  ColonizeMsgCatalog game_txt;
+  assets_msg_init(&game_txt);
+  (void)assets_msg_load_file(&game_txt, "COLONIZE/GAME.TXT");
+
+  ColonizeTurnResult br;
+  memset(&br, 0, sizeof(br));
+  turn_run_colony_production_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&birth_pool), .map=(ColonizeWorldMap*)(NULL), .col1=(ColonizeCol1Save*)(NULL), .col1_ok=((NULL) != NULL), .rng=(ColonizeDosRng*)(NULL), .europe=(EuropeScreen*)(&eu)}, 0, &br, &pops, &game_txt);
+  if (!b->active || b->colonist_count != 2) {
+    fprintf(stderr, "birth: colonist_count want 2 got %d\n", b->colonist_count);
+    assets_msg_free(&game_txt);
+    return 1;
+  }
+  if (b->stock[COLONIZE_CARGO_FOOD] != 48) {
+    fprintf(stderr, "birth: food want 48 got %d\n", b->stock[COLONIZE_CARGO_FOOD]);
+    assets_msg_free(&game_txt);
+    return 1;
+  }
+  if (b->colonists[1].profession != UNITS_JOB_COLONIST) {
+    fprintf(stderr, "birth: newborn should be Free Colonist job\n");
+    assets_msg_free(&game_txt);
+    return 1;
+  }
+  if (strstr(eu.status, "Birth") == NULL && strstr(eu.status, "Plymouth") == NULL) {
+    fprintf(stderr, "birth: status want Birth/Plymouth got '%s'\n", eu.status);
+    assets_msg_free(&game_txt);
+    return 1;
+  }
+  if (pops.queue_count < 1) {
+    fprintf(stderr, "birth: expected NEWCOLONIST popup\n");
+    assets_msg_free(&game_txt);
+    return 1;
+  }
+  if (strstr(pops.queue[0].body, "Population increase") == NULL &&
+      strstr(pops.queue[0].body, "Plymouth") == NULL &&
+      strstr(pops.queue[0].body, "Birth") == NULL) {
+    fprintf(stderr, "birth: popup body weak: '%s'\n", pops.queue[0].body);
+    assets_msg_free(&game_txt);
+    return 1;
+  }
+  assets_msg_free(&game_txt);
+  fprintf(stderr, "colony birth food≥200 ok\n");
+  return 0;
+}
+
+/*
+ * FUN_364b_0688 Phase B: AI Euro food += difficulty>>1.
+ * Cite: colony_eot_production.md; difficulty.md.
+ */
+static int case_phase_b_ai_food(void) {
+  fx_begin();
+  ColonizeColonyPool ai_pool;
+  colonies_init(&ai_pool);
+  colonies_set_occupancy_map(NULL);
+  ColonizeColony* a = &ai_pool.colonies[0];
+  memset(a, 0, sizeof(*a));
+  a->active = true;
+  a->id = 1;
+  a->nation_id = 1;
+  a->building_in_production = -1;
+  a->stock[COLONIZE_CARGO_FOOD] = 10;
+  a->colonists[0].active = true;
+  a->colonists[0].unit_type_index = 0;
+  a->colonists[0].building_type = -1;
+  a->colonists[0].field_job = -1;
+  for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES_MAX; ++t) {
+    a->tiles[t] = -1;
+  }
+  a->colonist_count = 1;
+  a->population = 1;
+  ai_pool.colony_count = 1;
+
+  ColonizeCol1Save col1;
+  memset(&col1, 0, sizeof(col1));
+  col1.player[0].control = 0;
+  col1.player[1].control = 1; /* AI */
+  col1.head.difficulty = 4; /* Viceroy → +2 */
+
+  ColonizeTurnResult ar;
+  memset(&ar, 0, sizeof(ar));
+  turn_run_colony_production_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&ai_pool), .map=(ColonizeWorldMap*)(NULL), .col1=(ColonizeCol1Save*)(&col1), .col1_ok=true, .rng=(ColonizeDosRng*)(NULL), .europe=(EuropeScreen*)(NULL)}, 0, &ar, NULL, NULL);
+  /* 10 + 2 AI food − 2 eat = 10 */
+  if (a->stock[COLONIZE_CARGO_FOOD] != 10) {
+    fprintf(
+      stderr,
+      "AI food bonus Viceroy: want 10 got %d\n",
+      a->stock[COLONIZE_CARGO_FOOD]
+    );
+    return 1;
+  }
+
+  a->stock[COLONIZE_CARGO_FOOD] = 10;
+  col1.head.difficulty = 0; /* Discoverer → +0 */
+  turn_run_colony_production_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&ai_pool), .map=(ColonizeWorldMap*)(NULL), .col1=(ColonizeCol1Save*)(&col1), .col1_ok=true, .rng=(ColonizeDosRng*)(NULL), .europe=(EuropeScreen*)(NULL)}, 0, &ar, NULL, NULL);
+  if (a->stock[COLONIZE_CARGO_FOOD] != 8) {
+    fprintf(
+      stderr,
+      "AI food bonus Discoverer: want 8 got %d\n",
+      a->stock[COLONIZE_CARGO_FOOD]
+    );
+    return 1;
+  }
+
+  a->stock[COLONIZE_CARGO_FOOD] = 10;
+  a->nation_id = 0; /* human */
+  col1.head.difficulty = 4;
+  turn_run_colony_production_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&ai_pool), .map=(ColonizeWorldMap*)(NULL), .col1=(ColonizeCol1Save*)(&col1), .col1_ok=true, .rng=(ColonizeDosRng*)(NULL), .europe=(EuropeScreen*)(NULL)}, 0, &ar, NULL, NULL);
+  if (a->stock[COLONIZE_CARGO_FOOD] != 8) {
+    fprintf(
+      stderr,
+      "human no AI food bonus: want 8 got %d\n",
+      a->stock[COLONIZE_CARGO_FOOD]
+    );
+    return 1;
+  }
+  fprintf(stderr, "AI colony food difficulty>>1 ok\n");
+  return 0;
+}
+
+/*
+ * FUN_364b_0688 Phase C: rebel dividend/divisor EOT tick.
+ * Cite: sons_of_liberty.md; colony_prod_tick_rebel_accumulators.
+ */
+static int case_phase_c_rebel_tick(void) {
+  fx_begin();
+  ColonizeColonyPool pool;
+  colonies_init(&pool);
+  colonies_set_occupancy_map(NULL);
+  snprintf(pool.building_types[0].name, sizeof(pool.building_types[0].name), "Town Hall");
+  pool.building_type_count = 1;
+
+  ColonizeColony* c = &pool.colonies[0];
+  memset(c, 0, sizeof(*c));
+  c->active = true;
+  c->id = 1;
+  c->x = 10;
+  c->y = 12;
+  c->nation_id = 0; /* human */
+  c->building_in_production = -1;
+  c->has_building[0] = true;
+  c->stock[COLONIZE_CARGO_FOOD] = 50;
+  c->colonists[0].active = true;
+  c->colonists[0].building_type = 0;
+  c->colonists[0].profession = COLONIZE_PROF_STATESMAN;
+  c->colonists[0].field_job = -1;
+  for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES_MAX; ++t) {
+    c->tiles[t] = -1;
+  }
+  c->colonist_count = 1;
+  c->population = 1;
+  pool.colony_count = 1;
+
+  ColonizeCol1Colony col1c;
+  memset(&col1c, 0, sizeof(col1c));
+  col1c.x = 10;
+  col1c.y = 12;
+  col1c.nation_id = 0;
+  /* Pre-shrink 50%/100 so >>6 restores 50/100. */
+  col1c.rebel_dividend = 50u << 6;
+  col1c.rebel_divisor = 100u << 6;
+
+  ColonizeCol1Save col1;
+  memset(&col1, 0, sizeof(col1));
+  col1.colony = &col1c;
+  col1.head.colony_count = 1;
+  col1.player[0].control = 0;
+  col1.player[1].control = 1;
+  for (int i = 0; i < (int)COLONIZE_COL1_FF_COUNT; ++i) {
+    col1.head.founding_father[i] = -1;
+  }
+
+  /* Town Hall +1 + Statesman 6 = 7 bells. */
+  const int expect_bells = colony_prod_colony_bells_ff(&pool, c, 0, 0, false, 0);
+  if (expect_bells != 7) {
+    fprintf(stderr, "Phase C setup bells want 7 got %d\n", expect_bells);
+    return 1;
+  }
+
+  /*
+   * Production tab preview must match the EOT tick's FF-adjusted, per-worker
+   * SoL bells (turn_count_bells_and_crosses_for_nation in turn.c), not the
+   * plain (no-FF) colony_prod_colony_bells_ff() used above only to sanity-check the
+   * base rate. rebel_dividend/divisor above (50/100 <<6) give sol 50%,
+   * latched below into SOL_50 (bonus reads latch bits only, 18ec
+   * 11881-11886) -> sol_bonus +1. sol_bonus now folds into colony_prod_bells_worker
+   * *before* the skill-match doubling (matches FUN_15eb_1d4c's Statesman
+   * body — manufacturing_worker_calc_1d4c.md): tag(3)+sol_bonus(1)=4,
+   * doubled (skilled Statesman) = 8. Jefferson +50%: 8*1.5=12. Town Hall
+   * passive +1 = 13.
+   */
+  col1.head.founding_father[FF_THOMAS_JEFFERSON] = 0; /* nation 0 owns it */
+  col1.nation[0].founding_fathers[FF_THOMAS_JEFFERSON / 8] |=
+    (uint8_t)(1u << (FF_THOMAS_JEFFERSON % 8));
+  colony_prod_refresh_sol_flags(c, &col1); /* latch SOL_50 from the 50% pair */
+  ColonizeColonyPreview prev;
+  colony_preview_compute_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&pool), .map=(ColonizeWorldMap*)(NULL), .col1=(ColonizeCol1Save*)(&col1), .col1_ok=true}, c, &prev);
+  if (prev.bells != 13) {
+    fprintf(stderr, "Phase C preview Jefferson bells want 13 got %d\n", prev.bells);
+    return 1;
+  }
+  col1.head.founding_father[FF_THOMAS_JEFFERSON] = -1;
+  col1.nation[0].founding_fathers[FF_THOMAS_JEFFERSON / 8] &=
+    (uint8_t)~(1u << (FF_THOMAS_JEFFERSON % 8));
+
+  ColonizeTurnResult prod;
+  memset(&prod, 0, sizeof(prod));
+  turn_run_colony_production_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&pool), .map=(ColonizeWorldMap*)(NULL), .col1=(ColonizeCol1Save*)(&col1), .col1_ok=true, .rng=(ColonizeDosRng*)(NULL), .europe=(EuropeScreen*)(NULL)}, 0, &prod, NULL, NULL);
+  /*
+   * -= >>6 → 3150/6300; divisor+=2 → 6302; dividend += bells → 3159.
+   * Bells here are the SoL-ADJUSTED 9, not the sol-free 7: DOS
+   * FUN_364b_0688 reads this colony's bells once (`local_ba`,
+   * viceroy_unpacked.c:57230) and feeds the same word to the congress
+   * tally and to the rebel dividend, and that word carries the per-worker
+   * SoL term. The SOL_50 latch above gives sol_bonus +1, so the Statesman
+   * is (3+1)*2 = 8 plus the Town Hall passive 1 = 9. (Was 3157 while the
+   * accumulator recomputed bells with sol_bonus=0 — smell #89.)
+   */
+  if (col1c.rebel_dividend != 3159u || col1c.rebel_divisor != 6302u) {
+    fprintf(
+      stderr,
+      "Phase C human tick want 3159/6302 got %u/%u\n",
+      (unsigned)col1c.rebel_dividend,
+      (unsigned)col1c.rebel_divisor
+    );
+    return 1;
+  }
+
+  /* WoI + crown-occupied: bells = -(9>>1) = -4 → dividend 3150-4=3146
+   * (9 = same SoL-adjusted bells as above; was -(7>>1) pre-#89). */
+  col1c.rebel_dividend = 50u << 6;
+  col1c.rebel_divisor = 100u << 6;
+  c->nation_id = 1; /* crown peer of human 0 */
+  col1c.nation_id = 1;
+  col1.head.game_options.woi = 1;
+  c->stock[COLONIZE_CARGO_FOOD] = 50;
+  memset(&prod, 0, sizeof(prod));
+  turn_run_colony_production_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&pool), .map=(ColonizeWorldMap*)(NULL), .col1=(ColonizeCol1Save*)(&col1), .col1_ok=true, .rng=(ColonizeDosRng*)(NULL), .europe=(EuropeScreen*)(NULL)}, 0, &prod, NULL, NULL);
+  if (col1c.rebel_dividend != 3146u || col1c.rebel_divisor != 6302u) {
+    fprintf(
+      stderr,
+      "Phase C WoI crown tick want 3146/6302 got %u/%u\n",
+      (unsigned)col1c.rebel_dividend,
+      (unsigned)col1c.rebel_divisor
+    );
+    return 1;
+  }
+  fprintf(stderr, "SoL Phase C rebel accumulator ok\n");
+  return 0;
+}
+
+/*
+ * FUN_364b_0688 Phase D: REBELMAJORITY / SONSUP chrome + report gates.
+ * Cite: colony_eot_production.md; sons_of_liberty.md; GAME.TXT @REBELMAJORITY.
+ */
+static int case_phase_d_rebel_majority(void) {
+  fx_begin();
+  ColonizeColonyPool pool;
+  colonies_init(&pool);
+  colonies_set_occupancy_map(NULL);
+  snprintf(pool.building_types[0].name, sizeof(pool.building_types[0].name), "Town Hall");
+  pool.building_type_count = 1;
+
+  ColonizeColony* c = &pool.colonies[0];
+  memset(c, 0, sizeof(*c));
+  c->active = true;
+  c->id = 1;
+  c->x = 10;
+  c->y = 12;
+  c->nation_id = 0;
+  c->building_in_production = -1;
+  c->has_building[0] = true;
+  snprintf(c->name, sizeof(c->name), "Jamestown");
+  c->stock[COLONIZE_CARGO_FOOD] = 80;
+  c->colonists[0].active = true;
+  c->colonists[0].building_type = 0;
+  c->colonists[0].profession = COLONIZE_PROF_STATESMAN;
+  c->colonists[0].field_job = -1;
+  for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES_MAX; ++t) {
+    c->tiles[t] = -1;
+  }
+  c->colonist_count = 1;
+  c->population = 1;
+  pool.colony_count = 1;
+
+  ColonizeCol1Colony col1c;
+  memset(&col1c, 0, sizeof(col1c));
+  col1c.x = 10;
+  col1c.y = 12;
+  col1c.nation_id = 0;
+  /* Pre-shrink 50%/100 → after tick +6 bells → ~50.07%. */
+  col1c.rebel_dividend = 50u << 6;
+  col1c.rebel_divisor = 100u << 6;
+
+  ColonizeCol1Save col1;
+  memset(&col1, 0, sizeof(col1));
+  col1.colony = &col1c;
+  col1.head.colony_count = 1;
+  col1.player[0].control = 0;
+  snprintf(col1.player[0].country_name, sizeof(col1.player[0].country_name), "England");
+  for (int i = 0; i < (int)COLONIZE_COL1_FF_COUNT; ++i) {
+    col1.head.founding_father[i] = -1;
+  }
+
+  EuropeScreen eu;
+  memset(&eu, 0, sizeof(eu));
+  AiPopupState pops;
+  ai_popup_init(&pops);
+  ColonizeMsgCatalog game_txt;
+  assets_msg_init(&game_txt);
+  (void)assets_msg_load_file(&game_txt, "COLONIZE/GAME.TXT");
+
+  ColonizeTurnResult prod;
+  memset(&prod, 0, sizeof(prod));
+  turn_run_colony_production_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&pool), .map=(ColonizeWorldMap*)(NULL), .col1=(ColonizeCol1Save*)(&col1), .col1_ok=true, .rng=(ColonizeDosRng*)(NULL), .europe=(EuropeScreen*)(&eu)}, 0, &prod, &pops, &game_txt);
+  if ((c->colony_flags & COLONIZE_COLONY_FLAG_SOL_50) == 0) {
+    fprintf(stderr, "Phase D majority: sol_50 latch missing\n");
+    assets_msg_free(&game_txt);
+    return 1;
+  }
+  if (strstr(eu.status, "SoL") == NULL && pops.queue_count < 1) {
+    fprintf(stderr, "Phase D majority: want status/popup got '%s' q=%d\n", eu.status, pops.queue_count);
+    assets_msg_free(&game_txt);
+    return 1;
+  }
+  if (pops.queue_count >= 1 &&
+      strstr(pops.queue[0].body, "majority") == NULL &&
+      strstr(pops.queue[0].body, "SoL") == NULL &&
+      strstr(eu.status, "up to") == NULL) {
+    fprintf(stderr, "Phase D majority body/status weak: '%s' / '%s'\n", pops.queue[0].body, eu.status);
+    assets_msg_free(&game_txt);
+    return 1;
+  }
+
+  /* Suppress rebel-majority reports. */
+  c->colony_flags = 0;
+  col1c.rebel_dividend = 45u << 6;
+  col1c.rebel_divisor = 100u << 6;
+  c->stock[COLONIZE_CARGO_FOOD] = 80;
+  col1.head.colony_report_options.report_rebel_majorities = 1;
+  eu.status[0] = '\0';
+  ai_popup_clear(&pops);
+  memset(&prod, 0, sizeof(prod));
+  turn_run_colony_production_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&pool), .map=(ColonizeWorldMap*)(NULL), .col1=(ColonizeCol1Save*)(&col1), .col1_ok=true, .rng=(ColonizeDosRng*)(NULL), .europe=(EuropeScreen*)(&eu)}, 0, &prod, &pops, &game_txt);
+  if (pops.queue_count != 0 || strstr(eu.status, "SoL") != NULL) {
+    fprintf(
+      stderr,
+      "Phase D suppress rebel maj: want quiet got q=%d '%s'\n",
+      pops.queue_count,
+      eu.status
+    );
+    assets_msg_free(&game_txt);
+    return 1;
+  }
+
+  /* Decade up (@SONSUP): sol_50 already, 59%→60%. */
+  col1.head.colony_report_options.report_rebel_majorities = 0;
+  col1.head.colony_report_options.report_sons_of_liberty_membership = 0;
+  c->colony_flags = COLONIZE_COLONY_FLAG_SOL_50;
+  col1c.rebel_dividend = 3835u;
+  col1c.rebel_divisor = 100u << 6;
+  c->stock[COLONIZE_CARGO_FOOD] = 80;
+  eu.status[0] = '\0';
+  ai_popup_clear(&pops);
+  memset(&prod, 0, sizeof(prod));
+  turn_run_colony_production_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&pool), .map=(ColonizeWorldMap*)(NULL), .col1=(ColonizeCol1Save*)(&col1), .col1_ok=true, .rng=(ColonizeDosRng*)(NULL), .europe=(EuropeScreen*)(&eu)}, 0, &prod, &pops, &game_txt);
+  if (strstr(eu.status, "SoL") == NULL && pops.queue_count < 1) {
+    fprintf(stderr, "Phase D SONSUP: want status/popup got '%s' q=%d\n", eu.status, pops.queue_count);
+    assets_msg_free(&game_txt);
+    return 1;
+  }
+  /* Suppress sons membership reports. */
+  c->colony_flags = COLONIZE_COLONY_FLAG_SOL_50;
+  col1c.rebel_dividend = 3835u;
+  col1c.rebel_divisor = 100u << 6;
+  c->stock[COLONIZE_CARGO_FOOD] = 80;
+  col1.head.colony_report_options.report_sons_of_liberty_membership = 1;
+  eu.status[0] = '\0';
+  ai_popup_clear(&pops);
+  memset(&prod, 0, sizeof(prod));
+  turn_run_colony_production_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&pool), .map=(ColonizeWorldMap*)(NULL), .col1=(ColonizeCol1Save*)(&col1), .col1_ok=true, .rng=(ColonizeDosRng*)(NULL), .europe=(EuropeScreen*)(&eu)}, 0, &prod, &pops, &game_txt);
+  if (pops.queue_count != 0 || strstr(eu.status, "SoL") != NULL) {
+    fprintf(
+      stderr,
+      "Phase D suppress sons: want quiet got q=%d '%s'\n",
+      pops.queue_count,
+      eu.status
+    );
+    assets_msg_free(&game_txt);
+    return 1;
+  }
+
+  assets_msg_free(&game_txt);
+  fprintf(stderr, "SoL Phase D membership chrome ok\n");
+  return 0;
+}
+
+/*
+ * FUN_364b_0688 Phase D Tory pressure: @INEFFICIENT / @EFFICIENT.
+ * Cite: colony_eot_production.md; difficulty.md; GAME.TXT @INEFFICIENT.
+ */
+static int case_phase_d_tory_pressure(void) {
+  fx_begin();
+  ColonizeColonyPool pool;
+  colonies_init(&pool);
+  colonies_set_occupancy_map(NULL);
+  ColonizeColony* c = &pool.colonies[0];
+  memset(c, 0, sizeof(*c));
+  c->active = true;
+  c->id = 1;
+  c->x = 8;
+  c->y = 8;
+  c->nation_id = 0;
+  c->building_in_production = -1;
+  snprintf(c->name, sizeof(c->name), "Roanoke");
+  c->stock[COLONIZE_CARGO_FOOD] = 200;
+  for (int i = 0; i < 12; ++i) {
+    c->colonists[i].active = true;
+    c->colonists[i].building_type = -1;
+    c->colonists[i].field_job = -1;
+    c->colonists[i].profession = COLONIZE_PROF_FREE_COLONIST;
+  }
+  for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES_MAX; ++t) {
+    c->tiles[t] = -1;
+  }
+  c->colonist_count = 12;
+  c->population = 12;
+  pool.colony_count = 1;
+
+  ColonizeCol1Colony col1c;
+  memset(&col1c, 0, sizeof(col1c));
+  col1c.x = 8;
+  col1c.y = 8;
+  col1c.nation_id = 0;
+  col1c.rebel_dividend = 0u << 6;
+  col1c.rebel_divisor = 100u << 6;
+
+  ColonizeCol1Save col1;
+  memset(&col1, 0, sizeof(col1));
+  col1.colony = &col1c;
+  col1.head.colony_count = 1;
+  col1.head.difficulty = 0; /* Discoverer thresh 10 */
+  col1.player[0].control = 0;
+  for (int i = 0; i < (int)COLONIZE_COL1_FF_COUNT; ++i) {
+    col1.head.founding_father[i] = -1;
+  }
+  /* Quiet SoL latch/decade chrome for this fixture. */
+  col1.head.colony_report_options.report_rebel_majorities = 1;
+  col1.head.colony_report_options.report_sons_of_liberty_membership = 1;
+
+  EuropeScreen eu;
+  memset(&eu, 0, sizeof(eu));
+  AiPopupState pops;
+  ai_popup_init(&pops);
+  ColonizeMsgCatalog game_txt;
+  assets_msg_init(&game_txt);
+  (void)assets_msg_load_file(&game_txt, "COLONIZE/GAME.TXT");
+
+  ColonizeTurnResult prod;
+  memset(&prod, 0, sizeof(prod));
+  turn_run_colony_production_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&pool), .map=(ColonizeWorldMap*)(NULL), .col1=(ColonizeCol1Save*)(&col1), .col1_ok=true, .rng=(ColonizeDosRng*)(NULL), .europe=(EuropeScreen*)(&eu)}, 0, &prod, &pops, &game_txt);
+  if ((c->colony_flags & COLONIZE_COLONY_FLAG_INEFFICIENT_GOV) == 0) {
+    fprintf(stderr, "INEFFICIENT: latch not set (sol low, pop 12)\n");
+    assets_msg_free(&game_txt);
+    return 1;
+  }
+  if (strstr(eu.status, "inefficient") == NULL && pops.queue_count < 1) {
+    fprintf(stderr, "INEFFICIENT: want status/popup got '%s' q=%d\n", eu.status, pops.queue_count);
+    assets_msg_free(&game_txt);
+    return 1;
+  }
+
+  /*
+   * bugs.md ("it keeps pestering me"): a second tick with the latch already
+   * set must stay quiet, and — because the latch is now DOS's saved
+   * colony_flags bit3 rather than a RAM-only byte — that silence survives a
+   * save/load too.
+   */
+  eu.status[0] = '\0';
+  ai_popup_clear(&pops);
+  c->stock[COLONIZE_CARGO_FOOD] = 200;
+  memset(&prod, 0, sizeof(prod));
+  turn_run_colony_production_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&pool), .map=(ColonizeWorldMap*)(NULL), .col1=(ColonizeCol1Save*)(&col1), .col1_ok=true, .rng=(ColonizeDosRng*)(NULL), .europe=(EuropeScreen*)(&eu)}, 0, &prod, &pops, &game_txt);
+  if (strstr(eu.status, "inefficient") != NULL) {
+    fprintf(stderr, "INEFFICIENT: repeated on a second tick ('%s')\n", eu.status);
+    assets_msg_free(&game_txt);
+    return 1;
+  }
+
+  /* Raise SoL → tories 0 → @EFFICIENT. */
+  col1c.rebel_dividend = 100u << 6;
+  col1c.rebel_divisor = 100u << 6;
+  c->stock[COLONIZE_CARGO_FOOD] = 200;
+  c->colony_flags = (uint8_t)(COLONIZE_COLONY_FLAG_SOL_50 | COLONIZE_COLONY_FLAG_SOL_100 |
+                              COLONIZE_COLONY_FLAG_INEFFICIENT_GOV);
+  eu.status[0] = '\0';
+  ai_popup_clear(&pops);
+  memset(&prod, 0, sizeof(prod));
+  turn_run_colony_production_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&pool), .map=(ColonizeWorldMap*)(NULL), .col1=(ColonizeCol1Save*)(&col1), .col1_ok=true, .rng=(ColonizeDosRng*)(NULL), .europe=(EuropeScreen*)(&eu)}, 0, &prod, &pops, &game_txt);
+  if ((c->colony_flags & COLONIZE_COLONY_FLAG_INEFFICIENT_GOV) != 0) {
+    fprintf(stderr, "EFFICIENT: latch still set\n");
+    assets_msg_free(&game_txt);
+    return 1;
+  }
+  if (strstr(eu.status, "efficien") == NULL && pops.queue_count < 1) {
+    fprintf(stderr, "EFFICIENT: want status/popup got '%s' q=%d\n", eu.status, pops.queue_count);
+    assets_msg_free(&game_txt);
+    return 1;
+  }
+
+  /* Suppress reports: edge up silent but latch still sets. */
+  col1c.rebel_dividend = 0u << 6;
+  col1c.rebel_divisor = 100u << 6;
+  c->stock[COLONIZE_CARGO_FOOD] = 200;
+  c->colony_flags = 0;
+  col1.head.colony_report_options.report_inefficient_government = 1;
+  eu.status[0] = '\0';
+  ai_popup_clear(&pops);
+  memset(&prod, 0, sizeof(prod));
+  turn_run_colony_production_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&pool), .map=(ColonizeWorldMap*)(NULL), .col1=(ColonizeCol1Save*)(&col1), .col1_ok=true, .rng=(ColonizeDosRng*)(NULL), .europe=(EuropeScreen*)(&eu)}, 0, &prod, &pops, &game_txt);
+  if ((c->colony_flags & COLONIZE_COLONY_FLAG_INEFFICIENT_GOV) == 0) {
+    fprintf(stderr, "INEFFICIENT suppress: latch should still set\n");
+    assets_msg_free(&game_txt);
+    return 1;
+  }
+  if (pops.queue_count != 0 || strstr(eu.status, "inefficient") != NULL) {
+    fprintf(
+      stderr,
+      "INEFFICIENT suppress: want quiet got q=%d '%s'\n",
+      pops.queue_count,
+      eu.status
+    );
+    assets_msg_free(&game_txt);
+    return 1;
+  }
+
+  /*
+   * smell #29: DOS FUN_364b_0688 keeps the bit3 latch for EVERY colony of
+   * the ticked nation (viceroy 57470-57485 — the OR/AND-clear pair sits in
+   * the open function body); only the two dialogs are human-gated, and by
+   * DS:0xa897, which FUN_15eb_002c sets from "colony owner == view nation
+   * AND that slot's control == 0". Retarget the colony to an AI nation:
+   * latch must still move, chrome must stay silent.
+   */
+  c->nation_id = 1;
+  col1c.nation_id = 1;
+  col1.player[1].control = 1;
+  col1.head.colony_report_options.report_inefficient_government = 0;
+  c->colony_flags = 0;
+  c->stock[COLONIZE_CARGO_FOOD] = 200;
+  col1c.rebel_dividend = 0u << 6;
+  col1c.rebel_divisor = 100u << 6;
+  eu.status[0] = '\0';
+  ai_popup_clear(&pops);
+  memset(&prod, 0, sizeof(prod));
+  turn_run_colony_production_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&pool), .map=(ColonizeWorldMap*)(NULL), .col1=(ColonizeCol1Save*)(&col1), .col1_ok=true, .rng=(ColonizeDosRng*)(NULL), .europe=(EuropeScreen*)(&eu)}, 0, &prod, &pops, &game_txt);
+  if ((c->colony_flags & COLONIZE_COLONY_FLAG_INEFFICIENT_GOV) == 0) {
+    fprintf(stderr, "INEFFICIENT AI: latch not set on an AI colony\n");
+    assets_msg_free(&game_txt);
+    return 1;
+  }
+  if (pops.queue_count != 0 || eu.status[0] != '\0') {
+    fprintf(
+      stderr,
+      "INEFFICIENT AI: want no chrome got q=%d '%s'\n",
+      pops.queue_count,
+      eu.status
+    );
+    assets_msg_free(&game_txt);
+    return 1;
+  }
+  /* And the clear side, still silent. */
+  col1c.rebel_dividend = 100u << 6;
+  col1c.rebel_divisor = 100u << 6;
+  c->stock[COLONIZE_CARGO_FOOD] = 200;
+  eu.status[0] = '\0';
+  ai_popup_clear(&pops);
+  memset(&prod, 0, sizeof(prod));
+  turn_run_colony_production_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&pool), .map=(ColonizeWorldMap*)(NULL), .col1=(ColonizeCol1Save*)(&col1), .col1_ok=true, .rng=(ColonizeDosRng*)(NULL), .europe=(EuropeScreen*)(&eu)}, 0, &prod, &pops, &game_txt);
+  if ((c->colony_flags & COLONIZE_COLONY_FLAG_INEFFICIENT_GOV) != 0) {
+    fprintf(stderr, "INEFFICIENT AI: latch not cleared on an AI colony\n");
+    assets_msg_free(&game_txt);
+    return 1;
+  }
+  if (pops.queue_count != 0 || eu.status[0] != '\0') {
+    fprintf(stderr, "EFFICIENT AI: want no chrome got q=%d '%s'\n", pops.queue_count, eu.status);
+    assets_msg_free(&game_txt);
+    return 1;
+  }
+
+  assets_msg_free(&game_txt);
+  fprintf(stderr, "inefficient government chrome ok\n");
+  return 0;
+}
+
+/* FUN_364b_0688 starve-kill: food_at_start==0 and still short → lose one. */
+static int case_starve_kill(void) {
+  fx_begin();
+  ColonizeColonyPool starve_pool;
+  colonies_init(&starve_pool);
+  colonies_set_occupancy_map(NULL);
+  ColonizeColony* s = &starve_pool.colonies[0];
+  memset(s, 0, sizeof(*s));
+  s->active = true;
+  s->id = 1;
+  s->building_in_production = -1;
+  s->stock[COLONIZE_CARGO_FOOD] = 0; /* 2 pop need 4; stay starving */
+  for (int i = 0; i < 2; ++i) {
+    s->colonists[i].active = true;
+    s->colonists[i].unit_type_index = 0;
+    s->colonists[i].profession = UNITS_JOB_NONE;
+    s->colonists[i].building_type = -1;
+    s->colonists[i].field_job = -1;
+  }
+  for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES_MAX; ++t) {
+    s->tiles[t] = -1;
+  }
+  s->colonist_count = 2;
+  s->population = 2;
+  starve_pool.colony_count = 1;
+  ColonizeTurnResult sr;
+  memset(&sr, 0, sizeof(sr));
+  turn_colony_free_production(&starve_pool, s, NULL, &sr, NULL);
+  if (!s->active || s->colonist_count != 1) {
+    fprintf(
+      stderr,
+      "starve: colonist_count want 1 got %d active=%d\n",
+      s->colonist_count,
+      s->active
+    );
+    return 1;
+  }
+  if (s->food_shortfall_latch == 0) {
+    fprintf(stderr, "starve: food-shortfall latch should remain\n");
+    return 1;
+  }
+  fprintf(stderr, "colony starve-kill ok\n");
+  return 0;
+}
+
+/* bugs.md (port_orange_starves.SAV): DOS deficit is DS:0x8e5a =
+ * consumption − stock − production; a colony producing exactly what it
+ * eats at 0 stores (commons feeds the lone statesman) must NOT latch
+ * starvation or lose anyone, ever. Simulated without a map by pre-adding
+ * the "production" to stock, which is how the tick's own commons food
+ * lands before the latch runs — deficit 2−0−2 = 0. */
+static int case_zero_deficit_no_starve(void) {
+  fx_begin();
+  ColonizeColonyPool zpool;
+  colonies_init(&zpool);
+  colonies_set_occupancy_map(NULL);
+  ColonizeColony* s = &zpool.colonies[0];
+  memset(s, 0, sizeof(*s));
+  s->active = true;
+  s->id = 1;
+  s->building_in_production = -1;
+  s->stock[COLONIZE_CARGO_FOOD] = 2; /* 1 pop eats 2 — net zero, not short */
+  s->colonists[0].active = true;
+  s->colonists[0].unit_type_index = 0;
+  s->colonists[0].profession = UNITS_JOB_NONE;
+  s->colonists[0].building_type = 9;
+  s->colonists[0].field_job = -1;
+  for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES_MAX; ++t) {
+    s->tiles[t] = -1;
+  }
+  s->colonist_count = 1;
+  s->population = 1;
+  zpool.colony_count = 1;
+  ColonizeTurnResult sr;
+  memset(&sr, 0, sizeof(sr));
+  turn_colony_free_production(&zpool, s, NULL, &sr, NULL);
+  if (!s->active || s->colonist_count != 1) {
+    fprintf(
+      stderr, "starve netzero: colonist_count want 1 got %d active=%d\n",
+      s->colonist_count, s->active
+    );
+    return 1;
+  }
+  if (s->food_shortfall_latch != 0) {
+    fprintf(stderr, "starve netzero: food-shortfall latch must stay clear\n");
+    return 1;
+  }
+  fprintf(stderr, "colony net-zero food no-starve ok\n");
+  return 0;
+}
+
+/* Last colonist starve → @VANISH + abandon (DOS 0xe47). */
+static int case_last_colonist_vanish(void) {
+  fx_begin();
+  ColonizeColonyPool pool;
+  colonies_init(&pool);
+  colonies_set_occupancy_map(NULL);
+  ColonizeColony* s = &pool.colonies[0];
+  memset(s, 0, sizeof(*s));
+  s->active = true;
+  s->id = 1;
+  s->nation_id = 0;
+  s->building_in_production = -1;
+  snprintf(s->name, sizeof(s->name), "Roanoke");
+  s->stock[COLONIZE_CARGO_FOOD] = 0;
+  s->colonists[0].active = true;
+  s->colonists[0].unit_type_index = 0;
+  s->colonists[0].profession = UNITS_JOB_NONE;
+  s->colonists[0].building_type = -1;
+  s->colonists[0].field_job = -1;
+  for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES_MAX; ++t) {
+    s->tiles[t] = -1;
+  }
+  s->colonist_count = 1;
+  s->population = 1;
+  pool.colony_count = 1;
+
+  EuropeScreen eu;
+  memset(&eu, 0, sizeof(eu));
+  AiPopupState pops;
+  ai_popup_init(&pops);
+  ColonizeMsgCatalog game_txt;
+  assets_msg_init(&game_txt);
+  (void)assets_msg_load_file(&game_txt, "COLONIZE/GAME.TXT");
+
+  ColonizeTurnResult sr;
+  memset(&sr, 0, sizeof(sr));
+  turn_run_colony_production_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&pool), .map=(ColonizeWorldMap*)(NULL), .col1=(ColonizeCol1Save*)(NULL), .col1_ok=((NULL) != NULL), .rng=(ColonizeDosRng*)(NULL), .europe=(EuropeScreen*)(&eu)}, 0, &sr, &pops, &game_txt);
+  if (s->active || pool.colony_count != 0) {
+    fprintf(
+      stderr,
+      "vanish: want abandoned active=%d count=%d\n",
+      s->active,
+      pool.colony_count
+    );
+    assets_msg_free(&game_txt);
+    return 1;
+  }
+  if (pops.queue_count < 1 ||
+      (strstr(pops.queue[0].body, "vanished") == NULL &&
+       strstr(pops.queue[0].body, "Roanoke") == NULL)) {
+    fprintf(
+      stderr,
+      "vanish: popup weak q=%d body='%s'\n",
+      pops.queue_count,
+      pops.queue_count > 0 ? pops.queue[0].body : ""
+    );
+    assets_msg_free(&game_txt);
+    return 1;
+  }
+  assets_msg_free(&game_txt);
+  fprintf(stderr, "colony vanish starve ok\n");
+  return 0;
+}
+
+/* Starve-kill chrome: @STARVE1 (spring) / @STARVE2 (autumn). */
+static int case_starve_chrome_seasons(void) {
+  fx_begin();
+  ColonizeColonyPool pool;
+  colonies_init(&pool);
+  colonies_set_occupancy_map(NULL);
+  ColonizeColony* s = &pool.colonies[0];
+  memset(s, 0, sizeof(*s));
+  s->active = true;
+  s->id = 1;
+  s->nation_id = 0;
+  s->building_in_production = -1;
+  snprintf(s->name, sizeof(s->name), "Roanoke");
+  s->stock[COLONIZE_CARGO_FOOD] = 0;
+  for (int i = 0; i < 2; ++i) {
+    s->colonists[i].active = true;
+    s->colonists[i].unit_type_index = 0;
+    s->colonists[i].profession = UNITS_JOB_NONE;
+    s->colonists[i].building_type = -1;
+    s->colonists[i].field_job = -1;
+  }
+  for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES_MAX; ++t) {
+    s->tiles[t] = -1;
+  }
+  s->colonist_count = 2;
+  s->population = 2;
+  pool.colony_count = 1;
+
+  EuropeScreen eu;
+  memset(&eu, 0, sizeof(eu));
+  AiPopupState pops;
+  ai_popup_init(&pops);
+  ColonizeMsgCatalog game_txt;
+  assets_msg_init(&game_txt);
+  (void)assets_msg_load_file(&game_txt, "COLONIZE/GAME.TXT");
+
+  ColonizeTurnResult sr;
+  memset(&sr, 0, sizeof(sr));
+  turn_run_colony_production_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&pool), .map=(ColonizeWorldMap*)(NULL), .col1=(ColonizeCol1Save*)(NULL), .col1_ok=((NULL) != NULL), .rng=(ColonizeDosRng*)(NULL), .europe=(EuropeScreen*)(&eu)}, 0, &sr, &pops, &game_txt);
+  if (s->colonist_count != 1) {
+    fprintf(stderr, "starve1: colonist_count want 1 got %d\n", s->colonist_count);
+    assets_msg_free(&game_txt);
+    return 1;
+  }
+  if (pops.queue_count < 1 ||
+      (strstr(pops.queue[0].body, "Roanoke") == NULL &&
+       strstr(pops.queue[0].body, "starv") == NULL)) {
+    fprintf(
+      stderr,
+      "starve1: popup weak q=%d body='%s'\n",
+      pops.queue_count,
+      pops.queue_count > 0 ? pops.queue[0].body : ""
+    );
+    assets_msg_free(&game_txt);
+    return 1;
+  }
+  if (strstr(pops.queue[0].body, "coming soon") != NULL) {
+    fprintf(stderr, "starve1: spring must not use STARVE2 got '%s'\n", pops.queue[0].body);
+    assets_msg_free(&game_txt);
+    return 1;
+  }
+  fprintf(stderr, "starve1 chrome ok\n");
+
+  /* Reset for autumn → STARVE2. */
+  memset(s, 0, sizeof(*s));
+  s->active = true;
+  s->id = 1;
+  s->nation_id = 0;
+  s->building_in_production = -1;
+  snprintf(s->name, sizeof(s->name), "Roanoke");
+  s->stock[COLONIZE_CARGO_FOOD] = 0;
+  for (int i = 0; i < 2; ++i) {
+    s->colonists[i].active = true;
+    s->colonists[i].unit_type_index = 0;
+    s->colonists[i].profession = UNITS_JOB_NONE;
+    s->colonists[i].building_type = -1;
+    s->colonists[i].field_job = -1;
+  }
+  for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES_MAX; ++t) {
+    s->tiles[t] = -1;
+  }
+  s->colonist_count = 2;
+  s->population = 2;
+  pool.colony_count = 1;
+
+  ColonizeCol1Save col1;
+  memset(&col1, 0, sizeof(col1));
+  col1.head.autumn = 1;
+  /* Difficulty>=2: skip the Discoverer/Explorer easy-mode no-kill mercy
+   * (FUN_364b_0688) so this deterministically still starve-kills. */
+  col1.head.difficulty = 2;
+  eu.status[0] = '\0';
+  ai_popup_clear(&pops);
+  memset(&sr, 0, sizeof(sr));
+  turn_run_colony_production_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&pool), .map=(ColonizeWorldMap*)(NULL), .col1=(ColonizeCol1Save*)(&col1), .col1_ok=true, .rng=(ColonizeDosRng*)(NULL), .europe=(EuropeScreen*)(&eu)}, 0, &sr, &pops, &game_txt);
+  if (pops.queue_count < 1 ||
+      (strstr(pops.queue[0].body, "coming soon") == NULL &&
+       strstr(pops.queue[0].body, "worse") == NULL)) {
+    fprintf(
+      stderr,
+      "starve2: want winter-coming q=%d body='%s'\n",
+      pops.queue_count,
+      pops.queue_count > 0 ? pops.queue[0].body : ""
+    );
+    assets_msg_free(&game_txt);
+    return 1;
+  }
+  assets_msg_free(&game_txt);
+  fprintf(stderr, "starve2 chrome ok\n");
+  return 0;
+}
+
+/* Food shortage status for human (production deficit; stock stays ≥ need*4). */
+static int case_food_shortage_status(void) {
+  fx_begin();
+  ColonizeColonyPool pool;
+  colonies_init(&pool);
+  colonies_set_occupancy_map(NULL);
+  ColonizeColony* col = &pool.colonies[0];
+  memset(col, 0, sizeof(*col));
+  col->active = true;
+  col->id = 1;
+  col->nation_id = 0;
+  col->building_in_production = -1;
+  /* Eat 4 → 16 left (= need*4); avoids @FOODLOW overwriting shortage status. */
+  col->stock[COLONIZE_CARGO_FOOD] = 20;
+  col->colonists[0].active = true;
+  col->colonists[1].active = true;
+  col->colonist_count = 2;
+  col->population = 2;
+  pool.colony_count = 1;
+
+  EuropeScreen eu;
+  memset(&eu, 0, sizeof(eu));
+  eu.cargo_count = COLONIZE_CARGO_COUNT;
+  for (int i = 0; i < COLONIZE_CARGO_COUNT; ++i) {
+    eu.cargo[i].bid = 1;
+  }
+
+  ColonizeTurnResult prod;
+  memset(&prod, 0, sizeof(prod));
+  turn_run_colony_production_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&pool), .map=(ColonizeWorldMap*)(NULL), .col1=(ColonizeCol1Save*)(NULL), .col1_ok=((NULL) != NULL), .rng=(ColonizeDosRng*)(NULL), .europe=(EuropeScreen*)(&eu)}, 0, &prod, NULL, NULL);
+  if (prod.food_shortages < 1 || strstr(eu.status, "Food shortage") == NULL) {
+    fprintf(
+      stderr,
+      "food shortage want count+status got shortages=%d '%s'\n",
+      prod.food_shortages,
+      eu.status
+    );
+    return 1;
+  }
+  fprintf(stderr, "food shortage status ok\n");
+  return 0;
+}
+
+/* DOS 0xe5e @FOODLOW: production shortfall 8e32; stock < 8e32×4; not starving. */
+static int case_foodlow_chrome(void) {
+  fx_begin();
+  ColonizeColonyPool pool;
+  colonies_init(&pool);
+  colonies_set_occupancy_map(NULL);
+  ColonizeColony* col = &pool.colonies[0];
+  memset(col, 0, sizeof(*col));
+  col->active = true;
+  col->id = 1;
+  col->nation_id = 0;
+  col->building_in_production = -1;
+  snprintf(col->name, sizeof(col->name), "Jamestown");
+  /* 2 pop need 4; no field food → shortfall 4; start 10 → after eat 6 (< 16). */
+  col->stock[COLONIZE_CARGO_FOOD] = 10;
+  col->colonists[0].active = true;
+  col->colonists[1].active = true;
+  col->colonist_count = 2;
+  col->population = 2;
+  for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES_MAX; ++t) {
+    col->tiles[t] = -1;
+  }
+  pool.colony_count = 1;
+
+  EuropeScreen eu;
+  memset(&eu, 0, sizeof(eu));
+  AiPopupState pops;
+  ai_popup_init(&pops);
+  ColonizeMsgCatalog game_txt;
+  assets_msg_init(&game_txt);
+  (void)assets_msg_load_file(&game_txt, "COLONIZE/GAME.TXT");
+
+  ColonizeTurnResult prod;
+  memset(&prod, 0, sizeof(prod));
+  turn_run_colony_production_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&pool), .map=(ColonizeWorldMap*)(NULL), .col1=(ColonizeCol1Save*)(NULL), .col1_ok=((NULL) != NULL), .rng=(ColonizeDosRng*)(NULL), .europe=(EuropeScreen*)(&eu)}, 0, &prod, &pops, &game_txt);
+  if (col->stock[COLONIZE_CARGO_FOOD] != 6) {
+    fprintf(stderr, "foodlow: stock want 6 got %d\n", col->stock[COLONIZE_CARGO_FOOD]);
+    assets_msg_free(&game_txt);
+    return 1;
+  }
+  if (strstr(eu.status, "Food low") == NULL && strstr(eu.status, "Jamestown") == NULL) {
+    fprintf(stderr, "foodlow: status want Food low/Jamestown got '%s'\n", eu.status);
+    assets_msg_free(&game_txt);
+    return 1;
+  }
+  if (pops.queue_count < 1) {
+    fprintf(stderr, "foodlow: expected FOODLOW popup\n");
+    assets_msg_free(&game_txt);
+    return 1;
+  }
+  if (strstr(pops.queue[0].body, "Jamestown") == NULL &&
+      strstr(pops.queue[0].body, "food") == NULL &&
+      strstr(pops.queue[0].body, "Food") == NULL) {
+    fprintf(stderr, "foodlow: popup body weak: '%s'\n", pops.queue[0].body);
+    assets_msg_free(&game_txt);
+    return 1;
+  }
+  assets_msg_free(&game_txt);
+  fprintf(stderr, "foodlow chrome ok\n");
+  return 0;
+}
+
+/* Surplus harvest (8e32==0): no @FOODLOW even when stock < need×4. */
+static int case_surplus_no_foodlow(void) {
+  fx_begin();
+  ColonizeColonyPool pool;
+  colonies_init(&pool);
+  colonies_set_occupancy_map(NULL);
+  ColonizeColony* col = &pool.colonies[0];
+  memset(col, 0, sizeof(*col));
+  col->active = true;
+  col->id = 1;
+  col->nation_id = 0;
+  col->building_in_production = -1;
+  snprintf(col->name, sizeof(col->name), "Plymouth");
+  col->stock[COLONIZE_CARGO_FOOD] = 12; /* after surplus net, still modest vs need×4 */
+  col->colonists[0].active = true;
+  col->colonists[0].field_job = COLONIZE_JOB_FARMER;
+  col->colonists[0].profession = COLONIZE_JOB_FARMER;
+  col->colonists[0].building_type = -1;
+  col->colonists[1].active = true;
+  col->colonists[1].field_job = COLONIZE_JOB_FARMER;
+  col->colonists[1].profession = COLONIZE_JOB_FARMER;
+  col->colonists[1].building_type = -1;
+  col->colonist_count = 2;
+  col->population = 2;
+  for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES_MAX; ++t) {
+    col->tiles[t] = -1;
+  }
+  col->tiles[0] = 0;
+  col->tiles[1] = 1;
+  pool.colony_count = 1;
+
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  char err[64];
+  if (!map_alloc(&map, 8, 8, err, sizeof(err))) {
+    fprintf(stderr, "foodlow-surplus: map_alloc %s\n", err);
+    return 1;
+  }
+  for (int i = 0; i < 64; ++i) {
+    map.terrain[i] = 1; /* plains */
+  }
+  col->x = 3;
+  col->y = 3;
+
+  EuropeScreen eu;
+  memset(&eu, 0, sizeof(eu));
+  AiPopupState pops;
+  ai_popup_init(&pops);
+
+  ColonizeTurnResult prod;
+  memset(&prod, 0, sizeof(prod));
+  turn_run_colony_production_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&pool), .map=(ColonizeWorldMap*)(&map), .col1=(ColonizeCol1Save*)(NULL), .col1_ok=((NULL) != NULL), .rng=(ColonizeDosRng*)(NULL), .europe=(EuropeScreen*)(&eu)}, 0, &prod, &pops, NULL);
+  if (prod.food_shortages != 0) {
+    fprintf(stderr, "foodlow-surplus: unexpected shortage %d\n", prod.food_shortages);
+    map_free(&map);
+    return 1;
+  }
+  if (strstr(eu.status, "Food low") != NULL) {
+    fprintf(stderr, "foodlow-surplus: must not warn on surplus '%s'\n", eu.status);
+    map_free(&map);
+    return 1;
+  }
+  for (int i = 0; i < pops.queue_count; ++i) {
+    if (strstr(pops.queue[i].body, "rapidly depleting") != NULL ||
+        strstr(pops.queue[i].body, "Food low") != NULL) {
+      fprintf(stderr, "foodlow-surplus: FOODLOW popup with surplus food\n");
+      map_free(&map);
+      return 1;
+    }
+  }
+  /* Sanity: stock should not be below one turn's need after a surplus turn. */
+  if (col->stock[COLONIZE_CARGO_FOOD] < 4) {
+    fprintf(
+      stderr,
+      "foodlow-surplus: expected surplus leave stock>=4 got %d\n",
+      col->stock[COLONIZE_CARGO_FOOD]
+    );
+    map_free(&map);
+    return 1;
+  }
+  map_free(&map);
+  fprintf(stderr, "foodlow surplus no-warn ok\n");
+  return 0;
+}
+
+/* @FOOD1: first starvation latch (stock after eat < need, no prior latch). */
+static int case_food1_latch(void) {
+  fx_begin();
+  ColonizeColonyPool pool;
+  colonies_init(&pool);
+  colonies_set_occupancy_map(NULL);
+  ColonizeColony* col = &pool.colonies[0];
+  memset(col, 0, sizeof(*col));
+  col->active = true;
+  col->id = 1;
+  col->nation_id = 0;
+  col->building_in_production = -1;
+  snprintf(col->name, sizeof(col->name), "Plymouth");
+  /* 2 pop need 4; start 3 → after eat 0 (< need); no prior STARVATION. */
+  col->stock[COLONIZE_CARGO_FOOD] = 3;
+  col->colonists[0].active = true;
+  col->colonists[1].active = true;
+  col->colonist_count = 2;
+  col->population = 2;
+  for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES_MAX; ++t) {
+    col->tiles[t] = -1;
+  }
+  pool.colony_count = 1;
+
+  EuropeScreen eu;
+  memset(&eu, 0, sizeof(eu));
+  AiPopupState pops;
+  ai_popup_init(&pops);
+  ColonizeMsgCatalog game_txt;
+  assets_msg_init(&game_txt);
+  (void)assets_msg_load_file(&game_txt, "COLONIZE/GAME.TXT");
+
+  ColonizeTurnResult prod;
+  memset(&prod, 0, sizeof(prod));
+  turn_run_colony_production_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&pool), .map=(ColonizeWorldMap*)(NULL), .col1=(ColonizeCol1Save*)(NULL), .col1_ok=((NULL) != NULL), .rng=(ColonizeDosRng*)(NULL), .europe=(EuropeScreen*)(&eu)}, 0, &prod, &pops, &game_txt);
+  if (col->food_shortfall_latch == 0) {
+    fprintf(stderr, "food1: want food-shortfall latch\n");
+    assets_msg_free(&game_txt);
+    return 1;
+  }
+  if (strstr(eu.status, "depleted") == NULL && strstr(eu.status, "Plymouth") == NULL) {
+    fprintf(stderr, "food1: status want depleted/Plymouth got '%s'\n", eu.status);
+    assets_msg_free(&game_txt);
+    return 1;
+  }
+  if (pops.queue_count < 1 ||
+      (strstr(pops.queue[0].body, "depleted") == NULL &&
+       strstr(pops.queue[0].body, "Plymouth") == NULL)) {
+    fprintf(
+      stderr,
+      "food1: popup weak q=%d body='%s'\n",
+      pops.queue_count,
+      pops.queue_count > 0 ? pops.queue[0].body : ""
+    );
+    assets_msg_free(&game_txt);
+    return 1;
+  }
+  if (strstr(pops.queue[0].body, "Winter") != NULL) {
+    fprintf(stderr, "food1: spring must not use FOOD2 got '%s'\n", pops.queue[0].body);
+    assets_msg_free(&game_txt);
+    return 1;
+  }
+  assets_msg_free(&game_txt);
+  fprintf(stderr, "food1 chrome ok\n");
+  return 0;
+}
+
+/* @FOOD2: same latch with Col1 autumn → winter-soon wording. */
+static int case_food2_latch_autumn(void) {
+  fx_begin();
+  ColonizeColonyPool pool;
+  colonies_init(&pool);
+  colonies_set_occupancy_map(NULL);
+  ColonizeColony* col = &pool.colonies[0];
+  memset(col, 0, sizeof(*col));
+  col->active = true;
+  col->id = 1;
+  col->nation_id = 0;
+  col->building_in_production = -1;
+  snprintf(col->name, sizeof(col->name), "Plymouth");
+  col->stock[COLONIZE_CARGO_FOOD] = 3;
+  col->colonists[0].active = true;
+  col->colonists[1].active = true;
+  col->colonist_count = 2;
+  col->population = 2;
+  for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES_MAX; ++t) {
+    col->tiles[t] = -1;
+  }
+  pool.colony_count = 1;
+
+  ColonizeCol1Save col1;
+  memset(&col1, 0, sizeof(col1));
+  col1.head.autumn = 1;
+
+  EuropeScreen eu;
+  memset(&eu, 0, sizeof(eu));
+  AiPopupState pops;
+  ai_popup_init(&pops);
+  ColonizeMsgCatalog game_txt;
+  assets_msg_init(&game_txt);
+  (void)assets_msg_load_file(&game_txt, "COLONIZE/GAME.TXT");
+
+  ColonizeTurnResult prod;
+  memset(&prod, 0, sizeof(prod));
+  turn_run_colony_production_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&pool), .map=(ColonizeWorldMap*)(NULL), .col1=(ColonizeCol1Save*)(&col1), .col1_ok=true, .rng=(ColonizeDosRng*)(NULL), .europe=(EuropeScreen*)(&eu)}, 0, &prod, &pops, &game_txt);
+  if (pops.queue_count < 1 ||
+      (strstr(pops.queue[0].body, "Winter") == NULL &&
+       strstr(pops.queue[0].body, "starve") == NULL)) {
+    fprintf(
+      stderr,
+      "food2: want Winter/starve q=%d body='%s'\n",
+      pops.queue_count,
+      pops.queue_count > 0 ? pops.queue[0].body : ""
+    );
+    assets_msg_free(&game_txt);
+    return 1;
+  }
+  assets_msg_free(&game_txt);
+  fprintf(stderr, "food2 chrome ok\n");
+  return 0;
+}
+
+/*
+ * FUN_364b_0688 phase O — AI dump-sell: non-human Euro surplus → gold before
+ * spoilage. Human colony must not sell. Horses → nation_horses (no gold).
+ */
+static int case_phase_o_ai_dump_sell(void) {
+  fx_begin();
+  ColonizeColonyPool pool;
+  colonies_init(&pool);
+  colonies_set_occupancy_map(NULL);
+  ColonizeColony* ai = &pool.colonies[0];
+  memset(ai, 0, sizeof(*ai));
+  ai->active = true;
+  ai->id = 1;
+  ai->nation_id = 1; /* AI French */
+  ai->building_in_production = -1;
+  ai->warehouse_level = 0; /* cap 100 */
+  ai->stock[COLONIZE_CARGO_TOBACCO] = 150;
+  ai->stock[COLONIZE_CARGO_HORSES] = 130;
+  ai->stock[COLONIZE_CARGO_MUSKETS] = 160;
+  ai->stock[COLONIZE_CARGO_FOOD] = 50;
+  ai->colonists[0].active = true;
+  ai->colonist_count = 1;
+  ai->population = 1;
+
+  ColonizeColony* human = &pool.colonies[1];
+  memset(human, 0, sizeof(*human));
+  human->active = true;
+  human->id = 2;
+  human->nation_id = 0;
+  human->building_in_production = -1;
+  human->warehouse_level = 0;
+  human->stock[COLONIZE_CARGO_TOBACCO] = 150;
+  human->stock[COLONIZE_CARGO_FOOD] = 50; /* avoid Phase J vanish on 0 food */
+  human->colonists[0].active = true;
+  human->colonist_count = 1;
+  human->population = 1;
+  pool.colony_count = 2;
+
+  EuropeScreen eu;
+  memset(&eu, 0, sizeof(eu));
+  eu.cargo_count = COLONIZE_CARGO_COUNT;
+  for (int i = 0; i < COLONIZE_CARGO_COUNT; ++i) {
+    eu.cargo[i].bid = 10;
+    eu.cargo[i].low = 1;
+    eu.cargo[i].high = 20;
+  }
+  eu.tax_percent = 0;
+
+  ColonizeCol1Save col1;
+  memset(&col1, 0, sizeof(col1));
+  col1.nation[1].tax_rate = 20;
+  for (int i = 0; i < (int)COLONIZE_COL1_CARGO_TYPES; ++i) {
+    col1.nation[1].trade.euro_price[i] = 10;
+  }
+
+  /*
+   * DOS (viceroy 57834-57835) pays the derived sell table DS:0x84BC
+   * (-0x7b44), which is euro_price − 1 = 9, UNTAXED: tobacco 50→450 +
+   * muskets remainder 10→90; horses→word; muskets 1 batch.
+   */
+  const int gained = europe_ai_colony_dump_sell_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&pool), .col1=(ColonizeCol1Save*)(&col1), .col1_ok=true, .europe=(EuropeScreen*)(&eu)}, ai, 0);
+  if (gained != 540 || col1.nation[1].gold != 540u) {
+    fprintf(
+      stderr,
+      "dump-sell gained=%d gold=%u (want 540)\n",
+      gained,
+      (unsigned)col1.nation[1].gold
+    );
+    return 1;
+  }
+  if (col1.nation[1].royal_money != 0) {
+    fprintf(
+      stderr,
+      "dump-sell must not tax: royal_money=%d\n",
+      (int)col1.nation[1].royal_money
+    );
+    return 1;
+  }
+  if (eu.nation_horses[1] != 30u) {
+    fprintf(stderr, "dump-sell horses word want 30 got %u\n", (unsigned)eu.nation_horses[1]);
+    return 1;
+  }
+  if (eu.nation_musket_batches[1] != 1u) {
+    fprintf(
+      stderr,
+      "dump-sell musket batches want 1 got %u\n",
+      (unsigned)eu.nation_musket_batches[1]
+    );
+    return 1;
+  }
+  if (ai->stock[COLONIZE_CARGO_TOBACCO] != 150) {
+    fprintf(stderr, "dump-sell must leave stock for spoilage, got %d\n", ai->stock[COLONIZE_CARGO_TOBACCO]);
+    return 1;
+  }
+  if (europe_ai_colony_dump_sell_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&pool), .col1=(ColonizeCol1Save*)(&col1), .col1_ok=true, .europe=(EuropeScreen*)(&eu)}, human, 0) != 0) {
+    fprintf(stderr, "dump-sell must skip human colony\n");
+    return 1;
+  }
+
+  /* Wired through production: spoilage clamps after credit. */
+  col1.nation[1].gold = 0;
+  ColonizeTurnResult prod;
+  memset(&prod, 0, sizeof(prod));
+  turn_run_colony_production_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&pool), .map=(ColonizeWorldMap*)(NULL), .col1=(ColonizeCol1Save*)(&col1), .col1_ok=true, .rng=(ColonizeDosRng*)(NULL), .europe=(EuropeScreen*)(&eu)}, 0, &prod, NULL, NULL);
+  if (ai->stock[COLONIZE_CARGO_TOBACCO] != 100 || ai->stock[COLONIZE_CARGO_HORSES] != 100) {
+    fprintf(
+      stderr,
+      "produce+dump tobacco=%d horses=%d (want 100/100)\n",
+      ai->stock[COLONIZE_CARGO_TOBACCO],
+      ai->stock[COLONIZE_CARGO_HORSES]
+    );
+    return 1;
+  }
+  if (col1.nation[1].gold != 540u) {
+    fprintf(stderr, "produce+dump gold=%u (want 540)\n", (unsigned)col1.nation[1].gold);
+    return 1;
+  }
+  if (human->stock[COLONIZE_CARGO_TOBACCO] != 100 || col1.nation[0].gold != 0u) {
+    fprintf(
+      stderr,
+      "human must spoil without sell tobacco=%d gold=%u\n",
+      human->stock[COLONIZE_CARGO_TOBACCO],
+      (unsigned)col1.nation[0].gold
+    );
+    return 1;
+  }
+  fprintf(stderr, "AI colony dump-sell ok\n");
+  return 0;
+}
+
+/*
+ * Nation ticks: AI Euro colonies accrue liberty_bells into col1 (DOS 00f2 /
+ * 4345_0a22 per nation). Human Europe chrome unchanged.
+ */
+static int case_nation_bells_tick(void) {
+  fx_begin();
+  ColonizeColonyPool pool;
+  colonies_init(&pool);
+  colonies_set_occupancy_map(NULL);
+  snprintf(pool.building_types[0].name, sizeof(pool.building_types[0].name), "Town Hall");
+  pool.building_type_count = 1;
+
+  ColonizeColony* ai = &pool.colonies[0];
+  memset(ai, 0, sizeof(*ai));
+  ai->active = true;
+  ai->id = 1;
+  ai->nation_id = 1;
+  ai->building_in_production = -1;
+  ai->has_building[0] = true;
+  ai->colonists[0].active = true;
+  ai->colonists[0].building_type = 0;
+  ai->colonists[0].profession = COLONIZE_PROF_STATESMAN;
+  ai->colonist_count = 1;
+  ai->population = 1;
+  pool.colony_count = 1;
+
+  ColonizeCol1Save col1;
+  memset(&col1, 0, sizeof(col1));
+  col1.player[0].control = 0;
+  col1.player[1].control = 1;
+  col1.player[2].control = 2;
+  col1.player[3].control = 1;
+  for (int i = 0; i < (int)COLONIZE_COL1_FF_COUNT; ++i) {
+    col1.head.founding_father[i] = -1;
+  }
+
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.messages = test_game_txt();
+  ctx.names = test_names_txt();
+  ctx.human_nation = 0;
+  ctx.colonies = &pool;
+  ctx.col1 = &col1;
+  ctx.col1_ok = true;
+
+  turn_run_nation_ticks(&ctx, NULL);
+  if (col1.nation[1].liberty_bells_last_turn == 0 || col1.nation[1].liberty_bells_total == 0) {
+    fprintf(
+      stderr,
+      "AI bells last=%u total=%u (want >0)\n",
+      (unsigned)col1.nation[1].liberty_bells_last_turn,
+      (unsigned)col1.nation[1].liberty_bells_total
+    );
+    return 1;
+  }
+  if (col1.nation[0].liberty_bells_total != 0) {
+    fprintf(stderr, "human with no colonies should stay 0 bells\n");
+    return 1;
+  }
+  if (col1.nation[2].liberty_bells_total != 0) {
+    fprintf(stderr, "withdrawn nation must not accrue bells\n");
+    return 1;
+  }
+  fprintf(stderr, "AI nation bells accrue ok\n");
+  return 0;
+}
+
+/*
+ * Tory penalty (negative colony_prod_sol_bonus) must reduce bells, not get
+ * silently dropped — turn_count_bells_and_crosses_for_nation used to guard
+ * the SoL adjustment on `sol_b > 0`, which threw away every Tory penalty.
+ * FUN_15eb_1d4c folds the (signed) term in unconditionally.
+ */
+static int case_tory_penalty_bells(void) {
+  fx_begin();
+  ColonizeColonyPool pool;
+  colonies_init(&pool);
+  colonies_set_occupancy_map(NULL);
+  snprintf(pool.building_types[0].name, sizeof(pool.building_types[0].name), "Town Hall");
+  pool.building_type_count = 1;
+
+  ColonizeColony* ai = &pool.colonies[0];
+  memset(ai, 0, sizeof(*ai));
+  ai->active = true;
+  ai->id = 1;
+  ai->nation_id = 1;
+  ai->building_in_production = -1;
+  ai->has_building[0] = true;
+  ai->colonists[0].active = true;
+  ai->colonists[0].building_type = 0;
+  ai->colonists[0].profession = COLONIZE_PROF_STATESMAN;
+  /* tories=(15*100+50)/100=15; thresh=10 (AI, fixed); mod=-1. Both fields
+   * carry 15: the pop fallback is colonist_count-first port-wide
+   * (colony_prod_sol_bonus), and DOS has one population byte, so a fixture
+   * that set only `population` had two different pops inside one bells
+   * composer. Slots 1..14 stay inactive — one Statesman still works. */
+  ai->colonist_count = 15;
+  ai->population = 15;
+  pool.colony_count = 1;
+
+  ColonizeCol1Save col1;
+  memset(&col1, 0, sizeof(col1));
+  col1.player[0].control = 0;
+  col1.player[1].control = 1;
+  for (int i = 0; i < (int)COLONIZE_COL1_FF_COUNT; ++i) {
+    col1.head.founding_father[i] = -1;
+  }
+
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.messages = test_game_txt();
+  ctx.names = test_names_txt();
+  ctx.human_nation = 0;
+  ctx.colonies = &pool;
+  ctx.col1 = &col1;
+  ctx.col1_ok = true;
+
+  turn_run_nation_ticks(&ctx, NULL);
+  /* sol_bonus now folds into colony_prod_bells_worker *before* the
+   * skill-match doubling (matches FUN_15eb_1d4c's Statesman body):
+   * tag(3)+sol_b(-1)=2, doubled (skilled Statesman) = 4. Town Hall
+   * passive +1 = 5 — not 7 (bug would leave it there un-penalized), and
+   * not 6 either (that was this fix's own first pass, which only moved
+   * the sign-drop bug and still added sol_b post-doubling). Plus the
+   * AI-only pop term in colony_prod_colony_bells_ff, (pop+3)/5 = 3 at
+   * pop 15, for 8 total: it reads the same colonist_count the Tory term
+   * does, and only looked like 0 while this fixture left colonist_count
+   * at 1 and put the 15 in `population` alone. */
+  if (col1.nation[1].liberty_bells_total != 8) {
+    fprintf(
+      stderr,
+      "Tory-penalty bells want 8 got %u\n",
+      (unsigned)col1.nation[1].liberty_bells_total
+    );
+    return 1;
+  }
+  fprintf(stderr, "Tory penalty reduces bells ok\n");
+  return 0;
+}
+
+/*
+ * FUN_5bfb_00f8 Euro rank: gold/100 + 2*colonies + pop → inverse place.
+ */
+static int case_euro_power_rank(void) {
+  fx_begin();
+  ColonizeColonyPool pool;
+  colonies_init(&pool);
+  colonies_set_occupancy_map(NULL);
+  for (int n = 0; n < 3; ++n) {
+    ColonizeColony* c = &pool.colonies[n];
+    memset(c, 0, sizeof(*c));
+    c->active = true;
+    c->id = n + 1;
+    c->nation_id = n;
+    c->building_in_production = -1;
+    c->population = (n == 0) ? 10 : (n == 1) ? 3 : 1;
+    c->colonist_count = c->population;
+  }
+  pool.colony_count = 3;
+
+  ColonizeCol1Save col1;
+  memset(&col1, 0, sizeof(col1));
+  col1.nation[0].gold = 100; /* +1 */
+  col1.nation[1].gold = 5000; /* +50 — should win despite fewer pops */
+  col1.nation[2].gold = 0;
+  col1.nation[3].gold = 0;
+
+  uint8_t rank[4];
+  if (turn_rank_euro_nations(&col1, &pool, rank) != 0) {
+    fprintf(stderr, "rank: call failed\n");
+    return 1;
+  }
+  /* FR gold-heavy → place 0; EN pop → place 1; SP → 2; DU empty → 3. */
+  if (rank[1] != 0 || rank[0] != 1 || rank[2] != 2 || rank[3] != 3) {
+    fprintf(
+      stderr,
+      "rank got EN=%u FR=%u SP=%u DU=%u want 1/0/2/3\n",
+      (unsigned)rank[0],
+      (unsigned)rank[1],
+      (unsigned)rank[2],
+      (unsigned)rank[3]
+    );
+    return 1;
+  }
+  fprintf(stderr, "euro power rank ok\n");
+  return 0;
+}
+
+/*
+ * FUN_364b_0688 F–G: an Expert Farmer working the Schoolhouse graduates a
+ * Free Colonist into a Farmer after 4 turns_in_job.
+ */
+static int case_schoolhouse_education(void) {
+  fx_begin();
+  ColonizeColonyPool pool;
+  colonies_init(&pool);
+  colonies_set_occupancy_map(NULL);
+  snprintf(pool.building_types[0].name, sizeof(pool.building_types[0].name), "Schoolhouse");
+  pool.building_type_count = 1;
+
+  ColonizeColony* col = &pool.colonies[0];
+  memset(col, 0, sizeof(*col));
+  col->active = true;
+  col->id = 1;
+  col->nation_id = 0;
+  col->building_in_production = -1;
+  col->has_building[0] = true;
+  col->stock[COLONIZE_CARGO_FOOD] = 50;
+  col->colonists[0].active = true;
+  col->colonists[0].profession = COLONIZE_JOB_FARMER; /* @JOB level 1 teacher */
+  col->colonists[0].building_type = 0;
+  col->colonists[0].field_job = -1;
+  col->colonists[0].turns_in_job = 3; /* one tick → 4 ≥ need */
+  col->colonists[1].active = true;
+  col->colonists[1].profession = COLONIZE_PROF_FREE_COLONIST;
+  col->colonists[1].building_type = 0;
+  col->colonists[1].field_job = -1;
+  col->colonists[1].turns_in_job = 0;
+  col->colonist_count = 2;
+  col->population = 2;
+  pool.colony_count = 1;
+
+  ColonizeTurnResult prod;
+  memset(&prod, 0, sizeof(prod));
+  turn_colony_free_production(&pool, col, NULL, &prod, NULL);
+  if (col->colonists[1].profession != COLONIZE_JOB_FARMER) {
+    fprintf(
+      stderr,
+      "education: student profession want Farmer(%d) got %d\n",
+      COLONIZE_JOB_FARMER,
+      col->colonists[1].profession
+    );
+    return 1;
+  }
+  /* bugs.md #565: DOS zeroes only the TEACHER's +0x60 counter (raw 57540-
+   * 57588 never calls 0a7e on the student), so the graduate keeps the tick
+   * he took this turn (0 -> 1). */
+  if (col->colonists[0].turns_in_job != 0 || col->colonists[1].turns_in_job != 1) {
+    fprintf(stderr, "education: teacher counter resets, student's must not\n");
+    return 1;
+  }
+  fprintf(stderr, "colony education graduate ok\n");
+
+  /* bugs.md #380: the graduate takes the TEACHER'S OWN profession. */
+  col->colonists[0].profession = COLONIZE_JOB_FISHERMAN;
+  col->colonists[0].building_type = 0;
+  col->colonists[0].field_job = -1;
+  col->colonists[0].turns_in_job = 3;
+  col->colonists[1].profession = COLONIZE_PROF_FREE_COLONIST;
+  col->colonists[1].building_type = 0;
+  col->colonists[1].field_job = -1;
+  col->colonists[1].turns_in_job = 0;
+  memset(&prod, 0, sizeof(prod));
+  turn_colony_free_production(&pool, col, NULL, &prod, NULL);
+  if (col->colonists[1].profession != COLONIZE_JOB_FISHERMAN) {
+    fprintf(
+      stderr,
+      "education specialty: want Fisherman(%d) got %d\n",
+      COLONIZE_JOB_FISHERMAN,
+      col->colonists[1].profession
+    );
+    return 1;
+  }
+  fprintf(stderr, "colony education specialty ok\n");
+
+  /* Teacher ready, no students → status crumb. */
+  {
+    EuropeScreen eu;
+    memset(&eu, 0, sizeof(eu));
+    col->colonists[0].profession = COLONIZE_JOB_FARMER; /* @JOB level 1 teacher */
+    col->colonists[0].building_type = 0;
+    col->colonists[0].turns_in_job = 3;
+    col->colonists[1].active = false;
+    col->colonist_count = 1;
+    col->population = 1;
+    col->stock[COLONIZE_CARGO_FOOD] = 50; /* avoid food-shortage overwrite */
+    memset(&prod, 0, sizeof(prod));
+    turn_run_colony_production_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&pool), .map=(ColonizeWorldMap*)(NULL), .col1=(ColonizeCol1Save*)(NULL), .col1_ok=((NULL) != NULL), .rng=(ColonizeDosRng*)(NULL), .europe=(EuropeScreen*)(&eu)}, 0, &prod, NULL, NULL);
+    if (strstr(eu.status, "No students") == NULL) {
+      fprintf(stderr, "education no-students want status got '%s'\n", eu.status);
+      return 1;
+    }
+    fprintf(stderr, "colony education no-students ok\n");
+    col->colonists[1].active = true;
+    col->colonist_count = 2;
+    col->population = 2;
+  }
+  return 0;
+}
+
+/*
+ * Phase H thin: Free Colonist on field job discovers that skill (1/100).
+ */
+static int case_phase_h_skill_discovery(void) {
+  fx_begin();
+  ColonizeColonyPool pool;
+  colonies_init(&pool);
+  colonies_set_occupancy_map(NULL);
+  ColonizeColony* col = &pool.colonies[0];
+  memset(col, 0, sizeof(*col));
+  col->active = true;
+  col->id = 1;
+  col->nation_id = 0;
+  col->building_in_production = -1;
+  col->stock[COLONIZE_CARGO_FOOD] = 500;
+  col->colonists[0].active = true;
+  col->colonists[0].profession = COLONIZE_PROF_FREE_COLONIST;
+  col->colonists[0].building_type = -1;
+  col->colonists[0].field_job = COLONIZE_JOB_COTTON_PLANTER;
+  col->colonist_count = 1;
+  col->population = 1;
+  col->tiles[0] = 0;
+  pool.colony_count = 1;
+
+  ColonizeCol1Save col1;
+  memset(&col1, 0, sizeof(col1));
+  col1.head.year = 1492;
+  ColonizeDosRng rng;
+  dos_rng_seed(&rng, 1);
+  int discovered = 0;
+  for (unsigned t = 0; t < 5000u; ++t) {
+    col1.head.turn = (uint16_t)(t & 0xffffu);
+    col->colonists[0].profession = COLONIZE_PROF_FREE_COLONIST;
+    /* raw 57595: job 0 (Farmer) never learns on the job — DOS gates
+     * `0 < job < 5`, so drive this with a cash-crop field job. */
+    col->colonists[0].field_job = COLONIZE_JOB_COTTON_PLANTER;
+    col->stock[COLONIZE_CARGO_FOOD] = 500;
+    ColonizeTurnResult prod;
+    memset(&prod, 0, sizeof(prod));
+    turn_run_colony_production_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&pool), .map=(ColonizeWorldMap*)(NULL), .col1=(ColonizeCol1Save*)(&col1), .col1_ok=true, .rng=(ColonizeDosRng*)(&rng), .europe=(EuropeScreen*)(NULL)}, 0, &prod, NULL, NULL);
+    if (col->colonists[0].profession == COLONIZE_JOB_COTTON_PLANTER) {
+      discovered = 1;
+      break;
+    }
+  }
+  if (!discovered) {
+    fprintf(stderr, "education H: no field skill discover in 5000 ticks\n");
+    return 1;
+  }
+  fprintf(stderr, "colony random field skill ok\n");
+  return 0;
+}
+
+/*
+ * bugs.md #509b — on-the-job learning latch. DOS raw 57596/57605 tests
+ * the per-job DS byte at -0x6bd0 for 0 and bumps it on a success, and
+ * FUN_4962_0018 (raw 78140) clears that block per nation at the turn
+ * boundary: at most ONE colonist per job per nation per turn graduates,
+ * however many colonies and colonists are rolling. Job 0 (Farmer) is
+ * outside the `0 < job < 5` gate and never learns at all.
+ */
+static int case_otj_learning_latch(void) {
+  fx_begin();
+  ColonizeColonyPool pool;
+  colonies_init(&pool);
+  colonies_set_occupancy_map(NULL);
+  for (int c = 0; c < 2; ++c) {
+    ColonizeColony* col = &pool.colonies[c];
+    memset(col, 0, sizeof(*col));
+    col->active = true;
+    col->id = c + 1;
+    col->nation_id = 0;
+    col->building_in_production = -1;
+    for (int k = 0; k < 8; ++k) {
+      col->colonists[k].active = true;
+      col->colonists[k].building_type = -1;
+      col->colonists[k].field_job = COLONIZE_JOB_COTTON_PLANTER;
+      col->tiles[k] = (int8_t)k;
+    }
+    col->colonist_count = 8;
+    col->population = 8;
+  }
+  pool.colony_count = 2;
+
+  ColonizeCol1Save col1;
+  memset(&col1, 0, sizeof(col1));
+  col1.head.year = 1492;
+  ColonizeDosRng rng;
+  dos_rng_seed(&rng, 7u * 12345u);
+  int total = 0;
+  int farmers = 0;
+  for (unsigned t = 0; t < 20000u; ++t) {
+    col1.head.turn = (uint16_t)(t & 0xffffu);
+    for (int c = 0; c < 2; ++c) {
+      for (int k = 0; k < 8; ++k) {
+        pool.colonies[c].colonists[k].profession = COLONIZE_PROF_FREE_COLONIST;
+        pool.colonies[c].colonists[k].field_job =
+          (k == 0) ? COLONIZE_JOB_FARMER : COLONIZE_JOB_COTTON_PLANTER;
+      }
+      pool.colonies[c].stock[COLONIZE_CARGO_FOOD] = 5000;
+    }
+    ColonizeTurnResult prod;
+    memset(&prod, 0, sizeof(prod));
+    turn_run_colony_production_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&pool), .map=(ColonizeWorldMap*)(NULL), .col1=(ColonizeCol1Save*)(&col1), .col1_ok=true, .rng=(ColonizeDosRng*)(&rng)}, 0, &prod, NULL, NULL);
+    int hit = 0;
+    for (int c = 0; c < 2; ++c) {
+      for (int k = 0; k < 8; ++k) {
+        const int prof = pool.colonies[c].colonists[k].profession;
+        if (prof == COLONIZE_JOB_COTTON_PLANTER) {
+          hit++;
+        } else if (k == 0 && prof == COLONIZE_JOB_FARMER) {
+          farmers++;
+        }
+      }
+    }
+    if (hit > 1) {
+      fprintf(stderr, "otj latch: %d graduations in one turn (t=%u)\n", hit, t);
+      return 1;
+    }
+    total += hit;
+  }
+  if (total < 10) {
+    fprintf(stderr, "otj latch: only %d graduations in 20000 turns\n", total);
+    return 1;
+  }
+  if (farmers != 0) {
+    fprintf(stderr, "otj latch: job 0 learned %d times (DOS gate 0 < job)\n", farmers);
+    return 1;
+  }
+  fprintf(stderr, "on-the-job latch + job-0 gate ok (%d graduations)\n", total);
+  return 0;
+}
+
+/*
+ * AI Euro crosses: the DOS FUN_38fd_5e52 tick runs for AI nations too —
+ * +2 a turn, and on `needed < current` one recruit[] slot becomes a real
+ * unit parked in the Europe limbo (FUN_38fd_0718), the slot is refilled
+ * (FUN_38fd_46d4), crosses are zeroed and nation_flags 0x40 latches.
+ * Cite: europe.c europe_nation_immigration_tick_w; viceroy 68539-68620.
+ */
+static int case_ai_euro_crosses(void) {
+  fx_begin();
+  ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
+  memset(&units, 0, sizeof(units));
+  units_reset(&units);
+  units_set_occupancy_map(NULL);
+  snprintf(units.types[0].name, sizeof(units.types[0].name), "Colonists");
+  units.type_count = 1;
+
+  ColonizeCol1Save col1;
+  memset(&col1, 0, sizeof(col1));
+  col1.player[0].control = 0;
+  col1.player[1].control = 1;
+  col1.nation[1].current_crosses = 8;
+  col1.nation[1].needed_crosses = 8;
+
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.messages = test_game_txt();
+  ctx.names = test_names_txt();
+  ctx.human_nation = 0;
+  ctx.units = &units;
+  ctx.col1 = &col1;
+  ctx.col1_ok = true;
+
+  ColonizeTurnResult out;
+  memset(&out, 0, sizeof(out));
+  col1.nation[1].recruit[0] = UNITS_JOB_COLONIST;
+  col1.nation[1].recruit[1] = UNITS_JOB_COLONIST;
+  col1.nation[1].recruit[2] = UNITS_JOB_COLONIST;
+  turn_run_nation_ticks(&ctx, &out);
+  /* 8 + 2 > 8 → arrival: crosses zeroed, 0x40 latched, one unit in limbo. */
+  if (col1.nation[1].needed_crosses != 8 || col1.nation[1].current_crosses != 0) {
+    fprintf(
+      stderr,
+      "AI crosses want 0/8 got %u/%u\n",
+      (unsigned)col1.nation[1].current_crosses,
+      (unsigned)col1.nation[1].needed_crosses
+    );
+    return 1;
+  }
+  if ((col1.nation[1].nation_flags & 0x40u) == 0u) {
+    fprintf(stderr, "AI immigrant: nation_flags 0x40 not latched\n");
+    return 1;
+  }
+  int in_limbo = 0;
+  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    const ColonizeUnit* u = &units.units[i];
+    if (u->active && u->nation_id == 1 && (u->x >= 200 || u->y >= 200)) {
+      in_limbo++;
+    }
+  }
+  if (in_limbo != 1) {
+    fprintf(stderr, "AI immigrant: want 1 unit in Europe limbo got %d\n", in_limbo);
+    return 1;
+  }
+  /* Second tick: the drain rule (584a *param_2) now sees that colonist. */
+  const uint16_t before = col1.nation[1].current_crosses;
+  turn_run_nation_ticks(&ctx, &out);
+  if (col1.nation[1].current_crosses != before) {
+    fprintf(
+      stderr,
+      "AI crosses drain: want %u got %u\n",
+      (unsigned)before, (unsigned)col1.nation[1].current_crosses
+    );
+    return 1;
+  }
+  fprintf(stderr, "AI crosses immigrant arrival + dock drain ok\n");
+  return 0;
+}
+
+/* 5e52 phase 4 immigration pressure thin. */
+static int case_immigration_pressure(void) {
+  fx_begin();
+  EuropeScreen eu;
+  memset(&eu, 0, sizeof(eu));
+  ColonizeColonyPool pool;
+  colonies_init(&pool);
+  colonies_set_occupancy_map(NULL);
+  ColonizeColony* col = &pool.colonies[0];
+  memset(col, 0, sizeof(*col));
+  col->active = true;
+  col->nation_id = 0;
+  col->colonist_count = 5;
+  col->population = 5;
+  pool.colony_count = 1;
+  ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
+  memset(&units, 0, sizeof(units));
+  units_reset(&units);
+  units_set_occupancy_map(NULL);
+  europe_tick_immigration_pressure_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&units), .colonies=(ColonizeColonyPool*)(&pool), .col1=(ColonizeCol1Save*)(NULL), .col1_ok=((NULL) != NULL), .rng=(ColonizeDosRng*)(NULL), .europe=(EuropeScreen*)(&eu)}, 0);
+  if (eu.needed_crosses <= 0) {
+    fprintf(stderr, "immigration needed want >0 got %u\n", (unsigned)eu.needed_crosses);
+    return 1;
+  }
+  if (eu.current_crosses != 2) {
+    fprintf(stderr, "immigration current want +2 got %u\n", (unsigned)eu.current_crosses);
+    return 1;
+  }
+  /* Force phase5: current > needed → dock; @UNREST popup owns chrome (no auto-Europe). */
+  eu.current_crosses = (uint16_t)(eu.needed_crosses + 10);
+  eu.immigration_pressure = (int16_t)eu.current_crosses;
+  eu.dock_count = 0;
+  eu.status[0] = '\0';
+  eu.open_on_dock = false;
+  if (!europe_tick_immigration_pressure_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&units), .colonies=(ColonizeColonyPool*)(&pool), .col1=(ColonizeCol1Save*)(NULL), .col1_ok=((NULL) != NULL), .rng=(ColonizeDosRng*)(NULL), .europe=(EuropeScreen*)(&eu)}, 0) || eu.open_on_dock ||
+      eu.dock_count < 1 || strstr(eu.status, "Immigrant") == NULL) {
+    fprintf(
+      stderr,
+      "phase5 want dock+status no-open open=%d dock=%d '%s'\n",
+      eu.open_on_dock ? 1 : 0,
+      eu.dock_count,
+      eu.status
+    );
+    return 1;
+  }
+  fprintf(stderr, "immigration pressure tick ok\n");
+  /* 584a: AI nation ((8-diff)*score)>>3; English human also *2/3. */
+  {
+    ColonizeCol1Save icol;
+    memset(&icol, 0, sizeof(icol));
+    icol.head.difficulty = 4; /* Viceroy → AI score half */
+    icol.player[0].control = 0;
+    icol.player[1].control = 1;
+    col->nation_id = 1;
+    eu.current_crosses = 0;
+    eu.immigration_pressure = 0;
+    europe_tick_immigration_pressure_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&units), .colonies=(ColonizeColonyPool*)(&pool), .col1=(ColonizeCol1Save*)(&icol), .col1_ok=true, .rng=(ColonizeDosRng*)(NULL), .europe=(EuropeScreen*)(&eu)}, 1);
+    const int ai_score = (int)eu.needed_crosses;
+    col->nation_id = 0;
+    eu.current_crosses = 0;
+    eu.immigration_pressure = 0;
+    europe_tick_immigration_pressure_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&units), .colonies=(ColonizeColonyPool*)(&pool), .col1=(ColonizeCol1Save*)(&icol), .col1_ok=true, .rng=(ColonizeDosRng*)(NULL), .europe=(EuropeScreen*)(&eu)}, 0);
+    const int en_score = (int)eu.needed_crosses;
+    /* Base pop5 → ((5)<<1)+8=18; EN *2/3=12; AI half of 18=9. */
+    if (ai_score != 9 || en_score != 12) {
+      fprintf(stderr, "584a scale want AI9 EN12 got AI%d EN%d\n", ai_score, en_score);
+      return 1;
+    }
+    fprintf(stderr, "immigration 584a AI/EN scale ok\n");
+  }
+  /* 5e52 Brewster branch → FUN_38fd_4884(0,1): tick returns 2, nothing
+   * docks, crosses kept; the CHOICE apply moves the pick + zeroes crosses;
+   * cancel leaves everything so next turn re-asks. */
+  {
+    ColonizeCol1Save bcol;
+    memset(&bcol, 0, sizeof(bcol));
+    for (int i = 0; i < (int)COLONIZE_COL1_FF_COUNT; ++i) {
+      bcol.head.founding_father[i] = -1;
+    }
+    bcol.head.founding_father[FF_WILLIAM_BREWSTER] = 0;
+    bcol.nation[0].founding_fathers[FF_WILLIAM_BREWSTER / 8] |=
+      (uint8_t)(1u << (FF_WILLIAM_BREWSTER % 8));
+    col->nation_id = 0;
+    eu.dock_count = 0;
+    eu.brewster_no_criminals = false;
+    europe_tick_immigration_pressure_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&units), .colonies=(ColonizeColonyPool*)(&pool), .col1=(ColonizeCol1Save*)(&bcol), .col1_ok=true, .rng=(ColonizeDosRng*)(NULL), .europe=(EuropeScreen*)(&eu)}, 0);
+    eu.current_crosses = (uint16_t)(eu.needed_crosses + 10);
+    const uint16_t kept = eu.current_crosses;
+    /* The tick's own 584a +2 lands first (dock empty), then the Brewster
+     * branch returns 2 without spending the meter. */
+    if (europe_tick_immigration_pressure_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&units), .colonies=(ColonizeColonyPool*)(&pool), .col1=(ColonizeCol1Save*)(&bcol), .col1_ok=true, .rng=(ColonizeDosRng*)(NULL), .europe=(EuropeScreen*)(&eu)}, 0) != 2 ||
+        eu.dock_count != 0 || eu.current_crosses != (uint16_t)(kept + 2) ||
+        !eu.brewster_no_criminals) {
+      fprintf(stderr, "brewster tick want 2/no dock/crosses kept\n");
+      return 1;
+    }
+    const uint16_t after_tick = eu.current_crosses;
+    AiPopupState pops;
+    memset(&pops, 0, sizeof(pops));
+    units_brewster_enqueue_pick(&eu, &pops, NULL, 0);
+    if (pops.queue_count != 1 || pops.queue[0].tag != AI_POPUP_TAG_BREWSTER_PICK ||
+        pops.queue[0].choice_count != EUROPE_POOL_SIZE) {
+      fprintf(stderr, "brewster pick popup not queued (%d)\n", pops.queue_count);
+      return 1;
+    }
+    pops.has_result = true;
+    pops.result_tag = AI_POPUP_TAG_BREWSTER_PICK;
+    pops.result_nation_a = 0;
+    pops.result_cancelled = true;
+    if (!units_brewster_apply_popup(&eu, &pops, &units) || eu.dock_count != 0 ||
+        eu.current_crosses != after_tick) {
+      fprintf(stderr, "brewster cancel must keep crosses/dock\n");
+      return 1;
+    }
+    if (units.type_count < 1) {
+      snprintf(units.types[0].name, sizeof(units.types[0].name), "Colonists");
+      units.types[0].movement = 1;
+      units.type_count = 1;
+    }
+    int before_units = 0;
+    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+      before_units += units.units[i].active ? 1 : 0;
+    }
+    char want[64];
+    snprintf(want, sizeof(want), "%s", eu.pool[2].name);
+    pops.result_cancelled = false;
+    pops.result_choice_id = 2;
+    if (!units_brewster_apply_popup(&eu, &pops, &units) || eu.dock_count != 1 ||
+        eu.current_crosses != 0 || strcmp(eu.dock[0].name, want) != 0) {
+      fprintf(stderr, "brewster pick apply: dock=%d crosses=%u '%s' want '%s'\n",
+              eu.dock_count, (unsigned)eu.current_crosses, eu.dock[0].name, want);
+      return 1;
+    }
+    int after_units = 0;
+    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+      after_units += units.units[i].active ? 1 : 0;
+    }
+    if (after_units != before_units + 1) {
+      fprintf(stderr, "brewster pick must mirror one Europe-map unit\n");
+      return 1;
+    }
+    fprintf(stderr, "brewster pick-among-pool ok\n");
+  }
+  return 0;
+}
+
+/* §C tail = @KINGFRIGATE (ai_king.c), NOT a turn.c spawn: the old
+ * duplicate here handed out a free "Merchantman" every 8th turn
+ * (bugs.md free_merchanman.SAV; type 0x11 is the Frigate). Assert the
+ * turn tick spawns nothing on its own. */
+static int case_no_free_ship_spawn(void) {
+  fx_begin();
+  ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
+  memset(&units, 0, sizeof(units));
+  units_reset(&units);
+  units_set_occupancy_map(NULL);
+  snprintf(units.types[0x11].name, sizeof(units.types[0x11].name), "Frigate");
+  units.types[0x11].domain = COLONIZE_UNIT_DOMAIN_SEA;
+  units.types[0x11].movement = 6;
+  units.types[0x11].attack = 16;
+  units.type_count = 0x12;
+  uint16_t year = 1600;
+  uint16_t autumn = 0;
+  uint32_t turn_number = 8;
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.messages = test_game_txt();
+  ctx.names = test_names_txt();
+  ctx.human_nation = 0;
+  ctx.units = &units;
+  ctx.game_year = &year;
+  ctx.game_autumn = &autumn;
+  ctx.turn_number = &turn_number;
+  turn_run_nation_ticks(&ctx, NULL);
+  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    if (units.units[i].active) {
+      fprintf(stderr, "turn tick must not spawn free ships (KINGFRIGATE lives in ai_king)\n");
+      return 1;
+    }
+  }
+  return 0;
+}
+
+/*
+ * colony_prod_horse_breed direct unit checks — DOS-confirmed 2026-08-26
+ * against real golden_colony_prod01/02 fixtures (COLONY00->01, actual
+ * one-turn DOS runs). Two of the 13 exactly-matching colonies from that
+ * verification, locked in here as a formula-level regression independent
+ * of the full colony/map simulation below.
+ */
+static int case_horse_breed_units(void) {
+  fx_begin();
+  /* Fort Nassau (golden_colony_prod01): stock=176 pop=13 food_gross=37
+   * wcap=200 no Stable -> potential=ceil(176/50)*2=8, food_avail=37-26=11,
+   * food_cap=(11+1)/2=6, capped=min(8,6)=6, headroom=200-176=24,
+   * bred=min(6,24)=6 -> stock 176+6=182 (golden expected). */
+  ColonyProdHorseBreed b =
+    colony_prod_horse_breed(176, 13, 37, 200, false);
+  if (b.bred != 6 || b.shortfall != 2) {
+    fprintf(
+      stderr,
+      "colony_prod_horse_breed Fort Nassau want bred=6 shortfall=2 got bred=%d shortfall=%d\n",
+      b.bred, b.shortfall
+    );
+    return 1;
+  }
+  /* Quebec (golden_colony_prod01): stock=51 pop=5 food_gross=9 wcap=100
+   * with Stable -> potential=ceil(51/25)*2=6, food_avail=max(0,9-10)=0,
+   * food_cap=0, capped=0, bred=0 -> stock unchanged (golden expected). */
+  b = colony_prod_horse_breed(51, 5, 9, 100, true);
+  if (b.bred != 0 || b.shortfall != 6) {
+    fprintf(
+      stderr,
+      "colony_prod_horse_breed Quebec want bred=0 shortfall=6 got bred=%d shortfall=%d\n",
+      b.bred, b.shortfall
+    );
+    return 1;
+  }
+  /* horses < 2 -> no growth at all, regardless of food/warehouse room. */
+  b = colony_prod_horse_breed(1, 1, 50, 100, true);
+  if (b.bred != 0 || b.shortfall != 0) {
+    fprintf(
+      stderr,
+      "colony_prod_horse_breed <2 horses want bred=0 shortfall=0 got bred=%d shortfall=%d\n",
+      b.bred, b.shortfall
+    );
+    return 1;
+  }
+  /* Warehouse headroom binds even when food would allow more. */
+  b = colony_prod_horse_breed(99, 0, 100, 100, true);
+  if (b.bred != 1) {
+    fprintf(
+      stderr,
+      "colony_prod_horse_breed warehouse-headroom want bred=1 got bred=%d\n",
+      b.bred
+    );
+    return 1;
+  }
+  fprintf(stderr, "colony_prod_horse_breed direct ok\n");
+  return 0;
+}
+
+/*
+ * Horse breed: ≥2 horses + food surplus → +horses, −food; Stable raises cap.
+ */
+static int case_horse_breed_colony(void) {
+  fx_begin();
+  ColonizeColonyPool pool;
+  colonies_init(&pool);
+  colonies_set_occupancy_map(NULL);
+  snprintf(pool.building_types[0].name, sizeof(pool.building_types[0].name), "Stable");
+  pool.building_type_count = 1;
+
+  ColonizeColony* col = &pool.colonies[0];
+  memset(col, 0, sizeof(*col));
+  col->active = true;
+  col->id = 1;
+  col->nation_id = 0;
+  col->building_in_production = -1;
+  col->has_building[0] = true;
+  /* One farmer producing will need map — use stock food surplus stand-in via
+   * free production with no field yield: inject food_surplus by pre-stocking
+   * food high and zero pop consume… pop=1 eats 2; set field via craft skip.
+   * Use turn_run with no map → field_food=0 → no breed. Force via direct
+   * stock path: pop 0 invalid. Instead assign no colonists but population 0
+   * skips eat — horses≥2 + we need food_surplus_turn>0 from field.
+   */
+  col->stock[COLONIZE_CARGO_HORSES] = 2;
+  col->stock[COLONIZE_CARGO_FOOD] = 20;
+  col->colonists[0].active = true;
+  col->colonists[0].profession = COLONIZE_PROF_FREE_COLONIST;
+  col->colonists[0].field_job = COLONIZE_JOB_FARMER;
+  col->colonists[0].building_type = -1;
+  col->colonist_count = 1;
+  col->population = 1;
+  col->tiles[0] = 0;
+  pool.colony_count = 1;
+
+  /* Without map, field_food=0 → surplus negative → no breed. Add map plains. */
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  char err[64];
+  if (!map_alloc(&map, 8, 8, err, sizeof(err))) {
+    fprintf(stderr, "breed: map_alloc %s\n", err);
+    return 1;
+  }
+  for (int i = 0; i < 64; ++i) {
+    map.terrain[i] = 1; /* plains */
+  }
+  col->x = 3;
+  col->y = 3;
+
+  /* Preview must show the same breeding the EOT tick is about to do. */
+  ColonizeColonyPreview prev;
+  colony_preview_compute_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&pool), .map=(ColonizeWorldMap*)(&map), .col1=(ColonizeCol1Save*)(NULL), .col1_ok=((NULL) != NULL)}, col, &prev);
+
+  ColonizeTurnResult prod;
+  memset(&prod, 0, sizeof(prod));
+  const int h0 = col->stock[COLONIZE_CARGO_HORSES];
+  turn_run_colony_production_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&pool), .map=(ColonizeWorldMap*)(&map), .col1=(ColonizeCol1Save*)(NULL), .col1_ok=((NULL) != NULL), .rng=(ColonizeDosRng*)(NULL), .europe=(EuropeScreen*)(NULL)}, 0, &prod, NULL, NULL);
+  const int bred = col->stock[COLONIZE_CARGO_HORSES] - h0;
+  if (bred <= 0) {
+    fprintf(
+      stderr,
+      "breed: horses %d→%d want increase (food=%d)\n",
+      h0,
+      col->stock[COLONIZE_CARGO_HORSES],
+      col->stock[COLONIZE_CARGO_FOOD]
+    );
+    map_free(&map);
+    return 1;
+  }
+  if (prev.goods[COLONIZE_CARGO_HORSES] != bred) {
+    fprintf(
+      stderr,
+      "breed preview mismatch want %d got %d\n",
+      bred,
+      prev.goods[COLONIZE_CARGO_HORSES]
+    );
+    map_free(&map);
+    return 1;
+  }
+  map_free(&map);
+  fprintf(stderr, "colony horse breed ok\n");
+  return 0;
+}
+
+/*
+ * FUN_3844_0442 B: year≥1600, no human colonies, peacetime → defeat.
+ */
+static int case_year_end_defeat_victory(void) {
+  fx_begin();
+  ColonizeColonyPool pool;
+  colonies_init(&pool);
+  colonies_set_occupancy_map(NULL);
+  uint16_t year = 1600;
+  uint16_t autumn = 0;
+  uint32_t turn_number = 200;
+  char status[64];
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.messages = test_game_txt();
+  ctx.names = test_names_txt();
+  ctx.game_year = &year;
+  ctx.game_autumn = &autumn;
+  ctx.turn_number = &turn_number;
+  ctx.human_nation = 0;
+  ctx.colonies = &pool;
+  ctx.status = status;
+  ctx.status_size = sizeof(status);
+
+  ColonizeTurnResult out;
+  memset(&out, 0, sizeof(out));
+  turn_run_year_end_chrome(&ctx, &out);
+  if (!out.year_end_defeat || strstr(status, "Defeat") == NULL) {
+    fprintf(stderr, "year-end defeat want latch+status got defeat=%d '%s'\n", out.year_end_defeat, status);
+    return 1;
+  }
+  /* WoI skips defeat. */
+  ColonizeCol1Save col1;
+  memset(&col1, 0, sizeof(col1));
+  col1.head.game_options.woi = 1;
+  ctx.col1 = &col1;
+  ctx.col1_ok = true;
+  memset(&out, 0, sizeof(out));
+  status[0] = '\0';
+  turn_run_year_end_chrome(&ctx, &out);
+  if (out.year_end_defeat) {
+    fprintf(stderr, "year-end defeat must skip during WoI\n");
+    return 1;
+  }
+  /* Same fixture: WoI + no crown colonies → C1 victory. */
+  if (!out.year_end_victory || ai_king_latch_get(&col1, 4) != 1 ||
+      col1.head.show_entire_map != 1 || strstr(status, "Victory") == NULL) {
+    fprintf(
+      stderr,
+      "year-end victory want latch+map+status got victory=%d u46[4]=%u map=%u '%s'\n",
+      out.year_end_victory,
+      (unsigned)ai_king_latch_get(&col1, 4),
+      (unsigned)col1.head.show_entire_map,
+      status
+    );
+    return 1;
+  }
+  fprintf(stderr, "year-end defeat chrome ok\n");
+  fprintf(stderr, "year-end victory chrome ok\n");
+  /* calendar_latch ("scoring complete") is set by the retire-score chain,
+   * not the victory latch (bugs.md #259) — the WON latch alone must both
+   * leave it clear and still suppress the anniversary chrome. */
+  if (col1.head.game_options.calendar_latch) {
+    fprintf(stderr, "year-end victory must NOT set calendar_latch (scoring pending)\n");
+    return 1;
+  }
+  /* Endgame latch suppresses further E anniversary while campaign stopped. */
+  year = 1790;
+  status[0] = '\0';
+  memset(&out, 0, sizeof(out));
+  turn_run_year_end_chrome(&ctx, &out);
+  if (strstr(status, "Anniversary") != NULL) {
+    fprintf(stderr, "calendar_latch must suppress anniversary got '%s'\n", status);
+    return 1;
+  }
+  fprintf(stderr, "year-end calendar_latch ok\n");
+
+  /* C1 REF pool fat blocks victory; independence_force bypasses. */
+  {
+    ColonizeCol1Save fat;
+    memset(&fat, 0, sizeof(fat));
+    fat.head.game_options.woi = 1;
+    fat.head.expeditionary_force[0] = 8; /* regulars → score ≥4 */
+    fat.head.expeditionary_force[1] = 4;
+    fat.head.expeditionary_force[3] = 2;
+    ctx.col1 = &fat;
+    ctx.col1_ok = true;
+    status[0] = '\0';
+    memset(&out, 0, sizeof(out));
+    turn_run_year_end_chrome(&ctx, &out);
+    if (out.year_end_victory) {
+      fprintf(stderr, "year-end C1 REF-fat must block victory\n");
+      return 1;
+    }
+    fat.head.game_options.independence_force = 1;
+    status[0] = '\0';
+    memset(&out, 0, sizeof(out));
+    turn_run_year_end_chrome(&ctx, &out);
+    if (!out.year_end_victory || strstr(status, "Victory") == NULL) {
+      fprintf(
+        stderr,
+        "year-end C1 force bypass want victory got %d '%s'\n",
+        out.year_end_victory,
+        status
+      );
+      return 1;
+    }
+    fprintf(stderr, "year-end C1 REF pool gate ok\n");
+  }
+  year = 1790;
+  status[0] = '\0';
+  memset(&out, 0, sizeof(out));
+  ctx.col1_ok = false;
+  ctx.col1 = NULL;
+  /* Give human a colony so defeat B does not fire. */
+  ColonizeColony* c = &pool.colonies[0];
+  memset(c, 0, sizeof(*c));
+  c->active = true;
+  c->nation_id = 0;
+  c->building_in_production = -1;
+  pool.colony_count = 1;
+  turn_run_year_end_chrome(&ctx, &out);
+  if (out.year_end_defeat || strstr(status, "Anniversary") == NULL) {
+    fprintf(stderr, "anniversary want status got defeat=%d '%s'\n", out.year_end_defeat, status);
+    return 1;
+  }
+  fprintf(stderr, "year-end anniversary ok\n");
+
+  /* E game-era 1800 with richest colony name. */
+  year = 1800;
+  status[0] = '\0';
+  memset(&out, 0, sizeof(out));
+  snprintf(c->name, sizeof(c->name), "Jamestown");
+  c->colonist_count = 5;
+  turn_run_year_end_chrome(&ctx, &out);
+  if (strstr(status, "Game era") == NULL || strstr(status, "Jamestown") == NULL) {
+    fprintf(stderr, "game-era want Jamestown status got '%s'\n", status);
+    return 1;
+  }
+  fprintf(stderr, "year-end game-era richest ok\n");
+  return 0;
+}
+
+static int case_year_end_c2_peace(void) {
+  fx_begin();
+  ColonizeColonyPool pool;
+  colonies_init(&pool);
+  colonies_set_occupancy_map(NULL);
+  uint16_t year = 1600;
+  uint16_t autumn = 0;
+  uint32_t turn_number = 200;
+  char status[64];
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.messages = test_game_txt();
+  ctx.names = test_names_txt();
+  ctx.game_year = &year;
+  ctx.game_autumn = &autumn;
+  ctx.turn_number = &turn_number;
+  ctx.human_nation = 0;
+  ctx.colonies = &pool;
+  ctx.status = status;
+  ctx.status_size = sizeof(status);
+
+  ColonizeTurnResult out;
+  memset(&out, 0, sizeof(out));
+  /* Setup only (no check): the state the E game-era section leaves behind in
+   * the original single block -- one human colony "Jamestown" with 5
+   * colonists, so defeat B does not fire. */
+  year = 1800;
+  ColonizeColony* c = &pool.colonies[0];
+  memset(c, 0, sizeof(*c));
+  c->active = true;
+  c->nation_id = 0;
+  c->building_in_production = -1;
+  pool.colony_count = 1;
+  snprintf(c->name, sizeof(c->name), "Jamestown");
+  c->colonist_count = 5;
+  /* C2: WoI + crown colonies + high crown SoL → peace offer status. */
+  year = 1700;
+  status[0] = '\0';
+  memset(&out, 0, sizeof(out));
+  ColonizeCol1Save c2;
+  col1_save_init(&c2);
+  c2.head.game_options.woi = 1; /* WoI */
+  c2.head.colony_count = 2;
+  c2.colony = calloc(2, sizeof(ColonizeCol1Colony));
+  if (!c2.colony) {
+    return 1;
+  }
+  c2.colony[0].nation_id = 0;
+  c2.colony[0].population = 1;
+  c2.colony[0].rebel_dividend = 5;
+  c2.colony[0].rebel_divisor = 100;
+  c2.colony[1].nation_id = 1;
+  c2.colony[1].population = 1;
+  c2.colony[1].rebel_dividend = 90;
+  c2.colony[1].rebel_divisor = 100;
+  ColonizeColony* crown_c2 = &pool.colonies[1];
+  memset(crown_c2, 0, sizeof(*crown_c2));
+  crown_c2->active = true;
+  crown_c2->nation_id = 1;
+  crown_c2->building_in_production = -1;
+  if (pool.colony_count < 2) {
+    pool.colony_count = 2;
+  }
+  ctx.col1 = &c2;
+  ctx.col1_ok = true;
+  ctx.colonies = &pool;
+  turn_run_year_end_chrome(&ctx, &out);
+  if (out.year_end_victory || strstr(status, "peace") == NULL) {
+    fprintf(
+      stderr,
+      "year-end C2 want peace status got victory=%d '%s'\n",
+      out.year_end_victory,
+      status
+    );
+    free(c2.colony);
+    return 1;
+  }
+  free(c2.colony);
+  ctx.col1 = NULL;
+  ctx.col1_ok = false;
+  fprintf(stderr, "year-end C2 peace ok\n");
+
+  /*
+   * smell #21: C2 is NOT under C1's crown-colony guard. raw 58493 opens the
+   * C1 arm with `(crown_colony_count == 0) || (0x5382 & 0x20)`; the C2 body
+   * at 58507 sits after that arm closes, still inside
+   * `(0x5382 & 1) && !(0x5382 & 8)`. Crown with ZERO colonies but a REF pool
+   * too fat for C1 to fire must still raise the peace-offer band.
+   */
+  year = 1700;
+  status[0] = '\0';
+  memset(&out, 0, sizeof(out));
+  ColonizeCol1Save c2b;
+  col1_save_init(&c2b);
+  c2b.head.game_options.woi = 1;
+  c2b.head.colony_count = 2;
+  c2b.colony = calloc(2, sizeof(ColonizeCol1Colony));
+  if (!c2b.colony) {
+    return 1;
+  }
+  c2b.colony[0].nation_id = 0; /* human, no bells accumulated → SoL 0 */
+  c2b.colony[0].population = 1;
+  c2b.colony[0].rebel_dividend = 0;
+  c2b.colony[0].rebel_divisor = 100;
+  /*
+   * The crown's SoL comes from its own rebel pair, never from a
+   * `liberty_bells_total / 4` stand-in — that stand-in is deleted
+   * (bugs.md #424: nation bell totals run into the millions in real DOS
+   * saves, so every hit of it read as 100%). C1's crown-colony gate counts
+   * the RUNTIME pool (below, which stays crownless so the gate is open and
+   * only the fat REF pool stops C1); ai_king_sol_percent reads the COL1
+   * records, so this record is what gives the crown a SoL history to
+   * compare against.
+   */
+  c2b.colony[1].nation_id = 1; /* crown */
+  c2b.colony[1].population = 1;
+  c2b.colony[1].rebel_dividend = 100;
+  c2b.colony[1].rebel_divisor = 100;
+  /* REF pool fat: ref_score = ef[0] + 2 - (ef[1]==0) - (ef[3]==0) = 5 ⇒
+   * !ref_thin ⇒ C1 cannot fire even with the crown wiped off the map. */
+  c2b.head.expeditionary_force[0] = 5;
+  for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+    pool.colonies[i].active = false;
+  }
+  ColonizeColony* human_c2b = &pool.colonies[0];
+  memset(human_c2b, 0, sizeof(*human_c2b));
+  human_c2b->active = true;
+  human_c2b->nation_id = 0;
+  human_c2b->building_in_production = -1;
+  pool.colony_count = 1;
+  ctx.col1 = &c2b;
+  ctx.col1_ok = true;
+  ctx.colonies = &pool;
+  ctx.units = NULL;
+  turn_run_year_end_chrome(&ctx, &out);
+  if (out.year_end_victory || strstr(status, "peace") == NULL) {
+    fprintf(
+      stderr,
+      "year-end C2 crownless want peace status got victory=%d '%s'\n",
+      out.year_end_victory,
+      status
+    );
+    free(c2b.colony);
+    return 1;
+  }
+  free(c2b.colony);
+  ctx.col1 = NULL;
+  ctx.col1_ok = false;
+  fprintf(stderr, "year-end C2 runs with no crown colonies ok\n");
+  return 0;
+}
+
+static int case_year_end_section_d(void) {
+  fx_begin();
+  ColonizeColonyPool pool;
+  colonies_init(&pool);
+  colonies_set_occupancy_map(NULL);
+  uint16_t year = 1600;
+  uint16_t autumn = 0;
+  uint32_t turn_number = 200;
+  char status[64];
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.messages = test_game_txt();
+  ctx.names = test_names_txt();
+  ctx.game_year = &year;
+  ctx.game_autumn = &autumn;
+  ctx.turn_number = &turn_number;
+  ctx.human_nation = 0;
+  ctx.colonies = &pool;
+  ctx.status = status;
+  ctx.status_size = sizeof(status);
+
+  ColonizeTurnResult out;
+  memset(&out, 0, sizeof(out));
+  /* Setup only (no check): the pool the C2 section leaves behind in the
+   * original single block -- exactly one plain human colony, no units. */
+  ColonizeColony* c = &pool.colonies[0];
+  memset(c, 0, sizeof(*c));
+  c->active = true;
+  c->nation_id = 0;
+  c->building_in_production = -1;
+  pool.colony_count = 1;
+  ctx.units = NULL;
+  /*
+   * Section D — a rival's OWN independence (raw 58558-58617), not a war
+   * declaration. v = rebel_sentiment × census_pop_proxy / 100 (capped 100)
+   * against threshold (8−difficulty)×10; @OTHERGRANTED at/over it,
+   * @OTHERMIGHT / @OTHERLESS under it behind the two hysteresis bands.
+   */
+  year = 1700;
+  status[0] = '\0';
+  memset(&out, 0, sizeof(out));
+  ColonizeCol1Save dcol;
+  col1_save_init(&dcol);
+  dcol.head.difficulty = 4; /* thresh = (8-4)*10 = 40 */
+  dcol.player[0].control = 0;
+  dcol.player[1].control = 1;
+  dcol.player[2].control = 1;
+  dcol.player[3].control = 2;
+  /* v = 25*100/100 = 25; band = [20,40); cache 10 → rising fires. */
+  dcol.nation[2].rebel_sentiment = 25;
+  dcol.stuff.census_pop_proxy[2] = 100;
+  dcol.nation[2].rebellion_pct_last_notified = 10;
+  ctx.col1 = &dcol;
+  ctx.col1_ok = true;
+  turn_run_year_end_chrome(&ctx, &out);
+  if (strstr(status, "considers granting independence") == NULL) {
+    fprintf(stderr, "year-end D want @OTHERMIGHT rising got '%s'\n", status);
+    return 1;
+  }
+  if (dcol.nation[2].rebellion_pct_last_notified != 25) {
+    fprintf(
+      stderr,
+      "year-end D cache want 25 got %u\n",
+      (unsigned)dcol.nation[2].rebellion_pct_last_notified
+    );
+    return 1;
+  }
+  /* Re-run unchanged: DOS's `cached < v` band must keep it quiet — the
+   * pre-fix port re-fired every year on a 1-point wobble. */
+  status[0] = '\0';
+  memset(&out, 0, sizeof(out));
+  turn_run_year_end_chrome(&ctx, &out);
+  if (status[0] != '\0') {
+    fprintf(stderr, "year-end D want silence on repeat got '%s'\n", status);
+    return 1;
+  }
+  /* Rising band's other half (raw 58572 `thresh-0x14 <= v`): below
+   * thresh−20 it stays quiet even though v is well above the cache. */
+  dcol.nation[2].rebel_sentiment = 19; /* v = 19 < 40-20 */
+  dcol.nation[2].rebellion_pct_last_notified = 5;
+  status[0] = '\0';
+  memset(&out, 0, sizeof(out));
+  turn_run_year_end_chrome(&ctx, &out);
+  if (status[0] != '\0') {
+    fprintf(stderr, "year-end D want silence under thresh-20 got '%s'\n", status);
+    return 1;
+  }
+  if (dcol.nation[2].rebellion_pct_last_notified != 5) {
+    fprintf(stderr, "year-end D quiet band must not write the cache\n");
+    return 1;
+  }
+  /* Falling band: v must be more than 5 UNDER the cache. */
+  dcol.nation[2].rebellion_pct_last_notified = 24; /* 19 < 24-5? no (19==19) */
+  status[0] = '\0';
+  memset(&out, 0, sizeof(out));
+  turn_run_year_end_chrome(&ctx, &out);
+  if (status[0] != '\0') {
+    fprintf(stderr, "year-end D falling needs >5 drop, got '%s'\n", status);
+    return 1;
+  }
+  dcol.nation[2].rebellion_pct_last_notified = 26; /* 19 < 21 → fires */
+  status[0] = '\0';
+  memset(&out, 0, sizeof(out));
+  turn_run_year_end_chrome(&ctx, &out);
+  if (strstr(status, "easing") == NULL) {
+    fprintf(stderr, "year-end D want @OTHERLESS got '%s'\n", status);
+    return 1;
+  }
+  if (dcol.nation[2].rebellion_pct_last_notified != 19) {
+    fprintf(
+      stderr,
+      "year-end D falling cache want 19 got %u\n",
+      (unsigned)dcol.nation[2].rebellion_pct_last_notified
+    );
+    return 1;
+  }
+  ctx.col1 = NULL;
+  ctx.col1_ok = false;
+  fprintf(stderr, "year-end D hysteresis bands ok\n");
+
+  /*
+   * At/over threshold → @OTHERGRANTED: nation_flags bit 0x04 latch, the
+   * NAMES.TXT @INDEPENDENT rename, and peace (never war) with every other
+   * European nation. Then the latch makes it once-only.
+   */
+  year = 1700;
+  status[0] = '\0';
+  memset(&out, 0, sizeof(out));
+  ColonizeCol1Save dw;
+  col1_save_init(&dw);
+  dw.head.difficulty = 3; /* thresh = 50 */
+  dw.player[0].control = 0;
+  dw.player[1].control = 1;
+  dw.player[2].control = 1;
+  dw.player[3].control = 1;
+  snprintf(dw.player[2].country_name, sizeof(dw.player[2].country_name), "Spain");
+  dw.nation[2].rebel_sentiment = 55;
+  dw.stuff.census_pop_proxy[2] = 100; /* v = 55 >= 50 */
+  /* Start at war with everyone so the peace writes are visible. */
+  ai_diplo_declare_war(&dw, 2, 0);
+  ai_diplo_declare_war(&dw, 2, 1);
+  ai_diplo_declare_war(&dw, 2, 3);
+  ctx.col1 = &dw;
+  ctx.col1_ok = true;
+  turn_run_year_end_chrome(&ctx, &out);
+  if ((dw.nation[2].nation_flags & 0x04u) == 0) {
+    fprintf(stderr, "year-end D want nation_flags 0x04 latch set\n");
+    return 1;
+  }
+  /* Expectation read from the same NAMES.TXT @INDEPENDENT row the code uses. */
+  if (dw.player[2].country_name[0] == '\0' ||
+      strcmp(dw.player[2].country_name, turn_year_end_independent_name(2)) != 0) {
+    fprintf(
+      stderr,
+      "year-end D want @INDEPENDENT rename got '%s'\n",
+      dw.player[2].country_name
+    );
+    return 1;
+  }
+  for (int other = 0; other < 4; ++other) {
+    if (other == 2) {
+      continue;
+    }
+    if (ai_diplo_at_war(&dw, 2, other)) {
+      fprintf(stderr, "year-end D independence must make peace with %d\n", other);
+      return 1;
+    }
+  }
+  if (strstr(status, "grants independence") == NULL) {
+    fprintf(stderr, "year-end D want @OTHERGRANTED status got '%s'\n", status);
+    return 1;
+  }
+  /* Once-only: the latch must keep it from re-firing (and re-renaming). */
+  status[0] = '\0';
+  memset(&out, 0, sizeof(out));
+  turn_run_year_end_chrome(&ctx, &out);
+  if (status[0] != '\0') {
+    fprintf(stderr, "year-end D latch must be once-only, got '%s'\n", status);
+    return 1;
+  }
+  ctx.col1 = NULL;
+  ctx.col1_ok = false;
+  fprintf(stderr, "year-end D independence grant ok\n");
+
+  /*
+   * The loop visits all four slots, gated on DS 0x543f = player+0x31
+   * (`control != 0`), not on two cached rival_nation_slot cells: nation 3
+   * alone is over threshold and must still be found.
+   */
+  year = 1700;
+  status[0] = '\0';
+  memset(&out, 0, sizeof(out));
+  ColonizeCol1Save ds;
+  col1_save_init(&ds);
+  ds.head.difficulty = 3; /* thresh = 50 */
+  ds.player[0].control = 0;
+  ds.player[1].control = 1;
+  ds.player[2].control = 1;
+  ds.player[3].control = 1;
+  ds.head.rival_nation_slot_1 = 1;
+  ds.head.rival_nation_slot_2 = 2; /* both cached slots are quiet */
+  ds.nation[3].rebel_sentiment = 60;
+  ds.stuff.census_pop_proxy[3] = 100;
+  /* Human slot well over threshold: the control==0 gate must still skip it
+   * (the human's own independence is the War of Independence, section C). */
+  ds.nation[0].rebel_sentiment = 90;
+  ds.stuff.census_pop_proxy[0] = 100;
+  ctx.col1 = &ds;
+  ctx.col1_ok = true;
+  turn_run_year_end_chrome(&ctx, &out);
+  if ((ds.nation[3].nation_flags & 0x04u) == 0) {
+    fprintf(stderr, "year-end D must visit slot 3, not just the two caches\n");
+    return 1;
+  }
+  if (ds.head.rival_nation_slot_1 != 1 || ds.head.rival_nation_slot_2 != 2) {
+    fprintf(stderr, "year-end D must not touch the King/WoI rival caches\n");
+    return 1;
+  }
+  /* The human slot (control 0) is never a candidate. */
+  if ((ds.nation[0].nation_flags & 0x04u) != 0) {
+    fprintf(stderr, "year-end D must skip the human-controlled slot\n");
+    return 1;
+  }
+  ctx.col1 = NULL;
+  ctx.col1_ok = false;
+  fprintf(stderr, "year-end D all-four-slots loop ok\n");
+  return 0;
+}
+
+/*
+ * FUN_4962_0606 profession tally from colonists + units.
+ */
+static int case_census_profession_tally(void) {
+  fx_begin();
+  ColonizeColonyPool pool;
+  colonies_init(&pool);
+  colonies_set_occupancy_map(NULL);
+  ColonizeColony* col = &pool.colonies[0];
+  memset(col, 0, sizeof(*col));
+  col->active = true;
+  col->nation_id = 0;
+  col->building_in_production = -1;
+  col->colonists[0].active = true;
+  col->colonists[0].profession = COLONIZE_PROF_STATESMAN;
+  col->colonists[1].active = true;
+  col->colonists[1].profession = COLONIZE_PROF_FREE_COLONIST;
+  col->colonists[1].field_job = COLONIZE_JOB_FARMER;
+  col->colonist_count = 2;
+  col->population = 2;
+  pool.colony_count = 1;
+
+  ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
+  memset(&units, 0, sizeof(units));
+  units_reset(&units);
+  units_set_occupancy_map(NULL);
+  units.type_count = 14;
+  snprintf(units.types[0].name, sizeof(units.types[0].name), "Scout");
+  snprintf(units.types[13].name, sizeof(units.types[13].name), "Caravel");
+  const int uid = units_spawn(&units, 0, 1, 1);
+  ColonizeUnit* u = units_get(&units, uid);
+  if (u) {
+    units_set_nation(u, 0);
+    u->profession = COLONIZE_PROF_STATESMAN;
+  }
+  /* bugs.md #563: DOS's census (FUN_4962_0606 raw 78356-78360) only counts
+   * units whose @UNIT type carries a profession slot — DS:0x30e[13] = -1
+   * for a Caravel, so its profession byte 0 must NOT read as a Farmer. */
+  const int sid = units_spawn(&units, 13, 2, 2);
+  ColonizeUnit* ship = units_get(&units, sid);
+  if (ship) {
+    units_set_nation(ship, 0);
+    ship->profession = COLONIZE_JOB_FARMER;
+  }
+  /* ... and a colonist with no specialty is counted by SPECIALTY only, not
+   * by the field job he happens to be standing in (raw 78366-78370). */
+  col->colonists[2].active = true;
+  col->colonists[2].profession = -1;
+  col->colonists[2].field_job = COLONIZE_JOB_FARMER;
+  col->colonist_count = 3;
+  col->population = 3;
+
+  uint8_t hist[32];
+  turn_tally_professions(&pool, &units, 0, hist);
+  if (hist[COLONIZE_PROF_STATESMAN] != 2) {
+    fprintf(stderr, "tally statesman want 2 got %u\n", (unsigned)hist[COLONIZE_PROF_STATESMAN]);
+    return 1;
+  }
+  if (hist[COLONIZE_PROF_FREE_COLONIST] != 1) {
+    fprintf(stderr, "tally free want 1 got %u\n", (unsigned)hist[COLONIZE_PROF_FREE_COLONIST]);
+    return 1;
+  }
+  if (hist[COLONIZE_JOB_FARMER] != 0) {
+    fprintf(
+      stderr, "tally farmer want 0 got %u (ship/field_job leak)\n",
+      (unsigned)hist[COLONIZE_JOB_FARMER]
+    );
+    return 1;
+  }
+  fprintf(stderr, "profession tally ok\n");
+  return 0;
+}
+
+/* Live census peel: colony counts + unit/combat tallies. */
+static int case_census_live_peel(void) {
+  fx_begin();
+  ColonizeCol1Save col1;
+  memset(&col1, 0, sizeof(col1));
+  col1.stuff.colony_counts[0] = 99; /* stale */
+  col1.stuff.land_combat_strength[0] = 999; /* stale */
+  ColonizeColonyPool pool;
+  colonies_init(&pool);
+  colonies_set_occupancy_map(NULL);
+  ColonizeColony* c = &pool.colonies[0];
+  memset(c, 0, sizeof(*c));
+  c->active = true;
+  c->nation_id = 0;
+  c->colonist_count = 3;
+  pool.colony_count = 1;
+
+  ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
+  memset(&units, 0, sizeof(units));
+  units_reset(&units);
+  units_set_occupancy_map(NULL);
+  units.type_count = 2;
+  snprintf(units.types[0].name, sizeof(units.types[0].name), "Colonists");
+  units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  snprintf(units.types[1].name, sizeof(units.types[1].name), "Soldiers");
+  units.types[1].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  units.types[1].attack = 2;
+  units.types[1].defense = 2;
+  const int sid = units_spawn(&units, 1, 2, 2);
+  ColonizeUnit* su = units_get(&units, sid);
+  if (su) {
+    units_set_nation(su, 0);
+  }
+
+  col1_stuff_census_refresh_colony_counts_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&units), .colonies=(ColonizeColonyPool*)(&pool), .col1=(ColonizeCol1Save*)(&col1), .col1_ok=true}, &col1.stuff);
+  if (col1.stuff.colony_counts[0] != 1 || col1.stuff.colony_pop_totals[0] != 3) {
+    fprintf(
+      stderr,
+      "census refresh counts=%u pop=%u want 1/3\n",
+      (unsigned)col1.stuff.colony_counts[0],
+      (unsigned)col1.stuff.colony_pop_totals[0]
+    );
+    return 1;
+  }
+  /*
+   * smell_audit 2026-09-09 #74: 0x9180 / 0x941c / 0x942c are FUN_281f_09c8
+   * combat VALUES (base x8 + peels), not counts or attack+defense sums.
+   * The lone Soldier (attack 2 / defense 2, no veteran profession) is
+   * mode-0 = 2*8 = 16 and mode-1 = 2*8 = 16; it stands off the colony tile,
+   * so it also counts toward field_combat_totals.
+   */
+  if (col1.stuff.all_unit_counts[0] != 1 || col1.stuff.land_combat_strength[0] != 16 ||
+      col1.stuff.land_combat_totals[0] != 16 || col1.stuff.field_combat_totals[0] != 16 ||
+      col1.stuff.unit_type_counts[0][1] != 1) {
+    fprintf(
+      stderr,
+      "census unit tallies units=%u m0=%u m1=%u field=%u type1=%u want 1/16/16/16/1\n",
+      (unsigned)col1.stuff.all_unit_counts[0],
+      (unsigned)col1.stuff.land_combat_totals[0],
+      (unsigned)col1.stuff.land_combat_strength[0],
+      (unsigned)col1.stuff.field_combat_totals[0],
+      (unsigned)col1.stuff.unit_type_counts[0][1]
+    );
+    return 1;
+  }
+  fprintf(stderr, "census colony_counts refresh ok\n");
+  return 0;
+}
+
+/*
+ * Phase P: human warehouse spoilage → Europe status + SPOIL1–4 section pick.
+ */
+static int case_spoilage_spoil1(void) {
+  fx_begin();
+  ColonizeColonyPool pool;
+  colonies_init(&pool);
+  colonies_set_occupancy_map(NULL);
+  ColonizeColony* col = &pool.colonies[0];
+  memset(col, 0, sizeof(*col));
+  col->active = true;
+  col->id = 1;
+  col->nation_id = 0;
+  col->building_in_production = -1;
+  snprintf(col->name, sizeof(col->name), "Roanoke");
+  col->warehouse_level = 0;
+  col->stock[COLONIZE_CARGO_TOBACCO] = 150;
+  col->stock[COLONIZE_CARGO_FOOD] = 20;
+  col->colonists[0].active = true;
+  col->colonist_count = 1;
+  col->population = 1;
+  pool.colony_count = 1;
+
+  EuropeScreen eu;
+  memset(&eu, 0, sizeof(eu));
+  eu.cargo_count = COLONIZE_CARGO_COUNT;
+  for (int i = 0; i < COLONIZE_CARGO_COUNT; ++i) {
+    eu.cargo[i].bid = 1;
+  }
+  snprintf(eu.cargo[COLONIZE_CARGO_TOBACCO].name, sizeof(eu.cargo[0].name), "Tobacco");
+  AiPopupState pops;
+  ai_popup_init(&pops);
+  ColonizeMsgCatalog game_txt;
+  assets_msg_init(&game_txt);
+  (void)assets_msg_load_file(&game_txt, "COLONIZE/GAME.TXT");
+
+  ColonizeTurnResult prod;
+  memset(&prod, 0, sizeof(prod));
+  turn_run_colony_production_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&pool), .map=(ColonizeWorldMap*)(NULL), .col1=(ColonizeCol1Save*)(NULL), .col1_ok=((NULL) != NULL), .rng=(ColonizeDosRng*)(NULL), .europe=(EuropeScreen*)(&eu)}, 0, &prod, &pops, &game_txt);
+  if (col->stock[COLONIZE_CARGO_TOBACCO] != 100) {
+    fprintf(stderr, "spoilage clamp tobacco=%d want 100\n", col->stock[COLONIZE_CARGO_TOBACCO]);
+    assets_msg_free(&game_txt);
+    return 1;
+  }
+  if (strstr(eu.status, "spoiled") == NULL || strstr(eu.status, "Tobacco") == NULL) {
+    fprintf(stderr, "spoilage status want Tobacco spoiled got '%s'\n", eu.status);
+    assets_msg_free(&game_txt);
+    return 1;
+  }
+  if (pops.queue_count < 1) {
+    fprintf(stderr, "spoilage: expected SPOIL1 popup\n");
+    assets_msg_free(&game_txt);
+    return 1;
+  }
+  if (strstr(pops.queue[0].body, "Roanoke") == NULL ||
+      (strstr(pops.queue[0].body, "Tobacco") == NULL &&
+       strstr(pops.queue[0].body, "thrown away") == NULL) ||
+      strstr(pops.queue[0].body, "warehouse") == NULL) {
+    fprintf(stderr, "spoilage SPOIL1 body weak: '%s'\n", pops.queue[0].body);
+    assets_msg_free(&game_txt);
+    return 1;
+  }
+  assets_msg_free(&game_txt);
+  fprintf(stderr, "warehouse spoilage status ok\n");
+  return 0;
+}
+
+/* Phase P: multi-type spoil → @SPOIL2. */
+static int case_spoilage_spoil2(void) {
+  fx_begin();
+  ColonizeColonyPool pool;
+  colonies_init(&pool);
+  colonies_set_occupancy_map(NULL);
+  ColonizeColony* col = &pool.colonies[0];
+  memset(col, 0, sizeof(*col));
+  col->active = true;
+  col->id = 1;
+  col->nation_id = 0;
+  col->building_in_production = -1;
+  snprintf(col->name, sizeof(col->name), "Roanoke");
+  col->warehouse_level = 0;
+  col->stock[COLONIZE_CARGO_TOBACCO] = 150;
+  col->stock[COLONIZE_CARGO_SUGAR] = 140;
+  col->stock[COLONIZE_CARGO_FOOD] = 20;
+  col->colonists[0].active = true;
+  col->colonist_count = 1;
+  col->population = 1;
+  pool.colony_count = 1;
+
+  EuropeScreen eu;
+  memset(&eu, 0, sizeof(eu));
+  eu.cargo_count = COLONIZE_CARGO_COUNT;
+  for (int i = 0; i < COLONIZE_CARGO_COUNT; ++i) {
+    eu.cargo[i].bid = 1;
+  }
+  snprintf(eu.cargo[COLONIZE_CARGO_TOBACCO].name, sizeof(eu.cargo[0].name), "Tobacco");
+  snprintf(eu.cargo[COLONIZE_CARGO_SUGAR].name, sizeof(eu.cargo[0].name), "Sugar");
+  AiPopupState pops;
+  ai_popup_init(&pops);
+  ColonizeMsgCatalog game_txt;
+  assets_msg_init(&game_txt);
+  (void)assets_msg_load_file(&game_txt, "COLONIZE/GAME.TXT");
+
+  ColonizeTurnResult prod;
+  memset(&prod, 0, sizeof(prod));
+  turn_run_colony_production_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&pool), .map=(ColonizeWorldMap*)(NULL), .col1=(ColonizeCol1Save*)(NULL), .col1_ok=((NULL) != NULL), .rng=(ColonizeDosRng*)(NULL), .europe=(EuropeScreen*)(&eu)}, 0, &prod, &pops, &game_txt);
+  if (pops.queue_count < 1 || strstr(pops.queue[0].body, "Some of our cargo") == NULL) {
+    fprintf(
+      stderr,
+      "spoilage SPOIL2 want 'Some of our cargo' q=%d body='%s'\n",
+      pops.queue_count,
+      pops.queue_count > 0 ? pops.queue[0].body : ""
+    );
+    assets_msg_free(&game_txt);
+    return 1;
+  }
+  if (strstr(pops.queue[0].body, "warehouse") == NULL) {
+    fprintf(stderr, "spoilage SPOIL2 want warehouse tip got '%s'\n", pops.queue[0].body);
+    assets_msg_free(&game_txt);
+    return 1;
+  }
+  assets_msg_free(&game_txt);
+  fprintf(stderr, "warehouse spoilage SPOIL2 ok\n");
+  return 0;
+}
+
+/* Phase P: expanded warehouse single → @SPOIL3 (no larger-warehouse tip). */
+static int case_spoilage_spoil3(void) {
+  fx_begin();
+  ColonizeColonyPool pool;
+  colonies_init(&pool);
+  colonies_set_occupancy_map(NULL);
+  ColonizeColony* col = &pool.colonies[0];
+  memset(col, 0, sizeof(*col));
+  col->active = true;
+  col->id = 1;
+  col->nation_id = 0;
+  col->building_in_production = -1;
+  snprintf(col->name, sizeof(col->name), "Roanoke");
+  col->warehouse_level = 2; /* cap 300 */
+  col->stock[COLONIZE_CARGO_TOBACCO] = 350;
+  col->stock[COLONIZE_CARGO_FOOD] = 20;
+  col->colonists[0].active = true;
+  col->colonist_count = 1;
+  col->population = 1;
+  pool.colony_count = 1;
+
+  EuropeScreen eu;
+  memset(&eu, 0, sizeof(eu));
+  eu.cargo_count = COLONIZE_CARGO_COUNT;
+  for (int i = 0; i < COLONIZE_CARGO_COUNT; ++i) {
+    eu.cargo[i].bid = 1;
+  }
+  snprintf(eu.cargo[COLONIZE_CARGO_TOBACCO].name, sizeof(eu.cargo[0].name), "Tobacco");
+  AiPopupState pops;
+  ai_popup_init(&pops);
+  ColonizeMsgCatalog game_txt;
+  assets_msg_init(&game_txt);
+  (void)assets_msg_load_file(&game_txt, "COLONIZE/GAME.TXT");
+
+  ColonizeTurnResult prod;
+  memset(&prod, 0, sizeof(prod));
+  turn_run_colony_production_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&pool), .map=(ColonizeWorldMap*)(NULL), .col1=(ColonizeCol1Save*)(NULL), .col1_ok=((NULL) != NULL), .rng=(ColonizeDosRng*)(NULL), .europe=(EuropeScreen*)(&eu)}, 0, &prod, &pops, &game_txt);
+  if (col->stock[COLONIZE_CARGO_TOBACCO] != 300) {
+    fprintf(stderr, "spoilage SPOIL3 clamp tobacco=%d want 300\n", col->stock[COLONIZE_CARGO_TOBACCO]);
+    assets_msg_free(&game_txt);
+    return 1;
+  }
+  if (pops.queue_count < 1) {
+    fprintf(stderr, "spoilage: expected SPOIL3 popup\n");
+    assets_msg_free(&game_txt);
+    return 1;
+  }
+  if (strstr(pops.queue[0].body, "Tobacco") == NULL ||
+      strstr(pops.queue[0].body, "thrown away") == NULL) {
+    fprintf(stderr, "spoilage SPOIL3 body weak: '%s'\n", pops.queue[0].body);
+    assets_msg_free(&game_txt);
+    return 1;
+  }
+  if (strstr(pops.queue[0].body, "larger") != NULL) {
+    fprintf(stderr, "spoilage SPOIL3 must omit warehouse tip got '%s'\n", pops.queue[0].body);
+    assets_msg_free(&game_txt);
+    return 1;
+  }
+  assets_msg_free(&game_txt);
+  fprintf(stderr, "warehouse spoilage SPOIL3 ok\n");
+  return 0;
+}
+
+/*
+ * Ship-build ready (00f2): types 0x0d..0x12 + bit7; +1/+2 col1_counter16;
+ * clear bit7 at threshold (type.defense = DOS 0x5235 / NAMES combat).
+ */
+static int case_ship_build_ready(void) {
+  fx_begin();
+  ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
+  memset(&units, 0, sizeof(units));
+  units_reset(&units);
+  units_set_occupancy_map(NULL);
+  snprintf(units.types[0xd].name, sizeof(units.types[0xd].name), "Caravel");
+  units.types[0xd].movement = 4;
+  units.types[0xd].defense = 4; /* NAMES combat stand-in (Caravel real=2) */
+  units.types[0xd].domain = COLONIZE_UNIT_DOMAIN_SEA;
+  units.type_count = 0x0e;
+
+  ColonizeColonyPool colonies;
+  colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
+  ColonizeColony* col = &colonies.colonies[0];
+  memset(col, 0, sizeof(*col));
+  col->active = true;
+  col->id = 1;
+  col->x = 10;
+  col->y = 10;
+  col->nation_id = 0;
+
+  const int id = units_spawn_allow_stack(&units, 0x0d, 10, 10);
+  ColonizeUnit* u = units_get(&units, id);
+  if (!u) {
+    fprintf(stderr, "ship-build spawn failed\n");
+    return 1;
+  }
+  units_set_nation(u, 0);
+  u->col1_flags15 = 0x80;
+  u->col1_counter16 = 0;
+
+  char status[128];
+  status[0] = '\0';
+  int want_eu = 0;
+  /* On colony: +2/tick → need 2 ticks to reach threshold 4. */
+  (void)units_tick_ship_build_ready(&units, &colonies, 0, 0, status, sizeof(status), &want_eu);
+  if ((u->col1_flags15 & 0x80u) == 0 || u->col1_counter16 != 2) {
+    fprintf(
+      stderr,
+      "ship-build mid: bit=%u tw=%d want bit set tw=2\n",
+      (unsigned)(u->col1_flags15 & 0x80u),
+      u->col1_counter16
+    );
+    return 1;
+  }
+  (void)units_tick_ship_build_ready(&units, &colonies, 0, 0, status, sizeof(status), &want_eu);
+  if ((u->col1_flags15 & 0x80u) != 0 || u->col1_counter16 < 4) {
+    fprintf(
+      stderr,
+      "ship-build done: bit=%u tw=%d want clear tw≥4\n",
+      (unsigned)(u->col1_flags15 & 0x80u),
+      u->col1_counter16
+    );
+    return 1;
+  }
+  if (strstr(status, "complete") == NULL) {
+    fprintf(stderr, "ship-build status want complete got '%s'\n", status);
+    return 1;
+  }
+  if (want_eu != 0) {
+    fprintf(stderr, "ship-build on colony should not request Europe\n");
+    return 1;
+  }
+  /* Real Caravel combat=2 completes in one colony tick. */
+  u->col1_flags15 = 0x80;
+  u->col1_counter16 = 0;
+  units.types[0xd].defense = 2;
+  status[0] = '\0';
+  (void)units_tick_ship_build_ready(&units, &colonies, 0, 0, status, sizeof(status), &want_eu);
+  if ((u->col1_flags15 & 0x80u) != 0 || u->col1_counter16 != 2) {
+    fprintf(
+      stderr,
+      "ship-build combat2: bit=%u tw=%d want clear tw=2\n",
+      (unsigned)(u->col1_flags15 & 0x80u),
+      u->col1_counter16
+    );
+    return 1;
+  }
+  fprintf(stderr, "ship-build ready ok\n");
+  return 0;
+}
+
+/* Phase K thin: project queued, no hammers → Europe status. */
+static int case_phase_k_build_advisory(void) {
+  fx_begin();
+  ColonizeColonyPool pool;
+  colonies_init(&pool);
+  colonies_set_occupancy_map(NULL);
+  ColonizeColony* col = &pool.colonies[0];
+  memset(col, 0, sizeof(*col));
+  col->active = true;
+  col->id = 1;
+  col->nation_id = 0;
+  col->building_in_production = 0; /* any queued project */
+  col->colonists[0].active = true;
+  col->colonists[0].profession = UNITS_JOB_COLONIST;
+  col->colonist_count = 1;
+  col->population = 1;
+  col->stock[COLONIZE_CARGO_FOOD] = 20;
+
+  EuropeScreen eu;
+  memset(&eu, 0, sizeof(eu));
+  eu.cargo_count = COLONIZE_CARGO_COUNT;
+  for (int i = 0; i < COLONIZE_CARGO_COUNT; ++i) {
+    eu.cargo[i].bid = 1;
+  }
+
+  ColonizeTurnResult prod;
+  memset(&prod, 0, sizeof(prod));
+  turn_run_colony_production_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&pool), .map=(ColonizeWorldMap*)(NULL), .col1=(ColonizeCol1Save*)(NULL), .col1_ok=((NULL) != NULL), .rng=(ColonizeDosRng*)(NULL), .europe=(EuropeScreen*)(&eu)}, 0, &prod, NULL, NULL);
+  if (strstr(eu.status, "hammers") == NULL) {
+    fprintf(stderr, "build advisory K want hammers status got '%s'\n", eu.status);
+    return 1;
+  }
+  fprintf(stderr, "build advisory K ok\n");
+
+  /* K tools crumb: hammers banked + this-tick carpenter flow, tools short. */
+  pool.building_type_count = 2;
+  snprintf(pool.building_types[0].name, sizeof(pool.building_types[0].name), "Carpenter's Shop");
+  pool.building_types[0].hammers = 0;
+  pool.building_types[0].tools_cost = 0;
+  snprintf(pool.building_types[1].name, sizeof(pool.building_types[1].name), "Printing Press");
+  pool.building_types[1].hammers = 10;
+  pool.building_types[1].tools_cost = 4;
+  col->building_in_production = 1;
+  col->has_building[0] = true;
+  col->has_building[1] = false;
+  col->hammers = 10;
+  col->stock[COLONIZE_CARGO_TOOLS] = 0;
+  col->stock[COLONIZE_CARGO_LUMBER] = 20;
+  col->stock[COLONIZE_CARGO_FOOD] = 50; /* avoid Food shortage overwriting */
+  col->colonists[0].building_type = 0;
+  col->colonists[0].profession = COLONIZE_PROF_CARPENTER;
+  eu.status[0] = '\0';
+  memset(&prod, 0, sizeof(prod));
+  turn_run_colony_production_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&pool), .map=(ColonizeWorldMap*)(NULL), .col1=(ColonizeCol1Save*)(NULL), .col1_ok=((NULL) != NULL), .rng=(ColonizeDosRng*)(NULL), .europe=(EuropeScreen*)(&eu)}, 0, &prod, NULL, NULL);
+  if (strstr(eu.status, "tools") == NULL) {
+    fprintf(stderr, "build advisory K tools want status got '%s'\n", eu.status);
+    return 1;
+  }
+  fprintf(stderr, "build advisory K tools ok\n");
+
+  /* 5384&0x20 set → suppress hammers K. */
+  ColonizeCol1Save kcol;
+  memset(&kcol, 0, sizeof(kcol));
+  kcol.head.colony_report_options.report_raw_materials_shortages = 1;
+  col->building_in_production = 0;
+  col->stock[COLONIZE_CARGO_LUMBER] = 0;
+  col->colonists[0].building_type = -1;
+  col->colonists[0].profession = UNITS_JOB_COLONIST;
+  eu.status[0] = '\0';
+  memset(&prod, 0, sizeof(prod));
+  turn_run_colony_production_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&pool), .map=(ColonizeWorldMap*)(NULL), .col1=(ColonizeCol1Save*)(&kcol), .col1_ok=true, .rng=(ColonizeDosRng*)(NULL), .europe=(EuropeScreen*)(&eu)}, 0, &prod, NULL, NULL);
+  if (strstr(eu.status, "hammers") != NULL) {
+    fprintf(stderr, "5384 gate want suppress hammers got '%s'\n", eu.status);
+    return 1;
+  }
+  /* K craft crumbs: Weaver with empty cotton (suppress food-shortage crumb).
+   * 2026-08-24 fix: the K "ran out of X" gate now uses actual craft demand
+   * (colony_craft_demand_mask — someone staffed producing a positive
+   * tier-scaled input requirement), not "the building exists by name",
+   * matching DOS FUN_15eb_0bd4/0b96's demand scratch word — so the
+   * colonist must actually be assigned to the Weaver's House for the
+   * @COTTON crumb to fire (an unstaffed building has zero demand in DOS,
+   * and used to incorrectly nag "Need cotton." regardless of staffing). */
+  ColonizeCol1Save cloth_col;
+  memset(&cloth_col, 0, sizeof(cloth_col));
+  cloth_col.head.colony_report_options.report_food_shortages = 1;
+  snprintf(pool.building_types[0].name, sizeof(pool.building_types[0].name), "Weaver's House");
+  col->has_building[0] = true;
+  col->building_in_production = -1;
+  col->stock[COLONIZE_CARGO_COTTON] = 0;
+  col->stock[COLONIZE_CARGO_SUGAR] = 5;
+  col->stock[COLONIZE_CARGO_TOBACCO] = 5;
+  col->stock[COLONIZE_CARGO_FURS] = 5;
+  col->stock[COLONIZE_CARGO_FOOD] = 20;
+  col->stock[COLONIZE_CARGO_LUMBER] = 5;
+  col->stock[COLONIZE_CARGO_ORE] = 5;
+  col->colonists[0].building_type = 0;
+  col->colonists[0].profession = COLONIZE_PROF_WEAVER;
+  eu.status[0] = '\0';
+  memset(&prod, 0, sizeof(prod));
+  turn_run_colony_production_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&pool), .map=(ColonizeWorldMap*)(NULL), .col1=(ColonizeCol1Save*)(&cloth_col), .col1_ok=true, .rng=(ColonizeDosRng*)(NULL), .europe=(EuropeScreen*)(&eu)}, 0, &prod, NULL, NULL);
+  if (strstr(eu.status, "cotton") == NULL) {
+    fprintf(stderr, "build advisory K cotton want status got '%s'\n", eu.status);
+    return 1;
+  }
+  fprintf(stderr, "build advisory K cotton ok\n");
+
+  /* Phase K @LUMBER / @ORE / @TOOLS chrome. */
+  ColonizeMsgCatalog game_txt;
+  assets_msg_init(&game_txt);
+  (void)assets_msg_load_file(&game_txt, "COLONIZE/GAME.TXT");
+  AiPopupState pops;
+  ai_popup_init(&pops);
+  ColonizeCol1Save food_gate;
+  memset(&food_gate, 0, sizeof(food_gate));
+  food_gate.head.colony_report_options.report_food_shortages = 1;
+
+  snprintf(col->name, sizeof(col->name), "Boston");
+  snprintf(pool.building_types[0].name, sizeof(pool.building_types[0].name), "Carpenter's Shop");
+  col->has_building[0] = true;
+  /* Invent +1 lumber then carpenter hammers burn it so stock ends at 0. */
+  col->building_in_production = 0;
+  col->hammers = 0;
+  col->stock[COLONIZE_CARGO_LUMBER] = 0;
+  col->stock[COLONIZE_CARGO_ORE] = 5;
+  col->stock[COLONIZE_CARGO_FOOD] = 40;
+  col->stock[COLONIZE_CARGO_TOOLS] = 5;
+  col->stock[COLONIZE_CARGO_MUSKETS] = 5;
+  col->colonists[0].building_type = 0;
+  col->colonists[0].profession = COLONIZE_PROF_CARPENTER;
+  eu.status[0] = '\0';
+  ai_popup_clear(&pops);
+  memset(&prod, 0, sizeof(prod));
+  turn_run_colony_production_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&pool), .map=(ColonizeWorldMap*)(NULL), .col1=(ColonizeCol1Save*)(&food_gate), .col1_ok=true, .rng=(ColonizeDosRng*)(NULL), .europe=(EuropeScreen*)(&eu)}, 0, &prod, &pops, &game_txt);
+  if (strstr(eu.status, "lumber") == NULL) {
+    fprintf(stderr, "K LUMBER status want lumber got '%s'\n", eu.status);
+    assets_msg_free(&game_txt);
+    return 1;
+  }
+  if (pops.queue_count < 1 ||
+      (strstr(pops.queue[0].body, "lumber") == NULL &&
+       strstr(pops.queue[0].body, "Boston") == NULL)) {
+    fprintf(
+      stderr,
+      "K LUMBER popup weak q=%d body='%s'\n",
+      pops.queue_count,
+      pops.queue_count > 0 ? pops.queue[0].body : ""
+    );
+    assets_msg_free(&game_txt);
+    return 1;
+  }
+  fprintf(stderr, "Phase K LUMBER chrome ok\n");
+
+  /* Phase K LUMBER negative: unstaffed Carpenter's Shop + 0 lumber must NOT
+   * nag "Need lumber." — 2026-08-24 fix applies the same real-staffed-
+   * demand gate (colony_prod_colony_hammers' out_lumber_use) already used
+   * for the other five K goods above; lumber isn't a colony_craft.c recipe
+   * so it can't reuse colony_craft_demand_mask directly, but the principle
+   * (an unstaffed building has zero demand in DOS) is the same. */
+  col->building_in_production = -1;
+  col->colonists[0].building_type = -1;
+  col->colonists[0].profession = UNITS_JOB_COLONIST;
+  col->stock[COLONIZE_CARGO_LUMBER] = 0;
+  col->stock[COLONIZE_CARGO_ORE] = 5;
+  col->stock[COLONIZE_CARGO_SUGAR] = 5;
+  col->stock[COLONIZE_CARGO_TOBACCO] = 5;
+  col->stock[COLONIZE_CARGO_COTTON] = 5;
+  col->stock[COLONIZE_CARGO_FURS] = 5;
+  col->stock[COLONIZE_CARGO_TOOLS] = 5;
+  col->stock[COLONIZE_CARGO_MUSKETS] = 5;
+  col->stock[COLONIZE_CARGO_FOOD] = 40;
+  eu.status[0] = '\0';
+  ai_popup_clear(&pops);
+  memset(&prod, 0, sizeof(prod));
+  turn_run_colony_production_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&pool), .map=(ColonizeWorldMap*)(NULL), .col1=(ColonizeCol1Save*)(&food_gate), .col1_ok=true, .rng=(ColonizeDosRng*)(NULL), .europe=(EuropeScreen*)(&eu)}, 0, &prod, &pops, &game_txt);
+  if (strstr(eu.status, "lumber") != NULL) {
+    fprintf(stderr, "K LUMBER unstaffed want silence got '%s'\n", eu.status);
+    assets_msg_free(&game_txt);
+    return 1;
+  }
+  fprintf(stderr, "Phase K LUMBER unstaffed-silence ok\n");
+
+  snprintf(pool.building_types[0].name, sizeof(pool.building_types[0].name), "Blacksmith's House");
+  col->building_in_production = -1;
+  /* Stays staffed (building_type=0) — 2026-08-24: K's "ran out of X" gate
+   * needs real craft demand now, not just the building existing. */
+  col->colonists[0].building_type = 0;
+  col->colonists[0].profession = COLONIZE_PROF_BLACKSMITH;
+  col->stock[COLONIZE_CARGO_LUMBER] = 5;
+  col->stock[COLONIZE_CARGO_ORE] = 0;
+  eu.status[0] = '\0';
+  ai_popup_clear(&pops);
+  memset(&prod, 0, sizeof(prod));
+  turn_run_colony_production_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&pool), .map=(ColonizeWorldMap*)(NULL), .col1=(ColonizeCol1Save*)(&food_gate), .col1_ok=true, .rng=(ColonizeDosRng*)(NULL), .europe=(EuropeScreen*)(&eu)}, 0, &prod, &pops, &game_txt);
+  if (strstr(eu.status, "ore") == NULL) {
+    fprintf(stderr, "K ORE status want ore got '%s'\n", eu.status);
+    assets_msg_free(&game_txt);
+    return 1;
+  }
+  if (pops.queue_count < 1 ||
+      (strstr(pops.queue[0].body, "ore") == NULL && strstr(pops.queue[0].body, "Boston") == NULL)) {
+    fprintf(
+      stderr,
+      "K ORE popup weak q=%d body='%s'\n",
+      pops.queue_count,
+      pops.queue_count > 0 ? pops.queue[0].body : ""
+    );
+    assets_msg_free(&game_txt);
+    return 1;
+  }
+  fprintf(stderr, "Phase K ORE chrome ok\n");
+
+  snprintf(pool.building_types[0].name, sizeof(pool.building_types[0].name), "Armory");
+  col->colonists[0].profession = COLONIZE_PROF_GUNSMITH;
+  col->stock[COLONIZE_CARGO_ORE] = 5;
+  col->stock[COLONIZE_CARGO_TOOLS] = 0;
+  col->stock[COLONIZE_CARGO_MUSKETS] = 0;
+  eu.status[0] = '\0';
+  ai_popup_clear(&pops);
+  memset(&prod, 0, sizeof(prod));
+  turn_run_colony_production_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&pool), .map=(ColonizeWorldMap*)(NULL), .col1=(ColonizeCol1Save*)(&food_gate), .col1_ok=true, .rng=(ColonizeDosRng*)(NULL), .europe=(EuropeScreen*)(&eu)}, 0, &prod, &pops, &game_txt);
+  if (strstr(eu.status, "tools") == NULL) {
+    fprintf(stderr, "K TOOLS status want tools got '%s'\n", eu.status);
+    assets_msg_free(&game_txt);
+    return 1;
+  }
+  if (pops.queue_count < 1 ||
+      (strstr(pops.queue[0].body, "tools") == NULL &&
+       strstr(pops.queue[0].body, "Boston") == NULL)) {
+    fprintf(
+      stderr,
+      "K TOOLS popup weak q=%d body='%s'\n",
+      pops.queue_count,
+      pops.queue_count > 0 ? pops.queue[0].body : ""
+    );
+    assets_msg_free(&game_txt);
+    return 1;
+  }
+  assets_msg_free(&game_txt);
+  fprintf(stderr, "Phase K TOOLS chrome ok\n");
+
+  /* Phase K @COTTON / @TOBACCO craft-raw chrome. */
+  (void)assets_msg_load_file(&game_txt, "COLONIZE/GAME.TXT");
+  snprintf(pool.building_types[0].name, sizeof(pool.building_types[0].name), "Weaver's House");
+  col->building_in_production = -1;
+  col->colonists[0].building_type = 0;
+  col->colonists[0].profession = COLONIZE_PROF_WEAVER;
+  col->stock[COLONIZE_CARGO_COTTON] = 0;
+  col->stock[COLONIZE_CARGO_SUGAR] = 5;
+  col->stock[COLONIZE_CARGO_TOBACCO] = 5;
+  col->stock[COLONIZE_CARGO_FURS] = 5;
+  col->stock[COLONIZE_CARGO_LUMBER] = 5;
+  col->stock[COLONIZE_CARGO_ORE] = 5;
+  col->stock[COLONIZE_CARGO_TOOLS] = 5;
+  col->stock[COLONIZE_CARGO_MUSKETS] = 5;
+  eu.status[0] = '\0';
+  ai_popup_clear(&pops);
+  memset(&prod, 0, sizeof(prod));
+  turn_run_colony_production_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&pool), .map=(ColonizeWorldMap*)(NULL), .col1=(ColonizeCol1Save*)(&food_gate), .col1_ok=true, .rng=(ColonizeDosRng*)(NULL), .europe=(EuropeScreen*)(&eu)}, 0, &prod, &pops, &game_txt);
+  if (strstr(eu.status, "cotton") == NULL) {
+    fprintf(stderr, "K COTTON status want cotton got '%s'\n", eu.status);
+    assets_msg_free(&game_txt);
+    return 1;
+  }
+  if (pops.queue_count < 1 ||
+      (strstr(pops.queue[0].body, "cotton") == NULL &&
+       strstr(pops.queue[0].body, "Boston") == NULL)) {
+    fprintf(
+      stderr,
+      "K COTTON popup weak q=%d body='%s'\n",
+      pops.queue_count,
+      pops.queue_count > 0 ? pops.queue[0].body : ""
+    );
+    assets_msg_free(&game_txt);
+    return 1;
+  }
+  fprintf(stderr, "Phase K COTTON chrome ok\n");
+
+  snprintf(pool.building_types[0].name, sizeof(pool.building_types[0].name), "Tobacconist's House");
+  col->colonists[0].profession = COLONIZE_PROF_TOBACCONIST;
+  col->stock[COLONIZE_CARGO_COTTON] = 5;
+  col->stock[COLONIZE_CARGO_TOBACCO] = 0;
+  eu.status[0] = '\0';
+  ai_popup_clear(&pops);
+  memset(&prod, 0, sizeof(prod));
+  turn_run_colony_production_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&pool), .map=(ColonizeWorldMap*)(NULL), .col1=(ColonizeCol1Save*)(&food_gate), .col1_ok=true, .rng=(ColonizeDosRng*)(NULL), .europe=(EuropeScreen*)(&eu)}, 0, &prod, &pops, &game_txt);
+  if (strstr(eu.status, "tobacco") == NULL) {
+    fprintf(stderr, "K TOBACCO status want tobacco got '%s'\n", eu.status);
+    assets_msg_free(&game_txt);
+    return 1;
+  }
+  if (pops.queue_count < 1 ||
+      (strstr(pops.queue[0].body, "tobacco") == NULL &&
+       strstr(pops.queue[0].body, "Boston") == NULL)) {
+    fprintf(
+      stderr,
+      "K TOBACCO popup weak q=%d body='%s'\n",
+      pops.queue_count,
+      pops.queue_count > 0 ? pops.queue[0].body : ""
+    );
+    assets_msg_free(&game_txt);
+    return 1;
+  }
+  assets_msg_free(&game_txt);
+  fprintf(stderr, "Phase K TOBACCO chrome ok\n");
+  return 0;
+}
+
+static const TestCase k_cases[] = {
+  {"calendar", case_calendar},
+  {"free_production", case_free_production},
+  {"turn_end_calendar", case_turn_end_calendar},
+  {"next_unit_selection", case_next_unit_selection},
+  {"nation_colors", case_nation_colors},
+  {"owner_indicator", case_owner_indicator},
+  {"processor_indicator_steps", case_processor_indicator_steps},
+  {"carpenter_stockade", case_carpenter_stockade},
+  {"craft_chain", case_craft_chain},
+  {"production_rules_field", case_production_rules_field},
+  {"production_rules_manufacturing", case_production_rules_manufacturing},
+  {"field_lumberjack", case_field_lumberjack},
+  {"hudson_fur_preview", case_hudson_fur_preview},
+  {"hammers_bank_no_project", case_hammers_bank_no_project},
+  {"tory_penalty_hammers", case_tory_penalty_hammers},
+  {"sol_latch_crossing_turn", case_sol_latch_crossing_turn},
+  {"phase_a_before_phase_j", case_phase_a_before_phase_j},
+  {"fisherman_needs_docks", case_fisherman_needs_docks},
+  {"church_cathedral_crosses", case_church_cathedral_crosses},
+  {"expert_farmer_flat_bonus", case_expert_farmer_flat_bonus},
+  {"fisherman_enclosure_mod", case_fisherman_enclosure_mod},
+  {"ai_field_sol_zeroed", case_ai_field_sol_zeroed},
+  {"custom_house_autosell", case_custom_house_autosell},
+  {"depletion_counter", case_depletion_counter},
+  {"colony_birth", case_colony_birth},
+  {"phase_b_ai_food", case_phase_b_ai_food},
+  {"phase_c_rebel_tick", case_phase_c_rebel_tick},
+  {"phase_d_rebel_majority", case_phase_d_rebel_majority},
+  {"phase_d_tory_pressure", case_phase_d_tory_pressure},
+  {"starve_kill", case_starve_kill},
+  {"zero_deficit_no_starve", case_zero_deficit_no_starve},
+  {"last_colonist_vanish", case_last_colonist_vanish},
+  {"starve_chrome_seasons", case_starve_chrome_seasons},
+  {"food_shortage_status", case_food_shortage_status},
+  {"foodlow_chrome", case_foodlow_chrome},
+  {"surplus_no_foodlow", case_surplus_no_foodlow},
+  {"food1_latch", case_food1_latch},
+  {"food2_latch_autumn", case_food2_latch_autumn},
+  {"phase_o_ai_dump_sell", case_phase_o_ai_dump_sell},
+  {"nation_bells_tick", case_nation_bells_tick},
+  {"tory_penalty_bells", case_tory_penalty_bells},
+  {"euro_power_rank", case_euro_power_rank},
+  {"schoolhouse_education", case_schoolhouse_education},
+  {"phase_h_skill_discovery", case_phase_h_skill_discovery},
+  {"otj_learning_latch", case_otj_learning_latch},
+  {"ai_euro_crosses", case_ai_euro_crosses},
+  {"immigration_pressure", case_immigration_pressure},
+  {"no_free_ship_spawn", case_no_free_ship_spawn},
+  {"horse_breed_units", case_horse_breed_units},
+  {"horse_breed_colony", case_horse_breed_colony},
+  {"year_end_defeat_victory", case_year_end_defeat_victory},
+  {"year_end_c2_peace", case_year_end_c2_peace},
+  {"year_end_section_d", case_year_end_section_d},
+  {"census_profession_tally", case_census_profession_tally},
+  {"census_live_peel", case_census_live_peel},
+  {"spoilage_spoil1", case_spoilage_spoil1},
+  {"spoilage_spoil2", case_spoilage_spoil2},
+  {"spoilage_spoil3", case_spoilage_spoil3},
+  {"ship_build_ready", case_ship_build_ready},
+  {"phase_k_build_advisory", case_phase_k_build_advisory},
+};
+TEST_MAIN(k_cases)

@@ -883,7 +883,6 @@ static void ai_contact_reparations_present(
   popup_msg_fill(ctx->messages, section, tok, fallback, body, sizeof(body));
   char label_buf[2][POPUP_MSG_CHOICE_LEN];
   const char* labels[2];
-  const int city = flavor == AI_CONTACT_REPARATIONS_CITY;
   popup_msg_section_labels(
     ctx->messages,
     section,

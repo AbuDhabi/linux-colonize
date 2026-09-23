@@ -10,19 +10,19 @@ comparing golden output.
 |-----|-----------|------|--------|---------|
 | `AI_SHIP_DOS` | `src/core/ai_euro.c` (`ai_euro_ship_dos_enabled`) | **behaviour** | bugs.md #530 prototype: AI hulls act through the DOS-literal `FUN_521d_5b66` + 20e6 hull path (`ai_euro_act_ship_dos`) instead of the fitted first-colony ship band; also turns off the invented FOUND producers and ports the #528 turn-top clear of act states 1-3. Fails `golden_ai_turns` TURN2+ (RNG alignment) | off |
 | `DOS_RNG_TRACE` | `src/core/dos_rng.c:10` | trace | Logs every RNG draw with a running index | off |
-| `AI_LCG_AUDIT` | `src/core/ai.c:184` | trace | Logs init-pulse `pick_dir` burn counts (phase 5) | off |
-| `AI_INIT_SCHED` | `src/core/ai.c` (`ai_init_sched_apply`) | trace | `"n:idx:count[:R];..."` — init-pulse burn schedule sweep: burn `count` draws before Brave `idx` of nation `n` picks (`idx=-1` = before the pulse; `R` = reseed to the pulse seed first). Setting it disables the default Inca burns. `golden_mapgen_seed100` is the oracle | unset |
-| `AI_SCORE_AT` | `src/core/ai.c:195` | trace | `"n:x:y[,n:x:y...]"` — extra `pick_dir` score-dump targets for the given nation/tile | unset |
-| `AI_STEP_AUDIT` | `src/core/ai.c:224` | trace | Logs mid-turn Brave step paths (phase 13 multi-step) | off |
-| `AI_PEEL_AUDIT` | `src/core/ai.c:239` | trace | Classifies each firing peel row against both branch scorers | off |
+| `AI_LCG_AUDIT` | `src/core/ai.c` (`ai_lcg_audit_enabled`) | trace | Logs init-pulse `pick_dir` burn counts (phase 5) | off |
+| `AI_INIT_SCHED` | `src/core/ai_brave.c` (`ai_init_sched_apply`) | trace | `"n:idx:count[:R];..."` — init-pulse burn schedule sweep: burn `count` draws before Brave `idx` of nation `n` picks (`idx=-1` = before the pulse; `R` = reseed to the pulse seed first). Setting it disables the default Inca burns. `golden_mapgen_seed100` is the oracle | unset |
+| `AI_SCORE_AT` | `src/core/ai.c` (`ai_score_at_match`) | trace | `"n:x:y[,n:x:y...]"` — extra `pick_dir` score-dump targets for the given nation/tile | unset |
+| `AI_STEP_AUDIT` | `src/core/ai.c` (`ai_step_audit_enabled`) | trace | Logs mid-turn Brave step paths (phase 13 multi-step) | off |
+| `AI_PEEL_AUDIT` | `src/core/ai.c` (`ai_peel_audit_enabled`) | trace | Classifies each firing peel row against both branch scorers | off |
 | `COLONIZE_TEST_ONLY` | `tests/common/test_runner.h` | test-only | Table-driven test binaries (see `tests/README.md` "Test runner"): run exactly one case by name | unset (run all) |
 | `COLONIZE_TEST_REVERSE` | `tests/common/test_runner.h` | test-only | Run cases in reverse declared order | off |
 | `COLONIZE_TEST_SHUFFLE` | `tests/common/test_runner.h` | test-only | `<seed>` — run cases in a deterministic Fisher-Yates shuffle | unset (declared order) |
 | `COLONIZE_TEST_LIST` | `tests/common/test_runner.h` | test-only | Print case names, one per line, and exit 0 without running anything | off |
-| `AI_NO_BRAVE_PEELS` | `src/core/ai.c:261` | **behaviour** | Skips seed-100 dir peels entirely, to audit how many "quiet" misses remain without them | off (peels run) |
-| `AI_021A_WATCH` | `src/core/ai.c:3071` | trace | `"x:y"` — prints that tile's layer2/layer3 at every Brave act | unset |
-| `AI_021A_TRACE` | `src/core/ai.c:3673` | trace | One line per Brave act: pick, flags, final direction | off |
-| `AI_BRAVE_PICK` | `src/core/ai.c:3683` | **behaviour** | `=20e6` falls back to the retired 20e6-shaped quiet scorer instead of the current `021a` picker | current picker |
+| `AI_NO_BRAVE_PEELS` | `src/core/ai.c` (`ai_brave_peels_disabled`) | **behaviour** | Skips seed-100 dir peels entirely, to audit how many "quiet" misses remain without them | off (peels run) |
+| `AI_021A_WATCH` | `src/core/ai_native_021a.c` (`ai_native_pick_dir_021a`) | trace | `"x:y"` — prints that tile's layer2/layer3 at every Brave act | unset |
+| `AI_021A_TRACE` | `src/core/ai_native_021a.c` (`ai_021a_trace_enabled`) | trace | One line per Brave act: pick, flags, final direction | off |
+| `AI_BRAVE_PICK` | `src/core/ai_brave.c` (`ai_brave_pick_20e6_fallback`) | **behaviour** | `=20e6` falls back to the retired 20e6-shaped quiet scorer instead of the current `021a` picker | current picker |
 | `UNITS_FAR_BFS` | `src/core/units.c:9804` | **behaviour** | `=1` reverts to the pre-2026-08-27 whole-map BFS tier for far pathing (diagnostic fallback) | off (tiered BFS) |
 | `AI_SET_GOTO_TRACE` | `src/core/ai_euro.c:3768` | trace | Logs `goto` order assignment | off |
 | `AI_20E6_LOAD_TRACE` | `src/core/ai_euro.c:4665`, `13757` | trace | Logs cargo/unit load decisions | off |

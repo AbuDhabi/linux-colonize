@@ -1,5 +1,6 @@
 /* Slice of the former tests/unit/test_ai_contact.c (split by feature 2026-09-23):
- * the original inline main() narrative: one shared fixture mutated across meet/raid/incite/trade/mission/wagon beats (case_full_contact_scenario). */
+ * the original inline main() narrative (meet/raid/incite/trade/mission/wagon
+ * beats), split into named cases 2026-09-23. */
 #include "test_ai_contact_common.h"
 
 /*
@@ -87,17 +88,94 @@ static int apply_trade_offer_choice(
   } while (0)
 
 /*
- * The rest of this file's original main() body is one continuous narrative:
- * a single shared fixture (col1/map/units/ctx/pop) is built once and then
- * mutated and re-checked across many scenario beats (meet, raid, incite,
- * trade, mission, wagon, ...) all the way to the teardown at the very end.
- * There is no point at which the fixture is reset and the remaining checks
- * become independent of everything before it, so per tests/README.md this
- * stays as ONE case rather than being split into fake, order-dependent
- * pieces.
+ * The original body was ONE continuous narrative: a single shared fixture
+ * (col1/map/units/ctx/pop) built once and then mutated and re-checked across
+ * ~60 scenario beats all the way to the teardown. There is no point at which
+ * the fixture resets, and later beats depend on the alarm / met / tension /
+ * treasury / unit state — and on the RNG stream position — left by earlier
+ * ones, so a beat cannot be lifted out on its own.
+ *
+ * The split therefore keeps the narrative intact and cuts it into ordered
+ * spine segments sp_00..sp_NN (every statement still appears exactly once,
+ * verbatim, in its original order). Each named case is `fx_run(N)`: it
+ * replays the spine from sp_00 up to and including its own segment, then
+ * tears the fixture down. So `COLONIZE_TEST_ONLY=<case>` rebuilds exactly
+ * the state that case was written against, and the cases are order- and
+ * shuffle-independent. sp_00 (fx_open) additionally resets the sim-side
+ * statics that outlive a fixture, so one case never inherits another's.
  */
-static int case_full_contact_scenario(void) {
-  ColonizeCol1Save col1;
+
+/* Fixture state shared by the spine segments (was main()-scope locals). */
+static ColonizeCol1Save col1;
+static ColonizeCol1Indian* ind;
+static ColonizeWorldMap map;
+static ColonizeUnitPool units;
+static ColonizeColonyPool colonies;
+static int brave_id;
+static ColonizeUnit* brave;
+static ColonizeUnit* euro;
+static ColonizeColony* c;
+static uint32_t turn;
+static ColonizeTurnContext ctx;
+static int alarm_pre_raid;
+static char status[128];
+/* AI-popup narrative block (was the 2910..4610 scope). */
+static AiPopupState pop;
+static ColonizeUnit* brave2;
+static ColonizeUnit* land0;
+static int goods0;
+static char st_pop[128];
+/* Reparations block (was the 5110..5475 scope). */
+static AiPopupState rp;
+static ColonizeDosRng rep_rng;
+static ColonizeDosRng* saved_rng;
+static uint16_t saved_turn;
+static int rep_brave;
+static int rq;
+/* @ACTIONS village-menu block (was the 6028..6726 scope). */
+static ColonizeMsgCatalog game_txt;
+static AiPopupState pop_menu;
+static char st_menu[AI_POPUP_BODY_LEN];
+static int scout_id;
+static ColonizeUnit* scout;
+static int col_id;
+static ColonizeUnit* colonist;
+
+static void fx_close(void) {
+  free(map.terrain);
+  free(map.layer2);
+  free(map.layer3);
+  /* tribe[] was calloc'd by hand above and col1.owned stays 0, so
+   * col1_save_free() will not release it — free it here. */
+  free(col1.tribe);
+  col1.tribe = NULL;
+  col1_save_free(&col1);
+}
+
+static int sp_00(void) {
+  /* New in the split: sim-side statics that outlive one fixture must be
+   * cleared so any case order works (tests/README.md "Hunting order
+   * dependencies"). */
+  ai_contact_reset();
+  village_trade_intel_reset();
+  ai_diplo_talk_reset();
+  ai_native_reset();
+  turn_reset();
+  units_set_native_fallout_context(NULL, NULL, -1);
+  units_set_occupancy_map(NULL);
+  colonies_set_occupancy_map(NULL);
+  brave = NULL;
+  euro = NULL;
+  brave2 = NULL;
+  land0 = NULL;
+  c = NULL;
+  ind = NULL;
+  scout = NULL;
+  colonist = NULL;
+  alarm_pre_raid = 0;
+  status[0] = '\0';
+  st_pop[0] = '\0';
+  st_menu[0] = '\0';
   col1_save_init(&col1);
   col1.head.difficulty = 2;
   col1.head.tribe_count = 1;
@@ -112,7 +190,7 @@ static int case_full_contact_scenario(void) {
   col1.tribe[0].population = 4;
   col1.tribe[0].alarm[0].friction = 0;
 
-  ColonizeCol1Indian* ind = &col1.indian[0];
+  ind = &col1.indian[0];
   memset(ind, 0, sizeof(*ind));
   ind->euro_diplo[0] = 0;
   ind->alarm_by_player[0] = 0;
@@ -121,7 +199,6 @@ static int case_full_contact_scenario(void) {
     col1.head.founding_father[ffi] = -1;
   }
 
-  ColonizeWorldMap map;
   memset(&map, 0, sizeof(map));
   map.width = 16;
   map.height = 16;
@@ -137,7 +214,6 @@ static int case_full_contact_scenario(void) {
     map.terrain[i] = 1;
   }
 
-  ColonizeUnitPool units;
   memset(&units, 0, sizeof(units));
   units_reset(&units);
   units_set_occupancy_map(NULL);
@@ -151,10 +227,10 @@ static int case_full_contact_scenario(void) {
   units.types[1].attack = 0;
   units.types[1].defense = 1;
 
-  const int brave_id = units_spawn_allow_stack(&units, 0, 5, 5);
+  brave_id = units_spawn_allow_stack(&units, 0, 5, 5);
   const int euro_id = units_spawn_allow_stack(&units, 1, 8, 5);
-  ColonizeUnit* brave = units_get(&units, brave_id);
-  ColonizeUnit* euro = units_get(&units, euro_id);
+  brave = units_get(&units, brave_id);
+  euro = units_get(&units, euro_id);
   if (!brave || !euro) {
     return fail("spawn");
   }
@@ -166,12 +242,10 @@ static int case_full_contact_scenario(void) {
   euro->x = 6;
   euro->y = 5;
 
-  ColonizeColonyPool colonies;
   colonies_init(&colonies);
   colonies_set_occupancy_map(NULL);
 
-  uint32_t turn = 1;
-  ColonizeTurnContext ctx;
+  turn = 1;
   memset(&ctx, 0, sizeof(ctx));
   ctx.messages = test_game_txt();
   ctx.names = test_names_txt();
@@ -183,6 +257,10 @@ static int case_full_contact_scenario(void) {
   ctx.col1_ok = true;
   ctx.rng_seed = 42;
 
+  return 0;
+}
+
+static int sp_01(void) {
   /* Meet: adjacent Euro → euro_diplo + relation bump; peaceful friction decay. */
   ind->alarm_by_player[0] = 33; /* first contact clamps alarm <= 20 (FUN_5bfb :96624) */
   ai_contact_indian_meet_trade(&ctx, 4);
@@ -199,11 +277,15 @@ static int case_full_contact_scenario(void) {
   euro->x = 10;
   euro->y = 10;
 
+  return 0;
+}
+
+static int sp_02(void) {
   /* Raid: high friction, brave on colony tile → @RAID* loot path. */
   ind->alarm_by_player[0] = 55;
   col1.tribe[0].alarm[0].friction = 55;
 
-  ColonizeColony* c = &colonies.colonies[0];
+  c = &colonies.colonies[0];
   c->id = 0;
   c->active = true;
   c->nation_id = 0;
@@ -223,7 +305,7 @@ static int case_full_contact_scenario(void) {
   const int food0 = c->stock[COLONIZE_CARGO_FOOD];
   /* War bit clear → FUN_5fef_0f14's alarm tail is not gated out (see below). */
   ind->euro_diplo[0] = (uint8_t)(ind->euro_diplo[0] & ~COL1_INDIAN_WAR_BIT);
-  int alarm_pre_raid = (int)ind->alarm_by_player[0];
+  alarm_pre_raid = (int)ind->alarm_by_player[0];
   RUN_INDIAN_RAIDS();
   const int kind = ai_contact_last_raid_kind();
   if (kind < AI_RAID_NOTHING || kind > AI_RAID_GOLD) {
@@ -262,6 +344,10 @@ static int case_full_contact_scenario(void) {
    * magnitudes here (and mapped DOS's −16 to SCALP instead of the ship
    * kind); DOS grows Indian alarm only through the 4d56_152e accumulator.
    */
+  return 0;
+}
+
+static int sp_03(void) {
   {
     const int kind_after = ai_contact_last_raid_kind();
     int expect_delta = 0;
@@ -303,6 +389,10 @@ static int case_full_contact_scenario(void) {
     }
     ind->euro_diplo[0] = (uint8_t)(ind->euro_diplo[0] & ~COL1_INDIAN_WAR_BIT);
   }
+  return 0;
+}
+
+static int sp_04(void) {
   /*
    * 1b0e's repelled-at-a-colony handoff (thunk_FUN_2a1f_06c8 → the whole of
    * FUN_5fef_0f14) is the second entry into the same resolver, so it applies
@@ -347,6 +437,10 @@ static int case_full_contact_scenario(void) {
       return fail("repelled-raid limb must keep 0f14's unconditional attitude clear");
     }
   }
+  return 0;
+}
+
+static int sp_05(void) {
 
   /*
    * Raid gate is uniform ≥40 for every Euro nation. The old "Spain ≥35
@@ -402,6 +496,10 @@ static int case_full_contact_scenario(void) {
     brave->x = 5;
     brave->y = 5;
   }
+  return 0;
+}
+
+static int sp_06(void) {
 
   /*
    * Mission expel (DOS 4cc6_00f2 escalation tail + 4cc6_0000, 2026-09-07d):
@@ -449,6 +547,10 @@ static int case_full_contact_scenario(void) {
     ctx.status = NULL;
     ctx.status_size = 0;
   }
+  return 0;
+}
+
+static int sp_07(void) {
 
   /*
    * Ambush gear seize (@INDIANWIN1): Brave win vs musketed foe → Brave gains
@@ -569,6 +671,10 @@ static int case_full_contact_scenario(void) {
     ctx.status = NULL;
     ctx.status_size = 0;
   }
+  return 0;
+}
+
+static int sp_08(void) {
 
   /*
    * Retired 2026-09-03 (bugs.md "alarm rises incredibly fast"): the fandom
@@ -639,6 +745,10 @@ static int case_full_contact_scenario(void) {
   }
   col1.tribe[0].alarm[0].friction = 10;
   ind->alarm_by_player[0] = 10;
+  return 0;
+}
+
+static int sp_09(void) {
 
   /*
    * (Retired 2026-09-22, bugs.md #557.) The AI missionary adjacency pulse
@@ -695,6 +805,10 @@ static int case_full_contact_scenario(void) {
     ctx.status = NULL;
     ctx.status_size = 0;
   }
+  return 0;
+}
+
+static int sp_10(void) {
 
   /*
    * Auto gift (2154 tables + 5bfb gates): gold≥20 Large; Generous needs
@@ -717,7 +831,6 @@ static int case_full_contact_scenario(void) {
   brave->y = 5;
   brave->nation_id = 4;
   ctx.human_nation = 1; /* Euro 0 as AI — silent gift stand-in */
-  char status[128];
   status[0] = '\0';
   ctx.status = status;
   ctx.status_size = sizeof(status);
@@ -744,6 +857,10 @@ static int case_full_contact_scenario(void) {
   if (col1.tribe[0].alarm[0].friction != 8) {
     return fail("Large AI gift should reduce tribe friction by 2");
   }
+  return 0;
+}
+
+static int sp_11(void) {
   /*
    * 2154 Generous: sparse neighborhood (arctic pad → high ask−bid) + gold≥75.
    * Dense forest raises bid and can suppress delta. Cite: FUN_4d56_2154.
@@ -926,6 +1043,10 @@ static int case_full_contact_scenario(void) {
       map.terrain[i] = 1;
     }
   }
+  return 0;
+}
+
+static int sp_12(void) {
 
   /*
    * Gift refuse when Euro gold < 10: no gold change. Human adjacency: no
@@ -978,6 +1099,10 @@ static int case_full_contact_scenario(void) {
   if (!ai_contact_indian_has_peace(&col1, 4, 0)) {
     return fail("auto-accept first meet (no popups) should set peace");
   }
+  return 0;
+}
+
+static int sp_13(void) {
 
   /*
    * Multi-loot: high friction (≥80) successful colony raid → primary @RAID*
@@ -1045,6 +1170,10 @@ static int case_full_contact_scenario(void) {
       return fail("multi-loot should apply a primary @RAID* outcome");
     }
   }
+  return 0;
+}
+
+static int sp_14(void) {
 
   /*
    * Raid muskets drain (STORES primary): warehouse holds only muskets (<5 so
@@ -1191,6 +1320,10 @@ static int case_full_contact_scenario(void) {
       return fail("STORES value-sort should leave food when silver present");
     }
   }
+  return 0;
+}
+
+static int sp_15(void) {
 
   /*
    * bugs.md #499: the "FUN_4d56_359c anti-Scout displace/kill" raid arm was
@@ -1235,6 +1368,10 @@ static int case_full_contact_scenario(void) {
   }
   ind->alarm_by_player[0] = 90;
   col1.tribe[0].alarm[0].friction = 90;
+  return 0;
+}
+
+static int sp_16(void) {
 
   /*
    * Thin alarmed refuse-talk: human Brave adjacency must not spam refuse chrome
@@ -1349,6 +1486,10 @@ static int case_full_contact_scenario(void) {
       return fail("meet pulse must not drip mid alarm_by_player (smell #48)");
     }
   }
+  return 0;
+}
+
+static int sp_17(void) {
 
   /*
    * Raid kind gating: empty warehouse + no Euro gold + pop≤1 (no SCALP) →
@@ -1470,6 +1611,10 @@ static int case_full_contact_scenario(void) {
     ctx.status = NULL;
     ctx.status_size = 0;
   }
+  return 0;
+}
+
+static int sp_18(void) {
 
   /*
    * Alarmed demand refuse: human Brave adjacency — no tools/gold taken, no chrome.
@@ -1713,6 +1858,10 @@ static int case_full_contact_scenario(void) {
       map.terrain[i] = 1;
     }
   }
+  return 0;
+}
+
+static int sp_19(void) {
 
   /*
    * Very-low relation: human Brave adjacency — no gift, no refuse chrome.
@@ -1744,6 +1893,10 @@ static int case_full_contact_scenario(void) {
       return fail("human Brave adjacency must not chrome very-low refuse");
     }
   }
+  return 0;
+}
+
+static int sp_20(void) {
 
   /*
    * (Retired 2026-09-22, bugs.md #557.) A "missionary flee" assertion sat
@@ -1973,6 +2126,10 @@ static int case_full_contact_scenario(void) {
     }
     col1.tribe[0].mission = 0xff;
   }
+  return 0;
+}
+
+static int sp_21(void) {
 
   /*
    * Prelude is clamp-only since the mission-pacify drip went (smell #48):
@@ -2025,6 +2182,10 @@ static int case_full_contact_scenario(void) {
     c->x = 5;
     c->y = 5;
   }
+  return 0;
+}
+
+static int sp_22(void) {
 
   /*
    * Raid prefer colony with tools≥10 at equal distance (no military stock):
@@ -2228,6 +2389,10 @@ static int case_full_contact_scenario(void) {
     ind->alarm_by_player[0] = 0;
     col1.tribe[0].alarm[0].friction = 0;
   }
+  return 0;
+}
+
+static int sp_23(void) {
 
   /*
    * @RAIDBURN lumber gate: no construction, warehouse lumber only, alarm≥60
@@ -2477,6 +2642,10 @@ static int case_full_contact_scenario(void) {
       ctx.status_size = 0;
     }
   }
+  return 0;
+}
+
+static int sp_24(void) {
 
   /*
    * Thin Brave escort (14fe): idle Brave units_follow_unit a same-nation
@@ -2717,6 +2886,10 @@ static int case_full_contact_scenario(void) {
     ind->alarm_by_player[0] = 0;
     col1.tribe[0].alarm[0].friction = 0;
   }
+  return 0;
+}
+
+static int sp_25(void) {
 
   /*
    * Raid friction/alarm escalate: successful loot → kind-scaled 0d6c-shaped
@@ -2902,13 +3075,15 @@ static int case_full_contact_scenario(void) {
     col1.nation[0].founding_fathers[FF_POCAHONTAS / 8] &=
       (uint8_t)~(1u << (FF_POCAHONTAS % 8));
   }
+  return 0;
+}
+
+static int sp_26(void) {
 
   /*
    * AI popup unpark: first meet enqueues CONTACT_WELCOME Yes/No; Accept →
    * peace + PEACE/COME OKs only (no Meet CHOICE). Cite: FUN_5bfb_022e / 0182.
    */
-  {
-    AiPopupState pop;
     ai_popup_init(&pop);
     /* Fresh pair — earlier raid/scout arms may have despawned the originals. */
     for (int ui = 0; ui < COLONIZE_UNITS_MAX; ++ui) {
@@ -2919,7 +3094,7 @@ static int case_full_contact_scenario(void) {
     }
     const int b2 = units_spawn_allow_stack(&units, 0, 5, 5);
     const int e2 = units_spawn_allow_stack(&units, 1, 6, 5);
-    ColonizeUnit* brave2 = units_get(&units, b2);
+    brave2 = units_get(&units, b2);
     ColonizeUnit* euro2 = units_get(&units, e2);
     if (!brave2 || !euro2) {
       return fail("popup meet spawn");
@@ -2936,7 +3111,7 @@ static int case_full_contact_scenario(void) {
      */
     euro2->hold_goods_type[0] = COLONIZE_CARGO_TRADE_GOODS;
     euro2->hold_goods_amount[0] = 5;
-    const int goods0 = euro2->hold_goods_amount[0];
+    goods0 = euro2->hold_goods_amount[0];
     ind->euro_diplo[0] = 0;
     ind->alarm_by_player[0] = 25; /* Accept should clear */
     ind->euro_diplo[0] = (uint8_t)(ind->euro_diplo[0] & ~0x40u);
@@ -2954,7 +3129,6 @@ static int case_full_contact_scenario(void) {
     c_pop->x = 5;
     c_pop->y = 5;
 
-    char st_pop[128];
     st_pop[0] = '\0';
     ctx.status = st_pop;
     ctx.status_size = sizeof(st_pop);
@@ -3033,6 +3207,10 @@ static int case_full_contact_scenario(void) {
     if (pop.queue_count < 1 || pop.queue[0].kind != AI_POPUP_KIND_OK) {
       return fail("WELCOME Yes should enqueue PEACE OK");
     }
+  return 0;
+}
+
+static int sp_27(void) {
 
     /* Ships: Brave adjacent to sea unit must not start WELCOME. */
     {
@@ -3079,6 +3257,10 @@ static int case_full_contact_scenario(void) {
         elu->hold_goods_amount[0] = goods0;
       }
     }
+  return 0;
+}
+
+static int sp_28(void) {
 
     /* Synthetic Meet CHOICE Trade still works when player initiates (apply). */
     ai_popup_clear(&pop);
@@ -3100,7 +3282,7 @@ static int case_full_contact_scenario(void) {
     col1.indian[0].alarm_by_player[0] = 0; /* relation 100 */
     col1.indian[0].euro_diplo[0] |= COL1_INDIAN_MET_BIT;
     ind->alarm_by_player[0] = 10;
-    ColonizeUnit* land0 = units_get(&units, units_id_at(&units, 6, 5));
+    land0 = units_get(&units, units_id_at(&units, 6, 5));
     if (!land0) {
       return fail("land0 lookup for Trade CHOICE");
     }
@@ -3160,6 +3342,10 @@ static int case_full_contact_scenario(void) {
     if (ind->tons[COLONIZE_CARGO_TRADE_GOODS] != goods0) {
       return fail("Trade accept should add the sold quantity to indian.tons[cargo]");
     }
+  return 0;
+}
+
+static int sp_29(void) {
 
     /*
      * 2026-08-22: the old "hard bargain" mid-alarm peel (extra trade-good
@@ -3295,6 +3481,10 @@ static int case_full_contact_scenario(void) {
       ind->alarm_by_player[0] = 10;
       pop.result_nation_b = 4;
     }
+  return 0;
+}
+
+static int sp_30(void) {
 
     /*
      * Sea trade: a ship (not the land unit) is now the sole contacting
@@ -3437,6 +3627,10 @@ static int case_full_contact_scenario(void) {
         return fail("Trade fail should set Trade concluded status");
       }
     }
+  return 0;
+}
+
+static int sp_31(void) {
 
     /*
      * FUN_4d56_2820 human gates + phases (structural port 2026-08-29):
@@ -3654,6 +3848,10 @@ static int case_full_contact_scenario(void) {
       ind->alarm_by_player[0] = 0; /* restore peaceful for later popup arms */
       fprintf(stderr, "unit_ai_contact: 2820 gates + sell/buy phases ok\n");
     }
+  return 0;
+}
+
+static int sp_32(void) {
 
     /*
      * Second Brave same pulse: pending WELCOME → no second CHOICE enqueue.
@@ -3794,6 +3992,10 @@ static int case_full_contact_scenario(void) {
         return fail("post-peace adjacency must not refuse-talk");
       }
     }
+  return 0;
+}
+
+static int sp_33(void) {
 
     /*
      * Mission expel (DOS 4cc6_00f2 escalation + 4cc6_0000, 2026-09-07d):
@@ -3830,6 +4032,10 @@ static int case_full_contact_scenario(void) {
       ind->euro_diplo[0] = (uint8_t)(ind->euro_diplo[0] & ~COL1_INDIAN_PEACE_BIT);
       ind->alarm_by_player[0] = 10;
     }
+  return 0;
+}
+
+static int sp_34(void) {
 
     /*
      * Gift CHOICE → amount CHOICE (Small/Large); Large apply −10 gold.
@@ -3975,6 +4181,10 @@ static int case_full_contact_scenario(void) {
       col1.nation[0].founding_fathers[FF_POCAHONTAS / 8] &=
         (uint8_t)~(1u << (FF_POCAHONTAS % 8));
     }
+  return 0;
+}
+
+static int sp_35(void) {
 
     /*
      * Incite Indians CHOICE (FUN_4d56_417e — see
@@ -4192,6 +4402,10 @@ static int case_full_contact_scenario(void) {
       ind->muskets = 0;
       ind->horse_herds = 0;
     }
+  return 0;
+}
+
+static int sp_36(void) {
 
     /*
      * Demand CHOICE → amount CHOICE (tools vs gold); gold apply −15.
@@ -4358,6 +4572,10 @@ static int case_full_contact_scenario(void) {
         return fail("Demand refuse should set refuse-demands status");
       }
     }
+  return 0;
+}
+
+static int sp_37(void) {
 
     /*
      * bugs.md #573: a TEACH choice whose payload carries no acting unit is
@@ -4413,6 +4631,10 @@ static int case_full_contact_scenario(void) {
       ind->euro_diplo[0] = 1;
       ind->alarm_by_player[0] = 10;
     }
+  return 0;
+}
+
+static int sp_38(void) {
 
     /*
      * bugs.md / FUN_5bfb_022e @INDIANSCONVERT: the human gets Converts when a
@@ -4550,6 +4772,10 @@ static int case_full_contact_scenario(void) {
       units_despawn(&units, bm);
       col1.tribe[0].y = 5;
     }
+  return 0;
+}
+
+static int sp_39(void) {
 
     /* Village-enter Meet CHOICE: already-met human on tribe → Trade…Leave. */
     {
@@ -4607,7 +4833,10 @@ static int case_full_contact_scenario(void) {
     ctx.ai_popups = NULL;
     ctx.status = NULL;
     ctx.status_size = 0;
-  }
+  return 0;
+}
+
+static int sp_40(void) {
 
   /*
    * Capital-destroy surrender (fandom): reset alarm/friction + peace toward
@@ -4643,6 +4872,10 @@ static int case_full_contact_scenario(void) {
       return fail("capital surrender should clear capital bit on remaining tribes");
     }
   }
+  return 0;
+}
+
+static int sp_41(void) {
 
   /*
    * Series U: Attack Village open hostilities (the invented Attack/Leave raid
@@ -4702,6 +4935,10 @@ static int case_full_contact_scenario(void) {
     ctx.status = NULL;
     ctx.status_size = 0;
   }
+  return 0;
+}
+
+static int sp_42(void) {
 
   /*
    * Series T: 4528 ship-village mid-relation wary band.
@@ -4792,6 +5029,10 @@ static int case_full_contact_scenario(void) {
     col1.tribe[0].alarm[0].friction = 10;
     ctx.ai_popups = NULL;
   }
+  return 0;
+}
+
+static int sp_43(void) {
 
   /*
    * WoI tribe defection (FUN_4d56_1816 §2, indian_woi_defect_1816.md): while
@@ -4942,6 +5183,10 @@ static int case_full_contact_scenario(void) {
     ctx.status = NULL;
     ctx.status_size = 0;
   }
+  return 0;
+}
+
+static int sp_44(void) {
 
   /*
    * @INDIANBEGFOOD accept/decline (FUN_5bfb_022e already-met adjacency —
@@ -5096,6 +5341,10 @@ static int case_full_contact_scenario(void) {
     }
     ctx.ai_popups = NULL;
   }
+  return 0;
+}
+
+static int sp_45(void) {
 
   /*
    * @INDIANCITY / @INDIANWAGONS reparations — FUN_5bfb_022e LAB_5bfb_0def,
@@ -5107,13 +5356,11 @@ static int case_full_contact_scenario(void) {
    * the accepting row id is per-flavor (@INDIANCITY 2, @INDIANWAGONS 1) —
    * both polarities are covered here.
    */
-  {
-    AiPopupState rp;
     ai_popup_init(&rp);
     ctx.ai_popups = &rp;
     ctx.human_nation = 0;
     col1.player[0].control = 0; /* human → DOS's CHOICE limb, not `else` */
-    const uint16_t saved_turn = col1.head.turn;
+    saved_turn = col1.head.turn;
     col1.head.turn = 0; /* turn 0 → the once-per-8-turns latch never blocks */
 
     colonies.colonies[0].active = true;
@@ -5148,7 +5395,7 @@ static int case_full_contact_scenario(void) {
     col1.indian[0].muskets = 0;
     col1.indian[0].horse_herds = 0;
 
-    const int rep_brave = units_spawn_allow_stack(
+    rep_brave = units_spawn_allow_stack(
       &units, 0, colonies.colonies[0].x + 1, colonies.colonies[0].y + 1);
     if (rep_brave < 0) {
       return fail("spawn reparations-visit Brave");
@@ -5159,15 +5406,14 @@ static int case_full_contact_scenario(void) {
     ai_native_note_brave_turn_origin(
       rep_brave, colonies.colonies[0].x + 3, colonies.colonies[0].y + 3);
 
-    ColonizeDosRng rep_rng;
-    ColonizeDosRng* saved_rng = ctx.rng;
+    saved_rng = ctx.rng;
     dos_rng_seed(&rep_rng, 7u);
     ctx.rng = &rep_rng;
 
     /* --- @INDIANCITY refuse: +0x80 on the word, not a grain moved. --- */
     ai_popup_clear(&rp);
     ai_contact_try_village_beg_food(&ctx, 4);
-    int rq = -1;
+    rq = -1;
     for (int i = 0; i < rp.queue_count; ++i) {
       if (rp.queue[i].tag == AI_POPUP_TAG_CONTACT_REPARATIONS &&
           rp.queue[i].kind == AI_POPUP_KIND_CHOICE) {
@@ -5347,6 +5593,10 @@ static int case_full_contact_scenario(void) {
       col1.indian[0].contact_state[0] = 0;
       ai_popup_clear(&rp);
     }
+  return 0;
+}
+
+static int sp_46(void) {
 
     /* --- @INDIANWAGONS: no colony in the encounter, accept is row 1. --- */
     bool saved_colony_active[COLONIZE_COLONIES_MAX];
@@ -5472,7 +5722,10 @@ static int case_full_contact_scenario(void) {
       return fail("@INDIANWAGONS refuse keeps the hold and adds 0x80 to the word");
     }
     fprintf(stderr, "unit_ai_contact: reparations accept/refuse ok\n");
-  }
+  return 0;
+}
+
+static int sp_47(void) {
 
   /*
    * bugs.md 2026-09-04 (bug 5, "Indians never seem to visit bearing gifts"):
@@ -5634,6 +5887,10 @@ static int case_full_contact_scenario(void) {
     col1.head.turn = saved_turn;
     ctx.ai_popups = NULL;
   }
+  return 0;
+}
+
+static int sp_48(void) {
 
   /* FUN_465b_0000 @WHACKINDIANS: ask once while alarm < 0x4b and bit 0x04 clear. */
   {
@@ -5746,6 +6003,10 @@ static int case_full_contact_scenario(void) {
     ai_diplo_write(&col1, 1, 0, 0);
     fprintf(stderr, "unit_ai_contact: HAVETREATY euro attack confirm ok\n");
   }
+  return 0;
+}
+
+static int sp_49(void) {
 
 
   /* FUN_4d56_417e Mode 2: AI Missionary incites the tribe against the human. */
@@ -5830,6 +6091,10 @@ static int case_full_contact_scenario(void) {
     col1.player[1].control = 0;
     fprintf(stderr, "unit_ai_contact: 417e Mode 2 auto-incite ok\n");
   }
+  return 0;
+}
+
+static int sp_50(void) {
 
   /* FUN_4d56_2820 LAB_002e92: empty-handed AI wagon buys the tribe's own goods. */
   {
@@ -5902,6 +6167,10 @@ static int case_full_contact_scenario(void) {
     col1.player[1].control = 0;
     fprintf(stderr, "unit_ai_contact: 2820 LAB_002e92 auto-buy ok\n");
   }
+  return 0;
+}
+
+static int sp_51(void) {
 
   /*
    * DS:0x8d4a: 2820 trades with the VISITED settlement. With two villages of
@@ -5962,6 +6231,10 @@ static int case_full_contact_scenario(void) {
     }
     fprintf(stderr, "unit_ai_contact: 2820 visited-settlement binding ok\n");
   }
+  return 0;
+}
+
+static int sp_52(void) {
 
   /* @BUY0 haggle arm: cheap offers / unlucky rolls exhaust patience, else -25% re-ask. */
   {
@@ -6020,20 +6293,20 @@ static int case_full_contact_scenario(void) {
     }
     fprintf(stderr, "unit_ai_contact: 2820 sell haggle ok\n");
   }
+  return 0;
+}
+
+static int sp_53(void) {
 
   /*
    * NAMES.TXT @ACTIONS village menu + the overlay-13 action thunks
    * (FUN_4d56_4528 human arm; indian_actions_menu.md, static port 2026-08-28).
    */
-  {
-    ColonizeMsgCatalog game_txt;
     assets_msg_init(&game_txt);
     (void)assets_msg_load_file(&game_txt, "COLONIZE/GAME.TXT");
     ctx.messages = &game_txt;
-    AiPopupState pop;
-    ai_popup_init(&pop);
-    ctx.ai_popups = &pop;
-    char st_menu[AI_POPUP_BODY_LEN];
+    ai_popup_init(&pop_menu);
+    ctx.ai_popups = &pop_menu;
     st_menu[0] = '\0';
     ctx.status = st_menu;
     ctx.status_size = sizeof(st_menu);
@@ -6088,8 +6361,8 @@ static int case_full_contact_scenario(void) {
     units.types[5].defense = 1;
 
     /* Scout → Ask to Speak With Chief + Demand Tribute + Attack Village + Cancel; no Trade / Live Among. */
-    const int scout_id = units_spawn_allow_stack(&units, 2, 6, 5);
-    ColonizeUnit* scout = units_get(&units, scout_id);
+    scout_id = units_spawn_allow_stack(&units, 2, 6, 5);
+    scout = units_get(&units, scout_id);
     if (!scout) {
       return fail("menu: spawn scout");
     }
@@ -6098,11 +6371,11 @@ static int case_full_contact_scenario(void) {
     if (!ai_contact_try_village_meet_unit(&ctx, 0, 4, 0, 0, scout_id)) {
       return fail("menu: scout meet should enqueue");
     }
-    if (pop.queue_count != 1 || pop.queue[0].tag != AI_POPUP_TAG_CONTACT_MEET) {
+    if (pop_menu.queue_count != 1 || pop_menu.queue[0].tag != AI_POPUP_TAG_CONTACT_MEET) {
       return fail("menu: scout meet CHOICE");
     }
     {
-      const AiPopupRequest* q = &pop.queue[0];
+      const AiPopupRequest* q = &pop_menu.queue[0];
       int has_chief = 0;
       int has_trade = 0;
       int has_live = 0;
@@ -6138,8 +6411,8 @@ static int case_full_contact_scenario(void) {
       res.result_tag = AI_POPUP_TAG_CONTACT_MEET;
       res.result_nation_a = 0;
       res.result_nation_b = 4;
-      res.result_payload = pop.queue[0].payload;
-      ai_popup_clear(&pop);
+      res.result_payload = pop_menu.queue[0].payload;
+      ai_popup_clear(&pop_menu);
       st_menu[0] = '\0';
       const uint32_t gold_before = col1.nation[0].gold;
       ai_contact_apply_popup_result(&ctx, &res);
@@ -6165,6 +6438,10 @@ static int case_full_contact_scenario(void) {
       }
       units_despawn(&units, scout_id);
     }
+  return 0;
+}
+
+static int sp_54(void) {
 
     /*
      * bugs.md #492: the @CHIEFAREA "tales of nearby lands" reveal is
@@ -6194,7 +6471,7 @@ static int case_full_contact_scenario(void) {
         }
         su->nation_id = 0;
         su->profession = UNITS_JOB_NONE;
-        ai_popup_clear(&pop);
+        ai_popup_clear(&pop_menu);
         if (!ai_contact_try_village_meet_unit(&ctx, 0, 4, 0, 0, sid)) {
           return fail("#492: meet should enqueue");
         }
@@ -6206,8 +6483,8 @@ static int case_full_contact_scenario(void) {
         r2.result_tag = AI_POPUP_TAG_CONTACT_MEET;
         r2.result_nation_a = 0;
         r2.result_nation_b = 4;
-        r2.result_payload = pop.queue[0].payload;
-        ai_popup_clear(&pop);
+        r2.result_payload = pop_menu.queue[0].payload;
+        ai_popup_clear(&pop_menu);
         st_menu[0] = '\0';
         ai_contact_apply_popup_result(&ctx, &r2);
         if (strstr(st_menu, "tales") != NULL) {
@@ -6248,11 +6525,11 @@ static int case_full_contact_scenario(void) {
       }
       soldier->nation_id = 0;
       soldier->profession = UNITS_JOB_NONE;
-      ai_popup_clear(&pop);
+      ai_popup_clear(&pop_menu);
       if (!ai_contact_try_village_meet_unit(&ctx, 0, 4, 0, 0, sold_id)) {
         return fail("menu: soldier meet should enqueue");
       }
-      const AiPopupRequest* q = &pop.queue[0];
+      const AiPopupRequest* q = &pop_menu.queue[0];
       if (q->choice_count != 3 || q->choice_ids[0] != 3 /* Demand */ ||
           q->choice_ids[1] != AI_CONTACT_CHOICE_ATTACK ||
           q->choice_ids[2] != 5 /* Cancel */) {
@@ -6267,35 +6544,39 @@ static int case_full_contact_scenario(void) {
       {
         const uint8_t saved_diplo = ind->euro_diplo[0];
         ind->euro_diplo[0] = 0;
-        ai_popup_clear(&pop);
+        ai_popup_clear(&pop_menu);
         if (!ai_contact_try_village_meet_unit(&ctx, 0, 4, 0, 0, sold_id)) {
           return fail("menu: unmet soldier should still get the @ACTIONS menu");
         }
-        if (pop.queue[0].tag != AI_POPUP_TAG_CONTACT_MEET || pop.queue[0].choice_count != 2 ||
-            pop.queue[0].choice_ids[0] != AI_CONTACT_CHOICE_ATTACK ||
-            pop.queue[0].choice_ids[1] != 5 /* Cancel */) {
+        if (pop_menu.queue[0].tag != AI_POPUP_TAG_CONTACT_MEET || pop_menu.queue[0].choice_count != 2 ||
+            pop_menu.queue[0].choice_ids[0] != AI_CONTACT_CHOICE_ATTACK ||
+            pop_menu.queue[0].choice_ids[1] != 5 /* Cancel */) {
           return fail("menu: unmet soldier rows should be Attack / Cancel");
         }
         ind->euro_diplo[0] = saved_diplo;
       }
-      ai_popup_clear(&pop);
+      ai_popup_clear(&pop_menu);
       units_despawn(&units, sold_id);
     }
+  return 0;
+}
+
+static int sp_55(void) {
 
     /* Free Colonist → Live Among The Natives + Cancel only; Live Among → @LEARNSTAY CHOICE. */
-    const int col_id = units_spawn_allow_stack(&units, 1, 6, 5);
-    ColonizeUnit* colonist = units_get(&units, col_id);
+    col_id = units_spawn_allow_stack(&units, 1, 6, 5);
+    colonist = units_get(&units, col_id);
     if (!colonist) {
       return fail("menu: spawn colonist");
     }
     colonist->nation_id = 0;
     colonist->profession = UNITS_JOB_NONE;
-    ai_popup_clear(&pop);
+    ai_popup_clear(&pop_menu);
     if (!ai_contact_try_village_meet_unit(&ctx, 0, 4, 0, 0, col_id)) {
       return fail("menu: colonist meet should enqueue");
     }
-    if (pop.queue[0].choice_count != 2 || pop.queue[0].choice_ids[0] != 4 || pop.queue[0].choice_ids[1] != 5) {
-      fprintf(stderr, "unit_ai_contact: colonist rows %d\n", pop.queue[0].choice_count);
+    if (pop_menu.queue[0].choice_count != 2 || pop_menu.queue[0].choice_ids[0] != 4 || pop_menu.queue[0].choice_ids[1] != 5) {
+      fprintf(stderr, "unit_ai_contact: colonist rows %d\n", pop_menu.queue[0].choice_count);
       return fail("menu: colonist rows should be Live Among / Cancel");
     }
     {
@@ -6307,14 +6588,14 @@ static int case_full_contact_scenario(void) {
       res.result_tag = AI_POPUP_TAG_CONTACT_MEET;
       res.result_nation_a = 0;
       res.result_nation_b = 4;
-      res.result_payload = pop.queue[0].payload;
-      ai_popup_clear(&pop);
+      res.result_payload = pop_menu.queue[0].payload;
+      ai_popup_clear(&pop_menu);
       st_menu[0] = '\0';
       ai_contact_apply_popup_result(&ctx, &res);
       /* alarm 10 → quartile 0 → no SLOW roll → human gets the @LEARNSTAY Yes/No. */
-      if (pop.queue_count != 1 || pop.queue[0].tag != AI_POPUP_TAG_CONTACT_LEARNSTAY ||
-          pop.queue[0].kind != AI_POPUP_KIND_CHOICE || pop.queue[0].choice_count != 2) {
-        fprintf(stderr, "unit_ai_contact: learnstay queue %d status '%s'\n", pop.queue_count, st_menu);
+      if (pop_menu.queue_count != 1 || pop_menu.queue[0].tag != AI_POPUP_TAG_CONTACT_LEARNSTAY ||
+          pop_menu.queue[0].kind != AI_POPUP_KIND_CHOICE || pop_menu.queue[0].choice_count != 2) {
+        fprintf(stderr, "unit_ai_contact: learnstay queue %d status '%s'\n", pop_menu.queue_count, st_menu);
         return fail("live among: unskilled colonist at peace should get @LEARNSTAY CHOICE");
       }
       if (colonist->profession != UNITS_JOB_NONE || col1.tribe[0].state.learned) {
@@ -6333,8 +6614,8 @@ static int case_full_contact_scenario(void) {
       ans.result_tag = AI_POPUP_TAG_CONTACT_LEARNSTAY;
       ans.result_nation_a = 0;
       ans.result_nation_b = 4;
-      ans.result_payload = pop.queue[0].payload;
-      ai_popup_clear(&pop);
+      ans.result_payload = pop_menu.queue[0].payload;
+      ai_popup_clear(&pop_menu);
       st_menu[0] = '\0';
       ai_contact_apply_popup_result(&ctx, &ans);
       if (colonist->profession != UNITS_JOB_NONE || col1.tribe[0].state.learned ||
@@ -6354,12 +6635,12 @@ static int case_full_contact_scenario(void) {
       }
       /* Village already taught (non-capital): a second unskilled colonist → @LEARNALREADY. */
       colonist->profession = UNITS_JOB_NONE;
-      ai_popup_clear(&pop);
+      ai_popup_clear(&pop_menu);
       if (!ai_contact_try_village_meet_unit(&ctx, 0, 4, 0, 0, col_id)) {
         return fail("menu: second colonist meet");
       }
-      res.result_payload = pop.queue[0].payload;
-      ai_popup_clear(&pop);
+      res.result_payload = pop_menu.queue[0].payload;
+      ai_popup_clear(&pop_menu);
       st_menu[0] = '\0';
       ai_contact_apply_popup_result(&ctx, &res);
       if (colonist->profession != UNITS_JOB_NONE || strstr(st_menu, "already shared") == NULL) {
@@ -6369,6 +6650,10 @@ static int case_full_contact_scenario(void) {
       col1.tribe[0].state.learned = 0;
       units_despawn(&units, col_id);
     }
+  return 0;
+}
+
+static int sp_56(void) {
 
     /* bugs.md #288: an Indentured Servant is a learner like a Free Colonist
      * (DOS a618: profession ∈ {0x19, 0x1c} reaches the LEARNSTAY arm) — it
@@ -6381,7 +6666,7 @@ static int case_full_contact_scenario(void) {
       }
       servant->nation_id = 0;
       servant->profession = UNITS_JOB_SERVANT;
-      ai_popup_clear(&pop);
+      ai_popup_clear(&pop_menu);
       if (!ai_contact_try_village_meet_unit(&ctx, 0, 4, 0, 0, srv_id)) {
         return fail("menu: servant meet should enqueue");
       }
@@ -6393,8 +6678,8 @@ static int case_full_contact_scenario(void) {
       res.result_tag = AI_POPUP_TAG_CONTACT_MEET;
       res.result_nation_a = 0;
       res.result_nation_b = 4;
-      res.result_payload = pop.queue[0].payload;
-      ai_popup_clear(&pop);
+      res.result_payload = pop_menu.queue[0].payload;
+      ai_popup_clear(&pop_menu);
       st_menu[0] = '\0';
       ai_contact_apply_popup_result(&ctx, &res);
       if (strstr(st_menu, "teach you nothing") != NULL ||
@@ -6406,11 +6691,11 @@ static int case_full_contact_scenario(void) {
         fprintf(stderr, "unit_ai_contact: servant live-among status '%s'\n", st_menu);
         return fail("live among: servant must not get @LEARNMASTER");
       }
-      if (pop.queue_count != 1 || pop.queue[0].tag != AI_POPUP_TAG_CONTACT_LEARNSTAY) {
-        fprintf(stderr, "unit_ai_contact: servant queue %d status '%s'\n", pop.queue_count, st_menu);
+      if (pop_menu.queue_count != 1 || pop_menu.queue[0].tag != AI_POPUP_TAG_CONTACT_LEARNSTAY) {
+        fprintf(stderr, "unit_ai_contact: servant queue %d status '%s'\n", pop_menu.queue_count, st_menu);
         return fail("live among: servant at peace should get @LEARNSTAY CHOICE");
       }
-      ai_popup_clear(&pop);
+      ai_popup_clear(&pop_menu);
       col1.tribe[0].state.learned = 0;
       units_despawn(&units, srv_id);
     }
@@ -6434,7 +6719,7 @@ static int case_full_contact_scenario(void) {
         }
         learner->nation_id = 0;
         learner->profession = UNITS_JOB_NONE;
-        ai_popup_clear(&pop);
+        ai_popup_clear(&pop_menu);
         if (!ai_contact_try_village_meet_unit(&ctx, 0, 4, 0, 0, lid)) {
           return fail("#564: learner meet should enqueue");
         }
@@ -6446,8 +6731,8 @@ static int case_full_contact_scenario(void) {
         res2.result_tag = AI_POPUP_TAG_CONTACT_MEET;
         res2.result_nation_a = 0;
         res2.result_nation_b = 4;
-        res2.result_payload = pop.queue[0].payload;
-        ai_popup_clear(&pop);
+        res2.result_payload = pop_menu.queue[0].payload;
+        ai_popup_clear(&pop_menu);
         st_menu[0] = '\0';
         ai_contact_apply_popup_result(&ctx, &res2);
         AiPopupState ans2;
@@ -6458,12 +6743,12 @@ static int case_full_contact_scenario(void) {
         ans2.result_tag = AI_POPUP_TAG_CONTACT_LEARNSTAY;
         ans2.result_nation_a = 0;
         ans2.result_nation_b = 4;
-        ans2.result_payload = pop.queue[0].payload;
-        ai_popup_clear(&pop);
+        ans2.result_payload = pop_menu.queue[0].payload;
+        ai_popup_clear(&pop_menu);
         st_menu[0] = '\0';
         ai_contact_apply_popup_result(&ctx, &ans2);
         taught[b] = learner->profession;
-        ai_popup_clear(&pop);
+        ai_popup_clear(&pop_menu);
         units_despawn(&units, lid);
       }
       col1.post_map.boot_timer = boot_save;
@@ -6478,6 +6763,10 @@ static int case_full_contact_scenario(void) {
         return fail("#564: village-teach seed must include post_map.boot_timer");
       }
     }
+  return 0;
+}
+
+static int sp_57(void) {
 
     /* Soldier → Demand Tribute: one of the four @EXTORT* bodies; laugh/no bumps alarm. */
     {
@@ -6488,12 +6777,12 @@ static int case_full_contact_scenario(void) {
       }
       sol->nation_id = 0;
       sol->profession = UNITS_JOB_NONE;
-      ai_popup_clear(&pop);
+      ai_popup_clear(&pop_menu);
       if (!ai_contact_try_village_meet_unit(&ctx, 0, 4, 0, 0, sol_id)) {
         return fail("menu: soldier meet should enqueue");
       }
       {
-        const AiPopupRequest* q = &pop.queue[0];
+        const AiPopupRequest* q = &pop_menu.queue[0];
         int has_live = 0;
         int has_demand = 0;
         int has_attack = 0;
@@ -6514,8 +6803,8 @@ static int case_full_contact_scenario(void) {
       res.result_tag = AI_POPUP_TAG_CONTACT_MEET;
       res.result_nation_a = 0;
       res.result_nation_b = 4;
-      res.result_payload = pop.queue[0].payload;
-      ai_popup_clear(&pop);
+      res.result_payload = pop_menu.queue[0].payload;
+      ai_popup_clear(&pop_menu);
       st_menu[0] = '\0';
       ai_contact_apply_popup_result(&ctx, &res);
       if (strstr(st_menu, "laugh at your puny") == NULL && strstr(st_menu, "tremble before you") == NULL &&
@@ -6528,6 +6817,10 @@ static int case_full_contact_scenario(void) {
       }
       units_despawn(&units, sol_id);
     }
+  return 0;
+}
+
+static int sp_58(void) {
 
     /* Missionary + foreign (French) mission → Denounce Heresy / Incite / Cancel; heresy consumes the unit. */
     {
@@ -6539,12 +6832,12 @@ static int case_full_contact_scenario(void) {
       }
       mis->nation_id = 0;
       mis->profession = UNITS_JOB_NONE;
-      ai_popup_clear(&pop);
+      ai_popup_clear(&pop_menu);
       if (!ai_contact_try_village_meet_unit(&ctx, 0, 4, 1, 0, mis_id)) {
         return fail("menu: missionary meet should enqueue");
       }
       {
-        const AiPopupRequest* q = &pop.queue[0];
+        const AiPopupRequest* q = &pop_menu.queue[0];
         int has_heresy = 0;
         int has_mission = 0;
         int has_incite = 0;
@@ -6569,8 +6862,8 @@ static int case_full_contact_scenario(void) {
       res.result_tag = AI_POPUP_TAG_CONTACT_MEET;
       res.result_nation_a = 0;
       res.result_nation_b = 4;
-      res.result_payload = pop.queue[0].payload;
-      ai_popup_clear(&pop);
+      res.result_payload = pop_menu.queue[0].payload;
+      ai_popup_clear(&pop_menu);
       st_menu[0] = '\0';
       ai_contact_apply_popup_result(&ctx, &res);
       if (mis->active) {
@@ -6595,16 +6888,16 @@ static int case_full_contact_scenario(void) {
       }
       mis2->nation_id = 0;
       mis2->profession = UNITS_JOB_NONE;
-      ai_popup_clear(&pop);
+      ai_popup_clear(&pop_menu);
       if (!ai_contact_try_village_meet_unit(&ctx, 0, 4, 1, 0, mis2_id)) {
         return fail("menu: missionary 2 meet should enqueue");
       }
-      if (pop.queue[0].choice_ids[0] != 7) {
+      if (pop_menu.queue[0].choice_ids[0] != 7) {
         return fail("menu: no mission → Establish Mission first row");
       }
       res.result_choice_id = 7;
-      res.result_payload = pop.queue[0].payload;
-      ai_popup_clear(&pop);
+      res.result_payload = pop_menu.queue[0].payload;
+      ai_popup_clear(&pop_menu);
       st_menu[0] = '\0';
       ai_contact_apply_popup_result(&ctx, &res);
       if (mis2->active || (col1.tribe[0].mission & 0x0f) != 0 || strstr(st_menu, "mission founded") == NULL) {
@@ -6649,14 +6942,14 @@ static int case_full_contact_scenario(void) {
           }
           hu->nation_id = 0;
           hu->profession = profs[k];
-          ai_popup_clear(&pop);
+          ai_popup_clear(&pop_menu);
           if (!ai_contact_try_village_meet_unit(&ctx, 0, 4, 1, 0, hid)) {
             ctx.rng = saved_rng;
             return fail("heresy quirk: missionary meet should enqueue");
           }
           res.result_choice_id = 8; /* AI_CONTACT_CHOICE_HERESY */
-          res.result_payload = pop.queue[0].payload;
-          ai_popup_clear(&pop);
+          res.result_payload = pop_menu.queue[0].payload;
+          ai_popup_clear(&pop_menu);
           st_menu[0] = '\0';
           ai_contact_apply_popup_result(&ctx, &res);
           if ((col1.tribe[0].mission & 0x0f) == 0) {
@@ -6689,6 +6982,10 @@ static int case_full_contact_scenario(void) {
       ctx.rng = saved_rng;
       col1.tribe[0].mission = 0xff;
     }
+  return 0;
+}
+
+static int sp_59(void) {
 
     /* Wagon: alarm < 75 → Trade With Village; alarm ≥ 75 → Enter Hostile Village. */
     {
@@ -6699,19 +6996,19 @@ static int case_full_contact_scenario(void) {
       }
       wag->nation_id = 0;
       wag->profession = UNITS_JOB_NONE;
-      ai_popup_clear(&pop);
+      ai_popup_clear(&pop_menu);
       if (!ai_contact_try_village_meet_unit(&ctx, 0, 4, 0, 0, wag_id)) {
         return fail("menu: wagon meet should enqueue");
       }
-      if (pop.queue[0].choice_count != 2 || pop.queue[0].choice_ids[0] != 1) {
+      if (pop_menu.queue[0].choice_count != 2 || pop_menu.queue[0].choice_ids[0] != 1) {
         return fail("menu: wagon rows should be Trade / Cancel");
       }
       ind->alarm_by_player[0] = 80;
-      ai_popup_clear(&pop);
+      ai_popup_clear(&pop_menu);
       if (!ai_contact_try_village_meet_unit(&ctx, 0, 4, 0, 0, wag_id)) {
         return fail("menu: hostile wagon meet should still enqueue (DOS shows @VILLAGEWAR)");
       }
-      if (pop.queue[0].choice_count != 2 || pop.queue[0].choice_ids[0] != 10) {
+      if (pop_menu.queue[0].choice_count != 2 || pop_menu.queue[0].choice_ids[0] != 10) {
         return fail("menu: hostile wagon rows should be Enter Hostile Village / Cancel");
       }
       ind->alarm_by_player[0] = 10;
@@ -6723,22 +7020,157 @@ static int case_full_contact_scenario(void) {
     ctx.status_size = 0;
     ctx.messages = NULL;
     assets_msg_free(&game_txt);
-  }
-
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
-  /* tribe[] was calloc'd by hand above and col1.owned stays 0, so
-   * col1_save_free() will not release it — free it here. */
-  free(col1.tribe);
-  col1.tribe = NULL;
-  col1_save_free(&col1);
   fprintf(stderr, "unit_ai_contact: ok (last_raid_kind=%d)\n", ai_contact_last_raid_kind());
-
   return 0;
 }
 
+typedef int (*SpineFn)(void);
+
+static const SpineFn k_spine[] = {
+  sp_00, sp_01, sp_02, sp_03, sp_04, sp_05, sp_06, sp_07,
+  sp_08, sp_09, sp_10, sp_11, sp_12, sp_13, sp_14, sp_15,
+  sp_16, sp_17, sp_18, sp_19, sp_20, sp_21, sp_22, sp_23,
+  sp_24, sp_25, sp_26, sp_27, sp_28, sp_29, sp_30, sp_31,
+  sp_32, sp_33, sp_34, sp_35, sp_36, sp_37, sp_38, sp_39,
+  sp_40, sp_41, sp_42, sp_43, sp_44, sp_45, sp_46, sp_47,
+  sp_48, sp_49, sp_50, sp_51, sp_52, sp_53, sp_54, sp_55,
+  sp_56, sp_57, sp_58, sp_59,
+};
+
+/* Replay the narrative spine up to (and including) one segment, then tear the
+ * fixture down. A failure in an earlier segment fails this case too — its own
+ * fail() diagnostic names the beat that broke. */
+static int fx_run(int upto) {
+  int rc = 0;
+  for (int i = 0; i <= upto; ++i) {
+    rc = k_spine[i]();
+    if (rc != 0) {
+      break;
+    }
+  }
+  fx_close();
+  return rc;
+}
+
+static int case_meet_first_contact(void) { return fx_run(1); }
+static int case_raid_colony_loot(void) { return fx_run(2); }
+static int case_raid_alarm_tail_war_gate(void) { return fx_run(3); }
+static int case_raid_repelled_limb(void) { return fx_run(4); }
+static int case_raid_gate_uniform_40(void) { return fx_run(5); }
+static int case_mission_expel_00f2(void) { return fx_run(6); }
+static int case_ambush_gear_seize(void) { return fx_run(7); }
+static int case_prelude_no_encroach_drift(void) { return fx_run(8); }
+static int case_passive_teach_none(void) { return fx_run(9); }
+static int case_gift_bands_large(void) { return fx_run(10); }
+static int case_gift_generous_capital(void) { return fx_run(11); }
+static int case_gift_refuse_first_meet_status(void) { return fx_run(12); }
+static int case_raid_multi_loot(void) { return fx_run(13); }
+static int case_raid_stores_arms(void) { return fx_run(14); }
+static int case_scout_not_harassed(void) { return fx_run(15); }
+static int case_alarmed_no_chrome_no_teach(void) { return fx_run(16); }
+static int case_raid_status_nothing_surprise_war(void) { return fx_run(17); }
+static int case_demand_arms(void) { return fx_run(18); }
+static int case_very_low_relation_no_gift(void) { return fx_run(19); }
+static int case_raid_target_pick_friction_war(void) { return fx_run(20); }
+static int case_prelude_clamp_only(void) { return fx_run(21); }
+static int case_raid_target_pick_tools_gold(void) { return fx_run(22); }
+static int case_raid_burn_arms(void) { return fx_run(23); }
+static int case_brave_escort_follow(void) { return fx_run(24); }
+static int case_raid_escalate_pocahontas(void) { return fx_run(25); }
+static int case_popup_welcome_accept(void) { return fx_run(26); }
+static int case_popup_ship_no_welcome(void) { return fx_run(27); }
+static int case_meet_choice_trade(void) { return fx_run(28); }
+static int case_meet_trade_flavor_goods(void) { return fx_run(29); }
+static int case_meet_trade_sea_wagon(void) { return fx_run(30); }
+static int case_meet_2820_gates_phases(void) { return fx_run(31); }
+static int case_meet_welcome_second_brave_shun(void) { return fx_run(32); }
+static int case_meet_mission_expel(void) { return fx_run(33); }
+static int case_meet_gift_choice_amount(void) { return fx_run(34); }
+static int case_meet_incite_choice(void) { return fx_run(35); }
+static int case_meet_demand_choice(void) { return fx_run(36); }
+static int case_meet_teach_payload_gate(void) { return fx_run(37); }
+static int case_meet_converts(void) { return fx_run(38); }
+static int case_village_enter_meet_choice(void) { return fx_run(39); }
+static int case_capital_destroy_surrender(void) { return fx_run(40); }
+static int case_attack_village_hostilities(void) { return fx_run(41); }
+static int case_ship_village_wary_band(void) { return fx_run(42); }
+static int case_woi_tribe_defection(void) { return fx_run(43); }
+static int case_village_beg_food(void) { return fx_run(44); }
+static int case_reparations_indiancity(void) { return fx_run(45); }
+static int case_reparations_indianwagons(void) { return fx_run(46); }
+static int case_village_gifts_givestuff_givefood(void) { return fx_run(47); }
+static int case_whackindians_and_euro_peer(void) { return fx_run(48); }
+static int case_incite_mode2_ai_missionary(void) { return fx_run(49); }
+static int case_wagon_buys_tribe_goods(void) { return fx_run(50); }
+static int case_village_bind_ds8d4a(void) { return fx_run(51); }
+static int case_buy0_trade0_haggle(void) { return fx_run(52); }
+static int case_actions_menu_scout(void) { return fx_run(53); }
+static int case_actions_menu_scout_arms(void) { return fx_run(54); }
+static int case_actions_menu_live_among(void) { return fx_run(55); }
+static int case_actions_menu_servant_teach(void) { return fx_run(56); }
+static int case_actions_menu_soldier_tribute(void) { return fx_run(57); }
+static int case_actions_menu_missionary(void) { return fx_run(58); }
+static int case_actions_menu_wagon(void) { return fx_run(59); }
+
 static const TestCase k_cases[] = {
-    {"case_full_contact_scenario", case_full_contact_scenario},
+  {"meet_first_contact", case_meet_first_contact},
+  {"raid_colony_loot", case_raid_colony_loot},
+  {"raid_alarm_tail_war_gate", case_raid_alarm_tail_war_gate},
+  {"raid_repelled_limb", case_raid_repelled_limb},
+  {"raid_gate_uniform_40", case_raid_gate_uniform_40},
+  {"mission_expel_00f2", case_mission_expel_00f2},
+  {"ambush_gear_seize", case_ambush_gear_seize},
+  {"prelude_no_encroach_drift", case_prelude_no_encroach_drift},
+  {"passive_teach_none", case_passive_teach_none},
+  {"gift_bands_large", case_gift_bands_large},
+  {"gift_generous_capital", case_gift_generous_capital},
+  {"gift_refuse_first_meet_status", case_gift_refuse_first_meet_status},
+  {"raid_multi_loot", case_raid_multi_loot},
+  {"raid_stores_arms", case_raid_stores_arms},
+  {"scout_not_harassed", case_scout_not_harassed},
+  {"alarmed_no_chrome_no_teach", case_alarmed_no_chrome_no_teach},
+  {"raid_status_nothing_surprise_war", case_raid_status_nothing_surprise_war},
+  {"demand_arms", case_demand_arms},
+  {"very_low_relation_no_gift", case_very_low_relation_no_gift},
+  {"raid_target_pick_friction_war", case_raid_target_pick_friction_war},
+  {"prelude_clamp_only", case_prelude_clamp_only},
+  {"raid_target_pick_tools_gold", case_raid_target_pick_tools_gold},
+  {"raid_burn_arms", case_raid_burn_arms},
+  {"brave_escort_follow", case_brave_escort_follow},
+  {"raid_escalate_pocahontas", case_raid_escalate_pocahontas},
+  {"popup_welcome_accept", case_popup_welcome_accept},
+  {"popup_ship_no_welcome", case_popup_ship_no_welcome},
+  {"meet_choice_trade", case_meet_choice_trade},
+  {"meet_trade_flavor_goods", case_meet_trade_flavor_goods},
+  {"meet_trade_sea_wagon", case_meet_trade_sea_wagon},
+  {"meet_2820_gates_phases", case_meet_2820_gates_phases},
+  {"meet_welcome_second_brave_shun", case_meet_welcome_second_brave_shun},
+  {"meet_mission_expel", case_meet_mission_expel},
+  {"meet_gift_choice_amount", case_meet_gift_choice_amount},
+  {"meet_incite_choice", case_meet_incite_choice},
+  {"meet_demand_choice", case_meet_demand_choice},
+  {"meet_teach_payload_gate", case_meet_teach_payload_gate},
+  {"meet_converts", case_meet_converts},
+  {"village_enter_meet_choice", case_village_enter_meet_choice},
+  {"capital_destroy_surrender", case_capital_destroy_surrender},
+  {"attack_village_hostilities", case_attack_village_hostilities},
+  {"ship_village_wary_band", case_ship_village_wary_band},
+  {"woi_tribe_defection", case_woi_tribe_defection},
+  {"village_beg_food", case_village_beg_food},
+  {"reparations_indiancity", case_reparations_indiancity},
+  {"reparations_indianwagons", case_reparations_indianwagons},
+  {"village_gifts_givestuff_givefood", case_village_gifts_givestuff_givefood},
+  {"whackindians_and_euro_peer", case_whackindians_and_euro_peer},
+  {"incite_mode2_ai_missionary", case_incite_mode2_ai_missionary},
+  {"wagon_buys_tribe_goods", case_wagon_buys_tribe_goods},
+  {"village_bind_ds8d4a", case_village_bind_ds8d4a},
+  {"buy0_trade0_haggle", case_buy0_trade0_haggle},
+  {"actions_menu_scout", case_actions_menu_scout},
+  {"actions_menu_scout_arms", case_actions_menu_scout_arms},
+  {"actions_menu_live_among", case_actions_menu_live_among},
+  {"actions_menu_servant_teach", case_actions_menu_servant_teach},
+  {"actions_menu_soldier_tribute", case_actions_menu_soldier_tribute},
+  {"actions_menu_missionary", case_actions_menu_missionary},
+  {"actions_menu_wagon", case_actions_menu_wagon},
 };
 TEST_MAIN(k_cases)

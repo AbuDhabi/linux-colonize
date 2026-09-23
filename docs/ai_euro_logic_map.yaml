@@ -70,7 +70,7 @@ graphs:
       - id: king_pre_beat
         kind: call
         label: REF pre-beat — wave spawn + war bookkeeping
-        fn: ai_king.c:ai_king_ref_pre_euro_beat
+        fn: ai_king_war.c:ai_king_ref_pre_euro_beat
         dos: FUN_43f7_* king beat (00f2→2424→2022), pure spawner
         status: dos
         note: D1 closed 2026-09-07g — crown slot then runs the full Euro turn like any AI nation.
@@ -96,7 +96,7 @@ graphs:
       - id: frigate
         kind: call
         label: "@KINGFRIGATE offer auto-accept"
-        fn: ai_king.c:ai_king_frigate_offer
+        fn: ai_king_offers.c:ai_king_frigate_offer
         dos: FUN_3844_00f2 tail
         status: dos
       - id: has_map
@@ -623,7 +623,7 @@ graphs:
       - id: mow_home
         kind: decision
         label: WoI crown Man-O-War → sail home once pool spent?
-        fn: ai_king.c:ai_king_mow_sail_home_20e6
+        fn: ai_king_war.c:ai_king_mow_sail_home_20e6
         dos: 20e6 ship-band tail raw 89717-89720 + FUN_48d3_015e
         status: dos
       - id: gate_q
@@ -752,7 +752,7 @@ graphs:
       - id: ambush
         kind: step
         label: Ship-slow — every ship step next to a foreign warship / Fort / Fortress may lose MP (inside units_try_move)
-        fn: units.c:units_ship_slow_scan
+        fn: units_combat_resolve.c:units_ship_slow_scan_w
         dos: FUN_5bfb_3180 naval half (98519-98624)
         status: dos
       - id: end
@@ -953,7 +953,7 @@ graphs:
       - id: lcr
         kind: decision
         label: Standing on a Lost City Rumour?
-        fn: units.c:units_resolve_lcr_rumour_w
+        fn: units_combat.c:units_resolve_lcr_rumour_w
         dos: FUN_65dd_0004
         status: dos
       - id: war_hunt

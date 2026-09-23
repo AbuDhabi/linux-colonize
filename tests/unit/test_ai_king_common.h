@@ -55,6 +55,7 @@
  */
 #include "../common/test_catalogs.h"
 #include "core/ai_king.h"
+#include "core/ai_king_internal.h"
 #include "core/ai_diplo.h"
 #include "core/assets.h"
 #include "core/colony.h"
