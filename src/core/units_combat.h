@@ -7,16 +7,6 @@
 /* Combat, promotion, dissolve, capture: split out of units.h for navigability. */
 
 /*
- * Apply pending treasure ransom CHOICE (AI_POPUP_TAG_COMBAT_RANSOM).
- * Accept (choice_id==1) credits payload gold to nation_a; Refuse credits 0.
- * Returns true if the tag was handled.
- */
-bool units_combat_apply_ransom_popup(
-  ColonizeCol1Save* col1,
-  const AiPopupState* popups
-);
-
-/*
  * Human-facing colony capture / burn GAME.TXT OKs (@CAPTURED* / @BURNED*).
  * plunder_gold: known cargo sum or 0 (uses CAPTURED3 / CAPTURED2 when 0).
  */

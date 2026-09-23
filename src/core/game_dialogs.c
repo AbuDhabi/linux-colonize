@@ -2415,13 +2415,6 @@ static bool game_apply_popup_combat_and_gifts(ColonizeGameState* game) {
     game_after_unit_action(game);
   return true;
   }
-  if (game->ai_popups.result_tag == AI_POPUP_TAG_COMBAT_RANSOM) {
-    if (game->col1_ok) {
-      (void)units_combat_apply_ransom_popup(&game->col1, &game->ai_popups);
-    }
-    ai_popup_consume_result(&game->ai_popups);
-  return true;
-  }
   if (game->ai_popups.result_tag == AI_POPUP_TAG_BREWSTER_PICK) {
     (void)units_brewster_apply_popup_ex_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(game->units_ok ? &game->units : NULL), .rng=(ColonizeDosRng*)(&game->move_rng), .europe=(EuropeScreen*)(game->europe_ok ? &game->europe : NULL)}, &game->ai_popups);
     ai_popup_consume_result(&game->ai_popups);

@@ -23,6 +23,7 @@ professions from `@JOB` (profession byte = row). Identify by row, never by name.
 | 2026-09-22 | Fisherman / Expert Fisherman | #579-609, #554 | all fixed |
 | 2026-09-22 | Pioneer / Hardy Pioneer (all fitted forms, AI arms) | #610-644 | 33 fixed, #625 refuted (user: one Clear = open land), #644 lead open |
 | 2026-09-22 | Dragoons / Veteran Dragoon / Continental Cavalry (props, combat, promote/demote, equip, AI) | #645-659 | 12 fixed, #652 refuted, #658 record-only, #659 lead (non-dragoon) |
+| 2026-09-22 | REF Regulars / Cavalry (props, peels, outcomes, 0982 spawn/landing, crown-turn arms, display, save) | #660-665 | 5 fixed, #665 record-only; landing-MP claim refuted (+0x3149 = spent byte) |
 
 Open carry-over: #530 (AI first-colony opening scaffolding) came out of the Vet
 Soldier audit and is still OPEN.
@@ -34,8 +35,6 @@ Partly covered by earlier audits is noted; still needs its own pass.
 | Row | Type | Notes |
 |-----|------|-------|
 | 0 | Colonists (Free Colonist) | touched by Farmer/Fisherman/Servant audits |
-| 6 | Regulars (REF) | WoI batches touched it |
-| 8 | Cavalry (REF) | |
 | 9 | Continental Army | promotion/mobilization (#504) touched |
 | 10 | Treasure | Cibola/burn paths touched by Scout audit, #549 |
 | 11 | Artillery / Damaged Artillery | |

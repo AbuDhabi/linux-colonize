@@ -514,8 +514,6 @@ static const char* ai_popup_tag_name(AiPopupTag tag) {
       return "COMBAT_DEMOTE";
     case AI_POPUP_TAG_COMBAT_AMBUSH:
       return "COMBAT_AMBUSH";
-    case AI_POPUP_TAG_COMBAT_RANSOM:
-      return "COMBAT_RANSOM";
     case AI_POPUP_TAG_COMBAT_COLONY:
       return "COMBAT_COLONY";
     case AI_POPUP_TAG_COMBAT_SEIZURE:

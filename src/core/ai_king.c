@@ -2754,11 +2754,9 @@ COLONIZE_INTERNAL void ai_king_0982_land_troops(
   if (need < 3) {
     need = 3;
   }
-  /* bugs.md: one Man-O-War carries 6 units — that is the most the
-   * REF can put ashore against one colony in a turn. */
-  if (need > 6) {
-    need = 6;
-  }
+  /* bugs.md #661: no per-wave hold cap in DOS. FUN_43f7_0982 clamps `need`
+   * only to DS:0x5333 (31, raw 74091-74094) and floors it at 3 (raw
+   * 74162-74164); the MoW hold column is never read. */
   int used_d = 0;
   int used_a = 0;
   /* Candidate land tiles around the ship, weakest stack first. */
