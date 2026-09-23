@@ -200,7 +200,8 @@ typedef struct EuropeHarborShip {
   int cargo_professions[EUROPE_SHIP_CARGO_MAX]; /* @JOB per passenger */
   /*
    * Per-passenger Treasure gold for Europe cash-in (0 = unknown / not treasure).
-   * Source: COL1 Treasure unit hold_goods_amount[0..1] LE16 gold, captured by
+   * Source: the DOS unit value byte `+0x315b` = COL1 `profession` = gold/100
+   * (units_treasure_value_gold), captured by
    * game_loop.c's game_europe_capture_pax_treasure_gold and filled onto the
    * newest Expected slot by game_europe_fill_expected_treasure_gold on both
    * H/sail-to-Europe and Return-to-Europe paths (2026-08 — stale "does not
@@ -908,6 +909,17 @@ void europe_nation_gold_add(
  * ever credited for that AI's own nation, never for the human.
  */
 void europe_set_live_screen(EuropeScreen* eu);
+
+/*
+ * Register the live save and the popup queue for the two things
+ * europe_cash_treasure does that `eu` alone cannot: book the Crown's fee on
+ * nation+0x22 (and the +0x26 counter) and raise @LOOTCASH as a modal, exactly
+ * as FUN_48d3_06ba raw 78005-78021 does. Pass NULL to unregister; with NULL
+ * the cash-in degrades to the purse alone and shows only the status line.
+ */
+void europe_set_live_save(struct ColonizeCol1Save* col1);
+struct AiPopupState;
+void europe_set_popup_queue(struct AiPopupState* popups);
 
 /*
  * Stamp the bound nation's record from the purse.

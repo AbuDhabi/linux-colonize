@@ -2329,7 +2329,7 @@ int main(void) {
       }
       const ColonizeUnitType* tt = units_type(&upool, u->type_index);
       if (tt && strcmp(tt->name, "Treasure") == 0) {
-        gold = u->hold_goods_amount[0] | (u->hold_goods_amount[1] << 8);
+        gold = units_treasure_value_gold(u);
         break;
       }
     }

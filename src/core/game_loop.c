@@ -1269,12 +1269,16 @@ static void game_apply_cheat_create_unit(ColonizeGameState* game, int id) {
   if (id == 7) {
     /* Treasure: no @HOWMUCH gold prompt in @CREATE — debug default amount. */
     const int uid =
-      units_spawn_treasure_train(&game->units, x, y, owner, 1000);
+      /* DOS-LITERAL: the @CREATE cheat just calls FUN_281f_095c(type,owner)
+       * and FUN_1427_06b4 raw 7744-7751 leaves +0x315b at its 0x1c default
+       * for a cargo-0 type, which both value readers show as 2800 gold. No
+       * gold prompt exists in @CREATE. */
+      units_spawn_treasure_train(&game->units, x, y, owner, UNITS_JOB_NONE * 100);
     if (uid < 0) {
       set_status(game, "Cannot create unit here", NULL);
       return;
     }
-    set_status(game, "Created", "treasure 1000");
+    set_status(game, "Created", "treasure");
     return;
   }
   const int kind = game_cheat_create_kind(game, id);
@@ -4849,6 +4853,8 @@ static void game_create_load_screens(ColonizeGameState* game) {
      * plunder, combat ransom/loot — reach the human's live purse through this
      * registration (europe_set_live_screen). */
     europe_set_live_screen(&game->europe);
+    europe_set_live_save(game->col1_ok ? &game->col1 : NULL);
+    europe_set_popup_queue(&game->ai_popups);
     /* Bound AFTER europe_load: its memset wipes both handles (bugs.md #545).
      * @CMESSAGE wording for the Europe sale status line (bugs.md #376);
      * GAME.TXT for statuses europe.c composes itself (@KISSSORRY etc). */
@@ -4941,6 +4947,8 @@ void game_destroy(ColonizeGameState* game) {
   /* Unregister before the screen dies (audit G3) — same register-once idiom
    * as the units_set_* watches above. */
   europe_set_live_screen(NULL);
+  europe_set_live_save(NULL);
+  europe_set_popup_queue(NULL);
   europe_free(&game->europe);
   colony_screen_free(&game->colony_screen);
   reports_free(&game->reports);
@@ -6308,6 +6316,7 @@ bool game_try_unit_move(ColonizeGameState* game, int dest_x, int dest_y) {
   /* FF + native settlement fallout for human combat (same as turn_refresh). */
   units_set_ff_col1(game->col1_ok ? &game->col1 : NULL);
       colonies_set_col1_context(game->col1_ok ? &game->col1 : NULL);
+      europe_set_live_save(game->col1_ok ? &game->col1 : NULL);
   units_set_combat_human_nation(game->human_nation);
   units_set_combat_popups(&game->ai_popups, &game->messages);
   units_set_combat_europe(&game->europe);
@@ -6358,16 +6367,14 @@ bool game_try_unit_move(ColonizeGameState* game, int dest_x, int dest_y) {
    * FUN_465b_0000 tail (viceroy_unpacked.c ~75800): a Treasure Train (type
    * 0xa) of a human-controlled nation entering a colony tile whose record
    * has the coastal bit (+0x1c & 0x40) fires FUN_5fef_1908 — the King's
-   * Galleon offer — IMMEDIATELY, not at end of turn (bugs.md). The EOT
-   * sweep in turn.c stays as a catch-all; the queued-offer dedupe in
-   * units_king_galleon_offer_coastal_treasures prevents doubling.
+   * Galleon offer — for the unit that just moved, and nowhere else: this
+   * is DOS's only trigger (the end-of-turn sweep turn.c used to run was a
+   * port invention). All remaining gates live in the callee.
    */
   if (game->col1_ok && selected->active && selected->nation_id == game->human_nation &&
       units_type_is_treasure(units_type(&game->units, selected->type_index))) {
-    const int cid = colonies_id_at(&game->colonies, selected->x, selected->y);
-    const ColonizeColony* col = colonies_get(&game->colonies, cid);
-    if (col && col->active && col->nation_id == selected->nation_id) {
-      (void)units_king_galleon_offer_coastal_treasures_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&game->units), .colonies=(ColonizeColonyPool*)(&game->colonies), .map=(ColonizeWorldMap*)(&game->world_map), .col1=(ColonizeCol1Save*)(&game->col1), .col1_ok=true, .europe=(EuropeScreen*)(game->europe_ok ? &game->europe : NULL)}, selected->nation_id, &game->ai_popups, &game->messages);
+    {
+      (void)units_king_galleon_offer_for_unit_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&game->units), .colonies=(ColonizeColonyPool*)(&game->colonies), .map=(ColonizeWorldMap*)(&game->world_map), .col1=(ColonizeCol1Save*)(&game->col1), .col1_ok=true, .europe=(EuropeScreen*)(game->europe_ok ? &game->europe : NULL)}, selected->nation_id, selected->id, &game->ai_popups, &game->messages);
     }
   }
   snprintf(game->status, sizeof(game->status), "Moved unit to (%d,%d)", dest_x, dest_y);
@@ -8309,13 +8316,13 @@ static void game_europe_capture_pax_professions(
 }
 
 /*
- * COL1 Treasure gold: delegated to units_treasure_value_gold (mirror LE16 in
- * hold_goods_amount[0..1] when set, else COL1 profession byte * 100).
+ * COL1 Treasure gold: delegated to units_treasure_value_gold (DOS +0x315b =
+ * COL1 `profession` byte * 100 — the only representation).
  * Cite: Colonization.pdf Treasure Trains; europe.h cargo_treasure_gold;
  * GAME.TXT @LOOTCASH. Non-Treasure passengers keep 0 (goods holds are not gold).
  *
  * Manual verify (smoke_game_flow stays title-only; no CMake smoke hook here):
- * board Treasure with LE16 in hold_goods_amount[0..1], H / Return to Europe on
+ * board Treasure carrying its value in the DOS +0x315b byte, H / Return to Europe on
  * high seas → Expected.cargo_treasure_gold set → tick to Harbor → cash-in.
  * unit_europe covers cash when cargo_treasure_gold is already set.
  */
@@ -8373,7 +8380,7 @@ static void game_europe_fill_expected_treasure_gold(
   }
 }
 
-/* Lane-full restore: put LE16 back onto respawned Treasure passengers. */
+/* Lane-full restore: put the value byte back onto respawned Treasure passengers. */
 static void game_europe_restore_pax_treasure_gold(
   ColonizeUnitPool* units,
   int ship_id,
@@ -8399,8 +8406,9 @@ static void game_europe_restore_pax_treasure_gold(
     if (!units_type_is_treasure(ut)) {
       continue;
     }
-    pax->hold_goods_amount[0] = treasure_gold[i] & 0xff;
-    pax->hold_goods_amount[1] = (treasure_gold[i] >> 8) & 0xff;
+    /* DOS +0x315b = gold/100 (see units_treasure_value_gold); the old LE16
+     * hold_goods_amount mirror is gone. */
+    pax->profession = treasure_gold[i] / 100 > 255 ? 255 : treasure_gold[i] / 100;
   }
 }
 

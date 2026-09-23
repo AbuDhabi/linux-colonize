@@ -97,23 +97,45 @@ static inline int ai_relation_quartile(int v) {
  * FUN_43f7_0108's 0x0b mask. Also listed by the foreign-affairs report
  * (string 0x42).
  *
- * 2026-09-09 collision reconciled (smell #99). The Treasure-Train
- * "stronger rival" follow-up was carried as a Linux-only stand-in named
- * `AI_DIPLO_TREASURE_STRONGER`, and the name implied a second, invented
- * owner of the same bit. **REFUTED — the write is DOS's own.** The real
- * writer is not `FUN_4720_049e` (the old citation, chased down and found
- * wrong) but `FUN_465b_0000` (viceroy_unpacked.c:75527-75545): with the
- * acting unit a Treasure (`+0x3146 == 0x10`) it does
+ * 2026-09-09 collision reconciled (smell #99), citation corrected again
+ * 2026-09-23 (bugs.md #747). The follow-up bits were once carried as a
+ * Linux-only `AI_DIPLO_TREASURE_STRONGER` stand-in; **REFUTED — the write is
+ * DOS's own.** The writer is `FUN_465b_0000` (viceroy_unpacked.c:75527-75545),
+ * and the acting unit is a **Privateer** (`+0x3146 == 0x10` = @UNIT row 16;
+ * the earlier note here read that constant as "a Treasure", which was wrong —
+ * a Treasure Train is `'\n'` = 0x0a). The band fires when a European's
+ * Privateer moves onto a tile held by another European whose unit there is
+ * not itself a Privateer, and does
  * `nation[target].euro_relation[actor] |= 0x80`, then on
  * `rng(0,100) < difficulty+1` compares `land_combat_strength` (`-0x6be4`)
  * and ORs **`2` when the target is weaker, `8` when it is not** — the same
  * literal 0x08 the 153e tail sets. So DOS itself writes this bit from two
  * sites into one latch with one consumer; there is no double-booking to
  * split. Renamed `AI_DIPLO_AMICABLE` to stop the name asserting otherwise.
+ *
+ * The bit's only consumer is ai_diplo.c's @PIRACY talk stage, which reads it
+ * next to `unit_type_counts[h][16]` — the speaker's Privateer count — which
+ * is what pinned the type constant.
  */
-#define AI_DIPLO_TREASURE_ALERT 0x80
-/* DOS bit 0x08: amicable-negotiation latch (153e tail + 465b treasure arm). */
+/* DOS bit 0x80: "your Privateer was seen" — FUN_465b_0000 raw 75527-75545. */
+#define AI_DIPLO_PRIVATEER_SIGHTED 0x80
+
+/* DOS bit 0x08: amicable-negotiation latch (153e tail + 465b Privateer arm). */
 #define AI_DIPLO_AMICABLE 0x08
+
+/*
+ * FUN_465b_0000 raw 75527-75545 — the Privateer-sighting relation bit above.
+ * Defined in ai_diplo.c (so SLIM test targets link) and called
+ * from the shared move handler when a mover enters a tile held by a
+ * differently-owned unit, before the attack resolves.
+ */
+void ai_euro_465b_privateer_sighting(
+  ColonizeCol1Save* col1,
+  const ColonizeUnitPool* units,
+  ColonizeDosRng* rng,
+  int mover_id,
+  int occupant_id
+);
 
 
 /*

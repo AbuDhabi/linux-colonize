@@ -23,8 +23,8 @@ bool units_resolve_lcr_rumour_w(
 
 
 /*
- * Spawn a Treasure Train at (x,y) for nation_id with COL1 LE16 gold in
- * hold_goods_amount[0]=lo / [1]=hi (same bridge as game_loop / ai_euro cash).
+ * Spawn a Treasure Train at (x,y) for nation_id, value stored DOS-style in
+ * the `profession` byte (DOS unit +0x315b) as gold/100.
  * Cite: Colonization.pdf Treasure Trains; NAMES "Treasure"; decomp
  * FUN_5fef_31ea post-win native fallout (callers supply gold — no invented
  * rate here). Uses allow_stack (conquest tile may hold the winner).
@@ -96,16 +96,11 @@ int units_tick_drydock_repair(
 int units_king_galleon_share_pct(const ColonizeCol1Save* col1, int nation_id);
 
 /*
- * Gold a Treasure unit is worth. Two representations coexist and this is the
- * single reader for both:
- *   - port-spawned (units_spawn_treasure_train): full gold as an LE16 mirror
- *     in hold_goods_amount[0..1]; wins when set;
- *   - bridged from a COL1 save: DOS unit +0x315b = record +0x17 (`profession`)
- *     = gold/100 — FUN_48d3_06ba (viceroy_unpacked.c:77985) and
- *     FUN_521d_20e6's treasure band both read it that way, and col1_bridge
- *     fills hold_goods_amount only for sea/wagon hulls, so this byte is all a
- *     save-loaded Treasure carries.
- * 0 when neither is set. See the definition for the one 2800-gold blind spot.
+ * Gold a Treasure unit is worth: DOS-LITERAL `*(byte *)(unit + 0x315b) * 100`
+ * — COL1 record +0x17 (`profession`), written by every spawn site as gold/100
+ * (FUN_65dd_0004 raw 103543/103686, FUN_5fef_31ea raw 101489) and read that
+ * way by FUN_48d3_06ba raw 77986 and FUN_521d_20e6. There is only this one
+ * representation (bugs.md #736 retired the port's LE16 hold mirror).
  */
 int units_treasure_value_gold(const ColonizeUnit* treasure);
 
@@ -127,18 +122,21 @@ int units_ai_treasure_cash_in_colony(
 );
 
 /*
- * FUN_465b_0000 trigger + FUN_5fef_1908 body, human nation only (DOS gates on
- * DS:0x543f == 0): each own Treasure standing on an own coastal colony tile.
- * WoI declared → cash full value at once (@CASHTREASURE). Else, if the nation
- * owns a Galleon and lacks Cortes → no offer (it can ship it itself). Else
- * enqueue the @KINGGALLEON3 (Cortes) / @KINGGALLEON2 CHOICE with payload =
- * treasure unit id; the apply step below does the cash. Returns the number
- * of treasures cashed or offered. DOS runs this on the move onto the tile;
- * Linux runs it at human turn end (same place the Cortes auto-cash lived).
+ * FUN_465b_0000 raw 75800-75815 (the only trigger) + FUN_5fef_1908 body, for
+ * the single Treasure that just completed a move onto a Euro colony tile.
+ * Human nation only (DOS gates on DS:0x543f == 0). Gates, in DOS order: the
+ * colony is the nation's own, the nation owns a Galleon and lacks Cortes
+ * pre-WoI -> no offer, colony record +0x1c & 0x40 COASTAL. WoI declared ->
+ * cash full value at once (@CASHTREASURE); else enqueue the @KINGGALLEON3
+ * (Cortes) / @KINGGALLEON2 CHOICE with payload = treasure unit id and the
+ * apply step below does the cash. Returns 1 when offered/cashed, else 0.
+ * There is no end-of-turn sweep in DOS: a parked or refused Treasure is
+ * asked again only when it moves in again.
  */
-int units_king_galleon_offer_coastal_treasures_w(
+int units_king_galleon_offer_for_unit_w(
   const ColonizeWorld* w,
   int nation_id,
+  int treasure_id,
   AiPopupState* popups,
   const ColonizeMsgCatalog* game_txt
 );

@@ -2667,6 +2667,7 @@ static bool game_apply_popup_village_attack(ColonizeGameState* game) {
       ai_contact_village_open_hostilities(&ctx, indian_nation, u->nation_id);
       units_set_ff_col1(game->col1_ok ? &game->col1 : NULL);
       colonies_set_col1_context(game->col1_ok ? &game->col1 : NULL);
+      europe_set_live_save(game->col1_ok ? &game->col1 : NULL);
       units_set_combat_human_nation(game->human_nation);
       units_set_combat_popups(&game->ai_popups, &game->messages);
       units_set_combat_europe(&game->europe);

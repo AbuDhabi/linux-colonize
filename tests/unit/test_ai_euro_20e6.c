@@ -1803,6 +1803,15 @@ static int unit_treasure_outside_colony_not_cashed(void) {
     fixture_free(&f);
     return fail("no treasury credit until the Treasure reaches a colony");
   }
+  /* arm 2 (raw 90016-90017): nearest own colony on this landmass -> goto it.
+   * Wired live 2026-09-23 (bugs.md #745); it used to be a documented no-op
+   * with ai_euro_treasure_coast_target moving the unit instead. */
+  if (!units_orders_follow_goto(t->orders) || t->goto_x != 4 || t->goto_y != 4) {
+    fprintf(stderr, "treasure orders=%d goto=(%d,%d) pos=(%d,%d)\n",
+            t->orders, t->goto_x, t->goto_y, t->x, t->y);
+    fixture_free(&f);
+    return fail("expected LAB_4701 bind + goto the nearest own colony (4,4)");
+  }
   fixture_free(&f);
   return 0;
 }

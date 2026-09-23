@@ -2283,6 +2283,9 @@ static int unit_king_galleon_offer(void) {
     assets_msg_free(&names);
     return 1;
   }
+  /* DOS reads the colony record's COASTAL bit (+0x1c & 0x40), not the map;
+   * the 8x8 fixture has no open-sea region so stamp it as a real save would. */
+  colonies_get_mut(&colonies, cid)->colony_flags |= COLONIZE_COLONY_FLAG_COASTAL;
   ColonizeCol1Save c1;
   memset(&c1, 0, sizeof(c1));
   c1.player[0].control = 0;
@@ -2314,13 +2317,16 @@ static int unit_king_galleon_offer(void) {
   const int tid = units_spawn_allow_stack(&pool, treasure_ti, cx, cy);
   ColonizeUnit* t = units_get(&pool, tid);
   t->nation_id = 0;
-  t->hold_goods_amount[0] = 1000 & 0xff;
-  t->hold_goods_amount[1] = (1000 >> 8) & 0xff;
+  t->profession = 10; /* DOS +0x315b = gold/100 → 1000 */
+  if (units_treasure_value_gold(t) != 1000) {
+    fprintf(stderr, "galleon: value want 1000 got %d\n", units_treasure_value_gold(t));
+    goto fail;
+  }
 
   /* Owning a Galleon without Cortes → no offer. */
   const int gid = units_spawn_allow_stack(&pool, galleon_ti, 0, 3);
   units_get(&pool, gid)->nation_id = 0;
-  if (units_king_galleon_offer_coastal_treasures_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(&colonies), .map=(ColonizeWorldMap*)(&map), .col1=(ColonizeCol1Save*)(&c1), .col1_ok=true, .europe=(EuropeScreen*)(NULL)}, 0, &pops, NULL) != 0 ||
+  if (units_king_galleon_offer_for_unit_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(&colonies), .map=(ColonizeWorldMap*)(&map), .col1=(ColonizeCol1Save*)(&c1), .col1_ok=true, .europe=(EuropeScreen*)(NULL)}, 0, tid, &pops, NULL) != 0 ||
       pops.queue_count != 0) {
     fprintf(stderr, "galleon: own Galleon should suppress the offer\n");
     goto fail;
@@ -2328,14 +2334,14 @@ static int unit_king_galleon_offer(void) {
   units_despawn(&pool, gid);
 
   /* Offer enqueued; Refuse leaves the Treasure. */
-  if (units_king_galleon_offer_coastal_treasures_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(&colonies), .map=(ColonizeWorldMap*)(&map), .col1=(ColonizeCol1Save*)(&c1), .col1_ok=true, .europe=(EuropeScreen*)(NULL)}, 0, &pops, NULL) != 1 ||
+  if (units_king_galleon_offer_for_unit_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(&colonies), .map=(ColonizeWorldMap*)(&map), .col1=(ColonizeCol1Save*)(&c1), .col1_ok=true, .europe=(EuropeScreen*)(NULL)}, 0, tid, &pops, NULL) != 1 ||
       pops.queue_count != 1 || pops.queue[0].tag != AI_POPUP_TAG_KING_GALLEON ||
       pops.queue[0].payload != tid) {
     fprintf(stderr, "galleon: KINGGALLEON2 CHOICE not enqueued\n");
     goto fail;
   }
   /* Re-running while queued must not stack a duplicate. */
-  (void)units_king_galleon_offer_coastal_treasures_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(&colonies), .map=(ColonizeWorldMap*)(&map), .col1=(ColonizeCol1Save*)(&c1), .col1_ok=true, .europe=(EuropeScreen*)(NULL)}, 0, &pops, NULL);
+  (void)units_king_galleon_offer_for_unit_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(&colonies), .map=(ColonizeWorldMap*)(&map), .col1=(ColonizeCol1Save*)(&c1), .col1_ok=true, .europe=(EuropeScreen*)(NULL)}, 0, tid, &pops, NULL);
   if (pops.queue_count != 1) {
     fprintf(stderr, "galleon: duplicate offer queued\n");
     goto fail;
@@ -2373,10 +2379,9 @@ static int unit_king_galleon_offer(void) {
   c1.head.game_options.woi = 1;
   const int tid2 = units_spawn_allow_stack(&pool, treasure_ti, cx, cy);
   units_get(&pool, tid2)->nation_id = 0;
-  units_get(&pool, tid2)->hold_goods_amount[0] = 200 & 0xff;
-  units_get(&pool, tid2)->hold_goods_amount[1] = 0;
+  units_get(&pool, tid2)->profession = 2; /* 200 gold */
   ai_popup_clear(&pops);
-  if (units_king_galleon_offer_coastal_treasures_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(&colonies), .map=(ColonizeWorldMap*)(&map), .col1=(ColonizeCol1Save*)(&c1), .col1_ok=true, .europe=(EuropeScreen*)(NULL)}, 0, &pops, NULL) != 1 ||
+  if (units_king_galleon_offer_for_unit_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(&colonies), .map=(ColonizeWorldMap*)(&map), .col1=(ColonizeCol1Save*)(&c1), .col1_ok=true, .europe=(EuropeScreen*)(NULL)}, 0, tid2, &pops, NULL) != 1 ||
       c1.nation[0].gold != 700 || c1.nation[0].royal_money != 600) {
     fprintf(stderr, "galleon: WoI should cash full value at once (gold %u)\n", c1.nation[0].gold);
     goto fail;
@@ -7270,28 +7275,32 @@ int main(void) {
     }
   }
 
-  /* Treasure train spawn: NAMES "Treasure" + COL1 LE16 gold in hold[0..1]. */
+  /* Treasure train spawn: value lives in DOS +0x315b (profession) = gold/100
+   * (bugs.md #736); no LE16 hold mirror any more. */
   {
-    const int tid = units_spawn_treasure_train(&pool, 3, 3, 2, 0x1234);
+    const int tid = units_spawn_treasure_train(&pool, 3, 3, 2, 3400);
     if (tid < 0) {
       fprintf(stderr, "spawn_treasure_train failed\n");
       return 1;
     }
-    const ColonizeUnit* tr = units_get_const(&pool, tid);
+    ColonizeUnit* tr = units_get(&pool, tid);
     const ColonizeUnitType* tt = tr ? units_type(&pool, tr->type_index) : NULL;
     if (!tr || !tr->active || !tt || strcmp(tt->name, "Treasure") != 0) {
       fprintf(stderr, "spawn_treasure_train type/active mismatch\n");
       return 1;
     }
-    if (tr->nation_id != 2 || tr->hold_goods_amount[0] != 0x34 ||
-        tr->hold_goods_amount[1] != 0x12) {
+    if (tr->nation_id != 2 || tr->profession != 34) {
       fprintf(
-        stderr,
-        "spawn_treasure_train nation/gold LE16 got nation=%d lo=%d hi=%d\n",
-        tr->nation_id,
-        tr->hold_goods_amount[0],
-        tr->hold_goods_amount[1]
+        stderr, "spawn_treasure_train nation/profession got %d/%d\n", tr->nation_id, tr->profession
       );
+      return 1;
+    }
+    /* The value must survive with the (retired) hold mirror cleared — that is
+     * exactly what a save round trip hands back. */
+    tr->hold_goods_amount[0] = 0;
+    tr->hold_goods_amount[1] = 0;
+    if (units_treasure_value_gold(tr) != 3400) {
+      fprintf(stderr, "treasure value want 3400 got %d\n", units_treasure_value_gold(tr));
       return 1;
     }
     if (units_spawn_treasure_train(&pool, 4, 4, 0, -1) >= 0) {
@@ -7502,7 +7511,7 @@ int main(void) {
       if (u->x == 10 && u->y == 10) {
         const ColonizeUnitType* tt = units_type(&pool, u->type_index);
         if (tt && strcmp(tt->name, "Treasure") == 0) {
-          peel_gold = u->hold_goods_amount[0] | (u->hold_goods_amount[1] << 8);
+          peel_gold = units_treasure_value_gold(u);
           break;
         }
       }
@@ -7588,10 +7597,10 @@ int main(void) {
       const ColonizeUnitType* tt = units_type(&pool, u->type_index);
       if (tt && strcmp(tt->name, "Treasure") == 0) {
         treasure_id = u->id;
-        if (u->hold_goods_amount[0] != (500 & 0xff) || u->hold_goods_amount[1] != ((500 >> 8) & 0xff)) {
+        if (units_treasure_value_gold(u) != 500) {
           free(tmap.layer3);
           free(col1.tribe);
-          fprintf(stderr, "Cortes treasure LE16 mismatch\n");
+          fprintf(stderr, "Cortes treasure value mismatch (want 500)\n");
           return 1;
         }
         break;
@@ -7652,7 +7661,7 @@ int main(void) {
       }
       const ColonizeUnitType* tt = units_type(&pool, u->type_index);
       if (tt && strcmp(tt->name, "Treasure") == 0) {
-        nc_gold = u->hold_goods_amount[0] | (u->hold_goods_amount[1] << 8);
+        nc_gold = units_treasure_value_gold(u);
         nc_id = u->id;
         break;
       }
@@ -11075,8 +11084,7 @@ int main(void) {
       ColonizeUnit* d = units_get(&pool, did);
       a->nation_id = 0;
       d->nation_id = 1;
-      d->hold_goods_amount[0] = 100 & 0xff;
-      d->hold_goods_amount[1] = 0;
+      d->profession = 1; /* DOS +0x315b = gold/100 -> 100 */
       pool.types[sol].attack = 8;
       pool.types[use_ti].defense = 1;
       if (!units_resolve_land_combat_ff_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .col1=(ColonizeCol1Save*)(&c1), .col1_ok=true, .rng=(ColonizeDosRng*)(NULL)}, aid, did)) {

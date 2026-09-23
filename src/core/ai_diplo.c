@@ -2111,7 +2111,7 @@ static AiTalkStepStatus ai_talk_stage_piracy(
 ) {
   ColonizeCol1Save* col1 = ctx->col1;
   k->stage = AI_TALK_ST_SIEGES;
-  const int alert = (ai_diplo_read(col1, t, h) & AI_DIPLO_TREASURE_ALERT) != 0;
+  const int alert = (ai_diplo_read(col1, t, h) & AI_DIPLO_PRIVATEER_SIGHTED) != 0;
   if (alert && !k->crown_armed && col1->stuff.unit_type_counts[h][16] != 0) {
     static const char* const lab[2] = {"", ""};
     ai_talk_choice(ctx, "PIRACY", tok, "", lab, 2, AI_TALK_ST_PIRACY);
@@ -3680,4 +3680,81 @@ void ai_diplo_apply_popup_result(ColonizeTurnContext* ctx, const AiPopupState* p
   }
   /* DIPLO_BREAK arrives only as the 13b0 treaty-cancel OK (choice_id 0) —
    * no action on dismiss. */
+}
+
+/* Lives here (not ai_euro.c) so the SLIM unit targets that compile ai_diplo.c
+ * without ai_euro.c still link units.c's 465b move hook. */
+/*
+ * DOS-LITERAL FUN_465b_0000 raw 75527-75545 — the Privateer-sighting relation
+ * bit.
+ *
+ * Re-verified 2026-09-23 (bugs.md #747). The old reading ("a Treasure Train
+ * ending its move next to a foreigner") was a misread of the type constant:
+ * the band is
+ *
+ *   if ((int)local_4 < 4) {                                  // tile owner is Euro
+ *     if ((3 < uVar11) || (*(char *)(iVar12 * 0x1c + 0x3146) != '\x10')) {
+ *       if ((uVar11 < 4) && (*(char *)(param_1 * 0x1c + 0x3146) == '\x10')) {
+ *         nation[local_4].euro_relation[uVar11] |= 0x80;
+ *         if (FUN_281f_04d4(0,100) < DS:0x53a6 + 1) {
+ *           if (land_combat_strength[local_4] < land_combat_strength[uVar11])
+ *                 |= 2;  else  |= 8;
+ *
+ * `param_1` is the MOVER entering (param_2,param_3), `uVar11` its owner
+ * nibble (+0x3147 & 0xf), `iVar12` the occupant unit (FUN_281f_07e0) and
+ * `local_4` the occupant's / tile's owner. Type 0x10 is @UNIT row 16 =
+ * Privateer (the same function's ship band is 0xd..0x12 = Caravel..Man-O-War,
+ * and the 20e6 census reads 0x10/0x11/0x12 as Privateer/Frigate/Man-O-War),
+ * NOT a Treasure Train ('\n' = 0x0a). So the trigger is: a European's
+ * Privateer moves onto a tile held by another European whose unit there is
+ * not itself a Privateer.
+ *
+ * That also reconciles the only consumer: ai_diplo.c's @PIRACY talk stage
+ * reads this bit together with `unit_type_counts[h][16]` — the speaker's
+ * Privateer count.
+ *
+ * No war skip (the old "own addition" is gone — DOS ORs unconditionally), and
+ * the roll is the literal inclusive `rng(0,100)`.
+ *
+ * Bit 2 = AI_DIPLO_PEACE when the sighting nation is the weaker of the two,
+ * bit 8 = AI_DIPLO_AMICABLE otherwise (`-0x6be4` = land_combat_strength[4]).
+ */
+void ai_euro_465b_privateer_sighting(
+  ColonizeCol1Save* col1,
+  const ColonizeUnitPool* units,
+  ColonizeDosRng* rng,
+  int mover_id,
+  int occupant_id
+) {
+  if (!col1 || !units || mover_id < 0 || occupant_id < 0) {
+    return;
+  }
+  const ColonizeUnit* mover = units_get_const(units, mover_id);
+  const ColonizeUnit* occ = units_get_const(units, occupant_id);
+  if (!mover || !mover->active || !occ || !occ->active) {
+    return;
+  }
+  const int mn = mover->nation_id;
+  const int tn = occ->nation_id;
+  /* uVar11 < 4 && (int)local_4 < 4 && local_4 != uVar11 (bVar4). */
+  if (mn < 0 || mn >= 4 || tn < 0 || tn >= 4 || mn == tn) {
+    return;
+  }
+  /* mover type == 0x10 (Privateer); occupant type != 0x10. */
+  if (units_type_kind(units_type(units, mover->type_index)) != UNITS_KIND_PRIVATEER) {
+    return;
+  }
+  if (units_type_kind(units_type(units, occ->type_index)) == UNITS_KIND_PRIVATEER) {
+    return;
+  }
+  const uint8_t before = ai_diplo_read(col1, tn, mn);
+  ai_diplo_write(col1, tn, mn, (uint8_t)(before | AI_DIPLO_PRIVATEER_SIGHTED));
+  if (rng && dos_rng_range(rng, 0, 100) < (int)col1->head.difficulty + 1) {
+    const int their_strength = col1->stuff.land_combat_strength[tn];
+    const int our_strength = col1->stuff.land_combat_strength[mn];
+    const uint8_t follow =
+      (their_strength < our_strength) ? AI_DIPLO_PEACE : AI_DIPLO_AMICABLE;
+    const uint8_t cur = ai_diplo_read(col1, tn, mn);
+    ai_diplo_write(col1, tn, mn, (uint8_t)(cur | follow));
+  }
 }
