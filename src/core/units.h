@@ -268,6 +268,16 @@ typedef enum ColonizeUnitKind {
 /* units_name_kind classification rules — accepted spellings per kind (see docs/units.md#units_name_kind-classification-rules). */
 /* Pool slot for a @UNIT row / ColonizeUnitKind (see docs/units.md#units_kind_type_index). */
 int units_kind_type_index(const ColonizeUnitPool* pool, ColonizeUnitKind kind);
+/*
+ * bugs.md #659: FUN_5fef_0352 destroy tail (raw 99653-99690) lowers the
+ * loser nation's tax_rate when a Royal-flagged (+0x3148 bit 0x40) purchased
+ * ship goes down. The Col1 record is written directly; the hook lets the game
+ * layer mirror the new rate into EuropeScreen.tax_percent for the human.
+ */
+typedef void (*ColonizeTaxChangeFn)(void* user, int nation_id, int new_tax);
+void units_set_tax_change_hook(ColonizeTaxChangeFn fn, void* user);
+/* Returns the cut applied (0 = none). */
+int units_royal_loss_tax_cut(struct ColonizeCol1Save* col1, const ColonizeUnitPool* pool, const ColonizeUnit* lose);
 
 ColonizeUnitKind units_name_kind(const char* name);
 /* Test-only seam: name -> kind for fixtures that build a pool out of names.

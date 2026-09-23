@@ -1897,6 +1897,8 @@ int units_apply_naval_loss_outcome(
     );
     units_play_event_sound(0x57); /* UNITS_SFX_SHIP_SUNK: FUN_5fef_0352 (COLDIG 16 sinking) */
   }
+  /* FUN_5fef_0352 raw 99653-99690: Royal-flagged hull lost → tax cut (bugs.md #659). */
+  (void)units_royal_loss_tax_cut((ColonizeCol1Save*)col1, pool, lose);
   /* FUN_5fef_0352 5fef:0d6c/0d87: a human loser goes back to the map pool
    * (281f_0498(1)), a human winner gets the Military pool (0498(4)). */
   if (col1) {
@@ -3482,6 +3484,72 @@ void units_set_bgm_pool(int pool) {
   }
 }
 
+static ColonizeTaxChangeFn g_units_tax_change = NULL;
+static void* g_units_tax_change_user = NULL;
+void units_set_tax_change_hook(ColonizeTaxChangeFn fn, void* user) {
+  g_units_tax_change = fn;
+  g_units_tax_change_user = user;
+}
+
+/*
+ * DOS-LITERAL FUN_5fef_0352 raw 99653-99690 (asm OVL17 0xdaa-0xea8), bugs.md
+ * #659. Runs in the destroy tail for ANY loser (the human test below only gates
+ * the %STRING/%NUMBER fills, and no popup call follows them: KINGMERCY has no
+ * DS string in VICEROY.EXE, so DOS lowers the tax silently):
+ *   if (loser +0x3148 & 0x40) {                       // Royal-flagged unit
+ *     k = -1; for (i = 0; k < 0 && i < 6; i++)        // DS:0x978d stride 6
+ *       if (table[i].type == loser.type) k = i;       //   {type, cut, 0xff, price16, 0}
+ *     if (0 < k) {                                    // JG: index 0 (Artillery) excluded
+ *       cut = min(nation.tax_rate, table_byte(0x978e + i*6));   // i == k+1 after the
+ *       if (cut > 0) nation.tax_rate -= cut;                    //   loop INC: NEXT entry's cut
+ *     }
+ *   }
+ * Table bytes (three original_memory_dumps, byte-identical): types
+ * 0b/0d/0e/0f/10/11 with cut bytes 2/2/4/6/3/8 and the byte after the table is
+ * 0. So Caravel reads 4, Merchantman 6, Galleon 3, Privateer 8, Frigate 0
+ * (no cut). Ported verbatim, off-by-one included.
+ */
+int units_royal_loss_tax_cut(
+  ColonizeCol1Save* col1, const ColonizeUnitPool* pool, const ColonizeUnit* lose
+) {
+  static const int k_type[6] = {0x0b, 0x0d, 0x0e, 0x0f, 0x10, 0x11};
+  static const int k_cut_byte[7] = {2, 2, 4, 6, 3, 8, 0}; /* [6] = byte after table */
+  if (!col1 || !pool || !lose || (lose->col1_flags15 & 0x40u) == 0) {
+    return 0;
+  }
+  const int nation = lose->nation_id;
+  if (nation < 0 || nation >= (int)COLONIZE_COL1_NATION_COUNT) {
+    return 0;
+  }
+  const int dos_type =
+    (lose->type_index >= 0 && lose->type_index < pool->type_count)
+      ? units_type_dos_code(&pool->types[lose->type_index])
+      : -1;
+  int k = -1;
+  int i;
+  for (i = 0; k < 0 && i < 6; i++) {
+    if (k_type[i] == dos_type) {
+      k = i;
+    }
+  }
+  if (k <= 0) {
+    return 0;
+  }
+  ColonizeCol1Nation* nat = &col1->nation[nation];
+  int cut = (int)(int8_t)nat->tax_rate;
+  if (k_cut_byte[i] < cut) {
+    cut = k_cut_byte[i];
+  }
+  if (cut <= 0) {
+    return 0;
+  }
+  nat->tax_rate = (uint8_t)((int)nat->tax_rate - cut);
+  if (g_units_tax_change) {
+    g_units_tax_change(g_units_tax_change_user, nation, (int)nat->tax_rate);
+  }
+  return cut;
+}
+
 void units_set_combat_music_hooks(
   ColonizeSoundPlayFn play_fn, ColonizeSoundActiveIdFn active_id_fn
 ) {
@@ -3503,6 +3571,8 @@ void units_reset_hooks(void) {
   g_units_popup_pump = NULL;
   g_units_popup_pump_user = NULL;
   g_units_set_bgm = NULL;
+  g_units_tax_change = NULL;
+  g_units_tax_change_user = NULL;
   g_units_combat_sound_play = NULL;
   g_units_combat_sound_active_id = NULL;
 }
