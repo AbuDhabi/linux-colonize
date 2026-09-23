@@ -3908,6 +3908,73 @@ static int case_otj_learning_latch(void) {
 }
 
 /*
+ * bugs.md #895(d): raw 57595 gates on-the-job discovery to `0 < job < 5`
+ * (COLONIZE_JOB_FARMER excluded, COTTON_PLANTER..FUR_TRAPPER 1..4 eligible)
+ * — Lumberjack(5)/Ore Miner(6)/Silver Miner(7) sit above that upper bound
+ * and must never self-promote, however many turns roll. Mirrors
+ * case_otj_learning_latch's staging (cash-crop colonists graduate to prove
+ * the harness can actually roll a discovery), but every colonist here is
+ * planted on job 5/6/7 instead.
+ */
+static int case_otj_upper_bound_no_promote(void) {
+  fx_begin();
+  ColonizeColonyPool pool;
+  colonies_init(&pool);
+  colonies_set_occupancy_map(NULL);
+  ColonizeColony* col = &pool.colonies[0];
+  memset(col, 0, sizeof(*col));
+  col->active = true;
+  col->id = 1;
+  col->nation_id = 0;
+  col->building_in_production = -1;
+  const int jobs[3] = {
+    COLONIZE_JOB_LUMBERJACK, COLONIZE_JOB_ORE_MINER, COLONIZE_JOB_SILVER_MINER
+  };
+  for (int k = 0; k < 3; ++k) {
+    col->colonists[k].active = true;
+    col->colonists[k].building_type = -1;
+    col->colonists[k].field_job = jobs[k];
+    col->colonists[k].profession = COLONIZE_PROF_FREE_COLONIST;
+    col->tiles[k] = (int8_t)k;
+  }
+  col->colonist_count = 3;
+  col->population = 3;
+  pool.colony_count = 1;
+
+  ColonizeCol1Save col1;
+  memset(&col1, 0, sizeof(col1));
+  col1.head.year = 1492;
+  ColonizeDosRng rng;
+  dos_rng_seed(&rng, 42u);
+  for (unsigned t = 0; t < 20000u; ++t) {
+    col1.head.turn = (uint16_t)(t & 0xffffu);
+    for (int k = 0; k < 3; ++k) {
+      col->colonists[k].profession = COLONIZE_PROF_FREE_COLONIST;
+    }
+    col->stock[COLONIZE_CARGO_FOOD] = 5000;
+    ColonizeTurnResult prod;
+    memset(&prod, 0, sizeof(prod));
+    turn_run_colony_production_w(
+      &(ColonizeWorld){
+        .colonies = &pool, .map = NULL, .col1 = &col1, .col1_ok = true, .rng = &rng
+      },
+      0, &prod, NULL, NULL
+    );
+    for (int k = 0; k < 3; ++k) {
+      if (col->colonists[k].profession != COLONIZE_PROF_FREE_COLONIST) {
+        fprintf(
+          stderr, "otj upper bound: field_job %d promoted to profession %d at t=%u\n",
+          jobs[k], col->colonists[k].profession, t
+        );
+        return 1;
+      }
+    }
+  }
+  fprintf(stderr, "otj upper bound: jobs 5/6/7 never promote (20000 turns) ok\n");
+  return 0;
+}
+
+/*
  * AI Euro crosses: the DOS FUN_38fd_5e52 tick runs for AI nations too —
  * +2 a turn, and on `needed < current` one recruit[] slot becomes a real
  * unit parked in the Europe limbo (FUN_38fd_0718), the slot is refilled
@@ -5699,6 +5766,7 @@ static const TestCase k_cases[] = {
   {"schoolhouse_education", case_schoolhouse_education},
   {"phase_h_skill_discovery", case_phase_h_skill_discovery},
   {"otj_learning_latch", case_otj_learning_latch},
+  {"otj_upper_bound_no_promote", case_otj_upper_bound_no_promote},
   {"ai_euro_crosses", case_ai_euro_crosses},
   {"immigration_pressure", case_immigration_pressure},
   {"no_free_ship_spawn", case_no_free_ship_spawn},

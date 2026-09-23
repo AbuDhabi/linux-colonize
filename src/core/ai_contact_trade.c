@@ -461,13 +461,23 @@ int ai_contact_try_village_gifts(ColonizeTurnContext* ctx, int nation_id) {
         );
       }
     } else {
-      /* @INDIANGIVESTUFF: gift the good the village values most that fits. */
+      /* @INDIANGIVESTUFF: gift the good the village values most that fits.
+       * key[0]=0 is DOS-LITERAL FUN_5bfb_022e raw 97019: `*(int*)0x9e78 = 0`
+       * clears the sort key array before the loop below repopulates it. */
       int16_t key[16];
       memcpy(key, econ.bid, sizeof(key));
       key[0] = 0;
+      /*
+       * DOS-LITERAL FUN_5bfb_022e raw 96992: `iVar9 = FUN_281f_0d3a(0x281f);`
+       * computes the warehouse capacity ONCE before the cargo loop (raw
+       * 97020-97024: `iVar9 + -10 < stock[local_32]`), not per cargo. The
+       * accessor ignores cargo_type (colonies_warehouse_capacity, colony_goods.c)
+       * so hoisting the call changes nothing today, but matches the DOS shape
+       * (bugs.md #892).
+       */
+      const int cap = colonies_warehouse_capacity(ctx->colonies, c, COLONIZE_CARGO_FOOD);
       for (int i = 0; i < COLONIZE_CARGO_COUNT; ++i) {
-        const int cap_i = colonies_warehouse_capacity(ctx->colonies, c, i);
-        if (c->stock[i] > cap_i - 10) {
+        if (c->stock[i] > cap - 10) {
           key[i] = 1; /* near-full — deprioritized in the sort */
         }
       }
@@ -480,7 +490,10 @@ int ai_contact_try_village_gifts(ColonizeTurnContext* ctx, int nation_id) {
           continue; /* food has its own arm above */
         }
         if (cand == COLONIZE_CARGO_SILVER && ind->tech < 2) {
-          continue; /* only advanced tribes (Aztec/Inca tier) gift silver */
+          /* DOS-LITERAL FUN_5bfb_022e raw 97031: `if ((iVar16 == 7) &&
+           * (byte[*0x8d4e+2] < 2)) local_4 = 0;` — only advanced tribes
+           * (Aztec/Inca tier) gift silver. */
+          continue;
         }
         cargo = cand;
         break;

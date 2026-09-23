@@ -1900,35 +1900,6 @@ static void ai_euro_cancel_stale_zero_hammer_builds(ColonizeTurnContext* ctx, in
  */
 
 
-/*
- * Expert Lumberjack LABOR when incomplete Warehouse or Lumber Mill and that
- * building type exists in the pool. Lumber feeds carpenter hammers
- * (building_production Lumberjack→Lumber). Cite: docs/building_production.md;
- * Colonization.pdf Skills Chart / lumberjack timber. Structural LABOR join
- * only — no invented lumber rates. Forest field-assign is wired separately
- * via colonies_assign_field in the colony tick's own placement pass.
- */
-int ai_euro_colony_wants_lumberjack_labor(
-  const ColonizeColonyPool* pool,
-  const ColonizeColony* c
-) {
-  if (!pool || !c || !c->active || c->building_in_production < 0) {
-    return 0;
-  }
-  const ColonizeBuildingType* bt =
-    colonies_building_type(pool, c->building_in_production);
-  if (!bt || bt->name[0] == '\0') {
-    return 0;
-  }
-  if (colonies_building_name_row(bt->name) == COLONY_BUILDING_WAREHOUSE) {
-    return colonies_building_row(pool, COLONY_BUILDING_WAREHOUSE) >= 0;
-  }
-  if (colonies_building_name_row(bt->name) == COLONY_BUILDING_LUMBER_MILL) {
-    return colonies_building_row(pool, COLONY_BUILDING_LUMBER_MILL) >= 0;
-  }
-  return 0;
-}
-
 /* True if nation_id is at war with any other European peer (0..3). */
 int ai_euro_at_war_any_peer(const ColonizeCol1Save* col1, int nation_id) {
   if (!col1 || nation_id < 0 || nation_id >= 4) {

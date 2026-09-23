@@ -26,7 +26,9 @@
  * depend on the absolute (x,y) the test picks.
  */
 #include "core/ai_euro.h"
+#include "core/col1_save.h"
 #include "core/colony.h"
+#include "core/colony_internal.h"
 #include "core/colony_yield.h"
 #include "core/map.h"
 #include "core/turn.h"
@@ -428,12 +430,159 @@ static int unit_no_docks_scores_no_water_plot(void) {
   return 0;
 }
 
+/*
+ * bugs.md #889 — FUN_15eb_28c8 raw ~13073-13085's Ore arm is a comma
+ * expression: `(local_4 = local_4 + 2, byte[DS:0x5398+0x917c] <=
+ * byte[nation+0x917c])`. The flat +2 fires whenever `!human && cargo==ORE &&
+ * pop>7 && turn>0x4f`; only the two FUN_15eb_039e chain terms (owned tiers of
+ * the Blacksmith/Armory chains) sit behind the wealth-rank compare. Before the
+ * fix, the port nested the whole +2 inside the rank test too, so an AI richer
+ * than the human lost +2 on every Ore plot.
+ *
+ * One Mountains tile (pedia 27, Ore base yield 4) at N of the colony; every
+ * other field tile is Tundra (no Ore, no other job scores), so Ore is the
+ * only candidate and its score is fully determined by w4 (local_4):
+ *   m = w4 + 1, +1 more for the Ore consumer chain (raw 13112-13118, jobs
+ *   1-4/6 have one) -> m = w4 + 2; score = (m + w4) * base = (2*w4 + 2) * base
+ * with base = yld*8 + (7 - |dx| - |dy|) = 4*8 + 6 = 38 for the adjacent N tile
+ * (no clamp: capacity 300 - stock 0 > yld). The food-emergency branch is
+ * pinned off with a near-full FOOD warehouse (299/300): even at gross=0 the
+ * worst-case shortfall*16 = 16*16 = 256 < 299, so bVar2 is false regardless
+ * of the exact town-commons food yield.
+ *
+ * Rank-pass registers one owned tier in each chain (Blacksmith's House,
+ * Armory) so the chain terms are non-zero and distinguishable from the flat
+ * +2; rank-fail leaves both chains unbuilt so w4 differs from rank-pass by
+ * exactly the chain contribution, never by the whole Ore bonus.
+ */
+static void fx_ore_colony(ColonizeColonyPool* colonies, ColonizeWorldMap* map, int cx, int cy) {
+  colonies_init(colonies);
+  colonies_set_occupancy_map(NULL);
+  colony_init_common(&colonies->colonies[0], /*nation=*/1, cx, cy);
+  colonies->colonies[0].population = 8;      /* pop > 7 */
+  colonies->colonies[0].warehouse_level = 2; /* capacity 300 */
+  colonies->colonies[0].stock[COLONIZE_CARGO_FOOD] = 299;
+  colonies->colony_count = 1;
+  /* N tile: Mountains (map_byte_is_mountain wants terrain & 0xa0 == 0xa0,
+   * map.c raw MAPEDIT hill/mountain bits) -> pedia 27, Ore base 4. Every
+   * other (default-zero) tile is Tundra, which also has a nonzero Ore base
+   * (2) in k_unforesed, so the fixture needs the real overlay bits, not the
+   * pedia index value, or the flat Tundra tiles win the tie instead. */
+  map->terrain[(cy - 1) * MAP_W + cx] = 0xa0;
+  suppress_field_tile_resources(map, cx, cy);
+}
+
+/* Registers one owned tier (Blacksmith's House, Armory) in the pool + the
+ * colony_internal.h name table colonies_building_chain() reads from. */
+static void fx_register_ore_chain_buildings(ColonizeColonyPool* colonies) {
+  memset(colony_building_row_names, 0, sizeof(colony_building_row_names));
+  colony_building_row_name_count = 0;
+  const int rows[2] = {COLONY_BUILDING_BLACKSMITHS_HOUSE, COLONY_BUILDING_ARMORY};
+  static const char* const names[2] = {"Blacksmith's House", "Armory"};
+  colonies->building_type_count = 2;
+  for (int i = 0; i < 2; ++i) {
+    memset(&colonies->building_types[i], 0, sizeof(colonies->building_types[i]));
+    snprintf(
+      colonies->building_types[i].name, sizeof(colonies->building_types[i].name), "%s", names[i]
+    );
+    colonies->building_types[i].row_plus1 = rows[i] + 1;
+    colonies->colonies[0].has_building[i] = true;
+    snprintf(
+      colony_building_row_names[rows[i]], sizeof(colony_building_row_names[0]), "%s", names[i]
+    );
+    if (rows[i] + 1 > colony_building_row_name_count) {
+      colony_building_row_name_count = rows[i] + 1;
+    }
+  }
+}
+
+static int unit_889_ore_rank_gates_chain_not_flat_bonus(void) {
+  uint8_t terrain[MAP_W * MAP_H];
+  uint8_t layer2[MAP_W * MAP_H];
+  uint8_t layer3[MAP_W * MAP_H];
+  ColonizeWorldMap map;
+  map_init(&map, terrain, layer2, layer3);
+  const int cx = 8;
+  const int cy = 8;
+
+  ColonizeCol1Save sv;
+  memset(&sv, 0, sizeof sv);
+  sv.head.turn = 0x50; /* > 0x4f */
+
+  AiEuro28c8JobCandidate rank_pass;
+  {
+    ColonizeColonyPool colonies;
+    fx_ore_colony(&colonies, &map, cx, cy);
+    fx_register_ore_chain_buildings(&colonies);
+    ColonizeTurnContext ctx;
+    memset(&ctx, 0, sizeof(ctx));
+    ctx.human_nation = 0; /* colony nation 1 -> AI shape */
+    ctx.colonies = &colonies;
+    ctx.map = &map;
+    ctx.col1 = &sv;
+    ctx.col1_ok = true;
+    ctx.euro_power_rank_ok = true;
+    ctx.euro_power_rank[0] = 1; /* human */
+    ctx.euro_power_rank[1] = 2; /* colony nation: human <= AI -> rank passes */
+    if (!ai_euro_28c8_colonist_job_score_structural(&ctx, 0, 0, &rank_pass)) {
+      return fail("889: rank-pass found no assignment");
+    }
+  }
+
+  AiEuro28c8JobCandidate rank_fail;
+  {
+    ColonizeColonyPool colonies;
+    fx_ore_colony(&colonies, &map, cx, cy);
+    /* No Blacksmith/Armory owned: chain terms are 0 either way, but the
+     * point under test is that this leaves +2 alone, not 0. */
+    ColonizeTurnContext ctx;
+    memset(&ctx, 0, sizeof(ctx));
+    ctx.human_nation = 0;
+    ctx.colonies = &colonies;
+    ctx.map = &map;
+    ctx.col1 = &sv;
+    ctx.col1_ok = true;
+    ctx.euro_power_rank_ok = true;
+    ctx.euro_power_rank[0] = 2; /* human */
+    ctx.euro_power_rank[1] = 1; /* colony nation: human > AI -> rank fails */
+    if (!ai_euro_28c8_colonist_job_score_structural(&ctx, 0, 0, &rank_fail)) {
+      return fail("889: rank-fail found no assignment");
+    }
+  }
+
+  if (rank_pass.job != COLONIZE_JOB_ORE_MINER || rank_fail.job != COLONIZE_JOB_ORE_MINER) {
+    return fail("889: fixture must elect the Ore plot in both scenarios");
+  }
+  /* base = 4*8 + 6 = 38 for both (same map, same tile, same yield). */
+  const int base = 38;
+  /* rank-fail: w4 = 0 (price) + 2 (flat) = 2; m = w4+2 = 4; score = (m+w4)*base = 6*38. */
+  const int want_fail = 6 * base;
+  if (rank_fail.score != want_fail) {
+    fprintf(stderr, "unit_ai_euro_28c8_job_score: 889 rank-fail score=%d want=%d\n",
+            rank_fail.score, want_fail);
+    return fail("889: rank-fail must still get the flat +2 (bug was: 0)");
+  }
+  /* rank-pass: w4 = 0 + 2 (flat) + 1 (Blacksmith tier1) + 2 (Armory tier1*2) = 5;
+   * m = w4+2 = 7; score = (m+w4)*base = 12*38. */
+  const int want_pass = 12 * base;
+  if (rank_pass.score != want_pass) {
+    fprintf(stderr, "unit_ai_euro_28c8_job_score: 889 rank-pass score=%d want=%d\n",
+            rank_pass.score, want_pass);
+    return fail("889: rank-pass must get the flat +2 AND the chain terms");
+  }
+  if (rank_pass.score <= rank_fail.score) {
+    return fail("889: rank-pass (+2 + chain) must outscore rank-fail (+2 only)");
+  }
+  return 0;
+}
+
 static const TestCase k_cases[] = {
     {"unit_distance_term_breaks_ties", unit_distance_term_breaks_ties},
     {"unit_full_matrix_sticky_doubling", unit_full_matrix_sticky_doubling},
     {"unit_join_seats_on_work_plot", unit_join_seats_on_work_plot},
     {"unit_fisherman_clamps_against_horses", unit_fisherman_clamps_against_horses},
     {"unit_no_docks_scores_no_water_plot", unit_no_docks_scores_no_water_plot},
+    {"unit_889_ore_rank_gates_chain_not_flat_bonus", unit_889_ore_rank_gates_chain_not_flat_bonus},
 };
 
 TEST_MAIN(k_cases)

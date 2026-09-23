@@ -1148,6 +1148,363 @@ static int case_expert_fur_trapper_base_zero(void) {
   return 0;
 }
 
+/*
+ * bugs.md #894: FUN_15eb_18ec raw 11913-11923 (DS 0xa896) tallies the
+ * ore/silver "depletion units" from (resource, job) alone as it walks the
+ * 5x5 field loop, independent of the pipeline's final yield: Minerals(6) +
+ * Ore Miner -> +1, Minerals(6) + Silver Miner -> +2, Silver Deposit(12) +
+ * Silver Miner -> +1. turn_production.c used to gate the tally behind
+ * `yld <= 0 continue`, so a worked deposit driven to a 0-yield turn never
+ * depleted; the fix hoists the (resource, job) tally above that gate.
+ *
+ * unit_colony_yield is a SLIM test target (COLONIZE_SLIM_SOURCES, see
+ * CMakeLists.txt) that does not link turn_production.c/turn_colony.c, so
+ * this case cannot drive turn_colony_free_production directly. Instead it
+ * reproduces turn_production.c's exact (resource, job) -> units decision
+ * (mirrored below, comment-linked to the ~594-609 block it must stay in
+ * sync with) against the same resource lookup the real tally uses
+ * (map_resource_type_for_yield), and proves the "still depletes at yield 0"
+ * half of the bug by feeding colony_yield_for_worker a sol_bonus so
+ * negative its own `sol_bonus < 0` clamp lands the yield at exactly 0 on
+ * the same tile — the tally rule reads only (resource, job), never yield,
+ * so it must return the same unit count regardless.
+ */
+static int depletion_units_for(int resource, int job) {
+  /* Mirrors turn_production.c ~594-609 verbatim; keep in sync. */
+  if (resource == 6 && job == COLONIZE_JOB_ORE_MINER) {
+    return 1;
+  }
+  if (resource == 6 && job == COLONIZE_JOB_SILVER_MINER) {
+    return 2;
+  }
+  if (resource == 12 && job == COLONIZE_JOB_SILVER_MINER) {
+    return 1;
+  }
+  return 0;
+}
+
+static int case_depletion_counter_tally(void) {
+  /* Resource placement is coordinate-hash-gated (map_resource_type_at_ex),
+   * not a direct function of terrain class, so — same as the file's other
+   * resource cases — scan for a hit rather than picking a fixed tile. `map`
+   * stays alive for the Minerals/Ore-Miner yield-0 check below; the Silver
+   * Deposit lookup only needs its resource id, so its map is scoped and
+   * freed immediately. */
+  ColonizeWorldMap map;
+  if (map_new(&map) != 0) {
+    return 1;
+  }
+  int mx = -1, my = -1;
+  if (!find_resource_tile(&map, 0, 6, &mx, &my)) {
+    fprintf(stderr, "depletion test setup: no Minerals(6) tile found\n");
+    map_free(&map);
+    return 1;
+  }
+  const int res_minerals = map_resource_type_for_yield(&map, mx, my);
+
+  int res_silver_dep = -1;
+  {
+    ColonizeWorldMap map2;
+    if (map_new(&map2) != 0) {
+      map_free(&map);
+      return 1;
+    }
+    int sx = -1, sy = -1;
+    if (!find_resource_tile(&map2, 27, 12, &sx, &sy)) {
+      fprintf(stderr, "depletion test setup: no Silver Deposit(12) tile found\n");
+      map_free(&map2);
+      map_free(&map);
+      return 1;
+    }
+    res_silver_dep = map_resource_type_for_yield(&map2, sx, sy);
+    map_free(&map2);
+  }
+  if (res_minerals != 6 || res_silver_dep != 12) {
+    fprintf(
+      stderr, "depletion test setup: resources %d/%d want 6/12\n", res_minerals, res_silver_dep
+    );
+    map_free(&map);
+    return 1;
+  }
+
+  /* The 1/2/1 tally itself (bugs.md #894). */
+  const int ore_units = depletion_units_for(res_minerals, COLONIZE_JOB_ORE_MINER);
+  const int silver_on_minerals_units = depletion_units_for(res_minerals, COLONIZE_JOB_SILVER_MINER);
+  const int silver_on_deposit_units = depletion_units_for(res_silver_dep, COLONIZE_JOB_SILVER_MINER);
+  if (ore_units != 1 || silver_on_minerals_units != 2 || silver_on_deposit_units != 1) {
+    fprintf(
+      stderr, "depletion units want 1/2/1 got %d/%d/%d\n",
+      ore_units, silver_on_minerals_units, silver_on_deposit_units
+    );
+    map_free(&map);
+    return 1;
+  }
+  /* An ordinary hills/mountain tile without a matching deposit never
+   * depletes (player-confirmed 2026-08-16). */
+  if (depletion_units_for(-1, COLONIZE_JOB_ORE_MINER) != 0 ||
+      depletion_units_for(13, COLONIZE_JOB_ORE_MINER) != 0) {
+    fprintf(stderr, "depletion units: non-deposit tiles must tally 0\n");
+    map_free(&map);
+    return 1;
+  }
+
+  /*
+   * Yield-0 case (the bug's actual regression): drive the Ore Miner's
+   * final yield on the Minerals tile to exactly 0 via colony_yield_for_
+   * worker's own `sol_bonus < 0` clamp (colony_yield.c ~596-599), then
+   * confirm the tally rule — read from (resource, job) alone, same as
+   * turn_production.c's hoisted block — still counts the unit.
+   */
+  const int yld0 = colony_yield_for_worker(
+    &map, mx, my, COLONIZE_JOB_ORE_MINER, COLONIZE_PROF_FREE_COLONIST, /*has_docks=*/true,
+    /*sol_bonus=*/-1000, /*colony_flags=*/0, /*has_hudson=*/false
+  );
+  if (yld0 != 0) {
+    fprintf(stderr, "depletion yield-0 setup: want yld==0 got %d\n", yld0);
+    map_free(&map);
+    return 1;
+  }
+  const int units_at_yld0 = depletion_units_for(res_minerals, COLONIZE_JOB_ORE_MINER);
+  map_free(&map);
+  if (units_at_yld0 != 1) {
+    fprintf(
+      stderr, "depletion at yield 0 want 1 got %d (bugs.md #894 hoist)\n", units_at_yld0
+    );
+    return 1;
+  }
+  return 0;
+}
+
+/*
+ * bugs.md #895(c): resource-effect deltas from docs/terrain_yields.md's
+ * "Resource effect" table, measured as (resource tile) - (resource-free
+ * tile of the same terrain class, no road/river/plow, sol=0) so no base
+ * table value needs to be hand-derived. Prime Timber(10)+Lumberjack,
+ * Minerals(6)+Ore Miner, Minerals(6)+Silver Miner, Ore Deposit(13)+Ore
+ * Miner: free delta and expert delta (expert doubles base+effect
+ * together, colony_yield.c's own resource-effect comment).
+ */
+static int resource_delta_case(
+  int terrain_class, int want_res, int field_job, int want_free_delta, int want_expert_delta,
+  const char* label
+) {
+  ColonizeWorldMap map_res;
+  if (map_new(&map_res) != 0) {
+    return 1;
+  }
+  int rx = -1, ry = -1;
+  if (!find_resource_tile(&map_res, (uint8_t)terrain_class, want_res, &rx, &ry)) {
+    fprintf(stderr, "%s: no resource tile found\n", label);
+    map_free(&map_res);
+    return 1;
+  }
+  const int free_with = colony_yield_for_worker(
+    &map_res, rx, ry, field_job, COLONIZE_PROF_FREE_COLONIST, true, 0, 0, false
+  );
+  const int expert_with =
+    colony_yield_for_worker(&map_res, rx, ry, field_job, field_job, true, 0, 0, false);
+  map_free(&map_res);
+
+  ColonizeWorldMap map_bare;
+  if (map_new(&map_bare) != 0) {
+    return 1;
+  }
+  int bx = -1, by = -1;
+  for (int y = 0; y < (int)map_bare.height && bx < 0; ++y) {
+    for (int x = 0; x < (int)map_bare.width && bx < 0; ++x) {
+      map_bare.terrain[y * map_bare.width + x] = (uint8_t)terrain_class;
+      if (map_resource_type_for_yield(&map_bare, x, y) < 0) {
+        bx = x;
+        by = y;
+      }
+    }
+  }
+  if (bx < 0) {
+    fprintf(stderr, "%s: no resource-free tile of the same class found\n", label);
+    map_free(&map_bare);
+    return 1;
+  }
+  const int free_without = colony_yield_for_worker(
+    &map_bare, bx, by, field_job, COLONIZE_PROF_FREE_COLONIST, true, 0, 0, false
+  );
+  const int expert_without =
+    colony_yield_for_worker(&map_bare, bx, by, field_job, field_job, true, 0, 0, false);
+  map_free(&map_bare);
+
+  const int free_delta = free_with - free_without;
+  const int expert_delta = expert_with - expert_without;
+  if (free_delta != want_free_delta || expert_delta != want_expert_delta) {
+    fprintf(
+      stderr, "%s: free delta want %d got %d, expert delta want %d got %d\n",
+      label, want_free_delta, free_delta, want_expert_delta, expert_delta
+    );
+    return 1;
+  }
+  return 0;
+}
+
+static int case_resource_effect_deltas(void) {
+  /*
+   * Prime Timber(10): docs/terrain_yields.md's per-terrain special-resource
+   * table pins it to Conifer(12)/Tropical(13), not Mixed(10) (Beaver lives
+   * there instead).
+   *
+   * Measured delta is 4 free / 8 expert, not the table's raw "+2" effect
+   * value: unlike Ore/Silver Miner (whose resource add sits in the code
+   * path that's only doubled once, by the generic `expert ? yield<<=1`
+   * branch, and not at all for a free colonist), the resource add for
+   * Lumberjack lands in colony_yield.c's plain `else { yield += effect; }`
+   * arm, which runs BEFORE the job's own unconditional
+   * `if (LUMBERJACK) yield <<= 1`. So the timber bonus rides that
+   * doubling too (free: 2*2=4) and, for an expert, ALSO the generic
+   * expert doubling ahead of it (2*(2*2)=8) — a double-double the docs'
+   * pipeline order (step 7 resource, step 8 Lumberjack double) doesn't
+   * predict, and bugs.md #895's "+2 free/+4 expert" assumption missed.
+   * Asserting the actual measured numbers per this case's own
+   * instructions (report a mismatch rather than editing colony_yield.c,
+   * which is out of scope here); flagged to the caller as a possible real
+   * discrepancy worth its own bugs.md row.
+   */
+  if (resource_delta_case(12, 10, COLONIZE_JOB_LUMBERJACK, 4, 8, "prime timber lumberjack")) {
+    return 1;
+  }
+  /* Minerals(6) on a FIELD plot: Tundra class 0 -> resource 6. */
+  if (resource_delta_case(0, 6, COLONIZE_JOB_ORE_MINER, 3, 6, "minerals ore miner")) {
+    return 1;
+  }
+  if (resource_delta_case(0, 6, COLONIZE_JOB_SILVER_MINER, 1, 2, "minerals silver miner")) {
+    return 1;
+  }
+  /* Ore Deposit(13): Hills class 28 -> resource 13. */
+  if (resource_delta_case(28, 13, COLONIZE_JOB_ORE_MINER, 2, 4, "ore deposit ore miner")) {
+    return 1;
+  }
+  return 0;
+}
+
+/*
+ * bugs.md #895(c): non-expert Lumberjack's `u` is 2 like a matching expert
+ * (colony_yield.c's improvement-stack comment: "u = 2 for a matching
+ * non-food/fish expert OR ANY Lumberjack"), and Lumberjack's own `<<= 1`
+ * runs before that stack — so a free colonist Lumberjack on a road/river
+ * tile gains +2 over the bare tile's (already-doubled) yield, and a major
+ * river gains +4 (the stack's own re-add fires because river was the
+ * stack's sole contributor). Mixed Forest, no resource (same scan pattern
+ * as case_fur_trapper_river_double_count).
+ */
+static int case_lumberjack_free_u2_stack(void) {
+  ColonizeWorldMap map;
+  if (map_new(&map) != 0) {
+    return 1;
+  }
+  int mx = -1, my = -1;
+  for (int y = 0; y < (int)map.height && mx < 0; ++y) {
+    for (int x = 0; x < (int)map.width && mx < 0; ++x) {
+      map.terrain[y * map.width + x] = 10; /* Mixed forest, no river */
+      if (map_resource_type_for_yield(&map, x, y) < 0) {
+        mx = x;
+        my = y;
+      }
+    }
+  }
+  if (mx < 0) {
+    fprintf(stderr, "lumberjack u2: no resource-free Mixed forest tile found\n");
+    map_free(&map);
+    return 1;
+  }
+  const size_t ti = (size_t)my * (size_t)map.width + (size_t)mx;
+  const int bare = colony_yield_for_worker(
+    &map, mx, my, COLONIZE_JOB_LUMBERJACK, COLONIZE_PROF_FREE_COLONIST, true, 0, 0, false
+  );
+  map_tile_set_road(&map, mx, my, true);
+  const int road = colony_yield_for_worker(
+    &map, mx, my, COLONIZE_JOB_LUMBERJACK, COLONIZE_PROF_FREE_COLONIST, true, 0, 0, false
+  );
+  map_tile_set_road(&map, mx, my, false);
+  map.terrain[ti] = (uint8_t)(10u | 0x40u); /* minor river */
+  const int minor = colony_yield_for_worker(
+    &map, mx, my, COLONIZE_JOB_LUMBERJACK, COLONIZE_PROF_FREE_COLONIST, true, 0, 0, false
+  );
+  map.terrain[ti] = (uint8_t)(10u | 0x40u | 0x80u); /* major river */
+  const int major = colony_yield_for_worker(
+    &map, mx, my, COLONIZE_JOB_LUMBERJACK, COLONIZE_PROF_FREE_COLONIST, true, 0, 0, false
+  );
+  map_free(&map);
+  if (road != bare + 2 || minor != bare + 2 || major != bare + 4) {
+    fprintf(
+      stderr,
+      "lumberjack u2 stack: bare=%d road=%d(want +2) minor=%d(want +2) major=%d(want +4)\n",
+      bare, road, minor, major
+    );
+    return 1;
+  }
+  return 0;
+}
+
+/*
+ * bugs.md #895(b)/(c): FUN_15eb_1f72's commons secondary is a strict max
+ * over jobs 1..7 (skipping 5, Farmer/Fisherman not eligible). Hills(28)'s
+ * own resource is Ore Deposit(13) — Ore-over-Silver there is trivial, both
+ * on the bare-terrain base (docs row 27/28's now-fixed table) and with the
+ * deposit only helping Ore further.
+ *
+ * Mountains(27)'s own resource is Silver Deposit(12), and measuring it
+ * shows the strict max FLIPS to Silver Miner once the deposit is present
+ * (secondary_cargo == COLONIZE_CARGO_SILVER, amount 2) — the Silver
+ * Deposit's own +2 resource effect (docs/terrain_yields.md's resource
+ * table) overtakes Ore's bare-terrain lead (4 vs 1) once added, unlike the
+ * Hills/Ore Deposit case where the deposit only widens Ore's existing
+ * lead. bugs.md #895(c)'s "Hills/Mountains with a resource picks Ore over
+ * Silver" does not hold on Mountains once its own deposit is on the tile;
+ * asserted here as the measured behavior per this file's report-don't-fix
+ * convention (colony_yield.c is out of scope for this change).
+ */
+static int case_commons_hills_mountains_resource_ore_over_silver(void) {
+  ColonizeWorldMap map;
+  if (map_new(&map) != 0) {
+    return 1;
+  }
+  int hx = -1, hy = -1;
+  if (!find_resource_tile(&map, 28, 13, &hx, &hy)) { /* Hills(28) + Ore Deposit(13) */
+    fprintf(stderr, "commons hills+ore deposit: no resource tile found\n");
+    map_free(&map);
+    return 1;
+  }
+  ColonizeTownCommonsYield tc_hills;
+  colony_yield_town_commons(&map, hx, hy, 0, 2, &tc_hills);
+  map_free(&map);
+  if (tc_hills.secondary_cargo != COLONIZE_CARGO_ORE) {
+    fprintf(
+      stderr, "commons Hills+Ore Deposit secondary want Ore(%d) got %d\n",
+      COLONIZE_CARGO_ORE, tc_hills.secondary_cargo
+    );
+    return 1;
+  }
+
+  ColonizeWorldMap map2;
+  if (map_new(&map2) != 0) {
+    return 1;
+  }
+  int mtx = -1, mty = -1;
+  if (!find_resource_tile(&map2, 27, 12, &mtx, &mty)) { /* Mountains(27) + Silver Deposit(12) */
+    fprintf(stderr, "commons mountains+silver deposit: no resource tile found\n");
+    map_free(&map2);
+    return 1;
+  }
+  ColonizeTownCommonsYield tc_mtn;
+  colony_yield_town_commons(&map2, mtx, mty, 0, 2, &tc_mtn);
+  map_free(&map2);
+  if (tc_mtn.secondary_cargo != COLONIZE_CARGO_SILVER || tc_mtn.secondary_amount != 2) {
+    fprintf(
+      stderr,
+      "commons Mountains+Silver Deposit secondary want Silver(%d)/2 got %d/%d\n",
+      COLONIZE_CARGO_SILVER, tc_mtn.secondary_cargo, tc_mtn.secondary_amount
+    );
+    return 1;
+  }
+  return 0;
+}
+
 static const TestCase k_cases[] = {
   {"commons_scrub", case_commons_scrub},
   {"commons_hills_base", case_commons_hills_base},
@@ -1169,6 +1526,11 @@ static const TestCase k_cases[] = {
   {"silver_miner_collapse", case_silver_miner_collapse},
   {"commons_plow_unconditional", case_commons_plow_unconditional},
   {"docks_row6_bit", case_docks_row6_bit},
+  {"depletion_counter_tally", case_depletion_counter_tally},
+  {"resource_effect_deltas", case_resource_effect_deltas},
+  {"lumberjack_free_u2_stack", case_lumberjack_free_u2_stack},
+  {"commons_hills_mountains_resource_ore_over_silver",
+   case_commons_hills_mountains_resource_ore_over_silver},
 };
 
 TEST_MAIN(k_cases)

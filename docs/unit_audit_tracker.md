@@ -35,9 +35,11 @@ professions from `@JOB` (profession byte = row). Identify by row, never by name.
 | 2026-09-23 | Man-O-War (@UNIT 18: props/catalog/holds/sight/build+buy exclusion, REF 0982 spawn+pool+landing tile+sail-home 20e6+5d04 seize, intervention 10f0 free arm + JPJ fallback, merc delivery 2022/2244/10f0 paid arm, combat 1b0e Bombard bit / 0352 outcomes + repair / 312e ship-slow + evade, Europe gate, reports/save) | #865-878 | 12 fixed (#865 H: DOS 0x5382 bit 0x02 = intervention announced, port set it at declare; #866 H: 0982 MoW self-goto freeze; #867 H: crown last MoW unsinkable, raw 99527-99570 gate block ported), #877 lead (4393 haul gate, ties #818), #878 L bundle partly done (e)(j)+leads open; Bombard +50% verified attacker-only global flag, no nearby-MoW effect on colony attacks |
 | 2026-09-23 | Indian Convert (@JOB 27 / prof 0x1b: 17fa/18ec +1 whitelist + position, 1d4c class tier, building admission, teacher/student/OTJ gates, generation 5bfb_022e mission roll + 5fef_31ea subjugated join, Las Casas 4345_0342 case 0x18, @DEADCONVERTS 3844_0004, @ARMOPTIONS/eject/Build-colony gates, promotion, Live Among, score 41f2_0092, labels/sprites/pedia 6cb2_1820, reports, save, Euro AI 5952) | #879-888 | 9 fixed (#879 M spawn skipped units_set_nation, #880 M Las Casas missed Europe dock, #881 M invented pedia k_job_icons table; `81+job`/66 is DOS-literal), #888 refuted; all 13 `cmp [bx+0x315b],0x1b` sites verified literal |
 | 2026-09-23 | Fur Trapper / Expert Fur Trapper (@JOB 4: 17fa/18ec fur pipeline incl. Game/Beaver/river/road pre-add + Hudson position, 1f72 commons, OTJ/school/village teaching, Europe unreachability 46d4 remap + price -1, fitted forms equip/combat/promotion/join/labels/save, AI 28c8 seating/0x864/5952/20e6, village gift/bid, craft consumption of furs) | #851-862, #819 | 12 fixed (#851 factory-tier input = colony-total floor 2:3, #855 pedia Beaver +3, #819 live gift price byte, #861 invented Silver-first export list deleted), leads #863 (beg-conceded falls through to gift, bVar7) #864 (export ship-load arm has no DOS body) |
+| 2026-09-23 | Lumberjack / Ore Miner / Silver Miner (@JOB 5-7, skilled + unskilled + all fitted forms: 17fa/18ec resource effects Prime Timber/Minerals/Ore+Silver Deposit, lumber <<1, silver collapse, road/river u=2, depletion 0xa896, 1f72 commons, OTJ/school/village trims/Europe pool remap 2->5 4->6 and 700/600/900 train, equip/combat/promotion/capture/labels/save, 28c8 ore arm, 5952 0x864/arming, hauling, @INDIANGIVESTUFF) | #889-896 | 7 fixed (#889 M 28c8 ore +2 nested behind rank test, #890 M invented Expert-Lumberjack LABOR bind deleted, #893 M Train gate + typed status), #896 OPEN lead (same-turn lumber feeding carpenter, needs DOS capture); yield pipeline verified literal, Prime Timber compounding with lumber <<1 is DOS order |
 
 Open carry-over: #530 (AI first-colony opening scaffolding) came out of the Vet
 Soldier audit and is still OPEN.
+
 
 ## Remaining: unit types (`@UNIT`)
 
@@ -47,9 +49,6 @@ None left: every `@UNIT` row has had its own pass (Man-O-War closed the set 2026
 
 | Row | Profession |
 |-----|-----------|
-| 5 | Expert Lumberjack |
-| 6 | Expert Ore Miner |
-| 7 | Expert Silver Miner |
 | 9 | Master Distiller |
 | 10 | Master Tobacconist |
 | 11 | Master Weaver |

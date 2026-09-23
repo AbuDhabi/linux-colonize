@@ -295,7 +295,9 @@ bool europe_train_ex(EuropeScreen* eu, int train_index, ColonizeDosRng* rng) {
   }
   const EuropeTrainOption* t = &eu->train[train_index];
   if (eu->gold < t->cost) {
-    snprintf(eu->status, sizeof(eu->status), "Need %d$ for %s.", t->cost, t->expert_name);
+    /* FUN_38fd_41ce raw 64395-64401 greys an unaffordable row
+     * (FUN_291f_01b6(list,row,1)); the pick is inert, no status text.
+     * bugs.md #893. */
     return false;
   }
   eu->gold -= t->cost;
