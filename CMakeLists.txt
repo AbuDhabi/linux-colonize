@@ -87,12 +87,19 @@ add_library(colonize_sim STATIC
   src/core/unit_chrome.c
   src/core/village_trade_intel.c
   src/core/colony.c
+  src/core/colony_plots.c
+  src/core/colony_workers.c
+  src/core/colony_build.c
+  src/core/colony_goods.c
   src/core/colony_yield.c
   src/core/colony_production.c
   src/core/colony_craft.c
   src/core/combat_strength.c
   src/core/combat_analysis.c
   src/core/turn.c
+  src/core/turn_production.c
+  src/core/turn_colony.c
+  src/core/turn_year_end.c
   src/core/founding_fathers.c
   src/core/europe.c
   src/core/europe_pool.c
@@ -180,8 +187,16 @@ add_library(colonize_ui STATIC
   src/core/new_game.c
   src/core/pedia.c
   src/core/reports.c
+  src/core/reports_congress.c
+  src/core/reports_economy.c
+  src/core/reports_military.c
+  src/core/reports_score.c
   src/core/europe_art.c
   src/core/colony_screen.c
+  src/core/colony_screen_draw.c
+  src/core/colony_screen_buildings.c
+  src/core/colony_screen_panels.c
+  src/core/colony_screen_popups.c
   src/core/colony_chrome.c
   src/core/colony_preview.c
   src/core/combat_analysis_render.c
@@ -586,6 +601,10 @@ set(COLONIZE_SLIM_SOURCES
   src/core/units_render.c
   src/core/village_trade_intel.c
   src/core/reports.c
+  src/core/reports_congress.c
+  src/core/reports_economy.c
+  src/core/reports_military.c
+  src/core/reports_score.c
   src/core/reports_names.c
   src/core/colony_production.c
   src/core/colony_craft.c
@@ -597,6 +616,10 @@ set(COLONIZE_SLIM_SOURCES
   src/core/unit_chrome.c
   src/core/unit_chrome_draw.c
   src/core/colony.c
+  src/core/colony_plots.c
+  src/core/colony_workers.c
+  src/core/colony_build.c
+  src/core/colony_goods.c
   src/core/colony_chrome.c
   src/core/colony_yield.c
   src/core/founding_fathers.c
