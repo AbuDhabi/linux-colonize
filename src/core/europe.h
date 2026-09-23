@@ -356,11 +356,13 @@ typedef struct EuropeScreen {
   int menu_dock_index;
   /*
    * @REALLYBUY confirm state (FUN_38fd_4b50 raw 64874-64887): a PURCHASE
-   * row pick opens this Yes/No popup instead of buying outright. UI row 0
-   * shows "No" (reuses the generic sel==0 cancel path), row 1 shows "Yes".
-   * purchase_confirm_index/cost freeze the item and price the popup was
-   * opened for so the answer never re-reads a table that may have moved.
-   * bugs.md #753.
+   * row pick opens this Yes/No popup instead of buying outright. GAME.TXT
+   * order verbatim — UI row 0 is "Yes" (raw 64874 `iVar6 == 1`, DOS's
+   * default choice), row 1 "No"; europe_menu_confirm_ex special-cases
+   * purchase_confirming ahead of its generic sel==0-cancels shortcut, since
+   * that would otherwise treat "Yes" as a cancel. purchase_confirm_index/
+   * cost freeze the item and price the popup was opened for so the answer
+   * never re-reads a table that may have moved. bugs.md #753.
    */
   bool purchase_confirming;
   int purchase_confirm_index;

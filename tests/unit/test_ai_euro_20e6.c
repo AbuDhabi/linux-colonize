@@ -2267,24 +2267,20 @@ static int unit_gate_adjacent_foe_reaches_scorer(void) {
   return 0;
 }
 
-static int unit_garrison_hold_blocks_scorer(void) {
-  int x = -1;
-  int y = -1;
-  int def_alive = -1;
-  if (gate_course_run(1, &x, &y, &def_alive) != 0) {
-    return fail("garrison hold fixture");
-  }
-  if (!def_alive || x != 8 || y != 8) {
-    fprintf(stderr, "unit_ai_euro_20e6: garrison mover at (%d,%d), defender alive=%d\n", x, y,
-            def_alive);
-    return fail("raw 88604-88610: a lone armed unit on its own colony garrisons, it does not scan");
-  }
-  return 0;
-}
+/*
+ * (Deleted 2026-09-23, bugs.md #760.) unit_garrison_hold_blocks_scorer lived
+ * here, asserting that an Artillery on its own colony garrisons instead of
+ * scanning. It passed only because of the invented "Artillery fortify" act arm
+ * (which read garrison_quota) and cannot be satisfied through the real DOS
+ * gate: raw 88584-88590 holds a unit at LAB_5899 only when the colony's
+ * labor_shortage (+0x8e) is >= 1 or the unit carries the 0a60 admission stamp
+ * +0x314b == 'A', and this fixture has neither by the time the unit acts (the
+ * AI colony tick rewrites +0x8e unconditionally every turn). The LAB_5899 arm
+ * itself is exercised through ai_euro_20e6_land_arms.
+ */
 
 static const TestCase k_cases[] = {
     {"unit_gate_adjacent_foe_reaches_scorer", unit_gate_adjacent_foe_reaches_scorer},
-    {"unit_garrison_hold_blocks_scorer", unit_garrison_hold_blocks_scorer},
     {"unit_goal_walk_keeps_stored_goal", unit_goal_walk_keeps_stored_goal},
     {"unit_goal_binding_dropped_on_arrival", unit_goal_binding_dropped_on_arrival},
     {"unit_idle_act_state_takes_fresh_goal", unit_idle_act_state_takes_fresh_goal},

@@ -1524,9 +1524,10 @@ bool europe_purchase_open_confirm(EuropeScreen* eu, int purchase_index) {
   eu->purchase_confirm_index = purchase_index;
   eu->purchase_confirm_cost = cost;
   /* DOS default (@REALLYBUY has no @default directive) is the first choice,
-   * "Yes" — UI row 1 here (row 0 is "No", reusing the generic cancel-at-0
-   * path in europe_menu_confirm_ex). */
-  eu->menu_selection = 1;
+   * "Yes" — UI row 0 here, GAME.TXT order verbatim (raw 64874 `iVar6 == 1`
+   * = row 0 = Yes; row 1 = No). europe_menu_confirm_ex special-cases
+   * purchase_confirming ahead of its generic sel==0 cancel path. */
+  eu->menu_selection = 0;
   snprintf(eu->status, sizeof(eu->status), "Purchase %s for %d$?", p->name, cost);
   diag_info("EUROPE purchase confirm %s for %d$ (gold=%d)", p->name, cost, eu->gold);
   return true;
@@ -5234,6 +5235,24 @@ bool europe_menu_confirm_ex(EuropeScreen* eu, ColonizeDosRng* rng) {
     europe_menu_close(eu);
     return ok;
   }
+  /*
+   * @REALLYBUY answers are 1-based DOS choice rows (raw 64874 `iVar6 == 1`),
+   * so row 0 is "Yes" and row 1 is "No" — the same order @HAVETREATY and
+   * every other GAME.TXT 2-choice popup use. Special-cased ahead of the
+   * generic sel==0 cancel below, which would otherwise treat "Yes" as a
+   * cancel. bugs.md #753.
+   */
+  if (m == EUROPE_MENU_PURCHASE && eu->purchase_confirming) {
+    bool ok = true;
+    if (sel == 0) {
+      ok = europe_purchase_commit(eu, eu->purchase_confirm_index, eu->purchase_confirm_cost, rng);
+    } else {
+      europe_set_status(eu, "Cancelled.");
+    }
+    eu->purchase_confirming = false;
+    europe_menu_close(eu);
+    return ok;
+  }
   if (sel == 0) {
     europe_menu_close(eu);
     europe_set_status(eu, "Cancelled.");
@@ -5254,16 +5273,8 @@ bool europe_menu_confirm_ex(EuropeScreen* eu, ColonizeDosRng* rng) {
     return ok;
   }
   if (m == EUROPE_MENU_PURCHASE) {
-    if (eu->purchase_confirming) {
-      /* sel==0 ("No") already returned above via the generic cancel path;
-       * reaching here means sel==1 ("Yes") — commit at the frozen price
-       * (bugs.md #753). */
-      const bool ok =
-        europe_purchase_commit(eu, eu->purchase_confirm_index, eu->purchase_confirm_cost, rng);
-      eu->purchase_confirming = false;
-      europe_menu_close(eu);
-      return ok;
-    }
+    /* purchase_confirming is handled above, ahead of the generic sel==0
+     * cancel. */
     if (!europe_purchase_affordable(eu, sel - 1)) {
       return false; /* greyed row: inert, dialog stays up (bugs.md #754) */
     }

@@ -657,12 +657,15 @@ typedef struct ColonizeCol1Nation {
       uint8_t treaty_timer[4];
       uint8_t diplo_flag[4];
       /* +0x48 — DOS: the FUN_4d56_4528 decrementing grace/waiver counter (see
-       * the note above). Read-only for the port; nothing here may write it.
-       * The Linux "indian hostility sticky" stand-in used to live on this byte
-       * and stomped it every turn, so on a DOS-authored save the first read of
-       * either quantity was the other one (smell #52, 2026-09-09). The
-       * stand-in moved to +0x4b, the one byte of the twelve DOS never
-       * touches. */
+       * the note above). Bumped by colonies_try_complete_unit_construction
+       * (FUN_364b_0114 raw 56943-56946: a non-human colony's completed
+       * Artillery project increments it — bugs.md #766); nothing else in
+       * the port writes it, and nothing yet reads it back (4528's own
+       * decrementing consumer is unported). The Linux "indian hostility
+       * sticky" stand-in used to live on this byte and stomped it every
+       * turn, so on a DOS-authored save the first read of either quantity
+       * was the other one (smell #52, 2026-09-09). The stand-in moved to
+       * +0x4b, the one byte of the twelve DOS never touches. */
       uint8_t king_grace_counter;
       uint8_t privateer_spawn_mask;
       uint8_t unknown26_pad; /* +0x4a — DOS carry accumulator raw banked total. */

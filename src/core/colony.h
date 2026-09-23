@@ -1107,7 +1107,7 @@ int colonies_try_complete_unit_construction(
   ColonizeColonyPool* pool,
   int colony_id,
   ColonizeUnitPool* units,
-  const ColonizeCol1Save* col1
+  ColonizeCol1Save* col1
 );
 /*
  * Rush-buy the current project: tops hammers up to the completion

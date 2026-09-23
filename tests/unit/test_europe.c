@@ -766,10 +766,11 @@ static int case_europe_workflow(void) {
   }
 
   /* bugs.md #753: PURCHASE picks Artillery (index 0) through the
-   * @REALLYBUY confirm instead of buying on the spot. "No" (row 0, reuses
-   * the generic cancel path) must leave gold/dock/artillery_bought
-   * untouched but the escalation counter must still bump on open
-   * (FUN_38fd_4b50 raw 64868-64870 runs before the Yes/No answer). */
+   * @REALLYBUY confirm instead of buying on the spot. GAME.TXT row order
+   * verbatim: row 0 "Yes" (raw 64874 `iVar6 == 1`), row 1 "No" — "No" must
+   * leave gold/dock/artillery_bought untouched but the escalation counter
+   * must still bump on open (FUN_38fd_4b50 raw 64868-64870 runs before the
+   * Yes/No answer). */
   {
     const int gold_before = eu.gold;
     const int dock_before = eu.dock_count;
@@ -787,7 +788,7 @@ static int case_europe_workflow(void) {
       return 1;
     }
     eu.menu = EUROPE_MENU_PURCHASE;
-    eu.menu_selection = 0; /* "No" */
+    eu.menu_selection = 1; /* "No" */
     if (!europe_menu_confirm_ex(&eu, NULL) || eu.gold != gold_before ||
         eu.dock_count != dock_before || eu.menu != EUROPE_MENU_NONE) {
       fprintf(stderr, "purchase 'No' answer bought a unit or left the menu open\n");
@@ -802,7 +803,7 @@ static int case_europe_workflow(void) {
     europe_purchase_open_confirm(&eu, 0);
     const int confirm_cost = eu.purchase_confirm_cost;
     eu.menu = EUROPE_MENU_PURCHASE;
-    eu.menu_selection = 1; /* "Yes" */
+    eu.menu_selection = 0; /* "Yes" */
     if (!europe_menu_confirm_ex(&eu, NULL) || eu.gold != gold_before - confirm_cost ||
         eu.dock_count != dock_before + 1 ||
         strcmp(eu.dock[eu.dock_count - 1].name, "Artillery") != 0 ||

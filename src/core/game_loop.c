@@ -3817,14 +3817,14 @@ static void europe_render_menu_popup(
        * disabled outright (europe_build_dock_menu already dropped those). */
       color = eu->dock_menu_greyed[i] ? 8 : 15;
     } else if (eu->menu == EUROPE_MENU_PURCHASE && eu->purchase_confirming) {
-      /* @REALLYBUY Yes/No (bugs.md #753). Row 0 is "No" so it reuses the
-       * generic sel==0 cancel path; row 1 is "Yes". */
+      /* @REALLYBUY Yes/No, GAME.TXT order verbatim (bugs.md #753): row 0
+       * "Yes", row 1 "No" (raw 64874 `iVar6 == 1` = row 0). */
       char choice_buf[2][POPUP_MSG_CHOICE_LEN];
       const char* choice_labels[2];
       popup_msg_section_labels(
         &game->messages, "REALLYBUY", NULL, "Yes", "No", choice_buf, choice_labels
       );
-      snprintf(label, sizeof(label), "%s", choice_labels[i == 0 ? 1 : 0]);
+      snprintf(label, sizeof(label), "%s", choice_labels[i]);
     } else if (i == 0) {
       snprintf(label, sizeof(label), "%s",
                eu->menu == EUROPE_MENU_RECRUIT ? "(None)" : "None");

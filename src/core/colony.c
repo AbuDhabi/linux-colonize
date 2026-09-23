@@ -3061,7 +3061,7 @@ int colonies_try_complete_unit_construction(
   ColonizeColonyPool* pool,
   int colony_id,
   ColonizeUnitPool* units,
-  const ColonizeCol1Save* col1
+  ColonizeCol1Save* col1
 ) {
   ColonizeColony* col = colonies_get_mut(pool, colony_id);
   if (!col || !units || col->building_in_production < 0) {
@@ -3106,6 +3106,19 @@ int colonies_try_complete_unit_construction(
      * Present / Military row (same "front" slot as the Move-to-front order). */
     if (units_type_is_artillery(units_type(units, type_index))) {
       units->board_first_slot = (int)(u - units->units);
+      /*
+       * DOS-LITERAL FUN_364b_0114 raw 56943-56946: `if (type == 0xb &&
+       * (nation > 3 || player[nation].control != 0)) nation[+0x48]++` — an
+       * Artillery completion by a non-human colony (Euro AI or Crown)
+       * bumps the king_grace_counter byte. bugs.md #766.
+       */
+      const bool non_human = col1 && (col->nation_id > 3 ||
+                                       (col->nation_id >= 0 &&
+                                        col->nation_id < (int)COLONIZE_COL1_NATION_COUNT &&
+                                        col1->player[col->nation_id].control != 0));
+      if (non_human && col->nation_id < (int)COLONIZE_COL1_NATION_COUNT) {
+        col1->nation[col->nation_id].king_grace_counter++;
+      }
     }
   }
   if (tools_cost > 0) {
