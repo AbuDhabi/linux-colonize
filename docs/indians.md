@@ -274,7 +274,7 @@ There is **no dedicated personality byte** in Col1 or NAMES. Differentiation is:
 | **`indian.tech`** | Settlement art class, initial pop, meet-scoring weight (`FUN_4d56_2154`) |
 | **Specialty good** (`@TRIBES` field 3) | Trade chrome flavor (`Jewelled Relics` … `Gems`) — not the teach profession |
 | **UI color** | Tribe tint from `@TRIBES` |
-| **Teach outdoor map** | Nation → default `@JOB` when `last_sold` unset (Inca→Silver Miner … Tupi→Sugar Planter) — [indian_contact.md](../original_sources_annotated/ai/indian_contact.md) |
+| **Teach outdoor map** | RETIRED (bugs.md #573): DOS draws the village skill from the per-tech bid table (`overlays.c:77658-77835`, `ai_contact_actions.c` teach arms), seeded per village; there is no nation→default table or `last_sold` override. |
 | **Runtime attitude** | Alarm / friction → `@ATTITUDE` labels (Content … War) |
 
 Fandom “Aztec warlike / Inca peaceful” ([fandom_col1994.md](fandom_col1994.md))

@@ -161,7 +161,9 @@ static void turn_run_colony_building_completion(ColonizeTurnContext* ctx) {
  */
 void turn_run_colony_eot(ColonizeTurnContext* ctx, ColonizeTurnResult* out) {
   turn_set_birth_units_pool(ctx->units);
-  turn_run_colony_production_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(ctx->colonies), .map=(ColonizeWorldMap*)(ctx->map), .col1=(ColonizeCol1Save*)(ctx->col1_ok ? ctx->col1 : NULL), .col1_ok=((ctx->col1_ok ? ctx->col1 : NULL) != NULL), .rng=(ColonizeDosRng*)(ctx->rng), .europe=(EuropeScreen*)(ctx->europe)}, ctx->human_nation, out, ctx->ai_popups, ctx->messages);
+  /* bugs.md #770: FUN_4962_0606 (raw 78332-78374) counts the nation's map
+   * units before its colonists, so the specialty census needs the pool. */
+  turn_run_colony_production_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(ctx->units), .colonies=(ColonizeColonyPool*)(ctx->colonies), .map=(ColonizeWorldMap*)(ctx->map), .col1=(ColonizeCol1Save*)(ctx->col1_ok ? ctx->col1 : NULL), .col1_ok=((ctx->col1_ok ? ctx->col1 : NULL) != NULL), .rng=(ColonizeDosRng*)(ctx->rng), .europe=(EuropeScreen*)(ctx->europe)}, ctx->human_nation, out, ctx->ai_popups, ctx->messages);
   turn_set_birth_units_pool(NULL);
   turn_run_colony_unit_construction(ctx);
   turn_run_colony_building_completion(ctx);

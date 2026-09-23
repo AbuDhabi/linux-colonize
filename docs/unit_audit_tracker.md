@@ -27,6 +27,7 @@ professions from `@JOB` (profession byte = row). Identify by row, never by name.
 | 2026-09-23 | Continental Army (props, combat, promote/demote/muster, equip, colony, UI, save, AI/crown arms, cheat) | #666-670 | 4 fixed, #669 record-only; combat/outcome/muster paths verified literal, no defect |
 | 2026-09-23 | Colonists (@UNIT 0: Free Colonist / Servant / Criminal / Convert / specialists off-colony: movement, orders, Build/Join, goto, Europe immigration + docks, combat defender/capture, Live Among Natives, AI arms, sidebar) | #671-735 | 52 fixed, 6 refuted (#679 #723 #727 #731 #733 + Arctic premise), 7 OPEN leads (#680, #711/#712 tie #530, #715 cross-file, #732, #734, #735); #679 #733 refuted by user |
 | 2026-09-23 | Artillery / Damaged Artillery (props, purchase + @REALLYBUY, construction + AI tools gift, REF pool/wave/merc/intervention, combat peels + 0352 outcomes, fort fire, movement/transport/orders, AI 20e6/06ae/5c3c arms, reports/pedia/save) | #752-769 | see rows; #769 = static-unresolved leads |
+| 2026-09-23 | Master Sugar / Tobacco / Cotton Planter (@JOB 1-3: 18ec/17fa yield, 1f72 commons pick, production/craft order, OTJ learning + 0606 census, school tiers, Europe unreachability, village teach bid table, LCR/FoY, skill loss, 28c8/5952 AI arms, reports/score/sidebar/pedia, save, capture) | #770-781 | 10 fixed (#770 H: census dropped map units), #780 #781 record-only; yield pipeline verified literal |
 | 2026-09-23 | Treasure Train (props, creation LCR/conquest/cheat, boarding/movement/combat, King's Galleon offer + Europe cash-in, AI arms, colony admit, save byte, UI) | #736-751 | 15 fixed (#736-750), #751 = 5 static-unresolved leads; audit corrected: 465b 0x10 bit = Privateer sighting, not treasure |
 
 Open carry-over: #530 (AI first-colony opening scaffolding) came out of the Vet
@@ -49,7 +50,6 @@ Partly covered by earlier audits is noted; still needs its own pass.
 
 | Row | Profession |
 |-----|-----------|
-| 1-3 | Master Sugar / Tobacco / Cotton Planter |
 | 4 | Expert Fur Trapper |
 | 5 | Expert Lumberjack |
 | 6 | Expert Ore Miner |

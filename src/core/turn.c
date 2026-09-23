@@ -525,11 +525,6 @@ COLONIZE_INTERNAL void turn_step_setup(ColonizeTurnProcessor* proc, ColonizeTurn
         turn_rank_euro_nations(
           ctx->col1_ok ? ctx->col1 : NULL, ctx->colonies, ctx->euro_power_rank
         ) == 0;
-      /* FUN_4962_0606 profession tally for each Euro nation (DOS per-nation 00f2). */
-      for (int n = 0; n < 4; ++n) {
-        turn_tally_professions(ctx->colonies, ctx->units, n, ctx->profession_tally[n]);
-      }
-      ctx->profession_tally_ok = true;
       /* Live census peel: colony + unit/combat tallies (FUN_4962_0018). */
       if (ctx->col1_ok && ctx->col1) {
         col1_stuff_census_refresh_colony_counts_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(ctx->units), .colonies=(ColonizeColonyPool*)(ctx->colonies), .col1=(ColonizeCol1Save*)(ctx->col1), .col1_ok=((ctx->col1) != NULL)}, &ctx->col1->stuff);
