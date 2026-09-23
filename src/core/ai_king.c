@@ -73,6 +73,23 @@
  * Crown nation_id: non-human Euro slot (1 if human==0 else 0).
  */
 
+/*
+ * Sections:
+ *  - Crown/boycott messaging & dump-goods helpers (~line 145)
+ *  - Tea-party enqueue & intervention force selection (~line 346)
+ *  - REF force bookkeeping, royal purse & SoL/independence state (~line 546)
+ *  - Audience rolls & tax/tea-party dialogs (~line 981)
+ *  - Succession & Declare Independence (~line 1673)
+ *  - REF landing site selection (~line 2224)
+ *  - REF garrison scoring & invasion mechanics (~line 2438)
+ *  - REF landing, announce & disembark (~line 3201)
+ *  - Mercenary hire offers (~line 3770)
+ *  - Frigate offers & peacetime mercenary hire (~line 4046)
+ *  - War declaration events & REF war conduct (~line 4420)
+ *  - War of Independence endgame scoring (~line 4977)
+ *  - Nation turn driver & popup result dispatch (~line 5541)
+ */
+
 #define AI_KING_YEAR_CAP 1850
 #define AI_KING_PEACE_YEAR_CAP 1800
 #define AI_KING_SOONRETIRE0_YEAR 1790
@@ -142,6 +159,7 @@
 #define AI_KING_CHOICE_THATS_ALL 0
 #define AI_KING_CHOICE_KEEP_PLAYING 1
 
+/* ===== Crown/boycott messaging & dump-goods helpers (ai_king_crown_nation .. ai_king_teaparty_party_name) ===== */
 int ai_king_crown_nation(int human_nation) {
   return (human_nation == 0) ? 1 : 0;
 }
@@ -343,6 +361,7 @@ static void ai_king_teaparty_party_name(
  * then enqueue KING_TAX OK with authentic tokens. VGA chrome PARKED.
  * Cite: GAME.TXT @TEAPARTY; popup_audit MissingWire → Done thin.
  */
+/* ===== Tea-party enqueue & intervention force selection (ai_king_enqueue_teaparty_ok .. ai_king_write_rival_nation_slots) ===== */
 static void ai_king_enqueue_teaparty_ok(ColonizeTurnContext* ctx, int human, int cargo) {
   if (!ctx || !ai_king_human_popups(ctx) || human < 0 || human >= 4) {
     return;
@@ -543,6 +562,7 @@ static void ai_king_write_rival_nation_slots(ColonizeCol1Save* col1, int human) 
  * formula into ai_king_merc_offer's gate and into the Artillery land-troop
  * drain; fixed together with that call site below.)
  */
+/* ===== REF force bookkeeping, royal purse & SoL/independence state (ai_king_seed_backup_force_1a26 .. ai_king_teaparty_payload_parts) ===== */
 static void ai_king_seed_backup_force_1a26(ColonizeTurnContext* ctx, int human) {
   if (!ctx || !ctx->col1_ok || !ctx->col1) {
     return;
@@ -978,6 +998,7 @@ typedef struct AiKingAudienceFlavor {
  * out-of-range index yields the empty string, which is DOS's "missing
  * sections show nothing".
  */
+/* ===== Audience rolls & tax/tea-party dialogs (ai_king_msg_list_entry .. ai_king_tax_hike_apply) ===== */
 static void ai_king_msg_list_entry(
   const ColonizeMsgCatalog* catalog,
   const char* section_name,
@@ -1670,6 +1691,7 @@ static void ai_king_tax_hike_apply(
  * follow-up: the port's fixed slot borrow handed the King Quebec + 5
  * Caravels that were simply France's).
  */
+/* ===== Succession & Declare Independence (ai_king_succession .. ai_king_menu_declare_independence) ===== */
 static void ai_king_succession(ColonizeTurnContext* ctx) {
   if (!ctx || !ctx->col1_ok || !ctx->col1) {
     return;
@@ -2221,6 +2243,7 @@ void ai_king_menu_declare_independence(ColonizeTurnContext* ctx) {
  */
 #define AI_KING_10F0_CANDIDATES 10
 
+/* ===== REF landing site selection (ai_king_10f0_pick_colony .. ai_king_weakest_port) ===== */
 static int ai_king_10f0_pick_colony(const ColonizeTurnContext* ctx, int human, int* out_x,
                                     int* out_y) {
   if (!ctx || !out_x || !out_y || human < 0 || human >= 4) {
@@ -2435,6 +2458,7 @@ static int ai_king_weakest_port(ColonizeTurnContext* ctx, int nation_id, int* ou
  *   (muskets + 50) / 100 + 1, + Σ land units on the tile (004a attack ×8 >> 4),
  *   ×2 with a Fortress, ×1.5 with a Fort, min 1.
  */
+/* ===== REF garrison scoring & invasion mechanics (ai_king_0982_garrison_score .. ai_king_ref_wave) ===== */
 COLONIZE_INTERNAL int ai_king_0982_garrison_score(const ColonizeTurnContext* ctx, const ColonizeColony* c) {
   int g = (c->stock[COLONIZE_CARGO_MUSKETS] + 50) / 100 + 1;
   const ColonizeCombatStrengthCtx cs = combat_strength_ctx_from_turn(ctx);
@@ -3198,6 +3222,7 @@ static void ai_king_ref_wave(ColonizeTurnContext* ctx) {
  * Names are the NAMES.TXT @UNIT rows; the singular fallbacks cover the
  * test pools.
  */
+/* ===== REF landing, announce & disembark (ai_king_10f0_spawn_unit .. ai_king_spend_woi_bell_pool) ===== */
 COLONIZE_INTERNAL int ai_king_10f0_spawn_unit(
   ColonizeTurnContext* ctx, int human, int k, int x, int y
 ) {
@@ -3767,6 +3792,7 @@ int ai_king_spend_woi_bell_pool(ColonizeTurnContext* ctx, int nation_id) {
  * project's fixed 58×72 world).
  */
 
+/* ===== Mercenary hire offers (ai_king_merc_payload .. ai_king_merc_offer) ===== */
 static int ai_king_merc_payload(int hx, int hy, int qty_a, int extra_flag, int price) {
   return ((hx & 0x3f) << 26) | ((hy & 0x3f) << 20) | ((qty_a & 0xf) << 16) |
          ((extra_flag & 1) << 15) | (price & 0x7fff);
@@ -4043,6 +4069,7 @@ static void ai_king_merc_offer(ColonizeTurnContext* ctx) {
  * reads DS:0xa89b/0xa89a right after the same census in 00f2. The old
  * Chebyshev-only rescan here is retired.
  */
+/* ===== Frigate offers & peacetime mercenary hire (ai_king_frigate_threat_counts .. ai_king_peacetime_merc_offer) ===== */
 static int ai_king_frigate_threat_counts(
   const ColonizeTurnContext* ctx, int nation, int* out_frigate, int* out_other
 ) {
@@ -4417,6 +4444,7 @@ void ai_king_peacetime_merc_offer(ColonizeTurnContext* ctx) {
  * promote description that used to sit here documented code deleted with D1
  * — see the closure note above ai_king_ref_pre_euro_beat.)
  */
+/* ===== War declaration events & REF war conduct (ai_king_new_war_event .. ai_king_ref_pre_euro_beat) ===== */
 int ai_king_new_war_event(ColonizeTurnContext* ctx) {
   if (!ctx || !ctx->col1_ok || !ctx->col1 || !ctx->rng || !ctx->turn_number) {
     return 0;
@@ -4974,6 +5002,7 @@ void ai_king_ref_pre_euro_beat(ColonizeTurnContext* ctx) {
  *   Wartime calendar stop: exact year 1850 (raw 58630) → @RETIRING2.
  * Latches market_demand_pool_raw[4]; score reads won/lost.
  */
+/* ===== War of Independence endgame scoring (ai_king_human_coastal_ports .. ai_king_check_revolution_end) ===== */
 static int ai_king_human_coastal_ports(const ColonizeTurnContext* ctx, int human) {
   if (!ctx || human < 0 || human > 3) {
     return 0;
@@ -5538,6 +5567,7 @@ static void ai_king_check_revolution_end(ColonizeTurnContext* ctx) {
   ai_king_woi_end_warn(&w);
 }
 
+/* ===== Nation turn driver & popup result dispatch (ai_king_nation_turn .. ai_king_apply_popup_result) ===== */
 void ai_king_nation_turn(ColonizeTurnContext* ctx) {
   if (!ctx) {
     return;

@@ -261,7 +261,7 @@ spawn + fort VGA chrome.
 
 | File | Coverage |
 |------|----------|
-| `tests/unit/test_units.c` | move-enter combat; naval; fort fire; analysis gate; land engage/colony; best defender; capture/loot; popups |
+| `tests/unit/test_units_*.c (split 2026-09-23)` | move-enter combat; naval; fort fire; analysis gate; land engage/colony; best defender; capture/loot; popups |
 | `tests/unit/test_founding_fathers.c` | Washington promote; Drake naval; Revere; fallout |
 | `tests/unit/test_ai_euro_war.c` | naval/land hunt; adjacent combat chain; Stockade note |
 | `tests/unit/test_ai_king.c` | Cont. promote (king path) |

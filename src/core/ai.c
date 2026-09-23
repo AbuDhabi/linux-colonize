@@ -26,10 +26,28 @@
 #include "platform/platform.h"
 
 /*
+ * Sections:
+ *  - Startup RNG seeding (~line 33)
+ *  - Coarse fog-of-war tracking (~line 95)
+ *  - Diagnostics/audit gates & RNG range utils (~line 187)
+ *  - New-game world setup: nation identity, col1 template, landfall, fleet & tribe placement (~line 300)
+ *  - Game init entry & human-nation id fixups (~line 1138)
+ *  - Euro nation turn dispatch (~line 1309)
+ *  - Indian village worth, brave spawn, mission & threat scoring (~line 1417)
+ *  - Village growth tick, tile/owner helpers & native pull scoring (~line 2084)
+ *  - Native direction-scoring ASM port (~line 2485)
+ *  - 021a direction-scorer structural port (tile/occupant/terrain/angry/score) (~line 2864)
+ *  - Native pick-dir dispatch, move-spent accounting & init schedule (~line 3966)
+ *  - First contact, brave-turn origin & brave step/order execution (~line 4195)
+ *  - Nation pulse, indian nation turn, kill-nation & reset (~line 4640)
+ */
+
+/*
  * FUN_38fd_6024 (viceroy_unpacked.c ~68666-68677): human starting treasury
  * by difficulty — Discoverer 1000, Explorer 300, Conquistador+ 0. AI nations
  * always start at 0. See docs/difficulty.md.
  */
+/* ===================== Startup RNG seeding (ai_starting_gold .. ai_turn_seed) ===================== */
 static uint32_t ai_starting_gold(int difficulty) {
   if (difficulty <= 0) {
     return 1000u;
@@ -92,6 +110,7 @@ static const struct {
 #define AI_COARSE_FOG_SIZE 0x10e
 static uint8_t s_ai_coarse_fog[AI_COARSE_FOG_SIZE];
 
+/* ===================== Coarse fog-of-war tracking (ai_coarse_fog_clear .. ai_coarse_fog_tribe_byte) ===================== */
 static void ai_coarse_fog_clear(void) {
   memset(s_ai_coarse_fog, 0, sizeof(s_ai_coarse_fog));
 }
@@ -184,6 +203,7 @@ static uint8_t ai_coarse_fog_tribe_byte(int x, int y) {
 }
 
 /* Set AI_LCG_AUDIT=1 to log init-pulse pick_dir burn counts (phase 5). */
+/* ===================== Diagnostics/audit gates & RNG range utils (ai_lcg_audit_enabled .. ai_rng_next_counted) ===================== */
 static int ai_lcg_audit_enabled(void) {
   static int cached = -1;
   if (cached < 0) {
@@ -297,6 +317,7 @@ static void ai_native_nation_pulse(
   bool seed100_init_burns
 );
 
+/* ===================== New-game world setup: nation identity, col1 template, landfall, fleet & tribe placement (ai_set_nation_identity .. ai_install_tribes) ===================== */
 static void ai_set_nation_identity(
   ColonizeCol1Save* save,
   int nation,
@@ -1135,6 +1156,7 @@ static bool ai_install_tribes(
   return true;
 }
 
+/* ===================== Game init entry & human-nation id fixups (ai_fix_human_nation_ids .. ai_init_new_game) ===================== */
 static void ai_fix_human_nation_ids(ColonizeUnitPool* units, int human_nation) {
   if (!units) {
     return;
@@ -1306,6 +1328,7 @@ bool ai_init_new_game(const AiNewGameParams* params, char* err, size_t err_size)
   return true;
 }
 
+/* ===================== Euro nation turn dispatch (ai_nation_reseed .. ai_euro_nation_turn) ===================== */
 static void ai_nation_reseed(ColonizeTurnContext* ctx) {
   if (!ctx) {
     return;
@@ -1414,6 +1437,7 @@ void ai_euro_nation_turn(ColonizeTurnContext* ctx, int nation_id) {
  * notes) remains a real function — just never called from 152e/0038.
  * Full trace: `docs/port_plan.md` T1.15.
  */
+/* ===================== Indian village worth, brave spawn, mission & threat scoring (ai_indian_152e_worth_cap .. ai_indian_152e_village_growth) ===================== */
 static int ai_indian_152e_worth_cap(
   const ColonizeTurnContext* ctx,
   const ColonizeCol1Tribe* t
@@ -2083,6 +2107,7 @@ static void ai_indian_152e_village_growth(
 
 COLONIZE_INTERNAL int ai_021a_trace_enabled(void);
 
+/* ===================== Village growth tick, tile/owner helpers & native pull scoring (ai_grow_villages .. ai_native_apply_seed100_peels) ===================== */
 static void ai_grow_villages(ColonizeTurnContext* ctx, int nation_id) {
   if (!ctx || !ctx->col1_ok || !ctx->col1 || !ctx->col1->tribe) {
     return;
@@ -2482,6 +2507,7 @@ static int ai_native_apply_seed100_peels(
  * from ai_native_pick_dir_asm; returns AI_ASM_DIR_REJECTED for a tile the
  * scan drops.
  */
+/* ===================== Native direction-scoring ASM port (ai_native_asm_score_dir .. ai_native_pick_dir_asm) ===================== */
 static int ai_native_asm_score_dir(
   AiRng* rng, const ColonizeWorldMap* map, const ColonizeUnitPool* units,
   int x, int y, int nation_id, int last_dir, int unit_fa, int unit_river,
@@ -2861,6 +2887,7 @@ static int ai_native_pick_dir_asm(
  * ===========================================================================
  */
 
+/* ===================== 021a direction-scorer structural port (tile/occupant/terrain/angry/score) (ai_021a_settle_owner .. ai_021a_trace_enabled) ===================== */
 COLONIZE_INTERNAL int ai_021a_settle_owner(const ColonizeWorldMap* map, int x, int y) {
   /* FUN_281f_06be -> FUN_137f_03e4: layer2 bit 0x02 then the owner nibble. */
   if (!map || !map->layer2 || !map_coords_inset(map, x, y)) {
@@ -3963,6 +3990,7 @@ COLONIZE_INTERNAL int ai_021a_trace_enabled(void) {
 }
 
 /* AI_BRAVE_PICK=20e6 — live opt-in fallback to the retired 20e6-shaped quiet scorer. */
+/* ===================== Native pick-dir dispatch, move-spent accounting & init schedule (ai_brave_pick_20e6_fallback .. ai_init_sched_apply) ===================== */
 static int ai_brave_pick_20e6_fallback(void) {
   static int cached = -1;
   if (cached < 0) {
@@ -4192,6 +4220,7 @@ static uint8_t s_brave_origin_ok[COLONIZE_UNITS_MAX];
 static ColonizeTurnContext* s_ai_native_ctx = NULL;
 static uint8_t s_ai_first_contact_this_turn[8][4];
 
+/* ===================== First contact, brave-turn origin & brave step/order execution (ai_native_first_contact_this_turn .. ai_native_brave_step) ===================== */
 int ai_native_first_contact_this_turn(int nation_id, int euro_nation) {
   if (nation_id < 4 || nation_id > 11 || euro_nation < 0 || euro_nation > 3) {
     return 0;
@@ -4637,6 +4666,7 @@ static AiNativeStepStatus ai_native_brave_step(
 }
 
 
+/* ===================== Nation pulse, indian nation turn, kill-nation & reset (ai_native_nation_pulse .. ai_native_reset) ===================== */
 static void ai_native_nation_pulse(
   ColonizeUnitPool* units,
   ColonizeWorldMap* map,

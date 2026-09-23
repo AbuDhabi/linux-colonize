@@ -56,6 +56,10 @@ a MAPEDIT `FUN_1a47_*` with any VICEROY `FUN_*` of the same digits. The packed
 
 ## Looking up `FUN_*` / `DAT_*`
 
+**Cheapest read:** `python3 tools/decomp_fn.py FUN_ssss_oooo` prints just that
+body (`--where` for the file:line range, `--callers` for callers). Prefer it over
+grep + Read on the multi-MB `.c` exports.
+
 ### Naming
 
 | Pattern | Meaning |

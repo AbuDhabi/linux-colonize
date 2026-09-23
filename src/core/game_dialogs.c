@@ -2,9 +2,16 @@
 
 /*
  * Sections:
- *  - Colony/trade/found-colony confirm dialogs (~line 14)
- *  - Construction & Europe boycott/buy dialogs (~line 914)
- *  - Modal input handling & AI popup result appliers (~line 1623)
+ *  - Status/key helpers & Europe-bar service (~line 19)
+ *  - Colony founding: indian land choice, site survey & confirm chain (~line 267)
+ *  - Yes/no confirms: disband, overboard & trade-route slots (~line 784)
+ *  - Construction & Europe boycott/buy-construction dialogs (~line 1100)
+ *  - Find-colony & trade-route pickers (~line 1325)
+ *  - Land-ho name-entry dialog (~line 1442)
+ *  - Settings, debug HUD & trade-service screen requests (~line 1625)
+ *  - Modal input dispatch & cargo hold load/unload (~line 1765)
+ *  - Howmuch popup apply (~line 1966)
+ *  - AI popup result appliers (~line 2075)
  *
  * game_apply_ai_popup_result is a dispatcher over the game_apply_popup_*
  * stages directly above it (map_and_colony / voyage / contact /
@@ -16,7 +23,7 @@
  * cross-file helper prototypes are in game_dialogs.h.
  */
 
-/* ===================== Colony/trade/found-colony confirm dialogs (game_open_pedia_article .. game_request_disband_confirm) ===================== */
+/* ===================== Status/key helpers & Europe-bar service (game_open_pedia_article .. game_emit_warehouse_full) ===================== */
 
 void game_open_pedia_article(
   ColonizeGameState* game,
@@ -264,6 +271,7 @@ enum {
  * already-ported FUN_4d56_152e village growth pass. Returns true when a
  * dialog was queued (caller must stop and wait for the result).
  */
+/* ===================== Colony founding: indian land choice, site survey & confirm chain (game_request_indian_land_choice .. game_try_found_colony_at_cursor) ===================== */
 bool game_request_indian_land_choice(
   ColonizeGameState* game,
   GameIndianLandKind kind,
@@ -780,6 +788,7 @@ bool game_try_found_colony_at_cursor(ColonizeGameState* game) {
   return true;
 }
 
+/* ===================== Yes/no confirms: disband, overboard & trade-route slots (game_enqueue_yes_no .. game_request_disband_confirm) ===================== */
 void game_enqueue_yes_no(
   ColonizeGameState* game,
   GameMapConfirm confirm,
@@ -1095,7 +1104,7 @@ void game_request_disband_confirm(ColonizeGameState* game) {
     &tok
   );
 }
-/* ===================== Construction & Europe boycott/buy dialogs (game_do_buy_construction .. game_trade_service_screen_request) ===================== */
+/* ===================== Construction & Europe boycott/buy-construction dialogs (game_do_buy_construction .. game_request_overboard_confirm) ===================== */
 
 
 static void game_do_buy_construction(ColonizeGameState* game, int colony_id) {
@@ -1320,6 +1329,7 @@ void game_request_overboard_confirm(ColonizeGameState* game) {
   );
 }
 
+/* ===================== Find-colony & trade-route pickers (game_open_find_colony_picker .. game_open_trade_route_picker) ===================== */
 void game_open_find_colony_picker(ColonizeGameState* game) {
   if (!game) {
     return;
@@ -1436,6 +1446,7 @@ void game_open_trade_route_picker(ColonizeGameState* game, int mode) {
   }
 }
 
+/* ===================== Land-ho name-entry dialog (game_landho_default_region .. game_try_prompt_landho) ===================== */
 static void game_landho_default_region(const ColonizeGameState* game, char* out, size_t out_size) {
   static const char* k_regions[4] = {
     "", "", "", ""
@@ -1618,6 +1629,7 @@ void game_try_prompt_landho(ColonizeGameState* game) {
 }
 
 /* Persist DEBUG HUD toggles (mouse coords, building rects, logs) to settings.json. */
+/* ===================== Settings, debug HUD & trade-service screen requests (game_persist_debug_hud .. game_trade_service_screen_request) ===================== */
 void game_persist_debug_hud(const ColonizeGameState* game) {
   if (!game || !settings_is_loaded()) {
     return;
@@ -1757,7 +1769,7 @@ static void game_trade_service_screen_request(ColonizeGameState* game) {
       break;
   }
 }
-/* ===================== Modal input handling & AI popup result appliers (game_handle_modal_input .. game_apply_ai_popup_result) ===================== */
+/* ===================== Modal input dispatch & cargo hold load/unload (game_handle_modal_input .. game_colony_unload_hold) ===================== */
 
 
 /*
@@ -1958,6 +1970,7 @@ void game_colony_unload_hold(
   }
 }
 
+/* ===================== Howmuch popup apply (game_apply_howmuch_result) ===================== */
 static void game_apply_howmuch_result(ColonizeGameState* game) {
   if (!game || game->howmuch.result_cancelled || game->howmuch.result_amount <= 0) {
     return;
@@ -2066,6 +2079,7 @@ static void game_apply_howmuch_result(ColonizeGameState* game) {
  */
 /* Map confirm, trade-route wizard type, and the colony-screen dialogs
  * (event zoom, abandon, Clear Specialty). */
+/* ===================== AI popup result appliers (game_apply_popup_map_and_colony .. game_apply_ai_popup_result) ===================== */
 static bool game_apply_popup_map_and_colony(ColonizeGameState* game) {
   if (game->ai_popups.result_tag == AI_POPUP_TAG_MAP_CONFIRM) {
     game_apply_map_confirm(game);

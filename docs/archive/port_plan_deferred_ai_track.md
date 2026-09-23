@@ -1,0 +1,861 @@
+> **STATUS: closed, historical audit dump (AI porting track substantially
+> complete; findings/inventory below are historical narrative, not a
+> current spec — remaining open items are summarized in `docs/port_plan.md`
+> under "Deferred AI track").**
+
+## Deferred AI track — detail (merged 2026-09-05 from `ai_port_plan.md` + `ai_transcription.md`)
+
+This section is the surviving, still-relevant core of the two removed AI
+docs: the fidelity-tier vocabulary, the hard-won method notes, the FUN_*
+inventory with honest per-module claims, and the **still-open** queue items.
+Every completed T*/R* item's full dated write-up is in git history of
+`docs/ai_port_plan.md` / `docs/ai_transcription.md`; per-function deep dives
+live on in `original_sources_annotated/ai/*.md` (unaffected by the merge).
+
+**Track status: SUBSTANTIALLY COMPLETE (reassessed 2026-09-08;
+was DEFERRED 2026-08-24).** The 2026-09-05→09-08 waves closed D1, the D2
+logic bodies, the golden gates, and every "partial" inventory row's
+residue list. Remaining AI work is the **residual punch list** below —
+small recorded items, not planner arms. New AI work should start from that
+list, not from the inventory.
+
+### Residual punch list (all that is genuinely open AI-side, 2026-09-18)
+
+- [x] **AI cross-driven immigration** — ported 2026-09-17. DOS `3844_00f2`
+  runs `5e52` for every `control != 2` nation (raw 6392-6394) and gates only
+  its chrome on `control == 0`, so AI nations do get immigrants: the port's
+  flat "+2, spawn PARKED" stub in `turn.c` is now
+  `europe_nation_immigration_tick_w` (europe.c) — `584a` needed + tick, pool =
+  the nation record's own `recruit[3]`, refill = `46d4`
+  (`europe_nation_refill_pool_slot`, shared roll with the human screen via an
+  `EuropePoolView`), arrival = `0718` (`europe_nation_harbor_spawn`) parking a
+  real unit in the Europe limbo the AI's 5d04/ship logic already services.
+  Brewster takes slot 1, free, no `recruit_count` bump, no 0x40 latch.
+  Order is DOS's: `5e52` **before** the colony tick `0950` — proven by
+  test-saves-ai TURN6→7 nation[3] 12 → 14 (no arrival) → 15.
+
+- [x] **Brave vs human-Artillery auto-loss** — ported 2026-09-08c
+  (`units_combat_brave_vs_human_arty`, units.c; the raid-handoff `param_4`
+  latch replaced an over-broad name match). See combat.md.
+- [x] **`0f14` negative-alarm tail** — resolved 2026-09-08c: DOS is
+  negative (−4/−12/−16/−8), gate SKIPS the call when at war, kind 3 is the
+  SHIP band; positive fandom bump retired; both resolver entries share
+  `ai_contact_raid_alarm_tail`, run at DOS's tail position (after chrome).
+  The @INDIANSURPRISE denial chrome now keys off the at-war state (alarm
+  > 0x4a / WAR bit), not a Linux attacks counter DOS's own tail zeroes.
+- [x] **Revere phantom-vs-real-Soldier model** — realigned 2026-09-08c:
+  phantom temp defender (scratch @UNIT row 0x17; Revere = Soldiers 2/2 +
+  graphic 0x4b), always evaporates, no muskets ever spent; ejector deleted.
+- [x] **Two parked `0896` tension readers** — closed 2026-09-08c:
+  `5952_035e` threat>>3 seed ported live (thin garrison latch retired);
+  `112b_0790` DISSOLVED — `ColonizeCol1Save.indian_tension` was a phantom
+  duplicate (DS:0x54f6 = the settlement record's `attitude[4]` word =
+  `tribe.alarm[]`, already live); array retired, all consumers repointed
+  (see indians.md).
+- [~] **D3 determinism debt — root-caused 2026-09-15.** The quiet Brave
+  picker was never `FUN_521d_20e6`'s "Brave branch": `FUN_4d56_021a`
+  (4d56:021a..14fd, ndisasm of overlay 13) carries its OWN nine-way dir
+  loop (dirs 0..7 + stay), and the far call at 021a:1182 that the docs read
+  as "reaches the 521d scorer" is `FUN_7a65_0008`, the on-map score plotter
+  behind "Show Indian moves". Ported as `ai_native_pick_dir_021a` +
+  `ai_native_021a_tail` (ai.c; env `AI_BRAVE_PICK=20e6` keeps the old
+  scorer): score 200 + RNG(1,5), facing +4/+3/−6, road/river +4, home
+  tether −3·dist beyond 2, colony drift, visit/loot/attack arms, stay
+  penalties. Three stream-order fixes fell out of the audit: the 465b
+  overspend gate (`spent != 0 && cost > left` → reseed from the timer word,
+  RNG(1,cost), deny on `roll > left`), first contact + 022e visit-mood rolls
+  on the BRAVE's own step (3180 from the 465b tail, `ai_native_step_first_
+  contact` / `ai_contact_visit_step_roll`), and AI Euro land steps opening
+  Indian first contact (`ai_contact_encounter_scan` in the ai_euro act loop).
+  The Inca=14/Aztec=4 mid-turn burns and the 13 init peels were artifacts of
+  the old scorer and are gone. Residue: `k_mid_peels` is down from 107 rows
+  to 6 near-ties (1..5 points; ai.c lists them); the init pulse still needs
+  the 6 Inca burns (one per Inca village, source in DOS's init 1816 not
+  found). Tooling: `AI_021A_TRACE=1` (per act / gamble / visit roll),
+  `AI_SCORE_AT`, `AI_PEEL_AUDIT=1`. Trap: `golden_ai_turns` steps leak state
+  across TURN steps inside one process (ALL mode) — audit one turn at a time
+  (`COLONIZE_TEST_ONLY=TURN<t>_to_<t+1>`; was `AI_TURNS_ONLY=t`). Second trap: save offset 612 is NOT
+  `prime_resource_seed` (it changes across TURN saves); DS:0x190 is the
+  post_map word (365 on seed 100).
+  **Init Inca burns, static audit 2026-09-16 (not a live-capture item):**
+  every RNG call site reachable between 1816's entry reseed and the first
+  021a pick was enumerated (all `281f_04d4/04ca/0d90/0e68` sites in the 31
+  overlays via `rtlink_overlay_extract.py` + ndisasm, plus every direct
+  `19ef_0032/002c` caller in resident code) and each is already modelled or
+  gated off at game start; VR_SEED patches `FUN_1c0c_0012` (BIOS tick) to
+  return 100, so every `randomize` incl. the music picker's two calls in the
+  UI pump (`129f:0138`/`0250`) is a reset, never a burn; SEED100_REGEN1/2
+  reproduce SEED100 byte-for-byte, so it is not timing. The golden is a weak
+  oracle: with 0 burns only Brave 1 at (9,28) misses on a 1-point near-tie,
+  and k in {6,14,25,32} before Brave 1 all pass (also "reseed+3 before every
+  Brave"). The 6 is therefore a fit for one near-tie, same class as the six
+  `k_mid_peels` rows, not a missing DOS site. Tool: `AI_INIT_SCHED`
+  (debug_env_vars.md). One real lead fell out: DOS 152e's met test is
+  `FUN_281f_0a38(e, nation)` = `nation[e].relation_by_indian[n-4]`
+  (Euro-side byte), the port reads `indian.euro_diplo[e]` (Indian-side);
+  equal whenever the or-both writer set them, but `4cc6_0092` clears only
+  one side.
+- [x] **Human-colony `5952_035e` tick** — **REFUTED 2026-09-08d, no work.**
+  The "DOS runs the colony tick for every nation" premise was wrong. The
+  tick has exactly ONE call site in the whole EXE: inside the AI nation
+  dispatcher `FUN_521d_6d8e` (`viceroy_unpacked.c:93119`, own-colony loop),
+  reached only from the year loop's `control == 1` branch
+  (`FUN_130d_0290`, `:6397`; human `control == 0` branch `:6409` goes to
+  interactive Move Pieces instead). Thunk chain byte-verified in
+  `viceroy_unpacked.asm` (2a1f_0530 → 521d_5cf6 → 2a1f_05a8 → 5952_035e;
+  `FUN_5952_035e` has no other entry). Empirical corroboration: across the
+  real DOS turn pair `COLONY00-dutch2-t0.SAV` → `COLONY01-dutch2-t1.SAV`
+  every AI colony's `garrison_quota`/`improve_timer`/`cargo_idle_turns`/
+  `ai_flags` moves, every HUMAN colony's stays byte-identical (incl. stale
+  capture residue DOS never clears). Port's AI-only wiring matches DOS.
+  Side fixes from the audit: `test_colony_prod02.c` `improve_timer`
+  mismatch now fails the gate (printed but didn't set `ok=false`);
+  human Custom House `ai_flags & 0x03` gate audited separately (next row).
+- [x] **Human blockade bits (`+0x1b & 3`) frozen — FIXED 2026-09-08d.**
+  Found by the 5952 audit: DOS refreshes the colony blockade pair via the
+  4962_0018 census run from the nation EOT `FUN_3844_00f2` for every
+  `control != 2` slot — human included (`viceroy_unpacked.c:58390`, census
+  AFTER the colony-EOT/autosell loop; plus the explicit human call in
+  `3844_0442:58463`). The port ran the probe only in the AI planner, so a
+  human colony's Custom House gate (`europe.c`, `ai_flags & 3`) read the
+  save-import value forever. Fix: probe split out of
+  `ai_euro_refresh_colony_ai_flags` into `ai_euro_colony_ship_probe_4962` +
+  `ai_euro_census_ship_pressure_refresh(ctx, human)` called in
+  `TURN_PROC_FINISH` after building completion (DOS position). Bit meanings
+  corrected in `col1_save.h`/`save_format_map.md`: bit 0x02 = Frigate (0x11
+  literal) ONLY, bit 0x01 = any other armed ship incl. Man-O-War
+  (JSON key renamed `nearby_frigate` 2026-09-16; old key still read). 60/60 green.
+- [x] **1b0e beginner-handicap siblings** — closed 2026-09-08. All three
+  siblings plus the diff-0 human-attacker doubling ported as
+  `combat_apply_1b0e_resolve_handicaps` (raw 100534-100556); resolve-only
+  placement modeled (DOS puts the group after the `param_5 == 0` return, so
+  Combat Analysis and AI scoring never see it) — called from the land and
+  naval resolvers after the analysis popup, before the roll. The port's
+  wrong-side "Discoverer damper" deleted. 60/60 green.
+- [x] **`5952_035e` indoor-workplace pass + its want-weight scorer (raw
+  94784-94860, asm `5952:1ef7`-`5952:2193`) — LANDED 2026-09-17**, default ON
+  (`AI_5952_INDOOR=0` restores the stand-in; `docs/debug_env_vars.md`).
+  `ai_euro_5952_indoor_pass` / `ai_euro_5952_want_weight` /
+  `ai_euro_5952_job_score` / `ai_euro_5952_fallback_job` in `ai_euro.c`, seams
+  in `ai_euro_internal.h`, unit cover in
+  `tests/unit/test_ai_euro_5952_indoor.c` (10 cases, every expected number
+  recomputed from the asm). It retires the 28c8 "leftovers" stand-in, which
+  now runs only behind `AI_5952_INDOOR=0`.
+  Prerequisites resolved rather than re-ported: `FUN_281f_0cd6` →
+  `FUN_15eb_1d4c` is already ported per-body in `colony_production.c`
+  (`colony_prod_manufacturing_output` / `_hammers_worker` / `_crosses_worker`
+  / `_bells_worker`), so only the 15eb:1f44 jump-table dispatcher was new
+  (`ai_euro_5952_producible`); `FUN_281f_0c36` → `FUN_15eb_1068` is
+  `colonies_assign_workplace`, reached through the job→chain map below.
+  STILL a stand-in, deliberately: `ai_euro_try_expert_workplace_assign` —
+  it places *map units* walking into a colony, which this pass (colonists
+  already inside a colony) does not cover; that is a separate DOS site.
+  `make test` 63/63 and `make golden` green with the pass on.
+- [x] **`5952_035e` carpenter-staffing arm (raw 94690-94740, asm
+  `5952:1ac7`-`5952:1be2`) — LANDED 2026-09-18.**
+  `ai_euro_5952_carpenter_arm` / `ai_euro_5952_carpenter_pick` in `ai_euro.c`
+  (seam in `ai_euro_internal.h`, `tests/unit/test_ai_euro_5952_carpenter.c`).
+  Runs inside the `(+0x1d & 0x80) == 0` block, after the field passes and
+  before the field-specialist restore pass. Resolutions: `iStack_4e` is the
+  frame slot one word past Ghidra's `local_4e` label, i.e. `aiStack_68[0x0d]`
+  — the by-profession Master Carpenter census, not an uninitialised local;
+  `FUN_281f_0cae(slot, 0x1c)` is the profession writer (bugs.md #431), so a
+  chosen Servant/Criminal becomes a Free Colonist; the RNG is
+  `FUN_281f_04d4(0, 0x10 - DS:0x53a6)`. Golden
+  impact zero (traced: the arm is reached on every AI colony, and every
+  golden colony fails the lumber gate). `make test` 66/66, `make golden` green.
+- [x] **`5952_035e` construction-project cascade (asm `5952:21d4`-`5952:274b`)
+  — LANDED 2026-09-17, bugs.md #483.** `ai_euro_5952_build_cascade` in
+  `ai_euro.c` (seam in `ai_euro_internal.h`, 12 cases in
+  `tests/unit/test_ai_euro_5952_build.c`, trace `AI_5952_BUILD_TRACE=1`).
+  DOS has exactly ONE AI construction picker and it ends in five **unit**
+  projects; the port's nineteen-row `ai_euro_prefer_*` table plus the craft
+  house/shop/factory pass were name-keyed inventions and are **deleted**.
+  All 21 `FUN_5952_0214` arguments arrive in AX (which is why Ghidra dropped
+  them) and were recovered from `viceroy_overlays.asm:145550-146167`.
+  New resolutions: `FUN_5952_0214` is **recursive** on the `DS:0x8f85`
+  @BUILDING predecessor (return 1 = keep scanning, 0 = stop); `DS:0x864` =
+  six {root @BUILDING, @JOB, input @CARGO} craft-chain rows read off the
+  image at file offset 121248 + 0x864; `DS:0x8ea6` stride 8 = the NAMES.TXT
+  @JOB **column 3** (loader raw 121044-121053), so `% 4` is the 1..4 class
+  that selects Schoolhouse/College/University; `byte[n*0x10 + 0x84cb]` =
+  `DS:0x84bc` + cargo 0xf = the per-nation Europe Muskets row;
+  `aiStack_68` is based at **BP-0x66** (`LEA AX,[BP-0x66]` at asm
+  `5952:0bb8`) and indexed by PROFESSION, so the `[BP-0x48]`/`[BP-0x46]`
+  gates are Master Gunsmith / Firebrand Preacher counts (Armory / Church);
+  `FUN_1000_8d90` = `FUN_15eb_0410` walks the **successor** column
+  `DS:0x8f86` to a chain's deepest tier, `FUN_1000_8ca0` = `FUN_15eb_039e`
+  counts owned tiers downward; `FUN_1000_8d72`/`8de0` = `FUN_15eb_1376`/
+  `13ac`, colonist counts by JOB / by PROFESSION; `uStack_a2` =
+  `byte[0x329 + tech_tier]` = {0,4,8,12,20}, so a Euro colony's ring is 8.
+  `FUN_5952_02f4` writes `code = row + 0x1f` with **no** availability gate,
+  so the Wagon cap in `FUN_15eb_3650` (the human build MENU's gate) is not
+  in this path by design.
+  DIVERGENCES: `iStack_22` (the ring-1 European threat that gates the Wagon
+  Train) comes from `ai_euro_colony_threat_seed_5952`, a different port pass
+  of the same DOS body, through a per-colony stash; the cascade therefore
+  runs right after `ai_euro_colony_goals` instead of inside the 28c8 body;
+  and the Wagon arm's `FUN_1000_84fc(DS:0x8d52, nation)` alarm reads the
+  tribe of `ai_euro_20e6_nearest_village` (the bind five lines above it).
+  Golden impact: **zero** — the unit band needs a finished craft chain plus
+  a coastal pop-8+ colony, which no golden fixture reaches (verified with
+  `AI_5952_BUILD_TRACE=1` on `golden_ai_turns` / `golden_ai_joint` /
+  `smoke_ai_mid01` / `smoke_ai_late01`: no unit pick fires). `make test`
+  64/64, `make golden` green.
+- [x] **`5952_035e` forced-lumberjack pass + AI emergency lumber buy (raw
+  94659-94689, md:1074-1112) — LANDED 2026-09-18.**
+  `ai_euro_5952_lumberjack_pick` / `ai_euro_5952_forced_lumberjack` /
+  `ai_euro_5952_lumber_purchase` in `ai_euro.c` (seams in
+  `ai_euro_internal.h`, `tests/unit/test_ai_euro_5952_lumber.c`). Both run
+  inside the `(+0x1d & 0x80) == 0` block immediately ahead of the carpenter
+  arm, so that arm now sees the bought lumber as DOS does. Resolutions:
+  colony `+0xa4` = `+0x9a + 2*5` = the Lumber stock word; `DS:0x8dd2` =
+  gross production[Lumber]; the three passes are profession 5 / any
+  non-expert (`FUN_281f_0c9a == 0`) / anyone, with NO `0cae` profession
+  rewrite (unlike the carpenter arm); `FUN_1000_8d5e(slot, 5)` is the 28c8
+  call with a real job index, i.e. `ai_euro_28c8_score_job(.., restrict 5)`.
+  `iStack_8c` is always 0 on entry — its only other writer is the
+  LAB_5952_17a9 leftovers election the port already proved dead. The
+  purchase is DOS-asymmetric and kept so: the colony gains 100 lumber
+  unconditionally, the 200 gold comes off only a purse holding ≥ 200, read
+  with `europe_nation_gold` and written with `europe_nation_gold_add` on the
+  colony owner's record (`DS:0x84fc + 0x2a/0x2c`). `DS:0x538e` is
+  `ctx->turn_number`. Test fallout: seven AI-turn fixtures that assert exact
+  gold deltas now stock the fixture colony with 25 lumber to close the buy's
+  `stock < 2` gate (comment at each site); no expectation was moved.
+  `make test` 67/67, `make golden` green.
+- [x] **`5952_035e` absorption arm — Scout + Colonist cases and the `local_16`
+  resolution (raw 94264-94274) — LANDED 2026-09-18.**
+  `ai_euro_act_colony_absorb` in `ai_euro.c` (seam in `ai_euro_internal.h`,
+  case in `tests/unit/test_stage_seams.c`), run in `ai_euro_unit_act` just
+  ahead of `ai_euro_act_pioneer_corridor` (the same arm's 0x14 case).
+  Scout (@UNIT 0x16): continent G-stance 0 or `colony+0xaa` (cargo 8 =
+  Horses) `< 0x34`. Colonist (@UNIT 0x13): unconditional. Both under the
+  shared outer gate `+0x1b & 0x10` and population `< 0x20`; admission is
+  `colonies_admit_unit_w` (`FUN_15eb_1068` job 0x12), which refunds the
+  unit's equipment into the colony stock and keeps the profession, so
+  Indentured Servant 0x19 / Petty Criminal 0x1a survive intact.
+  `local_16` RESOLVED (md:283): it is seeded `uStack_16 = (0x13 < +0xb6)` —
+  "this colony already holds more than 19 TOOLS" — not a per-tick latch, so
+  the Pioneer case's gate is now `WANTS_PIONEER_WORK && stock[TOOLS] <= 19`,
+  which the absorption's own 100-tool refund latches exactly as DOS's
+  `uStack_16 = 1` does. Residual: a Pioneer carrying < 20 tools into an
+  empty-tooled colony leaves the port's gate open where DOS's would close it.
+  Soldier/Dragoon case (raw 94239-94256) PORTED 2026-09-18. `iStack_42` /
+  `iStack_3e` resolved off the OVL15 disassembly as `aiStack_68[0x13]` /
+  `[0x15]` of the by-profession census: Ghidra's `*Stack_NN` labels sit one
+  word below the real BP offsets in this frame (`iStack_76` → `[BP-0x74]`),
+  the array is based at `[BP-0x66]` and is `int[25]` (`LEA [BP-0x66]` +
+  `PUSH 0x32` memset; store `INC word [BP+SI-0x66]`, `SI = 2*@JOB`), and the
+  gate/decrement pair reads `[BP-0x40]` / `[BP-0x3c]` = indices 0x13 / 0x15.
+  The three gate disjuncts are `iStack_76 < 0 && !(+0x1b & 8)` (dead — the
+  labor_shortage running total, live in `ai_euro_5952_labor_demand` since
+  2026-09-09, is never negative there; transcribed as the dead branch it is),
+  `is_expert(@JOB) && @JOB != 0x15 && (census[0x13] || census[0x15])`, and
+  `+0x1b & 4`. Absorption clears `+0x1b` bit 2, refunds muskets/horses via
+  `colonies_admit_unit_w` and consumes one census cell (`[0x15]` first). The
+  census is stashed per colony (`s_5952_census_*`) the way `s_5952_ring1`
+  already is, since DOS builds it inside the tick just before the loop.
+  `make test` 67/67, `make golden` green.
+- [x] **`5952_035e` absorption + equip arms RE-HOSTED into the colony tick
+  (raw 94231-94352) — LANDED 2026-09-18.** The two structural divergences the
+  entry above documented are closed: DOS runs both arms inside
+  `FUN_5952_035e` itself, at one fixed position — after every `+0x1b` flag
+  write and the by-profession census, before the build-preference /
+  construction cascade — as a **re-scan of the units standing on the colony
+  tile**, not once per arriving unit. New `ai_euro_5952_absorb_equip`
+  (`ai_euro.c`, seam in `ai_euro_internal.h`), called from
+  `ai_euro_colony_goals_colony_labor` immediately after
+  `ai_euro_refresh_colony_ai_flags` — the port splits DOS's `+0x1b` writers
+  across `ai_euro_colony_threat_seed_5952` (raw 94142-94199) and that refresh
+  (raw 94200-94210), so "after every flag write" is that call site.
+  `ai_euro_act_colony_absorb` is deleted and
+  `ai_euro_act_pioneer_corridor`'s on-tile block is gone; a DOS unit act does
+  nothing else for an AI unit standing on its own colony (20e6 move scoring +
+  the 0a60 goal consumption are the whole of it), so nothing is dropped or
+  double-handled.
+  - **Loop semantics, verbatim:** outer gate `DS:0x8d72 != 0 && (+0x1b &
+    0x10)` evaluated once; inner scan over the colony slots past `+0x1f`,
+    with `+0x1f < 0x20` re-read at every loop test; at most **one** take-in
+    per pass (`iStack_32`) and then restart from the top, so several units on
+    the tile are all absorbed in one tick and every later pass sees the new
+    population, the consumed census cell, the cleared `+0x1b` bit 2 and the
+    raised tools latch.
+  - **`local_ee` corrected:** `FUN_1000_8dfe` = `FUN_15eb_0e18`, which for a
+    slot past the population returns `FUN_15eb_0902(unit)` =
+    `DS:0x30e[@UNIT type]`, the type's **default @JOB** — 0x13/0x14/0x15/
+    0x16/0x17 are @JOB values, NOT @UNIT codes (Cont. Army also folds to
+    0x15, Cont. Cav to 0x17). New value accessor `units_type_default_job`
+    (`units.c`), which `units_type_has_profession_slot` now wraps — the
+    accessor the 2026-09-10 smell audit's "DEFERRED — raw 94247" row asked
+    for.
+  - **`iStack_76` now flows:** it is the `want` that
+    `ai_euro_5952_labor_demand` leaves *after* the on-tile military walk (not
+    the `+0x8e` byte — DOS writes that once, before the walk, and never
+    again in the tick). `ai_euro_colony_threat_seed_5952` hands it out
+    through a new `out_labor_running` parameter and the Soldier case `++`s it
+    in place. Its in-tick readers are the dead disjunct (a) and the fifth
+    `FUN_OVL15_L0000__002a82(0x181f, 0xf, …)` build-preference call, both
+    live since 2026-09-18 — the increment can now tip a colony's `+0x8d`
+    preference back onto Muskets, which is DOS's only observable use of it.
+  - **`local_16` is now a real tick-local** seeded from `0x13 < +0xb6` and
+    latched to 1 by the Pioneer case, which retires the "Pioneer carrying
+    < 20 tools" residual the unit-act hosting had to document.
+  - **RNG order:** `local_90`'s `dos_rng_range(0, 3)` draw is DOS's third
+    conjunct and is now drawn **once per AI colony per turn**, inside the
+    colony tick, instead of only when a Pioneer happened to stand on the
+    tile during the unit wave. That is DOS's position in the shared LCG
+    stream; `golden_ai_turns` TURN1→7 stays byte-green with it.
+  - **Closed 2026-09-18 — FUN_5952_035e's colony tick has no documented
+    divergence left.** Three pieces landed together:
+      * the Scout equip target (raw 94277-94285): `0x65 < stock[horses]`,
+        then `pop < 10 && pop < FUN_1000_8e6c()` (= `FUN_15eb_0484`, the AI
+        wanted colony size — `ai_euro_colony_wanted_size`) jumps past THIS
+        ARM ONLY, then `!(+0x1b & 0x10)` sets `local_8e = 0x16`. The scorer
+        runs with target 0x16 (`local_1b4` only remaps 0x17), so its `-99`
+        expert-strip arm does not apply; the 50-horse charge is inside
+        `FUN_15eb_1068` (`COLONIZE_EJECT_SCOUT`).
+      * the Pioneer equip target (raw 94300-94303): `local_90 &&
+        unit_type_counts[nation][2] == 0 && local_10 && 0x13 < stock[tools]`.
+        `local_10` = `func_0x0001a684` = `FUN_2a1f_0494` → `FUN_521d_03d0`
+        founding_expansion_urgency; `DS:-0x6db2` = 0x924e = DS:0x924c + 2 =
+        the nation's Pioneer count (stride 0x13), the same cell 5d04's
+        tools-training arm reads. Note the tools test re-reads the LIVE
+        stock word, unlike the absorb arm's frozen `local_16`, so a Pioneer
+        absorbed earlier in the tick can fund the one minted here.
+        The three targets share `local_8e`, so later overrides earlier and
+        exactly one re-type happens per tick.
+      * the five `002a82` build-preference calls (raw 94353-94395), ported
+        as `ai_euro_5952_build_pref_0306`. The thunk target is
+        `FUN_5952_0306(cargo, want)` (viceroy_unpacked.c:93760) — the
+        `+0x8d` writer already in `colonies_specialty_cargo_update`, whose
+        invented `boycotted` clear is corrected to DOS's real one,
+        `DS:0x8dc8[cargo] != 0` (gross production). Tags `0xf`/`0xe`/`0xd`/
+        `8` = Muskets/Tools/Trade Goods/Horses; arm 1's target is
+        `(belligerence + 2) * 0x32`; arm 2 reads DS:0x84bc + 0xd (the Europe
+        SELL row for Trade Goods, `euro_price − 1`) and `+0x1c & 0x20`
+        (WAGON_TRAIN); arm 4 reads `local_16`; arm 5 reads `iStack_76`,
+        `+0x8e`, `+0x1b & 8` and the `uStack_96` latch taken between arms 1
+        and 2. This **replaces** the invented 11-cargo "surplus haul ladder"
+        that used to stamp `+0x8d` from stock inside
+        `ai_euro_colony_inventory`, which was both a fabrication and in the
+        wrong body. Two fixtures that had conjured a specialty out of that
+        ladder (`unit_specialty_flag_a_haul_match`,
+        `departing_ship_buys_wanted_cargo`) now stamp `+0x8d` directly — as
+        a DOS save carries it — and quiet all five DOS arms with stock
+        numbers, each documented at the site.
+  - Tests: `tests/unit/test_stage_seams.c` cases renamed to
+    `test_ai_euro_5952_absorb_colonist` / `_soldier` and re-pointed at the
+    colony-side seam, with new assertions for the re-scan (two colonists
+    absorbed in one call) and for the `iStack_76` increment. Two 20e6 berth
+    fixtures had a colony at population 3 carrying a stale
+    "no NEEDS_COLONISTS" comment from the pre-2026-09-09 `pop < 3` rule;
+    raised to 12 (= wanted_size 8 + 2×tier 2) so the tick cannot swallow the
+    berth passenger before the ship acts. `make test` 67/67, `make golden`
+    green, `golden_ai_turns` 6/6.
+- [x] **Invented AI unit-act arms swept** — 2026-09-18 (bugs.md #512-#520,
+  out of the Veteran Soldier audit). Fifteen `ai_euro.c` arms whose only
+  citation was Colonization.pdf / fandom / "Skills Chart" were traced against
+  the decomp and deleted: soldier ship-boarding + Artillery siege hunt (DOS
+  boarding is ship-side `FUN_1427_10be`; type 0x0b only zeroes the shared tile
+  score, raw 88911-88913), the land-pre and goal-stage join-colony arms
+  (`FUN_521d_20e6` has **no** join outcome — its `+0x314b` vocabulary over raw
+  88266-89800 is 0x39/0x3d/0x40/0x42/0x46/0x47/0x4c/0x56/0x65; absorption is
+  the `FUN_5952_035e` tick, seating via `FUN_15eb_1068(slot, 0x12)` with no
+  tile or building pick, raw 11245-11275), expert field/craft-workplace
+  assign, pioneer + wagon tools delivery (DOS dumps every hold, raw 3002-3012),
+  transport Europe sell (real sellers: the 20e6 delivery sell tail and
+  `FUN_364b_0688` phase O, raw 57806-57848), privateer loot sail + short-colony
+  unload, military-threat unload (DOS uses the `LAB_521d_3558` `DS:0x523d`
+  mask block, raw 89440-89560, already ported), the naval adjacent-foe picker
+  (hulls fight only through the shared `LAB_521d_4d2e` scorer), the distant
+  land war hunt, and the threatened-Stockade LABOR arms. Root cause found on
+  the way: the AI ship band was gated on a Caravel/Merchantman/Galleon **name
+  list** where DOS tests only "type 0x0d..0x12 with holds" (raw 1691), which is
+  why Privateer loot never reached the DOS dump/delivery/sell path. Net
+  ≈ −5k lines; goldens 6/6 on every wave, no golden re-blessed.
+  Kept as **golden-backed stand-ins** (no decomp citation, but real DOS save
+  pairs back them): `ai_euro_try_post_found_coast_cruise` (TURN4-7 ship XY)
+  and the land adjacent-attack pair — see the open item below.
+  Remaining manual-only citations are triaged in
+  `docs/ai_euro_uncited_arms_2026-09-18.md`.
+- [x] **AI goal walking made DOS-shaped** — 2026-09-18f (bugs.md #525/#526).
+  `FUN_521d_5b66` was decoded off its own 198 bytes in
+  `viceroy_overlays.asm` (OVL14 0x5b66-0x5c37); Ghidra's 1800-line body at
+  raw 90446 is inlined corruption and must not be read. Head: bail to `20e6`
+  unless `+0x3149 != 0 && +0x314c == 0x0b`; then **skip 20e6 entirely**
+  unless `DS:0x523d[type] & 1` (set only on rows 16/17/18 —
+  Privateer/Frigate/MoW) **and** `FUN_281f_0984` finds an adjacent foreigner;
+  release the Europe-lane slot when `+0x314b == 'E'`; jump table `CS:0x5c2a`
+  over 7..12 = found colony / clear-plow / road / (0x0b, 0x0c)
+  `FUN_479b_0972` **goal walk** / finish. So a land unit with a goal and MP
+  left simply walks its own `+0x314d`/`+0x314e`. The port's per-act
+  "re-derive the nearest FOUND tile" is gone, and the port-only
+  `s_0a60_pilot_state` mirror is retired: `+0x3148`/`b`/`c`/`d`/`e` are the
+  real save fields (`col1_flags15`, `col1_ai_plan`, `orders`, `goto_x`,
+  `goto_y`) and the port's `@ORDERS` constants already are DOS's act states.
+  Three divergences were measured and **kept**, each having cost a golden when
+  tried DOS-literal — they are bugs.md #527 (0a60 binds land only, for want of
+  ship-side goal producers), #528 (turn-top clear ported for `>= 10` only,
+  because SENTRY overloads `orders` with the landfall latch) and #529.
+- [ ] **Land assault volume vs a 2+-defender colony** (bugs.md #521, open;
+  needs a **[live]** DOSBox-X trace). `+0x314c` is now fully decoded — value
+  **10** has exactly one writer in the game, `FUN_521d_0a60` raw 87567, and
+  means "a foreign unit or settlement stands on one of my 8 neighbours";
+  raw 88164 assigns fresh goals only at 0/5/6, so **DOS unbinds an adjacent
+  unit from its goal just as the port does** (`5b66`'s `case 10` at raw 91195
+  is unreachable — 20e6 demotes to 5 first at raw 90399-90404). The MILITARY
+  goal walk is therefore *not* the assault route; `LAB_521d_4d2e` is. But
+  DOS's own odds core refuses the assault: `FUN_1427_0d38` case 0 is
+  byte-exact `DI += DS:0x5239[type*0xe]` (jump table `1427:0d78`→`0d96`) and
+  every land `@UNIT` col9 byte is 0, so `((Σcol9+1)/stack)*base` is 0 against
+  any 2+-defender stack. Statically DOS just parks the unit beside the colony
+  (the `0x46` arm, raw 89011-89029). **What makes the real REF break a
+  defended colony is unidentified and cannot be settled statically.** Until
+  then `ai_euro_land_best_adjacent_foe` / `ai_euro_land_try_adjacent_attack`
+  stay as a marked stand-in; without them `golden_woi_ref01` leaves one colony
+  standing. **Settled 2026-09-22 (bugs.md #521):** the col9 reading was off
+  by one column — `0x5239` is the `@UNIT` *cost* column (loader raw
+  121115-121135), non-zero for every land type; with it the 4d2e term assaults
+  stacked colonies and the stand-in pair is deleted (`golden_woi_ref01` all 7
+  colonies fall t17 with no stand-in). The port's land arms were additionally **unreachable** until
+  2026-09-18e (bugs.md #522): three uncited early returns and an
+  unconditional nearest-FOUND course ate all 460 gate calls in the WoI run.
+  Porting raw 88584-88612 (own-colony garrison arm), raw 90210-90219 (the
+  pre-`LAB_4d2e` gate — act_state 0/5/6/10 reach the scorer unconditionally,
+  0x0b bails only with no adjacent foreigner) and raw 88982-88984 (`local_8e`
+  surplus tail) took the run from 0 to 118 wander steps and the war's end from
+  t15 to t11 — but the odds core still refuses, so the stand-in stays.
+  Fixed literally on the way: the `LAB_52aa` WoI gate (raw
+  88883-88885 — during the WoI score an attack only against a control-0 player
+  slot or a tribe), the `FUN_465b_0000` best-defender rule in
+  `ai_euro_score_move` and the goal-dispatch drain loop, the raw 90399-90404
+  tail demote, and the drain loop's nation-blind `units_id_at` fallback (an own
+  column on the step tile was handed to the attacker, freezing REF columns two
+  tiles short). With the stand-in all 7 WoI colonies now fall at t15 (t21
+  before this pass, t17 before the session). Refuted: the raw 88686 gate is an
+  inert ship-on-ocean skip, not a narrowed normal branch. Remaining static
+  sub-lead: port the `0x46` park-beside-a-foreign-colony arm (raw 89011-89029,
+  gated on `local_ea`) — the adjacent unit currently wanders off instead.
+- Deliberate documented divergences (decision needed before "work"):
+  king_ref.md short list, 5d04 past-the-end read kept 0 + musket-scratch
+  collision as price×100, `@HELLOUSA` not modeled, per-act (vs DOS
+  per-step) encounter granularity, `4720_049e` thin approximations.
+  These are *documented substitutions*, not open work, unless the bar
+  moves to T3.
+
+#### Spec — 5952 indoor-workplace pass (raw 94784-94860, asm `5952:1ef7`-`5952:2193`)
+
+Last placement arm of the AI colony tick, after the field passes. For each
+still-unplaced colonist slot it elects one indoor job and assigns it.
+Clean decomp: `original_sources_annotated/ai/colony_tick_5952_035e.md:1260-1355`
+(Ghidra drops the far-call args — read `viceroy_unpacked.asm:159660-159900`).
+Thunks (`FUN_1000_X = FUN_281f_(X−0x81f0)`): `0c36` set job (`15eb_0e8c`),
+`0cd6` producible qty, out-param = **output** cargo, `0ab0` building-chain
+count, `09fc` has-building, `0d08` unknown bool(5), `0b6e` = 28c8 field probe,
+`0c04` ledger refresh, `035c` = `clamp(v, lo, hi)`.
+Scratch arrays (already named in `colony_craft.c:25-27`): `DS:0x8dc8` gross
+production (`-0x7238`), `DS:0x8e0a` demand (`-0x71f6`), both 20 words by cargo.
+Colony record `DS:0x8542`: `+0x9a+2c` stock, `+0x1f` population, `+0x96`
+`capitol_level`, `+0x1d` bit `0x80` wants-construction, `+0x1a` owner nation.
+
+```
+best = 0; best_job = 0xd                      ; 5952:1ef7
+for job in 9..0x12:
+  if (!job_available[job] || job == 0x12 || placed_count[job] >= 3) continue
+  0c36(slot, job)                             ; bind, so 0cd6 sees the job
+  in = byte[DS:0x2b6 + job]                   ; job->INPUT cargo, 0xff = none
+  if (job == 0x0f) in = 0x0e                  ; Gunsmith <- Tools
+  if (job == 0x0d) in = 0x05                  ; Carpenter <- Lumber
+  if (in >= 0) {
+    avail = stock[in] - demand[in] + gross[in]
+    if (avail < 0) continue                   ; 5952:1f71
+    if (avail == 0) avail = 1
+  }
+  qty = 0cd6(slot, &out); if (in >= 0 && qty > avail) qty = avail
+  if (out < 0x10) { ... euro price-row weight arm, asm 5952:1e72 ... }
+  else {
+    w = 3
+    if (job == 0x11) {                        ; Elder Statesman -> Bells
+      w = 0ab0(0x13)*4 + tories + 7 + capitol_level*4   ; 5952:1fb2
+      if (tories >= 10)              w *= 2             ; tories = round(pop*(100-SoL%)/100), 0 after independence (raw 294-296)
+      if (07b4(owner, 0x0f))         w <<= 1            ; FF 15 JEFFERSON, 5952:1fe4
+      if (DS:0x538a <  0x604)        w  = 0             ; year < 1540
+      if (DS:0x538a >  0x640)        w <<= 1            ; year > 1600
+      if (DS:0x538a >  0x6a4)        w <<= 1            ; year > 1700
+      if (DS:0x5382 & 1)             w  = 0             ; independence declared
+      if (pop <= 3)                  w >>= 1
+      if (pop <  6)                  w >>= 1
+      if (byte[human+0x917c] <  byte[owner+0x917c]) w >>= 1
+      if (byte[human+0x917c] >  byte[owner+0x917c]) w <<= 1
+      if (*(byte*)DS:0x84fc & 4)     w >>= 1
+      w = clamp(w - gross[out], 1, 100)                 ; 035c, 5952:2080
+    }
+    if (job == 0x0d) {                        ; Carpenter -> Hammers, 5952:20a1
+      w = 5 - gross[out]/3                    ; unsigned DIV, then NEG
+      if (+0x1d & 0x80)              w >>= 1
+      if (w < 1) w = 1
+    }
+    if (job == 0x10) {                        ; Preacher -> Crosses, 5952:20e5
+      w -= (gross[out] >> 1) + DS:0x538e/100 - 6
+      if (w < 1) w = 1
+    }
+  }
+  score = (qty*8 + 5) * w                     ; 5952:1ed1 tail
+  if (score > best) { best = score; best_job = job }   ; DOS: `!= && <=`
+0c36(slot, 0x12)                              ; 0x12 = idle sentinel, 5952:2116
+if (DS:0x8dc0 < best) goto commit
+0b6e(slot, -1)                                ; 28c8 field probe
+if (DS:0x8dbe != 0) goto next_slot            ; took a field plot instead
+best_job = 0xd
+if (09fc(0x25) && 0d08(5) && preacher_count < 3) best_job = 0x10
+commit: 0c36(slot, best_job); placed_count[best_job]++
+0c04()                                        ; refresh the ledgers
+```
+
+Resolved 2026-09-17 (was "Unresolved before a port"):
+
+| Symbol | Meaning |
+|---|---|
+| `DS:0x8dc0` / `DS:0x8dbe` | the 28c8 winner's **score** and **raw tile yield** — already the `score` / `yield` fields of `AiEuro28c8JobCandidate` (`ai_euro.h`). The pass's own `FUN_1000_8d5e(slot, 0xfffe)` at raw 94785 is what fills them, so the `*0x8dc0 < best` test is "best indoor score beats this slot's best plot", not a stale word. |
+| `DS:0x917c` | the Euro-nation **wealth-rank** byte table (0 = richest), already named in `viceroy_globals.h` and live in the port as `ColonizeTurnContext.euro_power_rank[]`. |
+| `DS:0x84fc` + bit 4 | `*(int*)0x84fc` is the current **nation record** pointer (stride `0x13c`); byte `+0` is `ColonizeCol1Nation.nation_flags`, and bit `0x04` is "this nation has achieved independence from its King" (`col1_save_layout.h`). |
+| building `0x25` | **Church** — @BUILDING row 37 (0-based) of `NAMES.TXT`, the base tier of `COLONIES_CHAIN_CHURCH`. |
+| `FUN_281f_0d08(5)` | → `FUN_15eb_0c52(cargo)` = `demand[cargo] < stock[cargo] + gross[cargo]`, i.e. **"is there a live surplus of cargo 5 (Lumber)"**. |
+| `-0x7b44` | `DS:0x84bc`, the per-nation **SELL price** row (`euro_price − 1`, clamped at 0), `nation*0x10 + cargo` — the same table `FUN_5f7a_020e` uses. |
+| `-0x7b4c` | `DS:0x84b4`, the **same index eight bytes earlier**. Confirmed against the asm (`5952:1e8f MOV CL,[BX+0x84b4]`) — it is the only read of that address in the whole binary and has no writer, so for every index ≥ 8 it is the price table itself read back shifted by eight. |
+| `FUN_281f_0cd6` out-param | the **output ledger slot**: a cargo index for the six craft jobs, else hammers 16 / crosses 17 / bells 18 (`DS:0x2a2`/`DS:0x2b6` tables, VICEROY.EXE `121248 + addr`). |
+| `DS:0x2b6` | @JOB → **input** cargo byte table; `DS:0x2f4` is @JOB → base @BUILDING (`FUN_15eb_0aec`). Both dumped from the image and transcribed into `ai_euro.c`. |
+| `DS:0x538e` | the **turn** counter (save_format_map.md's "current turn word") — the `>= 0x32` Tools/Muskets gate and the Preacher `turn/100` term. |
+
+Two modelled unknowns remain, both stated in the code:
+
+- the first eight bytes of the `-0x7b4c` row (the global immediately ahead of
+  `DS:0x84bc`, which nothing else in the binary touches) are read as 0;
+- DOS's `iStack_78` (the input `avail` clamp) is a never-initialised
+  function-level local that later jobs inherit from earlier ones. The
+  carry-over is ported literally; only its garbage seed is replaced (by "no
+  clamp").
+
+**Do not** reuse the ×1.5 Jefferson/Paine bells bonus from
+`colony_production.c:428` here: this site is a **×2** on an AI want-weight,
+a different rule at a different offset (`2f2b:37cd` vs `5952:1fe4`).
+
+### Fidelity tiers
+
+**Long-term goal:** every original AI control-flow path that affects game
+state has a Linux counterpart with matching behavior, including DOS LCG call
+order where the original burns RNG.
+
+| Tier | Meaning |
+|------|---------|
+| **T0 — Behavioral slice** | Looks like the original at a high level; RNG / edge cases may differ |
+| **T1 — Save-diff** | Matches observable fields in original saves after the same setup |
+| **T2 — Golden / bit-faithful** | Matches a locked golden (e.g. seed-100) tile-for-tile / unit-for-unit |
+| **T3 — 1:1 transcription** | Structured like the decomp (dispatcher → goals → scoring), all branches. **Not claimed** for any full planner |
+
+**Port rule:** AI algorithms are baked into C from VICEROY decomp (not data
+files — [data_vs_hardcoded.md](data_vs_hardcoded.md)). Use
+[`dos_rng.c`](../src/core/dos_rng.c) for any path that must match seed-100
+or save-diff. Planner modules are split (`ai_euro` / `ai_contact` /
+`ai_diplo` / `ai_king` / `ai_goals` / `ai_popup`); `ai.c` keeps init, pulse,
+and nation-turn entry.
+
+**Golden alignment (for when the gates come back on):** alignment means
+improving port fidelity to DOS, not scripting special cases. When Linux
+output disagrees with a golden: diff the field → trace the DOS FUN_* /
+annotated thin map that owns that mutation → fix or deepen the ported path.
+No seed-/turn-/nation-only exception tables unless explicitly documented as
+temporary PORT DEBT with a retire criterion. `--seed 100` overrides every
+timer-word read for deterministic runs (docs/assets.md "Fixed seed");
+The retired early-turn fixture and its `AI_EURO_EARLY_FIXTURE=1` bisect gate
+were deleted 2026-09-14 (the hand-written seed-100 script and all 20 of its
+helpers; every helper had a live twin in ai_euro.c/ai.c).
+
+### Method notes (don't relearn these)
+
+- Read the **raw decompiled function** directly before trusting a secondary
+  annotated-doc summary — those have drifted from the actual bytes before.
+- A `CALLF <loader>; JMPF 0x0000:XXXX` in a decompile is an **unpatched
+  RTLink placeholder**, not real content — resolve it via `rtlink_decode`'s
+  jump-table parser (info mode), never by naive tail-following or reading
+  the raw bytes as data.
+- A `completed=true` decompile can still carry real corruption, in its own
+  body (`WARNING:` lines, timeouts) or **inlined from a callee** — check
+  whether a cited address actually falls inside the target function's own
+  boundary before concluding "corrupted". Ghidra can also silently pull in
+  *wrong but plausible* content via jump/call misresolution with no warning
+  (`684c_08c0`, `15eb_1d4c` — both false alarms cleared by a boundary-first
+  second pass). Prefer `tools/rtlink_overlay_extract.py` +
+  `tools/GhidraImportOverlays.java` (re-disassembles each RTLink segment at
+  its true DOS address) over the flattened `viceroy_unpacked.c` export for
+  anything flagged suspicious.
+- Cross-check any unnamed DS global / resident helper against
+  `original_sources_annotated/include/viceroy_globals.h` and
+  `tools/address_mapping.csv` before assuming it needs a live dump — many
+  "unlabeled" globals are already named for a sibling function.
+- **Before asking the user for a fresh live DOSBox-X capture,
+  byte-pattern-search the existing `dosbox-x-dumps/*` saves** (throwaway
+  script; static data is unchanged across saves). This closed 6 of 8
+  original Tier-4 "needs a live session" items — the data was already
+  sitting in an existing dump every time. Only file something as
+  live-blocked after checking this and coming up empty.
+- **Never invent a constant.** If a price/byte table has no captured value
+  anywhere in the project, leave it stubbed with a comment.
+- **Grep a DS global in BOTH sign spellings.** A DS offset above 0x8000
+  appears in the decompile as a negative literal (`0x9566` ⇔ `−0x6a9a`), and
+  Ghidra picks per call site. `unknown34_pad` sat filed as "confirmed dead,
+  exhaustively checked" for three months because only the positive form was
+  searched — the readers all used the negative one (resolved 2026-09-06d).
+  Same class as the base+offset-literal lesson: grep `0xNNNN`, `−0x(10000 −
+  NNNN)`, and `base + off` forms before writing "dead" or "no reader".
+- **Look up an unresolved `func_0xNNNNN` by its flat address in
+  `address_mapping.csv`'s `overlay_offset_hex` column, not by name.** Ghidra
+  emits `func_0x…` precisely when it has no symbol, so a name grep finds
+  nothing and "no CSV row" is the wrong conclusion (`0x1854c` = row 809,
+  `FUN_281f_035c`, match_kind `gap`). Then check `FUNCTION_CATALOG.md` for
+  the canonical name before disassembling — for `1854c` it already said
+  "far thunk → clamp".
+- **A far RTLink thunk fakes an extra leading argument.** Calls through
+  `281f:*` thunks decompile with a bogus first parameter that is really a
+  pushed CS (`0xd1d` in the overlay load vs `0x1d1d` in unpacked_2 — a
+  constant `0x1000` image-base delta gives it away). Count the real args
+  from the callee's `[BP+6/8/0a]` reads and the caller's `ADD SP,n`.
+- Structural confidence (params line up, globals named, formula shape fits)
+  is **not** semantic confidence (what real-world mechanic this is). Keep
+  the two separate in write-ups.
+- When a fidelity fix changes behavior, the existing unit test usually
+  encodes the *old* behavior — expect to rewrite test scenarios.
+- The harness TaskList does **not** persist across sessions — this file +
+  git log are the continuity mechanism.
+- Ghidra's decompile drops immediate `PUSH`/`AX`-register arguments at some
+  call sites — when an id/argument seems missing, `ndisasm` the raw overlay
+  bytes at the call site (this unlocked the COLDIG event ids and the popup
+  section tables).
+
+### Open queue (all that remains of the old T-tiers)
+
+- [x] **T1.23 — Brave residue in `golden_ai_turns`.** Closed 2026-09-05:
+  all six TURN steps green (full `golden_ai_turns` clean run). The 3 residual
+  diffs (TURN4→5 n=9 (36,52)→W, n=10 (48,41)→SE step2, TURN5→6 n=7
+  (43,52)→S) were scoring holdouts of the same class as the existing
+  mid-turn peel table — golden dir unambiguous from the TURN multiset +
+  spent math (n=10's mv=7 = river-S cost 1 + SE cost 6 pins the path);
+  downstream picks in the same nation streams stayed green, so no stream
+  misalignment. 3 peel rows added (`k_mid_peels`). New debug hooks:
+  `AI_SCORE_AT="n:x:y,..."` (pick_dir score dump at any coord),
+  `DOS_RNG_TRACE=1` (indexed LCG draw log). `golden_ai_joint` target
+  passes manually. Lower priority from the same pass:
+  ship-band unload placement — the per-cargo `06ae` rule (decomp ~89587)
+  shipped 2026-09-06 (`ai_euro_20e6_unload_mask`/`_unload_by_mask`; the
+  first-colony beachhead branch and the empty-mask best-passenger fallback
+  stay); `0a60`'s FOUND/CONTACT goal producers (*ocean* tiles next to
+  villages / foreign colonies as ship goals, decomp ~87800–88060) were
+  also ported 2026-09-06 as `ai_euro_0a60_settlement_goal_producers` — no
+  longer a thin stand-in.
+- [x] **T2.4 — Retire the Linux-only Euro alliance machinery (cleanup).**
+  Closed 2026-09-06: deleted `ai_diplo_form/break_alliance[_ctx]`, ally
+  treasury cost / treaty-min / trust penalty / Indian sticky raise /
+  ally-aid / `fa_gift` / longevity helpers, the euro_balance ALLY arms
+  (FA gift + imbalance-break CHOICE), the treaty-timer ALLY-expiry arm,
+  the DIPLO_ALLIANCE/BREAK CHOICE applies, and the sticky "precludes new
+  alliances" chrome. Kept: `AI_DIPLO_ALLY` define (self-pair virtual +
+  the 13b0 reads; the 2244 ALLY read is gone — 2244 tests PEACE 0x40
+  toward the human, 2026-09-15), tag 22 as a numbering gap,
+  `DIPLO_BREAK` as the 13b0 treaty-cancel OK tag, the AI_TALK
+  ALLY_PICK/ALLY_PAY paid-@SMITE stages (real DOS 153e), timer decrement +
+  peace-tweak expiry (real 6d8e step 4). ai_diplo.c −422 lines,
+  test_ai_diplo.c −876 (alliance tests removed; embargo-lift smoke moved
+  to make_peace). ctest 57/57 + goldens green after.
+- [x] **T3.3 — Re-enable `golden_ai_turns` / `golden_ai_joint`.** Closed
+  2026-09-05 (user-confirmed): both DISABLED flips removed from
+  CMakeLists.txt; full `ctest` now 57/57 with both gates green. Harness:
+  the runner (`COLONIZE_TEST_ONLY`, see tests/README.md) runs one
+  step.
+- [x] **T4.6 — `VR_B465X` hang dump.** Closed **2026-09-08 statically — no
+  hang capture needed**. The "unlabeled writer after the 465b ADD" is
+  `FUN_5bfb_022e`'s exhaust tail (`LAB_5bfb_1005`): `465b`'s own commit tail
+  runs `0984` (adjacent-foreign probe) → `2a1f_0192` → `FUN_5bfb_3180` →
+  `2a1f_066c` → `022e`; a FIRST contact (met bit 0x20 clear) runs the meet
+  ceremony and exhausts the **mover** when it is Indian (`0934`→`1427_155e`,
+  spent := max MP = 3 for a Brave). So at 465b RETF Sioux spent is already 3
+  — the hang question is answered. Corroboration: TURN3's only two vis-bit
+  Braves are exactly the two spent-3 holdouts; unmet French/Spanish land
+  units sat adjacent to both dest tiles; the Euro phase runs BEFORE the
+  Indian phase (dump_1816 / vr_2a02_v3 show Euro units at TURN3 positions
+  while Braves still hold TURN2 positions, spent reset 0). Ported in
+  `ai_contact_indian_meet_trade`'s first-meet arm (Brave `moves :=
+  units_max_mp`); `k_quiet_brave_t2` overlay retired; 60/60 + goldens green.
+  Trap: `move_spent.c`'s Section-6 post-ADD table listed only the `1427_*`
+  chrome and skipped the `0984`/`0192` far-call pair at decomp 75794-75797.
+- [ ] **T5.1 — VGA-identical dialog chrome** (meet/diplo/king wood frames,
+  FA `3f41` full widget body). = D4. **Chief portrait closed 2026-09-07e**
+  — and the symbol in this row was wrong: `FUN_281f_04ac` is a far thunk to
+  `FUN_129f_0318` (set BGM track + gate play), nothing to do with art. The
+  real pair is `FUN_6f74_0042` (sheet-name build: DS:0x1f77 = the literal
+  `"IND0A0"`, tribe added to byte 3, alarm quartile to byte 5; DS:0x1f5c ≥ 8
+  swaps in DS:0x1f72 = `"KING"`) and `FUN_6f74_14c6` (placement, OVL24
+  `0x17a0..0x189c`). Both were already ported; the 2026-09-07e pass made the
+  geometry literal — see the `IND*.SS` row in [indians.md](indians.md).
+- [ ] **T5.3 — F3 Congress portrait grid polish leftovers.** Two of three
+  closed **2026-09-07**; the third is blocked on material that is not in the
+  repo. See [reports.md](reports.md).
+  - *Bell glyph* — **done**. There was no missing 2×7 glyph: the mark is
+    `ICONS.SS` #62 overpainted by its own neighbour. The port's
+    proportional-width "spread N icons" bar was the wrong shape entirely;
+    `FUN_1097_0004`/`FUN_1097_0174` (via the `FUN_281f_0236` thunk) are now
+    transcribed as `reports_draw_dos_icon_bar`. Bells bar diff vs
+    `continental_p1.png`: 0 px (x=2..189, y=33..45).
+  - *F2 crosses bar* — same routine, switched over in the same pass and also
+    0 px vs `religious.png`. Not asked for, but it shared the broken helper.
+  - *F9 headband* — **done**. Sheet index = 113 + alarm quartile (DOS id
+    `q + 0x72`, and DOS ids are 1-based over ICONS.SS), forced to the top
+    tier by the `extinct` bit; the five sprites are one mouth-expression
+    ramp. Icon box corrected to x=10 / top = name_y − 3. Both `indian.png`
+    portraits now fit with 0 palette violations.
+  - *Hall of Fame golden* — **blocked, deliberately not faked.** No
+    screenshot, no `HALLFAME.DAT` and no HoF-bearing memory dump exists
+    anywhere in the repo. `docs/reports.md` "Why there is still no Hall of
+    Fame golden" lists what a capture must contain (a committed `.DAT`
+    beside the PNG, ≥5 rows, mixed declared/achieved/difficulty, same DOS
+    install) and the `render_report` hook a test would need.
+
+### FUN_* inventory (status; deep dives in `original_sources_annotated/ai/`)
+
+Symbols are Ghidra names in `original_sources_decompiled/viceroy_unpacked.c`.
+Status: **ported** (full claim at stated tier) / **partial** (subset) /
+**parked**.
+
+**Tribe placement + Indian AI (`FUN_6a09_*`, `FUN_4d56_*`):**
+
+| Symbol | Purpose | Linux | Status |
+|--------|---------|-------|--------|
+| `6a09_0006` | Capitals, satellites, Brave spawn loop | `ai_place_tribes_*`, `ai_spawn_brave_near` | ported (T2 seed-100) |
+| `4d56_0038` | Settlement-record CREATE | covered by `ai_install_tribes` | partial (struct-equivalent) |
+| `4d56_00e0`/`01e2`/`14fe` | `00e0` = tribe-settlement DESTROY (despawn village-bound units, compact array, village-count decrement, extinction bit + @EXTINCT, horse fold — ported into `col1_destroy_tribe_at` 2026-09-07d); `01e2` = tribe-wipe helper (descending 00e0 loop) — **DEAD 2026-09-08** (not in the 4c22 export stub table, no E8/E9/EA/9A target in the whole 4d56 segment; nothing to port); `14fe` = Indian unit act loop | growth + pulse (act loop golden-pinned) | `00e0` **Done**; `01e2` dead; `14fe` **Done** 2026-09-08 (Ghidra `func_0x0004219b` was a segment mis-resolve — real callee is `4d56:021a` via stub 4c3b/record 281f:23d4; act cap fixed to DOS 0x14; port pulse control-flow faithful). Real residue moved to `021a` — see note below the module table |
+| `4d56_152e` | Village growth accumulator (capital-only gate!) + Euro-relation friction | `ai_grow_villages` | **Done** (2026-09-06d: last two callee stubs resolved — `281f_095c`=`1427_06b4` unit CREATE, its arg is the **unit type** `0x13..0x16` not a "cost"; `281f_07b4`=`15eb_3960` = the **Founding-Father bit test**, indices `0x18`/`0x17` = Las Casas ×2 / Sepulveda ÷2. Same pass fixed two defects in the alarm producer `4cc6_03f8`: the `min(?, pop/2)` operand is `ind->tech` (+2), not `capitol_x` (+0), and FF `0x10` = **Pocahontas** half-rate alarm, previously inert) |
+| `4d56_1816` | Indian nation turn entry: alarm prelude, unit loop, relation ticks | `ai_indian_nation_turn` + `ai_contact_*` | **Done** state-mutation-wise (2026-09-06d: §6a `indian.tons[16]` decay by `tech+1`, §6b census `2a1f_0270`=`4962_06b6`, §6c horse breeding capped at `(pop_total+25)*2` all ported; §4 clamp re-mapped from alarm to **`muskets`** (DOS reads +7 signed); WoI windfall clamps against `tribe_village_counts`, not `tech`. Display-only branches left: `0a42` context, `0590` chrome colour, `0470` pump. Act loop unchanged — golden-pinned) |
+| `4d56_1b3a` | Mid-turn: clear tables / ownership probes | `ai_indian_midpass_clear_tables` / `_claim_worked_tiles` (turn.c brackets the 8 nation turns) | **Done** (2026-09-06d: phase 1 = `indian.contact_state[4]` wipe → the gift/beg latch is per-**year**, not permanent; phase 3 = worked-plot ownership claim off the natives, blocked by a settlement or any unit on the tile; phase 2 was already the `TURN_PROC_INDIAN` loop) |
+| `4d56_2154` | Meet economics (`0x9e58` ask / `0x9e78` bid tables) | `ai_contact_meet_economics_2154` + gift/demand | **Done** (scorer + `0ce0` work-slot gate) |
+| `4d56_2820` | Village trade: sell/buy/haggle/gift (595 lines; "nest" was internal labels) | `ai_contact_*` trade paths | **Done** (2026-08-29 verification rewrite; see `indian_trade_2820.md`) |
+| `4d56_3582` | Clamp bound settlement alarm/friction word at ≥0 (3 lines) | friction floor | **Done** (2026-09-07d identity: trivial clamp, nothing deeper existed) |
+| `4d56_417e` | Incite Indians / WARPATH price + relation push | `ai_contact_incite_price` / `apply_incite` / `ai_contact_ai_incite_human` | **Done** both modes (2026-09-06 audit): price polarity fixed (multiplier is raw `0x5b1c` **alarm**+75, not 100−alarm), push resolved (`281f_0d6c` → `4cc6_00f2` = +100 alarm slam, French/Pocahontas-halved), `@NOCONTACT`/`@ALREADYSMITE`/`@UNFORTUNATE` gates + `@INDIANWARFARE` announce wired, Mode-1 target set = others minus crown (post-WoI: crown only — `0x5382`bit0=woi, not "AMERICA map"); Mode-2 wrong Euro↔Euro MET gate removed (DOS gates tribe↔human) |
+| `4d56_4528` | Settlement enter/raid 9-way dispatch | `ai_contact_indian_raids`, `@ACTIONS` menu (all 9 human arms), `ai_contact_ai_incite_human`, `ai_euro_land_try_adjacent_village_seize` | **Done** logic (2026-09-06 audit): human 9-way byte-faithful (P8.8 + MP forfeit), AI arm cases 7/3/4 (Missionary) + 5 (teach pulse) + 9 (village seize, structural trigger) wired; AI wagon arm (1) live 2026-09-06f via the 20e6 village-errand chain (DOS's own trigger — see the 20e6 row); AI scout arm (6) **also live** (stale "unreachable" corrected 2026-09-07f): the DOS trigger is 20e6's own orders-`0x4c` scout arm (raw 1366), `ai_euro_20e6_village_arm` (`ai_euro.c:11306`, called `:12637`) → `ai_contact_ai_scout_visit_village` (`ai_contact.c:9540`) → `ai_contact_speak_with_chief` = `a60c` = case 6; VGA meet chrome open (T5.1) |
+
+**European AI (`FUN_521d_*`):**
+
+| Symbol | Purpose | Linux | Status |
+|--------|---------|-------|--------|
+| `0000`…`0906` | Goal-table ops + founding helpers | `ai_goals.c` | **near-Done** 2026-09-08 audit (17/20 faithful, 03a6 proved dead, table sizes confirmed): 06ae fixed to DOS (0682 unit-presence probe not colony test, 074a LOW-nibble site score 0..15 not seen-bit 0/1, Linux coastal +10/+40 bias deleted, Arctic exclusion + ring-2..4 rescan retired — can_found stays as a PORT belt on ALL dirs incl. 8 since callers treat picks as committed destinations); 052c caller continent fixed to DOS 0xffff any-continent sentinel (ai_euro.c); 0896 tension stride 9 documented, not re-strided (runtime-only table, never DOS-fed). Residue CLOSED 2026-09-08: EXPLORE goal code 6 is never written in DOS — the 20e6 0214 site is dead (`[BP-0x68]` never set between the gates), only the 001c invalidation is live (wired, inert); expand-FOUND "around colony" writer row REFUTED and deleted same day (06ae's only DOS callers = 20e6 unload placement 89587 + landing ~85045; full 016a enumeration: FOUND code-1 writes exist only in the ported 0a60 village-beachhead producer 88049 (colony-free continents, 0x173c/0x173e masks) and the foreign-colony FOUND/MIL_EXPAND arm 87983 — DOS never seeds around own colonies; 95081+ block = duplicate decompile of the same 0a60 body). Refutation comment at the old row site in ai_euro.c; 2 test scenarios retired + indian-land purchase scenario reseeded directly |
+| `0a60` (~5.5k lines) | Unit/colony goal writer + goal-consumption/orders engine | `ai_euro_colony_goals` (A–H writer) + `ai_euro_0a60_unit_housekeeping` (unit loop, live) + `ai_euro_0a60_settlement_goal_producers` (foreign-colony/village FOUND/CONTACT/MILITARY producers, live) + `ai_euro_0a60_goal_orders_structural` (consumption tail, live) | structurally done 2026-09-06 — per-unit `0x3148` housekeeping, garrison-quota distribution, ocean-tile ship-goal producers, G-table diplo gates + `−0x6168` max-tracker all live; the `FUN_1000_8aac` field-id wall RESOLVED — **but 2026-09-06b corrected the target**: `8aac` = `FUN_1427_0d38` stack-query dispatcher (byte-exact case table in `move_scoring_20e6_full.md` 2026-09-06b), not `FUN_0000_4fa8` (Ghidra reloc misresolve); the modes DO carry signal (2 = stack count, 3 = # Pioneers, 4 = # mil types, 6 = mobilizable, 0xa = armed count, 0xd = Σ ship holds). 0a60's `8aac` call sites REWIRED to the real stack counts 2026-09-06c (`ai_euro_0a60_stack_counts`: eligibility gates from real Pioneer/military/mobilizable counts, tail bit gates read for land units too, garrison = armed-count, lurk mode-0xd beat live — "Seventh pass" in `euro_goal_orders_0a60_full.md`; ctest 57/57, goldens unchanged). Registration gate flipped to DOS `bVar5` 2026-09-07 ("Ninth pass" in `euro_goal_orders_0a60_full.md`): shortage ladder + `nearest_haul_short_colony` + loads floor retired, `cargo_idle_turns*8` moved into the bVar5 branch; documented divergence: DOS 4393 consumer is ships-only, wagons stay on the queue as substitute for the unported `457e` origin walk. The "DOS random weight seed" (`func_0x0001854c`) is no longer thin — resolved 2026-09-06d as `clamp(all_unit_counts[nation] >> 3, 3, 99)` (`FUN_281f_035c` → `FUN_124c_000c`, a plain 3-arg clamp; the leading decompile arg is a far-thunk segment artifact), live as `ai_euro_0a60_weight_seed`, goldens unchanged — "Eighth pass" in `euro_goal_orders_0a60_full.md` |
+| `20e6` (~2.2k) | Direction / move scoring, all unit kinds | quiet + `ai_euro_score_step` + 2026-08-27 structural land port + **2026-09-06 deepening**: LAB_52aa odds tail (crown==2 halving, Soldier/Dragoon colony mass gate via `8aac` case 0xb), scout/colonist `0x4c` village arms (→ `ai_contact` Speak-With-Chief / Live-Among outcomes; 8d4a attitude gate = session latch stand-in), colonist labor loop (fort-capacity wanted size, join/walk/Pioneer-convert, force-explore fall-through), LAB_3558 per-cargo unload mask (`ai_euro_20e6_unload_mask`, 0x40/0x20/0x10/0xffff bits; `0x1734`/`0x173c`/`0x173e`/`0x1740` substituted from live goal table + garrison flags), `−0x6168` rival strength live (`+0x3154` fatigue session-local), explore-plane low nibble = real seen-plane site score (fallback on generated maps) + **2026-09-06b second pass**: `FUN_1427_0d38` (`8aac`) ALL case bodies byte-decoded (case 2 = TOTAL stack count — old "# mil types" reading was case 4; 3 = # Pioneers, 5 = # Scouts, 6 = mobilizable, 0xc = # Artillery), ship-band counts rewired to the real modes + raw 1746-1762 goal fold (civilian→founder promotion; resolves the "# Pioneers" conflict), colony-sail matrix ported (`ai_euro_20e6_colony_sail_pick`, raw 1933-2031), 8d4a attitude READ live (`tribe.alarm[nation]`, scout ==0 / colonist <0x40), ring-hop latch `+0x3155`/`+0x3156` ported (`ai_euro_20e6_ring_hop`, session-local). Trace envs `AI_20E6_HOP_TRACE`/`AI_20E6_SAIL_TRACE` + **2026-09-06d third pass**: `47b9` dead-end destroys ported (`ai_euro_20e6_47b9_dead_end` — unbound wagon with no own colony on its landmass, stranded treasure whose `0072d6` adjacent claim is the human; `+0x314a` = COL1 unit byte +0x06 `origin`, latched session-local because the save byte round-trips; village-errand `+0x3158` arm + treasure in-colony cash-in stay PARKED), `457e` empty-ship HS cadence ported and **wired live** (`ai_euro_20e6_457e_hs_cadence`, DOS position = after the 4393 haul; zero hits on every golden under `AI_20E6_HS_TRACE`, ctest 57/57; kill switch `AI_20E6_HS_CADENCE=0`) + **2026-09-06d fourth pass**: hold-cargo colony-delivery matrix ported (`ai_euro_20e6_delivery_tallies`/`_delivery_colony_pick`, raw 2047-2139; `+0x90` = cargo_produced_mask not embargo, `−0x7b44` = euro_price, DOS precedence: matrix first with delivery cargo aboard, trace `AI_20E6_DELIVER_TRACE`), 4393 queue-decrement tail (`ai_goals_work_consume` — proportional score write-back, slot free, one-claim-per-tick latch) + **2026-09-06e fifth pass**: delivery-block sell tail ported (`ai_euro_20e6_delivery_sell_tail`, raw 2140-2163 — `8cdc`=`15eb_317c` hold-strip, `19c1e`=`38fd_1dfa` ledger, `*(int*)0x84fc` = the bound NATION RECORD pointer, not `FUN_1000_84fc`; DOS double-books `trade.gold`/`tons` and credits the treasury untaxed; falls through to 4393 with the empty hull), ship LOAD-at-colony matrix ported (`ai_euro_20e6_load_pick`, raw 3059-3134, replaces the port's own load ladder — **`iStack_34` is ship-vs-wagon, NOT war/peace**; adjacent-unload arm now honours the `+0x314a` load latch for the turn of the load to stop a load/unload oscillation; trace `AI_20E6_LOAD_TRACE`), `465b_0000` attitude "visit increment" **refuted** (it is an attack counter on a hostile tile entry — a peaceful village entry returns from `4d56_4528` before it; `s_20e6_village_visited` stays) + **the stale-goal demote fold branch is no longer thin: ported 2026-09-06e** together with the promote arm after `a654` was re-decoded byte-exact from `OVL14_L0000:0656` as "highest-typed stack member with DS:0x523d bit 0x40" (a settler pick, *not* a per-unit goal binding; `7326`/`72e0` are the already-ported `052c`/`03d0`), and the raw-1768 count gate was moved back after the fold where DOS has it + **2026-09-06f sixth pass**: wagon LOAD-matrix half wired live (`is_ship=0`, one-hold cap, DOS dump sweep at own colony) — its commit writes the village-errand byte `+0x3158`, which unparked the wagon 8d4a village-delivery arm (`ai_euro_20e6_wagon_village_errand`: nearest same-landmass village, capital halved, 47b9 destroy on empty scan, arrival → 4528 AI case 1 → 2820 AI-silent sell via `ai_contact_ai_wagon_village_trade`); `465b_0000` attack counter live in `units_try_move` ((difficulty+5) ×2 village +attacks++ ×6 capital) | partial — **2026-09-07 wave** (see `move_scoring_20e6_full.md` "2026-09-07"): treasure in-colony cash-in ported (`+0x315b`=profession=gold/100, @LOOTFOREIGN pre-WoI, no Crown cut; DOS AI treasure always insta-cashes — AI ship/Cortes chain now unreachable), treasure village-delivery arm REFUTED (8d4a scans are wagon 0xc + Missionary 0x03 only), ship whole-hull dump at berth LIVE (raw 3002-3007 unconditional + raw 2166-2168 laden→Europe gate; kill switch `AI_20E6_SHIP_DUMP=0`), errand latch `+0x3158` save-persistent (`cargo_hold[4]`, wagon-only), bVar17 narrowings closed as unreachable; new authoritative still-thin list at end of `move_scoring_20e6_full.md` + **2026-09-07b — that list CLOSED** (see doc §2026-09-07b): `+0x314a` unified onto the real save-round-tripped `col1_origin` byte (spawn 0xff, colony-tick FUN_5952_035e origin refresh ported, capture exports it; turn-scoping + both session latches deleted), 4393 pick ships-only with the LAB_457e wagon origin walk LIVE (`ai_euro_20e6_wagon_origin_walk`: bind/park-0x55/walk-home/destroy; wagon arrival dump bind-gated per raw 1691; Linux wagon Europe-export feeder retired), `nearest_short_coastal_colony` deleted, laden→HS gate unscoped to every untasked ship, `0x1734[nation]` REAL (`s_0a60_work_registered`: 0a60 bump, boarding-scan zero, rewired into unload-mask + colony-sail urgency reads), cower-in-port arm (raw 3018-3023, `s_20e6_cower`, park until 10−capacity) + berth passenger boarding (raw 3024-3051, armed/Pioneer arms, hold-budget debit) LIVE, colony `+0x1b` bit 0x80 = WANTS_PIONEER_WORK live (surround road/plow scan) and the 0a60 "+800 Missionary" arm corrected to the PIONEER (type 0x02), human treasure reader on `units_treasure_value_gold`. ctest 58/58, goldens byte-green + **2026-09-07c** (doc §2026-09-07c): bVar7 CLOSED — the "budget bytes" were census fields (`0x9414`=`ship_cargo_totals`, `0x924c`=`unit_type_counts[4][19]`, save I/O rows 120066/120072), full formula live incl. the `1427_09dc` adjacent-foreign probe; Privateer gate corrected (`0xa89b≥2 || 0x9e52≥7` census frigate-pressure, NOT difficulty); 4962_0018 phase-3 ship probe live (Chebyshev 11×11 + 6662_0906 flood 0..5, Frigate→bit2, constant renamed `NEARBY_FRIGATE`, `0xa89a/b`+`0x9e52/54` tallies real → 5d04 naval-threat crumbs live, ship-buy-ladder abort now propagates past the thin hire matrix); cower counter = `col1_counter16` (+0x315a = COL1 +0x16), save-persistent, `s_20e6_cower` deleted. ctest 58/58.  + **2026-09-07e** (doc §2026-09-07e): the "two-beat boarding" premise **REFUTED** — the 2026-09-07d note read the decompiler's line order, not the control flow. `viceroy_overlays.asm` shows the raw 1691 arrival gate at `0x304c` jumping FORWARD to `LAB_3558` on failure and FALLING THROUGH into the arrival block on success, which exits at `0x354e → 0x3558`, whose call at `0x3609` is `FUN_1000_8b10` = `FUN_1427_10be`: **the berth scan's marks are assembled later in the SAME act**, and the reservation is exact (scan debits `iStack_d2`, load matrix spends the rest, `10be` re-derives `capacity − holds_occupied`). Ported to the literal two-phase shape: `ai_euro_20e6_transport_assemble` (= 10be) called at the arrival tail and at the top of `ai_euro_20e6_unload_mask` (the `0x3609` anchor, so it runs on EVERY ship act as in DOS); the berth scan now only stamps `act_state = 1` (the `s_0a60_pilot_state` `+0x314c` shadow) and debits the budget; raw 2991-2997 stale-mark clear live. No save round-trip needed and none added — 0a60 housekeeping clears act_state 1/2/3 at every nation-turn top, exactly as DOS does at :87560-87563, so a mark cannot outlive its turn. Sentinel `(−2,−2)` never reaches the port: `units_board` into `cargo_ids` IS the park (same substitution as `ai_euro_20e6_ship_cargo_counts`). `FUN_1427_101c` closed 2026-09-08 (doc §2026-09-08): `act_state==2` is the human trade-route order (`FUN_2b5a_1e66` only writer), never AI-reachable — Outcome B, not ported; +0x3150 = goods holds only, Caravel passenger/goods capacity divergence fixed. Trace `AI_20E6_BOARD_TRACE`. ctest 58/58, goldens byte-green + **2026-09-07f** (doc §2026-09-07f): 10be's **two force-board arms PORTED**. `FUN_13e4_0074` was never undecoded — it is `ocean_or_high_seas` (`(terrain_byte & 0x1f) == 0x19 || 0x1a`, viceroy_unpacked.c:7033), already named in `SYMBOL_MAP.md` and used by the Indian claim table and the 4cc6 threat ring; port counterpart `map_tile_is_water`. From asm 1427:11d4-1231 the arms are **mutually exclusive on the sign of x** (`1427:11f6 MOV local_4,DI` with DI==0 disarms the water arm when the negative-x arm is entered), not chained as the decompile's `bVar4` reads: arm 1 = member off-map and NOT in its own nation's Europe slot (`((owner&0xf) − x) != 0x14`); arm 2 = member's tile is Ocean/High Seas. Since 10be walks the ship's own coordinate bucket (`+0x315c`/`+0x315e` linked list), every member shares the ship's coords, so arm 1 only fires with the ship in an off-map park and arm 2 only with the ship on open water: **both are invariant repair — DOS re-attaching existing passengers across the transport-chain rebuild — never recruitment**, which is why the mark-only 2026-09-07e port matched the goldens. Live in `ai_euro_20e6_transport_assemble` via new `ai_euro_20e6_member_off_map` (the port's one off-map park is Europe at `(200,100)`, a positive sentinel); the `+0x314c = 1` board stamp (asm 1427:1264) is now live too. Trace labels arms (`via mark` / `via force:offmap` / `via force:water`); zero force-arm hits on any golden or unit test, as predicted by the `cargo_ids` passenger substitution. ctest 58/58, goldens byte-green |
+| `5b66` (44-line dispatcher → `479b_*` bodies) | Euro per-unit act | `ai_euro_act_*` dispatcher + `units_pioneer_work_tick` (cases 8/9 bodies) | **Done as a dispatcher** (2026-09-07d survey: the switch only has cases 7/8/9/0xb/0xc — 7/8/9 full below, 0xb/0xc = the 20e6 row; no other arms exist, the old "partial T0" undersold it. Case 7 FOUND full; **cases 8/9 full 2026-09-06e** — `479b_01a6` lumber grant now radius-gated on `0x8db8 < 4` (that cell is the nearest-colony distance, NOT difficulty), colony-tile `layer2 & 0x0a` +1 scale bump, and `LAB_479b_043b`/`_0687` tribal-land tail ported (`units_pioneer_native_land_tail`: `FUN_479b_00ca` AI land purchase at `price + price/2`, else alarm `base 5`/`3` + difficulty-if-human, ×2 within dist 3, ×3 within 2); road turn count no longer adds the clear-only `+2`. 2026-09-07c: the @CLEARCUT "dialog chain" thin item closed as output-equivalent (DOS `09ae`/`0416`/`0652` = %NUM0 lumber + %STRING0 colony name + tag 0x1466 type 5, human-only gate — the port popup passes the same tokens behind the same gate); viewport blits retired as cosmetic. Cases 7/8/9 carry no thin residue) |
+| `5c38`/`5c3c`/`5cf6` | `5c38` = `return 1` (dead weight gate); `5c3c` = Europe unit purchase off the DS:0x978d stride-6 table (Artillery 500 / Caravel 1000 / Merchantman 2000 / Galleon 3000 / Privateer 2000 / Frigate 5000 — table pinned from 3 original_memory_dumps); `5cf6` = thunk → `5952_035e` colony tick | `ai_euro_5d04_propose_ship_buy` (live), colony tick already ported | **Done** (2026-09-07d) |
+| `5d04` (~750) | Nation planning / hire / treasury | `ai_euro_5d04_nation_planning_structural` — **fully live 2026-09-07d**: naval gold floors applied (= the 5c3c price cells: each floor guarantees the ship its flag buys), real 5c3c purchases in the buy ladder + Artillery dock buy, WoI Man-O-War seizure real (type 0x12 destroyed → `head.expeditionary_force[2]++`, the old "NEW WORLD wagon" 0x53de puzzle resolved as genuine crown-seizes-navy reuse), College bVar5 real, hire tail gated on raw 92568 bought-or-has-ships; two census misreads fixed (−0x6bf0 = census_pop_proxy not colony_pop_totals in the ladder gate + cargo_short); bVar23 renamed privateer_threatened (buys table type 4 = Privateer). Linux-only thin transport-buy ladder retired + **2026-09-07e — the hire matrix is now the DOS one**: the ~765-line Linux-shaped matrix that ran after the orchestrator (invented `hire_cost = 200 + 25*difficulty`, NAMES-string Europe-dock expert ladder, `units_find_type("Dragoon"/"Veteran Soldier")` war preferences, wagon goods-load ladder, `inv->*_short` cargo stand-ins) is DELETED; `ai_euro_5d04_hire_ladder_tail` (raw 92568-93070) is the only Europe hire economy. Its stand-ins were resolved from the FUN_521d_6d8e prelude + FUN_4962_0018 census, all of which write the DS bytes it reads: `−0x5f48`/DS:0xa0b8 = own colonies with `+0x1b` bit 0x10 (NEEDS_COLONISTS, raw 93109/93139); `−0x6ba6`/DS:0x945a = own LAND units standing in Europe (`+0x3144 − nation == −0x14`, raw 78147/78167); `−0x5f34`/DS:0xa0cc[16] = per-cargo demand = Σ colonies whose `+0x8d` specialty is that cargo − Σ occupied ship holds carrying it (raw 93107/93122/93163); DS:0xa0da (tools-need) also subtracts own Pioneers (raw 93168). Five decode bugs fixed in the same pass: `−0x6bf0` census_pop_proxy (not free_colonist_counts) in the recruit reserve; the turn>99 Pioneer-training skip read `unit_type_counts[n][2]` and is a SKIP not a proceed; the LAB_642a fall-through after a missed `RNG(0, local_c+1)`; an invented `crosses_bank_raw = 0x32` write-back; the missing `unit_type_counts[n][3]++` Missionary latch and the missing `+0x314a = 0xff` origin reset on a departing ship  + 37 unit scenarios retired with the stand-in (31 in `test_ai_euro_expand.c`, 6 in `test_ai_euro_war.c` — see the file headers). Still thin: raw 92589 `bVar23` reads unit `+0x3148` bit 0x20 through an already-exhausted (-1) list cursor, i.e. DS:0x312c outside the unit array — a genuine DOS past-the-end read, kept as 0; and the raw 92679/93042 affordability tests multiply the cargo price by the stale DS:0x8dc4 musket-lot scratch while buying a fixed 100 units, so the port tests price*100 instead of reproducing the scratch collision | **Done** (hire matrix is the DOS one) |
+| `6d8e` | Euro AI dispatcher per nation | `ai_euro_dispatcher_turn` | shell **Done** (full control flow); "partial" inherited from callees |
+
+Thunk wiring: `0554`→`5d04`, `0578`→`0342`, `050c`→`0a60`, `0488`→`5b66`
+(→`20e6` via `04f4`). Goals ≈ `0a60`+`5d04`; scoring ≈ `20e6`; act ≈ `5b66`.
+
+**Diplomacy (`FUN_15b3_*` / `FUN_5bfb_*`)** — thin map `euro_diplo.md`:
+
+| Symbol | Purpose | Linux | Status |
+|--------|---------|-------|--------|
+| `15b3_0004`/`0032`/`0066`/`00d0` | Bilateral read/write/OR/clear | `ai_diplo_read/write/or_both/clear_both` | **Done** 2026-09-08 — quartet is one 12×12 four-quadrant matrix (Euro row `nation*0x13c−0x77c4` = euro_relation[4]+relation_by_indian[8]; Indian row `nation*0x4e+23000` = indian[].euro_diplo — NOT a separate table, 23000+(t+4)*0x4e ≡ indian[t]+0x3a); port widened 0..11 both sides; 0066/00d0 symmetry assert = dead code; self-pair virtual + player.diplomacy mirror kept as documented substitutions. Follow-up CLOSED same day: relation_by_indian writers wired (4cc6_00f2 clear-both cooling, 4cc6_0092/contact peace or/clear-both, 153e smite or_both WAR = the Euro-side setter, @WHACKINDIANS bit-4 or_both — Ghidra names the 0066 OR-both thunk `switchD_2000:da9f::caseD_10`, grep that) and the 20e6 synthesizer deleted (raw ai_diplo_read; fixes the neighbour penalty wrongly hitting peaceful-met tribes). euro_diplo.md §2026-09-08 |
+| `5bfb_10ec` / `13b0` | War eligibility / treaty sign-cancel | `ai_euro_10ec_war_worthy`, `ai_diplo_13b0_treaty_tick` | **Done** (−0x6a9a resolved 2026-09-06d = NAMES.TXT `@LEADERNAME` belligerence column, `ai_diplo_leader_trait`) |
+| `5bfb_153e` | War-declare audience; the "outcome jump table" is DOS inter-overlay call linkage (5 compile-time-fixed targets) | `ai_diplo_153e_worthiness_score` (live) + `ai_diplo_153e_encounter` talk machine (all DOS dialog stages incl. @WANTSTUFF 2026-09-06; Furs stale-index bug ported byte-faithfully) | **Done** — deltas listed in `euro_diplo_153e_full.md` §2026-09-06 (USA text variants, LEADER prefixes, walk-vs-teleport withdraw) |
+| `5bfb_3180` | Adjacent-unit encounter resolver | `ai_contact_encounter_scan` + ship-slow `units_ship_slow_scan` (per step inside `units_try_move`, 2026-09-16: rolled foe-type drain 4/6/8, Fort +2 / Fortress stop, PEACE gate with Privateer exemption, @SHIPSLOW/@SHIPRUN) **Done**; Euro×Euro dispatch: human moves (game_loop) + AI moves (`ai_euro` post-act hook, 2026-09-06) → `ai_diplo_153e_encounter`, MET stamped on a started talk | **Done** (per-act granularity vs DOS per-step) |
+| `4cc6_00f2` | Indian relation delta | `ai_diplo_indian_alarm_delta` (halving/clamp/clears/tension tiers) + `ai_contact_alarm_delta_00f2` (escalation tail: alarm 100 at PEACE → difficulty-RNG mission expel = `4cc6_0000`, @INDIANBURN) | **Done** (2026-09-07d: French/Pocahontas positive-delta halving centralized inside the delta as in DOS raw 80844-80850; the Linux "burn missions at alarm ≥80 each tick" stand-in retired) |
+
+**King / REF (`FUN_43f7_*`)** — thin map `king_ref.md`, unit `unit_ai_king`.
+2026-09-06 deep-port pass (see king_ref.md "2026-09-06 deep-port pass"):
+`0004` SoL **Done**; `1d42` royal-purse tick **Done full** (real stipend +
+1800-gold pool buys + @KINGBUY; wartime arm is dead code — asm-proven; the
+invented audience-driven pool growth removed); `2564`/`1a26` declare
+**Done** (+ this pass: `0188` Europe-lane @SEIZURE, human MP exhaust,
+ff_count_end_prob/crown-flag clears, real `0218`/`1a26` rank
+ships*3+colonies*2+census, real backup-seed census operands); `0108`
+eliminate **Done**; `060a` landing score **Done** (in 0982); `0982`/`06a6`
+REF wave **Done** (crown gate now excludes the MoW pool); `2022`/`1eca`
+war act + promote **Done** (mobilization-once bit8, real merc formula,
+@MOBILIZE %STRING1); `2424` dispatch **Done** (decile @REBELUP/50/@REBELDOWN
+full port, census>3 gate, +4 hysteresis); `10f0` intervene **structural
+Done** (player-controlled MoW+troops, real caps/pools; crown-MoW −999
+scorer nit documented); `1528` = intervention announce (corrected label)
+**Done thin** (announce+landing coupled in one beat vs DOS's two);
+`160a` cinematic **Done**; `2244` = peacetime @MERCENARIES offer to the human (re-premised 2026-09-15: caller is the human year-loop arm, raw 6418), `ai_king_peacetime_merc_offer` at the TURN_PROC_KING tail **Done**. Remaining documented
+divergences live in king_ref.md (1d42 `nation+0xe` bump skipped, declare
+crown-diplo bitmask 0x22/0x40 vs WAR|MET, 1528 colony-name pick).
+2026-09-07: crown **MoW return-home** is the real `20e6` ship-band tail
+(`ai_king_mow_sail_home_20e6`, raw 89717-89720 + `48d3_015e`); the
+col1_counter16 despawn stand-in is retired. **D1 REF divergence CLOSED
+2026-09-07g:** the crown slot (`control = 1`, raw 74833) now runs the full
+euro nation turn — `ai_king_ref_pre_euro_beat` (wave + war bookkeeping;
+the DOS `43f7` king beat is a pure spawner, zero orders/goto writes) then
+`ai_euro_nation_turn` at the crown's EURO step, per raw 6394/6407. The
+war_act substitute hunt is deleted (−1141 lines); MoW sail-home lives in
+the euro ship band. Forced side fixes (decomp-cited at their sites):
+`5fef_0000` defender domain gate, best-defender picks in the euro attack/
+seize arms, DOS @CAPTURED tag rule, WoI crown neighbor re-home
+(col1_origin), 5d04 MoW seizure scoped to the Europe dock, DOS treaty-
+timer expiry (WAR_INTENT, not peace), Cavalry/Cont. name predicates,
+crown-slot guards (euro_balance skip, no founding). `golden_woi_ref01`
+green on its ORIGINAL thresholds (all colonies fall t16 vs t24 before) —
+no re-baseline needed. Full write-up: king_ref.md "D1 CLOSED".
+
+**Shared helpers:** `465b_0000` terrain MP → `ai_dos_move_spent`;
+`281f_04ca`/`04d4` reseed/range → `dos_rng`; `124c_0040` generic distance
+(not `20e6`-specific); `6662_0f74` land pathing → `units_next_goto_step` /
+`units_greedy_next_step` (byte-exact toughness score); `4720_049e` is a
+tension-notify handler (likely `@VIOLATE`), **not** a move driver — **wired
+thin** (stale "unwired" corrected 2026-09-07f): `ai_euro_treasure_tension_bump`
+(`ai_euro.c:3174`) + `ai_euro_try_violate_notify` (`:12732`), both called from
+the post-act hook at `:17369`/`:17371`; approximations listed in the two
+function headers.
+`FUN_4d56_021a` IS real (corrected 2026-09-08; old "decompiler gap" claim wrong): `4d56:021a..14fd`, 4836 bytes emitted by Ghidra as `??` — ndisasm'd. It is the Indian unit decision routine; the ported 521d quiet scorer is its callee (thunk 291f:012c at 021a:1182). Four deltas decoded and **WIRED 2026-09-08 later same day** (ctest 60/60, goldens byte-green; two guarded port divergences documented in ai.c — orders latch spares FOLLOW/GOTO, upgrade-turn max_mp): per-ATTEMPT `col1_counter16` bump (4d56:1af3), unconditional facing write incl. stay=8 (021a:11b9), homeless-Brave despawn (021a:0337), in-field arm/mount upgrade on stay (021a:11cd — orders latch 5/6, muskets `++type` on rng(0,difficulty)==0, horse_breeding≥0x19 `type+=2`).
+
+### Per-module fidelity (honest — not blanket T3)
+
+| Module | Claim |
+|--------|-------|
+| Early Euro TURN1→7 (`6d8e` path) | **T2** (joint fields) |
+| Quiet Brave / tribes seed-100 | **T2** (T1.23 closed 2026-09-05 — no residue; the last scoring holdouts sit in `k_mid_peels`, `ai.c:3930`) |
+| Indian×Euro `15b3` / sticky / meet floor 96 | **Done 2026-09-08** — 12×12 four-quadrant quartet, `relation_by_indian` writers live, `20e6` synthesizer deleted |
+| Ocean `3558` / first-colony `06ae` | `06ae` **DOS-literal 2026-09-08** (unit-presence probe, low-nibble site score, coastal bias deleted); the `3558` **cargo matrices are ported** (unload/delivery/sell/load/colony-sail — see the `20e6` inventory row); step scorer not T3 |
+| Mid `0a60` / `5d04` / `5b66` | Structural (2026-09-06) / **fully live 2026-09-07d-e** (stale "partial" corrected 2026-09-07f: the invented ~765-line Linux hire matrix is deleted, `ai_euro_5d04_hire_ladder_tail` = raw 92568-93070 is the only Europe hire economy — `ai_euro.c:7610`, called `:8141`, retirement note `:8156`) / **Done as a dispatcher** — not T3 |
+| `2154` / `2820` bodies | **Done**; `4528` **Done logic** (2026-09-06 audit; all 9 human arms + AI arms 1/3/4/5/6/7/9 live — stale "thin/partial" corrected 2026-09-07f), VGA meet chrome open (T5.1) — not T3 |
+| Alarmed Indian unit-act | Escort peel + smoke; `021a` four deltas wired 2026-09-08 (col1_counter16 bump, facing, homeless despawn, in-field arm/mount) — not T3 |
+| King / REF | **Done 2026-09-06** (all `43f7_*` symbols ported; short documented-divergence list in king_ref.md; WoI battle path battle-hardened via bugs.md batches) |
+| Mid / late joint goldens | live gates — `smoke_ai_mid01`/`late01` (renamed from `golden_ai_*` 2026-09-14, TT-13) and `golden_ai_turns` are ctest tests; `golden_ai_joint` is a build-only convenience target that re-runs the six (its duplicate `add_test` was dropped 2026-09-14, TT-14). No `DISABLED` property anywhere in `CMakeLists.txt` |
+
+### Evidence, gates and tests
+
+| Artifact | Use |
+|----------|-----|
+| `original_saves/mapgen/SEED100.SAV` | Golden tribes/Braves; `golden_mapgen_seed100` |
+| `test-saves-ai/TURN1.SAV`…`TURN7.SAV` | Early-AI T2 joint gate (`golden_ai_turns`); `TURN7.SAV` also pins the `4962_06b6` census block byte-for-byte (`unit_ai_indian_census`, 2026-09-06d) |
+| `test-saves-ai/JOINT_MIDTURN.md` | Mid-game joint golden scaffold + field policy |
+| `original_saves/COLONY00/01.SAV` | Rival fleets, sail, AI crosses save-diff |
+| `COLONIZE/VR_SEED.EXE`, `VR_BRAVE*.EXE` | Seed-locked RE probes (not runtime) |
+| `original_memory_dumps/`, `dosbox-x-dumps/` | RAM images for byte-pattern search (see method notes) |
+| `tests/unit/test_ai*.c`, `test_founding_fathers.c` | Module units |
+| `tests/golden/test_ai_turns.c`, `tests/smoke/test_ai_mid01.c` / `test_ai_late01.c` | Joint field-diff gates |
+
+```bash
+# Preset trees are build/debug and build/release — `cmake --build build` has no cache.
+cmake --build build/debug --target golden_ai_joint
+./build/debug/golden_mapgen_seed100   # cwd = repo root
+./build/debug/golden_ai_turns         # TURN1→7 joint gate (live ctest gate since 2026-09-05)
+```
+
+Size sense: Linux `ai.c` + `ai_*.c` ≈ 3.5k + modules; DOS Euro planner ≈
+`6d8e` 500 + `0a60` 5.5k + `5d04` 750 + `20e6` 2.2k + `5b66`→`479b_*` 390;
+Indian cluster ≈ `1816` 140 + `2154` 320 + `2820` 595 + `4528` 3k. The full
+T0/T1 surface is in; remaining work is fidelity hardening, not missing
+planner arms.
+
+---
+
+> The pre-2026-08-24 W-tier queue was moved to
+> [archive/port_plan_w_tier_archive.md](archive/port_plan_w_tier_archive.md) (2026-09-05).
+

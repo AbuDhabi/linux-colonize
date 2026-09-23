@@ -27,6 +27,21 @@
 #include "core/woodcut.h"
 #include "platform/diagnostics.h"
 
+/*
+ * Sections:
+ *  - Calendar/date, active-nation/fog & unit-move-refresh helpers (~line 30)
+ *  - End-of-turn/autosave option gates & report readiness checks (~line 268)
+ *  - Colony production chrome & popups: SoL, inefficient gov, built, need-tools (~line 338)
+ *  - Per-colony production tick (~line 745)
+ *  - Colony production logging & per-nation scheduling (~line 2138)
+ *  - Colony construction & building completion (~line 2309)
+ *  - Nation tick: bells/crosses tally, immigrants, ship repair/routing (~line 2462)
+ *  - Year-end chrome: rival popups, anniversary, era-end, WoI, independence, defeat (~line 3123)
+ *  - Euro AI turn-order selection & phase finish status (~line 3673)
+ *  - Turn processor state machine: setup/euro/indian/finish/king steps & reset (~line 3752)
+ */
+
+/* ===================== Calendar/date, active-nation/fog & unit-move-refresh helpers (turn_set_active_nation .. turn_select_next_unit_awaiting_orders) ===================== */
 static void turn_set_active_nation(ColonizeTurnContext* ctx, int nation_id) {
   if (ctx && ctx->active_turn_nation) {
     *ctx->active_turn_nation = nation_id;
@@ -265,6 +280,7 @@ bool turn_select_next_unit_awaiting_orders(ColonizeUnitPool* pool, int human_nat
   return found;
 }
 
+/* ===================== End-of-turn/autosave option gates & report readiness checks (turn_option_end_of_turn .. turn_report_ok_inefficient) ===================== */
 bool turn_option_end_of_turn(const ColonizeCol1Save* col1, bool col1_ok) {
   return col1_ok && col1 && col1->head.game_options.end_of_turn != 0;
 }
@@ -335,6 +351,7 @@ static int turn_report_ok_inefficient(const ColonizeCol1Save* col1) {
  * return above; with AI colonies now in scope the test would have been wrong,
  * so it is gone.
  */
+/* ===================== Colony production chrome & popups: SoL, inefficient gov, built, need-tools (turn_emit_inefficient_gov_chrome .. turn_emit_needtools_notice) ===================== */
 static void turn_emit_inefficient_gov_chrome(
   ColonizeColony* colony,
   ColonizeCol1Save* col1,
@@ -742,6 +759,7 @@ static void turn_emit_needtools_notice(
  */
 static uint8_t s_prof_census[COLONIZE_COL1_NATION_COUNT][32];
 
+/* ===================== Per-colony production tick (turn_produce_one_colony) ===================== */
 static void turn_produce_one_colony(
   ColonizeColonyPool* pool,
   ColonizeColony* colony,
@@ -2135,6 +2153,7 @@ static void turn_produce_one_colony(
  * cargo, hammers, and what is under construction. Field names come from
  * @CARGO when a Europe screen is loaded (headless callers get the fallback).
  */
+/* ===================== Colony production logging & per-nation scheduling (turn_log_cargo_name .. turn_run_colony_production_w) ===================== */
 static const char* turn_log_cargo_name(const EuropeScreen* europe, int cargo) {
   if (cargo < 0 || cargo >= COLONIZE_CARGO_COUNT) {
     return "?";
@@ -2306,6 +2325,7 @@ void turn_run_colony_production_w(
 }
 
 
+/* ===================== Colony construction & building completion (turn_run_colony_unit_construction .. turn_colony_free_production) ===================== */
 static void turn_run_colony_unit_construction(ColonizeTurnContext* ctx) {
   if (!ctx || !ctx->colonies || !ctx->units) {
     return;
@@ -2459,6 +2479,7 @@ void turn_colony_free_production(
   );
 }
 
+/* ===================== Nation tick: bells/crosses tally, immigrants, ship repair/routing (turn_count_bells_and_crosses_for_nation .. turn_euro_nation_is_ref) ===================== */
 static int turn_count_bells_and_crosses_for_nation(
   const ColonizeColonyPool* pool,
   int nation_id,
@@ -3120,6 +3141,7 @@ static bool turn_euro_nation_is_ref(const ColonizeTurnContext* ctx, int n) {
  * i.e. it is the nation's colonist head count (already saved, already
  * written by col1_stuff_census — see docs/save_format_map.md row 244).
  */
+/* ===================== Year-end chrome: rival popups, anniversary, era-end, WoI, independence, defeat (turn_year_end_rival_rebels .. turn_run_year_end_chrome) ===================== */
 COLONIZE_INTERNAL int turn_year_end_rival_rebels(const ColonizeCol1Save* col1, int rival) {
   if (!col1 || rival < 0 || rival >= (int)COLONIZE_COL1_NATION_COUNT) {
     return 0;
@@ -3670,6 +3692,7 @@ void turn_run_year_end_chrome(ColonizeTurnContext* ctx, ColonizeTurnResult* out)
   turn_year_end_defeat_check(ctx, out, year, woi_latched);
 }
 
+/* ===================== Euro AI turn-order selection & phase finish status (turn_euro_ai_should_run .. turn_finish_status) ===================== */
 static bool turn_euro_ai_should_run(const ColonizeTurnContext* ctx, int nation_id) {
   if (!ctx || nation_id < 0 || nation_id >= 4 || nation_id == ctx->human_nation) {
     return false;
@@ -3749,6 +3772,7 @@ static void turn_finish_status(ColonizeTurnContext* ctx, const ColonizeTurnResul
   );
 }
 
+/* ===================== Turn processor state machine: setup/euro/indian/finish/king steps & reset (turn_processor_start .. turn_reset) ===================== */
 void turn_processor_start(ColonizeTurnProcessor* proc) {
   if (!proc) {
     return;

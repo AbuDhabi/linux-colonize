@@ -2,7 +2,7 @@
 #
 # Purpose: one file an LLM agent (or a human with grep) can read to learn how
 # the ported European AI decides things each nation turn, without opening
-# 20k lines of ai_euro.c. tools/ai_logic_map.py renders it as a flowchart for
+# 20k lines of the ai_euro*.c family. tools/ai_logic_map.py renders it as a flowchart for
 # humans (HTML/Mermaid/DOT) and validates it against the source tree.
 #
 # Conventions
@@ -27,12 +27,20 @@ title: European AI logic map
 date: 2026-09-15
 sources:
   - src/core/ai.c            # ai_euro_nation_turn entry
-  - src/core/ai_euro.c       # dispatcher, 5d04, 0a60, 20e6, 5b66 bodies
+  - src/core/ai_euro.c       # dispatcher + nation-turn entry (split 2026-09-23)
+  - src/core/ai_euro_colony_jobs.c  # 28c8 scorer + 5952 job/build arms
+  - src/core/ai_euro_expand.c       # goto plumbing, wagon haul, founding
+  - src/core/ai_euro_europe.c       # 5d04 Europe planning + hire
+  - src/core/ai_euro_goals.c        # 0a60 goals, colony goals, move scoring
+  - src/core/ai_euro_land.c         # 20e6 land band
+  - src/core/ai_euro_ship.c         # ship band + unload/settle
+  - src/core/ai_euro_act.c          # ai_euro_act_* stages
   - src/core/ai_goals.c      # goal tables (FUN_521d_0000..0906)
   - src/core/ai_diplo.c      # treaty timers, euro_balance, 13b0, 153e
   - src/core/ai_king.c       # crown beats reached from the Euro turn
   - src/core/turn.c          # TURN_PROC_EURO slice
-  - docs/port_plan.md        # "Deferred AI track" inventory + status
+  - docs/port_plan.md        # "Deferred AI track" status stub
+  - docs/archive/port_plan_deferred_ai_track.md   # full inventory (historical)
   - original_sources_annotated/ai/*.md
 how_to_read: |
   Start at graph `nation_turn`, follow `sub` nodes downward. The order of
@@ -131,7 +139,7 @@ graphs:
       - id: inventory
         kind: call
         label: Colony inventory — shortage tallies
-        fn: ai_euro.c:ai_euro_colony_inventory
+        fn: ai_euro_expand.c:ai_euro_colony_inventory
         dos: FUN_521d_5cf6-shaped tallies; FUN_5952_035e +0x8f/+0x8c increments
         status: structural
         note: "Per own colony tools<20, muskets<10, food<pop*2, ore<20, lumber-labor want; ++cargo_idle_turns, ++improve_timer. DOS's own loop (raw 93107-93135) is the 5952_035e tick + specialty/muskets/tools/horses demand tallies (0xa0cc/0xa0db/0xa0da/0xa0d4) and the NEEDS_COLONISTS count; the port's tallies here are Linux-shaped, the DOS ones live in ai_euro_5d04_cb_colony_needs / plan_scratch_refresh."
@@ -146,7 +154,7 @@ graphs:
         kind: sub
         label: Nation planning — treasury, ship buys, Europe hires
         sub: planning_5d04
-        fn: ai_euro.c:ai_euro_nation_planning
+        fn: ai_euro_europe.c:ai_euro_nation_planning
       - id: promote
         kind: call
         label: Promote secondary goals to primary
@@ -163,12 +171,12 @@ graphs:
         kind: sub
         label: Goal writer — colony/unit goals (0a60 A–H)
         sub: goals_0a60
-        fn: ai_euro.c:ai_euro_colony_goals
+        fn: ai_euro_goals.c:ai_euro_colony_goals
       - id: goal_orders
         kind: sub
         label: Goal consumption — assign each idle unit a primary goal
         sub: goal_orders
-        fn: ai_euro.c:ai_euro_0a60_goal_orders_structural
+        fn: ai_euro_goals.c:ai_euro_0a60_goal_orders_structural
       - id: is_crown
         kind: decision
         label: WoI crown slot?
@@ -228,7 +236,7 @@ graphs:
         kind: sub
         label: Colony tick — colonist re-placement (FUN_5952_035e)
         sub: colony_tick
-        fn: ai_euro.c:ai_euro_colony_tick_28c8_reassign
+        fn: ai_euro_colony_jobs.c:ai_euro_colony_tick_28c8_reassign
       - id: end
         kind: end
         label: return
@@ -269,29 +277,29 @@ graphs:
       - id: treasury
         kind: step
         label: Treasury bump
-        fn: ai_euro.c:ai_euro_5d04_treasury_bump
+        fn: ai_euro_europe.c:ai_euro_5d04_treasury_bump
         dos: FUN_521d_5d04 head
         status: dos
       - id: flags
         kind: step
         label: Compute planning flags (college, frigate/privateer threat, no-clear-navy, cargo-short)
-        fn: ai_euro.c:ai_euro_5d04_compute_flags
+        fn: ai_euro_europe.c:ai_euro_5d04_compute_flags
         dos: raw 85934-86024, 92412-92532
         status: dos
         note: WoI arm seizes the nation's Man-O-War into expeditionary_force (ai_euro_5d04_woi_seize_manowar). Threat crumbs are the 4962_0018 census tallies 0xa89a/0xa89b/0x9e52/0x9e54.
       - id: floors
         kind: step
         label: Apply naval gold floors (= 5c3c purchase prices per threat flag)
-        fn: ai_euro.c:ai_euro_5d04_apply_naval_gold_floors
+        fn: ai_euro_europe.c:ai_euro_5d04_apply_naval_gold_floors
         status: dos
       - id: ladder_gate
         kind: decision
         label: WoI, or ship_cargo_totals > census_pop_proxy/2 + colony count?
-        fn: ai_euro.c:ai_euro_5d04_ship_buy_ladder
+        fn: ai_euro_europe.c:ai_euro_5d04_ship_buy_ladder
       - id: frig
         kind: decision
         label: frigate_threatened? → buy Frigate (5000)
-        fn: ai_euro.c:ai_euro_5d04_propose_ship_buy
+        fn: ai_euro_europe.c:ai_euro_5d04_propose_ship_buy
         dos: "FUN_521d_5c3c purchase table DS:0x978d (Artillery 500 / Caravel 1000 / Merchantman 2000 / Galleon 3000 / Privateer 2000 / Frigate 5000); raw 92291-92300 post-spawn writes — +0x314d/e = nation+0x32/33 (return-from-Europe), +0x314c = 1 for land types / 0 for hulls (bugs.md #761)"
         status: dos
       - id: priv
@@ -300,7 +308,7 @@ graphs:
       - id: rng_ladder
         kind: step
         label: RNG ladder — Frigate / Galleon / Merchantman / Caravel / Privateer
-        fn: ai_euro.c:ai_euro_5d04_ship_buy_ladder
+        fn: ai_euro_europe.c:ai_euro_5d04_ship_buy_ladder
         status: dos
         note: "armed<8 && RNG(0,1)!=0 && no_clear_navy → Frigate; RNG(0,3)!=0 → Galleon; RNG(0,1)==0 && cargo<12 → Merchantman; cargo<3 → Caravel; armed<4 && RNG(0,3)==0 && no_clear_navy && !cargo_short → Privateer. First affordable wins."
       - id: abort
@@ -313,14 +321,14 @@ graphs:
       - id: hire
         kind: phase
         label: Hire ladder tail (the DOS Europe hire economy)
-        fn: ai_euro.c:ai_euro_5d04_hire_ladder_tail
+        fn: ai_euro_europe.c:ai_euro_5d04_hire_ladder_tail
         dos: raw 92568-93070
         status: dos
         note: "Recruit pop/refill (2026-09-18): a popped slot spawns its unit through the port's FUN_38fd_0718 counterpart ai_euro_5d04_cb_dock_pop_candidate, which now also writes the DOS sentry order (+0x314c = 1, raw 59133 — bugs.md #509); the emptied slot is refilled by europe.c's faithful FUN_38fd_46d4 (ai_euro_5d04_refill_pool_slot → europe_nation_refill_pool_slot, raw 64554-64694 — bugs.md #510), the difficulty-scaled tier roll off the shared game stream, replacing a flat dos_rng_range(0, 0x1b) stand-in that could seed the pool with professions 46d4 explicitly remaps away."
       - id: needs
         kind: step
         label: Colony musket/tool needs (DS:0xa0da/0xa0db, minus own Pioneers)
-        fn: ai_euro.c:ai_euro_5d04_cb_colony_needs
+        fn: ai_euro_europe.c:ai_euro_5d04_cb_colony_needs
         status: dos
       - id: arty
         kind: decision
@@ -329,7 +337,7 @@ graphs:
       - id: buy_arty
         kind: step
         label: Buy Artillery (500)
-        fn: ai_euro.c:ai_euro_5d04_propose_ship_buy
+        fn: ai_euro_europe.c:ai_euro_5d04_propose_ship_buy
       - id: swap
         kind: step
         label: Recruit-slot swap when gold >= price + reserve(census_pop_proxy)
@@ -398,7 +406,7 @@ graphs:
       - id: housekeeping
         kind: call
         label: Unit housekeeping — +0x3148 bits, act-state transitions, foreign-ship CONTACT
-        fn: ai_euro.c:ai_euro_0a60_unit_housekeeping
+        fn: ai_euro_goals.c:ai_euro_0a60_unit_housekeeping
         dos: 0a60 raw lines 1-189
         status: dos
         note: FOUND/MIL_EXPAND eligibility (bits 2/3) from 0d38 stack counts (military ≥2 or mobilizable → bits 2+3; Pioneers → bit 2); spare-transport bit5 (one ship per nation per turn); act_state 1/2/3 → 0 on tile, 10 at a contact claim, 1 when aboard/off-map; foreign hostile ship → CONTACT prio 3 (Frigates only post-declaration).
@@ -417,7 +425,7 @@ graphs:
       - id: sec_d
         kind: loop
         label: "D: own colony loop"
-        fn: ai_euro.c:ai_euro_colony_goals
+        fn: ai_euro_goals.c:ai_euro_colony_goals
         dos: 0a60 colony loop raw 190-980
         status: structural
       - id: d_flags
@@ -436,7 +444,7 @@ graphs:
       - id: d_threat
         kind: call
         label: Threat accumulator → garrison_quota
-        fn: ai_euro.c:ai_euro_colony_threat_seed_5952
+        fn: ai_euro_goals.c:ai_euro_colony_threat_seed_5952
         dos: FUN_5952_035e 11×11 scan
         status: dos
         note: Floor from building chain rows 0-2; outside>0x32; stance nibble; WoI and SMALL_AI colony adjustments; Indian war-declare block lives in ai_contact.c.
@@ -480,7 +488,7 @@ graphs:
       - id: producers
         kind: call
         label: Foreign-colony + village producers — MILITARY approach, CONTACT lurk, FOUND/MIL_EXPAND ship staging
-        fn: ai_euro.c:ai_euro_0a60_settlement_goal_producers
+        fn: ai_euro_goals.c:ai_euro_0a60_settlement_goal_producers
         dos: 0a60 raw 983-1276 (viceroy ~87795-88052)
         status: dos
         note: "Fair-play gates difficulty×turn < 0xb5 / 0xc9; outmatched (fewer colonies + owner has ≥8 skilled) vs absent; open-sea staging tile scan ±3; priority ladder (human owner, colony tally, MET-not-PEACE, turn<0x96); weak-defender cancel (defenders ≤ 6 − turn/50). Village loop: CONTACT lurk ring, FOUND beachhead on colony-free continents (0x173c/0x173e masks)."
@@ -529,13 +537,13 @@ graphs:
       - id: weight
         kind: step
         label: Weight seed = clamp(all_unit_counts[nation] >> 3, 3, 99) for every primary slot
-        fn: ai_euro.c:ai_euro_0a60_weight_seed
+        fn: ai_euro_goals.c:ai_euro_0a60_weight_seed
         dos: FUN_281f_035c → FUN_124c_000c clamp (521d:0ab8)
         status: dos
       - id: loop
         kind: loop
         label: Each own unit (slot walk)
-        fn: ai_euro.c:ai_euro_0a60_goal_orders_structural
+        fn: ai_euro_goals.c:ai_euro_0a60_goal_orders_structural
       - id: skip_job
         kind: decision
         label: Mid Pioneer job (CLEAR_PLOW / BUILD_ROAD)?
@@ -549,20 +557,20 @@ graphs:
       - id: presence
         kind: decision
         label: Land Soldier/Dragoon whose continent has <3 land units (or <2 and no colony)?
-        fn: ai_euro.c:ai_euro_0a60_continent_presence
+        fn: ai_euro_goals.c:ai_euro_0a60_continent_presence
         status: dos
         note: Home-defense hold — unit keeps no goal.
       - id: scan
         kind: loop
         label: "Scan primary slots — capability bit test `(1 << (goal.code & 0x1f)) & DS:0x523d[type*0xe]`, then the two unit+0x3148 clauses, same continent for land"
-        fn: ai_euro.c:ai_euro_0a60_unit_can_pursue_goal
+        fn: ai_euro_goals.c:ai_euro_0a60_unit_can_pursue_goal
         dos: FUN_521d_0a60 raw 88184-88191
         status: dos
         note: "act_state 5/6 land units skip when standing in any Euro colony (FUN_137f_0358 euro_settlement_owner on the unit's own tile). Pick: score < best && score/weight_seed <= prio*3/2. FIXED 2026-09-18 (bugs.md #511): the gate was keyed on unit NAMES; DOS indexes the type's NAMES.TXT @UNIT capability byte (k_20e6_type_flags) with the GOAL CODE as the bit index. Consequence, and it is DOS's: FOUND(1) and MIL_EXPAND(7) live only on the ship rows 0x81/0x82/0xa2 — they are transport goals — while land rows carry ESCORT(2)/LABOR(3)/MILITARY(4)/COLONY(5) and Colonist/Pioneer (0x40) carry only bit 6 (EXPLORE, a code the primary table never holds). The two extra clauses stay: code 1 also needs unit+0x3148 bit2, code 7 also needs bit3. A pool whose types did not come from NAMES.TXT (dos_type −1, hand-built test tables only) falls back to the old name-keyed equivalent."
       - id: commit
         kind: step
         label: "Commit best slot: +0x314b order '1' (FOUND 't', MIL_EXPAND 'i'), +0x314c = 0x0b, +0x314d/e = goal tile; claim-count++ unless MILITARY"
-        fn: ai_euro.c:ai_euro_0a60_goal_orders_structural
+        fn: ai_euro_goals.c:ai_euro_0a60_goal_orders_structural
         status: structural
         note: "2026-09-18f (bugs.md #525): the commit writes the REAL unit bytes now (u->col1_ai_plan / u->orders / u->goto_x / u->goto_y via ai_euro_set_goto), not the retired s_0a60_pilot_state mirror, so the 20e6 pre-LAB_4d2e gate and the act-level arms see the same course the rest of the port sets. LAND ONLY, and that is a port divergence: DOS binds ships here too (a 0x0b transport whose DS:0x523d bit0 is clear skips 20e6 outright and just walks the goal), but binding them moves every AI transport off its landfall onto this port's own 0a60 ocean-tile FOUND/CONTACT producers and loses four of the six real DOS save pairs in golden_ai_turns — i.e. the SHIP half of the goal table is not faithful enough yet. Open lead. The AI_GOAL_* code itself has no DOS byte at all: `ai_goals_primary_code_at` re-reads it from the goal table at +0x314d/e, and ai_euro_unit_act captures the binding before 20e6's LAB_589e wander commit can overwrite +0x314c with 0x0c."
       - id: end
@@ -594,7 +602,7 @@ graphs:
       - id: first_colony
         kind: call
         label: First-colony land beachhead (no colonies yet — Pioneer/Soldier found walk / sentry / found)
-        fn: ai_euro.c:ai_euro_try_first_colony_land
+        fn: ai_euro_ship.c:ai_euro_try_first_colony_land
         dos: 06ae site pick + 20e6 landing block; geometry fitted to TURN2–5 goldens
         status: golden
         note: Wakes sentry units; SP/FR/DU staging tips hard-coded from goldens (e.g. landfall 53,56).
@@ -604,7 +612,7 @@ graphs:
       - id: notify
         kind: step
         label: Territorial notify (the treasure "tension bump" that shared this step was refuted 2026-09-23, bugs.md #747 — it is FUN_465b_0000's Privateer-sighting bit, now ai_euro_465b_privateer_sighting, fired from the move handler)
-        fn: ai_euro.c:ai_euro_try_violate_notify
+        fn: ai_euro_land.c:ai_euro_try_violate_notify
         dos: FUN_4720_049e
         status: thin
       - id: roam_abort
@@ -627,7 +635,7 @@ graphs:
         kind: sub
         label: Move-scoring gate (FUN_521d_20e6 land)
         sub: move_scoring_gate
-        fn: ai_euro.c:ai_euro_move_scoring_gate
+        fn: ai_euro_land.c:ai_euro_move_scoring_gate
       - id: gate_ret
         kind: decision
         label: Gate returned nonzero (act aborted)?
@@ -712,30 +720,30 @@ graphs:
         kind: sub
         label: Ship arrival + trade haul (20e6 ship band)
         sub: ship_haul
-        fn: ai_euro.c:ai_euro_try_ship_trade_haul
+        fn: ai_euro_ship.c:ai_euro_try_ship_trade_haul
       - id: war_naval
         kind: step
         label: Flee enemy Fort/Fortress battery water (not war-gated — the battery fires without a PEACE treaty)
-        fn: ai_euro.c:ai_euro_naval_try_flee_fort_fire
+        fn: ai_euro_ship.c:ai_euro_naval_try_flee_fort_fire
         dos: FUN_364b_03f6
         status: structural
         note: The act-level adjacent-foe attack picker, the war-cargo colony-sail entry and the distant "nearest foe / enemy port" hunt aim were all port inventions, retired 2026-09-15/2026-09-18. A hull fights only through the LAB_4d2e wander scorer (node `sail`).
       - id: reassert
         kind: step
         label: Re-assert first-colony ship course (post-beachhead only)
-        fn: ai_euro.c:ai_euro_first_colony_ship_course
+        fn: ai_euro_ship.c:ai_euro_first_colony_ship_course
         status: golden
       - id: sail
         kind: loop
         label: "Idle hull (or busy with a foreign unit adjacent, raw 90210) → 20e6 ship wander: far-roam latch (raw 88632), LAB_4d2e 8-dir scorer with the ship arms (open-sea step, fort×holds term, west lean, LAB_52aa odds attack); then AI_SAIL goto: score_move until MP 0 / arrival; back-step guard; on stall → FUN_6662 pathfinder latched per goto"
-        fn: ai_euro.c:ai_euro_ocean_score_step
+        fn: ai_euro_goals.c:ai_euro_ocean_score_step
         dos: LAB_521d_3558 ocean branch
         status: structural
       - id: unload
         kind: sub
         label: Settle unload (passengers → landfall / FOUND)
         sub: unload_settle
-        fn: ai_euro.c:ai_euro_unload_settle
+        fn: ai_euro_ship.c:ai_euro_unload_settle
       - id: tips
         kind: step
         label: First-colony hold / cruise tip MP drain; post-found park (AI_MOVE@self)
@@ -776,14 +784,14 @@ graphs:
       - id: cap_gate
         kind: decision
         label: Cargo-capable type standing at (berthed next to) an own colony?
-        fn: ai_euro.c:ai_euro_20e6_ship_berth_arrival
+        fn: ai_euro_ship.c:ai_euro_20e6_ship_berth_arrival
         dos: raw 1691 gate (capacity_table[type] != 0, iStack_2e == 0)
         status: dos
         note: Hull test is DOS's own — any type 0x0d..0x12 with holds, Privateer/Frigate/Man-O-War included (widened from a Caravel/Merchantman/Galleon name list 2026-09-18).
       - id: clear_marks
         kind: step
         label: Clear stale board marks on the berth stack
-        fn: ai_euro.c:ai_euro_20e6_clear_stale_board_marks
+        fn: ai_euro_ship.c:ai_euro_20e6_clear_stale_board_marks
         dos: raw 2991-2997
         status: dos
       - id: dump
@@ -800,7 +808,7 @@ graphs:
       - id: load
         kind: step
         label: LOAD matrix — one cargo per free hold; latch source colony in +0x314a
-        fn: ai_euro.c:ai_euro_20e6_load_pick
+        fn: ai_euro_expand.c:ai_euro_20e6_load_pick
         dos: raw 3059-3134 (iStack_34 = ship-vs-wagon)
         status: dos
       - id: board_marks
@@ -811,24 +819,24 @@ graphs:
       - id: assemble
         kind: call
         label: Transport assemble — board marked members (+ two force-board invariant arms)
-        fn: ai_euro.c:ai_euro_20e6_transport_assemble
+        fn: ai_euro_ship.c:ai_euro_20e6_transport_assemble
         dos: FUN_1427_10be (anchor 0x3609, runs on every ship act)
         status: dos
       - id: delivery_q
         kind: decision
         label: Delivery cargo aboard (Horses / Trade Goods / Tools / Muskets)?
-        fn: ai_euro.c:ai_euro_20e6_delivery_tallies
+        fn: ai_euro_ship.c:ai_euro_20e6_delivery_tallies
         dos: raw 2044-2139
         status: dos
       - id: deliver
         kind: step
         label: Delivery colony pick → AI_SAIL there
-        fn: ai_euro.c:ai_euro_20e6_delivery_colony_pick
+        fn: ai_euro_ship.c:ai_euro_20e6_delivery_colony_pick
         status: dos
       - id: sell_tail
         kind: step
         label: No taker — sell tail (hold strip + ledger, untaxed), fall through with empty hull
-        fn: ai_euro.c:ai_euro_20e6_delivery_sell_tail
+        fn: ai_euro_ship.c:ai_euro_20e6_delivery_sell_tail
         dos: raw 2140-2163 (15eb_317c, 38fd_1dfa)
         status: dos
       - id: laden
@@ -839,14 +847,14 @@ graphs:
       - id: queue
         kind: step
         label: Work-queue pickup pick (cargo hulls only) → AI_SAIL to queue tip; proportional score write-back on consume
-        fn: ai_euro.c:ai_euro_4393_work_queue_haul_pick
+        fn: ai_euro_expand.c:ai_euro_4393_work_queue_haul_pick
         dos: LAB_004393; ai_goals_work_consume
         status: dos
         note: bVar17 (raw ~1284-1306) removes Man-O-War and narrows Privateer/Frigate by unresolved globals — the peel keeps the cargo-hull list rather than guess.
       - id: cadence
         kind: step
         label: Empty untasked ship — High Seas cadence
-        fn: ai_euro.c:ai_euro_20e6_457e_hs_cadence
+        fn: ai_euro_land.c:ai_euro_20e6_457e_hs_cadence
         dos: LAB_457e (after the 4393 haul)
         status: dos
         note: Kill switch AI_20E6_HS_CADENCE=0.
@@ -882,7 +890,7 @@ graphs:
       - id: no_colony
         kind: decision
         label: Nation has no colony yet?
-        fn: ai_euro.c:ai_euro_unload_settle
+        fn: ai_euro_ship.c:ai_euro_unload_settle
       - id: beachhead
         kind: step
         label: Beachhead choreography — found-approach with pioneer aboard, empty-transport cruise, staging tip unload-all
@@ -892,7 +900,7 @@ graphs:
       - id: mask
         kind: step
         label: Per-cargo unload mask (0x40/0x20/0x10/0xffff bits) → unload by mask
-        fn: ai_euro.c:ai_euro_20e6_unload_mask
+        fn: ai_euro_ship.c:ai_euro_20e6_unload_mask
         dos: LAB_3558 raw ~1746-1762 goal fold + mask
         status: dos
         note: Runs transport_assemble first (the 0x3609 anchor). Civilian→founder promotion via goal fold.
@@ -916,7 +924,7 @@ graphs:
       - id: found
         kind: step
         label: Found on the spot, else AI_MOVE to chosen site
-        fn: ai_euro.c:ai_euro_found_with_unit
+        fn: ai_euro_expand.c:ai_euro_found_with_unit
       - id: end
         kind: end
         label: return
@@ -951,7 +959,7 @@ graphs:
       - id: war_hunt
         kind: step
         label: War — wake passive hunter, seize adjacent colony/village, attack adjacent foe
-        fn: ai_euro.c:ai_euro_land_engage_adjacent
+        fn: ai_euro_ship.c:ai_euro_land_engage_adjacent
         status: thin
         note: "2026-09-18: the distant land war hunt (ai_euro_land_war_hunt_target) was deleted as invented — DOS has no distant land hunt, exactly as it has none for ships. The adjacent-attack loop (ai_euro_land_try_adjacent_attack / ai_euro_land_best_adjacent_foe) is kept and marked a GOLDEN-BACKED STAND-IN: DOS scores an adjacent foe inside the LAB_521d_4d2e attack term (raw 88880-88940) and resolves it via FUN_465b_0000, but the port's copy of that term needs owner >= 0 && at_war from the destination's layer3 nibble, so a foe on an unclaimed tile is never scored; deleting the pair left golden_woi_ref01's REF unable to reduce two defended colonies. 2026-09-18b (bugs.md #521): two DOS divergences behind that stall were fixed — the LAB_52aa WoI gate (raw 88883-88885: during WoI an attack is scored only on a human-controlled player slot or a tribe, not the port's `!woi || owner < 0`) and the best-defender rule of FUN_465b_0000 / FUN_5fef_0000 in ai_euro_score_move and the goal-dispatch drain loop (a berthed foreign hull was hiding a colony garrison). Without the stand-in the REF now leaves 1 surviving colony instead of 2; the residue is volume, not reachability — on land every @UNIT col9 byte is 0 so the LAB_52aa odds core is 0 for any 2+ defender stack, and the assault must come from the 0a60 MILITARY goal walk, whose binding this port drops the moment the unit stands adjacent (0a60 housekeeping sets act_state 10, raw 87566-87568, and the goal tail reads a goal only at act_state 0x0b). 2026-09-18c: act_state 10 decoded and the lead closed — FUN_521d_0a60 raw 87567 is its only writer in the game and it marks 'a foreign unit or settlement stands on one of my eight neighbours' (FUN_521d_0906 via FUN_281f_0682/06be, filtered by FUN_521d_0896 which passes any Euro owner). DOS gives such a unit no goal (raw 88164 assigns only at 0/5/6), admits it into 20e6 (raw 88404-88406), sends it straight to LAB_521d_4d2e with no goal pathing (raw 90210-90214) and demotes it to 5 with order code '0' at the tail (raw 90399-90404, now ported at every ai_euro_move_scoring_gate exit); FUN_521d_5b66 dispatches a goal only at 0x0b (raw 90552) and its switch case 10 (raw 91195) is unreachable. So DOS unbinds the adjacent unit exactly as this port does and the goal walk is NOT the assault route. Case 0 of FUN_1427_0d38 confirmed byte-exact from the 1427:0d78 jump table as 'DI += DS:0x5239[type*0xe]', so the 0-odds-vs-2+-stack behaviour is DOS's own. Also fixed here: the uncited at-war land-hunter early return in ai_euro_move_scoring_gate (20e6 has no war gate) and the drain loop's nation-blind units_id_at fallback, which handed an own unit on the step tile to ai_euro_try_attack and froze REF columns two tiles short — with the stand-in all seven colonies now fall at t15 (was t21). Lead (c) refuted: raw 88686 is an inert ship/ocean skip gate, not the normal-branch test (that is raw 88774-88776 and already matches). 2026-09-18e (bugs.md #522/#523): the reachability half is now fixed — the gate's two missing DOS act-state tests (own-colony garrison arm raw 88584-88612, pre-LAB_4d2e gate raw 90210-90219) are ported, the three uncited early returns they replaced are gone, and golden_woi_ref01's land arms now take 118 wander steps where they took 0. It did not retire the stand-in: with ai_euro_land_try_adjacent_attack disabled the REF parks beside the human colonies (1368 border-park exits) and 2 colonies survive, because the LAB_52aa odds core still scores 0 against every 2+-defender land stack and local_ce is therefore never set. With the stand-in the war now ends at t11 (@LOSING3 surrender) instead of t15-t17. #523 is REFUTED: `goto LAB_521d_5183` out of the Soldier/Dragoon colony-mass gate is the direction loop's own increment, not an exit from the scan — viceroy_overlays.asm LAB_OVL14_L0000__005183 is `INC word ptr [BP-0x4e]` followed by `CMP [BP-0x4e],0x8 / JL`, with 14 XREFs; the port's per-tile skip already matches. 2026-09-18f (bugs.md #525/#526): FUN_521d_5b66 fully decoded off its own 198 bytes (see the move_scoring_gate graph, node goal_walk) and the port now walks the unit's stored +0x314d/e instead of re-deriving a nearest FOUND tile on every act; the 0a60 shadow is retired and the raw 90210-90219 gate reads the real +0x314c. It does not retire the stand-in either: with ai_euro_land_try_adjacent_attack disabled golden_woi_ref01 still leaves 1 colony standing and never latches the endgame (with it, endgame=2 at t16). The LAB_52aa odds core scoring 0 against every 2+-defender land stack remains the sole blocker and still needs a DOSBox-X trace. 2026-09-22 CLOSED (bugs.md #521): the 0-odds core was a port column slip — ai_euro_20e6_unit_col9 read the @UNIT guns column (0x523b) instead of 0x5239 = the cost column (loader raw 121115-121135), which is non-zero for every land type. With the real column the 4d2e attack term assaults stacked colonies on its own; the adjacent-attack stand-in pair is deleted, the drain loop steps straight into an adjacent foreign-held goto tile (the 4d2e pick) instead of re-scoring it, and owner −1 tiles enter the Euro arm as DOS does (raw 88877 `local_10 < 4`)."
       - id: peace_border
@@ -962,34 +970,34 @@ graphs:
       - id: treasure
         kind: step
         label: Treasure — cash at any own colony (20e6 arm 1), else walk to nearest own colony (arm 2) / own unit (arm 3), else 47b9 destroy
-        fn: ai_euro.c:ai_euro_20e6_treasure_cash_in
+        fn: ai_euro_land.c:ai_euro_20e6_treasure_cash_in
         dos: 20e6 treasure band raw 89997-90040 (iStack_2e==0 cash-in first, then LAB_4701 / LAB_27f5 / LAB_47b9)
         status: dos
         note: "Whole band literal 2026-09-23 (bugs.md #745/#746). Cash-in is untaxed, any own colony, coastal or not; arm 2 walks to the NEAREST own colony on the same landmass with no coastline term; arm 3 walks to the nearest own unit on the landmass, else destroys when the adjacent-claim probe names the human. The Europe-cash / board-ship / coast-target / Cortes-galleon cluster was deleted: no DOS site boards an AI treasure (FUN_4720_049e has no 0x0a term) and the King-galleon offer is human-control gated (FUN_465b_0000 raw 75800)."
       - id: wagon
         kind: step
         label: Wagon — haul (load matrix, 457e origin walk, village errand, 47b9)
-        fn: ai_euro.c:ai_euro_try_wagon_haul
+        fn: ai_euro_expand.c:ai_euro_try_wagon_haul
         dos: 20e6 wagon arms (iStack_34==0), LAB_457e origin walk, 8d4a village errand
         status: dos
       - id: pioneer
         kind: step
         label: "Pioneer — order 9 (Build Road) park, unless a village claims the tile or a foreign colony is within 3"
-        fn: ai_euro.c:ai_euro_move_scoring_gate
+        fn: ai_euro_land.c:ai_euro_move_scoring_gate
         dos: FUN_521d_20e6 raw 90183-90206 (dup raw 85345-85368)
         status: dos
         note: "bugs.md #610/#611: the old node was the INVENTED planner ai_euro_try_pioneer_improve (Colonization.pdf-cited colony-ring scan, plow-before-road, MD<=3, prefer-Hardy), deleted 2026-09-22. DOS's only AI pioneer unit order is this one: at the land commit point a type-2 unit that is not the iStack_6a explorer pick writes +0x314c = 9 / +0x314b = 0x52 and leaves 20e6 (goto LAB_5a78). Nothing in the image then ticks that order for an AI unit — the sole callers of FUN_479b_01a6/0526 are the human ORDERS UI (raw 42512/42603) and the colony tick's phantom-unit sites (raw 93669, raw 94520/94534) — so the write is a park. Real AI tile improvement happens in FUN_5952_035e raw 94402-94551 (ai_euro_5952_improve_best_plot, bugs.md #612), which is a colony-tick arm and therefore not on this unit graph."
       - id: fortify
         kind: step
         label: "Peace fortify — armed land unit (DS:0x5236[type] > 1, type outside 0xd..0x12) on own colony → FORTIFY"
-        fn: ai_euro.c:ai_euro_act_land_fortify
+        fn: ai_euro_act.c:ai_euro_act_land_fortify
         dos: FUN_521d_20e6 raw 89011-89013 (the 'F' = 0x46 arm's unit test)
         status: structural
         note: "FIXED 2026-09-18 (bugs.md #512): the arm's own unit test is now DOS's — the NAMES @UNIT ATTACK column above 1 (loader raw 121115-121119 stores col3 attack at 0x5236, col4 defense at 0x5235) plus not-a-ship-type — instead of name matching, and it spends no garrison quota to fire (DOS's arm has no quota concept; the colony's quota is still decremented so the other quota readers see the garrison). NOT ported from that DOS arm: its remaining guards — local_ea (an adjacent attackable foreigner was seen earlier in the act), FUN_281f_098e == FUN_281f_02ee (the +0x315c and +0x315e stack-chain walks agree, i.e. the unit is alone in its stack) and the 8-neighbour FUN_281f_0696 scan for a Euro colony owned by another nation. Those belong to a DIFFERENT trigger (park beside a foreign border colony) than this port arm's own-colony garrison, so bolting them on would suppress ordinary AI garrison fortification; that trigger is ported separately 2026-09-18 as ai_euro_20e6_border_park_arm (move_scoring_gate graph, node border_park)."
       - id: pilot
         kind: step
         label: Read 0a60 pick (act_state 0xb)
-        fn: ai_euro.c:ai_euro_act_land_goal_consume
+        fn: ai_euro_act.c:ai_euro_act_land_goal_consume
         status: structural
         note: "2026-09-18: the threatened-Stockade LABOR override and its ai_euro_colony_threatened_by_war helper were deleted as invented — the goal table is written only by FUN_521d_0a60 and the one AI construction picker is the FUN_5952_035e cascade, neither of which has a war-proximity term."
       - id: labor
@@ -1002,7 +1010,7 @@ graphs:
       - id: found
         kind: step
         label: Found colony with this unit
-        fn: ai_euro.c:ai_euro_found_with_unit
+        fn: ai_euro_expand.c:ai_euro_found_with_unit
         dos: 5b66 case 7 FOUND
         status: dos
       - id: found_near
@@ -1012,7 +1020,7 @@ graphs:
       - id: on_colony
         kind: step
         label: Own colony arrival — no unit-act outcome (join/TOOLS-delivery arms deleted)
-        fn: ai_euro.c:ai_euro_act_land_goal_dispatch
+        fn: ai_euro_act.c:ai_euro_act_land_goal_dispatch
         dos: >-
           No unit-act join: 20e6's +0x314b vocabulary (raw 88266-89800) has no
           join outcome, 0a60's own-colony block only marks 'A' (raw
@@ -1025,16 +1033,16 @@ graphs:
       - id: mil_contact
         kind: step
         label: MILITARY / CONTACT goal — adjacent foe → try_attack; at goal colony → resolve
-        fn: ai_euro.c:ai_euro_try_attack
+        fn: ai_euro_land.c:ai_euro_try_attack
         status: thin
       - id: set_goto
         kind: step
         label: Goal → AI_MOVE goto (unless an arm above already routed the unit)
-        fn: ai_euro.c:ai_euro_set_goto
+        fn: ai_euro_expand.c:ai_euro_set_goto
       - id: move_loop
         kind: loop
         label: Follow goto — score_move step, units_try_move; drain MP for FOUND/MILITARY/CONTACT/hunt/scout else one step
-        fn: ai_euro.c:ai_euro_score_move
+        fn: ai_euro_goals.c:ai_euro_score_move
         dos: LAB_521d_4d2e→5183 wander scorer, 54f5 facing bias
         status: structural
       - id: fortify_fallback
@@ -1043,7 +1051,7 @@ graphs:
       - id: war_tail
         kind: step
         label: War hunter tail — adjacent colony seize, village seize, adjacent attack
-        fn: ai_euro.c:ai_euro_land_try_adjacent_colony_seize
+        fn: ai_euro_ship.c:ai_euro_land_try_adjacent_colony_seize
         status: thin
       - id: end
         kind: end
@@ -1083,12 +1091,12 @@ graphs:
       - id: is_sea
         kind: decision
         label: Ship?
-        fn: ai_euro.c:ai_euro_move_scoring_gate
+        fn: ai_euro_land.c:ai_euro_move_scoring_gate
         note: Ships never retarget here — courses owned by the ship band.
       - id: garrison
         kind: decision
         label: "Own-colony garrison — non-hauler type with @UNIT attack > 1, type not 4/8, standing on an own colony whose labor_shortage (+0x8e) >= 1 or order 'A'"
-        fn: ai_euro.c:ai_euro_move_scoring_gate
+        fn: ai_euro_land.c:ai_euro_move_scoring_gate
         dos: FUN_521d_20e6 raw 88584-88612
         status: dos
         note: "Ported 2026-09-18e (bugs.md #522). Replaces three uncited early returns that used to stand here — 'passive colony Artillery', 'military name on own colony' and 'colony wants construction labor' — siblings of the at-war bail deleted 2026-09-18b; they parked every armed unit standing on one of its own colonies, so the whole land-arms branch (and with it the LAB_4d2e attack term) was unreachable for exactly the units that fight. DOS: order 'A' stays (LAB_5899); fewer than two armed units in the tile chain (attack > 1, type not in [0xd,0x12], not 4, not 8) garrisons — colony.labor_shortage--, order_code 0x47, stay; two or more sets local_8e = 1 and falls straight into LAB_4d2e, skipping LAB_277a and every arm hanging off it. local_2e == 0 ('distance to the nearest own colony is zero') is how DOS spells 'standing on an own colony'; colony +0x8e is labor_shortage; types 4 (Dragoons) and 8 (Cavalry) never garrison and are not counted. 2026-09-22 (bugs.md #554): every LAB_5899 stay of this arm now exits through the shared tail LAB_521d_589e (raw 90378-90386, ai_euro_20e6_stay_tail_589e): +0x314f = 8 and +0x314c forced into the fortify family (5, or 6 when +0x3148 & 2), so a garrison unit that still carries a stale course is no longer dispatched by the goal drain, which keys on +0x314c alone. DOS leaves +0x314d/e untouched on this arm."
@@ -1106,51 +1114,51 @@ graphs:
       - id: goal_walk
         kind: step
         label: "Walk the unit's OWN goal — score_move toward +0x314d/e"
-        fn: ai_euro.c:ai_euro_move_scoring_gate
+        fn: ai_euro_land.c:ai_euro_move_scoring_gate
         dos: FUN_521d_5b66 case 0x0b/0x0c -> FUN_479b_0972 (raw 77052-77120)
         status: dos
         note: "bugs.md #526, 2026-09-18f. On the `goto LAB_521d_5a78` side 20e6 sets NO course at all: DOS leaves the unit bound to the goal already in +0x314d/e and FUN_521d_5b66's switch walks it. The real dispatcher is 198 bytes at OVL14 0x5b66 (viceroy_overlays.asm ~139884-139975): entry `if (+0x3149 == 0 || +0x314c != 0x0b) -> 20e6` (0x3149 is the SPENT byte, zeroed at the day top raw 6357), else `DS:0x523d[type*0xe] & 1` — set only on the warship rows 16/17/18 — decides whether the 0984 adjacency probe can divert it into 20e6 (and, at order code 'E', decrement DS:0x9456[nation]); every other 0x0b unit SKIPS 20e6 entirely. Then `switch (+0x314c)` over 7..12 via the CS jump table at 0x5c2a: 7 -> FUN_1000_93ea = FUN_479b_076e (found colony), 8 -> 0x93b2 = FUN_479b_01a6 (clear/plow), 9 -> FUN_1000_9406 = FUN_479b_0526 (road), 0x0b and 0x0c -> FUN_1000_96aa = FUN_479b_0972 (the goal walk), 0x0a and every out-of-range value -> FUN_1000_8b24 = FUN_281f_0934 (finish the unit). FUN_479b_0972 itself: set DS:0x1dd6 (0xffff for 0x0c, else the unit's nation nibble), ask FUN_2a1f_0210 = FUN_6662_0f74 (the pathfinder) for one step toward +0x314d/e, move via FUN_2a1f_0142 = FUN_465b_0000 (or FUN_291f_044e for a control-0 player), bail keeping the binding unless the unit now stands on the goal; on arrival enter a terrain-0x1a settlement, reset the type-2 ring latch, and for 0x0b finish the unit and clear +0x314c (0x02 and 0x0c keep theirs). The port's `ai_euro_score_move` + the goal-dispatch drain loop stand in for that walk; this node is only about WHICH tile it is aimed at. A `ai_goals_best_found_tile_near` re-derive stood here and re-aimed every already-bound land unit at the nearest top-priority FOUND tile on every act, so no unit ever finished a walk — deleted: FOUND (code 1) is a ship-only capability bit (bugs.md #511) and the only writer of a unit's goal is FUN_521d_0a60's consumption tail."
       - id: prologue
         kind: step
         label: 20e6 prologue — unit state, continent, explorer flag
-        fn: ai_euro.c:ai_euro_20e6_prologue
+        fn: ai_euro_land.c:ai_euro_20e6_prologue
         dos: 20e6 raw ~1095-1180 (iStack_6a explorer clauses)
         status: dos
       - id: patrol
         kind: decision
         label: Patrol arm — stance 0, untasked, bound colony on same continent → sit / walk home
-        fn: ai_euro.c:ai_euro_20e6_patrol_arm
+        fn: ai_euro_land.c:ai_euro_20e6_patrol_arm
         dos: LAB_521d_277a
         status: dos
       - id: village
         kind: decision
         label: Village arm — Scout (unscouted, attitude 0) / Free Colonist (unlearned, attitude <0x40) → nearest village
-        fn: ai_euro.c:ai_euro_20e6_village_arm
+        fn: ai_euro_land.c:ai_euro_20e6_village_arm
         dos: 20e6 0x4c village arms; 8d4a attitude read
         status: dos
       - id: labor
         kind: decision
         label: Labor arm — under-filled colony by ring tier → join / walk; none → become Pioneer or force-explore
-        fn: ai_euro.c:ai_euro_20e6_labor_arm
+        fn: ai_euro_land.c:ai_euro_20e6_labor_arm
         dos: 20e6 colonist labor loop (fort-capacity wanted size)
         status: dos
       - id: recall
         kind: decision
         label: Surplus recall — colony flag 0x04 → clear, garrison_quota--, walk home
-        fn: ai_euro.c:ai_euro_20e6_surplus_recall_arm
+        fn: ai_euro_land.c:ai_euro_20e6_surplus_recall_arm
         dos: raw 85313-85337
         status: dos
       - id: explore
         kind: step
         label: Explorer — windowed ring scan (site nibble, fog, far-probe), else ring-hop 4 tiles on a latched direction
-        fn: ai_euro.c:ai_euro_20e6_ring_hop
+        fn: ai_euro_land.c:ai_euro_20e6_ring_hop
         dos: LAB_2912→2a59 ring scan; raw 2416-2458 ring hop (+0x3155/+0x3156)
         status: dos
         note: "bugs.md #683, ported 2026-09-23: the ring scan's own commit tail is now live. Raw 89272-89275 — `if (0 < local_c) { if (local_6a != 0) { if (best != own tile) goto LAB_521d_27f5; *(param_1 * 0x1c + 0x314c) = 7; goto LAB_521d_5a78; } }` — writes act_state 7 (UNITS_ORDER_BUILD_COLONY) when the best-scoring site is the tile the unit already stands on. It is the only AI writer of act_state 7 in the image, and it is what makes the two readers of that byte live: this scan's own raw-89182 reject (a candidate ring holding another unit already committed to 7 is skipped) and the human @TOONEARBUILD scan at raw 45670. 20e6 then returns 0 (raw 90445) and FUN_521d_5b66 dispatches its switch case 7 = FUN_1000_93ea = FUN_479b_076e (found colony) in the same call — ported as the act_state-7 consumer at the move-scoring-gate exit in ai_euro_unit_act, which calls ai_euro_found_with_unit. Port-only guard: a tile that refuses the colony resets the unit to act_state 5 rather than leaving it wedged behind 20e6's entry bail (raw 88404-88406)."
       - id: wander
         kind: step
         label: 8-direction wander scorer (stay = 8)
-        fn: ai_euro.c:ai_euro_20e6_wander_step
+        fn: ai_euro_land.c:ai_euro_20e6_wander_step
         dos: LAB_521d_4d2e→5183
         status: dos
         note: "bugs.md #523 REFUTED 2026-09-18e. ai_euro_20e6_attack_term's Soldier/Dragoon colony-mass gate (raw 88921-88937) returns 'skip this tile' and the caller `continue`s to the next direction; that IS DOS. `goto LAB_521d_5183` is the direction loop's own increment: viceroy_overlays.asm `LAB_OVL14_L0000__0054b0 CMP [BP+0xff28],AX / JL 0054b5 / JMP 005183` and `LAB_OVL14_L0000__005183 = INC word ptr [BP-0x4e]`, immediately followed by `LAB_..__005186 CMP [BP-0x4e],0x8 / JL 00518f` — the loop counter bump and test, with 14 XREFs (every unscoreable-direction arm in the scorer jumps there). No abandonment of the 8-direction scan anywhere."
@@ -1163,14 +1171,14 @@ graphs:
       - id: border_park
         kind: decision
         label: "0x46 park — pick is not an attack (local_ce == 0), an attackable foreigner was seen (local_ea), the unit is alone in its tile chain and a Euro settlement of another nation stands on one of its own 8 neighbours → stay"
-        fn: ai_euro.c:ai_euro_20e6_border_park_arm
+        fn: ai_euro_land.c:ai_euro_20e6_border_park_arm
         dos: FUN_521d_20e6 raw 89011-89029 (LAB_4d2e tail, asm OVL14_L0000:0x005992-0x005a31)
         status: dos
         note: "Ported 2026-09-18 (bugs.md #512). The LAB_4d2e tail runs local_ce == 0 (asm 0x5840) → local_8e == 0 (asm 0x5876) → the 0x42 / 0x65 pioneer codes (raw 88989-89009, act-level in this port) → this arm → the 0x39 fallthrough (asm 0x586a); every failed sub-test jumps straight to 0x586a. The two chain walks have their far-call args dropped by Ghidra — the asm at 0x59c9 passes the unit index in AX, FUN_1000_8b7e = FUN_281f_098e = FUN_1427_0026 (walk +0x315e to the tail) and FUN_1000_84de = FUN_281f_02ee = FUN_1427_0002 (walk +0x315c to the head), so tail == head is exactly 'alone in the chain' (units_map_stack_chrome). The arm issues no FORTIFY order and no goto: +0x314b is the AI annotation byte and no DOS reader compares it against 0x46, so the whole effect is LAB_5899's local_76 = 8 — the scored wander step is dropped. It spends no garrison quota and needs no colony of its own nearby. Unreachable in the current goldens (the land arms branch of the gate is never taken in golden_ai_turns / smoke_ai_* / golden_woi_ref01), so it changes no golden counter; covered by the four unit_border_park_* cases in tests/unit/test_ai_euro_20e6.c."
       - id: score
         kind: step
         label: score_move toward target → set AI_MOVE goto
-        fn: ai_euro.c:ai_euro_score_move
+        fn: ai_euro_goals.c:ai_euro_score_move
       - id: ret0
         kind: end
         label: return 0 (act continues)
@@ -1248,7 +1256,7 @@ graphs:
       - id: eligible
         kind: decision
         label: self > 2×other + edge && self > war-min? (10ec war-worthy)
-        fn: ai_euro.c:ai_euro_10ec_war_worthy
+        fn: ai_euro_land.c:ai_euro_10ec_war_worthy
         dos: FUN_5bfb_10ec
         status: dos
       - id: declare
@@ -1292,21 +1300,21 @@ graphs:
       - id: loop
         kind: loop
         label: Each own colony with colonists (AI nations only — DOS has one call site, inside 6d8e)
-        fn: ai_euro.c:ai_euro_colony_tick_28c8_reassign
+        fn: ai_euro_colony_jobs.c:ai_euro_colony_tick_28c8_reassign
         dos: FUN_5952_035e via 2a1f_0530 → 521d_5cf6 → 2a1f_05a8 — raw 93119, inside the PRELUDE colony loop
         status: dos
         note: "ORDER DIVERGES: DOS runs the tick per colony in the 6d8e prelude (before 5d04 / 0342 / 0a60 and before any unit acts), so planning reads post-tick colony state. The port runs it last on purpose (w31-28c8 2026-08-29: the Linux expert field-assign arm needed a free tile first; that arm was deleted 2026-09-18 as invented, the position note is kept for the remaining ordering divergence). Body is DOS; position is Linux."
       - id: pioneer
         kind: loop
         label: Pioneer supply / road-connect / tile-improve trio — FUN_5952_035e raw 94370-94551
-        fn: ai_euro.c:ai_euro_5952_tools_supply_and_connect
+        fn: ai_euro_colony_jobs.c:ai_euro_5952_tools_supply_and_connect
         dos: FUN_5952_035e raw 94370-94400 (+ FUN_5952_0000 raw 93589-93685), raw 94402-94551
         status: dos
         note: "Three consecutive arms, all sharing the tick-local local_16 = `0x13 < colony+0xb6` (20+ tools). (1) bugs.md #640, raw 94370-94388: when ((+0x1b & 0x80) || turn % 10 == 0) && !local_16, buy 20 tools at DS:0x84ca[nation*0x10]. That address is NOT a separate table — 0x84ca == DS:0x84bc + 0x0e, so it is the already-ported per-nation SELL price row (AiEuro5952Want.sell_price, writers store `euro_price - 1`) read at cargo 0x0e = Tools; the purse test is the 32-bit gold at *0x84fc+0x2a/0x2c. (2) bugs.md #641, raw 94389-94400: on local_16 && turn % 7 == 0 (NOT gated on +0x1b bit 0x80) call FUN_5952_0000 (ai_euro_5952_road_connect_0000) — needs 2+ own colonies on this continent (DS:0x94e6[nation*0x10+cid] > 1), picks another own colony that is within 6 on at least one axis and on the same continent, rolls FUN_281f_04d4(0, count-2) == 0, walks the FUN_6662_00f2 pathfinder toward it (DS:0x1dd2=1, 0x1dd4=1, 0x1dd6=-1) until a tile with no settlement (06be) and no road/settlement bits (0754 & 0x0a) appears, rejects it if occupied (06d2) or improved by an at-peace Euro rival (06e6 = 137f_044a, euro_relation bit 0x40), aborts the whole helper when colony+0x8c < DS:0x2f78[class*0x10] + 2, else spawns the DS:0x524e phantom with +0x315a = 99 and runs FUN_479b_0526. On success the caller charges min(stock,20) tools and clears +0x8c. (3) bugs.md #612, raw 94402-94551: ai_euro_5952_improve_best_plot, gated on +0x1b bit 0x80 && local_16 && turn % 7 != 0."
       - id: pass1
         kind: loop
         label: "Pass 1 — food: re-score the slots that were feeding the colony until food_have ≥ food_need"
-        fn: ai_euro.c:ai_euro_28c8_score_job
+        fn: ai_euro_colony_jobs.c:ai_euro_28c8_score_job
         dos: FUN_15eb_28c8 job scorer (9-job formula); colony+0x9a food stock
         status: dos
         note: "Scorer fixes 2026-09-22: #579 — every plot walk now gates on the FUN_15eb_23f2 blocked bitmask (colonies_plot_blocked_mask, DS:0x8df0, raw 12993) for human AND AI colonies; the Indian-claim table at -0x7262 stays the separate human-only test. #584 — the walk runs in the DS:0xc8/0xde table order (N,E,S,W,NW,NE,SE,SW) via colonies_field_scan_order, because the election at raw 13126 is strictly greater so the earliest table index wins ties. #582 — raw 13000 passes param_4 = 0 to FUN_15eb_18ec, so local_24 stays the JOB index and a Fisherman clamps/weights against cargo slot 8 (HORSES), a DOS quirk kept literal. bugs.md #585 (2026-09-22): the DS:0x8dbe best-yield stop (raw 94596) is INSIDE the `FUN_281f_0b6e() == 0` arm. A non-zero 28c8 return means \"not handled\" and only advances to the next colonist (`local_ac++`); only a handled call with best yield < 3 ends the whole placement section. The port used to break the section on either. Same shape in pass 2 (raw 94612-94614). LAB_5952_178f is not an early return: raw 94623-94627 falls into the rest of the tick either way, so the indoor pass still re-seats whoever the passes left over."
@@ -1317,47 +1325,47 @@ graphs:
       - id: lumber
         kind: loop
         label: Forced-lumberjack pass + AI emergency lumber buy — the two arms that feed the carpenter gate
-        fn: ai_euro.c:ai_euro_5952_lumberjack_pick
+        fn: ai_euro_colony_jobs.c:ai_euro_5952_lumberjack_pick
         dos: FUN_5952_035e raw 94659-94689 (annotated colony_tick_5952_035e.md:1074-1112)
         status: dos
         note: "Both inside the +0x1d bit 0x80 clear block, ahead of the carpenter arm. Forced-lumberjack (raw 94659-94679): gated on stock[lumber] < 10 and no lumberjack placed yet; three passes over unplaced slots (profession 5, any non-expert, anyone) calling 28c8 with forced job 5, looping while prod[lumber] == 0 so the FUN_281f_0c04 refresh ends it after one placement. No profession rewrite in this arm. Emergency buy (raw 94680-94689, ai_euro_5952_lumber_purchase): no lumberjack placed, stock[lumber] < 2 and turn (DS:0x538e) & 7 == 0 -> colony gains 100 lumber UNCONDITIONALLY, and the owner's purse is debited 200 only when it holds at least 200 (europe_nation_gold / europe_nation_gold_add)."
       - id: carpenter
         kind: loop
         label: Carpenter-staffing arm — four passes for one Carpenter's House worker when the colony has lumber but no hammers
-        fn: ai_euro.c:ai_euro_5952_carpenter_pick
+        fn: ai_euro_colony_jobs.c:ai_euro_5952_carpenter_pick
         dos: FUN_5952_035e raw 94690-94740, asm 5952:1ac7-5952:1be2
         status: dos
         note: "Gated on +0x1d bit 0x80 clear and stock[lumber] + prod[lumber] > 1; loops while prod[hammers] == 0, so the ledger refresh (FUN_281f_0c04) after the first assignment ends it. Passes: profession 0x0d, 0x1c, 0x19, anyone. A chosen Servant/Criminal is rewritten to Free Colonist (FUN_281f_0cae(slot, 0x1c)); a non-expert in a colony with no Master Carpenter and pop > 5 may be handed the Master Carpenter specialty on a FUN_281f_04d4(0, 0x10 - difficulty) == 0 roll. The same block's two preceding arms (forced-lumberjack, emergency lumber buy) run first — see node `lumber`."
       - id: expert
         kind: step
         label: Expert workplace fix-ups; origin refresh
-        fn: ai_euro.c:ai_euro_5952_job_is_expert
+        fn: ai_euro_colony_jobs.c:ai_euro_5952_job_is_expert
         status: dos
       - id: indoor
         kind: loop
         label: Indoor-workplace pass — elect one indoor @JOB per still-unplaced slot
-        fn: ai_euro.c:ai_euro_5952_indoor_pass
+        fn: ai_euro_colony_jobs.c:ai_euro_5952_indoor_pass
         dos: FUN_5952_035e raw 94784-94860, asm 5952:1ef7-5952:2193
         status: dos
         note: "Per unplaced slot: 28c8 mode-2 probe (DS:0x8dc0/0x8dbe) for the best plot, then score every available indoor job 9..0x11 as (producible*8+5)*want_weight (ai_euro_5952_want_weight / ai_euro_5952_job_score; producible = ai_euro_5952_producible, the 15eb:1f44 dispatcher over colony_production.c's ported 1d4c bodies). Indoor winner beats the plot score -> assign the workplace; else commit the plot; else ai_euro_5952_fallback_job (Carpenter, or Preacher on Church + lumber surplus + <3 preachers). AI_5952_INDOOR=0 restores the pre-2026-09-17 leftovers field stand-in."
       - id: idle
         kind: step
         label: Idle EVERY colonist (incl. building workers) + memset the 20 plot bytes — raw 94551-94564
-        fn: ai_euro.c:ai_euro_colony_tick_28c8_reassign
+        fn: ai_euro_colony_jobs.c:ai_euro_colony_tick_28c8_reassign
         dos: FUN_5952_035e raw 94551-94564 (annotated colony_tick_5952_035e.md:1030-1043)
         status: dos
         note: "bugs.md #569. `8e26(slot, 0x12)` runs for every slot with no indoor exemption and the plot array is memset 0xff, so a starving colony can pull an indoor worker onto a food tile; the indoor pass re-elects a job for everyone the field passes leave over. The port used to seed placed[] with `building_type >= 0`, which had no DOS counterpart."
       - id: specialists
         kind: step
         label: Specialist arms — improve_timer expert election (DS:0x864) + "train an expert here" purchase
-        fn: ai_euro.c:ai_euro_5952_specialist_arms
+        fn: ai_euro_colony_jobs.c:ai_euro_5952_specialist_arms
         dos: FUN_5952_035e raw ~95860-95958 (md:1653-1749); asm viceroy_overlays.asm OVL15 0x274b-0x29ff
         status: dos
         note: "bugs.md #571/#572, ported 2026-09-22. Counts taken at md:1459-1464: food_workers = count-by-JOB(0)+(8) (FUN_1000_8d72), food_experts = count-by-PROFESSION(0)+(8) (FUN_1000_8de0); train_flag = (pop/2 < food_workers && food_workers > 1) || DS:0x8e5a != 0 (colony short of food). ARM 1 (0x274b): school chain 0xc owned and ((count==3)+count)*4 <= improve_timer; target = 8 if census[8] < water ring tiles else 0 when pop < 10 && food_experts <= food_workers, then the DS:0x864 6-row table (recovered from VICEROY.EXE at EXE 121248+0x864: {building, @JOB, input @CARGO, @JOB} = {3,f,e,f} {27,e,6,e} {20,c,4,c} {1b,9,1,9} {18,a,2,a} {15,b,3,b}) overrides it for a craft whose chain is built out (2 tiers; 1 for Armory root 3), whose input cargo is being produced and whose @JOB the colony lacks — and DOS writes the ROW INDEX, not the row's @JOB (asm 0x2830), a DOS bug kept literal, so the override elects @JOB 0..5. Candidates = non-experts, or experts working off-specialty (occupation != 0x13), Converts excluded, cap 25; RNG pick, profession written, improve_timer = 0. ARM 2 (0x290c): train_flag && nation tax_rate (DS:0x84fc+1) <= 0x19 && purse >= @JOB row 0 price (NAMES.TXT column 3 = 1100) -> last non-expert non-Convert becomes Expert Fisherman (no Fisherman + Docks) else Expert Farmer (no Farmer); ai_euro_5952_train_pick. The gold debit reads @JOB[COLONIST SLOT] (asm 0x29d4 `MOV BX,[BP-0x2e]; SHL BX,3; MOV AX,[BX+0x8ea8]; CWD`) — DOS charges the price row indexed by the slot, kept literal. bugs.md #586: train_flag is forced to 0 when the build cascade committed Docks for this colony this tick (ai_euro_5952_docks_started). Deviation: DOS's ARM 1 candidate walk runs to pop + DS:0x8d72 (into units parked on the colony tile) and its census is the pre-absorption snapshot; the port walks the colony roster and recomputes."
       - id: build
         kind: loop
         label: Construction-project cascade — one ordered chain of FUN_5952_0214 tries ending in five unit projects
-        fn: ai_euro.c:ai_euro_5952_build_cascade
+        fn: ai_euro_colony_jobs.c:ai_euro_5952_build_cascade
         dos: FUN_5952_035e asm 5952:21d4-5952:274b (viceroy_overlays.asm:145550-146167); FUN_5952_0214 / 0280 / 02f4
         status: dos
         note: "bugs.md #483. Prologue clears +0x1d bit 0x80 and sets +0x94 = 0xff, then tries @BUILDING ids in DOS order — 6, 0, 0x11, [pop<4 stop], 0x10, 0x12, {unit 0xc Wagon Train}, 0xc, 3, 0x25, 0x24, 1, 0x28, 0x10, 0x14, 0x14, 0xd, [pop<8 stop], 0xe, 0x25, 2, then the naval band (full craft chain + COASTAL: 8, then unit 0xf Galleon / 0x10 Privateer / 0x11 Frigate from the census), the Artillery arm (unit 0xb), the six-chain FUN_5952_0280 upgrade loop, 0x26, the 26e4 ship arms, the +0x1c 0x10 SMALL_AI writer and the unit-0xb tail. FUN_5952_0214 recurses on the DS:0x8f85 predecessor; FUN_5952_02f4 writes code = row + 0x1f with no gate of its own. Trace AI_5952_BUILD_TRACE=1. POSITION: the port runs it right after ai_euro_colony_goals (which produces the ring-1 threat count it reads), not in the 28c8 body. bugs.md #586 (2026-09-22): a committed Docks arm (asm 0x22bc-0x22ea) stores 0 into [BP+0xff62], the tick-local train_flag, so ARM 2 of node `specialists` cannot fire for that colony that turn; the Stockade arm at 0x22ec does not. Because the port splits the DOS body across two functions the store is carried as the per-colony latch ai_euro_5952_docks_started()."

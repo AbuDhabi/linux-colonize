@@ -1,4 +1,19 @@
 #include "core/ai_diplo.h"
+
+/*
+ * Sections:
+ *  - War embargo/fatigue/upkeep bookkeeping & privateer spawn (~line 138)
+ *  - Indian diplomacy status bits, hostility sync, capital surrender & matrix tick (~line 418)
+ *  - Diplomacy byte accessors, war/peace declarations & sound hook (~line 630)
+ *  - Border garrison wake, 153e stack probes & worthiness scoring (~line 1159)
+ *  - AI talk session helpers: names, gold, rng, unit recall & choice UI (~line 1849)
+ *  - AI talk stage machine: peace offer, tribute, worthiness, alliance (~line 2031)
+ *  - Leader traits & 153e encounter gating (~line 2775)
+ *  - Treaty timers, military scoring & Euro relation balance tick (~line 3054)
+ *  - Indian tension tier, alarm delta & relation accessors (~line 3477)
+ *  - Talk reset, popup result application & privateer sighting (~line 3608)
+ */
+
 #include "core/ai_contact.h"
 #include "core/ai_euro.h"
 
@@ -117,7 +132,7 @@
  * timer==0 (war aged / fatigue). Reuses unknown26[0..3]; live timers kept. */
 #define AI_DIPLO_WAR_FATIGUE_TIMER 8u
 /* Retired: AI_DIPLO_INDIAN_DRIFT_CAP (no DOS per-turn alarm decay,
- * docs/smell_audit_2026-09-10.md #16) and AI_DIPLO_WAR_INDIAN_HIT (fed only
+ * docs/archive/smell_audit_2026-09-10.md #16) and AI_DIPLO_WAR_INDIAN_HIT (fed only
  * the Linux-only Euro-alliance hit, gone with T2.4). */
 /* At-war gate: relation < 26, i.e. DOS alarm > 0x4a. */
 #define AI_DIPLO_INDIAN_AT_WAR_REL 26 /* alarm > 0x4a (FUN_5bfb_153e hostile tier) */
@@ -130,11 +145,12 @@
  * 96 == 0x60 is the MET|PEACE bitfield of the 12x12 15b3 matrix, not a scalar
  * floor; DOS never assigns the byte (surrender idiom FUN_43f7_0108,
  * viceroy_unpacked.c:73555-73557 = clear_both(0xb) then or_both(0x60)), so both
- * writes go through ai_diplo_or_both. docs/smell_audit_2026-09-10.md #16. */
+ * writes go through ai_diplo_or_both. docs/archive/smell_audit_2026-09-10.md #16. */
 #define AI_DIPLO_STICKY_CLEAR 0u
 #define AI_DIPLO_STICKY_AT_WAR 1u
 #define AI_DIPLO_STICKY_DEEP 2u
 
+/* ===================== War embargo/fatigue/upkeep bookkeeping & privateer spawn (ai_diplo_war_embargo_lift_if_peace .. ai_diplo_war_privateer_prize) ===================== */
 static uint8_t* ai_diplo_timer_byte(ColonizeCol1Save* col1, int nation, int peer);
 static uint16_t ai_diplo_wartime_boycott_mask(void);
 static void ai_diplo_popup_ok(
@@ -415,6 +431,7 @@ static int ai_diplo_war_privateer_prize(ColonizeCol1Save* col1, int nation_id, i
   return 1;
 }
 
+/* ===================== Indian diplomacy status bits, hostility sync, capital surrender & matrix tick (ai_diplo_indian_read .. ai_diplo_indian_matrix_tick) ===================== */
 uint8_t ai_diplo_indian_read(const ColonizeCol1Save* col1, int euro_nation, int indian_idx) {
   if (!col1 || euro_nation < 0 || euro_nation >= 4 || indian_idx < 0 || indian_idx >= 8) {
     return 0;
@@ -627,6 +644,7 @@ static void ai_diplo_indian_matrix_tick(ColonizeTurnContext* ctx, int nation_id)
    */
 }
 
+/* ===================== Diplomacy byte accessors, war/peace declarations & sound hook (ai_diplo_timer_byte .. ai_diplo_make_peace_ctx) ===================== */
 static uint8_t* ai_diplo_timer_byte(ColonizeCol1Save* col1, int nation, int peer) {
   if (!col1 || nation < 0 || nation >= 4 || peer < 0 || peer >= 4 || nation == peer) {
     return NULL;
@@ -1156,6 +1174,7 @@ void ai_diplo_make_peace_ctx(ColonizeTurnContext* ctx, int nation_a, int nation_
  * diplomatic status just changed. Decomp calls this (A,B) then (B,A) from
  * the 13b0 treaty-sign path (both sides' border garrisons refreshed).
  */
+/* ===================== Border garrison wake, 153e stack probes & worthiness scoring (ai_diplo_wake_border_garrisons .. ai_diplo_153e_worthiness_score) ===================== */
 static void ai_diplo_wake_border_garrisons(
   ColonizeTurnContext* ctx, int nation_a, int nation_b
 ) {
@@ -1846,6 +1865,7 @@ static Ai153eTalk s_talk;
  * Returns NULL when the section is absent (test fixtures ship a stub
  * GAME.TXT) so callers fall back to the folded nation name.
  */
+/* ===================== AI talk session helpers: names, gold, rng, unit recall & choice UI (ai_talk_great_line .. ai_talk_choice) ===================== */
 static const char* ai_talk_great_line(ColonizeTurnContext* ctx, const char* section, int nation) {
   if (!ctx || !ctx->messages || nation < 0 || nation >= 4) {
     return NULL;
@@ -2028,6 +2048,7 @@ static void ai_talk_choice(
   }
 }
 
+/* ===================== AI talk stage machine: peace offer, tribute, worthiness, alliance (ai_talk_finish .. ai_talk_resume) ===================== */
 static void ai_talk_advance(ColonizeTurnContext* ctx);
 
 static void ai_talk_finish(ColonizeTurnContext* ctx) {
@@ -2772,6 +2793,7 @@ static void ai_talk_resume(ColonizeTurnContext* ctx, int stage, int choice) {
  * `Name, t0, t1, t2`; blank/`;`/`@` lines are skipped, matching
  * `new_game_default_leader_name`'s own ordinal walk over this section.
  */
+/* ===================== Leader traits & 153e encounter gating (ai_diplo_leader_trait_from_names .. ai_diplo_153e_encounter_gated) ===================== */
 static int ai_diplo_leader_trait_from_names(
   const ColonizeMsgCatalog* names, int nation, int column
 ) {
@@ -3051,6 +3073,7 @@ static int ai_diplo_153e_encounter_gated(
   return 1;
 }
 
+/* ===================== Treaty timers, military scoring & Euro relation balance tick (ai_diplo_treaty_timers .. ai_diplo_euro_balance) ===================== */
 void ai_diplo_treaty_timers(ColonizeTurnContext* ctx, int nation_id) {
   if (!ctx || !ctx->col1_ok || !ctx->col1 || nation_id < 0 || nation_id >= 4) {
     return;
@@ -3474,6 +3497,7 @@ void ai_diplo_euro_balance(ColonizeTurnContext* ctx, int nation_id) {
  * check only, matching DOS's own `if (iVar5>99) iVar5=99` clamp; storage
  * itself is untouched.
  */
+/* ===================== Indian tension tier, alarm delta & relation accessors (ai_diplo_indian_tension_tier_update .. ai_diplo_indian_relation) ===================== */
 static void ai_diplo_indian_tension_tier_update(
   ColonizeCol1Save* col1,
   int indian_nation,
@@ -3605,6 +3629,7 @@ uint8_t ai_diplo_indian_relation(
   return (uint8_t)(100 - ai_diplo_indian_alarm(col1, indian_nation, euro_nation));
 }
 
+/* ===================== Talk reset, popup result application & privateer sighting (ai_diplo_talk_reset .. ai_euro_465b_privateer_sighting) ===================== */
 void ai_diplo_talk_reset(void) {
   s_talk.active = 0;
 }

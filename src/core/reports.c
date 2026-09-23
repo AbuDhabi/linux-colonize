@@ -1,3 +1,20 @@
+/*
+ * Sections:
+ *  - View lifecycle, asset loading & id/availability lookups (~line 33)
+ *  - Shared draw primitives & report-common helpers (~line 226)
+ *  - Religious & Continental Congress report (~line 646)
+ *  - Labor report (~line 1127)
+ *  - Shadowed line-drawing helpers (~line 1463)
+ *  - Economic/Trade & Cargo report (~line 1521)
+ *  - Colony report (~line 1767)
+ *  - Naval/Military report (~line 2306)
+ *  - Foreign affairs report (~line 2786)
+ *  - Indian/tribe report (~line 3125)
+ *  - Score computation (~line 3344)
+ *  - Hall of Fame & Exploits report (~line 4064)
+ *  - Top-level render dispatch (~line 4249)
+ */
+
 #include "core/ai_diplo.h"
 #include "core/ai_king.h"
 #include "core/assets.h"
@@ -30,6 +47,7 @@ static const char* k_report_files[COLONIZE_REPORT_COUNT] = {
 };
 
 
+/* ===================== View lifecycle, asset loading & id/availability lookups (reports_init .. reports_unavailable_tag) ===================== */
 void reports_init(ColonizeReportsView* view) {
   if (!view) {
     return;
@@ -222,6 +240,7 @@ const char* reports_unavailable_tag(ColonizeReportId id) {
   return id == COLONIZE_REPORT_FOREIGN ? "FOREIGNNOTAVAIL" : NULL;
 }
 
+/* ===================== Shared draw primitives & report-common helpers (reports_draw_line .. reports_draw_icon_bar_pair) ===================== */
 static void reports_draw_line(
   const ColonizeFont* font,
   ColonizeFramebuffer8* fb,
@@ -642,6 +661,7 @@ static void reports_draw_icon_bar_pair(
   }
 }
 
+/* ===================== Religious & Continental Congress report (reports_render_religious .. reports_render_congress_page2) ===================== */
 static void reports_render_religious(
   const ColonizeReportsView* view,
   const ColonizeCol1Save* col1,
@@ -1123,6 +1143,7 @@ static const int8_t k_labor_layout[REPORTS_LABOR_COLS][REPORTS_LABOR_ROWS] = {
  * sprite — see its table comment in units.c for how each portrait was
  * identified); this report never shows Expert Teachers/Veteran Dragoons
  * (k_labor_layout skips them, so their -1 there never gets drawn). */
+/* ===================== Labor report (reports_labor_icon_for_job .. reports_render_labor_detail) ===================== */
 static int reports_labor_icon_for_job(int job) {
   return units_job_icon_sprite(job);
 }
@@ -1459,6 +1480,7 @@ static void reports_render_labor_detail(
 #define REPORTS_ECON_NEG_COLOR 112 /* red (243,0,0): net bought (tons/gold < 0) */
 
 /* Exclusive-end lines (x0..x1-1 / y0..y1-1). */
+/* ===================== Shadowed line-drawing helpers (reports_draw_hline .. reports_draw_right_shadowed) ===================== */
 static void reports_draw_hline(ColonizeFramebuffer8* fb, int x0, int x1, int y, uint8_t color) {
   if (x1 > x0) {
     fb_hline(fb, y, x0, x1 - 1, color);
@@ -1517,6 +1539,7 @@ static void reports_draw_right_shadowed(
 #define REPORTS_ECON1_BID_RIGHT 199
 #define REPORTS_ECON1_ASK_RIGHT 251
 
+/* ===================== Economic/Trade & Cargo report (reports_render_economic_trade .. reports_render_economic_cargo) ===================== */
 static void reports_render_economic_trade(
   const ColonizeReportsView* view,
   const ColonizeCol1Save* col1,
@@ -1763,6 +1786,7 @@ static void reports_render_economic_cargo(
 #define REPORTS_COLONY_WORKER_PITCH 21
 #define REPORTS_COLONY_WORKER_MAX 6
 
+/* ===================== Colony report (reports_colony_page_count .. reports_render_colony_sol) ===================== */
 int reports_colony_page_count(const ColonizeCol1Save* col1, int human) {
   int n = 0;
   if (col1) {
@@ -2302,6 +2326,7 @@ typedef struct NavalRow {
 /* Colony name at (x,y) if this nation (or any nation — golden only shows a
  * human colony, but a foreign port would read the same way) has one there;
  * else the raw coordinates, matching the report spec's Location column. */
+/* ===================== Naval/Military report (reports_naval_location .. reports_render_naval) ===================== */
 static void reports_naval_location(
   const ColonizeColonyPool* colonies, int x, int y, char* out, size_t out_sz
 ) {
@@ -2782,6 +2807,7 @@ typedef struct ForeignRow {
  * DOS reads one byte, one direction: nation[a].euro_relation[b] bit 0x40 is
  * "at peace", so a met peer without it is at war (see the block comment).
  */
+/* ===================== Foreign affairs report (reports_foreign_at_war .. reports_render_foreign) ===================== */
 static bool reports_foreign_at_war(const ColonizeCol1Save* col1, int a, int b) {
   if (!col1 || a == b || a < 0 || a >= (int)COLONIZE_COL1_NATION_COUNT || b < 0 ||
       b >= (int)COLONIZE_COL1_NATION_COUNT) {
@@ -3121,6 +3147,7 @@ typedef struct IndianRow {
   int extinct;     /* record +3 bit 0x80 — name line only, "Extinct" suffix */
 } IndianRow;
 
+/* ===================== Indian/tribe report (reports_indian_tribe_listed .. reports_render_indian) ===================== */
 bool reports_indian_tribe_listed(const ColonizeCol1Save* col1, int tribe, int human) {
   if (!col1 || tribe < 0 || tribe >= (int)COLONIZE_COL1_INDIAN_COUNT || human < 0 ||
       human >= (int)COLONIZE_COL1_NATION_COUNT) {
@@ -3340,6 +3367,7 @@ static void reports_render_indian(
  * port's hand-written copy of it here had @UNIT 6 (Regulars) → 21 and 8
  * (Cavalry) → 23 where DOS has -1, which promoted the King's army to
  * scoring citizens (bugs.md #574). */
+/* ===================== Score computation (reports_profession_from_unit_type .. reports_render_score) ===================== */
 static int reports_profession_from_unit_type(int type) {
   return units_type_default_job(type);
 }
@@ -4060,6 +4088,7 @@ static void reports_render_score(
 }
 
 /* Centered text across the 320px screen (DOS FUN_281f_0100 / 01c8). */
+/* ===================== Hall of Fame & Exploits report (reports_draw_centered .. reports_render_exploits) ===================== */
 static void reports_draw_centered(
   const ColonizeFont* font,
   ColonizeFramebuffer8* fb,
@@ -4245,6 +4274,7 @@ void reports_render_exploits(
   }
 }
 
+/* ===================== Top-level render dispatch (reports_render_w) ===================== */
 void reports_render_w(
   const ColonizeWorld* w,
   const ColonizeReportsView* view,
