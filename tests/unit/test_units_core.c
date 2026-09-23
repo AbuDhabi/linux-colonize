@@ -1,9 +1,55 @@
 #include "test_units_common.h"
 
-int main(void) {
+#include "../common/test_runner.h"
+
+/* Split into named cases 2026-09-23 (was one 6.7k-line main()).
+ * Shared fixture: fx_open() rebuilds the NAMES/pool/map/new-world start,
+ * fx_stage2() replays the land-unit + stacking + despawn spine that the
+ * later cases were written on top of. Every case rebuilds its own fixture,
+ * so `COLONIZE_TEST_ONLY=<case>` runs one in isolation. */
+
+static int g_diag_ready;
+static ColonizeMsgCatalog names;
+static ColonizeUnitPool pool;
+static ColonizeWorldMap map;
+static ColonizeSpriteSheet icons;
+static char err[256];
+static int pioneer;
+static int colonist;
+static int caravel;
+static ColonizeUnit* ship;
+static ColonizeUnit* starter;
+static int ship_id;
+static int land_x;
+static int land_y;
+static int edge_x;
+static int edge_y;
+static int unload_x;
+static int unload_y;
+static int ship_icon;
+
+static void fx_close(void) {
+  map_free(&map);
+  assets_msg_free(&names);
+}
+
+static int fx_open(void) {
+  if (!g_diag_ready) {
+    diag_init(0, NULL);
+    g_diag_ready = 1;
+  }
+  /* Shadow state that outlives the pool (occupancy map pointer, per-id
+   * combat/goto state, combat sinks) must be cleared, or a case inherits the
+   * previous one's leftovers -- see tests/README.md "Hunting order
+   * dependencies". */
+  units_set_occupancy_map(NULL);
+  units_reset_state();
+  memset(&pool, 0, sizeof(pool));
+  memset(&map, 0, sizeof(map));
+  ship = NULL;
+  starter = NULL;
   diag_init(0, NULL);
 
-  ColonizeMsgCatalog names;
   assets_msg_init(&names);
   char names_path[512];
   if (!dos_compat_normalize_asset_path("COLONIZE", "NAMES.TXT", names_path, sizeof(names_path)) ||
@@ -12,7 +58,6 @@ int main(void) {
     return 1;
   }
 
-  ColonizeUnitPool pool;
   memset(&pool, 0, sizeof(pool));
   memset(&pool, 0, sizeof(pool));
   if (!units_load_types(&pool, &names)) {
@@ -21,9 +66,9 @@ int main(void) {
     return 1;
   }
 
-  const int pioneer = units_find_type(&pool, "Pioneers");
-  const int colonist = units_find_type(&pool, "Colonists");
-  const int caravel = units_find_type(&pool, "Caravel");
+  pioneer = units_find_type(&pool, "Pioneers");
+  colonist = units_find_type(&pool, "Colonists");
+  caravel = units_find_type(&pool, "Caravel");
   if (pioneer < 0 || colonist < 0 || caravel < 0) {
     fprintf(stderr, "missing expected unit types\n");
     assets_msg_free(&names);
@@ -36,8 +81,6 @@ int main(void) {
     return 1;
   }
 
-  ColonizeWorldMap map;
-  char err[256];
   char mp_path[512];
   if (!dos_compat_normalize_asset_path("COLONIZE", "AMER2.MP", mp_path, sizeof(mp_path)) ||
       !map_load_mp(mp_path, &map, err, sizeof(err))) {
@@ -54,7 +97,7 @@ int main(void) {
     return 1;
   }
 
-  ColonizeUnit* ship = units_get(&pool, pool.selected_id);
+  ship = units_get(&pool, pool.selected_id);
   if (!ship || !units_is_sea(&pool, ship->id)) {
     fprintf(stderr, "selected starter should be the ship\n");
     map_free(&map);
@@ -87,143 +130,15 @@ int main(void) {
   }
   /* Discoverer (diff 0) England: plain Pioneer + Veteran Soldier (COLONY00).
    * Hardy Pioneer is French-only, not all Discoverer nations. */
-  {
-    const ColonizeUnit* p0 = units_get_const(&pool, ship->cargo_ids[0]);
-    const ColonizeUnit* p1 = units_get_const(&pool, ship->cargo_ids[1]);
-    if (!p0 || !p1 || p0->profession != UNITS_JOB_NONE || p1->profession != UNITS_JOB_SOLDIER) {
-      fprintf(
-        stderr,
-        "Discoverer England expected plain+Veteran professions (got %d,%d)\n",
-        p0 ? p0->profession : -1,
-        p1 ? p1->profession : -1
-      );
-      map_free(&map);
-      assets_msg_free(&names);
-      return 1;
-    }
-  }
-  /* Discoverer French: Hardy Pioneer + Veteran Soldier. */
-  {
-    ColonizeUnitPool fr;
-    memset(&fr, 0, sizeof(fr));
-    memset(&fr, 0, sizeof(fr));
-    fr.type_count = pool.type_count;
-    memcpy(fr.types, pool.types, sizeof(pool.types));
-    const int fid = units_spawn_euro_starter_fleet(&fr, 1, 0, true, ship->x + 1, ship->y, 40, 10);
-    ColonizeUnit* fs = units_get(&fr, fid);
-    if (!fs || fs->cargo_count < 2) {
-      fprintf(stderr, "French Discoverer fleet missing cargo\n");
-      map_free(&map);
-      assets_msg_free(&names);
-      return 1;
-    }
-    const ColonizeUnit* fp0 = units_get_const(&fr, fs->cargo_ids[0]);
-    const ColonizeUnit* fp1 = units_get_const(&fr, fs->cargo_ids[1]);
-    if (!fp0 || !fp1 || fp0->profession != UNITS_JOB_PIONEER ||
-        fp1->profession != UNITS_JOB_SOLDIER) {
-      fprintf(
-        stderr,
-        "Discoverer French expected Hardy+Veteran (got %d,%d)\n",
-        fp0 ? fp0->profession : -1,
-        fp1 ? fp1->profession : -1
-      );
-      map_free(&map);
-      assets_msg_free(&names);
-      return 1;
-    }
-    if (fs->profession != 0) {
-      fprintf(stderr, "starter ship profession want 0 got %d\n", fs->profession);
-      map_free(&map);
-      assets_msg_free(&names);
-      return 1;
-    }
-  }
-  /*
-   * FUN_75c2_235c raw 121644-121647: the Discoverer Veteran Soldier is gated on
-   * `bVar1` = this nation's player control byte (0x543f) == 0, i.e. the human.
-   * An AI English nation on Discoverer gets a plain Soldier. (bugs.md #488)
-   */
-  {
-    ColonizeUnitPool aiw;
-    memset(&aiw, 0, sizeof(aiw));
-    aiw.type_count = pool.type_count;
-    memcpy(aiw.types, pool.types, sizeof(pool.types));
-    const int aid = units_spawn_euro_starter_fleet(&aiw, 0, 0, false, ship->x + 2, ship->y, 40, 10);
-    ColonizeUnit* as = units_get(&aiw, aid);
-    if (!as || as->cargo_count < 2) {
-      fprintf(stderr, "AI Discoverer fleet missing cargo\n");
-      map_free(&map);
-      assets_msg_free(&names);
-      return 1;
-    }
-    const ColonizeUnit* ap0 = units_get_const(&aiw, as->cargo_ids[0]);
-    const ColonizeUnit* ap1 = units_get_const(&aiw, as->cargo_ids[1]);
-    if (!ap0 || !ap1 || ap0->profession != UNITS_JOB_NONE || ap1->profession != UNITS_JOB_NONE) {
-      fprintf(
-        stderr,
-        "AI English Discoverer expected plain skills (got %d,%d)\n",
-        ap0 ? ap0->profession : -1,
-        ap1 ? ap1->profession : -1
-      );
-      map_free(&map);
-      assets_msg_free(&names);
-      return 1;
-    }
-    /* Spain keeps its Veteran Soldier even as an AI (`|| local_8 == 2`). */
-    ColonizeUnitPool sp;
-    memset(&sp, 0, sizeof(sp));
-    sp.type_count = pool.type_count;
-    memcpy(sp.types, pool.types, sizeof(pool.types));
-    const int spid = units_spawn_euro_starter_fleet(&sp, 2, 3, false, ship->x + 3, ship->y, 47, 61);
-    ColonizeUnit* sps = units_get(&sp, spid);
-    const ColonizeUnit* sp1 = sps && sps->cargo_count >= 2
-                                ? units_get_const(&sp, sps->cargo_ids[1])
-                                : NULL;
-    if (!sp1 || sp1->profession != UNITS_JOB_SOLDIER) {
-      fprintf(
-        stderr,
-        "AI Spain expected Veteran Soldier (got %d)\n",
-        sp1 ? sp1->profession : -1
-      );
-      map_free(&map);
-      assets_msg_free(&names);
-      return 1;
-    }
-  }
-  /* Conquistador (diff 2) Dutch: plain Pioneer + plain Soldier. */
-  {
-    ColonizeUnitPool hard;
-    memset(&hard, 0, sizeof(hard));
-    memset(&hard, 0, sizeof(hard));
-    hard.type_count = pool.type_count;
-    memcpy(hard.types, pool.types, sizeof(pool.types));
-    const int sid = units_spawn_euro_starter_fleet(&hard, 3, 2, true, ship->x, ship->y, 39, 10);
-    ColonizeUnit* hs = units_get(&hard, sid);
-    if (!hs || hs->cargo_count < 2) {
-      fprintf(stderr, "Dutch Conquistador fleet missing cargo\n");
-      map_free(&map);
-      assets_msg_free(&names);
-      return 1;
-    }
-    const ColonizeUnit* hp0 = units_get_const(&hard, hs->cargo_ids[0]);
-    const ColonizeUnit* hp1 = units_get_const(&hard, hs->cargo_ids[1]);
-    if (!hp0 || !hp1 || hp0->profession != UNITS_JOB_NONE || hp1->profession != UNITS_JOB_NONE) {
-      fprintf(
-        stderr,
-        "Dutch Conquistador expected plain skills (got %d,%d)\n",
-        hp0 ? hp0->profession : -1,
-        hp1 ? hp1->profession : -1
-      );
-      map_free(&map);
-      assets_msg_free(&names);
-      return 1;
-    }
-  }
-  int ship_id = ship->id;
+  return 0;
+}
+
+static int fx_stage2(void) {
+  ship_id = ship->id;
 
   /* Separate land unit for domain / stacking tests (ship is offshore). */
-  int land_x = 39;
-  int land_y = 10;
+  land_x = 39;
+  land_y = 10;
   if (!map_tile_is_land(&map, land_x, land_y) || units_id_at(&pool, land_x, land_y) >= 0) {
     land_x = -1;
     /*
@@ -281,7 +196,7 @@ int main(void) {
     assets_msg_free(&names);
     return 1;
   }
-  ColonizeUnit* starter = units_get(&pool, land_id);
+  starter = units_get(&pool, land_id);
   if (!starter || !map_tile_is_land(&map, starter->x, starter->y)) {
     fprintf(stderr, "land test unit not on land\n");
     map_free(&map);
@@ -356,8 +271,8 @@ int main(void) {
     return 1;
   }
 
-  int edge_x = 0;
-  int edge_y = 0;
+  edge_x = 0;
+  edge_y = 0;
   if (!units_find_high_seas_tile(&pool, &map, 39, 10, &edge_x, &edge_y)) {
     fprintf(stderr, "no high-seas tile on map\n");
     map_free(&map);
@@ -387,9 +302,239 @@ int main(void) {
   }
 
   /* Respawn a caravel next to the pioneer and exercise boarding. */
-  int unload_x = land_x;
-  int unload_y = land_y;
-  {
+  unload_x = land_x;
+  unload_y = land_y;
+  return 0;
+}
+
+static int case_starter_fleet(void) {
+  if (fx_open() != 0) {
+    return 1;
+  }
+  fx_close();
+  return 0;
+}
+
+static int case_domain_stack_despawn(void) {
+  if (fx_open() != 0 || fx_stage2() != 0) {
+    return 1;
+  }
+  fx_close();
+  return 0;
+}
+
+static int case_unit_icons(void) {
+  if (fx_open() != 0) {
+    return 1;
+  }
+
+  char ss_path[512];
+  if (!dos_compat_normalize_asset_path("COLONIZE", "ICONS.SS", ss_path, sizeof(ss_path)) ||
+      !ss_load(ss_path, &icons, err, sizeof(err))) {
+    fprintf(stderr, "ICONS load failed: %s\n", err);
+    map_free(&map);
+    assets_msg_free(&names);
+    return 1;
+  }
+  const int icon = pool.types[pioneer].icon_sprite;
+  ship_icon = pool.types[caravel].icon_sprite;
+  /* NAMES Pioneers=102, Caravel=6 are 1-based; blit indices are 101 and 5. */
+  if (icon != 101) {
+    fprintf(stderr, "pioneer icon expected 101 got %d\n", icon);
+    ss_free(&icons);
+    map_free(&map);
+    assets_msg_free(&names);
+    return 1;
+  }
+  if (ship_icon != 5) {
+    fprintf(stderr, "caravel icon expected 5 got %d\n", ship_icon);
+    ss_free(&icons);
+    map_free(&map);
+    assets_msg_free(&names);
+    return 1;
+  }
+  if (icon < 0 || icon >= icons.sprite_count || icons.sprites[icon].width <= 0) {
+    fprintf(stderr, "pioneer icon %d invalid (sprites=%d)\n", icon, icons.sprite_count);
+    ss_free(&icons);
+    map_free(&map);
+    assets_msg_free(&names);
+    return 1;
+  }
+  if (ship_icon < 0 || ship_icon >= icons.sprite_count || icons.sprites[ship_icon].width <= 0) {
+    fprintf(stderr, "caravel icon %d invalid\n", ship_icon);
+    ss_free(&icons);
+    map_free(&map);
+    assets_msg_free(&names);
+    return 1;
+  }
+
+  ss_free(&icons);
+  fx_close();
+  return 0;
+}
+
+  /* Discoverer (diff 0) England: plain Pioneer + Veteran Soldier (COLONY00).
+   * Hardy Pioneer is French-only, not all Discoverer nations. */
+static int case_starter_discoverer_england(void) {
+  if (fx_open() != 0) {
+    return 1;
+  }
+    const ColonizeUnit* p0 = units_get_const(&pool, ship->cargo_ids[0]);
+    const ColonizeUnit* p1 = units_get_const(&pool, ship->cargo_ids[1]);
+    if (!p0 || !p1 || p0->profession != UNITS_JOB_NONE || p1->profession != UNITS_JOB_SOLDIER) {
+      fprintf(
+        stderr,
+        "Discoverer England expected plain+Veteran professions (got %d,%d)\n",
+        p0 ? p0->profession : -1,
+        p1 ? p1->profession : -1
+      );
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+  fx_close();
+  return 0;
+}
+
+  /* Discoverer French: Hardy Pioneer + Veteran Soldier. */
+static int case_starter_discoverer_french(void) {
+  if (fx_open() != 0) {
+    return 1;
+  }
+    ColonizeUnitPool fr;
+    memset(&fr, 0, sizeof(fr));
+    memset(&fr, 0, sizeof(fr));
+    fr.type_count = pool.type_count;
+    memcpy(fr.types, pool.types, sizeof(pool.types));
+    const int fid = units_spawn_euro_starter_fleet(&fr, 1, 0, true, ship->x + 1, ship->y, 40, 10);
+    ColonizeUnit* fs = units_get(&fr, fid);
+    if (!fs || fs->cargo_count < 2) {
+      fprintf(stderr, "French Discoverer fleet missing cargo\n");
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    const ColonizeUnit* fp0 = units_get_const(&fr, fs->cargo_ids[0]);
+    const ColonizeUnit* fp1 = units_get_const(&fr, fs->cargo_ids[1]);
+    if (!fp0 || !fp1 || fp0->profession != UNITS_JOB_PIONEER ||
+        fp1->profession != UNITS_JOB_SOLDIER) {
+      fprintf(
+        stderr,
+        "Discoverer French expected Hardy+Veteran (got %d,%d)\n",
+        fp0 ? fp0->profession : -1,
+        fp1 ? fp1->profession : -1
+      );
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    if (fs->profession != 0) {
+      fprintf(stderr, "starter ship profession want 0 got %d\n", fs->profession);
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+  fx_close();
+  return 0;
+}
+
+  /*
+   * FUN_75c2_235c raw 121644-121647: the Discoverer Veteran Soldier is gated on
+   * `bVar1` = this nation's player control byte (0x543f) == 0, i.e. the human.
+   * An AI English nation on Discoverer gets a plain Soldier. (bugs.md #488)
+   */
+static int case_starter_discoverer_ai_english(void) {
+  if (fx_open() != 0) {
+    return 1;
+  }
+    ColonizeUnitPool aiw;
+    memset(&aiw, 0, sizeof(aiw));
+    aiw.type_count = pool.type_count;
+    memcpy(aiw.types, pool.types, sizeof(pool.types));
+    const int aid = units_spawn_euro_starter_fleet(&aiw, 0, 0, false, ship->x + 2, ship->y, 40, 10);
+    ColonizeUnit* as = units_get(&aiw, aid);
+    if (!as || as->cargo_count < 2) {
+      fprintf(stderr, "AI Discoverer fleet missing cargo\n");
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    const ColonizeUnit* ap0 = units_get_const(&aiw, as->cargo_ids[0]);
+    const ColonizeUnit* ap1 = units_get_const(&aiw, as->cargo_ids[1]);
+    if (!ap0 || !ap1 || ap0->profession != UNITS_JOB_NONE || ap1->profession != UNITS_JOB_NONE) {
+      fprintf(
+        stderr,
+        "AI English Discoverer expected plain skills (got %d,%d)\n",
+        ap0 ? ap0->profession : -1,
+        ap1 ? ap1->profession : -1
+      );
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    /* Spain keeps its Veteran Soldier even as an AI (`|| local_8 == 2`). */
+    ColonizeUnitPool sp;
+    memset(&sp, 0, sizeof(sp));
+    sp.type_count = pool.type_count;
+    memcpy(sp.types, pool.types, sizeof(pool.types));
+    const int spid = units_spawn_euro_starter_fleet(&sp, 2, 3, false, ship->x + 3, ship->y, 47, 61);
+    ColonizeUnit* sps = units_get(&sp, spid);
+    const ColonizeUnit* sp1 = sps && sps->cargo_count >= 2
+                                ? units_get_const(&sp, sps->cargo_ids[1])
+                                : NULL;
+    if (!sp1 || sp1->profession != UNITS_JOB_SOLDIER) {
+      fprintf(
+        stderr,
+        "AI Spain expected Veteran Soldier (got %d)\n",
+        sp1 ? sp1->profession : -1
+      );
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+  fx_close();
+  return 0;
+}
+
+  /* Conquistador (diff 2) Dutch: plain Pioneer + plain Soldier. */
+static int case_starter_conquistador_dutch(void) {
+  if (fx_open() != 0) {
+    return 1;
+  }
+    ColonizeUnitPool hard;
+    memset(&hard, 0, sizeof(hard));
+    memset(&hard, 0, sizeof(hard));
+    hard.type_count = pool.type_count;
+    memcpy(hard.types, pool.types, sizeof(pool.types));
+    const int sid = units_spawn_euro_starter_fleet(&hard, 3, 2, true, ship->x, ship->y, 39, 10);
+    ColonizeUnit* hs = units_get(&hard, sid);
+    if (!hs || hs->cargo_count < 2) {
+      fprintf(stderr, "Dutch Conquistador fleet missing cargo\n");
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    const ColonizeUnit* hp0 = units_get_const(&hard, hs->cargo_ids[0]);
+    const ColonizeUnit* hp1 = units_get_const(&hard, hs->cargo_ids[1]);
+    if (!hp0 || !hp1 || hp0->profession != UNITS_JOB_NONE || hp1->profession != UNITS_JOB_NONE) {
+      fprintf(
+        stderr,
+        "Dutch Conquistador expected plain skills (got %d,%d)\n",
+        hp0 ? hp0->profession : -1,
+        hp1 ? hp1->profession : -1
+      );
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+  fx_close();
+  return 0;
+}
+
+static int case_boarding_caravel(void) {
+  if (fx_open() != 0 || fx_stage2() != 0) {
+    return 1;
+  }
     int bx = -1;
     int by = -1;
     if (!units_find_water_tile(&pool, &map, starter->x, starter->y, -1, &bx, &by)) {
@@ -597,10 +742,15 @@ int main(void) {
     unload_x = ux;
     unload_y = uy;
     ship_id = returned;
-  }
+  fx_close();
+  return 0;
+}
 
   /* Landfall unload: cargo with moves onto adjacent land; ship stays put. */
-  {
+static int case_landfall_unload(void) {
+  if (fx_open() != 0 || fx_stage2() != 0) {
+    return 1;
+  }
     int bx = -1;
     int by = -1;
     int lx = -1;
@@ -743,10 +893,15 @@ int main(void) {
       units_despawn(&pool, lf_pax2);
       units_despawn(&pool, lf_ship2);
     }
-  }
+  fx_close();
+  return 0;
+}
 
   /* Colony dock: ship may enter own colony; disembark clears sentry. */
-  {
+static int case_colony_dock(void) {
+  if (fx_open() != 0 || fx_stage2() != 0) {
+    return 1;
+  }
     ColonizeColonyPool colonies;
     colonies_init(&colonies);
     colonies_set_occupancy_map(NULL);
@@ -941,10 +1096,15 @@ int main(void) {
     }
     units_despawn(&pool, dock_pax);
     units_despawn(&pool, dock_ship);
-  }
+  fx_close();
+  return 0;
+}
 
   /* Phase 7: terrain MP costs, pioneer plow/road, yield bonuses. */
-  {
+static int case_terrain_mp_improvements(void) {
+  if (fx_open() != 0 || fx_stage2() != 0) {
+    return 1;
+  }
     ColonizeWorldMap tmap;
     memset(&tmap, 0, sizeof(tmap));
     if (!map_alloc(&tmap, 8, 8, err, sizeof(err))) {
@@ -1368,51 +1528,15 @@ int main(void) {
     }
     units_despawn(&pool, pid3);
     map_free(&tmap);
-  }
-
-  ColonizeSpriteSheet icons;
-  char ss_path[512];
-  if (!dos_compat_normalize_asset_path("COLONIZE", "ICONS.SS", ss_path, sizeof(ss_path)) ||
-      !ss_load(ss_path, &icons, err, sizeof(err))) {
-    fprintf(stderr, "ICONS load failed: %s\n", err);
-    map_free(&map);
-    assets_msg_free(&names);
-    return 1;
-  }
-  const int icon = pool.types[pioneer].icon_sprite;
-  const int ship_icon = pool.types[caravel].icon_sprite;
-  /* NAMES Pioneers=102, Caravel=6 are 1-based; blit indices are 101 and 5. */
-  if (icon != 101) {
-    fprintf(stderr, "pioneer icon expected 101 got %d\n", icon);
-    ss_free(&icons);
-    map_free(&map);
-    assets_msg_free(&names);
-    return 1;
-  }
-  if (ship_icon != 5) {
-    fprintf(stderr, "caravel icon expected 5 got %d\n", ship_icon);
-    ss_free(&icons);
-    map_free(&map);
-    assets_msg_free(&names);
-    return 1;
-  }
-  if (icon < 0 || icon >= icons.sprite_count || icons.sprites[icon].width <= 0) {
-    fprintf(stderr, "pioneer icon %d invalid (sprites=%d)\n", icon, icons.sprite_count);
-    ss_free(&icons);
-    map_free(&map);
-    assets_msg_free(&names);
-    return 1;
-  }
-  if (ship_icon < 0 || ship_icon >= icons.sprite_count || icons.sprites[ship_icon].width <= 0) {
-    fprintf(stderr, "caravel icon %d invalid\n", ship_icon);
-    ss_free(&icons);
-    map_free(&map);
-    assets_msg_free(&names);
-    return 1;
-  }
+  fx_close();
+  return 0;
+}
 
   /* Go-to pathfinding: next step, spend MP, keep order, resume after end_turn. */
-  {
+static int case_goto_pathfinding(void) {
+  if (fx_open() != 0 || fx_stage2() != 0) {
+    return 1;
+  }
     int lx = -1;
     int ly = -1;
     for (int y = 20; y < (int)map.height - 20 && lx < 0; ++y) {
@@ -1522,10 +1646,15 @@ int main(void) {
         return 1;
       }
     }
-  }
+  fx_close();
+  return 0;
+}
 
   /* Orders / allegiance chrome: corner table + @ORDERS letters + nation ink. */
-  {
+static int case_orders_chrome(void) {
+  if (fx_open() != 0 || fx_stage2() != 0) {
+    return 1;
+  }
     unit_chrome_load_orders(&names);
     const int caravel_t = units_find_type(&pool, "Caravel");
     const int frigate_t = units_find_type(&pool, "Frigate");
@@ -1612,10 +1741,15 @@ int main(void) {
       }
       units_despawn(&pool, id);
     }
-  }
+  fx_close();
+  return 0;
+}
 
   /* Fortify / sentry / disband orders. */
-  {
+static int case_fortify_sentry_disband(void) {
+  if (fx_open() != 0 || fx_stage2() != 0) {
+    return 1;
+  }
     const int soldier = units_find_type(&pool, "Soldier");
     const int sid = units_spawn(&pool, soldier >= 0 ? soldier : pioneer, 12, 12);
     if (sid < 0) {
@@ -1691,10 +1825,15 @@ int main(void) {
       assets_msg_free(&names);
       return 1;
     }
-  }
+  fx_close();
+  return 0;
+}
 
   /* Dump overboard / anchor / trade route / pillage. */
-  {
+static int case_dump_anchor_route_pillage(void) {
+  if (fx_open() != 0 || fx_stage2() != 0) {
+    return 1;
+  }
     const int caravel_t = units_find_type(&pool, "Caravel");
     int sx = -1, sy = -1;
     for (int y = 1; y < (int)map.height - 1 && sx < 0; ++y) {
@@ -1863,10 +2002,15 @@ int main(void) {
       return 1;
     }
     units_despawn(&pool, mil);
-  }
+  fx_close();
+  return 0;
+}
 
   /* Land combat T0: Soldier (atk2) vs Brave (def1) — attacker wins without RNG. */
-  {
+static int case_land_combat_t0(void) {
+  if (fx_open() != 0 || fx_stage2() != 0) {
+    return 1;
+  }
     const int soldier = units_find_type(&pool, "Soldiers");
     const int brave = units_find_type(&pool, "Braves");
     if (soldier < 0 || brave < 0) {
@@ -1943,10 +2087,15 @@ int main(void) {
       return 1;
     }
     (void)units_despawn(&pool, aid);
-  }
+  fx_close();
+  return 0;
+}
 
   /* units_follow_unit + advance one step (Brave escort API). */
-  {
+static int case_follow_unit(void) {
+  if (fx_open() != 0 || fx_stage2() != 0) {
+    return 1;
+  }
     int fx = -1;
     int fy = -1;
     for (int y = 1; y + 2 < map.height && fx < 0; ++y) {
@@ -2002,10 +2151,15 @@ int main(void) {
     }
     units_despawn(&pool, a);
     units_despawn(&pool, b);
-  }
+  fx_close();
+  return 0;
+}
 
   /* Naval hold plunder on combat resolve (FUN_5fef_016c-shaped). */
-  {
+static int case_naval_hold_plunder(void) {
+  if (fx_open() != 0 || fx_stage2() != 0) {
+    return 1;
+  }
     int wx = -1;
     int wy = -1;
     int lx = -1;
@@ -2066,11 +2220,16 @@ int main(void) {
         }
       }
     }
-  }
+  fx_close();
+  return 0;
+}
 
   /* Treasure train spawn: value lives in DOS +0x315b (profession) = gold/100
    * (bugs.md #736); no LE16 hold mirror any more. */
-  {
+static int case_treasure_train_spawn(void) {
+  if (fx_open() != 0 || fx_stage2() != 0) {
+    return 1;
+  }
     const int tid = units_spawn_treasure_train(&pool, 3, 3, 2, 3400);
     if (tid < 0) {
       fprintf(stderr, "spawn_treasure_train failed\n");
@@ -2101,7 +2260,9 @@ int main(void) {
       return 1;
     }
     units_despawn(&pool, tid);
-  }
+  fx_close();
+  return 0;
+}
 
   /*
    * A Treasure only boards a hull with six free holds. That is the DOS rule
@@ -2111,7 +2272,10 @@ int main(void) {
    * cargo is Caravel 2, Merchantman 4, Galleon 6. The old test asserted a
    * type-name `require_galleon` flag that DOS does not have.
    */
-  {
+static int case_treasure_ship_holds(void) {
+  if (fx_open() != 0 || fx_stage2() != 0) {
+    return 1;
+  }
     const int caravel_t = units_find_type(&pool, "Caravel");
     const int galleon_t = units_find_type(&pool, "Galleon");
     if (caravel_t < 0 || galleon_t < 0) {
@@ -2187,10 +2351,15 @@ int main(void) {
     units_despawn(&pool, tr2);
     units_despawn(&pool, caravel_id);
     units_despawn(&pool, galleon_id);
-  }
+  fx_close();
+  return 0;
+}
 
   /* Native settlement conquer: tribe remove + Cortes peels FUN_5fef_31ea gold. */
-  {
+static int case_native_settlement_conquer(void) {
+  if (fx_open() != 0 || fx_stage2() != 0) {
+    return 1;
+  }
     ColonizeCol1Save col1;
     memset(&col1, 0, sizeof(col1));
     col1.head.tribe_count = 1;
@@ -2473,10 +2642,15 @@ int main(void) {
     }
     free(tmap.layer3);
     free(col1.tribe);
-  }
+  fx_close();
+  return 0;
+}
 
   /* FUN_5fef_31ea convert-join: mission-owned tribe + Sepulveda/Spanish/Jesuit. */
-  {
+static int case_convert_join(void) {
+  if (fx_open() != 0 || fx_stage2() != 0) {
+    return 1;
+  }
     ColonizeCol1Save col1;
     memset(&col1, 0, sizeof(col1));
     col1.head.tribe_count = 1;
@@ -2603,14 +2777,19 @@ int main(void) {
     free(tmap.layer3);
     free(col1.tribe);
     fprintf(stderr, "unit_units: Sepulveda convert-join ok\n");
-  }
+  fx_close();
+  return 0;
+}
 
   /*
    * FUN_3844_0004 (raw 58268, bugs.md #725): a LONE Indian Convert on an open
    * tile ages unit +0x16 and vanishes once the byte passes 8. Treasure trains
    * are untouched — no DOS site expires one.
    */
-  {
+static int case_convert_desertion(void) {
+  if (fx_open() != 0 || fx_stage2() != 0) {
+    return 1;
+  }
     ColonizeWorldMap cmap;
     memset(&cmap, 0, sizeof(cmap));
     char cerr[128];
@@ -2700,10 +2879,15 @@ int main(void) {
     units_despawn(&pool, tid);
     map_free(&cmap);
     fprintf(stderr, "unit_units: lone-Convert 3844_0004 tick ok\n");
-  }
+  fx_close();
+  return 0;
+}
 
   /* Stockade/Fort/Fortress defense bonus in land combat + Treasure capture loot. */
-  {
+static int case_fort_defense_bonus(void) {
+  if (fx_open() != 0 || fx_stage2() != 0) {
+    return 1;
+  }
     ColonizeColonyPool colonies;
     colonies_init(&colonies);
     colonies_set_occupancy_map(NULL);
@@ -3020,10 +3204,15 @@ int main(void) {
       }
     }
     fprintf(stderr, "unit_units: fortification defense + treasure capture ok\n");
-  }
+  fx_close();
+  return 0;
+}
 
   /* Coastal Fort/Fortress naval fire (FUN_364b_03f6). */
-  {
+static int case_coastal_fort_naval_fire(void) {
+  if (fx_open() != 0 || fx_stage2() != 0) {
+    return 1;
+  }
     ColonizeColonyPool colonies;
     colonies_init(&colonies);
     colonies_set_occupancy_map(NULL);
@@ -3238,13 +3427,18 @@ int main(void) {
     pool.types[caravel_ti].defense = old_def;
     pool.types[caravel_ti].hull = old_hull;
     fprintf(stderr, "unit_units: coastal fort naval fire ok\n");
-  }
+  fx_close();
+  return 0;
+}
 
   /* LCR rumour: clear + de Soto reveal path. AMER2's rumour nearest the
    * old (8,14) fixture moved to (9,15) on 2026-09-09 when
    * map_procedural_rumour_at dropped the unverified +1 coordinate bias its
    * resource-hash sibling had already lost (smell_audit #98). */
-  {
+static int case_lcr_clear_desoto(void) {
+  if (fx_open() != 0 || fx_stage2() != 0) {
+    return 1;
+  }
     if (!map_tile_has_rumour(&map, 9, 15)) {
       fprintf(stderr, "AMER2 (9,15) expected procedural rumour\n");
       return 1;
@@ -3318,9 +3512,14 @@ int main(void) {
     units_despawn(&pool, scid);
     units_despawn(&pool, scid2);
     map_free(&lmap);
-  }
+  fx_close();
+  return 0;
+}
 
-  {
+static int case_lcr_case_matrix(void) {
+  if (fx_open() != 0 || fx_stage2() != 0) {
+    return 1;
+  }
     /* lcr_case5_bonus_used: first vanish (raw case 5) roll → burial
      * (FUN_65dd_0004:103608). Non-Scout, no FF: units_lcr_roll_outcome's
      * base roll is a single un-rerolled pass (P7.1's real state machine —
@@ -3411,9 +3610,14 @@ int main(void) {
     units_despawn(&pool, sc1);
     units_despawn(&pool, sc2);
     fprintf(stderr, "unit_units: lcr_case5_bonus_used latch ok\n");
-  }
+  fx_close();
+  return 0;
+}
 
-  {
+static int case_lcr_case5_latch(void) {
+  if (fx_open() != 0 || fx_stage2() != 0) {
+    return 1;
+  }
     /*
      * P7.1: de Soto's LCR bonus is gated on the explorer being Scout-type
      * (FUN_65dd_0004:103454-103458 — the FF7 check only fires when
@@ -3501,7 +3705,9 @@ int main(void) {
       return 1;
     }
     fprintf(stderr, "unit_units: LCR de Soto Scout-type gate ok\n");
-  }
+  fx_close();
+  return 0;
+}
 
   /*
    * LCR outcome dispatch: real seeded RNG (not the rng==NULL fallback above)
@@ -3510,7 +3716,10 @@ int main(void) {
    * Fountain of Youth dock immigrants, a Treasure train spawned (Cibola /
    * Burial3), a colonist joining (survivors), and a vanished scout.
    */
-  {
+static int case_lcr_outcome_dispatch(void) {
+  if (fx_open() != 0 || fx_stage2() != 0) {
+    return 1;
+  }
     EuropeScreen eu;
     char eerr[256];
     if (!europe_load(&eu, "COLONIZE", eerr, sizeof(eerr))) {
@@ -3626,7 +3835,9 @@ int main(void) {
       return 1;
     }
     fprintf(stderr, "unit_units: LCR outcome dispatch ok (%d trials)\n", trials);
-  }
+  fx_close();
+  return 0;
+}
 
   /*
    * bugs.md #496: Fountain of Youth runs the eight FUN_291f_0d2c(1,0) picks
@@ -3634,7 +3845,10 @@ int main(void) {
    * human gate; 4884 just takes pool slot 1 for a non-human bound nation).
    * The eight land in the Europe limbo (200,100), never on the human dock.
    */
-  {
+static int case_lcr_fountain_ai(void) {
+  if (fx_open() != 0 || fx_stage2() != 0) {
+    return 1;
+  }
     EuropeScreen eu;
     char eerr[256];
     if (!europe_load(&eu, "COLONIZE", eerr, sizeof(eerr))) {
@@ -3730,7 +3944,9 @@ int main(void) {
       }
     }
     fprintf(stderr, "unit_units: LCR AI Fountain of Youth picks ok (%d trials)\n", trials);
-  }
+  fx_close();
+  return 0;
+}
 
   /*
    * bugs.md #497: case-8 burial trespass only stands (and only costs
@@ -3740,7 +3956,10 @@ int main(void) {
    * (the only other alarm source in this routine) never fires: every alarm
    * point below is a trespass hit.
    */
-  {
+static int case_lcr_burial_trespass(void) {
+  if (fx_open() != 0 || fx_stage2() != 0) {
+    return 1;
+  }
     const int scout_ti = units_find_type(&pool, "Scouts");
     bool tre_was_active[COLONIZE_UNITS_MAX];
     for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
@@ -3827,10 +4046,15 @@ int main(void) {
       "unit_units: LCR case-8 met gate ok (unmet %d, met %d @LOSTCITY8 over %d trials)\n",
       trespass_popups[0], trespass_popups[1], trial_count[1]
     );
-  }
+  fx_close();
+  return 0;
+}
 
   /* Enter-probe matrix: bounce / domain / land combat / naval / capture. */
-  {
+static int case_enter_probe_matrix(void) {
+  if (fx_open() != 0 || fx_stage2() != 0) {
+    return 1;
+  }
     const int pioneer_t = pioneer;
     const int soldier = units_find_type(&pool, "Soldiers");
     const int brave = units_find_type(&pool, "Braves");
@@ -4125,10 +4349,15 @@ int main(void) {
       pool.types[caravel_t].movement = saved_movement;
       fprintf(stderr, "unit_units: naval attack full MP exhaust ok\n");
     }
-  }
+  fx_close();
+  return 0;
+}
 
   /* Land → ocean with own ship → BOARD; sentry auto-load when ship leaves. */
-  {
+static int case_board_from_land_sentry(void) {
+  if (fx_open() != 0 || fx_stage2() != 0) {
+    return 1;
+  }
     int lx = -1, ly = -1, wx = -1, wy = -1, wx2 = -1, wy2 = -1;
     for (int y = 1; y < (int)map.height - 1 && lx < 0; ++y) {
       for (int x = 1; x < (int)map.width - 1 && lx < 0; ++x) {
@@ -4323,17 +4552,36 @@ int main(void) {
       map.layer2[idx] = (uint8_t)(map.layer2[idx] & (uint8_t)~MAP_OCCUPANCY_HAS_CITY);
       units_despawn(&pool, sid);
     }
-  }
+  fx_close();
+  return 0;
+}
 
   /* Phase-2 combat: 1b0e peels, best-defender, capture, naval damage, popups. */
-  {
-    AiPopupState pops;
-    ai_popup_init(&pops);
-    units_set_combat_popups(&pops, NULL);
-    units_set_combat_human_nation(0);
+/* Phase-2 combat: 1b0e peels, best-defender, capture, naval damage, popups.
+ * Split into one case per sub-matrix 2026-09-23; each rebuilds the fixture
+ * and the shared popup sink below. */
+static int combat_phase2_open(AiPopupState* pops) {
+  if (fx_open() != 0 || fx_stage2() != 0) {
+    return 1;
+  }
+  ai_popup_init(pops);
+  units_set_combat_popups(pops, NULL);
+  units_set_combat_human_nation(0);
+  return 0;
+}
+
+static void combat_phase2_close(void) {
+  units_set_combat_popups(NULL, NULL);
+  units_set_combat_human_nation(-1);
+  fx_close();
+}
 
     /* Spanish ambush +50% on colony vs Indian. */
-    {
+static int case_combat_ambush_spanish(void) {
+  AiPopupState pops;
+  if (combat_phase2_open(&pops) != 0) {
+    return 1;
+  }
       ColonizeColonyPool cols;
       colonies_init(&cols);
       colonies_set_occupancy_map(NULL);
@@ -4375,10 +4623,16 @@ int main(void) {
       units_despawn(&pool, did);
       units_set_combat_colonies(NULL);
       fprintf(stderr, "unit_units: Spanish ambush peel ok\n");
-    }
+  combat_phase2_close();
+  return 0;
+}
 
     /* Terrain stash: Indian→Euro and human→AI-Euro under WoI (REF). */
-    {
+static int case_combat_terrain_stash(void) {
+  AiPopupState pops;
+  if (combat_phase2_open(&pops) != 0) {
+    return 1;
+  }
       ColonizeWorldMap tmap;
       memset(&tmap, 0, sizeof(tmap));
       tmap.width = 16;
@@ -4538,10 +4792,16 @@ int main(void) {
       free(tmap.layer2);
       free(tmap.layer3);
       fprintf(stderr, "unit_units: terrain stash ambush ok\n");
-    }
+  combat_phase2_close();
+  return 0;
+}
 
     /* WoI REF +50% / Tory-Rebel support — colony only (FUN_5fef_1b0e). */
-    {
+static int case_combat_woi_ref_support(void) {
+  AiPopupState pops;
+  if (combat_phase2_open(&pops) != 0) {
+    return 1;
+  }
       ColonizeColonyPool cols;
       colonies_init(&cols);
       colonies_set_occupancy_map(NULL);
@@ -4681,10 +4941,16 @@ int main(void) {
       }
 
       fprintf(stderr, "unit_units: WoI REF colony peels ok\n");
-    }
+  combat_phase2_close();
+  return 0;
+}
 
     /* Best defender: Artillery preferred over Colonist on same tile. */
-    {
+static int case_combat_best_defender(void) {
+  AiPopupState pops;
+  if (combat_phase2_open(&pops) != 0) {
+    return 1;
+  }
       const int sol = units_find_type(&pool, "Soldiers");
       const int col = units_find_type(&pool, "Colonists");
       const int arty = units_find_type(&pool, "Artillery");
@@ -4727,10 +4993,16 @@ int main(void) {
       units_despawn(&pool, weak);
       units_despawn(&pool, strong);
       fprintf(stderr, "unit_units: best-defender pick ok\n");
-    }
+  combat_phase2_close();
+  return 0;
+}
 
     /* Capture-alive Colonists. */
-    {
+static int case_combat_capture_alive_colonist(void) {
+  AiPopupState pops;
+  if (combat_phase2_open(&pops) != 0) {
+    return 1;
+  }
       ColonizeCol1Save c1;
       memset(&c1, 0, sizeof(c1));
       c1.head.difficulty = 2;
@@ -4779,10 +5051,16 @@ int main(void) {
       (void)units_despawn(&pool, aid);
       units_despawn(&pool, did);
       fprintf(stderr, "unit_units: capture-alive ok\n");
-    }
+  combat_phase2_close();
+  return 0;
+}
 
     /* Native win: Pioneer destroyed (not captured); Soldier demoted to Colonist. */
-    {
+static int case_combat_native_win_destroy_demote(void) {
+  AiPopupState pops;
+  if (combat_phase2_open(&pops) != 0) {
+    return 1;
+  }
       ColonizeCol1Save c1;
       memset(&c1, 0, sizeof(c1));
       c1.head.difficulty = 2;
@@ -4854,12 +5132,18 @@ int main(void) {
         units_despawn(&pool, did);
       }
       fprintf(stderr, "unit_units: native destroy-pioneer / demote-soldier ok\n");
-    }
+  combat_phase2_close();
+  return 0;
+}
 
     /* Naval damage-not-always-sink (DOS 0352): loser hull vs winner guns —
      * a tough hull survives damaged deterministically when hull > guns.
      * Privateer (guns 12) beats Frigate (hull 32) → damaged, not sunk. */
-    {
+static int case_combat_naval_damage_not_sink(void) {
+  AiPopupState pops;
+  if (combat_phase2_open(&pops) != 0) {
+    return 1;
+  }
       const int frig = units_find_type(&pool, "Frigate");
       const int priv = units_find_type(&pool, "Privateer");
       if (frig < 0 || priv < 0) {
@@ -4890,10 +5174,16 @@ int main(void) {
       (void)units_despawn(&pool, aid);
       units_despawn(&pool, did);
       fprintf(stderr, "unit_units: naval damage-escape ok\n");
-    }
+  combat_phase2_close();
+  return 0;
+}
 
     /* Outcome popups enqueued for human side. */
-    {
+static int case_combat_outcome_popups(void) {
+  AiPopupState pops;
+  if (combat_phase2_open(&pops) != 0) {
+    return 1;
+  }
       ai_popup_clear(&pops);
       ColonizeMsgCatalog game_txt;
       assets_msg_init(&game_txt);
@@ -4956,13 +5246,19 @@ int main(void) {
       units_set_combat_popups(&pops, NULL);
       assets_msg_free(&game_txt);
       fprintf(stderr, "unit_units: combat outcome popup enqueue ok\n");
-    }
+  combat_phase2_close();
+  return 0;
+}
 
     /*
      * Village Attack empty tile: FUN_5fef_1b0e temp Brave + population drain.
      * pop>=2 survives (pop--); pop<2 destroys. Not nearby-Brave pull.
      */
-    {
+static int case_combat_village_attack_pop_drain(void) {
+  AiPopupState pops;
+  if (combat_phase2_open(&pops) != 0) {
+    return 1;
+  }
       const int soldier = units_find_type(&pool, "Soldiers");
       const int brave = units_find_type(&pool, "Braves");
       if (soldier < 0 || brave < 0) {
@@ -5129,7 +5425,9 @@ int main(void) {
       units_set_native_fallout_context(NULL, NULL, -1);
       free(c1.tribe);
       fprintf(stderr, "unit_units: village temp Brave + pop drain ok\n");
-    }
+  combat_phase2_close();
+  return 0;
+}
 
     /*
      * Undefended Euro colony: token militia defender (W1.8 / P5.4 fix,
@@ -5138,7 +5436,11 @@ int main(void) {
      * not hand over a free capture. Phantom: never touches the colony's
      * real colonist_count, never lingers on the map afterward.
      */
-    {
+static int case_combat_undefended_colony_militia(void) {
+  AiPopupState pops;
+  if (combat_phase2_open(&pops) != 0) {
+    return 1;
+  }
       const int soldier2 = units_find_type(&pool, "Soldiers");
       if (soldier2 < 0) {
         fprintf(stderr, "colony-temp-defender soldier type missing\n");
@@ -5241,7 +5543,9 @@ int main(void) {
       units_set_ff_col1(NULL);
       units_set_combat_human_nation(-1);
       fprintf(stderr, "unit_units: undefended colony token militia ok\n");
-    }
+  combat_phase2_close();
+  return 0;
+}
 
     /*
      * smell_audit 2026-09-09 #2 — the militia / Paul Revere phantom is DOS's
@@ -5257,7 +5561,11 @@ int main(void) {
      * opening `type byte == 1 || type byte == 4` gate a 0x17 row fails
      * before FUN_281f_04d4, so a phantom that WINS draws no promotion RNG.
      */
-    {
+static int case_combat_militia_phantom_row(void) {
+  AiPopupState pops;
+  if (combat_phase2_open(&pops) != 0) {
+    return 1;
+  }
       const int mil_sol = units_find_type(&pool, "Soldiers");
       const int mil_atk_ty = units_find_type(&pool, "Dragoons");
       /*
@@ -5493,7 +5801,9 @@ int main(void) {
       fprintf(
         stderr, "unit_units: militia phantom bypasses 0352/172c ok (seed %d)\n", mil_seed
       );
-    }
+  combat_phase2_close();
+  return 0;
+}
 
     /*
      * Discoverer beginner shield — FUN_5fef_1b0e raw 100536-100545.
@@ -5504,7 +5814,11 @@ int main(void) {
      * town — the militia phantom, bVar28 — can never be won, however strong
      * the attacker. Above difficulty 0 the same fixture must still fall.
      */
-    {
+static int case_combat_discoverer_beginner_shield(void) {
+  AiPopupState pops;
+  if (combat_phase2_open(&pops) != 0) {
+    return 1;
+  }
       const int soldier3 = units_find_type(&pool, "Soldiers");
       if (soldier3 < 0) {
         fprintf(stderr, "beginner-shield soldier type missing\n");
@@ -5642,7 +5956,9 @@ int main(void) {
       units_set_ff_col1(NULL);
       units_set_combat_human_nation(-1);
       fprintf(stderr, "unit_units: Discoverer undefended-town shield ok\n");
-    }
+  combat_phase2_close();
+  return 0;
+}
 
     /*
      * FUN_5fef_1b0e port-ship fate + DS:0x54f6 discharge (2026-09-08).
@@ -5657,7 +5973,11 @@ int main(void) {
      *     DS:0x54f6 attitude word),
      *     unless it LOST at a colony (DOS routes that to FUN_5fef_0f14).
      */
-    {
+static int case_combat_port_ship_fate_discharge(void) {
+  AiPopupState pops;
+  if (combat_phase2_open(&pops) != 0) {
+    return 1;
+  }
       const int soldier3 = units_find_type(&pool, "Soldiers");
       const int frig3 = units_find_type(&pool, "Frigate");
       const int brave3 = units_find_type(&pool, "Braves");
@@ -5851,11 +6171,17 @@ int main(void) {
       units_set_ff_col1(NULL);
       units_set_combat_human_nation(-1);
       fprintf(stderr, "unit_units: 1b0e port-ship fate + DS:0x54f6 discharge ok\n");
-    }
+  combat_phase2_close();
+  return 0;
+}
 
     /* bugs.md #660: a beaten Treasure Train changes hands (no gold, no ransom).
      * DOS FUN_5fef_0352 raw 99392-99413. */
-    {
+static int case_combat_treasure_capture(void) {
+  AiPopupState pops;
+  if (combat_phase2_open(&pops) != 0) {
+    return 1;
+  }
       ai_popup_clear(&pops);
       units_set_combat_popups(&pops, NULL);
       units_set_occupancy_map(NULL);
@@ -5911,10 +6237,16 @@ int main(void) {
       (void)units_despawn(&pool, aid);
       (void)units_despawn(&pool, did);
       fprintf(stderr, "unit_units: treasure capture-alive ok\n");
-    }
+  combat_phase2_close();
+  return 0;
+}
 
     /* bugs.md #663: capture is disqualified on water (local_2a) — destroy. */
-    {
+static int case_combat_capture_water_destroy(void) {
+  AiPopupState pops;
+  if (combat_phase2_open(&pops) != 0) {
+    return 1;
+  }
       ColonizeWorldMap wmap;
       memset(&wmap, 0, sizeof(wmap));
       wmap.width = 16;
@@ -5961,10 +6293,16 @@ int main(void) {
       free(wmap.layer2);
       free(wmap.layer3);
       fprintf(stderr, "unit_units: #663 water capture gate ok\n");
-    }
+  combat_phase2_close();
+  return 0;
+}
 
     /* Colony capture notify @CAPTURED*. */
-    {
+static int case_combat_colony_capture_notify(void) {
+  AiPopupState pops;
+  if (combat_phase2_open(&pops) != 0) {
+    return 1;
+  }
       ai_popup_clear(&pops);
       units_set_combat_popups(&pops, NULL);
       ColonizeCol1Save c1;
@@ -5989,10 +6327,16 @@ int main(void) {
         return 1;
       }
       fprintf(stderr, "unit_units: colony CAPTURED popup ok\n");
-    }
+  combat_phase2_close();
+  return 0;
+}
 
     /* Privateer seizure tag. */
-    {
+static int case_combat_privateer_seizure(void) {
+  AiPopupState pops;
+  if (combat_phase2_open(&pops) != 0) {
+    return 1;
+  }
       ai_popup_clear(&pops);
       units_set_combat_popups(&pops, NULL);
       const int priv = units_find_type(&pool, "Privateer");
@@ -6047,10 +6391,16 @@ int main(void) {
         units_despawn(&pool, did);
       }
       fprintf(stderr, "unit_units: privateer SEIZURE popup ok\n");
-    }
+  combat_phase2_close();
+  return 0;
+}
 
     /* Fort fire: miss → MP slow only; hit close → bit7 damage; Drydock repairs. */
-    {
+static int case_combat_fort_fire_repair(void) {
+  AiPopupState pops;
+  if (combat_phase2_open(&pops) != 0) {
+    return 1;
+  }
       ColonizeColonyPool colonies;
       colonies_init(&colonies);
       colonies_set_occupancy_map(NULL);
@@ -6181,17 +6531,19 @@ int main(void) {
       }
       units_despawn(&pool, sid_hit);
       fprintf(stderr, "unit_units: fort bit7 + timed repair ok\n");
-    }
+  combat_phase2_close();
+  return 0;
+}
 
-    units_set_combat_popups(NULL, NULL);
-    units_set_combat_human_nation(-1);
-  }
 
   /* Colony-tile visibility: a colony square never shows a non-selected
    * (idle garrison) unit — only the active/selected unit, and only while
    * it's actually visible (blink on, or mid-move). Player-reported bug on
    * the overland map; see units_top_on_map_tile. */
-  {
+static int case_colony_tile_visibility(void) {
+  if (fx_open() != 0 || fx_stage2() != 0) {
+    return 1;
+  }
     int tx = -1;
     int ty = -1;
     for (int y = 5; y < (int)map.height - 5 && tx < 0; ++y) {
@@ -6283,12 +6635,17 @@ int main(void) {
     units_despawn(&pool, active);
     pool.selected_id = saved_selected;
     fprintf(stderr, "unit_units: colony-tile garrison visibility ok\n");
-  }
+  fx_close();
+  return 0;
+}
 
   /* bugs.md: a selected passenger is not on the map, so the tile scan never
    * found it and the ship drew steadily — no blink. The passenger owns its
    * ship's tile like any active unit: own sprite blink-on, empty off. */
-  {
+static int case_selected_passenger_blink(void) {
+  if (fx_open() != 0 || fx_stage2() != 0) {
+    return 1;
+  }
     int wx = -1, wy = -1;
     for (int y = 5; y < (int)map.height - 5 && wx < 0; ++y) {
       for (int x = 5; x < (int)map.width - 5; ++x) {
@@ -6330,12 +6687,17 @@ int main(void) {
     units_despawn(&pool, ship);
     pool.selected_id = saved_selected;
     fprintf(stderr, "unit_units: passenger blink ownership ok\n");
-  }
+  fx_close();
+  return 0;
+}
 
   /* DOS ship-switch quirk (bugs.md): the first ship to leave a shared tile
    * scoops the tile's loaded units first come, first served; the rest stay
    * with the remaining ship(s). Awake passengers stay put. */
-  {
+static int case_ship_switch_quirk(void) {
+  if (fx_open() != 0 || fx_stage2() != 0) {
+    return 1;
+  }
     int wx = -1, wy = -1;
     for (int y = 5; y < (int)map.height - 5 && wx < 0; ++y) {
       for (int x = 5; x < (int)map.width - 5; ++x) {
@@ -6389,11 +6751,16 @@ int main(void) {
     units_despawn(&pool, shipA);
     units_despawn(&pool, shipB);
     fprintf(stderr, "unit_units: ship-switch departure pickup ok\n");
-  }
+  fx_close();
+  return 0;
+}
 
   /* bugs.md: Go To onto a fogged square is always legal — the destination
    * check must not peek under the fog. Seen, it still validates. */
-  {
+static int case_goto_fogged_square(void) {
+  if (fx_open() != 0 || fx_stage2() != 0) {
+    return 1;
+  }
     int wx = -1, wy = -1, lx = -1, ly = -1;
     for (int y = 5; y < (int)map.height - 5 && (wx < 0 || lx < 0); ++y) {
       for (int x = 5; x < (int)map.width - 5; ++x) {
@@ -6429,7 +6796,9 @@ int main(void) {
     }
     units_despawn(&pool, ship);
     fprintf(stderr, "unit_units: fogged goto destination ok\n");
-  }
+  fx_close();
+  return 0;
+}
 
   /*
    * bugs.md #418: a Go To aimed at an Indian settlement is a move command INTO
@@ -6438,7 +6807,10 @@ int main(void) {
    * FUN_4d56_4528 @ACTIONS), not stopped one tile short. The raw pacer has no
    * popup channel and must still refuse to walk in silently.
    */
-  {
+static int case_goto_into_village(void) {
+  if (fx_open() != 0 || fx_stage2() != 0) {
+    return 1;
+  }
     int ux = -1, uy = -1, vx = -1, vy = -1;
     for (int y = 5; y < (int)map.height - 5 && ux < 0; ++y) {
       for (int x = 5; x < (int)map.width - 6; ++x) {
@@ -6502,7 +6874,9 @@ int main(void) {
     units_despawn(&pool, walker);
     map.layer2[vi] = saved_l2;
     fprintf(stderr, "unit_units: goto village entry dispatch ok\n");
-  }
+  fx_close();
+  return 0;
+}
 
   /*
    * bugs.md #423 / DOS FUN_4720_015c (viceroy_unpacked.c:76010-76026): landfall
@@ -6510,7 +6884,10 @@ int main(void) {
    * parked at moves 0 by boarding is still fresh (DOS spent 0) and may
    * land; one that burnt its allotment this turn stays aboard.
    */
-  {
+static int case_landfall_spent_gate(void) {
+  if (fx_open() != 0 || fx_stage2() != 0) {
+    return 1;
+  }
     int wx = -1, wy = -1, lx = -1, ly = -1;
     for (int y = 5; y < (int)map.height - 5 && wx < 0; ++y) {
       for (int x = 5; x < (int)map.width - 5; ++x) {
@@ -6611,13 +6988,18 @@ int main(void) {
     units_despawn(&pool, spent_pax);
     units_despawn(&pool, boat);
     fprintf(stderr, "unit_units: landfall spent-passenger gate ok\n");
-  }
+  fx_close();
+  return 0;
+}
 
   /*
    * P7.2 Fountain of Youth = 8× FUN_38fd_4884(1,0): a 3-way @RECRUIT CHOICE
    * per pick, free passage, no recruit-count bump, chained until 8 landed.
    */
-  {
+static int case_fountain_of_youth(void) {
+  if (fx_open() != 0 || fx_stage2() != 0) {
+    return 1;
+  }
     EuropeScreen feu;
     char eerr[256];
     if (!europe_load(&feu, "COLONIZE", eerr, sizeof(eerr))) {
@@ -6671,22 +7053,68 @@ int main(void) {
     }
     europe_free(&feu);
     fprintf(stderr, "fountain of youth 8x free recruit pick ok\n");
-  }
-
-  fprintf(
-    stderr,
-    "units tests ok (types=%d pioneer@%d,%d caravel_icon=%d edge=%d,%d)\n",
-    pool.type_count,
-    unload_x,
-    unload_y,
-    ship_icon,
-    edge_x,
-    edge_y
-  );
-
-  ss_free(&icons);
-  map_free(&map);
-  assets_msg_free(&names);
-  diag_shutdown();
+  fx_close();
   return 0;
 }
+
+static const TestCase k_cases[] = {
+  {"starter_fleet", case_starter_fleet},
+  {"starter_discoverer_england", case_starter_discoverer_england},
+  {"starter_discoverer_french", case_starter_discoverer_french},
+  {"starter_discoverer_ai_english", case_starter_discoverer_ai_english},
+  {"starter_conquistador_dutch", case_starter_conquistador_dutch},
+  {"domain_stack_despawn", case_domain_stack_despawn},
+  {"boarding_caravel", case_boarding_caravel},
+  {"landfall_unload", case_landfall_unload},
+  {"colony_dock", case_colony_dock},
+  {"terrain_mp_improvements", case_terrain_mp_improvements},
+  {"unit_icons", case_unit_icons},
+  {"goto_pathfinding", case_goto_pathfinding},
+  {"orders_chrome", case_orders_chrome},
+  {"fortify_sentry_disband", case_fortify_sentry_disband},
+  {"dump_anchor_route_pillage", case_dump_anchor_route_pillage},
+  {"land_combat_t0", case_land_combat_t0},
+  {"follow_unit", case_follow_unit},
+  {"naval_hold_plunder", case_naval_hold_plunder},
+  {"treasure_train_spawn", case_treasure_train_spawn},
+  {"treasure_ship_holds", case_treasure_ship_holds},
+  {"native_settlement_conquer", case_native_settlement_conquer},
+  {"convert_join", case_convert_join},
+  {"convert_desertion", case_convert_desertion},
+  {"fort_defense_bonus", case_fort_defense_bonus},
+  {"coastal_fort_naval_fire", case_coastal_fort_naval_fire},
+  {"lcr_clear_desoto", case_lcr_clear_desoto},
+  {"lcr_case_matrix", case_lcr_case_matrix},
+  {"lcr_case5_latch", case_lcr_case5_latch},
+  {"lcr_outcome_dispatch", case_lcr_outcome_dispatch},
+  {"lcr_fountain_ai", case_lcr_fountain_ai},
+  {"lcr_burial_trespass", case_lcr_burial_trespass},
+  {"enter_probe_matrix", case_enter_probe_matrix},
+  {"board_from_land_sentry", case_board_from_land_sentry},
+  {"combat_ambush_spanish", case_combat_ambush_spanish},
+  {"combat_terrain_stash", case_combat_terrain_stash},
+  {"combat_woi_ref_support", case_combat_woi_ref_support},
+  {"combat_best_defender", case_combat_best_defender},
+  {"combat_capture_alive_colonist", case_combat_capture_alive_colonist},
+  {"combat_native_win_destroy_demote", case_combat_native_win_destroy_demote},
+  {"combat_naval_damage_not_sink", case_combat_naval_damage_not_sink},
+  {"combat_outcome_popups", case_combat_outcome_popups},
+  {"combat_village_attack_pop_drain", case_combat_village_attack_pop_drain},
+  {"combat_undefended_colony_militia", case_combat_undefended_colony_militia},
+  {"combat_militia_phantom_row", case_combat_militia_phantom_row},
+  {"combat_discoverer_beginner_shield", case_combat_discoverer_beginner_shield},
+  {"combat_port_ship_fate_discharge", case_combat_port_ship_fate_discharge},
+  {"combat_treasure_capture", case_combat_treasure_capture},
+  {"combat_capture_water_destroy", case_combat_capture_water_destroy},
+  {"combat_colony_capture_notify", case_combat_colony_capture_notify},
+  {"combat_privateer_seizure", case_combat_privateer_seizure},
+  {"combat_fort_fire_repair", case_combat_fort_fire_repair},
+  {"colony_tile_visibility", case_colony_tile_visibility},
+  {"selected_passenger_blink", case_selected_passenger_blink},
+  {"ship_switch_quirk", case_ship_switch_quirk},
+  {"goto_fogged_square", case_goto_fogged_square},
+  {"goto_into_village", case_goto_into_village},
+  {"landfall_spent_gate", case_landfall_spent_gate},
+  {"fountain_of_youth", case_fountain_of_youth},
+};
+TEST_MAIN(k_cases)
