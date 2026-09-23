@@ -1493,17 +1493,52 @@ bool europe_purchase(EuropeScreen* eu, int purchase_index) {
   return europe_purchase_ex(eu, purchase_index, NULL);
 }
 
-bool europe_purchase_ex(EuropeScreen* eu, int purchase_index, ColonizeDosRng* rng) {
+/* bugs.md #754: FUN_38fd_4b50 raw 64858-64862 greys a row the purse cannot
+ * cover and the pick does nothing — no status line, no popup. */
+bool europe_purchase_affordable(const EuropeScreen* eu, int purchase_index) {
   if (!eu || purchase_index < 0 || purchase_index >= eu->purchase_count) {
+    return false;
+  }
+  return eu->gold >= europe_purchase_cost(eu, purchase_index);
+}
+
+bool europe_purchase_open_confirm(EuropeScreen* eu, int purchase_index) {
+  if (!eu || purchase_index < 0 || purchase_index >= eu->purchase_count) {
+    return false;
+  }
+  if (!europe_purchase_affordable(eu, purchase_index)) {
     return false;
   }
   const EuropePurchaseOption* p = &eu->purchase[purchase_index];
   const int cost = europe_purchase_cost(eu, purchase_index);
-  const bool is_artillery = p->kind == UNITS_KIND_ARTILLERY;
-  if (eu->gold < cost) {
-    snprintf(eu->status, sizeof(eu->status), "Need %d$ for %s.", cost, p->name);
+  /*
+   * FUN_38fd_4b50 raw 64868-64870: the Artillery escalation counter
+   * (nation+0x1e) bumps right here, before the @REALLYBUY popup is even
+   * shown — unconditionally of the eventual Yes/No answer. A cancelled
+   * purchase still leaves the next Artillery row 100$ pricier.
+   */
+  if (p->kind == UNITS_KIND_ARTILLERY) {
+    eu->artillery_bought += 1;
+  }
+  eu->purchase_confirming = true;
+  eu->purchase_confirm_index = purchase_index;
+  eu->purchase_confirm_cost = cost;
+  /* DOS default (@REALLYBUY has no @default directive) is the first choice,
+   * "Yes" — UI row 1 here (row 0 is "No", reusing the generic cancel-at-0
+   * path in europe_menu_confirm_ex). */
+  eu->menu_selection = 1;
+  snprintf(eu->status, sizeof(eu->status), "Purchase %s for %d$?", p->name, cost);
+  diag_info("EUROPE purchase confirm %s for %d$ (gold=%d)", p->name, cost, eu->gold);
+  return true;
+}
+
+bool europe_purchase_commit(
+  EuropeScreen* eu, int purchase_index, int cost, ColonizeDosRng* rng
+) {
+  if (!eu || purchase_index < 0 || purchase_index >= eu->purchase_count) {
     return false;
   }
+  const EuropePurchaseOption* p = &eu->purchase[purchase_index];
   if (p->is_ship) {
     if (eu->harbor_ships >= EUROPE_HARBOR_MAX) {
       europe_set_status(eu, "Harbor is full.");
@@ -1524,10 +1559,6 @@ bool europe_purchase_ex(EuropeScreen* eu, int purchase_index, ColonizeDosRng* rn
     return false;
   }
   eu->gold -= cost;
-  /* FUN_38fd_4b50 purchase arm: nation+0x1e += 1 after charging. */
-  if (is_artillery) {
-    eu->artillery_bought += 1;
-  }
   EuropeDockImmigrant* slot = &eu->dock[eu->dock_count++];
   memset(slot, 0, sizeof(*slot));
   snprintf(slot->name, sizeof(slot->name), "%s", p->name);
@@ -1538,6 +1569,23 @@ bool europe_purchase_ex(EuropeScreen* eu, int purchase_index, ColonizeDosRng* rn
   snprintf(eu->status, sizeof(eu->status), "Purchased %s (-%d$).", p->name, cost);
   diag_info("EUROPE purchased %s for %d$ (gold=%d)", p->name, cost, eu->gold);
   return true;
+}
+
+/*
+ * bugs.md #753: DOS never buys on the spot from the PURCHASE list — it
+ * fills @REALLYBUY's STRING0/NUMBER0 and asks a 2-choice popup
+ * (FUN_281f_0652(0x111f, 2)), only debiting/spawning on choice 1 (Yes).
+ * This wrapper stays for direct/legacy callers and tests: it opens the
+ * confirm and immediately answers Yes, matching the old always-buy
+ * behaviour without duplicating the debit logic.
+ */
+bool europe_purchase_ex(EuropeScreen* eu, int purchase_index, ColonizeDosRng* rng) {
+  if (!europe_purchase_open_confirm(eu, purchase_index)) {
+    return false;
+  }
+  const int cost = eu->purchase_confirm_cost;
+  eu->purchase_confirming = false;
+  return europe_purchase_commit(eu, purchase_index, cost, rng);
 }
 
 bool europe_open_recruit_menu(EuropeScreen* eu) {
@@ -5030,6 +5078,7 @@ void europe_menu_open(EuropeScreen* eu, EuropeMenu menu) {
   eu->menu = menu;
   eu->menu_selection = 0;
   eu->menu_answered = false;
+  eu->purchase_confirming = false;
   if (menu == EUROPE_MENU_RECRUIT) {
     europe_pool_ensure_filled(eu);
     snprintf(
@@ -5118,6 +5167,7 @@ void europe_menu_close(EuropeScreen* eu) {
   eu->menu = EUROPE_MENU_NONE;
   eu->menu_selection = 0;
   eu->menu_dock_index = -1;
+  eu->purchase_confirming = false;
 }
 
 /*
@@ -5204,9 +5254,21 @@ bool europe_menu_confirm_ex(EuropeScreen* eu, ColonizeDosRng* rng) {
     return ok;
   }
   if (m == EUROPE_MENU_PURCHASE) {
-    const bool ok = europe_purchase_ex(eu, sel - 1, rng);
-    europe_menu_close(eu);
-    return ok;
+    if (eu->purchase_confirming) {
+      /* sel==0 ("No") already returned above via the generic cancel path;
+       * reaching here means sel==1 ("Yes") — commit at the frozen price
+       * (bugs.md #753). */
+      const bool ok =
+        europe_purchase_commit(eu, eu->purchase_confirm_index, eu->purchase_confirm_cost, rng);
+      eu->purchase_confirming = false;
+      europe_menu_close(eu);
+      return ok;
+    }
+    if (!europe_purchase_affordable(eu, sel - 1)) {
+      return false; /* greyed row: inert, dialog stays up (bugs.md #754) */
+    }
+    /* Open @REALLYBUY; dialog stays up until Yes/No answers it. */
+    return europe_purchase_open_confirm(eu, sel - 1);
   }
   europe_menu_close(eu);
   return false;

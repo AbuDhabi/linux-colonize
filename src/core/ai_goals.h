@@ -383,7 +383,8 @@ int ai_goals_colony_balance_flags_w(
 /*
  * FUN_521d_06ae — pick best adjacent founding tile.
  * score_extras: DOS param_4 (neighbor continent/explore extras).
- * wagon_filter: DOS param_5 (1 when unit type is wagon 0x0b).
+ * artillery_filter: DOS param_5 (1 when unit type is Artillery 0x0b;
+ *   raw 87277-87278).
  * col1: optional (tally_b target); NULL → 0492 returns 0.
  * Returns 1 and writes out_x/out_y, or 0 if none (DOS returns dir 8 = stay;
  * see the body for why the port keeps a failure signal).
@@ -395,13 +396,13 @@ int ai_goals_pick_founding_tile_ex_w(
   int x,
   int y,
   int score_extras,
-  int wagon_filter,
+  int artillery_filter,
   int* out_x,
   int* out_y
 );
 
 /*
- * FUN_521d_06ae with score_extras=1, wagon_filter=0 (0a60 FOUND writer default).
+ * FUN_521d_06ae with score_extras=1, artillery_filter=0 (0a60 FOUND writer default).
  */
 int ai_goals_pick_founding_tile_w(
   const ColonizeWorld* w,

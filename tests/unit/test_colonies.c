@@ -2251,17 +2251,17 @@ static int unit_ship_construction(void) {
   c->hammers = 511;
   c->stock[COLONIZE_CARGO_TOOLS] = 200;
   CHECK(
-    colonies_try_complete_unit_construction(&pool, 0, &units) < 0,
+    colonies_try_complete_unit_construction(&pool, 0, &units, NULL) < 0,
     "one hammer short does not complete"
   );
   c->hammers = 512;
   c->stock[COLONIZE_CARGO_TOOLS] = 199;
   CHECK(
-    colonies_try_complete_unit_construction(&pool, 0, &units) < 0,
+    colonies_try_complete_unit_construction(&pool, 0, &units, NULL) < 0,
     "one tool short does not complete"
   );
   c->stock[COLONIZE_CARGO_TOOLS] = 210;
-  const int uid = colonies_try_complete_unit_construction(&pool, 0, &units);
+  const int uid = colonies_try_complete_unit_construction(&pool, 0, &units, NULL);
   CHECK(uid > 0, "Frigate completes");
   const ColonizeUnit* ship = units_get_const(&units, uid);
   CHECK(ship && ship->active, "Frigate unit active");

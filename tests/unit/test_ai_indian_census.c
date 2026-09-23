@@ -154,7 +154,7 @@ static int census_expect(const ColonizeUnitPool* units, int uid, int mode) {
   const ColonizeUnit* u = units_get_const(units, uid);
   const ColonizeUnitType* t = units_type(units, u->type_index);
   int base = (mode == 0) ? t->defense : t->attack;
-  if (strstr(t->name, "Artillery") != NULL && (u->col1_flags15 & 0x80u) != 0) {
+  if (units_type_is_artillery(t) && (u->col1_flags15 & 0x80u) != 0) {
     base -= 2;
   }
   if (base < 0) {

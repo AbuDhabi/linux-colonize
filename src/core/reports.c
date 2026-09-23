@@ -2003,8 +2003,25 @@ static void reports_render_colony_garrisons(
       if (pitch > REPORTS_COLONY_UNIT_PITCH) {
         pitch = REPORTS_COLONY_UNIT_PITCH;
       }
-      int x = REPORTS_COLONY_UNIT_X;
-      for (int u = 0; u < COLONIZE_UNITS_MAX && x <= REPORTS_COLONY_UNIT_X_MAX; ++u) {
+      /*
+       * DOS re-sorts the tile's unit chain before drawing it
+       * (FUN_3f41_1ed8 raw 110106-110108, `FUN_1427_04d6(head, 1)`).
+       * FUN_1427_04d6 (raw ~7612-7683) buckets the chain by a pseudo-size
+       * key, walking size classes 6 down to 1 and moving each match to the
+       * front of the list, so the *last*-processed (smallest, 1) bucket
+       * ends up frontmost and size 6 ends up at the back — i.e. the chain,
+       * read front-to-back, is *ascending* by size, and FUN_3f41_1ed8 draws
+       * it front-to-back, so the visible row is size-ascending too. With
+       * `param_2 == 1` the size key (normally the `@UNIT` size/space column,
+       * `DS:0x5238`) is overridden for four types: Dragoon/Scout/Cont.Cav.
+       * (@UNIT 4/5/7) force to pseudo-size 2, Artillery (@UNIT 0xb) to
+       * pseudo-size 3. Reproduced here as a stable ascending sort of a
+       * copied id list (same idiom as map_panel_stack_rank), leaving the
+       * pool untouched.
+       */
+      int stack_ids[COLONIZE_UNITS_MAX];
+      int stack_count = 0;
+      for (int u = 0; u < COLONIZE_UNITS_MAX; ++u) {
         const ColonizeUnit* unit = &units->units[u];
         if (!unit->active || unit->nation_id != human) {
           continue;
@@ -2025,10 +2042,52 @@ static void reports_render_colony_garrisons(
         if (!combat_unit_is_combat_role(units, unit->id)) {
           continue;
         }
-        const int sprite = units_map_sprite(units, unit->id);
-        if (sprite < 0) {
+        if (units_map_sprite(units, unit->id) < 0) {
           continue;
         }
+        stack_ids[stack_count++] = unit->id;
+      }
+      /* Stable insertion sort, pseudo-size ascending (ties keep pool order,
+       * matching the chain-order preservation of FUN_1427_04d6's per-bucket
+       * front-insert walk). */
+      for (int i = 1; i < stack_count; ++i) {
+        const int id = stack_ids[i];
+        const ColonizeUnit* unit = units_get_const(units, id);
+        const int dos_type = unit ? units_display_type_index(units, id) : 0;
+        const ColonizeUnitType* ut = unit ? units_type(units, unit->type_index) : NULL;
+        int rank = ut ? ut->space : 0;
+        if (dos_type == 4 || dos_type == 5 || dos_type == 7) {
+          rank = 2;
+        } else if (dos_type == 11) {
+          rank = 3;
+        }
+        int j = i - 1;
+        while (j >= 0) {
+          const ColonizeUnit* pu = units_get_const(units, stack_ids[j]);
+          const int pdos_type = pu ? units_display_type_index(units, stack_ids[j]) : 0;
+          const ColonizeUnitType* put = pu ? units_type(units, pu->type_index) : NULL;
+          int prank = put ? put->space : 0;
+          if (pdos_type == 4 || pdos_type == 5 || pdos_type == 7) {
+            prank = 2;
+          } else if (pdos_type == 11) {
+            prank = 3;
+          }
+          if (prank <= rank) {
+            break;
+          }
+          stack_ids[j + 1] = stack_ids[j];
+          --j;
+        }
+        stack_ids[j + 1] = id;
+      }
+
+      int x = REPORTS_COLONY_UNIT_X;
+      for (int si = 0; si < stack_count && x <= REPORTS_COLONY_UNIT_X_MAX; ++si) {
+        const ColonizeUnit* unit = units_get_const(units, stack_ids[si]);
+        if (!unit) {
+          continue;
+        }
+        const int sprite = units_map_sprite(units, unit->id);
         /*
          * WARNING — pool index used as a DOS @UNIT id. units_display_type_index
          * returns a Linux POOL INDEX; `ru->type` below is the col1 save's raw

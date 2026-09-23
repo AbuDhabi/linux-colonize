@@ -9446,7 +9446,12 @@ static int ai_contact_4cc6_03f8(
         if (owner < 0) {
           owner = u->nation_id;
         }
-        if (u->nation_id != owner || units_is_sea(ctx->units, u->id)) {
+        /* DOS-LITERAL FUN_4cc6_03f8 raw 81047-81057: the owner is read from the
+         * FIRST unit of the tile chain only; the sum then walks the whole chain
+         * with no per-unit nation re-test — only the 0xd..0x12 hull-range test
+         * (units_is_sea) and attack > 1. Port-side nation re-filter removed
+         * 2026-09-23 (bugs.md #768); differs only on a mixed-nation stack. */
+        if (units_is_sea(ctx->units, u->id)) {
           continue;
         }
         const ColonizeUnitType* t = units_type(ctx->units, u->type_index);

@@ -1093,11 +1093,21 @@ bool colonies_try_complete_building(ColonizeColonyPool* pool, int colony_id);
  * a real building never spawns anything). Returns the new unit id on
  * success, -1 otherwise (no project, not a unit-type project, or short on
  * hammers/tools/spawn).
+ *
+ * DOS-LITERAL FUN_364b_0688 raw 57748-57769: when the colony is short on
+ * tools, a human colony (nation < 4 and player[nation].control == 0) is
+ * refused (@NEEDTOOLS, turn_emit_needtools_notice's job); any other colony
+ * (nation > 3, or player[nation].control != 0 — AI Euro or Crown) has its
+ * tools stock set to the requirement right here and completion proceeds.
+ * col1 may be NULL (headless callers with no save loaded), which is treated
+ * as "no player table" and falls back to the short-on-tools refusal for
+ * every colony — the same as the port's pre-#755 behaviour.
  */
 int colonies_try_complete_unit_construction(
   ColonizeColonyPool* pool,
   int colony_id,
-  ColonizeUnitPool* units
+  ColonizeUnitPool* units,
+  const ColonizeCol1Save* col1
 );
 /*
  * Rush-buy the current project: tops hammers up to the completion

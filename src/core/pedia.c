@@ -1334,7 +1334,8 @@ static void pedia_unit_figure(
   int sprite,
   int type_index,
   int x,
-  int y
+  int y,
+  bool damaged
 ) {
   if (!a->icons || sprite < 0) {
     return;
@@ -1350,7 +1351,7 @@ static void pedia_unit_figure(
     a->human_nation,
     UNITS_ORDER_NONE,
     false,
-    false,
+    damaged,
     a->palette
   );
 }
@@ -1382,7 +1383,7 @@ static int pedia_article_unit(
   int expert_job = -1;
   if (t == 0) {
     /* Colonists: every profession figure, 17 per row (DOS order). */
-    pedia_unit_figure(a, fb, units_job_icon_sprite(28), 0, x, y);
+    pedia_unit_figure(a, fb, units_job_icon_sprite(28), 0, x, y, false);
     x = 26;
     int count = 1;
     static const signed char k_grid_profs[] = {
@@ -1394,7 +1395,7 @@ static int pedia_article_unit(
       if (sprite < 0) {
         sprite = 100;
       }
-      pedia_unit_figure(a, fb, sprite, 0, x, y);
+      pedia_unit_figure(a, fb, sprite, 0, x, y, false);
       x += 18;
       count++;
       if (i >= 3 && count >= 17) {
@@ -1405,15 +1406,17 @@ static int pedia_article_unit(
     }
   } else if (t >= 1 && t <= 5) {
     expert_job = k_default_job[t];
-    pedia_unit_figure(a, fb, k_plain_pose[t], t, 8, y);
-    pedia_unit_figure(a, fb, k_expert_pose[t], t, 26, y);
+    pedia_unit_figure(a, fb, k_plain_pose[t], t, 8, y, false);
+    pedia_unit_figure(a, fb, k_expert_pose[t], t, 26, y, false);
     x = 44;
   } else {
-    pedia_unit_figure(a, fb, plain_icon, t, 8, y);
+    pedia_unit_figure(a, fb, plain_icon, t, 8, y, false);
     x = 26;
     if (t == 11) {
-      /* Artillery: damaged variant beside it. */
-      pedia_unit_figure(a, fb, plain_icon >= 0 ? plain_icon + 1 : -1, t, 26, y);
+      /* Artillery: damaged variant beside it (DOS raw 110538-110542,
+       * FUN_112b_0060 bit7 -> icon 0x42 = UNITS_ICON_DAMAGED_ARTILLERY,
+       * redrawn with the damaged corner badge via FUN_112b_01ba). */
+      pedia_unit_figure(a, fb, UNITS_ICON_DAMAGED_ARTILLERY, t, 26, y, true);
       x = 44;
     }
   }

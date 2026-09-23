@@ -6389,9 +6389,9 @@ static void ai_euro_5d04_apply_naval_gold_floors(
  * Caravel/Privateer/Frigate price cells). The raw weight_pct arg feeds
  * FUN_521d_5c38 which is `return 1;` in the retail build — dead, dropped.
  * Body: gold >= price → spawn table type in Europe (FUN_281f_095c at the
- * nation's Europe tile), goal target (+0x314d/e) = return_from_europe x/y
- * (the 0a60/20e6 goal engine re-derives targets on the Linux side),
- * act_state 1 for land types / 0 for ships, gold -= price, return 1. */
+ * nation's Europe tile), then raw 92291-92300: goal target (+0x314d/e) =
+ * nation+0x32/+0x33 (return_from_europe x/y) and the orders byte (+0x314c) = 1
+ * for land types (< 0xd || > 0x12), 0 for hulls; gold -= price, return 1. */
 static int ai_euro_5d04_propose_ship_buy(
   ColonizeTurnContext* ctx, int nation_id, int type_id
 ) {
@@ -6422,6 +6422,22 @@ static int ai_euro_5d04_propose_ship_buy(
   }
   units_set_nation(u, nation_id);
   u->moves = 0; /* docked in Europe this turn, as in DOS */
+  /*
+   * FUN_521d_5c3c raw 92291-92300, verbatim after FUN_281f_095c:
+   *   +0x314d = nation+0x32;  +0x314e = nation+0x33;      (return-from-Europe)
+   *   +0x314c = (type < 0xd || type > 0x12) ? 1 : 0;      (orders byte)
+   * i.e. a land purchase leaves Europe SENTRY (act_state 1) with the nation's
+   * last Europe-exit tile as its goal target; a hull gets orders 0. The port's
+   * nation record carries +0x32/+0x33 as return_from_europe_x/y (col1_bridge.c
+   * :1721 / :3138), so the target is written straight from there.
+   */
+  {
+    const int dtype = ai_euro_20e6_dos_type(ctx->units, u);
+    const int is_hull = dtype >= 0xd && dtype <= 0x12;
+    u->orders = is_hull ? UNITS_ORDER_NONE : UNITS_ORDER_SENTRY;
+    u->goto_x = (int)nat->return_from_europe_x;
+    u->goto_y = (int)nat->return_from_europe_y;
+  }
   nat->gold -= price;
   if (ctx->europe && nation_id == ctx->human_nation) {
     ctx->europe->gold = (int)nat->gold;
@@ -11145,27 +11161,18 @@ static int ai_euro_score_move(
     }
     /*
      * Land combat 20e6 (structured deepen): prefer closing on weaker adjacent war
-     * foes; prefer foreign Euro settlement tiles (orders 0x46 settlement scan);
-     * bonus for stepping onto a contested foreign colony tile.
-     * Cite: move_scoring_land.md LAB_521d_5183 / 0x46; unpark #4.
+     * foes.
+     *
+     * Deleted 2026-09-23 (bugs.md #759): the "+16 siege approach" additive for a
+     * foreign colony destination and the "+10 Artillery prefers a fortified port"
+     * rider were invented (cited only as `move_scoring_land.md LAB_521d_5183 /
+     * 0x46; unpark #4` — no FUN_/raw). DOS's only colony-destination term in the
+     * 20e6 direction scorer is the ×3 multiplier inside the attack term
+     * (raw 88898-88901, ai_euro_20e6_attack_term), and the only fortification
+     * read in raw 88266-90445 is the ship-only fort-fire penalty (raw 88813-88818).
+     * The +10 also inverted raw 88911, where Artillery off a settlement scores 0.
      */
     if (at_war) {
-      /* Destination is a foreign Euro colony → siege approach (0x46). */
-      if (ctx->colonies) {
-        const int cid = colonies_id_at(ctx->colonies, nx, ny);
-        if (cid >= 0) {
-          const ColonizeColony* c = colonies_get(ctx->colonies, cid);
-          if (c && c->active && c->nation_id >= 0 && c->nation_id <= 3 &&
-              c->nation_id != u->nation_id &&
-              ai_diplo_at_war(ctx->col1, u->nation_id, c->nation_id)) {
-            score += 16;
-            if (ai_euro_is_artillery_name(ai_euro_unit_kind(ctx->units, u)) &&
-                colonies_has_fortification(ctx->colonies, c)) {
-              score += 10; /* Artillery siege prefer fortified port */
-            }
-          }
-        }
-      }
       for (int ad = 0; ad < 8; ++ad) {
         const int ax = nx + MAP_DIR8_DX[ad];
         const int ay = ny + MAP_DIR8_DY[ad];
@@ -13035,7 +13042,7 @@ static int ai_euro_land_explore_scan_target(
  * see ai_euro_20e6_unit_col9 — non-zero for every land type.) Then the transcribed
  * modifiers: ×3 own-colony tile, ×2 village, Artillery in the open → 0,
  * ×3 when flags&0x10 and stance==4, clamp 0..1000, <12 → −999 else +odds×4.
- * Still substituted: the "REF nation == 2" halving and the Soldier/Dragoon
+ * Still substituted: the Soldier/Dragoon
  * vs colony adjacent-Spanish-strength skip (8aac case 0xb) — not wired.
  */
 static int ai_euro_20e6_attack_term(
@@ -13095,9 +13102,13 @@ static int ai_euro_20e6_attack_term(
   if (s->dos_type == UNITS_KIND_ARTILLERY && !settlement) {
     odds = 0;
   }
-  /* Raw 2855: DS:0x53d2 (crown_nation_id) == 2 ∧ open tile ∧ standing on own
-   * colony (iStack_2e==0) → halve. Was the unsourced "REF nation" note. */
-  if (ctx->col1_ok && ctx->col1 && (int)ctx->col1->head.crown_nation_id == 2 && !settlement &&
+  /* FUN_521d_20e6 raw 88913-88915: the ACTING unit's own nation nibble
+   * (uVar11, raw 88403 = `*(byte *)(unit + 0x3147) & 0xf`) equals DS:0x53d2
+   * (head.crown_nation_id) ∧ open tile (local_4 == 0) ∧ local_2e == 0
+   * → halve. (The old comment's "raw 2855" was Ghidra switch garbage and the
+   * crown id was compared against the literal 2.) */
+  if (ctx->col1_ok && ctx->col1 &&
+      (int)u->nation_id == (int)ctx->col1->head.crown_nation_id && !settlement &&
       s->home_dist == 0) {
     odds >>= 1;
   }
@@ -14355,6 +14366,55 @@ COLONIZE_INTERNAL void ai_euro_20e6_stay_tail_589e(ColonizeUnit* u) {
   if (u->col1_flags15 & AI_EURO_F3148_ROAM) {
     u->orders = UNITS_ORDER_FORTIFIED; /* +0x314c = 6 */
   }
+}
+
+/*
+ * FUN_521d_20e6 raw 88584-88610, gate half only: does this unit's own-colony
+ * garrison test send it to LAB_5899 (stay) instead of down the normal arm
+ * chain at LAB_521d_277a? The writes (labor_shortage--, order_code 0x47) stay
+ * in ai_euro_20e6_land_arms, which runs the full arm; this predicate exists so
+ * the port's earlier act-stage arms (the 0x46/0x4c seizure engage) cannot
+ * preempt a decision DOS takes first. Added 2026-09-23 with the removal of the
+ * invented "Artillery fortify" arm (bugs.md #760), which had been masking the
+ * precedence for artillery.
+ */
+static int ai_euro_20e6_garrison_holds(
+  ColonizeTurnContext* ctx, const ColonizeUnit* u, int nation_id
+) {
+  if (!ctx || !u || !ctx->colonies || !ctx->units) {
+    return 0;
+  }
+  const int dtype = ai_euro_20e6_dos_type(ctx->units, u);
+  if (dtype >= 0xd && dtype <= 0x12) { /* local_34 != 0 */
+    return 0;
+  }
+  if (ai_euro_20e6_type_combat(dtype) <= 1 || dtype == 4 || dtype == 8) {
+    return 0;
+  }
+  const int cid = colonies_id_at(ctx->colonies, u->x, u->y);
+  const ColonizeColony* oc = cid >= 0 ? colonies_get(ctx->colonies, cid) : NULL;
+  if (!oc || !oc->active || oc->nation_id != nation_id) { /* local_2e != 0 */
+    return 0;
+  }
+  const int admitted = u->col1_ai_plan == 'A'; /* +0x314b == 'A' */
+  if (oc->labor_shortage < 1 && !admitted) {
+    return 0;
+  }
+  if (admitted) {
+    return 1; /* raw 88604: straight to LAB_5899 */
+  }
+  int armed = 0;
+  for (int id = 1; id < COLONIZE_UNITS_MAX; ++id) {
+    const ColonizeUnit* su = units_get_const(ctx->units, id);
+    if (!su || !su->active || su->x != u->x || su->y != u->y) {
+      continue;
+    }
+    const int st = ai_euro_20e6_dos_type(ctx->units, su);
+    if (ai_euro_20e6_type_combat(st) > 1 && (st < 0xd || st > 0x12) && st != 4 && st != 8) {
+      armed++;
+    }
+  }
+  return armed < 2; /* raw 88606-88610: lone armed garrison stays */
 }
 
 static int ai_euro_move_scoring_gate(ColonizeTurnContext* ctx, ColonizeUnit* u, int nation_id) {
@@ -16901,51 +16961,8 @@ static int ai_euro_land_try_adjacent_village_seize(ColonizeTurnContext* ctx, Col
 }
 
 
-/*
- * Nearest foreign Euro land unit within Manhattan max_md of (from_x,from_y).
- * Peace colony-defense wake (MD≤2 border). Cite: Colonization.pdf fortify
- * defense; euro_unit_act §2d3 peace fortify extend. Returns 1 if found.
- */
-static int ai_euro_foreign_land_threat_near(
-  ColonizeTurnContext* ctx,
-  int nation_id,
-  int from_x,
-  int from_y,
-  int max_md,
-  int* out_x,
-  int* out_y
-) {
-  if (!ctx || !ctx->units || !out_x || !out_y || max_md < 0) {
-    return 0;
-  }
-  int best = -1;
-  int bx = 0;
-  int by = 0;
-  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-    const ColonizeUnit* f = &ctx->units->units[i];
-    if (!f->active || f->nation_id == nation_id || f->nation_id < 0 || f->nation_id > 3) {
-      continue;
-    }
-    if (!units_is_on_map(f) || units_is_sea(ctx->units, f->id) || ai_euro_in_europe(f->x, f->y)) {
-      continue;
-    }
-    const int dist = abs(f->x - from_x) + abs(f->y - from_y);
-    if (dist > max_md) {
-      continue;
-    }
-    if (best < 0 || dist < best) {
-      best = dist;
-      bx = f->x;
-      by = f->y;
-    }
-  }
-  if (best < 0) {
-    return 0;
-  }
-  *out_x = bx;
-  *out_y = by;
-  return 1;
-}
+/* (The ai_euro_foreign_land_threat_near helper was deleted with the invented
+ * peace colony-defence wake arm, bugs.md #760.) */
 
 /*
  * DS:0x173c / 0x173e continent bitmasks (FUN_521d_0a60 goal producers, raw
@@ -19824,12 +19841,10 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_ship_arrival(struct ai_euro_act_ct
 COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_land_hunt_scout(struct ai_euro_act_ctx* a) {
   ColonizeTurnContext* const ctx = a->ctx;
   ColonizeUnit* u = a->u;
-  const int nation_id = a->nation_id;
   const int at_war_land = a->at_war_land;
   const int is_land_hunter = a->is_land_hunter;
   int land_war_hunted = a->land_war_hunted;
   int scout_explored = a->scout_explored;
-  const ColonizeUnitKind ukind = a->ukind;
 
   /*
    * LCR (FUN_65dd_0004 thin transcription): any land unit standing on a
@@ -19874,59 +19889,20 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_land_hunt_scout(struct ai_euro_act
   }
 
   /*
-   * Peace colony-defense wake (extend §2d3 fortify): idle/fortified garrison
-   * (Soldier/Dragoon/Regular/Continental) or Artillery/Cannon on own colony
-   * wakes via units_wake when a foreign Euro land unit enters MD≤2, then hunts
-   * toward that threat. Manual: "fortify soldiers, dragoons, army, cavalry, or
-   * artillery" (Colonization.pdf Defending a Colony). War already has global
-   * fortify-wake (§2c); this is the peace border garrison. Adjacent attack may
-   * declare war via existing try_attack. Cite: Colonization.pdf fortify
-   * defense; units_wake; euro_unit_act §2d3. No invented combat bonuses.
+   * (Retired 2026-09-23, bugs.md #760.) A "peace colony-defence wake" arm sat
+   * here: a military unit or Artillery standing on its own colony woke and
+   * hunted any foreign Euro land unit within MD<=2, with an extra artillery
+   * clause that overrode an existing course. It cited only Colonization.pdf
+   * ("Defending a Colony") and euro_unit_act §2d3 — no FUN_/raw — and a sweep
+   * of FUN_521d_20e6 (raw 88266-90445) has no counterpart: the only own-colony
+   * garrison handling in DOS is the type-agnostic LAB_5899 arm (raw 88584-88612,
+   * ported above in ai_euro_20e6_land_arms), which keeps an armed unit on the
+   * colony via order_code 0x47 and releases a surplus stack to the ordinary
+   * LAB_4d2e neighbour scorer. Artillery's only 20e6 modifier is the
+   * score-zero-off-a-settlement at raw 88911.
+   * The flag stays in the ctx (owned by ai_euro_internal.h) and is now always 0.
    */
   int peace_border_hunted = 0;
-  if (!at_war_land && !land_war_hunted &&
-      (ai_euro_is_military_name(ukind) || ai_euro_is_artillery_name(ukind)) &&
-      ctx->colonies) {
-    const int cid = colonies_id_at(ctx->colonies, u->x, u->y);
-    if (cid >= 0) {
-      const ColonizeColony* hc = colonies_get(ctx->colonies, cid);
-      if (hc && hc->active && hc->nation_id == nation_id) {
-        int tx = 0;
-        int ty = 0;
-        if (ai_euro_foreign_land_threat_near(ctx, nation_id, u->x, u->y, 2, &tx, &ty)) {
-          if (ai_euro_land_is_passive_orders(u)) {
-            (void)units_wake(ctx->units, u->id);
-          }
-          /* Adjacent foreign: try_attack declares war if needed (existing hook). */
-          {
-            const int adx = abs(tx - u->x);
-            const int ady = abs(ty - u->y);
-            if ((adx > 0 || ady > 0) && adx <= 1 && ady <= 1) {
-              ai_euro_try_attack(ctx, u, tx, ty);
-            }
-          }
-          if (!u->active) {
-            return AI_EURO_ACT_RETURN;
-          }
-          /*
-           * An idle-roam step (`s_euro_roam_wander`, the 20e6 scorer's own
-           * one-tile LAB_589e commit) is not a course: since bugs.md #525 the
-           * gate's wander step lands on the real +0x314c/d/e, so without this
-           * clause the scorer's coin-flip neighbour always beat this arm.
-           */
-          const int roam_step =
-            u->id >= 0 && u->id < COLONIZE_UNITS_MAX && s_euro_roam_wander[u->id];
-          if (!ai_euro_has_useful_goto(u, ctx->map) || roam_step) {
-            ai_euro_set_goto(u, UNITS_ORDER_AI_MOVE, tx, ty);
-          } else if (ai_euro_is_artillery_name(ukind)) {
-            /* Artillery: planning rarely sets MILITARY; gate FOUND must not stick. */
-            ai_euro_set_goto(u, UNITS_ORDER_AI_MOVE, tx, ty);
-          }
-          peace_border_hunted = 1;
-        }
-      }
-    }
-  }
 
   /*
    * The invented "CONTACT scout ring / fog explore" arm that stood here is
@@ -20066,7 +20042,6 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_land_fortify(struct ai_euro_act_ct
   int peace_border_hunted = a->peace_border_hunted;
   int scout_explored = a->scout_explored;
   int treasure_routed = a->treasure_routed;
-  const ColonizeUnitKind ukind = a->ukind;
   int wagon_hauled = a->wagon_hauled;
 
   /*
@@ -20137,23 +20112,17 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_land_fortify(struct ai_euro_act_ct
    */
 
   /*
-   * Artillery fortify (case 0x0b fortify arm): idle Artillery on own colony →
-   * FORTIFY (peace or war). Off-colony at war: siege hunt above. Cite:
-   * euro_unit_act §2d3; Colonization.pdf Defending a Colony ("…or artillery");
-   * king_ref Artillery siege fortify.
+   * (Retired 2026-09-23, bugs.md #760.) An "Artillery fortify" arm sat here:
+   * idle Artillery on its own colony was FORTIFY-ed through the garrison quota.
+   * Manual-only citation (euro_unit_act §2d3 / Colonization.pdf / king_ref) and
+   * FUN_521d_20e6 has no `+0x3146 == 0x0b` branch in the act path at all
+   * (raw 88266-90445). DOS's own-colony arm is the type-agnostic LAB_5899
+   * (raw 88584-88612, ported in ai_euro_20e6_land_arms): attack > 1, type
+   * outside [0xd,0x12], not 4, not 8 → labor_shortage--, order_code = 0x47,
+   * stay. Artillery satisfies every one of those tests, so the DOS path already
+   * handles exactly the case this arm was covering. Same invention class as the
+   * already-deleted "Artillery siege hunt" above.
    */
-  if (!treasure_routed && !wagon_hauled  &&
-      !scout_explored && !land_war_hunted && !peace_border_hunted &&
-      ai_euro_is_artillery_name(ukind) && !ai_euro_land_is_fortified(u) && ctx->colonies) {
-    const int cid = colonies_id_at(ctx->colonies, u->x, u->y);
-    if (cid >= 0) {
-      const ColonizeColony* c = colonies_get(ctx->colonies, cid);
-      if (c && c->active && c->nation_id == nation_id &&
-          ai_euro_fortify_with_quota(ctx, nation_id, u, cid)) {
-        return AI_EURO_ACT_RETURN;
-      }
-    }
-  }
 
   /*
    * (Retired 2026-09-22, bugs.md #557.) A missionary CONTACT goal arm sat

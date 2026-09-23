@@ -3509,6 +3509,147 @@ static int unit_village_raze_tail(void) {
  * whatever the roll — DOS forces `bVar8 = false` and latches `local_ca`. An
  * AI-controlled European (control != 0) is NOT covered by the gate.
  */
+/*
+ * bugs.md #756 / #757 — FUN_5fef_0352 raw 99435-99436: the artillery
+ * damage-then-destroy ladder runs only when
+ *   (winner type < 0xd || winner type > 0x12) && local_2a == 0,
+ * local_2a = FUN_281f_0768 (ocean / high seas) of the WINNER's tile OR'd with
+ * the LOSER's tile. Gate failed -> the gun falls to the plain despawn tail at
+ * raw 99711: destroyed outright, no damaged bit. Also asserts #757: the damage
+ * arm writes bit7 ONLY (raw 99475-99482) and must not zero the gun's MP.
+ */
+static int unit_artillery_loss_water_gate(void) {
+  ColonizeMsgCatalog names;
+  assets_msg_init(&names);
+  char names_path[512];
+  if (!dos_compat_normalize_asset_path("COLONIZE", "NAMES.TXT", names_path, sizeof(names_path)) ||
+      !assets_msg_load_file(&names, names_path)) {
+    fprintf(stderr, "arty_water: NAMES.TXT load failed\n");
+    return 1;
+  }
+  ColonizeUnitPool pool;
+  memset(&pool, 0, sizeof(pool));
+  if (!units_load_types(&pool, &names)) {
+    fprintf(stderr, "arty_water: units_load_types failed\n");
+    assets_msg_free(&names);
+    return 1;
+  }
+  const int arty = units_find_type(&pool, "Artillery");
+  const int drag = units_find_type(&pool, "Dragoons");
+  assets_msg_free(&names);
+  if (arty < 0 || drag < 0) {
+    fprintf(stderr, "arty_water: types missing\n");
+    return 1;
+  }
+
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  map.width = 8;
+  map.height = 8;
+  map.tile_count = 64;
+  map.terrain = calloc(64, 1);
+  map.layer2 = calloc(64, 1);
+  map.layer3 = calloc(64, 1);
+  if (!map.terrain || !map.layer2 || !map.layer3) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return 1;
+  }
+  for (int i = 0; i < 64; ++i) {
+    map.terrain[i] = 2;    /* plains */
+    map.layer3[i] = 0xf1;  /* no owner, continent 1 (never all-lake) */
+  }
+  units_set_occupancy_map(&map);
+  units_set_combat_colonies(NULL);
+
+  ColonizeCol1Save col1;
+  memset(&col1, 0, sizeof(col1));
+  memset(col1.head.founding_father, 0xff, sizeof(col1.head.founding_father));
+  col1.head.difficulty = 2;
+  col1.player[0].control = 1;
+  col1.player[1].control = 1;
+  units_set_ff_col1(&col1);
+  units_set_combat_human_nation(-1);
+
+  int rc = 0;
+  /* Leg 1 — plain land fight: the losing gun takes bit7 and survives. */
+  {
+    const int aid = units_spawn_allow_stack(&pool, arty, 2, 2);
+    const int did = units_spawn_allow_stack(&pool, drag, 3, 2);
+    if (aid < 0 || did < 0) {
+      fprintf(stderr, "arty_water: spawn failed\n");
+      rc = 1;
+    } else {
+      ColonizeUnit* a = units_get(&pool, aid);
+      ColonizeUnit* d = units_get(&pool, did);
+      a->nation_id = 0;
+      d->nation_id = 1;
+      a->moves = UNITS_MP_PER_TILE;
+      /* NULL rng: atk_wins = atk_strength >= def_strength. The open-field
+       * >>2 on the artillery attacker makes it lose. */
+      (void)units_resolve_land_combat_ff_w(
+        &(ColonizeWorld){.units = &pool, .col1 = &col1, .col1_ok = true, .rng = NULL}, aid, did);
+      a = units_get(&pool, aid);
+      if (!a || !a->active) {
+        fprintf(stderr, "arty_water: land loss destroyed the gun (want damaged)\n");
+        rc = 1;
+      } else if ((a->col1_flags15 & 0x80u) == 0) {
+        fprintf(stderr, "arty_water: land loss did not set the damaged bit\n");
+        rc = 1;
+      } else if (a->moves == 0) {
+        /* bugs.md #757 */
+        fprintf(stderr, "arty_water: damage arm zeroed MP (DOS raw 99475-99482 does not)\n");
+        rc = 1;
+      }
+      if (units_get(&pool, aid)) {
+        (void)units_despawn(&pool, aid);
+      }
+      (void)units_despawn(&pool, did);
+    }
+  }
+
+  /* Leg 2 — same fight with local_2a set (both tiles ocean): destroyed. */
+  if (rc == 0) {
+    /* Only the LOSER's tile needs to be water — DOS ORs the two probes. The
+     * winner's tile stays plains so the strength comparison is unchanged
+     * from leg 1 and the artillery still loses. */
+    map.terrain[4 * 8 + 2] = 0x19; /* ocean */
+    const int aid = units_spawn_allow_stack(&pool, arty, 2, 4);
+    const int did = units_spawn_allow_stack(&pool, drag, 3, 4);
+    if (aid < 0 || did < 0) {
+      fprintf(stderr, "arty_water: water spawn failed\n");
+      rc = 1;
+    } else {
+      ColonizeUnit* a = units_get(&pool, aid);
+      ColonizeUnit* d = units_get(&pool, did);
+      a->nation_id = 0;
+      d->nation_id = 1;
+      a->moves = UNITS_MP_PER_TILE;
+      (void)units_resolve_land_combat_ff_w(
+        &(ColonizeWorld){.units = &pool, .col1 = &col1, .col1_ok = true, .rng = NULL}, aid, did);
+      a = units_get(&pool, aid);
+      if (a && a->active) {
+        fprintf(stderr, "arty_water: gun survived a loss with local_2a set "
+                        "(want destroyed, raw 99435-99436)\n");
+        rc = 1;
+        (void)units_despawn(&pool, aid);
+      }
+      (void)units_despawn(&pool, did);
+    }
+  }
+
+  units_set_occupancy_map(NULL);
+  units_set_ff_col1(NULL);
+  free(map.terrain);
+  free(map.layer2);
+  free(map.layer3);
+  if (rc == 0) {
+    fprintf(stderr, "unit_units: artillery loss water/hull gate (#756/#757) ok\n");
+  }
+  return rc;
+}
+
 static int unit_brave_vs_human_artillery_autoloss(void) {
   ColonizeMsgCatalog names;
   assets_msg_init(&names);
@@ -5166,6 +5307,10 @@ int main(void) {
     return 1;
   }
   if (unit_brave_vs_human_artillery_autoloss() != 0) {
+    diag_shutdown();
+    return 1;
+  }
+  if (unit_artillery_loss_water_gate() != 0) {
     diag_shutdown();
     return 1;
   }

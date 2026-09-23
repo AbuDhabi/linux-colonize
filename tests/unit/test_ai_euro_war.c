@@ -1743,141 +1743,16 @@ static int unit_land_adjacent_foe_prefer_non_veteran(void) {
 }
 
 /*
- * Artillery adjacent-foe: prefer Stockade colony Soldier over open-field
- * (siege — opposite of non-Artillery prefer-open). Cite: king_ref Artillery
- * adjacent-fort; Colonization.pdf Artillery.
+ * (Deleted 2026-09-23, bugs.md #759/#760.) Four artillery tests lived here,
+ * pinning invented AI arms now removed from ai_euro.c: the "+16 siege
+ * approach / +10 prefers a fortified port" direction-scorer adds
+ * (unit_artillery_adjacent_prefer_stockade), the peace colony-defence wake
+ * (unit_peace_artillery_border_wake) and the two Artillery-fortify arms
+ * (unit_peace_artillery_fortify_colony, unit_artillery_fortify_colony).
+ * FUN_521d_20e6 has no `+0x3146 == 0x0b` act arm and no additive colony or
+ * fortification term (raw 88266-90445); artillery on its own colony is
+ * handled by the type-agnostic LAB_5899 garrison arm (raw 88584-88612).
  */
-static int unit_artillery_adjacent_prefer_stockade(void) {
-  const int nation = 1;
-  const int foe_nat = 2;
-  const int own_x = 5;
-  const int own_y = 5;
-
-  ColonizeWorldMap map;
-  if (!fx_map_alloc(&map, 16, 16, 1, false)) {
-    return fail("art-adj alloc map");
-  }
-
-  ColonizeUnitPool units;
-  fx_units_init(&units);
-  units.type_count = 2;
-  snprintf(units.types[0].name, sizeof(units.types[0].name), "Artillery");
-  units.types[0].movement = 1;
-  units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
-  units.types[0].attack = 12;
-  units.types[0].defense = 2;
-  snprintf(units.types[1].name, sizeof(units.types[1].name), "Soldier");
-  units.types[1].movement = 1;
-  units.types[1].domain = COLONIZE_UNIT_DOMAIN_LAND;
-  units.types[1].attack = 4;
-  units.types[1].defense = 4;
-
-  ColonizeColonyPool colonies;
-  fx_colonies_init(&colonies);
-  snprintf(colonies.building_types[0].name, sizeof(colonies.building_types[0].name), "Stockade");
-  colonies.building_type_count = 1;
-  ColonizeColony* foe_col = &colonies.colonies[0];
-  foe_col->id = 0;
-  foe_col->active = true;
-  foe_col->nation_id = foe_nat;
-  foe_col->x = own_x;
-  foe_col->y = own_y + 1; /* S: Stockade — Artillery should prefer */
-  foe_col->population = 2;
-  foe_col->colonist_count = 2;
-  foe_col->has_building[0] = true;
-  ColonizeColony* own = &colonies.colonies[1];
-  own->id = 1;
-  own->active = true;
-  own->nation_id = nation;
-  own->x = 1;
-  own->y = 1;
-  own->population = 1;
-  own->colonist_count = 1;
-  colonies.colony_count = 2;
-
-  const int own_id = units_spawn(&units, 0, own_x, own_y);
-  ColonizeUnit* art = units_get(&units, own_id);
-  if (!art) {
-    fx_map_free(&map);
-    return fail("art-adj spawn artillery");
-  }
-  art->nation_id = nation;
-  art->orders = 0;
-  art->moves = 1 * UNITS_MP_PER_TILE;
-
-  const int open_id = units_spawn(&units, 1, own_x, own_y - 1); /* N open */
-  ColonizeUnit* open = units_get(&units, open_id);
-  if (!open) {
-    fx_map_free(&map);
-    return fail("art-adj spawn open");
-  }
-  open->nation_id = foe_nat;
-  open->orders = 0;
-  open->moves = 0;
-
-  const int stock_id = units_spawn(&units, 1, own_x, own_y + 1); /* S stockade */
-  ColonizeUnit* stock = units_get(&units, stock_id);
-  if (!stock) {
-    fx_map_free(&map);
-    return fail("art-adj spawn stockade");
-  }
-  stock->nation_id = foe_nat;
-  stock->orders = 0;
-  stock->moves = 0;
-
-  ColonizeCol1Save col1;
-  col1_save_init(&col1);
-  memset(col1.nation, 0, sizeof(col1.nation));
-  memset(col1.head.nation_relation, 0, sizeof(col1.head.nation_relation));
-  for (int i = 0; i < 4; ++i) {
-    col1.player[i].control = 0;
-    col1.player[i].diplomacy = 0;
-  }
-  col1.head.difficulty = 0;
-  col1.nation[nation].gold = 50;
-  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
-   * ladder / recruit / Artillery buys naturally inert (blank census). */
-  col1.stuff.ship_counts[nation] = 1;
-  col1.nation[foe_nat].gold = 50;
-  ai_diplo_declare_war(&col1, nation, foe_nat);
-
-  ai_goals_reset();
-  uint32_t turn = 43;
-  ColonizeTurnContext ctx;
-  memset(&ctx, 0, sizeof(ctx));
-  ctx.turn_number = &turn;
-  ctx.units = &units;
-  ctx.colonies = &colonies;
-  ctx.map = &map;
-  ctx.col1 = &col1;
-  ctx.col1_ok = true;
-  ctx.rng = NULL;
-
-  ai_euro_dispatcher_turn(&ctx, nation);
-
-  art = units_get(&units, own_id);
-  open = units_get(&units, open_id);
-  stock = units_get(&units, stock_id);
-  const int stock_dead = stock == NULL || !stock->active;
-  const int open_alive = open && open->active;
-  const int art_alive = art && art->active;
-
-  if (!stock_dead || !open_alive || !art_alive) {
-    fprintf(
-      stderr,
-      "unit_ai_euro_war: art-adj art=%d stock_dead=%d open_alive=%d\n",
-      art_alive,
-      stock_dead,
-      open_alive
-    );
-    fx_map_free(&map);
-    return fail("Artillery should attack Stockade foe, leave open Soldier");
-  }
-
-  fx_map_free(&map);
-  fprintf(stderr, "unit_ai_euro_war: Artillery adjacent prefer Stockade ok\n");
-  return 0;
-}
 
 /*
  * Dragoon land hunt: prefer open colony over farther Stockade (MD slack ≤3).
@@ -2229,128 +2104,6 @@ static int unit_peace_dragoon_border_wake(void) {
   return 0;
 }
 
-/*
- * Peace fortified Artillery on colony wakes when foreign Euro land unit enters
- * MD≤2 (same Soldier/Dragoon arm). Cite: Colonization.pdf Defending a Colony
- * (…or artillery); euro_unit_act §2d3; units_wake.
- */
-static int unit_peace_artillery_border_wake(void) {
-  const int nation = 1;
-  const int foe = 2;
-
-  ColonizeWorldMap map;
-  if (!fx_map_alloc(&map, 16, 16, 1, false)) {
-    return fail("arty-border alloc map");
-  }
-
-  ColonizeUnitPool units;
-  fx_units_init(&units);
-  units.type_count = 2;
-  snprintf(units.types[0].name, sizeof(units.types[0].name), "Artillery");
-  units.types[0].movement = 1;
-  units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
-  units.types[0].attack = 8;
-  units.types[0].defense = 2;
-  snprintf(units.types[1].name, sizeof(units.types[1].name), "Soldier");
-  units.types[1].movement = 3;
-  units.types[1].domain = COLONIZE_UNIT_DOMAIN_LAND;
-  units.types[1].attack = 4;
-  units.types[1].defense = 2;
-
-  ColonizeColonyPool colonies;
-  fx_colonies_init(&colonies);
-  ColonizeColony* own = &colonies.colonies[0];
-  own->id = 0;
-  own->active = true;
-  own->nation_id = nation;
-  own->x = 4;
-  own->y = 4;
-  own->population = 2;
-  own->colonist_count = 2;
-  colonies.colony_count = 1;
-
-  const int own_id = units_spawn(&units, 0, 4, 4);
-  ColonizeUnit* arty = units_get(&units, own_id);
-  if (!arty) {
-    fx_map_free(&map);
-    return fail("arty-border spawn artillery");
-  }
-  arty->nation_id = nation;
-  arty->orders = UNITS_ORDER_FORTIFIED;
-  arty->moves = 1 * UNITS_MP_PER_TILE;
-
-  const int foe_id = units_spawn(&units, 1, 6, 4);
-  ColonizeUnit* foe_u = units_get(&units, foe_id);
-  if (!foe_u) {
-    fx_map_free(&map);
-    return fail("arty-border spawn foe");
-  }
-  foe_u->nation_id = foe;
-  foe_u->orders = 0;
-  foe_u->moves = 0;
-
-  ColonizeCol1Save col1;
-  col1_save_init(&col1);
-  memset(col1.nation, 0, sizeof(col1.nation));
-  memset(col1.head.nation_relation, 0, sizeof(col1.head.nation_relation));
-  for (int i = 0; i < 4; ++i) {
-    col1.player[i].control = 0;
-    col1.player[i].diplomacy = 0;
-  }
-  col1.head.difficulty = 0;
-  col1.nation[nation].gold = 50;
-  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
-   * ladder / recruit / Artillery buys naturally inert (blank census). */
-  col1.stuff.ship_counts[nation] = 1;
-  col1.nation[foe].gold = 50;
-
-  ai_goals_reset();
-
-  uint32_t turn = 25;
-  ColonizeTurnContext ctx;
-  memset(&ctx, 0, sizeof(ctx));
-  ctx.turn_number = &turn;
-  ctx.units = &units;
-  ctx.colonies = &colonies;
-  ctx.map = &map;
-  ctx.col1 = &col1;
-  ctx.col1_ok = true;
-  ctx.rng_seed = 42;
-
-  const int x0 = arty->x;
-  ai_euro_dispatcher_turn(&ctx, nation);
-
-  arty = units_get(&units, own_id);
-  foe_u = units_get(&units, foe_id);
-  if (!arty || !arty->active) {
-    fx_map_free(&map);
-    fprintf(stderr, "unit_ai_euro_war: peace Artillery border wake ok (combat despawn)\n");
-    return 0;
-  }
-
-  const int woken = arty->orders != UNITS_ORDER_FORTIFIED && arty->orders != UNITS_ORDER_FORTIFY;
-  const int hunting =
-    units_orders_follow_goto(arty->orders) || arty->x != x0 || (foe_u && !foe_u->active);
-  const int toward =
-    (arty->goto_x == 6 && arty->goto_y == 4) || arty->x > x0 || (foe_u && !foe_u->active);
-  if (!woken || !hunting || !toward) {
-    fprintf(
-      stderr,
-      "unit_ai_euro_war: arty-border orders=%d goto=(%d,%d) pos=(%d,%d)\n",
-      arty->orders,
-      arty->goto_x,
-      arty->goto_y,
-      arty->x,
-      arty->y
-    );
-    fx_map_free(&map);
-    return fail("expected peace-fortified Artillery to wake for MD≤2 border threat");
-  }
-
-  fx_map_free(&map);
-  fprintf(stderr, "unit_ai_euro_war: peace Artillery border wake ok\n");
-  return 0;
-}
 
 /*
  * Peace fortified Regular on colony wakes when foreign Euro land unit enters
@@ -5100,107 +4853,6 @@ static int unit_peace_continental_cavalry_fortify_colony(void) {
   return 0;
 }
 
-/*
- * Peace Artillery fortify on own colony. Cite: Defending a Colony ("…or
- * artillery"); euro_unit_act §2d3.
- */
-static int unit_peace_artillery_fortify_colony(void) {
-  const int nation = 1;
-
-  ColonizeWorldMap map;
-  if (!fx_map_alloc(&map, 16, 16, 1, false)) {
-    return fail("peace-art-fortify alloc map");
-  }
-
-  ColonizeUnitPool units;
-  fx_units_init(&units);
-  units.type_count = 1;
-  snprintf(units.types[0].name, sizeof(units.types[0].name), "Artillery");
-  units.types[0].movement = 1;
-  units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
-  units.types[0].attack = 3;
-  units.types[0].defense = 1;
-
-  ColonizeColonyPool colonies;
-  fx_colonies_init(&colonies);
-  ColonizeColony* c = fx_colony_add(&colonies, nation, 5, 5, 3);
-  c->stock[COLONIZE_CARGO_FOOD] = 40;
-  c->stock[COLONIZE_CARGO_TOOLS] = 40;
-
-  const int uid = units_spawn(&units, 0, 5, 5);
-  ColonizeUnit* art = units_get(&units, uid);
-  if (!art) {
-    fx_map_free(&map);
-    return fail("peace-art-fortify spawn");
-  }
-  art->nation_id = nation;
-  art->moves = 1 * UNITS_MP_PER_TILE;
-  art->orders = 0;
-
-  /* Threat source: quota 1 under the live FUN_5952_035e seed (see the
-   * soldier variant's note). */
-  {
-    const int foe_id = units_spawn_allow_stack(&units, 0, 9, 5);
-    ColonizeUnit* foe = units_get(&units, foe_id);
-    if (!foe) {
-      fx_map_free(&map);
-      return fail("peace-art-fortify foe spawn");
-    }
-    foe->nation_id = 2;
-    foe->moves = 0;
-    foe->orders = 0;
-  }
-
-  ai_goals_reset();
-  ai_goals_upsert_primary(nation, 12, 12, AI_GOAL_FOUND, 5);
-
-  ColonizeCol1Save col1;
-  col1_save_init(&col1);
-  memset(col1.nation, 0, sizeof(col1.nation));
-  memset(col1.head.nation_relation, 0, sizeof(col1.head.nation_relation));
-  for (int i = 0; i < 4; ++i) {
-    col1.player[i].control = 0;
-    col1.player[i].diplomacy = 0;
-  }
-  col1.nation[nation].gold = 100;
-  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
-   * ladder / recruit / Artillery buys naturally inert (blank census). */
-  col1.stuff.ship_counts[nation] = 1;
-
-  uint32_t turn = 20;
-  ColonizeTurnContext ctx;
-  memset(&ctx, 0, sizeof(ctx));
-  ctx.turn_number = &turn;
-  ctx.units = &units;
-  ctx.colonies = &colonies;
-  ctx.map = &map;
-  ctx.col1 = &col1;
-  ctx.col1_ok = true;
-  ctx.rng_seed = 42;
-
-  ai_euro_dispatcher_turn(&ctx, nation);
-
-  art = units_get(&units, uid);
-  if (!art || !art->active) {
-    fx_map_free(&map);
-    return fail("peace-fortify artillery should remain");
-  }
-  if (art->orders != UNITS_ORDER_FORTIFY && art->orders != UNITS_ORDER_FORTIFIED) {
-    fprintf(
-      stderr,
-      "unit_ai_euro_war: peace-art-fortify orders=%d pos=(%d,%d)\n",
-      art->orders,
-      art->x,
-      art->y
-    );
-    fx_map_free(&map);
-    return fail("expected Artillery FORTIFY on own colony in peace");
-  }
-
-  fx_map_free(&map);
-  fprintf(stderr, "unit_ai_euro_war: peace Artillery fortify colony ok\n");
-  return 0;
-}
 
 /*
  * Peace Cannon fortify on own colony (Artillery name alias). Cite: Defending a
@@ -5304,114 +4956,6 @@ static int unit_peace_cannon_fortify_colony(void) {
   return 0;
 }
 
-/*
- * Artillery fortify after siege: idle Artillery on own colony at war → FORTIFY.
- * Cite: euro_unit_act §2d3; Colonization.pdf fortify defense.
- */
-static int unit_artillery_fortify_colony(void) {
-  const int nation = 1;
-  const int foe = 2;
-
-  ColonizeWorldMap map;
-  if (!fx_map_alloc(&map, 16, 16, 1, false)) {
-    return fail("art-fortify alloc map");
-  }
-
-  ColonizeUnitPool units;
-  fx_units_init(&units);
-  units.type_count = 1;
-  snprintf(units.types[0].name, sizeof(units.types[0].name), "Artillery");
-  units.types[0].movement = 1;
-  units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
-  units.types[0].attack = 3;
-  units.types[0].defense = 1;
-
-  ColonizeColonyPool colonies;
-  fx_colonies_init(&colonies);
-  ColonizeColony* c = fx_colony_add(&colonies, nation, 5, 5, 3);
-  c->stock[COLONIZE_CARGO_FOOD] = 40;
-  c->stock[COLONIZE_CARGO_TOOLS] = 40;
-
-  const int uid = units_spawn(&units, 0, 5, 5);
-  ColonizeUnit* art = units_get(&units, uid);
-  if (!art) {
-    fx_map_free(&map);
-    return fail("art-fortify spawn");
-  }
-  art->nation_id = nation;
-  art->moves = 1 * UNITS_MP_PER_TILE;
-  art->orders = 0;
-
-  /* Threat source: quota 1 under the live FUN_5952_035e seed (see the
-   * soldier variant's note). */
-  {
-    const int foe_id = units_spawn_allow_stack(&units, 0, 9, 5);
-    ColonizeUnit* foe = units_get(&units, foe_id);
-    if (!foe) {
-      fx_map_free(&map);
-      return fail("art-fortify foe spawn");
-    }
-    foe->nation_id = 2;
-    foe->moves = 0;
-    foe->orders = 0;
-  }
-
-  ai_goals_reset();
-  ai_goals_upsert_primary(nation, 12, 12, AI_GOAL_FOUND, 5);
-
-  ColonizeCol1Save col1;
-  col1_save_init(&col1);
-  memset(col1.nation, 0, sizeof(col1.nation));
-  memset(col1.head.nation_relation, 0, sizeof(col1.head.nation_relation));
-  for (int i = 0; i < 4; ++i) {
-    col1.player[i].control = 0;
-    col1.player[i].diplomacy = 0;
-  }
-  col1.nation[nation].gold = 100;
-  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
-   * ladder / recruit / Artillery buys naturally inert (blank census). */
-  col1.stuff.ship_counts[nation] = 1;
-  col1.nation[foe].gold = 50;
-  ai_diplo_declare_war(&col1, nation, foe);
-  if (!ai_diplo_at_war(&col1, nation, foe)) {
-    fx_map_free(&map);
-    return fail("art-fortify expected war");
-  }
-
-  uint32_t turn = 21;
-  ColonizeTurnContext ctx;
-  memset(&ctx, 0, sizeof(ctx));
-  ctx.turn_number = &turn;
-  ctx.units = &units;
-  ctx.colonies = &colonies;
-  ctx.map = &map;
-  ctx.col1 = &col1;
-  ctx.col1_ok = true;
-  ctx.rng_seed = 42;
-
-  ai_euro_dispatcher_turn(&ctx, nation);
-
-  art = units_get(&units, uid);
-  if (!art || !art->active) {
-    fx_map_free(&map);
-    return fail("art-fortify artillery should remain");
-  }
-  if (art->orders != UNITS_ORDER_FORTIFY && art->orders != UNITS_ORDER_FORTIFIED) {
-    fprintf(
-      stderr,
-      "unit_ai_euro_war: art-fortify orders=%d pos=(%d,%d)\n",
-      art->orders,
-      art->x,
-      art->y
-    );
-    fx_map_free(&map);
-    return fail("expected idle Artillery on colony to FORTIFY at war");
-  }
-
-  fx_map_free(&map);
-  fprintf(stderr, "unit_ai_euro_war: artillery fortify colony ok\n");
-  return 0;
-}
 
 /*
  * War transport: idle Galleon with passenger space prefers threatened own
@@ -6383,9 +5927,7 @@ static const TestCase k_cases[] = {
   {"unit_peace_regular_fortify_colony", unit_peace_regular_fortify_colony},
   {"unit_peace_continental_fortify_colony", unit_peace_continental_fortify_colony},
   {"unit_peace_continental_cavalry_fortify_colony", unit_peace_continental_cavalry_fortify_colony},
-  {"unit_peace_artillery_fortify_colony", unit_peace_artillery_fortify_colony},
   {"unit_peace_cannon_fortify_colony", unit_peace_cannon_fortify_colony},
-  {"unit_artillery_fortify_colony", unit_artillery_fortify_colony},
   {"unit_war_transport_threatened_colony", unit_war_transport_threatened_colony},
   {"unit_mow_war_transport_threatened", unit_mow_war_transport_threatened},
   {"unit_frigate_war_transport_threatened", unit_frigate_war_transport_threatened},
@@ -6405,12 +5947,10 @@ static const TestCase k_cases[] = {
   {"unit_land_adjacent_foe_prefer_treasure", unit_land_adjacent_foe_prefer_treasure},
   {"unit_land_adjacent_foe_prefer_open_over_stockade", unit_land_adjacent_foe_prefer_open_over_stockade},
   {"unit_land_adjacent_foe_prefer_non_veteran", unit_land_adjacent_foe_prefer_non_veteran},
-  {"unit_artillery_adjacent_prefer_stockade", unit_artillery_adjacent_prefer_stockade},
   {"unit_dragoon_hunt_prefer_open", unit_dragoon_hunt_prefer_open},
   {"unit_naval_ambush", unit_naval_ambush},
   {"unit_peace_fortify_border_wake", unit_peace_fortify_border_wake},
   {"unit_peace_dragoon_border_wake", unit_peace_dragoon_border_wake},
-  {"unit_peace_artillery_border_wake", unit_peace_artillery_border_wake},
   {"unit_peace_regular_border_wake", unit_peace_regular_border_wake},
   {"unit_peace_continental_army_border_wake", unit_peace_continental_army_border_wake},
   {"unit_peace_continental_cavalry_border_wake", unit_peace_continental_cavalry_border_wake},

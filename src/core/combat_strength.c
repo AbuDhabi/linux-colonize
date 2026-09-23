@@ -746,8 +746,23 @@ static void combat_apply_1b0e_peels(
     io->def_strength >>= 1;
   }
 
-  /* Artillery open-field >>2 when the combat tile has no settlement. */
-  if (land) {
+  /*
+   * Artillery open-field >>2 when the combat tile has no settlement.
+   *
+   * DOS-LITERAL FUN_5fef_1b0e raw 100472-100493 (bugs.md #767): the only gate
+   * on this whole block is iVar23, the 06be settlement probe. There is NO
+   * domain test — bVar9 / bVar10 (the is-ship flags set at raw 100347 /
+   * 100451) gate the weak-defender halving at raw 100468 and the 0xd..0x12
+   * range checks, never these clauses. The port-side `if (land)` wrapper was
+   * removed 2026-09-23.
+   *
+   * raw 100476 / 100482 set only `*(byte *)0x8d01 |= 8` / `0x8d03 |= 8`, i.e.
+   * bit 0x0800 of the LOW flags word; 636c's hi-word dispatch (raw 102086 on)
+   * tests hi bits 1/2/4/8 only. The port's flags_hi mirrors for ARTILLERY /
+   * AMBUSH / REF were dropped — combat_analysis.c:356 is the only flags_hi
+   * reader and it tests COMBAT_FLAG_DRAKE alone.
+   */
+  {
     const int atk_arty = combat_type_is_artillery(at);
     const int def_arty = combat_type_is_artillery(dt);
     /*
@@ -762,12 +777,10 @@ static void combat_apply_1b0e_peels(
       if (atk_arty && !def_shielded) {
         io->atk_strength >>= 2;
         io->atk_flags.flags |= COMBAT_FLAG_ARTILLERY;
-        io->atk_flags.flags_hi |= COMBAT_FLAG_ARTILLERY;
       }
       if (def_arty && !def_shielded) {
         io->def_strength >>= 2;
         io->def_flags.flags |= COMBAT_FLAG_ARTILLERY;
-        io->def_flags.flags_hi |= COMBAT_FLAG_ARTILLERY;
       }
     } else if (def_arty && atk_nat > 3) {
       /* Artillery defender vs native attacker on settlement → ×2. */
@@ -778,7 +791,6 @@ static void combat_apply_1b0e_peels(
     if (atk_nat == 2 && def_nat > 3 && on_settlement) {
       io->atk_strength += io->atk_strength >> 1;
       io->atk_flags.flags |= COMBAT_FLAG_AMBUSH;
-      io->atk_flags.flags_hi |= COMBAT_FLAG_AMBUSH;
     }
   }
 
@@ -816,7 +828,6 @@ static void combat_apply_1b0e_peels(
       if (atk_is_crown || combat_ref_present(ctx->col1)) {
         io->atk_strength += io->atk_strength >> 1;
         io->atk_flags.flags |= COMBAT_FLAG_REF;
-        io->atk_flags.flags_hi |= COMBAT_FLAG_REF;
         /*
          * 636c bit-0x8000 row icon (asm 636c:0653-0681): the colony record's
          * +0x1c bit 0x40 (coastal) picks Man-O-War (DS:0x532e = @UNIT type 18
