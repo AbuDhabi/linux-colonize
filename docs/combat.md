@@ -308,7 +308,9 @@ dwelling. Human `4528` `@ACTIONS` arm **Done** (P8.8). Deep `4528` mid-body / VG
   `units_treasure_value_gold` (display only). The port's Accept/Refuse "ransom"
   CHOICE and its gold credit were inventions and are gone.
 - Loser: `units_apply_land_loss_outcome` (`FUN_5fef_0352`)
-  - Artillery: first loss → damage bit7; second → despawn
+  - Artillery: first loss → damage bit7; second → despawn. Gated (bugs.md #756,
+    raw 99435-99436): winner not a hull AND neither tile water, else the gun is
+    destroyed outright with no @ARTILLERY popup. No moves write on damage (#757).
   - **Capture** (Euro winner only, `attack>0`): Colonists / Treasure / Wagon →
     nation flip + `@COLONISTCAPTURE*` / `@LOOTCAPTURE` / `@WAGONCAPTURE` /
     `@CARGOCAPTURE`. Veteran Colonist specialty stripped → `@COLONISTCAPTURE2`.

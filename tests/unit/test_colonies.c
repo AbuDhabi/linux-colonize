@@ -2272,6 +2272,67 @@ static int unit_ship_construction(void) {
   CHECK(c->hammers == 0, "hammers reset (FUN_364b_0114 raw 56964: +0x92 = 0)");
   CHECK(c->building_in_production == 48, "DOS never clears the project on completion");
 
+  /*
+   * bugs.md #755: FUN_364b_0688 raw 57748-57769 — short on tools, a human
+   * colony is refused (@NEEDTOOLS) but a non-human one (Euro AI or Crown,
+   * nation > 3 || control != 0) has its tools stock topped up to the
+   * requirement right there and completion proceeds.
+   */
+  {
+    ColonizeCol1Save gift_col1;
+    memset(&gift_col1, 0, sizeof(gift_col1));
+    /* AI Euro colony: control != 0. */
+    gift_col1.player[0].control = 1;
+    c->hammers = 512;
+    c->stock[COLONIZE_CARGO_TOOLS] = 0;
+    c->building_in_production = 48; /* Frigate again */
+    const int ai_uid =
+      colonies_try_complete_unit_construction(&pool, 0, &units, &gift_col1);
+    CHECK(ai_uid > 0, "AI colony completes with a tools gift (#755)");
+    CHECK(c->stock[COLONIZE_CARGO_TOOLS] == 0, "gifted tools spent by completion");
+
+    /* Human colony (control == 0): still refused, no gift. */
+    gift_col1.player[0].control = 0;
+    c->hammers = 512;
+    c->stock[COLONIZE_CARGO_TOOLS] = 0;
+    c->building_in_production = 48;
+    const int human_uid =
+      colonies_try_complete_unit_construction(&pool, 0, &units, &gift_col1);
+    CHECK(human_uid < 0, "human colony still refused short on tools (#755)");
+    CHECK(c->stock[COLONIZE_CARGO_TOOLS] == 0, "no gift for a human colony");
+
+    /*
+     * bugs.md #766: FUN_364b_0114 raw 56943-56946 — an Artillery completion
+     * by a non-human colony bumps nation+0x48 (king_grace_counter); a
+     * human colony's completion does not.
+     */
+    c->hammers = 512;
+    c->stock[COLONIZE_CARGO_TOOLS] = 40; /* Artillery tools cost */
+    c->building_in_production = COLONIZE_UNIT_BUILD_ARTILLERY;
+    gift_col1.player[0].control = 1; /* AI */
+    gift_col1.nation[0].king_grace_counter = 5;
+    const int arty_ai_uid =
+      colonies_try_complete_unit_construction(&pool, 0, &units, &gift_col1);
+    CHECK(arty_ai_uid > 0, "AI Artillery completes (#766 setup)");
+    CHECK(
+      gift_col1.nation[0].king_grace_counter == 6,
+      "AI Artillery completion bumps king_grace_counter (#766)"
+    );
+
+    c->hammers = 512;
+    c->stock[COLONIZE_CARGO_TOOLS] = 40;
+    c->building_in_production = COLONIZE_UNIT_BUILD_ARTILLERY;
+    gift_col1.player[0].control = 0; /* human */
+    gift_col1.nation[0].king_grace_counter = 5;
+    const int arty_human_uid =
+      colonies_try_complete_unit_construction(&pool, 0, &units, &gift_col1);
+    CHECK(arty_human_uid > 0, "human Artillery completes (#766 setup)");
+    CHECK(
+      gift_col1.nation[0].king_grace_counter == 5,
+      "human Artillery completion does not bump king_grace_counter (#766)"
+    );
+  }
+
   if (failures == failures_before) {
     printf("unit_colonies: ship construction ok\n");
     return 0;

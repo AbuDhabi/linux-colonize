@@ -14368,55 +14368,6 @@ COLONIZE_INTERNAL void ai_euro_20e6_stay_tail_589e(ColonizeUnit* u) {
   }
 }
 
-/*
- * FUN_521d_20e6 raw 88584-88610, gate half only: does this unit's own-colony
- * garrison test send it to LAB_5899 (stay) instead of down the normal arm
- * chain at LAB_521d_277a? The writes (labor_shortage--, order_code 0x47) stay
- * in ai_euro_20e6_land_arms, which runs the full arm; this predicate exists so
- * the port's earlier act-stage arms (the 0x46/0x4c seizure engage) cannot
- * preempt a decision DOS takes first. Added 2026-09-23 with the removal of the
- * invented "Artillery fortify" arm (bugs.md #760), which had been masking the
- * precedence for artillery.
- */
-static int ai_euro_20e6_garrison_holds(
-  ColonizeTurnContext* ctx, const ColonizeUnit* u, int nation_id
-) {
-  if (!ctx || !u || !ctx->colonies || !ctx->units) {
-    return 0;
-  }
-  const int dtype = ai_euro_20e6_dos_type(ctx->units, u);
-  if (dtype >= 0xd && dtype <= 0x12) { /* local_34 != 0 */
-    return 0;
-  }
-  if (ai_euro_20e6_type_combat(dtype) <= 1 || dtype == 4 || dtype == 8) {
-    return 0;
-  }
-  const int cid = colonies_id_at(ctx->colonies, u->x, u->y);
-  const ColonizeColony* oc = cid >= 0 ? colonies_get(ctx->colonies, cid) : NULL;
-  if (!oc || !oc->active || oc->nation_id != nation_id) { /* local_2e != 0 */
-    return 0;
-  }
-  const int admitted = u->col1_ai_plan == 'A'; /* +0x314b == 'A' */
-  if (oc->labor_shortage < 1 && !admitted) {
-    return 0;
-  }
-  if (admitted) {
-    return 1; /* raw 88604: straight to LAB_5899 */
-  }
-  int armed = 0;
-  for (int id = 1; id < COLONIZE_UNITS_MAX; ++id) {
-    const ColonizeUnit* su = units_get_const(ctx->units, id);
-    if (!su || !su->active || su->x != u->x || su->y != u->y) {
-      continue;
-    }
-    const int st = ai_euro_20e6_dos_type(ctx->units, su);
-    if (ai_euro_20e6_type_combat(st) > 1 && (st < 0xd || st > 0x12) && st != 4 && st != 8) {
-      armed++;
-    }
-  }
-  return armed < 2; /* raw 88606-88610: lone armed garrison stays */
-}
-
 static int ai_euro_move_scoring_gate(ColonizeTurnContext* ctx, ColonizeUnit* u, int nation_id) {
   /*
    * Ships: never retarget here — landfall/sail courses are owned by case 0x0b.

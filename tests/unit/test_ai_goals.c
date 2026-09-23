@@ -4,6 +4,7 @@
 #include "core/col1_save.h"
 #include "core/units.h"
 
+#include "../common/ai_fixture.h"
 #include "../common/test_runner.h"
 
 #include <stdio.h>
@@ -318,6 +319,87 @@ static int case_indian_hostility_gate(void) {
   return 0;
 }
 
+/*
+ * FUN_521d_06ae raw 87277-87278: the occupant gate accepts a neighbour that
+ * holds a single own unit only when that unit's ARTILLERY-ness differs from
+ * the placing unit's (`(*(char *)(iVar9 * 0x1c + 0x3146) == '\v') != param_5`,
+ * '\v' = 0x0b = Artillery). The port tested WAGON (0x0c) here until
+ * bugs.md #752, so the two roles were swapped.
+ */
+static int case_06ae_occupant_artillery_filter(void) {
+  ColonizeWorldMap map;
+  if (!fx_map_alloc(&map, 8, 8, 3, false)) {
+    return fail("06ae map alloc");
+  }
+  for (int i = 0; i < 8 * 8; ++i) {
+    map.layer3[i] = 0xf0;
+  }
+  ColonizeUnitPool units;
+  fx_units_init(&units);
+  units.type_count = 3;
+  units.types[0].kind_plus1 = (uint8_t)(UNITS_KIND_ARTILLERY + 1);
+  units.types[0].movement = 1;
+  units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  units.types[1].kind_plus1 = (uint8_t)(UNITS_KIND_WAGON + 1);
+  units.types[1].movement = 1;
+  units.types[1].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  units.types[2].kind_plus1 = (uint8_t)(UNITS_KIND_SOLDIER + 1);
+  units.types[2].movement = 1;
+  units.types[2].domain = COLONIZE_UNIT_DOMAIN_LAND;
+
+  const int nation = 1;
+  const int from_x = 4;
+  const int from_y = 4;
+  /* Lone own Artillery west, lone own Wagon east. */
+  const int aid = units_spawn(&units, 0, from_x - 1, from_y);
+  const int wid = units_spawn(&units, 1, from_x + 1, from_y);
+  ColonizeUnit* au = units_get(&units, aid);
+  ColonizeUnit* wu = units_get(&units, wid);
+  if (!au || !wu) {
+    fx_map_free(&map);
+    return fail("06ae spawn");
+  }
+  au->nation_id = nation;
+  wu->nation_id = nation;
+  /* Block the other six neighbours with FOREIGN units (raw 87274: a tile whose
+   * presence owner is not ours is skipped outright), so the pick is exactly
+   * "which of the two own-occupied tiles does the XOR admit". */
+  static const int k_block[6][2] = {{-1, -1}, {0, -1}, {1, -1}, {-1, 1}, {0, 1}, {1, 1}};
+  for (int b = 0; b < 6; ++b) {
+    const int bid = units_spawn(&units, 2, from_x + k_block[b][0], from_y + k_block[b][1]);
+    ColonizeUnit* bu = units_get(&units, bid);
+    if (!bu) {
+      fx_map_free(&map);
+      return fail("06ae blocker spawn");
+    }
+    bu->nation_id = 0;
+  }
+
+  const ColonizeWorld w = {.units = &units, .map = &map};
+  int x1 = -1;
+  int y1 = -1;
+  if (!ai_goals_pick_founding_tile_ex_w(&w, nation, from_x, from_y, 0, 1, &x1, &y1)) {
+    fx_map_free(&map);
+    return fail("06ae pick (artillery_filter=1)");
+  }
+  if (x1 == from_x - 1 && y1 == from_y) {
+    fx_map_free(&map);
+    return fail("06ae: artillery_filter=1 must reject the Artillery-held tile");
+  }
+  int x0 = -1;
+  int y0 = -1;
+  if (!ai_goals_pick_founding_tile_ex_w(&w, nation, from_x, from_y, 0, 0, &x0, &y0)) {
+    fx_map_free(&map);
+    return fail("06ae pick (artillery_filter=0)");
+  }
+  if (x0 == from_x + 1 && y0 == from_y) {
+    fx_map_free(&map);
+    return fail("06ae: artillery_filter=0 must reject the Wagon-held tile");
+  }
+  fx_map_free(&map);
+  return 0;
+}
+
 static const TestCase k_cases[] = {
     {"case_upsert_priority_promote", case_upsert_priority_promote},
     {"case_work_queue_score_order", case_work_queue_score_order},
@@ -326,6 +408,7 @@ static const TestCase k_cases[] = {
     {"case_stack_settler_pick", case_stack_settler_pick},
     {"case_goal_fold_urgency", case_goal_fold_urgency},
     {"case_indian_hostility_gate", case_indian_hostility_gate},
+    {"case_06ae_occupant_artillery_filter", case_06ae_occupant_artillery_filter},
 };
 
 TEST_MAIN(k_cases)

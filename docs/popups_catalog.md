@@ -464,7 +464,7 @@ Appendices and exhaustive `@SECTION` reference for [popups.md](popups.md).
 | `@INEFFICIENT` | Done thin | EOT Tory-pressure ai_popup OK (`turn_emit_inefficient_gov_chrome`); VGA PARKED |
 | `@EFFICIENT` | Done thin | EOT Tory-pressure clear ai_popup OK; VGA PARKED |
 | `@CLEARCUT` | Done thin | pioneer clear-forest → lumber to nearest colony + ai_popup OK; also `@DEFOREST`; Hardy×2 / terrain×20 PARKED |
-| `@REALLYBUY` | Done | purchase / train menus |
+| `@REALLYBUY` | Done | purchase confirm (bugs.md #753, 2026-09-23: 2-row Yes/No, FUN_38fd_4b50 raw 64874; escalation counter bumps before the answer) |
 | `@INDIANWARPATH` | Done | Incite Indians target menu (`ai_contact_enqueue_incite_target_choice`) — real GAME.TXT body 2026-09-16; rows are now plain nation names and are no longer filtered by affordability, as in DOS (viceroy_unpacked.c 83593-83607) |
 | `@INDIANWARPATH2` | Done | the pay confirm DOS shows after the target pick (`ai_contact_enqueue_incite_confirm`, tag 0x16c1): real body + `Pay`/`Never mind.` rows; `@NOCONTACT` before the quote, `@UNFORTUNATE` / `@ALREADYSMITE` after it 2026-09-16. Was merged into the menu labels |
 | `@INDIANWARFARE` | Done | Incite announcement at `FUN_4d56_417e` LAB_4499 (tag 0x16e9) — real GAME.TXT body via `popup_msg_fill`, fires for both the human incite and the AI missionary auto-incite. Confirmed 2026-09-16 |
