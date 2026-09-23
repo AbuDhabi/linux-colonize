@@ -246,7 +246,7 @@ bool colonies_wagon_cap_reached(const ColonizeCol1Save* col1, int nation_id) {
  * (`bits[n>>3] & 1<<(n&7)` at colony +0x84), the completion writer
  * FUN_15eb_1030(idx, 1) only ORs the new bit in and never clears the tier
  * below, and FUN_15eb_3650's building arm refuses an upgrade whose
- * predecessor byte (DS:0x8f85 + idx*0xc) is not owned. So a normally-grown
+ * predecessor byte (DS:0x8f86 = -0x707a, + idx*0xc) is not owned. So a normally-grown
  * Arsenal colony still has the Armory bit set and the two readings agree —
  * confirmed over 977 colonies in `original_saves` (armory mask is only ever
  * 0/1/3). They differ only where a lone upper bit is real, i.e. after a

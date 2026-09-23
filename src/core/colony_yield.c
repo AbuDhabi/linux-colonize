@@ -743,10 +743,9 @@ static int colony_yield_town_commons_food_base(int pedia) {
   if (pedia >= 8 && pedia <= 23) {
     return 2;
   }
-  if (pedia >= 0 && pedia <= 23) {
-    return 3;
-  }
-  return 0;
+  /* FUN_15eb_1f72 raw 12506-12518: every class not named above (incl.
+   * 0x19/0x1a water) takes the else arm = 3 (bugs.md #773). */
+  return 3;
 }
 
 /*

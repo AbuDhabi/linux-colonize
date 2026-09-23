@@ -69,8 +69,6 @@ typedef struct ColonizeTurnContext {
    * FUN_4962_0606 profession histogram per Euro nation (SETUP). Indices are
    * @JOB / profession ids 0..31; counts saturate at 255.
    */
-  uint8_t profession_tally[4][32];
-  bool profession_tally_ok;
 } ColonizeTurnContext;
 
 /*

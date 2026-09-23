@@ -103,7 +103,7 @@ static const char* ai_contact_job_expert_name(const ColonizeTurnContext* ctx, in
   if (job == UNITS_JOB_SCOUT) {
     return reports_job_display_name(job);
   }
-  return "colonists";
+  return ""; /* catalog miss = empty string (bugs.md #775) */
 }
 
 /* NAMES.TXT @JOB column 0 (DS:0x8ea2 + job*8): "Farmer" … / "Scout". */

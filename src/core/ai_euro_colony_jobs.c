@@ -400,7 +400,11 @@ static int ai_euro_28c8_score_full(
               score <<= 1;
             }
           }
-          /* FUN_15eb_15c6(DS:0x2b6[job]) — does a consumer workplace exist. */
+          /* FUN_15eb_15c6(DS:0x2b6[job]) raw 11536-11551: 0 with no consumer
+           * job, 1 when its @BUILDING (DS:0x2f4) is a chain root, 2 when that
+           * row has a predecessor. No colony input. Every consumer row DOS
+           * ships (27/24/21/32/39) is a root, so the term is the literal 1
+           * here (bugs.md #776). */
           {
             const int chain = ai_euro_28c8_consumer_chain(job);
             if (chain >= 0) {
@@ -1462,7 +1466,7 @@ int ai_euro_20e6_nearest_village(
  * Resolutions this port needed, none of them previously on record:
  *  - `FUN_5952_0214` is **recursive**: when the candidate is not owned and
  *    not buildable it retries the @BUILDING predecessor byte
- *    (`DS:0x8f85 + id*0xc`, the chain parent `docs/building_production.md`
+ *    (`DS:0x8f86 + id*0xc` = `-0x707a`, the chain parent `docs/building_production.md`
  *    already names). Return 1 = "keep scanning", 0 = "stop" (either a project
  *    was set or the chain dead-ended); on 0 it clears colony `+0x1c` bit 0x80.
  *  - `DS:0x864` = six 4-byte craft-chain rows, read straight off the image
@@ -1618,7 +1622,7 @@ static const AiEuro5952Craft k_5952_craft[6] = {
 
 /*
  * @BUILDING index -> ColonizeBuildingRow, for the ids this cascade names.
- * The predecessor column is `DS:0x8f85 + id*0xc`; it is the same chain
+ * The predecessor column is `DS:0x8f86 + id*0xc` (`-0x707a`, walked by FUN_15eb_0410); it is the same chain
  * parent colonies_building_chain() already models, so the table carries it
  * directly (−1 = chain root). Town Hall (9..0xb) and Capitol (0x1e/0x1f) are
  * absent because the cascade never asks for them and DOS refuses both.

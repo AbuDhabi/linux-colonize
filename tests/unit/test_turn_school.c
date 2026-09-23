@@ -519,6 +519,7 @@ static int unit_phase_h_trainprofession(void) {
     col->colonists[0].profession = COLONIZE_PROF_FREE_COLONIST;
     /* raw 57595: `0 < job < 5` — Farmer (0) is excluded. */
     col->colonists[0].field_job = COLONIZE_JOB_COTTON_PLANTER;
+    col->colonists[0].turns_in_job = 3;
     col->stock[COLONIZE_CARGO_FOOD] = 500;
     eu.status[0] = '\0';
     ai_popup_init(&pops);
@@ -527,6 +528,13 @@ static int unit_phase_h_trainprofession(void) {
     turn_run_colony_production_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&pool), .map=(ColonizeWorldMap*)(NULL), .col1=(ColonizeCol1Save*)(&col1), .col1_ok=true, .rng=(ColonizeDosRng*)(&rng), .europe=(EuropeScreen*)(&eu)}, 0, &prod, &pops, &game_txt);
     if (col->colonists[0].profession == COLONIZE_JOB_COTTON_PLANTER) {
       discovered = 1;
+      /* bugs.md #771: raw 57606-57607 writes only the profession byte; the
+       * education counter survives (3 + this turn's raw 57505 tick = 4). */
+      if (col->colonists[0].turns_in_job != 4) {
+        fprintf(stderr, "phaseh: turns_in_job reset to %d\n", col->colonists[0].turns_in_job);
+        assets_msg_free(&game_txt);
+        return 1;
+      }
       if (pops.queue_count < 1 ||
           (strstr(pops.queue[0].body, "Concord") == NULL &&
            strstr(pops.queue[0].body, "Farmer") == NULL &&
@@ -554,7 +562,76 @@ static int unit_phase_h_trainprofession(void) {
   return 0;
 }
 
+/* bugs.md #770: FUN_4962_0606 (raw 78332-78374) counts the nation's MAP
+ * units before its colonists, so a Master Cotton Planter standing outside any
+ * colony still closes the on-the-job Cotton Planter roll for the nation. */
+static int unit_phase_h_map_expert_blocks_learn(void) {
+  ColonizeColonyPool pool;
+  colonies_init(&pool);
+  colonies_set_occupancy_map(NULL);
+  ColonizeColony* col = &pool.colonies[0];
+  memset(col, 0, sizeof(*col));
+  col->active = true;
+  col->id = 1;
+  col->nation_id = 0;
+  col->building_in_production = -1;
+  col->colonists[0].active = true;
+  col->colonists[0].profession = COLONIZE_PROF_FREE_COLONIST;
+  col->colonists[0].building_type = -1;
+  col->colonists[0].field_job = COLONIZE_JOB_COTTON_PLANTER;
+  col->colonist_count = 1;
+  col->population = 1;
+  pool.colony_count = 1;
+
+  ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
+  units_reset(&units);
+  units_set_occupancy_map(NULL);
+  units.type_count = 14;
+  snprintf(units.types[0].name, sizeof(units.types[0].name), "Scout");
+  const int uid = units_spawn(&units, 0, 1, 1);
+  ColonizeUnit* u = units_get(&units, uid);
+  if (!u) {
+    fprintf(stderr, "phaseh2: spawn failed\n");
+    return 1;
+  }
+  units_set_nation(u, 0);
+  u->profession = COLONIZE_JOB_COTTON_PLANTER;
+
+  ColonizeCol1Save col1;
+  memset(&col1, 0, sizeof(col1));
+  col1.head.year = 1492;
+  EuropeScreen eu;
+  memset(&eu, 0, sizeof(eu));
+  ColonizeDosRng rng;
+  dos_rng_seed(&rng, 1);
+  for (unsigned t = 0; t < 5000u; ++t) {
+    col1.head.turn = (uint16_t)(t & 0xffffu);
+    col->stock[COLONIZE_CARGO_FOOD] = 500;
+    ColonizeTurnResult prod;
+    memset(&prod, 0, sizeof(prod));
+    /* Through the real EOT call site (turn_colony.c), which is where the
+     * pool was dropped. */
+    ColonizeTurnContext ctx;
+    memset(&ctx, 0, sizeof(ctx));
+    ctx.human_nation = 0;
+    ctx.units = &units;
+    ctx.colonies = &pool;
+    ctx.europe = &eu;
+    ctx.col1 = &col1;
+    ctx.col1_ok = true;
+    ctx.rng = &rng;
+    turn_run_colony_eot(&ctx, &prod);
+    if (col->colonists[0].profession == COLONIZE_JOB_COTTON_PLANTER) {
+      fprintf(stderr, "phaseh2: learned Cotton Planter at tick %u despite a map expert\n", t);
+      return 1;
+    }
+  }
+  return 0;
+}
+
 static const TestCase k_cases[] = {
+    {"unit_phase_h_map_expert_blocks_learn", unit_phase_h_map_expert_blocks_learn},
     {"unit_train_veteran_soldier", unit_train_veteran_soldier},
     {"unit_school_tick_cap_is_three", unit_school_tick_cap_is_three},
     {"unit_trainfail", unit_trainfail},

@@ -373,6 +373,10 @@ for the terrain/counter/case-identity resolution).
 
 ### Teach-skill profession map (Linux)
 
+**RETIRED 2026-09-23 (bugs.md #573, #779).** The nation→default table and the
+`last_sold` override below were port inventions; the live port draws the skill
+from the DOS bid table (`overlays.c:77658-77835`). Kept for history only.
+
 Prefer `tribe.last_sold` when it is raw cargo **1..7** (sugar..silver) → matching
 field job. Food(0) is **not** treated as an override so zeroed Col1 tribes still
 hit the nation table. Peaceful trade sets `last_sold` from the nation outdoor

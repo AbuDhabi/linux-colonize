@@ -1010,8 +1010,10 @@ void turn_produce_one_colony(
         discover_denom = 299;
       } else if (c->profession != COLONIZE_PROF_FREE_COLONIST &&
                  c->profession != UNITS_JOB_COLONIST /* @JOB 19 free alias */ &&
-                 c->profession != UNITS_JOB_NONE /* DOS 0x1c, raw 9300-9303 */ &&
-                 c->profession >= 0) {
+                 c->profession != UNITS_JOB_NONE /* DOS 0x1c, raw 9300-9303 */) {
+        /* raw 57594: FUN_281f_0c9a(specialty) == 0 -> FUN_15eb_0002 (raw
+         * 9298-9306) is 0 only for {0x1c,0x13,0x19,0x1a,0x1b}; Convert (0x1b)
+         * is excluded one line earlier (bugs.md #772). */
         continue;
       }
       /* raw 57595: `0 < local_c2 && local_c2 < 5` — Farmer (job 0) never
@@ -1031,24 +1033,24 @@ void turn_produce_one_colony(
       }
       if (dos_rng_range(rng, 0, discover_denom) == 0) {
         turn_prof_census[census_n][c->field_job]++;
+        /* raw 57606-57607: FUN_281f_0cae -> FUN_15eb_0e8c writes only the
+         * profession byte; the +0x60 education nibble is untouched (bugs.md
+         * #771, sibling of #565). DOS raises @TRAINPROFESSION only, no status
+         * line, and a catalog miss is the empty string. */
         c->profession = c->field_job;
-        c->turns_in_job = 0;
         if (europe && colony->nation_id == human_nation && turn_report_ok_trained(col1)) {
-          snprintf(europe->status, sizeof(europe->status), "Colonist learned a skill.");
           if (ai_popups) {
-            const char* cname = colony->name[0] ? colony->name : "colony";
+            const char* cname = colony->name;
             const char* skill_name = colony_yield_job_name(c->field_job);
-            if (!skill_name || !skill_name[0]) {
-              skill_name = "profession";
+            if (!skill_name) {
+              skill_name = "";
             }
             char body[AI_POPUP_BODY_LEN];
-            char fallback[160];
-            snprintf(fallback, sizeof(fallback), "%s learned %s.", cname, skill_name);
             PopupMsgTokens tok;
             memset(&tok, 0, sizeof(tok));
             tok.string0 = cname;
             tok.string1 = skill_name;
-            popup_msg_fill(messages, "TRAINPROFESSION", &tok, fallback, body, sizeof(body));
+            popup_msg_fill(messages, "TRAINPROFESSION", &tok, "", body, sizeof(body));
             ai_popup_enqueue_colony_event(ai_popups, colony->id, body);
           }
         }
