@@ -151,10 +151,10 @@ form carries the same rule.
 | **Every AI-side borrow of the shared `EuropeScreen` needs save/restore** gated on `nation_id != ctx->human_nation` — otherwise AI gold/tax leaks into the human's record at the next capture. | `crown-europe-batch-2026-09-04` |
 | **Popup art palettes: merge, never remap.** A sheet that owns a DAC block the host screen leaves black (`SCORE<nn>.SS` over `WOODPAN2.PIK` is the only such pair) gets its entries merged via `ai_popup_art_palette_merge`. Sheets that paint where hosts paint (PARCH/WOODTILE/BUILDING/ICONS) are **remapped**, one copy per destination palette. | `crown-europe-batch-2026-09-04`, `sweep3-sixth-wave-batch20` |
 | **No weak fallbacks in `colonize_core` files.** `__attribute__((weak))` definitions satisfy the reference, so the linker never pulls the real archive member — `unit_ai_diplo` ran stubbed AI for months. Cross-module stubs live in `src/core/ai_contact_link_stubs.c`, compiled **only** by the four slim targets (see its file header + `COLONIZE_SLIM_SOURCES` in `CMakeLists.txt`). | `sweep3-fifth-wave-batch20` |
-| **Slim targets**: `unit_units`, `unit_combat_strength`, `unit_colonies`, `unit_reports` do not link `colonize_core`. Adding a call to a symbol outside `COLONIZE_SLIM_SOURCES` breaks all four at link time. They are declared with `colonize_add_test(... SLIM)` in `CMakeLists.txt`, which appends `src/core/ai_contact_link_stubs.c` and defines `COLONIZE_SLIM_TEST=1`; the stubs file `#error`s in any other target. | `duplication-audit-2026-09-14` |
+| **Slim targets**: `unit_units_*` (6 slices), `unit_combat_strength`, `unit_colonies`, `unit_reports` do not link `colonize_core`. Adding a call to a symbol outside `COLONIZE_SLIM_SOURCES` breaks all four at link time. They are declared with `colonize_add_test(... SLIM)` in `CMakeLists.txt`, which appends `src/core/ai_contact_link_stubs.c` and defines `COLONIZE_SLIM_TEST=1`; the stubs file `#error`s in any other target. | `duplication-audit-2026-09-14` |
 | **MP on native units** routes through `units_mp_charge` / `units_mp_exhaust` (`units.c`): Euro units store thirds remaining, Braves store thirds **spent** (max 3). | `smell-batch1-2026-09-08` |
 | **No per-turn "drip" effects without a DOS trace.** Indian alarm grows only through `FUN_4d56_152e` → `ai_contact_alarm_delta_00f2`. Discrete-event bumps are safe; recurring drips compound into order-of-magnitude divergence. | `alarm-fandom-drips-retired` |
-| **Don't re-merge "kept split on DOS grounds"** rows from `docs/duplication_audit_2026-09-14.md`; use the shared helpers listed in its Resolution table. | `duplication-round2-2026-09-15` |
+| **Don't re-merge "kept split on DOS grounds"** rows from `docs/archive/duplication_audit_2026-09-14.md`; use the shared helpers listed in its Resolution table. | `duplication-round2-2026-09-15` |
 | **Never store port-only state in a `head.unknown*` field** without checking `save_format_map.md` for its real DOS meaning (`market_demand_pool_raw` is the market pool and is rewritten every EOT). | `woi-headless-sim-and-market_demand_pool_raw` |
 | **Expert Teacher (@JOB 18) was cut before release** — never port DOS code that creates or hires one. Existing arms are save tolerance only. | `expert-teacher-cut-type` |
 
@@ -308,9 +308,12 @@ cmake --build build/debug --target golden_ai_joint         # when AI or turn ord
   `settings.json` / DEBUG-menu toggle, not an env var (categories table in
   `docs/settings.md`; context stamped by `diag_set_context` / `game_track_screen`).
 - Finally: annotate the `bugs.md` row. Status meanings there —
-  **OPEN** (no resolution), **FIXED** (agent claims a fix, awaiting the user's
-  verification), **CLOSED** / **REFUTED** (user-verified, moved to
+  **OPEN** (no resolution; the only status kept in `bugs.md`), **FIXED** /
+  **REFUTED** (agent claims a fix or refutation, awaiting the user's
+  verification: the agent moves the row to `docs/archive/bugs_fixed_pending.md`
+  so `bugs.md` stays small), **CLOSED** (user-verified, moved to
   `docs/archive/bugs_closed.md`). Agents write FIXED; only the user writes CLOSED.
+  Keep the resolution to a few sentences; long evidence goes in a docs/ file.
   IDs are permanent and never reused. Cite rows as `bugs.md #NNN` (the `#`
   column). Before 2026-09-16 citations were file line numbers; old line N = id
   N−6, and every in-tree citation was rewritten.

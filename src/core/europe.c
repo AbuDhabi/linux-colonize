@@ -1,6 +1,23 @@
 #include "core/europe.h"
 #include "core/europe_art.h"
 
+/*
+ * Sections:
+ *  - Purse/rng plumbing, ship cargo helpers & dock-push utilities (~line 41)
+ *  - Purchase table & pool profession rolls (~line 426)
+ *  - Cargo tables, nation setup & campaign reset (~line 946)
+ *  - Recruit, train & purchase commit flows (~line 1234)
+ *  - Dock unit typing, kit application & mirror units (~line 1604)
+ *  - Dock arms buy/sell menu (~line 1877)
+ *  - Harbor embark/disembark & voyage ticking (~line 2273)
+ *  - Treasure cashing & price ledger (~line 2751)
+ *  - Market price ticking & immigration pressure (~line 3017)
+ *  - AI-nation immigration (DOS FUN_38fd_5e52, control != 0) (~line 3423)
+ *  - Gold accessors, live-save/popup wiring & purse moves (~line 3637)
+ *  - Labels, sell/buy commits & Custom House autosell (~line 3922)
+ *  - Icon flow, hit-testing, menus & cheats (~line 4743)
+ */
+
 #include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -38,6 +55,7 @@ static void (*g_europe_set_bgm)(int pool) = NULL;
 static struct ColonizeCol1Save* g_europe_live_save = NULL;
 static AiPopupState* g_europe_popups = NULL;
 
+/* ===================== Purse/rng plumbing, ship cargo helpers & dock-push utilities (europe_purse_nation .. europe_disembark_passengers_to_dock) ===================== */
 static int europe_purse_nation(const EuropeScreen* eu);
 static void europe_purse_move(
   EuropeScreen* eu, struct ColonizeCol1Save* col1, int nation, long delta
@@ -422,6 +440,7 @@ static const EuropePurchaseOption k_purchase_opts[] = {
 static const int k_purchase_opt_count =
   (int)(sizeof(k_purchase_opts) / sizeof(k_purchase_opts[0]));
 
+/* ===================== Purchase table & pool profession rolls (europe_purchase_option_count .. europe_sort_train_by_cost) ===================== */
 int europe_purchase_option_count(void) {
   return k_purchase_opt_count;
 }
@@ -941,6 +960,7 @@ static void europe_sort_train_by_cost(EuropeTrainOption* a, int n) {
 static int g_europe_cargo_burden[EUROPE_CARGO_MAX];
 static int g_europe_cargo_burden_count;
 
+/* ===================== Cargo tables, nation setup & campaign reset (europe_cargo_burden .. europe_reset_campaign_nation) ===================== */
 int europe_cargo_burden(int cargo_type) {
   if (cargo_type < 0 || cargo_type >= g_europe_cargo_burden_count) {
     return 0;
@@ -1228,6 +1248,7 @@ void europe_reset_campaign_nation(EuropeScreen* eu, int nation) {
   europe_set_status(eu, "Home port ready. Recruit / Purchase / Train / S Sail.");
 }
 
+/* ===================== Recruit, train & purchase commit flows (europe_compute_recruit_passage .. europe_open_recruit_menu) ===================== */
 int europe_compute_recruit_passage(
   int recruit_count, int difficulty, int current_crosses, int needed_crosses
 ) {
@@ -1597,6 +1618,7 @@ bool europe_open_recruit_menu(EuropeScreen* eu) {
   return true;
 }
 
+/* ===================== Dock unit typing, kit application & mirror units (europe_dock_unit_dos_type .. europe_remove_dock_mirror_unit) ===================== */
 int europe_dock_unit_dos_type(int profession, int difficulty, bool human, ColonizeDosRng* rng) {
   int type = 0; /* Colonists */
   if (profession == UNITS_JOB_PIONEER) {
@@ -1869,6 +1891,7 @@ void europe_remove_dock_mirror_unit(ColonizeUnitPool* units, int nation_id, int 
  * Soldiers or Dragoons and buy otherwise, Tools sell for Pioneers, Horses
  * sell for Dragoons or Scouts.
  */
+/* ===================== Dock arms buy/sell menu (europe_arm_buy_cost .. europe_pop_dock_immigrant_ex) ===================== */
 static int europe_arm_buy_cost(const EuropeScreen* eu, int cargo, int qty) {
   return europe_buy_price(eu, cargo) * qty;
 }
@@ -2264,6 +2287,7 @@ static bool europe_pop_dock_immigrant_ex(
   return true;
 }
 
+/* ===================== Harbor embark/disembark & voyage ticking (europe_harbor_push .. europe_notify_immigrant_sound) ===================== */
 bool europe_harbor_push(
   EuropeScreen* eu,
   int type_index,
@@ -2741,6 +2765,7 @@ void europe_notify_immigrant_sound(EuropeScreen* eu) {
   }
 }
 
+/* ===================== Treasure cashing & price ledger (europe_cash_treasure .. europe_apply_volume_price) ===================== */
 int europe_cash_treasure(EuropeScreen* eu, int treasure_value) {
   if (!eu || treasure_value <= 0) {
     return 0;
@@ -3006,6 +3031,7 @@ void europe_apply_volume_price(EuropeScreen* eu, int cargo_type, int amount, int
   europe_apply_trade_volume(eu, NULL, bound, bound, cargo_type, amount, is_buy, 1);
 }
 
+/* ===================== Market price ticking & immigration pressure (europe_tick_market_prices_w .. europe_tick_immigration_pressure_w) ===================== */
 void europe_tick_market_prices_w(
   const ColonizeWorld* w,
   int human_nation,
@@ -3411,7 +3437,7 @@ int europe_tick_immigration_pressure_w(
 }
 
 
-/* ===== AI-nation immigration (DOS FUN_38fd_5e52, control != 0) ===== */
+/* ===================== AI-nation immigration (DOS FUN_38fd_5e52, control != 0) (europe_pool_view_from_nation .. europe_nation_immigration_tick_w) ===================== */
 
 /*
  * DOS runs the whole immigration tick per nation from the nation EOT
@@ -3625,6 +3651,7 @@ int europe_nation_immigration_tick_w(const ColonizeWorld* w, int nation_id) {
  * together with the record pointer DS:0x84fc (viceroy_unpacked.c 58695-58703).
  * -1 when there is no screen or the field is out of range.
  */
+/* ===================== Gold accessors, live-save/popup wiring & purse moves (europe_purse_nation .. europe_credit_sale_tax) ===================== */
 static int europe_purse_nation(const EuropeScreen* eu) {
   if (!eu) {
     return -1;
@@ -3909,6 +3936,7 @@ static void europe_credit_sale_tax(
   col1->nation[nation].royal_money += tax_paid;
 }
 
+/* ===================== Labels, sell/buy commits & Custom House autosell (europe_set_labels .. europe_buy_cargo_w) ===================== */
 void europe_set_labels(EuropeScreen* eu, const struct ColonizeMsgCatalog* labels) {
   if (eu) {
     eu->labels = labels;
@@ -4729,6 +4757,7 @@ int europe_buy_cargo_w(
   return bought;
 }
 
+/* ===================== Icon flow, hit-testing, menus & cheats (europe_best_sell_hold .. europe_passenger_icon_sprite) ===================== */
 int europe_best_sell_hold(const EuropeScreen* eu, int harbor_index) {
   if (!eu || harbor_index < 0 || harbor_index >= eu->harbor_ships) {
     return -1;

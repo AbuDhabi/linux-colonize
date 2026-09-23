@@ -18,8 +18,22 @@ Keep these short and low-dependency.
 
 ## Unit
 
-Examples: `unit_units`, `unit_turn`, `unit_ai_contact`, `unit_col1_save`.
+Examples: `unit_units_core`, `unit_turn`, `unit_ai_contact`, `unit_col1_save`.
 Exercise one subsystem (or a tight cluster) with concrete expected outcomes.
+
+The unit-pool suite is **split by feature** (2026-09-23): `tests/unit/test_units.c`
+had grown to 12k lines, so adding one case meant reading all of it. The slices
+share only the include set in `tests/unit/test_units_common.h`; each keeps its
+own statics and its own `main()`.
+
+| Target | File | Covers |
+|--------|------|--------|
+| `unit_units_core` | `test_units_core.c` | the original inline `main()` body: new-world start, spawn/stack/move/board/unload, combat + analysis, LCR, colony/village interactions |
+| `unit_units_types` | `test_units_types.c` | @UNIT/@JOB catalog rows, display names, kind resolver, promotion/demotion, cap bits, the 2026-09-09 smell audit matrix |
+| `unit_units_pioneer` | `test_units_pioneer.c` | clear-forest, used-up tools, pioneer order gates and the case-8 tail |
+| `unit_units_ships` | `test_units_ships.c` | sea lanes, amphibious landing, colony docks, Europe arrival, drydock refit, warehouse, King's Galleon offer |
+| `unit_units_combat` | `test_units_combat.c` | fort fire + dissolve, combat SFX/music stings, native tile attack + alarm, capture/raze, artillery gates, 1b0e handicaps |
+| `unit_units_movement` | `test_units_movement.c` | fog/visibility, flood-fill river pairs, goto tails, wake/select, MP entry gating |
 
 ## Golden
 

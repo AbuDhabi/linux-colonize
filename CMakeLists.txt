@@ -94,6 +94,13 @@ add_library(colonize_sim STATIC
   src/core/ai.c
   src/core/ai_goals.c
   src/core/ai_euro.c
+  src/core/ai_euro_colony_jobs.c
+  src/core/ai_euro_expand.c
+  src/core/ai_euro_europe.c
+  src/core/ai_euro_goals.c
+  src/core/ai_euro_land.c
+  src/core/ai_euro_ship.c
+  src/core/ai_euro_act.c
   src/core/ai_diplo.c
   src/core/ai_contact.c
   src/core/ai_king.c
@@ -579,10 +586,15 @@ set(COLONIZE_SLIM_SOURCES
   src/platform/dos_compat/dos_compat.c
 )
 
-colonize_add_test(NAME unit_units
-  SOURCES tests/unit/test_units.c src/core/unit_stack.c ${COLONIZE_SLIM_SOURCES}
-  SLIM
-)
+# tests/unit/test_units.c was split by feature 2026-09-23 (it had grown to 12k
+# lines, so adding one case meant reading all of it). Same sources / SLIM flags
+# for every slice; shared include set in tests/unit/test_units_common.h.
+foreach(_units_slice core types pioneer ships combat movement)
+  colonize_add_test(NAME unit_units_${_units_slice}
+    SOURCES tests/unit/test_units_${_units_slice}.c src/core/unit_stack.c ${COLONIZE_SLIM_SOURCES}
+    SLIM
+  )
+endforeach()
 
 colonize_add_test(NAME unit_combat_strength
   SOURCES tests/unit/test_combat_strength.c src/core/unit_stack.c ${COLONIZE_SLIM_SOURCES}

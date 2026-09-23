@@ -18,7 +18,7 @@ interop beat "improvements" — see docs/project_goals.md.
 make test          # configure (if needed) + build preset debug + ctest --preset debug
 make golden        # build + run golden_ai_joint (not in ctest; run when AI/turn code changed)
 make build         # build only
-cmake --build --preset debug --target unit_ff && ./build/debug/unit_ff   # one test, cwd = repo root
+make test T=unit_ff [CASE=name]   # one test target (cheapest; prefer over full ctest)
 ./build/debug/colonize_linux --data-dir COLONIZE
 ```
 
@@ -32,7 +32,7 @@ cross-build artefacts; never build or test there. Tests expect repo root as cwd.
 | Anything | docs/conventions.md (jargon, code rules, fixture traps, evidence hierarchy, verify loop) |
 | Where does code / a doc live, who owns what | docs/architecture.md (Authority table + layer map) |
 | Bug from bugs.md | bugs.md row by `#` id; docs/manual_gap.md for the feature; docs/<feature>.md |
-| Decomp / DOS behaviour question | docs/original_index.md, tools/address_mapping.csv, original_sources_annotated/MODULE_MAP.md |
+| Decomp / DOS behaviour question | `python3 tools/decomp_fn.py FUN_ssss_oooo` (one body, cheap), docs/original_index.md, original_sources_annotated/MODULE_MAP.md |
 | AI (Euro / Indian / King) | docs/port_plan.md, docs/ai_euro_logic_map.yaml (+ tools/ai_logic_map.py check) |
 | Tests / fixtures | tests/README.md, tests/common/ai_fixture.h |
 | Debugging env vars, trace switches, debug.logs | docs/debug_env_vars.md |
@@ -64,11 +64,16 @@ not specs.
   tests may call them directly. Cross-stage DOS locals live in the ctx struct and must be
   written back on every stage exit (docs/conventions.md "Ctx write-back trap").
 - Slim test targets only: `ai_contact_link_stubs.c` (guarded by `COLONIZE_SLIM_TEST`).
-- Big files: `game_loop.c`, `ai_euro.c`, `units.c`, `ai_contact.c` have `Sections:`
-  indexes at the top and `/* ===== ... ===== */` banners. Grep the banner, do not
-  read the file.
+- Big files (`game_loop.c`, `units.c`, `ai_contact.c`, `ai_king.c`, `ai.c`, `europe.c`,
+  `colony.c`, `reports.c`, `turn.c`, `colony_screen.c`, `ai_diplo.c`, `col1_bridge.c`,
+  `game_dialogs.c`, and the `ai_euro_*.c` family) have `Sections:` indexes at the top
+  and `/* ===== ... ===== */` banners. Grep the banner, Read only that range.
+  Euro AI is split: `ai_euro.c` (dispatcher) + `ai_euro_{colony_jobs,expand,europe,goals,land,ship,act}.c`;
+  cross-file seams live in `ai_euro_internal.h`. Header design prose lives in
+  docs/colony.md, docs/europe.md, docs/units.md (headers keep one-line pointers).
 - bugs.md: rows have permanent `#` ids and a `Status` (OPEN / FIXED / CLOSED / REFUTED).
-  Agents set FIXED with a one-sentence resolution; the user sets CLOSED. Closed rows
-  move to docs/archive/bugs_closed.md.
+  bugs.md holds OPEN rows only. Agents set FIXED (short resolution) and move the row to
+  docs/archive/bugs_fixed_pending.md; the user sets CLOSED and moves it to
+  docs/archive/bugs_closed.md. Grep a row by `| NNN |`, never Read the whole archive.
 - Docs over ~800 lines get split or archived. Audit dumps get a `STATUS:` header.
 - Port saves in port_saves/ are live player saves: never git-restore or overwrite.

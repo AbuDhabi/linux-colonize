@@ -27,6 +27,25 @@
 #include "platform/diagnostics.h"
 #include "platform/platform.h"
 
+/*
+ * Sections:
+ *  - View state, refresh helpers & subpanel close (~line 30)
+ *  - Subpanel open/close & popup font/text helpers (~line 292)
+ *  - Popup open: eject/jobs/dock-orders & minimap origin (~line 464)
+ *  - PIK loading, view load/free (~line 705)
+ *  - Background & chrome rendering primitives (~line 868)
+ *  - Icon strips & resource-count rendering (~line 1134)
+ *  - Area overlays & minimap rendering (~line 1464)
+ *  - Building slot layout, chains & building strip rendering (~line 1847)
+ *  - Cargo/transport strip rendering (~line 2637)
+ *  - Population/people panel rendering (~line 2825)
+ *  - Multifunction production panel rendering (~line 3137)
+ *  - Popup rendering: construction/jobs/custom house/eject/dock/message (~line 3597)
+ *  - Hit testing & top-level render entry point (~line 4142)
+ */
+
+/* ===================== View state, refresh helpers & subpanel close (colony_screen_set_status .. colony_screen_close_construction) ===================== */
+
 void colony_screen_set_status(ColonyScreenView* view, const char* text) {
   if (!view) {
     return;
@@ -289,6 +308,8 @@ void colony_screen_close_construction(ColonyScreenView* view) {
   view->construction_selection = 0;
 }
 
+/* ===================== Subpanel open/close & popup font/text helpers (colony_screen_open_construction .. colony_screen_open_message_ok) ===================== */
+
 void colony_screen_open_construction(
   ColonyScreenView* view,
   const ColonizeColonyPool* pool,
@@ -460,6 +481,8 @@ void colony_screen_open_message_ok(ColonyScreenView* view, const char* text) {
   view->message_selection = 0;
   view->pending_eject_colonist = -1;
 }
+
+/* ===================== Popup open: eject/jobs/dock-orders & minimap origin (colony_screen_open_eject .. colony_screen_minimap_origin) ===================== */
 
 void colony_screen_open_eject(
   ColonyScreenView* view,
@@ -702,6 +725,8 @@ void colony_screen_minimap_origin(int* out_x, int* out_y) {
   }
 }
 
+/* ===================== PIK loading, view load/free (colony_screen_load_pik .. colony_screen_free) ===================== */
+
 static bool colony_screen_load_pik(
   const char* data_dir,
   const char* filename,
@@ -864,6 +889,8 @@ void colony_screen_free(ColonyScreenView* view) {
   }
   memset(view, 0, sizeof(*view));
 }
+
+/* ===================== Background & chrome rendering primitives (colony_screen_fill_parch .. colony_screen_draw_outlined_number) ===================== */
 
 static void colony_screen_fill_parch(const ColonyScreenView* view, ColonizeFramebuffer8* framebuffer) {
   if (!view || !view->parch_ok) {
@@ -1131,6 +1158,8 @@ static void colony_screen_draw_outlined_number(
  * The squeeze keeps the last sprite inside the rect, and the caller's
  * count badge still appears once the step collapses to <= 1px.
  */
+/* ===================== Icon strips & resource-count rendering (colony_screen_icon_strip_layout .. colony_screen_debug_building_rect) ===================== */
+
 static int colony_screen_icon_strip_layout(int x, int w, int count, int ref_iw, int* out_x) {
   if (count <= 0 || !out_x || ref_iw <= 0) {
     return 0;
@@ -1460,6 +1489,8 @@ enum {
  */
 static const int k_class_box[5][2] = {{23, 27}, {44, 22}, {53, 37}, {73, 18}, {75, 48}};
 
+
+/* ===================== Area overlays & minimap rendering (colony_screen_draw_area_overlays .. colony_screen_render_minimap) ===================== */
 
 static void colony_screen_draw_area_overlays(
   ColonyScreenView* view,
@@ -1843,6 +1874,8 @@ static const int k_dos_class_placeholder[COLONY_DOS_CLASS_COUNT] = {
  * and Recife at (41,38), 18 independent category→slot constraints).
  */
 #define COLONY_DOS_LAYOUT_SEED 25281u
+
+/* ===================== Building slot layout, chains & building strip rendering (colony_screen_set_layout_seed .. colony_screen_blit_buildings) ===================== */
 
 void colony_screen_set_layout_seed(ColonyScreenView* view, uint32_t boot_timer) {
   if (!view) {
@@ -2634,6 +2667,8 @@ static void colony_screen_blit_buildings(
 
 
 /* Warehouse strip: icon centered in each COLONY.PIK slot, amount below. */
+/* ===================== Cargo/transport strip rendering (colony_screen_draw_cargo_strip .. colony_screen_draw_transports) ===================== */
+
 static void colony_screen_draw_cargo_strip(
   const ColonyScreenView* view,
   const ColonizeColonyPool* pool,
@@ -2821,6 +2856,8 @@ static void colony_screen_draw_transports(
     colony_screen_blit_icon(view, COLONY_ICON_EMPTY_HOLD, framebuffer, x, y);
   }
 }
+
+/* ===================== Population/people panel rendering (colony_screen_sol_percent .. colony_screen_draw_people) ===================== */
 
 static int colony_screen_sol_percent(const ColonizeCol1Save* col1, const ColonizeColony* colony) {
   return colony_prod_sol_percent(col1, colony);
@@ -3134,6 +3171,8 @@ typedef struct ColonyProdSlot {
 } ColonyProdSlot;
 
 /* "used + stored" white pair in one cell (Lumber->Hammers, craft inputs). */
+/* ===================== Multifunction production panel rendering (colony_screen_prod_slot_split .. colony_screen_draw_multifunction) ===================== */
+
 static void colony_screen_prod_slot_split(ColonyProdSlot* s, int c, int used, int stored) {
   s->icon0 = COLONY_CARGO_ICON_BASE + c;
   s->amount0 = used;
@@ -3594,6 +3633,8 @@ static void colony_screen_draw_multifunction(
  * block out by hand. The height is clamped by the caller (each derives it
  * from its own row count first).
  */
+/* ===================== Popup rendering: construction/jobs/custom house/eject/dock/message (colony_screen_open_dialog_frame .. colony_screen_draw_message_popup) ===================== */
+
 static void colony_screen_open_dialog_frame(
   ColonyScreenView* view,
   ColonizeFramebuffer8* framebuffer,
@@ -4138,6 +4179,8 @@ static void colony_screen_draw_message_popup(
     }
   }
 }
+
+/* ===================== Hit testing & top-level render entry point (colony_screen_hit_test .. colony_screen_render_w) ===================== */
 
 ColonyScreenHitResult colony_screen_hit_test(
   const ColonyScreenView* view,

@@ -19,6 +19,7 @@ These require Python 3.
 
 | Name | Purpose | Invocation | Needs |
 |------|---------|-----------|-------|
+| `decomp_fn.py` | Print one Ghidra-decompiled `FUN_*` body (or its file:line range / callers) without reading the 3 MB exports; resolves overlay `FUN_0000_oooo` aliases via `address_mapping.csv` | `python3 tools/decomp_fn.py [--where\|--callers] FUN_521d_0a60` | Python 3 stdlib only; caches index in `build/decomp_fn_index.json` |
 | `ai_logic_map.py` | Render and validate docs/ai_euro_logic_map.yaml | `python3 tools/ai_logic_map.py <check\|html\|mermaid\|dot\|outline> [MAP] [options]` | Python 3 stdlib only |
 | `build_address_mapping.py` | Build FUN_<seg>_<off> ↔ overlay addressing lookup table | `python3 tools/build_address_mapping.py <canonical_csv> <overlay_csv> <layout_json>` | Python 3 stdlib only; requires Ghidra CSV dumps and rtlink layout |
 | `rtlink_overlay_extract.py` | Extract RTLink v2 overlay segments from VICEROY.EXE | `python3 tools/rtlink_overlay_extract.py COLONIZE/VICEROY.EXE OUTDIR` | Python 3 stdlib only; reads VICEROY.EXE, writes segments.json + per-segment .bin files |

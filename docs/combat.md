@@ -343,7 +343,7 @@ dwelling. Human `4528` `@ACTIONS` arm **Done** (P8.8). Deep `4528` mid-body / VG
   `units_seize_noncombat_at` still skips hulls: it stands in for the colony
   walk-in, and DOS's own colony-fall purge `FUN_43f7_0512` destroys hulls
   outright with `@SEIZURESEA` rather than repairing them. Pinned by
-  `tests/unit/test_units.c` (`0352 hull arm damages berthed ships in a land
+  `tests/unit/test_units_*.c (split 2026-09-23)` (`0352 hull arm damages berthed ships in a land
   sweep`).
 - Winner: Washington always-promote; else chance promote (`FUN_5fef_172c`)
 - Native def: settlement fallout (`FUN_5fef_31ea`) + `@LOOT` (treasure, DOS tag
@@ -564,7 +564,7 @@ Braves 19), the identity the typed attack-fire sound already relies on. This
 is on top of, not instead of, the Artillery ×2-vs-natives strength term
 (`combat_strength.c`, `COMBAT_FLAG_ARTY_COLONY`), which only made the pairing
 *usually* fatal. Test: `unit_brave_vs_human_artillery_autoloss`
-(`tests/unit/test_units.c`) — 40 seeds never win against a human European's
+(`tests/unit/test_units_*.c (split 2026-09-23)`) — 40 seeds never win against a human European's
 Artillery, while the same seeds against an **AI** European (control != 0), and
 Armed Braves against the human one, still win sometimes.
 

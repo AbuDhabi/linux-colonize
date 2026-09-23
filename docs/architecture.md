@@ -218,7 +218,7 @@ Cluster table (not every file). Paths are under `src/core/` unless noted.
 | **Units / combat** | `units.h` (umbrella) + `units_move.h`, `units_combat.h`, `units_cargo.h`, `unit_stack`, `unit_chrome`, `combat_strength`, `combat_analysis` | Move/orders, combat, cargo; split by concern for bring-up (pool lifecycle in `units.h`, modular specialization in the three) |
 | **Colonies** | `colony*`, `colony_screen`, `colony_yield`, `colony_production`, `colony_craft`, `colony_preview` | Logic + colony screen |
 | **Europe / economy** | `europe.c/.h` | Market, sail, recruit/hire |
-| **AI** | `ai`, `ai_euro`, `ai_contact`, `ai_diplo`, `ai_king`, `ai_goals`, `ai_popup` | Init + nation-turn entry; split planners |
+| **AI** | `ai`, `ai_euro` (+ `ai_euro_colony_jobs`, `ai_euro_expand`, `ai_euro_europe`, `ai_euro_goals`, `ai_euro_land`, `ai_euro_ship`, `ai_euro_act`), `ai_contact`, `ai_diplo`, `ai_king`, `ai_goals`, `ai_popup` | Init + nation-turn entry; split planners. The Euro AI was one 21.7k-line `ai_euro.c` until 2026-09-23; it is now eight files (dispatcher / 5952 colony jobs / wagon+found / 5d04 Europe / 0a60+colony goals / 20e6 land / ship band / act stages) with the cross-file seams declared in `ai_euro_internal.h`. |
 | **Save / Col1** | `savegame`, `col1_save` (API) + `col1_save_layout.h` (on-disk), `col1_bridge`, `col1_post_map`, `col1_stuff_census` | DOS `COLONY##.SAV` interop; layout split from API |
 | **Settings** | `settings.c/.h`, `json_min.c/.h` | Port-only `settings.json` preference file (see [settings.md](settings.md)) |
 | **Assets / art** | `assets`, `madspack`, `pik`, `ss`, `ff`, `font`, `debug_atlas` | Catalogs + MADSPACK decode |

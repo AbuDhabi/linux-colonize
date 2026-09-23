@@ -1,5 +1,24 @@
 #include "core/colony.h"
 
+/*
+ * Sections:
+ *  - Map icons, fortification tier & colony lookup/fog queries (~line 32)
+ *  - Pool init & building/name catalog loading (~line 192)
+ *  - Founding site checks & Indian land purchase/claim (~line 404)
+ *  - Occupancy map, colony founding & col1 tile bookkeeping (~line 949)
+ *  - Colony pool accessors, field/plot geometry & DOS plot-blocked mask (~line 1170)
+ *  - Colonist tile slots, school tiers & profession labels/teaching rules (~line 1469)
+ *  - School/workplace chrome popups & field/building work assignment (~line 1683)
+ *  - Colonist admission, seating & auto-assignment of idle workers (~line 1975)
+ *  - Colonist eject/dismiss flow & gear seizure on release (~line 2160)
+ *  - Fortification bonus, abandon & colony capture (~line 2579)
+ *  - Build queue: unit build info, wagon caps & construction set/complete/buy (~line 2742)
+ *  - Building catalog, chains & buildability rules (~line 3190)
+ *  - Warehouse capacity, spoilage & goods-full chrome popups (~line 3582)
+ *  - Cargo transfer to/from carrier units (~line 3866)
+ *  - Foreign/Custom-House trade gate & trade-route stop servicing (~line 4017)
+ */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -29,6 +48,7 @@
 #define COLONY_MAP_ICON_FORTRESS 2
 #define COLONY_MAP_ICON_NONE 3
 
+/* ===================== Map icons, fortification tier & colony lookup/fog queries (colonies_settlement_icon .. colonies_reveal_founded_w) ===================== */
 int colonies_settlement_icon(const ColonizeColonyPool* pool, const ColonizeColony* c) {
   if (!pool || !c) {
     return COLONY_MAP_ICON_NONE;
@@ -188,6 +208,7 @@ void colonies_reveal_founded_w(
 }
 
 
+/* ===================== Pool init & building/name catalog loading (colonies_init .. colonies_building_type) ===================== */
 void colonies_init(ColonizeColonyPool* pool) {
   if (!pool) {
     return;
@@ -399,6 +420,7 @@ const ColonizeBuildingType* colonies_building_type(const ColonizeColonyPool* poo
   return &pool->building_types[type_index];
 }
 
+/* ===================== Founding site checks & Indian land purchase/claim (colonies_can_found .. colonies_found_with_indian_land_w) ===================== */
 bool colonies_can_found(
   const ColonizeColonyPool* pool,
   const ColonizeWorldMap* map,
@@ -943,6 +965,7 @@ int colonies_found_with_indian_land_w(
  */
 static ColonizeWorldMap* g_colonies_occupancy_map = NULL;
 
+/* ===================== Occupancy map, colony founding & col1 tile bookkeeping (colonies_set_occupancy_map .. colonies_found) ===================== */
 void colonies_set_occupancy_map(ColonizeWorldMap* map) {
   g_colonies_occupancy_map = map;
 }
@@ -1163,6 +1186,7 @@ int colonies_found(
   return slot->id;
 }
 
+/* ===================== Colony pool accessors, field/plot geometry & DOS plot-blocked mask (colonies_get .. colonies_plot_blocked_mask) ===================== */
 const ColonizeColony* colonies_get(const ColonizeColonyPool* pool, int colony_id) {
   return colonies_get_mut((ColonizeColonyPool*)pool, colony_id);
 }
@@ -1461,6 +1485,7 @@ uint8_t colonies_plot_blocked_mask(
   return mask;
 }
 
+/* ===================== Colonist tile slots, school tiers & profession labels/teaching rules (colonies_colonist_tile .. colonies_profession_name) ===================== */
 int colonies_colonist_tile(const ColonizeColony* colony, int colonist_index) {
   if (!colony || colonist_index < 0) {
     return -1;
@@ -1674,6 +1699,7 @@ const char* colonies_profession_name(int profession) {
   return reports_job_short_name(profession);
 }
 
+/* ===================== School/workplace chrome popups & field/building work assignment (colonies_emit_noteacher_chrome .. colonies_clear_field) ===================== */
 void colonies_emit_noteacher_chrome(
   AiPopupState* ai_popups,
   const ColonizeMsgCatalog* messages
@@ -1965,6 +1991,7 @@ bool colonies_clear_field(ColonizeColonyPool* pool, int colony_id, int tile_inde
   return true;
 }
 
+/* ===================== Colonist admission, seating & auto-assignment of idle workers (colonies_admit_unit_w .. colonies_auto_assign_idle) ===================== */
 int colonies_admit_unit_w(
   const ColonizeWorld* w,
   int colony_id,
@@ -2149,6 +2176,7 @@ void colonies_auto_assign_idle(ColonizeColonyPool* pool, int colony_id) {
   }
 }
 
+/* ===================== Colonist eject/dismiss flow & gear seizure on release (colonies_eject_role_name .. colonies_eject_colonist) ===================== */
 const char* colonies_eject_role_name(int role) {
   /* NAMES.TXT @JOB column 0: rows 20..24 are the equipped roles, 19 Colonist. */
   switch (role) {
@@ -2567,6 +2595,7 @@ int colonies_eject_colonist(
   return uid;
 }
 
+/* ===================== Fortification bonus, abandon & colony capture (colonies_has_fortification .. colonies_capture) ===================== */
 bool colonies_has_fortification(const ColonizeColonyPool* pool, const ColonizeColony* colony) {
   if (!pool || !colony) {
     return false;
@@ -2729,6 +2758,7 @@ bool colonies_capture(ColonizeColonyPool* pool, int colony_id, int new_nation_id
   return colonies_capture_ex(pool, colony_id, new_nation_id, NULL);
 }
 
+/* ===================== Build queue: unit build info, wagon caps & construction set/complete/buy (colonies_unit_build_info .. colonies_buy_construction) ===================== */
 bool colonies_unit_build_info(int raw_code, const char** name, int* hammers, int* tools_cost) {
   /*
    * DOS FUN_15eb_33aa kind-2 arm (raw 13489-13504) reads the @UNIT cost/tools
@@ -3176,6 +3206,7 @@ bool colonies_buy_construction(ColonizeColonyPool* pool, int colony_id, int diff
   return true;
 }
 
+/* ===================== Building catalog, chains & buildability rules (colonies_has_building_named .. colonies_list_buildable) ===================== */
 bool colonies_has_building_named(
   const ColonizeColonyPool* pool,
   const ColonizeColony* col,
@@ -3567,6 +3598,7 @@ int colonies_list_buildable(
   return n;
 }
 
+/* ===================== Warehouse capacity, spoilage & goods-full chrome popups (colonies_warehouse_capacity .. colonies_apply_warehouse_spoilage) ===================== */
 int colonies_warehouse_capacity(
   const ColonizeColonyPool* pool,
   const ColonizeColony* colony,
@@ -3850,6 +3882,7 @@ int colonies_apply_warehouse_spoilage(
   return spoiled;
 }
 
+/* ===================== Cargo transfer to/from carrier units (colonies_transfer_to_unit .. colonies_transfer_from_unit_amount) ===================== */
 int colonies_transfer_to_unit(
   ColonizeColonyPool* pool,
   int colony_id,
@@ -4000,6 +4033,7 @@ int colonies_transfer_from_unit_amount(
  * 6316-6320 / 51962-51966 / 58996-59000) — the same derivation europe.c's
  * dump-sell arm cites.
  */
+/* ===================== Foreign/Custom-House trade gate & trade-route stop servicing (colonies_ftrade_price_byte .. colonies_best_load_cargo) ===================== */
 static int colonies_ftrade_price_byte(const ColonizeCol1Save* col1, int nation, int cargo) {
   if (!col1 || nation < 0 || nation >= (int)COLONIZE_COL1_NATION_COUNT || cargo < 0 ||
       cargo >= (int)COLONIZE_COL1_CARGO_TYPES) {

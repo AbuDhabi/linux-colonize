@@ -17,6 +17,21 @@
 #include "core/village_trade_intel.h"
 #include "platform/diagnostics.h"
 
+/*
+ * Sections:
+ *  - Cargo nibble, terrain/tile-mask & Europe coord helpers (~line 21)
+ *  - Trade-route cursor & Europe dock/job helpers (~line 111)
+ *  - Colony building & building-chain bit encode/decode (~line 234)
+ *  - Unit-type/ship-root mapping & runtime template init (~line 461)
+ *  - Map occupancy/density sync & unit MP helpers (~line 547)
+ *  - COL1 -> runtime apply (save import) (~line 778)
+ *  - Unit list sanitize for DOS export (~line 1867)
+ *  - Runtime -> COL1 capture (save export) (~line 2000)
+ *  - New-world discovery & adjacent-tribe contact (~line 3225)
+ */
+
+/* ===================== Cargo nibble, terrain/tile-mask & Europe coord helpers (col1_unit_set_cargo_item .. col1_coord_is_europe) ===================== */
+
 /* Nibble slot gi (0..5) of a COL1 unit's cargo_item_0..5. */
 static void col1_unit_set_cargo_item(ColonizeCol1Unit* dst, int gi, int t) {
   switch (gi) {
@@ -138,6 +153,7 @@ static bool col1_coord_is_europe(uint8_t x, uint8_t y) {
  * UNITS_JOB_NONE (0x1c — low nibble 12) into that byte for a route unit whose
  * slot went stale, so the bound check is load-bearing on the decode side.
  */
+/* ===================== Trade-route cursor & Europe dock/job helpers (col1_bridge_trade_cursor_valid .. col1_find_human_nation) ===================== */
 static bool col1_bridge_trade_cursor_valid(
   const ColonizeCol1Save* save,
   int route,
@@ -262,6 +278,7 @@ static int col1_find_human_nation(const ColonizeCol1Save* save) {
  * Press). Decoding "popcount tiers, lowest first" turned those into the
  * *lower* building, which is why these are bit-exact now.
  */
+/* ===================== Colony building & building-chain bit encode/decode (col1_apply_building_bits .. col1_encode_colony_buildings) ===================== */
 static void col1_apply_building_bits(
   ColonizeColonyPool* pool,
   ColonizeColony* colony,
@@ -458,6 +475,7 @@ static void col1_encode_colony_buildings(
   out->unused05 = prev.unused05;
 }
 
+/* ===================== Unit-type/ship-root mapping & runtime template init (col1_unit_type_to_runtime .. col1_bridge_init_template) ===================== */
 static int col1_unit_type_to_runtime(const ColonizeUnitPool* units, uint8_t col1_type) {
   if (!units || units->type_count <= 0) {
     return -1;
@@ -544,6 +562,7 @@ bool col1_bridge_init_template(
   return true;
 }
 
+/* ===================== Map occupancy/density sync & unit MP helpers (col1_occupancy_or_xy .. col1_bridge_unit_max_mp) ===================== */
 static void col1_occupancy_or_xy(
   ColonizeCol1Save* save,
   ColonizeWorldMap* map,
@@ -775,6 +794,7 @@ static int col1_bridge_unit_max_mp(
   return total;
 }
 
+/* ===================== COL1 -> runtime apply (save import) (col1_bridge_apply_w) ===================== */
 bool col1_bridge_apply_w(
   const ColonizeWorld* w,
   ColonizeCol1BridgeResult* out,
@@ -1864,6 +1884,7 @@ bool col1_bridge_apply_w(
  * Last-chance DOS hygiene before export: board co-located land onto own ships,
  * and nudge settler-ish euros off village tiles (Danger Will Robinson).
  */
+/* ===================== Unit list sanitize for DOS export (col1_bridge_sanitize_units_for_dos) ===================== */
 static void col1_bridge_sanitize_units_for_dos(
   ColonizeUnitPool* units,
   const ColonizeWorldMap* map,
@@ -1997,6 +2018,7 @@ static void col1_bridge_sanitize_units_for_dos(
   }
 }
 
+/* ===================== Runtime -> COL1 capture (save export) (col1_bridge_capture_w) ===================== */
 bool col1_bridge_capture_w(
   const ColonizeWorld* w,
   uint16_t year,
@@ -3222,6 +3244,7 @@ bool col1_bridge_capture_w(
 }
 
 
+/* ===================== New-world discovery & adjacent-tribe contact (col1_bridge_mark_new_world_discovered .. col1_contact_adjacent_tribe) ===================== */
 void col1_bridge_mark_new_world_discovered(ColonizeCol1Save* save, int human_nation) {
   if (!save || human_nation < 0 || human_nation > 3) {
     return;
