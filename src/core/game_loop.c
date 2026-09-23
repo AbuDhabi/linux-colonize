@@ -852,6 +852,16 @@ void game_combat_popup_pump(void* user) {
   pumping = false;
 }
 
+/* bugs.md #659: keep the human's Europe tax mirror in step with a Col1
+ * nation.tax_rate write made from the combat layer (col1_bridge captures the
+ * mirror back over the record, so a record-only write would be lost). */
+static void game_tax_change_mirror(void* user, int nation_id, int new_tax) {
+  ColonizeGameState* game = (ColonizeGameState*)user;
+  if (game && game->europe_ok && nation_id == game->human_nation) {
+    game->europe.tax_percent = new_tax;
+  }
+}
+
 void game_bind_combat_analysis(ColonizeGameState* game) {
   if (!game) {
     return;
@@ -860,6 +870,7 @@ void game_bind_combat_analysis(ColonizeGameState* game) {
   units_set_combat_human_nation(game->human_nation);
   units_set_combat_music_hooks(sound_play, sound_active_song_id);
   units_set_bgm_hook(sound_set_bgm);
+  units_set_tax_change_hook(game_tax_change_mirror, game);
   ai_diplo_set_sound_hook(sound_play);
   europe_set_sound_hook(sound_play);
   europe_set_bgm_hook(sound_set_bgm);

@@ -775,9 +775,17 @@ static int colonies_indian_land_purchase_gold_on(
     score = 1;
   }
   int cost = scale * score;
-  /* Human: *(tension+1); tension stand-in 0 until 0a60 wired. */
+  /*
+   * DOS-LITERAL FUN_4cc6_07c2 raw 81226-81228 (bugs.md #735): human only,
+   *   uVar2 = FUN_281f_030c(tribe, DS:0x5394 nation_turn);   // alarm word
+   *   iVar1 = FUN_281f_0a60(uVar2);                          // quartile 0..3
+   *   local_4 = (iVar1 + 1) * local_4;
+   * i.e. the tribe's alarm quartile toward the buying nation scales the price
+   * x1..x4. nation_turn == nation_id on the human's own turn.
+   */
   if (is_human) {
-    cost = (0 + 1) * cost;
+    const int alarm = ai_diplo_indian_alarm(col1, (int)tribe->nation_id, nation_id);
+    cost = (ai_relation_quartile(alarm) + 1) * cost;
   }
   if (tribe->state.capital) {
     cost = cost + (cost >> 1);

@@ -501,6 +501,17 @@ static int unit_pioneer_case8_tail(void) {
       fprintf(stderr, "case8: AI land price should be positive, got %d\n", price);
       goto done;
     }
+    /* bugs.md #735: human price scales by (alarm quartile + 1), FUN_4cc6_07c2 raw 81226-81228. */
+    col1.player[1].control = 0;
+    const int p_calm = colonies_indian_land_purchase_gold(&col1, &map, fx, fy, 1);
+    col1.indian[0].alarm_by_player[1] = 80; /* quartile 3 -> x4 */
+    const int p_hot = colonies_indian_land_purchase_gold(&col1, &map, fx, fy, 1);
+    col1.indian[0].alarm_by_player[1] = 0;
+    col1.player[1].control = 1;
+    if (p_calm <= 0 || p_hot < 4 * p_calm - 3 || p_hot > 4 * p_calm + 3) {
+      fprintf(stderr, "case8: human alarm price calm %d hot %d (want ~x4)\n", p_calm, p_hot);
+      goto done;
+    }
     const int pid = units_spawn(&pool, pioneer, fx, fy);
     ColonizeUnit* u = units_get(&pool, pid);
     if (!u) {

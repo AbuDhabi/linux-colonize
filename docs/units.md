@@ -211,7 +211,7 @@ Returns true when the core ring touched a Pacific-strip water tile
 ## units_reset_hooks
 
 Test-fixture hygiene: process-global callback hooks (move/combat watch,
-dissolve, raid-repelled, popup pump, bgm) persist across
+dissolve, raid-repelled, popup pump, bgm, tax-change) persist across
 units_reset(pool) since they aren't per-pool state. Call this to put them
 all back to their unregistered (NULL) initial values, e.g. at the top of a
 shared test fixture's setup, so one test's registrations can't leak into

@@ -924,6 +924,8 @@ bool units_fort_vs_ship(
       );
       units_play_event_sound(0x57);
     }
+    /* FUN_5fef_0352 raw 99653-99690: Royal-flagged hull lost → tax cut (bugs.md #659). */
+    (void)units_royal_loss_tax_cut((ColonizeCol1Save*)col1, pool, def);
     units_despawn(pool, defender_id);
     units_dissolve_notify(1);
     return true;

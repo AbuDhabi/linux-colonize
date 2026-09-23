@@ -1632,8 +1632,70 @@ static int unit_1b0e_defender_bonus_live(void) {
   }
   return rc;
 }
+/* bugs.md #659: FUN_5fef_0352 Royal-flagged hull loss lowers tax_rate via the
+ * DS:0x978d table read one entry late (Caravel 4, Merchantman 6, Galleon 3,
+ * Privateer 8, Frigate 0); Artillery is skipped by the `0 < k` test. */
+static int s_tax_hook_nation = -1;
+static int s_tax_hook_value = -1;
+static void unit_tax_hook(void* user, int nation_id, int new_tax) {
+  (void)user;
+  s_tax_hook_nation = nation_id;
+  s_tax_hook_value = new_tax;
+}
+static int unit_royal_loss_tax_cut(void) {
+  static const struct { const char* name; int tax; int want_cut; int want_hook; } k[] = {
+    {"Caravel", 30, 4, 1},   {"Merchantman", 30, 6, 1}, {"Galleon", 30, 3, 1},
+    {"Privateer", 30, 8, 1}, {"Frigate", 30, 0, 0},     {"Artillery", 30, 0, 0},
+    {"Caravel", 3, 3, 1},    {"Caravel", 0, 0, 0},
+  };
+  for (size_t i = 0; i < sizeof(k) / sizeof(k[0]); ++i) {
+    ColonizeUnitPool pool;
+    memset(&pool, 0, sizeof(pool));
+    pool.type_count = 1;
+    snprintf(pool.types[0].name, sizeof(pool.types[0].name), "%s", k[i].name);
+    ColonizeUnit u;
+    memset(&u, 0, sizeof(u));
+    u.type_index = 0;
+    u.nation_id = 1;
+    u.col1_flags15 = 0x40;
+    ColonizeCol1Save c1;
+    memset(&c1, 0, sizeof(c1));
+    c1.nation[1].tax_rate = (uint8_t)k[i].tax;
+    units_reset_hooks();
+    units_set_tax_change_hook(unit_tax_hook, NULL);
+    s_tax_hook_nation = -1;
+    s_tax_hook_value = -1;
+    const int cut = units_royal_loss_tax_cut(&c1, &pool, &u);
+    const int want_tax = k[i].tax - k[i].want_cut;
+    if (cut != k[i].want_cut || (int)c1.nation[1].tax_rate != want_tax ||
+        (k[i].want_hook && (s_tax_hook_nation != 1 || s_tax_hook_value != want_tax)) ||
+        (!k[i].want_hook && s_tax_hook_nation != -1)) {
+      fprintf(stderr, "royaltax: %s tax %d: cut %d (want %d) tax %d hook %d/%d\n",
+              k[i].name, k[i].tax, cut, k[i].want_cut, (int)c1.nation[1].tax_rate,
+              s_tax_hook_nation, s_tax_hook_value);
+      units_reset_hooks();
+      return 1;
+    }
+    /* Not Royal-flagged: nothing. */
+    u.col1_flags15 = 0;
+    c1.nation[1].tax_rate = 30;
+    if (units_royal_loss_tax_cut(&c1, &pool, &u) != 0 || c1.nation[1].tax_rate != 30) {
+      fprintf(stderr, "royaltax: unflagged %s cut\n", k[i].name);
+      units_reset_hooks();
+      return 1;
+    }
+  }
+  units_reset_hooks();
+  fprintf(stderr, "unit_units: #659 royal hull loss tax cut ok\n");
+  return 0;
+}
+
 int main(void) {
   diag_init(0, NULL);
+  if (unit_royal_loss_tax_cut() != 0) {
+    diag_shutdown();
+    return 1;
+  }
   if (unit_combat_music_sting() != 0) {
     diag_shutdown();
     return 1;
