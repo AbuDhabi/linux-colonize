@@ -66,7 +66,8 @@ not specs.
 - Slim test targets only: `ai_contact_link_stubs.c` (guarded by `COLONIZE_SLIM_TEST`).
 - Big files have `Sections:` indexes at the top and `/* ===== ... ===== */` banners.
   Grep the banner, Read only that range. Split families (cross-file seams in the
-  matching `*_internal.h`): `ai_euro_*.c`, `game_loop_*.c`, `units_*.c`, `ai_contact_*.c`;
+  matching `*_internal.h`): `ai_euro_*`, `game_loop_*`, `units_*`, `ai_contact_*`, `ai_king_*`,
+  `europe_*`, `ai_*` (ai_indian/ai_brave/ai_native_*), `colony_*`, `colony_screen_*`, `reports_*`, `turn_*`;
   docs/architecture.md names what each file holds. Header design prose lives in
   docs/colony.md, docs/europe.md, docs/units.md (headers keep one-line pointers).
   Tests are split the same way (`test_units_*.c`, `test_ai_euro_expand_*.c`, ...);

@@ -41,10 +41,10 @@ flags; cases moved verbatim (no case added, dropped or reworded), and the
 shared include set plus any helper used by more than one slice lives in
 `test_<name>_common.h`. The former entangled `main()` bodies were then turned
 into named cases: `test_turn_core.c` and `test_units_core.c` use independent
-`fx_open()`/`fx_stage*()` fixtures; `test_ai_contact_core.c` keeps its narrative
-as an ordered spine (`sp_00..sp_59`) replayed as cumulative prefix cases, so one
-early regression fails many cases. `test_ai_king_core.c` (`case_king_narrative`,
-2.8k lines) is still one entangled case.
+`fx_open()`/`fx_stage*()` fixtures; `test_ai_contact_core.c` and
+`test_ai_king_core.c` keep their narratives as ordered spines (`sp_00..sp_59` /
+`sp_00..sp_35`) replayed as cumulative prefix cases, so one early regression
+fails many cases.
 
 | Original (lines, cases) | Slices |
 |---|---|
@@ -52,7 +52,7 @@ early regression fails many cases. `test_ai_king_core.c` (`case_king_narrative`,
 | `test_ai_euro_expand.c` (7089, 57) | `unit_ai_euro_expand_purchase` (5d04 buys), `_haul` (wagon/ship errands, food delivery), `_europe` (exports, privateer loot, treasure), `_labor` (colony labor bind, AI flags), `_build` (construction ladder), `_settle` (Indian-land founding, pioneer timer) |
 | `test_turn.c` (6539, 13 + inline `main`) | `unit_turn_core` (60 named cases on an fx_open/fx_stage2/fx_stage3 spine: calendar, production, EOT phases), `_school` (training arms), `_colony` (century cargo-ready, hammers, fog reveal, tools need) |
 | `test_ai_euro_war.c` (5381, 42) | `unit_ai_euro_war_core` (merc hire, 5952 labor, peace/goal tails, g-stance), `_naval` (hunts, privateers, ambush), `_land` (adjacent combat + defender ladder), `_garrison` (fortify/quota), `_transport` (unload, war transport) |
-| `test_ai_king.c` (4735, 14) | `unit_ai_king_core` (entangled `case_king_narrative`), `_war` (war event, non-combat gate, 43f7 spawn types), `_revolution` (end ladder: @LOSING/@WARN/@WINNING/@RETIRING2/@SCORED) |
+| `test_ai_king.c` (4735, 14) | `unit_ai_king_core` (old narrative kept as an ordered cumulative spine; 35 prefix cases + 1 independent `dump_goods_pick_api`), `_war` (war event, non-combat gate, 43f7 spawn types), `_revolution` (end ladder: @LOSING/@WARN/@WINNING/@RETIRING2/@SCORED) |
 
 ## Golden
 
