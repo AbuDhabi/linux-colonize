@@ -77,6 +77,13 @@ add_library(colonize_sim STATIC
   src/core/map_gen.c
   src/core/dos_rng.c
   src/core/units.c
+  src/core/units_map.c
+  src/core/units_combat.c
+  src/core/units_combat_resolve.c
+  src/core/units_capture.c
+  src/core/units_move.c
+  src/core/units_pioneer.c
+  src/core/units_cargo.c
   src/core/unit_chrome.c
   src/core/village_trade_intel.c
   src/core/colony.c
@@ -103,6 +110,10 @@ add_library(colonize_sim STATIC
   src/core/ai_euro_act.c
   src/core/ai_diplo.c
   src/core/ai_contact.c
+  src/core/ai_contact_demand.c
+  src/core/ai_contact_trade.c
+  src/core/ai_contact_raid.c
+  src/core/ai_contact_actions.c
   src/core/ai_king.c
   src/core/savegame.c
   src/core/col1_save.c
@@ -127,6 +138,13 @@ add_library(colonize_sim STATIC
 
 add_library(colonize_ui STATIC
   src/core/game_loop.c
+  src/core/game_loop_menus.c
+  src/core/game_loop_saveload.c
+  src/core/game_loop_render.c
+  src/core/game_loop_orders.c
+  src/core/game_loop_colony.c
+  src/core/game_loop_eot.c
+  src/core/game_loop_update.c
   src/core/game_dialogs.c
   src/core/fb.c
   src/core/font.c
@@ -546,6 +564,13 @@ colonize_add_test(NAME unit_map_panel
 # plus the one extra source it needs.
 set(COLONIZE_SLIM_SOURCES
   src/core/units.c
+  src/core/units_map.c
+  src/core/units_combat.c
+  src/core/units_combat_resolve.c
+  src/core/units_capture.c
+  src/core/units_move.c
+  src/core/units_pioneer.c
+  src/core/units_cargo.c
   src/core/units_render.c
   src/core/village_trade_intel.c
   src/core/reports.c
@@ -629,10 +654,15 @@ colonize_add_test(NAME unit_map_menu
   LIBS colonize_core
 )
 
-colonize_add_test(NAME unit_turn
-  SOURCES tests/unit/test_turn.c
-  LIBS colonize_core
-)
+# tests/unit/test_turn.c was split by feature 2026-09-23 (6539 lines). The
+# entangled inline main() body stays in the _core slice; the 13 named cases
+# moved out. Shared include set: tests/unit/test_turn_common.h.
+foreach(_test_turn_slice core school colony)
+  colonize_add_test(NAME unit_turn_${_test_turn_slice}
+    SOURCES tests/unit/test_turn_${_test_turn_slice}.c
+    LIBS colonize_core
+  )
+endforeach()
 
 colonize_add_test(NAME unit_ff
   SOURCES
@@ -751,10 +781,15 @@ colonize_add_test(NAME unit_ai_goals
   LIBS colonize_core
 )
 
-colonize_add_test(NAME unit_ai_contact
-  SOURCES tests/unit/test_ai_contact.c
-  LIBS colonize_core
-)
+# tests/unit/test_ai_contact.c was split by feature 2026-09-23 (7456 lines).
+# case_full_contact_scenario is one entangled narrative and stays in _core.
+# Shared include set / helpers: tests/unit/test_ai_contact_common.h.
+foreach(_test_ai_contact_slice core meet colony)
+  colonize_add_test(NAME unit_ai_contact_${_test_ai_contact_slice}
+    SOURCES tests/unit/test_ai_contact_${_test_ai_contact_slice}.c
+    LIBS colonize_core
+  )
+endforeach()
 
 colonize_add_test(NAME unit_ai_indian_census
   SOURCES tests/unit/test_ai_indian_census.c
@@ -772,10 +807,15 @@ colonize_add_test(NAME unit_ai_diplo
 # year-gated), apply-then-optionally-revert CHOICE shape. Was DISABLED
 # 2026-08-19 (old AI-doc R6, git history) because the fixture predated
 # this formula port; that gap is closed.
-colonize_add_test(NAME unit_ai_king
-  SOURCES tests/unit/test_ai_king.c
-  LIBS colonize_core
-)
+# tests/unit/test_ai_king.c was split by feature 2026-09-23 (4735 lines).
+# case_king_narrative is one entangled narrative and stays in _core.
+# Shared include set / helpers: tests/unit/test_ai_king_common.h.
+foreach(_test_ai_king_slice core war revolution)
+  colonize_add_test(NAME unit_ai_king_${_test_ai_king_slice}
+    SOURCES tests/unit/test_ai_king_${_test_ai_king_slice}.c
+    LIBS colonize_core
+  )
+endforeach()
 
 colonize_add_test(NAME unit_stage_seams
   SOURCES tests/unit/test_stage_seams.c tests/common/platform_cursor_stubs.c
@@ -812,15 +852,23 @@ colonize_add_test(NAME unit_ai_euro_5952_lumber
   LIBS colonize_core
 )
 
-colonize_add_test(NAME unit_ai_euro_expand
-  SOURCES tests/unit/test_ai_euro_expand.c
-  LIBS colonize_core
-)
+# tests/unit/test_ai_euro_expand.c was split by feature 2026-09-23 (7089 lines).
+# Shared include set: tests/unit/test_ai_euro_expand_common.h.
+foreach(_test_ai_euro_expand_slice purchase haul europe labor build settle)
+  colonize_add_test(NAME unit_ai_euro_expand_${_test_ai_euro_expand_slice}
+    SOURCES tests/unit/test_ai_euro_expand_${_test_ai_euro_expand_slice}.c
+    LIBS colonize_core
+  )
+endforeach()
 
-colonize_add_test(NAME unit_ai_euro_war
-  SOURCES tests/unit/test_ai_euro_war.c
-  LIBS colonize_core
-)
+# tests/unit/test_ai_euro_war.c was split by feature 2026-09-23 (5381 lines).
+# Shared include set: tests/unit/test_ai_euro_war_common.h.
+foreach(_test_ai_euro_war_slice core naval land garrison transport)
+  colonize_add_test(NAME unit_ai_euro_war_${_test_ai_euro_war_slice}
+    SOURCES tests/unit/test_ai_euro_war_${_test_ai_euro_war_slice}.c
+    LIBS colonize_core
+  )
+endforeach()
 
 colonize_add_test(NAME unit_ai_euro_20e6
   SOURCES tests/unit/test_ai_euro_20e6.c
@@ -934,11 +982,14 @@ add_custom_target(golden_ai_joint
   COMMAND ${CMAKE_COMMAND} -E echo "golden_ai_joint: mapgen + turns + contact + diplo + mid01 + late01"
   COMMAND $<TARGET_FILE:golden_mapgen_seed100>
   COMMAND $<TARGET_FILE:golden_ai_turns>
-  COMMAND $<TARGET_FILE:unit_ai_contact>
+  COMMAND $<TARGET_FILE:unit_ai_contact_core>
+  COMMAND $<TARGET_FILE:unit_ai_contact_meet>
+  COMMAND $<TARGET_FILE:unit_ai_contact_colony>
   COMMAND $<TARGET_FILE:unit_ai_diplo>
   COMMAND $<TARGET_FILE:smoke_ai_mid01>
   COMMAND $<TARGET_FILE:smoke_ai_late01>
-  DEPENDS golden_mapgen_seed100 golden_ai_turns unit_ai_contact unit_ai_diplo smoke_ai_mid01 smoke_ai_late01
+  DEPENDS golden_mapgen_seed100 golden_ai_turns unit_ai_contact_core unit_ai_contact_meet
+          unit_ai_contact_colony unit_ai_diplo smoke_ai_mid01 smoke_ai_late01
   WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
   COMMENT "Joint Euro↔Indian AI golden gate (shared-surface)"
 )

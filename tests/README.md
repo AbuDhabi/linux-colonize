@@ -18,7 +18,7 @@ Keep these short and low-dependency.
 
 ## Unit
 
-Examples: `unit_units_core`, `unit_turn`, `unit_ai_contact`, `unit_col1_save`.
+Examples: `unit_units_core`, `unit_turn_core`, `unit_ai_contact_core`, `unit_col1_save`.
 Exercise one subsystem (or a tight cluster) with concrete expected outcomes.
 
 The unit-pool suite is **split by feature** (2026-09-23): `tests/unit/test_units.c`
@@ -35,6 +35,22 @@ own statics and its own `main()`.
 | `unit_units_combat` | `test_units_combat.c` | fort fire + dissolve, combat SFX/music stings, native tile attack + alarm, capture/raze, artillery gates, 1b0e handicaps |
 | `unit_units_movement` | `test_units_movement.c` | fog/visibility, flood-fill river pairs, goto tails, wake/select, MP entry gating |
 
+The same treatment was applied 2026-09-23 to the next five oversized suites.
+Each slice is its own ctest executable with the original target's sources and
+flags; cases moved verbatim (no case added, dropped or reworded), and the
+shared include set plus any helper used by more than one slice lives in
+`test_<name>_common.h`. Where the original `main()` was one entangled scope
+(`test_turn.c`, and the single-narrative mega-cases in `test_ai_contact.c` /
+`test_ai_king.c`) that body stays whole in the `_core` slice.
+
+| Original (lines, cases) | Slices |
+|---|---|
+| `test_ai_contact.c` (7456, 7) | `unit_ai_contact_core` (entangled `case_full_contact_scenario` narrative), `_meet` (first contact, encounter scan, chain order), `_colony` (5952 war tick, prelude alarm band, missionary arm) |
+| `test_ai_euro_expand.c` (7089, 57) | `unit_ai_euro_expand_purchase` (5d04 buys), `_haul` (wagon/ship errands, food delivery), `_europe` (exports, privateer loot, treasure), `_labor` (colony labor bind, AI flags), `_build` (construction ladder), `_settle` (Indian-land founding, pioneer timer) |
+| `test_turn.c` (6539, 13 + inline `main`) | `unit_turn_core` (the inline `main()` body: calendar, production, EOT phases), `_school` (training arms), `_colony` (century cargo-ready, hammers, fog reveal, tools need) |
+| `test_ai_euro_war.c` (5381, 42) | `unit_ai_euro_war_core` (merc hire, 5952 labor, peace/goal tails, g-stance), `_naval` (hunts, privateers, ambush), `_land` (adjacent combat + defender ladder), `_garrison` (fortify/quota), `_transport` (unload, war transport) |
+| `test_ai_king.c` (4735, 14) | `unit_ai_king_core` (entangled `case_king_narrative`), `_war` (war event, non-combat gate, 43f7 spawn types), `_revolution` (end ladder: @LOSING/@WARN/@WINNING/@RETIRING2/@SCORED) |
+
 ## Golden
 
 Examples: `golden_mapgen_seed100`, `golden_colony_prod01`/`02`.
@@ -49,7 +65,7 @@ TURN steps went green (history in [`docs/port_plan.md`](../docs/port_plan.md)
 T1.23 / T3.3).
 
 `golden_ai_joint` is a **build-only convenience target**, not a ctest test: it
-re-runs `golden_mapgen_seed100`, `golden_ai_turns`, `unit_ai_contact`,
+re-runs `golden_mapgen_seed100`, `golden_ai_turns`, the three `unit_ai_contact_*` slices,
 `unit_ai_diplo`, `smoke_ai_mid01` and `smoke_ai_late01` in one shot. Registering
 it as a test made a plain `ctest` run all six twice, so the `add_test()` was
 dropped 2026-09-14 (duplication audit TT-14). Run it explicitly:

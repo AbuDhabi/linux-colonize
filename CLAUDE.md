@@ -64,13 +64,15 @@ not specs.
   tests may call them directly. Cross-stage DOS locals live in the ctx struct and must be
   written back on every stage exit (docs/conventions.md "Ctx write-back trap").
 - Slim test targets only: `ai_contact_link_stubs.c` (guarded by `COLONIZE_SLIM_TEST`).
-- Big files (`game_loop.c`, `units.c`, `ai_contact.c`, `ai_king.c`, `ai.c`, `europe.c`,
-  `colony.c`, `reports.c`, `turn.c`, `colony_screen.c`, `ai_diplo.c`, `col1_bridge.c`,
-  `game_dialogs.c`, and the `ai_euro_*.c` family) have `Sections:` indexes at the top
-  and `/* ===== ... ===== */` banners. Grep the banner, Read only that range.
-  Euro AI is split: `ai_euro.c` (dispatcher) + `ai_euro_{colony_jobs,expand,europe,goals,land,ship,act}.c`;
-  cross-file seams live in `ai_euro_internal.h`. Header design prose lives in
+- Big files have `Sections:` indexes at the top and `/* ===== ... ===== */` banners.
+  Grep the banner, Read only that range. Split families (cross-file seams in the
+  matching `*_internal.h`): `ai_euro_*.c`, `game_loop_*.c`, `units_*.c`, `ai_contact_*.c`;
+  docs/architecture.md names what each file holds. Header design prose lives in
   docs/colony.md, docs/europe.md, docs/units.md (headers keep one-line pointers).
+  Tests are split the same way (`test_units_*.c`, `test_ai_euro_expand_*.c`, ...);
+  run one with `make test T=unit_units_core CASE=<case>`.
+- Concurrent agents: give each a private subdirectory of the scratchpad (shared
+  scratchpad files get overwritten) and disjoint source files.
 - bugs.md: rows have permanent `#` ids and a `Status` (OPEN / FIXED / CLOSED / REFUTED).
   bugs.md holds OPEN rows only. Agents set FIXED (short resolution) and move the row to
   docs/archive/bugs_fixed_pending.md; the user sets CLOSED and moves it to
